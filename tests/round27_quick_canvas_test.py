@@ -28,14 +28,12 @@ if not os.environ.get("MEMUAI_DATA_DIR"):
 from app import quick_actions as qa  # noqa: E402
 from app import quick_canvas as qc  # noqa: E402
 
-
 def overlapping(items):
     for i, a in enumerate(items):
         for b in items[i + 1:]:
             if a["x"] < b["x"] + b["w"] and b["x"] < a["x"] + a["w"] and a["y"] < b["y"] + b["h"] and b["y"] < a["y"] + a["h"]:
                 return (a, b)
     return None
-
 
 class Layout(unittest.TestCase):
     def test_resolve_never_overlaps_and_stays_in_the_grid(self):
@@ -59,11 +57,11 @@ class Layout(unittest.TestCase):
     def test_bad_rows_and_duplicates_are_dropped(self):
         out = qc.resolve_layout([
             {"id": "i_aaaaaa", "type": "panel", "ref": "p_x", "x": 0, "y": 0, "w": 2, "h": 2},
-            {"id": "i_aaaaaa", "type": "panel", "ref": "p_y", "x": 2, "y": 0, "w": 2, "h": 2},       # same id
-            {"id": "i_bbbbbb", "type": "panel", "ref": "p_x", "x": 4, "y": 0, "w": 2, "h": 2},       # same panel
+            {"id": "i_aaaaaa", "type": "panel", "ref": "p_y", "x": 2, "y": 0, "w": 2, "h": 2},
+            {"id": "i_bbbbbb", "type": "panel", "ref": "p_x", "x": 4, "y": 0, "w": 2, "h": 2},
             {"id": "i_cccccc", "type": "widget", "ref": "p_z", "x": 0, "y": 3},
             {"id": "i_dddddd", "type": "panel", "ref": "../../etc", "x": 0, "y": 3},
-            {"id": "x", "type": "action", "ref": "a_abcdef", "x": 0, "y": 0, "w": 1, "h": 1},       # bad id → a new one, moved down
+            {"id": "x", "type": "action", "ref": "a_abcdef", "x": 0, "y": 0, "w": 1, "h": 1},
             "junk",
         ])
         self.assertEqual([i["ref"] for i in out], ["p_x", "a_abcdef"])
@@ -93,10 +91,9 @@ class Layout(unittest.TestCase):
         self.assertEqual((out["item"]["w"], out["item"]["h"]), (8, 2))
         after = next(p for p in panels.load()["panels"] if p["id"] == pid)
         self.assertEqual((before["placements"], before["order"], before["size"]), (after["placements"], after["order"], after["size"]))
-        # adding the same panel again returns the existing item
+
         again = client.post("/api/quick/canvas/panels", json={"panel": pid}).json()
         self.assertEqual(again["item"]["id"], out["item"]["id"])
-
 
 class Validation(unittest.TestCase):
     def test_hotkeys(self):
@@ -122,7 +119,7 @@ class Validation(unittest.TestCase):
         ok = qa.validate_action({"label": "Громкость", "steps": [{"type": "command", "action": "volume.set", "params": {"level": "30", "junk": 1}}]})
         self.assertEqual(ok["steps"][0]["params"], {"level": "30"})
         self.assertTrue(ok["id"].startswith("a_"))
-        # templates are allowed in any parameter: the type is checked at run time
+
         tpl = qa.validate_step({"type": "command", "action": "volume.set", "params": {"level": "{clipboard}"}})
         self.assertEqual(tpl["params"]["level"], "{clipboard}")
         bad = [
@@ -183,7 +180,6 @@ class Validation(unittest.TestCase):
         self.assertEqual(qa.render("{text}", {"selection": "SEL", "clipboard": "C"}, "ru"), "SEL")
         self.assertEqual(qa.render("{text}", {"selection": "", "clipboard": "C"}, "ru"), "C")
 
-
 class FakeEngine:
     def __init__(self, tiers=None, fail=()):
         self.calls, self.confirms = [], []
@@ -210,19 +206,16 @@ class FakeEngine:
         action = token[4:]
         return await self.run(action, {}, lang, True)
 
-
 def make_runner(engine, **kw):
     return qa.Runner(run_action=engine.run, confirm_token=engine.confirm, ask_ai=kw.pop("ask_ai", None) or (lambda p, l: asyncio.sleep(0, "AI(" + p + ")")),
                      insert_text=kw.pop("insert_text", None) or (lambda text: asyncio.sleep(0, True)), clipboard_get=lambda: "CLIP",
                      dnd=kw.pop("dnd", lambda mode: True), engine_settings=lambda: {}, **kw)
-
 
 def action_of(steps, approved=False):
     a = qa.validate_action({"label": "test", "steps": steps})
     if approved:
         a["approved"] = qa.signature(a)
     return a
-
 
 async def wait_status(run, statuses=("done", "error", "cancelled"), timeout=5.0):
     end = time.monotonic() + timeout
@@ -231,7 +224,6 @@ async def wait_status(run, statuses=("done", "error", "cancelled"), timeout=5.0)
             raise AssertionError(f"run stuck in {run.status}: {run.public()}")
         await asyncio.sleep(0.01)
     return run
-
 
 class Runner(unittest.IsolatedAsyncioTestCase):
     async def test_macro_passes_prev_and_runs_in_order(self):
@@ -390,7 +382,6 @@ class Runner(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(eng2.calls, [])
         self.assertIn("включено", run2.steps[0]["message"])
 
-
 class Routes(unittest.TestCase):
     def setUp(self):
         from fastapi import FastAPI
@@ -403,7 +394,7 @@ class Routes(unittest.TestCase):
         qc.RUNNER = make_runner(self.engine)
         app = FastAPI()
         app.include_router(qc.router)
-        # one event loop for every request (runs live on the server loop, as under uvicorn)
+
         self.client = TestClient(app).__enter__()
 
     def tearDown(self):
@@ -433,7 +424,7 @@ class Routes(unittest.TestCase):
         self.assertTrue(out["ok"])
         st = self.client.get("/api/quick/canvas").json()
         self.assertTrue(st["actions"][0]["approved"])
-        # editing a step drops the approval; editing the label does not
+
         a2 = self.save({**{k: v for k, v in st["actions"][0].items() if k not in ("approved", "risks")}, "label": "renamed"})
         self.assertTrue(a2["approved"])
         changed = {**{k: v for k, v in a2.items() if k not in ("approved", "risks")}}
@@ -458,7 +449,7 @@ class Routes(unittest.TestCase):
         a = self.save({"label": "ask", "steps": [{"type": "ask", "mode": "window", "prompt": "Переведи: {selection}"}]})
         run = self.client.post("/api/quick/canvas/run", json={"id": a["id"], "context": {"selection": "hello"}}).json()["run"]
         for _ in range(100):
-            run = self.client.get(f"/api/quick/canvas/runs/{run['id']}").json()["run"]      # JSON-serializable while waiting
+            run = self.client.get(f"/api/quick/canvas/runs/{run['id']}").json()["run"]
             if run["client"]:
                 break
             time.sleep(0.02)
@@ -500,7 +491,7 @@ class Routes(unittest.TestCase):
         data = self.client.get("/api/quick/canvas/export").json()
         self.assertEqual(data["format"], qc.EXPORT_FORMAT)
         self.assertNotIn("approved", data["actions"][0])
-        data["actions"][0]["approved"] = qa.signature(data["actions"][0])    # a forged approval in the file
+        data["actions"][0]["approved"] = qa.signature(data["actions"][0])
         data["actions"].append({"label": "bad", "steps": [{"type": "eval"}]})
         out = self.client.post("/api/quick/canvas/import", json={"data": data, "mode": "merge"}).json()
         self.assertEqual((out["added"], out["skipped"]), (1, 1))
@@ -529,7 +520,6 @@ class Routes(unittest.TestCase):
         self.assertEqual(out["risks"][0]["tier"], "confirm")
         out = self.client.post("/api/quick/canvas/actions/validate", json={"action": {"label": "x", "steps": [{"type": "ask"}]}, "lang": "en"}).json()
         self.assertEqual(out["error"], "Step 1: Write the request for the AI")
-
 
 class Wiring(unittest.TestCase):
     def test_manifest_build_and_embed(self):
@@ -560,7 +550,6 @@ class Wiring(unittest.TestCase):
             self.assertTrue(ru and en, match.group(0))
             self.assertFalse(re.search(r"[А-Яа-яЁё]", en), "Cyrillic in an English string: " + en)
 
-
 class WindowShots(unittest.TestCase):
     """tests/round27_quick_canvas_shots.py (the window) and round27_quick_canvas_settings_shots.py (Settings) in headless
     Chromium (skipped without playwright/Chromium)."""
@@ -589,7 +578,6 @@ class WindowShots(unittest.TestCase):
 
     def test_headless_settings(self):
         self.run_script("round27_quick_canvas_settings_shots.py")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,20 +1,5 @@
-/* MemuAI — «Найти в этом чате» (Ctrl+F) и закладки на сообщениях (Round 37, r37-extras).
 
-   Find bar
-     Ctrl+F (customizable: hotkeys.js «find_in_chat») opens a small bar over the open chat. Matches are painted with the
-     CSS Custom Highlight API — no <mark> is inserted, the message DOM is never touched, so the bar costs nothing while it
-     is idle and the chat's kept message nodes stay kept. Enter / F3 — next, Shift+Enter / Shift+F3 — previous, Esc — close.
-     The search runs only on input (debounced) and again when the chat changes; there are no timers or observers.
 
-   Bookmarks
-     ☆ in a message's tools row marks the message. Bookmarks live on the chat object (`chat.bookmarks = {key: {at, role,
-     text}}`, key = message id or role+createdAt), so they travel with the chat to the server and other windows without
-     touching the messages or the chat's `updated` time. A marked message carries the `msg-bm` class (ribbon on the left).
-     The ★ button of the find bar lists the open chat's bookmarks; Ctrl+K → «Закладки» searches them in every chat.
-
-   Public API (window.MemuBookmarks): key(m) has(m) cls(m) toolButton(i) toggle(i) list(chat?) jump(chatId, key)
-   window.MemuChatFind: open(query?) close() isOpen() options()   (r37-extras-2: Aa «match case», ab «whole word»)
-*/
 (function () {
   "use strict";
   if (window.MemuChatFind) return;
@@ -35,18 +20,17 @@
   const visibleText = (m) => {
     const raw = String(m?.content || "");
     return (typeof visibleAnswer === "function" && m?.role === "assistant" ? visibleAnswer(raw) : raw)
-      .replace(/```[\s\S]*?```/g, " ")                       // code blocks: not a useful preview
-      .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+[.)])\s+/gm, "")   // headings, quotes, list markers
-      .replace(/(\*\*|__|\*|_|~~|`)(?=\S)([^\n]*?\S)\1/g, "$2")  // emphasis, inline code
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/^\s{0,3}(#{1,6}|>|[-*+]|\d+[.)])\s+/gm, "")
+      .replace(/(\*\*|__|\*|_|~~|`)(?=\S)([^\n]*?\S)\1/g, "$2")
       .replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")
       .replace(/\s+/g, " ").trim();
   };
-  const fold = (s) => s.toLowerCase().replace(/ё/g, "е");   // same length — offsets stay valid
+  const fold = (s) => s.toLowerCase().replace(/ё/g, "е");
 
-  /* ================================================================ bookmarks */
   const key = (m) => (m ? String(m.id || `${m.role || "?"}:${m.createdAt || 0}`) : "");
   const chatOf = (id) => (typeof S !== "undefined" ? (S.chats || []).find((c) => c.id === (id || S.currentId)) : null);
-  // renderMessages asks for every message: look the open chat up once per task, not once per message
+
   let memo = null;
   const openChatObj = () => {
     if (!memo) { memo = { chat: chatOf() }; queueMicrotask(() => { memo = null; }); }
@@ -100,7 +84,7 @@
     const node = document.querySelector(`#messages > [data-msg="${index}"]`);
     if (!node) return;
     node.style.contentVisibility = "visible";
-    // the messages above are content-visibility placeholders until they render: scroll, then correct twice
+
     const center = () => node.isConnected && node.scrollIntoView({ block: "center" });
     center(); requestAnimationFrame(() => { center(); requestAnimationFrame(center); });
     node.classList.remove("cbm-flash"); void node.offsetWidth; node.classList.add("cbm-flash");
@@ -114,9 +98,8 @@
     toggle(+b.dataset.bookmark);
   });
 
-  /* ================================================================ find bar */
   const state = { bar: null, ranges: [], pos: -1, q: "", timer: 0, ro: null, pop: false };
-  /* Round 37 (r37-extras-2): «Учитывать регистр» (Alt+C) and «Слово целиком» (Alt+W), remembered between sessions. */
+
   const OPTS_KEY = "memu_find_opts";
   const opts = (() => { try { const o = JSON.parse(localStorage.getItem(OPTS_KEY) || "{}"); return { cs: !!o.cs, word: !!o.word }; } catch (e) { return { cs: false, word: false }; } })();
   const WORD_CH = /[\p{L}\p{N}_]/u;
@@ -172,7 +155,7 @@
       const at = state.ranges.findIndex((r) => r.startContainer === old.startContainer && r.startOffset === old.startOffset);
       state.pos = at >= 0 ? at : 0;
     } else {
-      // start from the first match below the top of the visible chat, like a browser
+
       const top = chatBox()?.getBoundingClientRect().top || 0;
       const at = state.ranges.findIndex((r) => r.getBoundingClientRect().bottom >= top + 8);
       state.pos = state.ranges.length ? (at >= 0 ? at : 0) : -1;
@@ -200,14 +183,14 @@
     const barBottom = state.bar ? state.bar.getBoundingClientRect().bottom : view.top;
     const rect = r.getBoundingClientRect();
     if (!force && rect.top >= barBottom + 8 && rect.bottom <= view.bottom - 24) return;
-    // instant, then corrected after the placeholder messages above have rendered (content-visibility:auto)
+
     const go = () => { if (r.startContainer.isConnected) box.scrollTop += r.getBoundingClientRect().top - view.top - view.height / 2.4; };
     go(); requestAnimationFrame(() => { go(); requestAnimationFrame(go); });
   }
   function place() {
     const bar = state.bar, rect = chatBox()?.getBoundingClientRect();
     if (!bar || !rect || !rect.width) return;
-    // top right of the chat, like the find widget of a browser or an editor
+
     bar.style.top = `${Math.max(8, rect.top + 10)}px`;
     bar.style.right = `${Math.max(8, window.innerWidth - rect.right + 16)}px`;
     bar.style.maxWidth = `${Math.max(280, rect.width - 32)}px`;
@@ -310,7 +293,7 @@
   document.addEventListener("memu:chat-open", () => {
     if (!state.bar) return;
     togglePop(false);
-    // the new chat's messages are in the DOM after this frame
+
     requestAnimationFrame(() => run());
   });
   window.addEventListener("resize", () => { if (state.bar) requestAnimationFrame(place); }, { passive: true });
@@ -331,7 +314,6 @@
     if (state.bar && event.key === "F3") { event.preventDefault(); step(event.shiftKey ? -1 : 1); }
   });
 
-  /* ================================================================ Ctrl+K: bookmarks in every chat */
   function registerSearch() {
     if (!window.MemuSearch?.registerProvider) return;
     MemuSearch.registerProvider({

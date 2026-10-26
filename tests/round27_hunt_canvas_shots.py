@@ -23,7 +23,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-
 async def main(out: Path) -> int:
     import httpx
     import uvicorn
@@ -93,7 +92,6 @@ async def main(out: Path) -> int:
             await page.wait_for_timeout(400)
             await page.screenshot(path=str(out / f"{name}.png"))
 
-        # 1. narrow drag keeps the W panel wide
         post("/api/quick/canvas/panels", {"panel": seeded["notes"], "size": "w"})
         ids = [post("/api/quick/canvas/actions", {"action": {"label": f"N{i}", "steps": [{"type": "wait", "ms": 900}]}})["action"]["id"] for i in range(3)]
         page = await open_page(width=420)
@@ -115,14 +113,12 @@ async def main(out: Path) -> int:
         check(moved and moved[0]["x"] > 0, f"the dragged button moved ({moved})")
         await page.close()
 
-        # 2. two quick presses → one run
         page = await open_page()
         n = await page.evaluate(f"""async () => {{ await Promise.all([MemuQuickCanvas.runAction('{ids[1]}', true), MemuQuickCanvas.runAction('{ids[1]}', true)]);
             const r = await fetch('/api/quick/canvas/runs').then(r => r.json()); return r.runs.filter(x => x.action === '{ids[1]}').length; }}""")
         check(n == 1, f"a double press starts one run ({n})")
         await page.close()
 
-        # 3. 10 panels + 30 buttons: render() does not rebuild unchanged buttons
         for kind in ("clock", "notes", "todo", "timers", "system", "clock"):
             p = panels.create_panel(template=kind, start=False)
             post("/api/quick/canvas/panels", {"panel": p["id"], "size": "s"})
@@ -149,7 +145,6 @@ async def main(out: Path) -> int:
         await shot(page, "hc-perf-dark-ru")
         await page.close()
 
-        # 5. an «answer in the window» step while another answer streams: waits for it instead of stopping it
         ask = post("/api/quick/canvas/actions", {"action": {"label": "ask", "steps": [{"type": "ask", "mode": "window", "prompt": "Переведи {clipboard}"}]}})["action"]["id"]
         page = await open_page()
         await page.evaluate("""() => { const Q = window.MemuQuick, orig = Q.state; window.__sent = []; window.__busy = true;
@@ -167,7 +162,6 @@ async def main(out: Path) -> int:
         check(out_run == "button answer", f"the run takes the button's answer, not the previous one ({out_run!r})")
         await page.close()
 
-        # 4. editor: global hotkey checkbox + app icon row, ru/en
         for lang, theme in (("ru", "dark"), ("en", "light")):
             page = await open_page(lang=lang, theme=theme)
             await page.evaluate("""MemuQuickCanvas.openEditor(null, {label: 'Telegram', icon: {kind: 'builtin', value: 'bolt'}, color: '#3b82f6', color2: '', shape: 'circle',
@@ -187,7 +181,6 @@ async def main(out: Path) -> int:
     server.should_exit = True
     print("problems:", problems)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     out_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r27/r27-hunt-canvas")

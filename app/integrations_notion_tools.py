@@ -31,15 +31,12 @@ HINT = ("Notion: ids come from notion_search (a page link works too). Before add
         "({\"Status\": \"Done\", \"Due\": \"2026-10-16\", \"Tags\": [\"a\"], \"Done\": true}). notion_delete_page moves "
         "a page to Notion's trash (notion_restore_page brings it back).")
 
-
 def _n():
     from . import integrations_notion
     return integrations_notion
 
-
 def _rich(text: str) -> List[Dict[str, Any]]:
     return _n()._rich(str(text))
-
 
 def simple_properties(schema: Dict[str, Any], values: Dict[str, Any]) -> Dict[str, Any]:
     """Plain values → Notion property objects by the database schema; values already in Notion's shape pass as is."""
@@ -87,10 +84,9 @@ def simple_properties(schema: Dict[str, Any], values: Dict[str, Any]) -> Dict[st
             items = value if isinstance(value, list) else [x.strip() for x in str(value or "").split(",") if x.strip()]
             out[name] = {kind: [{"id": _n()._id(item, "id") if kind == "relation" else str(item)} for item in items]}
         else:
-            # formula, rollup, created_time… are read-only in Notion: skip instead of a 400 for the whole request.
+
             continue
     return out
-
 
 def _schema_row(schema: Dict[str, Any]) -> Dict[str, Any]:
     props = {}
@@ -104,7 +100,6 @@ def _schema_row(schema: Dict[str, Any]) -> Dict[str, Any]:
             row["options"] = [o.get("name") for o in options if isinstance(o, dict)]
         props[name] = row
     return props
-
 
 def run(tool: str, args: Dict[str, Any]) -> Any:
     n = _n()

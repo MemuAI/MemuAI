@@ -1,19 +1,5 @@
-/* MemuAI custom title bar (Round 20).
- *
- * The native side (app/win_titlebar.py) removes the Windows caption of the
- * normal sizable window; this file turns the page's own top bar into the
- * title bar:
- *   - window buttons (minimize / maximize-restore / close) drawn in HTML;
- *   - pressing an empty part of the top bar starts the *native* move loop
- *     (Aero Snap, drag-down-to-restore); a double press toggles maximize;
- *   - right click there (or Alt+Space) opens the real system menu;
- *   - a thin strip along the top edge starts the native top/corner resize.
- *
- * Nothing is shown unless Python confirms the hook is installed
- * (window.pywebview.api.titlebar_state().installed), so a browser or dev
- * preview never gets dead buttons. html[data-titlebar="custom"] marks the
- * active state for CSS (titlebar.css).
- */
+
+
 "use strict";
 const MemuTitlebar = (() => {
   const root = document.documentElement;
@@ -25,8 +11,7 @@ const MemuTitlebar = (() => {
     ".dropdown", ".dd-pop", ".app-menu-pop", ".chat-search", ".context-meter", ".sidebar-resizer",
     "#module-slot-topbar > *", ".memu-wc", ".memu-tb-resize",
   ].join(",");
-  /** Containers whose *empty* background drags the window when it lies
-   *  within the title band (from the window top to the top bar's bottom). */
+
   const BAND_SURFACES = "body, #app, .main, .side, .side-top, .brand, .create-row";
   const OVERLAY_BAND = 32;
 
@@ -53,8 +38,6 @@ const MemuTitlebar = (() => {
     try { return await bridge()[name](...args); } catch (_) { return null; }
   }
 
-  /* ------------------------------------------------------------ icons */
-  // 10×10 glyphs on a 1 px grid, like Segoe Fluent's caption icons.
   const ICONS = {
     minimize: '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5.5h10"/></svg>',
     maximize: '<svg viewBox="0 0 10 10" aria-hidden="true"><rect x=".5" y=".5" width="9" height="9" rx="1.5"/></svg>',
@@ -89,8 +72,7 @@ const MemuTitlebar = (() => {
       const button = event.target.closest("[data-wc]");
       if (!button) return;
       const kind = button.dataset.wc;
-      // Clear the hover look at once: after minimize/close the pointer may
-      // never "leave" the button from the page's point of view.
+
       button.blur();
       call("titlebar_command", kind === "maximize" ? "toggle" : kind);
     });
@@ -124,10 +106,8 @@ const MemuTitlebar = (() => {
     });
   }
 
-  /* --------------------------------------------------------- geometry */
   function visible(node) { return !!(node && node.getClientRects().length); }
 
-  /** Align the buttons with the top bar of whichever design is active. */
   function measure() {
     measureQueued = false;
     if (!enabled || !controls) return;
@@ -137,10 +117,9 @@ const MemuTitlebar = (() => {
       const rect = bar.getBoundingClientRect();
       top = Math.max(0, rect.top);
       right = Math.max(0, window.innerWidth - rect.right);
-      // Flush buttons stop above the bar's own bottom rule (Grid, Classic).
+
       height = rect.height - (parseFloat(getComputedStyle(bar).borderBottomWidth) || 0);
-      // A wrapped (narrow) top bar is taller than its first row: centre the
-      // buttons on the first row (the top-most item of the bar).
+
       let first = null;
       for (const child of bar.children) {
         if (!visible(child) || getComputedStyle(child).position === "absolute") continue;
@@ -153,9 +132,7 @@ const MemuTitlebar = (() => {
         if (row > 20 && row < height) height = row;
       }
     }
-    // A full-window overlay (settings, image viewer, palette…) covers the
-    // top bar: the buttons then move to a standard 32 px caption band in the
-    // window corner, which those overlays keep free (titlebar.css).
+
     let covered = false;
     if (visible(bar)) {
       const rect = bar.getBoundingClientRect();
@@ -175,7 +152,6 @@ const MemuTitlebar = (() => {
     set("--memu-wc-w", `${Math.ceil(controls.getBoundingClientRect().width)}px`);
   }
 
-  /** Only layout transitions of the bar or its ancestors can move it. */
   function onTransitionEnd(event) {
     const target = event.target;
     const bar = document.querySelector(".topbar.appbar");
@@ -188,7 +164,6 @@ const MemuTitlebar = (() => {
     requestAnimationFrame(measure);
   }
 
-  /* -------------------------------------------------------- drag zone */
   function hasPointerCursor(node, stop) {
     for (let el = node; el && el !== stop && el !== document.body; el = el.parentElement) {
       if (getComputedStyle(el).cursor === "pointer") return true;
@@ -196,13 +171,12 @@ const MemuTitlebar = (() => {
     return false;
   }
 
-  /** Is this press on an empty part of the title area? */
   function isDragTarget(target, clientY) {
     if (!(target instanceof Element)) return false;
     if (target.closest(NO_DRAG)) return false;
     if (target.closest("[data-drag-region], #startup-cover")) return true;
     if (root.dataset.titlebarOverlay === "true") {
-      // Only the free caption band above an overlay drags.
+
       return clientY <= OVERLAY_BAND && (target.parentElement === document.body || target === document.body)
         && !hasPointerCursor(target, null);
     }
@@ -224,7 +198,7 @@ const MemuTitlebar = (() => {
     const limit = (state && state.doubleClickMs) || 500;
     if (lastPress && now - lastPress.t <= limit
         && Math.abs(event.screenX - lastPress.x) <= 4 && Math.abs(event.screenY - lastPress.y) <= 4) {
-      // Windows: double click on the caption toggles maximize.
+
       lastPress = null;
       call("titlebar_command", "toggle");
       return;
@@ -248,7 +222,6 @@ const MemuTitlebar = (() => {
     }
   }
 
-  /* ------------------------------------------------------------ state */
   function applyFlags() {
     const s = state || {};
     root.dataset.titlebarMax = s.maximized ? "true" : "false";
@@ -283,8 +256,7 @@ const MemuTitlebar = (() => {
     mutationObserver = new MutationObserver(queueMeasure);
     mutationObserver.observe(root, { attributes: true, attributeFilter: ["data-design", "data-density", "data-theme", "class"] });
     mutationObserver.observe(document.body, { attributes: true, attributeFilter: ["class"] });
-    // Overlays are direct children of <body>: watch them opening/closing
-    // (cheap filter, so busy chat updates deeper in the tree cost nothing).
+
     const watch = (node) => {
       if (node.nodeType === 1 && node !== controls && node !== edges) {
         overlayObserver.observe(node, { attributes: true, attributeFilter: ["class", "hidden", "style", "aria-hidden", "open"] });
@@ -296,7 +268,7 @@ const MemuTitlebar = (() => {
     });
     overlayObserver.observe(document.body, { childList: true });
     Array.from(document.body.children).forEach(watch);
-    // Design switches animate margins; settle after transitions as well.
+
     document.addEventListener("transitionend", onTransitionEnd, true);
     applyFlags();
     measure();
@@ -341,7 +313,7 @@ const MemuTitlebar = (() => {
     const next = await call("titlebar_state");
     if (next) apply(next);
     if (next && next.pending && pendingTries < 60) {
-      // The window is not attached yet (startup): ask again shortly.
+
       pendingTries += 1;
       setTimeout(sync, 250);
     }
@@ -350,13 +322,13 @@ const MemuTitlebar = (() => {
 
   function onWindowResize() {
     queueMeasure();
-    // Maximize/restore/minimize all resize the viewport: refresh the icon.
+
     clearTimeout(stateTimer);
     stateTimer = setTimeout(sync, 60);
   }
 
   function onFocusChange() {
-    // A focused iframe also blurs the window object; ask the document.
+
     setTimeout(() => {
       if (!state) return;
       const active = document.hasFocus();
@@ -376,7 +348,6 @@ const MemuTitlebar = (() => {
     if (has("titlebar_state")) { booted = true; sync(); }
   }
 
-  // pywebview injects window.pywebview.api asynchronously.
   window.addEventListener("pywebviewready", boot);
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot, { once: true });
   else boot();
@@ -384,11 +355,11 @@ const MemuTitlebar = (() => {
   return {
     sync,
     setMode,
-    /** True inside the desktop window that can host the custom title bar. */
+
     available: () => has("titlebar_state") && !!(state ? state.supported : true),
     state: () => (state ? { ...state } : null),
     active: () => enabled,
-    // Exposed for tests only.
+
     _isDragTarget: isDragTarget,
     _measure: measure,
   };

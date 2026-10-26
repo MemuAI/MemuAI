@@ -26,24 +26,19 @@ from . import reflect
 QUIET_GO, QUIET_LATER = "fq:go", "fq:later"
 BREAK_ACTIONS = {"fb:break": "break", "fb:snooze": "snooze", "fb:dismiss": "dismiss"}
 
-# chat_id → ([(message, text)], window end (ms), hold id). The id rides in the reminder's callback data so a tap
-# on an older, still-visible reminder (a previous window) never sends or drops what a newer one holds.
 _held: Dict[str, Tuple[List[Tuple[Dict[str, Any], str]], int, str]] = {}
 _hold_ids = itertools.count(1)
-_acknowledged: Dict[str, int] = {}                          # chat_id → end of the window «Продолжить» covers
-
+_acknowledged: Dict[str, int] = {}
 
 def _tr(prefs: Dict[str, Any], ru: str, en: str) -> str:
     """The bot speaks ``telegram_language``; the Mini App passes ``{"telegram_language": its language}``."""
     return en if prefs.get("telegram_language") == "en" else ru
-
 
 def duration(minutes: int, prefs: Dict[str, Any]) -> str:
     hours, rest = divmod(max(0, int(minutes)), 60)
     if prefs.get("telegram_language") == "en":
         return f"{hours} h {rest} min" if hours and rest else (f"{hours} h" if hours else f"{rest} min")
     return f"{hours} ч {rest} мин" if hours and rest else (f"{hours} ч" if hours else f"{rest} мин")
-
 
 def quiet_pending(key: str, prefs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """The quiet window the user is in and has not yet answered «Продолжить» for (``key`` = bot chat / app user)."""
@@ -52,10 +47,8 @@ def quiet_pending(key: str, prefs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         return None
     return window
 
-
 def acknowledge(key: str, ends_at: int) -> None:
     _acknowledged[key] = max(_acknowledged.get(key, 0), int(ends_at))
-
 
 def quiet_hold(chat_id: str, message: Dict[str, Any], text: str,
                prefs: Dict[str, Any]) -> Optional[Tuple[str, Optional[Dict[str, Any]]]]:
@@ -82,15 +75,12 @@ def quiet_hold(chat_id: str, message: Dict[str, Any], text: str,
                                       "callback_data": f"{QUIET_LATER}:{hold_id}"}]]}
     return body, keyboard
 
-
 def _quiet_parts(data: str) -> Tuple[str, str]:
     action, _, hold_id = data.partition(":")[2].partition(":")
     return "fq:" + action, hold_id
 
-
 def is_quiet_callback(data: str) -> bool:
     return data.startswith("fq:") and _quiet_parts(data)[0] in (QUIET_GO, QUIET_LATER)
-
 
 def quiet_answer(chat_id: str, data: str,
                  prefs: Dict[str, Any]) -> Tuple[List[Tuple[Dict[str, Any], str]], str]:
@@ -113,7 +103,6 @@ def quiet_answer(chat_id: str, data: str,
     return messages, _tr(prefs, "🌙 Продолжаем — до конца тихих часов больше не напомню.",
                                 "🌙 Continuing — no more reminders until your quiet hours end.")
 
-
 async def break_minutes(prefs: Dict[str, Any]) -> Optional[int]:
     """Add this message to the day's time; the day's minutes when the break reminder is due, else ``None``."""
     if not prefs.get("focus_break_enabled"):
@@ -124,7 +113,6 @@ async def break_minutes(prefs: Dict[str, Any]) -> Optional[int]:
     except Exception:
         return None
     return int(out.get("minutes_today") or 0) if out.get("break_due") else None
-
 
 async def break_due(prefs: Dict[str, Any]) -> Optional[Tuple[str, Dict[str, Any]]]:
     """The bot's break card (text, keyboard) when the reminder is due."""
@@ -139,13 +127,11 @@ async def break_due(prefs: Dict[str, Any]) -> Optional[Tuple[str, Dict[str, Any]
                                      {"text": _tr(prefs, "Скрыть", "Dismiss"), "callback_data": "fb:dismiss"}]]}
     return body, keyboard
 
-
 async def break_action(kind: str) -> None:
     try:
         await asyncio.to_thread(reflect.shared_tracker().action, kind)
     except Exception:
         pass
-
 
 async def break_answer(data: str, prefs: Dict[str, Any]) -> str:
     """A tap on the break card → the shared tracker learns it; returns the card's new text."""

@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 DEFAULT_MEMORY_LIMIT = 2 * 1024 * 1024 * 1024
-DEFAULT_CPU_RATE = 5  # Job weight 1–9; a hard cap would stall tests and builds
+DEFAULT_CPU_RATE = 5
 MAX_OUTPUT = 40_000
 MAX_TIMEOUT = 600
 _CREATE_SUSPENDED = 0x00000004
@@ -26,13 +26,12 @@ ENV_ALLOW = {
     "PATH", "PATHEXT", "SYSTEMROOT", "COMSPEC", "SYSTEMDRIVE", "WINDIR",
     "NUMBER_OF_PROCESSORS", "PROCESSOR_ARCHITECTURE", "OS",
     "USERPROFILE", "LOCALAPPDATA", "APPDATA", "PROGRAMDATA", "TMP", "TEMP",
-    # Без них ломаются pip --user, глобальный конфиг npm и модули PowerShell.
+
     "HOMEDRIVE", "HOMEPATH", "USERNAME", "PSMODULEPATH", "PROGRAMFILES",
     "PROGRAMFILES(X86)", "PROGRAMW6432", "COMMONPROGRAMFILES", "HOME", "LANG",
 }
 ENV_BLOCK = {"MEMUAI_TOKEN", "MEMUAI_PROXY_URL", "OPENAI_API_KEY", "API_KEY"}
 
-# Команда в позиции исполняемого файла: начало строки или после ; & | &&.
 _CMD = r"(?:^|[;&|(]\s*)"
 FORBIDDEN_PATTERNS = (
     r"\bformat(?:\.com)?\s+[a-z]:", _CMD + r"mkfs\b", _CMD + r"diskpart\b",
@@ -50,17 +49,14 @@ FORBIDDEN_PATTERNS = (
     r"\bgit\s+push\b.*--force", r"\bgit\s+reset\s+--hard\b.*origin",
 )
 
-
 def forbidden_reason(command: str) -> str:
     low = " ".join(str(command or "").lower().split())
-    # Текст в кавычках — данные, а не команда: «git commit -m "fix shutdown"»
-    # раньше считался выключением компьютера.
+
     unquoted = re.sub(r'"[^"]*"|\'[^\']*\'', '""', low)
     for pattern in FORBIDDEN_PATTERNS:
         if re.search(pattern, unquoted):
             return pattern
     return ""
-
 
 def legacy_codecs() -> List[str]:
     """Code pages a Windows console program may print in when it ignores the UTF-8 request: the OEM page (cp866 on
@@ -87,10 +83,8 @@ def legacy_codecs() -> List[str]:
             out.append(page)
     return out or ["cp1251"]
 
-
 def _letters(text: str) -> int:
     return sum(1 for char in text if "\u0410" <= char <= "\u044f" or char in "\u0401\u0451" or char.isascii() and char.isalpha())
-
 
 class OutputDecoder:
     """Command output bytes → text. Valid UTF-8 stays UTF-8; a line that is not UTF-8 is read in the legacy code page
@@ -100,7 +94,7 @@ class OutputDecoder:
 
     def __init__(self) -> None:
         self.carry = b""
-        self.codec = ""                      # the legacy page, once one was needed
+        self.codec = ""
 
     def _legacy(self, raw: bytes) -> str:
         if not self.codec:
@@ -131,7 +125,6 @@ class OutputDecoder:
                 raw = raw[end:]
         return "".join(out)
 
-
 class NewlineJoiner:
     """CRLF → LF across read chunks. A chunk may end between "\r" and "\n";
     replacing per chunk then left a stray "\r" in the output (Windows tools),
@@ -146,7 +139,6 @@ class NewlineJoiner:
         if not final and text.endswith("\r"):
             text, self.carry = text[:-1], "\r"
         return text.replace("\r\n", "\n")
-
 
 def kill_tree(process: "subprocess.Popen") -> None:
     """Убивает процесс вместе с детьми, не трогая остальные процессы сессии.
@@ -163,11 +155,7 @@ def kill_tree(process: "subprocess.Popen") -> None:
         except Exception:
             pass
     else:
-        # Every shell here starts with start_new_session=True, so its process
-        # group id is its pid. The group is killed even when the shell itself
-        # already exited: «server &» or «nohup …» left orphans that kept ports
-        # and files busy, because the old early return on poll() skipped them.
-        # The kernel does not reuse a pid while it still names a live group.
+
         try:
             import signal
             os.killpg(process.pid, signal.SIGKILL)
@@ -179,7 +167,6 @@ def kill_tree(process: "subprocess.Popen") -> None:
         process.kill()
     except OSError:
         pass
-
 
 def run_bounded(argv: list, *, input_bytes: bytes = b"", cwd: Optional[str] = None,
                 env: Optional[Dict[str, str]] = None, timeout: float = 60.0):
@@ -204,12 +191,11 @@ def run_bounded(argv: list, *, input_bytes: bytes = b"", cwd: Optional[str] = No
         try:
             out, err = process.communicate(timeout=3)
         except (subprocess.TimeoutExpired, OSError, ValueError):
-            out, err = b"", b""              # something still holds the pipes: give up on the output
+            out, err = b"", b""
         return None, out or b"", err or b"", True
     except BaseException:
         kill_tree(process)
         raise
-
 
 def utf8_argv(argv: list) -> list:
     """Вывод консольных программ Windows — в OEM-кодировке (cp866), а читаем мы
@@ -227,7 +213,6 @@ def utf8_argv(argv: list) -> list:
     elif head in ("cmd", "cmd.exe") and len(argv) >= 3 and str(argv[1]).lower() == "/c":
         argv = [argv[0], argv[1], "chcp 65001>nul & " + str(argv[2])] + list(argv[3:])
     return argv
-
 
 def filtered_env(session_id: str, root: Path) -> Dict[str, str]:
     env = {}
@@ -250,7 +235,6 @@ def filtered_env(session_id: str, root: Path) -> Dict[str, str]:
         env.setdefault("PYTHONUTF8", "1")
     return env
 
-
 def _windows_kernel32():
     import ctypes
     from ctypes import wintypes
@@ -269,7 +253,6 @@ def _windows_kernel32():
     kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
     kernel.CloseHandle.restype = wintypes.BOOL
     return kernel
-
 
 class SessionJob:
     """One Job Object. On Windows it is a real kernel job; elsewhere it is a
@@ -341,8 +324,6 @@ class SessionJob:
         class JOBOBJECT_CPU_RATE_CONTROL_INFORMATION(ctypes.Structure):
             _fields_ = [("ControlFlags", wintypes.DWORD), ("CpuRate", wintypes.DWORD)]
 
-        # Active processes, job/process memory, kill children when the job closes.
-        # Do not set a CPU-time limit of zero: that flag kills the process immediately.
         value = JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
         value.BasicLimitInformation.LimitFlags = 0x00000008 | 0x00000100 | 0x00000200 | 0x00002000
         value.BasicLimitInformation.ActiveProcessLimit = 32
@@ -352,7 +333,7 @@ class SessionJob:
         if not kernel.SetInformationJobObject(handle, 9, ctypes.byref(value), ctypes.sizeof(value)):
             raise OSError("Windows Job Object memory limits could not be applied")
         cpu = JOBOBJECT_CPU_RATE_CONTROL_INFORMATION()
-        cpu.ControlFlags = 0x1 | 0x2  # enable, weight-based
+        cpu.ControlFlags = 0x1 | 0x2
         cpu.CpuRate = max(1, min(9, int(self.cpu_rate or 5)))
         if not kernel.SetInformationJobObject(handle, 15, ctypes.byref(cpu), ctypes.sizeof(cpu)):
             raise OSError("Windows Job Object CPU limit could not be applied")
@@ -365,7 +346,7 @@ class SessionJob:
             return False
         try:
             kernel = _windows_kernel32()
-            # PROCESS_SET_QUOTA | PROCESS_TERMINATE, the rights AssignProcessToJobObject requires.
+
             process_handle = kernel.OpenProcess(0x0100 | 0x0001, False, int(process.pid))
             if not process_handle:
                 return False
@@ -387,9 +368,7 @@ class SessionJob:
         killed = 0
         for process in processes:
             if sys.platform != "win32":
-                # Without a kernel job only the process group reaches the
-                # children: process.kill() stopped the shell and left
-                # «npm run dev» and its node server running after the session.
+
                 if process.poll() is None:
                     killed += 1
                 kill_tree(process)
@@ -428,7 +407,6 @@ class SessionJob:
                 "processes": alive[:20], "memory_limit": self.memory_limit,
                 "cpu_rate": self.cpu_rate, "created": self.created, "closed": self.closed}
 
-
 class SandboxManager:
     def __init__(self) -> None:
         self._jobs: Dict[str, SessionJob] = {}
@@ -464,7 +442,6 @@ class SandboxManager:
             job = self._jobs.get(str(session_id or ""))
         return job.status() if job else {"session": str(session_id), "active_processes": 0, "closed": True}
 
-
 def _popen(argv: list, cwd: str, env: Dict[str, str], *, suspended: bool) -> subprocess.Popen:
     flags = 0
     if sys.platform == "win32":
@@ -474,15 +451,13 @@ def _popen(argv: list, cwd: str, env: Dict[str, str], *, suspended: bool) -> sub
     extra = {} if sys.platform == "win32" else {"start_new_session": True}
     env = dict(env or {})
     env.setdefault("PYTHONIOENCODING", "utf-8")
-    # Bytes, not text=True: a program that ignores the UTF-8 request prints cp866/cp1251, and a strict
-    # UTF-8 reading turned its Russian messages into "\ufffd". read_text() decodes like the CLI does.
+
     process = subprocess.Popen(
         utf8_argv(argv), cwd=cwd, env=env, stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=flags, **extra,
     )
     process._memu_suspended = bool(suspended and sys.platform == "win32")  # type: ignore[attr-defined]
     return process
-
 
 def _resume(process: subprocess.Popen) -> bool:
     if not getattr(process, "_memu_suspended", False):
@@ -497,7 +472,6 @@ def _resume(process: subprocess.Popen) -> bool:
     except Exception:
         return False
 
-
 def _discard_process(job: SessionJob, process: subprocess.Popen) -> None:
     try:
         process.kill()
@@ -511,7 +485,6 @@ def _discard_process(job: SessionJob, process: subprocess.Popen) -> None:
         if pipe is not None:
             pipe.close()
     job.forget(process)
-
 
 def spawn(session_id: str, root: str | Path, argv: list, *, cwd: str,
           env: Optional[Dict[str, str]] = None) -> subprocess.Popen:
@@ -532,7 +505,6 @@ def spawn(session_id: str, root: str | Path, argv: list, *, cwd: str,
         raise RuntimeError("MemuCode could not resume its limited process")
     return process
 
-
 def read_text(pipe, on_text, size: int = 8192) -> None:
     """Read a binary pipe of a sandboxed process to its end, handing over decoded text with LF line ends."""
     decoder, newlines = OutputDecoder(), NewlineJoiner()
@@ -545,7 +517,6 @@ def read_text(pipe, on_text, size: int = 8192) -> None:
         tail = newlines.feed(decoder.decode(b"", final=True), final=True)
         if tail:
             on_text(tail)
-
 
 def _drain(pipe) -> str:
     try:
@@ -566,7 +537,6 @@ def _drain(pipe) -> str:
                 pipe.close()
             except Exception:
                 pass
-
 
 def launch_captured(session_id: str, root: str | Path, argv: list, *, cwd: str,
                     timeout: int, env: Optional[Dict[str, str]] = None,
@@ -589,8 +559,7 @@ def launch_captured(session_id: str, root: str | Path, argv: list, *, cwd: str,
         code = process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         timed_out = True
-        # Только дерево этой команды: фоновые задачи сессии (dev-сервер,
-        # watcher из code_task) не должны умирать из-за чужого таймаута.
+
         kill_tree(process)
         try:
             code = process.wait(timeout=5)
@@ -608,6 +577,5 @@ def launch_captured(session_id: str, root: str | Path, argv: list, *, cwd: str,
         "stdout": (stdout_box[0] if stdout_box else "")[-MAX_OUTPUT:],
         "stderr": (stderr_box[0] if stderr_box else "")[-MAX_OUTPUT:],
     }
-
 
 manager = SandboxManager()

@@ -23,7 +23,6 @@ RSS = """<?xml version="1.0"?><rss version="2.0"><channel><title>Лента</tit
 <item><title>Первая</title><link>https://example.org/1</link></item>
 <item><title>Вторая</title><link>https://example.org/2</link></item></channel></rss>"""
 
-
 class Base(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -43,7 +42,6 @@ class Base(unittest.TestCase):
     def find(self, pid):
         return next(p for p in panels.load()["panels"] if p["id"] == pid)
 
-
 class GatedNet:
     """``_http_text`` stand-in: the first call waits for ``gate``; every call is recorded."""
 
@@ -59,7 +57,6 @@ class GatedNet:
             await self.gate.wait()
         return RSS
 
-
 class EditDuringRefreshTest(Base):
     def test_title_and_options_edited_mid_refresh_survive(self):
         p = panels.create_panel(template="rss", params={"url": "https://example.org/feed"}, start=False)
@@ -70,7 +67,7 @@ class EditDuringRefreshTest(Base):
             panels.bind_loop()
             panels.start_refresh(p["id"])
             await net.entered.wait()
-            # The user renames the panel and turns off the time line while the fetch is running.
+
             await asyncio.to_thread(panels.update_panel, p["id"], {"title": "Моя лента",
                                                                     "options": {"show_time": False}})
             net.gate.set()
@@ -118,7 +115,7 @@ class EditDuringRefreshTest(Base):
             panels.bind_loop()
             panels.start_refresh(p["id"])
             await net.entered.wait()
-            panels.start_refresh(p["id"], force=True)         # «Обновить» while it runs
+            panels.start_refresh(p["id"], force=True)
             net.gate.set()
             await panels.wait_refresh(p["id"], 5)
             await asyncio.sleep(0.05)
@@ -134,7 +131,6 @@ class EditDuringRefreshTest(Base):
         out = asyncio.run(panels.refresh_panel(p["id"], force=True))
         self.assertEqual(out["title"], "До отпуска")
 
-
 class CancelAndRemoveTest(Base):
     def test_cancelled_build_is_not_a_failure(self):
         p = panels.create_panel(template="rss", params={"url": "https://example.org/feed"}, start=False)
@@ -146,7 +142,7 @@ class CancelAndRemoveTest(Base):
             panels.start_refresh(p["id"])
             await net.entered.wait()
             task = panels._TASKS[p["id"]]
-            task.cancel()                                     # the app is closing
+            task.cancel()
             with self.assertRaises(asyncio.CancelledError):
                 await task
 
@@ -189,7 +185,6 @@ class CancelAndRemoveTest(Base):
         panels.dismiss(p["id"], purge=True)
         self.assertIsNone(panels._finish(p["id"], values={"x": 1}))
 
-
 class ManualCadenceTest(Base):
     def test_failure_keeps_manual_panel_manual(self):
         p = panels.create_panel(template="rss", params={"url": "https://example.org/feed"}, start=False,
@@ -219,11 +214,9 @@ class ManualCadenceTest(Base):
         self.assertEqual(out["status"], "failed")
         self.assertIsNotNone(out["next_refresh"])
 
-
 class GatedNetOk:
     async def __call__(self, url, *, limit=0):
         return RSS
-
 
 @unittest.skipUnless(__import__("tests.panels_browser_test", fromlist=["_chromium"])._chromium(), "Chromium is not installed")
 class PanelsLayoutBrowserTest(unittest.TestCase):
@@ -282,13 +275,12 @@ class PanelsLayoutBrowserTest(unittest.TestCase):
             overflow = page.evaluate("""() => [...document.querySelectorAll('[data-panel-id="p_setup00001"] .mp-btn')]
                 .filter(b => b.scrollHeight > b.clientHeight + 1 || b.scrollWidth > b.clientWidth + 1).length""")
             self.assertEqual(overflow, 0)
-            # Pretend the clock was drawn in an earlier minute (a skipped «:00» or a hidden window).
+
             page.evaluate("""() => { const el = document.querySelector('[data-panel-id="p_clock00001"] [data-mp-clock]');
                 el.dataset.drawn = String(Math.floor(Date.now() / 60000) - 1); el.innerHTML = '<i id="stale"></i>'; }""")
             page.wait_for_function("""() => !document.getElementById('stale')""", timeout=2500)
             browser.close()
         self.assertEqual(errors, [])
-
 
 if __name__ == "__main__":
     unittest.main()

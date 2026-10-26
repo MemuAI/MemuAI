@@ -34,37 +34,29 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
-# Module level on purpose: with postponed annotations FastAPI resolves ``request: Request``
-# from this module's globals (a local import made it a required query parameter -> 422).
 from fastapi import Request
 
-#: One value in the store (a chat with hundreds of messages and swipes, an avatar).
 STORE_VALUE_LIMIT = 40 * 1024 * 1024
-#: Everything one module may keep in its store.
+
 STORE_TOTAL_LIMIT = 2 * 1024 * 1024 * 1024
 STORE_KEYS_LIMIT = 20_000
 ASSET_LIMIT = 8 * 1024 * 1024
-#: A key: up to three segments «chats/<char-id>/<chat-id>», letters, digits, ._-
+
 _KEY_SEGMENT = r"[A-Za-z0-9][A-Za-z0-9._-]{0,95}"
 _KEY_RE = re.compile(rf"^{_KEY_SEGMENT}(?:/{_KEY_SEGMENT}){{0,2}}$")
 _ASSET_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,120}(?:/[A-Za-z0-9][A-Za-z0-9._-]{0,120}){0,2}$")
 _RESERVED = re.compile(r"^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?$", re.IGNORECASE)
 
 _ROLES = ("system", "user", "assistant")
-_EFFORTS = ("auto", "off", "on", "minimal", "low", "medium", "high", "xhigh", "max")   # r33c: + off/on/xhigh (reasoning_levels)
-
-
-# --------------------------------------------------------------------------- helpers
+_EFFORTS = ("auto", "off", "on", "minimal", "low", "medium", "high", "xhigh", "max")
 
 def _module_root() -> Path:
     from .modules_host import default_root
     return default_root()
 
-
 def _clean_id(raw: Any) -> str:
     from .modules_host import _safe_id
     return _safe_id(re.sub(r"[^a-z0-9-]", "", str(raw or "").lower())[:41])
-
 
 def check_key(key: Any) -> str:
     """Validate a store key; ``..``, absolute paths, devices and odd characters are refused."""
@@ -76,10 +68,8 @@ def check_key(key: Any) -> str:
             raise ValueError("Недопустимый ключ хранилища / Invalid store key")
     return text
 
-
 def store_dir(root: Path, module_id: str) -> Path:
     return Path(root) / "store" / _clean_id(module_id)
-
 
 def _key_path(root: Path, module_id: str, key: str) -> Path:
     base = store_dir(root, module_id)
@@ -89,7 +79,6 @@ def _key_path(root: Path, module_id: str, key: str) -> Path:
     if resolved_base not in path.resolve().parents:
         raise ValueError("Недопустимый ключ хранилища / Invalid store key")
     return path
-
 
 def _usage(base: Path) -> Dict[str, int]:
     total, count = 0, 0
@@ -102,14 +91,12 @@ def _usage(base: Path) -> Dict[str, int]:
                 pass
     return {"bytes": total, "keys": count}
 
-
 def store_get(root: Path, module_id: str, key: str, default: Any = None) -> Any:
     from .storage import load_json_with_recovery
     path = _key_path(root, module_id, key)
     if not path.is_file():
         return default
     return load_json_with_recovery(path, default)
-
 
 def store_set(root: Path, module_id: str, key: str, value: Any) -> Dict[str, Any]:
     from .storage import save_json
@@ -130,7 +117,6 @@ def store_set(root: Path, module_id: str, key: str, value: Any) -> Dict[str, Any
     save_json(path, value, backup=False)
     return {"ok": True, "key": key, "bytes": size}
 
-
 def store_remove(root: Path, module_id: str, key: str) -> Dict[str, Any]:
     from .storage import _json_transaction
     path = _key_path(root, module_id, key)
@@ -143,9 +129,9 @@ def store_remove(root: Path, module_id: str, key: str) -> Dict[str, Any]:
     try:
         if lock.is_file():
             lock.unlink()
-    except OSError:  # another writer holds it (Windows): the stale lock is harmless
+    except OSError:
         pass
-    # Empty namespace folders go away with their last key.
+
     base = store_dir(root, module_id).resolve()
     parent = path.parent
     while parent.resolve() != base and base in parent.resolve().parents:
@@ -155,7 +141,6 @@ def store_remove(root: Path, module_id: str, key: str) -> Dict[str, Any]:
             break
         parent = parent.parent
     return {"ok": True, "removed": removed}
-
 
 def store_list(root: Path, module_id: str, prefix: str = "") -> List[Dict[str, Any]]:
     base = store_dir(root, module_id)
@@ -174,7 +159,6 @@ def store_list(root: Path, module_id: str, prefix: str = "") -> List[Dict[str, A
             continue
     rows.sort(key=lambda row: row["key"])
     return rows[:STORE_KEYS_LIMIT]
-
 
 def read_asset(module_id: str, name: str) -> Dict[str, Any]:
     """A file from ``assets/`` of the module's package (an edited copy first, then the shipped one)."""
@@ -202,9 +186,6 @@ def read_asset(module_id: str, name: str) -> Dict[str, Any]:
         return {"name": clean, "text": text}
     raise KeyError(clean)
 
-
-# --------------------------------------------------------------------------- completion
-
 def _clean_content(content: Any) -> Any:
     if isinstance(content, str):
         return content[:2_000_000]
@@ -217,12 +198,11 @@ def _clean_content(content: Any) -> Any:
                 parts.append({"type": "text", "text": str(part.get("text") or "")[:2_000_000]})
             elif part.get("type") == "image_url":
                 url = str((part.get("image_url") or {}).get("url") or "")
-                # Only inline images: a module must not make the Proxy fetch URLs for it.
+
                 if url.startswith("data:image/") and len(url) < 20_000_000:
                     parts.append({"type": "image_url", "image_url": {"url": url}})
         return parts
     return str(content or "")
-
 
 def build_completion(body: Dict[str, Any]) -> Dict[str, Any]:
     """Validate a module's completion request and turn it into the Proxy playground body."""
@@ -267,7 +247,7 @@ def build_completion(body: Dict[str, Any]) -> Dict[str, Any]:
             value = float(value)
         except (TypeError, ValueError):
             return
-        if value != value:  # NaN
+        if value != value:
             return
         value = max(low, min(high, value))
         out[name] = int(value) if integer else value
@@ -275,8 +255,7 @@ def build_completion(body: Dict[str, Any]) -> Dict[str, Any]:
     number("temperature", 0.0, 2.0)
     number("top_p", 0.0, 1.0)
     number("max_tokens", 1, 1_000_000, integer=True)
-    # Extended samplers are sent only with a meaningful value: many OpenAI-compatible
-    # servers reject unknown or neutral fields (top_k on the OpenAI API, for example).
+
     for name, low, high, neutral, integer in (
             ("top_k", 0, 1000, 0, True), ("min_p", 0.0, 1.0, 0.0, False), ("top_a", 0.0, 1.0, 0.0, False),
             ("frequency_penalty", -2.0, 2.0, 0.0, False), ("presence_penalty", -2.0, 2.0, 0.0, False),
@@ -304,14 +283,12 @@ def build_completion(body: Dict[str, Any]) -> Dict[str, Any]:
         out["effort"] = effort
     return out
 
-
 def _parse_frame(raw: str) -> Optional[Dict[str, Any]]:
     try:
         item = json.loads(raw)
     except json.JSONDecodeError:
         return None
     return item if isinstance(item, dict) else None
-
 
 def _search_units() -> Dict[str, Any]:
     """Characters of the «characters» module for the global search (one unit per character)."""
@@ -333,12 +310,11 @@ def _search_units() -> Dict[str, Any]:
         units[cid] = (updated, build)
     return units
 
-
 def register_search() -> bool:
     """Plug the module's characters into the global search registry (app/search_index.py)."""
     try:
         from .search_index import FunctionProvider, register_provider
-    except Exception:  # the search index is optional
+    except Exception:
         return False
 
     def revision() -> Any:
@@ -351,7 +327,6 @@ def register_search() -> bool:
     register_provider(FunctionProvider("characters", ("character",), revision=revision, units=_search_units,
                                        min_interval=5.0, labels={"character": ("Персонажи", "Characters")}))
     return True
-
 
 def register(app, *, stream_lines: Callable[[str, bytes], Any]) -> None:
     from fastapi.responses import JSONResponse, StreamingResponse
@@ -368,7 +343,6 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any]) -> None:
         except (KeyError, ValueError):
             return False
 
-    # Round 29 phase 2: import by link (Memu.fetchImport, permission «net-import») — app/character_import.py.
     from . import character_import
     character_import.register(app, allowed=allowed)
 
@@ -394,7 +368,7 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any]) -> None:
                                           "The module may not call models"}, 403)
         fallback = getattr(request.app.state, "module_fallback_model", None)
         if not str(body.get("model") or "").strip() and fallback is not None:
-            body["model"] = await fallback()  # no model from the module → MemuAI's default text model
+            body["model"] = await fallback()
         try:
             built = build_completion(body)
         except ValueError as exc:
@@ -440,7 +414,7 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any]) -> None:
                         text.append(str(piece))
                         yield "data: " + json.dumps({"event": "delta", "delta": str(piece)},
                                                     ensure_ascii=False) + "\n\n"
-            except Exception as exc:  # the Proxy is down or the stream broke
+            except Exception as exc:
                 failure = f"{type(exc).__name__}: {exc}"
             if failure:
                 yield "data: " + json.dumps({"event": "error", "error": failure, "text": "".join(text)},
@@ -507,7 +481,6 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any]) -> None:
             return JSONResponse({"error": "Файл не найден / Asset not found"}, 404)
         except (ValueError, UnicodeDecodeError) as exc:
             return JSONResponse({"error": str(exc)}, 400)
-
 
 __all__ = ["register", "build_completion", "check_key", "store_get", "store_set", "store_remove",
            "store_list", "read_asset", "STORE_VALUE_LIMIT", "STORE_TOTAL_LIMIT"]

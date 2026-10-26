@@ -18,8 +18,6 @@ from typing import Any, Dict, List, Optional
 
 from .work_tools import WorkError, iter_files, read_text, relative, resolve_inside
 
-# Команды, которые не должны запускаться из чата ни при каком уровне доступа:
-# они выходят за пределы проекта и необратимы.
 FORBIDDEN_PATTERNS = (
     r"\bformat\s+[a-z]:", r"\bmkfs\b", r"\bdiskpart\b",
     r"\bshutdown\b", r"\breboot\b", r"\bhalt\b", r"\bpoweroff\b",
@@ -30,7 +28,7 @@ FORBIDDEN_PATTERNS = (
     r"\bcurl\b[^|]*\|\s*(ba)?sh", r"\bwget\b[^|]*\|\s*(ba)?sh",
     r"\bgit\s+push\b.*--force", r"\bgit\s+reset\s+--hard\b.*origin",
 )
-# Команды только для чтения: их можно выполнять и без полного доступа.
+
 SAFE_PREFIXES = (
     "git status", "git diff", "git log", "git branch", "git show",
     "git remote", "git rev-parse", "git ls-files", "git blame",
@@ -41,24 +39,19 @@ SAFE_PREFIXES = (
 MAX_OUTPUT = 40000
 DEFAULT_TIMEOUT = 120
 
-
 def _forbidden(command: str) -> Optional[str]:
-    # Один список на всё приложение — в песочнице (раньше было две копии).
+
     from . import code_sandbox
     return code_sandbox.forbidden_reason(command) or None
 
-
-# Символы, которыми к «безопасной» команде можно приклеить любую другую:
-# «git status && del /s /q src», «echo x > app.py», «cat a | powershell …».
 _SHELL_META = re.compile(r"[;&|<>`^\n\r]|\$\(|%[A-Za-z_]+%")
-# Подкоманды git, которые меняют репозиторий или пишут файлы.
+
 _GIT_WRITE_ARGS = re.compile(
     r"(?:^|\s)(?:-d|-D|-m|-M|-c|-C|--delete|--move|--copy|--force|-f|--set-upstream-to|"
     r"--unset-upstream|--edit-description|--output(?:=\S*)?|add|remove|rm|rename|set-url|"
     r"set-head|prune|update)(?:\s|$)")
-# Флаги «git branch», после которых позиционный аргумент — шаблон или коммит, а не новая ветка.
-_GIT_BRANCH_LIST = {"--list", "-l", "--contains", "--no-contains", "--merged", "--no-merged", "--points-at"}
 
+_GIT_BRANCH_LIST = {"--list", "-l", "--contains", "--no-contains", "--merged", "--no-merged", "--points-at"}
 
 def is_read_only(command: str) -> bool:
     raw = str(command or "").strip()
@@ -70,13 +63,12 @@ def is_read_only(command: str) -> bool:
     if low.startswith("git ") and _GIT_WRITE_ARGS.search(" ".join(raw.split()[2:])):
         return False
     if low.startswith("git branch "):
-        # «git branch имя» создаёт ветку; имя без флага списка — это запись.
+
         words = low.split()[2:]
         listing = any(word in _GIT_BRANCH_LIST or word.split("=", 1)[0] in _GIT_BRANCH_LIST for word in words)
         if not listing and any(not word.startswith("-") for word in words):
             return False
     return True
-
 
 def _safe_ref(value: Any, default: str = "") -> str:
     """Ревизия git от модели. «--output=../x» — это уже не ревизия, а опция."""
@@ -84,7 +76,6 @@ def _safe_ref(value: Any, default: str = "") -> str:
     if ref.startswith("-") or any(ch.isspace() or ord(ch) < 32 for ch in ref):
         raise WorkError("Некорректная ревизия git")
     return ref
-
 
 def run_command(root: Path, command: str, *, shell: str = "", timeout: int = DEFAULT_TIMEOUT,
                 cwd: str = "", session_id: str = "") -> Dict[str, Any]:
@@ -127,14 +118,12 @@ def run_command(root: Path, command: str, *, shell: str = "", timeout: int = DEF
         "sandboxed": True,
     }
 
-
 def _git(root: Path, *args: str, timeout: int = 30) -> str:
     if not shutil.which("git"):
         raise WorkError("git не найден в PATH")
     try:
         completed = subprocess.run(
-            # quotepath=off: кириллица и пробелы в путях приходят как есть,
-            # а не как "\321\204…", иначе пути не совпадают с деревом проекта.
+
             ["git", "-c", "core.quotepath=off", *args], cwd=str(root), capture_output=True, text=True,
             encoding="utf-8", errors="replace", timeout=timeout,
             creationflags=subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0,
@@ -145,7 +134,6 @@ def _git(root: Path, *args: str, timeout: int = 30) -> str:
         raise WorkError((completed.stderr or "git вернул ошибку").strip()[:400])
     return completed.stdout
 
-
 def tool_git(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Состояние репозитория: статус, дифф, история, ветки."""
     action = str(args.get("action") or "status").strip().lower()
@@ -153,7 +141,7 @@ def tool_git(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         return {"repository": False,
                 "note": "В проекте нет git-репозитория — история изменений недоступна."}
     if action == "status":
-        # -z: пути без кавычек и экранирования, переименование — два поля.
+
         fields = _git(root, "status", "--porcelain=v1", "-b", "-z").split("\0")
         branch = fields[0][3:] if fields and fields[0].startswith("##") else ""
         changes = []
@@ -201,8 +189,6 @@ def tool_git(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
                 "text": _git(root, "show", "--end-of-options", ref)[:MAX_OUTPUT]}
     raise WorkError(f"Неизвестное действие git «{action}»")
 
-
-# Быстрая оценка проекта: какие языки, где точка входа, чем собирается.
 MANIFESTS = {
     "package.json": "node", "pyproject.toml": "python", "requirements.txt": "python",
     "Cargo.toml": "rust", "go.mod": "go", "pom.xml": "java",
@@ -214,7 +200,6 @@ TEST_HINTS = {
     "go": "go test ./...", "java": "mvn test", "php": "composer test",
     "ruby": "bundle exec rspec",
 }
-
 
 def tool_project_info(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Что это за проект: стек, манифесты, команды сборки и тестов."""
@@ -249,7 +234,6 @@ def tool_project_info(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         "has_git": (root / ".git").exists(),
     }
 
-
 def tool_review(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Собирает материал для ревью: изменённые файлы и их дифф."""
     if not (root / ".git").exists():
@@ -264,11 +248,10 @@ def tool_review(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         diff = _git(root, "diff", "--cached", "--unified=3")
         stat = _git(root, "diff", "--cached", "--stat")
     if not base:
-        # Новые файлы агента git diff не показывает — добавляем их отдельно.
+
         diff += _untracked_diff(root)
     return {"base": base or "working tree", "stat": stat[:8000],
             "diff": diff[:MAX_OUTPUT], "truncated": len(diff) > MAX_OUTPUT}
-
 
 def _untracked_diff(root: Path, limit: int = 20) -> str:
     """Дифф новых (неотслеживаемых) файлов относительно пустого файла."""
@@ -286,14 +269,12 @@ def _untracked_diff(root: Path, limit: int = 20) -> str:
         parts.append(f"# … ещё {len(names) - limit} новых файлов\n")
     return "".join(parts)
 
-
 READ_TOOLS = {
     "code_git": tool_git,
     "code_project_info": tool_project_info,
     "code_review": tool_review,
 }
 ALL_TOOLS = dict(READ_TOOLS)
-
 
 def run(name: str, root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     handler = ALL_TOOLS.get(name)
@@ -304,7 +285,6 @@ def run(name: str, root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     result["tool"] = name
     result["ms"] = int((time.time() - started) * 1000)
     return result
-
 
 def auto_project_root(name: str = "") -> Path:
     """Каталог для работы без выбранного проекта.
@@ -333,7 +313,6 @@ DIAGNOSTIC_COMMANDS = {
     "node": ["npm test", "npm run lint --if-present", "npm run typecheck --if-present"],
 }
 
-
 def tool_read_cached(root: Path, args: Dict[str, Any], session_id: str = "") -> Dict[str, Any]:
     engine = code_context.engine_for(session_id or "default", root)
     if not engine.tree:
@@ -345,13 +324,11 @@ def tool_read_cached(root: Path, args: Dict[str, Any], session_id: str = "") -> 
         max_chars=int(args.get("max_chars") or 16000),
     )
 
-
 def tool_outline_deep(root: Path, args: Dict[str, Any], session_id: str = "") -> Dict[str, Any]:
     engine = code_context.engine_for(session_id or "default", root)
     if not engine.tree:
         engine.refresh()
     return engine.outline_deep(str(args.get("path") or ""))
-
 
 def tool_context(root: Path, args: Dict[str, Any], session_id: str = "") -> Dict[str, Any]:
     engine = code_context.engine_for(session_id or "default", root)
@@ -360,7 +337,6 @@ def tool_context(root: Path, args: Dict[str, Any], session_id: str = "") -> Dict
     return engine.selective_context(str(args.get("query") or ""),
                                     max_files=int(args.get("max_files") or 8),
                                     max_chars=int(args.get("max_chars") or 48000))
-
 
 def tool_diagnostics(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     stacks = tool_project_info(root, {}).get("stacks") or []
@@ -391,12 +367,10 @@ def tool_diagnostics(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
             results.append({"command": command, "error": str(exc)})
     return {"commands": commands, "results": results}
 
-
 def tool_symbols(root: Path, args: Dict[str, Any], session_id: str = "") -> Dict[str, Any]:
     engine = code_context.engine_for(session_id or "default", root)
     return engine.search_symbols(str(args.get("query") or ""),
                                  limit=int(args.get("limit") or 40))
-
 
 def _skill_disabled(project_id: str, skill_id: str) -> bool:
     try:
@@ -409,7 +383,6 @@ def _skill_disabled(project_id: str, skill_id: str) -> bool:
         row = state.get("_") if isinstance(state, dict) else None
     disabled = row.get("disabled") if isinstance(row, dict) else []
     return str(skill_id) in {str(item) for item in disabled or []}
-
 
 def tool_skill(root: Path, args: Dict[str, Any], session_id: str = "") -> Dict[str, Any]:
     from . import code_skills
@@ -427,10 +400,8 @@ def tool_skill(root: Path, args: Dict[str, Any], session_id: str = "") -> Dict[s
     matched = code_skills.match_skills(str(args.get("query") or "")) if not skill_id else []
     return {"id": skill_id, "prompt": prompt, "suggestions": matched}
 
-
 def tool_terminal(root: Path, args: Dict[str, Any], session_id: str = "") -> Dict[str, Any]:
     return code_sessions.manager.terminal(session_id or "default", root, args or {})
-
 
 def tool_artifacts(root: Path, args: Dict[str, Any], session_id: str = "") -> Dict[str, Any]:
     session = session_id or "default"
@@ -459,7 +430,6 @@ def tool_artifacts(root: Path, args: Dict[str, Any], session_id: str = "") -> Di
         return {"deleted": str(args.get("id") or "")}
     raise WorkError(f"Unknown artifact action: {action}")
 
-
 def tool_task(root: Path, args: Dict[str, Any], session_id: str = "") -> Dict[str, Any]:
     from .code_sandbox import filtered_env
     session = session_id or "default"
@@ -485,7 +455,6 @@ def tool_task(root: Path, args: Dict[str, Any], session_id: str = "") -> Dict[st
             timeout=int(args.get("timeout") or 600), label=str(args.get("label") or ""))
     raise WorkError(f"Unknown task action: {action}")
 
-
 READ_TOOLS.update({
     "code_read_cached": tool_read_cached,
     "code_outline_deep": tool_outline_deep,
@@ -503,7 +472,6 @@ PARALLEL_SAFE = {
     "code_project_info", "code_review", "code_skill",
 }
 
-
 def parallel_safe(name: str, args: Dict[str, Any] | None = None) -> bool:
     """Read-only code tools may run together. Anything that writes stays serial."""
     args = args or {}
@@ -517,7 +485,6 @@ def parallel_safe(name: str, args: Dict[str, Any] | None = None) -> bool:
     if name in ("code_task", "code_terminal"):
         return action in ("", "list", "status", "read")
     return name in PARALLEL_SAFE
-
 
 def run_session_tool(name: str, root: Path, args: Dict[str, Any], session_id: str = "") -> Dict[str, Any]:
     """Dispatch for session-aware tools (context cache, artifacts, tasks)."""

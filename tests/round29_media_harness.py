@@ -20,12 +20,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-
 def free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
-
 
 class MediaServers:
     def __init__(self, data: str = "") -> None:
@@ -95,7 +93,6 @@ class MediaServers:
     def stop(self) -> None:
         for server in self.servers:
             server.should_exit = True
-
 
 if __name__ == "__main__":
     servers = MediaServers().start()

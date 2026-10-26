@@ -28,17 +28,15 @@ if TYPE_CHECKING:  # pragma: no cover
 EVENTS = ("PreToolUse", "PostToolUse", "UserPromptSubmit", "Stop", "SubagentStop", "SessionStart",
           "SessionEnd", "PreCompact", "Notification")
 
-
 @dataclass
 class HookOutcome:
-    decision: str = ""               # allow | deny | ask | block
+    decision: str = ""
     reason: str = ""
     context: List[str] = field(default_factory=list)
     stop: bool = False
     stop_reason: str = ""
-    messages: List[str] = field(default_factory=list)   # shown to the user
+    messages: List[str] = field(default_factory=list)
     ran: int = 0
-
 
 class HookRunner:
     def __init__(self, runtime: "Runtime") -> None:
@@ -105,9 +103,7 @@ class HookRunner:
         argv = argv_for(self.runtime.settings, command)
 
         def work():
-            # run_bounded kills the hook's whole process tree on timeout:
-            # subprocess.run only killed the shell and then waited forever on
-            # the pipes a grandchild still held (Windows), freezing the turn.
+
             from .. import code_sandbox
             try:
                 code, out, err, timed_out = code_sandbox.run_bounded(
@@ -117,7 +113,7 @@ class HookRunner:
                 return (127, "", f"hook could not start: {exc}")
             if timed_out:
                 return (124, "", f"hook timed out after {timeout:.0f}s: {command[:80]}")
-            # a PowerShell/cmd hook may print cp866/cp1251
+
             return (code, code_sandbox.OutputDecoder().decode(out, final=True),
                     code_sandbox.OutputDecoder().decode(err, final=True))
 

@@ -1,5 +1,5 @@
-// MemuFiles · Round 40 (r40-files-max): one-click type filter, pinned tabs, the «Details» / «Hashes» tabs of Properties,
-// strings of the AI «sort by meaning» plan. Everything here is lazy: nothing runs until the user opens it.
+
+
 import { t, addStrings } from "./i18n.js";
 import { api, h, esc, icon, fmtNum, fmtSize, typeOf } from "./core.js";
 
@@ -85,7 +85,6 @@ addStrings({
   "meta.sheets": "Листов", "meta.frames": "Кадров", "meta.mode": "Цветовой режим", "meta.dpi": "Разрешение",
 });
 
-// ------------------------------------------------------------------ one-click type filter
 const DOCS = new Set(["pdf", "doc", "sheet", "slides", "text", "book"]);
 export const KINDS = ["folder", "image", "video", "audio", "docs", "archive", "code", "other"];
 export function kindOf(r) {
@@ -106,7 +105,6 @@ export function toggleKindBar(app) {
   if (app.updateCommands) app.updateCommands();
 }
 
-/** The chip row above a folder listing: «Все 13 · Изображения 3 · Документы 9 …» — only kinds present here. */
 export function renderKindBar(pane) {
   if (!pane.el) return;
   let bar = pane.kindEl;
@@ -136,7 +134,6 @@ export function renderKindBar(pane) {
   if (bar.innerHTML !== html) bar.innerHTML = html;
 }
 
-// ------------------------------------------------------------------ pinned tabs
 export function pinTab(app, index, on) {
   const tab = app.tabs[index];
   if (!tab) return;
@@ -150,7 +147,6 @@ export function pinTab(app, index, on) {
   app.saveSession();
 }
 
-// ------------------------------------------------------------------ Properties: «Details» and «Hashes» tabs
 const META_ORDER = ["title", "author", "subject", "pages", "slides", "sheets", "words", "lines", "encoding", "dimensions", "dpi", "mode",
   "frames", "taken", "camera", "lens", "exposure", "iso", "focal", "gps", "software", "duration", "bitrate", "artist", "album",
   "year", "genre", "track", "files", "unpacked", "created", "modified"];
@@ -162,7 +158,6 @@ function metaValue(key, v) {
   return String(v);
 }
 
-/** Turns the single-page Properties body into tabs: General (as before) · Details (metadata) · Hashes (+ verify). */
 export function propertiesTabs(info, generalBody) {
   if (info.is_dir) return generalBody;
   const wrap = h("div", { class: "ptabs-wrap" });
@@ -182,7 +177,7 @@ export function propertiesTabs(info, generalBody) {
   pages.details = h("div", { class: "ptab-page details" });
   pages.hashes = hashesPage(info);
   wrap.append(bar, pages.general, pages.details, pages.hashes);
-  // the page height does not jump between tabs
+
   pages.details.style.minHeight = pages.hashes.style.minHeight = "220px";
   show("general");
   return wrap;
@@ -236,9 +231,6 @@ function hashesPage(info) {
   return page;
 }
 
-// ------------------------------------------------------------------ breadcrumbs that fit (Explorer's «…» overflow)
-/** A long path in a narrow address bar: the leading folders fold into a «…» button (a menu of them) instead of the bar
- *  being scrolled to the end, which cut the first visible crumb in half. The last folder always stays. */
 export function fitCrumbs(app) {
   const el = app.crumbsEl;
   if (!el || !el.isConnected) return;
@@ -246,7 +238,7 @@ export function fitCrumbs(app) {
   const kids = [...el.children];
   kids.forEach((k) => { k.hidden = false; });
   if (el.scrollWidth <= el.clientWidth + 1) return;
-  const crumbs = kids.filter((k) => k.classList.contains("crumb") && !k.querySelector(".ic"));   // folders (not ⌂)
+  const crumbs = kids.filter((k) => k.classList.contains("crumb") && !k.querySelector(".ic"));
   if (crumbs.length < 2) return;
   const more = h("button", { class: "crumb more", text: "…", title: t("nav.subfolders") });
   const hiddenOnes = [];

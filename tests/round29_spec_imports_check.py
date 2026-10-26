@@ -24,23 +24,27 @@ sys.path.insert(0, str(ROOT))
 os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="memu-speccheck-"))
 
 SPECS = {"MemuAI.spec": "memuai", "MemuAIProxy.spec": "proxy", "MemuCode.spec": "memucode", "MemuNote.spec": "memunote",
-         "memu.spec": "memu",   # Round 35 (protocol): the memu command line
-         "MemuFiles.spec": "memufiles"}   # Round 35 (files): the file manager
+         "memu.spec": "memu",
+         "MemuFiles.spec": "memufiles"}
 WIN_ONLY = re.compile(r"(_win|win_|winsys|wake_audio|clr)$|^app\.win_")
-
 
 def spec_hidden(path: Path) -> list:
     tree = ast.parse(path.read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign) and any(getattr(t, "id", "") == "hiddenimports" for t in node.targets):
             return list(ast.literal_eval(node.value))
-    return []
 
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", "") == "Analysis":
+            for keyword in node.keywords:
+                if keyword.arg == "hiddenimports":
+                    return list(ast.literal_eval(keyword.value))
+    return []
 
 def main() -> int:
     import build
     problems = []
-    # modules build.py writes itself during a build (app/oauth_build.py; git-ignored, absent in a source checkout)
+
     generated = {"app." + Path(p).stem for p in (getattr(build, "OAUTH_BUILD", None),) if p}
     for spec, target in SPECS.items():
         path = ROOT / spec
@@ -67,11 +71,11 @@ def main() -> int:
                 importlib.import_module(name)
             except Exception as exc:   # noqa: BLE001 — report every broken module
                 problems.append(f"{spec}: import {name} failed: {type(exc).__name__}: {exc}")
-    # proxy_only build has its own list (no spec file): it must resolve too
+
     for name in build.TARGETS["proxy_only"]["hidden"]:
         if name.startswith("app.") and name not in generated and importlib.util.find_spec(name) is None:
             problems.append(f"build.py proxy_only: {name} does not exist")
-    # modules loaded by a string name
+
     memuai = set(build.TARGETS["memuai"]["hidden"])
     plugins = json.loads((ROOT / "app/pgstatic/quick/plugins/index.json").read_text(encoding="utf-8"))["plugins"]
     for plugin in plugins:
@@ -88,7 +92,6 @@ def main() -> int:
         print("PROBLEM:", p)
     print(f"{len(problems)} problems")
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

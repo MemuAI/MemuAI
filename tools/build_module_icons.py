@@ -23,7 +23,6 @@ from app import module_icons  # noqa: E402
 
 BUILTINS = ROOT / "app" / "module_builtins"
 
-
 def render(page, svg: bytes, size: int):
     from PIL import Image, ImageFilter
     url = "data:image/svg+xml;base64," + base64.b64encode(svg).decode("ascii")
@@ -38,7 +37,6 @@ def render(page, svg: bytes, size: int):
         rgb = Image.merge("RGB", (r, g, b)).filter(ImageFilter.UnsharpMask(radius=0.5, percent=55, threshold=1))
         frame = Image.merge("RGBA", (*rgb.split(), a))
     return frame
-
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -59,7 +57,6 @@ def main() -> None:
             (folder / "icon.ico").write_bytes(module_icons.ico_bytes(frames))
             print(folder.name, "icon.ico", (folder / "icon.ico").stat().st_size, "bytes")
         browser.close()
-
 
 if __name__ == "__main__":
     main()

@@ -54,7 +54,6 @@ STRINGS: Dict[str, Dict[str, str]] = {
     },
 }
 
-
 def tr(key: str, lang: str = "en", **values: object) -> str:
     entry = STRINGS.get(key) or {}
     text = entry.get(lang) or entry.get("en") or key
@@ -62,7 +61,6 @@ def tr(key: str, lang: str = "en", **values: object) -> str:
         return text.format(**values)
     except (KeyError, IndexError):
         return text
-
 
 def pick_language(code: str) -> str:
     """Map a locale/LCID-derived code to the interface language (ru or en)."""

@@ -36,15 +36,11 @@ MAX_ID = 48
 MAX_TEXT = code_skills.MAX_SKILL_PROMPT + 2000
 SCOPES = ("project", "personal")
 
-
-# ---------------------------------------------------------------- names
-
 def slugify(name: str) -> str:
     """``"Release Notes!"`` → ``"release-notes"``. Letters of any alphabet are kept (a Russian name stays Russian)."""
     text = re.sub(r"[^\w-]+", "-", str(name or "").strip().lower(), flags=re.UNICODE)
     text = re.sub(r"[-_]{2,}", "-", text).strip("-_")
     return text[:MAX_ID].strip("-_")
-
 
 def name_problem(slug: str) -> str:
     if not slug:
@@ -53,19 +49,14 @@ def name_problem(slug: str) -> str:
         return tr("Это имя зарезервировано Windows", "Windows reserves that name")
     return ""
 
-
-# ---------------------------------------------------------------- locations
-
 def roots(project_root: Path) -> Dict[str, Path]:
     """The folder each scope keeps its skills in."""
     return {"project": Path(project_root) / paths.PROJECT_DIR / "skills", "personal": paths.user_skills_dir()}
-
 
 def skill_dir(project_root: Path, scope: str, slug: str) -> Path:
     if scope not in SCOPES:
         raise ValueError(f"scope must be one of {', '.join(SCOPES)}")
     return roots(project_root)[scope] / slug
-
 
 def known_roots(project_root: Path) -> List[Path]:
     """Every folder a skill may be read from — and so every place a delete is allowed to touch."""
@@ -74,7 +65,6 @@ def known_roots(project_root: Path) -> List[Path]:
              base / ".memuai" / "skills", Path.home() / ".claude" / "skills", Path(code_skills.PERSONAL_ROOT)]
     return [path.resolve() for path in found]
 
-
 def _inside(path: Path, parent: Path) -> bool:
     try:
         path.resolve().relative_to(parent.resolve())
@@ -82,18 +72,13 @@ def _inside(path: Path, parent: Path) -> bool:
     except (ValueError, OSError):
         return False
 
-
 def scope_label(source: str) -> str:
     return {"project": tr("проект", "project"), "personal": tr("личный", "personal"),
             "builtin": tr("встроенный", "built-in")}.get(source, source)
 
-
-# ---------------------------------------------------------------- text
-
 def parse(text: str) -> Tuple[Dict[str, str], str]:
     from .project import split_front_matter
     return split_front_matter(text)
-
 
 TEMPLATE = """---
 name: {id}
@@ -106,11 +91,9 @@ Describe here when this skill applies, the exact steps to follow, the checks tha
 the format of the final report.
 """
 
-
 def template(slug: str, description: str = "", title: str = "") -> str:
     return TEMPLATE.format(id=slug, description=description or "What it does and when to use it — one sentence",
                            title=title or slug.replace("-", " ").title())
-
 
 def check_text(text: str) -> List[str]:
     """What is wrong with a SKILL.md text (empty list: fine)."""
@@ -128,7 +111,6 @@ def check_text(text: str) -> List[str]:
         problems.append(tr(f"Слишком длинно (больше {MAX_TEXT} символов)", f"Too long (over {MAX_TEXT} characters)"))
     return problems
 
-
 def normalize(text: str, slug: str, description: str = "") -> str:
     """The text with a header that names the skill ``slug`` (a missing header is made)."""
     text = str(text or "").replace("\r\n", "\n").lstrip("﻿")
@@ -144,9 +126,6 @@ def normalize(text: str, slug: str, description: str = "") -> str:
             text = "---\nname: " + slug + "\n" + "\n".join(lines) + "\n---\n" + text[header.end():]
     return text.rstrip("\n") + "\n"
 
-
-# ---------------------------------------------------------------- operations
-
 def write_skill(project_root: Path, scope: str, slug: str, text: str, *, overwrite: bool = False) -> Path:
     problem = name_problem(slug)
     if problem:
@@ -159,12 +138,10 @@ def write_skill(project_root: Path, scope: str, slug: str, text: str, *, overwri
     target.write_text(normalize(text, slug), encoding="utf-8")
     return target
 
-
 def trash_dir() -> Path:
     path = paths.home() / "trash" / "skills"
     path.mkdir(parents=True, exist_ok=True)
     return path
-
 
 def delete_skill(project_root: Path, skill_file: Path) -> Path:
     """Move the skill's folder to the trash. Only folders under a known skills root, holding a SKILL.md."""
@@ -177,7 +154,6 @@ def delete_skill(project_root: Path, skill_file: Path) -> Path:
     shutil.move(str(folder), str(target))
     return target
 
-
 def list_trash() -> List[Dict[str, Any]]:
     rows = []
     for entry in sorted(trash_dir().iterdir(), key=lambda item: item.stat().st_mtime, reverse=True):
@@ -186,7 +162,6 @@ def list_trash() -> List[Dict[str, Any]]:
             rows.append({"folder": entry, "id": re.sub(r"-\d{8}-\d{6}$", "", entry.name),
                          "description": meta.get("description", ""), "deleted": entry.stat().st_mtime})
     return rows
-
 
 def restore_skill(project_root: Path, entry: Dict[str, Any], scope: str) -> Path:
     slug = str(entry["id"])
@@ -197,11 +172,9 @@ def restore_skill(project_root: Path, entry: Dict[str, Any], scope: str) -> Path
     shutil.move(str(entry["folder"]), str(folder))
     return folder / "SKILL.md"
 
-
 def disabled_ids(settings: Any) -> List[str]:
     raw = settings.get("skills.disabled") if settings is not None else None
     return [str(item).lower() for item in raw] if isinstance(raw, list) else []
-
 
 def set_disabled(settings: Any, slug: str, disabled: bool) -> None:
     current = disabled_ids(settings)
@@ -211,16 +184,14 @@ def set_disabled(settings: Any, slug: str, disabled: bool) -> None:
         current = [item for item in current if item != slug]
     settings.set("skills.disabled", current)
 
-
 def describe(row: Dict[str, Any], *, disabled: bool = False) -> str:
     """One line: ``project · Writes release notes … (off)``."""
     text = f"{scope_label(str(row.get('source') or ''))} · {row.get('description') or row.get('title') or ''}"
     return text + (tr(" (выключен)", " (off)") if disabled else "")
 
-
 def location_help(project_root: Path) -> str:
     """Where skills live — for the user and for the system prompt."""
     places = roots(project_root)
-    sep = os.sep                    # was always "\\": on Windows right, elsewhere a path that does not exist
+    sep = os.sep
     return (f"project skills: {places['project']}{sep}<id>{sep}SKILL.md; "
             f"personal skills: {places['personal']}{sep}<id>{sep}SKILL.md")

@@ -21,14 +21,12 @@ from ..i18n import tr
 
 MAX_SUMMARY_COMMAND = 46
 
-
 @dataclass
 class Step:
     """One finished tool call."""
     call: Any
     result: Any
     seconds: float = 0.0
-
 
 KIND_OF = {
     "Read": "read", "ProjectInfo": "read",
@@ -43,29 +41,24 @@ KIND_OF = {
     "__invalid__": "badcall",
 }
 
-
 def classify(name: str) -> str:
     if name.startswith("mcp__"):
         return "mcp"
     return KIND_OF.get(name, "other")
 
-
 def _short(text: str, limit: int) -> str:
     text = " ".join(str(text or "").split())
     return text if len(text) <= limit else text[:max(1, limit - 1)] + "…"
-
 
 def _file_name(step: Step) -> str:
     args = step.call.args or {}
     raw = args.get("file_path") or args.get("path") or step.call.display or ""
     return str(raw).replace("\\", "/")
 
-
 def _base(path: str) -> str:
     path = path.rstrip("/")
     parts = path.split("/")
     return "/".join(parts[-2:]) if len(parts) > 2 else path
-
 
 def _diff_counts(step: Step) -> Tuple[int, int]:
     diff = getattr(step.result, "diff", "") or ""
@@ -73,16 +66,13 @@ def _diff_counts(step: Step) -> Tuple[int, int]:
     removed = sum(1 for line in diff.splitlines() if line.startswith("-") and not line.startswith("---"))
     return added, removed
 
-
 def _domain(url: str) -> str:
     match = re.match(r"^(?:https?://)?([^/\s]+)", str(url or ""))
     return match.group(1) if match else str(url or "")[:40]
 
-
 def _pattern(step: Step) -> str:
     args = step.call.args or {}
     return str(args.get("pattern") or args.get("query") or args.get("name") or step.call.display or "")
-
 
 def phrase(kind: str, steps: Sequence[Step], compact: bool = False) -> str:
     """The text for all steps of one kind ("Read app.py", "Read 3 files")."""
@@ -152,7 +142,7 @@ def phrase(kind: str, steps: Sequence[Step], compact: bool = False) -> str:
     if kind == "advisor":
         return "Consulted the advisor"
     if kind == "badcall":
-        # A tool call the model wrote badly and sends again: protocol noise, not a failure of the work.
+
         return "Resent a tool call" if count == 1 else f"Resent tool calls ×{count}"
     if kind == "mcp":
         from .render import tool_title
@@ -160,11 +150,9 @@ def phrase(kind: str, steps: Sequence[Step], compact: bool = False) -> str:
     from .render import tool_title
     return _short(tool_title(first.call.name), 24) + ("" if count == 1 else f" ×{count}")
 
-
 def in_order(steps: Sequence[Step]) -> List[Step]:
     """Calls finish in any order (parallel reads, agents); the summary follows the order they were issued."""
     return sorted(steps, key=lambda step: getattr(step.call, "seq", 0))
-
 
 def summary_parts(steps: Sequence[Step], width: int = 100) -> List[Tuple[str, str]]:
     """[(text, style)] of the collapsed line, without the chevron."""
@@ -200,7 +188,6 @@ def summary_parts(steps: Sequence[Step], width: int = 100) -> List[Tuple[str, st
         text = _short(text, max(12, width - reserve))
     return [(text, "dim"), *tail]
 
-
 def _status_text(step: Step) -> str:
     result, call = step.result, step.call
     kind = classify(call.name)
@@ -224,12 +211,10 @@ def _status_text(step: Step) -> str:
         return _short(result.summary, 60)
     return _short(result.summary or "", 60)
 
-
 LABELS = {"read": "Read", "search": "Search", "list": "List", "edit": "Edit", "create": "Create", "run": "Run",
           "shell": "Shell", "fetch": "Fetch", "websearch": "Web", "agent": "Agent", "agentcheck": "Agent",
           "todo": "Todos", "ask": "Ask", "plan": "Plan", "skill": "Skill", "browser": "Browser",
           "computer": "Computer", "advisor": "Advisor", "mcp": "MCP", "badcall": "Retry"}
-
 
 def _arg_text(step: Step) -> str:
     kind = classify(step.call.name)
@@ -248,14 +233,12 @@ def _arg_text(step: Step) -> str:
         return ""
     return step.call.display or ""
 
-
 def _output_lines(text: str, limit: int, *, tail: bool = False) -> Tuple[List[str], int]:
     lines = [line.rstrip() for line in str(text or "").rstrip().splitlines()]
     hidden = max(0, len(lines) - limit)
     if hidden:
         lines = lines[-limit:] if tail else lines[:limit]
     return lines, hidden
-
 
 class ActivityView:
     """Builds the rich renderables of an activity block."""
@@ -372,9 +355,7 @@ class ActivityView:
             detail = _short(step.result.error or step.result.summary or "", max(20, width - 24)) if not denied else ""
             line = Text("      ⎿ ", style="subtle", no_wrap=True, overflow="ellipsis")
             if len(steps) == 1:
-                # Round 34: a one-step group's header already names the command and says «stopped»/«failed» —
-                # the line under it repeated both («Ran for i… stopped / ⎿ Run for i… stopped»). Only a real
-                # message (exit code, error text) is added.
+
                 if denied or not detail or detail == reason:
                     continue
                 line.append(detail, style="err")

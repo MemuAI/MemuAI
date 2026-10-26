@@ -49,14 +49,12 @@ FINAL = {
                       "diligence": ["You rewrite emails in your own words and ask for sources behind trip prices.", "Make a fact-checking skill for trip plans and prices.", "skill"]}},
 }
 
-
 def final_json(lang: str) -> str:
     d = FINAL[lang]
     return json.dumps({"headline": d["headline"], "summary": d["summary"],
                        "topics": [{"name": n, "description": t, "percent": p} for n, t, p in d["topics"]],
                        "skills": {k: {"observation": o, "next_step": s, "action": a} for k, (o, s, a) in d["skills"].items()}},
                       ensure_ascii=False)
-
 
 class Model:
     """Scripted model: mode ok | slow (waits for release) | error."""
@@ -72,7 +70,6 @@ class Model:
         if self.mode == "slow":
             await asyncio.sleep(3600)
         return final_json(lang)
-
 
 def start_server(model: Model):
     import uvicorn
@@ -100,14 +97,12 @@ def start_server(model: Model):
     threading.Thread(target=server.run, daemon=True).start()
     return server
 
-
 def write_data():
     chats, quick = make_history()
     folder = DATA / "memuai"
     folder.mkdir(parents=True, exist_ok=True)
     (folder / "chats.json").write_text(json.dumps(chats, ensure_ascii=False), encoding="utf-8")
     (folder / "quick_chats.json").write_text(json.dumps(quick, ensure_ascii=False), encoding="utf-8")
-
 
 BRIDGE = """<script>
 (() => {
@@ -118,7 +113,6 @@ BRIDGE = """<script>
   };
 })();
 </script>"""
-
 
 def build(tmp: Path) -> Path:
     """The fixture mocks window.fetch; /api/reflect and /api/focus go to the real reflect server instead."""
@@ -131,11 +125,9 @@ def build(tmp: Path) -> Path:
     fixture.write_text(html, encoding="utf-8")
     return fixture
 
-
 def ctl(body):
     import httpx
     httpx.post(f"http://127.0.0.1:{PORT}/__ctl", json=body, timeout=10, trust_env=False)
-
 
 def quick_shots(browser, out: Path, problems: list) -> None:
     """The real Quick Ask page from app/pgstatic over file-less routing: /api/focus/* answer like app/reflect.py."""
@@ -185,7 +177,7 @@ def quick_shots(browser, out: Path, problems: list) -> None:
             problems.append(f"quick-{lang}: no quiet-hours strip on opening")
         time.sleep(0.4)
         page.screenshot(path=str(out / f"quick-quiet-{lang}-{theme}.png"))
-        page.click(".qf-card [data-i='0']")                      # «Продолжить»
+        page.click(".qf-card [data-i='0']")
         time.sleep(0.2)
         if page.query_selector(".qf-card[data-kind='quiet']") and page.is_visible(".qf-card[data-kind='quiet']"):
             problems.append(f"quick-{lang}: «continue» did not hide the strip")
@@ -201,7 +193,6 @@ def quick_shots(browser, out: Path, problems: list) -> None:
         if errors:
             problems.append(f"quick-{lang}: page errors {errors[:3]}")
         page.close()
-
 
 def main(out: Path) -> int:
     from playwright.sync_api import sync_playwright
@@ -263,7 +254,6 @@ def main(out: Path) -> int:
                 page.locator("#panel").screenshot(path=str(path.with_name(f"{path.stem}-{i + 1}.png")))
             page.evaluate("document.querySelector('#panel .settings-body').scrollTop = 0")
 
-        # 1. The report: ru/en × dark/light (cached after the first generation).
         ctl({"clear": True, "mode": "ok", "prefs": {"reflect_enabled": True}})
         for lang, theme in (("ru", "dark"), ("en", "light"), ("ru", "light"), ("en", "dark")):
             ctx, page, errors = page_for(lang, theme)
@@ -279,7 +269,6 @@ def main(out: Path) -> int:
             check(page, f"report-{lang}-{theme}", errors)
             ctx.close()
 
-        # 2. Every design (light and dark alternate), the report page top.
         for i, design in enumerate(("aurora", "focus", "grid", "glass", "soft", "terminal", "brutal")):
             theme = "light" if i % 2 else "dark"
             ctx, page, errors = page_for("ru", theme, design)
@@ -293,7 +282,6 @@ def main(out: Path) -> int:
             check(page, f"design-{design}", errors)
             ctx.close()
 
-        # 3. Narrow window.
         for lang in ("ru", "en"):
             ctx, page, errors = page_for(lang, "dark", width=640, height=900)
             open_page(page, "reflect")
@@ -303,7 +291,6 @@ def main(out: Path) -> int:
             check(page, f"narrow-{lang}", errors)
             ctx.close()
 
-        # 4. Loading (the model never answers) and 5. a model error with «Повторить».
         ctl({"clear": True, "mode": "slow"})
         ctx, page, errors = page_for("ru", "dark")
         open_page(page, "reflect")
@@ -326,7 +313,6 @@ def main(out: Path) -> int:
             check(page, f"error-{lang}", errors)
             ctx.close()
 
-        # 6. Empty period and too few conversations.
         ctl({"clear": True, "mode": "ok"})
         folder = DATA / "memuai"
         saved = (folder / "chats.json").read_text(encoding="utf-8"), (folder / "quick_chats.json").read_text(encoding="utf-8")
@@ -354,7 +340,6 @@ def main(out: Path) -> int:
         (folder / "chats.json").write_text(saved[0], encoding="utf-8")
         (folder / "quick_chats.json").write_text(saved[1], encoding="utf-8")
 
-        # 7. Reflect turned off.
         ctx, page, errors = page_for("en", "dark")
         page.evaluate("savePreferences({reflect_enabled: false})")
         open_page(page, "reflect")
@@ -363,7 +348,6 @@ def main(out: Path) -> int:
         check(page, "off", errors)
         ctx.close()
 
-        # 8. «Время и фокус» and the reminders.
         for lang, theme in (("ru", "dark"), ("en", "light")):
             ctx, page, errors = page_for(lang, theme)
             page.evaluate("savePreferences({focus_quiet_enabled: true, focus_break_enabled: true, focus_quiet_days: [0,1,2,3,4], focus_quiet_start: '22:00', focus_quiet_end: '07:00'})")
@@ -381,17 +365,17 @@ def main(out: Path) -> int:
         ctx.close()
         for lang in ("ru", "en"):
             ctx, page, errors = page_for(lang, "dark")
-            # Quiet hours around «now»: the reminder before sending.
+
             page.evaluate("""() => { const d = new Date(); const pad = (n) => String(n).padStart(2, '0');
               const s = new Date(d.getTime() - 3600e3), e = new Date(d.getTime() + 3600e3);
               savePreferences({focus_quiet_enabled: true, focus_quiet_days: [0,1,2,3,4,5,6], focus_quiet_start: pad(s.getHours()) + ':00', focus_quiet_end: pad(e.getHours()) + ':' + pad(e.getMinutes())});
               sessionStorage.removeItem('memu_quiet_ack'); document.querySelector('.fx-card')?.remove(); }""")
             page.fill("#input", "Напиши план на завтра" if lang == "ru" else "Plan my tomorrow")
-            page.evaluate("() => { send(); }")             # send() waits for the reminder: do not await it
+            page.evaluate("() => { send(); }")
             page.wait_for_selector(".fx-card[data-kind='quiet-send']", timeout=5000)
             time.sleep(0.4)
             page.screenshot(path=str(out / f"quiet-send-{lang}.png"))
-            page.click(".fx-card [data-i='1']")                   # «Вернусь позже»: nothing is sent, text stays
+            page.click(".fx-card [data-i='1']")
             if page.input_value("#input") == "":
                 problems.append(f"quiet-send-{lang}: «later» lost the text")
             page.evaluate("MemuFocus._showBreak(62)")
@@ -399,7 +383,7 @@ def main(out: Path) -> int:
             page.screenshot(path=str(out / f"break-{lang}.png"))
             check(page, f"reminders-{lang}", errors)
             ctx.close()
-        # 9. Quick Ask (quick/plugins/focus.js): the quiet-hours strip on opening, the break strip after a request.
+
         quick_shots(browser, out, problems)
         browser.close()
     shutil.rmtree(tmp, ignore_errors=True)
@@ -408,7 +392,6 @@ def main(out: Path) -> int:
         print("PROBLEM:", item)
     print(f"{len(problems)} problems, shots in {out}")
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r27/r27-reflect").resolve()))

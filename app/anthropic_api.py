@@ -20,7 +20,6 @@ from .tool_protocol import (TOOL_PROVIDER_ERROR, TOOL_PROVIDER_ERROR_RU, collect
 
 router = APIRouter()
 
-
 def _client_key(request: Request) -> Optional[str]:
     key = request.headers.get("x-api-key")
     if key:
@@ -30,10 +29,9 @@ def _client_key(request: Request) -> Optional[str]:
         return auth[7:].strip()
     return None
 
-
 def _check_auth(request: Request) -> Optional[JSONResponse]:
     if getattr(request.state, "public_key", ""):
-        return None      # admitted by the public endpoint with its own key (app/public_api.py)
+        return None
     if not config_store.authorize_api_request(
         _client_key(request), host=request.headers.get("host", ""),
         origin=request.headers.get("origin", ""),
@@ -46,10 +44,8 @@ def _check_auth(request: Request) -> Optional[JSONResponse]:
         ))
     return None
 
-
 def _anthropic_error(err_type: str, message: str, message_en: str = "") -> Dict[str, Any]:
     return {"type": "error", "error": {"type": err_type, **api_error_text(message, message_en)}}
-
 
 def _flatten_blocks(content: Any, images: Optional[List[Dict[str, Any]]] = None) -> str:
     """Flatten text-only blocks used by system prompts and tool results.
@@ -83,7 +79,6 @@ def _flatten_blocks(content: Any, images: Optional[List[Dict[str, Any]]] = None)
             parts.append("[image attached below]")
     return "\n".join(p for p in parts if p)
 
-
 def _image_block_url(block: Dict[str, Any]) -> str:
     source = block.get("source") or {}
     if not isinstance(source, dict):
@@ -100,7 +95,6 @@ def _image_block_url(block: Dict[str, Any]) -> str:
             raise ValueError("Invalid image URL")
         return url
     raise ValueError("Unsupported Anthropic image source")
-
 
 def _to_internal_messages(body: Dict[str, Any]) -> List[Dict[str, Any]]:
     messages: List[Dict[str, Any]] = []
@@ -165,12 +159,10 @@ def _to_internal_messages(body: Dict[str, Any]) -> List[Dict[str, Any]]:
             flush_user()
     return messages
 
-
 def _stop_reason(openai_reason: Optional[str]) -> str:
     return {"length": "max_tokens", "tool_calls": "tool_use",
             "content_filter": "end_turn", "stop": "end_turn"}.get(
         openai_reason or "stop", "end_turn")
-
 
 def _anthropic_tools(raw_tools: Any) -> List[Dict[str, Any]]:
     if not isinstance(raw_tools, list) or any(not isinstance(tool, dict) for tool in raw_tools):
@@ -184,7 +176,6 @@ def _anthropic_tools(raw_tools: Any) -> List[Dict[str, Any]]:
                        "description": str(tool.get("description") or ""),
                        "parameters": tool.get("input_schema") or {"type": "object", "properties": {}}}})
     return result
-
 
 def _tool_choice(raw: Any) -> Any:
     if raw is None:
@@ -202,7 +193,6 @@ def _tool_choice(raw: Any) -> Any:
         return {"type": "function", "function": {"name": raw["name"]}}
     raise ValueError("Unsupported tool_choice")
 
-
 def _tool_blocks(calls: Dict[int, Dict[str, Any]]) -> List[Dict[str, Any]]:
     blocks = []
     for call in ordered_tool_calls(calls):
@@ -216,10 +206,8 @@ def _tool_blocks(calls: Dict[int, Dict[str, Any]]) -> List[Dict[str, Any]]:
                        "name": call["function"]["name"], "input": args})
     return blocks
 
-
 def _msg_id() -> str:
     return "msg_" + uuid.uuid4().hex[:24]
-
 
 @router.post("/v1/messages/count_tokens")
 async def count_tokens(request: Request):
@@ -250,11 +238,9 @@ async def count_tokens(request: Request):
         total += approx_tokens(json.dumps(tools, ensure_ascii=False), model)
     return {"input_tokens": total}
 
-
 @router.post("/v1/messages")
 async def messages(request: Request):
     return await until_client_disconnects(request, _messages(request))
-
 
 async def _messages(request: Request):
     started = time.time()
@@ -316,8 +302,7 @@ async def _messages(request: Request):
     max_tokens = body.get("max_tokens")
     if isinstance(max_tokens, int) and max_tokens > 0:
         params["max_tokens"] = max_tokens
-    # Round 34: stop_sequences / top_k / thinking were dropped, so «stop» never reached the upstream and
-    # Claude Code's extended thinking neither switched reasoning on nor got thinking blocks back.
+
     stops = body.get("stop_sequences")
     if isinstance(stops, list) and stops and all(isinstance(item, str) and item for item in stops):
         params["stop"] = stops[:4]
@@ -335,7 +320,7 @@ async def _messages(request: Request):
     budget = thinking.get("budget_tokens")
     if thinking.get("type") == "enabled" and "effort" not in params and isinstance(budget, int) \
             and not isinstance(budget, bool) and budget > 0:
-        # r41-gemini: thinking.budget_tokens → уровень (web-провайдеры вроде Gemini Web понимают только уровни).
+
         params["effort"] = "low" if budget <= 4096 else ("medium" if budget <= 12000 else "high")
     if tools:
         params["tools"] = tools
@@ -391,7 +376,7 @@ async def _messages(request: Request):
 
         try:
             text = "".join(content_parts)
-            # A whitespace-only text ("\n\n" from the upstream) before tool_use is no answer.
+
             blocks = ([{"type": "text", "text": text}]
                       if text and (text.strip() or not tool_calls) else []) + _tool_blocks(tool_calls)
             thought = "".join(reasoning_parts)
@@ -460,7 +445,7 @@ async def _messages(request: Request):
         block_open = False
         text_index = 0
         thinking_open = False
-        next_index = 0          # Round 34: a thinking block may come first, so blocks are numbered as they open
+        next_index = 0
         pending_text = ""
         tool_calls: Dict[int, Dict[str, Any]] = {}
 
@@ -531,7 +516,7 @@ async def _messages(request: Request):
                                                          "delta": {"type": "thinking_delta", "thinking": str(thought)}})
                     text = delta.get("content")
                     if text and not block_open and not text.strip():
-                        # Hold leading whitespace: before a tool call it must not become a text block.
+
                         pending_text += text
                     elif text:
                         if not block_open:
@@ -621,7 +606,6 @@ async def _messages(request: Request):
     headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     return ClosingStreamingResponse(state.guard_stream(sse(), trace), closer=stream.aclose, media_type="text/event-stream", headers=headers)
 
-
 def _anthropic_type(status: int) -> str:
     """Тип ошибки по статусу, как у Anthropic: SDK и Claude Code повторяют
     запрос при overloaded_error/rate_limit_error, а не при api_error."""
@@ -629,7 +613,6 @@ def _anthropic_type(status: int) -> str:
             403: "permission_error", 404: "not_found_error", 413: "request_too_large",
             429: "rate_limit_error", 503: "overloaded_error",
             529: "overloaded_error"}.get(int(status or 500), "api_error")
-
 
 def _completion_error_response(e: CompletionError, trace, started: float) -> JSONResponse:
     message = safe_provider_error(e.message)
@@ -639,7 +622,6 @@ def _completion_error_response(e: CompletionError, trace, started: float) -> JSO
     state.commit_trace(trace)
     return JSONResponse(status_code=e.status, content=_anthropic_error(
         _anthropic_type(e.status), message, safe_provider_error(e.message_en)), headers=e.headers)
-
 
 def _unexpected_error_response(e: Exception, trace, started: float) -> JSONResponse:
     trace.status, trace.error, trace.ms = 500, f"Неожиданная внутренняя ошибка ({type(e).__name__})", int((time.time() - started) * 1000)

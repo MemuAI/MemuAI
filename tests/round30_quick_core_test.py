@@ -22,10 +22,8 @@ ROOT = Path(__file__).resolve().parents[1]
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 NODE = shutil.which("node")
 
-
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
 
 class ComputerUseSteps(unittest.TestCase):
     """The runtime keeps one row per step with a thumbnail and the target point; a rejection skips the action."""
@@ -72,7 +70,7 @@ class ComputerUseSteps(unittest.TestCase):
         self.assertEqual(Image.open(io.BytesIO(shot)).width, ar.THUMB_WIDTH)
         self.assertIsNone(runtime.shot(99))
         self.assertFalse(runtime.ask_each)
-        # the thumbnail bytes never reach the model's prompt
+
         self.assertNotIn("thumb", str(model.prompts[0][1]["content"][0]["text"]))
 
     def test_reject_skips_the_action_and_passes_the_hint(self):
@@ -138,7 +136,6 @@ class ComputerUseSteps(unittest.TestCase):
             state = asyncio.run(runtime.public_state())
         self.assertEqual((state["error"], state["monitors"]), ("настоящая ошибка", []))
 
-
 class ComputerUseRoutes(unittest.TestCase):
     def test_action_and_shot_routes(self):
         os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r30qc-"))
@@ -165,7 +162,6 @@ class ComputerUseRoutes(unittest.TestCase):
         self.assertEqual(client.post("/api/work/computer/action", json={"action": "zzz", "lang": "en"}).json()["error"], "Unknown action")
         loop.close()
 
-
 class QuickWindowWiring(unittest.TestCase):
     def test_index_loads_new_files_in_order(self):
         html = read(QUICK / "index.html")
@@ -184,7 +180,6 @@ class QuickWindowWiring(unittest.TestCase):
         self.assertIn("window.QuickComputer.start(card)", read(QUICK / "plugins" / "commands.js"))
         self.assertIn("S.keepOnTop", read(QUICK / "quick.js"))
 
-
 @unittest.skipUnless(NODE, "node is required")
 class CopyAndMarkdownInNode(unittest.TestCase):
     """quick-md.js in node with a stub document (KaTeX absent → math renders as <code class="math-src">)."""
@@ -201,14 +196,12 @@ const r = (s) => (window.QuickMarkdown.render(s).match(/math-src/g) || []).lengt
 console.log([r("| Модель | Цена |\\n|---|---|\\n| Умная | $$$ |"), r("цена $5 и $10"), r("формула $x^2$ тут"), r("$$a+b$$")].join(","));""")
         self.assertEqual(out, "0,0,1,1")
 
-
 class AnswerFollow(unittest.TestCase):
     def test_follow_is_user_driven(self):
         src = read(QUICK / "quick.js")
         self.assertIn("answerFollow.on", src)
         self.assertIn('for (const ev of ["wheel", "touchmove", "pointerdown", "keydown"])', src)
         self.assertIn("answerFollow.watch(box.lastElementChild)", src)
-
 
 class PlainPreview(unittest.TestCase):
     """r30-quick-core-2: the «Недавние» preview is plain text, not Markdown source."""
@@ -234,7 +227,6 @@ class PlainPreview(unittest.TestCase):
         row = core.chat_summary({"id": "c1", "turns": [{"q": "вопрос", "a": "## Итог\n**да**"}]})
         self.assertEqual(row["preview"], "Итог да")
         self.assertEqual(core.chat_summary({"id": "c2", "turns": [{"q": "только *вопрос*", "a": ""}]})["preview"], "только *вопрос*")
-
 
 class QuickCore2Contracts(unittest.TestCase):
     """r30-quick-core-2 audit fixes that must not come back (static contracts; the headless class below runs them)."""
@@ -290,9 +282,7 @@ class QuickCore2Contracts(unittest.TestCase):
         self.assertIn('const FILE_SKIP = new Set(["fix", "reply"]);', src)
         self.assertIn("if (file && FILE_SKIP.has(id)) continue;", src)
 
-
 CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or ("/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome")
-
 
 @unittest.skipUnless(os.path.exists(CHROME), "no Chromium")
 class QuickWindowHeadless(unittest.TestCase):
@@ -395,7 +385,7 @@ class QuickWindowHeadless(unittest.TestCase):
         self.assertIn("Договор поставки", got["title"])
         self.assertIn("Кратко", got["acts"])
         self.assertFalse({"Исправить", "Ответить"} & set(got["acts"]), got["acts"])
-        # a narrow window: the empty field grows with its placeholder (it was cut to one line after the placeholder changed)
+
         tall, _ = self.run_page({"language": "en", "ui_design": "terminal"}, file_show,
                                 "(() => { const i = document.getElementById('qa-input'); return [i.placeholder, i.clientHeight, i.scrollHeight]; })()", width=420)
         self.assertEqual(tall[0], "What should I do with the file?")
@@ -403,7 +393,6 @@ class QuickWindowHeadless(unittest.TestCase):
         text_show = self.SHOW % ", selection: 'Привет, как дела у проекта?', selection_info: {source: 'text'}"
         got, _ = self.run_page({}, text_show, probe)
         self.assertTrue({"Исправить", "Ответить"} <= set(got["acts"]), got["acts"])
-
 
 if __name__ == "__main__":
     unittest.main()

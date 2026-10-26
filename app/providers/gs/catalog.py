@@ -23,7 +23,6 @@ _IMPORT_RE = re.compile(r'["\'](?:\./)?([A-Za-z0-9._-]+\.js)["\']')
 _CODE_RE = re.compile(r"[0-9]")
 _JUNK_HINTS = ("node_modules", "woff", "svg", "png", "jpg", "css", "http", "/", "@", " ")
 
-
 def _load_scan_cache() -> Dict[str, Any]:
     try:
         with open(SCAN_CACHE_PATH, "r", encoding="utf-8") as f:
@@ -31,12 +30,10 @@ def _load_scan_cache() -> Dict[str, Any]:
     except Exception:
         return {}
 
-
 def _save_scan_cache(cache: Dict[str, Any]) -> None:
     os.makedirs(DATA_DIR, exist_ok=True)
     with open(SCAN_CACHE_PATH, "w", encoding="utf-8") as f:
         json.dump(cache, f, ensure_ascii=False)
-
 
 def _is_plausible_model_id(s: str) -> bool:
     if not _VENDOR_RE.match(s):
@@ -45,18 +42,16 @@ def _is_plausible_model_id(s: str) -> bool:
         return False
     if any(h in s for h in _JUNK_HINTS):
         return False
-    # Fable is exposed in special Genspark surfaces, not in ordinary AI Chat.
+
     if "fable-5" in s.lower().replace("_", "-"):
         return False
     return len(s) <= 48
-
 
 def _chunk_urls(html: str, base: str) -> list:
     urls = set()
     for m in _CHUNK_RE.findall(html):
         urls.add(m if m.startswith("http") else base.rstrip("/") + m)
     return sorted(urls)
-
 
 def parse_models_config(data: Dict[str, Any]) -> Dict[str, list]:
     """{раздел: [имена]} из /api/models_config."""
@@ -72,7 +67,6 @@ def parse_models_config(data: Dict[str, Any]) -> Dict[str, list]:
         if names:
             out[kind] = names
     return out
-
 
 async def discover_chat_models(client, cookie: str, proxy: str = "",
                                max_chunks: int = 400, parallel: int = 10) -> Dict[str, Any]:

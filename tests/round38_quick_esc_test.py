@@ -29,9 +29,6 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="memu-r38-quick
 CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 
-
-# ============================================================ native side (fakes)
-
 class Api:
     def __init__(self, log):
         self.log = log
@@ -50,7 +47,6 @@ class Api:
     def IsIconic(self, hwnd):
         return False
 
-
 def manager(log, *, layer=None, push=None):
     from app.quick_ask import QuickAskManager
     m = QuickAskManager.__new__(QuickAskManager)
@@ -66,13 +62,12 @@ def manager(log, *, layer=None, push=None):
     m._push = push or (lambda script: log.append(("push", script)))
     return m
 
-
 class NativeHide(unittest.TestCase):
     def test_window_is_hidden_before_any_page_round_trip(self):
         log = []
         release = threading.Event()
 
-        def stuck_push(script):          # pywebview: evaluate_js waiting for a page that is not ready (up to 20 s)
+        def stuck_push(script):
             release.wait(5)
             log.append(("push", script))
         m = manager(log, push=stuck_push)
@@ -96,7 +91,7 @@ class NativeHide(unittest.TestCase):
         class SlowLayer:
             visible = True
 
-            def hide(self):              # layer.show holds the layer lock while its window is created
+            def hide(self):
                 gate.wait(5)
                 log.append(("layer.hide",))
                 self.visible = False
@@ -140,7 +135,7 @@ class NativeHide(unittest.TestCase):
         layer._ui = lambda fn: log.append(("layer.form.Hide",))
         release = threading.Event()
         layer._push = lambda script: (release.wait(5), log.append(("layer.push", script)))
-        layer._lock.acquire()            # the layer is being shown on another thread
+        layer._lock.acquire()
         t = threading.Thread(target=layer.hide)
         t.start()
         time.sleep(0.1)
@@ -166,7 +161,7 @@ class NativeHide(unittest.TestCase):
         fake = type("M", (), {"hide": lambda self, restore=True: calls.append(restore) or True})()
         bridge = QuickBridge(fake)
         public = [n for n in dir(bridge) if not n.startswith("_")]
-        # Round 40 (r40-lag): + resize — the window follows its content through the same channel
+
         self.assertEqual(public, ["hide", "resize"], "pywebview exposes every public attribute recursively — never the manager")
         self.assertTrue(bridge.hide(True))
         self.assertEqual(calls, [True])
@@ -177,12 +172,8 @@ class NativeHide(unittest.TestCase):
         src = (ROOT / "app" / "quick_ask_api.py").read_text("utf-8")
         self.assertIn('if action == "close_slow":', src)
 
-
-# ============================================================ the page (headless Chromium)
-
 def run(coro):
     return asyncio.new_event_loop().run_until_complete(coro)
-
 
 class PageEscape(unittest.TestCase):
     @classmethod
@@ -226,7 +217,7 @@ class PageEscape(unittest.TestCase):
                 body = json.loads(request.post_data or "{}")
                 actions.append(body)
                 if body.get("action") == "hide" and hide_delay:
-                    await asyncio.sleep(hide_delay)       # the busy server of the bug
+                    await asyncio.sleep(hide_delay)
                 return await route_obj.fulfill(json={"ok": True})
             if path.startswith("/api/"):
                 return await route_obj.fulfill(json={"items": [], "models": [], "image_models": [], "ok": True})
@@ -305,7 +296,6 @@ class PageEscape(unittest.TestCase):
         result, _ = self.run_page(script)
         self.assertEqual(result, {"stale": False, "kept": True, "fresh": True, "closed": True})
 
-
 class StaticContracts(unittest.TestCase):
     def test_wiring(self):
         js = (QUICK / "quick.js").read_text("utf-8")
@@ -316,7 +306,6 @@ class StaticContracts(unittest.TestCase):
         self.assertIn(':root[data-native="1"] .qa-card.qa-leaving .qa-inner { opacity: 0;', css)
         self.assertRegex(html, r'/quick/quick\.js\?v=[\w.]+-r(?:3[8-9]|4\d)"')
         self.assertIn(':root[data-native="1"]:not([data-backdrop])[data-theme="dark"]{background:#1b1c20}', html)
-
 
 if __name__ == "__main__":
     unittest.main()

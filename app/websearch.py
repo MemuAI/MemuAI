@@ -44,10 +44,8 @@ _DDG_RESULT_RE = re.compile(
 )
 _TAG_RE = re.compile(r"<[^>]+>")
 
-
 def _clean(text: str) -> str:
     return html.unescape(_TAG_RE.sub("", text or "")).strip()
-
 
 def _real_url(raw: str) -> str:
     """DuckDuckGo прячет ссылку за редиректом /l/?uddg=…"""
@@ -58,7 +56,6 @@ def _real_url(raw: str) -> str:
         except Exception:
             return value
     return value
-
 
 def _public_url(url: str) -> bool:
     """Быстрая проверка по строке (для ссылок в выдаче): без localhost и частных сетей.
@@ -78,12 +75,11 @@ def _public_url(url: str) -> bool:
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
-        # Целочисленные и шестнадцатеричные формы IPv4 (2130706433, 0x7f000001).
+
         if re.fullmatch(r"(?:0x[0-9a-f]+|\d+)", host):
             return False
         return True
     return address.is_global
-
 
 async def _resolve_public(url: str) -> None:
     """Все адреса хоста после DNS должны быть публичными (SSRF: localtest.me и т. п.)."""
@@ -103,9 +99,7 @@ async def _resolve_public(url: str) -> None:
         if not address.is_global or (mapped is not None and not mapped.is_global):
             raise ValueError("Адрес ведёт в локальную или частную сеть")
 
-
 _PROXY_ENV = ("HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy")
-
 
 def _private_peer(resp: Any, proxy: str) -> bool:
     """The address curl actually connected to is not public (DNS rebinding).
@@ -127,14 +121,12 @@ def _private_peer(resp: Any, proxy: str) -> bool:
     mapped = getattr(address, "ipv4_mapped", None)
     return not address.is_global or (mapped is not None and not mapped.is_global)
 
-
 def _row(title: Any, url: Any, snippet: Any, snippet_chars: int = 500) -> Optional[Dict[str, str]]:
     link = str(url or "").strip()
     if not _public_url(link):
         return None
     return {"title": " ".join(_clean(str(title or "")).split())[:200], "url": link[:500],
             "snippet": " ".join(_clean(str(snippet or "")).split())[:snippet_chars]}
-
 
 def _rows(items: Any, limit: int, title: tuple, url: tuple, snippet: tuple,
           snippet_chars: int = 500) -> List[Dict[str, str]]:
@@ -162,7 +154,6 @@ def _rows(items: Any, limit: int, title: tuple, url: tuple, snippet: tuple,
             break
     return results
 
-
 def _body(resp: Any, name: str, limit: int = 3 * 1024 * 1024) -> str:
     if resp.status_code in (401, 403):
         raise RuntimeError(f"{name}: ключ отклонён (HTTP {resp.status_code})")
@@ -175,7 +166,6 @@ def _body(resp: Any, name: str, limit: int = 3 * 1024 * 1024) -> str:
         raise RuntimeError(f"{name}: ответ больше {limit // (1024 * 1024)} МБ")
     return text
 
-
 def _json(resp: Any, name: str) -> Dict[str, Any]:
     try:
         data = json.loads(_body(resp, name))
@@ -183,21 +173,18 @@ def _json(resp: Any, name: str) -> Dict[str, Any]:
         raise RuntimeError(f"{name}: сервер вернул не JSON") from None
     return data if isinstance(data, dict) else {"results": data}
 
-
 _HTML_HEADERS = {"Accept": "text/html,application/xhtml+xml", "Accept-Language": "en-US,en;q=0.9,ru;q=0.8"}
 _DDG_LITE_RE = re.compile(
     r'<a[^>]+href="(?P<url>[^"]+)"[^>]*class=[\'"]result-link[\'"][^>]*>(?P<title>.*?)</a>'
     r'.*?class=[\'"]result-snippet[\'"][^>]*>(?P<snippet>.*?)</td>', re.I | re.S)
 
-
 def _ddg_body(resp: Any) -> str:
     text = resp.text if isinstance(resp.text, str) else str(resp.text)
     if resp.status_code == 202 or "anomaly-modal" in text or "bots use DuckDuckGo too" in text:
-        # После серии запросов DuckDuckGo показывает проверку «выберите уток» вместо выдачи.
+
         raise RuntimeError("DuckDuckGo временно просит подтвердить, что запрос от человека "
                            "(слишком частые запросы с этого адреса)")
     return _body(resp, "DuckDuckGo")
-
 
 async def _duckduckgo(query: str, limit: int, proxy: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
@@ -208,18 +195,16 @@ async def _duckduckgo(query: str, limit: int, proxy: str, snippet_chars: int = 5
                                for m in _DDG_RESULT_RE.finditer(body)) if row][:limit]
     if results:
         return results
-    # Основная страница иногда отвечает проверкой «вы не робот»; облегчённая — нет.
+
     lite = await session.post("https://lite.duckduckgo.com/lite/", data={"q": query}, headers=_HTML_HEADERS, timeout=12)
     body = _ddg_body(lite)
     return [row for row in (_row(m.group("title"), _real_url(m.group("url")), m.group("snippet"), snippet_chars)
                             for m in _DDG_LITE_RE.finditer(body)) if row][:limit]
 
-
 _BING_ITEM_RE = re.compile(r'<li class="b_algo"[^>]*>(.*?)(?=<li class="b_algo"|<li class="b_(?:ans|ad|pag)|</ol>)', re.S)
 _BING_LINK_RE = re.compile(r'<h2[^>]*>\s*<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>', re.S)
 _BING_SNIPPET_RE = re.compile(r'<p[^>]*class="b_lineclamp\d*[^"]*"[^>]*>(.*?)</p>', re.S)
 _BING_CAPTION_RE = re.compile(r'<div class="b_caption[^"]*"[^>]*>.*?<p[^>]*>(.*?)</p>', re.S)
-
 
 def _bing_url(raw: str) -> str:
     """Bing прячет адрес за /ck/a?…&u=a1<base64url>."""
@@ -232,7 +217,6 @@ def _bing_url(raw: str) -> str:
         return base64.urlsafe_b64decode(data + "=" * (-len(data) % 4)).decode("utf-8")
     except Exception:
         return value
-
 
 async def _bing(query: str, limit: int, proxy: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     """Bing: быстрый и устойчивый к частым запросам бесплатный источник (HTML-выдача без ключа)."""
@@ -256,19 +240,16 @@ async def _bing(query: str, limit: int, proxy: str, snippet_chars: int = 500) ->
         raise RuntimeError("Bing временно просит подтвердить, что запрос от человека")
     return results
 
-
 _YAHOO_SPLIT_RE = re.compile(r'<div class="dd [^"]*\balgo\b[^"]*"')
 _YAHOO_LINK_RE = re.compile(r'href="([^"]+)"')
 _YAHOO_TITLE_RE = re.compile(r"<h3[^>]*>(.*?)</h3>", re.S)
 _YAHOO_TEXT_RE = re.compile(r'class="compText[^"]*"[^>]*>(.*?)</div>', re.S)
-
 
 def _yahoo_url(raw: str) -> str:
     """Yahoo прячет адрес в /RU=<адрес>/RK=…"""
     value = html.unescape(raw or "")
     match = re.search(r"/RU=([^/]+)/", value)
     return unquote(match.group(1)) if match else value
-
 
 async def _yahoo(query: str, limit: int, proxy: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
@@ -279,7 +260,7 @@ async def _yahoo(query: str, limit: int, proxy: str, snippet_chars: int = 500) -
         title, text = _YAHOO_TITLE_RE.search(part), _YAHOO_TEXT_RE.search(part)
         if not title:
             continue
-        # Заголовок лежит внутри ссылки на страницу: её адрес — последний href перед ним.
+
         links = _YAHOO_LINK_RE.findall(part[:title.start()])
         row = _row(title.group(1), _yahoo_url(links[-1]) if links else "", text.group(1) if text else "",
                    snippet_chars)
@@ -288,7 +269,6 @@ async def _yahoo(query: str, limit: int, proxy: str, snippet_chars: int = 500) -
         if len(results) >= limit:
             break
     return results
-
 
 async def _wikipedia(query: str, limit: int, proxy: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     lang = "ru" if re.search(r"[а-яё]", query, re.I) else "en"
@@ -302,7 +282,6 @@ async def _wikipedia(query: str, limit: int, proxy: str, snippet_chars: int = 50
                                  item.get("snippet"), snippet_chars)
                             for item in rows if isinstance(item, dict)) if row][:limit]
 
-
 async def _tavily(query: str, limit: int, proxy: str, api_key: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
     resp = await session.post("https://api.tavily.com/search",
@@ -310,7 +289,6 @@ async def _tavily(query: str, limit: int, proxy: str, api_key: str, snippet_char
                                     "include_answer": False, "include_raw_content": False},
                               headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"}, timeout=25)
     return _rows(_json(resp, "Tavily").get("results"), limit, ("title",), ("url",), ("content",), snippet_chars)
-
 
 async def _searxng(query: str, limit: int, proxy: str, base_url: str, api_key: str = "",
                    snippet_chars: int = 500) -> List[Dict[str, str]]:
@@ -325,7 +303,6 @@ async def _searxng(query: str, limit: int, proxy: str, base_url: str, api_key: s
                              headers=headers, timeout=25)
     return _rows(_json(resp, "SearXNG").get("results"), limit, ("title",), ("url",), ("content", "snippet"), snippet_chars)
 
-
 async def _brave_api(query: str, limit: int, proxy: str, api_key: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
     resp = await session.get("https://api.search.brave.com/res/v1/web/search", params={"q": query, "count": limit},
@@ -333,7 +310,6 @@ async def _brave_api(query: str, limit: int, proxy: str, api_key: str, snippet_c
     data = _json(resp, "Brave Search API")
     return _rows((data.get("web") or {}).get("results"), limit, ("title",), ("url",),
                  ("description", "extra_snippets"), snippet_chars)
-
 
 async def _exa(query: str, limit: int, proxy: str, api_key: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
@@ -344,13 +320,11 @@ async def _exa(query: str, limit: int, proxy: str, api_key: str, snippet_chars: 
     return _rows(_json(resp, "Exa").get("results"), limit, ("title",), ("url",),
                  ("text", "summary", "highlights"), snippet_chars)
 
-
 async def _serper(query: str, limit: int, proxy: str, api_key: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
     resp = await session.post("https://google.serper.dev/search", json={"q": query, "num": limit},
                               headers={"X-API-KEY": api_key, "Accept": "application/json"}, timeout=25)
     return _rows(_json(resp, "Serper").get("organic"), limit, ("title",), ("link",), ("snippet",), snippet_chars)
-
 
 async def _serpapi(query: str, limit: int, proxy: str, api_key: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
@@ -362,7 +336,6 @@ async def _serpapi(query: str, limit: int, proxy: str, api_key: str, snippet_cha
         raise RuntimeError(f"SerpApi: {str(data['error'])[:200]}")
     return _rows(data.get("organic_results"), limit, ("title",), ("link",), ("snippet",), snippet_chars)
 
-
 async def _google(query: str, limit: int, proxy: str, api_key: str, cx: str,
                   snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
@@ -373,7 +346,6 @@ async def _google(query: str, limit: int, proxy: str, api_key: str, cx: str,
         raise RuntimeError("Google: проверьте идентификатор поисковой системы (cx) и ключ")
     return _rows(_json(resp, "Google").get("items"), limit, ("title",), ("link",), ("snippet",), snippet_chars)
 
-
 async def _jina(query: str, limit: int, proxy: str, api_key: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
     resp = await session.get("https://s.jina.ai/", params={"q": query},
@@ -381,13 +353,11 @@ async def _jina(query: str, limit: int, proxy: str, api_key: str, snippet_chars:
                                       "X-Respond-With": "no-content"}, timeout=30)
     return _rows(_json(resp, "Jina").get("data"), limit, ("title",), ("url",), ("description", "content"), snippet_chars)
 
-
 async def _perplexity(query: str, limit: int, proxy: str, api_key: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
     resp = await session.post("https://api.perplexity.ai/search", json={"query": query, "max_results": limit},
                               headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"}, timeout=30)
     return _rows(_json(resp, "Perplexity").get("results"), limit, ("title",), ("url",), ("snippet",), snippet_chars)
-
 
 async def _linkup(query: str, limit: int, proxy: str, api_key: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
@@ -395,7 +365,6 @@ async def _linkup(query: str, limit: int, proxy: str, api_key: str, snippet_char
                               json={"q": query, "depth": "standard", "outputType": "searchResults"},
                               headers={"Authorization": f"Bearer {api_key}", "Accept": "application/json"}, timeout=30)
     return _rows(_json(resp, "Linkup").get("results"), limit, ("name", "title"), ("url",), ("content",), snippet_chars)
-
 
 async def _firecrawl(query: str, limit: int, proxy: str, api_key: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
@@ -405,7 +374,6 @@ async def _firecrawl(query: str, limit: int, proxy: str, api_key: str, snippet_c
     items = data.get("web") if isinstance(data, dict) else data
     return _rows(items, limit, ("title",), ("url",), ("description", "snippet", "markdown"), snippet_chars)
 
-
 async def _kagi(query: str, limit: int, proxy: str, api_key: str, snippet_chars: int = 500) -> List[Dict[str, str]]:
     session = await http.get_session(proxy)
     resp = await session.get("https://kagi.com/api/v0/search", params={"q": query, "limit": limit},
@@ -414,18 +382,15 @@ async def _kagi(query: str, limit: int, proxy: str, api_key: str, snippet_chars:
              if isinstance(item, dict) and item.get("t", 0) == 0]
     return _rows(items, limit, ("title",), ("url",), ("snippet",), snippet_chars)
 
-
 _KEYED = {"tavily": _tavily, "brave": _brave_api, "exa": _exa, "serper": _serper, "serpapi": _serpapi,
           "jina": _jina, "perplexity": _perplexity, "linkup": _linkup, "firecrawl": _firecrawl, "kagi": _kagi}
 _FREE = {"bing": _bing, "duckduckgo": _duckduckgo, "yahoo": _yahoo, "wikipedia": _wikipedia}
 
-#: Сколько секунд ждём бесплатные источники вместе, и сколько «остывает» источник после сбоя.
 _RACE_BUDGET = 10.0
 _COOL_DOWN = 90.0
-#: Сколько ждём Kiro после того, как бесплатный поиск уже ответил (предпочитаем его, если он почти так же быстр).
+
 _KIRO_GRACE = 0.6
 _cold: Dict[str, float] = {}
-
 
 async def kiro_search(query: str, limit: int = 5) -> Optional[List[Dict[str, str]]]:
     """Поиск через аккаунт Kiro. None — аккаунта нет или все отказали.
@@ -438,8 +403,7 @@ async def kiro_search(query: str, limit: int = 5) -> Optional[List[Dict[str, str
         return None
     provider = get_provider("kiro")
     if provider is None or not hasattr(provider, "web_search"):
-        # Реестр провайдеров есть только в процессе Proxy. Процесс MemuAI не
-        # должен сам загружать accounts.json и обновлять токены.
+
         return None
     from .state import state
     for account in state.usable_accounts("kiro")[:3]:
@@ -450,7 +414,6 @@ async def kiro_search(query: str, limit: int = 5) -> Optional[List[Dict[str, str
             continue
         return [item for item in results if _public_url(item.get("url", ""))]
     return None
-
 
 async def _cancel(tasks: Any) -> None:
     """Stops the unfinished tasks and marks the finished ones' errors as seen (no "never retrieved" noise)."""
@@ -464,7 +427,6 @@ async def _cancel(tasks: Any) -> None:
             pending.append(task)
     if pending:
         await asyncio.gather(*pending, return_exceptions=True)
-
 
 def _on_topic(query: str, rows: List[Dict[str, str]]) -> bool:
     """Round 31: does the result page talk about the query at all?
@@ -484,7 +446,6 @@ def _on_topic(query: str, rows: List[Dict[str, str]]) -> bool:
             return True
     return False
 
-
 async def free_search(query: str, limit: int = 5, proxy: str = "", snippet_chars: int = 500) -> List[Dict[str, str]]:
     """Бесплатные источники без Kiro.
 
@@ -496,7 +457,7 @@ async def free_search(query: str, limit: int = 5, proxy: str = "", snippet_chars
     race = [name for name in search_engines.FREE_RACE if _cold.get(name, 0.0) <= now] or list(search_engines.FREE_RACE)
     jobs = {asyncio.ensure_future(_FREE[name](query, limit, proxy, snippet_chars)): name for name in race}
     last: Optional[Exception] = None
-    off_topic: List[Dict[str, str]] = []     # an answer that ignores the query: the last resort only
+    off_topic: List[Dict[str, str]] = []
     pending = set(jobs)
     deadline = time.monotonic() + _RACE_BUDGET
     try:
@@ -519,8 +480,7 @@ async def free_search(query: str, limit: int = 5, proxy: str = "", snippet_chars
                 if results:
                     log.info("web search (%s): results do not match the query, trying another source", name)
                     off_topic = off_topic or results
-                # A racer answered with nothing useful: start the next spare source now instead of
-                # waiting for a slow racer to time out first.
+
                 spare = next((other for other in search_engines.FREE_CHAIN
                               if other not in jobs.values() and other in _FREE), None)
                 if spare:
@@ -531,7 +491,7 @@ async def free_search(query: str, limit: int = 5, proxy: str = "", snippet_chars
         await _cancel(jobs)
     for name in search_engines.FREE_CHAIN:
         if name in race or name in jobs.values():
-            continue        # it already answered in the race (an error, nothing, or off topic)
+            continue
         try:
             results = await asyncio.wait_for(_FREE[name](query, limit, proxy, snippet_chars), 7)
         except Exception as exc:
@@ -546,7 +506,6 @@ async def free_search(query: str, limit: int = 5, proxy: str = "", snippet_chars
     if last is not None:
         raise RuntimeError(str(last) or type(last).__name__)
     return []
-
 
 async def _auto_search(query: str, limit: int, proxy: str, snippet_chars: int) -> List[Dict[str, str]]:
     """«Авто»: встроенный поиск Kiro и бесплатные источники работают одновременно. Kiro предпочтителен, но только
@@ -567,7 +526,7 @@ async def _auto_search(query: str, limit: int, proxy: str, snippet_chars: int) -
                 return rows
             if free.done() and not free.cancelled() and free.exception() is None and free.result():
                 if not kiro.done():
-                    await asyncio.wait({kiro}, timeout=_KIRO_GRACE)      # a moment for Kiro, then the free answer
+                    await asyncio.wait({kiro}, timeout=_KIRO_GRACE)
                     rows = kiro_rows()
                     if rows:
                         return rows
@@ -578,11 +537,10 @@ async def _auto_search(query: str, limit: int, proxy: str, snippet_chars: int) -
                 break
             await asyncio.wait(waiting, return_when=asyncio.FIRST_COMPLETED, timeout=left)
         if free.done() and not free.cancelled():
-            return free.result()                       # its rows (maybe none) or its error
+            return free.result()
         return []
     finally:
         await _cancel((kiro, free))
-
 
 async def run_engine(engine: str, query: str, limit: int = 5, *, proxy: str = "", api_key: str = "",
                      base_url: str = "", snippet_chars: int = 500) -> List[Dict[str, str]]:
@@ -615,7 +573,6 @@ async def run_engine(engine: str, query: str, limit: int = 5, *, proxy: str = ""
         return await _google(query, limit, proxy, api_key, base_url, snippet_chars)
     return await _KEYED[engine](query, limit, proxy, api_key, snippet_chars)
 
-
 def configured() -> tuple:
     """Источник Proxy из настроек: (id, ключ, адрес). Ключи хранятся по источникам."""
     settings = config_store.settings
@@ -625,7 +582,6 @@ def configured() -> tuple:
     keys = getattr(settings, "search_keys", None) or {}
     urls = getattr(settings, "search_urls", None) or {}
     return engine, str(keys.get(engine) or "").strip(), str(urls.get(engine) or "").strip()
-
 
 async def search(query: str, *, limit: int = 5, proxy: str = "", raise_errors: bool = False,
                  engine: str = "") -> List[Dict[str, str]]:
@@ -640,7 +596,7 @@ async def search(query: str, *, limit: int = 5, proxy: str = "", raise_errors: b
     if engine in search_engines.PROXY_ONLY:
         chosen, api_key, base_url = engine, "", ""
     if not search_engines.ready(chosen, api_key, base_url):
-        # Источник выбран, но не настроен: молча ищем бесплатно, а инструменту говорим правду.
+
         if raise_errors:
             raise RuntimeError(f"{search_engines.ENGINES[chosen]['label']}: источник не настроен "
                                "(нужен ключ или адрес в настройках веб-поиска)")
@@ -655,29 +611,26 @@ async def search(query: str, *, limit: int = 5, proxy: str = "", raise_errors: b
     except Exception as exc:
         log.info("web search failed (%s): %s", chosen, exc)
         if raise_errors:
-            # Инструменту важно отличать сбой поиска от «ничего не найдено».
+
             message = str(exc)
             raise RuntimeError(message if message.lower().startswith(chosen) or ":" in message[:40]
                                else f"{chosen}: {message}") from exc
         return []
     if not results:
-        return results                  # «nothing found» may be a passing soft block: do not keep it 5 minutes
+        return results
     if len(_CACHE) >= _CACHE_MAX:
         for stale in sorted(_CACHE, key=lambda k: _CACHE[k][0])[:_CACHE_MAX // 2]:
             _CACHE.pop(stale, None)
     _CACHE[cache_key] = (now, results)
     return results
 
-
 _SCRIPT_RE = re.compile(r"<(script|style|noscript|svg)[^>]*>.*?</\1>", re.I | re.S)
 _BLOCK_RE = re.compile(r"</(p|div|li|tr|h[1-6]|section|article|br)\s*>", re.I)
 _ARTICLE_RE = re.compile(r"<(article|main)\b[^>]*>(?P<body>.*?)</\1>", re.I | re.S)
 
-
 _MAX_PAGE_BYTES = 5 * 1024 * 1024
 _TEXT_TYPES = ("text/", "application/json", "application/xml", "application/xhtml",
                "application/rss", "application/atom", "application/ld+json", "application/javascript")
-
 
 async def fetch_page(url: str, *, limit: int = 20000, proxy: str = "",
                      raw: bool = False, timeout: float = 25.0,
@@ -700,7 +653,7 @@ async def fetch_page(url: str, *, limit: int = 20000, proxy: str = "",
         resp = await session.get(current, timeout=timeout, stream=True, allow_redirects=False, headers={
             "Accept": "text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.5",
             "Accept-Language": "ru,en;q=0.9",
-            # Доп. заголовки вызывающего (карточки товаров: валюта Amazon, язык магазина).
+
             **{str(k): str(v) for k, v in (headers or {}).items() if str(k).lower() not in ("host", "authorization")},
         })
         if _private_peer(resp, proxy):
@@ -726,7 +679,7 @@ async def fetch_page(url: str, *, limit: int = 20000, proxy: str = "",
         content_type = str(resp.headers.get("content-type") or "").lower()
         if content_type and not content_type.startswith(_TEXT_TYPES):
             raise ValueError(f"Это не текстовая страница ({content_type.split(';')[0]})")
-        # Large public JSON catalogs need more room; ordinary pages keep their bound.
+
         max_bytes = max(_MAX_PAGE_BYTES, min(8_000_000, limit)) if raw else _MAX_PAGE_BYTES
         chunks, size, cut = [], 0, False
         async for chunk in resp.aiter_content():
@@ -747,7 +700,7 @@ async def fetch_page(url: str, *, limit: int = 20000, proxy: str = "",
     except LookupError:
         body = data.decode("utf-8", errors="replace")
     if raw:
-        # Для .md и .json нужен исходный текст: вычистка HTML его испортит.
+
         return {"url": current, "title": "", "raw": body[:limit], "text": body[:limit],
                 "truncated": cut or len(body) > limit, "chars": len(body)}
     title = ""
@@ -757,24 +710,20 @@ async def fetch_page(url: str, *, limit: int = 20000, proxy: str = "",
     article = _ARTICLE_RE.search(body)
     text = _page_text(article.group("body")) if article else ""
     if len(text) < 1000:
-        # The first of several <article> cards (a news list, a blog index) is not the page:
-        # a short match falls back to the whole document.
+
         text = _page_text(body)
     truncated = cut or len(text) > limit
     return {"url": current, "title": title, "text": text[:limit], "truncated": truncated,
             "chars": len(text)}
-
 
 def _page_text(source: str) -> str:
     source = _SCRIPT_RE.sub(" ", source)
     source = _BLOCK_RE.sub("\n", source)
     text = _clean(source)
     text = re.sub(r"[ \t]{2,}", " ", text)
-    # Lines of only spaces/tabs (indented markup) used to survive as «\n\t\n\t\n \n» runs and
-    # ate the excerpt budget before any content.
+
     text = re.sub(r"[ \t]*\n[ \t]*", "\n", text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
-
 
 def context_block(query: str, results: List[Dict[str, str]]) -> str:
     """Результаты поиска в виде блока для системной инструкции."""
@@ -793,7 +742,6 @@ def context_block(query: str, results: List[Dict[str, str]]) -> str:
     lines.append("</web_search_results>")
     return "\n".join(lines)
 
-
 def query_from_messages(messages: List[Dict[str, Any]]) -> str:
     """Последняя реплика пользователя — поисковый запрос."""
     from .providers.base import content_to_text
@@ -804,7 +752,6 @@ def query_from_messages(messages: List[Dict[str, Any]]) -> str:
         if text:
             return " ".join(text.split())[:_MAX_QUERY]
     return ""
-
 
 async def augment(messages: List[Dict[str, Any]], *, limit: int = 5, proxy: str = "",
                   trace: Optional[Any] = None,
@@ -826,7 +773,7 @@ async def augment(messages: List[Dict[str, Any]], *, limit: int = 5, proxy: str 
             "sources": [item.get("url", "") for item in results],
         })
     if sink is not None:
-        # Клиент показывает найденные источники в дорожке активности.
+
         sink["query"] = query
         sink["sources"] = [{"title": item.get("title", ""), "url": item.get("url", "")}
                            for item in results]
@@ -841,16 +788,6 @@ async def augment(messages: List[Dict[str, Any]], *, limit: int = 5, proxy: str 
     augmented.insert(insert_at, {"role": "system", "content": block})
     return augmented
 
-
-# ---------------------------------------------------------------------------
-# Поиск «под ключ»: выдача + готовый ответ + выдержки из страниц — за один вызов
-# ---------------------------------------------------------------------------
-# Дорогое в поиске для модели — не сам запрос, а раунды: «найди» → «открой страницу» → «ответь». У каждого раунда
-# своя задержка модели (у подписочных провайдеров 5–10 с). Поэтому поиск возвращает сразу всё нужное для ответа:
-#   * ``answer`` — готовые данные (погода, время, курс), если вопрос из таких;
-#   * ``results`` — обычная выдача с заголовками, ссылками, сниппетами;
-#   * ``pages`` — выдержки самых релевантных мест первых страниц (читаются параллельно, не дольше нескольких секунд).
-
 _STOPWORDS = frozenset(
     "the a an and or of to in on for with is are was were be what how when where who why which this that from by at as "
     "it its do does did can will about into over after before today now "
@@ -859,14 +796,12 @@ _STOPWORDS = frozenset(
 _UNREADABLE_HOSTS = ("youtube.com", "youtu.be", "twitter.com", "x.com", "facebook.com", "instagram.com", "tiktok.com",
                      "vk.com", "t.me", "linkedin.com")
 _UNREADABLE_EXT = (".pdf", ".jpg", ".jpeg", ".png", ".gif", ".webp", ".mp4", ".mp3", ".zip", ".exe", ".docx", ".xlsx")
-#: Ответы, которых достаточно без чтения страниц.
-_COMPLETE_ANSWERS = frozenset({"weather", "time", "currency", "crypto"})
 
+_COMPLETE_ANSWERS = frozenset({"weather", "time", "currency", "crypto"})
 
 def _terms(query: str) -> List[str]:
     words = re.findall(r"[\w\-]{3,}", str(query or "").lower())
     return [word for word in dict.fromkeys(words) if word not in _STOPWORDS]
-
 
 def relevant_excerpt(text: str, query: str, chars: int = 2200) -> str:
     """Самые подходящие к запросу абзацы страницы (в исходном порядке), вместе не длиннее ``chars``.
@@ -901,7 +836,6 @@ def relevant_excerpt(text: str, query: str, chars: int = 2200) -> str:
     parts = [paragraphs[index][:700] for index in sorted(chosen)]
     return "\n".join(parts)[:chars]
 
-
 def _readable(url: str) -> bool:
     try:
         parsed = urlparse(url)
@@ -913,7 +847,6 @@ def _readable(url: str) -> bool:
     if any(host == blocked or host.endswith("." + blocked) for blocked in _UNREADABLE_HOSTS):
         return False
     return not parsed.path.lower().endswith(_UNREADABLE_EXT)
-
 
 async def read_pages(rows: List[Dict[str, str]], query: str, count: int = 2, *, budget: float = 5.0,
                      chars: int = 2200, proxy: str = "") -> List[Dict[str, Any]]:
@@ -943,7 +876,6 @@ async def read_pages(rows: List[Dict[str, str]], query: str, count: int = 2, *, 
     return [item for item in (task.result() if task.done() and not task.cancelled() else None for task in tasks)
             if item]
 
-
 def _merge(lists: List[List[Dict[str, str]]], limit: int) -> List[Dict[str, str]]:
     """Выдачи нескольких запросов по очереди (по одному результату из каждой), без повторов адресов."""
     rows: List[Dict[str, str]] = []
@@ -962,9 +894,7 @@ def _merge(lists: List[List[Dict[str, str]]], limit: int) -> List[Dict[str, str]
                 return rows
     return rows
 
-
 SearchFn = Callable[[str, int], Awaitable[List[Dict[str, str]]]]
-
 
 async def rich_search(query: str, *, queries: Optional[List[str]] = None, limit: int = 5, read: int = 2,
                       lang: str = "", proxy: str = "", search_fn: Optional[SearchFn] = None, instant: bool = True,
@@ -1008,15 +938,6 @@ async def rich_search(query: str, *, queries: Optional[List[str]] = None, limit:
     return {"query": texts[0], "queries": texts, "results": rows, "count": len(rows), "answer": answer, "pages": pages,
             "took_ms": int((time.monotonic() - started) * 1000)}
 
-
-# ---------------------------------------------------------------------------
-# «Нужен ли интернет для этого сообщения» — для предпоиска до первого раунда модели
-# ---------------------------------------------------------------------------
-# Предпоиск экономит целый раунд модели, но не должен срабатывать на «привет» и на просьбу переписать текст.
-# Поэтому здесь только сильные признаки: погода, курсы, новости, цены, свежие версии, результаты матчей и прямая
-# просьба поискать. Слабые («сегодня», «сейчас») ничего не значат сами по себе. Сомнение — не искать: цикл
-# инструментов остаётся, и модель вызовет поиск сама.
-
 _FRESH = re.compile(
     r"(?i)\bweather\b|погод|курс\s+(?:доллар|евро|рубл|юан|фунт|биткоин|эфир|валют|нефти|золота)|"
     r"\bexchange rate\b|\bbitcoin\b|биткоин|"
@@ -1032,7 +953,6 @@ _NOT_FRESH = re.compile(
 _SEARCH_LEAD = re.compile(
     r"(?i)^\s*(?:пожалуйста[,\s]*)?(?:(?:найди|поищи|загугли|погугли|узнай|подскажи|скажи|расскажи)(?:\s+мне)?"
     r"(?:\s+в\s+(?:интернете|сети|гугле))?\s*[:,\-]?\s*|please\s+)")
-
 
 def prefetch_query(text: str) -> str:
     """Поисковый запрос по сообщению пользователя, если ему явно нужны свежие данные из сети; иначе пустая строка."""

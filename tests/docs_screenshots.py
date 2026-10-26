@@ -39,16 +39,13 @@ OUT = ROOT / "app" / "pgstatic" / "docs-img"
 DESIGN, THEME = "classic", "dark"
 VIEW = (1280, 760)
 SCALE = 2
-MAX_WIDTH = 1600          # px of the stored picture (2x of an 800 px wide crop)
+MAX_WIDTH = 1600
 QUALITY = 82
-
-# --------------------------------------------------------------------------- fake Google Drive
 
 DOC = "application/vnd.google-apps.document"
 SHEET = "application/vnd.google-apps.spreadsheet"
 SLIDES = "application/vnd.google-apps.presentation"
 FOLDER = "application/vnd.google-apps.folder"
-
 
 def _thumb(colors: tuple, seed: int) -> bytes:
     from PIL import Image, ImageDraw
@@ -60,7 +57,6 @@ def _thumb(colors: tuple, seed: int) -> bytes:
     buf = io.BytesIO()
     img.save(buf, "JPEG", quality=80)
     return buf.getvalue()
-
 
 class FakeDrive:
     """Drive v3 (list / get / export / media / thumbnails) over httpx.MockTransport, realistic files."""
@@ -155,7 +151,6 @@ class FakeDrive:
             rows.sort(key=lambda r: r["modifiedTime"], reverse=True)
         return httpx.Response(200, json={"files": rows})
 
-
 def install_fake_drive(drive: FakeDrive) -> None:
     """Every Picker the app creates talks to the fake Drive through «Integrations»-style tokens.
     ``drive.mode``: ready | need_consent | not_connected — switched by GET /api/test/gdrive-mode?mode=…"""
@@ -192,17 +187,13 @@ def install_fake_drive(drive: FakeDrive) -> None:
         return picker
     gp.register = register
 
-
-# --------------------------------------------------------------------------- servers + a pleasant model mock
-
 MODELS = ("gpt-5-mini", "claude-sonnet-4.5", "deepseek-v4-flash")
 IMAGE_MODELS, VIDEO_MODELS = ("gpt-image-1", "flux-1.1-pro"), ("veo-3-fast",)
-#: (regex on the last user message, answer) — what the mock model says in the pictures.
+
 CANNED = [
     (r"пятниц", "**The meeting has been moved to Friday.**\n\nМягче и по-деловому: *We've rescheduled the meeting to Friday.*"),
     (r"friday", "**La reunión se ha pasado al viernes.**\n\nMore formal: *Hemos trasladado la reunión al viernes.*"),
 ]
-
 
 def mock_models_app():
     """OpenAI-compatible mock with realistic model names; streams a short helpful answer."""
@@ -235,7 +226,6 @@ def mock_models_app():
         return StreamingResponse(gen(), media_type="text/event-stream")
     return app
 
-
 def start_servers(lang: str, real_models: bool = False):
     import httpx
     from ui_lang_scan import Servers, free_port
@@ -247,7 +237,7 @@ def start_servers(lang: str, real_models: bool = False):
     import tests.mock_custom  # noqa: F401  (Servers.start needs it importable)
     real_post = httpx.Client.post
 
-    def post(client, url, *a, **kw):   # replace the stock «Demo» account by a realistic one
+    def post(client, url, *a, **kw):
         if url.endswith("/api/admin/accounts") and (kw.get("json") or {}).get("label") == "scan":
             kw["json"] = {"provider": "custom", "label": "openai-compatible", "fields": {
                 "name": "My API", "base_url": f"http://127.0.0.1:{mock}/v1", "api_key": "sk-docs-screenshots",
@@ -258,7 +248,7 @@ def start_servers(lang: str, real_models: bool = False):
         servers.start()
     finally:
         httpx.Client.post = real_post
-    if real_models:   # manual review only: the real model from the environment (never saved anywhere)
+    if real_models:
         with httpx.Client(timeout=30, trust_env=False) as client:
             for name, pre in (("Yandex", "YANDEX"),):
                 if os.environ.get(pre + "_KEY"):
@@ -268,12 +258,8 @@ def start_servers(lang: str, real_models: bool = False):
     servers.drive = drive
     return servers
 
-
-# --------------------------------------------------------------------------- seed data
-
 def T(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 def seed(servers, lang: str) -> None:
     import httpx
@@ -343,7 +329,7 @@ def seed(servers, lang: str) -> None:
         for text, cat, pinned in facts:
             client.post(pg + "/api/memory/items", json={"text": text, "category": cat, "pinned": pinned})
         client.post(pg + "/api/pg/modules/configure", json={"id": "characters", "enabled": True})
-        # Home panels: no network-bound ones (the default weather card needs a location and the internet).
+
         for panel in client.get(pg + "/api/pg/panels").json().get("panels", []):
             client.delete(pg + f"/api/pg/panels/{panel['id']}")
         made = {}
@@ -383,12 +369,6 @@ def seed(servers, lang: str) -> None:
         ]
         client.post(pg + "/api/pg/schedules", json={"tasks": tasks})
 
-
-# --------------------------------------------------------------------------- browser helpers
-
-#: The Linux sandbox has none of the Windows fonts the designs ask for; map them to the fonts shipped with the
-#: designs (Inter for Segoe UI, Source Serif 4 for Charter / Palatino, JetBrains Mono for Cascadia Code) so the
-#: pictures look like the app on Windows instead of DejaVu fallbacks.
 FONTS_JS = r"""self.origin !== 'null' && document.addEventListener('DOMContentLoaded', () => {
   const f = '/designs/fonts/', face = (family, file, range, extra = '') => `@font-face { font-family: "${family}"; src: url("${f}${file}") format("woff2");
     font-weight: 100 900; font-display: block; ${range ? 'unicode-range: ' + range + ';' : ''} ${extra} }`;
@@ -404,10 +384,8 @@ FONTS_JS = r"""self.origin !== 'null' && document.addEventListener('DOMContentLo
 DESIGN_JS = """([design, theme]) => { try { setTheme(theme, false); } catch (e) {}
   if (design === 'classic' || design === 'default') delete document.documentElement.dataset.design; else document.documentElement.dataset.design = design; }"""
 
-
 def launch(play):
     return play.chromium.launch(executable_path=os.environ.get("MEMU_TEST_CHROMIUM", "/usr/bin/chromium"), args=["--no-sandbox"])
-
 
 def open_app(play, servers, lang: str, design: str = DESIGN, theme: str = THEME, view=VIEW, scale: int = SCALE,
              browser=None, path: str = "/"):
@@ -430,18 +408,13 @@ def open_app(play, servers, lang: str, design: str = DESIGN, theme: str = THEME,
     page.wait_for_timeout(600)
     return browser, page
 
-
-# --------------------------------------------------------------------------- the pictures
-
 def _sleep(ms: int) -> str:
     return f"await new Promise((r) => setTimeout(r, {ms}));"
-
 
 OPEN_PLUS = "openChat('c_trip'); " + _sleep(900) + " document.querySelector('#btn-plus').click(); " + _sleep(700)
 OPEN_DRIVE = OPEN_PLUS + (" [...document.querySelectorAll('.plus-menu button, .plus-menu [role=menuitem], .plus-menu [data-tool]')]"
                           ".find((n) => /Google/.test(n.textContent)).click(); " + _sleep(2200))
 CHARACTER = {"spec": "chara_card_v2", "spec_version": "2.0", "data": {}}
-
 
 def character(lang: str) -> dict:
     t = lambda ru, en: T(lang, ru, en)   # noqa: E731
@@ -456,7 +429,6 @@ def character(lang: str) -> dict:
                        "*adjusts his glasses* Good evening, {{user}}! Which era shall we talk about tonight?"),
         "tags": [t("история", "history"), t("уютное", "cozy")], "creator": "MemuAI docs"}
     return card
-
 
 def shots(lang: str) -> list[dict]:
     """name → docs page, steps (async JS bodies or ('key'|'type'|'click'|'hover'|'mouse'|'frame', …)), crop, viewport."""
@@ -481,8 +453,8 @@ def shots(lang: str) -> list[dict]:
          "crop": ["#messages .mt-host", "#messages .mt-host .mt-bar"], "pad": 14, "wait": 900},
         {"name": "chart", "page": "tables-diagrams",
          "steps": ["openChat('c_tbl'); " + _sleep(1500) + " document.querySelector('#messages .memu-diagram')?.scrollIntoView({block: 'center'});"
-                   " document.querySelectorAll('#messages .mt-host').forEach((n) => { n.style.visibility = 'hidden'; });",   # the table's edge above the chart
-                   ("hover", ("#messages .memu-diagram", (24, 24)))],   # a corner, not a bar (a hovered bar is dimmed)
+                   " document.querySelectorAll('#messages .mt-host').forEach((n) => { n.style.visibility = 'hidden'; });",
+                   ("hover", ("#messages .memu-diagram", (24, 24)))],
          "crop": ["#messages .memu-diagram[data-memu-diagram='chart']", "#messages .memu-diagram[data-memu-diagram='chart'] .md-bar"], "pad": 6, "wait": 1800},
         {"name": "chat-export", "page": "chat-export", "steps": ["openChat('c_tbl'); " + _sleep(900) + " MemuExport.open();", away],
          "crop": ["#panel"], "pad": 16, "wait": 3500},
@@ -497,7 +469,7 @@ def shots(lang: str) -> list[dict]:
          "crop": ["#panel"], "pad": 16, "wait": 1500, "view": (1280, 900)},
         {"name": "memunote", "page": "memunote",
          "steps": ["showSettings(); openSettingsPage('memunote'); " + _sleep(900)
-                   + " const st = document.createElement('style'); st.textContent = '.mn-hero-foot { display: none !important; }'; document.head.appendChild(st);",   # "source checkout" line (re-rendered after the status fetch)
+                   + " const st = document.createElement('style'); st.textContent = '.mn-hero-foot { display: none !important; }'; document.head.appendChild(st);",
                    away], "crop": ["#panel"], "pad": 0, "wait": 900},
         {"name": "media", "page": "media",
          "steps": ["showSettings(); openSettingsPage('models'); " + _sleep(900)
@@ -512,7 +484,6 @@ def shots(lang: str) -> list[dict]:
          "crop": ["#module-window"], "pad": 0, "wait": 2200},
     ]
 
-
 def _crop_rect(page, selectors, pad, view):
     rect = page.evaluate("""(sels) => { let box = null;
       for (const sel of sels) { for (const n of document.querySelectorAll(sel)) { const r = n.getBoundingClientRect();
@@ -526,7 +497,6 @@ def _crop_rect(page, selectors, pad, view):
     x1, y1 = min(view[0], rect["r"] + pad), min(view[1], rect["b"] + pad)
     return {"x": x0, "y": y0, "width": x1 - x0, "height": y1 - y0}
 
-
 def save_webp(png: bytes, target: Path) -> int:
     from PIL import Image
     img = Image.open(io.BytesIO(png)).convert("RGB")
@@ -535,7 +505,6 @@ def save_webp(png: bytes, target: Path) -> int:
     target.parent.mkdir(parents=True, exist_ok=True)
     img.save(target, "WEBP", quality=QUALITY, method=6)
     return target.stat().st_size
-
 
 def run_step(page, step) -> None:
     if isinstance(step, str):
@@ -569,7 +538,6 @@ def run_step(page, step) -> None:
         frame.evaluate("async () => { const M = window.MemuCharacters; " + code + "; }")
     page.wait_for_timeout(350)
 
-
 def quick_ask_shot(play, browser, servers, lang: str, question: str) -> bytes:
     _, page = open_app(play, servers, lang, view=(720, 640), browser=browser, path="/quick/?native=1")
     page.evaluate("QuickAsk.onShow({fresh: true, maxHeight: 640, rounded: true, corner: 'dwm', radius: 8})")
@@ -585,7 +553,6 @@ def quick_ask_shot(play, browser, servers, lang: str, question: str) -> bytes:
     png = page.screenshot()
     page.context.close()
     return png
-
 
 def run_lang(lang: str, only: set, png_dir: str) -> int:
     from playwright.sync_api import sync_playwright
@@ -609,7 +576,7 @@ def run_lang(lang: str, only: set, png_dir: str) -> int:
                     for step in shot["steps"]:
                         run_step(page, step)
                     page.wait_for_timeout(shot.get("wait", 800))
-                    # A dialog opened from code focuses its close button with a visible ring; a mouse user never sees it.
+
                     page.evaluate("() => { const a = document.activeElement; if (a && a.tagName === 'BUTTON') a.blur(); }")
                     clip = _crop_rect(page, shot["crop"], shot.get("pad", 12), view) if shot.get("crop") else None
                     png = page.screenshot(clip=clip) if clip else page.screenshot()
@@ -630,17 +597,15 @@ def run_lang(lang: str, only: set, png_dir: str) -> int:
     print(f"{lang}: {total // 1024} KB written", flush=True)
     return problems
 
-
 def run_shots(langs: list, only: set, png_dir: str) -> int:
     if len(langs) == 1:
         return 1 if run_lang(langs[0], only, png_dir) else 0
     import subprocess
     code = 0
-    for lang in langs:   # a fresh process (and data dir) per language
+    for lang in langs:
         args = [sys.executable, __file__, "--lang", lang] + (["--only", ",".join(sorted(only))] if only else []) + (["--png", png_dir] if png_dir else [])
         code |= subprocess.call(args)
     return code
-
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -651,8 +616,7 @@ def main() -> int:
     ap.add_argument("--real-models", action="store_true", help="--serve: also add the Yandex endpoint from env")
     ap.add_argument("--png", default="")
     a = ap.parse_args()
-    # The browser runs in Europe/Moscow (open_app); the servers must share its clock, otherwise a planned task
-    # "at 08:30" shows "next run at 11:30" in the picture.
+
     os.environ["TZ"] = "Europe/Moscow"
     if hasattr(time, "tzset"):
         time.tzset()
@@ -674,7 +638,6 @@ def main() -> int:
         while True:
             time.sleep(3600)
     return run_shots(langs, set(filter(None, a.only.split(","))), a.png)
-
 
 if __name__ == "__main__":
     sys.exit(main())

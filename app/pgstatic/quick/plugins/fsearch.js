@@ -1,15 +1,5 @@
-/* Round 35 — «Поиск файлов на ПК» in Quick Access (plugin "fsearch", backend app/fsindex_api.py → app/fsindex.py).
 
-   Manual mode: Alt+F, Ctrl+K → «Поиск файлов на ПК», «?запрос» or a bare «*.txt» typed in the input open a full
-   view (like the clipboard view of features.js): instant results on every key, kind filters, sort, keyboard
-   (↑ ↓, Enter — open, Ctrl+Enter — show in folder, Ctrl+Shift+C — copy the path, Alt+Enter — MemuFiles),
-   drag a row out (DownloadURL — Explorer copies the file). AI mode: the model's search_files tool sends a
-   tool-ui {type:"fsresults"} card that lands in the bottom slot with the same row actions.
-   Everything goes through the MemuQuick contract; while the view is open :root[data-fs-view] hides the core list.
-   Round 36: a right click (Shift+F10, the menu key, the «⋯» button) on a row of the view or the AI card opens the
-   MemuAI menu (pgstatic/memu-ctxmenu.js, loaded on first use) with MemuFiles' operations (app/fsindex_ops.py):
-   open with, copy / cut the file, rename inline (F2), duplicate, ZIP, Recycle Bin with «Отменить» (Del), properties
-   (Alt+I), ask the AI about the file; the list is patched in place afterwards. Typing never re-renders the input. */
+
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -40,7 +30,7 @@
     more: svg('<circle cx="6" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="18" cy="12" r="1.3"/>'),
     trash: svg('<path d="M3.5 6.5h17M8.5 6.5V4.5h7v2M6 6.5l1 13.5h10l1-13.5"/>'),
   };
-  // Round 36: built on use — at load time the window's language is not known yet (the chips stayed English in a Russian window)
+
   const KINDS = () => [["", t("Всё", "All")], ["folder", t("Папки", "Folders")], ["doc", t("Документы", "Documents")], ["image", t("Картинки", "Images")],
     ["video", t("Видео", "Video")], ["audio", t("Аудио", "Audio")], ["archive", t("Архивы", "Archives")], ["exe", t("Программы", "Programs")], ["code", t("Код", "Code")]];
   const SORTS = () => [["relevance", t("Лучшие", "Best")], ["date", t("Новые", "Newest")], ["size", t("Большие", "Largest")], ["name", t("По имени", "By name")]];
@@ -64,10 +54,9 @@
   const on = (key) => !S.settings || S.settings[key] !== false;
   const recent = {
     get() { try { return JSON.parse(localStorage.getItem("memu.fsearch.recent") || "[]").slice(0, 6); } catch (e) { return []; } },
-    add(q) { q = String(q || "").trim(); if (!q) return; const rows = [q, ...this.get().filter((x) => x !== q)].slice(0, 6); try { localStorage.setItem("memu.fsearch.recent", JSON.stringify(rows)); } catch (e) { /* private */ } },
+    add(q) { q = String(q || "").trim(); if (!q) return; const rows = [q, ...this.get().filter((x) => x !== q)].slice(0, 6); try { localStorage.setItem("memu.fsearch.recent", JSON.stringify(rows)); } catch (e) {  } },
   };
 
-  /* ------------------------------------------------------------ formatting */
   function size(n) {
     if (n == null || n < 0) return "";
     const u = Q.lang() === "en" ? ["B", "KB", "MB", "GB", "TB"] : ["Б", "КБ", "МБ", "ГБ", "ТБ"];
@@ -87,7 +76,7 @@
   }
   function words(q) {
     return String(q || "").split(/\s+/).filter((w) => w && !/^[!|]/.test(w) && !/^[a-zа-я]+:/i.test(w) && w !== "|")
-      .map((w) => w.replace(/["*?]/g, "").replace(/^.*[\\/]/, "")).filter((w) => /[\p{L}\p{N}]/u.test(w));   // «*.*» marked every dot
+      .map((w) => w.replace(/["*?]/g, "").replace(/^.*[\\/]/, "")).filter((w) => /[\p{L}\p{N}]/u.test(w));
   }
   function highlight(name, q) {
     const low = name.toLowerCase().replace(/ё/g, "е");
@@ -102,7 +91,7 @@
     for (const [a, b] of marks) { if (a < pos) continue; out += esc(name.slice(pos, a)) + "<mark>" + esc(name.slice(a, b)) + "</mark>"; pos = b; }
     return out + esc(name.slice(pos));
   }
-  // the end of a long folder path matters most: «C:\Users\…\Projects\memu» instead of «C:\Users\Yono\Doc…»
+
   function shortDir(dir, limit) {
     const max = limit || Math.max(24, Math.floor(((window.innerWidth || 720) - 190) / 6.6));
     if (dir.length <= max) return dir;
@@ -125,10 +114,6 @@
     return "";
   }
 
-  /* ------------------------------------------------------------ search */
-  // Round 36: typing stays smooth on every key — the input is never re-rendered (only the parts under it), a short
-  // debounce folds a burst of keys into one request, one request at a time (the newest text goes next, stale answers
-  // are dropped), one «still building» re-check timer instead of one per keystroke, and arrows only move a class.
   const query = () => S.query.trim();
   let debounceTimer = 0, buildTimer = 0;
   function schedule(delay = 45) {
@@ -139,7 +124,7 @@
     clearTimeout(debounceTimer);
     const q = query();
     if (!q) { S.seq++; S.items = []; S.total = 0; S.error = ""; S.code = ""; S.loading = false; renderBody(); return; }
-    if (S.inflight) { S.pending = true; return; }       // latest wins: one request at a time, the newest text next
+    if (S.inflight) { S.pending = true; return; }
     S.inflight = true; S.loading = true;
     const seq = ++S.seq;
     const params = new URLSearchParams({ q, limit: String(S.limit), sort: S.sort, lang: Q.lang() });
@@ -165,7 +150,6 @@
     if (S.building && S.view) buildTimer = setTimeout(() => { if (S.view && S.building && !S.renaming) run(); }, 1500);
   }
 
-  /* ------------------------------------------------------------ view */
   function chipsHtml() {
     return `<div class="fs-chips" role="toolbar">${KINDS().map(([k, label]) => `<button type="button" class="fs-chip ${S.kind === k ? "on" : ""}" data-fs-kind="${k}" aria-pressed="${S.kind === k}">${esc(label)}</button>`).join("")}
 </div>`;
@@ -237,7 +221,7 @@
     afterList(true);
     Q.resize();
   }
-  /** Everything under the input (the input itself keeps its caret, selection and IME composition). */
+
   function renderBody() {
     if (!S.view || !panelEl) return;
     if (!part("#fs-q")) { render(); return; }
@@ -261,7 +245,7 @@
     const row = panelEl && panelEl.querySelector(".fs-list .fs-row.active");
     if (scroll && row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
   }
-  /** Arrow keys: only two rows change (re-rendering 500 rows per key press was the lag of Round 35). */
+
   function setActive(i, host = panelEl, isAi = false) {
     if (isAi) S.aiIndex = i; else S.index = i;
     if (!host) return;
@@ -271,14 +255,14 @@
   }
   function focusInput() {
     const q = document.getElementById("fs-q");
-    if (q && document.activeElement !== q) { q.focus({ preventScroll: true }); try { q.setSelectionRange(q.value.length, q.value.length); } catch (e) { /* hidden */ } }
+    if (q && document.activeElement !== q) { q.focus({ preventScroll: true }); try { q.setSelectionRange(q.value.length, q.value.length); } catch (e) {  } }
   }
   function openView(text) {
     S.view = true; S.query = text != null ? String(text) : S.query; S.index = 0; S.limit = PAGE;
     render(); focusInput(); run();
     requestAnimationFrame(focusInput);
     if (!S.settings) loadSettings();
-    // Round 36 (r36-perf-core): the own index is lazy now — opening the panel loads / builds it (cheap when it is up)
+
     if (!S.warmed) { S.warmed = true; Q.api("/api/fsindex/warm", { body: {} }).catch(() => { S.warmed = false; }); }
   }
   function closeView() {
@@ -290,7 +274,6 @@
     Q.setInput(Q.getInput());
   }
 
-  /* ------------------------------------------------------------ actions */
   async function writeClipboard(text) {
     let ok = false;
     try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
@@ -309,7 +292,7 @@
     return ok;
   }
   const op = (action, r, extra = {}) => Q.api("/api/fsindex/op", { body: { action, path: r ? r.path : "", lang: Q.lang(), ...extra } });
-  /** A long ZIP / copy answered «running»: poll it (only while it runs) and hand back the final reply. */
+
   async function finish(reply) {
     let res = reply;
     for (let n = 0; res && res.op && !["done", "error", "cancelled"].includes(res.status) && n < 1200; n++) {
@@ -320,7 +303,6 @@
     return res;
   }
 
-  /* where a row lives: the full view or the AI card — both lists are patched in place after an operation */
   const VIEW = { rows: () => S.items, isAi: false, host: () => panelEl };
   const AI = { rows: () => (S.ai && S.ai.results) || [], isAi: true, host: () => aiEl };
   function rerender(src) { if (src.isAi) renderAi(); else { S.keepScroll = true; renderBody(); } }
@@ -416,7 +398,6 @@
     else Q.setInput((r.is_dir ? t("Папка: ", "Folder: ") : t("Файл: ", "File: ")) + `"${r.path}"\n`);
   }
 
-  /* ---- inline rename (F2): the name turns into a field; Enter saves, Esc cancels, a click away saves */
   function startRename(r, src) {
     const host = src.host();
     const i = src.rows().indexOf(r);
@@ -460,7 +441,6 @@
     field.addEventListener("dblclick", (e) => e.stopPropagation());
   }
 
-  /* ---- properties: a small sheet over the list */
   let propsEl = null;
   function closeProps() { if (propsEl) { propsEl.remove(); propsEl = null; Q.resize(); } }
   function fullDate(ms) {
@@ -513,8 +493,6 @@
     Q.resize();
   }
 
-  /* ---- the right-click menu (pgstatic/memu-ctxmenu.js — the one menu of MemuAI: closes on Esc, a click away,
-     the window losing focus, scroll and resize; never «sticks») */
   const MI = {
     "fs-reveal": '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="m10 13 2 2 4-4"/>',
     "fs-openwith": '<rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/><path d="M17 14v6M14 17h6"/>',
@@ -534,7 +512,7 @@
     if (!ctxReady) {
       ctxReady = new Promise((resolve) => {
         const s = document.createElement("script");
-        s.src = "/memu-ctxmenu.js?v=1.1-r34"; s.async = true;           // the same URL as canvas.js — one copy in the cache
+        s.src = "/memu-ctxmenu.js?v=1.1-r34"; s.async = true;
         s.onload = () => resolve(window.MemuCtxMenu || null);
         s.onerror = () => { ctxReady = null; resolve(null); };
         document.head.appendChild(s);
@@ -542,7 +520,7 @@
     }
     return ctxReady;
   }
-  function closeMenu() { if (menuHandle) { try { menuHandle.close("api"); } catch (e) { /* closed */ } menuHandle = null; } }
+  function closeMenu() { if (menuHandle) { try { menuHandle.close("api"); } catch (e) {  } menuHandle = null; } }
   function menuItems(r) {
     const file = !r.is_dir;
     return [
@@ -597,14 +575,13 @@
   function dragStart(e, r) {
     if (!r || r.is_dir || !e.dataTransfer || S.renaming) return;
     const url = `${location.origin}/api/fsindex/drag?k=${encodeURIComponent(S.dragKey)}&path=${encodeURIComponent(r.path)}`;
-    try { e.dataTransfer.setData("DownloadURL", `application/octet-stream:${r.name}:${url}`); } catch (err) { /* not Chromium */ }
+    try { e.dataTransfer.setData("DownloadURL", `application/octet-stream:${r.name}:${url}`); } catch (err) {  }
     const fileUrl = "file:///" + r.path.replace(/\\/g, "/").replace(/^\/+/, "");
     e.dataTransfer.setData("text/uri-list", fileUrl);
     e.dataTransfer.setData("text/plain", r.path);
     e.dataTransfer.effectAllowed = "copy";
   }
 
-  /** One set of delegated listeners per host (Round 35 re-bound three listeners on every row after every render). */
   function bindHost(host, src) {
     if (!host || host.dataset.fsBound) return;
     host.dataset.fsBound = "1";
@@ -668,7 +645,7 @@
       else if (r && ((e.shiftKey && e.key === "F10") || e.key === "ContextMenu")) openMenu(r, VIEW, null, true);
       else if (r && e.key === "F2") act("rename", r);
       else if (r && e.altKey && e.code === "KeyI") act("props", r);
-      // Delete / Ctrl+C / Ctrl+X act on the file only when the field has nothing to delete / copy itself
+
       else if (r && e.key === "Delete" && !selected && field.selectionStart === field.value.length) act("trash", r);
       else if (r && mod && !e.shiftKey && !e.altKey && e.code === "KeyC" && !selected) act(S.windows ? "clip-copy" : "copy", r);
       else if (r && mod && !e.shiftKey && !e.altKey && e.code === "KeyX" && !selected && S.windows) act("clip-cut", r);
@@ -678,7 +655,7 @@
     });
   }
   panelElBind();
-  // Shift+F10 / the menu key reach quick-copy.js's own text menu first (document, capture) — the window phase is earlier
+
   window.addEventListener("keydown", (e) => {
     if (!S.view || e.defaultPrevented || !(e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) return;
     if (document.activeElement && document.activeElement.id === "fs-q" && S.items[S.index]) {
@@ -687,7 +664,6 @@
     }
   }, true);
 
-  /* ------------------------------------------------------------ AI card (search_files results) */
   function renderAi() {
     if (!aiEl) return;
     const card = S.ai;
@@ -711,12 +687,11 @@
   Q.on("escape", (e) => { if (propsEl) { e.preventDefault(); closeProps(); return; } if (S.view) { e.preventDefault(); closeView(); } });
   Q.on("open", () => { loadSettings(); });
   Q.on("submit", (e) => {
-    // «?отчёт» submitted with Enter → the view (in case the input event did not fire, e.g. a pasted command)
+
     const text = String((e && e.text) || "");
     if (on("enabled") && on("quick_prefix") && /^\?\S/.test(text)) { e.preventDefault(); Q.setInput(""); openView(text.slice(1)); }
   });
 
-  /* ------------------------------------------------------------ entry points */
   const input = document.getElementById("qa-input");
   const GLOB = /^(?:\*[^\s*]*\.[\w*]{1,10}|[^\s*?]+\*[^\s]*\.[\w*]{1,10})$/;
   if (input) {
@@ -733,7 +708,7 @@
       if (!on("enabled")) return;
       e.preventDefault();
       if (S.view) { closeView(); return; }
-      // the text already typed becomes the query (Alt+F after «отчёт» searches files for it)
+
       const v = Q.getInput().trim();
       if (v && !v.includes("\n") && v.length <= 200 && !Q.state().busy) { Q.setInput(""); openView(v); } else openView("");
     }

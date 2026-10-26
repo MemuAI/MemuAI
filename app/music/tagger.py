@@ -18,7 +18,6 @@ from . import tools
 
 TAG_EXTS = (".m4a", ".mp4", ".aac", ".mp3", ".flac", ".opus", ".ogg", ".oga")
 
-
 def available() -> Dict[str, bool]:
     try:
         import mutagen  # noqa: F401
@@ -26,7 +25,6 @@ def available() -> Dict[str, bool]:
     except Exception:
         has_mutagen = False
     return {"mutagen": has_mutagen, "ffmpeg": bool(tools.ffmpeg_path())}
-
 
 def _jpeg(cover: Optional[bytes], max_side: int = 1000) -> Optional[bytes]:
     """Players expect JPEG/PNG; thumbnails often come as WebP. Re-encode with Pillow when possible."""
@@ -44,7 +42,6 @@ def _jpeg(cover: Optional[bytes], max_side: int = 1000) -> Optional[bytes]:
     except Exception:
         return cover if cover[:8] == b"\x89PNG\r\n\x1a\n" else None
 
-
 def _clean(fields: Dict[str, Any]) -> Dict[str, str]:
     out = {}
     for key in ("title", "artist", "album", "album_artist", "year", "genre"):
@@ -60,7 +57,6 @@ def _clean(fields: Dict[str, Any]) -> Dict[str, str]:
         out["comment"] = str(fields["source_url"])[:500]
     return out
 
-
 def embed(path: Path, fields: Dict[str, Any], cover: Optional[bytes] = None) -> Dict[str, Any]:
     """Returns {ok, method, error}. Safe to call for any file."""
     path = Path(path)
@@ -72,7 +68,7 @@ def embed(path: Path, fields: Dict[str, Any], cover: Optional[bytes] = None) -> 
         try:
             _with_mutagen(path, ext, tags, _jpeg(cover))
             return {"ok": True, "method": "mutagen", "error": ""}
-        except Exception as exc:   # a broken/unknown file must never break the download
+        except Exception as exc:
             error = f"{type(exc).__name__}: {exc}"[:200]
     else:
         error = "mutagen missing" if ext in TAG_EXTS else "container not supported by mutagen"
@@ -84,7 +80,6 @@ def embed(path: Path, fields: Dict[str, Any], cover: Optional[bytes] = None) -> 
         except Exception as exc:
             error = f"ffmpeg: {exc}"[:200]
     return {"ok": False, "method": "", "error": error}
-
 
 def _with_mutagen(path: Path, ext: str, tags: Dict[str, str], cover: Optional[bytes]) -> None:
     if ext in (".m4a", ".mp4", ".aac"):
@@ -122,7 +117,7 @@ def _with_mutagen(path: Path, ext: str, tags: Dict[str, str], cover: Optional[by
             audio.setall("APIC", [APIC(encoding=3, mime=mime, type=3, desc="Cover", data=cover)])
         audio.save(str(path), v2_version=3)
         return
-    # FLAC / Ogg Opus / Ogg Vorbis — Vorbis comments, cover as METADATA_BLOCK_PICTURE.
+
     from mutagen import File as MutagenFile
     from mutagen.flac import FLAC, Picture
     audio = MutagenFile(str(path))
@@ -147,7 +142,6 @@ def _with_mutagen(path: Path, ext: str, tags: Dict[str, str], cover: Optional[by
         else:
             audio.tags["metadata_block_picture"] = [base64.b64encode(pic.write()).decode("ascii")]
     audio.save()
-
 
 def _with_ffmpeg(ffmpeg: str, path: Path, tags: Dict[str, str]) -> None:
     names = {"title": "title", "artist": "artist", "album": "album", "album_artist": "album_artist", "year": "date",

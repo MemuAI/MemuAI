@@ -14,7 +14,6 @@ from app.cli.llm import ThinkTagFilter  # noqa: E402
 from app.cli.permissions import Rule, _command_matches  # noqa: E402
 from app.cli.tools.shell import is_read_only, is_static_command, split_commands  # noqa: E402
 
-
 class HarmlessRedirectTests(unittest.TestCase):
     """``2>&1`` split into ``… 2>`` and ``1`` and made the command "dynamic", so ``--allowedTools
     "Bash(python -m unittest:*)"`` never matched what models actually run."""
@@ -38,7 +37,6 @@ class HarmlessRedirectTests(unittest.TestCase):
         parts = split_commands("cd /tmp/p && python -m unittest 2>&1")
         self.assertTrue(_command_matches(rule.pattern, parts[1]))
 
-
 class ServiceTagTests(unittest.TestCase):
     """A direct connection to DeepSeek on Yandex Cloud printed ``<ds_safety>…</ds_safety>`` into the answer."""
 
@@ -60,7 +58,6 @@ class ServiceTagTests(unittest.TestCase):
     def test_unclosed_block_is_dropped(self):
         self.assertEqual(self.run_filter(["ok<ds_safety>verdict"]), ("ok", ""))
         self.assertEqual(self.run_filter(["<ds_safety/>ok"]), ("ok", ""))
-
 
 class DiffCommandTests(unittest.TestCase):
     """``/diff`` outside a git repository printed code_tools' Russian note in the English-only CLI."""
@@ -87,7 +84,6 @@ class DiffCommandTests(unittest.TestCase):
         with mock.patch.object(code_tools, "tool_git", side_effect=WorkError("boom")):
             said = self.run_diff(Path(tempfile.mkdtemp()))
         self.assertEqual(said, [("git failed: boom", "warn")])
-
 
 class CommandTextTests(unittest.TestCase):
     """Wording found by walking every slash command in the live TUI."""
@@ -127,7 +123,6 @@ class CommandTextTests(unittest.TestCase):
         asyncio.run(config_cmds.notifications(ctx))
         self.assertEqual(said, [])
 
-
 class LocalConnectionTests(unittest.TestCase):
     """A direct connection to a local server (LM Studio, Ollama) went through HTTP(S)_PROXY and failed
     with the proxy's "HTTP 404: not found"; a dead address gave no hint which address it was."""
@@ -165,7 +160,6 @@ class LocalConnectionTests(unittest.TestCase):
             asyncio.run(go())
         self.assertIn("http://127.0.0.1:9/v1", str(caught.exception))
 
-
 class MemuCodePanelSourceTests(unittest.TestCase):
     """The first project added in the MemuCode section left the right panel at "No project selected":
     refreshTree() without a project never set ``treeFor``, so sync() did not see a project change."""
@@ -183,7 +177,6 @@ class MemuCodePanelSourceTests(unittest.TestCase):
         self.assertNotIn('<span class="step-note">exit ${row.exit_code}', source)
         self.assertIn('if (tool === "code_run") return result.exit_code == null ? ""', source)
         self.assertIn('stderr: result.stderr || result.error || ""', source)
-
 
 if __name__ == "__main__":
     unittest.main()

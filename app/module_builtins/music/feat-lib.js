@@ -1,14 +1,10 @@
-/* MemuMusic · feat-lib.js (r39-music-lib) — сортировка любого списка (заголовки колонок, меню «Сортировка» для сеток,
- * запоминание для каждого вида в серверной настройке sort_views — общей с Mini App), ручной порядок
- * (плавное перетаскивание, Alt+↑/↓, «В начало/в конец»; порядок плейлистов в боковой панели и на экране «Плейлисты»),
- * редактор исполнителя (имя с объединением, фото: файл/буфер/ссылка/поиск Deezer, авто-фото, описание) и альбома. */
+
 
 (() => {
   const sprite = document.querySelector("svg symbol") && document.querySelector("svg symbol").parentNode;
   sprite && sprite.insertAdjacentHTML("beforeend", `<symbol id="i-sort" viewBox="0 0 24 24"><path d="M7 4v16M3.5 16.5 7 20l3.5-3.5M14 6h7M14 11h5M14 16h3"/></symbol><symbol id="i-blank" viewBox="0 0 24 24"></symbol><symbol id="i-top" viewBox="0 0 24 24"><path d="M5 4h14M12 20V9M7 13l5-5 5 5"/></symbol><symbol id="i-bottom" viewBox="0 0 24 24"><path d="M5 20h14M12 4v11M7 11l5 5 5-5"/></symbol>`);
 })();
 
-/* ------------------------------------------------------------ сортировка */
 const Sorter = (() => {
   const DIR = { added: "desc", liked: "desc", plays: "desc", year: "desc", updated: "desc", count: "desc", tracks: "desc" };
   const str = (a, b) => String(a || "").localeCompare(String(b || ""), undefined, { numeric: true, sensitivity: "base" });
@@ -31,10 +27,10 @@ const Sorter = (() => {
   function set(view, spec) {
     const all = Object.assign({}, Cfg.get("sort_views", {}) || {}, { [view]: spec.field + ":" + spec.dir });
     const done = Cfg.set({ sort_views: all });
-    $$(`[data-grid-sort="${view}"] span`).forEach((n) => { n.textContent = sortLabel(spec); });   // кнопка «Сортировка» в тулбаре — та же
+    $$(`[data-grid-sort="${view}"] span`).forEach((n) => { n.textContent = sortLabel(spec); });
     return done;
   }
-  /** Тот же столбец — обратное направление; новый — его естественное (даты и счётчики — по убыванию). */
+
   function toggle(view, field, def) {
     const cur = get(view, def);
     const spec = cur.field === field ? { field, dir: cur.dir === "asc" ? "desc" : "asc" } : { field, dir: DIR[field] || "asc" };
@@ -52,7 +48,6 @@ const Sorter = (() => {
 })();
 const TRACK_SORTS = ["added", "title", "artist", "album", "duration", "plays", "year"];
 
-/** Перед отрисовкой списка: порядок из настройки вида; ручное перемещение — только при «своём порядке». */
 function sortedForList(host, tracks, opts) {
   if (opts.reorderable === undefined) opts.reorderable = !!opts.reorder;
   opts._host = host; opts._base = tracks;
@@ -72,7 +67,7 @@ function theadHtml(opts) {
     <span class="r"><button type="button" class="mm-icon sm mm-th-menu" data-sort-menu aria-label="${esc(t("lib.sort"))}" title="${esc(sortLabel(spec))}">${icon("sort")}</button></span></div>`;
 }
 function sortLabel(spec) { return t("sort.f." + spec.field) + (spec.field === "pos" && spec.dir === "asc" ? "" : " " + (spec.dir === "asc" ? "↑" : "↓")); }
-/** Меню «Сортировка»: поля с отметкой и направление. */
+
 function sortMenu(anchor, view, fields, def, onChange, extra) {
   const cur = Sorter.get(view, def);
   const pick = (spec) => { Sorter.set(view, spec); onChange(spec); };
@@ -87,7 +82,7 @@ function bindThead(host, opts) {
     const th = e.target.closest("[data-sort]");
     if (th) { Sorter.toggle(opts.sortView, th.dataset.sort, opts.sortDefault); again(); return; }
     const m = e.target.closest("[data-sort-menu]");
-    // плейлист, отсортированный по полю: «Сохранить как свой порядок» — порядок записывается в плейлист
+
     const keep = opts.reorderable && opts._spec.field !== "pos" ? ["-", { icon: "check", label: t("sort.keep"), run: () => {
       const ids = Sorter.apply(opts._base, opts._spec).map((x) => x.id);
       const map = new Map(opts._base.map((x) => [x.id, x]));
@@ -98,7 +93,7 @@ function bindThead(host, opts) {
     if (m) sortMenu(m, opts.sortView, sortFieldsFor(opts), opts.sortDefault, again, keep);
   });
 }
-/** Кнопка «Сортировка» для сеток (альбомы, исполнители, плейлисты). */
+
 function sortButton(view, def) {
   return `<button type="button" class="mm-btn ghost sm mm-sort-btn" data-grid-sort="${esc(view)}" data-def="${esc(def)}">${icon("sort")}<span>${esc(sortLabel(Sorter.get(view, def)))}</span></button>`;
 }
@@ -109,8 +104,6 @@ function bindSortButton(el, fields, onChange) {
   });
 }
 
-/* ------------------------------------------------------------ ручной порядок */
-/** FLIP: строки, сменившие место, плавно доезжают до нового (ключ — data-id). */
 function flipRows(box, selector, change) {
   const before = new Map($$(selector, box).map((n) => [n.dataset.id, n.getBoundingClientRect().top]));
   change();
@@ -121,7 +114,7 @@ function flipRows(box, selector, change) {
     if (Math.abs(dy) > 1) n.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 220, easing: "cubic-bezier(.2,.8,.2,1)" });
   });
 }
-/** Новый порядок ids после «переместить»: where — "top" | "bottom" | -1 | +1. */
+
 function movedOrder(ids, moving, where) {
   const set = new Set(moving);
   if (where === "top" || where === "bottom") { const rest = ids.filter((id) => !set.has(id)); return where === "top" ? moving.concat(rest) : rest.concat(moving); }
@@ -131,7 +124,7 @@ function movedOrder(ids, moving, where) {
   (where < 0 ? idx : idx.reverse()).forEach((i) => { const j = i + where; [out[i], out[j]] = [out[j], out[i]]; });
   return out;
 }
-/** Alt+↑/↓ двигает выбранные строки списка с ручным порядком (одна клавиатурная привязка на окно). */
+
 let reorderList = null;
 document.addEventListener("keydown", (e) => {
   if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown") || isTyping(e.target)) return;
@@ -140,7 +133,6 @@ document.addEventListener("keydown", (e) => {
   reorderList.move(Sel.tracks().map((x) => x.id), e.key === "ArrowUp" ? -1 : 1);
 }, true);
 
-/** Перетаскивание плиток/строк плейлистов (боковая панель, экран «Плейлисты») — свой порядок обычных плейлистов. */
 function bindPlaylistDrag(box, selector) {
   let dragId = "";
   const plain = () => S.playlists.filter((p) => !p.smart && !p.rules).map((p) => p.id);
@@ -172,9 +164,8 @@ function bindPlaylistDrag(box, selector) {
 }
 bindPlaylistDrag($("#side-playlists"), ".mm-side-pl[data-id]");
 
-/* ------------------------------------------------------------ исполнители: фото, описание, имя */
 const ArtistMeta = (() => {
-  const map = new Map();   // имя (нижний регистр) -> { image, bio }
+  const map = new Map();
   let loaded = null;
   function load(force) {
     if (loaded && !force) return loaded;
@@ -185,14 +176,13 @@ const ArtistMeta = (() => {
   }
   return { load, get: (name) => map.get(String(name || "").toLowerCase()) || null, set: (name, v) => { if (v && v.image) map.set(String(name).toLowerCase(), v); else map.delete(String(name).toLowerCase()); } };
 })();
-/** Обложка исполнителя: его фото, иначе обложка трека. */
+
 function artistArt(name, track) {
   const m = ArtistMeta.get(name);
   return m && m.image ? `<img alt="" src="${esc(m.image)}" data-fb="${esc(coverArt(name))}">` : artImg(track || { id: name });
 }
 ArtistMeta.load().then(() => { if (["library", "home", "artist"].includes(S.view)) rerender(); });
 
-/** Страница исполнителя: фото, описание, кнопка «Изменить», авто-фото из Deezer (если включено и фото нет). */
 async function decorateArtist(el, name) {
   const head = el.querySelector(".mm-head"); if (!head) return;
   const acts = head.querySelector(".mm-head-actions");
@@ -217,7 +207,6 @@ function decorateAlbum(el, list) {
   acts.querySelector("[data-edit-album]").onclick = () => editAlbum(list);
 }
 
-/** Общий блок «картинка»: файл, вставка, ссылка, поиск онлайн. apply({data}|{url}|{clear}) → Promise. */
 function imagePicker(card, prefix, query, search, apply) {
   card.querySelector(`#${prefix}-file`).addEventListener("change", async (e) => { const f = e.target.files[0]; if (f) apply({ data: await readImageFile(f) }); });
   card.querySelector(`#${prefix}-paste`).onclick = async () => { const data = await clipboardImage(); if (data) apply({ data }); else toast(t("ed.paste_hint")); };

@@ -23,10 +23,8 @@ log = logging.getLogger("memuai.scheduler")
 _RUNNING_TASK_IDS: set[str] = set()
 _ACTIVE_TASKS: set[asyncio.Task[Any]] = set()
 
-
 _WORK_OPEN = re.compile(r"^(?P<fence>`{3,})memuai-work[ \t]*$", re.I)
 _FENCE_LINE = re.compile(r"^(`{3,})([^`\s]*)[ \t]*$")
-
 
 def _work_blocks(text: str) -> list[tuple[int, int, str, str]]:
     """Находит блоки memuai-work: (начало, конец, мета-JSON, содержимое).
@@ -61,14 +59,13 @@ def _work_blocks(text: str) -> list[tuple[int, int, str, str]]:
                     break
             cursor += 1
         if cursor >= len(lines):
-            break  # незакрытый блок — ничего не пишем
-        # Перевод строки перед закрывающей ``` — последняя строка файла.
+            break
+
         content = "".join(lines[index + 2:cursor])
         end = offsets[cursor] + len(lines[cursor])
         blocks.append((offsets[index], end, meta, content))
         index = cursor + 1
     return blocks
-
 
 def _scheduled_work_actions(text: str) -> tuple[str, list[dict[str, str]]]:
     files: list[dict[str, str]] = []
@@ -94,7 +91,6 @@ def _scheduled_work_actions(text: str) -> tuple[str, list[dict[str, str]]]:
         cleaned = cleaned[:start] + cleaned[end:]
     return cleaned.strip(), files
 
-
 def _work_project(project_id: str) -> dict[str, Any]:
     from .pgdata import load_workspaces
     data = load_workspaces()
@@ -103,7 +99,6 @@ def _work_project(project_id: str) -> dict[str, Any]:
     if not project or not Path(str(project.get("path") or "")).is_dir():
         raise FileNotFoundError("проект Work для расписания недоступен")
     return project
-
 
 def _apply_scheduled_work(project: dict[str, Any], files: list[dict[str, str]]) -> int:
     root = Path(str(project["path"])).resolve()
@@ -114,7 +109,7 @@ def _apply_scheduled_work(project: dict[str, Any], files: list[dict[str, str]]) 
             target.relative_to(root)
             target.parent.mkdir(parents=True, exist_ok=True)
             temporary = target.with_name(target.name + f".memuai-{uuid.uuid4().hex[:8]}.tmp")
-            # newline="" — без подмены \n на \r\n в Windows (как в work_tools).
+
             with temporary.open("w", encoding="utf-8", newline="") as handle:
                 handle.write(item["content"])
             staged.append((temporary, target))
@@ -128,14 +123,12 @@ def _apply_scheduled_work(project: dict[str, Any], files: list[dict[str, str]]) 
             except OSError:
                 pass
 
-
 def _finite_number(value: Any) -> float | None:
     try:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
         return None
     return number if math.isfinite(number) else None
-
 
 def _next_run_for(task: Dict[str, Any], *, now: float | None = None) -> float:
     now = _finite_number(now) if now is not None else time.time()
@@ -163,8 +156,7 @@ def _next_run_for(task: Dict[str, Any], *, now: float | None = None) -> float:
             hour, minute = int(hh), int(mm)
             if not 0 <= hour <= 23 or not 0 <= minute <= 59:
                 return fallback
-            # Следующий календарный день, а не now + 24 ч: в дни перехода на
-            # летнее/зимнее время сутки длятся 23 или 25 часов.
+
             today = datetime.fromtimestamp(now).date()
             for offset in range(0, 3):
                 timestamp = datetime.combine(today + timedelta(days=offset),
@@ -176,23 +168,19 @@ def _next_run_for(task: Dict[str, Any], *, now: float | None = None) -> float:
             return fallback
     return fallback
 
-
 def _task_enabled(task: Dict[str, Any]) -> bool:
     value = task.get("enabled", True)
     if isinstance(value, str):
         return value.strip().lower() not in ("", "0", "false", "no", "off")
     return bool(value)
 
-
 def _stored_next_run(task: Dict[str, Any]) -> float | None:
     value = _finite_number(task.get("next_run"))
     return value if value is not None and value > 0 else None
 
-
 def _record_result(task_id: str, ok: bool, text: str,
                    extra: Dict[str, Any] | None = None, *, meta: Dict[str, Any] | None = None) -> None:
-    # Round 29 (programmable schedules): a test run / late run / trigger is marked in the history, and the
-    # outcome is stored on the task (``last_status``/``last_finished``) for chains and failure limits.
+
     if meta is None:
         from .schedule_runtime import RUN_META
         meta = RUN_META.get()
@@ -206,7 +194,7 @@ def _record_result(task_id: str, ok: bool, text: str,
             result_id = append_schedule_result(task_id, ok, text)
     except Exception as exc:  # noqa: BLE001
         log.warning("scheduler: could not store the result of task %s: %s", task_id, exc)
-    try:   # Round 35: result / failure / Work changes to approve → «Входящие» (app/inbox_hooks.py)
+    try:
         from .inbox_hooks import schedule_result
         schedule_result(task_id, ok, text, {**(extra or {}), "result_id": result_id or ""}, meta)
     except Exception:  # noqa: BLE001
@@ -217,13 +205,10 @@ def _record_result(task_id: str, ok: bool, text: str,
     except Exception as exc:  # noqa: BLE001
         log.warning("scheduler: could not store the outcome of task %s: %s", task_id, exc)
 
-
 SMTP_TIMEOUT = 20.0
-#: Well-known ports whose TLS mode is fixed by convention: 465 is implicit TLS
-#: (SMTPS), 587/25 are plain SMTP upgraded with STARTTLS.
+
 _IMPLICIT_TLS_PORTS = {465}
 _STARTTLS_PORTS = {25, 587, 2525}
-
 
 def smtp_settings(prefs: Dict[str, Any]) -> Dict[str, Any]:
     """Validated SMTP connection settings (raises ``ValueError`` with a readable message).
@@ -255,7 +240,6 @@ def smtp_settings(prefs: Dict[str, Any]) -> Dict[str, Any]:
     if host and any(ch in host for ch in " /\\\r\n"):
         raise ValueError("некорректный адрес SMTP-сервера")
     return {"host": host, "port": port, "security": security, "adjusted": adjusted}
-
 
 def _send_schedule_email(prefs: Dict[str, Any], title: str, text: str,
                          *, timeout: float = SMTP_TIMEOUT) -> None:
@@ -301,36 +285,34 @@ def _send_schedule_email(prefs: Dict[str, Any], title: str, text: str,
             smtp.login(user, password)
         smtp.send_message(message, to_addrs=recipients)
 
-
 async def _run_task(task: Dict[str, Any]) -> None:
     from .schedule_runtime import RUNTIME_KINDS, RUN_META, notify as _rule_notify, run_action
     meta = task.get("_run_meta") if isinstance(task.get("_run_meta"), dict) else {}
     RUN_META.set(meta)
     if meta.get("payload"):
-        # Round 35 (triggers): task["trigger"] = the event data; a plain prompt gets it (placeholders or context)
+
         from .schedule_triggers_ext import apply_trigger
         task = apply_trigger(task)
-    try:   # Round 37: {{date}}, {{time}}, {{weekday}}, {{last_result}}… in a plain prompt / reminder text
+    try:
         from .schedule_conds_ext import render_vars
         from .schedule_runtime import _lang as _plan_lang
         task = render_vars(task, lang=_plan_lang())
     except Exception as exc:  # noqa: BLE001
         log.debug("scheduler: template variables failed: %s", exc)
     if isinstance(task.get("steps"), list) and task.get("steps"):
-        # Round 35 (flows): a task with steps — app/flow_engine.py records the result, chains and notifications.
+
         from .flow_engine import run_task_flow
         await run_task_flow({k: v for k, v in task.items() if k != "_run_meta"}, meta)
         return
     if str(task.get("kind") or "") in RUNTIME_KINDS:
-        # Round 29: notify / Do For You / Quick Access command / MemuCode (app/schedule_runtime.py).
+
         ok, text, extra = await run_action(task)
         await asyncio.to_thread(_record_result, str(task.get("id") or ""), ok, text, extra, meta=meta)
         if not extra.get("notified"):
             await _rule_notify(task, ok, text)
         return
     if str(task.get("kind") or "") == "reminder":
-        # Раунд 22: напоминание из быстрого доступа («напомни в телеграме в 15:00…») —
-        # готовый текст без вызова модели, см. app/assistant_commands.deliver_reminder.
+
         from .assistant_commands import deliver_reminder
         ok, info = await deliver_reminder(task)
         text = str(task.get("reminder_text") or task.get("prompt") or "")
@@ -340,7 +322,7 @@ async def _run_task(task: Dict[str, Any]) -> None:
     model = str(task.get("model", ""))
     mode = "work" if str(task.get("mode") or "chat").lower() == "work" else "chat"
     prefs = load_preferences()
-    en = prefs.get("language") == "en"     # the result, notifications and errors are read by the user
+    en = prefs.get("language") == "en"
 
     def tr(ru: str, en_text: str) -> str:
         return en_text if en else ru
@@ -382,8 +364,6 @@ async def _run_task(task: Dict[str, Any]) -> None:
         log.warning("scheduler: task '%s' failed: %s", task.get("name", ""), exc)
         return
 
-    # Reasoning streamed as <think>…</think> (a provider's «think tags» mode or a model that inlines it) went to
-    # Telegram/email, and a memuai-work draft inside it was applied as a file.
     from .assistant_commands import clean_ai_text
     text = clean_ai_text("".join(parts))
     result_extra: dict[str, Any] = {"mode": mode} if mode == "work" else {}
@@ -410,8 +390,7 @@ async def _run_task(task: Dict[str, Any]) -> None:
                                             "Work: the changes are waiting for approval in Planning.")).strip()
                 result_extra.update({"project_id": project.get("id"), "work_status": "pending",
                                      "pending_work": files})
-    # schedule_results.json may hold tens of MB of pending Work files: the
-    # read-modify-write runs in a worker thread, not on the event loop.
+
     await asyncio.to_thread(_record_result, str(task.get("id") or ""), True, text, result_extra)
     try:
         if prefs.get("notify_windows", True):
@@ -439,7 +418,6 @@ async def _run_task(task: Dict[str, Any]) -> None:
             log.warning("scheduler: email not sent: %s", exc)
     log.info("scheduler: task '%s' finished", task.get("name", ""))
 
-
 def _persist_last_run(task_id: str, started_at: float) -> None:
     def update(tasks: list[Dict[str, Any]]) -> bool:
         for task in tasks:
@@ -453,7 +431,6 @@ def _persist_last_run(task_id: str, started_at: float) -> None:
         return False
 
     _mutate_schedules(update)
-
 
 def _restore_cancelled_run(task_id: str, started_at: float) -> None:
     """Make a cancelled claim due again instead of recording it as completed."""
@@ -469,15 +446,13 @@ def _restore_cancelled_run(task_id: str, started_at: float) -> None:
                 restore_rule_claim(task, started_at)
                 return True
             if task.get("run_at") not in (None, ""):
-                # Разовую задачу выключил сам захват — возвращаем. Периодическую
-                # мог выключить пользователь во время запуска: не трогаем.
+
                 task["enabled"] = True
             task["next_run"] = started_at
             return True
         return False
 
     _mutate_schedules(update)
-
 
 async def _run_claimed_task(task: Dict[str, Any], task_id: str, started_at: float) -> None:
     try:
@@ -496,7 +471,6 @@ async def _run_claimed_task(task: Dict[str, Any], task_id: str, started_at: floa
                 log.warning("scheduler: could not store last_run for task %s: %s", task_id, exc)
         _RUNNING_TASK_IDS.discard(task_id)
 
-
 def _start_claimed_task(task: Dict[str, Any], task_id: str, started_at: float) -> None:
     _RUNNING_TASK_IDS.add(task_id)
     try:
@@ -507,15 +481,13 @@ def _start_claimed_task(task: Dict[str, Any], task_id: str, started_at: float) -
     _ACTIVE_TASKS.add(job)
     job.add_done_callback(_ACTIVE_TASKS.discard)
 
-
 async def _scheduler_tick(*, now: float | None = None) -> int:
     """Atomically claim due tasks and start each id at most once."""
     timestamp = _finite_number(now) if now is not None else time.time()
     if timestamp is None:
         timestamp = time.time()
     claimed: list[tuple[str, Dict[str, Any]]] = []
-    # Round 29: rules with conditions/events get one shared condition sample per tick, measured
-    # before the file transaction (app/schedule_runtime.py, app/schedule_sampler.py).
+
     from . import schedule_runtime
     try:
         rule_ctx: Dict[str, Any] | None = await schedule_runtime.prepare_tick(timestamp)
@@ -553,7 +525,7 @@ async def _scheduler_tick(*, now: float | None = None) -> int:
                         changed = True
                     continue
                 if not enabled:
-                    # «Test run» of a paused rule: run once, keep it paused.
+
                     task.pop("run_now", None)
                     changed = True
                     if task_id not in _RUNNING_TASK_IDS:
@@ -564,16 +536,15 @@ async def _scheduler_tick(*, now: float | None = None) -> int:
                 changed = changed or decision["changed"]
                 if decision["run"]:
                     run_meta = {"test": decision["test"], "late": decision["late"], "trigger": decision["trigger"]}
-                    if decision.get("payload"):   # Round 35 (triggers): the event data → {{trigger.*}}
+                    if decision.get("payload"):
                         run_meta["payload"] = decision["payload"]
-                    if decision.get("source"):    # Round 35 (finish-c): actual event type → {{trigger.type}}
+                    if decision.get("source"):
                         run_meta["source"] = decision["source"]
                     claimed.append((task_id, dict(task, _run_meta=run_meta)))
                 continue
             next_run = _stored_next_run(task)
             if not enabled:
-                # A paused task forgets its slot: switched back on days later, a daily task used to fire at once
-                # for the stale 09:00 instead of waiting for the next one. Re-enabling recomputes it.
+
                 if "next_run" in task and task.get("next_run") is not None:
                     task.pop("next_run", None)
                     changed = True
@@ -594,16 +565,11 @@ async def _scheduler_tick(*, now: float | None = None) -> int:
             changed = True
         return changed
 
-    # The transaction takes a cross-process file lock (the desktop app may be
-    # writing schedules.json) and parses/writes JSON: never on the event loop,
-    # which also serves the Proxy API and Telegram polling.
     transaction = asyncio.ensure_future(asyncio.to_thread(_mutate_schedules, claim))
     try:
         await asyncio.shield(transaction)
     except asyncio.CancelledError:
-        # Shutdown while the worker thread was claiming: let it finish, then
-        # hand the claims back so a one-shot task is not left disabled
-        # without ever having run.
+
         try:
             await transaction
         except BaseException:  # noqa: BLE001
@@ -614,7 +580,7 @@ async def _scheduler_tick(*, now: float | None = None) -> int:
             except Exception as exc:  # noqa: BLE001
                 log.warning("scheduler: could not restore claim of task %s: %s", task_id, exc)
         raise
-    try:   # Round 35 (flows): answered «спросить меня», woken waits, runs interrupted by a restart
+    try:
         from .flow_engine import resume_pending
         await resume_pending()
     except Exception as exc:  # noqa: BLE001
@@ -627,7 +593,6 @@ async def _scheduler_tick(*, now: float | None = None) -> int:
         started += 1
     return started
 
-
 async def scheduler_loop() -> None:
     """Каждые 30 секунд проверяет расписание. Хранит next_run прямо в задачах."""
     while True:
@@ -636,8 +601,7 @@ async def scheduler_loop() -> None:
         except Exception as e:  # noqa: BLE001
             log.warning("scheduler: %s", e)
         try:
-            # Round 29: 30 s, 15 s while rules sample conditions, earlier for a due slot,
-            # ~2 s after schedules.json changes (Run now, a new task, a finished chain).
+
             from .schedule_runtime import sleep_until_next
             await sleep_until_next(30)
         except asyncio.CancelledError:

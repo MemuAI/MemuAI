@@ -8,7 +8,6 @@ from app import openai_api, public_api
 from app.state import state
 from starlette.requests import Request
 
-
 class QueueAccountingRegressionTest(unittest.TestCase):
     def test_client_send_failure_keeps_usage_received_by_provider_pump(self):
         async def run():
@@ -58,7 +57,6 @@ class QueueAccountingRegressionTest(unittest.TestCase):
                         self.assertEqual(limiter.active, 0)
                         self.assertEqual(store.find(key["key"])["usage"]["tokens"], 120)
         asyncio.run(run())
-
 
 if __name__ == "__main__":
     unittest.main()

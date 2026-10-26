@@ -29,7 +29,6 @@ from . import deeplinks
 log = logging.getLogger("memuai.deeplinks")
 MAX_BODY = 64 * 1024
 
-
 async def _body(request: Request) -> Dict[str, Any]:
     raw = await request.body()
     if len(raw) > MAX_BODY:
@@ -41,7 +40,6 @@ async def _body(request: Request) -> Dict[str, Any]:
         raise ValueError("object expected")
     return data
 
-
 def _lang(request: Request, body: Dict[str, Any] | None = None) -> str:
     value = (body or {}).get("lang") or request.query_params.get("lang")
     if value in ("en", "ru"):
@@ -51,7 +49,6 @@ def _lang(request: Request, body: Dict[str, Any] | None = None) -> str:
         return "en" if load_preferences().get("language") == "en" else "ru"
     except Exception:  # noqa: BLE001
         return "ru"
-
 
 def _window_nudge(app: FastAPI):
     """Bring the MemuAI window up and make the page fetch the queue right away."""
@@ -64,11 +61,10 @@ def _window_nudge(app: FastAPI):
         window = getattr(app.state, "window", None)
         if window is not None:
             try:
-                window.evaluate_js("window.MemuLinks ? (MemuLinks.poll(), true) : false")   # no Promise back to pywebview
+                window.evaluate_js("window.MemuLinks ? (MemuLinks.poll(), true) : false")
             except Exception:  # noqa: BLE001
                 pass
     return notify
-
 
 def register(app: FastAPI, *, proxy_json=None) -> None:
     import httpx
@@ -180,7 +176,7 @@ def register(app: FastAPI, *, proxy_json=None) -> None:
             return bad("unknown route")
         link = deeplinks.build(route, params)
         try:
-            deeplinks.parse(link)          # a copied link must be one MemuAI accepts
+            deeplinks.parse(link)
         except deeplinks.LinkError as exc:
             return JSONResponse(exc.as_dict(_lang(request, body)), 400)
         return {"ok": True, "link": link}

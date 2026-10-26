@@ -11,16 +11,13 @@ import httpx
 
 from app import update_release as updates
 
-
 URL = "https://github.com/MemuAI/MemuAI/releases/download/v3.9/MemuAI-Setup-3.9.exe"
 EXE = b"MZ" + b"installer fixture" * 100
-
 
 def release(tag="v3.9", version="3.9"):
     return {"tag_name": tag, "assets": [{"name": f"MemuAI-Setup-{version}.exe",
         "browser_download_url": URL, "size": len(EXE),
         "digest": "sha256:" + hashlib.sha256(EXE).hexdigest()}]}
-
 
 class ReleaseMetadataTests(unittest.TestCase):
     def test_382_release_is_offered_to_381(self):
@@ -81,7 +78,6 @@ class ReleaseMetadataTests(unittest.TestCase):
                 path.write_bytes(content)
                 with self.assertRaises(ValueError):
                     updates.verify_installer(path, len(EXE), sha)
-
 
 class UpdateAPITests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -185,7 +181,6 @@ class UpdateAPITests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(sorted(r.status_code for r in responses), [200, 409])
             launch.assert_called_once()
 
-
 class GitHubFallbackTests(unittest.IsolatedAsyncioTestCase):
     async def test_rate_limit_uses_public_release_page_with_matching_digest(self):
         sha = hashlib.sha256(EXE).hexdigest()
@@ -222,7 +217,6 @@ class GitHubFallbackTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaises(httpx.HTTPStatusError):
                 await updates.fetch_payload(client, "https://updates.example/manifest.json")
         self.assertEqual(len(calls), 1)
-
 
 if __name__ == "__main__":
     unittest.main()

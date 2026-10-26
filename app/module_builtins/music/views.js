@@ -1,7 +1,5 @@
-/* MemuMusic · views.js — разделы: Главная, Библиотека, Плейлисты, Скачать,
- * Статистика, Настройки и экраны альбома/артиста/плейлиста/подборки. */
 
-/* ------------------------------------------------------------ общие куски */
+
 const ILL = {
   music: '<svg class="ill" viewBox="0 0 180 140"><defs><linearGradient id="ill-a" x1="0" x2="1" y1="0" y2="1"><stop offset="0" style="stop-color:var(--tint)"/><stop offset="1" style="stop-color:var(--tint-2)"/></linearGradient></defs><circle cx="96" cy="72" r="54" style="fill:var(--mm-panel-2)"/><circle cx="96" cy="72" r="40" fill="url(#ill-a)" opacity=".9"/><circle cx="96" cy="72" r="28" fill="none" stroke="#fff" stroke-opacity=".25"/><circle cx="96" cy="72" r="8" fill="#fff"/><path d="M36 40v40" stroke="url(#ill-a)" stroke-width="5" stroke-linecap="round"/><circle cx="30" cy="82" r="8" fill="url(#ill-a)"/><path d="M36 40l14-6" stroke="url(#ill-a)" stroke-width="5" stroke-linecap="round"/><circle cx="152" cy="28" r="5" style="fill:var(--tint-3)"/><circle cx="160" cy="112" r="3" style="fill:var(--tint)"/></svg>',
   search: '<svg class="ill" viewBox="0 0 180 140"><circle cx="82" cy="64" r="40" style="fill:var(--mm-panel-2)"/><circle cx="82" cy="64" r="26" fill="none" style="stroke:var(--tint)" stroke-width="8"/><path d="m102 84 26 26" style="stroke:var(--tint-2)" stroke-width="10" stroke-linecap="round"/><circle cx="146" cy="34" r="5" style="fill:var(--tint-3)"/></svg>',
@@ -20,7 +18,7 @@ function collage(p) {
   if (!items.length && covers.length) return `<img alt="" src="${esc(covers[0])}" data-fb="${esc(coverArt(p.id || p.name, p.name))}">`;
   if (items.length >= 4) return `<span class="mm-collage" style="width:100%;height:100%">${items.map((x) => artImg(x)).join("")}</span>`;
   if (items.length) return artImg(items[0]);
-  // design-3: пустой умный плейлист — значок на градиенте (как «Любимые»), а не мелкая надпись на сгенерированной обложке
+
   if (p.smart || p.rules) return `<span class="mm-smart-art" style="--a:${p.id === "smart:top" ? "#ff8a3d" : "#2fb8a6"};--b:${p.id === "smart:top" ? "#ff3d77" : "#4f6bff"}">${icon(p.id === "smart:top" ? "stats" : p.id === "smart:recent" ? "plus" : "sparkle")}</span>`;
   return `<img alt="" src="${esc(coverArt("pl:" + (p.id || p.name), p.name))}">`;
 }
@@ -53,7 +51,7 @@ function headBlock({ kind, title, sub, art, extra }) {
 function bindHeadPlay(el, getTracks, from) {
   el.addEventListener("click", (e) => {
     const b = e.target.closest("[data-act]"); if (!b) return;
-    const shown = (el.querySelector("#list") || {})._tracks;   // r39-music-lib: очередь — в порядке сортировки вида
+    const shown = (el.querySelector("#list") || {})._tracks;
     const list = shown && shown.length ? shown.slice() : getTracks(); if (!list.length) return;
     if (b.dataset.act === "play-all") { Player.setShuffle(false); Player.playList(list, null, from); }
     if (b.dataset.act === "shuffle-all") { Player.setShuffle(true); Player.playList(list, list[Math.floor(Math.random() * list.length)].id, from); }
@@ -61,8 +59,7 @@ function bindHeadPlay(el, getTracks, from) {
 }
 function totalDuration(list) { return list.reduce((s, x) => s + (Number(x.duration) || 0), 0); }
 
-/* ------------------------------------------------------------ список треков (виртуальный) */
-let ROW = 56;   // design: высота строки — из плотности списков (Theme.row())
+let ROW = 56;
 function rowHtml(x, i, opts) {
   const playing = Player.current() && Player.current().id === x.id;
   return `<div class="mm-row${opts.virtual ? "" : " static"}${playing ? " playing" : ""}" role="row" data-id="${esc(x.id)}" data-i="${i}"${Sel.has(x.id) ? ' aria-selected="true"' : ""}${opts.virtual ? ` style="top:${i * ROW}px"` : ""}${opts.reorder ? ' draggable="true"' : ""}>
@@ -76,8 +73,8 @@ function rowHtml(x, i, opts) {
 }
 function trackList(host, tracks, opts) {
   opts = Object.assign({ virtual: tracks.length > 120, from: "", reorder: false }, opts || {});
-  if (opts.sortView) tracks = sortedForList(host, tracks, opts);   // r39-music-lib: сортировка вида (feat-lib.js)
-  host._tracks = tracks;   // порядок на экране: из него строится очередь («Слушать», двойной клик, ▶ у строки)
+  if (opts.sortView) tracks = sortedForList(host, tracks, opts);
+  host._tracks = tracks;
   ROW = Theme.row();
   host.innerHTML = theadHtml(opts) + `<div class="mm-tracks" role="grid"></div>`;
   bindThead(host, opts);
@@ -110,12 +107,12 @@ function trackList(host, tracks, opts) {
     if (e.target.closest("[data-like]")) { toggleLike(x); return; }
     if (e.target.closest("[data-more]")) { trackMenu(x, e.target.closest("[data-more]"), opts); return; }
     if (e.target.closest("[data-play-row]")) { playFrom(tracks, x, opts.from); return; }
-    Sel.click(e, row, tracks, opts);   // feat: Ctrl/Shift, «играть одним кликом»
+    Sel.click(e, row, tracks, opts);
   });
   Sel.lasso(box, tracks, opts);
   box.addEventListener("dblclick", (e) => { const row = e.target.closest(".mm-row"); if (row && !e.target.closest("button")) playFrom(tracks, trackAt(row), opts.from); });
   box.addEventListener("contextmenu", (e) => { const row = e.target.closest(".mm-row"); if (!row) return; e.preventDefault(); trackMenu(trackAt(row), { x: e.clientX, y: e.clientY }, opts); });
-  if (opts.reorder) {   // r39-music-lib: плавное перемещение (FLIP), Alt+↑/↓, «В начало/в конец»
+  if (opts.reorder) {
     const applyOrder = (ids) => {
       const map = new Map(tracks.map((x) => [x.id, x]));
       flipRows(box, ".mm-row", () => { tracks.splice(0, tracks.length, ...ids.map((id) => map.get(id)).filter(Boolean)); box.innerHTML = tracks.map((x, i) => rowHtml(x, i, opts)).join(""); });
@@ -140,7 +137,7 @@ function markPlaying() {
   const cur = Player.current();
   $$(".mm-row").forEach((r) => r.classList.toggle("playing", !!cur && r.dataset.id === cur.id));
 }
-/** Перетаскивание строк (HTML5 DnD), общий для плейлиста и очереди. */
+
 function bindReorder(box, selector, onMove) {
   let from = -1;
   box.addEventListener("dragstart", (e) => {
@@ -166,7 +163,6 @@ function bindReorder(box, selector, onMove) {
   });
 }
 
-/* ------------------------------------------------------------ меню трека — feat-menu.js (trackMenu, playlistPicker, bulkMenu) */
 let menuCleanup = null;
 function openMenu(items, anchor) {
   closeOverlays();
@@ -189,7 +185,7 @@ function openMenu(items, anchor) {
 }
 function closeOverlays() {
   let closed = false;
-  // design: меню, закрытое другим путём, оставляет «устаревший» menuCleanup — Escape не должен тратиться на невидимое меню
+
   if (menuCleanup) { closed = !$("#menu").hidden; menuCleanup(); menuCleanup = null; }
   if (!$("#pop").hidden) { closePop(); closed = true; }
   if (!$("#modal").hidden) { $("#modal").hidden = true; closed = true; }
@@ -224,7 +220,6 @@ function createPlaylistDialog(trackIds) {
     });
 }
 
-/* ------------------------------------------------------------ Главная */
 function today() {
   try { return new Date().toLocaleDateString(Memu.lang === "en" ? "en-US" : "ru-RU", { weekday: "long", day: "numeric", month: "long" }); } catch (e) { return ""; }
 }
@@ -265,11 +260,11 @@ VIEWS.home = async (el) => {
   const artists = artistsOf(tr).sort((a, b) => b.plays - a.plays).slice(0, 12);
   const liked = tr.filter((x) => x.liked);
   const mixes = smartMixes();
-  // design-3: у плиток подпись «Плейлист / Альбом · артист» — альбомы рядом с плейлистами больше не путаются с ними
+
   const quick = [{ kind: "liked", name: t("liked.title"), sub: plural("count.tracks", liked.length), html: `<span style="width:100%;height:100%;display:grid;place-items:center;color:#fff;background:linear-gradient(135deg,#6d4aff,#ff5c8a)">${icon("heart")}</span>` }]
     .concat(S.playlists.slice(0, 3).map((p) => ({ kind: "playlist", id: p.id, name: p.name, sub: t("kind.playlist") + " · " + plural("count.tracks", p.count || 0), html: collage(p) })))
     .concat(albums.slice(0, 2).map((a) => ({ kind: "album", id: a.key, name: a.name, sub: t("kind.album") + (a.artist ? " · " + a.artist : ""), html: artImg(a.tracks[0]) })));
-  const off = (k) => Theme.hidden(k) ? " hidden" : "";   // design: секции Главной можно скрыть в «Оформлении»
+  const off = (k) => Theme.hidden(k) ? " hidden" : "";
   el.innerHTML = `
     <section class="mm-hero"${off("greet")}><div><span class="mm-eyebrow">${esc(today())}</span><h1 class="mm-greet">${esc(greeting())}</h1><p class="mm-sub">${esc(t("home.summary", { tracks: plural("count.tracks", tr.length), time: fmtLong(totalDuration(tr)) }))}</p></div></section>
     <div class="mm-quick"${off("quick")}>${quick.map((q, i) => `<div class="mm-quick-item" role="button" tabindex="0" data-q="${i}"><span class="mm-art">${q.html}</span><span class="mm-quick-txt"><b>${esc(q.name)}</b><small>${esc(q.sub)}</small></span><button type="button" class="mm-fab" data-play-q="${i}" aria-label="${esc(t("play"))}">${icon("play")}</button></div>`).join("")}</div>
@@ -310,7 +305,7 @@ VIEWS.home = async (el) => {
     else if (tileEl.dataset.artist) { const a = artists[Number(tileEl.dataset.artist)]; fab ? Player.playList(a.tracks, null, a.name) : go("artist", { name: a.name }); }
     else if (tileEl.dataset.recent) { const list = el._recent || []; Player.playList(list, list[Number(tileEl.dataset.recent)].id, t("home.continue")); }
   });
-  /* design: «Продолжить» сразу из прошлого ответа (без позднего вставления секции и сдвига раскладки), потом — свежие данные */
+
   const showRecent = (recent) => {
     if (!el.isConnected || Theme.hidden("continue")) return;
     el._recent = recent;
@@ -334,7 +329,6 @@ VIEWS.mix = async (el, p) => {
   trackList(el.querySelector("#list"), m.tracks, { from: m.name, sortView: "mix", sortDefault: "pos:asc" });
 };
 
-/* ------------------------------------------------------------ Библиотека */
 VIEWS.library = async (el) => {
   const lib = S.prefs.lib;
   el.innerHTML = `<h1 class="mm-h1">${esc(t("nav.library"))}</h1><p class="mm-sub">${esc(plural("count.tracks", S.tracks.length))} · ${esc(fmtLong(totalDuration(S.tracks)))}</p>
@@ -354,12 +348,12 @@ VIEWS.library = async (el) => {
     else if (lib.filter === "downloaded") list = list.filter((x) => x.source && x.source !== "local");
     else if (lib.filter === "local") list = list.filter((x) => !x.source || x.source === "local");
     if (query) list = list.filter((x) => (x.title + " " + x.artist + " " + (x.album || "")).toLowerCase().includes(query));
-    return list;   // r39-music-lib: порядок — Sorter (заголовки колонок / «Сортировка»), по умолчанию новые сверху
+    return list;
   };
   const GRID_SORT = { tracks: ["library", "added:desc", TRACK_SORTS], albums: ["albums", "added:desc", ["added", "name", "artist", "year", "tracks", "plays"]], artists: ["artists", "added:desc", ["added", "name", "tracks", "plays"]] };
   const sortSlot = () => { const g = GRID_SORT[lib.tab]; el.querySelector("#lib-sort-slot").innerHTML = g ? sortButton(g[0], g[1]) : ""; };
   const draw = () => {
-    if (FEAT_LIB_TABS[lib.tab]) { if (!libTabs().includes(lib.tab)) lib.tab = "tracks"; else { FEAT_LIB_TABS[lib.tab](body); return; } }   // feat: Жанры / Папки / История
+    if (FEAT_LIB_TABS[lib.tab]) { if (!libTabs().includes(lib.tab)) lib.tab = "tracks"; else { FEAT_LIB_TABS[lib.tab](body); return; } }
     const list = filtered();
     if (!list.length) { body.innerHTML = S.tracks.length ? emptyState("search", t("empty.nothing"), t("empty.nothing_hint")) : emptyState("music", t("empty.library"), t("empty.library_hint")); return; }
     if (lib.tab === "tracks") { trackList(body, list, { from: t("nav.library"), virtual: list.length > 80, sortView: "library", sortDefault: "added:desc" }); return; }
@@ -398,7 +392,7 @@ VIEWS.album = async (el, p) => {
   el.querySelector("[data-artist]").onclick = () => go("artist", { name: a.artist });
   bindHeadPlay(el, () => list, a.album);
   trackList(el.querySelector("#list"), list, { from: a.album, sortView: "album", sortDefault: "pos:asc" });
-  decorateAlbum(el, list);   // r39-music-lib: «Изменить альбом»
+  decorateAlbum(el, list);
 };
 VIEWS.artist = async (el, p) => {
   const list = S.tracks.filter((x) => x.artist === p.name).sort((a, b) => (b.plays || 0) - (a.plays || 0));
@@ -409,14 +403,13 @@ VIEWS.artist = async (el, p) => {
   el.querySelector(".mm-head .mm-art").style.borderRadius = "50%";
   bindHeadPlay(el, () => list, p.name);
   trackList(el.querySelector("#list"), list, { from: p.name, sortView: "artist", sortDefault: "plays:desc" });
-  decorateArtist(el, p.name);   // r39-music-lib: фото, описание, «Изменить»
+  decorateArtist(el, p.name);
   el.addEventListener("click", (e) => { const tl = e.target.closest("[data-g]"); if (tl) { const g = albums[Number(tl.dataset.g)]; e.target.closest("[data-play-tile]") ? Player.playList(g.tracks, null, g.name) : go("album", { key: g.key }); } });
 };
 
-/* ------------------------------------------------------------ Плейлисты */
 VIEWS.playlists = async (el) => {
   const liked = S.tracks.filter((x) => x.liked);
-  const own = Sorter.apply(S.playlists.filter((p) => !p.smart && !p.rules), Sorter.get("playlists", "pos:asc"));   // r39-music-lib
+  const own = Sorter.apply(S.playlists.filter((p) => !p.smart && !p.rules), Sorter.get("playlists", "pos:asc"));
   const sortRank = (p) => (own.includes(p) ? 1000 + own.indexOf(p) : S.playlists.indexOf(p));
   el.innerHTML = `<div class="mm-hero"><div><h1 class="mm-h1">${esc(t("nav.playlists"))}</h1><p class="mm-sub">${esc(plural("count.playlists", S.playlists.length))}</p></div><div class="mm-hero-acts"><button type="button" class="mm-btn tint" id="pl-new">${icon("plus")}${esc(t("playlist.new"))}</button>${featPlaylistActions()}${sortButton("playlists", "pos:asc")}</div></div>
     <div class="mm-grid" style="margin-top:28px">
@@ -425,7 +418,7 @@ VIEWS.playlists = async (el) => {
       <button type="button" class="mm-tile" data-create style="text-align:center"><div class="mm-tile-art" style="display:grid;place-items:center;border:2px dashed var(--mm-line);box-shadow:none;background:none;color:var(--mm-muted)"><svg style="width:40px;height:40px"><use href="#i-plus"/></svg></div><b>${esc(t("playlist.new"))}</b><span>${esc(t("playlist.new_hint"))}</span></button>
     </div>`;
   el.querySelector("#pl-new").onclick = () => createPlaylistDialog();
-  bindFeatPlaylists(el);   // feat: умные плейлисты, импорт M3U, ПКМ по плитке
+  bindFeatPlaylists(el);
   bindSortButton(el, ["pos", "name", "updated", "count"], () => rerender());
   if (Sorter.get("playlists", "pos:asc").field === "pos") bindPlaylistDrag(el.querySelector(".mm-grid"), ".mm-tile[data-id]");
   el.addEventListener("click", async (e) => {
@@ -445,7 +438,7 @@ VIEWS.playlist = async (el, p) => {
   if (!pl) { el.innerHTML = emptyState("error", t("error.title"), t("playlist.missing")); return; }
   const list = (pl.tracks || []).map((x) => S.byId.get(x.id) || normTrack(x));
   const builtin = !!pl.smart || String(pl.id).startsWith("smart:");
-  const smart = builtin || !!pl.rules;   // feat: плейлист по правилам — тоже «умный» (без ручного порядка)
+  const smart = builtin || !!pl.rules;
   if (builtin) pl.name = (Memu.lang === "en" ? pl.name_en : pl.name_ru) || pl.name;
   el.innerHTML = headBlock({ kind: t(smart ? "kind.mix" : "kind.playlist"), title: smart ? `<h1 class="mm-h1">${esc(pl.name)}</h1>` : `<h1 class="mm-h1"><input class="mm-name-edit" id="pl-title" value="${esc(pl.name)}" maxlength="80" aria-label="${esc(t("playlist.rename"))}"></h1>`,
     sub: (pl.description ? `<span class="mm-pl-desc">${esc(pl.description)}</span>` : "") + esc(plural("count.tracks", list.length) + " · " + fmtLong(totalDuration(list)) + (smart ? "" : " · " + t("playlist.drag_hint"))), art: collage(Object.assign({}, pl, { track_ids: list.map((x) => x.id) })),
@@ -466,7 +459,6 @@ VIEWS.playlist = async (el, p) => {
     onReorder: async (ids) => { await API.soft("playlist.reorder", { id: pl.id, order: ids }); loadPlaylists(); } });
 };
 
-/* ------------------------------------------------------------ Скачать */
 let onJobsUpdate = null;
 function jobStatus(j) {
   const pct = Math.round((Number(j.progress) || 0) * 100);
@@ -479,7 +471,7 @@ function jobStatus(j) {
 const jobFailed = (j) => j.status === "error" && j.error !== "cancelled" || (j.status === "done" && j.failed > 0);
 const jobBot = (j) => j.error_code === "youtube_bot" || (j.items || []).some((x) => x.error_code === "youtube_bot");
 const itemsSig = (j) => (j.items || []).map((x) => x.status).join(",");
-/** Список элементов альбома/плейлиста в карточке загрузки: статус каждого трека, ошибка — подсказкой. */
+
 function jobItemsHtml(j) {
   const items = j.items || [];
   if (items.length < 2) return "";
@@ -550,7 +542,7 @@ VIEWS.download = async (el, p) => {
     const existing = new Map($$(".mm-job", jobsBox).map((n) => [n.dataset.job, n]));
     jobs.forEach((j, i) => {
       const node = existing.get(j.job_id);
-      if (node && node.dataset.status === j.status && node.dataset.sig === itemsSig(j)) {   // только прогресс — без перерисовки карточки
+      if (node && node.dataset.status === j.status && node.dataset.sig === itemsSig(j)) {
         node.style.setProperty("--p", (Number(j.progress) || 0).toFixed(3));
         node.querySelector(".st").textContent = jobStatus(j);
       } else {
@@ -584,14 +576,13 @@ VIEWS.download = async (el, p) => {
   onJobsUpdate();
   pollJobs();
   const q = el.querySelector("#dl-q"), results = el.querySelector("#dl-results");
-  // r41b-online: те же результаты, что в «Поиске» — площадка, канал, метки, лист «Информация о треке» (feat-online.js)
+
   const search = debounce(() => { const text = q.value.trim(); if (!text) { results.innerHTML = ""; return; } onlineSearch(results, text, { quality: prefs.quality }); }, 450);
   q.addEventListener("input", search);
   if (p && p.url) { input.value = p.url; onInput(); }
   setTimeout(() => input.isConnected && !p.url && input.focus(), 50);
 };
 
-/* ------------------------------------------------------------ Статистика */
 function countUp(node, value, format) {
   if (root.hasAttribute("data-calm")) { node.textContent = format(value); return; }
   const t0 = performance.now();
@@ -632,7 +623,7 @@ VIEWS.stats = async (el) => {
   const maxH = hours ? Math.max(1, ...hours) : 1;
   el.innerHTML = `<h1 class="mm-h1">${esc(t("nav.stats"))}</h1><p class="mm-sub">${esc(t("stats.sub"))}</p>
     <div class="mm-kpis">
-      ${(() => { const lm = (st.listened_minutes != null ? st.listened_minutes : st.minutes || 0); /* r39-final: under an hour → minutes, not «0 часов» */ return lm < 60 ? `<div class="mm-kpi" style="--k:var(--tint)"><i></i><b data-n="${Math.round(lm)}">0</b><span>${esc(t("stats.mins_label"))}</span></div>` : `<div class="mm-kpi" style="--k:var(--tint)"><i></i><b data-n="${Math.round(lm / 60)}">0</b><span>${esc(t("stats.hours"))}</span></div>`; })()}
+      ${(() => { const lm = (st.listened_minutes != null ? st.listened_minutes : st.minutes || 0);  return lm < 60 ? `<div class="mm-kpi" style="--k:var(--tint)"><i></i><b data-n="${Math.round(lm)}">0</b><span>${esc(t("stats.mins_label"))}</span></div>` : `<div class="mm-kpi" style="--k:var(--tint)"><i></i><b data-n="${Math.round(lm / 60)}">0</b><span>${esc(t("stats.hours"))}</span></div>`; })()}
       <div class="mm-kpi" style="--k:var(--tint-2)"><i></i><b data-n="${st.tracks || S.tracks.length}">0</b><span>${esc(t("stats.tracks"))}</span></div>
       <div class="mm-kpi" style="--k:var(--tint-3)"><i></i><b data-n="${st.artists || 0}">0</b><span>${esc(t("stats.artists"))}</span></div>
       <div class="mm-kpi" style="--k:#ff4f7b"><i></i><b data-n="${st.liked != null ? st.liked : liked}">0</b><span>${esc(t("stats.liked"))}</span></div>
@@ -653,7 +644,7 @@ VIEWS.stats = async (el) => {
   else el.querySelector("#top").innerHTML = emptyState("music", t("stats.no_history"), t("stats.no_history_hint"));
   renderHistory(el.querySelector("#history"));
 };
-/** История прослушиваний (library.history): по дням, со временем и устройством. */
+
 async function renderHistory(box) {
   const rows = await API.soft("library.history", { limit: 60 }, null);
   if (!box.isConnected) return;
@@ -676,5 +667,3 @@ async function renderHistory(box) {
   box.innerHTML = html;
   box.onclick = (e) => { const b = e.target.closest("[data-h]"); if (b) Player.playList(box._tracks, box._tracks[Number(b.dataset.h)].id, t("stats.history")); };
 }
-
-/* ------------------------------------------------------------ Настройки — feat-settings.js (вкладки SETTINGS_TABS) */

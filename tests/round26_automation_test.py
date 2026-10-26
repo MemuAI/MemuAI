@@ -23,7 +23,6 @@ from app import automation_runtime as ar
 from tests import round24_dfy_test as r24
 from tests.round25_dfy_test import FormBrowser
 
-
 class _Fn:
     """A user32 function that accepts ``restype``/``argtypes`` like a ctypes one."""
 
@@ -32,7 +31,6 @@ class _Fn:
 
     def __call__(self, *args):
         return self.func(*args)
-
 
 class FakeUser32:
     def __init__(self, monitors, windows=()):
@@ -112,11 +110,9 @@ class FakeUser32:
         self.foreground.append(hwnd)
         return 1
 
-
 def desktop(size, color=(40, 40, 40)):
     image = Image.new("RGB", size, color)
     return image
-
 
 class FakeWindows:
     """Patches os.name, ctypes.windll/WINFUNCTYPE and ImageGrab for the duration of a ``with``."""
@@ -129,7 +125,7 @@ class FakeWindows:
             patch.object(ctypes, "windll", type("W", (), {"user32": user32, "kernel32": None})(), create=True),
             patch.object(ctypes, "WINFUNCTYPE", ctypes.CFUNCTYPE, create=True),
             patch.object(ImageGrab, "grab", lambda **_kw: self.screen),
-            # Tk is not available here; the frame is cosmetic.
+
             patch.object(ar.ComputerAutomation, "_glow_worker", lambda self, stop=None: None),
             patch.object(ar.time, "sleep", lambda *_a: None),
         ]
@@ -143,10 +139,8 @@ class FakeWindows:
         for item in reversed(self.patches):
             item.stop()
 
-
 def decode(data_url):
     return Image.open(io.BytesIO(base64.b64decode(data_url.split(",", 1)[1])))
-
 
 class Script:
     def __init__(self, replies):
@@ -157,7 +151,6 @@ class Script:
         self.prompts.append(messages)
         reply = self.replies.pop(0) if self.replies else '{"action": "done", "report": "end"}'
         return reply(self) if callable(reply) else reply
-
 
 class RulerAndCapture(unittest.TestCase):
     def test_ruler_draws_on_a_real_image_in_any_mode(self):
@@ -170,7 +163,7 @@ class RulerAndCapture(unittest.TestCase):
     def test_capture_two_monitors_left_of_primary(self):
         user32 = FakeUser32([(0, 0, 2560, 1440), (-1920, 200, 0, 1280)])
         screen = desktop((4480, 1440))
-        ImageDraw.Draw(screen).rectangle([0, 200, 1919, 1279], fill=(200, 10, 10))   # the left monitor
+        ImageDraw.Draw(screen).rectangle([0, 200, 1919, 1279], fill=(200, 10, 10))
         with FakeWindows(user32, screen):
             shot = ar.ComputerAutomation._capture()
         first, second = shot["screens"]
@@ -180,9 +173,8 @@ class RulerAndCapture(unittest.TestCase):
         self.assertEqual(image.size, (1400, 788))
         self.assertGreater(image.getpixel((700, 400))[0], 150, "monitor 2 is cropped from its own area")
         self.assertEqual(len(first["signature"]), 32 * 18)
-        # The last displayed pixel of monitor 2 is the last real pixel left of the primary.
-        self.assertEqual(ar.resolve_click_point({"monitor": 2, "x": 1399, "y": 0}, shot["screens"]), (-1, 200))
 
+        self.assertEqual(ar.resolve_click_point({"monitor": 2, "x": 1399, "y": 0}, shot["screens"]), (-1, 200))
 
 class ComputerLoop(unittest.TestCase):
     def run_agent(self, user32, screen, model, **kwargs):
@@ -271,13 +263,10 @@ class ComputerLoop(unittest.TestCase):
         self.assertEqual((runtime.status, runtime.error), ("error", "Proxy: 502"))
         self.assertIn("Proxy: 502", [row["message"] for row in runtime.logs])
 
-
 _real_sleep = asyncio.sleep
-
 
 async def _short_sleep(delay=0, *args, **kwargs):
     await _real_sleep(min(float(delay or 0), 0.01))
-
 
 class CoordinateParsing(unittest.TestCase):
     SCREENS = [{"monitor": 1, "left": 0, "top": 0, "width": 700, "height": 394,
@@ -297,7 +286,6 @@ class CoordinateParsing(unittest.TestCase):
         computer = ar.ComputerAutomation()
         with self.assertRaises(ValueError):
             asyncio.run(computer.perform({"action": "drag", "x1": 1, "y1": 1}, {"screens": self.SCREENS}))
-
 
 class CdpWithoutProxy(unittest.TestCase):
     def test_loopback_socket_never_uses_the_system_proxy(self):
@@ -322,7 +310,6 @@ class CdpWithoutProxy(unittest.TestCase):
             self.assertNotIn("websockets.connect(", source.replace("await websockets.connect(url, **options)", ""),
                              name)
 
-
 class DfyNavigateError(unittest.IsolatedAsyncioTestCase):
     async def test_failed_navigation_is_an_error_not_opened(self):
         from app import dfy_browser
@@ -338,9 +325,8 @@ class DfyNavigateError(unittest.IsolatedAsyncioTestCase):
         with patch.object(ar, "_safe_navigation_url", lambda url: url):
             with self.assertRaisesRegex(RuntimeError, "ERR_NAME_NOT_RESOLVED"):
                 await browser.navigate("https://nowhere.example/")
-            answers["Page.navigate"] = {"errorText": "net::ERR_ABORTED"}   # a download / 204: page stays
+            answers["Page.navigate"] = {"errorText": "net::ERR_ABORTED"}
             self.assertEqual(await browser.navigate("https://example.com/"), "https://example.com/")
-
 
 class DfyKeyNames(r24.DFYBase):
     def setUp(self):
@@ -368,7 +354,6 @@ class DfyKeyNames(r24.DFYBase):
         from app.dfy import canonical_key
         self.assertEqual([canonical_key(k) for k in ("esc", "page down", "down", "TAB", None)],
                          ["Escape", "PageDown", "ArrowDown", "Tab", "Enter"])
-
 
 if __name__ == "__main__":
     unittest.main()

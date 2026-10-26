@@ -22,26 +22,25 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import quote
 
-#: tool{args} lines shown to the model (integrations.TOOLS["github"] = the original ten + these).
 TOOLS: List[str] = [
-    # repositories
+
     "github_create_repo{name,description,private,org,auto_init,gitignore,license,template}",
     "github_update_repo{repo,new_name,description,private,homepage,default_branch,has_issues,has_wiki,archived,topics}",
     "github_delete_repo{repo}",
     "github_fork_repo{repo,org,name,default_branch_only}",
     "github_search_repos{query,limit}",
-    # branches, commits, tags
+
     "github_list_branches{repo,limit}",
     "github_create_branch{repo,branch,from}",
     "github_delete_branch{repo,branch}",
     "github_get_commit{repo,sha}",
     "github_compare{repo,base,head}",
     "github_list_tags{repo,limit}",
-    # files (one commit each)
+
     "github_delete_file{repo,path,message,branch}",
     "github_move_file{repo,path,new_path,message,branch}",
     "github_commit_files{repo,message,branch,files,delete}",
-    # pull requests
+
     "github_list_pulls{repo,state,base,head,limit}",
     "github_get_pull{repo,number}",
     "github_create_pull{repo,title,head,base,body,draft}",
@@ -49,7 +48,7 @@ TOOLS: List[str] = [
     "github_merge_pull{repo,number,method,commit_title,commit_message}",
     "github_review_pull{repo,number,event,body}",
     "github_request_reviewers{repo,number,reviewers}",
-    # issues, comments, labels
+
     "github_get_issue{repo,number}",
     "github_update_issue{repo,number,title,body,state,state_reason,labels,assignees,milestone}",
     "github_comment{repo,number,body}",
@@ -60,17 +59,17 @@ TOOLS: List[str] = [
     "github_remove_label{repo,number,label}",
     "github_add_assignees{repo,number,assignees}",
     "github_search_issues{query,limit}",
-    # releases
+
     "github_list_releases{repo,limit}",
     "github_create_release{repo,tag,name,body,target,draft,prerelease,generate_notes}",
     "github_delete_release{repo,release_id,tag,delete_tag}",
-    # gists
+
     "github_list_gists{limit}",
     "github_read_gist{gist_id}",
     "github_create_gist{files,description,public}",
     "github_update_gist{gist_id,files,description}",
     "github_delete_gist{gist_id}",
-    # actions
+
     "github_list_workflows{repo}",
     "github_list_runs{repo,workflow,branch,status,limit}",
     "github_get_run{repo,run_id}",
@@ -78,7 +77,7 @@ TOOLS: List[str] = [
     "github_rerun{repo,run_id,failed_only}",
     "github_cancel_run{repo,run_id}",
     "github_dispatch_workflow{repo,workflow,ref,inputs}",
-    # collaborators
+
     "github_list_collaborators{repo}",
     "github_add_collaborator{repo,username,permission}",
     "github_remove_collaborator{repo,username}",
@@ -96,13 +95,12 @@ WRITE = {
     "github_rerun", "github_cancel_run", "github_dispatch_workflow",
     "github_add_collaborator", "github_remove_collaborator",
 }
-#: Cannot be undone — asked every time, even with «Full access».
+
 ALWAYS = {"github_delete_repo"}
-#: Destructive — the confirmation button is red.
+
 DANGER = {"github_delete_repo", "github_delete_branch", "github_delete_file", "github_delete_release",
           "github_delete_gist", "github_remove_collaborator", "github_merge_pull"}
 
-#: A short hint for the model (integrations prompt block).
 HINT = ("GitHub: repo is owner/name (or the default repository). Files: github_write_file (one file), "
         "github_commit_files{files:[{path,content}|{path,content_base64}],delete:[paths]} (many files, one commit), "
         "github_move_file (rename/move a file or folder), github_delete_file. Close or reopen an issue/PR with "
@@ -113,23 +111,18 @@ MAX_PATCH = 4000
 MAX_PATCH_TOTAL = 40000
 MAX_LOG = 30000
 
-
 def _ig():
     from . import integrations
     return integrations
 
-
 def _gh(method: str, path: str, **kwargs: Any) -> Any:
     return _ig()._github(method, path, **kwargs)
-
 
 def _arg(text: str):
     return _ig().IntegrationArgumentError(text)
 
-
 def _repo(args: Dict[str, Any]) -> str:
     return _ig()._repo(args)
-
 
 def _explicit_repo(args: Dict[str, Any]) -> str:
     """Destructive repository actions never fall back to the default repository."""
@@ -137,10 +130,8 @@ def _explicit_repo(args: Dict[str, Any]) -> str:
         raise _arg("Укажите repo явно (owner/name) — для этого действия репозиторий по умолчанию не подставляется")
     return _ig()._parse_repo(str(args["repo"]))
 
-
 def _int(value: Any, default: int, low: int, high: int) -> int:
     return _ig()._int(value, default, low, high)
-
 
 def _bool(value: Any, default: Optional[bool] = None) -> Optional[bool]:
     if value is None or value == "":
@@ -154,7 +145,6 @@ def _bool(value: Any, default: Optional[bool] = None) -> Optional[bool]:
         return False
     return default
 
-
 def _list(value: Any) -> List[str]:
     """«a, b» / ["a", "b"] → ["a", "b"] (labels, assignees, reviewers, topics)."""
     if value is None or value == "":
@@ -165,25 +155,21 @@ def _list(value: Any) -> List[str]:
         items = re.split(r"[,\n]", str(value))
     return [str(item).strip() for item in items if str(item).strip()]
 
-
 def _number(args: Dict[str, Any], key: str = "number") -> int:
     raw = str(args.get(key) or args.get("issue") or args.get("pull") or "").strip().lstrip("#")
     if not raw.isdigit():
         raise _arg("Укажите %s — номер issue или pull request (число)" % key)
     return int(raw)
 
-
 def _seg(value: Any) -> str:
     """One path segment from the model (branch names keep their slashes only where the API wants them)."""
     return quote(str(value).strip(), safe="")
-
 
 def _path(value: Any) -> str:
     path = str(value or "").strip().strip("/")
     if not path or ".." in path.split("/"):
         raise _arg("Укажите путь файла внутри репозитория (без «..»)")
     return path
-
 
 def _branch_name(value: Any) -> str:
     name = str(value or "").strip()
@@ -193,20 +179,15 @@ def _branch_name(value: Any) -> str:
         raise _arg("Некорректное имя ветки: %s" % (name or "(пусто)"))
     return name
 
-
 def _user(row: Any) -> str:
     return str((row or {}).get("login") or "") if isinstance(row, dict) else ""
-
 
 def _short(text: Any, size: int = 300) -> str:
     body = " ".join(str(text or "").split())
     return body[:size]
 
-
-# --------------------------------------------------------------------------- git data helpers
 def _default_branch(repo: str) -> str:
     return str(_gh("GET", "/repos/" + repo).get("default_branch") or "main")
-
 
 def _head(repo: str, branch: str) -> str:
     row = _gh("GET", "/repos/%s/git/ref/heads/%s" % (repo, quote(branch, safe="/")))
@@ -214,7 +195,6 @@ def _head(repo: str, branch: str) -> str:
     if not sha:
         raise _arg("Ветка %s не найдена в %s" % (branch, repo))
     return sha
-
 
 def _resolve_sha(repo: str, ref: str) -> str:
     """A branch, a tag or a commit sha → the commit sha."""
@@ -226,7 +206,6 @@ def _resolve_sha(repo: str, ref: str) -> str:
     if not sha:
         raise _arg("Не найдено: %s" % ref)
     return sha
-
 
 def _commit_tree(repo: str, branch: str, message: str, entries: List[Dict[str, Any]]) -> Dict[str, Any]:
     """One commit on ``branch`` with tree ``entries`` (create/update/delete) — the Git Data API."""
@@ -240,7 +219,6 @@ def _commit_tree(repo: str, branch: str, message: str, entries: List[Dict[str, A
     return {"commit": str(commit.get("sha") or "")[:10], "branch": branch,
             "url": commit.get("html_url") or "https://github.com/%s/commit/%s" % (repo, commit.get("sha"))}
 
-
 def _tree_entries(repo: str, branch: str, path: str) -> Tuple[List[Dict[str, Any]], bool]:
     """Blobs at ``path`` (a file) or under it (a folder) on ``branch``."""
     parent = _head(repo, branch)
@@ -249,7 +227,6 @@ def _tree_entries(repo: str, branch: str, path: str) -> Tuple[List[Dict[str, Any
     rows = [row for row in (tree.get("tree") or []) if isinstance(row, dict) and row.get("type") == "blob"
             and (row.get("path") == path or str(row.get("path") or "").startswith(path + "/"))]
     return rows, bool(tree.get("truncated"))
-
 
 def _files_arg(value: Any) -> List[Dict[str, Any]]:
     """files: [{path, content}|{path, content_base64}] or {"path": "content"}."""
@@ -271,14 +248,11 @@ def _files_arg(value: Any) -> List[Dict[str, Any]]:
         out.append(row)
     return out
 
-
-# --------------------------------------------------------------------------- formatting
 def _repo_row(row: Dict[str, Any]) -> Dict[str, Any]:
     return {"full_name": row.get("full_name"), "private": row.get("private"), "visibility": row.get("visibility"),
             "description": row.get("description"), "default_branch": row.get("default_branch"),
             "url": row.get("html_url"), "stars": row.get("stargazers_count"), "fork": row.get("fork"),
             "archived": row.get("archived"), "updated_at": row.get("updated_at"), "language": row.get("language")}
-
 
 def _issue_row(row: Dict[str, Any]) -> Dict[str, Any]:
     return {"number": row.get("number"), "title": row.get("title"), "state": row.get("state"),
@@ -287,13 +261,11 @@ def _issue_row(row: Dict[str, Any]) -> Dict[str, Any]:
             "pull_request": bool(row.get("pull_request")), "url": row.get("html_url"),
             "updated_at": row.get("updated_at"), "repo": "/".join(str(row.get("repository_url") or "").split("/")[-2:]) or None}
 
-
 def _pull_row(row: Dict[str, Any]) -> Dict[str, Any]:
     return {"number": row.get("number"), "title": row.get("title"), "state": row.get("state"),
             "draft": row.get("draft"), "merged": row.get("merged"), "mergeable": row.get("mergeable"),
             "user": _user(row.get("user")), "head": (row.get("head") or {}).get("ref"), "base": (row.get("base") or {}).get("ref"),
             "url": row.get("html_url"), "updated_at": row.get("updated_at")}
-
 
 def _patch_files(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     total = 0
@@ -308,7 +280,6 @@ def _patch_files(files: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         out.append({"file": row.get("filename"), "status": row.get("status"), "additions": row.get("additions"),
                     "deletions": row.get("deletions"), "patch": patch, **({"patch_truncated": True} if cut else {})})
     return out
-
 
 def _gist_files(value: Any, allow_delete: bool) -> Dict[str, Any]:
     files: Dict[str, Any] = {}
@@ -335,12 +306,9 @@ def _gist_files(value: Any, allow_delete: bool) -> Dict[str, Any]:
                     files[name]["filename"] = str(row["new_name"])
     return files
 
-
-# --------------------------------------------------------------------------- the tools
 def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one dispatch table, kept flat on purpose
     limit = _int(args.get("limit"), 30, 1, 100)
 
-    # ---------------------------------------------------------------- repositories
     if tool == "github_create_repo":
         name = str(args.get("name") or "").strip()
         if not re.fullmatch(r"[A-Za-z0-9_.-]{1,100}", name or "-"):
@@ -412,7 +380,6 @@ def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one dispatch ta
         rows = _gh("GET", "/search/repositories", params={"q": query, "per_page": limit})
         return {"total": rows.get("total_count"), "repos": [_repo_row(row) for row in rows.get("items") or []]}
 
-    # ---------------------------------------------------------------- branches, commits, tags
     if tool == "github_list_branches":
         repo = _repo(args)
         rows = _gh("GET", "/repos/%s/branches" % repo, params={"per_page": limit})
@@ -458,14 +425,13 @@ def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one dispatch ta
         rows = _gh("GET", "/repos/%s/tags" % _repo(args), params={"per_page": limit})
         return {"tags": [{"name": row.get("name"), "sha": str((row.get("commit") or {}).get("sha") or "")[:10]} for row in rows or []]}
 
-    # ---------------------------------------------------------------- files
     if tool == "github_delete_file":
         repo, path = _repo(args), _path(args.get("path"))
         branch = str(args.get("branch") or "").strip()
         params = {"ref": branch} if branch else None
         existing = _gh("GET", "/repos/%s/contents/%s" % (repo, quote(path, safe="/")), params=params)
         if isinstance(existing, list):
-            # A folder: every file under it in one commit.
+
             branch = branch or _default_branch(repo)
             rows, _cut = _tree_entries(repo, branch, path)
             if not rows:
@@ -516,7 +482,6 @@ def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one dispatch ta
         return {"committed": True, "written": [e["path"] for e in entries if e.get("sha", "") is not None],
                 "deleted": deletes, **result}
 
-    # ---------------------------------------------------------------- pull requests
     if tool == "github_list_pulls":
         state = str(args.get("state") or "open").lower()
         params: Dict[str, Any] = {"state": state if state in ("open", "closed", "all") else "open", "per_page": limit}
@@ -581,7 +546,6 @@ def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one dispatch ta
         row = _gh("POST", "/repos/%s/pulls/%d/requested_reviewers" % (repo, number), json_body={"reviewers": reviewers})
         return {"requested": [_user(u) for u in row.get("requested_reviewers") or []]}
 
-    # ---------------------------------------------------------------- issues, comments, labels
     if tool == "github_get_issue":
         repo, number = _repo(args), _number(args)
         row = _gh("GET", "/repos/%s/issues/%d" % (repo, number))
@@ -662,7 +626,6 @@ def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one dispatch ta
         rows = _gh("GET", "/search/issues", params={"q": query, "per_page": limit, "sort": "updated"})
         return {"total": rows.get("total_count"), "items": [_issue_row(row) for row in rows.get("items") or []]}
 
-    # ---------------------------------------------------------------- releases
     if tool == "github_list_releases":
         rows = _gh("GET", "/repos/%s/releases" % _repo(args), params={"per_page": limit})
         return {"releases": [{"id": row.get("id"), "tag": row.get("tag_name"), "name": row.get("name"), "draft": row.get("draft"),
@@ -695,7 +658,6 @@ def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one dispatch ta
             out["tag_deleted"] = tag
         return out
 
-    # ---------------------------------------------------------------- gists
     if tool == "github_list_gists":
         rows = _gh("GET", "/gists", params={"per_page": limit})
         return {"gists": [{"id": row.get("id"), "description": row.get("description"), "public": row.get("public"),
@@ -737,7 +699,6 @@ def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one dispatch ta
         _gh("DELETE", "/gists/" + _seg(gist))
         return {"deleted": True, "gist_id": gist}
 
-    # ---------------------------------------------------------------- actions
     if tool == "github_list_workflows":
         rows = _gh("GET", "/repos/%s/actions/workflows" % _repo(args), params={"per_page": 100})
         return {"workflows": [{"id": row.get("id"), "name": row.get("name"), "path": row.get("path"), "state": row.get("state")}
@@ -806,7 +767,6 @@ def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one dispatch ta
         return {"dispatched": True, "workflow": workflow, "ref": ref,
                 "note": "Запуск появится в github_list_runs через несколько секунд."}
 
-    # ---------------------------------------------------------------- collaborators
     if tool == "github_list_collaborators":
         rows = _gh("GET", "/repos/%s/collaborators" % _repo(args), params={"per_page": 100})
         return {"collaborators": [{"login": row.get("login"), "role": row.get("role_name"),
@@ -831,7 +791,6 @@ def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one dispatch ta
         return {"removed": True, "username": user}
 
     raise _arg("Неизвестный инструмент GitHub: %s" % tool)
-
 
 def token_info() -> Dict[str, Any]:
     """Who the token is and what it may do: classic scopes (X-OAuth-Scopes) or «fine-grained» (no header)."""

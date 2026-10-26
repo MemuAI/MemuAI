@@ -32,16 +32,14 @@ from typing import Any, Dict, List, Optional
 from .config import DATA_DIR
 
 MAX_ELEMENTS = 300
-#: Round 34: inputs with a picker that ignore typed characters, and the value format the browser expects.
+
 _PICKER_INPUTS = ("time", "date", "datetime-local", "month", "week", "color", "range")
 _PICKER_FORMATS = {"time": "ЧЧ:ММ (19:30)", "date": "ГГГГ-ММ-ДД (2026-12-31)", "datetime-local": "ГГГГ-ММ-ДДTЧЧ:ММ",
                    "month": "ГГГГ-ММ", "week": "ГГГГ-W05", "color": "#rrggbb", "range": "число"}
 
 _PICKER_FORMATS_EN = {"ЧЧ:ММ (19:30)": "HH:MM (19:30)", "ГГГГ-ММ-ДД (2026-12-31)": "YYYY-MM-DD (2026-12-31)",
                       "ГГГГ-ММ-ДДTЧЧ:ММ": "YYYY-MM-DDTHH:MM", "ГГГГ-ММ": "YYYY-MM", "ГГГГ-W05": "YYYY-W05", "число": "a number"}
-#: Round 34 (r34-quick-agentic-2): the browser's messages reach the task card / the step list — in an English UI they
-#: were Russian. The browser raises them in Russian (the model and the tests read those); ``in_language`` gives the
-#: text the user reads.
+
 _ERRORS_EN = (
     (r"Некорректный адрес", "Invalid address"),
     (r"DFY открывает только HTTP\(S\)-адреса", "DFY opens only HTTP(S) addresses"),
@@ -64,7 +62,7 @@ _ERRORS_EN = (
     (r"Это не выпадающий список или он изменился", "This is not a drop-down list, or it changed"),
     (r"В списке нет такого варианта", "The list has no such option"),
     (r"Вокруг этого элемента нет прокручиваемой области", "There is no scrollable area around this element"),
-    # the manager's answers to the card's buttons (dfy.py → dfy_api.py), shown as a toast
+
     (r"Задача DFY не найдена|Задача не найдена", "The DFY task was not found"),
     (r"Задача сейчас не ждёт ответа", "The task is not waiting for an answer now"),
     (r"Этот вопрос уже неактуален — посмотрите новый", "This question is out of date — see the new one"),
@@ -82,7 +80,6 @@ _ERRORS_EN = (
     (r"Нельзя очищать сессии во время задачи DFY", "Sessions cannot be cleared while a DFY task runs"),
 )
 
-
 def in_language(message: str, lang: str) -> str:
     """A browser message in the UI language (``lang`` = "en" translates the known Russian ones; others pass as is)."""
     text = str(message or "")
@@ -96,7 +93,6 @@ def in_language(message: str, lang: str) -> str:
         if hit:
             return hit.expand(english)
     return text
-
 
 def picker_value(kind: str, text: str) -> str:
     """What a person writes («7:30 pm», «31.12.2026», «19.30») → the value an ``<input type=kind>`` accepts."""
@@ -127,7 +123,6 @@ def picker_value(kind: str, text: str) -> str:
     if kind == "color" and re.fullmatch(r"[0-9a-fA-F]{6}", raw):
         return "#" + raw
     return raw
-
 
 def url_blocked_reason(url: str) -> str:
     """Cheap (no DNS) check of a URL the DFY page ended up on: ``""`` when allowed.
@@ -180,9 +175,6 @@ _INIT_SCRIPT = r"""
 })();
 """
 
-# Finds an element marked by the last snapshot, also inside same-origin frames, and maps its
-# box to the top-level viewport. Cross-origin frames (payment widgets) are not readable from the
-# page: the model clicks them by screenshot coordinates (click_xy) and types into the focused field.
 _FIND_JS = r"""
 const __dfyFind = (id) => {
   const walk = (doc, ox, oy) => {
@@ -269,7 +261,6 @@ _SNAPSHOT_SCRIPT = r"""(() => {
   return JSON.stringify(state);
 })()""".replace("%MAX%", str(MAX_ELEMENTS))
 
-
 def jpeg_size(data_b64: str) -> Optional[tuple]:
     """``(width, height)`` from a base64 JPEG's SOF marker (``None`` if it cannot be read)."""
     import base64
@@ -293,7 +284,6 @@ def jpeg_size(data_b64: str) -> Optional[tuple]:
         index += 2 + int.from_bytes(data[index + 2:index + 4], "big")
     return None
 
-
 def proxied_navigation_url(value: str) -> str:
     """``_safe_navigation_url`` without the DNS lookup, for a browser behind the DFY proxy.
 
@@ -310,7 +300,6 @@ def proxied_navigation_url(value: str) -> str:
     if parsed.username is not None or parsed.password is not None:
         raise ValueError("Учётные данные нельзя помещать в адрес сайта")
     return urllib.parse.urlunsplit(parsed)
-
 
 def end_profile_orphans(profile: Path) -> int:
     """End browser processes left over from an earlier MemuAI run that still use ``profile`` (``--user-data-dir``).
@@ -354,10 +343,8 @@ def end_profile_orphans(profile: Path) -> int:
                 pass
     return len(victims)
 
-
 def profile_dir() -> Path:
     return Path(DATA_DIR) / "dfy_browser"
-
 
 class DFYBrowser:
     """Minimal CDP driver over one page target of a persistent Edge profile."""
@@ -366,11 +353,10 @@ class DFYBrowser:
                  extra_args: Optional[List[str]] = None, proxied: bool = False) -> None:
         self.visible = bool(visible)
         self.profile = Path(profile) if profile else profile_dir()
-        # Round 30: launch flags of the DFY proxy; with a proxy the host name is resolved by the
-        # proxy only — navigate() must not look it up through the local resolver.
+
         self.extra_args = [str(arg) for arg in extra_args or [] if str(arg).startswith("--")]
         self.proxied = bool(proxied)
-        self._listeners: Dict[str, List[Any]] = {}   # CDP event → callbacks (screencast of the takeover)
+        self._listeners: Dict[str, List[Any]] = {}
         self.process: Optional[subprocess.Popen] = None
         self.socket: Any = None
         self._receiver: Optional[asyncio.Task] = None
@@ -379,10 +365,9 @@ class DFYBrowser:
         self._lock = asyncio.Lock()
         self.port = 0
         self.target_id = ""
-        self._shot_scale = 1.0   # screenshot pixels per CSS pixel (DPI scaling of a visible window)
-        self.dialogs: List[Dict[str, str]] = []   # JS dialogs answered since the last snapshot
+        self._shot_scale = 1.0
+        self.dialogs: List[Dict[str, str]] = []
 
-    # ----------------------------------------------------------- lifecycle --
     @property
     def running(self) -> bool:
         return bool(self.process and self.process.poll() is None and self.socket is not None)
@@ -420,9 +405,7 @@ class DFYBrowser:
                 await asyncio.sleep(0.1)
         if not port:
             await self.close()
-            # Round 34: after MemuAI crashed or was killed, its headless Edge lives on and holds the profile — every
-            # later DFY task failed here («the DFY profile is open in another Edge window») until a reboot; «Clear
-            # sessions» could not delete the locked profile either. Such a leftover is ended and the start retried.
+
             if not _retry and await asyncio.to_thread(end_profile_orphans, self.profile):
                 await self.start(_retry=True)
                 return
@@ -579,7 +562,6 @@ class DFYBrowser:
             await asyncio.sleep(0.5)
         raise RuntimeError("Не удалось удалить профиль DFY: файлы заняты другим процессом Edge")
 
-    # -------------------------------------------------------------- state ---
     async def snapshot(self) -> Dict[str, Any]:
         await self.start()
         state: Dict[str, Any] = {}
@@ -588,7 +570,7 @@ class DFYBrowser:
                 state = json.loads(await self.evaluate(_SNAPSHOT_SCRIPT) or "{}")
                 break
             except Exception:
-                # Usually the page is between two documents (navigation in progress).
+
                 state = {"url": await self.current_url(), "title": "", "text": "", "elements": [],
                          "note": "the page is still loading or could not be read"}
                 if attempt == 0:
@@ -626,15 +608,13 @@ class DFYBrowser:
             await asyncio.sleep(0.3)
         await asyncio.sleep(0.5)
 
-    # ------------------------------------------------------------ actions ---
     async def navigate(self, url: str) -> str:
         if self.proxied:
             safe = proxied_navigation_url(url)
         else:
             from .automation_runtime import _safe_navigation_url
             safe = await asyncio.to_thread(_safe_navigation_url, url)
-        # Work's helper allows localhost (for Work projects); DFY acts on the open web only —
-        # localhost would expose MemuAI's own API (chats, settings) to a prompt-injected page.
+
         blocked = url_blocked_reason(safe)
         if blocked:
             raise ValueError(blocked)
@@ -642,8 +622,7 @@ class DFYBrowser:
         result = await self.command("Page.navigate", {"url": safe})
         error = str((result or {}).get("errorText") or "")
         if error and error != "net::ERR_ABORTED":
-            # DNS/connection/TLS failure: the tab shows chrome-error://, but the step used to be
-            # reported as «Открыт …» and the model kept re-opening the same address.
+
             raise RuntimeError(f"Сайт не открылся: {error}")
         await self.wait_ready()
         return safe
@@ -683,7 +662,7 @@ class DFYBrowser:
             " return { text: b ? (b.innerText || b.value || b.getAttribute('aria-label') || '').trim().slice(0, 160) : '' }; })()")
 
     async def _mouse_click(self, x: float, y: float) -> None:
-        # A real mouse click (not el.click()) so sites that check isTrusted work.
+
         for kind in ("mouseMoved", "mousePressed", "mouseReleased"):
             await self.command("Input.dispatchMouseEvent", {"type": kind, "x": x, "y": y,
                                                              "button": "left", "clickCount": 1})
@@ -730,9 +709,7 @@ class DFYBrowser:
         found = ("const e = (__dfyFind(%d) || {}).e;" % int(element) if element else "const e = __dfyFocused().e;")
         kind = str(value)[3:] if value != "frame" else ""
         if kind in _PICKER_INPUTS and not secret:
-            # Round 34: <input type=time|date|…> ignores typed characters (Input.insertText) — the field stayed empty,
-            # the step still said «typed» and the model typed «19:30» again until the stuck pause. Such fields take
-            # their value in the browser's own format, set directly.
+
             wanted = picker_value(kind, text)
             got = await self.evaluate(
                 "(() => {" + _FIND_JS + found + " if (!e) return null; const s = Object.getOwnPropertyDescriptor("
@@ -752,8 +729,7 @@ class DFYBrowser:
         if submit:
             await self.key("Enter")
         if stayed_empty:
-            # the page refused the characters (a mask, a read-only widget): say so instead of «typed», or the model
-            # repeats the same typing on an unchanged page
+
             return "typed, but the field is still EMPTY — the page did not accept the text; click the field or use another way"
         return "typed into a frame field" if value == "frame" else "typed"
 
@@ -791,7 +767,7 @@ class DFYBrowser:
     async def scroll(self, dy: int, element: Optional[int] = None) -> str:
         dy = max(-4000, min(4000, int(dy or 600)))
         if element:
-            # Scroll the nearest scrollable box around the element (lists, dialogs, side panels).
+
             done = await self.evaluate(
                 "(() => {" + _FIND_JS + "const f = __dfyFind(%d); if (!f) return false; let e = f.e;"
                 " while (e && e !== e.ownerDocument.documentElement) { const s = getComputedStyle(e);"
@@ -825,7 +801,6 @@ class DFYBrowser:
         if url and not url_blocked_reason(url):
             await self.command("Page.navigate", {"url": url})
             await self.wait_ready()
-
 
 def _close_target(port: int, target_id: str) -> None:
     import urllib.request

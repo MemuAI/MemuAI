@@ -30,12 +30,9 @@ CSS_TO_BLEND = {v: k for k, v in BLEND_TO_CSS.items() if k not in (b"pass", b"di
                                                                     b"pLit", b"hMix", b"dkCl", b"lgCl", b"fsub", b"fdiv")}
 MAX_SIDE = 30000
 
-
 class UnsupportedPSD(ValueError):
     pass
 
-
-# ----------------------------------------------------------------------------- PackBits
 def unpackbits(data: bytes, size: int) -> bytes:
     out = bytearray()
     i, n = 0, len(data)
@@ -52,9 +49,7 @@ def unpackbits(data: bytes, size: int) -> bytes:
         out += b"\x00" * (size - len(out))
     return bytes(out[:size])
 
-
 _RUN = re.compile(rb"(.)\1{2,}", re.S)
-
 
 def _literal(chunk: bytes, parts: List[bytes]) -> None:
     n = len(chunk)
@@ -63,7 +58,6 @@ def _literal(chunk: bytes, parts: List[bytes]) -> None:
         parts.extend([b"\x7f" + chunk[k:k + 128] for k in range(0, full, 128)])
     if n > full:
         parts.append(bytes((n - full - 1,)) + chunk[full:])
-
 
 def packbits_row(row: bytes) -> bytes:
     """PackBits (PSD "RLE") for one row: runs of ≥3 equal bytes → repeat packets, the rest → literal packets ≤128."""
@@ -85,11 +79,9 @@ def packbits_row(row: bytes) -> bytes:
         _literal(row[pos:], parts)
     return b"".join(parts)
 
-
 def _rle_plane(plane: bytes, w: int, h: int) -> Tuple[List[int], bytes]:
     rows = [packbits_row(plane[y * w:(y + 1) * w]) for y in range(h)]
     return [len(r) for r in rows], b"".join(rows)
-
 
 def _worth_rle(plane: bytes, w: int, h: int) -> bool:
     """Flat planes (alpha, empty layers, masks, graphics) shrink a lot with PackBits; photo channels do not (and
@@ -100,7 +92,6 @@ def _worth_rle(plane: bytes, w: int, h: int) -> bool:
     sample = b"".join(plane[y * w:(y + 1) * w] for y in range(0, h, step))
     return len(zlib.compress(sample, 1)) < len(sample) * 0.35
 
-
 def _unpredict(raw: bytes, w: int, h: int) -> bytes:
     out = bytearray(raw)
     for y in range(h):
@@ -108,7 +99,6 @@ def _unpredict(raw: bytes, w: int, h: int) -> bytes:
         for x in range(1, w):
             out[row + x] = (out[row + x] + out[row + x - 1]) & 0xFF
     return bytes(out)
-
 
 class _Reader:
     def __init__(self, data: bytes) -> None:
@@ -127,7 +117,6 @@ class _Reader:
     def i16(self) -> int: return struct.unpack(">h", self.take(2))[0]
     def u32(self) -> int: return struct.unpack(">I", self.take(4))[0]
     def i32(self) -> int: return struct.unpack(">i", self.take(4))[0]
-
 
 def _read_channel(r: _Reader, w: int, h: int, length: int) -> bytes:
     end = r.p + length
@@ -154,7 +143,6 @@ def _read_channel(r: _Reader, w: int, h: int, length: int) -> bytes:
     r.p = end
     return data
 
-
 def _interleave(planes: List[bytes], w: int, h: int) -> bytes:
     """[R, G, B, A] planes → RGBA bytes (via bytearray slice assignment: fast)."""
     out = bytearray(w * h * 4)
@@ -162,14 +150,12 @@ def _interleave(planes: List[bytes], w: int, h: int) -> bytes:
         out[k::4] = plane
     return bytes(out)
 
-
 def _png(rgba: bytes, w: int, h: int, mode: str = "RGBA") -> bytes:
     from PIL import Image
     img = Image.frombytes(mode, (w, h), rgba)
     buf = io.BytesIO()
     img.save(buf, "PNG", compress_level=1)
     return buf.getvalue()
-
 
 def read_psd(data: bytes, with_pixels: bool = True) -> Dict[str, Any]:
     """``{width, height, layers:[tree], merged: png|None}``; a layer: ``{name, x, y, w, h, opacity, blend, visible,
@@ -188,8 +174,8 @@ def read_psd(data: bytes, with_pixels: bool = True) -> Dict[str, Any]:
         raise UnsupportedPSD(f"depth {depth} / colour mode {mode}")
     if width > MAX_SIDE or height > MAX_SIDE:
         raise UnsupportedPSD("too large")
-    r.take(r.u32())          # colour mode data
-    r.take(r.u32())          # image resources
+    r.take(r.u32())
+    r.take(r.u32())
     lmi_len = r.u32()
     lmi_end = r.p + lmi_len
     flat: List[Dict[str, Any]] = []
@@ -219,7 +205,7 @@ def read_psd(data: bytes, with_pixels: bool = True) -> Dict[str, Any]:
                     mask = {"x": ml, "y": mt, "w": mr - ml, "h": mb - mt, "default": mdef, "disabled": bool(mflags & 2)}
                 else:
                     r.take(mlen)
-                r.take(r.u32())                 # blending ranges
+                r.take(r.u32())
                 nlen = r.u8()
                 name = r.take(nlen).decode("latin-1", "replace")
                 r.take((4 - (nlen + 1) % 4) % 4)
@@ -305,7 +291,6 @@ def read_psd(data: bytes, with_pixels: bool = True) -> Dict[str, Any]:
             merged = None
     return {"width": width, "height": height, "layers": _tree(flat), "merged": merged}
 
-
 def _tree(flat: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """File order is bottom→top: a bounding divider (3) opens a group, a folder record (1/2) closes it."""
     root: List[Dict[str, Any]] = []
@@ -323,18 +308,15 @@ def _tree(flat: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             continue
         layer["type"] = "raster"
         stack[-1].append(layer)
-    while len(stack) > 1:        # unbalanced file: keep the layers
+    while len(stack) > 1:
         orphan = stack.pop()
         stack[-1].extend(orphan)
     return root
 
-
-# ----------------------------------------------------------------------------- writer
 def _pascal(name: str) -> bytes:
     raw = name.encode("latin-1", "replace")[:255]
     b = bytes([len(raw)]) + raw
     return b + b"\x00" * ((4 - len(b) % 4) % 4)
-
 
 def _luni(name: str) -> bytes:
     u = name.encode("utf-16-be")
@@ -343,14 +325,12 @@ def _luni(name: str) -> bytes:
         body += b"\x00"
     return b"8BIMluni" + struct.pack(">I", len(body)) + body
 
-
 def _rgba_planes(png: bytes, mode: str = "RGBA") -> Tuple[int, int, List[bytes]]:
     from PIL import Image
     img = Image.open(io.BytesIO(png))
     img = img.convert(mode)
     w, h = img.size
     return w, h, [band.tobytes() for band in img.split()]
-
 
 def write_psd(width: int, height: int, layers: List[Dict[str, Any]], merged_png: Optional[bytes]) -> bytes:
     """*layers*: tree bottom→top, like :func:`read_psd`; a raster layer carries ``png`` (its own pixels, at x/y)."""
@@ -379,8 +359,7 @@ def write_psd(width: int, height: int, layers: List[Dict[str, Any]], merged_png:
             flags = 2 if mask.get("disabled") else 0
             mask_block = struct.pack(">IiiiiBBH", 20, my, mx, my + mh, mx + mw, int(mask.get("default") or 0) & 255, flags, 0)
             chans.append((-2, mplanes[0]))
-        # channel data: PackBits (compression 1) like Photoshop writes it — every reader (Photoshop, GIMP, Krita,
-        # psd-tools, Pillow) supports it, and flat / transparent layers shrink a lot
+
         blobs = []
         for cid, plane in chans:
             cw, chh = (mw, mh) if cid == -2 else (w, h)
@@ -402,11 +381,11 @@ def write_psd(width: int, height: int, layers: List[Dict[str, Any]], merged_png:
         opacity = max(0, min(255, round(float(layer.get("opacity", 1)) * 255)))
         flags = 0 if layer.get("visible", True) else 2
         if section:
-            flags |= 0x18          # bits 3/4: "pixel data irrelevant" (Photoshop sets these for group records)
+            flags |= 0x18
         rec += b"8BIM" + blend + struct.pack(">BBBB", opacity, 1 if layer.get("clipping") else 0, flags, 0)
         extra = bytearray()
         extra += mask_block
-        extra += struct.pack(">I", 0)              # blending ranges
+        extra += struct.pack(">I", 0)
         extra += _pascal(name)
         extra += _luni(name)
         if section:
@@ -445,7 +424,7 @@ def write_psd(width: int, height: int, layers: List[Dict[str, Any]], merged_png:
         planes = [planes[k] for k in (0, 1, 2, 3)]
     else:
         planes = [b"\xff" * (width * height)] * 3 + [b"\x00" * (width * height)]
-    if all(_worth_rle(plane, width, height) for plane in planes[:3]):   # one compression for the whole merged image
+    if all(_worth_rle(plane, width, height) for plane in planes[:3]):
         counts: List[int] = []
         packed = []
         for plane in planes:

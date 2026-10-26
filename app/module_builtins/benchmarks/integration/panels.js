@@ -1,7 +1,5 @@
-/* Round 38: «Бенчмарки» panels on the MemuAI home screen — «Лидеры бенчмарков» (top models of the leaderboards the
-   module already loaded: LMArena, Artificial Analysis, LiveBench, SimpleBench, EQ-Bench) and «Изменения» (what the
-   background monitor noticed). Data: Memu.panel.data() → app/module_integration_data.py, a compact digest of the
-   module's own 6-hour cache — the panel never downloads leaderboards itself. */
+
+
 (function () {
   "use strict";
   var M = window.Memu, P = M && M.panel;

@@ -30,9 +30,6 @@ from app.chat import CompletionError  # noqa: E402
 
 STATIC = ROOT / "app" / "static"
 
-
-# ------------------------------------------------------------------------------------------------------- fixtures
-
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(cm, "store", cm._Store(str(tmp_path / "composite_models.json")))
@@ -46,14 +43,12 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(web_models, "store", web_models._Store(str(tmp_path / "web_models.json")))
     yield
 
-
 def chunk(text="", finish=None, **delta):
     d = dict(delta)
     if text:
         d["content"] = text
     return {"id": "x", "object": "chat.completion.chunk", "model": "m",
             "choices": [{"index": 0, "delta": d, "finish_reason": finish}]}
-
 
 def call_delta(index, id_=None, name=None, args=None):
     part = {"index": index}
@@ -66,7 +61,6 @@ def call_delta(index, id_=None, name=None, args=None):
         fn["arguments"] = args
     part["function"] = fn
     return chunk(tool_calls=[part])
-
 
 class FakeService:
     """Each model id → a list of scripted items; an Exception item is raised at that point."""
@@ -92,7 +86,6 @@ class FakeService:
                 yield item
         return gen()
 
-
 def collect(svc, model_id, messages=None, params=None):
     async def go():
         out = []
@@ -102,11 +95,9 @@ def collect(svc, model_id, messages=None, params=None):
         return out
     return asyncio.run(go())
 
-
 def text_of(items):
     return "".join((c["choices"][0]["delta"].get("content") or "") for c in items
                    if c.get("object") == "chat.completion.chunk" and c.get("choices"))
-
 
 def calls_of(items):
     out = []
@@ -115,25 +106,19 @@ def calls_of(items):
             out += c["choices"][0]["delta"].get("tool_calls") or []
     return out
 
-
 def broke():
     return CompletionError("The upstream stream broke off", status=502, err_type="upstream_error")
-
 
 def composite(**kw):
     base = {"prefix": "memu", "name": "r", "default": {"candidates": ["a", "b", "c"]}}
     base.update(kw)
     cm.store.upsert(cm.normalize(base))
 
-
-# ------------------------------------------------------------------------------------------------ stream recovery
-
 def test_overlap_cuts_repeated_joint():
     assert stream_recovery.overlap("Hello wor", "world and more") == 3
     assert stream_recovery.overlap("Первое. Второе предложение обо", "Второе предложение обо всём") == len("Второе предложение обо")
     assert stream_recovery.overlap("abc", "xyz") == 0
     assert stream_recovery.overlap("The answer is", " 42.") == 0
-
 
 def test_break_mid_answer_is_continued_by_next_candidate():
     composite()
@@ -143,7 +128,7 @@ def test_break_mid_answer_is_continued_by_next_candidate():
     })
     got = collect(svc, "memu/r", [{"role": "user", "content": "Прочитай Некрасова"}])
     assert text_of(got) == "Однажды в студёную зимнюю пору я из лесу вышел; был сильный мороз."
-    # the continuation saw the text so far + a hidden instruction; no second role chunk reached the client
+
     model_b, messages_b, _ = svc.calls[-1]
     assert model_b == "b"
     assert messages_b[-2] == {"role": "assistant", "content": "Однажды в студёную зимнюю пору я из лесу вы"}
@@ -154,7 +139,6 @@ def test_break_mid_answer_is_continued_by_next_candidate():
     assert cm.stats.get("memu/r")["recoveries"] == 1
     header = cm._header_value({"routes": {0: {**recent, "composite": "memu/r"}}})
     assert "recovered=1" in header
-
 
 def test_recovery_limit_and_switch_off():
     composite(fallback={"recovery_attempts": 1})
@@ -167,14 +151,12 @@ def test_recovery_limit_and_switch_off():
         collect(svc, "memu/r")
     assert [c[0] for c in svc.calls] == ["memu/r", "a"]
 
-
 def test_content_filter_is_not_recovered():
     composite()
     svc = FakeService({"a": [chunk("text "), CompletionError("blocked", status=400, err_type="content_filter")],
                        "b": [chunk("other")]})
     with pytest.raises(CompletionError):
         collect(svc, "memu/r")
-
 
 def test_break_inside_tool_call_after_complete_calls_ends_turn_with_tool_calls():
     composite()
@@ -184,11 +166,10 @@ def test_break_inside_tool_call_after_complete_calls_ends_turn_with_tool_calls()
     got = collect(svc, "memu/r", params={"_stream": True, "tools": [{"type": "function", "function": {"name": "x"}}]})
     calls = calls_of(got)
     assert len(calls) == 1 and calls[0]["id"] == "c1"
-    assert json.loads(calls[0]["function"]["arguments"]) == {"city": "Riga"}        # merged, complete JSON
+    assert json.loads(calls[0]["function"]["arguments"]) == {"city": "Riga"}
     finishes = [c["choices"][0]["finish_reason"] for c in got if c.get("choices") and c["choices"][0].get("finish_reason")]
     assert finishes == ["tool_calls"]
     assert "b" not in [c[0] for c in svc.calls]
-
 
 def test_break_inside_first_tool_call_is_reissued_by_next_candidate():
     composite()
@@ -199,14 +180,10 @@ def test_break_inside_first_tool_call_is_reissued_by_next_candidate():
     assert text_of(got) == "Checking. "
     assert len(calls) == 1 and calls[0]["id"] == "z9" and json.loads(calls[0]["function"]["arguments"]) == {"city": "Oslo"}
 
-
 def test_empty_continuation_is_fine():
     composite()
     svc = FakeService({"a": [chunk("Almost done."), broke()], "b": [chunk("", finish="stop")]})
     assert text_of(collect(svc, "memu/r")) == "Almost done."
-
-
-# ------------------------------------------------------------------------------------------------ difficulty
 
 @pytest.mark.parametrize("text,level", [
     ("привет!", "chat"),
@@ -221,7 +198,6 @@ def test_empty_continuation_is_fine():
 def test_difficulty_heuristics(text, level):
     assert difficulty.classify_text(text)[0] == level
 
-
 def test_difficulty_condition_routes_and_model_refines_with_cache():
     composite(default={"candidates": ["fast"]},
               rules=[{"kind": "route", "conditions": [{"type": "difficulty", "op": "in",
@@ -230,7 +206,7 @@ def test_difficulty_condition_routes_and_model_refines_with_cache():
     svc = FakeService({"fast": [chunk("fast")], "flagship": [chunk("flag")]})
     assert text_of(collect(svc, "memu/r", [{"role": "user", "content": "Докажи лемму о вложенных отрезках, теорема Коши"}])) == "flag"
     assert text_of(collect(svc, "memu/r", [{"role": "user", "content": "привет"}])) == "fast"
-    # an unclear message + a classifier model: asked once, then cached
+
     composite(default={"candidates": ["fast"]}, difficulty_model="cls",
               rules=[{"kind": "route", "conditions": [{"type": "difficulty", "op": "in", "value": ["architecture"]}],
                       "candidates": ["flagship"], "fallthrough": False}])
@@ -241,7 +217,6 @@ def test_difficulty_condition_routes_and_model_refines_with_cache():
     assert [c[0] for c in svc.calls].count("cls") == 1
     assert cm.stats.get("memu/r")["recent"][0]["difficulty"] == "architecture"
 
-
 def test_difficulty_in_schema_and_ui():
     assert "difficulty" in cm.SCHEMA["conditions"]
     assert "complex_code" in cm.SCHEMA["conditions"]["difficulty"]["options"]
@@ -251,31 +226,25 @@ def test_difficulty_in_schema_and_ui():
     assert 'difficulty: ["Сложность задачи", "Task difficulty"]' in src
     assert "stream_recovery" in src and "recovery_attempts" in src and "difficulty_model" in src
 
-
-# ------------------------------------------------------------------------------------------------ prompt caching
-
 def _long_chat(turns=6):
     messages = [{"role": "system", "content": "You are a coding agent. " * 200}]
     for i in range(turns):
         messages += [{"role": "user", "content": f"question {i} " * 80}, {"role": "assistant", "content": f"answer {i} " * 80}]
     return messages + [{"role": "user", "content": "the newest question"}]
 
-
 def _markers(body):
     return [i for i, m in enumerate(body["messages"]) if isinstance(m.get("content"), list)
             and any(p.get("cache_control") for p in m["content"])]
-
 
 def test_claude_gets_at_most_four_breakpoints_on_stable_prefix():
     body = {"model": "anthropic/claude-sonnet-4.6", "messages": _long_chat()}
     cached, used = prompt_cache.apply(body, "anthropic/claude-sonnet-4.6", base="https://openrouter.ai/api/v1")
     marks = _markers(cached)
     assert used and 1 <= len(marks) <= 4
-    assert marks[0] == 0                                         # the system prompt
-    assert len(body["messages"]) - 2 in marks                   # the end of the old history
-    assert len(body["messages"]) - 1 in marks                   # the newest user turn (read next time)
-    assert body["messages"][0]["content"].startswith("You are")  # the original is untouched
-
+    assert marks[0] == 0
+    assert len(body["messages"]) - 2 in marks
+    assert len(body["messages"]) - 1 in marks
+    assert body["messages"][0]["content"].startswith("You are")
 
 def test_gemini_openrouter_one_breakpoint_deepseek_implicit_client_markers_kept():
     body = {"model": "google/gemini-2.5-pro", "messages": _long_chat()}
@@ -291,7 +260,6 @@ def test_gemini_openrouter_one_breakpoint_deepseek_implicit_client_markers_kept(
     assert not used and same is own
     gpt, used = prompt_cache.apply(body, "gpt-5.6", base="")
     assert used and gpt["prompt_cache_key"].startswith("memuai-")
-
 
 def test_metrics_count_cache_savings(tmp_path):
     from app import metrics as metrics_mod, pricing
@@ -309,9 +277,6 @@ def test_metrics_count_cache_savings(tmp_path):
     i18n = (STATIC / "i18n.js").read_text(encoding="utf-8")
     assert i18n.count('"metrics.cache.saved"') == 2
 
-
-# ------------------------------------------------------------------------------------------------ web models
-
 @pytest.fixture
 def web(monkeypatch):
     monkeypatch.setattr(web_models, "base_exists", lambda base: True)
@@ -327,15 +292,13 @@ def web(monkeypatch):
     monkeypatch.setattr(web_models, "_search", fake_search)
     return searches
 
-
 def agent_script(messages, params):
     tools = {t["function"]["name"] for t in params.get("tools") or []}
     if any(m.get("role") == "tool" for m in messages):
-        assert params.get("tool_choice") == "none"     # max_steps=1: the last round answers
+        assert params.get("tool_choice") == "none"
         return [chunk("Последняя версия — 3.14.1 [1]."), chunk("", finish="stop")]
     assert "web_search" in tools and "calculator" in tools
     return [call_delta(0, "s1", "web_search", '{"query": "python latest version"}'), chunk("", finish="tool_calls")]
-
 
 def test_web_model_tool_loop_sources_and_listing(web):
     row = web_models.store.upsert("base-x", {"max_steps": 1, "tools": ["calculator"], "progress": "thinking",
@@ -353,10 +316,9 @@ def test_web_model_tool_loop_sources_and_listing(web):
     final = [c for c in got if c.get("choices") and c["choices"][0].get("finish_reason")]
     assert final[-1]["choices"][0]["finish_reason"] == "stop" and final[-1]["citations"] == ["https://www.python.org/downloads/"]
     assert all(c["model"] == "base-x:web" for c in got if c.get("object") == "chat.completion.chunk")
-    # the tool result the model saw is numbered and carries the page excerpt
+
     tool_msg = next(m for m in svc.calls[-1][1] if m.get("role") == "tool")
     assert "[1] Python.org" in tool_msg["content"] and "Excerpt: Latest: 3.14.1" in tool_msg["content"]
-
 
 def test_web_model_presearch_for_model_without_tools_and_client_tools_pass_through(web):
     web_models.store.upsert("plain", {"citations": False})
@@ -383,7 +345,6 @@ def test_web_model_presearch_for_model_without_tools_and_client_tools_pass_throu
     assert calls == [{"index": 0, "id": "k1", "type": "function", "function": {"name": "lookup_crm", "arguments": '{"id": 5}'}}]
     assert got[-1]["choices"][0]["finish_reason"] == "tool_calls"
 
-
 def test_web_model_settings_normalized_and_delete():
     s = web_models.normalize_settings({"results": 99, "max_steps": 0, "engine": "nope", "tools": ["calculator", "rm"],
                                        "progress": "loud", "lang": "RU!"})
@@ -393,7 +354,6 @@ def test_web_model_settings_normalized_and_delete():
     assert web_models.store.delete("m1:web") and not web_models.is_web("m1:web")
     assert web_models.calculate("2^10 + sqrt(16)") == "1028"
     assert web_models.calculate("__import__('os')").startswith("error")
-
 
 def test_web_model_endpoints_openai_and_anthropic(web, monkeypatch, tmp_path):
     from fastapi.testclient import TestClient
@@ -426,7 +386,6 @@ def test_web_model_endpoints_openai_and_anthropic(web, monkeypatch, tmp_path):
     assert client.post("/api/admin/web-models/delete", json={"id": "base-x:web"}).json()["ok"]
     assert "base-x:web" not in [m["id"] for m in client.get("/v1/models").json()["data"]]
 
-
 def test_web_models_ui_bilingual_and_hooked():
     html = (STATIC / "index.html").read_text(encoding="utf-8")
     assert "/web-models.js" in html and "/proxy-r40.css" in html and 'id="wm-list"' in html
@@ -437,7 +396,7 @@ def test_web_models_ui_bilingual_and_hooked():
     pairs += re.findall(r'\[\s*"[^"]*"\s*,\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\]', src)
     assert len(pairs) > 40
     assert not [en for _ru, en in pairs if re.search("[А-Яа-яЁё]", en)]
-    assert not re.search(r"MemuAI(?! Proxy)", src.split("*/", 1)[1])      # the Proxy-only build rule
+    assert not re.search(r"MemuAI(?! Proxy)", src.split("*/", 1)[1])
     node = shutil.which("node")
     if node:
         for name in ("web-models.js", "composite.js", "app.js", "model_caps.js"):

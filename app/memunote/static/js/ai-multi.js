@@ -1,27 +1,25 @@
-// MemuNote — Round 40 (r40-note): several open tabs in one AI request + spreadsheet edit proposals.
+
 // TabContext: the tab chips with ticks under the scope chips, @tab mentions in the composer, the token budget with
-// per-document trimming (the same share as prompts.py _extra_documents), collecting the documents for a request.
-// SheetProposal: the agent's set_cells / add_column / add_sheet edits for a sheet tab — previewed as a cell table in
-// the AI panel, applied in that tab as ONE undo step of the grid (SheetGrid.applyPlan / undoStep).
+
 import { esc, t, showMenu } from "./core.js";
 import { aic } from "./ai-edit.js";
 import { SheetData } from "./sheetgrid.js";
 import { cellRef } from "./formula.js";
 
-export const MULTI_BUDGET = 120000;            // characters for all the extra documents (prompts.py MULTI_BUDGET)
+export const MULTI_BUDGET = 120000;
 const TEXT_KINDS = new Set(["text", "markdown", "code", "csv", "docx", "odt", "rtf", "html", "document", "sheet", "notebook", "book", "slides", "pdf"]);
 const tokens = (chars) => Math.round(chars / 3.6);
 
 export class TabContext {
-  /** panel: the ChatPanel; ctx: aiCtx() of app.js ({tabs(), tabDoc(id), editor()}). */
+
   constructor(panel, ctx) { this.panel = panel; this.ctx = ctx; this.picked = new Set(); this.sizes = new Map(); }
   candidates() {
     const active = this.ctx.editor?.()?.tab?.id;
     return (this.ctx.tabs?.() || []).filter((x) => x.id !== active && TEXT_KINDS.has(x.kind));
   }
-  /** Characters each picked document keeps (the server clips with the same share). */
+
   share(n) { return Math.max(4000, Math.min(+this.ctx.settings().ai_context_chars || 60000, Math.floor(MULTI_BUDGET / Math.max(1, n)))); }
-  /** activeChars: what the current document adds to the request (shown in the same estimate). */
+
   html(activeChars = 0) {
     const list = this.candidates();
     for (const id of [...this.picked]) if (!list.some((x) => x.id === id)) this.picked.delete(id);
@@ -42,7 +40,7 @@ export class TabContext {
     this.panel.renderScope();
   }
   async measure(id) {
-    try { const d = await this.ctx.tabDoc(id); if (d) { this.sizes.set(id, d.text.length); this.panel.renderScope(); } } catch { /* closed meanwhile */ }
+    try { const d = await this.ctx.tabDoc(id); if (d) { this.sizes.set(id, d.text.length); this.panel.renderScope(); } } catch {  }
   }
   /** "@name" in the composer: picks the tab (names with spaces too); returns the text unchanged. */
   mentions(text) {
@@ -52,7 +50,7 @@ export class TabContext {
       if (low.includes("@" + x.name.toLowerCase()) || low.includes("@" + x.name.replace(/\.\w+$/, "").toLowerCase())) { if (x.id !== this.ctx.editor?.()?.tab?.id) this.picked.add(x.id); }
     }
   }
-  /** The composer typed "@…" at the caret → a menu of tabs; picking one completes the name and ticks the tab. */
+
   onInput(input) {
     const pos = input.selectionStart, before = input.value.slice(0, pos);
     const m = /(^|\s)@([^\s@]*)$/.exec(before);
@@ -68,7 +66,7 @@ export class TabContext {
       this.menuFor = null; this.toggle(x.id, true); this.panel.autosize();
     } }))], input);
   }
-  /** The picked documents for a request: [{ref, id, name, kind, text (budgeted), full, total_chars, truncated, tab}]. */
+
   async collect() {
     const ids = [...this.picked]; if (!ids.length) return [];
     const share = this.share(ids.length);
@@ -87,10 +85,9 @@ function clip(text, limit) {
   return text.slice(0, head) + "\n\n[… part of the document omitted …]\n\n" + text.slice(text.length - tail);
 }
 
-// ------------------------------------------------------------------ spreadsheet proposals
 let seq = 0;
 export class SheetProposal {
-  /** target: {kind: "sheet", tabId, title, grid() → SheetGrid | null, data() → SheetData, activate(), newTab()} */
+
   constructor(target, onChange) { this.target = target; this.onChange = onChange || (() => {}); this.hunks = []; this.applied = null; this.previewSheets = []; }
   get pending() { return this.hunks.filter((h) => h.status === "pending"); }
   view() { return null; }
@@ -111,14 +108,14 @@ export class SheetProposal {
   reject(id) { const h = this.hunks.find((x) => x.id === id && x.status === "pending"); if (h) { h.status = "rejected"; this.onChange(this); } }
   rejectAll() { for (const h of this.pending) h.status = "rejected"; this.onChange(this); }
   applyAll() { const list = this.pending; if (list.length) this.applyHunks(list); }
-  /** All the given hunks as ONE grid step (a later hunk may use a sheet an earlier one adds). */
+
   applyHunks(list) {
     for (const h of list.filter((x) => x.virtual)) { this.target.newTab?.(h.insert, h.title, h.docKind); h.status = "applied"; }
     list = list.filter((x) => !x.virtual && x.status === "pending");
     if (!list.length) { this.onChange(this); return; }
     this.target.activate?.();
     const grid = this.target.grid?.();
-    if (!grid) { setTimeout(() => { if (this.target.grid?.()) this.applyHunks(list); }, 60); return; }   // the tab's grid is being built
+    if (!grid) { setTimeout(() => { if (this.target.grid?.()) this.applyHunks(list); }, 60); return; }
     const plan = grid.plan(list.map((h) => h.edit));
     for (const e of plan.errors) { const h = list.find((x) => x.edit.op === e.op && x.status === "pending"); if (h) { h.status = "failed"; h.error = e.error; } }
     const step = grid.applyPlan(plan);

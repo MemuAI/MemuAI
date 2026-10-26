@@ -9,12 +9,10 @@ from app.state import ClosingStreamingResponse, LogEntry, state
 from starlette.background import BackgroundTask
 from starlette.requests import Request
 
-
 def request(body, path="/v1/chat/completions", headers=()):
     async def receive():
         return {"type": "http.request", "body": json.dumps(body).encode(), "more_body": False}
     return Request({"type": "http", "method": "POST", "path": path, "headers": list(headers)}, receive)
-
 
 class StreamLifecycleRegression(unittest.TestCase):
     def test_cancel_trace_preserves_finished_trace_and_commits_cancel_once(self):
@@ -335,7 +333,6 @@ class StreamLifecycleRegression(unittest.TestCase):
         for byte in wire:
             counter.feed(bytes([byte]))
         self.assertEqual(counter.finish(), 12)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -38,9 +38,6 @@ _SYSTEM_PROCESSES = {
     "kthreadd", "systemd", "init", "dbus-daemon", "kworker", "rcu_sched", "ksoftirqd", "migration",
 }
 
-
-# --------------------------------------------------------------------------- platform probes
-
 def processes() -> Optional[Set[str]]:
     """Comparison keys (``dota2``) of every running process, or None without psutil."""
     try:
@@ -56,7 +53,6 @@ def processes() -> Optional[Set[str]]:
     except Exception as exc:  # noqa: BLE001
         log.debug("process_iter failed: %s", exc)
     return names
-
 
 def _windowed_pids() -> Set[int]:
     """PIDs that own a visible top-level window (Windows) — the picker lists them first."""
@@ -80,7 +76,6 @@ def _windowed_pids() -> Set[int]:
         return pids
     except Exception:
         return set()
-
 
 def process_list(limit: int = 300) -> List[Dict[str, Any]]:
     """Running programs for the picker: one row per executable name, windowed ones first."""
@@ -112,7 +107,6 @@ def process_list(limit: int = 300) -> List[Dict[str, Any]]:
     out = sorted(rows.values(), key=lambda r: (not r["windowed"], -r["memory"], r["name"].lower()))
     return out[:limit]
 
-
 def idle_seconds() -> Optional[float]:
     if os.name != "nt":
         return None
@@ -131,7 +125,6 @@ def idle_seconds() -> Optional[float]:
         return max(0.0, ((tick - info.dwTime) & 0xFFFFFFFF) / 1000.0)
     except Exception:
         return None
-
 
 def focused_window() -> Optional[Dict[str, str]]:
     if os.name != "nt":
@@ -158,7 +151,6 @@ def focused_window() -> Optional[Dict[str, str]]:
     except Exception:
         return None
 
-
 def power() -> Tuple[Optional[str], Optional[int]]:
     """("ac"|"battery"|None, percent|None). A desktop without a battery is on AC."""
     try:
@@ -171,7 +163,6 @@ def power() -> Tuple[Optional[str], Optional[int]]:
     plugged = battery.power_plugged
     return ("ac" if plugged or plugged is None else "battery"), int(round(battery.percent))
 
-
 def online(timeout: float = 2.5) -> bool:
     for host, port in (("1.1.1.1", 443), ("8.8.8.8", 443), ("www.microsoft.com", 443)):
         try:
@@ -180,7 +171,6 @@ def online(timeout: float = 2.5) -> bool:
         except OSError:
             continue
     return False
-
 
 def folder_signature(path: str, pattern: str = "") -> str:
     """A cheap fingerprint of a folder (names, sizes, mtimes of its direct entries, capped)."""
@@ -209,14 +199,12 @@ def folder_signature(path: str, pattern: str = "") -> str:
         digest.update(repr(row).encode("utf-8", "replace"))
     return f"{count}:{digest.hexdigest()[:16]}"
 
-
 def memuai_open() -> Optional[bool]:
     try:
         from .scheduled_messages import desktop_alive
         return bool(desktop_alive())
     except Exception:
         return None
-
 
 def boot_time() -> Optional[float]:
     try:
@@ -225,22 +213,17 @@ def boot_time() -> Optional[float]:
     except Exception:
         return None
 
-
-# --------------------------------------------------------------------------- the sampler
-
 def merge_needs(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     out: Dict[str, Any] = {"processes": set(), "folders": {}, "flags": set(), "ext": {}}
     for row in rows:
         out["processes"] |= set(row.get("processes") or ())
         out["folders"].update(row.get("folders") or {})
         out["flags"] |= set(row.get("flags") or ())
-        out["ext"].update(row.get("ext") or {})   # Round 37: weather / Wi-Fi / holidays (schedule_conds_ext)
+        out["ext"].update(row.get("ext") or {})
     return out
-
 
 def empty(needs: Dict[str, Any]) -> bool:
     return not (needs.get("processes") or needs.get("folders") or needs.get("flags") or needs.get("ext"))
-
 
 class Sampler:
     """Holds the previous sample so the engine can see edges (a process just started)."""
@@ -282,7 +265,7 @@ class Sampler:
         if folders:
             sample["folders"] = {key: self.probes["folder"](spec.get("path"), spec.get("pattern") or "")
                                  for key, spec in list(folders.items())[:20]}
-        if needs.get("ext"):   # Round 37: cached inside schedule_conds_ext (weather 20 min, Wi-Fi 30 s)
+        if needs.get("ext"):
             try:
                 from .schedule_conds_ext import measure
                 sample["ext"] = measure(needs["ext"], now, probes=self.probes)
@@ -320,11 +303,10 @@ class Sampler:
                 cur["fresh_boot"] = bool(boot and self.started - boot < 15 * 60)
                 self._first_done = True
             prev = self.last
-            # A sample that did not measure something cannot produce edges for it: keep the older value.
+
             if prev is not None:
                 prev = dict(prev)
             self.prev, self.last = prev, cur
             return prev, cur
-
 
 SAMPLER = Sampler()

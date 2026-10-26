@@ -17,7 +17,6 @@ from .. import local_models
 from .base import (Provider, ProviderError, ProviderModelUnavailableError, ProviderServerError,
                    messages_have_images)
 
-
 class LocalProvider(Provider):
     id = "local"
     title = "Локальные модели"
@@ -25,7 +24,7 @@ class LocalProvider(Provider):
     icon = "▣"
     description = "Модели в формате GGUF на вашем компьютере: работают без интернета и без аккаунтов."
     description_en = "GGUF models on your computer: they work offline and need no account."
-    #: The panel manages this provider on its own tab instead of a form.
+
     managed = True
 
     def validate_fields(self, fields: Dict[str, Any]) -> Optional[str]:
@@ -63,19 +62,14 @@ class LocalProvider(Provider):
         try:
             port = await asyncio.to_thread(local_models.pool.ensure, model)
         except local_models.LocalModelError as exc:
-            # A model that cannot start fails the same way on every retry.
-            # 422 ends the request at once instead of repeating the same
-            # failing start three times through the shared «Локальные модели»
-            # account.
+
             raise ProviderServerError(exc.message_en, 422, message_ru=exc.message) from exc
 
         body_messages = list(messages)
         system_prompt = str(settings.get("system_prompt") or "").strip()
         if system_prompt and not any(m.get("role") in ("system", "developer") for m in body_messages):
             body_messages.insert(0, {"role": "system", "content": system_prompt})
-        # include_usage: llama-server then reports its real token counts in the
-        # last chunk (older builds ignore the field), so the Proxy's usage is not
-        # a length-based guess for a model whose tokenizer is known exactly.
+
         body: Dict[str, Any] = {"model": f"local-{model}", "messages": body_messages, "stream": True,
                                 "stream_options": {"include_usage": True}}
         for key in ("temperature", "top_p", "max_tokens"):
@@ -85,18 +79,17 @@ class LocalProvider(Provider):
         for key in ("top_k", "min_p", "repeat_penalty"):
             if settings.get(key) is not None:
                 body[key] = settings[key]
-        # Round 29: explicit samplers from a module request win over the local defaults.
+
         for key, dst in (("top_k", "top_k"), ("min_p", "min_p"), ("repetition_penalty", "repeat_penalty"),
                          ("frequency_penalty", "frequency_penalty"), ("presence_penalty", "presence_penalty"),
                          ("seed", "seed"), ("stop", "stop")):
             if params.get(key) is not None and params.get(key) != []:
                 body[dst] = params[key]
-        # Round 33: native function calling. llama-server runs with --jinja, so the model's own
-        # chat template formats tools and its parser returns OpenAI tool_calls.
+
         for key in ("tools", "tool_choice", "parallel_tool_calls"):
             if params.get(key) is not None and params.get(key) != []:
                 body[key] = params[key]
-        # Round 33 (r33-thinking): the level already clamped to the model family (off / on / low…).
+
         kwargs = template_kwargs(params.get("_reasoning_level") or params.get("effort"))
         if kwargs:
             body["chat_template_kwargs"] = kwargs
@@ -104,7 +97,7 @@ class LocalProvider(Provider):
         url = f"http://127.0.0.1:{port}/v1/chat/completions"
         timeout = httpx.Timeout(10.0, read=600.0)
         try:
-            # The local llama-server is on 127.0.0.1: never route it through a system/VPN proxy.
+
             async with httpx.AsyncClient(timeout=timeout, trust_env=False) as client:
                 async with client.stream("POST", url, json=body) as response:
                     if response.status_code != 200:
@@ -145,8 +138,7 @@ class LocalProvider(Provider):
                                 thinking.native = True
                                 yield {"type": "reasoning", "text": str(delta["reasoning_content"])}
                             if delta.get("content"):
-                                # Builds or templates that do not parse reasoning leave <think>…</think>
-                                # in the text: split it out so the answer stays clean.
+
                                 for event in thinking.feed(str(delta["content"])):
                                     yield event
                             for event in tool_call_events(delta.get("tool_calls"), tool_slots):
@@ -162,11 +154,6 @@ class LocalProvider(Provider):
         except httpx.HTTPError as exc:
             raise ProviderServerError(f"The connection to llama-server broke off: {type(exc).__name__}: {exc}",
                                       message_ru=f"Связь с llama-server оборвалась: {type(exc).__name__}: {exc}") from exc
-
-
-# --------------------------------------------------------------------------
-# Round 33 helpers (pure functions; tested in tests/round33_local_test.py)
-# --------------------------------------------------------------------------
 
 def template_kwargs(effort: Any) -> Dict[str, Any]:
     """chat_template_kwargs for a requested reasoning effort.
@@ -184,7 +171,6 @@ def template_kwargs(effort: Any) -> Dict[str, Any]:
     if effort in ("max", "xhigh"):
         return {"enable_thinking": True, "reasoning_effort": "high"}
     return {}
-
 
 def tool_call_events(parts: Any, slots: Dict[str, int]) -> List[Dict[str, Any]]:
     """Streamed tool_calls of llama-server as provider events (index kept stable)."""
@@ -206,7 +192,6 @@ def tool_call_events(parts: Any, slots: Dict[str, int]) -> List[Dict[str, Any]]:
             events.append(event)
     return events
 
-
 class ThinkSplitter:
     """Moves ``<think>…</think>`` (and ``◁think▷…◁/think▷``) from streamed text into reasoning events.
 
@@ -220,7 +205,7 @@ class ThinkSplitter:
     def __init__(self) -> None:
         self.native = False
         self.inside = False
-        self.started = False       # any visible text yet (a think block counts only at the start)
+        self.started = False
         self.buffer = ""
 
     def _partial(self, text: str, tags) -> int:
@@ -261,7 +246,7 @@ class ThinkSplitter:
                     self.inside = True
                     continue
                 if stripped and any(tag.startswith(stripped) for tag in self.OPEN):
-                    break          # maybe "<thi" of a tag still arriving
+                    break
                 if not stripped:
                     break
             self.started = True
@@ -275,7 +260,6 @@ class ThinkSplitter:
         kind = "reasoning" if self.inside else "text"
         text, self.buffer = self.buffer, ""
         return [{"type": kind, "text": text}]
-
 
 def http_error(status: int, text: str, context: int = 0) -> ProviderServerError:
     """A readable error for a failed llama-server request (context overflow explained)."""

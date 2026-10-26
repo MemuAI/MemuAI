@@ -37,7 +37,6 @@ QUICK_URL = re.compile(r"https://[a-z0-9][a-z0-9-]*\.trycloudflare\.com(?![a-z0-
 RELEASE_BASE = "https://github.com/cloudflare/cloudflared/releases/latest/download/"
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9_\-=.+/]{20,4096}$")
 
-
 def _token_from_paste(raw: str) -> str:
     """Round 33: the Cloudflare dashboard shows the token only inside an install command
     («cloudflared.exe service install eyJ…» or «cloudflared tunnel run --token eyJ…»), so people paste
@@ -52,7 +51,6 @@ def _token_from_paste(raw: str) -> str:
     candidates = [w for w in words if _TOKEN_RE.fullmatch(w) and not w.lower().endswith((".exe", "cloudflared"))]
     return max(candidates, key=len) if candidates else text
 
-
 def parse_quick_url(text: str) -> str:
     """The trycloudflare address in a chunk of cloudflared output ("" when none).
 
@@ -62,7 +60,6 @@ def parse_quick_url(text: str) -> str:
         if url != "https://api.trycloudflare.com":
             return url
     return ""
-
 
 def asset_name(system: Optional[str] = None, machine: Optional[str] = None) -> str:
     """Official release asset for this OS / CPU ("" when there is no plain binary for it)."""
@@ -77,19 +74,15 @@ def asset_name(system: Optional[str] = None, machine: Optional[str] = None) -> s
         return f"cloudflared-darwin-{'arm64' if arch == 'arm64' else 'amd64'}.tgz"
     return ""
 
-
 def _data_dir() -> Path:
     from .config import DATA_DIR
     return Path(DATA_DIR)
 
-
 def _bin_path() -> Path:
     return _data_dir() / "bin" / ("cloudflared.exe" if os.name == "nt" else "cloudflared")
 
-
 def _conf_path() -> Path:
     return _data_dir() / "public-tunnel.json"
-
 
 def find_binary() -> str:
     own = _bin_path()
@@ -105,7 +98,6 @@ def find_binary() -> str:
                 return str(candidate)
     return ""
 
-
 def build_command(binary: str, port: int, *, token: str = "", tls: bool = False) -> List[str]:
     if token:
         return [binary, "tunnel", "--no-autoupdate", "run", "--token", token]
@@ -115,15 +107,12 @@ def build_command(binary: str, port: int, *, token: str = "", tls: bool = False)
         command.append("--no-tls-verify")
     return command
 
-
 _DOWNLOAD_HOSTS = ("github.com", "githubusercontent.com")
-
 
 def download_host_ok(host: str) -> bool:
     """github.com / *.githubusercontent.com only ("evilgithub.com" is not GitHub)."""
     host = str(host or "").lower().rstrip(".")
     return any(host == base or host.endswith("." + base) for base in _DOWNLOAD_HOSTS)
-
 
 class Tunnel:
     def __init__(self) -> None:
@@ -138,7 +127,6 @@ class Tunnel:
         self.log: Deque[str] = deque(maxlen=60)
         self.downloading = False
 
-    # ---- settings (mode, hostname, token) in their own file
     def config(self) -> Dict[str, Any]:
         try:
             raw = json.loads(_conf_path().read_text(encoding="utf-8"))
@@ -171,7 +159,6 @@ class Tunnel:
             pass
         return current
 
-    # ---- state
     def running(self) -> bool:
         return bool(self.proc and self.proc.poll() is None)
 
@@ -197,7 +184,6 @@ class Tunnel:
         """The error shown in the panel, in both languages (the English UI must not get Russian)."""
         self.error, self.error_en = message, message_en
 
-    # ---- process
     def start(self, port: int, *, tls: bool = False) -> Dict[str, Any]:
         with self._lock:
             if self.running():
@@ -216,14 +202,13 @@ class Tunnel:
             command = build_command(binary, port, token=conf["token"] if named else "", tls=tls)
             env = None
             if named:
-                # The token goes through the environment (TUNNEL_TOKEN), not argv:
-                # a command line is readable by every local process (ps / Task Manager).
+
                 command = command[:-2]
                 env = {**os.environ, "TUNNEL_TOKEN": conf["token"]}
             self.url, self.mode, self.port = "", ("named" if named else "quick"), int(port)
             self._set_error("", "")
             self.log.clear()
-            flags = 0x08000000 if os.name == "nt" else 0      # CREATE_NO_WINDOW: no console flashing on Windows
+            flags = 0x08000000 if os.name == "nt" else 0
             try:
                 self.proc = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                              stdin=subprocess.DEVNULL, creationflags=flags, env=env)
@@ -234,7 +219,7 @@ class Tunnel:
             self.started_at = time.time()
             threading.Thread(target=self._read, args=(self.proc, conf["token"]), daemon=True,
                              name="cloudflared-reader").start()
-        # Wait a little for the address so the first answer already carries it.
+
         for _ in range(60):
             if self.url or not self.running() or self.mode == "named":
                 break
@@ -276,7 +261,7 @@ class Tunnel:
             except subprocess.TimeoutExpired:
                 proc.kill()
                 try:
-                    proc.wait(timeout=5)      # reap it: no zombie left behind
+                    proc.wait(timeout=5)
                 except subprocess.TimeoutExpired:
                     pass
         elif proc:
@@ -286,7 +271,6 @@ class Tunnel:
                 pass
         return self.status()
 
-    # ---- download
     def download(self) -> Dict[str, Any]:
         """Fetch the official release asset into DATA_DIR/bin (blocking; call from a thread)."""
         name = asset_name()
@@ -335,9 +319,7 @@ class Tunnel:
             except OSError:
                 pass
 
-
 tunnel = Tunnel()
-
 
 @atexit.register
 def _stop_on_exit() -> None:
@@ -346,7 +328,6 @@ def _stop_on_exit() -> None:
             tunnel.stop()
     except Exception:
         pass
-
 
 __all__ = ["tunnel", "parse_quick_url", "asset_name", "build_command", "find_binary", "download_host_ok", "Tunnel"]
 

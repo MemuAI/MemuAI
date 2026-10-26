@@ -1,4 +1,3 @@
-/* Round 37 (r37-gemini): Gemini Web account guide, cookie import feedback and step-by-step check. */
 .gw-guide .gw-steps { margin: 14px 0 8px; padding-left: 22px; display: grid; gap: 12px; }
 .gw-guide .gw-steps li::marker { color: var(--muted-2); font-variant-numeric: tabular-nums; }
 .gw-guide .gw-steps li b { font-weight: 600; }
@@ -41,7 +40,6 @@
 .gw-st-fail i { color: var(--err); }
 .gw-st-fail { border-color: color-mix(in srgb, var(--err) 40%, var(--border-soft)) !important; }
 .gw-st-skip, .gw-st-run { opacity: .7; }
-/* Round 41 (r41-gemini): the account's models under «Check connection» */
 .gw-models { margin: 2px 0 8px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--bg-soft); }
 .gw-models > b { font-size: 13px; font-weight: 600; }
 .gw-models ul { list-style: none; margin: 8px 0 6px; padding: 0; display: grid; gap: 6px; }
@@ -50,7 +48,6 @@
 .gw-models li p { flex-basis: 100%; margin: 0; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
 .gw-models li.gw-off { opacity: .6; }
 .gw-models > p { margin: 0; font-size: 12px; }
-/* Round 41b (r41b-gemini): account limits under «Check connection» */
 .gw-limits { margin: 2px 0 8px; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-soft); background: var(--bg-soft); }
 .gw-lim-head { display: flex; align-items: center; gap: 8px; }
 .gw-lim-head b { font-size: 13px; font-weight: 600; }

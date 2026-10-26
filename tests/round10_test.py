@@ -25,7 +25,6 @@ ROOT = Path(__file__).resolve().parents[1]
 BUILTINS = ROOT / "app" / "module_builtins"
 NODE = shutil.which("node")
 
-
 def run_node(script: str) -> dict:
     done = subprocess.run([NODE, str(ROOT / "tests" / script)], capture_output=True, text=True,
                           encoding="utf-8", timeout=60)
@@ -36,9 +35,6 @@ def run_node(script: str) -> dict:
     if "error" in result:
         raise AssertionError(result["error"])
     return result
-
-
-# ---------------------------------------------------------------- model context
 
 class ModelContextTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -61,7 +57,7 @@ class ModelContextTest(unittest.TestCase):
         self.assertEqual(model_info.canonical("anthropic/Claude-Opus-5-5-20260901:thinking"), "claude-opus-5.5")
         self.assertEqual(model_info.canonical("genspark-gpt-5.6-sol"), "genspark-gpt-5.6-sol")
         self.assertEqual(model_info.canonical("Qwen3-70B-Instruct-Q4_K_M"), "qwen3-70b-instruct")
-        self.assertEqual(model_info.canonical("llama-3.1-8b-iq4_xs"), "llama-3.1-8b")   # a size, not a version
+        self.assertEqual(model_info.canonical("llama-3.1-8b-iq4_xs"), "llama-3.1-8b")
 
     def test_known_catalogue_gives_a_window_for_common_models(self) -> None:
         info = model_info.resolve("kiro", "kiro", "claude-sonnet-4.5")
@@ -80,8 +76,7 @@ class ModelContextTest(unittest.TestCase):
         self.assertIsNone(info["context"])
 
     def test_meter_reads_the_row_shape_pg_state_sends(self) -> None:
-        # pg_state puts {"context": {"context": N, "source": ...}} on each model row;
-        # modelContextInfo must read row.context.context, not row.context.
+
         source = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
         start = source.index("function modelContextInfo(model)")
         body = source[start:source.index("function modelContextLimit", start)]
@@ -90,9 +85,6 @@ class ModelContextTest(unittest.TestCase):
         self.assertIn('setTimeout(renderContextMeter, 0)', source)
         admin = (ROOT / "app" / "admin_api.py").read_text(encoding="utf-8")
         self.assertIn('row["context"] = {key: info.get(key) for key in', admin)
-
-
-# ---------------------------------------------------------------- detector versions
 
 class DetectorVersionTest(unittest.TestCase):
     QUIZ = {"estimate": "2025-08", "items": [
@@ -118,9 +110,6 @@ class DetectorVersionTest(unittest.TestCase):
         report = detector.assess_version("gpt-6-astra", "gpt", results, None, None)
         self.assertEqual(report["verdict"], "confirmed")
 
-
-# ---------------------------------------------------------------- MemuCode statistics
-
 class CodeStatsTest(unittest.TestCase):
     def test_rounds_add_up_per_day_session_and_model(self) -> None:
         with tempfile.TemporaryDirectory() as folder, patch.object(pgdata, "MEMU_DIR", Path(folder)):
@@ -143,9 +132,6 @@ class CodeStatsTest(unittest.TestCase):
         self.assertIn("MEASURES", source)
         self.assertGreaterEqual(source.count("tokens:"), 25)
 
-
-# ---------------------------------------------------------------- local draft files
-
 class LocalDraftTest(unittest.TestCase):
     def test_draft_heads_are_recognised(self) -> None:
         self.assertTrue(local_models.is_draft_meta({"layers": 64, "tensors": 20}))
@@ -159,9 +145,6 @@ class LocalDraftTest(unittest.TestCase):
         self.assertIn("missing tensor", text)
         self.assertIn("draft", local_models.draft_problem("model-draft.gguf"))
 
-
-# ---------------------------------------------------------------- screen capture
-
 class ScreenCaptureReplayTest(unittest.TestCase):
     def test_a_replayed_request_right_after_cancel_does_not_reopen_the_overlay(self) -> None:
         with patch.object(screen_capture.os, "name", "nt"), \
@@ -170,9 +153,6 @@ class ScreenCaptureReplayTest(unittest.TestCase):
             result = screen_capture.capture_region()
         self.assertEqual(result["code"], "cancelled")
         self.assertGreaterEqual(screen_capture.REPLAY_WINDOW, 1.0)
-
-
-# ---------------------------------------------------------------- partial chat saves
 
 class PartialChatSaveTest(unittest.TestCase):
     def test_only_mentioned_chats_change_and_newest_wins(self) -> None:
@@ -188,22 +168,19 @@ class PartialChatSaveTest(unittest.TestCase):
         self.assertEqual(rows["a"]["title"], "A2")
         self.assertEqual(rows["b"]["title"], "B")
 
-
-# ---------------------------------------------------------------- Antigravity
-
 class AntigravityQuotaTest(unittest.TestCase):
     def test_retired_ids_follow_the_rename(self) -> None:
         self.assertEqual(antigravity.current_model_id("gemini-3.1-pro-high"), "gemini-pro-agent")
         self.assertEqual(antigravity.current_model_id("claude-sonnet-4-6"), "claude-sonnet-4-6")
         with patch.dict(antigravity._deprecated_learned, {"a": "b", "b": "a"}):
-            self.assertIn(antigravity.current_model_id("a"), {"a", "b"})   # no endless loop
+            self.assertIn(antigravity.current_model_id("a"), {"a", "b"})
 
     def test_usage_reports_pools_resets_and_weekly_limit_note(self) -> None:
         provider = antigravity.AntigravityProvider()
         buckets = {
             "gemini-3.5-flash": {"remainingFraction": 0.9997, "resetTime": "2026-09-27T20:00:00Z"},
             "gemini-pro-agent": {"remainingFraction": 0.5, "resetTime": "2026-09-27T21:00:00Z"},
-            "claude-sonnet-4-6": {"resetTime": "2026-09-27T22:00:00Z"},   # no fraction = exhausted
+            "claude-sonnet-4-6": {"resetTime": "2026-09-27T22:00:00Z"},
         }
 
         async def token(_account):
@@ -218,7 +195,6 @@ class AntigravityQuotaTest(unittest.TestCase):
         async def tier(_account, _token):
             return "Google AI Pro"
 
-        # An account object without ``extra`` must not cost the person their limits.
         account = SimpleNamespace(id="acc-1")
         with patch.object(provider, "_ensure_token", token), patch.object(provider, "_project_id", project), \
                 patch.object(provider, "_quota_buckets", quota), patch.object(provider, "_tier_name", tier), \
@@ -233,9 +209,6 @@ class AntigravityQuotaTest(unittest.TestCase):
         self.assertEqual(usage["next_reset"], antigravity._iso_ts("2026-09-27T21:00:00Z"))
         self.assertEqual(usage["subscription"], "Google AI Pro")
 
-
-# ---------------------------------------------------------------- Benchmarks module
-
 @unittest.skipUnless(NODE, "Node.js is required for module runners")
 class BenchmarksModuleTest(unittest.TestCase):
     def test_outdated_sources_are_gone(self) -> None:
@@ -248,20 +221,20 @@ class BenchmarksModuleTest(unittest.TestCase):
         out = run_node("benchmarks_runner.cjs")
         self.assertEqual(out["parts"], ["arena:text", "arena:code/webdev", "aa:intelligence", "simple:simplebench"])
         self.assertEqual(out["order"], ["Alpha 1", "Beta 2", "Gamma 3", "Delta 4", "Eps 5"])
-        # Deprecated-only on AA → hidden; a model in a single source is not ranked.
+
         self.assertNotIn("Zeta 6", out["order"])
         self.assertNotIn("Solo 9", out["order"])
-        # The score is the weighted mean over the sources the model is in — nothing is pulled toward 50.
+
         for name, raw in out["raw"].items():
             self.assertAlmostEqual(out["scores"][name], raw, places=2)
-        # The reported case: first on the four boards it appears on beats second on all seven.
+
         titan = out["titan"]
         self.assertEqual(titan["sources"], 7)
         self.assertEqual(titan["order"], ["Titan A", "Titan B"])
         self.assertEqual(titan["scoreA"], 100)
         self.assertLess(titan["scoreB"], titan["scoreA"])
         self.assertEqual((titan["countA"], titan["countB"]), (4, 7))
-        self.assertLess(titan["coverageA"], titan["coverageB"])           # coverage is shown, never deducted
+        self.assertLess(titan["coverageA"], titan["coverageB"])
         self.assertTrue(out["method"])
         self.assertEqual(out["catalog"][0], "memu")
         self.assertIn("memu:own", out["boards"])
@@ -272,7 +245,7 @@ class BenchmarksModuleTest(unittest.TestCase):
         out = run_node("benchmarks_runner.cjs")["own"]
         self.assertEqual(len(out["tasks"]), 8)
         self.assertEqual(out["judged"], 4)
-        self.assertEqual(out["judgeError"], "")      # the judge never saw a model id
+        self.assertEqual(out["judgeError"], "")
         self.assertGreater(out["totals"]["m-a"], out["totals"]["m-b"])
         self.assertTrue(out["html"])
 
@@ -281,9 +254,6 @@ class BenchmarksModuleTest(unittest.TestCase):
         self.assertIn("chat", manifest["permissions"])
         self.assertIn("own_runs", manifest["persist"])
         self.assertNotIn("cache_swe", manifest["persist"])
-
-
-# ---------------------------------------------------------------- Model catalog module
 
 @unittest.skipUnless(NODE, "Node.js is required for module runners")
 class CatalogModuleTest(unittest.TestCase):
@@ -294,7 +264,7 @@ class CatalogModuleTest(unittest.TestCase):
         self.assertEqual(out["opus"], {"org": "Anthropic", "name": "Claude Opus 5", "input": 5, "output": 25,
                                        "cacheRead": 0.5, "tools": True, "reasoning": True, "structured": True,
                                        "context": 1000000})
-        self.assertIsNone(out["router"]["input"])     # "-1" = the price varies, not free
+        self.assertIsNone(out["router"]["input"])
         self.assertEqual(out["imageOutput"], ["openai/gpt-image-2"])
         self.assertEqual(out["free"], ["meta/llama-5-70b:free"])
         self.assertNotIn("router/auto", out["cheap"])
@@ -314,11 +284,10 @@ class CatalogModuleTest(unittest.TestCase):
         manifest = json.loads((folder / "manifest.json").read_text(encoding="utf-8"))
         self.assertEqual(manifest["id"], "catalog")
         self.assertFalse(manifest["enabled"])
-        self.assertNotIn("chat", manifest["permissions"])   # the catalog never calls a model
+        self.assertNotIn("chat", manifest["permissions"])
         i18n = json.loads((folder / "i18n.json").read_text(encoding="utf-8"))
         self.assertEqual(set(i18n["ru"]), set(i18n["en"]))
         self.assertIn("openrouter.ai/api/v1/models", (folder / "main.js").read_text(encoding="utf-8"))
-
 
 if __name__ == "__main__":
     unittest.main()

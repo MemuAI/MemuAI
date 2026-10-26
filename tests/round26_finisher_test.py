@@ -26,7 +26,6 @@ from app import automation_runtime as ar
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
 class Standin(ar.ComputerAutomation):
     def __init__(self, replies):
         super().__init__()
@@ -42,7 +41,6 @@ class Standin(ar.ComputerAutomation):
     def _list_windows(self):
         return []
 
-
 def run_agent(lang, replies, **kw):
     stand = Standin(replies)
 
@@ -54,7 +52,6 @@ def run_agent(lang, replies, **kw):
     stand.perform = perform
     asyncio.run(ar.run_computer_agent(stand, completion, model="m", task="t", ask_each_action=False, lang=lang, **kw))
     return stand
-
 
 class ComputerUseLanguage(unittest.TestCase):
     def test_english_log(self) -> None:
@@ -82,7 +79,6 @@ class ComputerUseLanguage(unittest.TestCase):
         stand.lang = "en"
         asyncio.run(stand.stop())
         self.assertEqual(stand.error, "Stopped by the user")
-
 
 class ComputerRunErrors(unittest.TestCase):
     def setUp(self) -> None:
@@ -114,7 +110,6 @@ class ComputerRunErrors(unittest.TestCase):
         app_js = (STATIC / "app.js").read_text(encoding="utf-8")
         self.assertIn('ai_cursor: pref("computer_use_ai_cursor", true), lang: PG_LANG }', app_js)
 
-
 class DfyReason(unittest.TestCase):
     def manager(self, prefs, root):
         from app.dfy import DFYManager
@@ -137,7 +132,6 @@ class DfyReason(unittest.TestCase):
                 st = self.manager({"dfy_enabled": True, "dfy_model": "vision/m"}, root).status()
                 self.assertIn("Microsoft Edge не найден", st["reason"])
 
-
 class TelegramHistoryChoice(unittest.TestCase):
     def test_current_value_is_offered(self) -> None:
         from app import telegram_bot as tb
@@ -153,7 +147,6 @@ class TelegramHistoryChoice(unittest.TestCase):
             asyncio.run(tb._show_setting(None, "t", "1", {"telegram_history_messages": 30}, "history"))
         marked = [row[0]["text"] for row in screens[0]["inline_keyboard"] if row[0]["text"].startswith("✓")]
         self.assertEqual(marked, ["✓ 30 сообщений"])
-
 
 class SeededPanelLanguage(unittest.TestCase):
     def setUp(self) -> None:
@@ -179,7 +172,7 @@ class SeededPanelLanguage(unittest.TestCase):
         with mock.patch("app.pgdata.load_preferences", return_value={}):
             doc = panels.load()
         self.assertEqual(doc["panels"][0]["title"], "Погода")
-        # the bot in English while the PC window is Russian
+
         view = telegram_panels.card(doc["panels"][0], "en")
         self.assertEqual((view["title"], view["error"]), ("Weather", "Set a city or allow location lookup"))
         self.assertIn("Weather", telegram_panels.render_html(doc["panels"][0], "en"))
@@ -190,7 +183,6 @@ class SeededPanelLanguage(unittest.TestCase):
         with self.assertRaises(panels.Wall) as caught:
             asyncio.run(panels.resolve_location(panels.load()["settings"], {}))
         self.assertEqual(caught.exception.message, "Set a city or allow location lookup")
-
 
 class ShortModelName(unittest.TestCase):
     CASES = {"ya-gpt://b1g4plmmckqmvs52tqqf/deepseek-v4.1-flash/latest": "deepseek-v4.1-flash",
@@ -211,7 +203,6 @@ class ShortModelName(unittest.TestCase):
             out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=20)
             self.assertEqual(json.loads(out.stdout), list(self.CASES.values()), out.stderr)
 
-
 class ResumedSessionModel(unittest.TestCase):
     def test_resume_keeps_the_session_model(self) -> None:
         from app.cli.runtime import Runtime
@@ -227,7 +218,6 @@ class ResumedSessionModel(unittest.TestCase):
                 self.assertEqual(Runtime(root, Settings(root, {"model": ""})).model, "default-model")
         finally:
             shutil.rmtree(root, ignore_errors=True)
-
 
 if __name__ == "__main__":
     unittest.main()

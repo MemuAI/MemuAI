@@ -1,5 +1,3 @@
-/* Settings → Quick Ask → «Слово-активатор» (Round 27). Built on the settings kit; only the pieces it lacks are here. */
-/* sections keep the kit's own spacing (26 px); the status card sits where a sub-page's first section would */
 .wks-hero { margin-top: 18px; }
 
 .wks-hero { --tone: var(--muted); display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 14px;

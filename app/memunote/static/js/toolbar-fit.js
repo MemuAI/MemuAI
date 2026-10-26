@@ -1,20 +1,13 @@
-// MemuNote — Round 33: a narrow window never pushes the right-hand toolbar buttons (Run, AI, Export, Split view)
-// out of sight. When the toolbar is wider than the window, the least used Markdown formatting buttons move, one by
-// one, into a "More" (⋯) menu placed at the end of the formatting group; the menu runs the very same buttons
-// (button.click() → the toolbar's own click handler), so nothing is duplicated. Wider window → the buttons return.
-//
-// Self-installing side-effect module (imported once by app.js): watches #toolbar for re-renders (renderToolbar()
-// rewrites its innerHTML) and for size changes.
+
+
 import { icon, t, showMenu } from "./core.js";
 
-// Dropped first → last. Bold/italic/heading/lists stay visible the longest.
 const ORDER = ["md:hr", "md:strike", "md:quote", "md:code", "md:table", "md:ol", "md:task", "md:link", "md:heading", "md:ul", "md:italic", "md:bold"];
 const ICONS = { "md:bold": "bold", "md:italic": "italic", "md:strike": "strike", "md:code": "inlineCode", "md:heading": "heading",
   "md:ul": "listUl", "md:ol": "listOl", "md:task": "checklist", "md:quote": "quote", "md:link": "link", "md:table": "table", "md:hr": "hr" };
 
 const overflowing = (bar) => bar.scrollWidth > bar.clientWidth + 1;
 
-/** Split "Bold (Ctrl+B)" into the label and the shortcut. */
 function splitTitle(text) {
   const m = /^(.*?)\s*\(([^()]+)\)\s*$/.exec(text || "");
   return m ? [m[1], m[2]] : [text || "", ""];
@@ -23,7 +16,7 @@ function splitTitle(text) {
 export function fitToolbar(bar) {
   bar.querySelectorAll(".tb-overflow").forEach((el) => el.remove());
   bar.querySelectorAll("[data-fit-hidden]").forEach((el) => { el.style.display = ""; el.removeAttribute("data-fit-hidden"); });
-  const ai = bar.querySelector(".ai-btn");   // icon-only below 700 px (r33.css) — keep an accessible name
+  const ai = bar.querySelector(".ai-btn");
   if (ai && !ai.getAttribute("aria-label")) ai.setAttribute("aria-label", t("ai_button"));
   const group = bar.querySelector(".md-group");
   if (!group || !overflowing(bar)) return [];
@@ -46,7 +39,7 @@ export function fitToolbar(bar) {
   }
   if (!hidden.length) { more.remove(); return []; }
   more.addEventListener("click", (event) => {
-    event.stopPropagation();   // the toolbar's own handler only knows [data-a] buttons
+    event.stopPropagation();
     const items = group.querySelectorAll("[data-fit-hidden]");
     showMenu([...items].map((button) => {
       const [label, shortcut] = splitTitle(button.getAttribute("aria-label") || button.title);

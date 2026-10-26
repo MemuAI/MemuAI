@@ -37,16 +37,15 @@ MEDIA_ROUTE = "/v1/geminiweb/media/"
 MEDIA_NAME_RE = re.compile(r"^[0-9a-f]{64}\.(png|jpg|webp|gif|mp4|webm)$")
 MEDIA_URL_RE = re.compile(r"/v1/geminiweb/media/([0-9a-f]{64}\.(?:png|jpg|webp|gif|mp4|webm))")
 MAX_FILES = 10
-MAX_INPUT_BYTES = 100 * 1024 * 1024       # веб-клиент Gemini принимает файлы до ~100 МБ
+MAX_INPUT_BYTES = 100 * 1024 * 1024
 MAX_OUTPUT_BYTES = 200 * 1024 * 1024
 KEEP_DAYS = 30
-VIDEO_WAIT = 240.0                        # сколько ждём, пока Veo дорендерит видео (206 → 200)
+VIDEO_WAIT = 240.0
 VIDEO_POLL = 10.0
 _DATA_URL_RE = re.compile(r"^data:([\w/+.-]+)?(?:;[\w=.-]+)*;base64,(.*)$", re.S | re.I)
 
 MIME_EXT = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif",
             "video/mp4": "mp4", "video/webm": "webm"}
-
 
 @dataclass
 class Attachment:
@@ -54,21 +53,15 @@ class Attachment:
     mime: str
     name: str
 
-
 @dataclass
 class GeneratedMedia:
-    kind: str                 # image | video
-    url: str                  # адрес googleusercontent.com (картинка — превью, видео — mp4)
-    thumb: str = ""           # превью видео
+    kind: str
+    url: str
+    thumb: str = ""
     alt: str = ""
-
 
 class AttachmentError(ValueError):
     """Вложение не удалось прочитать (битый base64, недоступный адрес, слишком большой файл)."""
-
-
-# ------------------------------------------------------------------ вход
-
 
 def pending_parts(messages: List[Dict[str, Any]]) -> List[Tuple[str, str, str]]:
     """Части последнего сообщения пользователя → [(источник data:/http(s)/b64:mime, mime-подсказка, имя)]."""
@@ -102,7 +95,7 @@ def pending_parts(messages: List[Dict[str, Any]]) -> List[Tuple[str, str, str]]:
         elif kind == "file_url":
             value = part.get("file_url")
             src = value.get("url", "") if isinstance(value, dict) else str(value or "")
-        elif kind == "image":            # сырой блок Anthropic
+        elif kind == "image":
             source = part.get("source") or {}
             if source.get("type") == "base64":
                 src = f"data:{source.get('media_type') or 'image/png'};base64,{source.get('data') or ''}"
@@ -112,7 +105,6 @@ def pending_parts(messages: List[Dict[str, Any]]) -> List[Tuple[str, str, str]]:
         if src:
             out.append((src.strip(), mime, name))
     return out[:MAX_FILES]
-
 
 def sniff_mime(data: bytes, fallback: str = "application/octet-stream") -> str:
     head = data[:16]
@@ -131,7 +123,6 @@ def sniff_mime(data: bytes, fallback: str = "application/octet-stream") -> str:
     if head.startswith(b"%PDF"):
         return "application/pdf"
     return fallback
-
 
 def decode_source(src: str) -> Optional[Tuple[bytes, str]]:
     """data:/b64: → (байты, mime); http(s) → None (качать отдельно)."""
@@ -154,7 +145,6 @@ def decode_source(src: str) -> Optional[Tuple[bytes, str]]:
         raise AttachmentError("Вложение больше 100 МБ — Gemini такие не принимает")
     return raw, declared or sniff_mime(raw)
 
-
 def file_name(index: int, mime: str, given: str = "") -> str:
     if given:
         return os.path.basename(given)[:120] or given
@@ -162,7 +152,6 @@ def file_name(index: int, mime: str, given: str = "") -> str:
     ext = {".jpe": ".jpg", ".jpeg": ".jpg"}.get(ext, ext)
     kind = (mime or "file").split("/")[0] if (mime or "").startswith(("image/", "video/", "audio/")) else "file"
     return f"{kind}{index}{ext}"
-
 
 async def load_attachments(messages: List[Dict[str, Any]], fetch_remote) -> List[Attachment]:
     """Все вложения последнего сообщения; http(s) качает ``fetch_remote(url) -> bytes`` (с защитой от SSRF)."""
@@ -188,15 +177,10 @@ async def load_attachments(messages: List[Dict[str, Any]], fetch_remote) -> List
         out.append(Attachment(raw, mime, file_name(i, mime, name)))
     return out
 
-
 async def fetch_public(url: str) -> bytes:
     """http(s)-вложение по ссылке: только публичные адреса (та же защита от SSRF, что у кэша картинок чата)."""
     from .. import media_cache
     return await asyncio.wait_for(media_cache._download_public(url), media_cache.TIMEOUT)
-
-
-# ------------------------------------------------------------------ выход
-
 
 def full_size(url: str) -> str:
     """Превью сгенерированной картинки → полный размер (как кнопка «Скачать» в Gemini)."""
@@ -206,7 +190,6 @@ def full_size(url: str) -> str:
         return url
     return url + "=s2048-rj"
 
-
 def _prune(now: float) -> None:
     try:
         for path in MEDIA_DIR.iterdir():
@@ -214,7 +197,6 @@ def _prune(now: float) -> None:
                 path.unlink(missing_ok=True)
     except OSError:
         pass
-
 
 def store(data: bytes, mime: str) -> str:
     """Байты → файл geminiweb_media/<sha256>.<ext>; возвращает имя файла."""
@@ -229,7 +211,6 @@ def store(data: bytes, mime: str) -> str:
         _prune(time.time())
     return name
 
-
 def local_path(name_or_url: str) -> Optional[Path]:
     """Имя файла или адрес …/v1/geminiweb/media/<файл> → путь в папке данных (если файл есть)."""
     match = MEDIA_URL_RE.search(name_or_url or "")
@@ -238,7 +219,6 @@ def local_path(name_or_url: str) -> Optional[Path]:
         return None
     path = MEDIA_DIR / name
     return path if path.is_file() else None
-
 
 def public_base(settings: Optional[Dict[str, Any]] = None) -> str:
     """Адрес Proxy для ссылок на медиа: настройка провайдера media_base_url или http://127.0.0.1:<порт>."""
@@ -253,10 +233,8 @@ def public_base(settings: Optional[Dict[str, Any]] = None) -> str:
         host = f"[{host}]"
     return f"http://{host}:{int(getattr(config_store.settings, 'port', 8317) or 8317)}"
 
-
 def media_url(name: str, settings: Optional[Dict[str, Any]] = None) -> str:
     return f"{public_base(settings)}{MEDIA_ROUTE}{name}"
-
 
 def markdown(items: List[Tuple[GeneratedMedia, str, str]]) -> str:
     """[(медиа, адрес для клиента, адрес превью)] → markdown: картинки ![…](…), видео — превью + ссылка."""
@@ -272,7 +250,6 @@ def markdown(items: List[Tuple[GeneratedMedia, str, str]]) -> str:
                 lines.append(f"![Gemini video {n_vid}]({thumb})")
             lines.append(f"[▶ Gemini video {n_vid} (mp4)]({url})")
     return "\n\n".join(lines)
-
 
 def urls_in(text: str) -> List[str]:
     """Адреса медиа Proxy из текста ответа (для /v1/images/generations)."""

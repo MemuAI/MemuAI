@@ -1,28 +1,11 @@
-/* MemuAI product cards (Round 21, inspired by ChatGPT Shopping).
- *
- * The model writes one hidden ```memuai-products JSON block in a shopping
- * answer. md() turns the block into placeholder() markup; the block is sent
- * to POST /api/pg/products/normalize (app/product_cards.py), which removes
- * unknown stores, non-http links and unsourced reviews and replaces prices
- * with the ones really seen on store pages. The verified result is cached by
- * the block text, so every later re-render (streaming, chat switch, reload)
- * is synchronous and never flickers.
- *
- * Everything else lives here as well: the row of cards under the answer, the
- * right side sheet (gallery, offers, specs, summary, pros/cons, reviews), the
- * text fallback for copy/export/speech, and the system prompt glue
- * (systemBlock). The prompt text itself is the internal prompt
- * "product-cards" (app/pgdata.py → PRODUCT_CARDS_PROMPT).
- *
- * All values are escaped; links are http(s) only and open in the system
- * browser through target="_blank" (pywebview hands those to the OS).
- */
+
+
 "use strict";
 const MemuProducts = (() => {
-  const cache = new Map();      // key → {ok, data} | {ok:false}
-  const rawByKey = new Map();   // key → block text
-  const inflight = new Map();   // key → Promise
-  const shown = new Set();      // keys whose entrance already played
+  const cache = new Map();
+  const rawByKey = new Map();
+  const inflight = new Map();
+  const shown = new Set();
   const MAX_RAW = 200000;
   let sheet = null, scrim = null, sheetState = null, lastTrigger = null;
 
@@ -57,7 +40,6 @@ const MemuProducts = (() => {
   };
   const ico = (name, cls = "") => `<span class="prd-ico${cls ? " " + cls : ""}">${SVG[name] || ""}</span>`;
 
-  /* ------------------------------------------------------------ keys */
   function keyOf(raw) {
     let hash = 5381;
     const text = String(raw || "");
@@ -65,7 +47,6 @@ const MemuProducts = (() => {
     return "mp" + hash.toString(36) + text.length.toString(36);
   }
 
-  /* ------------------------------------------------------------ formatting */
   const SIGNS = { RUB: "₽", USD: "$", EUR: "€", GBP: "£", KZT: "₸", UAH: "₴", BYN: "Br" };
   function money(price, { approxMark = true } = {}) {
     if (!price || !(Number(price.amount) > 0)) return "";
@@ -118,9 +99,6 @@ const MemuProducts = (() => {
     return `<span class="prd-store${cls ? " " + cls : ""}"${color ? ` style="--prd-store:${color};--prd-store-fg:${fg}"` : ""} title="${esc(name)}" aria-hidden="true">${esc(letter)}</span>`;
   }
 
-  /* ------------------------------------------------------------ local fallback */
-  // Used only when the server is unreachable: show what is safe, mark every
-  // price approximate, keep no review without a link and no "verified" flag.
   function localNormalize(raw) {
     let data;
     try {
@@ -152,7 +130,6 @@ const MemuProducts = (() => {
     return items.length ? { ok: true, local: true, data: { v: 1, items, currency: data.currency || "" } } : { ok: false };
   }
 
-  /* ------------------------------------------------------------ server */
   function ensure(key) {
     if (cache.has(key) || inflight.has(key)) return inflight.get(key) || Promise.resolve(cache.get(key));
     const raw = rawByKey.get(key);
@@ -182,7 +159,6 @@ const MemuProducts = (() => {
     updateArrows();
   }
 
-  /* ------------------------------------------------------------ md() hooks */
   function placeholder(raw, isEn) {
     const text = String(raw || "").trim();
     if (!text) return "";
@@ -198,20 +174,18 @@ const MemuProducts = (() => {
     return `<div class="memu-products loading"${key ? ` data-pkey="${key}"` : ""} aria-busy="true"><div class="prd-head"><span class="prd-title">${ico("bag")}${esc(T("Подбираю товары…", "Finding products…"))}</span></div><div class="prd-row">${cards}</div></div>`;
   }
   function pending() { return skeleton("", 3); }
-  // Streaming: an unfinished block becomes a skeleton instead of raw JSON.
+
   function maskPending(text) {
     return String(text || "").replace(/```[ \t]*memuai[-_ ]?products\b((?:(?!```)[\s\S])*)$/i, "```memuai-products-pending\n```");
   }
 
-  /* ------------------------------------------------------------ the row */
   function itemPrice(item) {
     const price = item.price;
     if (!price) return `<span class="prd-price none">${esc(T("Цена не найдена", "No price found"))}</span>`;
     const from = price.from ? `<small>${esc(T("от", "from"))}</small> ` : "";
     return `<span class="prd-price${price.approx ? " approx" : ""}" title="${esc(price.approx ? T("Ориентировочная цена: не подтверждена страницей магазина", "Approximate price: not confirmed by a store page") : T("Цена со страницы магазина", "Price from a store page"))}">${from}${esc(money(price))}</span>`;
   }
-  // Бюджет и наличие проверяет сервер (product_cards.normalize) по ценам со
-  // страниц магазинов: товар без проверенной цены в бюджете не выдаётся за «в бюджете».
+
   function flagOf(item) {
     if (item.availability === "unavailable") {
       return { kind: "unavailable", text: item.discontinued ? T("Снят с продажи", "Discontinued") : T("Нет в продаже", "Not available"),
@@ -219,7 +193,7 @@ const MemuProducts = (() => {
     }
     if (item.budget_status === "over") return { kind: "over", text: T("Выше бюджета", "Over budget"),
       hint: T("Проверенные цены в магазинах выше вашего бюджета", "Verified store prices are above your budget") };
-    // Without any price the card already says «Цена не найдена»; a second badge only repeats it.
+
     if (item.budget_status === "unverified" && item.price) return { kind: "unverified", text: T("Цена не подтверждена", "Price not confirmed"),
       hint: T("Нет цены со страницы магазина — укладывается ли товар в бюджет, неизвестно", "No store-page price — whether it fits the budget is unknown") };
     if (item.budget_status === "within") return { kind: "within", text: T("В бюджете", "Within budget"),
@@ -276,7 +250,6 @@ const MemuProducts = (() => {
     });
   }
 
-  /* ------------------------------------------------------------ the side sheet */
   function ensureSheet() {
     if (sheet) return sheet;
     scrim = document.createElement("div");
@@ -331,8 +304,7 @@ const MemuProducts = (() => {
         <a class="prd-open" href="${esc(url)}" target="_blank" rel="noopener noreferrer" title="${esc(url)}">${esc(T("Открыть", "Open"))}${ico("external")}</a>` : "<span></span><span></span>"}
       </li>`;
     }).join("");
-    // Магазины региона без оффера: честно «не удалось проверить» / «не найден»,
-    // с поиском по самому магазину, чтобы проверить вручную.
+
     const checks = (item.store_checks || []).map((check) => {
       const found = check.status === "unconfirmed" ? safeUrl(check.url) : "";
       const search = found || safeUrl(check.search_url);
@@ -397,6 +369,7 @@ const MemuProducts = (() => {
     const result = cache.get(key);
     const items = result?.data?.items || [];
     if (!items[index]) return;
+    document.dispatchEvent(new CustomEvent("memu:side-sheet", {detail:{owner:"products"}}));
     ensureSheet();
     const opening = sheet.hidden;
     sheetState = { key, index, gallery: 0 };
@@ -407,7 +380,7 @@ const MemuProducts = (() => {
     if (opening) {
       sheet.hidden = false;
       scrim.hidden = false;
-      // Next frame: the transition runs from the off-screen state.
+
       requestAnimationFrame(() => { sheet.classList.add("open"); scrim.classList.add("open"); document.documentElement.classList.add("prd-sheet-open"); });
       sheet.focus({ preventScroll: true });
     } else {
@@ -429,6 +402,7 @@ const MemuProducts = (() => {
     sheetState = null;
     if (back) back.focus({ preventScroll: true });
   }
+  document.addEventListener("memu:side-sheet", event => {if(event.detail?.owner !== "products") closeSheet();});
   function galleryGo(index) {
     if (!sheet || !sheetState) return;
     const slides = sheet.querySelectorAll(".prd-gallery .prd-slide");
@@ -448,7 +422,6 @@ const MemuProducts = (() => {
     else window.open(src, "_blank", "noopener");
   }
 
-  /* ------------------------------------------------------------ events */
   document.addEventListener("click", (event) => {
     const card = event.target.closest(".prd-card[data-pkey]");
     if (card) { openSheet(card.dataset.pkey, Number(card.dataset.pi) || 0, card); return; }
@@ -488,7 +461,7 @@ const MemuProducts = (() => {
       cards[next].scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
     }
   }, true);
-  // Swipe in the gallery (pointer events: mouse, pen and touch).
+
   let swipe = null;
   document.addEventListener("pointerdown", (event) => {
     const track = event.target.closest?.(".prd-sheet .prd-gallery");
@@ -506,8 +479,7 @@ const MemuProducts = (() => {
       galleryStep(dx < 0 ? 1 : -1);
     }
   });
-  // Images that refuse to load: one retry through the app's media bridge
-  // (hotlink protection), then a neutral placeholder.
+
   document.addEventListener("error", (event) => {
     const img = event.target;
     if (!(img instanceof HTMLImageElement) || !img.hasAttribute("data-prd-img")) return;
@@ -526,14 +498,13 @@ const MemuProducts = (() => {
   }, true);
   window.addEventListener("resize", () => updateArrows());
 
-  /* ------------------------------------------------------------ text fallback */
   function itemsFor(raw) {
     const text = String(raw || "").trim();
     const key = keyOf(text);
     const result = cache.get(key) || localNormalize(text);
     return result?.ok ? result.data.items : [];
   }
-  // Copy/export get Markdown; speech gets one short sentence per product.
+
   function stripForText(text, isEn, mode = "markdown") {
     const english = isEn === undefined ? en() : !!isEn;
     const label = (ru, eng) => (english ? eng : ru);
@@ -558,14 +529,12 @@ const MemuProducts = (() => {
     });
   }
 
-  /* ------------------------------------------------------------ copy */
-  // «Название (модель)»: модель добавляется, только если её ещё нет в названии.
   function nameText(item) {
     const name = String(item?.name || "").trim();
     const model = String(item?.model || "").trim();
     return model && !name.toLowerCase().includes(model.toLowerCase()) ? `${name} (${model})` : name;
   }
-  // Ссылка на лучшее предложение: проверенная цена → самая дешёвая из них, иначе первое.
+
   function offerLink(item) {
     const offers = (item?.offers || []).filter((o) => safeUrl(o.url));
     const source = safeUrl(item?.price?.source);
@@ -574,7 +543,7 @@ const MemuProducts = (() => {
     const pick = verified.sort((a, b) => a.price.amount - b.price.amount)[0] || offers[0];
     return pick ? safeUrl(pick.url) : "";
   }
-  // Вся карточка простым текстом (мессенджер, заметка): только проверенные поля.
+
   function cardText(item) {
     if (!item) return "";
     const lines = [nameText(item)];
@@ -625,7 +594,7 @@ const MemuProducts = (() => {
     if (kind === "link") return copyValue(url || offerLink(item), T("Ссылка скопирована", "Link copied"));
     return copyValue(cardText(item), T("Карточка скопирована", "Card copied"));
   }
-  // Небольшое меню у кнопки копирования (карточка в ряду и шапка панели).
+
   let menu = null, menuFor = null;
   function closeMenu(focusBack = false) {
     if (!menu) return;
@@ -699,10 +668,6 @@ const MemuProducts = (() => {
     }
   }, true);
 
-  /* ------------------------------------------------------------ research progress */
-  // Пока модель исследует (web_search → product_lookup), в ответе стоит понятный
-  // прогресс со скелетом карточек, а черновой текст раундов не показывается —
-  // раньше он появлялся и исчезал на каждом раунде инструментов.
   const INTENT_RU = /(подбер|посоветуй|порекомендуй|помоги (?:мне )?(?:выбрать|подобрать)|что (?:лучше )?(?:купить|взять|выбрать)|как(?:ой|ую|ое|ие) .{0,40}(?:купить|взять|выбрать)|(?:купить|выбрать|взять) .{0,50}(?:до|за|не дороже|в пределах)\s*\d|лучш\w* .{0,50}(?:до|за|не дороже)\s*\d|до\s*\d[\d\s.,]*\s*(?:₽|руб|р\b|к\b|тыс)|альтернатив\w* .{0,40}(?:дешевле|подешевле)|(?:сравни|сравнить) .{0,80}(?:какой|какую|что) .{0,20}(?:купить|взять|выбрать))/i;
   const INTENT_EN = /(recommend (?:me )?(?:a|an|the|some)?\s*\w+|which .{0,40}(?:to buy|should i (?:buy|get|pick))|what .{0,40}(?:to buy|should i (?:buy|get))|best .{0,50}(?:under|below|for less than|up to)\s*\$?\d|under \$\s*\d|cheaper alternative|help me (?:choose|pick|find) (?:a|an|the)\b|(?:shopping|buying) (?:for|advice))/i;
   function intent(text) {
@@ -732,12 +697,12 @@ const MemuProducts = (() => {
     const names = lookups.map((c) => String(c.args?.query || "").trim()).filter(Boolean).slice(0, 8);
     return { step, stores, count: lookups.length, names };
   }
-  // Вызывается из app.js для ответа в потоке: строка-замена видимого текста или null.
+
   function holdStream(m, visible) {
     if (!m || m.role !== "assistant" || m.error) return null;
-    if (!m.streaming || !inFlow(m)) return null;    // streaming остаётся true между раундами инструментов
-    if (/```[ \t]*memuai[-_ ]?products\b/i.test(String(m.content || ""))) return null;   // финальный ответ с карточками
-    if (String(visible || "").length > 1500) return null;                                // длинный ответ — не черновик
+    if (!m.streaming || !inFlow(m)) return null;
+    if (/```[ \t]*memuai[-_ ]?products\b/i.test(String(m.content || ""))) return null;
+    if (String(visible || "").length > 1500) return null;
     return "```memuai-products-progress\n" + JSON.stringify(stageOf(m)) + "\n```";
   }
   function plural(n, one, few, many) {
@@ -771,13 +736,11 @@ const MemuProducts = (() => {
       <div class="prd-row">${cards}</div></div>`;
   }
 
-  /* ------------------------------------------------------------ system prompt */
   function promptText() {
     try { if (typeof internalPromptText === "function") return internalPromptText("product-cards"); } catch (e) {}
     return "";
   }
-  // The self-contained prompt section (Settings → Prompts → "Product cards")
-  // plus one runtime line the model needs: region, currency, tool status.
+
   function systemBlock({ lang = "ru", lookup = false, builtinSearch = false } = {}) {
     const text = promptText();
     if (!text) return "";

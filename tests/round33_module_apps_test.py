@@ -34,7 +34,6 @@ STATIC = ROOT / "app" / "pgstatic"
 
 from app import module_apps, modules_host  # noqa: E402
 
-
 class FakeShell(module_apps.Shell):
     def __init__(self, base: Path, ok: bool = True) -> None:
         self.base = base
@@ -56,7 +55,6 @@ class FakeShell(module_apps.Shell):
         Path(link).write_text(json.dumps({k: str(v) for k, v in kwargs.items()}), encoding="utf-8")
         return True
 
-
 class _Events:
     def __init__(self):
         self.handlers = []
@@ -68,7 +66,6 @@ class _Events:
     def fire(self, *args):
         return [fn(*args) for fn in self.handlers]
 
-
 class FakeWindow:
     def __init__(self, title, url, **options):
         self.title, self.url, self.options = title, url, options
@@ -79,7 +76,7 @@ class FakeWindow:
         self.shown = 0
         self.destroyed = False
         self.scripts = []
-        self.native = None  # no WinForms form off Windows
+        self.native = None
 
     def show(self):
         self.shown += 1
@@ -99,7 +96,6 @@ class FakeWindow:
     def evaluate_js(self, script):
         self.scripts.append(script)
 
-
 class FakeWebview:
     def __init__(self):
         self.created = []
@@ -108,7 +104,6 @@ class FakeWebview:
         window = FakeWindow(title, url, **options)
         self.created.append(window)
         return window
-
 
 class FakeWin:
     def __init__(self):
@@ -120,7 +115,6 @@ class FakeWin:
             return True
         return record
 
-
 def _wait(predicate, timeout=3.0):
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -128,7 +122,6 @@ def _wait(predicate, timeout=3.0):
             return True
         time.sleep(0.02)
     return False
-
 
 class StoreAndIdentityTest(unittest.TestCase):
     def setUp(self):
@@ -138,7 +131,7 @@ class StoreAndIdentityTest(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.tmp, True)
 
     def test_store_normalisation_and_close_choice(self):
-        # Round 38: + the custom title bar switches (global, per module).
+
         self.assertEqual(module_apps.load_store(self.root), {"apps": {}, "sizes": {}, "on_app_close": "ask",
                                                              "custom_appbar": True, "appbar": {}})
         (self.root / "apps.json").write_text(json.dumps({"apps": {"../x": {}, "translator": {"links": ["a", 3]}},
@@ -182,19 +175,18 @@ class StoreAndIdentityTest(unittest.TestCase):
         self.assertTrue(Path(out["ico"]).is_file() and Path(out["png"]).is_file())
         with Image.open(out["ico"]) as ico:
             self.assertIn((256, 256), ico.info.get("sizes", {(256, 256)}))
-        # Letter tile when the page sent nothing usable.
+
         out = module_apps.write_icon("studio", {"title": "Studio"}, "", self.root)
         with Image.open(out["png"]) as png:
             self.assertEqual(png.size, (256, 256))
             self.assertGreater(png.getpixel((128, 30))[3], 200)
 
     def test_icons_live_outside_the_memuai_icon_folder(self):
-        # assistant_icon re-points MemuAI.exe shortcuts whose icon is under <data>/memuai — not ours.
+
         from app.pgdata import DATA_DIR
         default = module_apps.app_dir()
         self.assertEqual(default, Path(DATA_DIR) / "module-apps")
         self.assertFalse(str(default).startswith(str(Path(DATA_DIR) / "memuai") + os.sep))
-
 
 class InstallTest(unittest.TestCase):
     def setUp(self):
@@ -219,7 +211,7 @@ class InstallTest(unittest.TestCase):
         modules = {m["id"]: m for m in modules_host.list_modules(self.root)}
         self.assertTrue(modules["translator"]["enabled"], "installing switches the module on")
         self.assertTrue(modules["translator"]["launcher"]["hidden"], "hidden from the MemuAI list on request")
-        # Desktop off → only the Start menu shortcut remains.
+
         row = module_apps.update("translator", desktop=False, root=self.root, shell=self.shell)
         self.assertEqual(len(row["links"]), 1)
         self.assertIn("programs", row["links"][0])
@@ -268,16 +260,14 @@ class InstallTest(unittest.TestCase):
             link.unlink()
         self.assertEqual(module_apps.repair(self.root, self.shell), 1)
         self.assertEqual(len(list(self.tmp.joinpath("shell").rglob("*.lnk"))), 2)
-        # An app of a module that no longer exists is removed.
+
         module_apps._mutate(lambda data: data["apps"].__setitem__("gone-module", {"links": []}), self.root)
         self.assertEqual(module_apps.repair(self.root, self.shell), 1)
         self.assertNotIn("gone-module", module_apps.load_store(self.root)["apps"])
 
-
 class ModuleWindowsTest(unittest.TestCase):
     def setUp(self):
-        # This class uses an off-Windows webview fake (native=None), so it
-        # must not wait for a real WinForms handle on a Windows test runner.
+
         platform_patch = mock.patch.object(module_apps.sys, "platform", "linux")
         platform_patch.start()
         self.addCleanup(platform_patch.stop)
@@ -322,10 +312,10 @@ class ModuleWindowsTest(unittest.TestCase):
         self.mgr.open("translator")
         window = self.webview.created[0]
         self.mgr.report("translator", {"busy": True, "width": 900, "height": 700})
-        window.destroy()                                  # the Windows caption ×
+        window.destroy()
         self.assertFalse(window.destroyed)
         self.assertTrue(_wait(lambda: any("askWindowClose" in s for s in window.scripts)))
-        self.mgr.close("translator", force=True)          # the page's «Close» answer
+        self.mgr.close("translator", force=True)
         self.assertTrue(window.destroyed)
         self.assertEqual(module_apps.load_store(self.root)["sizes"]["translator"], {"width": 900, "height": 700})
 
@@ -351,19 +341,19 @@ class ModuleWindowsTest(unittest.TestCase):
         self.assertFalse(self.mgr.main_close_guard(), "no modules → the usual close (tray)")
         self.mgr.report_main([{"id": "translator", "width": 800, "height": 600}, {"id": "../bad"}])
         self.assertEqual([m["id"] for m in self.mgr.main_modules], ["translator"])
-        # ask (default): cancel the close, the page asks
+
         self.assertTrue(self.mgr.main_close_guard())
         self.assertTrue(_wait(lambda: any("askAppClose" in s for s in self.main.scripts)))
-        # remembered «keep»: the module moves to its own window, MemuAI closes as usual
+
         module_apps.set_close_choice("keep", self.root)
         self.assertFalse(self.mgr.main_close_guard())
         self.assertEqual(self.mgr.open_ids(), ["translator"])
         self.assertEqual(self.webview.created[0].options["width"], 800)
         self.assertTrue(_wait(lambda: any("movedOut" in s for s in self.main.scripts)))
-        # a busy module always asks, whatever was remembered
+
         self.mgr.report_main([{"id": "studio", "busy": True}])
         self.assertTrue(self.mgr.main_close_guard())
-        # remembered «close»: the page closes the modules, MemuAI closes as usual
+
         module_apps.set_close_choice("close", self.root)
         self.mgr.report_main([{"id": "studio"}])
         self.main.scripts.clear()
@@ -386,7 +376,6 @@ class ModuleWindowsTest(unittest.TestCase):
         self.assertTrue(self.webview.created[0].destroyed)
         self.assertFalse(self.mgr.main_close_guard())
 
-
 class DesktopShellGuardTest(unittest.TestCase):
     def test_close_guard_cancels_before_the_tray(self):
         from app import desktop
@@ -399,7 +388,7 @@ class DesktopShellGuardTest(unittest.TestCase):
         shell.close_guard = lambda: False
         self.assertFalse(shell._on_closing())
         shell.window.hide.assert_called_once()
-        # Quitting from the tray never asks.
+
         shell._quitting = True
         shell.close_guard = mock.Mock(return_value=True)
         self.assertTrue(shell._on_closing())
@@ -410,7 +399,6 @@ class DesktopShellGuardTest(unittest.TestCase):
         shell = desktop.DesktopShell("http://127.0.0.1:1/")
         self.assertFalse(shell.ready_on_load)
         self.assertIsNone(shell.close_guard)
-
 
 class EntryPointTest(unittest.TestCase):
     def test_module_argument_and_second_instance(self):
@@ -474,7 +462,6 @@ class EntryPointTest(unittest.TestCase):
         api = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
         self.assertIn("module_apps.register(app)", api)
 
-
 class RoutesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -529,16 +516,16 @@ class RoutesTest(unittest.TestCase):
         self.assertTrue(self.client.post("/api/pg/module-apps/open", json={"id": "translator"}).json()["native"])
         self.assertEqual(mgr.open_ids(), ["translator"])
         self.assertTrue(self.client.get("/api/pg/module-apps").json()["native"])
-        # A shortcut launch of a module that is open inside MemuAI moves that very window out.
+
         self.client.post("/api/pg/module-apps/state", json={"where": "main", "modules": [{"id": "characters"}]})
         self.assertTrue(self.client.post("/api/pg/module-apps/launch", json={"id": "characters"}).json()["moved"])
         self.assertTrue(_wait(lambda: any("popOut" in s for s in main.scripts)))
-        # The close question answered «keep»: windows open, MemuAI closes the usual way.
+
         response = self.client.post("/api/pg/module-apps/app-close", json={"action": "keep", "ids": ["characters"]}).json()
         self.assertEqual(response["moved"], ["characters"])
         self.assertTrue(_wait(lambda: closes == [True]))
         self.assertEqual(self.client.post("/api/pg/module-apps/app-close", json={"action": "x"}).status_code, 400)
-        # Module window actions
+
         self.client.post("/api/pg/module-apps/state", json={"where": "app", "id": "translator", "unsaved": True})
         self.assertTrue(mgr.window_state["translator"]["unsaved"])
         self.client.post("/api/pg/module-apps/window", json={"action": "main", "id": "translator"})
@@ -550,7 +537,6 @@ class RoutesTest(unittest.TestCase):
         self.assertNotIn("characters", mgr.open_ids())
         self.assertTrue(_wait(lambda: any("docked: true" in s for s in main.scripts)))
         self.assertEqual(self.client.post("/api/pg/module-apps/window", json={"action": "?", "id": "translator"}).status_code, 400)
-
 
 class StaticUiTest(unittest.TestCase):
     def test_minimize_glyph_is_not_the_download_glyph(self):
@@ -575,13 +561,11 @@ class StaticUiTest(unittest.TestCase):
         for needle in ("askAppClose", "movedOut", "/api/pg/module-apps/app-close", "dataset.moduleApp", "installDialog"):
             self.assertIn(needle, apps)
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", shutil.which("chromium") or ""):
         if candidate and Path(candidate).exists():
             return candidate
     return ""
-
 
 @unittest.skipUnless(_chromium(), "Chromium is not installed")
 class BrowserTest(unittest.TestCase):
@@ -671,7 +655,7 @@ class BrowserTest(unittest.TestCase):
             self.assertTrue(info["main"] and info["menu"])
             self.assertEqual(info["flag"], "translator")
             self.assertTrue(info["title"].endswith("— MemuAI"))
-            # The ⋯ menu has «back into MemuAI» / «open MemuAI», not window layouts.
+
             page.click('.module-window[data-module="translator"] [data-win="menu"]')
             page.wait_for_timeout(250)
             menu = page.evaluate("() => document.getElementById('context-menu').innerText")
@@ -681,7 +665,7 @@ class BrowserTest(unittest.TestCase):
                 self.assertNotRegex(menu, "[А-Яа-яЁё]")
             self.shot(page, f"module_app_{lang}")
             page.keyboard.press("Escape")
-            # Not persisted as «open in MemuAI».
+
             row = next(r for r in modules_host.list_modules(modules_host.default_root()) if r["id"] == "translator")
             self.assertFalse(row["open"])
 
@@ -699,10 +683,10 @@ class BrowserTest(unittest.TestCase):
                 self.assertNotRegex(text, "[А-Яа-яЁё]")
                 self.assertIn("Translator", text)
             self.shot(page, f"app_close_{lang}")
-            # «Close the modules and MemuAI» closes the module (no unsaved work → no question).
+
             page.click("#mapp-close-all")
             self.wait(page, "!MemuModules.openIds.length")
-            # Settings → Modules: the section, the choice is saved.
+
             page.evaluate("() => { currentSettingsTab = 'modules'; showSettings(); }")
             self.wait(page, "document.getElementById('mapp-settings')", 20)
             if lang == "en":
@@ -770,12 +754,12 @@ class BrowserTest(unittest.TestCase):
         pump()
         self.wait(page, "MemuModules.openIds.length === 0")
         self.assertTrue(page.evaluate("() => MemuModuleApps.isDetached('translator')"))
-        # Opening it from MemuAI again shows the module's own window instead of a second copy.
+
         page.evaluate("() => MemuModules.open('translator')")
         page.wait_for_timeout(300)
         self.assertEqual(page.evaluate("() => MemuModules.openIds.length"), 0)
         self.assertEqual(len(webview.created), 2)
-        # The module window was closed: back to normal.
+
         mgr.close("translator")
         _wait(lambda: scripts, 3)
         pump()
@@ -798,7 +782,6 @@ class BrowserTest(unittest.TestCase):
           return b && b.getClientRects().length ? b.textContent : ''; }""")
         self.assertEqual(head, "Свернуть")
         page.evaluate("() => MemuModules.closeAll()")
-
 
 if __name__ == "__main__":
     unittest.main()

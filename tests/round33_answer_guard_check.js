@@ -1,5 +1,5 @@
-// Round 33 (r33-chat #2): node harness for app/pgstatic/answer-guard.js, driven by tests/round33_chat_test.py.
-// Prints one JSON line: {name: {visible, calls, stream_bad: [...]}} for every sample.
+
+
 const path = require("path");
 const fs = require("fs");
 const guard = require(path.join(__dirname, "..", "app", "pgstatic", "answer-guard.js"));
@@ -12,7 +12,7 @@ for (const sample of data.samples) {
   const bad = [];
   let raw = "";
   for (const chunk of chunks) {
-    // Characters arrive one by one too: the worst case for a half-written opener.
+
     for (const ch of Array.from(chunk)) {
       raw += ch;
       if (sample.inline_reasoning && !raw.includes("</think>")) continue;

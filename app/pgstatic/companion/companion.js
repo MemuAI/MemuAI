@@ -1,18 +1,5 @@
-/* MemuAI companion — host side (main window, Quick Ask window).
 
-   MemuCompanion.create({...}) puts the stage (/companion/stage) in an iframe,
-   feeds it lip sync from real audio (an AnalyserNode or an <audio> element via
-   captureStream), the answer text (speech bubble + emotion), state, gestures
-   and the cursor. The iframe isolates WebGL (and Live2D's WebAssembly) from
-   the app page; a GPU reset there never takes the window down.
 
-   Public API (instance):
-     setVisible(on) · destroy() · setPrefs(prefs) · reload()
-     attachAnalyser(node) · attachAudio(element) · detachAudio()
-     speak(on, text) · text(value, final) · state(name) · emotion(name, intensity) · gesture(name)
-   Options: container, surface ("live" | "quick"), prefs() → preferences object,
-     lang, bubble (bool), movable (wrapper is position:fixed and drags),
-     onEvent(type, data), onMove({x,y}), onResize(sizePercent). */
 (function () {
   "use strict";
   const Core = window.MemuCompanionCore;
@@ -58,9 +45,6 @@
     };
     (opts.container || document.body).appendChild(wrap);
 
-    // Messages sent before the stage is up are kept (latest of each kind) and
-    // delivered right after "init": an emotion or speech that started while the
-    // model was loading still shows.
     const pending = new Map();
     function send(type, data) {
       if (!self.ready || !frame.contentWindow) {
@@ -121,7 +105,6 @@
 
     function note(text) { noteNode.hidden = !text; noteNode.textContent = text || ""; }
 
-    /* ----------------------------------------------------- move & resize */
     let dragStart = null;
     function drag(msg) {
       if (!opts.movable) return;
@@ -143,9 +126,7 @@
       wrap.style.right = wrap.style.bottom = "auto";
       fitBubble();
     }
-    /* Round 34 (r34-quick-agentic-2): the bubble sits centred above the companion — with the companion at the top or
-       at a side of the window (dragged there) the answer went off-screen. It moves sideways to stay inside the window
-       (the tail keeps pointing at the companion) and drops below the companion when there is no room above. */
+
     function fitBubble() {
       if (bubbleNode.hidden) return;
       bubbleNode.classList.remove("below");
@@ -189,11 +170,6 @@
       if (wrap.style.left) { const r = wrap.getBoundingClientRect(); place(r.left, r.top); }
     }
 
-    /* ------------------------------------------------------- look at cursor */
-    // Round 25: the stage measures the direction from the character's face itself, so the host only passes the
-    // pointer in the stage's CSS px (and where the stage viewport sits relative to window.screenX/Y, which the
-    // stage needs to place the global cursor of /api/companion/cursor/stream). The old host-side direction was
-    // measured from the frame centre — a cursor just below her face made her look up.
     let lookAt = 0;
     function onPointer(event) {
       if (!self.visible || !Core.normalizePrefs(getPrefs()).companion_look_at) return;
@@ -209,7 +185,6 @@
     }
     document.addEventListener("pointermove", onPointer, { passive: true });
 
-    /* --------------------------------------------------------------- audio */
     function audioContext() {
       if (!self.ctx) {
         const AC = window.AudioContext || window.webkitAudioContext;
@@ -229,8 +204,7 @@
       self.detachAudio();
       if (!element || !Core.normalizePrefs(getPrefs()).companion_lipsync) return;
       self.audio = element;
-      // captureStream taps the element without rerouting its sound: playback,
-      // volume and the output device stay exactly as the app set them.
+
       const hook = () => {
         if (self.audio !== element || self.analyser) return;
         try {
@@ -247,7 +221,7 @@
           self.analyser = analyser;
           self._source = source;
           startMouthLoop();
-        } catch (_) { /* text-driven lip sync takes over */ }
+        } catch (_) {  }
       };
       element.addEventListener("playing", hook);
       self._unhook = () => element.removeEventListener("playing", hook);
@@ -282,7 +256,6 @@
       self.raf = requestAnimationFrame(tick);
     }
 
-    /* -------------------------------------------------------- text & mood */
     self.speak = function (on, text) {
       send("speak", { on: !!on, text: on && !self.analyser ? Core.stripTags(String(text || "")).slice(0, 4000) : "" });
       if (on) self.state("speaking");
@@ -299,7 +272,7 @@
         clearTimeout(self.bubbleTimer);
         if (final) self.bubbleTimer = setTimeout(() => { bubbleNode.hidden = true; }, 7000);
       }
-      // Tags act as soon as they stream in; keywords wait for the final text.
+
       const parsed = Core.parseEmotionTags(raw, { streaming: !final });
       if (parsed.last && prefs.companion_emotions) {
         if (self._lastTag !== parsed.last.emotion + parsed.last.index) {
@@ -321,7 +294,7 @@
       send("emotion", { name: name, intensity: intensity == null ? 0.9 : intensity, hold: 8000 });
     };
     self.gesture = function (name) { if (name) send("gesture", { name: name }); };
-    /** Viseme weights from an outside amplitude source (Quick Ask level()). */
+
     self.mouth = function (weights) { send("mouth", { w: weights }); };
     self.setVisible = function (on) {
       self.visible = !!on;
@@ -348,7 +321,7 @@
     };
     function onVisibility() { send("visible", { on: self.visible && document.visibilityState !== "hidden" }); }
     document.addEventListener("visibilitychange", onVisibility);
-    // Off-screen (a collapsed panel, a scrolled list) is as good as hidden.
+
     let observer = null;
     if (typeof IntersectionObserver !== "undefined") {
       observer = new IntersectionObserver((entries) => {

@@ -1,11 +1,10 @@
-/* MemuMusic · np.js — полноэкранный «Сейчас играет» (3D-обложка/винил, живой фон,
- * визуализатор, караоке-текст), очередь с перетаскиванием и поповеры скорости,
- * таймера сна и эквалайзера. */
+
+
 const NP = (() => {
   const el = $("#np");
   let bg = null, viz = null, lyrics = null, lyricIdx = -2, lyricToken = 0, manual = 0, manualTimer = 0, tab = "lyrics", closing = 0;
-  let wordIdx = -1, offsetTimer = 0, tapSync = false;   // r41-ui: «Синхронизировать по строке» ждёт нажатия на строку   // r39-music-lyrics: активное слово (enhanced LRC), отложенное сохранение смещения
-  // r41b: timing = LyricTiming.build (where each sung line ends, pauses ≥ 4.5 s); узлы строк/пауз кешируются при отрисовке
+  let wordIdx = -1, offsetTimer = 0, tapSync = false;
+
   let timing = null, lineNodes = [], gapNodes = new Map(), wordSpans = [], gapKey = "", gapEnd = false, syncShown = "";
   const syncMode = () => { const v = typeof Cfg !== "undefined" ? Cfg.get("lyrics_sync", "smart") : "smart"; return v === "line" || v === "off" ? v : "smart"; };
   function lazyInit() {
@@ -14,10 +13,10 @@ const NP = (() => {
     viz = Fx.Visualizer($("#viz"));
     Fx.tilt($("#np-stage"), $("#np-art"));
     new ResizeObserver(() => { if (isOpen()) { viz.resize(); positionLyrics(); } }).observe(el);
-    if (typeof Cfg !== "undefined") Cfg.on(() => { if (lyrics && lyrics.synced && syncShown !== syncMode()) renderLyrics(); });   // r41b: режим из Настроек — сразу
+    if (typeof Cfg !== "undefined") Cfg.on(() => { if (lyrics && lyrics.synced && syncShown !== syncMode()) renderLyrics(); });
   }
   function isOpen() { return !el.hidden && !el.classList.contains("out"); }
-  /** design: обложка «перелетает» из мини-плеера на место в «Сейчас играет» (FLIP: один временный <img>, только transform). */
+
   function flip() {
     const from = $("#bar-img"), target = $("#np-art .mm-np-cover");
     if (!from || !from.getAttribute("src") || Theme.ui.motion !== "full" || Theme.ui.npStyle === "full" || root.hasAttribute("data-calm") || Fx.reduce.matches || !el.animate) return false;
@@ -47,8 +46,8 @@ const NP = (() => {
     setColors(paletteFor(Player.current() || { id: "memu" }).map((c, i) => getComputedStyle(root).getPropertyValue(["--tint", "--tint-2", "--tint-3"][i]).trim() || c));
     onTrack(Player.current(), true);
     applyCalm();
-    Theme.appbar();   // design-3: кнопки аппбара окна — по цвету плеера
-    setTimeout(() => { if (isOpen() && viz) viz.resize(); }, 650);   // кольцо — по месту обложки после анимации появления
+    Theme.appbar();
+    setTimeout(() => { if (isOpen() && viz) viz.resize(); }, 650);
     $("#np-close").focus();
   }
   function close() {
@@ -62,12 +61,12 @@ const NP = (() => {
   function setColors(colors) {
     if (!bg) return;
     const rgb = hexToRgb(colors[2]) || [20, 20, 30], light = el.hasAttribute("data-light");
-    // светлый плеер: «бумага» с лёгким оттенком обложки и пастельные пятна; тёмный — глубокий фон и насыщенные пятна
+
     const base = "#" + rgb.map((v) => Math.round(light ? 246 + (v - 128) * .03 : v * .18).toString(16).padStart(2, "0")).join("");
     bg.setColors(colors.map((c) => light ? hsl(rgbToHsl(hexToRgb(c) || [124, 92, 255])[0], 70, 80) : tone(c, 52, 45)), base);
     viz.setColors([colors[0], colors[1]]);
   }
-  /* design: стиль (обложка/винил/обложка-фон/минимал), фон (размытая обложка/градиент/однотонный) и вид визуализатора — из оформления. */
+
   function restyle() {
     const ui = Theme.ui;
     el.dataset.style = ui.npStyle; el.dataset.bg = ui.bg;
@@ -82,14 +81,13 @@ const NP = (() => {
   function applyCalm() {
     if (!viz || !isOpen()) return;
     const mode = Theme.ui.viz, style = Theme.ui.npStyle;
-    const on = mode !== "off" && style !== "minimal" && style !== "full" && !root.hasAttribute("data-calm") && !Fx.reduce.matches;   // на паузе — «дышит»
+    const on = mode !== "off" && style !== "minimal" && style !== "full" && !root.hasAttribute("data-calm") && !Fx.reduce.matches;
     $("#np-viz-toggle").setAttribute("aria-pressed", String(mode !== "off"));
     viz.setMode(mode);
     on ? viz.start() : viz.stop();
     bg.kick();
   }
-  /* r41-ui: with «light effects» (data-calm) the window paints the time only on timeupdate (~4 times a second) — the
-   * lyrics were up to 250 ms late. Karaoke keeps its own per-frame clock then, only while it is visible and playing. */
+
   const lyricFrame = () => syncLyrics(Player.times().cur);
   function lyricLoop() {
     if (isOpen() && tab === "lyrics" && lyrics && lyrics.synced && syncMode() !== "off" && Player.st.playing && root.hasAttribute("data-calm")) Fx.add(lyricFrame);
@@ -104,7 +102,7 @@ const NP = (() => {
     const title = $("#np-title");
     title.textContent = tr.title; $("#np-artist").textContent = tr.artist;
     title.title = tr.title;
-    // длинное название — в две строки и чуть мельче, а не обрезка на полуслове
+
     title.dataset.len = tr.title.length > 44 ? "xl" : tr.title.length > 26 ? "l" : "";
     $("#np-from").textContent = Player.st.from || tr.album || "MemuMusic";
     const like = $("#np-like"); like.dataset.like = tr.id; like.setAttribute("aria-pressed", String(!!tr.liked));
@@ -112,13 +110,13 @@ const NP = (() => {
     loadLyrics(tr);
     if (tab === "queue") renderQueue();
   }
-  /** Текст: скелетон не дольше 9 с, потом — понятный пустой экран с «Найти текст» / «Вставить текст». */
+
   async function loadLyrics(tr, force) {
     const token = ++lyricToken;
     const box = $("#lyrics-inner");
     lyrics = { id: tr.id, synced: null, plain: null, state: "loading" }; lyricIdx = -2; tapSync = false; timing = null;
     box.style.transform = ""; box.innerHTML = [72, 56, 64, 44].map((w) => `<div class="mm-skel mm-lyric-skel" style="width:${w}%"></div>`).join("");
-    const timeout = new Promise((ok) => setTimeout(() => ok("timeout"), 16000));   // r39: источники опрашиваются параллельно, до 12 с
+    const timeout = new Promise((ok) => setTimeout(() => ok("timeout"), 16000));
     const res = await Promise.race([API.soft("lyrics.get", force ? { id: tr.id, force: true } : { id: tr.id }, null), timeout]);
     if (token !== lyricToken) return;
     if (res === "timeout") { lyrics.state = "timeout"; renderLyrics(); return; }
@@ -129,10 +127,10 @@ const NP = (() => {
     lyrics = { id, synced: res && Array.isArray(res.synced) && res.synced.length ? res.synced : null, plain: res && res.plain,
       state: res && res.instrumental ? "instrumental" : res && res.auto_off ? "off" : "none", source: (res && res.source) || "",
       name: res && res.source === "manual" ? t("lyrics.mine") : (res && res.source_name) || "", offset: +(res && res.offset) || 0, alts: (res && res.alts) || [], choice: (res && res.choice) || 0,
-      durDiff: +(res && res.duration_diff) || 0 };   // r41-ui: the found timings are for a version of another length
+      durDiff: +(res && res.duration_diff) || 0 };
     renderLyrics();
   }
-  /** r39: строка над текстом — источник (меню вариантов), смещение −/+ 0,1 с, «Не тот текст». */
+
   function renderBar() {
     const bar = $("#ly-bar");
     if (!lyrics || (!lyrics.synced && !lyrics.plain) || tab !== "lyrics") { bar.hidden = true; return; }
@@ -163,7 +161,7 @@ const NP = (() => {
     const res = await API.soft("lyrics.choose", { id: tr.id, ...args }, null);
     if (res && lyrics.id === tr.id) setLyrics(tr.id, res);
   }
-  /** Сдвиг текста этого трека: ±0,1 с (Shift / Shift+[ ] — ±0,5 с), сохраняется с треком в библиотеке. */
+
   function nudge(delta, say) {
     const tr = Player.current(); if (!tr || !lyrics || !lyrics.synced || lyrics.id !== tr.id) return false;
     setOffset(lyrics.offset + delta);
@@ -177,16 +175,14 @@ const NP = (() => {
     clearTimeout(offsetTimer);
     offsetTimer = setTimeout(() => API.soft("lyrics.offset", { id: tr.id, offset: lyrics.offset }, null), 600);
   }
-  /** r41-ui: время по часам текста — то, что СЛЫШНО (Player.heard: каждый кадр, минус задержка вывода звука), со сдвигом
-   * трека и общим сдвигом из настроек (+ = текст позже). Постоянного опережения больше нет (было +0,08 с — текст «спешил»). */
+
   const globalOffset = () => (typeof Cfg !== "undefined" ? Number(Cfg.get("lyrics_offset_ms", 0)) || 0 : 0) / 1000;
   function lyricClock(cur) { return (Player.st.playing ? Player.heard() : cur) - lyrics.offset - globalOffset(); }
   function lineHtml(row, plain) {
     if (!row[2] || plain) return row[1] ? esc(row[1]) : "♪";
     return row[2].map(([, w], k) => `<i class="w" data-w="${k}">${esc(w)}</i>`).join("");
   }
-  /** r41b: «•••» в паузе (проигрыш ≥ 4,5 с после пропетой части и вступление) — место в списке занято всегда, точки
-   * проявляются только в паузе (без сдвига строк). */
+
   const gapHtml = (after) => `<div class="mm-ly-gap" data-g="${after}" aria-hidden="true"><i></i><i></i><i></i></div>`;
   function syncedHtml(mode) {
     const list = lyrics.synced;
@@ -204,7 +200,7 @@ const NP = (() => {
     if (!lyrics) return;
     renderBar();
     const mode = syncShown = syncMode();
-    // пустой экран, обычный текст и r41b «Синхронизация: выкл.» — без маски-затухания, прокручиваются сами
+
     $("#lyrics").classList.toggle("static", (!lyrics.synced && lyrics.state !== "loading") || (!!lyrics.synced && mode === "off"));
     $("#lyrics").dataset.sync = mode;
     lyricLoop();
@@ -228,14 +224,13 @@ const NP = (() => {
         <button type="button" class="mm-chip glass" data-ly="paste"><svg><use href="#i-plus"/></svg>${esc(t("lyrics.paste"))}</button></div></div>`;
     }
   }
-  /** «Вставить текст» и r41 «Изменить»: тот же редактор; при правке в нём уже текущий текст (LRC с метками строк и слов). */
+
   function pasteForm(initial) {
     const box = $("#lyrics-inner");
     $("#lyrics").classList.add("static");
     $("#ly-bar").hidden = true; tapSync = false; timing = null;
     box.style.transform = "";
-    // r40 (r40-music-fix): not a <form> — the module frame is sandboxed without allow-forms (and its CSP says form-action
-    // 'none'), so the browser dropped the submit and «Save» did nothing. A plain button + Ctrl/⌘+Enter.
+
     box.innerHTML = `<div class="mm-lyrics-paste"><textarea rows="9" placeholder="${esc(t("lyrics.paste_ph"))}" aria-label="${esc(t("lyrics.paste"))}"></textarea>
       <div class="mm-lyrics-acts">${lyrics && lyrics.synced ? `<button type="button" class="mm-chip glass" data-ly="end" title="${esc(t("lyrics.end_hint"))}">${icon("more")}${esc(t("lyrics.end"))}</button><span class="mm-grow"></span>` : ""}<button type="button" class="mm-chip glass" data-ly="cancel">${esc(t("lyrics.cancel"))}</button>
       <button type="button" class="mm-chip solid" data-ly="save">${icon("check")}${esc(t("lyrics.save"))}</button></div></div>`;
@@ -246,10 +241,10 @@ const NP = (() => {
   }
   function editText() {
     if (!lyrics) return "";
-    if (lyrics.synced) return lrcText(lyrics.synced);   // r41b: известный конец строки — пустой меткой «[мм:сс.xx]»
+    if (lyrics.synced) return lrcText(lyrics.synced);
     return lyrics.plain || "";
   }
-  /** «[мм:сс.xx] строка» → [[сек, строка]]; без меток — обычный текст. */
+
   function parseLrc(text) {
     const out = [];
     for (const raw of String(text || "").split(/\r?\n/)) {
@@ -264,21 +259,17 @@ const NP = (() => {
     const tr = Player.current();
     if (!tr || !String(text).trim()) { renderLyrics(); return; }
     const synced = parseLrc(text);
-    const keep = lyrics && lyrics.id === tr.id ? lyrics : null;   // r41-ui: an edit keeps the track's offset and the found variants
+    const keep = lyrics && lyrics.id === tr.id ? lyrics : null;
     lyrics = { id: tr.id, synced: synced.length >= 2 ? synced : null, plain: synced.length >= 2 ? null : String(text).trim(), state: "none",
       source: "manual", name: t("lyrics.mine"), offset: keep ? keep.offset : 0, alts: keep ? keep.alts : [], choice: keep ? keep.choice : 0, durDiff: 0 };
     renderLyrics();
     try {
-      const res = await API.call("lyrics.set", { id: tr.id, text: String(text) });   // r39: сервер разбирает и слова <мм:сс.xx>
-      if (res && lyrics.id === tr.id) setLyrics(tr.id, res);   // r40: as stored on the server
+      const res = await API.call("lyrics.set", { id: tr.id, text: String(text) });
+      if (res && lyrics.id === tr.id) setLyrics(tr.id, res);
       toast(t("lyrics.saved"));
     } catch (error) { toast(t("lyrics.save_local")); }
   }
-  /** Текущая строка — бинарным поиском по ВРЕМЕНИ ТРЕКА (audio.currentTime + смещение трека), поэтому скорость 0.5×/2×,
-   * перемотка, пауза и буферизация учитываются сами. Заливка строки/слова — переменная --lp/--wp на каждом кадре rAF
-   * (одно свойство одного элемента), а не CSS-анимация в реальных секундах (r39: при 2× она отставала вдвое).
-   * r41b: заливка идёт до КОНЦА ПРОПЕВАЕМОЙ части (LyricTiming), а не до следующей метки; в паузе ≥ 4,5 с строка
-   * остаётся пропетой, а фокус переходит на «•••». Режим «По строкам» — строка горит целиком, «Выкл.» — без синхронизации. */
+
   function syncLyrics(cur, force) {
     if (!lyrics || !lyrics.synced || !timing || el.hidden || tab !== "lyrics") return;
     const now = lyricClock(cur), pos = LyricTiming.at(timing, now), idx = pos.line;
@@ -288,14 +279,14 @@ const NP = (() => {
       lyricIdx = row; gapKey = key; wordIdx = -1; gapEnd = false;
       lineNodes.forEach((n, i) => {
         n.classList.toggle("on", i === idx && !pos.gap); n.classList.toggle("past", i < idx || (i === idx && !!pos.gap));
-        n.classList.toggle("just", i === idx && !!pos.gap);   // только что пропетая — чуть ярче остальных прошедших
+        n.classList.toggle("just", i === idx && !!pos.gap);
         n.classList.toggle("next", i === idx + 1);
         n.classList.toggle("far", Math.abs(i - idx) > 3);
         if ((i !== idx || pos.gap) && n.classList.contains("words")) $$(".w.sung, .w.on", n).forEach((w) => w.classList.remove("sung", "on"));
       });
       gapNodes.forEach((g, after) => { g.classList.toggle("on", !!pos.gap && pos.gap.after === after); g.classList.remove("end"); });
       wordSpans = idx >= 0 && !pos.gap && lineNodes[idx].classList.contains("words") ? $$(".w", lineNodes[idx]) : [];
-      // прокрутка успевает за строками и на 2×: переход короче при высокой скорости
+
       if (changed || force || pos.gap) $("#lyrics-inner").style.transitionDuration = (Math.max(.3, .85 / Math.max(1, Player.st.speed || 1))).toFixed(2) + "s";
       positionLyrics();
     }
@@ -303,7 +294,7 @@ const NP = (() => {
       const g = gapNodes.get(pos.gap.after);
       if (g) {
         g.style.setProperty("--gp", pos.gapProgress.toFixed(3));
-        const ending = pos.gapLeft < .55;   // точки «лопаются» перед следующей строкой
+        const ending = pos.gapLeft < .55;
         if (ending !== gapEnd) { gapEnd = ending; g.classList.toggle("end", ending); }
       }
       return;
@@ -315,7 +306,7 @@ const NP = (() => {
     const words = line.words;
     let w = -1;
     for (let k = 0; k < words.length && words[k].start <= now; k++) w = k;
-    const live = w >= 0 && now < words[w].end ? w : -1;   // слово звучит; после его конца (пауза внутри строки) — уже пропето
+    const live = w >= 0 && now < words[w].end ? w : -1;
     const sungTo = live >= 0 ? live : w + 1;
     if (w * 2 + (live >= 0 ? 1 : 0) !== wordIdx) {
       wordSpans.forEach((sp, k) => { sp.classList.toggle("sung", k < sungTo); sp.classList.toggle("on", k === live); });
@@ -329,7 +320,7 @@ const NP = (() => {
     const idx = timing.lines.findIndex((ln) => ln.row === lyricIdx);
     const node = (gapKey !== "" && gapNodes.get(Number(gapKey))) || lineNodes[Math.max(0, idx)];
     if (!node) return;
-    // активная (или первая) строка — на трети высоты, в светлой зоне маски, а не под затемнённым краем
+
     const y = node.offsetTop - holder.clientHeight * .34 + node.offsetHeight / 2;
     box.style.transform = `translateY(${(-y + manual).toFixed(1)}px)`;
   }
@@ -339,13 +330,13 @@ const NP = (() => {
       const tr = Player.current();
       if (ly.dataset.ly === "find" && tr) { toast(t("lyrics.searching")); loadLyrics(tr, true); }
       else if (ly.dataset.ly === "paste") pasteForm();
-      else if (ly.dataset.ly === "cancel") renderLyrics();   // renderBar() показывает строку над текстом снова
+      else if (ly.dataset.ly === "cancel") renderLyrics();
       else if (ly.dataset.ly === "save") savePasted($(".mm-lyrics-paste textarea").value);
-      else if (ly.dataset.ly === "end") insertLineEnd($(".mm-lyrics-paste textarea"), Math.max(0, lyricClock(Player.times().cur)));   // r41b: слышимое время в часах текста
+      else if (ly.dataset.ly === "end") insertLineEnd($(".mm-lyrics-paste textarea"), Math.max(0, lyricClock(Player.times().cur)));
       return;
     }
     const b = e.target.closest(".mm-lyric"); if (!b) return;
-    // r41-ui: «Синхронизировать по строке» — нажатая строка звучит СЕЙЧАС: сдвиг = слышимое время − метка строки
+
     if (tapSync && lyrics && lyrics.synced && Player.st.playing) {
       tapSync = false;
       setOffset(Player.heard() - globalOffset() - Number(b.dataset.t));
@@ -365,7 +356,7 @@ const NP = (() => {
     else if (kind === "edit") pasteForm(editText());
   });
   $("#lyrics").addEventListener("wheel", (e) => {
-    if (!lyrics || !lyrics.synced || syncShown === "off" || e.target.closest(".mm-lyrics-paste")) return;   // r41-ui: the editor scrolls itself; r41b: «выкл.» — обычная прокрутка
+    if (!lyrics || !lyrics.synced || syncShown === "off" || e.target.closest(".mm-lyrics-paste")) return;
     e.preventDefault(); manual -= e.deltaY; positionLyrics();
     clearTimeout(manualTimer); manualTimer = setTimeout(() => { manual = 0; positionLyrics(); }, 2500);
   }, { passive: false });
@@ -400,12 +391,11 @@ const NP = (() => {
     $("[data-pop=sleep]").setAttribute("aria-pressed", String(!!(st.sleepAt || st.sleepEnd)));
   }
   function relabel() { onSleep(); if (lyrics && !lyrics.synced) renderLyrics(); else renderBar(); if (tab === "queue") renderQueue(); }
-  /** После правки текста в редакторе — перечитать его, если этот трек открыт. */
+
   function reloadLyrics(id) { const tr = Player.current(); if (tr && tr.id === id && !el.hidden) loadLyrics(tr); }
   return { open, close, isOpen, setColors, applyCalm, restyle, onState, onTrack, syncLyrics, nudge, onSleep, relabel, reloadLyrics, tab: () => tab };
 })();
 
-/* ------------------------------------------------------------ очередь */
 function queueHtml() {
   const cur = Player.current(), up = Player.upcoming();
   if (!cur) return emptyState("music", t("queue.empty"), t("queue.empty_hint"));
@@ -440,7 +430,6 @@ function toggleQueueDrawer() {
 $("#queue-clear").addEventListener("click", () => Player.clearQueue());
 $("[data-close=queue-drawer]").addEventListener("click", toggleQueueDrawer);
 
-/* ------------------------------------------------------------ поповеры */
 let popCleanup = null;
 function closePop() { if (popCleanup) { popCleanup(); popCleanup = null; } $("#pop").hidden = true; }
 function openPop(kind, anchor) {
@@ -450,7 +439,7 @@ function openPop(kind, anchor) {
   pop.dataset.kind = kind;
   const st = Player.st;
   if (kind === "speed") {
-    pop.innerHTML = `<h4>${icon("speed")}${esc(t("speed.title"))}</h4><div class="mm-pop-list">${[.5, .75, .9, 1, 1.1, 1.25, 1.5, 2].map((v) => `<button type="button" role="menuitemradio" data-v="${v}" aria-checked="${st.speed === v}">${v}×${st.speed === v ? icon("check") : ""}</button>`).join("")}</div>`;   // r39-music-lib: без лишней подсказки
+    pop.innerHTML = `<h4>${icon("speed")}${esc(t("speed.title"))}</h4><div class="mm-pop-list">${[.5, .75, .9, 1, 1.1, 1.25, 1.5, 2].map((v) => `<button type="button" role="menuitemradio" data-v="${v}" aria-checked="${st.speed === v}">${v}×${st.speed === v ? icon("check") : ""}</button>`).join("")}</div>`;
     pop.onclick = (e) => { const b = e.target.closest("[data-v]"); if (b) { Player.setSpeed(Number(b.dataset.v)); closePop(); } };
   } else if (kind === "sleep") {
     const opts = [[0, t("sleep.off")], [5, t("sleep.min", { m: 5 })], [15, t("sleep.min", { m: 15 })], [30, t("sleep.min", { m: 30 })], [45, t("sleep.min", { m: 45 })], [60, t("sleep.hour")], [-1, t("sleep.end")]];

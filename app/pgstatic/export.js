@@ -1,29 +1,11 @@
-/* MemuAI — Round 29: the new chat export (PDF, Word, HTML, Markdown, JSON, text).
- *
- * MemuExport.open(chat) shows one dialog: format cards, which messages (all / a range / hand-picked),
- * what to include (reasoning, tool steps, images, formulas, code colours, metadata, timestamps, token
- * stats, a table of contents), the look (theme: light / dark / sepia / print / the app's current design,
- * fonts, size, page A4/Letter, orientation, margins, header and footer) and a live preview.
- *
- * Every visual format is built from the window's own renderer — md() with KaTeX, syntax highlighting,
- * tables, visualizations and diagrams — into one self-contained HTML document:
- *   HTML  → saved as is (KaTeX CSS and fonts, images embedded; visualizations stay interactive);
- *   PDF   → printed by a headless Edge on the server (app/chat_export_pdf.py), fallback: print dialog;
- *   DOCX  → converted on the server (app/chat_export.py): real tables, lists, Office Math formulas,
- *           coloured code, images; visualizations are snapshotted by Edge when available.
- * Files go to Downloads/MemuAI (or the native Save dialog) through /api/export/render.
- *
- * Uses app.js globals: S, PG_LANG, $, esc, api, toast, icon, panel, closePanel, md, mdUser, answerHtml,
- * visibleAnswer, hidePrivateProtocols, modelDisplayName, pref, savePreferences, copyText, revealDownload,
- * imageRenderUrl, formatMessageTime.
- */
+
+
 "use strict";
 (() => {
   if (window.MemuExport) return;
   const en = () => PG_LANG === "en";
   const t = (ru, eng) => (en() ? eng : ru);
 
-  /* ------------------------------------------------------------------ catalogues */
   const FORMATS = [
     { id: "pdf", label: "PDF", ext: "pdf", visual: true, desc: () => t("Для чтения и печати", "For reading and printing") },
     { id: "docx", label: "Word", ext: "docx", visual: true, desc: () => t("Редактируемый документ", "An editable document") },
@@ -79,8 +61,7 @@
     stats: false, toc: false, header: "", footer: "", numbers: true, range: "all", save: "downloads",
   };
 
-  /* ------------------------------------------------------------------ state */
-  let st = null;     // { chat, rows, opts, selected:Set, from, to, previewTimer, caps, busy }
+  let st = null;
 
   function loadOptions() {
     const saved = (typeof pref === "function" && pref("chat_export_options", {})) || {};
@@ -99,7 +80,7 @@
     return (chat?.messages || []).map((m, index) => ({ m, index }))
       .filter(({ m }) => !m.internal && (m.role === "user" || m.role === "assistant"));
   }
-  // Round 35 (branches): the export holds the ACTIVE branch (chat.messages); say so when other versions exist.
+
   function otherVersions() {
     try { return typeof MemuBranches !== "undefined" && st?.chat ? MemuBranches.stats({ messages: st.chat.messages || [], branches: st.chat.branches }).versions : 0; } catch (e) { return 0; }
   }
@@ -117,7 +98,6 @@
       || t("(вложения)", "(attachments)");
   }
 
-  /* ------------------------------------------------------------------ palette & CSS */
   function appPalette() {
     const cs = getComputedStyle(document.documentElement);
     const v = (name, fb) => (cs.getPropertyValue(name) || "").trim() || fb;
@@ -143,7 +123,6 @@
   }
   const monoOf = () => MONOS.find((x) => x.id === st.opts.mono) || MONOS[0];
 
-  /* A colour for the DOCX writer: «#rgb», «#rrggbb» or «rgb(…)» → «rrggbb». */
   function hex(value) {
     const s = String(value || "").trim();
     let m = /^#([0-9a-f]{6})$/i.exec(s); if (m) return m[1];
@@ -229,7 +208,6 @@ img{max-width:100%;height:auto;border-radius:6px}
 `;
   }
 
-  /* ------------------------------------------------------------------ building the document */
   function whenText(ms) {
     if (!ms) return "";
     try { return new Date(ms).toLocaleString(en() ? "en-US" : "ru-RU", { dateStyle: "medium", timeStyle: "short" }); } catch (e) { return ""; }
@@ -319,8 +297,6 @@ img{max-width:100%;height:auto;border-radius:6px}
       `<li><a href="#mx-m${r.index}">${esc(preview(r.m.content, 90))}</a></li>`).join("")}</ol></nav>`;
   }
 
-  /* Post-process rendered HTML: code headers, visualizations, diagrams, images, formulas.
-     mode: "preview" (fast, nothing fetched) | "html" | "pdf" | "docx". */
   async function finish(html, mode) {
     const host = document.createElement("div");
     host.className = "mx-export-host";
@@ -368,7 +344,7 @@ img{max-width:100%;height:auto;border-radius:6px}
         probe.remove();
       } catch (e) { srcdoc = ""; }
       if (!srcdoc) { node.outerHTML = `<p class="mx-note">[${t("визуализация", "visualization")}]</p>`; continue; }
-      // The export theme, not the window's.
+
       srcdoc = srcdoc.replace(/:root\{color-scheme:[^}]*\}/, `:root{color-scheme:${st.opts.theme === "dark" ? "dark" : "light"};--bg:${p.bg};--panel:${p.panel};--text:${p.text};--muted:${p.muted};--accent:${p.accent};--border:${p.border};--font:${fontOf().css.replace(/"/g, "'")}}`);
       const live = [...document.querySelectorAll("#messages .memuai-visual iframe")].find((f) => f.parentElement?.dataset.visual === node.dataset.visual);
       const height = Math.max(160, Math.min(900, parseInt(live?.style.height || "", 10) || 380));
@@ -394,18 +370,14 @@ img{max-width:100%;height:auto;border-radius:6px}
     return { src: canvas.toDataURL("image/png"), w };
   }
 
-  /* Diagrams and rich tables of the r29-tables-diagrams workstream (window.MemuDiagrams / MemuTables) and any
-     other inline SVG: kept as vector SVG in HTML/PDF, turned into PNG for Word. */
   async function diagrams(host, mode) {
     const D = window.MemuDiagrams, T = window.MemuTables;
     try { if (D?.hydrate) await D.hydrate(host); else if (D?.render) await D.render(host); } catch (e) {}
-    // MemuTables.hydrate is NOT called here: it adds the interactive toolbar (sort, filter, copy…) that must
-    // not end up in a file; exported tables stay plain <table>s (Word turns them into real tables).
+
     void T;
     host.querySelectorAll(".mt-bar, .mt-menu, .mt-pending").forEach((node) => node.remove());
     const blocks = [...host.querySelectorAll("[data-memu-diagram], .memu-diagram, .mx-diagram")];
-    // The export theme, not the window's: hydrate() draws with the app colours (a dark window gave a light PDF
-    // near-white chart titles/legends, black grid lines and dark Mermaid label boxes). Redraw as vector SVG.
+
     const theme = st.opts.theme === "dark" || (st.opts.theme === "app" && document.documentElement.dataset.theme !== "light") ? "dark" : "light";
     if (mode !== "docx") {
       if (!D?.toSVG) return;
@@ -417,7 +389,7 @@ img{max-width:100%;height:auto;border-radius:6px}
           stage.innerHTML = scene.svg;
           const svg = stage.querySelector("svg");
           if (svg) { svg.removeAttribute("height"); svg.style.cssText = `width:100%;height:auto;max-width:${Math.round(scene.width)}px`; }
-        } catch (e) { /* keep the app-coloured drawing */ }
+        } catch (e) {  }
       }
       return;
     }
@@ -464,7 +436,7 @@ img{max-width:100%;height:auto;border-radius:6px}
       img.removeAttribute("data-preview");
       if (!st.opts.images) { img.outerHTML = `<span class="mx-note">[${esc(img.alt || t("изображение", "image"))}]</span>`; continue; }
       if (mode === "preview") {
-        // Round 33 (r33d-media): the sandboxed preview frame cannot load our own files — embed stored pictures.
+
         if (src.startsWith("/api/pg/media/file/")) { try { img.setAttribute("src", await toDataUrl(src)); } catch (e) {} continue; }
         if (/^https?:/i.test(src) && typeof imageRenderUrl === "function") img.setAttribute("src", imageRenderUrl(src));
         continue;
@@ -500,7 +472,7 @@ img{max-width:100%;height:auto;border-radius:6px}
     const body = await finish(`<article class="mx-doc">${article}</article>`, mode);
     const p = palette();
     const target = mode === "preview" ? "preview" : mode === "print" ? "print" : mode === "html" ? "html" : "pdf";
-    // The preview frame is sandboxed (opaque origin): KaTeX fonts must come embedded, not as same-origin URLs.
+
     const katex = mode === "preview" ? `<style>${await katexCss()}</style>` : `<style id="mx-katex">/*MX-KATEX-CSS*/</style>`;
     const title = esc(st.chat?.title || "MemuAI");
     const html = `<!doctype html><html lang="${en() ? "en" : "ru"}"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
@@ -509,7 +481,6 @@ img{max-width:100%;height:auto;border-radius:6px}
     return { html, body, rows };
   }
 
-  /* ------------------------------------------------------------------ text formats */
   function textExport(format) {
     const rows = chosenRows();
     const o = st.opts;
@@ -545,13 +516,12 @@ img{max-width:100%;height:auto;border-radius:6px}
       const atts = (m.attachments || []).map((a) => a.name).filter(Boolean);
       if (atts.length) block.push((md ? "_" : "") + t("Вложения: ", "Attachments: ") + atts.join(", ") + (md ? "_" : ""));
       if (o.images) (m.images || []).filter((u) => u && u !== "__skeleton__" && !u.startsWith("data:")).forEach((u) => block.push(
-        u.startsWith("/api/pg/media/") ? `[${t("изображение", "image")}]` : md ? `![](${u})` : u));   // r33d-media: stored files have no public address
+        u.startsWith("/api/pg/media/") ? `[${t("изображение", "image")}]` : md ? `![](${u})` : u));
       out.push(block.join("\n\n"));
     }
     return out.join(md ? "\n\n---\n\n" : "\n\n");
   }
 
-  /* ------------------------------------------------------------------ PDF header / footer templates */
   function headerFooter() {
     const o = st.opts, p = palette();
     const muted = st.opts.theme === "dark" ? "#9aa3ad" : p.muted;
@@ -565,7 +535,6 @@ img{max-width:100%;height:auto;border-radius:6px}
     return { header, footer };
   }
 
-  /* ------------------------------------------------------------------ dialog */
   function seg(name, options, value) {
     return `<div class="mx-seg" role="radiogroup">${options.map(([v, label]) => `<label class="mx-seg-opt"><input type="radio" name="${name}" value="${esc(v)}" ${String(v) === String(value) ? "checked" : ""}><span>${esc(label)}</span></label>`).join("")}</div>`;
   }
@@ -732,9 +701,7 @@ img{max-width:100%;height:auto;border-radius:6px}
       const page = PAGES[st.opts.page] || PAGES.a4;
       const paperPx = ((st.opts.orientation === "landscape" ? page.h : page.w) / 25.4) * 96 + 40;
       const zoom = st.opts.format === "html" ? 1 : Math.min(1, (frame.clientWidth - 8) / paperPx);
-      // r29d-chat4: the page count used to be characters only (a report with a picture, a table, a chart and a
-      // diagram said «≈ 1 page» for ~3 pages). The sandboxed preview now measures its rendered sheet and posts the
-      // count back; the character estimate is only shown until that arrives.
+
       const landscape = st.opts.orientation === "landscape";
       const measure = st.opts.format === "html" ? "" : `<script>(()=>{const W=${(landscape ? page.h : page.w)},H=${(landscape ? page.w : page.h)},M=${MARGINS[st.opts.margins] || 20},S=${seq};
         const send=()=>{const d=document.querySelector(".mx-doc");if(!d)return;const px=96/25.4,scale=d.offsetWidth/(W*px)||1;
@@ -798,7 +765,6 @@ img{max-width:100%;height:auto;border-radius:6px}
   }
   const onResize = () => { if (document.querySelector(".mx-export")) schedulePreview(200); else window.removeEventListener("resize", onResize); };
 
-  /* ------------------------------------------------------------------ export */
   function filename() { return (st.chat?.title || t("Чат MemuAI", "MemuAI chat")).replace(/\s+/g, " ").trim().slice(0, 90); }
   function serverOptions(rows) {
     const o = st.opts;
@@ -858,7 +824,6 @@ img{max-width:100%;height:auto;border-radius:6px}
     }
   }
 
-  /* No Edge: the window's own print dialog (WebView2 «Save as PDF»). */
   async function printFallback() {
     const { html } = await buildDocument("print");
     const frame = document.createElement("iframe");
@@ -873,7 +838,6 @@ img{max-width:100%;height:auto;border-radius:6px}
     setTimeout(() => frame.remove(), 60000);
   }
 
-  /* ------------------------------------------------------------------ open */
   async function open(chat) {
     const target = chat && typeof chat === "object" ? chat : (typeof currentChat === "function" ? currentChat() : null) || { title: "", messages: S.messages };
     const rows = sourceRows(target);
@@ -887,7 +851,6 @@ img{max-width:100%;height:auto;border-radius:6px}
     try { st.caps = await api("/api/export/capabilities"); syncDialog(); } catch (e) { st.caps = { pdf: "print" }; syncDialog(); }
   }
 
-  /* Export straight from a message's context menu: everything up to / starting from it. */
   function openFrom(chat, index, direction = "from") {
     open(chat).then(() => {
       if (!st) return;

@@ -1,15 +1,11 @@
-/* MemuMusic · feat-core.js — общая логика функций раунда 38:
- * серверные настройки (Cfg ↔ settings.get/set, общие с Mini App), «библиотека изменилась» (счётчики умных плейлистов),
- * множественный выбор в списках (Ctrl/Shift/рамка), горячие клавиши (настраиваемые), перемотка колесом,
- * перетаскивание файлов и папок в окно (импорт), A-B повтор, «радио» по окончании очереди, тост с «Отменить». */
 
-/* ------------------------------------------------------------ иконки функций (дописываются в общий спрайт) */
+
 (function addFeatIcons() {
   const sprite = document.querySelector("svg symbol") && document.querySelector("svg symbol").parentNode;
   if (!sprite) return;
   const icons = {
     edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/>',
-    target: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',   // r41-ui: «по строке»
+    target: '<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>',
     image: '<rect x="3.5" y="4.5" width="17" height="15" rx="3"/><circle cx="9" cy="10" r="1.8"/><path d="m4 18 5-5 4 4 3-3 4 4"/>',
     radio: '<circle cx="12" cy="12" r="2"/><path d="M8.2 8.2a5.4 5.4 0 0 0 0 7.6M15.8 8.2a5.4 5.4 0 0 1 0 7.6M5.3 5.3a9.5 9.5 0 0 0 0 13.4M18.7 5.3a9.5 9.5 0 0 1 0 13.4"/>',
     copy: '<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>',
@@ -30,7 +26,6 @@
   sprite.insertAdjacentHTML("beforeend", Object.entries(icons).map(([id, body]) => `<symbol id="i-${id}" viewBox="0 0 24 24">${body}</symbol>`).join(""));
 })();
 
-/* ------------------------------------------------------------ серверные настройки */
 const Cfg = (() => {
   let data = {};
   const listeners = [];
@@ -44,7 +39,7 @@ const Cfg = (() => {
     listeners.forEach((fn) => fn(data));
     return data;
   }
-  /** Изменить и сохранить на сервере (Mini App увидит то же). Возвращает true при успехе. */
+
   async function set(patch) {
     Object.assign(data, patch);
     apply();
@@ -56,10 +51,8 @@ const Cfg = (() => {
   return { load, set, get: (key, fallback) => (data[key] === undefined ? fallback : data[key]), all: () => data, on: (fn) => listeners.push(fn) };
 })();
 
-/* ------------------------------------------------------------ библиотека изменилась */
 let changeTimer = 0;
-/** Любая правка библиотеки (скачали, импортировали, лайк, удалили, изменили теги) → перечитать треки и плейлисты:
- * счётчики, обложки и длительность умных плейлистов («Недавно добавленные» и т.п.) берутся из playlists.list. */
+
 function libraryChanged(opts) {
   clearTimeout(changeTimer);
   return new Promise((resolve) => {
@@ -71,7 +64,6 @@ function libraryChanged(opts) {
   });
 }
 
-/* ------------------------------------------------------------ тост с действием */
 function toastAction(text, label, run, ms) {
   const node = document.createElement("div");
   node.className = "mm-toast mm-toast-act";
@@ -84,7 +76,6 @@ function toastAction(text, label, run, ms) {
   return close;
 }
 
-/* ------------------------------------------------------------ множественный выбор */
 const Sel = (() => {
   const ids = new Set();
   let anchor = -1, list = [], opts = {};
@@ -119,7 +110,7 @@ const Sel = (() => {
     else clear();
   });
   function clear() { ids.clear(); anchor = -1; paint(); }
-  /** Клик по строке списка: обычный — выбрать одну (или играть, если в настройках «одним кликом»), Ctrl — добавить/убрать, Shift — диапазон. */
+
   function click(e, row, tracksOfList, listOpts) {
     if (list !== tracksOfList) { list = tracksOfList; ids.forEach((id) => { if (!list.some((x) => x.id === id)) ids.delete(id); }); }
     opts = listOpts || {};
@@ -135,7 +126,7 @@ const Sel = (() => {
     }
     paint();
   }
-  /** Рамка: тянем по пустому месту строки (не по кнопкам) — выбираем пересечённые строки. */
+
   function lasso(box, tracksOfList, listOpts) {
     box.addEventListener("pointerdown", (e) => {
       if (e.button !== 0 || e.target.closest("button, input, .grip") || e.target.closest(".mm-row[draggable='true']")) return;
@@ -167,16 +158,15 @@ async function likeMany(list, liked) {
   libraryChanged();
 }
 
-/* ------------------------------------------------------------ горячие клавиши */
 const HOTKEYS = [
   ["toggle", "Space"], ["next", "Shift+ArrowRight"], ["prev", "Shift+ArrowLeft"], ["seek_fwd", "ArrowRight"], ["seek_back", "ArrowLeft"],
   ["vol_up", "Shift+ArrowUp"], ["vol_down", "Shift+ArrowDown"], ["mute", "M"], ["like", "L"], ["np", "F"], ["queue", "Q"],
   ["shuffle", "Shift+S"], ["repeat", "R"], ["search", "Ctrl+K"], ["ab", "B"], ["sleep_end", "Shift+Z"], ["radio", "Shift+R"],
   ["edit", "E"], ["lyrics", "Shift+L"], ["home", "Alt+1"], ["library", "Alt+2"], ["playlists", "Alt+3"], ["history", "Alt+4"],
-  // r41-ui: the lyrics of this track earlier / later (saved with the track)
+
   ["ly_earlier", "BracketLeft"], ["ly_later", "BracketRight"], ["ly_earlier5", "Shift+BracketLeft"], ["ly_later5", "Shift+BracketRight"],
 ];
-/** Сочетание из события: «Ctrl+Shift+K», «Space», «ArrowLeft», «Alt+1». */
+
 function comboOf(e) {
   let key = e.code || e.key;
   if (/^Key[A-Z]$/.test(key)) key = key.slice(3);
@@ -206,7 +196,7 @@ function runHotkey(action) {
   };
   if (acts[action]) acts[action]();
 }
-/** Обработчик keydown окна (main.js зовёт его после Escape). true — клавиша обработана. */
+
 function handleHotkey(e) {
   if (e.target.closest && e.target.closest(".mm-flow") && /Arrow(Left|Right)$/.test(e.code) && !e.shiftKey) return false;
   const combo = comboOf(e);
@@ -221,14 +211,12 @@ function handleHotkey(e) {
   return true;
 }
 
-/* ------------------------------------------------------------ перемотка колесом над полосой времени */
 $$(".mm-seek").forEach((el) => el.addEventListener("wheel", (e) => {
   e.preventDefault();
   const step = Number(Cfg.get("seek_step", 10)) || 10;
   Player.seek(Player.times().cur - Math.sign(e.deltaY || e.deltaX) * step);
 }, { passive: false }));
 
-/* ------------------------------------------------------------ A-B повтор: метка в «Сейчас играет» */
 (function abChip() {
   const tools = $(".mm-np-tools");
   if (!tools) return;
@@ -245,7 +233,6 @@ $$(".mm-seek").forEach((el) => el.addEventListener("wheel", (e) => {
   });
 })();
 
-/* ------------------------------------------------------------ радио / микс */
 async function startRadio(track, opts) {
   const res = await API.soft("library.radio", { id: track.id, limit: 40 }, null);
   if (!res || !res.tracks || !res.tracks.length) { toast(t("radio.empty")); return; }
@@ -254,8 +241,7 @@ async function startRadio(track, opts) {
   else Player.playList(list, track.id, t("radio.from", { title: track.title }));
   toast(t("radio.started", { title: track.title }));
 }
-// r39-integ: what plays after the queue — the radio of the last track («auto radio»), otherwise the library in its order
-// (S.tracks: the library as the «Library» view sorts it); before the first track — the previous track of the library.
+
 Player.setContinue(async (last, dir) => {
   if (dir > 0 && Cfg.get("auto_radio")) {
     const res = await API.soft("library.radio", { id: last.id, limit: 40 }, null);
@@ -268,7 +254,6 @@ Player.setContinue(async (last, dir) => {
   return at > 0 ? [lib[at - 1]] : [];
 });
 
-/* ------------------------------------------------------------ перетаскивание файлов и папок (импорт) */
 const AUDIO_RE = /\.(mp3|flac|m4a|mp4|aac|ogg|oga|opus|wav|webm|wma|aiff?|alac)$/i;
 function fileDrag(e) { return !!(e.dataTransfer && [...e.dataTransfer.types].includes("Files")); }
 let fileDepth = 0;
@@ -320,10 +305,9 @@ async function importFiles(files) {
   libraryChanged({ now: true });
 }
 
-/* ------------------------------------------------------------ старт */
 Cfg.load().then(() => { if (S.view === "settings") rerender(); });
-/** «Любимые» скрыты пользователем (серверная настройка smart_hidden) — их плитку и пункт в боковой панели не показываем. */
+
 function likedHidden() { return (Cfg.get("smart_hidden", []) || []).includes("smart:liked"); }
 Cfg.on(() => renderSidePlaylists());
-/* Прослушивание засчитывается во время трека — при смене трека обновим «Самые слушаемые». */
+
 Player.on("track", () => libraryChanged({ playlistsOnly: true, quiet: true }));

@@ -1,10 +1,5 @@
-/* MemuAI Syntax — подсветка кода для MemuCode и блоков кода в чате.
- *
- * Токенизатор идёт по строкам и помнит состояние между ними: многострочные
- * комментарии, строки в тройных кавычках и шаблонные строки, а в HTML —
- * вложенные <script> и <style>. На выходе — массив строк HTML с классами
- * tok-* (цвета заданы в style.css и совпадают с палитрой VS Code).
- */
+
+
 "use strict";
 
 const MemuSyntax = (() => {
@@ -12,8 +7,6 @@ const MemuSyntax = (() => {
     (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
   const span = (cls, text) => (text ? (cls ? `<span class="tok-${cls}">${escapeHtml(text)}</span>` : escapeHtml(text)) : "");
   const words = (text) => new Set(String(text).split(/\s+/).filter(Boolean));
-
-  /* ------------------------------ языки семейства C ------------------------- */
 
   const JS_KW = words(`break case catch class const continue debugger default delete do else export extends
     finally for from function if import in instanceof let new of return static super switch throw try typeof
@@ -90,8 +83,6 @@ const MemuSyntax = (() => {
     return ALIASES[ext] || ext;
   }
 
-  /* ----------------------------- общий токенизатор -------------------------- */
-
   function codeLine(line, def, state) {
     let out = "";
     let i = 0;
@@ -100,7 +91,6 @@ const MemuSyntax = (() => {
     const note = (text) => { if (text.trim()) last = text.trim(); };
     const push = (cls, text) => { out += span(cls, text); note(text); };
 
-    // Продолжение многострочного комментария или строки.
     if (state.mode === "block") {
       const end = line.indexOf(def.block[1]);
       if (end < 0) return span("com", line);
@@ -139,7 +129,7 @@ const MemuSyntax = (() => {
         const m = rest.match(/^\[[^\]]*\]/);
         if (m) { push("tag", m[0]); i += m[0].length; continue; }
       }
-      // Строки: тройные кавычки (Python), шаблонные и обычные.
+
       if (def.triple && (rest.startsWith('"""') || rest.startsWith("'''"))) {
         const quote = rest.slice(0, 3);
         const close = rest.indexOf(quote, 3);
@@ -175,7 +165,7 @@ const MemuSyntax = (() => {
           continue;
         }
       }
-      // «/» после оператора, скобки или return — начало регулярного выражения.
+
       if (def.regex && ch === "/" && (!last || /[=(,:;!&|?{}\[\]]$/.test(last) || last === "return" || last === "typeof")) {
         const m = rest.match(/^\/(?![*/])(?:[^/\\\n\[]|\\.|\[(?:[^\]\\]|\\.)*\])+\/[dgimsuyv]*/);
         if (m) { push("str", m[0]); i += m[0].length; continue; }
@@ -221,7 +211,7 @@ const MemuSyntax = (() => {
         else if (def.builtins && def.builtins.has(text)) cls = "fn";
         else if (afterDot) cls = "prop";
         else if (def.keys && /^\s*:/.test(next) && !def.yamlKeys) cls = "attr";
-        // Имя после def/class/function/fn — определение.
+
         if (cls !== "kw" && cls !== "lit") {
           const before = line.slice(0, i).trimEnd();
           if (/\b(def|function|fn|func)$/.test(before)) cls = "fn";
@@ -246,8 +236,6 @@ const MemuSyntax = (() => {
     }
     return -1;
   }
-
-  /* ------------------------------------ CSS --------------------------------- */
 
   function cssLine(line, state) {
     let out = "";
@@ -301,7 +289,7 @@ const MemuSyntax = (() => {
         if (m) { push("lit", m[0]); i += m[0].length; continue; }
         push("punct", ch); i += 1; continue;
       }
-      // Селекторы
+
       let m = rest.match(/^[.#][\w-]+/);
       if (m) { push(ch === "." ? "type" : "fn", m[0]); i += m[0].length; continue; }
       m = rest.match(/^::?[\w-]+/);
@@ -314,8 +302,6 @@ const MemuSyntax = (() => {
     }
     return out;
   }
-
-  /* ------------------------------------ HTML -------------------------------- */
 
   function htmlLine(line, state) {
     let out = "";
@@ -330,7 +316,7 @@ const MemuSyntax = (() => {
         push("com", rest.slice(0, end + 3)); i += end + 3; state.mode = ""; continue;
       }
       if (state.mode === "script" || state.mode === "style") {
-        // Код внутри <script>/<style> — своим языком, до закрывающего тега.
+
         const closeTag = state.mode === "script" ? /<\/script\s*>/i : /<\/style\s*>/i;
         const found = rest.search(closeTag);
         const chunk = found < 0 ? rest : rest.slice(0, found);
@@ -408,8 +394,6 @@ const MemuSyntax = (() => {
     return out;
   }
 
-  /* ---------------------------------- Markdown ------------------------------ */
-
   function mdInline(text) {
     let out = "";
     let i = 0;
@@ -457,8 +441,6 @@ const MemuSyntax = (() => {
     return mdInline(line);
   }
 
-  /* ----------------------------------- общий вход ---------------------------- */
-
   const RENDER = {
     html: (line, state) => htmlLine(line, state),
     css: (line, state) => cssLine(line, state),
@@ -480,7 +462,6 @@ const MemuSyntax = (() => {
     return "";
   }
 
-  /** Подсветить текст. lang — имя файла, расширение или название языка. */
   function highlight(text, lang) {
     const lines = String(text == null ? "" : text).replace(/\r\n?/g, "\n").split("\n");
     let name = langOf(lang);
@@ -491,7 +472,6 @@ const MemuSyntax = (() => {
     });
   }
 
-  /** Подсветить одну строку без памяти о соседних (строки диффа). */
   function highlightLine(line, lang) {
     return highlight(line, lang)[0] || "";
   }

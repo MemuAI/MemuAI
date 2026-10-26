@@ -8,7 +8,6 @@ from app import pgdata, themes
 ROOT = Path(__file__).resolve().parents[1]
 PG = ROOT / "app" / "pgstatic"
 
-
 def _selectors(css: str):
     css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
     depth, buf, out, stack = 0, "", [], []
@@ -28,7 +27,6 @@ def _selectors(css: str):
         else:
             buf += ch
     return out
-
 
 class DesignsTest(unittest.TestCase):
     def test_catalogue_and_normalisation(self):
@@ -61,21 +59,16 @@ class DesignsTest(unittest.TestCase):
                     first = part.split()[0]
                     self.assertTrue(first.startswith((":root", ":where(:root")) and f'[data-design="{name}"]' in first, f"{name}: unscoped selector {part[:80]!r}")
 
-
-# --------------------------------------------------------------- Glass v2 contrast
 def _srgb_to_lin(c):
     return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-
 
 def _lin_to_srgb(c):
     c = max(0.0, min(1.0, c))
     return 12.92 * c if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
 
-
 def _hex(value):
     value = value.lstrip("#")
     return tuple(int(value[i:i + 2], 16) / 255 for i in (0, 2, 4))
-
 
 def _oklch(rgb):
     import math
@@ -88,7 +81,6 @@ def _oklch(rgb):
     bb = 0.0259040371 * l + 0.7827717662 * m - 0.8086757660 * s
     return L, math.hypot(a, bb), math.degrees(math.atan2(bb, a)) % 360
 
-
 def _from_oklch(L, C, H):
     import math
     a, b = C * math.cos(math.radians(H)), C * math.sin(math.radians(H))
@@ -100,20 +92,16 @@ def _from_oklch(L, C, H):
     bl = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s
     return tuple(_lin_to_srgb(c) for c in (r, g, bl))
 
-
 def _mix(a, b, wa):
     return tuple(x * wa + y * (1 - wa) for x, y in zip(a, b))
-
 
 def _lum(rgb):
     r, g, b = (_srgb_to_lin(c) for c in rgb)
     return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
-
 def _contrast(a, b):
     la, lb = _lum(a), _lum(b)
     return (max(la, lb) + 0.05) / (min(la, lb) + 0.05)
-
 
 class GlassContrastTest(unittest.TestCase):
     """Worst case of Glass v2: text over the thinnest pane sitting on the
@@ -142,12 +130,12 @@ class GlassContrastTest(unittest.TestCase):
                     accent, accent2 = _hex(row[mode]), _hex(row[mode + "2"])
                     base = _hex(tokens["--bg-deep"] if mode == "dark" else tokens["--bg"])
                     walls = [_mix(color, base, alpha) for color, alpha in self._blobs(mode, accent, accent2)]
-                    # dark text is threatened by dark walls, light text by bright ones
+
                     wall = max(walls, key=_lum) if mode == "dark" else min(walls, key=_lum)
                     brightness = 1.03 if mode == "dark" else 1.08
                     wall = tuple(min(1, c * brightness) for c in wall)
                     contrast_surface = variant["id"] == "contrast"
-                    # Glass v3 (Round24): neutral smoke glass — panel lifted 6 % toward white in dark mode
+
                     side_alpha = (.78 if contrast_surface else .62) if mode == "dark" else (.78 if contrast_surface else .62)
                     white = (1.0, 1.0, 1.0)
                     side_fill = _mix(panel, white, .94) if mode == "dark" else panel
@@ -163,15 +151,14 @@ class GlassContrastTest(unittest.TestCase):
 
     def test_glass_v2_material_contract(self):
         css = (PG / "designs" / "glass.css").read_text(encoding="utf-8")
-        # Round 36: the full-height sidebar/sheet panes no longer blur (perf); the composer and menus still do
+
         for needle in ("backdrop-filter: var(--g-f-composer)", "backdrop-filter: var(--g-f-thick)", "feTurbulence",
                        "mask-composite: exclude", "m-paused", "prefers-reduced-motion", "@supports (color: oklch(from red l c h))",
                        "--mx", "data-motion"):
             self.assertIn(needle, css)
-        # at most one permanently blurred pane (the composer): sidebar and sheet are tint + grain only
+
         self.assertNotIn("backdrop-filter: var(--g-f-sheet)", css)
         self.assertNotIn("topbar.appbar {\n  -webkit-backdrop-filter", css)
-
 
 if __name__ == "__main__":
     unittest.main()

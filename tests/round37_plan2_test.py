@@ -36,17 +36,16 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 MOSCOW = {"lat": 55.75, "lon": 37.62, "place": "Москва"}
 
-
 class ProductionCalendarTest(unittest.TestCase):
     def test_builtin_years_follow_the_decrees(self):
-        self.assertEqual(ext.day_type(date(2026, 1, 9), "RU"), "off")       # moved from Sat 3 Jan
+        self.assertEqual(ext.day_type(date(2026, 1, 9), "RU"), "off")
         self.assertEqual(ext.day_type(date(2026, 1, 12), "RU"), "work")
-        self.assertEqual(ext.day_type(date(2026, 3, 9), "RU"), "off")       # 8 March falls on a Sunday
+        self.assertEqual(ext.day_type(date(2026, 3, 9), "RU"), "off")
         self.assertEqual(ext.day_type(date(2026, 4, 30), "RU"), "short")
         self.assertEqual(ext.day_type(date(2026, 12, 31), "RU"), "off")
-        self.assertEqual(ext.day_type(date(2025, 11, 1), "RU"), "short")    # a working Saturday, shortened
+        self.assertEqual(ext.day_type(date(2025, 11, 1), "RU"), "short")
         self.assertTrue(ext.is_workday(date(2025, 11, 1), "RU"))
-        self.assertFalse(ext.is_workday(date(2025, 11, 3), "RU"))           # Monday moved off
+        self.assertFalse(ext.is_workday(date(2025, 11, 3), "RU"))
         self.assertEqual(ext.day_type(date(2026, 10, 13), "RU"), "work")
 
     def test_modes(self):
@@ -54,14 +53,14 @@ class ProductionCalendarTest(unittest.TestCase):
         self.assertTrue(ext.check_calendar(cond(mode="day_off"), date(2026, 1, 9)))
         self.assertFalse(ext.check_calendar(cond(mode="day_off"), date(2026, 1, 12)))
         self.assertTrue(ext.check_calendar(cond(mode="short_day"), date(2026, 11, 3)))
-        self.assertTrue(ext.check_calendar(cond(mode="holiday"), date(2026, 5, 11)))     # moved day off counts
-        self.assertTrue(ext.check_calendar(cond(mode="last_workday_week"), date(2026, 12, 30)))   # 31 Dec is off
+        self.assertTrue(ext.check_calendar(cond(mode="holiday"), date(2026, 5, 11)))
+        self.assertTrue(ext.check_calendar(cond(mode="last_workday_week"), date(2026, 12, 30)))
         self.assertFalse(ext.check_calendar(cond(mode="last_workday_week"), date(2026, 10, 15)))
         self.assertTrue(ext.check_calendar(cond(mode="last_workday_week"), date(2026, 10, 16)))
         self.assertTrue(ext.check_calendar(cond(mode="first_workday_week"), date(2026, 1, 12)))
-        self.assertTrue(ext.check_calendar(cond(mode="first_workday_week"), date(2026, 3, 10)))   # Mon 9 March off
+        self.assertTrue(ext.check_calendar(cond(mode="first_workday_week"), date(2026, 3, 10)))
         us = rules._normalize_condition({"type": "calendar", "mode": "short_day", "country": "US"})
-        self.assertTrue(ext.check_calendar(us, date(2026, 11, 25)))           # the workday before Thanksgiving
+        self.assertTrue(ext.check_calendar(us, date(2026, 11, 25)))
         for mode in ("day_off", "short_day", "first_workday_week", "last_workday_week"):
             c = cond(mode=mode)
             ru, en = rules.condition_text(c, "ru"), rules.condition_text(c, "en")
@@ -71,8 +70,8 @@ class ProductionCalendarTest(unittest.TestCase):
         codes = ("1" * 8 + "0" * 357)
         prod = ext._prod_from_codes(2031, codes, "test")
         self.assertIn(date(2031, 1, 1), prod["off"])
-        self.assertIn(date(2031, 1, 11), prod["work"])                       # Saturday marked 0 → a workday
-        self.assertIsNone(ext._prod_from_codes(2031, "10", "test"))           # wrong length
+        self.assertIn(date(2031, 1, 11), prod["work"])
+        self.assertIsNone(ext._prod_from_codes(2031, "10", "test"))
         months = [{"month": m, "days": ",".join(str(d) for d in range(1, calendar.monthrange(2031, m)[1] + 1)
                                                 if date(2031, m, d).isoweekday() >= 6)} for m in range(1, 13)]
         months[0]["days"] += ",2+,3*"
@@ -95,14 +94,14 @@ class ProductionCalendarTest(unittest.TestCase):
 
         calls = []
         with patch("httpx.get", side_effect=lambda url, **kw: calls.append(url) or Resp()):
-            self.assertIsNone(ext.production_calendar(year))                  # no fetch outside the pool
+            self.assertIsNone(ext.production_calendar(year))
             found = ext.production_calendar(year, fetch=True)
         self.assertEqual(len(calls), 1)
         self.assertIn("isdayoff.ru", calls[0])
         self.assertIn(date(year, 1, 3), found["off"])
         self.assertTrue(path.exists())
         ext._PROD.pop(year, None)
-        again = ext.production_calendar(year)                                 # from the disk cache
+        again = ext.production_calendar(year)
         self.assertEqual(again["off"], found["off"])
         path.unlink()
         ext._PROD.pop(year, None)
@@ -110,16 +109,15 @@ class ProductionCalendarTest(unittest.TestCase):
     def test_offline_falls_back_to_fixed_holidays(self):
         year = 2034
         ext._PROD.pop(year, None)
-        ext._PROD_TRIED[year] = time.time()                                    # no download in this test
+        ext._PROD_TRIED[year] = time.time()
         self.assertIsNone(ext.production_calendar(year))
-        self.assertEqual(ext.day_type(date(year, 1, 3), "RU"), "off")          # built-in New Year holidays
+        self.assertEqual(ext.day_type(date(year, 1, 3), "RU"), "off")
         self.assertEqual(ext.day_type(date(year, 2, 23), "RU"), "off")
 
     def test_needs_marks_russia_for_background_loading(self):
         rule = rules.normalize_rule({"when": [{"type": "daily", "times": ["09:00"]}],
                                      "only_if": [{"type": "calendar", "mode": "workday", "country": "RU"}]})
         self.assertIn("holidays:RU", rules.needs(rule)["ext"])
-
 
 class BackgroundTest(unittest.TestCase):
     def setUp(self):
@@ -137,8 +135,8 @@ class BackgroundTest(unittest.TestCase):
             started = time.monotonic()
             out = ext.measure(spec, 5000.0)
             self.assertLess(time.monotonic() - started, 1.5)
-            self.assertIsNone(out["weather:1.0,2.0"])                         # not loaded yet
-            out = ext.measure(spec, 5001.0)                                   # the same job, not a second one
+            self.assertIsNone(out["weather:1.0,2.0"])
+            out = ext.measure(spec, 5001.0)
             gate.set()
             for _ in range(50):
                 out = ext.measure(spec, 5002.0)
@@ -151,7 +149,6 @@ class BackgroundTest(unittest.TestCase):
         with patch.object(ext, "fetch_weather", lambda lat, lon: {"temp": -1.0}):
             ext.prefetch({"weather:3.0,4.0": {"lat": 3.0, "lon": 4.0}}, 7000.0)
         self.assertEqual(ext.weather_now("3.0,4.0", 3.0, 4.0, 7001.0, fetch=False)["temp"], -1.0)
-
 
 class WeatherTriggerTest(unittest.TestCase):
     def setUp(self):
@@ -173,9 +170,9 @@ class WeatherTriggerTest(unittest.TestCase):
         self.assertIn("начнётся дождь", rules.trigger_text(trig, "ru"))
         seq = [{"rain": True}, {"rain": False}, {"rain": True}, {"rain": False}, {"rain": True}]
         fired = self.poll(trig, seq, step=3600)
-        self.assertEqual(fired[0], [])                                       # already raining when created: no run
+        self.assertEqual(fired[0], [])
         self.assertTrue(fired[2] and fired[2][0].startswith("Начался дождь"))
-        self.assertEqual(fired[4], [])                                       # 2 h later: cool-down
+        self.assertEqual(fired[4], [])
         fired = self.poll(dict(trig, cooldown=60), seq, step=3600)
         self.assertTrue(fired[4])
 
@@ -191,7 +188,7 @@ class WeatherTriggerTest(unittest.TestCase):
 
     def test_validation_and_check(self):
         with self.assertRaises(rules.RuleError):
-            rules._normalize_trigger({"type": "watch", "source": "weather", "metric": "rain"})          # no city
+            rules._normalize_trigger({"type": "watch", "source": "weather", "metric": "rain"})
         with self.assertRaises(rules.RuleError):
             rules._normalize_trigger({"type": "watch", "source": "weather", "metric": "hail", **MOSCOW})
         with patch.object(ext, "fetch_weather", lambda lat, lon: {"temp": -3, "rain": False}):
@@ -203,7 +200,6 @@ class WeatherTriggerTest(unittest.TestCase):
         self.assertFalse(out["ok"])
         self.assertEqual(out["kind"], "network")
         self.assertIn('weather +\"metric\"'.replace("\\", ""), rules.CHAT_PROTOCOL)
-
 
 class OffConditionTest(unittest.TestCase):
     def test_off_condition_is_kept_but_not_checked(self):
@@ -219,7 +215,6 @@ class OffConditionTest(unittest.TestCase):
         out = ext.explain(rule, sample, 0, "ru", {})
         self.assertTrue(out["rows"][0]["off"])
         self.assertTrue(out["ok"])
-
 
 class MiniAppOpsTest(unittest.TestCase):
     def task(self):
@@ -258,7 +253,6 @@ class MiniAppOpsTest(unittest.TestCase):
             self.assertIn(f'"{op}"', js)
         for f in ("build.py", "MemuAI.spec", "MemuAIProxy.spec"):
             self.assertIn("app.schedule_tgapp_ops", (ROOT / f).read_text("utf-8"), f)
-
 
 class StaticTest(unittest.TestCase):
     def test_gallery_and_weather_trigger_ui(self):
@@ -302,7 +296,6 @@ console.log(JSON.stringify(window.MemuPlanTemplates.scenarios().map((s) => fill(
             for task in tasks:
                 rule = rules.normalize_rule(task["rule"])
                 self.assertTrue(rules.summary(rule, lang), task["name"])
-
 
 if __name__ == "__main__":
     unittest.main()

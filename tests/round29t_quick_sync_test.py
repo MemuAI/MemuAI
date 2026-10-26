@@ -17,11 +17,9 @@ from app import quick_apps, quick_explorer as qe, quick_extras  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def tree(folder: Path) -> dict:
     return {p.relative_to(folder).as_posix(): (p.read_bytes() if p.is_file() else None)
             for p in sorted(folder.rglob("*"))}
-
 
 class ChangeSetTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -79,10 +77,10 @@ class ChangeSetTests(unittest.TestCase):
     def test_folder_move_then_children_by_old_and_new_path(self):
         self.put("Docs/a.txt", "hello"); self.put("Docs/b.txt", "b")
         change, result, after, _undo = self.cycle([
-            {"op": "move", "path": "Docs/b.txt", "to": "Docs/b2.txt"},       # mtime of «Docs» changes …
-            {"op": "move", "path": "Docs", "to": "Documents"},               # … but that is this set itself
+            {"op": "move", "path": "Docs/b.txt", "to": "Docs/b2.txt"},
+            {"op": "move", "path": "Docs", "to": "Documents"},
             {"op": "edit", "path": "Documents/a.txt", "old_text": "hello", "new_text": "bye"},
-            {"op": "move", "path": "Docs/a.txt", "to": "x.txt"}])            # the old path → the moved file
+            {"op": "move", "path": "Docs/a.txt", "to": "x.txt"}])
         self.assertEqual([op["status"] for op in change["ops"]], ["applied"] * 4, change["ops"])
         self.assertEqual(after, {"Documents": None, "Documents/b2.txt": b"b", "x.txt": b"bye"})
 
@@ -124,7 +122,7 @@ class ChangeSetTests(unittest.TestCase):
         old = qe.UNDO_MAX_BYTES
         qe.UNDO_MAX_BYTES = 0
         try:
-            # Round 30: with the Recycle Bin on a big delete goes there; the refusal holds when it is off
+
             with mock.patch.object(qe, "_trash_on", return_value=False), self.assertRaises(qe.FolderError):
                 qe.plan_changes(self.ctx(), [{"op": "delete", "path": "big"}])
         finally:
@@ -141,7 +139,6 @@ class ChangeSetTests(unittest.TestCase):
         self.assertIn("Name new folders in Russian", qe.context_block(self.ctx(), "ru"))
         self.assertNotIn("in Russian", qe.context_block(self.ctx(), "en"))
 
-
 class NotesTests(unittest.TestCase):
     def test_crlf_notes_file_keeps_crlf_and_one_day_heading(self):
         folder = Path(tempfile.mkdtemp())
@@ -156,7 +153,6 @@ class NotesTests(unittest.TestCase):
         out = quick_extras.add_note("en", settings={"notes_dir": str(folder)}, lang="en")
         self.assertEqual(out["name"], "Быстрые заметки.md")
         self.assertEqual(sorted(p.name for p in folder.iterdir()), ["Быстрые заметки.md"])
-
 
 class CurrencyParseTests(unittest.TestCase):
     def test_more_phrasings(self):
@@ -175,7 +171,6 @@ class CurrencyParseTests(unittest.TestCase):
         self.assertEqual(rows[2], {"amount": 100, "from": "KZT", "to": None})
         self.assertIsNone(rows[3])
         self.assertEqual(rows[4], {"amount": 20, "from": "EUR", "to": "USD"})
-
 
 if __name__ == "__main__":
     unittest.main()

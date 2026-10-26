@@ -27,7 +27,6 @@ STGM_READWRITE = 0x00000002
 
 _types = None
 
-
 def _ct():
     """ctypes structures, built on first use (keeps the import cheap and portable)."""
     global _types
@@ -62,14 +61,12 @@ def _ct():
     _types = (ctypes, wintypes, GUID, PROPERTYKEY, PROPVARIANT)
     return _types
 
-
 def _method(obj, index: int, *argtypes):
     ctypes = _ct()[0]
     vtable = ctypes.cast(obj, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
     prototype = ctypes.WINFUNCTYPE(ctypes.HRESULT, ctypes.c_void_p, *argtypes)
     function = prototype(vtable[index])
     return lambda *args: function(obj, *args)
-
 
 def _release(obj) -> None:
     ctypes = _ct()[0]
@@ -80,7 +77,6 @@ def _release(obj) -> None:
         except Exception:  # noqa: BLE001
             pass
 
-
 class _Com:
     """``CoInitializeEx`` for the calling thread, balanced on exit."""
 
@@ -90,13 +86,12 @@ class _Com:
         ole32.CoInitializeEx.argtypes = [ctypes.c_void_p, ctypes.c_ulong]
         ole32.CoInitializeEx.restype = ctypes.c_long
         self.ole32 = ole32
-        self.initialized = ole32.CoInitializeEx(None, 0x2)  # COINIT_APARTMENTTHREADED
+        self.initialized = ole32.CoInitializeEx(None, 0x2)
         return self
 
     def __exit__(self, *exc) -> None:
         if self.initialized in (0, 1):
             self.ole32.CoUninitialize()
-
 
 def set_window_properties(hwnd: int, fmtid: str, props: Sequence[Tuple[int, str]]) -> bool:
     ctypes, wintypes, GUID, PROPERTYKEY, PROPVARIANT = _ct()
@@ -121,14 +116,13 @@ def set_window_properties(hwnd: int, fmtid: str, props: Sequence[Tuple[int, str]
                 keep.append(buffer)
                 value.u.pwszVal = ctypes.cast(buffer, ctypes.c_wchar_p)
                 set_value(ctypes.byref(key), ctypes.byref(value))
-            _method(store, 7)()                                   # Commit
+            _method(store, 7)()
             return True
         except OSError as exc:
             log.debug("IPropertyStore on the window failed: %s", exc)
             return False
         finally:
             _release(store)
-
 
 def _open_link(path: str, mode: int):
     """(link, persist) COM objects with ``path`` loaded, or raises OSError."""
@@ -146,13 +140,12 @@ def _open_link(path: str, mode: int):
     try:
         _method(link, 0, ctypes.POINTER(GUID), ctypes.POINTER(ctypes.c_void_p))(
             ctypes.byref(GUID.parse(IID_PERSIST_FILE)), ctypes.byref(persist))
-        _method(persist, 5, wintypes.LPCWSTR, wintypes.DWORD)(path, mode)       # IPersistFile::Load
+        _method(persist, 5, wintypes.LPCWSTR, wintypes.DWORD)(path, mode)
     except Exception:
         _release(persist)
         _release(link)
         raise
     return link, persist
-
 
 def read_shortcut(path: str) -> Optional[Tuple[str, str, int]]:
     """(target path, icon location, icon index) of a .lnk, or None."""
@@ -166,11 +159,11 @@ def read_shortcut(path: str) -> Optional[Tuple[str, str, int]]:
         try:
             target = ctypes.create_unicode_buffer(1024)
             _method(link, 3, wintypes.LPWSTR, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD)(
-                target, 1024, None, 0x4)                                         # GetPath, SLGP_RAWPATH
+                target, 1024, None, 0x4)
             icon = ctypes.create_unicode_buffer(1024)
             index = ctypes.c_int(0)
             _method(link, 16, wintypes.LPWSTR, ctypes.c_int, ctypes.POINTER(ctypes.c_int))(
-                icon, 1024, ctypes.byref(index))                                 # GetIconLocation
+                icon, 1024, ctypes.byref(index))
             return target.value, icon.value, int(index.value)
         except OSError as exc:
             log.debug("cannot read %s: %s", path, exc)
@@ -178,7 +171,6 @@ def read_shortcut(path: str) -> Optional[Tuple[str, str, int]]:
         finally:
             _release(persist)
             _release(link)
-
 
 def write_shortcut_icon(path: str, icon: str, index: int = 0) -> bool:
     """Change only the IconLocation of an existing .lnk and save it in place."""
@@ -190,8 +182,8 @@ def write_shortcut_icon(path: str, icon: str, index: int = 0) -> bool:
             log.debug("cannot open %s: %s", path, exc)
             return False
         try:
-            _method(link, 17, wintypes.LPCWSTR, ctypes.c_int)(icon, int(index))  # SetIconLocation
-            _method(persist, 6, wintypes.LPCWSTR, wintypes.BOOL)(None, True)    # Save (same file)
+            _method(link, 17, wintypes.LPCWSTR, ctypes.c_int)(icon, int(index))
+            _method(persist, 6, wintypes.LPCWSTR, wintypes.BOOL)(None, True)
             return True
         except OSError as exc:
             log.debug("cannot save %s: %s", path, exc)

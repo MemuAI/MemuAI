@@ -50,15 +50,9 @@ MAX_READ_CHARS = 100_000
 MAX_GLOB = 250
 MAX_GREP_LINES = 400
 
-
-# ---------------------------------------------------------------- file index
-
-#: Folders that hold application data or the system, never a project. A walk does not enter them when the
-#: root is a whole drive or user profile (where one ``AppData`` alone has millions of files).
 _BROAD_SKIP = {"appdata", "application data", "local settings", "windows", "program files", "program files (x86)",
                "programdata", "$recycle.bin", "system volume information", "recovery", "library", "snap",
                "winsxs", "$windows.~bt", "perflogs"}
-
 
 def is_broad_root(root: Path) -> bool:
     """A whole drive or user profile. Scanning it takes minutes and its files are not a project."""
@@ -66,7 +60,7 @@ def is_broad_root(root: Path) -> bool:
         resolved = Path(root).resolve()
     except OSError:
         return False
-    if resolved.parent == resolved:                              # C:\ or /
+    if resolved.parent == resolved:
         return True
     try:
         home = Path.home().resolve()
@@ -83,7 +77,6 @@ def is_broad_root(root: Path) -> bool:
         return False
     return "appdata" in top or {"windows", "program files"} <= top
 
-
 def _is_link(entry: "os.DirEntry") -> bool:
     """A symbolic link or a Windows junction: following it can loop or leave the project."""
     try:
@@ -94,17 +87,12 @@ def _is_link(entry: "os.DirEntry") -> bool:
     except OSError:
         return True
 
-
-#: Caches and environments that are never worth an @mention or a Glob hit even when a repository forgot to ignore
-#: them (``git ls-files -o`` lists untracked ``__pycache__/*.pyc`` of a project without a .gitignore).
 _JUNK_DIRS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", "node_modules", ".venv", "venv", ".tox"}
-
 
 def _junk(path: str) -> bool:
     """Round 34: «@cal» offered ``__pycache__/calc.cpython-312.pyc`` next to ``calc.py``."""
     parts = path.split("/")
     return any(part in _JUNK_DIRS for part in parts[:-1]) or parts[-1].endswith((".pyc", ".pyo"))
-
 
 class FileIndex:
     """Project file list for ``@`` mentions, the project overview and Glob/Grep.
@@ -136,9 +124,8 @@ class FileIndex:
         self.truncated = False
         self.source = ""
         self.broad = False
-        self.on_ready: Optional[Any] = None         # called (from the scanning thread) after each scan
+        self.on_ready: Optional[Any] = None
 
-    # ------------------------------------------------------------ public
     def invalidate(self) -> None:
         """Something changed on disk (a write, an undo): the next ``files()`` looks again."""
         self._generation += 1
@@ -170,7 +157,7 @@ class FileIndex:
         """Rebuild the list now, in the calling thread."""
         requested = time.time()
         with self._lock:
-            if self._scanned and self._at >= requested:         # another thread finished a scan meanwhile
+            if self._scanned and self._at >= requested:
                 return self._files
             self._done.clear()
             generation = self._generation
@@ -182,7 +169,7 @@ class FileIndex:
             self.source = source
             self.truncated = not complete
             self._scanned = True
-            # An invalidate() that arrived while scanning leaves the list stale, so it is looked at again.
+
             self._at = time.time() if generation == self._generation else 0.0
             self._done.set()
         callback = self.on_ready
@@ -202,7 +189,6 @@ class FileIndex:
                     "Type a path (src/) after @ to browse deeper.")
         return f"{len(self._files):,} files indexed (the project is larger than the limit)."
 
-    # ------------------------------------------------------------ scanning
     def _scan_in_background(self) -> None:
         thread = self._thread
         if thread is not None and thread.is_alive():
@@ -281,13 +267,12 @@ class FileIndex:
                         continue
                     subfolders.append((entry.path, prefix + name + "/", depth + 1))
                 else:
-                    # A link to a folder is not a folder for is_dir(follow_symlinks=False), so it
-                    # used to be listed as a "file"; a link leaving the project is never listed.
+
                     if _is_link(entry) and not self._link_is_inside_file(entry):
                         continue
                     if broad and (name.startswith(".") or name.lower() in ("ntuser.dat", "desktop.ini", "thumbs.db")
                                   or name.lower().startswith(("ntuser.", "$"))):
-                        continue                 # profile bookkeeping, not something to mention
+                        continue
                     rows.append(prefix + name)
                     if len(rows) >= limit:
                         rows.sort()
@@ -296,11 +281,10 @@ class FileIndex:
         rows.sort()
         return rows, complete
 
-
 def glob_regex(pattern: str) -> re.Pattern:
     """Glob with ``**``, ``*``, ``?``, ``[...]`` and ``{a,b}`` → compiled regex (posix paths)."""
     pattern = pattern.replace("\\", "/")
-    while pattern.startswith("./"):                 # "./src/*.py"; never lstrip("./"), which ate ".github"
+    while pattern.startswith("./"):
         pattern = pattern[2:]
     out, index = [], 0
     while index < len(pattern):
@@ -340,7 +324,6 @@ def glob_regex(pattern: str) -> re.Pattern:
         index += 1
     return re.compile("^" + "".join(out) + "$", re.I if os.name == "nt" else 0)
 
-
 def path_matches(pattern: str, rel: str) -> bool:
     """gitignore-like: a pattern without ``/`` matches the file name anywhere."""
     pattern = pattern.strip()
@@ -350,12 +333,8 @@ def path_matches(pattern: str, rel: str) -> bool:
         return bool(glob_regex(pattern).match(rel.rsplit("/", 1)[-1])) or bool(glob_regex(pattern).match(rel))
     return bool(glob_regex(pattern.lstrip("/")).match(rel))
 
-
-# ---------------------------------------------------------------- helpers
-
 def _rel(ctx: ToolContext, path: Path) -> str:
     return display_path(ctx.runtime, path)
-
 
 def _check_fresh(ctx: ToolContext, path: Path) -> None:
     """The model must have read the current version of an existing file."""
@@ -371,14 +350,12 @@ def _check_fresh(ctx: ToolContext, path: Path) -> None:
         raise ToolError(f"{_rel(ctx, path)} was modified on disk after you read it (by the user, a "
                         "formatter or a command). Read it again before editing.")
 
-
 def remember_read(ctx: ToolContext, path: Path) -> None:
     try:
         stat = path.stat()
     except OSError:
         return
     ctx.session.read_state[os.path.normcase(str(path))] = file_stamp(stat)
-
 
 def _snapshot(ctx: ToolContext, path: Path) -> None:
     base = workspace_of(ctx.runtime, path) or path.parent
@@ -387,7 +364,6 @@ def _snapshot(ctx: ToolContext, path: Path) -> None:
         code_checkpoints.require_snapshot(ctx.session.id, base, rel, label=ctx.call.name, turn=ctx.turn)
     except ValueError as exc:
         raise ToolError(str(exc)) from exc
-
 
 def _load_for_edit(path: Path) -> Tuple[str, str, str]:
     """(text with \\n, original EOL, encoding)."""
@@ -399,9 +375,7 @@ def _load_for_edit(path: Path) -> Tuple[str, str, str]:
         raise ToolError("The file is larger than 12 MB; edit it with a script via Bash instead.")
     return _lf(text), _eol(text), encoding
 
-
 _PATH_LOCKS: Dict[str, "asyncio.Lock"] = {}
-
 
 def path_lock(path: Path) -> "asyncio.Lock":
     """Writers of one file take turns: two agents (or an agent and a slow permission dialog) must not
@@ -411,7 +385,6 @@ def path_lock(path: Path) -> "asyncio.Lock":
     if lock is None:
         lock = _PATH_LOCKS[key] = asyncio.Lock()
     return lock
-
 
 def _diff_stats(diff: str) -> Tuple[int, int]:
     added = removed = 0
@@ -424,17 +397,14 @@ def _diff_stats(diff: str) -> Tuple[int, int]:
             removed += 1
     return added, removed
 
-
 def lines_word(count: int) -> str:
     return plural(count, "строка", "строки", "строк", "line", "lines")
-
 
 def _change_summary(rel: str, diff: str, created: bool = False, lines: int = 0) -> str:
     if created:
         return tr(f"Создан {rel} ({lines_word(lines)})", f"Created {rel} ({lines_word(lines)})")
     added, removed = _diff_stats(diff)
     return tr(f"Изменён {rel}: +{added} −{removed}", f"Updated {rel}: +{added} −{removed}")
-
 
 def _write(ctx: ToolContext, path: Path, text: str, *, eol: str = "\n", encoding: str = "utf-8",
            existed: bool = True) -> None:
@@ -448,7 +418,6 @@ def _write(ctx: ToolContext, path: Path, text: str, *, eol: str = "\n", encoding
     ctx.runtime.files.invalidate()
     ctx.session.note_edit(str(path), text)
 
-
 def _numbered(lines: Sequence[str], start: int) -> str:
     width = max(4, len(str(start + len(lines))))
     out = []
@@ -457,9 +426,6 @@ def _numbered(lines: Sequence[str], start: int) -> str:
             line = line[:MAX_LINE_CHARS] + f"… [{len(line) - MAX_LINE_CHARS} more characters]"
         out.append(f"{start + offset:>{width}}\t{line}")
     return "\n".join(out)
-
-
-# ---------------------------------------------------------------- Read
 
 def own_output(path: Path) -> bool:
     """Round 32: a "see more" file MemuCode itself saved for a shortened command output — reading it back is
@@ -471,13 +437,12 @@ def own_output(path: Path) -> bool:
     except (ValueError, OSError):
         pass
     try:
-        # Round 33: MemuCode's own user documentation (the built-in memucode-guide skill points at it).
+
         from ...docs import docs_dir
         path.resolve().relative_to(docs_dir().resolve())
         return path.suffix.lower() == ".md"
     except (ValueError, OSError, ImportError):
         return False
-
 
 class ReadTool(Tool):
     name = "Read"
@@ -524,7 +489,7 @@ class ReadTool(Tool):
             result = await asyncio.to_thread(_read_image, ctx, path)
             question = str(arg(args, "question", "ask", default="")).strip()
             if question:
-                result.meta["question"] = question            # the image model answers this, if the model needs one
+                result.meta["question"] = question
             return result
         if suffix == ".pdf":
             return await asyncio.to_thread(_read_pdf, ctx, path, args)
@@ -549,6 +514,7 @@ class ReadTool(Tool):
         seen = session.read_cache.get(cache_key)
         if (seen and seen[0] == signature and seen[1] == session.context_epoch
                 and (len(seen) < 4 or seen[3] == file_stamp(stat)) and not flag(args.get("force"))):
+            session.read_state[os.path.normcase(str(path))] = file_stamp(stat)
             shown_end = seen[2] if len(seen) > 2 else offset + limit - 1
             return ToolResult(ok=True, output=(
                 f"[{rel} lines {offset}-{shown_end} are unchanged since you read them "
@@ -570,8 +536,7 @@ class ReadTool(Tool):
             lines = _lf(text).split("\n")
             if lines and lines[-1] == "":
                 lines.pop()
-        # The edit freshness guard must describe the version actually read, even
-        # if a formatter/user replaces the file while it is being decoded.
+
         session.read_state[os.path.normcase(str(path))] = stamp
         after = path.stat()
         stable = stamp == file_stamp(after)
@@ -610,14 +575,12 @@ class ReadTool(Tool):
         return ToolResult(ok=True, output=body + cut_note, summary=summary,
                           meta={"lines": shown, "total": total})
 
-
 def _similar_paths(ctx: ToolContext, path: Path) -> List[str]:
     name = path.name.lower()
     files = ctx.runtime.files.files()
     names = {rel.rsplit("/", 1)[-1].lower(): rel for rel in files}
     close = difflib.get_close_matches(name, list(names), n=3, cutoff=0.6)
     return [names[item] for item in close]
-
 
 def _read_image(ctx: ToolContext, path: Path) -> ToolResult:
     try:
@@ -639,7 +602,6 @@ def _read_image(ctx: ToolContext, path: Path) -> ToolResult:
                       summary=tr(f"Изображение {width}×{height}", f"Image {width}×{height}"),
                       images=[{"media_type": "image/jpeg", "data": data, "width": frame.size[0],
                                "height": frame.size[1], "name": path.name}])
-
 
 def _read_pdf(ctx: ToolContext, path: Path, args: Dict[str, Any]) -> ToolResult:
     try:
@@ -667,7 +629,6 @@ def _read_pdf(ctx: ToolContext, path: Path, args: Dict[str, Any]) -> ToolResult:
     return ToolResult(ok=True, output=body + note,
                       summary=tr(f"PDF: страницы {first}–{last} из {total}", f"PDF: pages {first}–{last} of {total}"))
 
-
 def _read_notebook(ctx: ToolContext, path: Path) -> ToolResult:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -691,9 +652,6 @@ def _read_notebook(ctx: ToolContext, path: Path) -> ToolResult:
     return ToolResult(ok=True, output="\n\n".join(parts)[:MAX_READ_CHARS],
                       summary=tr(f"Ноутбук: {len(cells)} ячеек", f"Notebook: {len(cells)} cells"))
 
-
-# ---------------------------------------------------------------- Write
-
 class WriteTool(Tool):
     name = "Write"
     kind = "edit"
@@ -716,7 +674,7 @@ class WriteTool(Tool):
     async def prepare(self, ctx, args):
         path = resolve_path(ctx.runtime, arg(args, "file_path", "path"))
         content = next((args[name] for name in ("content", "text", "file_text", "contents")
-                        if isinstance(args.get(name), str)), None)        # "" is a real file: the empty one
+                        if isinstance(args.get(name), str)), None)
         if not isinstance(content, str):
             raise ToolError("Write needs the whole file as a string in `content`.")
         if path.is_dir():
@@ -759,19 +717,14 @@ class WriteTool(Tool):
                           summary=_change_summary(rel, "", created=True, lines=lines),
                           detail=data["after"][:3000], meta={"lines_added": lines})
 
-
-# ---------------------------------------------------------------- Edit
-
 _QUOTES = str.maketrans({"\u2018": "'", "\u2019": "'", "\u201a": "'", "\u201b": "'", "\u2032": "'",
                          "\u201c": '"', "\u201d": '"', "\u201e": '"', "\u201f": '"', "\u2033": '"',
                          "\u00a0": " ", "\u2009": " ", "\u202f": " "})
 _LINE_NUMBER = re.compile(r"^ *\d+(?:\t|\u2192|: |\| )")
 
-
 def _same_quotes(text: str) -> str:
     """Typographic quotes and odd spaces as plain ASCII — one character for one, so offsets stay valid."""
     return text.translate(_QUOTES)
-
 
 def _strip_line_numbers(text: str) -> Optional[str]:
     """``old_string`` copied from Read output together with the ``  12\\t`` prefixes → the text without them;
@@ -782,10 +735,8 @@ def _strip_line_numbers(text: str) -> Optional[str]:
         return None
     return "\n".join(_LINE_NUMBER.sub("", line, count=1) for line in lines)
 
-
 def _indent_of(line: str) -> str:
     return line[:len(line) - len(line.lstrip(" \t"))]
-
 
 def _line_spans(text: str, old: str, *, loose_indent: bool) -> List[Tuple[int, int, str]]:
     """Places where the lines of ``old`` match whole lines of ``text`` ignoring trailing whitespace (and, with
@@ -814,7 +765,6 @@ def _line_spans(text: str, old: str, *, loose_indent: bool) -> List[Tuple[int, i
                 break
     return hits
 
-
 def _retab(text: str, width: int, to_tabs: bool) -> str:
     """The leading indentation of every line of ``text`` turned into tabs (``width`` spaces each) or back."""
     out = []
@@ -828,10 +778,8 @@ def _retab(text: str, width: int, to_tabs: bool) -> str:
         out.append(lead + line[len(_indent_of(line)):])
     return "\n".join(out)
 
-
 def _indents(text: str) -> List[str]:
     return [_indent_of(line) for line in text.split("\n") if line.strip() and _indent_of(line)]
-
 
 def _tab_width(old: str, file_indent: str, file_tabs: bool) -> int:
     """How many spaces one tab stands for when the model and the file disagree about tabs: the step of the
@@ -841,7 +789,6 @@ def _tab_width(old: str, file_indent: str, file_tabs: bool) -> int:
         return math.gcd(*widths) if widths else 4
     first = _indent_of(next((line for line in old.split("\n") if line.strip()), ""))
     return len(file_indent) // len(first) if first and len(file_indent) % len(first) == 0 else 4
-
 
 def _reindent(new: str, old: str, matched: str, *, width: int = 0) -> str:
     """``new`` shifted the way the file (its ``matched`` lines) is indented relative to ``old`` (a model often drops
@@ -870,14 +817,12 @@ def _reindent(new: str, old: str, matched: str, *, width: int = 0) -> str:
             out.append(line)
     return "\n".join(out)
 
-
 def _line_numbers(text: str, needle: str, limit: int = 8) -> List[int]:
     found, position = [], text.find(needle)
     while position >= 0 and len(found) < limit:
         found.append(text.count("\n", 0, position) + 1)
         position = text.find(needle, position + max(1, len(needle)))
     return found
-
 
 def _closest_hint(text: str, old: str) -> str:
     first = next((line.strip() for line in old.split("\n") if line.strip()), "")
@@ -905,7 +850,6 @@ def _closest_hint(text: str, old: str) -> str:
     snippet = "\n".join(f"{n + 1:>5}\t{lines[n]}" for n in range(low, high))
     return f"\nThe closest text is near line {index + 1} (compare whitespace, quotes and spelling):\n{snippet}"
 
-
 def apply_edit(text: str, old: str, new: str, replace_all: bool = False) -> Tuple[str, int, bool]:
     """(new text, replacements, fuzzy?) or raises ToolError.
 
@@ -921,7 +865,7 @@ def apply_edit(text: str, old: str, new: str, replace_all: bool = False) -> Tupl
     if count == 0:
         stripped = _strip_line_numbers(old)
         if stripped is not None and stripped != old and stripped.strip():
-            # The replacement was copied the same way; a line the model added has no prefix of its own.
+
             new_stripped = "\n".join(_LINE_NUMBER.sub("", line, count=1) for line in new.split("\n"))
             try:
                 result, replaced, _fuzzy = apply_edit(text, stripped, new_stripped, replace_all)
@@ -971,7 +915,6 @@ def apply_edit(text: str, old: str, new: str, replace_all: bool = False) -> Tupl
                         "surrounding lines to make it unique, or pass replace_all: true to change every occurrence.")
     return (text.replace(old, new) if replace_all else text.replace(old, new, 1)), (count if replace_all else 1), False
 
-
 class EditTool(Tool):
     name = "Edit"
     kind = "edit"
@@ -994,8 +937,7 @@ class EditTool(Tool):
     allow_empty = ("old_string", "new_string")
 
     def check_required(self, args):
-        # ``apply_patch`` (Codex-style "*** Begin Patch" or a unified diff) is mapped here; without this the model
-        # only heard "missing file_path, old_string, new_string" and kept resending the same patch.
+
         patch = next((value for value in (args.get("input"), args.get("patch"), args.get("diff"))
                       if isinstance(value, str) and value.strip()), "")
         if patch and not args.get("old_string") and re.search(r"^(\*\*\* Begin Patch|--- |@@ )", patch, re.M):
@@ -1031,7 +973,7 @@ class EditTool(Tool):
             if before.strip():
                 raise ToolError("old_string is empty. Give the exact text to replace (copy it from a fresh Read); "
                                 f"to replace the whole of {rel} use Write.")
-            after, count, fuzzy = _lf(new), 1, False          # a file with nothing in it: the replacement is its text
+            after, count, fuzzy = _lf(new), 1, False
         else:
             after, count, fuzzy = apply_edit(before, old, new, flag(args.get("replace_all")))
         diff = unified_diff(before, after, rel, limit=600)
@@ -1051,8 +993,7 @@ class EditTool(Tool):
             if data["existed"]:
                 current, eol, encoding = await asyncio.to_thread(_load_for_edit, path)
                 if current != data["before"]:
-                    # Someone else (another agent, the user, a formatter) changed the file while this call
-                    # waited for its turn or for approval: apply the same replacement to the newer text.
+
                     old = arg(args, "old_string", "old_text", "old_str", default="")
                     new = arg(args, "new_string", "new_text", "new_str", default="")
                     try:
@@ -1071,7 +1012,6 @@ class EditTool(Tool):
         note += " (matched ignoring whitespace differences)" if data["fuzzy"] else ""
         return ToolResult(ok=True, output=f"Edited {rel}: {data['count']} replacement(s){note}.",
                           diff=diff, summary=_change_summary(rel, diff))
-
 
 class MultiEditTool(Tool):
     name = "MultiEdit"
@@ -1124,7 +1064,7 @@ class MultiEditTool(Tool):
         edits = self.edit_list(args.get("edits"))
         if not edits:
             raise ToolError("edits must be a non-empty list of {old_string, new_string}.")
-        args["edits"] = edits                      # run() and the replay in the conversation read the same list
+        args["edits"] = edits
         rel = _rel(ctx, path)
         existed = path.is_file()
         if existed:
@@ -1193,9 +1133,6 @@ class MultiEditTool(Tool):
         return ToolResult(ok=True, output=f"Applied {data['count']} edits to {rel}.{note}", diff=diff,
                           summary=_change_summary(rel, diff))
 
-
-# ---------------------------------------------------------------- Glob / Grep / LS
-
 def _search_base(ctx: ToolContext, value: Any) -> Tuple[Path, str]:
     """Folder to search and its prefix relative to the project root."""
     if not value:
@@ -1208,7 +1145,6 @@ def _search_base(ctx: ToolContext, value: Any) -> Tuple[Path, str]:
         return base, "" if prefix == "." else prefix
     except ValueError:
         return base, "\0outside"
-
 
 def _files_under(ctx: ToolContext, base: Path, prefix: str) -> List[Tuple[str, Path]]:
     """(display path, absolute path) of the files under ``base``."""
@@ -1223,7 +1159,6 @@ def _files_under(ctx: ToolContext, base: Path, prefix: str) -> List[Tuple[str, P
         rows = [rel for rel in rows if rel == prefix or rel.startswith(prefix + "/")]
     root = ctx.runtime.root
     return [(rel, root / rel) for rel in rows]
-
 
 class GlobTool(Tool):
     name = "Glob"
@@ -1247,8 +1182,7 @@ class GlobTool(Tool):
         pattern = (raw if isinstance(raw, str) else "*").strip().replace("\\", "/") or "*"
         folder = arg(args, "path")
         if re.match(r"^(?:[A-Za-z]:)?/", pattern) or pattern.startswith("~"):
-            # An absolute pattern ("C:/proj/src/**/*.py", "/home/me/x/*.md"): the part before the first wildcard
-            # is the folder, the rest the pattern — matching it against relative paths found nothing.
+
             parts = os.path.expanduser(pattern).replace("\\", "/").split("/")
             cut = next((index for index, part in enumerate(parts) if any(c in part for c in "*?[{")), len(parts) - 1)
             head, tail = "/".join(parts[:cut]) or "/", "/".join(parts[cut:]) or "*"
@@ -1293,7 +1227,6 @@ class GlobTool(Tool):
                               detail="\n".join(shown[:30]))
         return await asyncio.to_thread(work)
 
-
 TYPE_GLOBS = {
     "py": "*.{py,pyi}", "js": "*.{js,jsx,mjs,cjs}", "ts": "*.{ts,tsx,mts,cts}", "go": "*.go", "rust": "*.rs",
     "rs": "*.rs", "java": "*.java", "kotlin": "*.{kt,kts}", "c": "*.{c,h}", "cpp": "*.{cpp,cc,cxx,hpp,hh,h}",
@@ -1302,7 +1235,6 @@ TYPE_GLOBS = {
     "sql": "*.sql", "sh": "*.{sh,bash,zsh}", "ps": "*.{ps1,psm1}", "vue": "*.vue", "svelte": "*.svelte",
     "xml": "*.xml", "lua": "*.lua", "dart": "*.dart", "scala": "*.scala",
 }
-
 
 def _decode_for_search(raw: bytes) -> str:
     """File bytes as text for Grep: UTF-8 (with or without BOM), UTF-16 with a BOM, else Windows-1251 — a Russian
@@ -1318,7 +1250,6 @@ def _decode_for_search(raw: bytes) -> str:
             return raw.decode("cp1251")
         except UnicodeDecodeError:
             return raw.decode("utf-8", "replace")
-
 
 class GrepTool(Tool):
     name = "Grep"
@@ -1471,7 +1402,6 @@ class GrepTool(Tool):
         body = literal_note + body
         return ToolResult(ok=True, output=body, summary=summary, detail=body[:3000])
 
-
 class LSTool(Tool):
     name = "LS"
     kind = "read"
@@ -1549,9 +1479,6 @@ class LSTool(Tool):
                               summary=tr(f"{count[0]} элементов", f"{count[0]} entries"))
         return await asyncio.to_thread(work)
 
-
-# ---------------------------------------------------------------- code navigation
-
 class OutlineTool(Tool):
     name = "Outline"
     kind = "read"
@@ -1583,7 +1510,6 @@ class OutlineTool(Tool):
         return ToolResult(ok=True, output="\n".join(rows) or "(no declarations found)",
                           summary=tr(f"{len(rows)} объявлений", f"{len(rows)} declarations"))
 
-
 class SymbolsTool(Tool):
     name = "Symbols"
     kind = "read"
@@ -1605,7 +1531,6 @@ class SymbolsTool(Tool):
         return ToolResult(ok=True, output="\n".join(rows) or f"No symbol matches {query!r}.",
                           summary=tr(f"Найдено: {len(rows)}", f"Found {len(rows)}"))
 
-
 class ProjectInfoTool(Tool):
     name = "ProjectInfo"
     kind = "read"
@@ -1618,7 +1543,6 @@ class ProjectInfoTool(Tool):
         data = await asyncio.to_thread(code_tools.tool_project_info, ctx.runtime.root, {})
         return ToolResult(ok=True, output=json.dumps(data, ensure_ascii=False, indent=1),
                           summary=", ".join(data.get("stacks") or []) or tr("Проект", "Project"))
-
 
 class GitTool(Tool):
     name = "Git"
@@ -1654,7 +1578,6 @@ class GitTool(Tool):
             return ToolResult(ok=True, output=json.dumps(data, ensure_ascii=False, indent=1), summary=summary)
         return ToolResult(ok=True, output=json.dumps(data, ensure_ascii=False, indent=1)[:60000],
                           summary=action)
-
 
 def register(registry) -> None:
     for tool in (ReadTool(), WriteTool(), EditTool(), MultiEditTool(), GlobTool(), GrepTool(), LSTool(),

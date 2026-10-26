@@ -32,18 +32,16 @@ from . import fsindex
 
 log = logging.getLogger("memuai.fsindex.ops")
 
-WAIT = 12.0               # a synchronous answer for anything that finishes this fast (almost everything)
+WAIT = 12.0
 ACTIONS = ("properties", "open_with", "shell_properties", "clip_copy", "clip_cut", "rename", "duplicate",
            "compress", "trash", "undo", "attach")
 _QUEUE: List[Any] = []
 _QLOCK = threading.Lock()
 
-
 def _mf():
     """The MemuFiles modules (lazy: nothing of MemuFiles loads before the first menu action)."""
     from .memufiles import fsops, clip, opqueue    # noqa: WPS433
     return fsops, clip, opqueue
-
 
 def queue():
     with _QLOCK:
@@ -51,10 +49,8 @@ def queue():
             _QUEUE.append(_mf()[2].OpQueue())
         return _QUEUE[0]
 
-
 def tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 MESSAGES = {
     "protected": ("Это системная или защищённая папка — её нельзя менять отсюда.",
@@ -73,18 +69,15 @@ MESSAGES = {
     "failed": ("Не получилось.", "It didn't work."),
 }
 
-
 def message(code: str, lang: str, detail: str = "") -> str:
     ru, en = MESSAGES.get(code, MESSAGES["failed"])
     text = tr(lang, ru, en)
     return f"{text} {detail}".strip() if code == "failed" and detail else text
 
-
 class OpError(Exception):
     def __init__(self, code: str, status: int = 400, detail: str = "") -> None:
         super().__init__(code)
         self.code, self.status, self.detail = code, status, detail
-
 
 def _row(path: str) -> Dict[str, Any]:
     """The same row shape as a search result (``fsindex._result``), for the page to insert / replace in place."""
@@ -95,7 +88,6 @@ def _row(path: str) -> Dict[str, Any]:
     return {"path": path, "name": name, "dir": os.path.dirname(path), "size": 0 if is_dir else st.st_size,
             "mtime": st.st_mtime, "is_dir": is_dir, "kind": "folder" if is_dir else kind_of(name)}
 
-
 def _index_events(events: List[tuple]) -> None:
     """Our own change goes into MemuAI's index at once (live watching may be off or slow); Everything sees it itself."""
     try:
@@ -105,11 +97,9 @@ def _index_events(events: List[tuple]) -> None:
     except Exception as exc:  # noqa: BLE001
         log.debug("fsindex ops: index update failed: %s", exc)
 
-
 def _remember(paths: List[str]) -> None:
     from . import fsindex_api
     fsindex_api._remember([{"path": p} for p in paths if p])
-
 
 def _checked(path: str) -> str:
     from . import fsindex_api
@@ -124,13 +114,11 @@ def _checked(path: str) -> str:
         raise OpError("gone", 404)
     return clean
 
-
 def _wait(op: Any, timeout: float = WAIT) -> Dict[str, Any]:
     end = time.monotonic() + timeout
     while op.status not in ("done", "error", "cancelled") and time.monotonic() < end:
         time.sleep(0.03)
     return _op_reply(op)
-
 
 def _op_reply(op: Any) -> Dict[str, Any]:
     snap = op.snapshot()
@@ -148,7 +136,6 @@ def _op_reply(op: Any) -> Dict[str, Any]:
                 _index_events([("created", r["path"], "") for r in rows])
         reply["rows"] = rows
     return reply
-
 
 def _folder_stats(path: str, budget: float = 1.5, cap: int = 200000) -> Dict[str, Any]:
     """Size / file / folder count of a folder, bounded in time (a «Properties» look, not a disk scan)."""
@@ -176,7 +163,6 @@ def _folder_stats(path: str, budget: float = 1.5, cap: int = 200000) -> Dict[str
         except OSError:
             continue
     return {"size": total, "files": files, "dirs": dirs, "complete": complete}
-
 
 def run(action: str, path: str, body: Dict[str, Any], lang: str) -> Dict[str, Any]:
     fsops, clip, _opq = _mf()
@@ -263,9 +249,7 @@ def run(action: str, path: str, body: Dict[str, Any], lang: str) -> Dict[str, An
         raise OpError("failed", 400, exc.strerror or str(exc))
     raise OpError("failed")
 
-
 router = APIRouter()
-
 
 @router.post("/api/fsindex/op")
 async def api_op(request: Request):
@@ -286,7 +270,6 @@ async def api_op(request: Request):
         return JSONResponse({"error": message(code if code in MESSAGES else "failed", lang, detail), "code": code,
                              **reply}, 400)
     return {"ok": True, **reply}
-
 
 @router.get("/api/fsindex/op/{op_id}")
 async def api_op_status(op_id: str):

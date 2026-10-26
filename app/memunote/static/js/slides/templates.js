@@ -1,5 +1,5 @@
-// MemuNote Slides — a new presentation is a real OOXML package built here (theme, master, layouts,
-// notes master) and then opened by the same reader as any .pptx. Themes = colour scheme + fonts + decor.
+
+
 import { XML_HEAD, escXml } from "./xml.js";
 
 export const SIZES = { "16:9": [12192000, 6858000], "4:3": [9144000, 6858000], "16:10": [12192000, 7620000] };
@@ -73,7 +73,6 @@ function geometry(w, h) {
   };
 }
 
-// layout id, type, names; slide content placeholders: [type, idx, boxKey]
 export const LAYOUTS = [
   { key: "title", type: "title", en: "Title Slide", ru: "Титульный слайд", ph: [["ctrTitle", null, "ctrTitle"], ["subTitle", 1, "subTitle"]] },
   { key: "obj", type: "obj", en: "Title and Content", ru: "Заголовок и объект", ph: [["title", null, null], [null, 1, null]] },
@@ -167,7 +166,6 @@ export function emptySlideXml(layoutDef, lang) {
 const rels = (items) => XML_HEAD + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
   + items.map(([id, type, target]) => `<Relationship Id="${id}" Type="http://schemas.openxmlformats.org/${type}" Target="${target}"/>`).join("") + "</Relationships>";
 
-/** All parts of a new deck: {name: xmlString}. One slide with the title layout. */
 export function newPackage({ theme = THEMES[1], size = "16:9", lang = "ru", title = "" } = {}) {
   const [w, h] = SIZES[size] || SIZES["16:9"];
   const files = {};

@@ -1,18 +1,23 @@
-/* MemuAI module host.
- * One window shell, one bridge, one settings workspace. The three shipped apps
- * are packages on this surface, not screens of the chat.
- */
+
+
 "use strict";
 
 const MemuModules = (() => {
   let catalog = [];
+  let catalogLoaded = false;
+  let catalogFetched = 0;
+  let catalogJob = null;
+  let catalogRevision = 0;
+  const configureJobs = new Map();
+  let catalogError = "";
   let openId = "";
   let policy = null;
   let templates = null;
+  let templateJob = null;
   let openJob = 0;
 
   const en = () => (typeof PG_LANG !== "undefined" && PG_LANG === "en");
-  // Round 33: this page is a module's own window (/?module_app=<id>, module-apps.js) — no geometry/«open» bookkeeping.
+
   const appMode = () => (typeof document !== "undefined" && document.documentElement && document.documentElement.dataset
     && document.documentElement.dataset.moduleApp) || "";
   const MA = () => (typeof window !== "undefined" ? window.MemuModuleApps : null);
@@ -29,8 +34,6 @@ const MemuModules = (() => {
     { id: "composer", ru: "У поля ввода", en: "Composer" },
   ];
 
-  // Действие моста → нужное право. Совпадает с ACTION_PERMISSION в
-  // app/modules_host.py; тест modules_security_test сверяет обе таблицы.
   const ACTION_PERMISSION = {
     request: "chat", stream: "chat", chat_history: "chat",
     image: "media", video: "media", speak: "media", transcribe: "media",
@@ -41,7 +44,8 @@ const MemuModules = (() => {
     complete: "chat", store: "storage",
     net_import: "net-import",
     music_call: "music",
-    learn_call: "learn",   // r40-learn: MemuLearn (app/learn/api.py)
+    learn_call: "learn",
+    database_call: "database",
   };
 
   const KNOWN_ICONS = new Set(["text", "chat", "sparkle", "zap", "image", "work", "bot",
@@ -50,10 +54,10 @@ const MemuModules = (() => {
     "folder", "info", "play", "undo", "redo", "scissors", "clipboard", "branch", "pin",
     "edit", "trash", "copy", "retry", "attach", "send", "stop", "focus", "brain", "export",
     "check", "temp", "menu", "plus", "more", "close", "moon", "sun", "unread", "sidebar",
-    "back", "forward", "retry"]);
+    "back", "forward", "retry", "database", "shield", "code", "layout", "refresh", "chevron-right", "lock", "unlock"]);
 
   function moduleIcon(name, fallback = "work") {
-    // Round 39: a module row → its own icon (module-icons.js: picture or glyph squircle, the freshest catalogue row).
+
     if (name && typeof name === "object") {
       const row = catalog.find((item) => item.id === name.id) || name;
       if (window.MemuModuleIcon) return window.MemuModuleIcon.html(row);
@@ -82,6 +86,35 @@ const MemuModules = (() => {
       "files", "download", "notify", "external", "web", "clipboard", "background"];
   }
 
+  const PERMISSION_TEXT = {
+    chat: ["Общение с ИИ", "AI conversations", "Запросы к моделям и история модуля", "Model requests and this module's chat history"],
+    media: ["Изображения и звук", "Images and audio", "Создание медиа, микрофон и распознавание", "Media generation, microphone and transcription"],
+    storage: ["Сохранение данных", "Save data", "Настройки и файлы самого модуля", "This module's settings and files"],
+    models: ["Список моделей", "Model catalogue", "Выбор подключённой модели", "Choose a connected model"],
+    files: ["Чтение документов", "Read documents", "Извлечение текста из выбранных файлов", "Extract text from selected files"],
+    download: ["Скачивание файлов", "Download files", "Сохранение и передача готовых файлов", "Save and hand off generated files"],
+    notify: ["Уведомления", "Notifications", "Уведомления от модуля", "Notifications from this module"],
+    external: ["Внешние ссылки", "External links", "Открытие ссылок в браузере", "Open links in your browser"],
+    web: ["Поиск в интернете", "Web search", "Поиск и чтение веб-страниц", "Search and read web pages"],
+    clipboard: ["Буфер обмена", "Clipboard", "Чтение и копирование текста", "Read and copy text"],
+    background: ["Работа в фоне", "Background tasks", "Мониторинг и фоновые задания", "Monitoring and background jobs"],
+    "net-import": ["Импорт по ссылке", "Import from links", "Загрузка с разрешённых сайтов", "Download from approved sites"],
+    music: ["Музыкальная библиотека", "Music library", "Библиотека и воспроизведение MemuMusic", "MemuMusic library and playback"],
+    learn: ["Учебные материалы", "Learning materials", "Материалы и задания MemuLearn", "MemuLearn materials and exercises"],
+    database: ["Базы данных", "Databases", "Выбранные базы SQLite и DuckDB, SQL и подтверждаемые изменения", "Selected SQLite and DuckDB databases, SQL and confirmed changes"],
+  };
+  function permissionName(name) {
+    const text = PERMISSION_TEXT[name];
+    return text ? t(text[0], text[1]) : name;
+  }
+  function permissionOptions(selected, detailed = false) {
+    return permissionList().map((name) => {
+      const text = PERMISSION_TEXT[name];
+      return `<label class="module-check ${detailed ? "module-permission-option" : ""}"><input type="checkbox" data-perm="${esc(name)}" ${selected.includes(name) ? "checked" : ""}>
+        <span><b>${esc(permissionName(name))}</b>${detailed && text ? `<small>${esc(t(text[2], text[3]))}</small>` : ""}</span></label>`;
+    }).join("");
+  }
+
   function templateList() {
     return (templates && templates.templates) || [];
   }
@@ -107,14 +140,13 @@ const MemuModules = (() => {
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    if (options.method && options.method !== "GET" && /^\/api\/pg\/modules(?:$|\/(?:configure|code|import|restore|delete|reset|duplicate))/.test(path)) { catalogFetched = 0; catalogRevision++; }
     return data;
   }
 
-  /* --------------------------------- среда --------------------------------- */
-
   function hostTokens() {
     const style = getComputedStyle(document.documentElement);
-    // Computed values, so a user theme reaches the module exactly as painted.
+
     const names = ["--bg", "--bg-deep", "--panel", "--panel-2", "--border",
       "--control-border", "--text", "--muted", "--accent", "--accent-soft",
       "--on-accent", "--danger", "--ok", "--radius", "--radius-sm", "--radius-md", "--radius-lg",
@@ -145,15 +177,10 @@ const MemuModules = (() => {
     };
   }
 
-  /* Окна модулей. Каждое открытое окно — запись в wins: своё iframe, своя
-     политика размера и своя геометрия. openId — окно, которое сейчас активно. */
   const wins = new Map();
   const closingFrames = new Map();
   let zTop = 10;
 
-  /* Round 30: ?chrome=host — the page knows the window draws its actions
-     (Memu.toolbar), so it does not paint its own header. Stale actions of the
-     previous page go away until the new one registers its own. */
   function documentUrl(win, reload) {
     if (win) { win.toolbar = null; renderWinToolbar(win); }
     const id = win ? win.id : "";
@@ -162,13 +189,13 @@ const MemuModules = (() => {
 
   function postTo(win, message) {
     if (!win || !win.frame || !win.frame.contentWindow) return;
-    try { win.frame.contentWindow.postMessage(message, "*"); } catch (error) { /* окно грузится */ }
+    try { win.frame.contentWindow.postMessage(message, "*"); } catch (error) {  }
   }
 
   function broadcastTheme() {
     const payload = hostEnv();
     wins.forEach((win) => postTo(win, { type: "memu-module-host", action: "theme", payload }));
-    if (window.MemuModInt && window.MemuModInt.theme) window.MemuModInt.theme(payload);   // Round 38: module panels
+    if (window.MemuModInt && window.MemuModInt.theme) window.MemuModInt.theme(payload);
   }
 
   function broadcastEvent(name, data) {
@@ -176,25 +203,29 @@ const MemuModules = (() => {
       payload: { name, data: data || {} } }));
   }
 
-  /* --------------------------------- каталог -------------------------------- */
-
   let removedBuiltins = [];
 
   async function refresh() {
-    try {
-      const data = await apiJson("/api/pg/modules");
-      catalog = data.modules || [];
-      removedBuiltins = data.removed || [];
-    } catch (error) {
-      catalog = [];
-    }
-    renderLaunchers();
-    renderOpenState();
-    registerSettingsSearch();
+    if (catalogJob) return catalogJob;
+    const revision = catalogRevision;
+    catalogJob = (async () => {
+      try {
+        const data = await apiJson("/api/pg/modules");
+        if (revision !== catalogRevision) return;
+        if (!Array.isArray(data.modules)) throw new Error(t("Сервер вернул некорректный список модулей", "The server returned an invalid module list"));
+        const changed = JSON.stringify([catalog, removedBuiltins]) !== JSON.stringify([data.modules || [], data.removed || []]);
+        catalog = data.modules || [];
+        removedBuiltins = Array.isArray(data.removed) ? data.removed : [];
+        catalogLoaded = true; catalogFetched = Date.now(); catalogError = "";
+        if (changed) { renderLaunchers(); renderOpenState(); registerSettingsSearch(); }
+      } catch (error) {
+
+        catalogError = error.message;
+      }
+    })().finally(() => { catalogJob = null; });
+    return catalogJob;
   }
 
-  /* Round 26: the Modules page is drawn only when it is opened, so the settings search (built from
-     the DOM) found neither «Создать модуль» nor a module by its name. */
   function registerSettingsSearch() {
     const K = window.MemuSettingsKit;
     if (!K?.registerSearch) return;
@@ -202,18 +233,17 @@ const MemuModules = (() => {
       { page: "modules", label_ru: "Создать модуль", label_en: "Create module", desc_ru: "Своё приложение: HTML, CSS и JavaScript", desc_en: "Your own app: HTML, CSS and JavaScript", keywords: "module модуль create создать app приложение studio", anchor: '#pane-modules [data-modules-tab="create"]' },
       { page: "modules", label_ru: "Импорт модуля", label_en: "Import a module", keywords: "import импорт module модуль file файл", anchor: '#pane-modules [data-modules-tab="import"]' },
       ...catalog.filter((row) => row.title || row.title_en).map((row) => ({ page: "modules", label_ru: row.title || row.title_en, label_en: row.title_en || row.title,
-        desc_ru: row.summary || "", desc_en: row.summary_en || row.summary || "", keywords: `module модуль ${row.id}`, anchor: `#pane-modules [data-module-card="${String(row.id).replace(/["\\]/g, "")}"]` })),
+        desc_ru: row.summary || "", desc_en: row.summary_en || row.summary || "", keywords: `module модуль ${row.id}`, anchor: `#pane-modules [data-ms-select="${String(row.id).replace(/["\\]/g, "")}"]` })),
     ]);
   }
 
   async function loadTemplates() {
     if (templates) return templates;
-    try {
-      templates = await apiJson("/api/pg/modules/templates");
-    } catch (error) {
-      templates = { templates: [], permissions: [], slots: [], icons: [] };
-    }
-    return templates;
+    if (templateJob) return templateJob;
+    templateJob = apiJson("/api/pg/modules/templates").then((data) => { templates = data; return data; })
+      .catch(() => ({ templates: [], permissions: [], slots: [], icons: [] }))
+      .finally(() => { templateJob = null; });
+    return templateJob;
   }
 
   function renderLaunchers() {
@@ -242,6 +272,8 @@ const MemuModules = (() => {
         host.appendChild(button);
       });
     markOpenLaunchers();
+    window.MemuSidebar?.apply();
+    document.dispatchEvent(new CustomEvent("memu-module-catalog-changed"));
   }
 
   function markOpenLaunchers() {
@@ -252,7 +284,7 @@ const MemuModules = (() => {
 
   function popMenu(event, items) {
     if (typeof showContextMenu !== "function") return;
-    // Клик по кнопке всплывает до document, а тот закрывает любое меню.
+
     if (event && event.stopPropagation) event.stopPropagation();
     if (event && event.preventDefault && event.type === "contextmenu") event.preventDefault();
     let x = event && event.clientX, y = event && event.clientY;
@@ -288,7 +320,7 @@ const MemuModules = (() => {
       { label: t("Скрыть кнопку", "Hide button"), icon: "close", run: async () => {
         try {
           await configure(row.id, { hidden: true });
-          await refresh();  // иначе кнопка оставалась до следующего обновления
+          await refresh();
           note(t("Кнопка скрыта", "Button hidden"), "ok");
         } catch (error) { note(error.message, "err"); }
       } },
@@ -304,8 +336,6 @@ const MemuModules = (() => {
     win.frame.src = documentUrl(win, true);
   }
 
-  /* Round 30: the window's own ⋯ — reload and layouts live here instead of two
-     more buttons in the title row (one header: name, module actions, ⋯ — × ). */
   function windowMenu(win, event, inHead) {
     const row = catalog.find((item) => item.id === win.id) || win.row;
     const anchor = event && event.currentTarget;
@@ -314,7 +344,7 @@ const MemuModules = (() => {
       { label: t("Расположение окон…", "Window layout…"), icon: "sidebar", run: () => { if (anchor && anchor.isConnected) showLayoutMenu(win, anchor); } },
     ];
     if (appMode()) {
-      // Round 33: a module's own window — Windows' caption does minimize/maximize/close.
+
       if (MA()) items.splice(1, 1, ...MA().windowMenuItems(win.id, row));
       items.push({ label: t("Закрыть", "Close"), icon: "close", danger: true,
         hint: hotkeyLabel("mod_close", "Ctrl+W"), run: () => requestClose(win) });
@@ -336,13 +366,7 @@ const MemuModules = (() => {
     try {
       await configure(row.id, { resizable: next });
       await refresh();
-      const win = wins.get(row.id);
-      if (win) {
-        const data = await apiJson("/api/pg/modules/window", { method: "POST", body: { id: row.id } });
-        win.policy = fitToViewport(data.window);
-        refreshResizers(win);
-      }
-      if ($("#pane-modules [data-view='list']")) renderList($("#pane-modules"));
+      if (currentPane === "list" && $("#pane-modules .ms-hub")) renderList($("#pane-modules"));
       note(next ? t("Размер окна можно менять", "The window can be resized")
         : t("Размер окна закреплён", "The window size is locked"), "ok");
     } catch (error) { note(error.message, "err"); }
@@ -361,15 +385,12 @@ const MemuModules = (() => {
     wins.forEach((win) => {
       const row = catalog.find((item) => item.id === win.id);
       if (!row || !row.enabled) {
-        // Выключенный модуль закрыт насовсем: без open:false окно само
-        // открывалось при следующем запуске после повторного включения.
+
         apiJson("/api/pg/modules/window", { method: "POST", body: { id: win.id, box: currentBox(win), open: false } }).catch(() => {});
         closeWindow(win, true);
       }
     });
   }
-
-  /* ---------------------------------- окно --------------------------------- */
 
   function layerArea() {
     const layer = $("#module-layer");
@@ -378,14 +399,6 @@ const MemuModules = (() => {
       : { width: window.innerWidth, height: window.innerHeight };
   }
 
-  /* ------------------------- рабочая область окон (Раунд 21) ----------------
-     Слой окон больше не равен всему окну MemuAI:
-     - при собственной строке заголовка (html[data-titlebar="custom"]) верхняя
-       полоса до низа верхней панели зарезервирована — окно модуля никогда не
-       оказывается под кнопками «свернуть / развернуть / закрыть»;
-     - «развёрнутое» окно — это лист в области содержимого рядом с боковой
-       панелью (#main-content) с отступами и скруглением, а не весь MemuAI;
-     - привязки к краям и раскладки делят ту же область содержимого. */
   const SHEET_MARGIN = 10;
   const TASKBAR_ROOM = 54;
 
@@ -393,7 +406,6 @@ const MemuModules = (() => {
     return !!(node && node.getClientRects && node.getClientRects().length);
   }
 
-  /** Высота зарезервированной полосы заголовка (px от верха окна). */
   function chromeBand() {
     const root = document.documentElement;
     if (!root || root.dataset.titlebar !== "custom") return 0;
@@ -401,15 +413,13 @@ const MemuModules = (() => {
     const bar = document.querySelector(".topbar.appbar");
     if (visibleNode(bar)) bottom = bar.getBoundingClientRect().bottom;
     const controls = document.getElementById("memu-wincontrols");
-    // Над полноэкранным оверлеем кнопки уходят в угловую полосу 32 px; полосу
-    // берём от верхней панели, чтобы окна не прыгали при открытии настроек.
+
     if (visibleNode(controls) && root.dataset.titlebarOverlay !== "true") {
       bottom = Math.max(bottom, controls.getBoundingClientRect().bottom);
     }
     return Math.max(32, Math.round(bottom));
   }
 
-  /** Область для развёрнутого листа и привязок — в координатах слоя. */
   function workArea() {
     const layer = $("#module-layer");
     const lr = layer && layer.getBoundingClientRect ? layer.getBoundingClientRect() : null;
@@ -426,20 +436,18 @@ const MemuModules = (() => {
     x = Math.max(0, x); y = Math.max(0, y);
     right = Math.min(lw, right); bottom = Math.min(lh, bottom);
     if (layer && layer.dataset && layer.dataset.taskbar === "1") bottom = Math.min(bottom, lh - TASKBAR_ROOM);
-    // Слишком узкая область (узкое окно, свёрнутое содержимое): лист занимает
-    // ширину слоя, иначе модуль стал бы нечитаемым.
+
     if (right - x < 420) { x = 0; right = lw; }
     if (bottom - y < 280) { y = 0; bottom = layer && layer.dataset && layer.dataset.taskbar === "1" ? lh - TASKBAR_ROOM : lh; }
     return { x: Math.round(x), y: Math.round(y), width: Math.round(right - x), height: Math.round(bottom - y), layerWidth: lw, layerHeight: lh };
   }
 
-  /** Прямоугольник развёрнутого листа. */
   function expandedRect(win) {
     const area = workArea();
     const m = SHEET_MARGIN;
     let x = area.x + m, width = area.width - m * 2;
     const y = area.y + m, height = Math.max(160, area.height - m * 2);
-    // Авторский минимум ширины важнее боковой панели: лист растёт влево.
+
     const minWidth = Math.min(Number(win && win.policy && win.policy.min_width) || 0, area.layerWidth - m * 2);
     if (width < minWidth) {
       const right = x + width;
@@ -458,12 +466,11 @@ const MemuModules = (() => {
     win.el.style.setProperty("--mx-h", rect.height + "px");
   }
 
-  /** Режим движения: off — без анимации, reduced — только короткое затухание. */
   function motionMode() {
     const root = document.documentElement;
     try {
       if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) return "off";
-    } catch (error) { /* старый движок */ }
+    } catch (error) {  }
     if (root.dataset.motion === "off" || (document.body && document.body.classList.contains("reduce-motion"))) return "off";
     if (root.dataset.motion === "reduced") return "reduced";
     return "full";
@@ -476,7 +483,6 @@ const MemuModules = (() => {
     } catch (error) { return fallback; }
   }
 
-  /** FLIP-переход окна между состояниями: замер → изменение → анимация. */
   function morph(win, mutate) {
     const el = win && win.el;
     if (!el || !el.getBoundingClientRect) { mutate(); return; }
@@ -486,7 +492,7 @@ const MemuModules = (() => {
     if (mode === "off" || !first || !first.width || typeof el.animate !== "function") return;
     const last = el.getBoundingClientRect();
     if (!last.width || !last.height) return;
-    if (el._memuMorph) { try { el._memuMorph.cancel(); } catch (error) { /* уже закончилась */ } }
+    if (el._memuMorph) { try { el._memuMorph.cancel(); } catch (error) {  } }
     if (mode === "reduced") {
       el._memuMorph = el.animate([{ opacity: 0.55 }, { opacity: 1 }], { duration: 140, easing: "ease-out" });
       return;
@@ -517,14 +523,13 @@ const MemuModules = (() => {
     anim.oncancel = done;
   }
 
-  /** Слой: верхняя полоса, развёрнутые и привязанные окна, панель задач. */
   let layoutQueued = false;
   function queueLayout() {
     if (layoutQueued) return;
     layoutQueued = true;
-    // Node runners (tests/modules_*_runner.cjs) have no rAF and no real layout.
+
     if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => { layoutQueued = false; layoutLayer(); });
-    else setTimeout(() => { layoutQueued = false; try { layoutLayer(); } catch (_) { /* no DOM layout here */ } }, 16);
+    else setTimeout(() => { layoutQueued = false; try { layoutLayer(); } catch (_) {  } }, 16);
   }
 
   function layoutLayer() {
@@ -569,8 +574,7 @@ const MemuModules = (() => {
   }
 
   function fitToViewport(source) {
-    // Окно никогда не больше рабочей области: иначе ручки размера и кнопки
-    // уезжают за экран. Авторский размер остаётся в политике.
+
     const area = layerArea();
     const margin = 16;
     const maxWidth = Math.max(240, Math.round(area.width) - margin);
@@ -586,8 +590,6 @@ const MemuModules = (() => {
     return next.width !== source.width || next.height !== source.height;
   }
 
-  /* Части окна. Первое окно — разметка из index.html (у неё есть id), каждое
-     следующее — её копия без id; части ищутся по data-win. */
   function parts(el) {
     const base = el === $("#module-window");
     const pick = (name, id) => (base ? document.getElementById(id) : null)
@@ -630,7 +632,7 @@ const MemuModules = (() => {
     if (!node) return;
     node.textContent = text || "";
     node.hidden = !text;
-    // «module» — the module's own quiet line (Memu.toolbar.status); otherwise MemuAI's loading pill.
+
     node.dataset.kind = kind;
   }
 
@@ -638,11 +640,6 @@ const MemuModules = (() => {
     return !!win && win.el.dataset.full === "1";
   }
 
-  /* ------------------------ единая шапка (Раунд 30) ------------------------
-     Действия модуля (Memu.toolbar) рисует окно: в обычном окне — в его
-     единственной строке заголовка, у развёрнутого листа — прямо в верхней
-     панели MemuAI (#module-headbar), а строка листа прячется. Так над модулем
-     всегда одна шапка, а не три ряда кнопок. */
   const TB = () => window.MemuModuleToolbar;
 
   function setToolbar(moduleId, payload) {
@@ -700,12 +697,10 @@ const MemuModules = (() => {
     node.querySelector('[data-mhb="menu"]').addEventListener("click", (event) => { if (headWin) windowMenu(headWin, event, true); });
     node.querySelector('[data-mhb="min"]').addEventListener("click", () => { if (headWin) minimizeWindow(headWin); });
     node.querySelector('[data-mhb="close"]').addEventListener("click", () => { if (headWin) requestClose(headWin); });
-    // Пустое место и имя модуля остаются заголовком MemuAI (titlebar.js): их
-    // тянут и разворачивают двойным щелчком, как остальную верхнюю панель.
+
     return node;
   }
 
-  /** Самый верхний видимый развёрнутый лист отдаёт свою шапку верхней панели. */
   function syncHeadbar(force) {
     const bar = document.querySelector(".topbar.appbar");
     let next = null;
@@ -763,7 +758,7 @@ const MemuModules = (() => {
   }
 
   async function open(moduleId, options) {
-    // Round 33: a module that lives in its own window is shown there, not opened twice.
+
     if (!appMode() && !(options && options.docked) && MA() && MA().redirectOpen(moduleId)) return;
     const row = catalog.find((item) => item.id === moduleId);
     if (!row) return note(t("Модуль не найден", "Module not found"), "err");
@@ -773,7 +768,7 @@ const MemuModules = (() => {
     }
     const existing = wins.get(moduleId);
     if (existing) {
-      // Уже открытое окно не перезагружается — оно выходит вперёд.
+
       if (existing.minimized) restoreWindow(existing);
       focusWindow(existing);
       return;
@@ -785,16 +780,14 @@ const MemuModules = (() => {
     } catch (error) {
       return note(error.message, "err");
     }
-    // Пока шёл запрос, окно этого модуля мог открыть другой вызов (двойной
-    // клик, восстановление после запуска). Второе окно было бы сиротой.
+
     const again = wins.get(moduleId);
     if (again) { focusWindow(again); return; }
     if (job !== openJob && wins.has(moduleId)) return;
     const layer = $("#module-layer");
     const el = createShell();
     if (!layer || !el) return;
-    // Слой показываем до расчёта геометрии: размеры окна и полоса заголовка
-    // считаются от настоящего прямоугольника слоя, а не от всего окна.
+
     if (layer.hidden) { layer.hidden = false; watchChrome(); }
     layoutLayer();
     const win = { id: moduleId, row, el, parts: parts(el), policy: fitToViewport(data.window),
@@ -812,7 +805,7 @@ const MemuModules = (() => {
     if (win.parts.title) win.parts.title.textContent = titleOf(row);
     if (win.parts.icon) win.parts.icon.innerHTML = moduleIcon(row);
     bindWindow(win);
-    // Новое окно не ложится ровно поверх уже открытого: сдвигаем каскадом.
+
     const others = wins.size - 1;
     if (others > 0 && !(win.policy.x >= 0 && win.policy.y >= 0) && !win.policy.fullscreen) {
       const area = layerArea();
@@ -838,8 +831,7 @@ const MemuModules = (() => {
     queueLayout();
     if (!appMode()) persistBox(win, { open: true }).catch(() => {});
     if (typeof recordView === "function") recordView({ type: "panel", name: "module:" + moduleId });
-    // Automated browsers (Playwright/WebDriver tests) never get the one-time hint on their own:
-    // it would cover what the test clicks. MemuModules.showHint() still shows it.
+
     const automated = typeof navigator !== "undefined" && navigator && navigator.webdriver === true;
     if (!automated && !appMode()) loadHints().then(() => { if (!uiHint("window")) setTimeout(() => showCoach(win), 700); });
   }
@@ -879,8 +871,7 @@ const MemuModules = (() => {
   let lastKnownViewport = { width: 0, height: 0 };
 
   function applyRect(win, source) {
-    // Позиция — в пикселях от левого верхнего угла MemuAI. Несдвинутое окно
-    // открывается по центру; сохранённая позиция подгоняется под экран.
+
     const el = win.el;
     const area = layerArea();
     const width = parseFloat(el.style.width) || (source && source.width) || 760;
@@ -905,8 +896,7 @@ const MemuModules = (() => {
       wins.delete(win.id);
       cancelModuleStreams(win.id);
       if (recording && recording.module === win.id) cancelRecording();
-      // Уходящая страница успевает отправить последние правки (pagehide):
-      // ещё три секунды принимаем от неё сохранение, иначе они терялись.
+
       if (win.frame && win.frame.contentWindow) {
         const source = win.frame.contentWindow;
         closingFrames.set(source, { id: win.id, frame: win.frame, row: win.row });
@@ -936,9 +926,6 @@ const MemuModules = (() => {
       .catch(() => null);
   }
 
-  /* Round 31: a close the person asked for (×, Ctrl+W, the taskbar). A module
-     that is generating, recording or reported unsaved work asks first; Memu.close()
-     from the module itself and switching the module off never ask. */
   function closeReason(win) {
     if (!win) return "";
     if (win.unsaved) {
@@ -998,7 +985,6 @@ const MemuModules = (() => {
     }
   }
 
-  // Совместимость: close() закрывает активное окно.
   async function close(instant) {
     const win = wins.get(openId);
     if (!win) {
@@ -1020,7 +1006,7 @@ const MemuModules = (() => {
     const rect = el.getBoundingClientRect();
     const full = isFullscreen(win);
     const box = {
-      // В полном экране и в привязке сохраняем прежний размер, а не весь экран.
+
       width: full ? (win.savedBox.width || win.policy.width || Math.round(rect.width)) : Math.round(rect.width),
       height: full ? (win.savedBox.height || win.policy.height || Math.round(rect.height)) : Math.round(rect.height),
       fullscreen: full,
@@ -1059,11 +1045,9 @@ const MemuModules = (() => {
       .catch(() => null);
   }
 
-  /* ------------------------------ свернуть и развернуть --------------------- */
-
   function minimizeWindow(win) {
     if (!win) return;
-    // Round 33: a module's own window minimizes to the Windows taskbar, like any app.
+
     if (appMode()) { if (MA()) MA().minimizeNative(); return; }
     win.minimized = true;
     win.el.hidden = true;
@@ -1074,7 +1058,7 @@ const MemuModules = (() => {
       else renderTaskbar();
     } else renderTaskbar();
     if (firstTime) {
-      // The first minimize says where the module went — a bubble over the module bar itself.
+
       markHint("minimize");
       const bar = $("#module-taskbar");
       const layer = $("#module-layer");
@@ -1106,13 +1090,8 @@ const MemuModules = (() => {
     focusWindow(win);
   }
 
-  /* Round 31: the module's own window controls look different from the MemuAI
-     window buttons (— □ × in the corner): «minimize» is an arrow into the
-     module bar, «close» a × in a red-on-hover pill, and every tooltip names the
-     module and the shortcut. */
   const CTRL_ICONS = {
-    // Round 33 (#7): the old arrow-into-a-line looked exactly like the modules' own «Download» button next to it.
-    // A minimize bar (the shape every window uses) + the word «Свернуть» when the header has room.
+
     minimize: '<span class="ui-icon"><svg viewBox="0 0 24 24"><path d="M6 16.5h12"/></svg></span>',
     close: '<span class="ui-icon"><svg viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></svg></span>',
   };
@@ -1121,7 +1100,7 @@ const MemuModules = (() => {
     const HK = window.MemuHotkeys;
     let combo = fallback;
     try { if (HK && typeof HK.value === "function") combo = HK.value(id, fallback); } catch (error) { combo = fallback; }
-    try { if (combo && HK && typeof HK.label === "function") return HK.label(combo); } catch (error) { /* plain text */ }
+    try { if (combo && HK && typeof HK.label === "function") return HK.label(combo); } catch (error) {  }
     return combo || "";
   }
 
@@ -1144,16 +1123,14 @@ const MemuModules = (() => {
       if (!button || typeof button.setAttribute !== "function") return;
       button.title = label;
       button.setAttribute("aria-label", label);
-      // Round 33 (#7): the word next to the glyph (shown when the header has room, modules.css).
+
       const word = button.querySelector ? button.querySelector(".module-ctl-text") : null;
       if (word) word.textContent = short;
-      // The static data-en-* labels of index.html would overwrite these on a language switch.
+
       if (typeof button.removeAttribute === "function") { button.removeAttribute("data-en-title"); button.removeAttribute("data-en-label"); }
     });
   }
 
-  /** Esc: an expanded sheet goes back to a window; a window (Esc pressed inside
-   *  the module or on its header) goes down to the module bar — «back to chat». */
   function escapeWindow(win, fromModule) {
     if (typeof document.getElementById === "function" && document.getElementById("module-coach")) { hideCoach(); markHint("window"); return true; }
     if (!win || win.minimized || overlayOpen()) return false;
@@ -1165,7 +1142,6 @@ const MemuModules = (() => {
     return true;
   }
 
-  /** Window shortcuts (the hotkeys settings page) — from MemuAI or forwarded by the bridge. */
   function windowHotkey(win, event) {
     if (!win) return false;
     const HK = window.MemuHotkeys;
@@ -1191,7 +1167,6 @@ const MemuModules = (() => {
     return false;
   }
 
-  /* Round 31: one-time hints, remembered on the server (modules/ui.json). */
   let hintsSeen = null;
   let hintsLoading = null;
   function loadHints() {
@@ -1199,7 +1174,7 @@ const MemuModules = (() => {
     if (!hintsLoading) {
       hintsLoading = apiJson("/api/pg/modules/ui-hints")
         .then((data) => { hintsSeen = new Set((data && data.seen) || []); return hintsSeen; })
-        // No answer — behave as if it was seen: a hint must never nag on every start.
+
         .catch(() => { hintsSeen = new Set(["window", "minimize"]); return hintsSeen; });
     }
     return hintsLoading;
@@ -1229,8 +1204,6 @@ const MemuModules = (() => {
     }
   }
 
-  /** The first module window explains its buttons once: minimize ≠ close, and
-   *  the × in the very corner belongs to MemuAI itself. */
   function showCoach(win, force) {
     if (!win || !wins.has(win.id) || win.minimized) return;
     if (!force && uiHint("window")) return;
@@ -1267,7 +1240,6 @@ const MemuModules = (() => {
     if (!force) markHint("window");
   }
 
-  /** The MemuAI window's own × (titlebar.js) says what it closes while a module is open. */
   function syncAppCloseHint() {
     if (typeof document.querySelector !== "function") return;
     const button = document.querySelector("#memu-wincontrols .memu-wc-close");
@@ -1286,7 +1258,6 @@ const MemuModules = (() => {
     collapse: '<span class="ui-icon"><svg viewBox="0 0 24 24"><path d="M20 10h-6V4M4 14h6v6M14 10l6.5-6.5M10 14l-6.5 6.5"/></svg></span>',
   };
 
-  /** Кнопка «развернуть / вернуть размер», подсказка Esc и событие для модуля. */
   function syncFullButton(win) {
     if (!win) return;
     const full = isFullscreen(win);
@@ -1304,7 +1275,7 @@ const MemuModules = (() => {
     const chip = win.parts.esc || (win.el.querySelector && win.el.querySelector('[data-win="esc"]'));
     if (chip) chip.hidden = !full;
     const nextState = full ? "expanded" : (win.snap ? "snapped" : "floating");
-    // The one-time hint points at buttons that move when the window changes state.
+
     if (win.el.dataset.state && win.el.dataset.state !== nextState) hideCoach();
     win.el.dataset.state = nextState;
     syncHeadbar();
@@ -1326,13 +1297,12 @@ const MemuModules = (() => {
       refreshResizers(win);
     });
     if (full && win.parts.full && document.activeElement && win.el.contains && win.el.contains(document.activeElement)) {
-      // Фокус остаётся на кнопке: повторный Enter снова разворачивает.
-      try { win.parts.full.focus({ preventScroll: true }); } catch (error) { /* старый движок */ }
+
+      try { win.parts.full.focus({ preventScroll: true }); } catch (error) {  }
     }
     persistBox(win).catch(() => {});
   }
 
-  /** Esc сворачивает развёрнутый лист активного модуля. */
   function overlayOpen() {
     return !!($(".module-layout-menu")
       || ($("#panel-back") && $("#panel-back").classList.contains("visible"))
@@ -1349,9 +1319,6 @@ const MemuModules = (() => {
     return true;
   }
 
-  /* --------------------------------- раскладки ------------------------------ */
-
-  // Прямоугольники в долях рабочей области: x, y, ширина, высота.
   const SNAPS = {
     left: [0, 0, 0.5, 1], right: [0.5, 0, 0.5, 1], top: [0, 0, 1, 0.5], bottom: [0, 0.5, 1, 0.5],
     "top-left": [0, 0, 0.5, 0.5], "top-right": [0.5, 0, 0.5, 0.5],
@@ -1364,8 +1331,7 @@ const MemuModules = (() => {
   const GAP = 8;
 
   function fracRect(frac) {
-    // Раскладки делят область содержимого рядом с боковой панелью (та же,
-    // что у развёрнутого листа); полоса панели задач в неё не входит.
+
     const area = workArea();
     const [fx, fy, fw, fh] = frac;
     const x = Math.round(area.x + area.width * fx + GAP / 2 + (fx === 0 ? GAP / 2 : 0));
@@ -1380,13 +1346,13 @@ const MemuModules = (() => {
     const wasFull = win.el.dataset.full === "1";
     if (wasFull) win.el.dataset.full = "";
     if (!win.snap) {
-      // Из развёрнутого листа возвращаемся к прежнему размеру окна, а не к листу.
+
       const now = wasFull && win.savedBox.width ? win.savedBox : win.el.getBoundingClientRect();
       win.restore = { width: Math.round(now.width), height: Math.round(now.height) };
     }
     win.snap = snapName || "custom";
     win.el.dataset.snap = win.snap;
-    // Раскладка важнее авторских границ: окно занимает ровно выбранную долю.
+
     win.el.style.width = rect.width + "px";
     win.el.style.height = rect.height + "px";
     win.el.style.left = rect.x + "px";
@@ -1429,7 +1395,6 @@ const MemuModules = (() => {
     return list;
   }
 
-  /* Раскладка всех открытых окон сразу. */
   function arrange(preset) {
     const minimized = [...wins.values()].filter((win) => win.minimized);
     if (preset !== "focus") minimized.forEach((win) => { win.minimized = false; win.el.hidden = false; });
@@ -1475,7 +1440,6 @@ const MemuModules = (() => {
     renderTaskbar();
   }
 
-  /* Меню раскладок: схемы, как в Windows, — для этого окна и для всех. */
   function layoutIcon(rects, highlight) {
     return `<svg viewBox="0 0 48 32" aria-hidden="true">${rects.map((r, i) =>
       `<rect x="${1 + r[0] * 46}" y="${1 + r[1] * 30}" width="${Math.max(2, r[2] * 46 - 2)}" height="${Math.max(2, r[3] * 30 - 2)}" rx="2.5"
@@ -1552,10 +1516,8 @@ const MemuModules = (() => {
     document.removeEventListener("keydown", layoutEscape, true);
   }
 
-  /* ------------------------------- панель задач ------------------------------ */
-
   function renderTaskbar() {
-    try { document.dispatchEvent(new CustomEvent("memu-modules-changed")); } catch (error) { /* old engine */ }
+    try { document.dispatchEvent(new CustomEvent("memu-modules-changed")); } catch (error) {  }
     markOpenLaunchers();
     syncHeadbar();
     syncAppCloseHint();
@@ -1568,12 +1530,11 @@ const MemuModules = (() => {
     const layer = $("#module-layer");
     if (layer && layer.dataset && layer.dataset.taskbar !== (show ? "1" : "")) {
       layer.dataset.taskbar = show ? "1" : "";
-      // Развёрнутый лист и привязки уступают место панели задач.
+
       if (typeof queueLayout === "function") queueLayout();
     }
     if (!show) { bar.innerHTML = ""; return; }
-    // Round 31: every open module is a pill with its own × (close just this
-    // one); a minimized module is marked and says how to bring it back.
+
     const pill = (win) => {
       const name = titleOf(win.row);
       const active = win.id === openId && !win.minimized;
@@ -1627,11 +1588,8 @@ const MemuModules = (() => {
     if (closeButton) closeButton.onclick = () => requestCloseAll();
   }
 
-  /* --------------------------------- перетаскивание -------------------------- */
-
   function shieldFrames(on) {
-    // Пока окно тянут, iframe не должен забирать события мыши: иначе движение
-    // над содержимым модуля терялось, окно «залипало» и дёргалось.
+
     const layer = $("#module-layer");
     if (layer && layer.classList) layer.classList.toggle("dragging", !!on);
   }
@@ -1697,15 +1655,14 @@ const MemuModules = (() => {
       showSnapPreview(zone);
     };
     const move = (ev) => {
-      // Простой щелчок по заголовку — не перемещение.
+
       if (!dragged && Math.abs(ev.clientX - startX) < 3 && Math.abs(ev.clientY - startY) < 3) return;
       if (!dragged) {
         dragged = true;
         shieldFrames(true);
         bar.dataset.dragging = "1";
         if (el.dataset.full === "1" || win.snap) {
-          // Как в Windows: привязанное окно при перетаскивании возвращает
-          // свой размер и остаётся под курсором в той же доле ширины.
+
           const ratio = (startX - rect.left) / Math.max(1, rect.width);
           if (el.dataset.full === "1") {
             el.dataset.full = "";
@@ -1751,13 +1708,12 @@ const MemuModules = (() => {
     const layerRect = $("#module-layer").getBoundingClientRect();
     const rect = el.getBoundingClientRect();
     const start = { left: rect.left - layerRect.left, top: rect.top - layerRect.top, width: rect.width, height: rect.height };
-    // Нижняя граница — авторский минимум, но не больше рабочей области;
-    // верхняя — авторский максимум, но не дальше края MemuAI.
+
     const minW = Math.min(win.policy.min_width, layerRect.width - 16);
     const minH = Math.min(win.policy.min_height, layerRect.height - 16);
     let frame = 0;
     let pending = null;
-    try { edge.setPointerCapture(event.pointerId); } catch (error) { /* старый движок */ }
+    try { edge.setPointerCapture(event.pointerId); } catch (error) {  }
     shieldFrames(true);
     unsnap(win, true);
     const apply = () => {
@@ -1799,7 +1755,7 @@ const MemuModules = (() => {
       edge.removeEventListener("pointermove", move);
       edge.removeEventListener("pointerup", up);
       edge.removeEventListener("pointercancel", up);
-      try { edge.releasePointerCapture(ev.pointerId); } catch (error) { /* уже отпущено */ }
+      try { edge.releasePointerCapture(ev.pointerId); } catch (error) {  }
       if (frame) cancelAnimationFrame(frame);
       if (pending) apply();
       shieldFrames(false);
@@ -1826,7 +1782,7 @@ const MemuModules = (() => {
     if (p.close && p.close.classList) p.close.classList.add("module-ctl-close");
     if (p.min && p.min.classList) p.min.classList.add("module-ctl-min");
     labelControls(p);
-    // Подсказка «Esc» у развёрнутого листа: она же кнопка возврата.
+
     const tools = el.querySelector ? el.querySelector(".module-window-tools") : null;
     if (tools && !tools.querySelector('[data-win="esc"]')) {
       const chip = document.createElement("button");
@@ -1855,7 +1811,7 @@ const MemuModules = (() => {
         const nav = pendingNavigate.get(w.id);
         if (nav) {
           pendingNavigate.delete(w.id);
-          // Модуль успевает подписаться на события до первой отрисовки.
+
           setTimeout(() => postTo(w, { type: "memu-module-host", action: "host-event", payload: { name: "navigate", data: nav } }), 60);
         }
       });
@@ -1868,9 +1824,7 @@ const MemuModules = (() => {
     if (p.menu) p.menu.addEventListener("click", (event) => { const w = current(); if (w) windowMenu(w, event); });
     const bar = p.bar;
     if (!bar) return;
-    // Двойной щелчок ловим сами: pointerdown отменяет действие по умолчанию, и
-    // браузер может не прислать dblclick. Двойной щелчок разворачивает окно
-    // на весь MemuAI и обратно, как в Windows.
+
     let lastPress = { at: 0, x: 0, y: 0 };
     bar.addEventListener("pointerdown", (event) => {
       if (event.button !== 0) return;
@@ -1916,7 +1870,7 @@ const MemuModules = (() => {
         if (el.dataset.full === "1") { applyExpanded(win); return; }
         if (win.minimized) return;
         if (win.snap && SNAPS[win.snap]) {
-          // Привязанное окно держит свою долю экрана при любом размере MemuAI.
+
           const rect = fracRect(SNAPS[win.snap]);
           Object.assign(el.style, { left: rect.x + "px", top: rect.y + "px", width: rect.width + "px", height: rect.height + "px" });
           return;
@@ -1938,9 +1892,7 @@ const MemuModules = (() => {
         }
       });
     });
-    // Esc, пока фокус в самом MemuAI, сворачивает развёрнутый лист. Слушаем в
-    // фазе захвата на window: иначе общий обработчик app.js принял бы Esc за
-    // «остановить ответ». Поля ввода и открытые меню Esc не теряют.
+
     window.addEventListener("keydown", (event) => {
       if (event.key !== "Escape" || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey) return;
       const target = event.target;
@@ -1950,10 +1902,7 @@ const MemuModules = (() => {
         event.stopImmediatePropagation();
       }
     }, true);
-    // Горячие клавиши окон, пока фокус в самом MemuAI: Alt+Shift+стрелки
-    // привязывают активное окно к краю, Alt+Shift+M сворачивает его.
-    // Round 29: сочетания из реестра hotkeys.js (Настройки → Горячие клавиши), по умолчанию Alt+Shift+….
-    // Round 31: + Ctrl+W закрывает активный модуль (то же пересылает мост из окна модуля).
+
     document.addEventListener("keydown", (event) => {
       if (event.defaultPrevented || event.repeat) return;
       const win = wins.get(openId);
@@ -1962,11 +1911,6 @@ const MemuModules = (() => {
     });
   }
 
-/* --------------------------------- мост ---------------------------------- */
-
-  /* Предпросмотр в мастерской — тот же мост, но без записи на диск и без
-     обращений к моделям: раньше он не отвечал вовсе, и Memu.models() в
-     предпросмотре висел двадцать секунд до тайм-аута. */
   function onPreviewMessage(event, preview) {
     const data = event.data || {};
     if (data.type !== "memu-module") return;
@@ -1974,7 +1918,7 @@ const MemuModules = (() => {
       try {
         preview.contentWindow.postMessage({ type: "memu-module-result", id: data.id,
           result: result === undefined ? null : result, error: error ? String(error) : "" }, "*");
-      } catch (problem) { /* предпросмотр перерисован */ }
+      } catch (problem) {  }
     };
     const payload = data.payload || {};
     const permissions = codeState && Array.isArray(codeState.previewPermissions) ? codeState.previewPermissions : [];
@@ -2003,15 +1947,13 @@ const MemuModules = (() => {
   async function onModuleMessage(event) {
     const data = event.data || {};
     if (data.type === "memu-module-key") {
-      // Esc внутри модуля, который сам его не обработал (мост шлёт только
-      // необработанное нажатие вне полей ввода), сворачивает развёрнутый лист.
+
       const win = [...wins.values()].find((item) => item.frame && item.frame.contentWindow
         && event.source === item.frame.contentWindow);
       if (!win || String(data.from || "") !== win.id) return;
       if (data.key === "Escape") escapeWindow(win, true);
       else if (data.key === "combo" && data.combo && typeof data.combo === "object") {
-        // Round 38: in a full-screen module the main window's shortcuts (Ctrl+K, settings…) play in MemuAI
-        // and the module steps aside into its pill (module-focus.js).
+
         if (windowHotkey(win, data.combo)) return;
         if (window.MemuModuleAppbar && window.MemuModuleAppbar.key(data.combo)) return;
         if (window.MemuModuleFocus) window.MemuModuleFocus.replayKey(win.id, data.combo);
@@ -2020,8 +1962,7 @@ const MemuModules = (() => {
     }
     const preview = document.getElementById("mw-preview");
     if (preview && preview.contentWindow && event.source === preview.contentWindow) return onPreviewMessage(event, preview);
-    // Окно-отправитель узнаём по самому источнику сообщения: открыто может
-    // быть несколько модулей, и отвечать нужно именно тому, кто спросил.
+
     let owner = [...wins.values()].find((win) => win.frame && win.frame.contentWindow
       && event.source === win.frame.contentWindow);
     if (!owner && closingFrames.has(event.source) && (["save", "log"].includes(data.action)
@@ -2040,12 +1981,10 @@ const MemuModules = (() => {
           result: result === undefined ? null : result,
           error: error ? String(error) : "",
         }, "*");
-      } catch (error) { /* окно закрыто */ }
+      } catch (error) {  }
     };
     const payload = data.payload || {};
-    // Идентификатор берём из сообщения, а не из «открытого модуля»: во время
-    // перехода на другой модуль страница прежнего ещё может успеть отправить
-    // отложенное сохранение, и тогда данные попали бы в чужой файл.
+
     const claimed = String(data.from || "");
     if (claimed && claimed !== owner.id) {
       return reply(null, t("Модуль уже закрыт: данные не сохранены",
@@ -2054,8 +1993,7 @@ const MemuModules = (() => {
     const moduleId = owner.id;
     const row = catalog.find((item) => item.id === moduleId) || {};
     if (!moduleId) return reply(null, t("Окно модуля закрыто", "The module window is closed"));
-    // Часть действий не доходит до маршрута с проверкой прав (буфер обмена,
-    // список моделей, история чата), поэтому права проверяются и здесь.
+
     const needed = ACTION_PERMISSION[data.action];
     if (needed && !(row.permissions || []).includes(needed)) {
       return reply(null, t(`Модулю не выдано право «${needed}»`, `The module lacks the “${needed}” permission`));
@@ -2074,8 +2012,6 @@ const MemuModules = (() => {
     }
   }
 
-  /* Round 31: what a module is busy with right now — a closing window asks
-     first when a generation would be lost or the module reported unsaved work. */
   const LONG_ACTIONS = new Set(["stream", "complete", "request", "image", "video", "transcribe", "music"]);
   const busyCount = new Map();
 
@@ -2101,7 +2037,7 @@ const MemuModules = (() => {
         return { ok: true };
       }
       case "clipboard_read": {
-        // Окно модуля — песочница без доступа к буферу обмена: читает хост.
+
         const text = await navigator.clipboard.readText();
         return { ok: true, text: String(text || "").slice(0, 2_000_000) };
       }
@@ -2109,7 +2045,7 @@ const MemuModules = (() => {
         setTimeout(() => closeWindow(wins.get(moduleId)), 0);
         return { ok: true };
       case "unsaved": {
-        // Round 31: the module reports unsaved work; closing it from MemuAI then asks first.
+
         const win = wins.get(moduleId);
         if (win) win.unsaved = payload.unsaved ? String(payload.text || "").slice(0, 200) || true : false;
         return { ok: true };
@@ -2117,10 +2053,10 @@ const MemuModules = (() => {
       case "toolbar":
         return setToolbar(moduleId, payload);
       case "integration":
-        // Round 38: the module's own widget / panel settings in MemuAI (module-integration.js).
+
         return window.MemuModInt ? await window.MemuModInt.moduleSettings(moduleId, payload) : { modules: [] };
       case "appbar":
-        // Round 38: colours / drag areas of the module's own app window bar (module-appbar.js).
+
         return window.MemuModuleAppbar ? window.MemuModuleAppbar.fromModule(moduleId, payload) : { ok: true, active: false };
       case "host":
         return await runHostCommand(moduleId, payload);
@@ -2131,31 +2067,51 @@ const MemuModules = (() => {
       case "stream":
         return await runStream(moduleId, payload, row, messageId, frame);
       case "complete":
-        // Round 29: full message array + sampler parameters (app/characters_api.py).
+
         return await runStream(moduleId, payload, row, messageId, frame, "/api/pg/modules/complete");
       case "store":
         return await apiJson("/api/pg/modules/store", { method: "POST",
           body: { ...payload, module_id: moduleId } });
       case "music_call":
-        // Round 37: MemuMusic (app/music/api.py) — the answer is {result}.
+
       {
         const body = { op: String(payload.op || ""), args: payload.args || {}, module_id: moduleId, lang: en() ? "en" : "ru" };
-        // r40-lag: the 25 s long-poll «player.wait» goes over a WebSocket — off the 6-connection HTTP pool
+
         if (body.op === "player.wait" && window.MemuLive) return (await MemuLive.post("/api/pg/music/call", body)).result;
         return (await apiJson("/api/pg/music/call", { method: "POST", body })).result;
       }
       case "learn_call":
-        // r40-learn: MemuLearn (app/learn/api.py) — the answer is {result}.
+
         return (await apiJson("/api/pg/learn/call", { method: "POST",
           body: { op: String(payload.op || ""), args: payload.args || {}, module_id: moduleId, lang: en() ? "en" : "ru" } })).result;
       case "net_import":
-        // Round 29: import by link (app/character_import.py); MemuAI asks the person first.
+
         return await runNetImport(moduleId, payload, row);
+      case "database_call": {
+        const op = String(payload.op || ""), args = { ...(payload.args || {}) };
+        const profileId = typeof S !== "undefined" ? String(S.profileState?.active_id || "default") : "default";
+        const body = { op, args, module_id: moduleId, profile_id: profileId, lang: en() ? "en" : "ru" };
+        delete args.confirmed;
+        if (op === "connection.configure" && args.readonly === false) {
+          args.confirmed = await askConfirm(t("Разрешить подготовку изменений?", "Allow preparing changes?"),
+            t("MemuDB сможет готовить SQL-изменения выбранной базы. Каждая транзакция потребует отдельного подтверждения.", "MemuDB can prepare SQL changes for the selected database. Every transaction requires a separate confirmation."), t("Разрешить", "Allow"));
+          if (!args.confirmed) return { cancelled: true };
+        }
+        if (op === "transaction.apply") {
+          const preview = (await apiJson("/api/pg/memudb/call", { method: "POST", body: { ...body, op: "transaction.get" } })).result;
+          const details = (preview.statements || []).map(item => item.sql).join("\n\n").slice(0, 9000);
+          args.confirmed = await askConfirm(t("Применить изменения базы?", "Apply database changes?"),
+            t(`Затронуто строк: ${preview.affected || 0}. Перед записью будет создана резервная копия.\n\n`, `Affected rows: ${preview.affected || 0}. A backup will be created before writing.\n\n`) + details, t("Применить транзакцию", "Apply transaction"));
+          if (!args.confirmed) return { cancelled: true };
+        }
+        if (typeof S !== "undefined" && String(S.profileState?.active_id || "default") !== profileId) throw new Error(t("Профиль сменился", "Profile changed"));
+        return (await apiJson("/api/pg/memudb/call", { method: "POST", body })).result;
+      }
       case "asset":
         return await apiJson("/api/pg/modules/asset", { method: "POST",
           body: { name: String(payload.name || ""), module_id: moduleId } });
       case "cancel": {
-        // Отменить можно только свой поток: чужие id предсказуемы.
+
         const id = String(payload.id || "");
         const job = activeStreams.get(id);
         if (!job || job.moduleId !== moduleId) return { ok: true, cancelled: false };
@@ -2198,19 +2154,17 @@ const MemuModules = (() => {
     }
   }
 
-  /* Запись с микрофона идёт в окне MemuAI: у страницы модуля в песочнице нет
-     своего источника, и браузер не даёт ей микрофон ни при каких правах. */
   let recording = null;
 
   function stopTracks(stream) {
-    try { stream.getTracks().forEach((track) => track.stop()); } catch (error) { /* уже закрыт */ }
+    try { stream.getTracks().forEach((track) => track.stop()); } catch (error) {  }
   }
 
   function cancelRecording() {
     if (!recording) return;
     const current = recording;
     recording = null;
-    try { if (current.recorder.state !== "inactive") current.recorder.stop(); } catch (error) { /* уже закрыт */ }
+    try { if (current.recorder.state !== "inactive") current.recorder.stop(); } catch (error) {  }
     stopTracks(current.stream);
   }
 
@@ -2251,7 +2205,7 @@ const MemuModules = (() => {
       current.recorder.onstop = resolve;
       setTimeout(resolve, 3000);
     });
-    try { if (current.recorder.state !== "inactive") current.recorder.stop(); } catch (error) { /* уже закрыт */ }
+    try { if (current.recorder.state !== "inactive") current.recorder.stop(); } catch (error) {  }
     await finished;
     stopTracks(current.stream);
     const blob = new Blob(current.chunks, { type: current.recorder.mimeType || "audio/webm" });
@@ -2320,7 +2274,7 @@ const MemuModules = (() => {
       const send = (message) => {
         try {
           frame.contentWindow.postMessage({ type: "memu-module-event", id: messageId, ...message }, "*");
-        } catch (error) { /* окно закрыто */ }
+        } catch (error) {  }
       };
       const finish = (error, result) => {
         if (settled) return;
@@ -2329,12 +2283,11 @@ const MemuModules = (() => {
         if (error) reject(new Error(String(error)));
         else resolve(result);
       };
-      // Остановка обрывает и сам запрос: иначе модель продолжала писать
-      // ответ в пустоту, а следующий запрос ждал своей очереди.
+
       const abort = new AbortController();
       activeStreams.set(messageId, { moduleId, cancel: () => {
         finish(t("Остановлено", "Stopped"));
-        try { abort.abort(); } catch (error) { /* уже закрыт */ }
+        try { abort.abort(); } catch (error) {  }
       } });
       send({ event: "status", status: "queued" });
       (async () => {
@@ -2354,7 +2307,7 @@ const MemuModules = (() => {
           try {
             const data = await response.json();
             message = data.error || message;
-          } catch (error) { /* тело не JSON */ }
+          } catch (error) {  }
           return finish(message);
         }
         try {
@@ -2382,7 +2335,6 @@ const MemuModules = (() => {
     });
   }
 
-  /* Закрытое или перезагруженное окно не должно дописывать ответ в чат. */
   function cancelModuleStreams(moduleId) {
     activeStreams.forEach((job, id) => { if (job.moduleId === moduleId) cancelJob(id); });
   }
@@ -2406,7 +2358,6 @@ const MemuModules = (() => {
     return "";
   }
 
-  // proxy_sse отдаёт ошибку админки как HTTP 200 и кадр {"error":{"message"}} без [DONE].
   function mediaFailureMessage(item) {
     if (!item || typeof item !== "object" || Array.isArray(item)) return "";
     const fromError = errorText(item.error);
@@ -2439,8 +2390,7 @@ const MemuModules = (() => {
   }
 
   async function runMedia(moduleId, action, payload) {
-    // Идём через маршрут модуля, а не через общий /api/pg/image: только он
-    // проверяет право media, без которого генерация обязана быть запрещена.
+
     const response = await fetch("/api/pg/modules/media", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -2493,10 +2443,6 @@ const MemuModules = (() => {
     return ready;
   }
 
-  /* Round 29 phase 2 — «Import from a link» (Memu.fetchImport, permission «net-import»).
-     The download runs in MemuAI (app/character_import.py) with SSRF checks; before the first download
-     from a site the person decides: once, always (kept per module) or no. The body is built here, so a
-     module can never mark its own request as approved. */
   async function netImportCall(body) {
     const response = await fetch("/api/pg/modules/net-import", { method: "POST",
       headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
@@ -2523,7 +2469,7 @@ const MemuModules = (() => {
         resolve(answer);
       };
       const hosts = (target.hosts || []).filter(Boolean);
-      // "Chub (chub.ai)" → "Chub" on the button (the full name is in the facts above), so the three answers fit one row.
+
       const shortLabel = String(target.label || target.source || "").replace(/\s*\([^)]*\)\s*$/, "") || String(target.source || "");
       const what = String(target.url || target.id || "");
       panel(`<div class="net-import-ask">
@@ -2543,7 +2489,7 @@ const MemuModules = (() => {
           <button class="pbtn ghost" id="net-import-once">${esc(t("Один раз", "Only this time"))}</button>
           <button class="pbtn" id="net-import-always">${esc(t(`Всегда для ${shortLabel}`, `Always for ${shortLabel}`))}</button>
         </div></div>`, "net-import-panel", { onClose: () => finish("deny") });
-      // The question comes from a module window, so it is drawn above the module layer (modules.css).
+
       document.getElementById("panel-back")?.classList.add("over-modules");
       document.getElementById("net-import-no").onclick = () => finish("deny");
       document.getElementById("net-import-once").onclick = () => finish("once");
@@ -2572,8 +2518,6 @@ const MemuModules = (() => {
     return await netImportCall({ ...body, op: "fetch", approved: true });
   }
 
-  /* Settings → Modules → ⋯ → «Import sources»: the allow list of direct-link hosts (like SillyTavern's
-     whitelistImportDomains) and the sites that no longer ask. Only the person changes this, never a module. */
   async function netImportSettings(row) {
     let state;
     try {
@@ -2630,8 +2574,7 @@ const MemuModules = (() => {
     if (typeof saveToDownloads !== "function") {
       throw new Error(t("Сохранение файла недоступно", "Saving files is unavailable"));
     }
-    // Каждая передача — своей папкой: README внутри говорит «откройте
-    // index.html в этой папке», а второй пакет не смешивается с первым.
+
     const stamp = new Date().toISOString().replace(/[:T]/g, "-").slice(0, 19);
     const folder = `design-${stamp}`;
     const saved = [];
@@ -2640,8 +2583,7 @@ const MemuModules = (() => {
       if (!result || !result.path) throw new Error(t("Не удалось сохранить файл пакета", "Could not save a package file"));
       saved.push(result);
     };
-    // Изображения кладём настоящими файлами: пакет должен отдаваться другой ИИ
-    // целиком, а не ссылками на data:, которые вне MemuAI ничего не значат.
+
     const images = bundle.images || [];
     for (let index = 0; index < images.length; index += 1) {
       const name = imageName(images[index], index);
@@ -2664,7 +2606,7 @@ const MemuModules = (() => {
   }
 
   function imageName(source, index) {
-    // Определяем расширение по настоящему типу данных, а не по угадыванию.
+
     const header = String(source || "").slice(0, 64).toLowerCase();
     let extension = "png";
     if (header.includes("image/jpeg") || header.includes("image/jpg")) extension = "jpg";
@@ -2680,20 +2622,13 @@ const MemuModules = (() => {
     try {
       await apiJson("/api/pg/modules/notify", { method: "POST",
         body: { title, text: body, module_id: moduleId } });
-    } catch (error) { /* внутренний тост всё равно покажем */ }
+    } catch (error) {  }
     note(title + (body ? ": " + body : ""), "info");
     return { ok: true };
   }
 
-  /* Действие «host» (свободное, без права — список FREE_ACTIONS): переходы
-     внутри MemuAI, которые пользователь сам нажал в модуле.
-     - { command: "chat", models: [id, name…] } — новый чат с подключённой в
-       Proxy моделью, если такая есть; окно модуля сворачивается;
-     - { command: "module", id, query, model } — открыть другой (включённый)
-       модуль и передать ему событие «navigate» { query, model, from }.
-     Ничего не отправляется и не покупается: только выбор в интерфейсе. */
   const pendingNavigate = new Map();
-  // Open (or focus) a module and hand it a «navigate» event; also used by global search results.
+
   async function navigateModule(target, detail) {
     const open_ = wins.get(target);
     if (open_ && open_.parts.loading && open_.parts.loading.hidden) {
@@ -2757,9 +2692,11 @@ const MemuModules = (() => {
     return await apiJson("/api/pg/modules/open", { method: "POST",
       body: { url: payload.url, module_id: moduleId } });
   }
-/* ------------------------------- настройки ------------------------------- */
 
   let currentPane = "list";
+  const library = { selected: "", query: "", filter: "all", expanded: false };
+  let settingsJob = 0;
+  let createStep = 0;
   let draft = null;
   let codeState = null;
   let codeEditorObserver = null;
@@ -2767,6 +2704,7 @@ const MemuModules = (() => {
   async function mountSettings(pane) {
     const host = $("#pane-modules");
     if (!host) return;
+    const job = ++settingsJob;
     if (!host.dataset.tabsBound) {
       host.dataset.tabsBound = "1";
       host.addEventListener("click", (event) => {
@@ -2780,19 +2718,20 @@ const MemuModules = (() => {
         mountSettings(button.dataset.modulesTab);
       });
     }
-    // Несохранённые правки мастерской переживают перерисовку раздела
-    // (переход на другую вкладку настроек и обратно, повторное открытие).
+
     if (codeState && codeState.dirty && document.getElementById("mw-html")) {
       codeState.draft = currentCode();
     }
+    if (draft && host._readModuleDraft) host._readModuleDraft();
+    host._readModuleDraft = null;
     if (codeEditorObserver) { codeEditorObserver.disconnect(); codeEditorObserver = null; }
     const previousPane = currentPane;
     if (pane) currentPane = pane;
-    await refresh();
-    await loadTemplates();
+    if (!catalogLoaded || !templates) host.innerHTML = `<div class="modules-loading" role="status"><span class="mu-spinner"></span>${t("Загружаем модули…", "Loading modules…")}</div>`;
+    await Promise.all([Date.now() - catalogFetched > 5_000 ? refresh() : null, loadTemplates()]);
+    if (job !== settingsJob || !host.isConnected) return;
     if (previousPane !== currentPane) {
-      // Новый экран раздела начинается сверху: иначе мастерская открывалась
-      // прокрученной вниз, как был прокручен мастер создания.
+
       let scroller = host;
       while (scroller && scroller !== document.body && scroller.scrollHeight <= scroller.clientHeight) {
         scroller = scroller.parentElement;
@@ -2802,6 +2741,10 @@ const MemuModules = (() => {
     if (currentPane === "create") return renderCreate(host);
     if (currentPane === "code") return renderCode(host);
     if (currentPane === "import") return renderImport(host);
+    if (currentPane === "catalog" && window.MemuModuleCatalog) return MemuModuleCatalog.mount(host, {
+      back: () => mountSettings("list"),
+      changed: async () => { catalogFetched = 0; await refresh(); }
+    });
     currentPane = "list";
     renderList(host);
   }
@@ -2824,153 +2767,103 @@ const MemuModules = (() => {
   }
 
   function backButton(target = "list", label) {
-    return `<button type="button" class="pbtn ghost" data-modules-tab="${target}">${icon("back")} ${label || t("К списку", "Back to list")}</button>`;
+    return `<button type="button" class="pbtn ghost" data-modules-tab="${target}">${icon("back")} ${label || t("Мои модули", "My modules")}</button>`;
   }
 
   function renderList(host) {
     const counts = moduleCounts();
-    host.innerHTML = `
-      <div class="modules-pane" data-view="list">
-        ${head(t("Модули", "Modules"),
-          t("Своё приложение внутри MemuAI: HTML, CSS и JavaScript с доступом к моделям через мост MemuAI. Встроенные модули выключены, пока вы их не включите.",
-            "An app inside MemuAI: HTML, CSS and JavaScript with model access through the MemuAI bridge. Built-in modules stay off until you enable them."),
-          `<button type="button" class="pbtn ghost" data-open-docs="modules" title="${esc(t("Раздел «Модули» в документации MemuAI", "The Modules section of the MemuAI documentation"))}">${icon("info")} ${t("Документация", "Documentation")}</button>
-           <button type="button" class="pbtn ghost" data-modules-tab="import">${icon("attach")} ${t("Импорт", "Import")}</button>
-           <button type="button" class="pbtn" data-modules-tab="create">${icon("plus")} ${t("Создать модуль", "Create module")}</button>`)}
-        <div class="modules-stats">
-          <div><b>${counts.total}</b><span>${t("всего", "total")}</span></div>
-          <div><b>${counts.enabled}</b><span>${t("включено", "enabled")}</span></div>
-          <div><b>${counts.custom}</b><span>${t("своих", "custom")}</span></div>
-          <div><b>${counts.builtin}</b><span>${t("встроенных", "built-in")}</span></div>
-        </div>
-        <div class="modules-toolbar">
-          <label class="modules-search">${icon("search")}
-            <input type="search" id="modules-filter" placeholder="${t("Найти модуль", "Find a module")}" autocomplete="off" spellcheck="false">
-          </label>
-          <label class="module-check compact"><input type="checkbox" id="modules-only-enabled"> ${t("Только включённые", "Enabled only")}</label>
-        </div>
-        <div class="module-list" id="module-list">
-          ${catalog.map((row) => moduleCard(row)).join("")}
-          <div class="module-list-empty" hidden>${t("Ничего не найдено", "Nothing found")}</div>
-        </div>
-        ${removedBuiltins.length ? `<section class="modules-removed">
-          <div><b>${t("Удалённые встроенные модули", "Removed built-in modules")}</b>
-            <span>${t("Их можно вернуть в исходном виде — выключенными и без сохранённых данных.",
-              "They come back as shipped — disabled and without saved data.")}</span></div>
-          <div class="modules-removed-list">${removedBuiltins.map((row) => `
-            <button type="button" class="pbtn small ghost" data-module-restore="${esc(row.id)}">${moduleIcon(row)} ${esc(en() ? (row.title_en || row.title) : row.title)} · ${t("вернуть", "restore")}</button>`).join("")}</div>
-        </section>` : ""}
-      </div>`;
-
-    const filter = $("#modules-filter");
-    const onlyEnabled = $("#modules-only-enabled");
-    const applyFilter = () => {
-      const needle = String(filter && filter.value || "").trim().toLowerCase();
-      const enabledOnly = !!(onlyEnabled && onlyEnabled.checked);
-      let visible = 0;
-      $$("[data-module-card]", host).forEach((card) => {
-        const row = catalog.find((item) => item.id === card.dataset.moduleCard);
-        if (!row) return;
-        const haystack = `${row.id} ${row.title} ${row.title_en} ${row.summary} ${row.summary_en}`.toLowerCase();
-        const matches = (!needle || haystack.includes(needle)) && (!enabledOnly || row.enabled);
-        card.hidden = !matches;
-        if (matches) visible += 1;
+    host.innerHTML = `<section class="ms-hub">
+      <header class="ms-head"><div><h2>${t('Модули', 'Modules')}</h2><p>${t('Ваши приложения и инструменты в MemuAI', 'Your apps and tools in MemuAI')}</p></div><button type="button" class="ms-button primary" data-modules-tab="create">${icon('plus')}${t('Создать модуль', 'Create module')}</button></header>
+      <nav class="ms-nav" aria-label="${t('Разделы модулей', 'Module sections')}"><span aria-current="page">${t('Установленные', 'Installed')}<b>${counts.total}</b></span><button type="button" data-modules-tab="catalog">${t('Каталог', 'Catalogue')}</button><span class="ms-nav-spacer"></span><button type="button" data-modules-tab="import">${icon('attach')}${t('Импорт', 'Import')}</button><button type="button" data-open-docs="modules">${icon('info')}<span>${t('Справка', 'Help')}</span></button></nav>
+      ${catalogError ? `<div class="ms-notice" role="status"><span>${esc(catalogError)}</span><button class="ms-button" data-module-retry>${t('Повторить', 'Retry')}</button></div>` : ''}
+      <div class="ms-toolbar"><label class="ms-search">${icon('search')}<input id="modules-filter" type="search" value="${esc(library.query)}" placeholder="${t('Поиск по модулям', 'Search modules')}" aria-label="${t('Поиск по модулям', 'Search modules')}"></label><div class="ms-filters" role="group" aria-label="${t('Фильтр модулей', 'Module filter')}">${[['all', t('Все', 'All')], ['enabled', t('Включённые', 'Enabled')], ['custom', t('Свои', 'Custom')]].map(([id, title]) => `<button type="button" data-ms-filter="${id}" aria-pressed="${library.filter === id}">${title}</button>`).join('')}</div></div>
+      <div class="ms-module-list" id="ms-module-list" aria-label="${t('Установленные модули', 'Installed modules')}"></div>
+      <p class="ms-list-meta" id="ms-list-meta" role="status"></p>
+      <details class="ms-global"><summary>${icon('settings')}${t('Общие настройки окон и виджетов', 'Window and widget defaults')}</summary><div id="ms-global-settings"></div></details>
+      ${removedBuiltins.length ? `<details class="ms-removed"><summary>${t('Удалённые встроенные модули', 'Removed built-in modules')} (${removedBuiltins.length})</summary><p>${t('Восстановится исходный модуль. Его удалённые данные не вернутся.', 'Restore the shipped module. Previously deleted data cannot be restored.')}</p><div>${removedBuiltins.map(row => `<button class="ms-button" data-module-restore="${esc(row.id)}">${esc(titleOf(row))} · ${t('Восстановить', 'Restore')}</button>`).join('')}</div></details>` : ''}
+    </section>`;
+    const draw = () => {
+      const needle = library.query.trim().toLocaleLowerCase();
+      const rows = catalog.filter(row => (!needle || [row.id, row.title, row.title_en, row.summary, row.summary_en].join(' ').toLocaleLowerCase().includes(needle)) && (library.filter !== 'enabled' || row.enabled) && (library.filter !== 'custom' || !row.builtin));
+      if (!rows.some(row => row.id === library.selected)) library.selected = rows[0]?.id || '';
+      $('#ms-module-list', host).innerHTML = rows.map(row => {
+        const selected = library.selected === row.id && library.expanded;
+        return `<section class="ms-module-row${selected ? ' selected' : ''}" data-ms-row="${esc(row.id)}"><div class="ms-module-line">
+          <button type="button" class="ms-module" data-ms-select="${esc(row.id)}" aria-pressed="${selected}" aria-expanded="${selected}"${selected ? ' aria-controls="ms-inspector"' : ''}><span class="ms-module-icon" aria-hidden="true">${moduleIcon(row)}</span><span class="ms-module-copy"><strong>${esc(titleOf(row))}</strong><small>${esc(summaryOf(row)) || t(row.builtin ? 'Встроенный модуль' : 'Пользовательский модуль', row.builtin ? 'Built-in module' : 'Custom module')}</small></span><span class="ms-expand" aria-hidden="true">${icon('chevron-right')}</span></button>
+          <div class="ms-row-controls"><label class="ms-enable"><span class="ms-enable-label">${t(row.enabled ? 'Включён' : 'Выключен', row.enabled ? 'Enabled' : 'Disabled')}</span><span class="module-switch"><input type="checkbox" data-module-enabled="${esc(row.id)}" ${row.enabled ? 'checked' : ''} aria-label="${esc(t('Включить ', 'Enable ') + titleOf(row))}"><i aria-hidden="true"></i></span></label><button type="button" class="ms-button ms-launch" data-module-open="${esc(row.id)}" ${row.enabled ? '' : 'disabled'}>${icon('play')}<span>${t('Открыть', 'Open')}</span></button><button type="button" class="ms-icon-button" data-module-more="${esc(row.id)}" aria-label="${esc(t('Действия: ', 'Actions: ') + titleOf(row))}">${icon('more')}</button></div>
+          </div>${selected ? `<article class="ms-inspector" id="ms-inspector">${moduleInspector(row)}</article>` : ''}</section>`;
+      }).join('') || `<div class="ms-empty">${icon('grid')}<h3>${t('Ничего не найдено', 'No modules found')}</h3><p>${t('Попробуйте другой запрос или найдите приложение в каталоге.', 'Try another search or find an app in the catalogue.')}</p><button class="ms-button" data-modules-tab="catalog">${t('Открыть каталог', 'Open catalogue')}</button></div>`;
+      $('#ms-list-meta', host).textContent = `${rows.length} ${t('показано', 'shown')} · ${counts.enabled} ${t('включено из', 'enabled of')} ${counts.total}`;
+      const list = $('#ms-module-list', host);
+      bindList(list);
+      bindNavigation();
+      $$('[data-ms-select]', list).forEach(button => button.onclick = () => {
+        const id = button.dataset.msSelect;
+        library.expanded = library.selected === id ? !library.expanded : true;
+        library.selected = id;
+        draw();
+        $$('[data-ms-select]', host).find(node => node.dataset.msSelect === id)?.focus({ preventScroll: true });
       });
-      const empty = $(".module-list-empty", host);
-      if (empty) empty.hidden = visible > 0;
-    };
-    if (filter) filter.addEventListener("input", applyFilter);
-    if (onlyEnabled) onlyEnabled.addEventListener("change", applyFilter);
-    bindList(host);
-    // Round 33: «Modules as apps» (installed apps, what closing MemuAI does with open modules) — module-apps.js.
-    if (MA()) MA().renderSettings(host);
-    // Round 39 (r39-integ): «Виджеты модулей» — dock / mini player / Quick Access widgets (module-integration.js)
-    if (window.MemuModInt && MemuModInt.renderWidgetSettings) MemuModInt.renderWidgetSettings(host);
-    $$("[data-module-restore]", host).forEach((button) => {
-      button.onclick = async () => {
-        button.disabled = true;
-        try {
-          await apiJson("/api/pg/modules/restore", { method: "POST", body: { id: button.dataset.moduleRestore } });
-          note(t("Модуль возвращён", "Module restored"), "ok");
-          await mountSettings("list");
-        } catch (error) { button.disabled = false; note(error.message, "err"); }
+      list.onkeydown = event => {
+        if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+        const buttons = $$('[data-ms-select]', host), index = buttons.indexOf(document.activeElement);
+        if (index < 0) return;
+        event.preventDefault();
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : Math.max(0, Math.min(buttons.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)));
+        library.selected = buttons[next].dataset.msSelect;
+        library.expanded = true;
+        draw();
+        $$('[data-ms-select]', host)[next]?.focus({ preventScroll: true });
       };
+    };
+    const bindNavigation = () => $$('[data-modules-tab]', host).forEach(button => button.onclick = () => mountSettings(button.dataset.modulesTab));
+    $('#modules-filter', host).oninput = event => { library.query = event.target.value; draw(); };
+    $$('[data-ms-filter]', host).forEach(button => button.onclick = () => {
+      library.filter = button.dataset.msFilter;
+      $$('[data-ms-filter]', host).forEach(node => node.setAttribute('aria-pressed', String(node === button)));
+      draw();
+    });
+    draw();
+    $('[data-module-retry]', host)?.addEventListener('click', () => { catalogFetched = 0; mountSettings('list'); });
+    const settings = $('#ms-global-settings', host);
+    if (MA()) MA().renderSettings(settings);
+    if (window.MemuModInt?.renderWidgetSettings) MemuModInt.renderWidgetSettings(settings);
+    $$('[data-module-restore]', host).forEach(button => button.onclick = async () => {
+      button.disabled = true;
+      try { await apiJson('/api/pg/modules/restore', { method: 'POST', body: { id: button.dataset.moduleRestore } }); await refresh(); if (host.isConnected && currentPane === 'list') renderList(host); }
+      catch (error) { button.disabled = false; note(error.message, 'err'); }
     });
   }
 
-  function moduleCard(row) {
-    const place = SLOTS.find((slot) => slot.id === (row.launcher || {}).slot) || SLOTS[0];
-    return `
-      <article class="module-card ${row.enabled ? "is-on" : ""}" data-module-card="${esc(row.id)}">
-        <div class="module-card-head">
-          <span class="module-card-icon" data-module-icon-edit="${esc(row.id)}" role="button" tabindex="0" title="${esc(t("Сменить иконку", "Change icon"))}" aria-label="${esc(t("Сменить иконку", "Change icon"))}">${moduleIcon(row)}</span>
-          <div class="module-card-title">
-            <b>${esc(titleOf(row))}</b>
-            <span class="module-card-meta">
-              ${row.builtin ? t("встроенный", "built-in") : t("свой", "custom")}
-              · v${esc(row.version || "1.0")}${row.author ? " · " + esc(row.author) : ""}
-              ${row.edited ? `<em class="module-tag">${t("изменён", "edited")}</em>` : ""}
-            </span>
-          </div>
-          <label class="module-switch" title="${t("Включить модуль", "Enable the module")}">
-            <input type="checkbox" data-module-enabled="${esc(row.id)}" ${row.enabled ? "checked" : ""}>
-            <i></i>
-          </label>
-        </div>
-        <p class="module-card-sub">${esc(summaryOf(row)) || `<em>${t("Без описания", "No description")}</em>`}</p>
-        <div class="module-card-perms">${(row.permissions || []).slice(0, 6)
-      .map((name) => `<span class="module-perm">${esc(name)}</span>`).join("")}</div>
-        <div class="module-card-controls">
-          <label class="module-check"><input type="checkbox" data-module-hidden="${esc(row.id)}" ${row.launcher && row.launcher.hidden ? "checked" : ""}> ${t("Скрыть кнопку", "Hide button")}</label>
-          <label class="module-check" title="${t("Можно тянуть окно за края", "The window edges can be dragged")}"><input type="checkbox" data-module-resizable="${esc(row.id)}" ${row.resizable === false ? "" : "checked"}> ${t("Менять размер", "Resizable")}</label>
-          <select class="module-slot" data-module-slot="${esc(row.id)}" aria-label="${t("Где кнопка", "Launcher slot")}">
-            ${slotList().map((slot) => `<option value="${slot.id}" ${place.id === slot.id ? "selected" : ""}>${t(slot.ru, slot.en)}</option>`).join("")}
-          </select>
-        </div>
-        <div class="module-card-actions">
-          <button type="button" class="pbtn small" data-module-open="${esc(row.id)}" ${row.enabled ? "" : "disabled"}>${icon("play")} ${t("Открыть", "Open")}</button>
-          <button type="button" class="pbtn small ghost" data-module-code="${esc(row.id)}">${icon("terminal")} ${t("Код", "Code")}</button>
-          <span class="mu-grow"></span>
-          <button type="button" class="pbtn small ghost icon-only" data-module-more="${esc(row.id)}" aria-label="${t("Ещё", "More")}">${icon("more")}</button>
-        </div>
-      </article>`;
+  function moduleInspector(row) {
+    const place = row.launcher?.slot || 'sidebar';
+    return `<header class="ms-detail-heading"><h3>${esc(titleOf(row))}</h3><span>${t(row.builtin ? 'Встроенный' : 'Свой', row.builtin ? 'Built-in' : 'Custom')} · v${esc(row.version || '1.0')}${row.author ? ` · ${esc(row.author)}` : ''}</span><div class="ms-actions"><button type="button" class="ms-button" data-module-code="${esc(row.id)}">${icon('code')}${t('Открыть код', 'Open code')}</button><button type="button" class="ms-button" data-module-more="${esc(row.id)}">${icon('more')}${t('Все действия', 'All actions')}</button></div></header>
+      <div class="ms-detail-grid"><section class="ms-section"><h4>${t('Кнопка модуля', 'Module shortcut')}</h4><label class="ms-field"><span>${t('Расположение', 'Location')}</span><select class="module-slot" data-module-slot="${esc(row.id)}">${slotList().map(slot => `<option value="${slot.id}" ${place === slot.id ? 'selected' : ''}>${t(slot.ru, slot.en)}</option>`).join('')}</select></label><label class="ms-check"><input type="checkbox" data-module-hidden="${esc(row.id)}" ${row.launcher?.hidden ? 'checked' : ''}>${t('Скрыть кнопку', 'Hide shortcut')}</label><label class="ms-check"><input type="checkbox" data-module-resizable="${esc(row.id)}" ${row.resizable === false ? '' : 'checked'}>${t('Разрешить менять размер окна', 'Allow window resizing')}</label></section>
+      <section class="ms-section"><h4>${t('Доступы', 'Permissions')}</h4><ul class="ms-permissions">${(row.permissions || []).map(id => `<li>${icon('check')}<span>${esc(permissionName(id))}</span></li>`).join('') || `<li>${t('Без дополнительных доступов', 'No additional permissions')}</li>`}</ul><p class="ms-explainer">${t('Изменить доступы можно в мастерской кода.', 'Change permissions in the code workbench.')}</p><details class="ms-technical"><summary>${t('Техническая информация', 'Technical details')}</summary><dl><dt>ID</dt><dd>${esc(row.id)}</dd><dt>${t('Источник', 'Source')}</dt><dd>${t(row.builtin ? 'Комплект MemuAI' : 'Пользовательский пакет', row.builtin ? 'Shipped with MemuAI' : 'Custom package')}</dd></dl></details></section></div>`;
   }
 
   function bindList(host) {
-    $$("[data-module-enabled]", host).forEach((control) => {
-      control.onchange = async () => {
-        try {
-          await configure(control.dataset.moduleEnabled, { enabled: control.checked });
-          if (control.checked) note(t("Модуль включён", "Module enabled"), "ok");
-        } catch (error) {
-          control.checked = !control.checked;
-          note(error.message, "err");
-        }
-        await mountSettings("list");
-      };
+    const hub = host.closest(".ms-hub");
+    const update = async (control, id, patch) => {
+      control.disabled = true;
+      try { await configure(id, patch); }
+      catch (error) { note(error.message, "err"); }
+      finally {
+        control.disabled = false;
+        if (hub?.isConnected && currentPane === "list") await mountSettings("list");
+      }
+    };
+    $$("[data-module-enabled]", host).forEach(control => {
+      control.onchange = () => update(control, control.dataset.moduleEnabled, { enabled: control.checked });
     });
-    $$("[data-module-hidden]", host).forEach((control) => {
-      control.onchange = async () => {
-        try { await configure(control.dataset.moduleHidden, { hidden: control.checked }); }
-        catch (error) {
-          control.checked = !control.checked;
-          note(error.message, "err");
-        }
-        await refresh();
-      };
+    $$("[data-module-hidden]", host).forEach(control => {
+      control.onchange = () => update(control, control.dataset.moduleHidden, { hidden: control.checked });
     });
-    $$("[data-module-resizable]", host).forEach((control) => {
-      control.onchange = () => {
-        const row = catalog.find((item) => item.id === control.dataset.moduleResizable);
-        if (row) toggleResizable({ ...row, resizable: !control.checked });
-      };
+    $$("[data-module-resizable]", host).forEach(control => {
+      control.onchange = () => update(control, control.dataset.moduleResizable, { resizable: control.checked });
     });
-    $$("[data-module-slot]", host).forEach((control) => {
-      control.onchange = async () => {
-        try { await configure(control.dataset.moduleSlot, { slot: control.value }); }
-        catch (error) { note(error.message, "err"); }
-        await refresh();
-      };
+    $$("[data-module-slot]", host).forEach(control => {
+      control.onchange = () => update(control, control.dataset.moduleSlot, { slot: control.value });
     });
     $$("[data-module-open]", host).forEach((button) => {
       button.onclick = () => open(button.dataset.moduleOpen);
@@ -3009,12 +2902,30 @@ const MemuModules = (() => {
   }
 
   async function configure(moduleId, body) {
-    return await apiJson("/api/pg/modules/configure", { method: "POST",
-      body: { id: moduleId, ...body } });
+    const previous = configureJobs.get(moduleId) || Promise.resolve();
+    const job = previous.catch(() => {}).then(async () => {
+      const data = await apiJson("/api/pg/modules/configure", { method: "POST", body: { id: moduleId, ...body } });
+      if (data.module) {
+        const row = catalog.find(item => item.id === moduleId);
+        if (row) Object.assign(row, data.module);
+        renderLaunchers();
+        renderOpenState();
+        const win = wins.get(moduleId);
+        if (win && "resizable" in body) {
+          const policy = await apiJson("/api/pg/modules/window", { method: "POST", body: { id: moduleId } });
+          if (wins.get(moduleId) === win) {
+            win.policy = fitToViewport(policy.window);
+            refreshResizers(win);
+          }
+        }
+      } else await refresh();
+      return data;
+    });
+    configureJobs.set(moduleId, job);
+    try { return await job; }
+    finally { if (configureJobs.get(moduleId) === job) configureJobs.delete(moduleId); }
   }
 
-  /* Вопрос с полем ввода в окне MemuAI. window.prompt в окне приложения
-     блокирует всё и выглядит чужеродно, а в некоторых оболочках не работает. */
   function askText(title, text, value, action) {
     return new Promise((resolve) => {
       if (typeof panel !== "function") return resolve(window.prompt(title, value || ""));
@@ -3040,7 +2951,7 @@ const MemuModules = (() => {
   }
 
   function freeCopyId(base) {
-    const taken = new Set(catalog.map((item) => item.id));
+    const taken = new Set([...catalog.map((item) => item.id), ...removedBuiltins.map((item) => item.id)]);
     const stem = String(base || "module").replace(/-copy(-\d+)?$/, "").slice(0, 32);
     let candidate = `${stem}-copy`;
     for (let index = 2; taken.has(candidate) && index < 100; index += 1) candidate = `${stem}-copy-${index}`;
@@ -3076,6 +2987,8 @@ const MemuModules = (() => {
   async function clearSaved(row) {
     try {
       await apiJson("/api/pg/modules/persist", { method: "POST", body: { id: row.id, clear: true } });
+      const opened = wins.get(row.id);
+      if (opened && opened.frame) opened.frame.src = documentUrl(opened, true);
       note(t("Сохранённые поля очищены", "Saved fields cleared"), "ok");
     } catch (error) { note(error.message, "err"); }
   }
@@ -3090,6 +3003,8 @@ const MemuModules = (() => {
     if (!confirmed) return;
     try {
       await apiJson("/api/pg/modules/reset", { method: "POST", body: { id: row.id } });
+      const opened = wins.get(row.id);
+      if (opened && opened.frame) opened.frame.src = documentUrl(opened, true);
       note(t("Код возвращён к заводскому", "Code reset to shipped"), "ok");
       await mountSettings("list");
     } catch (error) { note(error.message, "err"); }
@@ -3113,43 +3028,41 @@ const MemuModules = (() => {
     } catch (error) { note(error.message, "err"); }
   }
 
-  /* --------------------------- мастер создания ----------------------------- */
-
   function renderCreate(host) {
     const list = templateList();
     if (!draft) {
       const first = list[0] || {};
       draft = {
-        id: "", title: "", template: first.id || "blank",
+        id: "", title: "", summary: "", template: first.id || "blank",
         width: 760, height: 560, fixed: false, resizable: true, size_mode: "user",
         persist: (first.persist || []).join(", "),
         permissions: (first.permissions || ["chat", "storage"]).slice(),
         slot: "sidebar", hidden: false, instructions: "",
       };
+      createStep = 0;
     }
     host.innerHTML = `
-      <div class="modules-pane" data-view="create">
+      <div class="modules-pane ms-create" data-view="create">
         ${head(t("Новый модуль", "New module"),
-          t("Выберите шаблон — он даст рабочий код, а не заглушку. Всё остальное можно изменить позже.",
-            "Pick a template: it gives working code, not a stub. Everything can still be changed later."),
+          t("От шаблона к своему приложению. Настройте основу, проверьте доступы и откройте код с живым предпросмотром.",
+            "From a template to your own app. Set up the basics, review access, then open the code with a live preview."),
           backButton())}
-        <div class="module-wizard">
+        <nav class="module-create-steps" aria-label="${t("Шаги создания модуля", "Module setup steps")}">
+          ${[t("Шаблон", "Template"), t("Название", "Name"), t("Окно", "Window"), t("Доступы", "Access")].map((label, index) => `<button type="button" data-create-step="${index}"><span>${index + 1}</span>${label}</button>`).join("")}
+        </nav>
+        <div class="module-wizard-layout"><div class="module-wizard">
           <section class="module-wizard-card">
-            <h4>1. ${t("Название и идентификатор", "Name and id")}</h4>
-            <div class="module-wizard-grid">
-              <label class="field-label">${t("Название", "Title")}
-                <input class="pinput" id="mw-title" maxlength="80" value="${esc(draft.title)}" placeholder="${t("Мои заметки", "My notes")}"></label>
-              <label class="field-label">${t("Идентификатор", "Id")}
-                <input class="pinput" id="mw-id" maxlength="41" value="${esc(draft.id)}" placeholder="my-notes" spellcheck="false"></label>
-            </div>
-            <p class="module-hint">${t("Латиница в нижнем регистре, цифры и дефис. Идентификатор нельзя изменить после создания.",
-              "Lowercase latin letters, digits and hyphens. The id cannot change after creation.")}</p>
+            <h4>${t("Как будет называться модуль", "Name your module")}</h4>
+            <label class="field-label">${t("Название", "Name")}<input class="pinput" id="mw-title" maxlength="80" value="${esc(draft.title)}" placeholder="${t("Мои заметки", "My notes")}" aria-describedby="mw-title-error"><small class="module-field-error" id="mw-title-error" hidden></small></label>
+            <label class="field-label">${t("Описание", "Description")}<textarea class="ptexta" id="mw-description" rows="3" maxlength="500" placeholder="${t("Для чего нужен модуль и что он умеет", "What the module does and when to use it")}">${esc(draft.summary || '')}</textarea></label>
+            <details class="ms-id-settings"><summary>${t("Техническое имя", "Technical name")}</summary><label class="field-label">ID<input class="pinput" id="mw-id" maxlength="41" value="${esc(draft.id)}" placeholder="my-notes" spellcheck="false" aria-describedby="mw-id-hint mw-id-error"><small class="module-field-error" id="mw-id-error" hidden></small></label><p class="module-hint" id="mw-id-hint">${t("Создаётся из названия автоматически. Можно изменить сейчас; после создания ID останется постоянным.", "Generated from the name. You can change it now; it becomes permanent after creation.")}</p></details>
           </section>
           <section class="module-wizard-card">
-            <h4>2. ${t("Шаблон", "Template")}</h4>
+            <h4>${t("С чего начнём", "Choose a starting point")}</h4>
+            <p class="module-hint">${t("Каждый шаблон содержит рабочий код. Его можно полностью изменить в мастерской.", "Every template includes working code. You can change all of it in the workbench.")}</p>
             <div class="module-template-grid">
               ${templateList().map((item) => `
-                <button type="button" class="module-template ${draft.template === item.id ? "active" : ""}" data-template="${esc(item.id)}">
+                <button type="button" class="module-template ${draft.template === item.id ? "active" : ""}" data-template="${esc(item.id)}" aria-pressed="${draft.template === item.id}">
                   <span class="module-template-icon">${moduleIcon(item.icon, "text")}</span>
                   <b>${esc(localizedTitle(item))}</b>
                   <span>${esc(localizedSummary(item))}</span>
@@ -3157,7 +3070,8 @@ const MemuModules = (() => {
             </div>
           </section>
           <section class="module-wizard-card">
-            <h4>3. ${t("Окно и кнопка", "Window and button")}</h4>
+            <h4>${t("Как открывается модуль", "How your module opens")}</h4>
+            <div class="ms-size-presets" role="group" aria-label="${t('Размер окна','Window size')}">${[[480,420,t('Компактное','Compact')],[760,560,t('Обычное','Standard')],[1120,720,t('Широкое','Wide')]].map(([w,h,name])=>`<button type="button" data-ms-size="${w},${h}" aria-pressed="${draft.width===w&&draft.height===h}"><strong>${name}</strong><small>${w} × ${h}</small></button>`).join('')}</div>
             <div class="module-wizard-grid">
               <label class="field-label">${t("Ширина", "Width")}
                 <input class="pinput" id="mw-width" type="number" min="240" max="2400" value="${draft.width}"></label>
@@ -3165,8 +3079,8 @@ const MemuModules = (() => {
                 <input class="pinput" id="mw-height" type="number" min="200" max="1600" value="${draft.height}"></label>
               <label class="field-label">${t("Размер", "Size")}
                 <select class="pinput" id="mw-size-mode">
-                  <option value="user" ${draft.size_mode === "user" ? "selected" : ""}>${t("Сначала размер человека", "Prefer the person's size")}</option>
-                  <option value="authored" ${draft.size_mode === "authored" ? "selected" : ""}>${t("Всегда размер автора", "Always the authored size")}</option>
+                  <option value="user" ${draft.size_mode === "user" ? "selected" : ""}>${t("Запоминать мой размер", "Remember my size")}</option>
+                  <option value="authored" ${draft.size_mode === "authored" ? "selected" : ""}>${t("Каждый раз заданный размер", "Use the initial size each time")}</option>
                 </select></label>
               <label class="field-label">${t("Место кнопки", "Launcher slot")}
                 <select class="pinput" id="mw-slot">
@@ -3180,25 +3094,29 @@ const MemuModules = (() => {
             </div>
           </section>
           <section class="module-wizard-card">
-            <h4>4. ${t("Возможности и память", "Capabilities and memory")}</h4>
-            <div class="module-perm-grid">
-              ${permissionList().map((name) => `
-                <label class="module-check"><input type="checkbox" data-perm="${esc(name)}" ${draft.permissions.includes(name) ? "checked" : ""}> ${esc(name)}</label>`).join("")}
+            <h4>${t("Что сможет ваш модуль", "What your module can do")}</h4>
+            <div class="module-perm-grid module-perm-grid--detailed">
+              ${permissionOptions(draft.permissions, true)}
             </div>
-            <p class="module-hint">${t("Права можно поменять в любой момент. Без права модуль не сможет вызвать соответствующий метод моста.",
-              "Permissions can change at any time. Without one the module cannot call the matching bridge method.")}</p>
-            <label class="field-label">${t("Поля, которые сохраняются", "Fields that survive closing")}
+            <p class="module-hint">${t("Разрешите только нужные возможности. Изменить доступы можно позже в мастерской.",
+              "Allow only the capabilities you need. Change access later in the workbench.")}</p>
+            <details class="module-create-advanced"><summary>${t("Сохранение и инструкции для ИИ", "Saved fields and AI instructions")}</summary><label class="field-label">${t("Поля, которые сохраняются", "Fields that survive closing")}
               <input class="pinput" id="mw-persist" value="${esc(draft.persist)}" placeholder="draft, source, model"></label>
             <label class="field-label">${t("Инструкции для модели по умолчанию", "Default model instructions")}
-              <textarea class="ptexta" id="mw-instructions" rows="3" placeholder="${t("Необязательно", "Optional")}">${esc(draft.instructions)}</textarea></label>
+              <textarea class="ptexta" id="mw-instructions" rows="3" placeholder="${t("Необязательно", "Optional")}">${esc(draft.instructions)}</textarea></label></details>
           </section>
           <div class="module-wizard-foot">
-            <span class="module-hint" id="mw-status"></span>
+            <span class="module-hint" id="mw-status" role="status" aria-live="polite"></span>
             <span class="mu-grow"></span>
-            <button type="button" class="pbtn" id="mw-create">${icon("plus")} ${t("Создать и открыть код", "Create and open the code")}</button>
+            <button type="button" class="pbtn ghost" id="mw-prev">${t("Назад", "Back")}</button>
+            <button type="button" class="pbtn" id="mw-next">${t("Продолжить", "Continue")} ${icon("forward")}</button>
+            <button type="button" class="pbtn" id="mw-create">${icon("plus")} ${t("Создать модуль", "Create module")}</button>
           </div>
-        </div>
+        </div><aside class="module-create-summary" aria-label="${t("Ваш модуль", "Your module")}"><div class="module-create-preview"><div class="module-create-windowbar"><span></span><span></span><span></span></div><div id="mw-summary-icon"></div><b id="mw-summary-title"></b><span id="mw-summary-template"></span></div><p id="mw-summary-description" class="module-hint"></p><dl><div><dt>${t("Размер окна", "Window size")}</dt><dd id="mw-summary-size"></dd></div><div><dt>${t("Кнопка", "Launcher")}</dt><dd id="mw-summary-slot"></dd></div><div><dt>${t("Разрешения", "Permissions")}</dt><dd id="mw-summary-access"></dd></div></dl><p class="module-hint">${t("После создания откроется мастерская: код слева, работающий модуль справа.", "After creation, the workbench opens with code and a working preview side by side.")}</p></aside></div>
       </div>`;
+    const cards = $$(".module-wizard > .module-wizard-card", host);
+    cards[0].before(cards[1]);
+    $$(".module-wizard > .module-wizard-card", host).forEach((card, index) => { card.dataset.createPanel = index; });
     bindCreate(host);
   }
 
@@ -3206,6 +3124,7 @@ const MemuModules = (() => {
     const readForm = () => {
       if (!draft) return;
       draft.title = $("#mw-title", host).value.trim();
+      draft.summary = $("#mw-description", host).value.trim();
       draft.id = $("#mw-id", host).value.trim().toLowerCase();
       draft.width = Number($("#mw-width", host).value) || 760;
       draft.height = Number($("#mw-height", host).value) || 560;
@@ -3218,39 +3137,128 @@ const MemuModules = (() => {
       draft.instructions = $("#mw-instructions", host).value;
       draft.permissions = $$("[data-perm]", host).filter((box) => box.checked).map((box) => box.dataset.perm);
     };
+    host._readModuleDraft = readForm;
+    const summary = () => {
+      const chosen = templateList().find((item) => item.id === draft.template) || {};
+      $("#mw-summary-icon", host).innerHTML = moduleIcon(chosen.icon, "work");
+      $("#mw-summary-title", host).textContent = draft.title || t("Ваш новый модуль", "Your new module");
+      $("#mw-summary-template", host).textContent = localizedTitle(chosen);
+      $("#mw-summary-description", host).textContent = draft.summary || localizedSummary(chosen);
+      $("#mw-summary-size", host).textContent = `${draft.width} × ${draft.height}`;
+      const slot = slotList().find((item) => item.id === draft.slot);
+      $("#mw-summary-slot", host).textContent = draft.hidden ? t("Скрыта", "Hidden") : (slot ? t(slot.ru, slot.en) : draft.slot);
+      $("#mw-summary-access", host).textContent = draft.permissions.map(permissionName).join(", ") || t("Без дополнительных доступов", "No additional access");
+    };
+    const error = (id, message = "") => {
+      const field = $("#" + id, host);
+      let node = $("#" + id + "-error", host);
+      if (!node) { node = document.createElement("small"); node.id = id + "-error"; node.className = "module-field-error"; field.after(node); field.setAttribute("aria-describedby", node.id); }
+      node.textContent = message; node.hidden = !message;
+      field.setAttribute("aria-invalid", String(!!message));
+      return message ? field : null;
+    };
+    const reservedId = (val) => /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/i.test(val);
+    const idTaken = (val) => catalog.some((row) => row.id === val) || removedBuiltins.some((row) => row.id === val);
+    const validate = (all = false) => {
+      readForm();
+      const failures = [];
+      if (all || createStep === 1) {
+        const titleError = !draft.title ? t("Введите название модуля", "Enter a module name") : "";
+        const idError = !/^[a-z][a-z0-9-]{0,40}$/.test(draft.id) ? t("Начните с латинской буквы. Используйте a–z, цифры и дефис.", "Start with a letter. Use a–z, digits and hyphens.") : reservedId(draft.id) ? t("Системное имя не подходит для модуля", "System device names cannot be used") : idTaken(draft.id) ? t("Этот идентификатор уже занят", "This id is already in use") : "";
+        failures.push(error("mw-title", titleError), error("mw-id", idError));
+      }
+      if (all || createStep === 2) {
+        const width = Number($("#mw-width", host).value), height = Number($("#mw-height", host).value);
+        failures.push(error("mw-width", !Number.isInteger(width) || width < 240 || width > 2400 ? t("Ширина: целое число от 240 до 2400", "Width: a whole number from 240 to 2400") : ""));
+        failures.push(error("mw-height", !Number.isInteger(height) || height < 200 || height > 1600 ? t("Высота: целое число от 200 до 1600", "Height: a whole number from 200 to 1600") : ""));
+      }
+      const first = failures.find(Boolean);
+      if (first) {
+        const panel = first.closest("[data-create-panel]");
+        showStep(Number(panel.dataset.createPanel));
+        $("#mw-status", host).textContent = t("Проверьте выделенные поля", "Check the highlighted fields");
+        const details=first.closest("details");if(details)details.open=true;
+        first.focus(); return false;
+      }
+      return true;
+    };
+    const showStep = (next, focus = false) => {
+      createStep = Math.max(0, Math.min(3, next));
+      $$("[data-create-panel]", host).forEach((card) => { card.hidden = Number(card.dataset.createPanel) !== createStep; });
+      $$("[data-create-step]", host).forEach((button) => {
+        const active = Number(button.dataset.createStep) === createStep;
+        button.classList.toggle("active", active);
+        if (active) button.setAttribute("aria-current", "step"); else button.removeAttribute("aria-current");
+      });
+      $("#mw-prev", host).hidden = createStep === 0;
+      $("#mw-next", host).hidden = createStep === 3;
+      $("#mw-create", host).hidden = createStep !== 3;
+      if (focus) { const heading = $("[data-create-panel]:not([hidden]) h4", host); heading.tabIndex = -1; heading.focus({ preventScroll: true }); host.closest(".settings-body")?.scrollTo({ top: 0 }); }
+    };
+    const slug = (text) => {
+      const ru = { а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"yo",ж:"zh",з:"z",и:"i",й:"y",к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",х:"h",ц:"ts",ч:"ch",ш:"sh",щ:"sch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya" };
+      let value = String(text).toLowerCase().replace(/[а-яё]/g, (ch) => ru[ch]).normalize("NFKD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 36);
+      if (value && !/^[a-z]/.test(value)) value = "module-" + value;
+      if (reservedId(value)) value = "module-" + value;
+      const base = value.slice(0, 36); let index = 2;
+      while (value && (idTaken(value) || reservedId(value))) value = base + "-" + index++;
+      return value;
+    };
+    const onForm = (event) => {
+      if (!draft) return;
+      if (event.target.id === "mw-id") draft.idEdited = !!event.target.value;
+      if (event.target.id === "mw-title") {
+        draft.titleEdited = !!event.target.value.trim();
+        if (!draft.idEdited) $("#mw-id", host).value = slug(event.target.value);
+      }
+      if (event.target.id && $("#" + event.target.id + "-error", host)) error(event.target.id);
+      readForm();
+      if (event.target.id === "mw-width" || event.target.id === "mw-height") {
+        $$("[data-ms-size]", host).forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.msSize === `${draft.width},${draft.height}`)));
+      }
+      summary();
+    };
+    $(".module-wizard", host).addEventListener("input", onForm);
+    $(".module-wizard", host).addEventListener("change", onForm);
+    $("#mw-prev", host).onclick = () => { readForm(); showStep(createStep - 1, true); };
+    $("#mw-next", host).onclick = () => { if (validate()) { $("#mw-status", host).textContent = ""; showStep(createStep + 1, true); } };
+    $$("[data-create-step]", host).forEach((button) => { button.onclick = () => {
+      const next = Number(button.dataset.createStep);
+      if (next <= createStep || validate()) { readForm(); showStep(next, true); }
+    }; });
     $$("[data-template]", host).forEach((button) => {
       button.onclick = () => {
         readForm();
         draft.template = button.dataset.template;
         const chosen = templateList().find((item) => item.id === draft.template);
-        if (chosen && !draft.title) draft.title = localizedTitle(chosen);
-        // Шаблону нужны свои права и поля: у «Мини-чата» без models не
-        // работает выбор модели, у «Инструмента» без storage — сохранение.
+        if (chosen && (!draft.title || !draft.titleEdited)) draft.title = localizedTitle(chosen);
+
         if (chosen && Array.isArray(chosen.permissions)) draft.permissions = chosen.permissions.slice();
         if (chosen && Array.isArray(chosen.persist)) draft.persist = chosen.persist.join(", ");
-        renderCreate(host);
+        $("#mw-title", host).value = draft.title;
+        if (!draft.idEdited) { draft.id = slug(draft.title); $("#mw-id", host).value = draft.id; }
+        $("#mw-persist", host).value = draft.persist;
+        $$("[data-perm]", host).forEach((box) => { box.checked = draft.permissions.includes(box.dataset.perm); });
+        $$("[data-template]", host).forEach((item) => { item.classList.toggle("active", item === button); item.setAttribute("aria-pressed", String(item === button)); });
+        summary();
       };
     });
     $$("[data-modules-tab]", host).forEach((button) => {
-      button.onclick = () => { readForm(); draft = null; mountSettings(button.dataset.modulesTab); };
+      button.onclick = () => { readForm(); mountSettings(button.dataset.modulesTab); };
     });
     $("#mw-create", host).onclick = async () => {
       readForm();
       const status = $("#mw-status", host);
-      if (!draft.id) { status.textContent = t("Введите идентификатор", "Enter an id"); return; }
-      if (!/^[a-z][a-z0-9-]{0,40}$/.test(draft.id)) {
-        status.textContent = t("Идентификатор: латиница в нижнем регистре, цифры и дефис, начинается с буквы",
-          "Id: lowercase latin, digits and hyphens, starting with a letter");
-        return;
-      }
-      if (!draft.title) { status.textContent = t("Введите название", "Enter a title"); return; }
+      if (!validate(true)) return;
+      const button = $("#mw-create", host);
+      if (button.disabled) return;
+      button.disabled = true;
       status.innerHTML = `<span class="mu-spinner"></span> ${t("Создаю…", "Creating…")}`;
       const createdId = draft.id;
       try {
         await apiJson("/api/pg/modules", { method: "POST", body: {
-          id: draft.id, title: draft.title, template: draft.template,
-          // Сервер читает размеры окна только из window{}: верхние ключи
-          // игнорировались, и модуль создавался 760×540.
+          id: draft.id, title: draft.title, summary: draft.summary, template: draft.template,
+
           window: { default_width: draft.width, default_height: draft.height,
             size_mode: draft.size_mode, fixed: draft.fixed, resizable: draft.resizable },
           launcher: { hidden: draft.hidden, slot: draft.slot },
@@ -3259,14 +3267,18 @@ const MemuModules = (() => {
           bridge: { instructions: draft.instructions },
         } });
         draft = null;
+        createStep = 0;
         note(t("Модуль создан", "Module created"), "ok");
         await refresh();
-        await editCode(createdId);
-      } catch (error) { status.textContent = error.message; }
+        if (host.isConnected && currentPane === "create") await editCode(createdId);
+      } catch (error) { status.textContent = error.message; button.disabled = false; }
     };
+    $$('[data-ms-size]',host).forEach(button=>button.onclick=()=>{
+      const [w,h]=button.dataset.msSize.split(',').map(Number);$('#mw-width',host).value=w;$('#mw-height',host).value=h;
+      readForm();summary();$$('[data-ms-size]',host).forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
+    });
+    showStep(createStep); summary();
   }
-
-  /* ------------------------------- мастерская ------------------------------ */
 
   async function editCode(moduleId) {
     codeState = { id: moduleId, source: null, previewTimer: null, problems: [] };
@@ -3282,14 +3294,17 @@ const MemuModules = (() => {
 
   async function renderCode(host) {
     if (!codeState) return renderList(host);
+    const editing = codeState, job = settingsJob;
     let source;
     try {
-      source = await apiJson("/api/pg/modules/" + encodeURIComponent(codeState.id) + "/source");
+      source = codeState.source || await apiJson("/api/pg/modules/" + encodeURIComponent(codeState.id) + "/source");
     } catch (error) {
+      if (codeState !== editing || job !== settingsJob || !host.isConnected) return;
       host.innerHTML = `<div class="modules-pane">${head(t("Модуль", "Module"), "", backButton())}
         <div class="mu-note warn">${esc(error.message)}</div></div>`;
       return;
     }
+    if (codeState !== editing || job !== settingsJob || !host.isConnected) return;
     codeState.source = source;
     host.innerHTML = `
       <div class="modules-pane modules-workbench" data-view="code">
@@ -3345,8 +3360,8 @@ const MemuModules = (() => {
             <label class="field-label">${t("Высота", "Height")}<input class="pinput" id="mw-height" type="number" min="200" max="1600"></label>
             <label class="field-label">${t("Размер", "Size")}
               <select class="pinput" id="mw-size-mode">
-                <option value="user">${t("Сначала размер человека", "Prefer the person's size")}</option>
-                <option value="authored">${t("Всегда размер автора", "Always the authored size")}</option>
+                <option value="user">${t("Запоминать мой размер", "Remember my size")}</option>
+                <option value="authored">${t("Каждый раз заданный размер", "Use the initial size each time")}</option>
               </select></label>
             <div class="module-check-row">
               <label class="module-check"><input type="checkbox" id="mw-fixed"> ${t("Фиксированный", "Fixed")}</label>
@@ -3356,8 +3371,7 @@ const MemuModules = (() => {
           <section>
             <h4>${t("Права и память", "Permissions and memory")}</h4>
             <div class="module-perm-grid compact">
-              ${permissionList().map((name) => `
-                <label class="module-check"><input type="checkbox" data-perm="${esc(name)}"> ${esc(name)}</label>`).join("")}
+              ${permissionOptions([])}
             </div>
             <label class="field-label">${t("Сохраняемые поля", "Saved fields")}<input class="pinput" id="mw-persist" placeholder="draft, model"></label>
           </section>
@@ -3393,7 +3407,7 @@ const MemuModules = (() => {
     $("#mw-js").value = source.js || "";
     $("#mw-i18n").value = source.i18n && Object.keys(source.i18n).length ? JSON.stringify(source.i18n, null, 2) : "";
     $("#mw-locale").value = source.default_locale || "ru";
-    // Поле названия — на языке интерфейса: в английском правится title_en.
+
     $("#mw-title").value = en() ? (source.title_en || source.title || "") : (source.title || "");
     $("#mw-summary").value = en() ? (source.summary_en || source.summary || "") : (source.summary || "");
     $("#mw-instructions").value = (source.bridge || {}).instructions || "";
@@ -3477,8 +3491,7 @@ const MemuModules = (() => {
         }
       });
     });
-    // Native textarea scrollbars can change size after an edit or a pane resize.
-    // The highlight viewport follows the input's client box, never its scrollbar.
+
     if (typeof ResizeObserver !== "undefined") {
       const observer = new ResizeObserver(() => {
         if (!pane.isConnected) {
@@ -3509,9 +3522,9 @@ const MemuModules = (() => {
     let rendered = esc(area.value);
     if (window.MemuSyntax) {
       try { rendered = MemuSyntax.highlight(area.value, area.dataset.codeLanguage).join("\n"); }
-      catch (error) { /* Keep plain escaped text when a tokenizer cannot parse a draft. */ }
+      catch (error) {  }
     }
-    // An empty last line needs a glyph to keep pre's scroll range equal to textarea's.
+
     layer.innerHTML = rendered + "\n ";
     area.parentElement.classList.add("highlighted");
     syncCodeScroll(area);
@@ -3521,11 +3534,10 @@ const MemuModules = (() => {
     const top = area.scrollTop, left = area.scrollLeft;
     area.focus({ preventScroll: true });
     area.setSelectionRange(start, end);
-    // WebView/Chromium records insertText in textarea's native undo stack.
-    // setRangeText alone would make Tab indentation impossible to undo.
+
     let inserted = false;
     try { inserted = document.execCommand("insertText", false, text); }
-    catch (error) { /* Older embedded browsers use the plain input fallback. */ }
+    catch (error) {  }
     if (!inserted) {
       area.setRangeText(text, start, end, "end");
       area.dispatchEvent(new Event("input", { bubbles: true }));
@@ -3564,7 +3576,6 @@ const MemuModules = (() => {
     syncCodeScroll(area);
   }
 
-  /* Keys the code asks for — the same rules as i18n_keys_used() on the server. */
   function usedTranslationKeys(html, js) {
     const keys = [];
     const push = (key) => { if (key && !keys.includes(key)) keys.push(key); };
@@ -3599,8 +3610,6 @@ const MemuModules = (() => {
     if (badge) badge.hidden = !codeState.dirty;
   }
 
-  /* Уход из мастерской с несохранёнными правками — только с подтверждением:
-     раньше кнопка «К списку» молча выбрасывала весь набранный код. */
   async function leaveCode() {
     if (!codeState || !codeState.dirty) return true;
     if (typeof askConfirm !== "function") return true;
@@ -3626,8 +3635,6 @@ const MemuModules = (() => {
     await open(moduleId);
   }
 
-  /* Название и описание на обоих языках. Правка идёт в язык интерфейса;
-     второй язык, если он был просто копией первого, следует за ним. */
   function localizedTitles(title, summary) {
     const source = (codeState && codeState.source) || {};
     if (en()) {
@@ -3682,7 +3689,9 @@ const MemuModules = (() => {
       setProblems(checked.problems || []);
       await apiJson("/api/pg/modules/code", { method: "POST", body });
       note(t("Код сохранён", "Code saved"), "ok");
-      codeState.source = { ...(codeState.source || {}), ...body, edited: true };
+      let parsedI18n = {};
+      try { parsedI18n = body.i18n && body.i18n.trim() ? JSON.parse(body.i18n) : {}; } catch (_) { parsedI18n = (codeState.source && codeState.source.i18n) || {}; }
+      codeState.source = { ...(codeState.source || {}), ...body, i18n: parsedI18n, edited: true };
       markDirty(false);
       await refresh();
       updatePreview(true);
@@ -3725,6 +3734,7 @@ const MemuModules = (() => {
     if (!frame || !codeState || !codeState.source) return;
     const body = currentCode();
     codeState.previewPermissions = body.permissions.slice();
+    const env = hostEnv();
     const payload = {
       id: codeState.id,
       title: body.title || codeState.source.title || codeState.id,
@@ -3744,18 +3754,23 @@ const MemuModules = (() => {
       i18n: body.i18n,
       default_locale: body.default_locale,
       saved: {},
-      env: { ...hostEnv(), lang: ($("#mw-preview-lang") && $("#mw-preview-lang").value) || hostEnv().lang },
+      env: { ...env, lang: ($("#mw-preview-lang") && $("#mw-preview-lang").value) || env.lang },
     };
-    // Медленный старый ответ не должен затереть предпросмотр нового кода.
+
     const seq = (codeState.previewSeq = (codeState.previewSeq || 0) + 1);
+    const editing = codeState;
+    editing.previewAbort?.abort();
+    const controller = new AbortController();
+    editing.previewAbort = controller;
     const request = fetch("/api/pg/modules/preview", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      signal: controller.signal,
     }).then((response) => (response.ok ? response.text() : ""))
       .catch(() => "");
     request.then((html) => {
-      if (!codeState || seq !== codeState.previewSeq) return;
+      if (codeState !== editing || seq !== editing.previewSeq || !frame.isConnected || controller.signal.aborted) return;
       if (!html) {
         if (force) setProblems([{ level: "warn", field: "",
           ru: "Предпросмотр недоступен", en: "The preview is unavailable" }]);
@@ -3764,8 +3779,6 @@ const MemuModules = (() => {
       frame.srcdoc = html;
     });
   }
-
-  /* --------------------------- импорт и документация ------------------------ */
 
   function renderImport(host) {
     host.innerHTML = `
@@ -3826,16 +3839,13 @@ const MemuModules = (() => {
         await doImport(JSON.parse($("#mi-text", host).value));
       } catch (error) { status.textContent = t("Текст не разобран: ", "Could not parse the text: ") + error.message; }
     };
-    // Round 29: «Проверить и импортировать» — AI answer / ZIP / folder (modules-aipack.js).
+
     if (window.MemuModuleTools) MemuModuleTools.enhanceImport(host, { doImport });
     $$("[data-modules-tab]", host).forEach((button) => {
       button.onclick = () => mountSettings(button.dataset.modulesTab);
     });
   }
 
-  /* --------------------------- открытие окна из трея и запуск --------------- */
-
-  /** The MemuAI language changed: every open module re-translates at once. */
   function broadcastLanguage() {
     const lang = en() ? "en" : "ru";
     wins.forEach((win) => {
@@ -3855,7 +3865,7 @@ const MemuModules = (() => {
   }
 
   async function openFromState() {
-    // После перезапуска возвращаются все окна, что были открыты (не больше шести).
+
     const rows = catalog.filter((item) => item.open && item.enabled).slice(0, 6);
     for (const row of rows) {
       if (!wins.has(row.id)) await open(row.id);
@@ -3866,7 +3876,7 @@ const MemuModules = (() => {
     bindLayer();
     await refresh();
     if (appMode()) {
-      // Round 33: the module's own window shows that one module; the main window polls events.
+
       if (MA()) MA().bootModuleApp(open);
       return;
     }
@@ -3875,12 +3885,6 @@ const MemuModules = (() => {
     setInterval(pollModuleEvents, 15000);
   }
 
-  /* Уведомления фоновых модулей. Раньше курсор «что уже показано» жил в
-     localStorage, а окно MemuAI (pywebview, WebView2 в приватном режиме по
-     умолчанию) теряет localStorage при каждом запуске: курсор становился 0, и
-     последние уведомления «Новые модели API» всплывали снова после каждого
-     старта. Теперь подтверждение хранится на сервере рядом с событиями
-     (background.json): pending=1 отдаёт только непоказанные, ack запоминает. */
   let eventPolling = false;
   let shownUpTo = 0;
   async function pollModuleEvents() {
@@ -3900,7 +3904,7 @@ const MemuModules = (() => {
       if (cursor > (Number(data.acknowledged) || 0)) {
         await apiJson("/api/pg/modules/events/ack", { method: "POST", body: { cursor } }).catch(() => null);
       }
-    } catch (_) { /* Proxy may be starting; durable events remain available. */ }
+    } catch (_) {  }
     finally { eventPolling = false; }
   }
 
@@ -3911,7 +3915,7 @@ const MemuModules = (() => {
   }
 
   return {
-    refresh, open, close, mountSettings, editCode,
+    refresh, open, close, mountSettings, editCode, configure,
     handleModuleMessage: onModuleMessage,
     handleHostEvent, broadcastTheme, hostEnv,
     moduleLog,
@@ -3929,13 +3933,12 @@ const MemuModules = (() => {
     snap: (moduleId, name) => snapWindow(wins.get(moduleId || openId), name),
     minimize: (moduleId) => minimizeWindow(wins.get(moduleId || openId)),
     restore: (moduleId) => restoreWindow(wins.get(moduleId || openId)),
-    // Round 31: a close the person asked for (asks first when work would be lost).
-    // Does not wait for the answer (the question may stay open): true when there was a window to close.
+
     requestClose: (moduleId) => { const win = wins.get(moduleId || openId); if (win) requestClose(win); return !!win; },
     closeReason: (moduleId) => closeReason(wins.get(moduleId || openId)),
     showHint: (moduleId) => showCoach(wins.get(moduleId || openId), true),
     loadHints: () => loadHints().then((seen) => [...seen]),
-    // Round 33 (module-apps.js): close without a question (the module moved to its own window) and its size.
+
     dropWindow: (moduleId) => closeWindow(wins.get(moduleId)),
     windowBox: (moduleId) => { const win = wins.get(moduleId); return win ? currentBox(win) : null; },
     windowTitle: (moduleId) => { const win = wins.get(moduleId); return win ? titleOf(win.row) : ""; },
@@ -3947,7 +3950,7 @@ const MemuModules = (() => {
   };
 })();
 window.MemuModules = MemuModules;
-// Global search results with open.action = "character" (Characters module provider) open that character.
+
 (function registerCharacterSearch(tries) {
   if (window.MemuSearch && typeof window.MemuSearch.registerAction === "function") {
     window.MemuSearch.registerAction("character", (o) => MemuModules.navigate(o.module_id || "characters", { query: String(o.id || ""), from: "search" }));

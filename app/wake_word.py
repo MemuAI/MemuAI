@@ -49,7 +49,6 @@ from .wake_audio import CHUNK_MS, RATE, MicError
 
 log = logging.getLogger("memuai.wake")
 
-# ------------------------------------------------------------------ catalogue
 MODELS: Dict[str, Dict[str, Any]] = {
     "ru": {"id": "vosk-model-small-ru-0.22", "size": 46236750,
            "sha256": "961d5ff98a17f4aa6de69864d0aa71fa5bac682301d2b5d17a3f24c5c99a46d4",
@@ -96,33 +95,27 @@ DEFAULTS: Dict[str, Any] = {"enabled": False, "phrase": "", "lang": "", "device"
 SENSITIVITY_RANGE = (0, 100)
 COOLDOWN_RANGE = (1, 30)
 MAX_VARIANTS = 12
-#: command capture: give up without speech after NO_SPEECH s, finish after END_SILENCE s of quiet, never > MAX_COMMAND s
-NO_SPEECH, END_SILENCE, MAX_COMMAND = 6.0, 1.2, 15.0
-#: the settings' «Test» mode stays on this long without a poll
-TEST_TTL = 20.0
-#: busy() from a page without an explicit end lapses after this
-BUSY_MAX = 120.0
-#: a finished command nobody fetched is dropped after this
-SESSION_TTL = 120.0
 
+NO_SPEECH, END_SILENCE, MAX_COMMAND = 6.0, 1.2, 15.0
+
+TEST_TTL = 20.0
+
+BUSY_MAX = 120.0
+
+SESSION_TTL = 120.0
 
 def _tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
 
-
-# ------------------------------------------------------------------ settings
 def _root() -> Path:
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR)
 
-
 def settings_file() -> Path:
     return _root() / "wake_word.json"
 
-
 def models_root() -> Path:
     return _root() / "wake-models"
-
 
 def ui_language() -> str:
     try:
@@ -131,13 +124,11 @@ def ui_language() -> str:
     except Exception:
         return "ru"
 
-
 def normalize_phrase(value: Any) -> str:
     text = str(value or "").lower().replace("’", "'")
     text = re.sub(r"[^\w\s'-]+", " ", text)
     text = re.sub(r"[-_]+", " ", text)
     return " ".join(text.split())[:80]
-
 
 def normalize_settings(raw: Any, lang_hint: str = "ru") -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
@@ -163,14 +154,12 @@ def normalize_settings(raw: Any, lang_hint: str = "ru") -> Dict[str, Any]:
     out["glow"] = bool(raw.get("glow", True))
     return out
 
-
 def load_settings() -> Dict[str, Any]:
     try:
         data = json.loads(settings_file().read_text("utf-8"))
     except (OSError, ValueError):
         data = {}
     return normalize_settings(data.get("settings") if isinstance(data, dict) else {}, ui_language())
-
 
 def save_settings(patch: Dict[str, Any]) -> Dict[str, Any]:
     current = load_settings()
@@ -182,10 +171,8 @@ def save_settings(patch: Dict[str, Any]) -> Dict[str, Any]:
     save_json(settings_file(), {"version": 1, "settings": clean}, backup=False)
     return clean
 
-
 def effective_phrase(settings: Dict[str, Any]) -> str:
     return settings.get("phrase") or MODELS[settings["lang"]]["phrase"]
-
 
 def threshold(sensitivity: float) -> float:
     """Minimum mean word confidence: 0.85 at sensitivity 0 … 0.35 at 100 (0.6 by default).
@@ -194,12 +181,8 @@ def threshold(sensitivity: float) -> float:
     phrases either did not match at all or matched only as near-homophones («привет мимо») at any threshold."""
     return 0.85 - 0.005 * max(0.0, min(100.0, float(sensitivity)))
 
-
-#: an alias only sounds like the user's word, so the model is less sure of it even when the phrase is right
 ALIAS_BONUS = 0.1
 
-
-# ------------------------------------------------------------------ phrase analysis
 def _variants_of(word: str, lang: str) -> List[str]:
     """Spellings that sound like ``word``: one swap, one deletion, then two swaps (ordered by distance)."""
     table = _SOUND_ALIKE.get(lang, {})
@@ -227,7 +210,6 @@ def _variants_of(word: str, lang: str) -> List[str]:
                 add(cand[:i] + sub + cand[i + 1:])
     return out
 
-
 def analyze_phrase(phrase: str, lang: str, known: Callable[[str], bool]) -> Dict[str, Any]:
     """Words of the phrase checked against the model's dictionary (``known``), sound-alike aliases for unknown words.
 
@@ -252,12 +234,12 @@ def analyze_phrase(phrase: str, lang: str, known: Callable[[str], bool]) -> Dict
             spelled = word.replace("е", "ё") if lang == "ru" else ""
             yo = [word[:i] + "ё" + word[i + 1:] for i, ch in enumerate(word) if ch == "е"] if lang == "ru" else []
             exact = next((w for w in yo + ([spelled] if spelled != word else []) if known(w)), "")
-            if exact:                                     # «еще» → «ещё»: the same word, not an alias
+            if exact:
                 row["known"] = True
                 row["spelling"] = exact
                 options.append([exact])
             else:
-                # ONE alias: two sound-alikes in the grammar split the confidence between them (мемо 0.48 / мемы)
+
                 alias = [cand for cand in _variants_of(word, lang) if known(cand)][:1]
                 if not alias:
                     for i in range(2, len(word) - 1):
@@ -288,7 +270,6 @@ def analyze_phrase(phrase: str, lang: str, known: Callable[[str], bool]) -> Dict
     result["ok"] = True
     return result
 
-
 def grammar_for(variants: List[List[str]], lang: str, known: Callable[[str], bool],
                 phrase: str = "") -> List[str]:
     """Phrase variants + decoys + ``[unk]``. Decoys that sound like a phrase word (or like the user's own spelling
@@ -300,10 +281,8 @@ def grammar_for(variants: List[List[str]], lang: str, known: Callable[[str], boo
     decoys = [w for w in DECOYS.get(lang, ()) if w not in taken and w not in near and known(w)]
     return [" ".join(v) for v in variants] + decoys + ["[unk]"]
 
-
 def alias_words(analysis: Dict[str, Any]) -> frozenset:
     return frozenset(w for row in analysis.get("words") or [] for alias in row.get("alias") or [] for w in alias.split())
-
 
 def match_hit(result: Dict[str, Any], variants: List[List[str]], min_conf: float,
               aliases: frozenset = frozenset()) -> Optional[Dict[str, Any]]:
@@ -325,8 +304,6 @@ def match_hit(result: Dict[str, Any], variants: List[List[str]], min_conf: float
                         "end": float(words[i + n - 1].get("end", 0.0)), "words": variant}
     return best
 
-
-# ------------------------------------------------------------------ audio helpers
 class EnergyGate:
     """Opens on speech-like energy above an adaptive noise floor; hands 500 ms of pre-roll to the recogniser
     (a fresh recogniser needs some lead-in: with 300 ms synthetic speech at some speeds was missed).
@@ -354,7 +331,7 @@ class EnergyGate:
                 feed = list(self.pre) + [chunk]
                 self.pre.clear()
                 return feed, False
-            # the floor follows the room only while nobody speaks (slowly down, a bit faster up)
+
             alpha = 0.05 if level > self.floor else 0.15
             self.floor = max(self.floor_min, self.floor + (level - self.floor) * alpha)
             self.pre.append(chunk)
@@ -368,7 +345,6 @@ class EnergyGate:
     def reset(self) -> None:
         self.open, self.quiet = False, 0
         self.pre.clear()
-
 
 class Detector:
     """Vosk with the restricted grammar. ONE recogniser for the whole listening run, fed only while the gate is open:
@@ -389,8 +365,8 @@ class Detector:
         self.variants, self.min_conf, self.aliases = variants, min_conf, aliases
         self.rec = None
         self.audio = bytearray()
-        self.base = 0                               # sample index (in recogniser time) of audio[0]
-        self.speaking = False                       # an utterance is being decoded (finish() pending)
+        self.base = 0
+        self.speaking = False
 
     def _ensure(self) -> Any:
         if self.rec is None:
@@ -424,7 +400,6 @@ class Detector:
         start = int((hit["end"] + 0.15) * RATE) - self.base
         return bytes(self.audio[max(0, start) * 2:])
 
-
 def wav_bytes(pcm: bytes, rate: int = RATE) -> bytes:
     out = io.BytesIO()
     with wave.open(out, "wb") as w:
@@ -433,7 +408,6 @@ def wav_bytes(pcm: bytes, rate: int = RATE) -> bytes:
         w.setframerate(rate)
         w.writeframes(pcm)
     return out.getvalue()
-
 
 def chime_pcm(rate: int = 22050) -> bytes:
     """A soft two-note «I'm listening» chime (≈ 0.22 s)."""
@@ -445,7 +419,6 @@ def chime_pcm(rate: int = 22050) -> bytes:
             samples.append(int(0.22 * 32767 * env * math.sin(2 * math.pi * freq * i / rate)))
     return struct.pack("<%dh" % len(samples), *samples)
 
-
 def audio_seconds(audio: bytes, mime: str) -> float:
     """Length of synthesised speech, to mute the wake word while it plays (WAV exactly, else ~128 kbit/s)."""
     if "wav" in (mime or "") and audio[:4] == b"RIFF":
@@ -456,7 +429,6 @@ def audio_seconds(audio: bytes, mime: str) -> float:
             pass
     return len(audio) / 16000.0
 
-
 class Session:
     """The command after the phrase: audio kept in Python, ended by silence (see NO_SPEECH/END_SILENCE/MAX_COMMAND)."""
 
@@ -465,14 +437,14 @@ class Session:
     def __init__(self, recognizer: Any = None, mute_until: float = 0.0) -> None:
         self.id = next(self._ids)
         self.audio = bytearray()
-        self.phase = "listening"          # listening → captured | empty | cancelled; then done
+        self.phase = "listening"
         self.heard = False
         self.silence = 0.0
         self.level = 0.0
         self.partial = ""
         self.text = ""
-        self.rec = recognizer             # free-form Vosk (live words + offline fallback), may be None
-        self.mute = mute_until            # seconds of audio during which the chime plays (not speech)
+        self.rec = recognizer
+        self.mute = mute_until
         self.created = time.time()
 
     @property
@@ -526,8 +498,6 @@ class Session:
                 out["audio"] = "data:audio/wav;base64," + base64.b64encode(wav_bytes(bytes(self.audio))).decode("ascii")
         return out
 
-
-# ------------------------------------------------------------------ model download (reuses local_models._fetch)
 class _Job:
     """The duck-typed job ``local_models._fetch`` expects (cancel / done / speed)."""
 
@@ -537,7 +507,7 @@ class _Job:
         self.done = 0
         self.total = 0
         self.speed = 0.0
-        self.state = "downloading"        # downloading | unpacking | done | error | cancelled
+        self.state = "downloading"
         self.error: Optional[Dict[str, str]] = None
 
     def public(self) -> Dict[str, Any]:
@@ -548,7 +518,6 @@ class _Job:
             progress = 100
         return {"state": self.state, "progress": progress, "done": self.done, "total": self.total,
                 "speed": int(self.speed), "error": self.error}
-
 
 def _download_problem(exc: BaseException) -> Dict[str, str]:
     """A ru/en message for a failed download. ``local_models._fetch`` speaks Russian about «Hugging Face» (its usual
@@ -580,16 +549,13 @@ def _download_problem(exc: BaseException) -> Dict[str, str]:
                 "en": "Cannot reach the model server (alphacephei.com). Check the connection and retry — it resumes."}
     return {"ru": f"Не удалось скачать модель: {type(exc).__name__}", "en": f"Could not download the model: {type(exc).__name__}"}
 
-
 def model_dir(lang: str) -> Path:
     return models_root() / MODELS[lang]["id"]
-
 
 def model_ready(lang: str) -> bool:
     folder = model_dir(lang)
     return (folder / "am" / "final.mdl").is_file() and (folder / "conf" / "model.conf").is_file() \
         and (folder / "graph").is_dir()
-
 
 def _check_zip(path: Path) -> None:
     from .local_models import LocalModelError
@@ -600,7 +566,6 @@ def _check_zip(path: Path) -> None:
         raise LocalModelError(f"архив zip повреждён ({exc})") from None
     if not any(name.endswith("am/final.mdl") for name in names):
         raise LocalModelError("в архиве zip нет модели Vosk")
-
 
 def _unpack(archive: Path, lang: str) -> None:
     root = models_root()
@@ -624,7 +589,6 @@ def _unpack(archive: Path, lang: str) -> None:
     finally:
         shutil.rmtree(staging, ignore_errors=True)
 
-
 def _download(job: _Job, on_done: Callable[[], None]) -> None:
     import httpx
     from . import local_models
@@ -636,7 +600,7 @@ def _download(job: _Job, on_done: Callable[[], None]) -> None:
         part = archive.with_name(archive.name + ".part")
         job.total = meta["size"]
         have = part.stat().st_size if part.exists() else 0
-        needed = (meta["size"] - have) + meta["size"] * 2          # the rest of the zip + unpacked (~1.9×)
+        needed = (meta["size"] - have) + meta["size"] * 2
         free = shutil.disk_usage(root).free
         if needed > free:
             mb = lambda v: f"{v / 1024 ** 2:.0f}"  # noqa: E731
@@ -660,19 +624,16 @@ def _download(job: _Job, on_done: Callable[[], None]) -> None:
         on_done()
     except InterruptedError:
         job.state = "cancelled"
-    except Exception as exc:          # surfaced in the settings, never kills the app
+    except Exception as exc:
         job.state = "error"
         job.error = _download_problem(exc)
         log.warning("wake word model download failed: %s", exc)
-
 
 def delete_model(lang: str) -> None:
     shutil.rmtree(model_dir(lang), ignore_errors=True)
     for leftover in models_root().glob(MODELS[lang]["id"] + ".zip*"):
         leftover.unlink(missing_ok=True)
 
-
-# ------------------------------------------------------------------ engine availability
 def engine_info() -> Dict[str, Any]:
     """Is the ``vosk`` package importable? ``installable`` — a source install may pip-install it from Settings."""
     try:
@@ -680,7 +641,6 @@ def engine_info() -> Dict[str, Any]:
         return {"available": True, "installable": False}
     except Exception:
         return {"available": False, "installable": not getattr(sys, "frozen", False)}
-
 
 def _import_vosk():
     import vosk
@@ -690,8 +650,6 @@ def _import_vosk():
         pass
     return vosk
 
-
-# ------------------------------------------------------------------ the service
 class WakeService:
     """The background listener. Thread-safe public methods; the work runs on ``memuai-wake``."""
 
@@ -707,7 +665,7 @@ class WakeService:
         self.opener: Optional[Callable[[Dict[str, Any]], Any]] = None
         self.settings = dict(DEFAULTS, lang="ru")
         self.lock = threading.RLock()
-        self.wake = threading.Event()          # reconfigure / stop request
+        self.wake = threading.Event()
         self.stop_event = threading.Event()
         self.thread: Optional[threading.Thread] = None
         self.generation = 0
@@ -727,7 +685,6 @@ class WakeService:
         self._tray_on = False
         self._loaded = False
 
-    # ---------------------------------------------------------- wiring
     def attach(self, app: Any = None, opener: Optional[Callable[[Dict[str, Any]], Any]] = None) -> None:
         """Desktop start-up: remember the app (for ``app.state.quick_ask``) and start if enabled."""
         self.app = app
@@ -757,7 +714,6 @@ class WakeService:
             thread.join(timeout=3.0)
         self._tray(False)
 
-    # ---------------------------------------------------------- state flags
     def busy(self, source: str, seconds: float) -> None:
         """Mute the wake word for ``seconds`` because of ``source`` (tts / live / voice …); 0 clears it."""
         source = re.sub(r"[^a-z0-9_-]", "", str(source or "").lower())[:24] or "other"
@@ -801,7 +757,6 @@ class WakeService:
     def wanted(self) -> bool:
         return bool(self.settings.get("enabled")) or self.testing()
 
-    # ---------------------------------------------------------- models
     def start_download(self, lang: str) -> Dict[str, Any]:
         if lang not in MODELS:
             raise ValueError("unknown language")
@@ -848,7 +803,7 @@ class WakeService:
         if cached is None:
             cached = vosk.Model(str(model_dir(lang)))
             with self.lock:
-                self._model_cache = {lang: cached}          # one language in memory at a time
+                self._model_cache = {lang: cached}
         return vosk, cached
 
     def check_phrase(self, phrase: str, lang: str) -> Dict[str, Any]:
@@ -868,7 +823,6 @@ class WakeService:
         out["checked"] = True
         return out
 
-    # ---------------------------------------------------------- lifecycle
     def apply(self) -> None:
         """Start the thread when it is wanted, possible and not running; a running thread re-reads settings."""
         with self.lock:
@@ -894,7 +848,7 @@ class WakeService:
                 settings, generation = dict(self.settings), self.generation
                 lang = settings["lang"]
                 if (not engine_info()["available"] or not model_ready(lang)) and source is not None:
-                    self._close_source(source)         # no recogniser to feed: the mic is not held
+                    self._close_source(source)
                     source = None
                 if not engine_info()["available"]:
                     self._set_state("error", "no_engine")
@@ -930,7 +884,7 @@ class WakeService:
                 detector = Detector(model, vosk, grammar, analysis["variants"], threshold(settings["sensitivity"]),
                                     alias_words(analysis))
                 source = self._listen(source, settings, generation, detector, vosk, model)
-        except Exception as exc:          # the thread must never die silently
+        except Exception as exc:
             log.exception("wake word thread crashed")
             crashed = True
             self._set_state("error", "crash", {"ru": f"Слово-активатор остановлено: {exc}",
@@ -946,7 +900,7 @@ class WakeService:
             if self.state != "error" or not self.wanted():
                 self._set_state("off")
             if self.wanted() and not crashed and not self.stop_event.is_set():
-                self.apply()            # re-enabled while this thread was on its way out
+                self.apply()
 
     def _open_source(self, settings: Dict[str, Any], generation: int):
         """Open the mic, retrying every 3 s with the error in the status; None when stopped/reconfigured."""
@@ -987,7 +941,7 @@ class WakeService:
                 last_lock_check = now
                 if self.locked():
                     if source is not None:
-                        self._close_source(source)     # the mic is released while the PC is locked
+                        self._close_source(source)
                         source = None
                     self._set_state("paused", "locked")
                     detector.finish()
@@ -1002,7 +956,7 @@ class WakeService:
             chunk = source.read(0.5)
             if chunk is None:
                 silent_reads += 1
-                if silent_reads >= 6:                  # 3 s without audio: sleep/resume or the device vanished
+                if silent_reads >= 6:
                     self._close_source(source)
                     source = None
                 continue
@@ -1012,14 +966,14 @@ class WakeService:
             with self.lock:
                 session = self.session
                 if session is not None and session.phase != "listening" and time.time() - session.created > SESSION_TTL:
-                    self.session = session = None       # the window never collected it (it failed to open)
+                    self.session = session = None
             if session is not None and session.phase == "listening":
                 session.feed(chunk, level, gate.speech_level())
                 self._set_state("listening", "command")
                 continue
             reason = self.busy_reason() or ("cooldown" if now < self.cooldown_until else "")
             if reason:
-                detector.finish()                      # whatever was half-heard is dropped
+                detector.finish()
                 gate.reset()
                 self._set_state("paused", reason)
                 continue
@@ -1047,7 +1001,7 @@ class WakeService:
         self.last_hit = {"at": time.time(), "conf": hit["conf"], "phrase": phrase, "test": self.testing()}
         log.info("wake word heard (%s, conf %.2f)", phrase, hit["conf"])
         if self.testing():
-            return                             # «Проверить» in Settings: show it, do not open the window
+            return
         if not self._quick_enabled():
             return
         try:
@@ -1105,7 +1059,6 @@ class WakeService:
         except Exception:
             return False
 
-    # ---------------------------------------------------------- session API (the Quick Ask page)
     def session_public(self, with_audio: bool = False) -> Optional[Dict[str, Any]]:
         with self.lock:
             session = self.session
@@ -1129,7 +1082,6 @@ class WakeService:
             self.cooldown_until = self.clock() + self.settings.get("cooldown", 3)
         return True
 
-    # ---------------------------------------------------------- status
     def status(self, lang: str = "") -> Dict[str, Any]:
         reason = self.reason
         out = {"state": self.state, "reason": reason, "error": self.error, "level": round(self.level, 4),
@@ -1141,7 +1093,6 @@ class WakeService:
             out["progress"] = job.public()["progress"] if job else 0
         return out
 
-    # ---------------------------------------------------------- tray indicator (privacy)
     def _tray(self, on: bool) -> None:
         if on == self._tray_on:
             return
@@ -1168,9 +1119,7 @@ class WakeService:
         except Exception as exc:
             log.debug("wake word tray indicator: %s", exc)
 
-
 SERVICE = WakeService()
-
 
 def note_speech(audio: bytes, mime: str) -> None:
     """``/api/voice/speak`` produced speech: the wake word ignores the mic while it plays (+1.5 s of echo)."""
@@ -1178,7 +1127,6 @@ def note_speech(audio: bytes, mime: str) -> None:
         SERVICE.busy("tts", audio_seconds(audio, mime) + 1.5)
     except Exception:
         pass
-
 
 def live_session(on: bool) -> None:
     """MemuAI Live opened/closed its WebSocket: no wake word in between."""

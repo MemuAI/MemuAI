@@ -5,7 +5,7 @@ summary: What each permission unlocks and why the sandbox exists.
 
 # Module permissions
 
-Permissions are listed in `permissions`. When the list is absent the module gets all of them except `net-import`, `music` and `learn`, so packages created before permissions existed keep working.
+Permissions are listed in `permissions`. When the list is absent the module gets all of them except `net-import`, `music`, `learn` and `database`, so packages created before permissions existed keep working.
 
 | Permission | Unlocks | Methods |
 | --- | --- | --- |
@@ -25,6 +25,7 @@ Permissions are listed in `permissions`. When the list is absent the module gets
 | `net-import` | downloading a character card or a lorebook by link through MemuAI (declared explicitly) | `fetchImport` |
 | `music` | the MemuMusic library: tracks, playlists, downloading by link, lyrics, the player (declared explicitly) | `music.call` |
 | `learn` | MemuLearn courses, cards and reviews (declared explicitly) | `learn.call` |
+| `database` | user-selected SQLite databases through the protected host (declared explicitly) | `database.call` |
 
 No permission is needed for `routes`, `env`, `resize`, `log`, `close` and `host` — those are the environment.
 
@@ -57,6 +58,14 @@ Round 40. `Memu.learn.call(op, args)` → a Promise with the result; the operati
 - Not part of the implicit "all permissions": the module declares `learn` itself.
 - MemuAI computes the FSRS schedule on this computer; course data is shared by the MemuLearn module, the Review today panel and the Mini App Trainer tab.
 - Model requests (summaries, cards, exams) are made by the module itself through `Memu.request`, which needs the `chat` permission.
+
+## Databases (`database`)
+
+A module explicitly declares `database` and calls `Memu.database.call(op, args)`.
+The host opens SQLite databases selected by the user; normal opening is read-only.
+Changes are previewed on a copy, require confirmation in the host interface, and
+are then applied atomically with a backup. A module cannot impersonate user
+confirmation. AI tools create SQL proposals; they do not apply changes silently.
 
 ## What happens without a permission
 

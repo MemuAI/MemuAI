@@ -39,7 +39,7 @@ a = Analysis(
                    "webview.platforms.winforms", "webview.platforms.edgechromium"],
     hookspath=[],
     runtime_hooks=[],
-    # The installer never imports the applications: keep their heavy stacks out.
+
     excludes=["app", "tkinter", "numpy", "fastapi", "uvicorn", "starlette", "pydantic", "curl_cffi", "httpx",
               "PIL", "onnxruntime", "faster_whisper", "ctranslate2", "piper", "anthropic", "rich",
               "prompt_toolkit", "pystray", "pypdf", "winotify", "websockets"],

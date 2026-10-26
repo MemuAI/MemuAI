@@ -16,14 +16,12 @@ from installer.payload import Payload  # noqa: E402
 from installer.products import get  # noqa: E402
 from app.version import APP_VERSION  # noqa: E402
 
-
 def digest(path: Path) -> str:
     result = hashlib.sha256()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
             result.update(block)
     return result.hexdigest()
-
 
 def verify(path: Path) -> None:
     count = size = compared = 0
@@ -33,7 +31,7 @@ def verify(path: Path) -> None:
         product = get(str(payload.meta.get("product_id") or payload.meta.get("product") or "memuai"))
         components = {component.id: component for component in product.components}
         for entry, chunks in payload.iter_files(components):
-            consumed = sum(len(piece) for piece in chunks)  # drains SHA and xz integrity checks
+            consumed = sum(len(piece) for piece in chunks)
             if consumed != entry.size:
                 raise ValueError("Incorrect payload size: " + entry.path)
             count += 1
@@ -51,7 +49,6 @@ def verify(path: Path) -> None:
             compared += 1
     print(f"PASS installer payload: {count} files, {size} bytes; every SHA-256 and xz block verified; {compared} files match dist")
     print(f"SHA256: {digest(path).upper()}")
-
 
 if __name__ == "__main__":
     verify(Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "installer" / f"MemuAI-Setup-{APP_VERSION}.exe")

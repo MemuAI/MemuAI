@@ -31,11 +31,9 @@ DEFAULTS = {"enabled": False, "commands_enabled": False, "model": "", "api_id": 
 _lock = threading.RLock()
 _stores: dict[str, Any] = {}
 
-
 def path():
     from .pgdata import MEMU_DIR
     return MEMU_DIR / "telegram_use.json"
-
 
 def secrets():
     from .gdrive_sync_crypto import SecretStore
@@ -46,12 +44,11 @@ def secrets():
         if key not in _stores:
             class ProtectedStore(SecretStore):
                 def set(self, name: str, value: str) -> None:
-                    # Session, API hash and bridge token may be touched by different processes.
+
                     with _json_transaction(self.path):
                         super().set(name, value)
             _stores[key] = ProtectedStore(folder)
         return _stores[key]
-
 
 def integer(value: Any, default: int, low: int, high: int) -> int:
     try:
@@ -59,13 +56,11 @@ def integer(value: Any, default: int, low: int, high: int) -> int:
     except (ValueError, TypeError, OverflowError):
         return default
 
-
 def ids(value: Any) -> list[int]:
     if isinstance(value, str):
         value = re.split(r"[,\s]+", value)
     return list(dict.fromkeys(int(str(x)) for x in (value if isinstance(value, list) else [])
                               if re.fullmatch(r"-?\d{1,20}", str(x)) and int(str(x)) != 0))[:200]
-
 
 def command(value: Any) -> dict:
     if not isinstance(value, dict):
@@ -75,7 +70,7 @@ def command(value: Any) -> dict:
         raise ValueError("Триггер: !//name, 1–32 буквы, цифры, _ или -")
     kind = value.get("kind") if value.get("kind") in ("voice", "summary") else "question"
     arguments = value.get("arguments")
-    # Upgrade the shipped summary command without touching custom command instructions.
+
     if arguments is None and trigger.casefold() == "!//summary" and value.get("name") == "summary":
         kind, arguments = "summary", SUMMARY_ARGUMENTS
     if kind == "summary" and arguments is None:
@@ -102,7 +97,6 @@ def command(value: Any) -> dict:
             "cooldown_seconds": integer(value.get("cooldown_seconds"), 5, 0, 86400),
             "max_input_chars": integer(value.get("max_input_chars"), 8000, 100, 32000)}
 
-
 def normalize(value: Any) -> dict:
     raw = value if isinstance(value, dict) else {}
     out = {**DEFAULTS, **{k: raw[k] for k in DEFAULTS if k in raw}}
@@ -127,11 +121,9 @@ def normalize(value: Any) -> dict:
         raise ValueError("Триггеры команд должны различаться / Duplicate command triggers")
     return out
 
-
 def load() -> dict:
     from .storage import load_json_with_recovery
     return normalize(load_json_with_recovery(path(), {}))
-
 
 def save(values: dict) -> dict:
     from .storage import _json_transaction, save_json
@@ -139,7 +131,6 @@ def save(values: dict) -> dict:
         out = normalize({**load(), **{k: v for k, v in values.items() if k in DEFAULTS}})
         save_json(path(), out)
     return out
-
 
 def parse_proxy(value: Any) -> dict:
     """Validated MTProxy / SOCKS4/5 / HTTP URL. Credentials stay in SecretStore."""
@@ -159,7 +150,7 @@ def parse_proxy(value: Any) -> dict:
         port = (query.get("port") or [""])[0]
         if kind == "proxy":
             secret = (query.get("secret") or [""])[0]
-            # Telethon supports ordinary and dd-secret MTProxy. TLS camouflage (ee) needs another transport.
+
             if not re.fullmatch(r"(?:dd)?[0-9a-fA-F]{32}", secret):
                 raise ValueError("MTProxy: нужен hex secret (32 символа, возможно с dd); ee/Fake-TLS не поддерживается")
             result = {"kind": "mtproto", "secret": secret}

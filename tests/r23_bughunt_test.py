@@ -44,14 +44,10 @@ from app import product_cards as pc  # noqa: E402
 
 from tests.assistant_commands_test import FakeBackend, NOW  # noqa: E402
 
-THURSDAY_1430 = datetime(2026, 10, 8, 14, 30)      # 2026-10-08 is a Thursday
-
+THURSDAY_1430 = datetime(2026, 10, 8, 14, 30)
 
 def run(coro):
     return asyncio.run(coro)
-
-
-# ---------------------------------------------------------------------------------------------- SMTP
 
 class SmtpTest(unittest.TestCase):
     BASE = {"smtp_host": "smtp.example.com", "smtp_from": "me@example.com", "schedule_email_to": "you@example.com",
@@ -110,9 +106,6 @@ class SmtpTest(unittest.TestCase):
                 scheduler._send_schedule_email({**self.BASE, "smtp_port": 2465, "smtp_security": "ssl"}, "t", "x")
         self.assertIn("TLS", str(caught.exception))
 
-
-# ---------------------------------------------------------------------------------------------- schedules race
-
 class SchedulesRaceTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -125,9 +118,9 @@ class SchedulesRaceTest(unittest.TestCase):
 
     def test_stale_planning_snapshot_keeps_a_reminder_added_meanwhile(self):
         pgdata.save_schedules([{"id": "daily", "name": "News", "prompt": "news", "daily_at": "09:00", "enabled": True}])
-        snapshot = pgdata.load_schedules()                       # «Планирование» opened
-        reminder_id = ac.add_reminder_task("купить хлеб", datetime(2026, 10, 8, 15, 0))   # Quick Ask meanwhile
-        snapshot[0]["enabled"] = False                           # user toggles the old task and saves
+        snapshot = pgdata.load_schedules()
+        reminder_id = ac.add_reminder_task("купить хлеб", datetime(2026, 10, 8, 15, 0))
+        snapshot[0]["enabled"] = False
         pgdata.save_schedules(snapshot, [t["id"] for t in snapshot])
         ids = {t["id"]: t for t in pgdata.load_schedules()}
         self.assertIn(reminder_id, ids, "the reminder created by Quick Ask was wiped by the stale snapshot")
@@ -138,7 +131,7 @@ class SchedulesRaceTest(unittest.TestCase):
                                {"id": "b", "name": "B", "prompt": "b", "daily_at": "10:00"}])
         pgdata.save_schedules([{"id": "a", "name": "A", "prompt": "a", "daily_at": "09:00"}], ["a", "b"])
         self.assertEqual([t["id"] for t in pgdata.load_schedules()], ["a"])
-        pgdata.save_schedules([], None)                          # legacy body without known_ids
+        pgdata.save_schedules([], None)
         self.assertEqual(pgdata.load_schedules(), [])
 
     def test_editing_a_reminder_text_in_planning_changes_what_is_delivered(self):
@@ -152,7 +145,7 @@ class SchedulesRaceTest(unittest.TestCase):
     def test_reminder_list_shows_a_planning_edited_time_on_the_local_clock(self):
         import time as _time
         from datetime import timezone
-        if hasattr(_time, "tzset"):          # make the check meaningful on a UTC test machine
+        if hasattr(_time, "tzset"):
             previous = os.environ.get("TZ")
             os.environ["TZ"] = "Europe/Moscow"
             _time.tzset()
@@ -166,7 +159,7 @@ class SchedulesRaceTest(unittest.TestCase):
             self.addCleanup(restore)
         reminder_id = ac.add_reminder_task("x", datetime(2026, 10, 8, 15, 0))
         local = datetime(2026, 10, 9, 18, 45)
-        utc = local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")     # what app.js toISOString() saves
+        utc = local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
         tasks = pgdata.load_schedules()
         tasks[0]["run_at"] = utc
         pgdata.save_schedules(tasks, [reminder_id])
@@ -186,9 +179,6 @@ class SchedulesRaceTest(unittest.TestCase):
             ok = client.post("/api/admin/pg/schedules", json={"tasks": [], "known_ids": []})
             self.assertEqual(ok.status_code, 200)
         self.assertEqual(len(pgdata.load_schedules()), 1)
-
-
-# ---------------------------------------------------------------------------------------------- intents
 
 class IntentBugsTest(unittest.TestCase):
     def m(self, text, **kw):
@@ -233,9 +223,6 @@ class IntentBugsTest(unittest.TestCase):
             self.assertIsNone(self.m(word, conversation=True), word)
         self.assertEqual(self.m("громкость 30", conversation=True), ("volume.set", {"level": 30}))
         self.assertEqual(self.m("следующий трек", conversation=True), ("media.key", {"key": "next"}))
-
-
-# ---------------------------------------------------------------------------------------------- engine
 
 class EngineBugsTest(unittest.TestCase):
     def setUp(self):
@@ -306,7 +293,7 @@ class EngineBugsTest(unittest.TestCase):
         self.backend.volume = {"level": 40, "mute": True}
         original = self.backend.volume_set
 
-        def volume_set(level):                    # like Core Audio in WinBackend: a level > 0 unmutes
+        def volume_set(level):
             result = original(level)
             if level > 0:
                 self.backend.volume["mute"] = False
@@ -330,7 +317,6 @@ class EngineBugsTest(unittest.TestCase):
         self.assertFalse(manager.state["pomodoro"]["active"])
         with self.assertRaises(ValueError):
             manager.add_timer(float("inf"))
-
 
 class RouteBugsTest(unittest.TestCase):
     def setUp(self):
@@ -358,7 +344,7 @@ class RouteBugsTest(unittest.TestCase):
         self.assertTrue(data["card"]["fallback"])
         self.assertNotEqual(data["card"]["status"], "confirm")
         card = self.client.post("/api/assistant/run", json={"text": "закрой телеграм"}).json()["card"]
-        self.assertEqual(card["status"], "confirm")         # Telegram IS running in the fake backend
+        self.assertEqual(card["status"], "confirm")
 
     def test_in_chat_flag_reaches_the_matcher(self):
         self.assertIsNone(self.client.post("/api/assistant/run", json={"text": "продолжи", "in_chat": True}).json()["card"])
@@ -392,7 +378,6 @@ class RouteBugsTest(unittest.TestCase):
             self.assertEqual(response.status_code, 400, body)
         self.assertEqual(self.client.get("/api/assistant/state").status_code, 200)
 
-
 class LayoutMathTest(unittest.TestCase):
     def test_cascade_of_many_windows_stays_on_the_work_area(self):
         from app import assistant_layout as geo
@@ -406,14 +391,11 @@ class LayoutMathTest(unittest.TestCase):
         layout = {"monitors": [{"rect": [0, 0, 1920, 1080], "dpi": 1e999}], "captured_at": 1e999,
                   "windows": [{"app": {"exe": "a.exe"}, "rect": [0, 0, 1e999, 10]},
                               {"app": {"exe": "b.exe"}, "rect": [0, 0, 100, 100], "monitor": 1e999, "z": "x"}]}
-        clean = geo.validate(layout)                   # used to raise OverflowError (→ HTTP 500)
+        clean = geo.validate(layout)
         self.assertEqual(len(clean["windows"]), 1)
         self.assertEqual(clean["monitors"][0]["dpi"], 96)
         with self.assertRaises(ac.CommandError):
             ac.validate_command({"name": "x", "steps": [{"type": "layout", "layout": {"monitors": [{"rect": [0, 0, 1e999, 1]}]}}]})
-
-
-# ---------------------------------------------------------------------------------------------- Windows backend
 
 class WinBackendTest(unittest.TestCase):
     def test_kill_does_not_take_the_whole_process_tree(self):
@@ -423,12 +405,8 @@ class WinBackendTest(unittest.TestCase):
             win.WinBackend().kill(1234)
         self.assertEqual(calls, [["taskkill", "/PID", "1234", "/F"]])
 
-
-# ---------------------------------------------------------------------------------------------- companion
-
 MODEL3 = json.dumps({"Version": 3, "FileReferences": {"Moc": "m.moc3", "Textures": ["t.png"],
                                                       "Motions": {"Idle": [{"File": "idle.motion3.json"}]}}})
-
 
 def _zip(files, *, compression=zipfile.ZIP_STORED):
     buf = io.BytesIO()
@@ -437,10 +415,8 @@ def _zip(files, *, compression=zipfile.ZIP_STORED):
             archive.writestr(name, data)
     return buf.getvalue()
 
-
 GOOD = {"x/x.model3.json": MODEL3, "x/m.moc3": b"MOC3" + b"\0" * 40, "x/t.png": b"\x89PNG..",
         "x/idle.motion3.json": '{"MOTIONDATA-0123456789": 1}'}
-
 
 class CompanionImportTest(unittest.TestCase):
     def test_windows_special_names_are_refused(self):
@@ -453,7 +429,7 @@ class CompanionImportTest(unittest.TestCase):
 
     def test_encrypted_archive_is_a_clear_error(self):
         data = bytearray(_zip(GOOD))
-        # set the "encrypted" flag bit in every local and central header
+
         for signature, offset in ((b"PK\x03\x04", 6), (b"PK\x01\x02", 8)):
             start = 0
             while (start := data.find(signature, start)) != -1:
@@ -466,7 +442,7 @@ class CompanionImportTest(unittest.TestCase):
     def test_corrupted_member_is_a_model_error_and_leaves_nothing_behind(self):
         data = bytearray(_zip(GOOD))
         at = data.find(b"MOTIONDATA-0123456789")
-        data[at] = ord("X")                                   # the CRC of the motion file no longer matches
+        data[at] = ord("X")
         with tempfile.TemporaryDirectory() as root:
             library = comp.Library(Path(root))
             with self.assertRaises(comp.ModelError) as caught:
@@ -484,7 +460,7 @@ class CompanionImportTest(unittest.TestCase):
         def handler(request):
             if "cubismcore" in str(request.url):
                 return httpx.Response(200, content=b"Live2DCubismCore" + b"x" * 100)
-            return httpx.Response(200, content=b"PIXI wrong build")    # hash mismatch for the pinned files
+            return httpx.Response(200, content=b"PIXI wrong build")
         real_client = httpx.AsyncClient
 
         def client_factory(*args, **kwargs):
@@ -512,9 +488,6 @@ class CompanionImportTest(unittest.TestCase):
                     response = client.post("/api/companion/runtime/install", json={"consent": True})
                 self.assertEqual(response.json()["code"], "runtime_size")
 
-
-# ---------------------------------------------------------------------------------------------- product cards
-
 class ProductBudgetTest(unittest.TestCase):
     def test_budget_shorthands(self):
         self.assertEqual(pc.budget_in("15к", "RUB")["amount"], 15000)
@@ -535,9 +508,6 @@ class ProductBudgetTest(unittest.TestCase):
         self.assertEqual(result["data"]["budget"]["amount"], 15000)
         self.assertNotEqual(result["data"]["items"][0].get("budget_status"), "over")
 
-
-# ---------------------------------------------------------------------------------------------- model capabilities
-
 class CapsCacheTest(unittest.TestCase):
     def test_repointed_public_id_gets_a_fresh_card(self):
         from app import model_capabilities as caps
@@ -549,7 +519,6 @@ class CapsCacheTest(unittest.TestCase):
         first = caps.capabilities_for("mine-chat", entry=Entry("deepseek-r1"))
         second = caps.capabilities_for("mine-chat", entry=Entry("text-embedding-3-small"))
         self.assertNotEqual(first.get("kind"), second.get("kind"))
-
 
 if __name__ == "__main__":
     unittest.main()

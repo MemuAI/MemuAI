@@ -26,19 +26,17 @@ CODE = "def fibonacci(n: int) -> int:\n    return n if n < 2 else fibonacci(n - 
 CJK = "人工智能正在改变世界。敏捷的棕色狐狸跳过了懒狗。" * 10
 NODE = shutil.which("node")
 
-
 def node(script: str, *args: str, stdin: str = "") -> str:
     return subprocess.run([NODE, "-e", script, *args], input=stdin, capture_output=True, text=True, timeout=60, check=True).stdout
-
 
 class TokenEstimateTest(unittest.TestCase):
     def test_languages_are_counted_differently(self) -> None:
         ru, en = te.estimate(RU), te.estimate(EN)
-        # o200k: 222 and 131 tokens for these two texts; the old «chars / 4» said 152 and 150
+
         self.assertTrue(190 <= ru <= 260, ru)
         self.assertTrue(115 <= en <= 160, en)
         self.assertGreater(ru / len(RU), 1.3 * en / len(EN))
-        self.assertGreater(te.estimate(CJK), len(CJK) * 0.5)          # a CJK character is almost a token
+        self.assertGreater(te.estimate(CJK), len(CJK) * 0.5)
         self.assertEqual(te.estimate(""), 0)
         self.assertEqual(te.estimate(None), 0)
 
@@ -91,7 +89,6 @@ class TokenEstimateTest(unittest.TestCase):
                               str(STATIC / "tokens.js")))
         self.assertEqual(out, [84300, 999, "79–126 тыс.", "950–1,2 тыс.", "79k–126k", "GPT-4o / GPT-5"])
 
-
 class TokenEstimateUsersTest(unittest.TestCase):
     """Every place that used «length / 4» goes through the one estimate now."""
 
@@ -137,7 +134,7 @@ class TokenEstimateUsersTest(unittest.TestCase):
                   "pdf:b.C.fileTokens(url('%PDF-1.7\\n\\u0000'+'x'.repeat(4000),'application/pdf')),"
                   "part:b.C.contentTokens([{type:'image_url', filename:'a.txt', image_url:{url:url(xs[0],'text/plain')}}]).text}));")
         out = json.loads(node(script, str(STATIC / "tokens.js"), str(STATIC / "context.js"), stdin=json.dumps([RU * 5, EN * 5])))
-        self.assertGreater(out["lonely"], 0)                          # no ReferenceError without tokens.js
+        self.assertGreater(out["lonely"], 0)
         self.assertEqual(out["ru"], out["ruText"])
         self.assertEqual(out["en"], out["enText"])
         self.assertEqual(out["part"], out["ruText"])
@@ -169,7 +166,6 @@ class TokenEstimateUsersTest(unittest.TestCase):
         self.assertIn("tokens_families", aipack)
         self.assertIn('L("оценка", "estimate")', aipack)
 
-
 class WiringTest(unittest.TestCase):
     def test_scripts_are_loaded_in_both_windows(self) -> None:
         index = (STATIC / "index.html").read_text(encoding="utf-8")
@@ -193,7 +189,6 @@ class WiringTest(unittest.TestCase):
                 self.assertTrue(re.search(r"[а-яё]", ru, re.I), (name, ru))
                 self.assertTrue(en and not re.search(r"[а-яё]", en, re.I), (name, en))
 
-
 def _chromium() -> bool:
     exe = os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
     try:
@@ -201,7 +196,6 @@ def _chromium() -> bool:
     except ImportError:
         return False
     return os.path.exists(exe)
-
 
 @unittest.skipUnless(_chromium(), "headless Chromium is not available")
 class BrowserTest(unittest.TestCase):
@@ -221,29 +215,28 @@ class BrowserTest(unittest.TestCase):
         self.assertEqual(cmd["caret_home"]["caret"], 1)
         self.assertEqual((cmd["cleared"]["chip"], cmd["cleared"]["indent"], cmd["cleared"]["note"]), ("", "", False))
         self.assertEqual((cmd["undo"]["value"], cmd["undo"]["chip"]), ("/image кот на луне", "image"))
-        self.assertEqual(cmd["programmatic_clear"]["chip"], "")             # value = "" without an input event
+        self.assertEqual(cmd["programmatic_clear"]["chip"], "")
         self.assertEqual(cmd["paste"]["chip"], "video")
         self.assertTrue(cmd["ime_done"]["value"].endswith("камера"))
         self.assertEqual(cmd["ime_done"]["chip"], "video")
-        self.assertTrue(cmd["heights_grew"])                                  # autosize still works
+        self.assertTrue(cmd["heights_grew"])
         self.assertGreater(int(cmd["long"]["height"].rstrip("px")), int(cmd["paste"]["height"].rstrip("px")))
         self.assertEqual(cmd["not_command"]["chip"], "")
 
     def test_a_scheme_is_readable_and_zooms(self) -> None:
         zoom = self.out["zoom"]
         initial = zoom["initial"]
-        self.assertGreaterEqual(initial["text"], 10.9)                        # no squeezed labels
-        self.assertTrue(initial["wide"])                                      # the rest is panned inside the card
-        self.assertLessEqual(initial["cardWidth"], 760)                       # the card keeps the message width
+        self.assertGreaterEqual(initial["text"], 10.9)
+        self.assertTrue(initial["wide"])
+        self.assertLessEqual(initial["cardWidth"], 760)
         self.assertGreater(zoom["ctrl_wheel_in"]["scale"], initial["scale"])
         self.assertNotEqual((zoom["dragged"]["left"], zoom["dragged"]["top"]), (zoom["ctrl_wheel_in"]["left"], zoom["ctrl_wheel_in"]["top"]))
         self.assertFalse(zoom["fit"]["wide"])
         self.assertEqual(zoom["one"]["pct"], "100%")
         self.assertEqual(zoom["reset"]["pct"], initial["pct"])
         self.assertGreater(zoom["dblclick"]["scale"], zoom["reset"]["scale"])
-        self.assertEqual(zoom["after_theme"]["pct"], zoom["dblclick"]["pct"])  # a theme switch keeps the zoom
-        self.assertEqual(zoom["after_theme"]["height"], initial["height"])     # the card does not jump
-
+        self.assertEqual(zoom["after_theme"]["pct"], zoom["dblclick"]["pct"])
+        self.assertEqual(zoom["after_theme"]["height"], initial["height"])
 
 if __name__ == "__main__":
     unittest.main()

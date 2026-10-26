@@ -14,10 +14,8 @@ from unittest.mock import patch
 
 from app import provenance as p
 
-
 def _png_chunk(kind: bytes, payload: bytes) -> bytes:
     return struct.pack(">I", len(payload)) + kind + payload + struct.pack(">I", zlib.crc32(kind + payload) & 0xFFFFFFFF)
-
 
 def _make_png(text_chunks=()) -> bytes:
     sig = b"\x89PNG\r\n\x1a\n"
@@ -27,7 +25,6 @@ def _make_png(text_chunks=()) -> bytes:
         out += _png_chunk(b"tEXt", keyword.encode("latin-1") + b"\x00" + text.encode("latin-1"))
     out += _png_chunk(b"IEND", b"")
     return out
-
 
 class ProvenanceScanTests(unittest.TestCase):
     def test_stable_diffusion_style_parameters_are_found(self) -> None:
@@ -124,11 +121,9 @@ class ProvenanceScanTests(unittest.TestCase):
             result = p.scan(blob, "junk")
             self.assertIn("format", result)
 
-
 def os_urandom(n: int) -> bytes:
     import os
     return os.urandom(n)
-
 
 class ProvenanceRouteTests(unittest.TestCase):
     def test_upload_requires_valid_base64_data_url(self) -> None:
@@ -144,7 +139,6 @@ class ProvenanceRouteTests(unittest.TestCase):
         self.assertEqual(bad.status_code, 400)
         good = asyncio.run(invoke("data:image/png;base64," + base64.b64encode(_make_png()).decode()))
         self.assertEqual(good["format"], "PNG")
-
 
 if __name__ == "__main__":
     unittest.main()

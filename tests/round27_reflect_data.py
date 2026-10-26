@@ -16,7 +16,6 @@ ATTACHMENT_MARKER = "ТЕКСТ-ВЛОЖЕНИЯ-НЕ-ЧИТАТЬ"
 CRISIS_MARKER = "не хочу больше жить"
 HEALTH_MARKER = "анализы крови"
 
-# (title, first message, follow-ups, source, weight)
 TOPICS: List[Tuple[str, str, List[str], str, int]] = [
     ("Ошибка в FastAPI эндпоинте", "У меня в FastAPI эндпоинт /api/reports возвращает 500 при пустом списке, вот трейсбек: KeyError 'items'. Проект MemuAI, Python 3.12.",
      ["Не так, ты предлагаешь менять модель, а ошибка в сериализации. Переделай.", "Теперь работает, напиши тест на этот случай."], "work", 6),
@@ -42,10 +41,8 @@ TOPICS: List[Tuple[str, str, List[str], str, int]] = [
     ("Telegram-бот: напоминания", "Как в боте сделать ежедневное напоминание в 9 утра по Москве?", ["Сделай короче."], "telegram", 2),
 ]
 
-
 def _ms(moment: datetime) -> int:
     return int(moment.timestamp() * 1000)
-
 
 def make_history(now: datetime | None = None, n: int = 60, seed: int = 7,
                  days: int = 95) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -57,7 +54,7 @@ def make_history(now: datetime | None = None, n: int = 60, seed: int = 7,
     for i in range(n):
         title, first, follow, source, _ = rng.choice(pool)
         day = now - timedelta(days=rng.randint(0, days))
-        if rng.random() < 0.35:          # Tuesdays are the busiest
+        if rng.random() < 0.35:
             day -= timedelta(days=(day.weekday() - 1) % 7)
         hour = rng.choice([10, 10, 11, 11, 11, 12, 14, 15, 21, 22, 22, 23])
         start = day.replace(hour=hour, minute=rng.randint(0, 59), second=0, microsecond=0)
@@ -87,7 +84,7 @@ def make_history(now: datetime | None = None, n: int = 60, seed: int = 7,
                     m["via"] = "telegram"
         chats.append(chat)
     base = now - timedelta(days=5)
-    # The traps.
+
     chats.append({"id": "temp-abc", "temp": True, "title": TEMP_MARKER, "updated": _ms(base),
                   "messages": [{"role": "user", "content": TEMP_MARKER + " расскажи", "createdAt": _ms(base)}]})
     chats.append({"id": "chat-attach", "title": "Разбор договора", "updated": _ms(base), "created": _ms(base),
@@ -104,7 +101,6 @@ def make_history(now: datetime | None = None, n: int = 60, seed: int = 7,
     chats.sort(key=lambda c: -c["updated"])
     quick.sort(key=lambda c: -c["updated"])
     return chats, quick
-
 
 def write_history(data_dir, now: datetime | None = None, **kwargs) -> Tuple[int, int]:
     """Write the history into ``<data_dir>/memuai`` (the layout ``MEMUAI_DATA_DIR`` expects)."""

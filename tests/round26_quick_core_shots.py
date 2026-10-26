@@ -31,11 +31,9 @@ MODELS = [{"id": "gemini-2.5-flash", "caps": {"vision": True, "search": True}}]
 CARD = {"id": "k1", "action": "text.summarize", "title": "Кратко пересказать", "status": "done", "kind": "text",
         "message": "• Первый пункт пересказа\n• Второй пункт\n\nВывод: всё понятно.", "copy": "x"}
 
-
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):  # noqa: D401
         pass
-
 
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
@@ -92,7 +90,7 @@ async def main(out: Path) -> int:
         if path == "/api/work/computer/run":
             return await route_obj.fulfill(json={"ok": True})
         if path == "/api/work/computer/state":
-            return await route_obj.fulfill(json=state.get("cu") or {"status": "idle", "logs": []})   # Round 30: quick-computer.js asks on open
+            return await route_obj.fulfill(json=state.get("cu") or {"status": "idle", "logs": []})
         if path == "/api/assistant/state":
             return await route_obj.fulfill(json={"settings": {"enabled": True, "voice": {"enabled": False}}, "seq": 0, "timers": None})
         if path.startswith("/api/assistant/"):
@@ -121,7 +119,6 @@ async def main(out: Path) -> int:
             await page.wait_for_timeout(250)
             await page.screenshot(path=str(out / f"{name}.png"))
 
-        # 1. a command result is kept in the chat; «Недавние» opens it
         page = await open_page()
         await page.fill("#qa-input", "кратко перескажи: длинный текст из письма")
         await page.press("#qa-input", "Enter")
@@ -149,7 +146,6 @@ async def main(out: Path) -> int:
         await shot(page, "restored-chat-light")
         await page.close()
 
-        # 2. «Сделай саммари страницы» goes to the model (never the local clipboard summarize); the page follows the server
         stale = "{id:'a-1', browser:'Google Chrome', title:'WebGL Aquarium', url:'https://webglsamples.org/aquarium/aquarium.html'}"
         page = await open_page(page_ctx=stale)
         runs = len(state["runs"])
@@ -172,8 +168,6 @@ async def main(out: Path) -> int:
         await shot(page, "no-page-dark")
         await page.close()
 
-        # 3. Computer Use card (bug from r26-automation): no model instruction (report) on error, the error once,
-        #    the approval shows pending_action.description, the status is translated
         state["card"] = {"id": "cu1", "action": "computer.use", "title": "Управление компьютером", "status": "done",
                          "message": "Запускаю", "client": {"type": "computer", "task": "открой блокнот"}}
         state["cu"] = {"status": "waiting_approval", "logs": ["Шаг 1: снимок экрана"],
@@ -200,7 +194,6 @@ async def main(out: Path) -> int:
     server.shutdown()
     print("OK" if not problems else f"{len(problems)} problem(s)")
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r26/r26-quick-core"))))

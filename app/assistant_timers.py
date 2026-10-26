@@ -28,13 +28,11 @@ from typing import Any, Callable, Dict, List, Optional
 log = logging.getLogger("memuai.assistant.timers")
 
 MAX_TIMERS = 30
-RING_SECONDS = 60          # a ring stops by itself after a minute
+RING_SECONDS = 60
 POMODORO_DEFAULTS = {"work": 25, "short_break": 5, "long_break": 15, "cycles": 4, "auto_breaks": True, "auto_work": False}
-
 
 def _id() -> str:
     return uuid.uuid4().hex[:8]
-
 
 def _finite(value: Any) -> Optional[float]:
     if isinstance(value, bool):
@@ -44,7 +42,6 @@ def _finite(value: Any) -> Optional[float]:
     except (TypeError, ValueError, OverflowError):
         return None
     return number if math.isfinite(number) else None
-
 
 def _valid_timer(row: Any) -> bool:
     """A persisted timer the ticking thread can handle (Round 23: one broken row — a missing or
@@ -58,11 +55,9 @@ def _valid_timer(row: Any) -> bool:
         return False
     return True
 
-
 def empty_state() -> Dict[str, Any]:
     return {"timers": [], "stopwatch": {"running": False, "started_at": 0.0, "elapsed": 0.0, "laps": []},
             "pomodoro": {"active": False}, "ringing": [], "stats": {}}
-
 
 class TimerManager:
     def __init__(self, path: Optional[Path] = None, *, clock: Callable[[], float] = time.time,
@@ -78,7 +73,6 @@ class TimerManager:
         self._wake = threading.Event()
         self.load()
 
-    # ------------------------------------------------------------ persistence
     def load(self) -> None:
         if not self.path:
             return
@@ -112,7 +106,6 @@ class TimerManager:
         except Exception as exc:
             log.debug("timers not saved: %s", exc)
 
-    # ------------------------------------------------------------ timers / alarms
     def add_timer(self, seconds: float, label: str = "", *, kind: str = "timer", text: str = "",
                   ends_at: Optional[float] = None, meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         now = self.clock()
@@ -149,7 +142,7 @@ class TimerManager:
             else:
                 found = self.find(ref, kind)
                 if not ref and len(found) > 1:
-                    # «отмени таймер» with several: the one that ends soonest
+
                     found = sorted(found, key=lambda t: self.remaining(t))[:1]
                 victims = found
             ids = {t["id"] for t in victims}
@@ -192,7 +185,6 @@ class TimerManager:
             return float(timer["paused_remaining"])
         return max(0.0, float(timer["ends_at"]) - (self.clock() if now is None else now))
 
-    # ------------------------------------------------------------ stopwatch
     def stopwatch(self, action: str) -> Dict[str, Any]:
         now = self.clock()
         with self.lock:
@@ -222,7 +214,6 @@ class TimerManager:
             total += now - float(sw.get("started_at") or now)
         return max(0.0, total)
 
-    # ------------------------------------------------------------ pomodoro
     def pomodoro(self, action: str, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         now = self.clock()
         opts = {**POMODORO_DEFAULTS, **{k: v for k, v in (options or {}).items() if v is not None}}
@@ -297,7 +288,6 @@ class TimerManager:
                          "minutes": sum(stats[d]["minutes"] for d in week)},
                 "days": {d: stats[d] for d in week}}
 
-    # ------------------------------------------------------------ ticking
     def tick(self, now: Optional[float] = None) -> List[Dict[str, Any]]:
         """Fire everything that came due; returns the events (also queued as ``ringing``)."""
         now = self.clock() if now is None else now
@@ -320,7 +310,7 @@ class TimerManager:
                 event = self._pomo_advance(pomo, now, finished=True)
                 event.update(id="pomodoro-" + _id(), at=now, label="Pomodoro")
                 fired.append(event)
-            # rings stop by themselves
+
             self.state["ringing"] = [r for r in self.state["ringing"] if now - float(r.get("at") or now) < RING_SECONDS * 5]
             if fired:
                 self.state["ringing"].extend(fired)
@@ -362,7 +352,6 @@ class TimerManager:
             return {"now": now, "timers": timers, "stopwatch": sw, "pomodoro": pomo,
                     "ringing": list(self.state["ringing"]), "stats": self.pomodoro_stats(now), "version": self.version}
 
-    # ------------------------------------------------------------ thread
     def start(self) -> None:
         if self._thread and self._thread.is_alive():
             return
@@ -397,9 +386,6 @@ class TimerManager:
             self._wake.wait(wait)
             self._wake.clear()
 
-
-# ------------------------------------------------------------------ ring tone
-
 def ring_wav(style: str = "chime", volume: int = 70, *, rate: int = 22050) -> bytes:
     """A short, click-free ring tone as WAV bytes (rendered, no files shipped)."""
     patterns = {
@@ -428,7 +414,6 @@ def ring_wav(style: str = "chime", volume: int = 70, *, rate: int = 22050) -> by
         wav.setframerate(rate)
         wav.writeframes(b"".join(struct.pack("<h", int(max(-1, min(1, s * gain)) * 32767)) for s in samples))
     return buf.getvalue()
-
 
 class Ringer:
     """Plays the ring tone in a loop (Windows ``winsound``) until stopped or ``RING_SECONDS`` passed."""

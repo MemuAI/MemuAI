@@ -1,4 +1,3 @@
-/* Round 38: «Персонажи» panels — on top of the shared panel kit (app/pgstatic/module-panel-kit.css). */
 .mk { --c: hsl(var(--h, 280) 62% 62%); }
 :root[data-theme="light"] .mk { --c: hsl(var(--h, 280) 55% 46%); }
 .ch-fav { color: #e8b04a; font-size: 11px; }

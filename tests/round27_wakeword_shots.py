@@ -42,10 +42,8 @@ PHRASE_OK = {"phrase": "привет мему", "checked": True, "ok": True, "pr
              "words": [{"word": "привет", "known": True, "alias": []}, {"word": "мему", "known": False, "alias": ["мемо"]}]}
 PHRASE_UNCHECKED = {"phrase": "привет мему", "checked": False, "ok": True, "problem": None, "variants": [], "words": []}
 
-
 PHRASE_OK_EN = {**PHRASE_OK, "phrase": "hey memu", "variants": [["hey", "memo"]],
                 "words": [{"word": "hey", "known": True, "alias": []}, {"word": "memu", "known": False, "alias": ["memo"]}]}
-
 
 def variant(name: str, en: bool):
     state = copy.deepcopy(BASE_STATE)
@@ -89,12 +87,10 @@ def variant(name: str, en: bool):
                                                     "en": "The Vosk model server answered HTTP 503. Try again later."}}
     return state, phrase
 
-
 def set_prefs(base: str, patch: dict) -> None:
     request = urllib.request.Request(base + "/api/pg/preferences", data=json.dumps(patch).encode(),
                                      headers={"Content-Type": "application/json"}, method="POST")
     urllib.request.urlopen(request, timeout=10).read()
-
 
 async def mock_wake(page, state, phrase, heard=False):
     status = dict(state["status"])
@@ -108,12 +104,11 @@ async def mock_wake(page, state, phrase, heard=False):
         if "/api/wake/phrase" in url:
             body = phrase
         elif "/api/wake/test" in url:
-            body = dict(status, last_hit=None)            # the phrase is «heard» by the next status poll
+            body = dict(status, last_hit=None)
         elif "/api/wake/status" in url:
             body = status
         await route.fulfill(status=200, content_type="application/json", body=json.dumps(body, ensure_ascii=False))
     await page.route("**/api/wake/**", handle)
-
 
 async def open_wake(browser, base, problems, state, phrase, heard=False, viewport=(1180, 2300)):
     page = await browser.new_page(viewport={"width": viewport[0], "height": viewport[1]}, device_scale_factor=1)
@@ -132,7 +127,6 @@ async def open_wake(browser, base, problems, state, phrase, heard=False, viewpor
     await link.first.click()
     await page.wait_for_timeout(900)
     return page
-
 
 async def check_page(page, problems, label):
     info = await page.evaluate("""() => {
@@ -155,7 +149,6 @@ async def check_page(page, problems, label):
     if info["text"] < 200:
         problems.append(f"{label}: the page is almost empty")
 
-
 async def shot_sub(page, path):
     """The settings body scrolls inside a fixed-height dialog: the page top, then each lower section on its own."""
     sub = page.locator('[data-sx-sub="quick-plugin-wake"]')
@@ -173,7 +166,6 @@ async def shot_sub(page, path):
             await loc.scroll_into_view_if_needed()
             await page.wait_for_timeout(150)
             await loc.screenshot(path=str(path).replace(".png", f"-{sid}.png"))
-
 
 async def window_shots(browser, base, out, problems):
     page = await browser.new_page(viewport={"width": 720, "height": 420}, device_scale_factor=1)
@@ -234,7 +226,6 @@ async def window_shots(browser, base, out, problems):
         problems.append(f"window: state left behind: {state}")
     await page.close()
 
-
 async def main(base: str, out: Path) -> int:
     from playwright.async_api import async_playwright
     out.mkdir(parents=True, exist_ok=True)
@@ -254,7 +245,7 @@ async def main(base: str, out: Path) -> int:
             await check_page(page, problems, label)
             await shot_sub(page, out / f"settings-{label}.png")
             await page.close()
-        # the «Test» meter after the phrase was heard
+
         set_prefs(base, dict(reset, theme="dark", ui_design="classic"))
         state, phrase = variant("test", False)
         page = await open_wake(browser, base, problems, state, phrase, heard=True)
@@ -273,7 +264,6 @@ async def main(base: str, out: Path) -> int:
         print("PROBLEM:", line)
     print(f"shots in {out}; problems: {len(problems)}")
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(sys.argv[1].rstrip("/"), Path(sys.argv[2]))))

@@ -37,6 +37,9 @@ import io
 import json
 import lzma
 import os
+import re
+import tempfile
+from itertools import groupby
 import struct
 import zlib
 from concurrent.futures import ThreadPoolExecutor
@@ -47,28 +50,28 @@ from typing import BinaryIO, Callable, Dict, Iterable, Iterator, List, Optional,
 MAGIC = b"MEMUPAK1"
 MAGIC_END = b"1KAPUMEM"
 TRAILER = struct.Struct("<8sQQII8s")
-FORMAT_VERSION = 1
-#: PyInstaller's CArchive cookie magic (bootloader/src/pyi_archive.h).
+FORMAT_VERSION = 2
+SUPPORTED_FORMATS = (1, 2)
+MAX_INDEX_BYTES = 32 * 1024 * 1024
+
 PYI_COOKIE_MAGIC = b"MEI\014\013\012\013\016"
-#: How far from the end of the file the trailer is searched (signature tables are small).
+
 TRAILER_SEARCH = 4 * 1024 * 1024
 BLOCK_TARGET = 8 * 1024 * 1024
 BINARY_SUFFIXES = {".exe", ".dll", ".pyd", ".so", ".node", ".sys", ".ocx", ".cpl"}
 CHUNK = 1024 * 1024
 
-
 class PayloadError(Exception):
     """The payload is missing, truncated or damaged."""
 
-
 @dataclass
 class FileEntry:
-    path: str          # POSIX path relative to the install directory
+    path: str
     component: str
     size: int
     sha256: str
     block: int = -1
-    offset: int = 0    # offset of the file inside the decompressed block
+    offset: int = 0
     mode: int = 0o644
 
     def to_json(self) -> dict:
@@ -80,13 +83,12 @@ class FileEntry:
         return cls(path=str(raw["p"]), component=str(raw["c"]), size=int(raw["s"]),
                    sha256=str(raw["h"]), block=int(raw["b"]), offset=int(raw["o"]))
 
-
 @dataclass
 class Block:
-    offset: int        # offset in the payload region
+    offset: int
     csize: int
     size: int
-    filters: str       # "x86" or "plain"
+    filters: str
 
     def to_json(self) -> dict:
         return {"o": self.offset, "c": self.csize, "s": self.size, "f": self.filters}
@@ -95,13 +97,12 @@ class Block:
     def from_json(cls, raw: dict) -> "Block":
         return cls(offset=int(raw["o"]), csize=int(raw["c"]), size=int(raw["s"]), filters=str(raw["f"]))
 
-
 @dataclass
 class Index:
     meta: Dict[str, object]
     files: List[FileEntry]
     blocks: List[Block]
-    dirs: List[Tuple[str, str]] = field(default_factory=list)   # empty dirs: (component, path)
+    dirs: List[Tuple[str, str]] = field(default_factory=list)
 
     def to_bytes(self) -> bytes:
         raw = {"format": FORMAT_VERSION, "meta": self.meta,
@@ -113,17 +114,85 @@ class Index:
     @classmethod
     def from_bytes(cls, data: bytes) -> "Index":
         try:
-            raw = json.loads(zlib.decompress(data).decode("utf-8"))
-        except Exception as exc:  # noqa: BLE001 - any corruption is a payload error
+            decoder = zlib.decompressobj()
+            decoded = decoder.decompress(data, MAX_INDEX_BYTES + 1)
+            if len(decoded) > MAX_INDEX_BYTES or decoder.unconsumed_tail or not decoder.eof or decoder.unused_data:
+                raise PayloadError("payload index exceeds its size limit or is truncated")
+            raw = json.loads(decoded.decode("utf-8"))
+            if not isinstance(raw, dict):
+                raise ValueError("index must be an object")
+            version = raw.get("format")
+            if type(version) is not int or version not in SUPPORTED_FORMATS:
+                raise PayloadError(f"unsupported payload format {version}")
+            if not isinstance(raw.get("meta", {}), dict) or not all(isinstance(raw.get(key, []), list) for key in ("files", "blocks", "dirs")):
+                raise ValueError("invalid index collections")
+            def integer(row, key):
+                value = row[key]
+                if type(value) is not int or not 0 <= value < 2**63:
+                    raise ValueError(f"invalid {key}")
+                return value
+            files = []
+            for row in raw.get("files", []):
+                if not isinstance(row, dict) or not isinstance(row.get("p"), str) or not isinstance(row.get("c"), str):
+                    raise ValueError("invalid file entry")
+                digest = row.get("h")
+                if not isinstance(digest, str) or not re.fullmatch(r"[a-fA-F0-9]{64}", digest):
+                    raise ValueError("invalid file checksum")
+                files.append(FileEntry(safe_relpath(row['p']), row['c'], integer(row,'s'), digest.lower(), integer(row,'b'), integer(row,'o')))
+            blocks = []
+            for row in raw.get("blocks", []):
+                if not isinstance(row, dict) or row.get('f') not in ('plain','x86'):
+                    raise ValueError("invalid block entry")
+                block = Block(integer(row,'o'), integer(row,'c'), integer(row,'s'), row['f'])
+                if not block.csize:
+                    raise ValueError("empty compressed block")
+                blocks.append(block)
+            dirs = []
+            for row in raw.get("dirs", []):
+                if not isinstance(row, list) or len(row) != 2 or not all(isinstance(v, str) for v in row):
+                    raise ValueError("invalid directory entry")
+                dirs.append((row[0],safe_relpath(row[1])))
+            index = cls(meta=raw.get('meta', {}), files=files, blocks=blocks, dirs=dirs)
+            index.validate()
+            return index
+        except PayloadError:
+            raise
+        except (ValueError, TypeError, KeyError, UnicodeError, zlib.error, RecursionError) as exc:
             raise PayloadError(f"payload index is damaged: {exc}") from exc
-        if int(raw.get("format", 0)) != FORMAT_VERSION:
-            raise PayloadError(f"unsupported payload format {raw.get('format')}")
-        return cls(meta=dict(raw.get("meta") or {}),
-                   files=[FileEntry.from_json(f) for f in raw.get("files", [])],
-                   blocks=[Block.from_json(b) for b in raw.get("blocks", [])],
-                   dirs=[(str(c), str(p)) for c, p in raw.get("dirs", [])])
 
-    # convenience -----------------------------------------------------------
+    def validate(self) -> None:
+        paths = set()
+        for entry in self.files:
+            key = entry.path.casefold()
+            if key in paths or not entry.component or entry.block >= len(self.blocks):
+                raise PayloadError("duplicate path or invalid component/block reference")
+            paths.add(key)
+            if entry.offset + entry.size > self.blocks[entry.block].size:
+                raise PayloadError("file extends beyond its payload block")
+        for component, directory in self.dirs:
+            if not component or directory.casefold() in paths:
+                raise PayloadError("directory conflicts with a payload file")
+        for key in paths:
+            if any('/'.join(key.split('/')[:i]) in paths for i in range(1,len(key.split('/')))):
+                raise PayloadError("file conflicts with a payload directory")
+        physical_end = 0
+        for block in sorted(self.blocks, key=lambda item:item.offset):
+            if block.offset < physical_end:
+                raise PayloadError("compressed blocks overlap")
+            physical_end = block.offset + block.csize
+        by_block = {}
+        for entry in self.files:
+            if entry.size:
+                by_block.setdefault(entry.block, []).append(entry)
+        for entries in by_block.values():
+            previous = None
+            for entry in sorted(entries, key=lambda item:(item.offset,item.size)):
+                if previous and entry.offset < previous.offset + previous.size:
+                    if (entry.offset,entry.size,entry.sha256) != (previous.offset,previous.size,previous.sha256):
+                        raise PayloadError("payload file ranges overlap")
+                else:
+                    previous = entry
+
     def components(self) -> List[str]:
         seen: List[str] = []
         for entry in self.files:
@@ -150,31 +219,24 @@ class Index:
                     names.append(head)
         return names
 
-
-# --------------------------------------------------------------------------- paths
-
 def safe_relpath(path: str) -> str:
-    """Validate a payload path: relative, no drive, no '..', no empty parts."""
     text = str(path).replace("\\", "/")
-    pure = PurePosixPath(text)
-    if not text or text.startswith("/") or pure.is_absolute() or ":" in text:
+    segments = text.split("/")
+    if not text or text.startswith("/") or ":" in text or any(
+        part in ("", ".", "..") or part.rstrip(" .") != part or
+        any(ord(ch) < 32 or ch in '<>"|?*' for ch in part) or
+        re.fullmatch(r"(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\..*)?",part,re.I)
+        for part in segments
+    ):
         raise PayloadError(f"unsafe payload path: {path!r}")
-    parts = pure.parts
-    if any(part in ("", ".", "..") for part in parts) or any(not seg for seg in text.split("/")):
-        raise PayloadError(f"unsafe payload path: {path!r}")
-    return "/".join(parts)
-
-
-# --------------------------------------------------------------------------- build
+    return "/".join(segments)
 
 def _filters(kind: str, preset: int) -> list:
     lzma2 = {"id": lzma.FILTER_LZMA2, "preset": preset}
     return [{"id": lzma.FILTER_X86}, lzma2] if kind == "x86" else [lzma2]
 
-
 def _compress(data: bytes, kind: str, preset: int) -> bytes:
     return lzma.compress(data, format=lzma.FORMAT_XZ, check=lzma.CHECK_CRC32, filters=_filters(kind, preset))
-
 
 def _hash_file(path: Path) -> Tuple[str, int]:
     digest = hashlib.sha256()
@@ -184,7 +246,6 @@ def _hash_file(path: Path) -> Tuple[str, int]:
             digest.update(chunk)
             size += len(chunk)
     return digest.hexdigest(), size
-
 
 def collect_tree(source: Path, dest_prefix: str, component: str) -> Tuple[List[Tuple[FileEntry, Path]], List[Tuple[str, str]]]:
     """List every file under *source* as ``dest_prefix/relative`` entries."""
@@ -206,7 +267,6 @@ def collect_tree(source: Path, dest_prefix: str, component: str) -> Tuple[List[T
             digest, size = _hash_file(full)
             files.append((FileEntry(path=dest, component=component, size=size, sha256=digest), full))
     return files, empty_dirs
-
 
 def build_payload(sources: Sequence[Tuple[str, Path, str]], meta: Dict[str, object], out: BinaryIO, *,
                   preset: int = 6 | lzma.PRESET_EXTREME, workers: Optional[int] = None,
@@ -230,17 +290,26 @@ def build_payload(sources: Sequence[Tuple[str, Path, str]], meta: Dict[str, obje
         dirs += empty
     seen = set()
     for entry, _ in collected:
-        key = entry.path.casefold()   # Windows file systems are case-insensitive
+        key = entry.path.casefold()
         if key in seen:
             raise PayloadError(f"duplicate payload path: {entry.path}")
         seen.add(key)
 
-    # Group: binaries and everything else into separate solid blocks, per component,
-    # similar files next to each other (by extension) for a better ratio.
     def kind(entry: FileEntry) -> str:
         return "x86" if PurePosixPath(entry.path).suffix.lower() in BINARY_SUFFIXES else "plain"
 
-    order = sorted(range(len(collected)), key=lambda i: (
+    aliases = {}
+    canonical = {}
+    unique = []
+    for i, (entry, _) in enumerate(collected):
+        key = (entry.size, entry.sha256, kind(entry))
+        first = canonical.get(key)
+        if first is None:
+            canonical[key] = i
+            unique.append(i)
+        else:
+            aliases[i] = first
+    order = sorted(unique, key=lambda i: (
         collected[i][0].component, kind(collected[i][0]),
         PurePosixPath(collected[i][0].path).suffix.lower(), collected[i][0].path))
     plans: List[Tuple[str, List[int]]] = []
@@ -279,6 +348,8 @@ def build_payload(sources: Sequence[Tuple[str, Path, str]], meta: Dict[str, obje
             cached = Path(cache_dir) / (key + ".xz")
             try:
                 data = cached.read_bytes()
+                if not valid_cached(data, plan):
+                    raise OSError("damaged block cache")
                 hits[0] += 1
                 return data, sum(collected[i][0].size for i in plan[1])
             except OSError:
@@ -294,17 +365,42 @@ def build_payload(sources: Sequence[Tuple[str, Path, str]], meta: Dict[str, obje
                 pass
         return compressed, raw_size
 
+    def valid_cached(data, plan):
+        try:
+            with lzma.LZMAFile(io.BytesIO(data)) as stream:
+                for i in plan[1]:
+                    entry = collected[i][0]
+                    remaining, digest = entry.size, hashlib.sha256()
+                    while remaining:
+                        piece = stream.read(min(CHUNK, remaining))
+                        if not piece:
+                            return False
+                        digest.update(piece)
+                        remaining -= len(piece)
+                    if digest.hexdigest() != entry.sha256:
+                        return False
+                return not stream.read(1)
+        except (lzma.LZMAError, EOFError, OSError):
+            return False
+
     def _make_block(plan: Tuple[str, List[int]]) -> Tuple[bytes, int]:
-        k, members = plan
-        buffer = io.BytesIO()
+        kind, members = plan
+        compressed = io.BytesIO()
+        compressor = lzma.LZMACompressor(format=lzma.FORMAT_XZ, filters=_filters(kind,preset))
+        raw_size = 0
         for i in members:
             entry, path = collected[i]
-            data = path.read_bytes()
-            if len(data) != entry.size or hashlib.sha256(data).hexdigest() != entry.sha256:
+            digest, size = hashlib.sha256(), 0
+            with path.open('rb') as stream:
+                for piece in iter(lambda:stream.read(CHUNK), b''):
+                    size += len(piece)
+                    digest.update(piece)
+                    compressed.write(compressor.compress(piece))
+            if size != entry.size or digest.hexdigest() != entry.sha256:
                 raise PayloadError(f"file changed while packing: {path}")
-            buffer.write(data)
-        raw = buffer.getvalue()
-        return _compress(raw, k, preset), len(raw)
+            raw_size += size
+        compressed.write(compressor.flush())
+        return compressed.getvalue(), raw_size
 
     workers = workers or max(1, min(os.cpu_count() or 2, 8))
     blocks: List[Block] = []
@@ -312,7 +408,7 @@ def build_payload(sources: Sequence[Tuple[str, Path, str]], meta: Dict[str, obje
     start = out.tell()
     written = 0
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        # map() keeps the order; blocks are written as soon as they are ready.
+
         for number, (plan, (compressed, raw_size)) in enumerate(zip(plans, pool.map(make_block, plans))):
             if PYI_COOKIE_MAGIC in compressed:
                 raise PayloadError("compressed block contains the PyInstaller cookie magic; rebuild with another preset")
@@ -334,9 +430,15 @@ def build_payload(sources: Sequence[Tuple[str, Path, str]], meta: Dict[str, obje
                     stale.unlink()
         except OSError:
             pass
-    entries.sort(key=lambda e: (e.block, e.offset))
+    for duplicate, original in aliases.items():
+        entry, first = collected[duplicate][0], collected[original][0]
+        entry.block, entry.offset = first.block, first.offset
+        entries.append(entry)
+    entries.sort(key=lambda e: (e.block, e.offset, e.size))
     meta = dict(meta)
     meta.setdefault("total_size", sum(e.size for e in entries))
+    meta["stored_size"] = sum(block.size for block in blocks)
+    meta["deduplicated_bytes"] = sum(e.size for e in entries) - meta["stored_size"]
     meta.setdefault("file_count", len(entries))
     index = Index(meta=meta, files=entries, blocks=blocks, dirs=dirs)
     data = index.to_bytes()
@@ -347,7 +449,6 @@ def build_payload(sources: Sequence[Tuple[str, Path, str]], meta: Dict[str, obje
     out.write(TRAILER.pack(MAGIC, payload_len, len(data), FORMAT_VERSION, 0, MAGIC_END))
     assert out.tell() - start == payload_len + TRAILER.size
     return index
-
 
 def assemble(stub: Path, sources: Sequence[Tuple[str, Path, str]], meta: Dict[str, object], output: Path,
              **kwargs) -> Index:
@@ -371,9 +472,6 @@ def assemble(stub: Path, sources: Sequence[Tuple[str, Path, str]], meta: Dict[st
             temporary.unlink()
     return index
 
-
-# --------------------------------------------------------------------------- read
-
 class _Region(io.RawIOBase):
     """Read-only view of ``[start, start+length)`` of a file."""
 
@@ -395,10 +493,7 @@ class _Region(io.RawIOBase):
         self._pos += len(data)
         return len(data)
 
-
-#: PyInstaller ARCHIVE_COOKIE: magic(8) pkg_length(u32 BE) toc_offset toc_length python_version libname(64).
 PYI_COOKIE = struct.Struct(">8sIIII64s")
-
 
 def pyinstaller_archive_offset(data: bytes) -> Optional[int]:
     """Start of the PyInstaller CArchive of an *unsigned* one-file exe, or None."""
@@ -409,31 +504,28 @@ def pyinstaller_archive_offset(data: bytes) -> Optional[int]:
     start = pos + PYI_COOKIE.size - pkg_length
     return start if 0 < start < pos else None
 
-
 @dataclass
 class Located:
     payload_start: int
     payload_len: int
     index_len: int
     trailer_pos: int
-    archive_end: int = 0       # end of the PyInstaller cookie (0 = payload appended at the end)
+    archive_end: int = 0
 
     @property
     def trailer_end(self) -> int:
         return self.trailer_pos + TRAILER.size
 
-
 def _check_trailer(raw: bytes, trailer_pos: int) -> Optional[Located]:
     magic, payload_len, index_len, version, _r, end = TRAILER.unpack(raw)
     if magic != MAGIC or end != MAGIC_END:
         return None
-    if version != FORMAT_VERSION:
+    if version not in SUPPORTED_FORMATS:
         raise PayloadError(f"unsupported payload format {version}")
     start = trailer_pos - payload_len
     if start < 0 or index_len > payload_len:
         raise PayloadError("payload trailer is inconsistent (truncated download?)")
     return Located(start, payload_len, index_len, trailer_pos)
-
 
 def locate(handle: BinaryIO) -> Optional[Located]:
     """Find the trailer (tolerating a signature appended at the end). None = no payload."""
@@ -442,7 +534,7 @@ def locate(handle: BinaryIO) -> Optional[Located]:
     window = min(size, TRAILER_SEARCH)
     handle.seek(size - window)
     tail = handle.read(window)
-    # 1. Inserted before the PyInstaller archive: the cookie (last MEI magic) tells where.
+
     cookie = tail.rfind(PYI_COOKIE_MAGIC)
     if cookie >= 0 and cookie + PYI_COOKIE.size <= len(tail):
         cookie_pos = size - window + cookie
@@ -457,14 +549,14 @@ def locate(handle: BinaryIO) -> Optional[Located]:
                 if found is not None:
                     found.archive_end = cookie_pos + PYI_COOKIE.size
                     return found
-    # 2. Appended at the end (stubs without a PyInstaller archive).
+
     pos = tail.rfind(MAGIC)
     while pos >= 0:
         if pos + TRAILER.size <= len(tail):
             magic, payload_len, index_len, version, _r, end = TRAILER.unpack_from(tail, pos)
             if magic == MAGIC and end == MAGIC_END:
                 trailer_pos = size - window + pos
-                if version != FORMAT_VERSION:
+                if version not in SUPPORTED_FORMATS:
                     raise PayloadError(f"unsupported payload format {version}")
                 start = trailer_pos - payload_len
                 if start < 0 or index_len > payload_len:
@@ -472,7 +564,6 @@ def locate(handle: BinaryIO) -> Optional[Located]:
                 return Located(start, payload_len, index_len, trailer_pos)
         pos = tail.rfind(MAGIC, 0, pos)
     return None
-
 
 class Payload:
     """Opened payload of a Setup exe."""
@@ -486,7 +577,12 @@ class Payload:
                 raise PayloadError("no payload in this file")
             self.loc = found
             self._h.seek(found.trailer_pos - found.index_len)
+            if found.index_len > MAX_INDEX_BYTES:
+                raise PayloadError("compressed payload index exceeds its size limit")
             self.index = Index.from_bytes(self._h.read(found.index_len))
+            block_limit = found.payload_len - found.index_len
+            if any(block.offset + block.csize > block_limit for block in self.index.blocks):
+                raise PayloadError("compressed block extends beyond the payload region")
         except BaseException:
             self._h.close()
             raise
@@ -532,8 +628,8 @@ class Payload:
             if not chunk:
                 break
             try:
-                data = decompressor.decompress(chunk)
-            except lzma.LZMAError as exc:
+                data = decompressor.decompress(chunk, CHUNK)
+            except (lzma.LZMAError, EOFError) as exc:
                 raise PayloadError(f"payload block is damaged: {exc}") from None
             while data:
                 produced += len(data)
@@ -542,9 +638,9 @@ class Payload:
                     break
                 try:
                     data = decompressor.decompress(b"", CHUNK)
-                except lzma.LZMAError as exc:
+                except (lzma.LZMAError, EOFError) as exc:
                     raise PayloadError(f"payload block is damaged: {exc}") from None
-        if not decompressor.eof or produced != block.size:
+        if not decompressor.eof or produced != block.size or decompressor.unused_data:
             raise PayloadError("payload block is truncated or damaged")
 
     def iter_files(self, components: Iterable[str],
@@ -563,15 +659,17 @@ class Payload:
             if cancelled():
                 return
             block = self.index.blocks[number]
-            members = sorted(by_block[number], key=lambda e: e.offset)
+            members = sorted(by_block[number], key=lambda e:(e.offset,e.size,e.sha256))
             stream = self._block_stream(block)
             buffer = bytearray()
-            position = 0          # decompressed offset of buffer[0]
+            position = 0
 
             def take(length: int) -> Iterator[bytes]:
                 nonlocal buffer, position
                 remaining = length
                 while remaining:
+                    if cancelled():
+                        return
                     if not buffer:
                         try:
                             buffer = bytearray(next(stream))
@@ -583,28 +681,54 @@ class Payload:
                     remaining -= len(piece)
                     yield piece
 
-            for entry in members:
-                skip = entry.offset - position
-                if skip < 0:
+            for _, grouped in groupby(members,key=lambda e:(e.offset,e.size,e.sha256)):
+                group = list(grouped)
+                first = group[0]
+                if first.offset < position:
                     raise PayloadError("payload index is inconsistent")
-                for _ in take(skip):
+                for _ in take(first.offset - position):
                     pass
-                digest = hashlib.sha256()
+                spool = tempfile.SpooledTemporaryFile(max_size=2*CHUNK) if len(group)>1 else None
+                try:
+                    def chunks():
+                        digest = hashlib.sha256()
+                        for piece in take(first.size):
+                            digest.update(piece)
+                            if spool is not None:
+                                spool.write(piece)
+                            yield piece
+                        if not cancelled() and digest.hexdigest() != first.sha256:
+                            raise PayloadError(f"checksum mismatch: {first.path}")
+                    initial = chunks()
+                    yield first, initial
+                    for _ in initial:
+                        pass
+                    if cancelled():
+                        return
+                    for entry in group[1:]:
+                        spool.seek(0)
+                        def replay(entry=entry):
+                            digest = hashlib.sha256()
+                            while not cancelled():
+                                piece = spool.read(CHUNK)
+                                if not piece:
+                                    break
+                                digest.update(piece)
+                                yield piece
+                            if not cancelled() and digest.hexdigest() != entry.sha256:
+                                raise PayloadError(f"checksum mismatch: {entry.path}")
+                        repeated = replay()
+                        yield entry, repeated
+                        for _ in repeated:
+                            pass
+                        if cancelled():
+                            return
+                finally:
+                    if spool is not None:
+                        spool.close()
 
-                def chunks(entry=entry, digest=digest) -> Iterator[bytes]:
-                    for piece in take(entry.size):
-                        digest.update(piece)
-                        yield piece
-                    if digest.hexdigest() != entry.sha256:
-                        raise PayloadError(f"checksum mismatch: {entry.path}")
-
-                yield entry, chunks()
-                if cancelled():
-                    return
-            # drain the rest so the xz integrity check (eof) runs on full blocks
             for _ in stream:
                 pass
-
 
 def strip_signature_directory(stub: bytes) -> bytes:
     """Clear the PE security directory if it points past the end of *stub*.

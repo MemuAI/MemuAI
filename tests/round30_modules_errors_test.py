@@ -10,13 +10,12 @@ if not os.environ.get("MEMUAI_DATA_DIR"):
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 class ModuleErrorsLanguageTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         import socket
         from fastapi.testclient import TestClient
-        with socket.socket() as probe:  # a closed local port: the Proxy is "not running", no network
+        with socket.socket() as probe:
             probe.bind(("127.0.0.1", 0))
             port = probe.getsockname()[1]
         cls._env = os.environ.get("MEMUAI_PROXY_URL")
@@ -59,7 +58,6 @@ class ModuleErrorsLanguageTest(unittest.TestCase):
         end = text.index('@app.get("/api/pg/media")')
         bare = re.findall(r'\{"error": f?"[^"]*[А-Яа-яЁё][^"]*"\}', text[start:end])
         self.assertEqual(bare, [])
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -7,14 +7,12 @@ from pathlib import Path
 
 PG = Path(__file__).resolve().parents[1] / "app" / "pgstatic"
 
-
 def read(name: str) -> str:
     return (PG / name).read_text(encoding="utf-8")
 
-
 class Round36PerfUi(unittest.TestCase):
     def test_no_fast_intervals_in_round35_modules(self):
-        # Modules added in round 35 must not poll the main window faster than once a second.
+
         for name in ("askuser.js", "bigdocs.js", "branches.js", "canvas.js", "mentions.js", "deeplinks.js",
                      "inbox.js", "plan.js", "flows.js", "plan-triggers.js", "memufiles-settings.js"):
             src = read(name)
@@ -30,7 +28,7 @@ class Round36PerfUi(unittest.TestCase):
         self.assertIn("IntersectionObserver", src)
         self.assertIn("function start()", src)
         self.assertIn('stage.classList.add("mdz-ready")', src)
-        # the label size is read inside start(), not while the chat is being built
+
         self.assertNotIn("const label = textSize(svg);", src)
 
     def test_diagram_theme_read_once_per_task(self):
@@ -58,7 +56,6 @@ class Round36PerfUi(unittest.TestCase):
         for tag in ('src="/diagram-zoom.js?v=1.1-r36"', 'src="/diagrams.js?v=1.2-r36"',
                     'src="/panels-layout.js?v=3.6-r36"', 'href="/appearance.css?v=1.8-r36"'):
             self.assertIn(tag, html)
-
 
 if __name__ == "__main__":
     unittest.main()

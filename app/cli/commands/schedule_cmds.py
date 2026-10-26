@@ -36,12 +36,10 @@ def mode_rows() -> dict:
                                  "DANGEROUS: the task may do anything your account can")),
     }
 
-
 def _status_mark(task: Task) -> str:
     if not task.enabled:
         return "‖"
     return {"ok": "✓", "error": "✗", "timeout": "✗", "running": "…", "missed": "⚠"}.get(task.last_status, "")
-
 
 def _line(task: Task) -> str:
     bits = [schedule.describe_when(task.when)]
@@ -54,11 +52,9 @@ def _line(task: Task) -> str:
     bits.append(tr("Планировщик Windows", "Windows scheduler") if task.runner == "system" else tr("в этом окне", "this window"))
     return " · ".join(bits)
 
-
 def task_option(task: Task) -> dlg.Option:
     return dlg.Option(task.title or task.prompt[:50], task, _line(task) + ("\n" + task.last_summary[:120] if task.last_summary else ""),
                       hint=_status_mark(task))
-
 
 def print_list(ctx: Context) -> None:
     tasks = schedule.load_tasks()
@@ -69,7 +65,6 @@ def print_list(ctx: Context) -> None:
     for task in tasks:
         table.add_row(Text(task.id, style="dim"), Text(_status_mark(task) or " "), Text(task.title[:44], style="bold"), Text(_line(task), style="dim"))
     ctx.print(table)
-
 
 async def choose_mode(ctx: Context, current: str = "acceptEdits") -> Optional[str]:
     rows = mode_rows()
@@ -84,7 +79,6 @@ async def choose_mode(ctx: Context, current: str = "acceptEdits") -> Optional[st
                "Unattended, with no questions, with your account's rights. Only for tasks you have tried by hand."), danger=True):
         return None
     return mode
-
 
 async def ask_when(ctx: Context, default: str = "") -> Optional[dict]:
     presets = [("in 10m", tr("Через 10 минут", "In 10 minutes")), ("every 1h", tr("Каждый час", "Every hour")),
@@ -116,7 +110,6 @@ async def ask_when(ctx: Context, default: str = "") -> Optional[dict]:
         moment = following
     ctx.say(tr("Расписание: ", "Schedule: ") + schedule.describe_when(when) + (tr(" · ближайшие: ", " · next: ") + ", ".join(preview) if preview else ""))
     return when
-
 
 async def new_task(ctx: Context, *, prompt: str = "", when_text: str = "") -> Optional[Task]:
     """The steps of a new task. Returns the saved task, or None when it was cancelled."""
@@ -172,7 +165,6 @@ async def new_task(ctx: Context, *, prompt: str = "", when_text: str = "") -> Op
     ctx.say(tr(f"Задача {task.id} создана. Следующий запуск: ", f"Task {task.id} created. Next run: ")
             + time.strftime("%d.%m.%Y %H:%M", time.localtime(task.next_run)), "success")
     return task
-
 
 async def task_menu(ctx: Context, task: Task) -> None:
     """What can be done with one task. Returns to the list when done."""
@@ -237,14 +229,12 @@ async def task_menu(ctx: Context, task: Task) -> None:
                 await remove_task(ctx, task)
                 return
 
-
 def _toggle_system(task: Task, enabled: bool) -> None:
     """Pause or resume a task in the Windows scheduler: a paused one is simply removed and put back later."""
     if enabled:
         schedule.register(schedule.get_task(task.id) or task)
     else:
         schedule.unregister(task.id)
-
 
 async def remove_task(ctx: Context, task: Task) -> None:
     if task.runner == "system":
@@ -255,7 +245,6 @@ async def remove_task(ctx: Context, task: Task) -> None:
     import shutil
     shutil.rmtree(schedule.home() / "results" / task.id, ignore_errors=True)
     ctx.say(tr("Задача удалена", "Task deleted"), "success")
-
 
 async def manage(ctx: Context) -> None:
     while True:
@@ -272,7 +261,6 @@ async def manage(ctx: Context) -> None:
             await new_task(ctx)
         else:
             await task_menu(ctx, choice)
-
 
 @command("schedule", "Задачи по расписанию: запрос, который MemuCode выполняет сам (в этом окне или планировщиком Windows)",
          "Scheduled tasks: a prompt MemuCode runs by itself (in this window or by the Windows scheduler)",

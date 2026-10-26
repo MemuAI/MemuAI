@@ -28,25 +28,23 @@ TTL = 300
 LINK_TTL = 300
 WEB_SESSION_TTL = 12 * 3600
 MAX_PENDING = 64
-ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"        # no 0/O, 1/I: read aloud and typed easily
+ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
 QR_PREFIX = "memuai-login:"
 
 _lock = threading.Lock()
-_requests: Dict[str, Dict[str, Any]] = {}            # request_id → request
-_codes: Dict[str, str] = {}                           # display code → request_id
-_links: Dict[str, Dict[str, Any]] = {}                # link nonce → {user, expires}
-
+_requests: Dict[str, Dict[str, Any]] = {}
+_codes: Dict[str, str] = {}
+_links: Dict[str, Dict[str, Any]] = {}
 
 def _prune(now: Optional[float] = None) -> None:
     now = time.time() if now is None else now
     for request_id, row in list(_requests.items()):
-        if row["expires"] < now - 60:                 # expired ones answer «expired» for another minute
+        if row["expires"] < now - 60:
             _requests.pop(request_id, None)
             _codes.pop(row["code"], None)
     for nonce, row in list(_links.items()):
         if row["expires"] < now:
             _links.pop(nonce, None)
-
 
 def normalize_code(value: Any) -> str:
     text = str(value or "").strip()
@@ -55,13 +53,11 @@ def normalize_code(value: Any) -> str:
     text = "".join(ch for ch in text.upper() if ch.isalnum())
     return text[:8] if len(text) >= 8 else ""
 
-
 def _new_code() -> str:
     while True:
         code = "".join(secrets.choice(ALPHABET) for _ in range(8))
         if code not in _codes:
             return code
-
 
 def start(ip: str, agent: str, *, now: Optional[float] = None) -> Dict[str, Any]:
     now = time.time() if now is None else now
@@ -78,14 +74,12 @@ def start(ip: str, agent: str, *, now: Optional[float] = None) -> Dict[str, Any]
     return {"request_id": request_id, "code": code, "display": code[:4] + "-" + code[4:],
             "qr": QR_PREFIX + code, "expires": int(now + TTL), "ttl": TTL}
 
-
 def _by_code(code: str, now: float) -> Optional[Dict[str, Any]]:
     request_id = _codes.get(normalize_code(code))
     row = _requests.get(request_id or "")
     if row is None or row["expires"] < now or row["status"] != "pending":
         return None
     return row
-
 
 def inspect(code: str, *, now: Optional[float] = None) -> Optional[Dict[str, Any]]:
     now = time.time() if now is None else now
@@ -95,7 +89,6 @@ def inspect(code: str, *, now: Optional[float] = None) -> Optional[Dict[str, Any
         if row is None:
             return None
         return {"ip": row["ip"], "agent": row["agent"], "created": row["created"], "expires": row["expires"]}
-
 
 def decide(code: str, user_id: str, approve: bool, *, now: Optional[float] = None) -> bool:
     now = time.time() if now is None else now
@@ -108,7 +101,6 @@ def decide(code: str, user_id: str, approve: bool, *, now: Optional[float] = Non
         row["user"] = str(user_id) if approve else ""
         row["decided"] = now
         return True
-
 
 def poll(request_id: str, issue: Any, *, now: Optional[float] = None) -> Dict[str, Any]:
     """``issue(user_id) -> (token, expires)`` is called once, when the request was approved."""
@@ -130,7 +122,6 @@ def poll(request_id: str, issue: Any, *, now: Optional[float] = None) -> Dict[st
     token, expires = issue(user)
     return {"status": "approved", "token": token, "expires": expires}
 
-
 def issue_link(user_id: str, *, now: Optional[float] = None) -> str:
     now = time.time() if now is None else now
     nonce = secrets.token_urlsafe(24)
@@ -138,7 +129,6 @@ def issue_link(user_id: str, *, now: Optional[float] = None) -> str:
         _prune(now)
         _links[nonce] = {"user": str(user_id), "expires": now + LINK_TTL}
     return nonce
-
 
 def redeem(nonce: str, *, now: Optional[float] = None) -> str:
     """The user a one-time link was issued for ('' when unknown, used or expired)."""
@@ -150,13 +140,11 @@ def redeem(nonce: str, *, now: Optional[float] = None) -> str:
         return ""
     return row["user"]
 
-
 def reset() -> None:
     with _lock:
         _requests.clear()
         _codes.clear()
         _links.clear()
-
 
 def bot_message(prefs: Dict[str, Any], user_id: str, url: Optional[str]) -> tuple:
     """Text and keyboard of the bot's ``/web`` answer: a one-time sign-in link for a normal browser."""

@@ -1,5 +1,5 @@
-/* MemuAI Proxy — Round 33 strings (r33-proxy): account selection mode, pointer drag, the provider catalog.
-   Loaded before app.js so the first applyI18n() already knows them. */
+
+
 "use strict";
 Object.assign(I18N.ru, {
   "acc.selectmode.btn": "Выбрать несколько",

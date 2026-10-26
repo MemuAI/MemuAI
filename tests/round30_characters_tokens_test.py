@@ -25,7 +25,6 @@ out.ruQwen = E.estimateTokens(ru); out.ruQwenShared = T.estimate(ru, "qwen/qwen3
 process.stdout.write(JSON.stringify(out));
 """
 
-
 class CharactersTokensTest(unittest.TestCase):
     def package_js(self) -> str:
         from app.modules_host import load_package
@@ -51,8 +50,7 @@ class CharactersTokensTest(unittest.TestCase):
         self.assertEqual(out["ru"], out["ruShared"])
         self.assertEqual(out["en"], out["enShared"])
         self.assertEqual(out["ruQwen"], out["ruQwenShared"])
-        self.assertGreater(out["ru"], out["en"])  # the same story costs more tokens in Russian
-
+        self.assertGreater(out["ru"], out["en"])
 
 if __name__ == "__main__":
     unittest.main()

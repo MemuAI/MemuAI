@@ -1,17 +1,5 @@
-/* MemuAI · Round 29 — stuck detector (JS mirror of app/stuck_detector.py) and the pause card.
 
-   window.MemuStuck = {
-     Detector,                 // the same rules/thresholds as the Python detector (Work runs in the window)
-     signature(action), stateKey(state), parseDecision(payload),
-     cardHtml(card, opts),     // the pause card: what repeats + Continue / Continue with a hint / Change approach / Stop
-     dfyQuestionHtml(task, q, opts),   // the card inside a DFY task card (main window and Quick Access)
-     workGate(assistant, ctx)  // Work hook: true = paused (nothing more runs until the user decides)
-     automation(kind, state),  // Browser / Computer Use polling hook (state.stuck from /api/work/<kind>/state)
-     decide(target, decision, hint), settingsHtml(ctx), bindSettings(ctx), sensitivity(),
-   }
 
-   Events on document: "memu-stuck-pause" (detail = {source, card}) and "memu-stuck-decided".
-   Loaded in index.html and quick/index.html; works without app.js (Quick Access). */
 (function () {
   "use strict";
   if (window.MemuStuck) return;
@@ -51,7 +39,6 @@
     model_signal: "",
   };
 
-  /* ----------------------------------------------------------- helpers */
   const isEn = (lang) => String(lang || window.PG_LANG || (typeof PG_LANG !== "undefined" ? PG_LANG : "") || document.documentElement.lang || "ru").toLowerCase().startsWith("en");
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const normText = (v, limit = 300) => String(v == null ? "" : v).replace(/\s+/g, " ").trim().toLowerCase().slice(0, limit);
@@ -72,7 +59,7 @@
     if (v && typeof v === "object") return "{" + Object.keys(v).sort().map((k) => JSON.stringify(k) + ":" + stable(v[k])).join(",") + "}";
     return JSON.stringify(v === undefined ? null : v);
   }
-  /* FNV-1a, two 32-bit lanes → 16 hex chars: stable and fast, not cryptographic (only compared with itself). */
+
   function hash(str) {
     let a = 0x811c9dc5, b = 0x01000193 ^ 0x5bd1e995;
     for (let i = 0; i < str.length; i++) {
@@ -118,7 +105,6 @@
   }
   const uid = () => Math.random().toString(16).slice(2, 12);
 
-  /* ---------------------------------------------------------- detector */
   class Detector {
     constructor(sensitivity = "normal", area = "") {
       this.sensitivity = SENSITIVITIES.includes(sensitivity) ? sensitivity : "normal";
@@ -166,7 +152,7 @@
       const cur = steps[steps.length - 1];
       let hint = null;
       const W = this.limit("window");
-      // 1. the same active action on an unchanged state
+
       if (!cur.passive) {
         let run = 1;
         for (let i = steps.length - 2; i >= 0; i--) {
@@ -185,7 +171,7 @@
         if (cur.state !== null && !cur.novel && same.length >= this.limit("revisit_repeat") * factor)
           return this.verdict("pause", "repeat", same.length, { tail: Math.min(steps.length, same.length * 2) });
       }
-      // 2. oscillation
+
       for (const period of [2, 3]) {
         const cycles = this.limit("cycles"), need = period * cycles;
         if (steps.length < need) continue;
@@ -198,35 +184,35 @@
         }
         if (ok) return this.verdict("pause", "oscillation", cycles, { tail: need, period });
       }
-      // 3. the same error
+
       const errors = steps.slice(-W).filter((s) => s.error).map((s) => s.error);
       const lastErr = [...steps].reverse().find((s) => s.error)?.error || "";
       if (lastErr && steps.slice(-2).some((s) => s.error === lastErr)) {
         const count = errors.filter((e) => e === lastErr).length;
         if (count >= this.limit("same_error")) return this.verdict("pause", "same_error", count, { tail: Math.min(steps.length, W), detail: lastErr, detailEn: lastErr });
       }
-      // 4. long waiting on a frozen state
+
       if (cur.passive && cur.state !== null) {
         let waited = 0;
         for (let i = steps.length - 1; i >= 0; i--) { const s = steps[i]; if (!s.passive || !sameState(s.state, cur.state)) break; waited++; }
         if (waited >= this.limit("waiting")) return this.verdict("pause", "waiting", waited, { tail: waited });
       }
-      // 5. nothing new
+
       const active = steps.filter((s) => !s.passive && !progressive(s));
       let streak = 0;
       for (let i = active.length - 1; i >= 0; i--) { const s = active[i]; if (s.state === null || s.novel || s.files || s.progressed === true) break; streak++; }
       if (streak >= this.limit("no_new_state")) return this.verdict("pause", "no_new_state", streak, { tail: streak });
-      // 6. progress marker stalled
+
       if (cur.progress !== null) {
         let stalled = 0;
         for (let i = steps.length - 1; i >= 0; i--) { const s = steps[i]; if (s.progress === null || s.progress !== cur.progress || s.files || s.progressed === true) break; stalled++; }
         if (stalled >= this.limit("stalled")) return this.verdict("pause", "plan_stalled", stalled, { tail: stalled });
       }
-      // 7. claims without evidence
+
       let claims = 0;
       for (let i = steps.length - 1; i >= 0; i--) { const s = steps[i]; if (!s.claimed || s.files || s.novel || s.progressed === true) break; claims++; }
       if (claims >= this.limit("no_evidence")) return this.verdict("pause", "no_evidence", claims, { tail: claims });
-      // 8. budget
+
       if (steps.some((s) => s.state !== null || s.progress !== null || s.progressed !== null)) {
         let since = 0;
         for (let i = steps.length - 1; i >= 0; i--) { const s = steps[i]; if (s.novel || s.files || s.progressed === true) break; since++; }
@@ -297,7 +283,6 @@
     return `PAUSED as stuck${what}. The user chose to continue: take a fresh look and try again, but do not repeat an action that changed nothing.`;
   }
 
-  /* -------------------------------------------------------------- card */
   const SVG = {
     pause: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg>',
     play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M7 5v14l11-7z"/></svg>',
@@ -312,7 +297,7 @@
     plan_code: ["План MemuCode", "MemuCode plan"], goal_code: ["Цель MemuCode", "MemuCode goal"], tools_code: ["Инструменты MemuCode", "MemuCode tools"],
     browser: ["Browser", "Browser"], computer: ["Computer Use", "Computer Use"], dfy: ["Do For You", "Do For You"], cli: ["MemuCode", "MemuCode"],
   };
-  /* card: the object from to_card(); o: {lang, source, task, compact, busy} */
+
   function cardHtml(card, o = {}) {
     if (!card) return "";
     const en = isEn(o.lang), T = (ru, e) => (en ? e : ru);
@@ -347,15 +332,14 @@
     return `<div class="dfy-q qdfy-q memu-stuck-dfy" data-kind="stuck">${cardHtml(card, { ...o, source: "dfy", task: task.id, area: "dfy", compact: o.compact })}</div>`;
   }
 
-  /* --------------------------------------------------------- decisions */
   async function post(path, body) {
     const resp = await fetch(path, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}), cache: "no-store" });
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.error || `HTTP ${resp.status}`);
     return data;
   }
-  const workResolvers = new Map();     // card id → (decision, hint) for Work pauses in this window
-  /* target: {source, task, card} */
+  const workResolvers = new Map();
+
   async function decide(target, decision, hint = "") {
     const source = target.source || "";
     if (!DECISIONS.includes(decision)) throw new Error("bad decision");
@@ -391,7 +375,7 @@
       if (!hint) { box.querySelector("[data-stuck-hint]")?.focus(); return; }
     }
     if (act === "stop" && box.dataset.stuckSource !== "dfy") {
-      // "Stop" ends the run; the other answers are harmless, so only this one is guarded against a misclick.
+
       btn.classList.add("confirming");
       if (!btn.dataset.armed) {
         btn.dataset.armed = "1";
@@ -420,7 +404,6 @@
     if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); const box = ta.closest(".memu-stuck-hint"); if (box) box.hidden = true; }
   }, true);
 
-  /* ---------------------------------------------------------- settings */
   const pref = (key, def) => {
     try { if (typeof S !== "undefined" && S.preferences && S.preferences[key] !== undefined) return S.preferences[key]; } catch (e) {}
     return def;
@@ -450,8 +433,6 @@
     });
   }
 
-  /* --------------------------------------------------------------- dock */
-  // One pause card above the composer of the main window (Work, Browser, Computer Use).
   let dockKey = "";
   function dock() {
     let el = document.getElementById("memu-stuck-dock");
@@ -468,7 +449,7 @@
     if (!el) return;
     const key = entry ? `${entry.source}:${entry.card.id}:${isEn() ? "en" : "ru"}` : "";
     if (key === dockKey) return;
-    // Keep a half-typed hint when the same card is drawn again.
+
     dockKey = key;
     if (!entry) { el.hidden = true; el.innerHTML = ""; return; }
     el.innerHTML = cardHtml(entry.card, { source: entry.source, task: entry.task || "", area: entry.area || entry.card.area });
@@ -489,8 +470,7 @@
     } catch (e) {}
   }
 
-  /* --------------------------------------------------- automation hook */
-  const automationPauses = {};       // kind → entry
+  const automationPauses = {};
   function automation(kind, state) {
     const card = state && state.stuck;
     if (card && card.id) automationPauses[kind] = { source: kind, card, area: kind };
@@ -498,12 +478,10 @@
     refresh();
   }
 
-  /* --------------------------------------------------------- Work hook */
-  const detectors = new Map();       // chat id → Detector
-  const seenTools = new Map();       // chat id → Set of tool-call signatures (exploring new things counts as evidence)
-  const planBest = new Map();        // chat id + plan objective → most steps ever complete
-  // Tool rounds and plan/goal turns alternate in one Work run: each kind gets its own detector, else every turn
-  // broke the other's streak (a plan re-reading one file for 12 turns was never paused).
+  const detectors = new Map();
+  const seenTools = new Map();
+  const planBest = new Map();
+
   const workKey = (chatId, phase) => (chatId || "") + (phase === "tools" ? "#tools" : "");
   function detectorFor(chatId) {
     const sens = sensitivity();
@@ -525,14 +503,13 @@
       tools: calls.map((c) => ({ tool: c.tool, args: c.args })) };
     let filesChanged = files.length + deletes.length;
     (assistant.toolHistory || []).forEach((h) => { if (h.ok && h.tool && FILE_TOOL.test(h.tool) && h.round === assistant._toolRounds) filesChanged++; });
-    if (phase === "tools") filesChanged = 0;           // a tool round is judged before it runs
+    if (phase === "tools") filesChanged = 0;
     const seen = seenTools.get(ctx.chatId) || new Set(); seenTools.set(ctx.chatId, seen);
     let fresh = false;
     calls.forEach((c) => { const sig = signature(c); if (!seen.has(sig)) { seen.add(sig); fresh = true; } });
     const lastErr = [...(assistant.toolHistory || [])].reverse().find((h) => h.error)?.error || assistant.workCommand?.error || "";
     const passive = phase === "tools" && calls.length > 0 && calls.every((c) => PASSIVE_TOOL.has(c.tool) || /^(status|read|list)$/.test(String(c.args?.action || "")) && /^(code_task|code_terminal)$/.test(c.tool));
-    // Real models re-mark the same step complete/pending every turn: only a step count above the best seen so far
-    // is progress (and the marker follows that best), otherwise the toggling hid an endless plan from the detector.
+
     let advanced = false, progress = null;
     if (plan) {
       const done = (plan.steps || []).filter((st) => st && st.status === "complete").length || +plan.completed || 0;
@@ -544,7 +521,7 @@
       progress = `${Math.max(done, best)}/${(plan.steps || []).length}`;
     }
     const progressed = advanced || fresh || undefined;
-    // «code_run cat status.txt», not a bare «code_run»: the user must see WHAT repeats (like the MemuCode CLI card)
+
     const callLabel = (c) => { const a = c.args && typeof c.args === "object" ? c.args : {};
       const what = a.command || a.path || a.file_path || a.pattern || a.query || a.url || a.action || "";
       return c.tool + (what ? " " + String(what).replace(/\s+/g, " ").slice(0, 70) : ""); };
@@ -555,7 +532,7 @@
     return { action, opts: { label, filesChanged, claimed: phase !== "tools" && (assistant.goalProgress?.status === "continue" || plan?.status === "active"),
       progress, progressed: progressed ? true : (filesChanged ? true : null), error: lastErr, passive } };
   }
-  /* ctx: {phase: "plan"|"goal"|"tools", chatId, plan?, goal?}.  true = paused, the caller must not continue. */
+
   function workGate(assistant, ctx = {}) {
     try {
       if (!assistant || assistant.error) return false;
@@ -563,7 +540,7 @@
       const holder = phase === "plan" ? ctx.plan : phase === "goal" ? ctx.goal : assistant.toolCalls;
       if (!holder) return false;
       const d = detectorFor(workKey(ctx.chatId, phase));
-      // A new answer arrived although a pause was open (/goal continue, a resumed run): the user went on.
+
       if (holder.stuckPause) { delete holder.stuckPause; d.acknowledge("continue"); }
       if (!d.enabled) return false;
       const { action, opts } = workObservation(assistant, phase, ctx);
@@ -571,7 +548,7 @@
       if (v.level === "hint" && phase !== "tools") { ctx.addHint?.(v.modelHint); return false; }
       if (!v.paused) return false;
       holder.stuckPause = { ...toCard(v), phase, chatId: ctx.chatId || "" };
-      // the answer under the card said «The request is still running…» while nothing runs
+
       assistant.progress = isEn() ? "Paused — waiting for your decision" : "Пауза — ждёт вашего решения";
       refresh();
       settleWhenIdle(ctx.chatId || "");
@@ -582,19 +559,18 @@
     if (typeof S === "undefined") return null;
     const chatId = S.currentId || "";
     const plan = S.activeWorkPlan, goal = S.workGoal;
-    // The user wrote a message (or stopped the goal / the plan) after the pause: that is the verdict, the card goes.
+
     const lastUser = [...(S.messages || [])].reverse().find((m) => m && m.role === "user" && !m.internal);
     const stale = (card) => card && ((lastUser && +lastUser.createdAt > +card.created) || false);
     if (plan?.stuckPause && (stale(plan.stuckPause) || plan.status !== "active")) { delete plan.stuckPause; detectorFor(chatId).acknowledge("hint"); }
     if (goal?.stuckPause && (stale(goal.stuckPause) || !goal.enabled)) { delete goal.stuckPause; detectorFor(chatId).acknowledge("hint"); }
-    // the badge names the surface: in MemuCode the card said «Инструменты Work»
+
     const sfx = S.mode === "code" ? "_code" : "";
     if (plan?.stuckPause) return { source: "work", card: plan.stuckPause, holder: plan, area: "plan" + sfx };
     if (goal?.stuckPause) return { source: "work", card: goal.stuckPause, holder: goal, area: "goal" + sfx };
     let msg = (S.messages || []).slice(-12).reverse().find((m) => m && m.toolCalls?.stuckPause);
     if (msg && stale(msg.toolCalls.stuckPause)) {
-      // a message typed during a tool-round pause is the verdict: the card (and its unrun calls) must go, otherwise
-      // it stayed under the new answer and «Continue» would run the old calls again
+
       delete msg.toolCalls.stuckPause;
       if (msg.toolCalls.status === "pending") msg.toolCalls.status = "cancelled";
       detectorFor(workKey(chatId, "tools")).acknowledge("hint");
@@ -607,12 +583,11 @@
     try {
       if (typeof generationJobs !== "undefined" && generationJobs.has(S.currentId)) return;
       (S.messages || []).forEach((m) => { if (m && m.role === "assistant" && m.streaming) { m.streaming = false; m.progress = ""; } });
-      if (typeof generationJobs !== "undefined") generating = generationJobs.size > 0;   // app.js global
+      if (typeof generationJobs !== "undefined") generating = generationJobs.size > 0;
       if (typeof setSendBusy === "function") setSendBusy(false);
     } catch (e) { console.warn("stuck settle", e); }
   }
-  // Nothing runs on a pause, but the composer kept its «Stop» button (the job that hit the gate ends a moment later):
-  // once that job is gone the chat takes input again — a message typed now is the user's verdict.
+
   function settleWhenIdle(chatId, tries = 0) {
     setTimeout(() => {
       if (typeof S === "undefined" || (chatId && S.currentId !== chatId) || !currentWorkPause()) return;
@@ -634,23 +609,21 @@
       if (phase === "plan" && S.activeWorkPlan) { S.activeWorkPlan.status = "blocked"; S.activeWorkPlan.error = msg; }
       if ((phase === "plan" || phase === "goal") && S.workGoal?.enabled) { S.workGoal.enabled = false; S.workGoal.status = "stopped"; S.workGoal.summary = msg; }
       else if (phase === "tools" && entry.holder) entry.holder.status = "limit";
-      // A plan/goal turn stays «running» between turns (streaming answers, the Stop button): nothing runs now, so the
-      // chat must take input again — before, Stop left the chat busy until the user pressed the composer's Stop too.
+
       if (phase !== "tools") settleTurn();
       save(); refresh();
-      if (phase === "tools" && entry.assistant && typeof runHiddenTools === "function") runHiddenTools(entry.assistant);   // "limit" → answer from what it has
+      if (phase === "tools" && entry.assistant && typeof runHiddenTools === "function") runHiddenTools(entry.assistant);
       return { ok: true };
     }
     save(); refresh();
     if (phase === "plan" && typeof continueWorkPlan === "function") setTimeout(() => continueWorkPlan(note), 60);
     else if (phase === "goal" && typeof continueWorkGoal === "function") {
-      if (S.workGoal) S.workGoal.rounds = Math.max(0, (+S.workGoal.rounds || 0) - 1);   // the pause does not eat a turn
+      if (S.workGoal) S.workGoal.rounds = Math.max(0, (+S.workGoal.rounds || 0) - 1);
       setTimeout(() => continueWorkGoal(note), 60);
     } else if (phase === "tools" && entry.assistant) {
       if (decision === "continue" && typeof runHiddenTools === "function") setTimeout(() => runHiddenTools(entry.assistant), 60);
       else if (typeof resumeAfterAutomation === "function") {
-        // A hint / a new approach must reach the model before the same calls run again: the pending calls are
-        // dropped and the model gets the user's note as the result of this round.
+
         entry.holder.status = "done";
         setTimeout(() => resumeAfterAutomation("tools", note + "\nThe tool calls requested in the last round were NOT executed.",
           0, { chatId: S.currentId, messages: S.messages, assistant: entry.assistant }), 60);
@@ -659,12 +632,11 @@
     return { ok: true };
   }
 
-  /* ------------------------------------------------------------ refresh */
   function refresh() {
     const entry = currentWorkPause() || automationPauses.browser || automationPauses.computer || null;
     showDock(entry);
   }
-  setInterval(() => { if (!document.hidden && document.querySelector(".composer-wrap")) refresh(); }, 800);   // r36: not while hidden
+  setInterval(() => { if (!document.hidden && document.querySelector(".composer-wrap")) refresh(); }, 800);
   window.addEventListener("memu-language", () => { dockKey = ""; refresh(); });
 
   window.MemuStuck = {

@@ -35,8 +35,6 @@ TARGET = build.TARGETS["memunote"]
 EXCLUDES = tuple(TARGET["exclude"])
 STDLIB = set(sys.stdlib_module_names)
 
-# Excluded modules MemuNote may reach only behind a guard (try/except, or a caller that catches):
-# (importing module, excluded target) → why it is safe.
 ALLOWED_GUARDED = {
     ("app.memory_v2", "app.pgdata"): "memu_dir(): try/except, falls back to the data dir rule",
     ("app.memory_v2", "app.config"): "memu_dir(): try/except ImportError",
@@ -44,13 +42,11 @@ ALLOWED_GUARDED = {
     ("app.memunote.ai", "app.websearch"): "local web search fallback, try/except",
 }
 
-
 def excluded(name: str) -> str:
     for item in EXCLUDES:
         if name == item or name.startswith(item + "."):
             return item
     return ""
-
 
 def module_file(name: str) -> Path | None:
     rel = Path(*name.split("."))
@@ -58,7 +54,6 @@ def module_file(name: str) -> Path | None:
         if candidate.is_file():
             return candidate
     return None
-
 
 def _guarded(stack) -> bool:
     for node in stack:
@@ -73,7 +68,6 @@ def _guarded(stack) -> bool:
                 if {"ImportError", "ModuleNotFoundError", "Exception", "BaseException"} & set(names):
                     return True
     return False
-
 
 def imports_of(name: str, path: Path):
     """[(target module, guarded, top_level)] for every import statement of a module."""
@@ -96,7 +90,7 @@ def imports_of(name: str, path: Path):
                 else:
                     mod = child.module or ""
                 targets = [mod]
-                for alias in child.names:              # "from . import x" / "from .. import memory_v2"
+                for alias in child.names:
                     if module_file(f"{mod}.{alias.name}"):
                         targets.append(f"{mod}.{alias.name}")
                 for target in targets:
@@ -105,7 +99,6 @@ def imports_of(name: str, path: Path):
 
     visit(tree, [], False)
     return found
-
 
 def import_closure():
     """Walk MemuNote's imports from memunote.py. Returns (visited app modules, problems)."""
@@ -126,7 +119,7 @@ def import_closure():
                     problems.append(f"{name} imports excluded {target} ({'guarded' if guarded else 'UNGUARDED'})")
                 continue
             if not own and not top_level:
-                continue        # a shared module's lazy import: only reached through functions MemuNote calls
+                continue
             root = target.split(".")[0]
             if root != "app":
                 continue
@@ -134,7 +127,6 @@ def import_closure():
             if file is not None:
                 queue.append((target, file))
     return visited, problems
-
 
 class ImportContractTest(unittest.TestCase):
     def test_no_excluded_import_reaches_memunote(self) -> None:
@@ -182,7 +174,6 @@ class ImportContractTest(unittest.TestCase):
         self.assertEqual(Path(icon[0]).name, "memunote-icon.ico")
         self.assertIn("console=False", spec)
 
-
 BLOCKER = r"""
 import importlib.abc, json, runpy, sys
 EXCL = tuple(json.loads(sys.argv[1]))
@@ -206,7 +197,6 @@ else:
                       "theme": server.NoteApp().theme()["mode"],
                       "loaded": [m for m in sys.modules if any(m == e or m.startswith(e + ".") for e in EXCL)]}))
 """
-
 
 class FrozenLikeStartTest(unittest.TestCase):
     """MemuNote with every excluded module blocked, the way MemuNote.exe runs."""
@@ -262,17 +252,15 @@ class FrozenLikeStartTest(unittest.TestCase):
             proc.stdout.close()
             proc.stderr.close()
 
-
 class IconSafetyTest(unittest.TestCase):
     def test_never_png_on_windows(self) -> None:
         from app.memunote import desktop
-        self.assertIsNone(desktop._icon_path("nt", True))           # frozen: the exe's own icon
+        self.assertIsNone(desktop._icon_path("nt", True))
         dev = desktop._icon_path("nt", False)
         self.assertTrue(dev and dev.endswith(".ico"), dev)
         self.assertTrue(desktop._icon_path("posix", False).endswith(".png"))
         source = (ROOT / "app" / "memunote" / "desktop.py").read_text(encoding="utf-8")
         self.assertIn('"icon": _icon_path()', source)
-
 
 class SingleInstanceTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -289,11 +277,11 @@ class SingleInstanceTest(unittest.TestCase):
     def test_instance_alive_rules(self) -> None:
         alive = self.desktop.instance_alive
         self.assertFalse(alive(None))
-        self.assertTrue(alive({"ok": True, "pid": 1}))                      # a Round-29 instance
+        self.assertTrue(alive({"ok": True, "pid": 1}))
         for ui in ("window", "browser", "headless"):
             self.assertTrue(alive({"ui": ui, "age": 9999}))
         self.assertTrue(alive({"ui": "starting", "age": 3}))
-        self.assertFalse(alive({"ui": "starting", "age": 600}))             # a ghost
+        self.assertFalse(alive({"ui": "starting", "age": 600}))
 
     def _instance(self, ui: str, age: float):
         app = self.server.NoteApp([])
@@ -324,9 +312,8 @@ class SingleInstanceTest(unittest.TestCase):
             httpd.server_close()
 
     def test_stale_file_means_no_instance(self) -> None:
-        self.desktop.publish_instance(1, "x")          # nothing listens on port 1
+        self.desktop.publish_instance(1, "x")
         self.assertFalse(self.desktop.hand_off([]))
-
 
 class CrashAndFallbackTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -409,7 +396,6 @@ class CrashAndFallbackTest(unittest.TestCase):
         if os.name != "nt":
             self.assertEqual(winsys.webview2_version(), "")
 
-
 def ico_sizes(path: Path):
     data = path.read_bytes()
     _reserved, kind, count = struct.unpack("<HHH", data[:6])
@@ -418,7 +404,6 @@ def ico_sizes(path: Path):
         w, h = struct.unpack("<BB", data[6 + 16 * i: 8 + 16 * i])
         sizes.append((w or 256, h or 256))
     return kind, sizes
-
 
 class IconAssetsTest(unittest.TestCase):
     def test_ico_has_every_size(self) -> None:
@@ -445,7 +430,6 @@ class IconAssetsTest(unittest.TestCase):
         self.assertIn("memunote.svg", index)
         products = (ROOT / "installer" / "products.py").read_text(encoding="utf-8")
         self.assertIn("memunote", products)
-
 
 if __name__ == "__main__":
     unittest.main()

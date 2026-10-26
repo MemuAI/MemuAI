@@ -18,14 +18,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
 def read(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8")
 
-
 def _chromium() -> str | None:
     return os.environ.get("MEMU_TEST_CHROMIUM") or None
-
 
 class StaticTest(unittest.TestCase):
     def test_no_polling_in_chat_modules(self):
@@ -54,9 +51,8 @@ class StaticTest(unittest.TestCase):
         html = read("index.html")
         for name in ("askuser.js", "bigdocs.js", "mentions.js"):
             self.assertRegex(html, re.escape(name) + r"\?v=3\.5-r36", name)
-        for name in ("canvas.js", "canvas.css"):      # r40-canvas: «Холст 2.0»
+        for name in ("canvas.js", "canvas.css"):
             self.assertRegex(html, re.escape(name) + r"\?v=3\.6-r40", name)
-
 
 @unittest.skipUnless(_chromium(), "MEMU_TEST_CHROMIUM is not set")
 class BrowserTest(unittest.TestCase):
@@ -80,7 +76,7 @@ class BrowserTest(unittest.TestCase):
         cls.page = cls.browser.new_page(viewport={"width": 1280, "height": 820})
         cls.errors = []
         cls.page.on("pageerror", lambda e: cls.errors.append(str(e)))
-        # «load», not «networkidle»: the Inbox keeps an SSE stream open.
+
         cls.page.goto(cls.servers.pg + "/", wait_until="load", timeout=90000)
         for _ in range(300):
             if cls.page.evaluate("typeof S !== 'undefined' && Array.isArray(S.chats) && S.chats.length >= 2 && !!window.MemuAskUser"):
@@ -106,7 +102,7 @@ class BrowserTest(unittest.TestCase):
             try:
                 if self.page.evaluate(code):
                     return
-            except Exception:   # the page is navigating
+            except Exception:
                 pass
             self.page.wait_for_timeout(150)
         raise AssertionError(f"timed out: {code}")
@@ -134,14 +130,14 @@ class BrowserTest(unittest.TestCase):
     def test_2_ask_user_all_fields_skip_and_done(self):
         self.js("openChat('c-a')")
         self.page.wait_for_timeout(300)
-        # the server keeps at most 3 fields per form (app/ask_user.py::MAX_FIELDS) — two forms cover all six types
+
         self.ask({"question": "Пара уточнений", "fields": [
             {"id": "style", "type": "choice", "label": "Стиль", "options": ["Строгий", "Дружеский"], "default": "Дружеский", "allow_other": True},
             {"id": "tags", "type": "multi", "label": "Темы", "options": ["Цены", "Сроки", "Риски"]},
             {"id": "when", "type": "date", "label": "Когда"}]})
         types = self.js("[...document.querySelectorAll('.au-pending .au-field')].map(f => [...f.classList].find(c => c.startsWith('au-t-')))")
         self.assertEqual(types, ["au-t-choice", "au-t-multi", "au-t-date"])
-        # a chip click repaints the form only: renderMessages is not called
+
         self.js("() => { window.__renders = 0; window.__origRender = renderMessages;"
                 "renderMessages = function () { window.__renders += 1; return window.__origRender.apply(this, arguments); }; }")
         self.page.click(".au-pending [data-au-multi] >> nth=1")
@@ -167,7 +163,7 @@ class BrowserTest(unittest.TestCase):
         self.page.click(".au-pending .au-submit")
         res = self.result()
         self.assertEqual((res["answers"]["ok"], res["answers"]["note"], float(res["answers"]["budget"])), (True, "без спешки", 1.0))
-        # Skip
+
         self.ask({"question": "Третий", "fields": [{"id": "x", "type": "text", "label": "X"}]})
         self.page.click(".au-pending .au-skip")
         self.assertEqual(self.result()["status"], "skipped")
@@ -189,14 +185,13 @@ class BrowserTest(unittest.TestCase):
             {id: 'c', type: 'choice', label: 'Вариант', options: ['Один', 'Два']}]},
             { chatId: S.currentId, messages: S.messages, mode: 'chat' }); }""")
         self.page.wait_for_selector(".au-pending", timeout=10000)
-        self.page.wait_for_timeout(1500)   # persistChatSnapshot → server
+        self.page.wait_for_timeout(1500)
         self.page.reload(wait_until="load")
         self.wait_js("typeof S !== 'undefined' && Array.isArray(S.chats) && S.chats.length >= 2 && !!window.MemuAskUser", 60)
         self.js("openChat('c-b')")
         self.page.wait_for_selector(".au-pending", timeout=15000)
         self.assertIn("После перезагрузки", self.js("document.querySelector('.au-pending').innerText"))
         self.assertEqual([e for e in self.errors if "localStorage" not in e], [])
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -21,7 +21,6 @@ ROOT = Path(__file__).resolve().parents[1]
 PG = ROOT / "app" / "pgstatic"
 sys.path.insert(0, str(ROOT))
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or "",
@@ -30,7 +29,6 @@ def _chromium() -> str:
             return candidate
     return ""
 
-
 try:
     from playwright.sync_api import sync_playwright
 except Exception:  # pragma: no cover - optional dependency
@@ -38,7 +36,6 @@ except Exception:  # pragma: no cover - optional dependency
 
 OLD_TABS = ("general", "apps", "models", "search", "integrations", "remote", "appearance", "work", "voice",
             "context", "prompts", "profile", "transfer", "panels", "modules", "docs", "about", "quick")
-
 
 class SettingsShellContracts(unittest.TestCase):
     @classmethod
@@ -51,10 +48,10 @@ class SettingsShellContracts(unittest.TestCase):
     def test_assets_are_linked_in_the_right_order(self):
         self.assertIn("/settings-kit.js", self.html)
         self.assertIn("/settings.css", self.html)
-        # The kit is available to every script that renders a settings section.
+
         for later in ("/quick-settings.js", "/telegram-settings.js", "/panels.js", "/app.js", "/companion/settings.js"):
             self.assertLess(self.html.index("/settings-kit.js"), self.html.index(later), later)
-        # Kit styles win over the designs and the section stylesheets.
+
         for earlier in ("/designs/glass.css", "/motion.css", "/quick-settings.css", "/telegram-settings.css", "/panels.css"):
             self.assertLess(self.html.index(earlier), self.html.index("/settings.css"), earlier)
 
@@ -64,7 +61,7 @@ class SettingsShellContracts(unittest.TestCase):
         alias_keys = set(re.findall(r"([a-z_]+):", aliases))
         for tab in OLD_TABS:
             self.assertTrue(tab in pages or tab in alias_keys, tab)
-        # Panes other scripts mount into keep their ids.
+
         for pane in ("pane-quick", "pane-panels", "pane-remote", "pane-modules", "pane-docs", "pane-appearance", "pane-apps", "pane-transfer"):
             self.assertIn(f'id="{pane}"', self.js, pane)
 
@@ -80,7 +77,6 @@ class SettingsShellContracts(unittest.TestCase):
         for design in ("aurora", "focus", "grid", "glass"):
             self.assertIn(f':root[data-design="{design}"]', self.css, design)
         self.assertIn("@media (max-width: 860px)", self.css)
-
 
 @unittest.skipUnless(sync_playwright is not None and _chromium(), "Playwright/Chromium is not installed")
 class SettingsShellBrowser(unittest.TestCase):
@@ -124,12 +120,12 @@ class SettingsShellBrowser(unittest.TestCase):
         self.wait("!!document.querySelector('#panel .sx-shell .settings-tab-pane.active')")
 
     def test_navigation_old_ids_and_breadcrumbs(self):
-        self.open("integrations")      # the old Notifications tab id is an alias now
+        self.open("integrations")
         self.assertEqual(self.page.evaluate("document.querySelector('.settings-tab-pane.active').id"), "pane-apps")
         self.page.click('.sx-nav [data-set-tab="voice"]')
         self.wait("document.querySelector('#pane-voice').classList.contains('active')")
         self.assertIn("Голос и Live", self.page.inner_text(".sx-crumbs"))
-        # Keyboard: ArrowDown on the nav moves to the next page.
+
         self.page.focus('.sx-nav [data-set-tab="voice"]')
         self.page.keyboard.press("ArrowDown")
         self.wait("document.querySelector('#pane-work').classList.contains('active')")
@@ -143,17 +139,17 @@ class SettingsShellBrowser(unittest.TestCase):
         self.assertIn("Озвучивание ответов", crumbs)
         self.assertTrue(self.page.evaluate("document.querySelector('#settings-voice-buttons').closest('.sx-sub-hidden') !== null"
                                            " || document.querySelector('#settings-voice-buttons').classList.contains('sx-sub-hidden')"))
-        self.page.keyboard.press("Escape")       # first Escape leaves the sub-page, not the dialog
+        self.page.keyboard.press("Escape")
         self.wait("document.querySelector('[data-sx-sub=\"tts\"]').hidden")
         self.assertTrue(self.page.evaluate("document.querySelector('#panel-back').classList.contains('visible')"))
 
     def test_search_is_fuzzy_bilingual_and_jumps(self):
         self.open("general")
         kit = "window.MemuSettingsKit"
-        # Russian, a typo, the wrong keyboard layout and English keywords all find the setting.
+
         self.assertEqual(self.page.evaluate(f"{kit}.search('орфография')[0].page"), "general")
         self.assertEqual(self.page.evaluate(f"{kit}.search('уведомленя')[0].page"), "notifications")
-        self.assertIn(self.page.evaluate(f"{kit}.search('ntvf')[0].page"), ("appearance",))   # «тема» typed in EN layout
+        self.assertIn(self.page.evaluate(f"{kit}.search('ntvf')[0].page"), ("appearance",))
         self.assertEqual(self.page.evaluate(f"{kit}.search('spell check')[0].page"), "general")
         self.page.fill("#sx-search", "кэширование")
         self.wait("!document.querySelector('.sx-results').hidden && document.querySelectorAll('.sx-result').length > 0")
@@ -162,13 +158,13 @@ class SettingsShellBrowser(unittest.TestCase):
         self.wait("document.querySelector('#models-more').open === true")
         self.wait("!!document.querySelector('.sx-flash')")
         self.assertEqual(self.page.evaluate("document.querySelector('#sx-search').value"), "")
-        # A row inside a sub-page: the jump opens the sub-page first.
+
         self.page.fill("#sx-search", "токен github")
         self.wait("document.querySelectorAll('.sx-result').length > 0")
         self.page.keyboard.press("Enter")
         self.wait("!document.querySelector('[data-sx-sub=\"int-github\"]').hidden")
         self.assertIn("GitHub", self.page.inner_text(".sx-crumbs"))
-        # Nothing found is an honest empty state.
+
         self.page.fill("#sx-search", "zzqqxx")
         self.wait("!!document.querySelector('.sx-results-empty')")
         self.page.keyboard.press("Escape")
@@ -183,7 +179,7 @@ class SettingsShellBrowser(unittest.TestCase):
         self.assertIn("+3", self.page.evaluate(f"{kit}.slider('x-rate', {{ min: -10, max: 10, value: 3, signed: true }})"))
         self.assertIn("−2", self.page.evaluate(f"{kit}.slider('x-rate', {{ min: -10, max: 10, value: -2, signed: true }})"))
         self.open("apps")
-        # nothing is connected in the fixture: there is nothing to disconnect
+
         self.wait("[...document.querySelectorAll('[data-int-off]')].every((b) => b.hidden)")
 
     def test_dependencies_reset_and_saved_indicator(self):
@@ -192,7 +188,7 @@ class SettingsShellBrowser(unittest.TestCase):
         if self.page.evaluate("document.querySelector('#st-notify-sound').checked"):
             self.page.click("label:has(#st-notify-sound)")
         self.wait(hidden)
-        self.page.click("label:has(#st-notify-sound)")            # sound on → its variants appear
+        self.page.click("label:has(#st-notify-sound)")
         self.wait("!" + hidden)
         self.wait("document.querySelector('[data-sx-key=\"notify_sound\"]').classList.contains('sx-modified')")
         self.wait("document.querySelector('.sx-saved').classList.contains('show')")
@@ -221,7 +217,6 @@ class SettingsShellBrowser(unittest.TestCase):
             self.assertLessEqual(overflow, 1)
         finally:
             page.close()
-
 
 if __name__ == "__main__":
     unittest.main()

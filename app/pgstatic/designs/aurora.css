@@ -1,18 +1,3 @@
-/* =====================================================================
-   MemuAI design «Аврора / Aurora» — scoped to :root[data-design="aurora"].
-   ---------------------------------------------------------------------
-   Warm, editorial, calm. The window is one soft surface lit by a faint
-   aurora (radial glows mixed from --accent / --accent-2). The sidebar
-   floats inside it as a rounded translucent panel; the conversation sits
-   directly on the glow, set in a generous reading rhythm with serif
-   display type (Source Serif 4, OFL, bundled latin + cyrillic) and a big
-   floating composer.
-
-   Colours: only tokens from /themes.css and color-mix() of them, so every
-   mode, surface variant and accent keeps working. Nothing here leaks into
-   other designs: every selector starts with :root[data-design="aurora"].
-   ===================================================================== */
-
 @font-face {
   font-family: "Aurora Serif";
   src: url("fonts/source-serif-4/SourceSerif4-Variable.woff2") format("woff2");
@@ -23,8 +8,6 @@
   src: url("fonts/source-serif-4/SourceSerif4-Italic-Variable.woff2") format("woff2");
   font-weight: 300 700; font-style: italic; font-display: swap;
 }
-
-/* ------------------------------------------------------------ tokens */
 :root[data-design="aurora"] {
   --au-serif: "Aurora Serif", "Source Serif 4", Georgia, Cambria, "Times New Roman", serif;
   --au-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
@@ -52,8 +35,6 @@
   --au-shadow-composer: 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent), 0 26px 60px -28px rgba(0, 0, 0, .7), 0 6px 18px -10px rgba(0, 0, 0, .35);
   --au-r: 18px; --au-r-lg: 24px; --au-r-xl: 30px;
   --au-ease: cubic-bezier(.22, 1, .36, 1);
-
-  /* Design-3 helper tokens re-pointed so shared rules inherit the look. */
   --d-line: var(--au-hair);
   --d-line-soft: var(--au-hair-soft);
   --d-hover: var(--au-hover);
@@ -79,8 +60,6 @@
   --au-shadow-pop: 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent), 0 26px 60px -26px rgba(60, 40, 20, .3), 0 8px 20px -14px rgba(60, 40, 20, .16);
   --au-shadow-composer: 0 0 0 1px color-mix(in srgb, var(--text) 9%, transparent), 0 24px 50px -28px rgba(60, 40, 20, .32), 0 4px 14px -8px rgba(60, 40, 20, .14);
 }
-
-/* -------------------------------------------------------------- base */
 :root[data-design="aurora"] body {
   background: var(--au-base); font-family: var(--au-sans);
   -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
@@ -88,19 +67,15 @@
 :root[data-design="aurora"] #app {
   position: relative; isolation: isolate; background: var(--au-base);
 }
-/* The aurora: three very soft glows, drifting slowly. */
 :root[data-design="aurora"] #app::before {
   content: ""; position: absolute; inset: -12%; z-index: -1; pointer-events: none;
   background:
     radial-gradient(42% 38% at 82% 6%, var(--au-glow-1), transparent 70%),
     radial-gradient(38% 42% at 8% 96%, var(--au-glow-2), transparent 72%),
     radial-gradient(30% 34% at 30% 8%, var(--au-glow-3), transparent 75%);
-  /* coarse steps (~4 updates/s): the blurred composer, chips and menus sit
-     on these glows, so a 60 fps drift re-filtered them every frame */
   animation: au-drift 38s steps(76, end) infinite alternate;
 }
 :root[data-design="aurora"] #app::after {
-  /* Fine grain keeps the glows from banding on 8-bit panels. */
   content: ""; position: absolute; inset: 0; z-index: -1; pointer-events: none; opacity: .05;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
@@ -111,21 +86,14 @@
 }
 :root[data-design="aurora"] ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 :where(:root[data-design="aurora"]) :focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 85%, transparent); outline-offset: 2px; }
-
-/* Startup cover */
 :root[data-design="aurora"] #startup-cover { background: var(--au-base); }
 :root[data-design="aurora"] .startup-mark { border-radius: 50%; }
 :root[data-design="aurora"] .startup-name { font: 500 24px/1.2 var(--au-serif); letter-spacing: -.01em; }
-
-/* ------------------------------------------------------------- shell */
 :root[data-design="aurora"] .side {
   position: relative; z-index: 2;
   margin: 10px 0 10px 10px; padding: 14px 10px 10px 12px;
   background: var(--au-float); border: 1px solid var(--au-hair); border-radius: var(--au-r-lg);
   box-shadow: var(--au-shadow-float);
-  /* Round 36: no backdrop-filter here — the glows behind the sidebar are
-     already soft, while the blur made the compositor re-filter the whole
-     pane on every drift frame and while scrolling. */
   transition: width .28s var(--au-ease), padding .28s var(--au-ease), margin .28s var(--au-ease), opacity .2s ease, transform .28s var(--au-ease);
 }
 :root[data-design="aurora"] .side.hidden { margin: 10px 0; border-color: transparent; box-shadow: none; padding: 0; }
@@ -135,8 +103,6 @@
 }
 :root[data-design="aurora"] .side.hidden ~ .main,
 :root[data-design="aurora"] .focus-mode .main { margin-left: 0; }
-
-/* ----------------------------------------------------------- sidebar */
 :root[data-design="aurora"] .brand {
   font: 560 21px/1 var(--au-serif); letter-spacing: -.015em; padding: 4px 8px 16px; gap: 11px;
 }
@@ -169,6 +135,8 @@
 
 :root[data-design="aurora"] .side-scroll { margin-top: 14px; }
 :root[data-design="aurora"] .side-btn { border-radius: 12px; min-height: 36px; }
+:root[data-design="aurora"] .side-nav .side-btn.active-section { background: var(--au-tint); color: var(--text); font-weight: 600; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); }
+:root[data-design="aurora"] .side-nav .side-btn.active-section .ico { color: var(--accent); }
 :root[data-design="aurora"] .side-label {
   font: italic 500 13px/1.3 var(--au-serif); letter-spacing: 0; text-transform: none; opacity: 1;
   color: var(--muted); padding: 12px 10px 6px;
@@ -188,8 +156,6 @@
 :root[data-design="aurora"] .side-bottom { padding-top: 8px; border-top: 1px solid var(--au-hair-soft); }
 :root[data-design="aurora"] .profile-card { border-radius: 16px; }
 :root[data-design="aurora"] .profile-avatar { box-shadow: 0 0 0 2px var(--panel), 0 0 0 3.5px color-mix(in srgb, var(--accent) 45%, transparent); }
-
-/* ------------------------------------------------------------ appbar */
 :root[data-design="aurora"] .topbar.appbar { min-height: 58px; padding: 10px 18px 6px; background: transparent; }
 :root[data-design="aurora"] .bar-icon, :root[data-design="aurora"] .iconbtn { border-radius: 50%; }
 :root[data-design="aurora"] .chat-search { border-radius: 999px; padding: 0 12px; }
@@ -202,8 +168,6 @@
 }
 :root[data-design="aurora"] .dd-btn:hover { background: var(--au-float-solid); border-color: color-mix(in srgb, var(--accent) 35%, var(--au-hair)); }
 :root[data-design="aurora"] .context-meter { border-radius: 999px; background: transparent; border: 1px solid var(--au-hair); }
-
-/* ------------------------------------------------------- popovers (all) */
 :root[data-design="aurora"] :is(.dd-pop, .app-menu-pop, .context-menu, .profile-menu-pop, .pretty-select-menu, .msg-more-pop, .slash-menu, .plus-menu) {
   background: var(--au-glass); border: 1px solid var(--au-hair); box-shadow: var(--au-shadow-pop);
   -webkit-backdrop-filter: blur(28px) saturate(1.6); backdrop-filter: blur(28px) saturate(1.6);
@@ -227,8 +191,6 @@
 :root[data-design="aurora"] .plus-icon { border-radius: 50%; }
 :root[data-design="aurora"] .plus-row.is-on .plus-icon { background: var(--au-tint-strong); }
 @keyframes au-pop { from { opacity: 0; transform: translateY(6px) scale(.985); } to { opacity: 1; transform: none; } }
-
-/* ------------------------------------------------------------ greeting */
 :root[data-design="aurora"] .greet-head { flex-direction: column; gap: 18px; margin-bottom: 12px; }
 :root[data-design="aurora"] .greet-mark {
   width: 54px; height: 54px; border-radius: 50%;
@@ -261,8 +223,6 @@
   box-shadow: 0 10px 24px -14px color-mix(in srgb, var(--accent) 60%, transparent);
 }
 :root[data-design="aurora"] .chip-sug.featured { background: var(--au-tint); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
-
-/* ------------------------------------------------------------ composer */
 :root[data-design="aurora"] .chat {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 36px), transparent 100%);
   mask-image: linear-gradient(to bottom, transparent 0, #000 18px, #000 calc(100% - 36px), transparent 100%);
@@ -297,8 +257,6 @@
 :root[data-design="aurora"] .attach-chip.video img { border-radius: 999px; }
 :root[data-design="aurora"] .composer-hint { font: italic 400 12px/1.4 var(--au-serif); padding-top: 9px; }
 :root[data-design="aurora"] :is(.composer .tog, .tool-chip, .composer .image-aspect) { min-height: 32px; padding: 0 12px 0 10px; }
-
-/* ------------------------------------------------------------ messages */
 :root[data-design="aurora"] .main .messages,
 :root[data-design="aurora"] .side.hidden ~ .main .messages,
 :root[data-design="aurora"] .focus-mode .messages { padding: 36px 28px 64px; }
@@ -381,8 +339,6 @@
   0%, 100% { box-shadow: 0 0 0 8px color-mix(in srgb, var(--accent) 9%, transparent), 0 0 0 18px color-mix(in srgb, var(--accent) 4%, transparent), 0 18px 50px -10px color-mix(in srgb, var(--accent) 70%, transparent); }
   50% { box-shadow: 0 0 0 11px color-mix(in srgb, var(--accent) 7%, transparent), 0 0 0 24px color-mix(in srgb, var(--accent) 2.5%, transparent), 0 18px 56px -8px color-mix(in srgb, var(--accent) 80%, transparent); }
 }
-
-/* --------------------------------------------------------- panels/modals */
 :root[data-design="aurora"] .panel-back {
   background: color-mix(in srgb, var(--bg) 40%, rgba(0, 0, 0, .35));
   -webkit-backdrop-filter: blur(10px) saturate(1.1); backdrop-filter: blur(10px) saturate(1.1);
@@ -423,19 +379,13 @@
 :root[data-design="aurora"] .settings-body :is(.hintbox, .live-persona-card, .voice-settings-group) { border-radius: 18px; }
 :root[data-design="aurora"] .tool-dialog-mark { border-radius: 50%; }
 :root[data-design="aurora"] .pin-lock-box { border-radius: 28px; }
-
-/* Narrow columns (MemuCode, Work with preview) get a calmer headline. */
 :root[data-design="aurora"] .code-mode .greeting h1 { font-size: clamp(1.9rem, 2.8vw, 2.4rem); }
-
-/* ---------------------------------------------------------------- docs */
 :root[data-design="aurora"] .docs-article h1 { font: 520 34px/1.15 var(--au-serif); letter-spacing: -.018em; }
 :root[data-design="aurora"] .docs-article h2 { font: 560 23px/1.3 var(--au-serif); letter-spacing: -.01em; }
 :root[data-design="aurora"] .docs-article h3 { font: 600 18px/1.35 var(--au-serif); }
 :root[data-design="aurora"] .docs-article { line-height: 1.75; }
 :root[data-design="aurora"] :is(.docs-search, .docs-find) { border-radius: 999px; }
 :root[data-design="aurora"] :is(.docs-page-link, .docs-result, .docs-group-head) { border-radius: 12px; }
-
-/* ------------------------------------------------------------ MemuCode */
 :root[data-design="aurora"] .codebar { border-radius: 22px; }
 :root[data-design="aurora"] .code-chip { border-radius: 999px; }
 :root[data-design="aurora"] .code-badge { border-radius: 999px; }
@@ -455,30 +405,21 @@
 }
 :root[data-design="aurora"] .cd-head { background: transparent; border-bottom-color: var(--au-hair-soft); padding: 8px 8px 0 10px; }
 :root[data-design="aurora"] .code-dock-tabs button { border-radius: 12px 12px 0 0; }
-
-/* -------------------------------------------------------- module windows */
 :root[data-design="aurora"] .module-window {
   border-radius: 24px; border: 1px solid var(--au-hair); box-shadow: var(--au-shadow-pop); overflow: hidden;
 }
-/* R21: развёрнутое окно модуля — лист со скруглением дизайна (modules.css), не «весь MemuAI». */
 :root[data-design="aurora"] .module-window-bar {
   min-height: 48px; padding: 0 10px 0 18px; border-bottom: 1px solid var(--au-hair-soft);
   background: color-mix(in srgb, var(--text) 2.5%, var(--panel));
 }
 :root[data-design="aurora"] .module-window-bar b { font: 560 16px/1.2 var(--au-serif); letter-spacing: -.005em; }
 :root[data-design="aurora"] .module-window-tools button { border-radius: 50%; }
-
-/* --------------------------------------------------------------- toasts */
 :root[data-design="aurora"] .toast {
   border-radius: 20px; padding: 11px 16px 11px 13px; background: var(--au-glass); border: 1px solid var(--au-hair);
   box-shadow: var(--au-shadow-pop); -webkit-backdrop-filter: blur(24px) saturate(1.5); backdrop-filter: blur(24px) saturate(1.5);
 }
-
-/* ------------------------------------------------------------- Live */
 :root[data-design="aurora"] .live-call { border-radius: 32px; }
 :root[data-design="aurora"] .live-status { font: 500 20px/1.3 var(--au-serif); }
-
-/* ------------------------------------------------------ work & code bars */
 :root[data-design="aurora"] .workbar {
   margin: 0 22px 8px; border-radius: 22px; padding: 6px 8px 6px 14px; flex-wrap: wrap; row-gap: 6px;
   background: var(--au-float); border: 1px solid var(--au-hair);
@@ -489,8 +430,6 @@
 :root[data-design="aurora"] .work-action { border-radius: 999px; background: color-mix(in srgb, var(--panel) 80%, transparent); }
 :root[data-design="aurora"] .work-mode-pill { border-radius: 999px; }
 :root[data-design="aurora"] .tempbar { margin: 0 22px 8px; border-radius: 999px; }
-
-/* --------------------------------------------------- reduced motion */
 @media (prefers-reduced-motion: reduce) {
   :root[data-design="aurora"] #app::before,
   :root[data-design="aurora"] .greet-mark,
@@ -499,8 +438,6 @@
 :root[data-design="aurora"][data-reduce-motion] #app::before,
 :root[data-design="aurora"] .reduce-motion #app::before,
 :root[data-design="aurora"] .reduce-motion .greet-mark { animation: none !important; }
-
-/* --------------------------------------------------------- responsive */
 @media (max-width: 800px) {
   :root[data-design="aurora"] .side { position: fixed; margin: 0; top: 8px; bottom: 8px; left: -300px; border-radius: 22px; background: var(--au-float-solid); }
   :root[data-design="aurora"] .side.open { left: 8px; }

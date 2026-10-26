@@ -14,7 +14,6 @@ from fastapi.testclient import TestClient
 from app import characters_api as api
 from app import modules_host, pgdata
 
-
 class StoreHelpersTest(unittest.TestCase):
     def setUp(self):
         self._t = tempfile.TemporaryDirectory()
@@ -38,7 +37,7 @@ class StoreHelpersTest(unittest.TestCase):
         api.store_remove(self.root, "characters", "chats/c1/a")
         self.assertIsNone(api.store_get(self.root, "characters", "chats/c1/a"))
         self.assertFalse((self.root / "store" / "characters" / "chats").exists(), "empty namespaces are removed")
-        # one module never sees another one's store
+
         self.assertIsNone(api.store_get(self.root, "translator", "settings"))
 
     def test_value_limit(self):
@@ -58,7 +57,7 @@ class StoreHelpersTest(unittest.TestCase):
         self.assertEqual(body["messages"][1]["name"], "Alice")
         self.assertEqual(len(body["messages"][2]["content"]), 2, "remote image URLs are dropped")
         self.assertEqual(body["temperature"], 2.0)
-        self.assertNotIn("top_k", body)                 # neutral values are not sent
+        self.assertNotIn("top_k", body)
         self.assertNotIn("frequency_penalty", body)
         self.assertNotIn("repetition_penalty", body)
         self.assertEqual(body["min_p"], 0.05)
@@ -84,7 +83,6 @@ class StoreHelpersTest(unittest.TestCase):
             with self.assertRaises(KeyError):
                 api.read_asset("characters", "missing.json")
 
-
 class SearchProviderTest(unittest.TestCase):
     def test_characters_reach_the_global_search(self):
         from app import search_index
@@ -98,7 +96,6 @@ class SearchProviderTest(unittest.TestCase):
                 self.assertEqual(found["items"][0]["open"], {"action": "character", "id": "c1", "module_id": "characters"})
             finally:
                 search_index.unregister_provider("characters")
-
 
 class RoutesTest(unittest.TestCase):
     def setUp(self):
@@ -128,7 +125,7 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(r.status_code, 400)
         r = c.post("/api/pg/modules/store", json={"module_id": "characters", "op": "usage"})
         self.assertEqual(r.json()["keys"], 1)
-        # benchmarks holds no storage permission
+
         bench = modules_host.load_package(self.modules, "benchmarks")
         if "storage" not in bench["permissions"]:
             r = c.post("/api/pg/modules/store", json={"module_id": "benchmarks", "op": "get", "key": "x"})
@@ -155,7 +152,7 @@ class RoutesTest(unittest.TestCase):
                 yield line
 
         app = self.client.app
-        # Replace the registered route's stream source with the fake one.
+
         from app import characters_api
         from fastapi import FastAPI
         local = FastAPI()
@@ -189,7 +186,6 @@ class RoutesTest(unittest.TestCase):
         page = modules_host.module_document({"id": "x", "html": "<b></b>", "js": ""})
         for api_name in ("complete:", "store:", "asset:", "onReasoning", "onUsage"):
             self.assertIn(api_name, page)
-
 
 if __name__ == "__main__":
     unittest.main()

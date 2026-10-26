@@ -1,15 +1,13 @@
-// MemuFiles · a file pane: navigation, streaming listing, sort/group/filter, virtualized views, selection.
-// Rendering is virtualized for every view (details, list, grid, gallery): only the rows on screen exist in the DOM,
-// so a folder of 100 000 files scrolls as smoothly as one of ten.
+
+
 import { t } from "./i18n.js";
 import { S, api, ndjson, $, h, esc, icon, fileIcon, fmtSize, fmtDate, joinPath, baseName, parentPath, samePath,
   extOf, stemOf, typeOf, IMAGE_EXT, thumbUrl, showError, debounce } from "./core.js";
-import { kindMatch, renderKindBar } from "./feat40.js";   // r40-files-max: one-click type filter
-import { noteHead, shellHint } from "./feat41.js";        // r41-files: archives as folders, «Show in folder» hint
+import { kindMatch, renderKindBar } from "./feat40.js";
+import { noteHead, shellHint } from "./feat41.js";
 
 let collator = null;
-// r40-files-max: Explorer order (StrCmpLogicalW) — digits, Latin, then Cyrillic, whatever the UI language; ICU «ru»
-// put every Russian name before «CV-Anna-Smith.md». «ё» still sorts with «е».
+
 const coll = () => (collator ||= new Intl.Collator("en", { numeric: true, sensitivity: "base" }));
 export function resetCollator() { collator = null; }
 
@@ -24,27 +22,23 @@ export const DEFAULT_COLS = {
   trash: [["name", 260], ["original", 300], ["deleted", 150], ["s", 96]],
 };
 
-/** Round 39: the key a folder's remembered look is stored under — case-insensitive and without a trailing slash on
- * Windows («C:\\Users\\me\\Downloads\\», «c:\\users\\me\\downloads» are one folder; an exact key missed them). */
 export function folderKey(path) {
   let p = String(path || "");
   if (p.length > 3 && /[\\/]$/.test(p)) p = p.replace(/[\\/]+$/, "");
   return S.platform === "nt" ? p.replace(/\//g, "\\").toLowerCase() : (p.length > 1 ? p.replace(/\/+$/, "") : p);
 }
-/** Round 39: Explorer's own defaults for known folders the user never customised: Downloads (and Windows «Recent»)
- * open newest first, grouped by date — not by name. */
+
 const KNOWN_DEFAULTS = {
   downloads: { sort: { key: "m", dir: -1 }, group: "date" },
   recent: { sort: { key: "m", dir: -1 }, group: "date" },
 };
-/** r41-files: where folders go — «auto» = like Explorer (see refresh), «top» = always above files, «mixed» = never apart.
- * Reads the old boolean «folders_first: false» (before round 41) as «mixed». */
+
 export function foldersOrder(settings) {
   const v = settings && settings.folders_order;
   if (v === "top" || v === "mixed" || v === "auto") return v;
   return settings && settings.folders_first === false ? "mixed" : "auto";
 }
-/** r41-files: «Icon and tile size» (settings) as a factor. */
+
 export function tileScale(settings) {
   return { s: 0.875, m: 1, l: 1.15 }[(settings && settings.tile_size) || "m"] || 1;
 }
@@ -78,18 +72,17 @@ export class Pane {
     this.focus = -1;
     this.anchor = -1;
     this.filter = "";
-    this.kind = "";                // r40-files-max: type filter chip («Изображения», «Документы»…)
+    this.kind = "";
     this.loading = false;
     this.error = null;
     this.head = null;
-    this.search = null;            // {query, scope, root, running, count, source}
+    this.search = null;
     this.scrollMemo = {};
     this.stamp = null;
     this.hiddenCols = new Set(state.hiddenCols || ["c"]);
     this.el = null;
   }
 
-  // ---------------------------------------------------------------- state for the session
   serialize() {
     return { path: this.path === SPECIAL.SEARCH ? (this.search && this.search.root) || S.home : this.path,
       history: this.history.filter((p) => p !== SPECIAL.SEARCH).slice(-20), view: this.view, sort: this.sort,
@@ -104,7 +97,6 @@ export class Pane {
   }
   get folder() { return isSpecial(this.path) ? "" : this.path; }
 
-  // ---------------------------------------------------------------- DOM
   mount(host) {
     this.el = h("div", { class: "pane", "data-pane": this.id });
     this.headEl = h("div", { class: "pane-head", hidden: true });
@@ -124,7 +116,6 @@ export class Pane {
   }
   unmount() { if (this.ro) this.ro.disconnect(); if (this.abort) this.abort.abort(); if (this.el) this.el.remove(); this.el = null; }
 
-  // ---------------------------------------------------------------- navigation
   async navigate(path, opts = {}) {
     if (!path) return;
     if (!opts.fromHistory && !opts.reload) {
@@ -168,17 +159,17 @@ export class Pane {
       if (memo.sort) this.sort = memo.sort;
       if (memo.group) this.group = memo.group;
     } else {
-      // a folder the user never customised gets the default look (not the previous folder's)
+
       const known = knownDefault(this.path);
       this.view = this.app.settings.default_view || "details";
-      // r41-files: Settings → «Default sort» / «Default grouping» (Downloads keeps Explorer's newest-first, by date)
+
       const ds = this.app.settings.default_sort || "name";
       this.sort = known ? { ...known.sort } : { key: ds, dir: ds === "m" || ds === "s" ? -1 : 1 };
       this.group = known ? known.group : (this.app.settings.default_group || "none");
       this.autoView = true;
     }
   }
-  /** A never-customised folder that is mostly pictures opens as large icons, like Explorer's "Pictures" template. */
+
   autoPickView() {
     if (!this.autoView || this.view !== (this.app.settings.default_view || "details")) return;
     let files = 0, images = 0;
@@ -190,9 +181,6 @@ export class Pane {
     this.app.saveFolderView(this.path, { view: this.view, sort: this.sort, group: this.group });
   }
 
-  // ---------------------------------------------------------------- loading
-  /** r40-files-2: a load superseded by a newer one (a "changed" event right after mkdir) resolves when the NEWEST
-   *  finishes — before, `await reload()` returned early and "new folder" lost its inline rename box. */
   async load(soft) {
     let p = this.loadOnce(soft);
     this.loadP = p;
@@ -213,7 +201,7 @@ export class Pane {
       return;
     }
     this.fv.hidden = false; this.homeEl.hidden = true;
-    if (mode === "search") { this.app.paneUpdated(this); return; }      // results stream in through runSearch()
+    if (mode === "search") { this.app.paneUpdated(this); return; }
     const keepSel = soft ? new Set(this.sel) : null;
     const scroll = soft ? this.fv.scrollTop : (this.scrollMemo[this.path] || 0);
     this.loading = true;
@@ -232,7 +220,7 @@ export class Pane {
           if (line.ok) { this.head = line; this.stamp = line.stamp; noteHead(line); }
           if (line.rows) {
             for (const r of line.rows) { r.path = joinPath(dir, r.n); fresh.push(r); }
-            if (!soft && (fresh.length <= 30000 || !rendered)) renderSoon();   // r39: a 50k folder shows its first rows at once too
+            if (!soft && (fresh.length <= 30000 || !rendered)) renderSoon();
           }
         }, ctrl.signal);
       }
@@ -254,7 +242,7 @@ export class Pane {
           this.renderVisible();
         } else this.fv.scrollTop = scroll;
       } else this.fv.scrollTop = scroll;
-      if (this.shellHint) { this.shellHint = false; shellHint(this.app, this); }   // r41-files: «Show in folder» from a browser
+      if (this.shellHint) { this.shellHint = false; shellHint(this.app, this); }
       this.app.selectionChanged(this);
     } catch (err) {
       if (err.name === "AbortError") return;
@@ -268,7 +256,6 @@ export class Pane {
     this.app.paneUpdated(this);
   }
 
-  // ---------------------------------------------------------------- search
   async runSearch(query, scope, root) {
     if (this.searchAbort) this.searchAbort.abort();
     const ctrl = new AbortController();
@@ -305,13 +292,12 @@ export class Pane {
   }
   stopSearch() { if (this.searchAbort) { this.searchAbort.abort(); api("search/stop", {}).catch(() => {}); } if (this.search) this.search.running = false; this.loading = false; this.loadEl.hidden = true; this.app.paneUpdated(this); }
 
-  // ---------------------------------------------------------------- sort / filter / group
   refresh(full = true) {
     const showHidden = this.app.settings.show_hidden;
     const f = this.filter.toLowerCase();
     let list = this.items;
     if (!showHidden && this.mode !== "trash") list = list.filter((r) => !r.h);
-    else if (!this.app.settings.show_system && this.mode !== "trash") list = list.filter((r) => !(r.sys && r.h));   // r41-files: protected OS files (hidden + system), like Explorer
+    else if (!this.app.settings.show_system && this.mode !== "trash") list = list.filter((r) => !(r.sys && r.h));
     if (f) list = list.filter((r) => r.n.toLowerCase().includes(f));
     if (this.kind) list = list.filter((r) => kindMatch(this.kind, r));
     renderKindBar(this);
@@ -327,8 +313,7 @@ export class Pane {
     else if (key === "folder") cmp = (a, b) => c.compare(parentPath(a.path), parentPath(b.path)) * dir || cmpName(a, b);
     else if (key === "original") cmp = (a, b) => c.compare(a.original || "", b.original || "") * dir || cmpName(a, b);
     else cmp = (a, b) => cmpName(a, b) * dir;
-    // r41-files: Explorer keeps "is a folder" as part of the sort key and flips it with the direction — name ↑ = folders
-    // first, date ↓ (Downloads) = files first and folders last inside each date group; «top»/«mixed» are user overrides
+
     const folderSign = foldersRule === "top" ? 1 : foldersRule === "mixed" ? 0 : (dir < 0 ? -1 : 1);
     const sorted = list.slice().sort(folderSign ? (a, b) => ((b.d ? 1 : 0) - (a.d ? 1 : 0)) * folderSign || cmp(a, b) : cmp);
     if (this.group !== "none") {
@@ -363,9 +348,7 @@ export class Pane {
     if (g === "date") {
       const now = new Date();
       const day0 = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-      // r41-files: Explorer's buckets — Today, Yesterday, Earlier this week, Last week, Earlier this month, Last month,
-      // Earlier this year, A long time ago (a bucket that would only repeat an earlier one is skipped); newest first
-      // when sorting by date ↓, oldest first when ↑
+
       const week0 = day0 - ((now.getDay() + 6) % 7) * 86400000;
       const lastWeek0 = week0 - 7 * 86400000;
       const month0 = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
@@ -383,13 +366,11 @@ export class Pane {
     return () => ["", 0, ""];
   }
 
-  // ---------------------------------------------------------------- layout (virtual rows)
   cols() {
     const mode = this.mode === "search" ? "search" : this.mode === "trash" ? "trash" : "dir";
     const saved = loadCols()[mode] || {};
     let cols = DEFAULT_COLS[mode].filter(([k]) => k === "name" || !this.hiddenCols.has(k) || mode !== "dir").map(([k, w]) => [k, saved[k] || w]);
-    // The name column fills the free width (Explorer leaves an ugly gap or a needless h-scroll);
-    // a narrow pane (split view, small window) drops the least useful columns first.
+
     const avail = this.fv ? this.fv.clientWidth - 14 : 0;
     if (avail > 0) {
       const drop = { dir: ["c", "type", "m"], search: ["m", "s"], trash: ["deleted", "s"] }[mode];
@@ -415,7 +396,7 @@ export class Pane {
     const rowH = parseInt(getComputedStyle(document.documentElement).getPropertyValue("--row-h")) || 30;
     if (v === "details") return { kind: "rows", rowH, head: HEAD_H };
     if (v === "list") return { kind: "tiles", tileW: 250, tileH: rowH, pad: 6, gap: 0, list: true };
-    // r41-files: Explorer's «Tiles» — a 48 px icon on the left, then name / type / size; the tiles stretch to fill the row
+
     if (v === "tiles") {
       const width = this.fv ? this.fv.clientWidth - 16 : 0;
       const base = Math.round(272 * tileScale(this.app.settings));
@@ -424,8 +405,7 @@ export class Pane {
     }
     const size = this.iconSize;
     if (v === "gallery") { const s = Math.round(size * 1.9); return { kind: "tiles", tileW: s, tileH: s + 26, pad: 10, gap: 8, gallery: true }; }
-    // r40-files-max: the picture box has a FIXED height (= icon size) — it used to flex, so a one-line name made the
-    // icon bigger than its neighbour's with a two-line name and the row looked ragged; room for 2 lines (+ size line)
+
     return { kind: "tiles", tileW: Math.max(76, size + 30), tileH: size + (size >= 128 ? 76 : 58), thH: size, pad: 10, gap: 4 };
   }
   layout() {
@@ -433,7 +413,7 @@ export class Pane {
     const m = this.metrics();
     this.m = m;
     const width = this.fv.clientWidth;
-    this.el.classList.toggle("narrow", width < 560);   // r40-files-max: the banner buttons go icon-only
+    this.el.classList.toggle("narrow", width < 560);
     this.rows = [];
     this.tops = [];
     let y = 0;
@@ -448,7 +428,7 @@ export class Pane {
       });
       this.colsCache = this.cols();
       this.totalW = this.colsCache.reduce((a, [, w]) => a + w, 0) + 12;
-      // r40-files-max: columns a few px wider than the pane gave a useless horizontal scrollbar — the name column gives way
+
       const over = this.totalW - width;
       if (over > 0 && over <= 16 && this.colsCache.length) { this.colsCache = this.colsCache.map(([k, w], ci) => [k, ci === 0 ? w - over : w]); this.totalW = width; }
     } else {
@@ -520,8 +500,7 @@ export class Pane {
       } else if (row.i !== undefined) parts.push(["i" + row.i, this.rowHtml(row.i, top, cut)]);
       else for (let i = row.a; i < row.b; i++) parts.push(["i" + i, this.tileHtml(i, top, i - row.a, cut)]);
     }
-    // Keyed patching instead of innerHTML: a selection change only flips classes, so the row under
-    // the mouse survives (dblclick keeps its target) and thumbnails are never re-requested.
+
     const old = this.nodes || new Map();
     const next = new Map();
     const fresh = [];
@@ -546,7 +525,7 @@ export class Pane {
     this.nodes = next;
     if (this.renaming && this.renaming.input.parentNode !== this.sizer) this.sizer.append(this.renaming.input);
   }
-  /** r41-files: one «Tiles» card — like Explorer: picture, name, type, size (a folder shows its size once it is known). */
+
   cardHtml(r, i, top, left, cls) {
     const m = this.m;
     const ext = extOf(r.n);
@@ -603,7 +582,6 @@ export class Pane {
     return `<div class="${cls}" style="top:${top}px;left:${left}px;width:${m.tileW}px;height:${m.tileH}px" data-i="${i}" draggable="true"><div class="th"${m.thH ? ` style="flex:none;height:${m.thH}px"` : ""}>${thumb}</div><div class="tl" title="${esc(r.n)}">${esc(this.displayName(r))}${this.tagsHtml(r.path)}</div>${sub}</div>`;
   }
 
-  // ---------------------------------------------------------------- selection helpers
   selected() { return this.shown.filter((r) => this.sel.has(r.path)); }
   selectedPaths() { return this.selected().map((r) => r.path); }
   setSelection(indices, focus) {
@@ -617,14 +595,14 @@ export class Pane {
   invertSelection() { this.sel = new Set(this.shown.filter((r) => !this.sel.has(r.path)).map((r) => r.path)); this.dirty = true; this.renderVisible(true); this.app.selectionChanged(this); }
   selectWhere(fn) { this.sel = new Set(this.shown.filter(fn).map((r) => r.path)); this.dirty = true; this.renderVisible(true); this.app.selectionChanged(this); }
   rowOfItem(i) {
-    // index into this.rows of the row that holds item i
+
     for (let r = 0; r < this.rows.length; r++) {
       const row = this.rows[r];
       if (row.i === i || (row.a !== undefined && i >= row.a && i < row.b)) return r;
     }
     return -1;
   }
-  /** r40-files-2: a context menu opened from the keyboard: for the selection, next to the focused item (or the folder's). */
+
   keyboardMenu() {
     const i = this.focus >= 0 && this.shown[this.focus] && this.sel.has(this.shown[this.focus].path) ? this.focus : this.shown.findIndex((r) => this.sel.has(r.path));
     if (i >= 0) {
@@ -637,8 +615,7 @@ export class Pane {
       this.app.contextMenu(this, Math.round(r.left + 24), Math.round(r.top + 40), false);
     }
   }
-  /** r41-files: select these paths (clearing a filter that hides them), put the first in the middle and focus the list —
-   * «Show in folder», /select, a path handed over by another app. */
+
   selectAndReveal(paths) {
     const want = new Set(paths.map((p) => (S.platform === "nt" ? p.toLowerCase() : p)));
     const key = (r) => (S.platform === "nt" ? r.path.toLowerCase() : r.path);
@@ -675,7 +652,6 @@ export class Pane {
     else if (top + height > viewTop + viewH) this.fv.scrollTop = top + height - viewH;
   }
 
-  // ---------------------------------------------------------------- events
   bind() {
     const fv = this.fv;
     fv.addEventListener("scroll", () => {
@@ -701,7 +677,7 @@ export class Pane {
     });
     fv.addEventListener("contextmenu", (e) => {
       e.preventDefault();
-      if (this.kbMenuAt && performance.now() - this.kbMenuAt < 800) return;   // r40-files-2: already opened from the keyboard
+      if (this.kbMenuAt && performance.now() - this.kbMenuAt < 800) return;
       if (e.target.closest(".fv-head")) { this.app.columnsMenu(this, e.clientX, e.clientY); return; }
       const el = e.target.closest("[data-i]");
       if (el) {
@@ -711,7 +687,7 @@ export class Pane {
       } else if (!e.ctrlKey) this.selectNone();
       this.app.contextMenu(this, e.clientX, e.clientY, !!el);
     });
-    // column resizing
+
     fv.addEventListener("mousedown", (e) => {
       const grip = e.target.closest("[data-grip]");
       if (!grip) return;
@@ -732,7 +708,7 @@ export class Pane {
       document.addEventListener("mousemove", move);
       document.addEventListener("mouseup", upFn);
     }, true);
-    // drag & drop
+
     fv.addEventListener("dragstart", (e) => {
       const el = e.target.closest("[data-i]");
       if (!el) return;
@@ -752,7 +728,7 @@ export class Pane {
       this.app.drop(e, target.path);
     });
     this.homeEl.addEventListener("contextmenu", (e) => e.preventDefault());
-    // a thumbnail the backend cannot make (broken/unsupported image): show the type icon instead
+
     fv.addEventListener("error", (e) => {
       const img = e.target;
       if (img && img.tagName === "IMG" && img.dataset.fb) { const span = document.createElement("span"); span.innerHTML = img.dataset.fb; img.replaceWith(span.firstChild || span); }
@@ -766,7 +742,7 @@ export class Pane {
       if (r && r.d) return { path: r.path, el };
     }
     if (this.mode === "search") return null;
-    return { path: this.path, el: this.fv };     // r40-files-2: the whole list lights up — "into this folder"
+    return { path: this.path, el: this.fv };
   }
   sortBy(key) {
     if (!key) return;
@@ -809,14 +785,14 @@ export class Pane {
         this.setSelection([i], i); this.anchor = i;
       } else {
         this.focus = i; this.anchor = i;
-        // a click without drag on an already-selected item narrows the selection to it
+
         const up = (ev) => { document.removeEventListener("mouseup", up); if (Math.abs(ev.clientX - e.clientX) < 4 && Math.abs(ev.clientY - e.clientY) < 4 && this.sel.size > 1) { this.setSelection([i], i); } };
         document.addEventListener("mouseup", up);
         this.dirty = true; this.renderVisible(true);
       }
       return;
     }
-    if (e.target === this.fv && e.offsetX > this.fv.clientWidth) return;          // scrollbar
+    if (e.target === this.fv && e.offsetX > this.fv.clientWidth) return;
     this.startMarquee(e);
   }
   startMarquee(e) {
@@ -877,7 +853,6 @@ export class Pane {
     document.addEventListener("mouseup", upFn);
   }
 
-  // ---------------------------------------------------------------- keyboard
   onKey(e) {
     const n = this.shown.length;
     const ctrl = e.ctrlKey || e.metaKey;
@@ -910,7 +885,7 @@ export class Pane {
         if (ctrl && cur >= 0) { const p = this.shown[cur].path; if (this.sel.has(p)) this.sel.delete(p); else this.sel.add(p); this.dirty = true; this.renderVisible(true); this.app.selectionChanged(this); return true; }
         if (!this.typeBuffer && cur >= 0) { if (!this.sel.has(this.shown[cur].path)) this.setSelection([cur], cur); this.app.togglePreview(true); return true; }
         break;
-      case "ContextMenu": case "F10":   // r40-files-2: the Menu key / Shift+F10 — the menu of the selection at the focused item (Explorer)
+      case "ContextMenu": case "F10":
         if (e.key === "F10" && !e.shiftKey) break;
         this.kbMenuAt = performance.now();
         this.keyboardMenu();
@@ -918,7 +893,7 @@ export class Pane {
       default: break;
     }
     if (e.key.length === 1 && !ctrl && !e.altKey && /[\p{L}\p{N}._\- ]/u.test(e.key)) {
-      // type-ahead: jump to the first name starting with the typed text
+
       clearTimeout(this.typeTimer);
       this.typeBuffer = (this.typeBuffer || "") + e.key.toLowerCase();
       this.typeTimer = setTimeout(() => { this.typeBuffer = ""; }, 900);
@@ -935,7 +910,6 @@ export class Pane {
     return false;
   }
 
-  // ---------------------------------------------------------------- inline rename
   startRename(i) {
     if (i === undefined) i = this.focus >= 0 && this.sel.has(this.shown[this.focus].path) ? this.focus : this.shown.findIndex((r) => this.sel.has(r.path));
     if (i < 0 || this.mode === "trash" || this.mode === "home") return false;
@@ -967,7 +941,7 @@ export class Pane {
     return true;
   }
   cancelRename() { if (this.renaming) { this.renaming.input.remove(); this.renaming = null; this.reloadDeferred(); } }
-  /** r40-files-2: a folder change that arrived while the rename box was open (it would have wiped the box). */
+
   reloadDeferred() { if (this.reloadAfterRename) { this.reloadAfterRename = false; this.reload(true); } }
   async commitRename() {
     const state = this.renaming;

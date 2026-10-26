@@ -26,7 +26,6 @@ from typing import Any, Dict, Iterable, List, Optional
 
 VERSION = "1.0-r33"
 
-#: Lower-case token → display form. Brands keep their own spelling.
 BRANDS: Dict[str, str] = {
     "gpt": "GPT", "chatgpt": "ChatGPT", "glm": "GLM", "qwen": "Qwen", "qwq": "QwQ", "qvq": "QVQ", "deepseek": "DeepSeek",
     "claude": "Claude", "gemini": "Gemini", "gemma": "Gemma", "grok": "Grok", "kimi": "Kimi", "moonshot": "Moonshot",
@@ -52,7 +51,6 @@ BRANDS: Dict[str, str] = {
     "auto": "Auto", "genspark": "Genspark", "kiro": "Kiro", "antigravity": "Antigravity",
 }
 
-#: Known model families: a word in front of one of them is an account prefix («reform-glm-5.3» → «glm-5.3»).
 FAMILIES = (
     "claude", "gpt", "chatgpt", "o1", "o3", "o4", "o5", "gemini", "gemma", "grok", "llama", "codellama", "mistral",
     "mixtral", "codestral", "devstral", "magistral", "ministral", "pixtral", "qwen", "qwq", "qvq", "deepseek", "kimi",
@@ -67,14 +65,12 @@ FAMILIES = (
 _FAMILY_RE = re.compile(r"^(?:" + "|".join(sorted({re.escape(f) for f in FAMILIES}, key=len, reverse=True))
                         + r")(?:[-\d.:_/]|$)")
 
-#: Brands written with a hyphen before their version («GPT-5.1», «GLM-5.3», «Phi-4»); Qwen glues it («Qwen3.8»).
 HYPHEN_BRANDS = {"gpt", "glm", "phi", "chatgpt", "gpt-oss"}
 GLUE_BRANDS = {"qwen", "qwq", "qvq"}
 
-#: Variant suffixes after ``:`` that are badges, not part of the name.
 SUFFIX_BADGES = {"free": "free", "batch": "batch", "beta": "beta", "extended": "extended", "nitro": "nitro",
                  "floor": "floor", "online": "online", "exacto": "exacto"}
-#: Suffixes after ``:`` that are part of the name («:thinking» → «Thinking»).
+
 SUFFIX_WORDS = {"thinking", "reasoning", "high", "low", "medium", "minimal", "max", "vision", "fast"}
 
 _DATE_FULL = re.compile(r"(?:^|[-_.])((?:19|20)\d{2})-?(0[1-9]|1[0-2])-?([0-2]\d|3[01])$")
@@ -89,7 +85,6 @@ _QUANT = re.compile(r"(?<![a-z0-9])i?q\d(?:_k)?(?:_[a-z0-9]{1,2})?(?![a-z0-9])")
 _LETTER_VER = re.compile(r"^([a-z])(\d+(?:\.\d+)*)([a-z]?)$")
 _BRAND_VER = re.compile(r"^([a-z]+)(\.?)(\d+(?:\.\d+)*)([a-z]*)$")
 
-
 def _strip_account(text: str, prefix: str) -> str:
     """Remove the Proxy account prefix (``reform-``) or a vendor path (``openai/``, ``gpt://folder/…/latest``)."""
     if prefix:
@@ -99,7 +94,7 @@ def _strip_account(text: str, prefix: str) -> str:
         elif text.lower().startswith(p + "/") and len(text) > len(p) + 1:
             text = text[len(p) + 1:]
     text = text.lstrip("~")
-    if "://" in text:                                  # gpt://folder/model/latest (Yandex)
+    if "://" in text:
         text = text.split("://", 1)[1]
         parts = [p for p in text.split("/") if p]
         while len(parts) > 1 and re.fullmatch(r"latest|rc|deprecated|\d{8}", parts[-1], re.I):
@@ -111,7 +106,7 @@ def _strip_account(text: str, prefix: str) -> str:
             parts.pop()
         head = parts[0] if parts else ""
         text = parts[-1] if parts else text
-        # «xkiro-qwen/qwen3.8-max» — the vendor path already removed the account; «genspark-image/auto» keeps the kind.
+
         if head.lower().endswith("-image") and text.lower() == "auto":
             text = "auto"
     if not prefix:
@@ -120,7 +115,6 @@ def _strip_account(text: str, prefix: str) -> str:
         if rest and not _FAMILY_RE.match(first) and _FAMILY_RE.match(rest):
             text = text[len(first) + 1:]
     return text
-
 
 def _token(word: str, index: int, prev: str) -> str:
     low = word.lower()
@@ -133,17 +127,17 @@ def _token(word: str, index: int, prev: str) -> str:
     active = _ACTIVE.match(low)
     if active:
         return active.group(1).upper() + active.group(2) + "B"
-    if re.fullmatch(r"\d+(?:\.\d+)*[a-z]?", low):            # 4.6, 4o, 3
+    if re.fullmatch(r"\d+(?:\.\d+)*[a-z]?", low):
         return low
-    if re.fullmatch(r"o\d+", low) and index == 0:             # OpenAI o3 / o4
+    if re.fullmatch(r"o\d+", low) and index == 0:
         return low
     letter = _LETTER_VER.match(low)
-    if letter and letter.group(1) in "vkmrqs":                # v4.1, k2, m2, r1
+    if letter and letter.group(1) in "vkmrqs":
         return letter.group(1).upper() + letter.group(2) + letter.group(3)
     brand = _BRAND_VER.match(low)
-    if brand and brand.group(1) in BRANDS:                    # qwen3.8, gemma3, llama3.1, wanx2.1
+    if brand and brand.group(1) in BRANDS:
         name, dot, ver, tail = BRANDS[brand.group(1)], brand.group(2), brand.group(3), brand.group(4)
-        if dot:                                               # FLUX.2
+        if dot:
             return name + "." + ver + tail
         if brand.group(1) in GLUE_BRANDS:
             return name + ver + tail
@@ -154,14 +148,13 @@ def _token(word: str, index: int, prev: str) -> str:
         return low.upper()
     return word[:1].upper() + word[1:] if word[:1].isalpha() else word
 
-
 @lru_cache(maxsize=16384)
 def _parse(model_id: str, prefix: str) -> Dict[str, Any]:
     raw = str(model_id or "").strip()
     text = _strip_account(raw, prefix)
     badges: List[str] = []
     words_after: List[str] = []
-    # «:free», «:thinking», «@20250514»
+
     if "@" in text:
         text, _, _at = text.partition("@")
     while True:
@@ -174,7 +167,7 @@ def _parse(model_id: str, prefix: str) -> Dict[str, Any]:
             badges.insert(0, SUFFIX_BADGES[tag])
         elif tag in SUFFIX_WORDS:
             words_after.insert(0, tag)
-        elif re.fullmatch(r"\d+(?:\.\d+)?[bmk]?", tag):   # ollama «llama3.1:8b»
+        elif re.fullmatch(r"\d+(?:\.\d+)?[bmk]?", tag):
             words_after.insert(0, tag)
         elif tag == "latest":
             continue
@@ -213,10 +206,10 @@ def _parse(model_id: str, prefix: str) -> Dict[str, Any]:
         break
     text = _VERSION_DASH.sub(".", text)
     low = text.lower()
-    # Multi-word brands first: «dall-e», «gpt-oss», «nano-banana», «ui-tars».
+
     for multi in ("dall-e", "gpt-oss", "nano-banana", "ui-tars"):
         low = re.sub(r"(?<![a-z0-9])" + re.escape(multi) + r"(?![a-z])", multi.replace("-", "\u2060"), low)
-    # GGUF quantisation «q4_k_m» / «iq3_xs» stays one upper-case token.
+
     low = _QUANT.sub(lambda m: m.group(0).replace("_", "\u2061"), low)
     tokens = [t for t in re.split(r"[-_\s]+", low) if t]
     tokens = [t.replace("\u2061", "_").upper() if "\u2061" in t or _QUANT.fullmatch(t) else t for t in tokens]
@@ -239,12 +232,10 @@ def _parse(model_id: str, prefix: str) -> Dict[str, Any]:
     name = " ".join(out).strip() or raw
     return {"name": name, "base": text, "badges": badges, "date": date}
 
-
 def parse(model_id: str, *, prefix: str = "") -> Dict[str, Any]:
     """``{name, base, badges, date}`` for one model id (see the module docstring)."""
     found = _parse(str(model_id or ""), str(prefix or "").strip().lower())
     return {"name": found["name"], "base": found["base"], "badges": list(found["badges"]), "date": found["date"]}
-
 
 def pretty(model_id: str, *, prefix: str = "", aliases: Optional[Dict[str, str]] = None) -> str:
     """The readable name; a user alias wins."""
@@ -253,14 +244,12 @@ def pretty(model_id: str, *, prefix: str = "", aliases: Optional[Dict[str, str]]
         return alias.strip()
     return parse(model_id, prefix=prefix)["name"]
 
-
 def label(model_id: str, *, prefix: str = "", aliases: Optional[Dict[str, str]] = None, full: bool = True) -> str:
     """One-line label for plain-text places (Telegram buttons, the CLI): ``Claude Opus 4.6 · reform-claude-opus-4-6``."""
     name = pretty(model_id, prefix=prefix, aliases=aliases)
     if not full or name == model_id:
         return name
     return f"{name} · {model_id}"
-
 
 def names_for(ids: Iterable[str], *, prefixes: Optional[Dict[str, str]] = None,
               aliases: Optional[Dict[str, str]] = None) -> Dict[str, str]:

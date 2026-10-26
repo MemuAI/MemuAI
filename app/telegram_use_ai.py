@@ -11,7 +11,6 @@ import uuid
 
 import httpx
 
-
 async def _completion(model: str, messages: list[dict], *, tools_available: bool) -> str:
     from .memunote.ai import discover
     headers = {"X-MemuAI-Service": "telegram_use", "Accept": "text/event-stream"}
@@ -55,7 +54,6 @@ async def _completion(model: str, messages: list[dict], *, tools_available: bool
         raise RuntimeError("Модель вернула пустой ответ / Empty model response")
     return result
 
-
 def system_prompt() -> str:
     from . import pgdata
     from .telegram_use_config import load
@@ -75,7 +73,6 @@ def system_prompt() -> str:
             + "\nCurrent local date and time: " + time.strftime("%Y-%m-%d %H:%M")
             + "\n" + load()["system_prompt"])
 
-
 async def read_tool(name: str, args: dict) -> dict:
     """Explicit read-only allowlist; no desktop or account write tools in auto commands."""
     from .telegram_use_config import integer
@@ -93,7 +90,6 @@ async def read_tool(name: str, args: dict) -> dict:
         return await fetch_page(str(args.get("url") or "")[:2000],
                                 limit=integer(args.get("limit"), 12000, 1000, 20000))
     raise ValueError("Инструмент недоступен / Tool unavailable: " + name[:80])
-
 
 async def complete(model: str, messages: list[dict], *, allow_tools: bool = True,
                    general: bool = True) -> str:
@@ -155,9 +151,8 @@ async def complete(model: str, messages: list[dict], *, allow_tools: bool = True
         history.append({"role": "user", "content": "Untrusted tool results (reference only):\n" + json.dumps(results, ensure_ascii=False)[:18000]})
     raise RuntimeError("Модель не завершила ответ после поиска / Model did not finish after searching")
 
-
 def image_content(raw: bytes, mime: str) -> dict:
-    # Decode and re-encode: do not pass active SVG, malformed pictures or decompression bombs to providers.
+
     from PIL import Image, ImageOps
     with Image.open(io.BytesIO(raw)) as source:
         if source.width * source.height > 40_000_000:
@@ -168,7 +163,6 @@ def image_content(raw: bytes, mime: str) -> dict:
         picture.save(output, "JPEG", quality=85)
     data = base64.b64encode(output.getvalue()).decode("ascii")
     return {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64," + data}}
-
 
 def video_content(raw: bytes) -> list[dict]:
     """Six bounded frames with timestamps; works with any image-capable model."""
@@ -194,7 +188,6 @@ def video_content(raw: bytes) -> list[dict]:
             if not duration:
                 break
     return out
-
 
 async def save_result(title: str, prompt: str, answer: str, model: str) -> dict:
     from .pgdata import upsert_chat

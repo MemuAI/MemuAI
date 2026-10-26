@@ -13,10 +13,8 @@ from app.providers.geminiweb_cookies import cookies_from_webview, parse_cookie_i
 PSID = "g.a000fixturePSIDvalue-abcdefghijklmnopqrstuvwxyz0123456789"
 TS = "sidts-CjEBfixtureTSvalue1234567890"
 
-
 def codes(result):
     return [e["code"] for e in result.errors], [w["code"] for w in result.warnings]
-
 
 class CookieImportTest(unittest.TestCase):
     def check_ok(self, raw, fmt):
@@ -86,10 +84,8 @@ class CookieImportTest(unittest.TestCase):
         other["VISITOR"]["domain"] = ".youtube.com"
         self.assertEqual(cookies_from_webview([jar, other]), {"__Secure-1PSID": PSID})
 
-
 def wrb(inner):
     return ["wrb.fr", None, json.dumps(inner)]
-
 
 def candidate(text, thoughts="", done=False, image=""):
     cand = [None] * 38
@@ -105,14 +101,12 @@ def candidate(text, thoughts="", done=False, image=""):
         cand[12] = rich
     return [None, ["c_1", "r_1"], None, None, [cand]]
 
-
 def frames(*parts):
     out = ")]}'\n\n"
     for part in parts:
         body = json.dumps([part])
         out += f"{len(body) + 1}\n{body}\n"
     return out
-
 
 class FrameParserTest(unittest.TestCase):
     def test_length_prefixed_frames_split_anywhere(self):
@@ -149,7 +143,6 @@ class FrameParserTest(unittest.TestCase):
         self.assertEqual(inner[0][3], [[["/contrib/x"], "a.png"]])
         self.assertIn(b"at=TOK", proto.encode_body(inner, "TOK"))
 
-
 class FakeResp:
     def __init__(self, status=200, text="", url="https://gemini.google.com/app", headers=None, lines=None):
         self.status_code, self.text, self.url = status, text, url
@@ -163,12 +156,10 @@ class FakeResp:
     async def aclose(self):
         pass
 
-
 class FakeHeaders(dict):
     def get_list(self, key):
         value = self.get(key)
         return value if isinstance(value, list) else ([value] if value else [])
-
 
 class FakeSession:
     def __init__(self, routes):
@@ -186,13 +177,10 @@ class FakeSession:
     async def close(self):
         pass
 
-
 PAGE = '"SNlM0e":"AT_tok","cfb2h":"boq_gemini-web-uiserver_20261012.15_p0","FdrFJe":"-55","oPEP7c":"me@example.com"'
-
 
 def account(cookie=f"__Secure-1PSID={PSID}; __Secure-1PSIDTS={TS}"):
     return SimpleNamespace(id="acc1", provider="geminiweb", fields={"cookie": cookie}, extra={}, proxy="", enabled=True)
-
 
 class ProviderStreamTest(unittest.IsolatedAsyncioTestCase):
     async def run_chat(self, session, acc, model="gemini-3.7-flash"):
@@ -220,13 +208,13 @@ class ProviderStreamTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(text.startswith("Hello"))
         self.assertIn("![Gemini image 1](https://lh3.googleusercontent.com/gg/img)", text)
         self.assertEqual(reasoning, "Thinking")
-        # r41b: после ответа Proxy пробует скачать сгенерированную картинку (GET) — берём сам запрос StreamGenerate
+
         method, url, kw = next(c for c in reversed(session.calls) if "StreamGenerate" in c[1])
         self.assertIn("bl=boq_gemini-web-uiserver_20261012.15_p0", url)
         self.assertIn("f.sid=-55", url)
         self.assertIn(b"at=AT_tok", kw["data"])
         self.assertEqual(kw["headers"]["X-Same-Domain"], "1")
-        # r41: без списка моделей аккаунта заголовок выбора модели не шлётся (выбор — MODE в индексе 79)
+
         self.assertNotIn(proto.MODEL_HEADER, kw["headers"])
         self.assertIn("%2C3%2C1%5D", kw["data"].decode())
         self.assertIn("__Secure-1PSID=", kw["headers"]["Cookie"])
@@ -241,7 +229,7 @@ class ProviderStreamTest(unittest.IsolatedAsyncioTestCase):
         with patch("app.providers.geminiweb.asyncio.sleep", return_value=None):
             events = await self.run_chat(session, acc)
         self.assertEqual("".join(e["text"] for e in events), "ok")
-        self.assertNotIn("no_model_header", acc.extra)    # r41: флаг раунда 37 больше не ставится
+        self.assertNotIn("no_model_header", acc.extra)
 
     async def test_expired_cookie_and_usage_limit(self):
         from app.providers.base import ProviderAuthError, ProviderRateLimitError
@@ -312,7 +300,6 @@ class ProviderStreamTest(unittest.IsolatedAsyncioTestCase):
     def test_set_cookie_filter(self):
         resp = FakeResp(headers={"set-cookie": ["A=1; Domain=.google.com", "B=2; Domain=.youtube.com", "C=; Max-Age=0"]})
         self.assertEqual(_set_cookies(resp), {"A": "1"})
-
 
 if __name__ == "__main__":
     unittest.main()

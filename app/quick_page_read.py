@@ -32,9 +32,8 @@ from html.parser import HTMLParser
 from typing import Any, Dict, List, Optional, Tuple
 from urllib.parse import urljoin, urldefrag
 
-#: Tokens of page text given to the model by default (≈ 30 000 Latin / ≈ 20 000 Cyrillic characters).
 PAGE_TOKENS = 8000
-#: Hard cap on what is ever kept from one page (characters of extracted Markdown).
+
 MAX_EXTRACT = 400_000
 FETCH_TIMEOUT = 9.0
 CACHE_TTL = 600.0
@@ -63,17 +62,15 @@ _DATA_URI = re.compile(r"data:[\w/+.-]+;base64,[A-Za-z0-9+/=\s]{40,}")
 _WS = re.compile(r"[ \t\r\f\v\u00a0\u200b]+")
 _LOOKS_HTML = re.compile(r"<(?:!doctype|html|head|body|div|p|article|main|span|a|table|ul|h[1-6])\b", re.I)
 
-
 class _Node:
     __slots__ = ("tag", "attrs", "children", "parent", "junk", "text_len", "p_len")
 
     def __init__(self, tag: str, attrs: Dict[str, str], parent: Optional["_Node"]) -> None:
         self.tag, self.attrs, self.parent = tag, attrs, parent
-        self.children: List[Any] = []          # _Node or str
+        self.children: List[Any] = []
         self.junk = 0
         self.text_len = 0
         self.p_len = 0
-
 
 def _is_junk(tag: str, attrs: Dict[str, str]) -> int:
     """0 = content; 1 = always dropped (tag, hidden, role); 2 = dropped by its class/id (a guess: rescued when it
@@ -92,7 +89,6 @@ def _is_junk(tag: str, attrs: Dict[str, str]) -> int:
     marks = (attrs.get("class", "") + " " + attrs.get("id", "")).strip()
     return 2 if marks and _JUNK.search(marks) else 0
 
-
 class _TreeBuilder(HTMLParser):
     """A forgiving, small DOM: enough structure for picking the main block and rendering Markdown."""
 
@@ -102,7 +98,7 @@ class _TreeBuilder(HTMLParser):
         self.cur = self.root
         self.title = ""
         self._in_title = False
-        self._skip = 0                # inside <head>-only / dropped raw content (title is read separately)
+        self._skip = 0
 
     def handle_starttag(self, tag: str, attrs_list: List[Tuple[str, Optional[str]]]) -> None:
         tag = tag.lower()
@@ -132,7 +128,7 @@ class _TreeBuilder(HTMLParser):
         while node is not None and node.tag != tag:
             node = node.parent
         if node is not None and node.parent is not None:
-            self.cur = node.parent        # closes everything left open inside it (mis-nested markup)
+            self.cur = node.parent
 
     def handle_data(self, data: str) -> None:
         if self._in_title:
@@ -140,7 +136,6 @@ class _TreeBuilder(HTMLParser):
             return
         if data:
             self.cur.children.append(data)
-
 
 def _measure(node: _Node, ignore_soft: bool = False) -> None:
     """Text length and «paragraph text» length of every subtree (iterative: deep pages must not recurse)."""
@@ -160,14 +155,12 @@ def _measure(node: _Node, ignore_soft: bool = False) -> None:
         own_p = item.text_len if item.tag in ("p", "pre", "li", "blockquote", "td", "dd") else 0
         item.p_len = max(own_p, sum(c.p_len for c in sub) + (text if text > 80 else 0))
 
-
 def _walk(node: _Node):
     stack = [node]
     while stack:
         item = stack.pop()
         yield item
         stack.extend(reversed([c for c in item.children if isinstance(c, _Node)]))
-
 
 def _pick_main(root: _Node) -> _Node:
     """``<article>`` / ``<main>`` / ``[role=main]`` / ``[itemprop=articleBody]`` with most of the text, else the
@@ -184,17 +177,16 @@ def _pick_main(root: _Node) -> _Node:
             candidates.append(node)
     if candidates:
         best = max(candidates, key=lambda n: n.p_len)
-        # Round 34: an <article> inside the <main> that holds most of it is the content (GitHub: the README inside a
-        # <main> that also lists every file of the repository)
+
         while True:
             inner = [n for n in candidates if n is not best and n.p_len >= 0.6 * best.p_len and _inside(n, best)]
             if not inner:
                 break
             best = max(inner, key=lambda n: n.p_len)
-        # one card of a news list is not «the page»: the hint must hold a good share of the text
+
         if best.p_len >= 0.4 * total:
             return _with_title(best, body)
-    # densest block: the deepest element that still holds ≥ 60 % of the paragraph text
+
     node = body
     while True:
         kids = [c for c in node.children if isinstance(c, _Node) and not c.junk]
@@ -204,7 +196,6 @@ def _pick_main(root: _Node) -> _Node:
         node = top
     return _with_title(node, body) if node is not body else body
 
-
 def _inside(node: _Node, outer: _Node) -> bool:
     parent = node.parent
     while parent is not None:
@@ -212,7 +203,6 @@ def _inside(node: _Node, outer: _Node) -> bool:
             return True
         parent = parent.parent
     return False
-
 
 def _with_title(node: _Node, body: _Node) -> _Node:
     """Keep the page's ``<h1>`` when the main block starts below it (common: title in a header, text in a div)."""
@@ -225,16 +215,14 @@ def _with_title(node: _Node, body: _Node) -> _Node:
     wrapper.children = [h1, node]
     return wrapper
 
-
 class _Renderer:
     def __init__(self, base: str, *, links: bool = False, alt: bool = False, max_links: int = 120) -> None:
         self.base, self.links, self.alt, self.max_links = base, links, alt, max_links
         self.out: List[str] = []
         self.link_count = 0
         self.seen_links: Dict[str, int] = {}
-        self.found: List[Tuple[str, str]] = []      # (text, url) in document order — the compact «links» list
+        self.found: List[Tuple[str, str]] = []
 
-    # inline text of a subtree (links/code/images handled), whitespace collapsed
     def inline(self, node: _Node) -> str:
         return "".join(self.one(child, node.tag) for child in node.children)
 
@@ -253,7 +241,7 @@ class _Renderer:
         if tag == "a":
             raw = self.inline(child)
             link = self._link(_WS.sub(" ", raw).strip(), child.attrs.get("href", "").strip())
-            # «статью<a> Боты</a>» — the space inside the link is the only one between the words
+
             return (" " if raw[:1].isspace() else "") + link + (" " if raw[-1:].isspace() else "")
         if tag == "code" and parent_tag != "pre":
             code = _WS.sub(" ", self.inline(child)).strip()
@@ -261,7 +249,7 @@ class _Renderer:
         if tag in ("sup", "sub"):
             inner = self.inline(child)
             if tag == "sup" and _CITE.fullmatch(_WS.sub(" ", inner).strip()):
-                return ""                  # «[12]» citation markers cost tokens and say nothing
+                return ""
             return inner
         return self.inline(child) if tag not in _BLOCK else " " + self.inline(child) + " "
 
@@ -279,7 +267,7 @@ class _Renderer:
         if len(self.found) < 400:
             self.found.append((text[:120], url))
         if not self.links or self.link_count >= self.max_links:
-            return text                    # default: links listed once, compactly, not inline (token cost)
+            return text
         self.link_count += 1
         return f"[{text}]({url})"
 
@@ -289,7 +277,7 @@ class _Renderer:
             self.out.append(text)
 
     def block(self, node: _Node, depth: int = 0, list_prefix: str = "", level: int = 0) -> None:
-        # iterative over siblings, recursive only into blocks (depth-capped)
+
         if depth > 60:
             self.emit(_clean_line(self.inline(node)))
             return
@@ -313,8 +301,7 @@ class _Renderer:
                 if tag == "a" or not _contains_block(child):
                     buffer.append(self.one(child, node.tag))
                     continue
-                # Round 34: a custom element / span WRAPPING blocks (GitHub's <react-partial>, <turbo-frame>, web
-                # components) was flattened into one line — the README lost every heading, list and paragraph break
+
                 flush()
                 self.block(child, depth + 1, "", level)
                 continue
@@ -348,7 +335,7 @@ class _Renderer:
                 continue
             else:
                 self.block(child, depth + 1, list_prefix if tag in ("p", "div", "span") and list_prefix else "", level)
-                list_prefix = "  " * level if list_prefix else ""     # a list item's second paragraph is indented
+                list_prefix = "  " * level if list_prefix else ""
         flush()
 
     def table(self, node: _Node) -> None:
@@ -373,7 +360,6 @@ class _Renderer:
         lines.insert(1, "|" + " --- |" * width)
         self.emit("\n".join(lines))
 
-
 def _contains_block(node: _Node) -> bool:
     """A block element (or a table) anywhere below ``node`` (junk subtrees skipped)."""
     stack = [c for c in node.children if isinstance(c, _Node)]
@@ -385,7 +371,6 @@ def _contains_block(node: _Node) -> bool:
             return True
         stack.extend(c for c in item.children if isinstance(c, _Node))
     return False
-
 
 def _text_raw(node: _Node) -> str:
     parts: List[str] = []
@@ -400,15 +385,12 @@ def _text_raw(node: _Node) -> str:
             stack.extend(reversed(item.children))
     return "".join(parts)
 
-
 def _clean_line(text: str) -> str:
     lines = [_WS.sub(" ", line).strip() for line in str(text).split("\n")]
     return "\n".join(line for line in lines if line)
 
-
 def looks_like_html(text: str) -> bool:
     return bool(_LOOKS_HTML.search(str(text or "")[:20000]))
-
 
 def extract(source: str, url: str = "", *, links: bool = False, alt: bool = False) -> Dict[str, Any]:
     """Raw HTML (or plain text) → ``{"title", "text" (Markdown), "links" [[text, url]], "chars", "html_bytes", "ms"}``.
@@ -423,7 +405,7 @@ def extract(source: str, url: str = "", *, links: bool = False, alt: bool = Fals
                 "ms": int((time.monotonic() - started) * 1000)}
     title_match = re.search(r"<title[^>]*>(.*?)</title>", raw[:200000], re.I | re.S)
     title = _WS.sub(" ", _html.unescape(re.sub(r"<[^>]+>", "", title_match.group(1)))).strip()[:300] if title_match else ""
-    # big chunks out before the (pure-Python) parser sees them: scripts, styles, inline SVG, base64 images
+
     cleaned = _PRE_STRIP.sub(" ", raw)
     cleaned = _COMMENTS.sub(" ", cleaned)
     cleaned = _DATA_URI.sub("data:", cleaned)
@@ -438,20 +420,19 @@ def extract(source: str, url: str = "", *, links: bool = False, alt: bool = Fals
     total = max(root.p_len, 1)
     for node in _walk(root):
         if node.junk == 2 and node.p_len >= max(1500, 0.4 * total):
-            node.junk = 0                  # «junk» by its class, but it holds the page: keep it
+            node.junk = 0
     _measure(root)
     main = _pick_main(root)
     renderer = _Renderer(base_url(url, raw), links=links, alt=alt)
     text = _render(renderer, main)
     if len(text) < 200 and main is not root:
-        # the «main» block was a shell (JS app, odd markup): the whole visible document instead
+
         renderer = _Renderer(base_url(url, raw), links=links, alt=alt)
         text = _render(renderer, root)
     text = text[:MAX_EXTRACT]
     return {"title": title or _WS.sub(" ", builder.title).strip()[:300], "text": text,
             "links": [list(row) for row in renderer.found], "chars": len(text),
             "html_bytes": len(raw), "ms": int((time.monotonic() - started) * 1000)}
-
 
 def links_block(links: Any, *, max_tokens: int = 500, limit: int = 25) -> str:
     """A compact «links on the page» list (most descriptive texts first, then document order), within budget."""
@@ -469,16 +450,14 @@ def links_block(links: Any, *, max_tokens: int = 500, limit: int = 25) -> str:
         used += cost
     return ("Links on the page:\n" + "\n".join(lines)) if lines else ""
 
-
 def _render(renderer: "_Renderer", node: _Node) -> str:
     try:
         renderer.block(node)
         return _dedupe("\n\n".join(renderer.out))
     except RecursionError:
-        # pathological nesting (thousands of unclosed tags): plain text, iteratively — never an exception
+
         text = _text_raw(node)
         return re.sub(r"\n{3,}", "\n\n", _clean_line(text))
-
 
 def base_url(url: str, raw: str = "") -> str:
     match = re.search(r"<base\s[^>]*href=[\"']([^\"']+)[\"']", raw[:20000], re.I)
@@ -486,9 +465,7 @@ def base_url(url: str, raw: str = "") -> str:
         return urljoin(url or "", match.group(1))
     return url or ""
 
-
 _LIST_LINE = re.compile(r"^\s*(?:- |\d+\. )")
-
 
 def _dedupe(text: str) -> str:
     """Repeated blocks (the same teaser twice, a sticky title) are kept once; list items stay on adjacent lines."""
@@ -507,7 +484,6 @@ def _dedupe(text: str) -> str:
             out.append(block)
     return "\n\n".join(out)
 
-
 def clean_visible(text: str) -> str:
     """The visible text of a tab (UI Automation): whitespace collapsed, consecutive duplicate lines dropped."""
     lines: List[str] = []
@@ -522,9 +498,6 @@ def clean_visible(text: str) -> str:
         lines.append(line)
     return "\n".join(lines).strip()[:MAX_EXTRACT]
 
-
-# ---------------------------------------------------------------- tokens and smart truncation
-
 def estimate_tokens(text: str) -> int:
     """A cheap, conservative token estimate: ~4 Latin chars, ~2.4 Cyrillic/Greek chars, 1 CJK char per token."""
     value = str(text or "")
@@ -535,14 +508,12 @@ def estimate_tokens(text: str) -> int:
     latin = len(value) - cjk - other
     return int(latin / 4.0 + other / 2.4 + cjk) + 1
 
-
 def chars_for_tokens(text: str, tokens: int) -> int:
     """How many leading characters of ``text`` fit ``tokens`` (by the same estimate)."""
     total = estimate_tokens(text)
     if total <= tokens:
         return len(text)
     return max(200, int(len(text) * tokens / float(total)))
-
 
 def fit(text: str, *, max_tokens: int = PAGE_TOKENS, max_chars: int = 0) -> Dict[str, Any]:
     """``{"text", "chars", "tokens", "truncated", "omitted"}`` — the page within budget.
@@ -564,7 +535,7 @@ def fit(text: str, *, max_tokens: int = PAGE_TOKENS, max_chars: int = 0) -> Dict
         head = head[:cut]
     tail = value[-tail_len:] if tail_len > 200 else ""
     if tail:
-        # start the tail at a paragraph, else a line, else a word — never mid-word
+
         for sep, share in (("\n\n", 0.5), ("\n", 0.5), (". ", 0.4), (" ", 0.2)):
             start = tail.find(sep)
             if 0 <= start < len(tail) * share:
@@ -578,20 +549,15 @@ def fit(text: str, *, max_tokens: int = PAGE_TOKENS, max_chars: int = 0) -> Dict
             + (". Omitted sections: " + "; ".join(h.lstrip("# ")[:80] for h in headings) if headings else "")
             + " …]\n\n")
     if tail and all_headings and not tail.lstrip().startswith("#"):
-        tail = all_headings[-1] + " (end)\n\n" + tail     # the section the tail belongs to
+        tail = all_headings[-1] + " (end)\n\n" + tail
     out = head + note + tail
     return {"text": out, "chars": len(value), "tokens": estimate_tokens(out), "truncated": True, "omitted": omitted}
-
-
-# ---------------------------------------------------------------- cache
 
 _CACHE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 _CACHE_LOCK = threading.Lock()
 
-
 def cache_key(url: str) -> str:
     return urldefrag(str(url or "").strip())[0]
-
 
 def page_key(url: str, title: str = "") -> str:
     """The cache key of a TAB: its URL and its title — the same URL with another title (a single-page app moved on,
@@ -599,7 +565,6 @@ def page_key(url: str, title: str = "") -> str:
     base = cache_key(url)
     title = " ".join(str(title or "").lower().split())[:200]
     return base + ("\x1f" + title if base and title else "")
-
 
 def cache_get(url: str) -> Optional[Dict[str, Any]]:
     key = url if "\x1f" in str(url) else cache_key(url)
@@ -614,7 +579,6 @@ def cache_get(url: str) -> Optional[Dict[str, Any]]:
             return None
         return dict(row[1])
 
-
 def cache_put(url: str, doc: Dict[str, Any], *aliases: str) -> None:
     keys = {(u if "\x1f" in u else cache_key(u)) for u in (url, *aliases) if u}
     keys.discard("")
@@ -628,13 +592,9 @@ def cache_put(url: str, doc: Dict[str, Any], *aliases: str) -> None:
         for key in keys:
             _CACHE[key] = (now, dict(doc))
 
-
 def cache_clear() -> None:
     with _CACHE_LOCK:
         _CACHE.clear()
-
-
-# ---------------------------------------------------------------- the fetch
 
 async def fetch_html(url: str, *, timeout: float = FETCH_TIMEOUT) -> Dict[str, Any]:
     """ONE direct fetch of the tab's URL: ``{"url", "raw", "truncated"}`` or ``{"error"}`` (never raises)."""

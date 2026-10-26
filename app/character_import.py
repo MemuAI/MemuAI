@@ -49,7 +49,6 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from fastapi import Request
 
-#: Sources a module may use and what the permission prompt tells the person about them.
 SOURCES: Dict[str, Dict[str, Any]] = {
     "chub": {"label": "Chub (chub.ai)", "kind": "character", "hosts": ["api.chub.ai", "avatars.charhub.io"]},
     "chub-lorebook": {"label": "Chub lorebook (chub.ai)", "kind": "lorebook", "hosts": ["api.chub.ai"]},
@@ -60,10 +59,10 @@ SOURCES: Dict[str, Dict[str, Any]] = {
     "perchance": {"label": "Perchance (perchance.org)", "kind": "character", "hosts": ["user.uploads.dev"]},
     "generic": {"label": "Direct link", "kind": "character", "hosts": []},
 }
-#: SillyTavern's default ``whitelistImportDomains`` without ``localhost`` (never allowed here).
+
 DEFAULT_HOSTS: Tuple[str, ...] = ("files.catbox.moe", "cdn.discordapp.com", "raw.githubusercontent.com")
 HOSTS_LIMIT = 64
-CARD_LIMIT = 40 * 1024 * 1024          # a RisuAI V3 PNG with embedded assets can be large
+CARD_LIMIT = 40 * 1024 * 1024
 JSON_LIMIT = 20 * 1024 * 1024
 AVATAR_LIMIT = 20 * 1024 * 1024
 GZIP_LIMIT = 30 * 1024 * 1024
@@ -78,7 +77,6 @@ _RISU_RE = re.compile(r"^/character/([a-f0-9-]{8,80})/?$", re.I)
 _HOST_RE = re.compile(r"^(\*\.)?(?=.{1,253}$)(?!-)[a-z0-9-]{1,63}(?:\.(?!-)[a-z0-9-]{1,63})+$")
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
-
 class ImportError_(Exception):
     """A failure the person should read: ``code`` for the module, a bilingual message for people."""
 
@@ -89,9 +87,6 @@ class ImportError_(Exception):
     def payload(self) -> Dict[str, Any]:
         return {"error": f"{self.ru} / {self.en}", "code": self.code, "message_ru": self.ru,
                 "message_en": self.en, **self.extra}
-
-
-# --------------------------------------------------------------------------- hosts & settings
 
 def clean_host(raw: Any) -> str:
     """``files.catbox.moe`` / ``*.example.org``; IP literals, localhost and single labels are refused."""
@@ -111,7 +106,6 @@ def clean_host(raw: Any) -> str:
         return ""
     return text
 
-
 def clean_hosts(values: Iterable[Any]) -> List[str]:
     out: List[str] = []
     for value in values or []:
@@ -119,7 +113,6 @@ def clean_hosts(values: Iterable[Any]) -> List[str]:
         if host and host not in out:
             out.append(host)
     return out[:HOSTS_LIMIT]
-
 
 def normalize_manifest_block(raw: Any) -> Optional[Dict[str, Any]]:
     """The manifest's ``net_import`` block: ``{"sources": [...], "hosts": [...]}`` (None when absent)."""
@@ -131,7 +124,6 @@ def normalize_manifest_block(raw: Any) -> Optional[Dict[str, Any]]:
     hosts = raw.get("hosts")
     return {"sources": clean_sources,
             "hosts": clean_hosts(hosts) if isinstance(hosts, list) else list(DEFAULT_HOSTS)}
-
 
 def host_allowed(host: str, allowed: Iterable[str]) -> bool:
     host = str(host or "").lower().rstrip(".")
@@ -145,11 +137,9 @@ def host_allowed(host: str, allowed: Iterable[str]) -> bool:
             return True
     return False
 
-
 def _root():
     from .modules_host import default_root
     return default_root()
-
 
 def module_settings(module_id: str, root=None) -> Dict[str, Any]:
     """What the module may import and what the person decided (effective hosts, trusted sources)."""
@@ -167,7 +157,6 @@ def module_settings(module_id: str, root=None) -> Dict[str, Any]:
             "sources": block["sources"], "hosts": hosts, "default_hosts": list(block["hosts"]),
             "custom_hosts": isinstance(custom, list), "trusted": trusted,
             "labels": {key: SOURCES[key]["label"] for key in block["sources"]}}
-
 
 def update_settings(module_id: str, *, hosts: Any = None, reset_hosts: bool = False,
                     trust: Any = None, untrust: Any = None, trusted: Any = None, root=None) -> Dict[str, Any]:
@@ -196,9 +185,6 @@ def update_settings(module_id: str, *, hosts: Any = None, reset_hosts: bool = Fa
     _mutate_state(root, module_id, change)
     return module_settings(module_id, root)
 
-
-# --------------------------------------------------------------------------- input -> source
-
 def _chub_parts(parts: List[str]) -> Optional[Dict[str, str]]:
     """SillyTavern parseChubUrl after the domain: ``characters/a/b``, ``lorebooks/a/b`` or ``a/b``."""
     parts = [p for p in parts if p]
@@ -215,7 +201,6 @@ def _chub_parts(parts: List[str]) -> Optional[Dict[str, str]]:
     if len(parts) == 2 and all(_SEGMENT_RE.match(p) for p in parts):
         return {"source": "chub", "id": "/".join(parts)}
     return None
-
 
 def parse_input(text: Any, hosts: Iterable[str] = DEFAULT_HOSTS) -> Dict[str, Any]:
     """A link or an id -> ``{source, id, url?, kind, label, hosts}``. No network here."""
@@ -285,9 +270,6 @@ def parse_input(text: Any, hosts: Iterable[str] = DEFAULT_HOSTS) -> Dict[str, An
     hosts_used = list(info["hosts"]) or [found.get("host", "")]
     return {**found, "kind": info["kind"], "label": info["label"], "hosts": hosts_used}
 
-
-# --------------------------------------------------------------------------- safe fetching
-
 def check_public_https(url: str) -> str:
     """Only a public HTTPS address on the default port; the media-proxy DNS check does the rest."""
     parsed = urllib.parse.urlsplit(str(url or ""))
@@ -301,7 +283,7 @@ def check_public_https(url: str) -> str:
         port = -1
     if port not in (None, 443):
         raise ImportError_("bad_port", "Разрешён только стандартный порт HTTPS", "Only the standard HTTPS port is allowed")
-    # Stricter than the media proxy: `is_global` is also True for multicast and some reserved ranges.
+
     try:
         answers = {item[4][0] for item in socket.getaddrinfo(parsed.hostname, 443, type=socket.SOCK_STREAM)}
     except OSError as exc:
@@ -311,7 +293,7 @@ def check_public_https(url: str) -> str:
         if not address.is_global or address.is_multicast or address.is_reserved or address.is_unspecified:
             raise ImportError_("private_address", "Локальные и приватные адреса запрещены",
                                "Local and private addresses are not allowed")
-    # …and the media-proxy check itself (the same rule everywhere MemuAI fetches for a page).
+
     from .playground_api import _safe_media_url
     try:
         checked = _safe_media_url(url)
@@ -319,7 +301,6 @@ def check_public_https(url: str) -> str:
         raise ImportError_("private_address", "Локальные и приватные адреса запрещены",
                            "Local and private addresses are not allowed") from exc
     return checked
-
 
 def _peer_is_public(response) -> None:
     from .playground_api import _require_public_response_peer
@@ -329,12 +310,10 @@ def _peer_is_public(response) -> None:
         raise ImportError_("private_address", "Сервер оказался локальным адресом",
                            "The server resolved to a local address") from exc
 
-
 def _looks_blocked(status: int, headers, body: bytes) -> bool:
     head = body[:4000].lower()
     return (status in (403, 429, 503) and (b"cloudflare" in head or b"just a moment" in head
                                            or b"cf-chl" in head or headers.get("cf-mitigated") is not None))
-
 
 async def safe_fetch(client, url: str, *, method: str = "GET", json_body: Any = None,
                      headers: Optional[Dict[str, str]] = None, limit: int = CARD_LIMIT,
@@ -376,7 +355,6 @@ async def safe_fetch(client, url: str, *, method: str = "GET", json_body: Any = 
             return body, response.headers.get("content-type", "").split(";", 1)[0].strip().lower(), current
     raise ImportError_("redirects", "Слишком много перенаправлений", "Too many redirects", 502)
 
-
 def _json_of(body: bytes, label: str) -> Any:
     try:
         return json.loads(body.decode("utf-8-sig"))
@@ -386,15 +364,12 @@ def _json_of(body: bytes, label: str) -> Any:
                                f"{label} returned a web page instead of data (bot protection?)", 502) from exc
         raise ImportError_("bad_data", f"{label} вернул неожиданные данные", f"{label} returned unexpected data", 502) from exc
 
-
 def _file(name: str, mime: str, data: bytes) -> Dict[str, Any]:
     return {"name": name, "mime": mime, "bytes": len(data), "base64": base64.b64encode(data).decode("ascii")}
-
 
 def _safe_name(text: Any, ext: str) -> str:
     name = re.sub(r"[\\/:*?\"<>|\r\n\t]+", "_", str(text or "")).strip(" .")[:100] or "import"
     return name + ext
-
 
 def _kind_of(body: bytes, content_type: str) -> str:
     if body.startswith(PNG_SIGNATURE):
@@ -404,7 +379,6 @@ def _kind_of(body: bytes, content_type: str) -> str:
     if body[:4] == b"RIFF" and body[8:12] == b"WEBP":
         return "webp"
     return ""
-
 
 async def _avatar(client, url: Any) -> Optional[Dict[str, Any]]:
     """A best-effort avatar (public HTTPS image or a data: URL). Failures only mean «no picture»."""
@@ -429,9 +403,6 @@ async def _avatar(client, url: Any) -> Optional[Dict[str, Any]]:
         return None
     return _file("avatar", content_type if content_type.startswith("image/") else "image/png", body)
 
-
-# --------------------------------------------------------------------------- resolvers
-
 async def _chub_character(client, ident: str) -> Dict[str, Any]:
     creator, project = ident.split("/", 1)
     url = "https://api.chub.ai/api/characters/%s/%s?full=true" % (urllib.parse.quote(creator, safe=""),
@@ -446,8 +417,7 @@ async def _chub_character(client, ident: str) -> Dict[str, Any]:
     extensions = {**extensions}
     extensions.setdefault("chub", {"id": node.get("id"), "full_path": node.get("fullPath") or ident})
     card = {"spec": "chara_card_v2", "spec_version": "2.0", "data": {
-        # The mapping of SillyTavern's downloadChubCharacter: chub's «personality» is the card description,
-        # «tavern_personality» the personality, «description» the creator's notes.
+
         "name": definition.get("name") or node.get("name") or project,
         "description": definition.get("personality") or "",
         "personality": definition.get("tavern_personality") or "",
@@ -471,7 +441,6 @@ async def _chub_character(client, ident: str) -> Dict[str, Any]:
                                                             json.dumps(card, ensure_ascii=False).encode("utf-8")),
             "avatar": avatar, "page": f"https://chub.ai/characters/{ident}"}
 
-
 async def _chub_lorebook(client, ident: str) -> Dict[str, Any]:
     _, creator, project = ident.split("/", 2)
     url = "https://api.chub.ai/api/lorebooks/%s/%s" % (urllib.parse.quote(creator, safe=""),
@@ -484,14 +453,13 @@ async def _chub_lorebook(client, ident: str) -> Dict[str, Any]:
         raise ImportError_("not_found", "Chub: лорбук не найден", "Chub: lorebook not found", 404)
     raw = f"https://api.chub.ai/api/v4/projects/{project_id}/repository/files/raw%252Fsillytavern_raw.json/raw"
     data, _, _ = await safe_fetch(client, raw, headers={"Accept": "application/json"}, limit=JSON_LIMIT, label="Chub")
-    _json_of(data, "Chub")  # must be JSON
+    _json_of(data, "Chub")
     name = node.get("name") or project
     return {"type": "lorebook", "name": name, "file": _file(_safe_name(project, ".json"), "application/json", data),
             "avatar": None, "page": f"https://chub.ai/{ident}"}
 
-
 async def _janitor(client, ident: str) -> Dict[str, Any]:
-    # SillyTavern: «This endpoint is being guarded behind Bot Fight Mode of Cloudflare».
+
     body, _, _ = await safe_fetch(client, "https://api.jannyai.com/api/v1/download", method="POST",
                                   json_body={"characterId": ident},
                                   headers={"Content-Type": "application/json", "Accept": "application/json"},
@@ -502,7 +470,6 @@ async def _janitor(client, ident: str) -> Dict[str, Any]:
                            "JanitorAI: the character is missing or hidden by its author", 404)
     data, content_type, _ = await safe_fetch(client, str(result["downloadUrl"]), limit=CARD_LIMIT, label="JanitorAI")
     return _card_file(data, content_type, ident, "JanitorAI", f"https://janitorai.com/characters/{ident}")
-
 
 async def _pygmalion(client, ident: str) -> Dict[str, Any]:
     body, _, _ = await safe_fetch(client, f"https://server.pygmalion.chat/api/export/character/{ident}/v2",
@@ -519,7 +486,6 @@ async def _pygmalion(client, ident: str) -> Dict[str, Any]:
                           json.dumps(character, ensure_ascii=False).encode("utf-8")),
             "avatar": avatar, "page": f"https://pygmalion.chat/character/{ident}"}
 
-
 async def _aicc(client, ident: str) -> Dict[str, Any]:
     author, card = ident.split("/", 1)
     url = "https://aicharactercards.com/wp-json/pngapi/v1/image/%s/%s" % (urllib.parse.quote(author, safe=""),
@@ -527,12 +493,10 @@ async def _aicc(client, ident: str) -> Dict[str, Any]:
     data, content_type, _ = await safe_fetch(client, url, limit=CARD_LIMIT, label="AICharacterCards")
     return _card_file(data, content_type, card, "AICharacterCards", f"https://aicharactercards.com/{ident}")
 
-
 async def _risu(client, ident: str) -> Dict[str, Any]:
     url = f"https://realm.risuai.net/api/v1/download/png-v3/{urllib.parse.quote(ident, safe='')}?non_commercial=true"
     data, content_type, _ = await safe_fetch(client, url, limit=CARD_LIMIT, label="RisuRealm")
     return _card_file(data, content_type, ident, "RisuRealm", f"https://realm.risuai.net/character/{ident}")
-
 
 async def _perchance(client, ident: str) -> Dict[str, Any]:
     url = f"https://user.uploads.dev/file/{urllib.parse.quote(ident, safe='.')}"
@@ -549,7 +513,7 @@ async def _perchance(client, ident: str) -> Dict[str, Any]:
     if not isinstance(char, dict):
         raise ImportError_("bad_data", "Perchance: в файле нет персонажа", "Perchance: the file has no character", 502)
     avatar_url = str((char.get("avatar") or {}).get("url") or "") if isinstance(char.get("avatar"), dict) else ""
-    data = {  # SillyTavern downloadPerchanceCharacter
+    data = {
         "name": char.get("name") or "Unnamed Perchance Character", "first_mes": "", "tags": [],
         "description": char.get("roleInstruction") or "", "creator": char.get("metaTitle") or "",
         "creator_notes": char.get("metaDescription") or "", "alternate_greetings": [], "character_version": "",
@@ -571,12 +535,10 @@ async def _perchance(client, ident: str) -> Dict[str, Any]:
                           json.dumps(card, ensure_ascii=False).encode("utf-8")),
             "avatar": await _avatar(client, avatar_url), "page": f"https://perchance.org/ai-character-chat?data={ident}"}
 
-
 async def _generic(client, url: str) -> Dict[str, Any]:
     data, content_type, final = await safe_fetch(client, url, limit=CARD_LIMIT, label=urllib.parse.urlsplit(url).hostname or "")
     name = urllib.parse.unquote(urllib.parse.urlsplit(final).path.rsplit("/", 1)[-1]) or "card"
     return _card_file(data, content_type, re.sub(r"\.(png|json)$", "", name, flags=re.I), name, url, any_json=True)
-
 
 def _card_file(data: bytes, content_type: str, name: str, label: str, page: str, *, any_json: bool = False) -> Dict[str, Any]:
     kind = _kind_of(data, content_type)
@@ -599,16 +561,13 @@ def _card_file(data: bytes, content_type: str, name: str, label: str, page: str,
     raise ImportError_("bad_data", f"{label}: это не PNG-карточка и не JSON",
                        f"{label}: this is neither a PNG card nor JSON", 415)
 
-
 RESOLVERS = {"chub": _chub_character, "chub-lorebook": _chub_lorebook, "janitor": _janitor,
              "pygmalion": _pygmalion, "aicc": _aicc, "risu": _risu, "perchance": _perchance}
 
-
 def make_client():
     import httpx
-    # trust_env=False: the system proxy must not see (or rewrite) these requests, and SSRF checks hold.
-    return httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0), trust_env=False, http2=False)
 
+    return httpx.AsyncClient(timeout=httpx.Timeout(30.0, connect=10.0), trust_env=False, http2=False)
 
 async def fetch_import(target: Dict[str, Any], client=None) -> Dict[str, Any]:
     """Download what ``parse_input`` resolved. Returns the payload for the module."""
@@ -626,7 +585,7 @@ async def fetch_import(target: Dict[str, Any], client=None) -> Dict[str, Any]:
             raise ImportError_("timeout", "Сайт не ответил вовремя", "The site did not answer in time", 504) from exc
         except ImportError_:
             raise
-        except Exception as exc:  # httpx errors: connection refused, TLS, DNS …
+        except Exception as exc:
             name = type(exc).__name__
             raise ImportError_("network", f"Не удалось связаться с сайтом ({name})",
                                f"Could not reach the site ({name})", 502) from exc
@@ -634,9 +593,6 @@ async def fetch_import(target: Dict[str, Any], client=None) -> Dict[str, Any]:
     finally:
         if own:
             await client.aclose()
-
-
-# --------------------------------------------------------------------------- route
 
 def register(app, *, allowed) -> None:
     """``POST /api/pg/modules/net-import`` (module bridge ``Memu.fetchImport``, action ``net_import`` ->
@@ -674,7 +630,7 @@ def register(app, *, allowed) -> None:
             trusted = target["source"] in settings["trusted"]
             if str(body.get("op") or "fetch") == "resolve":
                 return {"ok": True, **target, "trusted": trusted}
-            # The MemuAI window adds `approved` itself after asking the person (never taken from the module).
+
             if not trusted and body.get("approved") is not True:
                 raise ImportError_("needs_approval", "Нужно разрешение на загрузку", "Permission to download is required", 403)
             return await fetch_import(target)
@@ -702,7 +658,6 @@ def register(app, *, allowed) -> None:
             return JSONResponse({"error": "Модуль не найден / Module not found"}, 404)
         except ValueError as exc:
             return JSONResponse({"error": str(exc)}, 400)
-
 
 __all__ = ["register", "parse_input", "fetch_import", "safe_fetch", "check_public_https", "clean_host",
            "clean_hosts", "host_allowed", "module_settings", "update_settings", "normalize_manifest_block",

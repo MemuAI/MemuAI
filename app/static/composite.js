@@ -1,9 +1,5 @@
-/* MemuAI Proxy — Round 35 (composite): «Составные модели» — a visual constructor of rule pipelines.
-   Backend: app/composite_models.py + app/composite_models_api.py (/api/admin/composite/*).
-   A composite model (memu/smart) = rule cards (route / filter / prefer / exclude / settings) evaluated per request,
-   a main model list with an ordering strategy, fallback triggers with timeouts and retries, and a live «Проверить»
-   simulator that shows which model would answer and why. Cards and models are reordered by dragging the ⋮⋮ grip
-   (pointer events, autoscroll) or with the ↑/↓ buttons / Alt+↑↓. */
+
+
 "use strict";
 
 window.MemuComposite = (() => {
@@ -15,7 +11,6 @@ window.MemuComposite = (() => {
   const num = (v) => Number(v || 0).toLocaleString(LANG === "en" ? "en-US" : "ru-RU");
   const short = (n) => { n = Number(n) || 0; return n >= 1e6 ? `${+(n / 1e6).toFixed(n % 1e6 ? 1 : 0)}M` : n >= 1e3 ? `${Math.round(n / 1e3)}K` : String(n); };
 
-  /* ------------------------------------------------------------ vocabulary */
   const KINDS = {
     route: { ru: "Направить", en: "Route", hint: ["Если условия выполнены — отправить запрос в эти модели. Срабатывает первое подходящее правило «Направить».", "When the conditions hold, send the request to these models. The first matching “Route” rule wins."] },
     filter: { ru: "Фильтр", en: "Filter", hint: ["Если условия выполнены — оставить только модели с нужными возможностями.", "When the conditions hold, keep only models with the required capabilities."] },
@@ -76,7 +71,7 @@ window.MemuComposite = (() => {
   };
   const TRIG = { error: ["любая ошибка", "any error"], 429: ["лимит 429", "429 limit"], "5xx": ["ошибка сервиса 5xx", "service error 5xx"], timeout: ["таймаут", "timeout"],
     empty: ["пустой ответ", "empty answer"], content_filter: ["фильтр контента", "content filter"], context_length: ["не влезло в окно", "context too long"] };
-  // A failed attempt's reason: the class «error» is «any other error» (wrong request, unknown model…), not «any error».
+
   const FAIL = { ...TRIG, error: ["ошибка запроса", "request error"], cancelled: ["отменён", "cancelled"],
     unavailable: ["модель недоступна (ключ, доступ)", "model unavailable (key, access)"] };
   const FILT = { vision: ["Только со зрением", "Vision only"], tools: ["Только с нативными инструментами", "Native tools only"],
@@ -84,7 +79,6 @@ window.MemuComposite = (() => {
   const W = (pair) => (Array.isArray(pair) ? L(pair[0], pair[1]) : pair);
   const q = (text) => (LANG === "en" ? `“${text}”` : `«${text}»`);
 
-  /* ------------------------------------------------------------ icons */
   const ICO = {
     grip: '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>',
     up: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 15 6-6 6 6"/></svg>',
@@ -99,14 +93,13 @@ window.MemuComposite = (() => {
     layers: '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h7v4H4zM13 13h7v4h-7zM13 4h7v4h-7z"/><path d="M11 9h2v8M11 9V6h2"/></svg>',
   };
 
-  /* ------------------------------------------------------------ helpers */
   const avail = () => (S.data && S.data.available) || [];
   const findModel = (id) => avail().find((m) => m.id.toLowerCase() === String(id || "").toLowerCase());
   function modelName(id) {
     const m = findModel(id);
     if (m && m.composite) return m.name || id;
     if (m && m.name) {
-      // Round 36: the same model on two accounts read «Qwen3.8 Flash → Qwen3.8 Flash» in the route and the stats
+
       const twin = avail().some((o) => o !== m && !o.composite && o.name === m.name);
       return twin ? `${m.name} · ${m.account || m.id}` : m.name;
     }
@@ -161,7 +154,6 @@ window.MemuComposite = (() => {
     return { type, op, value: type === "weekday" ? ["1", "2", "3", "4", "5"] : type === "client" ? ["api"] : value };
   }
 
-  /* ------------------------------------------------------------ load / save */
   async function load(keepSelection) {
     const root = $("#composite-root");
     if (!root) return;
@@ -220,7 +212,6 @@ window.MemuComposite = (() => {
     const idEl = $("#cmp-idline"); if (idEl) idEl.textContent = S.cur.id;
   }
 
-  /* ------------------------------------------------------------ simulator */
   function sampleDefaults() {
     return { text: L("Привет! Объясни, как работает фотосинтез.", "Hi! Explain how photosynthesis works."), system: "", has_image: false, has_audio: false,
       has_file: false, tools: false, json: false, stream: true, reasoning: false, tokens: "", client: "api", endpoint: "", time: "", weekday: "",
@@ -255,7 +246,6 @@ window.MemuComposite = (() => {
     load(true).catch(() => {});
   }
 
-  /* ------------------------------------------------------------ render: list */
   function render() {
     const root = $("#composite-root");
     if (!root || !S.data) return;
@@ -320,7 +310,6 @@ window.MemuComposite = (() => {
     }).join("");
   }
 
-  /* ------------------------------------------------------------ render: editor */
   function editorHtml() {
     const m = S.cur;
     return `<main class="cmp-editor">
@@ -553,7 +542,6 @@ window.MemuComposite = (() => {
       </div></div></div>`;
   }
 
-  /* ------------------------------------------------------------ simulator + stats markup */
   function simHtml() {
     const s = S.sample;
     const tog = (k, ru, en) => `<button type="button" class="chip-btn ${s[k] ? "active" : ""}" data-act="sim-flag" data-k="${k}">${esc(L(ru, en))}</button>`;
@@ -674,7 +662,6 @@ window.MemuComposite = (() => {
     </div>`;
   }
 
-  /* ------------------------------------------------------------ issues */
   function renderIssues() {
     const box = $("#cmp-issues");
     if (!box) return;
@@ -704,7 +691,6 @@ window.MemuComposite = (() => {
     return null;
   }
 
-  /* ------------------------------------------------------------ model picker */
   function openPicker(anchor, path, mode) {
     closePicker();
     const taken = new Set((mode === "ids" ? getPath(S.cur, path) || [] : (getPath(S.cur, path) || []).map((c) => c.model)).map((x) => x.toLowerCase()));
@@ -773,7 +759,6 @@ window.MemuComposite = (() => {
   document.addEventListener("keydown", (e) => { if (e.key === "Escape" && S.picker) { e.preventDefault(); closePicker(); } });
   window.addEventListener("resize", () => { if (S.picker) S.picker.place(); });
 
-  /* ------------------------------------------------------------ drag to reorder */
   function startDrag(e, grip) {
     const item = grip.closest(grip.dataset.grip === "rule" ? ".cmp-rule" : ".cmp-cand");
     const container = item && item.parentElement;
@@ -784,13 +769,12 @@ window.MemuComposite = (() => {
     item.classList.add("dragging");
     container.classList.add("drag-on");
     if (grip.dataset.grip === "rule") {
-      // Tall rule cards are folded while dragging (only their heads stay) so a card can pass its neighbours with a
-      // short move; the page is scrolled so the grabbed head stays under the pointer.
+
       const before = item.getBoundingClientRect().top;
       container.classList.add("drag-collapse");
       window.scrollBy(0, item.getBoundingClientRect().top - before);
     }
-    try { grip.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    try { grip.setPointerCapture(e.pointerId); } catch (err) {  }
     let lastY = e.clientY, raf = 0, cancelled = false;
     const autoscroll = () => {
       const edge = 70, h = window.innerHeight;
@@ -832,7 +816,6 @@ window.MemuComposite = (() => {
   }
   function moveItem(list, from, to) { if (!list || to < 0 || to >= list.length) return; const [x] = list.splice(from, 1); list.splice(to, 0, x); }
 
-  /* ------------------------------------------------------------ events */
   function bind(root) {
     root.onclick = (e) => {
       const el = e.target.closest("[data-act]");
@@ -995,7 +978,6 @@ window.MemuComposite = (() => {
 
   function relabel() { if ($("#tab-composite")?.classList.contains("active") && S.data) render(); }
 
-  // The tab: app.js switches sections by data-tab; this module loads its data when the tab opens.
   document.addEventListener("click", (e) => { if (e.target.closest('.nav-item[data-tab="composite"]')) load(true); });
   if (typeof onLangChanged === "function") {
     const previous = onLangChanged;

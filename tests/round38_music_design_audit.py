@@ -35,7 +35,6 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from round37_music_harness import frame_of, open_page, wait  # noqa: E402
 
-
 def cover_images() -> dict:
     """Real raster covers of awkward proportions as data: URLs (the module CSP allows data:)."""
     from PIL import Image, ImageDraw
@@ -52,7 +51,6 @@ def cover_images() -> dict:
         out[name] = "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
     out["broken"] = "data:image/png;base64,AAAAbroken"
     return out
-
 
 AUDIT_JS = r"""
 (opts) => {
@@ -176,9 +174,7 @@ AUDIT_JS = r"""
 CLS_INSTALL = r"""() => { window.__cls = 0; window.__shifts = []; try { new PerformanceObserver((l) => { for (const e of l.getEntries()) if (!e.hadRecentInput) { window.__cls += e.value;
   window.__shifts.push({ v: e.value, src: (e.sources || []).map((s) => s.node ? (s.node.id || s.node.className || s.node.nodeName) : "?").slice(0, 3) }); } }).observe({ type: "layout-shift", buffered: false }); } catch (e) { window.__cls = -1; } }"""
 
-
 ALBUMS = {"square": "Northern Lights", "wide": "Live at Moscow Arena (YouTube)", "tall": "Вертикальные дни", "tiny": "Lo-Fi Tapes", "broken": "Без обложки"}
-
 
 def inject_covers(frame, covers: dict, few: bool = False) -> None:
     """Real covers of awkward proportions; the demo library is reseeded so the sidebar, playlists and stats agree with it."""
@@ -192,13 +188,10 @@ def inject_covers(frame, covers: dict, few: bool = False) -> None:
       return MemuMusic.refresh().then(() => MemuMusic.rerender());
     }""", [covers, ALBUMS, few])
 
-
 def configure(frame, ui: dict) -> None:
     frame.evaluate("(ui) => { const T = MemuMusic.Theme; Object.keys(ui).forEach((k) => { T.ui[k] = ui[k]; }); T.set('mode', T.ui.mode); }", ui)
 
-
 VIEWS = ["home", "library", "playlists", "download", "stats", "settings"]
-
 
 def audit_screen(page, frame, out: Path, tag: str, findings: list, layer: str = "") -> None:
     page.wait_for_timeout(700)
@@ -207,11 +200,9 @@ def audit_screen(page, frame, out: Path, tag: str, findings: list, layer: str = 
         item["screen"] = tag
         findings.append(item)
 
-
 INTEGRATION_STUB = """() => { try { Memu.integration = { list: () => Promise.resolve({ widgets: [
   { id: 'chat-mini', values: { enabled: true, eq: true } }, { id: 'eq-ring', values: { enabled: true, style: 'bars', color: 'cover' } }, { id: 'quick-card', values: { enabled: true } }] }),
   set: () => Promise.resolve({ ok: true }) }; } catch (e) {} }"""
-
 
 def audit_extra(page, frame, out: Path, tag0: str, findings: list) -> None:
     """Round 38 feature screens: Ctrl+K search with online results, genres/folders, dialogs, selection bar, toast with Undo,
@@ -223,7 +214,7 @@ def audit_extra(page, frame, out: Path, tag0: str, findings: list) -> None:
     page.wait_for_timeout(900)
     frame.evaluate("() => { const b = [...document.querySelectorAll('#view button')].find((x) => /онлайн|online/i.test(x.textContent)); if (b) b.click(); }")
     audit_screen(page, frame, out, f"{tag0}-search-ctrlk", findings)
-    # r41b-online: the «Track info» sheet of an online result (source card, facts grid, formats, similar tracks)
+
     frame.evaluate("() => { const r = document.querySelectorAll('.mm-orow')[1]; if (r) r.click(); }")
     page.wait_for_timeout(900)
     if frame.evaluate("() => !!document.querySelector('.mm-osheet:not([hidden])')"):
@@ -240,7 +231,7 @@ def audit_extra(page, frame, out: Path, tag0: str, findings: list) -> None:
         audit_screen(page, frame, out, f"{tag0}-lib-{tab}", findings)
     frame.evaluate("() => { const g = document.querySelector('#view [data-genre], #view .mm-tile, #view .mm-folder'); if (g) g.click(); }")
     audit_screen(page, frame, out, f"{tag0}-lib-genre-open", findings)
-    # selection bar (library, everything selected)
+
     go("library")
     page.wait_for_timeout(300)
     frame.evaluate("() => { const b = document.querySelector('.mm-tabs [data-tab=tracks]'); if (b) b.click(); }")
@@ -251,14 +242,14 @@ def audit_extra(page, frame, out: Path, tag0: str, findings: list) -> None:
       if (rows.length > 3) { hit(rows[0], { ctrlKey: true }); hit(rows[3], { shiftKey: true }); } }""")
     audit_screen(page, frame, out, f"{tag0}-selbar", findings)
     frame.evaluate("() => MemuMusic.dev.Sel.clear()")
-    # dialogs: bulk editor, playlist editor, smart builder, smart manager
+
     for name, js in (("bulk", "MemuMusic.dev.editTracks(MemuMusic.S.tracks.slice(0, 3))"), ("pl-editor", "MemuMusic.dev.editPlaylist(MemuMusic.S.playlists[0])"),
                      ("smart-builder", "MemuMusic.dev.smartBuilder()"), ("smart-manager", "MemuMusic.dev.smartManager()")):
         frame.evaluate(f"() => {{ document.querySelector('#modal').hidden = true; {js}; }}")
         page.wait_for_timeout(500)
         audit_screen(page, frame, out, f"{tag0}-dlg-{name}", findings, "#modal")
         frame.evaluate("() => { document.querySelector('#modal').hidden = true; }")
-    # toast with Undo, drag & drop overlay
+
     go("library")
     frame.evaluate("() => MemuMusic.dev.toastAction('Удалено: 3 трека', 'Отменить', () => {})")
     audit_screen(page, frame, out, f"{tag0}-toast-undo", findings)
@@ -266,12 +257,11 @@ def audit_extra(page, frame, out: Path, tag0: str, findings: list) -> None:
     frame.evaluate("() => { const d = document.querySelector('#drop'); d.hidden = false; d.classList.add('files'); }")
     audit_screen(page, frame, out, f"{tag0}-drop", findings, "#drop")
     frame.evaluate("() => { const d = document.querySelector('#drop'); d.hidden = true; d.classList.remove('files'); }")
-    # Appearance + Widgets & integration tabs
+
     frame.evaluate(INTEGRATION_STUB)
     for tab in ("appearance", "integration"):
         go("settings", f"{{ tab: '{tab}' }}")
         audit_screen(page, frame, out, f"{tag0}-settings-{tab}", findings)
-
 
 FOCUS_JS = r"""() => {
   const out = [], sel = 'input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not([type=file]):not([type=hidden]), textarea, select';
@@ -289,7 +279,6 @@ FOCUS_JS = r"""() => {
     el.blur(); settle();
   }
   return out; }"""
-
 
 def audit_focus(page, frame, tag0: str, findings: list) -> None:
     """Round 39: one focus ring per text field / list — on the field or on its rounded container, never both, never none."""
@@ -310,14 +299,12 @@ def audit_focus(page, frame, tag0: str, findings: list) -> None:
             findings.append(item)
     frame.evaluate("() => { document.querySelector('#modal').hidden = true; }")
 
-
 NP_CONTRAST_JS = """(hide) => { const np = document.querySelector('#np'); np.classList.toggle('mm-audit-notext', hide);
   let st = document.getElementById('mm-audit-st'); if (!st) { st = document.createElement('style'); st.id = 'mm-audit-st';
   st.textContent = '.mm-audit-notext .mm-np-side, .mm-audit-notext .mm-np-head { visibility: hidden !important; }'; document.head.appendChild(st); }
   const el = np.querySelector('.mm-lyric.on') || np.querySelector('#np-title'); const r = el.getBoundingClientRect();
   const ink = getComputedStyle(np).getPropertyValue('--np-ink').trim();
   return { box: [r.left, r.top, r.right, r.bottom], ink, dpr: devicePixelRatio }; }"""
-
 
 def np_contrast(page, frame, tag: str, findings: list) -> None:
     """Text over pictures: hide the text, sample the backdrop under the active lyric line (or the title) and check the
@@ -337,7 +324,6 @@ def np_contrast(page, frame, tag: str, findings: list) -> None:
     worst = ratios[len(ratios) // 20]
     if worst < 4.5:
         findings.append({"kind": "np-contrast", "screen": tag, "ratio": round(worst, 2), "need": 4.5})
-
 
 def run(out_dir: str, quick: bool = False, only: list | None = None) -> list:
     from playwright.sync_api import sync_playwright
@@ -375,12 +361,12 @@ def run(out_dir: str, quick: bool = False, only: list | None = None) -> list:
                 for view in VIEWS:
                     frame.evaluate(f"() => MemuMusic.go('{view}', {{}}, {{instant: true}})")
                     audit_screen(page, frame, out, f"{tag0}-{view}", findings)
-                # album / artist / playlist pages
+
                 frame.evaluate("() => { const a = MemuMusic.S.tracks[0]; MemuMusic.go('album', { key: a.artist + '|' + (a.album || a.title) }, { instant: true }); }")
                 audit_screen(page, frame, out, f"{tag0}-album", findings)
                 frame.evaluate("() => MemuMusic.go('artist', { name: MemuMusic.S.tracks[0].artist }, { instant: true })")
                 audit_screen(page, frame, out, f"{tag0}-artist", findings)
-                # feat screens: search, history, duplicates, settings tabs, track menu, editor dialog
+
                 frame.evaluate("() => MemuMusic.go('search', { q: 'a' }, { instant: true })")
                 audit_screen(page, frame, out, f"{tag0}-search", findings)
                 for view in ("history", "dupes"):
@@ -395,14 +381,14 @@ def run(out_dir: str, quick: bool = False, only: list | None = None) -> list:
                 audit_screen(page, frame, out, f"{tag0}-menu", findings, "#menu")
                 frame.evaluate("() => { const b = [...document.querySelectorAll('#menu button')].find((x) => x.querySelector('use[href=\"#i-edit\"]')); if (b) b.click(); }")
                 audit_screen(page, frame, out, f"{tag0}-editor", findings, "#modal")
-                # every tab of the track editor
+
                 for k, tab in enumerate(frame.evaluate("() => [...document.querySelectorAll('#modal .mm-ed-tabs [data-tab]')].map((b) => b.dataset.tab)")):
                     frame.evaluate(f"() => document.querySelector('#modal .mm-ed-tabs [data-tab={tab}]').click()")
                     audit_screen(page, frame, out, f"{tag0}-editor-{tab}", findings, "#modal")
                 frame.evaluate("() => { document.querySelector('#modal').hidden = true; }")
                 audit_extra(page, frame, out, tag0, findings)
                 audit_focus(page, frame, tag0, findings)
-                # layout shift while switching sections (animations on)
+
                 configure(frame, {"motion": "full"})
                 frame.evaluate("() => MemuMusic.go('home', {}, { instant: true })")
                 page.wait_for_timeout(500)
@@ -414,7 +400,7 @@ def run(out_dir: str, quick: bool = False, only: list | None = None) -> list:
                 if cls["cls"] > 0.01:
                     findings.append({"kind": "shift", "screen": tag0, "cls": round(cls["cls"], 4), "shifts": cls["shifts"]})
                 configure(frame, {"motion": "off"})
-                # now playing (each style) + queue tab
+
                 frame.evaluate("() => { const S = MemuMusic.S; MemuMusic.Player.playList(S.tracks.slice(0, 20), S.tracks[0].id, 'Демо'); }")
                 page.wait_for_timeout(900)
                 frame.evaluate("() => MemuMusic.NP().open()")
@@ -436,7 +422,6 @@ def run(out_dir: str, quick: bool = False, only: list | None = None) -> list:
     name = "report.json" if not only else "report-" + "-".join(map(str, only)) + ".json"
     (out / name).write_text(json.dumps(findings, ensure_ascii=False, indent=1), encoding="utf-8")
     return findings
-
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]

@@ -39,9 +39,7 @@ const document = {
   createElement() { return element(); },
 };
 const memu = {
-  // Дизайн раньше выходил на «Сначала сделайте дизайн» и до Memu.handoff не
-  // доходил, поэтому проверка ничего не проверяла. Сид с готовым кодом
-  // заставляет выполниться именно путь пакета.
+
   saved: { code: "<!doctype html><title>Made</title><h1>x</h1>", brief: "Кофейня" },
   manifest: { bridge: { instructions: "RULES" } },
   env: { lang: "ru", theme: "dark" },
@@ -54,7 +52,7 @@ const memu = {
       return Promise.reject(new Error("Не удалось сохранить пакет дизайна"));
     }
     if (mode === "empty") {
-      // Путь без единого файла: модуль обязан отказаться объявлять успех.
+
       return Promise.resolve({ files: [], images: [], prompt: "p", readme: "r", paths: [] });
     }
     return Promise.resolve({
@@ -69,8 +67,7 @@ const memu = {
   onLanguage() { return () => {}; },
   log() { return Promise.resolve({}); },
 };
-// The package's real translations, with the bridge's lookup rules, so the
-// statuses checked below are the strings a person actually sees.
+
 const tables = JSON.parse(fs.readFileSync(require("path").join(require("path").dirname(designPath), "i18n.json"), "utf8"));
 memu.t = (key, vars) => {
   let value = (tables.ru || {})[key];

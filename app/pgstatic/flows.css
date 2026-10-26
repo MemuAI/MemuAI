@@ -1,6 +1,3 @@
-/* MemuAI — Round 35: step constructor inside a «Планирование» task (flows.js).
-   App tokens only (--panel, --panel-2, --text, --muted, --accent, --border, --danger, --ok) → every design, light/dark.
-   Step categories keep one hue each: data blue, AI accent, logic amber, send green, apps violet. */
 .flw, .flw-sum-wrap, .flw-runs, .flw-autos, .flw-menu, .flw-ac { --fc-data: #4f8cff; --fc-ai: var(--accent); --fc-logic: #d9962c; --fc-send: #2fb37f; --fc-app: #9b7bea; }
 .flw-i { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .c-data { --c: var(--fc-data); } .c-ai { --c: var(--fc-ai); } .c-logic { --c: var(--fc-logic); } .c-send { --c: var(--fc-send); } .c-app { --c: var(--fc-app); }
@@ -18,8 +15,6 @@
 .flw-head-actions .pbtn { display: inline-flex; align-items: center; gap: 6px; }
 .flw-count { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; display: grid; place-items: center; font-size: 11.5px; font-weight: 700;
   background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--muted); }
-
-/* the vertical list with a connector line */
 .flw-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; position: relative; }
 .flw-list:empty { display: none; }
 .flw-step { position: relative; }
@@ -47,7 +42,6 @@
 .flw-badge { flex: none; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; font-size: 11px; font-weight: 800; color: #fff; background: #d9962c; }
 .flw-badge.err { background: var(--danger, #e06c5a); }
 .flw-step-head { position: relative; }
-/* the tools float over the end of the title (no reserved width: narrow branch cards keep their text) */
 .flw-tools { position: absolute; right: 30px; top: 50%; transform: translateY(-50%); display: flex; gap: 2px; padding: 3px 4px 3px 14px; border-radius: 9px;
   background: linear-gradient(90deg, transparent, var(--panel) 14px); opacity: 0; pointer-events: none; transition: opacity .12s; }
 .flw-step-head:hover .flw-tools, .flw-step-head:focus-within .flw-tools { opacity: 1; pointer-events: auto; }
@@ -112,8 +106,6 @@
 .flw-askf-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
 .flw-askf-row > input:first-child { flex: 1 1 160px; }
 .flw-askf-row > .pinput.wide { flex: 2 1 200px; }
-
-/* branches & loops */
 .flw-branches { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 8px 0 0 22px; padding-left: 14px; border-left: 2px solid color-mix(in srgb, var(--c) 40%, transparent); }
 .flw-branches.loop { grid-template-columns: 1fr; }
 .flw-branch { border-radius: 12px; padding: 8px; display: flex; flex-direction: column; gap: 8px; min-width: 0;
@@ -127,11 +119,8 @@
 .flw-add:hover, .flw-add:focus-visible { border-color: var(--accent); color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, transparent); outline: none; }
 .flw-branch .flw-add { padding: 6px; font-size: 12px; }
 .flw-add.empty span { opacity: .9; }
-
-/* add menu & variable autocomplete (body-level popovers) */
 .flw-menu, .flw-ac { position: fixed; z-index: 10050; background: var(--panel); color: var(--text); border: 1px solid var(--border); border-radius: 14px;
   box-shadow: 0 18px 50px -12px rgba(0, 0, 0, .35); overflow: auto; }
-/* r35-finish-b: up to 3 balanced columns of whole groups (flows.js addMenu) — the 2-column grid was ~1100 px tall */
 .flw-menu { padding: 8px; display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 0 8px; align-items: start; animation: flw-in .14s ease; }
 .flw-menu-col { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .flw-menu-group { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
@@ -147,8 +136,6 @@
 .flw-ac button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; border: 0; background: none; padding: 6px 8px; border-radius: 8px; cursor: pointer; text-align: left; color: var(--text); }
 .flw-ac button span { font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .flw-ac button.on, .flw-ac button:hover { background: color-mix(in srgb, var(--accent) 12%, transparent); }
-
-/* test run & run log */
 .flw-test { border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--border)); border-radius: 14px; padding: 12px 14px; display: flex; flex-direction: column; gap: 10px;
   background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 7%, var(--panel)), var(--panel)); }
 .flw-test > header { display: flex; align-items: flex-start; gap: 10px; }
@@ -183,8 +170,6 @@
 .flw-io pre { margin: 0; max-height: 220px; overflow: auto; white-space: pre-wrap; word-break: break-word; font-size: 12px; line-height: 1.45; padding: 7px 9px; border-radius: 8px;
   background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); font-family: var(--mono, ui-monospace, Consolas, monospace); }
 .flw-io.err pre { color: var(--danger, #e06c5a); }
-
-/* summary (NL card, scenarios) */
 .flw-sum-wrap { margin: 8px 0 2px; }
 .flw-sum { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .flw-sum > li { display: flex; flex-wrap: wrap; align-items: center; gap: 7px; font-size: 12.5px; color: var(--text); padding: 5px 8px; border-radius: 9px;
@@ -195,8 +180,6 @@
 .flw-sum-br { flex: 1 0 100%; display: flex; flex-direction: column; gap: 4px; padding-left: 18px; }
 .flw-sum-br > span { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; }
 .flw-sum-br.yes > span { color: #2fb37f; } .flw-sum-br.no > span { color: #e06c5a; } .flw-sum-br.loop > span { color: #9b7bea; }
-
-/* history & Quick Access automations */
 .flw-runs { display: flex; flex-direction: column; gap: 6px; }
 .flw-run { border: 1px solid var(--border); border-radius: 12px; background: var(--panel); }
 .flw-run > summary { display: flex; align-items: center; gap: 8px; padding: 8px 11px; cursor: pointer; font-size: 13px; list-style: none; flex-wrap: wrap; }
@@ -219,8 +202,6 @@
 .flw-auto-head small { color: var(--muted); }
 .flw-auto-head kbd { font-size: 11px; padding: 1px 6px; border-radius: 5px; border: 1px solid var(--border); }
 .flw-auto-head .pln-link { margin-left: auto; }
-
-/* narrow window */
 @media (max-width: 720px) {
   .flw-branches { grid-template-columns: 1fr; margin-left: 10px; padding-left: 10px; }
   .flw-body { padding-left: 12px; }
@@ -229,16 +210,11 @@
   .flw-tools .flw-mini[data-fa="dup"] { display: none; }
   .flw-log-row { margin-left: calc(var(--d, 0) * 10px); }
 }
-/* a narrow window: the sticky «Итог» of the builder took half the height above the steps — next runs fold
-   into one scrolling row there (the full list stays one swipe away) */
 @media (max-width: 600px) {
   .pln-builder .pln-summary .pln-next ol { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .pln-builder .pln-summary .pln-next ol > * { flex: none; }
   .pln-builder .pln-summary { max-height: 38vh; }
 }
-
-/* r35-finish-b: the designs — the add menu and the variable picker follow each design's popovers,
-   brutal step cards get its ink outline (they looked like classic cards next to brutal inputs) */
 :root[data-design="brutal"] :is(.flw-menu, .flw-ac) { border-radius: 12px; background: var(--b-card, var(--panel)); border: var(--b-line, 2px solid var(--text)); box-shadow: var(--b-sh-2, 4px 4px 0 var(--text)); }
 :root[data-design="brutal"] :is(.flw-menu button, .flw-ac button) { border-radius: 7px; }
 :root[data-design="brutal"] :is(.flw-menu button:hover, .flw-menu button:focus-visible, .flw-ac button.on, .flw-ac button:hover) { background: var(--b-block, color-mix(in srgb, var(--accent) 12%, transparent)); box-shadow: inset 0 0 0 var(--b-w, 2px) var(--b-ink, var(--text)); }

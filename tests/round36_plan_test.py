@@ -24,7 +24,6 @@ from app import schedule_rules as rules  # noqa: E402
 
 STATIC = ROOT / "app" / "pgstatic"
 
-
 @pytest.fixture(autouse=True)
 def fresh(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMUAI_DATA_DIR", str(tmp_path))
@@ -32,7 +31,6 @@ def fresh(tmp_path, monkeypatch):
     monkeypatch.setattr(pgdata, "MEMU_DIR", tmp_path / "memuai")
     (tmp_path / "memuai").mkdir(parents=True, exist_ok=True)
     yield
-
 
 class Svc(fe.Services):
     def __init__(self, rows):
@@ -58,15 +56,12 @@ class Svc(fe.Services):
     async def deliver(self, task, ok, text):
         pass
 
-
 def _ctx():
     c = fe.Ctx(trigger={"type": "manual"})
     c.steps = {"a": {"result": [{"title": "Py", "url": "u1"}, {"title": "Go", "url": "u2"}], "text": "t", "status": "ok"}}
     c.numbers = {"1": "a"}
     return c
 
-
-# --------------------------------------------------------------------------- templates
 def test_bare_step_reference_is_its_result():
     c = _ctx()
     assert c.render("{{шаг1}}") == c.steps["a"]["result"]
@@ -75,7 +70,6 @@ def test_bare_step_reference_is_its_result():
     assert c.render("{{шаг1.статус}}") == "ok", "the record fields stay reachable"
     assert "status" not in c.render("Итог: {{шаг1}}")
 
-
 def test_dotted_list_index():
     c = _ctx()
     assert c.render("{{шаг1.результат.0.title}}") == "Py"
@@ -83,19 +77,16 @@ def test_dotted_list_index():
     assert c.render("{{шаг1.результат[0].title}}") == "Py"
     assert c.render("{{шаг1.результат.5.title}}") is None
 
-
 def test_list_line_does_not_repeat_company():
     assert fe.item_line({"title": "Junior Python — Acme", "company": "Acme", "url": "u"}) == "Junior Python — Acme\n  u"
     assert fe.item_line({"title": "Junior Python", "company": "Acme"}) == "Junior Python — Acme"
 
-
-# --------------------------------------------------------------------------- «только новые» without «Если»
 def test_search_only_new_telegram_without_if_is_quiet_when_nothing_new():
     task = {"id": "vac", "name": "Вакансии", "kind": "flow", "steps": [
         {"type": "web_search", "query": "вакансии Python junior"},
         {"type": "only_new", "items": "{{step1.result}}", "key": "url"},
         {"type": "telegram", "text": "{{step2.result | list}}"}]}
-    task["steps"] = fe.normalize_steps(task["steps"])   # saved tasks keep their step ids («только новые» is per step)
+    task["steps"] = fe.normalize_steps(task["steps"])
     rows = [{"title": "Junior Python", "url": "https://hh.ru/1", "snippet": ""}]
     first = Svc(rows)
     res = asyncio.run(fe.execute_run(task, fe.new_run(task), first))
@@ -106,7 +97,6 @@ def test_search_only_new_telegram_without_if_is_quiet_when_nothing_new():
     assert second.sent == [] and second.results[0][0] is True
     assert second.results[0][2].get("quiet") is True, "nothing sent → no «done» noise in the inbox"
 
-
 def test_empty_telegram_without_only_new_still_fails():
     task = {"id": "e", "name": "E", "kind": "flow", "steps": [{"type": "set", "var": "x", "value": ""},
                                                              {"type": "telegram", "text": "{{vars.x}}"}]}
@@ -114,16 +104,12 @@ def test_empty_telegram_without_only_new_still_fails():
     res = asyncio.run(fe.execute_run(task, fe.new_run(task), svc))
     assert res["status"] == "failed" and svc.sent == []
 
-
-# --------------------------------------------------------------------------- chat protocol
 def test_chat_protocol_same_in_js_and_names_new_only_searches():
     src = (STATIC / "plan.js").read_text(encoding="utf-8")
     js = json.loads(re.search(r'const PROTOCOL = (".*?");\n', src, re.S).group(1))
     assert js == rules.CHAT_PROTOCOL
     assert "only NEW finds (vacancies" in rules.CHAT_PROTOCOL
 
-
-# --------------------------------------------------------------------------- memuai:// nudges through the inbox SSE
 def test_deeplink_queue_version_grows_on_dispatch():
     from app import deeplinks
     deeplinks.reset_for_tests()
@@ -135,13 +121,10 @@ def test_deeplink_queue_version_grows_on_dispatch():
     assert bad.get("ok") is False and deeplinks.queue_version() == (before + 1 if res.get("ok") else before)
     deeplinks.reset_for_tests()
 
-
 def test_inbox_stream_sends_links_event():
     src = (ROOT / "app" / "inbox_api.py").read_text(encoding="utf-8")
     assert "event: links" in src and "_links_version()" in src
 
-
-# --------------------------------------------------------------------------- no background polling in the window
 def test_no_idle_timers_in_plan_inbox_links():
     links = (STATIC / "deeplinks.js").read_text(encoding="utf-8")
     assert "setInterval" not in links, "memuai:// queue is read on events, not every 4 s"
@@ -156,8 +139,6 @@ def test_no_idle_timers_in_plan_inbox_links():
     i = plan.index("async function refreshQuiet()")
     assert 'document.visibilityState === "hidden"' in plan[i:i + 400]
 
-
-# --------------------------------------------------------------------------- «реагировать только в это время» + ждать
 def _hours_task(wait):
     hours = {"from": "09:00", "to": "18:00", "days": [1, 2, 3, 4, 5]}
     if wait:
@@ -165,7 +146,6 @@ def _hours_task(wait):
     return {"id": "w" + str(int(wait)), "name": "RSS", "kind": "chat", "prompt": "p", "enabled": True,
             "rule": rules.normalize_rule({"when": [{"type": "watch", "source": "rss", "url": "https://example.com/feed",
                                                     "hours": hours}]})}
-
 
 @pytest.mark.parametrize("wait", [False, True])
 def test_trigger_hours_skip_or_wait(monkeypatch, wait):
@@ -181,18 +161,17 @@ def test_trigger_hours_skip_or_wait(monkeypatch, wait):
     inside = {"v": False}
     monkeypatch.setattr(ext, "_in_hours", lambda t, now: inside["v"])
     t0 = 1_800_000_000.0
-    assert asyncio.run(ext.tick([task], t0, "ru")) == {}                     # baseline
-    out = asyncio.run(ext.tick([task], t0 + 3600, "ru"))                    # event at night
+    assert asyncio.run(ext.tick([task], t0, "ru")) == {}
+    out = asyncio.run(ext.tick([task], t0 + 3600, "ru"))
     assert out == {}, "outside the hours nothing is handed to the task"
     inside["v"] = True
-    out = asyncio.run(ext.tick([task], t0 + 3 * 24 * 3600, "ru"))           # Monday morning, ~3 days later
+    out = asyncio.run(ext.tick([task], t0 + 3 * 24 * 3600, "ru"))
     if wait:
         rows = out[task["id"]][ext.watch_key(task["id"], trig)]
         assert rows[0]["payload"]["title"] == "Новая запись"
     else:
         assert out == {}
     ext._INFLIGHT.clear()
-
 
 def test_plan_run_link_is_task_run_with_confirmation():
     from app import deeplinks

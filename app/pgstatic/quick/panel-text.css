@@ -1,14 +1,9 @@
-/* Round 32 — the «text» look as real text (panel-text.js). A .pt-face holds blocks (.pt-b) of rendered template text:
-   «flow» — one under another, «free» — each at its own x / y / width (% of the box) in a box of --pt-h px.
-   No background, no frame; readability comes from the halo (a text shadow of the window's / theme's background). */
-
 .pl-face.pt-face {
   display: block; position: relative; padding: .2em .1em; gap: 0; justify-content: initial;
   font: 400 calc(13px * var(--pl-font, 1)) / 1.28 var(--mp-text, system-ui, sans-serif); color: var(--text);
   overflow: hidden; overflow: clip; overflow-clip-margin: 4px; background: none; border: 0; box-shadow: none;
   --pt-halo: none;
 }
-/* (overflow-clip-margin: glyph overhangs at the edges — italic, serif, «X» at x = 0 — are not cut) */
 .pt-face[data-mode="free"] { height: calc(var(--pt-h, 96px) * var(--pl-font, 1)); padding: 0; }
 .pt-b {
   font-size: calc(1em * var(--pt-size, 1)); line-height: 1.22; min-width: 0;
@@ -24,13 +19,10 @@
 .pt-up { color: var(--mp-up, #3fb27f); }
 .pt-down { color: var(--mp-down, #e5534b); }
 .pt-miss { opacity: .45; }
-/* with a halo (over the desktop / a translucent window) the muted colour is a step stronger: thin grey text in a glow smudged */
 :is(.pt-face[data-halo="soft"], .pt-face[data-halo="strong"], [data-pl-place="screen"] .pt-face[data-halo="auto"],
   :root:is([data-glass], [data-backdrop], [data-design="glass"]) .pt-face[data-halo="auto"]) .pt-b[style*="--mp-muted"] {
   color: color-mix(in srgb, var(--mp-muted, var(--muted)) 60%, var(--text)) !important; }
 .pl-face.pt-face[data-state="stale"] { opacity: .82; }
-
-/* the halo: «auto» — none in an opaque window, soft over a translucent window and on the desktop (screen layer) */
 .pt-face[data-halo="soft"],
 :root:is([data-glass], [data-backdrop], [data-design="glass"]) .pt-face[data-halo="auto"],
 [data-pl-place="screen"] .pt-face[data-halo="auto"] {
@@ -40,11 +32,8 @@
   --pt-halo: 0 0 1px var(--bg), 0 0 2px var(--bg), 0 1px 3px color-mix(in srgb, var(--bg) 90%, transparent), 0 0 14px color-mix(in srgb, var(--bg) 75%, transparent);
 }
 .pt-face[data-halo="off"] { --pt-halo: none; }
-
-/* the built-in section: a text tile sizes to its text (flow) or to its box (free); the grid gives it a wider column */
 .qpe-tile[data-pl-style="text"] > .pt-face { min-height: 0; height: auto; }
 .qpe-tile[data-pl-style="text"] > .pt-face[data-mode="free"] { height: calc(var(--pt-h, 96px) * var(--pl-font, 1)); }
 .qpe:has(> [data-pl-style="text"] > .pt-face) { --qpe-min: 150px; row-gap: 12px; }
-/* the window grid and the screen layer size the cell: the text fills it (free blocks stay at their % positions) */
 .qcv-item > .pt-face[data-mode="free"], .ql-body > .pt-face[data-mode="free"] { height: 100%; }
 .qcv-item > .pt-face, .ql-body > .pt-face { font-size: calc(clamp(12px, 9cqh, 18px) * var(--pl-font, 1)); }

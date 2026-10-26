@@ -16,16 +16,14 @@ import httpx
 BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8602"
 REPORT = Path(sys.argv[2] if len(sys.argv) > 2 else "_live_report.json")
 
-
 def show(results: list, name: str, ok: bool, detail: object) -> None:
     results.append((name, ok, detail))
     print(f"{'PASS' if ok else 'FAIL'}  {name}  :: {detail}")
 
-
 def main() -> int:
     results: list[tuple[str, bool, object]] = []
     with httpx.Client(timeout=600) as client:
-        # --- список моделей через мост
+
         payload = client.post(f"{BASE}/api/pg/modules/models", json={}).json()
         rows = payload.get("models") or []
         caps = payload.get("capabilities") or {}
@@ -45,7 +43,6 @@ def main() -> int:
             show(results, f"Модуль {module_id} включается", response.status_code == 200,
                  response.status_code)
 
-        # --- права: модуль без media обязан получить отказ
         client.post(f"{BASE}/api/pg/modules", json={
             "id": "live-perm", "title": "Perm", "js": "void 0",
             "permissions": ["storage"], "persist": []})
@@ -58,12 +55,11 @@ def main() -> int:
         show(results, "Без права files разбор файла запрещён", denied_extract.status_code == 403,
              denied_extract.status_code)
 
-        # --- настоящий запрос к модели через мост
         chosen = str(caps.get("default") or "") or (text_models[0]["id"] if text_models else "")
         if not chosen:
             show(results, "Есть модель по умолчанию", False, "ни одной")
             return 1
-        # Провайдеры бывают перегружены: перебираем модели, пока одна ответит.
+
         answer = ""
         error = ""
         used = ""
@@ -88,9 +84,7 @@ def main() -> int:
             show(results, "Ответ содержит перевод, а не заглушку",
                  any(word in answer.lower() for word in ("weather", "park", "walk")),
                  answer[:160].replace("\n", " "))
-        # Какой бы ни была причина отказа, это должна быть понятная причина
-        # окружения (баланс, сеть, аккаунт), а не ошибка кода вроде
-        # UnicodeEncodeError — такую раньше давал лог провайдера Kiro.
+
         code_errors = ("UnicodeEncodeError", "charmap", "codec can't encode",
                        "Traceback", "KeyError", "AttributeError", "TypeError",
                        "object dict can't be used", "Internal Server Error")
@@ -98,7 +92,6 @@ def main() -> int:
         show(results, "Отказ модели — состояние аккаунта, а не ошибка кода", not hit,
              f"похоже на дефект: {hit}" if hit else error[:120])
 
-        # --- потоковый ответ
         chunks = 0
         first = None
         stream_model = used or chosen
@@ -120,7 +113,6 @@ def main() -> int:
         show(results, "Потоковый ответ приходит частями", chunks > 1,
              f"{chunks} частей, первая через {first:.1f} с" if first else f"{chunks} частей")
 
-        # --- запрос с сохранением в чат модуля
         if used:
             client.post(f"{BASE}/api/pg/modules/request", json={
                 "module_id": "translator", "model": used,
@@ -135,7 +127,6 @@ def main() -> int:
             show(results, "Запрос с keep_in_chat попадает в чат модуля", True,
                  "пропущено: ни одна модель не ответила")
 
-        # --- настоящая генерация изображения через маршрут модуля
         if image_models:
             generated = None
             for candidate in image_models[:3]:
@@ -175,7 +166,6 @@ def main() -> int:
             else:
                 show(results, "Живая генерация изображения", False, f"ни одна модель не дала кадр: {text[:200]}")
 
-        # --- сохранение файла на диск
         saved = client.post(f"{BASE}/api/pg/modules/download", json={
             "module_id": "design", "name": "live-check.html",
             "text": "<!doctype html><title>live</title><h1>проверка</h1>",
@@ -189,7 +179,6 @@ def main() -> int:
                  f"{Path(path).stat().st_size} байт")
             Path(path).unlink(missing_ok=True)
 
-        # --- пакет для другой ИИ: маршрут готовит содержимое, клиент пишет файлы
         bundle = client.post(f"{BASE}/api/pg/modules/handoff", json={
             "module_id": "design",
             "prompt": "Сайт кофейни: главная, меню, контакты.",
@@ -221,7 +210,6 @@ def main() -> int:
             if ok:
                 Path(written).unlink(missing_ok=True)
 
-        # --- озвучка локальным движком
         speech = client.post(f"{BASE}/api/pg/modules/speak", json={
             "module_id": "studio", "text": "Проверка озвучки"})
         speech_body = speech.json() if "json" in speech.headers.get("content-type", "") else {}
@@ -230,7 +218,6 @@ def main() -> int:
              f"{len(audio)} символов, {speech_body.get('mime')}" if audio
              else str(speech_body or speech.text)[:150])
 
-        # --- расшифровка: маршрут обязан дойти до движка, а не упасть
         silent = ("data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=")
         transcribe = client.post(f"{BASE}/api/pg/modules/transcribe",
                                  json={"module_id": "studio", "audio": silent})
@@ -238,7 +225,6 @@ def main() -> int:
              transcribe.status_code in (200, 400, 409, 503),
              f"{transcribe.status_code}: {str(transcribe.json())[:100]}")
 
-        # --- уборка тестового модуля
         client.post(f"{BASE}/api/pg/modules/delete", json={"id": "live-perm"})
 
     failed = [name for name, ok, _ in results if not ok]
@@ -250,7 +236,6 @@ def main() -> int:
         [{"name": n, "ok": o, "detail": str(d)} for n, o, d in results],
         ensure_ascii=False, indent=1), encoding="utf-8")
     return 1 if failed else 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

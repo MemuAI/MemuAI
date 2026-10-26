@@ -20,7 +20,6 @@ from round29_integrate_ui_shots import CHECK_JS, DESIGN_JS, seed_chats  # noqa
 
 DESIGNS = ["classic", "aurora", "focus", "grid", "glass", "soft", "terminal", "brutal"]
 
-# visible scroll containers whose content barely overflows (a scrollbar for 1–6px) or scroll sideways
 BARS_JS = r"""(sel) => {
   const out = [];
   const roots = sel ? [...document.querySelectorAll(sel)] : [document.body];
@@ -39,7 +38,6 @@ BARS_JS = r"""(sel) => {
 
 RESET_JS = """() => { try { MemuSearch.close(); } catch (e) {} document.querySelectorAll('.pln-pop, .msx-more-pop').forEach((n) => n.remove());
   try { typeof closePanel === 'function' && closePanel(); } catch (e) {} }"""
-
 
 def states(lang):
     en = lang == "en"
@@ -63,7 +61,6 @@ def states(lang):
     S.append(("set-ap-shape", "document.querySelector('#appearance-shape-section')?.scrollIntoView({block:'start'})", 500, "#panel"))
     S.append(("set-ap-motion", "document.querySelector('#appearance-motion-section')?.scrollIntoView({block:'start'})", 500, "#panel"))
     return S
-
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("out"); ap.add_argument("--lang", default="ru"); ap.add_argument("--size", default="1366x768")
@@ -103,7 +100,7 @@ def main():
             for design in a.designs.split(","):
                 for theme in a.themes.split(","):
                     tag = f"{a.tag}{design}-{theme}-{a.lang}-{w}"
-                    page.evaluate(RESET_JS); page.evaluate(DESIGN_JS, [design, theme]); page.wait_for_timeout(1500)   # the theme cross-fade must end before «home»
+                    page.evaluate(RESET_JS); page.evaluate(DESIGN_JS, [design, theme]); page.wait_for_timeout(1500)
                     for name, code, wait, sel in states(a.lang):
                         if only and name not in only: continue
                         cur["s"] = f"{tag}-{name}"
@@ -120,7 +117,7 @@ def main():
                         if not en: res["cyr"] = []
                         report["states"][cur["s"]] = {k: v for k, v in res.items() if v}
                         if not a.noshot: page.screenshot(path=str(out / f"{tag}-{name}.png"))
-                    # the report grows after every combo: a killed run keeps what it has checked
+
                     (out / f"report-{tag}.json").write_text(json.dumps({k: v for k, v in report["states"].items() if k.startswith(tag + "-")}, ensure_ascii=False, indent=1), encoding="utf-8")
             b.close()
     finally:
@@ -128,7 +125,6 @@ def main():
     (out / f"errors-{a.tag}{a.lang}-{w}.json").write_text(json.dumps(report["errors"], ensure_ascii=False, indent=1), encoding="utf-8")
     bad = {k: v for k, v in report["states"].items() if v}
     print(f"{len(report['states'])} states, {len(bad)} flagged, {len(report['errors'])} errors")
-
 
 if __name__ == "__main__":
     main()

@@ -55,7 +55,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
 server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
 threading.Thread(target=server.serve_forever, daemon=True).start()
-OUT = ROOT / "audit-results"
+OUT = ROOT / "build" / "round60-catalog-benchmarks"
+OUT.mkdir(parents=True, exist_ok=True)
 
 async def check():
     edge, checks = EdgeAutomation(), []
@@ -82,6 +83,7 @@ async def check():
     try:
         await navigate("catalog",lang="en",delayEQ=3000);await wait(".mc-model-description")
         assert await ui("return d.querySelectorAll('[data-model=\"google/gemini-3.5-flash\"]').length;")==1
+        await wait('[data-model="extra/additional"] .mc-model-description')
         await ui("d.querySelector('[data-model=\"extra/additional\"] .mc-model-description').click();")
         await wait('#card[data-model="extra/additional"]')
         assert 'Models.dev · Extra provider' in await ui("return d.querySelector('#card').textContent;")
@@ -105,8 +107,7 @@ async def check():
         await ui("d.querySelector('#compare-benchmarks details').open=false;")
         await ui("d.querySelector('#main').scrollTop=d.querySelector('#compare-benchmarks').offsetTop-20;")
         await shot("round17-catalog-benchmarks-compare.png")
-        # An early score appears before the delayed EQ job has completed. A click on
-        # disabled Refresh is ignored by the browser; the old test raced that state.
+
         busy_before_refresh=await ui("return d.querySelector('[data-refresh-benchmarks]').disabled;")
         if busy_before_refresh:
             before_ignored=await evaluate("window.calls.filter(c=>c.action==='fetch'&&c.payload.url.includes('artificialanalysis')).length")

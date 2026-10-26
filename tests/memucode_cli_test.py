@@ -21,13 +21,6 @@ from pathlib import Path
 os.environ["MEMUCODE_NO_PROXY_LAUNCH"] = "1"
 os.environ["MEMUAI_PROXY_URL"] = "http://127.0.0.1:9"
 
-# `unittest discover -s tests` does not import tests/__init__.py, and another
-# module may import app.config first — so MEMUAI_DATA_DIR cannot be relied on.
-# Every data path the CLI touches is redirected here in setUpModule instead.
-# Under discovery this file is imported twice — as ``memucode_cli_test`` and, by
-# the modules that reuse its fixtures, as ``tests.memucode_cli_test``. Both copies
-# must share ONE temporary folder, otherwise the second import redirects the
-# config dir away from the first copy's folder and the safety net below fires.
 _SHARED = Path(os.environ.get("MEMUCODE_TEST_DATA") or "")
 if _SHARED.name.startswith("memucode-cli-tests-") and _SHARED.is_dir():
     TEST_DATA = _SHARED
@@ -55,7 +48,6 @@ from app.decisions import DecisionClient, DecisionsError, Question  # noqa: E402
 
 set_language("en")
 
-
 def setUpModule():
     import app.config
     import app.mcp_client
@@ -64,7 +56,7 @@ def setUpModule():
     from app import code_skills
     from app.cli import llm as cli_llm
     from app.cli import voice as cli_voice
-    # Another module's tearDown may have restored the variable: set it again.
+
     os.environ["MEMUCODE_CONFIG_DIR"] = str(TEST_DATA / "memucode")
     memu = TEST_DATA / "memuai"
     for module, name, value in (
@@ -78,18 +70,17 @@ def setUpModule():
             (pricing, "CATALOG_MODULE_CACHE", memu / "modules" / "persist" / "catalog.json"),
             (pricing, "OVERRIDES_FILE", memu / "pricing-overrides.json"),
             (pricing, "_index_stamp", (-2.0, -2.0)),
-            # Runtime housekeeping would download the online price list: no network in tests.
+
             (pricing, "refresh_online", lambda **_kwargs: {})):
         patcher = patch.object(module, name, value)
         patcher.start()
         _PATCHES.append(patcher)
-    # A safety net: fail loudly rather than write into someone's real profile.
+
     for path in (paths.home(), paths.memu_dir(), paths.sessions_root(), code_stats._path(),
                  code_checkpoints.CHECKPOINT_ROOT, pricing.OWN_CACHE, app.mcp_client.CONFIG_PATH,
                  app.model_info._path(), paths.history_file(), paths.user_settings_file()):
         if not str(Path(path).resolve()).startswith(str(TEST_DATA.resolve())):
             raise RuntimeError(f"test data path escapes the temporary folder: {path}")
-
 
 def tearDownModule():
     while _PATCHES:
@@ -98,7 +89,6 @@ def tearDownModule():
         os.environ.pop("MEMUCODE_CONFIG_DIR", None)
     else:
         os.environ["MEMUCODE_CONFIG_DIR"] = _ENV_BEFORE
-
 
 class Scripted(Backend):
     """A model that answers from a list; native mode emits real tool calls."""
@@ -125,7 +115,6 @@ class Scripted(Backend):
         yield StreamEvent("usage", usage=Usage(input=1000, output=100, estimated=False, requests=1))
         yield StreamEvent("done", finish="stop")
 
-
 class Recorder(BaseUI):
     interactive = True
 
@@ -151,7 +140,6 @@ class Recorder(BaseUI):
         items, self.queued = self.queued, []
         return items
 
-
 def make_runtime(files=None, *, native=False, turns=(), settings=None, ui=None):
     root = Path(tempfile.mkdtemp(prefix="memucode-test-"))
     for name, text in (files or {}).items():
@@ -165,12 +153,8 @@ def make_runtime(files=None, *, native=False, turns=(), settings=None, ui=None):
     runtime.router._models = [ModelInfo(id="test-model", provider="custom", context=200_000, vision=True)]
     return runtime, backend
 
-
 def run(coro):
     return asyncio.run(coro)
-
-
-# ---------------------------------------------------------------- settings
 
 class SettingsTests(unittest.TestCase):
     def test_layers_merge_and_permission_lists_concatenate(self):
@@ -183,11 +167,11 @@ class SettingsTests(unittest.TestCase):
         settings = Settings(root, {"theme": "dark-ansi"})
         settings.trust()
         self.assertEqual(settings.get("effort"), "high")
-        self.assertEqual(settings.get("theme"), "dark-ansi")            # CLI wins
+        self.assertEqual(settings.get("theme"), "dark-ansi")
         self.assertEqual(settings.source_of("theme"), "cli")
         self.assertIn("Bash(npm test:*)", settings.get("permissions.allow"))
         self.assertIn("Edit(src/**)", settings.get("permissions.allow"))
-        self.assertEqual(settings.get("proxy_api_key"), "")               # secrets never come from a project
+        self.assertEqual(settings.get("proxy_api_key"), "")
         self.assertTrue(any("secret" in warning for warning in settings.warnings))
 
     def test_set_validates_and_refuses_project_secrets(self):
@@ -211,9 +195,6 @@ class SettingsTests(unittest.TestCase):
         settings.trust()
         (root / "sub").mkdir()
         self.assertTrue(settings.is_trusted(root / "sub"))
-
-
-# ---------------------------------------------------------------- protocol
 
 class ProtocolTests(unittest.TestCase):
     def test_parser_handles_the_shapes_web_models_produce(self):
@@ -255,9 +236,6 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(reasoning.strip(), "plan it")
         self.assertEqual(answer, "Answer")
 
-
-# ---------------------------------------------------------------- permissions
-
 class PermissionTests(unittest.TestCase):
     def test_rules_and_command_analysis(self):
         runtime, _ = make_runtime()
@@ -297,9 +275,9 @@ class PermissionTests(unittest.TestCase):
             self.assertTrue((await check("Bash", {"command": "echo hi && git status"})).allow)
             manager.set_mode("bypassPermissions")
             from app.cli.tools.base import ToolError
-            with self.assertRaises(ToolError):                                      # refused before any prompt
+            with self.assertRaises(ToolError):
                 await check("Bash", {"command": "shutdown /s /t 0"})
-            self.assertFalse((await check("Read", {"file_path": ".env"})).allow)   # deny beats bypass
+            self.assertFalse((await check("Read", {"file_path": ".env"})).allow)
             manager.set_mode("plan")
             decision = await check("Write", {"file_path": "b.txt", "content": "y"})
             self.assertFalse(decision.allow)
@@ -312,9 +290,6 @@ class PermissionTests(unittest.TestCase):
             self.assertEqual(runtime.ui.events[-1][0], "ask")
 
         run(scenario())
-
-
-# ---------------------------------------------------------------- tools
 
 class ToolTests(unittest.TestCase):
     def call(self, runtime, name, args, turn="t1"):
@@ -413,9 +388,6 @@ class ToolTests(unittest.TestCase):
         self.assertFalse(failing.ok)
         self.assertEqual(failing.meta.get("exit_code"), 3)
 
-
-# ---------------------------------------------------------------- agent loop
-
 class AgentLoopTests(unittest.TestCase):
     def test_text_protocol_round_trip(self):
         runtime, backend = make_runtime({"app.py": "def add(a, b):\n    return a - b\n"}, turns=[
@@ -432,7 +404,7 @@ class AgentLoopTests(unittest.TestCase):
         self.assertIn('<result tool="Read"', second)
         self.assertIn("return a - b", second)
         self.assertIn("How to call tools", backend.requests[0].system)
-        self.assertIn("app.py", backend.requests[0].system)            # the real project listing
+        self.assertIn("app.py", backend.requests[0].system)
         roles = [message["role"] for message in runtime.session.messages]
         self.assertEqual(roles, ["user", "assistant", "tool", "tool", "assistant", "tool", "assistant"])
 
@@ -462,7 +434,7 @@ class AgentLoopTests(unittest.TestCase):
         result = run(Agent(runtime).run_turn("go"))
         self.assertEqual(result.stopped, "done")
         texts = [str(request.messages[-1]["content"]) for request in backend.requests[1:]]
-        self.assertIn("could not be read", texts[0])          # says which call, where, and what to send again
+        self.assertIn("could not be read", texts[0])
         self.assertIn("line 2", texts[0])
         self.assertIn("Unknown or unavailable tool", texts[1])
         self.assertIn("denied", texts[2])
@@ -535,9 +507,6 @@ class AgentLoopTests(unittest.TestCase):
         self.assertEqual(runtime.permissions.mode, "acceptEdits")
         self.assertEqual((runtime.root / "p.txt").read_text(), "b")
 
-
-# ---------------------------------------------------------------- sessions and compaction
-
 class SessionTests(unittest.TestCase):
     def test_transcript_persists_images_rewind_fork_and_listing(self):
         root = Path(tempfile.mkdtemp())
@@ -584,7 +553,7 @@ class SessionTests(unittest.TestCase):
         self.assertIn("SUMMARY OF EARLIER WORK", view[0]["content"])
         self.assertEqual(view[-1]["content"], "answer 7")
         self.assertNotIn("request 0", json.dumps(view[1:], ensure_ascii=False))
-        self.assertEqual(len(runtime.session.messages), 17)            # nothing deleted from the transcript
+        self.assertEqual(len(runtime.session.messages), 17)
 
     def test_old_large_tool_results_are_elided(self):
         runtime, _ = make_runtime()
@@ -598,9 +567,6 @@ class SessionTests(unittest.TestCase):
         messages = convert.to_text_protocol(session.api_messages())
         self.assertIn(convert.ELIDED, json.dumps(messages, ensure_ascii=False))
         self.assertIn("x" * 100, json.dumps(messages[-1]))
-
-
-# ---------------------------------------------------------------- pricing and statistics
 
 class PricingTests(unittest.TestCase):
     def test_housekeeping_does_not_start_after_shutdown(self):
@@ -641,9 +607,6 @@ class PricingTests(unittest.TestCase):
         row = next(item for item in summary["models"] if item["model"] == "genspark-claude-opus-5")
         self.assertAlmostEqual(row["cost"], 0.2 * 5 + 0.01 * 25, places=4)
         self.assertGreaterEqual(summary["cost"]["api_equivalent"], row["cost"])
-
-
-# ---------------------------------------------------------------- decision model
 
 class DecisionTests(unittest.TestCase):
     def test_http_contract_retries_and_errors(self):
@@ -696,9 +659,6 @@ class DecisionTests(unittest.TestCase):
         self.assertEqual(answer.choice, "yes")
         self.assertAlmostEqual(answer.probabilities["yes"], 0.75)
 
-
-# ---------------------------------------------------------------- project files and commands
-
 class ProjectTests(unittest.TestCase):
     def test_memory_files_imports_custom_commands_and_skills(self):
         runtime, _ = make_runtime({
@@ -726,7 +686,7 @@ class ProjectTests(unittest.TestCase):
         from app.cli import commands
         for module in ("config_cmds", "dashboard_cmds", "decisions_cmds", "foreign_cmds", "import_cmds", "info_cmds",
                        "model_cmds", "routing_cmds", "schedule_cmds", "session_cmds", "skill_cmds", "work_cmds"):
-            importlib.import_module("app.cli.commands." + module)   # registers the commands
+            importlib.import_module("app.cli.commands." + module)
         names = set()
         for command in commands.REGISTRY.values():
             self.assertTrue(command.ru and command.en, command.name)
@@ -740,9 +700,6 @@ class ProjectTests(unittest.TestCase):
                          "decisions", "init", "review", "status", "export", "theme", "vim", "hooks", "agents", "tasks"):
             self.assertIn(required, names)
         self.assertGreaterEqual(len(commands.REGISTRY), 60)
-
-
-# ---------------------------------------------------------------- terminal UI and headless mode
 
 class InterfaceTests(unittest.TestCase):
     def test_startup_question_takes_keys_typed_before_the_interface_started(self):
@@ -766,7 +723,7 @@ class InterfaceTests(unittest.TestCase):
                 ui = TerminalUI(runtime)
                 output = Vt100_Output(sink, lambda: Size(rows=40, columns=100), term="xterm-256color", enable_cpr=False)
                 with create_pipe_input() as keys:
-                    keys.send_text("\x1b[B\n")          # typed ahead: Down, then Enter as a line feed
+                    keys.send_text("\x1b[B\n")
                     answered = cli_main._onboarding(ui)
 
                     async def after_start(terminal):
@@ -786,7 +743,7 @@ class InterfaceTests(unittest.TestCase):
             self.assertEqual(runtime.settings.get("theme"), "light")
             self.assertTrue(runtime.settings.get("onboarded"))
         finally:
-            # The other interface tests expect the default theme.
+
             if backup is None:
                 prefs.unlink(missing_ok=True)
             else:
@@ -845,8 +802,7 @@ class InterfaceTests(unittest.TestCase):
         self.assertEqual(runtime.permissions.mode, "acceptEdits")
 
     def test_fresh_install_without_a_chosen_model(self):
-        # A first run has no model in the settings: the MemuAI default is used,
-        # and with nothing at all the headless mode explains what to do.
+
         from app.cli import headless
         prefs = paths.memu_dir() / "preferences.json"
         backup = prefs.read_bytes() if prefs.exists() else None
@@ -905,7 +861,6 @@ class InterfaceTests(unittest.TestCase):
         self.assertEqual(data["session_id"], runtime.session.id)
         self.assertGreater(data["usage"]["input_tokens"], 0)
 
-
 class PackagingTests(unittest.TestCase):
     ROOT = Path(__file__).resolve().parents[1]
 
@@ -917,13 +872,11 @@ class PackagingTests(unittest.TestCase):
         self.assertEqual(target["entry"], "memucode.py")
         self.assertIn("--console", build.pyinstaller_cmd(target, False))
         self.assertIn("--windowed", build.pyinstaller_cmd(build.TARGETS["memuai"], False))
-        self.assertIn("faster_whisper", target["exclude"])   # the speech engine stays in MemuAI
-        # Round 29: the default exe list also builds MemuNote after the CLI.
+        self.assertIn("faster_whisper", target["exclude"])
+
         self.assertRegex((self.ROOT / "build.py").read_text(encoding="utf-8"),
-                         r'\[(?:"[a-z_]+", )*"memucode"(?:, "[a-z_]+")*\]')   # Round 40: longest builds first   # Round 35: + memufiles, memu
-        # MemuAI Setup (installer/, Round 20) ships dist/MemuCode into {app}\\MemuCode,
-        # puts that folder on the user PATH, tells running programs (WM_SETTINGCHANGE)
-        # and takes the entry off PATH again when the CLI is deselected or uninstalled.
+                         r'\[(?:"[a-z_]+", )*"memucode"(?:, "[a-z_]+")*\]')
+
         from installer import engine as setup_engine, products
         cli_component = products.SUITE.component("memucode")
         self.assertEqual(cli_component.source, "dist/MemuCode")
@@ -935,7 +888,7 @@ class PackagingTests(unittest.TestCase):
         self.assertIn("broadcast_environment", engine_source)
         self.assertIn("removing=True", engine_source)
         winplat = (self.ROOT / "installer" / "winplat.py").read_text(encoding="utf-8")
-        self.assertIn('SendMessageTimeoutW(0xFFFF, 0x001A, 0, "Environment"', winplat)   # WM_SETTINGCHANGE
+        self.assertIn('SendMessageTimeoutW(0xFFFF, 0x001A, 0, "Environment"', winplat)
         requirements = (self.ROOT / "requirements.txt").read_text(encoding="utf-8").lower()
         for package in ("prompt_toolkit", "rich", "anthropic"):
             self.assertIn(package, requirements)
@@ -945,7 +898,6 @@ class PackagingTests(unittest.TestCase):
         from app.cli import doctor
         for module in doctor.COMPONENTS:
             importlib.import_module(module)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -22,8 +22,6 @@ MAX_WAV_BYTES = 50 * 1024 * 1024
 WORKER_TIMEOUT = 120
 _SYNTHESIS_SLOT = threading.BoundedSemaphore(1)
 
-
-# code → (Russian, English). The UI shows the message in its language (LocalTTSError.text).
 MESSAGES = {
     "tts_invalid_audio": ("TTS-модель вернула пустое или слишком большое аудио.",
                           "The TTS model returned empty or oversized audio."),
@@ -48,10 +46,9 @@ MESSAGES = {
     "tts_worker_failed": ("Не удалось озвучить текст локальной моделью. Попробуйте другой голос.",
                           "Could not read the text aloud with the local model. Try another voice."),
 }
-# Several messages share one public code: the UI and the HTTP status only distinguish these.
+
 _PUBLIC_CODE = {"tts_broken_audio": "tts_invalid_audio", "tts_no_result": "tts_worker_failed",
                 "tts_bad_result": "tts_worker_failed"}
-
 
 class LocalTTSError(RuntimeError):
     def __init__(self, code: str) -> None:
@@ -63,12 +60,10 @@ class LocalTTSError(RuntimeError):
     def text(self, lang: str = "ru") -> str:
         return self.en if lang == "en" else str(self)
 
-
 def worker_command(job_dir: Path) -> list[str]:
     if getattr(sys, "frozen", False):
         return [sys.executable, "--memuai-tts-worker", str(job_dir)]
     return [sys.executable, "-m", "app.tts_worker", str(job_dir)]
-
 
 def validate_wave(path: Path) -> None:
     if not path.is_file() or not 44 < path.stat().st_size <= MAX_WAV_BYTES:
@@ -79,7 +74,7 @@ def validate_wave(path: Path) -> None:
                     or not 8000 <= wav.getframerate() <= 96000 or wav.getnframes() <= 0):
                 raise ValueError("Invalid PCM format")
             expected = wav.getnframes() * 2
-            # Bound memory and verify that a truncated worker file is not played.
+
             received = 0
             while data := wav.readframes(32768):
                 received += len(data)
@@ -87,7 +82,6 @@ def validate_wave(path: Path) -> None:
                 raise ValueError("Truncated audio")
     except (EOFError, wave.Error, ValueError) as exc:
         raise LocalTTSError("tts_broken_audio") from exc
-
 
 def synthesize_isolated(text: str, model_file: Path, config_file: Path,
                         *, timeout: float = WORKER_TIMEOUT) -> tuple[bytes, str]:
@@ -102,8 +96,7 @@ def synthesize_isolated(text: str, model_file: Path, config_file: Path,
             job = Path(temp)
             request = {"text": text, "model": str(model_file.resolve()), "config": str(config_file.resolve())}
             (job / "request.json").write_text(json.dumps(request, ensure_ascii=False), encoding="utf-8")
-            # In a one-file PyInstaller build a separately launched instance
-            # must own its unpacked files rather than borrowing a dying parent.
+
             env = os.environ.copy()
             env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
             env["OMP_NUM_THREADS"] = "2"
@@ -121,7 +114,7 @@ def synthesize_isolated(text: str, model_file: Path, config_file: Path,
                 except subprocess.TimeoutExpired as exc:
                     raise LocalTTSError("tts_timeout") from exc
                 if exit_code != 0:
-                    # Do not expose native stderr, paths or the spoken text.
+
                     raise LocalTTSError("tts_worker_crashed")
                 status_path = job / "result.json"
                 if not status_path.is_file() or status_path.stat().st_size > 8192:
@@ -139,7 +132,7 @@ def synthesize_isolated(text: str, model_file: Path, config_file: Path,
                 validate_wave(audio_path)
                 return audio_path.read_bytes(), "audio/wav"
             finally:
-                # Always reap before TemporaryDirectory removes an open WAV.
+
                 if proc is not None:
                     if proc.poll() is None:
                         proc.kill()

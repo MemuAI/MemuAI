@@ -20,7 +20,7 @@
    "about": "Анимированный SVG: пеликан едет на велосипеде",
    "about_en": "An animated SVG of a pelican riding a bicycle",
    "compare_url": "https://pelicanbenchmark.com/?track=animated_html",
-   "prompt": "Create code for an animated SVG of a pelican riding a bicycle as nicely as you can. Pay extremely close attention to detail. The SVG should be rich in detailed elements, have a clean and beautiful UI, and the main subject should be placed on an exquisite, rich, and finely detailed SVG."
+   "prompt": "Create a self-contained HTML file with a 2D SVG animation of a pelican riding a bicycle"
   },
   {
    "id": "billion-piece-manhattan-the-entire-island-alive",

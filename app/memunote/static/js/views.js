@@ -1,13 +1,12 @@
-// MemuNote — non-text views: Markdown preview, CSV table, PDF (pdf.js), image, HTML preview, rich Document editor.
+
 import { $, api, assetUrl, rawUrl, esc, icon, t, toast, debounce, dirname, showMenu, prompt, modal, plural } from "./core.js";
 import { CM } from "./editor.js";
 
-// ================================================================== Markdown
 let _md = null;
 export function markdownIt() {
   if (_md) return _md;
   const md = new CM.MarkdownIt({ html: false, linkify: true, typographer: true, breaks: false });
-  // data-line on blocks (scroll sync) + task lists
+
   md.core.ruler.push("mn_lines", (state) => {
     for (const tok of state.tokens) if (tok.map && tok.nesting === 1) tok.attrSet("data-line", String(tok.map[0]));
     const toks = state.tokens;
@@ -20,7 +19,7 @@ export function markdownIt() {
       toks[i - 2].attrJoin("class", "task");
       const first = toks[i].children?.[0];
       if (first && first.type === "text") first.content = first.content.replace(/^\[([ xX])\]\s/, "");
-      // find enclosing list
+
       for (let j = i - 3; j >= 0; j--) { if (toks[j].type === "bullet_list_open" || toks[j].type === "ordered_list_open") { toks[j].attrJoin("class", "contains-task-list"); break; } }
     }
   });
@@ -79,7 +78,6 @@ export class MarkdownPreview {
   destroy() { this.el.remove(); }
 }
 
-// ================================================================== CSV / TSV table
 export function parseCSV(text, delim) {
   if (!delim) {
     const sample = text.slice(0, 20000).split("\n").slice(0, 20);
@@ -100,16 +98,12 @@ export function parseCSV(text, delim) {
   if (cell !== "" || row.length) { row.push(cell); rows.push(row); }
   return { rows, delim };
 }
-/** CSV text of rows (quotes only where needed: delimiter, quote, line break, edge spaces). */
+
 export function toCSV(rows, delim = ",", eol = "\n") {
   const q = (c) => { c = c ?? ""; return /["\r\n]/.test(c) || c.includes(delim) || /^\s|\s$/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c; };
   return rows.map((r) => r.map(q).join(delim)).join(eol);
 }
-/**
- * The CSV/TSV table (virtualised rows). Round 31: editable when opts.onEdit is given — double-click (or Enter/F2)
- * edits a cell, the row number / column header menus insert and delete rows and columns; every change is written
- * back as CSV text (original delimiter) through onEdit(text). opts.rows: show given rows (spreadsheets, read-only).
- */
+
 export class CsvTable {
   constructor(host, text, opts = {}) {
     this.host = host; this.opts = opts;
@@ -185,7 +179,7 @@ export class CsvTable {
     }
     this.tbody.innerHTML = rows.join("");
   }
-  // ---------------------------------------------------------------- editing
+
   changed() {
     const text = toCSV([this.header, ...this.data], this.delim, "\n") + (this.trailingNewline ? "\n" : "");
     this.opts.onEdit?.(text);
@@ -254,10 +248,8 @@ export class CsvTable {
   destroy() { this.el.remove(); }
 }
 
-// ================================================================== PDF (view + editor: pdfedit.js, Round 31)
 export { PdfView, pdfjs } from "./pdfedit.js";
 
-// ================================================================== image
 export class ImageView {
   constructor(host, tab) {
     this.el = document.createElement("div"); this.el.className = "image-view";
@@ -271,7 +263,6 @@ export class ImageView {
   destroy() { this.el.remove(); }
 }
 
-// ================================================================== HTML preview (sandboxed, no scripts)
 export class HtmlPreview {
   constructor(host, getText) {
     this.getText = getText;
@@ -284,7 +275,6 @@ export class HtmlPreview {
   destroy() { this.el.remove(); }
 }
 
-// ================================================================== rich Document editor (DOCX / ODT / RTF)
 const BLOCKS = [["p", "doc_style_normal"], ["h1", "doc_style_h1"], ["h2", "doc_style_h2"], ["h3", "doc_style_h3"], ["h4", "doc_style_h4"], ["blockquote", "doc_style_quote"], ["pre", "doc_style_code"]];
 const SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 72];
 const FONTS = ["Calibri", "Arial", "Times New Roman", "Georgia", "Segoe UI", "Verdana", "Tahoma", "Cambria", "Garamond", "Consolas", "Courier New", "JetBrains Mono"];
@@ -394,10 +384,10 @@ export class DocEditor {
   refreshState() {
     const tb = this.el.querySelector(".doc-toolbar");
     for (const c of ["bold", "italic", "underline", "strikeThrough", "superscript", "subscript", "insertUnorderedList", "insertOrderedList", "justifyLeft", "justifyCenter", "justifyRight", "justifyFull"]) {
-      let on = false; try { on = document.queryCommandState(c); } catch { /* ignore */ }
+      let on = false; try { on = document.queryCommandState(c); } catch {  }
       tb.querySelector(`[data-cmd="${c}"]`)?.classList.toggle("on", on);
     }
-    try { const block = String(document.queryCommandValue("formatBlock") || "p").toLowerCase(); const s = tb.querySelector('[data-cmd="block"]'); if (s) s.value = BLOCKS.some(([v]) => v === block) ? block : "p"; } catch { /* ignore */ }
+    try { const block = String(document.queryCommandValue("formatBlock") || "p").toLowerCase(); const s = tb.querySelector('[data-cmd="block"]'); if (s) s.value = BLOCKS.some(([v]) => v === block) ? block : "p"; } catch {  }
     this.opts.onSelection?.();
   }
   setZoom(z) { this.page.style.setProperty("--doc-zoom", z / 100); }
@@ -410,7 +400,6 @@ export class DocEditor {
   destroy() { this.el.remove(); }
 }
 
-/** A tiny find bar for the Document editor (window.find + selection replace). */
 export async function docFind(doc) {
   const q = await prompt(t("find"), t("find_text"), doc.selectionText());
   if (!q) return;

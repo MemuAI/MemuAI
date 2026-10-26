@@ -1,4 +1,3 @@
-/* Round 35 — ask_user form (askuser.js). Theme tokens only (themes.css), so every design and light/dark follow. */
 .au-stack { display: grid; gap: 10px; margin: 6px 0 10px; }
 .au-card {
   --au-r: calc(var(--radius, 14px) - 2px);
@@ -68,7 +67,6 @@ textarea.au-input { resize: vertical; min-height: 56px; line-height: 1.45; }
 .au-other-input { max-width: 360px; }
 .au-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .au-date { width: auto; min-width: 160px; color-scheme: light dark; }
-/* finish-a: follow the app theme, not the OS one (a dark app on a light Windows drew a black calendar icon on a dark field) */
 [data-theme="dark"] .au-date { color-scheme: dark; }
 [data-theme="light"] .au-date { color-scheme: light; }
 .au-num { display: inline-flex; align-items: center; gap: 6px; }
@@ -99,8 +97,6 @@ textarea.au-input { resize: vertical; min-height: 56px; line-height: 1.45; }
 .au-chip:focus-visible, .au-submit:focus-visible, .au-skip:focus-visible, .au-step:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 72%, transparent); outline-offset: 2px;
 }
-
-/* answered → one compact line */
 .au-done { display: flex; align-items: flex-start; gap: 9px; padding: 8px 12px; box-shadow: none;
   background: color-mix(in srgb, var(--panel-2, var(--card2, #f3f3f3)) 70%, transparent); }
 .au-done-mark { display: inline-grid; place-items: center; width: 20px; height: 20px; margin-top: 1px; border-radius: 50%; flex: none;
@@ -112,8 +108,6 @@ textarea.au-input { resize: vertical; min-height: 56px; line-height: 1.45; }
 .au-ans { font-size: 13px; overflow-wrap: anywhere; }
 .au-ans em { font-style: normal; color: var(--muted, var(--hint, #888)); margin-right: 2px; }
 .au-ans-muted { color: var(--muted, var(--hint, #888)); }
-
-/* compact (Quick Access, DFY card) */
 .au-compact.au-pending { padding: 10px 12px 10px; }
 .au-compact .au-head { margin-bottom: 8px; }
 .au-compact .au-title { font-size: 13.5px; }
@@ -128,8 +122,6 @@ textarea.au-input { resize: vertical; min-height: 56px; line-height: 1.45; }
   .au-submit { flex: 1; justify-content: center; }
   .au-other-input { max-width: none; }
 }
-
-/* designs */
 :root[data-design="brutal"] .au-card { border: var(--b-w, 2px) solid var(--b-line, var(--text)); border-radius: 0;
   box-shadow: var(--b-sh-1, 4px 4px 0 var(--text)); }
 :root[data-design="brutal"] .au-chip, :root[data-design="brutal"] .au-input, :root[data-design="brutal"] .au-submit,

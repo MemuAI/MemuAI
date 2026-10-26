@@ -1,7 +1,5 @@
-// MemuNote Photo — AI: vision chat about the CURRENT image (all edits applied + the edit history as text), describe,
-// alt text, captions, OCR, keywords, critique, auto-enhance and natural-language edits mapped to editor operations,
-// object location → local refinement (select / remove background / blur background / remove object), image
-// generation and AI image editing when the Proxy has an image model. All requests go through /api/photo/* (MemuAI Proxy).
+
+
 import { esc, t, toast, api, copyText, I18N, API } from "../core.js";
 import { renderMarkdown } from "../views.js";
 import { newCanvas, ctx2d, DEFAULT_TEXT, renderVector } from "./doc.js";
@@ -18,7 +16,6 @@ export class PhotoAI {
   constructor(ed) { this.ed = ed; this.msgs = []; this.caps = null; this.mode = localStorage.getItem(LS + "ai_mode") || "ask"; this.busyN = 0; }
   destroy() { this.ctrl?.abort(); }
 
-  // ---------------------------------------------------------------- capabilities
   async loadCaps(force = false) {
     if (this.caps && !force && Date.now() - this.capsAt < 30000) return this.caps;
     try { this.caps = await api("photo/caps" + (force ? "?force=1" : "")); } catch (e) { this.caps = { online: false, error: e.message, image_models: [], vision_models: [], models: [] }; }
@@ -26,7 +23,6 @@ export class PhotoAI {
   }
   get model() { const m = localStorage.getItem(LS + "model") || ""; return this.caps?.models?.some((x) => x.id === m) ? m : ""; }
 
-  // ---------------------------------------------------------------- panel
   mount(host) {
     this.host = host;
     host.innerHTML = `<div class="pai"><div class="pai-status"></div><div class="pai-actions"></div><div class="pai-log" aria-live="polite"></div>
@@ -65,7 +61,6 @@ export class PhotoAI {
       I("ph_ai_generate", "generate"), I("ph_ai_edit_image", "aiEdit"), I("ph_ai_prompt", "prompt"), I("ph_ai_palette", "palette")];
   }
 
-  // ---------------------------------------------------------------- log
   push(m) { this.msgs.push(m); this.renderLog(); return m; }
   renderLog() {
     if (!this.log) return;
@@ -96,8 +91,6 @@ export class PhotoAI {
     else if (act.startsWith("newtab:")) { const img = await loadImage(m.images[+act.slice(7)]); this.ed.hooks.newImageFromCanvas?.(canvasFromImage(img), t("ph_ai_generated")); }
   }
 
-  // ---------------------------------------------------------------- requests
-  /** The current composite (all layers, all edits) as a JPEG/PNG data URL for the vision model. */
   async snapshot(maxSide = 1280) {
     const d = this.ed.doc, k = Math.min(1, maxSide / Math.max(d.width, d.height)), min = 32;
     let w = Math.round(d.width * k), h = Math.round(d.height * k);
@@ -202,7 +195,6 @@ export class PhotoAI {
     if (autoApply && ops.length) this.msgAction(this.msgs.indexOf(m), "apply");
   }
 
-  // ---------------------------------------------------------------- operations from the model
   async applyOps(ops, label) {
     const ed = this.ed, d = ed.doc;
     d.beginGroup(label.slice(0, 80));
@@ -216,7 +208,7 @@ export class PhotoAI {
   boxToDoc(box) {
     const d = this.ed.doc; if (!Array.isArray(box) || box.length < 4) return null;
     let [x0, y0, x1, y1] = box.map(Number); if (![x0, y0, x1, y1].every(Number.isFinite)) return null;
-    // the protocol asks for 0..1000; tolerate 0..1 fractions
+
     const k = Math.max(x0, y0, x1, y1) <= 1.0001 ? 1 : 1000;
     x0 = (Math.min(x0, x1) / k) * d.width; x1 = (Math.max(box[0], box[2]) / k) * d.width; y0 = (Math.min(y0, y1) / k) * d.height; y1 = (Math.max(box[1], box[3]) / k) * d.height;
     const r = { x: Math.max(0, x0), y: Math.max(0, y0) }; r.w = Math.min(d.width, x1) - r.x; r.h = Math.min(d.height, y1) - r.y;
@@ -246,7 +238,6 @@ export class PhotoAI {
     if (o.op === "fill") { const c = /^#[0-9a-f]{6}$/i.test(o.color) ? o.color : ed.fg; const prev = ed.fg; ed.fg = c; ed.cmd("fillFg"); ed.fg = prev; return; }
   }
 
-  // ---------------------------------------------------------------- locate → refine locally
   async locate(what) {
     if (!(await this.ready())) return [];
     const m = this.push({ role: "ai", text: "", status: t("ph_ai_locating", { what }) });
@@ -345,7 +336,6 @@ export class PhotoAI {
     renderVector(d, l); d.commit();
   }
 
-  // ---------------------------------------------------------------- generation
   async openGenerate(fresh = false, edit = false) {
     this.ed.showTab("ai"); await this.loadCaps();
     this.focus("gen"); this.editMode = edit; this.fresh = fresh;

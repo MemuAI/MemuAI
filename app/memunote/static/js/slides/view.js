@@ -1,5 +1,5 @@
-// MemuNote Slides — the presentation editor component (a tab kind "slides"): ribbon, slide sorter,
-// canvas with selection/move/resize/rotate/snapping, text editing, format panel, notes, history.
+
+
 import { $, $$, api, rawUrl, esc, icon, t, I18N, toast, showMenu, closeMenus, modal, prompt, confirm, debounce, kbd, basename } from "../core.js";
 import { openPptx, savePptx, newDeck, makeSlide, duplicateSlide, plainText, uid, sigOf, slideAnims } from "./pptx.js";
 import { renderSlide, renderElement, fitTexts, textHtml, isLineGeom, backgroundCss } from "./render.js";
@@ -23,9 +23,8 @@ const STD_COLORS = ["#000000", "#404040", "#7F7F7F", "#BFBFBF", "#FFFFFF", "#C00
 const THEME_KEYS = ["lt1", "dk1", "lt2", "dk2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6"];
 const SCHEME_FOR = { lt1: "bg1", dk1: "tx1", lt2: "bg2", dk2: "tx2" };
 
-let CLIP = null;   // internal clipboard {els, media, deckId} | {slides}
+let CLIP = null;
 
-/** Keys the slide editor handles itself (app.js global shortcuts must not take them while it has focus). */
 export function slidesOwnsKey(e) {
   const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
   if (e.key === "F5") return true;
@@ -51,7 +50,6 @@ export class SlidesView {
     this.load().catch((e) => { console.error(e); this.el.innerHTML = `<div class="empty-state">${icon("warn", "big")}<h3>${esc(t("sl_open_failed"))}</h3><p>${esc(e.message)}</p></div>`; });
   }
 
-  // ================================================================ loading
   async load() {
     let deck;
     if (this.tab.path) {
@@ -63,9 +61,15 @@ export class SlidesView {
     } else {
       const o = this.tab.newDeck || {};
       deck = await newDeck({ theme: THEMES.find((x) => x.id === o.theme) || THEMES[1], size: o.size || "16:9", lang: I18N.lang, title: o.title || "" });
+      if (o.starter && o.starter !== "blank") {
+        const { starterSpecs } = await import("./studio.js");
+        const { slideFromSpec } = await import("./slides-ai.js");
+        const specs = starterSpecs(o.starter,I18N.lang);
+        if (specs.length) deck.slides = specs.map(spec => slideFromSpec(deck,spec));
+      }
     }
     this.setDeck(deck);
-    // a freshly created / opened deck takes the keyboard (Ctrl+M, F5, typing…) unless the user is already typing elsewhere
+
     this.focusSoon();
     if (this.tab.pendingAI) { const job = this.tab.pendingAI; delete this.tab.pendingAI; setTimeout(() => this.ai("generate", typeof job === "object" ? job : undefined), 80); }
   }
@@ -78,13 +82,12 @@ export class SlidesView {
     this.snapshot(true);
     this.renderAll();
   }
-  text() {   // AI context / "Document → text"
+  text() {
     if (!this.deck) return "";
     return this.deck.slides.map((s, i) => `--- ${t("sl_slide")} ${i + 1}${s.hidden ? " (hidden)" : ""} ---\n` + s.elements.map((e) => elText(e)).filter(Boolean).join("\n") + (s.notes ? `\n[${t("sl_notes")}] ${s.notes}` : "")).join("\n\n");
   }
   get slide() { return this.deck?.slides[this.cur]; }
 
-  // ================================================================ layout
   build() {
     this.el.innerHTML = `
       <div class="sl-ribbon" role="toolbar"><div class="sl-rtabs" role="tablist"></div><div class="sl-rbody"></div></div>
@@ -107,7 +110,7 @@ export class SlidesView {
         <button class="sl-st-btn" data-c="zoom:in" title="${esc(t("sl_zoom_in"))}">${icon("zoomIn")}</button></div>`;
     this.$ribbon = $(".sl-ribbon", this.el); this.$thumbs = $(".sl-thumbs", this.el); this.$side = $(".sl-side", this.el);
     this.$stage = $(".sl-stage", this.el); this.$canvas = $(".sl-canvas", this.el); this.$overlay = $(".sl-overlay", this.el);
-    // narrow window: the format panel is an overlay — a click on the slide area or Esc closes it
+
     this.$stage.addEventListener("pointerdown", () => this.el.classList.remove("props-open"), true);
     this.el.addEventListener("keydown", (e) => { if (e.key === "Escape" && this.el.classList.contains("props-open") && e.target.closest?.(".sl-props")) { e.stopPropagation(); this.el.classList.remove("props-open"); this.refocus(); } }, true);
     this.$wrap = $(".sl-canvas-wrap", this.el); this.$props = $(".sl-props", this.el); this.$notes = $(".sl-notes textarea", this.el);
@@ -149,7 +152,6 @@ export class SlidesView {
     });
   }
 
-  // ================================================================ history
   touch(slide) { if (slide) slide._rev = (slide._rev || 0) + 1; }
   snapshot(initial) {
     const d = this.deck;
@@ -159,6 +161,7 @@ export class SlidesView {
     });
     const geo = JSON.stringify({ ls: d._layoutScale || null, l: [...d.layouts, ...d.masters].map((l) => [l.placeholders.map((p) => p.box), (l.decor || []).map((e) => [e.x, e.y, e.w, e.h])]) });
     const state = { slides, cur: this.cur, sel: [...this.sel], masters: JSON.stringify(d.masters.map((m) => ({ theme: m.theme, dirty: !!m._themeDirty }))), size: [d.w, d.h], geo };
+    if (this.savedPos > this.hpos) this.savedPos = -1;
     this.history = this.history.slice(0, this.hpos + 1);
     this.history.push(state);
     if (this.history.length > 200) { this.history.shift(); this.savedPos--; }
@@ -170,12 +173,21 @@ export class SlidesView {
   pushSoon() { this.updateDirty(true); clearTimeout(this._pushT); this._pushT = setTimeout(() => { this._pushT = null; this.snapshot(); }, 600); }
   restore(state) {
     const d = this.deck;
+    const activeSlideId = this.slide?.id;
+    const prevSnaps = d.slides.map((s) => s._snap);
     const previews = new Map(); for (const s of d.slides) for (const e of s.elements) if (e._preview) previews.set(e.id, e._preview);
     d.slides = state.slides.map((j) => { const s = JSON.parse(j); s._snap = j; s._snapRev = s._rev || 0; for (const e of s.elements) if (previews.has(e.id)) e._preview = previews.get(e.id); return s; });
     JSON.parse(state.masters).forEach((m, i) => { if (d.masters[i]) { d.masters[i].theme = m.theme; d.masters[i]._themeDirty = m.dirty; } });
     [d.w, d.h] = state.size;
     if (state.geo) { const g = JSON.parse(state.geo); d._layoutScale = g.ls; [...d.layouts, ...d.masters].forEach((l, i) => { const [boxes, decor] = g.l[i] || [[], []]; l.placeholders.forEach((p, k) => { p.box = boxes[k] ?? p.box; }); (l.decor || []).forEach((e, k) => { if (decor[k]) [e.x, e.y, e.w, e.h] = decor[k]; }); }); }
-    this.cur = Math.min(state.cur, d.slides.length - 1); this.sel = state.sel.filter((id) => this.slide?.elements.some((e) => e.id === id));
+    let activeIndex = d.slides.findIndex((s) => s.id === activeSlideId);
+    if (d.slides.length !== prevSnaps.length) {
+      activeIndex = Math.min(state.cur, d.slides.length - 1);
+    } else if (activeIndex >= 0 && prevSnaps[activeIndex] === state.slides[activeIndex]) {
+      const diffIdx = state.slides.findIndex((snap, idx) => snap !== prevSnaps[idx]);
+      if (diffIdx >= 0) activeIndex = diffIdx;
+    }
+    this.cur = activeIndex >= 0 ? activeIndex : Math.min(state.cur, d.slides.length - 1); this.sel = state.sel.filter((id) => this.slide?.elements.some((e) => e.id === id));
     this.slideSel = new Set([this.cur]);
     this.editing = null;
     this.renderAll();
@@ -187,7 +199,7 @@ export class SlidesView {
     if (dirty !== this.dirty) { this.dirty = dirty; this.hooks.onChange?.(); }
     this.renderRibbonState();
   }
-  /** Run a model change: fn mutates; then history + render. */
+
   change(fn, opts = {}) {
     const r = fn();
     this.touch(this.slide);
@@ -199,7 +211,6 @@ export class SlidesView {
     return r;
   }
 
-  // ================================================================ rendering
   renderAll() { if (!this.deck) return; this.renderThumbs(); this.layoutCanvas(); this.renderCanvas(); this.renderProps(); this.renderRibbon(); this.updateStatus(); this.$notes.value = this.slide?.notes || ""; }
   fitScale() {
     const W = this.$stage.clientWidth - 48, H = this.$stage.clientHeight - 40;
@@ -218,7 +229,7 @@ export class SlidesView {
   }
   renderCanvas() {
     const slide = this.slide; if (!slide) { this.$canvas.innerHTML = ""; return; }
-    if (this.editing) return;          // never re-render under the caret
+    if (this.editing) return;
     const s = this.scale;
     const node = renderSlide(this.deck, slide, { scale: s, editing: true, slideNo: this.cur + 1, prompt: (el, ph) => promptFor(el, ph) });
     this.$canvas.replaceChildren(node);
@@ -233,7 +244,6 @@ export class SlidesView {
     old.replaceWith(n); fitTexts(n.parentElement || this.$canvas);
   }
 
-  // ---------------------------------------------------------------- thumbnails (lazy)
   renderThumbs() {
     const d = this.deck;
     this.io?.disconnect();
@@ -263,7 +273,7 @@ export class SlidesView {
       if (e.shiftKey) { const a = Math.min(this.cur, i), b = Math.max(this.cur, i); this.slideSel = new Set(Array.from({ length: b - a + 1 }, (_, k) => a + k)); this.markThumbs(); return; }
       if (e.ctrlKey || e.metaKey) { this.slideSel.has(i) && this.slideSel.size > 1 ? this.slideSel.delete(i) : this.slideSel.add(i); this.markThumbs(); return; }
       if (!this.slideSel.has(i) || this.slideSel.size === 1) this.goto(i);
-      // drag to reorder
+
       const y0 = e.clientY; let dragging = false, target = -1;
       const marker = document.createElement("div"); marker.className = "sl-drop";
       const mv = (ev) => {
@@ -317,7 +327,6 @@ export class SlidesView {
     ].filter(Boolean), at);
   }
 
-  // ================================================================ slides
   goto(i, keepSel) {
     if (!this.deck) return;
     i = Math.max(0, Math.min(this.deck.slides.length - 1, i));
@@ -401,7 +410,7 @@ export class SlidesView {
     for (const i of idx) {
       const s = d.slides[i]; if (s.layout === path) continue;
       s.layout = path;
-      // placeholders that the new layout does not have keep their last position as explicit boxes
+
       const fresh = makeSlide(d, path);
       const used = new Set();
       for (const el of s.elements) {
@@ -416,7 +425,6 @@ export class SlidesView {
     this.snapshot(); this.renderAll();
   }
 
-  // ================================================================ selection & canvas interaction
   selected() { const s = this.slide; return s ? this.sel.map((id) => s.elements.find((e) => e.id === id)).filter(Boolean) : []; }
   select(ids) { this.sel = ids; this.drawOverlay(); this.renderProps(); this.renderRibbonState(); this.updateStatus(); }
   toSlide(e) { const r = this.$wrap.getBoundingClientRect(); return { x: (e.clientX - r.left) / this.scale, y: (e.clientY - r.top) / this.scale }; }
@@ -525,7 +533,7 @@ export class SlidesView {
       }
       const hx = h.includes("e") ? 1 : h.includes("w") ? -1 : 0, hy = h.includes("s") ? 1 : h.includes("n") ? -1 : 0;
       const keepAspect = ev.shiftKey !== (el.kind === "pic" && hx && hy ? true : false) && hx && hy;
-      if (multi) {   // resize the bounding box, scale every element
+      if (multi) {
         const ax = hx > 0 ? bb0.x : bb0.x + bb0.w, ay = hy > 0 ? bb0.y : bb0.y + bb0.h;
         let nw = hx ? Math.max(1e4, Math.abs(p.x - ax)) : bb0.w, nh = hy ? Math.max(1e4, Math.abs(p.y - ay)) : bb0.h;
         if (keepAspect) { const k = Math.max(nw / bb0.w, nh / bb0.h); nw = bb0.w * k; nh = bb0.h * k; }
@@ -543,7 +551,7 @@ export class SlidesView {
       let nw = hx ? Math.max(minS, hx * lx) : st.w, nh = hy ? Math.max(minS, hy * ly) : st.h;
       if (keepAspect && st.w && st.h) { const k = Math.max(nw / st.w, nh / st.h); nw = st.w * k; nh = st.h * k; }
       const guides = [];
-      if (!st.rot && !ev.altKey) {   // snap the moving edges
+      if (!st.rot && !ev.altKey) {
         const thr = 6 / this.scale;
         if (hx) { const edge = hx > 0 ? Ax + nw : Ax - nw; const sn = this.snap([edge], lines.xs, thr); if (sn) { nw += hx * sn.d; guides.push({ x: sn.at }); } }
         if (hy) { const edge = hy > 0 ? Ay + nh : Ay - nh; const sn = this.snap([edge], lines.ys, thr); if (sn) { nh += hy * sn.d; guides.push({ y: sn.at }); } }
@@ -551,7 +559,7 @@ export class SlidesView {
       const ox = hx * nw / 2, oy = hy * nh / 2;
       const Cx = Ax + ox * cos - oy * sin, Cy = Ay + ox * sin + oy * cos;
       el.w = Math.round(nw); el.h = Math.round(nh); el.x = Math.round(Cx - nw / 2); el.y = Math.round(Cy - nh / 2);
-      if (el.text?.autofit?.shape && hx && !hy) { /* width change of an auto-height text box: height follows content */ }
+      if (el.text?.autofit?.shape && hx && !hy) {  }
       this.renderCanvasQuick(el); this.drawOverlay(true, guides, `${fmtLen(el.w)} × ${fmtLen(el.h)}`);
     };
     const up = () => {
@@ -584,7 +592,6 @@ export class SlidesView {
     ov.innerHTML = html;
   }
 
-  // ---------------------------------------------------------------- creating objects
   setTool(tool) {
     this.tool = tool; this.$stage.classList.toggle("drawing", !!tool);
     if (tool) toast(t("sl_draw_hint"), { ms: 2200 });
@@ -668,7 +675,6 @@ export class SlidesView {
     this.addElements([{ id: uid(), kind: "chart", name: `Chart ${this.slide.elements.length + 1}`, rot: 0, x: Math.round((d.w - w) / 2), y: Math.round(d.h * 0.28), w: Math.round(w), h: Math.round(h), chart }]);
   }
 
-  // ---------------------------------------------------------------- editing objects
   deleteSel() {
     const ids = new Set(this.sel); if (!ids.size) return;
     this.slide.elements = this.slide.elements.filter((e) => !ids.has(e.id));
@@ -749,7 +755,7 @@ export class SlidesView {
     const media = {};
     const walk = async (list) => { for (const e of list) { if (e.pic?.media && !media[e.pic.media]) { const md = await this.deck.mediaData(e.pic.media).catch(() => null); if (md) media[e.pic.media] = md; } if (e.children) await walk(e.children); } };
     CLIP = { els: clone(els.map((e) => ({ ...e, _preview: undefined }))), media: null, deck: this.deck, slide: this.slide, text: els.map(elText).filter(Boolean).join("\n") };
-    try { await navigator.clipboard?.writeText(CLIP.text || " "); CLIP.stamp = CLIP.text || " "; } catch { /* clipboard denied */ }
+    try { await navigator.clipboard?.writeText(CLIP.text || " "); CLIP.stamp = CLIP.text || " "; } catch {  }
     walk(els).then(() => { if (CLIP && CLIP.els) CLIP.media = media; });
   }
   async onPaste(e) {
@@ -790,7 +796,6 @@ export class SlidesView {
   }
   duplicateSel() { if (!this.selected().length) return; const save = CLIP; this.copy().then(() => { CLIP.slide = this.slide; this.pasteEls(); CLIP = save || CLIP; }); }
 
-  // ---------------------------------------------------------------- text editing
   onDbl(e) {
     if (this.editing) return;
     const node = e.target.closest(".sl-slide > .sl-el"); if (!node) return;
@@ -856,7 +861,7 @@ export class SlidesView {
     if (mod && k === "j") { ev.preventDefault(); ev.stopPropagation(); this.paraCmd({ algn: "just" }); return; }
     if (mod && (k === "]" || k === "[")) { ev.preventDefault(); ev.stopPropagation(); this.fontStep(k === "]" ? 1 : -1); return; }
     if (mod && k === "a") { ev.preventDefault(); ev.stopPropagation(); TE.setSel(this.editing.target, TE.allRange(this.editText().paras)); return; }
-    ev.stopPropagation();   // typing must not reach the canvas shortcuts
+    ev.stopPropagation();
   }
   pasteIntoText(ev) {
     ev.preventDefault();
@@ -892,7 +897,7 @@ export class SlidesView {
     if (JSON.stringify(t0) !== e.before) { this.touch(this.slide); this.pushNow(); } else if (this._pushT) this.pushNow();
     this.renderCanvas(); this.refreshThumb(this.cur); this.renderRibbonState(); this.renderProps();
   }
-  /** The runs a run-format command applies to: the text selection, the word at the caret, or the whole selected objects. */
+
   runTargets() {
     const e = this.editing;
     if (e) {
@@ -910,7 +915,7 @@ export class SlidesView {
   }
   applyRun(props) {
     const tg = this.runTargets();
-    if (tg.empty) {   // empty paragraph / caret between spaces: style the paragraph's next text
+    if (tg.empty) {
       for (const p of tg.paras) { if (!p.runs.length) p.runs.push({ t: "" }); TE.setRunProps(p.runs.filter((r) => !r.br && !r.t), props); if ("sz" in props) p.endSz = props.sz; }
     }
     TE.setRunProps(tg.runs, props);
@@ -949,7 +954,7 @@ export class SlidesView {
     for (const el of this.selected()) eachText(el, (txt) => TE.mergeRuns(txt.paras));
     this.change(() => {});
   }
-  /** Effective formatting at the caret / of the selection (explicit + inherited), for the ribbon. */
+
   formatState() {
     const e = this.editing;
     let el, para, run;
@@ -976,12 +981,11 @@ export class SlidesView {
       bullet: P.bullet && P.bullet !== "none" ? (P.bullet.num ? "num" : "bullet") : "none", lnSpc: typeof P.lnSpc === "number" ? P.lnSpc : 100, lvl: para.lvl || 0, base: R.base };
   }
 
-  // ---------------------------------------------------------------- keyboard
   onKey(e) {
     if (this.showing) return;
     const mod = e.ctrlKey || e.metaKey, k = e.key.toLowerCase();
     if (isField(e.target) || e.target.isContentEditable) {
-      if (mod && k === "s") return;   // let the app save
+      if (mod && k === "s") return;
       if (e.target === this.$notes && mod && (k === "z" || k === "y")) return;
       return;
     }
@@ -1006,7 +1010,7 @@ export class SlidesView {
     if (mod && k === "e" && els.length) { e.preventDefault(); e.stopPropagation(); this.paraCmd({ algn: "ctr" }); return; }
     if (mod && k === "l" && els.length) { e.preventDefault(); e.stopPropagation(); this.paraCmd({ algn: "l" }); return; }
     if (mod && k === "r" && els.length) { e.preventDefault(); e.stopPropagation(); this.paraCmd({ algn: "r" }); return; }
-    if (mod && (k === "c" || k === "x" || k === "v")) return;      // native copy/cut/paste events
+    if (mod && (k === "c" || k === "x" || k === "v")) return;
     if (!els.length) {
       if (e.key === "ArrowRight" || e.key === "ArrowDown") { e.preventDefault(); this.goto(this.cur + 1); }
       else if (e.key === "ArrowLeft" || e.key === "ArrowUp") { e.preventDefault(); this.goto(this.cur - 1); }
@@ -1024,7 +1028,7 @@ export class SlidesView {
     }
     if ((e.key === "Enter" || e.key === "F2") && els.length === 1) { e.preventDefault(); const el = els[0]; if (el.kind === "shape" && !isLineGeom(el.geom)) this.startEdit(el, null, "all"); else if (el.kind === "table") this.startEdit(el, { r: 0, c: 0 }, "all"); return; }
     if (els.length === 1 && e.key.length === 1 && !mod && !e.altKey && els[0].kind === "shape" && !isLineGeom(els[0].geom)) {
-      // typing over a selected box replaces its text (PowerPoint behaviour)
+
       e.preventDefault();
       const el = els[0]; const first = el.text?.paras?.[0]?.runs?.find((r) => !r.br) || {};
       const props = Object.fromEntries(Object.entries(first).filter(([k]) => k !== "t"));
@@ -1035,7 +1039,6 @@ export class SlidesView {
     }
   }
 
-  // ---------------------------------------------------------------- context menu on the canvas
   onCanvasMenu(e) {
     if (this.editing && e.target.closest("[contenteditable=true]")) return;
     e.preventDefault();
@@ -1077,7 +1080,6 @@ export class SlidesView {
       .concat(["-", { label: t("sl_dist_h"), disabled: this.sel.length < 3, run: () => this.align("dist-h") }, { label: t("sl_dist_v"), disabled: this.sel.length < 3, run: () => this.align("dist-v") }]);
   }
 
-  // ================================================================ commands (ribbon / buttons)
   async cmd(c, btn) {
     const [g, a] = c.split(":");
     const els = this.selected();
@@ -1136,6 +1138,8 @@ export class SlidesView {
       case "show:current": return this.startShow(this.cur);
       case "show:presenter": localStorage.setItem("mn_sl_presenter", localStorage.getItem("mn_sl_presenter") === "0" ? "1" : "0"); return this.renderRibbon();
       case "show:hidden": return this.toggleHidden();
+      case "exp:pptx": return this.exportAs("pptx");
+      case "exp:options": return this.exportAs("options");
       case "exp:pdf": return this.exportAs("pdf");
       case "exp:png": return this.exportAs("png");
       case "exp:pngall": return this.exportAs("pngall");
@@ -1151,6 +1155,7 @@ export class SlidesView {
         if (g === "tr") return this.setTransition(a);
         if (g === "anim") return this.setAnim(a);
         if (g === "ai") return this.ai(a);
+        if (g === "studio") return (await import("./studio.js")).studioAction(this,a);
     }
   }
   shapeMenu(btn) {
@@ -1198,7 +1203,6 @@ export class SlidesView {
     this.addElements([el]);
   }
 
-  // ---------------------------------------------------------------- design
   applyTheme(id) {
     const th = THEMES.find((x) => x.id === id); if (!th) return;
     this.change(() => {
@@ -1276,30 +1280,47 @@ export class SlidesView {
     this.renderRibbon();
   }
 
-  // ================================================================ chart data
   async editChartData(el) {
     const c = el.chart;
-    const rows = [["", ...c.series.map((s) => s.name)], ...c.cats.map((cat, i) => [cat, ...c.series.map((s) => s.vals[i] ?? "")])];
-    const tsv = rows.map((r) => r.join("\t")).join("\n");
-    const r = await modal({ title: t("sl_edit_data"), wide: true, body: `<p class="muted small">${esc(t("sl_chart_data_hint"))}</p>
-      <label class="field"><span>${esc(t("sl_chart_title"))}</span><input class="input" id="ch-title" value="${esc(c.title || "")}"></label>
-      <label class="field"><span>${esc(t("sl_chart_type"))}</span><select class="input" id="ch-type">${["col", "bar", "line", "area", "pie", "doughnut"].map((v) => `<option value="${v}" ${c.type === v ? "selected" : ""}>${esc(t("sl_chart_" + v))}</option>`).join("")}</select></label>
-      <textarea class="input sl-chart-ta" id="ch-data" spellcheck="false" rows="10">${esc(tsv)}</textarea>`,
-      buttons: [{ label: t("cancel"), value: null }, { label: t("ok"), primary: true, value: (b) => ({ title: b.querySelector("#ch-title").value, type: b.querySelector("#ch-type").value, data: b.querySelector("#ch-data").value }) }] });
-    if (!r) return;
-    const lines = r.data.replace(/\r/g, "").split("\n").filter((l) => l.trim()).map((l) => l.split(/\t|;|,(?=\s*[-\d.]|\s*$)/).map((x) => x.trim()));
-    if (lines.length < 2) { toast(t("sl_chart_bad"), { kind: "error" }); return; }
-    const head = lines[0], body = lines.slice(1);
-    const series = head.slice(1).map((name, j) => ({ name, vals: body.map((row) => Number(String(row[j + 1] ?? "").replace(",", ".")) || 0) }));
-    c.series.forEach((s, j) => { if (series[j] && s.color) series[j].color = s.color; });
-    this.change(() => { el.chart = { ...c, type: r.type, title: r.title || undefined, cats: body.map((row) => row[0] ?? ""), series, unsupported: undefined }; if (!el.chart.title) delete el.chart.title; delete el.chart.unsupported; });
+    const rows = [["", ...c.series.map(s => s.name)], ...c.cats.map((cat,i) => [cat,...c.series.map(s => s.vals[i] ?? 0)])];
+    const r = await modal({ title:t("sl_edit_data"), wide:true,
+      body:`<label class="field"><span>${esc(t("sl_chart_title"))}</span><input class="input" id="ch-title" value="${esc(c.title || "")}"></label>
+      <label class="field"><span>${esc(t("sl_chart_type"))}</span><select class="input" id="ch-type">${["col","bar","line","area","pie","doughnut"].map(v=>`<option value="${v}" ${c.type===v?"selected":""}>${esc(t("sl_chart_"+v))}</option>`).join("")}</select></label>
+      <p class="muted small">${esc(t("sl_chart_grid_hint"))}</p><div class="sl-chart-grid" id="ch-grid"></div>
+      <div class="sl-chart-actions"><button type="button" class="btn" id="ch-add-row">${esc(t("sl_chart_add_row"))}</button><button type="button" class="btn" id="ch-add-series">${esc(t("sl_chart_add_series"))}</button></div>`,
+      onOpen:box=>{
+        const host=box.querySelector("#ch-grid");
+        const draw=()=>{host.innerHTML=`<table><tbody>${rows.map((row,i)=>`<tr>${row.map((value,j)=>`<td><input aria-label="${esc(t("sl_chart_cell"))} ${i+1}, ${j+1}" data-row="${i}" data-col="${j}" value="${esc(value)}" ${i>0&&j>0?'inputmode="decimal"':''}>${i===0&&j>0?`<button type="button" data-remove-series="${j}" aria-label="${esc(t("sl_chart_remove_series"))}">×</button>`:""}</td>`).join("")}<td>${i?`<button type="button" data-remove-row="${i}" aria-label="${esc(t("sl_delete"))}">×</button>`:""}</td></tr>`).join("")}</tbody></table>`;};
+        host.oninput=e=>{const {row,col}=e.target.dataset;if(row!==undefined){rows[+row][+col]=e.target.value;e.target.setCustomValidity('');}};
+        host.onclick=e=>{const b=e.target.closest('[data-remove-row]');if(b&&rows.length>2){rows.splice(+b.dataset.removeRow,1);draw();}const col=e.target.closest('[data-remove-series]');if(col&&rows[0].length>2){rows.forEach(row=>row.splice(+col.dataset.removeSeries,1));draw();}};
+        host.onpaste=e=>{if(!e.target.matches('input'))return;const text=e.clipboardData.getData('text/plain');if(!/[\t\n]/.test(text))return;e.preventDefault();const i=+e.target.dataset.row,j=+e.target.dataset.col;
+          text.replace(/\r/g,'').replace(/\n+$/,'').split('\n').slice(0,201-i).forEach((line,k)=>{while(rows.length<=i+k)rows.push(Array(rows[0].length).fill(''));line.split('\t').slice(0,21-j).forEach((v,l)=>{rows[i+k][j+l]=v;});});
+          const n=Math.max(...rows.map(r=>r.length));rows.forEach(r=>{while(r.length<n)r.push('');});draw();};
+        box.querySelector('#ch-add-row').onclick=()=>{if(rows.length<201){rows.push(Array(rows[0].length).fill(''));draw();}};
+        box.querySelector('#ch-add-series').onclick=()=>{if(rows[0].length<21){rows.forEach((r,i)=>r.push(i?0:t('sl_chart_add_series')));draw();}};
+        draw();
+      },
+      buttons:[{label:t("cancel"),value:null},{label:t("ok"),primary:true,keepOpen:true,value:box=>{
+        for(const input of box.querySelectorAll('#ch-grid input')){
+          if(+input.dataset.row>0 && +input.dataset.col>0 && input.value.trim() && !Number.isFinite(Number(input.value.replace(',','.')))){
+            input.setCustomValidity(t('sl_chart_bad'));input.reportValidity();input.focus();return;
+          }
+        }
+        return {title:box.querySelector('#ch-title').value,type:box.querySelector('#ch-type').value};
+      }}]
+    });
+    if(!r)return;
+    if(rows.slice(1).some(row=>row.slice(1).some(v=>String(v).trim() && !Number.isFinite(Number(String(v).replace(',','.')))))){toast(t('sl_chart_bad'),{kind:'error'});return;}
+    const series=rows[0].slice(1).map((name,j)=>({name:String(name),vals:rows.slice(1).map(row=>Number(String(row[j+1]??0).replace(',','.'))||0),...(c.series[j]?.color?{color:c.series[j].color}:{})}));
+    this.change(()=>{el.chart={...c,type:r.type,title:r.title || undefined,cats:rows.slice(1).map(row=>String(row[0]??'')),series};delete el.chart.unsupported;});
   }
 
-  // ================================================================ export & show
   async exportAs(kind) {
-    const { exportPdf, exportPng } = await import("./export.js");
+    const { exportPdf, exportPng, exportPptx, exportOptions } = await import("./export.js");
     try {
-      if (kind === "pdf") await exportPdf(this, this.hooks);
+      if (kind === "pptx") await exportPptx(this);
+      else if (kind === "options") await exportOptions(this);
+      else if (kind === "pdf") await exportPdf(this);
       else await exportPng(this, kind === "pngall", this.hooks);
     } catch (e) { console.error(e); toast(t("sl_export_failed") + ": " + e.message, { kind: "error", ms: 8000 }); }
   }
@@ -1313,19 +1334,18 @@ export class SlidesView {
     return mod.runAI(this, action, job);
   }
 
-  // ================================================================ saving
   async save(path, opts = {}) {
     if (this.editing) this.endEdit();
     this.pushIfPending();
+    const savedState = this.history[this.hpos];
     const bytes = await savePptx(this.deck, { ext: (/\.(\w+)$/.exec(path)?.[1] || "pptx").toLowerCase() });
     const q = new URLSearchParams({ path, mtime: String(opts.mtime || 0), force: opts.force ? "1" : "0" });
     const r = await api("save_binary?" + q, new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.presentationml.presentation" }), { raw: true, type: "application/octet-stream" });
-    if (r.ok) { this.savedPos = this.hpos; this.deck.format = "pptx"; this.deck.isNew = false; this.updateDirty(); }
+    if (r.ok) { this.savedPos = this.history.indexOf(savedState); this.deck.format = "pptx"; this.deck.isNew = false; this.updateDirty(!!this._pushT); }
     return r;
   }
   async bytes() { if (this.editing) this.endEdit(); return savePptx(this.deck); }
 
-  // ================================================================ status
   updateStatus() {
     const st = $(".sl-st-slide", this.el); if (!st || !this.deck) return;
     st.textContent = t("sl_status_slide", { n: this.cur + 1, total: this.deck.slides.length }) + (this.slide?.hidden ? " · " + t("sl_hidden") : "");
@@ -1333,10 +1353,9 @@ export class SlidesView {
     se.textContent = els.length === 1 ? (els[0].name || t("sl_kind_" + els[0].kind)) : els.length > 1 ? t("sl_n_selected", { n: els.length }) : "";
   }
 
-  // ================================================================ ribbon
   renderRibbon() {
     if (!this.$ribbon) return;
-    const tabs = [["home", "sl_tab_home"], ["insert", "sl_tab_insert"], ["design", "sl_tab_design"], ["transitions", "sl_tab_transitions"], ["animations", "sl_tab_animations"], ["show", "sl_tab_show"], ["ai", "sl_tab_ai"]];
+    const tabs = [["home", "sl_tab_home"], ["insert", "sl_tab_insert"], ["design", "sl_tab_design"], ["transitions", "sl_tab_transitions"], ["animations", "sl_tab_animations"], ["show", "sl_tab_show"], ["ai", "sl_tab_ai"], ["review", "sl_tab_review"]];
     $(".sl-rtabs", this.el).innerHTML = tabs.map(([id, k]) => `<button class="sl-rtab ${this.ribbonTab === id ? "on" : ""} ${id === "ai" ? "ai" : ""}" role="tab" aria-selected="${this.ribbonTab === id}" data-c="rtab:${id}">${id === "ai" ? icon("sparkle") : ""}${esc(t(k))}</button>`).join("");
     const B = (c, ic, label, extra = "") => `<button class="sl-b" data-c="${c}" title="${esc(label)}" aria-label="${esc(label)}" ${extra}>${ic}</button>`;
     const L = (c, ic, label, extra = "") => `<button class="sl-b wide" data-c="${c}" title="${esc(label)}" ${extra}>${ic}<span>${esc(label)}</span></button>`;
@@ -1366,6 +1385,7 @@ export class SlidesView {
     } else if (tab === "design") {
       const m0 = this.deck?.masters[0];
       h += G(THEMES.map((th) => `<button class="sl-theme ${m0?.theme.name === th.en ? "on" : ""}" data-c="theme:${th.id}" title="${esc(th[I18N.lang] || th.en)}"><span class="sl-theme-sw" style="background:${th.dark ? th.colors.dk1 : th.colors.lt1};color:${th.dark ? th.colors.lt1 : th.colors.dk1};font-family:'${th.fonts[0]}'">Aa<i style="background:${th.colors.accent1}"></i><i style="background:${th.colors.accent2}"></i><i style="background:${th.colors.accent3}"></i></span><span class="sl-theme-name">${esc(th[I18N.lang] || th.en)}</span></button>`).join(""), "themes");
+      h += G(L("studio:themes", icon("palette"), t("sl_theme_gallery")));
       h += G(L("design:colors", icon("palette"), t("sl_theme_colors")) + D("design:fonts", sic("fonts"), t("sl_theme_fonts")) + L("design:bg", sic("bg"), t("sl_background")) + D("design:size", sic("size"), t("sl_slide_size")));
     } else if (tab === "transitions") {
       const tr = this.slide?.transition;
@@ -1387,8 +1407,14 @@ export class SlidesView {
       const pres = localStorage.getItem("mn_sl_presenter") !== "0";
       h += G(L("show:start", icon("play"), t("sl_show_start") + " (F5)") + L("show:current", sic("playcur"), t("sl_show_current") + " (Shift+F5)"));
       h += G(`<button class="sl-b wide ${pres ? "on" : ""}" data-c="show:presenter">${sic("presenter")}<span>${esc(t("sl_presenter_view"))}</span></button>` + `<button class="sl-b wide ${this.slide?.hidden ? "on" : ""}" data-c="show:hidden">${sic("hide")}<span>${esc(t("sl_hide_slide"))}</span></button>`);
+      h += G(L("exp:pptx", icon("doc"), t("sl_export_pptx")) + L("exp:options", icon("settings"), t("sl_export_options")));
       h += G(L("exp:pdf", icon("pdf"), t("sl_export_pdf")) + L("exp:png", icon("image"), t("sl_export_png")) + L("exp:pngall", icon("image"), t("sl_export_png_all")));
+    } else if (tab === "review") {
+      h += G(L("studio:audit", icon("check"), t("sl_preflight")) + L("studio:coach", icon("sparkle"), t("sl_ai_review")));
+      h += G(L("studio:revise", icon("wand"), t("sl_ai_custom")));
     } else if (tab === "ai") {
+      h += G(L("studio:objects", icon("wand"), t("sl_ai_objects")));
+      h += G(L("studio:revise", icon("wand"), t("sl_ai_custom")) + L("studio:coach", icon("check"), t("sl_ai_review")));
       h += G(L("ai:generate", icon("sparkle"), t("sl_ai_generate")) + L("ai:fromdoc", icon("doc"), t("sl_ai_from_doc")));
       h += G(L("ai:improve", icon("wand"), t("sl_ai_improve")) + L("ai:shorten", sic("shrink"), t("sl_ai_shorten")) + L("ai:layout", sic("layout"), t("sl_ai_layout")));
       h += G(L("ai:notes", sic("notes"), t("sl_ai_notes")) + L("ai:notesall", sic("notes"), t("sl_ai_notes_all")) + L("ai:translate", icon("translate"), t("sl_ai_translate")));
@@ -1406,18 +1432,18 @@ export class SlidesView {
     body.querySelector("[data-c='anim:earlier']")?.addEventListener("click", (e) => { e.stopPropagation(); this.moveAnim(-1); });
     body.querySelector("[data-c='anim:later']")?.addEventListener("click", (e) => { e.stopPropagation(); this.moveAnim(1); });
   }
-  /** After load: take the keyboard once the tab is on screen, if nobody else holds it (retries a few frames while the pane is still hidden). */
+
   focusSoon(tries = 45) {
     requestAnimationFrame(() => {
       const a = document.activeElement;
       const idle = !a || a === document.body || a === document.documentElement || !a.getClientRects().length;
-      if (!idle && a.closest?.(".modal-back")) { if (tries > 0) this.focusSoon(tries - 1); return; }   // the dialog that created the deck is still fading out
+      if (!idle && a.closest?.(".modal-back")) { if (tries > 0) this.focusSoon(tries - 1); return; }
       if (!idle) return;
       if (!this.el.getClientRects().length) { if (tries > 0) this.focusSoon(tries - 1); return; }
       this.focusStage();
     });
   }
-  /** Give the keyboard to the slide stage (tab switch / new deck), unless a field of this editor already has it. */
+
   focusStage() { const a = document.activeElement; if (!this.$stage || this.showing || !this.el.getClientRects().length || (a && this.el.contains(a) && a !== this.el)) return; this.$stage.focus({ preventScroll: true }); }
   refocus() { if (this.editing) this.editing.target.focus({ preventScroll: true }); else this.$stage.focus({ preventScroll: true }); }
   onField(name, f) {
@@ -1464,7 +1490,6 @@ export class SlidesView {
     if (this.ribbonTab === "animations" && this._animSel !== els.map((e) => e.id).join()) { this._animSel = els.map((e) => e.id).join(); this.renderRibbon(); }
   }
 
-  // ================================================================ format panel
   renderProps() {
     const P = this.$props; if (!P || !this.showProps || !this.deck) return;
     if (P.contains(document.activeElement) && document.activeElement.matches("input,select,textarea") && this._propsFor === this.sel.join()) return;
@@ -1588,8 +1613,8 @@ export class SlidesView {
   }
 }
 
-// =================================================================== new presentation dialog
 export async function newDeckDialog() {
+  const { STARTERS } = await import("./studio.js");
   let theme = localStorage.getItem("mn_sl_theme") || "clean";
   const r = await modal({ title: t("sl_new_title"), wide: true, body: `<div class="sl-new">
       <div class="sl-new-label">${esc(t("sl_new_theme"))}</div>
@@ -1597,15 +1622,15 @@ export async function newDeckDialog() {
         <span class="sl-new-prev" style="background:${th.dark ? th.colors.dk1 : th.colors.lt1};color:${th.dark ? th.colors.lt1 : th.colors.dk1}">
           <b style="font-family:'${th.fonts[0]}'">${esc(th[I18N.lang] || th.en)}</b><i style="background:${th.colors.accent1}"></i><em style="background:${th.colors.accent2}"></em></span>
         <span class="sl-new-name">${esc(th[I18N.lang] || th.en)}</span></button>`).join("")}</div>
+      <div class="sl-new-label">${esc(t("sl_starter"))}</div><div class="sl-starter-grid">${STARTERS.map((item,i)=>`<label class="sl-starter"><input type="radio" name="sl-starter" value="${item.id}" ${i===0?"checked":""}><span><strong>${esc(item[I18N.lang] || item.en)}</strong><small>${esc(item["description_"+I18N.lang] || item.description_en)}</small></span></label>`).join("")}</div>
       <label class="field sl-new-size"><span>${esc(t("sl_new_size"))}</span><select class="input" id="sl-new-size"><option value="16:9">${esc(t("sl_size_169"))}</option><option value="4:3">${esc(t("sl_size_43"))}</option><option value="16:10">${esc(t("sl_size_1610"))}</option></select></label></div>`,
     onOpen: (box) => box.querySelector(".sl-new-themes").addEventListener("click", (e) => { const b = e.target.closest("[data-th]"); if (!b) return; theme = b.dataset.th; box.querySelectorAll(".sl-new-th").forEach((x) => x.classList.toggle("on", x === b)); }),
     buttons: [{ label: t("cancel"), value: null }, { label: t("sl_new_ai"), value: (b) => ({ theme, size: b.querySelector("#sl-new-size").value, ai: "dialog" }) },
-      { label: t("sl_new_blank"), primary: true, value: (b) => ({ theme, size: b.querySelector("#sl-new-size").value }) }] });
+      { label: t("sl_new_blank"), primary: true, value: (b) => ({ theme, size: b.querySelector("#sl-new-size").value, starter:b.querySelector('[name="sl-starter"]:checked').value }) }] });
   if (r) localStorage.setItem("mn_sl_theme", r.theme);
   return r;
 }
 
-// =================================================================== helpers
 export function elText(e) {
   if (e.kind === "table") return e.table.rows.map((r) => r.cells.map((c) => plainText(c.text)).join(" | ")).join("\n");
   if (e.kind === "group") return (e.children || []).map(elText).filter(Boolean).join("\n");

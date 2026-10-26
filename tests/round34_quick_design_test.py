@@ -25,10 +25,8 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 QUICK = STATIC / "quick"
 
-
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
 
 class Tokens(unittest.TestCase):
     def test_on_accent_token(self) -> None:
@@ -38,7 +36,6 @@ class Tokens(unittest.TestCase):
             text = read(STATIC / rel)
             self.assertIsNone(re.search(r"--accent-(ink|contrast|fg)\b", text), rel)
             self.assertIn("--on-accent", text, rel)
-
 
 class DesignSheet(unittest.TestCase):
     def setUp(self) -> None:
@@ -59,7 +56,6 @@ class DesignSheet(unittest.TestCase):
         self.assertRegex(css, r":where\(\.qa-card, \.qc-menu, \.qc-selbar\)[^{]*:focus-visible \{\s*outline: 2px solid")
         self.assertNotIn("!important", css.replace(":root[data-qa-cmd-check] #qa-suggest { display: none !important; }", ""))
 
-
 class Behaviour(unittest.TestCase):
     def test_narrow_placeholder(self) -> None:
         js = read(QUICK / "quick.js")
@@ -76,7 +72,7 @@ class Behaviour(unittest.TestCase):
     def test_stream_list_marker_waits(self) -> None:
         js = read(QUICK / "quick-md.js")
         line = next(l for l in js.splitlines() if "if (streaming) raw = raw.replace(/\\n[ \\t]*(" in l)
-        rx = re.compile(r"\n[ \t]*(\d{1,3}[.)]?|[-*+])[ \t]*$")   # the same pattern, Python flavour
+        rx = re.compile(r"\n[ \t]*(\d{1,3}[.)]?|[-*+])[ \t]*$")
         self.assertIn(r"(\d{1,3}[.)]?|[-*+])[ \t]*$/", line)
         for tail in ("1. Один\n2", "1. Один\n2.", "- a\n-", "- a\n  * "):
             self.assertIsNotNone(rx.search(tail), tail)
@@ -97,7 +93,6 @@ class Behaviour(unittest.TestCase):
         self.assertNotIn("m = menu.getBoundingClientRect()", js)
         self.assertNotIn("b = bar.getBoundingClientRect()", js)
 
-
 class Names(unittest.TestCase):
     OLD = ("Команды, голос и компаньон", "Commands, voice and companion", "Новые возможности", "New features")
 
@@ -107,7 +102,7 @@ class Names(unittest.TestCase):
         manifest = json.loads(read(QUICK / "plugins" / "index.json"))
         features = next(p for p in manifest["plugins"] if p["id"] == "features")
         self.assertEqual(features["title"], {"ru": "Буфер, сниппеты и стикеры", "en": "Clipboard, snippets and stickers"})
-        self.assertGreaterEqual(int(features["v"].rsplit("-r", 1)[1]), 34, features["v"])   # later rounds bump it (round26_quick_review_test)
+        self.assertGreaterEqual(int(features["v"].rsplit("-r", 1)[1]), 34, features["v"])
         fjs = read(QUICK / "plugins" / "features.js")
         self.assertIn('const SEC = () => t("Буфер, сниппеты и стикеры", "Clipboard, snippets and stickers");', fjs)
         self.assertEqual(fjs.count("Быстрый доступ → Возможности → Буфер, сниппеты и стикеры"), 2)
@@ -121,7 +116,7 @@ class Names(unittest.TestCase):
         paths += sorted((ROOT / "app" / "docs" / "ru").glob("*.md")) + sorted((ROOT / "app" / "docs" / "en").glob("*.md"))
         for path in paths:
             text = read(path)
-            # comments may name the former title («… before round 34»); user-facing strings may not
+
             text = re.sub(r"\(Round 34: was «[^»]+»\)|; «New features» before round 34|// Round 34: was «[^»]+»", "", text)
             for old in self.OLD:
                 self.assertNotIn(old, text, f"{path.name}: {old}")
@@ -130,7 +125,6 @@ class Names(unittest.TestCase):
 
     def test_settings_grammar(self) -> None:
         self.assertNotIn("в Настройки →", read(QUICK / "quick.js"))
-
 
 class CacheBusters(unittest.TestCase):
     def test_bumped(self) -> None:
@@ -150,10 +144,8 @@ class CacheBusters(unittest.TestCase):
         for plugin in ("canvas", "commands", "features"):
             self.assertGreaterEqual(int(manifest[plugin]["v"].rsplit("-r", 1)[1]), 34, (plugin, manifest[plugin]["v"]))
 
-
 if __name__ == "__main__":
     unittest.main()
-
 
 class SoftTerminalContrast(unittest.TestCase):
     def test_soft_and_terminal_small_labels_are_lifted(self):

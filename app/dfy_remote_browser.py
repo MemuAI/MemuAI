@@ -33,7 +33,6 @@ from .dfy_remote import RemoteError
 
 HEAD_LIMIT = 16 * 1024
 
-
 class CDPTunnel:
     """127.0.0.1:port → ``POST /tunnel`` агента → CDP браузера на машине."""
 
@@ -53,7 +52,7 @@ class CDPTunnel:
         """Один подписанный туннель → ``(reader, writer)`` уже после ответа агента «200»."""
         context = None
         if self.tls:
-            # как HttpTransport (verify=False): агент с самоподписанным сертификатом, подлинность — подпись HMAC
+
             context = ssl.create_default_context()
             context.check_hostname = False
             context.verify_mode = ssl.CERT_NONE
@@ -114,7 +113,6 @@ class CDPTunnel:
         except (asyncio.TimeoutError, Exception):
             pass
 
-
 async def _pump(source: asyncio.StreamReader, target: asyncio.StreamWriter) -> None:
     try:
         while True:
@@ -128,13 +126,12 @@ async def _pump(source: asyncio.StreamReader, target: asyncio.StreamWriter) -> N
     finally:
         target.close()
 
-
 class RemoteDFYBrowser(DFYBrowser):
     """``DFYBrowser`` поверх браузера на удалённой машине (через агента и ``CDPTunnel``)."""
 
     def __init__(self, machines: Any, machine_id: str, *, visible: bool = False,
                  extra_args: Optional[List[str]] = None) -> None:
-        # Имена сайтов резолвит машина (или её прокси), а не этот ПК: proxied=True — без локального DNS.
+
         super().__init__(visible=visible, extra_args=extra_args, proxied=True)
         self.machines = machines
         self.machine_id = str(machine_id)
@@ -172,7 +169,7 @@ class RemoteDFYBrowser(DFYBrowser):
             try:
                 await self.machines.call(self.machine_id, "browser_stop", {}, timeout=15)
             except Exception:
-                pass       # машина могла уйти офлайн — браузер там закроется вместе с агентом
+                pass
 
     async def clear_profile(self) -> None:
         raise RuntimeError("Профиль браузера на машине хранится у агента (каталог агента → browser-profile)")

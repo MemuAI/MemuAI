@@ -14,14 +14,13 @@ import urllib.request
 from typing import Any, Dict, List, Optional
 
 MODELS = {
-    # name → (env prefix, max_tokens). The flash model reasons visibly, so it needs room for the reasoning.
+
     "qwen": ("XKIRO", 6000),
     "flash": ("YANDEX", 8000),
-    # Other models behind the same Yandex endpoint (model id = YANDEX_MODEL with the name swapped).
+
     "oss": ("YANDEX:gpt-oss-120b", 8000),
     "qwen35": ("YANDEX:qwen3.6-35b-a3b", 8000),
 }
-
 
 def _endpoint(prefix: str):
     env, _, swap = prefix.partition(":")
@@ -30,10 +29,8 @@ def _endpoint(prefix: str):
         model = re.sub(r"/[^/]+/latest$", "/" + swap + "/latest", model)
     return env, model
 
-
 def available() -> List[str]:
     return [name for name, (prefix, _) in MODELS.items() if os.environ.get(prefix.split(":")[0] + "_KEY")]
-
 
 def chat(model: str, messages: List[Dict[str, Any]], *, max_tokens: Optional[int] = None, temperature: float = 0.3,
          retries: int = 6) -> Dict[str, Any]:
@@ -67,7 +64,7 @@ def chat(model: str, messages: List[Dict[str, Any]], *, max_tokens: Optional[int
             if exc.code == 429 and attempt < retries - 1:
                 time.sleep(15 + attempt * 15)
                 continue
-        except Exception as exc:  # network hiccups of the free endpoints
+        except Exception as exc:
             last = type(exc).__name__
         time.sleep(3 + attempt * 5)
     return {"content": "", "error": last, "usage": {}, "seconds": 0, "finish": "error"}

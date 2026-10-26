@@ -25,8 +25,6 @@ def _agents_in_play(runtime) -> bool:
     except Exception:
         return True
 
-
-
 class TodoWriteTool(Tool):
     name = "TodoWrite"
     kind = "meta"
@@ -48,10 +46,10 @@ class TodoWriteTool(Tool):
 
     async def run(self, ctx, args, prepared):
         raw = structured(args.get("todos"))
-        if isinstance(raw, dict):                      # {"todos": [...]} inside the argument, or one todo object
+        if isinstance(raw, dict):
             inner = structured(raw.get("todos"))
             raw = inner if isinstance(inner, list) else [raw]
-        if isinstance(raw, str) and raw.strip():       # a plain list of lines
+        if isinstance(raw, str) and raw.strip():
             raw = [line.strip(" -*•\t") for line in raw.splitlines() if line.strip(" -*•\t")]
         if not isinstance(raw, list):
             raise ToolError("todos must be a list of {content, status}.")
@@ -79,7 +77,6 @@ class TodoWriteTool(Tool):
         return ToolResult(ok=True, output=f"Todo list updated: {done}/{len(todos)} completed{note}.",
                           summary=tr(f"Задачи: {done}/{len(todos)}", f"Todos: {done}/{len(todos)}"),
                           meta={"todos": todos})
-
 
 class AskUserTool(Tool):
     name = "AskUserQuestion"
@@ -113,7 +110,6 @@ class AskUserTool(Tool):
                               summary=tr("Вопрос отклонён", "Question dismissed"))
         return ToolResult(ok=True, output=f"The user answered: {answer}", summary=str(answer)[:120])
 
-
 class ExitPlanModeTool(Tool):
     name = "ExitPlanMode"
     kind = "meta"
@@ -139,7 +135,7 @@ class ExitPlanModeTool(Tool):
         choice = decision.get("choice") if isinstance(decision, dict) else decision
         ctx.session.plan = plan
         if choice in ("auto", "manual"):
-            # Plan approval is about this task: the mode the other windows share is left alone.
+
             ctx.runtime.permissions.set_mode("acceptEdits" if choice == "auto" else "default", source="plan")
             return ToolResult(ok=True, output=("The user approved the plan. Plan mode is off; implement the plan "
                                                "now, step by step, tracking it with TodoWrite."),
@@ -149,7 +145,6 @@ class ExitPlanModeTool(Tool):
                                            "the plan and present it again with ExitPlanMode."
                                            + (f" Their feedback: {feedback}" if feedback else "")),
                           summary=tr("Нужны правки плана", "Plan needs changes"))
-
 
 class SkillTool(Tool):
     name = "Skill"
@@ -172,7 +167,6 @@ class SkillTool(Tool):
         return ToolResult(ok=True, output=f"<skill name=\"{skill['id']}\">\n{skill['prompt']}\n</skill>\n"
                                           "Follow these instructions for the current task.",
                           summary=tr(f"Скилл «{skill['id']}» загружен", f"Loaded skill {skill['id']}"))
-
 
 class TaskTool(Tool):
     name = "Task"
@@ -218,7 +212,7 @@ class TaskTool(Tool):
             raise ToolError("Sub-agents cannot start further sub-agents; do the work directly.")
         from ..prompts import subagent_mode, user_asked_for_agents
         if subagent_mode(ctx.runtime) == "ask" and not user_asked_for_agents(ctx.runtime):
-            # The rule is enforced here and not only in the prompt: models start agents "to be thorough".
+
             raise ToolError("Sub-agents run only when the user asks for them (agents, workers, parallel or background "
                             "work). The user did not ask for that here: do this work yourself, with your own tools.")
         prompt = str(arg(args, "prompt", "task", default="")).strip()
@@ -248,7 +242,6 @@ class TaskTool(Tool):
                           summary=result.get("summary") or tr("Готово", "Done"),
                           error=result.get("error", ""), meta={"usage": result.get("usage")})
 
-
 class TaskOutputTool(Tool):
     name = "TaskOutput"
     kind = "meta"
@@ -276,11 +269,10 @@ class TaskOutputTool(Tool):
             except asyncio.TimeoutError:
                 pass
         if job["status"] != "running":
-            ctx.runtime.discard_note(f"job:{job['id']}")     # the model has the report now: no second copy
+            ctx.runtime.discard_note(f"job:{job['id']}")
         return ToolResult(ok=True, output={"task_id": job["id"], "name": job.get("name", ""), "status": job["status"],
                                           "report": job["result"], "log": job["log"][-20:]},
                           summary=f"Agent #{job['id']}: {job['status']}")
-
 
 class AgentsTool(Tool):
     """Round 32: manage the background agents the way a lead manages helpers."""
@@ -355,12 +347,11 @@ class AgentsTool(Tool):
                 return ToolResult(ok=True, output="No agents are running.", summary=tr("Нечего ждать", "Nothing to wait for"))
             for job in rows:
                 if job["status"] != "running":
-                    ctx.runtime.discard_note(f"job:{job['id']}")     # delivered here: no second copy later
+                    ctx.runtime.discard_note(f"job:{job['id']}")
             out = [jobs.summary(job) for job in rows]
             done = sum(1 for job in rows if job["status"] != "running")
             return ToolResult(ok=True, output=out, summary=f"{done}/{len(rows)} finished")
         raise ToolError("action must be list, send, wait or cancel")
-
 
 class AdvisorTool(Tool):
     name = "Advisor"
@@ -382,7 +373,6 @@ class AdvisorTool(Tool):
         answer = await ctx.runtime.consult_advisor(question, str(args.get("context") or ""))
         return ToolResult(ok=True, output=f"Advisor ({ctx.runtime.settings.get('advisor_model')}):\n{answer}",
                           summary=tr("Совет получен", "Advice received"), detail=answer[:2000])
-
 
 class DecideTool(Tool):
     name = "Decide"
@@ -424,7 +414,6 @@ class DecideTool(Tool):
         ctx.runtime.stats.add_decision(decision)
         return ToolResult(ok=True, output=json.dumps(answer.to_dict(), ensure_ascii=False),
                           summary=f"{answer.type}: {answer.value} ({decision.latency_ms} ms)")
-
 
 def register(registry) -> None:
     for tool in (TodoWriteTool(), AskUserTool(), ExitPlanModeTool(), SkillTool(), TaskTool(), TaskOutputTool(), AgentsTool(),

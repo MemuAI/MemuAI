@@ -22,30 +22,25 @@ from typing import Any, Dict, Optional, Tuple
 
 from .pgdata import load_preferences, load_telegram_state, save_preferences, update_telegram_state
 
-ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"   # no 0/O, 1/I/L confusion
+ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
 CODE_LENGTH = 8
 CODE_TTL = 10 * 60
 MAX_ATTEMPTS = 8
-HEARTBEAT_STALE = 100          # seconds without a heartbeat → the bot is offline
-
+HEARTBEAT_STALE = 100
 
 def token_fingerprint(token: str) -> str:
     token = str(token or "").strip()
     return hashlib.sha256(token.encode("utf-8")).hexdigest()[:12] if token else ""
 
-
 def normalize_code(value: str) -> str:
     return re.sub(r"[^A-Z0-9]", "", str(value or "").upper())
-
 
 def format_code(code: str) -> str:
     code = normalize_code(code)
     return code[:4] + "-" + code[4:] if len(code) == 8 else code
 
-
 def _hash(code: str, salt: str) -> str:
     return hashlib.sha256((salt + ":" + normalize_code(code)).encode("utf-8")).hexdigest()
-
 
 def create_pairing_code(ttl: int = CODE_TTL) -> Tuple[str, float]:
     code = "".join(secrets.choice(ALPHABET) for _ in range(CODE_LENGTH))
@@ -61,7 +56,6 @@ def create_pairing_code(ttl: int = CODE_TTL) -> Tuple[str, float]:
     update_telegram_state(apply)
     return code, expires
 
-
 def cancel_pairing_code() -> None:
     def apply(data: Dict[str, Any]) -> Dict[str, Any]:
         data.pop("pairing", None)
@@ -69,12 +63,10 @@ def cancel_pairing_code() -> None:
 
     update_telegram_state(apply)
 
-
 def pairing_active(state: Optional[Dict[str, Any]] = None) -> bool:
     state = state if state is not None else load_telegram_state()
     pairing = state.get("pairing") or {}
     return bool(pairing.get("code_hash")) and float(pairing.get("expires") or 0) > time.time()
-
 
 def extract_code(text: str) -> str:
     """Code candidate from ``/start pair-XXXX``, ``/start XXXX`` or ``XXXX-XXXX``."""
@@ -86,7 +78,6 @@ def extract_code(text: str) -> str:
     if match:
         return normalize_code(match.group(1) + match.group(2))
     return ""
-
 
 def check_pairing_code(candidate: str) -> bool:
     """Consume the code when it matches; count failures otherwise."""
@@ -115,7 +106,6 @@ def check_pairing_code(candidate: str) -> bool:
     update_telegram_state(apply)
     return outcome["ok"]
 
-
 def complete_pairing(chat: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
     chat_id = str(chat.get("id") or "")
     name = " ".join(str(user.get(key) or "") for key in ("first_name", "last_name")).strip()
@@ -131,7 +121,6 @@ def complete_pairing(chat: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, An
     save_preferences({"telegram_chat_id": chat_id, "telegram_enabled": True})
     return owner
 
-
 def unpair() -> None:
     def apply(data: Dict[str, Any]) -> Dict[str, Any]:
         data.pop("owner", None)
@@ -140,7 +129,6 @@ def unpair() -> None:
 
     update_telegram_state(apply)
     save_preferences({"telegram_chat_id": ""})
-
 
 def request_restart() -> float:
     """«Restart bot» from Settings: the bot process watches ``control.restart``
@@ -154,7 +142,6 @@ def request_restart() -> float:
     update_telegram_state(apply)
     return stamp
 
-
 def status(prefs: Optional[Dict[str, Any]] = None,
            state: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Everything the Settings panel shows; no secrets."""
@@ -166,8 +153,7 @@ def status(prefs: Optional[Dict[str, Any]] = None,
     fingerprint = token_fingerprint(token)
     same_token = bool(fingerprint) and bot.get("token_fp") == fingerprint
     heartbeat = float(bot.get("heartbeat") or 0) if same_token else 0.0
-    # ``alive`` (Round 21) is written by the bot process every 30 s whatever
-    # its state; older state files only have ``heartbeat`` (written while OK).
+
     alive_stamp = float(bot.get("alive") or 0) or heartbeat
     now = time.time()
     alive = bool(alive_stamp) and now - alive_stamp < HEARTBEAT_STALE

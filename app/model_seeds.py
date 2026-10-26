@@ -15,20 +15,13 @@ from .state import ModelEntry
 
 log = logging.getLogger("memuai.model_seeds")
 
-#: Поднимается, когда у провайдера меняется форма каталога.
-#:   1 — Antigravity: единые имена моделей, уровни размышлений Gemini
-#:       (Low / Medium / High), у обоих Claude «-thinking».
-#:   2 — Antigravity: уровни размышлений у Gemini 3.7 / 3.8 Flash
-#:       (``gemini-3.8-flash-high|medium|low``). Каталог версии 1 получает только их.
 SEED_VERSION = 2
-
 
 def _antigravity_entry(public: str, note: str, template: Any) -> ModelEntry:
     if template is None:
         return ModelEntry("antigravity", "antigravity", public, note=note)
     return ModelEntry(template.prefix, template.provider, public, account_id=template.account_id,
                       enabled=template.enabled, source=template.source, note=note)
-
 
 def upgrade(state: Any) -> Dict[str, int]:
     """Применяет недостающие обновления каталога. Возвращает счётчики изменений."""
@@ -38,11 +31,9 @@ def upgrade(state: Any) -> Dict[str, int]:
     from .providers import antigravity_models
     report: Dict[str, int] = {}
     with state._lock:
-        # Без аккаунта Antigravity каталог ему не нужен: стартовые модели
-        # появятся при добавлении первого аккаунта (уже под новыми именами).
+
         if any(acc.provider == "antigravity" for acc in state.accounts.values()):
-            # Каталог, уже приведённый к единым именам, получает только новинки:
-            # модель, которую пользователь удалил после прошлого обновления, не возвращается.
+
             only_new = antigravity_models.level_variants() if previous >= 1 else None
             change = antigravity_models.upgrade_catalog(state.models, _antigravity_entry,
                                                        only_new=only_new, add_seeds=False)

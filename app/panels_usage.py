@@ -47,7 +47,7 @@ MODES = {"claude": ("auto", "cli", "desktop", "dir", "token"), "codex": ("auto",
          "antigravity": ("auto", "dir"), "kiro": ("proxy",),
          "proxy": ("proxy",), "api_budget": ("proxy",), "quota_planner": ("proxy",)}
 MAX_ACCOUNTS = 12
-MIN_SPACING = 45.0            # одному аккаунту — не чаще раза в 45 с, даже по «Обновить»
+MIN_SPACING = 45.0
 COOLDOWN_DEFAULT = 300
 COOLDOWN_MIN, COOLDOWN_MAX = 30, 3600
 USER_AGENT = "MemuAI/3.1 (panels; usage)"
@@ -58,7 +58,6 @@ AG_STATUS = "/exa.language_server_pb.LanguageServerService/GetUserStatus"
 AG_BODY = '{"metadata":{"ideName":"antigravity"}}'
 IS_WINDOWS = sys.platform == "win32"
 
-
 class UsageWall(Exception):
     """Нет чисел: ``status`` — needs_login:… | source_gone:… | blocked:rate-limit …"""
 
@@ -68,7 +67,6 @@ class UsageWall(Exception):
         self.message = scrub(message)[:300]
         self.retry_after = retry_after
 
-
 def scrub(text: Any) -> str:
     """Никаких токенов в сообщениях и журнале."""
     value = str(text or "")
@@ -77,9 +75,6 @@ def scrub(text: Any) -> str:
     value = re.sub(r"eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]*", "***jwt***", value)
     value = re.sub(r"(?i)(csrf[_-]?token[=: \"]+)[A-Za-z0-9-]{6,}", r"\1***", value)
     return value
-
-
-# ====================================================================== DPAPI
 
 def _dpapi(data: bytes, *, protect: bool, entropy: bytes = b"MemuAI.panels.usage.v1") -> bytes:
     """CryptProtectData / CryptUnprotectData текущего пользователя (только Windows)."""
@@ -103,14 +98,13 @@ def _dpapi(data: bytes, *, protect: bool, entropy: bytes = b"MemuAI.panels.usage
     blob_ent = DATA_BLOB(len(entropy), ctypes.cast(ent, ctypes.POINTER(ctypes.c_char))) if entropy else None
     blob_out = DATA_BLOB()
     ok = fn(ctypes.byref(blob_in), None, ctypes.byref(blob_ent) if blob_ent else None, None, None,
-            0x1, ctypes.byref(blob_out))       # CRYPTPROTECT_UI_FORBIDDEN
+            0x1, ctypes.byref(blob_out))
     if not ok:
         raise OSError(f"DPAPI error {ctypes.get_last_error()}")
     try:
         return ctypes.string_at(blob_out.pbData, blob_out.cbData)
     finally:
         kernel32.LocalFree(ctypes.cast(blob_out.pbData, ctypes.c_void_p))
-
 
 def protect(text: str) -> Dict[str, str]:
     raw = text.encode("utf-8")
@@ -121,13 +115,11 @@ def protect(text: str) -> Dict[str, str]:
             log.warning("usage: DPAPI protect failed: %s", type(exc).__name__)
     return {"scheme": "plain", "blob": base64.b64encode(raw).decode("ascii")}
 
-
 def unprotect(record: Dict[str, Any]) -> str:
     blob = base64.b64decode(str(record.get("blob") or ""))
     if record.get("scheme") == "dpapi":
         return _dpapi(blob, protect=False).decode("utf-8")
     return blob.decode("utf-8")
-
 
 def _secrets_path() -> Path:
     from .pgdata import MEMU_DIR, _profile_data_name
@@ -137,7 +129,6 @@ def _secrets_path() -> Path:
         name = "panels-secrets.json"
     return MEMU_DIR / name
 
-
 def _read_secrets() -> Dict[str, Any]:
     path = _secrets_path()
     try:
@@ -145,7 +136,6 @@ def _read_secrets() -> Dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
-
 
 def _write_secrets(data: Dict[str, Any]) -> None:
     path = _secrets_path()
@@ -157,7 +147,6 @@ def _write_secrets(data: Dict[str, Any]) -> None:
     except OSError:
         pass
     os.replace(tmp, path)
-
 
 def put_secret(account_id: str, token: str, extra: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     token = str(token or "").strip()
@@ -172,7 +161,6 @@ def put_secret(account_id: str, token: str, extra: Optional[Dict[str, str]] = No
     _write_secrets(data)
     return {"scheme": record["scheme"]}
 
-
 def get_secret(account_id: str) -> Optional[Dict[str, str]]:
     record = _read_secrets().get(str(account_id or ""))
     if not isinstance(record, dict):
@@ -183,21 +171,16 @@ def get_secret(account_id: str) -> Optional[Dict[str, str]]:
     except Exception:  # noqa: BLE001 — другой пользователь Windows / повреждено
         return None
 
-
 def secret_info(account_id: str) -> Dict[str, Any]:
     record = _read_secrets().get(str(account_id or ""))
     if not isinstance(record, dict):
         return {"stored": False}
     return {"stored": True, "scheme": record.get("scheme"), "at": record.get("at")}
 
-
 def drop_secret(account_id: str) -> None:
     data = _read_secrets()
     if data.pop(str(account_id or ""), None) is not None:
         _write_secrets(data)
-
-
-# ====================================================================== AES-256-GCM (Claude Desktop)
 
 def _aes_tables():
     sbox = [0] * 256
@@ -217,13 +200,10 @@ def _aes_tables():
     sbox[0] = 0x63
     return sbox
 
-
 _SBOX = _aes_tables()
-
 
 def _xtime(a: int) -> int:
     return ((a << 1) ^ 0x1B) & 0xFF if a & 0x80 else a << 1
-
 
 def _expand_key(key: bytes) -> List[List[int]]:
     nk = len(key) // 4
@@ -242,13 +222,12 @@ def _expand_key(key: bytes) -> List[List[int]]:
         words.append([words[i - nk][j] ^ temp[j] for j in range(4)])
     return [sum(words[4 * r:4 * r + 4], []) for r in range(rounds + 1)]
 
-
 def _aes_encrypt_block(round_keys: List[List[int]], block: bytes) -> bytes:
     s = [b ^ k for b, k in zip(block, round_keys[0])]
     last = len(round_keys) - 1
     for rnd in range(1, last + 1):
         s = [_SBOX[b] for b in s]
-        s = [s[(i + 4 * (i % 4)) % 16] for i in range(16)]           # ShiftRows (столбцы по 4 байта)
+        s = [s[(i + 4 * (i % 4)) % 16] for i in range(16)]
         if rnd != last:
             out = []
             for c in range(4):
@@ -260,7 +239,6 @@ def _aes_encrypt_block(round_keys: List[List[int]], block: bytes) -> bytes:
         s = [b ^ k for b, k in zip(s, round_keys[rnd])]
     return bytes(s)
 
-
 def _gmul(x: int, y: int) -> int:
     z, v = 0, y
     for i in range(127, -1, -1):
@@ -268,7 +246,6 @@ def _gmul(x: int, y: int) -> int:
             z ^= v
         v = (v >> 1) ^ (0xE1 << 120) if v & 1 else v >> 1
     return z
-
 
 def aes_gcm_decrypt(key: bytes, nonce: bytes, data: bytes) -> bytes:
     """AES-GCM (96-битный nonce, тег 16 байт в конце). Библиотека cryptography — если есть."""
@@ -301,9 +278,6 @@ def aes_gcm_decrypt(key: bytes, nonce: bytes, data: bytes) -> bytes:
         out += bytes(a ^ b for a, b in zip(chunk, stream))
     return bytes(out)
 
-
-# ====================================================================== HTTP (подменяется в тестах)
-
 async def _default_http(method: str, url: str, headers: Dict[str, str], body: Optional[str] = None, *,
                         verify: bool = True, browser: bool = False, timeout: float = 20.0) -> Tuple[int, Dict[str, str], str]:
     if browser:
@@ -316,16 +290,13 @@ async def _default_http(method: str, url: str, headers: Dict[str, str], body: Op
             pass
     import httpx
     from .tts_providers import trusts_env
-    # Only the local Antigravity server skips the proxy: api.anthropic.com is reachable for many users only
-    # through their system/VPN proxy (trust_env=False for every URL left the Claude limits «network error»).
+
     async with httpx.AsyncClient(timeout=timeout, verify=verify, follow_redirects=False,
                                  trust_env=trusts_env(url)) as client:
         resp = await client.request(method, url, headers=headers, content=body)
         return resp.status_code, {k.lower(): v for k, v in resp.headers.items()}, resp.text
 
-
 HTTP: Callable[..., Awaitable[Tuple[int, Dict[str, str], str]]] = _default_http
-
 
 def retry_after(headers: Dict[str, str]) -> float:
     value = str((headers or {}).get("retry-after") or "").strip()
@@ -337,16 +308,12 @@ def retry_after(headers: Dict[str, str]) -> float:
             seconds = parsedate_to_datetime(value).timestamp() - time.time()
         except (TypeError, ValueError, IndexError):
             seconds = None
-    if not seconds or seconds <= 0:      # «Retry-After: 0» — это отсутствие заголовка, а не «сразу»
+    if not seconds or seconds <= 0:
         seconds = COOLDOWN_DEFAULT
     return float(max(COOLDOWN_MIN, min(COOLDOWN_MAX, seconds)))
 
-
-# ====================================================================== пути
-
 def home() -> Path:
     return Path(os.environ.get("USERPROFILE") or os.environ.get("HOME") or Path.home())
-
 
 def claude_dirs(account: Dict[str, Any]) -> List[Path]:
     if account.get("mode") == "dir" and account.get("dir"):
@@ -358,13 +325,11 @@ def claude_dirs(account: Dict[str, Any]) -> List[Path]:
     out.append(home() / ".claude")
     return out
 
-
 def codex_dir(account: Dict[str, Any]) -> Path:
     if account.get("mode") == "dir" and account.get("dir"):
         return Path(os.path.expandvars(os.path.expanduser(str(account["dir"]))))
     env = os.environ.get("CODEX_HOME")
     return Path(env) if env else home() / ".codex"
-
 
 def claude_desktop_dirs() -> List[Path]:
     roots: List[Path] = []
@@ -384,7 +349,6 @@ def claude_desktop_dirs() -> List[Path]:
         pass
     return dirs
 
-
 def _read_json(path: Path) -> Optional[Dict[str, Any]]:
     for attempt in range(3):
         try:
@@ -393,9 +357,8 @@ def _read_json(path: Path) -> Optional[Dict[str, Any]]:
         except FileNotFoundError:
             return None
         except (OSError, ValueError):
-            time.sleep(0.12)              # файл в этот момент атомарно перезаписывается
+            time.sleep(0.12)
     return None
-
 
 def jwt_claims(token: str) -> Dict[str, Any]:
     """Полезная нагрузка JWT — только для показа (план, срок), подпись не проверяется."""
@@ -406,9 +369,6 @@ def jwt_claims(token: str) -> Dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except Exception:  # noqa: BLE001
         return {}
-
-
-# ====================================================================== токены
 
 def claude_cli_token(account: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     for directory in claude_dirs(account):
@@ -431,7 +391,6 @@ def claude_cli_token(account: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             pass
     return None
 
-
 def _chromium_key(local_state: Dict[str, Any]) -> bytes:
     encoded = str(((local_state or {}).get("os_crypt") or {}).get("encrypted_key") or "")
     raw = base64.b64decode(encoded)
@@ -441,14 +400,12 @@ def _chromium_key(local_state: Dict[str, Any]) -> bytes:
         raise ValueError("Claude Desktop token decryption needs Windows DPAPI")
     return _dpapi(raw[5:], protect=False, entropy=b"")
 
-
 def decrypt_token_cache(key: bytes, encoded: str) -> Dict[str, Any]:
     raw = base64.b64decode(encoded)
     if raw[:3] != b"v10" or len(raw) < 3 + 12 + 16:
         raise ValueError("unexpected token cache format")
     data = json.loads(aes_gcm_decrypt(key, raw[3:15], raw[15:]))
     return data if isinstance(data, dict) else {}
-
 
 def claude_desktop_tokens(*, key_fn: Callable[[Dict[str, Any]], bytes] = _chromium_key,
                           dirs: Optional[List[Path]] = None) -> List[Dict[str, Any]]:
@@ -488,7 +445,6 @@ def claude_desktop_tokens(*, key_fn: Callable[[Dict[str, Any]], bytes] = _chromi
     scored.sort(key=lambda row: -row[0])
     return [row[1] for row in scored]
 
-
 def claude_tokens(account: Dict[str, Any], secret: Optional[Dict[str, str]]) -> List[Dict[str, Any]]:
     mode = account.get("mode") or "auto"
     if mode == "token":
@@ -504,7 +460,6 @@ def claude_tokens(account: Dict[str, Any], secret: Optional[Dict[str, str]]) -> 
         except Exception as exc:  # noqa: BLE001
             log.info("usage: Claude Desktop tokens unavailable: %s", scrub(exc))
     return out
-
 
 def codex_auth(account: Dict[str, Any], secret: Optional[Dict[str, str]]) -> Optional[Dict[str, Any]]:
     if (account.get("mode") or "auto") == "token":
@@ -528,9 +483,6 @@ def codex_auth(account: Dict[str, Any], secret: Optional[Dict[str, str]]) -> Opt
     return {"token": access, "account_id": tokens.get("account_id") or auth.get("chatgpt_account_id"),
             "plan": auth.get("chatgpt_plan_type"), "exp": claims.get("exp"), "where": "Codex"}
 
-
-# ====================================================================== окна лимитов
-
 def _ts(value: Any) -> Optional[float]:
     if value in (None, ""):
         return None
@@ -548,16 +500,14 @@ def _ts(value: Any) -> Optional[float]:
         moment = moment.replace(tzinfo=timezone.utc)
     return moment.timestamp()
 
-
 def make_limit(key: str, title: str, used: float, resets_at: Optional[float], window: Optional[float],
                now: float) -> Dict[str, Any]:
     used = max(0.0, min(100.0, float(used)))
     start = None
     if resets_at and window:
         candidate = resets_at - window
-        start = candidate if candidate <= now else None     # часы отстают — начало не выдумываем
+        start = candidate if candidate <= now else None
     return {"key": key, "title": title, "used": round(used, 1), "resets_at": resets_at, "window": window, "start": start}
-
 
 def window_label(seconds: Optional[float], lang: str) -> str:
     if not seconds:
@@ -572,7 +522,6 @@ def window_label(seconds: Optional[float], lang: str) -> str:
         return "Сутки" if lang != "en" else "Daily"
     return f"{round(hours)} ч" if lang != "en" else f"{round(hours)}h"
 
-
 CLAUDE_WINDOWS = {
     "five_hour": (5 * 3600, ("5 часов", "5-hour")),
     "seven_day": (7 * 86400, ("Неделя · все модели", "Weekly · all models")),
@@ -580,7 +529,6 @@ CLAUDE_WINDOWS = {
     "seven_day_sonnet": (7 * 86400, ("Неделя · Sonnet", "Weekly · Sonnet")),
     "seven_day_oauth_apps": (7 * 86400, ("Неделя · приложения", "Weekly · apps")),
 }
-
 
 def claude_limits(payload: Dict[str, Any], lang: str, now: float) -> List[Dict[str, Any]]:
     rows = []
@@ -606,7 +554,6 @@ def claude_limits(payload: Dict[str, Any], lang: str, now: float) -> List[Dict[s
     order = list(CLAUDE_WINDOWS)
     rows.sort(key=lambda r: order.index(r["key"]) if r["key"] in order else 99)
     return rows
-
 
 def codex_limits(payload: Dict[str, Any], lang: str, now: float) -> List[Dict[str, Any]]:
     rows = []
@@ -634,7 +581,6 @@ def codex_limits(payload: Dict[str, Any], lang: str, now: float) -> List[Dict[st
     rows.sort(key=lambda r: r["window"] or 0)
     return rows
 
-
 def _ag_window_seconds(word: str) -> float:
     word = str(word or "").strip().lower()
     named = {"daily": 86400, "weekly": 7 * 86400, "monthly": 30 * 86400}
@@ -645,13 +591,11 @@ def _ag_window_seconds(word: str) -> float:
         return float(int(match.group(1)) * (3600 if match.group(2) == "h" else 86400))
     return 5 * 3600.0
 
-
 def _fraction(value: Any) -> float:
     try:
         return max(0.0, min(1.0, float(value)))
     except (TypeError, ValueError):
-        return 0.0                           # protobuf JSON опускает ноль: нет поля = исчерпано
-
+        return 0.0
 
 def antigravity_limits(summary: Optional[Dict[str, Any]], status: Optional[Dict[str, Any]], lang: str,
                        now: float) -> List[Dict[str, Any]]:
@@ -690,7 +634,6 @@ def antigravity_limits(summary: Optional[Dict[str, Any]], status: Optional[Dict[
     rows.sort(key=lambda r: (r[0], r[1]))
     return [row[2] for row in rows]
 
-
 def claude_plan(plan: Any, tier: Any) -> str:
     plan, tier = str(plan or "").lower(), str(tier or "").lower()
     if plan == "max":
@@ -699,15 +642,11 @@ def claude_plan(plan: Any, tier: Any) -> str:
         return plan.capitalize()
     return ""
 
-
-# ====================================================================== провайдеры
-
 def _expired(stamp: Any, now: float) -> bool:
     if not isinstance(stamp, (int, float)):
         return False
     seconds = stamp / 1000 if stamp > 1e11 else stamp
     return seconds <= now
-
 
 async def fetch_claude(account: Dict[str, Any], secret: Optional[Dict[str, str]], lang: str, now: float) -> Dict[str, Any]:
     tokens = claude_tokens(account, secret)
@@ -738,7 +677,7 @@ async def fetch_claude(account: Dict[str, Any], secret: Optional[Dict[str, str]]
             continue
         if status in (401, 403):
             last = f"HTTP {status}"
-            continue                          # этот токен не тот (без scope user:profile или устарел)
+            continue
         last = f"HTTP {status}"
         break
     if throttled:
@@ -746,7 +685,6 @@ async def fetch_claude(account: Dict[str, Any], secret: Optional[Dict[str, str]]
     if last in ("HTTP 401", "HTTP 403"):
         raise UsageWall("needs_login:claude", "Anthropic не принял токен — войдите в Claude Code заново.")
     raise UsageWall("blocked:source-down", f"api.anthropic.com: {last or 'нет ответа'}")
-
 
 async def fetch_codex(account: Dict[str, Any], secret: Optional[Dict[str, str]], lang: str, now: float) -> Dict[str, Any]:
     auth = codex_auth(account, secret)
@@ -780,14 +718,10 @@ async def fetch_codex(account: Dict[str, Any], secret: Optional[Dict[str, str]],
         raise UsageWall("blocked:forbidden", "chatgpt.com отказал (403) — возможно, защита от ботов; попробую позже.")
     raise UsageWall("blocked:source-down", f"chatgpt.com: HTTP {status or 'нет ответа'}")
 
-
-# ------------------------------------------------------------- Antigravity: поиск языкового сервера
-
 def _gemini_root(account: Dict[str, Any]) -> Path:
     if account.get("mode") == "dir" and account.get("dir"):
         return Path(os.path.expandvars(os.path.expanduser(str(account["dir"]))))
     return home() / ".gemini"
-
 
 def ag_from_daemon_files(root: Path) -> List[Dict[str, Any]]:
     out = []
@@ -812,7 +746,6 @@ def ag_from_daemon_files(root: Path) -> List[Dict[str, Any]]:
                 out.append({"port": port, "csrf": str(csrf), "seen": seen, "from": "daemon"})
     return out
 
-
 def ag_from_logs() -> List[Dict[str, Any]]:
     out = []
     bases = [os.environ.get("APPDATA"), str(home() / "AppData" / "Roaming")]
@@ -834,7 +767,6 @@ def ag_from_logs() -> List[Dict[str, Any]]:
             if csrf and ports:
                 out.append({"port": int(ports[-1]), "csrf": csrf[-1], "seen": seen, "from": "log"})
     return out
-
 
 def _processes() -> List[Tuple[int, str]]:
     """(pid, командная строка) процессов language_server*: psutil → PowerShell CIM → /proc."""
@@ -877,7 +809,6 @@ def _processes() -> List[Tuple[int, str]]:
         pass
     return out
 
-
 def _listening_ports() -> Dict[int, List[int]]:
     """pid → порты LISTEN: psutil → netstat -ano (Windows)."""
     out: Dict[int, List[int]] = {}
@@ -903,7 +834,6 @@ def _listening_ports() -> Dict[int, List[int]]:
             pass
     return out
 
-
 def ag_from_processes() -> List[Dict[str, Any]]:
     procs = [(pid, cmd) for pid, cmd in _processes() if "--csrf_token" in cmd]
     if not procs:
@@ -915,14 +845,12 @@ def ag_from_processes() -> List[Dict[str, Any]]:
         if not match:
             continue
         mine = sorted(set(ports.get(pid) or []))
-        https = [p for p in mine if p + 1 in mine] or mine[:2]   # HTTPS — меньший из соседних портов
+        https = [p for p in mine if p + 1 in mine] or mine[:2]
         for port in https[:2]:
             out.append({"port": port, "csrf": match.group(1), "seen": time.time(), "from": "process"})
     return out
 
-
 _AG_LAST: Dict[str, Dict[str, Any]] = {}
-
 
 def antigravity_endpoints(account: Dict[str, Any]) -> List[Dict[str, Any]]:
     found: List[Dict[str, Any]] = []
@@ -941,7 +869,6 @@ def antigravity_endpoints(account: Dict[str, Any]) -> List[Dict[str, Any]]:
             keys.add(key)
             out.append(ep)
     return out[:6]
-
 
 async def fetch_antigravity(account: Dict[str, Any], secret: Optional[Dict[str, str]], lang: str, now: float) -> Dict[str, Any]:
     endpoints = await asyncio.to_thread(antigravity_endpoints, account)
@@ -977,17 +904,12 @@ async def fetch_antigravity(account: Dict[str, Any], secret: Optional[Dict[str, 
         return {"plan": str(tier), "via": "Antigravity", "limits": antigravity_limits(summary, status_json, lang, now)}
     raise UsageWall("source_gone:antigravity", f"Antigravity не отвечает ({last or 'нет ответа'}) — откройте приложение.")
 
-
 FETCHERS = {"claude": fetch_claude, "codex": fetch_codex, "antigravity": fetch_antigravity}
 from .panels_proxy_usage import fetch as fetch_proxy_usage
 FETCHERS.update({key: fetch_proxy_usage for key in ("kiro", "proxy", "api_budget", "quota_planner")})
 
-
-# ====================================================================== аккаунты и обновление панели
-
 def new_account_id() -> str:
     return "a_" + uuid.uuid4().hex[:10]
-
 
 def clean_accounts(raw: Any) -> List[Dict[str, Any]]:
     out, seen = [], set()
@@ -1010,20 +932,16 @@ def clean_accounts(raw: Any) -> List[Dict[str, Any]]:
             break
     return out
 
-
 PROVIDER_NAMES = {"claude": "Claude", "codex": "Codex", "antigravity": "Antigravity", "kiro": "Kiro",
                   "proxy": "MemuAI Proxy", "api_budget": "API · USD", "quota_planner": "Quota planner"}
 
-
 def _wall_text(wall: UsageWall, lang: str) -> str:
     return wall.message or wall.status
-
 
 def source_identity(account: Dict[str, Any]) -> str:
     """Bind cached numbers/cooldowns to a selected source, never credentials."""
     fields = {key: str(account.get(key) or "") for key in ("provider", "mode", "dir", "proxy_account_id")}
     return hashlib.sha256(json.dumps(fields, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
-
 
 async def refresh_accounts(accounts: List[Dict[str, Any]], previous: List[Dict[str, Any]], *, lang: str = "ru",
                            now: Optional[float] = None, force: bool = False) -> Dict[str, Any]:
@@ -1035,9 +953,7 @@ async def refresh_accounts(accounts: List[Dict[str, Any]], previous: List[Dict[s
         old = prev.get(account["id"]) or {}
         identity = source_identity(account)
         if old.get("source_identity") != identity:
-            # Editing a row can retain its id while replacing its account or
-            # provider. Old limits and rate-limit cooldowns then belong to a
-            # different source. Legacy snapshots without identity are refreshed.
+
             old = {}
         base = {"id": account["id"], "provider": account["provider"],
                 "source_identity": identity, "checked": old.get("checked"),
@@ -1092,7 +1008,6 @@ async def refresh_accounts(accounts: List[Dict[str, Any]], previous: List[Dict[s
     return {"accounts": list(rows), "top_pct": round(top[0]) if top else None,
             "top_label": (top[1] if top else ("Лимиты" if lang != "en" else "Limits")),
             "count": len(rows), "ok": sum(1 for r in rows if r["state"] == "ok")}
-
 
 def detect() -> Dict[str, List[Dict[str, Any]]]:
     """Какие локальные источники есть на этом компьютере — без токенов."""

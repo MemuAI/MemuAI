@@ -40,7 +40,6 @@ SKIP_DIRS = {"$Recycle.Bin", "System Volume Information", "node_modules", ".git"
 UNITS = {"": 1, "b": 1, "k": 1024, "kb": 1024, "m": 1024 ** 2, "mb": 1024 ** 2, "g": 1024 ** 3, "gb": 1024 ** 3,
          "к": 1024, "кб": 1024, "м": 1024 ** 2, "мб": 1024 ** 2, "г": 1024 ** 3, "гб": 1024 ** 3}
 
-
 def parse_size(text: str) -> Optional[int]:
     match = re.fullmatch(r"\s*([\d.,]+)\s*([a-zA-Zа-яА-Я]*)\s*", text or "")
     if not match:
@@ -52,7 +51,6 @@ def parse_size(text: str) -> Optional[int]:
         return int(float(match.group(1).replace(",", ".")) * UNITS[unit])
     except ValueError:
         return None
-
 
 class Query:
     def __init__(self, text: str) -> None:
@@ -161,7 +159,6 @@ class Query:
             return False
         return True
 
-
 def content_matches(path: str, needle: str, limit: int = 8 * 1024 * 1024) -> bool:
     try:
         if os.path.getsize(path) > limit:
@@ -179,11 +176,9 @@ def content_matches(path: str, needle: str, limit: int = 8 * 1024 * 1024) -> boo
             continue
     return needle in data.decode("utf-8", "ignore").lower()
 
-
 def _row(path: str, name: str, is_dir: bool, size: int, mtime: float) -> Dict[str, Any]:
     return {"path": path, "n": name, "d": 1 if is_dir else 0, "s": 0 if is_dir else int(size), "m": int(mtime * 1000),
             "h": 1 if name.startswith(".") else 0}
-
 
 def walk_search(root: str, query: Query, cancel: Callable[[], bool], limit: int = 5000,
                 show_hidden: bool = False, deadline: float = 120.0) -> Iterator[Dict[str, Any]]:
@@ -219,7 +214,7 @@ def walk_search(root: str, query: Query, cancel: Callable[[], bool], limit: int 
                 if not query.name_matches(name, is_dir):
                     continue
                 size, mtime = 0, 0.0
-                if True:            # size/date are shown in the results anyway
+                if True:
                     try:
                         st = entry.stat(follow_symlinks=False)
                         size, mtime = st.st_size, st.st_mtime
@@ -237,7 +232,6 @@ def walk_search(root: str, query: Query, cancel: Callable[[], bool], limit: int 
         if cancel():
             return
 
-
 def _fsindex():
     """``app.fsindex`` (Round 35, fsindex zone) or None. Its data folder follows MemuAI's
     (``MEMUAI_DATA_DIR`` / ``%APPDATA%\\MemuAI``) even in the frozen MemuFiles, where app.pgdata is excluded."""
@@ -249,10 +243,8 @@ def _fsindex():
     except Exception:  # noqa: BLE001
         return None
 
-
 def index_available() -> bool:
     return _fsindex() is not None
-
 
 def index_ready() -> bool:
     """The index can answer right now (Everything runs, or the own index is loaded) — never starts a build."""
@@ -266,8 +258,7 @@ def index_ready() -> bool:
     own = status.get("own") or {}
     if status.get("backend") == "everything" or own.get("state") == "ready":
         return True
-    # MemuAI builds the index and saves it; this process starts "idle" and never loads it unless asked:
-    # warm-load the saved index once in the background (a non-owner only reads it and follows its updates).
+
     global _WARMED
     if not _WARMED and own.get("state") in ("idle", "waiting") and own.get("file_bytes"):
         _WARMED = True
@@ -277,9 +268,7 @@ def index_ready() -> bool:
             log.info("fsindex warm start failed: %s", exc)
     return False
 
-
 _WARMED = False
-
 
 def index_status() -> Dict[str, Any]:
     module = _fsindex()
@@ -293,10 +282,8 @@ def index_status() -> Dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         return {"available": False, "reason": type(exc).__name__}
 
-
 _KEY_MAP = {"modified": "dm", "date": "dm", "изменён": "dm", "изменен": "dm", "дата": "dm",
             "kind": "type", "тип": "type", "размер": "size"}
-
 
 def to_index_query(text: str) -> str:
     """MemuFiles syntax → app.fsindex (Everything) syntax; ``content:`` is filtered afterwards, not sent."""
@@ -318,7 +305,6 @@ def to_index_query(text: str) -> str:
         else:
             out.append(token)
     return " ".join(out)
-
 
 def index_search(query: Query, roots: Optional[List[str]], limit: int) -> Optional[List[Dict[str, Any]]]:
     """Ask app.fsindex; None when it is missing, still building or failing (the caller walks instead)."""
@@ -350,7 +336,7 @@ def index_search(query: Query, roots: Optional[List[str]], limit: int) -> Option
             continue
         size = int(row.get("size") or 0)
         mtime = float(row.get("mtime") or 0)
-        if mtime > 1e11:            # ms → s
+        if mtime > 1e11:
             mtime /= 1000.0
         if query.content and (is_dir or not content_matches(path, query.content)):
             continue
@@ -358,7 +344,6 @@ def index_search(query: Query, roots: Optional[List[str]], limit: int) -> Option
         if len(out) >= limit:
             break
     return out
-
 
 def _inside(path: str, root: str) -> bool:
     p = os.path.normcase(os.path.normpath(path))

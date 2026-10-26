@@ -12,10 +12,9 @@ sys.path.insert(0, ROOT)
 
 RU = "Съешь же ещё этих мягких французских булок, да выпей чаю. Привет, мир!\n" * 20
 
-
 class TextEncodingTests(unittest.TestCase):
     def test_utf16_without_bom_cyrillic_is_detected(self):
-        # Bug: Cyrillic UTF-16 without BOM has almost no zero bytes (0x04xx) -> was "binary UTF-8".
+
         from app.memunote.formats import textio
         for enc in ("utf-16-le", "utf-16-be"):
             info = textio.detect_bytes(RU.encode(enc))
@@ -30,7 +29,7 @@ class TextEncodingTests(unittest.TestCase):
         self.assertEqual(textio.detect_bytes(b"hello world " * 100).encoding, "utf-8")
 
     def test_lossy_encode_counts_and_is_fast(self):
-        # Bug: a per-character fallback loop made saving a big buffer with one emoji take minutes.
+
         import time
         from app.memunote.formats import textio
         data, lost = textio.encode("Привет? \U0001F600 мир \U0001F600\U0001F600\n", "cp1251", "crlf")
@@ -42,7 +41,6 @@ class TextEncodingTests(unittest.TestCase):
         _data, lost = textio.encode(big, "cp1251")
         self.assertEqual(lost, 1)
         self.assertLess(time.time() - start, 5)
-
 
 class DocxRoundTripTests(unittest.TestCase):
     @classmethod
@@ -71,7 +69,7 @@ class DocxRoundTripTests(unittest.TestCase):
         return buf.getvalue()
 
     def test_style_based_lists_are_read_as_lists(self):
-        # Bug: "List Bullet"/"List Number" keep numPr in the style, not the paragraph -> shown as plain text.
+
         from app.memunote.formats.docx import read_docx
         blocks, _meta = read_docx(self._sample())
         kinds = [(b.kind, b.list) for b in blocks if hasattr(b, "kind")]
@@ -79,7 +77,7 @@ class DocxRoundTripTests(unittest.TestCase):
         self.assertIn(("li", "ol"), kinds)
 
     def test_save_keeps_headers_footers_and_author(self):
-        # Bug: saving a .docx silently dropped headers/footers and replaced the author with "MemuNote".
+
         import docx
         from app.memunote.formats import richhtml
         from app.memunote.formats.docx import read_docx, write_docx
@@ -94,7 +92,7 @@ class DocxRoundTripTests(unittest.TestCase):
         self.assertEqual(section.first_page_header.paragraphs[0].text, "Первая страница")
         self.assertEqual(again.core_properties.author, "Иван Петров")
         texts = [p.text for p in again.paragraphs]
-        self.assertIn("один", texts)          # no trailing space from "<li>один\n</li>"
+        self.assertIn("один", texts)
         with zipfile.ZipFile(io.BytesIO(saved)) as archive:
             self.assertIsNone(archive.testzip())
 
@@ -105,12 +103,11 @@ class DocxRoundTripTests(unittest.TestCase):
         saved = write_docx(richhtml.parse_html("<p>a</p><ul><li>b</li></ul>"), "t", None)
         self.assertEqual([p.text for p in docx.Document(io.BytesIO(saved)).paragraphs], ["a", "b"])
 
-
 class RichFormatTests(unittest.TestCase):
     BLOCKS_HTML = "<ul><li>a</li><li>b</li></ul><ol><li>one</li><li>two</li></ol>"
 
     def test_odt_bullets_then_numbers_stay_two_lists(self):
-        # Bug: adjacent <ul> and <ol> were written as ONE text:list with the first list's style -> "1. 2." became bullets.
+
         from app.memunote.formats import richhtml
         from app.memunote.formats.odt import read_odt, write_odt
         data = write_odt(richhtml.parse_html(self.BLOCKS_HTML), "t")
@@ -126,8 +123,7 @@ class RichFormatTests(unittest.TestCase):
         self.assertEqual([b.list for b in blocks if getattr(b, "kind", "") == "li"], ["ul", "ul", "ol", "ol"])
 
     def test_rtf_picture_with_picprop_and_header_picture(self):
-        # Bug 1: text of {\\*\\picprop …} inside \\pict was read as picture hex -> corrupt PNG.
-        # Bug 2: a logo in {\\header …} appeared in the first body paragraph.
+
         import base64
         from app.memunote.formats.rtf import read_rtf
         png = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
@@ -137,7 +133,6 @@ class RichFormatTests(unittest.TestCase):
         images = [r.image for b in blocks for r in getattr(b, "runs", []) if r.image]
         self.assertEqual(len(images), 1)
         self.assertEqual(base64.b64decode(images[0].split(",", 1)[1]), png)
-
 
 if __name__ == "__main__":
     unittest.main()

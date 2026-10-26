@@ -1,5 +1,5 @@
-// MemuFiles · Settings → «MemuFiles по умолчанию» (Round 38). Backend: app/memufiles/default_shell.py, /api/default_shell.
-// Two opt-in switches (folders, Win+E) — each needs a confirmation; «Вернуть Проводник Windows» restores the backup.
+
+
 import { getLang } from "./i18n.js";
 import { api, h, esc, icon, toast, showError, modal } from "./core.js";
 
@@ -18,7 +18,6 @@ function confirm(text) {
   });
 }
 
-/** The settings block (an element); fills itself from /api/default_shell. */
 export function defaultShellBlock() {
   const box = h("div", { class: "field" });
   box.append(h("span", { text: L("Интеграция с Windows", "Windows integration") }));

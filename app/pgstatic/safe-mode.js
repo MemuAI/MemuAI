@@ -1,11 +1,5 @@
-/* MemuAI · Safe mode (Round 29) — the banner, «what is disabled», restart, Settings → About.
 
-   window.MEMU_SAFE_MODE comes from /api/pg/safe-mode/boot.js (loaded in <head>, before the
-   first paint). Nothing here changes user data: safe mode is a runtime overlay decided by
-   app/safe_mode.py. This file also reports a healthy start (POST /api/pg/safe-mode/healthy)
-   so the crash guard knows MemuAI reached a working window.
 
-   Exposes window.MemuSafeMode = { active, state, restart(mode), details(), settingsHtml(kit), bindSettings() }. */
 (function () {
   "use strict";
 
@@ -37,10 +31,8 @@
   }
   const notify = (text, type = "ok") => { try { if (typeof toast === "function") toast(text, type); } catch (e) {} };
 
-  /* ---------------------------------------------------------------- health */
   setTimeout(() => { post("/api/pg/safe-mode/healthy").catch(() => {}); }, Math.max(3, Number(state.healthy_after) || 8) * 1000);
 
-  /* --------------------------------------------------------------- restart */
   function restartCover(text) {
     const cover = document.createElement("div");
     cover.className = "memu-safe-cover";
@@ -60,7 +52,6 @@
     }
   }
 
-  /* ----------------------------------------------------------- the details */
   const SOURCE = {
     flag: ["Запущен ярлыком «MemuAI (безопасный режим)» или с ключом --safe-mode", "Started from the «MemuAI (safe mode)» shortcut or with --safe-mode"],
     env: ["Включён переменной окружения MEMUAI_SAFE_MODE", "Turned on by the MEMUAI_SAFE_MODE environment variable"],
@@ -110,7 +101,7 @@
     });
     dialog.addEventListener("keydown", (event) => {
       if (event.key === "Escape") { event.stopPropagation(); closeDialog(dialog, opener); }
-      if (event.key === "Tab") {  // keep focus inside the dialog
+      if (event.key === "Tab") {
         const items = [...card.querySelectorAll("button")];
         const first = items[0], last = items[items.length - 1];
         if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
@@ -120,7 +111,6 @@
     requestAnimationFrame(() => card.querySelector("[data-restart]")?.focus());
   }
 
-  /* ---------------------------------------------------------------- banner */
   function banner() {
     if (!state.active || document.querySelector(".memu-safe-banner")) return;
     const node = document.createElement("div");
@@ -132,8 +122,7 @@
       <button type="button" class="memu-safe-btn primary" data-normal>${ico("restart")}<span>${esc(L("Обычный режим", "Restart normally"))}</span></button>
       <button type="button" class="memu-safe-btn icon" data-fold aria-label="${esc(L("Свернуть", "Collapse"))}" title="${esc(L("Свернуть", "Collapse"))}">${ico("close")}</button>`; };
     fill();
-    // r29c: the banner is built before the preferences arrive (PG_LANG comes from localStorage first), so an
-    // English profile could get a Russian banner; follow <html lang> (pgApplyLang) and re-label.
+
     let lang = document.documentElement.lang;
     new MutationObserver(() => { if (document.documentElement.lang !== lang) { lang = document.documentElement.lang; fill(); } })
       .observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
@@ -150,8 +139,7 @@
     });
     node.tabIndex = 0;
     document.body.appendChild(node);
-    // r29c: at the bottom of an open chat the banner covered the composer (the ＋ button and the first line of
-    // the text). When the composer sits near the bottom edge, float the banner just above it instead.
+
     const place = () => {
       const composer = document.querySelector(".composer");
       const rect = composer && composer.offsetParent !== null ? composer.getBoundingClientRect() : null;
@@ -167,7 +155,6 @@
     if (style) style.media = "not all";
   }
 
-  /* ------------------------------------------------- Settings → About row */
   function settingsHtml(K) {
     if (!K) return "";
     const marker = (state.marker && state.marker.exists) ? (state.marker.once ? "once" : "always") : "off";

@@ -25,7 +25,6 @@ BASE = ""
 FLAGS = ["--no-sandbox", "--use-gl=swiftshader", "--enable-unsafe-swiftshader", "--ignore-gpu-blocklist",
          "--autoplay-policy=no-user-gesture-required"]
 
-
 async def stage_info(page):
     out = []
     for frame in page.frames:
@@ -36,7 +35,6 @@ async def stage_info(page):
                 out.append(f"error: {exc}")
     return out
 
-
 async def wait_loaded(page, timeout_s=90):
     for _ in range(timeout_s * 2):
         infos = await stage_info(page)
@@ -44,7 +42,6 @@ async def wait_loaded(page, timeout_s=90):
             return infos
         await page.wait_for_timeout(500)
     return await stage_info(page)
-
 
 async def open_app(page):
     """The MemuAI page, ready for the shots. On fresh data app.js opens the profile onboarding dialog
@@ -64,7 +61,6 @@ async def open_app(page):
     await page.wait_for_function("() => !document.getElementById('panel-back').classList.contains('visible')",
                                  timeout=5000)
 
-
 async def main():
     global BASE
     base, out = sys.argv[1].rstrip("/"), sys.argv[2]
@@ -83,7 +79,6 @@ async def main():
             page.on("pageerror", lambda e: print("pageerror", e))
             return page
 
-        # ---- 1. MemuAI Live, companion inside the panel, speaking ----------
         if want("live"):
             await shots_live(new_page, out)
         if want("settings"):
@@ -95,7 +90,6 @@ async def main():
         if want("live2d"):
             await shots_live2d(new_page, out)
         await browser.close()
-
 
 async def shots_live(new_page, out):
     base = BASE
@@ -126,7 +120,6 @@ async def shots_live(new_page, out):
         await page.wait_for_timeout(900)
         await page.locator("#live-call").screenshot(path=os.path.join(out, "live-panel-light-surprised.png"))
 
-        # ---- 2. MemuAI Live, floating over the window with a bubble -------
         await page.evaluate("""() => {
           document.documentElement.dataset.theme = 'dark';
           S.preferences.companion_live_placement = 'window'; S.preferences.companion_framing = 'full';
@@ -144,28 +137,26 @@ async def shots_live(new_page, out):
         await page.screenshot(path=os.path.join(out, "live-window-floating.png"))
         await page.close()
 
-
 async def shots_settings(new_page, out):
     base = BASE
     if True:
-        # ---- 3. Settings → Voice and Live → Companion ----------------------
+
         page = await new_page(1280, 900)
         await open_app(page)
         await page.wait_for_timeout(1500)
         await page.evaluate("""() => { currentSettingsTab = 'voice'; showSettings(true); }""")
         await page.wait_for_timeout(800)
-        # Round 25: Voice and Live is a list of sub-pages; the companion has its own («Компаньон» row).
+
         await page.locator('#panel [data-sx-open="companion"]').first.click()
         print("settings", await wait_loaded(page))
         await page.wait_for_timeout(800)
         await page.screenshot(path=os.path.join(out, "settings-live.png"))
         await page.close()
 
-
 async def shots_quick(new_page, out):
     base = BASE
     if True:
-        # ---- 4. Quick Ask window (plugin, inline mode) ---------------------
+
         page = await new_page(760, 560)
         await page.goto(base + "/quick/?companion_demo=1", wait_until="networkidle")
         await page.wait_for_timeout(1500)
@@ -178,11 +169,10 @@ async def shots_quick(new_page, out):
         await page.screenshot(path=os.path.join(out, "quick-inline.png"))
         await page.close()
 
-
 async def shots_desktop(new_page, out):
     base = BASE
     if True:
-        # ---- 5. Desktop window page (transparent stage) --------------------
+
         page = await new_page(320, 440)
         await page.goto(base + "/companion/stage?surface=desktop", wait_until="networkidle")
         print("desktop", await wait_loaded(page))
@@ -190,7 +180,6 @@ async def shots_desktop(new_page, out):
         await page.wait_for_timeout(1500)
         await page.screenshot(path=os.path.join(out, "desktop-stage.png"), omit_background=True)
         await page.close()
-
 
 async def shots_live2d(new_page, out):
     """A user-imported Live2D model in the Live panel (needs the runtime and a Live2D model in the library)."""
@@ -213,7 +202,6 @@ async def shots_live2d(new_page, out):
     await page.wait_for_timeout(900)
     await page.locator("#live-call").screenshot(path=os.path.join(out, "live-panel-live2d.png"))
     await page.close()
-
 
 if __name__ == "__main__":
     asyncio.run(main())

@@ -45,11 +45,8 @@ MAX_IMAGES = 8
 MAX_REVIEWS = 6
 MAX_RAW_CHARS = 200_000
 
-# --------------------------------------------------------------------------- stores
-
-# product — признак страницы товара в адресе (не каталога и не поиска).
 STORES: Dict[str, Dict[str, Any]] = {
-    # Россия
+
     "ozon": {"name": "Ozon", "domains": ("ozon.ru", "ozon.by", "ozon.kz", "ozon.com"),
              "product": r"/product/", "color": "#005bff"},
     "wildberries": {"name": "Wildberries", "domains": ("wildberries.ru", "wildberries.by", "wildberries.kz", "wb.ru"),
@@ -73,7 +70,7 @@ STORES: Dict[str, Dict[str, Any]] = {
     "regard": {"name": "Регард", "name_en": "Regard", "domains": ("regard.ru",), "product": r"/product/",
                "color": "#d71920"},
     "restore": {"name": "re:Store", "domains": ("re-store.ru",), "product": r"/catalog/", "color": "#111111"},
-    # США и англоязычные
+
     "amazon": {"name": "Amazon", "domains": ("amazon.com", "amazon.co.uk", "amazon.ca", "amazon.de", "amazon.com.au",
                                             "amazon.in", "amazon.fr", "amazon.it", "amazon.es", "amzn.to"),
                "product": r"/(?:dp|gp/product|gp/aw/d)/", "color": "#ff9900"},
@@ -92,16 +89,12 @@ STORES: Dict[str, Dict[str, Any]] = {
                     "color": "#c8102e"},
 }
 
-# Главные магазины региона (их ищем); остальные из STORES тоже разрешены в
-# карточках, если модель нашла товар там.
 LOCALE_STORES: Dict[str, Tuple[str, ...]] = {
     "ru": ("ozon", "wildberries", "dns", "yandex_market", "mvideo", "citilink", "megamarket"),
     "en": ("amazon", "bestbuy", "walmart", "newegg", "bh", "ebay"),
 }
 LOCALE_CURRENCY = {"ru": "RUB", "en": "USD"}
 
-# Сайты производителей: оффер с официального сайта бренда тоже допустим.
-# Сравнение — по метке домена (samsung.com, store.samsung.com, apple.com/ru).
 _BRAND_SLUG_RE = re.compile(r"[^a-z0-9]+")
 
 CURRENCIES = {"RUB", "USD", "EUR", "GBP", "KZT", "BYN", "UAH", "CAD", "AUD", "CNY", "JPY", "INR", "TRY", "AMD",
@@ -116,10 +109,8 @@ _CURRENCY_SIGNS = (
     (re.compile(r"₴|(?<![A-Za-z])UAH(?![A-Za-z])|грн", re.I), "UAH"),
 )
 
-
 def locale_of(value: Any) -> str:
     return "en" if str(value or "").lower().startswith("en") else "ru"
-
 
 def _host(url: str) -> str:
     try:
@@ -127,7 +118,6 @@ def _host(url: str) -> str:
     except ValueError:
         return ""
     return host[4:] if host.startswith("www.") else host
-
 
 def store_for_url(url: str) -> str:
     """Id магазина по домену ссылки ('' — не магазин из списка)."""
@@ -140,13 +130,11 @@ def store_for_url(url: str) -> str:
                 return store_id
     return ""
 
-
 def store_name(store_id: str, locale: str = "ru") -> str:
     spec = STORES.get(store_id) or {}
     if locale == "en" and spec.get("name_en"):
         return spec["name_en"]
     return spec.get("name") or store_id
-
 
 def is_product_page(url: str) -> bool:
     store_id = store_for_url(url)
@@ -158,7 +146,6 @@ def is_product_page(url: str) -> bool:
         return False
     return bool(re.search(STORES[store_id]["product"], path, re.I))
 
-
 def _brand_official(url: str, brand: str) -> bool:
     slug = _BRAND_SLUG_RE.sub("", str(brand or "").lower())
     if len(slug) < 3:
@@ -166,7 +153,6 @@ def _brand_official(url: str, brand: str) -> bool:
     host = _host(url)
     labels = host.split(".")
     return any(_BRAND_SLUG_RE.sub("", label) == slug for label in labels[:-1])
-
 
 def public_url(url: Any) -> str:
     """Публичный http(s)-адрес или ''. Без localhost, частных сетей и учётных данных."""
@@ -191,7 +177,6 @@ def public_url(url: Any) -> str:
             return ""
     return value
 
-
 def url_key(url: str) -> str:
     """Ключ страницы для журнала: хост без www + путь без хвостового «/».
 
@@ -210,19 +195,15 @@ def url_key(url: str) -> str:
         return ""
     path = re.sub(r"/{2,}", "/", parsed.path or "/").rstrip("/") or "/"
     if store_for_url(url) == "amazon":
-        # /Some-Name/dp/B0ABC/ref=... и /dp/B0ABC — одна страница.
+
         match = re.search(r"/(?:dp|gp/product|gp/aw/d)/([A-Z0-9]{10})", parsed.path or "", re.I)
         if match:
             return f"{host}/dp/{match.group(1).upper()}"
     return host + path
 
-
-# --------------------------------------------------------------------------- text and numbers
-
 _TAG_RE = re.compile(r"<[^>]+>")
 _SPACE_RE = re.compile(r"\s+")
 _CTRL_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u200b-\u200f\u202a-\u202e\u2066-\u2069]")
-
 
 def clean_text(value: Any, limit: int) -> str:
     if value is None or isinstance(value, (dict, list, tuple, set)):
@@ -237,7 +218,6 @@ def clean_text(value: Any, limit: int) -> str:
         text = (cut[:space] if space > limit * 0.6 else cut).rstrip(" ,.;:-") + "…"
     return text
 
-
 def currency_of(text: Any, default: str = "") -> str:
     value = str(text or "").strip()
     if value.upper() in CURRENCIES:
@@ -248,7 +228,6 @@ def currency_of(text: Any, default: str = "") -> str:
         if pattern.search(value):
             return code
     return default
-
 
 def parse_amount(value: Any) -> Optional[float]:
     """«26 699 ₽», «$1,299.99», «1.299,00 €», 26699 → число или None."""
@@ -273,7 +252,7 @@ def parse_amount(value: Any) -> Optional[float]:
                 else raw.replace(",", "")
         elif raw.count(".") > 1 or (raw.count(".") == 1 and len(raw.rpartition(".")[2]) == 3
                                      and len(raw.partition(".")[0]) <= 3 and not raw.startswith("0")):
-            # 1.299 / 12.990.000 — разделители тысяч (европейская запись).
+
             raw = raw.replace(".", "")
         try:
             number = float(raw)
@@ -283,12 +262,10 @@ def parse_amount(value: Any) -> Optional[float]:
         return None
     return round(number, 2)
 
-
 _SNIPPET_PRICE_RE = re.compile(
     r"(?:(?:US\$|\$|€|£)\s?\d(?:[\d,.]*\d)?|\d(?:[\d\s\u00a0\u202f.,]*\d)?\s?(?:₽|руб\.?|р\.|€|₸|USD|EUR|RUB)"
     r"(?![A-Za-zА-Яа-я]))",
     re.I)
-
 
 def snippet_price(text: str) -> Optional[Dict[str, Any]]:
     """Первая правдоподобная цена в тексте выдачи («от 12 990 ₽», «$89.99»)."""
@@ -297,12 +274,11 @@ def snippet_price(text: str) -> Optional[Dict[str, Any]]:
         amount = parse_amount(chunk)
         currency = currency_of(chunk)
         if amount and currency and amount >= 1:
-            # «4.8 $» и «1 р.» не цены; рубли меньше 50 — почти всегда мусор.
+
             if currency == "RUB" and amount < 50:
                 continue
             return {"amount": amount, "currency": currency}
     return None
-
 
 def _rating(value: Any, best: Any = None) -> Optional[float]:
     number = parse_amount(value) if not isinstance(value, (int, float)) else float(value)
@@ -319,7 +295,6 @@ def _rating(value: Any, best: Any = None) -> Optional[float]:
         return None
     return round(number, 2)
 
-
 def _count(value: Any) -> Optional[int]:
     if isinstance(value, bool):
         return None
@@ -332,7 +307,6 @@ def _count(value: Any) -> Optional[int]:
         number = int(digits)
     return number if 0 <= number < 1_000_000_000 else None
 
-
 _AVAILABILITY = (
     ("out_of_stock", re.compile(r"OutOfStock|SoldOut|Discontinued|нет в наличии|распродан|out of stock|unavailable|"
                                 r"currently unavailable|нет на складе", re.I)),
@@ -340,7 +314,6 @@ _AVAILABILITY = (
     ("in_stock", re.compile(r"InStock|InStoreOnly|OnlineOnly|LimitedAvailability|в наличии|in stock|есть в наличии|"
                             r"available", re.I)),
 )
-
 
 def availability_of(value: Any) -> str:
     text = str(value or "")
@@ -351,15 +324,11 @@ def availability_of(value: Any) -> str:
             return code
     return "unknown"
 
-
-# --------------------------------------------------------------------------- page extraction
-
 _LD_RE = re.compile(r"<script\b[^>]*type\s*=\s*['\"]?application/ld\+json['\"]?[^>]*>(.*?)</script>", re.I | re.S)
 _META_RE = re.compile(r"<meta\b[^>]*>", re.I)
 _ATTR_RE = re.compile(r"([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(\"[^\"]*\"|'[^']*'|[^\s>]+)")
 _ITEMPROP_RE = re.compile(r"<[a-z][a-z0-9]*\b[^>]*\bitemprop\s*=\s*['\"]?([a-zA-Z]+)['\"]?[^>]*>", re.I)
 _TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
-
 
 def _attrs(tag: str) -> Dict[str, str]:
     out: Dict[str, str] = {}
@@ -368,7 +337,6 @@ def _attrs(tag: str) -> Dict[str, str]:
             value = value[1:-1]
         out[name.lower()] = html_lib.unescape(value)
     return out
-
 
 def _loads_lenient(text: str) -> Any:
     body = text.strip()
@@ -380,14 +348,14 @@ def _loads_lenient(text: str) -> Any:
         return json.loads(body)
     except ValueError:
         pass
-    # Хвостовые запятые и управляющие символы внутри строк — частые ошибки CMS.
+
     fixed = re.sub(r",\s*([}\]])", r"\1", body)
     fixed = re.sub(r"[\x00-\x1f]", " ", fixed)
     try:
         return json.loads(fixed)
     except ValueError:
         pass
-    # Несколько объектов подряд в одном <script>.
+
     decoder, out, index = json.JSONDecoder(), [], 0
     while index < len(fixed):
         while index < len(fixed) and fixed[index] in " \n\r\t,;":
@@ -401,12 +369,10 @@ def _loads_lenient(text: str) -> Any:
         out.append(value)
     return out or None
 
-
 def _types(node: Dict[str, Any]) -> List[str]:
     value = node.get("@type")
     values = value if isinstance(value, list) else [value]
     return [str(item).rsplit("/", 1)[-1] for item in values if item]
-
 
 def _walk(value: Any, depth: int = 0) -> Iterable[Dict[str, Any]]:
     if depth > 12:
@@ -421,19 +387,16 @@ def _walk(value: Any, depth: int = 0) -> Iterable[Dict[str, Any]]:
         for item in value[:400]:
             yield from _walk(item, depth + 1)
 
-
 def _first(value: Any) -> Any:
     if isinstance(value, list):
         return value[0] if value else None
     return value
-
 
 def _text_of(value: Any) -> str:
     value = _first(value)
     if isinstance(value, dict):
         value = value.get("name") or value.get("@value") or value.get("text") or ""
     return str(value or "")
-
 
 def _images_of(value: Any, base: str) -> List[str]:
     out: List[str] = []
@@ -448,10 +411,8 @@ def _images_of(value: Any, base: str) -> List[str]:
             out.append(url)
     return out
 
-
 PRODUCT_TYPES = {"Product", "ProductGroup", "IndividualProduct", "ProductModel", "SomeProducts", "Vehicle",
                  "Book", "SoftwareApplication", "VideoGame"}
-
 
 def _offer_fields(offers: Any) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
@@ -489,7 +450,6 @@ def _offer_fields(offers: Any) -> Dict[str, Any]:
             out["offer_count"] = len(prices)
     return out
 
-
 def _reviews_of(value: Any) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     items = value if isinstance(value, list) else [value]
@@ -507,7 +467,6 @@ def _reviews_of(value: Any) -> List[Dict[str, Any]]:
             "date": clean_text(item.get("datePublished"), 20),
         })
     return out
-
 
 def _product_from_ld(node: Dict[str, Any], base: str) -> Dict[str, Any]:
     brand = _text_of(node.get("brand") or node.get("manufacturer"))
@@ -545,7 +504,6 @@ def _product_from_ld(node: Dict[str, Any], base: str) -> Dict[str, Any]:
             out["url"] = resolved
     return {key: value for key, value in out.items() if value not in (None, "", [], {})}
 
-
 def _metas(html: str) -> Dict[str, List[str]]:
     out: Dict[str, List[str]] = {}
     for tag in _META_RE.findall(html[:600_000]):
@@ -555,7 +513,6 @@ def _metas(html: str) -> Dict[str, List[str]]:
             out.setdefault(key, []).append(attrs["content"])
     return out
 
-
 def _microdata(html: str, base: str) -> Dict[str, Any]:
     values: Dict[str, List[str]] = {}
     for match in _ITEMPROP_RE.finditer(html[:1_500_000]):
@@ -563,7 +520,7 @@ def _microdata(html: str, base: str) -> Dict[str, Any]:
         prop = match.group(1)
         value = attrs.get("content") or attrs.get("src") or attrs.get("href") or attrs.get("data-src") or ""
         if not value:
-            # <span itemprop="price">12 990</span>
+
             tail = html[match.end(): match.end() + 200]
             value = clean_text(tail.split("<", 1)[0], 120)
         if value:
@@ -583,7 +540,6 @@ def _microdata(html: str, base: str) -> Dict[str, Any]:
     if images:
         out["images"] = images
     return {key: value for key, value in out.items() if value not in (None, "", [], {})}
-
 
 def _amazon(html: str, base: str) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
@@ -620,7 +576,7 @@ def _amazon(html: str, base: str) -> Dict[str, Any]:
     if availability:
         out["availability"] = availability_of(clean_text(availability.group(1), 200))
     reviews = []
-    # Отзывы на странице товара: блоки data-hook="review" (имя, звёзды, текст).
+
     for block in html.split('data-hook="review" ')[1:7]:
         block = block[:14000]
         body = re.search(r'data-hook="(?:reviewRichContentContainer|review-body)"[^>]*>(.*?)</div>', block, re.S)
@@ -640,7 +596,6 @@ def _amazon(html: str, base: str) -> Dict[str, Any]:
         out["reviews"] = reviews
     return out
 
-
 def _tiny_image(url: str) -> bool:
     """Миниатюры (…_100px.jpg, /w:80/, ?width=64) в карточке выглядят мылом."""
     for match in re.finditer(r"(?:[_\-/](\d{2,4})px\b|[/_,]w[:_=]?(\d{2,4})\b|[?&](?:w|width)=(\d{2,4})\b)", url, re.I):
@@ -648,7 +603,6 @@ def _tiny_image(url: str) -> bool:
         if size < 240:
             return True
     return False
-
 
 def extract_product(html: str, url: str) -> Dict[str, Any]:
     """Данные товара со страницы магазина или обзора.
@@ -680,13 +634,12 @@ def extract_product(html: str, url: str) -> Dict[str, Any]:
                 row = _product_from_ld(node, base)
                 if row.get("title") or row.get("price"):
                     products.append(row)
-    # Список товаров дублирует их же как Product: на странице товара это одна
-    # запись, на странице поиска — список.
+
     listed_titles = {row.get("title") for row in listed}
     products = [row for row in products if row.get("title") not in listed_titles] or ([] if listed else products)
     product: Dict[str, Any] = {}
     if products:
-        # Самая полная запись (с ценой и картинками) — главная.
+
         products.sort(key=lambda row: (bool(row.get("price")), len(row.get("images") or []), len(row)), reverse=True)
         product = dict(products[0])
         for extra in products[1:3]:
@@ -729,9 +682,6 @@ def extract_product(html: str, url: str) -> Dict[str, Any]:
         if not price["currency"] and store_for_url(url) in LOCALE_STORES["en"]:
             price["currency"] = "USD"
     return {"product": {k: v for k, v in product.items() if v not in (None, "", [], {})}, "list": listed[:30]}
-
-
-# --------------------------------------------------------------------------- provenance
 
 class Provenance:
     """Журнал увиденного: что именно было на странице (или в выдаче) и когда.
@@ -823,8 +773,6 @@ class Provenance:
         probe = needle[:60]
         return any(probe in hay or (len(hay) >= 30 and hay[:60] in needle) for hay in haystacks if hay)
 
-    # Итоги product_lookup по магазинам: карточка товара показывает «не удалось
-    # проверить» для магазина региона без оффера, даже если модель о нём промолчала.
     def remember_lookup(self, query: str, locale: str, stores: List[Dict[str, Any]]) -> None:
         tokens = " ".join(sorted(set(_tokens(query))))
         if not tokens or not stores:
@@ -850,7 +798,7 @@ class Provenance:
             rows = [(k, dict(v)) for k, v in self._lookups.items() if k.startswith(prefix)]
         now = time.time()
         for _key, row in rows:
-            if now - float(row.get("seen") or 0) >= 2 * 86400:      # статусы магазинов быстро устаревают
+            if now - float(row.get("seen") or 0) >= 2 * 86400:
                 continue
             score = _relevance(row.get("query", ""), name, *extra)
             if score >= 0.75 and (score > best_score or (score == best_score and best and
@@ -872,14 +820,11 @@ class Provenance:
         except Exception as exc:  # pragma: no cover - диск недоступен
             log.debug("product cache not saved: %s", exc)
 
-
 def _norm_words(text: Any) -> str:
     return re.sub(r"[^\w]+", " ", str(text or "").lower()).strip()
 
-
 _PROVENANCE: Optional[Provenance] = None
 _PROVENANCE_LOCK = threading.Lock()
-
 
 def provenance() -> Provenance:
     global _PROVENANCE
@@ -893,9 +838,6 @@ def provenance() -> Provenance:
             _PROVENANCE = Provenance(path)
         return _PROVENANCE
 
-
-# --------------------------------------------------------------------------- lookup
-
 SearchFn = Callable[[str, int], Awaitable[List[Dict[str, Any]]]]
 FetchFn = Callable[[str], Awaitable[str]]
 
@@ -904,30 +846,25 @@ _LOOKUP_TTL = 15 * 60
 _LOOKUP_MAX = 120
 _STOP = {"купить", "цена", "price", "buy", "the", "and", "для", "with", "new", "отзывы", "review", "reviews"}
 
-
 def _tokens(text: str) -> List[str]:
     return [tok for tok in re.findall(r"[a-zа-яё0-9]+", str(text or "").lower()) if len(tok) > 1 and tok not in _STOP]
-
 
 def _relevance(query: str, *texts: str) -> float:
     wanted = _tokens(query)
     if not wanted:
         return 0.0
     hay = " ".join(_tokens(" ".join(texts)))
-    # «1tb» и «1 тб»: цифры запроса должны встретиться хотя бы как часть слова.
+
     hits = sum(1 for tok in wanted if tok in hay)
-    # Модель товара — это слова с цифрами (sn770, 990, 15): без них страница
-    # о бренде вообще («WD Black» на главной сайта) не про этот товар.
+
     model = [tok for tok in wanted if re.search(r"\d", tok) and not re.fullmatch(r"\d+(?:tb|gb|тб|гб|mb)?", tok)] \
         or [tok for tok in wanted if re.search(r"\d", tok)]
     if model and not any(tok in hay for tok in model):
         return 0.0
     return hits / len(wanted)
 
-
 _BLOCKED_RE = re.compile(r"showcaptcha|/captcha|Вы не робот|Robot Check|Are you a human|Access Denied|"
                          r"Attention Required|challenge-platform|Pardon Our Interruption|Доступ ограничен", re.I)
-
 
 def blocked_page(html: str, url: str = "") -> bool:
     """Страница-заглушка антибота: из неё нельзя брать ни картинку, ни цену."""
@@ -936,18 +873,12 @@ def blocked_page(html: str, url: str = "") -> bool:
     return bool(_BLOCKED_RE.search(url or "") or (title and _BLOCKED_RE.search(title.group(1)))
                 or (len(head) < 30000 and "captcha" in head.lower() and "product" not in head.lower()))
 
-
 def lookup_queries(query: str, locale: str, stores: Iterable[str]) -> Dict[str, List[str]]:
     names = [store_name(s, "ru" if locale == "ru" else "en") for s in stores][:3]
     if locale == "ru":
         return {"shop": [f"{query} купить", f"{query} цена {' '.join(names)}"], "reviews": [f"{query} отзывы"]}
     return {"shop": [f"{query} buy", f"{query} price {' '.join(names)}"], "reviews": [f"{query} review"]}
 
-
-# Собственный поиск каждого магазина: страница поиска (schema.org ItemList/Product,
-# если магазин отдаёт его без JavaScript) или публичный JSON. Многие магазины
-# закрывают такие адреса антиботом — тогда магазин получает честный статус
-# «не удалось проверить», а не молча пропадает из «Где купить».
 STORE_SEARCH: Dict[str, str] = {
     "ozon": "https://www.ozon.ru/search/?text={q}&from_global=true",
     "wildberries": "https://search.wb.ru/exactmatch/ru/common/v4/search?appType=1&curr=rub&dest=-1257786"
@@ -962,8 +893,6 @@ STORE_SEARCH: Dict[str, str] = {
     "newegg": "https://www.newegg.com/p/pl?d={q}",
 }
 
-
-# Страница поиска для человека, где адрес STORE_SEARCH — служебный JSON.
 STORE_USER_SEARCH: Dict[str, str] = {
     "wildberries": "https://www.wildberries.ru/catalog/0/search.aspx?search={q}",
     "amazon": "https://www.amazon.com/s?k={q}",
@@ -971,17 +900,14 @@ STORE_USER_SEARCH: Dict[str, str] = {
     "ebay": "https://www.ebay.com/sch/i.html?_nkw={q}",
 }
 
-
 def direct_search_pages(query: str, locale: str, stores: Iterable[str]) -> List[Tuple[str, str]]:
     """Адреса собственного поиска магазинов из ``stores`` (порядок сохраняется)."""
     return [(store_id, STORE_SEARCH[store_id].format(q=quote_plus(query)))
             for store_id in stores if store_id in STORE_SEARCH]
 
-
 def site_queries(query: str, stores: Iterable[str]) -> List[Tuple[str, str]]:
     """Поиск товара на сайте конкретного магазина через веб-поиск (``site:домен``)."""
     return [(store_id, f"{query} site:{STORES[store_id]['domains'][0]}") for store_id in stores if store_id in STORES]
-
 
 def _wb_products(text: str) -> List[Dict[str, Any]]:
     """Публичный JSON поиска Wildberries → товары с ценой, рейтингом и наличием (цена в копейках)."""
@@ -1024,19 +950,15 @@ def _wb_products(text: str) -> List[Dict[str, Any]]:
         out.append({k: v for k, v in item.items() if v not in (None, "", [], {})})
     return out
 
-
-# Признаки того, что товар сняли с продажи (страница есть, купить нельзя).
 _DISCONTINUED_RE = re.compile(
     r"сня(?:т|та|ты) с (?:производства|продажи)|больше не (?:производится|продаётся|продается)|"
     r"товар (?:закончился|больше не продаётся|больше не продается|недоступен для заказа)|нет в продаже|"
     r"discontinued|no longer (?:available|sold|produced)|this item is no longer|end of life", re.I)
 
-
 def page_discontinued(html: str) -> bool:
     """Видимый текст страницы товара говорит, что товар сняли с продажи."""
     text = _TAG_RE.sub(" ", re.sub(r"<(script|style)\b[\s\S]*?</\1>", " ", str(html or "")[:800_000], flags=re.I))
     return bool(_DISCONTINUED_RE.search(text))
-
 
 def latest_review_date(reviews: Iterable[Dict[str, Any]]) -> str:
     """Самая свежая дата отзыва (YYYY-MM-DD) или ''."""
@@ -1047,17 +969,13 @@ def latest_review_date(reviews: Iterable[Dict[str, Any]]) -> str:
             best = match.group(0)
     return best
 
-
-# Статусы проверки магазина: что именно удалось узнать о товаре в нём.
 STORE_STATUS = ("found", "approx", "not_found", "blocked", "error")
 _STATUS_RANK = {"found": 0, "approx": 1, "blocked": 2, "error": 3, "not_found": 4}
-
 
 def _better_status(old: str, new: str) -> str:
     if not old:
         return new
     return new if _STATUS_RANK.get(new, 9) < _STATUS_RANK.get(old, 9) else old
-
 
 async def lookup(query: str, *, locale: str = "ru", search: SearchFn, fetch: FetchFn,
                  stores: Optional[Iterable[str]] = None, urls: Optional[Iterable[str]] = None,
@@ -1144,8 +1062,7 @@ async def lookup(query: str, *, locale: str = "ru", search: SearchFn, fetch: Fet
             if item_url and store_for_url(item_url):
                 rows.append({**item, "url": item_url, "via": "search page"})
         if not rows:
-            # Страница открылась, но товаров в разметке нет (каталог рисует JavaScript):
-            # это «не удалось проверить», а не «товара нет».
+
             mark(store_id, "blocked" if len(page) < 4000 else "error", "store search")
         return rows
 
@@ -1162,8 +1079,6 @@ async def lookup(query: str, *, locale: str = "ru", search: SearchFn, fetch: Fet
     def relevant_page(row: Dict[str, Any]) -> bool:
         return is_product_page(row["url"]) and _relevance(query, row["title"], row["url"], row.get("snippet", "")) >= 0.5
 
-    # Вторая волна: «запрос site:домен» для каждого магазина региона, где страницы
-    # товара ещё нет (ни в выдаче, ни в собственном поиске магазина).
     covered = {store_for_url(row["url"]) for row in search_rows if relevant_page(row)}
     covered |= {store_for_url(row["url"]) for row in direct_rows if _relevance(query, row.get("title", "")) >= 0.6}
     missing = [sid for sid in chosen if sid not in covered]
@@ -1180,7 +1095,6 @@ async def lookup(query: str, *, locale: str = "ru", search: SearchFn, fetch: Fet
             if not hit:
                 mark(sid, "not_found", "site search")
 
-    # Кандидаты: страницы товаров известных магазинов, релевантные запросу.
     candidates: List[Dict[str, Any]] = []
     seen_keys = set()
     for url in explicit:
@@ -1202,8 +1116,7 @@ async def lookup(query: str, *, locale: str = "ru", search: SearchFn, fetch: Fet
         score += 0.3 if sid in chosen else 0.0
         candidates.append({**row, "score": score})
     candidates.sort(key=lambda row: row["score"], reverse=True)
-    # Разные магазины важнее нескольких страниц одного: сначала по одной странице
-    # каждого магазина, потом вторые страницы.
+
     picked: List[Dict[str, Any]] = []
     used_stores: Dict[str, int] = {}
     cap = max(1, min(10, limit + 2))
@@ -1235,7 +1148,6 @@ async def lookup(query: str, *, locale: str = "ru", search: SearchFn, fetch: Fet
         except Exception as exc:  # pragma: no cover - разбор не должен ронять инструмент
             return {"row": row, "error": type(exc).__name__}
 
-    # Обзорные страницы (не магазины): картинка и, бывает, рейтинг/отзывы в JSON-LD.
     review_rows = [row for row in search_rows if row["kind"] == "reviews"]
     seen_review = set()
     review_sources = []
@@ -1273,7 +1185,7 @@ async def lookup(query: str, *, locale: str = "ru", search: SearchFn, fetch: Fet
         sid = store_for_url(row["url"])
         data = result.get("data") or {}
         if not sid:
-            # Обзор: только картинки и отзывы как источник.
+
             if data.get("images"):
                 aggregate_images += [{"url": img, "from": row["url"]} for img in data["images"][:2]]
             facts = {k: data.get(k) for k in ("title", "images", "rating", "review_count", "reviews")}
@@ -1316,24 +1228,24 @@ async def lookup(query: str, *, locale: str = "ru", search: SearchFn, fetch: Fet
             if offer["url"] != row["url"]:
                 store.remember(offer["url"], {**facts, "store_id": sid, "checked_at": int(time.time())})
         offers.append({k: v for k, v in offer.items() if v not in (None, "", [], {}, False)})
-    # Бюджет: только цена со страницы магазина (или его API) доказывает «в бюджете».
+
     for offer in offers:
         price = offer.get("price") or {}
         if ceiling and price.get("amount"):
-            # A price without a currency proves nothing about a budget (Round 23: it used to count as «same»).
+
             same = price.get("currency") == ceiling["currency"]
             if offer.get("price_from") in ("page", "api") and same:
                 offer["within_budget"] = price["amount"] <= ceiling["amount"] * 1.0001
             else:
                 offer["within_budget"] = "unverified"
-    # Порядок: подтверждённая цена, в наличии, магазин региона, дешевле.
+
     offers.sort(key=lambda o: (o.get("price_from") not in ("page", "api"), o.get("availability") == "out_of_stock",
                                o.get("store_id") not in chosen, (o.get("price") or {}).get("amount") or 10 ** 12))
     for offer in offers:
         for img in offer.get("images") or []:
             if not any(entry["url"] == img for entry in aggregate_images):
                 aggregate_images.append({"url": img, "from": offer["url"]})
-    # Итог по магазинам: каждый магазин региона назван, даже если проверить не удалось.
+
     store_status = []
     for sid in chosen:
         value = status[sid]["status"] or "not_found"
@@ -1406,12 +1318,8 @@ async def lookup(query: str, *, locale: str = "ru", search: SearchFn, fetch: Fet
                 _LOOKUP_CACHE.pop(old, None)
     return payload
 
-
-# --------------------------------------------------------------------------- normalize
-
 BLOCK_RE = re.compile(r"```[ \t]*memuai[-_ ]?products[ \t]*\r?\n([\s\S]*?)(?:\r?\n[ \t]*```[ \t]*(?=\r?\n|$)|```\s*$)",
                       re.I)
-
 
 def parse_block(raw: Any) -> Tuple[Optional[Dict[str, Any]], str]:
     if isinstance(raw, dict):
@@ -1430,7 +1338,6 @@ def parse_block(raw: Any) -> Tuple[Optional[Dict[str, Any]], str]:
         return None, "not a JSON object"
     return data, ""
 
-
 def _clean_list(values: Any, count: int, limit: int) -> List[str]:
     if isinstance(values, str):
         values = [values]
@@ -1445,7 +1352,6 @@ def _clean_list(values: Any, count: int, limit: int) -> List[str]:
             break
     return out
 
-
 def _price_in(value: Any, currency_hint: str) -> Optional[Dict[str, Any]]:
     if isinstance(value, dict):
         amount = parse_amount(value.get("amount") if value.get("amount") is not None else value.get("value"))
@@ -1459,11 +1365,9 @@ def _price_in(value: Any, currency_hint: str) -> Optional[Dict[str, Any]]:
         return None
     return {"amount": amount, "currency": currency or currency_hint, "approx": approx}
 
-
 _BUDGET_SCALE = re.compile(
     r"(?<![A-Za-zА-Яа-я])(?P<num>\d+(?:[.,]\d+)?)\s*(?P<unit>k|к|тыс(?:\.|яч\w*)?|thousand|m|млн|mln|million)(?![A-Za-zА-Яа-я])",
     re.I)
-
 
 def budget_in(value: Any, currency_hint: str) -> Optional[Dict[str, Any]]:
     """A budget («15 000 ₽», "$1.5k", «15к», «20 тыс.», {"amount": 15000}) → price dict.
@@ -1481,10 +1385,8 @@ def budget_in(value: Any, currency_hint: str) -> Optional[Dict[str, Any]]:
             return {"amount": amount, "currency": currency, "approx": False} if 0 < amount <= 100_000_000 else None
     return _price_in(value, currency_hint)
 
-
 def _close(a: float, b: float, tolerance: float = 0.02) -> bool:
     return abs(a - b) <= max(1.0, tolerance * max(a, b))
-
 
 def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = None) -> Dict[str, Any]:
     """Проверенная версия блока ```memuai-products для показа.
@@ -1505,7 +1407,7 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
         return {"ok": False, "error": "no items"}
     items: List[Dict[str, Any]] = []
     best_taken = False
-    # Бюджет пользователя (модель переносит его в блок): потолок по ПРОВЕРЕННОЙ цене.
+
     raw_budget = data.get("budget") if data.get("budget") not in (None, "", 0) else data.get("max_price")
     budget = budget_in(raw_budget, currency) if raw_budget not in (None, "", 0) else None
     if budget and budget["currency"] != currency:
@@ -1546,7 +1448,6 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
             if values:
                 item[field] = values
 
-        # Офферы: магазин по домену, цена — со страницы, если мы её видели.
         offers: List[Dict[str, Any]] = []
         offer_keys = set()
         raw_offers = row.get("offers") if isinstance(row.get("offers"), list) else []
@@ -1601,8 +1502,7 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
             offers.append(out)
             if len(offers) >= MAX_OFFERS:
                 break
-        # Магазины, где product_lookup нашёл этот товар с ценой со страницы, но модель
-        # их не перечислила: оффер добавляется из журнала (ссылка и цена — увиденные).
+
         checks = store.lookup_for(name, loc, model, brand)
         have = {o.get("store_id") for o in offers}
         for row in (checks or {}).get("stores") or []:
@@ -1634,7 +1534,6 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
         if offers:
             item["offers"] = offers
 
-        # Цена карточки: лучшая подтверждённая цена в наличии, иначе оценка модели «≈».
         verified = [o for o in offers if o.get("verified") and o.get("availability") != "out_of_stock"
                     and o["price"]["currency"] == currency] or \
                    [o for o in offers if o.get("verified") and o["price"]["currency"] == currency]
@@ -1656,8 +1555,6 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
             cheapest = min((o for o in offers if o.get("price")), key=lambda o: o["price"]["amount"])
             item["price"] = {**cheapest["price"], "approx": True, "source": cheapest["url"]}
 
-        # Наличие: «в продаже», если хоть один проверенный оффер в наличии; «нет в
-        # продаже», если все проверенные офферы закончились или товар сняли с продажи.
         checked = [o for o in offers if o.get("verified")]
         if any(o.get("availability") == "in_stock" for o in checked):
             item["availability"] = "in_stock"
@@ -1665,7 +1562,7 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
             item["availability"] = "unavailable"
             if any(o.get("discontinued") for o in checked):
                 item["discontinued"] = True
-        # Бюджет: «в бюджете» только при проверенной цене в наличии не выше потолка.
+
         if budget:
             fits = [o for o in checked if o.get("availability") != "out_of_stock"
                     and o["price"]["currency"] == budget["currency"]
@@ -1685,9 +1582,6 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
             else:
                 item["budget_status"] = "unverified"
 
-        # Рейтинг: со страницы магазина/обзора или с указанным источником. Из
-        # нескольких источников берётся тот, где больше оценок: «5,0 (7)» с
-        # одной витрины хуже «4,9 (954)» со страницы отзывов.
         candidates: List[Dict[str, Any]] = []
         for offer in offers:
             seen = store.get(offer["url"])
@@ -1721,7 +1615,6 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
             if rating.get("verified"):
                 item["rating_verified"] = True
 
-        # Картинки: только http(s); если модель не дала — со страниц офферов.
         images: List[str] = []
         for image in (row.get("images") if isinstance(row.get("images"), list) else
                       [row.get("image")] if row.get("image") else []):
@@ -1734,7 +1627,6 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
         if images:
             item["images"] = images[:MAX_IMAGES]
 
-        # Отзывы: без ссылки отзыва нет; проверенный — если цитата встречалась на странице.
         reviews: List[Dict[str, Any]] = []
         raw_reviews = row.get("reviews") if isinstance(row.get("reviews"), list) else []
         for review in raw_reviews[:20]:
@@ -1764,7 +1656,6 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
         if reviews:
             item["reviews"] = reviews
 
-        # Магазины региона без оффера: что о них известно из product_lookup.
         have = {o.get("store_id") for o in offers}
         if checks:
             status_of = {row.get("store_id"): row.get("status") for row in checks.get("stores") or []}
@@ -1782,8 +1673,7 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
                     check["color"] = STORES[sid]["color"]
                 template = STORE_USER_SEARCH.get(sid) or STORE_SEARCH.get(sid)
                 if template:
-                    # Поиск по самому магазину — чтобы проверить вручную (ссылка строится
-                    # из названия товара, а не берётся у модели).
+
                     check["search_url"] = template.format(q=quote_plus(name))
                 missing.append(check)
             if missing:
@@ -1792,7 +1682,6 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
     if not items:
         return {"ok": False, "error": "no valid items", "warnings": warnings[:20]}
 
-    # «Лучший выбор» не может быть вне бюджета или не в продаже, если есть подходящий товар.
     def fitting(entry: Dict[str, Any]) -> bool:
         return entry.get("availability") != "unavailable" and (not budget or entry.get("budget_status") == "within")
 
@@ -1829,9 +1718,6 @@ def normalize(raw: Any, *, locale: str = "ru", store: Optional[Provenance] = Non
             result[field] = value
     return {"ok": True, "data": result, "warnings": warnings[:20]}
 
-
-# --------------------------------------------------------------------------- text fallback
-
 def format_price(price: Optional[Dict[str, Any]], locale: str = "ru") -> str:
     if not price or not price.get("amount"):
         return ""
@@ -1845,7 +1731,6 @@ def format_price(price: Optional[Dict[str, Any]], locale: str = "ru") -> str:
     sign = signs.get(code, code)
     text = f"{sign}{number}" if code in ("USD", "GBP", "EUR") and locale == "en" else f"{number}\u00a0{sign}".strip()
     return ("≈\u00a0" if price.get("approx") else "") + text
-
 
 def to_markdown(data: Dict[str, Any], locale: str = "ru") -> str:
     """Карточки текстом: для экспорта, копирования и чужих поверхностей (Telegram)."""
@@ -1880,7 +1765,6 @@ def to_markdown(data: Dict[str, Any], locale: str = "ru") -> str:
             lines.append(f"  - {check['store']}: {state}" + (f" — {check['url']}" if check.get("url") else ""))
     return "\n".join(lines)
 
-
 def markdown_fallback(text: str, locale: str = "ru") -> str:
     """Заменяет каждый блок ```memuai-products в ответе его текстовой версией.
 
@@ -1892,6 +1776,6 @@ def markdown_fallback(text: str, locale: str = "ru") -> str:
         return ("\n" + to_markdown(result["data"], locale) + "\n") if result.get("ok") else ""
 
     value = BLOCK_RE.sub(replace, str(text or ""))
-    # Незаконченный блок в конце (ответ оборвался) тоже не показывается.
+
     value = re.sub(r"```[ \t]*memuai[-_ ]?products\b[\s\S]*$", "", value, flags=re.I)
     return re.sub(r"\n{3,}", "\n\n", value).strip()

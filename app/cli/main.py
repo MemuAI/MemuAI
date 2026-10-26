@@ -23,10 +23,8 @@ from . import NAME, VERSION
 
 SUBCOMMANDS = ("doctor", "mcp", "config", "sessions", "models", "schedule", "install", "uninstall", "update", "version")
 
-
 class SessionNotFound(Exception):
     pass
-
 
 def _prepare_console() -> None:
     if os.name == "nt":
@@ -38,7 +36,7 @@ def _prepare_console() -> None:
             handle = kernel.GetStdHandle(-11)
             mode = ctypes.c_uint32()
             if kernel.GetConsoleMode(handle, ctypes.byref(mode)):
-                kernel.SetConsoleMode(handle, mode.value | 0x0004)      # ENABLE_VIRTUAL_TERMINAL_PROCESSING
+                kernel.SetConsoleMode(handle, mode.value | 0x0004)
         except Exception:
             pass
     for stream in (sys.stdout, sys.stderr):
@@ -46,7 +44,6 @@ def _prepare_console() -> None:
             stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
         except Exception:
             pass
-
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="memucode", description="MemuCode — the coding agent of MemuAI in your terminal.",
@@ -74,7 +71,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-v", "--version", action="store_true", help="print the version")
     return parser
 
-
 def _overrides(args: argparse.Namespace) -> dict:
     values: dict = {"language": "en"}
     if args.model:
@@ -93,7 +89,6 @@ def _overrides(args: argparse.Namespace) -> dict:
         values["verbose"] = True
     return values
 
-
 def _stdin_text() -> str:
     try:
         if sys.stdin is None or sys.stdin.isatty():
@@ -104,7 +99,6 @@ def _stdin_text() -> str:
         return decode_piped(buffer.read())
     except Exception:
         return ""
-
 
 def decode_piped(raw: bytes) -> str:
     """Bytes piped into ``memucode -p`` as text. ``sys.stdin.read()`` used the ANSI code page on Windows, so the
@@ -120,11 +114,10 @@ def decode_piped(raw: bytes) -> str:
         from ..code_sandbox import OutputDecoder
         return OutputDecoder().decode(raw, final=True)
 
-
 def main(argv: Optional[List[str]] = None) -> int:
     _prepare_console()
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] == "remote-host":          # Round 29: a session driven from the Telegram Mini App
+    if argv and argv[0] == "remote-host":
         from .remote_host import main as remote_host_main
         return remote_host_main(argv[1:])
     if argv and argv[0] in SUBCOMMANDS:
@@ -166,7 +159,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"memucode: no conversation {exc}", file=sys.stderr)
         return 2
 
-
 def _session_for(root: Path, args: argparse.Namespace):
     from .session import Session, latest_session
     if args.continue_:
@@ -195,7 +187,6 @@ def _session_for(root: Path, args: argparse.Namespace):
             raise SessionNotFound(args.resume)
     return Session(root), False
 
-
 def _apply_rules(runtime: Any, args: argparse.Namespace) -> None:
     from .permissions import parse_rule
     for text in args.allowed or []:
@@ -216,7 +207,6 @@ def _apply_rules(runtime: Any, args: argparse.Namespace) -> None:
     runtime.system_override = args.system_prompt
     runtime.system_append = args.append_system_prompt
 
-
 async def _headless(root: Path, settings: Any, args: argparse.Namespace, prompt: str) -> int:
     from . import headless
     from .runtime import Runtime
@@ -228,7 +218,6 @@ async def _headless(root: Path, settings: Any, args: argparse.Namespace, prompt:
     runtime = Runtime(session.root, settings, session=session, model=args.model)
     _apply_rules(runtime, args)
     return await headless.run(runtime, prompt, fmt=args.output_format, verbose=args.verbose)
-
 
 async def _interactive(root: Path, settings: Any, args: argparse.Namespace, prompt: str) -> int:
     from .i18n import tr
@@ -251,8 +240,6 @@ async def _interactive(root: Path, settings: Any, args: argparse.Namespace, prom
         replay(Context(ui, "resume", "", ""), session.messages, limit=30)
         ui.say(f"Resuming “{session.title()}”", "success")
 
-    # The first-run questions are on screen before the terminal reads a key: an Enter typed while
-    # MemuCode is still starting answers them instead of vanishing into the hidden prompt.
     questions = []
     if not settings.get("onboarded"):
         questions.append(_onboarding(ui))
@@ -262,11 +249,10 @@ async def _interactive(root: Path, settings: Any, args: argparse.Namespace, prom
     async def after_start(terminal: TerminalUI) -> None:
         for answered in questions:
             await answered
-        # The models load in the background: the prompt is usable at once, and a message sent
-        # before they arrive waits for them instead of the whole interface waiting.
+
         terminal.connecting = True
         terminal.start(_startup(terminal), busy=False)
-        # Telegram Mini App: publish this terminal so it can be watched and driven from the phone.
+
         from .remote import attach
         terminal.remote_control = attach(terminal)
         if args.resume == "__pick__":
@@ -281,7 +267,6 @@ async def _interactive(root: Path, settings: Any, args: argparse.Namespace, prom
     _goodbye(ui)
     return code
 
-
 async def _startup(ui: Any) -> None:
     runtime = ui.runtime
     before = runtime.model
@@ -290,7 +275,7 @@ async def _startup(ui: Any) -> None:
     finally:
         ui.connecting = False
         if getattr(ui, "banner", None) is not None:
-            ui.banner.update()                  # the banner shows the model that was picked
+            ui.banner.update()
         ui.invalidate()
     if runtime.router.proxy.launched:
         ui.say("Started MemuAI Proxy in the tray", "success")
@@ -303,7 +288,6 @@ async def _startup(ui: Any) -> None:
         ui.say(f"Model: {runtime.model} (change with /model)")
     elif models and runtime.model not in {model.id for model in models} and not runtime.model.startswith("@"):
         ui.say(f"Model {runtime.model} is not available now — pick another with /model", "warn")
-
 
 def _onboarding(ui: Any) -> Any:
     """Present the theme picker now; the returned coroutine waits for the choice and applies it."""
@@ -345,15 +329,13 @@ def _onboarding(ui: Any) -> Any:
 
     return answered()
 
-
 def _trust(ui: Any) -> Any:
     """Present the folder-trust question now; the returned coroutine waits for the answer and applies it."""
     from .i18n import tr
     from .tui import dialogs as dlg
     from .tui.banner import short_path
     runtime = ui.runtime
-    # Round 31: the title is cut to the terminal width — keep the folder name (the path's end) in it
-    # and show the whole path in the body, where it wraps.
+
     shown = short_path(str(runtime.root), 56)
     dialog = dlg.Dialog(title=tr(f"Доверяете файлам в папке {shown}?", f"Do you trust the files in {shown}?"), options=[
         dlg.Option(tr("Да, доверяю", "Yes, I trust this folder"), True,
@@ -373,7 +355,6 @@ def _trust(ui: Any) -> Any:
 
     return answered()
 
-
 def _goodbye(ui: Any) -> None:
     from rich.text import Text
     from .. import pricing
@@ -389,9 +370,6 @@ def _goodbye(ui: Any) -> None:
     for line in parts:
         sys.stdout.write(ui.renderer.render(Text(line, style="dim")))
     sys.stdout.flush()
-
-
-# ---------------------------------------------------------------- subcommands
 
 def run_subcommand(name: str, argv: List[str]) -> int:
     from .i18n import set_language
@@ -427,7 +405,6 @@ def run_subcommand(name: str, argv: List[str]) -> int:
         return _schedule_command(argv)
     return asyncio.run(_async_subcommand(name, root, settings, argv))
 
-
 def _schedule_command(argv: List[str]) -> int:
     """``memucode schedule list`` and ``memucode schedule run <id>`` (what the Windows scheduler starts)."""
     from . import schedule
@@ -448,13 +425,12 @@ def _schedule_command(argv: List[str]) -> int:
     print("usage: memucode schedule [list | run <task id>]", file=sys.stderr)
     return 2
 
-
 async def _async_subcommand(name: str, root: Path, settings: Any, argv: List[str]) -> int:
     from .runtime import Runtime
     from .tui.render import Renderer
     from .tui.theme import color_depth, palette_for
     runtime = Runtime(root, settings)
-    # Plain text when redirected to a file or a pipe: no escape codes in reports.
+
     depth = color_depth() if sys.stdout.isatty() else "none"
     renderer = Renderer(palette_for(settings.get("theme"), settings.get("accent")), depth)
     import shutil
@@ -464,8 +440,7 @@ async def _async_subcommand(name: str, root: Path, settings: Any, argv: List[str
             from rich.table import Table
             from rich.text import Text
             from .doctor import run_checks
-            # Round 31: the checks import every component and probe the network — on a cold start
-            # that is many seconds of a silent, «frozen» terminal. Say what is happening first.
+
             if sys.stderr.isatty():
                 sys.stderr.write("Checking MemuCode: models, network, tools and components…\r")
                 sys.stderr.flush()
@@ -486,9 +461,7 @@ async def _async_subcommand(name: str, root: Path, settings: Any, argv: List[str
         if name == "models":
             models = await runtime.router.models(refresh=True)
             from .. import pricing
-            # Round 34: the TUI refreshes the online price list in the background and /model priced from it, while
-            # this one-shot listing read only the built-in table — one model, two prices. Same index here (once a
-            # day, quietly falling back to the table offline).
+
             await asyncio.to_thread(pricing.refresh_online, timeout=8.0)
             for model in models:
                 price = pricing.lookup(model.id, model.provider)
@@ -499,7 +472,6 @@ async def _async_subcommand(name: str, root: Path, settings: Any, argv: List[str
     finally:
         await runtime.router.close()
     return 0
-
 
 def _config_command(settings: Any, argv: List[str]) -> int:
     from .settings import SettingsError, flatten, mask
@@ -535,7 +507,6 @@ def _config_command(settings: Any, argv: List[str]) -> int:
     print("usage: memucode config [list | get <key> | set <key> <value> | unset <key>] [--project|--local]", file=sys.stderr)
     return 2
 
-
 def _sessions_command(root: Path, argv: List[str]) -> int:
     from .session import list_sessions
     from .timefmt import ago
@@ -545,7 +516,6 @@ def _sessions_command(root: Path, argv: List[str]) -> int:
     if not rows:
         print("no conversations")
     return 0
-
 
 def _mcp_command(root: Path, argv: List[str]) -> int:
     from .. import mcp_client
@@ -585,7 +555,6 @@ def _mcp_command(root: Path, argv: List[str]) -> int:
         return 0
     print("usage: memucode mcp [list | add <name> -- <command…> | remove <name> | get <name>]", file=sys.stderr)
     return 2
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

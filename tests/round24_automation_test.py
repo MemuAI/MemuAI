@@ -12,17 +12,13 @@ from unittest.mock import patch
 
 from app import automation_runtime as ar
 
-
 _real_sleep = asyncio.sleep
-
 
 async def _no_sleep(*_args, **_kwargs):
     await _real_sleep(0)
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 class FakeEdge(ar.EdgeAutomation):
     """CDP is replaced: every command is recorded and answered from a script."""
@@ -71,7 +67,6 @@ class FakeEdge(ar.EdgeAutomation):
     def methods(self, name):
         return [params for method, params in self.calls if method == name]
 
-
 class BrowserActions(unittest.TestCase):
     def test_click_uses_a_trusted_mouse_event_at_the_element_centre(self):
         edge = FakeEdge()
@@ -99,7 +94,7 @@ class BrowserActions(unittest.TestCase):
         self.assertIn("Enter", outcome)
         keys = edge.methods("Input.dispatchKeyEvent")
         self.assertEqual(keys[0]["key"], "Enter")
-        # The field is selected first so old text is replaced, and change fires.
+
         self.assertTrue(any("e.select()" in e for e in edge.evals))
         self.assertTrue(any("new Event('change'" in e for e in edge.evals))
 
@@ -150,7 +145,6 @@ class BrowserActions(unittest.TestCase):
         self.assertIn("removeAttribute('data-memuai-agent-id')", ar._SNAPSHOT_JS)
         self.assertIn("contentDocument", ar._FIND_JS)
 
-
 class BrowserEvents(unittest.TestCase):
     def _edge(self):
         edge = FakeEdge()
@@ -190,7 +184,6 @@ class BrowserEvents(unittest.TestCase):
             "sessionId": "child", "targetInfo": {"targetId": "T2", "type": "page"}}}, sock))
         self.assertEqual(edge.methods("Target.closeTarget"), [{"targetId": "T2"}])
 
-
 class BrowserProfiles(unittest.TestCase):
     def test_persistent_profile_is_kept_and_reused(self):
         folder = Path(tempfile.mkdtemp()) / "session-persistent"
@@ -222,7 +215,6 @@ class BrowserProfiles(unittest.TestCase):
                 self.assertEqual(ar._edge_executable(), path)
         finally:
             os.unlink(path)
-
 
 class BrowserAgentLoop(unittest.TestCase):
     def test_repeating_an_ineffective_action_ends_the_run(self):
@@ -262,7 +254,6 @@ class BrowserAgentLoop(unittest.TestCase):
         self.assertEqual(edge.status, "done")
         self.assertIn("лимит времени", edge.report)
 
-
 class WindowsInput(unittest.TestCase):
     def test_input_struct_has_the_windows_size(self):
         types = ar._win_input_types()
@@ -284,8 +275,8 @@ class WindowsInput(unittest.TestCase):
 
     def test_extended_keys_get_the_extended_flag(self):
         flags = ar.ComputerAutomation._key_flags
-        self.assertTrue(flags(0x25, False) & ar.KEYEVENTF_EXTENDEDKEY)   # left arrow
-        self.assertFalse(flags(0x41, False) & ar.KEYEVENTF_EXTENDEDKEY)  # A
+        self.assertTrue(flags(0x25, False) & ar.KEYEVENTF_EXTENDEDKEY)
+        self.assertFalse(flags(0x41, False) & ar.KEYEVENTF_EXTENDEDKEY)
         self.assertTrue(flags(0x41, True) & ar.KEYEVENTF_KEYUP)
 
     def test_agent_escape_is_not_the_users_escape(self):
@@ -317,7 +308,6 @@ class WindowsInput(unittest.TestCase):
         self.assertEqual(ar._signature_change(None, [1]), -1.0)
         self.assertGreater(ar._signature_change([0] * 4, [255] * 4), 100)
 
-
 class ComputerStandin(ar.ComputerAutomation):
     def __init__(self, signatures):
         super().__init__()
@@ -334,7 +324,6 @@ class ComputerStandin(ar.ComputerAutomation):
 
     def _list_windows(self):
         return []
-
 
 class ComputerActions(unittest.TestCase):
     def test_actions_map_to_input_helpers(self):
@@ -395,10 +384,8 @@ class ComputerActions(unittest.TestCase):
         self.assertIn("scroll down 600", text({"action": "scroll", "dy": 600}))
         self.assertIn("select", text({"action": "select", "element": 2, "option": "Beta"}))
 
-
 if __name__ == "__main__":
     unittest.main()
-
 
 class LiveBrowser(unittest.TestCase):
     """Real headless Edge/Chromium (MEMUAI_BROWSER_EXECUTABLE or an installed Edge); skipped when none exists."""
@@ -476,7 +463,6 @@ class LiveBrowser(unittest.TestCase):
         finally:
             server.shutdown()
 
-
 class FakeUser32:
     def __init__(self):
         self.cursor = []
@@ -494,7 +480,6 @@ class FakeUser32:
 
     def GetDoubleClickTime(self):
         return 500
-
 
 class FakeOsInput(unittest.TestCase):
     def _run(self, func):

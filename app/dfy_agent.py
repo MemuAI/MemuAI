@@ -53,14 +53,13 @@ AGENT_NAME = "MemuAI Remote Agent"
 AGENT_VERSION = "1.0"
 PROTOCOL = 1
 DEFAULT_PORT = 8765
-MAX_OUTPUT = 200_000          # байт вывода одной команды, дальше — обрезка
-MAX_READ = 400_000            # байт при чтении файла
-MAX_LIST = 400                # записей в листинге каталога
+MAX_OUTPUT = 200_000
+MAX_READ = 400_000
+MAX_LIST = 400
 DEFAULT_TIMEOUT = 120.0
 MAX_TIMEOUT = 3600.0
-AUTH_WINDOW = 300             # допустимый сдвиг часов, с
+AUTH_WINDOW = 300
 WINDOWS = os.name == "nt"
-
 
 class Refused(Exception):
     """Отказ по правилам безопасности (ответ 403 с человеческим текстом)."""
@@ -70,25 +69,18 @@ class Refused(Exception):
         self.message_en = message_en or message
         self.level = level
 
-
 class NeedsConfirm(Refused):
     """Действие опасно: нужно подтверждение пользователя (``confirmed: true``)."""
 
     def __init__(self, message: str, message_en: str = "") -> None:
         super().__init__(message, message_en, level="confirm")
 
-
-# --------------------------------------------------------------- защита ---
-# Пути, которые нельзя удалить/перезаписать/переместить ни при каких условиях:
-# сам агент, его состояние и MemuAI с его данными. Задаются конфигурацией
-# (MemuAI присылает свои пути при подключении) плюс вычисляются из __file__.
 _SYSTEM_ROOTS_POSIX = ("/", "/bin", "/sbin", "/boot", "/dev", "/etc", "/lib", "/lib32", "/lib64", "/proc",
                        "/root", "/run", "/sbin", "/sys", "/usr", "/usr/bin", "/usr/lib", "/usr/sbin",
                        "/var", "/var/lib", "/home", "/Users", "/Applications", "/System", "/Library")
 _SYSTEM_ROOTS_WIN = (r"C:\\", r"C:\Windows", r"C:\Windows\System32", r"C:\Program Files",
                      r"C:\Program Files (x86)", r"C:\Users")
 
-# Команды, которые не выполняются никогда (разрушают машину целиком).
 _FATAL_PATTERNS: Tuple[Tuple[str, str, str], ...] = (
     (r"(?:^|[;&|]\s*)(?:sudo\s+)?rm\s+(?:-[a-zA-Z]*\s+)*-?[a-zA-Z]*[rR][a-zA-Z]*f?[a-zA-Z]*\s+(?:--no-preserve-root\s+)?/\s*(?:$|[;&|])",
      "rm -rf / стирает всю машину", "rm -rf / wipes the whole machine"),
@@ -103,7 +95,6 @@ _FATAL_PATTERNS: Tuple[Tuple[str, str, str], ...] = (
     (r"(?i)>\s*/dev/(sd|nvme|vd|hd)\w*", "запись поверх диска", "writing over a raw disk"),
 )
 
-# Команды, которые выполняются только после подтверждения пользователя.
 _DANGER_PATTERNS: Tuple[Tuple[str, str, str], ...] = (
     (r"(?:^|[;&|]\s*)(?:sudo\s+)?rm\s+(?:-\S+\s+)*-\S*[rR]\S*\s", "рекурсивное удаление (rm -r)",
      "a recursive delete (rm -r)"),
@@ -136,13 +127,11 @@ _SELF_VERBS = re.compile(r"(?i)\b(rm|rmdir|mv|cp|dd|shred|truncate|unlink|del|er
 _SERVICE_RE = re.compile(r"(?i)\b(systemctl|service|sc|launchctl)\b[^|;&]*\b(memuai[-\w]*)\b")
 _KILL_SELF_RE = re.compile(r"(?i)\b(pkill|killall|taskkill)\b[^|;&]*\b(memuai\S*|dfy_agent|memuai_remote_agent)\b")
 
-
 def _norm(path: Any) -> Optional[Path]:
     try:
         return Path(str(path)).expanduser().resolve()
     except (OSError, ValueError, RuntimeError):
         return None
-
 
 def _inside(path: Path, parent: Path) -> bool:
     try:
@@ -150,7 +139,6 @@ def _inside(path: Path, parent: Path) -> bool:
         return True
     except ValueError:
         return False
-
 
 def _is_memuai_dir(folder: Path) -> bool:
     """Папка установки или исходников MemuAI (по характерным файлам)."""
@@ -161,7 +149,6 @@ def _is_memuai_dir(folder: Path) -> bool:
         return (app / "dfy_agent.py").is_file() and ((app / "playground_api.py").is_file() or (folder / "memuai.py").is_file())
     except OSError:
         return False
-
 
 def memuai_tree(path: Path, depth: int = 3) -> Optional[Path]:
     """Папка MemuAI, которую задевает операция над ``path``: сам путь или его родитель —
@@ -193,7 +180,6 @@ def memuai_tree(path: Path, depth: int = 3) -> Optional[Path]:
         if not level:
             break
     return None
-
 
 class Guard:
     """Правила безопасности агента: пути, которые нельзя трогать, и уровни команд."""
@@ -236,7 +222,6 @@ class Guard:
         clone.self_paths, clone.system_paths, clone.roots = self.self_paths + extra, self.system_paths, self.roots
         return clone
 
-    # -- пути ---------------------------------------------------------------
     def owned(self, path: Path) -> bool:
         """Путь — агент, его состояние или MemuAI (сам путь, внутри или родитель)?"""
         for own in self.self_paths:
@@ -283,7 +268,6 @@ class Guard:
             raise Refused(f"Путь вне разрешённых каталогов агента ({allowed})",
                           f"The path is outside the agent's allowed roots ({allowed})")
 
-    # -- команды ------------------------------------------------------------
     def classify(self, command: str, cwd: Optional[str] = None) -> Dict[str, str]:
         """``{"level": safe|confirm|blocked, "reason", "reason_en"}`` для команды оболочки."""
         text = str(command or "")
@@ -312,7 +296,7 @@ class Guard:
             parts = command.split()
         tokens: List[str] = []
         for part in parts:
-            # «echo x>file», «a&&b», «2>>log» — операторы оболочки отделяем от путей
+
             for piece in re.split(r"[;&|<>]+", part):
                 piece = re.sub(r"^\d+$", "", piece)
                 if piece and not piece.startswith("-"):
@@ -340,8 +324,6 @@ class Guard:
                 found.append(resolved)
         return found
 
-
-# ----------------------------------------------------------------- ops ---
 class Agent:
     """Операции над машиной. Один экземпляр и у агента, и у локального режима MemuAI."""
 
@@ -349,14 +331,12 @@ class Agent:
                  state: Optional[Path] = None) -> None:
         self.guard = guard or Guard()
         self._state = Path(state) if state else _state_dir()
-        # общий для «суженных» копий агента (call() делает copy.copy с другим guard): присваивать
-        # self._browser в копии нельзя — браузер потерялся бы для туннеля и browser_stop
+
         self._browser: Dict[str, Any] = {}
         self.max_output = int(max_output)
         self.jobs: Dict[str, subprocess.Popen] = {}
         self._lock = threading.Lock()
 
-    # -- сведения -----------------------------------------------------------
     def ping(self, _params: Dict[str, Any]) -> Dict[str, Any]:
         return {"agent": AGENT_NAME, "version": AGENT_VERSION, "protocol": PROTOCOL,
                 "os": platform.system().lower(), "hostname": socket.gethostname(), "time": time.time()}
@@ -434,7 +414,6 @@ class Agent:
                  "winget", "choco") if not WINDOWS else ("winget", "choco", "pip", "npm")
         return [name for name in names if shutil.which(name)]
 
-    # -- команды ------------------------------------------------------------
     def exec(self, params: Dict[str, Any], on_chunk: Optional[Callable[[str, str], None]] = None) -> Dict[str, Any]:
         command = str(params.get("command") or "").strip()
         if not command:
@@ -542,7 +521,6 @@ class Agent:
             except Exception:
                 pass
 
-    # -- файлы --------------------------------------------------------------
     def fs_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
         path = self.guard.check_read(params.get("path") or ".")
         if not path.is_dir():
@@ -688,7 +666,7 @@ class Agent:
         proxy = str(params.get("proxy") or "")
         if proxy.lower().startswith("socks"):
             return self._fetch_curl(url, path, limit, proxy)
-        # без прокси — напрямую, даже если в окружении агента заданы *_PROXY (решает MemuAI)
+
         opener = urllib.request.build_opener(urllib.request.ProxyHandler(
             {"http": proxy, "https": proxy} if proxy else {}))
         opener.addheaders = [("User-Agent", f"{AGENT_NAME}/{AGENT_VERSION}")]
@@ -713,7 +691,7 @@ class Agent:
             raise Refused("Для скачивания через SOCKS-прокси на машине нужен curl",
                           "Downloading through a SOCKS proxy needs curl on the machine")
         proxy = re.sub(r"(?i)^socks5://", "socks5h://", proxy)
-        # прокси с паролем — через окружение, а не в argv (argv виден всем в ps)
+
         env = {**os.environ, "ALL_PROXY": proxy, "all_proxy": proxy}
         done = subprocess.run([curl, "-fsSL", "--max-filesize", str(limit), "--max-time", "1800",
                                "-A", f"{AGENT_NAME}/{AGENT_VERSION}", "-o", str(path), url], env=env,
@@ -724,7 +702,6 @@ class Agent:
             raise Refused(f"Скачивание через прокси не удалось: {text}", f"The download through the proxy failed: {text}")
         return {"url": url, "path": str(path), "bytes": path.stat().st_size}
 
-    # -- пакеты и процессы --------------------------------------------------
     PKG_COMMANDS = {
         "apt-get": {"install": "apt-get install -y {name}", "remove": "apt-get remove -y {name}",
                     "list": "apt list --installed", "search": "apt-cache search {name}", "update": "apt-get update"},
@@ -849,7 +826,6 @@ class Agent:
                 return True
         return False
 
-    # -- браузер на этой машине (для DFY: CDP через туннель агента) ----------
     BROWSERS = ("chromium", "chromium-browser", "google-chrome", "google-chrome-stable", "microsoft-edge",
                 "microsoft-edge-stable", "msedge", "chrome")
 
@@ -890,7 +866,7 @@ class Agent:
         if not WINDOWS and hasattr(os, "geteuid") and os.geteuid() == 0:
             args.append("--no-sandbox")
         args += [str(a) for a in params.get("args") or [] if str(a).startswith("--")][:20]
-        # флаги владельца машины (контейнер без user namespaces: --no-sandbox и т.п.), как у браузера DFY
+
         try:
             own = shlex.split(os.environ.get("MEMUAI_BROWSER_ARGS", ""), posix=not WINDOWS)
         except ValueError:
@@ -926,7 +902,6 @@ class Agent:
         current = self._browser.get("current")
         return current["port"] if current and current["process"].poll() is None else 0
 
-    # -- диспетчер ----------------------------------------------------------
     def call(self, op: str, params: Dict[str, Any],
              on_chunk: Optional[Callable[[str, str], None]] = None) -> Dict[str, Any]:
         handlers: Dict[str, Callable[..., Dict[str, Any]]] = {
@@ -958,8 +933,6 @@ class Agent:
             return handler(params or {}, on_chunk)
         return handler(params or {})
 
-
-# ------------------------------------------------------------- подпись ---
 def sign(token: str, body: bytes, timestamp: Optional[int] = None, nonce: str = "") -> str:
     """``ts.nonce.hmac`` — заголовок ``X-Memu-Agent-Auth``. Токен по сети не уходит."""
     ts = int(timestamp if timestamp is not None else time.time())
@@ -967,7 +940,6 @@ def sign(token: str, body: bytes, timestamp: Optional[int] = None, nonce: str = 
     digest = hashlib.sha256(body or b"").hexdigest()
     mac = hmac.new(token.encode("utf-8"), f"{ts}.{nonce}.{digest}".encode("ascii"), hashlib.sha256).hexdigest()
     return f"{ts}.{nonce}.{mac}"
-
 
 def verify(token: str, body: bytes, header: str, seen: Optional[set] = None) -> bool:
     parts = str(header or "").split(".")
@@ -988,13 +960,11 @@ def verify(token: str, body: bytes, header: str, seen: Optional[set] = None) -> 
             seen.clear()
     return hmac.compare_digest(sign(token, body, ts, nonce), header)
 
-
 def pairing_code(host: str, port: int, token: str, *, name: str = "", tls: bool = False) -> str:
     payload = {"v": PROTOCOL, "h": host, "p": int(port), "t": token, "n": name or socket.gethostname(),
                "o": platform.system().lower(), "s": bool(tls)}
     raw = json.dumps(payload, separators=(",", ":")).encode("utf-8")
     return "MEMU1-" + base64.urlsafe_b64encode(raw).decode("ascii").rstrip("=")
-
 
 def parse_pairing_code(code: str) -> Dict[str, Any]:
     text = str(code or "").strip().replace(" ", "").replace("\n", "")
@@ -1011,14 +981,11 @@ def parse_pairing_code(code: str) -> Dict[str, Any]:
             "token": str(data.get("t")), "name": str(data.get("n") or ""), "os": str(data.get("o") or ""),
             "tls": bool(data.get("s"))}
 
-
-# --------------------------------------------------------------- сервер ---
 def _state_dir() -> Path:
     base = os.environ.get("MEMUAI_AGENT_HOME") or os.path.join(str(Path.home()), ".memuai-agent")
     path = Path(base)
     path.mkdir(parents=True, exist_ok=True)
     return path
-
 
 def _load_token(explicit: str = "") -> str:
     if explicit and explicit != "auto":
@@ -1038,7 +1005,6 @@ def _load_token(explicit: str = "") -> str:
         pass
     return token
 
-
 def _primary_ip() -> str:
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as probe:
@@ -1046,7 +1012,6 @@ def _primary_ip() -> str:
             return probe.getsockname()[0]
     except OSError:
         return "127.0.0.1"
-
 
 def serve(args: Any) -> int:
     from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -1059,7 +1024,7 @@ def serve(args: Any) -> int:
         protocol_version = "HTTP/1.1"
         server_version = f"MemuAIAgent/{AGENT_VERSION}"
 
-        def log_message(self, fmt: str, *fmt_args: Any) -> None:   # тише, чем http.server по умолчанию
+        def log_message(self, fmt: str, *fmt_args: Any) -> None:
             if args.verbose:
                 sys.stderr.write("%s - %s\n" % (self.address_string(), fmt % fmt_args))
 
@@ -1107,7 +1072,7 @@ def serve(args: Any) -> int:
                                      "error_en": exc.message_en})
                 except Refused as exc:
                     self._send(403, {"ok": False, "error": str(exc), "error_en": exc.message_en})
-                except Exception as exc:   # ошибка операции, не падение агента
+                except Exception as exc:
                     self._send(500, {"ok": False, "error": f"{type(exc).__name__}: {exc}"})
                 return
             self.send_response(200)
@@ -1177,7 +1142,7 @@ def serve(args: Any) -> int:
     print("  " + pairing_code(host, port, token, tls=bool(args.tls_cert)))
     print("\nКод содержит токен — передавайте его только себе. Ctrl+C останавливает агента.", flush=True)
 
-    def stop(*_signal: Any) -> None:     # systemctl stop / kill: как Ctrl+C — с уборкой браузера машины
+    def stop(*_signal: Any) -> None:
         raise KeyboardInterrupt
     if hasattr(signal, "SIGTERM") and threading.current_thread() is threading.main_thread():
         signal.signal(signal.SIGTERM, stop)
@@ -1187,9 +1152,8 @@ def serve(args: Any) -> int:
         pass
     finally:
         httpd.server_close()
-        agent.browser_stop({})   # браузер запущен в своей сессии процессов и сам не закроется
+        agent.browser_stop({})
     return 0
-
 
 def pipe(left: socket.socket, right: socket.socket) -> None:
     """Гнать байты в обе стороны, пока одна из сторон не закроется."""
@@ -1216,7 +1180,6 @@ def pipe(left: socket.socket, right: socket.socket) -> None:
     forward(left, right)
     other.join(timeout=5)
     right.close()
-
 
 def run_once(args: Any) -> int:
     """Режим SSH: одна операция. Запрос — JSON-строка в stdin, ответ — NDJSON в stdout.
@@ -1255,7 +1218,7 @@ def run_once(args: Any) -> int:
     except Exception as exc:
         emit({"ok": False, "error": f"{type(exc).__name__}: {exc}"})
     if op == "browser_start" and agent.browser_port():
-        # браузер живёт, пока открыт SSH-туннель: ждём закрытия stdin
+
         try:
             while sys.stdin.read(1):
                 pass
@@ -1263,7 +1226,6 @@ def run_once(args: Any) -> int:
             pass
         agent.browser_stop({})
     return 0
-
 
 SYSTEMD_UNIT = """[Unit]
 Description={name}
@@ -1282,7 +1244,6 @@ RestartSec=5
 WantedBy=multi-user.target
 """
 
-
 def systemd(args: Any) -> int:
     script = str(Path(__file__).resolve())
     roots = "".join(f" --root {shlex.quote(r)}" for r in (args.root or []))
@@ -1295,13 +1256,11 @@ def systemd(args: Any) -> int:
           f"#   {sys.executable} {script} code   # показать код подключения ещё раз")
     return 0
 
-
 def show_code(args: Any) -> int:
     token = _load_token(args.token)
     host = args.advertise or _primary_ip()
     print(pairing_code(host, int(args.port), token, tls=False))
     return 0
-
 
 def main(argv: Optional[List[str]] = None) -> int:
     import argparse
@@ -1347,7 +1306,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.command == "once":
         return run_once(args)
     return show_code(args)
-
 
 if __name__ == "__main__":
     sys.exit(main())

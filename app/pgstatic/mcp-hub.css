@@ -1,12 +1,8 @@
-/* MemuAI · Settings → Integrations → MCP (Round 40, r40-mcp). Settings-kit tokens (--sx-*) and theme tokens only. */
-
 .mcph-root { display: flex; flex-direction: column; gap: 16px; padding-top: 14px; }
 .mcph-loading, .mcph-muted { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 0; }
 .mcph-ic { display: inline-grid; place-items: center; width: 14px; height: 14px; flex: none; }
 .mcph-ic svg, .mcph-brand svg, .mcph-iconbtn svg, .mcph-mono svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .mcph-brand { display: grid; place-items: center; width: 100%; height: 100%; padding: 6px; color: var(--accent); }
-
-/* server cards */
 .mcph-list { display: flex; flex-direction: column; gap: 8px; }
 .mcph-card { border: 1px solid var(--sx-line); border-radius: var(--sx-r, 14px); background: var(--sx-card); overflow: hidden; }
 .mcph-card.open { border-color: color-mix(in srgb, var(--accent) 35%, var(--sx-line)); }
@@ -33,8 +29,6 @@
 .mcph-err { background: color-mix(in srgb, var(--danger, #ef4444) 10%, transparent); color: color-mix(in srgb, var(--danger, #ef4444) 80%, var(--text)); word-break: break-word; }
 .mcph-ok { background: color-mix(in srgb, var(--ok, #22c55e) 10%, transparent); color: var(--text); }
 .mcph-ok .mcph-ic { color: var(--ok, #22c55e); }
-
-/* details */
 .mcph-body { border-top: 1px solid var(--sx-line); padding: 14px; display: flex; flex-direction: column; gap: 16px; }
 .mcph-body section { display: flex; flex-direction: column; gap: 8px; }
 .mcph-body h4 { margin: 0; font: 650 12px/1.3 var(--sx-font); letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
@@ -70,8 +64,6 @@
 .mcph-empty { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 22px; border: 1px dashed var(--sx-line); border-radius: var(--sx-r, 14px); color: var(--muted); font-size: 13px; text-align: center; }
 .mcph-empty .mcph-ic { width: 22px; height: 22px; color: var(--accent); margin-bottom: 4px; }
 .mcph-empty b { color: var(--text); font-weight: 650; }
-
-/* catalogue */
 .mcph-cat-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 4px; }
 .mcph-cat-head h3 { margin: 0; font: 650 15px/1.3 var(--sx-display, inherit); }
 .mcph-cat-head .pinput { width: 220px; margin: 0; }
@@ -96,8 +88,6 @@
   .mcph-tool { flex-wrap: wrap; }
   .mcph-tool select { width: 100%; }
 }
-
-/* the settings shell stretches every select.pinput to 100%: size ours explicitly */
 :root .sx-shell .mcph-tool select.pinput { flex: none; width: 190px !important; max-width: 45%; margin: 0; }
 :root .sx-shell .mcph-sw select.pinput { flex: none; width: 280px !important; max-width: 60%; margin: 0; }
 :root .sx-shell .mcph-cat-head .pinput { width: 240px !important; margin: 0; }

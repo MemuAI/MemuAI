@@ -1,10 +1,5 @@
-/* Round 28: a tiny message bus between the Quick Ask window (/quick/) and its screen layer (/quick/layer.html).
 
-   send(to, event, data): POST /api/quick/layer/relay — the server pushes the message into the other window
-   (evaluate_js → MemuQuickBus.receive). When it cannot (not the Windows app, the other window hidden; tests) the
-   message goes over a BroadcastChannel instead (both pages share one browser profile). Every message has an id and
-   is delivered once. The relay refuses unknown events; a «run» relayed in the first 300 ms after the layer
-   appeared is dropped by the server (the click that only finished opening it). */
+
 (function () {
   "use strict";
   if (window.MemuQuickBus) return;
@@ -32,7 +27,7 @@
       const out = await r.json().catch(() => ({}));
       relayed = !!out.relayed; guarded = !!out.guarded;
     } catch (e) { relayed = false; }
-    if (!relayed && !guarded && channel) { try { channel.postMessage(msg); } catch (e) { /* closed */ } }
+    if (!relayed && !guarded && channel) { try { channel.postMessage(msg); } catch (e) {  } }
     return { relayed, guarded, id: msg.id };
   }
   function on(event, fn) {

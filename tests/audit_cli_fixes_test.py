@@ -29,7 +29,6 @@ from app.cli.session import Session  # noqa: E402
 from app.cli.tools import mcp as mcp_tools  # noqa: E402
 from app.code_sandbox import NewlineJoiner  # noqa: E402
 
-
 class _TempSessions(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -48,12 +47,11 @@ class _TempSessions(unittest.TestCase):
             item.stop()
         self.tmp.cleanup()
 
-
 class SessionPersistence(_TempSessions):
     def test_a_line_cut_by_a_crash_does_not_swallow_the_next_event(self):
         session = Session(self.project)
         session.append({"role": "user", "kind": "prompt", "content": "first"})
-        with session.path.open("ab") as handle:            # a crash in the middle of a line
+        with session.path.open("ab") as handle:
             handle.write('{"t": "msg", "m": {"role": "assistant", "content": "обор'.encode("utf-8")[:-1])
         session.append({"role": "user", "kind": "prompt", "content": "second"})
         loaded = Session.load(self.project, session.id)
@@ -68,14 +66,12 @@ class SessionPersistence(_TempSessions):
         self.assertTrue(session.path.exists())
         self.assertEqual(session_module.cleanup(30), 1)
 
-
 class ContextAccounting(unittest.TestCase):
     def test_an_elided_result_costs_only_its_stub(self):
         body = {"role": "tool", "content": "x" * 40_000}
         full = tokens.estimate_message(body)
         stub = tokens.estimate_message({**body, "elided": True})
-        # Round 31: the Round 30 calibrated estimate counts a run of one repeated
-        # character at ~12 chars/token (≈3.3k here), as real BPE tokenizers do.
+
         self.assertGreater(full, 2000)
         self.assertLess(stub, 50)
 
@@ -87,15 +83,14 @@ class ContextAccounting(unittest.TestCase):
             messages.append({"id": f"t{index}", "role": "tool", "tool_call_id": f"c{index}", "content": "x"})
         cut = compact._cut_index(messages, 8)
         self.assertGreater(cut, 0)
-        self.assertEqual(messages[cut]["role"], "assistant")      # never between a call and its result
+        self.assertEqual(messages[cut]["role"], "assistant")
 
     def test_the_tail_kept_by_an_earlier_summary_is_not_dropped(self):
         messages = [{"id": "s", "role": "user", "kind": "summary", "content": "earlier"},
                     {"id": "u", "role": "user", "kind": "prompt", "content": "next"},
                     {"id": "a", "role": "assistant", "content": "ok"}]
         cut = compact._cut_index(messages, 8)
-        self.assertNotEqual(cut, 1)                               # covering only the old summary
-
+        self.assertNotEqual(cut, 1)
 
 class ShellOutput(unittest.TestCase):
     def test_crlf_split_between_chunks(self):
@@ -106,7 +101,6 @@ class ShellOutput(unittest.TestCase):
     def test_progress_carriage_return_survives_the_end(self):
         lines = NewlineJoiner()
         self.assertEqual(lines.feed("50%\r") + lines.feed("", final=True), "50%\r")
-
 
 @unittest.skipIf(sys.platform == "win32", "POSIX process groups")
 class ProcessTrees(unittest.TestCase):
@@ -132,7 +126,6 @@ class ProcessTrees(unittest.TestCase):
         finally:
             os.unlink(marker.name)
 
-
 class EncodingOfConfigFiles(unittest.TestCase):
     def test_project_mcp_json_with_a_bom_is_read(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -147,7 +140,6 @@ class EncodingOfConfigFiles(unittest.TestCase):
             data, existed = cli_integrations._read_json_file(str(path))
             self.assertTrue(existed)
             self.assertEqual(data, {"theme": "dark"})
-
 
 class OpenAIToolCalls(unittest.TestCase):
     def test_parallel_calls_that_all_say_index_0_stay_separate(self):
@@ -175,7 +167,6 @@ class OpenAIToolCalls(unittest.TestCase):
         calls = asyncio.run(collect())
         self.assertEqual([(c["id"], c["args"]) for c in calls],
                          [("a", {"file_path": "a.py"}), ("b", {"file_path": "b.py"})])
-
 
 if __name__ == "__main__":
     unittest.main()

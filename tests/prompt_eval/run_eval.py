@@ -25,7 +25,6 @@ sys.path.insert(0, str(HERE))
 import llm  # noqa: E402
 import scenarios  # noqa: E402
 
-
 def load_snapshot(variant: str) -> dict:
     if variant == "base":
         return json.loads((HERE / "baseline_snapshot.json").read_text("utf-8"))
@@ -34,7 +33,6 @@ def load_snapshot(variant: str) -> dict:
                              check=True)
         return json.loads(out.stdout)
     return json.loads(Path(variant).read_text("utf-8"))
-
 
 def run_single(rows, snaps, models, runs, workers):
     jobs = [(row, variant, model, n) for row in rows for variant in snaps for model in models for n in range(runs)]
@@ -61,7 +59,6 @@ def run_single(rows, snaps, models, runs, workers):
                   flush=True)
     return results
 
-
 def summary(results):
     table = defaultdict(lambda: [0, 0])
     for r in results:
@@ -75,7 +72,6 @@ def summary(results):
         good, total = table[key]
         lines.append(f"{key[0]:20} {key[1]:6} {key[2]:5} {good}/{total}")
     return "\n".join(lines)
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -98,7 +94,6 @@ def main():
     path.write_text(json.dumps(results, ensure_ascii=False, indent=1), "utf-8")
     print("\n" + summary(results))
     print("saved", path)
-
 
 if __name__ == "__main__":
     main()

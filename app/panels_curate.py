@@ -51,13 +51,10 @@ MAX_SEEN = 400
 SEEN_DAYS = 21
 MAX_ITEMS = 10
 
-# ------------------------------------------------------------------ авторитет площадок
-
 AUTHORITY = {"official": 1.0, "primary": 0.9, "media": 0.8, "aggregator": 0.65, "community": 0.6, "search": 0.42}
 
-#: Известные площадки → (вид, авторитет). Неизвестный сайт из поиска получает 0.4.
 HOSTS: Dict[str, Tuple[str, float]] = {
-    # первоисточники ИИ
+
     "openai.com": ("official", 1.0), "anthropic.com": ("official", 1.0), "deepmind.google": ("official", 1.0),
     "blog.google": ("official", 0.95), "ai.google.dev": ("official", 0.95), "ai.meta.com": ("official", 1.0),
     "about.fb.com": ("official", 0.9), "mistral.ai": ("official", 1.0), "x.ai": ("official", 1.0),
@@ -67,7 +64,7 @@ HOSTS: Dict[str, Tuple[str, float]] = {
     "nvidia.com": ("official", 0.9), "blogs.nvidia.com": ("official", 0.9), "microsoft.com": ("official", 0.9),
     "blogs.microsoft.com": ("official", 0.9), "apple.com": ("official", 0.9), "aws.amazon.com": ("official", 0.85),
     "simonwillison.net": ("primary", 0.85), "labs.google": ("official", 0.9),
-    # СМИ
+
     "theverge.com": ("media", 0.82), "techcrunch.com": ("media", 0.8), "arstechnica.com": ("media", 0.85),
     "reuters.com": ("media", 0.92), "bloomberg.com": ("media", 0.9), "nytimes.com": ("media", 0.88),
     "wsj.com": ("media", 0.88), "ft.com": ("media", 0.88), "cnbc.com": ("media", 0.8), "wired.com": ("media", 0.8),
@@ -82,10 +79,10 @@ HOSTS: Dict[str, Tuple[str, float]] = {
     "spacenews.com": ("media", 0.84), "space.com": ("media", 0.7), "esa.int": ("official", 1.0),
     "polygon.com": ("media", 0.78), "eurogamer.net": ("media", 0.78), "ign.com": ("media", 0.72),
     "marktechpost.com": ("aggregator", 0.55),
-    # сообщества
+
     "news.ycombinator.com": ("community", 0.6), "reddit.com": ("community", 0.55), "x.com": ("community", 0.5),
     "twitter.com": ("community", 0.5),
-    # русскоязычные (для местных тем; для мировых — вторичные пересказы)
+
     "habr.com": ("media", 0.66), "rbc.ru": ("media", 0.78), "kommersant.ru": ("media", 0.8), "interfax.ru": ("media", 0.82),
     "tass.ru": ("media", 0.8), "ria.ru": ("media", 0.74), "vc.ru": ("aggregator", 0.5), "3dnews.ru": ("media", 0.6),
     "ixbt.com": ("media", 0.58), "cnews.ru": ("media", 0.6), "securitylab.ru": ("media", 0.58),
@@ -103,7 +100,6 @@ HOST_NAMES = {
     "developers.openai.com": "OpenAI", "labs.google": "Google Labs", "nasa.gov": "NASA", "habr.com": "Хабр",
 }
 
-
 def source_name(url: str) -> str:
     host = host_of(url)
     parts = host.split(".")
@@ -113,10 +109,8 @@ def source_name(url: str) -> str:
             return HOST_NAMES[key]
     return host
 
-
 RU_HOSTS = ("habr.com", "rbc.ru", "kommersant.ru", "interfax.ru", "tass.ru", "ria.ru", "vc.ru", "3dnews.ru",
             "ixbt.com", "cnews.ru", "securitylab.ru")
-
 
 def host_of(url: str) -> str:
     try:
@@ -127,7 +121,6 @@ def host_of(url: str) -> str:
         if host.startswith(prefix):
             host = host[len(prefix):]
     return host
-
 
 def host_authority(url: str) -> Tuple[str, float]:
     host = host_of(url)
@@ -140,12 +133,8 @@ def host_authority(url: str) -> Tuple[str, float]:
         return ("primary", 0.8)
     return ("search", 0.4)
 
-
-# ------------------------------------------------------------------ каталог тем
-
 def _feed(url, name, kind, scoped=True, **extra):
     return {"url": url, "name": name, "kind": kind, "scoped": scoped, **extra}
-
 
 TOPICS: Dict[str, Dict[str, Any]] = {
     "ai": {
@@ -260,7 +249,6 @@ TOPICS: Dict[str, Dict[str, Any]] = {
 FEED_RE = re.compile(r"(?i)\b(новост\w*|news|дайджест\w*|digest|headlines?|заголовк\w*|что нового|what'?s new|"
                      r"анонс\w*|релиз\w*|releases?|обновлени\w*|updates?|лента|feed|события|events?)\b")
 
-#: «Корпоративная вода»: кейсы клиентов, программы, партнёрства, мероприятия.
 FLUFF_RE = re.compile(
     r"(?i)\b(customer stor\w*|case stud\w*|how [\w .'-]{1,40} uses?|scales? claude|scales? (?:ai|gpt)|"
     r"partner(?:s|ing|ship)? with|in partnership|webinar|join us|register now|event recap|recap|summit|"
@@ -269,7 +257,7 @@ FLUFF_RE = re.compile(
     r"embedded evaluation|frontier academy|verification program|office in|opens? (?:an? )?office|"
     r"expands? (?:to|into)|kicks? off|celebrat\w*|spotlight|meet the|behind the scenes|"
     r"кейс\w*|вебинар\w*|партн[её]рств\w*|мероприят\w*|конференци\w*|ваканси\w*|"
-    # вечнозелёные подборки и реклама: «лучшие пылесосы 2026», скидки, обзоры-покупки
+
     r"best [\w '-]{2,40} (?:of|for|in) 20\d\d|deals?\b|\d+% off|discount\w*|buying guide|gift guide|"
     r"лучши[ехй] [\w -]{2,40} 20\d\d|скидк\w*|распродаж\w*|подборк\w*)")
 RUMOR_RE = re.compile(r"(?i)\b(rumou?r\w*|reportedly|leak(?:s|ed)?|allegedly|could launch|might|speculat\w*|"
@@ -281,15 +269,12 @@ more most than then they their them our your you we i he she his her not no yes 
 и в во на по с со к ко от до из за для о об а но или что как это эта этот эти же ли не ни бы был была были будет
 уже ещё еще так там тут его её их ее при про под над без""".split())
 
-
 HN_RE = re.compile(r"(?i)\bhacker\s?news\b|\bycombinator\b|news\.ycombinator|\bHN\b|хакер\s?ньюс")
-
 
 def wants_hn(text: str) -> bool:
     """The brief names Hacker News itself (Round 31): «Top 5 Hacker News stories» is HN's front page, not the
     security topic («hacker» matched it and the panel showed The Hacker News/Krebs instead)."""
     return bool(HN_RE.search(str(text or "")))
-
 
 def detect_topic(text: str) -> str:
     """Тема по описанию панели: ключ каталога или ``""`` (своя тема)."""
@@ -301,11 +286,9 @@ def detect_topic(text: str) -> str:
             best, hits = key, found
     return best
 
-
 def is_feed_brief(text: str) -> bool:
     """Описание просит ленту (новости, релизы, дайджест), а не одно значение."""
     return bool(FEED_RE.search(str(text or "")))
-
 
 def wanted_count(text: str, default: int = 5) -> int:
     match = re.search(r"(?i)(?:топ|top)[- ]?(\d{1,2})|(\d{1,2})\s*(?:главн\w*|последн\w*|свеж\w*)?\s*(?:новост\w*|news|items?|заголовк\w*|headlines?)",
@@ -315,7 +298,6 @@ def wanted_count(text: str, default: int = 5) -> int:
         if 1 <= value <= MAX_ITEMS:
             return value
     return default
-
 
 def plan_for(subject: str, *, topic: str = "", count: int = 0, hours: int = 0, out_lang: str = "ru",
              extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -354,8 +336,7 @@ def plan_for(subject: str, *, topic: str = "", count: int = 0, hours: int = 0, o
             plan["hn"] = {"min_points": 80}
         plan["label"] = str(extra.get("label") or plan.get("label") or "")[:40]
     if wants_hn(subject) and not key:
-        # Hacker News front page: HN itself is the source; the other words of the brief («top», «stories»,
-        # «right now») are not keywords to filter its stories by.
+
         plan.update({"hn": {"min_points": 40}, "hours": min(plan["hours"], 24), "queries": [], "keywords": [],
                      "reddit": [], "label": "Hacker News", "source_lang": "en", "global": True, "named": "hn"})
         return plan
@@ -364,7 +345,6 @@ def plan_for(subject: str, *, topic: str = "", count: int = 0, hours: int = 0, o
     if not plan["keywords"]:
         plan["keywords"] = [t for t in tokens(plan["subject"]) if len(t) > 3][:12]
     return plan
-
 
 PLANNER_PROMPT = (
     "You plan the SOURCES for a small news panel on a user's own topic. Think about where the best, most "
@@ -377,9 +357,6 @@ PLANNER_PROMPT = (
     "\"keywords\":[\"10-20 words that an on-topic headline contains, in source_lang AND English\"],"
     "\"hn\":true|false}. Never invent feed URLs you are not sure about — fewer is better.")
 
-
-# ------------------------------------------------------------------ разбор лент и страниц
-
 def _strip_xml(text: str) -> str:
     text = re.sub(r"^\s*<\?xml[^>]*\?>", "", str(text or "").strip()[:2_000_000])
     text = re.sub(r"<!DOCTYPE[^\[>]*\[[\s\S]*?\]\s*>", "", text, flags=re.I)
@@ -388,16 +365,13 @@ def _strip_xml(text: str) -> str:
         raise ValueError("feed declares XML entities")
     return text
 
-
 def _plain(value: str, limit: int = 400) -> str:
     value = html.unescape(re.sub(r"<[^>]+>", " ", str(value or "")))
     value = re.sub(r"\s+", " ", value)
-    # Теги ссылок заменяются пробелом — убираем «висячий» пробел перед знаками препинания
-    # («promised , here's» → «promised, here's»), а также внутри скобок и кавычек.
-    value = re.sub(r"\s+([,;:!?…)\]»]|\.(?=\s|$))", r"\1", value)   # «.NET» не трогаем
+
+    value = re.sub(r"\s+([,;:!?…)\]»]|\.(?=\s|$))", r"\1", value)
     value = re.sub(r"([(\[«])\s+", r"\1", value)
     return value.strip()[:limit]
-
 
 def parse_when(value: str) -> Optional[float]:
     value = str(value or "").strip()
@@ -424,7 +398,6 @@ def parse_when(value: str) -> Optional[float]:
         return moment.timestamp()
     except (OverflowError, OSError, ValueError):
         return None
-
 
 def parse_feed_items(text: str, limit: int = 40) -> List[Dict[str, Any]]:
     """RSS 2.0 / Atom / RDF → [{title, url, published, summary, links}] (безопасно: без сущностей)."""
@@ -478,7 +451,6 @@ def parse_feed_items(text: str, limit: int = 40) -> List[Dict[str, Any]]:
                         "links": links[:6]})
     return out
 
-
 def parse_page_links(page: str, base_url: str, pattern: str, limit: int = 14) -> List[Dict[str, Any]]:
     """Ссылки на записи со страницы «Новости» (у многих компаний нет RSS) в порядке страницы."""
     rx = re.compile(pattern)
@@ -506,12 +478,8 @@ def parse_page_links(page: str, base_url: str, pattern: str, limit: int = 14) ->
             break
     return out
 
-
-# ------------------------------------------------------------------ адреса и заголовки
-
 _TRACKING = re.compile(r"^(utm_\w+|fbclid|gclid|yclid|mc_cid|mc_eid|ref|ref_src|ref_url|source|src|cmpid|ncid|ocid|"
                        r"sr_share|smid|taid|ito|guccounter|guce_\w+|_ga|igshid|si|feature|via|share)$", re.I)
-
 
 def canonical_url(url: str) -> str:
     """Один адрес — одна история: без трекинга, www, amp, якоря и хвостового слэша."""
@@ -534,7 +502,6 @@ def canonical_url(url: str) -> str:
     tail = ("?" + urlencode(sorted(query))) if query else ""
     return f"https://{host}{path}{tail}".lower() if host != "youtube.com" else f"https://{host}{path}{tail}"
 
-
 def tokens(title: str) -> List[str]:
     text = unicodedata.normalize("NFKC", str(title or "")).lower()
     text = text.replace("’", "'").replace("‘", "'").replace("‑", "-").replace("–", "-").replace("—", "-")
@@ -548,7 +515,6 @@ def tokens(title: str) -> List[str]:
             word = word[:-1]
         out.append(word)
     return out
-
 
 def key_terms(title: str) -> set:
     """«Имена с версиями» и собственные имена: Claude Haiku 5.5 → {haiku 5.5, claude, haiku, 5.5}."""
@@ -565,13 +531,11 @@ def key_terms(title: str) -> set:
             terms.add(low)
     return terms
 
-
 def similarity(a: str, b: str) -> float:
     ta, tb = set(tokens(a)), set(tokens(b))
     if not ta or not tb:
         return 0.0
     return len(ta & tb) / len(ta | tb)
-
 
 def same_story(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
     if a["canon"] == b["canon"] or (a.get("target") and a.get("target") == b.get("target")) \
@@ -581,12 +545,11 @@ def same_story(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
     if jac >= 0.55:
         return True
     shared = a["terms"] & b["terms"]
-    # «Haiku 5.5», «GPT-6», «o3», «V5»: имя с версией — сильный признак одной истории (голые числа — нет).
+
     versioned = {t for t in shared if re.search(r"\d", t) and re.search(r"[a-zа-яё]", t)}
     if versioned and jac >= 0.15:
         return True
     return len(shared) >= 2 and jac >= 0.3
-
 
 def cluster(candidates: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
     parent = list(range(len(candidates)))
@@ -606,9 +569,6 @@ def cluster(candidates: List[Dict[str, Any]]) -> List[List[Dict[str, Any]]]:
         groups.setdefault(find(i), []).append(item)
     return list(groups.values())
 
-
-# ------------------------------------------------------------------ сбор
-
 def make_candidate(title: str, url: str, *, source: str, kind: str, published: Optional[float] = None,
                    summary: str = "", points: Optional[int] = None, comments: Optional[int] = None,
                    rank: Optional[int] = None, scoped: bool = False, target: str = "", discussion: str = "",
@@ -616,20 +576,19 @@ def make_candidate(title: str, url: str, *, source: str, kind: str, published: O
     host_kind, host_auth = host_authority(target or url)
     auth = AUTHORITY.get(kind, 0.4)
     if kind in ("community", "search"):
-        # Сообщество и поиск ведут на чужую статью: её площадка важнее того, кто принёс ссылку.
+
         auth = max(auth, host_auth if target or kind == "search" else auth)
     elif host_kind != "search":
         auth = max(auth, host_auth)
     eff = kind
     if kind in ("community", "search") and host_kind != "search" and (target or kind == "search"):
-        eff = host_kind                    # чья это статья на самом деле
+        eff = host_kind
     return {"title": _plain(title, 300), "url": url, "canon": canonical_url(url), "target": canonical_url(target) if target else "",
             "eff_kind": eff,
             "target_url": target, "source": source, "kind": kind, "authority": round(min(1.0, auth), 3),
             "published": published, "summary": _plain(summary, 500), "points": points, "comments": comments,
             "rank": rank, "scoped": scoped, "discussion": discussion, "origin": origin or source,
             "host": host_of(target or url), "terms": key_terms(title)}
-
 
 async def _collect_feed(feed: Dict[str, Any], fetch_text: FetchText) -> List[Dict[str, Any]]:
     text = await fetch_text(feed["url"])
@@ -639,7 +598,6 @@ async def _collect_feed(feed: Dict[str, Any], fetch_text: FetchText) -> List[Dic
                                   published=row["published"], summary=row["summary"], rank=index,
                                   scoped=bool(feed.get("scoped", True)), origin=feed["url"]))
     return out
-
 
 async def _collect_page(page: Dict[str, Any], fetch_text: FetchText) -> List[Dict[str, Any]]:
     text = await fetch_text(page["url"])
@@ -652,7 +610,6 @@ async def _collect_page(page: Dict[str, Any], fetch_text: FetchText) -> List[Dic
         out.append(cand)
     return out
 
-
 async def _collect_reddit(sub: str, fetch_text: FetchText) -> List[Dict[str, Any]]:
     text = await fetch_text(f"https://www.reddit.com/r/{quote(sub)}/top/.rss?t=day&limit=25")
     out = []
@@ -663,7 +620,6 @@ async def _collect_reddit(sub: str, fetch_text: FetchText) -> List[Dict[str, Any
                                   published=row["published"], summary=row["summary"], rank=index, target=external,
                                   discussion=row["url"], origin=f"reddit:{sub}"))
     return out
-
 
 async def _collect_reddits(subs: List[str], fetch_text: FetchText) -> List[Dict[str, Any]]:
     """Reddit ограничивает анонимные запросы по IP: читаем сабреддиты по очереди и останавливаемся на 429."""
@@ -681,7 +637,6 @@ async def _collect_reddits(subs: List[str], fetch_text: FetchText) -> List[Dict[
     if not out and errors:
         raise errors[0]
     return out
-
 
 async def _collect_hn(plan: Dict[str, Any], fetch_text: FetchText, now: float) -> List[Dict[str, Any]]:
     since = int(now - plan["hours"] * 3600)
@@ -702,7 +657,6 @@ async def _collect_hn(plan: Dict[str, Any], fetch_text: FetchText, now: float) -
                                   origin="hn"))
     return out
 
-
 async def _collect_search(query: str, search: SearchFn) -> List[Dict[str, Any]]:
     found = await search(query, 8)
     out = []
@@ -715,7 +669,6 @@ async def _collect_search(query: str, search: SearchFn) -> List[Dict[str, Any]]:
                                   summary=str(row.get("snippet") or ""), rank=index, origin=f"search:{query}",
                                   published=parse_when(str(row.get("date") or row.get("published") or ""))))
     return out
-
 
 async def collect(plan: Dict[str, Any], *, fetch_text: FetchText, search: Optional[SearchFn] = None,
                   now: Optional[float] = None, progress: Optional[Progress] = None) -> Tuple[List[Dict[str, Any]], List[str], int]:
@@ -754,22 +707,18 @@ async def collect(plan: Dict[str, Any], *, fetch_text: FetchText, search: Option
         candidates.extend(result)
     return candidates, errors, ok
 
-
 def _safe_error(exc: BaseException) -> str:
     text = str(exc) or type(exc).__name__
     text = re.sub(r"(?i)(bearer|token|key)[=: ]+\S+", r"\1 ***", text)
     return text[:160]
 
-
-# ------------------------------------------------------------------ оценка
-
 def relevance(item: Dict[str, Any], plan: Dict[str, Any]) -> float:
     if item.get("scoped") and (item.get("eff_kind") or item["kind"]) == "official":
-        return 1.0                         # официальный блог по теме — по теме по определению
+        return 1.0
     words = [w for w in plan.get("keywords") or [] if w]
     if not words:
         return 1.0 if item.get("scoped") else 0.7
-    scoped_floor = 0.5 if item.get("scoped") else 0.0   # рубрика СМИ по теме: без ключевых слов — слабее, но не мимо
+    scoped_floor = 0.5 if item.get("scoped") else 0.0
     title = " " + " ".join(tokens(item["title"])) + " "
     raw_title = item["title"].lower()
     summary = item.get("summary", "").lower()
@@ -789,14 +738,12 @@ def relevance(item: Dict[str, Any], plan: Dict[str, Any]) -> float:
         return max(0.55, scoped_floor)
     return scoped_floor
 
-
 def company_of(text: str, plan: Dict[str, Any]) -> str:
     low = " " + str(text or "").lower() + " "
     for name, aliases in (plan.get("entities") or {}).items():
         if any(alias in low for alias in aliases):
             return name
     return ""
-
 
 def score_cluster(members: List[Dict[str, Any]], plan: Dict[str, Any], now: float) -> Dict[str, Any]:
     """Эвристическая оценка истории (0…1) и признаки для «почему здесь»."""
@@ -831,13 +778,12 @@ def score_cluster(members: List[Dict[str, Any]], plan: Dict[str, Any], now: floa
     if rumor:
         base *= 0.8
     if plan.get("global", True) and plan.get("out_lang") == "ru" and all(m["host"] in RU_HOSTS for m in members):
-        base *= 0.8        # пересказ мировой новости — вторичный источник
+        base *= 0.8
     only_search = all(m["kind"] == "search" for m in members)
     return {"score": round(base * (0.35 + 0.65 * rel), 4), "relevance": rel, "authority": authority,
             "hosts": len(hosts), "sources": len({m["source"] for m in members}), "origins": len(origins), "points": points, "age_h": age_h, "fluff": fluff,
             "rumor": rumor, "official": any((m.get("eff_kind") or m["kind"]) == "official" for m in members), "only_search": only_search,
             "first": first}
-
 
 def pick_representative(members: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Адрес и заголовок истории: первоисточник → СМИ → то, на что ссылалось сообщество."""
@@ -859,15 +805,11 @@ def pick_representative(members: List[Dict[str, Any]]) -> Dict[str, Any]:
         source = source_name(url)
     return {"title": title, "url": url, "source": source, "summary": next((m["summary"] for m in sorted(members, key=rank) if m.get("summary")), "")}
 
-
 def fingerprint(members: List[Dict[str, Any]]) -> Dict[str, Any]:
     urls = sorted({m["canon"] for m in members} | {m["target"] for m in members if m.get("target")})
     rep = pick_representative(members)
     return {"fp": hashlib.sha1((urls[0] if urls else rep["title"]).encode("utf-8")).hexdigest()[:16],
             "urls": urls[:8], "title": " ".join(tokens(rep["title"]))[:200]}
-
-
-# ------------------------------------------------------------------ уже показанное
 
 def clean_state(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
@@ -896,7 +838,6 @@ def clean_state(raw: Any) -> Dict[str, Any]:
             "planned_for": str(raw.get("planned_for") or "")[:300], "runs": int(raw.get("runs") or 0)
             if str(raw.get("runs") or "0").isdigit() else 0}
 
-
 def match_seen(fp: Dict[str, Any], state: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     urls = set(fp["urls"])
     words = set(fp["title"].split())
@@ -908,14 +849,12 @@ def match_seen(fp: Dict[str, Any], state: Dict[str, Any]) -> Optional[Dict[str, 
             return row
     return None
 
-
 def stay_seconds(cadence: Optional[Dict[str, Any]]) -> float:
     """Сколько показанная история остаётся «текущей», прежде чем считаться старой."""
     cadence = cadence or {}
     if cadence.get("kind") == "interval":
         return max(3 * 3600.0, min(22 * 3600.0, float(cadence.get("minutes") or 60) * 60 * 0.95))
     return 22 * 3600.0
-
 
 def apply_baseline(candidates: List[Dict[str, Any]], state: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Ссылки со страниц без дат: при первом чтении страницы новыми считаются только верхние 3,
@@ -935,12 +874,9 @@ def apply_baseline(candidates: List[Dict[str, Any]], state: Dict[str, Any]) -> L
             if id(row) in fresh_ids:
                 row["fresh"] = True
             else:
-                row["stale_page"] = True   # сама по себе не новость, но подтверждает и даёт адрес первоисточника
+                row["stale_page"] = True
         state["baseline"][page] = list(dict.fromkeys([r["slug"] for r in rows] + (known or [])))[:60]
     return candidates
-
-
-# ------------------------------------------------------------------ рубрика модели
 
 RUBRIC_PROMPT = (
     "You are the editor of a tiny glanceable news panel. For each candidate story decide how much it deserves "
@@ -954,7 +890,6 @@ RUBRIC_PROMPT = (
     "earns a slot (≤ 80 chars), \"company\" — the main organisation or \"\". Return JSON only: "
     "{{\"items\":[{{\"id\":\"…\",\"significance\":N,\"credible\":true,\"on_topic\":true,\"title\":\"…\","
     "\"summary\":\"…\",\"why\":\"…\",\"company\":\"…\"}}]}}")
-
 
 async def rubric(clusters: List[Dict[str, Any]], plan: Dict[str, Any], ask_model: AskModel, now: float) -> Dict[str, Dict[str, Any]]:
     lang = "English" if plan.get("out_lang") == "en" else "Russian"
@@ -975,9 +910,6 @@ async def rubric(clusters: List[Dict[str, Any]], plan: Dict[str, Any], ask_model
             out[str(item["id"])] = item
     return out
 
-
-# ------------------------------------------------------------------ сборка ленты
-
 def _why_text(score: Dict[str, Any], lang: str) -> str:
     ru = lang != "en"
     parts = []
@@ -995,14 +927,12 @@ def _why_text(score: Dict[str, Any], lang: str) -> str:
                      ("по теме панели" if ru else "on topic"))
     return " · ".join(parts)[:90]
 
-
 def _clip(text: str, limit: int) -> str:
     text = re.sub(r"\s+", " ", str(text or "")).strip()
     if len(text) <= limit:
         return text
     cut = text[:limit - 1].rsplit(" ", 1)[0]
     return cut.rstrip(",.;: ") + "…"
-
 
 def select_diverse(rows: List[Dict[str, Any]], count: int) -> List[Dict[str, Any]]:
     """Жадный выбор с ограничением «одна компания / один сайт» (~40 % ленты), потом добор."""
@@ -1023,13 +953,12 @@ def select_diverse(rows: List[Dict[str, Any]], count: int) -> List[Dict[str, Any
         per_host[host] = per_host.get(host, 0) + 1
         if len(picked) >= count:
             return picked
-    for row in rows:                      # мало разных — честно добираем лучшими из оставшихся
+    for row in rows:
         if row not in picked:
             picked.append(row)
             if len(picked) >= count:
                 break
     return sorted(picked, key=lambda r: -r["final"])
-
 
 async def build_feed(plan: Dict[str, Any], state: Dict[str, Any], *, fetch_text: FetchText,
                      search: Optional[SearchFn] = None, ask_model: Optional[AskModel] = None,
@@ -1052,11 +981,11 @@ async def build_feed(plan: Dict[str, Any], state: Dict[str, Any], *, fetch_text:
     fresh: List[Dict[str, Any]] = []
     for cand in candidates:
         if cand.get("published") and now - cand["published"] > hours * 3600 * 1.6:
-            continue                       # старое
+            continue
         if cand.get("published") and cand["published"] - now > 6 * 3600:
-            cand["published"] = None       # дата из будущего — не верим
+            cand["published"] = None
         if relevance(cand, plan) <= 0:
-            continue                       # не по теме («250 лучших фильмов» сюда не попадут)
+            continue
         fresh.append(cand)
     if progress:
         progress("dedupe", str(len(fresh)))
@@ -1064,10 +993,10 @@ async def build_feed(plan: Dict[str, Any], state: Dict[str, Any], *, fetch_text:
     rows: List[Dict[str, Any]] = []
     for index, members in enumerate(groups):
         if all(m.get("stale_page") for m in members):
-            continue                       # старые записи со страницы без дат и без подтверждений
+            continue
         score = score_cluster(members, plan, now)
         if score["only_search"] and score["hosts"] < 2 and not (score["first"] and now - score["first"] < hours * 3600):
-            continue                       # одиночная выдача поиска без даты — не новость
+            continue
         rep = pick_representative(members)
         rows.append({"id": f"c{index}", "members": members, "score": score, "rep": rep,
                      "company": company_of(" ".join(m["title"] for m in members), plan),
@@ -1105,7 +1034,7 @@ async def build_feed(plan: Dict[str, Any], state: Dict[str, Any], *, fetch_text:
                 row["company"] = _clip(str(verdict["company"]), 30)
         else:
             if model_used:
-                continue                   # модель видела, но не оценила — не берём
+                continue
             if row["score"]["fluff"] or row["score"]["score"] < 0.22:
                 continue
             row["sig"] = round(row["score"]["score"] * 10, 1)
@@ -1114,7 +1043,7 @@ async def build_feed(plan: Dict[str, Any], state: Dict[str, Any], *, fetch_text:
             row["why"] = _why_text(row["score"], lang)
         kept.append(row)
     kept.sort(key=lambda r: -r["final"])
-    # Уже показанное — не повторять (кроме крупного обновления).
+
     stay = stay_seconds(cadence)
     eligible: List[Dict[str, Any]] = []
     for row in kept:
@@ -1149,7 +1078,7 @@ async def build_feed(plan: Dict[str, Any], state: Dict[str, Any], *, fetch_text:
         elif row["score"]["official"]:
             badge, tone = ("официально" if lang != "en" else "official"), "ok"
         first = row["score"]["first"]
-        url = (row.get("seen") or {}).get("url") or row["rep"]["url"]     # адрес истории не прыгает между обновлениями
+        url = (row.get("seen") or {}).get("url") or row["rep"]["url"]
         items.append({"title": row["title"], "url": url, "source": row["rep"]["source"],
                       "ts": first, "summary": row["summary"], "why": row["why"], "badge": badge, "tone": tone,
                       "company": row.get("company") or "", "score": round(row["final"] * 100),
@@ -1158,7 +1087,7 @@ async def build_feed(plan: Dict[str, Any], state: Dict[str, Any], *, fetch_text:
         name = row["rep"]["source"]
         if not any(s["url"] == row["rep"]["url"] for s in sources):
             sources.append({"name": name[:60], "url": row["rep"]["url"]})
-    # хранилище: отметить показанное
+
     for row in picked:
         seen = row.get("seen")
         if seen:
@@ -1179,8 +1108,7 @@ async def build_feed(plan: Dict[str, Any], state: Dict[str, Any], *, fetch_text:
     if not items:
         note = ("Нового с прошлого обновления нет" if lang != "en" else "Nothing new since the last refresh")
     elif ask_model is not None and rows and not model_used:
-        # Round 31: the panel's model failed (rate limit, timeout, provider down) — the list is the heuristic
-        # one, untranslated and without summaries. Say so instead of silently looking «worse».
+
         note = ("Модель не ответила — список без её отбора и перевода, повторю при следующем обновлении"
                 if lang != "en" else "The model did not answer — the list is not curated or translated; will retry next refresh")
     return {"items": items, "sources": sources[:6], "note": note, "errors": errors, "state": state,

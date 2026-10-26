@@ -50,8 +50,7 @@ _PARAM = re.compile(r"<parameter\s+name=\"([^\"]+)\"\s*>(.*?)</parameter>", re.S
 _FUNCTION_CALLS = re.compile(r"</?(?:antml:)?function_calls>", re.I)
 _QWEN_FUNCTION = re.compile(r"<function=([\w.\-]{1,80})>(.*?)</function>", re.S)
 _QWEN_PARAM = re.compile(r"<parameter=([\w.\-]{1,80})>(.*?)</parameter>", re.S)
-#: ``<memuai-content id="1">`` — and the spellings a model drifts into: ``memuai_content``, ``id=1``, ``id=\"1\"``,
-#: ``name="1"``, a bare ``1`` or no id at all (then the blocks are numbered by their order).
+
 _CONTENT_OPEN = re.compile(r"<memuai[-_ ]?content\b([^<>\n]{0,160})>", re.I)
 _CONTENT_CLOSE_TAG = re.compile(r"</\s*memuai[-_ ]?content\s*>", re.I)
 _CONTENT_CLOSE = "</memuai-content>"
@@ -59,7 +58,6 @@ _CONTENT_ID = re.compile(r"""(?:\b(?:id|name|ref|n)\s*[=:]\s*\\?["']?|^\s*\\?["'
 _CONTENT_REF = re.compile(r"""^\s*@content\s*[:=]\s*\\?["']?([\w.\-]+)\\?["']?\s*$""")
 _CONTENT_REF_ANY = re.compile(r"""@content\s*[:=]\s*\\?["']?([\w.\-]+)""")
 
-#: Argument names the lenient parser trusts as "the next key starts here". The tool registry adds its own.
 DEFAULT_KEYS = frozenset({
     "tool", "name", "args", "arguments", "parameters", "input", "id", "function", "recipient_name",
     "file_path", "path", "content", "old_string", "new_string", "replace_all", "edits", "command", "description",
@@ -68,12 +66,9 @@ DEFAULT_KEYS = frozenset({
     "action", "ref", "staged", "plan", "state", "levels", "task_id", "wait_seconds", "multi_select", "limit",
     "text", "task", "name", "value"})
 
-
-#: Keys of a call object that are not arguments of the tool.
 _CALL_META = frozenset({"tool", "name", "id", "function", "recipient_name", "type", "index", "call_id"})
-#: Keys under which a call keeps its arguments.
-_ARG_HOLDERS = ("args", "arguments", "parameters", "input", "params", "tool_input")
 
+_ARG_HOLDERS = ("args", "arguments", "parameters", "input", "params", "tool_input")
 
 @dataclass
 class ParsedCall:
@@ -81,8 +76,7 @@ class ParsedCall:
     args: Dict[str, Any]
     id: str = field(default_factory=lambda: "t" + uuid.uuid4().hex[:10])
     raw_name: str = ""
-    notes: List[str] = field(default_factory=list)      # what had to be repaired to read this call
-
+    notes: List[str] = field(default_factory=list)
 
 @dataclass
 class ParseResult:
@@ -90,17 +84,13 @@ class ParseResult:
     calls: List[ParsedCall]
     errors: List[str]
     repairs: List[str] = field(default_factory=list)
-    cut_off: List[str] = field(default_factory=list)    # calls the answer ended in the middle of: never executed
-
-
-# ---------------------------------------------------------------- lenient JSON
+    cut_off: List[str] = field(default_factory=list)
 
 class LenientError(ValueError):
     def __init__(self, message: str, position: int) -> None:
         super().__init__(message)
         self.message = message
         self.position = position
-
 
 class LenientJSON:
     """A reader for the JSON that language models write.
@@ -129,11 +119,10 @@ class LenientJSON:
         self.known = frozenset(known_keys) if known_keys is not None else DEFAULT_KEYS
         self.relaxed = relaxed
         self.repairs: Dict[str, int] = {}
-        self.errors: List[Tuple[str, int]] = []                 # calls of the top array that could not be read
+        self.errors: List[Tuple[str, int]] = []
         self.incomplete = False
         self.depth = 0
 
-    # ------------------------------------------------------------ helpers
     def note(self, what: str) -> None:
         self.repairs[what] = self.repairs.get(what, 0) + 1
 
@@ -147,11 +136,11 @@ class LenientJSON:
             c = s[i]
             if c in " \t\r\n\ufeff":
                 i += 1
-            elif c == "/" and i + 1 < n and s[i + 1] == "/":          # // comment
+            elif c == "/" and i + 1 < n and s[i + 1] == "/":
                 end = s.find("\n", i)
                 i = n if end < 0 else end + 1
                 self.note("comment")
-            elif c == "/" and i + 1 < n and s[i + 1] == "*":          # /* comment */
+            elif c == "/" and i + 1 < n and s[i + 1] == "*":
                 end = s.find("*/", i + 2)
                 i = n if end < 0 else end + 2
                 self.note("comment")
@@ -165,7 +154,6 @@ class LenientJSON:
             k += 1
         return k
 
-    # ------------------------------------------------------------ values
     def value(self, ctx: str = "top") -> Any:
         self._skip()
         if self.i >= self.n:
@@ -179,7 +167,7 @@ class LenientJSON:
         if c in "\"'":
             return self._string(c, ctx)
         if c in ",}]" and ctx == "object_value":
-            self.note("missing value")                 # {"a": , "b": 1}  /  {"a": }
+            self.note("missing value")
             return None
         match = self._NUMBER.match(self.s, self.i)
         if match:
@@ -216,8 +204,7 @@ class LenientJSON:
                 self.note("extra comma")
                 continue
             if c == "]" or (c == "{" and out):
-                # A key is expected but a bracket of the structure around us (or the next object) starts: this
-                # object was never closed. Close it here and let the enclosing structure carry on.
+
                 self.note("missing }")
                 break
             key = self._key()
@@ -229,11 +216,11 @@ class LenientJSON:
             if colon == ":":
                 self.i += 1
             elif colon in ",=" or self.s.startswith("=>", self.i):
-                # {"file_path", "a.py"}  /  {"file_path" = "a.py"}: the writer meant a colon.
+
                 self.i += 2 if self.s.startswith("=>", self.i) else 1
                 self.note("colon missing after a key")
             elif colon in "\"'[{" or colon == "-" or colon.isdigit():
-                self.note("colon missing after a key")      # {"file_path" "a.py"}
+                self.note("colon missing after a key")
             else:
                 raise LenientError(f"expected ':' after the key {key!r}", self.i)
             out[key] = self.value("object_value")
@@ -250,7 +237,7 @@ class LenientJSON:
                 self.i += 1
                 break
             elif c in "]{":
-                self.note("missing }")                     # the object was not closed before the array ended
+                self.note("missing }")
                 break
             elif c in "\"'":
                 self.note("missing comma")
@@ -262,7 +249,7 @@ class LenientJSON:
     _RESYNC = re.compile(r"\{\s*[\"']?(?:tool|name|function|recipient_name)[\"']?\s*:")
 
     def _array(self) -> List[Any]:
-        top = self.depth == 0                                  # the array of calls itself
+        top = self.depth == 0
         self.depth += 1
         if self.depth > self.DEPTH_LIMIT:
             raise LenientError("nested too deeply", self.i)
@@ -283,17 +270,17 @@ class LenientJSON:
                 continue
             if c == "}":
                 if top:
-                    self.i += 1                                  # a closing brace too many at the end of a call
+                    self.i += 1
                     self.note("extra }")
                     continue
-                self.note("missing ]")                           # the array was not closed: this brace is the object's
+                self.note("missing ]")
                 break
             try:
                 out.append(self.value("array_item"))
             except LenientError as exc:
                 if not top:
                     raise
-                # One call is unreadable: report it and carry on with the next call of the block.
+
                 self.errors.append((exc.message, exc.position))
                 found = self._RESYNC.search(self.s, exc.position + 1)
                 if found is None:
@@ -339,7 +326,6 @@ class LenientJSON:
             return match.group(0)
         raise LenientError(f"expected a key but found {c!r}", self.i)
 
-    # ------------------------------------------------------------ strings
     def _string(self, quote: str, ctx: str) -> str:
         s, n = self.s, self.n
         self.i += 1
@@ -384,12 +370,12 @@ class LenientJSON:
                         self.i += 1
                         self.note("invalid \\u escape")
                 else:
-                    # \U in a Windows path, \d in a regex, \$ in a template: the writer meant a backslash.
+
                     parts.append("\\" + e)
                     self.i += 1
                     self.note("invalid escape")
                 continue
-            # a quote of the same kind: does it end the string, or is it part of the text?
+
             if self._closes(self.i + 1, ctx):
                 self.i += 1
                 break
@@ -407,12 +393,12 @@ class LenientJSON:
         s = self.s
         k = self._ws_from(k)
         if k >= self.n:
-            return True                          # the text stops after the comma: that string did end
+            return True
         c = s[k]
         if c == "}":
-            return True                          # a trailing comma
+            return True
         if c not in "\"'":
-            bare = self._BARE.match(s, k)        # an unquoted key: {tool: "Read", args: {…}}
+            bare = self._BARE.match(s, k)
             if bare is None:
                 return False
             after = self._ws_from(bare.end())
@@ -436,8 +422,7 @@ class LenientJSON:
             return True
         c = s[k]
         if ctx == "key":
-            # A key is short and has no quotes inside; what follows it is a colon — or, when the writer slipped,
-            # a comma / "=" / the value itself ({"file_path", "a.py"}).
+
             return c in ":,=\"'[{" or s.startswith("=>", k)
         if ctx == "object_value":
             if c == "}":
@@ -445,7 +430,7 @@ class LenientJSON:
             if c == ",":
                 return self._next_key_follows(k + 1)
             if c in "\"'" and not self.relaxed:
-                return self._next_key_follows(k)                  # a comma was forgotten between two pairs
+                return self._next_key_follows(k)
             return False
         if ctx == "array_item":
             if c == "]":
@@ -456,9 +441,7 @@ class LenientJSON:
             return False
         return True
 
-
 _STRICT = json.JSONDecoder()
-
 
 @dataclass
 class ReadResult:
@@ -467,7 +450,6 @@ class ReadResult:
     incomplete: bool
     repairs: List[str]
     errors: List[Tuple[str, int]]
-
 
 def read_json(text: str, pos: int, known_keys: Optional[Iterable[str]] = None) -> ReadResult:
     """Read the JSON that starts at ``pos`` (after spaces).
@@ -498,7 +480,6 @@ def read_json(text: str, pos: int, known_keys: Optional[Iterable[str]] = None) -
         return ReadResult(value, first.i, True, first.repair_notes(), first.errors)
     return ReadResult(other, second.i, second.incomplete, second.repair_notes(), second.errors)
 
-
 def describe_error(source: str, position: int, message: str, *, around: int = 60) -> str:
     """``line 3, column 7 (char 418): message — near: …text…`` for the model to see where a block went wrong."""
     position = max(0, min(position, len(source)))
@@ -507,14 +488,10 @@ def describe_error(source: str, position: int, message: str, *, around: int = 60
     near = source[max(0, position - around):position + around].replace("\n", "⏎")
     return f"line {line}, column {column} (char {position}): {message} — near: …{near}…"
 
-
-# ---------------------------------------------------------------- calls
-
 def _looks_like_arguments(row: Dict[str, Any], keys: Iterable[str]) -> bool:
     """An entry that has no tool name but carries argument names (``{"file_path": "a.py"}``)."""
     named = [key for key in row if key in keys and key not in _CALL_META and key not in _ARG_HOLDERS]
     return bool(named) and len(named) * 2 >= len(row)
-
 
 def _looks_like_junk(row: Any, keys: Iterable[str]) -> bool:
     """An entry that is not an attempt at a call at all: not an object, or an object none of whose keys the
@@ -523,16 +500,15 @@ def _looks_like_junk(row: Any, keys: Iterable[str]) -> bool:
         return True
     return not any(key in keys for key in row)
 
-
 def normalize_call(row: Any) -> Optional[ParsedCall]:
     if isinstance(row, (list, tuple)) and 1 <= len(row) <= 2 and isinstance(row[0], str):
-        row = {"tool": row[0], "args": row[1] if len(row) == 2 else {}}       # ["Read", {"file_path": "a.py"}]
+        row = {"tool": row[0], "args": row[1] if len(row) == 2 else {}}
     if not isinstance(row, dict):
         return None
     function = row.get("function") if isinstance(row.get("function"), dict) else {}
     raw_name = str(row.get("tool") or row.get("name") or function.get("name") or row.get("recipient_name") or "")
     raw_name = raw_name.strip().replace("functions.", "", 1)
-    if raw_name.lower().startswith("memuai-tool") and ":" in raw_name:      # "memuai-tool:Read" / "memuai-tool: Read"
+    if raw_name.lower().startswith("memuai-tool") and ":" in raw_name:
         raw_name = raw_name.split(":", 1)[1].strip()
     if not raw_name or not re.fullmatch(r"[A-Za-z_][\w.\-:]{0,120}", raw_name):
         return None
@@ -545,8 +521,8 @@ def normalize_call(row: Any) -> Optional[ParsedCall]:
         if function.get("arguments") is not None:
             args = function["arguments"]
         else:
-            # {"tool": "Read", "file_path": "a.py"}: the arguments sit next to the name instead of inside "args"
-            meta = _CALL_META - {"name"} if row.get("tool") else _CALL_META    # {"tool": "Skill", "name": "x"}
+
+            meta = _CALL_META - {"name"} if row.get("tool") else _CALL_META
             args = {key: value for key, value in row.items() if key not in meta}
     if isinstance(args, str):
         try:
@@ -559,12 +535,8 @@ def normalize_call(row: Any) -> Optional[ParsedCall]:
     return ParsedCall(name=raw_name, args=args, raw_name=raw_name,
                       id=str(row.get("id") or "") or "t" + uuid.uuid4().hex[:10])
 
-
-#: Arguments that are text by nature: an XML-style call's "42" or "[1, 2]" for them is the text itself (a file with
-#: the content 42, a command), never a number or a list.
 _TEXT_ARGS = {"content", "old_string", "new_string", "new_text", "old_text", "text", "command", "file_path", "path",
               "pattern", "query", "prompt", "description", "url", "question", "plan", "glob", "name", "task"}
-
 
 def _xml_value(value: str, key: str = "") -> Any:
     value = value.strip("\n")
@@ -578,10 +550,8 @@ def _xml_value(value: str, key: str = "") -> Any:
             pass
     return value
 
-
 _FENCE_LINE = re.compile(r"^[ \t]*```", re.M)
-_MISSING = "\0missing:"          # marks a reference whose content block did not arrive (see ``_describe_problems``)
-
+_MISSING = "\0missing:"
 
 def _describe_problems(problems: List[str], blocks: Dict[str, Tuple[str, bool]]) -> str:
     """One sentence for everything that was wrong with the content blocks of a call."""
@@ -596,7 +566,6 @@ def _describe_problems(problems: List[str], blocks: Dict[str, Tuple[str, bool]])
                         + ". The block must follow the closing ``` of the tool block, in the same message")
     return "; ".join(parts)
 
-
 def _unfence(body: str) -> Tuple[str, bool]:
     """A model that wraps the file it writes in a Markdown code fence inside the content block: the fence is not
     part of the file. Only the plain shape is undone — one fence line at the start, one at the end, none inside."""
@@ -608,7 +577,6 @@ def _unfence(body: str) -> Tuple[str, bool]:
         return body, False
     inner = "\n".join(lines[1:-1])
     return inner + ("\n" if body.endswith("\n") else ""), True
-
 
 def _content_blocks(source: str, notes: Optional[List[str]] = None, finished: bool = False
                     ) -> Tuple[Dict[str, Tuple[str, bool]], List[Tuple[int, int]]]:
@@ -638,20 +606,18 @@ def _content_blocks(source: str, notes: Optional[List[str]] = None, finished: bo
         if close is not None and (following is None or close.start() <= following.start()):
             end, stop, closed = close.start(), close.end(), True
         elif following is not None:
-            end = stop = following.start()                 # no closing tag: the next block ends this one
+            end = stop = following.start()
             closed = True
             if notes is not None and "content block without a closing tag" not in notes:
                 notes.append("content block without a closing tag")
         else:
             end = stop = len(source)
-            # Forgotten closing tag after a complete last line, or an answer cut in the middle of a line?
-            # Only the first is trusted: half a file must never be written.
+
             closed = finished and source[body_start:end].endswith(("\n", "\r"))
             if closed and notes is not None and "content block without a closing tag" not in notes:
                 notes.append("content block without a closing tag")
         body = source[body_start:end]
-        # Like a here-document: the line break after the opening tag is not part of the text, the one before the
-        # closing tag is (a file written on its own lines ends with a line break, as files do).
+
         if body.startswith("\r\n"):
             body = body[2:]
         elif body.startswith("\n"):
@@ -663,7 +629,6 @@ def _content_blocks(source: str, notes: Optional[List[str]] = None, finished: bo
         spans.append((match.start(), stop))
         position = max(stop, match.end())
     return blocks, spans
-
 
 def _alias_missing(source: str, blocks: Dict[str, Tuple[str, bool]], spans: List[Tuple[int, int]],
                    notes: List[str]) -> None:
@@ -682,7 +647,6 @@ def _alias_missing(source: str, blocks: Dict[str, Tuple[str, bool]], spans: List
         for ref, block in zip(missing, spare):
             blocks[ref] = blocks[block]
         notes.append("content blocks matched to references by their order")
-
 
 def _fill_content(value: Any, blocks: Dict[str, Tuple[str, bool]], problems: List[str]) -> Any:
     """Replace ``"@content:1"`` strings by the raw block 1."""
@@ -705,7 +669,6 @@ def _fill_content(value: Any, blocks: Dict[str, Tuple[str, bool]], problems: Lis
         return [_fill_content(item, blocks, problems) for item in value]
     return value
 
-
 def _rows(data: Any) -> List[Any]:
     if isinstance(data, dict):
         for key in ("tool_calls", "calls", "tools"):
@@ -713,7 +676,6 @@ def _rows(data: Any) -> List[Any]:
                 return list(data[key])
         return [data]
     return list(data) if isinstance(data, list) else []
-
 
 def _close_fence(source: str, end: int, incomplete: bool) -> int:
     """Where a block that ended at ``end`` stops: after its closing fence when there is one."""
@@ -725,7 +687,6 @@ def _close_fence(source: str, end: int, incomplete: bool) -> int:
         if tail and tail.end() < 400:
             return end + tail.end()
     return end
-
 
 def parse(text: str, known_keys: Optional[Iterable[str]] = None, *, finished: bool = False) -> ParseResult:
     """The tool calls of an answer and the text that remains once the blocks are cut out.
@@ -755,7 +716,7 @@ def parse(text: str, known_keys: Optional[Iterable[str]] = None, *, finished: bo
                 if partial:
                     continue
                 if isinstance(row, dict) and calls and not calls[-1].args and _looks_like_arguments(row, keys):
-                    calls[-1].args = row                          # [{"tool": "Read"}, {"file_path": "a.py"}]
+                    calls[-1].args = row
                     repairs.append("arguments sent as a separate entry were joined to their call")
                 elif _looks_like_junk(row, keys):
                     stray.append(row)
@@ -788,7 +749,7 @@ def parse(text: str, known_keys: Optional[Iterable[str]] = None, *, finished: bo
 
     for match in _OPENER.finditer(source):
         if match.start() < last or any(start <= match.start() < stop for start, stop in content_spans):
-            continue                                       # inside an earlier block, or inside a file being written
+            continue
         body_start = match.end()
         probe = body_start
         while probe < len(source) and source[probe].isspace():
@@ -797,7 +758,7 @@ def parse(text: str, known_keys: Optional[Iterable[str]] = None, *, finished: bo
             try:
                 read = read_json(source, probe, keys)
             except LenientError as exc:
-                # Nothing in the block could be read: skip to its closing fence and say where it broke.
+
                 tail = re.search(r"\n[ \t]*```[ \t]*(?=\n|$)", source[probe:])
                 end = probe + (tail.end() if tail else len(source) - probe)
                 out.append(source[last:match.start()])
@@ -810,7 +771,7 @@ def parse(text: str, known_keys: Optional[Iterable[str]] = None, *, finished: bo
             end = read.end
             extra = 0
             while not incomplete and extra < MAX_CALLS_PER_ROUND:
-                # One call per line instead of one array ("JSON lines"): read on while another value follows.
+
                 follow = end
                 while follow < len(source) and source[follow] in " \t\r\n,":
                     follow += 1
@@ -870,8 +831,7 @@ def parse(text: str, known_keys: Optional[Iterable[str]] = None, *, finished: bo
         cleaned = _FUNCTION_CALLS.sub("", cleaned)
 
     def qwen_call(match: re.Match) -> str:
-        # Qwen3-Coder (and models trained on its template) write <function=Read><parameter=file_path>a.py
-        # </parameter></function>, usually inside <tool_call>. It was shown to the user as text and never ran.
+
         name = match.group(1).strip()
         args = {key: _xml_value(value, key) for key, value in _QWEN_PARAM.findall(match.group(2))}
         if len(calls) < MAX_CALLS_PER_ROUND:
@@ -881,10 +841,9 @@ def parse(text: str, known_keys: Optional[Iterable[str]] = None, *, finished: bo
     if "<function=" in cleaned:
         cleaned = _QWEN_FUNCTION.sub(qwen_call, cleaned)
         cleaned = re.sub(r"<tool_call>\s*</tool_call>", "", cleaned)
-    cleaned = _strip_content_blocks(cleaned)               # the files that travelled as raw blocks
+    cleaned = _strip_content_blocks(cleaned)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned).strip()
     return ParseResult(cleaned, calls, errors, repairs, cut_off)
-
 
 def _strip_content_blocks(text: str) -> str:
     """Raw content blocks do not belong to the visible text."""
@@ -901,18 +860,13 @@ def _strip_content_blocks(text: str) -> str:
         else:
             text = text[:match.start()]
 
-
 def serialize_calls(calls: List[Dict[str, Any]]) -> str:
     """The block an assistant turn is replayed with in later requests."""
     rows = [{"tool": call.get("name"), "args": call.get("args") or {}} for call in calls]
     return "```memuai-tool\n" + json.dumps(rows, ensure_ascii=False) + "\n```"
 
-
-# ---------------------------------------------------------------- streaming
-
 _PEEK_TOOL = re.compile(r'"(?:tool|name)"\s*:\s*"([A-Za-z0-9_.\-]{1,60})"')
 _PEEK_TARGET = re.compile(r'"(?:file_path|path|command|pattern|url|query|description|task)"\s*:\s*"((?:[^"\\]|\\.){1,100})')
-
 
 class StreamHider:
     """Streaming view of the visible text: tool blocks are cut out as they appear.
@@ -930,26 +884,25 @@ class StreamHider:
                ("<function_calls>", "</function_calls>"), ("<invoke", "</invoke>"),
                ("<memuai-content", _CONTENT_CLOSE), ("<memuai_content", _CONTENT_CLOSE),
                ("<memuai content", _CONTENT_CLOSE))
-    #: Closers that are written in more than one way.
+
     CLOSERS = {_CONTENT_CLOSE: _CONTENT_CLOSE_TAG}
 
     def __init__(self) -> None:
-        self.buffer = ""          # text not yet decided (normal state) or the block being hidden
-        self.mode = "text"        # text | fence | tag
+        self.buffer = ""
+        self.mode = "text"
         self.closer = ""
         self.saw_tool = False
-        self.hidden_chars = 0     # characters of tool blocks swallowed so far, all blocks of the answer
-        self.block_chars = 0      # … of the block being read now
-        self.peek = ""            # what the latest tool call is about: "Write(src/App.jsx)"
-        self._tail = ""           # the last part of the hidden text, for ``peek``
+        self.hidden_chars = 0
+        self.block_chars = 0
+        self.peek = ""
+        self._tail = ""
         self._eat_newline = False
         self._reset_fence()
 
-    # ------------------------------------------------------------ bookkeeping
     def _reset_fence(self) -> None:
-        self._phase = "head"      # head (the opener line) | body | json | raw | after
-        self._pos = 0             # how far ``buffer`` has been scanned
-        self._counted = 0         # how much of ``buffer`` has been counted as hidden
+        self._phase = "head"
+        self._pos = 0
+        self._counted = 0
         self._depth = 0
         self._in_string = False
         self._escaped = False
@@ -979,7 +932,6 @@ class StreamHider:
         self._eat_newline = eat_newline
         self._reset_fence()
 
-    # ------------------------------------------------------------ text mode
     def _hold_len(self, low: str) -> int:
         """Longest suffix of ``low`` that could still become an opener."""
         hold = 0
@@ -1048,7 +1000,6 @@ class StreamHider:
                 break
         return "".join(shown)
 
-    # ------------------------------------------------------------ fence mode
     def _feed_fence(self) -> bool:
         """Advance through the block. False when more text is needed; True when the block is over (the
         buffer then holds what follows it, in text mode)."""
@@ -1063,11 +1014,11 @@ class StreamHider:
                 self._pos = 0
                 self._phase = "json"
             elif newline < 0:
-                return False                                   # the opener line is still streaming
+                return False
             else:
                 self._pos = newline + 1
                 self._phase = "body"
-        if self._phase == "body":                              # after the opener line, before the body
+        if self._phase == "body":
             body = buf[self._pos:].lstrip()
             if not body:
                 return False
@@ -1088,8 +1039,8 @@ class StreamHider:
                 self._finish(rest[fence.end():], eat_newline=True)
                 return True
             if not rest.strip() or "```".startswith(rest.strip()):
-                return False                                   # the closing fence may still come
-            self._finish(rest)                                 # a block without a closing fence
+                return False
+            self._finish(rest)
             return True
         return False
 
@@ -1121,12 +1072,12 @@ class StreamHider:
                     break
             elif ch == "`" and depth > 0 and (i == 0 or buf[i - 1] == "\n"):
                 if n - i < 3:
-                    break                                      # the line may turn out to be a fence: wait for it
+                    break
                 if buf.startswith("```", i):
                     tail = buf[i + 3:i + 40]
                     line_end = tail.find("\n")
                     if not (tail if line_end < 0 else tail[:line_end]).strip():
-                        phase = "raw"                          # a bracket is missing; the fence closes the block
+                        phase = "raw"
                         break
             i += 1
         self._pos, self._depth, self._in_string, self._escaped, self._phase = i, depth, in_string, escaped, phase
@@ -1138,7 +1089,6 @@ class StreamHider:
         rest, self.buffer = self.buffer, ""
         return rest
 
-
 def result_payload(name: str, call_id: str, ok: bool, output: Any, error: str = "") -> Dict[str, Any]:
     row: Dict[str, Any] = {"tool": name, "id": call_id, "ok": bool(ok)}
     if ok:
@@ -1146,7 +1096,6 @@ def result_payload(name: str, call_id: str, ok: bool, output: Any, error: str = 
     else:
         row["error"] = error or (output if isinstance(output, str) else json.dumps(output, ensure_ascii=False))
     return row
-
 
 def format_results(rows: List[Dict[str, Any]], *, budget: int = 90_000) -> str:
     """One user message with every result of a round, each within its share."""

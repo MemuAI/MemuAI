@@ -14,7 +14,6 @@ if ROOT not in sys.path:
 
 from app import spellcheck  # noqa: E402
 
-
 class SpellcheckModuleTest(unittest.TestCase):
     def test_public_api(self):
         for name in ("spell_status", "check_text", "add_word", "ignore_word"):
@@ -51,7 +50,6 @@ class SpellcheckModuleTest(unittest.TestCase):
             self.skipTest("Движок недоступен на этой ОС")
         self.assertIsInstance(result.get("errors", []), list)
 
-
 class SpellcheckWiringTest(unittest.TestCase):
     def source(self, rel):
         with open(os.path.join(ROOT, rel), encoding="utf-8") as handle:
@@ -66,7 +64,6 @@ class SpellcheckWiringTest(unittest.TestCase):
         js = self.source("app/pgstatic/app.js")
         for marker in ("st-spellcheck", "spell-layer", "runSpellcheck", "inputContextMenu", "spellWordAction"):
             self.assertIn(marker, js, marker)
-
 
 if __name__ == "__main__":
     unittest.main()

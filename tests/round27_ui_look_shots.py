@@ -61,7 +61,6 @@ async def migrate(db, replica):
 QUESTION = {"ru": "Как перенести PostgreSQL на новый кластер без простоя?",
             "en": "How do I move PostgreSQL to a new cluster without downtime?"}
 
-
 def seed_chat(lang: str) -> None:
     from app import pgdata
     now = int(time.time() * 1000)
@@ -69,7 +68,6 @@ def seed_chat(lang: str) -> None:
                         "mode": "chat", "messages": [
                             {"role": "user", "content": QUESTION[lang], "ts": now - 50000},
                             {"role": "assistant", "content": ANSWER[lang], "model": "demo-gpt-test", "ts": now - 40000}]}])
-
 
 def shoot(browser, servers, design: str, lang: str, theme: str, width: int, height: int, problems: list) -> None:
     import httpx
@@ -96,7 +94,7 @@ def shoot(browser, servers, design: str, lang: str, theme: str, width: int, heig
                 time.sleep(wait)
                 page.screenshot(path=str(OUT / f"{tag}-{name}.png"))
                 return
-            except Exception as exc:     # the window may reload itself once after a preference change
+            except Exception as exc:
                 if attempt == 2:
                     problems.append(f"{tag} {name}: {str(exc)[:160]}")
                 time.sleep(1.5)
@@ -109,15 +107,14 @@ def shoot(browser, servers, design: str, lang: str, theme: str, width: int, heig
     step("settings", "showSettings()", 1.0)
     step("appearance", "openSettingsPage('appearance')", 0.8)
     step("panels", "openSettingsPage('panels')", 1.2)
-    # MemuCode start screen (at 720 px the right panel is a drawer and must start closed)
+
     page.evaluate("typeof closePanel === 'function' && closePanel()")
     step("code", "document.getElementById('nav-code').click()", 1.2)
-    page.keyboard.press("Escape")      # the first-run intro
+    page.keyboard.press("Escape")
     step("code", "", 0.5)
     if errors:
         problems.append(f"{tag} page errors: {errors[:3]}")
     ctx.close()
-
 
 def main(argv: list) -> int:
     from ui_lang_scan import Servers, chromium
@@ -152,7 +149,6 @@ def main(argv: list) -> int:
         servers.stop()
     print("\n".join(problems) or "ok")
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

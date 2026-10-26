@@ -1,4 +1,4 @@
-// MemuNote Photo — heavy pixel work off the UI thread (module worker; CSP worker-src 'self').
+
 import { runOp, segment, inpaint, magicWand, featherMask, growMask } from "./pixels.js";
 
 self.onmessage = (e) => {

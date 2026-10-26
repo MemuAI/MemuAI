@@ -56,7 +56,6 @@ WINDOW_MIN = (420, 320)
 WINDOW_DEFAULT = (1000, 720)
 _FILE_BAD = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
-
 def _lang_en() -> bool:
     try:
         from .pgdata import load_preferences
@@ -64,20 +63,14 @@ def _lang_en() -> bool:
     except Exception:
         return False
 
-
 def text(ru: str, en: str) -> str:
     return en if _lang_en() else ru
-
-
-# ------------------------------------------------------------------ storage
 
 def _root(root: Optional[Path] = None) -> Path:
     return Path(root) if root is not None else modules_host.default_root()
 
-
 def _store_path(root: Optional[Path] = None) -> Path:
     return _root(root) / "apps.json"
-
 
 def app_dir(root: Optional[Path] = None) -> Path:
     """Icons of the module apps. Deliberately OUTSIDE ``<data>/memuai``: the MemuAI icon sync
@@ -88,11 +81,9 @@ def app_dir(root: Optional[Path] = None) -> Path:
     from .pgdata import DATA_DIR
     return Path(DATA_DIR) / "module-apps"
 
-
 def _icon_file_of(row: Dict[str, Any], module_id: str) -> str:
     value = str(row.get("icon_file") or "")
     return value if len(value) < 600 and Path(value).name.lower() == f"{module_id}.ico" else ""
-
 
 def _normalize_store(raw: Any) -> Dict[str, Any]:
     data = raw if isinstance(raw, dict) else {}
@@ -111,7 +102,7 @@ def _normalize_store(raw: Any) -> Dict[str, Any]:
             "hidden_in_memuai": bool(row.get("hidden_in_memuai", False)),
             "links": [str(item) for item in (row.get("links") or []) if isinstance(item, str)][:4],
             "title": str(row.get("title") or "")[:120],
-            # Round 40: what the app's .ico was made from + the hashed copy the shell shows (write_icon).
+
             "icon_sig": str(row.get("icon_sig") or "")[:80],
             "icon_file": _icon_file_of(row, module_id),
         }
@@ -125,7 +116,7 @@ def _normalize_store(raw: Any) -> Dict[str, Any]:
             continue
         clean_sizes[module_id] = {"width": max(WINDOW_MIN[0], min(4000, w)), "height": max(WINDOW_MIN[1], min(3000, h))}
     choice = data.get("on_app_close")
-    # Round 38: «own window title bar» — global switch + per module (both on by default; module_appbar.py).
+
     appbar = data.get("appbar") if isinstance(data.get("appbar"), dict) else {}
     clean_appbar = {}
     for key, flag in appbar.items():
@@ -136,10 +127,8 @@ def _normalize_store(raw: Any) -> Dict[str, Any]:
     return {"apps": clean, "sizes": clean_sizes, "on_app_close": choice if choice in CLOSE_CHOICES else "ask",
             "custom_appbar": bool(data.get("custom_appbar", True)), "appbar": clean_appbar}
 
-
 def load_store(root: Optional[Path] = None) -> Dict[str, Any]:
     return _normalize_store(load_json_with_recovery(str(_store_path(root)), {}))
-
 
 def _mutate(fn: Callable[[Dict[str, Any]], None], root: Optional[Path] = None) -> Dict[str, Any]:
     path = _store_path(root)
@@ -153,13 +142,11 @@ def _mutate(fn: Callable[[Dict[str, Any]], None], root: Optional[Path] = None) -
     mutate_json(path, {}, apply, backup=False, validator=lambda value: isinstance(value, dict), repair_invalid=True)
     return load_store(root)
 
-
 def set_close_choice(choice: str, root: Optional[Path] = None) -> str:
     if choice not in CLOSE_CHOICES:
         raise ValueError(text("Неизвестный вариант", "Unknown choice"))
     _mutate(lambda data: data.__setitem__("on_app_close", choice), root)
     return choice
-
 
 def set_appbar(enabled: bool, module_id: str = "", root: Optional[Path] = None) -> Dict[str, Any]:
     """Round 38: switch the custom title bar for one module (``module_id``) or for every module app."""
@@ -172,11 +159,9 @@ def set_appbar(enabled: bool, module_id: str = "", root: Optional[Path] = None) 
             data["custom_appbar"] = bool(enabled)
     return _mutate(apply, root)
 
-
 def remember_size(module_id: str, width: int, height: int, root: Optional[Path] = None) -> None:
     module_id = modules_host._safe_id(module_id)
     _mutate(lambda data: data["sizes"].__setitem__(module_id, {"width": int(width), "height": int(height)}), root)
-
 
 def window_size(module_id: str, root: Optional[Path] = None) -> tuple:
     store = load_store(root)
@@ -187,25 +172,20 @@ def window_size(module_id: str, root: Optional[Path] = None) -> tuple:
         policy = modules_host.resolve_window(_root(root), module_id)
         w = int(policy.get("width") or WINDOW_DEFAULT[0])
         h = int(policy.get("height") or WINDOW_DEFAULT[1])
-        # The module bar of a native window is ~44 px; its system caption is outside the client area.
+
         return max(WINDOW_MIN[0], min(1600, w)), max(WINDOW_MIN[1], min(1100, h + 8))
     except Exception:
         return WINDOW_DEFAULT
-
-
-# ------------------------------------------------------------------ identity
 
 def app_id(module_id: str) -> str:
     """AppUserModelID of the module app: ``MemuAI.Module.<id>`` (≤ 128 chars, no spaces)."""
     module_id = modules_host._safe_id(module_id)
     return (AUMID_PREFIX + module_id)[:128]
 
-
 def shortcut_name(title: str, module_id: str) -> str:
     clean = _FILE_BAD.sub(" ", str(title or "")).strip().strip(".") or module_id
     clean = re.sub(r"\s+", " ", clean)[:80]
     return f"{clean} (MemuAI).lnk"
-
 
 def launch_command(module_id: str, *, frozen: Optional[bool] = None, executable: str = "",
                    program_dir: str = "") -> Dict[str, str]:
@@ -226,15 +206,11 @@ def launch_command(module_id: str, *, frozen: Optional[bool] = None, executable:
     return {"target": target, "args": args, "workdir": workdir,
             "command": f'"{target}" {args}'}
 
-
-# ------------------------------------------------------------------ icons
-
 def _accent_rgb(accent: str) -> tuple:
     value = str(accent or "").strip()
     if re.fullmatch(r"#[0-9a-fA-F]{6}", value):
         return tuple(int(value[i:i + 2], 16) for i in (1, 3, 5))
-    return (174, 86, 48)  # the default MemuAI accent family
-
+    return (174, 86, 48)
 
 def _letter_tile(title: str, accent: str):
     from PIL import Image, ImageDraw, ImageFont
@@ -258,7 +234,6 @@ def _letter_tile(title: str, accent: str):
     draw.text(((size - w) / 2 - box[0], (size - h) / 2 - box[1]), letter, font=font, fill=(255, 255, 255, 255))
     return image
 
-
 def decode_png(data_url: str):
     """A PNG data URL from the page (the module glyph drawn on a canvas) → a PIL image, or ``None``."""
     if not data_url or not isinstance(data_url, str):
@@ -280,7 +255,6 @@ def decode_png(data_url: str):
         return image.convert("RGBA")
     except Exception:
         return None
-
 
 def _icon_picture(module_id: str, row: Dict[str, Any], png: str, root: Optional[Path]):
     """``(ico bytes, 256 px preview, signature)`` of a module app icon.
@@ -307,16 +281,13 @@ def _icon_picture(module_id: str, row: Dict[str, Any], png: str, root: Optional[
         image = image.resize((256, 256), Image.LANCZOS)
     return module_icons.ico_bytes(module_icons.ico_frames(image)), image, sig
 
-
 def page_signature(png: str) -> str:
     """The signature of an app icon the page drew (a glyph tile, see :func:`_icon_picture`)."""
     from .module_icons import ICO_RECIPE
     return "page:" + hashlib.sha256(str(png or "").strip().encode("utf-8")).hexdigest()[:16] + ":" + ICO_RECIPE
 
-
 def _shell_dir(root: Optional[Path] = None) -> Path:
     return app_dir(root) / "shell"
-
 
 def write_icon(module_id: str, row: Dict[str, Any], png: str = "", root: Optional[Path] = None) -> Dict[str, str]:
     """``<id>.ico`` + ``<id>.png`` (the settings preview) + ``shell/<hash>/<id>.ico`` — the copy shortcuts, pinned
@@ -339,10 +310,9 @@ def write_icon(module_id: str, row: Dict[str, Any], png: str = "", root: Optiona
         path.parent.mkdir(parents=True, exist_ok=True)
         tmp = path.with_suffix(".ico.tmp")
         tmp.write_bytes(data)
-        os.replace(tmp, path)  # never a half-written icon for Explorer to cache
+        os.replace(tmp, path)
     _prune_shell_icons(module_id, keep=shell_ico, root=root)
     return {"ico": str(ico), "png": str(png_path), "shell": str(shell_ico), "sig": sig}
-
 
 def _prune_shell_icons(module_id: str, keep: Optional[Path] = None, root: Optional[Path] = None) -> None:
     base = _shell_dir(root)
@@ -351,10 +321,9 @@ def _prune_shell_icons(module_id: str, keep: Optional[Path] = None, root: Option
             continue
         try:
             path.unlink()
-            path.parent.rmdir()  # only when no other module's icon shares the hash folder
+            path.parent.rmdir()
         except OSError:
             pass
-
 
 def shell_icon(module_id: str, root: Optional[Path] = None) -> Path:
     """The ``.ico`` the shell shows for an app (the hashed copy), else ``<id>.ico``."""
@@ -363,7 +332,6 @@ def shell_icon(module_id: str, root: Optional[Path] = None) -> Path:
     if entry.get("icon_file") and path.is_file():
         return path
     return app_dir(root) / f"{module_id}.ico"
-
 
 def refresh_app_icon(module_id: str, png: str = "", root: Optional[Path] = None,
                      shell: Optional["Shell"] = None) -> Dict[str, str]:
@@ -387,9 +355,6 @@ def refresh_app_icon(module_id: str, png: str = "", root: Optional[Path] = None,
     _mutate(lambda data: data["apps"].__setitem__(module_id, entry), root)
     return out
 
-
-# ------------------------------------------------------------------ install
-
 def _module_row(module_id: str, root: Optional[Path] = None) -> Dict[str, Any]:
     module_id = modules_host._safe_id(module_id)
     row = next((item for item in modules_host.list_modules(_root(root)) if item["id"] == module_id), None)
@@ -397,10 +362,8 @@ def _module_row(module_id: str, root: Optional[Path] = None) -> Dict[str, Any]:
         raise KeyError(text("Модуль не найден", "Module not found"))
     return row
 
-
 def _title(row: Dict[str, Any]) -> str:
     return (row.get("title_en") or row.get("title")) if _lang_en() else (row.get("title") or row.get("title_en"))
-
 
 class Shell:
     """The Windows shell operations (``module_apps_win``), replaceable in tests."""
@@ -426,9 +389,7 @@ class Shell:
         from . import module_apps_win
         module_apps_win.refresh_shell_icons(paths)
 
-
 SHELL = Shell()
-
 
 def _write_links(module_id: str, row: Dict[str, Any], entry: Dict[str, Any], icon: str, shell: Shell) -> List[str]:
     if not shell.available():
@@ -454,11 +415,10 @@ def _write_links(module_id: str, row: Dict[str, Any], entry: Dict[str, Any], ico
             log.warning("module app shortcut %s failed: %s", link, exc)
     return links
 
-
 def _remove_links(links: List[str], root: Optional[Path] = None) -> None:
     for item in links:
         path = Path(item)
-        # Only our own shortcuts: a .lnk named «… (MemuAI).lnk».
+
         if path.suffix.lower() == ".lnk" and path.name.endswith("(MemuAI).lnk"):
             try:
                 path.unlink()
@@ -466,7 +426,6 @@ def _remove_links(links: List[str], root: Optional[Path] = None) -> None:
                 pass
             except OSError as exc:
                 log.warning("module app shortcut %s not removed: %s", path, exc)
-
 
 def install(module_id: str, *, desktop: bool = True, start_menu: bool = True, hide: bool = False,
             icon_png: str = "", root: Optional[Path] = None, shell: Optional[Shell] = None) -> Dict[str, Any]:
@@ -490,7 +449,6 @@ def install(module_id: str, *, desktop: bool = True, start_menu: bool = True, hi
     _mutate(lambda data: data["apps"].__setitem__(module_id, entry), root)
     modules_host.configure_module(_root(root), module_id, hidden=bool(hide))
     return describe(module_id, root, shell=shell)
-
 
 def update(module_id: str, *, hide: Optional[bool] = None, desktop: Optional[bool] = None,
            start_menu: Optional[bool] = None, root: Optional[Path] = None,
@@ -519,7 +477,6 @@ def update(module_id: str, *, hide: Optional[bool] = None, desktop: Optional[boo
     _mutate(lambda data: data["apps"].__setitem__(module_id, entry), root)
     return describe(module_id, root, shell=shell)
 
-
 def uninstall(module_id: str, *, unhide: bool = True, root: Optional[Path] = None) -> Dict[str, Any]:
     module_id = modules_host._safe_id(module_id)
     entry = load_store(root)["apps"].get(module_id)
@@ -541,7 +498,6 @@ def uninstall(module_id: str, *, unhide: bool = True, root: Optional[Path] = Non
             pass
     return {"ok": True, "id": module_id}
 
-
 def repair(root: Optional[Path] = None, shell: Optional[Shell] = None) -> int:
     """After MemuAI moved or updated: rewrite shortcuts, drop apps of deleted modules. Returns the count fixed."""
     shell = shell or SHELL
@@ -554,7 +510,7 @@ def repair(root: Optional[Path] = None, shell: Optional[Shell] = None) -> int:
             fixed += 1
             continue
         if icon_outdated(module_id, entry, root):
-            # Round 40: MemuAI was updated (a built-in's new icon) or the icon changed while MemuAI was closed.
+
             refresh_app_icon(module_id, root=root, shell=shell)
             fixed += 1
             continue
@@ -572,7 +528,6 @@ def repair(root: Optional[Path] = None, shell: Optional[Shell] = None) -> int:
             fixed += 1
     return fixed
 
-
 def icon_outdated(module_id: str, entry: Dict[str, Any], root: Optional[Path] = None) -> bool:
     """Is an installed app's ``.ico`` not the module's current icon? Apps installed before Round 40 have no
     signature: a module with an icon file gets a new ``.ico`` (and the shortcuts a new icon path) once."""
@@ -582,9 +537,8 @@ def icon_outdated(module_id: str, entry: Dict[str, Any], root: Optional[Path] = 
     want = module_icons.source_signature(module_icons.app_icon_source(_root(root), module_id))
     if want:
         return entry.get("icon_sig") != want
-    # Drawn by the page (a glyph) or a letter tile: the page re-checks it (POST /api/pg/module-apps/icon-sync).
-    return str(entry.get("icon_sig") or "").startswith("file:")
 
+    return str(entry.get("icon_sig") or "").startswith("file:")
 
 def describe(module_id: str, root: Optional[Path] = None, shell: Optional[Shell] = None) -> Dict[str, Any]:
     shell = shell or SHELL
@@ -593,9 +547,6 @@ def describe(module_id: str, root: Optional[Path] = None, shell: Optional[Shell]
             "app_id": app_id(module_id), "command": launch_command(module_id)["command"],
             "icon": f"/api/pg/module-apps/icon/{module_id}.png" if (app_dir(root) / f"{module_id}.png").is_file() else "",
             "shortcuts_supported": shell.available()}
-
-
-# ------------------------------------------------------------------ native windows
 
 class ModuleWindows:
     """Native module windows of the running MemuAI (pywebview), plus the close guard of the main window.
@@ -610,26 +561,25 @@ class ModuleWindows:
         self._webview = webview_module
         self._win = win
         self.root = root
-        self.windows: Dict[str, Any] = {}          # module id → pywebview window
+        self.windows: Dict[str, Any] = {}
         self.hwnds: Dict[str, int] = {}
-        self.window_state: Dict[str, Dict[str, Any]] = {}   # what each module page reported (busy/unsaved)
-        self.main_modules: List[Dict[str, Any]] = []       # modules open inside the main window
+        self.window_state: Dict[str, Dict[str, Any]] = {}
+        self.main_modules: List[Dict[str, Any]] = []
         self.module_only = module_only
         self.main_shown = False
         self.quitting = False
         self._force_close: set = set()
-        self.appbars: Dict[str, Any] = {}          # module id → caption controller (Round 38, module_appbar.py)
-        self._appbar_factory: Optional[Callable[..., Any]] = None   # tests inject a fake controller
+        self.appbars: Dict[str, Any] = {}
+        self._appbar_factory: Optional[Callable[..., Any]] = None
         self._allow_main_close = False
         self._lock = threading.RLock()
-        # Wired by memuai.py: the main window object, «close main the usual way», «quit everything», theme.
+
         self.main_window_ref: Callable[[], Any] = lambda: None
         self.close_main_cb: Callable[[], None] = lambda: None
         self.quit_cb: Callable[[], None] = lambda: None
         self.show_main_cb: Callable[[], None] = lambda: None
         self.dark_cb: Callable[[], bool] = lambda: True
 
-    # -- helpers
     @property
     def webview(self):
         if self._webview is None:
@@ -675,7 +625,6 @@ class ModuleWindows:
     def notify_main(self) -> None:
         self._eval_main("window.MemuModuleApps && MemuModuleApps.sync(%s)" % json.dumps(self.open_ids()))
 
-    # -- open / focus / close
     def open(self, module_id: str, width: int = 0, height: int = 0) -> Dict[str, Any]:
         module_id = modules_host._safe_id(module_id)
         row = _module_row(module_id, self.root)
@@ -694,7 +643,7 @@ class ModuleWindows:
             options = dict(width=int(width), height=int(height), min_size=WINDOW_MIN, resizable=True,
                            frameless=False, easy_drag=False, hidden=True,
                            background_color="#1a1a1c" if dark else "#fcfcfb")
-            # Round 38: the window keeps its sizable frame, only the caption goes (win_titlebar); the page draws the bar.
+
             controller = None
             if module_appbar.enabled(load_store(self.root), module_id):
                 controller = module_appbar.create_controller(factory=self._appbar_factory)
@@ -724,7 +673,7 @@ class ModuleWindows:
     def _style_and_show(self, module_id: str, window, title: str, dark: bool) -> None:
         """Taskbar identity + icon BEFORE the window is first shown (no regrouping flash)."""
         hwnd = 0
-        # The WinForms form exists right after create_window (pywebview Invoke); other GUIs have none.
+
         deadline = time.monotonic() + (8 if sys.platform == "win32" else 0)
         form = getattr(window, "native", None)
         while time.monotonic() < deadline and form is None:
@@ -742,12 +691,12 @@ class ModuleWindows:
                 grant_local_permissions(form, self.base_url)
             except Exception:
                 pass
-            # Before the first show: no flash of the system caption.
+
             module_appbar.attach(self.appbars.get(module_id), form)
         if hwnd:
             self.hwnds[module_id] = hwnd
             ico = shell_icon(module_id, self.root)
-            # Round 40: a module window that is not an installed app always draws its current icon.
+
             if not ico.is_file() or module_id not in load_store(self.root)["apps"]:
                 try:
                     ico = Path(write_icon(module_id, _module_row(module_id, self.root), "", self.root)["shell"])
@@ -756,8 +705,7 @@ class ModuleWindows:
             command = launch_command(module_id)["command"]
             self.win.set_window_app_id(hwnd, app_id(module_id), command, title, str(ico) if ico.is_file() else "")
             self._apply_icon(module_id, hwnd, str(ico))
-            # A loading module may already have sent its own theme (for
-            # example a dark Music player on a light MemuAI host).
+
             if getattr(self.appbars.get(module_id), "native_theme", None) is None:
                 self.win.set_dark_caption(hwnd, dark)
         try:
@@ -850,7 +798,7 @@ class ModuleWindows:
             return True
         state = self.window_state.get(module_id) or {}
         if state.get("busy") or state.get("unsaved"):
-            # The page asks (Cancel / Close); its answer comes back as close(force=True).
+
             self._eval_window(module_id, "window.MemuModuleApps && MemuModuleApps.askWindowClose()")
             return False
         return True
@@ -872,7 +820,7 @@ class ModuleWindows:
             return
         self.notify_main()
         if not remaining and self.module_only and not self.main_shown:
-            # Started as a module app and MemuAI itself was never opened: the last window ends the process.
+
             threading.Thread(target=self.quit_cb, name="MemuAI module app exit", daemon=True).start()
 
     def destroy_all(self) -> None:
@@ -884,7 +832,6 @@ class ModuleWindows:
             except Exception:
                 pass
 
-    # -- the main window's close (#6)
     def report_main(self, modules: List[Dict[str, Any]]) -> None:
         clean = []
         for row in modules or []:
@@ -911,7 +858,7 @@ class ModuleWindows:
         risky = any(row["busy"] or row["unsaved"] for row in modules)
         if choice == "keep" and not risky and self.supported():
             self.keep(modules)
-            return False  # the window hides to the tray as usual
+            return False
         if choice == "close" and not risky:
             self._eval_main("window.MemuModuleApps && MemuModuleApps.closeInApp()")
             return False
@@ -943,9 +890,7 @@ class ModuleWindows:
         """Native windows can be opened (the manager only exists inside the desktop shell)."""
         return not self.quitting
 
-
 MANAGER: Optional[ModuleWindows] = None
-
 
 def manager(app=None) -> Optional[ModuleWindows]:
     if app is not None:
@@ -954,15 +899,11 @@ def manager(app=None) -> Optional[ModuleWindows]:
             return found
     return MANAGER
 
-
-# ------------------------------------------------------------------ routes
-
-try:  # module-level: FastAPI resolves the (string) annotations of the routes against these globals
+try:
     from fastapi import Request
     from fastapi.responses import FileResponse, JSONResponse
 except Exception:  # pragma: no cover - the desktop helpers work without FastAPI
     Request = FileResponse = JSONResponse = None  # type: ignore
-
 
 def register(app) -> None:
 
@@ -1096,10 +1037,10 @@ def register(app) -> None:
         except (ValueError, KeyError) as exc:
             return err(str(exc.args[0]) if exc.args else "not found", 404)
         if mgr is None:
-            # No desktop shell (browser/dev): the page opens /?module_app=<id> itself.
+
             return {"ok": True, "native": False, "url": f"/?module_app={module_id}"}
         if from_launch and any(item["id"] == module_id for item in mgr.main_modules):
-            # Open inside MemuAI right now: move that very window out instead of a second copy.
+
             mgr._eval_main("window.MemuModuleApps && MemuModuleApps.popOut(%s)" % json.dumps(module_id))
             return {"ok": True, "native": True, "moved": True}
         try:
@@ -1176,7 +1117,7 @@ def register(app) -> None:
             mgr.main_shown = True
             mgr.show_main_cb()
         elif action == "dock":
-            # «Back into MemuAI»: show the main window, open the module there, close this window.
+
             mgr.main_shown = True
             mgr.show_main_cb()
             mgr.close(module_id, force=True)
@@ -1191,7 +1132,6 @@ def register(app) -> None:
 
     if sys.platform == "win32":
         threading.Thread(target=lambda: _safe_repair(), name="MemuAI module apps repair", daemon=True).start()
-
 
 def _safe_repair() -> None:
     try:

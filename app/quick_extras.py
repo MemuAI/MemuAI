@@ -43,12 +43,8 @@ CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
 NOTE_MAX = 4000
 OCR_MAX_CHARS = 14_000_000
 
-
-# ---------------------------------------------------------------- currency
-
 def _rates_file() -> Path:
     return quick_apps._memu_dir() / "quick_rates.json"
-
 
 def parse_rates(source: str, payload: Any) -> Dict[str, float]:
     """``{"EUR": 0.92, …}`` from either provider's JSON (``{}`` when it is not usable)."""
@@ -66,7 +62,6 @@ def parse_rates(source: str, payload: Any) -> Dict[str, float]:
         if CURRENCY_RE.match(str(code)) and number > 0 and number == number:
             out[str(code)] = number
     return out
-
 
 def load_rates(base: str = "USD", *, fetch=None, now: Optional[float] = None) -> Dict[str, Any]:
     """Cached rates for ``base`` → ``{"base", "rates", "source", "t", "stale"?}`` or ``{"error"}``."""
@@ -105,14 +100,12 @@ def load_rates(base: str = "USD", *, fetch=None, now: Optional[float] = None) ->
         return {"base": base, **row, "stale": True}
     return {"error": "offline"}
 
-
 def _http_json(url: str) -> Any:
     import httpx
     with httpx.Client(timeout=6.0, follow_redirects=False) as client:
         response = client.get(url, headers={"User-Agent": "MemuAI"})
         response.raise_for_status()
         return response.json()
-
 
 def convert(amount: float, src: str, dst: str, rates: Dict[str, float]) -> Optional[float]:
     """``amount`` of ``src`` in ``dst`` with rates of any base (cross through the base)."""
@@ -121,18 +114,14 @@ def convert(amount: float, src: str, dst: str, rates: Dict[str, float]) -> Optio
         return None
     return amount / rates[src] * rates[dst]
 
-
-# ---------------------------------------------------------------- notes
-
 def notes_file(settings: Optional[Dict[str, Any]] = None, lang: str = "ru") -> Path:
     settings = settings or quick_apps.settings()
     folder = str(settings.get("notes_dir") or "").strip()
     base = Path(folder) if folder and os.path.isabs(folder) else Path(quick_apps.documents_folder()) / "MemuAI Notes"
     own, other = ("Quick notes.md", "Быстрые заметки.md") if lang == "en" else ("Быстрые заметки.md", "Quick notes.md")
     if not (base / own).is_file() and (base / other).is_file():
-        return base / other                    # the interface language changed: keep writing into the same notes
+        return base / other
     return base / own
-
 
 def add_note(text: str, *, lang: str = "ru", settings: Optional[Dict[str, Any]] = None,
              now: Optional[float] = None) -> Dict[str, Any]:
@@ -148,7 +137,7 @@ def add_note(text: str, *, lang: str = "ru", settings: Optional[Dict[str, Any]] 
         existing = path.read_bytes().decode("utf-8-sig", errors="replace") if path.is_file() else ""
     except OSError as exc:
         return {"error": tr(lang, f"Не удалось открыть файл заметок: {exc}", f"Could not open the notes file: {exc}")}
-    eol = "\r\n" if "\r\n" in existing else "\n"   # the file may be saved by MemuNote / Notepad with CRLF
+    eol = "\r\n" if "\r\n" in existing else "\n"
     existing = existing.replace("\r\n", "\n")
     lines = body.split("\n")
     entry = f"- {time.strftime('%H:%M', stamp)} {lines[0]}" + "".join(f"\n  {line}" for line in lines[1:])
@@ -167,40 +156,34 @@ def add_note(text: str, *, lang: str = "ru", settings: Optional[Dict[str, Any]] 
         return {"error": tr(lang, f"Не удалось сохранить заметку: {exc}", f"Could not save the note: {exc}")}
     return {"ok": True, "path": str(path), "name": path.name}
 
-
 def open_notes(path: Path) -> Dict[str, Any]:
     """Open the notes file in MemuNote (running instance → hand-off, installed exe → launch) or the default app."""
     if not path.is_file():
         return {"ok": False, "error": "missing"}
     try:
-        from .memunote import desktop as memunote_desktop      # Round 29 (r29-memunote), when it is in this build
+        from .memunote import desktop as memunote_desktop
         if memunote_desktop.hand_off([str(path)]):
             return {"ok": True, "app": "MemuNote"}
     except Exception:
         pass
     try:
-        from . import memunote_manager        # Round 29 (r29-memunote): the installed MemuNote (or its dev entry)
+        from . import memunote_manager
         if memunote_manager.open_app([str(path)]).get("ok"):
             return {"ok": True, "app": "MemuNote"}
-    except Exception:                          # not installed / not in this build → the default program
+    except Exception:
         pass
     if quick_apps.IS_WINDOWS:
         from . import quick_apps_win
         return {"ok": quick_apps_win.open_path(str(path)), "app": ""}
     return {"ok": False, "native": False}
 
-
-# ---------------------------------------------------------------- downloads
-
 PARTIAL = (".crdownload", ".part", ".partial", ".download", ".tmp", ".opdownload")
 DOWNLOAD_IMAGE_TYPES = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".webp": "image/webp",
                         ".gif": "image/gif", ".bmp": "image/bmp"}
 DOWNLOAD_IMAGE_LIMIT = 12 * 1024 * 1024
 
-
 def latest_downloads(folder: str = "", limit: int = 8) -> List[Dict[str, Any]]:
-    # r29f: Path("") is "." — with no Downloads folder the list showed MemuAI's own working folder (spec files,
-    # README…). No folder → empty list (the view says the folder was not found).
+
     raw = str(folder or quick_apps.downloads_folder() or "").strip()
     if not raw or not os.path.isabs(raw):
         return []
@@ -225,7 +208,6 @@ def latest_downloads(folder: str = "", limit: int = 8) -> List[Dict[str, Any]]:
     rows.sort(key=lambda r: -r["mtime"])
     return rows[:max(1, min(30, limit))]
 
-
 def downloads_context(name: str, lang: str = "ru") -> Dict[str, Any]:
     base = quick_apps.downloads_folder()
     if not base:
@@ -237,8 +219,7 @@ def downloads_context(name: str, lang: str = "ru") -> Dict[str, Any]:
     ctx = quick_apps.register_context({"kind": "explorer", "app": "Explorer", "source": "downloads", "exe": "explorer.exe",
                                        "title": Path(base).name, "folder": base, "selected": [str(path)]})
     out: Dict[str, Any] = {"context": quick_apps.public_context(ctx, lang)}
-    # r29e: a downloaded picture goes to the question as an IMAGE (a vision model sees it, like a pasted one), not as
-    # a folder context whose agent could only read its name. Same 12 MB cap as a dropped image in the window.
+
     mime = DOWNLOAD_IMAGE_TYPES.get(path.suffix.lower())
     if mime:
         try:
@@ -251,9 +232,6 @@ def downloads_context(name: str, lang: str = "ru") -> Dict[str, Any]:
         except OSError:
             pass
     return out
-
-
-# ---------------------------------------------------------------- OCR
 
 def ocr_image(data_url: str, lang: str = "ru") -> Dict[str, Any]:
     match = re.match(r"^data:image/(png|jpe?g|bmp|gif|webp);base64,(.+)$", str(data_url or ""), re.S)
@@ -280,23 +258,17 @@ def ocr_image(data_url: str, lang: str = "ru") -> Dict[str, Any]:
                             "Windows OCR is unavailable: add a language with OCR in Settings → Time & language"),
                 "code": "ocr"}
     if result.get("error"):
-        # r29c: a PowerShell failure/timeout or an unreadable image is not «add an OCR language» (the old
-        # message sent people to Windows settings that were fine).
+
         return {"error": tr(lang, "Не удалось распознать текст на картинке — попробуйте ещё раз или выделите область крупнее",
                             "Could not recognise text in the image — try again or select a larger area"),
                 "code": "ocr_failed"}
     return {"text": str(result.get("text") or "").strip(), "lang": result.get("lang") or "", "lines": result.get("lines") or 0}
 
-
-# ---------------------------------------------------------------- routes
-
 router = APIRouter()
-
 
 def _lang(body: Dict[str, Any], request: Optional[Request] = None) -> str:
     lang = str((body or {}).get("lang") or (request.query_params.get("lang") if request is not None else "") or "")
     return lang if lang in ("ru", "en") else "ru"
-
 
 async def _json(request: Request) -> Dict[str, Any]:
     try:
@@ -304,7 +276,6 @@ async def _json(request: Request) -> Dict[str, Any]:
     except Exception:
         return {}
     return body if isinstance(body, dict) else {}
-
 
 @router.get("/api/quick/extras/rates")
 async def extras_rates(request: Request):
@@ -316,14 +287,12 @@ async def extras_rates(request: Request):
                              "code": result["error"]}, 503)
     return result
 
-
 @router.post("/api/quick/extras/ocr")
 async def extras_ocr(request: Request):
     body = await _json(request)
     lang = _lang(body)
     result = await asyncio.to_thread(ocr_image, str(body.get("data") or ""), lang)
     return JSONResponse(result, 400) if result.get("error") else result
-
 
 @router.get("/api/quick/extras/color/now")
 async def extras_color_now(request: Request):
@@ -332,7 +301,6 @@ async def extras_color_now(request: Request):
     from . import quick_apps_win
     color = await asyncio.to_thread(quick_apps_win.pixel_under_cursor)
     return {"color": color}
-
 
 @router.post("/api/quick/extras/note")
 async def extras_note(request: Request):
@@ -347,7 +315,6 @@ async def extras_note(request: Request):
         result["opened"] = (await asyncio.to_thread(open_notes, Path(result["path"]))).get("ok", False)
     return result
 
-
 @router.post("/api/quick/extras/note/open")
 async def extras_note_open(request: Request):
     body = await _json(request)
@@ -357,13 +324,11 @@ async def extras_note_open(request: Request):
         return JSONResponse({"error": tr(lang, "Заметок ещё нет", "No notes yet")}, 404)
     return await asyncio.to_thread(open_notes, path)
 
-
 @router.get("/api/quick/extras/downloads")
 async def extras_downloads(request: Request):
     base = await asyncio.to_thread(quick_apps.downloads_folder)
     rows = await asyncio.to_thread(latest_downloads, base) if base else []
     return {"items": rows, "folder": os.path.basename(base or ""), "found": bool(base)}
-
 
 @router.post("/api/quick/extras/downloads/use")
 async def extras_downloads_use(request: Request):
@@ -371,7 +336,6 @@ async def extras_downloads_use(request: Request):
     lang = _lang(body)
     result = await asyncio.to_thread(downloads_context, str(body.get("name") or ""), lang)
     return JSONResponse(result, 400) if result.get("error") else result
-
 
 def register() -> None:
     from .quick_ask_api import register_router

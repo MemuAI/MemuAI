@@ -36,7 +36,7 @@ const schedule='```schedule\n'+JSON.stringify({name:'task',prompt:'task prompt',
   await ctx.applyWorkActions(0,false,source);const write=writes.find(x=>x.p==='/api/work/write');assert.strictEqual(write.body.project_id,'project-A');assert.strictEqual(write.body.session,'chat-A');assert.strictEqual(S.messages[0].content,'unrelated');
   await ctx.applyWorkDeletes(0,false,source);const del=writes.find(x=>x.p==='/api/work/delete');assert.strictEqual(del.body.project_id,'project-A');assert.strictEqual(del.body.session,'chat-A');
   const before=writes.length;S.profileState.active_id='profile-B';ctx.extractMemFacts('[MEM: old profile fact]',source);await ctx.extractSchedules(schedule,{},source);await ctx.applyWorkActions(0,false,source);assert.strictEqual(writes.length,before);
-  // Execute the actual realtime IIFE with a controllable socket/media runtime.
+
   class Socket { static OPEN=1;constructor(){this.readyState=0;this.sent=[];this.closed=false;Socket.instances.push(this);}send(s){this.sent.push(JSON.parse(s));}close(){this.closed=true;this.readyState=3;} } Socket.instances=[];
   const media=[];let microphoneResolve;let workletResolve;let delayWorklet=false;
   class Audio { constructor(){this.currentTime=0;this.destination={};this.audioWorklet={addModule:()=>delayWorklet?new Promise(r=>workletResolve=r):Promise.resolve()};}createGain(){return{gain:{value:1},connect:()=>({connect:()=>{}})};}createAnalyser(){return{connect:()=>{},fftSize:0};}createMediaStreamSource(){return{connect:()=>{}};}close(){this.closed=true;return Promise.resolve();} }

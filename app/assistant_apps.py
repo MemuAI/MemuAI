@@ -59,7 +59,6 @@ BUILTIN_APPS: List[Dict[str, Any]] = [
     {"name": "MemuAI", "aliases": ["memuai", "мему", "memu", "мемуаи"], "target": "memuai:", "exe": "memuai.exe"},
 ]
 
-# spoken name → canonical name to look up in the index (both directions are folded)
 ALIASES: Dict[str, List[str]] = {
     "chrome": ["хром", "гугл хром", "google chrome", "хроме", "chrome"],
     "telegram": ["телеграм", "телеграмм", "телега", "тг", "telegram desktop", "телеграф"],
@@ -122,19 +121,15 @@ _CACHE: Dict[str, Any] = {"at": 0.0, "items": [], "building": False}
 _LOCK = threading.Lock()
 CACHE_TTL = 15 * 60
 
-
 def _entry(name: str, kind: str, target: str, *, exe: str = "", args: str = "", aliases: Iterable[str] = ()) -> Dict[str, Any]:
     return {"name": name, "kind": kind, "target": target, "exe": exe.lower(), "args": args,
             "aliases": [a for a in aliases if a], "key": fold(name)}
 
-
 _JUNK = re.compile(r"\b(?:uninstall|удалить|удаление|readme|help|справка|documentation|документация|license|"
                    r"лицензия|release notes|website|веб-сайт|manual|руководство|changelog|support|поддержка)\b", re.I)
 
-
 def is_junk(name: str) -> bool:
     return bool(_JUNK.search(name or ""))
-
 
 def merge_index(*groups: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Keep the first entry per folded name (order of groups = priority)."""
@@ -149,31 +144,25 @@ def merge_index(*groups: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
             if key not in seen:
                 seen[key] = dict(row, key=key)
             else:
-                # keep aliases/exe learned from later sources
+
                 prev = seen[key]
                 if not prev.get("exe") and row.get("exe"):
                     prev["exe"] = row["exe"]
                 prev["aliases"] = list(dict.fromkeys([*prev.get("aliases", []), *row.get("aliases", [])]))
     return list(seen.values())
 
-
 def builtin_entries() -> List[Dict[str, Any]]:
     return [_entry(row["name"], "builtin", row["target"], exe=row.get("exe", ""), aliases=row["aliases"])
             for row in BUILTIN_APPS]
-
-
-# ------------------------------------------------------------------ Round 33 (r33-quick): «закрой инси» = INCY
 
 _RU_KEYS = "йцукенгшщзхъфывапролджэячсмитьбю"
 _EN_KEYS = "qwertyuiop[]asdfghjkl;'zxcvbnm,."
 _RU2EN = {ord(a): b for a, b in zip(_RU_KEYS, _EN_KEYS)}
 _EN2RU = {ord(b): a for a, b in zip(_RU_KEYS, _EN_KEYS)}
 
-# words around the name that are not the name: «закрой окно инси», «закрой программу INCY», «close the app Slack»
 _NAME_NOISE = re.compile(r"^(?:(?:это|эту|этот|мой|мою|моё|свой|свою|the|my|this)\s+)?(?:окно|окна|окошко|приложение|"
                          r"приложения|программу|программа|программы|прогу|процесс|утилиту|клиент|апп|app|application|"
                          r"program|window|the app|the program)\s+", re.I)
-
 
 def clean_name(spoken: Any) -> str:
     """The app name the user said, without «окно / приложение / программу / the app» around it and quotes."""
@@ -182,7 +171,6 @@ def clean_name(spoken: Any) -> str:
         text = _NAME_NOISE.sub("", text).strip()
     text = re.sub(r"\s+(?:окно|окна|app|window|программу|приложение)$", "", text, flags=re.I).strip()
     return text.strip("\"'«»“”„` ") or str(spoken or "").strip()
-
 
 def phonetic(text: Any) -> str:
     """A sound-alike key over the transliterated name: «инси» and «incy» → ``insi``; «спотифай»/«spotify» close.
@@ -201,7 +189,6 @@ def phonetic(text: Any) -> str:
     s = re.sub(r"(.)\1+", r"\1", s)
     return s
 
-
 def layout_swap(text: Any) -> str:
     """A name typed in the wrong keyboard layout: «штсн» → «incy», «ntktuhfv» → «телеграм» ("" when not applicable)."""
     raw = str(text or "").strip().lower()
@@ -215,14 +202,13 @@ def layout_swap(text: Any) -> str:
         return out if re.fullmatch(r"[а-яё]+", out) and out != raw else ""
     return ""
 
-
 def _candidates(spoken: str) -> List[str]:
     """The spoken name and every canonical name its alias table points to."""
     text = re.sub(r"\s+", " ", clean_name(spoken).lower().replace("ё", "е"))
     text = re.sub(r"^(?:приложение|программу|программа|app|the)\s+", "", text)
     out = [text]
     keys = {fold(text)}
-    # Round 34: the accusative of «открой телегу / оперу / фигму / студию» → the alias «телега / опера / фигма / студия»
+
     if re.fullmatch(r"(?:[а-я]+ )*[а-я]{3,}[ую]", text):
         keys.add(fold(text[:-1] + ("а" if text.endswith("у") else "я")))
     for canonical, words in ALIASES.items():
@@ -232,7 +218,6 @@ def _candidates(spoken: str) -> List[str]:
     if translit_text != text:
         out.append(translit_text)
     return list(dict.fromkeys(out))
-
 
 def score_entry(entry: Dict[str, Any], spoken: str) -> float:
     best = 0.0
@@ -251,14 +236,14 @@ def score_entry(entry: Dict[str, Any], spoken: str) -> float:
             if nkey == ckey:
                 return 1.0
             score = similarity(name, candidate)
-            # Round 33: sound-alike spelling («инси» = INCY, «спотифай» = Spotify, «дискорт» ≈ Discord)
+
             pa, pb = phonetic(name), phonetic(candidate)
             if pa and pb and len(pb) >= 3:
                 if pa == pb:
                     score = max(score, 0.96)
                 else:
                     score = max(score, difflib.SequenceMatcher(None, pa, pb).ratio() * 0.97)
-            # "chrome" in "Google Chrome", "telegram" in "Telegram Desktop"
+
             words = [fold(w) for w in re.split(r"[\s\-_.]+", str(name)) if fold(w)]
             if ckey in words:
                 score = max(score, 0.93 - 0.01 * max(0, len(words) - 2))
@@ -267,7 +252,7 @@ def score_entry(entry: Dict[str, Any], spoken: str) -> float:
             elif len(ckey) >= 5 and ckey in nkey:
                 score = max(score, 0.82)
             best = max(best, score)
-    # Round 33: typed in the wrong keyboard layout («штсн» → incy) — exact names only, never fuzzy
+
     swapped = layout_swap(clean_name(spoken))
     if swapped and best < 0.95:
         skey = fold(swapped)
@@ -277,7 +262,6 @@ def score_entry(entry: Dict[str, Any], spoken: str) -> float:
                 best = max(best, 0.95)
     return best
 
-
 def resolve(spoken: str, index: Iterable[Dict[str, Any]], *, threshold: float = 0.78,
             limit: int = 5) -> Dict[str, Any]:
     """``{"match": entry|None, "score", "alternatives": [entries]}`` for a spoken app name."""
@@ -285,7 +269,7 @@ def resolve(spoken: str, index: Iterable[Dict[str, Any]], *, threshold: float = 
     for entry in index or []:
         score = score_entry(entry, spoken)
         if score > 0.5:
-            # prefer real apps over tools and UWP/lnk over registry paths on ties
+
             bonus = {"lnk": 0.004, "uwp": 0.003, "apppath": 0.002, "builtin": 0.001}.get(entry.get("kind", ""), 0)
             scored.append((score + bonus, entry))
     scored.sort(key=lambda row: row[0], reverse=True)
@@ -294,7 +278,6 @@ def resolve(spoken: str, index: Iterable[Dict[str, Any]], *, threshold: float = 
                 "alternatives": [row[1] for row in scored[:limit]]}
     return {"match": scored[0][1], "score": round(min(1.0, scored[0][0]), 3),
             "alternatives": [row[1] for row in scored[1:limit]]}
-
 
 def match_process(spoken: str, exe_name: str, title: str = "") -> float:
     """How well a running process (``chrome.exe`` / window title) matches the spoken app name."""
@@ -314,9 +297,6 @@ def match_process(spoken: str, exe_name: str, title: str = "") -> float:
         score = max(score, score_entry({"name": known[stem], "aliases": ALIASES.get(known[stem], []), "exe": ""}, spoken))
     return score
 
-
-# ------------------------------------------------------------------ Windows sources
-
 def _startmenu_dirs() -> List[str]:
     dirs = []
     for env, tail in (("APPDATA", r"Microsoft\Windows\Start Menu\Programs"),
@@ -325,7 +305,6 @@ def _startmenu_dirs() -> List[str]:
         if base:
             dirs.append(os.path.join(base, tail))
     return dirs
-
 
 def startmenu_entries(dirs: Optional[List[str]] = None, *, max_files: int = 3000) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
@@ -346,7 +325,6 @@ def startmenu_entries(dirs: Optional[List[str]] = None, *, max_files: int = 3000
                 stem = os.path.splitext(name)[0]
                 out.append(_entry(stem, "lnk", os.path.join(folder, name)))
     return out
-
 
 def apppath_entries() -> List[Dict[str, Any]]:
     if sys.platform != "win32":
@@ -382,7 +360,6 @@ def apppath_entries() -> List[Dict[str, Any]]:
             continue
     return out
 
-
 def uwp_entries(timeout: float = 12.0) -> List[Dict[str, Any]]:
     """``Get-StartApps``: every Start menu entry with its AppUserModelID (Store apps included)."""
     if sys.platform != "win32":
@@ -405,10 +382,8 @@ def uwp_entries(timeout: float = 12.0) -> List[Dict[str, Any]]:
             out.append(_entry(name, "uwp", "shell:AppsFolder\\" + app_id))
     return out
 
-
 def build_index() -> List[Dict[str, Any]]:
     return merge_index(builtin_entries(), startmenu_entries(), uwp_entries(), apppath_entries())
-
 
 def index(refresh: bool = False, *, wait: bool = True) -> List[Dict[str, Any]]:
     """The cached index (rebuilt every ``CACHE_TTL``; the first call builds it synchronously)."""
@@ -436,7 +411,6 @@ def index(refresh: bool = False, *, wait: bool = True) -> List[Dict[str, Any]]:
         threading.Thread(target=build, name="memuai-app-index", daemon=True).start()
         return stale
     return build()
-
 
 def warm() -> None:
     if sys.platform == "win32":

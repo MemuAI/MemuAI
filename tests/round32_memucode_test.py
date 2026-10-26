@@ -19,10 +19,6 @@ from app.cli.llm import Backend, LLMError, StreamEvent, Usage
 from tests.memucode_cli_test import make_runtime, run, setUpModule, tearDownModule  # noqa: F401  (module fixtures)
 from tests.memucode_parallel_test import RuleBackend, block, is_worker, last_text
 
-
-# ---------------------------------------------------------------- 1. error classification
-
-#: (status, upstream body text, kind, expected category) — bodies as real providers/gateways send them.
 REAL_ERRORS = [
     (503, "Every “custom” account failed (sol): Upstream error (HTTP 503): No available accounts", "upstream_error",
      "upstream_no_accounts"),
@@ -60,7 +56,6 @@ REAL_ERRORS = [
     (400, "Model or API rejected the image (HTTP 400). Pick a vision model", "", "image_rejected"),
 ]
 
-
 class ErrorClassification(unittest.TestCase):
     def test_real_error_bodies_are_classified_precisely(self):
         for status, body, kind, expected in REAL_ERRORS:
@@ -94,7 +89,6 @@ class ErrorClassification(unittest.TestCase):
         self.assertIn("slow down", lines[1])
         self.assertIn("HTTP 429", lines[0])
         self.assertTrue(lines[2])
-
 
 class ErrorsReachTheUser(unittest.TestCase):
     """The turn error the terminal/headless shows is the open report, not a reworded guess."""
@@ -133,7 +127,7 @@ class ErrorsReachTheUser(unittest.TestCase):
         self.assertIn("No available accounts", result.error)
         self.assertIn("HTTP 503", result.error)
         self.assertNotIn("Слишком большой", result.error)
-        self.assertEqual(calls, 3)              # retried twice (retryable), never "compacted"
+        self.assertEqual(calls, 3)
 
     def test_the_proxy_message_cap_triggers_compaction_not_a_dead_end(self):
         async def scenario():
@@ -214,7 +208,6 @@ class ErrorsReachTheUser(unittest.TestCase):
         self.assertIn("/clear", info.advice)
         self.assertNotRegex(info.advice, r"[А-Яа-яЁё]")
 
-
 class ProxyErrorTexts(unittest.TestCase):
     def test_custom_provider_keeps_the_upstream_words_for_429_and_402(self):
         from app.providers.base import ProviderQuotaError, ProviderRateLimitError, ProviderServerError
@@ -238,7 +231,7 @@ class ProxyErrorTexts(unittest.TestCase):
         server = run(raised(503, long_body))
         self.assertIsInstance(server, ProviderServerError)
         self.assertIn("No available accounts", str(server))
-        self.assertNotIn('{"error"', str(server))          # the message, not a cut JSON fragment
+        self.assertNotIn('{"error"', str(server))
 
     def test_completion_error_hint_for_no_available_accounts(self):
         from app.chat import CompletionError
@@ -260,20 +253,15 @@ class ProxyErrorTexts(unittest.TestCase):
         source = Path(admin_api.__file__).read_text(encoding="utf-8")
         self.assertNotIn("len(messages) > 500", source)
 
-
-# ---------------------------------------------------------------- 2. agents
-
 def _worker_name(request) -> str:
     first = request.messages[0]["content"]
     first = first if isinstance(first, str) else json.dumps(first, ensure_ascii=False)
     found = re.search(r"JOB-(\w+)", first)
     return found.group(1) if found else "?"
 
-
 def _all_text(request) -> str:
     return "\n".join(m["content"] if isinstance(m["content"], str) else json.dumps(m["content"], ensure_ascii=False)
                      for m in request.messages)
-
 
 class TeamAgents(unittest.TestCase):
     def test_name_role_and_tools_reach_the_agent(self):
@@ -290,7 +278,7 @@ class TeamAgents(unittest.TestCase):
         self.assertEqual(job["name"], "scout")
         self.assertEqual(job["status"], "done")
         self.assertIn("Your role in this team: read-only explorer of src/", request.system)
-        self.assertIn("Result:", request.system)                            # the structured report format
+        self.assertIn("Result:", request.system)
         listing = request.system.split("Available tools:")[-1]
         self.assertIn("Read", listing)
         self.assertIn("Grep", listing)
@@ -307,7 +295,7 @@ class TeamAgents(unittest.TestCase):
                 if "Follow-up instructions from the main agent" in text:
                     return "Result: also checked README as asked"
                 if "<tool_results" not in last_text(request):
-                    await asyncio.wait_for(gate.wait(), 5)        # the main agent sends while this step runs
+                    await asyncio.wait_for(gate.wait(), 5)
                     return block(("LS", {"path": "."}))
                 return "Result: done without follow-up"
 
@@ -420,17 +408,17 @@ class TeamAgents(unittest.TestCase):
         runtime, result, seen = run(scenario())
         self.assertEqual(result.text, "ALL DONE")
         self.assertEqual([job["name"] for job in runtime.jobs.jobs], ["api", "ui"])
-        self.assertIn("Result: api explored", seen[2])            # wait(all) returned both reports
+        self.assertIn("Result: api explored", seen[2])
         self.assertIn("Result: ui explored", seen[2])
         self.assertIn("resumed with its previous context", seen[3])
         self.assertIn("api handled the follow-up", seen[4])
         self.assertIn('"status": "done"', seen[5])
-        self.assertEqual(runtime.notes, [])          # collected by wait: no second copy as a note
+        self.assertEqual(runtime.notes, [])
 
     def test_agent_tools_are_listed_only_when_agents_are_in_play(self):
         runtime, _ = make_runtime()
         names = {tool.name for tool in Agent(runtime).tools()}
-        self.assertIn("Task", names)                 # Task stays, so an unasked call is refused with a reason
+        self.assertIn("Task", names)
         self.assertNotIn("Agents", names)
         self.assertNotIn("TaskOutput", names)
         runtime.settings.data["subagents"] = "auto"
@@ -440,12 +428,8 @@ class TeamAgents(unittest.TestCase):
         names = {tool.name for tool in Agent(runtime).tools()}
         self.assertFalse({"Task", "Agents", "TaskOutput"} & names)
 
-
 async def _ret(text):
     return text
-
-
-# ---------------------------------------------------------------- 3. tokens
 
 class TokenEconomy(unittest.TestCase):
     def test_text_protocol_prompt_is_compact(self):
@@ -469,10 +453,10 @@ class TokenEconomy(unittest.TestCase):
         text, cut = collector.text()
         self.assertTrue(cut)
         self.assertLessEqual(len(text), shell.MAX_OUTPUT_CHARS + 400)
-        self.assertIn("line 007999", text)                     # the tail is kept
+        self.assertIn("line 007999", text)
         path = re.search(r"saved in (\S+?): Read", text).group(1)
         full = Path(path).read_text(encoding="utf-8")
-        self.assertIn("line 004000", full)                     # … and the middle is in the file
+        self.assertIn("line 004000", full)
         self.assertTrue(own_output(Path(path)))
         self.assertFalse(own_output(Path(tempfile.gettempdir()) / "other.log"))
 
@@ -493,7 +477,7 @@ class TokenEconomy(unittest.TestCase):
 
         first, again, elided = run(scenario())
         self.assertTrue(first and first.get("elided"))
-        self.assertIsNone(again)                               # hysteresis: no second batch right away
+        self.assertIsNone(again)
         self.assertGreaterEqual(elided, 3)
 
     def test_a_small_budget_still_folds_in_batches_not_every_round(self):
@@ -530,14 +514,10 @@ class TokenEconomy(unittest.TestCase):
         self.assertEqual(compact.elide_threshold(R(40000), 32000), int(32000 * compact.ELIDE_SHARE))
         self.assertEqual(compact.elide_threshold(R(0), 262144), int(262144 * compact.ELIDE_SHARE))
 
-
-# ---------------------------------------------------------------- 4. status line and error view (finisher)
-
 FOOT_LEFT = [("class:mode.bypasspermissions", "  ⏵⏵ bypass permissions"), ("class:subtle", " (shift+tab to change)"),
              ("class:info", "  ● 2 agents running · /tasks", lambda event: None)]
 FOOT_RIGHT = [("class:footer", "xkiro-qwen/qwen3.8-max:free"), ("class:footer", "  ·  ctx 12%"),
               ("class:footer", "  ·  ⎇ master"), ("class:footer", "  ·  $0.0089  ")]
-
 
 class FooterFits(unittest.TestCase):
     def _line(self, width, left=FOOT_LEFT, right=FOOT_RIGHT):
@@ -557,16 +537,16 @@ class FooterFits(unittest.TestCase):
         wide = self._line(200)
         self.assertIn("(shift+tab to change)", wide)
         self.assertIn("⎇ master", wide)
-        self.assertIn("2 agents running · /tasks", self._line(110))   # the reported bug width
-        self.assertNotIn("shift+tab", self._line(110))                # hints go first
+        self.assertIn("2 agents running · /tasks", self._line(110))
+        self.assertNotIn("shift+tab", self._line(110))
         mid = self._line(80)
-        self.assertIn("xkiro-qwen/qwen3.8-max:free", mid)             # the full model name stays
+        self.assertIn("xkiro-qwen/qwen3.8-max:free", mid)
         self.assertNotIn("⎇", mid)
         narrow = self._line(60)
         self.assertIn("● 2 agents", narrow)
-        self.assertIn("qwen3.8-max:free", narrow)                     # the model keeps its informative end
+        self.assertIn("qwen3.8-max:free", narrow)
         tiny = self._line(40)
-        self.assertIn("● 2 agents", tiny)                             # the model name goes before the indicator
+        self.assertIn("● 2 agents", tiny)
         self.assertNotIn("qwen", tiny)
 
     def test_click_handlers_survive_cutting(self):
@@ -584,7 +564,6 @@ class FooterFits(unittest.TestCase):
         source = Path(__file__).resolve().parents[1].joinpath("app/cli/tui/app.py").read_text(encoding="utf-8")
         self.assertIn("FormattedTextControl(self._footer_line)", source)
 
-
 class ErrorViewWraps(unittest.TestCase):
     def test_long_error_lines_keep_a_hanging_indent(self):
         from app.cli.tui.render import Renderer
@@ -597,17 +576,13 @@ class ErrorViewWraps(unittest.TestCase):
         out = re.sub(r"\x1b\[[0-9;]*m", "", out)
         lines = [line.rstrip() for line in out.splitlines() if line.strip()]
         self.assertTrue(lines[0].startswith("● The account"))
-        self.assertTrue(lines[1].startswith("  "), lines)              # wrapped title is indented
+        self.assertTrue(lines[1].startswith("  "), lines)
         self.assertTrue(lines[2].startswith("  ⎿  Upstream said:"))
         for line in lines[3:]:
             self.assertTrue(line.startswith("     "), f"detail wrapped to column 0: {line!r}")
         self.assertIn("quota exceeded", out)
 
-
-# ---------------------------------------------------------------- live (real models through the Proxy)
-
-LIVE = os.environ.get("MEMUCODE_LIVE_PROXY")      # e.g. http://127.0.0.1:8781 with xkiro/sol accounts
-
+LIVE = os.environ.get("MEMUCODE_LIVE_PROXY")
 
 @unittest.skipUnless(LIVE, "set MEMUCODE_LIVE_PROXY to a running MemuAI Proxy with real accounts")
 class LiveProxyErrors(unittest.TestCase):
@@ -625,7 +600,6 @@ class LiveProxyErrors(unittest.TestCase):
         self.assertTrue(data["is_error"])
         self.assertIn("No available accounts", data["result"])
         self.assertEqual(data["error_category"], "upstream_no_accounts")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,25 +16,21 @@ PSID = "g.a000fixturePSIDvalue-abcdefghijklmnopqrstuvwxyz0123456789"
 TS = "sidts-CjEBfixtureTSvalue1234567890"
 PAGE = '"SNlM0e":"AT_tok","cfb2h":"boq_gemini-web-uiserver_20261012.15_p0","FdrFJe":"-55","oPEP7c":"me@example.com"'
 
-# The four models of the user's picker (14.10.2026). Ids are fixtures, positions are real: m[0] id, m[1] category,
-# m[11] picker name, m[12] description, m[17] model number.
 PICKER = [("a1b2c3d4e5f60001", "3.5 Flash-Lite", "Fastest answers", 6),
           ("a1b2c3d4e5f60002", "3.8 Flash", "Everyday help", 1),
           ("a1b2c3d4e5f60003", "3.1 Pro", "Advanced math and code", 3),
           ("a1b2c3d4e5f60004", "4 Argon", "Our most capable model", 7)]
-
 
 def model_entry(model_id, display, description, number, *, sparse=False):
     entry = [None] * 18
     entry[0] = model_id
     entry[11] = display
     entry[12] = description
-    if sparse:                                   # JSPB: a high field may sit in the dict of the last slot (key = field + 1)
+    if sparse:
         entry = entry[:13] + [{"18": number}]
     else:
         entry[17] = number
     return entry
-
 
 def status_body(models, *, status=1000, tiers=(), caps=()):
     body = [None] * 18
@@ -44,17 +40,14 @@ def status_body(models, *, status=1000, tiers=(), caps=()):
     body[17] = list(caps)
     return body
 
-
 def batch_response(rpcid, body):
     part = json.dumps([["wrb.fr", rpcid, json.dumps(body), None, None, None, "generic"], ["di", 59],
                        ["af.httprm", 58, "-123456789", 4]])
     return f")]}}'\n\n{len(part)}\n{part}\n"
 
-
 def paid_status(models=None):
     return batch_response(proto.RPC_USER_STATUS, status_body(
         models if models is not None else [model_entry(*m) for m in PICKER], tiers=[8], caps=[115, 19]))
-
 
 def answer_frames(*texts, cid="c_fixture1", done_last=True):
     out = ")]}'\n\n"
@@ -69,12 +62,10 @@ def answer_frames(*texts, cid="c_fixture1", done_last=True):
         out += f"{len(body) + 1}\n{body}\n"
     return out
 
-
 class FakeHeaders(dict):
     def get_list(self, key):
         value = self.get(key)
         return value if isinstance(value, list) else ([value] if value else [])
-
 
 class FakeResp:
     def __init__(self, status=200, text="", url="https://gemini.google.com/app"):
@@ -88,7 +79,6 @@ class FakeResp:
 
     async def aclose(self):
         pass
-
 
 class FakeSession:
     """Routes by URL: the /app page, batchexecute per rpcid, StreamGenerate answers in order."""
@@ -118,16 +108,13 @@ class FakeSession:
     def batch_calls(self, rpcid):
         return [c for c in self.calls if c[0] == "POST" and f"rpcids={rpcid}" in c[1]]
 
-
 def inner_of(call):
     form = urllib.parse.parse_qs(call[2]["data"].decode())
     return json.loads(json.loads(form["f.req"][0])[1])
 
-
 def account(cookie=f"__Secure-1PSID={PSID}; __Secure-1PSIDTS={TS}", **fields):
     return SimpleNamespace(id="acc41", provider="geminiweb", fields={"cookie": cookie, **fields}, extra={},
                            proxy="", enabled=True)
-
 
 def make_provider(session):
     provider = GeminiWebProvider()
@@ -138,7 +125,6 @@ def make_provider(session):
     provider._session = fake_session
     return provider
 
-
 async def run_chat(provider, acc, model, params=None, prompt="Привет"):
     events = []
     with patch("app.providers.geminiweb.GeminiWebProvider._seed_catalog", staticmethod(lambda status: None)), \
@@ -147,10 +133,8 @@ async def run_chat(provider, acc, model, params=None, prompt="Привет"):
             events.append(event)
     return events
 
-
 def text_of(events):
     return "".join(e["text"] for e in events if e["type"] == "text")
-
 
 class StaticListTest(unittest.TestCase):
     def test_static_list_is_the_app_picker(self):
@@ -159,12 +143,11 @@ class StaticListTest(unittest.TestCase):
         for retired in ("gemini-3.7-flash", "gemini-3.6-flash", "gemini-auto", "gemini-3.5-flash-thinking"):
             self.assertNotIn(retired, MODELS)
             self.assertIn(retired, LEGACY)
-        self.assertNotIn("MODEL_IDS", dir(proto))      # the stale hard-coded free-tier ids are gone
+        self.assertNotIn("MODEL_IDS", dir(proto))
 
     def test_seed_and_offline_dynamic_models(self):
         provider = GeminiWebProvider()
         self.assertEqual([n for n, _ in provider.seed_models()], list(MODELS))
-
 
 class UserStatusParseTest(unittest.TestCase):
     def test_paid_account_models_and_capacity(self):
@@ -199,7 +182,7 @@ class UserStatusParseTest(unittest.TestCase):
         self.assertEqual((status.models[1].name, status.models[1].number, status.models[1].description),
                          ("gemini-pro", 3, "Old style description"))
         header = json.loads(status.models[1].header("SID-1"))
-        self.assertEqual(header[11:13], [None, 2])         # capacity field 13: "null,<capacity>"
+        self.assertEqual(header[11:13], [None, 2])
 
     def test_other_rpc_and_garbage_are_ignored(self):
         self.assertFalse(proto.parse_user_status(batch_response("MaZiqc", status_body([]))).found)
@@ -212,9 +195,9 @@ class UserStatusParseTest(unittest.TestCase):
         self.assertEqual(header[0], 1)
         self.assertEqual(header[4], "a1b2c3d4e5f60003")
         self.assertEqual(header[8], [4, 5, 6, 8])
-        self.assertEqual(header[11], 4)                    # capacity of a paid plan
-        self.assertEqual(header[14], 3)                    # model number
-        self.assertEqual(header[15:], [2, "CLIENT-UUID"])  # extended thinking + client session uuid
+        self.assertEqual(header[11], 4)
+        self.assertEqual(header[14], 3)
+        self.assertEqual(header[15:], [2, "CLIENT-UUID"])
         batch = json.loads(proto.batch_model_header("CLIENT-UUID"))
         self.assertIsNone(batch[4])
         self.assertEqual(batch[-1], "CLIENT-UUID")
@@ -223,7 +206,6 @@ class UserStatusParseTest(unittest.TestCase):
         form = urllib.parse.parse_qs(proto.encode_batch(proto.RPC_DELETE_CHAT, json.dumps(["c_1"]), "AT").decode())
         self.assertEqual(json.loads(form["f.req"][0]), [[["GzXR5e", '["c_1"]', None, "generic"]]])
         self.assertEqual(form["at"], ["AT"])
-
 
 class ResponseParseTest(unittest.TestCase):
     def test_candidate_without_rcid_is_skipped_and_card_content_unwrapped(self):
@@ -251,8 +233,7 @@ class ResponseParseTest(unittest.TestCase):
         self.assertEqual((inner[0][0], inner[1], inner[6], inner[17], inner[41], inner[45], inner[79], inner[80]),
                          ("Привет", ["en"], [1], [[0]], [1], 1, 3, 1))
         body = proto.encode_body(inner, "AT").decode()
-        self.assertNotIn("%2C+", body)                     # compact JSON like the web client
-
+        self.assertNotIn("%2C+", body)
 
 class ProviderFlowTest(unittest.IsolatedAsyncioTestCase):
     async def test_header_for_each_model_from_account_list(self):
@@ -292,7 +273,7 @@ class ProviderFlowTest(unittest.IsolatedAsyncioTestCase):
         call = session.generate_calls()[0]
         self.assertNotIn(proto.MODEL_HEADER, call[2]["headers"])
         self.assertEqual(inner_of(call)[79], 3)
-        with self.assertRaises(ProviderModelUnavailableError):      # Argon needs its id from the account
+        with self.assertRaises(ProviderModelUnavailableError):
             await run_chat(make_provider(FakeSession(None, [])), account(), "gemini-4-argon")
 
     async def test_thinking_level_mapping(self):
@@ -301,8 +282,8 @@ class ProviderFlowTest(unittest.IsolatedAsyncioTestCase):
                  ({"_reasoning_level": "high"}, "gemini-3.1-pro", [[0]], 2),
                  ({"effort": "xhigh"}, "gemini-3.1-pro", [[0]], 2),
                  ({}, "gemini-3.1-pro@effort=low", [[4]], 1),
-                 ({"_reasoning_level": "low"}, "gemini-3.1-pro@effort=high", [[0]], 2),   # the suffix wins
-                 ({}, "gemini-3.1-pro-thinking", [[0]], 2)]                              # legacy name
+                 ({"_reasoning_level": "low"}, "gemini-3.1-pro@effort=high", [[0]], 2),
+                 ({}, "gemini-3.1-pro-thinking", [[0]], 2)]
         for params, model, think, ext in cases:
             session = FakeSession(paid_status(), [answer_frames("ok")])
             await run_chat(make_provider(session), account(delete_chats="false"), model, params)
@@ -326,7 +307,7 @@ class ProviderFlowTest(unittest.IsolatedAsyncioTestCase):
             await run_chat(make_provider(session), account(delete_chats="false"), "gemini-3.1-pro")
         self.assertIn("заглушку", ctx.exception.message_ru)
         self.assertIn("Проверить подключение", ctx.exception.message_ru)
-        self.assertEqual(len(session.batch_calls(proto.RPC_USER_STATUS)), 2)   # the model list was re-read once
+        self.assertEqual(len(session.batch_calls(proto.RPC_USER_STATUS)), 2)
 
     async def test_canned_stub_then_real_answer(self):
         session = FakeSession(paid_status(), [answer_frames("В моей программе нет таких возможностей. Я просто генерирую текст."),
@@ -400,14 +381,12 @@ class ProviderFlowTest(unittest.IsolatedAsyncioTestCase):
         provider = GeminiWebProvider()
         self.assertEqual([m.display for m in provider._known_status(acc).models][-1], "4 Argon")
 
-
 class ReasoningProfileTest(unittest.TestCase):
     def test_gemini_web_levels(self):
         from app import reasoning_levels
         prof = reasoning_levels.profile("geminiweb/gemini-3.1-pro", "geminiweb", "gemini-3.1-pro")
         self.assertEqual((prof["kind"], prof["levels"], prof["default"]), ("levels", ["low", "medium", "high"], "medium"))
         self.assertEqual(reasoning_levels.clamp("max", prof), "high")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -37,8 +37,6 @@ from fastapi.responses import JSONResponse, Response
 
 log = logging.getLogger("memuai.quick.features")
 
-# ---------------------------------------------------------------- settings
-
 PASSWORD_MANAGERS = [
     "keepass.exe", "keepassxc.exe", "1password.exe", "bitwarden.exe", "lastpass.exe", "dashlane.exe",
     "enpass.exe", "keeperpasswordmanager.exe", "roboform.exe", "nordpass.exe", "proton pass.exe",
@@ -51,26 +49,24 @@ STICKERS_LIMIT = 24
 STICKERS_OPEN = 8
 STICKER_COLORS = ("", "yellow", "green", "blue", "pink", "violet")
 DOCUMENT_MAX_BYTES = 15 * 1024 * 1024
-DOCUMENT_MAX_CHARS = 60_000           # = quick_ask_api.MAX_SELECTION: what the model receives
+DOCUMENT_MAX_CHARS = 60_000
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
     "region": True,
     "region_hotkey": "",
-    "clipboard": False,               # opt-in: a clipboard log is sensitive
+    "clipboard": False,
     "clipboard_paused": False,
     "clipboard_limit": 200,
     "clipboard_skip_secrets": True,
-    "clipboard_ignore": [],           # extra process names (the password managers above are always ignored)
+    "clipboard_ignore": [],
     "clipboard_hotkey": "",
     "snippets": True,
     "stickers": True,
     "documents": True,
 }
 
-
 def tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 def _bool(value: Any, default: bool) -> bool:
     if isinstance(value, bool):
@@ -83,14 +79,12 @@ def _bool(value: Any, default: bool) -> bool:
         return bool(value)
     return default
 
-
 def _int(value: Any, default: int, low: int, high: int) -> int:
     try:
         number = int(float(value))
     except (TypeError, ValueError, OverflowError):
         return default
     return max(low, min(high, number))
-
 
 def _hotkey(value: Any) -> str:
     text = str(value or "").strip()
@@ -102,14 +96,12 @@ def _hotkey(value: Any) -> str:
     except HotkeyError:
         return ""
 
-
 HOTKEY_ERRORS_EN = {
     "empty": "No hotkey given", "unknown_key": "Unknown key", "two_keys": "Only one regular key is allowed",
     "no_key": "Add a regular key to the modifiers, e.g. S", "need_modifier": "At least one modifier is needed: Ctrl, Alt or Win",
     "shift_only": "Shift with a letter is needed for typing — add Ctrl, Alt or Win", "reserved": "Taken by Windows",
     "editing": "Every program needs this combination for editing text",
 }
-
 
 def hotkey_error(value: Any, lang: str = "ru") -> str:
     """Why a typed hotkey is invalid (``""`` — valid or empty); the core parser speaks Russian only."""
@@ -122,7 +114,6 @@ def hotkey_error(value: Any, lang: str = "ru") -> str:
     except HotkeyError as exc:
         return HOTKEY_ERRORS_EN.get(exc.code, "Invalid hotkey") + f" ({text})" if lang == "en" else str(exc)
     return ""
-
 
 def hotkey_owner(hotkey: Any, lang: str = "ru", *, skip: str = "") -> str:
     """Round 27 (review): which OTHER global hotkey of MemuAI already is ``hotkey`` — Quick Ask itself, the region /
@@ -149,7 +140,7 @@ def hotkey_owner(hotkey: Any, lang: str = "ru", *, skip: str = "") -> str:
                               ("clipboard_hotkey", "clipboard", "«История буфера обмена»", "“Clipboard history”")):
         if skip != flag and settings.get(flag) and settings.get(key) == wanted:
             return tr(lang, ru, en)
-    try:                                       # r27-hunt-canvas: Quick Actions buttons with a global hotkey
+    try:
         from .quick_canvas import global_hotkeys, load as load_canvas
         doc = load_canvas()
         for action_id, combo in global_hotkeys(doc).items():
@@ -168,7 +159,6 @@ def hotkey_owner(hotkey: Any, lang: str = "ru", *, skip: str = "") -> str:
     except Exception:
         pass
     return ""
-
 
 def normalize_settings(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
@@ -192,9 +182,6 @@ def normalize_settings(raw: Any) -> Dict[str, Any]:
     if out["clipboard_hotkey"] and out["clipboard_hotkey"] == out["region_hotkey"]:
         out["clipboard_hotkey"] = ""
     return out
-
-
-# ---------------------------------------------------------------- snippets
 
 def default_snippets(lang: str = "ru") -> List[Dict[str, Any]]:
     """Seeded once (the user can edit or delete every one of them)."""
@@ -223,9 +210,7 @@ def default_snippets(lang: str = "ru") -> List[Dict[str, Any]]:
     return [{"id": f"s{i}", "keyword": keyword, "name": name, "kind": kind, "text": text, "created": now}
             for i, (keyword, name, kind, text) in enumerate(rows)]
 
-
 _SEED_FIELDS = ("keyword", "name", "kind", "text")
-
 
 def localize_defaults(rows: List[Dict[str, Any]], lang: str = "ru") -> List[Dict[str, Any]]:
     """Round 27 (polish): a seeded snippet / AI template the user has not changed (every field exactly as seeded, in
@@ -246,7 +231,6 @@ def localize_defaults(rows: List[Dict[str, Any]], lang: str = "ru") -> List[Dict
         out.append(row)
     return out
 
-
 def normalize_snippet(raw: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(raw, dict):
         return None
@@ -261,7 +245,6 @@ def normalize_snippet(raw: Any) -> Optional[Dict[str, Any]]:
     return {"id": sid, "keyword": keyword, "name": name or keyword, "kind": "ai" if raw.get("kind") == "ai" else "text",
             "text": text, "created": _int(raw.get("created"), int(time.time() * 1000), 0, 1 << 50)}
 
-
 def normalize_snippets(rows: Any) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     seen_ids, seen_keys = set(), set()
@@ -270,18 +253,16 @@ def normalize_snippets(rows: Any) -> List[Dict[str, Any]]:
         if not row or row["id"] in seen_ids:
             continue
         if row["keyword"] and row["keyword"] in seen_keys:
-            row["keyword"] = ""          # duplicates keep their name; only the first owns the keyword
+            row["keyword"] = ""
         seen_ids.add(row["id"])
         if row["keyword"]:
             seen_keys.add(row["keyword"])
         out.append(row)
     return out[:SNIPPETS_LIMIT]
 
-
 WEEKDAYS = {"ru": ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"],
             "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]}
 _VAR = re.compile(r"\{\{|\}\}|\{(date|time|datetime|weekday|clipboard|selection|input|uuid|cursor)(?:([+-])(\d{1,4}))?\}")
-
 
 def expand(text: str, *, now: Optional[datetime] = None, clipboard: str = "", selection: str = "", input_text: str = "",
            lang: str = "ru") -> Dict[str, Any]:
@@ -337,7 +318,6 @@ def expand(text: str, *, now: Optional[datetime] = None, clipboard: str = "", se
         cursor = len(tail.replace("\r\n", "\n"))
     return {"text": out, "cursor": cursor}
 
-
 def match_snippets(snippets: List[Dict[str, Any]], query: str, limit: int = 8) -> List[Dict[str, Any]]:
     """``;kw rest`` → snippets whose keyword starts with ``kw`` (exact first), then by name words."""
     query = str(query or "").strip()
@@ -363,9 +343,6 @@ def match_snippets(snippets: List[Dict[str, Any]], query: str, limit: int = 8) -
     scored.sort(key=lambda item: (item[0], item[1]))
     return [row for _s, _l, row in scored[:limit]]
 
-
-# ---------------------------------------------------------------- clipboard: what is never stored
-
 _SECRET_PATTERNS = [
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
     re.compile(r"\b(?:sk|rk|pk)-(?:proj-|live-|test-|ant-)?[A-Za-z0-9_-]{20,}"),
@@ -374,17 +351,15 @@ _SECRET_PATTERNS = [
     re.compile(r"\bAKIA[0-9A-Z]{16}\b"),
     re.compile(r"\bAIza[0-9A-Za-z_-]{35}\b"),
     re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"),
-    re.compile(r"\b\d{9,10}:AA[A-Za-z0-9_-]{30,}\b"),                     # Telegram bot token
+    re.compile(r"\b\d{9,10}:AA[A-Za-z0-9_-]{30,}\b"),
     re.compile(r"(?i)\b(?:password|passwd|pwd|пароль|api[_-]?key|secret|token)\s*[:=]\s*\S{6,}"),
-    # Round 34: more provider tokens (Hugging Face, GitLab, xAI, Groq, Replicate, npm, Stripe webhooks, Google OAuth,
-    # Yandex Cloud) and an «Authorization: Bearer …» header
+
     re.compile(r"\b(?:hf_[A-Za-z0-9]{30,}|glpat-[A-Za-z0-9_-]{20,}|xai-[A-Za-z0-9]{40,}|gsk_[A-Za-z0-9]{40,}|"
                r"r8_[A-Za-z0-9]{30,}|npm_[A-Za-z0-9]{30,}|whsec_[A-Za-z0-9]{24,}|ya29\.[A-Za-z0-9_-]{30,}|"
                r"AQVN[A-Za-z0-9_-]{30,}|y0_[A-Za-z0-9_-]{30,})"),
     re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{20,}"),
 ]
 _CARD = re.compile(r"(?<![\d-])(?:\d[ -]?){12,18}\d(?![\d-])")
-
 
 def _luhn(digits: str) -> bool:
     total = 0
@@ -395,7 +370,6 @@ def _luhn(digits: str) -> bool:
         total += value
     return total % 10 == 0
 
-
 def _has_card(text: str) -> bool:
     """A bank card number (13–19 digits, spaces/dashes allowed, Luhn-valid) — never kept in the history."""
     for match in _CARD.finditer(text):
@@ -404,7 +378,6 @@ def _has_card(text: str) -> bool:
             return True
     return False
 _PASSWORD_SYMBOLS = set("!@#$%^&*()+=[]{};:'\",<>?/\\|`~")
-
 
 def looks_secret(text: str) -> bool:
     """API keys, private keys, JWTs, «password: …» lines and a lone password-like token."""
@@ -422,26 +395,19 @@ def looks_secret(text: str) -> bool:
             return True
     return False
 
-
 def ignored_process(name: str, settings: Dict[str, Any]) -> bool:
     name = str(name or "").strip().lower()
     return bool(name) and (name in PASSWORD_MANAGERS or name in settings.get("clipboard_ignore", [])
                            or "password" in name or "keepass" in name)
 
-
-# ---------------------------------------------------------------- files
-
 def _memu_dir() -> Path:
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR)
 
-
 def _file(name: str) -> Path:
     return _memu_dir() / name
 
-
 _LOCK = threading.RLock()
-
 
 def _load(name: str, default: Any, validator: Callable[[Any], bool]) -> Any:
     from .storage import load_json_with_recovery
@@ -450,13 +416,11 @@ def _load(name: str, default: Any, validator: Callable[[Any], bool]) -> Any:
     except (OSError, ValueError):
         return default
 
-
 def _save(name: str, data: Any) -> None:
     from .storage import save_json
     path = _file(name)
     path.parent.mkdir(parents=True, exist_ok=True)
     save_json(path, data, backup=False)
-
 
 def load_config(lang: str = "ru") -> Dict[str, Any]:
     """``{"settings", "snippets"}``; the first load seeds the default snippets, untouched defaults are in ``lang``."""
@@ -471,7 +435,6 @@ def load_config(lang: str = "ru") -> Dict[str, Any]:
         return {"settings": normalize_settings(data.get("settings")),
                 "snippets": localize_defaults(normalize_snippets(data.get("snippets")), lang)}
 
-
 def save_config(*, settings: Any = None, snippets: Any = None) -> Dict[str, Any]:
     with _LOCK:
         data = load_config()
@@ -483,7 +446,6 @@ def save_config(*, settings: Any = None, snippets: Any = None) -> Dict[str, Any]
             data["snippets"] = normalize_snippets(snippets)
         _save("quick_features.json", data)
         return data
-
 
 class ClipboardStore:
     """``memuai/quick_clipboard.json``: newest first, pinned rows survive the limit and «Clear»."""
@@ -556,9 +518,7 @@ class ClipboardStore:
             self._commit()
             return True
 
-
 CLIPBOARD = ClipboardStore()
-
 
 def normalize_sticker(raw: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(raw, dict):
@@ -580,7 +540,6 @@ def normalize_sticker(raw: Any) -> Optional[Dict[str, Any]]:
             "created": _int(raw.get("created"), int(time.time() * 1000), 0, 1 << 50),
             "updated": _int(raw.get("updated"), int(time.time() * 1000), 0, 1 << 50)}
 
-
 def load_stickers() -> List[Dict[str, Any]]:
     raw = _load("quick_stickers.json", [], lambda v: isinstance(v, list))
     out, seen = [], set()
@@ -591,14 +550,12 @@ def load_stickers() -> List[Dict[str, Any]]:
             out.append(sticker)
     return out[:STICKERS_LIMIT]
 
-
 def mutate_stickers(fn: Callable[[List[Dict[str, Any]]], Any]) -> Any:
     with _LOCK:
         rows = load_stickers()
         result = fn(rows)
         _save("quick_stickers.json", rows[:STICKERS_LIMIT])
         return result
-
 
 def sticker_title(text: str, lang: str = "ru") -> str:
     """First meaningful line of an answer, without markdown marks."""
@@ -609,9 +566,6 @@ def sticker_title(text: str, lang: str = "ru") -> str:
         if line:
             return line[:60] + ("…" if len(line) > 60 else "")
     return tr(lang, "Стикер", "Sticker")
-
-
-# ---------------------------------------------------------------- documents
 
 def document_text(name: str, data_url: str, lang: str = "ru") -> Dict[str, Any]:
     """A dropped document → ``{"name", "text", "chars", "truncated"}`` or ``{"error", "code"}``."""
@@ -636,7 +590,7 @@ def document_text(name: str, data_url: str, lang: str = "ru") -> Dict[str, Any]:
         text = telegram_media.extract_document_text(name, mime, blob)
     except (ValueError, KeyError, OSError) as exc:
         return {"error": tr(lang, f"Файл не разобран: {exc}", f"Could not parse the file: {exc}"), "code": "parse"}
-    except Exception as exc:          # zipfile.BadZipFile, pypdf errors on broken files
+    except Exception as exc:
         return {"error": tr(lang, f"Файл не разобран: {exc}", f"Could not parse the file: {exc}"), "code": "parse"}
     if lower.endswith(".pdf") and not text:
         try:
@@ -651,9 +605,6 @@ def document_text(name: str, data_url: str, lang: str = "ru") -> Dict[str, Any]:
     from .quick_ask_api import clip_middle
     return {"name": name, "text": clip_middle(text, DOCUMENT_MAX_CHARS), "chars": len(text), "truncated": len(text) > DOCUMENT_MAX_CHARS}
 
-
-# ---------------------------------------------------------------- region selection (pure math)
-
 def crop_box(rect: Any, size: tuple) -> Optional[tuple]:
     """Fractions ``{x, y, w, h}`` of the frozen monitor image → a pixel box, or ``None`` if too small."""
     if not isinstance(rect, dict):
@@ -662,7 +613,7 @@ def crop_box(rect: Any, size: tuple) -> Optional[tuple]:
         x, y, w, h = (float(rect.get(key)) for key in ("x", "y", "w", "h"))
     except (TypeError, ValueError):
         return None
-    if any(v != v for v in (x, y, w, h)):         # NaN
+    if any(v != v for v in (x, y, w, h)):
         return None
     width, height = int(size[0]), int(size[1])
     if w < 0:
@@ -676,7 +627,6 @@ def crop_box(rect: Any, size: tuple) -> Optional[tuple]:
     if right - left < 4 or bottom - top < 4:
         return None
     return left, top, right, bottom
-
 
 class RegionSession:
     """One region pick: the frozen image, the overlay's answer and who waits for it."""
@@ -713,12 +663,8 @@ class RegionSession:
         self.done.set()
         return self.result
 
-
-# ---------------------------------------------------------------- routes
-
 def _manager(request: Request) -> Any:
     return getattr(request.app.state, "quick_ask", None)
-
 
 def _lang(body: Dict[str, Any], request: Optional[Request] = None) -> str:
     lang = str(body.get("lang") or "")
@@ -732,14 +678,12 @@ def _lang(body: Dict[str, Any], request: Optional[Request] = None) -> str:
             lang = "ru"
     return lang
 
-
 async def _json(request: Request) -> Dict[str, Any]:
     try:
         body = await request.json()
     except Exception:
         return {}
     return body if isinstance(body, dict) else {}
-
 
 def _native(request: Request):
     """The Windows side (``None`` on other systems or without the Quick Ask window)."""
@@ -749,9 +693,7 @@ def _native(request: Request):
     from . import quick_features_win
     return quick_features_win.runtime(manager)
 
-
 router = APIRouter()
-
 
 @router.get("/api/quick/features")
 async def features_state(request: Request):
@@ -766,10 +708,8 @@ async def features_state(request: Request):
             "status": status, "stickers": [_sticker_public(s) for s in stickers],
             "clipboard_count": len(CLIPBOARD.rows())}
 
-
 def _sticker_public(row: Dict[str, Any]) -> Dict[str, Any]:
     return {key: row[key] for key in ("id", "title", "text", "color", "open", "created", "updated", "chat")}
-
 
 @router.post("/api/quick/features/settings")
 async def features_settings(request: Request):
@@ -790,7 +730,6 @@ async def features_settings(request: Request):
     status = await asyncio.to_thread(native.apply, data["settings"], lang) if native is not None else {}
     return {"ok": True, "settings": data["settings"], "status": status}
 
-
 @router.post("/api/quick/features/snippets")
 async def features_snippets(request: Request):
     body = await _json(request)
@@ -798,7 +737,6 @@ async def features_snippets(request: Request):
         return JSONResponse({"error": tr(_lang(body), "Нужен список сниппетов", "A list of snippets is required")}, 400)
     data = await asyncio.to_thread(save_config, snippets=body["snippets"])
     return {"ok": True, "snippets": data["snippets"]}
-
 
 @router.post("/api/quick/features/snippets/use")
 async def features_snippet_use(request: Request):
@@ -812,7 +750,7 @@ async def features_snippet_use(request: Request):
         return JSONResponse({"error": tr(lang, "Сниппет не найден", "Snippet not found")}, 404)
     native = _native(request)
     if row["kind"] == "ai":
-        # An AI template is sent by the page itself (MemuQuick.send); here it only gets the clipboard text to work on.
+
         clipboard = await asyncio.to_thread(native.clipboard_text) if native is not None else ""
         return {"ok": True, "kind": "ai", "clipboard": clipboard[:CLIPBOARD_ITEM_CHARS * 4]}
     clipboard = await asyncio.to_thread(native.clipboard_text) if native is not None and "{clipboard" in row["text"] else ""
@@ -829,7 +767,6 @@ async def features_snippet_use(request: Request):
             await asyncio.to_thread(native.copy, out["text"])
     return out
 
-
 @router.get("/api/quick/features/clipboard")
 async def features_clipboard(request: Request):
     query = str(request.query_params.get("q") or "")[:200]
@@ -841,7 +778,6 @@ async def features_clipboard(request: Request):
     result.update(settings={key: config["settings"][key] for key in ("clipboard", "clipboard_paused", "clipboard_limit")},
                   native=native is not None, status=status)
     return result
-
 
 @router.post("/api/quick/features/clipboard")
 async def features_clipboard_action(request: Request):
@@ -857,7 +793,7 @@ async def features_clipboard_action(request: Request):
         if row is None:
             return JSONResponse({"error": tr(lang, "Запись не найдена", "Item not found")}, 404)
         native = _native(request)
-        # Round 27 (review): the history keeps the first CLIPBOARD_ITEM_CHARS of a long copy — say so, not silently
+
         cut = int(row.get("chars") or 0) > len(row["text"])
         if native is None:
             return {"ok": False, "native": False, "text": row["text"], "truncated": cut}
@@ -865,7 +801,6 @@ async def features_clipboard_action(request: Request):
             return {"ok": await asyncio.to_thread(native.insert, row["text"], 0), "native": True, "truncated": cut}
         return {"ok": await asyncio.to_thread(native.copy, row["text"]), "native": True, "truncated": cut}
     return JSONResponse({"error": "unknown action"}, 400)
-
 
 @router.post("/api/quick/features/document")
 async def features_document(request: Request):
@@ -875,7 +810,6 @@ async def features_document(request: Request):
     if result.get("error"):
         return JSONResponse(result, 413 if result.get("code") == "too_large" else 415)
     return result
-
 
 @router.post("/api/quick/features/region")
 async def features_region(request: Request):
@@ -888,14 +822,12 @@ async def features_region(request: Request):
                                          "Screen regions work in the MemuAI Windows app"), "code": "unsupported"}, 400)
     return await asyncio.to_thread(native.pick_region, lang)
 
-
 @router.get("/api/quick/features/region/result")
 async def features_region_result(request: Request):
     """The region picked with the global hotkey (the window was hidden, nobody awaited ``POST …/region``)."""
     native = _native(request)
     result = native.take_pending_region() if native is not None else None
     return result or {"cancelled": True}
-
 
 @router.get("/api/quick/features/region/image")
 async def features_region_image(request: Request):
@@ -905,7 +837,6 @@ async def features_region_image(request: Request):
         return JSONResponse({"error": "no session"}, 404)
     data = await asyncio.to_thread(session.preview)
     return Response(data, media_type="image/jpeg", headers={"Cache-Control": "no-store"})
-
 
 @router.post("/api/quick/features/region/done")
 async def features_region_done(request: Request):
@@ -917,17 +848,14 @@ async def features_region_done(request: Request):
     result = await asyncio.to_thread(session.finish, body.get("rect"))
     return {"ok": not result.get("cancelled"), "cancelled": bool(result.get("cancelled"))}
 
-
 @router.get("/api/quick/features/stickers")
 async def features_stickers():
     return {"items": [_sticker_public(s) for s in await asyncio.to_thread(load_stickers)]}
-
 
 @router.get("/api/quick/features/stickers/{sticker_id}")
 async def features_sticker(sticker_id: str):
     row = next((s for s in await asyncio.to_thread(load_stickers) if s["id"] == sticker_id), None)
     return {"sticker": _sticker_public(row)} if row else JSONResponse({"error": "not found"}, 404)
-
 
 @router.post("/api/quick/features/stickers")
 async def features_sticker_action(request: Request):
@@ -997,10 +925,8 @@ async def features_sticker_action(request: Request):
 
     return JSONResponse({"error": "unknown action"}, 400)
 
-
 def register() -> None:
     from .quick_ask_api import register_router
     register_router(router)
-
 
 register()

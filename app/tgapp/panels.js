@@ -1,14 +1,11 @@
-/* MemuAI Mini App — «Панели» (Round 24).
- * Cards come from the server already resolved (telegram_panels.card: the
- * panel's spec blocks with its data substituted), so this file only draws
- * them. Per-panel Telegram updates: on/off, what to send, quiet hours.
- * Loaded before app.js; app.js calls MemuTgPanels.render(view, helpers). */
+
+
 (function () {
   "use strict";
   const MODES = [["changes", "Только важное", "Important only"], ["every", "Любые изменения", "Every change"], ["digest", "Сводка раз в день", "Daily digest"]];
   const KIND_ICON = { weather: "🌤", news: "📰", rss: "📰", countdown: "⏳", todo: "✅", currency: "💱", crypto: "🪙", stock: "📈",
     sports: "🏆", calendar: "📅", github: "🐙", notes: "📝", system: "🖥", usage: "📊", clock: "🕑", timers: "⏱", proxy: "🛰",
-    custom: "✨", web: "🌐" };   // Round 31: AI / page panels had a bare «▪️»
+    custom: "✨", web: "🌐" };
   let H = null;
   let data = null;
   let open = "";
@@ -33,7 +30,7 @@
     if (c.countdown && c.countdown.days_left != null) {
       parts.push(`<div class="pn-metric"><b>${esc(c.countdown.days_left)}</b><span>${esc(tr("дн.", "days"))}</span></div>${c.countdown.label && !String(c.subtitle || "").includes(c.countdown.label) ? `<div class="pn-cap">${esc(c.countdown.label)}</div>` : ""}`);
     }
-    // Round 31: an image block (photo of the day, a webcam) — the card was «No data yet»
+
     if (c.image && safeUrl(c.image.src)) parts.push(`<img class="pn-img" src="${esc(safeUrl(c.image.src))}" alt="${esc(c.image.caption || "")}" loading="lazy" referrerpolicy="no-referrer" style="display:block;width:100%;max-height:240px;object-fit:cover;border-radius:10px;margin:6px 0">`);
     if ((c.stats || []).length) parts.push(`<div class="pn-stats">${c.stats.slice(0, 8).map((s) => `<div><small>${esc(s.label || "")}</small><b>${esc(s.value || "")}</b></div>`).join("")}</div>`);
     if ((c.items || []).length) parts.push(`<ul class="pn-items">${c.items.slice(0, 8).map((it) => { const u = safeUrl(it.url); const t = esc(it.title); return `<li>${u ? `<a href="${esc(u)}" data-link="${esc(u)}">${t}</a>` : t}${it.subtitle ? `<small>${esc(it.subtitle)}</small>` : ""}</li>`; }).join("")}</ul>`);
@@ -78,7 +75,7 @@
     }
     const note = data.telegram_ready ? "" : `<p class="section-note pn-hint">${esc(tr("Уведомления придут, когда бот включён и привязан.", "Updates arrive once the bot is on and paired."))}</p>`;
     box.innerHTML = note + `<div class="pn-grid">${data.panels.map(cardHtml).join("")}</div>`;
-    box.querySelectorAll("img.pn-img").forEach((img) => { img.onerror = () => img.remove(); });   // no inline handlers (CSP)
+    box.querySelectorAll("img.pn-img").forEach((img) => { img.onerror = () => img.remove(); });
     box.querySelectorAll("[data-link]").forEach((a) => a.onclick = (e) => {
       e.preventDefault();
       const tg = window.Telegram && window.Telegram.WebApp;
@@ -125,7 +122,7 @@
     H.setTop(H.tr("Панели", "Panels"));
     view.innerHTML = `<div id="pn-list"><div class="empty"><div class="typing"><i></i><i></i><i></i></div></div></div>`;
     load(view);
-    // Light auto-refresh while the tab is open (panels change at most every few minutes).
+
     H.timers.panels = setInterval(() => { if (!document.hidden && H.state.tab === "panels" && !H.state.stack.length) load(view, true); }, 60000);
   }
 

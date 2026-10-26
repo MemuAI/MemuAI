@@ -1,13 +1,9 @@
-/* MemuAI documentation viewer: Settings → Documentation.
- * Pages are Markdown served by app/docs.py. This file renders them, builds the
- * navigation, the in-page table of contents and search, and keeps a small
- * back/forward history. It relies on app.js helpers (icon, esc, toast,
- * showContextMenu, copyText, highlightSyntax) that are loaded before it runs.
- */
+
+
 "use strict";
 const MemuDocs = (() => {
-  let catalog = null;           // { lang, groups, home }
-  let current = null;           // the page object from /api/pg/docs/page
+  let catalog = null;
+  let current = null;
   let pendingAnchor = "";
   let back = [];
   let forward = [];
@@ -37,16 +33,11 @@ const MemuDocs = (() => {
     return data;
   }
 
-  /* -------------------------------- markdown -------------------------------- */
-
-  /** Same rule as app/docs.py anchor(): letters and digits joined by "-". */
   function anchorOf(text) {
     const slug = String(text || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-").replace(/^-+|-+$/g, "");
     return slug.slice(0, 80) || "section";
   }
 
-  // "++Ctrl+Shift+T++": the keys themselves contain "+", so the content only
-  // has to start and end with a key character (app/docs.py uses the same rule).
   const KEYS = /\+\+([^\s+](?:[^\n]*?[^\s+])??)\+\+/g;
 
   function plainText(text) {
@@ -83,7 +74,7 @@ const MemuDocs = (() => {
 
   function codeBlock(source, language) {
     const lang = (language || "").toLowerCase() || "text";
-    // Round 29: ```memu-widget fences become live cards (modules-aipack.js, e.g. the modules AI pack).
+
     if (lang === "memu-widget" && window.MemuModuleTools) { const html = MemuModuleTools.widget(source); if (html) return html; }
     let highlighted;
     try { highlighted = typeof highlightSyntax === "function" ? highlightSyntax(source, lang) : escape(source); }
@@ -113,14 +104,13 @@ const MemuDocs = (() => {
       const count = (seen.get(id) || 0) + 1;
       seen.set(id, count);
       if (count > 1) id = `${id}-${count}`;
-      // DOM-id с приставкой: заголовок «Messages» давал id="messages" и
-      // перехватывал $("#messages") у самого приложения (как и #context-menu).
+
       if (level === 1) return `<h1 id="doc-${id}">${inline(text)}</h1>`;
       return `<h${level} id="doc-${id}" class="docs-heading">${inline(text)}<button type="button" class="docs-anchor" data-copy-anchor="${id}" title="${L("Копировать ссылку на раздел", "Copy a link to this section")}" aria-label="${L("Ссылка на раздел", "Section link")}">#</button></h${level}>`;
     }
 
     function list(startIndex) {
-      // Items keep their indentation; deeper items become a nested list.
+
       const baseIndent = lines[startIndex].match(/^\s*/)[0].length;
       const ordered = /^\s*\d+[.)]\s+/.test(lines[startIndex]);
       const start = ordered ? Number(lines[startIndex].match(/\d+/)[0]) : 1;
@@ -176,7 +166,7 @@ const MemuDocs = (() => {
           + `<tbody>${rows.map((row) => `<tr>${row.map((text, column) => cell("td", text, column)).join("")}</tr>`).join("")}</tbody></table></div>`);
         continue;
       }
-      // Round 29: a screenshot on its own line — ![alt](docs-img/ru/x.webp "caption") (docs-ai.js: lazy, click to zoom).
+
       const picture = line.match(/^\s*!\[([^\]]*)\]\((docs-img\/(?:ru|en)\/[a-z0-9][a-z0-9._-]*\.(?:webp|png|jpe?g))(?:\s+"([^"]*)")?\)\s*$/i);
       if (picture) { out.push(window.MemuDocsAI ? MemuDocsAI.figure(picture[2], picture[1], picture[3] || "") : ""); index += 1; continue; }
       const title = line.match(/^(#{1,4})\s+(.+?)\s*#*$/);
@@ -211,8 +201,6 @@ const MemuDocs = (() => {
     }
     return out.join("");
   }
-
-  /* --------------------------------- layout --------------------------------- */
 
   function shell() {
     return `<div class="docs-shell">
@@ -268,8 +256,7 @@ const MemuDocs = (() => {
   }
 
   function highlight(text, needle) {
-    // Сначала режем исходный текст, потом экранируем куски: иначе поиск
-    // «amp» или «quot» подсвечивал внутренности &amp; и ломал сущности.
+
     const words = needle.split(/\s+/).filter((word) => word.length > 1)
       .map((word) => word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
     if (!words.length) return escape(text);
@@ -324,11 +311,9 @@ const MemuDocs = (() => {
     const fallback = current.fallback ? `<aside class="docs-callout note"><div class="docs-callout-title">${glyph("info")}<b>${L("Страница пока только на английском", "This page is only in Russian so far")}</b></div></aside>` : "";
     article.innerHTML = fallback + render(current.body);
     article.lang = current.lang;
-    if (window.MemuModuleTools) MemuModuleTools.hydrate(article);   // Round 29: memu-widget cards
-    if (window.MemuDocsAI) MemuDocsAI.decorate(article, current);      // Round 29: «Кратко от ИИ», screenshots
+    if (window.MemuModuleTools) MemuModuleTools.hydrate(article);
+    if (window.MemuDocsAI) MemuDocsAI.decorate(article, current);
   }
-
-  /* ------------------------------- navigation ------------------------------- */
 
   function scroller() { return $("#docs-scroll"); }
 
@@ -356,8 +341,7 @@ const MemuDocs = (() => {
       return;
     }
     let page;
-    // Быстрые клики: показываем последнюю запрошенную страницу, а не ту,
-    // что ответила позже.
+
     const seq = (goSeq += 1);
     try {
       page = await getJson(`/api/pg/docs/page?lang=${lang()}&id=${encodeURIComponent(id)}`);
@@ -377,7 +361,7 @@ const MemuDocs = (() => {
     findHits = [];
     findAt = -1;
     drawArticle();
-    // The find bar stays open across pages and searches the new one.
+
     const finder = $("#docs-find-input");
     if (finder && !$("#docs-find").hidden && finder.value) findRun(finder.value);
     drawCrumbs();
@@ -445,8 +429,6 @@ const MemuDocs = (() => {
     });
   }
 
-  /* --------------------------------- search --------------------------------- */
-
   function runSearch() {
     clearTimeout(searchTimer);
     const needle = query.trim();
@@ -458,7 +440,7 @@ const MemuDocs = (() => {
         results = data.results || [];
         cursor = results.length ? 0 : -1;
         drawResults();
-      } catch (_) { /* поиск не критичен */ }
+      } catch (_) {  }
     }, 140);
   }
 
@@ -468,10 +450,9 @@ const MemuDocs = (() => {
     go(row.id, row.anchor || "").then(() => markInArticle(query.trim()));
   }
 
-  /* Highlight the searched words in the opened page for a few seconds. */
   function markInArticle(needle) {
     const article = $("#docs-article");
-    // Syntax highlighting splits "Memu.save" into several nodes, so mark the parts.
+
     const words = needle.toLowerCase().split(/[^\p{L}\p{N}_]+/u).filter((word) => word.length > 1);
     if (!article || !words.length) return;
     const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
@@ -494,10 +475,6 @@ const MemuDocs = (() => {
     setTimeout(() => $$(".docs-hit", article).forEach((mark) => mark.replaceWith(...mark.childNodes)), 4000);
   }
 
-  /* ----------------------------- find on the page ---------------------------- */
-
-  // Ctrl+F. WebView2 has no find bar of its own inside the app window, so the
-  // page gets one: every match is marked, Enter / Shift+Enter walk through them.
   let findHits = [];
   let findAt = -1;
 
@@ -525,7 +502,7 @@ const MemuDocs = (() => {
       if (node.nodeValue.toLowerCase().includes(text)) nodes.push(node);
     }
     for (const node of nodes) {
-      // Walk the matches of one text node from the end, so earlier offsets stay valid.
+
       const value = node.nodeValue.toLowerCase();
       const starts = [];
       for (let at = value.indexOf(text); at >= 0 && starts.length < 400; at = value.indexOf(text, at + text.length)) starts.push(at);
@@ -583,8 +560,6 @@ const MemuDocs = (() => {
     if (article) article.focus({ preventScroll: true });
     return true;
   }
-
-  /* ------------------------------ page actions ------------------------------ */
 
   function sectionPath(anchor) {
     const heading = anchor ? (current.headings || []).find((row) => row.anchor === anchor) : null;
@@ -651,8 +626,7 @@ const MemuDocs = (() => {
     if (link && link.classList.contains("docs-link")) {
       items.push({ label: L("Открыть ссылку", "Open the link"), icon: "forward", run: () => go(link.dataset.docPage, link.dataset.docAnchor) });
     }
-    // DOM-id заголовка — «doc-<якорь>» (см. heading()), а copyLink ждёт сам
-    // якорь: без среза ссылка получала «#doc-…» и не находила раздел.
+
     if (heading) items.push({ label: L("Копировать ссылку на раздел", "Copy a link to this section"), icon: "copy", run: () => copyLink(heading.id.replace(/^doc-/, "")) });
     items.push({ label: L("Выделить всю страницу", "Select the whole page"), icon: "focus", run: () => {
       const range = document.createRange();
@@ -677,8 +651,6 @@ const MemuDocs = (() => {
     input.focus();
     runSearch();
   }
-
-  /* --------------------------------- binding -------------------------------- */
 
   function bind(pane) {
     pane.addEventListener("click", (event) => {
@@ -752,7 +724,7 @@ const MemuDocs = (() => {
     pane.addEventListener("keydown", (event) => {
       const typing = event.target.closest("input, textarea, select");
       const key = String(event.key || "").toLowerCase();
-      // Ctrl+F (и Ctrl+А на русской раскладке): поиск по открытой странице.
+
       if ((event.ctrlKey || event.metaKey) && !event.altKey && (key === "f" || key === "а" || event.code === "KeyF")) {
         event.preventDefault(); event.stopPropagation(); findOpen(); return;
       }
@@ -774,8 +746,6 @@ const MemuDocs = (() => {
     return catalog;
   }
 
-  // Ctrl+F must work wherever the focus is while the documentation tab is open
-  // (right after opening it the focus is still on the settings tab button).
   document.addEventListener("keydown", (event) => {
     const key = String(event.key || "").toLowerCase();
     if (!(event.ctrlKey || event.metaKey) || event.altKey || !(key === "f" || key === "а" || event.code === "KeyF")) return;
@@ -789,7 +759,6 @@ const MemuDocs = (() => {
   let pendingPage = "";
   let mounting = null;
 
-  /** Render the documentation into its settings pane (idempotent). */
   async function mount(page, anchor) {
     const pane = document.getElementById("pane-docs");
     if (!pane) return;
@@ -798,7 +767,7 @@ const MemuDocs = (() => {
     pendingPage = "";
     pendingAnchor = "";
     if (mounting) {
-      // The shell is still being built: finish that first, then navigate.
+
       await mounting;
       if (page) await go(page, anchor || "");
       return;
@@ -824,7 +793,6 @@ const MemuDocs = (() => {
     if (page) await go(page, anchor || "");
   }
 
-  /** Open Settings → Documentation, optionally at a page and a section. */
   async function open(page, anchor) {
     pendingPage = page || "";
     pendingAnchor = anchor || "";
@@ -832,7 +800,7 @@ const MemuDocs = (() => {
     const visibleSettings = document.getElementById("panel-back")?.classList.contains("visible")
       && document.querySelector("#panel .settings-body");
     if ((!document.getElementById("pane-docs") || !visibleSettings) && typeof showSettings === "function") {
-      await showSettings(true);   // renderSettingsPanel mounts the pane with the pending page
+      await showSettings(true);
       return;
     }
     $$(".settings-tab-btn").forEach((button) => button.classList.toggle("active", button.dataset.setTab === "docs"));

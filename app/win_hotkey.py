@@ -44,8 +44,7 @@ WM_QUIT = 0x0012
 WM_APP = 0x8000
 WM_APP_HOTKEY = WM_APP + 0x51A0
 ERROR_HOTKEY_ALREADY_REGISTERED = 1409
-HOTKEY_ID = 0x4D51   # "MQ"; any id 0x0000–0xBFFF is valid for an application
-
+HOTKEY_ID = 0x4D51
 
 def describe_error(code: int, hotkey: str, lang: str = "ru") -> str:
     en = lang == "en"
@@ -57,7 +56,6 @@ def describe_error(code: int, hotkey: str, lang: str = "ru") -> str:
                 "или оверлей игры). Закройте её или выберите другое сочетание.")
     return (f"Windows did not register {hotkey} (error {code})." if en
             else f"Windows не зарегистрировал {hotkey} (ошибка {code}).")
-
 
 class _Win32:
     """ctypes signatures, 64-bit safe, on private WinDLL instances."""
@@ -100,7 +98,6 @@ class _Win32:
     def last_error(self) -> int:
         return self.ctypes.get_last_error()
 
-
 class HotkeyListener:
     """One global hotkey; ``callback()`` runs on a short-lived worker thread.
 
@@ -120,17 +117,14 @@ class HotkeyListener:
         self._ready = threading.Event()
         self._lock = threading.Lock()
         self._requests: List[Dict[str, Any]] = []
-        self.active = ""          # canonical hotkey currently registered
+        self.active = ""
         self.status: Dict[str, Any] = {"ok": False, "hotkey": "", "code": "not_started", "error": ""}
         self._last_fire = 0.0
-        # Round 22: while Settings captures a new combination our own hotkey is
-        # released (otherwise pressing it there opens Quick Ask instead of
-        # being captured); it comes back on resume() or after a timeout.
+
         self.suspended = ""
         self._resume_timer: Optional[threading.Timer] = None
         self.last_win32 = 0
 
-    # ------------------------------------------------------------ public
     def start(self) -> bool:
         if sys.platform != "win32" and self._api_factory is _Win32:
             self.status = {"ok": False, "hotkey": "", "code": "unsupported",
@@ -203,7 +197,6 @@ class HotkeyListener:
         self._thread = None
         self._thread_id = 0
 
-    # ------------------------------------------------------------ internals
     def _request(self, request: Dict[str, Any], timeout: float) -> Dict[str, Any]:
         done = threading.Event()
         request["done"] = done
@@ -225,7 +218,7 @@ class HotkeyListener:
         try:
             api = self._api = self._api_factory()
             msg = api.MSG()
-            # Creates this thread's message queue before anyone posts to it.
+
             api.PeekMessageW(api.ctypes.byref(msg), None, 0, 0, 0)
             self._thread_id = int(api.GetCurrentThreadId())
         except Exception as exc:
@@ -236,7 +229,7 @@ class HotkeyListener:
         try:
             while True:
                 result = api.GetMessageW(api.ctypes.byref(msg), None, 0, 0)
-                if result in (0, -1):          # WM_QUIT or error
+                if result in (0, -1):
                     break
                 if msg.message == WM_HOTKEY and int(msg.wParam) == HOTKEY_ID:
                     self._fire()
@@ -300,8 +293,7 @@ class HotkeyListener:
             code = api.last_error()
             return {"ok": False, "hotkey": hotkey, "code": self._code(code),
                     "error": describe_error(code, hotkey, self.lang), "win32": code}
-        # op == "set": the same id is re-registered; release the old one first,
-        # restore it if the new combination is refused.
+
         previous = self.active or self.suspended
         if previous == hotkey and self.active == hotkey:
             return dict(self.status)
@@ -365,8 +357,7 @@ class HotkeyListener:
 
     def _fire(self) -> None:
         now = time.monotonic()
-        # MOD_NOREPEAT already filters auto-repeat; this guards against a
-        # double WM_HOTKEY from some keyboard drivers.
+
         if now - self._last_fire < 0.12:
             return
         self._last_fire = now
@@ -377,7 +368,6 @@ class HotkeyListener:
             self.callback()
         except Exception as exc:
             log.warning("quick ask hotkey callback failed: %s", exc)
-
 
 class ComboCapture:
     """Native capture of a key combination for the Settings field (Round 22).
@@ -411,7 +401,7 @@ class ComboCapture:
 
     def run(self, timeout: float = 15.0, cancel: Optional[threading.Event] = None) -> Dict[str, Any]:
         deadline = time.monotonic() + max(0.2, float(timeout))
-        held = self._down()            # keys already down when the capture started do not count
+        held = self._down()
         while time.monotonic() < deadline:
             if cancel is not None and cancel.is_set():
                 return {"ok": False, "code": "cancelled", "hotkey": ""}
@@ -424,13 +414,12 @@ class ComboCapture:
             held = {vk for vk in held if vk in down}
             if fresh:
                 if fresh == {0x1B} and not (down & set(VK_MODIFIERS)):
-                    return {"ok": False, "code": "cancelled", "hotkey": ""}   # Esc alone cancels
+                    return {"ok": False, "code": "cancelled", "hotkey": ""}
                 combo = hotkey_from_vks(sorted(down & set(VK_MODIFIERS)) + sorted(fresh)[:1])
                 if combo:
                     return {"ok": True, "code": "captured", "hotkey": combo}
             time.sleep(self.POLL)
         return {"ok": False, "code": "timeout", "hotkey": ""}
-
 
 def running_processes() -> List[str]:
     """Lower-case image names of running processes (Toolhelp snapshot; [] off Windows)."""
@@ -459,7 +448,7 @@ def running_processes() -> List[str]:
         nxt.restype = wintypes.BOOL
         close = kernel32.CloseHandle
         close.argtypes = [ctypes.c_void_p]
-        handle = snapshot(0x00000002, 0)   # TH32CS_SNAPPROCESS
+        handle = snapshot(0x00000002, 0)
         if not handle or handle == ctypes.c_void_p(-1).value:
             return []
         names: List[str] = []
@@ -476,14 +465,10 @@ def running_processes() -> List[str]:
     except Exception:
         return []
 
-
-# ---------------------------------------------------------------- Round 24: global Escape
-
 VK_ESCAPE = 0x1B
 WH_KEYBOARD_LL = 13
 WM_KEYDOWN, WM_SYSKEYDOWN = 0x0100, 0x0104
 LLKHF_INJECTED = 0x10
-
 
 def escape_should_close(vk: int, message: int, flags: int, *, visible: bool, foreground: int,
                         own_windows: "tuple | list | set", pinned: bool = False) -> bool:
@@ -505,7 +490,6 @@ def escape_should_close(vk: int, message: int, flags: int, *, visible: bool, for
         return False
     return True
 
-
 class EscapeWatcher:
     """A ``WH_KEYBOARD_LL`` hook that exists ONLY while Quick Ask is visible.
 
@@ -519,7 +503,7 @@ class EscapeWatcher:
 
     def __init__(self, on_escape: Callable[[], Any], decide: Callable[[int, int, int], bool]) -> None:
         self.on_escape = on_escape
-        self.decide = decide            # (vk, message, flags) -> bool
+        self.decide = decide
         self._thread: Optional[threading.Thread] = None
         self._thread_id = 0
         self._lock = threading.Lock()
@@ -547,8 +531,7 @@ class EscapeWatcher:
             self._thread = None
         if thread is None:
             return
-        # Review fix: a disarm racing a just-started arm must still reach THAT thread — wait until it has its
-        # id/message queue (or gave up), then post WM_QUIT to it (not to a stale id of an older hook thread).
+
         ready = getattr(thread, "_memu_ready", None)
         if ready is not None:
             ready.wait(2.0)
@@ -593,18 +576,18 @@ class EscapeWatcher:
                         threading.Thread(target=self._fire, daemon=True).start()
             except Exception:
                 pass
-            return user32.CallNextHookEx(hook, code, wparam, lparam)   # never swallow the key
+            return user32.CallNextHookEx(hook, code, wparam, lparam)
 
         user32.GetMessageW.argtypes = [ctypes.POINTER(wintypes.MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT]
         user32.GetMessageW.restype = wintypes.BOOL
         user32.PeekMessageW.argtypes = [ctypes.POINTER(wintypes.MSG), wintypes.HWND, wintypes.UINT, wintypes.UINT, wintypes.UINT]
         user32.PeekMessageW.restype = wintypes.BOOL
         me = threading.current_thread()
-        callback = HOOKPROC(proc)              # kept alive by this frame for the whole message loop (GC-safe)
-        self._callback = callback              # and by the watcher, belt and braces
+        callback = HOOKPROC(proc)
+        self._callback = callback
         msg = wintypes.MSG()
-        # Force the thread's message queue into existence BEFORE anyone may PostThreadMessageW(WM_QUIT) to it.
-        user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 0)   # PM_NOREMOVE
+
+        user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 0)
         self._thread_id = int(kernel32.GetCurrentThreadId())
         me._memu_tid = self._thread_id         # type: ignore[attr-defined]
         hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, callback, kernel32.GetModuleHandleW(None), 0)
@@ -617,7 +600,7 @@ class EscapeWatcher:
         ready.set()
         try:
             while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
-                if self._thread is not me:      # disarmed (or superseded) — leave even without WM_QUIT
+                if self._thread is not me:
                     break
                 user32.TranslateMessage(ctypes.byref(msg))
                 user32.DispatchMessageW(ctypes.byref(msg))

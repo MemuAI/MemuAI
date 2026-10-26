@@ -35,14 +35,10 @@ _STATE: Dict[str, Any] = {"prev": None, "cache": None, "cache_at": 0.0, "pdh": N
                           "static": None}
 CACHE_SECONDS = 1.2
 
-
-# ============================================================ общие помощники
-
 def _pct(used: Optional[float], total: Optional[float]) -> Optional[float]:
     if used is None or not total:
         return None
     return round(max(0.0, min(100.0, used * 100.0 / total)), 1)
-
 
 def fmt_bytes(value: Optional[float], lang: str = "ru", *, rate: bool = False) -> str:
     if value is None:
@@ -56,11 +52,10 @@ def fmt_bytes(value: Optional[float], lang: str = "ru", *, rate: bool = False) -
     digits = 0 if number >= 100 or index == 0 else 1
     text = f"{number:.{digits}f}"
     if text.endswith(".0"):
-        text = text[:-2]                   # «16 ГБ», а не «16,0 ГБ»
+        text = text[:-2]
     if lang != "en":
         text = text.replace(".", ",")
     return f"{text} {units[index]}" + (("/с" if lang != "en" else "/s") if rate else "")
-
 
 def fmt_bits(value: Optional[float], lang: str = "ru") -> str:
     """Скорость в битах (как у провайдера): 12,4 Мбит/с."""
@@ -79,7 +74,6 @@ def fmt_bits(value: Optional[float], lang: str = "ru") -> str:
         text = text.replace(".", ",")
     return f"{text} {units[index]}"
 
-
 def fmt_duration(seconds: Optional[float], lang: str = "ru") -> str:
     if seconds is None or seconds < 0:
         return "—"
@@ -89,10 +83,8 @@ def fmt_duration(seconds: Optional[float], lang: str = "ru") -> str:
         return f"{days}d {hours}h" if days else (f"{hours}h {mins}m" if hours else f"{mins}m")
     return f"{days} д {hours} ч" if days else (f"{hours} ч {mins} мин" if hours else f"{mins} мин")
 
-
 def _to_f(value: Optional[float]) -> Optional[float]:
     return None if value is None else value * 9 / 5 + 32
-
 
 def _run(cmd: List[str], timeout: float = 2.5) -> str:
     try:
@@ -100,9 +92,6 @@ def _run(cmd: List[str], timeout: float = 2.5) -> str:
                               creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0)).stdout
     except Exception:  # noqa: BLE001
         return ""
-
-
-# ============================================================ Windows: ctypes
 
 def _win_cpu_times() -> Optional[Tuple[float, float]]:
     import ctypes
@@ -118,8 +107,7 @@ def _win_cpu_times() -> Optional[Tuple[float, float]]:
     if not fn(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
         return None
     val = lambda f: (f.hi << 32 | f.lo) / 1e7  # noqa: E731
-    return val(idle), val(kernel) + val(user)       # kernel включает idle
-
+    return val(idle), val(kernel) + val(user)
 
 def _win_memory() -> Optional[Dict[str, float]]:
     import ctypes
@@ -140,7 +128,6 @@ def _win_memory() -> Optional[Dict[str, float]]:
         return None
     return {"total": float(stat.ullTotalPhys), "used": float(stat.ullTotalPhys - stat.ullAvailPhys)}
 
-
 def _win_disks() -> List[Dict[str, Any]]:
     import ctypes
     from ctypes import wintypes
@@ -156,13 +143,12 @@ def _win_disks() -> List[Dict[str, Any]]:
     length = k32.GetLogicalDriveStringsW(511, buf)
     out = []
     for root in buf[:length].split("\x00"):
-        if not root or k32.GetDriveTypeW(root) != 3:        # DRIVE_FIXED
+        if not root or k32.GetDriveTypeW(root) != 3:
             continue
         free, total, _free_all = ctypes.c_ulonglong(), ctypes.c_ulonglong(), ctypes.c_ulonglong()
         if k32.GetDiskFreeSpaceExW(root, ctypes.byref(free), ctypes.byref(total), ctypes.byref(_free_all)) and total.value:
             out.append({"mount": root.rstrip("\\"), "total": float(total.value), "used": float(total.value - _free_all.value)})
     return out[:8]
-
 
 def _win_battery() -> Optional[Dict[str, Any]]:
     import ctypes
@@ -177,17 +163,15 @@ def _win_battery() -> Optional[Dict[str, Any]]:
     fn.argtypes = [ctypes.POINTER(SYSTEM_POWER_STATUS)]
     fn.restype = wintypes.BOOL
     if not fn(ctypes.byref(status)) or status.BatteryFlag & 128 or status.BatteryLifePercent == 255:
-        return None                                          # 128 — батареи нет
+        return None
     secs = None if status.BatteryLifeTime == 0xFFFFFFFF else int(status.BatteryLifeTime)
     return {"pct": float(status.BatteryLifePercent), "plugged": status.ACLineStatus == 1, "secs_left": secs}
-
 
 def _win_uptime() -> Optional[float]:
     import ctypes
     fn = ctypes.windll.kernel32.GetTickCount64
     fn.restype = ctypes.c_ulonglong
     return fn() / 1000.0
-
 
 class _Pdh:
     """Счётчики PDH с подстановками (*): один запрос живёт между замерами (скорости считает PDH)."""
@@ -200,7 +184,7 @@ class _Pdh:
         "gpu": r"\GPU Engine(*engtype_3D)\Utilization Percentage",
         "gpu_mem": r"\GPU Adapter Memory(*)\Dedicated Usage",
         "thermal": r"\Thermal Zone Information(*)\Temperature",
-        # Раунд 23: загрузка по ядрам и файл подкачки.
+
         "cores": r"\Processor(*)\% Processor Time",
         "swap": r"\Paging File(_Total)\% Usage",
     }
@@ -262,11 +246,10 @@ class _Pdh:
             rows = []
             for i in range(count.value):
                 item = items[i]
-                if item.FmtValue.CStatus in (0, 1):            # PDH_CSTATUS_VALID_DATA / NEW_DATA
+                if item.FmtValue.CStatus in (0, 1):
                     rows.append((item.szName or "", float(item.FmtValue.u.doubleValue)))
             out[key] = rows
         return out
-
 
 def _win_registry(path: str, name: str) -> str:
     try:
@@ -275,7 +258,6 @@ def _win_registry(path: str, name: str) -> str:
             return str(winreg.QueryValueEx(key, name)[0]).strip()
     except Exception:  # noqa: BLE001
         return ""
-
 
 def _win_gpu_name() -> str:
     base = r"SYSTEM\CurrentControlSet\Control\Class\{4d36e968-e325-11ce-bfc1-08002be10318}"
@@ -286,9 +268,6 @@ def _win_gpu_name() -> str:
             names.append(value)
     return names[0] if names else ""
 
-
-# ============================================================ NVIDIA
-
 def _nvidia() -> Optional[List[Dict[str, Any]]]:
     now = time.monotonic()
     if _STATE["nvsmi_at"] and now - _STATE["nvsmi_at"] < 4:
@@ -297,7 +276,7 @@ def _nvidia() -> Optional[List[Dict[str, Any]]]:
     exe = shutil.which("nvidia-smi")
     if not exe:
         _STATE["nvsmi"] = None
-        _STATE["nvsmi_at"] = now + 3600           # нет — не искать каждую секунду
+        _STATE["nvsmi_at"] = now + 3600
         return None
     raw = _run([exe, "--query-gpu=name,utilization.gpu,memory.used,memory.total,temperature.gpu",
                 "--format=csv,noheader,nounits"])
@@ -318,9 +297,6 @@ def _nvidia() -> Optional[List[Dict[str, Any]]]:
     _STATE["nvsmi"] = gpus or None
     return _STATE["nvsmi"]
 
-
-# ============================================================ Linux /proc (песочница, Linux-пользователи)
-
 def _linux_cpu_times() -> Optional[Tuple[float, float]]:
     try:
         with open("/proc/stat", encoding="ascii") as handle:
@@ -330,7 +306,6 @@ def _linux_cpu_times() -> Optional[Tuple[float, float]]:
         return idle, sum(values[:8])
     except (OSError, ValueError, IndexError):
         return None
-
 
 def _linux_cpu_per() -> Optional[List[Tuple[float, float]]]:
     try:
@@ -344,7 +319,6 @@ def _linux_cpu_per() -> Optional[List[Tuple[float, float]]]:
     except (OSError, ValueError, IndexError):
         return None
 
-
 def _linux_swap() -> Optional[Dict[str, float]]:
     try:
         info = {}
@@ -356,7 +330,6 @@ def _linux_swap() -> Optional[Dict[str, float]]:
         return {"total": info["SwapTotal"], "used": info["SwapTotal"] - info.get("SwapFree", 0)}
     except (OSError, ValueError, KeyError):
         return None
-
 
 def _linux_nets() -> Optional[Dict[str, Tuple[float, float]]]:
     try:
@@ -370,7 +343,6 @@ def _linux_nets() -> Optional[Dict[str, Tuple[float, float]]]:
         return out
     except (OSError, ValueError, IndexError):
         return None
-
 
 def _linux_hwmon() -> Tuple[List[Tuple[str, float]], List[Tuple[str, float]]]:
     """Все датчики температуры и вентиляторов из /sys/class/hwmon (подписи — как у драйвера)."""
@@ -414,7 +386,6 @@ def _linux_hwmon() -> Tuple[List[Tuple[str, float]], List[Tuple[str, float]]]:
                 fans.append((label[:40], value))
     return temps[:12], fans[:8]
 
-
 def _linux_memory() -> Optional[Dict[str, float]]:
     try:
         info = {}
@@ -427,7 +398,6 @@ def _linux_memory() -> Optional[Dict[str, float]]:
         return {"total": total, "used": total - avail}
     except (OSError, ValueError, KeyError):
         return None
-
 
 def _linux_net() -> Optional[Tuple[float, float]]:
     try:
@@ -443,7 +413,6 @@ def _linux_net() -> Optional[Tuple[float, float]]:
         return rx, tx
     except (OSError, ValueError, IndexError):
         return None
-
 
 def _linux_disk_io() -> Optional[Tuple[float, float]]:
     try:
@@ -462,7 +431,6 @@ def _linux_disk_io() -> Optional[Tuple[float, float]]:
     except (OSError, ValueError, IndexError):
         return None
 
-
 def _linux_temp() -> Optional[float]:
     best = None
     base = "/sys/class/thermal"
@@ -480,7 +448,6 @@ def _linux_temp() -> Optional[float]:
     except OSError:
         return None
     return best
-
 
 def _linux_battery() -> Optional[Dict[str, Any]]:
     base = "/sys/class/power_supply"
@@ -506,7 +473,6 @@ def _linux_battery() -> Optional[Dict[str, Any]]:
         return None
     return None
 
-
 def _linux_cpu_name() -> str:
     try:
         with open("/proc/cpuinfo", encoding="utf-8", errors="replace") as handle:
@@ -517,14 +483,12 @@ def _linux_cpu_name() -> str:
         pass
     return platform.processor() or ""
 
-
 def _linux_uptime() -> Optional[float]:
     try:
         with open("/proc/uptime", encoding="ascii") as handle:
             return float(handle.read().split()[0])
     except (OSError, ValueError):
         return None
-
 
 def _posix_disks() -> List[Dict[str, Any]]:
     mounts = ["/"]
@@ -544,16 +508,12 @@ def _posix_disks() -> List[Dict[str, Any]]:
             continue
     return out
 
-
-# ============================================================ сырой замер
-
 def _psutil():
     try:
         import psutil  # type: ignore
         return psutil
     except ImportError:
         return None
-
 
 def _static_info() -> Dict[str, Any]:
     if _STATE["static"] is None:
@@ -567,7 +527,6 @@ def _static_info() -> Dict[str, Any]:
                             "gpu_name": _win_gpu_name() if IS_WINDOWS else "", "host": platform.node()[:40],
                             "os": f"{platform.system()} {platform.release()}".strip()}
     return _STATE["static"]
-
 
 def _raw() -> Dict[str, Any]:
     """Один замер счётчиков (накопительные значения; скорости — в :func:`sample`)."""
@@ -594,9 +553,9 @@ def _raw() -> Dict[str, Any]:
                 try:
                     usage = ps.disk_usage(part.mountpoint)
                     if usage.total < 1 << 30 or (not IS_WINDOWS and (part.fstype or "") in ("squashfs", "tmpfs", "overlay", "fuse", "devtmpfs")):
-                        continue                   # служебные и крошечные разделы — не «диски» пользователя
+                        continue
                     if any(abs(d["total"] - usage.total) < 1 and abs(d["used"] - usage.used) < (1 << 20) for d in disks):
-                        continue                   # тот же раздел, смонтированный дважды
+                        continue
                     disks.append({"mount": part.mountpoint.rstrip("\\") or part.mountpoint, "total": float(usage.total), "used": float(usage.used)})
                 except Exception:  # noqa: BLE001
                     continue
@@ -617,7 +576,7 @@ def _raw() -> Dict[str, Any]:
                     temp = None
             raw["temp"] = temp
             raw["uptime"] = time.time() - ps.boot_time()
-            # Раунд 23: ядра, подкачка, адаптеры, все датчики, вентиляторы.
+
             try:
                 raw["cpu_per"] = [(getattr(c, "idle", 0.0) + getattr(c, "iowait", 0.0), sum(c)) for c in ps.cpu_times(percpu=True)]
             except Exception:  # noqa: BLE001
@@ -683,12 +642,10 @@ def _raw() -> Dict[str, Any]:
             log.info("system: PDH unavailable: %s", exc)
     return raw
 
-
 def _rate(prev: Optional[Tuple[float, float]], cur: Optional[Tuple[float, float]], dt: float) -> Tuple[Optional[float], Optional[float]]:
     if not prev or not cur or dt <= 0:
         return None, None
     return max(0.0, (cur[0] - prev[0]) / dt), max(0.0, (cur[1] - prev[1]) / dt)
-
 
 def sample(*, lang: str = "ru") -> Dict[str, Any]:
     """Свежий замер (кэш ~1 с, чтобы несколько карточек не мерили по очереди)."""
@@ -706,7 +663,6 @@ def sample(*, lang: str = "ru") -> Dict[str, Any]:
         out = build(prev, cur, dt, lang=lang)
         _STATE["cache"], _STATE["cache_at"] = out, time.monotonic()
         return dict(out)
-
 
 def build(prev: Dict[str, Any], cur: Dict[str, Any], dt: float, *, lang: str = "ru") -> Dict[str, Any]:
     """Значения для карточки из двух сырых замеров (чистая функция — проверяется тестами)."""
@@ -759,7 +715,7 @@ def build(prev: Dict[str, Any], cur: Dict[str, Any], dt: float, *, lang: str = "
     battery = cur.get("battery")
     t = (lambda ru, en: en if lang == "en" else ru)
     dash = "—"
-    # ---- Раунд 23: ядра, подкачка, адаптеры, датчики, вентиляторы
+
     cores: List[float] = []
     if prev.get("cpu_per") and cur.get("cpu_per") and len(prev["cpu_per"]) == len(cur["cpu_per"]):
         for (i0, t0), (i1, t1) in zip(prev["cpu_per"], cur["cpu_per"]):
@@ -840,7 +796,7 @@ def build(prev: Dict[str, Any], cur: Dict[str, Any], dt: float, *, lang: str = "
             battery_caption = t("осталось ", "left ") + fmt_duration(float(battery["secs_left"]), lang)
         else:
             battery_caption = t("от батареи", "on battery")
-    battery_text = ""                      # батареи нет (настольный ПК) — строка скрывается, это не «неизвестно»
+    battery_text = ""
     if battery:
         battery_text = f"{battery['pct']:.0f}%" + (" ⚡" if battery.get("plugged") else "")
     return {
@@ -864,7 +820,7 @@ def build(prev: Dict[str, Any], cur: Dict[str, Any], dt: float, *, lang: str = "
         "battery": battery["pct"] if battery else None, "battery_text": battery_text,
         "battery_plugged": bool(battery and battery.get("plugged")),
         "uptime": cur.get("uptime"), "host": static.get("host") or "", "os": static.get("os") or "",
-        # Раунд 23
+
         "cores": [{"label": str(i + 1), "value": v} for i, v in enumerate(cores[:64])],
         "swap": swap_pct, "swap_text": pct_text(swap_pct), "swap_caption": swap_caption,
         "vram": vram_pct, "vram_text": pct_text(vram_pct),
@@ -884,11 +840,7 @@ def build(prev: Dict[str, Any], cur: Dict[str, Any], dt: float, *, lang: str = "
         "uptime_text": fmt_duration(cur.get("uptime"), lang),
     }
 
-
-# ============================================================ процессы (Раунд 23)
-
 _PROCS: Dict[str, Any] = {"objs": {}, "at": 0.0, "cache": None, "key": None}
-
 
 def top_processes(count: int = 5, sort: str = "cpu", *, lang: str = "ru") -> Dict[str, Any]:
     """Самые активные процессы: имя, доля CPU (от всего процессора) и память.
@@ -926,7 +878,7 @@ def top_processes(count: int = 5, sort: str = "cpu", *, lang: str = "ru") -> Dic
         except Exception as exc:  # noqa: BLE001
             log.info("system: process list failed: %s", exc)
         _PROCS["objs"] = seen
-        # Один процесс под несколькими PID (браузеры) — одной строкой.
+
         merged: Dict[str, List[float]] = {}
         for name, cpu, rss in rows:
             slot = merged.setdefault(name, [0.0, 0.0, 0])

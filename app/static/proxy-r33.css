@@ -1,15 +1,9 @@
-/* MemuAI Proxy — Round 33 (r33-proxy): account selection & pointer drag (#19), the left-rail model
-   catalog page (#12) and the provider catalog of the add-account dialog (#24).
-   Loaded after style.css; only style.css tokens, so dark/light/glass follow the theme. */
-
-/* ---------- accounts: selection mode ---------- */
 #acc-select-mode { gap: 7px; }
 #acc-select-mode.active { color: var(--accent-text); border-color: var(--accent-line); background: var(--accent-soft); }
 #acc-bulk-bar.acc-bulk { gap: 6px; }
 #acc-bulk-bar.acc-bulk { padding-left: 8px; }
 #acc-bulk-bar.acc-bulk > #acc-bulk-count { min-width: 0; font-weight: 600; margin: 0 8px 0 4px; font-variant-numeric: tabular-nums; }
 #acc-bulk-bar.idle > #acc-bulk-count { font-weight: 400; color: var(--muted); }
-/* The idle bar (selection mode, nothing ticked) keeps «Select all» and «Cancel» clickable. */
 #acc-bulk-bar.idle #acc-select-all,
 #acc-bulk-bar.idle #acc-select-cancel { opacity: 1; pointer-events: auto; }
 #acc-bulk-bar.idle { background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(10px); }
@@ -19,8 +13,6 @@
   color: var(--muted); border: 1px solid var(--border); background: var(--bg-soft);
 }
 .acc-pick input { cursor: pointer; }
-
-/* ---------- accounts: pointer drag ---------- */
 #accounts-grid .acc-card[data-reorder="true"] { touch-action: pan-y; }
 body.acc-dragging, body.acc-dragging * { cursor: grabbing !important; user-select: none !important; }
 #accounts-grid .acc-card.dragging { opacity: .38; transform: scale(.985); }
@@ -52,12 +44,8 @@ body.acc-dragging, body.acc-dragging * { cursor: grabbing !important; user-selec
   flex: 0 0 auto; font-size: 11.5px; padding: 2px 7px; border-radius: 999px;
   background: var(--accent); color: var(--on-accent);
 }
-
-/* ---------- model catalog: its own page in the left rail ---------- */
 #tab-models .tab-title .chip { vertical-align: middle; margin-left: 6px; font-size: 12px; }
 #tab-models .models-card #models-table { max-height: calc(100vh - var(--top-h) - 300px); min-height: 320px; }
-
-/* ---------- add-account dialog: provider catalog ---------- */
 .cat-wrap { margin-top: 18px; }
 .cat-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 4px; }
 .cat-head .mini-title { margin: 0; }
@@ -114,14 +102,11 @@ body.acc-dragging, body.acc-dragging * { cursor: grabbing !important; user-selec
 .cat-empty { grid-column: 1 / -1; padding: 18px; text-align: center; color: var(--muted); font-size: 13px;
   border: 1px dashed var(--border); border-radius: 11px; }
 .cat-list { padding: 2px 0; }
-/* search and region chips stay at the top of the dialog while the long list scrolls under them */
 .cat-sticky {
   position: sticky; top: -24px; z-index: 3; margin: 0 -26px 4px; padding: 12px 26px 4px;
   background: color-mix(in srgb, var(--card) 94%, transparent); backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--border-soft);
 }
-
-/* preset form header */
 .cat-form-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
 .cat-form-head h3 { margin: 0; }
 .cat-form-head .cat-mono { width: 40px; height: 40px; font-size: 14px; border-radius: 11px; }
@@ -135,8 +120,6 @@ body.acc-dragging, body.acc-dragging * { cursor: grabbing !important; user-selec
   .cat-grid { grid-template-columns: 1fr 1fr; }
   .cat-desc { display: none; }
 }
-
-/* compact bulk bar: one line at the usual window width */
 #acc-bulk-bar.acc-bulk { gap: 5px; }
 #acc-bulk-bar.acc-bulk .btn.small { padding-left: 9px; padding-right: 9px; }
 #accounts-grid .acc-pick + .drag-handle { display: none; }

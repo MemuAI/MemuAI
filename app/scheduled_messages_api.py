@@ -15,7 +15,6 @@ from fastapi.responses import JSONResponse
 
 from . import scheduled_messages as sm
 
-
 def _lang(body: Dict[str, Any] | None = None) -> str:
     if body and body.get("lang") in ("ru", "en"):
         return str(body["lang"])
@@ -25,17 +24,14 @@ def _lang(body: Dict[str, Any] | None = None) -> str:
     except Exception:
         return "ru"
 
-
 def _error(exc: Exception, lang: str, status: int = 400) -> JSONResponse:
     if isinstance(exc, sm.ScheduleError):
         return JSONResponse({"error": exc.text(lang)}, status)
     return JSONResponse({"error": str(exc)[:400] or type(exc).__name__}, status)
 
-
 def _policy() -> str:
     from .pgdata import load_preferences
     return str(load_preferences().get("schedsend_missed") or "send")
-
 
 def _active_profile() -> str:
     try:
@@ -44,14 +40,12 @@ def _active_profile() -> str:
     except Exception:
         return "default"
 
-
 async def _json(request: Request) -> Dict[str, Any]:
     try:
         body = await request.json()
     except Exception:
         body = {}
     return body if isinstance(body, dict) else {}
-
 
 def register(app: FastAPI) -> None:
     @app.get("/api/schedsend/list")

@@ -29,12 +29,9 @@ QUICK = ROOT / "app" / "pgstatic" / "quick"
 
 _real_sleep = asyncio.sleep
 
-
 async def _short_sleep(delay=0, *a, **kw):
     await _real_sleep(min(float(delay or 0), 0.005))
 
-
-# ------------------------------------------------------------------ conventions
 class Conventions(unittest.TestCase):
     def test_model_families(self):
         self.assertEqual(g.model_convention("xkiro-qwen/qwen3.8-max:free"), g.NORM1000)
@@ -51,9 +48,9 @@ class Conventions(unittest.TestCase):
         self.assertEqual(g.model_to_shown(500, 500, g.NORM1000, 1400, 788), (700.0, 394.0))
         self.assertEqual(g.model_to_shown(700, 394, g.PIXELS, 1400, 788), (700.0, 394.0))
         self.assertEqual(g.model_to_shown(.5, .25, g.NORM1, 1000, 800), (500.0, 200.0))
-        # a «0..1000» answer above 1000 can only be pixels — not clamped to the far edge
+
         self.assertEqual(g.model_to_shown(1050, 260, g.NORM1000, 1400, 788), (1050.0, 260.0))
-        # qwen2.5: pixels of the smart-resized input
+
         rh, rw = g.smart_resize(788, 1400)
         self.assertEqual((rh % 28, rw % 28), (0, 0))
         x, y = g.model_to_shown(rw / 2, rh / 2, g.QWEN25, 1400, 788)
@@ -78,8 +75,6 @@ class Conventions(unittest.TestCase):
         image = ar.ComputerAutomation._draw_ruler(Image.new("RGB", (1400, 788)), convention="norm1000")
         self.assertNotEqual(image.getpixel((140, 300)), image.getpixel((160, 300)), "a line at 100/1000")
 
-
-# ------------------------------------------------------------------ mapping across scaling and monitors
 def _desktop(monitors, targets):
     """A virtual-desktop image with small bright squares at the given physical global points."""
     vx = min(m["left"] for m in monitors); vy = min(m["top"] for m in monitors)
@@ -89,7 +84,6 @@ def _desktop(monitors, targets):
     for (x, y) in targets:
         draw.rectangle([x - vx - 6, y - vy - 6, x - vx + 6, y - vy + 6], fill=(255, 255, 255))
     return image
-
 
 class MappingAcrossScaling(unittest.TestCase):
     """A model answer at the target in the shown screenshot must land on the target's PHYSICAL pixel for every
@@ -110,7 +104,7 @@ class MappingAcrossScaling(unittest.TestCase):
                     shown = ((point[0] - screen["left"]) * screen["scale_x"], (point[1] - screen["top"]) * screen["scale_y"])
                     mx, my = g.shown_to_model(shown[0], shown[1], conv, screen["width"], screen["height"])
                     gx, gy = ar.resolve_click_point({"monitor": mon, "x": mx, "y": my}, cap["screens"], conv)
-                    # one shown pixel = 1/scale physical pixels, plus 0..1000 quantisation
+
                     tolerance = 2.5 / screen["scale_x"] + (screen["real_width"] / 1000 if conv == g.NORM1000 else 0)
                     self.assertLessEqual(abs(gx - point[0]), tolerance, (label, conv, mon, gx, point))
                     self.assertLessEqual(abs(gy - point[1]), tolerance, (label, conv, mon, gy, point))
@@ -127,11 +121,10 @@ class MappingAcrossScaling(unittest.TestCase):
     def test_box_2d_and_point_2d_carry_their_convention(self):
         screens = [{"monitor": 1, "left": 0, "top": 0, "width": 1000, "height": 500, "real_width": 2000, "real_height": 1000,
                     "scale_x": .5, "scale_y": .5}]
-        gem = g.normalize_action({"action": "click", "box_2d": [400, 200, 600, 400]})   # ymin xmin ymax xmax
+        gem = g.normalize_action({"action": "click", "box_2d": [400, 200, 600, 400]})
         self.assertEqual(ar.resolve_click_point(gem, screens, g.PIXELS), (600, 500))
         qwen = g.normalize_action({"action": "click", "point_2d": [250, 500]})
         self.assertEqual(ar.resolve_click_point(qwen, screens, g.PIXELS), (500, 500))
-
 
 class AbsoluteInput(unittest.TestCase):
     def test_round_trip_with_negative_origin(self):
@@ -144,8 +137,6 @@ class AbsoluteInput(unittest.TestCase):
     def test_clamps_outside(self):
         self.assertEqual(g.absolute_input_coords(-99999, 99999, 0, 0, 1920, 1080), (17, 65505))
 
-
-# ------------------------------------------------------------------ parser robustness
 class ParserRobustness(unittest.TestCase):
     def test_shapes(self):
         n = g.normalize_action
@@ -173,7 +164,7 @@ class ParserRobustness(unittest.TestCase):
         self.assertEqual(n("garbage")["action"], "")
         self.assertEqual(n({"action": "computer.click", "x": 1, "y": 1})["action"], "click")
         self.assertEqual(n({"action": "focus", "window": "Блокнот"})["title"], "Блокнот")
-        # live qwen3.8-max: «"element": 0» meant «no element» and the step failed
+
         for empty in (0, -1, None, "none", ""):
             self.assertNotIn("element", n({"action": "type", "text": "x", "element": empty}), empty)
 
@@ -191,8 +182,6 @@ class ParserRobustness(unittest.TestCase):
         self.assertEqual(g.classify_error("что-то"), "other")
         self.assertEqual(g.classify_error(""), "")
 
-
-# ------------------------------------------------------------------ marks
 class Marks(unittest.TestCase):
     def test_pick_and_draw(self):
         screens = [{"monitor": 1, "left": 0, "top": 0, "width": 1400, "height": 788, "real_width": 2560, "real_height": 1440,
@@ -200,32 +189,30 @@ class Marks(unittest.TestCase):
                    {"monitor": 2, "left": -1920, "top": 180, "width": 1400, "height": 788, "real_width": 1920, "real_height": 1080,
                     "scale_x": 1400 / 1920, "scale_y": 788 / 1080}]
         elements = [{"name": "OK", "type": "button", "rect": [100, 100, 200, 140]},
-                    {"name": "OK", "type": "button", "rect": [101, 101, 201, 141]},           # duplicate
-                    {"name": "", "type": "button", "rect": [0, 0, 50, 50]},                  # unnamed button
-                    {"name": "", "type": "edit", "rect": [300, 300, 900, 340]},               # unnamed edit is kept
+                    {"name": "OK", "type": "button", "rect": [101, 101, 201, 141]},
+                    {"name": "", "type": "button", "rect": [0, 0, 50, 50]},
+                    {"name": "", "type": "edit", "rect": [300, 300, 900, 340]},
                     {"name": "tiny", "type": "button", "rect": [5, 5, 7, 7]},
-                    {"name": "pane", "type": "pane", "rect": [0, 0, 2560, 1440]},              # huge
-                    {"name": "Left", "type": "listitem", "rect": [-1800, 400, -1700, 440]},    # monitor 2
+                    {"name": "pane", "type": "pane", "rect": [0, 0, 2560, 1440]},
+                    {"name": "Left", "type": "listitem", "rect": [-1800, 400, -1700, 440]},
                     {"name": "Nowhere", "type": "button", "rect": [9000, 9000, 9100, 9100]}]
         marks = g.pick_marks(elements, screens)
         self.assertEqual([m["name"] for m in marks], ["OK", "", "Left"])
         self.assertEqual([m["id"] for m in marks], [1, 2, 3])
         self.assertEqual(marks[2]["monitor"], 2)
         rows = g.marks_prompt(marks, screens, g.NORM1000)
-        self.assertEqual(rows[0]["at"], [59, 83])     # centre (150, 120) of 2560x1440 in 0..1000
+        self.assertEqual(rows[0]["at"], [59, 83])
         image = g.draw_marks(Image.new("RGB", (1400, 788)), marks, screens[0])
         self.assertEqual(image.getpixel((int(100 * 1400 / 2560), int(110 * 788 / 1440))), (255, 0, 170))
 
-
-# ------------------------------------------------------------------ the loop on a fake desktop
 class FakeDesktop:
     """Physical pixels; monitor 1 2560x1440 (150 %), monitor 2 at (-1920, 180). Apps: an icon «Блокнот» on the
     desktop, a Notepad window when opened. A topmost Quick Access window (excluded from the screenshot) swallows clicks
     in its rectangle unless hidden, and takes the focus whenever the user approves a step."""
     MONITORS = [{"left": 0, "top": 0, "right": 2560, "bottom": 1440}, {"left": -1920, "top": 180, "right": 0, "bottom": 1260}]
     ICON = (60, 60, 180, 210)
-    EDITOR = (700, 300, 1900, 1100)          # Notepad's text area
-    QUICK = (840, 450, 1725, 1140)           # MemuAI Quick Access (topmost)
+    EDITOR = (700, 300, 1900, 1100)
+    QUICK = (840, 450, 1725, 1140)
 
     def __init__(self):
         self.notepad = False
@@ -269,7 +256,7 @@ class FakeDesktop:
 
         def approve(rt, allowed, **kw):
             if rt._approval and not rt._approval.done():
-                desk.focused = "quick"            # the approval was pressed in the Quick Access window
+                desk.focused = "quick"
             return original_approve(rt, allowed, **kw)
 
         def type_text(text, should_stop=None):
@@ -326,7 +313,6 @@ class FakeDesktop:
             item.start()
             test.addCleanup(item.stop)
 
-
 class Script:
     def __init__(self, replies):
         self.replies = list(replies)
@@ -336,7 +322,6 @@ class Script:
         self.prompts.append(messages)
         reply = self.replies.pop(0) if self.replies else '{"action": "done", "report": "end"}'
         return reply(self) if callable(reply) else reply
-
 
 def run_agent(script, *, ask=True, decide=None, **kw):
     runtime = ar.ComputerAutomation()
@@ -353,14 +338,13 @@ def run_agent(script, *, ask=True, decide=None, **kw):
     asyncio.run(scenario())
     return runtime, seen
 
-
 class LoopOnFakeDesktop(unittest.TestCase):
     def setUp(self):
         self.desk = FakeDesktop()
         self.desk.install(self)
 
     def test_qwen_norm_double_click_on_icon_hits_it(self):
-        # icon centre (120, 135) physical → 0..1000 of 2560x1440 = (47, 94)
+
         model = Script(['{"action":"double_click","monitor":1,"x":47,"y":94,"reason":"Открыть Блокнот"}',
                         '{"action":"done","report":"ok"}'])
         runtime, _ = run_agent(model, model="xkiro-qwen/qwen3.8-max:free", ask=False)
@@ -434,7 +418,7 @@ class LoopOnFakeDesktop(unittest.TestCase):
             runtime.job = asyncio.create_task(ar.run_computer_agent(runtime, model, model="m", task="x", ask_each_action=False))
             await _real_sleep(0)
             runtime.pause()
-            for _ in range(800):        # Round 34: up to 4 s on a loaded machine (was a fixed 0.4 s — flaky)
+            for _ in range(800):
                 await _real_sleep(0.005)
                 phases.append(runtime.phase)
                 if phases.count("paused_user") >= 20:
@@ -481,8 +465,6 @@ class LoopOnFakeDesktop(unittest.TestCase):
         self.assertTrue(big and small and big[:2] == b"\xff\xd8")
         self.assertGreater(Image.open(__import__("io").BytesIO(big)).width, Image.open(__import__("io").BytesIO(small)).width)
 
-
-# ------------------------------------------------------------------ Win32 details (no real OS)
 class Win32Details(unittest.TestCase):
     def test_overlay_styles_go_on_the_toplevel(self):
         src = (ROOT / "app" / "automation_runtime.py").read_text(encoding="utf-8")
@@ -507,7 +489,7 @@ class Win32Details(unittest.TestCase):
 
         class U:
             def GetCursorPos(self, p):
-                p._obj.x, p._obj.y = (100, 100); return 1          # SetCursorPos «landed» elsewhere
+                p._obj.x, p._obj.y = (100, 100); return 1
 
             def SetCursorPos(self, x, y):
                 calls.append(("set", x, y)); return 1
@@ -534,8 +516,6 @@ class Win32Details(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 ar.ComputerAutomation._launch_app("regedit")
 
-
-# ------------------------------------------------------------------ server wiring
 class ServerWiring(unittest.TestCase):
     def test_endpoint_completion_is_passed_to_the_run(self):
         src = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
@@ -568,8 +548,6 @@ class ServerWiring(unittest.TestCase):
         self.assertIn('"app.cu_grounding"', (ROOT / "build.py").read_text(encoding="utf-8"))
         self.assertIn("'app.cu_grounding'", (ROOT / "MemuAI.spec").read_text(encoding="utf-8"))
 
-
-# ------------------------------------------------------------------ UI (static)
 class QuickCardUI(unittest.TestCase):
     def setUp(self):
         self.js = (QUICK / "quick-computer.js").read_text(encoding="utf-8")
@@ -591,9 +569,8 @@ class QuickCardUI(unittest.TestCase):
 
     def test_cache_bust(self):
         html = (QUICK / "index.html").read_text(encoding="utf-8")
-        self.assertRegex(html, r"/quick/quick-computer\.js\?v=2\.[0-9]+-r3[2-9]")  # Round 34: v2.1-r34
+        self.assertRegex(html, r"/quick/quick-computer\.js\?v=2\.[0-9]+-r3[2-9]")
         self.assertIn("/quick/quick-computer.css?v=2.0-r32", html)
-
 
 if __name__ == "__main__":
     unittest.main()

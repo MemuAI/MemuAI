@@ -1,18 +1,3 @@
-/* =====================================================================
-   MemuAI · Панели (Round 21) — panels.js renders, this file styles.
-   ---------------------------------------------------------------------
-   Three render modes share one block renderer:
-     .mp-card[data-mode="home"]     grid on the empty-chat start screen
-     .mp-card[data-mode="sidebar"]  compact stack in the left sidebar
-     .mp-chip (appbar)              mini chip in the top bar + .mp-pop popover
-   plus [data-mode="inline"] (preview in a chat answer) and "popover".
-   Colours come only from theme tokens (themes.css) and color-mix() of
-   them, so all five designs, both modes and every accent keep working;
-   per-design character is added at the bottom (:root[data-design=…]).
-   Motion uses the Round20 tokens (--m-*) and respects data-motion/
-   reduce-motion/prefers-reduced-motion.
-   ===================================================================== */
-
 :root {
   --mp-r: 16px;
   --mp-r-sm: 10px;
@@ -37,8 +22,6 @@
   --mp-shadow: 0 1px 2px rgba(30, 26, 18, .06), 0 10px 26px -18px rgba(30, 26, 18, .28);
   --mp-shadow-hover: 0 1px 2px rgba(30, 26, 18, .08), 0 18px 38px -20px rgba(30, 26, 18, .32);
 }
-
-/* ------------------------------------------------------------ icons */
 .mp-ico { display: inline-grid; place-items: center; flex: none; width: 1em; height: 1em; line-height: 0; }
 .mp-ico svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; overflow: visible; }
 .mp-ico .sun { stroke: #f0a72e; }
@@ -48,28 +31,19 @@
 .mp-ico .rain { stroke: #4b9be8; }
 .mp-ico .snow { stroke: #8fc4ef; }
 .mp-ico .bolt { fill: #f6c344; stroke: #e6a92a; }
-
-/* ================================================================ home */
 .panels-home {
   container-type: inline-size; container-name: mphome;
-  /* same column as the composer (its max-width + the 24px side padding of .composer-wrap) */
   width: 100%; max-width: calc(var(--conversation-width, 780px) + 48px); margin: 0 auto;
   padding: 4px 24px 0; box-sizing: border-box; flex: 0 1 auto; min-height: 0;
   overflow-y: auto; overflow-x: hidden; scrollbar-width: thin;
   display: flex; flex-direction: column;
 }
 .panels-home > * { flex-shrink: 0; }
-/* Round 30: the breathing room under the grid gives way first. As bottom padding it was part of the scrolled
-   content: squeezed by a few px (aurora 1366×768 — 6px) the home showed a scrollbar for empty space. */
 .panels-home::after { content: ""; flex: 0 1 22px; min-height: 0; }
 .panels-home[hidden], .chat-view-wrap:not(.empty-chat) > .panels-home,
 body.project-mode .chat-view-wrap > .panels-home,
 body.code-mode .panels-home,
-body.temp-guide-on .chat-view-wrap > .panels-home { display: none; }   /* r36 (perf): классы body от app.js вместо :has() */
-/* With panels the start screen keeps the greeting and composer whole; the grid takes the rest and scrolls.
-   Round 27: only where the grid is really shown — in Work / MemuCode / a temporary chat it is hidden by the
-   rules above, not by [hidden], and the unshrinkable greeting pushed MemuCode's start screen out of the
-   window (its heading cut off at the top at 820 px). */
+body.temp-guide-on .chat-view-wrap > .panels-home { display: none; }
 body:not(.project-mode):not(.temp-guide-on) #chat-view-wrap.empty-chat:has(> .panels-home:not([hidden])) > .chat { flex-shrink: 0; }
 body:not(.project-mode):not(.temp-guide-on) #chat-view-wrap.empty-chat:has(> .panels-home:not([hidden])) > .composer-wrap { flex-shrink: 0; padding-bottom: 14px; }
 body:not(.project-mode):not(.temp-guide-on) #chat-view-wrap.empty-chat:has(> .panels-home:not([hidden])) { justify-content: safe center; }
@@ -81,8 +55,6 @@ body.code-mode .chat-view-wrap.empty-chat > .chat { flex-shrink: 1; }
   background: transparent; color: var(--mp-muted); font: 600 12px/1 var(--mp-text); cursor: pointer; }
 .mp-head-btn:hover { background: var(--d-hover, var(--hover)); color: var(--text); }
 .mp-head-btn .mp-ico { font-size: 14px; }
-/* Round 23: плотная раскладка. Колонки — по data-span (S 1, M/L 2, W 4); высоту в строках по 2 px считает
-   panels.js по замеру (grid-row-end: span N), а dense дозаполняет дыры. До замера (и без JS) — обычная сетка. */
 .mp-grid {
   display: grid; gap: var(--mp-gap); grid-template-columns: repeat(4, minmax(0, 1fr));
   grid-auto-flow: row dense; align-items: start;
@@ -108,8 +80,6 @@ body.code-mode .chat-view-wrap.empty-chat > .chat { flex-shrink: 1; }
 .mp-add-tile .mp-ico { font-size: 20px; }
 .mp-add-tile:hover, .mp-add-tile:focus-visible { border-color: color-mix(in srgb, var(--accent) 60%, transparent); color: var(--text);
   background: color-mix(in srgb, var(--accent) 6%, transparent); }
-
-/* ================================================================ card */
 .mp-card {
   --mp-tint: transparent;
   position: relative; display: flex; flex-direction: column; gap: 8px; min-width: 0;
@@ -142,8 +112,6 @@ body.code-mode .chat-view-wrap.empty-chat > .chat { flex-shrink: 1; }
 .mp-card:hover .mp-menu-btn, .mp-card:focus-within .mp-menu-btn, .mp-menu-btn[aria-expanded="true"] { opacity: 1; }
 .mp-menu-btn:hover { background: var(--d-hover, var(--hover)); color: var(--text); }
 @media (hover: none) { .mp-menu-btn { opacity: .8; } }
-
-/* ------------------------------------------------------------ blocks */
 .mp-title { display: flex; align-items: flex-start; gap: 8px; min-width: 0; padding-right: 22px; }
 .mp-title > .mp-ico { font-size: 16px; margin-top: 1px; color: var(--mp-muted); }
 .mp-title-text { min-width: 0; display: grid; gap: 2px; }
@@ -163,8 +131,6 @@ body.code-mode .chat-view-wrap.empty-chat > .chat { flex-shrink: 1; }
 .mp-delta[data-trend="down"] { color: var(--mp-down); background: color-mix(in srgb, var(--mp-down) 14%, transparent); }
 .mp-delta .mp-ico { font-size: 11px; }
 .mp-caption { font: 500 11.5px/1.3 var(--mp-text); color: var(--mp-muted); }
-
-/* --mp-stat-ch (set by the renderer) = the longest value in characters; 1ch is measured in the value's font. */
 .mp-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(72px, calc(var(--mp-stat-ch, 0) * 1ch + 20px))), 1fr)); gap: 6px; font: 650 13.5px/1.2 var(--mp-text); }
 .mp-stat { min-width: 0; padding: 7px 9px; border-radius: var(--mp-r-sm); background: color-mix(in srgb, var(--text) 4%, transparent); }
 .mp-stat small { display: block; font: 600 10.5px/1.2 var(--mp-text); color: var(--mp-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -237,13 +203,8 @@ a.mp-row:hover { background: var(--d-hover, var(--hover)); }
 .mp-cd-cell b { font: 650 22px/1 var(--mp-display); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .mp-cd-cell small { font: 600 10px/1 var(--mp-text); color: var(--mp-muted); text-transform: uppercase; letter-spacing: .05em; }
 .mp-cd-done { font: 650 15px/1.2 var(--mp-display); color: var(--accent); }
-
-/* size / mode trimming: a block below its min_size is not rendered (JS);
-   these rules only tighten spacing. */
 .mp-card[data-size="s"][data-mode="home"] .mp-metric-value b { font-size: 28px; }
 .mp-card[data-size="s"][data-mode="home"] .mp-metric > .mp-ico { font-size: 32px; }
-
-/* ------------------------------------------------------------ footer */
 .mp-foot { display: flex; align-items: center; gap: 6px; margin-top: auto; padding-top: 2px; min-width: 0;
   font: 500 10.5px/1.2 var(--mp-text); color: var(--mp-muted); }
 .mp-foot > span { white-space: nowrap; }
@@ -252,8 +213,6 @@ a.mp-row:hover { background: var(--d-hover, var(--hover)); }
 .mp-foot .sep { opacity: .55; }
 .mp-foot .grow { flex: 1; }
 .mp-foot .mp-spin { font-size: 11px; }
-/* Текст стены занимает строку, а «Повторить» в узкой карточке уходит под него — раньше кнопка
-   сжимала текст до столбика в одно слово. */
 .mp-wall { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 4px 7px; padding: 7px 9px; border-radius: var(--mp-r-sm);
   background: color-mix(in srgb, #e4a41f 13%, transparent); color: var(--text); font: 500 11.5px/1.35 var(--mp-text); }
 .mp-wall .mp-ico { font-size: 14px; color: #d0901a; margin-top: 1px; }
@@ -261,8 +220,6 @@ a.mp-row:hover { background: var(--d-hover, var(--hover)); }
 .mp-wall[data-kind="error"] { background: color-mix(in srgb, var(--mp-down) 12%, transparent); }
 .mp-wall[data-kind="error"] .mp-ico { color: var(--mp-down); }
 .mp-wall button { margin-left: auto; flex: none; border: 0; background: transparent; color: var(--accent); font: 650 11.5px/1.35 var(--mp-text); cursor: pointer; padding: 0; }
-
-/* building skeleton */
 .mp-skel { display: grid; gap: 8px; }
 .mp-skel i { display: block; height: 10px; border-radius: 6px; background: color-mix(in srgb, var(--text) 8%, transparent); position: relative; overflow: hidden; }
 .mp-skel i:nth-child(1) { width: 46%; }
@@ -275,13 +232,9 @@ a.mp-row:hover { background: var(--d-hover, var(--hover)); }
 .mp-spin { display: inline-block; width: 1em; height: 1em; border-radius: 50%; border: 1.6px solid currentColor; border-right-color: transparent;
   animation: mp-spin .8s linear infinite; flex: none; }
 @keyframes mp-spin { to { transform: rotate(360deg); } }
-
-/* location setup (built-in weather) */
 .mp-setup { display: grid; gap: 8px; }
 .mp-setup p { margin: 0; font: 500 12px/1.4 var(--mp-text); color: var(--mp-muted); }
 .mp-setup-row { display: flex; flex-wrap: wrap; gap: 6px; }
-/* min-height, а не height: в малой карточке подпись («Определить по IP») переносится на вторую строку
-   и раньше вылезала за кнопку фиксированной высоты. */
 .mp-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 30px; padding: 4px 11px; border-radius: 9px;
   border: 1px solid var(--mp-line-strong); background: transparent; color: var(--text); font: 600 12px/1.2 var(--mp-text); cursor: pointer; text-align: center;
   transition: background var(--m-dur-1, 120ms), border-color var(--m-dur-1, 120ms), filter var(--m-dur-1, 120ms); }
@@ -295,11 +248,8 @@ a.mp-row:hover { background: var(--d-hover, var(--hover)); }
 .mp-input:focus { outline: none; border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 textarea.mp-input { height: auto; min-height: 72px; padding: 8px 10px; line-height: 1.45; resize: vertical; font-family: var(--mp-text); }
 select.mp-input { padding-right: 26px; }
-/* Раунд 23: значки календаря/часов у date/time-полей видны и в тёмной теме. */
 .mp-input { color-scheme: dark; }
 [data-theme="light"] .mp-input { color-scheme: light; }
-
-/* ============================================================ sidebar */
 .side-group#group-panels { margin-top: 6px; }
 #group-panels .chat-list-heading button { font-size: 0; }
 #group-panels .chat-list-heading button .mp-ico { font-size: 14px; }
@@ -317,14 +267,8 @@ body.mp-dragging #group-panels[hidden] { display: block !important; }
 .mp-card[data-mode="sidebar"] .mp-metric-value span { font-size: 12.5px; }
 .mp-card[data-mode="sidebar"] .mp-spark { height: 30px; }
 .mp-card[data-mode="sidebar"] .mp-menu-btn { top: 6px; right: 6px; width: 24px; height: 24px; }
-
-/* ============================================================= appbar */
-/* flex-basis 0: the minis never make the (wrapping) top bar break onto a second line; they take the
-   free space next to the right-hand buttons and panels.js folds what does not fit into «+N». */
 .panels-appbar { display: flex; align-items: center; justify-content: flex-end; gap: 4px; flex: 100 1 0; min-width: 0; overflow: hidden; margin: 0 4px; padding: 2px; }
 .panels-appbar:empty, .mp-chip[hidden], #group-panels[hidden] { display: none; }
-/* Round 31: in a narrow window (≤520 px) the strip took ~all the free space (flex 100) and the model picker shrank to
-   a bare «▾». The model keeps its room; the strip gets what is left (its chips drop labels via .mp-narrow). */
 @media (max-width: 520px) { .topbar.appbar > .panels-appbar { flex: 0 1 auto; } .topbar.appbar #model-dd { min-width: 72px; } }
 body.mp-dragging .panels-appbar { display: flex; min-width: 96px; min-height: 30px; border-radius: 10px; outline: 1.5px dashed var(--mp-line-strong); outline-offset: -1px; }
 .mp-chip {
@@ -352,8 +296,6 @@ body.mp-dragging .panels-appbar { display: flex; min-width: 96px; min-height: 30
 .mp-pop-list { background: var(--panel); border: 1px solid var(--mp-line); border-radius: 14px; padding: 6px; display: grid; gap: 4px; width: 240px; }
 .mp-pop-list .mp-chip { width: 100%; justify-content: flex-start; background: transparent; }
 .mp-pop-list .mp-chip:hover { background: var(--d-hover, var(--hover)); }
-
-/* ============================================================== menus */
 .mp-menu {
   position: fixed; z-index: 4100; min-width: 230px; padding: 5px; border-radius: 13px; background: var(--panel); color: var(--text);
   border: 1px solid var(--mp-line); box-shadow: var(--d-pop-shadow, 0 16px 48px -12px rgba(0, 0, 0, .4)); font-family: var(--mp-text);
@@ -371,13 +313,10 @@ body.mp-dragging .panels-appbar { display: flex; min-width: 96px; min-height: 30
 .mp-seg button { flex: 1; height: 27px; padding: 0 11px; white-space: nowrap; border: 0; border-radius: 8px; background: transparent; color: var(--mp-muted); font: 500 12.5px/1 var(--mp-text); cursor: pointer;
   transition: background .15s, color .15s, box-shadow .15s; }
 .mp-seg button:hover { color: var(--text); }
-/* Раунд 23: тот же вид, что у сегментов набора настроек (.sx-seg), — один компонент во всём приложении. */
 .mp-seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); font-weight: 600;
   box-shadow: 0 1px 2px rgba(0, 0, 0, .14), 0 0 0 1px color-mix(in srgb, var(--text) 6%, transparent); }
 :root[data-design="grid"] .mp-seg { border-radius: 4px; }
 :root[data-design="grid"] .mp-seg button { border-radius: 3px; }
-
-/* ============================================================== modal */
 .mp-modal-back { position: fixed; inset: 0; z-index: 3900; display: grid; place-items: center; padding: 24px;
   background: color-mix(in srgb, #000 42%, transparent); backdrop-filter: blur(3px); }
 :root[data-titlebar="custom"] .mp-modal-back { padding-top: 40px; }
@@ -401,14 +340,13 @@ body.mp-dragging .panels-appbar { display: flex; min-width: 96px; min-height: 30
 .mp-tpl:hover, .mp-tpl:focus-visible { border-color: color-mix(in srgb, var(--accent) 55%, transparent); translate: 0 -2px; box-shadow: var(--mp-shadow-hover); outline: none; }
 .mp-tpl-ico { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; font-size: 20px;
   background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); }
-.mp-tpl b { font: 650 13px/1.2 var(--mp-text); overflow-wrap: break-word; hyphens: manual; }   /* длинное слово переносится по &shy; с дефисом, а не вылезает */
+.mp-tpl b { font: 650 13px/1.2 var(--mp-text); overflow-wrap: break-word; hyphens: manual; }
 .mp-tpl small { font: 500 11.5px/1.35 var(--mp-text); color: var(--mp-muted); }
 .mp-tpl[data-kind="custom"] { border-style: dashed; }
 .mp-tpl[data-kind="custom"] .mp-tpl-ico { background: var(--brand, var(--accent)); color: var(--on-accent, #fff); }
 .mp-section-title { font: 650 11px/1 var(--mp-text); color: var(--mp-muted); text-transform: uppercase; letter-spacing: .06em; margin: 2px 0 -4px; }
 .mp-form { display: grid; gap: 11px; }
-.mp-field { display: grid; gap: 5px; align-content: start; }   /* поля в одном ряду не растягиваются по высоте соседа */
-/* Длинные списки (тема новостей) app.js превращает в комбобокс с поиском (.mpick) — подгоняем его под .mp-input. */
+.mp-field { display: grid; gap: 5px; align-content: start; }
 .mp-field .mpick { margin: 0; }
 .mp-field .mpick-btn { height: 32px; padding: 0 10px; border-radius: 9px; border-color: var(--control-border, var(--mp-line-strong)); background: var(--bg);
   font: 500 12.5px/1 var(--mp-text); box-sizing: border-box; }
@@ -431,8 +369,6 @@ body.mp-dragging .panels-appbar { display: flex; min-width: 96px; min-height: 30
 .mp-geo-results button:hover { background: var(--d-hover, var(--hover)); }
 .mp-geo-results small { color: var(--mp-muted); margin-left: 6px; }
 @media (max-width: 720px) { .mp-preview-wrap { grid-template-columns: 1fr; } .mp-field-row { grid-template-columns: 1fr; } }
-
-/* ============================================================ inline (chat) */
 .mp-inline { display: grid; gap: 8px; margin: 10px 0 4px; max-width: 420px; }
 .mp-inline .mp-card { min-height: 0; }
 .mp-pins { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -442,26 +378,20 @@ body.mp-dragging .panels-appbar { display: flex; min-width: 96px; min-height: 30
 .mp-pin .mp-ico { font-size: 13px; }
 .mp-pin[aria-pressed="true"] { background: color-mix(in srgb, var(--accent) 12%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); color: var(--accent); }
 .mp-inline-gone { font: 500 12px/1.3 var(--mp-text); color: var(--mp-muted); padding: 8px 10px; border-radius: 10px; border: 1px dashed var(--mp-line-strong); }
-
-/* ============================================================ settings */
-/* r30: the page is built from settings-kit sections and rows (settings.css); only the list is panels' own */
 #pane-panels .mp-settings { display: block; }
 #pane-panels .sx-section-aside .mp-btn { height: 30px; }
 #pane-panels .mp-btn.primary { background: var(--accent); }
 .mp-set-list { display: grid; padding: 4px; }
-/* Round 26: in a narrow settings window the place labels and buttons wrap under the name instead of
-   squeezing it into a one-word column. */
 .mp-set-item { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; min-height: 52px; padding: 8px 10px 8px 12px; border-radius: 10px; }
 .mp-set-item + .mp-set-item { box-shadow: 0 -1px 0 var(--sx-line-soft, var(--mp-line)); }
 .mp-set-item:hover { background: var(--sx-hover, color-mix(in srgb, var(--text) 4%, transparent)); box-shadow: none; }
 .mp-set-item:hover + .mp-set-item { box-shadow: none; }
 .mp-set-ico { width: 28px; height: 28px; flex: none; display: grid; place-items: center; font-size: 18px; color: var(--mp-muted); }
-.mp-set-item .t { flex: 1 1 60%; min-width: 0; display: grid; gap: 3px; }   /* the name keeps most of the row; places and tools wrap under it in a narrow window */
+.mp-set-item .t { flex: 1 1 60%; min-width: 0; display: grid; gap: 3px; }
 .mp-set-acts { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 4px 8px; margin-left: auto; }
 .mp-set-item .t b { font: 600 13px/1.25 var(--mp-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mp-set-item .t small { font: 500 11.5px/1.3 var(--mp-text); color: var(--mp-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mp-set-places { font: 500 11.5px/1.2 var(--mp-text); color: var(--mp-muted); margin-right: 4px; white-space: nowrap; }
-/* edit / remove appear on hover or keyboard focus; the space stays reserved (no jump) */
 .mp-set-item:not(:hover):not(:focus-within) .mp-set-acts > .mp-x { opacity: 0; }
 @media (hover: none) { .mp-set-item .mp-set-acts > .mp-x { opacity: 1; } }
 .mp-set-list > .mp-tg-note { padding: 8px 12px 6px; margin: 0; }
@@ -475,8 +405,6 @@ body.mp-dragging .panels-appbar { display: flex; min-width: 96px; min-height: 30
 .mp-set-dismissed .mp-dismissed { padding: 0 12px 12px; }
 .mp-btn.ghost { border-color: transparent; background: transparent; color: var(--mp-muted); }
 .mp-btn.ghost:hover { color: var(--text); background: color-mix(in srgb, var(--text) 6%, transparent); }
-
-/* ================================================================ drag */
 .mp-card[draggable="true"], .mp-chip[draggable="true"] { cursor: grab; }
 .mp-card[draggable="true"] :is(a, button, input), .mp-chip[draggable="true"] button { cursor: pointer; }
 .mp-drag-source { opacity: .35 !important; }
@@ -486,8 +414,6 @@ body.mp-dragging .panels-appbar { display: flex; min-width: 96px; min-height: 30
 body.mp-dragging .mp-drop-zone { outline: 1.5px dashed color-mix(in srgb, var(--accent) 35%, transparent); outline-offset: 3px; border-radius: 14px; }
 body.mp-dragging .mp-drop-zone.mp-over { outline-color: var(--accent); background: color-mix(in srgb, var(--accent) 5%, transparent); }
 body.mp-dragging .panels-home { display: flex !important; }
-
-/* ============================================================== motion */
 @media (prefers-reduced-motion: no-preference) {
   :root:not([data-motion="off"]) body:not(.reduce-motion) .mp-card.mp-enter,
   :root:not([data-motion="off"]) body:not(.reduce-motion) .mp-chip.mp-enter {
@@ -505,23 +431,16 @@ body.mp-dragging .panels-home { display: flex !important; }
 :root[data-motion="off"] .mp-skel i::after, body.reduce-motion .mp-skel i::after { animation: none; }
 :root[data-motion="off"] .mp-spin, body.reduce-motion .mp-spin { animation-duration: 2.4s; }
 @media (prefers-reduced-motion: reduce) { .mp-skel i::after { animation: none; } .mp-card, .mp-tpl { transition: none; } }
-
-/* ============================================================ designs */
-/* Aurora — warm editorial: serif numerals, softer translucent cards. */
 :root[data-design="aurora"] .mp-card { --mp-r: 20px; background: linear-gradient(160deg, color-mix(in srgb, var(--mp-tint) 16%, transparent), transparent 62%),
   color-mix(in srgb, var(--panel) 72%, transparent); backdrop-filter: blur(14px) saturate(1.2); border-color: color-mix(in srgb, var(--text) 8%, transparent); }
 :root[data-design="aurora"] .mp-metric-value b, :root[data-design="aurora"] .mp-cd-cell b { font-family: var(--au-serif, Georgia, serif); font-weight: 560; letter-spacing: -.02em; }
 :root[data-design="aurora"] .mp-title b { font-family: var(--au-serif, Georgia, serif); font-weight: 600; font-size: 14px; }
 :root[data-design="aurora"] .mp-chip { border-radius: 999px; background: color-mix(in srgb, var(--panel) 60%, transparent); }
-
-/* Focus — flat and quiet: no shadow, hairline only. */
 :root[data-design="focus"] .mp-card { box-shadow: none; --mp-r: 14px; background: linear-gradient(160deg, color-mix(in srgb, var(--mp-tint) 9%, transparent), transparent 60%), var(--bg); }
 :root[data-design="focus"] .mp-card[data-mode="home"]:hover { box-shadow: none; background-color: var(--f-hover, var(--hover)); }
 :root[data-design="focus"] .panels-home { order: 5; max-width: calc(var(--f-col, 760px) + 48px); }
 :root[data-design="focus"] .mp-chip { background: transparent; }
 :root[data-design="focus"] .mp-chip:hover { background: var(--f-hover, var(--hover)); }
-
-/* Grid — strict tool: 3px corners, mono metadata, no gradients or shadows. */
 :root[data-design="grid"] .mp-card, :root[data-design="grid"] .mp-tpl, :root[data-design="grid"] .mp-set-card { --mp-r: 3px; --mp-r-sm: 2px; border-radius: 3px; box-shadow: none;
   background: var(--panel); border-color: var(--border); }
 :root[data-design="grid"] .panels-home { max-width: calc(var(--g-row, 780px) + 48px); }
@@ -535,8 +454,6 @@ body.mp-dragging .panels-home { display: flex !important; }
 :root[data-design="grid"] .mp-stat, :root[data-design="grid"] .mp-delta, :root[data-design="grid"] .mp-badge, :root[data-design="grid"] .mp-pop > .mp-card { border-radius: 3px; }
 :root[data-design="grid"] .mp-chip { border-color: var(--border); background: var(--panel); height: 26px; }
 :root[data-design="grid"] .mp-add-tile { border-radius: 3px; border-width: 1px; }
-
-/* Glass — frosted material with a specular rim, like the rest of Glass v2. */
 :root[data-design="glass"] .mp-card { --mp-r: 20px; border-color: color-mix(in srgb, #fff 16%, transparent);
   background: linear-gradient(160deg, color-mix(in srgb, var(--mp-tint) 22%, transparent), transparent 62%),
     color-mix(in srgb, var(--panel) 46%, transparent);
@@ -549,17 +466,11 @@ body.mp-dragging .panels-home { display: flex !important; }
 :root[data-design="glass"] .mp-menu, :root[data-design="glass"] .mp-modal, :root[data-design="glass"] .mp-pop > .mp-card {
   background: color-mix(in srgb, var(--panel) 72%, transparent); backdrop-filter: blur(30px) saturate(1.7); -webkit-backdrop-filter: blur(30px) saturate(1.7); }
 :root[data-design="glass"] .mp-stat, :root[data-design="glass"] .mp-strip-cell:first-child { background: color-mix(in srgb, #fff 7%, transparent); }
-/* Glass popover: the animated .mp-pop is the backdrop root, so the frost lives on it and the card inside
-   stays nearly opaque — the greeting must never show through a value card. */
 :root[data-design="glass"] .mp-pop { backdrop-filter: blur(30px) saturate(1.7); -webkit-backdrop-filter: blur(30px) saturate(1.7); }
 :root[data-design="glass"] .mp-pop > .mp-card[data-mode],
 :root[data-design="glass"][data-theme="light"] .mp-pop > .mp-card[data-mode] {
   background: linear-gradient(160deg, color-mix(in srgb, var(--mp-tint) 14%, transparent), transparent 62%), color-mix(in srgb, var(--panel) 93%, transparent); }
 :root[data-design="aurora"] .mp-pop > .mp-card[data-mode] { background: linear-gradient(160deg, color-mix(in srgb, var(--mp-tint) 14%, transparent), transparent 62%), var(--panel); backdrop-filter: none; }
-
-/* =====================================================================
-   Round 22 — richer cards, new blocks (gauge, usage, feed), states.
-   ===================================================================== */
 :root {
   --mp-warn: #d9961c;
   --mp-ok: var(--mp-up);
@@ -567,23 +478,17 @@ body.mp-dragging .panels-home { display: flex !important; }
   --mp-ico-bg: color-mix(in srgb, var(--accent) 13%, transparent);
   --mp-ico-fg: var(--accent);
 }
-
-/* title icon in a tinted tile (all designs; Focus/Grid tone it down below) */
 .mp-title > .mp-ico { width: 26px; height: 26px; font-size: 15px; margin: -2px 0 0; border-radius: 8px; color: var(--mp-ico-fg);
   background: var(--mp-ico-bg); }
 .mp-title > .mp-ico svg { width: 15px; height: 15px; }
 .mp-title-text { padding-top: 1px; }
 .mp-card[data-kind="weather"] .mp-title > .mp-ico, .mp-title > .mp-ico:empty { display: none; }
-
-/* busy: data stays, a thin sweep runs along the top edge */
 .mp-busy-bar { position: absolute; left: 0; right: 0; top: 0; height: 2px; overflow: hidden; z-index: 3; pointer-events: none;
   background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .mp-busy-bar::after { content: ""; position: absolute; inset: 0; width: 40%; background: linear-gradient(90deg, transparent, var(--accent), transparent);
   animation: mp-sweep-x 1.3s var(--m-ease-std, ease-in-out) infinite; }
 @keyframes mp-sweep-x { from { transform: translateX(-100%); } to { transform: translateX(260%); } }
 .mp-foot-stage { overflow: hidden; text-overflow: ellipsis; color: var(--accent); font-weight: 600; }
-
-/* build progress (stages) */
 .mp-steps { list-style: none; margin: 2px 0 0; padding: 0; display: grid; gap: 6px; }
 .mp-steps li { display: flex; align-items: center; gap: 8px; font: 550 12px/1.3 var(--mp-text); color: var(--mp-muted); }
 .mp-steps li > .mp-ico, .mp-steps li > .mp-spin, .mp-steps li > i { width: 14px; height: 14px; flex: none; font-size: 14px; }
@@ -594,11 +499,7 @@ body.mp-dragging .panels-home { display: flex !important; }
 .mp-steps li[data-state="now"] > .mp-spin { color: var(--accent); }
 .mp-preview-live .mp-card { pointer-events: none; min-height: 160px; }
 .mp-preview-live .mp-card a, .mp-preview-live .mp-card button { pointer-events: auto; }
-
-/* row of children — equal columns */
 .mp-rowbox { grid-template-columns: repeat(var(--mp-cols, 2), minmax(0, 1fr)); grid-auto-flow: row; }
-
-/* ------------------------------------------------------------ gauge */
 .mp-gauge { --mp-g: var(--accent); display: grid; justify-items: center; gap: 2px; min-width: 0; position: relative; text-align: center; }
 .mp-gauge[data-tone="ok"] { --mp-g: var(--accent); }
 .mp-gauge[data-tone="warn"] { --mp-g: var(--mp-warn); }
@@ -614,12 +515,10 @@ body.mp-dragging .panels-home { display: flex !important; }
   align-content: center; font: 660 15px/1 var(--mp-display); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
 .mp-card[data-size="l"] .mp-gauge > b, .mp-card[data-mode="popover"] .mp-gauge > b { height: 72px; font-size: 17px; }
 .mp-card[data-mode="sidebar"] .mp-gauge > b { height: 50px; font-size: 13px; }
-.mp-gauge > b[data-long] { transform: scale(.8); transform-origin: 50% 50%; }   /* «100%» не прижимается к кольцу */
+.mp-gauge > b[data-long] { transform: scale(.8); transform-origin: 50% 50%; }
 .mp-gauge > b small { font-size: .62em; font-weight: 600; color: var(--mp-muted); margin-left: 1px; }
 .mp-gauge-label { font: 650 11px/1.2 var(--mp-text); color: var(--text); margin-top: 3px; }
 .mp-gauge-cap { font: 500 10.5px/1.25 var(--mp-text); color: var(--mp-muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ------------------------------------------------------------ usage (limits) */
 .mp-usage { display: grid; gap: 8px; }
 .mp-card[data-size="l"] .mp-usage[data-count]:not([data-count="1"]) { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .mp-acc { display: grid; gap: 7px; padding: 9px 10px 10px; border-radius: var(--mp-r-sm); background: color-mix(in srgb, var(--text) 3.5%, transparent);
@@ -653,8 +552,6 @@ body.mp-dragging .panels-home { display: flex !important; }
 .mp-acc-wall .mp-ico { color: var(--mp-warn); font-size: 13px; margin-top: 1px; }
 .mp-acc[data-state="wall"] { background: color-mix(in srgb, var(--mp-warn) 6%, transparent); border-style: dashed; }
 .mp-card[data-mode="sidebar"] .mp-acc { padding: 7px 8px; gap: 5px; }
-
-/* ------------------------------------------------------------ feed list */
 .mp-feed { gap: 2px; }
 .mp-feed .mp-row { align-items: flex-start; padding: 6px 6px 7px; }
 .mp-feed .mp-row + .mp-row { box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text) 5%, transparent); }
@@ -675,8 +572,6 @@ body.mp-dragging .panels-home { display: flex !important; }
 .mp-list-more.ghost:hover { color: var(--text); background: var(--d-hover, var(--hover)); }
 .mp-list-more .mp-ico { font-size: 12px; }
 .mp-empty-list { padding: 4px 0; }
-
-/* detail popover («Ещё N», «Подробнее») */
 .mp-pop.mp-pop-detail { width: 420px; }
 .mp-detail { background: var(--panel); border: 1px solid var(--mp-line); border-radius: calc(var(--mp-r) + 2px); color: var(--text); font-family: var(--mp-text); }
 .mp-detail-head { display: flex; align-items: center; gap: 8px; padding: 12px 12px 8px 14px; position: sticky; top: 0; background: inherit; border-radius: inherit; z-index: 1; }
@@ -700,15 +595,13 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
   color: var(--mp-muted); text-decoration: none; }
 .mp-detail-links a:hover { color: var(--text); background: color-mix(in srgb, var(--text) 10%, transparent); }
 .mp-detail-foot { padding: 8px 14px 12px; border-top: 1px solid var(--mp-line); font: 500 10.5px/1.45 var(--mp-text); color: var(--mp-muted); }
-
-/* accounts editor (usage) */
 .mp-acc-rows { display: grid; gap: 8px; }
 .mp-acc-row { display: grid; gap: 6px; padding: 10px; border-radius: 12px; border: 1px solid var(--mp-line); background: color-mix(in srgb, var(--text) 2.5%, transparent); }
 .mp-acc-line { display: flex; gap: 6px; align-items: center; min-width: 0; }
 .mp-acc-line > .mp-input { flex: 1 1 0; min-width: 0; }
 .mp-acc-line > select.mp-input[data-acc-provider] { flex: 0 0 132px; }
 .mp-acc-line > select.mp-input[data-acc-mode] { flex: 0 1 210px; }
-.mp-acc-line > select.mp-input[data-acc-mode]:has(~ [data-acc-token]:not([hidden])) { flex-basis: 150px; }   /* поле токена шире */
+.mp-acc-line > select.mp-input[data-acc-mode]:has(~ [data-acc-token]:not([hidden])) { flex-basis: 150px; }
 .mp-acc-line > [data-acc-token] { flex: 2 1 0; }
 .mp-acc-line .mp-acc-ico { width: 26px; height: 26px; border-radius: 8px; font-size: 14px; }
 .mp-acc-line .mp-acc-ico svg { width: 14px; height: 14px; }
@@ -721,12 +614,7 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-detect > span[data-ok="true"] { color: var(--mp-up); background: color-mix(in srgb, var(--mp-up) 11%, transparent); }
 .mp-detect .mp-ico { font-size: 12px; }
 .mp-detect-wait { display: inline-flex; gap: 6px; align-items: center; }
-
-/* mini chip for limits: colour by the highest window */
 .mp-chip .mp-ico { color: var(--mp-muted); }
-
-/* ================================================== designs (Round 22) */
-/* Classic — calm depth: soft tinted wash, a hairline highlight on top. */
 :root:not([data-design]) .mp-card, :root[data-design="classic"] .mp-card {
   background: radial-gradient(120% 90% at 100% 0%, color-mix(in srgb, var(--mp-tint) 16%, transparent), transparent 60%),
     linear-gradient(180deg, color-mix(in srgb, var(--text) 2.5%, transparent), transparent 40%), var(--mp-bg);
@@ -736,8 +624,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 :root:not([data-design]) .mp-card[data-kind="news"], :root[data-design="classic"] .mp-card[data-kind="news"] { --mp-tint: color-mix(in srgb, var(--accent) 60%, #3c8ad8); }
 :root:not([data-design]) .mp-card[data-kind="usage"], :root[data-design="classic"] .mp-card[data-kind="usage"] { --mp-tint: #d97757; }
 :root:not([data-design]) .mp-card[data-kind="system"], :root[data-design="classic"] .mp-card[data-kind="system"] { --mp-tint: #3fb27f; }
-
-/* Aurora — editorial: serif headings and numerals, glow in the corner, pills. */
 :root[data-design="aurora"] .mp-card { background:
     radial-gradient(90% 70% at 100% 0%, var(--au-glow-1, color-mix(in srgb, var(--accent) 22%, transparent)), transparent 62%),
     radial-gradient(70% 60% at 0% 100%, var(--au-glow-3, transparent), transparent 70%),
@@ -755,8 +641,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 :root[data-design="aurora"] .mp-gauge[data-tone="danger"] .val { stroke: var(--mp-down); }
 :root[data-design="aurora"] .mp-list-more { font-family: var(--au-serif, Georgia, serif); font-style: italic; font-weight: 500; font-size: 12.5px; }
 :root[data-design="aurora"] .mp-detail, :root[data-design="aurora"] .mp-pop-detail { border-radius: 22px; }
-
-/* Focus — quiet ink: no tiles behind icons, hairlines only, monochrome accents. */
 :root[data-design="focus"] .mp-title > .mp-ico { background: transparent; color: var(--mp-muted); width: 18px; }
 :root[data-design="focus"] .mp-acc { background: transparent; border-color: var(--f-line, var(--mp-line)); }
 :root[data-design="focus"] .mp-lim-bar { height: 4px; }
@@ -771,8 +655,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 :root[data-design="focus"] .mp-tagline { background: transparent; padding: 0; }
 :root[data-design="focus"] .mp-acc-ico { background: var(--f-ink, var(--text)) !important; color: var(--bg); }
 :root[data-design="focus"] .mp-busy-bar::after { background: linear-gradient(90deg, transparent, var(--f-ink, var(--text)), transparent); }
-
-/* Grid — instrument panel: square rails, mono numbers, grid-lined cells. */
 :root[data-design="grid"] .mp-title > .mp-ico { border-radius: 2px; width: 22px; height: 22px; background: transparent; border: 1px solid var(--border); color: var(--text); }
 :root[data-design="grid"] .mp-acc, :root[data-design="grid"] .mp-acc-row, :root[data-design="grid"] .mp-detail,
 :root[data-design="grid"] .mp-list-more, :root[data-design="grid"] .mp-plan, :root[data-design="grid"] .mp-tagline,
@@ -792,8 +674,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 :root[data-design="grid"] .mp-list-more { background: transparent; border: 1px solid var(--border); color: var(--text); text-transform: uppercase; letter-spacing: .06em; font-size: 10.5px; }
 :root[data-design="grid"] .mp-card[data-kind="usage"]::before { background: #d97757; }
 :root[data-design="grid"] .mp-card[data-kind="system"]::before { background: var(--mp-up); }
-
-/* Glass — frosted lenses: luminous rings, gel bars, specular sheen. */
 :root[data-design="glass"] .mp-title > .mp-ico { border-radius: 10px; background: color-mix(in srgb, #fff 12%, transparent);
   box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 30%, transparent); color: var(--text); }
 :root[data-design="glass"] .mp-acc { background: color-mix(in srgb, #fff 6%, transparent); border-color: color-mix(in srgb, #fff 12%, transparent);
@@ -812,12 +692,8 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 :root[data-design="glass"] .mp-detail { background: color-mix(in srgb, var(--panel) 80%, transparent); backdrop-filter: blur(30px) saturate(1.7);
   -webkit-backdrop-filter: blur(30px) saturate(1.7); border-color: color-mix(in srgb, #fff 16%, transparent); }
 :root[data-design="glass"] .mp-feed .mp-row + .mp-row { box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 8%, transparent); }
-
-/* motion off */
 :root[data-motion="off"] .mp-busy-bar::after, body.reduce-motion .mp-busy-bar::after { animation: none; transform: none; width: 100%; opacity: .5; }
 @media (prefers-reduced-motion: reduce) { .mp-busy-bar::after { animation: none; width: 100%; opacity: .5; } .mp-gauge .val, .mp-lim-bar i { transition: none; } }
-
-/* PC performance: key–value meters instead of tiny tiles (long values like «35,3 КБ/с» must fit) */
 .mp-card[data-kind="system"] .mp-stats { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 4px 12px; }
 .mp-card[data-kind="system"] .mp-stat { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 5px 9px; }
 .mp-card[data-kind="system"] .mp-stat small { flex: none; font-size: 11px; }
@@ -830,16 +706,9 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 :root[data-design="glass"][data-theme="light"] .mp-lim-bar { box-shadow: inset 0 1px 2px rgba(0, 0, 0, .1); }
 :root[data-design="aurora"] .mp-lim[data-pace="ahead"] .mp-lim-bar i { background: linear-gradient(90deg, color-mix(in srgb, var(--mp-warn) 70%, var(--accent)), var(--mp-warn)); }
 :root[data-design="aurora"] .mp-lim[data-pace="full"] .mp-lim-bar i { background: linear-gradient(90deg, color-mix(in srgb, var(--mp-down) 75%, var(--accent)), var(--mp-down)); }
-
-/* =====================================================================
-   Round 23 — content options, editor, cadence, To-Do, notes, clock,
-   timers, new blocks. Tokens only; the design overrides above still apply.
-   ===================================================================== */
 .mp-modal.wide { width: min(940px, 100%); max-height: min(780px, calc(100vh - 48px)); }
 .mp-gal-group { display: grid; gap: 10px; }
 .mp-gal-group + .mp-gal-group { margin-top: 2px; }
-
-/* ---- form building blocks (simple first, «Дополнительно» folded) */
 .mp-form-group { display: grid; gap: 11px; padding: 12px; border-radius: 14px; background: color-mix(in srgb, var(--text) 3%, transparent);
   border: 1px solid var(--mp-line); }
 .mp-group-title { display: flex; align-items: center; gap: 7px; font: 650 12.5px/1.2 var(--mp-text); }
@@ -857,7 +726,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-form-note { font-size: 11.5px; }
 .mp-inline-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .mp-inline-row .mp-input { width: auto; min-width: 0; }
-/* 12-часовой формат («09:00 AM») не обрезается; в 24-часовом поле просто чуть шире. */
 .mp-input[type="time"] { min-width: 116px; }
 .mp-inline-row input[type="number"] { width: 84px; }
 .mp-inline-label { font: 550 12px/1 var(--mp-text); color: var(--mp-muted); }
@@ -872,7 +740,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-switchrow { display: flex; align-items: center; gap: 12px; justify-content: space-between; cursor: pointer; padding: 2px 0; }
 .mp-switchrow > span { display: grid; gap: 3px; font: 600 12px/1.25 var(--mp-text); }
 .mp-switchrow > span small { font: 500 11.5px/1.35 var(--mp-text); color: var(--mp-muted); }
-/* Переключатель — как .switch в настройках (40×24, бегунок 20 px), чтобы панели и настройки выглядели одним приложением. */
 .mp-switch { appearance: none; -webkit-appearance: none; flex: none; width: 40px; height: 24px; border-radius: 99px; margin: 0; cursor: pointer; position: relative;
   background: color-mix(in srgb, var(--text) 18%, transparent); transition: background var(--mp-dur) var(--mp-ease); }
 .mp-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; border-radius: 50%; background: #fff;
@@ -887,7 +754,7 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-multi-row:hover { background: var(--d-hover, var(--hover)); }
 .mp-multi-row input { accent-color: var(--accent); margin: 0; }
 .mp-multi-row > span:not(.mp-grip) { flex: 1; min-width: 0; }
-.mp-multi-row > input:not(:checked) ~ span:not(.mp-grip) { color: var(--mp-muted); }   /* r36: без :has — `:has() span` дорожал каждую вставку элемента в чат */
+.mp-multi-row > input:not(:checked) ~ span:not(.mp-grip) { color: var(--mp-muted); }
 .mp-multi-row .mp-x { width: 24px; height: 24px; }
 .mp-grip { color: var(--mp-muted); opacity: .55; cursor: grab; font-size: 15px; display: grid; }
 .mp-multi-row:hover .mp-grip { opacity: 1; }
@@ -895,8 +762,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-views { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px 10px; }
 .mp-view-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font: 550 12px/1.2 var(--mp-text); }
 .mp-view-row .mp-input { width: 112px; height: 28px; }
-
-/* ---- cadence */
 .mp-cad { gap: 7px; }
 .mp-days { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .mp-days > button { width: 34px; height: 28px; border-radius: 8px; border: 1px solid var(--mp-line-strong); background: transparent; color: var(--mp-muted);
@@ -919,15 +784,11 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-cad-more[open] { display: grid; gap: 8px; }
 .mp-cad-more .mp-inline-row { font: 550 12px/1 var(--mp-text); }
 .mp-cad-more input[type="time"] { width: 104px; }
-
-/* ---- editor preview */
 .mp-preview-wrap { grid-template-columns: minmax(0, 1fr) 340px; }
 .mp-preview-col { position: sticky; top: 0; display: grid; gap: 8px; }
 .mp-preview-title { font: 650 11px/1 var(--mp-text); color: var(--mp-muted); text-transform: uppercase; letter-spacing: .06em; }
 .mp-preview { display: grid; }
 .mp-preview-note { font: 500 11.5px/1.35 var(--mp-text); color: var(--mp-muted); }
-
-/* ---- ideas and ghost autocomplete */
 .mp-ghost-wrap { position: relative; border-radius: 9px; background: var(--bg); }
 .mp-ghost-wrap .mp-input { position: relative; z-index: 1; background: transparent; width: 100%; box-sizing: border-box; }
 .mp-ghost-wrap textarea.mp-input, .mp-ghost { min-height: 64px; padding: 8px 10px; font: 500 12.5px/1.45 var(--mp-text); letter-spacing: normal;
@@ -945,8 +806,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-idea:hover, .mp-idea:focus-visible { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); outline: none; }
 .mp-idea.more { display: inline-flex; align-items: center; gap: 5px; color: var(--accent); border-style: dashed; }
 .mp-idea .mp-ico { font-size: 13px; }
-
-/* ---- new blocks */
 .mp-chart { display: grid; gap: 4px; }
 .mp-chart-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
 .mp-chart-top small { font: 600 11px/1.2 var(--mp-text); color: var(--mp-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -985,8 +844,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-cd-prog { display: grid; gap: 6px; }
 .mp-cd-past { display: block; font: 600 10.5px/1 var(--mp-text); color: var(--mp-muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
 .mp-usage[data-no-reset] .mp-lim-reset, .mp-usage[data-no-pace] .mp-lim-bar em { display: none; }
-
-/* ---- clock */
 .mp-clock { display: grid; gap: 8px; }
 .mp-clock-main { display: flex; align-items: center; gap: 12px; }
 .mp-clock-main > div { display: grid; gap: 3px; }
@@ -1008,8 +865,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-analog .hh { stroke-width: 2.2; } .mp-analog .mm { stroke-width: 1.5; }
 .mp-analog .ss { stroke: var(--accent); stroke-width: .8; }
 .mp-analog .pin { fill: var(--accent); }
-
-/* ---- note */
 .mp-note { display: grid; gap: 4px; }
 .mp-note-view { min-height: 46px; padding: 4px 6px; margin: -4px -6px; border-radius: 9px; cursor: text; display: grid; gap: 2px;
   font: 500 12.5px/1.5 var(--mp-text); overflow-wrap: anywhere; }
@@ -1027,8 +882,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-note[data-font="mono"] :is(.mp-note-view, .mp-note-input) { font-family: var(--mono, ui-monospace, "Cascadia Mono", Consolas, monospace); font-size: 12px; }
 .mp-note[data-tsize="s"] .mp-note-view { font-size: 11.5px; } .mp-note[data-tsize="l"] .mp-note-view { font-size: 14px; }
 .mp-note-saved { font: 500 10.5px/1 var(--mp-text); color: var(--mp-muted); }
-
-/* ---- To-Do */
 .mp-todo { display: grid; gap: 6px; }
 .mp-todo-add { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 4px 0 10px; border-radius: 10px;
   background: color-mix(in srgb, var(--text) 4%, transparent); border: 1px solid transparent; transition: border-color var(--mp-dur), background var(--mp-dur); }
@@ -1036,7 +889,7 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-todo-add > .mp-ico { font-size: 14px; color: var(--mp-muted); }
 .mp-todo-input { flex: 1; min-width: 0; height: 100%; border: 0; outline: none; background: transparent; color: var(--text); font: 550 12.5px/1 var(--mp-text); }
 .mp-todo-input::placeholder { color: var(--mp-muted); }
-.mp-todo-input:placeholder-shown { text-overflow: ellipsis; }   /* r29t: «Добавить за» cut mid-word in S cards */
+.mp-todo-input:placeholder-shown { text-overflow: ellipsis; }
 .mp-todo-target { height: 26px; border: 0; border-radius: 7px; background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--text);
   font: 600 11px/1 var(--mp-text); max-width: 120px; padding: 0 6px; }
 .mp-todo-list { display: grid; gap: 1px; margin: 0 -6px; }
@@ -1112,8 +965,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-todo-efoot { display: flex; align-items: center; gap: 8px; margin: 0 -14px; padding: 10px 14px 12px; border-top: 1px solid var(--mp-line); }
 .mp-todo-efoot .grow { flex: 1; }
 .mp-todo-efoot > span:first-child { font: 500 11px/1.2 var(--mp-text); color: var(--mp-muted); }
-
-/* ---- Pomodoro / timers */
 .mp-timers { display: grid; gap: 8px; }
 .mp-pomo { display: flex; align-items: center; gap: 12px; }
 .mp-pomo .mp-gauge { flex: none; }
@@ -1150,8 +1001,6 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 .mp-chipbtn { height: 26px; padding: 0 10px; border-radius: 99px; border: 1px solid var(--mp-line-strong); background: transparent; color: var(--text);
   font: 600 11.5px/1 var(--mp-text); cursor: pointer; font-variant-numeric: tabular-nums; }
 .mp-chipbtn:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 7%, transparent); }
-
-/* ---- settings: model picker */
 .mp-set-model .mp-field { max-width: 460px; }
 .mp-set-model .mp-field > span { font: 600 13px/1.2 var(--mp-text); }
 
@@ -1161,16 +1010,11 @@ a.mp-detail-title:hover { color: var(--link, var(--accent)); }
 :root[data-motion="off"] :is(.mp-switch, .mp-todo-check, .mp-todo-item, .mp-bars > i > b),
 :root[data-motion="off"] .mp-switch::after { transition: none; }
 @media (max-width: 760px) { .mp-preview-wrap { grid-template-columns: 1fr; } .mp-preview-col { position: static; } .mp-todo-egrid { grid-template-columns: 1fr; } }
-/* Подсказка синтаксиса — поверх списка (не сдвигает строки: иначе клик по флажку сразу после ввода промахивается). */
 .mp-todo { position: relative; }
 .mp-todo-hint { position: absolute; z-index: 3; top: 38px; left: 0; right: 0; padding: 5px 8px; border-radius: 8px; pointer-events: none;
   background: var(--panel); border: 1px solid var(--mp-line); box-shadow: var(--mp-shadow); font: 500 10.5px/1.3 var(--mp-text); color: var(--mp-muted);
   opacity: 0; translate: 0 -3px; transition: opacity var(--mp-dur), translate var(--mp-dur) var(--mp-ease); }
 .mp-todo:has(.mp-todo-input:focus:placeholder-shown) .mp-todo-hint { opacity: 1; translate: 0 0; }
-
-/* Round 31: the app's own date/time pickers (plan-ui.js) inside panel dialogs and the To-Do editor — their popovers
-   (z-index 480) must open above the panel modal (3900) and popovers (4000). */
-/* r36 (perf): соседи вместо body:has() — пикер всегда добавляется в body после открывшего его окна */
 body > :is(.mp-modal-back, .mp-pop) ~ .pln-pop { z-index: 4100; }
 .mp-input.mp-time, .mp-dt .mp-dt-time { width: 84px; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
 .mp-input.mp-date, .mp-dt .mp-dt-day { min-width: 0; flex: 1 1 120px; }
@@ -1181,8 +1025,6 @@ body > :is(.mp-modal-back, .mp-pop) ~ .pln-pop { z-index: 4100; }
 .mp-modal .mp-field > .mp-input { min-width: 0; max-width: 100%; }
 @media (max-width: 760px) { .mp-modal .mp-preview-wrap { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 540px) {
-  /* Four size labels have a 295px min-content width. A 360px window
-     leaves only 274px inside the dialog; keep all choices in two rows. */
   .mp-modal .mp-seg-size { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .mp-acc-line { flex-wrap: wrap; }
   .mp-acc-line:first-child { display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; }

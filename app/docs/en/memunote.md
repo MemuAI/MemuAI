@@ -66,7 +66,7 @@ Scripts run right from MemuNote: Python, JavaScript/TypeScript (Node.js, tsx/Den
 
 ## Code autocomplete
 
-While you type code a list appears: the language's keywords and built-in functions, snippets (such as `def`, `for`, `class`) and names already used in the file. It works for Python, JavaScript/TypeScript, HTML, CSS, SQL, Go, Rust, Java, C/C++, C#, PHP, Ruby, Lua, PowerShell, Bash, Batch, Kotlin, Swift, Dart, YAML and more. **Ctrl+Space** opens the list by hand, **Enter** or **Tab** inserts, **Esc** closes. Turn it off in **Settings → Editor → Code autocomplete**.
+While you type code a list appears: the language's keywords and built-in functions, snippets (such as `def`, `for`, `class`) and names already used in the file. It works for Python, JavaScript/TypeScript, HTML, CSS, SQL, Go, Rust, Java, C/C++, C#, PHP, Ruby, Lua, PowerShell, Bash, Batch, Kotlin, Swift, Dart, YAML and more. **Ctrl+Space** opens the list by hand, **Tab** inserts, **Enter** starts a new line, **Esc** closes. Turn it off in **Settings → Editor → Code autocomplete**.
 
 **AI suggestions** in code (the Proxy is needed) — grey continuation text at the caret, **Tab** accepts it. Turn them on with the **AI suggestions** button in the status bar or in **Settings → AI → AI suggestions while typing**.
 
@@ -99,6 +99,18 @@ MemuAI Proxy has to be running (it starts together with MemuAI). The dot in the 
 
 The model is chosen in the AI panel or in MemuNote settings; by default it is the same as in MemuAI. MemuNote requests are marked in MemuAI as the `memunote` service.
 
+## Presentations
+
+Choose **New presentation** from the menu, or open a PPTX, PPTM, PPSX, POTX or ODP file. The new presentation dialog offers eight themes, three slide sizes and editable starting outlines for a proposal, a period report or a lesson. The outline contains prompts for your own content, rather than invented statistics.
+
+- **Design → Theme gallery** previews the current slide with each theme before you apply it. Theme changes are undoable. The editor also has layouts, shapes, tables, images with alternative text, editable charts, speaker notes, transitions and object animations.
+- **Review → Check presentation** finds empty slides, small text, missing picture descriptions, objects outside the slide, hidden slides and unsupported Office objects. Click an issue to go to its slide.
+- **AI review** suggests improvements to the argument and structure without changing the document. **Custom AI task** prepares text edits for the current slide, selected text objects or the whole deck. Compare the original and draft, choose which changes to apply, and undo the result together. Each request is bounded to 60 text objects and 45,000 text characters; AI review considers the first 50 slides.
+- **Slide show → PPTX copy** exports an editable PowerPoint copy. Native charts include their own embedded spreadsheet so their data remains editable in PowerPoint. Saving the source retains unsupported OOXML parts whenever possible.
+- **PDF options** chooses a slide range, resolution, hidden slides and separate speaker-notes pages. PDF pages contain rendered slide images; text is not searchable and Office-specific objects may look different. The export progress window has a Cancel button. Use PPTX for further editing.
+
+ODP is imported into the presentation model and saved as PPTX. Legacy binary `.ppt` files need conversion in another program. MemuNote does not implement every PowerPoint feature; check imported complex decks before presenting or distributing them.
+
 ## Keyboard shortcuts
 
 | Shortcut | Action |
@@ -130,3 +142,12 @@ MemuNote data lives in the MemuAI data folder: `%APPDATA%\MemuAI\memunote` (sett
 - **The file opened as gibberish** — click the encoding in the status bar → **Reopen** and pick the right one.
 - **F5 says "… not found"** — install the needed program (Python, Node.js…) or point to it: the ▾ menu next to **Run** → **Choose interpreter…**.
 - **The window does not open** — like MemuAI, MemuNote needs the Microsoft Edge WebView2 Runtime.
+
+
+## Completion and indentation
+
+**Tab** accepts the selected code completion; **Enter** starts an indented line; **Escape** dismisses the suggestion. Without an open completion, Tab works normally. The editor detects existing indentation, including two-space JSON and tab-indented files. Change indentation explicitly from the status bar.
+
+## AI object edits
+
+The AI ribbon includes **Edit objects with AI**. Describe changes to existing object positions and sizes, text, chart data or speaker notes on the current slide or deck. Review and selectively apply the proposal; one undo restores the selected changes together. This command does not create new images or arbitrary new objects. Chart data uses an editable grid with spreadsheet paste and row/series controls. During the show, **F** toggles fullscreen and **H** hides all controls including the presenter panel; press **H** again to restore them.

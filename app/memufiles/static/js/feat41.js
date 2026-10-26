@@ -1,6 +1,5 @@
-// MemuFiles · round 41 (r41-files): the settings window (built from the schema, applied at once), the look settings,
-// archives opened like folders (browse, extract chosen/all, add, create with format/level/password), «show in folder»
-// (select + scroll + focus) and the window state Quick Access reads (current folder + selection).
+
+
 import { t, addStrings, getLang } from "./i18n.js";
 import { S, api, $$, h, esc, icon, fmtSize, fmtNum, joinPath, baseName, parentPath, stemOf, isWin,
   toast, showError, modal, debounce, setFormats } from "./core.js";
@@ -93,7 +92,6 @@ addStrings({
 
 const L = (ru, en) => (getLang() === "en" ? en : ru);
 
-// ================================================================== look
 const ACCENTS = { blue: "#3e7bfa", violet: "#8b5cf6", pink: "#e0457b", red: "#e5484d", orange: "#f08c2e", green: "#2fa36b", teal: "#14a3a3", graphite: "#7c8590" };
 const FONTS = {
   "segoe-variable": '"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif',
@@ -101,7 +99,7 @@ const FONTS = {
   system: "system-ui, sans-serif",
   rounded: '"Segoe UI Variable Display", "Nunito", "Quicksand", ui-rounded, "Segoe UI", sans-serif',
 };
-/** Applied after every theme application (applyTheme clears the inline custom properties). */
+
 export function applyLook(app) {
   const s = app.settings || {};
   const root = document.documentElement;
@@ -121,7 +119,6 @@ export function applyLook(app) {
   setFormats(s);
 }
 
-// ================================================================== settings window
 let schemaP = null;
 function schema() { return (schemaP ||= api("settings/schema").catch((err) => { schemaP = null; throw err; })); }
 const GROUP_ICON = { appearance: "palette", view: "view", files: "file", tabs: "tabs", archives: "zip", ai: "sparkle", hotkeys: "keyboard", windows: "windows", advanced: "gear" };
@@ -264,9 +261,7 @@ export async function settingsDialog(app, focusGroup) {
   setTimeout(() => search.focus({ preventScroll: true }), 30);
 }
 
-// ================================================================== archives
-/** The archive a path is inside of (from the listings seen in this window), or null. */
-const ROOTS = new Map();   // folded root → real root
+const ROOTS = new Map();
 const fold = (p) => (isWin() ? p.toLowerCase() : p);
 export function noteHead(head) { if (head && head.archive) ROOTS.set(fold(head.archive.path), head.archive.path); }
 export function archiveOf(path) {
@@ -279,7 +274,6 @@ export function inArchive(pane) { return !!(pane && pane.head && pane.head.archi
 export function isArchiveName(name) { return /\.(zip|7z|rar|tar|gz|tgz|bz2|tbz2?|xz|txz|zst|cab|iso|jar|apk|arj|lzh|wim|cbz|cbr|cb7|epub|whl|nupkg|xpi|lz|lzma)$/i.test(name || ""); }
 const KIND = { zip: "ZIP", tar: "TAR", single: "GZ", "7z": "7z" };
 
-/** Banner over an archive opened like a folder. */
 export function archiveBanner(app, pane, b) {
   const a = pane.head.archive;
   b.hidden = false; b.className = "banner arc";
@@ -298,7 +292,6 @@ export function archiveBanner(app, pane, b) {
   }
 }
 
-/** Double-click: an archive (by the «Double-clicking an archive» setting) or a file inside one. true = handled. */
 export async function openItem(app, pane, item) {
   if (item.d || pane.mode !== "dir") return false;
   if (inArchive(pane)) {
@@ -326,7 +319,6 @@ function askPassword() {
   });
 }
 
-/** Copy / move / drag whose sources are inside an archive (→ extract them) or whose target is one (→ add). */
 export function transfer(app, paths, dest, kind) {
   const from = paths.length ? archiveOf(paths[0]) : null;
   const into = archiveOf(dest);
@@ -345,7 +337,6 @@ export function transfer(app, paths, dest, kind) {
   return false;
 }
 
-/** Rename / delete / new folder inside an archive: say so instead of failing with «not found». */
 export function guardReadOnly(pane) {
   if (!inArchive(pane)) return false;
   toast(t("arc.readonly_op"), "err");
@@ -378,11 +369,10 @@ async function submitExtract(app, archive, dest, args, openAfter) {
 
 const stemOfArchive = (path) => { let s = stemOf(baseName(path)); if (/\.tar$/i.test(s)) s = s.slice(0, -4); return s || baseName(path); };
 
-/** «Extract…»: where to (a folder named after the archive / here / any path), a password, open afterwards. */
 export async function extractDialog(app, archive, args = {}) {
   const outside = archiveOf(app.pane().folder || "") ? parentPath(archive) : (app.pane().folder && !archiveOf(app.pane().folder) ? app.pane().folder : parentPath(archive));
   let info = {};
-  try { info = await api("arc/info?path=" + encodeURIComponent(archive)); } catch (e) { /* the op reports problems itself */ }
+  try { info = await api("arc/info?path=" + encodeURIComponent(archive)); } catch (e) {  }
   const whole = !(args.members && args.members.length) && !args.strip;
   const single = whole && info.single_root;
   const def = app.settings.extract_to === "here" || single ? outside : joinPath(outside, stemOfArchive(archive));
@@ -404,15 +394,13 @@ export async function extractDialog(app, archive, args = {}) {
   setTimeout(() => { input.focus(); input.select(); }, 30);
 }
 
-/** «Extract here / to a folder» from the context menu (no dialog), the old quick path with the smart single-folder rule. */
 export async function quickExtract(app, archive, here) {
   const folder = parentPath(archive);
   let dest = here ? folder : joinPath(folder, stemOfArchive(archive));
-  if (!here) { try { const info = await api("arc/info?path=" + encodeURIComponent(archive)); if (info.single_root) dest = folder; } catch (e) { /* plain */ } }
+  if (!here) { try { const info = await api("arc/info?path=" + encodeURIComponent(archive)); if (info.single_root) dest = folder; } catch (e) {  } }
   submitExtract(app, archive, dest, {}, false);
 }
 
-/** «Add to archive…»: name, format, compression level, password. */
 export async function compressDialog(app, paths) {
   const pane = app.pane();
   if (!paths.length || !pane.folder || archiveOf(pane.folder)) return;
@@ -455,20 +443,18 @@ export async function compressDialog(app, paths) {
   setTimeout(() => { name.focus(); name.setSelectionRange(0, base.length); }, 30);
 }
 
-// ================================================================== start-up and tabs
-/** Settings → «A new window opens». */
 export function startPath(app) {
   const s = app.settings, known = (S.boot && S.boot.known_folders) || {};
   const pick = { downloads: known.downloads, documents: known.documents, desktop: known.desktop, user: S.home, custom: (s.start_path || "").trim() }[s.start_page];
   return pick || "::home";
 }
-/** Settings → «New tab (Ctrl+T)». */
+
 export function newTabPath(app) {
   const how = app.settings.new_tab_page || "home";
   if (how === "same") { const pane = app.pane && app.pane(); return (pane && pane.mode === "dir" && pane.folder) || "::home"; }
   return how === "start" ? startPath(app) : "::home";
 }
-/** Settings → «After closing a tab»: the index to show (the tab is already removed from app.tabs). */
+
 export function tabAfterClose(app, index) {
   const n = app.tabs.length;
   const how = app.settings.tab_after_close || "right";
@@ -477,9 +463,6 @@ export function tabAfterClose(app, index) {
   return Math.max(0, Math.min(index, n - 1));
 }
 
-// ================================================================== «show in folder» + the shell hint
-/** A folder handed over by the shell («Show in folder» in a browser = SHOpenFolderAndSelectItems, which gives a
- * replacement file manager only the folder): select the file that has just appeared there (≤ 10 min old). */
 export function shellHint(app, pane) {
   if (app.settings.shell_select_recent === false || !pane || pane.mode !== "dir" || pane.sel.size) return;
   const now = Date.now();
@@ -493,7 +476,6 @@ export function shellHint(app, pane) {
   if (best) pane.selectAndReveal([best.path]);
 }
 
-// ================================================================== window state for Quick Access (Alt+Space over MemuFiles)
 let lastState = "";
 const sendState = debounce((app) => {
   const pane = app.pane && app.pane();

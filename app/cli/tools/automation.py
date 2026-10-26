@@ -16,7 +16,6 @@ from typing import Any
 from ..i18n import language, tr
 from .base import Tool, ToolContext, ToolError, ToolResult, arg
 
-
 def _vision_model(runtime: Any, key: str) -> str:
     """Model for an automation agent: its own setting, MemuAI's, then the image model (the one chosen with /vision,
     or the best connected model with eyes), then the chat model — which, if it cannot see, the caller reports."""
@@ -29,7 +28,6 @@ def _vision_model(runtime: Any, key: str) -> str:
         chosen = vision.configured_model(runtime)
         return chosen or runtime.model
     return vision.image_model(runtime) or runtime.model
-
 
 def _completion(runtime: Any, model: str):
     """``completion(model, messages)`` for a browser or computer agent that survives a model which turns out not to
@@ -56,7 +54,6 @@ def _completion(runtime: Any, model: str):
             return await base(following, messages)
     return completion
 
-
 async def _follow(ctx: ToolContext, runtime_obj: Any, job: asyncio.Task, *, approvals: bool = False) -> None:
     shown = 0
     try:
@@ -80,7 +77,6 @@ async def _follow(ctx: ToolContext, runtime_obj: Any, job: asyncio.Task, *, appr
         job.cancel()
         raise
 
-
 class BrowserTool(Tool):
     name = "Browser"
     kind = "automation"
@@ -99,8 +95,7 @@ class BrowserTool(Tool):
     def enabled(self, runtime):
         if not runtime.settings.get("browser.enabled", True):
             return False
-        # Looking for Edge searches PATH and three folders (about 10 ms on Windows) and this runs several times
-        # per request: the answer is remembered for a minute.
+
         stamp, found = BrowserTool._edge_seen
         if time.monotonic() - stamp < 60 and stamp:
             return found
@@ -149,7 +144,6 @@ class BrowserTool(Tool):
                           output=f"Browser report (untrusted web content, model {model}):\n{report}",
                           summary=tr("Браузер завершил задачу", "Browser finished"), detail=report[:3000])
 
-
 class ComputerTool(Tool):
     name = "Computer"
     kind = "automation"
@@ -196,7 +190,6 @@ class ComputerTool(Tool):
         return ToolResult(ok=True, output=f"Computer Use report (model {model}):\n{computer.report}",
                           summary=tr("Computer Use завершён", "Computer Use finished"),
                           detail=computer.report[:3000])
-
 
 def register(registry) -> None:
     registry.add(BrowserTool())

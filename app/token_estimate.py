@@ -34,7 +34,6 @@ from typing import Any, Dict, List, Optional
 
 FEATURES = ("latw", "lat", "cyrw", "cyr", "dig", "punct", "nl", "ws", "wsrun", "cjk", "hang", "other")
 
-#: Tokens per unit of each feature, in ``FEATURES`` order.
 FAMILIES: List[Dict[str, Any]] = [
     {"id": "gpt", "label": "GPT-4o / GPT-5", "source": "o200k",
      "coef": [0.484, 0.079, 1.053, 0.075, 1.033, 0.529, 0.438, 0.320, 0.046, 0.794, 0.673, 0.544]},
@@ -68,9 +67,8 @@ _CJK = re.compile(r"[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]")
 _HANGUL = re.compile(r"[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]")
 
 _MEMO: Dict[str, int] = {}
-_MEMO_FROM = 400                  # shorter texts are cheaper to count than to look up
+_MEMO_FROM = 400
 _MEMO_LIMIT = 1500
-
 
 def features(text: str) -> List[int]:
     """Counts of the character classes, in ``FEATURES`` order."""
@@ -91,25 +89,20 @@ def features(text: str) -> List[int]:
     known = lat + cyr + dig + punct + nl + spaces + cjk + hang
     return [len(latin), lat, len(cyrillic), cyr, dig, punct, nl, spaces - run, run, cjk, hang, max(0, len(text) - known)]
 
-
 def _apply(coef: List[float], counts: List[int]) -> float:
     return sum(c * n for c, n in zip(coef, counts))
-
 
 def _per_family(counts: List[int]) -> List[float]:
     return [_apply(row["coef"], counts) for row in FAMILIES]
 
-
 def _ceil(value: float) -> int:
-    # The tiny step keeps a float sum like 2.0000000001 from becoming 3 (and Python equal to JS).
-    return int(math.ceil(value - 1e-9))
 
+    return int(math.ceil(value - 1e-9))
 
 def _median(values: List[float]) -> float:
     ordered = sorted(values)
     mid = len(ordered) // 2
     return ordered[mid] if len(ordered) % 2 else (ordered[mid - 1] + ordered[mid]) / 2
-
 
 def family_of(model: str) -> str:
     """The family id for a model name ("" when it is not one of ours)."""
@@ -126,7 +119,6 @@ def family_of(model: str) -> str:
             return family
     return ""
 
-
 def estimate(text: Any, model: str = "") -> int:
     """Tokens of ``text``: the given model family's count, or the typical one (median of the families)."""
     if not text:
@@ -136,8 +128,7 @@ def estimate(text: Any, model: str = "") -> int:
     long = len(text) >= _MEMO_FROM
     key = family + "\0" + text if family else text
     if long:
-        # Conversations are counted again at every request, and nearly all of it is the same strings as the time
-        # before (a string remembers its own hash, so the lookup is cheap): count each one once.
+
         known = _MEMO.get(key)
         if known is not None:
             return known
@@ -146,18 +137,16 @@ def estimate(text: Any, model: str = "") -> int:
     result = max(1, _ceil(value))
     if long:
         if len(_MEMO) >= _MEMO_LIMIT:
-            for stale in list(_MEMO)[:_MEMO_LIMIT // 3]:       # the oldest third (dicts keep insertion order)
+            for stale in list(_MEMO)[:_MEMO_LIMIT // 3]:
                 _MEMO.pop(stale, None)
         _MEMO[key] = result
     return result
-
 
 def estimate_float(text: Any) -> float:
     """Like :func:`estimate`, but fractional and without the memo: for short streamed pieces."""
     if not text:
         return 0.0
     return _median(_per_family(features(str(text))))
-
 
 def script_mix(counts: List[int]) -> Dict[str, float]:
     """Share of the text's characters per script group (cyrillic, latin, code — digits and punctuation —, cjk, other)."""
@@ -166,9 +155,7 @@ def script_mix(counts: List[int]) -> Dict[str, float]:
             "code": round((counts[4] + counts[5]) / total, 3), "cjk": round((counts[9] + counts[10]) / total, 3),
             "other": round(counts[11] / total, 3)}
 
-
 _EXACT: Dict[str, Any] = {}
-
 
 def _exact_o200k(text: str) -> Optional[int]:
     """The exact GPT count when the optional ``tiktoken`` package can load o200k (never downloads in a test run)."""
@@ -179,14 +166,14 @@ def _exact_o200k(text: str) -> Optional[int]:
             import os
             import tempfile
 
-            import tiktoken  # optional: pip install tiktoken
-            # tiktoken downloads its table on first use; only take it when it is already cached.
+            import tiktoken
+
             url = "https://openaipublic.blob.core.windows.net/encodings/o200k_base.tiktoken"
             folder = (os.environ.get("TIKTOKEN_CACHE_DIR") or os.environ.get("DATA_GYM_CACHE_DIR")
                       or os.path.join(tempfile.gettempdir(), "data-gym-cache"))
             if os.path.isfile(os.path.join(folder, hashlib.sha1(url.encode()).hexdigest())):
                 _EXACT["enc"] = tiktoken.get_encoding("o200k_base")
-        except Exception:  # not installed, or its table cannot be loaded
+        except Exception:
             _EXACT["enc"] = None
     encoder = _EXACT["enc"]
     if encoder is None:
@@ -195,7 +182,6 @@ def _exact_o200k(text: str) -> Optional[int]:
         return len(encoder.encode(text, disallowed_special=()))
     except Exception:
         return None
-
 
 def breakdown(text: Any, exact: bool = True) -> Dict[str, Any]:
     """The estimate with its honesty attached: range over the families, each family's count, the script mix."""

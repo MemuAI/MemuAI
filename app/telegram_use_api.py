@@ -12,7 +12,6 @@ from fastapi.responses import JSONResponse, Response
 from . import telegram_use as use
 from . import telegram_use_config as config
 
-
 def bridge_token() -> str:
     from .storage import _json_transaction
     store = config.secrets()
@@ -22,7 +21,6 @@ def bridge_token() -> str:
             token = secrets.token_urlsafe(32)
             store.set("bridge_token", token)
     return token
-
 
 def local_request(request: Request) -> bool:
     try:
@@ -42,7 +40,6 @@ def local_request(request: Request) -> bool:
     except ValueError:
         return False
 
-
 async def body(request: Request) -> dict:
     raw = await request.body()
     if len(raw) > 2 * 1024 * 1024:
@@ -52,7 +49,6 @@ async def body(request: Request) -> dict:
     if not isinstance(out, dict):
         raise ValueError("Expected JSON object")
     return out
-
 
 def register(app) -> None:
     @app.post("/api/pg/integrations/telegram-use/preview")
@@ -79,8 +75,6 @@ def register(app) -> None:
         except (ValueError, TypeError) as exc:
             return JSONResponse({"error": str(exc)}, 400)
 
-    # playground_api's existing lifespan calls use.start()/stop(). FastAPI on_event
-    # handlers are deliberately avoided: they do not run alongside custom lifespan.
     @app.get("/api/pg/integrations/telegram-use")
     async def status(request: Request):
         if not local_request(request):

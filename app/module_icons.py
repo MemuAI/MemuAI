@@ -29,7 +29,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from . import modules_host
 
-try:  # route signatures are read by FastAPI from module globals (``from __future__ import annotations``)
+try:
     from fastapi import Request
 except ImportError:  # pragma: no cover
     Request = Any  # type: ignore[misc,assignment]
@@ -39,15 +39,14 @@ FILE_RE = re.compile(r"^(?!/)(?!.*\.\.)[A-Za-z0-9_][A-Za-z0-9_./-]{0,120}\.(svg|
 DATA_RE = re.compile(r"^data:image/(png|webp|svg\+xml);base64,([A-Za-z0-9+/=\s]+)$")
 COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 
-SVG_LIMIT = 256 * 1024          # an uploaded / manifest SVG before cleaning
-INLINE_LIMIT = 48 * 1024        # an inline SVG kept in manifest.json after cleaning
-RASTER_LIMIT = 768 * 1024       # an uploaded PNG / WebP / ICO
-DATA_LIMIT = 256 * 1024         # a data: URL in a manifest
+SVG_LIMIT = 256 * 1024
+INLINE_LIMIT = 48 * 1024
+RASTER_LIMIT = 768 * 1024
+DATA_LIMIT = 256 * 1024
 
-#: The glyph a built-in module falls back to (anything that still reads ``row["icon"]`` as a glyph name).
 BUILTIN_GLYPH = {"translator": "globe", "studio": "image", "design": "palette", "benchmarks": "chart",
                  "catalog": "bot", "api-models": "bell", "characters": "users", "music": "music",
-                 "learn": "brain"}   # r40-learn
+                 "learn": "brain", "memudb": "database"}
 
 SVG_NS = "http://www.w3.org/2000/svg"
 XLINK_NS = "http://www.w3.org/1999/xlink"
@@ -73,23 +72,17 @@ _ATTRS = {
 _URL_RE = re.compile(r"url\(\s*(['\"]?)(.*?)\1\s*\)", re.I)
 _BAD_CSS = re.compile(r"@import|expression\s*\(|javascript:|behavio(u)?r\s*:|-moz-binding|</|<!", re.I)
 
-
 class IconError(ValueError):
     """A bad icon: the message is shown to the user (ru / en joined by « / »)."""
-
-
-# ---------------------------------------------------------------------------------------------------- svg
 
 def _local(tag: Any) -> str:
     tag = str(tag)
     return tag.rsplit("}", 1)[-1] if "}" in tag else tag
 
-
 def _css_ok(text: str) -> bool:
     if _BAD_CSS.search(text):
         return False
     return all(target.strip().startswith("#") for _, target in _URL_RE.findall(text))
-
 
 def _value_ok(name: str, value: str) -> bool:
     low = value.strip().lower()
@@ -103,11 +96,9 @@ def _value_ok(name: str, value: str) -> bool:
         return all(target.strip().startswith("#") for _, target in _URL_RE.findall(value))
     return True
 
-
 def _esc(text: str, quote: bool = False) -> str:
     text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
     return text.replace('"', "&quot;") if quote else text
-
 
 def sanitize_svg(text: Any) -> str:
     """A clean, self-contained SVG string, or :class:`IconError`. Never returns script, foreignObject, event
@@ -134,7 +125,7 @@ def sanitize_svg(text: Any) -> str:
 
     def walk(node: ET.Element, depth: int) -> None:
         name = _local(node.tag)
-        if name in ("a", "switch") and depth < 40:  # a link's drawing stays, the link goes
+        if name in ("a", "switch") and depth < 40:
             for child in node:
                 walk(child, depth + 1)
             return
@@ -191,9 +182,6 @@ def sanitize_svg(text: Any) -> str:
         raise IconError("В SVG нет ничего видимого / The SVG draws nothing")
     return result
 
-
-# ---------------------------------------------------------------------------------------------------- manifest
-
 def normalize_icon(value: Any) -> str:
     """The manifest ``icon`` kept as-is when it is a glyph name, a package file, a clean inline SVG or a data URL."""
     text = str(value or "").strip()
@@ -212,12 +200,10 @@ def normalize_icon(value: Any) -> str:
     name = re.sub(r"[^a-z0-9_-]", "", text.lower())[:32]
     return name
 
-
 def normalize_icon_bg(value: Any) -> List[str]:
     """``icon_bg`` → a list of 1–3 ``#rrggbb`` colours (empty: the host picks)."""
     items = value if isinstance(value, list) else [value] if isinstance(value, str) else []
     return [str(item).lower() for item in items if COLOR_RE.match(str(item or "").strip())][:3]
-
 
 def icon_kind(icon: str) -> str:
     if not icon:
@@ -230,13 +216,11 @@ def icon_kind(icon: str) -> str:
         return "file"
     return "glyph"
 
-
 def glyph_of(module_id: str, icon: str) -> str:
     """The glyph name for code that still draws ``row["icon"]`` with the MemuAI glyph set."""
     if icon_kind(icon) == "glyph":
         return icon
     return BUILTIN_GLYPH.get(module_id, "work")
-
 
 def validate(manifest: Dict[str, Any], files: Optional[Dict[str, Any]] = None) -> List[Tuple[str, str, str]]:
     """``[(level, ru, en)]`` for modules_validate: what is wrong with ``icon`` / ``icon_bg``."""
@@ -275,12 +259,8 @@ def validate(manifest: Dict[str, Any], files: Optional[Dict[str, Any]] = None) -
                              "icon_bg must be a #rrggbb colour or a list of 2–3 of them (a gradient)."))
     return problems
 
-
-# ---------------------------------------------------------------------------------------------------- user icons
-
 def _icons_dir(root: Path) -> Path:
     return Path(root) / "icons"
-
 
 def load_user(root: Path) -> Dict[str, Dict[str, Any]]:
     try:
@@ -290,14 +270,12 @@ def load_user(root: Path) -> Dict[str, Dict[str, Any]]:
     rows = data.get("icons") if isinstance(data, dict) else None
     return {k: v for k, v in rows.items() if isinstance(v, dict)} if isinstance(rows, dict) else {}
 
-
 def _save_user(root: Path, rows: Dict[str, Dict[str, Any]]) -> None:
     folder = _icons_dir(root)
     folder.mkdir(parents=True, exist_ok=True)
     tmp = folder / "icons.json.tmp"
     tmp.write_text(json.dumps({"icons": rows}, ensure_ascii=False, indent=1), encoding="utf-8")
     os.replace(tmp, folder / "icons.json")
-
 
 def _raster_to_png(raw: bytes) -> bytes:
     """PNG / WebP / ICO bytes → a re-encoded PNG (≤512 px, the largest ICO frame). Re-encoding drops anything else
@@ -320,7 +298,7 @@ def _raster_to_png(raw: bytes) -> bytes:
         raise IconError("Картинка от 16 до 4096 px / The image must be 16–4096 px")
     image = image.convert("RGBA")
     side = max(image.width, image.height)
-    if image.width != image.height:  # keep the proportions on a transparent square
+    if image.width != image.height:
         square = Image.new("RGBA", (side, side), (0, 0, 0, 0))
         square.paste(image, ((side - image.width) // 2, (side - image.height) // 2))
         image = square
@@ -329,7 +307,6 @@ def _raster_to_png(raw: bytes) -> bytes:
     buffer = io.BytesIO()
     image.save(buffer, format="PNG", optimize=True)
     return buffer.getvalue()
-
 
 def decode_upload(data: Any) -> Tuple[str, bytes]:
     """A data URL / an SVG string from the page → ``(ext, bytes)`` ready to store (``svg`` cleaned, rasters → PNG)."""
@@ -349,7 +326,6 @@ def decode_upload(data: Any) -> Tuple[str, bytes]:
     if len(raw) > RASTER_LIMIT:
         raise IconError("Файл больше 768 КБ / The file is larger than 768 KB")
     return "png", _raster_to_png(raw)
-
 
 def set_user_icon(root: Path, module_id: str, data: Any, *, raster: Any = "", kind: str = "file",
                   meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -380,7 +356,6 @@ def set_user_icon(root: Path, module_id: str, data: Any, *, raster: Any = "", ki
     _save_user(root, rows)
     return rows[module_id]
 
-
 def _clean_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
     """What the picker remembers to reopen on the same choice (glyph, emoji, gradient) — short strings only."""
     out: Dict[str, Any] = {}
@@ -390,7 +365,6 @@ def _clean_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
             out[key] = value
     return out
 
-
 def _raster_from(data_url: Any) -> bytes:
     from .module_apps import decode_png
     image = decode_png(str(data_url or ""))
@@ -399,7 +373,6 @@ def _raster_from(data_url: Any) -> bytes:
     buffer = io.BytesIO()
     image.save(buffer, format="PNG")
     return buffer.getvalue()
-
 
 def reset_user_icon(root: Path, module_id: str) -> None:
     module_id = modules_host._safe_id(module_id)
@@ -414,9 +387,6 @@ def reset_user_icon(root: Path, module_id: str) -> None:
     if rows.pop(module_id, None) is not None:
         _save_user(root, rows)
 
-
-# ---------------------------------------------------------------------------------------------------- resolve
-
 def _package_icon_file(root: Path, module_id: str, name: str) -> Optional[Path]:
     """A package file named by ``icon``; an edited built-in falls back to the shipped package."""
     folders = [modules_host._package_dir(root, module_id)]
@@ -429,7 +399,6 @@ def _package_icon_file(root: Path, module_id: str, name: str) -> Optional[Path]:
         if folder.resolve() in path.parents and path.is_file():
             return path
     return None
-
 
 def public_fields(root: Path, module_id: str, manifest: Dict[str, Any],
                   user: Optional[Dict[str, Dict[str, Any]]] = None) -> Dict[str, Any]:
@@ -454,7 +423,6 @@ def public_fields(root: Path, module_id: str, manifest: Dict[str, Any],
         url = f"/api/pg/modules/{module_id}/icon?v={version}"
     return {"icon_url": url, "icon_bg": list(manifest.get("icon_bg") or []), "icon_custom": bool(custom),
             **({"icon_meta": custom.get("meta")} if custom and custom.get("meta") else {})}
-
 
 def icon_bytes(root: Path, module_id: str, *, own: bool = False) -> Tuple[bytes, str]:
     """The bytes and media type the icon URL serves (the user's icon first unless ``own``, then the manifest's)."""
@@ -489,12 +457,9 @@ def icon_bytes(root: Path, module_id: str, *, own: bool = False) -> Tuple[bytes,
             return _raster_to_png(raw), "image/png"
     return letter_svg(module_id, manifest), "image/svg+xml"
 
-
-#: The pairs of module-icons.js GRADIENTS (without «graphite») — a glyph-only module gets the same one by its id.
 _POOL = (("#f08c62", "#8752cf"), ("#ff6a88", "#9b3fd1"), ("#f45fb3", "#fb9440"), ("#ff9a5a", "#e0407a"),
          ("#ffbe4a", "#ee6a3a"), ("#3ad49a", "#168f9f"), ("#29c3d6", "#4258d6"), ("#5f86f7", "#6142d4"),
          ("#c56cf0", "#5b45d8"))
-
 
 def letter_svg(module_id: str, manifest: Dict[str, Any]) -> bytes:
     """A module with only a glyph name, where no glyph set is at hand (Quick access cards, a bare URL): its first
@@ -517,14 +482,9 @@ def letter_svg(module_id: str, manifest: Dict[str, Any]) -> bytes:
             f'<text x="256" y="262" font-size="250" font-weight="700" fill="#ffffff" text-anchor="middle" dominant-baseline="central" '
             f'font-family="Segoe UI, Inter, Arial, sans-serif">{letter}</text></svg>').encode("utf-8")
 
-
-#: Frames of an app ``.ico`` (module apps: shortcut, window, taskbar). Round 40: built-ins ship ``icon.ico`` drawn from
-#: ``icon.svg`` at every one of these sizes (tools/build_module_icons.py) — sharp at 16/24/32 px instead of a 256 px
-#: picture squeezed down by the shell.
 ICO_SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
-#: Bumped when the way an app ``.ico`` is made changes: installed apps then rebuild theirs on the next start.
-ICO_RECIPE = "r40"
 
+ICO_RECIPE = "r40"
 
 def app_icon_source(root: Path, module_id: str) -> Optional[Path]:
     """The file the module app ``.ico`` is made from, or ``None`` (then the page draws one / a letter tile).
@@ -548,7 +508,6 @@ def app_icon_source(root: Path, module_id: str) -> Optional[Path]:
                     candidates.append(path)
     return next((path for path in candidates if path.is_file()), None)
 
-
 def source_signature(path: Optional[Path]) -> str:
     """What an installed app's ``.ico`` was made from: a changed icon (or recipe) means a new ``.ico``."""
     if path is None:
@@ -558,7 +517,6 @@ def source_signature(path: Optional[Path]) -> str:
     except OSError:
         return ""
     return f"file:{digest}:{ICO_RECIPE}"
-
 
 def raster_for(root: Path, module_id: str):
     """A 256 px PIL image of the module's icon (see :func:`app_icon_source`), or ``None``."""
@@ -578,7 +536,6 @@ def raster_for(root: Path, module_id: str):
     except Exception:  # noqa: BLE001
         return None
 
-
 def ico_frames(image) -> Dict[int, Any]:
     """Every :data:`ICO_SIZES` frame of a 256 px picture: Lanczos per size, a light unsharp mask at ≤ 48 px
     (a squeezed icon goes soft exactly where the shell shows it most — taskbar, title bar, Start)."""
@@ -593,7 +550,6 @@ def ico_frames(image) -> Dict[int, Any]:
             frame = Image.merge("RGBA", (*rgb.split(), a))
         frames[size] = frame
     return frames
-
 
 def ico_bytes(frames: Dict[int, Any]) -> bytes:
     """A multi-size ``.ico``: 32-bit BMP frames below 256 px (small PNG frames are read blank by parts of the
@@ -630,9 +586,6 @@ def ico_bytes(frames: Dict[int, Any]) -> bytes:
         offset += len(data)
     return directory + b"".join(data for _, data in entries)
 
-
-# ---------------------------------------------------------------------------------------------------- routes
-
 def register(app, root_fn=None) -> None:
     from fastapi.responses import JSONResponse, Response
 
@@ -648,7 +601,7 @@ def register(app, root_fn=None) -> None:
             body, media = icon_bytes(root(), module_id)
         except (KeyError, ValueError, OSError):
             return err("no icon", 404)
-        # An <img> never runs an SVG's script, but the URL can be opened on its own: lock it down too.
+
         return Response(body, media_type=media, headers={
             "Cache-Control": "public, max-age=31536000, immutable" if v else "no-cache",
             "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; img-src data:",
@@ -683,7 +636,7 @@ def register(app, root_fn=None) -> None:
             entry = module_apps.load_store().get("apps", {}).get(module_id)
             if not entry and not (module_apps.app_dir() / f"{module_id}.ico").is_file():
                 return
-            # Round 40: a new .ico path (Explorer caches by path), shortcuts + pinned buttons re-pointed.
+
             module_apps.refresh_app_icon(module_id, raster)
             mgr = module_apps.manager(app)
             if mgr is not None and hasattr(mgr, "refresh_icon"):

@@ -26,28 +26,23 @@ DRAFT_SYSTEM = (
     "Be concrete and short (under 60 lines). Name real commands, files or tools only if the user's description gives "
     "them — never invent any. Write in the language of the user's description.")
 
-
 def _row(ctx: Context, name: str) -> Optional[Dict[str, Any]]:
     return ctx.runtime.skills.get(name, include_disabled=True)
-
 
 def _refresh(ctx: Context) -> None:
     ctx.runtime.invalidate_prompt(memory=True)
     ctx.runtime.skills.catalogue(refresh=True, include_disabled=True)
-
 
 def _strip_fences(text: str) -> str:
     text = text.strip()
     match = re.match(r"^```[\w-]*\s*\n(.*?)\n```\s*$", text, re.S)
     return match.group(1).strip() if match else text
 
-
 async def edit_text(ctx: Context, title: str, text: str, *, note: str = "") -> Optional[str]:
     """Edit a skill in the interface's own multi-line field. None when cancelled (Esc)."""
     body = ctx.r.render(Text("  " + (note or tr("Ctrl+S — сохранить, Enter — новая строка, Esc — отмена",
                                                 "Ctrl+S saves, Enter starts a new line, Esc cancels")), style="dim"))
     return await ctx.ui.prompt_text(title, body=body, default=text, tag="paste")
-
 
 async def save_checked(ctx: Context, scope: str, slug: str, text: str, *, overwrite: bool) -> Optional[Path]:
     """Check the text, let the user fix what is wrong, write it. None when the user gave up."""
@@ -68,7 +63,6 @@ async def save_checked(ctx: Context, scope: str, slug: str, text: str, *, overwr
         ctx.say(str(exc), "error")
     return None
 
-
 async def draft_with_model(ctx: Context, slug: str, wish: str) -> str:
     """The model's first draft of a skill, from the user's plain description."""
     runtime = ctx.runtime
@@ -81,7 +75,6 @@ async def draft_with_model(ctx: Context, slug: str, wish: str) -> str:
     finally:
         ctx.ui.status_text = ""
     return skillkit.normalize(_strip_fences(text), slug, wish.splitlines()[0][:160])
-
 
 async def create_skill(ctx: Context, name: str = "") -> None:
     runtime = ctx.runtime
@@ -138,7 +131,6 @@ async def create_skill(ctx: Context, name: str = "") -> None:
     ctx.say(tr(f"Скилл «{slug}» создан: {written}. Запуск: /{slug} <задача>", f"Created skill “{slug}”: {written}. Run it with /{slug} <task>"),
             "success")
 
-
 async def edit_skill(ctx: Context, row: Dict[str, Any]) -> None:
     slug = row["id"]
     if row.get("builtin") or not row.get("path"):
@@ -178,7 +170,6 @@ async def edit_skill(ctx: Context, row: Dict[str, Any]) -> None:
     _refresh(ctx)
     ctx.say(tr(f"Скилл «{slug}» сохранён", f"Skill “{slug}” saved"), "success")
 
-
 async def delete_skill(ctx: Context, row: Dict[str, Any]) -> None:
     slug = row["id"]
     if row.get("builtin") or not row.get("path"):
@@ -198,14 +189,12 @@ async def delete_skill(ctx: Context, row: Dict[str, Any]) -> None:
     _refresh(ctx)
     ctx.say(tr(f"Скилл «{slug}» удалён (корзина: {moved})", f"Deleted “{slug}” (trash: {moved})"), "success")
 
-
 async def toggle_skill(ctx: Context, row: Dict[str, Any], enable: Optional[bool] = None) -> None:
     slug = row["id"]
     enable = (not row.get("enabled", True)) if enable is None else enable
     skillkit.set_disabled(ctx.settings, slug, not enable)
     _refresh(ctx)
     ctx.say(tr(f"Скилл «{slug}»: {'включён' if enable else 'выключен'}", f"Skill “{slug}”: {'enabled' if enable else 'disabled'}"), "success")
-
 
 async def restore_skill(ctx: Context) -> None:
     rows = skillkit.list_trash()
@@ -231,14 +220,12 @@ async def restore_skill(ctx: Context) -> None:
     _refresh(ctx)
     ctx.say(tr(f"Скилл «{entry['id']}» возвращён: {restored}", f"Restored “{entry['id']}”: {restored}"), "success")
 
-
 async def view_skill(ctx: Context, row: Dict[str, Any]) -> None:
     body = f"{row['id']} — {skillkit.describe(row, disabled=not row.get('enabled', True))}\n"
     if row.get("path"):
         body += str(row["path"]) + "\n"
     body += "\n" + str(row.get("prompt") or "")
     await ctx.ui.open_document(tr(f"Скилл {row['id']}", f"Skill {row['id']}"), body)
-
 
 async def skill_menu(ctx: Context, row: Dict[str, Any]) -> None:
     """What to do with one skill."""
@@ -276,7 +263,6 @@ async def skill_menu(ctx: Context, row: Dict[str, Any]) -> None:
             if not _row(ctx, slug) or _row(ctx, slug).get("builtin"):
                 return
 
-
 async def manager(ctx: Context) -> None:
     while True:
         rows = ctx.runtime.skills.catalogue(refresh=True, include_disabled=True)
@@ -299,7 +285,6 @@ async def manager(ctx: Context) -> None:
             row = _row(ctx, choice)
             if row:
                 await skill_menu(ctx, row)
-
 
 @command("skills", "Скиллы: список, создание, правка и удаление прямо в терминале (можно попросить модель написать)",
          "Skills: browse, create, edit and delete right in the terminal (the model can draft one for you)",

@@ -30,61 +30,10 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from .config import DATA_DIR
 
-# --------------------------------------------------------------------------
-# Canonical names
-# --------------------------------------------------------------------------
-
-#: Words that describe how a model is run, not which model it is.
-_MODE_WORDS = ("thinking", "reasoning", "non-reasoning", "high", "low", "medium", "max", "xhigh",
-               "minimal", "latest", "preview", "exp", "experimental", "tiered",
-               "online", "free", "extended", "beta", "it", "hf", "gguf", "public")
-_DATE_RE = re.compile(r"[-_@](?:20\d{2}[-_]?\d{2}[-_]?\d{2}|\d{6,8})$")
-# "_" is already "-" when this runs, so "Q4_K_M" arrives as "q4-k-m".
-_QUANT_RE = re.compile(r"[-_.](?:q\d(?:[-_]k)?(?:[-_][msl0-9])*|iq\d[-_][a-z]+|bf16|f16|fp8|fp16|int4|int8|awq|gptq|mlx|4bit|8bit)$")
-
-
-# Round 21 (производительность): canonical/vision_hint/lookup_known — чистые
-# функции имени модели (десятки регулярных выражений), а окно MemuAI каждые
-# 3 секунды запрашивает состояние со всеми моделями. Результаты кэшируются.
-def canonical(model: str) -> str:
-    """``anthropic/Claude-Opus-5-5-20260901:thinking`` -> ``claude-opus-5.5``."""
-    return _canonical(str(model or ""))
-
-
-@lru_cache(maxsize=8192)
-def _canonical(text: str) -> str:
-    text = text.strip().lower()
-    parts = [part for part in text.split("/") if part]
-    # Yandex AI Studio URIs end in a version tag: gpt://<folder>/deepseek-v4.1-flash/latest. Taking
-    # "latest" as the name lost the family (no context, vision guessed «yes» even for gpt-oss).
-    while len(parts) > 1 and re.fullmatch(r"latest|rc|deprecated|\d{8}", parts[-1]):
-        parts.pop()
-    text = parts[-1] if parts else ""                 # vendor paths (OpenRouter, HF, Vertex)
-    text = re.split(r"[:@](?![0-9]{2}$)", text)[0]    # ":free", ":thinking", "@2025…"
-    text = re.sub(r"\(([^)]*)\)", r" \1 ", text)      # "Opus 5 (High)" -> "opus 5 high"
-    text = re.sub(r"[\s_]+", "-", text).strip("-.")
-    for _ in range(3):
-        text = _DATE_RE.sub("", text)
-        text = _QUANT_RE.sub("", text)
-        parts = text.split("-")
-        while len(parts) > 1 and parts[-1] in _MODE_WORDS:
-            parts.pop()
-        text = "-".join(parts)
-    # Version numbers: "4-5" -> "4.5", but not "k2-0905", "3-70b" or "3.1-8b" (a size).
-    text = re.sub(r"(?<=\d)-(?=\d(?:[^0-9bm]|$))", ".", text)
-    return text.strip("-.")
-
-
-# --------------------------------------------------------------------------
-# Catalogue of published limits
-# --------------------------------------------------------------------------
-# (regex over the canonical name, context tokens, max output tokens or None,
-#  display label). The first match wins, so specific rows go before general
-# ones. Figures are published limits; where a provider serves less, its own
-# number (recorded from its model list) takes priority over this table.
+from .model_contract import canonical, _canonical
 
 KNOWN: List[Tuple[str, int, Optional[int], str]] = [
-    # --- Anthropic ------------------------------------------------------
+
     (r"(?:mythos|fable)-?5\.1", 1_000_000, 128_000, "Claude Fable 5.1"),
     (r"(?:mythos|fable)-?5(?![.\d])", 1_000_000, 128_000, "Claude Fable 5"),
     (r"opus-?5\.5", 1_000_000, 128_000, "Claude Opus 5.5"),
@@ -92,7 +41,7 @@ KNOWN: List[Tuple[str, int, Optional[int], str]] = [
     (r"sonnet-?5(?![.\d])", 1_000_000, 128_000, "Claude Sonnet 5"),
     (r"opus-?4\.[678]", 1_000_000, 128_000, "Claude Opus 4.6–4.8"),
     (r"sonnet-?4\.6", 1_000_000, 128_000, "Claude Sonnet 4.6"),
-    (r"haiku-?4\.5|4\.5-?haiku", 200_000, 64_000, "Claude Haiku 4.5"),   # also Genspark's claude-4-5-haiku
+    (r"haiku-?4\.5|4\.5-?haiku", 200_000, 64_000, "Claude Haiku 4.5"),
     (r"sonnet-?4\.5", 200_000, 64_000, "Claude Sonnet 4.5"),
     (r"opus-?4\.5", 200_000, 64_000, "Claude Opus 4.5"),
     (r"opus-?4(?:\.1)?(?![.\d])", 200_000, 32_000, "Claude Opus 4 / 4.1"),
@@ -100,7 +49,7 @@ KNOWN: List[Tuple[str, int, Optional[int], str]] = [
     (r"claude-?3\.7|3\.7-?sonnet", 200_000, 64_000, "Claude Sonnet 3.7"),
     (r"claude-?3\.5|3\.5-?(?:sonnet|haiku)", 200_000, 8_192, "Claude 3.5"),
     (r"claude-?3", 200_000, 4_096, "Claude 3"),
-    # --- OpenAI -----------------------------------------------------------
+
     (r"gpt-?5(?:\.\d)?-?chat|chatgpt", 128_000, 16_384, "ChatGPT (chat-latest)"),
     (r"gpt-?(?:6|5\.[4-9])(?!-?(?:mini|nano))", 1_050_000, 128_000, "GPT-5.4+ / GPT-6"),
     (r"gpt-?5", 400_000, 128_000, "GPT-5"),
@@ -112,7 +61,7 @@ KNOWN: List[Tuple[str, int, Optional[int], str]] = [
     (r"gpt-?3\.5", 16_385, 4_096, "GPT-3.5 Turbo"),
     (r"gpt-?oss", 131_072, 131_072, "gpt-oss"),
     (r"(?<![a-z0-9])o[134](?:-?(?:mini|pro))?(?![a-z0-9])", 200_000, 100_000, "OpenAI o-series"),
-    # --- Google -------------------------------------------------------------
+
     (r"gemini-?1\.5-?pro", 2_097_152, 8_192, "Gemini 1.5 Pro"),
     (r"gemini-?1\.5", 1_048_576, 8_192, "Gemini 1.5"),
     (r"gemini-?(?:2|3)(?:\.\d)?.*image", 32_768, 32_768, "Gemini Image"),
@@ -120,14 +69,14 @@ KNOWN: List[Tuple[str, int, Optional[int], str]] = [
     (r"gemini-?pro", 32_760, 8_192, "Gemini 1.0 Pro"),
     (r"gemma-?3", 131_072, 8_192, "Gemma 3"),
     (r"gemma-?2", 8_192, 8_192, "Gemma 2"),
-    # --- xAI ------------------------------------------------------------------
+
     (r"grok-?4\.(?:[5-9]|1\d)", 500_000, None, "Grok 4.5+"),
     (r"grok-?4\.(?:2|3)", 1_000_000, None, "Grok 4.20 / 4.3"),
     (r"grok-?4\.1.*fast", 131_072, None, "Grok 4.1 Fast"),
     (r"grok-?(?:4|5)", 256_000, None, "Grok 4"),
     (r"grok-?(?:2|3)", 131_072, None, "Grok 2–3"),
     (r"grok-?code", 256_000, None, "Grok Code"),
-    # --- DeepSeek, Qwen, Moonshot, Zhipu, MiniMax, Meta, Mistral ---------------
+
     (r"deepseek-?v4", 1_048_576, None, "DeepSeek V4"),
     (r"deepseek-?(?:v3\.[1-9]|r1-?0528)", 163_840, 65_536, "DeepSeek V3.1+"),
     (r"deepseek-?r1", 64_000, 32_768, "DeepSeek R1"),
@@ -164,7 +113,6 @@ KNOWN: List[Tuple[str, int, Optional[int], str]] = [
 ]
 _KNOWN = [(re.compile(pattern), context, output, label) for pattern, context, output, label in KNOWN]
 
-#: Conservative defaults when only the family is recognisable.
 FAMILY_DEFAULTS: List[Tuple[str, int]] = [
     (r"claude|opus|sonnet|haiku|fable|mythos", 200_000),
     (r"gemini", 1_048_576),
@@ -174,22 +122,13 @@ FAMILY_DEFAULTS: List[Tuple[str, int]] = [
 ]
 _FAMILY = [(re.compile(pattern), context) for pattern, context in FAMILY_DEFAULTS]
 
-
-# --------------------------------------------------------------------------
-# Can the model look at a picture?
-# --------------------------------------------------------------------------
-# A name says a lot: a provider's catalogue only says "this provider takes images" (Genspark, Kiro, Antigravity and
-# any OpenAI-compatible endpoint all do for *some* models), and a text-only DeepSeek behind such an endpoint would be
-# marked "vision" too. The families below are checked against the canonical name; the first rule that fits wins.
-# ``None`` means "no idea" — callers then try the picture and learn from the answer.
-
 _NOT_CHAT = re.compile(r"(?<![a-z0-9])(?:embed\w*|whisper|tts|rerank\w*|moderation|dall-?e|gpt-image|imagen|flux|"
                        r"sdxl|stable-diffusion|seedream|kolors|recraft|ideogram|nano-banana)(?![a-z])|-image(?:-|$)")
 _SEES = re.compile(
     r"vision|visual|(?<![a-z0-9])vl(?![a-z])|[-.]vl[-.\d]|omni|multimodal|llava|moondream|minicpm-v|internvl|pixtral|"
     r"cogvlm|qvq|paligemma|molmo|smolvlm|idefics|florence|ovis|fuyu|janus|step-1v|glm-[45]\.?\d?v|kimi-vl|"
     r"deepseek-ocr|doubao-seed|ui-tars|llama-4|gemma-?[34](?!-1b)|(?<![a-z0-9])command-a-vision|aya-vision|"
-    # Open Qwen3.5+ weights are natively multimodal (checked live: qwen3.6-35b-a3b reads text off a picture).
+
     r"(?<![a-z0-9])qwen3\.[5-9]-\d+b")
 _BLIND = re.compile(
     r"(?<![a-z0-9])(?:gpt-3|text-davinci|babbage|davinci|"
@@ -204,28 +143,18 @@ _FAMILY_SEES = re.compile(
     r"o3(?!-mini)|o4|grok-4|mistral-(?:medium|large)-3|mistral-small-3\.[1-9]|kimi-k2\.[5-9]|kimi-k3|nova-(?:lite|pro|premier)|"
     r"sonnet|opus|haiku)")
 
-
-#: Round 31 (r31-quick): hosted Qwen 3.5+ tiers that are natively multimodal. ``canonical()`` drops the tier word
-#: («qwen3.8-max» → «qwen3.8»), so the raw name decides. Checked live (October 2026, real requests with a picture):
-#: qwen3.8-max and qwen3.7-flash read a picture, qwen3.7-max answers «I have no vision» (stays text-only through
-#: ``_BLIND``). Without this the Quick Access window refused pictures and Computer Use for a model that sees.
-#: Round 34 (r34-proxy, checked live through ReformBoss and OpenRouter's input_modalities, October 2026): Kimi K2.5+
-#: and K3 take pictures (K2.6 was «text-only» by the old ``kimi-k2(?!\.5)`` rule); deepseek-v4.1-flash and the
-#: glm-5.3 flash tiers read a picture while plain deepseek-v4-flash / glm-5.3 answer «I don't see any image».
 _RAW_SEES = re.compile(r"(?<![a-z0-9])qwen-?3\.[5-9]-(?:plus|flash|omni|vl)(?![a-z])|(?<![a-z0-9])qwen-?3\.(?:[89]|\d{2})-max(?![a-z])"
                        r"|(?<![a-z0-9])deepseek-v4\.[1-9]-flash(?![a-z])|(?<![a-z0-9])glm-?5\.[3-9]-flash")
-
 
 def vision_hint(model: str) -> Optional[bool]:
     """Does a model of this name accept pictures? ``True`` / ``False`` from the family it belongs to, ``None`` when
     the name says nothing (an unknown fine-tune, a private deployment)."""
     raw = str(model or "").lower()
-    # Round 33 (r33-models): «qwen3-8-flash» is the same model as «qwen3.8-flash» (gateways list both spellings).
+
     raw = re.sub(r"(?<=\d)[-_](?=\d(?:[^0-9bm]|$))", ".", raw)
     if _RAW_SEES.search(raw) and not _NOT_CHAT.search(raw):
         return True
     return _vision_hint(canonical(model))
-
 
 @lru_cache(maxsize=8192)
 def _vision_hint(name: str) -> Optional[bool]:
@@ -241,11 +170,9 @@ def _vision_hint(name: str) -> Optional[bool]:
         return True
     return None
 
-
 def lookup_known(model: str) -> Optional[Dict[str, Any]]:
     found = _lookup_known_cached(canonical(model))
-    return dict(found) if found is not None else None   # копия: вызывающие меняют словарь
-
+    return dict(found) if found is not None else None
 
 @lru_cache(maxsize=8192)
 def _lookup_known_cached(name: str) -> Optional[Tuple[Tuple[str, Any], ...]]:
@@ -257,27 +184,19 @@ def _lookup_known_cached(name: str) -> Optional[Tuple[Tuple[str, Any], ...]]:
             return tuple({"context": context, "output": None, "label": "", "source": "family"}.items())
     return None
 
-
-# --------------------------------------------------------------------------
-# Numbers learned from providers
-# --------------------------------------------------------------------------
-
 _lock = threading.Lock()
 _learned: Dict[str, Dict[str, Any]] = {}
 _loaded = False
 _save_timer: Optional[threading.Timer] = None
 
-#: Field names that OpenAI-compatible model lists use for the window.
 CONTEXT_FIELDS = ("context_length", "context_window", "max_context_length", "max_model_len",
                   "max_input_tokens", "input_token_limit", "inputTokenLimit", "maxTokens",
                   "max_seq_len", "contextLength", "context_size", "n_ctx")
 OUTPUT_FIELDS = ("max_output_tokens", "output_token_limit", "outputTokenLimit", "maxOutputTokens",
                  "max_completion_tokens", "max_tokens")
 
-
 def _path() -> str:
     return os.path.join(DATA_DIR, "model-info.json")
-
 
 def _ensure_loaded() -> None:
     global _loaded
@@ -292,10 +211,8 @@ def _ensure_loaded() -> None:
     except (OSError, ValueError):
         pass
 
-
 def _key(prefix: str, model: str) -> str:
     return f"{str(prefix or '').lower()}::{str(model or '')}"
-
 
 def _as_tokens(value: Any) -> Optional[int]:
     try:
@@ -303,7 +220,6 @@ def _as_tokens(value: Any) -> Optional[int]:
     except (TypeError, ValueError):
         return None
     return number if 1_000 <= number <= 100_000_000 else None
-
 
 def extract_limits(row: Dict[str, Any]) -> Tuple[Optional[int], Optional[int]]:
     """Context/output numbers from one model-list row of any common shape."""
@@ -325,7 +241,6 @@ def extract_limits(row: Dict[str, Any]) -> Tuple[Optional[int], Optional[int]]:
         output = _as_tokens(row["top_provider"].get("max_completion_tokens"))
     return context, output
 
-
 def record(prefix: str, model: str, *, context: Optional[int] = None, output: Optional[int] = None,
            source: str = "api") -> None:
     """Remember what a provider reported. Saved in the background, never blocks."""
@@ -343,11 +258,10 @@ def record(prefix: str, model: str, *, context: Optional[int] = None, output: Op
             return
         _learned[key] = {**row, "ts": int(time.time())}
         if _save_timer is None:
-            # One save for a whole model list, not one per row.
+
             _save_timer = threading.Timer(1.5, flush)
             _save_timer.daemon = True
             _save_timer.start()
-
 
 def record_rows(prefix: str, rows: Iterable[Dict[str, Any]], *, id_field: str = "id",
                 source: str = "api") -> int:
@@ -362,7 +276,6 @@ def record_rows(prefix: str, rows: Iterable[Dict[str, Any]], *, id_field: str = 
             count += 1
     return count
 
-
 def flush() -> None:
     global _save_timer
     with _lock:
@@ -374,16 +287,10 @@ def flush() -> None:
     except Exception:
         pass
 
-
 def learned(prefix: str, model: str) -> Optional[Dict[str, Any]]:
     with _lock:
         _ensure_loaded()
         return dict(_learned.get(_key(prefix, model)) or {}) or None
-
-
-# --------------------------------------------------------------------------
-# Resolution
-# --------------------------------------------------------------------------
 
 def resolve(prefix: str, provider: str, model: str) -> Dict[str, Any]:
     """Best known limits for one catalogue entry, with where they came from."""

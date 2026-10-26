@@ -1,16 +1,5 @@
-/* DFY на машинах (Раунд 30, пункт 1а) — window.MemuDFYRemote.
 
-   Один файл для трёх мест, потому что данные у них одни (список целей и выбранная цель):
-   * Настройки → Do For You → «Удалённые машины»: добавить машину (команда установки агента
-     одной строкой, скачивание агента, systemd, SSH), статус онлайн/ОС, прокси машины, удалить
-     (sectionHtml/bindSection — их зовёт dfy-settings.js);
-   * выбор цели (Этот браузер / Этот компьютер / машина) рядом с полем ввода чата и в окне
-     быстрого доступа — mount сам находит, где он работает;
-   * карточка задачи: чип цели, вывод команды в шаге, подтверждение опасного шага с командой
-     (targetChip/stepExtra/confirmHtml зовут dfy-client.js и quick-dfy.js).
 
-   API: /api/dfy/remote/* (app/dfy_remote_api.py) и /api/dfy/proxy?machine=ID (app/dfy_api.py).
-   Токены и пароли только на запись: сервер их не возвращает, в DOM они не живут дольше запроса. */
 (function () {
   "use strict";
   if (window.MemuDFYRemote) return;
@@ -20,7 +9,7 @@
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const STORE = "memu_dfy_target";
   const OS_NAME = { linux: "Linux", windows: "Windows", darwin: "macOS" };
-  // A small «server» glyph: emoji (🐧) has no glyph in every font (tofu in WebView2 without Segoe UI Emoji).
+
   const ICON = '<svg class="dfy-ico" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><path d="M7 7.5h.01M7 16.5h.01"/></svg>';
 
   async function api(path, options) {
@@ -32,7 +21,6 @@
   }
   const send = (method, path, body) => api(path, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
 
-  /* --------------------------------------------------------------- state --- */
   const S = { targets: null, at: 0, local: false, loading: null };
   const BROWSER = () => ({ id: "", name: T("Этот браузер", "This browser"), kind: "browser" });
 
@@ -68,7 +56,6 @@
     return id === "local" ? T("Этот компьютер", "This computer") : id;
   }
 
-  /* «/dfy @сервер поставь nginx» или выбранная цель над полем ввода. */
   function parseCommand(text) {
     const goal = String(text || "").trim();
     const match = goal.match(/^@([\wа-яё .-]{1,60}?)[\s,:]+(.+)$/is);
@@ -81,7 +68,6 @@
     return { goal, target: selected() };
   }
 
-  /* --------------------------------------------- карточка задачи (dfy-client) --- */
   function targetChip(target) {
     if (!target || !target.id) return "";
     const os = OS_NAME[String(target.os || "").toLowerCase()] || "";
@@ -106,11 +92,11 @@
     file_write: ["Перезаписать файл", "Overwrite a file"], package: ["Пакет", "Package"],
     process_kill: ["Завершить процесс", "Kill a process"], download: ["Скачать файл", "Download a file"],
   };
-  /* Подтверждение шага на машине: что именно, где и почему опасно (команда — отдельным блоком). */
+
   function confirmBody(q) {
     const title = ACTION_TITLE[q.action] || ["Действие на машине", "Action on the machine"];
     const shell = q.action === "shell" && q.detail ? String(q.detail).replace(/^\$\s*/, "") : "";
-    // The server sends «why it is dangerous\n\nthe question»: the title and the command already say the first part.
+
     const last = String(q.prompt || "").split(/\n\s*\n/).pop();
     const prompt = shell ? last.split("\n").filter((line) => line.trim() && line.trim() !== "$ " + shell && line.trim() !== shell).join("\n") : last;
     return `<div class="dfy-q-head"><b>${esc(en() ? title[1] : title[0])}</b><span class="dfy-chip dfy-chip--target">${esc(q.machine || "")}</span></div>
@@ -123,7 +109,6 @@
       <button class="dfy-btn" data-dfy="reject">${T("Не надо", "Don't")}</button></div></div>`;
   }
 
-  /* ------------------------------------------------------- выбор цели в чате --- */
   const PICKER_ID = "dfy-target-picker";
   function pickerHtml() {
     const id = selected();
@@ -148,7 +133,7 @@
       host.appendChild(box);
     }
     const paint = () => {
-      box.hidden = !(S.targets || []).length;        // нет машин — ничего лишнего в композере
+      box.hidden = !(S.targets || []).length;
       if (!box.hidden) box.innerHTML = pickerHtml();
     };
     listeners.add(paint);
@@ -156,7 +141,6 @@
     return paint;
   }
 
-  /* ------------------------------------------------- настройки: раздел машин --- */
   function machineRow(ctx, row) {
     const e = ctx.esc;
     const L = ctx.L;
@@ -291,7 +275,6 @@
       targets(true);
     });
 
-    /* --- добавление --- */
     const form = document.getElementById("st-dfy-machine-form");
     on(document.getElementById("st-dfy-machine-add"), "click", async (ev) => {
       if (!form.hidden) { form.hidden = true; return; }
@@ -351,7 +334,6 @@
       }
     });
 
-    /* --- строки машин --- */
     on(box, "click", async (e) => {
       const proxyAct = e.target.closest("[data-proxy-act]");
       if (proxyAct) return proxyAction(proxyAct);
@@ -435,7 +417,6 @@
     }
   }
 
-  /* ------------------------------------------------------------- быстрый доступ --- */
   function mountQuick() {
     const Q = window.MemuQuick;
     if (!Q || !Q.registerPanel) return;
@@ -456,7 +437,6 @@
     if (Q.on) Q.on("open", () => targets(true).then(paint));
   }
 
-  /* --------------------------------------------------------------- загрузка --- */
   function boot() {
     document.addEventListener("click", (e) => {
       const copyButton = e.target.closest("[data-dfy-copy]");

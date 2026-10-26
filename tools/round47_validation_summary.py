@@ -13,15 +13,12 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build"
 
-
 def require(value, message):
     if not value:
         raise AssertionError(message)
 
-
 def read(name):
     return (BUILD / name).read_text("utf-8", errors="replace")
-
 
 def main():
     rows = {}
@@ -43,7 +40,7 @@ def main():
         output = read(name)
         match = re.search(r"(\d+) passed in", output)
         require(match and int(match[1]) == count and "FAILED" not in output, "UI gate failed: " + name)
-        # These two pytest modules also occur in the isolated backend gate.
+
         overlap = sum(rows[module]["passed"] for module in ("round44_music_test", "round44_pricing_layout_test"))
         extra.append({"gate": name, "passed": count - overlap, "raw_passed": count,
                       "already_counted": overlap})
@@ -101,7 +98,6 @@ def main():
     (BUILD / "round47-validation-summary.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), "utf-8")
     print(json.dumps({"passed_total": result["passed_total"], "modules": len(rows),
                       "skipped": result["python"]["skipped"], "artifacts": artifacts}, ensure_ascii=False, indent=2))
-
 
 if __name__ == "__main__":
     main()

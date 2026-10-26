@@ -24,16 +24,13 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r33-quick-sett
 os.environ["MEMUAI_ASSISTANT_NO_WARM"] = "1"
 CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
 
-
 def post(base: str, path: str, body: dict) -> dict:
     request = urllib.request.Request(base + path, data=json.dumps(body).encode(), headers={"Content-Type": "application/json"},
                                      method="POST")
     return json.loads(urllib.request.urlopen(request, timeout=20).read() or b"{}")
 
-
 def get(base: str, path: str) -> dict:
     return json.loads(urllib.request.urlopen(base + path, timeout=20).read() or b"{}")
-
 
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
@@ -67,7 +64,7 @@ async def main(out: Path) -> int:
                 except Exception:
                     pass
                 await page.wait_for_timeout(600)
-                for _ in range(30):            # the second start shows the splash longer: retry until Settings opens
+                for _ in range(30):
                     await page.keyboard.press("Control+Comma")
                     await page.wait_for_timeout(700)
                     if await page.locator('[data-set-tab="quick"]').count():
@@ -102,13 +99,13 @@ async def main(out: Path) -> int:
                     text = await box.inner_text()
                     cyr = [w for w in text.split() if any("\u0400" <= ch <= "\u04ff" for ch in w)]
                     check(not cyr, f"{tag}: Cyrillic in English settings: {cyr[:6]}")
-                # the wait is saved as a number
+
                 num = box.locator('input[data-set="router_timeout"]')
                 await num.fill("6")
                 await num.press("Tab")
                 await page.wait_for_timeout(900)
                 check(get(base, "/api/assistant/config")["settings"]["router_timeout"] == 6, f"{tag}: timeout saved")
-                # «off» hides the model rows and is saved (the change handler re-renders)
+
                 if design == "classic":
                     await page.evaluate("""() => { const s = document.querySelector('[data-sx-sub="quick-commands"] select[data-set="ai_router"]');
                         s.value = 'off'; s.dispatchEvent(new Event('change', {bubbles: true})); }""")
@@ -124,7 +121,6 @@ async def main(out: Path) -> int:
     for p in problems:
         print(" -", p)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/r33-quick-settings"))))

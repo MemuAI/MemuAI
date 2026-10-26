@@ -17,14 +17,12 @@ MAX_INSTALLER_SIZE = 1024 * 1024 * 1024
 _VERSION = r"\d{1,6}(?:\.\d{1,6}){1,3}"
 _SETUP = re.compile(rf"^MemuAI-Setup-([vV]?{_VERSION})\.exe$", re.I)
 
-
 def installer_environment() -> dict[str, str]:
     """Start an independent frozen installer, rather than a child of our bootloader."""
     env = {key: value for key, value in os.environ.items()
            if not key.upper().startswith("_PYI_") and key.upper() not in {"_MEIPASS2", "TCL_LIBRARY", "TK_LIBRARY"}}
     env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
     return env
-
 
 class _ReleaseAssets(HTMLParser):
     """Read download links and their corresponding digests from GitHub's asset rows."""
@@ -50,7 +48,6 @@ class _ReleaseAssets(HTMLParser):
             self.assets.append(self.row)
             self.row = {}
 
-
 async def _github_page_payload(client) -> dict:
     response = await client.get(RELEASES_URL + "/latest", timeout=15, follow_redirects=True)
     response.raise_for_status()
@@ -64,10 +61,9 @@ async def _github_page_payload(client) -> dict:
     https_url(str(listing.url))
     parser = _ReleaseAssets()
     parser.feed(listing.text)
-    # A rate-limit fallback must not downgrade verification to an unchecked exe.
+
     assets = [a for a in parser.assets if a.get("digest")]
     return {"tag_name": tag, "html_url": str(response.url), "assets": assets}
-
 
 async def fetch_payload(client, source: str) -> dict:
     https_url(source)
@@ -87,7 +83,6 @@ async def fetch_payload(client, source: str) -> dict:
         raise ValueError("Некорректный ответ сервера обновлений / Invalid update response")
     return decoded
 
-
 def version_number(value: object) -> tuple[int, ...] | None:
     text = str(value or "").strip()
     if not re.fullmatch(rf"[vV]?{_VERSION}", text):
@@ -95,14 +90,12 @@ def version_number(value: object) -> tuple[int, ...] | None:
     parts = tuple(int(p) for p in text.lstrip("vV").split("."))
     return parts + (0,) * (4 - len(parts))
 
-
 def https_url(value: object) -> str:
     text = str(value or "").strip()
     parsed = urlsplit(text)
     if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
         raise ValueError("Некорректный HTTPS-адрес обновления / Invalid update HTTPS URL")
     return text
-
 
 def release_offer(payload: dict, current: str) -> dict:
     """Read GitHub Releases or the existing custom JSON manifest format.
@@ -145,7 +138,6 @@ def release_offer(payload: dict, current: str) -> dict:
     result.update(status="available", update_available=True, download_url=https_url(url),
                   sha256=digest, size=size)
     return result
-
 
 def verify_installer(path: Path, size: int = 0, sha256: str = "") -> None:
     actual = path.stat().st_size

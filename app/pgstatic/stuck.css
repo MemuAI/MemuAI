@@ -1,7 +1,3 @@
-/* MemuAI · Round 29 — the stuck-detector pause card (stuck.js).
-   Theme tokens only (--panel, --text, --muted, --accent, --border, --danger; Quick Access: --qa-*), so every
-   design (aurora, focus, grid, glass, soft, terminal, brutal) and both themes keep their own look. */
-
 .memu-stuck {
   --stuck-acc: color-mix(in srgb, #d79a2b 70%, var(--accent, #7c6cf0));
   --stuck-line: var(--sx-line, var(--border, var(--line, rgba(127, 127, 127, .28))));
@@ -85,22 +81,14 @@
 .memu-stuck-error:empty { display: none; }
 .memu-stuck.is-busy { opacity: .75; }
 .memu-stuck.is-done { opacity: .5; pointer-events: none; }
-
-/* compact (Quick Access, DFY card) */
 .memu-stuck.compact { padding: 10px 11px; font-size: 13px; }
 .memu-stuck.compact .memu-stuck-head > .memu-stuck-ic { width: 26px; height: 26px; padding: 6px; }
 .memu-stuck.compact .memu-stuck-steps { max-height: 110px; }
 .memu-stuck.compact .memu-stuck-btn { padding: 5px 10px; font-size: 12.5px; }
-
-/* inside a DFY task card: the DFY question frame stays, the card fills it */
 .dfy-q.memu-stuck-dfy { padding: 0; border: 0; background: none; }
 .memu-stuck-dfy .memu-stuck { margin-top: 8px; }
-
-/* the dock above the composer of the main window */
 .memu-stuck-dock { margin: 0 auto 8px; max-width: var(--composer-max, 820px); width: 100%; box-sizing: border-box; }
 .memu-stuck-dock[hidden] { display: none; }
-
-/* designs */
 [data-design="terminal"] .memu-stuck, [data-design="brutal"] .memu-stuck { border-radius: 4px; box-shadow: none; }
 [data-design="terminal"] .memu-stuck-btn, [data-design="brutal"] .memu-stuck-btn { border-radius: 4px; }
 [data-design="brutal"] .memu-stuck { border-width: 2px; }

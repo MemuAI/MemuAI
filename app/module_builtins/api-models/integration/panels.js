@@ -1,7 +1,5 @@
-/* Round 38: «Новые модели API» panel on the MemuAI home screen — the freshest models the background monitor found,
-   their provider and price per 1M tokens (public OpenRouter catalogue, read and cached on the server).
-   Data: Memu.panel.data() → app/module_integration_data.py. Re-read only when the card returns on screen after
-   five minutes — the monitor itself checks at most every few hours. */
+
+
 (function () {
   "use strict";
   var M = window.Memu, P = M && M.panel;

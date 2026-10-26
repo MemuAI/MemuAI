@@ -1,9 +1,9 @@
-// MemuNote — AI: status, streaming client, chat side panel, inline AI commands with a result card,
-// ghost-text autocomplete. Everything degrades gracefully when MemuAI Proxy is not running.
+
+
 import { $, api, esc, icon, t, toast, showMenu, copyText, uid, debounce, palette, countWords, fmtBytes } from "./core.js";
 import { renderMarkdown } from "./views.js";
-import * as BigDocs from "./bigdocs.js";   // Round 35: documents of any size (PDF / DOCX / EPUB opened from disk)
-import { TabContext, SheetProposal } from "./ai-multi.js";   // Round 40 (r40-note): several tabs, spreadsheet edits
+import * as BigDocs from "./bigdocs.js";
+import { TabContext, SheetProposal } from "./ai-multi.js";
 import { CM } from "./editor.js";
 import { aic, buildContext, sectionAt, resolveEdit, buildHunks, diffHtml, MARKERS_RE, Proposal, StreamWriter, ensureAIFields,
   setEditLabels, toDocHtml, docOutline } from "./ai-edit.js";
@@ -49,7 +49,6 @@ export const COMMANDS = [
   { id: "fix_code", icon: "code", label: "ai_fix_code", transform: true, code: true },
 ];
 
-/** Stream one request. handlers: {delta(text), reasoning(text), search(data), done(info), error(msg), start(info)} → {stop()} */
 export function stream(body, handlers) {
   const id = uid();
   const ctrl = new AbortController();
@@ -57,7 +56,7 @@ export function stream(body, handlers) {
   (async () => {
     try {
       const res = await api("ai/chat", { ...body, id, model: body.model || AI.model }, { stream: true, signal: ctrl.signal });
-      if (!res.ok) { let msg = "HTTP " + res.status; try { const d = await res.json(); msg = d.error || msg; } catch { /* ignore */ } const err = new Error(msg); err.status = res.status; throw err; }
+      if (!res.ok) { let msg = "HTTP " + res.status; try { const d = await res.json(); msg = d.error || msg; } catch {  } const err = new Error(msg); err.status = res.status; throw err; }
       const reader = res.body.getReader(); const dec = new TextDecoder(); let buf = "";
       for (;;) {
         const { value, done } = await reader.read();
@@ -75,7 +74,7 @@ export function stream(body, handlers) {
           else if (ev.t === "memory") handlers.memory?.(ev);
           else if (ev.t === "error") { finished = true; handlers.error?.(errorText(ev.message, ev.kind), ev.kind, ev.status, ev.message); }
           else if (ev.t === "done") { finished = true; handlers.done?.(ev); }
-          else if (ev.t && ev.t.startsWith("edit")) handlers[ev.t]?.(ev);     // agent mode: edit_start / edit_progress / edit / edit_invalid
+          else if (ev.t && ev.t.startsWith("edit")) handlers[ev.t]?.(ev);
         }
       }
       if (!finished) handlers.done?.({});
@@ -93,11 +92,6 @@ function errorText(msg, kind) {
   return String(msg || t("ai_error"));
 }
 
-// ------------------------------------------------------------------ AI side panel (Round 31: redesign + agent mode)
-// Layout: header (orb, model picker with status, new chat / more / collapse / close) → conversation (markdown,
-// code blocks with copy/insert, edit-proposal cards with inline diff in the editor) → dock (preset chips,
-// composer with context chips: document / selection / section, mode Chat|Edit, auto-apply, web, memory, send/stop).
-// Collapsed it becomes a slim rail. Styles: ai-panel.css (MemuAI tokens from /api/boot, light + dark).
 (function loadPanelCss() {
   if (document.querySelector('link[data-ai-panel-css]')) return;
   const link = document.createElement("link"); link.rel = "stylesheet"; link.href = "ai-panel.css?v=r40"; link.dataset.aiPanelCss = "1";
@@ -121,8 +115,8 @@ const PRESETS = [
 ];
 const OPS_KNOWN = ["replace", "replace_all", "delete", "insert", "replace_selection", "rewrite_section", "new_document", "transform"];
 const SUGGESTIONS = ["ai_sug_1", "ai_sug_2", "ai_sug_3", "ai_sug_4"];
-const ls = { get: (k, d) => { try { const v = localStorage.getItem("mn_ai_" + k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("mn_ai_" + k, JSON.stringify(v)); } catch { /* private mode */ } } };
-/** "xkiro-qwen/qwen3.8-max:free" → "qwen3.8-max:free" (the part a person recognises). */
+const ls = { get: (k, d) => { try { const v = localStorage.getItem("mn_ai_" + k); return v == null ? d : JSON.parse(v); } catch { return d; } }, set: (k, v) => { try { localStorage.setItem("mn_ai_" + k, JSON.stringify(v)); } catch {  } } };
+
 export function shortModel(id) { const s = String(id || ""); const tail = s.includes("/") ? s.slice(s.lastIndexOf("/") + 1) : s; return tail || s; }
 const modelLabel = (id) => { const m = AI.models.find((x) => x.id === id); return m?.label && m.label !== id ? m.label : shortModel(id); };
 
@@ -138,7 +132,7 @@ function errorInfo(msg, kind, status) {
 }
 
 export class ChatPanel {
-  /** host: aside element; ctx: aiCtx() of app.js ({editor(), viewFor(id), docFor(id), activate(id), insert, replace, newTab, command, close, settings, saveSetting}) */
+
   constructor(host, ctx) {
     this.host = host; this.ctx = ctx; this.messages = []; this.busy = null; this.proposals = [];
     this.flags = { web: !!ctx.settings().ai_web_search, memory: ctx.settings().ai_memory !== false };
@@ -192,9 +186,9 @@ export class ChatPanel {
       else if (e.key === "Escape" && this.busy) { e.preventDefault(); this.stop(); }
     });
     this.send.onclick = () => (this.busy ? this.stop() : this.submit());
-    // keep the context chips in step with the editor selection
+
     this.refreshScope = debounce(() => this.renderScope(), 160);
-    host._aipOwner = this;     // the panel is rebuilt on a language change: the old instance must go quiet
+    host._aipOwner = this;
     this._sel = () => { if (this.dead()) return; if (!this.host.hidden) this.refreshScope(); };
     document.addEventListener("selectionchange", this._sel);
     document.addEventListener("keyup", this._sel, true);
@@ -202,7 +196,7 @@ export class ChatPanel {
     this.host.addEventListener("pointerenter", this._sel);
     document.addEventListener("input", this._sel, true);
     this.input.addEventListener("focus", this._sel);
-    // programmatic changes (AI edits, tab switches, file reloads) fire no DOM events: a cheap signature check
+
     this._sig = "";
     this._poll = setInterval(() => {
       if (this.dead()) return;
@@ -227,10 +221,9 @@ export class ChatPanel {
     this.busy?.stop();
     return true;
   }
-  // ---------------------------------------------------------------- chrome
+
   onClick(e) {
-    // After a language change the panel is rebuilt on the same host element: the old instance's listener is
-    // still attached and used to run every click twice (code "Insert" inserted twice, "Auto" toggled back).
+
     if (this.dead()) return;
     const link = e.target.closest("a[href], a[data-url]");
     if (link && this.log.contains(link)) {
@@ -300,7 +293,7 @@ export class ChatPanel {
   renderPresets() {
     $(".aip-presets", this.host).innerHTML = PRESETS.map((p) => `<button class="aip-chip" data-p="${p.id}" title="${esc(t(p.hint || p.label))}">${icon(p.icon)}<span>${esc(t(p.label))}</span>${p.params ? icon("chevron", "small") : ""}</button>`).join("");
   }
-  /** Snapshot of the active editor: text window, selection, cursor (huge files: a window, not the whole text). */
+
   snapshot() {
     const ed = this.ctx.editor?.(); if (!ed) return null;
     const snap = { tabId: ed.tab.id, name: ed.name, kind: ed.kind, readOnly: ed.readOnly, offset: 0, view: ed.view, doc: ed.doc };
@@ -317,7 +310,7 @@ export class ChatPanel {
       const at = sel ? snap.text.indexOf(sel) : -1;
       snap.selFrom = at >= 0 ? at : snap.text.length; snap.selTo = at >= 0 ? at + sel.length : snap.text.length; snap.cursor = snap.selTo;
       snap.selText = sel;
-    } else if (ed.tab.kind === "sheet" && ed.tab.comp?.plan) {      // Round 40: the grid is edited with set_cells / add_column / add_sheet
+    } else if (ed.tab.kind === "sheet" && ed.tab.comp?.plan) {
       snap.text = ed.tab.comp.text(); snap.total = snap.text.length; snap.selFrom = snap.selTo = snap.cursor = 0;
       snap.sheet = true; snap.noEdit = !ed.tab.sheetEditable;
     } else { snap.text = ed.text?.() || ""; snap.total = snap.text.length; snap.selFrom = snap.selTo = snap.cursor = 0; snap.noEdit = true; }
@@ -340,8 +333,8 @@ export class ChatPanel {
     box.innerHTML = chip("document", "docScope", snap.name || t("ai_scope_document"), docSub, false)
       + (hasSel || this.scope === "selection" ? chip("selection", "selScope", t("ai_scope_selection"), t("ai_lines_n", { n: selLines }), !hasSel) : "")
       + (sec ? chip("section", "section", "§ " + sec.title.slice(0, 40), "", false) : "");
-    BigDocs.bar(this, box, snap);   // Round 35: «Спросить / Весь документ» for a document bigger than the window
-    box.insertAdjacentHTML("beforeend", this.tabCtx.html(snap.total || 0));   // Round 40: other tabs with ticks + budget
+    BigDocs.bar(this, box, snap);
+    box.insertAdjacentHTML("beforeend", this.tabCtx.html(snap.total || 0));
   }
   renderEmpty() {
     const has = this.messages.length || this.log.querySelector(".msg");
@@ -367,13 +360,13 @@ export class ChatPanel {
   }
   pickModel(anchor) {
     if (!AI.online) { refreshStatus(true); return; }
-    // Round 33 (r33c-models-lists): the readable name, the full id beside it (as in every MemuAI model list).
+
     const items = AI.models.map((m) => ({ label: m.label && m.label !== m.id ? m.label : shortModel(m.id), hint: m.label && m.label !== m.id ? m.id : (m.id !== shortModel(m.id) ? m.id.slice(0, m.id.length - shortModel(m.id).length).replace(/[-/]+$/, "") : (m.family || m.provider)), checked: m.id === AI.model,
       run: () => { AI.model = m.id; this.ctx.saveSetting({ ai_model: m.id }); listeners.forEach((fn) => fn(AI)); } }));
     if (items.length > 14) { palette(items, { placeholder: t("ai_model_search") }); return; }
     showMenu([{ header: t("ai_model") }, ...items], anchor);
   }
-  /** Language change: take over the conversation of the previous instance (bubbles, history, pending edits). */
+
   adopt(old) {
     if (!old || old === this) return;
     old.busy?.stop(); old.busy = null;
@@ -440,12 +433,11 @@ export class ChatPanel {
   renderBody(body, text, sources = []) {
     const l = this.log, pinned = l.scrollHeight - l.scrollTop - l.clientHeight < 80;
     body.innerHTML = citeLinks(renderMarkdown(text) || "", sources);
-    if (this.bigdocRefs) BigDocs.decorate(body, this.bigdocRefs);   // Round 35: [стр. N] → the quote on hover
+    if (this.bigdocRefs) BigDocs.decorate(body, this.bigdocRefs);
     enhanceCode(body);
-    if (pinned) l.scrollTop = l.scrollHeight;      // follow the answer unless the user scrolled up to read
+    if (pinned) l.scrollTop = l.scrollHeight;
   }
 
-  // ---------------------------------------------------------------- entry points
   submit(text) {
     text = (text ?? this.input.value).trim();
     if (!text || !this.guard()) return;
@@ -456,10 +448,10 @@ export class ChatPanel {
     this.input.placeholder = t("ai_ctx_loading");
     this.tabCtx.collect().then(go, () => go([])).finally(() => this.renderMode());
   }
-  /** Round 40: the picked tabs under the user's message and in the request body. */
+
   docsTag(docs) { return docs?.length ? docs.map((d) => `<span class="msg-doc">${aic("docScope")}${esc(d.name)}${d.truncated ? ` <small>${esc(t("ai_ctx_trunc"))}</small>` : ""}</span>`).join("") : ""; }
   docsBody(docs) { return docs?.length ? docs.map((d) => ({ id: d.ref, name: d.name, kind: d.kind, text: d.text, total_chars: d.total_chars, truncated: d.truncated })) : undefined; }
-  /** app.js: non-transform commands (summarize, explain…) from menus → an answer in the panel. */
+
   ask(action, inputText, extra = {}) {
     if (!this.guard()) return;
     const label = t(COMMANDS.find((c) => c.id === action)?.label || action);
@@ -482,10 +474,10 @@ export class ChatPanel {
     this.userBubble(text, this.scopeTag(scope, snap) + this.docsTag(docs));
     this.messages.push({ role: "user", content: text });
     this.bigdocRefs = null;
-    if (BigDocs.applies(this, snap) && !docs.length) { BigDocs.answer(this, text, snap, AI.model); return; }   // Round 35: the whole file
+    if (BigDocs.applies(this, snap) && !docs.length) { BigDocs.answer(this, text, snap, AI.model); return; }
     this.runAnswer({ action: "chat", docs: this.docsBody(docs) }, snap, scope);
   }
-  /** A streamed Markdown answer (chat / summarize / explain…) with insert/replace/copy actions. */
+
   runAnswer(req, snap, scope = "auto") {
     const { ctx } = this.contextFor(snap, scope);
     const bubble = this.assistantBubble();
@@ -554,7 +546,6 @@ export class ChatPanel {
     else if (btn.dataset.code === "insert") this.ctx.insert(text);
   }
 
-  // ---------------------------------------------------------------- agent mode: the model edits the document
   target(snap) {
     const tabId = snap.tabId;
     const kind = snap.view ? "cm" : snap.doc ? "doc" : "none";
@@ -567,7 +558,7 @@ export class ChatPanel {
       toast: (key) => toast(t(key), { kind: "error" }),
     };
   }
-  /** Round 40: a proposal target for another picked tab (text editor or rich document). */
+
   multiTarget(d) {
     const id = d.id;
     return { kind: d.editKind === "doc" ? "doc" : "cm", tabId: id, title: d.name,
@@ -585,7 +576,7 @@ export class ChatPanel {
     const ext = { csv: ".csv", markdown: ".md", text: ".txt" }[kind] || "";
     this.ctx.newTab(text, { title: title ? (/\.\w{1,5}$/.test(title) ? title : title + ext) : undefined, kind: kind === "csv" ? "csv" : kind });
   }
-  /** Round 40: one agent edit for a picked tab → its proposal (resolved against that tab's full text). */
+
   addTo(p, edit, d) {
     if (p instanceof SheetProposal) { p.add(edit); return; }
     if (edit.op === "new_document") { p.add([{ from: 0, to: 0, insert: edit.text }], { op: edit.op, virtual: true, title: edit.title, docKind: edit.kind, incomplete: edit.incomplete }); return; }
@@ -614,7 +605,7 @@ export class ChatPanel {
     if (proposal && docs.length) proposal.target.title = snap.name;
     const card = document.createElement("div"); card.className = "aip-card"; card.hidden = true; extra.append(card);
     if (proposal) { this.proposals.push(proposal); card._proposal = proposal; }
-    // Round 40: edits for the other picked tabs — one proposal + card per tab, applied in that tab
+
     const extras = new Map();
     const extraFor = (ref) => {
       if (extras.has(ref)) return extras.get(ref);
@@ -627,19 +618,18 @@ export class ChatPanel {
     const SHEET_OPS = ["set_cells", "add_column", "add_sheet"];
     const routeOf = (edit) => {
       if (edit.doc && edit.doc !== "d0") return edit.doc;
-      if (!edit.doc && SHEET_OPS.includes(edit.op) && !snap?.sheet) {    // a spreadsheet edit without doc=: the picked workbook
+      if (!edit.doc && SHEET_OPS.includes(edit.op) && !snap?.sheet) {
         const sheets = docs.filter((d) => d.editKind === "sheet");
         return (sheets.find((d) => edit.sheet && d.full.includes("## Sheet: " + edit.sheet + " (")) || sheets[0])?.ref || "";
       }
       return "";
     };
-    const live = new Map();     // edit index → placeholder {op, chars, preview}
+    const live = new Map();
     card._live = live;
     let prose = "", sources = [];
     const editsLog = [];
     this.setBusy(true);
-    // The edit card grows by whole hunks (often > 160 px at once), so "near the bottom" lost track and the
-    // "Apply all" row ended under the input. Follow the answer until the user scrolls up themselves (finisher).
+
     let userScrolled = false;
     const markScrolled = (e) => { if (!(e.deltaY > 0)) userScrolled = true; };
     this.log.addEventListener("wheel", markScrolled, { passive: true });
@@ -662,7 +652,7 @@ export class ChatPanel {
       if (edit.op === "new_document") { proposal.add([{ from: 0, to: 0, insert: edit.text }], { op: edit.op, virtual: true, title: edit.title, docKind: edit.kind, incomplete: edit.incomplete }); return; }
       const cur = info();
       if (proposal.target.kind === "doc") {
-        // rich document: positions are DOM ranges resolved at apply time; preview old → new now
+
         const r = resolveEdit(edit, cur.text, { cursor: cur.cursor, selFrom: cur.selFrom, selTo: cur.selTo, kind: "markdown" });
         if (r.error && !["insert"].includes(edit.op)) { proposal.fail({ op: edit.op, error: r.error, find: edit.find || edit.anchor || edit.heading }); return; }
         proposal.add([{ from: 0, to: 0, insert: edit.text, del: edit.op === "replace_selection" ? cur.selText || "" : (r.changes[0] ? cur.text.slice(r.changes[0].from, r.changes[0].to) : edit.find || "") }],
@@ -717,7 +707,7 @@ export class ChatPanel {
     const n = this.proposals.reduce((s, p) => s + p.pending.length, 0);
     const b = $(".aip-rail-badge", this.host); if (b) { b.hidden = !n; b.textContent = n; }
   }
-  /** The edit-proposal card: one row per hunk (word diff, accept/reject/locate), Apply all / Reject all / Undo. */
+
   renderCard(card, p) {
     if (!card) return;
     const live = card._live || new Map();
@@ -773,7 +763,6 @@ export class ChatPanel {
     card.querySelectorAll(".aip-hunk.pending .aip-hunk-diff").forEach((d) => d.addEventListener("click", () => p.scrollTo(d.closest(".aip-hunk").dataset.id)));
   }
 
-  // ---------------------------------------------------------------- presets
   preset(id, param, anchor) {
     const p = PRESETS.find((x) => x.id === id) || COMMANDS.find((x) => x.id === id); if (!p) return;
     if (!this.guard()) return;
@@ -795,7 +784,7 @@ export class ChatPanel {
       return;
     }
     if (kind === "write") { this.runWrite(snap, label); return; }
-    // transform: the scope text → model → word diff → reviewable hunks
+
     const scope = this.effScope || "auto";
     const { built } = this.contextFor(snap, scope);
     let [from, to] = built.range;
@@ -803,7 +792,7 @@ export class ChatPanel {
     if (snap.doc && !(snap.selTo > snap.selFrom)) { this.runAgent(t(id === "table" ? "ai_agent_table" : "ai_agent_transform", { action: label }), { label, scope: "document" }); return; }
     if (id === "table" && built.scope !== "selection") { this.runAgent(t("ai_agent_table"), { label, scope: built.scope }); return; }
     if (docScope && to - from > 40000) {
-      // too long to rewrite in one go: work on the current section, else on the paragraphs around the cursor
+
       const sec = built.section; if (sec && sec.to - sec.from <= 40000) [from, to] = [sec.from, sec.to];
       else { const a = Math.max(0, snap.selFrom - 6000); [from, to] = [snap.text.lastIndexOf("\n\n", a) + 1 || a, Math.min(snap.text.length, (snap.text.indexOf("\n\n", snap.selFrom + 6000) + 1) || snap.text.length)]; }
       toast(t("ai_scope_narrowed"));
@@ -829,12 +818,12 @@ export class ChatPanel {
         show.flush(); this.setBusy(false);
         let result = cleanup(out);
         if (info?.cancelled) {
-          // a cut-off rewrite must never be offered as a diff: it would "delete" the rest of the text
+
           if (!result) { body.innerHTML = `<span class="muted">${esc(t("ai_stopped"))}</span>`; return; }
           this.renderBody(body, result); this.answerActions(bubble, result, true); return;
         }
         if (!result) { body.innerHTML = `<span class="muted">${esc(t("ai_empty_answer"))}</span>`; return; }
-        // keep the original's trailing newline (models drop it)
+
         const trail = /\s*$/.exec(source)[0]; if (trail && !result.endsWith(trail)) result = result.replace(/\s*$/, "") + trail;
         const lead = /^\s*/.exec(source)[0]; if (lead && !result.startsWith(lead)) result = lead + result.replace(/^\s*/, "");
         const proposal = new Proposal(this.target(snap), (pp) => this.renderCard(card, pp));
@@ -854,8 +843,7 @@ export class ChatPanel {
       },
     });
   }
-  /** "Continue writing": the text streams right into the document at the cursor (a live widget), then
-   *  becomes ONE undoable insert. Rich documents: inserted at the end of the stream. */
+
   runWrite(snap, label) {
     this.userBubble(label, `${aic("target")}${esc(t("ai_at_cursor"))}`);
     this.messages.push({ role: "user", content: label });
@@ -899,21 +887,20 @@ export class ChatPanel {
   }
 }
 
-/** A continuation glued to the text before the cursor: a space after a word / punctuation, nothing after a space. */
 function joinContinuation(before, text) {
   if (!text) return text;
   if (/\S$/.test(before) && /^[\p{L}\p{N}«“(]/u.test(text) && !/\n$/.test(before)) return " " + text;
   if (/\n\s*$/.test(before)) {
     text = text.replace(/^[ \t]+/, "");
-    // a new paragraph right under the last line ("…летом.\n" + "Летом…") needs the blank line of a paragraph
+
     if (/\S[ \t]*\n$/.test(before) && !/^\n/.test(text) && /^[\p{Lu}«“(#*-]/u.test(text)) text = "\n" + text;
     return text;
   }
   return text;
 }
-/** Prose of an agent answer: drop empty code fences left around edit blocks. */
+
 function cleanProse(s) { return String(s || "").replace(/```[\w-]*\s*```/g, "").replace(/\n{3,}/g, "\n\n"); }
-/** Code blocks of answers get a header: language, Copy, Insert. */
+
 function enhanceCode(root) {
   root.querySelectorAll("pre > code").forEach((code) => {
     const pre = code.parentElement; if (pre.parentElement?.classList.contains("aip-code")) return;
@@ -925,7 +912,7 @@ function enhanceCode(root) {
 }
 
 function hostOf(url) { try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; } }
-/** "[3]" in an answer → a link to the 3rd web source (outside code). */
+
 function citeLinks(html, sources) {
   if (!sources.length) return html;
   return html.split(/(<code[\s\S]*?<\/code>|<pre[\s\S]*?<\/pre>|<[^>]+>)/).map((part) => (part.startsWith("<") ? part
@@ -937,8 +924,6 @@ function renderSources(bubble, sources) {
   box.innerHTML = `<div class="msg-sources-title">${icon("globe")}${esc(t("ai_sources"))}</div><ol>${sources.map((s) => `<li><a href="#" data-url="${esc(s.url)}" title="${esc(s.url)}"><span class="src-t">${esc(s.title || hostOf(s.url))}</span><span class="src-h">${esc(hostOf(s.url))}</span></a></li>`).join("")}</ol>`;
 }
 
-// ------------------------------------------------------------------ inline AI command (Ctrl+J) and result card
-/** ctx: {anchorRect(), selection(), getContext(), apply(text, mode), insertBelow(text), toChat(action, input)} */
 export function inlineCommand(ctx, preset) {
   if (!AI.online) { toast(t("ai_offline"), { kind: "error" }); refreshStatus(true); return; }
   document.querySelector(".ai-inline")?.remove();
@@ -1049,26 +1034,23 @@ function place(box, rect) {
   box.style.left = x + "px"; box.style.top = y + "px";
 }
 
-// ------------------------------------------------------------------ ghost-text autocomplete
 let ghostReq = null;
-/** Round 33: the last 1–3 tokens of the line before the caret ("several bugs in", "if n <", "the rele"). The model is
- *  asked to repeat them and continue; the repeat is cut off again here. So the model itself decides whether a space
- *  follows ("in" → "in the") or the word goes on ("rele" → "release") — the page cannot tell those apart. */
+
 export function ghostTail(before) {
   const line = String(before || "").slice(String(before || "").lastIndexOf("\n") + 1);
   const m = /(?:\S+[ \t]+){0,2}\S+[ \t]*$/u.exec(line);
   return m && m[0].length <= 60 ? m[0] : "";
 }
-/** The inserted text when the model echoed `tail` first; null when it did not (then the old heuristics apply). */
+
 export function stripEcho(text, tail) {
   if (!tail) return null;
   const out = String(text || "").replace(/^[ \t]+/, "");
   const core = tail.replace(/[ \t]+$/, "");
   if (!core || !out.startsWith(core)) return null;
   const rest = out.slice(core.length);
-  return core !== tail ? rest.replace(/^[ \t]+/, "") : rest;   // the user already typed the space
+  return core !== tail ? rest.replace(/^[ \t]+/, "") : rest;
 }
-/** One line of ghost text; code may also get the next line ("if n < 2:" → "\n        return n"). */
+
 export function ghostLine(text, code) {
   const s = String(text || "");
   if (code) { const m = /^\r?\n((?:[ \t]*\r?\n)*)([^\r\n]*\S[^\r\n]*)/.exec(s); if (m) return "\n" + m[2]; }
@@ -1094,12 +1076,11 @@ export function requestGhost(view, ctx, setGhost) {
       delta: (d) => { text += d; },
       done: () => {
         ghostReq = null;
-        const echoed = stripEcho(text.replace(/^["«]/, ""), tail);   // Round 33: the model repeated the tail → exact spacing
+        const echoed = stripEcho(text.replace(/^["«]/, ""), tail);
         text = ghostLine(echoed ?? text, code);
         if (!code) text = text.replace(/^["«]|["»]$/g, "");
         if (!text.trim() || view.state.doc !== docVersion || view.state.selection.main.head !== pos) return;
-        // No echo (an older Proxy model ignored the instruction): "хлеб," + "яйца" must read "хлеб, яйца" — after
-        // punctuation a new word always gets a space; after a letter the model's own leading space decides.
+
         if (echoed === null && ((/[,;:!?)\]»”]$/u.test(before) && /^[\p{L}\p{N}«“(]/u.test(text)) || (/[.…]$/u.test(before) && /^[\p{Lu}«“(]/u.test(text)))) text = " " + text;
         view.dispatch({ effects: setGhost.of({ pos, text }) });
       },
@@ -1108,7 +1089,6 @@ export function requestGhost(view, ctx, setGhost) {
   }, s.ai_autocomplete_delay || 900);
 }
 
-/** Context for the inline commands (app.js getContext): an excerpt around the cursor, `pos` inside it. */
 export function aiExcerpt({ text, kind, selFrom, selTo, limit }) {
   const c = buildContext({ text, kind, selFrom, selTo, cursor: selTo, scope: "auto", limit: Math.min(+limit || 60000, 120000) });
   const markerBefore = (c.text.slice(0, c.excerpt_pos).match(MARKERS_RE) || []).join("").length;

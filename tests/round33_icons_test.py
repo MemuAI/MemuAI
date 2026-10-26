@@ -26,7 +26,6 @@ from app import assistant_icon, win_app_identity as ident  # noqa: E402
 
 ICO_SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
 
-
 def ico_entries(path: Path):
     data = path.read_bytes()
     _reserved, kind, count = struct.unpack("<HHH", data[:6])
@@ -36,7 +35,6 @@ def ico_entries(path: Path):
         out.append({"size": w or 256, "bpp": bpp, "png": data[offset:offset + 8] == b"\x89PNG\r\n\x1a\n"})
     return kind, out
 
-
 def frame(path: Path, size: int):
     from PIL import Image
     image = Image.open(path)
@@ -44,8 +42,6 @@ def frame(path: Path, size: int):
     image.load()
     return image.convert("RGBA")
 
-
-# ------------------------------------------------------------------ assets
 class IconAssetsTest(unittest.TestCase):
     def test_ico_files_have_every_size_bmp_below_256(self):
         for name in ("memuai-icon.ico", "icon.ico", "memunote-icon.ico"):
@@ -67,11 +63,11 @@ class IconAssetsTest(unittest.TestCase):
 
     def test_silhouettes_are_distinct_at_16px(self):
         ai, proxy = frame(ROOT / "memuai-icon.ico", 16), frame(ROOT / "icon.ico", 16)
-        # MemuAI: speech bubble — the tail fills the bottom-left, the bottom-right is empty.
+
         self.assertGreater(ai.getpixel((1, 15))[3], 120)
         self.assertLess(ai.getpixel((15, 15))[3], 30)
         self.assertEqual(ai.getpixel((8, 6))[:3], (255, 255, 255), "white star in the middle")
-        # Proxy: round badge — corners empty, warm star in the centre between white brackets.
+
         self.assertLess(proxy.getpixel((0, 0))[3], 40)
         r, g, b, a = proxy.getpixel((8, 8))
         self.assertGreater(r, b, "warm star")
@@ -102,7 +98,7 @@ class IconAssetsTest(unittest.TestCase):
             for variant in ("tiny", "small", "full"):
                 ET.fromstring(draw(variant))
         self.assertIn("crystal", kit.memuai_svg("full").lower() + "crystal")
-        # build.py never re-runs the Playwright scripts while the committed files exist.
+
         build = (ROOT / "build.py").read_text(encoding="utf-8")
         self.assertIn('"build_proxy_icon.py"', build)
         self.assertNotIn("st_mtime >= script.stat().st_mtime", build)
@@ -138,12 +134,10 @@ class IconAssetsTest(unittest.TestCase):
         about = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
         self.assertIn('<img src="/memuai-icon.svg', about)
 
-
-# ------------------------------------------------------------------ Win32 fake
 class FakeApi:
     def __init__(self):
         self.calls = []
-        self.next_handle = 0x8000_0000      # above 2**31: the old code could not pass these
+        self.next_handle = 0x8000_0000
         self.windows = {100, 200}
         self.links = {}
         self.app_id_result = True
@@ -191,7 +185,6 @@ class FakeApi:
         self.calls.append(("link", os.path.basename(link), icon))
         return True
 
-
 class Win32Case(unittest.TestCase):
     def setUp(self):
         self.api = FakeApi()
@@ -204,7 +197,6 @@ class Win32Case(unittest.TestCase):
         ident.set_api(None)
         ident.WINDOW_ICONS = ident.WindowIcons()
         self.tmp.cleanup()
-
 
 class ProcessIdentityTest(Win32Case):
     def test_app_id_is_set_once(self):
@@ -236,7 +228,6 @@ class ProcessIdentityTest(Win32Case):
         with patch.object(sys, "frozen", False, create=True):
             ident.set_window_identity(100, "MemuAI.Desktop", "MemuAI", "x,0")
         self.assertEqual(self.api.calls[-1][2], [(ident.PID_ID, "MemuAI.Desktop")])
-
 
 class WindowIconsTest(Win32Case):
     def test_apply_sets_small_and_big_and_keeps_handles(self):
@@ -275,7 +266,6 @@ class WindowIconsTest(Win32Case):
         self.assertEqual(ident.refresh_shell_icons(["a.lnk", "", "b.exe"]), 3)
         self.assertEqual(self.api.calls, [("notify", "a.lnk"), ("notify", "b.exe"), ("assoc",)])
 
-
 class ShortcutSyncTest(Win32Case):
     def make(self, name, target, icon):
         link = self.base / "links" / name
@@ -303,14 +293,14 @@ class ShortcutSyncTest(Win32Case):
         self.assertEqual(self.api.links[other][1], "")
         self.assertIn(("assoc",), self.api.calls)
         self.assertIn(("notify", new), self.api.calls)
-        # Back to the default look: every shortcut we changed points at the exe again.
+
         self.api.calls.clear()
         changed = ident.sync_shortcut_icons("", owned_dirs=[str(owned)], folders=[self.base / "links"])
         self.assertEqual(sorted(changed), sorted([ours, broken, plain]))
         for link in (ours, broken, plain):
             self.assertEqual(self.api.links[link][1], exe)
         self.assertEqual(self.api.links[custom][1], str(user_icon))
-        # Nothing to do the second time.
+
         self.assertEqual(ident.sync_shortcut_icons("", owned_dirs=[str(owned)], folders=[self.base / "links"]), [])
 
     def test_folders_cover_pinned_copies(self):
@@ -319,8 +309,6 @@ class ShortcutSyncTest(Win32Case):
         self.assertTrue(any(p.replace("\\", "/").endswith("User Pinned/TaskBar") for p in folders))
         self.assertTrue(any(p.replace("\\", "/").endswith("Start Menu/Programs/MemuAI") for p in folders))
 
-
-# ------------------------------------------------------------------ assistant icon
 class AssistantIconTest(Win32Case):
     def setUp(self):
         super().setUp()
@@ -347,7 +335,7 @@ class AssistantIconTest(Win32Case):
         self.assertEqual(os.path.getmtime(ico), mtime, "unchanged look → no rewrite")
         self.assertFalse(list((self.data / "memuai").glob("*.tmp")))
         self.assertEqual(assistant_icon.current_icon(self.data), (ico, png))
-        # The bubble silhouette in the custom colours.
+
         image = frame(Path(ico), 256)
         self.assertGreater(image.getpixel((40, 230))[3], 100, "tail")
         self.assertEqual(image.getpixel((250, 250))[3], 0)
@@ -386,8 +374,6 @@ class AssistantIconTest(Win32Case):
         sets = [c for c in self.api.calls if c[0] == "set"]
         self.assertEqual(len(sets), 2, "window icon set once, the repeat is a no-op")
 
-
-# ------------------------------------------------------------------ wiring
 class WiringTest(unittest.TestCase):
     def test_endpoint_delegates_and_old_path_is_gone(self):
         source = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
@@ -453,7 +439,6 @@ class WiringTest(unittest.TestCase):
         module = importlib.import_module("app.win_com")
         self.assertTrue(callable(module.write_shortcut_icon))
 
-
 class InstallerRefreshTest(unittest.TestCase):
     def test_install_refreshes_exe_and_shortcut_icons(self):
         sys.path.insert(0, str(ROOT / "tests"))
@@ -482,7 +467,6 @@ class InstallerRefreshTest(unittest.TestCase):
             self.assertIn("MemuAI.exe", names)
             self.assertIn("MemuAIProxy.exe", names)
             self.assertIn("MemuAI.lnk", names)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,8 +1,5 @@
-/* MemuMusic — встроенный модуль MemuAI: локальная музыка «как Spotify, только красивее».
- * Код разбит на части (маркеры memu-part), которые MemuAI склеивает в один main.js:
- *   art.js — обложки/палитры/значки сервисов/детект ссылки; api.js + mock.js — мост Memu.music.call;
- *   fx.js — живой фон, визуализатор, 3D; player.js — звук; views.js — разделы; np.js — «Сейчас играет», очередь, поповеры.
- * Все строки интерфейса — в i18n.json (ru/en). */
+
+
 const t = (key, vars) => Memu.t(key, vars);
 const $ = (selector, root) => (root || document).querySelector(selector);
 const $$ = (selector, root) => Array.from((root || document).querySelectorAll(selector));
@@ -30,16 +27,15 @@ function icon(name) { return `<svg><use href="#i-${name}"/></svg>`; }
 function debounce(fn, ms) { let id = 0; return (...a) => { clearTimeout(id); id = setTimeout(() => fn(...a), ms); }; }
 function isTyping(target) { return !!(target && target.closest && target.closest("input, textarea, select, [contenteditable='true']")); }
 
-/** Общее состояние окна. Библиотека держится целиком (тысячи строк — это мегабайт-другой). */
 const S = {
   view: "home", params: {}, tracks: [], total: 0, loaded: false, playlists: [], jobs: [],
   prefs: Object.assign({ lite: false, viz: true, npStyle: "card", coverAccent: true, lib: { tab: "tracks", sort: "added", filter: "all" } }, saved.prefs || {}),
   byId: new Map(),
 };
-const VIEWS = {};   // заполняет views.js: name -> async (el, params) => void
-const SETTINGS_TABS = [];   // вкладки Настроек: { id, order, title(), render(host) } — регистрируют части (theme.js «Оформление», feat-*)
-let ambient = null; // живой фон окна (fx.js), создаётся в boot()
-function savePrefs() { try { Memu.save({ prefs: S.prefs }); } catch (e) { /* storage is optional */ } }
+const VIEWS = {};
+const SETTINGS_TABS = [];
+let ambient = null;
+function savePrefs() { try { Memu.save({ prefs: S.prefs }); } catch (e) {  } }
 
 /* @memu-part:art.js */
 /* @memu-part:theme.js */
@@ -60,7 +56,6 @@ function savePrefs() { try { Memu.save({ prefs: S.prefs }); } catch (e) { /* sto
 /* @memu-part:feat-lib.js */
 /* @memu-part:integration/settings-widgets.js */
 
-/* --------------------------------------------------------------- данные */
 async function loadLibrary() {
   const first = await API.soft("library.list", { sort: "added", limit: 2000, offset: 0 }, { tracks: [], total: 0 });
   let tracks = (first && first.tracks) || [];
@@ -73,7 +68,7 @@ async function loadLibrary() {
   setTracks(tracks);
   S.loaded = true;
 }
-/** Поля трека к одному виду: время добавления бэкенд отдаёт секундами эпохи, интерфейс сравнивает ISO-строки. */
+
 function normTrack(x) {
   if (x && typeof x.added_at === "number") x.added_at = x.added_at ? new Date(x.added_at * 1000).toISOString() : "";
   if (x && x.album == null) x.album = "";
@@ -91,7 +86,6 @@ async function loadPlaylists() {
 }
 async function refreshAll() { await Promise.all([loadLibrary(), loadPlaylists()]); renderSidePlaylists(); }
 
-/* --------------------------------------------------------------- навигация */
 function go(view, params, opts) {
   opts = opts || {};
   if (!VIEWS[view]) view = "home";
@@ -106,7 +100,7 @@ function go(view, params, opts) {
   const render = () => {
     const holder = $("#view");
     const fresh = holder.cloneNode(false);
-    fresh.classList.toggle("instant", !!opts.instant);   // перерисовка на месте (тема, язык) — без проявления
+    fresh.classList.toggle("instant", !!opts.instant);
     holder.replaceWith(fresh);
     $("#main").scrollTop = 0;
     return Promise.resolve(VIEWS[view](fresh, S.params)).catch((error) => {
@@ -114,13 +108,11 @@ function go(view, params, opts) {
       fresh.innerHTML = emptyState("error", t("error.title"), String(error && error.message || error));
     });
   };
-  /* design: без «подпрыгивания» — никаких View Transitions всего окна (они сдвигали и боковую панель, и плеер-бар);
-   * раздел меняется на месте, новое содержимое лишь проявляется (opacity, без смены раскладки). */
+
   render();
 }
 function rerender() { go(S.view, S.params, { force: true, instant: true }); }
 
-/* --------------------------------------------------------------- боковая панель */
 function renderSidePlaylists() {
   const box = $("#side-playlists");
   box.innerHTML = (likedHidden() ? "" : `<button type="button" class="mm-side-pl" data-liked="1"><span class="mm-art" style="background:linear-gradient(135deg,#6d4aff,#ff5c8a);display:grid;place-items:center;color:#fff">${icon("heart")}</span><span style="min-width:0"><b>${esc(t("liked.title"))}</b><span>${esc(plural("count.tracks", S.tracks.filter((x) => x.liked).length))}</span></span></button>`)
@@ -133,8 +125,6 @@ $("#side-playlists").addEventListener("click", (e) => {
 $("#nav").addEventListener("click", (e) => { const b = e.target.closest("[data-go]"); if (b) go(b.dataset.go); });
 $("#side-new-playlist").addEventListener("click", () => createPlaylistDialog());
 
-/* --------------------------------------------------------------- цвет обложки */
-/* design: акцент — из обложки (тема «Из обложки» / «Цвет из обложки»), свой или цвета темы (theme.js). */
 function applyPalette(track) {
   const fromCover = Theme.coverAccent() && track;
   const colors = fromCover ? paletteFor(track) : Theme.accents();
@@ -144,12 +134,12 @@ function applyPalette(track) {
   Theme.coverBg(track);
   if (track && track.cover && !track.accent) extractPalette(track.cover).then((c) => {
     if (!c) return;
-    track.accent = c;   // design-3: цвет обложки — в библиотеку: им же окрашены док MemuAI, панели, кольцо Быстрого доступа и Mini App
+    track.accent = c;
     if (!API.mocked) API.soft("library.update", { id: track.id, accent: c }, null);
     if (Player.current() === track && Theme.coverAccent()) applyPalette(track);
   });
 }
-/** Доминантный «живой» цвет картинки (если сервер отдаёт её с CORS). */
+
 function extractPalette(url) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -173,7 +163,6 @@ function extractPalette(url) {
   });
 }
 
-/* --------------------------------------------------------------- «облегчённые эффекты» */
 function applyCalm() {
   const calm = Theme.ui.motion !== "full" || Fx.reduce.matches;
   root.toggleAttribute("data-calm", calm);
@@ -182,7 +171,6 @@ function applyCalm() {
 }
 Fx.reduce.addEventListener && Fx.reduce.addEventListener("change", applyCalm);
 
-/* --------------------------------------------------------------- вставка и перетаскивание ссылок */
 function takeLink(text) {
   const url = firstUrl(text) || (detectLocal(text) ? String(text).trim() : "");
   if (!url) return false;
@@ -199,8 +187,7 @@ let dragDepth = 0;
 let localDrag = false;
 const hideLinkDrop = () => { dragDepth = 0; $("#drop").hidden = true; };
 document.addEventListener("dragstart", (e) => {
-  // Artwork has a native URI-list payload, just like an external browser link.
-  // Row/playlist drag handlers still own their explicit draggable ancestor.
+
   const reorder = e.target.closest?.('[draggable="true"]');
   if (e.target.closest?.("img") && !reorder) { e.preventDefault(); hideLinkDrop(); return; }
   localDrag = true;
@@ -219,13 +206,11 @@ document.addEventListener("drop", (e) => {
   if (!takeLink(text)) toast(t("drop.not_link"));
 });
 
-/* --------------------------------------------------------------- горячие клавиши */
 document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") { if (closeOverlays()) return; if (NP.isOpen()) { NP.close(); return; } if (Sel.size()) { Sel.clear(); return; } }
-  handleHotkey(e);   // feat-core.js: настраиваемые сочетания (Настройки → Горячие клавиши)
+  handleHotkey(e);
 });
 
-/* --------------------------------------------------------------- лайки */
 async function toggleLike(track) {
   const liked = !track.liked;
   track.liked = liked;
@@ -234,11 +219,10 @@ async function toggleLike(track) {
   $$(`[data-like="${CSS.escape(track.id)}"]`).forEach((b) => b.setAttribute("aria-pressed", String(liked)));
   updateBar();
   renderSidePlaylists();
-  try { await API.call("library.like", { id: track.id, liked }); libraryChanged({ playlistsOnly: true, quiet: true }); }   // feat: счётчик «Любимых»
+  try { await API.call("library.like", { id: track.id, liked }); libraryChanged({ playlistsOnly: true, quiet: true }); }
   catch (error) { track.liked = !liked; if (lib) lib.liked = !liked; updateBar(); toast(t("error.like")); }
 }
 
-/* --------------------------------------------------------------- плеер-бар */
 function updateBar() {
   const tr = Player.current();
   $("#bar-title").textContent = tr ? tr.title : t("player.idle");
@@ -269,7 +253,7 @@ function updateModes() {
   const vol = $("#volume"); vol.value = String(st.muted ? 0 : st.volume); vol.style.setProperty("--v", (st.muted ? 0 : st.volume) * 100 + "%");
   $("#mute use").setAttribute("href", st.muted || st.volume === 0 ? "#i-mute" : "#i-volume");
 }
-/* Позиция: один rAF-поток, только пока играет и окно видно. */
+
 function paintTime() {
   const { cur, dur, buf } = Player.times();
   const p = dur ? Math.min(1, cur / dur) : 0, b = dur ? Math.min(1, buf / dur) : 0;
@@ -298,7 +282,6 @@ Player.on("queue", () => { renderQueue(); });
 Player.on("error", () => toast(t("error.play")));
 Player.on("sleep", () => NP.onSleep());
 
-/** Перемотка перетаскиванием по любой полосе .mm-seek. */
 function bindSeek(el) {
   let dragging = false;
   const ratio = (e) => { const r = el.getBoundingClientRect(); return Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); };
@@ -324,15 +307,13 @@ $("#open-queue").addEventListener("click", toggleQueueDrawer);
 $("#open-eq").addEventListener("click", (e) => openPop("eq", e.currentTarget));
 $("#bar").addEventListener("wheel", (e) => { if (e.target.closest("#volume, #mute")) { e.preventDefault(); Player.setVolume(Player.st.volume - Math.sign(e.deltaY) * .05); } }, { passive: false });
 
-/* Ошибка загрузки обложки → генеративная. */
 document.addEventListener("error", (e) => {
   const img = e.target;
   if (img && img.tagName === "IMG" && img.dataset.fb && img.src !== img.dataset.fb) img.src = img.dataset.fb;
 }, true);
 
-/* --------------------------------------------------------------- тема и язык */
 Memu.onTheme(() => { Theme.apply(); applyPalette(Player.current()); });
-// r39-integ: Быстрый доступ / карточки команд открывают окно на нужном месте — «Сейчас играет» (route "np") или раздел («download»)
+
 if (Memu.on) Memu.on("navigate", (d) => {
   const route = String((d && d.route) || "");
   if (route === "np") setTimeout(() => { if (Player.current()) NP.open(); }, 250);
@@ -342,7 +323,6 @@ Memu.onLanguage(() => {
   renderSidePlaylists(); updateBar(); updateModes(); updatePlayButtons(); NP.relabel(); rerender();
 });
 
-/* --------------------------------------------------------------- загрузки: опрос только пока есть задания */
 let pollTimer = 0;
 async function pollJobs() {
   clearTimeout(pollTimer);
@@ -351,7 +331,7 @@ async function pollJobs() {
     const before = new Map(S.jobs.map((j) => [j.job_id, j.status]));
     S.jobs = jobs;
     const finished = jobs.filter((j) => j.status === "done" && before.has(j.job_id) && before.get(j.job_id) !== "done");
-    if (finished.length) { await libraryChanged({ now: true, quiet: S.view === "download" }); toast(t("download.done_toast", { title: finished[0].title || "" })); }   // feat: и плейлисты (счётчики умных)
+    if (finished.length) { await libraryChanged({ now: true, quiet: S.view === "download" }); toast(t("download.done_toast", { title: finished[0].title || "" })); }
     if (typeof onJobsUpdate === "function") onJobsUpdate();
   }
   const active = S.jobs.filter((j) => j.status === "queued" || j.status === "running").length;
@@ -360,9 +340,6 @@ async function pollJobs() {
 }
 document.addEventListener("visibilitychange", () => { if (!document.hidden && S.jobs.some((j) => j.status === "queued" || j.status === "running")) pollJobs(); });
 
-/* --------------------------------------------------------------- пульт с телефона (Mini App)
- * Окно — «играющее устройство»: сообщает состояние (player.update: смена трека, пауза, перемотка, раз в 15 с
- * во время игры) и принимает команды долгим опросом player.wait (25 с, без частого опроса). В демо-режиме выключено. */
 const Connect = (() => {
   let timer = 0, version = 0, sinceCmd = -1;
   const st = Player.st;
@@ -370,10 +347,9 @@ const Connect = (() => {
     const tr = Player.current(), tm = Player.times();
     return { track_id: tr ? tr.id : "", position: Math.round(tm.cur * 10) / 10, playing: st.playing,
       queue: st.order.map((i) => st.queue[i] && st.queue[i].id).filter(Boolean).slice(0, 1000), index: st.index, volume: st.volume,
-      shuffle: st.shuffle, repeat: st.repeat, device: "pc", device_name: "MemuMusic", duration: tm.dur, context: { name: st.from || "" }, speed: st.speed, at: Date.now() };   // r39-music-lyrics: speed — пульт экстраполирует позицию с ней
+      shuffle: st.shuffle, repeat: st.repeat, device: "pc", device_name: "MemuMusic", duration: tm.dur, context: { name: st.from || "" }, speed: st.speed, at: Date.now() };
   }
-  // r40 (r40-music-fix): play / pause / track / seek are reported at once — the dock, Quick Access and the chat show what
-  // plays from this report (it used to wait 0.5 s on every change); volume / shuffle / repeat stay debounced.
+
   function report(now) { if (API.mocked) return; clearTimeout(timer); timer = setTimeout(send, now === true ? 0 : 400); }
   async function send() { clearTimeout(timer); await API.soft("player.update", state(), null); if (st.playing) timer = setTimeout(send, 15000); }
   async function tracksFor(ids) {
@@ -419,8 +395,7 @@ const Connect = (() => {
       }
     }
   }
-  /** Окно открыли, пока играл плеер основного окна (music-dock.js): берём его очередь и позицию, док замолкает.
-   * Док сам ставит паузу и оставляет context.handoff ("play" | "load"); в отдельном окне модуля он ещё играет — тогда playing. */
+
   async function adopt() {
     const s = await API.soft("player.state", {}, null);
     if (!s || s.device_name !== "MemuAI" || !s.track_id) return;
@@ -440,10 +415,8 @@ const Connect = (() => {
   return { async start() { if (API.mocked) return; await adopt(); listen(); }, report };
 })();
 
-/* Отложенная запись не должна потеряться при закрытии окна: очередь, позиция и настройки — сразу. */
-window.addEventListener("pagehide", () => { try { Memu.save({ player: Player.snapshot(), prefs: S.prefs }); } catch (e) { /* storage is optional */ } });
+window.addEventListener("pagehide", () => { try { Memu.save({ player: Player.snapshot(), prefs: S.prefs }); } catch (e) {  } });
 
-/* --------------------------------------------------------------- старт */
 async function boot() {
   ambient = Fx.Ambient($("#ambient"), { w: 72, h: 44, strength: .9 });
   applyCalm();
@@ -463,6 +436,6 @@ async function boot() {
   Memu.ready && Memu.ready();
 }
 window.MemuMusic = { S, Theme, API, Player, go, NP: () => NP, Fx, detectLocal, coverArt, pollJobs, setTracks, rerender, refresh: refreshAll,
-  // для ревизора дизайна и скриншотов (tests/round38_music_design_audit.py): демо-библиотека и диалоги функций
+
   dev: { MockMusic, Sel, editTracks, editPlaylist, smartBuilder, smartManager, toastAction } };
 boot();

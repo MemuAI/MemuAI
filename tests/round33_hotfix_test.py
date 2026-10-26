@@ -26,15 +26,11 @@ from app.memunote import desktop, winsys  # noqa: E402
 SCREEN = [(0, 0, 1920, 1040)]
 TWO = [(0, 0, 1920, 1040), (1920, 0, 3840, 1040)]
 
-
-# ---------------------------------------------------------------- 1. MemuNote placement
-
 def test_parked_minimised_position_is_dropped():
     g = desktop.sane_geometry({"x": -32000, "y": -32000, "width": 1180, "height": 780})
     assert g["x"] is None and g["y"] is None
     g = desktop.sane_geometry({"x": -32000, "y": -32000, "width": 160, "height": 28}, SCREEN)
     assert g["x"] is None and g["width"] >= 560 and g["height"] >= 400
-
 
 def test_good_position_kept_and_bad_values_ignored():
     g = desktop.sane_geometry({"x": 200, "y": 120, "width": 1000, "height": 700}, SCREEN)
@@ -43,37 +39,32 @@ def test_good_position_kept_and_bad_values_ignored():
         g = desktop.sane_geometry(bad, SCREEN)
         assert g["x"] is None and g["y"] is None
 
-
 def test_position_on_a_disconnected_monitor_is_dropped():
     saved = {"x": 2500, "y": 100, "width": 1000, "height": 700}
-    assert desktop.sane_geometry(saved, TWO)["x"] == 2500          # second monitor present
-    g = desktop.sane_geometry(saved, SCREEN)                        # unplugged
+    assert desktop.sane_geometry(saved, TWO)["x"] == 2500
+    g = desktop.sane_geometry(saved, SCREEN)
     assert g["x"] is None and g["y"] is None
-
 
 def test_caption_must_be_reachable():
     assert winsys.rect_visible(100, 100, 800, SCREEN)
-    assert not winsys.rect_visible(100, -600, 800, SCREEN)          # caption above the screen
-    assert not winsys.rect_visible(1900, 100, 800, SCREEN)          # only 20 px visible
-    assert winsys.rect_visible(-500, 10, 800, SCREEN)               # 300 px still grabbable
-
+    assert not winsys.rect_visible(100, -600, 800, SCREEN)
+    assert not winsys.rect_visible(1900, 100, 800, SCREEN)
+    assert winsys.rect_visible(-500, 10, 800, SCREEN)
 
 def test_huge_saved_size_shrinks_to_the_screen_when_recentred():
     g = desktop.sane_geometry({"x": -32000, "y": -32000, "width": 5000, "height": 3000}, SCREEN)
     assert g["width"] <= 1920 and g["height"] <= 1040
 
-
 def test_closing_minimised_keeps_the_restored_rectangle():
     data = desktop.closing_geometry("Minimized", (-32000, -32000, 160, 28), (300, 200, 1100, 760), {})
     assert data == {"maximized": False, "x": 300, "y": 200, "width": 1100, "height": 760}
-    # no placement API: the previous good placement survives instead of -32000
+
     prev = {"x": 50, "y": 60, "width": 900, "height": 600, "maximized": False}
     data = desktop.closing_geometry("Minimized", (-32000, -32000, 160, 28), None, prev)
     assert data["x"] == 50 and data["y"] == 60 and data["width"] == 900
-    # a parked previous value is never carried over
+
     data = desktop.closing_geometry("Minimized", (-32000, -32000, 160, 28), None, {"x": -32000, "y": -32000})
     assert "x" not in data and "y" not in data
-
 
 def test_closing_normal_and_maximised():
     data = desktop.closing_geometry("Normal", (10, 20, 1000, 700), None, {})
@@ -81,8 +72,7 @@ def test_closing_normal_and_maximised():
     data = desktop.closing_geometry("Maximized", (-8, -8, 1936, 1056), (100, 80, 1000, 700), {})
     assert data["maximized"] is True and data["x"] == 100
     data = desktop.closing_geometry("Minimized", (-32000, -32000, 160, 28), (100, 80, 1000, 700), {"maximized": True})
-    assert data["maximized"] is True                                  # minimised from maximised stays maximised
-
+    assert data["maximized"] is True
 
 def test_window_is_pulled_back_on_show_and_on_activate():
     src = (ROOT / "app/memunote/desktop.py").read_text(encoding="utf-8")
@@ -90,8 +80,7 @@ def test_window_is_pulled_back_on_show_and_on_activate():
     assert "closing_geometry(" in src and "x=window.x, y=window.y)" not in src
     ws = (ROOT / "app/memunote/winsys.py").read_text(encoding="utf-8")
     body = ws.split("def bring_to_front", 1)[1].split("\ndef ", 1)[0]
-    assert "ensure_on_screen(hwnd)" in body                          # the second launch's hand-off fixes a running one
-
+    assert "ensure_on_screen(hwnd)" in body
 
 def test_helpers_are_noops_off_windows():
     if os.name == "nt":
@@ -100,11 +89,7 @@ def test_helpers_are_noops_off_windows():
     assert winsys.normal_rect(123) is None
     assert winsys.ensure_on_screen(123) is False
 
-
-# ---------------------------------------------------------------- 2. Quick Access search fields
-
 QUICK = ROOT / "app/pgstatic/quick/quick.js"
-
 
 def test_listkeys_never_cancels_typing():
     src = QUICK.read_text(encoding="utf-8")
@@ -112,13 +97,11 @@ def test_listkeys_never_cancels_typing():
     assert "return false" not in body
     assert not re.search(r"\.onkeydown\s*=\s*\(e\)\s*=>\s*listKeys\(", src)
 
-
 def _chrome():
     for path in ("/usr/bin/chromium", "/workspace/work/chromium/chrome"):
         if os.path.exists(path):
             return path
     return ""
-
 
 @pytest.mark.skipif(not _chrome(), reason="no chromium")
 def test_typing_into_model_and_action_search():
@@ -182,9 +165,6 @@ def test_typing_into_model_and_action_search():
     assert out["picker"] == "gpt" and out["rows"] == 1
     assert out["menu"] == "скрин"
 
-
-# ---------------------------------------------------------------- 3. Computer Use pause → HTTP 422
-
 def test_stuck_decide_accepts_the_users_answer():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -211,7 +191,6 @@ def test_stuck_decide_accepts_the_users_answer():
         assert client.get("/api/stuck/state").status_code == 200
     finally:
         stuck_api.gate_of = original
-
 
 def _route_annotation_problems():
     """Every FastAPI route parameter annotation must resolve in its module's globals (PEP 563 strings)."""
@@ -259,12 +238,8 @@ def _route_annotation_problems():
                     bad.append(f"{path.relative_to(ROOT)}:{fn.lineno} {fn.name}({arg.arg}: {missing})")
     return bad
 
-
 def test_no_route_has_an_unresolvable_annotation():
     assert _route_annotation_problems() == []
-
-
-# ---------------------------------------------------------------- 4. Computer Use clicking a focused field again
 
 def test_focus_outcome_tells_the_model_to_type():
     from app import automation_runtime as ar
@@ -275,7 +250,6 @@ def test_focus_outcome_tells_the_model_to_type():
     assert "ALREADY" in again and "Do NOT click it again" in again
     assert ar.focus_outcome(None, {"type": "button", "text": False}) == ""
     assert ar.focus_outcome(None, None) == ""
-
 
 def test_user_hint_stays_in_every_prompt():
     from app import automation_runtime as ar
@@ -294,15 +268,11 @@ def test_user_hint_stays_in_every_prompt():
     assert "+ user_notes_prompt(runtime)" in src and "remember_user_note(runtime, hint)" in src
     assert "the next action is type, never the same click again" in ar.computer_system_prompt("pixels", [{"monitor": 1, "width": 1400, "height": 788}])
 
-
-# ---------------------------------------------------------------- 5. panel drag left the drop zones on
-
 def test_panel_drag_always_ends():
     src = (ROOT / "app/pgstatic/panels.js").read_text(encoding="utf-8")
     start = src.split("function onDragStart(", 1)[1].split("\n  }\n", 1)[0]
     assert "if (state.drag !== drag) return;" in start and "armDragWatchdog()" in start
     assert 'document.addEventListener("pointermove", endStaleDrag, true)' in src
-
 
 @pytest.mark.skipif(not _chrome(), reason="no chromium")
 def test_panel_drag_browser():

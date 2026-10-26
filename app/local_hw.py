@@ -34,9 +34,7 @@ GB = 1024 ** 3
 _cache: Dict[str, Any] = {}
 _cache_lock = threading.Lock()
 
-#: Test hook: replaces subprocess.run for the external tools (nvidia-smi, PowerShell).
 runner: Optional[Callable[..., Any]] = None
-
 
 def _run(args: List[str], timeout: float = 10.0) -> str:
     try:
@@ -49,13 +47,6 @@ def _run(args: List[str], timeout: float = 10.0) -> str:
     except Exception:
         return ""
 
-
-# --------------------------------------------------------------------------
-# Bandwidth estimates (GB/s). Generation speed of a local model is bounded by
-# how fast its weights can be read: tokens/s ≈ bandwidth / bytes per token.
-# --------------------------------------------------------------------------
-
-#: (regex on the lower-cased GPU name, GB/s). Desktop parts; "laptop" lowers it below.
 GPU_BANDWIDTH = [
     (r"rtx\s*pro\s*6000|rtx\s*6000\s*ada", 960), (r"\bh100\b", 3350), (r"\ba100\b", 1555), (r"\bl40s?\b", 864),
     (r"rtx\s*5090", 1792), (r"rtx\s*5080", 960), (r"rtx\s*5070\s*ti", 896), (r"rtx\s*5070", 672),
@@ -77,14 +68,12 @@ GPU_BANDWIDTH = [
     (r"arc\s*a380", 186),
 ]
 
-#: Integrated graphics: they use system RAM, so they count as "no dedicated VRAM".
 _INTEGRATED_RE = re.compile(
     r"(?i)\b(uhd|hd graphics|iris|intel\(r\) graphics|intel graphics|arc\(tm\) graphics|"
     r"radeon\(tm\) graphics|radeon graphics|vega \d+ graphics|radeon \d{3}m|adreno|"
     r"microsoft basic|basic display|apple m\d)")
 _IGNORED_RE = re.compile(r"(?i)basic display|basic render|remote|virtual|parsec|mirror|citrix|vmware|hyper-v|"
                          r"spacedesk|displaylink|idd")
-
 
 def vendor_of(name: str) -> str:
     low = str(name or "").lower()
@@ -98,13 +87,12 @@ def vendor_of(name: str) -> str:
         return "apple"
     return "other"
 
-
 def gpu_bandwidth(name: str, vram: int = 0) -> int:
     """Memory bandwidth of a GPU in GB/s: a known model, else a guess from its VRAM size."""
     low = str(name or "").lower()
     for pattern, value in GPU_BANDWIDTH:
         if re.search(pattern, low):
-            # Laptop variants have narrower buses and lower memory clocks.
+
             return int(value * (0.62 if re.search(r"laptop|mobile|max-q|\bm\b", low) else 1.0))
     gb = vram / GB if vram else 0
     if gb >= 20:
@@ -119,7 +107,6 @@ def gpu_bandwidth(name: str, vram: int = 0) -> int:
         return 192
     return 128 if gb else 0
 
-
 def ram_bandwidth(ram_type: str = "", speed: int = 0, channels: int = 0) -> int:
     """Practical system RAM bandwidth in GB/s (dual channel unless told otherwise)."""
     kind = str(ram_type or "").upper()
@@ -128,13 +115,8 @@ def ram_bandwidth(ram_type: str = "", speed: int = 0, channels: int = 0) -> int:
         speed = {"DDR5": 5600, "LPDDR5": 6400, "LPDDR5X": 7500, "DDR4": 3200, "LPDDR4X": 4266, "DDR3": 1600}.get(kind, 0)
     if not speed:
         return 50
-    theoretical = speed * 8 * channels / 1000      # MT/s × 8 bytes per channel
+    theoretical = speed * 8 * channels / 1000
     return int(theoretical * 0.75)
-
-
-# --------------------------------------------------------------------------
-# Probes
-# --------------------------------------------------------------------------
 
 def _os_info() -> Dict[str, Any]:
     name = {"win32": "Windows", "darwin": "macOS"}.get(sys.platform, platform.system() or sys.platform)
@@ -150,7 +132,6 @@ def _os_info() -> Dict[str, Any]:
     return {"name": name, "release": release, "version": version, "machine": platform.machine(),
             "label": f"{name} {release}".strip()}
 
-
 def _cpu_info() -> Dict[str, Any]:
     info: Dict[str, Any] = {"name": "", "threads": os.cpu_count() or 0, "cores": 0,
                             "avx": None, "avx2": None, "avx512": None, "fma": None}
@@ -164,7 +145,7 @@ def _cpu_info() -> Dict[str, Any]:
         try:
             import ctypes
             present = ctypes.windll.kernel32.IsProcessorFeaturePresent
-            # PF_AVX_INSTRUCTIONS_AVAILABLE 39, PF_AVX2 40, PF_AVX512F 41 (Windows 10+).
+
             info["avx"], info["avx2"], info["avx512"] = (bool(present(39)), bool(present(40)), bool(present(41)))
         except Exception:
             pass
@@ -190,11 +171,10 @@ def _cpu_info() -> Dict[str, Any]:
         except ValueError:
             pass
     if not info["cores"]:
-        # Most desktop CPUs run two threads per core; never report more cores than threads.
+
         threads = int(info["threads"] or 0)
         info["cores"] = max(1, threads // 2) if threads > 2 else threads
     return info
-
 
 def _win_physical_cores() -> int:
     """Physical cores via GetLogicalProcessorInformationEx(RelationProcessorCore) — no PowerShell."""
@@ -221,7 +201,6 @@ def _win_physical_cores() -> int:
         return count
     except Exception:
         return 0
-
 
 def _ram_info() -> Dict[str, Any]:
     info: Dict[str, Any] = {"total": 0, "available": 0, "type": "", "speed": 0, "modules": 0}
@@ -257,19 +236,15 @@ def _ram_info() -> Dict[str, Any]:
             pass
     return info
 
-
-#: SMBIOS memory types reported by Win32_PhysicalMemory.SMBIOSMemoryType.
 _SMBIOS_RAM = {20: "DDR", 21: "DDR2", 24: "DDR3", 26: "DDR4", 27: "LPDDR", 28: "LPDDR2", 29: "LPDDR3",
                30: "LPDDR4", 34: "DDR5", 35: "LPDDR5"}
 
-#: One PowerShell call for what only CIM knows: driver versions and RAM modules.
 _CIM_SCRIPT = (
     "$ErrorActionPreference='SilentlyContinue';"
     "$v=Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM,DriverVersion;"
     "$m=Get-CimInstance Win32_PhysicalMemory | Select-Object Speed,ConfiguredClockSpeed,SMBIOSMemoryType,Capacity;"
     "@{video=@($v);memory=@($m)} | ConvertTo-Json -Compress -Depth 3"
 )
-
 
 def _win_cim() -> Dict[str, Any]:
     text = _run(["powershell", "-NoProfile", "-NonInteractive", "-Command", _CIM_SCRIPT], 15)
@@ -278,7 +253,6 @@ def _win_cim() -> Dict[str, Any]:
     except ValueError:
         return {}
     return data if isinstance(data, dict) else {}
-
 
 def _win_dxgi() -> List[Dict[str, Any]]:
     """Adapters from DXGI: exact 64-bit dedicated memory, vendor id, software adapters skipped."""
@@ -299,7 +273,6 @@ def _win_dxgi() -> List[Dict[str, Any]]:
             _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD), ("Data3", wintypes.WORD),
                         ("Data4", ctypes.c_ubyte * 8)]
 
-        # IID_IDXGIFactory1 {770aae78-f26f-4dba-a829-253c83d1b387}
         iid = GUID(0x770AAE78, 0xF26F, 0x4DBA, (ctypes.c_ubyte * 8)(0xA8, 0x29, 0x25, 0x3C, 0x83, 0xD1, 0xB3, 0x87))
         dxgi = ctypes.WinDLL("dxgi")
         factory = ctypes.c_void_p()
@@ -314,25 +287,24 @@ def _win_dxgi() -> List[Dict[str, Any]]:
         try:
             for index in range(16):
                 adapter = ctypes.c_void_p()
-                # IDXGIFactory1::EnumAdapters1 is vtable slot 12.
+
                 if method(factory, 12, wintypes.UINT, ctypes.POINTER(ctypes.c_void_p))(
                         factory, index, ctypes.byref(adapter)) != 0:
                     break
                 try:
                     desc = DESC1()
-                    # IDXGIAdapter1::GetDesc1 is vtable slot 10.
+
                     if method(adapter, 10, ctypes.POINTER(DESC1))(adapter, ctypes.byref(desc)) == 0 \
-                            and not (desc.Flags & 2):          # DXGI_ADAPTER_FLAG_SOFTWARE
+                            and not (desc.Flags & 2):
                         out.append({"name": desc.Description.strip(), "vram": int(desc.DedicatedVideoMemory),
                                     "shared": int(desc.SharedSystemMemory), "vendor_id": int(desc.VendorId)})
                 finally:
-                    method(adapter, 2)(adapter)                # Release
+                    method(adapter, 2)(adapter)
         finally:
             method(factory, 2)(factory)
         return out
     except Exception:
         return []
-
 
 def _win_registry_vram() -> Dict[str, int]:
     try:
@@ -364,7 +336,6 @@ def _win_registry_vram() -> Dict[str, int]:
         return {}
     return out
 
-
 def _nvidia_smi() -> List[Dict[str, Any]]:
     candidates = ["nvidia-smi"]
     if sys.platform == "win32":
@@ -390,7 +361,6 @@ def _nvidia_smi() -> List[Dict[str, Any]]:
             return rows
     return []
 
-
 def _linux_amd() -> List[Dict[str, Any]]:
     out = []
     for card in sorted(Path("/sys/class/drm").glob("card[0-9]*")):
@@ -400,7 +370,7 @@ def _linux_amd() -> List[Dict[str, Any]]:
         except (OSError, ValueError):
             continue
         if vram < 1024 ** 3:
-            continue        # an APU reports its tiny carve-out
+            continue
         used = 0
         try:
             used = int((card / "device" / "mem_info_vram_used").read_text().strip())
@@ -408,7 +378,6 @@ def _linux_amd() -> List[Dict[str, Any]]:
             pass
         out.append({"name": "AMD Radeon GPU", "vram": vram, "vram_free": max(0, vram - used)})
     return out
-
 
 def _gpus(cim: Dict[str, Any]) -> List[Dict[str, Any]]:
     found: List[Dict[str, Any]] = []
@@ -437,7 +406,7 @@ def _gpus(cim: Dict[str, Any]) -> List[Dict[str, Any]]:
             if not isinstance(row, dict):
                 continue
             name = str(row.get("Name") or "").strip()
-            # AdapterRAM is 32-bit: every card with 4 GB or more reads as ~4 GB.
+
             add({"name": name, "vram": registry.get(name) or int(row.get("AdapterRAM") or 0),
                  "driver": str(row.get("DriverVersion") or "")}, "cim")
     elif sys.platform.startswith("linux"):
@@ -452,7 +421,6 @@ def _gpus(cim: Dict[str, Any]) -> List[Dict[str, Any]]:
     found.sort(key=lambda gpu: (gpu["integrated"], -gpu["vram"]))
     return found
 
-
 def _ram_details(cim: Dict[str, Any]) -> Dict[str, Any]:
     modules = [row for row in cim.get("memory") or [] if isinstance(row, dict)]
     if not modules:
@@ -465,7 +433,6 @@ def _ram_details(cim: Dict[str, Any]) -> Dict[str, Any]:
         kind = "DDR5" if speed >= 4400 else "DDR4" if speed >= 2000 else "DDR3"
     return {"type": kind, "speed": speed, "modules": len(modules)}
 
-
 def _disk(path: Optional[Path]) -> Dict[str, Any]:
     target = path
     while target is not None and not target.exists():
@@ -475,7 +442,6 @@ def _disk(path: Optional[Path]) -> Dict[str, Any]:
         return {"path": str(path or ""), "free": int(usage.free), "total": int(usage.total)}
     except OSError:
         return {"path": str(path or ""), "free": 0, "total": 0}
-
 
 def _mock() -> Optional[Dict[str, Any]]:
     raw = os.environ.get("MEMUAI_HW_MOCK", "").strip()
@@ -490,10 +456,9 @@ def _mock() -> Optional[Dict[str, Any]]:
     except (OSError, ValueError):
         return None
 
-
 def finish(info: Dict[str, Any]) -> Dict[str, Any]:
     """Fill derived fields (vendor, bandwidth, backend…) of a detected or user-edited profile."""
-    info = json.loads(json.dumps(info))      # a private copy
+    info = json.loads(json.dumps(info))
     ram = info.setdefault("ram", {})
     ram.setdefault("total", 0)
     ram.setdefault("available", 0)
@@ -529,7 +494,6 @@ def finish(info: Dict[str, Any]) -> Dict[str, Any]:
     info.setdefault("disk", {"free": 0, "total": 0, "path": ""})
     return info
 
-
 def detect(refresh: bool = False, mock: Optional[Dict[str, Any]] = None,
            models_path: Optional[Path] = None) -> Dict[str, Any]:
     """The hardware profile (cached for 5 minutes; free memory changes, the parts do not)."""
@@ -557,7 +521,6 @@ def detect(refresh: bool = False, mock: Optional[Dict[str, Any]] = None,
         _cache.update(data)
         _cache["_at"] = time.time()
     return data
-
 
 def legacy(profile: Dict[str, Any]) -> Dict[str, Any]:
     """The old ``local_models.hardware()`` shape: {ram, gpus [{name, vram}], cpu_threads} + new fields."""

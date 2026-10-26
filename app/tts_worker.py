@@ -16,10 +16,8 @@ from typing import Iterator
 
 from .tts_process import MAX_TEXT_CHARS, MAX_WAV_BYTES
 
-
 class AudioLimitError(ValueError):
     pass
-
 
 def split_text(text: str, limit: int = 600) -> Iterator[str]:
     for sentence in re.split(r"(?<=[.!?。！？])\s+|\n+", text):
@@ -33,12 +31,10 @@ def split_text(text: str, limit: int = 600) -> Iterator[str]:
         if sentence:
             yield sentence
 
-
 def synthesize_to_wave(voice, text: str, output: Path) -> None:
     total = 0
     audio_format = None
-    # Always finalize/close the file on an ordinary error. The parent rejects
-    # this partial file unless the worker explicitly reports success.
+
     with wave.open(str(output), "wb") as wav:
         for piece in split_text(text):
             for chunk in voice.synthesize(piece):
@@ -59,11 +55,10 @@ def synthesize_to_wave(voice, text: str, output: Path) -> None:
                     raise AudioLimitError("Audio limit exceeded")
                 wav.writeframesraw(audio)
         if not total:
-            # Set a format so closing an empty writer does not mask the error.
+
             if audio_format is None:
                 wav.setnchannels(1); wav.setsampwidth(2); wav.setframerate(22050)
             raise ValueError("No audio")
-
 
 def run_job(job_dir: Path) -> None:
     request_path = job_dir / "request.json"
@@ -84,7 +79,7 @@ def run_job(job_dir: Path) -> None:
         metadata = json.loads(config.read_text(encoding="utf-8"))
         if not isinstance(metadata, dict):
             raise ValueError("Invalid configuration")
-        # Piper/espeak/ONNX must ONLY be imported after entering this process.
+
         from piper import PiperVoice
         voice = PiperVoice.load(str(model), config_path=str(config), use_cuda=False)
         synthesize_to_wave(voice, text, job_dir / "speech.wav")
@@ -96,10 +91,9 @@ def run_job(job_dir: Path) -> None:
     except (ValueError, KeyError, TypeError, OSError):
         result["code"] = "tts_invalid_model"
     except Exception:
-        # Native stderr and user speech must not appear in app logs or errors.
+
         result["code"] = "tts_worker_failed"
     (job_dir / "result.json").write_text(json.dumps(result), encoding="utf-8")
-
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
@@ -107,7 +101,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     if os.name == "nt":
         import ctypes
-        ctypes.windll.kernel32.SetErrorMode(0x0001 | 0x0002)  # no blocking crash dialogs
+        ctypes.windll.kernel32.SetErrorMode(0x0001 | 0x0002)
     else:
         try:
             import resource
@@ -119,7 +113,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     except Exception:
         return 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

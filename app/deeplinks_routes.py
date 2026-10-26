@@ -17,14 +17,12 @@ from typing import Any, Dict, List
 
 from .deeplinks import Ctx, LinkError, P, register_route
 
-
 def _connect_browser_extension(params, ctx):
     from .browser_extension_connect import approve
     try:
         return approve(params["challenge"], params["extension_id"])
     except ValueError as exc:
         raise LinkError("bad_browser_request", str(exc)) from exc
-
 
 register_route(
     "browser-extension/connect", _connect_browser_extension, "confirm", owner="browser_extension",
@@ -38,17 +36,12 @@ register_route(
 
 log = logging.getLogger("memuai.deeplinks")
 
-
 def _en(lang: str) -> bool:
     return lang == "en"
-
 
 def _quote(text: Any, limit: int = 280) -> str:
     text = str(text or "").strip()
     return "«" + (text if len(text) <= limit else text[:limit - 1] + "…") + "»"
-
-
-# ---------------------------------------------------------------- chats
 
 def _describe_chat_new(p: Dict[str, Any], lang: str) -> List[str]:
     en = _en(lang)
@@ -67,7 +60,6 @@ def _describe_chat_new(p: Dict[str, Any], lang: str) -> List[str]:
                      if en else "Текст только вставится в поле ввода — отправите вы сами.")
     return lines
 
-
 register_route(
     "chat/new", None, "safe", ui="chat.new", owner="protocol",
     params={"q": P("text", max=8000), "model": P("model"), "send": P("bool", default=False), "temp": P("bool", default=False)},
@@ -85,9 +77,6 @@ register_route(
     params={"id": P("id", required=True)}, title=("Открыть чат", "Open a chat"),
     describe=lambda p, lang: [("Opens the chat " if _en(lang) else "Откроется чат ") + str(p.get("id"))],
     example="memuai://chat/open?id=chat-1a2b3c4d5e6f")
-
-
-# ---------------------------------------------------------------- places inside MemuAI
 
 TABS = ("chat", "work", "code", "plan", "inbox", "skills", "catalog", "modules", "panels", "memory", "search",
         "settings", "docs", "home")
@@ -114,7 +103,7 @@ register_route(
 register_route(
     "module", None, "safe", ui="module.open", owner="protocol", positional=("id",),
     params={"id": P("slug", required=True), "q": P("line", max=500)}, title=("Открыть модуль", "Open a module"),
-    # A module decides itself what to do with a passed text (it may start work): then ask first.
+
     confirm_if=lambda p: bool(p.get("q")),
     describe=lambda p, lang: [("Opens the module " if _en(lang) else "Откроется модуль ") + str(p.get("id"))]
     + ([("Text for it: " if _en(lang) else "Текст для него: ") + _quote(p["q"])] if p.get("q") else []),
@@ -133,9 +122,6 @@ register_route(
     describe=lambda p, lang: ["Opens the guide to memuai:// links." if _en(lang) else "Откроется справка по ссылкам memuai://."],
     example="memuai://help")
 
-
-# ---------------------------------------------------------------- Quick Access
-
 async def _quick(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     quick = getattr(getattr(ctx.app, "state", None), "quick_ask", None) if ctx.app is not None else None
     text = str(p.get("q") or "")
@@ -149,9 +135,8 @@ async def _quick(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
                 if callable(push):
                     await asyncio.to_thread(push, "window.MemuQuick && MemuQuick.setInput(%s)" % json.dumps(text, ensure_ascii=False))
             return {"ok": True, "message": "Быстрый доступ открыт" if ctx.lang != "en" else "Quick Access opened"}
-    # No native window (browser playground, Quick Access off): the main window handles it.
-    return {"ok": True, "ui": {"do": "quick.open", "q": text}}
 
+    return {"ok": True, "ui": {"do": "quick.open", "q": text}}
 
 register_route(
     "quick", _quick, "safe", owner="protocol",
@@ -161,11 +146,7 @@ register_route(
                                  else f" с текстом {_quote(p['q'])} в поле (не отправляется)" if p.get("q") else "")],
     example="memuai://quick?q=Переведи")
 
-
-# ---------------------------------------------------------------- Proxy pages
-
 PROXY_PAGES = ("home", "accounts", "quota", "models", "composite", "local", "public", "chat", "detector", "settings", "logs")
-
 
 async def _proxy(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     proxy_json = ctx.services.get("proxy_json")
@@ -189,22 +170,17 @@ async def _proxy(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     return {"ok": False, "error": "proxy_unavailable",
             "message": "MemuAI Proxy недоступен" if ctx.lang != "en" else "MemuAI Proxy is unavailable"}
 
-
 register_route(
     "proxy", _proxy, "safe", owner="protocol", positional=("page",),
     params={"page": P("enum", choices=PROXY_PAGES, default="home")}, title=("Страница MemuAI Proxy", "MemuAI Proxy page"),
     describe=lambda p, lang: [("Opens MemuAI Proxy → " if _en(lang) else "Откроется MemuAI Proxy → ") + str(p.get("page") or "home")],
     example="memuai://proxy/composite")
 
-
-# ---------------------------------------------------------------- files (MemuNote, MemuFiles)
-
 def _describe_note(p: Dict[str, Any], lang: str) -> List[str]:
     en = _en(lang)
     return [("MemuNote opens the file:" if en else "MemuNote откроет файл:"), str(p.get("path")),
             ("The file is only opened for viewing and editing; nothing is run." if en
              else "Файл только откроется для просмотра и правки; ничего не запускается.")]
-
 
 async def _note(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     path = Path(str(p["path"]))
@@ -220,12 +196,10 @@ async def _note(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
         raise
     return {"ok": True, "message": "MemuNote открывается…" if ctx.lang != "en" else "Opening MemuNote…"}
 
-
 register_route(
     "note", _note, "confirm", owner="protocol", params={"path": P("path", required=True)},
     title=("Открыть файл в MemuNote", "Open a file in MemuNote"), describe=_describe_note,
     example="memuai://note?path=C:%5CUsers%5CИмя%5Cnotes.md", aliases=("memunote", "note/open"))
-
 
 def _open_memufiles(path: str) -> bool:
     try:
@@ -248,7 +222,6 @@ def _open_memufiles(path: str) -> bool:
         return True
     return False
 
-
 async def _files(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     import asyncio
     path = str(p["path"])
@@ -258,15 +231,11 @@ async def _files(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
         raise LinkError("not_installed", "MemuFiles недоступен.", "MemuFiles is unavailable.")
     return {"ok": True, "message": "MemuFiles открывается…" if ctx.lang != "en" else "Opening MemuFiles…"}
 
-
 register_route(
     "files", _files, "safe", owner="protocol", params={"path": P("path", required=True)},
     title=("Открыть в MemuFiles", "Open in MemuFiles"),
     describe=lambda p, lang: [("MemuFiles shows: " if _en(lang) else "MemuFiles покажет: ") + str(p.get("path"))],
     example="memuai://files?path=C:%5CUsers%5CИмя%5CDownloads", aliases=("files/open", "memufiles"))
-
-
-# ---------------------------------------------------------------- scheduled tasks
 
 def _task(task_id: str) -> Dict[str, Any]:
     try:
@@ -277,7 +246,6 @@ def _task(task_id: str) -> Dict[str, Any]:
     except Exception:  # noqa: BLE001
         pass
     return {}
-
 
 def _describe_task_run(p: Dict[str, Any], lang: str) -> List[str]:
     en = _en(lang)
@@ -292,7 +260,6 @@ def _describe_task_run(p: Dict[str, Any], lang: str) -> List[str]:
                  if en else "Она может использовать модель, интернет, интеграции и ваши лимиты — как запуск по расписанию.")
     return lines
 
-
 async def _task_run(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     task_id = str(p["id"])
     if not _task(task_id):
@@ -305,20 +272,16 @@ async def _task_run(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
         raise LinkError("failed", "Не удалось запустить задачу.", "Could not start the task.")
     return {"ok": True, "message": "Задача запущена" if ctx.lang != "en" else "Task started", "ui": {"do": "plan.open", "id": task_id}}
 
-
 register_route(
     "task/run", _task_run, "confirm", owner="protocol", params={"id": P("id", required=True)},
     title=("Запустить задачу сейчас", "Run a task now"), describe=_describe_task_run,
-    example="memuai://task/run?id=1a2b3c4d5e6f", aliases=("plan/run",))   # Раунд 36: «plan/run» читалась как task/<id=run>
+    example="memuai://task/run?id=1a2b3c4d5e6f", aliases=("plan/run",))
 register_route(
     "task", None, "safe", ui="plan.open", owner="protocol", positional=("id",), params={"id": P("id")},
     title=("Открыть задачу", "Open a task"),
     describe=lambda p, lang: [("Opens Scheduling" if _en(lang) else "Откроется «Планирование»")
                               + (f" → {_quote(_task(str(p['id'])).get('name') or p['id'], 80)}" if p.get("id") else "")],
     example="memuai://task/1a2b3c4d5e6f", aliases=("task/open", "plan"))
-
-
-# ---------------------------------------------------------------- Do For You
 
 register_route(
     "dfy/start", None, "confirm", ui="dfy.start", owner="protocol", params={"task": P("text", required=True, max=2000)},
@@ -330,11 +293,7 @@ register_route(
         "ИИ будет действовать на сайтах за вас; оплаты и секреты по-прежнему спрашиваются отдельно."]),
     example="memuai://dfy/start?task=Найди+билеты", aliases=("dfy",))
 
-
-# ---------------------------------------------------------------- skills from a URL
-
 _SKILL_HOSTS = ("github.com", "raw.githubusercontent.com")
-
 
 async def _skill_preview(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     import asyncio
@@ -371,22 +330,17 @@ async def _skill_preview(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     code = "\n\n".join(f"# {x['name']}\n{x['prompt'][:1500]}" for x in items)
     return {"lines": lines, "code": code[:6000]}
 
-
 async def _skill_install(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     items = ctx.cache.get("skills")
     if not items:
         raise LinkError("no_preview", "Сначала посмотрите, что будет установлено.", "Look at what will be installed first.")
     return {"ok": True, "ui": {"do": "skills.add", "items": items, "label": ctx.cache.get("label") or ""}}
 
-
 register_route(
     "skill/install", _skill_install, "confirm", owner="protocol",
     params={"url": P("url", required=True, hosts=_SKILL_HOSTS)}, title=("Установить скилл по ссылке", "Install a skill from a link"),
     describe=lambda p, lang: [("Adds AI skills from: " if _en(lang) else "Добавит скиллы ИИ из: ") + str(p.get("url"))],
     preview=_skill_preview, example="memuai://skill/install?url=https://github.com/owner/repo/tree/main/skills/x")
-
-
-# ---------------------------------------------------------------- custom provider (no keys in links)
 
 def _describe_provider(p: Dict[str, Any], lang: str) -> List[str]:
     en = _en(lang)
@@ -401,7 +355,6 @@ def _describe_provider(p: Dict[str, Any], lang: str) -> List[str]:
                  "Ваши запросы к этим моделям пойдут на этот адрес. Ключа в ссылке нет — "
                  "введите его ниже, только если доверяете сервису.")
     return lines
-
 
 async def _provider_add(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     proxy_json = ctx.services.get("proxy_json")
@@ -422,7 +375,6 @@ async def _provider_add(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     return {"ok": True, "message": ("Подключение добавлено" if ctx.lang != "en" else "Connection added")
             + ("" if key else (" — ключ можно добавить в Proxy → Аккаунты" if ctx.lang != "en" else " — add a key in Proxy → Accounts"))}
 
-
 register_route(
     "provider/add", _provider_add, "confirm", owner="protocol",
     params={"name": P("slug", required=True, max=40), "base_url": P("url", required=True),
@@ -434,9 +386,6 @@ register_route(
              "hint_en": "The key never comes from the link and is not written to the log."},),
     example="memuai://provider/add?name=myapi&base_url=https://api.example.com/v1&models=model-a")
 
-
-# ---------------------------------------------------------------- composite model import
-
 def _composite_models(data: Any) -> List[Dict[str, Any]]:
     if isinstance(data, dict) and isinstance(data.get("models"), list):
         rows = data["models"]
@@ -447,7 +396,6 @@ def _composite_models(data: Any) -> List[Dict[str, Any]]:
     else:
         rows = []
     return [r for r in rows if isinstance(r, dict)][:20]
-
 
 async def _composite_preview(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     en = ctx.lang == "en"
@@ -477,7 +425,6 @@ async def _composite_preview(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     ctx.cache["data"] = p.get("data")
     return {"lines": lines, "code": json.dumps(p.get("data"), ensure_ascii=False, indent=2)[:12000]}
 
-
 async def _composite_import(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     proxy_json = ctx.services.get("proxy_json")
     if proxy_json is None:
@@ -490,7 +437,6 @@ async def _composite_import(p: Dict[str, Any], ctx: Ctx) -> Dict[str, Any]:
     count = len((data or {}).get("imported") or []) if isinstance(data, dict) else 0
     return {"ok": True, "message": (f"Импортировано: {count}" if ctx.lang != "en" else f"Imported: {count}")}
 
-
 register_route(
     "composite/import", _composite_import, "confirm", owner="protocol",
     params={"data": P("b64json", required=True, max=8000)},
@@ -498,9 +444,6 @@ register_route(
     describe=lambda p, lang: [("Composite models in the link: " if _en(lang) else "Составных моделей в ссылке: ")
                               + str(len(_composite_models(p.get("data"))))],
     preview=_composite_preview, example="memuai://composite/import?data=<base64url JSON>")
-
-
-# ---------------------------------------------------------------- never from a link
 
 for _name in ("exec", "run", "shell", "cmd", "powershell", "eval", "script", "file", "delete", "uninstall",
               "install", "download", "settings/reset", "data/delete", "data/export", "key", "token"):

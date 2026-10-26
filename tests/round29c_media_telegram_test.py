@@ -20,7 +20,6 @@ sys.path.insert(0, str(ROOT))
 USER = "424242"
 TOKEN = "123456:TEST-token-for-media"
 
-
 class FakeTelegram:
     def __init__(self) -> None:
         self.calls = []
@@ -53,7 +52,6 @@ class FakeTelegram:
 
     def methods(self):
         return [c["method"] for c in self.calls]
-
 
 class TelegramMediaTest(unittest.TestCase):
     servers = None
@@ -95,7 +93,6 @@ class TelegramMediaTest(unittest.TestCase):
         from app import pgdata
         return pgdata.load_chats("default")
 
-    # ------------------------------------------------------------------ pure helpers
     def test_extract_and_prompt_block(self) -> None:
         from app import telegram_media_gen as g
         self.assertEqual(g.extract('Рисую.\n```memuai-image\n{"prompt": "a red fox"}\n```'),
@@ -126,7 +123,6 @@ class TelegramMediaTest(unittest.TestCase):
         self.assertIn("media-sora-2", lists["video"])
         self.assertIn("media-chat-small", lists["text"])
 
-    # ------------------------------------------------------------------ bot flows
     def test_image_command_sends_a_photo_and_saves_the_turn(self) -> None:
         from app import telegram_bot, telegram_media_gen as g
 
@@ -142,7 +138,7 @@ class TelegramMediaTest(unittest.TestCase):
         self.assertIn("photo", photo["files"])
         self.assertIn("кот-астронавт", photo["payload"].get("caption", ""))
         self.assertIn("media:again", photo["payload"].get("reply_markup", ""))
-        # the status message with ⏹ Stop was removed
+
         self.assertIn("deleteMessage", methods)
         chat = next(c for c in self.chats() if any(m.get("mediaCommand") == "image" for m in c.get("messages", [])))
         answer = chat["messages"][-1]
@@ -163,7 +159,7 @@ class TelegramMediaTest(unittest.TestCase):
         self.assertIn("upload_video", json.dumps([c["payload"] for c in self.tg.calls if c["method"] == "sendChatAction"]))
         chat = next(c for c in self.chats() if any(m.get("mediaCommand") == "video" for m in c.get("messages", [])))
         url = chat["messages"][-1]["videos"][0]
-        self.assertIn("/api/pg/media/file/", url)       # stored as a profile file, not a data URL in chats.json
+        self.assertIn("/api/pg/media/file/", url)
 
     def test_empty_command_explains_the_usage(self) -> None:
         from app import telegram_media_gen as g
@@ -188,7 +184,7 @@ class TelegramMediaTest(unittest.TestCase):
         self.assertNotIn("sendPhoto", self.tg.methods())
 
     def test_another_one_repeats_the_last_request(self) -> None:
-        # r29d: «🔁 Ещё вариант» always answered «Нечего повторить» — the session sanitizer dropped last_media
+
         from app import pgdata, telegram_media_gen as g
 
         async def go():
@@ -208,7 +204,7 @@ class TelegramMediaTest(unittest.TestCase):
         self.assertIn("missing-model", g.missing_text("video", {"media_video_model": "missing-model"}, lists, "en"))
         self.assertIn("Genspark", g.missing_text("image", {}, lists, "en"))
         self.assertNotRegex(g.missing_text("image", {}, lists, "en"), "[а-яА-Я]")
-        # an explicit /video still works when the chosen model vanished (desktop rule): the first video model
+
         self.assertEqual(g.pick_model("video", {"media_video_model": "missing-model"}, lists, explicit=True), "v")
 
     def test_main_model_hidden_block_generates_after_the_answer(self) -> None:
@@ -228,12 +224,12 @@ class TelegramMediaTest(unittest.TestCase):
         self.assertNotIn("memuai-image", texts)
         photo = next(c for c in self.tg.calls if c["method"] == "sendPhoto")
         self.assertIn("a red fox in snow", photo["payload"]["caption"])
-        # the result is attached to the saved answer
+
         chat = next(c for c in self.chats() if any("лису" in str(m.get("content")) for m in c.get("messages", [])))
         answer = chat["messages"][-1]
         self.assertEqual(answer["media"]["source"], "model")
         self.assertTrue(answer["images"])
-        # the main model got the media protocol in its system prompt
+
         systems = [m.get("content") for body in self.mock["chats"] for m in body.get("messages", []) if m.get("role") == "system"]
         self.assertTrue(any("<media_generation>" in str(text) for text in systems), systems[-1:] if systems else self.mock["chats"][-1:])
 
@@ -248,7 +244,7 @@ class TelegramMediaTest(unittest.TestCase):
                 await telegram_bot._answer_ai(client, TOKEN, USER, "нарисуй горный пейзаж акварелью", prefs, reply_to=4)
         self.run_async(go())
         self.assertIn("sendPhoto", self.tg.methods())
-        # confident heuristic: no text answer, no decision call
+
         self.assertEqual(len(self.mock["chats"]), before)
 
     def test_plain_question_is_not_routed(self) -> None:
@@ -262,7 +258,6 @@ class TelegramMediaTest(unittest.TestCase):
         self.run_async(go())
         self.assertNotIn("sendPhoto", self.tg.methods())
 
-    # ------------------------------------------------------------------ Mini App
     def _app_send(self, text, **kw):
         from app import tgapp_chat, telegram_media_gen
 
@@ -299,7 +294,7 @@ class TelegramMediaTest(unittest.TestCase):
         self.assertIn("/api/pg/media/file/", url)
         data = self.run_async(telegram_media_gen.app_media_file(url, "default"))
         self.assertTrue(data["data"].startswith("data:video/"))
-        with self.assertRaises(Exception):   # no server-side fetching of arbitrary addresses
+        with self.assertRaises(Exception):
             self.run_async(telegram_media_gen.app_media_file("https://example.com/x.mp4", "default"))
         chat = next(c for c in self.chats() if c["id"] == job.meta["chat_id"])
         out = tgapp_api._message_out(chat["messages"][-1], 1)
@@ -326,7 +321,6 @@ class TelegramMediaTest(unittest.TestCase):
         css = (ROOT / "app" / "tgapp" / "app.css").read_text(encoding="utf-8")
         self.assertIn(".gen-video", css)
 
-    # ------------------------------------------------------------------ desktop fixes
     def test_media_router_internal_prompt_is_used(self) -> None:
         from app import media_routing, pgdata
         self.assertEqual(media_routing.DECISION_SYSTEM, pgdata.MEDIA_ROUTER_PROMPT)
@@ -361,7 +355,6 @@ class TelegramMediaTest(unittest.TestCase):
         self.assertIn('data == "media:again"', source)
         self.assertIn("telegram_media_gen.COMMANDS", source)
         self.assertIn("/image", telegram_bot._help_text({"language": "en"}))
-
 
 if __name__ == "__main__":
     unittest.main()

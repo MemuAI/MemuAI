@@ -58,8 +58,6 @@ _version = 0
 _subscribers: List[Callable[[str, Dict[str, Any]], None]] = []
 _handlers: Dict[str, Callable[..., Any]] = {}
 
-
-# ---------------------------------------------------------------- storage
 def _data_dir() -> str:
     env = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if env:
@@ -71,17 +69,14 @@ def _data_dir() -> str:
         appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
         return os.path.join(appdata, "MemuAI")
 
-
 def _path() -> str:
     return os.path.join(_data_dir(), "inbox", "inbox.json")
-
 
 def _mtime(p: str) -> float:
     try:
         return os.path.getmtime(p)
     except OSError:
         return -1.0
-
 
 def _load_locked() -> None:
     """(Пере)читать файл, если сменился путь или файл изменён извне."""
@@ -104,7 +99,6 @@ def _load_locked() -> None:
     _items = items
     _loaded_path = p
     _loaded_mtime = mt
-
 
 def _txn(fn: Callable[[], Any]) -> Any:
     """Межпроцессная транзакция read-modify-write над списком элементов.
@@ -137,7 +131,6 @@ def _txn(fn: Callable[[], Any]) -> Any:
         _loaded_mtime = _mtime(p)
     return box.get("result")
 
-
 def _bump(event: str, item: Optional[Dict[str, Any]] = None) -> None:
     global _version
     _version += 1
@@ -147,10 +140,8 @@ def _bump(event: str, item: Optional[Dict[str, Any]] = None) -> None:
         except Exception:
             pass
 
-
 def _now() -> float:
     return time.time()
-
 
 def _group_of(it: Dict[str, Any]) -> str:
     if it.get("status") != "open":
@@ -165,14 +156,12 @@ def _group_of(it: Dict[str, Any]) -> str:
         return "ask"
     return "notify"
 
-
 def _public(it: Dict[str, Any]) -> Dict[str, Any]:
     out = dict(it)
     out["group"] = _group_of(it)
     snooze = float(it.get("snooze_until") or 0)
     out["snoozed"] = bool(snooze and snooze > _now() and it.get("status") == "open")
     return out
-
 
 def _prune_locked() -> bool:
     now = _now()
@@ -187,7 +176,7 @@ def _prune_locked() -> bool:
                 and now - upd > INFO_TTL_DAYS * 86400:
             continue
         keep.append(it)
-    # cap per source for open items (старые info уходят первыми)
+
     by_src: Dict[str, int] = {}
     capped: List[Dict[str, Any]] = []
     for it in sorted(keep, key=lambda x: -float(x.get("updated") or 0)):
@@ -198,7 +187,7 @@ def _prune_locked() -> bool:
                 continue
         capped.append(it)
     if len(capped) > MAX_ITEMS:
-        # сначала выкидываем закрытые, потом самые старые
+
         closed = [x for x in capped if x.get("status") != "open"]
         opened = [x for x in capped if x.get("status") == "open"]
         need = len(capped) - MAX_ITEMS
@@ -211,14 +200,13 @@ def _prune_locked() -> bool:
     _items[:] = capped
     return changed
 
-
 def _find_locked(key: str) -> Optional[Dict[str, Any]]:
     if not key:
         return None
     for it in _items:
         if it.get("id") == key:
             return it
-    # по dedupe_key: предпочитаем открытый, иначе последний
+
     found = None
     for it in _items:
         if it.get("dedupe_key") == key:
@@ -226,7 +214,6 @@ def _find_locked(key: str) -> Optional[Dict[str, Any]]:
                 return it
             found = it
     return found
-
 
 def _norm_actions(actions: Any) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
@@ -244,8 +231,6 @@ def _norm_actions(actions: Any) -> List[Dict[str, Any]]:
         out.append(b)
     return out[:8]
 
-
-# ---------------------------------------------------------------- API
 def post(kind: str, title: str, body: str = "", source: str = "", ref: Any = None,
          actions: Optional[Iterable[Any]] = None, dedupe_key: Optional[str] = None,
          severity: str = "info", **extra: Any) -> str:
@@ -288,7 +273,6 @@ def post(kind: str, title: str, body: str = "", source: str = "", ref: Any = Non
     _bump(event, out)
     return out["id"]
 
-
 def resolve(dedupe_key_or_id: str, result: Any = None, status: str = "resolved") -> bool:
     """Закрыть элемент(ы) по id или dedupe_key. True если что-то закрыто."""
     if not dedupe_key_or_id:
@@ -308,14 +292,13 @@ def resolve(dedupe_key_or_id: str, result: Any = None, status: str = "resolved")
                 it["read"] = True
                 it["updated"] = _now()
                 changed.append(_public(it))
-        # «эфемерные» (шаги управления компьютером) не копятся в «Готово»
+
         _items[:] = [x for x in _items if not (x.get("ephemeral") and x.get("status") != "open")]
         return bool(changed), changed
     changed = _txn(fn) or []
     for it in changed:
         _bump("resolve", it)
     return bool(changed)
-
 
 def _has_open(key: str) -> bool:
     """Быстрая проверка без транзакции (resolve часто зовут «на всякий случай»)."""
@@ -324,10 +307,8 @@ def _has_open(key: str) -> bool:
         return any(x.get("status") == "open" and (x.get("id") == key or x.get("dedupe_key") == key)
                    for x in _items)
 
-
 def dismiss(dedupe_key_or_id: str) -> bool:
     return resolve(dedupe_key_or_id, result="dismissed", status="dismissed")
-
 
 def get(dedupe_key_or_id: str) -> Optional[Dict[str, Any]]:
     with _lock:
@@ -335,11 +316,9 @@ def get(dedupe_key_or_id: str) -> Optional[Dict[str, Any]]:
         it = _find_locked(dedupe_key_or_id)
         return _public(it) if it else None
 
-
 def is_open(dedupe_key_or_id: str) -> bool:
     it = get(dedupe_key_or_id)
     return bool(it and it.get("status") == "open")
-
 
 def list(status: str = "all", source: Optional[str] = None, q: str = "",
          group: Optional[str] = None, include_snoozed: bool = True,
@@ -369,7 +348,6 @@ def list(status: str = "all", source: Optional[str] = None, q: str = "",
     out.sort(key=lambda x: -float(x.get("updated") or 0))
     return out[:max(1, int(limit or 500))]
 
-
 def mark_read(ids: Any = None, read: bool = True, all_items: bool = False) -> int:
     """Пометить прочитанными id/dedupe_key (строка или список) или всё."""
     if isinstance(ids, str):
@@ -395,7 +373,6 @@ def mark_read(ids: Any = None, read: bool = True, all_items: bool = False) -> in
         _bump("read", {})
     return n
 
-
 def snooze(dedupe_key_or_id: str, seconds: float) -> bool:
     def fn():
         it = _find_locked(dedupe_key_or_id)
@@ -408,7 +385,6 @@ def snooze(dedupe_key_or_id: str, seconds: float) -> bool:
     if out:
         _bump("update", out)
     return bool(out)
-
 
 def counts() -> Dict[str, Any]:
     """Сводка для бейджа: непрочитанные открытые (без отложенных)."""
@@ -434,7 +410,6 @@ def counts() -> Dict[str, Any]:
         c["sources"][s] = c["sources"].get(s, 0) + 1
     return c
 
-
 def clear_done() -> int:
     def fn():
         before = len(_items)
@@ -446,12 +421,9 @@ def clear_done() -> int:
         _bump("clear", {})
     return n
 
-
-# ---------------------------------------------------------------- live
 def version() -> str:
     """Меняется при любом изменении (в т.ч. из другого процесса)."""
     return f"{_version}:{_mtime(_path())}"
-
 
 def subscribe(cb: Callable[[str, Dict[str, Any]], None]) -> Callable[[], None]:
     _subscribers.append(cb)
@@ -463,16 +435,12 @@ def subscribe(cb: Callable[[str, Dict[str, Any]], None]) -> Callable[[], None]:
             pass
     return _unsub
 
-
-# ---------------------------------------------------------------- actions
 def register_handler(source: str, fn: Callable[..., Any]) -> None:
     """fn(item, action_id, payload) -> dict | None. Один обработчик на source."""
     _handlers[str(source)] = fn
 
-
 def handler_for(source: str) -> Optional[Callable[..., Any]]:
     return _handlers.get(str(source or ""))
-
 
 def _pre_action(dedupe_key_or_id: str, action_id: str) -> Any:
     """(item, handler) или готовый ответ dict."""
@@ -490,7 +458,7 @@ def _pre_action(dedupe_key_or_id: str, action_id: str) -> Any:
     act = next((a for a in it.get("actions") or [] if a.get("id") == action_id), None)
     fn = handler_for(it.get("source") or "")
     if act and (act.get("url") or act.get("kind") == "ui"):
-        # кнопка только для интерфейса (открыть раздел/ссылку): выполняет UI
+
         mark_read(it["id"])
         return {"ok": True, "open": act.get("url") or "", "resolved": False}
     if fn is None:
@@ -498,15 +466,13 @@ def _pre_action(dedupe_key_or_id: str, action_id: str) -> Any:
         return {"ok": True, "resolved": True}
     return it, fn
 
-
 def _post_action(it: Dict[str, Any], action_id: str, res: Any) -> Dict[str, Any]:
     res = dict(res) if isinstance(res, dict) else {}
     if res.pop("resolve", False):
         resolve(it["id"], result=res.get("result", action_id))
     mark_read(it["id"])
     cur = get(it["id"]) or {}
-    # The owner may close the item itself (e.g. DFY `_ask` finally → result="answered")
-    # before we get here: keep the concrete button the user pressed as the result.
+
     if cur.get("status") == "resolved" and cur.get("result") in (None, "answered"):
         want = res.get("result", action_id)
 
@@ -522,7 +488,6 @@ def _post_action(it: Dict[str, Any], action_id: str, res: Any) -> Dict[str, Any]
     res["resolved"] = cur.get("status") != "open"
     return res
 
-
 def run_action(dedupe_key_or_id: str, action_id: str, payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Выполнить кнопку элемента через обработчик подсистемы-владельца (синхронно)."""
     pre = _pre_action(dedupe_key_or_id, action_id)
@@ -537,7 +502,6 @@ def run_action(dedupe_key_or_id: str, action_id: str, payload: Optional[Dict[str
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": str(e)[:400] or type(e).__name__}
     return _post_action(it, action_id, res)
-
 
 async def arun_action(dedupe_key_or_id: str, action_id: str,
                       payload: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -557,7 +521,6 @@ async def arun_action(dedupe_key_or_id: str, action_id: str,
     except Exception as e:  # noqa: BLE001
         return {"ok": False, "error": str(e)[:400] or type(e).__name__}
     return await asyncio.to_thread(_post_action, it, action_id, res)
-
 
 def _reset_for_tests() -> None:
     global _items, _loaded_path, _loaded_mtime, _version

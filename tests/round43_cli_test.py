@@ -18,7 +18,6 @@ from app.cli.tools import files
 from app.cli.tools.base import ToolCall, ToolContext, ToolResult
 from tests.memucode_cli_test import make_runtime, run, setUpModule, tearDownModule  # noqa: F401
 
-
 class ContextRecovery(unittest.TestCase):
     def test_elision_allows_rereading_the_result_in_the_same_turn(self):
         runtime, _ = make_runtime({"a.py": "print(1)"})
@@ -69,7 +68,6 @@ class ContextRecovery(unittest.TestCase):
                                 "arguments": json.dumps({"content": "some different words\n" * 300})}}]}
         self.assertGreater(tokens.estimate_message(long), tokens.estimate_message(short) + 500)
 
-
 class FileReadCache(unittest.TestCase):
     def test_unchanged_read_avoids_reading_and_decoding_the_file_again(self):
         runtime, _ = make_runtime({"a.py": "print(1)\nprint(2)\n"})
@@ -107,7 +105,6 @@ class FileReadCache(unittest.TestCase):
         with self.assertRaises(files.ToolError):
             files._check_fresh(ctx, path)
 
-
 class ConversionBudget(unittest.TestCase):
     def test_native_parallel_results_share_the_same_budget_as_text_protocol(self):
         messages = [{"role": "assistant", "tool_calls": [
@@ -137,7 +134,6 @@ class ConversionBudget(unittest.TestCase):
             with self.subTest(budget=budget):
                 parts = tokens.split_budget(["a" * 900, "b" * 900, "c" * 900], budget)
                 self.assertLessEqual(sum(map(len, parts)), budget)
-
 
 class Compaction(unittest.TestCase):
     def make(self):
@@ -172,7 +168,6 @@ class Compaction(unittest.TestCase):
         runtime.quick_answer = AsyncMock(return_value="  ")
         self.assertFalse(run(compact.compact(runtime))["ok"])
         self.assertEqual(runtime.session.api_messages(), before)
-
 
 class HeadlessLifecycle(unittest.TestCase):
     def test_round_limit_final_answer_is_in_the_turn_usage(self):
@@ -226,7 +221,6 @@ class HeadlessLifecycle(unittest.TestCase):
             run(headless.run(runtime, "task", fmt="json"))
         runtime.shutdown.assert_awaited_once()
 
-
 class DirectModels(unittest.TestCase):
     def test_non_json_models_response_preserves_configured_models(self):
         backend = OpenAIBackend({"name": "local", "base_url": "http://test.invalid/v1", "models": ["mine"]})
@@ -238,7 +232,6 @@ class DirectModels(unittest.TestCase):
             finally:
                 await backend.close()
         self.assertEqual([m.raw for m in run(scenario())], ["mine"])
-
 
 if __name__ == "__main__":
     unittest.main()

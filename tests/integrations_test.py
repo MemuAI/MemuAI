@@ -11,11 +11,9 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-
 def source(rel):
     with open(os.path.join(ROOT, rel), encoding="utf-8") as handle:
         return handle.read()
-
 
 class IntegrationsModuleTest(unittest.TestCase):
     def setUp(self):
@@ -46,15 +44,14 @@ class IntegrationsModuleTest(unittest.TestCase):
         self.assertIn("integrations.json", self.text)
         self.assertIn("0o600", self.text)
         self.assertIn('"secret"', self.text)
-        # статус возвращает только маску, а не сам токен
+
         self.assertIn('"\u2022" * 8', self.text)
 
     def test_google_refresh_flow(self):
-        # Round 30: one Google account (app/google_account.py) refreshes through the Sync OAuth grant.
+
         self.assertIn("oauth2.googleapis.com/token", source("app/gdrive_sync_drive.py"))
         self.assertIn("google_account.access_token", self.text)
         self.assertIn("_tokens", self.text)
-
 
 class IntegrationsWiringTest(unittest.TestCase):
     def test_endpoints(self):
@@ -67,7 +64,7 @@ class IntegrationsWiringTest(unittest.TestCase):
 
     def test_tools_dispatch(self):
         api = source("app/playground_api.py")
-        # Round 33: + Google Docs / Sheets / Tasks / Contacts — every prefix of integrations.TOOL_PREFIXES is routed.
+
         from app import integrations as ig
         line = next(row for row in api.splitlines() if 'tool.startswith(("github_"' in row)
         for prefix in ig.TOOL_PREFIXES:
@@ -77,7 +74,7 @@ class IntegrationsWiringTest(unittest.TestCase):
     def test_frontend_pane_and_guide(self):
         js = source("app/pgstatic/app.js")
         for marker in (
-            # Round 23: the settings navigation is generated from settingsPages().
+
             'P("apps"', 'data-set-tab="${p.id}"', 'id="pane-apps"', "int-github-token",
             "MemuIntegrations.listHtml", "MemuIntegrations.subsHtml",
             "data-int-save", "data-int-test", "data-int-off",
@@ -91,7 +88,6 @@ class IntegrationsWiringTest(unittest.TestCase):
         self.assertIn("integrationsPromptBlock", js)
         self.assertIn("<integrations>", js)
         self.assertIn("hidden memuai-tool protocol", js)
-
 
 if __name__ == "__main__":
     unittest.main()

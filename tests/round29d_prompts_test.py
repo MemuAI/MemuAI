@@ -16,7 +16,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r29d-prompts-test-"))
 
-
 class QuickEscalationTest(unittest.TestCase):
     def test_escalation_is_stated_up_front_only_when_available(self) -> None:
         from app import quick_ask_core as q
@@ -28,7 +27,6 @@ class QuickEscalationTest(unittest.TestCase):
         self.assertNotIn("escalate_to_advanced", without)
         self.assertNotIn("Big requests", without)
         self.assertLess(len(with_adv), 4200)
-
 
 class MemuNoteLanguageTest(unittest.TestCase):
     def build(self, action: str, ui: str, instruction: str = "") -> list:
@@ -58,14 +56,12 @@ class MemuNoteLanguageTest(unittest.TestCase):
         from app.memunote import prompts
         self.assertIn("no slashes, flags or backticks", prompts.ACTIONS["regex"]["task"])
 
-
 class DfyRulesTest(unittest.TestCase):
     def test_captcha_and_visible_answer(self) -> None:
         from app import dfy
         self.assertIn("CAPTCHA", dfy.SYSTEM_PROMPT)
         self.assertIn("never try to solve or click through it", dfy.SYSTEM_PROMPT)
         self.assertIn('finish with "done" at once', dfy.SYSTEM_PROMPT)
-
 
 class DocsAiAskTest(unittest.TestCase):
     def test_no_invented_paths(self) -> None:
@@ -76,14 +72,12 @@ class DocsAiAskTest(unittest.TestCase):
         self.assertIn("не называй пути в меню, настройки, плагины и интеграции, которых нет в статье", ru)
         self.assertNotIn("suggest where in MemuAI to look", en)
 
-
 class MediaAutopromptTest(unittest.TestCase):
     def test_edit_of_previous_generation(self) -> None:
         from app import media_routing as mr
         text = mr.AUTOPROMPT_SYSTEM.format(kind="image", video_extra="", search_rule="")
         self.assertIn("keep that prompt and change only what the user asks", text)
         self.assertNotIn("{", text)
-
 
 class CliWorkflowTest(unittest.TestCase):
     def test_compact_and_complete(self) -> None:
@@ -95,18 +89,15 @@ class CliWorkflowTest(unittest.TestCase):
                        "shall I continue?", "TodoWrite", "old_string exactly"):
             self.assertIn(phrase, text)
 
-
 class LiveRelayReaderTest(unittest.TestCase):
     def test_upstream_is_read_by_a_dedicated_task(self) -> None:
-        # websockets<14 drops frames still buffered when the provider closes right after its last event;
-        # the relay must take frames off the socket independently of forwarding them (round9 live-relay test).
+
         source = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
         start = source.index("async def upstream_to_client()")
         body = source[start:start + 1600]
         self.assertIn("asyncio.Queue()", body)
         self.assertIn("async for raw in upstream:", body)
         self.assertIn("reader.cancel()", body)
-
 
 if __name__ == "__main__":
     unittest.main()

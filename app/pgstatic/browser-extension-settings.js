@@ -1,4 +1,4 @@
-/* Round 44: install and connect Chrome from the native MemuAI window. */
+
 window.MemuBrowserExtension = (() => {
   "use strict";
   const K = () => window.MemuSettingsKit;

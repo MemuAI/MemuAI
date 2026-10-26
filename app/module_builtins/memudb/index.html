@@ -1,0 +1,46 @@
+<div class="db" id="db">
+  <header class="db-bar">
+    <b class="db-brand"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></svg>MemuDB</b>
+    <button id="open" data-i18n="open"></button><button id="create" data-i18n="create"></button>
+    <label class="db-connection"><span class="sr-only" data-i18n="connection"></span><select id="connection"></select></label>
+    <button id="mode" class="db-mode" disabled></button><button id="close" disabled data-i18n="close"></button>
+  </header>
+  <div class="db-layout">
+    <aside class="db-sidebar" aria-label="Tables">
+      <div class="db-sidehead"><b data-i18n="tables"></b><button id="refresh" disabled data-i18n="refresh"></button></div>
+      <label class="sr-only" for="table-filter" data-i18n="find_table"></label><input id="table-filter" data-i18n-placeholder="find_table" type="search">
+      <div id="tables" class="db-tables"></div>
+      <button id="new-table" disabled data-i18n="new_table"></button>
+      <details class="db-saved"><summary data-i18n="snippets"></summary><div id="snippets"></div></details>
+      <details class="db-saved"><summary data-i18n="history"></summary><div id="history"></div></details>
+      <div class="db-engine" id="engine">SQLite</div>
+    </aside>
+    <main class="db-main">
+      <div id="welcome" class="db-welcome"><svg viewBox="0 0 24 24" aria-hidden="true"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v14c0 4 16 4 16 0V5M4 12c0 4 16 4 16 0"/></svg><h1 data-i18n="welcome"></h1><p data-i18n="welcome_hint"></p><p class="db-small" data-i18n="supported"></p><button id="welcome-open" class="primary" data-i18n="open"></button></div>
+      <div id="workspace" hidden>
+        <nav class="db-tabs" role="tablist" aria-label="Database workspace"><button id="tab-data" role="tab" data-tab="data" aria-controls="panel-data" aria-selected="true" data-i18n="data"></button><button id="tab-sql" role="tab" data-tab="sql" aria-controls="panel-sql" aria-selected="false" tabindex="-1" data-i18n="sql"></button><button id="tab-schema" role="tab" data-tab="schema" aria-controls="panel-schema" aria-selected="false" tabindex="-1" data-i18n="schema"></button><button id="tab-ai" role="tab" data-tab="ai" aria-controls="panel-ai" aria-selected="false" tabindex="-1" data-i18n="ai"></button><span class="db-grow"></span><button id="backup" data-i18n="backup"></button><select id="export-format" data-i18n-aria-label="export_format"><option value="csv">CSV</option><option value="json">JSON</option><option value="sql">SQL</option></select><button id="export" data-i18n="export"></button></nav>
+        <section id="panel-data" class="db-panel" role="tabpanel" aria-labelledby="tab-data">
+          <div class="db-tools"><b id="table-title"></b><span class="db-grow"></span><label class="sr-only" for="search" data-i18n="find_row"></label><input id="search" type="search" data-i18n-placeholder="find_row"><button id="add-row" disabled data-i18n="add_row"></button><button id="import" disabled data-i18n="import"></button><input type="file" id="csv-file" accept=".csv,.tsv,text/csv" hidden></div>
+          <div id="data-grid" class="db-grid"></div><div class="db-pagination"><button id="previous" data-i18n="previous"></button><span id="pagination"></span><button id="next" data-i18n="next"></button><label><span data-i18n="page_size"></span> <select id="page-size"><option>50</option><option selected>100</option><option>250</option><option>500</option></select></label></div>
+        </section>
+        <section id="panel-sql" class="db-panel" role="tabpanel" aria-labelledby="tab-sql" hidden>
+          <label for="sql" data-i18n="sql_label"></label><textarea id="sql" class="db-code" spellcheck="false" placeholder="SELECT * FROM ... LIMIT 100;"></textarea>
+          <details><summary data-i18n="parameters"></summary><label class="sr-only" for="parameters" data-i18n="parameters"></label><textarea id="parameters" class="db-code db-short" spellcheck="false">[]</textarea><p class="db-small" data-i18n="parameters_hint"></p></details>
+          <div class="db-tools"><button id="run" class="primary" data-i18n="run"></button><button id="explain" data-i18n="explain"></button><button id="preview" data-i18n="preview"></button><button id="cancel" hidden data-i18n="cancel"></button><span class="db-grow"></span><button id="save-sql" data-i18n="save_sql"></button></div>
+          <p class="db-small" data-i18n="sql_hint"></p><div id="query-result" class="db-grid"></div>
+        </section>
+        <section id="panel-schema" class="db-panel" role="tabpanel" aria-labelledby="tab-schema" hidden><div id="schema"></div></section>
+        <section id="panel-ai" class="db-panel" role="tabpanel" aria-labelledby="tab-ai" hidden>
+          <div class="db-ai-head"><div><h2 data-i18n="ai_title"></h2><p data-i18n="ai_hint"></p></div><label><span data-i18n="model"></span><select id="model"></select></label></div>
+          <div id="ai-conversation" class="db-conversation"></div><button id="ai-clear" data-i18n="ai_clear"></button>
+          <label for="ai-request" data-i18n="ai_request"></label><textarea id="ai-request" rows="4" data-i18n-placeholder="ai_placeholder"></textarea>
+          <label class="db-check"><input id="ai-samples" type="checkbox"><span data-i18n="ai_samples"></span></label><p class="db-small" data-i18n="ai_privacy"></p>
+          <div class="db-tools"><button id="ai-go" class="primary" data-i18n="ai_go"></button><button id="ai-stop" hidden data-i18n="cancel"></button></div>
+          <pre id="ai-answer" class="db-ai-answer" aria-live="polite"></pre><button id="ai-use" hidden data-i18n="ai_use"></button>
+        </section>
+      </div>
+      <footer class="db-status" id="status" role="status" aria-live="polite"></footer>
+    </main>
+  </div>
+  <dialog id="dialog" class="db-dialog"><form method="dialog"><header><h2 id="dialog-title"></h2><button value="cancel" data-i18n="close"></button></header><div id="dialog-body"></div><footer><button value="cancel" data-i18n="cancel"></button><button id="dialog-submit" type="button" class="primary"></button></footer><p id="dialog-error" role="alert"></p></form></dialog>
+</div>

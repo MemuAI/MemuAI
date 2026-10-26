@@ -6,7 +6,6 @@
    author's voice, tense, person, formatting and macros ({{char}}, {{user}}), never invent facts that contradict
    or go beyond the card unless asked to, and answer with the field text only (no preface, no quotes, no fences). */
 
-// What each field is for — the model gets the one line for the field it edits.
 var ASSIST_FIELD_GUIDE = {
   name: "the character's name (a short proper name, no description)",
   description: "the character description: appearance, background, abilities, relationships, important facts. It is always in the prompt, so it should be dense and concrete",
@@ -27,7 +26,6 @@ var ASSIST_FIELD_GUIDE = {
   wi_keys: "the entry's trigger keywords"
 };
 
-// Field-editing actions. `needsText` = the action makes no sense on an empty field.
 var ASSIST_ACTIONS = {
   improve: { icon: "sparkle", needsText: true, rule: "Improve this text: clearer, more vivid and better structured, while keeping every fact, the author's voice, tense, person, formatting and length (±20%)." },
   continue: { icon: "forward", needsText: true, rule: "Continue this text from where it stops. Return ONLY the new continuation (do not repeat the existing text), matching its voice, tense and formatting. Add roughly one or two paragraphs." },
@@ -42,7 +40,6 @@ var ASSIST_ACTIONS = {
   fix_issue: { icon: "check", needsText: false, rule: "Fix the problem the reviewer found (described in the instruction). Change only what is needed to fix it; keep everything else as written." }
 };
 
-// The tones offered under «Make it livelier / another tone».
 var ASSIST_TONES = ["tone_vivid", "tone_dark", "tone_light", "tone_romantic", "tone_formal", "tone_humor", "tone_poetic", "tone_terse"];
 
 function assistLangRule(lang, sample) {
@@ -65,7 +62,6 @@ var ASSIST_SYSTEM = [
   "- Answer with the resulting field text ONLY: no preface, no explanations, no quotes around it, no code fences, no notes after it."
 ].join("\n");
 
-// Card (and lorebook) → compact context block. `skip` = the field being edited (shown separately).
 function assistCardBrief(card, skip, limit) {
   limit = limit || 1800;
   var out = [];
@@ -101,7 +97,6 @@ function assistBookBrief(world, skipUid, limit) {
   }).join("\n");
 }
 
-/* A field action → chat messages. a = {action, field, label, text, selection:{start,end,text}|null, instruction, card, world, entry, lang} */
 function assistFieldMessages(a) {
   var spec = ASSIST_ACTIONS[a.action] || ASSIST_ACTIONS.custom;
   var guide = ASSIST_FIELD_GUIDE[a.field] || "a text field of the card";
@@ -129,7 +124,6 @@ function assistFieldMessages(a) {
   return [{ role: "system", content: ASSIST_SYSTEM }, { role: "user", content: parts.join("\n\n") }];
 }
 
-// The side-panel chat: the model sees the whole card and may propose field text inside <field name="key">…</field>.
 function assistChatSystem(kind, fieldKeys) {
   return ASSIST_SYSTEM.split("\n- Answer with")[0] + "\n" + [
     "You are chatting with the author about their " + (kind === "lorebook" ? "lorebook" : "character card") + ". Be concrete and brief; use short lists.",
@@ -139,7 +133,6 @@ function assistChatSystem(kind, fieldKeys) {
   ].join("\n");
 }
 
-// «Review the card»: JSON list of concrete issues.
 function assistReviewMessages(card, world, localNotes, lang) {
   var fields = "name, description, personality, scenario, first_mes, alternate_greeting:N, mes_example, system_prompt, post_history_instructions, creator_notes, tags";
   var body = "# The card\n" + (assistCardBrief(card, null, 4000) || "(empty)") + (world ? "\n\n" + assistBookBrief(world, null, 400) : "") +
@@ -152,7 +145,6 @@ function assistReviewMessages(card, world, localNotes, lang) {
   return [{ role: "system", content: "You are a meticulous editor of roleplay character cards. You reply with JSON only." }, { role: "user", content: body }];
 }
 
-// Lorebook helpers ------------------------------------------------------------------------------------------------
 function assistKeysMessages(entry, world, lang) {
   return [{ role: "system", content: "You suggest trigger keywords for lorebook (world info) entries. Reply with JSON only." },
     { role: "user", content: "# Entry\nTitle: " + (entry.comment || "") + "\nCurrent keys: " + (entry.key || []).join(", ") + "\nContent:\n" + (entry.content || "") +

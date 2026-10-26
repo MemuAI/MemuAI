@@ -1,14 +1,5 @@
-/* Round 30 — how a MemuAI panel looks in Quick Access (window grid, screen layer, the section built into the window).
 
-   window.MemuPanelLook = { STYLES, DEFAULT, resolve(doc, panelId, {embed}), apply(el, look, {place}), faceHtml(panel, look,
-   {size, place}), theme(look), label(style) }. The data is app/quick_panel_look.py: `look` (global), `looks[panelId]`
-   (one panel's own, partial) and `embed.style` (the built-in section's default) — all in GET /api/quick/canvas.
 
-   «card» keeps panels.js' own card (MemuPanels.cardHtml); the other styles are drawn here from MemuPanels.linesOf /
-   miniOf: «compact» — one tight row (icon · name · value) plus small secondary lines, «text» — only lines of values,
-   no background and no frame (on the screen layer with a soft shadow so it stays readable over any wallpaper),
-   «icon» — a big icon and the value. Background opacity, font size, accent, radius, shadow and a forced light / dark /
-   Windows theme are CSS variables + data attributes on the item element (pgstatic/quick/panel-look.css). */
 (function () {
   "use strict";
   const STYLES = ["card", "compact", "text", "icon"];
@@ -27,13 +18,13 @@
     return out;
   }
   const systemDark = () => !!(window.matchMedia && matchMedia("(prefers-color-scheme: dark)").matches);
-  /** "light" | "dark" | "" (= follow the app's theme: nothing to force). */
+
   function theme(look) {
     if (look.theme === "light" || look.theme === "dark") return look.theme;
     if (look.theme === "auto") return systemDark() ? "dark" : "light";
     return "";
   }
-  /** Put a look on an item element (the grid cell / the layer item / an embedded tile). */
+
   function apply(el, look, opts = {}) {
     if (!el) return;
     const d = el.dataset;
@@ -60,15 +51,13 @@
     return panel.wall ? "stale" : "live";
   }
   const unitHtml = (u) => (u ? `<small class="pl-u">${esc(u)}</small>` : "");
-  // Round 31: a value that is a phrase (a headline of a news / RSS / AI panel, «Ближайший матч не указан») is not a
-  // number: it gets an ellipsis and regular weight instead of being cut mid-letter at the tile's edge.
+
   const phrase = (v) => { const s = String(v == null ? "" : v); return s.length > 14 && /[A-Za-zА-Яа-яЁё]{3,}/.test(s) && /\s/.test(s); };
-  // the chip label is often the title cut short («последняя версия Pyt», «Top 5 Hacker News…»): not a second caption
+
   const sameAsTitle = (label, title) => { const a = String(label || "").replace(/…$/, "").trim().toLowerCase(); return !!a && String(title || "").trim().toLowerCase().startsWith(a); };
   const ph = (l) => (phrase(l && l.value) ? " pl-phrase" : "");
   const trendHtml = (tr) => (tr === "up" || tr === "down" ? `<i class="pl-tr" data-trend="${tr}" aria-hidden="true">${tr === "up" ? "▲" : "▼"}</i>` : "");
 
-  /** The face of a non-card style (null for «card»: the caller draws MemuPanels.cardHtml). */
   function faceHtml(panel, look, opts = {}) {
     if (!panel || look.style === "card" || !window.MemuPanels || typeof MemuPanels.linesOf !== "function") return null;
     const P = window.MemuPanels;
@@ -92,30 +81,28 @@
         <b class="pl-v">${esc(first.value)}${unitHtml(first.unit)}${trendHtml(first.trend)}</b></div>
         ${rest.map((l) => `<div class="pl-row pl-sub${ph(l)}"><span class="pl-l">${esc(l.label || "")}</span><b class="pl-v">${esc(l.value)}${unitHtml(l.unit)}${trendHtml(l.trend)}</b></div>`).join("")}</div>`;
     }
-    // Round 32: «text» is real text — the panel's own template (or the automatic one) with its values (panel-text.js)
+
     if (window.MemuPanelText && (st === "live" || st === "stale")) {
-      try { return window.MemuPanelText.faceHtml(panel, look, { state: st, place: opts.place || "", titles: look.titles !== false }); } catch (e) { /* the plain lines below */ }
+      try { return window.MemuPanelText.faceHtml(panel, look, { state: st, place: opts.place || "", titles: look.titles !== false }); } catch (e) {  }
     }
-    // text: lines only — the panel's name as a quiet caption when titles are on
+
     const all = lines.length ? lines : [first];
     return `<div ${common}>${look.titles !== false ? `<div class="pl-cap">${title}</div>` : ""}
       ${all.map((l, i) => `<div class="pl-line${i === 0 ? " pl-first" : ""}${ph(l)}">${l.label && (!sameAsTitle(l.label, panel.title) || look.titles === false) ? `<span class="pl-l">${esc(l.label)}</span>` : ""}<b class="pl-v">${esc(l.value)}${unitHtml(l.unit)}${trendHtml(l.trend)}</b></div>`).join("")}</div>`;
   }
-  /** One value line of a panel as plain text (the «Копировать значение» menu item). */
+
   function valueText(panel, look) {
-    if (panel && look && look.style === "text" && window.MemuPanelText) { try { const s = window.MemuPanelText.plainText(panel, look); if (s) return s; } catch (e) { /* lines */ } }
+    if (panel && look && look.style === "text" && window.MemuPanelText) { try { const s = window.MemuPanelText.plainText(panel, look); if (s) return s; } catch (e) {  } }
     if (!panel || !window.MemuPanels || typeof MemuPanels.linesOf !== "function") return "";
     return MemuPanels.linesOf(panel, (look && look.lines) || 3).map((l) => [l.label, `${l.value}${l.unit ? " " + l.unit : ""}`].filter(Boolean).join(": ")).join("\n");
   }
   const label = (style) => { const p = LABELS[style] || LABELS.card; return t(p[0], p[1]); };
-  /** The «Вид» segmented row of the item menus (pgstatic/memu-ctxmenu.js). */
+
   function menuSeg(look) {
     return { type: "seg", id: "pl-style", label: t("Вид", "Look"), icon: "grid", options: STYLES.map((s) => ({
       id: s, label: { card: t("Карт.", "Card"), compact: t("Комп.", "Comp."), text: t("Текст", "Text"), icon: t("Иконка", "Icon") }[s], title: label(s), pressed: look.style === s })) };
   }
 
-  // Round 32: the text templates (panel-text.js + .css) come with the looks, whoever loaded this file; a page re-draws
-  // its panels on the «memu-panel-text» event (until then «text» shows the plain value lines).
   (function loadText() {
     if (window.MemuPanelText || typeof document.createElement !== "function" || !document.head || document.querySelector("script[data-pt-js]")) return;
     const me = document.currentScript && document.currentScript.src ? document.currentScript.src : "/quick/panel-look.js";

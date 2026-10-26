@@ -1,13 +1,11 @@
-/* MemuAI Proxy — «Мастер подбора локальной модели» (Round 33).
-   Четыре шага: компьютер (найденное железо, можно поправить) → задачи → приоритеты →
-   рекомендации (квант, скорость, память, почему) с установкой и запуском в один клик.
-   Бэкенд: /api/admin/local/wizard/* (app/local_wizard.py, app/local_hw.py). */
+
+
 "use strict";
 
 window.MemuLocalWizard = (() => {
   const L = (ru, en) => (LANG === "en" ? en : ru);
   const GB = 1024 ** 3;
-  /* Own line icons for what the shared set (icons.js) does not have; same stroke style. */
+
   const OWN = {
     code: '<path d="m8 7-5 5 5 5"/><path d="m16 7 5 5-5 5"/><path d="m13.5 4.5-3 15"/>',
     wrench: '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 6.2-6.2a4 4 0 0 1-5-5L13 5z"/><path d="M3 21l6-6"/>',
@@ -40,8 +38,6 @@ window.MemuLocalWizard = (() => {
     result: null, loading: false, error: "", picked: {}, installs: {}, poll: 0, expanded: new Set(), gen: 0, showMore: false,
   };
 
-  /* ---------------- форматирование ---------------- */
-
   function gb(value, digits = 1) {
     const n = (Number(value) || 0) / GB;
     if (!n) return "—";
@@ -70,8 +66,6 @@ window.MemuLocalWizard = (() => {
     const pct = placement === "partial" && share ? ` · ${Math.round(share * 100)}%` : "";
     return `<span class="badge ${cls}">${esc(label())}${esc(pct)}</span>`;
   }
-
-  /* ---------------- открытие и каркас ---------------- */
 
   function open() {
     S.gen += 1;
@@ -124,8 +118,6 @@ window.MemuLocalWizard = (() => {
       <button type="button" class="link-btn" data-lw="refresh-catalog">${esc(L("обновить данные", "refresh data"))}</button></span>` : "";
     foot.innerHTML = `${note}<span class="lw-spacer"></span>${back}${next}`;
   }
-
-  /* ---------------- шаг 1: компьютер ---------------- */
 
   async function loadHardware(refresh) {
     S.loadingHw = true;
@@ -214,14 +206,11 @@ window.MemuLocalWizard = (() => {
     S.edited = base;
     S.editing = false;
     S.result = null;
-    // The server finishes the profile (vendor, bandwidth, backend) — ask it through a recommendation later;
-    // here a quick local view: the first GPU becomes the main one.
+
     S.edited.main_gpu = vram ? { name: name || "GPU", vram: vram * GB, bandwidth: 0, vendor: "" } : null;
     S.edited.backend = vram ? (/(nvidia|geforce|rtx|gtx|quadro)/i.test(name) ? "cuda" : "vulkan") : "cpu";
     render();
   }
-
-  /* ---------------- шаг 2: задачи ---------------- */
 
   function renderUses() {
     const g = S.goals;
@@ -245,8 +234,6 @@ window.MemuLocalWizard = (() => {
     return `<div class="lw-seg" role="radiogroup" data-key="${key}">${options.map(([value, label]) =>
       `<button type="button" role="radio" aria-checked="${String(value) === String(current)}" class="${String(value) === String(current) ? "on" : ""}" data-lw="seg" data-key="${key}" data-value="${esc(value)}">${esc(label)}</button>`).join("")}</div>`;
   }
-
-  /* ---------------- шаг 3: приоритеты ---------------- */
 
   function autoContext() {
     const u = S.goals.uses;
@@ -281,8 +268,6 @@ window.MemuLocalWizard = (() => {
       <div class="lw-privacy">${ico("lock")}<span>${esc(L("Конфиденциальность и офлайн: модель работает только на этом компьютере. Интернет нужен один раз — чтобы скачать файлы.",
         "Privacy and offline: the model runs only on this computer. The internet is needed once — to download the files."))}</span></div>`;
   }
-
-  /* ---------------- шаг 4: рекомендации ---------------- */
 
   async function recommend() {
     S.loading = true; S.error = "";
@@ -347,7 +332,7 @@ window.MemuLocalWizard = (() => {
     const warnings = L(row.warnings, row.warnings_en) || [];
     const open = S.expanded.has(row.id);
     const shown = open ? why : why.slice(0, 3);
-    // Short labels: the speed above the select follows the chosen quant.
+
     const options = (row.alternatives || []).map((a) => `<option value="${esc(a.quant)}" ${a.quant === quant ? "selected" : ""} ${a.placement === "none" ? "disabled" : ""}>${esc(a.file_quant || a.quant)} · ${esc(gb(a.size))}${a.placement === "none" ? ` — ${esc(L("не влезет", "won't fit"))}` : a.quant === row.quant ? " ★" : ""}</option>`).join("");
     const inst = S.installs[row.id];
     const download = size + ((row.mmproj && row.mmproj.size) || 0);
@@ -434,8 +419,6 @@ window.MemuLocalWizard = (() => {
     if (focusId) document.querySelector(`.lw-card[data-id="${CSS.escape(id)}"] [data-lw="${focusId}"]`)?.focus();
   }
 
-  /* ---------------- установка и проверка ---------------- */
-
   async function install(row) {
     const { quant, alt, isBest } = current(row);
     const preset = { ...(row.preset || {}) };
@@ -480,7 +463,7 @@ window.MemuLocalWizard = (() => {
         rerenderCard(id);
       }
       if (window.MemuLocal && $("#tab-local")?.classList.contains("active")) MemuLocal.load();
-    } catch (error) { /* next round */ }
+    } catch (error) {  }
     schedulePoll();
   }
 
@@ -521,7 +504,7 @@ window.MemuLocalWizard = (() => {
       const prefs = JSON.parse(localStorage.getItem("oh_proxy_chat_prefs") || "{}") || {};
       prefs.model = id;
       localStorage.setItem("oh_proxy_chat_prefs", JSON.stringify(prefs));
-    } catch (error) { /* хранилище недоступно */ }
+    } catch (error) {  }
     closeModal();
     $('.nav-item[data-tab="chat"]')?.click();
     setTimeout(() => { const field = $("#pc-model"); if (field) { field.value = id; field.dispatchEvent(new Event("change")); } }, 300);
@@ -541,8 +524,6 @@ window.MemuLocalWizard = (() => {
       setTimeout(wait, 1500);
     } catch (error) { toast(errorOf(error), "err"); }
   }
-
-  /* ---------------- события ---------------- */
 
   function onClick(event) {
     const button = event.target.closest("[data-lw]");
@@ -612,7 +593,7 @@ window.MemuLocalWizard = (() => {
 
   return {
     open,
-    /** Re-render texts after a language switch. */
+
     relabel() { if (alive()) render(); },
   };
 })();

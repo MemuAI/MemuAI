@@ -1,4 +1,4 @@
-// MemuNote Photo — line icons (24×24, stroke = currentColor, same style as MemuNote's ICONS).
+
 const P = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 export const PICON = {
   warn: P('<path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17.5v.5"/>'),

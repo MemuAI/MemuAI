@@ -1,52 +1,17 @@
-/* =====================================================================
-   MemuAI design «Стекло / Glass» v3 (Round24; v2 — Round20) — scoped to
-   :root[data-design="glass"].
-   ---------------------------------------------------------------------
-   «Liquid glass» on a living aurora. The window is a slow aurora made of
-   --accent / --accent-2; the sidebar, the reading sheet, the composer and
-   every menu float on it as real frosted material:
-
-   - layered backdrop-filter: blur + saturate + brightness, a different
-     «thickness» per depth: thin sidebar & strips, regular reading sheet,
-     thick liquid composer, ultra-thick menus and dialogs;
-   - SVG feTurbulence grain baked into every pane (frosted realism, no
-     banding) — one tiny tiled raster, no extra layers;
-   - specular rims: a 1px gradient border drawn with mask-composite (light
-     from the top-left, a faint caustic on the bottom-right) plus inner
-     lensing highlights for the Apple-2025 «liquid» depth;
-   - a pointer-following sheen (--mx/--my from motion.js, rAF-throttled);
-   - colour only from theme tokens + color-mix(), so every palette variant
-     and accent, light and dark, works; readable panes keep text ≥ 4.5:1
-     (checked by tests/designs_test.py against the brightest wallpaper);
-   - performance: at most three permanent blurred layers (sidebar, sheet,
-     composer); the aurora moves in coarse steps (~4 updates/s) and pauses
-     while the window is hidden or inactive (html.m-paused), under the
-     «reduced»/«off» animation setting and prefers-reduced-motion.
-   v3 (Round24): calmer, cleaner material in the spirit of visionOS /
-   macOS Sonoma / Windows 11 Acrylic. Neutral «smoke» glass instead of
-   accent-tinted mud in dark mode, a deeper wallpaper with luminous glows,
-   one soft shadow per depth, NO vignette and no dark halo around the
-   composer (it is a clean floating pill now), a strict radius scale
-   (8 / 12 / 16 / 22 / 28), refined focus rings and scrollbars.
-   ===================================================================== */
-
-/* ------------------------------------------------------------ tokens */
 :root[data-design="glass"] {
-  --g-r: 22px;            /* pane radius */
+  --g-r: 22px;
   --g-r-xs: 8px;
   --g-r-sm: 12px;
   --g-r-md: 16px;
   --g-r-lg: 28px;
-  --g-gap: 10px;          /* gap between floating panes */
-
-  /* Materials — fills. Thinnest (most see-through) to thickest. */
-  --g-pane: color-mix(in srgb, color-mix(in srgb, var(--panel) 94%, #fff) 62%, transparent); /* sidebar, strips */
-  --g-pane-strong: color-mix(in srgb, color-mix(in srgb, var(--panel) 90%, #fff) 74%, transparent); /* chips, active segments */
-  --g-sheet: color-mix(in srgb, var(--panel) 74%, transparent);         /* the reading sheet: the aurora glows through */
+  --g-gap: 10px;
+  --g-pane: color-mix(in srgb, color-mix(in srgb, var(--panel) 94%, #fff) 62%, transparent);
+  --g-pane-strong: color-mix(in srgb, color-mix(in srgb, var(--panel) 90%, #fff) 74%, transparent);
+  --g-sheet: color-mix(in srgb, var(--panel) 74%, transparent);
   --g-sheet-edge: color-mix(in srgb, var(--panel) 74%, transparent);
   --g-composer: color-mix(in srgb, color-mix(in srgb, var(--composer-bg, var(--panel)) 90%, #fff) 84%, transparent);
-  --g-pop: color-mix(in srgb, color-mix(in srgb, var(--panel) 95%, #fff) 94%, transparent); /* menus: near-solid so text behind never shows through */
-  --g-modal: color-mix(in srgb, var(--panel) 88%, transparent);         /* dialogs */
+  --g-pop: color-mix(in srgb, color-mix(in srgb, var(--panel) 95%, #fff) 94%, transparent);
+  --g-modal: color-mix(in srgb, var(--panel) 88%, transparent);
   --g-well: color-mix(in srgb, var(--text) 6%, transparent);
   --g-hover: color-mix(in srgb, var(--text) 8%, transparent);
   --g-press: color-mix(in srgb, var(--text) 13%, transparent);
@@ -54,16 +19,12 @@
   --g-line-soft: color-mix(in srgb, var(--text) 7%, transparent);
   --g-tint: color-mix(in srgb, var(--accent) 15%, transparent);
   --g-tint-strong: color-mix(in srgb, var(--accent) 24%, transparent);
-
-  /* Materials — filters. */
   --g-f-thin: blur(30px) saturate(180%);
   --g-f-sheet: blur(40px) saturate(160%);
   --g-f-composer: blur(26px) saturate(180%);
   --g-f-thick: blur(48px) saturate(190%);
-  --g-blur: var(--g-f-thin);                       /* legacy name */
+  --g-blur: var(--g-f-thin);
   --g-blur-soft: blur(18px) saturate(150%);
-
-  /* Light & edges */
   --g-edge: rgba(255, 255, 255, .06);
   --g-edge-top: rgba(255, 255, 255, .14);
   --g-outline: rgba(0, 0, 0, .28);
@@ -79,22 +40,14 @@
   --g-shadow-sm: var(--g-shadow-1);
   --g-ring: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent);
   --g-focus: 0 0 0 2px color-mix(in srgb, var(--accent) 80%, transparent), 0 0 0 5px color-mix(in srgb, var(--accent) 22%, transparent);
-
-  /* Frost grain: gray fractal noise at ~6% alpha, tiled. */
   --g-grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='linear' slope='0' intercept='.045'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-
-  /* Aurora stops */
   --g-wall-base: color-mix(in srgb, var(--bg-deep) 86%, var(--accent-2, var(--accent)));
   --g-wall-a: color-mix(in srgb, var(--accent) 70%, transparent);
   --g-wall-b: color-mix(in srgb, var(--accent-2, var(--accent)) 66%, transparent);
   --g-wall-c: color-mix(in srgb, color-mix(in srgb, var(--accent) 45%, var(--accent-2, var(--accent))) 56%, transparent);
   --g-wall-d: color-mix(in srgb, var(--accent-2, var(--accent)) 42%, transparent);
   --g-wall-e: color-mix(in srgb, color-mix(in srgb, var(--accent) 60%, #fff) 26%, transparent);
-  /* v3: no vignette (it used to darken the bottom of the window — right
-     around the composer). A faint top light gives the depth instead. */
   --g-vignette: radial-gradient(120% 70% at 50% -20%, rgba(255, 255, 255, .05), transparent 60%);
-
-  /* Canvas tokens of the Classic layer, re-pointed at glass. */
   --canvas-line: var(--g-line);
   --d-glass: var(--g-pop);
   --d-line: var(--g-line);
@@ -145,19 +98,11 @@
   --g-vignette: radial-gradient(120% 70% at 50% -20%, rgba(255, 255, 255, .45), transparent 60%);
   --tooltip-bg: color-mix(in srgb, var(--panel) 94%, transparent);
 }
-
-/* Vivid, iridescent aurora: where relative colour syntax is available
-   (Chromium 119+, every current WebView2) the accent hues are re-lit in
-   OKLCH — deeper and more saturated in dark mode, luminous pastels in light
-   mode — plus a third hue rotated off the accent for an iridescent sheen.
-   Without it the plain color-mix() stops above are used. */
 @supports (color: oklch(from red l c h)) {
   :root[data-design="glass"] {
     --g-wall-base: oklch(from color-mix(in srgb, var(--bg-deep) 88%, var(--accent-2, var(--accent))) calc(l * .7) calc(c * 1.5) h);
     --g-wall-a: oklch(from var(--accent) .56 min(calc(c * 2.3), .2) h / .85);
     --g-wall-b: oklch(from var(--accent-2, var(--accent)) .54 min(calc(c * 2.3), .2) h / .8);
-    /* dark: rotate toward cooler/redder neighbours — a warm +60° turn lands
-       on muddy olive in the dark */
     --g-wall-c: oklch(from var(--accent) .5 min(calc(c * 2.1), .19) calc(h - 48) / .7);
     --g-wall-d: oklch(from var(--accent-2, var(--accent)) .46 min(calc(c * 2), .18) calc(h + 36) / .62);
     --g-wall-e: oklch(from var(--accent) .78 min(calc(c * 1.4), .14) calc(h + 24) / .34);
@@ -171,8 +116,6 @@
     --g-wall-e: rgba(255, 255, 255, .7);
   }
 }
-
-/* ----------------------------------------------------------- aurora */
 :root[data-design="glass"] body { background: var(--g-wall-base); }
 :root[data-design="glass"] #app { background: transparent; position: relative; isolation: isolate; }
 :root[data-design="glass"] #app::before,
@@ -187,15 +130,9 @@
     radial-gradient(46% 52% at 76% 88%, var(--g-wall-c), transparent 72%),
     radial-gradient(38% 44% at 18% 86%, var(--g-wall-d), transparent 70%),
     radial-gradient(30% 34% at 58% 40%, var(--g-wall-e), transparent 72%);
-  /* v3: the conic sweep is gone — its centre sat right behind the composer
-     and drew dark rays around it. */
   will-change: transform;
-  /* Every wallpaper frame makes the frosted panes above it re-blur, so the
-     drift advances in coarse steps (~4 updates/s, sub-pixel deltas): it
-     reads as continuous slow motion at a fraction of a 60 fps cost. */
   animation: g-aurora 140s steps(560, end) infinite alternate;
 }
-/* grain against banding + a soft vignette for depth */
 :root[data-design="glass"] #app::after {
   inset: 0;
   background: var(--g-grain), var(--g-vignette);
@@ -220,9 +157,6 @@
   background: radial-gradient(40% 40% at 40% 40%, var(--g-wall-a), transparent 70%),
     radial-gradient(40% 40% at 62% 60%, var(--g-wall-b), transparent 70%);
 }
-
-/* ------------------------------------------------- material: panes */
-/* Thin glass: sidebar. Regular: the reading sheet. Both carry the grain. */
 :root[data-design="glass"] .side {
   position: relative;
   margin: var(--g-gap) 0 var(--g-gap) var(--g-gap);
@@ -230,25 +164,14 @@
   background: var(--g-grain), var(--g-pane);
   background-size: 180px 180px, auto;
   border: 0; border-radius: var(--g-r);
-  /* Round 36: no backdrop-filter on the two full-height panes. What lies
-     behind them is the aurora — soft radial gradients that a 30–40px blur
-     leaves practically unchanged — yet every wallpaper step and every
-     breathing frame made the compositor re-blur both panes (the whole
-     window) and scrolling stuttered. The frosted look stays with the
-     grain + translucent tint; blur remains on small floating layers. */
   box-shadow: var(--g-lens), 0 0 0 1px var(--g-outline), var(--g-shadow-2);
 }
 :root[data-design="glass"] .main-content {
-  /* the reading column (centre) is the most opaque; the periphery of a wide
-     window turns clearer so the aurora glows through the glass */
   background: var(--g-grain), linear-gradient(180deg, color-mix(in srgb, #fff 3%, transparent), transparent 40%), var(--g-sheet);
   background-size: 180px 180px, auto, auto;
   border-radius: var(--g-r);
   box-shadow: inset 0 1px 0 var(--g-edge-top), 0 0 0 1px var(--g-outline), var(--g-shadow-2);
 }
-/* Specular rim: a 1px gradient border cut out with mask-composite — bright
-   where the light hits (top-left), a faint caustic bottom-right. Only on
-   panes that never scroll themselves (the pseudo would scroll away). */
 :root[data-design="glass"] :is(.side, .main-content, .topbar.appbar, .composer, .dd-pop, .toast)::after,
 :root[data-design="glass"]:not([data-module-app]) .module-window:not([data-full="1"])::after {
   content: ""; position: absolute; inset: 0; z-index: 3; pointer-events: none;
@@ -270,10 +193,6 @@
 }
 :root[data-design="glass"] .side.hidden ~ .main,
 :root[data-design="glass"] .focus-mode .main { margin-left: var(--g-gap); }
-
-/* top bar: its own floating strip. It deliberately has no backdrop-filter:
-   that keeps its dropdowns free to blur the page (a backdrop-filter ancestor
-   would become their backdrop root). */
 :root[data-design="glass"] .topbar.appbar {
   min-height: 50px; padding: 6px 10px; border-radius: var(--g-r-md);
   background: var(--g-grain), color-mix(in srgb, var(--panel) 62%, transparent);
@@ -283,8 +202,6 @@
   position: relative; z-index: 30;
 }
 :root[data-design="glass"][data-theme="light"] .topbar.appbar { background: var(--g-grain), color-mix(in srgb, var(--panel) 70%, transparent); background-size: 180px 180px, auto; }
-
-/* Work / MemuCode / temporary bars: slim glass strips */
 :root[data-design="glass"] :is(.codebar, .workbar, .tempbar):not([hidden]) {
   border-radius: var(--g-r-md); border: 0; margin: 0;
   background: var(--g-grain), color-mix(in srgb, var(--panel) 62%, transparent);
@@ -295,8 +212,6 @@
   background: var(--g-grain), color-mix(in srgb, color-mix(in srgb, var(--panel) 62%, transparent) 70%, var(--g-tint-strong));
   background-size: 180px 180px, auto;
 }
-
-/* ----------------------------------------------------------- sidebar */
 :root[data-design="glass"] .brand { padding: 6px 8px 14px; }
 :root[data-design="glass"] :is(.brand-dot, .greet-mark) {
   box-shadow: 0 8px 22px -6px color-mix(in srgb, var(--accent) 70%, transparent), inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 -1px 0 rgba(0, 0, 0, .14);
@@ -324,7 +239,6 @@
 }
 :root[data-design="glass"][data-theme="light"] .mode-switch { background: color-mix(in srgb, var(--text) 6%, transparent); box-shadow: inset 0 1px 3px rgba(30, 26, 40, .1), inset 0 0 0 1px var(--g-line-soft), 0 1px 0 rgba(255, 255, 255, .8); }
 :root[data-design="glass"] .mode-switch .side-btn { border-radius: 10px; }
-/* the active segment is a lit drop of glass */
 :root[data-design="glass"] .mode-switch .side-btn.active-section {
   color: var(--text);
   background: linear-gradient(180deg, color-mix(in srgb, var(--text) 16%, transparent), color-mix(in srgb, var(--text) 8%, transparent));
@@ -363,8 +277,6 @@
 }
 :root[data-design="glass"] .profile-card:hover { background-color: var(--g-hover); }
 :root[data-design="glass"] .profile-avatar { box-shadow: 0 0 0 2px var(--g-edge-top), 0 4px 10px -4px rgba(0, 0, 0, .45); }
-
-/* ------------------------------------------------------------ topbar */
 :root[data-design="glass"] :is(.bar-icon, .iconbtn) { border-radius: 10px; }
 :root[data-design="glass"] :is(.bar-icon, .iconbtn):hover,
 :root[data-design="glass"] .bar-icon.open { background: var(--g-hover); }
@@ -378,9 +290,6 @@
 :root[data-design="glass"] .context-meter {
   border-radius: 999px; background: var(--g-well); box-shadow: inset 0 0 0 1px var(--g-line-soft);
 }
-
-/* --------------------------------------------------------- popovers */
-/* Ultra-thick glass: heavy blur over whatever is behind, grain, rim. */
 :root[data-design="glass"] :is(.dd-pop, .app-menu-pop, .context-menu, .profile-menu-pop, .pretty-select-menu, .msg-more-pop, .slash-menu, .plus-menu, .module-layout-menu) {
   background: var(--g-grain), var(--g-pop);
   background-size: 180px 180px, auto;
@@ -401,17 +310,11 @@
   border-radius: 10px; background: var(--g-well); border: 0; box-shadow: inset 0 0 0 1px var(--g-line), inset 0 1px 2px color-mix(in srgb, #000 10%, transparent);
 }
 :root[data-design="glass"] :is(.dd-search input:focus, .plus-search:focus-within) { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 55%, transparent), var(--g-ring); }
-
-/* Menus inside the composer can only blur the composer itself (backdrop
-   root), so they get a nearly opaque fill instead. */
 :root[data-design="glass"] :is(.composer, .composer-wrap) :is(.slash-menu, .plus-menu) {
   background: var(--g-grain), color-mix(in srgb, var(--panel) 96%, transparent);
   background-size: 180px 180px, auto;
 }
-
-/* ---------------------------------------------------------- welcome */
 :root[data-design="glass"] .greeting h1 { font-family: var(--d-display); font-weight: 600; letter-spacing: -.03em; font-size: clamp(1.75rem, 3vw, 2.35rem); }
-/* empty chat: the sheet thins out so the aurora glows through */
 :root[data-design="glass"] body.chat-empty #main-content {
   background: var(--g-grain), color-mix(in srgb, var(--panel) 52%, transparent);
   background-size: 180px 180px, auto;
@@ -446,16 +349,11 @@
   background: var(--g-pane-strong); border: 0; border-radius: var(--g-r-md);
   box-shadow: var(--g-lens), 0 0 0 1px var(--g-outline);
 }
-
-/* --------------------------------------------------------- composer */
-/* Thick liquid glass: the strongest lensing and the deepest shadow. */
 :root[data-design="glass"] .composer-wrap::before { display: none; }
 :root[data-design="glass"] .composer {
   border-radius: var(--g-r-lg); border: 0;
   background: var(--g-grain), var(--g-composer);
   background-size: 180px 180px, auto;
-  /* v3: a clean floating pill — hairline rim, one soft lift, no dark halo,
-     no inner shading. */
   box-shadow: var(--g-lens), 0 0 0 1px var(--g-outline), 0 1px 2px rgba(0, 0, 0, .12), 0 12px 32px -18px rgba(0, 0, 0, .42);
   -webkit-backdrop-filter: var(--g-f-composer); backdrop-filter: var(--g-f-composer);
   transition: box-shadow .24s var(--m-ease-out, ease), background-color .2s;
@@ -478,7 +376,6 @@
 :root[data-design="glass"] .cbtn:hover { background: var(--g-hover); }
 :root[data-design="glass"] .plus-btn { background: var(--g-well); box-shadow: inset 0 0 0 1px var(--g-line), inset 0 1px 0 var(--g-edge); }
 :root[data-design="glass"] .plus-btn.open { background: var(--g-tint-strong); }
-/* the send button is a gem: brand gradient, a caustic highlight, a glow */
 :root[data-design="glass"] .send {
   background: radial-gradient(120% 90% at 30% -10%, rgba(255, 255, 255, .5), transparent 52%), var(--brand);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .45), 0 0 0 1px color-mix(in srgb, var(--accent) 40%, rgba(0, 0, 0, .15)),
@@ -492,8 +389,6 @@
   background: var(--g-tint-strong); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 :root[data-design="glass"] .attach-chip { border-radius: 12px; background: var(--g-well); border-color: var(--g-line); box-shadow: inset 0 1px 0 var(--g-edge); }
-
-/* --------------------------------------------------------- messages */
 :root[data-design="glass"] .msg-user .bubble {
   background: linear-gradient(160deg, color-mix(in srgb, var(--accent) 20%, var(--g-pane-strong)), color-mix(in srgb, var(--accent-2, var(--accent)) 12%, var(--g-pane-strong)));
   color: var(--user-bubble-text, var(--text));
@@ -547,11 +442,6 @@
   border: 0; box-shadow: var(--g-lens), 0 0 0 1px var(--g-outline), var(--g-shadow-3);
   -webkit-backdrop-filter: var(--g-f-thick); backdrop-filter: var(--g-f-thick);
 }
-
-/* ----------------------------------------------- modal / settings */
-/* Round 36 (perf): no backdrop blur on the dialog backdrop and sheet. The full-window blur(10px) under a blur(48px)
-   sheet was recomposited on every frame while settings scrolled (headless: ~145 ms per frame → ~27 ms); the sheet is
-   nearly opaque instead, so nothing behind it shows through. */
 :root[data-design="glass"] .panel-back {
   background: color-mix(in srgb, var(--bg-deep) 34%, rgba(0, 0, 0, .44));
   -webkit-backdrop-filter: none; backdrop-filter: none;
@@ -601,19 +491,15 @@
 :root[data-design="glass"] .pbtn.ghost:hover { background: var(--g-hover); }
 :root[data-design="glass"] .pbtn.danger { background: radial-gradient(120% 100% at 30% -20%, rgba(255, 255, 255, .25), transparent 55%), color-mix(in srgb, var(--danger) 88%, #000); color: #fff; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .3), 0 8px 18px -10px color-mix(in srgb, var(--danger) 70%, transparent); }
 :root[data-design="glass"][data-theme="light"] .pbtn.danger { background: var(--danger); }
-/* the dark themes' --danger is a light coral: white on it was ~2:1, the label takes the dark "on-error" ink */
 :root[data-design="glass"]:not([data-theme="light"]) .pbtn.danger { color: color-mix(in srgb, var(--danger) 22%, #000); }
 :root[data-design="glass"] .hintbox { border-radius: 14px; background: var(--g-well); border-color: var(--g-line); }
 :root[data-design="glass"] .settings-body :is(.hintbox, .live-persona-card, .voice-settings-group) {
   border-radius: 14px; background: color-mix(in srgb, var(--panel) 52%, transparent); border-color: var(--g-line);
   box-shadow: inset 0 1px 0 var(--g-edge);
 }
-/* switches: a glass track and a liquid knob */
 :root[data-design="glass"] .switch .sl { box-shadow: inset 0 1px 3px rgba(0, 0, 0, .28), inset 0 0 0 1px var(--g-line); }
 :root[data-design="glass"] .switch input:checked + .sl { background: var(--brand); box-shadow: inset 0 1px 2px rgba(0, 0, 0, .18), 0 0 14px -4px color-mix(in srgb, var(--accent) 70%, transparent); }
 :root[data-design="glass"] .switch .sl::before { box-shadow: 0 2px 5px rgba(0, 0, 0, .3), inset 0 -1px 1px rgba(0, 0, 0, .08), inset 0 1px 0 #fff; }
-
-/* ------------------------------------------------------------ toasts */
 :root[data-design="glass"] .toast {
   position: relative;
   background: var(--g-grain), var(--g-pop); background-size: 180px 180px, auto;
@@ -623,25 +509,17 @@
 }
 :root[data-design="glass"] .toast.ok { box-shadow: var(--g-lens), inset 0 0 0 1px color-mix(in srgb, var(--ok) 45%, transparent), 0 0 0 1px var(--g-outline), var(--g-shadow-3); }
 :root[data-design="glass"] .toast.err { box-shadow: var(--g-lens), inset 0 0 0 1px color-mix(in srgb, var(--danger) 50%, transparent), 0 0 0 1px var(--g-outline), var(--g-shadow-3); }
-
-/* ---------------------------------------------------------- tooltips */
 :root[data-design="glass"] .memu-tooltip {
   border: 0; border-radius: 10px;
   box-shadow: inset 0 1px 0 var(--g-edge-top), 0 0 0 1px var(--g-outline), var(--g-shadow-1);
   -webkit-backdrop-filter: blur(20px) saturate(180%); backdrop-filter: blur(20px) saturate(180%);
 }
-
-/* ---------------------------------------------------- module windows */
 :root[data-design="glass"] .module-window {
   border: 0; border-radius: var(--g-r);
   background: var(--g-grain), var(--g-modal); background-size: 180px 180px, auto;
   box-shadow: var(--g-lens), inset 0 0 0 1px var(--g-edge), 0 0 0 1px var(--g-outline), var(--g-shadow-3);
   -webkit-backdrop-filter: var(--g-f-thick); backdrop-filter: var(--g-f-thick);
 }
-/* A native module app / expanded player is the whole viewing surface, not a
-   floating glass card. Specular white rims must never overlay its content.
-   Native windows already clear shadows in module-apps.css; expanded in-app
-   windows retain the outside shadow, without a bright inset lens/outline. */
 :root[data-design="glass"] .module-window[data-full="1"] {
   box-shadow: var(--g-shadow-3);
 }
@@ -659,18 +537,11 @@
   box-shadow: var(--g-lens), 0 0 0 1px var(--g-outline), var(--g-shadow-2);
   -webkit-backdrop-filter: var(--g-f-thin); backdrop-filter: var(--g-f-thin);
 }
-
-/* --------------------------------------------- live preview / code dock */
 :root[data-design="glass"] :is(.live-preview-pane, .code-dock) {
   background: color-mix(in srgb, var(--panel) 42%, transparent);
   border-left-color: var(--g-line-soft);
 }
-
-/* --------------------------------------------------------- responsive */
 @media (max-width: 800px) {
-  /* The sidebar becomes the off-canvas drawer of style.css: it must stay
-     position: fixed (the desktop rule above makes it relative for its rim,
-     which used to squeeze the chat column to the right). */
   :root[data-design="glass"] .side,
   :root[data-design="glass"] .side.hidden {
     position: fixed; top: var(--g-gap); bottom: var(--g-gap); left: -300px; z-index: 90;
@@ -683,8 +554,6 @@
   :root[data-design="glass"] .main,
   :root[data-design="glass"] .side.hidden ~ .main { margin: var(--g-gap); }
 }
-
-/* ------------------------------------------------------ Work strip */
 :root[data-design="glass"] .workbar:not([hidden]) { padding: 6px 8px 6px 12px; gap: 6px; }
 :root[data-design="glass"] .work-badge {
   padding: 3px 9px; border-radius: 999px; color: var(--text);
@@ -704,8 +573,6 @@
   background-color: var(--g-well); border-color: var(--g-line);
 }
 :root[data-design="glass"] .work-path { color: var(--muted); }
-
-/* --------------------------------------------------------- MemuCode */
 :root[data-design="glass"] { --mc-line: var(--g-line); }
 :root[data-design="glass"] body.code-mode :is(#code-welcome, #code-explorer) {
   background: var(--g-grain), color-mix(in srgb, var(--panel) 60%, transparent); background-size: 180px 180px, auto;
@@ -720,8 +587,6 @@
 :root[data-design="glass"] .code-badge { border-radius: 999px; }
 :root[data-design="glass"] .code-dock { border-radius: 0 var(--g-r) var(--g-r) 0; }
 :root[data-design="glass"] .cx-search { border-radius: 10px; background: var(--g-well); box-shadow: inset 0 0 0 1px var(--g-line-soft); }
-
-/* ------------------------------------------------------------- docs */
 :root[data-design="glass"] .docs-shell { background: transparent; }
 :root[data-design="glass"] .docs-side { background: var(--g-well); border-right-color: var(--g-line-soft); }
 :root[data-design="glass"] :is(.docs-search, .docs-find) {
@@ -742,13 +607,9 @@
 :root[data-design="glass"] .docs-callout { border-radius: 14px; }
 :root[data-design="glass"] .docs-pager-card { border-radius: 14px; background: color-mix(in srgb, var(--panel) 52%, transparent); box-shadow: inset 0 1px 0 var(--g-edge); }
 :root[data-design="glass"] .docs-pager-card:hover { background: var(--g-tint); }
-
-/* Secondary text sits on translucent panes over a coloured aurora, so it is
-   pulled toward --text to keep >= 4.5:1 on the brightest blobs. */
 :root[data-design="glass"] :is(.greeting-subtitle, .composer-hint, .profile-sub, .msg-time, .msg-assistant .who-meta, .hub-status, .work-path, .code-path, .settings-body .td, .plus-text small, .dd-item small, .slash-menu small, .side-empty small, .chat-item, .side-btn, .folder-toggle small, .meme-toggle small, .meme-empty, .meme-new-chat, .folder-drop-hint) {
   color: color-mix(in srgb, var(--muted) 52%, var(--text));
 }
-/* pseudo-elements cannot live inside :is(), so placeholders get their own rule */
 :root[data-design="glass"] .chat-search input::placeholder,
 :root[data-design="glass"] .composer textarea::placeholder,
 :root[data-design="glass"] .dd-search input::placeholder,
@@ -756,10 +617,9 @@
   color: color-mix(in srgb, var(--muted) 52%, var(--text));
   opacity: 1;
 }
-:root[data-design="glass"] :is(.chat-item:hover, .chat-item.active, .side-btn:hover) { color: var(--text); }
+:root[data-design="glass"] :is(.chat-item:hover, .chat-item.active, .side-btn:hover, .side-btn.active-section) { color: var(--text); }
 :root[data-design="glass"] .side-btn .ico { color: color-mix(in srgb, var(--muted) 70%, var(--text)); }
-
-/* ------------------------------------------------------- MemuAI Live */
+:root[data-design="glass"] .side-btn.active-section .ico { color: var(--accent); }
 :root[data-design="glass"] .live-call {
   border: 0; border-radius: 30px;
   background: var(--g-grain), color-mix(in srgb, var(--panel) 80%, transparent); background-size: 180px 180px, auto;
@@ -775,14 +635,8 @@
   box-shadow: var(--g-lens), 0 0 0 1px var(--g-outline), var(--g-shadow-2);
 }
 :root[data-design="glass"] :is(.live-ctl, .live-text input) { box-shadow: inset 0 1px 0 var(--g-edge), inset 0 0 0 1px var(--g-line); }
-
-/* -------------------------------------------- scrollbars & selection */
 :root[data-design="glass"] { --scroll-thumb: color-mix(in srgb, var(--text) 26%, transparent); }
 :root[data-design="glass"] ::selection { background: var(--selection, color-mix(in srgb, var(--accent) 38%, transparent)); }
-
-/* ---------------------------------------------- high-contrast safety */
-/* OLED / high-contrast variants: keep the material but thicken it so text
-   never fights the aurora. */
 :root[data-design="glass"][data-surface="contrast"] {
   --g-pane: color-mix(in srgb, var(--panel) 78%, transparent);
   --g-sheet: color-mix(in srgb, var(--panel) 90%, transparent);
@@ -793,50 +647,35 @@
   :root[data-design="glass"] #app::before, :root[data-design="glass"] #app::after,
   :root[data-design="glass"] :is(.side, .main-content, .topbar.appbar, .composer, .dd-pop, .toast, .module-window)::after { display: none; }
 }
-
-/* ===================================================== v3 additions */
-/* Focus rings: a crisp accent ring for keyboard users only. */
 :root[data-design="glass"] :is(button, [role="button"], a, .chat-item, .dd-item, .settings-tab-btn, .chip-sug, .pbtn, .cbtn, .iconbtn):focus-visible {
   outline: none; box-shadow: var(--g-focus);
 }
 :root[data-design="glass"] :is(.pinput, .ptexta, .pretty-select-button, select, input[type="text"], input[type="search"]):focus-visible {
   outline: none; border-color: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: var(--g-ring);
 }
-/* Round 33: a field embedded in a container that already draws the focus
-   ring (tools menu search, sidebar search, settings/skills/hotkey filters…)
-   must not paint a second ring inside it — the generic rule above drew a
-   3px halo around the bare <input>, a box inside the box. */
 :root[data-design="glass"] :is(.plus-search, .chat-search, .cx-search, .cp-search, .docs-search, .docs-find, .hk-search, .sx-search, .sk-search, .modules-search, .mem2-search, .gd-search, .qa-search, .live-text) input:focus-visible {
   outline: none; box-shadow: none;
 }
-/* Scrollbars: thin floating capsules. */
 :root[data-design="glass"] ::-webkit-scrollbar { width: 10px; height: 10px; }
 :root[data-design="glass"] ::-webkit-scrollbar-track { background: transparent; }
 :root[data-design="glass"] ::-webkit-scrollbar-thumb {
   background: var(--scroll-thumb); border-radius: 999px; border: 3px solid transparent; background-clip: content-box;
 }
 :root[data-design="glass"] ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--text) 40%, transparent); background-clip: content-box; }
-/* Dark mode wallpaper: a slow «breathing» glow layer on top of the aurora
-   (opacity only, compositor-cheap). Respects the motion setting. */
 :root[data-design="glass"] body::before {
   content: ""; position: fixed; inset: 0; z-index: -2; pointer-events: none;
   background: radial-gradient(60% 50% at 70% 30%, color-mix(in srgb, var(--accent-2, var(--accent)) 14%, transparent), transparent 70%),
     radial-gradient(50% 45% at 25% 75%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%);
-  /* coarse steps (~4/s, invisible opacity deltas): the composer and menus
-     blur this layer, so a 60 fps breath re-blurred them every frame */
   animation: g-breathe 18s steps(72, end) infinite alternate;
 }
 @keyframes g-breathe { from { opacity: .55; } to { opacity: 1; } }
 :root[data-design="glass"].m-paused body::before { animation-play-state: paused; }
 :root[data-design="glass"]:is([data-motion="reduced"], [data-motion="off"]) body::before { animation: none; }
 @media (prefers-reduced-motion: reduce) { :root[data-design="glass"] body::before { animation: none; } }
-/* Message action row and assistant text */
 :root[data-design="glass"] .msg-actions button { border-radius: var(--g-r-xs); }
 :root[data-design="glass"] .msg-actions button:hover { background: var(--g-hover); }
 :root[data-design="glass"] .msg-assistant .body a { text-decoration-color: color-mix(in srgb, var(--link, var(--accent)) 45%, transparent); text-underline-offset: 3px; }
-/* Segmented controls & chips in settings */
 :root[data-design="glass"] :is(.segmented, .sx-seg) { border-radius: var(--g-r-sm); background: var(--g-well); box-shadow: inset 0 0 0 1px var(--g-line-soft); }
-/* Panels on Home share the same material. */
 :root[data-design="glass"] .mp-card[data-mode="home"] {
   box-shadow: var(--g-lens), 0 0 0 1px var(--g-outline), var(--g-shadow-1);
 }

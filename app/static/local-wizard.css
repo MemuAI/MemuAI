@@ -1,5 +1,3 @@
-/* MemuAI Proxy — мастер подбора локальной модели (Round 33). Только токены темы: тёмная и светлая. */
-
 .modal.lw-modal { width: min(1080px, calc(100vw - 32px)); max-width: none; max-height: calc(100vh - 40px); padding: 0; display: flex; overflow: hidden; }
 .lw { display: flex; flex-direction: column; width: 100%; min-height: 0; max-height: calc(100vh - 40px); }
 
@@ -44,8 +42,6 @@
 .lw-fine { color: var(--muted-2); font-size: 12px; }
 .lw-empty { display: flex; gap: 10px; align-items: center; justify-content: center; min-height: 180px; color: var(--muted); font-size: 14px; text-align: center; padding: 20px; }
 .lw-two { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
-
-/* step 1 */
 .lw-hw-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .lw-hw-tile { display: flex; gap: 12px; padding: 14px; border-radius: var(--radius); background: var(--bg-soft); border: 1px solid var(--border); min-width: 0; }
 .lw-hw-ico { flex: none; display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; color: var(--accent-text); background: var(--accent-soft); }
@@ -58,8 +54,6 @@
 .lw-engine { margin-top: 12px; }
 .lw-edit { margin-top: 12px; padding: 14px; border-radius: var(--radius); border: 1px dashed var(--border-strong); }
 .lw-edit .grid-3 { margin-top: 8px; }
-
-/* step 2 */
 .lw-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .lw-tile { position: relative; display: flex; gap: 12px; align-items: flex-start; padding: 14px 14px 14px 12px; border-radius: var(--radius);
   border: 1px solid var(--border); background: var(--bg-soft); color: var(--text); text-align: left; cursor: pointer; font: inherit;
@@ -82,8 +76,6 @@
 .lw-seg button:hover { color: var(--text); background: var(--card-2); }
 .lw-seg button.on { background: var(--card-3); color: var(--text); box-shadow: var(--shadow-sm), inset 0 0 0 1px var(--border-strong); }
 .lw-seg button:focus-visible { outline: none; box-shadow: var(--ring); }
-
-/* step 3 */
 .lw-slider { display: flex; align-items: center; gap: 14px; max-width: 560px; font-size: 13px; color: var(--muted); }
 .lw-slider input[type="range"] { flex: 1; accent-color: var(--accent); }
 .lw-check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--text-2); line-height: 1.5; margin: 4px 0 16px; }
@@ -91,8 +83,6 @@
 .lw-privacy { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; border-radius: var(--radius); font-size: 13px; line-height: 1.5;
   color: var(--text-2); background: color-mix(in srgb, var(--ok) 8%, transparent); border: 1px solid color-mix(in srgb, var(--ok) 22%, transparent); }
 .lw-privacy svg.i { flex: none; color: var(--ok); margin-top: 1px; }
-
-/* step 4 */
 .lw-summary { display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px; margin-bottom: 14px; border-radius: var(--radius); font-size: 13.5px;
   line-height: 1.5; background: var(--accent-soft); color: var(--text); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 22%, transparent); }
 .lw-summary svg.i { flex: none; color: var(--accent-text); margin-top: 2px; }
@@ -141,8 +131,6 @@
 .lw-excluded summary { cursor: pointer; color: var(--text-2); }
 .lw-excluded ul { margin: 8px 0 0; padding-left: 18px; display: grid; gap: 4px; line-height: 1.5; }
 .lw-excluded b { color: var(--text-2); font-weight: 600; }
-
-/* the Local models tab: the wizard card */
 .lm-wizard-card { display: flex; align-items: center; gap: 16px; background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 12%, var(--card)), var(--card) 70%);
   border-color: color-mix(in srgb, var(--accent) 28%, var(--border)); }
 .lm-wizard-card .lw-mark { width: 44px; height: 44px; }

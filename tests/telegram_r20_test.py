@@ -26,7 +26,6 @@ from app.telegram_stream import StreamReply
 TOKEN = "123456789:AAH" + "x" * 32
 OWNER = 305551234
 
-
 class FakeTelegram:
     """Records Bot API calls; per-method responders can return errors."""
 
@@ -72,13 +71,11 @@ class FakeTelegram:
     def last(self, method):
         return next((payload for name, payload in reversed(self.calls) if name == method), None)
 
-
 def error(code, description, retry_after=None):
     body = {"ok": False, "error_code": code, "description": description}
     if retry_after is not None:
         body["parameters"] = {"retry_after": retry_after}
     return lambda payload: httpx.Response(code, json=body)
-
 
 def message(text="", chat_id=OWNER, **extra):
     row = {"message_id": extra.pop("message_id", 7), "date": int(time.time()),
@@ -89,15 +86,12 @@ def message(text="", chat_id=OWNER, **extra):
     row.update(extra)
     return row
 
-
 def callback(data, chat_id=OWNER, message_id=50):
     return {"id": "cb1", "data": data, "from": {"id": chat_id},
             "message": {"message_id": message_id, "chat": {"id": chat_id, "type": "private"}}}
 
-
 def buttons(markup):
     return [button for row in (markup or {}).get("inline_keyboard", []) for button in row]
-
 
 def stream_of(*parts, fail=None):
     async def stream(*_args, **_kwargs):
@@ -107,7 +101,6 @@ def stream_of(*parts, fail=None):
         if fail:
             raise fail
     return stream
-
 
 class BotTestCase(unittest.IsolatedAsyncioTestCase):
     """Temporary MemuAI data dir + paired owner + two fake models."""
@@ -160,10 +153,6 @@ class BotTestCase(unittest.IsolatedAsyncioTestCase):
         await telegram_bot._handle_callback(self.client, TOKEN, callback(data, chat_id), prefs)
         await self.settle()
 
-
-# ---------------------------------------------------------------- pairing
-
-
 class PairingTest(BotTestCase):
     paired = False
 
@@ -175,10 +164,10 @@ class PairingTest(BotTestCase):
         self.assertEqual(telegram_pairing.extract_code(f"/start pair-{code}"), code)
         self.assertEqual(telegram_pairing.extract_code(telegram_pairing.format_code(code).lower()), code)
         self.assertTrue(telegram_pairing.check_pairing_code(code))
-        self.assertFalse(telegram_pairing.check_pairing_code(code))      # single use
+        self.assertFalse(telegram_pairing.check_pairing_code(code))
         code, _ = telegram_pairing.create_pairing_code()
         with patch("app.telegram_pairing.time.time", return_value=time.time() + 3600):
-            self.assertFalse(telegram_pairing.check_pairing_code(code))  # expired
+            self.assertFalse(telegram_pairing.check_pairing_code(code))
 
     async def test_brute_force_burns_the_code(self):
         code, _ = telegram_pairing.create_pairing_code()
@@ -219,7 +208,7 @@ class PairingTest(BotTestCase):
 
     async def test_status_reports_phases(self):
         status = telegram_pairing.status()
-        self.assertEqual(status["phase"], "offline")      # no heartbeat yet
+        self.assertEqual(status["phase"], "offline")
         fingerprint = telegram_pairing.token_fingerprint(TOKEN)
         pgdata.update_telegram_state(lambda d: {**d, "bot": {"token_fp": fingerprint, "status": "ok",
                                                              "heartbeat": time.time(), "username": "b"}})
@@ -229,10 +218,6 @@ class PairingTest(BotTestCase):
         self.assertEqual(status["phase"], "ready")
         self.assertEqual(status["bot"]["username"], "b")
         self.assertNotIn(TOKEN, json.dumps(status))
-
-
-# ------------------------------------------------------------------- auth
-
 
 class AuthTest(BotTestCase):
     async def test_strangers_get_one_refusal_and_no_access(self):
@@ -255,7 +240,7 @@ class AuthTest(BotTestCase):
     async def test_whitelisted_user_in_own_private_chat(self):
         prefs = dict(pgdata.load_preferences(), telegram_allowed_users=["777"])
         self.assertTrue(telegram_bot._allowed(prefs, "777", "777"))
-        self.assertFalse(telegram_bot._allowed(prefs, "-100", "777"))   # not in a group
+        self.assertFalse(telegram_bot._allowed(prefs, "-100", "777"))
         self.assertFalse(telegram_bot._allowed(prefs, "888", "888"))
         self.assertIn("777", telegram_bot.authorized_user_ids(prefs))
         self.assertEqual(telegram_bot.authorized_user_ids(prefs)[0], str(OWNER))
@@ -263,10 +248,6 @@ class AuthTest(BotTestCase):
     async def test_allowed_users_are_normalised(self):
         saved = pgdata.save_preferences({"telegram_allowed_users": ["123456", " 42 ", "abc", "123456"]})
         self.assertEqual(saved["telegram_allowed_users"], ["123456"])
-
-
-# ------------------------------------------------------------------ menus
-
 
 class MenuTest(BotTestCase):
     def seed_chats(self, count=3):
@@ -334,7 +315,7 @@ class MenuTest(BotTestCase):
         await self.press("models")
         screen = self.fake.last("editMessageText") or self.fake.last("sendMessage")
         labels = [b["text"] for b in buttons(screen["reply_markup"])]
-        # r33c-models-lists: «⭐ Sonnet · kiro-sonnet» — the readable name with the full id beside it.
+
         self.assertTrue(any("⭐ " in label and "kiro-sonnet" in label for label in labels), labels)
         self.assertTrue(any(label.startswith("Genspark · 2") for label in labels))
         provider = next(b["callback_data"] for b in buttons(screen["reply_markup"]) if b["text"].startswith("Genspark"))
@@ -381,10 +362,6 @@ class MenuTest(BotTestCase):
             await asyncio.sleep(0)
         self.assertEqual(answer.await_args.args[3], "из мини-аппа")
 
-
-# ------------------------------------------------------------- answering
-
-
 class AnswerTest(BotTestCase):
     async def test_answer_is_saved_with_buttons(self):
         with patch("app.chat.chat_service.stream_completion", stream_of("**Ответ**", " готов")):
@@ -397,7 +374,7 @@ class AnswerTest(BotTestCase):
         self.assertIn("<b>Ответ</b>", final["text"])
         data = [b["callback_data"] for b in buttons(final["reply_markup"])]
         self.assertTrue(any(d.startswith("retry:") for d in data))
-        # Round 21: one compact row; «⋯» unfolds continue / read aloud / new chat.
+
         self.assertEqual(len(final["reply_markup"]["inline_keyboard"]), 1)
         expand = next(d for d in data if d.startswith("fx:"))
         await self.press(expand)
@@ -430,7 +407,7 @@ class AnswerTest(BotTestCase):
                 await asyncio.sleep(0.01)
             generation = telegram_bot._generations[str(OWNER)]
             generation.draft_ids.add(55)
-            self.assertFalse(telegram_bot._stop_generation(str(OWNER), draft_id=99))   # other draft
+            self.assertFalse(telegram_bot._stop_generation(str(OWNER), draft_id=99))
             runner = telegram_bot._BotRunner(self.client)
             runner.token = TOKEN
             runner.dispatch({"update_id": 1, "stopped_message_generation": {"chat": {"id": OWNER}, "draft_id": 55}},
@@ -531,17 +508,12 @@ class AnswerTest(BotTestCase):
             await self.send("голосом")
         self.assertIn("sendVoice", self.fake.methods())
 
-
-# -------------------------------------------------------------- streaming
-
-
 class FakeClock:
     def __init__(self):
         self.now = 1000.0
 
     def __call__(self):
         return self.now
-
 
 class StreamingTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -562,11 +534,11 @@ class StreamingTest(unittest.IsolatedAsyncioTestCase):
             stream.update("слово " * (index + 1))
             if clock() >= stream.next_frame:
                 await stream.flush()
-            clock.now += 0.2           # 10 updates in 2 seconds
+            clock.now += 0.2
         drafts = [p for m, p in self.fake.calls if m == "sendMessageDraft"]
-        self.assertLessEqual(len(drafts), 4)      # first empty one + ≤ 1 per 0.8 s
+        self.assertLessEqual(len(drafts), 4)
         self.assertTrue(all(p["can_stop"] for p in drafts))
-        self.assertEqual(drafts[0]["text"], "")    # Telegram's own "Thinking…"
+        self.assertEqual(drafts[0]["text"], "")
         await stream.finish("слово " * 10)
         self.assertEqual(self.fake.calls[-1][0], "sendMessage")
 
@@ -646,10 +618,6 @@ class StreamingTest(unittest.IsolatedAsyncioTestCase):
         await stream.finish("**bold** <tag>")
         self.assertEqual(self.fake.calls[-1][1]["text"], "bold <tag>")
 
-
-# ------------------------------------------------------------ formatting
-
-
 def balanced(text):
     stack = []
     for closing, name in re.findall(r"<(/?)([\w-]+)[^>]*>", text):
@@ -660,7 +628,6 @@ def balanced(text):
         else:
             stack.append(name)
     return not stack
-
 
 class FormatTest(unittest.TestCase):
     def test_tables_lists_math_and_code(self):
@@ -705,10 +672,6 @@ class FormatTest(unittest.TestCase):
         html = telegram_format.markdown_to_telegram_html("<script>alert(1)</script> [x](javascript:alert(1))")
         self.assertNotIn("<script>", html)
         self.assertNotIn('href="javascript', html)
-
-
-# ------------------------------------------------------------ attachments
-
 
 class AttachmentTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -761,10 +724,6 @@ class AttachmentTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(out.transcript, "")
         self.assertNotIn("getFile", self.fake.methods())
 
-
-# ---------------------------------------------------------- notifications
-
-
 class NotificationTest(unittest.IsolatedAsyncioTestCase):
     base = {"telegram_enabled": True, "telegram_bot_token": TOKEN, "telegram_chat_id": "42",
             "telegram_notify_mode": "sound"}
@@ -814,10 +773,6 @@ class NotificationTest(unittest.IsolatedAsyncioTestCase):
         sent = await self.run_notify(dict(self.base), kind="schedule", text="слово " * 2000)
         self.assertGreater(len(sent[0]["body"]), 10000)
 
-
-# ------------------------------------------------------------- Mini App
-
-
 class MiniAppHookTest(BotTestCase):
     def install_stub(self, url):
         telegram_bot._webapp_cache["at"] = 0.0
@@ -843,8 +798,7 @@ class MiniAppHookTest(BotTestCase):
         self.assertEqual(menu["menu_button"], {"type": "web_app", "text": "MemuAI",
                                                "web_app": {"url": "https://mini.example/app"}})
         self.assertEqual(menu["chat_id"], str(OWNER))
-        # Reply-keyboard Mini Apps get no initData, so the button lives only in
-        # the inline home card; the reply keyboard must not carry it.
+
         keyboard = telegram_bot._reply_keyboard(pgdata.load_preferences(), telegram_bot._webapp_url())
         self.assertFalse(any("web_app" in b for row in keyboard["keyboard"] for b in row))
         inline = telegram_bot._nav_keyboard(pgdata.load_preferences(), url=telegram_bot._webapp_url())
@@ -863,10 +817,6 @@ class MiniAppHookTest(BotTestCase):
         threading.Thread(target=telegram_bot.on_webapp_url_changed, args=("https://x.example",)).start()
         await asyncio.wait_for(runner.event.wait(), 2)
         telegram_bot._webapp_signal.update(loop=None, event=None)
-
-
-# ------------------------------------------------------------ polling loop
-
 
 class LoopTest(BotTestCase):
     async def test_offset_is_persisted_and_restored(self):
@@ -918,7 +868,6 @@ class LoopTest(BotTestCase):
         await runner.shutdown()
         self.assertFalse(telegram_pairing.status()["online"])
 
-
 class RedactionTest(unittest.TestCase):
     def test_tokens_never_reach_logs_or_errors(self):
         text = f"POST https://api.telegram.org/bot{TOKEN}/getUpdates failed"
@@ -944,7 +893,6 @@ class RedactionTest(unittest.TestCase):
             logger.setLevel(old)
         self.assertTrue(records)
         self.assertNotIn(TOKEN.split(":")[1], records[0])
-
 
 if __name__ == "__main__":
     unittest.main()

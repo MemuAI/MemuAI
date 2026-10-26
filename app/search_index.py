@@ -48,10 +48,6 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 log = logging.getLogger("memuai.search")
 
-# ---------------------------------------------------------------------------
-# Text: folding, tokens, stems, keyboard layout
-# ---------------------------------------------------------------------------
-
 _TOKEN_RE = re.compile(r"[^\W_]+", re.UNICODE)
 _CAMEL_RE = re.compile(r"(?<=[a-zа-я])(?=[A-ZА-Я])")
 _SPACE_RE = re.compile(r"\s+")
@@ -60,18 +56,15 @@ EN_RU = dict(zip("qwertyuiop[]asdfghjkl;'zxcvbnm,.`", "йцукенгшщзхъ�
 EN_RU.update(dict(zip("QWERTYUIOP{}ASDFGHJKL:\"ZXCVBNM<>~", "ЙЦУКЕНГШЩЗХЪФЫВАПРОЛДЖЭЯЧСМИТЬБЮЁ")))
 RU_EN = {v: k for k, v in EN_RU.items()}
 
-
 def fold_char(ch: str) -> str:
     low = ch.lower()
     if len(low) != 1:
         low = ch
     return "е" if low == "ё" else low
 
-
 def fold(text: str) -> str:
     """Lower case, ``ё`` → ``е``; the length is preserved (snippet offsets stay valid)."""
     return "".join(fold_char(ch) for ch in str(text or ""))
-
 
 def tokens(text: str) -> List[str]:
     value = str(text or "")
@@ -79,7 +72,6 @@ def tokens(text: str) -> List[str]:
     if len(low) != len(value):
         low = fold(value)
     return _TOKEN_RE.findall(low.replace("ё", "е"))
-
 
 def swap_layout(text: str) -> str:
     """Text typed in the wrong keyboard layout, converted; ``""`` when not applicable."""
@@ -95,18 +87,17 @@ def swap_layout(text: str) -> str:
         return "".join(RU_EN.get(ch, ch) for ch in value)
     return ""
 
-
 _RU_REFLEXIVE = ("ся", "сь")
 _RU_ENDINGS = sorted({
-    # adjectives / participles
+
     "ими", "ыми", "ого", "его", "ому", "ему", "ая", "яя", "ую", "юю", "ой", "ей", "ий", "ый", "ое", "ее",
     "ые", "ие", "ых", "их", "ым", "им", "ом", "ем", "ющий", "ющая", "ющее", "ющие", "вший", "вшая",
     "енный", "енная", "анный", "анная", "ость", "ости", "остью", "остей",
-    # verbs
+
     "ешь", "ете", "ет", "ут", "ют", "ит", "ят", "ишь", "ите", "ила", "ило", "или", "ал", "ала", "ало", "али",
     "ял", "яла", "яло", "яли", "ел", "ела", "ело", "ели", "ать", "ять", "ить", "еть", "уть", "ыть",
     "ует", "уют", "ывать", "ивать", "овать", "ировать", "ируют", "ирует",
-    # nouns
+
     "ами", "ями", "ах", "ях", "ам", "ям", "ов", "ев", "ию", "ия", "ие", "ий", "ья", "ье", "ью", "ей",
     "иями", "ием", "ией", "ение", "ения", "ений", "ениям", "ениями", "ании", "ание", "ания", "аний",
     "и", "ы", "а", "я", "о", "е", "у", "ю", "ь", "й",
@@ -116,13 +107,11 @@ _EN_RULES = (("ational", "ate"), ("ization", "ize"), ("fulness", "ful"), ("ousne
              ("ness", ""), ("ings", ""), ("ing", ""), ("edly", ""), ("ies", "y"), ("ied", "y"),
              ("sses", "ss"), ("ed", ""), ("es", ""), ("ly", ""), ("er", ""), ("s", ""))
 
-
 @lru_cache(maxsize=200_000)
 def stem(word: str) -> str:
     """A deliberately light stemmer: good enough to join word forms, never clever."""
     w = word
-    # Short nouns whose stem ends in «й» (чай, май, бой, рай, край): their forms leave a 2-letter stem that the
-    # endings below refuse to cut, so «чаем», «чаю», «чая» never met «чай». Fold them back onto the nominative.
+
     if 3 <= len(w) <= 5 and w[:2] and w[1] in "аеиоуыэюя" and w[0] not in "аеиоуыэюяьъй" \
             and w[2:] in ("ем", "ём", "е", "ю", "я", "и", "ев", "ям", "ях", "ями", "ей"):
         return w[:2] + "й"
@@ -147,13 +136,12 @@ def stem(word: str) -> str:
             if w.endswith(suffix) and len(w) - len(suffix) + len(repl) >= 3:
                 w = w[: -len(suffix)] + repl
                 break
-        if len(w) >= 4 and w[-1] == w[-2] and w[-1] not in "lsz":   # running → runn → run
+        if len(w) >= 4 and w[-1] == w[-2] and w[-1] not in "lsz":
             w = w[:-1]
         if len(w) > 4 and w.endswith("e"):
             w = w[:-1]
         return w
     return w
-
 
 def edit_distance_le(a: str, b: str, limit: int) -> bool:
     """``True`` when the Levenshtein distance (with transpositions) is ``<= limit`` (1 or 2)."""
@@ -187,45 +175,37 @@ def edit_distance_le(a: str, b: str, limit: int) -> bool:
         prev2, prev = prev, cur
     return prev[lb] <= limit
 
-
-# ---------------------------------------------------------------------------
-# Documents and providers
-# ---------------------------------------------------------------------------
-
 @dataclass(slots=True)
 class Doc:
     """One searchable thing.  ``group`` joins documents into one result (a chat)."""
-    type: str                      # chat | work | code | project | file | memory | prompt | schedule | doc | panel | module | quick | <custom>
-    key: str                       # globally unique, stable id
+    type: str
+    key: str
     title: str = ""
     text: str = ""
-    ts: float = 0.0                # milliseconds
+    ts: float = 0.0
     group: str = ""
     group_title: str = ""
     open: Dict[str, Any] = field(default_factory=dict)
     meta: Dict[str, Any] = field(default_factory=dict)
     subtitle: str = ""
     title_weight: int = 4
-    store_text: bool = True        # False: the text is re-read for snippets (Work files)
+    store_text: bool = True
     loader: Optional[Callable[[], str]] = None
 
-
 UnitMap = Dict[str, Tuple[Any, Callable[[], List[Doc]]]]
-
 
 class Provider:
     """A source of documents.  Subclass or use :class:`FunctionProvider`."""
     name = "base"
     types: Tuple[str, ...] = ()
-    min_interval = 0.0             # seconds between revision checks (0 = every time)
-    desktop_only = False           # hidden from the Telegram Mini App
+    min_interval = 0.0
+    desktop_only = False
 
     def revision(self) -> Any:
         return None
 
     def units(self) -> UnitMap:
         return {}
-
 
 class FunctionProvider(Provider):
     """A provider from two callables — the simplest way for a module to plug in::
@@ -256,8 +236,6 @@ class FunctionProvider(Provider):
     def units(self) -> UnitMap:
         return self._units()
 
-
-# Labels of the known types: (ru, en).  Custom providers may add theirs.
 TYPE_LABELS: Dict[str, Tuple[str, str]] = {
     "chat": ("Чаты", "Chats"), "work": ("Work", "Work"), "code": ("MemuCode", "MemuCode"),
     "project": ("Проекты", "Projects"), "file": ("Файлы", "Files"), "memory": ("Память", "Memory"),
@@ -267,7 +245,7 @@ TYPE_LABELS: Dict[str, Tuple[str, str]] = {
 }
 TYPE_ORDER = ["chat", "work", "code", "character", "project", "file", "memory", "prompt", "schedule",
               "panel", "module", "quick", "doc"]
-# «in:» aliases → (types, meta flags)
+
 SCOPE_ALIASES: Dict[str, Tuple[Tuple[str, ...], Dict[str, Any]]] = {
     "chat": (("chat",), {}), "chats": (("chat",), {}), "чат": (("chat",), {}), "чаты": (("chat",), {}),
     "work": (("work", "project", "file"), {}), "ворк": (("work", "project", "file"), {}),
@@ -288,16 +266,10 @@ SCOPE_ALIASES: Dict[str, Tuple[Tuple[str, ...], Dict[str, Any]]] = {
     "characters": (("character",), {}), "character": (("character",), {}), "персонажи": (("character",), {}),
 }
 
-
-# ---------------------------------------------------------------------------
-# The index
-# ---------------------------------------------------------------------------
-
-MAX_INDEXED_CHARS = 40_000        # per document
+MAX_INDEXED_CHARS = 40_000
 MAX_STEMS_PER_GROUP = 30_000
 MAX_STORED_CHARS = 24_000
-MAX_WEIGHT = 250                  # small ints are shared objects: a posting costs one dict slot
-
+MAX_WEIGHT = 250
 
 @dataclass(slots=True)
 class Group:
@@ -305,9 +277,8 @@ class Group:
     key: str
     unit: Tuple[str, str]
     doc_ids: List[int]
-    head: int                      # the document that represents the group (a chat's title row)
+    head: int
     length: int = 1
-
 
 class SearchIndex:
     def __init__(self) -> None:
@@ -317,8 +288,8 @@ class SearchIndex:
         self.key_to_id: Dict[str, int] = {}
         self.groups: Dict[int, Group] = {}
         self.group_terms: Dict[int, Tuple[str, ...]] = {}
-        self.postings: Dict[str, Dict[int, int]] = {}      # stem -> {group id: weight}
-        self.vocab: Dict[str, str] = {}                     # surface word -> stem (append-only)
+        self.postings: Dict[str, Dict[int, int]] = {}
+        self.vocab: Dict[str, str] = {}
         self.unit_docs: Dict[Tuple[str, str], List[int]] = {}
         self.unit_groups: Dict[Tuple[str, str], List[int]] = {}
         self.unit_sig: Dict[Tuple[str, str], Any] = {}
@@ -331,7 +302,6 @@ class SearchIndex:
         self._by_first: Dict[str, List[str]] = {}
         self.stats = {"refresh_ms": 0.0, "refreshes": 0, "last_refresh": 0.0}
 
-    # ----------------------------------------------------------- providers
     def register(self, provider: Provider) -> None:
         with self.lock:
             old = self.providers.get(provider.name)
@@ -355,7 +325,6 @@ class SearchIndex:
         self.prov_rev.pop(name, None)
         self.prov_checked.pop(name, None)
 
-    # ----------------------------------------------------------- mutation
     def _remove_unit(self, unit: Tuple[str, str]) -> None:
         for gid in self.unit_groups.pop(unit, []):
             self.groups.pop(gid, None)
@@ -388,7 +357,7 @@ class SearchIndex:
             for doc in members:
                 old = self.key_to_id.get(doc.key)
                 if old is not None and old in self.docs:
-                    # the same key from another unit: the newer one wins
+
                     self.docs.pop(old, None)
                 doc_id = self.next_id
                 self.next_id += 1
@@ -449,7 +418,7 @@ class SearchIndex:
             self.prov_checked[provider.name] = now
             try:
                 rev = provider.revision()
-            except Exception as exc:  # a broken source must not break search
+            except Exception as exc:
                 self.prov_errors[provider.name] = str(exc)[:300]
                 continue
             if not force and rev is not None and self.prov_rev.get(provider.name) == rev:
@@ -465,8 +434,7 @@ class SearchIndex:
                 stale = [u for u in self.unit_docs if u[0] == provider.name and u[1] not in units]
                 todo = [(key, sig, build) for key, (sig, build) in units.items()
                         if force or self.unit_sig.get((provider.name, key), _MISSING) != sig]
-            # Build the documents outside the lock (reading files is the slow part) and swap them in
-            # in small batches, so a query never waits for a whole rebuild.
+
             for start in range(0, max(1, len(todo)), 64):
                 batch: List[Tuple[str, Any, List[Doc]]] = []
                 for key, sig, build in todo[start:start + 64]:
@@ -493,7 +461,6 @@ class SearchIndex:
         self.stats["refreshes"] += 1
         return changed
 
-    # ----------------------------------------------------------- vocabulary
     def _vocabulary(self) -> List[str]:
         if self._vocab_size != len(self.vocab):
             vocab = sorted(self.vocab)
@@ -531,7 +498,7 @@ class SearchIndex:
         max_dist = 2 if len(word) >= 8 else 1
         out: List[Tuple[int, str]] = []
         candidates = list(self._by_first.get(word[0], ()))
-        if len(word) >= 5:   # the first letter can be the typo too
+        if len(word) >= 5:
             candidates += [t for f, rows in self._by_first.items() if f != word[0] for t in rows
                            if len(t) >= 5 and t[1:3] == word[1:3]]
         for term in candidates:
@@ -545,7 +512,6 @@ class SearchIndex:
         out.sort(key=lambda row: (row[0], -self.df(row[1])))
         return [term for _dist, term in out[:limit]]
 
-    # ----------------------------------------------------------- stats
     def summary(self) -> Dict[str, Any]:
         with self.lock:
             per_type = Counter(doc.type for doc in self.docs.values())
@@ -553,31 +519,21 @@ class SearchIndex:
                     "vocabulary": len(self.vocab), "units": len(self.unit_docs), "types": dict(per_type),
                     "providers": sorted(self.providers), "errors": dict(self.prov_errors), **self.stats}
 
-
 _MISSING = object()
 INDEX = SearchIndex()
-
 
 def register_provider(provider: Provider) -> None:
     """Public hook for modules: add (or replace) a search source."""
     INDEX.register(provider)
 
-
 def unregister_provider(name: str) -> None:
     INDEX.unregister(name)
-
-
-
-# ---------------------------------------------------------------------------
-# Query parsing
-# ---------------------------------------------------------------------------
 
 _OP_RE = re.compile(r'(-?)(?:(\w+):("[^"]*"|\S+)|"([^"]*)"?|(\S+))', re.UNICODE)
 DAY_MS = 86_400_000
 CHAT_TYPES = ("chat", "work", "code")
-# User content first: the shipped documentation is large and would otherwise crowd out a chat.
-TYPE_WEIGHT = {"doc": 0.72, "file": 0.9, "quick": 0.9}
 
+TYPE_WEIGHT = {"doc": 0.72, "file": 0.9, "quick": 0.9}
 
 def _parse_date(value: str, end: bool = False) -> Optional[float]:
     value = value.strip()
@@ -588,7 +544,7 @@ def _parse_date(value: str, end: bool = False) -> Optional[float]:
             continue
         stamp = time.mktime(moment) * 1000
         if end:
-            # the last millisecond of that day / month / year (a fixed «+31 days» spilled 2026-06 into July 1st)
+
             year, month, day = moment.tm_year, moment.tm_mon, moment.tm_mday
             if fmt in ("%Y-%m-%d", "%d.%m.%Y"):
                 nxt = (year, month, day + 1)
@@ -599,7 +555,6 @@ def _parse_date(value: str, end: bool = False) -> Optional[float]:
             stamp = time.mktime((*nxt, 0, 0, 0, 0, 0, -1)) * 1000 - 1
         return stamp
     return None
-
 
 def _relative_date(value: str, now_ms: float) -> Optional[Tuple[float, float]]:
     value = value.lower()
@@ -612,14 +567,13 @@ def _relative_date(value: str, now_ms: float) -> Optional[Tuple[float, float]]:
              "year": (now_ms - 366 * DAY_MS, now_ms + 1), "год": (now_ms - 366 * DAY_MS, now_ms + 1)}
     return spans.get(value)
 
-
 @dataclass
 class Query:
-    words: List[str] = field(default_factory=list)          # folded positive words
-    phrases: List[str] = field(default_factory=list)        # folded exact phrases
+    words: List[str] = field(default_factory=list)
+    phrases: List[str] = field(default_factory=list)
     excluded: List[str] = field(default_factory=list)
     types: List[str] = field(default_factory=list)
-    flags: Dict[str, Any] = field(default_factory=dict)     # telegram / pinned / role / model / folder / project
+    flags: Dict[str, Any] = field(default_factory=dict)
     date_from: Optional[float] = None
     date_to: Optional[float] = None
     operators: List[Dict[str, str]] = field(default_factory=list)
@@ -628,7 +582,6 @@ class Query:
     @property
     def empty(self) -> bool:
         return not self.words and not self.phrases
-
 
 def parse_query(raw: str, *, now_ms: Optional[float] = None) -> Query:
     now_ms = now_ms if now_ms is not None else time.time() * 1000
@@ -647,8 +600,7 @@ def parse_query(raw: str, *, now_ms: Optional[float] = None) -> Query:
                 elif fv:
                     q.types.append(fv)
             elif key in ("from", "от"):
-                # «Вы»/«You» is the badge of the user's own messages in the results; an unknown author
-                # (from:deepseek) means the answers of that model
+
                 if fv in ("me", "я", "user", "мне", "меня", "вы", "you", "i", "мои", "мой", "mine", "my"):
                     q.flags["role"] = "user"
                 else:
@@ -673,7 +625,7 @@ def parse_query(raw: str, *, now_ms: Optional[float] = None) -> Query:
                 span = _relative_date(fv, now_ms)
                 if span:
                     q.date_from, q.date_to = span
-                elif ".." in value:      # date:2026-05..2026-06 — from the first day of A to the last day of B
+                elif ".." in value:
                     first, _, last = value.partition("..")
                     q.date_from = _parse_date(first) if first.strip() else q.date_from
                     q.date_to = _parse_date(last, end=True) if last.strip() else q.date_to
@@ -697,34 +649,26 @@ def parse_query(raw: str, *, now_ms: Optional[float] = None) -> Query:
                 q.excluded.append(tok)
             else:
                 q.words.append(tok)
-    # a phrase also contributes its words to the matching
+
     return q
-
-
-# ---------------------------------------------------------------------------
-# Search
-# ---------------------------------------------------------------------------
 
 _LOG = [0.0] + [1.0 + math.log(w) for w in range(1, MAX_WEIGHT + 1)]
 GROUP_FILTERS = ("telegram", "pinned", "folder", "project")
 DOC_FILTERS = ("role", "model", "date_from", "date_to")
 VERIFY_ALL_LIMIT = 1500
 
-
 @dataclass
 class WordMatch:
     word: str
-    found: Dict[int, float]        # group id -> weight
-    surfaces: set                  # matched vocabulary words (exact / prefix / fuzzy)
+    found: Dict[int, float]
+    surfaces: set
     stems: set
-    quality: int                   # 3 exact or stem, 2 prefix, 1 fuzzy, 0 nothing
+    quality: int
     idf: float = 0.0
     regex: Any = None
 
-
 def _alternation(surfaces: Iterable[str], stems: Iterable[str]) -> str:
-    # The pattern matches at a word start, so an alternative that starts with another one adds nothing
-    # (every «ошибк…» is already covered by «ошиб»): keep only the shortest prefixes.
+
     alts: List[str] = []
     for alt in sorted({a for a in list(surfaces) + list(stems) if a}):
         if alts and alt.startswith(alts[-1]):
@@ -733,20 +677,17 @@ def _alternation(surfaces: Iterable[str], stems: Iterable[str]) -> str:
     alts.sort(key=len, reverse=True)
     return "|".join(re.escape(a) for a in alts[:160])
 
-
 _J_FORMS = "(?:й|ем|ём|е|ю|я|и|ев|ям|ях|ями|ей)(?![^\\W_])"
-
 
 def _word_regex(surfaces: set, stems: set):
     alt = _alternation(surfaces, stems)
     if not alt:
         return None
-    # «чай» stands for «чаем/чаю/чае…» (see stem()): highlight those forms too, but not «час», «чаша».
+
     j_forms = [re.escape(st[:2]) + _J_FORMS for st in stems if len(st) == 3 and st.endswith("й")]
     if j_forms:
         alt = "|".join(j_forms) + "|" + alt
     return re.compile(r"(?<![^\W_])(?:%s)[^\W_]*" % alt, re.UNICODE)
-
 
 def _match_word(index: SearchIndex, word: str, last: bool) -> WordMatch:
     found: Dict[int, float] = {}
@@ -768,8 +709,7 @@ def _match_word(index: SearchIndex, word: str, last: bool) -> WordMatch:
         if not quality and len(stems) > 1:
             quality = 2
     hits = sum(len(index.postings.get(st, ())) for st in stems)
-    # Typos only when the word itself (or its forms) found nothing: a valid stem hit must not drag in
-    # look-alike words — «чаем» found «чай» and also every «чем».
+
     if hits < 3 and len(word) >= 4 and quality < 3:
         for term in index.fuzzy_terms(word):
             surfaces.add(term)
@@ -788,13 +728,11 @@ def _match_word(index: SearchIndex, word: str, last: bool) -> WordMatch:
         quality = 0
     return WordMatch(word, found, surfaces, set(stems), quality, regex=_word_regex(surfaces, set(stems)))
 
-
 def fast_fold(text: str) -> str:
     low = text.lower()
     if len(low) != len(text):
         return fold(text)
     return low.replace("ё", "е")
-
 
 def _group_passes(index: SearchIndex, group: Group, q: Query, types: Optional[set], filters: Dict[str, Any]) -> bool:
     head = index.docs.get(group.head)
@@ -830,14 +768,12 @@ def _group_passes(index: SearchIndex, group: Group, q: Query, types: Optional[se
             return False
     return True
 
-
 def _flags(q: Query, filters: Dict[str, Any]) -> Dict[str, Any]:
     out = dict(q.flags)
     for key in ("telegram", "pinned", "role", "model", "folder", "project"):
         if filters.get(key) not in (None, "", False):
             out[key] = filters[key]
     return out
-
 
 def _doc_filters(q: Query, filters: Dict[str, Any]) -> Dict[str, Any]:
     flags = _flags(q, filters)
@@ -853,7 +789,6 @@ def _doc_filters(q: Query, filters: Dict[str, Any]) -> Dict[str, Any]:
     if date_to is not None:
         out["date_to"] = float(date_to)
     return out
-
 
 def _doc_ok(doc: Doc, dflt: Dict[str, Any]) -> bool:
     if not dflt:
@@ -871,16 +806,13 @@ def _doc_ok(doc: Doc, dflt: Dict[str, Any]) -> bool:
             return False
     return True
 
-
 def _phrase_regex(phrase: str):
     return re.compile(r"\s+".join(re.escape(part) for part in phrase.split(" ") if part), re.UNICODE)
-
 
 def _doc_folded(doc: Doc, spaces: bool = False) -> str:
     text = doc.text if doc.store_text else _loaded_text(doc)
     value = fast_fold((doc.title + "\n" + text) if doc.title else text)
     return _SPACE_RE.sub(" ", value) if spaces else value
-
 
 def _loaded_text(doc: Doc) -> str:
     if doc.loader is None:
@@ -889,7 +821,6 @@ def _loaded_text(doc: Doc) -> str:
         return str(doc.loader() or "")
     except Exception:
         return ""
-
 
 def snippet(text: str, regex: Any, phrases: List[str], *, width: int = 190) -> Tuple[str, List[List[int]]]:
     """A window of ``text`` around the densest matches and the highlight ranges ``[start, length]``."""
@@ -951,21 +882,17 @@ def snippet(text: str, regex: Any, phrases: List[str], *, width: int = 190) -> T
             merged.append([start, ln])
     return out, merged
 
-
 def _ranges(text: str, regex: Any) -> List[List[int]]:
     if regex is None or not text:
         return []
     return [[m.start(), m.end() - m.start()] for m in regex.finditer(fast_fold(text))][:40]
 
-
 _PUBLIC_META = ("role", "model", "models", "mode", "telegram", "pinned", "folder", "folder_id", "project",
                 "project_id", "path", "line", "lang", "kind", "enabled", "messages", "unread", "set", "icon",
                 "heading", "title_en", "name_ru", "branch", "versions")
 
-
 def _public_meta(meta: Dict[str, Any]) -> Dict[str, Any]:
     return {k: meta[k] for k in _PUBLIC_META if k in meta and meta[k] not in (None, "", [], False)}
-
 
 def _item(index: SearchIndex, group: Group, score: float) -> Dict[str, Any]:
     head = index.docs[group.head]
@@ -974,11 +901,9 @@ def _item(index: SearchIndex, group: Group, score: float) -> Dict[str, Any]:
             "group": group.key, "meta": _public_meta(head.meta), "open": dict(head.open),
             "title_highlights": [], "snippet": "", "highlights": [], "hits": []}
 
-
 def _hit(doc: Doc, snip: str, ranges: List[List[int]]) -> Dict[str, Any]:
     return {"id": doc.key, "snippet": snip, "highlights": ranges, "ts": doc.ts, "meta": _public_meta(doc.meta),
             "open": dict(doc.open), "title": doc.title if doc.title != doc.group_title else ""}
-
 
 def _browse(index: SearchIndex, q: Query, types: Optional[set], filters: Dict[str, Any],
             limit: int) -> Dict[str, Any]:
@@ -1016,7 +941,6 @@ def _browse(index: SearchIndex, q: Query, types: Optional[set], filters: Dict[st
         items.append(item)
     return {"items": items, "total": len(rows), "partial": False, "quality": 3}
 
-
 def _run(index: SearchIndex, q: Query, types: Optional[set], filters: Dict[str, Any],
          limit: int, per_group: int) -> Dict[str, Any]:
     words = list(dict.fromkeys(q.words + [w for p in q.phrases for w in tokens(p)]))[:12]
@@ -1029,7 +953,7 @@ def _run(index: SearchIndex, q: Query, types: Optional[set], filters: Dict[str, 
         m.idf = math.log(1.0 + total_groups / (1.0 + len(m.found))) if m.found else 0.0
     quality = min(m.quality for m in matches)
     excluded = {gid for ex in q.excluded for gid in index.postings.get(index.vocab.get(ex) or stem(ex), {})}
-    # candidate groups: every word (AND), else the best partial matches
+
     order = sorted(range(len(matches)), key=lambda i: len(matches[i].found))
     candidates = set(matches[order[0]].found)
     for i in order[1:]:
@@ -1095,7 +1019,6 @@ def _run(index: SearchIndex, q: Query, types: Optional[set], filters: Dict[str, 
         total = len(passing)
     return {"items": items, "total": total, "partial": partial, "quality": quality, "capped": capped}
 
-
 def _group_detail(index: SearchIndex, group: Group, matches: List[WordMatch], q: Query, dflt: Dict[str, Any],
                   partial: bool, need: set, per_group: int, *, verify: bool, build: bool,
                   combined: Any) -> Optional[Dict[str, Any]]:
@@ -1115,7 +1038,7 @@ def _group_detail(index: SearchIndex, group: Group, matches: List[WordMatch], q:
         if dflt and doc.meta.get("is_title") and not single:
             continue
         if single and not doc.store_text and not verify:
-            # a Work file: its text is read only for the snippet
+
             scored.append((len(matches), 0.0, doc, ""))
             covered = set(need)
             break
@@ -1172,7 +1095,6 @@ def _group_detail(index: SearchIndex, group: Group, matches: List[WordMatch], q:
                 snip, ranges = snippet(doc.text.strip() or doc.title, combined, q.phrases)
                 detail["hits"].append(_hit(doc, snip, ranges))
     return detail
-
 
 def search(raw: str, *, types: Optional[Iterable[str]] = None, filters: Optional[Dict[str, Any]] = None,
            limit: int = 60, per_group: int = 3, lang: str = "", refresh: bool = True,
@@ -1231,12 +1153,6 @@ def search(raw: str, *, types: Optional[Iterable[str]] = None, filters: Optional
         "items": result["items"], "groups": payload_groups,
     }
 
-
-
-# ---------------------------------------------------------------------------
-# Built-in providers
-# ---------------------------------------------------------------------------
-
 def _stat_rev(path: Path) -> str:
     try:
         st = path.stat()
@@ -1244,14 +1160,12 @@ def _stat_rev(path: Path) -> str:
     except OSError:
         return "0"
 
-
 def _num(value: Any) -> float:
     try:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
         return 0.0
     return number if math.isfinite(number) else 0.0
-
 
 _MD_HIDDEN_BLOCK_RE = re.compile(r"```[ \t]*(memuai-(?:memory|chart|visual|products?)|vega(?:-lite)?|json-chart)\b.*?(?:```|\Z)",
                                  re.S | re.I)
@@ -1264,7 +1178,6 @@ _MD_LINK_RE = re.compile(r"\[([^\]]+)\]\([^)]*\)")
 _MD_EMPH_RE = re.compile(r"(\*\*|__|~~)(?=\S)(.+?)(?<=\S)\1|(?<![\w*])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![\w*])")
 _MD_CODE_RE = re.compile(r"`+([^`\n]+)`+")
 _MD_MATH_RE = re.compile(r"\$\$(.+?)\$\$|\\\[(.+?)\\\]|\\\((.+?)\\\)|(?<![\w$])\$(?=\S)([^$\n]+?)(?<=\S)\$(?![\w$])", re.S)
-
 
 def plain_markdown(text: str) -> str:
     """What a reader sees of a Markdown answer, for snippets and the preview: no ``##``/``**``/``$``/table rules,
@@ -1281,23 +1194,21 @@ def plain_markdown(text: str) -> str:
     value = _MD_LINK_RE.sub(r"\1", value)
     value = _MD_MATH_RE.sub(lambda m: next(g for g in m.groups() if g is not None), value)
     value = _MD_CODE_RE.sub(r"\1", value)
-    for _ in range(2):   # ***bold italic***
+    for _ in range(2):
         value = _MD_EMPH_RE.sub(lambda m: m.group(2) if m.group(2) is not None else m.group(3), value)
-    # table rows only («| a | b |» → «a · b»): a pipe inside code (mermaid «-->|yes|», shell) stays
+
     value = re.sub(r"^[ \t]*\|(.*)\|[ \t]*$", lambda m: " · ".join(c.strip() for c in m.group(1).split("|")), value, flags=re.M)
     return value
 
-
 def _message_text(message: Dict[str, Any]) -> str:
     content = message.get("content")
-    if isinstance(content, list):   # OpenAI-style parts
+    if isinstance(content, list):
         content = " ".join(str(part.get("text") or "") for part in content if isinstance(part, dict))
     text = plain_markdown(str(content or ""))
     names = [str(a.get("name") or "") for a in (message.get("attachments") or []) if isinstance(a, dict)]
     if names:
         text += "\n" + " ".join(n for n in names if n)
     return text
-
 
 class ChatsProvider(Provider):
     """Chats of the active profile: Chat, Work and MemuCode, Telegram chats flagged."""
@@ -1379,8 +1290,7 @@ class ChatsProvider(Provider):
                                   "created_at": created, "role": role},
                             meta={"role": role, "model": str(message.get("model") or "")},
                             subtitle=subtitle))
-        # Round 35 (branches): messages of the OTHER versions are searchable too, labelled «другая версия»;
-        # opening one makes its branch active (search.js → MemuBranches.revealMessage(message_id)).
+
         try:
             from . import chat_tree
             hidden = list(chat_tree.inactive_messages(chat))[:4000]
@@ -1403,7 +1313,6 @@ class ChatsProvider(Provider):
                             subtitle=subtitle))
         return docs
 
-
 def _branch_sig(chat: Dict[str, Any]) -> str:
     """Changes whenever the set of chat versions does (search re-indexes the chat then)."""
     branches = chat.get("branches")
@@ -1413,13 +1322,10 @@ def _branch_sig(chat: Dict[str, Any]) -> str:
     return ";".join(f"{k}:{(f or {}).get('sel')}/{len((f or {}).get('alts') or [])}" for k, f in sorted(forks.items())
                     if isinstance(f, dict))
 
-
 class MemoryProvider(Provider):
     name = "memory"
     types = ("memory",)
 
-    # pgdata.load_memory() reads memuai/memory.json (not profile-scoped); the raw file is read here so the
-    # richer rows of a newer memory format (dicts with text/category/time) keep their fields.
     def revision(self) -> Any:
         from .pgdata import MEMU_DIR
         return _stat_rev(Path(MEMU_DIR) / "memory.json")
@@ -1434,7 +1340,7 @@ class MemoryProvider(Provider):
         items = raw.get("items") if isinstance(raw.get("items"), list) else None
         docs: List[Doc] = []
         if items is not None:
-            # memory v2 (app/memory_v2.py): structured items; deleted ones (the trash) are not searched
+
             for item in items[:3000]:
                 if not isinstance(item, dict) or item.get("status") == "deleted":
                     continue
@@ -1462,7 +1368,6 @@ class MemoryProvider(Provider):
                                 open={"action": "memory", "index": index}, title_weight=1))
         rev = self.revision()
         return {"facts": (rev, lambda: docs)}
-
 
 class PromptsProvider(Provider):
     name = "prompts"
@@ -1498,7 +1403,6 @@ class PromptsProvider(Provider):
             return docs
         return {"all": (rev, build)}
 
-
 class SchedulesProvider(Provider):
     name = "schedules"
     types = ("schedule",)
@@ -1527,7 +1431,6 @@ class SchedulesProvider(Provider):
                                 subtitle=str(when or "")))
             return docs
         return {"all": (rev, build)}
-
 
 class DocsProvider(Provider):
     name = "docs"
@@ -1573,7 +1476,6 @@ class DocsProvider(Provider):
                             meta={"lang": lang, "heading": heading}, subtitle=heading, title_weight=5))
         return docs
 
-
 class WorkProjectsProvider(Provider):
     """Saved Work projects (name + path); their files come from :class:`WorkFilesProvider`."""
     name = "projects"
@@ -1596,17 +1498,13 @@ class WorkProjectsProvider(Provider):
                 subtitle=it["path"], title_weight=6)]))
         return out
 
-
-# Work files ------------------------------------------------------------------
-
-WORK_MAX_FILES_PER_PROJECT = 6000     # file names
-WORK_MAX_CONTENT_FILES = 2500         # files whose text is indexed
-WORK_MAX_FILE_BYTES = 400_000         # bigger files: name only
-WORK_READ_BYTES = 48_000              # text indexed per file
+WORK_MAX_FILES_PER_PROJECT = 6000
+WORK_MAX_CONTENT_FILES = 2500
+WORK_MAX_FILE_BYTES = 400_000
+WORK_READ_BYTES = 48_000
 WORK_MAX_BYTES_PER_PASS = 24_000_000
 WORK_PASS_SECONDS = 4.0
 WORK_RESCAN_SECONDS = 90.0
-
 
 def _work_skip_dirs() -> set:
     try:
@@ -1615,14 +1513,12 @@ def _work_skip_dirs() -> set:
     except Exception:
         return {".git", "node_modules", "__pycache__", "venv", ".venv", "dist", "build"}
 
-
 def _work_text_ok(path: Path) -> bool:
     try:
         from .work_context import _is_probably_text
         return _is_probably_text(path)
     except Exception:
         return path.suffix.lower() in {".md", ".txt", ".py", ".js", ".ts", ".json"}
-
 
 def read_text_file(path: Path, limit: int = WORK_READ_BYTES) -> str:
     try:
@@ -1639,7 +1535,6 @@ def read_text_file(path: Path, limit: int = WORK_READ_BYTES) -> str:
     except Exception:
         text = raw.decode("utf-8", "replace")
     return text.replace("\x00", "")
-
 
 def scan_project(root: Path, *, deadline: float, budget: List[int]) -> List[Tuple[str, int, int]]:
     """``(relative path, mtime_ns, size)`` of the project's files; never leaves ``root``."""
@@ -1680,7 +1575,6 @@ def scan_project(root: Path, *, deadline: float, budget: List[int]) -> List[Tupl
         stack.extend(reversed(dirs))
     return out
 
-
 class WorkFilesProvider(Provider):
     """Files of the saved Work projects: names always, text of small text files (bounded)."""
     name = "files"
@@ -1692,7 +1586,7 @@ class WorkFilesProvider(Provider):
         self.enabled = True
 
     def revision(self) -> Any:
-        return None   # always rescan (throttled by min_interval)
+        return None
 
     def units(self) -> UnitMap:
         if not self.enabled:
@@ -1728,7 +1622,7 @@ class WorkFilesProvider(Provider):
         text = read_text_file(path) if with_text else ""
         name = rel.rsplit("/", 1)[-1]
         folder = rel.rsplit("/", 1)[0] if "/" in rel else ""
-        # the path words are indexed with the name (src/app/search.js → src app search js)
+
         body = rel.replace("/", " ").replace(".", " ") + "\n" + text
 
         def loader(p=path) -> str:
@@ -1743,7 +1637,6 @@ class WorkFilesProvider(Provider):
                     meta={"project_id": str(item["id"]), "project": item["name"], "path": rel, "desktop_only": True},
                     subtitle=f"{item['name']} · {folder}" if folder else item["name"], title_weight=8,
                     store_text=False, loader=(loader if with_text else (lambda: "")))]
-
 
 class PanelsProvider(Provider):
     name = "panels"
@@ -1772,7 +1665,6 @@ class PanelsProvider(Provider):
             return out
         return {"all": (rev, build)}
 
-
 class ModulesProvider(Provider):
     name = "modules"
     types = ("module",)
@@ -1794,7 +1686,7 @@ class ModulesProvider(Provider):
             for row in rows:
                 if not row.get("id"):
                     continue
-                # One document per UI language (like docs): the English UI must not show Russian titles/summaries.
+
                 for lang in ("ru", "en"):
                     title = (row.get("title_en") if lang == "en" else "") or row.get("title") or row["id"]
                     summary = (row.get("summary_en") if lang == "en" else "") or row.get("summary") or ""
@@ -1807,7 +1699,6 @@ class ModulesProvider(Provider):
                                    subtitle=summary, title_weight=6))
             return out
         return {"all": (rev, build)}
-
 
 class QuickHistoryProvider(Provider):
     name = "quick"
@@ -1838,18 +1729,12 @@ class QuickHistoryProvider(Provider):
             return out
         return {"all": (rev, build)}
 
-
 def install_default_providers() -> None:
     for provider in (ChatsProvider(), MemoryProvider(), PromptsProvider(), SchedulesProvider(), DocsProvider(),
                      WorkProjectsProvider(), WorkFilesProvider(), PanelsProvider(), ModulesProvider(),
                      QuickHistoryProvider()):
         if provider.name not in INDEX.providers:
             INDEX.register(provider)
-
-
-# ---------------------------------------------------------------------------
-# Preview
-# ---------------------------------------------------------------------------
 
 def preview(key: str, raw_query: str = "", *, context: int = 2) -> Optional[Dict[str, Any]]:
     """The context around a result for the preview pane."""
@@ -1882,7 +1767,7 @@ def preview(key: str, raw_query: str = "", *, context: int = 2) -> Optional[Dict
         chat = next((c for c in load_chats() if str(c.get("id")) == chat_id), None)
         branch_rows = None
         if chat and doc.open.get("message_id") and doc.open.get("branch") == "other":
-            # Round 35: an inactive version — show it among its own neighbours (from that version)
+
             from . import chat_tree
             loc = chat_tree.locate(chat, str(doc.open.get("message_id")))
             if loc:
@@ -1894,7 +1779,7 @@ def preview(key: str, raw_query: str = "", *, context: int = 2) -> Optional[Dict
             visible = [i for i, m in enumerate(messages)
                        if not m.get("internal") and m.get("role") in ("user", "assistant")]
             if index is None:
-                # the chat itself: its first exchange, or the first message that matches
+
                 first_hit = next((i for i in visible if regex is not None and
                                   regex.search(fast_fold(_message_text(messages[i])))), None)
                 index_view = first_hit if first_hit is not None else (visible[0] if visible else None)

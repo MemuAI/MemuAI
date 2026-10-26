@@ -1,12 +1,5 @@
-/* MemuAI inline visualizations (like ChatGPT/Gemini visuals).
- *
- * The model may place a hidden ```memuai-visual block anywhere in an answer.
- * It contains a small self-contained HTML/SVG/Canvas + JS fragment. MemuAI
- * renders it in place inside a sandboxed iframe: no same-origin access (no
- * app data, storage or cookies), no network (CSP), no popups or navigation.
- * The user sees the result, never the code. Theme colors are passed in as
- * CSS variables and the frame follows the content height.
- */
+
+
 "use strict";
 const MemuVisuals = (() => {
   const MAX_SOURCE = 60000;
@@ -14,31 +7,30 @@ const MemuVisuals = (() => {
   let counter = 0;
 
   const PROMPT = `<visualizations>
-You can embed a small interactive visualization directly in your answer, like ChatGPT or Gemini visuals.
-Use it RARELY — only when seeing or manipulating something is clearly better than text: plotting numeric
-data or a function, comparing values, a timeline, a process or physics simulation, a small calculator or
-converter with sliders. Never for plain text, simple lists, a single number, code the user asked to see,
-or anything you could show as a normal table. At most one or two per answer.
-Put it exactly where it belongs in the answer (it can be in the middle), always together with a normal text
-explanation, and never mention the code, the block or "the visualization below was generated".
-Write one hidden fenced block:
+You may insert native rich blocks anywhere they make an answer clearer: process/branch diagrams, sortable rankings,
+comparisons, illustrated entity cards, charts, timelines, tables, tabs, accordions, metrics and calculators.
+Use ordinary prose around them. Never invent facts, numeric values, image URLs or sources. Avoid decoration without purpose.
+Native blocks are declarative JSON in a hidden fenced block named memuai-visual, for example:
 \`\`\`memuai-visual
-<div id="app"></div>
-<style>/* scoped CSS */</style>
-<script>/* vanilla JS */</script>
+{"type":"text","title":"Options","blocks":[{"type":"ranking","max":10,"items":[{"name":"A","value":9,"detail":"Evidence"}]}]}
 \`\`\`
-Rules: an HTML fragment only (no <html>, <head> or <body>); vanilla JS, inline SVG or <canvas>; no external
-scripts, fonts, images or network requests (they are blocked) and no localStorage; keep it under ~12 KB.
-Use the provided CSS variables for a native look in both themes: var(--bg), var(--panel), var(--text),
-var(--muted), var(--accent), var(--border), var(--font). Transparent page background, width 100%,
-responsive, height up to about 480px. Label axes and values, keep text legible, make controls keyboard
-accessible, and make the numbers it shows consistent with your text.
+Call {"tool":"visual_schema","args":{}} in a memuai-tool array for all shapes and supported controls.
+Call {"tool":"visual_validate","args":{"visual":{...}}} to validate a complex block before emitting it.
+For inline clickable terms define a hidden memuai-entity JSON fence with id, name, summary, optional image, facts,
+sources[{title,url}] and inline_only:true. Refer outside code with [[entity:id|Visible term]].
+The right information panel shows only the data you supply, so cite reliable sources and do not pretend it was verified.
+For interactions beyond native controls, use a memuai-visual JSON object:
+{"type":"custom","summary":"Concise explanation copied as readable text","html":"<div>...</div>"}.
+Custom HTML runs in an isolated iframe: inline vanilla JS/SVG/canvas only, no external scripts/fonts/images/network,
+no storage or application access. Use --bg,--panel,--text,--muted,--accent,--border,--font CSS variables.
+Keep custom fragments under 12 KB where possible, responsive and keyboard accessible. Include a useful summary.
+Copy/export of native blocks retains their meaningful text, labels and values. All visual features are user configurable.
 </visualizations>`;
 
   function themeVars() {
     const style = getComputedStyle(document.documentElement);
     const read = (name, fallback) => (style.getPropertyValue(name) || "").trim() || fallback;
-    // Themes have many names: decide light/dark from the page background.
+
     const probe = document.createElement("div");
     probe.style.color = read("--bg", "#ffffff");
     document.body.appendChild(probe);
@@ -75,6 +67,18 @@ window.addEventListener("load",function(){post();if(window.ResizeObserver)new Re
 
   function placeholder(code, en) {
     if (!code.trim()) return "";
+    const rich = window.MemuRichVisuals;
+    if (rich) {
+      const native = rich.render(code);
+      if (native) return native;
+      const value = rich.parse(code);
+      if (value && (value.type === "custom" || typeof value.html === "string")) {
+        if (!rich.customEnabled()) return `<div class="rv-plain">${escapeText(value.summary || "")}</div>`;
+        code = String(value.html || "");
+      } else if (/^\s*[\[{]/.test(code)) {
+        return `<div class="rv-plain">${escapeText(en ? "The visual block could not be read." : "Не удалось прочитать визуальный блок.")}</div>`;
+      } else if (!rich.customEnabled()) return `<div class="rv-plain">${escapeText(htmlText(code))}</div>`;
+    }
     if (code.length > MAX_SOURCE) {
       return `<div class="memuai-visual failed" role="note">${en ? "The visualization is too large to show." : "Визуализация слишком большая, чтобы её показать."}</div>`;
     }
@@ -86,18 +90,27 @@ window.addEventListener("load",function(){post();if(window.ResizeObserver)new Re
     return `<div class="memuai-visual pending"><div class="visual-loading"><i></i>${en ? "Creating a visualization…" : "Создаю визуализацию…"}</div></div>`;
   }
 
-  // Streaming: an unfinished block becomes a skeleton instead of raw code.
   function maskPending(text) {
-    return String(text || "").replace(/```[ \t]*memuai[-_ ]?visual\b((?:(?!```)[\s\S])*)$/i, "```memuai-visual-pending\n```");
+    return String(text || "").replace(/```[ \t]*memuai[-_ ]?(?:visual|entity)\b((?:(?!```)[\s\S])*)$/i, "```memuai-visual-pending\n```");
   }
 
-  // Copy/export/speech: a visualization is not text.
+  function escapeText(value) { return String(value || "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+  function htmlText(code) {
+    const template=document.createElement("template");template.innerHTML=String(code || "");
+    template.content.querySelectorAll("script,style,iframe,object,embed,link,meta").forEach(n=>n.remove());
+    template.content.querySelectorAll("p,div,section,article,header,footer,h1,h2,h3,h4,li,tr,br").forEach(n=>n.append("\n"));
+    return template.content.textContent.replace(/[ \t]+/g," ").replace(/\n[ \t]+/g,"\n").replace(/\n{3,}/g,"\n\n").trim().slice(0,12000);
+  }
   function stripForText(text, en) {
-    return String(text || "").replace(/```[ \t]*memuai[-_ ]?visual\b[\s\S]*?(?:```|$)/gi, en ? "[visualization]" : "[визуализация]");
+    const source=String(text || "").replace(/```[ \t]*memuai[-_ ]?(visual|entity)\b[ \t]*\r?\n([\s\S]*?)(?:```|$)/gi, (_,kind,body) => {
+      const value=window.MemuRichVisuals?.parse(body);
+      if(value?.inline_only && kind.toLowerCase()==="entity")return "";
+      if(value)return value.type==="custom" || typeof value.html==="string" ? String(value.summary || htmlText(value.html)) : MemuRichVisuals.plain(kind.toLowerCase()==="entity"?{...value,type:"entity"}:value);
+      return /^\s*</.test(body)?htmlText(body):"";
+    });
+    return window.MemuRichVisuals ? MemuRichVisuals.stripInline(source) : source;
   }
 
-  // Перенос кадра без перезагрузки: Element.moveBefore (Chromium 133+).
-  // Без поддержки кадры просто создаются заново, как раньше.
   const holder = document.createElement("div");
   holder.hidden = true;
   const stashed = new Map();
@@ -114,15 +127,16 @@ window.addEventListener("load",function(){post();if(window.ResizeObserver)new Re
   }
 
   function hydrate(root, isLive) {
+    window.MemuRichVisuals?.hydrate(root);
     (root || document).querySelectorAll(".memuai-visual[data-visual]:not([data-ready])").forEach((host) => {
-      if (isLive && isLive(host)) return; // keep the skeleton while the answer streams
+      if (isLive && isLive(host)) return;
       const code = decode(host.dataset.visual);
       if (!code) return;
       const kept = stashed.get(host.dataset.visual);
       if (kept && kept.length) {
         const frame = kept.shift();
         try { host.replaceChildren(); host.moveBefore(frame, null); host.dataset.ready = "1"; return; }
-        catch (e) { /* ниже — новый кадр */ }
+        catch (e) {  }
       }
       host.dataset.ready = "1";
       const id = "v" + (++counter);
@@ -134,11 +148,9 @@ window.addEventListener("load",function(){post();if(window.ResizeObserver)new Re
       frame.title = document.documentElement.lang === "en" ? "Visualization" : "Визуализация";
       frame.style.height = "160px";
       const theme = themeVars();
-      // Same color scheme as the page, or Chromium paints an opaque backdrop.
+
       frame.style.colorScheme = theme.scheme;
-      // CSP не запрещает кадру перейти на другой адрес (location = …), а в
-      // адресе можно унести данные. Вторая загрузка кадра — это переход:
-      // такой кадр сразу заменяется сообщением.
+
       let loads = 0;
       frame.addEventListener("load", () => {
         loads += 1;
@@ -156,7 +168,7 @@ window.addEventListener("load",function(){post();if(window.ResizeObserver)new Re
       frames.set(id, { frame, host });
       host.replaceChildren(frame);
     });
-    // Кадры, которым не нашлось места (ответ удалён), выбрасываются.
+
     stashed.forEach((list) => list.forEach((frame) => frame.remove()));
     stashed.clear();
     for (const [id, item] of frames) {

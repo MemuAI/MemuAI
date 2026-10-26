@@ -20,14 +20,11 @@ from .model import (HEAD_BYTES, ForeignSession, ReadError, SessionInfo, Turn, cl
 KEY = "grok"
 TITLE = "Grok"
 
-
 def home() -> Path:
     return Path(os.environ.get("GROK_HOME") or (Path.home() / ".grok"))
 
-
 def present() -> bool:
     return (home() / "sessions").is_dir()
-
 
 def _summary(folder: Path) -> Dict[str, Any]:
     try:
@@ -35,7 +32,6 @@ def _summary(folder: Path) -> Dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
-
 
 def discover(limit: int = 400) -> List[SessionInfo]:
     base = home() / "sessions"
@@ -54,7 +50,6 @@ def discover(limit: int = 400) -> List[SessionInfo]:
                 rows.append(info)
     rows.sort(key=lambda row: -row.updated)
     return rows[:limit]
-
 
 def _info(folder: Path, chat: Path, cwd_from_folder: str) -> Optional[SessionInfo]:
     summary = _summary(folder)
@@ -78,10 +73,8 @@ def _info(folder: Path, chat: Path, cwd_from_folder: str) -> Optional[SessionInf
                        messages=int(summary.get("num_chat_messages") or summary.get("num_messages") or 0),
                        model=str(summary.get("current_model_id") or model), path=str(folder))
 
-
 def _user_text(event: Dict[str, Any]) -> str:
     return clean_user_text(text_of(event.get("content")))
-
 
 def read(info: SessionInfo) -> ForeignSession:
     folder = Path(info.path)

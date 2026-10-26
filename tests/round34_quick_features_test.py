@@ -36,15 +36,12 @@ from app import quick_features  # noqa: E402
 NOW = datetime(2026, 10, 11, 22, 10)
 CALC = ROOT / "app" / "pgstatic" / "quick" / "quick-calc.js"
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 def m(text):
     found = intents.match(text, now=NOW)
     return (found["action"], found["params"]) if found else None
-
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is not installed")
 class CalculatorTest(unittest.TestCase):
@@ -75,7 +72,6 @@ class CalculatorTest(unittest.TestCase):
         self.assertAlmostEqual(values[1], 1 / 6, places=6)
         self.assertEqual(values[2:], [7, 5000, 120])
 
-
 @unittest.skipUnless(shutil.which("node"), "Node.js is not installed")
 class CurrencyHintTest(unittest.TestCase):
     def test_codes_after_k_and_m_and_words_that_are_not_money(self):
@@ -90,7 +86,6 @@ class CurrencyHintTest(unittest.TestCase):
         self.assertEqual(got[4:7], [None, None, None])
         self.assertEqual(got[7], {"amount": 1, "from": "TRY", "to": "RUB"})
         self.assertEqual(got[8], {"amount": 100, "from": "USD", "to": "RUB"})
-
 
 class IntentFixesTest(unittest.TestCase):
     def test_forecast_of_something_else_is_not_the_weather(self):
@@ -134,7 +129,6 @@ class IntentFixesTest(unittest.TestCase):
         self.assertIn("lights", system)
         self.assertIn('{"a":"chat"}', system.replace("\\", ""))
 
-
 class AppNamesTest(unittest.TestCase):
     def test_accusative_alias(self):
         index = apps.merge_index(apps.builtin_entries(), [apps._entry("Telegram Desktop", "lnk", r"C:\S\Telegram Desktop.lnk"),
@@ -142,7 +136,6 @@ class AppNamesTest(unittest.TestCase):
         self.assertEqual(apps.resolve("телегу", index)["match"]["name"], "Telegram Desktop")
         self.assertEqual(apps.resolve("оперу", index)["match"]["name"], "Opera")
         self.assertIsNone(apps.resolve("игру", index)["match"])
-
 
 class EngineFixesTest(unittest.TestCase):
     def setUp(self):
@@ -191,7 +184,6 @@ class EngineFixesTest(unittest.TestCase):
         found = self.engine.match("убей процесс chrome.exe")
         self.assertEqual(run(self.engine.run(found["action"], found["params"]))["status"], "confirm")
 
-
 class ClipboardSecretsTest(unittest.TestCase):
     def test_cards_and_tokens_are_secret(self):
         for text in ("4111 1111 1111 1111", "4111-1111-1111-1111", "5500000000000004", "hf_" + "A" * 34, "glpat-" + "x" * 20,
@@ -202,7 +194,6 @@ class ClipboardSecretsTest(unittest.TestCase):
         for text in ("1234567890123456", "+7 999 123 45 67", "ISBN 978-3-16-148410-0", "0000 0000 0000 0000",
                      "2026-10-11 22:00:00", "заказ 100000000000000", "обычный текст"):
             self.assertFalse(quick_features.looks_secret(text), text)
-
 
 class PageReadTest(unittest.TestCase):
     HTML = """<html><head><title>repo</title></head><body><header>nav</header>
@@ -221,8 +212,7 @@ class PageReadTest(unittest.TestCase):
         self.assertIn("\n## Install\n", text)
         self.assertIn("\n- first step of the setup\n- second step of the setup", text)
         self.assertIn("\n## Usage\n", text)
-        self.assertNotIn("update deps", text)        # the file list of the <main> is not the content
-
+        self.assertNotIn("update deps", text)
 
 class ExplorerUndoTest(unittest.TestCase):
     def test_undo_of_a_copy_keeps_work_done_in_it(self):
@@ -233,12 +223,12 @@ class ExplorerUndoTest(unittest.TestCase):
         ctx = {"id": "r34", "folder": str(base), "writable": True}
         change = qe.plan_changes(ctx, [{"op": "copy", "path": "src", "to": "copy"}])
         qe.apply_set(change["id"])
-        (base / "copy" / "mine.txt").write_text("my work", encoding="utf-8")     # the user works in the copy
+        (base / "copy" / "mine.txt").write_text("my work", encoding="utf-8")
         result = qe.undo(qe.get_set(change["id"])["undo_id"])
         self.assertEqual(result["undone"], 0)
         self.assertTrue((base / "copy" / "mine.txt").is_file())
         self.assertIn("копия изменена", " ".join(result["problems"]))
-        # an untouched copy is still undone
+
         change = qe.plan_changes(ctx, [{"op": "copy", "path": "src", "to": "copy2"}])
         qe.apply_set(change["id"])
         self.assertEqual(qe.undo(qe.get_set(change["id"])["undo_id"])["undone"], 1)
@@ -249,7 +239,6 @@ class ExplorerUndoTest(unittest.TestCase):
         for suffix in (".url", ".cpl", ".msc", ".py", ".appref-ms", ".settingcontent-ms"):
             self.assertIn(suffix, quick_files.EXECUTABLE_SUFFIXES)
 
-
 class CanvasHotkeyTest(unittest.TestCase):
     def test_global_button_hotkey_never_takes_a_standard_shortcut(self):
         from app import quick_actions as qa
@@ -258,10 +247,9 @@ class CanvasHotkeyTest(unittest.TestCase):
             with self.assertRaises(qa.ActionInvalid, msg=combo) as caught:
                 qa.validate_action({"label": "x", "hotkey": combo, "global": True, "steps": wait})
             self.assertTrue(caught.exception.en and caught.exception.ru != caught.exception.en, combo)
-        # inside the Quick Ask window only (not global) Ctrl+R is fine; a free global combo too
+
         self.assertEqual(qa.validate_action({"label": "x", "hotkey": "Ctrl+R", "steps": wait})["hotkey"], "Ctrl+R")
         self.assertTrue(qa.validate_action({"label": "x", "hotkey": "Ctrl+Alt+7", "global": True, "steps": wait})["global"])
-
 
 class CommandsUiSourceTest(unittest.TestCase):
     def test_stale_confirms_are_retired(self):
@@ -269,7 +257,6 @@ class CommandsUiSourceTest(unittest.TestCase):
         self.assertIn("function dropStaleConfirms()", js)
         self.assertIn("dropStaleConfirms();\n    const pending", js)
         self.assertIn("card.status = before.status", js)
-
 
 if __name__ == "__main__":
     unittest.main()

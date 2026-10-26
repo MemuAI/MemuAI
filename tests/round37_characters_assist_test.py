@@ -53,7 +53,6 @@ CARD = {
     "mes_example": "", "tags": ["drama"],
 }
 
-
 class AssistStaticTest(unittest.TestCase):
     def test_parts_are_inlined_in_order(self):
         source = (MODULE / "main.js").read_text(encoding="utf-8")
@@ -82,7 +81,6 @@ class AssistStaticTest(unittest.TestCase):
         source = (MODULE / "main.js").read_text(encoding="utf-8")
         self.assertIn('assist: { model: "", lang: "auto", buttons: true }', source)
 
-
 def open_page(pw, lang="en", size=(1440, 900)):
     browser = pw.chromium.launch(executable_path=harness.chromium(), args=["--no-sandbox"])
     page = browser.new_page(viewport={"width": size[0], "height": size[1]})
@@ -98,7 +96,6 @@ def open_page(pw, lang="en", size=(1440, 900)):
     frame = harness.frame_of(page)
     frame.evaluate("() => { window.M = window.MemuCharacters; }")
     return browser, page, frame, errors
-
 
 @unittest.skipUnless(sync_playwright and harness.chromium(), "playwright + chromium required")
 class AssistBrowserTest(unittest.TestCase):
@@ -147,7 +144,7 @@ class AssistBrowserTest(unittest.TestCase):
         self.frame.click(".ch-menu .ch-menu-item:has-text('Improve')")
         self.frame.wait_for_selector(".ch-as-pv .ch-as-pv-foot:not([hidden]) .primary")
         self.assertTrue(self.ev("() => !!document.querySelector('.ch-as-diff ins')"))
-        # nothing changed yet
+
         self.assertEqual(self.ev("() => document.querySelector(\"[data-assist='description']\").value"), before)
         req = self.sent()[-1]
         self.assertEqual(req["model"], "reform-qwen3.8-flash")
@@ -172,7 +169,7 @@ class AssistBrowserTest(unittest.TestCase):
         self.assertIn("Replace the selection", self.ev("() => document.querySelector('.ch-as-pv .primary').textContent"))
         self.frame.click(".ch-as-pv .primary")
         self.wait("() => document.querySelector(\"[data-assist='description']\").value.indexOf('She chats with the gulls') >= 0")
-        # Esc closes the preview, not the editor
+
         self.reply("x")
         self.open_menu("first_mes")
         self.frame.click(".ch-menu .ch-menu-item:has-text('Fix mistakes')")
@@ -219,7 +216,7 @@ class AssistBrowserTest(unittest.TestCase):
         self.frame.click(".ch-as-review-top .mu-btn")
         self.wait("() => [...document.querySelectorAll('.ch-as-issue')].some(r => r.textContent.indexOf('Contradiction') >= 0)")
         text = self.ev("() => document.querySelector('.ch-as-issues').textContent")
-        self.assertIn("<START>", text)          # local check
+        self.assertIn("<START>", text)
         self.reply("quiet, stubborn, kind to everyone")
         self.frame.click(".ch-as-issue.high .mu-btn:has-text('Fix')")
         self.frame.wait_for_selector(".ch-as-pv .primary")
@@ -262,7 +259,7 @@ class AssistBrowserTest(unittest.TestCase):
         self.frame.click(".ch-entry-body .ch-field:has(.ch-label:text-is('Keywords')) .ch-as-btn")
         self.frame.wait_for_selector(".ch-as-chip")
         chips = self.ev("() => [...document.querySelectorAll('.ch-as-chip:not(.ghost)')].map(c => c.textContent)")
-        self.assertEqual(chips, ["tower", "beacon"])     # already-present keys are dropped
+        self.assertEqual(chips, ["tower", "beacon"])
         self.frame.click(".ch-as-chip:text-is('beacon')")
         self.frame.click(".ch-as-keys .primary")
         self.wait("() => JSON.stringify(M.S.worlds.w_isle.entries[0].key) === JSON.stringify(['lighthouse', 'beacon'])")
@@ -276,7 +273,6 @@ class AssistBrowserTest(unittest.TestCase):
 
     def test_9_no_console_errors(self):
         self.assertEqual([e for e in self.errors if "favicon" not in e], [])
-
 
 def shots(out: Path, lang: str):
     out.mkdir(parents=True, exist_ok=True)
@@ -310,7 +306,6 @@ def shots(out: Path, lang: str):
         page.screenshot(path=str(out / f"assist-review-{lang}.png"))
         print("errors:", errors)
         browser.close()
-
 
 if __name__ == "__main__":
     if len(sys.argv) > 1 and not sys.argv[1].startswith("-"):

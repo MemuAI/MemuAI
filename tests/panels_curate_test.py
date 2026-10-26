@@ -14,19 +14,16 @@ from unittest.mock import patch
 
 from app import panels, panels_curate as pc, pgdata
 
-NOW = 1_791_400_000.0           # 2026-10-07
-
+NOW = 1_791_400_000.0
 
 def rss(items, title="Feed"):
     rows = "".join(f"<item><title>{t}</title><link>{u}</link><pubDate>{d}</pubDate><description>{s}</description></item>"
                    for t, u, d, s in items)
     return f'<?xml version="1.0"?><rss version="2.0"><channel><title>{title}</title>{rows}</channel></rss>'
 
-
 def when(hours_ago):
     from email.utils import formatdate
     return formatdate(NOW - hours_ago * 3600)
-
 
 OPENAI = rss([("GPT-6 and Intelligent UI for everyone", "https://openai.com/index/gpt-6-for-everyone/?utm_source=rss", when(5), "We are launching GPT-6."),
               ("How Acme uses ChatGPT Enterprise", "https://openai.com/index/acme-customer-story/", when(3), "Customer story."),
@@ -54,7 +51,6 @@ ANTHROPIC_PAGE = """<html><body>
 <a href="/news/older-1">Older one</a><a href="/news/older-2">Older two</a><a href="/careers">Careers</a>
 <a href="https://evil.example/news/x">x</a></body></html>"""
 
-
 class FakeNet:
     def __init__(self, routes):
         self.routes = routes
@@ -69,7 +65,6 @@ class FakeNet:
                 return value if isinstance(value, str) else json.dumps(value)
         raise ValueError(f"HTTP 404 {url}")
 
-
 def ai_plan(**kw):
     plan = pc.plan_for("Новости ИИ каждое утро", out_lang="ru", **kw)
     plan["feeds"] = [f for f in plan["feeds"] if f["name"] in ("OpenAI", "The Verge")]
@@ -77,10 +72,8 @@ def ai_plan(**kw):
     plan["reddit"] = ["LocalLLaMA"]
     return plan
 
-
 NET = {"openai.com/news/rss.xml": OPENAI, "theverge.com/rss": VERGE, "hn.algolia.com": HN,
        "reddit.com/r/LocalLLaMA": REDDIT, "anthropic.com/news": ANTHROPIC_PAGE}
-
 
 class PlanTest(unittest.TestCase):
     def test_topic_and_language_are_independent_of_the_ui(self):
@@ -117,8 +110,7 @@ class PlanTest(unittest.TestCase):
         self.assertEqual([f["url"] for f in plan["feeds"]], ["https://tver.example/rss"])
         self.assertEqual(plan["reddit"], ["tver"])
         self.assertIn("тверь", plan["keywords"])
-        self.assertIsNone(plan["hn"])                     # local topic: no Hacker News
-
+        self.assertIsNone(plan["hn"])
 
 class ParseTest(unittest.TestCase):
     def test_feed_parsing_is_safe_and_complete(self):
@@ -143,7 +135,6 @@ class ParseTest(unittest.TestCase):
                          "https://openai.com/index/gpt-6")
         self.assertEqual(pc.canonical_url("https://m.example.com/a/amp?id=3&fbclid=zz"), "https://example.com/a?id=3")
         self.assertEqual(pc.canonical_url("https://news.ycombinator.com/item?id=5&utm=1"), "https://news.ycombinator.com/item?id=5")
-
 
 class ClusterTest(unittest.TestCase):
     def cand(self, title, url, kind="media", **kw):
@@ -170,7 +161,6 @@ class ClusterTest(unittest.TestCase):
         rep = pc.pick_representative([verge, hn])
         self.assertEqual(rep["url"], "https://www.anthropic.com/claude-haiku-5-5")
         self.assertEqual(rep["source"], "Anthropic")
-
 
 class ScoreTest(unittest.TestCase):
     def test_fluff_rumour_and_corroboration(self):
@@ -208,7 +198,6 @@ class ScoreTest(unittest.TestCase):
         self.assertIn("Anthropic", companies)
         self.assertEqual(len(picked), 4)
 
-
 class BuildFeedTest(unittest.TestCase):
     def build(self, state=None, now=NOW, ask=None, net=None, cadence=None):
         return asyncio.run(pc.build_feed(ai_plan(), state or {}, fetch_text=FakeNet(net or NET), ask_model=ask,
@@ -219,7 +208,7 @@ class BuildFeedTest(unittest.TestCase):
         titles = [i["title"] for i in out["items"]]
         self.assertIn("Haiku 5.5", titles[0])
         haiku = out["items"][0]
-        self.assertEqual(pc.host_of(haiku["url"]), "anthropic.com")     # first-party page, not HN or a retelling
+        self.assertEqual(pc.host_of(haiku["url"]), "anthropic.com")
         self.assertEqual(haiku["badge"], "официально")
         self.assertGreaterEqual(haiku["n"], 3)
         self.assertTrue(any("GPT-6" in t for t in titles))
@@ -314,7 +303,6 @@ class BuildFeedTest(unittest.TestCase):
         self.assertTrue(out["items"])
         self.assertTrue(any(e.startswith("model:") for e in out["errors"]))
 
-
 class PanelFeedIntegrationTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -359,13 +347,13 @@ class PanelFeedIntegrationTest(unittest.TestCase):
             {"type": "title", "text": "AI"}, {"type": "list", "items": "{{headlines}}"}]},
             values={"headlines": [{"title": "invented"}]})
         self.assertEqual(panel["source"]["type"], "feed")
-        self.assertEqual(panel["data"], {})          # model-supplied values for a feed are not trusted
+        self.assertEqual(panel["data"], {})
 
     def test_nothing_new_keeps_the_previous_items(self):
         panel = asyncio.run(panels.create_and_fill(template="news", params={"topic": "ai", "count": 10}, wait=10))
         first = panel["data"]["items"]
         self.assertTrue(first)
-        # a day later the sources carry only what was already shown — the old list stays, with an honest note
+
         self.net.routes = {"openai.com/news/rss.xml": OPENAI}
 
         def age(d):
@@ -378,12 +366,10 @@ class PanelFeedIntegrationTest(unittest.TestCase):
         self.assertEqual(out["data"]["items"], first)
         self.assertTrue(out["data"]["note"])
 
-
 class PlainTextTest(unittest.TestCase):
     def test_no_space_before_punctuation_after_stripped_links(self):
         text = pc._plain('As promised <a href="x">here</a> , it is <b>Haiku 5.5</b> . The ( new ) model on .NET 8 .')
         self.assertEqual(text, "As promised here, it is Haiku 5.5. The (new) model on .NET 8.")
-
 
 if __name__ == "__main__":
     unittest.main()

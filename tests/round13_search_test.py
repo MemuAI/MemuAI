@@ -24,12 +24,10 @@ from app.providers import http  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 class Reply:
     def __init__(self, body, status: int = 200) -> None:
         self.status_code = status
         self.text = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
-
 
 class Web:
     """Answers by URL prefix and remembers every request."""
@@ -51,7 +49,6 @@ class Web:
     async def post(self, url, **kwargs):
         return await self._call("POST", url, **kwargs)
 
-
 def run(engine: str, web: Web, **kwargs):
     async def session(_proxy=""):
         return web
@@ -60,7 +57,6 @@ def run(engine: str, web: Web, **kwargs):
         with patch.object(http, "get_session", session):
             return await websearch.run_engine(engine, "курс доллара", 3, **kwargs)
     return asyncio.run(go())
-
 
 HIT = {"title": "Курс доллара", "url": "https://cbr.example/usd", "snippet": "90 рублей"}
 
@@ -75,7 +71,6 @@ YAHOO = ('<div class="dd algo algo-sr relsrch Sr"><div class="compTitle"><a clas
          '<div><span class="d-ib"><span>cbr.example</span>https://cbr.example</span></div>'
          '<h3 class="title"><span class="d-b">Курс доллара</span></h3></a></div>'
          '<div class="compText aAbs"><p><span>Сегодня · </span>90 <b>рублей</b></p></div></div>')
-
 
 class EnginesTest(unittest.TestCase):
     def test_the_catalogue_separates_kiro_from_duckduckgo_and_names_what_each_source_needs(self) -> None:
@@ -177,7 +172,6 @@ class EnginesTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "адрес сервера"):
             run("searxng", Web({}))
 
-
 class SettingsTest(unittest.TestCase):
     def test_proxy_settings_keep_a_key_per_source_and_migrate_the_old_single_fields(self) -> None:
         old = config._normalized_settings({"search_engine": "duckduckgo", "search_api_key": " tvly-1 ",
@@ -238,7 +232,6 @@ class SettingsTest(unittest.TestCase):
         self.assertTrue(web.calls[-1]["url"].startswith("https://html.duckduckgo.com"),
                         "MemuAI may ask the Proxy for the free mode explicitly")
 
-
 class MemuAISearchRoutesTest(unittest.TestCase):
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
@@ -272,7 +265,7 @@ class MemuAISearchRoutesTest(unittest.TestCase):
             ok = client.post("/api/pg/search/test").json()
             self.assertEqual((ok["ok"], ok["engine"], ok["count"], ok["first"]["url"]), (True, "exa", 1, HIT["url"]))
             self.assertEqual(web.calls[-1]["headers"]["x-api-key"], "KEY")
-            # «Авто» without a running Proxy searches with the free chain right here.
+
             pgdata.save_preferences({"custom_search_provider": "auto"})
             self.assertEqual(client.post("/api/pg/search/test").json()["first"]["url"], HIT["url"])
             pgdata.save_preferences({"custom_search_provider": "kiro"})
@@ -290,7 +283,6 @@ class MemuAISearchRoutesTest(unittest.TestCase):
         html = (ROOT / "app" / "static" / "index.html").read_text(encoding="utf-8")
         self.assertIn('id="search-engine"', html)
         self.assertNotIn("Kiro / DuckDuckGo", html)
-
 
 if __name__ == "__main__":
     unittest.main()

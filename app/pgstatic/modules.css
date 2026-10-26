@@ -1,22 +1,11 @@
-/* ==========================================================================
-   Модули MemuAI — окно модуля и раздел настроек.
-   Слой общий: цвета и скругления берутся из токенов MemuAI, поэтому
-   оформление совпадает с темой, акцентом и плотностью интерфейса.
-   ========================================================================== */
-
-/* ------------------------------- окно модуля ----------------------------- */
-
 .module-layer {
   position: fixed;
   inset: 0;
   z-index: 300;
   pointer-events: none;
 }
-/* Окно модуля рисуется поверх панели настроек (у неё z-index 200),
-   иначе открытый модуль оказывается под затемнением диалога. */
 #panel-back.visible ~ .module-layer,
 .module-layer[data-open="1"] { pointer-events: none; }
-/* A question a module asks through MemuAI (Memu.fetchImport permission) is above the module windows. */
 #panel-back.visible.over-modules { z-index: 350; }
 .module-layer[hidden] { display: none !important; }
 
@@ -37,10 +26,6 @@
   from { opacity: 0; transform: translateY(6px) scale(.994); }
   to { opacity: 1; transform: none; }
 }
-/* Развёрнутый лист (Раунд 21): не весь MemuAI, а область содержимого рядом с
-   боковой панелью, с отступами и скруглением. Геометрию считает modules.js
-   (--mx-*: workArea/expandedRect) — лист никогда не заходит под собственную
-   строку заголовка и кнопки окна Windows. */
 .module-window[data-full="1"] {
   position: absolute;
   left: var(--mx-x, 10px) !important;
@@ -121,7 +106,6 @@
 .module-window-tools button[aria-pressed="true"] { background: var(--accent-soft); color: var(--accent); }
 .module-window-tools button[hidden] { display: none; }
 .module-window-tools .ui-icon { width: 16px; height: 16px; }
-/* Narrow module windows (a 380 px timer): the six tool buttons left the title «Поми…» — tighter tools, no grip. */
 .module-window-bar { container-type: inline-size; }
 @container (max-width: 460px) {
   .module-window-tools button { width: 27px; }
@@ -133,7 +117,6 @@
   border-radius: 0 0 var(--radius-lg, 16px) var(--radius-lg, 16px); }
 .module-window-bar { border-radius: var(--radius-lg, 16px) var(--radius-lg, 16px) 0 0; }
 .module-window-body iframe { display: block; width: 100%; height: 100%; border: 0; background: var(--bg); }
-/* Пока окно тянут или меняют размер, iframe не забирает события мыши. */
 .module-layer.dragging .module-window-body iframe { pointer-events: none; }
 .module-layer.dragging, .module-layer.dragging * { user-select: none; }
 .module-window-loading {
@@ -181,8 +164,6 @@
 }
 .module-resize { touch-action: none; }
 .module-resize[hidden] { display: none !important; }
-
-/* Кнопки модулей в интерфейсе MemuAI */
 .module-launch { display: flex; align-items: center; gap: 9px; }
 .module-launch .ui-icon { width: 17px; height: 17px; flex: none; }
 .module-launch-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.45; padding-block: 1px; }
@@ -209,8 +190,6 @@
 #module-slot-chats:empty, #module-slot-topbar:empty, #module-slot-composer:empty,
 #module-slot-sidebar:empty { display: none; }
 #module-slot-chats { padding: 2px 0 6px; }
-
-/* ------------------------------ раздел настроек --------------------------- */
 
 .modules-pane { display: flex; flex-direction: column; gap: 16px; min-height: 0; }
 .modules-pane .settings-title { display: flex; align-items: center; gap: 9px; }
@@ -389,8 +368,6 @@
 .pbtn.small { min-height: 32px; padding: 0 10px; font-size: .84em; }
 .pbtn.icon-only { padding: 0; width: 32px; justify-content: center; }
 
-/* --------------------------------- мастер --------------------------------- */
-
 .module-wizard { display: flex; flex-direction: column; gap: 14px; }
 .module-wizard-card {
   padding: 16px;
@@ -433,12 +410,9 @@
 .module-perm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px 14px; }
 .module-perm-grid.compact { grid-template-columns: repeat(auto-fit, minmax(112px, 1fr)); gap: 6px 12px; }
 
-/* ------------------------------- мастерская ------------------------------- */
-
 .modules-workbench { gap: 12px; }
 .workbench-body {
   display: grid;
-  /* Respond to the actual settings pane, including the space taken by its sidebar. */
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
   gap: 12px;
   min-width: 0;
@@ -512,7 +486,6 @@
 .workbench-code.highlighted .workbench-editor::placeholder { color: var(--muted); -webkit-text-fill-color: var(--muted); }
 .workbench-highlight { color: var(--text); overflow: hidden; pointer-events: none; }
 .workbench-highlight code { display: block; width: max-content; min-width: 100%; font: inherit; }
-/* Keep glyph metrics identical to the native textarea, including comments. */
 .workbench-highlight code span { font-weight: 400 !important; font-style: normal !important; }
 .workbench-problems { display: flex; flex-direction: column; gap: 6px; max-height: 168px; overflow: auto; }
 .workbench-problems[hidden] { display: none; }
@@ -576,8 +549,6 @@
 }
 .workbench-meta h4 { margin: 0; font-size: .92em; font-weight: 600; }
 
-/* ------------------------------- адаптивность ----------------------------- */
-
 @media (max-width: 720px) {
   .modules-head { flex-direction: column; align-items: stretch; }
   .modules-head-actions { justify-content: flex-start; }
@@ -596,9 +567,90 @@
 }
 .workbench-dirty::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); }
 .workbench-dirty[hidden] { display: none; }
-
-
-/* ------------------------------ несколько окон ------------------------------ */
+#pane-modules { container-type: inline-size; }
+.modules-loading { display:flex; align-items:center; justify-content:center; gap:12px; min-height:180px; color:var(--muted); }
+.sx-shell #pane-modules .modules-head-main { min-width:0; }
+.sx-shell #pane-modules .modules-head .settings-title { display:flex; align-items:center; gap:10px; }
+.sx-shell #pane-modules .field-label { display:grid; align-content:start; gap:7px; min-width:0; margin:0; font-size:13px; line-height:1.4; }
+.sx-shell #pane-modules .field-label > :is(.pinput,.ptexta,.pretty-select,.mpick,.mmp-select) { width:100%; max-width:100%; min-width:0; margin:0; }
+.sx-shell #pane-modules .ptexta { font:400 13px/1.5 var(--sans); }
+.sx-shell #pane-modules .module-wizard-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,190px),1fr)); align-items:start; }
+.sx-shell #pane-modules :is(.module-check,.module-switch) { flex-shrink:0; }
+.sx-shell #pane-modules .module-check > input { flex:0 0 16px; width:16px; height:16px; }
+.sx-shell #pane-modules .module-check > span { min-width:0; }
+.sx-shell #pane-modules .module-check b { font-weight:500; }
+.sx-shell #pane-modules .module-card-controls { align-items:start; }
+.sx-shell #pane-modules .module-card-controls .module-slot { flex:1 0 100%; width:100%; margin:0; }
+.sx-shell #pane-modules .module-card-controls .pretty-select { flex:1 0 100%; width:100%; margin:0; }
+.sx-shell #pane-modules .module-card-perms { min-height:24px; }
+.sx-shell #pane-modules .module-perm { font-family:inherit; }
+.sx-shell #pane-modules .module-card { height:100%; box-sizing:border-box; }
+.sx-shell #pane-modules .module-card-actions { margin-top:auto; }
+.sx-shell #pane-modules .module-list { grid-template-columns:repeat(auto-fill,minmax(min(100%,300px),1fr)); align-items:stretch; }
+.module-create-steps { display:flex; gap:4px; padding:4px; border:1px solid var(--border); border-radius:var(--radius); background:var(--panel-2); }
+.module-create-steps button { flex:1; min-width:0; display:flex; align-items:center; justify-content:center; gap:7px; padding:9px 5px; border-radius:var(--radius-sm); font:500 12px/1.3 var(--sans); color:var(--muted); }
+.module-create-steps button > span { width:21px; height:21px; flex:none; display:grid; place-items:center; border:1px solid var(--border); border-radius:50%; font-size:11px; }
+.module-create-steps button.active { color:var(--text); background:var(--panel); box-shadow:0 1px 3px #0001; }
+.module-create-steps button.active > span { background:var(--accent); color:var(--on-accent); border-color:transparent; }
+.module-create-steps button:hover { color:var(--text); }
+.module-wizard-layout { display:grid; grid-template-columns:minmax(0,1fr) minmax(180px,230px); gap:20px; align-items:start; }
+.module-wizard-layout > * { min-width:0; }
+.sx-shell #pane-modules .module-wizard-card { min-width:0; gap:16px; padding:20px; }
+.sx-shell #pane-modules .module-wizard-card[hidden] { display:none; }
+.sx-shell #pane-modules .module-wizard-card h4 { font-size:16px; line-height:1.4; outline:none; }
+.sx-shell #pane-modules .module-template-grid { grid-template-columns:repeat(auto-fit,minmax(min(100%,145px),1fr)); gap:8px; }
+.sx-shell #pane-modules .module-template { min-width:0; gap:8px; padding:14px; transform:none; border-radius:var(--radius-sm); }
+.sx-shell #pane-modules .module-template b { overflow-wrap:anywhere; }
+.sx-shell #pane-modules .module-template.active { box-shadow:inset 0 0 0 1px var(--accent); }
+.sx-shell #pane-modules .module-perm-grid--detailed { grid-template-columns:minmax(0,1fr); gap:0; }
+.module-permission-option { padding:11px 0; align-items:flex-start; border-bottom:1px solid var(--border); }
+.module-permission-option:last-child { border-bottom:0; }
+.module-permission-option > input { margin-top:2px; }
+.module-permission-option span { display:grid; gap:4px; }
+.module-permission-option small { color:var(--muted); font-size:12px; line-height:1.4; }
+.module-create-advanced { border-top:1px solid var(--border); padding-top:14px; }
+.module-create-advanced > summary { font-size:13px; color:var(--muted); cursor:pointer; margin-bottom:14px; }
+.sx-shell #pane-modules .module-create-advanced .field-label + .field-label { margin-top:16px; }
+.module-create-summary { display:grid; gap:16px; position:sticky; top:16px; padding:0 0 0 18px; border-left:1px solid var(--border); }
+.module-create-preview { display:flex; flex-direction:column; align-items:center; gap:10px; min-height:180px; padding:0 14px 20px; border:1px solid var(--border); border-radius:var(--radius); background:var(--panel-2); overflow:hidden; }
+.module-create-windowbar { display:flex; gap:4px; align-self:stretch; padding:13px 0 8px; }
+.module-create-windowbar span { width:5px; height:5px; border-radius:50%; background:var(--muted); opacity:.35; }
+#mw-summary-icon { display:grid; place-items:center; width:44px; height:44px; border-radius:12px; background:var(--accent-soft); color:var(--accent); }
+#mw-summary-icon .ui-icon { width:24px; height:24px; }
+#mw-summary-title { max-width:100%; text-align:center; overflow-wrap:anywhere; font-size:15px; }
+#mw-summary-template { color:var(--muted); font-size:12px; text-align:center; }
+.module-create-summary dl { display:grid; gap:14px; margin:0; font-size:12px; line-height:1.5; }
+.module-create-summary dl > div { display:grid; gap:3px; }
+.module-create-summary dt { color:var(--muted); }
+.module-create-summary dd { margin:0; overflow-wrap:anywhere; }
+.sx-shell #pane-modules .module-wizard-foot { position:sticky; bottom:0; z-index:2; background:var(--sx-bg,var(--panel)); padding:12px 0; border-top:1px solid var(--border); gap:8px; }
+.sx-shell #pane-modules .module-wizard-foot [hidden] { display:none; }
+.sx-shell #pane-modules .module-field-error { color:var(--danger); font-weight:400; font-size:12px; }
+.sx-shell #pane-modules .module-field-error[hidden] { display:none; }
+.sx-shell #pane-modules [aria-invalid="true"] { border-color:var(--danger); }
+.sx-shell #pane-modules .workbench-body { grid-template-columns:minmax(0,1.05fr) minmax(0,1fr); gap:14px; }
+.sx-shell #pane-modules .workbench-code { height:clamp(320px,53vh,620px); min-height:320px; }
+.sx-shell #pane-modules .workbench-preview { min-height:0; }
+.sx-shell #pane-modules #mw-preview { min-height:320px; }
+.sx-shell #pane-modules .workbench-preview-head { gap:6px; }
+.sx-shell #pane-modules .workbench-preview-head > span:first-child { font-weight:600; color:var(--text); }
+.sx-shell #pane-modules .workbench-meta { grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr)); }
+.sx-shell #pane-modules .workbench-meta section { gap:16px; padding:18px; }
+.sx-shell #pane-modules .workbench-meta .module-perm-grid { grid-template-columns:minmax(0,1fr); gap:10px; }
+.sx-shell #pane-modules :is(button,input,select,textarea):focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+@container (max-width: 650px) {
+  .module-wizard-layout { grid-template-columns:minmax(0,1fr); gap:16px; }
+  .module-create-summary { position:static; grid-template-columns:minmax(0,1fr) minmax(0,1fr); padding:16px 0 0; border-left:0; border-top:1px solid var(--border); }
+  .module-create-summary > .module-hint { grid-column:1/-1; }
+  .module-create-summary dl { align-content:start; }
+  .sx-shell #pane-modules .workbench-body { grid-template-columns:minmax(0,1fr); }
+  .sx-shell #pane-modules .module-wizard-card { padding:16px; }
+}
+@container (max-width: 380px) {
+  .module-create-steps button { font-size:11px; flex-direction:column; gap:4px; }
+  .module-create-summary { grid-template-columns:minmax(0,1fr); }
+  .sx-shell #pane-modules .modules-search { min-width:0; width:100%; max-width:none; }
+}
 
 .module-window[hidden] { display: none !important; }
 .module-window:not([data-active="1"]) { box-shadow: 0 12px 36px rgba(0, 0, 0, .22); }
@@ -696,12 +748,6 @@
 .modules-removed b { font-size: .9em; }
 .modules-removed span { font-size: .8em; color: var(--muted); }
 .modules-removed-list { display: flex; gap: 6px; flex-wrap: wrap; }
-
-
-/* ------------------------- состояния окна (Раунд 21) ------------------------
-   floating — обычное окно; snapped — привязано к краю; expanded — лист в
-   области содержимого. Слой окон начинается ниже полосы заголовка, когда
-   включена собственная строка заголовка (top задаёт modules.js). */
 .module-layer { transition: none; }
 .module-window[data-full="1"] .module-window-bar {
   background: color-mix(in srgb, var(--panel) 96%, var(--accent) 4%);
@@ -740,8 +786,6 @@
 @media (max-width: 720px) { .module-esc span { display: none; } .module-esc { padding: 0 4px !important; } }
 :root[data-design="grid"] .module-esc { height: 22px !important; border-radius: var(--g-r-sm, 3px) !important; }
 :root[data-design="grid"] .module-esc kbd { border-radius: 2px; height: 15px; }
-
-/* Round 29 phase 2: «Import from a link» — the permission prompt and the Import sources editor (modules.js runNetImport). */
 .panel.net-import-panel { width: min(600px, calc(100vw - 32px)); }
 .net-import-ask-head { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 12px; padding-right: 28px; }
 .net-import-ask-head .sub { margin: 2px 0 0; }
@@ -759,11 +803,6 @@
 .net-import-sources { display: grid; gap: 6px; margin: 0 0 14px; }
 .net-import-settings .ptexta { font-family: var(--mono); font-size: 12.5px; }
 .net-import-settings .row-end .mu-grow { flex: 1 1 auto; }
-
-/* ---------------------- единая шапка модуля (Раунд 30) ----------------------
-   Над модулем одна шапка. Обычное окно: тонкая строка — значок, имя, подзаголовок
-   модуля, его действия (Memu.toolbar) и ⋯ — × . Развёрнутый лист: строки нет,
-   имя, действия и кнопки окна стоят в верхней панели MemuAI (#module-headbar). */
 .module-window-bar { min-height: 40px; gap: 8px; }
 .module-window-subtitle {
   flex: 0 100 auto; min-width: 0; max-width: 32%;
@@ -780,7 +819,6 @@
 .module-window[data-full="1"][data-headbar="1"] .module-window-body { border-radius: var(--radius-lg, 16px); }
 
 .mtb { display: flex; align-items: center; gap: 2px; flex: 0 1 auto; min-width: 0; overflow: hidden; }
-/* In a header the strip keeps its width and folds actions into «»» itself (modules-toolbar.js fit()). */
 .module-headbar > .mtb, .module-window-bar > .mtb { flex-shrink: 0; }
 .mtb[hidden] { display: none; }
 .mtb-btn {
@@ -823,10 +861,7 @@
 @container (max-width: 460px) { .mtb-btn { min-width: 27px; padding: 0 5px; } .mtb-meter-bar { display: none; } }
 
 .module-headbar { display: flex; align-items: center; gap: 8px; flex: 1 1 0; min-width: 0; align-self: stretch; }
-/* The top bar wraps on narrow windows (appearance.css); with a module head it stays one row and the module's
-   actions fold into their «more» menu instead. */
 :root[data-module-head="1"] .topbar.appbar { flex-wrap: nowrap !important; }
-/* The panels strip (panels-appbar) fills the free space of the bar by default; the module head takes it instead. */
 :root[data-module-head="1"] .topbar.appbar > .panels-appbar { flex: 0 1 auto !important; }
 .module-headbar[hidden] { display: none; }
 :root[data-module-head="1"] .topbar.appbar > .grow,
@@ -834,11 +869,8 @@
 :root[data-module-head="1"] .topbar.appbar #context-meter,
 :root[data-module-head="1"] .topbar.appbar .chat-search,
 :root[data-module-head="1"] .topbar.appbar #module-slot-topbar { display: none !important; }
-/* The name stays whole; the subtitle and status give way first (shrink 100), the module's actions fold into «»»
-   only after they are gone — so the actions never slide over the module name. */
 .mhb-id { display: inline-flex; align-items: center; gap: 8px; flex: none; padding-left: 4px; }
 .mhb-meta { display: inline-flex; align-items: center; gap: 8px; flex: 0 100 auto; min-width: 0; overflow: hidden; }
-/* A wide head keeps a readable start of the subtitle («Alice — Oct…») before the actions fold. */
 @container (min-width: 761px) { .mhb-meta:has(> .mhb-sub:not([hidden])) { min-width: 7em; } }
 .mhb-meta:not(:has(> :not([hidden]))) { display: none; }
 .mhb-icon { display: inline-flex; color: var(--accent); flex: none; }
@@ -847,7 +879,6 @@
 .mhb-sub { min-width: 0; color: var(--muted); font-size: .86em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mhb-sub::before { content: "·"; margin-right: 8px; opacity: .6; }
 .mhb-sub[hidden], .mhb-status[hidden] { display: none; }
-/* The module's own status line (Memu.toolbar.status) is quiet text; MemuAI's «Loading…» keeps the accent pill. */
 .mhb-status, .module-window-status[data-kind="module"] {
   flex: 0 50 auto; min-width: 0; padding: 0; border-radius: 0; background: none; color: var(--muted);
   font-size: .78em; font-weight: 500; white-space: nowrap; max-width: 28vw; overflow: hidden; text-overflow: ellipsis;
@@ -865,12 +896,6 @@
 .module-headbar .module-esc { margin-right: 2px; }
 .module-headbar { container-type: inline-size; }
 @container (max-width: 760px) { .mhb-sub { display: none; } }
-
-/* ---------------- Round 31: свернуть / закрыть — понятные кнопки модуля ----------------
-   Кнопки модуля собраны в одну «капсулу» и не похожи на кнопки окна MemuAI в углу
-   (— □ ×): «свернуть» — стрелка на панель модулей, «закрыть» — × с красной подсветкой.
-   У развёрнутого листа вся шапка модуля в верхней панели — отдельная полоса, и её ×
-   стоит внутри полосы, а не рядом с крестиком приложения. */
 .module-window-tools.module-window-tools {
   gap: 1px; padding: 2px; border-radius: 10px;
   border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
@@ -889,8 +914,6 @@
   outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent); outline-offset: 1px;
 }
 @container (max-width: 460px) { .module-window-tools.module-window-tools button { width: 26px; } }
-
-/* Развёрнутый лист: шапка модуля — своя полоса в верхней панели. */
 .module-headbar.module-headbar {
   align-self: center; height: 40px; box-sizing: border-box;
   padding: 0 4px 0 8px; margin-right: 10px;
@@ -907,15 +930,12 @@
 @container (min-width: 520px) { .mhb-close-text { display: inline; } .module-headbar .mhb-btn.module-ctl-close { padding: 0 10px 0 7px; } }
 :root[data-design="grid"] .module-headbar.module-headbar { border-radius: var(--g-r-sm, 4px); }
 :root[data-design="grid"] .module-window-tools.module-window-tools { border-radius: var(--g-r-sm, 4px); }
-/* Узкое окно: чужие кнопки верхней панели уступают место шапке модуля — её × всегда видна. */
 @media (max-width: 1100px) {
   :root[data-module-head="1"] .topbar.appbar > .panels-appbar { display: none !important; }
 }
 @media (max-width: 900px) {
   :root[data-module-head="1"] .topbar.appbar #btn-focus { display: none !important; }
 }
-
-/* Панель модулей: у каждого модуля своя × ; свёрнутый помечен. */
 .module-task-label { flex: none; padding: 0 6px 0 8px; color: var(--muted); font-size: .72em; font-weight: 650; letter-spacing: .04em; text-transform: uppercase; }
 .module-task-pill { position: relative; flex: none; display: inline-flex; align-items: center; border-radius: 10px; }
 .module-task-pill .module-task { padding-right: 30px; }
@@ -936,8 +956,6 @@
   background: color-mix(in srgb, var(--text) 8%, transparent); color: var(--muted);
 }
 .module-task.minimized span { color: var(--text); opacity: .85; }
-
-/* Подсказка при первом открытии модуля. */
 .module-coach {
   position: fixed; z-index: 100002; width: min(340px, calc(100vw - 16px)); box-sizing: border-box;
   padding: 14px 14px 12px; border-radius: 14px;
@@ -981,8 +999,6 @@
   content: ""; position: absolute; left: 50%; bottom: -5px; width: 10px; height: 10px; margin-left: -5px;
   transform: rotate(45deg); background: var(--text);
 }
-/* Узкая шапка развёрнутого модуля: подсказка «Esc окном» уходит в меню ⋯ (Esc работает), имя
-   ужимается многоточием — кнопки «свернуть» и «закрыть» видны всегда. */
 @container (max-width: 480px) {
   .module-headbar .module-esc { display: none !important; }
   .module-headbar .mhb-id { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -991,11 +1007,6 @@
 @media (max-width: 900px) {
   :root[data-module-head="1"] .topbar.appbar #btn-theme { display: none !important; }
 }
-
-/* ---------------- Round 33 (#7): «свернуть» больше не похож на «скачать» ----------------
-   Раньше «свернуть» был стрелкой в черту — ровно как кнопка «Скачать» модуля рядом.
-   Теперь: полоска (форма, которой сворачивают любое окно) и слово «Свернуть», когда в шапке
-   есть место; «Закрыть» — так же со словом. Одинаково у окна и у развёрнутого листа. */
 .module-ctl-text, .mhb-min-text { display: none; white-space: nowrap; font: inherit; font-size: 12px; font-weight: 600; letter-spacing: .01em; }
 .module-window-tools.module-window-tools .module-ctl-min,
 .module-window-tools.module-window-tools .module-ctl-close { display: inline-flex; align-items: center; justify-content: center; gap: 5px; }

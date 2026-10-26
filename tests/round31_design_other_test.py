@@ -30,7 +30,6 @@ sys.path.insert(0, str(ROOT))
 
 CYR = re.compile(r"[А-Яа-яЁё]")
 
-
 class _Resp:
     def __init__(self, status: int, payload=None):
         self.status_code = status
@@ -40,7 +39,6 @@ class _Resp:
 
     def json(self):
         return self._payload
-
 
 class _Session:
     """Answers GET /models with 200 (public list) and POST /chat/completions with ``probe_status``."""
@@ -57,7 +55,6 @@ class _Session:
         self.posts.append((url, kw.get("json")))
         return _Resp(self.probe_status, {"error": {"message": "x"}})
 
-
 def _check(probe_status: int, models_status: int = 200, fields=None):
     from app.providers import custom as custom_mod
     from app.state import Account
@@ -72,7 +69,6 @@ def _check(probe_status: int, models_status: int = 200, fields=None):
         result = asyncio.run(custom_mod.CustomProvider().check(account))
     return result, session
 
-
 class ProbeKey(unittest.TestCase):
     def test_rejected_key_is_not_connected(self):
         (ok, msg), session = _check(401)
@@ -81,8 +77,8 @@ class ProbeKey(unittest.TestCase):
         self.assertEqual(len(session.posts), 1)
         url, body = session.posts[0]
         self.assertTrue(url.endswith("/chat/completions"))
-        self.assertEqual(body["messages"], [])            # invalid body: no tokens are spent
-        self.assertEqual(body["model"], "m-a")             # the first listed model
+        self.assertEqual(body["messages"], [])
+        self.assertEqual(body["model"], "m-a")
 
     def test_forbidden_key(self):
         (ok, _msg), _ = _check(403)
@@ -113,7 +109,6 @@ class ProbeKey(unittest.TestCase):
         self.assertIs(ok, False)
         self.assertEqual(session.posts, [])
 
-
 class ChatEnglishText(unittest.TestCase):
     """chat.py builds message_en from the stored reason: a Russian reason must not leak into English."""
 
@@ -138,7 +133,6 @@ class ChatEnglishText(unittest.TestCase):
     def test_english_reason_is_kept(self):
         self.assertIn("invalid api key", self._en("invalid api key"))
 
-
 def _join(block: str):
     """Re-join the multi-line statements of the snippet (they continue inside parentheses)."""
     out, cur, depth = [], "", 0
@@ -149,7 +143,6 @@ def _join(block: str):
             out.append(cur.strip())
             cur, depth = "", 0
     return out
-
 
 class AdminOverviewSample(unittest.TestCase):
     def test_sample_model_in_overview(self):
@@ -176,7 +169,6 @@ class AdminOverviewSample(unittest.TestCase):
             self.assertIn("sample_model", data)
             self.assertIsInstance(data["sample_model"], str)
 
-
 class PickerAccountName(unittest.TestCase):
     """The main window's model picker named every own API «custom»: pg_state now carries the account's name."""
 
@@ -191,11 +183,10 @@ class PickerAccountName(unittest.TestCase):
             self.assertEqual(admin_api._custom_account_label("nope"), "custom")
         src = (ROOT / "app" / "admin_api.py").read_text(encoding="utf-8")
         self.assertIn('row["provider_label"] = _custom_account_label(m.prefix)', src)
-        # the helper must not have swallowed the route decorator of pg_state
+
         self.assertIn('@router.get("/pg/state")\nasync def pg_state', src)
         app_js = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
         self.assertIn("esc(x.provider_label || x.provider)", app_js)
-
 
 class ProxyPanelEmptyStates(unittest.TestCase):
     def setUp(self):
@@ -219,7 +210,6 @@ class ProxyPanelEmptyStates(unittest.TestCase):
             self.assertTrue(found, f"{key} missing in i18n.js")
             self.assertTrue(any(not CYR.search(v) and v for v in found), f"{key}: no English value")
 
-
 class MiniAppSmallComputer(unittest.TestCase):
     """At 1024 px the settings row «Тема и цвета · Классическая» was cut on both sides (live check: tg_shots, pc size)."""
 
@@ -230,10 +220,9 @@ class MiniAppSmallComputer(unittest.TestCase):
         css = (tg / "app.css").read_text(encoding="utf-8")
         self.assertIn(".cell-body:has(> .cell-title:only-child):has(+ .cell-value) { flex: 1 0 auto; max-width: calc(100% - 124px); }", css)
         html = (tg / "index.html").read_text(encoding="utf-8")
-        # Round 34: later rounds bump the cache versions — only check that both stylesheets are versioned.
+
         self.assertRegex(html, r'href="app\.css\?v=[\w.-]+"')
         self.assertRegex(html, r'href="layout\.css\?v=[\w.-]+"')
-
 
 class CliShortPath(unittest.TestCase):
     def test_short_path_keeps_the_end(self):
@@ -266,7 +255,6 @@ class CliShortPath(unittest.TestCase):
                 ui.stream_text(A, ch)
             ui.stream_finished(A, seg, "", None)
         self.assertEqual(ui.out.getvalue(), "First.\n\nSecond.\n")
-
 
 if __name__ == "__main__":
     unittest.main()

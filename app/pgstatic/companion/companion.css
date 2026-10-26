@@ -1,8 +1,5 @@
-/* MemuAI companion — host-side frame, bubble and floating placement. */
 .memu-companion { --companion-scale: 1; position: relative; width: 100%; height: calc(250px * var(--companion-scale)); max-height: 70vh; flex: none; }
 .memu-companion[hidden] { display: none; }
-/* The iframe and the stage page share "color-scheme: normal": a mismatch
-   would make Chromium paint the frame opaque instead of transparent. */
 .memu-companion-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent; color-scheme: normal; display: block; }
 .memu-companion.loading .memu-companion-frame { opacity: 0; }
 .memu-companion .memu-companion-frame { transition: opacity .35s ease; }
@@ -19,14 +16,10 @@
   box-shadow: 0 10px 30px rgba(0,0,0,.25); backdrop-filter: blur(14px); pointer-events: none; }
 .memu-companion-bubble::after { content: ""; position: absolute; left: 50%; top: 100%; width: 12px; height: 12px; margin: -6px 0 0 -6px; transform: rotate(45deg);
   background: inherit; border-right: 1px solid var(--border, rgba(255,255,255,.12)); border-bottom: 1px solid var(--border, rgba(255,255,255,.12)); }
-
-/* MemuAI Live, "in the panel": the companion takes the orb's place. */
 #live-call.has-companion .live-orb { display: none; }
 #live-call.has-companion .live-call-body { min-height: 0; padding-top: 4px; }
 #live-call .memu-companion.in-live { width: calc(100% + 24px); margin: 0 -12px 6px; height: calc(250px * var(--companion-scale)); max-height: 52vh; }
 #live-call[data-video] .memu-companion.in-live { height: calc(150px * var(--companion-scale)); }
-
-/* MemuAI Live, "over the window": a free-floating companion. */
 .memu-companion.floating { position: fixed; z-index: 118; right: 430px; bottom: 24px; width: calc(220px * var(--companion-scale));
   height: calc(320px * var(--companion-scale)); max-height: 80vh; filter: drop-shadow(0 14px 26px rgba(0,0,0,.22)); }
 .memu-companion.floating.dragging { cursor: grabbing; }
@@ -39,8 +32,6 @@
   .memu-companion.loading::after { animation-duration: 2.4s; }
 }
 html[data-motion="off"] .memu-companion.loading::after { animation: none; }
-
-/* Settings (shared by the main window and Quick Ask). */
 .companion-settings .companion-models { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 8px; margin: 8px 0 10px; }
 .companion-model { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 9px 10px; border-radius: 12px; text-align: left; cursor: pointer;
   border: 1px solid var(--border, rgba(255,255,255,.12)); background: var(--panel-2, rgba(255,255,255,.04)); color: var(--text, #eee); font: inherit; min-width: 0; }
@@ -65,8 +56,6 @@ html[data-motion="off"] .memu-companion.loading::after { animation: none; }
 .companion-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .companion-range { display: flex; align-items: center; gap: 8px; }
 .companion-range input[type="range"] { width: 140px; }
-
-/* Round 23: calm settings layout (cards like the settings kit; fallbacks outside the settings shell). */
 .companion-settings.cs-calm { display: grid; gap: 18px; }
 .cs-calm .cs-card { border: 1px solid var(--sx-line, var(--border, rgba(255,255,255,.1))); border-radius: var(--sx-r, 14px);
   background: var(--sx-card, color-mix(in srgb, var(--text, #fff) 2.2%, var(--panel, transparent))); }
@@ -97,9 +86,6 @@ html[data-motion="off"] .memu-companion.loading::after { animation: none; }
 @media (prefers-reduced-motion: reduce) { .cs-calm .cs-more > summary::after { transition: none; } }
 .companion-preview .memu-companion-note { bottom: auto; top: 44px; }
 .cs-calm .companion-preview-actions { top: 8px; bottom: auto; }
-
-/* Round 34 (r34-quick-agentic-2): the bubble stays inside the window — shifted sideways (--bubble-dx, set by
-   companion.js; the tail stays over the companion) or below the companion when it is at the top edge. */
 .memu-companion-bubble { transform: translateX(calc(-50% + var(--bubble-dx, 0px))); }
 .memu-companion-bubble::after { left: clamp(16px, calc(50% - var(--bubble-dx, 0px)), calc(100% - 16px)); }
 .memu-companion-bubble.below { bottom: auto; top: calc(100% + 8px); }

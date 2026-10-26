@@ -1,40 +1,16 @@
-/* MemuAI Quick Ask (Alt+Space) — the popup page logic.
-   Talks only to the local MemuAI server:
-     GET  /api/quick/config       preferences + hotkey status + the model source (+ plugin manifest)
-     GET  /api/pg/state           models of MemuAI Proxy (with caps.vision / caps.search)
-     POST /api/quick/ask          the answer as an event stream (tools run on the server)
-     POST /api/quick/window       hide / resize / pin / inactive / active / copy / insert / handoff / drag / dock / surface
-     POST /api/quick/screenshot   screenshot without MemuAI windows
-     GET|POST /api/quick/history  recent questions (↑ in the empty field)
-     /api/quick/chats             Quick Ask chats — their own storage, never in MemuAI's chat list
-     GET|POST /api/quick/ui       window-only state (the first-open tip was dismissed)
-     POST /api/quick/tool_result  result of a tool registered by a plugin (MemuQuick.registerTool)
-   The native side calls window.QuickAsk.onShow/onHide/contentHeight/focusInput/onPage/onDrag/onPlaced.
 
-   Round 23 layout: one input · context chips · ONE list (suggestions, actions, models, chats) or the
-   answer · a minimal footer (model chip, ≤ 3 icons, «Действия Ctrl K»). Everything secondary is in the
-   actions view (Ctrl+K), which also lists plugin buttons placed in the menu.
-   Keyboard-first: Enter send · Shift+Enter newline · Esc back/close · ↑ history (empty field) ·
-   ↓/↑ move in the list · Ctrl+K actions · Ctrl+N new chat · Ctrl+H chats · Ctrl+Enter open in MemuAI ·
-   Ctrl+Shift+C copy · Alt+M model · Alt+R auto/fast/smart · Ctrl+Shift+A ask the smart model ·
-   Ctrl+Shift+S screenshot · Ctrl+P pin · Ctrl+Alt+arrows dock · Alt+1…9 the numbered list rows.
 
-   Extension contract (Round 22, unchanged): window.MemuQuick — README_FOR_AI.md «Быстрый доступ: контракт
-   расширений». Round 23 adds addComposerButton({placement: "bar"|"menu", label}) — at most two plugin
-   buttons stay in the footer, the rest (and every "menu" one) become rows of the actions view. */
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
-  /* Round 40 (r40-lag): a list row is revealed inside its own list only. scrollIntoView also scrolled the PAGE while the
-     window was still shorter than its content (the resize had not arrived yet): the input row went off the top and the
-     list slid under the search field («панели не отображаются»), and it stayed so after the window grew. */
+
   function reveal(box, el) {
     if (!box || !el) return;
     const r = el.getBoundingClientRect(), b = box.getBoundingClientRect();
     if (r.top < b.top) box.scrollTop -= b.top - r.top;
     else if (r.bottom > b.bottom) box.scrollTop += Math.min(r.bottom - b.bottom, r.top - b.top);
   }
-  // …and the page itself never stays scrolled (a plugin's scrollIntoView, focus() of a field below the fold).
+
   const pinPage = () => { const el = document.scrollingElement; if (el && (el.scrollTop || el.scrollLeft)) el.scrollTo(0, 0); };
   window.addEventListener("scroll", pinPage, { passive: true });
   const root = document.documentElement;
@@ -79,44 +55,43 @@
   const S = {
     prefs: {}, status: null, models: [], model: "", sessionModel: "", web: true,
     lang: root.lang === "en" ? "en" : "ru",
-    turns: [],            // [{q, images:[], selection, page, a, model, tier, error, sources, instant, shots, status, done, ms}]
-    attachments: [],      // [{data, width, height, name}]
+    turns: [],
+    attachments: [],
     selection: "",
-    selectionInfo: null,  // Round 27: {id, source, app, title, editable, truncated, chars} of a captured selection
-    selWait: null,        // Round 27 (polish): {turns} while the native side is still reading the selection
-    page: null,           // the browser tab Quick Ask was opened over {id, browser, title, url, pending}
-    pageOn: false,        // the page chip is attached to the next question
+    selectionInfo: null,
+    selWait: null,
+    page: null,
+    pageOn: false,
     busy: false, controller: null,
     history: [], historyIndex: -1, historyDraft: "", recentChats: [],
     pickerOpen: false, pickerIndex: 0, pickerFilter: "",
     chatsOpen: false, chatsItems: [], chatsIndex: 0, chatsQuery: "", chatsTotal: 0,
     chatId: "", chatCreated: 0,
-    routing: "auto",      // auto | fast | advanced — for this window session
+    routing: "auto",
     maxHeight: 760, pinned: false, lastHeight: 0, shownAt: 0, renderTimer: 0,
     corner: "", radius: 0, dock: "",
     menuOpen: false, menuIndex: 0, menuFilter: "",
-    listIndex: -1, listRows: [],     // keyboard selection in the idle list (−1 = the input)
-    ui: { onboarded: true },         // /api/quick/ui — the first-open tip
-    endpoint: null,                  // {source: "proxy"|"custom", url, label, models, ok, error} from /api/quick/config
-    efforts: {},                     // Round 34: the reasoning level picked per model {id: level} (/api/quick/ui)
+    listIndex: -1, listRows: [],
+    ui: { onboarded: true },
+    endpoint: null,
+    efforts: {},
   };
   const en = () => S.lang === "en";
   const tr = (ru, enText) => (en() ? enText : ru);
   const newChatId = () => "qc" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
-  /* ------------------------------------------------------------ extension contract */
   const listeners = new Map();
-  const panels = new Map();            // id → {el, api, slot, order, visible}
-  const composerButtons = new Map();   // id → def
-  const clientTools = new Map();       // name → def
-  const pluginActions = new Map();     // Round 27: id → {section, icon, label, keys, run, hidden?} — rows of Ctrl+K
-  const answerActions = new Map();     // Round 27: id → {icon, label, title, run(turn)} — buttons under the last answer
-  const settingsSections = new Map();  // recorded only: Settings renders them in the main window
-  const requestContexts = new Map();   // Round 29: id → fn() → {type, …} | null — extra context of each question (body.contexts)
+  const panels = new Map();
+  const composerButtons = new Map();
+  const clientTools = new Map();
+  const pluginActions = new Map();
+  const answerActions = new Map();
+  const settingsSections = new Map();
+  const requestContexts = new Map();
   function collectContexts() {
     const out = [];
     for (const fn of requestContexts.values()) {
-      try { const row = fn(); if (row && typeof row === "object" && row.type) out.push(row); } catch (e) { /* plugin */ }
+      try { const row = fn(); if (row && typeof row === "object" && row.type) out.push(row); } catch (e) {  }
     }
     return out.slice(0, 8);
   }
@@ -165,7 +140,7 @@
     if (!entry) return false;
     entry.visible = !!visible;
     entry.el.hidden = !visible;
-    try { if (entry.api && typeof entry.api[visible ? "show" : "hide"] === "function") entry.api[visible ? "show" : "hide"](); } catch (e) { /* plugin */ }
+    try { if (entry.api && typeof entry.api[visible ? "show" : "hide"] === "function") entry.api[visible ? "show" : "hide"](); } catch (e) {  }
     scheduleSize();
     return true;
   }
@@ -175,7 +150,7 @@
   function unregisterPanel(id) {
     const entry = panels.get(id);
     if (!entry) return;
-    try { if (entry.api && typeof entry.api.unmount === "function") entry.api.unmount(); } catch (e) { /* plugin */ }
+    try { if (entry.api && typeof entry.api.unmount === "function") entry.api.unmount(); } catch (e) {  }
     entry.el.remove();
     panels.delete(id);
     scheduleSize();
@@ -187,9 +162,8 @@
     renderComposerButtons();
     return { update: renderComposerButtons, remove: () => { composerButtons.delete(id); renderComposerButtons(); } };
   }
-  /* Round 23: plugin buttons. At most BAR_PLUGINS stay in the footer (placement "bar", the default);
-     the rest and every placement:"menu" button become rows of the actions view (Ctrl+K). */
-  const BAR_PLUGINS = 2;                // Round 30: the mic and the «Панели» toggle (canvas plugin)
+
+  const BAR_PLUGINS = 2;
   function composerDefs() {
     const out = [];
     for (const def of Array.from(composerButtons.values()).sort((a, b) => (+a.order || 0) - (+b.order || 0))) {
@@ -232,7 +206,7 @@
     if (S.menuOpen) renderMenu();
     queueFitBar();
   }
-  /* Round 27 (quick features): a plugin's row in the actions view and a button under the last answer. */
+
   function addAction(def) {
     const id = String((def && def.id) || "").trim();
     if (!id || typeof def.run !== "function") throw new Error("MemuQuick.addAction: bad definition");
@@ -248,7 +222,7 @@
     return { remove: () => { answerActions.delete(id); renderActions(); } };
   }
   const pluginValue = (value) => { try { return typeof value === "function" ? value(MemuQuick) : value; } catch (e) { return undefined; } };
-  /* Round 27: text context from a plugin (a document, a clipboard item) — the same chip as a dropped text file. */
+
   function addContext(text, options = {}) {
     const body = String(text || "").trim();
     if (!body) return false;
@@ -257,9 +231,7 @@
     if (options.focus !== false) focusInput(true);
     return true;
   }
-  /* Round 34 (r34-quick-core-2): a long paste (a document, a log) filled the one-line field with 100 KB, and the server
-     kept only 24 000 characters of a question — silently. It becomes the «Текст» chip (up to 60 000 characters, the
-     middle is shortened beyond that) and the field stays free for what to do with it. */
+
   const LONG_PASTE = 4000, MAX_CONTEXT_CHARS = 60000;
   function pasteLong(text) {
     const body = String(text || "");
@@ -270,9 +242,7 @@
       : tr(`Текст (${n} симв.) добавлен к вопросу — напишите, что с ним сделать`, `Text (${n} chars) attached — type what to do with it`), "ok", 3200);
     return true;
   }
-  /* Round 27 (review): what the chip holds after context is added. Alone — a file / a text (not «Выделено»: the
-     placeholder, the chip and the action row speak of the document); on top of a captured selection — that selection
-     still, but «attached» (the answer is about more than the selection: «Заменить выделение» is not offered). */
+
   function contextInfo(source) {
     if (!S.selection) return { source };
     const prev = S.selectionInfo;
@@ -286,14 +256,13 @@
     return {
       native: NATIVE, lang: S.lang, busy: S.busy, model: effectiveModel(), routing: S.routing,
       chatId: S.chatId, page: S.page ? { ...S.page } : null, pinned: S.pinned,
-      selection: S.selection, images: S.attachments.length,          // Round 27 (quick features)
-      shown: !!S.shownOnce && !$("qa-card").classList.contains("qa-closed"),   // Round 30: for plugins loaded after «open»
+      selection: S.selection, images: S.attachments.length,
+      shown: !!S.shownOnce && !$("qa-card").classList.contains("qa-closed"),
       turns: S.turns.map((t) => ({ q: t.q, a: t.a, model: t.model, tier: t.tier, done: t.done, error: t.error, selectionAction: t.selectionAction || null })),
       prefs: { ...S.prefs },
     };
   }
 
-  /* window.MemuQuick v1 — the contract for plugins (README_FOR_AI.md). */
   const MemuQuick = {
     version: 1,
     native: NATIVE,
@@ -304,27 +273,26 @@
     getInput: () => $("qa-input").value,
     newChat: () => newChat(),
     hide: () => closeWindow(),
-    // Round 26 (review): quick-dfy.js passes "error" / "warn" — only "err" / "ok" are styled, so DFY failures looked neutral
+
     toast: (text, kind, ms) => toast(text, kind === "error" || kind === "warn" ? "err" : kind, ms),
     api: (path, options) => api(path, options),
     lang: () => S.lang,
     t: (ru, enText) => tr(ru, enText),
     state: snapshot,
     recordTurn: (row) => recordTurn(row),
-    // Round 27 (quick features)
+
     addAction, addAnswerAction, addContext,
-    // Round 29 (quick explorer): a plugin's context attached to every question while fn returns it ({type:"app", id})
+
     addRequestContext: (id, fn) => { const key = String(id || ""); if (!key || typeof fn !== "function") throw new Error("MemuQuick.addRequestContext: bad definition"); requestContexts.set(key, fn); return () => requestContexts.delete(key); },
-    // Round 27 (selection actions, quick-selection.js): the captured selection and its chip
+
     selection: () => ({ text: S.selection, info: S.selectionInfo ? { ...S.selectionInfo } : null }),
     setSelection: (text, info) => setSelection(text, info),
     addImage: (item) => { if (!item || !/^data:image\//.test(String(item.data || ""))) return false; addAttachment({ label: "", name: "image.png", ...item }); renderAll(); return true; },
     resize: () => scheduleSize(),
-    // Round 30 (Computer Use, quick-computer.js): while the AI drives the mouse the window must not step back behind
-    // the program it focuses — the «Стоп» button has to stay in sight. Off again when the run ends.
+
     keepOnTop: (on) => { S.keepOnTop = !!on; if (on) windowAction("active"); },
-    // Round 31 (r31-quick): the window's models for plugins (Computer Use checks that its model sees the screen)
-    models: () => usableModels().map((m) => ({ id: m.id, name: modelName(m.id), caps: { ...(m.caps || {}) } })),
+
+    models: () => usableModels().map((m) => ({ id: m.id, name: modelName(m.id), kind: "chat", caps: { ...(m.caps || {}) } })),
     modelName: (id) => modelName(id),
     vision: (id) => ({ sees: seesImages(id), known: visionKnown(id), guess: visionGuess(id), forced: forcedVision.has(id) }),
     forceVision: (id) => { if (id) forcedVision.add(String(id)); },
@@ -369,7 +337,6 @@
     scheduleSize();
   }
 
-  /* ------------------------------------------------------------ network */
   async function api(path, options = {}) {
     const init = { method: options.method || "GET", headers: {} };
     if (options.body !== undefined) { init.method = options.method || "POST"; init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(options.body); }
@@ -382,7 +349,6 @@
   const windowAction = (action, extra = {}) => (NATIVE ? api("/api/quick/window", { body: { action, ...extra } }) : Promise.resolve({ ok: false, native: false }))
     .catch(() => ({ ok: false }));
 
-  /* ------------------------------------------------------------ appearance */
   const APPEARANCE_PLUS = [["ui_radius", "radius", ["sharp", "round"]], ["ui_glass", "glass", ["light", "strong"]],
     ["ui_contrast", "contrast", ["more"]], ["ui_density", "density", ["compact", "spacious"]], ["ui_motion_speed", "motionSpeed", ["slow", "fast"]]];
   function applyAppearance(prefs) {
@@ -394,7 +360,7 @@
     if (surface) root.dataset.surface = surface; else delete root.dataset.surface;
     const motion = prefs.ui_motion === "off" ? "off" : (prefs.ui_motion === "reduced" ? "reduced" : "full");
     root.dataset.motion = motion;
-    // Round 30: Settings → Appearance «Форма и текст / Прозрачность / Движение / Плотность» (quick-appearance.css)
+
     for (const [key, attr, allowed] of APPEARANCE_PLUS) {
       if (allowed.includes(prefs[key])) root.dataset[attr] = prefs[key]; else delete root.dataset[attr];
     }
@@ -406,11 +372,10 @@
     try {
       const css = localStorage.getItem("memu_user_theme_" + theme);
       $("memu-user-theme").textContent = css || "";
-    } catch (e) { /* storage unavailable */ }
+    } catch (e) {  }
     reportSurface();
   }
-  /* The window's own background = the card's opaque colour: no light halo at the
-     rounded corners and no white flash when the window appears. */
+
   let surfaceSent = "";
   function reportSurface() {
     if (!NATIVE) return;
@@ -420,8 +385,7 @@
       document.body.appendChild(probe);
       const computed = getComputedStyle(probe).backgroundColor;
       probe.remove();
-      // Round 23: color-mix() computes to "color(srgb …)", which the native side used to reject (the window
-      // then kept its default background → light corners). Normalise through a canvas pixel to rgb().
+
       let color = computed;
       try {
         const canvas = document.createElement("canvas");
@@ -431,7 +395,7 @@
         ctx.fillRect(0, 0, 1, 1);
         const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data;
         if (a > 127) color = `rgb(${r}, ${g}, ${b})`;
-      } catch (e) { /* keep the computed string: the server also parses color(srgb …) */ }
+      } catch (e) {  }
       if (color && color !== surfaceSent) { surfaceSent = color; windowAction("surface", { color }); }
     });
   }
@@ -446,11 +410,10 @@
           : tr("Что сделать с выделенным текстом?", "What should I do with the selected text?")))
       : (S.page && S.pageOn ? tr("Спросите об этой странице…", "Ask about this page…")
         : (S.turns.length ? tr("Спросите ещё…", "Ask a follow-up…")
-          // Round 34 (r34-quick-design): a narrow window drops the «/ — команды» hint — it wrapped the empty field to two lines
+
           : (innerWidth < 520 ? (name ? tr(`Спросите ${name}…`, `Ask ${name}…`) : tr("Спросите что угодно…", "Ask anything…"))
             : (name ? tr(`Спросите ${name}… или / — команды`, `Ask ${name}… or / for commands`) : tr("Спросите что угодно… или / — команды", "Ask anything… or / for commands")))));
-    // Round 30: the empty field is as tall as its placeholder — re-measure when it changes (a narrow window used to cut
-    // «What should I do with the file?» to one line)
+
     if ($("qa-input").placeholder !== placeholder) { $("qa-input").placeholder = placeholder; if (!$("qa-input").value) autoGrow(); }
     $("qa-input").setAttribute("aria-label", tr("Вопрос", "Question"));
     $("qa-send").setAttribute("aria-label", S.busy ? tr("Остановить", "Stop") : tr("Отправить", "Send"));
@@ -477,13 +440,10 @@
     $("qa-card").setAttribute("aria-label", tr("MemuAI — быстрый доступ", "MemuAI — Quick Ask"));
     queueFitBar();
   }
-  // Round 22 name kept for plugins/tests that call it; the footer has no text hint any more.
+
   function renderHint() { queueFitBar(); }
 
-  /* Footer fit: the model chip, the icons and «Действия» must never be pushed out of the window.
-     Steps: .qa-bar-short — no «Действия» label; .qa-bar-tight — no Ctrl K either; .qa-bar-tighter —
-     no Auto/Fast/Smart label in the chip and narrower icons (a 520 px window with a long model name). */
-  var fitQueued = false; // var: plugins may render buttons before this line runs
+  var fitQueued = false;
   function queueFitBar() {
     if (fitQueued) return;
     fitQueued = true;
@@ -503,12 +463,10 @@
     if (crowded()) bar.classList.add("qa-bar-tighter");
   }
 
-  /* ------------------------------------------------------------ models and routing */
   const modelRow = (id) => S.models.find((m) => m.id === id);
-  // Round 26: a Yandex id (ya-gpt://b1g…/deepseek-v4.1-flash/latest) filled the chip — the short name, full id in title
+
   const shortModelId = (id) => String(id || "").replace(/^[a-z][a-z-]*:\/\/[^/]+\/([^/]+)(?:\/[^/]*)?$/i, "$1");
-  // Round 33 (r33c-models-lists): the same readable name as everywhere in MemuAI — the user's own name, the catalogue's
-  // automatic name (app/model_names.py → row.name) or the shared rules (memu-model-names.js); the full id is shown beside.
+
   const autoModelName = (id) => {
     const row = modelRow(id);
     if (row && row.name) return row.name;
@@ -516,19 +474,18 @@
     return shortModelId(id);
   };
   const modelName = (id) => ((S.prefs.model_aliases || {})[id]) || autoModelName(id) || tr("модель не выбрана", "no model");
-  // Round 23: the model source — MemuAI Proxy (default) or the user's own OpenAI-compatible endpoint.
+
   const customSource = () => !!(S.endpoint && S.endpoint.source === "custom");
   function effectiveModel() {
-    if (customSource()) return S.sessionModel || S.prefs.quick_ask_endpoint_model || (S.models[0] && S.models[0].id) || "";
-    return S.sessionModel || S.prefs.quick_ask_model || S.prefs.default_model || (S.models[0] && S.models[0].id) || "";
+    const wanted = customSource() ? [S.sessionModel, S.prefs.quick_ask_endpoint_model] : [S.sessionModel, S.prefs.quick_ask_model, S.prefs.default_model];
+    return wanted.find(id => id && S.models.some(row => row.id === id && isChatModel(row))) || S.models.find(isChatModel)?.id || "";
   }
   const defaultModel = () => (customSource() ? String(S.prefs.quick_ask_endpoint_model || "") : String(S.prefs.quick_ask_model || S.prefs.default_model || ""));
   const advancedModel = () => {
     const id = String((customSource() ? S.prefs.quick_ask_endpoint_advanced_model : S.prefs.quick_ask_advanced_model) || "");
-    return id && id !== effectiveModel() ? id : "";
+    return id && id !== effectiveModel() && S.models.some(row => row.id === id && isChatModel(row)) ? id : "";
   };
-  // Round 31 (r31-quick): «text only» may be a guess from the name (caps.vision_guess) — the user can try anyway for this
-  // window (forcedVision) or let «Проверить зрение» decide for good (/api/quick/vision/probe → Proxy's probe).
+
   const forcedVision = new Set();
   const seesImages = (id) => { if (forcedVision.has(id)) return true; const row = modelRow(id); return !(row && row.caps && row.caps.vision === false); };
   const visionGuess = (id) => { const row = modelRow(id); return !!(row && row.caps && row.caps.vision === false && row.caps.vision_guess); };
@@ -538,8 +495,7 @@
     fast: () => [ICON.bolt, tr("Быстро", "Fast"), tr("Всегда быстрая модель (Alt+R)", "Always the fast model (Alt+R)")],
     advanced: () => [ICON.brain, tr("Умно", "Smart"), tr("Всегда умная модель (Alt+R)", "Always the smart model (Alt+R)")],
   };
-  /* Round 34 (r34-quick-core): the reasoning level of a model — the levels it really takes (caps.reasoning_profile of
-     /api/pg/state or of the own endpoint's rows), picked in the model picker and kept per model (/api/quick/ui). */
+
   const EFFORT_LABEL = { auto: ["Авто", "Auto"], off: ["Выкл", "Off"], on: ["Вкл", "On"], minimal: ["Минимум", "Minimal"], low: ["Низкий", "Low"],
     medium: ["Средний", "Medium"], high: ["Высокий", "High"], xhigh: ["Очень высокий", "Extra high"], max: ["Максимум", "Max"] };
   const effortLabel = (level) => tr(...(EFFORT_LABEL[level] || [level, level]));
@@ -597,17 +553,22 @@
     renderModelChip();
     toast(TIER[S.routing]()[2].replace(/ \(Alt\+R\)$/, ""));
   }
+  function isChatModel(row) {
+    const caps = row.caps || {}, kind = String(row.kind || caps.kind || "").toLowerCase();
+    if (kind && !["chat", "text"].includes(kind)) return false;
+    if (caps.chat === false || caps.text === false) return false;
+    return caps.text === true || !["image_generation", "video", "music", "tts", "stt", "transcription", "embedding", "rerank", "decisions"].some(key => caps[key]);
+  }
   function usableModels() {
     const hidden = customSource() ? new Set() : new Set(S.prefs.hidden_models || []);
     const pinned = customSource() ? [] : (S.prefs.pinned_models || []);
-    return S.models.filter((m) => !hidden.has(m.id) && !(m.caps && (m.caps.image_generation || m.caps.music) && m.caps.text === false))
+    return S.models.filter((m) => !hidden.has(m.id) && isChatModel(m))
       .sort((a, b) => {
         const rank = (m) => (m.id === S.model ? 8 : 0) + (m.id === defaultModel() ? 4 : 0) + (pinned.includes(m.id) ? 2 : 0);
         return rank(b) - rank(a) || modelName(a.id).localeCompare(modelName(b.id));
       });
   }
 
-  /* One header for every inner view: ‹ back · search field. */
   function viewHead(id, placeholder, value) {
     return `<div class="qa-view-head"><button type="button" class="qa-icon qa-back" data-back title="${esc(tr("Назад (Esc)", "Back (Esc)"))}" aria-label="${esc(tr("Назад", "Back"))}">${ICON.back}</button>
       <label class="qa-search">${ICON.search}<input id="${id}" type="text" spellcheck="false" autocomplete="off" placeholder="${esc(placeholder)}" value="${esc(value || "")}"></label></div>`;
@@ -617,8 +578,7 @@
     else if (e.key === "ArrowUp") { e.preventDefault(); setIndex(Math.max(0, getIndex() - 1)); }
     else if (e.key === "Enter") { e.preventDefault(); onEnter(); }
     else if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); onEscape(); }
-    // Hotfix (after Round 33): never return a falsy cancel value here — callers assign it as an on-keydown handler, and an
-    // on-handler whose result is false CANCELS the key: every letter typed into «Найти модель…» / Ctrl+K search vanished.
+
     else return undefined;
     return true;
   }
@@ -677,12 +637,12 @@
   }
   function pickerRows() {
     const needle = S.pickerFilter.trim().toLowerCase();
-    // Round 31: no 80-row cap — «far from all models are shown» with a big Proxy catalogue (the search still narrows it)
+
     return usableModels().filter((m) => !needle || modelName(m.id).toLowerCase().includes(needle) || m.id.toLowerCase().includes(needle)).slice(0, 600);
   }
-  /* Round 31: what the model sees — the same answer decides pictures, screenshots and Computer Use in this window. */
+
   function visionTag(m) {
-    // Round 33: the catalogue's tri-state answer — «unknown» is not shown as «sees» any more.
+
     if (!forcedVision.has(m.id) && m.caps && m.caps.vision_state === "unknown")
       return `<span class="tag guess" title="${esc(tr("Неизвестно, видит ли модель картинки: проверим при первой картинке", "Not known whether it sees images: checked with the first picture"))}">${ICON.eye}${esc(tr("зрение?", "vision?"))}</span>`;
     if (forcedVision.has(m.id) || (m.caps && m.caps.vision === true))
@@ -735,7 +695,6 @@
     $("qa-model").setAttribute("aria-expanded", "false");
   }
 
-  /* ------------------------------------------------------------ actions view (Ctrl+K) */
   function menuItems() {
     const last = shownTurns().pop();
     const answered = !!(last && last.done && String(last.a || "").trim());
@@ -764,7 +723,7 @@
     if (NATIVE) add(WIN, "hide", ICON.x, tr("Скрыть окно", "Hide the window"), ["Esc"], () => closeWindow());
     add(WIN, "settings", ICON.gear, tr("Настройки быстрого доступа", "Quick Ask settings"), [], () => { windowAction("open_settings"); if (!NATIVE) toast(tr("Настройки открываются в окне MemuAI", "Settings open in the MemuAI window")); });
     for (const row of composerDefs()) {
-      if (row.inBar && (row.def.id === "voice" || row.def.menu === false)) continue;   // menu:false — the plugin has its own row
+      if (row.inBar && (row.def.id === "voice" || row.def.menu === false)) continue;
       add(PLUG, "plugin:" + row.def.id, String(row.def.icon || ICON.spark), row.label || row.def.id, [], () => runComposer(row.def),
         { state: row.pressed === null ? "" : (row.pressed ? tr("вкл", "on") : tr("выкл", "off")), on: !!row.pressed, keep: row.pressed !== null });
     }
@@ -774,7 +733,7 @@
         { sub: pluginValue(def.sub) || "", stay: !!def.stay });
     }
     add(tr("Справка", "Help"), "keys", ICON.tip, tr("Сочетания клавиш", "Keyboard shortcuts"), [], () => showShortcuts(), { stay: true });
-    // Round 30: a plugin's row of an existing section («Чат») joins that group instead of a second «Чат» header at the end
+
     const order = [...new Set(items.map((it) => it.section))];
     items.sort((a, b) => order.indexOf(a.section) - order.indexOf(b.section));
     const needle = S.menuFilter.trim().toLowerCase();
@@ -858,10 +817,6 @@
     scheduleSize();
   }
 
-  /* ------------------------------------------------------------ Quick Ask chats */
-  /* Round 26: a plugin's result (a command card) is kept in the chat as a turn — the card shows it live, the
-     restored chat shows it as an answer. Before, «сделай саммари» answered by a command was lost: the chat stayed
-     empty and «Recent» only put the question back into the field. */
   const liveCard = (t) => !!(t && t.card && !t.restored);
   const shownTurns = () => S.turns.filter((t) => !liveCard(t));
   function recordTurn(row = {}) {
@@ -879,13 +834,11 @@
       q: t.q, a: t.a, model: t.model, tier: t.tier || "fast", t: t.t || Date.now(), images: (t.images || []).length,
       selection: t.selection || "", page: t.page ? { url: t.page.url, title: t.page.title } : null,
       sources: (t.sources || []).slice(0, 6), error: t.error || "",
-      // Round 27 (review): an AI snippet's instruction (q is only its name) — a follow-up in a reopened chat needs it
+
       ...(t.prompt ? { prompt: t.prompt } : {}),
     }));
   }
-  /* Round 26: the chat id is taken NOW, not when the debounce fires — «New chat» / opening another chat right
-     after an answer saved the old turns under the NEW id (an opened chat was overwritten by the previous one).
-     One timer per chat, so saving chat B never cancels the pending save of chat A. */
+
   const saveTimers = new Map();
   function saveChat() {
     if (!S.chatId || S.prefs.quick_ask_history === false) return;
@@ -896,7 +849,7 @@
     saveTimers.set(id, setTimeout(() => {
       saveTimers.delete(id);
       const first = turns.find((t) => t.q) || turns[0];
-      // Round 27: «Перевести» / «Исправить» on a selection — the chat is named after the text, not only the action
+
       const title = first.selection && first.q && first.q.length < 48 ? `${first.q}: ${first.selection.replace(/\s+/g, " ").trim().slice(0, 60)}` : first.q;
       api("/api/quick/chats", { body: { chat: { id, title: title || (first.page && first.page.title) || "", created, updated: Date.now(), turns } } })
         .then(() => loadRecentChats()).catch(() => {});
@@ -997,7 +950,7 @@
   }
   async function deleteChat(id) {
     if (id === S.chatId) stop();
-    clearTimeout(saveTimers.get(id)); saveTimers.delete(id);   // a pending save would bring the chat back
+    clearTimeout(saveTimers.get(id)); saveTimers.delete(id);
     try { await api("/api/quick/chats/" + encodeURIComponent(id), { method: "DELETE" }); } catch (e) { toast(e.message, "err"); return; }
     if (id === S.chatId) { S.turns = []; S.chatId = newChatId(); S.chatCreated = Date.now(); }
     toast(tr("Чат удалён", "Chat deleted"));
@@ -1012,7 +965,6 @@
     if (rerender) { renderAll(); focusInput(); }
   }
 
-  /* ------------------------------------------------------------ attachments, selection, page */
   function addAttachment(item) {
     if (S.attachments.length >= 4) { toast(tr("Не больше четырёх изображений", "At most four images"), "err"); return; }
     S.attachments.push(item);
@@ -1028,11 +980,11 @@
       <button type="button" class="qa-x" data-remove="${i}" aria-label="${esc(tr("Убрать", "Remove"))}">${ICON.x}</button></div>`);
     if (S.selection) {
       const words = S.selection.trim().split(/\s+/).filter(Boolean).length;
-      // Round 27: the length in characters too (and «cut» when the selection was longer than Quick Ask takes)
+
       const chars = S.selection.length, info = S.selectionInfo || {};
       const size = chars < 1000 ? tr(`${chars} симв.`, `${chars} chars`) : tr(`${(chars / 1000).toFixed(1).replace(".", ",")} тыс. симв.`, `${(chars / 1000).toFixed(1)}k chars`);
       const from = info.app ? tr(`Выделено в ${info.app.replace(/\.exe$/i, "")}`, `Selected in ${info.app.replace(/\.exe$/i, "")}`) + "\n" : "";
-      // Round 30: dropped documents read as their file names («report.pdf, plan.docx»), not as «[Файл: …] text…»
+
       const files = info.source === "file" ? Array.from(S.selection.matchAll(/^\[(?:Файл|File): (.+)\]$/gm), (m) => m[1]) : [];
       const body = files.length ? `<span class="tl">${esc(files.join(", "))}</span>` : `<q>${esc(S.selection.replace(/\s+/g, " ").slice(0, 160))}</q>`;
       parts.unshift(`<div class="qa-chip-sel ${files.length ? "qa-chip-file" : ""}" title="${esc(from + S.selection.slice(0, 600))}"><span class="fav">${files.length ? ICON.doc : ICON.text}</span><b>${esc(info.source === "file" ? tr("Файл", "File") : (info.source === "text" ? tr("Текст", "Text") : tr("Выделено", "Selected")))}</b>
@@ -1056,7 +1008,7 @@
     renderContextActions();
     scheduleSize();
   }
-  /* Round 27: the captured selection (quick-selection.js shows its actions and listens to "selection"). */
+
   function setSelection(text, info = null) {
     S.selection = String(text || "");
     S.selectionInfo = S.selection && info && typeof info === "object" ? { ...info } : null;
@@ -1066,7 +1018,7 @@
   const selectionOwned = () => !!(S.selection && window.QuickSelection && window.QuickSelection.owns());
   function contextActions() {
     if (S.selection) {
-      if (selectionOwned()) return [];     // Round 27: the action row of quick-selection.js replaces these rows
+      if (selectionOwned()) return [];
       return [
         [ICON.ask, tr("Объяснить", "Explain"), tr("Объясни простыми словами.", "Explain in simple words.")],
         [ICON.translate, tr("Перевести", "Translate"), tr("Переведи на русский (если текст уже на русском — на английский).", "Translate into English (if it is already English — into Russian).")],
@@ -1085,7 +1037,7 @@
     }
     return [];
   }
-  // Round 23: context actions are the first rows of the idle list (renderSuggestions); the old strip stays empty.
+
   function renderContextActions() {
     const box = $("qa-sel-actions");
     box.hidden = true; box.innerHTML = "";
@@ -1098,8 +1050,7 @@
     send({ readPage: !!action[3] });
     return true;
   }
-  /* Round 31: one real request with a tiny picture (Proxy's probe; the user's own endpoint — a one-off check). A «yes»
-     is stored by Proxy and from then on the model is «sees» everywhere; this window trusts it at once. */
+
   async function probeVision(id, btn) {
     const label = btn ? btn.innerHTML : "";
     if (btn) { btn.disabled = true; btn.textContent = tr("Проверяю…", "Checking…"); }
@@ -1143,10 +1094,7 @@
       reader.readAsDataURL(file);
     });
   }
-  /* Round 34 (r34-quick-core): a pasted / dropped photo went to the model as is — a 9–12 MB picture was over the
-     server's limit (14 M base64 characters) and was DROPPED SILENTLY (the model answered «I see no image»), and big
-     ones were slow and refused by providers with a 5 MB cap. Large pictures are now scaled to 2048 px / JPEG like the
-     window's own screenshots; small ones (and anything the WebView cannot decode) stay as they are. */
+
   const IMAGE_SIDE = 2048, IMAGE_KEEP_BYTES = 1.5 * 1024 * 1024;
   function shrinkImage(data, bytes = 0) {
     return new Promise((resolve) => {
@@ -1160,10 +1108,9 @@
           const canvas = document.createElement("canvas");
           canvas.width = Math.max(1, Math.round(w * k)); canvas.height = Math.max(1, Math.round(h * k));
           const ctx = canvas.getContext("2d");
-          ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);   // transparent PNG → white, not black
+          ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, canvas.width, canvas.height);
           ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-          // integrator (r35): flat graphics (screenshots, diagrams) can be bigger as JPEG than as PNG — a big picture is
-          // still scaled down then, as PNG, instead of going out at full size
+
           let out = canvas.toDataURL("image/jpeg", 0.88);
           if (out.length >= data.length && Math.max(w, h) > IMAGE_SIDE) {
             const png = canvas.toDataURL("image/png");
@@ -1176,23 +1123,22 @@
       img.src = data;
     });
   }
-  // Round 24: a dropped TEXT file (code, notes, logs, csv… ≤ 400 KB) becomes context of the next question.
+
   const TEXT_FILE = /\.(txt|md|markdown|json|jsonl|csv|tsv|log|ya?ml|toml|ini|cfg|conf|xml|html?|css|js|mjs|cjs|ts|tsx|jsx|py|rb|go|rs|java|kt|c|h|cc|cpp|hpp|cs|php|sh|ps1|bat|sql|srt|vtt)$/i;
-  // Round 27 (review): a DOCX / XLSX / PPTX is «application/vnd.openxmlformats-officedocument…» — «xml» in its type made
-  // the zip read as text (a «PK…[Content_Types].xml» chip) instead of going to the document parser (quick features).
-  const PACKED = /officedocument|opendocument|zip|epub/;   // (a .csv is «vnd.ms-excel» on Windows: still text)
+
+  const PACKED = /officedocument|opendocument|zip|epub/;
   function isTextFile(file) { return !!file && !PACKED.test(file.type || "") && (/^text\//.test(file.type) || /json|xml|javascript|x-sh|yaml/.test(file.type) || TEXT_FILE.test(file.name || "")); }
   async function addFiles(files) {
     for (const file of Array.from(files || [])) {
       if (/^image\//.test(file.type)) {
         let data = await readImageFile(file);
-        if (data && data.length > 14000000) data = "";   // the server's limit (quick_ask_api.MAX_IMAGE_CHARS): never sent silently without it
+        if (data && data.length > 14000000) data = "";
         if (data) addAttachment({ data, label: tr("изображение", "image"), name: file.name || "image.png" });
         else toast(file.size > 10 * 1024 * 1024 ? tr("Картинка слишком большая (больше 10 МБ)", "The image is too large (over 10 MB)")
-          : tr("Не удалось прочитать картинку", "Could not read the image"), "warn", 3200);   // Round 25: was silently dropped
+          : tr("Не удалось прочитать картинку", "Could not read the image"), "warn", 3200);
         continue;
       }
-      // Round 27: PDF / DOCX / long text files — a plugin (quick features) can take the file over.
+
       let taken = false;
       if (!isTextFile(file) || file.size > 400 * 1024) emit("file", { file, preventDefault: () => { taken = true; } });
       if (taken) continue;
@@ -1201,14 +1147,13 @@
       let text = "";
       try { text = await file.text(); } catch (_) { text = ""; }
       if (!text.trim()) continue;
-      // Round 27 (review): through addContext — setSelection emits "selection" (the action row, the placeholder)
+
       addContext(text, { name: file.name, focus: false });
       toast(tr("Файл добавлен к вопросу: ", "File attached: ") + file.name);
       focusInput(true);
     }
   }
 
-  /* ------------------------------------------------------------ rendering */
   function tierChip(turn, inline = true, tools = "") {
     if (!turn.model || (!turn.done && !turn.a)) return tools ? `<div class="qa-meta">${tools}</div>` : "";
     const advanced = turn.tier === "advanced";
@@ -1220,24 +1165,22 @@
     const pi = turn.page && turn.pageInfo;
     const pageWhy = pi ? " · " + (pi.cached ? tr("страница из кэша", "page from cache") : tr("страница прочитана за ", "page read in ") + (pi.ms / 1000).toFixed(1).replace(".", S.lang === "ru" ? "," : ".") + " " + tr("с", "s"))
       + (pi.tokens ? ` · ~${pi.tokens} ${tr("токенов", "tokens")}` : "") + (pi.truncated ? tr(" · длинная — сокращена", " · long — shortened") : "") : "";
-    // Round 34: an answer stopped half way (Esc / ■) said nothing about it and read as a complete one
+
     const stopped = turn.stopped && turn.a ? tr(" · остановлено", " · stopped") : turn.cut && turn.a ? tr(" · ответ оборвался", " · cut off") : "";
     return `<div class="qa-meta" ${inline ? "" : 'data-last="1"'}><span class="qa-who ${advanced ? "adv" : ""}" title="${esc(label + " · " + modelName(turn.model) + why + pageWhy)}">${icon}<span>${esc(label)}</span><i>${esc(modelName(turn.model) + page + secs + stopped)}</i></span>${tools}</div>`;
   }
-  /* Round 30: «Копировать» of an earlier answer (the last one has it in the actions row) — quick-copy.js. */
+
   function turnCopyTools(turn, index) {
     if (!turn.done || !String(turn.a || "").trim()) return "";
     return `<span class="qa-turn-tools"><button type="button" class="qa-tcopy" data-copy-turn="${index}" title="${esc(tr("Копировать ответ", "Copy the answer"))}">${ICON.copy}<span>${esc(tr("Копировать", "Copy"))}</span></button>`
       + `<button type="button" class="qa-tcopy qa-tcopy-more" data-copy-format="${index}" aria-haspopup="menu" aria-expanded="false" title="${esc(tr("Копировать как…", "Copy as…"))}" aria-label="${esc(tr("Копировать как…", "Copy as…"))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m7 10 5 5 5-5"/></svg></button></span>`;
   }
-  // Round 34: a rejected key / no access («HTTP 401/403») told the user to check Settings but offered only «Повторить»,
-  // which fails the same way — such an error gets «Открыть настройки» too.
+
   const authError = (turn) => turn.errorCode !== "vision" && /\bHTTP 40[13]\b|\b40[13]\b.*(key|ключ)|API[- ]?(key|ключ)/i.test(String(turn.error || ""));
   function turnHtml(turn, index, last) {
     const parts = [];
     const qText = turn.q || (turn.selection ? tr("Выделенный текст", "Selected text") : (turn.storedImages || (turn.images || []).length ? tr("Изображение", "Image") : ""));
-    // Round 34: the pictures sent with a question are seen in the conversation (small thumbnails) — they were only in the chip
-    // before sending, and afterwards nothing showed that the question was about an image
+
     const pics = (turn.images || []).filter(Boolean).slice(0, 4);
     const picsHtml = pics.length ? `<span class="qa-q-pics" data-nocopy="1">${pics.map((src) => `<img src="${esc(src)}" alt="${esc(tr("Изображение", "Image"))}">`).join("")}</span>` : "";
     parts.push(`<div class="qa-q"><span>${esc(qText)}</span>${turn.storedImages ? `<em>🖼 ${turn.storedImages}</em>` : picsHtml}</div>`);
@@ -1247,7 +1190,7 @@
         : turn.status.tool === "take_screenshot" ? ICON.camera : turn.status.tool === "read_page" ? ICON.page
           : turn.status.tool === "escalate_to_advanced" ? ICON.brain : ICON.spark;
       parts.push(`<div class="qa-status">${icon}<span>${esc(turn.status.label || tr("Думаю…", "Thinking…"))}</span><span class="qa-dots"><i></i><i></i><i></i></span></div>`);
-      // Round 31 (wave 2): the latest line of the model's reasoning while it thinks (reasoning_content of nemotron & co.)
+
       if (turn.status.status === "reasoning" && turn.status.text) parts.push(`<div class="qa-think-live" aria-live="off">${esc(turn.status.text)}</div>`);
     }
     if (turn.askForms && turn.askForms.length && window.MemuAskForm) parts.push(`<div class="au-stack qa-ask">${turn.askForms.map((r) => MemuAskForm.html(r, { compact: true })).join("")}</div>`);
@@ -1270,16 +1213,11 @@
           : `<button type="button" class="qa-btn" data-err="retry">${ICON.retry}${esc(tr("Повторить", "Retry"))}</button>`}
         ${turn.errorCode === "no_model" || authError(turn) ? `<button type="button" class="qa-btn" data-err="settings">${esc(tr("Открыть настройки", "Open settings"))}</button>` : ""}</div></div>`);
     }
-    // the last finished turn shows who answered in the actions row instead
+
     if (!turn.error && !(last && turn.done)) parts.push(tierChip(turn, true, turnCopyTools(turn, index)));
     return `<div class="qa-turn" data-turn="${index}">${parts.join("")}</div>`;
   }
 
-  /* Round 34 (r34-quick-core): a long answer froze the window — every 40 ms of streaming re-rendered the Markdown of
-     EVERY turn and replaced the whole answer (innerHTML + tables + copy buttons: ~430 ms a frame for a 22 KB answer,
-     single long tasks up to 6 s). Now each turn's Markdown is rendered once per change (mdCache) and the DOM is
-     patched: unchanged blocks stay as they are (and keep the user's text selection), only the changed tail is
-     replaced. */
   const mdCache = new WeakMap();
   function mdHtml(turn) {
     const key = (turn.done ? "1" : "0") + S.lang + turn.a;
@@ -1290,17 +1228,16 @@
     return html;
   }
   const nodeSrc = (n) => (n.nodeType === 1 ? n.outerHTML : n.nodeType === 3 ? "#" + n.data : "");
-  const nodeShell = (n) => {   // the element itself without its children; «still streaming» does not make it another one
+  const nodeShell = (n) => {
     if (n.nodeType !== 1) return "";
     const shell = n.cloneNode(false);
     shell.removeAttribute("data-streaming");
     return shell.outerHTML;
   };
-  function markSrc(host, depth) {   // a turn built whole: remember each block's source markup, as patchHtml does
+  function markSrc(host, depth) {
     for (const n of host.childNodes) { n._qaSrc = nodeSrc(n); if (depth > 1 && n.nodeType === 1) markSrc(n, depth - 1); }
   }
-  /* Patch host's children to the markup: a child whose source markup did not change is kept (with what was added to
-     it later: rich tables, copy buttons); one changed child of the same kind is patched inside (depth levels). */
+
   function patchHtml(host, html, depth = 2) {
     const tpl = document.createElement("template");
     tpl.innerHTML = html;
@@ -1313,8 +1250,7 @@
     while (head < min && same(cur[head], next[head])) head += 1;
     let tail = 0;
     while (tail < min - head && same(cur[cur.length - 1 - tail], next[next.length - 1 - tail])) tail += 1;
-    // the changed middle, pair by pair: the same kind of element is patched inside (the answer that just finished keeps
-    // its DOM and the selection in it while the model line moves to the action row); the rest is replaced / added / removed
+
     const curMid = cur.slice(head, cur.length - tail);
     const before = tail ? cur[cur.length - tail] : null;
     next.slice(head, next.length - tail).forEach((n, k) => {
@@ -1328,7 +1264,7 @@
     });
     for (const c of curMid.slice(next.length - tail - head)) c.remove();
   }
-  /* One .qa-turn per shown turn: an unchanged turn is not even parsed again, a changed one is patched inside. */
+
   function syncTurns(box, items) {
     const kids = Array.from(box.children);
     items.forEach((it, i) => {
@@ -1340,7 +1276,7 @@
         const tpl = document.createElement("template");
         tpl.innerHTML = it.html;
         const fresh = tpl.content.firstElementChild;
-        markSrc(fresh, 2);   // its blocks are patched (not replaced) from the next frame on
+        markSrc(fresh, 2);
         if (node) box.replaceChild(fresh, node); else box.appendChild(fresh);
         node = fresh;
       }
@@ -1358,26 +1294,22 @@
     const box = $("qa-answer");
     const shown = shownTurns();
     if (!shown.length || S.pickerOpen || S.chatsOpen || S.menuOpen) { box.hidden = true; box.innerHTML = ""; box._qaHtml = ""; return; }
-    // Round 30: «follow the end» is the user's choice (answerFollow), not a guess from scrollTop — replacing innerHTML
-    // clamps scrollTop for a moment, and late layout (KaTeX, tables, images) grew the answer after we had scrolled,
-    // so from the second question on the newest answer stayed below the fold (the error card was cut off).
+
     if (shown.length !== answerFollow.turns) { answerFollow.turns = shown.length; answerFollow.on = true; }
     const stick = box.hidden || answerFollow.on;
     box.hidden = false;
     const lastShown = shown[shown.length - 1];
-    // Round 34 (r34-quick-core-2): the answer is aria-live — a screen reader read out every streamed chunk; now it
-    // waits for the finished answer (aria-busy while the last turn streams)
+
     box.setAttribute("aria-busy", String(!lastShown.done));
     const items = [];
     S.turns.forEach((turn, i) => { if (!liveCard(turn)) items.push({ index: i, html: turnHtml(turn, i, turn === lastShown) }); });
     const html = items.map((it) => it.html).join("");
-    // Round 31 (r31-quick): renderAll() runs on many unrelated changes (attachments, plugins, the picker closing…); replacing
-    // the same answer HTML dropped the user's text selection inside it. Same markup → keep the DOM as it is.
+
     if (html === box._qaHtml && box.childElementCount) { if (stick) box.scrollTop = box.scrollHeight; return; }
     box._qaHtml = html;
     box.querySelectorAll(".qa-caret").forEach((n) => n.remove());
     syncTurns(box, items);
-    // Round 29: rich tables (copy / export / sort) and drawn charts and schemes.
+
     if (window.MemuTables) MemuTables.hydrate(box, null, { compact: true, onSendBack: null });
     if (window.MemuDiagrams) MemuDiagrams.hydrate(box);
     box.querySelectorAll("[data-copy-code]").forEach((btn) => {
@@ -1394,7 +1326,7 @@
         const what = btn.dataset.err;
         if (what === "model") openPicker();
         else if (what === "drop") {
-          // Round 25: «Без картинки» used to lose the selected text / page the question was about.
+
           const turn = S.turns.pop(); S.attachments = []; S.selection = turn.selection || "";
           if (turn.page) { S.page = turn.page; S.pageOn = true; }
           renderAttachments(); $("qa-input").value = turn.q; send({ readPage: !!turn.page });
@@ -1414,11 +1346,6 @@
     answerFollow.watch(box.lastElementChild);
   }
 
-  // r29e: the answer stays pinned to its end when the parts around it change height — the Explorer change cards in
-  // the bottom slot grow / collapse, a panel opens above: the box shrank but kept its scrollTop, so the last lines of
-  // the answer (the one about those very changes) slid under the cards.
-  // Round 30: the newest turn's own size is watched too (late KaTeX / tables / images), and only a scroll the USER made
-  // (wheel, keys, dragging the scrollbar, a touch) turns following off — or back on at the end.
   const answerFollow = { on: true, turns: 0, watch() {} };
   (function pinAnswerOnResize() {
     const box = $("qa-answer");
@@ -1441,8 +1368,6 @@
     };
   })();
 
-  /* The streaming caret sits at the end of the last text, inside a paragraph,
-     list item or the code block that is still being written. */
   function placeCaret(container) {
     if (!container) return;
     let node = container;
@@ -1459,7 +1384,7 @@
   function renderActions() {
     const box = $("qa-actions");
     const last = shownTurns().pop();
-    // Round 30: a failed turn has its own «Повторить» in the error card — no row with a lone «⋯» under it
+
     const show = !!(last && last.done && String(last.a || "").trim() && !S.busy && !S.pickerOpen && !S.chatsOpen && !S.menuOpen);
     box.hidden = !show;
     if (!show) { box.innerHTML = ""; return; }
@@ -1473,7 +1398,7 @@
         + `<button type="button" class="qa-act qa-act-caret" id="qa-copy-as" aria-haspopup="menu" aria-expanded="false" title="${esc(tr("Копировать как: с оформлением, Markdown, простой текст", "Copy as: formatted, Markdown, plain text"))}" aria-label="${esc(tr("Копировать как…", "Copy as…"))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="m7 10 5 5 5-5"/></svg></button></span>` : "",
       hasText && !(last.selectionAction && last.selectionAction.replace) ? act("qa-insert", ICON.insert, tr("Вставить", "Insert"), tr("Вставить ответ в программу, из которой открыто окно", "Paste the answer into the program you came from"), "lbl") : "",
       last.restored || last.error ? "" : act("qa-retry", ICON.retry, tr("Ещё раз", "Again"), tr("Спросить ещё раз", "Ask again")),
-      // a plugin's main action (primary: «Заменить выделение») stays in the row with its label; the rest → «Ещё»
+
       ...extras.filter((d) => d.primary).map((d) => act("qa-x-" + d.id, String(d.icon || ICON.spark), String(pluginValue(d.label) || d.id), String(pluginValue(d.title) || pluginValue(d.label) || d.id), "lbl")),
       `<button type="button" class="qa-act" id="qa-act-more" aria-haspopup="menu" aria-expanded="false" title="${esc(tr("Ещё: открыть в MemuAI, стикер, заметка…", "More: open in MemuAI, sticker, note…"))}" aria-label="${esc(tr("Ещё действия с ответом", "More answer actions"))}">${ICON.more}</button>`,
     ].join("");
@@ -1484,7 +1409,7 @@
     if ($("qa-retry")) $("qa-retry").onclick = () => retry();
     const runExtra = (d) => { try { d.run(last, MemuQuick); } catch (e) { console.warn("[MemuQuick] answer action", d.id, e); } };
     for (const d of extras.filter((x) => x.primary)) { const btn = $("qa-x-" + d.id); if (btn) btn.onclick = () => runExtra(d); }
-    // Round 30: «Ещё» — labelled rows instead of a strip of unexplained icons (sticker / note / open in MemuAI).
+
     $("qa-act-more").onclick = () => {
       const items = [{ id: "qa-open", icon: ICON.open, label: tr("Открыть в MemuAI", "Open in MemuAI"), keys: ["Ctrl", "Shift", "↵"], run: openInMemuAI },
         ...extras.filter((d) => !d.primary).map((d) => ({ id: "qa-x-" + d.id, icon: String(d.icon || ICON.spark), label: String(pluginValue(d.label) || d.id), sub: pluginValue(d.title) && pluginValue(d.title) !== pluginValue(d.label) ? String(pluginValue(d.title)) : "", run: () => runExtra(d) }))];
@@ -1493,7 +1418,7 @@
     };
     fitActions();
   }
-  /* Round 30: «Копировать» / «Вставить» keep their labels while «who answered» still has room, else icons only. */
+
   function fitActions() {
     const box = $("qa-actions");
     if (!box || box.hidden) return;
@@ -1502,8 +1427,6 @@
     if (box.scrollWidth > box.clientWidth + 1 || (meta && meta.textContent.trim() && meta.getBoundingClientRect().width < 96)) box.classList.add("qa-actions-tight");
   }
 
-  /* Empty state — ONE keyboard-navigable list: what to do with the page/selection, the first-open tip,
-     recent questions and a few starter ideas. ↓ from the input walks it, Enter runs the row. */
   function starterIdeas() {
     const hour = new Date().getHours();
     const ideas = [
@@ -1514,8 +1437,7 @@
     if (S.prefs.quick_ask_screenshot_tool === false || !NATIVE) ideas.shift();
     return ideas.slice(0, S.history.length ? 2 : 3);
   }
-  /* Round 30: «/» in the field — the commands (every row of Ctrl+K, plugins included), filtered by what follows.
-     Enter runs the highlighted one; with no match the text is sent as a normal question. */
+
   const SLASH_ALIASES = {
     new: "new новый очистить clear", chats: "chats чаты история history", copy: "copy копировать", insert: "insert вставить paste",
     advance: "smart умнее умная", dfy: "do сделай dfy агент", open: "open открыть memuai", shot: "shot screen снимок скрин экран",
@@ -1523,7 +1445,7 @@
     web: "web веб поиск search", pin: "pin закрепить", center: "center центр место", hide: "hide скрыть", settings: "settings настройки",
     keys: "keys клавиши help помощь справка", "x:computer-use": "computer компьютер пк мышь cu",
   };
-  // Round 30: «/image кот», «/video …» are commands with a description (cmd-highlight.js), not a search of the list.
+
   const slashQuery = () => { const v = $("qa-input").value; return /^\/[^\n]*$/.test(v) && !/^\/(image|img|video)\s/i.test(v) ? v.slice(1).trim().toLowerCase() : null; };
   function slashRows(query) {
     const saved = S.menuFilter;
@@ -1538,25 +1460,24 @@
     const rows = [];
     const slash = slashQuery();
     if (slash !== null) return slashRows(slash);
-    if (selectionOwned()) return rows;     // Round 27: the selection's action row is the list
+    if (selectionOwned()) return rows;
     const ctx = contextActions();
     ctx.forEach(([icon, label, prompt], i) => rows.push({ section: S.selection ? tr("Выделенный текст", "Selected text") : tr("Эта страница", "This page"),
       icon, text: label, keys: i < 9 ? ["Alt", String(i + 1)] : [], run: () => runContextAction(i) }));
     if (!ctx.length) {
-      // Round 26: «Recent» opens the chat with its answer (it only put the question back into the field before);
-      // without saved chats — the recent questions as before (↑ walks them too).
+
       if (S.recentChats.length) {
         S.recentChats.slice(0, 3).forEach((chat) => rows.push({ section: tr("Недавние", "Recent"), icon: chat.page ? ICON.page : ICON.clock,
           text: chat.title || chat.preview || tr("Без названия", "Untitled"), keys: [], run: () => openChat(chat.id) }));
       } else {
-        // Round 30: the server history may hold one question several times — «Недавние» shows it once
+
         S.history.filter((row, i, all) => all.findIndex((x) => x.q === row.q) === i).slice(0, 3).forEach((row, i) => rows.push({ section: tr("Недавние", "Recent"), icon: ICON.clock, text: row.q, keys: i === 0 ? ["↑"] : [],
           run: () => { setInput(row.q); focusInput(true); } }));
       }
       if (S.prefs.quick_ask_history !== false && (S.history.length || S.recentChats.length)) rows.push({ section: tr("Недавние", "Recent"), icon: ICON.chats, text: tr("Все чаты", "All chats"), keys: ["Ctrl", "H"], muted: true, run: () => openChats() });
       for (const idea of starterIdeas()) {
         rows.push({ section: tr("Попробуйте", "Try"), icon: idea.icon, text: idea.text.trim(), keys: [], run: () => {
-          // Round 25: without a screenshot «What's on my screen?» only made the model guess.
+
           if (idea.kind === "screen") { takeScreenshot(false).then((ok) => { if (ok) { setInput(idea.text); send(); } }); return; }
           setInput(idea.fill || idea.text);
           if (idea.kind === "ask") send(); else focusInput(true);
@@ -1578,7 +1499,7 @@
       box.innerHTML = `<div class="qa-hints">${esc(tr("Нет такой команды — Enter отправит текст как вопрос", "No such command — Enter sends the text as a question"))}</div>`;
       S.listRows = []; S.listIndex = -1; return;
     }
-    if (slash && S.listIndex < 0) S.listIndex = 0;      // Enter runs the first match — show which one
+    if (slash && S.listIndex < 0) S.listIndex = 0;
     if (!rows.length && S.ui.onboarded && selectionOwned()) { box.hidden = true; box.innerHTML = ""; S.listRows = []; S.listIndex = -1; return; }
     S.listRows = rows;
     if (S.listIndex >= rows.length) S.listIndex = rows.length - 1;
@@ -1594,7 +1515,7 @@
         <span class="ic">${row.icon}</span><span class="tx" ${row.muted ? 'style="color:var(--muted)"' : ""}>${esc(row.text)}</span>
         ${row.keys.length ? `<span class="keys">${row.keys.map((k) => `<kbd>${esc(k)}</kbd>`).join("")}</span>` : ""}</button>`);
     });
-    // Round 30: what the window can do, in one quiet line under the idle list (the tip covers the first open)
+
     const hints = !slash && S.ui.onboarded ? `<div class="qa-hints">${tr("<kbd>/</kbd> команды · <kbd>Ctrl K</kbd> все действия · перетащите файл или картинку · <kbd>Esc</kbd> скрыть",
       "<kbd>/</kbd> commands · <kbd>Ctrl K</kbd> all actions · drop a file or an image · <kbd>Esc</kbd> hide")}</div>` : "";
     box.innerHTML = tip + html.join("") + hints;
@@ -1633,10 +1554,10 @@
     const card = $("qa-card");
     card.dataset.busy = S.busy ? "1" : "0";
     $("qa-pin").setAttribute("aria-pressed", String(!!S.pinned));
-    $("qa-pin").hidden = !NATIVE;                       // Round 25: always visible — the pin was hard to find in Ctrl+K only
+    $("qa-pin").hidden = !NATIVE;
     card.dataset.pinned = S.pinned ? "1" : "0";
     const inChat = S.turns.length > 0;
-    $("qa-new").hidden = !inChat;                       // in a chat: «new chat»; idle: «chats»
+    $("qa-new").hidden = !inChat;
     $("qa-new").disabled = S.busy;
     $("qa-history").hidden = inChat;
     $("qa-history").setAttribute("aria-pressed", String(!!S.chatsOpen));
@@ -1650,8 +1571,7 @@
     setView();
     scheduleSize();
   }
-  /* Round 40 (r40-lag): opening the actions / model / chats view set no data-view (only the next renderAll did), so the
-     canvas strip and other «not in this view» parts stayed on screen above the actions list. */
+
   function setView() {
     $("qa-card").dataset.view = S.pickerOpen ? "picker" : S.chatsOpen ? "chats" : S.menuOpen ? "menu" : S.turns.length > 0 ? "answer"
       : (!$("qa-suggest").hidden || !$("qa-attach").hidden || hasVisiblePanel() ? "list" : "bare");
@@ -1663,18 +1583,17 @@
 
   function scheduleRender() {
     if (S.renderTimer) return;
-    // Round 34: a costly frame (a very long answer) waits longer before the next one, so typing and scrolling stay smooth
+
     S.renderTimer = setTimeout(() => { S.renderTimer = 0; renderAnswer(); scheduleSize(); }, Math.min(400, Math.max(40, renderCost * 3)));
   }
 
-  /* ------------------------------------------------------------ size → native window */
   let sizeQueued = false, sizeTimer = 0, lastSizeAt = 0;
   function contentHeight() {
     const inner = $("qa-inner");
     return inner ? Math.ceil(inner.getBoundingClientRect().height) : 0;
   }
   function scheduleSize() {
-    queueFitBar(); // text widths change without the bar resizing (model name, fonts, plugin buttons)
+    queueFitBar();
     if (sizeQueued) return;
     sizeQueued = true;
     requestAnimationFrame(() => {
@@ -1691,16 +1610,15 @@
     S.lastHeight = height;
     if (!NATIVE) return;
     pinPage();
-    // Round 40 (r40-lag): pywebview's own channel first (like Escape), the server when there is no bridge / it fails
+
     const bridge = window.pywebview && window.pywebview.api;
     const viaServer = () => windowAction("resize", { height, animate: !reducedMotion() });
     if (bridge && typeof bridge.resize === "function") {
-      try { Promise.resolve(bridge.resize(height, !reducedMotion())).then((ok) => { if (ok === false) viaServer(); }, viaServer); return; } catch (e) { /* no bridge */ }
+      try { Promise.resolve(bridge.resize(height, !reducedMotion())).then((ok) => { if (ok === false) viaServer(); }, viaServer); return; } catch (e) {  }
     }
     viaServer();
   }
 
-  /* ------------------------------------------------------------ input */
   function setInput(text) {
     const input = $("qa-input");
     input.value = text;
@@ -1749,7 +1667,6 @@
     return true;
   }
 
-  /* ------------------------------------------------------------ asking */
   function conversationHistory() {
     const out = [];
     for (const turn of S.turns) {
@@ -1758,8 +1675,7 @@
       out.push({ role: "assistant", content: turn.a });
     }
     const recent = out.slice(-12);
-    // Round 34 (r34-quick-core): the pictures of the latest turn that had any go along — a follow-up about a pasted
-    // image / screenshot («а какого цвета текст?») got «I see no image» (only the text of earlier turns was sent).
+
     const withPics = recent.filter((row) => row.turn && (row.turn.images || []).some(Boolean)).pop();
     return recent.map((row) => {
       const { turn, ...plain } = row;
@@ -1768,19 +1684,18 @@
   }
 
   async function send(options = {}) {
-    // Round 26 (review): the send button turns into «stop» — a double click sent AND stopped the answer at once («Остановлено.»)
+
     if (S.busy) { if (performance.now() - (S.sentAt || 0) > 600) stop(); return; }
     const input = $("qa-input");
     const text = input.value.trim();
     if (!text && !S.attachments.length && !S.selection) return;
     closePickerSilently(); closeChats(false); closeMenu(false);
-    // Round 27: an action on the selected text (quick-selection.js) — the label is the question, the server builds
-    // the instruction; no page context and no plugin take-over (commands would grab «Перевести…»).
+
     const selAction = options.selectionAction && S.selection ? { ...options.selectionAction } : null;
     const page = S.page && S.pageOn && !selAction ? { ...S.page } : null;
-    // Plugins can take a request over (commands, macros): MemuQuick.on("submit", e => e.preventDefault()).
+
     let prevented = false;
-    // Round 27 (quick canvas): options.direct — a quick-action button's AI request goes to the model as is (commands would grab it)
+
     if (!selAction && !options.direct) emit("submit", { text, images: S.attachments.length, selection: S.selection, page, preventDefault: () => { prevented = true; } });
     if (prevented) {
       if (text) S.history = [{ q: text }, ...S.history.filter((row) => row.q !== text)].slice(0, 60);
@@ -1790,7 +1705,7 @@
     if (!S.chatId) { S.chatId = newChatId(); S.chatCreated = Date.now(); }
     const model = effectiveModel();
     const images = S.attachments.map((a) => a.data);
-    // Round 27 (quick features): options.prompt — what the model gets when the question shows a short label (AI snippet)
+
     const turn = { q: text, prompt: options.prompt ? String(options.prompt).slice(0, 20000) : "", images: images.slice(), selection: S.selection, selectionInfo: S.selectionInfo, selectionAction: selAction, page, a: "", model, tier: "fast",
       status: { status: "thinking", label: tr("Думаю…", "Thinking…") }, sources: [], shots: [], done: false, error: "", errorCode: "",
       startedAt: performance.now(), t: Date.now(), forced: options.tier || "" };
@@ -1798,7 +1713,7 @@
     S.turns.push(turn);
     S.attachments = []; S.selection = ""; S.selectionInfo = null; S.historyIndex = -1;
     input.value = ""; autoGrow(); renderCalc(); renderAttachments();
-    if (text && !turn.prompt && !selAction) {   // Round 27: a label («Исправить») alone in ↑ history is a question without its text
+    if (text && !turn.prompt && !selAction) {
       S.history = [{ q: text }, ...S.history.filter((row) => row.q !== text)].slice(0, 60);
     }
     S.busy = true; S.controller = new AbortController(); S.sentAt = performance.now();
@@ -1834,13 +1749,12 @@
       });
       if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || ("HTTP " + response.status)); }
       await readEvents(response.body, (event) => handleEvent(turn, event));
-      // Round 34: the server always ends with «done» / «error» — a stream that just ended (MemuAI restarted, the network
-      // dropped) left a half answer that looked complete
+
       if (!turn.done) finishTurn(turn, turn.a ? { cut: true } : { error: tr("Ответ оборвался.", "The answer was cut off.") });
     } catch (e) {
       if (e.name === "AbortError") finishTurn(turn, { stopped: true });
       else if (e instanceof TypeError && /network|fetch|load failed/i.test(e.message || "")) {
-        // a dropped connection: the browser's «network error» / «Failed to fetch» said nothing to the user
+
         if (turn.a) finishTurn(turn, { cut: true });
         else finishTurn(turn, { error: tr("Связь с MemuAI прервалась. Проверьте, что MemuAI запущен, и повторите.", "The connection to MemuAI was lost. Make sure MemuAI is running and retry.") });
       }
@@ -1855,7 +1769,7 @@
     const dispatch = (block) => {
       const data = block.split(/\r?\n/).filter((l) => l.startsWith("data:")).map((l) => l.slice(5).trimStart()).join("\n");
       if (!data) return;
-      try { onEvent(JSON.parse(data)); } catch (e) { /* malformed block */ }
+      try { onEvent(JSON.parse(data)); } catch (e) {  }
     };
     for (;;) {
       const { done, value } = await reader.read();
@@ -1865,8 +1779,7 @@
       buffer = blocks.pop();
       blocks.forEach(dispatch);
     }
-    // Round 25: a stream that ends without the final blank line (a proxy, an endpoint closing early) still
-    // delivers its last event — it is usually «done» or the real «error», not «the answer was cut off».
+
     buffer += decoder.decode();
     if (buffer.trim()) dispatch(buffer);
   }
@@ -1904,9 +1817,9 @@
       case "route": turn.tier = event.tier || "fast"; turn.model = event.model || turn.model; turn.escalated = !!event.escalated; turn.reason = event.reason || ""; break;
       case "page":
         turn.pageSource = event.source || "";
-        // Round 32: how the page was read (shown in the answer's meta tooltip): time, size, shortened, from cache
+
         turn.pageInfo = { ms: +event.ms || 0, tokens: +event.tokens || 0, truncated: !!event.truncated, cached: !!event.cached };
-        // Round 26: the server reads the tab the user is on NOW — the chat remembers that page, not a stale chip.
+
         if (event.url || event.title) turn.page = { ...(turn.page || {}), url: event.url || "", title: event.title || "" };
         break;
       case "delta": turn.a += event.text || ""; turn.status = null; emit("answer-delta", { text: event.text || "", turn: S.turns.indexOf(turn) }); break;
@@ -1921,7 +1834,7 @@
       case "image": turn.shots.push(event.data); break;
       case "client_tool": turn.status = { status: "tool", label: event.label || event.tool }; runClientTool(event); break;
       case "tool_ui": turn.cardShown = true; emit("tool-ui", { tool: event.tool, ui: event.ui, turn: S.turns.indexOf(turn) }); break;
-      // Round 35 (askuser): the model asks with a small form; the answer continues this same answer (askuser.js).
+
       case "ask_user": askUserForm(turn, event); break;
       case "ask_user_done": {
         const rec = (turn.askForms || []).find((r) => r.id === event.id);
@@ -1929,14 +1842,13 @@
         turn.status = { status: "thinking", label: tr("Думаю…", "Thinking…") };
         break;
       }
-      // Round 29: memory v2 — a fact was remembered (or waits for approval in the main window's Memory panel).
+
       case "memory": toast(event.facts && event.facts.length ? (en() ? "Remembered: " : "Запомнил: ") + String(event.facts[0]).slice(0, 48)
         : (en() ? "A fact awaits your approval in Memory" : "Факт ждёт подтверждения в Памяти"), "ok", 2600); break;
       case "done":
         if (event.tier) turn.tier = event.tier; if (event.model) turn.model = event.model;
         if (event.reasoning) turn.reasoning = String(event.reasoning);
-        // Round 31: a «done» without any visible text (an older server, a model that wrote only a tool block) is not a
-        // silent empty answer any more — the user sees why and can retry.
+
         if (!String(turn.a || "").trim() && !String(event.text || "").trim() && !turn.cardShown) {
           finishTurn(turn, { error: tr("Модель закончила без видимого ответа. Повторите или выберите другую модель.", "The model finished without a visible answer. Retry or pick another model."), code: "empty", ms: event.ms });
           return;
@@ -1966,14 +1878,13 @@
   function stop() {
     if (!S.controller) return;
     S.controller.abort();
-    // Round 26: finish the running turn right away (the AbortError arrives later) — «New chat», opening another
-    // chat or a fresh window used to switch S.turns first, and the stopped partial answer was never saved.
+
     const running = S.turns.find((t) => !t.done && !t.card);
     if (running) finishTurn(running, { stopped: true });
   }
   function retry(options = {}) {
-    if (S.busy) return;                    // send() would only stop the running answer and lose the popped turn
-    const last = shownTurns().pop();      // a live command card after the answer is not what «retry» means
+    if (S.busy) return;
+    const last = shownTurns().pop();
     if (!last) return;
     S.turns.splice(S.turns.lastIndexOf(last), 1);
     $("qa-input").value = last.q;
@@ -1994,7 +1905,6 @@
     newChat({ toast: false });
   }
 
-  /* ------------------------------------------------------------ actions */
   async function copy(text, notify = true) {
     let ok = false;
     try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
@@ -2009,8 +1919,7 @@
     return ok;
   }
   const lastAnswer = () => { const t = shownTurns().pop(); return t && t.done ? String(t.a || "").trim() : ""; };
-  /* Round 30: copying goes through quick-copy.js (formatted HTML + plain text / Markdown / plain — the user's last
-     choice of ▾), always confirmed by the «Скопировано» toast; the button also turns into ✓ for a moment. */
+
   async function copyTurn(turn, btn) {
     const text = turn && turn.done ? String(turn.a || "").trim() : "";
     if (!text) return false;
@@ -2036,7 +1945,7 @@
     const r = await windowAction("insert", { text });
     if (!r.ok) { await copy(text, false); toast(tr("Скопировано — вставьте Ctrl+V", "Copied — paste with Ctrl+V"), "ok"); }
   }
-  /* «Открыть в MemuAI» is the ONLY way a Quick Ask conversation reaches MemuAI's chat list. */
+
   async function openInMemuAI() {
     const messages = [];
     for (const turn of S.turns) {
@@ -2044,7 +1953,7 @@
       const pageLine = turn.page && turn.page.url ? `[${turn.page.title || turn.page.url}](${turn.page.url})\n\n` : "";
       const user = { role: "user", content: pageLine + (turn.selection ? `> ${turn.selection.replace(/\n/g, "\n> ")}\n\n` : "") + turn.q };
       const imgs = (turn.images || []).filter(Boolean);
-      // Round 34 (r34-quick-core-2): a pasted PNG / WebP went over labelled «screenshot-1.jpg · image/jpeg»
+
       if (imgs.length) user.attachments = imgs.map((data, i) => {
         const type = (/^data:(image\/[\w.+-]+)[;,]/.exec(data) || [])[1] || "image/jpeg";
         return { name: `image-${i + 1}.${({ "image/jpeg": "jpg", "image/svg+xml": "svg" })[type] || type.slice(6)}`, data, type };
@@ -2055,11 +1964,10 @@
     const draft = $("qa-input").value.trim();
     if (!messages.length && draft) messages.push({ role: "user", content: draft });
     if (!messages.length) { await windowAction("handoff", { handoff: null }); return; }
-    // the model that answered last (the smart one after «Умнее» / a hand-over), not just the chip's
+
     const answered = [...S.turns].reverse().find((t) => t.a && t.model);
     const handoff = { title: (S.turns[0] && S.turns[0].q) || draft, model: (answered && answered.model) || S.model, messages };
-    // Round 34: an answer still streaming is stopped (what was written so far goes to MemuAI) — it used to run on in the
-    // hidden window and was saved to the Quick Ask chat with a different ending than the one handed over.
+
     if (S.busy) stop();
     const r = await windowAction("handoff", { handoff });
     if (!r.ok && !NATIVE) toast(tr("В приложении MemuAI этот разговор откроется как обычный чат", "In the MemuAI app this opens as a regular chat"), "ok");
@@ -2074,12 +1982,6 @@
     toastTimer = setTimeout(() => { el.className = "qa-toast " + kind; }, ms);
   }
 
-  /* Round 38 (Escape bug): the close used to wait on the local server while the card was already faded out — a busy
-     server or a page the native side was waiting for left the window as bare Windows glass («white, shimmering») for
-     ~20 s. Now: the hide goes through pywebview's own channel (window.pywebview.api.hide, not the HTTP server) and
-     falls back to the server; the fade ends on transitionend or a timer; if the window is still there after
-     CLOSE_SAFETY_MS the content comes back (the menu stays usable, Escape again retries) and the slow close is
-     written to the app log (action "close_slow"). A second Escape while closing does not start a second close. */
   const CLOSE_FADE_MS = 110, CLOSE_SAFETY_MS = 300, CLOSE_SLOW_MS = 500;
   let closing = null;
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -2095,7 +1997,7 @@
     return new Promise((resolve) => {
       const inner = $("qa-inner");
       const done = (e) => {
-        if (e && e.target !== card && e.target !== inner) return;   // a button's hover transition is not the fade
+        if (e && e.target !== card && e.target !== inner) return;
         card.removeEventListener("transitionend", done); clearTimeout(timer); resolve();
       };
       const timer = setTimeout(done, CLOSE_FADE_MS + 40);
@@ -2117,7 +2019,7 @@
         if (!hidden) { via = "server"; hidden = serverHide(); }
         let result = await Promise.race([hidden, sleep(CLOSE_SAFETY_MS).then(() => null)]);
         if (!result && via === "bridge") {
-          via = "bridge+server";    // pywebview's channel did not answer: the server hides it as well (hide is idempotent)
+          via = "bridge+server";
           hidden = Promise.race([hidden.then((r) => (r && r.ok ? r : new Promise(() => {}))), serverHide()]);
           result = await Promise.race([hidden, sleep(CLOSE_SAFETY_MS).then(() => null)]);
         }
@@ -2129,11 +2031,11 @@
           }
         };
         if (result && result.ok) { report(result); return; }
-        // never leave a visible window without its content; the next Escape may try again
+
         card.classList.remove("qa-leaving");
         if (closing === state) closing = null;
-        report(null, true);                      // the window is still on screen now
-        hidden.then((r) => r && r.ok && report(r), () => {});   // and how long the hide took in the end
+        report(null, true);
+        hidden.then((r) => r && r.ok && report(r), () => {});
       } finally {
         card.classList.remove("qa-leaving");
         if (closing === state) closing = null;
@@ -2147,16 +2049,13 @@
     const r = await windowAction("pin", { pinned: S.pinned });
     if (r && typeof r.pinned === "boolean") S.pinned = r.pinned;
     renderAll();
-    // Short enough for one toast line at the minimum width (the full story is in the pin's tooltip).
-    // Round 34: since Round 32 an unpinned window stays on top by default (quick_ask_on_leave "stay") — the toast said
-    // «steps back when you switch programs», which it did not do.
+
     const back = String(S.prefs.quick_ask_on_leave || "stay") === "back";
     toast(S.pinned ? tr("Закреплено поверх всех окон", "Pinned on top of every window")
       : (back ? tr("Откреплено — окно уходит назад при переходе в другую программу", "Unpinned — steps back when you switch programs")
         : tr("Откреплено — Esc в любой программе закроет окно", "Unpinned — Escape in any program closes it")), "", 2600);
   }
 
-  /* ------------------------------------------------------------ position */
   const DOCK_LABEL = {
     top: ["Прилипнет к верхнему краю", "Docks to the top edge"], bottom: ["Прилипнет к нижнему краю", "Docks to the bottom edge"],
     left: ["Прилипнет к левому краю", "Docks to the left edge"], right: ["Прилипнет к правому краю", "Docks to the right edge"],
@@ -2182,7 +2081,6 @@
     return true;
   }
 
-  /* ------------------------------------------------------------ data */
   async function loadConfig() {
     let config = null;
     try {
@@ -2199,23 +2097,24 @@
       if (!S._webTouched) S.web = S.prefs.quick_ask_web_search !== false;
       if (first || !S._routingTouched) S.routing = ["auto", "fast", "advanced"].includes(S.prefs.quick_ask_routing) ? S.prefs.quick_ask_routing : "auto";
       if (config.status && typeof config.status.pinned === "boolean") S.pinned = config.status.pinned;
-    } catch (e) { /* server not reachable yet */ }
+    } catch (e) {  }
     if (customSource()) {
-      // The user's own OpenAI-compatible endpoint: its models come with the config (cached /models).
-      S.models = (S.endpoint.models || []).map((m) => (typeof m === "string" ? { id: m, caps: {} } : m)).filter((m) => m && m.id);
+
+      S.models = (S.endpoint.models || []).map((m) => (typeof m === "string" ? { id: m, caps: {} } : m)).filter((m) => m && m.id && isChatModel(m));
       const extra = [S.prefs.quick_ask_endpoint_model, S.prefs.quick_ask_endpoint_advanced_model].filter(Boolean);
-      for (const id of extra) if (!S.models.some((m) => m.id === id)) S.models.push({ id, caps: {} });
+      for (const id of extra) if (!S.models.some((m) => m.id === id)
+        && !(S.endpoint.models || []).some(m => typeof m === "object" && m?.id === id && !isChatModel(m))) S.models.push({ id, caps: {} });
     } else {
       try {
         const state = await api("/api/pg/state");
-        // Round 29: video generators (media routing) are not chat models either.
-        S.models = (state.models || []).filter((m) => !(state.image_models || []).includes(m.id) && !(state.video_models || []).includes(m.id));
-      } catch (e) { /* Proxy offline: the model chip says so */ }
+
+        S.models = (state.models || []).filter((m) => isChatModel(m) && !(state.image_models || []).includes(m.id) && !(state.video_models || []).includes(m.id));
+      } catch (e) {  }
     }
     if (S.sessionModel && !S.models.some((m) => m.id === S.sessionModel)) S.sessionModel = "";
     renderModelChip();
     renderAll();
-    emit("config", { prefs: { ...S.prefs } });   // Round 27: plugins that depend on preferences (quick-selection.js)
+    emit("config", { prefs: { ...S.prefs } });
   }
   async function loadHistory() {
     try { S.history = (await api("/api/quick/history")).items || []; } catch (e) { S.history = []; }
@@ -2229,18 +2128,16 @@
     renderSuggestions(); scheduleSize();
   }
 
-  /* ------------------------------------------------------------ native hooks */
   const QuickAsk = {
     onShow(payload = {}) {
       S.shownAt = performance.now();
-      S.openSeq = typeof payload.seq === "number" ? payload.seq : null;   // Round 38: see onHide
+      S.openSeq = typeof payload.seq === "number" ? payload.seq : null;
       const card = $("qa-card");
       card.classList.remove("qa-closed", "qa-leaving", "qa-enter");
       S.shownOnce = true;
       if (payload.backdrop) root.dataset.backdrop = payload.backdrop; else delete root.dataset.backdrop;
       root.dataset.rounded = payload.rounded === false ? "0" : "1";
-      // The card's radius = the radius Windows clips the window to (DWM 8 px, region 12 px):
-      // anything else leaves light wedges of the window background in the corners.
+
       if (payload.corner) root.dataset.corner = payload.corner;
       if (typeof payload.radius === "number") { S.radius = payload.radius; root.style.setProperty("--qa-native-radius", payload.radius + "px"); }
       root.dataset.anchor = payload.anchor || "top";
@@ -2254,12 +2151,12 @@
         S.web = S.prefs.quick_ask_web_search !== false; $("qa-input").value = "";
         S.chatId = newChatId(); S.chatCreated = Date.now();
         S.routing = ["auto", "fast", "advanced"].includes(S.prefs.quick_ask_routing) ? S.prefs.quick_ask_routing : "auto";
-        emit("chat-new", { id: S.chatId });   // Round 25: a fresh window also drops old command cards (plugins listen)
+        emit("chat-new", { id: S.chatId });
       }
       if (!S.chatId) { S.chatId = newChatId(); S.chatCreated = Date.now(); }
       S.selection = payload.selection || "";
       S.selectionInfo = S.selection && payload.selection_info ? payload.selection_info : null;
-      S.selWait = payload.selection_pending ? { turns: S.turns.length, at: performance.now() } : null;   // Round 27 (polish): Ctrl+C read still running
+      S.selWait = payload.selection_pending ? { turns: S.turns.length, at: performance.now() } : null;
       if (payload.source !== "api") { S.page = payload.page || null; S.pageOn = !!S.page; }
       S.historyIndex = -1; S.listIndex = -1;
       closePickerSilently(); closeChats(false); closeMenu(false);
@@ -2268,18 +2165,14 @@
       card.classList.add("qa-enter");
       S.lastHeight = 0;
       loadConfig().then(() => {
-        if (payload.source !== "api" && payload.source !== "restore" && S.prefs.quick_ask_auto_screenshot && !S.attachments.length) takeScreenshot(false);   // Round 26: own switch, not the model's screenshot tool
+        if (payload.source !== "api" && payload.source !== "restore" && S.prefs.quick_ask_auto_screenshot && !S.attachments.length) takeScreenshot(false);
       });
       loadHistory();
       emit("open", { source: payload.source || "", fresh: !!payload.fresh, page: S.page });
       emit("selection", { text: S.selection, info: S.selectionInfo });
       return true;
     },
-    /* Round 27: Alt+Space over an already open window with text selected in the program in front. */
-    /* Round 27 (polish): the window opens without waiting for a Ctrl+C read (Electron / Qt programs without UI
-       Automation text) — the selection comes a moment later ({late: true}). It joins only this opening, quietly:
-       the field, the caret and the focus stay as they are; once the user sent something or attached other text
-       it is not theirs to get any more. */
+
     selectionPending() { S.selWait = { turns: S.turns.length, at: performance.now() }; return true; },
     onSelection(payload = {}) {
       if (payload.late) {
@@ -2292,8 +2185,7 @@
       return true;
     },
     onHide(seq) {
-      // Round 38: the native side tells the page AFTER the window is gone; a late call from an older opening must not
-      // fade out the card of the window that is on screen now.
+
       if (typeof seq === "number" && typeof S.openSeq === "number" && seq !== S.openSeq) return false;
       S.selWait = null;
       $("qa-card").classList.add("qa-closed");
@@ -2302,9 +2194,7 @@
       emit("close", {});
       return true;
     },
-    /* The address bar was read (asynchronously, after the window appeared). */
-    /* replace (Round 26): the native side re-read the tab the user is on NOW (another tab, a raised pinned
-       window, a question about the page) — it replaces the remembered page, null = no browser tab is open. */
+
     onPage(page, replace = false) {
       if (replace && !page) {
         if (S.page) { S.page = null; S.pageOn = false; renderAttachments(); applyStaticText(); emit("page", { page: null }); }
@@ -2321,13 +2211,12 @@
     onDrag, onPlaced,
     contentHeight,
     focusInput() { focusInput(true); return true; },
-    // Test hooks (tests/quick_ask_ui_shots.py): read the state and redraw after changing it.
+
     state: () => S,
     render: () => { renderModelChip(); renderAttachments(); renderAll(); return contentHeight(); },
   };
   window.QuickAsk = QuickAsk;
 
-  /* ------------------------------------------------------------ events */
   function bind() {
     const input = $("qa-input");
     $("qa-form").addEventListener("submit", (e) => { e.preventDefault(); send(); });
@@ -2344,9 +2233,8 @@
       if (e.key === "Enter" && !e.shiftKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
         if (S.listIndex >= 0 && !input.value.trim() && runRow(S.listIndex)) return;
-        if (slashQuery() !== null && S.listRows.length && runRow(Math.max(0, S.listIndex))) return;   // Round 30: «/» commands
-        // Round 25: Enter used to STOP a streaming answer (send() doubles as «stop» for the button), so a
-        // follow-up typed during the answer killed it. The typed text now waits; the button / Esc still stop.
+        if (slashQuery() !== null && S.listRows.length && runRow(Math.max(0, S.listIndex))) return;
+
         if (S.busy) { toast(tr("Дождитесь ответа — или Esc, чтобы остановить", "Wait for the answer — or press Esc to stop"), "", 2600); return; }
         send();
         return;
@@ -2354,7 +2242,7 @@
       if (e.key === "Tab" && !e.shiftKey && $("qa-calc").dataset.value && !$("qa-calc").hidden) {
         e.preventDefault(); input.value = $("qa-calc").dataset.value.replace(/\s(?=\d)/g, "").replace(/\u00a0/g, ""); autoGrow(); renderCalc(); return;
       }
-      // ↓/↑ walk the idle list; ↑ in an empty field (nothing highlighted) is the question history
+
       if (e.key === "ArrowDown" && S.historyIndex === -1 && (!input.value.trim() || slashQuery() !== null) && !e.shiftKey) {
         if (moveList(1)) { e.preventDefault(); return; }
       }
@@ -2376,9 +2264,7 @@
     document.addEventListener("keydown", (e) => {
       if (e.defaultPrevented) return;
       if (e.key === "Escape") {
-        // Round 24: one level per press — picker / chats / menu / list selection → plugins (an open DFY
-        // question, a plugin view) → a running answer (stop) → the window. Outside the window the native
-        // low-level hook closes it (win_hotkey.EscapeWatcher); a click elsewhere never does.
+
         e.preventDefault();
         if (S.pickerOpen) { closePicker(); return; }
         if (S.chatsOpen) { closeChats(); return; }
@@ -2403,7 +2289,7 @@
       if (mod && !e.shiftKey && !e.altKey && e.code === "KeyP") { e.preventDefault(); if (NATIVE) togglePin(); return; }
       if (mod && !e.shiftKey && !e.altKey && e.code === "KeyK") { e.preventDefault(); S.menuOpen ? closeMenu() : openMenu(); return; }
       if (mod && e.shiftKey && e.code === "KeyK") { e.preventDefault(); clearAll(); return; }
-      // Round 24: Ctrl+Enter — «Сделать за меня» (DFY, quick-dfy.js); Ctrl+Shift+Enter — open in MemuAI.
+
       if (mod && e.shiftKey && e.key === "Enter") { e.preventDefault(); openInMemuAI(); return; }
       if (mod && e.key === "Enter") { e.preventDefault(); if (window.QuickDFY) window.QuickDFY.run(); else openInMemuAI(); return; }
       if (mod && e.shiftKey && e.code === "KeyC") { e.preventDefault(); copyAnswer(null); return; }
@@ -2417,8 +2303,7 @@
       }
       if (mod && e.shiftKey && e.code === "KeyS") { e.preventDefault(); takeScreenshot(false); return; }
     });
-    // Round 34 (r34-quick-core): after a click into the answer / on a button the focus left the field — typed letters were
-    // lost and Ctrl+V of a picture did nothing. A printable key and a paste outside any field go to the question field.
+
     const editable = (el) => !!(el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)));
     const ownUi = (el) => !!(el && el.closest && el.closest(".qa-slot, [role=menu], [role=dialog]:not(#qa-card), .qc-menu, .mt-modal-back"));
     document.addEventListener("keydown", (e) => {
@@ -2426,7 +2311,7 @@
       const a = document.activeElement;
       if (editable(a) || ownUi(a) || S.pickerOpen || S.chatsOpen || S.menuOpen) return;
       if (e.key === " " && a && /^(BUTTON|A|SUMMARY)$/.test(a.tagName)) return;
-      focusInput(true);       // the character lands in the field (the focus moves before the key's default action)
+      focusInput(true);
     });
     document.addEventListener("paste", (e) => {
       const a = document.activeElement;
@@ -2455,8 +2340,7 @@
     card.addEventListener("dragleave", (e) => { if (!card.contains(e.relatedTarget)) card.classList.remove("qa-drop"); });
     card.addEventListener("drop", () => card.classList.remove("qa-drop"));
     card.addEventListener("drop", (e) => { if (e.dataTransfer.files.length) { e.preventDefault(); addFiles(e.dataTransfer.files); } });
-    // Moving: the drag strip, the orb and the empty part of the footer are handles.
-    // The native side follows the mouse until the button is released and then docks/snaps.
+
     const startDrag = (e) => {
       if (!NATIVE || e.button !== 0) return;
       e.preventDefault();
@@ -2468,33 +2352,26 @@
       handle.addEventListener("pointerdown", startDrag);
       handle.addEventListener("dblclick", (e) => { e.preventDefault(); windowAction("dock", { dock: "center" }); });
     }
-    // Round 24: focus loss / a click elsewhere NEVER hides the popup (only Escape and explicit ways do).
-    // Refocus the input only when nothing else inside the card holds the focus (a DFY answer field, a menu search).
+
     window.addEventListener("focus", () => {
       const a = document.activeElement;
-      // Round 31 (r31-quick): coming back to the window (Alt+Tab, a click into it, the native raising it) moved the focus
-      // into the field and so wiped the text the user had selected in an answer / a card — «nothing can be copied».
+
       const sel = window.getSelection();
       const selected = !!(sel && !sel.isCollapsed && String(sel).trim() && !(a && /^(INPUT|TEXTAREA)$/.test(a.tagName)));
       if (!selected && (!a || a === document.body || a === $("qa-input"))) focusInput();
       if (NATIVE && !S.pinned) windowAction("active");
     });
-    // Round 25: going to another program sends an UNPINNED popup behind that program (it stays open; the
-    // hotkey or a click brings it back). A pinned one stays on top. Debounced: focus fights right after
-    // showing, a file dialog of our own and quick Alt+Tab round trips are not «the user left».
-    // Round 32: only when «When you click another program» = «Step back behind it» (quick_ask_on_leave = "back").
-    // By default ("stay") Quick Ask with its panels and buttons stays on top as one unit until Escape — the server
-    // (QuickAskManager.step_back) checks the same setting, so an old page posting "inactive" changes nothing.
+
     let awayTimer = 0;
     window.addEventListener("blur", () => {
       clearTimeout(awayTimer);
       if (!NATIVE || S.pinned || S.keepOnTop || String(S.prefs.quick_ask_on_leave || "stay") !== "back") return;
       awayTimer = setTimeout(() => { if (!document.hasFocus() && performance.now() - S.shownAt > 400) windowAction("inactive"); }, 160);
     });
-    // A file dropped next to the card (the stage margin) must not navigate the window to that file.
+
     document.addEventListener("dragover", (e) => { if (Array.from((e.dataTransfer && e.dataTransfer.items) || []).some((i) => i.kind === "file")) e.preventDefault(); });
     document.addEventListener("drop", (e) => { if (e.dataTransfer && e.dataTransfer.files.length && !e.defaultPrevented) { e.preventDefault(); addFiles(e.dataTransfer.files); } });
-    // Width handles: drag an edge, the window grows symmetrically around its centre.
+
     document.querySelectorAll(".qa-edge").forEach((edge) => {
       edge.addEventListener("pointerdown", (e) => {
         e.preventDefault();
@@ -2517,8 +2394,7 @@
     if (window.ResizeObserver) new ResizeObserver(scheduleSize).observe($("qa-inner"));
     if (window.ResizeObserver) new ResizeObserver(() => queueFitBar()).observe($("qa-bar"));
     if (window.ResizeObserver) new ResizeObserver(() => fitActions()).observe($("qa-actions"));
-    // Round 30: an empty field is as tall as its placeholder — re-measure when its width changes (the side column of
-    // built-in panels narrows it; «Спросите что угодно… или / — команды» was cut to one line)
+
     if (window.ResizeObserver) {
       let inputWidth = 0;
       new ResizeObserver(([entry]) => {

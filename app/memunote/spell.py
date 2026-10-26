@@ -35,18 +35,16 @@ CYR = re.compile(r"[\u0400-\u04FF]")
 LAT = re.compile(r"[A-Za-z\u00C0-\u024F]")
 WORD_OK = re.compile(r"^[\w'’\-]+$", re.UNICODE)
 
-
 class _Engine:
     def __init__(self) -> None:
         self.dicts: Dict[str, Any] = {}
-        self.state = "idle"          # idle | loading | ready | windows | unavailable
+        self.state = "idle"
         self.error = ""
         self.lock = threading.Lock()
         self.cache: Dict[str, bool] = {}
         self.user: Optional[Set[str]] = None
         self.ignored: Set[str] = set()
 
-    # -------------------------------------------------------------- loading
     def ensure(self, wait: float = 0.0) -> str:
         with self.lock:
             if self.state == "idle":
@@ -77,7 +75,6 @@ class _Engine:
             self.error = str(exc)[:300]
             self.state = "windows" if _windows_available() else "unavailable"
 
-    # -------------------------------------------------------------- user dictionary
     def user_words(self) -> Set[str]:
         if self.user is None:
             try:
@@ -103,7 +100,6 @@ class _Engine:
         self.cache.pop(word, None)
         self._save_user()
 
-    # -------------------------------------------------------------- checking
     def known(self, word: str) -> bool:
         users = self.user_words()
         if word in users or any(u.lower() == word.lower() for u in users):
@@ -126,7 +122,7 @@ class _Engine:
     def _known(self, word: str) -> bool:
         d = self._dict_for(word)
         if d is None:
-            return True                       # other scripts / no dictionary: never flagged
+            return True
         variants = [word, word.replace("’", "'")]
         if "ё" in word or "Ё" in word:
             variants.append(word.replace("ё", "е").replace("Ё", "Е"))
@@ -136,7 +132,7 @@ class _Engine:
                     return True
             except Exception:  # noqa: BLE001
                 return True
-        if "-" in word:                       # «онлайн-сервис», «e-mail»: every part known is fine
+        if "-" in word:
             parts = [p for p in word.split("-") if p]
             return bool(parts) and all(self._known(p) for p in parts)
         return False
@@ -168,13 +164,8 @@ class _Engine:
             return _windows_suggest(word)
         return []
 
-
-# Hunspell orders suggestions by its own rules ("превет" → "ревет" before "привет"). Typical typos are a swapped
-# similar vowel (е/и, о/а…), so the list is re-ranked by an edit distance where such swaps are cheap; proper nouns
-# are moved down for a lower-case word. Ties keep Hunspell's order.
 _CHEAP = {frozenset(p) for p in ("еи", "оа", "её", "иы", "ая", "ую", "эе", "шщ", "зс", "дт", "бп", "вф", "гк", "жш", "ьъ",
                                   "ei", "ao", "ou", "ae", "iy", "sz", "ck")}
-
 
 def _distance(a: str, b: str) -> float:
     a, b = a.lower(), b.lower()
@@ -189,13 +180,12 @@ def _distance(a: str, b: str) -> float:
                 sub = 0.5
             else:
                 sub = 1.0
-            ins = 1.2 if b[j - 1] == " " else 1.0     # a split word is a rarer fix than a missing letter
+            ins = 1.2 if b[j - 1] == " " else 1.0
             cur[j] = min(prev[j] + 1, cur[j - 1] + ins, prev[j - 1] + sub)
             if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
                 cur[j] = min(cur[j], prev2[j - 2] + 0.7)
         prev2, prev = prev, cur
     return prev[-1]
-
 
 def rerank(word: str, items: List[str]) -> List[str]:
     lower = word[:1].islower()
@@ -205,18 +195,14 @@ def rerank(word: str, items: List[str]) -> List[str]:
         return _distance(word, s) + (1.0 if lower and s[:1].isupper() else 0.0) + idx * 0.04
     return [s for _, s in sorted(enumerate(items), key=score)]
 
-
 ENGINE = _Engine()
 
-
-# ------------------------------------------------------------------ Windows fallback (app/spellcheck.py)
 def _windows_available() -> bool:
     try:
         from .. import spellcheck
         return bool(spellcheck.spell_status().get("available"))
     except Exception:  # noqa: BLE001
         return False
-
 
 def _windows_bad(words: List[str], user: Set[str]) -> List[str]:
     try:
@@ -233,7 +219,6 @@ def _windows_bad(words: List[str], user: Set[str]) -> List[str]:
             bad.append(w)
     return bad
 
-
 def _windows_suggest(word: str) -> List[str]:
     try:
         from .. import spellcheck
@@ -244,19 +229,15 @@ def _windows_suggest(word: str) -> List[str]:
         pass
     return []
 
-
-# ------------------------------------------------------------------ HTTP routes
 def _clean_word(value: Any) -> str:
     word = str(value or "").strip()[:MAX_WORD_LEN]
     return word if word and WORD_OK.match(word) else ""
-
 
 def api_spell_status(self, method: str) -> None:
     state = ENGINE.ensure()
     self._json({"ok": True, "state": state, "engine": "hunspell" if state == "ready" else state,
                 "languages": sorted(ENGINE.dicts) if state == "ready" else [], "user_words": len(ENGINE.user_words()),
                 "error": ENGINE.error})
-
 
 def api_spell_check(self, method: str) -> None:
     body = self._json_body()
@@ -270,11 +251,9 @@ def api_spell_check(self, method: str) -> None:
     bad = ENGINE.check(words)
     self._json({"ok": True, "ready": ENGINE.state in ("ready", "windows"), "state": ENGINE.state, "bad": bad})
 
-
 def api_spell_suggest(self, method: str) -> None:
     word = _clean_word(self._json_body().get("word"))
     self._json({"ok": True, "suggestions": ENGINE.suggest(word) if word else []})
-
 
 def api_spell_add(self, method: str) -> None:
     word = _clean_word(self._json_body().get("word"))
@@ -284,13 +263,11 @@ def api_spell_add(self, method: str) -> None:
     ENGINE.add(word)
     self._json({"ok": True, "word": word})
 
-
 def api_spell_remove(self, method: str) -> None:
     word = _clean_word(self._json_body().get("word"))
     if word:
         ENGINE.remove(word)
     self._json({"ok": True})
-
 
 def register(handler_cls) -> None:
     for name in ("status", "check", "suggest", "add", "remove"):

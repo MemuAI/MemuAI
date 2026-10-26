@@ -14,7 +14,6 @@ from tests.memucode_cli_test import make_runtime, run, setUpModule, tearDownModu
 
 REAL_CLIENT = httpx.AsyncClient
 
-
 class ConnectedTools(unittest.TestCase):
     def make(self, *, write=False, screenshot=False, failure=False, malformed=False):
         runtime, _ = make_runtime(settings={"permission_mode": "acceptEdits", "permission_sync": False})
@@ -143,7 +142,6 @@ class ConnectedTools(unittest.TestCase):
                 patch.object(connected.httpx, "AsyncClient", side_effect=client):
             run(connected.refresh(runtime))
         self.assertEqual(runtime.tools._connected_names, set())
-
 
 if __name__ == "__main__":
     unittest.main()

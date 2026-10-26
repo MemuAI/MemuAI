@@ -1,5 +1,3 @@
-/* Round 37 (r37-extras-2): «;сниппеты» and template blanks in the main composer — composer-snippets.js.
-   The menu and the fill-in form reuse .slash-menu (position above the composer, panel look from design.css). */
 .snip-menu, .snip-form { max-height: min(380px, 52vh); }
 .snip-head {
   display: flex; align-items: center; gap: 4px; padding: 6px 10px 6px; color: var(--muted);
@@ -23,8 +21,6 @@
 }
 .slash-menu button.snip-foot > i { flex: none; width: 16px; text-align: center; color: var(--accent); font: 700 15px/1 var(--sans, inherit); font-style: normal; }
 .slash-menu button.snip-foot:hover { color: var(--text); }
-
-/* fill-in form */
 .snip-form { padding: 6px 10px 10px; overflow-y: auto; }
 .snip-field { display: grid; grid-template-columns: minmax(72px, 160px) 1fr; align-items: center; gap: 10px; padding: 4px 0; }
 .snip-field > span { color: var(--text); font-size: 13px; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -33,8 +29,6 @@
 }
 .snip-field input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent); }
 .snip-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
-
-/* «Сниппеты и шаблоны» dialog */
 .panel.snip-panel { width: min(640px, 94vw); }
 .snip-list { display: grid; gap: 2px; max-height: min(52vh, 460px); overflow-y: auto; margin: 10px 0 4px; padding: 4px; border: 1px solid var(--border); border-radius: 12px; scrollbar-width: thin; }
 .snip-row { display: grid; grid-template-columns: 96px 1fr auto auto; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 9px; }

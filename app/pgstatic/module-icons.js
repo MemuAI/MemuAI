@@ -1,16 +1,5 @@
-/* Round 39 — module icons (server: app/module_icons.py).
- *
- * window.MemuModuleIcon:
- *   html(row)          — the icon of a module row: its picture (row.icon_url: the person's icon or the manifest's
- *                        SVG/PNG) or, for a module with only a glyph name, the glyph on a MemuAI squircle in
- *                        row.icon_bg / a gradient picked from the id. Every copy carries data-mico="<id>" so a
- *                        change repaints all of them in place (sidebar, pills, window bar, cards…).
- *   png(row, size)     — the same icon drawn on a canvas (PNG data URL) — module app .ico, shortcuts.
- *   picker(row)        — «Change icon»: the MemuAI set, a glyph on a gradient, an emoji on a gradient, a file
- *                        (SVG/PNG/ICO/WebP), reset to the module's own icon.
- *   repaint(id)        — redraw every copy of one module's icon from the fresh catalogue.
- * Loaded before modules.js; nothing runs until a module icon is drawn (no timers, no observers).
- */
+
+
 (function () {
   "use strict";
   const en = () => (typeof PG_LANG !== "undefined" && PG_LANG === "en");
@@ -19,9 +8,8 @@
     (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
   const ic = (name) => (typeof icon === "function" ? icon(name) : "");
   const M = () => window.MemuModules;
-  const note = (text, type) => { try { if (typeof toast === "function") toast(text, type || "ok"); } catch (_) { /* no toast */ } };
+  const note = (text, type) => { try { if (typeof toast === "function") toast(text, type || "ok"); } catch (_) {  } };
 
-  /* The MemuAI family gradients (the built-in module icons use the same pairs). */
   const GRADIENTS = [
     { id: "memu", a: "#f08c62", b: "#8752cf", ru: "MemuAI", en: "MemuAI" },
     { id: "berry", a: "#ff6a88", b: "#9b3fd1", ru: "Ягода", en: "Berry" },
@@ -34,10 +22,10 @@
     { id: "violet", a: "#c56cf0", b: "#5b45d8", ru: "Фиалка", en: "Violet" },
     { id: "graphite", a: "#6b7180", b: "#2a2d36", ru: "Графит", en: "Graphite" },
   ];
-  const BUILTINS = ["music", "translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "learn"];   // r40-learn: + MemuLearn
+  const BUILTINS = ["music", "translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "learn", "memudb"];
   const GLYPHS = ["work", "sparkle", "chat", "text", "zap", "image", "bot", "palette", "globe", "search", "list", "clock",
     "bell", "user", "users", "monitor", "terminal", "target", "mic", "headphones", "music", "chart", "folder", "brain",
-    "download", "send", "pin", "edit", "settings", "keyboard", "moon", "sun", "check", "focus"];
+    "database", "shield", "code", "download", "send", "pin", "edit", "settings", "keyboard", "moon", "sun", "check", "focus"];
   const EMOJI = ["🎵", "🎨", "🌐", "📊", "🤖", "🔔", "👥", "🖼️", "⚡", "📝", "🧠", "🎮", "📚", "🚀", "💡", "🔥", "⭐", "🧪", "🗂️", "🎬", "🌙", "☕", "🛠️", "🧩"];
 
   const hash = (text) => [...String(text || "")].reduce((h, ch) => (h * 31 + ch.codePointAt(0)) >>> 0, 7);
@@ -62,7 +50,6 @@
     return `<span class="mico mico-glyph" data-mico="${id}" aria-hidden="true" style="--mico-a:${esc(a)};--mico-b:${esc(b)}">${ic(glyphName(row && row.icon))}</span>`;
   }
 
-  /* ------------------------------------------------ SVG the picker composes (glyph / emoji on a squircle) */
   function tileSvg(a, b, inner) {
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><defs>'
       + `<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient>`
@@ -85,7 +72,6 @@
   }
   const svgUrl = (svg) => "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
 
-  /* ------------------------------------------------ raster */
   function loadImage(src) {
     return new Promise((resolve, reject) => {
       const img = new Image();
@@ -110,14 +96,13 @@
   function png(row, size = 256) {
     if (row && row.icon_url) return drawPng(row.icon_url, size);
     const [a, b] = colorsOf(row);
-    const solid = (c) => (c.startsWith("#") ? c : a);  // a canvas gradient takes no color-mix()
+    const solid = (c) => (c.startsWith("#") ? c : a);
     const markup = ic(glyphName(row && row.icon));
     const inner = ((markup.match(/<svg[^>]*>([\s\S]*)<\/svg>/) || [])[1] || "");
     const svg = tileSvg(solid(a), solid(b), `<g transform="translate(256 256) scale(11.5) translate(-12 -12)" fill="none" stroke="#ffffff" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${inner}</g>`);
     return drawPng(svgUrl(svg), size);
   }
 
-  /* ------------------------------------------------ repaint every copy of one module's icon */
   function rowOf(id) { return ((M() && M().catalog) || []).find((row) => row.id === id) || null; }
   function repaint(id) {
     const row = rowOf(id);
@@ -135,7 +120,6 @@
     return data;
   }
 
-  /* ------------------------------------------------ the picker */
   function picker(target) {
     const row = (target && rowOf(target.id)) || target;
     if (!row || typeof panel !== "function") return;
@@ -285,7 +269,6 @@
     };
   }
 
-  /* The card icon in Settings → Modules opens the picker (delegated: the cards are redrawn often). */
   document.addEventListener("click", (event) => {
     const node = event.target && event.target.closest && event.target.closest("[data-module-icon-edit]");
     if (!node) return;

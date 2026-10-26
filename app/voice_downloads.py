@@ -12,8 +12,6 @@ from typing import Any
 
 from .version import APP_VERSION
 
-# The official CTranslate2 repositories used by faster-whisper. Resolve a commit
-# before downloading, so a repository update cannot mix different revisions.
 REPOSITORIES = {
     **{name: "Systran/faster-whisper-" + name for name in (
         "tiny", "tiny.en", "base", "base.en", "small", "small.en", "medium", "medium.en",
@@ -23,11 +21,9 @@ REPOSITORIES = {
     "large-v3-turbo": "mobiuslabsgmbh/faster-whisper-large-v3-turbo",
 }
 
-
 def _check(cancel: threading.Event) -> None:
     if cancel.is_set():
         raise asyncio.CancelledError()
-
 
 def _open(url: str, cancel: threading.Event, state: dict, *, method: str = "GET"):
     _check(cancel)
@@ -39,13 +35,11 @@ def _open(url: str, cancel: threading.Event, state: dict, *, method: str = "GET"
         raise asyncio.CancelledError()
     return response
 
-
 def interrupt(state: dict) -> None:
     """Closing an active socket interrupts a read; never block the API thread."""
     response = state.get("_response")
     if response is not None:
         threading.Thread(target=response.close, daemon=True, name="voice-download-cancel").start()
-
 
 def manifest(model_id: str, state: dict, cancel: threading.Event) -> list[dict[str, Any]]:
     repo = REPOSITORIES.get(model_id)
@@ -77,10 +71,8 @@ def manifest(model_id: str, state: dict, cancel: threading.Event) -> list[dict[s
     finally:
         state.pop("_response", None)
 
-
 def transfer(files: list[dict], directory: Path, state: dict, cancel: threading.Event) -> None:
-    # Piper has no manifest. HEAD gives a real aggregate total when supported;
-    # chunked/custom endpoints still show bytes rather than an invented percent.
+
     for item in files:
         if item.get("size", 0) > 0:
             continue
@@ -104,8 +96,7 @@ def transfer(files: list[dict], directory: Path, state: dict, cancel: threading.
             digest = hashlib.sha256()
             with _open(item["url"], cancel, state) as response, (directory / item["name"]).open("wb") as output:
                 expected = int(item.get("size") or response.headers.get("Content-Length") or 0)
-                # read1 returns available data rather than waiting for a 1 MB
-                # buffer. This keeps cancellation and progress responsive.
+
                 read = getattr(response, "read1", response.read)
                 while True:
                     _check(cancel)

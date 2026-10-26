@@ -36,18 +36,15 @@ START_TIMEOUT = 20.0
 LOAD_TIMEOUT = 45.0
 _LOCK = asyncio.Lock()
 
-
 def edge_path() -> str:
     from .automation_runtime import _edge_executable
     return _edge_executable()
-
 
 def available() -> bool:
     try:
         return bool(edge_path())
     except Exception:
         return False
-
 
 def _work_dir() -> Path:
     try:
@@ -64,7 +61,6 @@ def _work_dir() -> Path:
         except OSError:
             pass
     return base
-
 
 class EdgeSession:
     """One headless Edge with one page, driven over the DevTools protocol."""
@@ -97,7 +93,7 @@ class EdgeSession:
             "--no-first-run", "--no-default-browser-check", "--disable-sync", "--disable-extensions",
             "--disable-background-networking", "--disable-component-update", "--disable-default-apps",
             "--disable-features=Translate,msEdgeSidebarV2,MediaRouter", "--hide-scrollbars", "--mute-audio",
-            # No network: everything (loopback too) goes to a dead proxy. The document is self-contained.
+
             "--proxy-server=127.0.0.1:9", "--proxy-bypass-list=<-loopback>",
             "--allow-file-access-from-files", "about:blank",
         ]
@@ -187,8 +183,7 @@ class EdgeSession:
         self.events.clear()
         await self.command("Page.navigate", {"url": path.resolve().as_uri()})
         await self.wait_event("Page.loadEventFired", LOAD_TIMEOUT)
-        # Fonts (KaTeX, embedded) and images must be decoded before printing; inline visualizations
-        # (sandboxed iframes) get a moment to draw.
+
         script = ("Promise.race([Promise.all([document.fonts ? document.fonts.ready : 1,"
                   " ...Array.from(document.images).map(i => i.decode ? i.decode().catch(() => 0) : 0)]),"
                   " new Promise(r => setTimeout(r, 15000))]).then(() => new Promise(r => setTimeout(r,"
@@ -217,7 +212,7 @@ class EdgeSession:
         try:
             result = await self.command("Page.printToPDF", params, timeout=180)
         except RuntimeError as exc:
-            # Older Edge builds reject the outline / tagged flags.
+
             if "generate" not in str(exc).lower() and "invalid" not in str(exc).lower():
                 raise
             params.pop("generateDocumentOutline", None)
@@ -274,13 +269,11 @@ class EdgeSession:
         await asyncio.sleep(0.2)
         shutil.rmtree(self.dir, ignore_errors=True)
 
-
 async def html_to_pdf(document: str, options: Dict[str, Any]) -> bytes:
-    async with _LOCK:                      # one Edge at a time: exports are rare and heavy
+    async with _LOCK:
         async with EdgeSession() as session:
             await session.load_html(document, width=int(options.get("viewport") or 900))
             return await session.pdf(options)
-
 
 async def rasterize(document: str, *, width: int = 820) -> Dict[str, str]:
     async with _LOCK:

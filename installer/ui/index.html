@@ -25,7 +25,7 @@
   <div class="brand drag-region">
     <img class="brand-mark" id="brand-mark" src="assets/logo.png" alt="">
     <span class="brand-name" id="brand-title">MemuAI Setup</span>
-    <span class="brand-ver" id="brand-ver">3.8.2</span>
+    <span class="brand-ver" id="brand-ver">4.0</span>
   </div>
   <div class="chrome no-drag">
     <div class="seg" role="group" data-i18n-title="chrome.lang">
@@ -57,7 +57,7 @@
   </nav>
 
   <div class="screens">
-    <!-- ============================================================ welcome -->
+
     <section class="screen" data-screen="welcome">
       <div class="spacer top" aria-hidden="true"></div>
       <div class="kicker"><span class="dot"></span><span id="welcome-kicker"></span></div>
@@ -86,7 +86,7 @@
       </div>
     </section>
 
-    <!-- ============================================================ edition (step: components) -->
+
     <section class="screen" data-screen="edition">
       <h2 class="title" data-i18n="edition.title">Choose your MemuAI</h2>
       <p class="lead small" data-i18n="edition.lead"></p>
@@ -114,7 +114,7 @@
           <span class="check" aria-hidden="true"><svg viewBox="0 0 16 16"><path d="M3.5 8.5l3 3 6-7"/></svg></span>
         </button>
       </div>
-      <div class="toggle-pair">  <!-- Round 29/35: CLI + MemuNote + MemuFiles side by side, so the step fits 880×540 -->
+      <div class="toggle-pair">
       <label class="row toggle-row" id="row-cli">
         <span class="row-icon"><svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="3"/><path d="M7 10l3 2.5L7 15M12.5 15.5H17"/></svg></span>
         <span class="row-text"><b data-i18n="edition.cli.t">MemuCode CLI</b><small data-i18n="edition.cli.b" data-i18n-title="edition.cli.b"></small></span>
@@ -125,7 +125,7 @@
         <span class="row-text"><b data-i18n="edition.note.t">MemuNote</b><small data-i18n="edition.note.b" data-i18n-title="edition.note.b"></small></span>
         <input type="checkbox" class="switch" id="opt-memunote">
       </label>
-      <label class="row toggle-row files-row" id="row-files">  <!-- Round 35: MemuFiles, the third optional app -->
+      <label class="row toggle-row files-row" id="row-files">
         <span class="row-icon"><svg viewBox="0 0 24 24"><path d="M3 7.5A1.5 1.5 0 014.5 6h4.6l1.9 2h8.5A1.5 1.5 0 0121 9.5v8a1.5 1.5 0 01-1.5 1.5h-15A1.5 1.5 0 013 17.5z"/><path d="M14.5 15.5l2 2M12 15.8a2.3 2.3 0 100-4.6 2.3 2.3 0 000 4.6z"/></svg></span>
         <span class="row-text"><b data-i18n="edition.files.t">MemuFiles</b><small data-i18n="edition.files.b" data-i18n-title="edition.files.b"></small></span>
         <input type="checkbox" class="switch" id="opt-memufiles">
@@ -138,7 +138,7 @@
       </div>
     </section>
 
-    <!-- ============================================================ location -->
+
     <section class="screen" data-screen="location">
       <h2 class="title" data-i18n="location.title">Where to install</h2>
       <p class="lead small" id="location-lead" data-i18n="location.lead"></p>
@@ -162,7 +162,7 @@
       </div>
     </section>
 
-    <!-- ============================================================ options (shortcuts & startup) -->
+
     <section class="screen" data-screen="options">
       <h2 class="title" data-i18n="options.title">Shortcuts and startup</h2>
       <p class="lead small" data-i18n="options.lead"></p>
@@ -175,7 +175,7 @@
       </div>
     </section>
 
-    <!-- ============================================================ review (summary before anything is written) -->
+
     <section class="screen" data-screen="review">
       <h2 class="title" id="review-title"></h2>
       <p class="lead small" id="review-lead"></p>
@@ -189,7 +189,7 @@
       </div>
     </section>
 
-    <!-- ============================================================ progress -->
+
     <section class="screen center" data-screen="progress">
       <div class="pct" id="pct"><span id="pct-num">0</span><small>%</small></div>
       <h2 class="title tight" id="progress-title"></h2>
@@ -199,7 +199,7 @@
       <div class="actions solo"><button class="btn text" type="button" id="btn-stop" data-i18n="btn.cancel">Cancel</button></div>
     </section>
 
-    <!-- ============================================================ done -->
+
     <section class="screen center" data-screen="done">
       <div class="success" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23"/><path d="M15.5 27l7 7 14-15"/></svg></div>
       <div class="kicker centered"><span class="dot ok"></span><span data-i18n="done.kicker">All set</span></div>
@@ -215,7 +215,7 @@
       </div>
     </section>
 
-    <!-- ============================================================ error -->
+
     <section class="screen center" data-screen="error">
       <div class="fail" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23"/><path d="M26 15v14M26 36v.5"/></svg></div>
       <h2 class="title" id="error-title" data-i18n="error.title">Setup couldn’t finish</h2>
@@ -229,7 +229,7 @@
       </div>
     </section>
 
-    <!-- ============================================================ uninstall -->
+
     <section class="screen" data-screen="uninstall">
       <div class="kicker danger"><span class="dot"></span><span id="un-kicker"></span></div>
       <h1 class="display" id="un-title"></h1>
@@ -252,7 +252,7 @@
       </div>
     </section>
 
-    <!-- ============================================================ uninstall done -->
+
     <section class="screen center" data-screen="un-done">
       <div class="success soft" aria-hidden="true"><svg viewBox="0 0 52 52"><circle cx="26" cy="26" r="23"/><path d="M15.5 27l7 7 14-15"/></svg></div>
       <h1 class="display small" id="un-done-title"></h1>

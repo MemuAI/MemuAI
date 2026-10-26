@@ -59,7 +59,6 @@ window.addEventListener('message', async event=>{
 const query=new URLSearchParams(location.search); document.querySelector('iframe').src='/module/'+query.get('module')+'?lang='+(query.get('lang')||'ru')+'&theme='+(query.get('theme')||'light');
 </script></body></html>'''.replace("__FIXTURE__", json.dumps(fixture)).replace("__CLIP__", json.dumps(clip))
 
-
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         from urllib.parse import urlsplit, parse_qs
@@ -78,11 +77,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
-
 server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
 threading.Thread(target=server.serve_forever, daemon=True).start()
 OUT = ROOT / "audit-results"
-
 
 async def check():
     edge = EdgeAutomation()
@@ -99,7 +96,7 @@ async def check():
             await asyncio.sleep(.1)
         raise AssertionError("Missing UI: " + selector)
     async def screenshot(name):
-        await asyncio.sleep(.25)  # Let entrance animations reach their final opacity.
+        await asyncio.sleep(.25)
         result = await edge.command("Page.captureScreenshot", {"format": "png", "captureBeyondViewport": False})
         (OUT / name).write_bytes(base64.b64decode(result["data"]))
     try:
@@ -172,7 +169,6 @@ async def check():
         print("PASS: real Edge module bridge, responsive catalog, music audio, eight API sources and family filtering")
     finally:
         await edge.close_browser()
-
 
 try:
     asyncio.run(check())

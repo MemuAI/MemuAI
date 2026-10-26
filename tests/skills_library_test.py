@@ -9,7 +9,6 @@ REQUIRED_FIELDS = (
     "desc:", "desc_ru:", "when:", "when_ru:", "prompt:",
 )
 
-
 class SkillsLibraryTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -20,7 +19,7 @@ class SkillsLibraryTest(unittest.TestCase):
 
     def test_library_is_exposed_with_a_version(self):
         self.assertIn("window.MEMUAI_SKILL_LIBRARY", self.library)
-        self.assertRegex(self.library, r"version: [45]\b")  # Round 32: v5 keeps the on/off state of built-ins
+        self.assertRegex(self.library, r"version: [45]\b")
 
     def test_library_is_loaded_before_the_app(self):
         self.assertLess(self.html.index("/skills.js"), self.html.index("/app.js"))
@@ -54,7 +53,6 @@ class SkillsLibraryTest(unittest.TestCase):
     def test_skill_cards_stay_editable(self):
         self.assertIn('data-skill-edit="${esc(s.id)}"', self.app)
         self.assertIn("eskill-restore", self.app)
-
 
 if __name__ == "__main__":
     unittest.main()

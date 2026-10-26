@@ -20,7 +20,6 @@ log = logging.getLogger("memuai.quick.apps.win")
 IS_WINDOWS = sys.platform == "win32"
 CREATE_NO_WINDOW = 0x08000000
 
-
 def run_ps(script: str, env: Optional[Dict[str, str]] = None, timeout: float = 8.0) -> Dict[str, Any]:
     """Run a PowerShell script that prints ONE JSON value; ``{"error"}`` on failure."""
     if not IS_WINDOWS:
@@ -49,9 +48,6 @@ def run_ps(script: str, env: Optional[Dict[str, str]] = None, timeout: float = 8
             continue
     return {"error": "bad output"}
 
-
-# ---------------------------------------------------------------- windows
-
 def describe_window(hwnd: int) -> Dict[str, Any]:
     """``{"class", "title", "exe", "pid", "color"?}`` of a top-level window (``{}`` off Windows)."""
     if not IS_WINDOWS or not hwnd:
@@ -73,7 +69,6 @@ def describe_window(hwnd: int) -> Dict[str, Any]:
     except Exception as exc:
         log.debug("describe_window failed: %s", exc)
         return {}
-
 
 def pixel_under_cursor() -> Optional[Dict[str, Any]]:
     """The screen colour under the mouse pointer right now (``None`` off Windows)."""
@@ -97,18 +92,16 @@ def pixel_under_cursor() -> Optional[Dict[str, Any]]:
             value = int(gdi32.GetPixel(dc, point.x, point.y))
         finally:
             user32.ReleaseDC(None, dc)
-        if value == 0xFFFFFFFF:      # CLR_INVALID (a protected surface)
+        if value == 0xFFFFFFFF:
             return None
         r, g, b = value & 0xFF, (value >> 8) & 0xFF, (value >> 16) & 0xFF
         return {"hex": "#%02X%02X%02X" % (r, g, b), "r": r, "g": g, "b": b, "x": point.x, "y": point.y}
     except Exception:
         return None
 
-
 _KNOWN = {"desktop": "{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}", "downloads": "{374DE290-123F-4565-9164-39C4925E467B}",
           "documents": "{FDD39AD0-238F-46AF-ADB4-6C85480369C7}", "pictures": "{33E28130-4E1E-4676-835A-98395C3BC3BB}",
           "music": "{4BD8D571-6D19-48D3-BE97-422220080E43}", "videos": "{18989B1D-99B5-455B-841C-AB7C74E4DDFC}"}
-
 
 def known_folder(name: str) -> str:
     if not IS_WINDOWS or name not in _KNOWN:
@@ -137,9 +130,6 @@ def known_folder(name: str) -> str:
     except Exception:
         return ""
 
-
-# ---------------------------------------------------------------- Explorer
-
 EXPLORER_SCRIPT = r"""
 $h = [int64]$env:MEMU_HWND
 $title = [string]$env:MEMU_TITLE
@@ -157,7 +147,6 @@ foreach ($w in @($sh.Windows())) {
 }
 ConvertTo-Json -InputObject @($rows) -Depth 4 -Compress
 """
-
 
 def pick_explorer_tab(rows: List[Dict[str, Any]], title: str) -> Optional[Dict[str, Any]]:
     """Windows 11 tabs share one HWND: the active tab is the one whose name is the window title."""
@@ -178,7 +167,6 @@ def pick_explorer_tab(rows: List[Dict[str, Any]], title: str) -> Optional[Dict[s
             return row
     return rows[0]
 
-
 def explorer_folder(hwnd: int, title: str = "") -> Dict[str, Any]:
     """``{"path", "selected": [full paths], "reason"}`` of the Explorer window (its active tab)."""
     result = run_ps(EXPLORER_SCRIPT, {"MEMU_HWND": str(int(hwnd)), "MEMU_TITLE": str(title or "")[:300]}, timeout=6)
@@ -193,17 +181,13 @@ def explorer_folder(hwnd: int, title: str = "") -> Dict[str, Any]:
     selected = tab.get("selected") or []
     selected = [str(p) for p in (selected if isinstance(selected, list) else [selected]) if p]
     if not path or path.startswith("::") or not os.path.isdir(path):
-        # This PC, Recycle Bin, Control Panel, a library, a search, a phone/FTP: not a folder on disk
+
         return {"path": "", "selected": [], "reason": "virtual", "location": str(tab.get("name") or "")}
     return {"path": path, "selected": [p for p in selected if os.path.exists(p)]}
-
 
 def desktop_selection() -> List[str]:
     """Items selected on the desktop are not reachable through ``Shell.Application.Windows()`` — none."""
     return []
-
-
-# ---------------------------------------------------------------- processes
 
 def cmdline(pid: int) -> List[str]:
     if not pid:
@@ -213,7 +197,6 @@ def cmdline(pid: int) -> List[str]:
         return [str(arg) for arg in psutil.Process(int(pid)).cmdline()][:40]
     except Exception:
         return []
-
 
 def terminal_cwd(pid: int, exe: str, title: str = "") -> Dict[str, Any]:
     """The working folder of the shell in a terminal window. PowerShell does not keep the process folder in sync
@@ -245,9 +228,6 @@ def terminal_cwd(pid: int, exe: str, title: str = "") -> Dict[str, Any]:
     except Exception:
         pass
     return out
-
-
-# ---------------------------------------------------------------- Office (read only)
 
 OFFICE_SCRIPT = r"""
 $kind = [string]$env:MEMU_KIND
@@ -287,7 +267,6 @@ if ($kind -eq 'word') {
 ConvertTo-Json -InputObject $o -Depth 3 -Compress
 """
 
-
 def office_document(kind: str, limit: int = 60000) -> Dict[str, Any]:
     """The open Word / Excel / PowerPoint document as text (read only)."""
     if kind not in ("word", "excel", "powerpoint"):
@@ -297,9 +276,6 @@ def office_document(kind: str, limit: int = 60000) -> Dict[str, Any]:
         return {"error": "com_failed", "detail": str(result["error"])[:200]}
     value = result.get("value")
     return value if isinstance(value, dict) else {"error": "empty"}
-
-
-# ---------------------------------------------------------------- shell actions
 
 def reveal(path: str) -> bool:
     """Show ``path`` selected in File Explorer."""
@@ -311,7 +287,6 @@ def reveal(path: str) -> bool:
     except OSError:
         return False
 
-
 def open_path(path: str) -> bool:
     if not IS_WINDOWS or not path:
         return False
@@ -321,7 +296,6 @@ def open_path(path: str) -> bool:
     except OSError:
         return False
 
-
 def refresh_explorer(folder: str) -> None:
     """Ask Explorer to re-read a folder after our changes (SHChangeNotify SHCNE_UPDATEDIR)."""
     if not IS_WINDOWS or not folder:
@@ -330,12 +304,9 @@ def refresh_explorer(folder: str) -> None:
         import ctypes
         shell32 = ctypes.WinDLL("shell32")
         shell32.SHChangeNotify.argtypes = [ctypes.c_long, ctypes.c_uint, ctypes.c_wchar_p, ctypes.c_void_p]
-        shell32.SHChangeNotify(0x00001000, 0x0005 | 0x1000, folder, None)   # SHCNE_UPDATEDIR, SHCNF_PATHW|FLUSHNOWAIT
+        shell32.SHChangeNotify(0x00001000, 0x0005 | 0x1000, folder, None)
     except Exception:
         pass
-
-
-# ---------------------------------------------------------------- Windows OCR (no model)
 
 OCR_SCRIPT = r"""
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
@@ -357,7 +328,6 @@ $lines = @(); foreach ($l in $result.Lines) { $lines += [string]$l.Text }
 $stream.Dispose()
 ConvertTo-Json -InputObject @{ text = ($lines -join "`n"); lang = [string]$engine.RecognizerLanguage.LanguageTag; lines = $lines.Count } -Compress
 """
-
 
 def windows_ocr(image_path: str, lang: str = "") -> Dict[str, Any]:
     if not IS_WINDOWS:

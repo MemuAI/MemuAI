@@ -34,7 +34,7 @@ from collections import OrderedDict
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, quote, urlencode, urlparse
 
-try:  # аннотации — строки (from __future__), FastAPI ищет Request в глобальных именах модуля
+try:
     from fastapi import Request
 except Exception:  # pragma: no cover
     Request = Any  # type: ignore
@@ -52,7 +52,6 @@ INNERTUBE_PLAYER = "https://www.youtube.com/youtubei/v1/player"
 INNERTUBE_CLIENT = {"clientName": "ANDROID", "clientVersion": "20.10.38"}
 MAP_CONCURRENCY = 4
 
-
 class TranscriptUnavailable(RuntimeError):
     def __init__(self, message: str, code: str = "no_captions", en: str = "") -> None:
         super().__init__(message)
@@ -63,8 +62,6 @@ class TranscriptUnavailable(RuntimeError):
         """Round 26: the card of an English UI showed the Russian reason."""
         return self.en if lang == "en" else str(self)
 
-
-# ------------------------------------------------------------------ ссылки
 def video_id(value: Any) -> str:
     """Id видео из ссылки/текста или ``""``."""
     text = str(value or "").strip()
@@ -89,23 +86,19 @@ def video_id(value: Any) -> str:
         return parts[1] if _ID.match(parts[1]) else ""
     return ""
 
-
 def find_url(text: Any) -> str:
     m = re.search(r"https?://(?:www\.|m\.|music\.)?(?:youtube\.com|youtu\.be)/[^\s<>\"']+", str(text or ""))
     return m.group(0) if m else ""
 
-
 def watch_url(vid: str, seconds: Optional[int] = None) -> str:
     base = "https://www.youtube.com/watch?v=" + vid
     return base + (f"&t={int(seconds)}s" if seconds else "")
-
 
 def fmt_ts(seconds: float) -> str:
     s = int(max(0, seconds))
     h, rem = divmod(s, 3600)
     m, sec = divmod(rem, 60)
     return f"{h}:{m:02d}:{sec:02d}" if h else f"{m}:{sec:02d}"
-
 
 def parse_ts(text: str) -> Optional[int]:
     parts = str(text).strip().split(":")
@@ -116,7 +109,6 @@ def parse_ts(text: str) -> Optional[int]:
         return vals[0] * 60 + vals[1] if vals[1] < 60 else None
     return vals[0] * 3600 + vals[1] * 60 + vals[2] if vals[1] < 60 and vals[2] < 60 else None
 
-
 def link_timestamps(text: str, vid: str) -> str:
     """``[12:34]`` / ``(1:02:03)`` → markdown-ссылка ``[12:34](https://www.youtube.com/watch?v=…&t=754s)``."""
     def repl(m: "re.Match[str]") -> str:
@@ -126,8 +118,6 @@ def link_timestamps(text: str, vid: str) -> str:
         return f"[{m.group(2)}]({watch_url(vid, sec)})"
     return re.sub(r"([\[(])(\d{1,2}:\d{2}(?::\d{2})?)[\])](?!\()", repl, text)
 
-
-# ------------------------------------------------------------------ сеть
 async def http_get(url: str) -> str:
     import httpx
     async with httpx.AsyncClient(timeout=httpx.Timeout(25, connect=10), follow_redirects=True,
@@ -138,7 +128,6 @@ async def http_get(url: str) -> str:
             raise RuntimeError(f"HTTP {r.status_code}")
         return r.text
 
-
 async def http_post(url: str, payload: Dict[str, Any]) -> str:
     import httpx
     async with httpx.AsyncClient(timeout=httpx.Timeout(25, connect=10), follow_redirects=True,
@@ -148,13 +137,11 @@ async def http_post(url: str, payload: Dict[str, Any]) -> str:
             raise RuntimeError(f"HTTP {r.status_code}")
         return r.text
 
-
 async def innertube_player(vid: str, lang: str, post: Post) -> Dict[str, Any]:
     """Ответ плеера InnerTube (клиент ANDROID): его ссылки ``timedtext`` работают без PO-токена."""
     data = json.loads(await post(INNERTUBE_PLAYER, {"context": {"client": {**INNERTUBE_CLIENT, "hl": lang}},
                                                     "videoId": vid}))
     return data if isinstance(data, dict) else {}
-
 
 async def oembed(vid: str, fetch: Fetch = http_get) -> Dict[str, Any]:
     url = "https://www.youtube.com/oembed?" + urlencode({"url": watch_url(vid), "format": "json"})
@@ -165,7 +152,6 @@ async def oembed(vid: str, fetch: Fetch = http_get) -> Dict[str, Any]:
     return {"id": vid, "url": watch_url(vid), "title": str(data.get("title") or ""),
             "author": str(data.get("author_name") or ""), "author_url": str(data.get("author_url") or ""),
             "thumbnail": str(data.get("thumbnail_url") or "")}
-
 
 def player_response(page: str) -> Dict[str, Any]:
     """``ytInitialPlayerResponse`` из HTML страницы watch (сбалансированный разбор JSON-объекта)."""
@@ -197,7 +183,6 @@ def player_response(page: str) -> Dict[str, Any]:
         i += 1
     return {}
 
-
 def caption_tracks(player: Dict[str, Any]) -> List[Dict[str, Any]]:
     tracks = (((player.get("captions") or {}).get("playerCaptionsTracklistRenderer") or {}).get("captionTracks") or [])
     out = []
@@ -209,7 +194,6 @@ def caption_tracks(player: Dict[str, Any]) -> List[Dict[str, Any]]:
         out.append({"url": t["baseUrl"], "lang": str(t.get("languageCode") or ""), "auto": t.get("kind") == "asr",
                     "name": label, "translatable": bool(t.get("isTranslatable"))})
     return out
-
 
 def pick_track(tracks: List[Dict[str, Any]], lang: str = "ru") -> Tuple[Optional[Dict[str, Any]], str]:
     """(дорожка, tlang): язык пользователя (ручная → авто) → любая ручная → первая. ``tlang`` зарезервирован
@@ -226,7 +210,6 @@ def pick_track(tracks: List[Dict[str, Any]], lang: str = "ru") -> Tuple[Optional
     best = first(lambda t: not t["auto"]) or tracks[0]
     return best, ""
 
-
 def parse_json3(text: str) -> List[Dict[str, Any]]:
     if not text.strip():
         return []
@@ -240,7 +223,6 @@ def parse_json3(text: str) -> List[Dict[str, Any]]:
         if line:
             segs.append({"start": float(ev.get("tStartMs", 0)) / 1000.0, "text": html.unescape(line)})
     return segs
-
 
 def parse_vtt(text: str) -> List[Dict[str, Any]]:
     segs: List[Dict[str, Any]] = []
@@ -265,7 +247,6 @@ def parse_vtt(text: str) -> List[Dict[str, Any]]:
     flush()
     return segs
 
-
 def _merge_rolling(segs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Авто-субтитры повторяют хвост предыдущей строки — убираем повторы."""
     out: List[Dict[str, Any]] = []
@@ -276,13 +257,12 @@ def _merge_rolling(segs: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             out.append(s)
     return out
 
-
 async def _ytdlp(vid: str, lang: str) -> List[Dict[str, Any]]:
     """Fallback через yt-dlp (если установлен); только субтитры, без скачивания видео."""
     exe = shutil.which("yt-dlp")
     cmd: Optional[List[str]] = [exe] if exe else None
     if cmd is None:
-        if getattr(sys, "frozen", False):  # sys.executable — сам MemuAI.exe, «-m yt_dlp» запустил бы программу заново
+        if getattr(sys, "frozen", False):
             return []
         try:
             import yt_dlp  # noqa: F401
@@ -309,17 +289,14 @@ async def _ytdlp(vid: str, lang: str) -> List[Dict[str, Any]]:
                 return segs
     return []
 
-
 def _status(player: Dict[str, Any]) -> str:
     return str((player.get("playabilityStatus") or {}).get("status") or "")
-
 
 def _duration(player: Dict[str, Any]) -> int:
     try:
         return int((player.get("videoDetails") or {}).get("lengthSeconds") or 0)
     except (TypeError, ValueError):
         return 0
-
 
 async def _track_segments(tracks: List[Dict[str, Any]], lang: str, fetch: Fetch) -> Tuple[Optional[Dict[str, Any]], List[Dict[str, Any]], str]:
     """(дорожка, сегменты, причина неудачи) — json3, затем vtt."""
@@ -346,7 +323,6 @@ async def _track_segments(tracks: List[Dict[str, Any]], lang: str, fetch: Fetch)
         if segs:
             return {**track, "lang": tlang or track["lang"]}, segs, ""
     return track, [], reason
-
 
 async def transcript(vid: str, lang: str = "ru", fetch: Fetch = http_get, use_ytdlp: bool = True,
                      post: Optional[Post] = None) -> Dict[str, Any]:
@@ -382,7 +358,7 @@ async def transcript(vid: str, lang: str = "ru", fetch: Fetch = http_get, use_yt
         reasons.append(f"сеть: {str(exc)[:120] or type(exc).__name__}")
     player = player_response(page) if page else {}
     if player:
-        players.insert(0, player)          # статус страницы watch точнее статуса клиента ANDROID
+        players.insert(0, player)
     tracks = caption_tracks(player)
     track, segs, reason = await _track_segments(tracks, lang, fetch)
     if track and segs:
@@ -395,9 +371,7 @@ async def transcript(vid: str, lang: str = "ru", fetch: Fetch = http_get, use_yt
         if segs:
             return {"segments": segs, "lang": lang, "auto": True, "source": "yt-dlp", "tracks": [], "duration": duration}
     status = _status(players[0]) if players else ""
-    # Round 34: YouTube answers a bot check with LOGIN_REQUIRED too («Sign in to confirm you're not a bot») — the
-    # video is fine and needs no account; the requests from this address are rate-limited. «Needs a sign-in or age
-    # confirmation» sent people to look for an account problem that does not exist.
+
     why = " ".join(str((p.get("playabilityStatus") or {}).get(k) or "") for p in players for k in ("reason", "messages"))
     if status == "LOGIN_REQUIRED" and re.search(r"(?i)not a bot|не робот|unusual traffic|bot", why):
         raise TranscriptUnavailable("YouTube принял запросы MemuAI за бота и временно не отдаёт субтитры (видео в порядке, "
@@ -421,8 +395,6 @@ async def transcript(vid: str, lang: str = "ru", fetch: Fetch = http_get, use_yt
     raise TranscriptUnavailable("Не удалось получить субтитры" + (f" ({reason})" if reason else "") + ".", "fetch",
                                 "Could not get the captions" + (f" ({reason})" if reason else "") + ".")
 
-
-# ------------------------------------------------------------------ чанки и анализ
 def chunk_segments(segs: List[Dict[str, Any]], chunk_chars: int = 9000) -> List[str]:
     """Текст с метками ``[m:ss]`` каждые ~30 с, нарезанный на куски не длиннее ``chunk_chars``."""
     chunks: List[str] = []
@@ -444,7 +416,6 @@ def chunk_segments(segs: List[Dict[str, Any]], chunk_chars: int = 9000) -> List[
         chunks.append(" ".join(buf))
     return chunks
 
-
 def _instruction(mode: str, lang: str, question: str = "") -> str:
     ru = lang != "en"
     if mode == "detailed":
@@ -463,26 +434,24 @@ def _instruction(mode: str, lang: str, question: str = "") -> str:
     return ("Кратко перескажи видео: 3–6 пунктов с главным и одна строка вывода. Добавь 2–3 ключевых таймкода [м:сс]." if ru else
             "Summarize the video briefly: 3–6 bullet points and a one-line takeaway. Add 2–3 key [m:ss] timestamps.")
 
-
 async def summarize(meta: Dict[str, Any], segs: List[Dict[str, Any]], complete: Complete, *, mode: str = "brief",
                     lang: str = "ru", question: str = "", chunk_chars: int = 9000, max_chunks: int = 12) -> str:
     mode = mode if mode in MODES else "brief"
     ru = lang != "en"
     total = sum(len(s["text"]) + 1 for s in segs)
-    # Длинное видео: сначала укрупняем куски (до 3×), чтобы модель видела весь транскрипт; выборка кусков —
-    # только для очень длинных записей, где иначе не хватит контекста модели.
+
     chunks = chunk_segments(segs, min(max(chunk_chars, -(-total // max_chunks)), chunk_chars * 3))
     head = (f"Видео: «{meta.get('title') or meta.get('id')}» — {meta.get('author') or ''}\n" if ru else
             f"Video: “{meta.get('title') or meta.get('id')}” by {meta.get('author') or ''}\n")
     task = _instruction(mode, lang, question)
-    if len(chunks) > max_chunks:          # очень длинное видео: равномерная выборка кусков
+    if len(chunks) > max_chunks:
         step = len(chunks) / max_chunks
         chunks = [chunks[int(i * step)] for i in range(max_chunks)]
     if len(chunks) == 1:
         return await complete(f"{head}{task}\n\n<transcript>\n{chunks[0]}\n</transcript>")
     gate = asyncio.Semaphore(MAP_CONCURRENCY)
 
-    async def note(i: int, ch: str) -> str:   # map: заметки по каждому куску, с таймкодами
+    async def note(i: int, ch: str) -> str:
         if ru:
             ask = (f"Часть {i}/{len(chunks)} транскрипта. Выпиши главное этой части кратко, сохраняя таймкоды [м:сс]"
                    + (f" и всё, что относится к вопросу «{question}»" if mode == "question" else "") + ".")
@@ -497,9 +466,7 @@ async def summarize(meta: Dict[str, Any], segs: List[Dict[str, Any]], complete: 
     tail = "Ниже — заметки по частям видео по порядку." if ru else "Below are notes on the parts of the video, in order."
     return await complete(f"{head}{task}\n{tail}\n\n{joined}")
 
-
 _CACHE: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
-
 
 def _cache_get(key: str) -> Optional[Dict[str, Any]]:
     hit = _CACHE.get(key)
@@ -508,14 +475,12 @@ def _cache_get(key: str) -> Optional[Dict[str, Any]]:
         return hit
     return None
 
-
 def _cache_put(key: str, value: Dict[str, Any]) -> None:
     value["ts"] = time.time()
     _CACHE[key] = value
     _CACHE.move_to_end(key)
     while len(_CACHE) > CACHE_SIZE:
         _CACHE.popitem(last=False)
-
 
 async def load(url: str, lang: str = "ru", fetch: Fetch = http_get, use_ytdlp: bool = True,
                post: Optional[Post] = None) -> Dict[str, Any]:
@@ -531,7 +496,6 @@ async def load(url: str, lang: str = "ru", fetch: Fetch = http_get, use_ytdlp: b
     data = {"meta": meta, **tr}
     _cache_put(key, data)
     return data
-
 
 async def analyze(url: str, complete: Complete, *, mode: str = "brief", lang: str = "ru", question: str = "",
                   fetch: Fetch = http_get, use_ytdlp: bool = True, post: Optional[Post] = None) -> Dict[str, Any]:
@@ -550,7 +514,6 @@ async def analyze(url: str, complete: Complete, *, mode: str = "brief", lang: st
             "thumbnail": meta.get("thumbnail", ""), "mode": mode, "text": link_timestamps(text, meta["id"]),
             "transcript": {"lang": data.get("lang"), "auto": data.get("auto"), "source": data.get("source"),
                            "segments": len(data["segments"]), "words": words, "duration": data.get("duration", 0)}}
-
 
 def register(app, complete_factory: Callable[[], Optional[Complete]], fetch: Optional[Fetch] = None,
              use_ytdlp: bool = True, post: Optional[Post] = None) -> None:

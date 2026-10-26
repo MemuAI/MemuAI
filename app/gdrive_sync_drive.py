@@ -42,7 +42,6 @@ import httpx
 
 log = logging.getLogger("memuai.sync.drive")
 
-#: A developer may bundle an OAuth client of type «Desktop app» here; the user's own client wins.
 BUNDLED_CLIENT_ID = ""
 BUNDLED_CLIENT_SECRET = ""
 
@@ -54,16 +53,15 @@ UPLOAD_API = "https://www.googleapis.com/upload/drive/v3"
 SCOPE_APPDATA = "https://www.googleapis.com/auth/drive.appdata"
 SCOPE_FILE = "https://www.googleapis.com/auth/drive.file"
 SCOPES = (SCOPE_APPDATA, SCOPE_FILE)
-#: Round 30: who signed in (Gmail- or Calendar-only accounts have no Drive /about to read the e-mail from).
+
 SCOPE_EMAIL = "https://www.googleapis.com/auth/userinfo.email"
 USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 FOLDER_MIME = "application/vnd.google-apps.folder"
 VISIBLE_FOLDER = "MemuAI Backups"
-CHUNK = 8 * 1024 * 1024          # resumable chunk: a multiple of 256 KiB
-SIMPLE_LIMIT = 4 * 1024 * 1024   # smaller bodies use one multipart request
+CHUNK = 8 * 1024 * 1024
+SIMPLE_LIMIT = 4 * 1024 * 1024
 FLOW_TIMEOUT = 300.0
 RETRIES = 4
-
 
 class DriveError(RuntimeError):
     """A Drive/OAuth failure with a message in both languages."""
@@ -75,22 +73,17 @@ class DriveError(RuntimeError):
         self.code = code
         self.status = status
 
-
 class DriveAuthError(DriveError):
     """The user has to connect (again): no token, revoked token, wrong client."""
 
-
 def _client_factory(transport: Optional[httpx.BaseTransport]) -> httpx.Client:
-    # Google is reached directly: the user's system proxy is honoured (trust_env) as for
-    # every other Google integration in MemuAI.
-    return httpx.Client(timeout=httpx.Timeout(60, connect=15), transport=transport, follow_redirects=False)
 
+    return httpx.Client(timeout=httpx.Timeout(60, connect=15), transport=transport, follow_redirects=False)
 
 def _pkce_pair() -> tuple[str, str]:
     verifier = base64.urlsafe_b64encode(secrets.token_bytes(48)).decode("ascii").rstrip("=")
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode("ascii")).digest()).decode("ascii").rstrip("=")
     return verifier, challenge
-
 
 _DONE_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>MemuAI</title>
 <style>body{{font:16px/1.5 system-ui,sans-serif;background:#1a1a1c;color:#eee;display:grid;place-items:center;height:100vh;margin:0}}
@@ -98,7 +91,6 @@ _DONE_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>MemuAI</
 h1{{font-size:20px;margin:0 0 8px}}p{{margin:6px 0;color:#bbb}}.ok{{color:#7fd2be}}.bad{{color:#f4a09a}}</style></head>
 <body><div class="card"><h1 class="{cls}">{title_ru}</h1><p>{text_ru}</p><hr style="border:0;border-top:1px solid #333">
 <h1 class="{cls}" style="font-size:17px">{title_en}</h1><p>{text_en}</p></div></body></html>"""
-
 
 class DriveAuth:
     """OAuth state of the sync feature: client, refresh token, the running consent flow."""
@@ -116,7 +108,6 @@ class DriveAuth:
         self._server: Optional[HTTPServer] = None
         self.on_connected: Callable[[Dict[str, Any]], None] | None = None
 
-    # ---------------------------------------------------------------- client
     def client(self) -> tuple[str, str, str]:
         """``(client_id, client_secret, source)``; source = user | bundled | ''."""
         cid, secret = ("", "")
@@ -126,7 +117,7 @@ class DriveAuth:
             return cid, secret, "user"
         if BUNDLED_CLIENT_ID:
             return BUNDLED_CLIENT_ID, BUNDLED_CLIENT_SECRET, "bundled"
-        # Round 30: a client baked in by build.py (MEMUAI_GOOGLE_CLIENT_ID) or set in the environment.
+
         from .oauth_config import client as configured_client
         cid, secret, source = configured_client("google")
         return (cid, secret, "bundled") if cid else ("", "", "")
@@ -137,7 +128,6 @@ class DriveAuth:
     def http(self) -> httpx.Client:
         return _client_factory(self.transport)
 
-    # ------------------------------------------------------------- the flow
     def granted_scopes(self) -> set:
         """Scopes of the stored refresh token (Round 29: «Add from Google Drive» asks for one more, incrementally)."""
         if not self.connected():
@@ -168,7 +158,7 @@ class DriveAuth:
         auth = self
 
         class Handler(BaseHTTPRequestHandler):
-            def log_message(self, *args: Any) -> None:  # never log codes
+            def log_message(self, *args: Any) -> None:
                 return
 
             def do_GET(self) -> None:  # noqa: N802 - http.server API
@@ -187,8 +177,7 @@ class DriveAuth:
                 self.send_header("Cache-Control", "no-store")
                 self.end_headers()
                 self.wfile.write(page)
-                # Round 30: close THIS flow's listener — a late «close the current one» used to shut the next flow's port
-                # when two consents ran back to back (Integrations adds services one after another).
+
                 threading.Thread(target=auth._close_server, args=(server,), daemon=True).start()
 
         server = HTTPServer(("127.0.0.1", 0), Handler)
@@ -216,7 +205,7 @@ class DriveAuth:
         if self.open_browser:
             try:
                 self.open_browser(url)
-            except Exception as exc:  # the UI also shows the link
+            except Exception as exc:
                 log.info("could not open the browser for Google sign-in: %s", type(exc).__name__)
         return {"auth_url": url, "state": "waiting"}
 
@@ -333,9 +322,7 @@ class DriveAuth:
             payload = self._token_request(data)
         except DriveAuthError as exc:
             if exc.code == "invalid_grant" and self.store.get("google_refresh_token") == refresh:
-                # r29c: the grant is gone for good (revoked in the Google account, password change, 6 months
-                # unused): forget it so Settings → Sync shows «Connect» again instead of a «connected» account
-                # whose every backup fails, and the scheduler stops retrying a dead token.
+
                 self.store.delete("google_refresh_token")
                 self.store.delete("google_scopes")
             raise
@@ -395,7 +382,6 @@ class DriveAuth:
             except httpx.HTTPError:
                 pass
 
-
 class DriveTarget:
     """Backups stored in Google Drive: the hidden appDataFolder or a visible «MemuAI Backups» folder."""
 
@@ -413,7 +399,6 @@ class DriveTarget:
     def describe(self) -> str:
         return "Google Drive" + (" · " + VISIBLE_FOLDER if self.space == "folder" else "")
 
-    # ------------------------------------------------------------- requests
     def _request(self, method: str, url: str, *, retry_auth: bool = True, **kwargs: Any) -> httpx.Response:
         last: Optional[Exception] = None
         for attempt in range(RETRIES):
@@ -463,7 +448,6 @@ class DriveTarget:
         raise DriveError(f"{what_ru}: Google Drive ответил {response.status_code}",
                          f"{what_en}: Google Drive answered {response.status_code}", status=response.status_code)
 
-    # -------------------------------------------------------------- folder
     def _parent(self) -> str:
         if self.space == "appdata":
             return "appDataFolder"
@@ -484,7 +468,6 @@ class DriveTarget:
         self._folder_cache["folder_id"] = folder_id
         return folder_id
 
-    # ---------------------------------------------------------------- api
     def list(self, *, refresh: bool = False) -> Dict[str, Dict[str, Any]]:
         if self._names is not None and not refresh:
             return dict(self._names)
@@ -503,7 +486,7 @@ class DriveTarget:
                     continue
                 current = {"id": str(row.get("id")), "size": int(row.get("size") or 0),
                            "modified": str(row.get("modifiedTime") or "")}
-                # Two files with one name (an interrupted overwrite): keep the newest.
+
                 if name not in names or current["modified"] > names[name]["modified"]:
                     names[name] = current
             token = data.get("nextPageToken")
@@ -599,7 +582,7 @@ class DriveTarget:
                     raise DriveError("Загрузка в Google Drive прервалась", "The upload to Google Drive was interrupted",
                                      code="network")
                 time.sleep(min(16.0, 0.75 * 2 ** failures))
-                # Ask how much Google already has, then continue from there.
+
                 try:
                     with self.auth.http() as client:
                         status = client.put(session, content=b"", headers={"Content-Range": f"bytes */{size}"})
@@ -667,7 +650,6 @@ class DriveTarget:
         if self._names is not None:
             self._names.pop(name, None)
 
-
 def _reason(response: httpx.Response) -> str:
     try:
         error = response.json().get("error") or {}
@@ -675,7 +657,6 @@ def _reason(response: httpx.Response) -> str:
         return str(errors[0].get("reason") or error.get("status") or "")
     except Exception:
         return ""
-
 
 def _range_end(header: Optional[str]) -> int:
     """``Range: bytes=0-1048575`` → 1048576 (bytes Google already stored)."""

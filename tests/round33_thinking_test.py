@@ -34,10 +34,8 @@ for _key in ("NO_PROXY", "no_proxy"):
 
 from app import reasoning_levels as rl  # noqa: E402
 
-
 def prof(model, provider="custom", raw=""):
     return rl.profile(model, provider, raw or model, use_catalog=False)
-
 
 class FamilyTable(unittest.TestCase):
     def setUp(self):
@@ -71,12 +69,12 @@ class FamilyTable(unittest.TestCase):
 
     def test_chinese_models(self):
         glm = prof("glm-5.3")
-        self.assertEqual(glm["options"], ["auto", "low", "high", "max"])     # no Off: thinking is forced
+        self.assertEqual(glm["options"], ["auto", "low", "high", "max"])
         self.assertEqual(prof("glm-5-3-flash")["levels"], ["low", "high", "max"])
         self.assertEqual(prof("kimi-k3")["options"], ["auto", "low", "high", "max"])
         kimi26 = prof("kimi-k2.6")
         self.assertEqual(kimi26["kind"], "toggle")
-        self.assertEqual(kimi26["options"], ["auto", "off"])                # on by default: Auto / Off
+        self.assertEqual(kimi26["options"], ["auto", "off"])
         ds = prof("deepseek-v4.1-flash")
         self.assertEqual(ds["options"], ["auto", "off", "low", "high", "max"])
         self.assertEqual(prof("deepseek-v4-1-flash")["levels"], ds["levels"])
@@ -97,7 +95,7 @@ class FamilyTable(unittest.TestCase):
         self.assertNotIn("xhigh", prof("claude-sonnet-4.6-thinking")["levels"])
         self.assertEqual(prof("claude-3-5-sonnet")["kind"], "none")
         self.assertEqual(prof("grok-4.7")["levels"], ["low", "medium", "high", "xhigh"])
-        self.assertEqual(prof("grok-4")["kind"], "fixed")                   # reasoning_effort is a 400 there
+        self.assertEqual(prof("grok-4")["kind"], "fixed")
         self.assertEqual(prof("grok-3-mini")["levels"], ["low", "high"])
 
     def test_web_providers_and_antigravity(self):
@@ -116,7 +114,6 @@ class FamilyTable(unittest.TestCase):
         self.assertEqual(guessed["source"], "guess")
         self.assertEqual(guessed["levels"], ["low", "medium", "high"])
 
-
 class Clamp(unittest.TestCase):
     def test_clamp(self):
         g37 = prof("gemini-3.7-flash")
@@ -126,20 +123,19 @@ class Clamp(unittest.TestCase):
         self.assertEqual(rl.clamp("xhigh", g37), "high")
         self.assertEqual(rl.clamp("auto", g37), "auto")
         self.assertEqual(rl.clamp("none", prof("gpt-5.1")), "off")
-        self.assertEqual(rl.clamp("minimal", prof("gpt-5.1")), "off")   # GPT-5 → 5.1 migration: minimal → none
+        self.assertEqual(rl.clamp("minimal", prof("gpt-5.1")), "off")
         self.assertEqual(rl.clamp("minimal", prof("gpt-6.1-sol")), "low")
-        self.assertEqual(rl.clamp("medium", prof("glm-5.3")), "high")    # equidistant: the deeper one
+        self.assertEqual(rl.clamp("medium", prof("glm-5.3")), "high")
         self.assertEqual(rl.clamp("high", prof("kimi-k2.6")), "on")
         self.assertEqual(rl.clamp("high", prof("gpt-4o")), "auto")
 
     def test_resolve_thinking_switch(self):
         plain = prof("claude-sonnet-4.6")
-        self.assertEqual(rl.resolve(plain, True, "auto"), "medium")       # on by request, default depth
+        self.assertEqual(rl.resolve(plain, True, "auto"), "medium")
         self.assertEqual(rl.resolve(plain, False, "auto"), "")
-        self.assertEqual(rl.resolve(prof("qwen3.8-flash"), False, "minimal"), "off")  # the Quick Access router
+        self.assertEqual(rl.resolve(prof("qwen3.8-flash"), False, "minimal"), "off")
         self.assertEqual(rl.resolve(prof("glm-5.3"), False, "minimal"), "low")
         self.assertEqual(rl.resolve(prof("gemini-3.7-flash"), True, "auto"), "")
-
 
 class Dialects(unittest.TestCase):
     def apply(self, model, level, base=""):
@@ -163,14 +159,13 @@ class Dialects(unittest.TestCase):
                          {"reasoning": {"enabled": False}})
         self.assertEqual(self.apply("claude-sonnet-4-6", "low", "https://api.anthropic.com/v1")[0],
                          {"thinking": {"type": "enabled", "budget_tokens": 2048}})
-        self.assertEqual(self.apply("gemini-3.7-flash", "", "")[0], {})     # auto: nothing is sent
+        self.assertEqual(self.apply("gemini-3.7-flash", "", "")[0], {})
 
     def test_local_template_kwargs(self):
         from app.providers.local import template_kwargs
         self.assertEqual(template_kwargs("off"), {"enable_thinking": False, "reasoning_effort": "low"})
         self.assertEqual(template_kwargs("on"), {"enable_thinking": True})
         self.assertEqual(template_kwargs("xhigh"), {"enable_thinking": True, "reasoning_effort": "high"})
-
 
 class Persistence(unittest.TestCase):
     def setUp(self):
@@ -183,28 +178,23 @@ class Persistence(unittest.TestCase):
         p = rl.profile(model, "custom", "glm-5.3", use_catalog=False)
         self.assertNotIn("low", p["levels"])
         self.assertEqual(p["rejected"], ["low"])
-        rl.reset_cache()                                       # survives a restart
+        rl.reset_cache()
         self.assertEqual(rl.learned(model)["rejected"], ["low"])
         rl.set_override(model, {"kind": "levels", "levels": ["low", "medium", "high"], "can_off": True, "default": "medium"})
         p = rl.profile(model, "custom", "glm-5.3", use_catalog=False)
         self.assertEqual(p["source"], "override")
         self.assertEqual(p["options"], ["auto", "off", "low", "medium", "high"])
-        self.assertEqual(rl.learned(model), {})                 # a manual profile forgives earlier rejections
+        self.assertEqual(rl.learned(model), {})
         rl.set_override(model, None)
         self.assertEqual(rl.profile(model, "custom", "glm-5.3", use_catalog=False)["source"], "docs")
-
-
-# --------------------------------------------------------------------------- end to end through the Proxy
 
 def free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
 
-
 from fastapi import FastAPI, Request  # noqa: E402  (module level: the mock's annotations must resolve)
 from fastapi.responses import JSONResponse, StreamingResponse  # noqa: E402
-
 
 def make_mock():
     app = FastAPI()
@@ -232,7 +222,6 @@ def make_mock():
             yield "data: [DONE]\n\n"
         return StreamingResponse(gen(), media_type="text/event-stream")
     return app
-
 
 class ProxyEndToEnd(unittest.TestCase):
     servers: list = []
@@ -280,24 +269,24 @@ class ProxyEndToEnd(unittest.TestCase):
     def test_dialects_reach_the_api(self):
         sent = self.chat("qwen3.8-flash", reasoning_effort="none")
         self.assertIs(sent[-1].get("enable_thinking"), False)
-        sent = self.chat("gemini-3.7-flash", reasoning_effort="minimal")      # clamped before sending
+        sent = self.chat("gemini-3.7-flash", reasoning_effort="minimal")
         self.assertEqual(sent[-1].get("reasoning_effort"), "low")
         self.assertEqual(len(sent), 1)
-        sent = self.chat("gpt-4o", reasoning_effort="high")                    # no reasoning: nothing sent
+        sent = self.chat("gpt-4o", reasoning_effort="high")
         self.assertNotIn("reasoning_effort", sent[-1])
         sent = self.chat("kimi-k2.6", reasoning_effort="none")
         self.assertEqual(sent[-1].get("thinking"), {"type": "disabled"})
-        sent = self.chat("qwen3.8-flash")                                      # auto: nothing
+        sent = self.chat("qwen3.8-flash")
         self.assertNotIn("enable_thinking", sent[-1])
 
     def test_rejected_value_is_retried_and_learned(self):
         rl.forget_learned("think-glm-5.3")
         sent = self.chat("glm-5.3", reasoning_effort="low")
-        self.assertEqual(sent[-1].get("reasoning_effort"), None)               # retried without it
+        self.assertEqual(sent[-1].get("reasoning_effort"), None)
         self.assertTrue(any(b.get("reasoning_effort") == "low" for b in sent))
         rl.reset_cache()
         self.assertEqual(rl.learned("think-glm-5.3").get("rejected"), ["low"])
-        sent = self.chat("glm-5.3", reasoning_effort="low")                    # next time: the nearest level left
+        sent = self.chat("glm-5.3", reasoning_effort="low")
         self.assertEqual([b.get("reasoning_effort") for b in sent], ["high"])
         state = self.client.get(self.proxy + "/api/admin/pg/state").json()
         row = next(m for m in state["models"] if m["id"] == "think-glm-5.3")
@@ -327,9 +316,6 @@ class ProxyEndToEnd(unittest.TestCase):
         self.assertEqual(resp.status_code, 200)
         self.assertIs(self.mock.state.bodies[-1].get("enable_thinking"), False)
 
-
-# --------------------------------------------------------------------------- the window's JavaScript
-
 class JavaScriptMirror(unittest.TestCase):
     MODELS = ["gemini-3.7-flash", "gpt-6.1-sol", "gpt-5.1", "glm-5.3", "kimi-k2.6", "deepseek-v4.1-flash",
               "qwen3.8-flash", "claude-sonnet-4.6", "grok-4", "gpt-4o"]
@@ -339,7 +325,7 @@ class JavaScriptMirror(unittest.TestCase):
         models = [{"id": m, "caps": {"reasoning_profile": rl.public(prof(m))}} for m in self.MODELS]
         levels = list(rl.CHOICES) + ["none"]
         expected = {m: {lv: rl.clamp(lv, prof(m)) for lv in levels} for m in self.MODELS}
-        # JS keeps a level in the options list: a toggle model that is on by default shows Auto for «on».
+
         for m in self.MODELS:
             p = prof(m)
             for lv in levels:
@@ -358,7 +344,6 @@ class JavaScriptMirror(unittest.TestCase):
         self.assertEqual(data["opts"]["gemini-3.7-flash"], ["auto", "low", "medium", "high"])
         self.assertEqual(data["opts"]["grok-4"], [])
         self.assertEqual(data["label"], "Auto · medium")
-
 
 class Wiring(unittest.TestCase):
     def test_tags_and_no_fixed_list(self):
@@ -379,7 +364,6 @@ class Wiring(unittest.TestCase):
         out = pgdata._normalize_preferences({"default_effort": "xhigh", "model_efforts": {"a": "off", "b": "bogus"}})
         self.assertEqual(out["default_effort"], "xhigh")
         self.assertEqual(out["model_efforts"], {"a": "off"})
-
 
 if __name__ == "__main__":
     unittest.main()

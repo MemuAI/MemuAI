@@ -1,21 +1,11 @@
-/* MemuAI 3.5 · Round 33 (r33d-media) · generated pictures that do not disappear.
- *
- * Links of DashScope / Reform & co. (wanx2.1-t2i-turbo, grok-imagine-image-2.0, gpt-imagine-2.5 …) expire after
- * ~24 h. New generations are stored as files by the server (app/media_cache.py). This file does the rest in the window:
- *   • lazy migration — when a chat is shown, every remote picture of a finished answer is sent once to
- *     POST /api/pg/media/cache; a working link is replaced by the stored file (/api/pg/media/file/…) and the chat is
- *     saved; a dead link is marked (message.expiredImages) and drawn as a clean «Image expired · Regenerate» card;
- *   • a stored file that is gone (deleted folder) gets the same card instead of a broken icon;
- *   • forModel() — pictures replayed to the chat model: stored files as data: URLs, expired links left out.
- * Pictures the user has not allowed yet (message.blockedImages — links from untrusted hosts) are never fetched.
- * Hooks in app.js: message render (expired card), renderMessages → hydrate(box), generate() → forModel().
- */
+
+
 (function () {
   "use strict";
   const VERSION = "1.0-r33";
-  const attempted = new Set();            // links asked about in this session (one request per link)
+  const attempted = new Set();
   const inflight = new Map();
-  const dataCache = new Map();            // stored file → data: URL for the model (bounded)
+  const dataCache = new Map();
   const en = () => (typeof PG_LANG !== "undefined" ? PG_LANG : document.documentElement.lang) === "en";
   const t = (ru, english) => (en() ? english : ru);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
@@ -64,10 +54,9 @@
     const result = await inflight.get(u);
     if (result && result.url && isLocal(result.url)) { swapUrl(m, u, result.url); redraw(chatId, m); }
     else if (result && result.expired) { if (markExpired(m, u)) redraw(chatId, m); }
-    // anything else (offline, 5xx): left as is, asked again next session
+
   }
 
-  /* After renderMessages: migrate the remote pictures of finished answers of the chat on screen. */
   function scan() {
     if (typeof S === "undefined" || !Array.isArray(S.messages)) return;
     for (const m of S.messages) {
@@ -104,7 +93,7 @@
   function hydrate(box) {
     if (!box) return;
     box.querySelectorAll("[data-mc-regen]").forEach((b) => b.onclick = (e) => { e.stopPropagation(); regenerate(+b.dataset.mcRegen); });
-    // A picture that does not load: a stored file that is gone → expired card; a remote link → ask the server now.
+
     box.querySelectorAll(".msg-assistant .imgwrap img[data-original]").forEach((img) => {
       if (img.dataset.mcBound) return;
       img.dataset.mcBound = "1";
@@ -131,7 +120,7 @@
     dataCache.set(u, value);
     return value;
   }
-  /* Pictures of an earlier answer replayed to the chat model (providers need data: or public https). */
+
   async function forModel(list, m) {
     const out = [];
     for (const u of list || []) {

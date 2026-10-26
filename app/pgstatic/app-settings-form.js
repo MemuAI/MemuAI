@@ -1,22 +1,10 @@
-/* MemuAI · every preference of MemuNote / MemuFiles in one place (Round 38).
 
-   window.MemuAppSettings.create({ app, idp, name, extra }) → a form controller used by
-   memunote-settings.js and memufiles-settings.js. The schema, values and defaults come from
-   /api/pg/appsettings/<app> (app/app_settings_api.py), which reads/writes the app's own settings.json
-   and validates by the app's settings_schema.py — so there is one source of truth for MemuAI and the app.
 
-   · Rows are settings-kit rows (data-sx-key + default): the global settings search finds them, the
-     per-row / per-section reset works, and the «Сохранено» pill shows saves.
-   · A change is saved at once; the running app gets a "settings" event and applies it without a restart.
-   · Changes made inside the app are picked up when the page is shown or the MemuAI window gets focus
-     (one cheap GET comparing the file's mtime) — no timers, no polling.
-   · extra: { <groupId>: { html: () => string, mount: (node) => void, desc?: () => string } } adds a block to a group
-     (MemuFiles → «Интеграция с Windows»: window.MemuFilesDefaultShell from memufiles-default.js). */
 (function () {
   "use strict";
 
   const isEn = () => {
-    try { if (typeof PG_LANG !== "undefined") return PG_LANG === "en"; } catch (e) { /* ignore */ }
+    try { if (typeof PG_LANG !== "undefined") return PG_LANG === "en"; } catch (e) {  }
     return (document.documentElement.lang || "ru").startsWith("en");
   };
   const L = (ru, en) => (isEn() ? en : ru);
@@ -42,7 +30,7 @@
 
   function create(opts) {
     const app = opts.app, idp = opts.idp, extra = opts.extra || {};
-    let data = null;          // { schema, values, defaults, mtime }
+    let data = null;
     let failed = "";
     let loading = null;
     let filter = "";
@@ -59,7 +47,6 @@
       return json;
     }
 
-    /* ------------------------------------------------------------ render */
     function whenAttr(expr) {
       if (!expr || !data) return "";
       const [key, value] = String(expr).split("=");
@@ -69,7 +56,7 @@
       return item.type === "enum" && item.choices.length <= 3 ? `@${cid(key)}=${value}` : `${cid(key)}=${value}`;
     }
     function modelOptions() {
-      try { if (typeof S !== "undefined" && Array.isArray(S.models)) return S.models.map((m) => m.id).filter(Boolean).slice(0, 400); } catch (e) { /* ignore */ }
+      try { if (typeof S !== "undefined" && Array.isArray(S.models)) return S.models.map((m) => m.id).filter(Boolean).slice(0, 400); } catch (e) {  }
       return [];
     }
     function control(item, value) {
@@ -135,7 +122,7 @@
       el.innerHTML = inner();
       decorate(el);
     }
-    /* After the markup is in the page: `when` dependencies, «changed» marks, search index, filter, extra blocks. */
+
     function decorate(el) {
       if (!data) return;
       const K = kit();
@@ -147,7 +134,6 @@
       }
     }
 
-    /* ------------------------------------------------------------ data */
     async function refresh(force) {
       if (loading) return loading;
       loading = (async () => {
@@ -164,7 +150,7 @@
       })();
       return loading;
     }
-    /* A field is focused: update the other controls in place instead of repainting under the cursor. */
+
     function syncControls() {
       const el = host();
       if (!el || !data) return;
@@ -207,7 +193,6 @@
       else if (typeof window.toast === "function") window.toast(text, kind);
     }
 
-    /* ------------------------------------------------------------ filter */
     function applyFilter() {
       const el = host();
       if (!el) return;
@@ -231,14 +216,13 @@
       if (none) none.hidden = any;
     }
 
-    /* ------------------------------------------------------------ mount */
     function mount() {
       const el = host();
       if (!el) return;
       if (!el.dataset.bound) {
         el.dataset.bound = "1";
         el.addEventListener("change", (e) => {
-          // data-appset sits on the control itself, or on the .sx-seg group of a segmented choice
+
           const holder = e.target.closest("[data-appset]");
           if (holder) save(holder.dataset.appset, e.target);
         });

@@ -29,10 +29,8 @@ _KIND_TEXT = {"chat": ("Ответ модели", "Model answer"), "notify": ("�
               "dfy": ("Do For You", "Do For You"), "command": ("Команда быстрого доступа", "Quick Access command"),
               "memucode": ("MemuCode", "MemuCode"), "integration": ("Интеграция", "Integration")}
 
-
 def _tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 def _plural(n: int, one: str, few: str, many: str) -> str:
     a, b = abs(n) % 100, abs(n) % 10
@@ -42,12 +40,10 @@ def _plural(n: int, one: str, few: str, many: str) -> str:
         return one
     return few if 2 <= b <= 4 else many
 
-
 _WD_RU = ["пн", "вт", "ср", "чт", "пт", "сб", "вс"]
 _WD_EN = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
 _MON_RU = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
 _MON_EN = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
 
 def when_text(ts: float, lang: str, now: Optional[float] = None) -> str:
     """«сегодня в 16:00 · через 3 ч» / «пт, 16 октября в 09:00 · через 6 дней» — like the Planning panel."""
@@ -70,10 +66,10 @@ def when_text(ts: float, lang: str, now: Optional[float] = None) -> str:
         m = max(1, round(seconds / 60))
         rel = _tr(lang, f"через {m} мин", f"in {m} min")
     elif round(seconds / 60) < 1440:
-        total = round(seconds / 60)         # whole minutes first: never «2 ч 60 мин»
+        total = round(seconds / 60)
         h, m = total // 60, total % 60
         rel = _tr(lang, f"через {h} ч" + (f" {m} мин" if m else ""), f"in {h} h" + (f" {m} min" if m else ""))
-    else:                                   # beyond 24 h: days, like the Planning panel / Mini App («1 день 19 ч»)
+    else:
         hours = round(seconds / 3600)
         dd, hh = hours // 24, hours % 24
         if dd < 3 and hh:
@@ -83,11 +79,9 @@ def when_text(ts: float, lang: str, now: Optional[float] = None) -> str:
             rel = _tr(lang, f"через {d} {_plural(d, 'день', 'дня', 'дней')}", f"in {d} {'day' if d == 1 else 'days'}")
     return f"{day} · {rel}"
 
-
 def _prune(now: float) -> None:
     for key in [k for k, v in _DRAFTS.items() if v["expires"] < now]:
         _DRAFTS.pop(key, None)
-
 
 def make_completion(engine: Any, lang: str):
     """The Quick Access model (its own endpoint or the Proxy) as ``completion(model, messages)`` + the model id."""
@@ -114,7 +108,6 @@ def make_completion(engine: Any, lang: str):
         return await engine.completion(model_id, messages)
     return via_proxy, model
 
-
 def plan_card(draft: Dict[str, Any], payload: Dict[str, Any], lang: str, now: Optional[float] = None) -> Dict[str, Any]:
     """The fields of the confirm card (no secrets)."""
     now = time.time() if now is None else now
@@ -137,7 +130,6 @@ def plan_card(draft: Dict[str, Any], payload: Dict[str, Any], lang: str, now: Op
         "plan": {"task": {k: v for k, v in draft.items() if k != "id"}, "summary": payload.get("summary") or "",
                  "next_label": _tr(lang, "Ближайшие запуски", "Next runs") if nexts else _tr(lang, "Когда", "When")},
     }
-
 
 async def plan(engine: Any, params: Dict[str, Any], *, lang: str, source: str) -> Dict[str, Any]:
     """The ``schedule.plan`` handler: a phrase → a confirm card, or (with ``draft``) the confirmed save."""
@@ -167,7 +159,7 @@ async def plan(engine: Any, params: Dict[str, Any], *, lang: str, source: str) -
         draft = await asyncio.wait_for(plan_api.parse_text(text, model, completion, lang=lang, tasks=tasks), 120)
         payload = plan_api.preview_payload(draft, tasks, lang, now)
     except rules.RuleError as exc:
-        # «запланируй мне жизнь» — not a schedule: let the model answer it as a question
+
         raise ActionError(exc.text(lang), "not_found") from None
     except asyncio.TimeoutError:
         raise ActionError(_tr(lang, "Модель не ответила вовремя", "The model did not answer in time"), "model") from None
@@ -181,12 +173,11 @@ async def plan(engine: Any, params: Dict[str, Any], *, lang: str, source: str) -
     secret = secrets.token_urlsafe(12)
     _DRAFTS[secret] = {"task": draft, "summary": card["message"], "list": card["list"], "expires": now + DRAFT_TTL}
     token = secrets.token_urlsafe(12)
-    with engine.lock:       # the engine's own confirm token: «Создать задачу» → /api/assistant/confirm
+    with engine.lock:
         engine.pending[token] = {"action": "schedule.plan", "params": {"text": text[:500], "draft": secret},
                                  "source": source, "lang": lang, "expires": engine.clock() + DRAFT_TTL, "tier": "confirm"}
     return {"status": "confirm", "kind": "plan", "confirm": {"token": token, "tier": "confirm", "countdown": 0,
                                                              "expires": now + DRAFT_TTL}, **card}
-
 
 def register(engine: Any) -> None:
     async def handler(params: Dict[str, Any], *, lang: str = "ru", source: str = "local", **_kw: Any) -> Dict[str, Any]:

@@ -1,8 +1,3 @@
-/* MemuMusic — интерфейс. Сетка 4/8 px, один акцент, цвет обложки — «tint».
- * Правило производительности: никакого размытия фона (blur) под прокручиваемым;
- * анимации только transform/opacity; всё живое останавливается при html[data-calm]. */
-/* Токены оформления. Значения ниже — запасные до запуска theme.js; theme.js пишет их на <html> из темы,
- * схемы (data-mm-scheme), акцента и настроек (радиусы --mm-rk, шрифт --mm-font, плитка --mm-tile, строка --mm-row). */
 html {
   --tint: #7c5cff; --tint-2: #ff5c8a; --tint-3: #20c7b5; --tint-ink: #a996ff; --tint-solid: #6a48f5; --mm-on-tint: #fff;
   --mm-bg: #08080b; --mm-surface: #121217; --mm-panel: rgba(255,255,255,.045); --mm-panel-2: rgba(255,255,255,.08);
@@ -22,7 +17,6 @@ html[data-mm-scheme="light"] {
   --mm-hover: rgba(20,16,40,.045); --mm-shadow: 0 30px 70px -28px rgba(30,24,60,.28), 0 8px 20px -12px rgba(30,24,60,.2);
 }
 body { background: var(--mm-bg); color: var(--mm-text); font-family: var(--mm-font); }
-/* An image is artwork; explicit draggable rows/playlists keep their own drag behaviour. */
 .mm img { -webkit-user-drag: none; }
 .mm-sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
 svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
@@ -30,8 +24,6 @@ svg .f { fill: currentColor; stroke: none; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 input, select { font: inherit; color: inherit; }
 .mm-grow { flex: 1; min-width: 0; }
-
-/* ------------------------------------------------------------------ каркас */
 .mm { position: fixed; inset: 0; display: grid; grid-template-columns: var(--mm-side) 1fr; grid-template-rows: 1fr var(--mm-bar);
   grid-template-areas: "side main" "bar bar"; isolation: isolate; overflow: hidden; }
 .mm-ambient { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -2; opacity: .55; transition: opacity .8s; }
@@ -72,14 +64,11 @@ html:not([data-playing]) .mm-logo i, html[data-calm] .mm-logo i { animation-play
 .mm-side-pl span { display: block; font-size: 12px; color: var(--mm-muted); }
 
 .mm-main { grid-area: main; min-width: 0; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-gutter: stable; position: relative; }
-/* Раздел меняется на месте: только проявление (opacity) — без сдвига раскладки и «прыжков» (CLS = 0). */
 .mm-view { padding: calc(28px + var(--mm-safe-top)) var(--mm-pad-x) 48px; min-height: 100%; animation: mm-view-in .28s ease-out both; }
 .mm-view.instant { animation: none; }
 @keyframes mm-view-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes mm-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 html[data-calm] .mm-view { animation: none; }
-
-/* --------------------------------------------------------------- базовое */
 .mm-icon { width: 36px; height: 36px; border-radius: 50%; display: inline-grid; place-items: center; color: var(--mm-muted);
   transition: color .2s, background .2s, transform .25s var(--mm-spring); }
 .mm-icon:hover { color: var(--mm-text); background: var(--mm-hover); }
@@ -124,10 +113,8 @@ html[data-calm] .mm-view { animation: none; }
   background: linear-gradient(90deg, var(--mm-text) var(--v, 80%), var(--mm-line) var(--v, 80%)); }
 .mm-range::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; border-radius: 50%; background: var(--mm-text); opacity: 0; transition: opacity .2s; }
 .mm-range:hover::-webkit-slider-thumb, .mm-range:focus::-webkit-slider-thumb { opacity: 1; }
-
-/* ------------------------------------------------------------------- главная */
 .mm-hero { position: relative; display: flex; align-items: flex-end; gap: 24px; justify-content: space-between; flex-wrap: wrap; }
-.mm-hero-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }   /* «Новый плейлист» + действия умных плейлистов — одна строка по центру */
+.mm-hero-acts { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .mm-hero-acts > .mm-pl-actions { margin-left: 0; }
 .mm-eyebrow { display: block; margin: 6px 0 10px; font-size: 11.5px; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--mm-faint); }
 .mm-eyebrow:first-letter { text-transform: uppercase; }
@@ -161,8 +148,6 @@ html[data-calm] .mm-view { animation: none; }
 .mm-tile .mm-fab { position: absolute; right: 10px; bottom: 10px; width: 44px; height: 44px; }
 .mm-tile b { display: block; margin-top: 12px; font-weight: 650; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mm-tile span { display: block; margin-top: 2px; color: var(--mm-muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* 3D-карусель обложек */
 .mm-flow { --fs: calc(var(--mm-tile) * 1.3); position: relative; height: calc(var(--fs) + 142px); margin: 18px calc(-1 * var(--mm-pad-x)) 0; perspective: 1200px; overflow: hidden; touch-action: pan-y; user-select: none; cursor: grab; }
 .mm-flow:active { cursor: grabbing; }
 .mm-flow-stage { position: absolute; left: 50%; top: 20px; width: 0; height: 0; transform-style: preserve-3d; }
@@ -177,14 +162,11 @@ html[data-mm-scheme="light"] .mm-flow-item { -webkit-box-reflect: below 6px line
 .mm-flow-nav { position: absolute; top: calc(20px + var(--fs) / 2 - 18px); z-index: 201; }
 .mm-flow-nav.l { left: 24px; } .mm-flow-nav.r { right: 24px; }
 .mm-flow-nav .mm-icon { background: var(--mm-panel-2); color: var(--mm-text); }
-
-/* смарт-подборки */
 .mm-mixes { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; }
 .mm-mix { position: relative; height: 136px; border-radius: calc(18px * var(--mm-rk)); overflow: hidden; padding: 16px 18px; text-align: left; color: #fff;
   display: flex; flex-direction: column; justify-content: flex-end; gap: 3px; isolation: isolate; transition: transform .4s var(--mm-ease), box-shadow .4s;
   box-shadow: 0 1px 0 rgba(255,255,255,.12) inset, 0 14px 30px -20px var(--m1); }
 .mm-mix:hover { transform: translateY(-3px); box-shadow: 0 1px 0 rgba(255,255,255,.16) inset, 0 22px 40px -20px var(--m1); }
-/* меш-градиент из трёх цветов подборки; на наведении пятна медленно смещаются (без бесконечных анимаций) */
 .mm-mix::before { content: ""; position: absolute; inset: 0; z-index: -1;
   background: radial-gradient(90% 120% at 0% 0%, var(--m1), transparent 62%), radial-gradient(80% 110% at 100% 10%, var(--m2), transparent 60%),
     radial-gradient(100% 100% at 70% 120%, var(--m3), transparent 62%), #15111d;
@@ -195,8 +177,6 @@ html[data-mm-scheme="light"] .mm-flow-item { -webkit-box-reflect: below 6px line
 .mm-mix b { font-size: 19px; font-weight: 780; letter-spacing: -.025em; text-shadow: 0 1px 12px rgba(0,0,0,.25); }
 .mm-mix span { font-size: 12.5px; opacity: .86; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .mm-mix svg { position: absolute; right: 16px; top: 16px; width: 20px; height: 20px; opacity: .9; }
-
-/* --------------------------------------------------------------- треки */
 .mm-tracks { position: relative; }
 .mm-row { position: absolute; left: 0; right: 0; height: var(--mm-row); display: grid; align-items: center; gap: 14px; padding: 0 12px; border-radius: calc(10px * var(--mm-rk));
   grid-template-columns: 28px minmax(0, 4fr) minmax(0, 2.4fr) 56px 56px 64px; transition: background .15s; cursor: default; }
@@ -212,7 +192,6 @@ html[data-mm-scheme="light"] .mm-flow-item { -webkit-box-reflect: below 6px line
 .mm-row.playing:not(:hover) .n .eqm { display: inline-flex; }
 .mm-row .n .grip { visibility: visible !important; }
 .mm-row[draggable="true"]:hover .n .grip { display: none; }
-/* polish r39 (п.2): у играющей строки плейлиста с ручным порядком «ручка» ⋮⋮ уступает место столбикам «играет», а при наведении — кнопке ▶ */
 .mm-row.playing:not(:hover) .n .grip, .mm-row:has(:focus-visible) .n .grip { visibility: hidden !important; }
 .mm-row .t { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .mm-row .t .mm-art { width: calc(var(--mm-row) - 16px); height: calc(var(--mm-row) - 16px); border-radius: calc(6px * var(--mm-rk)); }
@@ -247,8 +226,6 @@ html:not([data-playing]) .mm-eqmini i, html[data-calm] .mm-eqmini i { animation-
 .mm-search .mm-input { padding-left: 36px; width: 240px; height: 36px; border-radius: 999px; }
 .mm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(var(--mm-tile), 42vw), 1fr)); gap: 22px var(--mm-gap); }
 .mm-grid > .mm-tile { max-width: calc(var(--mm-tile) * 1.35 + 20px); }
-
-/* ------------------------------------------------------------ шапка списка */
 .mm-head { position: relative; display: flex; align-items: flex-end; gap: 28px; padding: 8px 0 28px; }
 .mm-head .mm-art { width: 212px; height: 212px; border-radius: calc(18px * var(--mm-rk)); box-shadow: var(--mm-shadow); }
 .mm-head .mm-kind { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--mm-muted); }
@@ -261,8 +238,6 @@ html:not([data-playing]) .mm-eqmini i, html[data-calm] .mm-eqmini i { animation-
 .mm-collage img { width: 100%; height: 100%; object-fit: cover; }
 .mm-name-edit { font: inherit; background: none; border: 0; outline: none; padding: 0; width: 100%; color: inherit; border-radius: calc(6px * var(--mm-rk)); }
 .mm-name-edit:focus { box-shadow: 0 0 0 2px color-mix(in srgb, var(--tint) 50%, transparent); }
-
-/* ------------------------------------------------------------ скачать */
 .mm-dl-hero { position: relative; border-radius: calc(24px * var(--mm-rk)); padding: 34px; overflow: hidden; isolation: isolate;
   background: linear-gradient(140deg, color-mix(in srgb, var(--tint) 26%, var(--mm-panel)), color-mix(in srgb, var(--tint-2) 14%, var(--mm-panel)));
   border: 1px solid var(--mm-line); }
@@ -316,8 +291,6 @@ html:not([data-playing]) .mm-eqmini i, html[data-calm] .mm-eqmini i { animation-
 .mm-job[data-status="error"] .bar i { background: var(--mm-danger); }
 @keyframes mm-shimmer { to { background-position: -200% 0; } }
 html[data-calm] .mm-job .bar i { animation: none; }
-
-/* ------------------------------------------------------------ статистика */
 .mm-kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 24px; }
 @media (max-width: 980px) { .mm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .mm-kpi { padding: 18px 20px; border-radius: calc(18px * var(--mm-rk)); background: var(--mm-panel); border: 1px solid var(--mm-line); position: relative; overflow: hidden; }
@@ -343,7 +316,6 @@ html[data-calm] .mm-chart .line { animation: none; stroke-dashoffset: 0; }
 .mm-hbar i::before { content: ""; display: block; height: 100%; width: 100%; border-radius: inherit; transform-origin: left; transform: scaleX(var(--w));
   background: linear-gradient(90deg, var(--tint), var(--tint-2)); animation: mm-grow 1.1s var(--mm-ease) both; }
 @keyframes mm-grow { from { transform: scaleX(0); } }
-/* карточки графиков одной строки — одной высоты, а их содержимое занимает её целиком (без пустоты снизу) */
 .mm-charts > .mm-card { display: flex; flex-direction: column; }
 .mm-charts > .mm-card > h3 { flex: none; }
 .mm-donut-wrap { flex: 1; display: flex; align-items: center; justify-content: center; gap: 16px 24px; flex-wrap: wrap; }
@@ -361,8 +333,6 @@ html[data-calm] .mm-chart .line { animation: none; stroke-dashoffset: 0; }
 .mm-legend { display: grid; gap: 10px; font-size: 13px; }
 .mm-legend div { display: flex; align-items: center; gap: 8px; }
 .mm-legend i { width: 10px; height: 10px; border-radius: 3px; }
-
-/* ------------------------------------------------------------ настройки */
 .mm-settings { display: grid; gap: 14px; max-width: 760px; margin-top: 24px; }
 .mm-set { display: flex; align-items: center; gap: 16px; padding: 18px 20px; border-radius: calc(18px * var(--mm-rk)); background: var(--mm-panel); border: 1px solid var(--mm-line); flex-wrap: wrap; }
 .mm-set > div:first-child { flex: 1; min-width: 220px; }
@@ -379,8 +349,6 @@ html[data-calm] .mm-chart .line { animation: none; stroke-dashoffset: 0; }
 .mm-status i { width: 8px; height: 8px; border-radius: 50%; background: var(--mm-faint); }
 .mm-status.ok i { background: #34d399; box-shadow: 0 0 0 4px rgba(52,211,153,.18); }
 .mm-status.bad i { background: #f87171; box-shadow: 0 0 0 4px rgba(248,113,113,.18); }
-
-/* ------------------------------------------------------------ пусто / скелет */
 .mm-empty { display: grid; justify-items: center; text-align: center; gap: 10px; padding: 48px 20px; color: var(--mm-muted); }
 .mm-empty svg.ill { width: 180px; height: 140px; stroke: none; }
 .mm-empty b { color: var(--mm-text); font-size: 18px; font-weight: 700; }
@@ -389,8 +357,6 @@ html[data-calm] .mm-chart .line { animation: none; stroke-dashoffset: 0; }
   background-size: 300% 100%; animation: mm-skel 1.3s ease-in-out infinite; }
 @keyframes mm-skel { from { background-position: 100% 0; } to { background-position: 0 0; } }
 html[data-calm] .mm-skel { animation: none; }
-
-/* -------------------------------------------------------------- плеер-бар */
 .mm-bar { grid-area: bar; display: grid; grid-template-columns: minmax(180px, 1fr) minmax(320px, 1.4fr) minmax(180px, 1fr); align-items: center; gap: 16px;
   padding: 0 18px; border-top: 1px solid var(--mm-line); position: relative; z-index: 3;
   background: linear-gradient(90deg, color-mix(in srgb, var(--tint) 12%, var(--mm-bg)), var(--mm-bg) 45%); }
@@ -417,8 +383,6 @@ html[data-calm] .mm-skel { animation: none; }
 .mm-play.xl svg { width: 30px; height: 30px; }
 .mm-seek-row { display: grid; grid-template-columns: 40px 1fr 40px; align-items: center; gap: 10px; width: 100%; }
 .mm-time { font-size: 11.5px; color: var(--mm-muted); font-variant-numeric: tabular-nums; text-align: center; }
-/* polish r39: доли — шириной, а не scaleX (scaleX + частичная перерисовка на 125/150 % оставляли «полоски» сверху полосы и сплющивали скругление);
-   ширина абсолютной полосы не двигает соседей (contain: layout); ручка прячется прозрачностью, а не scale(0) */
 .mm-seek { position: relative; height: 16px; cursor: pointer; touch-action: none; contain: layout; }
 .mm-seek::before, .mm-seek i { position: absolute; left: 0; top: 6px; height: 4px; border-radius: 4px; }
 .mm-seek::before { content: ""; right: 0; background: var(--mm-line); }
@@ -431,21 +395,15 @@ html[data-calm] .mm-skel { animation: none; }
 .mm-seek:hover .mm-seek-knob, .mm-seek.drag .mm-seek-knob, .mm-seek:focus-visible .mm-seek-knob { opacity: 1; transform: none; }
 .mm-seek.big { height: 20px; } .mm-seek.big::before, .mm-seek.big i { top: 8px; height: 5px; } .mm-seek.big .mm-seek-knob { top: 4px !important; width: 14px; height: 14px !important; margin-left: -7px; }
 .mm-bar-tools { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
-
-/* -------------------------------------------------------- «Сейчас играет» */
 .mm-np { position: fixed; inset: 0; z-index: 20; color: rgb(var(--np-ink)); display: grid; grid-template-rows: auto 1fr; overflow: hidden; background: #050507;
   --mm-text: rgb(var(--np-ink)); --mm-muted: rgb(var(--np-ink) / .66); --mm-faint: rgb(var(--np-ink) / .4); --mm-line: rgb(var(--np-ink) / .16); --mm-hover: rgb(var(--np-ink) / .1);
   --mm-panel-2: rgb(var(--np-ink) / .12); --mm-bg: #0a0a0d; }
 .mm-np.in { animation: mm-np-in .6s var(--mm-ease) both; }
 .mm-np.out { animation: mm-np-out .35s var(--mm-ease) both; }
 @keyframes mm-np-in { from { opacity: 0; transform: translateY(6%) scale(.98); } }
-/* при «перелёте» обложки окно только проявляется: иначе цель полёта уезжала бы вместе с ним */
 .mm-np.in.flip { animation: mm-np-fade .45s var(--mm-ease) both; }
 @keyframes mm-np-fade { from { opacity: 0; } }
 .mm-flip { position: fixed; z-index: 30; object-fit: cover; pointer-events: none; transform-origin: 0 0; box-shadow: 0 30px 60px -24px rgba(0,0,0,.6); will-change: transform; }
-/* клавиатура: строка с фокусом показывает те же кнопки, что и при наведении */
-/* polish r39 (п.2): строка «как при наведении» только при фокусе с клавиатуры — после клика мышью кнопка ▶ держала фокус,
-   и у играющей строки после ухода курсора ▶ и столбики «играет» рисовались друг поверх друга */
 .mm-row:has(:focus-visible) { background: var(--mm-hover); }
 .mm-row:has(:focus-visible) .n > span:first-child { visibility: hidden; }
 .mm-row:has(:focus-visible) .n .p-btn { display: grid; }
@@ -497,7 +455,6 @@ html:not([data-playing]) .mm-vinyl-disc, html[data-calm] .mm-vinyl-disc { animat
 .mm-np-titles h1[data-len="l"] { font-size: clamp(24px, 2.6vw, 34px); }
 .mm-np-titles h1[data-len="xl"] { font-size: clamp(21px, 2.1vw, 28px); line-height: 1.18; }
 .mm-np-titles p { margin: 6px 0 0; font-size: 17px; color: var(--mm-muted); font-weight: 550; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* вкладки «Текст / Далее» — сегмент с бегущей подложкой, фиксированной высоты (ничего не наезжает) */
 .mm-np-tabs { position: relative; display: inline-grid; grid-template-columns: 1fr 1fr; align-self: flex-start; margin: 20px 0 12px; padding: 3px; border-radius: 999px;
   background: rgb(var(--np-ink) / .1); box-shadow: inset 0 0 0 1px rgb(var(--np-ink) / .1); isolation: isolate; flex: none; }
 .mm-np-tabs button { position: relative; z-index: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; height: 32px; padding: 0 16px; border-radius: 999px;
@@ -508,9 +465,6 @@ html:not([data-playing]) .mm-vinyl-disc, html[data-calm] .mm-vinyl-disc { animat
 .mm-np-tabs-pill { position: absolute; z-index: 0; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 999px; background: var(--np-pill);
   box-shadow: 0 4px 14px -4px rgba(0,0,0,.4); transition: transform .35s var(--mm-ease); }
 .mm-np-tabs[data-on="queue"] .mm-np-tabs-pill { transform: translateX(100%); }
-/* Текст «караоке»: все строки одного размера и веса (без перекладки строк при смене активной), активная — ярче и крупнее
- * масштабом (transform, только композитинг), соседние — приглушены, дальние — ещё тише. Маска сверху короче, снизу — длиннее
- * и с отступом до шкалы времени, чтобы последняя видимая строка уходила в прозрачность, а не обрезалась. */
 .mm-lyrics { position: relative; flex: 1; min-height: 120px; overflow: hidden; margin-bottom: 8px;
   -webkit-mask-image: linear-gradient(transparent, #000 12%, #000 74%, transparent 98%); mask-image: linear-gradient(transparent, #000 12%, #000 74%, transparent 98%); }
 .mm-lyrics-inner { position: absolute; left: 0; right: 0; top: 0; padding: 0 13% 0 4px; transition: transform .85s cubic-bezier(.22,.9,.24,1); will-change: transform; }
@@ -521,8 +475,6 @@ html:not([data-playing]) .mm-vinyl-disc, html[data-calm] .mm-vinyl-disc { animat
 .mm-lyric.past { color: rgb(var(--np-ink) / .3); }
 .mm-lyric.next { color: rgb(var(--np-ink) / .52); }
 .mm-lyric.far { opacity: .6; }
-/* активная строка: крупнее (масштаб), полная яркость, заливается слева направо по ВРЕМЕНИ ТРЕКА: --lp (0..1) ставит np.js
- * на кадре rAF (r39-music-lyrics: CSS-анимация в реальных секундах отставала при 2×). Слова (enhanced LRC) — .w + --wp. */
 .mm-lyric.on { transform: scale(1.13); color: rgb(var(--np-ink)); opacity: 1; }
 .mm-lyric.on:not(.words) > span { color: transparent; -webkit-background-clip: text; background-clip: text;
   background-image: linear-gradient(90deg, rgb(var(--np-ink)) 0 48%, rgb(var(--np-ink) / .5) 52% 100%); background-size: 200% 100%;
@@ -534,16 +486,12 @@ html:not([data-playing]) .mm-vinyl-disc, html[data-calm] .mm-vinyl-disc { animat
   background-image: linear-gradient(90deg, rgb(var(--np-ink)) 0 50%, rgb(var(--np-ink) / .5) 50% 100%); background-size: 200% 100%;
   background-position: calc(100% - var(--wp, 0) * 100%) 0; }
 html[data-calm] .mm-lyric.on > span, html[data-calm] .mm-lyric.on.words .w { background: none; color: rgb(var(--np-ink)); }
-/* r41b: синхронизация текста. Только что пропетая строка в паузе — «пропета» (ярче прошедших); «По строкам» — строка горит
- * целиком, без ползущей заливки; «Выкл.» — обычный текст с прокруткой, строки по-прежнему перематывают по нажатию. */
 .mm-lyric.past.just { color: rgb(var(--np-ink) / .62); }
 .mm-lyrics[data-sync="line"] .mm-lyric.on > span, .mm-lyrics[data-sync="line"] .mm-lyric.on .w { background: none; color: rgb(var(--np-ink)); }
 .mm-lyrics[data-sync="off"] .mm-lyrics-inner { padding-top: 12px; padding-bottom: 32px; }
 .mm-lyrics[data-sync="off"] .mm-lyric { padding: 6px 0; color: rgb(var(--np-ink) / .8); transition: color .2s; }
 .mm-lyrics[data-sync="off"] .mm-lyric:hover { color: rgb(var(--np-ink)); }
 .mm-lyrics[data-sync="off"] .mm-lyric:last-child { margin-bottom: 0; }
-/* «•••» в проигрыше (как в Apple Music): место в списке есть всегда, точки проявляются в паузе и наполняются по её ходу
- * (--gp 0..1 ставит np.js на кадре), «дышат», а перед следующей строкой — лопаются. Только transform/opacity. */
 .mm-ly-gap { display: flex; align-items: center; gap: .42em; height: 1.9em; padding-left: 3px; font-size: clamp(18px, 1.7vw, 24px);
   transform-origin: left center; opacity: 0; transform: scale(.6); transition: opacity .45s var(--mm-ease), transform .7s var(--mm-ease); pointer-events: none; }
 .mm-ly-gap i { --k: 0; width: .5em; height: .5em; border-radius: 50%; background: rgb(var(--np-ink));
@@ -555,7 +503,6 @@ html[data-calm] .mm-lyric.on > span, html[data-calm] .mm-lyric.on.words .w { bac
 .mm-ly-gap.on.end { opacity: 0; transform: scale(1.3); transition: opacity .35s ease-in, transform .5s cubic-bezier(.3,1.5,.6,1); }
 @keyframes mm-ly-breathe { 0%, 100% { scale: 1; } 50% { scale: 1.14; } }
 html[data-calm] .mm-ly-gap.on { animation: none; }
-/* r39-music-lyrics: строка источника под текстом — тихая, одна линия: «LRCLIB · синхр. ▾   − 0.0 с +   Не тот текст» */
 .mm-ly-bar { position: relative; display: flex; align-items: center; gap: 8px; min-height: 28px; margin: -4px 0 8px; font-size: 12px; color: rgb(var(--np-ink) / .55); }
 .mm-ly-bar[hidden] { display: none; }
 .mm-ly-bar button { color: inherit; border-radius: 8px; padding: 4px 8px; transition: color .2s, background-color .2s; }
@@ -567,7 +514,6 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
 .mm-ly-off { display: inline-flex; align-items: center; gap: 0; }
 .mm-ly-off button { width: 24px; padding: 4px 0; font-size: 14px; line-height: 1; }
 .mm-ly-off b { min-width: 52px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
-/* r41-ui: «По строке» (синхронизация нажатием на звучащую строку), «Изменить», предупреждение о другой версии трека */
 .mm-ly-tap, .mm-ly-edit { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .mm-ly-tap svg, .mm-ly-edit svg { width: 14px; height: 14px; }
 .mm-ly-tap.on { color: rgb(var(--np-ink)); background: rgb(var(--np-ink) / .12); box-shadow: inset 0 0 0 1px rgb(var(--np-ink) / .22); }
@@ -590,7 +536,6 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
 .mm-lyrics-msg { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 8px; color: var(--mm-muted); }
 .mm-lyrics-msg b { color: rgb(var(--np-ink)); font-size: 20px; }
 .mm-lyrics-msg svg.ill { width: 160px; height: 124px; margin: 0 auto; stroke: none; }
-/* пустой экран текста */
 .mm-lyrics.static { -webkit-mask-image: none; mask-image: none; overflow: auto; scrollbar-width: none; }
 .mm-lyrics.static::-webkit-scrollbar { display: none; }
 .mm-lyrics.static .mm-lyrics-inner { position: relative; transform: none !important; min-height: 100%; display: flex; flex-direction: column; }
@@ -602,7 +547,6 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
 .mm-lyrics-empty b { font-size: clamp(22px, 2.2vw, 30px); font-weight: 800; letter-spacing: -.025em; color: rgb(var(--np-ink)); }
 .mm-lyrics-empty > span { max-width: 420px; color: rgb(var(--np-ink) / .66); font-size: 14.5px; line-height: 1.5; }
 .mm-lyrics-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
-/* мало высоты (узкое окно — текст под обложкой): значок уходит первым, затем подсказка; кнопки «Найти/Вставить» видны всегда */
 @media (max-width: 860px) and (max-height: 900px), (max-height: 640px) { .mm-lyrics-badge { display: none; } .mm-lyrics-empty { gap: 6px; padding: 6px 2px 8px; } }
 @media (max-width: 860px) and (max-height: 700px) { .mm-lyrics-empty > span { display: none; } .mm-lyrics-acts { margin-top: 4px; } }
 @media (max-width: 860px) and (max-height: 620px) { .mm-lyrics-empty b { font-size: 17px; } }
@@ -620,8 +564,6 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
 .mm-np-tools { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
 .mm-np .mm-chip.glass { background: rgb(var(--np-ink) / .1); color: rgb(var(--np-ink) / .85); }
 .mm-np .mm-chip.glass:hover, .mm-np .mm-chip.glass[aria-pressed="true"] { background: rgb(var(--np-ink) / .2); color: rgb(var(--np-ink)); }
-
-/* -------------------------------------------------------- очередь / поповеры */
 .mm-drawer { position: fixed; right: 12px; top: calc(12px + var(--mm-safe-top)); bottom: calc(var(--mm-bar) + 12px); width: 380px; max-width: calc(100% - 24px); z-index: 15; display: flex; flex-direction: column;
   border-radius: calc(20px * var(--mm-rk)); background: color-mix(in srgb, var(--mm-bg) 92%, var(--tint)); border: 1px solid var(--mm-line); box-shadow: var(--mm-shadow);
   animation: mm-drawer-in .45s var(--mm-ease) both; }
@@ -668,7 +610,6 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
   border: 1px solid var(--mm-line); box-shadow: var(--mm-shadow); animation: mm-pop-in .35s var(--mm-spring) both; display: grid; gap: 14px; }
 .mm-modal-card h3 { margin: 0; font-size: 19px; font-weight: 750; }
 .mm-modal-card .acts { display: flex; justify-content: flex-end; gap: 8px; }
-/* перетаскивание: затемнение в цвет акцента и карточка на поверхности темы (читается в светлой и тёмной схеме); ссылка и файлы — свой текст */
 .mm-drop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: color-mix(in srgb, var(--tint) 18%, rgba(8,8,12,.5)); pointer-events: none; animation: mm-fade .2s both; }
 .mm-drop-card { display: grid; justify-items: center; gap: 6px; min-width: 320px; padding: 36px 48px 32px; border-radius: calc(24px * var(--mm-rk)); text-align: center;
   background: var(--mm-surface); color: var(--mm-text); box-shadow: var(--mm-shadow), inset 0 0 0 2px color-mix(in srgb, var(--tint) 55%, transparent); outline: 2px dashed color-mix(in srgb, var(--tint) 70%, transparent); outline-offset: -12px;
@@ -683,12 +624,8 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
 .mm-toasts { position: fixed; left: 50%; bottom: calc(var(--mm-bar) + 16px); transform: translateX(-50%); z-index: 70; display: grid; gap: 8px; justify-items: center; pointer-events: none; }
 .mm-toast { padding: 10px 16px; border-radius: 999px; background: var(--mm-text); color: var(--mm-bg); font-size: 13.5px; font-weight: 600;
   box-shadow: 0 14px 30px -10px rgba(0,0,0,.5); animation: mm-toast .38s var(--mm-ease) both; max-width: 80vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-/* только появление: исчезает тост вместе с узлом (JS) — иначе при «Анимация: выкл.» анимация сразу доходила до opacity 0 и тосты были невидимы,
- * а тост с «Отменить» (6,5 с) пропадал с экрана раньше, чем кнопка переставала работать */
 @keyframes mm-toast { from { opacity: 0; transform: translateY(12px) scale(.95); } }
 .mm-toast-act { pointer-events: auto; padding-right: 8px; }
-
-/* -------------------------------------------------------------- узкое окно */
 @media (max-width: 1080px) {
   .mm { --mm-side: 72px; }
   .mm-side { padding: 18px 10px; align-items: center; }
@@ -725,8 +662,6 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 }
-
-/* ------------------------------------------------------------------- история прослушиваний (Статистика) */
 .mm-history { display: grid; gap: 2px; }
 .mm-history-day { margin: 14px 0 6px; font-size: 11.5px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--mm-faint); }
 .mm-history-day:first-child { margin-top: 0; }
@@ -741,10 +676,6 @@ html[data-calm] .mm-ly-gap.on { animation: none; }
 .mm-history-meta { display: grid; justify-items: end; font-size: 12px; color: var(--mm-muted); }
 .mm-history-meta time { font-variant-numeric: tabular-nums; color: var(--mm-text); font-weight: 600; }
 .mm-history-meta em { font-style: normal; color: var(--mm-faint); }
-
-/* ==================================================================== Раунд 38 · оформление (design)
- * Темы и схема — переменные из theme.js; дизайны — html[data-mm-design]; фон — html[data-mm-bg];
- * анимации — html[data-mm-motion]. Ничего здесь не размывает прокручиваемое (blur — только неподвижные слои). */
 .mm img { max-width: 100%; }
 .mm-art, .mm-tile-art, .mm-bar-cover, .mm-np-cover, .mm-flow-item, .mm-vinyl-label { contain: paint; }
 .mm-tile-art img, .mm-art img, .mm-flow-item img, .mm-bar-cover img, .mm-np-cover img, .mm-collage img { object-fit: cover; object-position: 50% 50%; aspect-ratio: 1; }
@@ -756,7 +687,6 @@ html[data-mm-scheme="light"] .mm-coverbg { opacity: .2; filter: blur(72px) satur
 html[data-mm-bg="cover"] .mm-coverbg[src] { display: block; }
 html[data-mm-bg="cover"] .mm-ambient, html[data-mm-bg="solid"] .mm-ambient { display: none; }
 html[data-mm-bg="solid"] .mm-grain { opacity: 0; }
-/* мгновенная и плавная смена темы: на полсекунды — переходы цветов */
 html.mm-theming body, html.mm-theming .mm-side, html.mm-theming .mm-bar, html.mm-theming .mm-main, html.mm-theming .mm-view *, html.mm-theming .mm-side * {
   transition: background-color .35s ease, color .35s ease, border-color .35s ease, box-shadow .35s ease !important; }
 html[data-mm-motion="off"] *, html[data-mm-motion="off"] *::before, html[data-mm-motion="off"] *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
@@ -767,8 +697,6 @@ html[data-mm-density="compact"] .mm-row .t b { font-size: 13.5px; }
 html[data-mm-density="compact"] .mm-row .t span { font-size: 12px; }
 html[data-mm-density="comfy"] .mm-row .t b { font-size: 15px; }
 .mm-mix span { padding-right: 4px; }
-
-/* ----------------------------------------------------------- дизайн «Минимал»: воздух, плоские поверхности */
 html[data-mm-design="minimal"] { --mm-pad-x: 48px; --mm-gap: 26px; --mm-display-weight: 700; --mm-title-track: -.028em; }
 html[data-mm-design="minimal"] .mm-side { background: var(--mm-bg); border-right-color: transparent; }
 html[data-mm-design="minimal"] .mm-nav button[aria-current="page"] { background: transparent; color: var(--mm-text); font-weight: 720; }
@@ -785,8 +713,6 @@ html[data-mm-design="minimal"] .mm-btn.tint, html[data-mm-design="minimal"] .mm-
 html[data-mm-design="minimal"] .mm-badge, html[data-mm-design="minimal"] .mm-switch input:checked + i { background: var(--tint-solid); box-shadow: none; }
 html[data-mm-design="minimal"] .mm-flow-item { -webkit-box-reflect: unset; }
 html[data-mm-design="minimal"] .mm-grain { opacity: 0; }
-
-/* ----------------------------------------------------------- дизайн «Винил / Ретро»: тёплая бумага, крупная типографика */
 html[data-mm-design="retro"] { --mm-display: "Iowan Old Style", "Charter", "Georgia", "Cambria", serif; --mm-display-weight: 700; --mm-title-track: -.012em; --mm-gap: 22px; }
 html[data-mm-design="retro"] .mm-grain { opacity: 1; background:
   radial-gradient(120% 80% at 50% -10%, transparent 50%, color-mix(in srgb, var(--mm-bg) 70%, transparent) 100%),
@@ -805,8 +731,6 @@ html[data-mm-design="retro"] .mm-side { background: color-mix(in srgb, var(--mm-
 html[data-mm-design="retro"] .mm-nav button[aria-current="page"]::before { left: -12px; width: 4px; border-radius: 0; background: var(--tint); }
 html[data-mm-design="retro"] .mm-mix b { font-style: italic; font-weight: 700; }
 html[data-mm-design="retro"] .mm-flow-item { -webkit-box-reflect: unset; box-shadow: 8px 10px 0 color-mix(in srgb, var(--mm-text) 14%, transparent); }
-
-/* ----------------------------------------------------------- дизайн «Неон / Клуб»: глубокий фон, свечения */
 html[data-mm-design="neon"] { --mm-display-weight: 800; --mm-title-track: -.02em; }
 html[data-mm-design="neon"] .mm-grain { opacity: 1; background:
   radial-gradient(120% 80% at 50% -10%, transparent 40%, var(--mm-bg) 100%),
@@ -826,8 +750,6 @@ html[data-mm-design="neon"] .mm-bar { border-top-color: color-mix(in srgb, var(-
 html[data-mm-design="neon"] .mm-mix { box-shadow: 0 0 0 1px color-mix(in srgb, var(--m1) 60%, transparent), 0 16px 40px -18px var(--m1); }
 html[data-mm-design="neon"] .mm-kpi b { color: var(--tint-ink); text-shadow: 0 0 18px color-mix(in srgb, var(--tint) 50%, transparent); }
 html[data-mm-design="neon"][data-mm-scheme="light"] .mm-greet { filter: none; }
-
-/* ----------------------------------------------------------- дизайн «Компакт»: плотные списки для больших библиотек */
 html[data-mm-design="compact"] { --mm-side: 208px; --mm-bar: 72px; --mm-pad-x: 24px; --mm-gap: 12px; --mm-display-weight: 750; }
 html[data-mm-design="compact"] .mm-view { padding-top: calc(18px + var(--mm-safe-top)); }
 html[data-mm-design="compact"] .mm-greet { font-size: clamp(26px, 3.2vw, 38px); }
@@ -846,23 +768,14 @@ html[data-mm-design="compact"] .mm-mix b { font-size: 16px; }
 html[data-mm-design="compact"] .mm-bar-cover { width: 48px; height: 48px; }
 html[data-mm-design="compact"] .mm-head .mm-art { width: 160px; height: 160px; }
 html[data-mm-design="compact"] .mm-set { padding: 12px 16px; }
-
-/* ----------------------------------------------------------- «Сейчас играет»: стили и фон */
 .mm-np-blur, .mm-np-backdrop { position: absolute; z-index: 0; display: none; pointer-events: none; max-width: none; }
-/* r44: a percentage bleed is too small on short windows for a 64–70 px blur.
- * Keep three blur radii outside every edge, including when the player is enlarged.
- * .mm img has a more specific max-width:100% rule: explicitly release these
- * decorative layers from that cap, otherwise the right/bottom edge moves inside
- * the viewport and exposes the underlying (white in the light scheme) surface. */
 .mm-np-blur { --mm-np-bleed: 210px; inset: calc(-1 * var(--mm-np-bleed)); width: calc(100% + 2 * var(--mm-np-bleed)); height: calc(100% + 2 * var(--mm-np-bleed)); object-fit: cover; filter: blur(64px) saturate(1.5) brightness(.62); transform: translateZ(0); }
 .mm .mm-np-blur, .mm .mm-np-backdrop { max-width: none; }
 .mm-np[data-bg="cover"] .mm-np-blur[src] { display: block; }
 .mm-np[data-bg="cover"] .mm-np-bg, .mm-np[data-bg="solid"] .mm-np-bg { visibility: hidden; }
 .mm-np[data-bg="solid"] { background: color-mix(in srgb, var(--tint-3) 16%, #070709); }
 .mm-np-backdrop { inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: 50% 30%; }
-/* «Обложка-фон»: обложка занимает левую часть окна и мягко растворяется (маска на неподвижном слое) в размытую затемнённую
- * копию; под колонкой текста — плотный скрим, поэтому белый текст читается на любой, даже очень яркой обложке (контраст ≥ 4.5). */
-.mm-np[data-style="full"] .mm-np-backdrop[src] { display: block; right: auto; width: 62%; transform: scale(1.08); transform-origin: 62% 50%;   /* рамка/поля самой обложки (белая кайма, полосы YouTube) уходят за край окна */
+.mm-np[data-style="full"] .mm-np-backdrop[src] { display: block; right: auto; width: 62%; transform: scale(1.08); transform-origin: 62% 50%;
   -webkit-mask-image: linear-gradient(90deg, #000 40%, rgba(0,0,0,.45) 70%, transparent 94%); mask-image: linear-gradient(90deg, #000 40%, rgba(0,0,0,.45) 70%, transparent 94%); }
 .mm-np[data-style="full"] .mm-np-blur[src] { display: block; filter: blur(70px) saturate(1.35) brightness(.5); }
 .mm-np[data-style="full"] .mm-np-bg { visibility: hidden; }
@@ -871,7 +784,6 @@ html[data-mm-design="compact"] .mm-set { padding: 12px 16px; }
   linear-gradient(rgb(var(--np-paper) / .5), transparent 20%, transparent 72%, rgb(var(--np-paper) / .55)); }
 .mm-np[data-style="full"] .mm-np-body { grid-template-columns: minmax(0, 1fr) minmax(380px, 560px); }
 .mm-np[data-style="full"] .mm-np-stage { visibility: hidden; }
-/* светлый «Сейчас играет» (Оформление → «Сейчас играет» → «Как тема», в светлой схеме): те же стили, чернила и «бумага» меняются местами */
 .mm-np[data-light] { --np-ink: 24 22 32; --np-paper: 250 249 252; --np-pill: #fff; --np-on-pill: #16151c; --mm-bg: var(--mm-surface); background: var(--mm-surface); }
 .mm-np[data-light] .mm-np-blur { filter: blur(64px) saturate(1.25) brightness(1.18); opacity: .5; }
 .mm-np[data-light][data-style="full"] .mm-np-blur[src] { filter: blur(70px) saturate(1.2) brightness(1.2); opacity: .55; }
@@ -891,7 +803,7 @@ html[data-mm-design="compact"] .mm-set { padding: 12px 16px; }
 .mm-np[data-style="minimal"] .mm-np-cover { border-radius: calc(14px * var(--mm-rk)); transform: none; box-shadow: 0 30px 60px -30px rgba(0,0,0,.8); }
 .mm-np[data-style="minimal"] .mm-glare { display: none; }
 .mm-np[data-style="minimal"] .mm-np-side { max-width: 520px; }
-@media (max-width: 860px) {   /* узкое окно: обложка и колонка как в других стилях — место тексту, управление по центру */
+@media (max-width: 860px) {
   .mm-np[data-style="minimal"] .mm-np-art { width: min(26vh, 56vw); }
   .mm-np[data-style="minimal"] .mm-np-side { max-width: none; }
 }
@@ -901,8 +813,6 @@ html:not([data-playing]) .mm-np[data-style="minimal"] .mm-np-cover { transform: 
 .mm-np-meta { flex: none; }
 .mm-np-controls { flex: none; }
 .mm-lyrics, .mm-np-queue { margin: 0 -4px; padding: 0 4px; }
-
-/* ----------------------------------------------------------- раздел «Оформление» */
 .mm-ap { display: grid; gap: 14px; max-width: 980px; }
 .mm-ap-group { padding: 20px; border-radius: calc(20px * var(--mm-rk)); background: var(--mm-panel); border: 1px solid var(--mm-line); min-width: 0; }
 .mm-ap-group > header { margin-bottom: 14px; }
@@ -934,7 +844,6 @@ html:not([data-playing]) .mm-np[data-style="minimal"] .mm-np-cover { transform: 
   opacity: 0; transform: scale(.6); transition: opacity .2s, transform .3s var(--mm-spring); box-shadow: 0 2px 8px rgba(0,0,0,.3); }
 .mm-ap-check svg { width: 13px; height: 13px; stroke-width: 2.6; }
 .mm-ap-card[aria-checked="true"] .mm-ap-check { opacity: 1; transform: none; }
-/* мини-окно темы: текущая схема + по диагонали другая (светлая/тёмная) */
 .mm-tp2 { position: relative; display: block; border-radius: calc(10px * var(--mm-rk)); overflow: hidden; isolation: isolate; }
 .mm-tp2 > .mm-tp { border-radius: 0; }
 .mm-tp2 > .mm-tp + .mm-tp { position: absolute; inset: 0; clip-path: polygon(70% 0, 100% 0, 100% 100%, 52% 100%); }
@@ -955,7 +864,6 @@ html:not([data-playing]) .mm-np[data-style="minimal"] .mm-np-cover { transform: 
 .mm-tp .tp-bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 0 9%; border-top: 1px solid var(--p-ln); background: color-mix(in srgb, var(--p-sf) 60%, var(--p-bg)); }
 .mm-tp .tp-bar s { width: 10px; height: 10px; border-radius: 50%; background: var(--p-tx); flex: none; }
 .mm-tp .tp-bar u { flex: 1; height: 3px; border-radius: 2px; background: linear-gradient(90deg, var(--p-a) 40%, var(--p-mu) 40%); }
-/* мини-схема дизайна (в цветах текущей темы) */
 .mm-dp { position: relative; display: block; aspect-ratio: 16 / 10; border-radius: calc(10px * var(--mm-rk)); overflow: hidden; background: var(--mm-bg); box-shadow: inset 0 0 0 1px var(--mm-line); }
 .mm-dp i { position: absolute; display: block; }
 .mm-dp[data-d="glass"] { background: radial-gradient(60% 70% at 20% 20%, color-mix(in srgb, var(--tint) 55%, transparent), transparent 70%), radial-gradient(60% 70% at 85% 80%, color-mix(in srgb, var(--tint-2) 45%, transparent), transparent 70%), var(--mm-bg); }
@@ -980,7 +888,6 @@ html:not([data-playing]) .mm-np[data-style="minimal"] .mm-np-cover { transform: 
 .mm-dp[data-d="compact"] i:nth-child(1) { top: 12%; background: var(--mm-text); opacity: .8; width: 42%; box-shadow: none; }
 .mm-dp[data-d="compact"] i:nth-child(2) { top: 28%; } .mm-dp[data-d="compact"] i:nth-child(3) { top: 41%; background: color-mix(in srgb, var(--tint) 35%, transparent); }
 .mm-dp[data-d="compact"] i:nth-child(4) { top: 54%; } .mm-dp[data-d="compact"] i:nth-child(5) { top: 67%; } .mm-dp[data-d="compact"] i:nth-child(6) { top: 80%; }
-/* мини-схема «Сейчас играет» */
 .mm-npp { position: relative; display: block; aspect-ratio: 16 / 10; border-radius: calc(10px * var(--mm-rk)); overflow: hidden;
   background: radial-gradient(70% 90% at 25% 50%, color-mix(in srgb, var(--tint) 60%, #000), #0b0a10 75%); }
 .mm-npp i, .mm-npp s, .mm-npp u { position: absolute; display: block; text-decoration: none; }
@@ -1020,7 +927,6 @@ html:not([data-playing]) .mm-np[data-style="minimal"] .mm-np-cover { transform: 
 }
 .mm :focus-visible { outline: 2px solid var(--tint-ink); outline-offset: 2px; }
 .mm-np :focus-visible { outline-color: rgb(var(--np-ink) / .85); }
-/* вкладки Настроек (разметка — feat-settings.js) */
 .mm-nav button > span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mm-set-tabs { display: flex; gap: 4px; margin: 22px 0 18px; padding: 4px; width: max-content; max-width: 100%; overflow-x: auto; scrollbar-width: none;
   border-radius: calc(14px * var(--mm-rk)); background: var(--mm-panel-2); }
@@ -1037,42 +943,33 @@ html:not([data-playing]) .mm-np[data-style="minimal"] .mm-np-cover { transform: 
 .mm-np-tools .mm-chip { height: 30px; padding: 0 11px; font-size: 12.5px; }
 .mm-np-tools { flex-wrap: nowrap; }
 .mm-np-tools .mm-chip { flex: none; }
-/* узкая колонка: сначала значками становятся второстепенные чипы, потом все — ряд всегда в одну строку */
 @container (max-width: 600px) { .mm-np-tools :is([data-pop="eq"], #np-viz-toggle, #np-ab) > span { display: none; } .mm-np-tools :is([data-pop="eq"], #np-viz-toggle, #np-ab) { width: 34px; padding: 0; justify-content: center; } }
 @container (max-width: 380px) { .mm-np-tools .mm-chip > span { display: none; } .mm-np-tools .mm-chip { width: 34px; padding: 0; justify-content: center; } }
-
-/* ===== feat (r38-music-feat): стили функций — в отдельном файле, MemuAI вставляет его сюда ===== */
 /* @memu-part:feat.css */
 /* @memu-part:feat-lib.css */
 /* @memu-part:feat-online.css */
 .mm input[type="text"]:focus-visible, .mm input[type="search"]:focus-visible, .mm input:not([type]):focus-visible, .mm textarea:focus-visible, .mm select:focus-visible { outline: none; }
-/* тосты не закрывают кнопки диалогов: при открытой модалке — сверху */
 .mm-modal:not([hidden]) ~ .mm-toasts { bottom: auto; top: calc(16px + var(--mm-safe-top)); }
 .mm-np .mm-dragzone { z-index: 3; }
-/* окно-приложение с прозрачным аппбаром: под системной полосой — мягкий скрим, чтобы её заголовок и кнопки читались на любой обложке */
 .mm-np-shade::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: calc(var(--mm-safe-top) * 2.2); background: linear-gradient(rgb(var(--np-paper) / .62), rgb(var(--np-paper) / 0)); }
-/* ползунки вне плеер-бара: видимая дорожка и ручка даже на нуле */
 .mm-range:not(#volume) { height: 6px; background: linear-gradient(90deg, var(--tint) var(--v, 0%), color-mix(in srgb, var(--mm-text) 18%, transparent) var(--v, 0%)); }
 .mm-range:not(#volume)::-webkit-slider-thumb { opacity: 1; width: 16px; height: 16px; background: var(--mm-surface); box-shadow: 0 0 0 2px var(--tint), 0 2px 6px rgba(0,0,0,.25); }
-/* design-2: вкладки Настроек — всегда одной строкой (6+ вкладок не переносятся «ступенькой»), сегмент в цветах темы; правила после feat.css */
 .mm-set-tabs { flex-wrap: nowrap; overflow-x: auto; border-radius: calc(14px * var(--mm-rk)); margin: 22px 0 18px; }
 .mm-set-tabs button { flex: none; white-space: nowrap; height: 36px; border-radius: calc(10px * var(--mm-rk)); font-size: 13.5px; }
 .mm-set-tabs button[aria-selected="true"] { background: var(--mm-surface); color: var(--mm-text); box-shadow: 0 1px 2px rgba(0,0,0,.16), 0 0 0 1px var(--mm-line); }
 @media (max-width: 1380px) { .mm-set-tabs button { padding: 0 12px; gap: 6px; } }
 @media (max-width: 1180px) { .mm-set-tabs button { padding: 0 11px; } }
-@media (max-width: 860px) {   /* узкое окно: вкладки — ровная сетка 3×2 вместо прокрутки с обрезанной последней */
+@media (max-width: 860px) {
   .mm-set-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; }
   .mm-set-tabs button { justify-content: center; min-width: 0; padding: 0 6px; font-size: 13px; }
   .mm-set-tabs button span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 }
-@media (max-width: 1300px) { .mm-set-tabs button svg { display: none; } }   /* 6 вкладок помещаются целиком: значки уходят раньше, чем текст обрезается */
+@media (max-width: 1300px) { .mm-set-tabs button svg { display: none; } }
 .mm-rule-chips em { color: var(--mm-muted); }
-/* жанры как у Spotify: название сверху слева, обложка повёрнута в правом нижнем углу и не ложится под текст */
 .mm-genre { justify-content: flex-start; gap: 2px; }
 .mm-genre b, .mm-genre span { max-width: 66%; }
 .mm-genre span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-shadow: 0 1px 6px rgba(0,0,0,.3); opacity: .92; }
 .mm-genre img { width: 42%; right: -8%; bottom: -8%; }
-/* быстрые плитки Главной: длинное название — в две строки, а не «Недавно доб…» */
 .mm-quick-item b { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.25; overflow-wrap: anywhere; }
 .mm-quick-txt { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; padding-right: 8px; }
 .mm-quick-txt b { line-height: 1.2; }
@@ -1080,31 +977,21 @@ html:not([data-playing]) .mm-np[data-style="minimal"] .mm-np-cover { transform: 
 html[data-mm-design="compact"] .mm-quick-item b { -webkit-line-clamp: 1; }
 .mm .mm-smart-art, .mm-side-pl .mm-smart-art { width: 100%; height: 100%; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, var(--a), var(--b)); }
 .mm-smart-art svg { width: 40%; height: 40%; max-width: 48px; max-height: 48px; min-width: 16px; stroke-width: 2; }
-/* design-3: единый набор значков — 20 px (основной) и 16 px (в кнопках с текстом, чипах, полях); у 16 px линия чуть толще,
- * чтобы на экране толщина совпадала с 20 px (1.8/24·20 ≈ 2/24·16 ≈ 1.4 px). Заливные «Играть/Пауза» — свои размеры. */
 .mm-btn svg, .mm-chip svg, .mm-icon.sm svg, .mm-search svg, .mm-row .n .p-btn svg, .mm-sources .mm-srcdot svg, .mm-set-tabs svg { stroke-width: 2.1; }
-/* ===== polish r39 (r39-music-polish): поля ввода — одно аккуратное кольцо фокуса по контуру скруглённого поля (п.9) ===== */
-/* системная прямоугольная рамка у любых текстовых полей и списков выключена: кольцо рисует само поле или его скруглённый контейнер */
 .mm :is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"]), textarea, select):focus-visible { outline: none; }
 .mm-input:hover:not(:focus):not(:disabled), .mm-select:hover:not(:focus):not(:disabled) { border-color: color-mix(in srgb, var(--mm-text) 22%, var(--mm-line)); }
 .mm-select { transition: border-color .2s, box-shadow .2s; }
 .mm-select:focus-visible { border-color: color-mix(in srgb, var(--tint) 70%, transparent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--tint) 18%, transparent); }
 .mm-input:disabled, .mm-select:disabled { opacity: .55; cursor: not-allowed; }
 .mm-dl-field:hover:not(:focus-within) { border-color: color-mix(in srgb, var(--mm-text) 22%, var(--mm-line)); }
-/* polish r39: список плейлистов в боковой панели не обрезается «по живому» — мягкое затухание снизу, последний пункт прокручивается выше него */
-/* затухание есть только пока список прокручивается и до конца не долистан (scroll-timeline); короткий список — без маски */
 @property --mm-side-fade { syntax: "<length>"; inherits: false; initial-value: 0px; }
 @keyframes mm-side-fade { from, 96% { --mm-side-fade: 28px; } to { --mm-side-fade: 0px; } }
 .mm-side-list { -webkit-mask-image: linear-gradient(#000 calc(100% - var(--mm-side-fade)), transparent); mask-image: linear-gradient(#000 calc(100% - var(--mm-side-fade)), transparent);
   animation: mm-side-fade linear both; animation-timeline: scroll(self); }
-/* polish r39: заголовок пустого экрана текста — тем же шрифтом, что название трека (в «Ретро» был рубленый рядом с антиквой); подсказка — ровными строками */
 .mm-lyrics-empty b { font-family: var(--mm-display); }
 .mm-lyrics-empty > span, .mm-empty p { text-wrap: pretty; }
 .mm-dl-field:focus-within { border-color: color-mix(in srgb, var(--tint) 85%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--tint) 85%, transparent), 0 0 0 6px color-mix(in srgb, var(--tint) 20%, transparent), 0 20px 40px -24px rgba(0,0,0,.6); }
-/* polish r39: время у полосы — целая высота строки, чтобы полоса не вставала на полпикселя (мягкая строка над ней на 100–150 %) */
 .mm-seek-row .mm-time { line-height: 16px; }
-/* центр бара прижат к низу на целое число пикселей (по центру 83 − 60 = 11,5 px → полоса на x.5 px) */
 @media (min-width: 861px) { .mm-bar-center { align-self: stretch; align-content: end; padding-bottom: round(down, (var(--mm-bar) - 61px) / 2, 1px); } }
-/* polish r39: длинная подсказка в узком окне — с многоточием, а не обрезана по букве */
 .mm-dl-field input, .mm-input { text-overflow: ellipsis; }

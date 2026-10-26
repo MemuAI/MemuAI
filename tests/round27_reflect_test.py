@@ -25,15 +25,12 @@ from tests.round27_reflect_data import (ATTACHMENT_MARKER, CRISIS_MARKER, HEALTH
 ROOT = Path(__file__).resolve().parents[1]
 TZ = timezone(timedelta(hours=3))
 
-
 def ms(*args) -> int:
     return int(datetime(*args, tzinfo=TZ).timestamp() * 1000)
-
 
 def conv(cid, rows, source="chat", title="t"):
     return {"id": cid, "title": title, "source": source,
             "messages": [{"role": r, "text": t, "ts": ts} for r, t, ts in rows]}
-
 
 GOOD_FINAL = {
     "headline": "Код MemuAI, испанский и поездка",
@@ -43,7 +40,6 @@ GOOD_FINAL = {
                {"name": "Путешествия", "description": "Тбилиси", "percent": 20}],
     "skills": {k: {"observation": f"obs {k}", "next_step": f"step {k}", "action": "project"} for k in reflect.SKILLS},
 }
-
 
 class Scripted:
     """A fake ``proxy_completion``: answers from a list (or a function) and records every prompt."""
@@ -62,10 +58,8 @@ class Scripted:
             raise item
         return item
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 class DataDir:
     """Writes chats into the test data dir and restores the previous files afterwards."""
@@ -92,7 +86,6 @@ class DataDir:
             else:
                 (self.dir / n).write_bytes(data)
 
-
 class PeriodsAndStats(unittest.TestCase):
     def test_period_bounds(self):
         now = datetime(2026, 10, 9, 12, 3, tzinfo=TZ)
@@ -100,7 +93,7 @@ class PeriodsAndStats(unittest.TestCase):
         self.assertEqual(reflect.period_bounds("last_month", now), (datetime(2026, 9, 1, tzinfo=TZ), datetime(2026, 10, 1, tzinfo=TZ)))
         self.assertEqual(reflect.period_bounds("3m", now)[0], datetime(2026, 7, 9, tzinfo=TZ))
         self.assertEqual(reflect.period_bounds("12m", now)[0], datetime(2025, 10, 9, tzinfo=TZ))
-        # January → the previous year's December; 31 May minus 3 months → 28/29 February.
+
         jan = datetime(2027, 1, 15, tzinfo=TZ)
         self.assertEqual(reflect.period_bounds("last_month", jan)[0], datetime(2026, 12, 1, tzinfo=TZ))
         self.assertEqual(reflect.period_bounds("3m", datetime(2026, 5, 31, tzinfo=TZ))[0], datetime(2026, 2, 28, tzinfo=TZ))
@@ -109,9 +102,9 @@ class PeriodsAndStats(unittest.TestCase):
 
     def test_sessions_and_time(self):
         base = ms(2026, 9, 1, 10, 0)
-        stamps = [base, base + 5 * 60_000, base + 15 * 60_000,      # one 15-minute session
-                  base + 60 * 60_000,                                 # a lone message
-                  base + 130 * 60_000, base + 149 * 60_000]           # 19-minute gap keeps a session
+        stamps = [base, base + 5 * 60_000, base + 15 * 60_000,
+                  base + 60 * 60_000,
+                  base + 130 * 60_000, base + 149 * 60_000]
         spans = reflect.sessions(stamps)
         self.assertEqual(len(spans), 3)
         self.assertEqual([round(reflect.session_minutes(s)) for s in spans], [17, 1, 21])
@@ -120,9 +113,9 @@ class PeriodsAndStats(unittest.TestCase):
         start, end = datetime(2026, 9, 1, tzinfo=TZ), datetime(2026, 10, 1, tzinfo=TZ)
         convs = [
             conv("a", [("user", "x", ms(2026, 9, 1, 14, 5)), ("assistant", "y", ms(2026, 9, 1, 14, 7)),
-                       ("user", "x", ms(2026, 9, 1, 14, 20))]),                      # Tuesday 1 Sep, 14:00
-            conv("b", [("user", "x", ms(2026, 9, 8, 14, 40))]),                       # Tuesday
-            conv("c", [("user", "x", ms(2026, 9, 3, 9, 0)), ("user", "x", ms(2026, 9, 4, 9, 0))]),   # Thu + Fri
+                       ("user", "x", ms(2026, 9, 1, 14, 20))]),
+            conv("b", [("user", "x", ms(2026, 9, 8, 14, 40))]),
+            conv("c", [("user", "x", ms(2026, 9, 3, 9, 0)), ("user", "x", ms(2026, 9, 4, 9, 0))]),
         ]
         stats = reflect.compute_stats(convs, start, end)
         self.assertEqual(stats["conversations"], 3)
@@ -130,7 +123,7 @@ class PeriodsAndStats(unittest.TestCase):
         self.assertEqual(stats["days"], 30)
         self.assertEqual(len(stats["series"]), 30)
         self.assertEqual(stats["active_days"], 4)
-        self.assertEqual(stats["most_active_weekday"], 1)      # Tuesday
+        self.assertEqual(stats["most_active_weekday"], 1)
         self.assertEqual(stats["peak_hour"], 14)
         self.assertEqual(stats["series"][0], {"date": "2026-09-01", "conversations": 1, "messages": 2, "minutes": 17.0})
         self.assertEqual(stats["busiest_day"]["date"], "2026-09-01")
@@ -148,9 +141,8 @@ class PeriodsAndStats(unittest.TestCase):
         old = conv("o", [("user", "x", ms(2026, 8, 31, 23, 59)), ("assistant", "y", ms(2026, 9, 1, 0, 1))])
         mixed = conv("m", [("user", "x", ms(2026, 8, 20, 10)), ("user", "x", ms(2026, 9, 2, 10))])
         result = reflect.in_period([old, mixed], start, end)
-        self.assertEqual([c["id"] for c in result], ["m"])     # an answer alone does not count
+        self.assertEqual([c["id"] for c in result], ["m"])
         self.assertEqual(len(result[0]["messages"]), 1)
-
 
 class Collect(unittest.TestCase):
     def test_what_is_read(self):
@@ -179,7 +171,6 @@ class Collect(unittest.TestCase):
 
     def test_injected_blocks_are_not_user_words(self):
         self.assertEqual(reflect._user_words("Перескажи <attached_file name='a'>СЕКРЕТ</attached_file> коротко"), "Перескажи коротко")
-
 
 class Privacy(unittest.TestCase):
     def test_levels(self):
@@ -221,7 +212,6 @@ class Privacy(unittest.TestCase):
         self.assertEqual(reflect.percents([0, 0]), [50, 50])
         self.assertEqual(sum(reflect.percents([33.3, 33.3, 33.4, 0.01])), 100)
 
-
 class StrictJson(unittest.TestCase):
     def test_extract(self):
         self.assertEqual(reflect.extract_json('```json\n{"a": 1}\n```'), {"a": 1})
@@ -261,7 +251,6 @@ class StrictJson(unittest.TestCase):
         with self.assertRaises(reflect.ReportError):
             run(reflect._ask_json(model, "m", [{"role": "user", "content": "go"}], reflect.validate_final))
 
-
 class Generation(unittest.TestCase):
     def snap(self):
         now = datetime.now().astimezone()
@@ -300,7 +289,7 @@ class Generation(unittest.TestCase):
         maps = [c for c in model.calls if "Digest part" in c[1][-1]["content"]]
         self.assertGreater(len(maps), 2)
         self.assertEqual(len(model.calls), len(maps) + 1)
-        self.assertIn('"Код"', model.calls[-1][1][-1]["content"])          # merged topics reach the reduce step
+        self.assertIn('"Код"', model.calls[-1][1][-1]["content"])
         self.assertEqual(stages[-1][0], "writing")
         self.assertEqual(stages[-1][1], stages[-1][2])
 
@@ -309,7 +298,6 @@ class Generation(unittest.TestCase):
         self.assertEqual(a, reflect.question_for(datetime(2026, 10, 11).date()))
         self.assertNotEqual(a, reflect.question_for(datetime(2026, 10, 12).date()))
         self.assertTrue(reflect.question_for(lang="en")["text"].endswith("?"))
-
 
 class Endpoints(unittest.TestCase):
     def setUp(self):
@@ -353,25 +341,25 @@ class Endpoints(unittest.TestCase):
         self.assertEqual(done["report"]["headline"], GOOD_FINAL["headline"])
         self.assertFalse(done["stale"])
         self.assertEqual(done["model"], "demo")
-        # Cached: instant, no new model call.
+
         calls = len(self.model.calls)
         again = self.client.get("/api/reflect?period=3m&lang=ru").json()
         self.assertEqual(again["report"], done["report"])
         self.assertEqual(len(self.model.calls), calls)
-        # The other language has its own report.
+
         self.assertIsNone(self.client.get("/api/reflect?period=3m&lang=en").json()["report"])
-        # Feedback is stored locally.
+
         self.client.post("/api/reflect/feedback", json={"period": "3m", "lang": "ru", "generated_at": done["generated_at"], "value": "up"})
         self.assertEqual(self.client.get("/api/reflect?period=3m&lang=ru").json()["feedback"], "up")
         self.assertEqual(self.client.post("/api/reflect/feedback", json={"value": "maybe"}).status_code, 400)
         store = json.loads((Path(pgdata.MEMU_DIR) / "reflect.json").read_text(encoding="utf-8"))
         self.assertIn("3m:ru", store["reports"])
-        # A new message makes the cache stale.
+
         chats = json.loads((Path(pgdata.MEMU_DIR) / "chats.json").read_text(encoding="utf-8"))
         chats[0]["messages"].append({"role": "user", "content": "ещё вопрос", "createdAt": int(time.time() * 1000) - 1000})
         self.data.write(chats)
         self.assertTrue(self.client.get("/api/reflect?period=3m&lang=ru").json()["stale"])
-        # Clearing deletes every report.
+
         self.client.post("/api/reflect/clear")
         self.assertIsNone(self.client.get("/api/reflect?period=3m&lang=ru").json()["report"])
 
@@ -379,7 +367,7 @@ class Endpoints(unittest.TestCase):
         reflect.mutate_store(lambda d: d["reports"].update({"3m:ru": {"report": {}}}))
         pgdata.save_preferences({"reflect_enabled": False})
         self.assertEqual(self.client.get("/api/reflect").json()["enabled"], False)
-        self.assertFalse((Path(pgdata.MEMU_DIR) / "reflect.json").exists())      # off = saved reports deleted
+        self.assertFalse((Path(pgdata.MEMU_DIR) / "reflect.json").exists())
         self.assertEqual(self.client.post("/api/reflect/generate", json={"model": "m"}).status_code, 409)
 
     def test_no_model(self):
@@ -435,7 +423,7 @@ class Endpoints(unittest.TestCase):
         state = self.client.get("/api/focus/state").json()
         self.assertTrue(state["break_enabled"])
         tracker = self.app.state.focus_tracker
-        self.assertEqual(tracker.path, reflect.focus_store_path())       # file-backed: shared with the Telegram bot
+        self.assertEqual(tracker.path, reflect.focus_store_path())
         tracker.activity(10, True)
         tracker._update(lambda data: data.update(used=11 * 60, last=time.time() - 30, snooze_until=0, dismissed=False))
         out = self.client.post("/api/focus/activity", json={}).json()
@@ -446,16 +434,15 @@ class Endpoints(unittest.TestCase):
         self.client.post("/api/focus/break", json={"action": "dismiss"})
         self.assertTrue(json.loads(reflect.focus_store_path().read_text(encoding="utf-8"))["dismissed"])
 
-
 class Focus(unittest.TestCase):
     PREFS = {"focus_quiet_enabled": True, "focus_quiet_days": [0, 1, 2, 3, 4], "focus_quiet_start": "22:00", "focus_quiet_end": "07:00"}
 
     def test_quiet_overnight(self):
         q = reflect.quiet_now
-        self.assertIsNotNone(q(self.PREFS, datetime(2026, 10, 9, 23, 0)))         # Friday 23:00
-        self.assertIsNotNone(q(self.PREFS, datetime(2026, 10, 10, 6, 59)))        # Saturday early ← Friday's window
-        self.assertIsNone(q(self.PREFS, datetime(2026, 10, 10, 23, 0)))           # Saturday evening is free
-        self.assertIsNone(q(self.PREFS, datetime(2026, 10, 12, 6, 0)))            # Monday early ← Sunday (free)
+        self.assertIsNotNone(q(self.PREFS, datetime(2026, 10, 9, 23, 0)))
+        self.assertIsNotNone(q(self.PREFS, datetime(2026, 10, 10, 6, 59)))
+        self.assertIsNone(q(self.PREFS, datetime(2026, 10, 10, 23, 0)))
+        self.assertIsNone(q(self.PREFS, datetime(2026, 10, 12, 6, 0)))
         self.assertIsNone(q(self.PREFS, datetime(2026, 10, 9, 7, 0)))
         info = q(self.PREFS, datetime(2026, 10, 9, 23, 0))
         self.assertEqual(info["until"], "07:00")
@@ -494,16 +481,16 @@ process.stdout.write(JSON.stringify(out));
         self.assertEqual(got, [c["expected"] for c in cases])
 
     def test_tracker_counts_the_day(self):
-        # As in Claude: the reminder comes after the chosen time with MemuAI in a DAY, not one stretch.
+
         clock = [datetime(2026, 10, 9, 9, 0).timestamp()]
         t = reflect.FocusTracker(clock=lambda: clock[0])
-        self.assertEqual(t.activity(30, True)["minutes_today"], 1)          # a lone interaction ≈ a minute
-        for _ in range(3):                                                  # 15 min of steady use
+        self.assertEqual(t.activity(30, True)["minutes_today"], 1)
+        for _ in range(3):
             clock[0] += 5 * 60
             self.assertFalse(t.activity(30, True)["break_due"])
-        clock[0] += 3 * 3600                                                # away for hours: not counted…
+        clock[0] += 3 * 3600
         out = t.activity(30, True)
-        self.assertEqual(out["minutes_today"], 17)                          # …but the morning still is
+        self.assertEqual(out["minutes_today"], 17)
         self.assertFalse(out["break_due"])
         for _ in range(3):
             clock[0] += 5 * 60
@@ -511,31 +498,31 @@ process.stdout.write(JSON.stringify(out));
         self.assertTrue(out["break_due"])
         self.assertEqual(out["minutes_today"], 32)
         clock[0] += 60
-        self.assertFalse(t.activity(30, True)["break_due"])                 # shown once
+        self.assertFalse(t.activity(30, True)["break_due"])
         t.action("snooze")
         clock[0] += 9 * 60
         self.assertFalse(t.activity(30, True)["break_due"])
         clock[0] += 2 * 60
-        self.assertTrue(t.activity(30, True)["break_due"])                  # after the snooze
-        t.action("break")                                                   # the next one after another 30 min
-        clock[0] += 15 * 60                                                 # the break itself is not counted
+        self.assertTrue(t.activity(30, True)["break_due"])
+        t.action("break")
+        clock[0] += 15 * 60
         for _ in range(6):
             clock[0] += 5 * 60
             self.assertFalse(t.activity(30, True)["break_due"])
         clock[0] += 5 * 60
         self.assertTrue(t.activity(30, True)["break_due"])
-        t.action("dismiss")                                                 # «Скрыть»: nothing more today
+        t.action("dismiss")
         for _ in range(30):
             clock[0] += 5 * 60
             if datetime.fromtimestamp(clock[0]).date() != datetime(2026, 10, 9).date():
                 break
             self.assertFalse(t.activity(30, True)["break_due"])
-        clock[0] = datetime(2026, 10, 10, 8, 0).timestamp()                 # a new day starts from zero
+        clock[0] = datetime(2026, 10, 10, 8, 0).timestamp()
         self.assertEqual(t.activity(30, True)["minutes_today"], 1)
-        self.assertFalse(t.activity(30, False)["break_due"])                # disabled never nags
+        self.assertFalse(t.activity(30, False)["break_due"])
 
     def test_tracker_is_shared_through_the_file(self):
-        # The MemuAI window and the Telegram bot (MemuAI Proxy, another process) add up to one counter.
+
         path = Path(tempfile.mkdtemp(prefix="r27-focus-")) / "focus.json"
         clock = [datetime(2026, 10, 9, 20, 0).timestamp()]
         window = reflect.FocusTracker(clock=lambda: clock[0], path=path)
@@ -547,10 +534,10 @@ process.stdout.write(JSON.stringify(out));
         clock[0] += 5 * 60
         out = bot.activity(20, True)
         self.assertTrue(out["break_due"])
-        self.assertFalse(window.activity(20, True)["break_due"])            # the other client doesn't repeat it
+        self.assertFalse(window.activity(20, True)["break_due"])
         bot.action("dismiss")
         self.assertTrue(json.loads(path.read_text(encoding="utf-8"))["dismissed"])
-        path.write_text("{broken", encoding="utf-8")                        # a damaged file never breaks a send
+        path.write_text("{broken", encoding="utf-8")
         self.assertEqual(window.activity(20, True)["minutes_today"], 1)
         shutil.rmtree(path.parent, ignore_errors=True)
 
@@ -564,7 +551,6 @@ process.stdout.write(JSON.stringify(out));
         saved = pgdata.load_preferences()
         for key in reflect.PREF_DEFAULTS:
             self.assertIn(key, saved)
-
 
 class Wiring(unittest.TestCase):
     def test_hooks(self):
@@ -583,7 +569,6 @@ class Wiring(unittest.TestCase):
         for name in ("reflect.js", "quick/plugins/focus.js"):
             check = subprocess.run(["node", "--check", str(ROOT / "app/pgstatic" / name)], capture_output=True, text=True)
             self.assertEqual(check.returncode, 0, check.stderr)
-
 
 if __name__ == "__main__":
     unittest.main()

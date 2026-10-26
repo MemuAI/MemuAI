@@ -9,7 +9,6 @@ from .config import DATA_DIR
 
 log = logging.getLogger("memuai.notifications")
 
-
 def show_completion(title: str, text: str, *, sound: bool = False) -> None:
     """Show a native toast without making notification failures affect a task."""
     if os.name != "nt":
@@ -29,5 +28,5 @@ def show_completion(title: str, text: str, *, sound: bool = False) -> None:
         else:
             toast.set_audio(audio.Silent, loop=False)
         toast.show()
-    except Exception as exc:  # optional OS integration must never break a completion
+    except Exception as exc:
         log.debug("Windows notification unavailable: %s", exc)

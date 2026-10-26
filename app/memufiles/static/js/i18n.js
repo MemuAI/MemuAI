@@ -1,8 +1,8 @@
-// MemuFiles · i18n (Round 35). EN must stay free of Cyrillic (tests/round35_files_test.py).
+
 let LANG = "ru";
 export function setLang(lang) { LANG = lang === "en" ? "en" : "ru"; document.documentElement.lang = LANG; }
 export function getLang() { return LANG; }
-// Round 39 (r39-files-feat): feature modules bring their own strings (EN, RU); a module never overrides an existing key
+
 export function addStrings(en, ru) {
   for (const [dict, add] of [[EN, en], [RU, ru]]) for (const [k, v] of Object.entries(add || {})) if (!(k in dict)) dict[k] = v;
 }

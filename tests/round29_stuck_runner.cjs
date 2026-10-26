@@ -1,5 +1,5 @@
-// Round 29: runs pgstatic/stuck.js (the JS mirror of the stuck detector) on the shared synthetic traces and
-// prints one JSON line per trace: {name, verdicts: ["level:reason", ...]}.  Used by tests/round29_stuck_test.py.
+
+
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -40,16 +40,15 @@ for (const trace of data.traces) {
     if (st.e) d.noteResult({ error: st.e });
     verdicts.push(`${v.level}:${v.reason || ""}`);
   }
-  // card shape (toCard) of the last pause, for the UI contract
+
   console.log(JSON.stringify({ name: trace.name, verdicts }));
 }
-// extra contract checks
+
 const card = M.cardHtml({ id: "c1", title: "Т", title_en: "The same action keeps repeating", detail_en: "x", steps: [{ label: "click", count: 3 }] }, { lang: "en", source: "browser" });
 console.log(JSON.stringify({ name: "__card__", html: card }));
 console.log(JSON.stringify({ name: "__parse__", values: [M.parseDecision({ decision: "hint", hint: "try search" }), M.parseDecision("Сменить подход"),
   M.parseDecision("Stop"), M.parseDecision("click the blue button"), M.parseDecision({ decision: "hint" }), M.parseDecision({ approve: false })] }));
 
-// Work hook: a plan that does not move pauses; a plan whose iterations change different files does not.
 {
   const plan = { status: "active", completed: 1, steps: [{ id: 1, status: "complete" }, { id: 2, status: "pending" }] };
   const stalled = [];

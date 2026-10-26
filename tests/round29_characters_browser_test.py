@@ -19,7 +19,6 @@ try:
 except Exception:  # pragma: no cover
     sync_playwright = None
 
-
 @unittest.skipUnless(sync_playwright and chromium(), "playwright + chromium required")
 class CharactersBrowserTest(unittest.TestCase):
     @classmethod
@@ -63,8 +62,8 @@ class CharactersBrowserTest(unittest.TestCase):
         self.wait("() => M.S.view === 'chat' && M.S.char && M.S.char.data.name === 'Alice'")
         self.wait("() => document.querySelectorAll('.ch-msg').length === 1")
         greeting = self.ev("() => document.querySelector('.ch-msg .ch-text').textContent")
-        self.assertIn("Welcome, User!", greeting)  # phase 2: starter persona «User», not the pronoun «You»
-        # send a message
+        self.assertIn("Welcome, User!", greeting)
+
         self.frame.fill("#composer-text", "Hi Alice, teach me a spell.")
         self.frame.press("#composer-text", "Enter")
         self.wait("() => M.S.chat.messages.length === 3 && !M.S.busy")
@@ -76,10 +75,10 @@ class CharactersBrowserTest(unittest.TestCase):
         roles = [m["role"] for m in sent["messages"]]
         self.assertEqual(roles[-2:], ["assistant", "user"])
         system = sent["messages"][0]["content"]
-        self.assertIn("Alice is a kind witch", system)              # charDescription marker filled, macros resolved
+        self.assertIn("Alice is a kind witch", system)
         self.assertIn("User is her apprentice", system)
         self.assertNotIn("{{", system)
-        self.assertEqual(sent["params"]["temperature"], 1)            # universal file says 2; index.json recommends 1.0 (effective)
+        self.assertEqual(sent["params"]["temperature"], 1)
         self.assertEqual(sent["params"]["effort"], "max")
         html = self.ev("() => document.querySelectorAll('.ch-msg')[2].querySelector('.ch-text').innerHTML")
         self.assertIn("<em", html)
@@ -96,7 +95,7 @@ class CharactersBrowserTest(unittest.TestCase):
         self.ev("() => M.generate('continue')")
         self.wait("() => !M.S.busy && M.S.chat.messages[2].mes.endsWith('And more.')")
         sent = self.page.evaluate("() => window.__sent[window.__sent.length - 1]")
-        # the universal preset continues as a prefill: the message being continued goes last, as the assistant
+
         self.assertEqual(sent["messages"][-1]["role"], "assistant")
         self.assertIn("Hello there", sent["messages"][-1]["content"])
         self.ev("() => M.startEdit(M.S.chat.messages[1])")
@@ -130,7 +129,6 @@ class CharactersBrowserTest(unittest.TestCase):
         self.page.wait_for_timeout(200)
         self.assertTrue(self.ev("() => !!document.querySelector('.ch-insp')"))
         self.assertEqual(self.errors, [])
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,16 +1,5 @@
-/* Round 33: «Видео-инструкция» — short silent step-by-step clips next to the in-app instructions.
- *
- * One file for the chat app (app/pgstatic) and MemuAI Proxy (app/static; the copy must stay byte-identical,
- * tests/round33_instructions_test.py checks it). Clips live in /guides/<id>.webm with WebVTT captions
- * /guides/<id>.ru.vtt and /guides/<id>.en.vtt, so one video serves both languages.
- *
- *   MemuGuideVideo.button(id, { lang, label })  → HTML of the «▶ Видео-инструкция» button
- *   MemuGuideVideo.open(id, { lang })           → opens the player
- *   any element with data-guide-video="<id>" opens it on click (delegated, works for re-rendered panes).
- *
- * Captions are fetched and attached as a blob: URL with type text/vtt — the servers' MIME table (Windows
- * registry for .vtt) then does not matter. The caption cues double as a clickable list of steps.
- */
+
+
 (function () {
   "use strict";
   if (window.MemuGuideVideo) return;
@@ -28,7 +17,7 @@
   const REPLAY = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><path d="M4 12a8 8 0 1 0 2.4-5.7M4 4v4h4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
 
   function detectLang() {
-    if (typeof window.LANG === "string" && /^(en|ru)$/.test(window.LANG)) return window.LANG;   // Proxy
+    if (typeof window.LANG === "string" && /^(en|ru)$/.test(window.LANG)) return window.LANG;
     return (document.documentElement.lang || "ru").toLowerCase().startsWith("en") ? "en" : "ru";
   }
   const isEn = (lang) => (lang || detectLang()) === "en";
@@ -46,7 +35,6 @@
     return `<button type="button" class="mgv-btn${opts.compact ? " mgv-btn--compact" : ""}" data-guide-video="${esc(id)}" data-guide-lang="${esc(lang)}" title="${esc(title)}" aria-haspopup="dialog">${PLAY}<span>${esc(label)}</span><small>${esc(clock(GUIDES[id].seconds))}</small></button>`;
   }
 
-  /* Minimal WebVTT reader for the step list (the <track> renders the captions itself). */
   function parseVtt(text) {
     const cues = [];
     const toSec = (v) => { const p = v.trim().split(":").map(Number); return p.length === 3 ? p[0] * 3600 + p[1] * 60 + p[2] : p[0] * 60 + p[1]; };
@@ -66,7 +54,7 @@
   function close() {
     if (!current) return;
     const { root, video, blobs, opener, onKey } = current;
-    try { video.pause(); } catch (_) { /* ignore */ }
+    try { video.pause(); } catch (_) {  }
     document.removeEventListener("keydown", onKey, true);
     blobs.forEach((u) => URL.revokeObjectURL(u));
     root.remove();
@@ -100,7 +88,7 @@
 
     state.onKey = (event) => {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); close(); return; }
-      if (event.key === "Tab") {   // keep focus inside the dialog
+      if (event.key === "Tab") {
         const items = [...dialog.querySelectorAll("button, video, [tabindex='0']")].filter((el) => !el.hidden && el.offsetParent !== null);
         if (!items.length) return;
         const first = items[0], last = items[items.length - 1];
@@ -124,7 +112,6 @@
     video.addEventListener("error", () => { root.querySelector(".mgv-error").hidden = false; });
     dialog.focus({ preventScroll: true });
 
-    // Both caption languages as tracks; the UI language is the default one.
     for (const code of ["ru", "en"]) {
       try {
         const response = await fetch(`${BASE}${id}.${code}.vtt`, { cache: "no-cache" });
@@ -155,10 +142,9 @@
           });
         }
         video.appendChild(track);
-      } catch (_) { /* captions are optional */ }
+      } catch (_) {  }
     }
-    // Only the UI language is shown. Chromium's automatic caption selection runs a task later and turned on the
-    // browser-language track as well (RU and EN cues drawn on top of each other), so apply again once it has run.
+
     const pick = () => { for (const track of video.textTracks) track.mode = track.language === (isEn(lang) ? "en" : "ru") ? "showing" : "disabled"; };
     pick();
     setTimeout(() => { if (current === state) pick(); }, 0);

@@ -1,7 +1,5 @@
-/* MemuAI Design: задача и изображения превращаются в готовый HTML-документ.
- * Всё идёт через мост Memu: модели, сохранение, файлы и буфер обмена.
- * Тексты интерфейса и промптов — в i18n.json; relabel() перерисовывает то,
- * что модуль собирает сам, когда меняется язык MemuAI. */
+
+
 const t = (key, vars) => Memu.t(key, vars);
 const saved = Memu.saved || {};
 const defaults = (Memu.manifest && Memu.manifest.bridge) || {};
@@ -11,11 +9,9 @@ const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 const DEVICES = { desktop: 1280, tablet: 834, phone: 390 };
 const MAX_IMAGES = 8;
 const MAX_VERSIONS = 12;
-// Поле versions хранится хостом целиком (предел — 2 млн символов на поле):
-// старые версии уходят, пока история не уложится в бюджет с запасом.
+
 const HISTORY_BUDGET = 1600000;
-// Большие фото уменьшаются перед отправкой: модели всё равно сжимают их до
-// ~1,5 тыс. px, а запрос в десятки мегабайт падал на лимитах провайдеров.
+
 const IMAGE_SHRINK_BYTES = 1500000;
 const IMAGE_MAX_SIDE = 1600;
 const LIVE_EVERY_MS = 700;
@@ -32,7 +28,6 @@ const PALETTES = [
 ];
 const EXAMPLES = ["cafe", "dashboard", "portfolio"];
 
-/* A shipped instruction follows the language; the person's own text stays put. */
 function shippedInstructions() {
   return Memu.i18n.locales().map((lang) => Memu.i18n.get("instructions.default", lang)).filter(Boolean);
 }
@@ -99,25 +94,20 @@ const el = {
 let images = [];
 let code = String(saved.code || "");
 let lastPrompt = String(saved.last_prompt || "");
-/* История версий: линейный журнал { code, at, kind, label }, cursor — текущая.
-   Возврат к старой версии ничего не удаляет: новая генерация добавляется в
-   конец, поэтому «повторить» и любая версия из списка остаются доступны. */
+
 let history = [];
 let cursor = -1;
-// Код и история — самые тяжёлые поля (до ~1,6 млн символов). Они уходят в
-// Memu.save только после изменения, а не при каждой паузе в наборе текста.
+
 let heavyRev = 0;
 let savedRev = 0;
 const touchHeavy = () => { heavyRev += 1; };
 let device = DEVICES[saved.device] ? saved.device : "desktop";
 let job = null;
-let modelState = "loading";   // loading | ready | none | error
-let emptyView = null;         // null — обычная заглушка; { kind, ... } — ошибка или работа
-let handoffState = null;      // { images, paths }
-let cancelled = false;        // остановка нажата человеком, а не ошибка
-let liveShown = false;        // в предпросмотре — частичный документ из потока
-
-/* --------------------------------- помощники -------------------------------- */
+let modelState = "loading";
+let emptyView = null;
+let handoffState = null;
+let cancelled = false;
+let liveShown = false;
 
 function esc(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g,
@@ -125,7 +115,7 @@ function esc(value) {
 }
 
 function setStatus(text, kind) {
-  // Translation hydration must not replace an active operation or an error.
+
   if (text) el.status.removeAttribute("data-i18n");
   else el.status.setAttribute("data-i18n", "status.idle");
   el.status.textContent = text || t("status.idle");
@@ -141,8 +131,6 @@ function readFile(file) {
   });
 }
 
-/* Большое фото уменьшается на холсте (WebP с прозрачностью, иначе JPEG).
-   Любая неудача — исходный файл как есть: уменьшение не повод терять картинку. */
 function shrinkImage(url) {
   return new Promise((resolve) => {
     if (typeof Image !== "function" || typeof document.createElement !== "function") return resolve(url);
@@ -189,8 +177,6 @@ function debounce(fn, ms) {
   return (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
 }
 
-/* ---------------------------------- история --------------------------------- */
-
 function historyEntry(value) {
   if (typeof value === "string") return value ? { code: value, at: 0, kind: "legacy", label: "" } : null;
   if (!value || typeof value !== "object" || typeof value.code !== "string" || !value.code) return null;
@@ -203,8 +189,6 @@ function historyEntry(value) {
   };
 }
 
-/* Старые версии модуля хранили в versions только предыдущие коды-строки,
-   а текущий — отдельно в code. Обе формы сводятся к одному журналу. */
 function loadHistory(rawVersions, current, rawCursor) {
   let rows = (Array.isArray(rawVersions) ? rawVersions : []).map(historyEntry).filter(Boolean);
   const legacy = Array.isArray(rawVersions) && rawVersions.some((item) => typeof item === "string");
@@ -221,14 +205,14 @@ function trimHistory(rows, index) {
   let list = rows.slice();
   let at = index;
   const drop = () => {
-    const victim = at === 0 ? 1 : 0;   // текущую версию не выбрасываем никогда
+    const victim = at === 0 ? 1 : 0;
     if (victim >= list.length) return false;
     list.splice(victim, 1);
     if (victim < at) at -= 1;
     return true;
   };
-  while (list.length > MAX_VERSIONS && drop()) { /* до предела по числу */ }
-  while (list.length > 1 && JSON.stringify(list).length > HISTORY_BUDGET && drop()) { /* и по размеру */ }
+  while (list.length > MAX_VERSIONS && drop()) {  }
+  while (list.length > 1 && JSON.stringify(list).length > HISTORY_BUDGET && drop()) {  }
   return { rows: list, cursor: list.length ? Math.max(0, Math.min(at, list.length - 1)) : -1 };
 }
 
@@ -292,8 +276,6 @@ function toggleHistory(force) {
   }
 }
 
-/* ---------------------------- начальное состояние --------------------------- */
-
 {
   const loaded = loadHistory(saved.versions, code, saved.version_cursor);
   history = loaded.rows;
@@ -322,15 +304,13 @@ if (saved.sections && typeof saved.sections === "object") {
   if (box && saved[id] !== undefined) box.checked = !!saved[id];
 });
 
-/* -------------------------------- сохранение -------------------------------- */
-
 let saveTimer = null;
 function snapshot() {
   const heavy = heavyRev !== savedRev;
   const row = {
     brief: el.brief.value,
     refine: el.refine.value,
-    // A default instruction is stored empty so it keeps following the language.
+
     instructions: isDefaultInstruction(el.instructions.value) ? "" : el.instructions.value,
     handoff_note: el.handoffNote.value,
     ...(heavy ? { code, versions: history, version_cursor: cursor } : {}),
@@ -363,14 +343,11 @@ function remember(immediate) {
 }
 document.body.addEventListener("input", () => remember(false));
 document.body.addEventListener("change", () => remember(false));
-// Страница в iframe сносится без beforeunload, поэтому отложенную запись
-// сбрасываем ещё и на pagehide — иначе последние правки теряются.
+
 window.addEventListener("pagehide", () => remember(true));
 window.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") remember(true);
 });
-
-/* ---------------------------------- модели ---------------------------------- */
 
 function drawEmptyModelOption() {
   if (modelState === "ready") return;
@@ -380,7 +357,7 @@ function drawEmptyModelOption() {
 
 Memu.models().then((rows) => {
   const list = Array.isArray(rows) ? rows : [];
-  // Дизайн пишет текстовая модель: генераторы картинок, видео и звука не подходят.
+
   const caps = (item) => item.caps || {};
   const chat = list.filter((item) => !item.image && !item.video && !item.audio && !item.music
     && !caps(item).image && !caps(item).video && !caps(item).audio && !caps(item).music && caps(item).text !== false);
@@ -389,7 +366,7 @@ Memu.models().then((rows) => {
   if (usable.length) {
     el.model.innerHTML = usable.map((item) => `<option value="${esc(item.id)}">${esc(item.name && item.name !== item.id ? `${item.name} · ${item.id}` : item.id)}</option>`).join("");
   } else drawEmptyModelOption();
-  // Round 34: MemuAI's default model comes before "the first one in the list".
+
   const wanted = [saved.model, defaults.model, (usable.find((item) => item.default) || {}).id].find((id) => id && usable.some((item) => item.id === id));
   if (wanted) el.model.value = wanted;
   if (!usable.length) setStatus(t("model.connect"), "error");
@@ -398,8 +375,6 @@ Memu.models().then((rows) => {
   drawEmptyModelOption();
   setStatus(error.message, "error");
 });
-
-/* ---------------------------------- палитры --------------------------------- */
 
 function renderSwatches() {
   el.swatches.innerHTML = PALETTES.map(([value, colors]) => `
@@ -417,8 +392,6 @@ el.swatches.addEventListener("click", (event) => {
   remember(false);
 });
 renderSwatches();
-
-/* -------------------------------- изображения ------------------------------- */
 
 function renderImages() {
   el.imageList.innerHTML = images.map((url, index) => `
@@ -461,7 +434,7 @@ $("#images").onchange = async (event) => {
   event.target.value = "";
   await addImageFiles(files);
 };
-// Вставка картинки из буфера (Ctrl+V) и перетаскивание файлов на левую панель.
+
 document.addEventListener("paste", (event) => {
   const data = event.clipboardData;
   const files = data ? Array.from(data.files || []).filter((file) => /^image\//.test(file.type)) : [];
@@ -469,11 +442,7 @@ document.addEventListener("paste", (event) => {
   event.preventDefault();
   addImageFiles(files);
 });
-// Оверлей «отпустите изображения» виден только во время настоящего перетаскивания
-// файлов над левой панелью. Одного счётчика dragenter/dragleave мало (файл бросили
-// мимо, перетаскивание отменили вне модуля, dragleave не дошёл) — оверлей ещё
-// снимается, когда перестают приходить dragover, на drop/dragend где угодно, на Esc,
-// потерю фокуса и любое обычное движение мыши.
+
 const DROP_IDLE_MS = 1200;
 const hasFiles = (event) => !!(event.dataTransfer && Array.from(event.dataTransfer.types || []).includes("Files"));
 let dragDepth = 0;
@@ -495,7 +464,7 @@ el.side.addEventListener("dragenter", (event) => {
 el.side.addEventListener("dragover", (event) => {
   if (!hasFiles(event)) return;
   event.preventDefault();
-  try { event.dataTransfer.dropEffect = "copy"; } catch (error) { /* только чтение */ }
+  try { event.dataTransfer.dropEffect = "copy"; } catch (error) {  }
   if (el.drop.hidden) showDrop(true);
   armDrop();
 });
@@ -513,11 +482,11 @@ el.side.addEventListener("drop", (event) => {
   event.stopPropagation();
   addImageFiles(event.dataTransfer.files);
 });
-// Файл, брошенный мимо панели, браузер открыл бы вместо модуля — не принимаем его.
+
 document.addEventListener("dragover", (event) => {
   if (!hasFiles(event) || event.defaultPrevented) return;
   event.preventDefault();
-  try { event.dataTransfer.dropEffect = "none"; } catch (error) { /* только чтение */ }
+  try { event.dataTransfer.dropEffect = "none"; } catch (error) {  }
 });
 document.addEventListener("drop", (event) => { if (hasFiles(event)) event.preventDefault(); hideDrop(); });
 document.addEventListener("dragend", hideDrop, true);
@@ -527,9 +496,6 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) hideD
 ["mousemove", "pointerdown", "wheel"].forEach((name) => document.addEventListener(name, hideDrop, { passive: true }));
 renderImages();
 
-/* ---------------------------------- промпт ---------------------------------- */
-
-/* Свои обязательные блоки: текст пишет человек, модель обязана их собрать. */
 let customSections = Array.isArray(saved.custom_sections)
   ? saved.custom_sections.filter((row) => row && typeof row.text === "string" && row.text.trim()).slice(0, 20)
   : [];
@@ -563,8 +529,7 @@ if (sectionHost) {
     if (row) row.on = box.checked;
   });
 }
-// Не <form>: у страницы модуля в песочнице нет allow-forms, и событие
-// submit там не приходит — добавляем по кнопке и по Enter.
+
 function addCustomSection() {
   const input = $("#section-custom");
   const text = input.value.trim().replace(/\s+/g, " ");
@@ -628,14 +593,10 @@ function documentTitle(html) {
   return match ? match[1].trim() : "";
 }
 
-/* ------------------------------- предпросмотр ------------------------------- */
-
 const OUTLINE_CSS = "<style data-memu-outline>*{outline:1px dashed rgba(234,88,12,.55)!important;outline-offset:-1px}</style>";
 const SPARK = '<path d="m12 3 1.7 5.3L19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7z"/>';
 const ALERT = '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>';
 
-/* Ссылки в макете не уводят предпросмотр на пустую страницу: внешние окна
-   песочница модуля всё равно не откроет, а переход «в никуда» стирал макет. */
 const LINK_GUARD = "<script>document.addEventListener('click',function(e){var a=e.target.closest&&e.target.closest('a[href]');" +
   "if(a&&!/^#/.test(a.getAttribute('href')||'')){e.preventDefault();}},true);" +
   "document.addEventListener('submit',function(e){e.preventDefault();},true);<\/script>";
@@ -653,7 +614,6 @@ function examplesHtml() {
     `<button type="button" class="ds-example" data-example="${id}">${esc(t("example." + id))}</button>`).join("")}</div>`;
 }
 
-/* Draw the empty card from state, so a language change can redraw it. */
 function drawEmpty() {
   const card = $("#ds-empty-card");
   const view = emptyView || { kind: "idle" };
@@ -673,9 +633,6 @@ function drawEmpty() {
   el.stage.dataset.empty = "1";
 }
 
-/* Два iframe по очереди: новый документ грузится в скрытый и выходит вперёд
-   только после load. Иначе каждое обновление (живой поток, правка кода,
-   «Рамки») на мгновение показывало белую пустую страницу. */
 let frontFrame = 0;
 let showToken = 0;
 function frames() { return [el.preview, el.previewB].filter(Boolean); }
@@ -735,12 +692,10 @@ function updateCodeSize() {
   el.codeSize.textContent = formatSize(code.length);
 }
 
-/* ------------------------------ экраны и масштаб ---------------------------- */
-
 function fitDevice() {
   const width = DEVICES[device] || 1280;
   if (!el.stage.clientWidth) {
-    // Предпросмотр скрыт (узкое окно, вид «Настройка»): мерить нечего.
+
     el.deviceSize.textContent = `${width} px`;
     return;
   }
@@ -771,8 +726,6 @@ $$("[data-device]").forEach((button) => {
 if (window.ResizeObserver) new ResizeObserver(() => fitDevice()).observe(el.stage);
 else window.addEventListener("resize", fitDevice);
 
-/* ------------------------------- шаги и виды -------------------------------- */
-
 function selectStep(name) {
   $$("[data-step]").forEach((button) => button.setAttribute("aria-selected", String(button.dataset.step === name)));
   $$("[data-step-panel]").forEach((panel) => { panel.hidden = panel.dataset.stepPanel !== name; });
@@ -794,8 +747,6 @@ function toggleFocus(force) {
 }
 el.focus.onclick = () => toggleFocus();
 
-/* ---------------------------------- генерация ------------------------------- */
-
 function setBusy(busy) {
   el.make.hidden = busy;
   el.stop.hidden = !busy;
@@ -806,8 +757,6 @@ function setBusy(busy) {
   drawHistory();
 }
 
-/* Этап генерации — по тому, что уже пришло в потоке. Модели пишут документ
-   сверху вниз: стили, затем разметка, затем скрипты. */
 const STAGES = ["thinking", "head", "styles", "markup", "scripts", "finishing"];
 function stageOf(text) {
   const source = String(text || "");
@@ -819,13 +768,11 @@ function stageOf(text) {
   return "head";
 }
 
-/* Частичный документ годится для показа, когда у него уже есть тело. */
 function livePage(text) {
   let html = extractHtml(text);
   const body = html.search(/<body[\s>]/i);
   if (body < 0 || html.length - body < 80) return "";
-  // Недописанный скрипт не запускается (он оборван посреди выражения), а
-  // недописанный тег в самом конце не показывается сырым текстом.
+
   const openScript = html.toLowerCase().lastIndexOf("<script");
   if (openScript > html.toLowerCase().lastIndexOf("</script")) html = html.slice(0, openScript);
   const lastOpen = html.lastIndexOf("<");
@@ -858,8 +805,7 @@ async function generate(kind) {
   const base = code;
   cancelled = false;
   toggleHistory(false);
-  // Правка существующего дизайна не закрывает его карточкой ожидания:
-  // макет остаётся на месте, ход работы виден в плашке поверх предпросмотра.
+
   if (!base) {
     emptyView = { kind: "working", title: "working.new", images: images.length, stage: "thinking" };
     drawEmpty();
@@ -922,8 +868,7 @@ async function generate(kind) {
           }
         }
         note();
-        // Живой предпросмотр: не чаще раза в LIVE_EVERY_MS, иначе на больших
-        // документах WebView заново разбирает страницу на каждом кадре.
+
         if (!liveTimer) liveTimer = setTimeout(showLive, Math.max(0, LIVE_EVERY_MS - (Date.now() - lastLive)));
       },
     });
@@ -941,7 +886,7 @@ async function generate(kind) {
     if (kind === "refine") el.refine.value = "";
     if (kind === "patch") el.codePatch.value = "";
     const seconds = Math.round((Date.now() - started) / 1000);
-    // Обрыв ответа (лимит токенов, разрыв соединения) — не тихий успех.
+
     if (/<html[\s>]|<!doctype/i.test(html) && !/<\/html\s*>/i.test(html)) setStatus(t("status.truncated", { seconds }), "warn");
     else setStatus(t(kind === "new" ? "status.done_new" : "status.done_refine", { seconds }), "ok");
     remember(true);
@@ -952,7 +897,7 @@ async function generate(kind) {
     if (base) renderPreview(base);
     else if (stopped) renderPreview("");
     else {
-      // Частичный документ из потока не остаётся на экране после ошибки.
+
       showDocument("");
       liveShown = false;
       el.live.hidden = true;
@@ -992,8 +937,6 @@ el.stage.addEventListener("click", (event) => {
   remember(false);
 });
 
-/* ---------------------------------- клавиши --------------------------------- */
-
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && hideDrop()) { event.preventDefault(); return; }
   const typing = event.target.closest && event.target.closest("input, textarea, select");
@@ -1004,8 +947,7 @@ document.addEventListener("keydown", (event) => {
     else generate("new");
     return;
   }
-  // Esc, который модуль обработал сам, помечается preventDefault: тогда окно
-  // MemuAI не сворачивает развёрнутый лист этим же нажатием.
+
   if (event.key === "Escape") {
     if (!el.historyPop.hidden) { event.preventDefault(); toggleHistory(false); el.historyToggle.focus(); return; }
     if (job) { event.preventDefault(); stopGeneration(); return; }
@@ -1033,14 +975,11 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-/* ------------------------------------ код ----------------------------------- */
-
 const livePreview = debounce(() => renderPreview(code), 450);
 el.code.addEventListener("input", () => {
   code = el.code.value;
   touchHeavy();
-  // Ручная правка меняет текущую версию на месте (а не плодит новую на
-  // каждый символ); первая версия появляется, если кода ещё не было.
+
   if (cursor >= 0 && history[cursor]) {
     history[cursor].code = code;
     history[cursor].edited = true;
@@ -1096,8 +1035,6 @@ $("#reset-instructions").onclick = () => {
   setStatus(t("instructions.restored"), "ok");
   remember(true);
 };
-
-/* ---------------------------- пакет для другой ИИ --------------------------- */
 
 function handoffPrompt() {
   return [t("handoff.continue"), lastPrompt, el.handoffNote.value.trim()]
@@ -1161,8 +1098,6 @@ function designNotes() {
   ].join("\n");
 }
 
-/* ------------------------------------ язык ---------------------------------- */
-
 function relabel() {
   if (isDefaultInstruction(el.instructions.value)) el.instructions.value = baseInstructions();
   drawEmptyModelOption();
@@ -1178,14 +1113,12 @@ function relabel() {
 }
 Memu.onLanguage(relabel);
 
-/* ----------------------------------- запуск --------------------------------- */
-
 el.code.value = code;
 updateCodeSize();
 renderCustomSections();
 selectDevice(device);
 renderPreview(code);
 if (code) setStatus(t("status.restored"));
-// Round 30: one header — in the MemuAI window the name, status and buttons of this bar live in the window's title row.
+
 if (Memu.toolbar && Memu.toolbar.adopt) Memu.toolbar.adopt({ hide: ".ds-brand", status: "#design-status" });
 if (typeof Memu.ready === "function") Memu.ready();

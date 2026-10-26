@@ -7,6 +7,6 @@ Entry points: ``memucode.py`` (source) and ``MemuCode.exe`` (frozen build).
 """
 from __future__ import annotations
 
-from ..version import APP_VERSION as VERSION      # one version for the whole bundle (app/version.py)
+from ..version import APP_VERSION as VERSION
 
 NAME = "MemuCode"

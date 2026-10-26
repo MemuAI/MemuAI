@@ -1,24 +1,5 @@
-/* MemuAI — «;сниппеты» и шаблоны с полями в основном поле ввода (Round 37, r37-extras-2).
 
-   ;snippets
-     The snippets of «Быстрый доступ» (one library: /api/quick/features, memuai/quick_features.json) now work in the main
-     composer too. «;» at the start of a word opens a small menu above the field; ↑/↓ choose, Enter/Tab insert, Esc
-     closes. A text snippet is expanded by the server (`{date}`, `{date+1}`, `{time}`, `{clipboard}`, `{input}`, `{cursor}` …
-     — app/quick_features.expand) and replaces the «;word» where it was typed; the caret lands on `{cursor}`. An AI template
-     becomes the prompt in the field (its instruction + an empty line for your text).
 
-   Template fields
-     `{?name}` or `{?name|hint}` in a snippet (or any prompt pasted from the library) is a blank: before inserting, a small
-     form above the composer asks for each blank once (the same name in several places is asked once). Enter — next field /
-     insert, Esc — cancel. `{{` / `}}` keep literal braces as before.
-
-   «Сниппеты и шаблоны» (menu footer «＋», Ctrl+K → «Сниппеты») — list, create, edit and delete without opening the Quick window.
-
-   Cost: nothing at startup. The library is loaded on the first «;» (kept 30 s, refreshed on the next «;» after that);
-   the only listeners are `input`/`keydown` on the composer, and the keydown one returns at once while the menu is closed.
-
-   window.MemuComposerSnippets: open() fields(text) fill(text, values) manage() _state
-*/
 (function () {
   "use strict";
   if (window.MemuComposerSnippets) return;
@@ -30,7 +11,6 @@
   const TTL = 30000, LIMIT = 8;
   const state = { rows: null, at: 0, loading: null, open: false, index: 0, items: [], token: null, form: null };
 
-  /* ------------------------------------------------------------ template fields: {?name} / {?name|hint} */
   const FIELD_RE = /\{\?([^{}|\n]{1,40})(?:\|([^{}\n]{0,120}))?\}/g;
   function fields(text) {
     const out = [], seen = new Set();
@@ -51,7 +31,6 @@
     });
   }
 
-  /* ------------------------------------------------------------ library */
   async function load(force) {
     if (!force && state.rows && Date.now() - state.at < TTL) return state.rows;
     if (state.loading) return state.loading;
@@ -85,22 +64,20 @@
     return scored.sort((a, b) => a[0] - b[0]).slice(0, LIMIT).map((r) => r[1]);
   }
 
-  /* ------------------------------------------------------------ the «;word» token at the caret */
   function tokenAt(el) {
     if (!el || el.selectionStart !== el.selectionEnd) return null;
     const before = el.value.slice(0, el.selectionStart);
     const m = before.match(/(^|\s);([\p{L}\p{N}_-]{0,32})$/u);
     if (!m) return null;
-    if (((before.match(/```/g) || []).length % 2) === 1) return null;   // inside a code block: «;» is code
+    if (((before.match(/```/g) || []).length % 2) === 1) return null;
     const after = el.value.slice(el.selectionStart);
-    if (/^[\p{L}\p{N}_-]/u.test(after)) return null;                   // caret in the middle of a word
+    if (/^[\p{L}\p{N}_-]/u.test(after)) return null;
     return { start: before.length - m[2].length - 1, end: before.length, word: m[2] };
   }
   function othersOwn() {
     return !!(window.MemuMentions?.owns?.() || (document.getElementById("slash-menu") && !document.getElementById("slash-menu").hidden));
   }
 
-  /* ------------------------------------------------------------ menu */
   function menuEl() {
     let menu = document.getElementById("snip-menu");
     if (menu) return menu;
@@ -110,7 +87,7 @@
     menu.id = "snip-menu"; menu.className = "slash-menu snip-menu"; menu.hidden = true;
     menu.setAttribute("role", "listbox"); menu.setAttribute("aria-label", L("Сниппеты", "Snippets"));
     slash.after(menu);
-    menu.addEventListener("mousedown", (e) => e.preventDefault());       // keep the composer focused
+    menu.addEventListener("mousedown", (e) => e.preventDefault());
     menu.addEventListener("click", (e) => {
       const b = e.target.closest("[data-snip], [data-snip-act]");
       if (!b) return;
@@ -149,21 +126,20 @@
     const tok = tokenAt(el);
     if (!tok || othersOwn() || state.form) { if (state.open) close(); return; }
     const rows = await load();
-    const now = tokenAt(el);                                               // the field may have changed while loading
+    const now = tokenAt(el);
     if (!now || now.word !== tok.word || othersOwn()) { if (state.open) close(); return; }
     const items = match(rows, now.word);
-    if (!items.length && now.word.length > 2 && !state.open) return;      // «;kw» that is just text — stay quiet
+    if (!items.length && now.word.length > 2 && !state.open) return;
     const same = items.map((s) => s.id).join() === state.items.map((s) => s.id).join();
     state.items = items; state.token = now;
     if (!same) state.index = 0;
     render();
   }
 
-  /* ------------------------------------------------------------ insert */
   function putText(el, start, end, text, caretFromEnd) {
     el.focus();
     el.setSelectionRange(start, end);
-    // execCommand keeps the field's undo history (Ctrl+Z brings the «;word» back); setRangeText is the fallback
+
     let ok = false;
     try { ok = document.execCommand("insertText", false, text); } catch (e) { ok = false; }
     if (!ok) { el.setRangeText(text, start, end, "end"); el.dispatchEvent(new Event("input", { bubbles: true })); }
@@ -191,7 +167,7 @@
     if (!blanks.length) { putText(el, tok.start, tok.end, text, cursor); return; }
     const values = await askFields(blanks, s.name || s.keyword);
     if (!values) { el.focus(); return; }
-    // {cursor} counts characters after the caret: recount it after the blanks are filled
+
     const marker = "\u0000c\u0000";
     const marked = cursor ? text.slice(0, text.length - cursor) + marker + text.slice(text.length - cursor) : text;
     const filled = fill(marked, values);
@@ -200,7 +176,6 @@
     putText(el, tok.start, tok.end, final, at >= 0 ? final.length - at : 0);
   }
 
-  /* ------------------------------------------------------------ the fill-in form above the composer */
   function askFields(blanks, title) {
     return new Promise((resolve) => {
       const slash = document.getElementById("slash-menu");
@@ -240,7 +215,6 @@
     });
   }
 
-  /* ------------------------------------------------------------ «Сниппеты и шаблоны» dialog */
   async function manage(editId) {
     if (typeof panel !== "function") return;
     const rows = (await load(true)).slice();
@@ -296,7 +270,6 @@
     if (editId) edit(rows.find((s) => s.id === editId)); else draw();
   }
 
-  /* ------------------------------------------------------------ wiring */
   function onKey(e) {
     if (!state.open || e.isComposing || e.keyCode === 229) return;
     const stop = () => { e.preventDefault(); e.stopImmediatePropagation(); };
@@ -335,7 +308,7 @@
       open(item) {
         MemuSearch.close();
         if (item._manage) { setTimeout(() => manage(), 40); return; }
-        // put «;keyword» into the composer and pick it: the same path as typing it
+
         setTimeout(async () => {
           const el = field(), s = (state.rows || []).find((x) => x.id === item._id);
           if (!el || !s) return;

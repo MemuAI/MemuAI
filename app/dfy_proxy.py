@@ -46,7 +46,6 @@ CONNECT_TIMEOUT = 15.0
 IP_SERVICES = ("https://api.ipify.org?format=json", "https://ifconfig.me/ip", "https://icanhazip.com")
 _HOST_RE = re.compile(r"^[A-Za-z0-9._\-\[\]:]{1,253}$")
 
-
 class ProxyError(Exception):
     """An error with a code (``auth`` | ``refused`` | ``timeout`` | ``dns`` | ``upstream`` | ``config``) and both languages."""
 
@@ -56,7 +55,6 @@ class ProxyError(Exception):
 
     def text(self, lang: str = "ru") -> str:
         return self.en if lang == "en" else self.ru
-
 
 @dataclass(frozen=True)
 class Upstream:
@@ -73,9 +71,6 @@ class Upstream:
     def fingerprint(self) -> str:
         """Changes when the browser must be restarted (credentials are not part of it: the relay re-reads them)."""
         return f"{self.scheme}://{self.host}:{self.port}"
-
-
-# ------------------------------------------------------------------ settings ---
 
 def parse_address(raw: Any) -> Dict[str, Any]:
     """``socks5://user:pass@host:1080`` / ``host:port`` → ``{scheme?, host, port?, username?, password?}``."""
@@ -106,7 +101,6 @@ def parse_address(raw: Any) -> Dict[str, Any]:
         out["password"] = urllib.parse.unquote(parts.password)
     return out
 
-
 def normalize(raw: Any) -> Dict[str, Any]:
     """Validated public settings ``{enabled, scheme, host, port}`` (raises ``ProxyError`` code ``config``)."""
     data = raw if isinstance(raw, dict) else {}
@@ -128,7 +122,6 @@ def normalize(raw: Any) -> Dict[str, Any]:
     if enabled and not host:
         raise ProxyError("config", "Укажите адрес прокси", "Enter the proxy address")
     return {"enabled": bool(enabled and host), "scheme": scheme, "host": host, "port": port if host else 0}
-
 
 class ProxyStore:
     """Per-machine proxy settings; credentials in their own encrypted vault (never shown to the model)."""
@@ -195,8 +188,7 @@ class ProxyStore:
                       **{k: body[k] for k in ("enabled", "scheme", "host", "port") if k in body}}
             clean = normalize(merged)
             secret = str(row.get("secret_id") or "")
-            # Round 34: long usernames (session/zone parameters of residential proxies, tokens) were cut to 200
-            # characters — the proxy then answered 407 to a login the user typed correctly; the vault keeps 2000.
+
             username = str(body.get("username") or "").strip()[:2000]
             password = body.get("password")
             password = str(password) if isinstance(password, (str, int)) and str(password) else ""
@@ -270,9 +262,6 @@ class ProxyStore:
             raise ProxyError("config", "Укажите адрес прокси", "Enter the proxy address")
         return Upstream(clean["scheme"], clean["host"], int(clean["port"]), username, password)
 
-
-# ---------------------------------------------------------------- browser ---
-
 def chromium_args(relay_port: int) -> List[str]:
     """Launch flags that send everything through the local relay and close the usual leaks."""
     return [f"--proxy-server=http://127.0.0.1:{int(relay_port)}",
@@ -283,7 +272,6 @@ def chromium_args(relay_port: int) -> List[str]:
             "--webrtc-ip-handling-policy=disable_non_proxied_udp",
             "--disable-features=DnsOverHttps,UseDnsHttpsSvcb"]
 
-
 def direct_args(upstream: Upstream) -> List[str]:
     """Flags for a proxy WITHOUT a login when no relay can run (remote machines): Chromium talks to it directly.
     SOCKS5 in Chromium already sends host names to the proxy (remote DNS)."""
@@ -292,13 +280,9 @@ def direct_args(upstream: Upstream) -> List[str]:
     host = f"[{upstream.host}]" if ":" in upstream.host else upstream.host
     return [f"--proxy-server={upstream.scheme}://{host}:{upstream.port}", *chromium_args(0)[1:]]
 
-
-# ------------------------------------------------------------------ relay ---
-
 def _basic(upstream: Upstream) -> str:
     raw = f"{upstream.username}:{upstream.password}".encode("utf-8")
     return "Basic " + base64.b64encode(raw).decode("ascii")
-
 
 async def _open_upstream(upstream: Upstream) -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     context = None
@@ -319,7 +303,6 @@ async def _open_upstream(upstream: Upstream) -> Tuple[asyncio.StreamReader, asyn
         raise ProxyError("refused", f"Прокси {upstream.host}:{upstream.port} недоступен",
                          f"Proxy {upstream.host}:{upstream.port} is unreachable") from None
 
-
 async def _read_head(reader: asyncio.StreamReader) -> bytes:
     try:
         return await reader.readuntil(b"\r\n\r\n")
@@ -330,13 +313,11 @@ async def _read_head(reader: asyncio.StreamReader) -> bytes:
             raise ProxyError("upstream", "Соединение оборвалось", "The connection broke") from None
         raise ProxyError("upstream", "Прокси закрыл соединение", "The proxy closed the connection") from None
 
-
 def _status(head: bytes) -> int:
     try:
         return int(head.split(b"\r\n", 1)[0].split()[1])
     except (IndexError, ValueError):
         return 0
-
 
 async def open_tunnel(upstream: Upstream, host: str, port: int) -> Tuple[asyncio.StreamReader, asyncio.StreamWriter]:
     """A TCP stream to ``host:port`` through the upstream proxy (the host name is resolved by the proxy)."""
@@ -366,10 +347,8 @@ async def open_tunnel(upstream: Upstream, host: str, port: int) -> Tuple[asyncio
         writer.close()
         raise
 
-
 _SOCKS_REPLIES = {1: "general failure", 2: "not allowed by ruleset", 3: "network unreachable", 4: "host unreachable",
                   5: "connection refused", 6: "TTL expired", 7: "command not supported", 8: "address type not supported"}
-
 
 async def _socks5_connect(reader: asyncio.StreamReader, writer: asyncio.StreamWriter, upstream: Upstream,
                           host: str, port: int) -> None:
@@ -398,7 +377,7 @@ async def _socks5_connect(reader: asyncio.StreamReader, writer: asyncio.StreamWr
             address = (b"\x01" if ip.version == 4 else b"\x04") + ip.packed
         except ValueError:
             name = host.encode("idna")[:255]
-            address = b"\x03" + bytes([len(name)]) + name      # domain name: the proxy resolves it (socks5h)
+            address = b"\x03" + bytes([len(name)]) + name
         writer.write(b"\x05\x01\x00" + address + struct.pack(">H", int(port)))
         await writer.drain()
         head = await asyncio.wait_for(reader.readexactly(4), CONNECT_TIMEOUT)
@@ -411,7 +390,6 @@ async def _socks5_connect(reader: asyncio.StreamReader, writer: asyncio.StreamWr
         await reader.readexactly(size + 2)
     except asyncio.IncompleteReadError:
         raise ProxyError("upstream", "SOCKS5-прокси закрыл соединение", "The SOCKS5 proxy closed the connection") from None
-
 
 async def _pipe(source: asyncio.StreamReader, target: asyncio.StreamWriter) -> None:
     try:
@@ -430,7 +408,6 @@ async def _pipe(source: asyncio.StreamReader, target: asyncio.StreamWriter) -> N
         except (OSError, RuntimeError):
             pass
 
-
 async def _splice(a: Tuple[asyncio.StreamReader, asyncio.StreamWriter],
                   b: Tuple[asyncio.StreamReader, asyncio.StreamWriter]) -> None:
     tasks = [asyncio.ensure_future(_pipe(a[0], b[1])), asyncio.ensure_future(_pipe(b[0], a[1]))]
@@ -442,9 +419,7 @@ async def _splice(a: Tuple[asyncio.StreamReader, asyncio.StreamWriter],
         for writer in (a[1], b[1]):
             writer.close()
 
-
 _HOP_HEADERS = {b"proxy-authorization", b"proxy-connection", b"connection", b"keep-alive"}
-
 
 class ProxyRelay:
     """Local no-auth HTTP proxy for the DFY browser → the user's proxy. ``last_error`` is shown in the UI."""
@@ -541,7 +516,6 @@ class ProxyRelay:
         await remote[1].drain()
         return remote
 
-
 def _split_host_port(value: str, default: int) -> Tuple[str, int]:
     value = value.strip()
     if value.startswith("["):
@@ -556,9 +530,6 @@ def _split_host_port(value: str, default: int) -> Tuple[str, int]:
     if not host or not 0 < number < 65536:
         raise ProxyError("upstream", "Некорректный адрес назначения", "Invalid destination")
     return host, number
-
-
-# ------------------------------------------------------------------ check ---
 
 async def check(upstream: Upstream, *, timeout: float = 15.0, services: Tuple[str, ...] = IP_SERVICES) -> Dict[str, Any]:
     """The external IP seen through the proxy: ``{ok, ip, ms, service}`` or ``{ok: False, code, error, error_en}``."""
@@ -592,7 +563,6 @@ async def check(upstream: Upstream, *, timeout: float = 15.0, services: Tuple[st
     return {"ok": False, "code": "upstream", "error": "Через прокси не удалось узнать внешний IP",
             "error_en": "Could not get the external IP through the proxy"}
 
-
 def _ip_from(text: str) -> str:
     raw = str(text or "").strip()
     if raw.startswith("{"):
@@ -604,9 +574,6 @@ def _ip_from(text: str) -> str:
         return str(ipaddress.ip_address(raw.strip()))
     except ValueError:
         return ""
-
-
-# ------------------------------------------------------------- remote relay ---
 
 def relay_main() -> None:  # pragma: no cover - exercised on remote machines
     """``python -m app.dfy_proxy relay``: one JSON line with the upstream on stdin → ``{"port": N}`` on stdout."""
@@ -622,7 +589,6 @@ def relay_main() -> None:  # pragma: no cover - exercised on remote machines
         await asyncio.get_running_loop().run_in_executor(None, sys.stdin.read)
         await relay.close()
     asyncio.run(serve())
-
 
 if __name__ == "__main__":  # pragma: no cover
     import sys as _sys

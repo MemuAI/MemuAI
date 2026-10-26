@@ -18,7 +18,6 @@ TOKEN = "123456789:AAH" + "x" * 32
 OWNER = 305551234
 NAMED_TOKEN = "eyJ" + "a" * 120
 
-
 class DataCase(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -31,17 +30,13 @@ class DataCase(unittest.TestCase):
         self.patch.stop()
         self.tmp.cleanup()
 
-
-# ----------------------------------------------------------------- prefs sync
-
-
 class PreferencesSyncTest(DataCase):
     def client(self):
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
         from app import playground_api
         app = FastAPI()
-        # Only the two routes we need, taken from the real module source.
+
         route = next(r for r in playground_api.create_app().routes
                      if getattr(r, "path", "") == "/api/pg/preferences/sync")
         app.router.routes.append(route)
@@ -59,7 +54,7 @@ class PreferencesSyncTest(DataCase):
         self.assertIn("preferences", first)
         same = http.get("/api/pg/preferences/sync", params={"rev": first["rev"]}).json()
         self.assertTrue(same["unchanged"])
-        # The Mini App (another process) changes the personality …
+
         from app.tgapp_api import validate_settings
         pgdata.save_preferences(validate_settings({"ai_personality": "pragmatic"}, pgdata.load_preferences()))
         changed = http.get("/api/pg/preferences/sync", params={"rev": first["rev"]}).json()
@@ -67,7 +62,7 @@ class PreferencesSyncTest(DataCase):
         self.assertIn("profiles_rev", changed)
 
     def test_patch_save_keeps_what_another_process_saved(self):
-        # Mini App saved the personality; the desktop then saves only its own key.
+
         pgdata.save_preferences({"ai_personality": "pragmatic"})
         pgdata.save_preferences({"sidebar_visible": False})
         prefs = pgdata.load_preferences()
@@ -93,7 +88,6 @@ class PreferencesSyncTest(DataCase):
         self.assertEqual(active["bio"], "dev")
         self.assertNotEqual(before, pgdata.profiles_revision())
         self.assertEqual(tgapp_api.public_settings(pgdata.load_preferences())["profile_name"], "Йоно")
-
 
 class DesktopSourceContractTest(unittest.TestCase):
     """The window side is JavaScript; check the contract in the source."""
@@ -123,10 +117,6 @@ class DesktopSourceContractTest(unittest.TestCase):
         self.assertIn('"st-tg-language": ["telegram_language"]', self.tg)
         self.assertIn("/api/pg/telegram/restart", self.tg)
 
-
-# ----------------------------------------------------------------- tunnel
-
-
 class FakeProcess:
     def __init__(self, lines, hold=None):
         self.stdout = _Stream(lines, hold)
@@ -148,7 +138,6 @@ class FakeProcess:
     def kill(self):
         self.terminate()
 
-
 class _Stream:
     def __init__(self, lines, hold):
         self.lines = [line + "\n" for line in lines]
@@ -165,10 +154,8 @@ class _Stream:
             self.event.wait(5)
         return ""
 
-
 URL_LINE = "INF |  https://fresh-host-name.trycloudflare.com  |"
 REG_LINE = "INF Registered tunnel connection connIndex=0 protocol=http2"
-
 
 class TunnelTest(unittest.TestCase):
     def run_tunnel(self, scripts, until=None, **kwargs):
@@ -250,8 +237,8 @@ class TunnelTest(unittest.TestCase):
         gave_up, count, idle_count, after, states = asyncio.run(scenario())
         self.assertTrue(gave_up)
         self.assertEqual(count, 3)
-        self.assertEqual(idle_count, 3)            # no more spinning after giving up
-        self.assertGreater(after, idle_count)       # «Retry» starts again
+        self.assertEqual(idle_count, 3)
+        self.assertGreater(after, idle_count)
         failed = [error for state, error in states if state == "failed"]
         self.assertTrue(failed and "Повторить" in failed[0])
         self.assertTrue(any("Cloudflare" in error for _, error in states))
@@ -274,7 +261,6 @@ class TunnelTest(unittest.TestCase):
         tunnel._line("ERR Failed to dial a quic connection error=\"timeout: no recent network activity\"")
         self.assertTrue(tunnel.use_http2)
         self.assertIn("HTTP/2", tunnel.last_error)
-
 
 class ConfigTest(unittest.TestCase):
     def setUp(self):
@@ -301,7 +287,6 @@ class ConfigTest(unittest.TestCase):
         retried = tg_webapp.save_config({"retry": True})
         self.assertGreater(retried["retry_at"], 0)
         self.assertEqual(tg_webapp.save_config({"cf_protocol": "bogus"})["cf_protocol"], "auto")
-
 
 class VerifyTest(unittest.TestCase):
     def test_address_is_published_only_after_dns_and_health(self):
@@ -368,10 +353,6 @@ class VerifyTest(unittest.TestCase):
         self.assertEqual(asyncio.run(run(handler)), ("ok", ""))
         self.assertEqual(asyncio.run(run(nxdomain))[0], "dns")
 
-
-# ----------------------------------------------------------------- bot side
-
-
 class MenuButtonTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -408,7 +389,7 @@ class MenuButtonTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_default_and_chat_buttons_are_set_and_verified(self):
         url = "https://new-host.trycloudflare.com/tgapp/"
-        self.stale_once = True          # the first update is lost: read-back catches it
+        self.stale_once = True
         ok = await telegram_bot._apply_menu_button(self.client, TOKEN, self.prefs, url)
         self.assertTrue(ok)
         self.assertEqual(self.menu["default"]["web_app"]["url"], url)
@@ -435,7 +416,6 @@ class MenuButtonTest(unittest.IsolatedAsyncioTestCase):
         self.assertIn("b.trycloudflare.com", json.dumps(edits[-1]["reply_markup"]))
         self.assertNotIn("a.trycloudflare.com", json.dumps(edits[-1]["reply_markup"]))
         self.assertEqual(self.menu[str(OWNER)]["web_app"]["url"], "https://b.trycloudflare.com/tgapp/")
-
 
 if __name__ == "__main__":
     unittest.main()

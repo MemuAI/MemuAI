@@ -86,7 +86,6 @@ SYSTEM = {
               "to the image width and height (x0,y0 = top-left). Tight boxes. If the object is not visible: {\"objects\": []}.",
 }
 
-
 def build_messages(body: Dict[str, Any], lang: str) -> List[Dict[str, Any]]:
     action = str(body.get("action") or "describe")
     if action not in ACTIONS:
@@ -131,7 +130,6 @@ def build_messages(body: Dict[str, Any], lang: str) -> List[Dict[str, Any]]:
                                                  {"type": "image_url", "image_url": {"url": image}}]})
     return messages
 
-
 def parse_json_answer(text: str) -> Optional[Dict[str, Any]]:
     """The first JSON object in a model answer (code fences and prose around it are tolerated)."""
     s = re.sub(r"```(?:json)?", "", str(text or ""))
@@ -165,7 +163,6 @@ def parse_json_answer(text: str) -> Optional[Dict[str, Any]]:
         start = s.find("{", start + 1)
     return None
 
-
 def pick_models(status: Dict[str, Any], preferred: str = "") -> Dict[str, Any]:
     models = status.get("models") or []
     vision = [m for m in models if m.get("vision")]
@@ -176,7 +173,6 @@ def pick_models(status: Dict[str, Any], preferred: str = "") -> Dict[str, Any]:
         chosen = default if any(m["id"] == default and m.get("vision") for m in models) else (vision[0]["id"] if vision else default)
     return {"model": chosen, "vision": [m["id"] for m in vision],
             "chosen_vision": any(m["id"] == chosen and m.get("vision") for m in models) or not any("vision" in m for m in models)}
-
 
 def image_models(base: str) -> List[Dict[str, Any]]:
     from . import ai
@@ -190,10 +186,9 @@ def image_models(base: str) -> List[Dict[str, Any]]:
         row = labels.get(str(mid), {})
         if str(mid) == "genspark-image/auto" and len((data or {}).get("image_models") or []) > 1:
             pass
-        rows.append({"id": str(mid), "label": str(row.get("name") or row.get("label") or ai._pretty(str(mid))),  # r33: readable
+        rows.append({"id": str(mid), "label": str(row.get("name") or row.get("label") or ai._pretty(str(mid))),
                      "provider": str(row.get("provider") or "")})
     return rows
-
 
 def _fetch_data_url(url: str) -> str:
     if url.startswith("data:image/"):
@@ -211,15 +206,12 @@ def _fetch_data_url(url: str) -> str:
         ctype = "image/png"
     return f"data:{ctype};base64," + base64.b64encode(raw).decode("ascii")
 
-
-# ============================================================================== handler methods
 def _allowed_path(handler, value: Any) -> str:
     from .server import _clean_path
     path = _clean_path(value)
     if not handler.app.allowed(path):
         raise PermissionError("not opened")
     return path
-
 
 def api_photo_caps(self, method: str) -> None:
     from . import ai
@@ -236,7 +228,6 @@ def api_photo_caps(self, method: str) -> None:
                            for m in status.get("models") or []],
                 "image_models": gen})
 
-
 def api_photo_decode(self, method: str) -> None:
     from .formats import images
     body = self._json_body()
@@ -251,13 +242,11 @@ def api_photo_decode(self, method: str) -> None:
         return
     self._json({"ok": True, **result})
 
-
 def api_photo_frames(self, method: str) -> None:
     from .formats import images
     body = self._json_body()
     path = _allowed_path(self, body.get("path"))
     self._json({"ok": True, **images.frames(path, int(body.get("limit") or images.MAX_FRAMES))})
-
 
 def _write(self, path: str, data: bytes, query: Dict[str, str]) -> None:
     from .formats.textio import atomic_write
@@ -270,7 +259,6 @@ def _write(self, path: str, data: bytes, query: Dict[str, str]) -> None:
     atomic_write(path, data, keep_backup=query.get("backup") == "1")
     self.app.allow(path)
     self._json({"ok": True, **_stat(path)})
-
 
 def api_photo_encode(self, method: str) -> None:
     from .formats import images
@@ -292,7 +280,6 @@ def api_photo_encode(self, method: str) -> None:
         self._send(200, data, "application/octet-stream")
         return
     _write(self, path, data, query)
-
 
 def api_photo_psd(self, method: str) -> None:
     from .formats import psd
@@ -318,14 +305,12 @@ def api_photo_psd(self, method: str) -> None:
                          base64.b64decode(merged.split(",")[-1]) if isinstance(merged, str) and merged else None)
     _write(self, path, data, {"mtime": str(body.get("mtime") or 0), "force": "1" if body.get("force") else ""})
 
-
 def _sse_start(self) -> None:
     self.send_response(200)
     self.send_header("Content-Type", "text/event-stream; charset=utf-8")
     self.send_header("Cache-Control", "no-store")
     self.send_header("X-Accel-Buffering", "no")
     self.end_headers()
-
 
 def api_photo_ai(self, method: str) -> None:
     from . import ai
@@ -348,7 +333,7 @@ def api_photo_ai(self, method: str) -> None:
     request_id = str(body.get("id") or uuid.uuid4().hex)[:64]
     cancel = threading.Event()
     state: Dict[str, Any] = {"cancel": cancel, "conn": None}
-    self.app.streams[request_id] = state       # /api/ai/stop {id} cancels it, like the text AI
+    self.app.streams[request_id] = state
     _sse_start(self)
 
     def emit(event: Dict[str, Any]) -> bool:
@@ -392,7 +377,6 @@ def api_photo_ai(self, method: str) -> None:
     finally:
         self.app.streams.pop(request_id, None)
         self.close_connection = True
-
 
 def api_photo_generate(self, method: str) -> None:
     from . import ai
@@ -474,7 +458,6 @@ def api_photo_generate(self, method: str) -> None:
         except Exception:  # noqa: BLE001
             pass
         self.close_connection = True
-
 
 def register(handler_cls) -> None:
     for name, fn in list(globals().items()):

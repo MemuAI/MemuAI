@@ -1,22 +1,20 @@
-/* MemuMusic · feat-editor.js — редактор трека (теги, обложка, текст песни, сведения о файле),
- * массовое редактирование нескольких треков, редактор плейлиста (название, описание, своя обложка, экспорт M3U). */
+
 
 const ED_FIELDS = [["title", "col.title"], ["artist", "ed.artist"], ["album", "col.album"], ["album_artist", "ed.album_artist"],
   ["year", "ed.year"], ["track_no", "ed.track_no"], ["genre", "ed.genre"]];
 let genreCache = null;
 
 function lrcStamp(sec) { const m = Math.floor(sec / 60), s = sec - m * 60; return `[${String(m).padStart(2, "0")}:${s.toFixed(2).padStart(5, "0")}]`; }
-/* r39-music-lyrics: строка со временем слов → enhanced LRC «[00:12.00]<00:12.00>слово <00:12.40>слово» */
+
 function lrcRow(row) { return lrcStamp(row[0]) + (row[2] ? row[2].map(([sec, w]) => lrcStamp(sec).replace("[", "<").replace("]", ">") + w).join("") + (row[3] ? lrcStamp(row[3]).replace("[", "<").replace("]", ">") : "") : row[1]); }
-/* r41b: весь текст в LRC; известный конец строки без слов — пустая строка «[мм:сс.xx]» (пауза = конец предыдущей строки) */
+
 function lrcText(rows) {
   return rows.map((row, i) => {
     const next = rows[i + 1], pause = row[3] && !row[2] && String(row[1] || "").trim() && (!next || (next[0] > row[3] + .05 && String(next[1] || "").trim()));
     return lrcRow(row) + (pause ? "\n" + lrcStamp(row[3]) : "");
   }).join("\n");
 }
-/** r41b: «Конец строки» — после строки с курсором вставляется пустая метка текущего времени: здесь пение строки кончилось
- * (дальше пауза, «•••» при ≥ 4,5 с). Повторное нажатие на такой метке её обновляет. */
+
 function insertLineEnd(area, sec) {
   const v = area.value, pos = area.selectionStart;
   const start = v.lastIndexOf("\n", pos - 1) + 1, endAt = v.indexOf("\n", pos) < 0 ? v.length : v.indexOf("\n", pos);
@@ -31,7 +29,7 @@ function insertLineEnd(area, sec) {
 function readImageFile(file) {
   return new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(String(r.result)); r.onerror = () => reject(r.error); r.readAsDataURL(file); });
 }
-/** Картинка из буфера обмена: событие paste (работает в песочнице всегда) или Clipboard API, если разрешён. */
+
 async function clipboardImage() {
   if (!navigator.clipboard || !navigator.clipboard.read) return null;
   try {
@@ -39,10 +37,10 @@ async function clipboardImage() {
       const type = item.types.find((x) => x.startsWith("image/"));
       if (type) return readImageFile(await item.getType(type));
     }
-  } catch (e) { /* permission denied in the sandbox — paste with Ctrl+V instead */ }
+  } catch (e) {  }
   return null;
 }
-/** После правки: обновить объекты трека везде, где они живут (очередь, текущий, библиотека). */
+
 function mergeTrack(updated) {
   if (!updated || !updated.id) return;
   normTrack(updated);
@@ -51,7 +49,6 @@ function mergeTrack(updated) {
   if (cur && cur.id === updated.id) { updateBar(); applyPalette(cur); }
 }
 
-/* ------------------------------------------------------------ редактор трека */
 function editTracks(list) {
   list = [].concat(list).filter(Boolean);
   if (!list.length) return;
@@ -105,7 +102,7 @@ function editTracks(list) {
       genreCache = g || [];
       card.querySelector("#mm-genres").innerHTML = genreCache.map((x) => `<option value="${esc(x.name)}">`).join("");
     });
-    /* --- обложка */
+
     const showArt = (track) => { if (!bulk) card.querySelector("#ed-art").innerHTML = artImg(track, "album"); };
     const setCover = async (args) => {
       const btns = $$(".mm-ed-cover-acts button, .mm-ed-row button", pane("cover"));
@@ -146,7 +143,7 @@ function editTracks(list) {
     };
     card.querySelector("#ed-q-go").onclick = search;
     card.querySelector("#ed-q").addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); search(); } });
-    /* --- текст песни */
+
     async function loadLyrics(force) {
       const state = card.querySelector("#ed-ly-state"), area = card.querySelector("#ed-lyrics");
       state.textContent = t("ed.ly_loading");
@@ -172,7 +169,7 @@ function editTracks(list) {
       card.querySelector("#ed-ly-end").onclick = () => { const cur = Player.current(); insertLineEnd(card.querySelector("#ed-lyrics"), cur && cur.id === one.id ? Player.times().cur : 0); };
       card.querySelector("#ed-ly-find").onclick = () => loadLyrics(true);
     }
-    /* --- сведения о файле */
+
     function fileInfo() {
       const info = card.querySelector("#ed-info"); if (!info || info.dataset.done) return;
       info.dataset.done = "1";
@@ -188,7 +185,7 @@ function editTracks(list) {
       info.querySelector("#ed-reveal").onclick = () => revealTrack(one);
       if (typeof one.lufs !== "number") API.soft("library.analyze", { ids: [one.id] }, null);
     }
-    /* --- сохранить */
+
     card.querySelector("#ed-save").onclick = async () => {
       const save = card.querySelector("#ed-save"); save.disabled = true;
       const write = card.querySelector("#ed-write").checked;
@@ -203,8 +200,7 @@ function editTracks(list) {
           else mergeTrack(await API.call("library.update", Object.assign({ id: one.id, write_tags: write }, changes)));
         }
         const area = card.querySelector("#ed-lyrics");
-        // r40 (r40-music-fix): lyrics alone are a change too — saved, the open «Now playing» re-reads them, and a toast says so
-        // (the dialog used to close silently, which looked like «Save does nothing»)
+
         const lyricsChanged = !!(area && lyricsLoaded !== null && area.value.trim() !== lyricsLoaded.trim());
         if (lyricsChanged) {
           await API.call("lyrics.set", { id: one.id, text: area.value });
@@ -218,7 +214,6 @@ function editTracks(list) {
   });
 }
 
-/* ------------------------------------------------------------ редактор плейлиста */
 function editPlaylist(pl, onDone) {
   const rules = !!pl.rules;
   modal(`<div class="mm-ed">

@@ -48,7 +48,6 @@
     controller: null, timer: 0, lastQuery: null, result: null, seq: 0,
   };
 
-  /* ---------------------------------------------------------------- helpers */
   const input = () => $("#input");
   function tokenEstimate(text) {
     const v = String(text || "");
@@ -77,7 +76,7 @@
       const data = await api("/api/mentions/providers" + (force ? "?refresh=1" : ""));
       state.providers = data.providers || [];
       state.providersAt = Date.now();
-    } catch (e) { /* the menu still shows legacy rows and client providers */ }
+    } catch (e) {  }
     return state.providers;
   }
 
@@ -87,7 +86,7 @@
     const el = input();
     if (!el) return null;
     const caret = el.selectionStart ?? el.value.length;
-    // Round 36: only the tail before the caret matters — a long draft is not re-scanned on every keystroke.
+
     const from = Math.max(0, caret - 320);
     const before = el.value.slice(from, caret);
     if (before.indexOf("@") < 0) return null;
@@ -104,8 +103,8 @@
     return p ? { cat: p.id, q: m[2] } : { cat: "", q: text };
   }
 
-  /* ---------------------------------------------------------------- recent */
-  function recent() { try { return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]").filter((r) => r && r.provider); } catch (e) { return []; } }
+  function textModelRow(row) { return !!row?.id && (!window.MemuModelPicker || MemuModelPicker.kindOf(row) === "chat"); }
+  function recent() { try { return JSON.parse(localStorage.getItem(RECENT_KEY) || "[]").filter((r) => r && r.provider && (r.provider !== "model" || textModelRow((S.models || []).find(m=>m.id===(r.model || r.ref))))); } catch (e) { return []; } }
   function pushRecent(item) {
     const key = item.provider + ":" + JSON.stringify(item.ref ?? item.title);
     const rows = recent().filter((r) => r.provider + ":" + JSON.stringify(r.ref ?? r.title) !== key);
@@ -114,10 +113,9 @@
     try { localStorage.setItem(RECENT_KEY, JSON.stringify(rows.slice(0, 12))); } catch (e) {}
   }
 
-  /* ---------------------------------------------------------------- client providers */
   function modelRows(q) {
     if (typeof S === "undefined") return [];
-    const rows = (S.models || []).filter((m) => m && m.id && !(typeof isImageModel === "function" && isImageModel(m.id) && false));
+    const rows = (S.models || []).filter(textModelRow);
     return rows.map((m) => {
       const name = typeof modelDisplayName === "function" ? modelDisplayName(m.id) : m.id;
       return { provider: "model", ref: m.id, model: m.id, title: name, subtitle: m.id === currentModel() ? L("текущая модель", "current model") : m.id,
@@ -132,12 +130,11 @@
     try { return typeof legacyMentionRows === "function" ? legacyMentionRows(token) : []; } catch (e) { return []; }
   }
 
-  /* ---------------------------------------------------------------- search */
   function schedule() {
     clearTimeout(state.timer);
     const tok = currentToken();
     if (!tok) { close(); return; }
-    // Instant part first (legacy rows, recent, client providers), then the debounced server search.
+
     render(tok, state.lastQuery === tok.text ? state.result : null, true);
     state.timer = setTimeout(() => runSearch(tok), tok.text ? DEBOUNCE : 0);
   }
@@ -173,7 +170,7 @@
     const add = (section, items) => { const list = items.filter(Boolean); if (list.length) rows.push({ section }, ...list); };
     if (cat) {
       const p = providerById(cat);
-      const add = (_section, items) => { const list = items.filter(Boolean); if (list.length) rows.push({ section: "" }, ...list); };   // the head names the category
+      const add = (_section, items) => { const list = items.filter(Boolean); if (list.length) rows.push({ section: "" }, ...list); };
       if (p && p.service && p.connected === false) {
         add(plabel(p), [{ kind: "connect", provider: p.id, service: p.service, title: L(`${plabel(p)} не подключён`, `${plabel(p)} is not connected`),
           subtitle: L("Подключите в Настройки → Интеграции", "Connect it in Settings → Integrations"), icon: p.icon, disabled: true }]);
@@ -218,7 +215,6 @@
     return rows;
   }
 
-  /* ---------------------------------------------------------------- menu */
   function menuEl() {
     let el = $("#mention-menu");
     if (!el) {
@@ -230,12 +226,12 @@
       el.setAttribute("role", "listbox");
       el.hidden = true;
       composer.insertBefore(el, composer.firstChild);
-      el.addEventListener("mousedown", (e) => e.preventDefault());   // keep the caret in the input
+      el.addEventListener("mousedown", (e) => e.preventDefault());
       el.addEventListener("click", onMenuClick);
     }
     return el;
   }
-  const SUB_KINDS = new Set(["gmail_thread", "calendar_day"]);   // reached through Gmail / Calendar
+  const SUB_KINDS = new Set(["gmail_thread", "calendar_day"]);
   function categoriesHtml() {
     const ps = state.providers.filter((p) => p.available !== false && !SUB_KINDS.has(p.id));
     const on = ps.filter((p) => !(p.service && p.connected === false));
@@ -271,13 +267,13 @@
     const head = cat ? `<div class="mn-head">${svg(p?.icon)}<span>${escH(plabel(p))}</span><small>${escH(L("Esc — закрыть · Backspace — все категории", "Esc — close · Backspace — all categories"))}</small></div>` : "";
     el.innerHTML = head + rows.map(rowHtml).join("") + `<div class="mn-foot">${escH(L("↑↓ выбрать · Enter — вставить · «@чат:» — искать в категории", "↑↓ select · Enter — insert · «@chat:» — search a category"))}</div>`;
     el.hidden = false;
-    // The composer may sit mid-screen (a new chat): the menu never runs off the top of the window.
+
     const box = $(".composer")?.getBoundingClientRect();
     const bar = $(".topbar")?.getBoundingClientRect().bottom || 64;
-    // r36: below ends at the main pane's rounded edge (it clips), not at the window's — the menu's foot was cut off
+
     const floor = Math.min(window.innerHeight, $(".main")?.getBoundingClientRect().bottom || window.innerHeight);
     const above = (box?.top || 500) - bar - 14, below = floor - (box?.bottom || 500) - 18;
-    const down = above < 380 && below > above;     // a new chat: the composer is mid-screen, there is more room below
+    const down = above < 380 && below > above;
     el.classList.toggle("mn-down", down);
     el.style.maxHeight = Math.max(160, Math.min(460, down ? below : above)) + "px";
     state.open = true;
@@ -344,7 +340,7 @@
     if (row.kind === "category") { setCategory(row.provider, row.query || ""); return; }
     if (row.kind === "legacy") {
       close();
-      // app.js inserts the command / Work file as text exactly as before (folders keep the menu open).
+
       if (typeof chooseSlash === "function") chooseSlash(row.cmd, row.legacyKind);
       return;
     }
@@ -355,7 +351,6 @@
     input().dispatchEvent(new Event("input"));
   }
 
-  /* ---------------------------------------------------------------- chips */
   function chipRow() {
     let el = $("#mention-chips");
     if (!el) {
@@ -389,7 +384,7 @@
       if (chip.provider === "clipboard") {
         let text = "";
         try { text = await navigator.clipboard.readText(); } catch (e) {
-          try {   // WebView2 may refuse navigator.clipboard: the backend reads it (Windows)
+          try {
             const r = await api("/api/mentions/resolve", { method: "POST", body: { items: [{ provider: "clipboard", ref: "clipboard" }], lang: en() ? "en" : "ru" } });
             text = (r.blocks || [])[0]?.text || "";
           } catch (e2) {}
@@ -439,7 +434,6 @@
     if (chip) preview(state.chips[Number(chip.dataset.mnChip)], { editable: true });
   }
 
-  /* ---------------------------------------------------------------- preview */
   function preview(c, opts = {}) {
     if (!c) return;
     const b = c.block || {};
@@ -482,13 +476,12 @@
     on("mn-range-all", () => applyRange(true));
   }
 
-  /* ---------------------------------------------------------------- send */
   async function prepare() {
     const pending = state.chips.filter((c) => c.status === "loading");
     if (pending.length) {
       for (let n = 0; n < 60 && state.chips.some((c) => c.status === "loading"); n += 1) await new Promise((r) => setTimeout(r, 150));
     }
-    // A preview older than 10 minutes is refreshed (a mail thread or panel may have changed).
+
     const stale = state.chips.filter((c) => c.status === "ok" && c.provider !== "model" && c.provider !== "clipboard" && Date.now() - (c.at || 0) > 600000);
     for (const c of stale) await resolveChip(c);
     const failed = state.chips.filter((c) => c.status === "error");
@@ -506,7 +499,6 @@
   function clear() { state.chips = []; renderChips(); close(); }
   function count() { return state.chips.length; }
 
-  /* ---------------------------------------------------------------- message side */
   function messageChips(m, i) {
     const list = (m.mentions || []).map((b) => ({ provider: b.provider, ref: b.ref, title: b.title, icon: b.icon || providerById(b.provider)?.icon || "doc", status: "ok", block: b, url: b.url }));
     if (m.mentionModel) list.unshift({ provider: "model", title: typeof modelDisplayName === "function" ? modelDisplayName(m.mentionModel) : m.mentionModel, icon: "model", status: "ok", model: m.mentionModel });
@@ -527,7 +519,7 @@
   }, true);
 
   const attr = (v) => String(v ?? "").replace(/["<>\n\r]/g, " ").slice(0, 200);
-  /* The text added to the user's turn for the model (same as app/mentions.py prompt_block). */
+
   function promptText(m) {
     const parts = (m?.mentions || []).filter((b) => String(b.text || "").trim()).map((b) =>
       `<mention type="${attr(b.provider)}" title="${attr(b.title)}" source="${attr(b.source)}"${b.truncated ? ' truncated="true"' : ""}>\n${b.text}\n</mention>`);
@@ -537,11 +529,10 @@
   }
   function tokensOf(m) { return (m?.mentions || []).reduce((s, b) => s + (b.tokens || tokenEstimate(b.text)) + 20, 0); }
 
-  /* ---------------------------------------------------------------- wiring */
   function owns() { return !!currentToken(); }
   function onKey(e) {
     if (!state.open || $("#mention-menu")?.hidden) {
-      // Backspace right after a chip-less empty input removes the last chip (like other chip inputs).
+
       if (e.key === "Backspace" && !e.target.value && state.chips.length && e.target.selectionStart === 0) {
         state.chips.pop(); renderChips(); e.preventDefault();
       }
@@ -556,7 +547,7 @@
       const row = state.menuRows[state.index];
       if (selectable(row)) { stop(); choose(state.index); return; }
       const tok = currentToken();
-      if (key === "Tab" || (tok && splitCategory(tok.text).cat)) { stop(); return; }   // still searching a category: not a send
+      if (key === "Tab" || (tok && splitCategory(tok.text).cat)) { stop(); return; }
       return;
     }
     if (key === "Escape") { stop(); close(); return; }
@@ -574,7 +565,7 @@
     el.addEventListener("input", () => { state.index = 0; schedule(); });
     el.addEventListener("click", () => { if (currentToken()) schedule(); else if (state.open) close(); });
     el.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== input()) close(); }, 150));
-    // Round 36: providers load lazily on the first «@» (runSearch), not at startup; a focus only marks them stale.
+
     window.addEventListener("memu:integrations-changed", () => { if (state.providersAt) loadProviders(true); });
     window.addEventListener("focus", () => { if (state.providersAt && Date.now() - state.providersAt > 20000) state.providersStale = true; });
   }

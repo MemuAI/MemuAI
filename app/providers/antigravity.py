@@ -52,23 +52,16 @@ def _oauth_client() -> Tuple[str, str]:
             "через oauth_clients.local.json (см. OAUTH_SETUP.md).")
     return client_id, client_secret
 
-
 AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCOPES = "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile"
-# Порядок — только начальный: дальше первым идёт хост, который отвечал в
-# последний раз (см. ordered_endpoints). daily-* — staging-хост Antigravity:
-# он то отвечает лучше prod, то 403/503, и жёсткий порядок делал чат
-# нерабочим, когда «первым» оказывался упавший.
+
 ENDPOINTS = [
     "https://cloudcode-pa.googleapis.com",
     "https://daily-cloudcode-pa.googleapis.com",
 ]
 PROD_ENDPOINT = ENDPOINTS[0]
 
-#: Версия клиента в User-Agent. Google отвечает устаревшему клиенту отказом
-#: («update Antigravity»), поэтому актуальную версию спрашиваем у того же адреса
-#: автообновления, что и сама IDE; FALLBACK_VERSION — на случай, если он недоступен.
 FALLBACK_VERSION = "2.0.6"
 VERSION_URL = ("https://antigravity-auto-updater-974169037036.us-central1.run.app"
                "/api/update/linux-x64/stable/latest")
@@ -76,66 +69,53 @@ VERSION_TTL = 6 * 3600
 VERSION_CHECK = True
 _client_version: Dict[str, Any] = {"value": FALLBACK_VERSION, "checked": 0.0}
 
-
 _VERSION_RE = re.compile(r"\d{1,3}\.\d{1,3}\.\d{1,4}")
-
 
 def pinned_version() -> str:
     """Версия, которую пользователь задал вручную в настройках провайдера («» — определять самим)."""
     value = str(config_store.provider_cfg("antigravity").get("client_version") or "").strip()
     return value if _VERSION_RE.fullmatch(value) else ""
 
-
 def client_version() -> str:
     return pinned_version() or str(_client_version["value"])
-
 
 def user_agent() -> str:
     return f"antigravity/{client_version()} win32/x64"
 
-
-UA = user_agent()        # стартовое значение; запросы берут текущее через user_agent()
+UA = user_agent()
 
 SEED = models.seed_rows()
 
-#: Устаревшие id Google и их замены. Сервер публикует переименования в
-#: ``fetchAvailableModels.deprecatedModelIds``; таблица — запас до первого
-#: ответа. Устаревший id ещё в списке, но отвечает HTTP 400.
 DEPRECATED = models.DEPRECATED
-_deprecated_learned = models._learned_deprecated          # тот же словарь, что у models
+_deprecated_learned = models._learned_deprecated
 _models_checked_at: Dict[str, float] = {}
 MODEL_CATALOG_TTL = 5 * 60
-# id аккаунта → пул → время последнего ответа «квота исчерпана». Окно 5 часов
-# видно в API, а недельный или тарифный предел проявляется как доля 1 при
-# ответе 429 QUOTA_EXHAUSTED.
+
 _quota_hits: Dict[str, Dict[str, float]] = {}
 WEEKLY_WINDOW = quota.WEEK
 _iso_ts = quota.iso_ts
 
-#: Сколько хост считается плохим после 429/5xx/403: следующие запросы идут к другому.
 ENDPOINT_PENALTY = 180.0
 _endpoint_bad_until: Dict[str, float] = {}
 _last_good_endpoint: List[str] = []
-#: Ждать подсказанную Google паузу (RetryInfo) внутри запроса не дольше этого.
+
 MAX_INLINE_WAIT = 8.0
 INLINE_WAIT_PAD = 0.25
-#: Замер лимитов после чата — не чаще раза в это время на аккаунт (секунды).
+
 SAMPLE_EVERY = 600.0
 SAMPLE_AFTER_CHAT = True
 _last_sample: Dict[str, float] = {}
 _tier_cache: Dict[str, Tuple[float, str]] = {}
-#: id модели → какие фильтры безопасности она приняла: «four» (без «civic integrity») или «none».
+
 _reduced_safety: Dict[str, str] = {}
 
-#: Бюджет размышлений Claude (токены) по «глубине рассуждений» клиента (effort).
 EFFORT_BUDGETS = {"off": 0, "minimal": 0, "low": 2048, "medium": 8192, "high": 16384, "xhigh": 24576, "max": 32000}
 DEFAULT_THINKING_BUDGET = 8192
 
 SAFETY = [{"category": f"HARM_CATEGORY_{c}", "threshold": "OFF"}
           for c in ("HARASSMENT", "HATE_SPEECH", "SEXUALLY_EXPLICIT", "DANGEROUS_CONTENT", "CIVIC_INTEGRITY")]
-# finishReason, при котором ответа нет потому, что модель отказалась.
-_REFUSAL_FINISH = frozenset({"SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "RECITATION", "IMAGE_SAFETY"})
 
+_REFUSAL_FINISH = frozenset({"SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII", "RECITATION", "IMAGE_SAFETY"})
 
 def reset_health() -> None:
     """Забыть, какие хосты и когда подводили (для тестов и «Перезапустить службы»)."""
@@ -145,7 +125,6 @@ def reset_health() -> None:
     _tier_cache.clear()
     _reduced_safety.clear()
     _client_version.update(value=FALLBACK_VERSION, checked=0.0)
-
 
 def ordered_endpoints(choice: str = "auto") -> List[str]:
     """Хосты в порядке попыток: сначала не подводившие, среди них — последний удачный."""
@@ -158,50 +137,36 @@ def ordered_endpoints(choice: str = "auto") -> List[str]:
     return sorted(ENDPOINTS, key=lambda host: (_endpoint_bad_until.get(host, 0.0) > now,
                                                host != good, ENDPOINTS.index(host)))
 
-
 def _endpoint_failed(host: str) -> None:
     _endpoint_bad_until[host] = time.time() + ENDPOINT_PENALTY
-
 
 def _endpoint_worked(host: str) -> None:
     _endpoint_bad_until.pop(host, None)
     _last_good_endpoint[:] = [host]
 
-
 def quota_pool(model: str) -> str:
     low = str(model or "").lower()
     return "Gemini" if low.startswith("gemini") else "Claude / GPT"
-
 
 def current_model_id(model: str) -> str:
     """The id to send for a public name, a retired id or an id Google already knows."""
     return models.upstream_id(model)
 
-
-# реальные лимиты Antigravity группируются как в самом IDE:
-# отдельные котлы на Gemini и на Claude/GPT; внутренние id (chat_*, tab_*)
-# в интерфейс лимитов и каталога не показываем
 _is_internal_model = models.is_internal
-
-
-# ------------------------------------------------------------------ ошибки Google
 
 @dataclass
 class GoogleError:
     message: str = ""
     status: str = ""
     reason: str = ""
-    retry_after: float = 0.0      # секунды: RetryInfo / quotaResetDelay / «reset after 3s»
-    url: str = ""                 # ссылка подтверждения аккаунта (VALIDATION_REQUIRED)
-
+    retry_after: float = 0.0
+    url: str = ""
 
 _DURATION = re.compile(r"(\d+(?:\.\d+)?)\s*(ms|h|m|s)")
 _UNITS = {"ms": 0.001, "s": 1.0, "m": 60.0, "h": 3600.0}
 
-
 def _seconds(text: Any) -> float:
     return sum(float(value) * _UNITS[unit] for value, unit in _DURATION.findall(str(text or "")))
-
 
 def parse_google_error(body: str) -> GoogleError:
     """``{"error": {message, status, details: [...]}}`` → что из этого нужно."""
@@ -237,7 +202,6 @@ def parse_google_error(body: str) -> GoogleError:
             info.retry_after = _seconds(match.group(1))
     return info
 
-
 def _error_message(body: str) -> str:
     """Google's own error text: ``{"error": {"message": ...}}`` or the raw head."""
     info = parse_google_error(body)
@@ -246,10 +210,8 @@ def _error_message(body: str) -> str:
         return f"{info.message}{status}"
     return re.sub(r"\s+", " ", str(body or "")).strip()[:300]
 
-
 def _location_blocked(info: GoogleError) -> bool:
     return "location is not supported" in info.message.lower()
-
 
 def _verification_message(info: GoogleError) -> str:
     return ("Google asks to verify this account (“Verify your account”). Open "
@@ -257,9 +219,7 @@ def _verification_message(info: GoogleError) -> str:
             "check, then press “Check” on the account card. "
             "Google просит подтвердить аккаунт: пройдите проверку в браузере и нажмите «Проверить».")
 
-
 _refresh_locks: "weakref.WeakKeyDictionary[Any, Dict[str, asyncio.Lock]]" = weakref.WeakKeyDictionary()
-
 
 def _refresh_lock(account) -> asyncio.Lock:
     """Один обмен refresh-токена на аккаунт: параллельные запросы не обновляют его вразнобой."""
@@ -267,14 +227,13 @@ def _refresh_lock(account) -> asyncio.Lock:
     locks = _refresh_locks.setdefault(loop, {})
     return locks.setdefault(str(getattr(account, "id", "")), asyncio.Lock())
 
-
 class AntigravityProvider(Provider):
     id = "antigravity"
     title = "Antigravity"
     icon = "▲"
     oauth = True
     oauth_port = 51121
-    # Gemini принимает инструмент googleSearch — поиск делает сам Google.
+
     native_search = True
     title_en = "Antigravity"
     description = "Google Antigravity: модели и их доступность определяются сервером для вашего аккаунта. Вход через Google."
@@ -282,8 +241,8 @@ class AntigravityProvider(Provider):
 
     def __init__(self) -> None:
         self._flows: Dict[str, Dict[str, Any]] = {}
-        self._display: Dict[str, str] = {}               # публичный id → название с сервера
-        self._notices: Dict[str, Dict[str, str]] = {}    # id аккаунта → подсказка для панели лимитов
+        self._display: Dict[str, str] = {}
+        self._notices: Dict[str, Dict[str, str]] = {}
         self._tasks: set = set()
         self._catalog_data: Dict[str, Dict[str, Any]] = {}
         self._catalog_errors: Dict[str, str] = {}
@@ -300,8 +259,7 @@ class AntigravityProvider(Provider):
         ]
 
     def seed_models(self) -> List[Tuple[str, str]]:
-        # Historical CURATED entries translate old saved model ids, but cannot
-        # establish current account entitlements. Discovery owns this catalogue.
+
         return []
 
     def model_note(self, model: str) -> str:
@@ -341,8 +299,7 @@ class AntigravityProvider(Provider):
         rows = snapshot.get("models") or {}
         row = rows.get(requested) if isinstance(rows, dict) else None
         if isinstance(row, dict) and isinstance(row.get("upstream"), str) and row["upstream"]:
-            # Runtime alias learning does not survive a restart, but the
-            # account's last server snapshot does. Never guess a new model ID.
+
             models.remember_model(requested, row["upstream"], str(row.get("display") or ""))
             return row["upstream"]
         return current_model_id(requested)
@@ -386,8 +343,6 @@ class AntigravityProvider(Provider):
                   help_en="auto tries both hosts, the one that answered last first."),
         ]
 
-    # ------------------------------ токены ------------------------------
-
     @staticmethod
     def _stored_tokens(account) -> Dict[str, Any]:
         extra = getattr(account, "extra", None) or {}
@@ -413,7 +368,7 @@ class AntigravityProvider(Provider):
         async with _refresh_lock(account):
             tok = self._stored_tokens(account)
             if not force and fresh(tok):
-                return tok["access_token"]               # пока ждали, обновил другой запрос
+                return tok["access_token"]
             if force and stale and tok.get("access_token") and tok["access_token"] != stale and fresh(tok):
                 return tok["access_token"]
             if not tok.get("refresh_token"):
@@ -430,22 +385,21 @@ class AntigravityProvider(Provider):
             if resp.status_code in (400, 401, 403):
                 raise ProviderAuthError(f"Google rejected the refresh (HTTP {resp.status_code})")
             if resp.status_code != 200:
-                # 429/5xx — временный сбой Google, аккаунт не должен становиться invalid.
+
                 raise ProviderServerError(f"Google token refresh failed (HTTP {resp.status_code})", 502)
             try:
                 data = resp.json()
             except Exception:
                 data = None
             if not isinstance(data, dict) or not data.get("access_token"):
-                # HTTP 200 without a token must not be stored as an empty token
-                # ("Bearer " → 401 → another refresh on every request).
+
                 raise ProviderServerError("Google token refresh returned no access token", 502)
             tok = {"access_token": data["access_token"],
-                   # Google may rotate the refresh token; the old one then stops working.
+
                    "refresh_token": data.get("refresh_token") or tok["refresh_token"],
                    "expires_at": time.time() + int(data.get("expires_in") or 3600) - 300}
             account.extra["oauth"] = tok
-            account.fields["access_token"] = tok["access_token"][:4] + "…"  # не храним дубликат
+            account.fields["access_token"] = tok["access_token"][:4] + "…"
             from ..state import state as app_state
             app_state.save_accounts()
             return tok["access_token"]
@@ -464,7 +418,7 @@ class AntigravityProvider(Provider):
         if (not VERSION_CHECK or pinned_version()
                 or time.time() - float(_client_version["checked"]) < VERSION_TTL):
             return
-        _client_version["checked"] = time.time() - VERSION_TTL + 900      # при неудаче повтор через 15 минут
+        _client_version["checked"] = time.time() - VERSION_TTL + 900
         try:
             session = await http.get_session(self.proxy_for(account))
             resp = await session.get(VERSION_URL, timeout=15)
@@ -486,7 +440,7 @@ class AntigravityProvider(Provider):
         """
         cached = str(account.extra.get("project_id") or account.fields.get("project_id", "") or "").strip()
         if cached.startswith("memuai-"):
-            # чиним аккаунты, сохранённые старой версией
+
             cached = ""
             account.extra.pop("project_id", None)
             account.fields.pop("project_id", None)
@@ -506,7 +460,7 @@ class AntigravityProvider(Provider):
         if resp.status_code in (401, 403):
             info = parse_google_error(str(resp.text))
             if resp.status_code == 403 and info.reason == "VALIDATION_REQUIRED":
-                # Аккаунту нужна проверка у Google, но вход не отвергнут: не «невалидный».
+
                 raise ProviderServerError(_verification_message(info), 503)
             raise ProviderAuthError(
                 f"Google rejected the token on loadCodeAssist (HTTP {resp.status_code}): "
@@ -562,8 +516,6 @@ class AntigravityProvider(Provider):
             await asyncio.sleep(3)
         return ""
 
-    # ------------------------------ чат ------------------------------
-
     @staticmethod
     def _thinking_config(upstream: str, cfg: Dict[str, Any], params: Dict[str, Any],
                          requested: str = "") -> Optional[Dict[str, Any]]:
@@ -589,12 +541,12 @@ class AntigravityProvider(Provider):
             else:
                 raw = str(cfg.get("thinking_budget") if cfg.get("thinking_budget") is not None else "").strip()
                 try:
-                    # Пустое поле — «не задано» (берём обычный бюджет); «0» — выключить размышления.
+
                     budget = int(raw) if raw else DEFAULT_THINKING_BUDGET
                 except ValueError:
                     budget = DEFAULT_THINKING_BUDGET
             if budget < 1024:
-                return None            # у Claude бюджет меньше 1024 не принимается: размышления выключены
+                return None
             return {"includeThoughts": True, "thinkingBudget": min(budget, 64000)}
         if low.startswith("gemini") and str(cfg.get("show_thoughts", "on")).lower() != "off":
             return {"includeThoughts": True}
@@ -665,7 +617,7 @@ class AntigravityProvider(Provider):
             generation["thinkingConfig"] = thinking
             budget = int(thinking.get("thinkingBudget") or 0)
             if budget and generation["maxOutputTokens"] < budget + 2048:
-                generation["maxOutputTokens"] = budget + 2048     # ответ обязан помещаться после мыслей
+                generation["maxOutputTokens"] = budget + 2048
         request: Dict[str, Any] = {
             "contents": contents,
             "sessionId": hashlib.md5(json.dumps(contents[0], sort_keys=True).encode()).hexdigest()[:16],
@@ -677,7 +629,7 @@ class AntigravityProvider(Provider):
             if learned != "none":
                 request["safetySettings"] = SAFETY[:4] if learned == "four" else SAFETY
         if params.get("web_search"):
-            # Поиск выполняет сам Google: отдельный запрос к DuckDuckGo не нужен.
+
             request["tools"] = [{"googleSearch": {}}]
         body = {
             "model": model,
@@ -691,9 +643,9 @@ class AntigravityProvider(Provider):
         choice = str(cfg.get("endpoint", "auto") or "auto").lower()
         queue = ordered_endpoints(choice)
         last_err: Optional[ProviderError] = None
-        # Ответ Google, который важнее «429 на соседнем хосте»: его и надо показать.
+
         verdict: Optional[ProviderError] = None
-        tried: set = set()          # project / token / model / thinking — каждое исправление один раз
+        tried: set = set()
         waited: set = set()
         while queue:
             base = queue.pop(0)
@@ -714,20 +666,15 @@ class AntigravityProvider(Provider):
                     async for event in self._iter_sse(resp):
                         yield event
                 except ProviderModelUnavailableError:
-                    # Сервер ответил готовой фразой «модель снята»: помним это и не предлагаем её.
-                    # Имя модели в ошибке не ставим: пул блокирует пару «аккаунт + запрошенная
-                    # модель» (публичное имя), а не id Google.
+
                     models.mark_retired(body["model"])
                     raise
                 finally:
-                    # Abort, not drain: on Stop curl_cffi's aclose() alone waited
-                    # for Google to finish the whole answer.
+
                     await http.close_response(resp)
                 self._after_chat(account, token, project)
                 return
 
-            # Тело ошибки читаем всегда: «Verify your account», «location is not
-            # supported», «quota will reset after 3s» — всё это только там.
             head = await http.read_error_text(resp, 1500)
             await resp.aclose()
             info = parse_google_error(head)
@@ -735,7 +682,7 @@ class AntigravityProvider(Provider):
 
             if status == 401:
                 if "token" not in tried:
-                    # Токен могли отозвать или он истёк раньше срока: один раз обновляем и повторяем.
+
                     tried.add("token")
                     token = await self._ensure_token(account, force=True, stale=token)
                     queue.insert(0, base)
@@ -743,18 +690,17 @@ class AntigravityProvider(Provider):
                 raise ProviderAuthError(f"Google rejected the token (HTTP {status})")
 
             if status == 429:
-                # Google троттлит по паре «эндпоинт + модель», поэтому 429 на
-                # одном хосте ещё не значит, что лимит аккаунта исчерпан.
+
                 last_err = self._classify_429(head, base)
                 if isinstance(last_err, ProviderQuotaError):
                     hit_pool = quota_pool(body["model"])
                     _quota_hits.setdefault(str(getattr(account, "id", "")), {})[hit_pool] = time.time()
-                    # «квота исчерпана» — точка для оценки за 7 дней: пул точно потрачен.
+
                     self._remember(account, hit_pool, 0.0, None)
                     raise last_err
                 wait = info.retry_after
                 if 0 < wait <= MAX_INLINE_WAIT and base not in waited:
-                    waited.add(base)                     # Google сам сказал, через сколько повторить
+                    waited.add(base)
                     await asyncio.sleep(wait + INLINE_WAIT_PAD)
                     queue.insert(0, base)
                     continue
@@ -763,12 +709,11 @@ class AntigravityProvider(Provider):
 
             if status in (403, 404, 408) or status >= 500:
                 if status == 403 and info.reason == "VALIDATION_REQUIRED":
-                    # Аккаунту нужна проверка у Google: пул пропустит эту пару
-                    # «аккаунт + модель», пока пользователь её не пройдёт.
+
                     verdict = ProviderModelUnavailableError(_verification_message(info))
                     continue
                 if status == 403 and "project" not in tried:
-                    # Частая причина: закешированный или непровизионированный проект.
+
                     tried.add("project")
                     project = await self._project_id(account, token, force=True)
                     body["project"] = project
@@ -781,8 +726,7 @@ class AntigravityProvider(Provider):
                     hint = (" Google denied Code Assist access for this account — "
                             "проверьте, что вход в Antigravity завершён и тариф активен.")
                 _endpoint_failed(base)
-                # 502, а не код Google: отказ одного аккаунта не должен считаться
-                # ошибкой запроса — Proxy попробует следующий аккаунт.
+
                 last_err = ProviderServerError(
                     f"{host}: HTTP {status}.{hint} {_error_message(head)}".strip(), 502)
                 continue
@@ -791,8 +735,7 @@ class AntigravityProvider(Provider):
                 if "thinking" not in tried and "thinkingConfig" in generation and "thinking" in head.lower():
                     tried.add("thinking")
                     selected_thinking = generation["thinkingConfig"]
-                    # An explicit depth is part of the selected model contract.
-                    # Never return an auto/low answer under a High/Thinking name.
+
                     if selected_thinking.get("thinkingLevel") or selected_thinking.get("thinkingBudget"):
                         if selected_thinking.get("includeThoughts") and any(term in head.lower()
                                 for term in ("includethoughts", "include_thoughts", "thought summaries")):
@@ -806,27 +749,24 @@ class AntigravityProvider(Provider):
                     queue.insert(0, base)
                     continue
                 if "safetySettings" in request and "safety_settings" in head.lower():
-                    # Некоторые модели отвергают категорию (Flash Lite — «civic integrity»):
-                    # сначала просим с четырьмя классическими, затем совсем без фильтров.
+
                     if len(request["safetySettings"]) > 4:
                         request["safetySettings"] = SAFETY[:4]
                         _reduced_safety[body["model"]] = "four"
                     else:
                         request.pop("safetySettings", None)
                         _reduced_safety[body["model"]] = "none"
-                    queue.insert(0, base)        # каждый шаг меняет запрос, поэтому цикла нет
+                    queue.insert(0, base)
                     continue
                 if _location_blocked(info):
-                    # Проверка региона у Google нестабильна: то 400, то ответ. Это
-                    # не ошибка запроса — пробуем другой хост, а потом другой аккаунт.
+
                     last_err = ProviderServerError(
                         f"{host}: Google refused the request: {info.message} "
                         "(its location check is flaky — retry later or route this account through a proxy "
                         "in account settings)", 503)
                     continue
                 if "model" not in tried:
-                    # A retired model id answers 400. Ask the server for its
-                    # current renames once and retry with the new id.
+
                     tried.add("model")
                     await self._refresh_models(account, token, project, force=True)
                     renamed = self._request_model(account, requested_model)
@@ -887,7 +827,7 @@ class AntigravityProvider(Provider):
             blocked = blocked or block
             meta = (obj.get("response") or {}).get("usageMetadata")
             if isinstance(meta, dict) and meta.get("promptTokenCount"):
-                usage.update(meta)                  # каждое событие несёт счёт на этот момент: берём последний
+                usage.update(meta)
             return self._parse_chunk(obj)
 
         try:
@@ -906,8 +846,7 @@ class AntigravityProvider(Provider):
                     buf_data = []
                     for ev in read(raw):
                         if not produced and ev["type"] == "text" and models.is_retired_text(ev["text"]):
-                            # Снятая модель отвечает обычным текстом «… is no longer available»:
-                            # это не ответ, а отказ — иначе фраза ушла бы клиенту как ответ модели.
+
                             raise ProviderModelUnavailableError(str(ev["text"]).strip()[:300])
                         produced = True
                         yield ev
@@ -920,15 +859,14 @@ class AntigravityProvider(Provider):
                 produced = True
                 yield ev
         if not produced:
-            # Без единого слова: отказ модели понятнее, чем «пустой поток», и повтор
-            # на другом аккаунте ничего не изменит.
+
             if blocked or finish in _REFUSAL_FINISH:
                 raise ProviderContentFilterError(
                     f"Google refused to answer ({blocked or finish}). Rephrase the request.")
         if finish == "MAX_TOKENS" and produced:
             yield {"type": "finish", "reason": "length"}
         if produced and usage:
-            # Счёт токенов самого Google (размышления входят в ответ): точнее любой оценки по тексту.
+
             yield {"type": "usage", "prompt_tokens": int(usage.get("promptTokenCount") or 0),
                    "completion_tokens": int(usage.get("candidatesTokenCount") or 0)
                    + int(usage.get("thoughtsTokenCount") or 0),
@@ -968,25 +906,19 @@ class AntigravityProvider(Provider):
                 raise ProviderQuotaError(f"Antigravity limit: {msg}")
             if (reason == "RATE_LIMIT_EXCEEDED" or "rate limit" in msg.lower()
                     or code == 429 or str(err.get("status") or "") == "RESOURCE_EXHAUSTED"):
-                # A 429 inside the stream used to become a ProviderServerError(429):
-                # the router reads 4xx server errors as «bad request» and stopped
-                # instead of trying the next account.
+
                 raise ProviderRateLimitError(f"Rate limit: {msg}")
             if code in (401, 403) or not 400 <= code <= 599:
-                # Account-specific refusals (and codes that are not HTTP statuses)
-                # must not end the whole request either.
+
                 code = 502
             raise ProviderServerError(f"Antigravity: {msg}", code)
         for cand in ((obj.get("response") or {}).get("candidates") or []):
             for part in ((cand.get("content") or {}).get("parts") or []):
                 if isinstance(part.get("text"), str) and part["text"]:
-                    # Gemini marks its reasoning with "thought": true; it must
-                    # not be glued into the visible answer.
+
                     kind = "reasoning" if part.get("thought") else "text"
                     events.append({"type": kind, "text": part["text"]})
         return events
-
-    # ------------------------------ модели ------------------------------
 
     async def _refresh_models(self, account, token: str, project: str,
                               force: bool = False) -> Dict[str, Any]:
@@ -1013,7 +945,7 @@ class AntigravityProvider(Provider):
         _models_checked_at[key] = time.time()
         self._catalog_data[key] = data
         try:
-            # Заодно выучиваются переименования id и «думающие» модели.
+
             for item in models.from_server(data):
                 self._display[item.public] = item.display
             found = models.from_server(data)
@@ -1035,7 +967,7 @@ class AntigravityProvider(Provider):
         except Exception:
             pass
         try:
-            # Round 22: raw fetchAvailableModels rows (under Google's id and the public one) for the model card.
+
             from .. import model_capabilities
             raw_rows = []
             for upstream, info in (data.get("models") or {}).items():
@@ -1046,8 +978,6 @@ class AntigravityProvider(Provider):
         except Exception:
             pass
         return data
-
-    # ------------------------------ аккаунт ------------------------------
 
     async def check(self, account) -> Tuple[Optional[bool], str]:
         try:
@@ -1104,8 +1034,7 @@ class AntigravityProvider(Provider):
             elif resp.status_code == 403:
                 info = parse_google_error(str(resp.text))
                 if info.reason == "VALIDATION_REQUIRED":
-                    # Точный счётчик недоступен, пока аккаунт не подтверждён; чат при этом
-                    # может работать. Остаток берём из списка моделей и говорим об этом.
+
                     self._notices[key] = {"url": info.url}
         except Exception:
             pass
@@ -1117,7 +1046,7 @@ class AntigravityProvider(Provider):
         if quota.record_point(getattr(account, "extra", None), pool, remaining, reset):
             try:
                 from ..state import state as app_state
-                app_state.save_accounts_soon()      # отложенная запись: замеры идут при каждом просмотре
+                app_state.save_accounts_soon()
             except Exception:
                 pass
 
@@ -1245,8 +1174,7 @@ class AntigravityProvider(Provider):
                     resets.append(reset)
                 rows.append(week)
             elif short:
-                # Google отдаёт одно окно на группу; недельной цифры у него нет. Строку показываем
-                # всегда, чтобы было видно: её нет у Google, а не потеряна панелью.
+
                 spent = quota.history_windows(extra, title, now) or 0.0
                 if True:
                     rows.append({
@@ -1280,8 +1208,6 @@ class AntigravityProvider(Provider):
                 result["notice_url"] = notice["url"]
         return result
 
-    # ------------------------------ OAuth ------------------------------
-
     async def oauth_start(self) -> Dict[str, Any]:
         try:
             client_id, client_secret = _oauth_client()
@@ -1293,8 +1219,7 @@ class AntigravityProvider(Provider):
         flow = {"status": "waiting", "state": state, "account": None, "error": ""}
         flow["oauth_client"] = (client_id, client_secret)
         self._flows[flow_id] = flow
-        # Сначала занимаем порт, и только потом строим redirect_uri: слушатель
-        # может уехать на 51122+, а Google требует точного совпадения адреса.
+
         spawn_background(self._run_listener(flow_id, flow, callback_port))
         for _ in range(30):
             await asyncio.sleep(0.1)
@@ -1325,7 +1250,7 @@ class AntigravityProvider(Provider):
         return {"status": flow["status"], "message": flow.get("error", "")}
 
     async def _exchange_code(self, flow: Dict[str, Any], code: str) -> None:
-        # Use the client that created the consent URL if settings change mid-flow.
+
         client_id, client_secret = flow.get("oauth_client") or _oauth_client()
         session = await http.get_session("")
         resp = await session.post(TOKEN_URL, data={
@@ -1380,9 +1305,7 @@ class AntigravityProvider(Provider):
                     if code and (q.get("state") or [""])[0] == flow["state"]:
                         flow["code"] = code
                         done.set()
-                        # Раньше здесь был редирект на antigravity.google, из-за
-                        # которого после входа открывался сайт (а с установленной
-                        # IDE — и само приложение). Показываем локальную страницу.
+
                         writer.write(page("Вход выполнен. Вернитесь в MemuAI Proxy — "
                                           "окно можно закрыть."))
                         await writer.drain()
@@ -1399,7 +1322,7 @@ class AntigravityProvider(Provider):
 
         server = None
         last_err = None
-        # пробуем порты 51121..51131 (как в Antigravity IDE)
+
         for p in range(port, port + 11):
             try:
                 server = await asyncio.start_server(handle, "127.0.0.1", p)
@@ -1422,8 +1345,7 @@ class AntigravityProvider(Provider):
             try:
                 await self._exchange_code(flow, flow["code"])
             except Exception as e:
-                # Without this the background task died silently and the panel
-                # polled a flow stuck in «waiting» forever.
+
                 flow["status"], flow["error"] = "error", f"Ошибка входа: {type(e).__name__}: {e}"
         finally:
             if server:

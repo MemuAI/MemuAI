@@ -20,15 +20,13 @@ from xml.etree import ElementTree as ET
 from . import richhtml
 from .sheets import safe_fromstring
 
-MAX_IMAGE = 3 * 1024 * 1024        # bytes per picture
+MAX_IMAGE = 3 * 1024 * 1024
 MAX_IMAGES_TOTAL = 40 * 1024 * 1024
 MAX_HTML = 60 * 1024 * 1024
 _IMG_TYPES = {".png": "png", ".jpg": "jpeg", ".jpeg": "jpeg", ".gif": "gif", ".webp": "webp", ".bmp": "bmp", ".svg": "svg+xml"}
 
-
 def _local(tag: str) -> str:
     return tag.rsplit("}", 1)[-1]
-
 
 def read_epub(data: bytes) -> Dict[str, Any]:
     with zipfile.ZipFile(io.BytesIO(data)) as z:
@@ -93,10 +91,9 @@ def read_epub(data: bytes) -> Dict[str, Any]:
                 break
     return {"html": "\n".join(parts), "title": title, "author": author, "chapters": chapters}
 
-
 def read_fb2(data: bytes) -> Dict[str, Any]:
     raw = data
-    if raw[:2] == b"PK":               # .fb2.zip
+    if raw[:2] == b"PK":
         with zipfile.ZipFile(io.BytesIO(raw)) as z:
             inner = next((n for n in z.namelist() if n.lower().endswith(".fb2")), None)
             if not inner:
@@ -169,7 +166,7 @@ def read_fb2(data: bytes) -> Dict[str, Any]:
     for body in bodies[:3]:
         html_parts.append("".join(block(c, 0) for c in body))
     safe = richhtml.to_html(richhtml.parse_html("".join(html_parts)))
-    # richhtml drops ids: put the chapter anchors back on the headings in order
+
     k = iter(chapters)
 
     def add_id(m):
@@ -177,7 +174,6 @@ def read_fb2(data: bytes) -> Dict[str, Any]:
         return f'<{m.group(1)} id="{nxt["id"]}"' if nxt else m.group(0)
     safe = re.sub(r"<(h[12])(?=[\s>])", add_id, safe)
     return {"html": safe, "title": title, "author": author, "chapters": chapters}
-
 
 def read_book(path: str, data: bytes = None) -> Dict[str, Any]:
     data = data if data is not None else open(path, "rb").read()

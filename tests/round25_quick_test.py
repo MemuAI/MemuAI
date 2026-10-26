@@ -26,10 +26,8 @@ ROOT = Path(__file__).resolve().parents[1]
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 NOW = datetime(2026, 10, 8, 15, 0)
 
-
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
 
 class Phrases(unittest.TestCase):
     def m(self, text):
@@ -93,10 +91,9 @@ class Phrases(unittest.TestCase):
             self.assertEqual(catalog.BY_ID[action_id]["cat"], "tools")
         self.assertIn("tools", [g["id"] for g in ac.help_groups("ru")])
         self.assertLess(len(ac.tool_prompt(ac.normalize_settings({}), "en")), 9000)
-        r25.install()                                   # idempotent
+        r25.install()
         self.assertEqual(sum(1 for name in intents.rules() if name == "r25.color"), 1)
         self.assertEqual(sum(1 for a in catalog.ACTIONS if a["id"] == "color.convert"), 1)
-
 
 class Pure(unittest.TestCase):
     def test_colors(self) -> None:
@@ -149,9 +146,9 @@ class Pure(unittest.TestCase):
         self.assertEqual(r25.zone_key("Атлантида"), "")
         self.assertEqual(r25.utc_offset("london", datetime(2026, 7, 1, 12)), 60)
         self.assertEqual(r25.utc_offset("london", datetime(2026, 1, 15, 12)), 0)
-        self.assertEqual(r25.utc_offset("london", datetime(2026, 3, 29, 0, 59)), 0)   # EU switch: last Sunday 01:00 UTC
+        self.assertEqual(r25.utc_offset("london", datetime(2026, 3, 29, 0, 59)), 0)
         self.assertEqual(r25.utc_offset("london", datetime(2026, 3, 29, 1, 0)), 60)
-        self.assertEqual(r25.utc_offset("new_york", datetime(2026, 3, 8, 6, 59)), -300)  # US: 2nd Sunday 02:00 local
+        self.assertEqual(r25.utc_offset("new_york", datetime(2026, 3, 8, 6, 59)), -300)
         self.assertEqual(r25.utc_offset("new_york", datetime(2026, 3, 8, 7, 0)), -240)
         self.assertEqual(r25.utc_offset("new_york", datetime(2026, 11, 1, 6, 0)), -300)
         self.assertEqual(r25.utc_offset("sydney", datetime(2026, 1, 10)), 660)
@@ -160,7 +157,6 @@ class Pure(unittest.TestCase):
         self.assertEqual(r25.parse_clock("3pm"), (15, 0))
         self.assertEqual(r25.parse_clock("12am"), (0, 0))
         self.assertIsNone(r25.parse_clock("15"), "a bare number is not a time (10 usd в рубли)")
-
 
 class FakeBackend(ac.Backend):
     name = "fake"
@@ -173,7 +169,6 @@ class FakeBackend(ac.Backend):
 
     def clipboard_set(self, text):
         self.clip = text
-
 
 class Handlers(unittest.TestCase):
     def setUp(self) -> None:
@@ -188,7 +183,7 @@ class Handlers(unittest.TestCase):
     def test_cards(self) -> None:
         card = self.run_action("color.convert", {"color": "hsl(32,100%,50%)"})
         self.assertEqual((card["status"], card["message"], card["swatch"]), ("done", "#ff8800", "#ff8800"))
-        card = self.run_action("json.format", {"mode": "pretty"})          # the clipboard
+        card = self.run_action("json.format", {"mode": "pretty"})
         self.assertEqual(card["status"], "done")
         self.assertEqual(self.backend.clip, json.dumps({"b": [1, 2], "a": "Привет"}, ensure_ascii=False, indent=2), "result copied")
         card = self.run_action("json.format", {"text": "{a:1}"}, lang="en")
@@ -219,12 +214,11 @@ class Handlers(unittest.TestCase):
     def test_private_text_never_reaches_the_journal(self) -> None:
         self.run_action("text.encode", {"codec": "base64", "op": "encode", "text": "мой секретный текст"})
         self.run_action("hash.text", {"algo": "sha256", "text": "пароль123"})
-        self.run_action("text.translate", {"text": "личное письмо", "to": "en"})   # R24 NO_AUDIT_PARAMS was never applied
+        self.run_action("text.translate", {"text": "личное письмо", "to": "en"})
         journal = (self.tmp / "a.jsonl").read_text(encoding="utf-8")
         for secret in ("мой секретный текст", "0LzQvtC5", "пароль123", "личное письмо"):
             self.assertNotIn(secret, journal)
         self.assertIn('"action": "text.encode"', journal)
-
 
 class PinnedWindow(unittest.TestCase):
     class Api:
@@ -246,7 +240,7 @@ class PinnedWindow(unittest.TestCase):
         m = QuickAskManager.__new__(QuickAskManager)
         import threading
         m.api, m.hwnd, m.visible, m.pinned, m.lowered, m._dragging, m._lock = api, 100, True, pinned, False, False, threading.RLock()
-        # Round 32: stepping back is opt-in now (default "stay": on top until Escape) — these tests cover the opt-in mode
+
         m.load_prefs = lambda: {"quick_ask_on_leave": "back"}
         return m
 
@@ -258,7 +252,7 @@ class PinnedWindow(unittest.TestCase):
         self.assertTrue(m.lowered)
         self.assertEqual([c[0] for c in api.calls], [qa.HWND_NOTOPMOST, 200])
         self.assertTrue(all(c[1] & qa.SWP_NOACTIVATE and c[1] & qa.SWP_NOMOVE for c in api.calls))
-        # while lowered, moves/resizes keep the z-order instead of jumping on top
+
         self.assertEqual(m._z_order(0), (0, qa.SWP_NOZORDER))
         self.assertTrue(m.raise_to_top())
         self.assertFalse(m.lowered)
@@ -307,7 +301,6 @@ class PinnedWindow(unittest.TestCase):
         self.assertIn('action == "inactive"', api)
         self.assertIn('action == "active"', api)
 
-
 class PageContracts(unittest.TestCase):
     def test_quick_js(self) -> None:
         js = read(QUICK / "quick.js")
@@ -316,19 +309,18 @@ class PageContracts(unittest.TestCase):
         self.assertIn('windowAction("inactive")', js)
         self.assertIn('windowAction("active")', js)
         self.assertIn("if (S.busy) { toast(", js, "Enter during an answer no longer stops it")
-        # Round 30: «Open in MemuAI» moved into the answer's «⋯ More» menu, the shortcut is shown as keys there
+
         self.assertIn('keys: ["Ctrl", "Shift", "↵"], run: openInMemuAI', js)
         self.assertNotIn("Продолжить в MemuAI (Ctrl+Enter)", js)
         self.assertIn('document.addEventListener("drop"', js)
         html = read(QUICK / "index.html")
-        self.assertRegex(html, r"quick\.js\?v=3\.\d+-r[234]\d")   # Round 26: the cache buster moves with each change
+        self.assertRegex(html, r"quick\.js\?v=3\.\d+-r[234]\d")
         self.assertIn('[data-pinned="1"]', read(QUICK / "quick.css"))
 
     def test_commands_plugin_swatch_is_validated(self) -> None:
         js = read(QUICK / "plugins" / "commands.js")
         self.assertIn("/^#[0-9a-f]{6}$/i.test(String(card.swatch", js)
         self.assertIn("tools:", js)
-
 
 @unittest.skipUnless(Path("/workspace/work/chromium/chrome").exists() or Path("/usr/bin/chromium").exists(), "no Chromium")
 class Headless(unittest.TestCase):
@@ -342,7 +334,6 @@ class Headless(unittest.TestCase):
         result = subprocess.run([sys.executable, str(ROOT / "tests" / "round25_quick_shots.py"), str(out)], cwd=str(ROOT),
                                 capture_output=True, text=True, timeout=110, env=env)
         self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])
-
 
 if __name__ == "__main__":
     unittest.main()

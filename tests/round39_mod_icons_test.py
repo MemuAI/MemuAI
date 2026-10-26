@@ -21,9 +21,8 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r39-mod-icons-
 
 from app import module_icons, modules_host, modules_validate  # noqa: E402
 
-BUILTINS = ("translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn")  # r40-learn
+BUILTINS = ("translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn")
 SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 2h20v20H2z" fill="#f80"/></svg>'
-
 
 def _png(size=64, color=(200, 80, 120, 255)) -> bytes:
     from PIL import Image
@@ -31,10 +30,8 @@ def _png(size=64, color=(200, 80, 120, 255)) -> bytes:
     Image.new("RGBA", (size, size), color).save(buffer, format="PNG")
     return buffer.getvalue()
 
-
 def _data(raw: bytes, mime="image/png") -> str:
     return f"data:{mime};base64," + base64.b64encode(raw).decode()
-
 
 class SanitizeTest(unittest.TestCase):
     def test_strips_everything_active(self):
@@ -60,7 +57,6 @@ class SanitizeTest(unittest.TestCase):
     def test_raster_data_image_allowed(self):
         clean = module_icons.sanitize_svg(f'<svg viewBox="0 0 4 4"><image href="{_data(_png(16))}" width="4" height="4"/></svg>')
         self.assertIn("data:image/png;base64", clean)
-
 
 class ManifestTest(unittest.TestCase):
     def test_normalize_icon(self):
@@ -103,7 +99,6 @@ class ManifestTest(unittest.TestCase):
                 self.assertEqual(image.mode, "RGBA")
                 self.assertEqual(image.getpixel((2, 2))[3], 0, "transparent corners")
         self.assertEqual(set(BUILTINS), set(modules_host.BUILTIN_ORDER), "every built-in module has a drawn icon")
-
 
 class HostTest(unittest.TestCase):
     def setUp(self):
@@ -154,7 +149,7 @@ class HostTest(unittest.TestCase):
         self.assertEqual(module_icons.icon_bytes(self.root, "music", own=True)[0][:4], b"<svg")
         self.assertNotEqual(module_icons.icon_bytes(self.root, "music", own=True)[0], SVG.encode())
         self.assertEqual(module_icons.raster_for(self.root, "music").getpixel((128, 128)), (200, 80, 120, 255))
-        # A PNG / ICO / WebP upload is re-encoded to PNG.
+
         from PIL import Image
         for fmt, mime in (("ICO", "image/x-icon"), ("WEBP", "image/webp"), ("PNG", "image/png")):
             buffer = io.BytesIO()
@@ -189,7 +184,6 @@ class HostTest(unittest.TestCase):
             self.assertGreater(r, 200, "the drawn MemuMusic tile, not the letter tile in the accent colour")
         self.assertTrue(Path(out["ico"]).stat().st_size > 1000)
 
-
 class RoutesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -223,7 +217,6 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(self.client.post("/api/pg/module-icons/reset", json={"id": "music"}).json(), {"ok": True})
         self.assertIn("<svg", self.client.post("/api/pg/module-icons/sanitize", json={"svg": SVG}).json()["svg"])
 
-
 class StaticTest(unittest.TestCase):
     def test_wiring(self):
         static = ROOT / "app" / "pgstatic"
@@ -240,11 +233,9 @@ class StaticTest(unittest.TestCase):
         for needed in ("setInterval", "MutationObserver"):
             self.assertNotIn(needed, js)
 
-
 def _chromium():
     path = os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
     return path if Path(path).exists() else None
-
 
 @unittest.skipUnless(_chromium(), "no chromium")
 class BrowserTest(unittest.TestCase):
@@ -308,14 +299,14 @@ class BrowserTest(unittest.TestCase):
             self.assertTrue(all(row["img"] for row in info if row["id"] in BUILTINS), info)
             self.assertFalse(next(row for row in info if row["id"] == "r39-glyph")["img"], "a glyph-only module: the squircle")
             self.assertTrue(all(abs(row["w"] - 20) < 0.6 for row in info), info)
-            page.wait_for_timeout(900)  # the window fades in
+            page.wait_for_timeout(900)
             self.shot(page, f"sidebar-{theme}", clip={"x": 0, "y": 0, "width": 300, "height": 820})
-            # A window: the bar and the task pill show the same icon.
+
             page.evaluate("() => MemuModules.open('music')")
             page.wait_for_selector(".module-window .module-window-icon .mico img, .mhb-icon .mico img", timeout=15000)
             self.shot(page, f"window-{theme}")
             page.evaluate("() => MemuModules.closeAll && MemuModules.closeAll()")
-            # Settings → Modules: the cards, then the picker.
+
             page.evaluate("() => { currentSettingsTab = 'modules'; showSettings(); }")
             page.wait_for_selector("[data-module-icon-edit] .mico", timeout=15000)
             page.wait_for_timeout(500)
@@ -341,7 +332,6 @@ class BrowserTest(unittest.TestCase):
                 module_icons.reset_user_icon(self.root, "r39-glyph")
             self.assertEqual(errors, [])
             page.close()
-
 
 if __name__ == "__main__":
     unittest.main()

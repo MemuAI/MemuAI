@@ -1,6 +1,5 @@
-/* MemuMusic · fx.js — живой фон из цветов обложки, визуализатор, 3D-наклон
- * обложки и 3D-карусель. Один общий rAF-цикл: работает, только пока есть
- * чему двигаться; стоп при document.hidden, «облегчённых эффектах» и reduced-motion. */
+
+
 const Fx = (() => {
   const reduce = window.matchMedia ? matchMedia("(prefers-reduced-motion: reduce)") : { matches: false, addEventListener() {} };
   const tasks = new Set();
@@ -15,12 +14,11 @@ const Fx = (() => {
   function add(task) { tasks.add(task); if (!raf && !document.hidden) raf = requestAnimationFrame(loop); }
   function remove(task) { tasks.delete(task); }
   document.addEventListener("visibilitychange", () => { if (!document.hidden && tasks.size && !raf) raf = requestAnimationFrame(loop); });
-  /* Неактивность: через 2 минуты без ввода и без музыки живой фон замирает. */
+
   ["pointermove", "keydown", "wheel", "pointerdown"].forEach((type) => addEventListener(type, () => { idleUntil = performance.now() + 120000; }, { passive: true }));
   idleUntil = performance.now() + 120000;
   const idle = () => performance.now() > idleUntil && !Player.st.playing;
 
-  /* ------------------------------ живой фон (mesh/flow) ------------------------ */
   function mix(a, b, k) { return a.map((v, i) => v + (b[i] - v) * k); }
   function Ambient(canvas, { w = 64, h = 40, strength = 1 } = {}) {
     const g = canvas.getContext("2d", { alpha: false });
@@ -28,7 +26,7 @@ const Fx = (() => {
     let colors = [[124, 92, 255], [255, 92, 138], [32, 199, 181]], target = colors, base = [8, 8, 11];
     let t0 = performance.now(), last = 0, running = false;
     function draw(ts) {
-      if (ts - last < 40) return;   // ~25 к/с: фон плавный и почти бесплатный
+      if (ts - last < 40) return;
       last = ts;
       colors = colors.map((c, i) => mix(c, target[i], .06));
       const energy = strength * (Player.st.playing ? 1 : .35) * (1 + Fx.bass * .8);
@@ -60,11 +58,6 @@ const Fx = (() => {
     };
   }
 
-  /* ---------------------------------- визуализатор -----------------------------
-   * Светящееся «живое кольцо» вокруг обложки: три слоя-контура, радиус каждого колышется по своей
-   * полосе спектра (зеркально, чтобы фигура была симметричной), плюс мягкий ореол от баса.
-   * Без звука (пауза, нет WebAudio) кольцо медленно «дышит». Холст — только область сцены, ≤1.5× DPR,
-   * ~60 к/с под музыку и ~20 к/с в «дыхании»; стоп — когда окно скрыто, «облегчённые эффекты» или простой. */
   function Visualizer(canvas) {
     const g = canvas.getContext("2d");
     const POINTS = 96;
@@ -87,13 +80,13 @@ const Fx = (() => {
       const xy = (i) => {
         const k = pts[(i + POINTS) % POINTS];
         const wob = Math.sin(i * step * 3 + ts * .0007 * spin + layer) * .006 + Math.sin(i * step * 5 - ts * .0005) * .004;
-        // суперэллипс — контур повторяет скруглённый квадрат обложки и «дышит» наружу
+
         const ang = i * step, c = Math.cos(ang), sn = Math.sin(ang);
         const se = Math.pow(Math.pow(Math.abs(c), 5) + Math.pow(Math.abs(sn), 5), -1 / 5);
         const rr = radius * se * (1 + wob) + k * amp;
         return [cx + c * rr, cy + sn * rr];
       };
-      // сглаженный замкнутый контур: квадратичные кривые через середины отрезков
+
       let [px, py] = xy(0), [nx, ny] = xy(1);
       g.moveTo((px + nx) / 2, (py + ny) / 2);
       for (let i = 1; i <= POINTS; i++) {
@@ -107,7 +100,7 @@ const Fx = (() => {
     }
     function draw(ts) {
       const an = Player.analyser(), live = !!(an && Player.st.playing);
-      if (!live && ts - last < 50) return;   // «дыхание» — 20 к/с хватает
+      if (!live && ts - last < 50) return;
       last = ts;
       const W = canvas.width, H = canvas.height;
       g.clearRect(0, 0, W, H);
@@ -123,12 +116,12 @@ const Fx = (() => {
           const lo = Math.max(1, Math.floor(from * data.length * .5)), hi = Math.max(lo + 4, Math.floor(to * data.length * .5));
           const pts = smooth[layer];
           for (let i = 0; i < POINTS; i++) {
-            const m = i < half ? i : POINTS - 1 - i;               // зеркально
+            const m = i < half ? i : POINTS - 1 - i;
             const idx = lo + Math.floor(Math.pow(m / half, 1.3) * (hi - lo));
             const v = (data[idx] || 0) / 255;
-            pts[i] += (v * v - pts[i]) * (v > pts[i] ? .5 : .12);  // быстрый подъём, мягкий спад
+            pts[i] += (v * v - pts[i]) * (v > pts[i] ? .5 : .12);
           }
-          for (let pass = 0; pass < 2; pass++) {                    // сглаживание по соседям — плавная волна вместо «иголок»
+          for (let pass = 0; pass < 2; pass++) {
             let prev = pts[POINTS - 1];
             for (let i = 0; i < POINTS; i++) { const cur = pts[i]; pts[i] = (prev + cur * 2 + pts[(i + 1) % POINTS]) / 4; prev = cur; }
           }
@@ -139,15 +132,15 @@ const Fx = (() => {
       }
       peak = Math.max(bass, peak * .93); Fx.bass = bass;
       if (mode === "wave" || mode === "bars") { (mode === "wave" ? wave : bars)(ts, live); if (!live && idle()) remove(draw); return; }
-      // ореол за обложкой
-      const edge = Math.min(cx, cy, W - cx, H - cy);                // ореол гаснет до края холста — без «прямоугольника»
+
+      const edge = Math.min(cx, cy, W - cx, H - cy);
       const glowR = Math.max(R * 1.05, Math.min(R * (1.6 + peak * .5), edge));
       const grad = g.createRadialGradient(cx, cy, R * .7, cx, cy, glowR);
       grad.addColorStop(0, rgba(colors[0], .28 + peak * .35)); grad.addColorStop(.55, rgba(colors[1], .12 + peak * .12)); grad.addColorStop(1, rgba(colors[1], 0));
       g.shadowBlur = 0; g.fillStyle = grad; g.fillRect(0, 0, W, H);
       g.globalCompositeOperation = "lighter";
       const amp = R * (live ? .3 : .16), gap = 14 * dpr;
-      ring(1, R + gap * 1.4, amp * .95, colors[0], 18, .18 + peak * .3, ts, 1);   // широкая мягкая аура
+      ring(1, R + gap * 1.4, amp * .95, colors[0], 18, .18 + peak * .3, ts, 1);
       ring(2, R + gap * 2.2, amp * .8, colors[1], 1.2, .34, ts, -1);
       ring(1, R + gap * 1.5, amp * .95, colors[0], 1.6, .5, ts, 1);
       ring(0, R + gap, amp * 1.1, "#ffffff", 2.2, .85, ts, .6);
@@ -156,7 +149,7 @@ const Fx = (() => {
       if (art && !calm()) art.style.scale = String(1 + peak * .03);
       if (!live && idle()) { remove(draw); }
     }
-    /* «Волна»: три светящиеся линии под обложкой (спектр зеркально), «Столбцы»: скруглённые столбики под обложкой. */
+
     function wave(ts, live) {
       const W = canvas.width, base = Math.min(canvas.height - 24 * dpr, cy + R + 34 * dpr), width = Math.min(W * .9, R * 2.6), x0 = cx - width / 2;
       g.globalCompositeOperation = "lighter";
@@ -197,7 +190,6 @@ const Fx = (() => {
     };
   }
 
-  /* ---------------------------------- 3D-наклон -------------------------------- */
   function tilt(stage, target) {
     let px = 0, py = 0, pending = false;
     stage.addEventListener("pointermove", (e) => {
@@ -216,7 +208,6 @@ const Fx = (() => {
     }
   }
 
-  /* ---------------------------------- 3D-карусель ------------------------------ */
   function Carousel(root, items, { onPlay, onFocus } = {}) {
     const stage = root.querySelector(".mm-flow-stage");
     const nodes = [...stage.children];
@@ -285,7 +276,7 @@ const Fx = (() => {
       if (e.key === "ArrowRight") { e.preventDefault(); e.stopPropagation(); go(Math.round(target) + 1); }
       if (e.key === "Enter" && onPlay) onPlay(items[Math.round(target)], Math.round(target));
     });
-    target = pos = Math.min(2, Math.floor((n - 1) / 2));   // мало альбомов — по центру, а не у края
+    target = pos = Math.min(2, Math.floor((n - 1) / 2));
     layout(); caption(); scheduleAuto();
     return { go, prev: () => go(Math.round(target) - 1), next: () => go(Math.round(target) + 1), relayout: layout };
   }

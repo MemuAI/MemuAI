@@ -18,20 +18,16 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r34-cli-tg-tes
 
 TG = ROOT / "app" / "tgapp"
 
-
 def _read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
-
 def _plain(ansi: str) -> str:
     return re.sub(r"\x1b\[[0-9;]*m", "", ansi)
-
 
 def _renderer():
     from app.cli.tui.render import Renderer
     from app.cli.tui.theme import palette_for
     return Renderer(palette_for("dark"), "truecolor")
-
 
 class TuiLayout(unittest.TestCase):
     """1–6: banner, spinner line, dialog width, /help, notices, a stopped step."""
@@ -39,7 +35,7 @@ class TuiLayout(unittest.TestCase):
     def test_banner_recent_rows_skip_empty_and_align(self):
         from app.cli.tui import banner as mod
         rows = [{"id": "cur", "title": "x", "updated": time.time()},
-                {"id": "a", "title": "", "first": "", "updated": time.time()},          # opened and closed
+                {"id": "a", "title": "", "first": "", "updated": time.time()},
                 {"id": "b", "title": "Очень длинный заголовок разговора " * 4, "updated": time.time() - 90000},
                 {"id": "c", "title": "Short", "updated": time.time() - 30}]
         runtime = SimpleNamespace(root=Path("."), session=SimpleNamespace(id="cur"), memuai_prefs=lambda: {},
@@ -53,9 +49,9 @@ class TuiLayout(unittest.TestCase):
             except TypeError:
                 self.skipTest("Banner signature changed")
         titles = [title for _when, title in banner.recent]
-        self.assertEqual(len(titles), 2)                                  # the empty one is gone
+        self.assertEqual(len(titles), 2)
         self.assertTrue(all(title.strip() for title in titles))
-        self.assertEqual(len({len(when) for when, _t in banner.recent}), 1)   # one column for the times
+        self.assertEqual(len({len(when) for when, _t in banner.recent}), 1)
 
     def test_spinner_meta_never_wraps(self):
         from prompt_toolkit.utils import get_cwidth
@@ -86,7 +82,7 @@ class TuiLayout(unittest.TestCase):
         lines = [line for line in text.splitlines() if line.strip()]
         self.assertGreater(len(lines), 1)
         self.assertTrue(all(len(line.rstrip()) <= 50 for line in lines))
-        self.assertTrue(lines[1].startswith(" "))                         # not back in column 0
+        self.assertTrue(lines[1].startswith(" "))
 
     def test_single_stopped_step_is_not_repeated(self):
         from app.cli.tools.base import ToolCall, ToolResult
@@ -100,7 +96,6 @@ class TuiLayout(unittest.TestCase):
         call2.status = "done"
         failed = [Step(call2, ToolResult(ok=False, summary="exit 1", error="AssertionError: 2 != 3"))]
         self.assertEqual(len(ActivityView(_renderer()).problem_lines(failed, 100)), 1)
-
 
 class SchedulePhrases(unittest.TestCase):
     """7 + this round: /schedule phrases; DST-safe next runs."""
@@ -134,13 +129,13 @@ class SchedulePhrases(unittest.TestCase):
         time.tzset()
         try:
             from app.cli.schedule import next_run
-            second = datetime(2026, 10, 25, 2, 30, fold=1).timestamp()      # the repeated 02:30
+            second = datetime(2026, 10, 25, 2, 30, fold=1).timestamp()
             first = datetime(2026, 10, 25, 2, 30, fold=0).timestamp()
             for after in (first, second, datetime(2026, 10, 25, 2, 10, fold=1).timestamp()):
                 for when in ({"kind": "cron", "expr": "*/15 * * * *"}, {"kind": "cron", "expr": "30 2 * * *"},
                              {"kind": "daily", "time": "02:30"}):
                     self.assertGreater(next_run(when, after), after, (when, after))
-            # A daily 02:30 runs once on that night, not again at the repeated 02:30.
+
             self.assertGreater(next_run({"kind": "daily", "time": "02:30"}, first + 5) - first, 20 * 3600)
         finally:
             if old is None:
@@ -148,7 +143,6 @@ class SchedulePhrases(unittest.TestCase):
             else:
                 os.environ["TZ"] = old
             time.tzset()
-
 
 class FilesErrorsAgent(unittest.TestCase):
     """12–14 and this round's corpus for the «announced step» nudge."""
@@ -193,7 +187,6 @@ class FilesErrorsAgent(unittest.TestCase):
         self.assertEqual([t for t in self.FINAL if announces_next_step(t)], [])
         self.assertEqual([t for t in self.ANNOUNCED if not announces_next_step(t)], [])
 
-
 class MiniApp(unittest.TestCase):
     """8–11, the session caption, the TodoWrite card and the desktop send button."""
 
@@ -225,7 +218,7 @@ class MiniApp(unittest.TestCase):
         layout = _read(TG / "layout.css")
         self.assertIn('html[data-hover="1"] .send-btn[disabled]:hover { filter: none;', layout)
         self.assertIn('html[data-hover="1"] .send-btn.stop:hover { background: var(--text);', layout)
-        # The disabled rule comes after the generic hover rules it must beat.
+
         self.assertGreater(layout.index(".send-btn[disabled]:hover"), layout.index('.send-btn:hover {'))
         self.assertGreater(layout.index(".send-btn[disabled]:hover"), layout.index(".round-btn:hover"))
 
@@ -233,7 +226,6 @@ class MiniApp(unittest.TestCase):
         html = _read(TG / "index.html")
         for name in ("app.css", "layout.css", "code.js", "app.js"):
             self.assertRegex(html, name.replace(".", r"\.") + r"\?v=[\d.]+-r3[4-9]")
-
 
 class Prices(unittest.TestCase):
     """`memucode models` and /model: one price for one model; GLM-5.3 at the vendor's rate."""
@@ -261,7 +253,6 @@ class Prices(unittest.TestCase):
         self.assertIn("await asyncio.to_thread(pricing.refresh_online, timeout=8.0)", src)
         self.assertIn('pricing.lookup(chosen, getattr(info, "provider", "") or "")',
                       _read(ROOT / "app" / "cli" / "commands" / "model_cmds.py"))
-
 
 class ProxyTokenPath(unittest.TestCase):
     """MEMUAI_TOKEN: ignored only on a loopback Proxy (by design); checked when the Proxy is open to the network."""
@@ -292,7 +283,6 @@ class ProxyTokenPath(unittest.TestCase):
         finally:
             config_store.settings.api_keys = saved
 
-
 class Voice(unittest.TestCase):
     def test_audio_suffix(self):
         from app.voice_runtime import audio_suffix
@@ -300,7 +290,6 @@ class Voice(unittest.TestCase):
         self.assertEqual(audio_suffix("audio/x-m4a", ".webm"), ".m4a")
         self.assertEqual(audio_suffix("AUDIO/FLAC", ".webm"), ".flac")
         self.assertEqual(audio_suffix("audio/unknown", ".webm"), ".webm")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,10 +30,8 @@ CARD_RULES_EN = (
     "Math is KaTeX: $…$ inline, $$…$$ on its own line. Code goes in a ```lang\\n…\\n``` block with \\n line breaks. "
     "Mix the types: about a third cloze, «what does this code print» tasks, definitions, comparisons.")
 
-
 def _lang_line(lang: str) -> str:
     return "Answer in English." if lang == "en" else "Отвечай по-русски."
-
 
 def _material(store: Store, course: Dict[str, Any], query: str = "", limit: int = SOURCE_CHARS) -> str:
     """Text of the course source for a prompt: a bigdocs document (sections + beginning, or chunks for ``query``)."""
@@ -58,7 +56,6 @@ def _material(store: Store, course: Dict[str, Any], query: str = "", limit: int 
     body = bigdocs.full_text(doc, with_pages=False)
     head_text = ("Оглавление / Contents:\n" + "\n".join(heads) + "\n\n") if heads else ""
     return (head_text + body)[:limit]
-
 
 def prompt(store: Store, task: str, args: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
     en = lang == "en"
@@ -95,7 +92,7 @@ def prompt(store: Store, task: str, args: Dict[str, Any], lang: str = "ru") -> D
         count = max(3, min(int(args.get("cards") or 8), 20))
         summary = (node.get("summary") or "").strip()
         if args.get("cards_only") and summary:
-            # «Создать карточки» у урока с готовым конспектом: только карточки, строго по конспекту.
+
             instructions = (
                 ("You are a teacher. Make flashcards from the lesson summary. " if en else "Ты — преподаватель. Составь карточки по конспекту урока. ")
                 + (CARD_RULES_EN if en else CARD_RULES_RU)
@@ -171,14 +168,11 @@ def prompt(store: Store, task: str, args: Dict[str, Any], lang: str = "ru") -> D
         return {"instructions": instructions, "text": text, "temperature": 0.2}
     raise LearnError("Неизвестная задача ИИ", "Unknown AI task")
 
-
 def _question(exam: Dict[str, Any], qid: str) -> Dict[str, Any]:
     q = next((x for x in exam["questions"] if x.get("id") == qid), None)
     if q is None:
         raise LearnError("Билет не найден", "Ticket not found", "not_found")
     return q
-
-# ------------------------------------------------------------------------------------------------- parsing
 
 def extract_json(text: str) -> Any:
     """The first JSON object in a model answer: fences, chatter and trailing commas are tolerated."""
@@ -220,7 +214,6 @@ def extract_json(text: str) -> Any:
     raise LearnError("Модель ответила не в том формате — попробуйте ещё раз или другую модель",
                      "The model replied in the wrong format — try again or another model", "bad_ai_answer")
 
-
 def normalize_cards(items: Any, limit: int = 20) -> List[Dict[str, str]]:
     out: List[Dict[str, str]] = []
     for item in items if isinstance(items, list) else []:
@@ -236,7 +229,6 @@ def normalize_cards(items: Any, limit: int = 20) -> List[Dict[str, str]]:
         if len(out) >= limit:
             break
     return out
-
 
 def apply(store: Store, task: str, answer: str, args: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
     data = extract_json(answer)

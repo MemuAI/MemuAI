@@ -22,12 +22,10 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r29c-prompts-t
 APP_JS = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
 NODE = shutil.which("node")
 
-
 def _mem_prompt() -> str:
     start = APP_JS.index("const MEM_PROMPT = `") + len("const MEM_PROMPT = `")
     end = APP_JS.index("</internal_protocols>`;", start)
     return APP_JS[start:end].replace("\\`", "`").replace('\\"', '"') + "</internal_protocols>"
-
 
 class BasePromptTest(unittest.TestCase):
     def test_app_js_fallback_is_an_exact_mirror(self) -> None:
@@ -36,7 +34,7 @@ class BasePromptTest(unittest.TestCase):
 
     def test_base_prompt_stays_compact(self) -> None:
         from app import pgdata
-        # r28: 7.0k chars, r29b: 8.2k, r29c: 7.6k — it rides on every chat request.
+
         self.assertLess(len(pgdata.DEFAULT_PROMPT), 7800)
 
     def test_rule_is_named_but_its_format_comes_on_demand(self) -> None:
@@ -50,7 +48,6 @@ class BasePromptTest(unittest.TestCase):
         text = memory_v2.protocol_prompt("chat", doc=memory_v2.load())
         self.assertLess(len(text), 2100)
         self.assertIn("however long the answer is", text)
-
 
 @unittest.skipUnless(NODE, "node is required")
 class ScheduleRulesBlockTest(unittest.TestCase):
@@ -78,7 +75,6 @@ class ScheduleRulesBlockTest(unittest.TestCase):
     def test_generate_adds_it_after_the_integrations(self) -> None:
         body = APP_JS[APP_JS.index("async function generate("):]
         self.assertIn("scheduleRulesPromptBlock(scheduleText)", body[:20000])
-
 
 class SkillsSelectionTest(unittest.TestCase):
     def test_compact_catalogue_and_explicit_protocol(self) -> None:
@@ -108,13 +104,11 @@ class SkillsSelectionTest(unittest.TestCase):
         src = inspect.getsource(prompts.skills_block)
         self.assertIn("more than a quick question or a one-line change", src)
 
-
 class OperatorPromptTest(unittest.TestCase):
     def test_computer_prompt_has_no_raw_newline_inside_a_sentence(self) -> None:
         from app import automation_runtime
         self.assertNotIn('("\n"', automation_runtime.COMPUTER_SYSTEM_PROMPT)
         self.assertIn('a "\\n" in the text presses Enter', automation_runtime.COMPUTER_SYSTEM_PROMPT)
-
 
 if __name__ == "__main__":
     unittest.main()

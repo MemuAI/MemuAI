@@ -1,20 +1,12 @@
-// MemuNote (Round 33, item #9) — code autocomplete.
-//
-// CodeMirror's completion popup (Ctrl+Space or while typing, Enter/Tab to accept, Esc to close) fed by:
-//   1. the language package's own sources where it has them (JavaScript/TypeScript scope + snippets, Python
-//      builtins + local names, CSS properties, HTML tags/attributes, SQL keywords…);
-//   2. keywords, builtins and snippets for the languages that have no source of their own (Go, Rust, Java, C/C++,
-//      C#, PHP, Ruby, Lua, PowerShell, Bash, Batch, Kotlin, Swift, Dart, YAML…) and common globals for JS/Python;
-//   3. identifiers already used in the file (any language), ranked below exact language words.
-// Nothing is completed inside comments and strings unless asked explicitly (Ctrl+Space).
-// Brackets/quotes auto-close and indentation are the editor's (closeBrackets, indentOnInput); the optional AI
-// inline suggestion (ghost text, Tab) is ai.js requestGhost — see the "AI suggestions" toggle in the status bar.
+
+
 import { CM } from "./editor.js";
+import { t } from "./core.js";
 
 const { EditorState, syntaxTree } = CM;
 
 const W = (s) => s.split(/\s+/).filter(Boolean);
-// [keywords, builtins/types, snippets {label, detail, body}] — body: "${}" marks the caret, "\n" lines keep indent
+
 const LANG = {
   python: [W("False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield match case self"),
     W("print len range enumerate zip map filter sorted reversed sum min max abs round open input int float str bool list dict set tuple type isinstance issubclass hasattr getattr setattr super object Exception ValueError TypeError KeyError IndexError RuntimeError FileNotFoundError StopIteration any all iter next repr format id hash dir vars help divmod pow chr ord bin hex oct bytes bytearray frozenset property staticmethod classmethod __name__ __main__ __init__ __file__"),
@@ -93,27 +85,32 @@ function snippetApply(body) {
 }
 
 const wordCache = new WeakMap();
-function bufferWords(state, exclude) {
+function bufferWords(state, exclude, pos) {
   const doc = state.doc;
+  const bucket = Math.floor(pos / 65536);
   let entry = wordCache.get(doc);
-  if (!entry) {
+  if (!entry || entry.bucket !== bucket) {
     const set = new Set();
-    if (doc.length < 3 * 1048576) {
-      const re = /[A-Za-z_$\u00C0-\u024F\u0400-\u04FF][\w$\u00C0-\u024F\u0400-\u04FF]{2,}/g;
-      for (const text of doc.iter()) { if (typeof text === "string") for (const m of text.matchAll(re)) { set.add(m[0]); if (set.size > 6000) break; } }
+
+    const head = Math.min(doc.length, 32768);
+    const from = Math.max(head, bucket * 65536 - 16384);
+    const to = Math.min(doc.length, Math.max(from, (bucket + 1) * 65536 + 16384));
+    const sample = doc.length <= 131072 ? doc.sliceString(0, doc.length)
+      : doc.sliceString(0, head) + "\n" + doc.sliceString(from, to);
+    const re = /[\p{L}_$][\p{L}\p{N}_$]{2,}/gu;
+    for (const m of sample.matchAll(re)) {
+      set.add(m[0]); if (set.size >= 3000) break;
     }
-    entry = set; wordCache.set(doc, entry);
+    entry = { bucket, words: set }; wordCache.set(doc, entry);
   }
-  return [...entry].filter((w) => w !== exclude);
+  return [...entry.words].filter((w) => w !== exclude);
 }
 
-/** The completion source for one tab: (langKey) → CompletionSource */
 export function codeCompletionSource(getKey) {
   return (ctx) => {
-    const m = ctx.matchBefore(/[A-Za-z_$@%~][\w$\-]*/) || (ctx.explicit ? { from: ctx.pos, to: ctx.pos, text: "" } : null);
+    const m = ctx.matchBefore(/[\p{L}_$@%~][\p{L}\p{N}_$\-]*/u) || (ctx.explicit ? { from: ctx.pos, to: ctx.pos, text: "" } : null);
     if (!m) return null;
-    // no null for a 1-letter prefix: a source that answered null is not asked again while another source's list
-    // stays valid, so the snippets/keywords would never appear after the second letter
+
     if (!ctx.explicit && (m.text.length < 1 || inCommentOrString(ctx.state, ctx.pos))) return null;
     const key = getKey();
     const [kw, builtins, snippets] = LANG[key] || [[], [], []];
@@ -122,18 +119,19 @@ export function codeCompletionSource(getKey) {
     for (const s of snippets) { options.push({ label: s.label, detail: s.detail, type: "text", boost: 3, apply: snippetApply(s.body)}); }
     for (const k of kw) if (!seen.has(k)) { seen.add(k); options.push({ label: k, type: "keyword", boost: 2 }); }
     for (const b of builtins) if (!seen.has(b)) { seen.add(b); options.push({ label: b, type: /^[A-Z]/.test(b) ? "class" : "function", boost: 1 }); }
-    for (const w of bufferWords(ctx.state, m.text)) if (!seen.has(w)) { seen.add(w); options.push({ label: w, type: "variable", boost: -1 }); }
-    return { from: m.from, options, validFor: /^[\w$\-]*$/ };
+    for (const w of bufferWords(ctx.state, m.text, ctx.pos)) if (!seen.has(w)) { seen.add(w); options.push({ label: w, type: "variable", boost: -1 }); }
+    return { from: m.from, options, validFor: /^[\p{L}\p{N}_$\-]*$/u };
   };
 }
 
-/** Extensions for a code tab (empty for prose). */
 export function codeComplete(getKey, enabled) {
   if (!enabled) return [];
   return [
-    CM.autocompletion({ activateOnTyping: true, maxRenderedOptions: 80, defaultKeymap: true, closeOnBlur: true, icons: true }),
-    // ONE source function per editor: CodeMirror tells sources apart by identity (a new function on every lookup
-    // made it drop this source's results)
+    CM.autocompletion({ activateOnTyping: true, maxRenderedOptions: 30, defaultKeymap: false, interactionDelay: 0, closeOnBlur: true, icons: true }),
+
+    CM.Prec.high(CM.keymap.of(CM.completionKeymap.filter((k) => k.key !== "Enter"))),
+    CM.EditorView.theme({ ".cm-tooltip-autocomplete::after": { content: JSON.stringify(t("completion_keys")) } }),
+
     ((src) => EditorState.languageData.of(() => [{ autocomplete: src }]))(codeCompletionSource(getKey)),
   ];
 }

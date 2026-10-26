@@ -40,7 +40,6 @@ from round27_ui_lang_test import _chromium, _has_playwright  # noqa: E402
 
 NEW_THEMES = ("slate", "rose", "evergreen")
 
-
 class AppearancePreferences(unittest.TestCase):
     def test_valid_values_survive_save_and_load(self):
         values = {"ui_radius": "round", "ui_glass": "strong", "ui_backdrop": "mica", "ui_motion_speed": "fast",
@@ -76,11 +75,11 @@ class AppearancePreferences(unittest.TestCase):
         self.assertIn('{ id: "compact", ru: "Компактно", en: "Compact" }', ap)
         self.assertIn('{ id: "spacious", ru: "Просторно", en: "Spacious" }', ap)
         plus_css = (STATIC / "appearance-plus.css").read_text(encoding="utf-8")
-        for density in ("compact", "spacious"):     # the switch reaches lists and settings, not only the chat
+        for density in ("compact", "spacious"):
             for sel in (".chat-item", ".sx-shell .sx-row", ".msx-item", ".hk-row"):
                 self.assertIn(f'html:root[data-density="{density}"] {sel}', plus_css)
         app = (STATIC / "app.js").read_text(encoding="utf-8")
-        self.assertIn('id="st-motion"', app)                # Animations: full / reduced / off
+        self.assertIn('id="st-motion"', app)
         self.assertIn("prefers-reduced-motion: reduce", (STATIC / "design.css").read_text(encoding="utf-8"))
 
     def test_cache_versions(self):
@@ -90,9 +89,8 @@ class AppearancePreferences(unittest.TestCase):
                       "panels-telegram.js"):
             m = re.search(r'/' + re.escape(asset) + r'\?v=([^"]+)"', index)
             self.assertTrue(m, asset)
-            # a later round may bump an asset again (hotkeys.js → «-r31»): only an older tag is wrong
-            self.assertTrue(re.search(r"-r(\d+)$", m.group(1)) and int(re.search(r"-r(\d+)$", m.group(1)).group(1)) >= 30, (asset, m.group(1)))
 
+            self.assertTrue(re.search(r"-r(\d+)$", m.group(1)) and int(re.search(r"-r(\d+)$", m.group(1)).group(1)) >= 30, (asset, m.group(1)))
 
 class Themes(unittest.TestCase):
     def test_new_pairs_exist_in_both_modes(self):
@@ -120,7 +118,6 @@ class Themes(unittest.TestCase):
                              if ratio(tokens["--on-accent"], a[mode]) < 4.5]
         self.assertEqual(failures, [], "\n".join(failures))
 
-
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
 class PlanUiNode(unittest.TestCase):
     def node(self, script: str):
@@ -146,7 +143,6 @@ class PlanUiNode(unittest.TestCase):
         plan = (STATIC / "plan.js").read_text(encoding="utf-8")
         self.assertNotIn('type="date"', plan)
         self.assertIn("MemuPlanUI.enhanceDates(host)", plan)
-
 
 @unittest.skipUnless(_chromium() and _has_playwright(), "headless Chromium / playwright is not available")
 class LiveWindow(unittest.TestCase):
@@ -203,7 +199,7 @@ class LiveWindow(unittest.TestCase):
         if not state()["open"]:
             page.click("#pln-root [data-act='help-show']")
             page.wait_for_timeout(250)
-        page.click("#pln-help [data-act='help-hide']")      # the card's own ✕ closes it as well
+        page.click("#pln-help [data-act='help-hide']")
         page.wait_for_timeout(250)
         self.assertFalse(state()["open"])
 
@@ -218,11 +214,11 @@ class LiveWindow(unittest.TestCase):
         page.wait_for_timeout(300)
         got = page.evaluate(inside)
         self.assertTrue(got and got["ok"], got)
-        self.assertLess(got["icon"], 40, got)              # the icon cell is not stretched over half the menu
+        self.assertLess(got["icon"], 40, got)
         page.keyboard.press("Escape")
         page.evaluate("MemuPlan.openBuilder({id: 'x1', name: '', kind: 'chat'})")
         page.wait_for_selector("#pln-builder [data-act='add-when']")
-        # put the anchor at the very bottom of the scroll area: the menu has to open upwards
+
         page.evaluate("document.querySelector('#pln-builder [data-act=\"add-when\"]').scrollIntoView({block: 'end'})")
         page.click("#pln-builder [data-act='add-when']")
         page.wait_for_timeout(300)
@@ -256,7 +252,7 @@ class LiveWindow(unittest.TestCase):
         page.wait_for_timeout(1200)
         warns = page.evaluate("[...document.querySelectorAll('.pln-summary .pln-warn li')].map((li) => li.textContent.trim())")
         same = [w for w in warns if "одновременно" in w]
-        if same:                                             # the default rule overlaps both seeded tasks
+        if same:
             self.assertEqual(len(same), 1, warns)
             self.assertIn("«Утренняя сводка»", same[0])
 
@@ -269,7 +265,7 @@ class LiveWindow(unittest.TestCase):
         rec = lambda i: page.evaluate(f"document.querySelector('[data-hk-record=\"{i}\"]').classList.contains('recording')")
         page.click(f"[data-hk-record='{ids[0]}']")
         self.assertTrue(rec(ids[0]))
-        page.click(f"[data-hk-record='{ids[1]}']")          # the second click must start recording there
+        page.click(f"[data-hk-record='{ids[1]}']")
         page.wait_for_timeout(250)
         self.assertTrue(rec(ids[1]))
         self.assertFalse(rec(ids[0]))
@@ -294,7 +290,7 @@ class LiveWindow(unittest.TestCase):
             self.assertEqual(len(set(tops)), 1, (width, design, tops))
             labels = page.evaluate("[...document.querySelectorAll('.msx-chips > *')].map((b) => b.textContent.trim())")
             self.assertIn("Всё", labels[0])
-            page.click("[data-msx-more]")                   # what did not fit is in «Ещё»
+            page.click("[data-msx-more]")
             page.wait_for_timeout(200)
             self.assertGreater(page.evaluate("document.querySelectorAll('.msx-more-pop button').length"), 0)
             page.close()
@@ -308,7 +304,7 @@ class LiveWindow(unittest.TestCase):
             page.click(f"label.sx-seg-opt:has(input[name='{name}'][value='{value}'])")
             page.wait_for_timeout(200)
             self.assertEqual(page.evaluate(f"document.documentElement.dataset.{attr}"), value, name)
-        page.wait_for_timeout(800)                           # the debounced save
+        page.wait_for_timeout(800)
         prefs = self.http.get(self.servers.pg + "/api/pg/preferences").json()
         self.assertEqual((prefs["ui_radius"], prefs["ui_density"], prefs["ui_glass"], prefs["ui_motion_speed"]),
                          ("round", "compact", "light", "fast"))
@@ -319,7 +315,6 @@ class LiveWindow(unittest.TestCase):
                          ("round", "compact", "light", "fast"))
         self.http.post(self.servers.pg + "/api/pg/preferences", json={
             "ui_radius": "", "ui_density": "", "ui_glass": "", "ui_motion_speed": ""})
-
 
 if __name__ == "__main__":
     unittest.main()

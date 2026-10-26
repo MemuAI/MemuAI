@@ -14,7 +14,7 @@ import re
 import zipfile
 from typing import Dict, List, Optional, Tuple
 from xml.etree import ElementTree as ET
-from .sheets import safe_fromstring  # Round 31: no <!ENTITY> expansion (billion laughs)
+from .sheets import safe_fromstring
 from xml.sax.saxutils import escape
 
 from .docx import MIME, _image_size
@@ -36,14 +36,11 @@ NS = {
 }
 MAX_PART = 200 * 1024 * 1024
 
-
 def n(prefix: str, tag: str) -> str:
     return "{%s}%s" % (NS[prefix], tag)
 
-
 class OdtError(ValueError):
     pass
-
 
 def _length_px(value: str) -> int:
     match = re.fullmatch(r"\s*([\d.]+)\s*(cm|mm|in|pt|px)?\s*", str(value or ""))
@@ -52,7 +49,6 @@ def _length_px(value: str) -> int:
     number = float(match.group(1))
     factor = {"cm": 96 / 2.54, "mm": 96 / 25.4, "in": 96, "pt": 96 / 72, "px": 1}.get(match.group(2) or "px", 1)
     return int(number * factor)
-
 
 class _Reader:
     def __init__(self, data: bytes) -> None:
@@ -108,7 +104,7 @@ class _Reader:
             seen.add(name)
             out.append(self.styles[name])
             name = self.styles[name]["parent"]
-        return list(reversed(out))     # root first, so later ones override
+        return list(reversed(out))
 
     def _apply_text(self, run: Run, name: str) -> Run:
         run = Run(**{**run.__dict__, "text": ""})
@@ -205,7 +201,7 @@ class _Reader:
                 for _ in range(repeat if not blocks else 1):
                     row.append(Cell(blocks=[b for b in blocks if isinstance(b, Para)], header=header,
                                     colspan=max(1, span)))
-            # trailing empty repeated cells inflate rows: trim
+
             while len(row) > 1 and not row[-1].blocks:
                 row.pop()
             table.rows.append(row)
@@ -223,8 +219,7 @@ class _Reader:
         para = Para(kind=kind, align=align)
         if lists:
             para.kind, para.list, para.level = "li", lists[-1], len(lists) - 1
-        # Heading/quote/code look comes from the paragraph style itself; only plain paragraphs
-        # pass their (automatic) text properties on to the runs.
+
         base = self._apply_text(Run(), style) if kind == "p" else Run()
         self._inline(element, para, base)
         out.append(para)
@@ -284,22 +279,16 @@ class _Reader:
                    width=_length_px(frame.get(n("svg", "width"), "")),
                    height=_length_px(frame.get(n("svg", "height"), "")))
 
-
 def read_odt(data: bytes) -> Tuple[List[Block], dict]:
     from .richhtml import tidy
     reader = _Reader(data)
     return tidy(reader.blocks()), {}
 
-
-# ======================================================================================= writer
-
 def _t(value: str) -> str:
     return escape(re.sub("[\x00-\x08\x0b\x0c\x0e-\x1f]", "", value))
 
-
 def _a(value: str) -> str:
     return escape(str(value), {'"': "&quot;"})
-
 
 class _Writer:
     def __init__(self) -> None:
@@ -335,7 +324,7 @@ class _Writer:
         for index, part in enumerate(run.text.split("\t")):
             if index:
                 text += "<text:tab/>"
-            # Runs of spaces are collapsed by ODF: keep them with text:s.
+
             text += re.sub(r"  +", lambda m: " " + f'<text:s text:c="{len(m.group(0)) - 1}"/>', _t(part))
         style = self.text_style(run)
         if style:
@@ -391,8 +380,7 @@ class _Writer:
                 group = []
                 while index < len(blocks) and isinstance(blocks[index], Para) and blocks[index].kind == "li":
                     item = blocks[index]
-                    # A bullet list right after a numbered one (or vice versa) is a new list: one shared
-                    # list style would turn "1. 2." into bullets.
+
                     if group and item.level == 0 and (item.list == "ol") != (group[0].list == "ol"):
                         break
                     group.append(item)
@@ -521,7 +509,6 @@ class _Writer:
             out.append(f'<text:list-style style:name="{name}">{"".join(levels)}</text:list-style>')
         return "".join(out)
 
-
 _XMLNS = " ".join(f'xmlns:{k}="{v}"' for k, v in NS.items() if k not in ("manifest", "loext"))
 
 _HEADINGS = "".join(
@@ -541,7 +528,6 @@ _STYLES = f"""<?xml version="1.0" encoding="UTF-8"?>
 <style:style style:name="Horizontal_20_Line" style:display-name="Horizontal Line" style:family="paragraph" style:parent-style-name="Standard"><style:paragraph-properties fo:border-bottom="0.5pt solid #bfbfbf" fo:padding="0cm"/></style:style>
 </office:styles><office:automatic-styles><style:page-layout style:name="pm1"><style:page-layout-properties fo:page-width="21cm" fo:page-height="29.7cm" fo:margin-top="2cm" fo:margin-bottom="2cm" fo:margin-left="3cm" fo:margin-right="1.5cm"/></style:page-layout></office:automatic-styles>
 <office:master-styles><style:master-page style:name="Standard" style:page-layout-name="pm1"/></office:master-styles></office:document-styles>"""
-
 
 def write_odt(blocks: List[Block], title: str = "") -> bytes:
     writer = _Writer()

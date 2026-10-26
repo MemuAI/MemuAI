@@ -1,11 +1,5 @@
-/* MemuAI Quick Ask · instant answers without a model.
-   As the user types, "2^10 + 15%", "√2·3", "15% от 2400", "5 km в милях",
-   "72 F to C", "3 GB in MB" get a result in the input row immediately (no
-   network, no model, no eval): a tiny recursive-descent parser and a unit
-   table. Anything it does not fully understand returns null, so a normal
-   question is never mistaken for maths. Exposes window.QuickCalc
-   { evaluate(text, lang) → {value, text, kind} | null }; also works in Node
-   (module.exports) for the unit tests. */
+
+
 (function (root) {
   "use strict";
 
@@ -23,7 +17,7 @@
     while (i < s.length) {
       const ch = s[i];
       if (/\s/.test(ch)) { i += 1; continue; }
-      // Round 34: «1 000 000» is ONE number (digit groups), not 1·000·000 = 0
+
       const grouped = s.slice(i).match(/^\d{1,3}(?:[ \u00a0\u202f]\d{3})+(?:[.,]\d+)?(?![\d.,])/);
       if (grouped) {
         tokens.push({ t: "num", v: parseFloat(grouped[0].replace(/[ \u00a0\u202f]/g, "").replace(",", ".")) });
@@ -78,8 +72,7 @@
         else if (take("/")) { operators += 1; const r = power(); left = { v: left.v / (r.percent ? r.v / 100 : r.v) }; }
         else if (peek() && ((peek().t === "num" && (peek().c || tokens[pos - 1].c)) || peek().t === "fn"
                             || (peek().t === "op" && peek().v === "("))) {
-          // implicit: 2π, 3(4+1), 2 sqrt 9 — but never two plain numbers («2 3», «192.168.1.1», «5 % 3»,
-          // a phone or a date): that is not maths, the old reading multiplied them
+
           operators += 1; const r = power(); left = { v: left.v * r.v };
         } else return left;
       }
@@ -125,7 +118,6 @@
     return { value: result.percent ? result.v / 100 : result.v, operators };
   }
 
-  /* ----------------------------------------------------------- units */
   const U = [];
   const unit = (kind, factor, names, offset = 0) => U.push({ kind, factor, offset, names });
   unit("len", 1, ["m", "м", "meter", "meters", "metre", "метр", "метра", "метров", "метрах", "метры"]);
@@ -202,11 +194,11 @@
     if (converted) return converted;
     let expr = source.replace(/[=?]\s*$/, "").trim()
       .replace(/^(?:сколько будет|сколько|посчитай|вычисли|calculate|calc|what(?:'s| is))\s+/i, "");
-    // "15% от 2400" / "15% of 2400" → 2400 * 15%
+
     const pct = expr.match(/^(-?\d+(?:[.,]\d+)?)\s*%\s*(?:от|of)\s*(-?\d+(?:[.,]\d+)?)$/i);
     if (pct) expr = `${pct[2]}*${pct[1]}%`;
     if (!/\d/.test(expr) && !/(pi|π|tau)/i.test(expr)) return null;
-    // Round 34: a date («2024-10-11», «11.10.2026») or a phone («+7 999 123-45-67», «123-45-67») is not a sum
+
     if (/^\d{1,4}([-./])\d{1,2}\1\d{1,4}$/.test(expr) || /^\+\d[\d\s()-]{6,}$/.test(expr)
         || /^\(?\d[\d\s()]*-\d{2}-\d{2}$/.test(expr)) return null;
     if (/[a-zа-яё]{3,}/i.test(expr.replace(/\b(sqrt|abs|round|floor|ceil|log2|log|exp|asin|acos|atan|sin|cos|tan|pi|tau)\b/gi, ""))) return null;

@@ -1,4 +1,4 @@
-// MemuNote Slides — line icons in the MemuAI style (24×24, stroke = currentColor).
+
 const P = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 export const SICONS = {
   slides: P('<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 17v3M8 21h8M7 9h6M7 12h10"/>'),

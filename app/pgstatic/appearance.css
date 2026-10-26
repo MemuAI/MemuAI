@@ -1,10 +1,3 @@
-/* MemuAI — calm surfaces, clear hierarchy, restrained color.
- * This layer owns visual tokens and the chat shell. Functional styles,
- * custom avatar artwork and the native Windows frame remain untouched.
- */
-/* Colour tokens, accents and theme variants are generated from app/themes.py
-   and served as /themes.css (loaded before this file). Only shape tokens and
-   the density/width switches live here. */
 :root {
   --sans: "Segoe UI Variable Text", "Segoe UI", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   --radius: 12px;
@@ -27,7 +20,6 @@ input::placeholder, textarea::placeholder { color: var(--muted); opacity: 1; }
 button:disabled { cursor: not-allowed; }
 .startup-mark { background: var(--accent); color: var(--on-accent); box-shadow: none; border-radius: 16px; }
 .startup-name { font-family: var(--sans); }
-/* Navigation remains familiar, but no longer competes with the conversation. */
 .side { padding: 20px 12px 12px; border-right-color: var(--border); }
 .brand { font-family: var(--sans); font-size: 1.125rem; letter-spacing: -.035em; padding: 4px 12px 24px; }
 .brand-dot { width: 26px; height: 26px; border-radius: 9px; }
@@ -54,7 +46,6 @@ button:disabled { cursor: not-allowed; }
 .profile-card { border-radius: 10px; }
 .profile-name { font-size: .875rem; }
 .profile-sub { font-size: .75rem; }
-/* Single quiet appbar. Search is a navigation tool, not a second composer. */
 .topbar.appbar { min-height: 64px; padding: 8px 20px; gap: 8px; background: var(--topbar-bg, var(--bg)); border-bottom: 1px solid var(--border); box-shadow: none; backdrop-filter: none; flex-wrap: wrap; }
 .appbar::before { display: none; }
 .compact-toolbar { gap: 2px; }
@@ -77,7 +68,6 @@ button:disabled { cursor: not-allowed; }
 .app-menu-pop { width: 280px; border-radius: 12px; }
 .app-menu-pop button { min-height: 40px; font-size: .875rem; align-items: center; }
 .app-menu-pop .menu-heading { font-size: .75rem; }
-/* Content keeps a readable measure even with the sidebar collapsed. */
 .main .messages, .side.hidden ~ .main .messages,
 .focus-mode .messages { width: 100%; max-width: var(--conversation-width); padding: 32px 24px; }
 .main .composer, .side.hidden ~ .main .composer,
@@ -110,7 +100,6 @@ button:disabled { cursor: not-allowed; }
 .compact-messages .msg-tools { margin-top: 4px; }
 .table-wrap { box-shadow: none; }
 .table-wrap table, .body table { font-size: .875rem; }
-/* A generous input with a clear primary action, not a glowing card. */
 .composer-wrap { padding: 12px 24px 20px; }
 .composer { border-color: var(--control-border); border-radius: 16px; padding: 12px 12px 8px; box-shadow: var(--composer-shadow); }
 .composer:focus-within { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft), var(--composer-shadow); }
@@ -122,7 +111,6 @@ button:disabled { cursor: not-allowed; }
 .send:disabled .ui-icon { color: var(--muted); }
 .composer-hint { font: .75rem/1.4 var(--sans); padding-top: 10px; }
 .composer-live-orb, .live-mini-orb { background: radial-gradient(circle at 32% 26%, rgba(255,255,255,.55), rgba(255,255,255,0) 60%), linear-gradient(140deg, var(--accent), var(--accent-2, var(--accent))); color: var(--on-accent); box-shadow: 0 0 0 2px var(--accent-soft), 0 6px 14px -8px var(--accent); }
-/* Settings: one navigation rail, grouped decisions and native keyboard input. */
 .panel { border-radius: 16px; }
 .panel.settings-panel { width: 1040px; height: 740px; max-width: calc(100vw - 48px); max-height: calc(100vh - 48px); }
 .settings-header { min-height: 72px; padding: 20px 72px 20px 24px; }
@@ -162,7 +150,6 @@ button:disabled { cursor: not-allowed; }
 .theme-mini-bubble { right: 9%; top: 25%; width: 16%; height: 16px; background: var(--mini-accent); }
 .theme-mini-input { bottom: 10px; left: 34%; right: 8%; height: 18px; border: 1px solid var(--mini-border); background: var(--mini-input); }
 .appearance-field input[type="radio"], .theme-studio input[type="radio"] { position: absolute; width: 1px; height: 1px; opacity: 0; margin: 0; }
-/* Only labels that wrap a hidden radio draw the ring; a text field has its own (it was doubled around «Название»). */
 .appearance-field label:has(input[type="radio"]:focus-visible), .theme-studio label:has(input[type="radio"]:focus-visible) { outline: 2px solid var(--accent); outline-offset: 4px; }
 .accent-options { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; }
 .accent-option { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px; min-height: 48px; border: 1px solid transparent; border-radius: 8px; font-size: .875rem; cursor: pointer; }
@@ -171,15 +158,11 @@ button:disabled { cursor: not-allowed; }
 .accent-dot { display: grid; place-items: center; width: 24px; height: 24px; flex: none; border-radius: 50%; background: var(--swatch-light); color: white; }
 [data-theme="dark"] .accent-dot { background: var(--swatch-dark); color: #191b1e; }
 .accent-dot span { visibility: hidden; font-weight: 700; }
-/* Round 21 (производительность): без :has() — тег span под правилом с :has()
-   пересчитывал стили всех span окна при каждой вставке узла. Радио всегда
-   стоит прямо перед .accent-dot; специфичность та же (0,3,2). */
 .accent-option > input:checked ~ .accent-dot span { visibility: visible; }
 .appearance-note { color: var(--muted); margin: 12px 0 0; font-size: .8125rem; line-height: 1.5; }
 .width-options { display: flex; flex-wrap: wrap; gap: 8px; }
 .width-option { position: relative; display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 8px 16px; border: 1px solid var(--control-border); border-radius: 8px; font-size: .875rem; cursor: pointer; }
 .width-option:has(input:checked) { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
-/* Theme variants: one grid per mode, with a miniature of each palette. */
 .variant-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
 .variant-option { position: relative; display: grid; align-content: start; gap: 8px; padding: 8px; border: 1px solid var(--border); border-radius: 12px; cursor: pointer; transition: border-color .15s, background-color .15s; }
 .variant-option:hover { border-color: var(--control-border); }
@@ -197,7 +180,6 @@ button:disabled { cursor: not-allowed; }
 .variant-mini .vm-input { left: 32%; right: 8%; bottom: 8px; height: 12px; background: var(--v-panel); border: 1px solid var(--v-border); }
 .variant-mini .vm-dot { right: 10%; bottom: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--v-accent); }
 .appearance-note.warn { color: var(--danger); }
-/* Custom themes list. */
 .theme-toolbar { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
 .theme-empty { padding: 16px; border: 1px dashed var(--border); border-radius: 10px; color: var(--muted); font-size: .875rem; line-height: 1.5; }
 .theme-list { display: flex; flex-direction: column; gap: 6px; }
@@ -214,7 +196,6 @@ button:disabled { cursor: not-allowed; }
 .theme-swatches i:first-child { margin-left: 0; }
 .theme-confirm { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; color: var(--danger); font-size: .8125rem; }
 .pbtn.small { min-height: 34px; padding: 6px 12px; font-size: .8125rem; }
-/* The theme studio replaces the appearance controls while it is open. */
 #pane-appearance.studio-open > :not(#appearance-root) { display: none !important; }
 .theme-studio { display: flex; flex-direction: column; gap: 12px; }
 .studio-head { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; position: sticky; top: -24px; z-index: 2; padding: 8px 0; background: var(--panel); }
@@ -339,14 +320,11 @@ button:disabled { cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
 }
-/* The empty screen brings the composer to the task, without changing chat flow. */
 .chat-view-wrap.empty-chat { justify-content: center; }
 .empty-chat .chat { flex: 0 1 auto; min-height: 0; }
 .empty-chat .messages:empty { display: none; }
 .main .empty-chat .greeting { padding-top: 24px; padding-bottom: 24px; }
 .empty-chat .composer-wrap { padding-bottom: clamp(24px, 10vh, 100px); }
-/* MemuCode / Work start screens are tall (guide, shortcuts, stats): the lift under the composer
-   would leave empty space below it while the greeting above is cut and scrolls. */
 body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 14px; }
 .empty-chat .chips { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .cap-icon { display: inline-flex; align-items: center; }
@@ -368,7 +346,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
   .main .empty-chat .greeting { padding-top: 16px; }
   .empty-chat .composer-wrap { padding-bottom: 8px; }
 }
-/* History navigation remains in the app menu and Alt+arrow shortcuts. */
 #bar-undo, #bar-redo { display: none; }
 .topbar.appbar { column-gap: 6px; }
 @media (min-width: 801px) { .chat-search { width: 140px; } }
@@ -377,8 +354,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
   .appbar #cap-toggles { flex-wrap: wrap; }
   .appbar #model-dd .dd-btn { width: 100%; justify-content: space-between; }
 }
-/* Узкое окно: всё в одну строку — переключатели только значками
-   (подпись остаётся в подсказке), модель занимает оставшееся место. */
 @media (max-width: 520px) {
   .appbar .compact-toolbar { margin-right: 0; }
   .topbar.appbar { flex-wrap: nowrap; min-height: 52px; }
@@ -396,7 +371,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
   .composer-hint { display: none; }
   .composer .send { margin-left: 0; }
 }
-/* Respond to available chat width, including a user-resized sidebar. */
 .main { container-type: inline-size; }
 @container (max-width: 1100px) {
   .topbar .cap-mode { display: none; }
@@ -406,8 +380,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
   .topbar .chat-search { display: none; }
   .topbar .dd-btn { max-width: 180px; }
 }
-
-/* Themed scrollbars instead of the default browser widget. */
 * { scrollbar-width: thin; scrollbar-color: var(--scroll-thumb) transparent; }
 :root {
   --scroll-thumb: color-mix(in srgb, var(--text) 22%, transparent);
@@ -422,29 +394,21 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
 ::-webkit-scrollbar-thumb:hover, ::-webkit-scrollbar-thumb:active { background: var(--scroll-thumb-hover); background-clip: padding-box; }
 ::-webkit-scrollbar-corner, ::-webkit-scrollbar-button { display: none; background: transparent; }
 .messages::-webkit-scrollbar-thumb, .side-scroll::-webkit-scrollbar-thumb { min-height: 48px; }
-
-/* Live orb star renders without depending on a system symbol font. */
 .composer-live-orb b, .live-mini-orb { font-size: 0 !important; }
 .composer-live-orb b { width: 11px; height: 11px; background: #fff; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1l3 8 8 3-8 3-3 8-3-8-8-3 8-3z'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1l3 8 8 3-8 3-3 8-3-8-8-3 8-3z'/%3E%3C/svg%3E") center/contain no-repeat; }
 .live-mini-orb { position: relative; }
 .live-mini-orb::after {
   content: ""; position: absolute; inset: 5px; background: #fff; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1l3 8 8 3-8 3-3 8-3-8-8-3 8-3z'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1l3 8 8 3-8 3-3 8-3-8-8-3 8-3z'/%3E%3C/svg%3E") center/contain no-repeat;
 }
-
-/* Long voice-settings buttons wrap instead of overflowing. */
 .voice-settings-group-body .row-end { align-items: stretch; }
 .voice-settings-group-body .row-end .pbtn {
   flex: 0 1 auto; white-space: normal; text-align: center; line-height: 1.25;
   padding: 9px 14px; height: auto; min-height: 38px; overflow-wrap: anywhere;
 }
-
-/* Draggable Live window. */
 .live-call-head { cursor: grab; touch-action: none; }
 .live-call.dragging { cursor: grabbing; user-select: none; }
 .live-call.dragging .live-call-head { cursor: grabbing; }
 .msg-tool.speaking, .msg-menu button.speaking { color: var(--accent); }
-
-/* наборы промптов */
 .prompt-set-bar {
 	display: flex;
 	flex-wrap: wrap;
@@ -459,8 +423,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
 	line-height: 1.55;
 	min-height: 320px;
 }
-
-/* библиотека скиллов */
 .skills-modal-head { display: flex; flex-direction: column; gap: 12px; margin-bottom: 8px; width: 100%; }
 .skills-head-actions {
 	display: grid;
@@ -497,9 +459,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
 	color: var(--muted);
 }
 .skill-when b { font-weight: 600; color: var(--text); }
-
-
-/* ---------- Round 4: орфография и контекстное меню ---------- */
 .composer-main { position: relative; }
 .composer textarea#input { position: relative; z-index: 1; background: transparent; }
 .spell-layer {
@@ -543,9 +502,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
 .context-menu button > span:not(.ui-icon) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .context-menu::-webkit-scrollbar { width: 8px; }
 .context-menu::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
-
-
-/* ---------- Round 4: поиск по большим спискам ---------- */
 .list-search-wrap {
   display: flex;
   flex-direction: column;
@@ -567,12 +523,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
 .model-visibility label[hidden],
 .settings-section .p-toggle[hidden],
 .list-search-wrap[hidden] { display: none !important; }
-
-
-/* ---------- Round 4: живая кнопка MemuAI Live ---------- */
-/* Сам шарик остаётся без собственной animation: так hover/active могут менять
-   transform. Всё движение живёт в ::before (вращающееся сияние), ::after (пульс),
-   i (живая капля) и b (мерцающая звёздочка). */
 #btn-live { position: relative; overflow: visible; }
 #btn-live .composer-live-orb {
   transition: transform .2s cubic-bezier(.2, .8, .3, 1), box-shadow .2s ease, filter .2s ease;
@@ -598,8 +548,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
   opacity: .95;
   z-index: 0;
 }
-/* Round 36 (perf): these loops run all the time next to the message box — only transform/opacity now (the GPU
-   composites them); box-shadow / border-radius keyframes repainted the composer on every frame. */
 .composer-live-orb::after {
   content: "";
   position: absolute;
@@ -653,9 +601,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
   .composer-live-orb b,
   .live-mini-orb::before { animation: none !important; }
 }
-
-
-/* ---------- Round 4: раздел Интеграции ---------- */
 .int-state {
   display: inline-flex;
   align-items: center;
@@ -673,9 +618,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
 #pane-apps .field-label { margin-top: 10px; }
 #pane-apps .pinput { width: 100%; }
 #pane-apps .row-end { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
-
-
-/* ---------- Round 4: Мемесы и порядок разделов ---------- */
 [data-section-handle] { cursor: grab; }
 [data-section-handle]:active { cursor: grabbing; }
 .side-group.section-dragging { opacity: .55; }
@@ -758,7 +700,7 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
 }
 .meme-empty:hover { color: var(--text); border-color: var(--accent); }
 .meme-choice { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-.panel .meme-choice-note { margin: 10px 0 0; }   /* r34: the hint stuck to «Import from file» */
+.panel .meme-choice-note { margin: 10px 0 0; }
 .meme-steps { display: flex; gap: 6px; margin: 4px 0 14px; }
 .meme-step {
   display: grid;
@@ -785,9 +727,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
   overflow: auto;
   font-size: 12px;
 }
-
-
-/* ---------- Подсказки (tooltip.js) ---------- */
 .memu-tooltip {
   position: fixed; z-index: 100000; max-width: min(340px, calc(100vw - 12px));
   display: flex; align-items: center; gap: 10px; padding: 6px 10px;
@@ -806,23 +745,15 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
   background: var(--panel-2); color: var(--muted); font: 11px/17px var(--mono); text-align: center;
 }
 @media (prefers-reduced-motion: reduce) { .memu-tooltip { transition: none; } }
-
-/* Context menu items may carry a key hint on the right. */
-/* Only the label stretches: the icon is a <span class="ui-icon"> too, and giving it
-   flex:1 split the menu in half, leaving a wide empty gap. */
 .context-menu button > span:not(.ui-icon) { flex: 1; min-width: 0; }
 .context-menu button > .ui-icon { flex: none; }
 .context-menu .context-hint {
   margin-left: 12px; flex: none; padding: 0 5px; border: 1px solid var(--border); border-radius: 5px;
   color: var(--muted); background: transparent; font: 10.5px/16px var(--mono);
 }
-
-/* Tool timeline: a model's working note sits between the calls it made. */
 .tool-note { margin: 6px 0; padding: 4px 0 4px 10px; border-left: 2px solid var(--border); color: var(--muted); font-size: .8125rem; line-height: 1.5; }
 .tool-note p { margin: 0 0 4px; }
 .tool-note-label { display: block; margin-bottom: 2px; font-size: .6875rem; font-weight: 600; letter-spacing: .03em; text-transform: uppercase; opacity: .8; }
-
-/* Inline visualizations: a quiet frame inside the answer, no code shown. */
 .memuai-visual { margin: 16px 0; border: 1px solid var(--border); border-radius: 12px; background: var(--panel); overflow: hidden; }
 .memuai-visual-frame { display: block; width: 100%; border: 0; background: transparent; transition: height .15s ease; }
 .visual-loading { display: flex; align-items: center; gap: 10px; min-height: 120px; padding: 16px; justify-content: center; color: var(--muted); font-size: .8125rem; }
@@ -830,13 +761,9 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
 .memuai-visual.failed { padding: 14px 16px; color: var(--muted); font-size: .8125rem; }
 .visual-error { padding: 8px 12px; border-top: 1px solid var(--border); color: var(--muted); font-size: .75rem; }
 @keyframes visual-spin { to { transform: rotate(360deg); } }
-
-/* Картинка из текста ответа с чужого адреса — грузится только по кнопке. */
 .image-consent { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; }
 .image-consent svg { width: 16px; height: 16px; flex: none; }
 .image-consent b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-
-/* Классы из разметки, у которых не было стилей. */
 .mono { font-family: var(--mono, ui-monospace, "Cascadia Code", Consolas, monospace); font-size: .92em; word-break: break-all; }
 .voice-model-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 10px; }
 .voice-model-toolbar > div { min-width: 0; }
@@ -846,16 +773,12 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
 .search-provider-card .search-provider-note { margin-top: 8px; }
 .internal-message { display: none !important; }
 .docs-code { margin: 12px 0; }
-
-/* Кнопка отправки во время ответа — явное действие «Стоп». */
 #btn-send.is-stop {
   background: transparent !important;
   color: var(--accent);
   box-shadow: inset 0 0 0 1.5px var(--accent);
 }
 #btn-send.is-stop:hover { background: color-mix(in srgb, var(--accent) 12%, transparent) !important; }
-
-/* ---------------------------------------------------------------- designs */
 .design-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(196px, 1fr)); gap: 12px; }
 .design-option { position: relative; display: flex; flex-direction: column; gap: 10px; padding: 10px; cursor: pointer;
   border: 1px solid var(--border); border-radius: 14px; background: var(--panel);
@@ -869,7 +792,6 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
 .design-option-text small { color: var(--muted); font-size: 11.5px; line-height: 1.35; }
 .design-option .appearance-check { opacity: 0; color: var(--accent); font-weight: 700; }
 .design-option:has(input:checked) .appearance-check { opacity: 1; }
-/* Miniature: side panel, top bar, three message lines and the composer. */
 .design-mini { position: relative; display: block; height: 92px; border-radius: 9px; overflow: hidden;
   background: var(--bg); border: 1px solid var(--border); }
 .design-mini i { position: absolute; display: block; }
@@ -880,37 +802,30 @@ body.project-mode .chat-view-wrap.empty-chat > .composer-wrap { padding-bottom: 
 .design-mini .dm-msg.b { left: 32%; top: 46px; width: 50%; }
 .design-mini .dm-msg.c { left: 32%; top: 58px; width: 38%; }
 .design-mini .dm-input { left: 34%; right: 10%; bottom: 8px; height: 13px; border-radius: 7px; background: var(--panel); border: 1px solid var(--border); }
-/* classic: canvas sheet inside a darker frame */
 .design-mini-classic { background: var(--bg-deep); }
 .design-mini-classic::after { content: ""; position: absolute; left: 28%; top: 4px; right: 3px; bottom: 4px; border-radius: 6px;
   background: var(--bg); border: 1px solid var(--border); }
 .design-mini-classic i:not(.dm-side) { z-index: 1; }
-/* aurora: warm glow, large rounded composer */
 .design-mini-aurora { background: radial-gradient(120% 90% at 85% 0%, color-mix(in srgb, var(--accent) 30%, transparent), transparent 60%),
   radial-gradient(90% 80% at 10% 100%, color-mix(in srgb, var(--accent-2, var(--accent)) 24%, transparent), transparent 60%), var(--bg); }
 .design-mini-aurora .dm-side { left: 4px; top: 4px; bottom: 4px; width: 24%; border-radius: 7px; background: color-mix(in srgb, var(--panel) 80%, transparent); }
 .design-mini-aurora .dm-input { height: 16px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,.18); }
 .design-mini-aurora .dm-msg.a { background: color-mix(in srgb, var(--accent) 30%, var(--panel)); }
-/* focus: flat, centred, pill composer */
 .design-mini-focus .dm-side { width: 22%; background: var(--bg-deep); }
 .design-mini-focus .dm-top { display: none; }
 .design-mini-focus .dm-msg.b, .design-mini-focus .dm-msg.c { left: 36%; }
 .design-mini-focus .dm-input { left: 36%; right: 14%; height: 15px; border-radius: 999px; background: var(--panel-2); border: 0; }
 .design-mini-focus .dm-msg.a { border-radius: 999px; }
-/* grid: hairlines and square corners */
 .design-mini-grid { border-radius: 3px; background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
   background-size: 12px 12px; background-color: var(--bg); }
 .design-mini-grid i { border-radius: 1px !important; }
 .design-mini-grid .dm-side { border-right: 1px solid var(--control-border); background: var(--bg); }
 .design-mini-grid .dm-input { border-color: var(--control-border); }
 .design-mini-grid .dm-msg.a { background: transparent; border: 1px solid var(--accent); }
-/* glass: frosted panes over a gradient */
 .design-mini-glass { background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 55%, var(--bg)), color-mix(in srgb, var(--accent-2, var(--accent)) 45%, var(--bg)) 60%, var(--bg)); }
 .design-mini-glass .dm-side, .design-mini-glass .dm-input, .design-mini-glass .dm-msg.a {
   background: color-mix(in srgb, var(--panel) 45%, transparent); border: 1px solid color-mix(in srgb, #fff 22%, transparent); }
 .design-mini-glass .dm-side { left: 4px; top: 4px; bottom: 4px; border-radius: 7px; }
-
-/* Round24 designs: picker thumbnails. */
 .design-mini-soft { background: color-mix(in srgb, var(--bg-deep) 88%, var(--accent)); border-radius: 14px; }
 .design-mini-soft::after { content: ""; position: absolute; left: 27%; top: 4px; right: 4px; bottom: 4px; border-radius: 12px; background: color-mix(in srgb, var(--bg) 94%, var(--accent)); }
 .design-mini-soft i:not(.dm-side) { z-index: 1; }

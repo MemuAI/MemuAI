@@ -28,25 +28,20 @@ from prompt_toolkit.utils import get_cwidth
 
 from ..clipboard import copy_text
 
-Row = List[Tuple[str, str]]                      # runs of (style, text); no newlines inside
-Source = Union[str, Callable[[int, bool], str]]  # ANSI text, or f(width, expanded) -> ANSI text
+Row = List[Tuple[str, str]]
+Source = Union[str, Callable[[int, bool], str]]
 
 SELECTION_STYLE = " class:transcript.selection"
-
-
-# ---------------------------------------------------------------- text → rows
 
 def cell_width(char: str) -> int:
     if char < "̀":
         return 1 if char >= " " else 0
     return get_cwidth(char)
 
-
 def text_width(text: str) -> int:
     if text.isascii():
         return len(text)
     return sum(cell_width(char) for char in text)
-
 
 def wrap_row(runs: Row, width: int) -> List[Row]:
     """One logical line → rows no wider than ``width`` cells (hard wrap)."""
@@ -76,7 +71,6 @@ def wrap_row(runs: Row, width: int) -> List[Row]:
     rows.append(current)
     return rows
 
-
 def ansi_to_rows(text: str, width: int) -> List[Row]:
     """ANSI text (possibly many lines) → wrapped rows of (style, text) runs."""
     width = max(1, width)
@@ -98,7 +92,7 @@ def ansi_to_rows(text: str, width: int) -> List[Row]:
                 else:
                     line.append((style, piece))
     if len(lines) > 1 and not lines[-1]:
-        lines.pop()                              # the text ended with a newline
+        lines.pop()
     rows: List[Row] = []
     for line in lines:
         if sum(len(run[1]) for run in line) <= width and all(run[1].isascii() for run in line):
@@ -107,10 +101,8 @@ def ansi_to_rows(text: str, width: int) -> List[Row]:
             rows.extend(wrap_row(line, width))
     return rows
 
-
 def row_text(row: Row) -> str:
     return "".join(text for _style, text in row)
-
 
 def _cells_to_index(text: str, cell: int) -> int:
     """Character index of the character that covers screen cell ``cell``."""
@@ -122,7 +114,6 @@ def _cells_to_index(text: str, cell: int) -> int:
         if used > cell:
             return index
     return len(text)
-
 
 def _slice_cells(row: Row, first: int, last: int) -> Row:
     """The runs of ``row`` between cells [first, last) with the selection style added."""
@@ -143,12 +134,9 @@ def _slice_cells(row: Row, first: int, last: int) -> Row:
             out.append((style + SELECTION_STYLE, text[low:high]))
         if high < len(text):
             out.append((style, text[high:]))
-    if last > position:                          # selection runs past the end of the text
+    if last > position:
         out.append(("class:transcript.selection", " " * min(last - position, 1)))
     return out
-
-
-# ---------------------------------------------------------------- blocks
 
 class Block:
     """One entry of the transcript."""
@@ -157,7 +145,7 @@ class Block:
                  on_click: Optional[Callable[[], None]] = None, kind: str = "") -> None:
         self.source = source
         self.expandable = expandable
-        self.expanded = expanded                 # None: follow the transcript-wide setting
+        self.expanded = expanded
         self.on_click = on_click
         self.kind = kind
         self.version = 0
@@ -183,20 +171,17 @@ class Block:
         """The content changed: render it again next time."""
         self.version += 1
 
-
-# ---------------------------------------------------------------- the transcript
-
 class Transcript:
     def __init__(self, copied: Callable[[int], None]) -> None:
         self.blocks: List[Block] = []
-        self.offset = 0                          # rows hidden below the viewport (0 = follow the end)
+        self.offset = 0
         self.height = 20
         self.width = 80
         self.copied = copied
         self.expand_all = False
         self.theme = 0
         self.changed: Callable[[], None] = lambda: None
-        self.anchor: Optional[Tuple[int, int]] = None      # viewport (row, cell) of the drag start
+        self.anchor: Optional[Tuple[int, int]] = None
         self.caret: Optional[Tuple[int, int]] = None
         self._visible: List[Tuple[Block, int]] = []
         self._view: List[Row] = []
@@ -205,12 +190,11 @@ class Transcript:
         self._click_at = 0.0
         self._click_cell: Tuple[int, int] = (-1, -1)
 
-    # ------------------------------------------------------------ content
     def add(self, block: Union[Block, str, Callable[[int, bool], str]], **kwargs: Any) -> Block:
         if not isinstance(block, Block):
             block = Block(block, **kwargs)
         self.blocks.append(block)
-        if self.offset:                          # the user reads history: keep it in place
+        if self.offset:
             self.offset += len(block.rows(self.width, self.expand_all, self.theme))
         self.changed()
         return block
@@ -249,7 +233,6 @@ class Transcript:
             self.anchor = self.caret = None
             self.changed()
 
-    # ------------------------------------------------------------ view
     def viewport(self, height: int, width: int) -> List[Row]:
         """The rows that fit the window, ending ``offset`` rows above the last one."""
         self.height = max(1, height)
@@ -271,14 +254,13 @@ class Transcript:
                 flat.append(row)
                 owners.append((block, index))
         if count < need:
-            self.offset = max(0, len(flat) - self.height)    # asked for more history than exists
+            self.offset = max(0, len(flat) - self.height)
         end = len(flat) - self.offset
         start = max(0, end - self.height)
         self._view = flat[start:end]
         self._visible = owners[start:end]
         return self._view
 
-    # ------------------------------------------------------------ selection
     def selection(self) -> Optional[Tuple[Tuple[int, int], Tuple[int, int]]]:
         if self.anchor is None or self.caret is None or self.anchor == self.caret:
             return None
@@ -346,7 +328,6 @@ class Transcript:
         if text.strip() and copy_text(text):
             self.copied(len(text))
 
-    # ------------------------------------------------------------ mouse
     def mouse(self, event: MouseEvent) -> bool:
         """Handle a mouse event; True when something on the screen has to be redrawn."""
         kind = event.event_type
@@ -369,7 +350,7 @@ class Transcript:
             return True
         if kind == MouseEventType.MOUSE_MOVE:
             if self.anchor is None or self._press is None:
-                return False                     # plain motion changes nothing: no redraw
+                return False
             if (row, cell) == self.caret:
                 return False
             self.caret = (row, cell)
@@ -428,9 +409,6 @@ class Transcript:
                 self.toggle(block)
                 return True
         return False
-
-
-# ---------------------------------------------------------------- prompt_toolkit control
 
 class TranscriptControl(UIControl):
     def __init__(self, transcript: Transcript, invalidate: Callable[[], None]) -> None:

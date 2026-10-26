@@ -1,9 +1,3 @@
-/* MemuAI Proxy — Round 31 design pass (design-other zone).
-   First-run guidance on the home page, a real empty state on Accounts, a calmer
-   add-account picker and the folded «Дополнительно» block of the account form.
-   Loaded after style.css; only tokens of style.css are used, so light/dark follow the theme. */
-
-/* ---------- home: «С чего начать» (only while there are no accounts) ---------- */
 .start-card {
   margin-bottom: 18px;
   border-color: var(--accent-line);
@@ -35,8 +29,6 @@
 .start-steps b { font-size: 13px; font-weight: 600; }
 .start-steps span { font-size: 12px; color: var(--muted-2); line-height: 1.45; }
 @media (max-width: 900px) { .start-steps { grid-template-columns: 1fr; } }
-
-/* ---------- accounts: empty state ---------- */
 #tab-accounts.is-empty .hint-strip,
 #tab-accounts.is-empty #provider-filter,
 #tab-accounts.is-empty #acc-check-all,
@@ -57,15 +49,10 @@
 .acc-empty p { margin: 0; max-width: 56ch; color: var(--muted); font-size: 13px; line-height: 1.55; }
 .acc-empty .btn { margin: 8px 0 2px; }
 .acc-empty p.dim { color: var(--muted-2); font-size: 12px; }
-
-/* ---------- add-account picker ---------- */
 .acc-pick-guide { line-height: 1.55; font-size: 12.5px; }
-/* the music API is the rarest pick: an ordinary tile at the end, no accent */
 .pick-tile.music-account-tile { border-color: var(--border); background: var(--card-2); }
 .pick-tile.is-suggested { border-color: var(--accent-line); background: color-mix(in srgb, var(--accent) 7%, var(--card-2)); }
 .pick-tile.is-suggested .t-ico { color: var(--accent-text, var(--accent)); border-color: var(--accent-line); }
-
-/* ---------- account form: «Дополнительно» ---------- */
 details.acc-more {
   margin-top: 14px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm, 10px);
   padding: 0 14px; background: color-mix(in srgb, var(--bg-soft) 50%, transparent);
@@ -75,19 +62,11 @@ details.acc-more > summary {
   display: flex; align-items: center; gap: 8px; user-select: none;
 }
 details.acc-more > summary::-webkit-details-marker { display: none; }
-/* the chevron is the global «details > summary::before» mask of style.css (a border-drawn one on top of it
-   rendered as «¬»); only its spacing is tuned here, the flex gap already separates it from the text */
 details.acc-more > summary::before { margin: 0; }
 details.acc-more > summary:hover { color: var(--text); }
 details.acc-more[open] { padding-bottom: 6px; }
 details.acc-more > .field:first-of-type { margin-top: 2px; }
-
-/* ---------- home: chart switch wraps instead of running under the edge on a narrow window ---------- */
 #metrics-chart-kind { flex-wrap: wrap; max-width: 100%; }
-
-/* ---------- home: «Ключ API» without keys — a sentence, not a value: let it wrap instead of «(создайте …» ---------- */
 #hero-key[data-copy-value=""] { white-space: normal; overflow: visible; text-overflow: clip; font-family: inherit; font-size: 12.5px; line-height: 1.45; color: var(--muted); }
-
-/* ---------- account form header: the provider mark inside the chip («⚿» becomes the key icon) ---------- */
 .chip .chip-ico { display: inline-flex; align-items: center; }
 .chip .chip-ico svg { width: 14px; height: 14px; }

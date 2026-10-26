@@ -1,6 +1,5 @@
-/* Round 27: a sticker window (see sticker.html). Reads /api/quick/features/stickers/<id>, renders the answer
-   with QuickMarkdown; double click edits (Ctrl+Enter saves, Esc cancels); the header moves the window and the
-   corner grip resizes it — natively (POST …/stickers {action: drag|resize}), the page only starts it. */
+
+
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
@@ -42,7 +41,7 @@
       root.dataset.motion = prefs.ui_motion === "off" ? "off" : (prefs.ui_motion === "reduced" ? "reduced" : "full");
       S.lang = prefs.language === "en" ? "en" : "ru";
       root.lang = S.lang;
-    } catch (e) { /* the first-paint cache stays */ }
+    } catch (e) {  }
     labels();
   }
   function labels() {
@@ -80,7 +79,7 @@
     }
   }
   async function close() {
-    try { await api("/api/quick/features/stickers", { action: "close", id: ID }); } catch (e) { /* the window may already be gone */ }
+    try { await api("/api/quick/features/stickers", { action: "close", id: ID }); } catch (e) {  }
     if (!NATIVE) window.close();
   }
   function edit(on) {

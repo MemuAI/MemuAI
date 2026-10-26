@@ -1,12 +1,5 @@
-/* A small code editor for quick fixes inside the MemuCode panel.
- *
- * A plain <textarea> does the editing, so the browser keeps its native undo
- * stack (Ctrl+Z / Ctrl+Y), IME input, spell-free typing and accessibility.
- * Every programmatic change goes through execCommand("insertText"), which
- * records it in that same stack. A highlighted copy of the text sits behind
- * the transparent textarea; the gutter and the current-line band follow its
- * scroll. It is deliberately not a full IDE: no autocomplete, no LSP.
- */
+
+
 "use strict";
 const MemuCodeEditor = (() => {
   const LINE_COMMENTS = {
@@ -23,7 +16,7 @@ const MemuCodeEditor = (() => {
     xml: "XML", svg: "SVG", yml: "YAML", yaml: "YAML", toml: "TOML", sh: "Shell", ps1: "PowerShell",
     bat: "Batch", sql: "SQL", go: "Go", rs: "Rust", java: "Java", cs: "C#", c: "C", cpp: "C++", h: "C header",
     rb: "Ruby", php: "PHP", txt: "Plain text", ini: "INI", vue: "Vue", kt: "Kotlin", swift: "Swift" };
-  const HIGHLIGHT_LIMIT = 8000; // lines; beyond this the text stays plain to keep typing smooth
+  const HIGHLIGHT_LIMIT = 8000;
 
   const escape = (value) => String(value ?? "").replace(/[&<>"']/g,
     (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
@@ -82,8 +75,6 @@ const MemuCodeEditor = (() => {
     let lastLines = -1;
     area.value = saved;
 
-    /* ---------------------------------- paint --------------------------------- */
-
     function paint() {
       cancelAnimationFrame(paintFrame);
       paintFrame = requestAnimationFrame(() => {
@@ -93,7 +84,7 @@ const MemuCodeEditor = (() => {
         if (lines.length <= HIGHLIGHT_LIMIT && window.MemuSyntax) {
           try { html = MemuSyntax.highlight(text, path).join("\n"); } catch (_) { html = escape(text); }
         } else html = escape(text);
-        // A trailing newline needs a visible last line, or the layers drift apart.
+
         code.innerHTML = html + "\n ";
         if (lines.length !== lastLines) {
           lastLines = lines.length;
@@ -137,8 +128,6 @@ const MemuCodeEditor = (() => {
       if (value) lineHeight = value;
     }
 
-    /* ------------------------------ edit helpers ------------------------------ */
-
     function replaceRange(start, end, text, selectStart, selectEnd) {
       area.focus();
       area.setSelectionRange(start, end);
@@ -154,7 +143,6 @@ const MemuCodeEditor = (() => {
       paint();
     }
 
-    /** Start/end offsets covering the whole lines of the selection. */
     function selectedLines() {
       const value = area.value;
       let start = area.selectionStart, end = area.selectionEnd;
@@ -249,8 +237,6 @@ const MemuCodeEditor = (() => {
       sync();
     }
 
-    /* ---------------------------------- find ---------------------------------- */
-
     function matches() {
       const needle = findInput.value;
       if (!needle) return [];
@@ -316,8 +302,6 @@ const MemuCodeEditor = (() => {
       findCount.textContent = T(`заменено: ${list.length}`, `replaced: ${list.length}`);
     }
 
-    /* ---------------------------------- menu ---------------------------------- */
-
     async function paste() {
       try {
         const text = await navigator.clipboard.readText();
@@ -370,8 +354,6 @@ const MemuCodeEditor = (() => {
     function revert() {
       replaceRange(0, area.value.length, saved, 0, 0);
     }
-
-    /* --------------------------------- events --------------------------------- */
 
     area.addEventListener("input", paint);
     area.addEventListener("scroll", sync, { passive: true });

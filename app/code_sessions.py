@@ -22,14 +22,12 @@ MAX_OUTPUT = 40_000
 MAX_ACTIVE = 4
 MAX_SCROLLBACK = 80_000
 
-
 def _argv(command: str, shell: str) -> List[str]:
     if sys.platform != "win32":
         return ["/bin/sh", "-c", command]
     if str(shell or "").lower().startswith("power"):
         return ["powershell", "-NoProfile", "-NonInteractive", "-Command", command]
     return ["cmd", "/c", command]
-
 
 class _Pending:
     """Процесс-заглушка на время запуска: для подсчёта «ещё работает»."""
@@ -39,7 +37,6 @@ class _Pending:
 
     def kill(self):
         return None
-
 
 class TaskManager:
     def __init__(self) -> None:
@@ -54,8 +51,7 @@ class TaskManager:
             raise WorkError("Команда запрещена песочницей MemuCode")
         session_key = str(session_id)[:64]
         with self._lock:
-            # Предел — на сессию (чат), а место резервируется под замком:
-            # одновременные запуски больше не проскакивают мимо проверки.
+
             active = [row for row in self._tasks.values()
                       if row["session"] == session_key and (row.get("starting") or row["process"].poll() is None)]
             if len(active) >= MAX_ACTIVE:
@@ -128,7 +124,7 @@ class TaskManager:
     def status(self, task_id: str, session_id: str = "") -> Dict[str, Any]:
         with self._lock:
             row = self._tasks.get(str(task_id))
-            # Чужая сессия видит «нет такой задачи», а не её вывод.
+
             if row is None or row.get("starting") or (session_id and row["session"] != str(session_id)[:64]):
                 raise KeyError("task not found")
             return self._public(row)
@@ -172,8 +168,7 @@ class TaskManager:
             return {"session": session, "running": bool(book.get("running")),
                     "scrollback": book.get("scrollback", "")[-8000:]}
         if action == "stop":
-            # Останавливаем только команду терминала: фоновые задачи сессии
-            # (dev-сервер из code_task) продолжают работать.
+
             process = book.get("process")
             if process is not None:
                 kill_tree(process)
@@ -220,6 +215,5 @@ class TaskManager:
             "stdout": row.get("stdout", "")[-8000:], "stderr": row.get("stderr", "")[-8000:],
             "cancelled": bool(row.get("cancelled")), "timed_out": bool(row.get("timed_out")),
         }
-
 
 manager = TaskManager()

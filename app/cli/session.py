@@ -23,18 +23,13 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from . import paths
 
-
-#: Conversations imported from another tool have ids that start like this (and are never cleaned up).
 IMPORTED_PREFIX = "imp-"
-
 
 def new_id(prefix: str = "") -> str:
     return prefix + uuid.uuid4().hex[:12]
 
-
 def _now() -> float:
     return time.time()
-
 
 class Session:
     def __init__(self, root: Path, session_id: str = "", *, create: bool = True) -> None:
@@ -48,8 +43,7 @@ class Session:
                                      "title": "", "name": "", "model": "", "forked_from": "", "goal": None}
         self.todos: List[Dict[str, Any]] = []
         self.plan = ""
-        #: What an image model said about each picture (key: the 20 hex digits of its stored name), for the models
-        #: that cannot see pictures themselves — see ``vision.py``.
+
         self.image_notes: Dict[str, Dict[str, Any]] = {}
         self.cwd: Optional[str] = None
         self.read_state: Dict[str, Tuple[int, ...]] = {}
@@ -65,7 +59,6 @@ class Session:
         self._index_dirty = False
         self.loaded = False
 
-    # ------------------------------------------------------------ persistence
     def ensure_saved(self) -> None:
         """Persist an empty session so the UID printed on exit can be resumed."""
         if self.path.exists():
@@ -90,9 +83,7 @@ class Session:
         line = json.dumps(event, ensure_ascii=False, default=str)
         with self._lock:
             self.folder.mkdir(parents=True, exist_ok=True)
-            # A crash (or a full disk) can leave the last line without its
-            # newline. Appending right after it glued the next event onto the
-            # broken line, and that event was lost on the next load as well.
+
             lead = "\n" if not header and not _ends_with_newline(self.path) else ""
             with self.path.open("a", encoding="utf-8") as handle:
                 if header:
@@ -134,9 +125,7 @@ class Session:
         session = cls(root, session_id, create=False)
         if not session.path.is_file():
             raise FileNotFoundError(session_id)
-        # errors="replace": a line cut in the middle of a multi-byte character
-        # (crash while writing Cyrillic) made the whole transcript unloadable;
-        # now only that line fails to parse and is skipped.
+
         with session.path.open("r", encoding="utf-8", errors="replace") as handle:
             for raw in handle:
                 raw = raw.strip()
@@ -179,7 +168,6 @@ class Session:
             self.cwd = event.get("cwd") or self.cwd
             self.plan = event.get("plan", self.plan)
 
-    # ------------------------------------------------------------ messages
     def append(self, message: Dict[str, Any]) -> Dict[str, Any]:
         message.setdefault("id", new_id("m"))
         message.setdefault("ts", _now())
@@ -204,6 +192,7 @@ class Session:
         self._append({"t": "truncate", "from": message_id})
         self.context_epoch += 1
         self.read_cache.clear()
+        self.read_state.clear()
         return dropped
 
     def elide(self, ids: Iterable[str]) -> int:
@@ -238,7 +227,6 @@ class Session:
     def save_state(self) -> None:
         self._append({"t": "state", "cwd": self.cwd, "plan": self.plan})
 
-    # ------------------------------------------------------------ views
     def latest_summary(self) -> Optional[int]:
         for index in range(len(self.messages) - 1, -1, -1):
             if self.messages[index].get("kind") == "summary":
@@ -309,7 +297,6 @@ class Session:
     def note_edit(self, path: str, _text: str) -> None:
         self.files_changed.add(path)
 
-    # ------------------------------------------------------------ index
     def index_row(self) -> Dict[str, Any]:
         prompts = [message for message in self.messages if message.get("role") == "user"
                    and message.get("kind") in ("prompt", "command")]
@@ -352,7 +339,6 @@ class Session:
         child.flush_index()
         return child
 
-
 def _ends_with_newline(path: Path) -> bool:
     """True for an empty or missing file, or one whose last byte is a newline."""
     try:
@@ -365,7 +351,6 @@ def _ends_with_newline(path: Path) -> bool:
     except OSError:
         return True
 
-
 def message_text(message: Dict[str, Any]) -> str:
     content = message.get("display") or message.get("content")
     if isinstance(content, str):
@@ -374,7 +359,6 @@ def message_text(message: Dict[str, Any]) -> str:
         return "\n".join(str(part.get("text") or "") for part in content
                          if isinstance(part, dict) and part.get("type") == "text")
     return ""
-
 
 def load_image_data(part: Dict[str, Any]) -> Optional[Tuple[str, str]]:
     """(media_type, base64) for an image part, reading stored assets lazily."""
@@ -387,9 +371,6 @@ def load_image_data(part: Dict[str, Any]) -> Optional[Tuple[str, str]]:
         except OSError:
             return None
     return None
-
-
-# ---------------------------------------------------------------- listing
 
 def list_sessions(root: Optional[Path] = None, *, limit: int = 60) -> List[Dict[str, Any]]:
     folders = [paths.project_sessions(root)] if root is not None else \
@@ -419,7 +400,6 @@ def list_sessions(root: Optional[Path] = None, *, limit: int = 60) -> List[Dict[
     rows.sort(key=lambda row: -float(row.get("updated") or 0))
     return rows[:limit]
 
-
 def _scan(file: Path) -> Optional[Dict[str, Any]]:
     """Index row from the transcript itself (index missing or stale)."""
     try:
@@ -427,7 +407,7 @@ def _scan(file: Path) -> Optional[Dict[str, Any]]:
         title = name = model = first = last = imported = forked = ""
         created = updated = 0.0
         prompts = messages = 0
-        with file.open("r", encoding="utf-8", errors="replace") as handle:   # see Session.load
+        with file.open("r", encoding="utf-8", errors="replace") as handle:
             for raw in handle:
                 try:
                     event = json.loads(raw)
@@ -458,11 +438,9 @@ def _scan(file: Path) -> Optional[Dict[str, Any]]:
     except OSError:
         return None
 
-
 def latest_session(root: Path) -> Optional[str]:
     rows = list_sessions(root, limit=1)
     return rows[0]["id"] if rows else None
-
 
 def cleanup(days: int, keep: Iterable[str] = ()) -> int:
     """Delete transcripts older than ``days`` (``cleanup_period_days``).
@@ -479,7 +457,7 @@ def cleanup(days: int, keep: Iterable[str] = ()) -> int:
             continue
         for file in folder.glob("*.jsonl"):
             if file.stem.startswith(IMPORTED_PREFIX):
-                continue                                     # an import was asked for: it stays until it is deleted
+                continue
             if file.stem in keep:
                 continue
             try:
@@ -494,15 +472,10 @@ def cleanup(days: int, keep: Iterable[str] = ()) -> int:
                 continue
     return removed
 
-
-# ---------------------------------------------------------------- housekeeping
-
 _SAFE_ID = re.compile(r"^[\w.\-]{1,120}$")
-
 
 def _folder_of(root: Path) -> Path:
     return paths.project_sessions(root)
-
 
 def delete_session(root: Path, session_id: str) -> None:
     """Remove one conversation for good: its transcript, its pictures and its row in the index.
@@ -529,7 +502,6 @@ def delete_session(root: Path, session_id: str) -> None:
         mutate_json(folder / "index.json", {}, change, backup=False, validator=lambda x: isinstance(x, dict))
     except Exception:
         pass
-
 
 def rename_session(root: Path, session_id: str, name: str) -> None:
     """Give a conversation a name without loading it: one ``meta`` line is appended to its transcript."""

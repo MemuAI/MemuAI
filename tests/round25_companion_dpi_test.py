@@ -22,10 +22,8 @@ from app import companion_window as cw
 ROOT = Path(__file__).resolve().parents[1]
 STAGE = ROOT / "app" / "pgstatic" / "companion" / "stage.js"
 
-
 class _Point(ctypes.Structure):
     _fields_ = [("x", ctypes.c_long), ("y", ctypes.c_long)]
-
 
 def fake_win32(cursor=(2700, 400), origins=None, dpi_calls=None):
     """A ``_Win32`` without user32: ``origins`` maps HWND → client origin (physical px)."""
@@ -53,7 +51,6 @@ def fake_win32(cursor=(2700, 400), origins=None, dpi_calls=None):
     win.physical_cursor = lambda: cursor
     return win
 
-
 class ClientOriginTests(unittest.TestCase):
     def test_origin_is_read_per_monitor_v2_and_the_thread_context_is_restored(self) -> None:
         calls = []
@@ -68,7 +65,6 @@ class ClientOriginTests(unittest.TestCase):
         win.ClientToScreen = None
         self.assertIsNone(win.client_origin(42))
 
-
 class CursorReaderTests(unittest.TestCase):
     def reader(self, win, hwnd_of):
         with mock.patch.object(cw, "_CURSOR", win), mock.patch.object(cw, "_CURSOR_FAILED", False), \
@@ -76,8 +72,7 @@ class CursorReaderTests(unittest.TestCase):
             return cw.cursor_reader(hwnd_of)
 
     def test_mixed_dpi_point_is_relative_to_the_client_area(self) -> None:
-        # Primary 2560 px at 150 % (1707 DIP wide), companion window on a 100 % secondary at physical x=2600.
-        # The cursor 100 px right of the window's client corner must arrive as 100 physical px → 100 CSS px.
+
         win = fake_win32(cursor=(2700, 400), origins={42: (2600, 300)})
         read = self.reader(win, lambda: 42)
         self.assertEqual(read(), (100, 100, True))
@@ -87,7 +82,7 @@ class CursorReaderTests(unittest.TestCase):
         win = fake_win32(cursor=(2700, 400), origins={42: (2600, 300), 43: (0, 0)})
         read = self.reader(win, lambda: hwnd["value"])
         self.assertEqual(read(), (100, 100, True))
-        hwnd["value"] = 43          # the window was recreated
+        hwnd["value"] = 43
         self.assertEqual(read(), (2700, 400, True))
 
     def test_unknown_window_falls_back_to_screen_coordinates(self) -> None:
@@ -108,7 +103,6 @@ class CursorReaderTests(unittest.TestCase):
         self.assertEqual(cw.relative_cursor((5, 6), (10, 20)), (-5, -14, True))
         self.assertEqual(cw.relative_cursor((5, 6), None), (5, 6, False))
         self.assertIsNone(cw.relative_cursor(None, (0, 0)))
-
 
 class HostWindowTests(unittest.TestCase):
     def test_each_surface_maps_to_its_window(self) -> None:
@@ -156,18 +150,16 @@ class HostWindowTests(unittest.TestCase):
             client.get("/api/companion/cursor?host=bogus")
         self.assertEqual(seen, [77, None])
 
-
 class StageSourceTests(unittest.TestCase):
     def test_stage_sends_its_host_and_uses_client_relative_points(self) -> None:
         source = STAGE.read_text(encoding="utf-8")
         self.assertIn('"&host=" + cursorHost()', source)
         self.assertRegex(source, r'if \(SURFACE === "desktop"\) return "desktop";')
-        # The relative branch: only the dpr and the iframe offset, no window.screenX.
+
         branch = re.search(r'if \(parts\[2\] === "c"\) \{(.*?)\} else \{', source, re.S)
         self.assertIsNotNone(branch)
         self.assertNotIn("screenX", branch.group(1))
         self.assertIn("frameOffset()", branch.group(1))
-
 
 if __name__ == "__main__":
     unittest.main()

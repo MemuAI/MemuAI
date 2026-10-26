@@ -64,7 +64,6 @@ ACTIONS: Dict[str, Dict[str, Any]] = {
                                           "explaining it."},
 }
 
-
 def _fmt_rule(kind: str) -> str:
     if kind == "markdown":
         return "The document is Markdown: keep and use Markdown formatting."
@@ -74,7 +73,6 @@ def _fmt_rule(kind: str) -> str:
     if kind in ("code", "json", "csv", "html"):
         return "The text is code or data: keep its syntax valid and do not wrap it in code fences."
     return "The document is plain text: do not use Markdown syntax (no **, #, tables) unless the text already does."
-
 
 def _clip_document(text: str, limit: int, pos: int = -1) -> Dict[str, Any]:
     if len(text) <= limit:
@@ -88,7 +86,6 @@ def _clip_document(text: str, limit: int, pos: int = -1) -> Dict[str, Any]:
     start = max(head, end - window)
     return {"text": text[:head] + "\n\n[… part of the document omitted …]\n\n" + text[start:end]
             + ("\n\n[… the rest of the document is omitted …]" if end < len(text) else ""), "truncated": True}
-
 
 def _agent_context(context: Dict[str, Any], name: str, kind: str, selection: str, limit: int,
                    doc_id: str = "") -> List[Dict[str, Any]]:
@@ -136,9 +133,7 @@ def _agent_context(context: Dict[str, Any], name: str, kind: str, selection: str
     content = "\n".join(parts) + "\n(The document currently open in MemuNote. " + " ".join(note) + ")"
     return [{"role": "user", "content": content}, {"role": "assistant", "content": "I have the document open."}]
 
-
-MULTI_BUDGET = 120_000      # Round 40: characters for all the extra documents together (the page budgets first)
-
+MULTI_BUDGET = 120_000
 
 def _extra_documents(docs: List[Any], limit: int) -> Dict[str, Any]:
     """Round 40 (r40-note): the other open tabs the user picked (chips / @tab) → one message of <document id="dN">."""
@@ -160,7 +155,6 @@ def _extra_documents(docs: List[Any], limit: int) -> Dict[str, Any]:
     content = ("\n\n".join(parts) + "\n(Other documents open in MemuNote tabs that the user added to the context. "
                "Documents marked excerpt=\"true\" are shortened: change only text you can see.)")
     return {"message": content, "sheet": sheet}
-
 
 def build_messages(body: Dict[str, Any], settings: Dict[str, Any], ui_lang: str,
                    use_memory: bool) -> Dict[str, Any]:
@@ -197,8 +191,7 @@ def build_messages(body: Dict[str, Any], settings: Dict[str, Any], ui_lang: str,
         if spec["transform"]:
             system.append(_TRANSFORM_RULES.format(fmt=_fmt_rule(kind)))
         else:
-            # The task line above is English for every interface language: without this the answer
-            # (summary, explanation, titles…) came back in English for a Russian user and a Russian text.
+
             system.append(f"Answer in Markdown, in {lang_name} (the user's interface language) unless the user's "
                           "own extra instructions are written in another language. Be concise and concrete.")
             if not instruction:
@@ -216,8 +209,7 @@ def build_messages(body: Dict[str, Any], settings: Dict[str, Any], ui_lang: str,
         messages.append({"role": "user", "content": f"{task}{extra}\n\n<selection>\n{target_clip['text']}\n</selection>"})
         excerpt = (selection or instruction)[:300]
     elif action == "agent":
-        # Round 31: the AI panel's agent mode — the model may change the document with edit blocks
-        # (app/memunote/edits.py). The page sends an excerpt (selection ± window, outline), never the whole file.
+
         from .edits import MULTI_PROTOCOL, PROTOCOL, SHEET_PROTOCOL
         system.append(PROTOCOL)
         extra = _extra_documents(body.get("docs") if isinstance(body.get("docs"), list) else [], limit)
@@ -249,18 +241,17 @@ def build_messages(body: Dict[str, Any], settings: Dict[str, Any], ui_lang: str,
                       + _fmt_rule(kind))
         echo = str(body.get("echo") or "")
         if echo and len(echo) <= 60 and "\n" not in echo and before.endswith(echo):
-            # Round 33: repeating the last words lets MemuNote place the space exactly ("in" → "in the",
-            # "rele" → "release"); the page cuts the repeat off again (ai.js stripEcho).
+
             system.append(f"Start your output by repeating exactly the text right before the cursor, {json.dumps(echo, ensure_ascii=False)}, "
                           "then continue it; put a space after it only if a new word starts. When the line is finished, "
                           "you may continue on the next line (output a line break first).")
         messages.append({"role": "user", "content": f'<document name="{name}">{before}<cursor/>{after}</document>'})
         use_memory = False
-    else:  # chat / ask
+    else:
         system.append("Format answers in Markdown. When you write text meant to go into the file, put it in a "
                       "fenced block or clearly separated so the user can insert it.")
         extra = _extra_documents(body.get("docs") if isinstance(body.get("docs"), list) else [], limit)
-        if extra["message"]:        # Round 40 (r40-note): other tabs the user added to the context
+        if extra["message"]:
             messages.append({"role": "user", "content": extra["message"]})
             messages.append({"role": "assistant", "content": "I have these documents too."})
         if doc_text and body.get("with_document", True):

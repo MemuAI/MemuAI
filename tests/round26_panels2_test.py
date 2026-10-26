@@ -16,10 +16,8 @@ from app import panels, panels_local, pgdata
 
 ROOT = Path(__file__).resolve().parents[1] / "app"
 
-
 def read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
-
 
 class StaleSettingsPathsTest(unittest.TestCase):
     """The settings pages are «Голос и Live» / «Voice & Live», «Telegram», «Системные промпты» (app.js P(...))."""
@@ -46,7 +44,6 @@ class StaleSettingsPathsTest(unittest.TestCase):
                     continue
                 with self.subTest(file=rel, line=number):
                     self.assertIsNone(stale.search(code), code.strip()[:160])
-
 
 class DefaultProfileNameTest(unittest.TestCase):
     def setUp(self):
@@ -75,7 +72,6 @@ class DefaultProfileNameTest(unittest.TestCase):
         body = re.search(r"function getProfiles\(\) \{(.*?)\n\}", read("pgstatic/app.js"), re.S).group(1)
         self.assertIn('PG_LANG === "en" ? "Default" : "По умолчанию"', body)
 
-
 class SinglePollerTest(unittest.TestCase):
     """5 window «focus» events in a row used to fire 5 identical /preferences/sync?rev=… requests."""
 
@@ -102,7 +98,6 @@ class SinglePollerTest(unittest.TestCase):
         self.assertEqual(self.app.count("setInterval(syncRemoteChats"), 1)
         focus = re.search(r'window\.addEventListener\("focus", \(\) => \{(.*?)\n  \}\);', self.app, re.S).group(1)
         self.assertIn("Date.now() - prefsSyncAt >= 1000", focus)
-
 
 class TodoRepeatTest(unittest.TestCase):
     def setUp(self):
@@ -137,7 +132,7 @@ class TodoRepeatTest(unittest.TestCase):
     def test_month_end_does_not_drift(self):
         item = panels_local.add_item(self.lid, {"title": "Аренда", "due": "2026-01-31", "repeat": {"every": "month"}})
         self.assertEqual(self.done_on(item["id"], date(2026, 1, 31))["due"], "2026-02-28")
-        # The editor sends repeat {every} only: the title edit keeps the anchor.
+
         self.done_on(item["id"], date(2026, 2, 1), {"title": "Аренда!", "due": "2026-02-28", "repeat": {"every": "month"}})
         self.assertEqual(self.done_on(item["id"], date(2026, 2, 28))["due"], "2026-03-31")
 
@@ -161,7 +156,6 @@ class TodoRepeatTest(unittest.TestCase):
         with self.assertRaises(panels_local.LocalError) as caught:
             panels_local.update_item(self.lid, "x", {"done": True})
         self.assertEqual(caught.exception.en, "Task not found")
-
 
 class PanelsSchedulerTest(unittest.TestCase):
     def setUp(self):
@@ -201,7 +195,6 @@ class PanelsSchedulerTest(unittest.TestCase):
         js = read("pgstatic/panels.js")
         self.assertIn('head(t("Нужен аккаунт", "Account needed"))', js)
 
-
 class VoiceTestErrorsTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -233,11 +226,9 @@ class VoiceTestErrorsTest(unittest.TestCase):
             out = http.post("/api/voice/speak", json={"text": "Привет"}).json()
         self.assertEqual(out["error"], "Windows не удалось озвучить сообщение")
 
-
 class ApiModelsPluralTest(unittest.TestCase):
     def test_one_source(self):
         self.assertIn('selected.length === 1 ? "source" : "sources"', read("module_builtins/api-models/main.js"))
-
 
 if __name__ == "__main__":
     unittest.main()

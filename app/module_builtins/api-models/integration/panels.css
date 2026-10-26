@@ -1,4 +1,3 @@
-/* Round 38: «Новые модели API» panel — on top of the shared panel kit (app/pgstatic/module-panel-kit.css). */
 .mk { --c: #22b8a6; }
 :root[data-theme="light"] .mk { --c: #0f8f80; }
 .am-live::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }

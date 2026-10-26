@@ -39,12 +39,10 @@ from app import mentions as M  # noqa: E402
 PG = ROOT / "app" / "pgstatic"
 NOW = time.time() * 1000
 
-
 def msg(role, text, k, **extra):
     row = {"role": role, "content": text, "createdAt": NOW - k * 60000, "id": f"m-t{k}"}
     row.update(extra)
     return row
-
 
 RENT = {"id": "c-rent", "title": "Договор аренды квартиры", "mode": "chat", "updated": NOW - 1000, "messages": [
     msg("user", "Помоги разобрать договор аренды квартиры на Лесной, 12.", 60),
@@ -58,7 +56,6 @@ RENT = {"id": "c-rent", "title": "Договор аренды квартиры",
 TRIP = {"id": "c-trip", "title": "Поездка в Казань", "mode": "chat", "updated": NOW - 5000, "messages": [
     msg("user", "План поездки в Казань", 40), msg("assistant", "Кремль и Баумана.", 39)]}
 
-
 def seed():
     from app import pgdata, memory_v2
     pgdata.save_chats([RENT, TRIP])
@@ -69,10 +66,8 @@ def seed():
                             "enabled": True, "created": time.time()}])
     pgdata.append_schedule_result("t-news", True, "ЦБ сохранил ставку 16%")
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 class RegistryTest(unittest.TestCase):
     def test_builtin_providers(self):
@@ -95,9 +90,9 @@ class RegistryTest(unittest.TestCase):
     def test_fuzzy(self):
         self.assertGreater(M.fuzzy("договор", "Договор аренды"), 80)
         self.assertGreater(M.fuzzy("аренды", "Договор аренды"), 60)
-        self.assertGreater(M.fuzzy("ljujdjh", "Договор аренды"), 60)        # wrong keyboard layout
+        self.assertGreater(M.fuzzy("ljujdjh", "Договор аренды"), 60)
         self.assertGreater(M.fuzzy("елка", "Ёлка"), 80)
-        self.assertGreater(M.fuzzy("дгвр", "договор"), 0)                     # subsequence
+        self.assertGreater(M.fuzzy("дгвр", "договор"), 0)
         self.assertEqual(M.fuzzy("zzz", "договор"), 0)
 
     def test_register_custom_provider(self):
@@ -113,13 +108,12 @@ class RegistryTest(unittest.TestCase):
 
     def test_parse_day(self):
         from datetime import date
-        today = date(2026, 10, 12)   # Monday
+        today = date(2026, 10, 12)
         self.assertEqual(M.parse_day("завтра", today), date(2026, 10, 13))
         self.assertEqual(M.parse_day("пятница", today), date(2026, 10, 16))
         self.assertEqual(M.parse_day("15.10", today), date(2026, 10, 15))
         self.assertEqual(M.parse_day("2026-12-31", today), date(2026, 12, 31))
         self.assertIsNone(M.parse_day("встреча", today))
-
 
 class LocalProvidersTest(unittest.TestCase):
     @classmethod
@@ -147,7 +141,7 @@ class LocalProvidersTest(unittest.TestCase):
         self.assertIn("[#3] Пользователь", block["text"])
         self.assertNotIn("коммуналку", block["text"])
         self.assertNotIn("local-tool_report", block["text"])
-        # ids win over indices (a branch switch moved the messages)
+
         ref = {"chat": "c-rent", "from": 0, "to": 0, "from_id": "m-t56", "to_id": "m-t55"}
         block = run(M.resolve_many([{"provider": "chat", "ref": ref}], {"lang": "en"}))[0]
         self.assertIn("коммуналку", block["text"])
@@ -163,7 +157,7 @@ class LocalProvidersTest(unittest.TestCase):
             block = run(M.resolve_many([{"provider": "chat", "ref": {"chat": "c-long"}}], item_tokens=2000))[0]
             self.assertTrue(block["truncated"])
             self.assertLessEqual(block["tokens"], 2100)
-            self.assertIn("сообщение 79", block["text"])                     # the latest messages are kept
+            self.assertIn("сообщение 79", block["text"])
             self.assertIn("omitted", block["text"])
             self.assertIn("Обрезано", block["note"])
         finally:
@@ -189,7 +183,7 @@ class LocalProvidersTest(unittest.TestCase):
                                      {"provider": "result", "ref": res[0]["ref"]}]))
         self.assertIn("Москве", blocks[0]["text"])
         self.assertIn("Собери новости", blocks[1]["text"])
-        self.assertIn("16%", blocks[1]["text"])                              # the last result rides with the task
+        self.assertIn("16%", blocks[1]["text"])
         self.assertIn("16%", blocks[2]["text"])
 
     def test_panels(self):
@@ -210,7 +204,7 @@ class LocalProvidersTest(unittest.TestCase):
         self.assertNotIn("{date}", block["text"])
         url = run(M.search("example.com/page", {}))
         self.assertEqual(url["items"][0]["ref"], "https://example.com/page")
-        self.assertTrue(url["remote"])                                        # «search in Gmail …» rows
+        self.assertTrue(url["remote"])
         bad = run(M.resolve_many([{"provider": "url", "ref": "file:///etc/passwd"}]))[0]
         self.assertIn("error", bad)
 
@@ -245,7 +239,7 @@ class LocalProvidersTest(unittest.TestCase):
         self.assertEqual(items[0]["ref"], str(f))
         block = run(M.resolve_many([{"provider": "pc", "ref": str(f)}]))[0]
         self.assertIn("1 234 567", block["text"])
-        # a path the search never showed is refused
+
         other = tmp / "secret.txt"
         other.write_text("x", encoding="utf-8")
         self.assertIn("error", run(M.resolve_many([{"provider": "pc", "ref": str(other)}]))[0])
@@ -276,7 +270,6 @@ class LocalProvidersTest(unittest.TestCase):
         self.assertIn('type="chat"', text)
         self.assertNotIn("boom", text)
         self.assertEqual(M.prompt_block([]), "")
-
 
 class IntegrationsMockTest(unittest.TestCase):
     """Gmail / Calendar / Notion / GitHub / Drive through a mocked integrations.run_tool."""
@@ -368,7 +361,6 @@ class IntegrationsMockTest(unittest.TestCase):
             block = run(M.resolve_many([{"provider": "gmail", "ref": {"id": "g1"}}]))[0]
         self.assertIn("токен", block["error"])
 
-
 class RoutesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -393,7 +385,6 @@ class RoutesTest(unittest.TestCase):
         bad = self.client.post("/api/mentions/resolve", content=b"not json", headers={"content-type": "application/json"}).json()
         self.assertEqual(bad["blocks"], [])
 
-
 class WiringTest(unittest.TestCase):
     def test_static_wiring(self):
         html = (PG / "index.html").read_text(encoding="utf-8")
@@ -409,7 +400,7 @@ class WiringTest(unittest.TestCase):
         build = (ROOT / "build.py").read_text(encoding="utf-8")
         self.assertIn('"app.mentions"', build)
         self.assertIn("'app.mentions'", (ROOT / "MemuAI.spec").read_text(encoding="utf-8"))
-        self.assertIn("'app.mentions'", (ROOT / "MemuAIProxy.spec").read_text(encoding="utf-8"))   # Telegram (Proxy) replays mentions
+        self.assertIn("'app.mentions'", (ROOT / "MemuAIProxy.spec").read_text(encoding="utf-8"))
         self.assertIn("_mention_block(row[\"mentions\"])", (ROOT / "app" / "telegram_bot.py").read_text(encoding="utf-8"))
 
     def test_english_strings_have_no_cyrillic(self):
@@ -429,15 +420,11 @@ class WiringTest(unittest.TestCase):
         out = subprocess.run([node, "--check", str(PG / "mentions.js")], capture_output=True, text=True)
         self.assertEqual(out.returncode, 0, out.stderr)
 
-
-# --------------------------------------------------------------------------- end to end (headless Chromium)
-
 def _chromium():
     for path in ("/usr/bin/chromium", "/workspace/work/chromium/chrome"):
         if os.path.exists(path):
             return path
     return None
-
 
 @unittest.skipUnless(_chromium(), "chromium is not available")
 class EndToEndTest(unittest.TestCase):
@@ -458,7 +445,7 @@ class EndToEndTest(unittest.TestCase):
         cls.page = cls.browser.new_page(viewport={"width": 1280, "height": 800})
         cls.errors = []
         cls.page.on("pageerror", lambda e: cls.errors.append(str(e)))
-        cls.page.goto(cls.servers.pg + "/", wait_until="load", timeout=90000)   # the Inbox SSE stream never idles
+        cls.page.goto(cls.servers.pg + "/", wait_until="load", timeout=90000)
         for _ in range(300):
             if cls.page.evaluate("typeof S !== 'undefined' && !!S.models && S.models.length > 1"):
                 break
@@ -486,7 +473,7 @@ class EndToEndTest(unittest.TestCase):
     def test_mention_flow(self):
         from tests import mock_custom
 
-        class Recorder(dict):     # every request body (the chat-title request comes after the answer)
+        class Recorder(dict):
             def __setitem__(self, key, value):
                 super().__setitem__(key, value)
                 if key == "last_body":
@@ -506,18 +493,18 @@ class EndToEndTest(unittest.TestCase):
         self.wait("!document.querySelector('#mention-menu').hidden && !!document.querySelector('#mention-menu .mn-cats')")
         page.keyboard.type("чат: договор")
         self.wait("[...document.querySelectorAll('#mention-menu .mn-row')].some((b) => /Договор аренды/.test(b.textContent))")
-        # arrow down to a fragment row with the rent (#3–4 is not offered by the index for this query: pick whole chat)
+
         page.keyboard.press("Enter")
         self.wait("MemuMentions._state.chips.length === 1 && MemuMentions._state.chips[0].status === 'ok'")
         self.assertNotIn("@чат", self.js("document.querySelector('#input').value"))
         self.assertRegex(self.js("document.querySelector('#mention-chips .mn-chip small').textContent"), r"^~\d")
-        # the range editor in the preview narrows it to messages 3–4
+
         page.click("#mention-chips [data-mn-chip='0']")
         page.fill("#mn-from", "3"); page.fill("#mn-to", "4")
         page.click("#mn-range-apply")
         self.wait("MemuMentions._state.chips[0].status === 'ok' && MemuMentions._state.chips[0].ref.from === 2")
         self.js("closePanel()")
-        # «@модель:» answers this message with another model
+
         page.click("#input")
         page.keyboard.press("End")
         page.keyboard.type(" @модель: claude")
@@ -531,28 +518,25 @@ class EndToEndTest(unittest.TestCase):
         sent = json.dumps(body["messages"], ensure_ascii=False)
         self.assertIn("<mentioned_context>", sent)
         self.assertIn("47 300", sent)
-        self.assertNotIn("коммуналку", sent)                    # only the chosen fragment
+        self.assertNotIn("коммуналку", sent)
         self.assertEqual(self.js("S.messages[0].mentions.length"), 1)
         self.assertEqual(self.js("S.messages[0].mentionModel"), claude)
-        self.assertEqual(self.js("currentModel()"), gpt)        # the chat's model did not change
+        self.assertEqual(self.js("currentModel()"), gpt)
         self.assertEqual(self.js("document.querySelectorAll('.msg-user .mn-msg-chips .mn-chip').length"), 2)
         self.assertEqual(self.js("MemuMentions._state.chips.length"), 0)
-        # a follow-up still carries the mention with its message (history replay)
+
         page.fill("#input", "А залог?")
         self.js("send()")
         self.wait("S.messages.length === 4 && !S.messages[3].streaming", 40)
         self.assertIn("47 300", json.dumps(answer_body()["messages"], ensure_ascii=False))
         self.assertEqual(answer_body()["model"], "gpt-test")
-        # not connected Gmail → the «Подключить» row
+
         page.click("#input")
         page.keyboard.type(" @gmail: счёт")
         self.wait("!!document.querySelector('#mention-menu [data-mn-connect]')")
         page.keyboard.press("Escape")
         self.wait("document.querySelector('#mention-menu').hidden")
         self.assertEqual(self.errors, [])
-
-
-# --------------------------------------------------------------------------- live (real model)
 
 def _live_env():
     keys = Path("/workspace/work/secrets/test_keys.env")
@@ -563,8 +547,6 @@ def _live_env():
                 k, v = line.split("=", 1)
                 env.setdefault(k.strip(), v.strip().strip('"').strip("'"))
     return env
-
-
 
 class QuickAccessTest(unittest.TestCase):
     """r35-finish-b: @-mentions in the Quick Access composer (quick/plugins/mentions.js → mentions.quick_context)."""
@@ -594,7 +576,7 @@ class QuickAccessTest(unittest.TestCase):
         self.assertIn("untrusted", block)
         self.assertIn("47 300", block)
         self.assertIn("FAKE-TEXT r1", block)
-        self.assertEqual(self.calls, ["r1"])                       # only the item without text was resolved
+        self.assertEqual(self.calls, ["r1"])
         self.assertIn('earlier="true"', block)
         self.assertIn("Москве", block)
         self.assertNotIn("dup of a current one", block)
@@ -657,7 +639,6 @@ class QuickAccessTest(unittest.TestCase):
             out = subprocess.run([node, "--check", str(PG / "quick" / "plugins" / "mentions.js")], capture_output=True, text=True)
             self.assertEqual(out.returncode, 0, out.stderr)
 
-
 @unittest.skipUnless(os.environ.get("MEMUAI_LIVE") == "1", "live test: set MEMUAI_LIVE=1 (keys from env)")
 class LiveTest(unittest.TestCase):
     def test_model_uses_mentioned_fragment(self):
@@ -675,7 +656,6 @@ class LiveTest(unittest.TestCase):
         text = r.json()["choices"][0]["message"]["content"]
         self.assertRegex(text.replace("\u00a0", " "), r"47[\s ]?300")
         self.assertIn("Сидоров", text)
-
 
 if __name__ == "__main__":
     unittest.main()

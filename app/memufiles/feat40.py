@@ -17,13 +17,11 @@ from .fsops import FsError, clean_path
 
 MAX_TEXT = 8 * 1024 * 1024
 
-
 def _ratio(value: Any) -> float:
     try:
         return float(value[0]) / float(value[1]) if isinstance(value, tuple) else float(value)
     except (TypeError, ValueError, ZeroDivisionError):
         return 0.0
-
 
 def _image(path: str, out: Dict[str, Any]) -> None:
     from PIL import Image
@@ -63,7 +61,6 @@ def _image(path: str, out: Dict[str, Any]) -> None:
                 return -d if str(ref).upper() in ("S", "W") else d
             out["gps"] = f"{deg(gps[2], gps.get(1)):.5f}, {deg(gps[4], gps.get(3)):.5f}"
 
-
 def _pdf(path: str, out: Dict[str, Any]) -> None:
     try:
         from pypdf import PdfReader
@@ -81,7 +78,6 @@ def _pdf(path: str, out: Dict[str, Any]) -> None:
         value = str(info.get(key) or "").strip()
         if value:
             out[name] = value[:160]
-
 
 def _office(path: str, ext: str, out: Dict[str, Any]) -> None:
     with zipfile.ZipFile(path) as zf:
@@ -111,7 +107,6 @@ def _office(path: str, ext: str, out: Dict[str, Any]) -> None:
             out.setdefault(name, int(value))
     if tag(app, "Application"):
         out["software"] = tag(app, "Application")[:60]
-
 
 def _mp4_duration(path: str) -> float:
     """``mvhd`` of an ISO-BMFF file (mp4/mov/m4a/3gp) — top level ``moov`` only, never reads the media data."""
@@ -145,10 +140,9 @@ def _mp4_duration(path: str) -> float:
             pos += size
     return 0.0
 
-
 def _audio(path: str, out: Dict[str, Any]) -> None:
     try:
-        import mutagen  # optional (MemuMusic dependency)
+        import mutagen
     except Exception:  # noqa: BLE001
         return
     tags = mutagen.File(path, easy=True)
@@ -164,7 +158,6 @@ def _audio(path: str, out: Dict[str, Any]) -> None:
         value = tags.get(key) if hasattr(tags, "get") else None
         if value:
             out[name] = str(value[0])[:120]
-
 
 def meta(path: str) -> Dict[str, Any]:
     path = clean_path(path)
@@ -206,7 +199,6 @@ def meta(path: str) -> Dict[str, Any]:
     except Exception:  # noqa: BLE001 - damaged / unreadable file: whatever was read so far
         pass
     return out
-
 
 def handle(op: str, method: str, body: Dict[str, Any], query: Dict[str, str]) -> Dict[str, Any]:
     if op == "meta":

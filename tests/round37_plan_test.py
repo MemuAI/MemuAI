@@ -31,27 +31,25 @@ from app import schedule_sampler  # noqa: E402
 
 VILNIUS = {"lat": 54.69, "lon": 25.28, "place": "Vilnius"}
 
-
 def ts(text: str) -> float:
     return datetime.fromisoformat(text).timestamp()
-
 
 class CalendarTest(unittest.TestCase):
     def test_holidays_and_workdays(self):
         self.assertEqual(ext._easter(2026), date(2026, 4, 5))
         self.assertEqual(ext._easter(2026, orthodox=True), date(2026, 4, 12))
         self.assertIn(date(2026, 1, 7), ext.holidays(2026, "RU"))
-        self.assertIn(date(2026, 4, 6), ext.holidays(2026, "LT"))            # Easter Monday
-        self.assertIn(date(2026, 11, 26), ext.holidays(2026, "US"))          # Thanksgiving
-        self.assertIn(date(2026, 7, 3), ext.holidays(2026, "US"))            # July 4th observed on Friday
-        self.assertFalse(ext.is_workday(date(2026, 1, 5), "RU"))             # New Year holidays
+        self.assertIn(date(2026, 4, 6), ext.holidays(2026, "LT"))
+        self.assertIn(date(2026, 11, 26), ext.holidays(2026, "US"))
+        self.assertIn(date(2026, 7, 3), ext.holidays(2026, "US"))
+        self.assertFalse(ext.is_workday(date(2026, 1, 5), "RU"))
         self.assertTrue(ext.is_workday(date(2026, 1, 12), "RU"))
-        self.assertFalse(ext.is_workday(date(2026, 1, 10), "RU"))            # Saturday
+        self.assertFalse(ext.is_workday(date(2026, 1, 10), "RU"))
 
     def test_unknown_country_uses_cached_nager_file_or_unknown(self):
         ext._HOLIDAYS.pop(("ZZ", 2026), None)
         (ext._holidays_dir() / "ZZ-2026.json").unlink(missing_ok=True)
-        ext._HOL_TRIED[("ZZ", 2026)] = time.time()       # no download in this test
+        ext._HOL_TRIED[("ZZ", 2026)] = time.time()
         self.assertIsNone(ext.is_workday(date(2026, 5, 5), "ZZ"))
         folder = ext._holidays_dir()
         folder.mkdir(parents=True, exist_ok=True)
@@ -62,7 +60,7 @@ class CalendarTest(unittest.TestCase):
 
     def test_modes(self):
         cond = lambda **kw: rules._normalize_condition({"type": "calendar", **kw})   # noqa: E731
-        d = date(2026, 10, 13)   # Tuesday, 2nd Tuesday of October, ISO week 42
+        d = date(2026, 10, 13)
         self.assertTrue(ext.check_calendar(cond(mode="nth_weekday", nth=2, weekday=2), d))
         self.assertFalse(ext.check_calendar(cond(mode="nth_weekday", nth=-1, weekday=2), d))
         self.assertTrue(ext.check_calendar(cond(mode="nth_weekday", nth=-1, weekday=2), date(2026, 10, 27)))
@@ -73,18 +71,17 @@ class CalendarTest(unittest.TestCase):
         self.assertTrue(ext.check_calendar(cond(mode="date_range", **{"from": "20.12", "to": "10.01"}), date(2027, 1, 3)))
         self.assertFalse(ext.check_calendar(cond(mode="date_range", **{"from": "12-20", "to": "01-10"}), d))
         self.assertTrue(ext.check_calendar(cond(mode="last_workday", country="RU"), date(2026, 10, 30)))
-        # r37 plan-2: Russia follows the production calendar — 9 Jan 2026 is a moved day off, the first workday is the 12th
+
         self.assertTrue(ext.check_calendar(cond(mode="first_workday", country="RU"), date(2026, 1, 12)))
         with self.assertRaises(rules.RuleError):
             cond(mode="nope")
-
 
 class SunTest(unittest.TestCase):
     def test_sun_times_are_plausible(self):
         rise = ext.sun_event(date(2026, 6, 21), 55.75, 37.62, True)
         sset = ext.sun_event(date(2026, 6, 21), 55.75, 37.62, False)
-        self.assertAlmostEqual((sset - rise) / 3600, 17.55, delta=0.2)    # Moscow solstice day ≈ 17 h 33 min
-        self.assertIsNone(ext.sun_event(date(2026, 6, 21), 78.2, 15.6, True))   # Svalbard: polar day
+        self.assertAlmostEqual((sset - rise) / 3600, 17.55, delta=0.2)
+        self.assertIsNone(ext.sun_event(date(2026, 6, 21), 78.2, 15.6, True))
 
     def test_sun_condition_and_trigger(self):
         cond = rules._normalize_condition({"type": "sun", "value": "night", **VILNIUS})
@@ -99,8 +96,7 @@ class SunTest(unittest.TestCase):
         self.assertAlmostEqual(slot["start"], expected, delta=1)
         self.assertIn("заката", rules.summary(rule, "ru"))
         with self.assertRaises(rules.RuleError):
-            rules.normalize_rule({"when": [{"type": "sun", "event": "sunset"}]})   # no place
-
+            rules.normalize_rule({"when": [{"type": "sun", "event": "sunset"}]})
 
 class MonthlyTest(unittest.TestCase):
     def test_nth_weekday_and_workday_slots(self):
@@ -110,14 +106,13 @@ class MonthlyTest(unittest.TestCase):
         self.assertIn("во второй вторник", rules.summary(rule, "ru"))
         last = rules.normalize_rule({"when": [{"type": "monthly", "mode": "workday", "nth": -1, "country": "RU", "time": "18:00"}]})
         slot = rules.next_slot(last, ts("2026-12-01T00:00"))
-        self.assertEqual(datetime.fromtimestamp(slot["start"]), datetime(2026, 12, 30, 18, 0))   # 31 Dec 2026 is a day off (RU)
+        self.assertEqual(datetime.fromtimestamp(slot["start"]), datetime(2026, 12, 30, 18, 0))
         third = rules.normalize_rule({"when": [{"type": "monthly", "mode": "workday", "nth": 3, "country": "RU", "time": "09:00"}]})
         slot = rules.next_slot(third, ts("2026-12-31T19:00"))
-        self.assertEqual(datetime.fromtimestamp(slot["start"]), datetime(2027, 1, 13, 9, 0))   # 9…12 Jan: Fri, Sat/Sun, Mon
-        # the classic «day N» keeps its exact shape (old rules keep their signature)
+        self.assertEqual(datetime.fromtimestamp(slot["start"]), datetime(2027, 1, 13, 9, 0))
+
         classic = rules.normalize_rule({"when": [{"type": "monthly", "day": 5, "time": "09:00"}]})
         self.assertEqual(classic["when"][0], {"type": "monthly", "day": 5, "time": "09:00"})
-
 
 class WeatherWifiTest(unittest.TestCase):
     def setUp(self):
@@ -139,12 +134,12 @@ class WeatherWifiTest(unittest.TestCase):
             self.assertTrue(rules.check_condition(cond, sample, 1000.0))
             self.assertTrue(rules.check_condition(dict(cond, metric="snow"), sample, 1000.0))
             _p, sample = sampler.get(needs, now=1000.0 + 600, fresh=True)
-            self.assertEqual(len(calls), 1)                       # cached for 20 min
+            self.assertEqual(len(calls), 1)
         with patch.object(ext, "fetch_weather", side_effect=OSError("offline")):
             data = ext.weather_now(ext.weather_key(cond), 1, 1, 1000.0 + ext.WEATHER_TTL + 5)
-            self.assertEqual(data["temp"], -3.5)                  # the last value while offline
+            self.assertEqual(data["temp"], -3.5)
             self.assertIsNone(ext.weather_now(ext.weather_key(cond), 1, 1, 1000.0 + ext.WEATHER_STALE + ext.WEATHER_RETRY + 10))
-        self.assertIsNone(rules.check_condition(cond, {"ext": {}}, 0))   # no data → cannot check
+        self.assertIsNone(rules.check_condition(cond, {"ext": {}}, 0))
 
     def test_wifi(self):
         cond = rules._normalize_condition({"type": "wifi", "ssid": "home"})
@@ -158,7 +153,7 @@ class WeatherWifiTest(unittest.TestCase):
         out = ext.measure({"wifi": {}}, 50.0, probes={"wifi": lambda: probe.append(1) or "Home"})
         ext.measure({"wifi": {}}, 60.0, probes={"wifi": lambda: probe.append(1) or "Home"})
         self.assertEqual(out["wifi"], "Home")
-        self.assertEqual(len(probe), 1)                           # cached for 30 s
+        self.assertEqual(len(probe), 1)
 
     def test_netsh_parsing(self):
         class Done:
@@ -166,7 +161,6 @@ class WeatherWifiTest(unittest.TestCase):
             stdout = "    Name                   : Wi-Fi\n    BSSID                  : aa:bb\n    SSID                   : My Net\n".encode()
         with patch.object(ext.os, "name", "nt"), patch.object(ext.subprocess, "run", return_value=Done()):
             self.assertEqual(ext.wifi_ssid(), "My Net")
-
 
 class LogicTest(unittest.TestCase):
     def test_group_and_not(self):
@@ -182,7 +176,7 @@ class LogicTest(unittest.TestCase):
         self.assertFalse(ok)
         self.assertIn("НЕ подключён Wi-Fi «Home»", rules.condition_text(failed, "ru"))
         needs = rules.needs(rule)
-        self.assertIn("steam", needs["processes"])                # conditions inside a group are sampled too
+        self.assertIn("steam", needs["processes"])
         with self.assertRaises(rules.RuleError):
             rules.normalize_rule({"when": [{"type": "daily", "times": ["09:00"]}], "only_if": [
                 {"type": "group", "items": [{"type": "group", "items": [{"type": "wifi"}]}]}]})
@@ -190,7 +184,7 @@ class LogicTest(unittest.TestCase):
     def test_last_result(self):
         cond = rules._normalize_condition({"type": "last_result", "status": "ok", "contains": "скидка"})
         task = {"last_finished": 100.0, "last_status": "ok", "last_text": "Нашёл скидку 20% на билеты"}
-        self.assertFalse(rules.check_condition(cond, {}, 200.0, {"task": task}))   # «скидку» ≠ «скидка» as a whole word
+        self.assertFalse(rules.check_condition(cond, {}, 200.0, {"task": task}))
         task["last_text"] = "Есть скидка 20%"
         self.assertTrue(rules.check_condition(cond, {}, 200.0, {"task": task}))
         other = rules._normalize_condition({"type": "last_result", "task_id": "b", "status": "fail", "within_hours": 1})
@@ -202,10 +196,8 @@ class LogicTest(unittest.TestCase):
         rules.note_finished(t, True, 5.0, text="x" * 2000)
         self.assertEqual(len(t["last_text"]), ext.LAST_TEXT)
 
-
 def _task(rule, **kw):
     return {"id": "t1", "kind": "notify", "prompt": "hi", "enabled": True, "rule": rule, **kw}
-
 
 class OptionsTest(unittest.TestCase):
     def test_old_options_unchanged(self):
@@ -247,20 +239,20 @@ class OptionsTest(unittest.TestCase):
         rules.decide(task, t0 - 60, {}, None, rng=lambda: 0.0)
         out = rules.decide(task, t0 + 1, {}, None, rng=lambda: 0.0)
         self.assertTrue(out["run"])
-        self.assertFalse(task["enabled"])                         # the only slot is used
+        self.assertFalse(task["enabled"])
         rules.note_finished(task, False, t0 + 10)
         self.assertTrue(task["enabled"])
         self.assertAlmostEqual(task["rule_state"]["retry_at"], t0 + 10 + 300)
         self.assertFalse(rules.decide(task, t0 + 200, {}, None, rng=lambda: 0.0)["run"])
-        self.assertTrue(task["enabled"])                          # waiting for the retry, not «finished»
+        self.assertTrue(task["enabled"])
         out = rules.decide(task, t0 + 320, {}, None, rng=lambda: 0.0)
         self.assertTrue(out["run"])
         self.assertEqual(out["source"], "retry")
         rules.note_finished(task, False, t0 + 330)
-        self.assertAlmostEqual(task["rule_state"]["retry_at"], t0 + 330 + 600)   # the pause doubled
+        self.assertAlmostEqual(task["rule_state"]["retry_at"], t0 + 330 + 600)
         rules.decide(task, t0 + 940, {}, None, rng=lambda: 0.0)
         rules.note_finished(task, False, t0 + 950)
-        self.assertNotIn("retry_at", task["rule_state"])          # 2 retries used
+        self.assertNotIn("retry_at", task["rule_state"])
         self.assertFalse(task["enabled"])
 
     def test_retry_cleared_on_success_and_not_for_test_runs(self):
@@ -272,19 +264,18 @@ class OptionsTest(unittest.TestCase):
         rules.note_finished(task, True, 20.0)
         self.assertNotIn("retry_at", task["rule_state"])
 
-
 class ExplainVarsTest(unittest.TestCase):
     def test_explain(self):
         rule = rules.normalize_rule({"when": [{"type": "daily", "times": ["09:00"]}], "only_if": [
             {"type": "calendar", "mode": "weekend"},
             {"type": "group", "match": "any", "items": [{"type": "wifi", "ssid": "Home"}, {"type": "network"}]}],
             "options": {"max_per_day": 1}})
-        now = ts("2026-10-17T12:00")    # Saturday
+        now = ts("2026-10-17T12:00")
         out = ext.explain(rule, {"ext": {"wifi": "Home"}, "network": True}, now, "en",
                           {"state": {"day_runs": {"d": "2026-10-17", "n": 1}}})
         self.assertEqual([r["depth"] for r in out["rows"]], [0, 0, 1, 1])
         self.assertTrue(all(r["ok"] for r in out["rows"]))
-        self.assertFalse(out["ok"])                               # the daily limit is used up
+        self.assertFalse(out["ok"])
         self.assertIn("Daily limit", out["notes"][0])
 
     def test_render_vars(self):
@@ -294,7 +285,6 @@ class ExplainVarsTest(unittest.TestCase):
         self.assertEqual(out["prompt"], "Сводка на 2026-10-13 (вторник), прошлое: ok {{ trigger.title }}")
         plain = {"prompt": "plain"}
         self.assertIs(ext.render_vars(plain, now), plain)
-
 
 class RoutesTest(unittest.TestCase):
     def test_check_and_geo_routes(self):
@@ -316,7 +306,6 @@ class RoutesTest(unittest.TestCase):
             res = client.get("/api/plan/conds/geo", params={"q": "Šiau", "lang": "en"})
             self.assertEqual(res.status_code, 502)
             self.assertIn("unavailable", res.json()["error"])
-
 
 class ProtocolAndFrontendTest(unittest.TestCase):
     def test_protocol(self):
@@ -351,19 +340,17 @@ class ProtocolAndFrontendTest(unittest.TestCase):
         self.assertIn("/plan-conds.css?v=", index)
         conds = (ROOT / "app/pgstatic/plan-conds.js").read_text("utf-8")
         self.assertNotIn("setInterval", conds)
-        # every user-visible Russian literal goes through T(ru, en)
+
         for m in re.finditer(r'T\("([^"]*)", "([^"]*)"\)', conds):
             self.assertTrue(m.group(2).strip(), m.group(0))
         for spec in ("MemuAI.spec", "MemuAIProxy.spec", "build.py"):
             self.assertIn("app.schedule_conds_ext", (ROOT / spec).read_text("utf-8"), spec)
-
 
 sys.path.insert(0, str(ROOT / "tests"))
 try:
     from round27_ui_lang_test import _chromium, _has_playwright  # noqa: E402
 except Exception:  # noqa: BLE001
     _chromium = _has_playwright = lambda: False   # noqa: E731
-
 
 @unittest.skipUnless(_chromium() and _has_playwright(), "headless Chromium / playwright is not available")
 class BuilderBrowserTest(unittest.TestCase):
@@ -410,8 +397,8 @@ class BuilderBrowserTest(unittest.TestCase):
         page.wait_for_selector("#pb-when [data-pcx-geo]")
         page.wait_for_timeout(500)
         summary = page.inner_text("#pln-summary")
-        self.assertIn("city", summary.lower())                 # the sun trigger still needs a place
-        # set a place the way the picker does
+        self.assertIn("city", summary.lower())
+
         page.evaluate("""() => { const b = document.createElement('button'); b.dataset.act = 'pcx-pick';
             b.dataset.path = 'rule.when.1'; b.dataset.lat = '54.69'; b.dataset.lon = '25.28'; b.dataset.place = 'Vilnius';
             document.querySelector('#pb-when').appendChild(b); b.click(); }""")
@@ -423,7 +410,6 @@ class BuilderBrowserTest(unittest.TestCase):
         page.wait_for_selector("#pb-if .pcx-check-box", timeout=20000)
         self.assertEqual(page.locator("#pb-if .pcx-check-box li").count(), 3)
         self.assertEqual(errors, [])
-
 
 if __name__ == "__main__":
     unittest.main()

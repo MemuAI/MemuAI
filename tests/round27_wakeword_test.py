@@ -34,23 +34,19 @@ from app.wake_word import (DECOYS, Detector, EnergyGate, Session, WakeService, a
                            grammar_for, match_hit, normalize_settings, threshold)
 
 RATE = 16000
-CHUNK = 1600                      # samples per 100 ms chunk
-PHRASE_VALUE = 12000              # fake mic: chunks of this amplitude are «the phrase»
-OTHER_VALUE = 7000                # … and these are some other speech
-COMMAND_VALUE = 9000              # … and these are the command after the phrase
-
+CHUNK = 1600
+PHRASE_VALUE = 12000
+OTHER_VALUE = 7000
+COMMAND_VALUE = 9000
 
 def tone(value: int, chunks: int = 1) -> list:
-    # a square-ish wave so the RMS equals |value|
+
     data = array.array("h", [value if i % 2 else -value for i in range(CHUNK)]).tobytes()
     return [data] * chunks
-
 
 def silence(chunks: int = 1, level: int = 0) -> list:
     return tone(level, chunks) if level else [bytes(CHUNK * 2)] * chunks
 
-
-# ---------------------------------------------------------------- fakes
 class FakeModel:
     def __init__(self, known=None):
         self.known = set(known or ())
@@ -58,14 +54,13 @@ class FakeModel:
     def vosk_model_find_word(self, word):
         return 1 if (not self.known or word in self.known) else -1
 
-
 class FakeRecognizer:
     """Endpoints after a quiet chunk that follows loud ones; «says» the phrase for PHRASE_VALUE chunks."""
 
     def __init__(self, model, rate, grammar=None):
         self.grammar = json.loads(grammar) if grammar else None
         self.samples = 0
-        self.loud: list = []      # (start_sample, end_sample, value)
+        self.loud: list = []
         self.pending = None
 
     def SetWords(self, on):
@@ -94,7 +89,7 @@ class FakeRecognizer:
     def _words(self, spans):
         words = []
         for start, end, value in spans:
-            if self.grammar is None:                      # free-form recogniser: the command text
+            if self.grammar is None:
                 words.append({"word": "какая", "conf": 1.0, "start": start / RATE, "end": end / RATE})
                 continue
             if value == PHRASE_VALUE:
@@ -120,7 +115,6 @@ class FakeRecognizer:
         words = self._words(spans)
         return json.dumps({"text": " ".join(w["word"] for w in words), "result": words})
 
-
 class FakeVosk:
     Model = FakeModel
     KaldiRecognizer = FakeRecognizer
@@ -130,7 +124,6 @@ class FakeVosk:
 
     def model(self, path):
         return FakeModel(self.known)
-
 
 class FakeSource:
     def __init__(self, device, chunks, log):
@@ -151,7 +144,6 @@ class FakeSource:
         self.closed = True
         self.log.append(("close", self.device))
 
-
 def wait_for(predicate, timeout=5.0):
     end = time.time() + timeout
     while time.time() < end:
@@ -159,7 +151,6 @@ def wait_for(predicate, timeout=5.0):
             return True
         time.sleep(0.01)
     return predicate()
-
 
 class TempRoot(unittest.TestCase):
     def setUp(self):
@@ -171,8 +162,6 @@ class TempRoot(unittest.TestCase):
             self.addCleanup(p.stop)
         self.addCleanup(shutil.rmtree, self.tmp, True)
 
-
-# ---------------------------------------------------------------- phrase analysis
 class PhraseTest(unittest.TestCase):
     def test_word_count_is_two_to_four(self):
         known = lambda w: True  # noqa: E731
@@ -186,7 +175,7 @@ class PhraseTest(unittest.TestCase):
         vocab = {"привет", "мемо", "мемы", "мем"}
         out = analyze_phrase("привет мему", "ru", lambda w: w in vocab)
         self.assertTrue(out["ok"])
-        self.assertEqual(out["words"][1]["alias"], ["мемо"])            # one alias: two would split the confidence
+        self.assertEqual(out["words"][1]["alias"], ["мемо"])
         self.assertEqual(out["variants"], [["привет", "мемо"]])
         self.assertEqual(wake_word.alias_words(out), frozenset({"мемо"}))
         en = analyze_phrase("hey memu", "en", lambda w: w in {"hey", "memo"})
@@ -215,7 +204,7 @@ class PhraseTest(unittest.TestCase):
         self.assertEqual(grammar[0], "привет мемо")
         self.assertEqual(grammar[-1], "[unk]")
         self.assertIn("мама", grammar)
-        self.assertNotIn("мемы", grammar)       # sounds like «мему»/«мемо»: it would steal confidence
+        self.assertNotIn("мемы", grammar)
         self.assertNotIn("привет", grammar[1:])
         self.assertGreater(len(grammar), 60)
         unknown = grammar_for(variants, "ru", lambda w: w in {"мама"}, "")
@@ -235,8 +224,8 @@ class PhraseTest(unittest.TestCase):
         self.assertAlmostEqual(hit["conf"], 0.85)
         self.assertIsNone(match_hit(res, [["привет", "мемо"]], 0.9))
         weak = {"result": [{"word": "привет", "conf": 1.0}, {"word": "мемо", "conf": 0.4}]}
-        self.assertIsNone(match_hit(weak, [["привет", "мемо"]], 0.6))      # mean 0.7, but one word < 0.45
-        self.assertIsNotNone(match_hit(weak, [["привет", "мемо"]], 0.6, frozenset({"мемо"})))   # an alias: +0.1
+        self.assertIsNone(match_hit(weak, [["привет", "мемо"]], 0.6))
+        self.assertIsNotNone(match_hit(weak, [["привет", "мемо"]], 0.6, frozenset({"мемо"})))
         apart = {"result": [{"word": "привет", "conf": 1.0}, {"word": "мама", "conf": 1.0}, {"word": "мемо", "conf": 1.0}]}
         self.assertIsNone(match_hit(apart, [["привет", "мемо"]], 0.5))
         self.assertIsNone(match_hit({}, [["привет", "мемо"]], 0.5))
@@ -246,8 +235,6 @@ class PhraseTest(unittest.TestCase):
         self.assertGreater(threshold(0), threshold(100))
         self.assertAlmostEqual(threshold(500), threshold(100))
 
-
-# ---------------------------------------------------------------- settings
 class SettingsTest(TempRoot):
     def test_normalize(self):
         clean = normalize_settings({"enabled": 1, "lang": "xx", "sensitivity": "nan", "cooldown": 999,
@@ -272,8 +259,6 @@ class SettingsTest(TempRoot):
         (self.tmp / "wake_word.json").write_text("{broken", "utf-8")
         self.assertFalse(wake_word.load_settings()["enabled"])
 
-
-# ---------------------------------------------------------------- gate, session, helpers
 class AudioPartsTest(unittest.TestCase):
     def test_rms_and_resample(self):
         self.assertAlmostEqual(wake_audio.rms(tone(16384)[0]), 0.5, places=3)
@@ -290,7 +275,7 @@ class AudioPartsTest(unittest.TestCase):
         loud = tone(8000)[0]
         feed, closed = gate.push(loud, wake_audio.rms(loud))
         self.assertTrue(gate.open)
-        self.assertEqual(len(feed), 6)                   # 5 chunks of pre-roll + this one
+        self.assertEqual(len(feed), 6)
         for i in range(gate.hang - 1):
             feed, closed = gate.push(silence(1, 300)[0], 0.009)
             self.assertFalse(closed)
@@ -301,9 +286,9 @@ class AudioPartsTest(unittest.TestCase):
     def test_gate_floor_adapts_to_a_louder_room(self):
         gate = EnergyGate()
         for _ in range(200):
-            gate.push(b"", 0.03)                          # a fan / a noisy office
+            gate.push(b"", 0.03)
         self.assertGreater(gate.floor, 0.02)
-        feed, _closed = gate.push(b"x", 0.05)             # not much above the room: no recogniser
+        feed, _closed = gate.push(b"x", 0.05)
         self.assertEqual(feed, [])
 
     def test_session_endpoints(self):
@@ -331,7 +316,7 @@ class AudioPartsTest(unittest.TestCase):
     def test_chime_is_not_speech(self):
         session = Session(mute_until=0.3)
         for _ in range(3):
-            session.feed(tone(9000)[0], 0.27, 0.02)        # the chime in the mic
+            session.feed(tone(9000)[0], 0.27, 0.02)
         self.assertFalse(session.heard)
         session.feed(tone(9000)[0], 0.27, 0.02)
         self.assertTrue(session.heard)
@@ -343,8 +328,6 @@ class AudioPartsTest(unittest.TestCase):
         self.assertGreater(len(pcm), 4000)
         self.assertLess(wake_audio.rms(pcm), 0.2)
 
-
-# ---------------------------------------------------------------- the service with a fake mic and recogniser
 class ServiceTest(TempRoot):
     def make(self, chunks, *, settings=None, locked=lambda: False, factory=None, known=None):
         self.log = []
@@ -383,9 +366,9 @@ class ServiceTest(TempRoot):
         self.assertTrue(wait_for(lambda: service.session_public()["phase"] == "captured"))
         public = service.session_public(with_audio=True)
         self.assertGreaterEqual(public["seconds"], 1.0)
-        self.assertEqual(public["text"], "какая")                  # the offline transcript (fallback)
+        self.assertEqual(public["text"], "какая")
         self.assertIn("audio", public)
-        self.assertEqual(service.last_hit["phrase"], "привет мему")    # the fake model knows every word
+        self.assertEqual(service.last_hit["phrase"], "привет мему")
         self.assertTrue(service.end_session(public["id"], "done"))
         self.assertIsNone(service.session_public())
         self.assertFalse(service.end_session(public["id"], "done"))
@@ -393,7 +376,7 @@ class ServiceTest(TempRoot):
         self.assertEqual(self.log[0], ("open", ""))
 
     def test_one_breath_command_is_kept(self):
-        # phrase, a short pause the recogniser endpoints on, then the command right away
+
         chunks = silence(5, 200) + tone(PHRASE_VALUE, 8) + silence(1, 200) + tone(COMMAND_VALUE, 6) + silence(20, 200)
         service = self.make(chunks)
         self.assertTrue(wait_for(lambda: service.session_public() and service.session_public()["phase"] == "captured"))
@@ -426,12 +409,12 @@ class ServiceTest(TempRoot):
         service.hold("live", True)
         service.hold("live", True)
         service.hold("live", False)
-        self.assertEqual(service.busy_reason(), "live")              # nested holds
+        self.assertEqual(service.busy_reason(), "live")
         service.hold("live", False)
         self.assertEqual(service.busy_reason(), "")
         service.busy("tts", 0.05)
         time.sleep(0.08)
-        self.assertEqual(service.busy_reason(), "")                    # lapses on its own
+        self.assertEqual(service.busy_reason(), "")
         service.busy("voice", 10 ** 9)
         self.assertLessEqual(service.busy_until["voice"] - time.monotonic(), wake_word.BUSY_MAX + 1)
 
@@ -454,7 +437,7 @@ class ServiceTest(TempRoot):
         self.assertEqual(self.opened, [])
         service.set_test(False)
         self.assertTrue(wait_for(lambda: service.status()["state"] == "off"))
-        self.assertTrue(wait_for(lambda: self.sources and self.sources[0].closed))   # the mic is released
+        self.assertTrue(wait_for(lambda: self.sources and self.sources[0].closed))
 
     def test_locked_session_releases_the_mic(self):
         state = {"locked": False}
@@ -502,7 +485,7 @@ class ServiceTest(TempRoot):
         service = self.make(chunks)
         self.assertTrue(wait_for(lambda: service.session_public() is not None))
         sid = service.session_public()["id"]
-        # the command audio arrives on the service thread; under load "finish" could land before the first chunk
+
         self.assertTrue(wait_for(lambda: service.session is not None and bool(service.session.audio)))
         self.assertTrue(service.end_session(sid, "finish"))
         self.assertEqual(service.session_public()["phase"], "captured")
@@ -545,8 +528,6 @@ class ServiceTest(TempRoot):
         self.assertFalse(thread.is_alive())
         self.assertTrue(self.sources[0].closed)
 
-
-# ---------------------------------------------------------------- model download (mocked server)
 class DownloadTest(TempRoot):
     def make_zip(self):
         buffer = io.BytesIO()
@@ -672,8 +653,6 @@ class DownloadTest(TempRoot):
         self.assertIn("check", inspect.signature(local_models._fetch).parameters)
         self.assertIn("(check or read_gguf)(part)", inspect.getsource(local_models._fetch))
 
-
-# ---------------------------------------------------------------- HTTP routes
 class ApiTest(TempRoot):
     def setUp(self):
         super().setUp()
@@ -755,8 +734,6 @@ class ApiTest(TempRoot):
         from app import wake_word_api
         self.assertIn(wake_word_api.router, quick_ask_api.EXTRA_ROUTES)
 
-
-# ---------------------------------------------------------------- wiring and static checks
 class WiringTest(unittest.TestCase):
     def test_hooks_and_build(self):
         playground = (ROOT / "app" / "playground_api.py").read_text("utf-8")
@@ -794,7 +771,7 @@ class WiringTest(unittest.TestCase):
                 self.assertEqual(done.returncode, 0, done.stderr)
             import re
             source = re.sub(r"/\*[\s\S]*?\*/", "", path.read_text("utf-8"))
-            # every Russian UI string goes through t("ru", "en") (or a {ru, en} pair)
+
             for line in source.splitlines():
                 if line.strip().startswith("//") or not re.search(r"[а-яё]", line, re.I):
                     continue
@@ -814,7 +791,6 @@ class WiringTest(unittest.TestCase):
         self.assertEqual(ctypes.sizeof(wake_audio.WAVEFORMATEX), 18)
         self.assertEqual(ctypes.sizeof(wake_audio.WAVEHDR), 48 if ctypes.sizeof(ctypes.c_void_p) == 8 else 32)
 
-
 def _has(module):
     try:
         __import__(module)
@@ -822,10 +798,7 @@ def _has(module):
     except Exception:
         return False
 
-
-# ---------------------------------------------------------------- the real Vosk (optional)
 MODELS_DIR = Path(os.environ.get("MEMU_VOSK_MODELS", "/workspace/work/r27/vosk"))
-
 
 @unittest.skipUnless(_has("vosk") and shutil.which("espeak-ng") and (MODELS_DIR / wake_word.MODELS["ru"]["id"]).is_dir()
                      and (MODELS_DIR / wake_word.MODELS["en"]["id"]).is_dir(), "vosk, models or espeak-ng missing")
@@ -906,7 +879,7 @@ class RealVoskTest(unittest.TestCase):
         phrase = self.speech("Привет, Мему", "ru")
         command = self.speech("какая сегодня погода", "ru")
         hit, tail, rest = self.detect("ru", phrase + bytes(RATE // 5) + command, warm=self.speech("Включи музыку", "ru"))
-        # the tail + what the mic gives later is what the session records; the free-form model reads it offline
+
         session = Session(self.vosk.KaldiRecognizer(self.models["ru"], RATE))
         audio = tail + rest
         for i in range(0, len(audio), wake_audio.CHUNK_BYTES):
@@ -914,7 +887,7 @@ class RealVoskTest(unittest.TestCase):
             session.feed(chunk, wake_audio.rms(chunk), 0.01)
         self.assertEqual(session.phase, "captured")
         self.assertIn("погода", session.text)
-        self.assertNotIn("привет", session.text)                         # the phrase itself is cut off
+        self.assertNotIn("привет", session.text)
 
     def test_service_end_to_end(self):
         """The real thread: a fake mic plays «Включи музыку», «привет мама», then «Привет, Мему, какая погода»."""
@@ -959,7 +932,6 @@ class RealVoskTest(unittest.TestCase):
         rec.FinalResult()
         cpu = time.process_time() - started
         self.assertLess(cpu / (len(speech) / 2 / RATE), 0.08)
-
 
 if __name__ == "__main__":
     unittest.main()

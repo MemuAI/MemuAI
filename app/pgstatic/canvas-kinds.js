@@ -1,15 +1,5 @@
-/* Round 40 (r40-canvas) — «Холст 2.0»: renderers of two Canvas item types, loaded by canvas.js the first time such an
-   item is shown (nothing here runs at start-up).
 
-   • diagram — Mermaid source (vendored /vendor/mermaid, the same lazy copy diagrams.js uses; SVG labels so PNG
-     export works). Flowcharts are editable visually: drag a block onto another one → «A --> B» is added to the source;
-     double-click a block → rename it; «+ Блок» adds a block (linked from the selected one). Every visual change is a
-     user version of the item (canvas.js saveText, with Undo). Parse errors go to the error bar (line number).
-   • slides — a presentation in Markdown («---» between slides, «# / ##» titles, «- » bullets, «Notes:», pipe tables,
-     optional first line «theme: clean»). Rendered and exported to .pptx by the MemuNote slides engine (ES modules
-     served read-only by GET /api/pg/canvas-engine/slides/*) inside a shadow root, so its CSS never leaks into the chat.
 
-   API: window.MemuCanvasKinds = {diagram|slides: {view(host, ctx), export(text, fmt, opts) → Blob}, _parseSlides}. */
 (function () {
   "use strict";
   const MERMAID_URL = "/vendor/mermaid/mermaid.min.js?v=11.17.2";
@@ -22,7 +12,6 @@
   };
   const escRe = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-  /* ================================================================== diagram */
   let mermaidPromise = null;
   function loadMermaid() {
     if (window.MemuDiagrams?.loadMermaid) return window.MemuDiagrams.loadMermaid();
@@ -39,7 +28,7 @@
   }
   let queue = Promise.resolve();
   let seq = 0;
-  /* mermaid.initialize is global: renders are serialized (diagrams.js keeps its own queue for chat diagrams). */
+
   function renderMermaid(code, dark) {
     const job = queue.then(async () => {
       const mermaid = await loadMermaid();
@@ -57,7 +46,7 @@
   const nodeIdOf = (g) => ((g.id || "").match(/(?:^|-)flowchart-(.+)-\d+$/) || [])[1] || "";
   const CLOSE = { "(((": [")))"], "((": ["))"], "[[": ["]]"], "[(": [")]"], "([": ["])"], "[/": ["/]", "\\]"], "[\\": ["\\]", "/]"],
     "{{": ["}}"], "[": ["]"], "(": [")"], "{": ["}"], ">": ["]"] };
-  /* The source with the label of node `id` replaced (its first definition), or a definition added. */
+
   function renameNode(code, id, label) {
     const safe = `"${String(label).replace(/"/g, "#quot;")}"`;
     const re = new RegExp(`(^|[^\\w-])${escRe(id)}(\\s*)(\\(\\(\\(|\\(\\(|\\[\\[|\\[\\(|\\(\\[|\\[\\/|\\[\\\\|\\{\\{|\\[|\\(|\\{|>)`, "m");
@@ -97,7 +86,7 @@
       <div class="cv-dg-stage">${svg}</div>`;
     const svgEl = host.querySelector(".cv-dg-stage svg");
     if (!svgEl) return;
-    svgEl.removeAttribute("height");     // natural size (Mermaid's own max-width), CSS keeps it inside the panel
+    svgEl.removeAttribute("height");
     if (!flow) return;
     let selected = "";
     const nodes = [...svgEl.querySelectorAll("g.node")].filter((g) => nodeIdOf(g));
@@ -137,12 +126,12 @@
         const a = nodeIdOf(g), b = nodeIdOf(target);
         if (await ctx.save(addLine(code, `${a} --> ${b}`), L(`Связь ${a} → ${b}`, `Link ${a} → ${b}`))) return;
       }
-      g.setAttribute("transform", base);    // dropped on empty space: Mermaid lays the blocks out itself — back
+      g.setAttribute("transform", base);
     };
     svgEl.addEventListener("pointerup", finish);
     svgEl.addEventListener("pointercancel", finish);
     svgEl.addEventListener("dblclick", (event) => {
-      // pointer capture retargets the click to <svg>: fall back to the block selected by the pointerdown
+
       const g = event.target.closest?.("g.cv-dg-node") || nodes.find((n) => nodeIdOf(n) === selected);
       if (!g) return;
       const id = nodeIdOf(g);
@@ -179,7 +168,7 @@
   }
   async function diagramExport(text, fmt) {
     let svg = await renderMermaid(String(text || "").trim(), false);
-    // a standalone file needs explicit size
+
     const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
     const root = doc.documentElement;
     const vb = (root.getAttribute("viewBox") || "").split(/\s+/).map(Number);
@@ -190,7 +179,6 @@
     return svgToPng(svg);
   }
 
-  /* ================================================================== slides */
   let enginePromise = null;
   function engine() {
     if (!enginePromise) {
@@ -201,7 +189,7 @@
     }
     return enginePromise;
   }
-  /* Markdown → slide specs (the shape MemuNote's AI slide builder uses). */
+
   function parseSlides(text) {
     let src = String(text || "").replace(/\r/g, "");
     let theme = "";
@@ -234,7 +222,7 @@
     });
     return { theme, slides };
   }
-  /* --- a slide from a spec on a deck (MemuNote slides-ai.js slideFromSpec, without its UI dependencies) */
+
   function linesToParas(lines) {
     const out = [];
     for (const raw of lines) {
@@ -327,12 +315,12 @@
         cap.textContent = String(i + 1);
         fig.appendChild(cap);
         list.appendChild(fig);
-        try { E.R.fitTexts(node); } catch (e) { /* keep the unfitted text */ }
+        try { E.R.fitTexts(node); } catch (e) {  }
       });
       stage.dataset.w = String(width);
     };
     draw();
-    // the canvas panel is resizable: re-render at the new width (rAF-debounced, stops once the item is gone)
+
     let frame = 0;
     const ro = new ResizeObserver(() => {
       if (!stage.isConnected) { ro.disconnect(); return; }

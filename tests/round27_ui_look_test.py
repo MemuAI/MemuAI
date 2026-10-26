@@ -15,7 +15,6 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from round27_ui_lang_test import _chromium, _has_playwright  # noqa: E402
 
-
 @unittest.skipUnless(_chromium() and _has_playwright(), "headless Chromium / playwright is not available")
 class GridNarrowModelPickerTest(unittest.TestCase):
     """Grid design at 720 px: the top bar caps the model picker at 180px and the «МОДЕЛЬ / MODEL» caption
@@ -47,7 +46,6 @@ class GridNarrowModelPickerTest(unittest.TestCase):
                 browser.close()
         finally:
             servers.stop()
-
 
 if __name__ == "__main__":
     unittest.main()

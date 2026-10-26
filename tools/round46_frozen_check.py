@@ -35,7 +35,6 @@ EXTENSION_VERSION = "3.8.46"
 _log_lock = threading.Lock()
 SOURCE = False
 
-
 def log(text):
     with _log_lock:
         value = str(text)
@@ -45,17 +44,14 @@ def log(text):
         with LOG.open("a", encoding="utf-8") as handle:
             handle.write(value + "\n")
 
-
 def require(condition, message):
     if not condition:
         raise AssertionError(message)
-
 
 def free_port():
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         return probe.getsockname()[1]
-
 
 def app_is_running():
     if os.name != "nt":
@@ -70,7 +66,6 @@ def app_is_running():
         return True
     return ctypes.get_last_error() == 5
 
-
 def request(base, path, data=None, headers=None, *, expected=200, raw=False):
     payload = None if data is None else json.dumps(data, ensure_ascii=False).encode("utf-8")
     req = urllib.request.Request(base + path, data=payload,
@@ -83,7 +78,6 @@ def request(base, path, data=None, headers=None, *, expected=200, raw=False):
         status, content = exc.code, exc.read()
     require(status == expected, f"HTTP {path}: expected {expected}, got {status}")
     return content if raw else json.loads(content or b"{}")
-
 
 class FakeProxy(BaseHTTPRequestHandler):
     calls = 0
@@ -115,7 +109,6 @@ class FakeProxy(BaseHTTPRequestHandler):
             text = '```memuai-tool\n[{"tool":"chrome_tabs","args":{}}]\n```'
         event = {"choices":[{"delta":{"content":text}}]}
         self.respond(("data: " + json.dumps(event) + "\n\ndata: [DONE]\n\n").encode(), "text/event-stream")
-
 
 async def extension_checks(base, token):
     from websockets.asyncio.client import connect
@@ -191,7 +184,6 @@ async def extension_checks(base, token):
             worker_task.cancel()
             await asyncio.gather(worker_task, return_exceptions=True)
 
-
 def check_memuai(data_root, env, proxy_url):
     if not SOURCE:
         require(not app_is_running(), "MemuAI is already running; refusing to activate or interfere with that instance")
@@ -230,7 +222,7 @@ def check_memuai(data_root, env, proxy_url):
             lookup = {row["service"]:row for row in rows}
             require(len(lookup["telegram_use"]["tools"]) >= 13 and len(lookup["chrome_extension"]["tools"]) >= 7, "Frozen integration tool catalogs are missing")
             log("PASS frozen MemuAI: Telegram disabled status and complete connected-service tool catalogs")
-            # Pure formatter preview: no Telegram login, send, media or model call.
+
             preview_path = "/api/pg/integrations/telegram-use/preview"
             preview = request(base, preview_path, {"text":"**Привет**\n\n*Курсив* и `literal \\n`\n> Цитата"})
             require(len(preview["parts"]) == len(preview["plain"]) == 1, "Telegram preview parts mismatch")
@@ -282,7 +274,6 @@ def check_memuai(data_root, env, proxy_url):
                     process.kill(); process.wait(timeout=5)
     require(process.returncode == 0, "Frozen MemuAI did not exit cleanly; see child log")
     log("PASS frozen MemuAI: authenticated graceful shutdown; child process exited")
-
 
 def archive_checks():
     """Read the actual frozen archive/assets without launching the occupied app."""
@@ -343,7 +334,6 @@ def archive_checks():
             docs_count += 1
     log(f"PASS frozen documentation: {docs_count} packaged files in MemuAI/MemuCode match source SHA-256")
 
-
 def check_cli(env):
     executable = ROOT / "dist/MemuCode/MemuCode.exe"
     for flag in ("--version","--help"):
@@ -351,7 +341,6 @@ def check_cli(env):
                                 timeout=30, creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
         require(result.returncode == 0 and result.stdout.strip(), "Frozen MemuCode " + flag + " failed")
     log("PASS frozen MemuCode: --version and --help exit 0 without network or interactive terminal")
-
 
 def main():
     global SOURCE
@@ -399,10 +388,9 @@ def main():
             log("PASS Round 46 frozen checks completed; no real accounts, providers, browser or desktop control used")
     finally:
         server.shutdown(); server.server_close()
-        # The only recursive deletion target is the verified task directory created above.
+
         require(temp_root.parent == (ROOT / "build").resolve() and temp_root.name.startswith("round46-frozen-data-"), "Unsafe cleanup target")
         shutil.rmtree(temp_root)
-
 
 if __name__ == "__main__":
     try: main()

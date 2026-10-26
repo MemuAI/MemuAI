@@ -35,13 +35,11 @@ TITLE = "MemuCode guide"
 DESCRIPTION = ("Exact reference of MemuCode CLI itself: every slash command, keys, permission modes (plan, auto…), "
                "flags, settings, files, sessions, agents, skills, MCP, cost, Telegram. Use when the user asks how to "
                "do something in MemuCode or what one of its commands, keys or settings does.")
-#: One short paragraph in the main system prompt (the reference itself comes with the skill / the trigger).
+
 POINTER = ("# About MemuCode itself\nQuestions about MemuCode (its slash commands, modes such as plan or auto, keys, "
            "settings, flags, sessions, skills, MCP, agents, cost, Telegram) are answered from the built-in skill "
            f"`{GUIDE_ID}` — load it with Skill first unless it is already attached; never guess. Features are used by "
            "typing a slash command in this terminal (planning: /plan or Shift+Tab), not by restarting with a flag.")
-
-
 
 def pointer(runtime: Any) -> str:
     """:data:`POINTER`, unless the user switched the guide off in /skills."""
@@ -52,14 +50,9 @@ def pointer(runtime: Any) -> str:
         pass
     return POINTER
 
-
 _LOCK = threading.Lock()
 _CACHE: Dict[str, str] = {}
 
-
-# ---------------------------------------------------------------- hand-written knowledge
-
-#: Quick answers to the questions people actually ask. Every ``/command`` here must exist (tested).
 FAQ: Tuple[Tuple[str, str], ...] = (
     ("Turn on planning / plan mode (планирование, режим плана)",
      "Type /plan (or /plan <task> to plan that task right away), or press Shift+Tab until the status line says "
@@ -122,7 +115,6 @@ FAQ: Tuple[Tuple[str, str], ...] = (
      "back."),
 )
 
-#: Extra lines for some commands, shown under their row. Keys must be registered commands (tested).
 NOTES: Dict[str, str] = {
     "plan": "turns on plan mode for this window (same as Shift+Tab to “plan mode”); /plan off leaves it",
     "mode": "values: default, acceptEdits, plan, auto, bypassPermissions",
@@ -145,7 +137,6 @@ NOTES: Dict[str, str] = {
     "statusline": "a custom command's output replaces the right part of the status line",
 }
 
-#: What each sub-command of ``memucode <sub>`` does. Keys must match ``main.SUBCOMMANDS`` (tested).
 SUBCOMMAND_NOTES: Dict[str, str] = {
     "doctor": "check the install, connection, terminal and tools",
     "mcp": "MCP servers: list | add <name> [-e KEY=VALUE] -- <command…> | remove <name> | get <name>",
@@ -159,7 +150,6 @@ SUBCOMMAND_NOTES: Dict[str, str] = {
     "version": "print the version",
 }
 
-#: Help for the options of ``main.build_parser`` that have none there (every option must have one or the other).
 FLAG_NOTES: Dict[str, str] = {
     "permission_mode": "permission mode of this window (it then ignores modes chosen in other windows)",
     "output_format": "with -p: plain text, one JSON object, or JSON events line by line",
@@ -168,7 +158,6 @@ FLAG_NOTES: Dict[str, str] = {
     "debug": "accepted for compatibility with other CLIs; changes nothing",
 }
 
-#: One line per setting (every key of ``settings.DEFAULTS`` must be here — tested).
 SETTING_NOTES: Dict[str, str] = {
     "model": "main model (/model)", "small_model": "fast model for titles, compaction, /btw (/small-model)",
     "worker_model": "legacy single agent model", "worker_models": "models agents may use (/agents)",
@@ -218,16 +207,12 @@ INPUT_ROWS: Tuple[Tuple[str, str], ...] = (
     ("? on an empty line", "keyboard shortcuts"),
 )
 
-
-# ---------------------------------------------------------------- generated parts
-
 def _registry() -> Dict[str, Any]:
     from . import commands
     from .commands import (autocontinue_cmds, config_cmds, dashboard_cmds, decisions_cmds, foreign_cmds,  # noqa: F401
                            guide_cmds, import_cmds, info_cmds, model_cmds, routing_cmds, schedule_cmds, session_cmds, skill_cmds,
                            work_cmds)
     return commands.REGISTRY
-
 
 def command_rows() -> List[Tuple[str, str, str, Tuple[str, ...], str, str]]:
     """``(category, name, hint, aliases, description, note)`` of every visible built-in command."""
@@ -238,7 +223,6 @@ def command_rows() -> List[Tuple[str, str, str, Tuple[str, ...], str, str]]:
             for cmd in registry.values() if not cmd.hidden]
     rows.sort(key=lambda row: (order.index(row[0]) if row[0] in order else len(order), row[1]))
     return rows
-
 
 def flag_rows() -> List[Tuple[str, str]]:
     """``("-m, --model MODEL", "help")`` for every option of the real parser."""
@@ -257,7 +241,6 @@ def flag_rows() -> List[Tuple[str, str]]:
         rows.append((name, text))
     return rows
 
-
 def shortcut_rows() -> List[Tuple[str, str]]:
     try:
         from .tui.app import SHORTCUT_ROWS
@@ -269,14 +252,12 @@ def shortcut_rows() -> List[Tuple[str, str]]:
     known = {key for key, _ in rows}
     return rows + [row for row in extra if row[0] not in known]
 
-
 def mode_rows() -> List[Tuple[str, str, str]]:
     from .permissions import CYCLE, mode_explain, mode_title
     from .settings import PERMISSION_MODES
     return [(mode, mode_title(mode), mode_explain(mode) + ("" if mode in CYCLE else
                                                            " (not in the Shift+Tab cycle)"))
             for mode in PERMISSION_MODES]
-
 
 def _paths() -> List[Tuple[str, str]]:
     from . import paths
@@ -300,7 +281,6 @@ def _paths() -> List[Tuple[str, str]]:
              ("MCP servers shared with MemuAI", "<MemuAI data>/memuai/mcp.json")]
     return rows
 
-
 def docs_dir() -> Optional[Path]:
     try:
         from ..docs import docs_dir as _docs
@@ -309,11 +289,9 @@ def docs_dir() -> Optional[Path]:
     except Exception:
         return None
 
-
 def _section(title: str, lines: Iterable[str]) -> str:
     body = "\n".join(lines)
     return f"## {title}\n{body}" if body else ""
-
 
 def build_guide() -> str:
     """The whole reference (Markdown). Cached per process: its sources do not change while MemuCode runs."""
@@ -398,7 +376,6 @@ def build_guide() -> str:
         _CACHE["guide"] = text
     return text
 
-
 def _value(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
@@ -412,18 +389,13 @@ def _value(value: Any) -> str:
         return text if len(text) <= 70 else text[:67] + "…"
     return str(value)
 
-
 def skill_row() -> Dict[str, Any]:
     """The catalogue row of the built-in skill (its prompt is built when the skill is loaded)."""
     return {"id": GUIDE_ID, "title": TITLE, "description": DESCRIPTION, "source": "builtin", "path": ""}
 
-
 def documented_doc_path(name: str) -> str:
     folder = docs_dir()
     return str(folder / name) if folder is not None else ""
-
-
-# ---------------------------------------------------------------- the trigger
 
 _NAME = re.compile(r"memu\s*-?\s*code|мему\s*-?\s*код|мемукод|memu\s*cli|memuai\s+cli|мему\s*cli", re.I)
 _HOWTO = re.compile(
@@ -444,7 +416,7 @@ _FEATURE = re.compile(
     r"скилл\w*|навык\w*|агент\w*|хук\w*|разрешен\w*|модел\w*|тем[аыу]\b|строк\w* состояния|стоимост\w*|токен\w*|"
     r"контекст\w*|сжат\w*|телеграм\w*|расписани\w*|автопродолж\w*|памят\w*|песочниц\w*|прокси|размышлен\w*|"
     r"мышлени\w*|голос\w*|лимит\w*", re.I)
-#: Features that are about MemuCode on their own (no "you" needed): planning mode, slash commands, keys…
+
 _STRONG = re.compile(
     r"plan(?:ning)? mode|режим\w* план\w*|планировани\w*|slash[- ]commands?|команд\w* со слэш\w*|слэш[- ]команд\w*|"
     r"keyboard shortcuts?|hot ?keys?|key ?bindings?|горяч\w* клавиш\w*|сочетани\w* клавиш|permission mode|"
@@ -457,7 +429,6 @@ _CODE_WORK = re.compile(r"\b(?:fix|implement|refactor|rewrite|debug)\b|испр�
 _FILE = re.compile(r"[\w/\\.-]+\.(?:py|js|ts|tsx|jsx|md|json|css|html|go|rs|java|cs|cpp|c|h)\b", re.I)
 _SLASH = re.compile(r"(?<![\w/:.])/([a-z][a-z0-9-]{1,30})\b", re.I)
 
-
 def _known_command(name: str) -> bool:
     try:
         registry = _registry()
@@ -466,7 +437,6 @@ def _known_command(name: str) -> bool:
     name = name.lower()
     return name in registry or any(name in cmd.aliases for cmd in registry.values())
 
-
 def is_self_question(text: str) -> bool:
     """Does this message ask about MemuCode itself? Cheap (regular expressions only) and generous: a false positive
     costs a few thousand tokens for one turn, a miss costs a wrong answer."""
@@ -474,12 +444,12 @@ def is_self_question(text: str) -> bool:
     if not text or len(text) > 1500:
         return False
     if text.startswith("/"):
-        return False                                   # a command, not a question
+        return False
     howto = bool(_HOWTO.search(text))
     if not howto:
         return False
     if _CODE_WORK.search(text) and _FILE.search(text):
-        return False                                   # work on a code base (maybe MemuCode's own), not a question
+        return False
     if _NAME.search(text):
         return True
     if any(_known_command(match.group(1)) for match in _SLASH.finditer(text)):
@@ -488,12 +458,10 @@ def is_self_question(text: str) -> bool:
         return True
     return bool(len(text) <= 300 and _ADDRESS.search(text) and _FEATURE.search(text))
 
-
 def follow_up(text: str) -> bool:
     """A short follow-up ("а как выключить?", "and the shortcut?") to a question about MemuCode."""
     text = str(text or "").strip()
     return bool(text) and len(text) <= 160 and not text.startswith("/") and bool(_HOWTO.search(text))
-
 
 def wants_guide(prompts: Sequence[str]) -> bool:
     """``prompts`` newest first: the current request asks about MemuCode, or follows such a question closely."""
@@ -503,7 +471,6 @@ def wants_guide(prompts: Sequence[str]) -> bool:
         return True
     return len(prompts) > 1 and follow_up(prompts[0]) and is_self_question(prompts[1])
 
-
 def turn_block(runtime: Any) -> str:
     """The reference attached to the current turn (``prompts.reminders``), or "" when it is not wanted."""
     try:
@@ -512,7 +479,7 @@ def turn_block(runtime: Any) -> str:
             return ""
         session = runtime.session
         if GUIDE_ID in getattr(session, "active_skills", set()):
-            return ""                                 # the model loaded it with Skill; it is in the history
+            return ""
         forced = getattr(runtime, "selfdoc_forced_for", None) == (session.id, len(session.user_prompts()))
         if not forced:
             from .session import message_text
@@ -526,7 +493,6 @@ def turn_block(runtime: Any) -> str:
     _announce(runtime)
     return ("The user is asking about MemuCode itself (if the question is really about their project, ignore this). "
             f"Built-in skill `{GUIDE_ID}`, attached automatically:\n<skill name=\"{GUIDE_ID}\">\n{guide}\n</skill>")
-
 
 def _announce(runtime: Any) -> None:
     """One dim line per turn in the transcript, so the person sees why the answer knows the program."""
@@ -543,9 +509,6 @@ def _announce(runtime: Any) -> None:
     except Exception:
         pass
 
-
-# ---------------------------------------------------------------- offline answers
-
 _WORD = re.compile(r"[\wа-яё-]{3,}", re.I)
 _SYNONYMS = {
     "планирован": "plan", "план": "plan", "модел": "model", "сесси": "session resume", "разговор": "resume conversation",
@@ -558,13 +521,12 @@ _SYNONYMS = {
     "цель": "goal", "выход": "exit", "голос": "voice",
 }
 
-
 def offline_answer(question: str, limit: int = 8) -> List[str]:
     """The reference lines that best match a question — for /help-ask without a model."""
     query = str(question or "").lower()
     terms = set(_WORD.findall(query))
     for stem, extra in _SYNONYMS.items():
-        if re.search(r"(?<!\w)" + stem, query):           # a word that starts so ("ключ", not "вклю-ч-ить")
+        if re.search(r"(?<!\w)" + stem, query):
             terms |= set(extra.split())
     terms = {term for term in terms if term not in ("how", "what", "как", "что", "the", "and", "memucode", "мемукод",
                                                     "cli", "можно", "where", "где", "это", "для")}
@@ -577,7 +539,7 @@ def offline_answer(question: str, limit: int = 8) -> List[str]:
         low = line.lower()
         score = sum(2.0 if f"/{term}" in low else 1.0 for term in terms if term in low)
         if line.startswith("- **"):
-            score *= 1.5                                    # quick answers first
+            score *= 1.5
         if score:
             scored.append((score, -index, line[2:]))
     scored.sort(reverse=True)

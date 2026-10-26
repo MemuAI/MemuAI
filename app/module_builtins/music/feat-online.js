@@ -1,9 +1,4 @@
-/* MemuMusic · feat-online.js — онлайн-поиск (раунд 41, r41b-online): откуда трек и что это.
- * Результаты: значок и имя площадки, канал (✓), длительность, просмотры, метки «Офиц. аудио / Клип / Live / Кавер /
- * Ремикс / Превью», «В библиотеке». Переключатель площадки (YouTube Music / YouTube / SoundCloud) и «Только оригиналы».
- * Клик по строке — лист «Информация о треке»: подробности грузятся лениво (online.details, кэш на сервере и здесь),
- * похожие треки и текст — по требованию. Действия: Слушать (скачает и включит), Скачать, В очередь, В плейлист,
- * Найти текст, Копировать ссылку, Открыть в браузере. */
+
 
 const ONL_SOURCES = ["ytmusic", "youtube", "soundcloud"];
 const ONL = { details: new Map(), related: new Map(), lyrics: new Map(), queued: new Map(), waiting: new Map(), timer: 0, sheet: null };
@@ -32,7 +27,6 @@ function onlThumb(r, cls) {
 }
 function onlLibTrack(r) { return r.in_library ? S.byId.get(r.in_library) || null : null; }
 
-/** Строка результата: обложка · название + метки · площадка, канал, длительность, просмотры · действия. */
 function onlineRow(r, i) {
   const lib = onlLibTrack(r), queued = ONL.queued.has(r.url);
   const meta = [r.artist && r.artist !== r.channel ? esc(r.artist) : "", r.album ? esc(r.album) : ""].filter(Boolean).join(" · ");
@@ -48,10 +42,9 @@ function onlineRow(r, i) {
       <button type="button" class="mm-icon sm" data-more aria-label="${esc(t("more"))}">${icon("more")}</button></div></div>`;
 }
 
-/** Онлайн-поиск в box: переключатель площадки, «Только оригиналы», результаты. opts.quality — качество загрузки. */
 async function onlineSearch(box, query, opts) {
   opts = opts || {};
-  const seq = (box._onlSeq = (box._onlSeq || 0) + 1);   // быстрый ввод: ответ старого запроса не перерисует новый
+  const seq = (box._onlSeq = (box._onlSeq || 0) + 1);
   const src = ONL_SOURCES.includes(S.prefs.onlineSource) ? S.prefs.onlineSource : "ytmusic";
   const originals = !!S.prefs.onlineOriginals;
   box.innerHTML = `<div class="mm-otools"><div class="mm-oseg" role="tablist" aria-label="${esc(t("onl.source"))}">${ONL_SOURCES.map((s) => `<button type="button" role="tab" data-src="${s}" aria-selected="${s === src}">${sourceIcon(s, "mm-srcdot sm")}<span>${esc(sourceName(s))}</span></button>`).join("")}</div>
@@ -88,7 +81,6 @@ async function onlineSearch(box, query, opts) {
   function refreshRow(row, r) { if (!row.isConnected) return; const k = row.dataset.k; row.outerHTML = onlineRow(r, Number(k)); }
 }
 
-/* ------------------------------------------------------------ действия (общие для строки и листа) */
 async function onlineDownload(r, opts, then, playlistId) {
   if (ONL.queued.has(r.url)) return ONL.queued.get(r.url);
   try {
@@ -99,7 +91,7 @@ async function onlineDownload(r, opts, then, playlistId) {
     return job && job.job_id;
   } catch (err) { toast(String(err.message || err)); return null; }
 }
-/** Сделать что-то с треком, когда загрузка закончится (опрос — pollJobs; здесь только чтение S.jobs, пока есть ожидания). */
+
 function afterDownload(jobId, fn) {
   if (!jobId) return;
   ONL.waiting.set(jobId, fn);
@@ -141,7 +133,6 @@ function onlineMenu(r, anchor, opts) {
   ], anchor);
 }
 
-/* ------------------------------------------------------------ лист «Информация о треке» */
 function onlineSheet(r, opts, focus) {
   closeOverlays();
   let host = ONL.sheet;
@@ -222,7 +213,7 @@ function onlineSheet(r, opts, focus) {
       : `<p class="mm-sub">${esc(t(ly.instrumental ? "onl.instrumental" : "lyrics.not_found"))}</p>`;
   }
   async function loadLyrics() {
-    if (ONL.lyrics.has(r.url)) { showLyrics(ONL.lyrics.get(r.url)); return; }   // null — уже ищется
+    if (ONL.lyrics.has(r.url)) { showLyrics(ONL.lyrics.get(r.url)); return; }
     ONL.lyrics.set(r.url, null); showLyrics(null);
     const ly = await API.soft("online.lyrics", { title: r.title, artist: r.artist || r.channel || "", duration: r.duration || 0 }, { found: false });
     ONL.lyrics.set(r.url, ly);

@@ -29,7 +29,6 @@ from app.state import Account, ModelEntry, state
 
 WAV = b"RIFF\x00\x00\x00\x00WAVEfixture"
 
-
 class MusicProxyTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -363,7 +362,6 @@ class MusicProxyTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue({"music_models", "music_config"}.issubset({field.key for field in provider.account_fields()}))
         self.assertIsNotNone(provider.validate_fields({"name": "fixture", "base_url": "https://music.example.com", "music_models": "song"}))
 
-
 class MusicAccountBrowserTest(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "Windows Edge account-editor acceptance")
     def test_actual_proxy_editor_and_schemas(self):
@@ -372,7 +370,6 @@ class MusicAccountBrowserTest(unittest.TestCase):
                                 env={**os.environ, "PYTHONUTF8": "1"})
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("PASS:", result.stdout)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -26,14 +26,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or ""):
         if candidate and Path(candidate).exists():
             return candidate
     return ""
-
 
 MOCK = """() => {
   window.__state = { ok: true, supported: true, mode: "custom", installed: true, pending: false,
@@ -54,7 +52,6 @@ RECTS = """() => {
     tools: r(win && win.querySelector(".module-window-tools")), overlay: document.documentElement.dataset.titlebarOverlay || "" };
 }"""
 
-
 def _wait(page, expression: str, timeout: float = 10.0) -> None:
     """Poll from Python: Playwright's own wait_for_function re-evaluates string
     predicates with eval, which the app's CSP (no 'unsafe-eval') forbids as
@@ -66,7 +63,6 @@ def _wait(page, expression: str, timeout: float = 10.0) -> None:
         if time.time() > deadline:
             raise AssertionError(f"timed out waiting for: {expression}")
         page.wait_for_timeout(50)
-
 
 @unittest.skipUnless(_chromium(), "Chromium is not installed")
 class ModuleWindowStatesTest(unittest.TestCase):
@@ -82,11 +78,7 @@ class ModuleWindowStatesTest(unittest.TestCase):
         root = modules_host.default_root()
         root.mkdir(parents=True, exist_ok=True)
         modules_host.configure_module(root, "translator", enabled=True)
-        # A fresh profile greets the user with the name dialog; it is a real
-        # full-window overlay over the top bar (titlebar.js then correctly moves
-        # the window buttons to the overlay corner, data-titlebar-overlay=true,
-        # and the first Esc closes that dialog). This test is about the module
-        # sheet, so start from a profile that already finished onboarding.
+
         from app import pgdata
         pgdata.save_preferences({"profile_onboarded": True, "profile_name": "Test"})
         with socket.socket() as probe:
@@ -116,7 +108,7 @@ class ModuleWindowStatesTest(unittest.TestCase):
         page.on("pageerror", lambda exc: errors.append(str(exc)))
         page.goto(f"http://127.0.0.1:{self.port}/", wait_until="networkidle")
         _wait(page, "window.MemuModules && document.querySelector('.topbar.appbar') && document.body.classList.contains('boot-ready')", 20)
-        page.wait_for_timeout(400)  # the onboarding check runs 250 ms after boot
+        page.wait_for_timeout(400)
         self.assertFalse(page.evaluate("!!document.getElementById('onboarding-name')"), "onboarding dialog left open")
         page.evaluate("([d, t]) => { const r = document.documentElement; r.dataset.design = d; r.dataset.theme = t; }", [design, theme])
         if titlebar:
@@ -131,14 +123,14 @@ class ModuleWindowStatesTest(unittest.TestCase):
 
     def expand(self, page):
         page.evaluate("() => { const w = document.querySelector('.module-window[data-module=translator]'); if (w.dataset.full !== '1') MemuModules.snap('translator', 'max'); }")
-        page.wait_for_timeout(450)  # FLIP transition (240 ms) + layout
+        page.wait_for_timeout(450)
         return page.evaluate(RECTS)
 
     def assert_sheet(self, rects, label):
         win, content, bar = rects["win"], rects["content"], rects["bar"]
         self.assertTrue(rects["full"], label)
         self.assertEqual(rects["state"], "expanded", label)
-        # A sheet inside the content area (with margins), not the whole window.
+
         self.assertGreaterEqual(win["l"], content["l"] - 0.5, label)
         self.assertLessEqual(win["r"], content["r"] + 0.5, label)
         self.assertGreaterEqual(win["t"], bar["b"] - 0.5, label)
@@ -163,7 +155,7 @@ class ModuleWindowStatesTest(unittest.TestCase):
 
     def test_floating_window_cannot_go_under_the_title_band(self):
         page = self.open_page("glass", "dark", True)
-        # A sheet left expanded by the previous test reopens expanded (Round 30: without its own title row).
+
         if page.evaluate(RECTS)["full"]:
             page.click("#module-headbar [data-mhb=esc]")
             page.wait_for_timeout(450)
@@ -173,7 +165,7 @@ class ModuleWindowStatesTest(unittest.TestCase):
         box = bar.bounding_box()
         page.mouse.move(box["x"] + 200, box["y"] + box["height"] / 2)
         page.mouse.down()
-        page.mouse.move(box["x"] + 600, 40, steps=8)   # into the reserved band, away from the snap edge
+        page.mouse.move(box["x"] + 600, 40, steps=8)
         page.mouse.move(box["x"] + 620, 30, steps=2)
         page.mouse.up()
         page.wait_for_timeout(450)
@@ -188,7 +180,7 @@ class ModuleWindowStatesTest(unittest.TestCase):
         page = self.open_page("classic", "dark", True)
         rects = self.expand(page)
         self.assertTrue(rects["full"])
-        # Round 30: one header — the sheet's own title row is gone, its name, Esc chip, ⋯ and × sit in the top bar.
+
         self.assertTrue(page.evaluate("!document.getElementById('module-headbar').hidden"))
         self.assertTrue(page.evaluate("!document.querySelector('#module-headbar [data-mhb=esc]').hidden"))
         self.assertEqual(page.evaluate("getComputedStyle(document.querySelector('.module-window[data-module=translator] .module-window-bar')).display"), "none")
@@ -198,18 +190,17 @@ class ModuleWindowStatesTest(unittest.TestCase):
         page.keyboard.press("Escape")
         page.wait_for_timeout(400)
         self.assertFalse(page.evaluate(RECTS)["full"])
-        # Unhandled Esc inside the module (forwarded by the bridge) collapses too.
+
         self.expand(page)
         frame = next(f for f in page.frames if "/modules/translator/document" in f.url)
         frame.evaluate("() => { document.activeElement && document.activeElement.blur(); document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); }")
         page.wait_for_timeout(400)
         self.assertFalse(page.evaluate(RECTS)["full"])
-        # An Esc the module handled itself does not.
+
         self.expand(page)
         frame.evaluate("() => { document.addEventListener('keydown', (e) => e.preventDefault(), { once: true }); document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true })); }")
         page.wait_for_timeout(400)
         self.assertTrue(page.evaluate(RECTS)["full"])
-
 
 if __name__ == "__main__":
     unittest.main()

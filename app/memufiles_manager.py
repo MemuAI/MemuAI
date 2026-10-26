@@ -42,13 +42,10 @@ EXE = "MemuFiles.exe"
 PACKAGE = Path("Packages") / "MemuFiles.zip"
 PACKAGE_META = "memufiles-package.json"
 STATE_FILE = "install.json"
-MAX_UNPACKED = 2 * 1024 ** 3          # zip bomb guard: MemuFiles is ~40 MB unpacked
+MAX_UNPACKED = 2 * 1024 ** 3
 _LOCK = threading.Lock()
 _CREATE_NO_WINDOW = 0x08000000
 _DETACHED = 0x00000008
-
-
-# ------------------------------------------------------------------ locations
 
 def install_root() -> Optional[Path]:
     """The MemuAI install folder (``None`` in a source checkout) — the same folder MemuNote uses."""
@@ -61,18 +58,15 @@ def install_root() -> Optional[Path]:
             return folder
     return root
 
-
 def paths(root: Optional[Path] = None) -> Dict[str, Optional[Path]]:
     root = root if root is not None else install_root()
     if root is None:
         return {"root": None, "folder": None, "exe": None, "package": None}
     return {"root": root, "folder": root / FOLDER, "exe": root / FOLDER / EXE, "package": root / PACKAGE}
 
-
 def _dev_entry() -> Optional[Path]:
     entry = ROOT / "memufiles.py"
     return entry if entry.is_file() and (ROOT / "app" / "memufiles" / "static" / "index.html").is_file() else None
-
 
 def package_info(package: Optional[Path]) -> Dict[str, Any]:
     if package is None or not package.is_file():
@@ -81,7 +75,7 @@ def package_info(package: Optional[Path]) -> Dict[str, Any]:
     try:
         with zipfile.ZipFile(package) as archive:
             names = archive.namelist()
-            for meta_name in (PACKAGE_META, "memunote-package.json"):   # pre-Round-35 Setup engines
+            for meta_name in (PACKAGE_META, "memunote-package.json"):
                 if meta_name not in names:
                     continue
                 try:
@@ -97,7 +91,6 @@ def package_info(package: Optional[Path]) -> Dict[str, Any]:
         info.update(valid=False, error=str(exc)[:200])
     return info
 
-
 def _installed_version(folder: Path, exe: Path) -> str:
     for name in (PACKAGE_META, "memunote-package.json"):
         marker = folder / name
@@ -110,14 +103,12 @@ def _installed_version(folder: Path, exe: Path) -> str:
                 pass
     return _file_version(exe)
 
-
 def _app_version() -> str:
     try:
         from .version import APP_VERSION  # type: ignore
         return str(APP_VERSION)
     except Exception:  # noqa: BLE001
         return ""
-
 
 def _running_instance() -> bool:
     """MemuFiles publishes ``instance.json`` (port + token + pid) while it runs."""
@@ -134,7 +125,6 @@ def _running_instance() -> bool:
             return True
     except Exception:  # noqa: BLE001
         return False
-
 
 def status() -> Dict[str, Any]:
     p = paths()
@@ -159,9 +149,6 @@ def status() -> Dict[str, Any]:
                                       and _newer(pkg_version, result["version"]))
     return result
 
-
-# ------------------------------------------------------------------ install / remove
-
 def _extract(package: Path, target: Path) -> int:
     total = 0
     with zipfile.ZipFile(package) as archive:
@@ -183,7 +170,6 @@ def _extract(package: Path, target: Path) -> int:
                 shutil.copyfileobj(source, sink, 1024 * 1024)
             total += item.file_size
     return total
-
 
 def _update_state(root: Path, installed: bool) -> None:
     """Keep the Setup's install.json in step so an update neither drops nor duplicates MemuFiles."""
@@ -212,7 +198,6 @@ def _update_state(root: Path, installed: bool) -> None:
             os.unlink(tmp)
         except OSError:
             pass
-
 
 def _start_menu_shortcut(exe: Optional[Path], create: bool) -> None:
     if os.name != "nt":
@@ -244,7 +229,6 @@ def _start_menu_shortcut(exe: Optional[Path], create: bool) -> None:
     except Exception as exc:  # noqa: BLE001 - a missing shortcut is not worth failing the install
         log.warning("MemuFiles shortcut not created: %s", exc)
 
-
 def install() -> Dict[str, Any]:
     with _LOCK:
         p = paths()
@@ -256,7 +240,7 @@ def install() -> Dict[str, Any]:
             raise ManagerError("no_package", f"{PACKAGE} was not found — run the MemuAI Setup and select MemuFiles")
         updating = exe.is_file()
         if updating:
-            _run(exe, ["--shutdown"], timeout=15)       # tabs are restored from the saved session
+            _run(exe, ["--shutdown"], timeout=15)
         stamp = f"{os.getpid()}-{int(time.time())}"
         stage = root / f".~memufiles-{stamp}"
         backup = root / f".~memufiles-old-{stamp}"
@@ -265,7 +249,7 @@ def install() -> Dict[str, Any]:
             if folder.exists():
                 try:
                     os.replace(folder, backup)
-                except OSError as exc:      # Windows: MemuFiles.exe (or a file in it) is still in use
+                except OSError as exc:
                     raise ManagerError("busy", f"could not replace {folder}: {exc.strerror or exc} "
                                                "(is MemuFiles still running?)") from exc
             os.replace(stage, folder)
@@ -281,7 +265,7 @@ def install() -> Dict[str, Any]:
             except ManagerError as exc:
                 log.warning("%s", exc)
         try:
-            package.unlink()                             # the installed copy replaces the archive
+            package.unlink()
             if not any(package.parent.iterdir()):
                 package.parent.rmdir()
         except OSError:
@@ -290,7 +274,6 @@ def install() -> Dict[str, Any]:
         _start_menu_shortcut(exe, True)
         log.info("MemuFiles %s into %s (%d bytes)", "updated" if updating else "installed", folder, size)
         return {"ok": True, "updated": updating, **status()}
-
 
 def _pack(folder: Path, package: Path, version: str) -> None:
     package.parent.mkdir(parents=True, exist_ok=True)
@@ -308,7 +291,6 @@ def _pack(folder: Path, package: Path, version: str) -> None:
                 archive.write(path, relative)
     os.replace(partial, package)
 
-
 def uninstall(keep_package: bool = True) -> Dict[str, Any]:
     with _LOCK:
         p = paths()
@@ -316,7 +298,7 @@ def uninstall(keep_package: bool = True) -> Dict[str, Any]:
             raise ManagerError("dev", "source checkout")
         root, folder, exe, package = p["root"], p["folder"], p["exe"], p["package"]
         assert folder is not None and exe is not None and package is not None
-        _restore_explorer()                      # Round 38: never leave folders pointing at a removed MemuFiles
+        _restore_explorer()
         if not folder.exists():
             return {"ok": True, **status()}
         if exe.is_file():
@@ -331,7 +313,6 @@ def uninstall(keep_package: bool = True) -> Dict[str, Any]:
         _start_menu_shortcut(None, False)
         return {"ok": True, **status()}
 
-
 def _restore_explorer() -> None:
     try:
         from .memufiles import default_shell
@@ -341,7 +322,6 @@ def _restore_explorer() -> None:
     except Exception as exc:  # noqa: BLE001 - the launcher still falls back to Explorer
         log.warning("Explorer restore failed: %s", exc)
 
-
 def _clean_paths(values: Any) -> List[str]:
     out: List[str] = []
     for value in (values if isinstance(values, list) else [])[:20]:
@@ -349,12 +329,11 @@ def _clean_paths(values: Any) -> List[str]:
             continue
         text = value.strip().strip('"')
         if not text or "\x00" in text or len(text) > 4096 or text.startswith("-") or "://" in text:
-            continue                                  # never an option or a URL on the command line
+            continue
         if not os.path.isabs(text):
             continue
         out.append(os.path.normpath(text))
     return out
-
 
 def open_app(paths_to_open: Optional[List[str]] = None) -> Dict[str, Any]:
     """Start MemuFiles (or hand the paths to the running window: MemuFiles forwards them itself)."""
@@ -372,12 +351,11 @@ def open_app(paths_to_open: Optional[List[str]] = None) -> Dict[str, Any]:
             raise ManagerError("not_installed", "MemuFiles is not installed")
         command = [str(exe), *targets]
         cwd = str(Path.home())
-    flags = (_DETACHED | 0x00000200) if os.name == "nt" else 0          # DETACHED_PROCESS | NEW_PROCESS_GROUP
+    flags = (_DETACHED | 0x00000200) if os.name == "nt" else 0
     subprocess.Popen(command, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,   # noqa: S603
                      stderr=subprocess.DEVNULL, close_fds=True, creationflags=flags,
                      start_new_session=os.name != "nt")
     return {"ok": True, "paths": targets}
-
 
 def available() -> bool:
     """MemuFiles can be opened right now (installed, or running from a source checkout)."""
@@ -388,9 +366,6 @@ def available() -> bool:
         return bool(p["exe"] and p["exe"].is_file())
     except Exception:  # noqa: BLE001
         return False
-
-
-# ------------------------------------------------------------------ routes
 
 def register(app) -> None:
     from fastapi import Request

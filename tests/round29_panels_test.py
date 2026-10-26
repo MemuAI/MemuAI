@@ -32,7 +32,6 @@ MENU_JS = (STATIC / "memu-ctxmenu.js").read_text(encoding="utf-8")
 PANELS_JS = (STATIC / "panels.js").read_text(encoding="utf-8")
 CANVAS_JS = (STATIC / "quick" / "plugins" / "canvas.js").read_text(encoding="utf-8")
 
-
 class Scale(unittest.TestCase):
     def test_nominal_without_a_view(self):
         self.assertEqual(effective_scale(1.5, (2880, 1560), None), 1.5)
@@ -40,17 +39,17 @@ class Scale(unittest.TestCase):
         self.assertEqual(effective_scale(0, (1920, 1040), None), 1.0)
 
     def test_the_real_factor_wins(self):
-        # WebView2 renders at 100 % on a 150 % monitor (system-DPI-aware process): 2880 px wide / 2880 CSS px
+
         self.assertEqual(effective_scale(1.5, (2880, 1560), {"w": 2880, "h": 1560}), 1.0)
-        # …or at 125 %
+
         self.assertAlmostEqual(effective_scale(1.5, (2880, 1560), {"w": 2304, "h": 1248}), 1.25, places=3)
-        # matching → the nominal value exactly
+
         self.assertEqual(effective_scale(1.5, (2880, 1560), {"w": 1920, "h": 1040}), 1.5)
 
     def test_implausible_views_are_ignored(self):
         for view in ({"w": 0, "h": 0}, {"w": "x", "h": 3}, {"w": float("nan"), "h": 1040}, {"w": 50, "h": 50},
-                     {"w": 1000, "h": 1560},                 # mid-resize: different factors per axis
-                     {"w": 100000, "h": 56000},              # ratio < 0.5
+                     {"w": 1000, "h": 1560},
+                     {"w": 100000, "h": 56000},
                      [1920, 1040]):
             self.assertEqual(effective_scale(1.5, (2880, 1560), view), 1.5, view)
         self.assertEqual(effective_scale(1.5, (0, 0), {"w": 1920, "h": 1040}), 1.5)
@@ -62,11 +61,11 @@ class Scale(unittest.TestCase):
         self.assertLessEqual(t, math.floor(10.3 * 1.25))
         self.assertGreaterEqual(r, math.ceil((10.3 + 72.2) * 1.25) - 0)
         self.assertGreaterEqual(b, math.ceil((10.3 + 72.2) * 1.25) - 0)
-        # exact values stay exact (Round 28 expectations)
+
         plan = region_plan([[10, 10, 72, 72, 18], [-50, 0, 100, 40, 0]], 1.5, (1920, 1152))
         self.assertEqual(plan["rects"][0], [15, 15, 123, 123, 54])
         self.assertEqual(plan["rects"][1][:4], [0, 0, 75, 60])
-        # clamped to the window
+
         plan = region_plan([[1900, 1100, 100, 100, 0]], 1.0, (1920, 1152))
         self.assertEqual(plan["rects"][0][:4], [1900, 1100, 1920, 1152])
 
@@ -110,11 +109,10 @@ class Scale(unittest.TestCase):
         layer.gdi = Gdi()
         out = layer.set_region([[100, 100, 200, 100, 0]], False, view={"w": 2880, "h": 1560})
         self.assertTrue(out["ok"])
-        self.assertIn(("rect", (100, 100, 300, 200)), layer.gdi.rects)       # 1:1, not ×1.5
+        self.assertIn(("rect", (100, 100, 300, 200)), layer.gdi.rects)
         layer.gdi.rects.clear()
         layer.set_region([[100, 100, 200, 100, 0]], False)
-        self.assertIn(("rect", (150, 150, 450, 300)), layer.gdi.rects)       # nominal without a view
-
+        self.assertIn(("rect", (150, 150, 450, 300)), layer.gdi.rects)
 
 class Route(unittest.TestCase):
     def test_region_route_passes_the_view(self):
@@ -132,7 +130,7 @@ class Route(unittest.TestCase):
                 seen.append((rects, full, view))
                 return {"ok": True}
 
-        class Old:                       # a Round 28 layer: no view argument
+        class Old:
             def available(self):
                 return True
 
@@ -153,10 +151,9 @@ class Route(unittest.TestCase):
             client.post("/api/quick/layer/region", json={"rects": [], "full": True})
             self.assertEqual(seen[-1], ([], True, "old"))
             r = client.post("/api/quick/layer/region", json={"rects": [], "full": True, "view": "junk"}).json()
-            self.assertEqual(seen[-1], ([], True, "old"))      # a non-dict view is dropped
+            self.assertEqual(seen[-1], ([], True, "old"))
         finally:
             quick_canvas._layer_of = original
-
 
 class LayerPage(unittest.TestCase):
     def test_cards_are_fitted_to_their_boxes(self):
@@ -165,17 +162,17 @@ class LayerPage(unittest.TestCase):
             self.assertIn(level, LAYER_CSS, level)
         self.assertIn("FIT_MIN_ZOOM = 0.6", LAYER_JS)
         self.assertIn("card.style.zoom", LAYER_JS)
-        self.assertIn("MutationObserver", LAYER_JS)            # re-fit when the content changes
+        self.assertIn("MutationObserver", LAYER_JS)
         self.assertIn("document.fonts.ready", LAYER_JS)
-        self.assertIn('"fit"', LAYER_JS)                       # «Подогнать размер» in the menu
+        self.assertIn('"fit"', LAYER_JS)
 
     def test_region_from_layout_boxes(self):
         body = LAYER_JS.split("function regionRects()", 1)[1].split("function reportRegion()", 1)[0]
         self.assertIn("el.offsetLeft, el.offsetTop, el.offsetWidth, el.offsetHeight", body)
-        self.assertIn(".mcm", body)                            # an open menu is part of the shape
+        self.assertIn(".mcm", body)
         report = LAYER_JS.split("function reportRegion()", 1)[1].split("/* ----", 1)[0]
         self.assertIn("view", report)
-        self.assertIn("!!S.menu && S.glass", report)           # a menu takes the area: a click anywhere closes it
+        self.assertIn("!!S.menu && S.glass", report)
         self.assertIn('addEventListener("animationend"', LAYER_JS)
         self.assertIn('addEventListener("transitionend"', LAYER_JS)
 
@@ -197,7 +194,7 @@ class LayerPage(unittest.TestCase):
         run = LAYER_JS.split("function run(actionId, explicit)", 1)[1].split("function pollRuns", 1)[0]
         self.assertIn("performance.now() - S.shownAt < 300", run)
         self.assertIn('bus.send("quick", "run"', run)
-        self.assertNotRegex(LAYER_JS, r"/api/quick/canvas/run[\"'?]")   # never executed on the layer itself (/runs = polling only)
+        self.assertNotRegex(LAYER_JS, r"/api/quick/canvas/run[\"'?]")
         from app import quick_canvas
         self.assertNotIn("menu", " ".join(quick_canvas.RELAY_EVENTS))
 
@@ -207,15 +204,14 @@ class LayerPage(unittest.TestCase):
                 self.assertFalse(re.search("[а-яА-ЯёЁ]", en), f"{name}: {en}")
         self.assertFalse(re.search("[а-яА-ЯёЁ]", MENU_JS.split("(function", 1)[1]), "memu-ctxmenu.js carries no UI text of its own")
 
-
 class SharedMenu(unittest.TestCase):
     def test_closing_rules(self):
         for needle in ('addEventListener("pointerdown", onDown, true)', 'addEventListener("blur", onBlur)',
                        'addEventListener("resize", onResize)', 'addEventListener("scroll", onScroll, true)',
                        'addEventListener("visibilitychange", onVis)', 'k === "Escape"', 'close("pick")'):
             self.assertIn(needle, MENU_JS, needle)
-        self.assertIn("MemuLayers.open", MENU_JS)               # other MemuAI menus close it and it closes them
-        self.assertIn("setTimeout(() => { if (cur === c) attach(); }, 0)", MENU_JS)   # the opening press is not «outside»
+        self.assertIn("MemuLayers.open", MENU_JS)
+        self.assertIn("setTimeout(() => { if (cur === c) attach(); }, 0)", MENU_JS)
 
     def test_stays_in_bounds(self):
         place = MENU_JS.split("function place(el, o)", 1)[1].split("function close(", 1)[0]
@@ -230,14 +226,13 @@ class SharedMenu(unittest.TestCase):
         self.assertIn("/panels.js?v=1.7-r30", index)
         ctx = PANELS_JS.split("let lastDown = null;", 1)[1].split("document.addEventListener(\"keydown\"", 1)[0]
         self.assertIn("event.stopPropagation()", ctx)
-        self.assertIn("}, true);", ctx)                          # capture phase
+        self.assertIn("}, true);", ctx)
         self.assertIn("elementFromPoint", ctx)
         self.assertIn("window.MemuCtxMenu && !EMBED", PANELS_JS)
         self.assertIn('loadScript("/memu-ctxmenu.js?v=1.1-r34")', CANVAS_JS)
         manifest = json.loads((STATIC / "quick" / "plugins" / "index.json").read_text(encoding="utf-8"))
         canvas = next(p for p in manifest["plugins"] if p["id"] == "canvas")
-        self.assertRegex(canvas["v"], r"-r(29|3\d)$")   # bumped by later rounds (r30: 1.5-r30)
-
+        self.assertRegex(canvas["v"], r"-r(29|3\d)$")
 
 if __name__ == "__main__":
     unittest.main()

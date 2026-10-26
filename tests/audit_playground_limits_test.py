@@ -5,7 +5,6 @@ import unittest
 
 from starlette.requests import Request
 
-
 def _chunked_request(chunks):
     """A request without Content-Length whose body arrives in pieces."""
     queue = list(chunks)
@@ -19,7 +18,6 @@ def _chunked_request(chunks):
     scope = {"type": "http", "method": "POST", "path": "/", "headers": [],
              "query_string": b"", "http_version": "1.1"}
     return Request(scope, receive)
-
 
 class BoundedBodies(unittest.TestCase):
     def test_playground_reader_stops_a_chunked_body_over_the_limit(self):
@@ -46,7 +44,6 @@ class BoundedBodies(unittest.TestCase):
         body, error = asyncio.run(_json_object(_chunked_request([b'{"ok":', b" true}"]), max_bytes=1000))
         self.assertIsNone(error)
         self.assertEqual(body, {"ok": True})
-
 
 if __name__ == "__main__":
     unittest.main()

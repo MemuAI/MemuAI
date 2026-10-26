@@ -1,6 +1,4 @@
-// MemuNote Slides — a small ZIP reader/writer (OOXML / ODF containers) on top of the browser's
-// (De)CompressionStream("deflate-raw"). No dependencies; also runs in Node ≥ 18 (tests).
-// Limits: no ZIP64, no encryption (Office files never need either below 4 GB).
+
 
 const TE = new TextEncoder();
 const TD = new TextDecoder();
@@ -23,7 +21,6 @@ async function streamBytes(bytes, transform) {
 export const inflateRaw = (bytes) => streamBytes(bytes, new DecompressionStream("deflate-raw"));
 export const deflateRaw = (bytes) => streamBytes(bytes, new CompressionStream("deflate-raw"));
 
-/** Read a ZIP archive → Map(name → {name, method, data (compressed), size, crc, _bytes?}). Lazy inflate via zip.bytes(). */
 export class ZipArchive {
   constructor() { this.files = new Map(); this.order = []; }
 
@@ -76,17 +73,15 @@ export class ZipArchive {
     if (!this.files.has(name)) this.order.push(name);
     this.files.set(name, { name, method: -1, data: bytes, raw: null, crc: 0, size: bytes.length });
   }
-  // r40-canvas: also drop it from `order` — a part deleted and written again (all slides replaced) was listed twice
-  // and the .pptx got two «ppt/slides/slide1.xml» entries.
+
   delete(name) { this.files.delete(name); const i = this.order.indexOf(name); if (i >= 0) this.order.splice(i, 1); }
 
-  /** Serialize. Untouched entries are copied compressed as they were (fast, byte-identical). */
   async write() {
     const STORE = /\.(png|jpe?g|gif|webp|mp4|m4a|mp3|wdp|zip)$/i;
     const parts = [], central = [];
     let offset = 0;
     const names = this.names();
-    // [Content_Types].xml / mimetype first (ODF requires an uncompressed "mimetype" first)
+
     names.sort((a, b) => rank(a) - rank(b));
     for (const name of names) {
       const f = this.files.get(name);
@@ -101,7 +96,7 @@ export class ZipArchive {
       const nameBytes = TE.encode(name);
       const head = new Uint8Array(30 + nameBytes.length), hv = new DataView(head.buffer);
       hv.setUint32(0, 0x04034b50, true); hv.setUint16(4, 20, true); hv.setUint16(6, 0x800, true); hv.setUint16(8, method, true);
-      hv.setUint16(10, 0, true); hv.setUint16(12, 0x21, true);     // 1980-01-01 00:00
+      hv.setUint16(10, 0, true); hv.setUint16(12, 0x21, true);
       hv.setUint32(14, crc, true); hv.setUint32(18, raw.length, true); hv.setUint32(22, size, true);
       hv.setUint16(26, nameBytes.length, true); hv.setUint16(28, 0, true); head.set(nameBytes, 30);
       const cen = new Uint8Array(46 + nameBytes.length), cv = new DataView(cen.buffer);

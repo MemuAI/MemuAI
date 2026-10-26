@@ -35,8 +35,7 @@
     return map;
   }
   function posOfKey(map, key) { return key === ROOT ? -1 : (map.has(key) ? map.get(key) : undefined); }
-  /* Сохраняет messages[pos:] как неактивную версию и начинает новую (пустую, активную).
-     Обрезает chat.messages до pos. Возвращает ключ развилки или "" если сохранять нечего. */
+
   function beginVersion(chat, pos) {
     var messages = Array.isArray(chat.messages) ? chat.messages : [];
     pos = Math.max(0, Math.min(messages.length, pos | 0));
@@ -57,7 +56,7 @@
     chat.messages = messages.slice(0, pos);
     return key;
   }
-  /* Переключает развилку key (она должна быть на активном пути) на версию j. */
+
   function switchTo(chat, key, j) {
     var forks = forksOf(chat); var fork = forks && forks[key];
     if (!fork || !Array.isArray(fork.alts)) return false;
@@ -82,7 +81,7 @@
     }
     return null;
   }
-  /* Делает активной ветку, в которой лежит сообщение id (поиск, карта веток). */
+
   function reveal(chat, id, depth) {
     depth = depth || 0;
     if (depth > 200 || !id) return false;
@@ -94,7 +93,7 @@
     }
     return switchTo(chat, loc.key, loc.alt);
   }
-  /* Версии на активном пути: Map(индекс сообщения → {key, n, cur}). O(n). */
+
   function info(chat) {
     var out = new Map();
     var forks = forksOf(chat); if (!forks) return out;
@@ -121,7 +120,7 @@
     }
     return res;
   }
-  /* Все сообщения дерева: [{m, active, key, alt}] — активные первыми. */
+
   function allMessages(chat) {
     var out = (chat.messages || []).map(function (m, i) { return { m: m, active: true, index: i }; });
     var forks = forksOf(chat); if (!forks) return out;
@@ -130,7 +129,7 @@
     });
     return out;
   }
-  /* Чистка: осиротевшие развилки, пустые версии, повреждённые sel. Возвращает true, если что-то изменилось. */
+
   function normalize(chat) {
     var forks = forksOf(chat);
     if (!forks) { if (chat && chat.branches !== undefined && chat.branches !== null) { delete chat.branches; return true; } return false; }
@@ -146,7 +145,7 @@
         if (!fork || !Array.isArray(fork.alts) || (key !== ROOT && !ids.has(key))) { delete forks[key]; changed = again = true; continue; }
         var sel = Math.max(0, Math.min(fork.alts.length - 1, fork.sel | 0));
         if (sel !== fork.sel) { fork.sel = sel; changed = true; }
-        // ровно одна «живая» версия (m === null) — выбранная
+
         fork.alts = fork.alts.filter(function (a, i) {
           if (!a || typeof a !== "object") { changed = true; if (i < fork.sel) fork.sel -= 1; return false; }
           if (i === fork.sel) return true;
@@ -158,7 +157,7 @@
         fork.sel = Math.max(0, Math.min(fork.alts.length - 1, fork.sel | 0));
         if (fork.alts[fork.sel].m !== null) { fork.alts[fork.sel].m = null; changed = true; }
         var p = posOfKey(map, key);
-        // Активная версия опустела (удалили её сообщения) — показываем соседнюю, а пустую убираем.
+
         if (p !== undefined && p + 1 >= (chat.messages || []).length && fork.alts.length > 1) {
           fork.alts.splice(fork.sel, 1);
           var j = Math.min(fork.sel, fork.alts.length - 1);
@@ -172,7 +171,7 @@
     if (!Object.keys(forks).length) { delete chat.branches; changed = true; }
     return changed;
   }
-  /* Дерево для «Карты веток». Узлы: {type:"msg", m, active, index} | {type:"fork", key, sel, alts:[{alt, active, at, nodes}]} */
+
   function tree(chat) {
     var forks = forksOf(chat) || {};
     var guard = 0;
@@ -203,7 +202,6 @@
   // @core-end
   if (typeof window === "undefined") { if (typeof module !== "undefined") module.exports = core; return; }
 
-  /* ------------------------------------------------------------------ UI */
   function tr(ru, en) { return (typeof PG_LANG !== "undefined" && PG_LANG === "en") ? en : ru; }
   function escHtml(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]; }); }
   function ic(name) { return typeof icon === "function" ? icon(name) : ""; }
@@ -213,7 +211,7 @@
 
   function chatRecord() { try { return typeof currentChat === "function" ? currentChat() : null; } catch (e) { return null; } }
   function busy() { try { return typeof generationJobs !== "undefined" && generationJobs.has(S.currentId); } catch (e) { return false; } }
-  // Кэш info() для активного чата: renderMessages зовётся на каждый токен стрима.
+
   var cache = { chat: null, len: -1, sig: "", value: new Map() };
   function forkSig(c) {
     var f = forksOf(c); if (!f) return "";
@@ -229,7 +227,7 @@
     cache = { chat: c, len: S.messages.length, sig: sig, first: S.messages[0], value: info(view) };
     return cache.value;
   }
-  /* HTML переключателя «‹ 2/3 ›» под сообщением i (пусто, если версий нет). */
+
   function switchHtml(map, i) {
     if (!map) return "";
     var it = map.get(i); if (!it) return "";
@@ -240,19 +238,17 @@
       '<button type="button" class="br-step" data-br-step="-1"' + (it.cur <= 0 ? " disabled" : dis) + ' aria-label="' + escHtml(tr("Предыдущая версия", "Previous version")) + '" title="' + escHtml(tr("Предыдущая версия", "Previous version")) + ' (Ctrl+Shift+←)">' + SVG_L + '</button>' +
       '<span class="br-count" title="' + escHtml(label) + '"><b>' + (it.cur + 1) + '</b>/' + it.n + '</span>' +
       '<button type="button" class="br-step" data-br-step="1"' + (it.cur >= it.n - 1 ? " disabled" : dis) + ' aria-label="' + escHtml(tr("Следующая версия", "Next version")) + '" title="' + escHtml(tr("Следующая версия", "Next version")) + ' (Ctrl+Shift+→)">' + SVG_R + '</button>' +
-      (role === "assistant" && window.MemuCompare ? window.MemuCompare.switchButton(i) : "") +   // Round 37: «⇆ Сравнить» (compare.js)
+      (role === "assistant" && window.MemuCompare ? window.MemuCompare.switchButton(i) : "") +
       '<button type="button" class="br-step br-mapbtn" data-br-map aria-label="' + escHtml(tr("Карта веток", "Branch map")) + '" title="' + escHtml(tr("Карта веток", "Branch map")) + ' (Ctrl+Shift+B)">' + SVG_MAP + '</button></span>';
   }
   function emit(detail) { try { window.dispatchEvent(new CustomEvent("memu:branch-switch", { detail: detail })); } catch (e) {} }
-  /* Сохраняет текущее продолжение с позиции pos как версию (перед перегенерацией/правкой).
-     Сам S.messages НЕ обрезает — вызывающий код делает это сам, как и раньше. */
+
   function keepVersion(pos) {
     var c = chatRecord();
     if (!c || !Array.isArray(S.messages)) return "";
-    // Work / MemuCode answers change project files: an old «version» would not bring the files back, so there
-    // regenerate keeps replacing the answer as before (versions are a feature of the ordinary chat).
+
     try { if (typeof isProjectMode === "function" && isProjectMode()) return ""; } catch (e) {}
-    // A failed / empty answer («Ответа нет» → «Повторить») is not worth keeping as a version.
+
     var rest = S.messages.slice(pos).filter(function (m) { return m && !m.internal; });
     if (!rest.length || rest.every(function (m) { return m.role === "assistant" && !String(m.content || "").trim() && !(m.images || []).filter(function (u) { return u && u !== "__skeleton__"; }).length && !m.media; })) return "";
     var view = { messages: S.messages, branches: c.branches };
@@ -280,7 +276,7 @@
     var top = focusIndex != null ? anchorTop(focusIndex) : null;
     if (!mutator(view)) return false;
     normalize(view);
-    // первый индекс, где путь изменился — сжатая сводка дальше него уже о другой ветке
+
     var diff = 0; while (diff < before.length && diff < view.messages.length && before[diff] === view.messages[diff]) diff++;
     if ((+S.contextSummaryThrough || 0) > diff) { S.contextSummary = ""; S.contextSummaryThrough = 0; }
     S.messages = view.messages;
@@ -314,10 +310,9 @@
       setTimeout(function () { node.classList.remove("br-flash"); }, 1600);
     }, 40);
   }
-  /* Перед открытием чата: чистка без сохранения (сохранится с ближайшим persist). */
+
   function normalizeChat(c) { if (c && forksOf(c)) { var v = { messages: c.messages || [], branches: c.branches }; if (normalize(v)) { c.messages = v.messages; if (v.branches) c.branches = v.branches; else delete c.branches; return true; } } return false; }
 
-  /* --------------------------------------------------------- Карта веток */
   function preview(m, n) {
     var text = String((m && m.content) || "").replace(/```[\s\S]*?```/g, " [код] ").replace(/<[^>]+>/g, " ").replace(/[#*_`>|]/g, "").replace(/\s+/g, " ").trim();
     if (!text && m && (m.attachments || []).length) text = tr("Вложение: ", "Attachment: ") + (m.attachments[0].name || "");
@@ -399,7 +394,6 @@
     }
   }
 
-  /* ------------------------------------------------------------- события */
   document.addEventListener("click", function (e) {
     var stepBtn = e.target.closest && e.target.closest(".br-switch [data-br-step]");
     if (stepBtn) {
@@ -423,7 +417,7 @@
     if (e.ctrlKey && e.shiftKey && !e.altKey && (e.key === "ArrowLeft" || e.key === "ArrowRight") && !typing) {
       if (document.querySelector("#panel-back.visible")) return;
       var map = currentInfo(); if (!map || !map.size) return;
-      // последняя развилка на экране (ближайшая к низу видимой области), иначе — последняя в чате
+
       var idx = -1;
       var vh = window.innerHeight;
       map.forEach(function (v, i) {
@@ -440,7 +434,7 @@
   });
 
   window.MemuBranches = Object.assign({}, core, {
-    /* Контракт для других зон (canvas, mentions, bigdocs, askuser) — см. changelog/round35/branches.md */
+
     activePath: function () { return S.messages; },
     chatTree: function (chat) { var c = chat || chatRecord(); return c ? { messages: c === chatRecord() ? S.messages : (c.messages || []), branches: c.branches } : null; },
     mapIcon: SVG_MAP, currentInfo: currentInfo, switchHtml: switchHtml, keepVersion: keepVersion, step: step, openMap: openMap,

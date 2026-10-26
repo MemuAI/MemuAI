@@ -27,17 +27,14 @@ from . import bigdocs
 log = logging.getLogger("memuai.bigdocs")
 INLINE_TOKENS = 9000
 ACTIVE_HOURS = 12
-_PENDING: Dict[str, Dict[str, Any]] = {}       # chat → {id, pages} of the question being answered (for the quotes)
-_JOBS: Dict[str, str] = {}                      # chat → running whole-document job id
-
+_PENDING: Dict[str, Dict[str, Any]] = {}
+_JOBS: Dict[str, str] = {}
 
 def _tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
 
-
 def _state_path():
     return bigdocs.store_dir() / "telegram.json"
-
 
 def _load() -> Dict[str, Any]:
     try:
@@ -45,20 +42,17 @@ def _load() -> Dict[str, Any]:
     except Exception:
         return {}
 
-
 def _save(data: Dict[str, Any]) -> None:
     path = _state_path()
     tmp = path.with_suffix(".tmp")
     tmp.write_text(json.dumps(data, ensure_ascii=False), "utf-8")
     os.replace(tmp, path)
 
-
 def active(chat_id: str) -> Optional[Dict[str, Any]]:
     row = _load().get(str(chat_id))
     if not row or time.time() - float(row.get("at") or 0) > ACTIVE_HOURS * 3600:
         return None
     return row
-
 
 def set_active(chat_id: str, summary: Optional[Dict[str, Any]]) -> None:
     data = _load()
@@ -71,7 +65,6 @@ def set_active(chat_id: str, summary: Optional[Dict[str, Any]]) -> None:
         data.pop(key, None)
     _save(data)
 
-
 def take_document(name: str, blob: bytes) -> Optional[Dict[str, Any]]:
     """Blocking. ``{"inline": text}`` for a document that fits, ``{"doc": summary}`` for a big one, None when
     bigdocs does not handle it (images, binaries, unreadable files → the old path)."""
@@ -82,10 +75,9 @@ def take_document(name: str, blob: bytes) -> Optional[Dict[str, Any]]:
     except bigdocs.BigDocError:
         return None
     if doc["tokens"] <= INLINE_TOKENS:
-        # a one-page note needs no «[стр. 1]» mark (integrator r35: the old untrusted_file shape stays for it)
+
         return {"inline": bigdocs.full_text(doc, with_pages=len(doc["pages"]) > 1), "doc": bigdocs.summary(doc)}
     return {"doc": bigdocs.summary(doc)}
-
 
 def card_text(summary: Dict[str, Any], lang: str, has_question: bool) -> str:
     pages = f"{'≈' if summary.get('approx_pages') else ''}{summary.get('pages', 0)}"
@@ -97,7 +89,6 @@ def card_text(summary: Dict[str, Any], lang: str, has_question: bool) -> str:
                           "\nA big document — I answer from the fragments found, with page numbers.")
     return head + _tr(lang, "\n\nСпрашивайте — отвечу с цитатами и номерами страниц. «Весь документ» — пересказ по частям и свод.",
                       "\n\nAsk away — I answer with quotes and page numbers. “Whole document” reads it part by part.")
-
 
 def card_keyboard(summary: Dict[str, Any], lang: str, model: str) -> Dict[str, Any]:
     label = "📖 " + _tr(lang, "Весь документ", "Whole document")
@@ -113,7 +104,6 @@ def card_keyboard(summary: Dict[str, Any], lang: str, model: str) -> Dict[str, A
     return {"inline_keyboard": [[{"text": label, "callback_data": f"bd:whole:{summary['id'][:16]}"},
                                  {"text": "✖ " + _tr(lang, "Закрыть документ", "Close document"), "callback_data": "bd:close"}]]}
 
-
 async def augment_async(chat_id: str, text: str, lang: str = "ru", model: str = "", complete: Any = None) -> str:
     """:func:`augment` with the cross-language step: a question in another language than the document (a Russian
     question over an English book) is translated for the local search first (one short model call)."""
@@ -127,7 +117,6 @@ async def augment_async(chat_id: str, text: str, lang: str = "ru", model: str = 
         except Exception:
             alt = ""
     return await asyncio.to_thread(augment, chat_id, text, lang, alt)
-
 
 def augment(chat_id: str, text: str, lang: str = "ru", alt: str = "") -> str:
     """The question + the fragments of the chat's active document (when there is one)."""
@@ -145,7 +134,6 @@ def augment(chat_id: str, text: str, lang: str = "ru", alt: str = "") -> str:
     _PENDING[str(chat_id)] = {"id": doc["id"], "pages": ctx["pages"]}
     return (f"{question}\n\n<untrusted_file>\n{ctx['block']}\n</untrusted_file>\n{ctx['instruction']}")
 
-
 async def after_answer(api: Any, chat_id: str, answer: str, lang: str = "ru") -> None:
     """Quotes of the cited pages as a small follow-up message (Telegram has no hover)."""
     pending = _PENDING.pop(str(chat_id), None)
@@ -162,11 +150,9 @@ async def after_answer(api: Any, chat_id: str, answer: str, lang: str = "ru") ->
     await api.call("sendMessage", chat_id=chat_id, text="📎 " + _tr(lang, "Цитаты:", "Quotes:") + "\n" + text,
                    disable_notification=True, link_preview_options={"is_disabled": True})
 
-
 def _bar(done: int, total: int, width: int = 12) -> str:
     filled = int(round(width * done / max(1, total)))
     return "▓" * filled + "░" * (width - filled)
-
 
 async def _edit(api: Any, chat_id: str, message_id: int, text: str, markup: Optional[Dict[str, Any]] = None) -> None:
     payload: Dict[str, Any] = {"chat_id": chat_id, "message_id": message_id, "text": text[:4000]}
@@ -174,9 +160,8 @@ async def _edit(api: Any, chat_id: str, message_id: int, text: str, markup: Opti
         payload["reply_markup"] = markup
     try:
         await api.call("editMessageText", **payload)
-    except Exception as exc:          # "message is not modified" and friends
+    except Exception as exc:
         log.debug("bigdocs progress edit: %s", exc)
-
 
 async def handle_callback(api: Any, chat_id: str, message_id: int, data: str, *, lang: str, model: str,
                           complete: Callable[[str, List[Dict[str, Any]]], Awaitable[str]],
@@ -217,7 +202,6 @@ async def handle_callback(api: Any, chat_id: str, message_id: int, data: str, *,
     asyncio.ensure_future(_run_whole(api, chat_id, doc, model, complete, send_text, lang, conf["part_tokens"]))
     return _tr(lang, "Читаю весь документ…", "Reading the whole document…")
 
-
 async def _run_whole(api: Any, chat_id: str, doc: Dict[str, Any], model: str, complete, send_text, lang: str,
                      part_tokens: int) -> None:
     stop_kb = {"inline_keyboard": [[{"text": "⏹ " + _tr(lang, "Остановить", "Stop"), "callback_data": "bd:stop"}]]}
@@ -254,7 +238,6 @@ async def _run_whole(api: Any, chat_id: str, doc: Dict[str, Any], model: str, co
     else:
         await _edit(api, chat_id, message_id, head + "\n⚠️ " + (job.error or _tr(lang, "Ошибка", "Error"))[:500],
                     {"inline_keyboard": [[{"text": "↻ " + _tr(lang, "Ещё раз", "Retry"), "callback_data": f"bd:go:{doc['id'][:16]}"}]]})
-
 
 def completion_from(chat_service: Any):
     """``complete(model, messages)`` over the Proxy's own chat service (the bot runs inside the Proxy)."""

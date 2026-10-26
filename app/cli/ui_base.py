@@ -4,17 +4,14 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
-
 class BaseUI:
     interactive = False
 
-    # --- progress
     def status(self, text: str) -> None: ...
     def mode_changed(self, mode: str) -> None: ...
     def notice(self, text: str, level: str = "info") -> None: ...
     def compacted(self, result: Dict[str, Any]) -> None: ...
 
-    # --- one turn
     def turn_started(self, agent: Any, message: Dict[str, Any]) -> None: ...
     def stream_started(self, agent: Any) -> None: ...
     def stream_text(self, agent: Any, text: str) -> None: ...
@@ -29,7 +26,6 @@ class BaseUI:
     def turn_finished(self, agent: Any, result: Any) -> None: ...
     def background_finished(self, job: Dict[str, Any]) -> None: ...
 
-    # --- questions
     async def ask_permission(self, request: Any) -> Dict[str, Any]:
         return {"choice": "no"}
 
@@ -44,7 +40,6 @@ class BaseUI:
 
     def take_queued(self) -> List[Dict[str, Any]]:
         return []
-
 
 class RelayUI(BaseUI):
     """UI of a sub-agent: tool activity becomes progress lines under the parent

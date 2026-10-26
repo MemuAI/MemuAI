@@ -1,7 +1,5 @@
-/* Round 29 (r29-quick-explorer): DOM smoke check of the explorer/extras plugins in the real Quick Ask page (jsdom).
-   NODE_PATH=<dir with jsdom> node tests/round29_quick_explorer_dom.js  → prints "OK" or the problems (exit 1).
-   The page and all plugins load from app/pgstatic; /api/* is mocked here. Used by tests/round29_quick_explorer_test.py
-   when jsdom is available (no browser is needed). */
+
+
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -92,7 +90,7 @@ const check = (ok, what) => { if (!ok) problems.push(what); };
   check(chipText.includes("Preset X"), "the per-app preset is offered");
   check(top.querySelectorAll(".qe-act").length >= 8, "one-click actions are shown");
   if (LANG === "en") check(!/[А-Яа-яЁё]/.test(chipText), "no Cyrillic in the English chip: " + chipText);
-  // the context goes with a question; the change set becomes a card
+
   win.document.getElementById("qa-input").value = "rename by date";
   win.MemuQuick.send(null, {});
   await wait(400);
@@ -105,7 +103,7 @@ const check = (ok, what) => { if (!ok) problems.push(what); };
   await wait(200);
   check(calls.some((c) => c[0] === "/api/quick/explorer/changes/cs1/apply"), "Apply posts to the set");
   check(!!bottom.querySelector("[data-qe-undo]"), "Undo is offered after applying");
-  // detach: the next question has no context
+
   win.MemuQuick.newChat();
   await wait(100);
   const detach = top.querySelector('[data-qe="detach"]');
@@ -117,7 +115,7 @@ const check = (ok, what) => { if (!ok) problems.push(what); };
   await wait(200);
   const ask2 = calls.find((c) => c[0] === "/api/quick/ask");
   check(ask2 && Array.isArray(ask2[1].contexts) && ask2[1].contexts.length === 0, "a detached chip sends no context");
-  // duplicates view → delete extras → a change card
+
   top.querySelector('[data-qe="attach"]') && top.querySelector('[data-qe="attach"]').click();
   win.QuickExplorer.openView("dups");
   await wait(200);
@@ -126,13 +124,13 @@ const check = (ok, what) => { if (!ok) problems.push(what); };
   top.querySelector('[data-qe="dups-delete"]').click();
   await wait(200);
   check(bottom.textContent.includes("copy/a.txt"), "deleting extras makes a change card");
-  // extras: currency under the input
+
   const input = win.document.getElementById("qa-input");
   input.value = "100 usd в rub";
   input.dispatchEvent(new win.Event("input"));
   await wait(200);
   check(/9[\s\u00a0\u202f,]?000/.test(top.textContent), "currency converts while typing: " + top.textContent.slice(0, 200));
-  // eyedropper view shows the colour captured at Alt+Space
+
   win.QuickExtras.openView("color");
   await wait(100);
   check(top.textContent.includes("#3366CC"), "the eyedropper shows the colour under the pointer");

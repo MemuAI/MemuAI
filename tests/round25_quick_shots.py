@@ -41,11 +41,9 @@ CARDS = {
              "message": "JSON с ошибкой — строка 1, столбец 2: Expecting property name enclosed in double quotes"},
 }
 
-
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):  # noqa: D401
         pass
-
 
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
@@ -116,7 +114,6 @@ async def main(out: Path) -> int:
             check(not over, f"footer overflow in {name}: {over}")
             await page.screenshot(path=str(out / f"{name}.png"))
 
-        # 1. pin: always visible, toggles, persists the visible state
         page = await open_page(width=520)
         check(await page.is_visible("#qa-pin"), "the pin button is visible in an unpinned window")
         check(await page.get_attribute("#qa-pin", "aria-pressed") == "false", "unpinned → aria-pressed=false")
@@ -137,7 +134,6 @@ async def main(out: Path) -> int:
             await shot(page, f"pinned-{theme}")
             await page.close()
 
-        # 2. Enter while busy keeps the answer running
         page = await open_page()
         aborted = await page.evaluate("""async () => {
           const S = QuickAsk.state(); S.busy = true; S.controller = new AbortController();
@@ -148,7 +144,6 @@ async def main(out: Path) -> int:
         check(aborted is False, "Enter during a streaming answer must not abort it")
         check(await page.input_value("#qa-input") == "ещё вопрос", "the typed follow-up stays in the field")
 
-        # 3. a file dropped on the stage margin is attached (no navigation)
         await page.evaluate("""() => { const dt = new DataTransfer();
           dt.items.add(new File(['print(1)\\n'], 'a.py', {type: 'text/x-python'}));
           const ev = new DragEvent('drop', {dataTransfer: dt, bubbles: true, cancelable: true});
@@ -158,11 +153,10 @@ async def main(out: Path) -> int:
         check("print(1)" in await page.evaluate("QuickAsk.state().selection"), "a text file dropped outside the card is attached")
         await page.close()
 
-        # 4. the «Open in MemuAI» tooltip names Ctrl+Shift+Enter; 5. the tool cards
         page = await open_page()
         await page.evaluate("""() => { const S = QuickAsk.state(); S.turns = [{q: 'Привет', a: 'Здравствуйте!', model: 'gemini-2.5-flash', tier: 'fast',
           done: true, images: [], sources: [], shots: []}]; QuickAsk.render(); }""")
-        # Round 30: the row lives in the answer's «⋯ More» menu and shows its shortcut as keys
+
         await page.click("#qa-act-more")
         await page.wait_for_timeout(200)
         title = await page.inner_text("#qa-open")
@@ -184,7 +178,6 @@ async def main(out: Path) -> int:
     server.shutdown()
     print("OK" if not problems else f"{len(problems)} problem(s)")
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r25/quick"))))

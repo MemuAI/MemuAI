@@ -14,7 +14,6 @@ from app.cli.tools.shell import find_git_bash, is_read_only
 from app.cli.tools.base import ToolCall, ToolContext, Prepared
 from app.cli.permissions import parse_rule
 
-
 class ShellPermissionSecurity(unittest.TestCase):
     def test_benign_reads(self):
         for command in ("git status", "git log --oneline -5 | head -3", "ls -la", "rg foo src",
@@ -119,8 +118,7 @@ class ShellPermissionSecurity(unittest.TestCase):
             source.write_text("first\nsecond\n", encoding="utf-8")
             command = "sed -n '1p' -e 'w marker.txt' input.txt"
             self.assertFalse(is_read_only(command))
-            # The added -e makes sed treat the original 1p as an input filename.
-            # Its nonzero exit still leaves the writing program's output file.
+
             subprocess.run([bash, "-c", command], cwd=root, capture_output=True)
             self.assertEqual((root / "marker.txt").read_text(encoding="utf-8"), "first\nsecond\n")
             command = "sed -n '1p' -i input.txt"
@@ -194,7 +192,6 @@ class ShellPermissionSecurity(unittest.TestCase):
                                   ('npm test; python -c "print(1)"', False),
                                   ('npm test && echo "$(touch marker)"', False)):
             self.assertEqual(runtime.permissions._heuristic(tool, command, Prepared(key=command))[0], expected)
-
 
 if __name__ == "__main__":
     unittest.main()

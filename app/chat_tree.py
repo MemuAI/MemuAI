@@ -22,10 +22,8 @@ from typing import Any, Dict, Iterator, List, Optional
 ROOT = "^"
 MAX_ALTS = 60
 
-
 def uid(prefix: str) -> str:
     return f"{prefix}{int(time.time() * 1000):x}{secrets.token_hex(3)}"
-
 
 def msg_id(message: Dict[str, Any]) -> str:
     """The message's stable id (assigned on first use)."""
@@ -33,38 +31,31 @@ def msg_id(message: Dict[str, Any]) -> str:
         message["id"] = uid("m-")
     return str(message.get("id") or "") if isinstance(message, dict) else ""
 
-
 def active_path(chat: Dict[str, Any]) -> List[Dict[str, Any]]:
     """The messages of the active branch (what the user sees). Same list object as ``chat['messages']``."""
     rows = chat.get("messages") if isinstance(chat, dict) else None
     return rows if isinstance(rows, list) else []
-
 
 def forks_of(chat: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     branches = chat.get("branches") if isinstance(chat, dict) else None
     forks = branches.get("forks") if isinstance(branches, dict) else None
     return forks if isinstance(forks, dict) else None
 
-
 def _ensure_store(chat: Dict[str, Any]) -> Dict[str, Any]:
     if forks_of(chat) is None:
         chat["branches"] = {"v": 1, "forks": {}}
     return chat["branches"]["forks"]
 
-
 def _index_map(messages: List[Dict[str, Any]]) -> Dict[str, int]:
     return {str(m["id"]): i for i, m in enumerate(messages) if isinstance(m, dict) and m.get("id")}
-
 
 def _pos_of_key(index: Dict[str, int], key: str) -> Optional[int]:
     if key == ROOT:
         return -1
     return index.get(key)
 
-
 def key_at(messages: List[Dict[str, Any]], pos: int) -> str:
     return ROOT if pos <= 0 else msg_id(messages[pos - 1])
-
 
 def begin_version(chat: Dict[str, Any], pos: int) -> str:
     """Keep ``messages[pos:]`` as an inactive version and start a new, empty active one (truncates messages)."""
@@ -91,7 +82,6 @@ def begin_version(chat: Dict[str, Any], pos: int) -> str:
     chat["messages"] = messages[:pos]
     return key
 
-
 def switch_to(chat: Dict[str, Any], key: str, j: int) -> bool:
     forks = forks_of(chat) or {}
     fork = forks.get(key)
@@ -110,7 +100,6 @@ def switch_to(chat: Dict[str, Any], key: str, j: int) -> bool:
     chat["messages"] = messages[:p + 1] + nxt
     return True
 
-
 def locate(chat: Dict[str, Any], message_id: str) -> Optional[Dict[str, Any]]:
     for key, fork in (forks_of(chat) or {}).items():
         for a, alt in enumerate(fork.get("alts") or []):
@@ -120,7 +109,6 @@ def locate(chat: Dict[str, Any], message_id: str) -> Optional[Dict[str, Any]]:
                     if isinstance(row, dict) and row.get("id") == message_id:
                         return {"key": key, "alt": a, "offset": k}
     return None
-
 
 def reveal(chat: Dict[str, Any], message_id: str, depth: int = 0) -> bool:
     """Make the branch holding ``message_id`` active."""
@@ -135,7 +123,6 @@ def reveal(chat: Dict[str, Any], message_id: str, depth: int = 0) -> bool:
         if not reveal(chat, loc["key"], depth + 1):
             return False
     return switch_to(chat, loc["key"], loc["alt"])
-
 
 def info(chat: Dict[str, Any]) -> Dict[int, Dict[str, Any]]:
     """Versions on the active path: ``{message index: {"key", "n", "cur"}}`` (cur is 0-based)."""
@@ -155,7 +142,6 @@ def info(chat: Dict[str, Any]) -> Dict[int, Dict[str, Any]]:
         out[p + 1] = {"key": key, "n": len(alts), "cur": int(fork.get("sel") or 0)}
     return out
 
-
 def stats(chat: Dict[str, Any]) -> Dict[str, int]:
     res = {"forks": 0, "versions": 0, "hidden": 0}
     for fork in (forks_of(chat) or {}).values():
@@ -167,7 +153,6 @@ def stats(chat: Dict[str, Any]) -> Dict[str, int]:
         res["hidden"] += sum(len(a["m"]) for a in alts if isinstance(a, dict) and isinstance(a.get("m"), list))
     return res
 
-
 def inactive_messages(chat: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
     """Messages of every NON-active version: ``{"m", "key", "alt", "offset"}`` (for search)."""
     for key, fork in (forks_of(chat) or {}).items():
@@ -177,7 +162,6 @@ def inactive_messages(chat: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
                 for k, row in enumerate(rows):
                     if isinstance(row, dict):
                         yield {"m": row, "key": key, "alt": a, "offset": k}
-
 
 def normalize(chat: Dict[str, Any]) -> bool:
     """Drop orphaned forks, empty versions and repair ``sel``. Returns True when something changed."""
@@ -243,14 +227,12 @@ def normalize(chat: Dict[str, Any]) -> bool:
         changed = True
     return changed
 
-
 def version_note(chat: Dict[str, Any], index: int, lang: str = "ru") -> str:
     """«Версия 2/3» for message ``index`` on the active path, or ''."""
     it = info(chat).get(index)
     if not it:
         return ""
     return (f"Version {it['cur'] + 1}/{it['n']}" if lang == "en" else f"Версия {it['cur'] + 1}/{it['n']}")
-
 
 def fork_off(chat: Dict[str, Any], upto_index: int, new_id: str, title: str) -> Dict[str, Any]:
     """A NEW chat with the active history up to and including ``upto_index`` (one linear branch)."""

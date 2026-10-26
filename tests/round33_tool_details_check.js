@@ -1,5 +1,5 @@
-// Round 33 (#20): MemuToolDetails.capture/rowHtml for every kind of tool, RU and EN. Prints JSON for
-// tests/round33_chat_test.py (ToolDetailsJs).
+
+
 "use strict";
 const path = require("path");
 global.document = { addEventListener() {} };
@@ -52,7 +52,7 @@ function render(lang) {
   return out;
 }
 const result = { ru: render("ru"), en: render("en"), legacy: null };
-// A row saved before Round 33 has no detail: still a readable title from its arguments.
+
 global.PG_LANG = "en";
 result.legacy = T.rowHtml({ tool: "docs_read", args: { id: "quick-ask" }, ok: true, ms: 0 }, "");
 process.stdout.write(JSON.stringify(result));

@@ -30,10 +30,8 @@ ROOT = Path(__file__).resolve().parents[1]
 PG = ROOT / "app" / "pgstatic"
 DOCS = ROOT / "app" / "docs"
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 class RssShortLabelTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -66,16 +64,13 @@ class RssShortLabelTest(unittest.TestCase):
         self.assertEqual(values["feed_short"], "Все публикации…")
         self.assertEqual(values["feed_title"], "Все публикации подряд на Хабре")
 
-
 def synth(handler, text="Привет, мир.", **kw):
     tp.CACHE.items.clear()
     params = {"base_url": "https://api.openai.com/v1", "api_key": "sk-test", "model": "", "voice": ""}
     params.update(kw)
     return run(tp.synthesize(text, transport=httpx.MockTransport(handler), **params))
 
-
 MP3 = b"ID3\x03\x00\x00\x00\x00\x00\x00" + b"\xff\xfb" + b"\x00" * 64
-
 
 class CloudTtsTest(unittest.TestCase):
     def test_full_endpoint_pasted_as_base_url(self):
@@ -124,7 +119,7 @@ class CloudTtsTest(unittest.TestCase):
         text = str(ctx.exception)
         self.assertIn("квота", text)
         self.assertNotIn("неверный", text)
-        # A real wrong key is still reported as such.
+
         msg = tp.error_message("elevenlabs", 401, json.dumps({"detail": {"status": "invalid_api_key", "message": "Invalid API key"}}).encode())
         self.assertIn("неверный", msg)
 
@@ -133,37 +128,33 @@ class CloudTtsTest(unittest.TestCase):
             with self.assertRaisesRegex(tp.TTSApiError, "too large"):
                 synth(lambda request: httpx.Response(200, content=MP3), lang="en")
 
-
 SETTINGS_PAGES_RU = {"Общие", "Внешний вид", "Уведомления", "Модели", "Чат и ответы", "Веб-поиск", "Изображения и видео",
                      "Голос и Live", "Work и агенты", "Do For You", "Быстрый доступ", "Панели", "Telegram", "Интеграции",
-                     "Синхронизация", "Горячие клавиши",               # Round 29: sync-settings.js, hotkeys.js
-                     "Профиль и память", "Рефлексия", "Время и фокус",   # Round 27: app/pgstatic/reflect.js
+                     "Синхронизация", "Горячие клавиши",
+                     "Профиль и память", "Рефлексия", "Время и фокус",
                      "Системные промпты", "Данные", "Модули", "Документация", "О программе",
-                     "MemuNote",                                        # Round 29: memunote-settings.js
-                     "MemuFiles", "Ссылки и командная строка"}          # Round 35: memufiles-settings.js, links-settings
+                     "MemuNote",
+                     "MemuFiles", "Ссылки и командная строка"}
 SETTINGS_PAGES_EN = {"General", "Appearance", "Notifications", "Models", "Chat & replies", "Web search", "Images & video",
                      "Voice & Live", "Work & agents", "Do For You", "Quick Ask", "Panels", "Telegram", "Integrations",
                      "Profile & memory", "Reflect", "Time & focus", "System prompts",
                      "Sync", "Keyboard shortcuts", "Data", "Modules", "Documentation", "About",
                      "MemuNote", "MemuFiles", "Links & command line"}
-# «Proxy → Настройки → …», Windows' own settings and other apps' menus are not MemuAI settings pages.
+
 NOT_MEMUAI = ("Proxy →", "Mini App", "Windows Settings", "Windows ", "Параметры Windows", "(Settings → Data controls", "(Settings → Privacy",
               "Telegram →", "MemuMusic Settings →",
               "Settings → Privacy → Microphone",
-              "Notion **")                                    # Round 33: Notion's own settings in integrations.md
-
+              "Notion **")
 
 def _proxy_sections():
     """Section names of the Proxy settings (static/settings-i18n.js «sg.sec.*», ru and en) plus «Дополнительно»."""
     text = (ROOT / "app" / "static" / "settings-i18n.js").read_text(encoding="utf-8")
     return set(re.findall(r'"sg\.sec\.[a-z]+": "([^"]+)"', text)) | {"Дополнительно", "Advanced"}
 
-
 def _memunote_sections():
     """Section names of MemuNote's own settings window (memunote/static/js/i18n.js «set_general/editor/files/ai»)."""
     text = (ROOT / "app" / "memunote" / "static" / "js" / "i18n.js").read_text(encoding="utf-8")
     return set(re.findall(r'set_(?:general|editor|files|ai): "([^"]+)"', text))
-
 
 class SettingsPathsTest(unittest.TestCase):
     def test_settings_pages_list_matches_app(self):
@@ -183,9 +174,9 @@ class SettingsPathsTest(unittest.TestCase):
             pages = SETTINGS_PAGES_RU if match.group(1) == "Настройки" else SETTINGS_PAGES_EN
             if proxy_doc or "Proxy" in line:
                 pages = pages | _proxy_sections()
-            if memunote_doc:   # Round 33: memunote.md also names MemuNote's own Settings window sections
+            if memunote_doc:
                 pages = pages | _memunote_sections()
-            # «Настройки → Искусственный интеллект → Do For You» names the sidebar group.
+
             if head in pages or head in ("Искусственный интеллект", "AI") or any(head.startswith(p + " ") for p in pages):
                 continue
             bad.append(match.group(0))
@@ -203,14 +194,12 @@ class SettingsPathsTest(unittest.TestCase):
     def test_panels_hints_point_at_existing_pages(self):
         for name in ("panels.js", "panels-telegram.js", "modules.js", "voice-settings.js", "appearance.js", "docs.js"):
             text = (PG / name).read_text(encoding="utf-8")
-            # header comments describe the code, not the UI
+
             body = re.sub(r"^/\*.*?\*/", "", text, count=1, flags=re.S)
             self.assertEqual(self._bad_paths(body), [], name)
 
-
 def _browser_base():
     return __import__("tests.panels_browser_test", fromlist=["_chromium"])
-
 
 @unittest.skipUnless(_browser_base()._chromium(), "Chromium is not installed")
 class PanelsRenderBrowserTest(unittest.TestCase):
@@ -261,14 +250,13 @@ class PanelsRenderBrowserTest(unittest.TestCase):
             self.assertEqual(state["trend"], "up")
             self.assertEqual(state["delta"], "up")
             self.assertEqual(state["clipped"], 0, "a stat value is cut with an ellipsis")
-            # The chip follows the same rule; a negative bound delta turns it down.
+
             chip = page.evaluate("""() => { const p = MemuPanels._state.panels[0];
               const html = MemuPanels._chipHtml({...p, data: {...p.data, d: '−1.5%'}});
               return /data-trend="down"/.test(html); }""")
             self.assertTrue(chip)
             browser.close()
         self.assertEqual(errors, [])
-
 
 @unittest.skipUnless(_browser_base()._chromium(), "Chromium is not installed")
 class SettingsSearchBrowserTest(unittest.TestCase):
@@ -313,17 +301,16 @@ class SettingsSearchBrowserTest(unittest.TestCase):
                 self.assertEqual(hits["брутализм"], "appearance: Дизайн интерфейса")
                 self.assertEqual(hits["терракота"], "appearance: Акцентный цвет")
                 self.assertEqual(hits["без анимации"], "appearance: Анимации")
-                # Jumping to a lazily drawn row opens the page, highlights the row and focuses its control.
+
                 page.evaluate("() => MemuSettingsKit.jump('единицы')")
                 page.wait_for_selector("#pane-panels .sx-flash [data-units]", timeout=5000)
-                # The panels list in a narrow window: tags and buttons wrap, the name keeps its width.
+
                 page.wait_for_selector('#pane-panels .mp-set-item[data-panel-id="p_w000000001"]', timeout=5000)
                 geo = page.evaluate("""() => { const item = document.querySelector('#pane-panels .mp-set-item');
                   return {name: item.querySelector('.t').getBoundingClientRect().width, item: item.getBoundingClientRect().width}; }""")
                 self.assertGreater(geo["name"], geo["item"] * 0.7, geo)
                 browser.close()
         self.assertEqual(errors, [])
-
 
 class AppearanceSearchLabelsTest(unittest.TestCase):
     def test_pickers_carry_their_own_search_label(self):
@@ -332,7 +319,6 @@ class AppearanceSearchLabelsTest(unittest.TestCase):
             self.assertRegex(source, rf'class="{cls}" data-sx-label="\$\{{L\(')
         kit = (PG / "settings-kit.js").read_text(encoding="utf-8")
         self.assertIn("node.dataset.sxLabel", kit)
-
 
 if __name__ == "__main__":
     unittest.main()

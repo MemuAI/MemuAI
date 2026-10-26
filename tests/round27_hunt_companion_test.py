@@ -14,17 +14,14 @@ from app import realtime_live, reflect, telegram_bot, telegram_focus
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def _read(rel):
     return (ROOT / rel).read_text(encoding="utf-8")
-
 
 def _node(script):
     out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=60)
     if out.returncode:
         raise AssertionError(out.stderr)
     return json.loads(out.stdout.strip().splitlines()[-1])
-
 
 class QuietReminderCarriesItsHold(unittest.TestCase):
     """Two reminders in one chat (an unanswered one from the previous quiet window and a new one):
@@ -43,7 +40,7 @@ class QuietReminderCarriesItsHold(unittest.TestCase):
         old = self._hold(1_000, "вчера")[1]["inline_keyboard"][0]
         new = self._hold(2_000, "сегодня")[1]["inline_keyboard"][0]
         self.assertNotEqual(old[0]["callback_data"], new[0]["callback_data"])
-        for button in old:      # neither «Продолжить» nor «Вернусь позже» of the old card touches the new hold
+        for button in old:
             self.assertTrue(telegram_focus.is_quiet_callback(button["callback_data"]))
             held, note = telegram_focus.quiet_answer("7", button["callback_data"], {})
             self.assertEqual(held, [])
@@ -59,7 +56,6 @@ class QuietReminderCarriesItsHold(unittest.TestCase):
         self.assertIn("expired", note)
         self.assertFalse(telegram_focus.is_quiet_callback("fq:other:1"))
         self.assertFalse(telegram_focus.is_quiet_callback("fb:break"))
-
 
 class GroupCommandsForOtherBots(unittest.TestCase):
     """In a group the bot answered /cmd@otherbot (and sent «/start@otherbot» to the model as a prompt)."""
@@ -80,11 +76,10 @@ class GroupCommandsForOtherBots(unittest.TestCase):
     def test_foreign_commands_are_ignored(self):
         self.assertFalse(self._dispatched("/start@OtherBot"))
         self.assertFalse(self._dispatched("/new@other_bot hello"))
-        self.assertTrue(self._dispatched("/start@memuhomebot"))        # case-insensitive, ours
+        self.assertTrue(self._dispatched("/start@memuhomebot"))
         self.assertTrue(self._dispatched("/start"))
         self.assertTrue(self._dispatched("write to support@example.com"))
-        self.assertTrue(self._dispatched("/start@OtherBot", username=""))   # unknown name: never drop
-
+        self.assertTrue(self._dispatched("/start@OtherBot", username=""))
 
 class LiveMessagesFollowTheWindowLanguage(unittest.TestCase):
     """MemuAI Live errors (relay, config, connect) were Russian in the English window
@@ -97,7 +92,7 @@ class LiveMessagesFollowTheWindowLanguage(unittest.TestCase):
         self.assertEqual(loc("Добавьте API-ключ OpenAI GPT-Live в настройках «Голос и Live»", "en"),
                          "Add the OpenAI GPT-Live API key in “Voice & Live” settings")
         self.assertEqual(loc("Провайдер закрыл соединение (1008) bad key", "en"), "The provider closed the connection (1008) bad key")
-        self.assertEqual(loc("Incorrect API key provided", "en"), "Incorrect API key provided")   # provider text as is
+        self.assertEqual(loc("Incorrect API key provided", "en"), "Incorrect API key provided")
 
     def test_every_config_error_has_english(self):
         cases = [{"voice_realtime_provider": "custom"},
@@ -123,7 +118,6 @@ class LiveMessagesFollowTheWindowLanguage(unittest.TestCase):
             sample = re.sub(r"\{[^}]*\}", "x", literal).replace("%s", "401")
             self.assertNotRegex(realtime_live.localize(sample, "en"), "[А-Яа-яЁё]", literal)
         self.assertIn('payload = {**payload, "message": realtime_live.localize(payload["message"], lang)}', api)
-
 
 class MicrophoneFallbackAndErrors(unittest.TestCase):
     """A microphone chosen in settings and then unplugged broke every Live session and dictation
@@ -165,13 +159,12 @@ vm.runInContext(fs.readFileSync("app/pgstatic/realtime.js", "utf8") + ";globalTh
         self.assertIn("await MemuRealtime.microphone({", body)
         self.assertIn("MemuRealtime.micError(error)", body)
         self.assertIn('source: "voice", on: seconds > 0, seconds', body)
-        # muted only once recording really started, released on stop
+
         self.assertLess(body.index("voiceRecorder.start(250);"), body.index("wakeBusy(120); wakeRenew"))
         self.assertIn("clearInterval(wakeRenew); wakeBusy(0);", body)
         rt = _read("app/pgstatic/realtime.js")
         self.assertIn('t("Микрофон недоступен: ", "Microphone unavailable: ") + micError(error)', rt)
         self.assertIn("cameraError(error)", rt)
-
 
 class CompanionStateConcurrentSaves(unittest.TestCase):
     """state.json: the desktop window thread and the HTTP routes saved at once — read-modify-write lost a
@@ -211,7 +204,6 @@ class CompanionStateConcurrentSaves(unittest.TestCase):
                     pass
             with self.assertRaisesRegex(ValueError, "No model is enabled"):
                 asyncio.run(first())
-
 
 class InstallerWhatsNewIsAbout31(unittest.TestCase):
     """«Что нового в MemuAI 3.1» used to list stale features; round 38 removed the «What's new» button and dialog

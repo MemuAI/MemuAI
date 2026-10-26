@@ -42,7 +42,6 @@ KEEP_GENERATED = 3
 
 _lock = threading.Lock()
 
-
 def colors_of(gradient: str) -> Tuple[str, str]:
     found = re.findall(r"#[0-9a-fA-F]{6}", gradient or "")[:2]
     if not found:
@@ -51,10 +50,8 @@ def colors_of(gradient: str) -> Tuple[str, str]:
         found.append(found[0])
     return found[0].lower(), found[1].lower()
 
-
 def is_default(avatar: str, gradient: str) -> bool:
     return not avatar and colors_of(gradient) == DEFAULT_COLORS
-
 
 def signature(avatar: str, gradient: str) -> str:
     if is_default(avatar, gradient):
@@ -62,11 +59,8 @@ def signature(avatar: str, gradient: str) -> str:
     key = avatar if avatar else "gradient:" + ",".join(colors_of(gradient))
     return hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
 
-
-# ------------------------------------------------------------------ drawing
 def _rgb(color: str) -> Tuple[int, int, int]:
     return tuple(int(color[i:i + 2], 16) for i in (1, 3, 5))  # type: ignore[return-value]
-
 
 def _star_points(cx: float, cy: float, r: float, inner: float = 0.22, steps: int = 24):
     """Polygon of the concave four-point star (quadratic sides sampled)."""
@@ -82,7 +76,6 @@ def _star_points(cx: float, cy: float, r: float, inner: float = 0.22, steps: int
                            (1 - t) ** 2 * p0[1] + 2 * (1 - t) * t * p1[1] + t * t * p2[1]))
     return points
 
-
 def _bubble_mask(size: int):
     """The MemuAI speech-bubble outline (same proportions as build_memuai_icon full drawing)."""
     from PIL import Image, ImageDraw
@@ -93,7 +86,6 @@ def _bubble_mask(size: int):
     draw.polygon([(150 * scale, 410 * scale), (200 * scale, 416 * scale), (62 * scale, 482 * scale),
                   (32 * scale, 330 * scale), (32 * scale, 300 * scale)], fill=255)
     return mask
-
 
 def render_image(avatar: str, gradient: str, size: int = 256):
     """The assistant icon as an RGBA image (photo circle or gradient bubble)."""
@@ -111,7 +103,7 @@ def render_image(avatar: str, gradient: str, size: int = 256):
     big = size * 4
     vertical = Image.linear_gradient("L").resize((big, big))
     horizontal = vertical.transpose(Image.Transpose.ROTATE_90)
-    diagonal = ImageChops.add(horizontal, vertical, scale=2.0)      # (x + y) / 2, top-left → bottom-right
+    diagonal = ImageChops.add(horizontal, vertical, scale=2.0)
     fill = Image.composite(Image.new("RGBA", (big, big), end + (255,)),
                            Image.new("RGBA", (big, big), start + (255,)), diagonal)
     image = Image.new("RGBA", (big, big), (0, 0, 0, 0))
@@ -119,7 +111,6 @@ def render_image(avatar: str, gradient: str, size: int = 256):
     scale = big / 512
     ImageDraw.Draw(image).polygon(_star_points(256 * scale, 224 * scale, 150 * scale), fill=(255, 255, 255, 250))
     return image.resize((size, size), Image.Resampling.LANCZOS)
-
 
 def _write_ico(image, path: Path) -> None:
     """Multi-size .ico, BMP entries below 256 px (see build_memuai_icon.write_ico)."""
@@ -158,7 +149,6 @@ def _write_ico(image, path: Path) -> None:
         blobs.append(data)
     _atomic_write(path, directory + b"".join(blobs))
 
-
 def _atomic_write(path: Path, data: bytes) -> None:
     temporary = path.with_name(path.name + ".tmp")
     with open(temporary, "wb") as handle:
@@ -170,11 +160,8 @@ def _atomic_write(path: Path, data: bytes) -> None:
             pass
     os.replace(temporary, path)
 
-
-# ------------------------------------------------------------------ files
 def icon_dir(data_dir) -> Path:
     return Path(data_dir) / "memuai"
-
 
 def load_state(data_dir) -> Dict[str, str]:
     try:
@@ -183,20 +170,16 @@ def load_state(data_dir) -> Dict[str, str]:
     except (OSError, ValueError):
         return {}
 
-
 def _save_state(data_dir, state: Dict[str, str]) -> None:
     folder = icon_dir(data_dir)
     folder.mkdir(parents=True, exist_ok=True)
     _atomic_write(folder / STATE_NAME, json.dumps(state, ensure_ascii=False, indent=1).encode("utf-8"))
 
-
 def bundled_ico() -> str:
     return identity.bundled_file("memuai-icon.ico")
 
-
 def bundled_png() -> str:
     return identity.bundled_file("memuai-icon.png")
-
 
 def current_icon(data_dir) -> Tuple[str, str]:
     """(ico, png) the MemuAI windows/tray should show now (custom when generated, else bundled)."""
@@ -205,7 +188,6 @@ def current_icon(data_dir) -> Tuple[str, str]:
     if state.get("signature", "default") != "default" and ico and os.path.isfile(ico):
         return ico, png if png and os.path.isfile(png) else ""
     return bundled_ico(), bundled_png()
-
 
 def ensure_files(data_dir, avatar: str, gradient: str) -> Tuple[str, str, bool]:
     """Make sure the icon files for this look exist. Returns (ico, png, changed)."""
@@ -235,7 +217,6 @@ def ensure_files(data_dir, avatar: str, gradient: str) -> Tuple[str, str, bool]:
         _prune(folder, keep=str(ico))
         return str(ico), str(png), True
 
-
 def _prune(folder: Path, keep: str) -> None:
     """Keep the newest few generated icons (an unknown shortcut may still point at one)."""
     generated = sorted(folder.glob("assistant-*.ico"), key=lambda p: p.stat().st_mtime, reverse=True)
@@ -246,10 +227,7 @@ def _prune(folder: Path, keep: str) -> None:
             except OSError:
                 pass
 
-
-# ------------------------------------------------------------------ apply
 _shortcut_thread: Optional[threading.Thread] = None
-
 
 def schedule_shortcut_sync(data_dir, ico: str) -> None:
     """Update the shortcuts in the background (COM + disk; never on the request thread)."""
@@ -268,12 +246,10 @@ def schedule_shortcut_sync(data_dir, ico: str) -> None:
     _shortcut_thread = thread
     thread.start()
 
-
 def apply_to_window(hwnd: int, data_dir) -> bool:
     """Startup / restore: give the window the current icon (no file writes)."""
     ico, _png = current_icon(data_dir)
     return identity.WINDOW_ICONS.apply(hwnd, ico) if ico else False
-
 
 def sync(data_dir, avatar: str, gradient: str, hwnd: int) -> Dict[str, object]:
     """Bring files, window, tray and shortcuts in line with the assistant's look."""

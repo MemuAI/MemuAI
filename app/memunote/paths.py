@@ -14,25 +14,21 @@ from typing import Any
 
 _LOCK = threading.Lock()
 
-
 def data_root() -> Path:
     env = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if env:
         return Path(env)
     return Path(os.environ.get("APPDATA") or os.path.expanduser("~")) / "MemuAI"
 
-
 def note_dir() -> Path:
     path = data_root() / "memunote"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-
 def recovery_dir() -> Path:
     path = note_dir() / "recovery"
     path.mkdir(parents=True, exist_ok=True)
     return path
-
 
 def read_json(path: Path, default: Any) -> Any:
     try:
@@ -41,7 +37,6 @@ def read_json(path: Path, default: Any) -> Any:
         return value if isinstance(value, type(default)) else default
     except (OSError, ValueError):
         return default
-
 
 def write_json(path: Path, value: Any) -> None:
     """Atomic write (temp file + os.replace) so a crash never leaves half a file."""
@@ -59,7 +54,6 @@ def write_json(path: Path, value: Any) -> None:
             except OSError:
                 pass
             raise
-
 
 def memuai_preferences() -> dict:
     """MemuAI's own preferences (theme, language) — read only, never written."""

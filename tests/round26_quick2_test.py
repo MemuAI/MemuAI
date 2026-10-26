@@ -31,7 +31,6 @@ from app import quick_ask_endpoint as endpoint
 ROOT = Path(__file__).resolve().parents[1]
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 
-
 class ApiCase(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.mkdtemp(prefix="r26q2-")
@@ -48,7 +47,6 @@ class ApiCase(unittest.TestCase):
         app = create_app()
         app.state.quick_ask = manager
         return TestClient(app, base_url="http://127.0.0.1")
-
 
 class HotkeySecondsTests(ApiCase):
     def test_junk_durations_are_clamped_not_500(self) -> None:
@@ -79,7 +77,6 @@ class HotkeySecondsTests(ApiCase):
         self.assertEqual(quick_ask_api._seconds(float("-inf"), 3.0, 1.0, 5.0), 3.0)
         self.assertEqual(quick_ask_api._seconds(True, 3.0, 1.0, 5.0), 1.0)
 
-
 class EnglishErrorsTests(ApiCase):
     def test_screenshot_errors_follow_the_language(self) -> None:
         client = self.client(None)
@@ -109,7 +106,6 @@ class EnglishErrorsTests(ApiCase):
         manager.hotkey_status = {}
         status = manager.apply_preferences({"language": "en"})
         self.assertEqual(status["error"], "Quick Ask works only in the MemuAI Windows app")
-
 
 class WinBackendLanguageTests(unittest.TestCase):
     def test_every_backend_error_has_an_english_text(self) -> None:
@@ -160,7 +156,6 @@ class WinBackendLanguageTests(unittest.TestCase):
                 self.assertEqual(ru["message"], "Спящий режим недоступен")
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
-
 
 class ReasoningFilterTests(unittest.TestCase):
     CASES = {
@@ -238,7 +233,6 @@ class ReasoningFilterTests(unittest.TestCase):
         self.assertEqual(done["text"], "Ответ: 391.")
         self.assertTrue(any(e.get("status") == "reasoning" for e in events), "the reasoning shows as a status")
 
-
 class EndpointErrorTests(unittest.TestCase):
     def test_unknown_model_is_named(self) -> None:
         body = json.dumps({"error": {"message": 'Model "no/such-model" does not exist.'}})
@@ -249,7 +243,7 @@ class EndpointErrorTests(unittest.TestCase):
         text = endpoint.explain(400, json.dumps({"error": {"message": "Failed to get model"}}),
                                 url="https://x/v1", lang="ru", what="/chat/completions")
         self.assertIn("не знает эту модель", text)
-        # a real wrong path still says so
+
         text = endpoint.explain(404, "<html>404 Not Found nginx</html>", url="https://x", lang="ru", what="/chat/completions")
         self.assertIn("/v1", text)
         self.assertIn("/chat/completions", text)
@@ -298,7 +292,6 @@ class EndpointErrorTests(unittest.TestCase):
         self.assertIn("proxy server", text)
         self.assertIn("a.example", text)
 
-
 class SettingsTests(unittest.TestCase):
     def test_endpoint_url_rejects_bogus_ports_and_schemes(self) -> None:
         for bad in ("javascript:alert(1)", "localhost:abc", "https://x:99999/v1", "ftp://x/v1"):
@@ -330,7 +323,6 @@ class SettingsTests(unittest.TestCase):
         sent = asyncio.run(collect())
         self.assertIn("turned off in Settings", sent[0]["messages"][0]["content"])
 
-
 class WindowStaticTests(unittest.TestCase):
     def setUp(self) -> None:
         self.js = (QUICK / "quick.js").read_text(encoding="utf-8")
@@ -357,7 +349,6 @@ class WindowStaticTests(unittest.TestCase):
         result = subprocess.run([node, "--check", str(QUICK / "quick.js")], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-
 class WindowHeadlessTests(unittest.TestCase):
     """tests/round26_quick2_shots.py in headless Chromium (skipped without playwright/Chromium)."""
 
@@ -376,7 +367,6 @@ class WindowHeadlessTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout[-3000:] + result.stderr[-3000:])
         finally:
             shutil.rmtree(out, ignore_errors=True)
-
 
 if __name__ == "__main__":
     unittest.main()

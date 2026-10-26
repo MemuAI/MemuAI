@@ -1,4 +1,4 @@
-/* MemuAI Proxy i18n: RU / EN */
+
 "use strict";
 
 const I18N = {
@@ -109,7 +109,6 @@ const I18N = {
     "st.status": "Статус", "st.ms": "мс", "st.tokens": "токены", "st.account": "Аккаунт",
     "modal.close": "Закрыть", "common.yes": "Да", "common.no": "Нет",
 
-    /* --- round 6: главная / статистика --- */
     "home.openchat": "✦ Открыть MemuAI",
     "home.openchat.done": "MemuAI открывается в отдельном окне…",
     "home.restart": "⟲ Перезапустить службы",
@@ -222,7 +221,6 @@ const I18N = {
     "metrics.err.unknown": "Неизвестная ошибка",
     "metrics.alltime": "Всего",
 
-    /* --- round 6: аккаунты --- */
     "acc.export": "↧ Экспорт",
     "acc.search": "Поиск по метке, статусу, тегу, ошибке…",
     "acc.sort": "Сортировка",
@@ -283,7 +281,6 @@ const I18N = {
     "bulk.nothing": "Сначала выберите записи",
     "bulk.done": "Готово",
 
-    /* --- round 6: настройки --- */
     "set.providers": "Настройки провайдеров",
     "set.provider.noacc": "нет аккаунтов",
     "set.provider.native": "свой веб-поиск",
@@ -381,7 +378,6 @@ const I18N = {
     "set.models.pickprovider": "Выберите провайдера в фильтре или отметьте его модели",
     "set.models.delwarn": "Выбранные модели будут удалены из каталога. Их можно вернуть кнопкой «Обновить».",
 
-    /* --- round 6: логи --- */
     "logs.view.requests": "Запросы",
     "logs.view.server": "Журнал сервера",
     "logs.search": "Поиск по модели, ошибке, payload…",
@@ -533,7 +529,6 @@ const I18N = {
     "st.status": "Status", "st.ms": "ms", "st.tokens": "tokens", "st.account": "Account",
     "modal.close": "Close", "common.yes": "Yes", "common.no": "No",
 
-    /* --- round 6: home / metrics --- */
     "home.openchat": "✦ Open MemuAI",
     "home.openchat.done": "MemuAI is opening in a separate window…",
     "home.restart": "⟲ Restart services",
@@ -646,7 +641,6 @@ const I18N = {
     "metrics.err.unknown": "Unknown error",
     "metrics.alltime": "Total",
 
-    /* --- round 6: accounts --- */
     "acc.export": "↧ Export",
     "acc.search": "Search by label, status, tag, error…",
     "acc.sort": "Sort",
@@ -707,7 +701,6 @@ const I18N = {
     "bulk.nothing": "Select some entries first",
     "bulk.done": "Done",
 
-    /* --- round 6: settings --- */
     "set.providers": "Provider settings",
     "set.provider.noacc": "no accounts",
     "set.provider.native": "own web search",
@@ -805,7 +798,6 @@ const I18N = {
     "set.models.pickprovider": "Pick a provider in the filter or select some of its models",
     "set.models.delwarn": "The selected models will be removed from the catalog. Refresh brings them back.",
 
-    /* --- round 6: logs --- */
     "logs.view.requests": "Requests",
     "logs.view.server": "Server log",
     "logs.search": "Search model, error, payload…",

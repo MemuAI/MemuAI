@@ -44,13 +44,11 @@ print("safe <script>")
 [Документация](https://example.com/docs)
 """
 
-
 def chromium():
     return next((str(p) for p in [Path(os.environ.get("MEMU_TEST_CHROMIUM", "")),
                   Path(r"C:\Program Files\Google\Chrome\Application\chrome.exe"),
                   Path(r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"), Path("/usr/bin/chromium")]
                  if p.is_file()), "")
-
 
 class PanelFixture:
     def __init__(self):
@@ -132,7 +130,6 @@ class PanelFixture:
                                      "browser_only":not self.settings["save_to_main"]})
         return {"ok":True}
 
-
 @pytest.fixture(scope="module")
 def panel_server():
     fixture = PanelFixture()
@@ -172,7 +169,7 @@ def panel_server():
                 events = fixture.stream_events or [{"event":"chat","id":"browser-new"},{"event":"token","text":"Первоначальный текст"},
                           {"event":"replace","text":MARKDOWN},{"event":"done","id":"browser-new"}]
                 stream = "".join("data: "+json.dumps(event,ensure_ascii=False)+"\n\n" for event in events).encode()
-                # Split frames, JSON and multi-byte Cyrillic across real HTTP chunks.
+
                 self.send_response(200)
                 self.send_header("Content-Type","text/event-stream; charset=utf-8")
                 self.send_header("Transfer-Encoding","chunked")
@@ -210,7 +207,6 @@ def panel_server():
     server.server_close()
     thread.join(5)
 
-
 CHROME_MOCK = """({base,model}) => {
   const storage={base,token:'offline-test-token',model,favorites:[],recentModels:[],lastChat:'',lastProfile:'default'};
   const listeners=[];
@@ -229,7 +225,6 @@ CHROME_MOCK = """({base,model}) => {
   Object.defineProperty(navigator,'clipboard',{value:{writeText:async value=>{window.__copied=value;}},configurable:true});
 }"""
 
-
 @pytest.fixture(scope="module")
 def browser():
     pytest.importorskip("playwright")
@@ -243,7 +238,6 @@ def browser():
                                       args=["--no-sandbox","--disable-background-networking"])
         yield instance
         instance.close()
-
 
 @pytest.fixture
 def panel(browser,panel_server):
@@ -263,7 +257,6 @@ def panel(browser,panel_server):
     yield page,panel_server
     context.close()
 
-
 def layout(page, *, composer=True):
     result = page.evaluate("""() => {
       const rect=e=>e.getBoundingClientRect().toJSON(), c=document.querySelector('#composer'), send=document.querySelector('#send');
@@ -282,7 +275,6 @@ def layout(page, *, composer=True):
         assert result["composer"]["bottom"]<=result["height"]+1,result
         assert result["send"]["right"]<=result["width"]+1,result
 
-
 @pytest.mark.parametrize("scheme",["light","dark"])
 @pytest.mark.parametrize("width,height",[(280,480),(280,800),(360,480),(360,800),(520,480),(520,800)])
 def test_panel_layout_in_narrow_and_short_sidebar(panel,scheme,width,height):
@@ -291,7 +283,6 @@ def test_panel_layout_in_narrow_and_short_sidebar(panel,scheme,width,height):
     page.set_viewport_size({"width":width,"height":height})
     layout(page)
     page.screenshot(path=str(SHOTS/f"extension-{scheme}-{width}x{height}.png"))
-
 
 def test_model_search_favorites_and_long_catalogue(panel):
     page,_=panel
@@ -316,7 +307,6 @@ def test_model_search_favorites_and_long_catalogue(panel):
     assert "005" in page.locator("#model-label").inner_text()
     assert "api-model-005" in page.evaluate("window.__storage.recentModels")
 
-
 def test_shared_chat_history_and_project_readonly(panel):
     page,_=panel
     page.locator("#history").click()
@@ -336,7 +326,6 @@ def test_shared_chat_history_and_project_readonly(panel):
     page.locator("#new").click()
     assert page.locator("#readonly").is_hidden()
     layout(page)
-
 
 def test_files_images_streaming_and_safe_markdown(panel):
     page,fixture=panel
@@ -373,7 +362,6 @@ def test_files_images_streaming_and_safe_markdown(panel):
     page.screenshot(path=str(SHOTS/"extension-chat-with-files.png"))
     assert not page.__errors,page.__errors
 
-
 def test_incomplete_stream_retains_partial_answer_and_retry(panel):
     page,_=panel
     page.route("**/bridge/chat",lambda route:route.fulfill(status=200,
@@ -385,7 +373,6 @@ def test_incomplete_stream_retains_partial_answer_and_retry(panel):
     assert "прерван" in page.locator("#status").inner_text().lower()
     page.get_by_role("button",name="Вернуть запрос в поле ввода").click()
     assert page.locator("#input").input_value()=="Верни мой запрос"
-
 
 def test_new_chat_drops_entire_pending_upload_batch(panel):
     page,_=panel
@@ -402,7 +389,6 @@ def test_new_chat_drops_entire_pending_upload_batch(panel):
     page.wait_for_timeout(150)
     assert page.locator("#attachments .attachment").count()==0
     assert len(pending)==1,"A cancelled batch uploaded another file into the new chat"
-
 
 def test_token_change_while_reading_active_tab_drops_old_prompt(panel):
     page,_=panel
@@ -424,7 +410,6 @@ def test_token_change_while_reading_active_tab_drops_old_prompt(panel):
     page.wait_for_function("document.querySelector('#stop').hidden")
     assert page.evaluate("window.__sentPrompts")==[]
     assert "Личный вопрос" not in page.locator("#messages").inner_text()
-
 
 def test_delayed_chat_load_cannot_replace_new_answer(panel):
     page,_=panel
@@ -449,7 +434,6 @@ def test_delayed_chat_load_cannot_replace_new_answer(panel):
     assert page.locator("#chat-title").inner_text()!="Запоздалый чат"
     sends[0].fulfill(status=200,content_type="text/event-stream",body='data: {"event":"done"}\n\n')
 
-
 @pytest.mark.parametrize("scheme,width",[("light",280),("dark",360),("light",520)])
 def test_options_layout_and_setup_guidance(browser,panel_server,scheme,width):
     context=browser.new_context(viewport={"width":width,"height":640},color_scheme=scheme)
@@ -466,7 +450,6 @@ def test_options_layout_and_setup_guidance(browser,panel_server,scheme,width):
     page.screenshot(path=str(SHOTS/f"extension-options-{scheme}-{width}.png"),full_page=True)
     assert not errors,errors
     context.close()
-
 
 def test_options_pairing_permissions_and_disconnect(browser,panel_server):
     context=browser.new_context(viewport={"width":700,"height":900})

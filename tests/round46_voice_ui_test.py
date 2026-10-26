@@ -10,7 +10,6 @@ from tests.round44_extension_ui_test import browser
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 @pytest.mark.parametrize("width,language", [(360,"ru"),(900,"ru"),(360,"en"),(900,"en")])
 def test_native_service_model_profiles_keys_test_and_local_selection(browser,width,language):
     context=browser.new_context(viewport={"width":width,"height":960},color_scheme="dark")
@@ -65,14 +64,12 @@ def test_native_service_model_profiles_keys_test_and_local_selection(browser,wid
         call=page.evaluate("__calls[0]");assert call["body"]["raw"] is True
         assert call["body"]["audio"].startswith("data:audio/wav;base64,")
         assert page.evaluate("document.documentElement.scrollWidth<=innerWidth+1")
-        page.keyboard.press("Tab")  # use keyboard modality for :focus-visible
+        page.keyboard.press("Tab")
         page.locator("#st-stt-preset").focus()
         assert page.locator("#st-stt-preset").evaluate("e=>getComputedStyle(e).outlineStyle")!="none"
         output=ROOT/"build/round46-ui";output.mkdir(parents=True,exist_ok=True)
         page.screenshot(path=str(output/f"voice-stt-{language}-{width}.png"),full_page=True)
 
-        # Exercise actual application's local-card rendering/selection handlers:
-        # its stale catalog still marks Small active after prefs selects Tiny.
         source=(ROOT/"app/pgstatic/app.js").read_text(encoding="utf-8")
         cards=source[source.index("  const voiceModelCards ="):source.index("  const contextModel =",source.index("  const voiceModelCards ="))]
         bind=source[source.index('  $$("[data-voice-select]")'):source.index('  $$("[data-voice-download]")',source.index('  $$("[data-voice-select]")'))]
@@ -90,7 +87,6 @@ def test_native_service_model_profiles_keys_test_and_local_selection(browser,wid
         assert page.locator('[data-voice-select="tiny"] em').count()==1
     finally:
         context.close()
-
 
 def test_byte_progress_and_cancel_are_accessible_and_updates_keep_focused_input(browser):
     page=browser.new_page(viewport={"width":420,"height":500})

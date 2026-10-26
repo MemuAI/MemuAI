@@ -1,5 +1,5 @@
-/* MemuAI Proxy — вкладка «Локальные модели»: движок llama.cpp, поиск на Hugging Face,
-   файлы GGUF с диска, настройки каждой модели и другие локальные серверы. */
+
+
 "use strict";
 
 window.MemuLocal = (() => {
@@ -8,8 +8,6 @@ window.MemuLocal = (() => {
     status: null, timer: null, query: "", sort: "downloads", results: null, searching: false,
     open: "", files: {}, servers: null, scanning: false, busy: new Set(),
   };
-
-  /* ---------------- форматирование ---------------- */
 
   function bytes(value) {
     const n = Number(value) || 0;
@@ -56,8 +54,6 @@ window.MemuLocal = (() => {
   }
   function errorOf(error) { return error && error.message ? error.message : String(error || ""); }
 
-  /* ---------------- загрузка и опрос ---------------- */
-
   function active() { return $("#tab-local")?.classList.contains("active") && !document.hidden; }
 
   async function load() {
@@ -88,8 +84,6 @@ window.MemuLocal = (() => {
     S.timer = setTimeout(() => { if (active()) refresh(); }, busy ? 1200 : 6000);
   }
   document.addEventListener("visibilitychange", () => { if (active()) refresh(); });
-
-  /* ---------------- каркас ---------------- */
 
   function shell(root) {
     root.dataset.ready = "1";
@@ -158,13 +152,10 @@ window.MemuLocal = (() => {
     renderEngine();
     renderDownloads();
     renderModels();
-    // The file table shows which files are downloading: redraw it only when that changes,
-    // so a poll never resets the projector choice or the scroll position.
+
     const key = (S.status.downloads || []).filter((d) => d.state === "downloading" || d.state === "queued").map((d) => d.id).join(",");
     if (key !== S.dlKey) { S.dlKey = key; if (S.results && S.open) renderResults(); }
   }
-
-  /* ---------------- движок ---------------- */
 
   function renderEngine() {
     const st = S.status;
@@ -206,8 +197,6 @@ window.MemuLocal = (() => {
       </dl>`;
   }
 
-  /* ---------------- загрузки ---------------- */
-
   function renderDownloads() {
     const rows = (S.status.downloads || []).filter((d) => d.state !== "cancelled");
     const box = $("#lm-downloads");
@@ -226,8 +215,6 @@ window.MemuLocal = (() => {
         <div class="lm-dl-info ${d.state === "error" ? "err" : ""}">${esc(info)}</div></div>`;
     }).join("")}</div>`;
   }
-
-  /* ---------------- мои модели ---------------- */
 
   function renderModels() {
     const models = S.status.models || [];
@@ -296,7 +283,7 @@ window.MemuLocal = (() => {
           await api("/api/admin/local/download/cancel", { method: "POST", body: { id: button.dataset.id } });
           return refresh();
         case "dl-retry": {
-          // Тот же набор файлов (модель, проектор, draft); прерванное докачивается с .part.
+
           const job = (S.status.downloads || []).find((d) => d.id === button.dataset.id);
           if (!job) return refresh();
           try {
@@ -326,7 +313,7 @@ window.MemuLocal = (() => {
         case "more": return moreMenu(button, model);
         case "hf-open": return toggleRepo(button.dataset.repo);
         case "find-main": {
-          // Show the same repository's files so the full model is one click away.
+
           const repo = button.dataset.repo;
           $("#lm-q").value = repo;
           await search();
@@ -412,8 +399,6 @@ window.MemuLocal = (() => {
       refresh();
     };
   }
-
-  /* ---------------- окна ---------------- */
 
   const FIELDS = [
     ["context", () => L("Длина контекста (токенов)", "Context length (tokens)"), "number", () => L("Больше — дольше помнит разговор, но нужно больше памяти.", "Longer remembers more of the chat but needs more memory.")],
@@ -524,7 +509,7 @@ window.MemuLocal = (() => {
         const stick = el.scrollTop + el.clientHeight >= el.scrollHeight - 20;
         el.textContent = (r.lines || []).join("\n") || L("Журнал пуст: модель ещё не запускалась.", "The log is empty: the model has not been started yet.");
         if (stick) el.scrollTop = el.scrollHeight;
-      } catch (error) { /* окно могли закрыть */ }
+      } catch (error) {  }
       timer = setTimeout(pull, 2000);
     };
     onModalClose(() => clearTimeout(timer));
@@ -592,7 +577,7 @@ window.MemuLocal = (() => {
       const picked = await api("/api/admin/local/pick", { method: "POST" });
       if (!picked.ok) return;
       path = picked.path;
-    } catch (error) { /* в браузере нет окна выбора — путь вводится вручную */ }
+    } catch (error) {  }
     openModal(`<h3>${esc(L("Добавить файл модели", "Add a model file"))}</h3>
       <div class="field"><label>${esc(L("Путь к файлу .gguf", "Path to the .gguf file"))}</label>
         <input id="li-path" class="mono" value="${esc(path)}" placeholder="D:\\models\\Qwen3-8B-Q4_K_M.gguf">
@@ -617,8 +602,6 @@ window.MemuLocal = (() => {
     };
   }
 
-  /* ---------------- Hugging Face ---------------- */
-
   let searchSeq = 0;
   async function search() {
     S.query = $("#lm-q").value.trim();
@@ -626,8 +609,7 @@ window.MemuLocal = (() => {
     S.searching = true;
     S.open = "";
     renderResults();
-    // Новый поиск (или смена сортировки) во время старого: показываем
-    // последний запрошенный, а не тот, что ответил позже.
+
     const seq = ++searchSeq;
     try {
       const r = await api(`/api/admin/local/hf/search?q=${encodeURIComponent(S.query)}&sort=${encodeURIComponent(S.sort)}`);
@@ -696,7 +678,6 @@ window.MemuLocal = (() => {
       </tbody></table>`;
   }
 
-  /** The largest file that still fits well, preferring the popular Q4_K_M/Q5_K_M quants. */
   function pickRecommended(files) {
     const good = files.filter((f) => f.fit && (f.fit.level === "gpu" || f.fit.level === "partial" || f.fit.level === "ram"));
     if (!good.length) return null;
@@ -737,8 +718,6 @@ window.MemuLocal = (() => {
     return go();
   }
 
-  /* ---------------- другие серверы ---------------- */
-
   async function scan() {
     S.scanning = true;
     renderServers();
@@ -778,7 +757,7 @@ window.MemuLocal = (() => {
 
   return {
     load,
-    /** Re-render texts after a language switch without losing the search results. */
+
     relabel() {
       const root = $("#local-root");
       if (!root || !root.dataset.ready) return;

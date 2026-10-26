@@ -25,7 +25,6 @@ DISTRACTORS = ["Любит фильмы про космос", "Пишет на P
                "Играет в Genshin Impact", "Предпочитает короткие ответы", "Есть старший брат", "Учит японский язык",
                "Пользуется Windows 11", "Слушает джаз по вечерам", "Хочет пробежать марафон"]
 
-
 class Case(unittest.TestCase):
     def setUp(self) -> None:
         self.dir = Path(tempfile.mkdtemp(prefix="mem40-"))
@@ -43,7 +42,6 @@ class Case(unittest.TestCase):
 
     def texts(self, rows) -> list:
         return [r["text"] for r in rows]
-
 
 class StemAndIndexTest(unittest.TestCase):
     def test_stems_ru_en(self) -> None:
@@ -88,13 +86,12 @@ class StemAndIndexTest(unittest.TestCase):
             first.score("Какой кофе заказать в кофейне про проект и тему 5")
         self.assertLess((time.perf_counter() - started) / 20, 0.05)
 
-
 class RelevanceTest(Case):
     def test_lactose_reaches_a_coffee_question_within_a_tight_budget(self) -> None:
         self.add(*DISTRACTORS)
         self.add("Не переносит лактозу")
         doc = mem.load()
-        doc["settings"]["core"] = False          # the associative path alone, without «core» facts
+        doc["settings"]["core"] = False
         rows = mem.rank(doc, "chat", "Какой кофе заказать в кофейне?", budget_tokens=30)
         self.assertEqual(rows[0]["text"], "Не переносит лактозу")
 
@@ -126,7 +123,6 @@ class RelevanceTest(Case):
         block = mem.profile_context("chat", "Какой кофе заказать?")
         self.assertIn("Не переносит лактозу", block)
 
-
 class ConceptsWriteTest(Case):
     def test_block_concepts_are_stored(self) -> None:
         raw = "Ок.\n\n```memuai-memory\n" + json.dumps({"facts": [{"fact": "Играет на виолончели", "category": "interest",
@@ -150,7 +146,6 @@ class ConceptsWriteTest(Case):
         text = mem.protocol_prompt("chat", doc=mem.load())
         self.assertIn('"concepts"', text)
         self.assertLess(len(text), 2100)
-
 
 class ConflictTest(Case):
     def test_moved_city_is_an_update_with_dated_history(self) -> None:
@@ -217,7 +212,6 @@ class ConflictTest(Case):
         self.assertIn("Любит кофе", body)
         self.assertIn("both", [a["id"] for a in kw["actions"]])
 
-
 class MigrationTest(Case):
     def test_round39_document_loads_without_loss(self) -> None:
         old = {"version": 2, "enabled": True, "items": [
@@ -250,14 +244,13 @@ class MigrationTest(Case):
         self.assertEqual(doc["items"][0]["concepts"], ["смычок"])
         self.assertEqual(doc["diary"][0]["text"], "Обсуждали выбор смычка")
 
-
 class DiaryTest(Case):
     def test_save_edit_delete_dismiss(self) -> None:
         row = mem.save_diary({"text": "Настраивали парсер вакансий", "chat_id": "c1", "at": 1000, "msgs": 8})["result"]
         mem.edit_diary(row["id"], "Настраивали парсер вакансий hh.ru")
         mem.save_diary({"text": "Другой итог", "chat_id": "c1", "at": 2000, "msgs": 14})
         entry = mem.load()["diary"][0]
-        self.assertEqual(entry["text"], "Настраивали парсер вакансий hh.ru")    # the user's wording wins
+        self.assertEqual(entry["text"], "Настраивали парсер вакансий hh.ru")
         self.assertEqual(entry["msgs"], 14)
         mem.delete_diary([entry["id"]])
         self.assertIsNone(mem.save_diary({"text": "Снова", "chat_id": "c1", "at": 3000})["result"])
@@ -282,10 +275,8 @@ class DiaryTest(Case):
         mem.set_settings({"diary": {"enabled": False}})
         self.assertEqual(mem.context_diary("парсер"), [])
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 class WorkerTest(Case):
     def setUp(self) -> None:
@@ -305,14 +296,14 @@ class WorkerTest(Case):
     def test_fill_concepts_for_old_facts(self) -> None:
         (self.dir / "memory.json").write_text(json.dumps({"facts": ["Не переносит лактозу", "Есть собака"]},
                                                          ensure_ascii=False), encoding="utf-8")
-        mem.mutate(lambda d: None)         # the v1 → v2 migration is written by the first change
+        mem.mutate(lambda d: None)
         doc = mem.load()
         ids = [i["id"] for i in doc["items"]]
         answer = "```json\n" + json.dumps({ids[0]: ["молоко", "кофе", "milk"]}, ensure_ascii=False) + "\n```"
         self.assertEqual(run(worker.fill_concepts(self.fake([answer]), "m", doc)), 2)
         items = {i["id"]: i for i in mem.load()["items"]}
         self.assertEqual(items[ids[0]]["concepts"], ["молоко", "кофе", "milk"])
-        self.assertEqual(items[ids[1]]["concepts"], [])          # asked once; not asked again forever
+        self.assertEqual(items[ids[1]]["concepts"], [])
         self.assertEqual(run(worker.fill_concepts(self.fake([]), "m", mem.load())), 0)
 
     def chats(self, now):
@@ -335,7 +326,7 @@ class WorkerTest(Case):
         self.assertEqual(done, 1)
         entry = mem.load()["diary"][0]
         self.assertEqual((entry["chat_id"], entry["msgs"]), ("big", 8))
-        self.assertEqual(worker.diary_candidates(mem.load(), chats, now), [])    # not again until it grows
+        self.assertEqual(worker.diary_candidates(mem.load(), chats, now), [])
 
     def test_failure_backs_off_and_kick_is_lazy(self) -> None:
         self.add("Не переносит лактозу")
@@ -344,7 +335,7 @@ class WorkerTest(Case):
 
         async def go():
             self.assertTrue(worker.kick())
-            self.assertFalse(worker.kick())            # one run at a time
+            self.assertFalse(worker.kick())
             await worker._STATE["task"]
         try:
             run(go())
@@ -357,7 +348,6 @@ class WorkerTest(Case):
     def test_kick_without_loop_or_completion_is_a_no_op(self) -> None:
         worker.configure(None)
         self.assertFalse(worker.kick())
-
 
 class ApiTest(Case):
     def client(self, completion=None):
@@ -393,7 +383,7 @@ class ApiTest(Case):
         s = c.post("/api/memory/settings", json={"diary": {"recent": 5}, "core": False, "helper_model": "x"}).json()
         self.assertEqual((s["memory"]["settings"]["diary"]["recent"], s["memory"]["settings"]["core"]), (5, False))
         self.assertIn("running", c.get("/api/memory/worker").json())
-        self.assertFalse(c.post("/api/memory/worker/run", json={}).json()["started"])   # no completion configured
+        self.assertFalse(c.post("/api/memory/worker/run", json={}).json()["started"])
 
     def test_patch_concepts_and_keep_both(self) -> None:
         self.add("Любит кофе", category="preference")
@@ -405,7 +395,6 @@ class ApiTest(Case):
         pending = [i for i in mem.load()["items"] if i["status"] == "pending"][0]
         c.post(f"/api/memory/items/{pending['id']}/approve", json={"keep_both": True})
         self.assertEqual(len([i for i in mem.load()["items"] if i["status"] == "active"]), 2)
-
 
 class UiTest(unittest.TestCase):
     def test_js_and_css(self) -> None:
@@ -422,7 +411,6 @@ class UiTest(unittest.TestCase):
         node = shutil.which("node")
         if node:
             self.assertEqual(subprocess.run([node, "--check", str(STATIC / "memory.js")]).returncode, 0)
-
 
 if __name__ == "__main__":
     unittest.main()

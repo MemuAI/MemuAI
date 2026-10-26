@@ -24,10 +24,8 @@ sys.path.insert(0, str(ROOT))
 STATIC = ROOT / "app" / "static"
 CYRILLIC = re.compile("[А-Яа-яЁё]")
 
-
 def read(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8")
-
 
 class ProviderCatalogDataTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -115,7 +113,6 @@ class ProviderCatalogDataTest(unittest.TestCase):
         self.assertEqual(headers_for(rows["anthropic"])["x-api-key"], "{api_key}")
         self.assertEqual(rows["yandex"]["headers"], {"OpenAI-Project": "FOLDER_ID"})
 
-
 class CustomProviderKeyHeaderTest(unittest.TestCase):
     """A "{api_key}" header value receives the key; the default Bearer header is then dropped."""
 
@@ -146,7 +143,6 @@ class CustomProviderKeyHeaderTest(unittest.TestCase):
         self.assertNotIn("api-key", h)
         self.assertNotIn("Authorization", h)
 
-
 class PresetsEndpointTest(unittest.TestCase):
     def test_endpoint_serves_the_catalog(self) -> None:
         from unittest.mock import patch
@@ -165,7 +161,6 @@ class PresetsEndpointTest(unittest.TestCase):
         self.assertEqual(row["azure-openai"]["headers"], {"api-key": "{api_key}"})
         self.assertEqual(row["openrouter"]["icon"], row["openrouter"]["mono"])
         self.assertIn("in_use", row["openai"])
-
 
 class ProxyUiMarkupTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -188,7 +183,7 @@ class ProxyUiMarkupTest(unittest.TestCase):
     def test_duplicate_and_lone_copy_key_buttons_are_gone(self) -> None:
         for gone in ("data-dup=", '["dup",', "data-copykey", "copyAccountKey("):
             self.assertNotIn(gone, self.app)
-        self.assertIn("data-copyfield", self.app)          # «копировать» next to the key in the account form
+        self.assertIn("data-copyfield", self.app)
 
     def test_selection_mode_controls(self) -> None:
         self.assertIn('id="acc-select-cancel"', self.html)
@@ -224,7 +219,6 @@ class ProxyUiMarkupTest(unittest.TestCase):
             done = subprocess.run([shutil.which("node"), "--check", str(STATIC / name)], capture_output=True, text=True)
             self.assertEqual(done.returncode, 0, f"{name}: {done.stderr}")
 
-
 @unittest.skipUnless(os.environ.get("MEMU_LIVE_CATALOG") == "1", "live catalog check: set MEMU_LIVE_CATALOG=1")
 class ProviderCatalogLiveTest(unittest.TestCase):
     def test_base_urls_answer_like_an_api(self) -> None:
@@ -236,7 +230,7 @@ class ProviderCatalogLiveTest(unittest.TestCase):
               "Authorization": "Bearer sk-invalid-test"}
 
         def probe(row):
-            # GET /models first; services without it (Baseten, Perplexity…) are asked for /chat/completions.
+
             result = None
             for method, path in (("GET", "/models"), ("POST", "/chat/completions")):
                 try:
@@ -263,7 +257,6 @@ class ProviderCatalogLiveTest(unittest.TestCase):
                               headers={"Authorization": f"Bearer {os.environ['OPENROUTER_KEY']}", **row["headers"]})
         self.assertEqual(resp.status_code, 200)
         self.assertTrue(resp.json().get("data"))
-
 
 if __name__ == "__main__":
     unittest.main()

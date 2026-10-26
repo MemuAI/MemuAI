@@ -26,10 +26,8 @@ from tests.installer_layout_test import UI, _playwright_ok, chromium_path
 
 UI_DIR = UI.parent
 
-
 def read(name: str) -> str:
     return (UI_DIR / name).read_text(encoding="utf-8")
-
 
 def function_body(src: str, name: str) -> str:
     start = src.index("function " + name + "(")
@@ -42,7 +40,6 @@ def function_body(src: str, name: str) -> str:
             if depth == 0:
                 return src[i:j + 1]
     raise AssertionError(name)
-
 
 class EntranceStaticTest(unittest.TestCase):
     def test_entrances_end_without_scale_or_blur(self):
@@ -62,10 +59,6 @@ class EntranceStaticTest(unittest.TestCase):
     def test_uninstall_retry_resets_progress(self):
         self.assertIn("S.lastPct = 0", function_body(read("app.js"), "startUninstall"))
 
-
-# Deterministic frame sampling, independent of the (slow, shared) headless frame rate: every
-# running animation and transition is paused and seeked through its timeline in 40 ms steps,
-# and the boxes are read at each step.
 SEEK = r"""(click) => {
   if (click) { document.querySelector(click).click(); }
   void document.body.offsetWidth; getComputedStyle(document.getElementById('panel')).transform;
@@ -84,13 +77,11 @@ SEEK = r"""(click) => {
   return out;
 }"""
 
-
 def reversals(frames, key, axis):
     """How many times a coordinate changed direction (a settle is monotonic)."""
     values = [f[key][axis] for f in frames if f[key]]
     steps = [b - a for a, b in zip(values, values[1:]) if abs(b - a) > 0.05]
     return sum(1 for a, b in zip(steps, steps[1:]) if (a > 0) != (b > 0))
-
 
 async def sample(scale: float):
     from playwright.async_api import async_playwright
@@ -103,19 +94,18 @@ async def sample(scale: float):
         errors = []
         page.on("pageerror", lambda e: errors.append(str(e)))
         await page.goto(f"{UI.as_uri()}?mock=1&lang=ru", wait_until="load")
-        for _ in range(300):        # (the page's CSP forbids wait_for_function's eval)
+        for _ in range(300):
             if await page.evaluate("document.documentElement.classList.contains('ready')"):
                 break
             await page.wait_for_timeout(50)
-        await page.wait_for_timeout(100)     # reveal() → the entrance animations start
+        await page.wait_for_timeout(100)
         boot = await page.evaluate(SEEK, None)
-        await page.wait_for_timeout(1600)    # the delayed refits (if any) run
+        await page.wait_for_timeout(1600)
         rest = await page.evaluate("document.querySelector('#panel').getBoundingClientRect().toJSON()")
         switch = await page.evaluate(SEEK, ".screen.active .btn.primary")
         card = await page.evaluate("document.querySelector('.card-art.proxy').getBoundingClientRect().width")
         await browser.close()
     return boot, rest, switch, card, errors
-
 
 @unittest.skipUnless(_playwright_ok(), "Playwright/Chromium not available")
 class EntranceMotionTest(unittest.TestCase):
@@ -127,7 +117,7 @@ class EntranceMotionTest(unittest.TestCase):
                 for axis in (0, 1, 2, 3):
                     self.assertEqual(reversals(frames, key, axis), 0, f"{name} @{scale}: {key} jerked back")
             self.assertEqual(frames[-1]["panel"], frames[-2]["panel"], f"{name} @{scale}: still moving at the end")
-        # the entrance ends exactly where the window rests afterwards (no late refit)
+
         self.assertEqual(boot[-1]["panel"], [rest["x"], rest["y"], rest["width"], rest["height"]])
         self.assertEqual(switch[-1]["scr"], "edition")
         self.assertGreater(card, 100, "the edition card's illustration collapsed")
@@ -142,7 +132,6 @@ class EntranceMotionTest(unittest.TestCase):
 
     def test_150(self):
         self.check(1.5)
-
 
 @unittest.skipUnless(_playwright_ok(), "Playwright/Chromium not available")
 class CssRingTest(unittest.TestCase):
@@ -174,7 +163,6 @@ class CssRingTest(unittest.TestCase):
             self.assertLessEqual(r["ring"][1], r["panel"] - 4, r)
             self.assertFalse(r["busy"])
             self.assertAlmostEqual(r["offset"], 38, delta=0.5)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,23 +1,3 @@
-/* =====================================================================
-   MemuAI motion layer (Round20) — design-independent.
-   ---------------------------------------------------------------------
-   Loaded after every design file so its entrance animations win, but
-   before the user theme. It never sets colours or layout.
-
-   Rules:
-   - only opacity and the independent `translate` / `scale` properties are
-     animated (they compose with any component `transform`, so a menu
-     centred with translateX(-50%) is never knocked off its place);
-   - 120–320 ms, spring curves via linear() where Chromium supports it;
-   - <html data-motion="reduced">: short fades only, no travel, no stagger;
-   - <html data-motion="off">, body.reduce-motion and the OS
-     prefers-reduced-motion: no motion from this file at all (the existing
-     global kill switch in style.css/design.css covers the rest of the app).
-   motion.js adds what CSS cannot do (View Transitions, FLIP of the chat
-   list, popover origin, press feedback, image zoom).
-   ===================================================================== */
-
-/* ------------------------------------------------------------- tokens */
 :root {
   --m-dur-1: 120ms;
   --m-dur-2: 180ms;
@@ -29,15 +9,13 @@
   --m-ease-emph: cubic-bezier(.05, .7, .1, 1);
   --m-spring: var(--m-ease-out);
   --m-spring-soft: var(--m-ease-out);
-  --m-rise: 8px;          /* travel of an entrance */
-  --m-pop: .96;           /* starting scale of a popover */
+  --m-rise: 8px;
+  --m-pop: .96;
   --m-stagger: 24ms;
 }
 @supports (animation-timing-function: linear(0, 1)) {
   :root {
-    /* a critically-damped-ish spring with a ~1.7% overshoot */
     --m-spring: linear(0, 0.006, 0.025 2.8%, 0.101 6.1%, 0.539 18.9%, 0.721 25.3%, 0.849 31.5%, 0.937 38.1%, 0.968 41.8%, 0.991 45.7%, 1.006 50.1%, 1.015 55%, 1.017 63.9%, 1.001 85.9%, 1);
-    /* no overshoot, long settle: for large surfaces */
     --m-spring-soft: linear(0, 0.034 2.2%, 0.136 4.6%, 0.493 12.4%, 0.689 17.9%, 0.817 23.4%, 0.904 29.4%, 0.958 36.3%, 0.988 45.5%, 0.999 58.5%, 1);
   }
 }
@@ -50,8 +28,6 @@
   --m-pop: 1;
   --m-stagger: 0ms;
 }
-
-/* ---------------------------------------------------------- keyframes */
 @keyframes m-fade-in { from { opacity: 0; } }
 @keyframes m-rise-in { from { opacity: 0; translate: 0 var(--m-rise); } }
 @keyframes m-drop-in { from { opacity: 0; translate: 0 calc(var(--m-rise) * -.75); } }
@@ -72,11 +48,7 @@
   from { outline-offset: 5px; outline-color: transparent; }
 }
 @keyframes m-sweep { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
-
-/* Everything below runs only when motion is allowed. */
 @media (prefers-reduced-motion: no-preference) {
-
-/* ------------------------------------------------------------ messages */
 :root:not([data-motion="off"]) body:not(.reduce-motion) .msg.msg-new {
   animation: m-msg-in var(--m-dur-4) var(--m-spring-soft) both;
 }
@@ -85,8 +57,6 @@
   animation-name: m-msg-user-in;
   animation-timing-function: var(--m-spring);
 }
-
-/* ----------------------------------------------------------- popovers */
 :root:not([data-motion="off"]) body:not(.reduce-motion) :is(.dd-pop, .app-menu-pop, .context-menu, .profile-menu-pop, .pretty-select-menu, .msg-more-pop, .slash-menu, .plus-menu, .module-layout-menu) {
   transform-origin: var(--m-ox, 50%) var(--m-oy, 0);
   animation: m-pop-in var(--m-dur-3) var(--m-spring) both;
@@ -95,7 +65,6 @@
   transform-origin: var(--m-ox, 24px) var(--m-oy, 100%);
 }
 :root:not([data-motion="off"]) body:not(.reduce-motion) .app-menu-pop { transform-origin: var(--m-ox, 18px) var(--m-oy, 0); }
-/* short menus: rows follow the frame by a few milliseconds */
 :root:not([data-motion="off"]) body:not(.reduce-motion) :is(.context-menu > button, .context-menu > .context-info, .app-menu-pop > button, .profile-menu-pop > button, .plus-menu .plus-row) {
   animation: m-item-in var(--m-dur-3) var(--m-spring) both;
   animation-delay: calc(var(--m-i, 0) * var(--m-stagger));
@@ -106,13 +75,9 @@
 :is(.context-menu, .app-menu-pop, .profile-menu-pop, .plus-menu .plus-list, .plus-menu) > :nth-child(5) { --m-i: 4; }
 :is(.context-menu, .app-menu-pop, .profile-menu-pop, .plus-menu .plus-list, .plus-menu) > :nth-child(6) { --m-i: 5; }
 :is(.context-menu, .app-menu-pop, .profile-menu-pop, .plus-menu .plus-list, .plus-menu) > :nth-child(n+7) { --m-i: 6; }
-
-/* model picker chevron and dropdown carets turn on a spring */
 :root:not([data-motion="off"]) body:not(.reduce-motion) :is(.dd-btn .chev, .pretty-select-button i, .folder-chevron, .meme-chevron, .cx-chevron, .step-chevron) {
   transition: transform var(--m-dur-4) var(--m-spring), color var(--m-dur-2) ease;
 }
-
-/* ------------------------------------------------------ dialogs/panels */
 :root:not([data-motion="off"]) body:not(.reduce-motion) .panel-back.visible {
   animation: m-fade-in var(--m-dur-2) var(--m-ease-out) both;
 }
@@ -137,14 +102,10 @@
 :root:not([data-motion="off"]) body:not(.reduce-motion) :is(.workbar, .codebar, .tempbar):not([hidden]) {
   animation: m-drop-in var(--m-dur-3) var(--m-spring-soft) both;
 }
-
-/* -------------------------------------------------------------- toasts */
 :root:not([data-motion="off"]) body:not(.reduce-motion) .toast {
   transform-origin: 50% 100%;
   transition: opacity var(--m-dur-2) var(--m-ease-out), transform var(--m-dur-4) var(--m-spring);
 }
-
-/* ------------------------------------------------------------ tooltips */
 :root:not([data-motion="off"]) body:not(.reduce-motion) .memu-tooltip {
   transform-origin: 50% 0;
   scale: calc(1 - (1 - var(--m-pop)) * .6);
@@ -152,8 +113,6 @@
 }
 :root:not([data-motion="off"]) body:not(.reduce-motion) .memu-tooltip[data-side="above"] { transform-origin: 50% 100%; }
 :root:not([data-motion="off"]) body:not(.reduce-motion) .memu-tooltip.visible { scale: 1; }
-
-/* --------------------------------------------------- sidebar + layout */
 :root:not([data-motion="off"]) body:not(.reduce-motion) .side {
   transition: width var(--m-dur-4) var(--m-ease-std), min-width var(--m-dur-4) var(--m-ease-std),
     padding var(--m-dur-4) var(--m-ease-std), margin var(--m-dur-4) var(--m-ease-std),
@@ -166,8 +125,6 @@
 :root:not([data-motion="off"]) body:not(.reduce-motion) .meme-items {
   transition-timing-function: var(--m-spring-soft);
 }
-
-/* -------------------------------------------- greeting & empty states */
 :root:not([data-motion="off"]) body:not(.reduce-motion) .greet-chips .chip-sug,
 :root:not([data-motion="off"]) body:not(.reduce-motion) #greet-chips > * {
   animation: m-rise-in var(--m-dur-4) var(--m-spring-soft) both;
@@ -179,24 +136,16 @@
 :root:not([data-motion="off"]) body:not(.reduce-motion) :is(.side-empty, .folder-drop-hint, .empty-state) {
   animation: m-fade-in var(--m-dur-4) var(--m-ease-out) both;
 }
-
-/* -------------------------------------------- scroll-to-latest button */
 :root:not([data-motion="off"]) body:not(.reduce-motion) .jump-latest:not([hidden]) {
   transform-origin: 50% 100%;
   animation: m-pop-in var(--m-dur-3) var(--m-spring) both;
 }
-
-/* ------------------------------------------------- code copy feedback */
 :root:not([data-motion="off"]) body:not(.reduce-motion) .code-copy-btn.copied {
   animation: m-copied var(--m-dur-4) var(--m-spring);
 }
 :root:not([data-motion="off"]) body:not(.reduce-motion) .code-copy-btn.copied svg :is(path, polyline) {
   stroke-dasharray: 24; animation: m-draw var(--m-dur-4) var(--m-ease-out) both;
 }
-
-/* ------------------------------------------------- loading skeletons */
-/* the sweep is a transformed layer, not an animated background-position
-   (that would repaint the whole skeleton every frame) */
 :root:not([data-motion="off"]) body:not(.reduce-motion) .img-skeleton {
   position: relative; overflow: hidden; isolation: isolate;
   background: var(--panel-2); animation: none;
@@ -207,44 +156,27 @@
   animation: m-sweep 1.5s var(--m-ease-std) infinite;
   will-change: transform;
 }
-
-/* ------------------------------------------------------- focus rings */
-/* zero specificity: any component animation wins, so blurring a control never
-   replays its own entrance */
 :where(:root:not([data-motion="off"]) body:not(.reduce-motion) :is(button, a, input, select, textarea, [tabindex], .chat-item, .pretty-select-button):focus-visible) {
   animation: m-focus var(--m-dur-3) var(--m-spring) both;
 }
-
-/* ------------------------------------------------- hover micro-motion */
 :root:not([data-motion="off"]) body:not(.reduce-motion) :is(.chip-sug, .rs-source, .module-card, .docs-pager-card) {
   transition-timing-function: var(--m-spring);
 }
-
-/* ------------------------------------------------------------ switches */
 :root:not([data-motion="off"]) body:not(.reduce-motion) .switch .sl::before {
   transition: transform var(--m-dur-4) var(--m-spring), background-color var(--m-dur-2) ease, width var(--m-dur-2) var(--m-ease-out);
 }
 :root:not([data-motion="off"]) body:not(.reduce-motion) .switch input:active + .sl::before { width: 20px; }
 :root:not([data-motion="off"]) body:not(.reduce-motion) .switch input:checked:active + .sl::before { transform: translateX(14px); }
 :root:not([data-motion="off"]) body:not(.reduce-motion) .plus-switch i { transition: transform var(--m-dur-4) var(--m-spring), background-color var(--m-dur-2) ease; }
-
-/* ------------------------------------------------------ press feedback */
-/* motion.js presses controls with a spring on the independent `scale`
-   property; the old instant :active transforms would double it. */
 :root:not([data-motion="off"]):not([data-motion="reduced"]) body:not(.reduce-motion) :is(.send, .live-ctl, .live-talk, .jump-latest, .bar-icon, .iconbtn, .cbtn, .msg-tool, .ci-more, .panel-close, .preview-btn, .btn-new, .pbtn):active {
   transform: none;
 }
-
-/* --------------------------------------------------- streaming caret */
-/* a soft breathing caret instead of a hard on/off blink */
 @keyframes m-caret { 0%, 100% { opacity: 1; } 50% { opacity: .2; } }
 :root:not([data-motion="off"]):not([data-motion="reduced"]) body:not(.reduce-motion) .streaming-caret::after,
 :root:not([data-motion="off"]):not([data-motion="reduced"]) body:not(.reduce-motion) .streaming-caret > :is(p, h1, h2, h3, h4, blockquote):last-child::after,
 :root:not([data-motion="off"]):not([data-motion="reduced"]) body:not(.reduce-motion) .streaming-caret > :is(ul, ol):last-child > li:last-child::after {
   animation: m-caret 1.05s var(--m-ease-std) infinite;
 }
-
-/* -------------------------------------------- theme / design switch */
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation-duration: var(--m-dur-3);
@@ -259,14 +191,9 @@
   to { clip-path: circle(var(--m-vt-r, 150vmax) at var(--m-vt-x, 90%) var(--m-vt-y, 0)); }
 }
 
-} /* prefers-reduced-motion: no-preference */
-
-/* Ambient (infinite, decorative) motion stops when the window is hidden or
-   inactive (motion.js sets html.m-paused) and under "reduced". */
+}
 :root.m-paused .m-ambient, :root.m-paused .m-ambient::before, :root.m-paused .m-ambient::after { animation-play-state: paused !important; }
 :root[data-motion="reduced"] .m-ambient, :root[data-motion="reduced"] .m-ambient::before, :root[data-motion="reduced"] .m-ambient::after { animation: none !important; }
-
-/* "Off" = the same global kill switch as the old reduce_motion toggle. */
 :root[data-motion="off"] *, :root[data-motion="off"] *::before, :root[data-motion="off"] *::after {
   animation-duration: .001ms !important; animation-iteration-count: 1 !important;
   transition-duration: .001ms !important; scroll-behavior: auto !important;
@@ -274,7 +201,4 @@
 :root[data-motion="off"]::view-transition-group(*),
 :root[data-motion="off"]::view-transition-old(*),
 :root[data-motion="off"]::view-transition-new(*) { animation: none !important; }
-
-/* Resizing the sidebar by hand must follow the pointer 1:1 (the width
-   transition used to make the edge lag behind the cursor). */
 .side:has(+ .sidebar-resizer.resizing), .side:has(+ .sidebar-resizer.resizing) ~ .main { transition: none !important; }

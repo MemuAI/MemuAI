@@ -1,19 +1,10 @@
-/* MemuAI — экспорт и импорт настроек одним файлом (Round 37, r37-extras).
 
-   Settings → Данные → «Настройки»: every preference of the window (appearance, models, hotkeys, behaviour, Quick Access,
-   voice, schedules defaults…) goes into one JSON file, to move to another computer or keep as a backup before
-   experimenting. Secrets and things that belong to this PC or this person are never written: API keys, the Telegram bot
-   token and chat, passwords, device ids, folders on disk, the profile (name, bio).
-   Import shows what the file would change, right in the card, and applies only known, non-secret keys; the server
-   normalizes them again (pgdata.save_preferences drops unknown keys). The interface reloads to pick everything up.
 
-   window.MemuSettingsTransfer: html(L2, icon) exportable(prefs) parse(raw) diff(rows)
-*/
 (function () {
   "use strict";
   if (window.MemuSettingsTransfer) return;
   const KIND = "memuai-settings";
-  // never exported or imported: secrets, this PC, this person
+
   const PRIVATE = /(api_key|api_keys|_token$|token_|password|secret|_chat_id$|allowed_users|device_id|_dir$|_path$|^profile_|onboarded|^telegram_enabled$|^voice_realtime_api_keys$)/i;
   const L = (ru, en) => ((typeof PG_LANG !== "undefined" ? PG_LANG : "ru") === "en" ? en : ru);
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -32,7 +23,7 @@
     const prefs = data.kind === KIND ? data.preferences : null;
     return prefs && typeof prefs === "object" && !Array.isArray(prefs) ? prefs : null;
   }
-  /** Keys the file would change in this window: known here, not private, different. */
+
   function diff(prefs, current = (typeof S !== "undefined" ? S.preferences : {}) || {}) {
     const changes = {};
     for (const [k, v] of Object.entries(prefs || {})) {

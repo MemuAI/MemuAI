@@ -16,7 +16,6 @@ from app import browser_extension as ext, browser_extension_connect as handoff
 from app import browser_extension_store as store, browser_extension_chat as chat_api, pgdata
 from tests import round44_extension_test as fixtures
 
-
 class BrowserRound45(unittest.TestCase):
     setUp = fixtures.ExtensionWorkspaceTests.setUp
     post = fixtures.ExtensionWorkspaceTests.post
@@ -225,7 +224,6 @@ class BrowserRound45(unittest.TestCase):
         self.assertEqual(closes[0].args[1]["tab_ids"], [1, 2])
         self.assertEqual(events[-1]["event"], "done", events)
 
-
 class BridgeEpochTest(unittest.IsolatedAsyncioTestCase):
     async def test_queued_rpc_never_moves_to_a_replacement_socket(self):
         bridge = ext.Bridge()
@@ -274,7 +272,6 @@ class BridgeEpochTest(unittest.IsolatedAsyncioTestCase):
             if not task.done():
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
-
 
 if __name__ == "__main__":
     unittest.main()

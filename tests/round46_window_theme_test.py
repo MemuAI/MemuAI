@@ -8,7 +8,6 @@ from unittest.mock import Mock, patch
 from app import desktop, module_appbar, win_backdrop, win_titlebar, win_window_theme as theme
 from tests.win_titlebar_test import make_controller, HWND
 
-
 class NativeSurface(unittest.TestCase):
     def form(self):
         control=types.SimpleNamespace(DefaultBackgroundColor="#ffffff")
@@ -42,8 +41,7 @@ class NativeSurface(unittest.TestCase):
         self.assertTrue(theme.apply_surface(native,True,"#08080b",color_factory=str))
         self.assertEqual(native.BackColor,"#08080b")
         self.assertEqual(native.webview.DefaultBackgroundColor,"#08080b")
-        # Docked child surfaces expose these colours during fractional-DPI
-        # resize; the fallback must stay themed even if no CSS frame is ready.
+
         native.width=1001;native.webview.width=1000
         self.assertEqual(native.BackColor,native.webview.DefaultBackgroundColor)
         theme.apply_surface(native,False,"#f5f4f8",color_factory=str)
@@ -120,6 +118,5 @@ class NativeSurface(unittest.TestCase):
             app.apply_theme("dark");app.apply_theme("light")
         self.assertEqual(apply.call_args_list[0].args,(native,HWND,True,"#1a1a1c"))
         self.assertEqual(apply.call_args_list[1].args,(native,HWND,False,"#fbfaf8"))
-
 
 if __name__=="__main__":unittest.main()

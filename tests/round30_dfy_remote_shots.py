@@ -50,7 +50,6 @@ STEPS = [{"n": 1, "action": "sysinfo", "detail": "Debian GNU/Linux 13 (trixie) �
          {"n": 2, "action": "shell", "detail": "$ systemctl status nginx → код 0", "ok": True, "exit_code": 0,
           "output": "● nginx.service - A high performance web server\n   Active: active (running) since Fri 21:04:11 UTC\n  Process: 812 ExecStart=/usr/sbin/nginx -g daemon on; master_process on;\n   Memory: 12.4M\n"}]
 
-
 async def run(out: Path, lang: str, theme: str, errors: list) -> None:
     from playwright.async_api import async_playwright
     from app import themes
@@ -170,7 +169,6 @@ async def run(out: Path, lang: str, theme: str, errors: list) -> None:
             errors.append(f"{tag}: horizontal overflow: {overflow}")
         await browser.close()
 
-
 async def main(out: Path) -> int:
     out.mkdir(parents=True, exist_ok=True)
     errors: list = []
@@ -181,7 +179,6 @@ async def main(out: Path) -> int:
         print("FAIL", line)
     print("ok" if not errors else f"{len(errors)} failure(s)", "→", out)
     return 1 if errors else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r29/r30-dfy-remote-2"))))

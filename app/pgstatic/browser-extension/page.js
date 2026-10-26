@@ -1,4 +1,4 @@
-/* Runs in Chrome's ISOLATED world. No page-provided message is a command. */
+
 export function pageOperation(op, args) {
   const state = globalThis.__memuBridgeState ||= { nodes: new Map(), counter: 0 };
   const visible = (e) => {
@@ -23,7 +23,7 @@ export function pageOperation(op, args) {
     visit(document);
     const root = document.querySelector("main,article,[role=main]") || document.body;
     let text = root?.innerText || "";
-    // User-editable fields are listed separately, never include password values.
+
     const limit = Math.max(1000, Math.min(60000, Number(args.limit) || 24000));
     const selection = String(getSelection() || "").slice(0, 12000);
     return { url: location.href, title: document.title, text: text.slice(0, limit), truncated: text.length > limit,

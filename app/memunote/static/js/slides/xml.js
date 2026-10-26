@@ -1,5 +1,4 @@
-// MemuNote Slides — XML helpers for OOXML: namespace-agnostic lookups (by localName), fragments
-// with the usual prefixes, DrawingML colours (scheme colours, clrMap, lumMod/lumOff/tint/shade/alpha).
+
 
 export const NS = {
   a: "http://schemas.openxmlformats.org/drawingml/2006/main",
@@ -43,7 +42,7 @@ export function serialize(node) {
   const s = new XMLSerializer().serializeToString(node);
   return node.nodeType === 9 && !s.startsWith("<?xml") ? XML_HEAD + s : s;
 }
-/** Parse a fragment written with a:/p:/r:/c: prefixes and import it into `doc`. */
+
 export function frag(doc, xml) {
   const tmp = parseXml(`<w ${DECL} xmlns:c="${NS.c}">${xml}</w>`);
   const el = tmp.documentElement.firstElementChild;
@@ -60,7 +59,7 @@ export const bool = (el, name, dflt = null) => { const v = attr(el, name); retur
 export function rid(el, name = "embed") { return el ? (el.getAttributeNS(NS.r, name) || el.getAttribute("r:" + name) || null) : null; }
 export const escXml = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]))
   .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\ufffe\uffff]/g, "");
-/** Insert `node` into `parent` before the first child whose localName is in `after` order list after `name`. */
+
 export function insertOrdered(parent, node, order) {
   const idx = order.indexOf(node.localName);
   for (const c of parent.children) {
@@ -72,7 +71,6 @@ export function insertOrdered(parent, node, order) {
 }
 export function removeKids(el, names) { for (const c of Array.from(el?.children || [])) if (names.includes(c.localName)) c.remove(); }
 
-// ------------------------------------------------------------------ colours
 export const SCHEME_KEYS = ["dk1", "lt1", "dk2", "lt2", "accent1", "accent2", "accent3", "accent4", "accent5", "accent6", "hlink", "folHlink"];
 export const DEFAULT_CLRMAP = { bg1: "lt1", tx1: "dk1", bg2: "lt2", tx2: "dk2", accent1: "accent1", accent2: "accent2", accent3: "accent3",
   accent4: "accent4", accent5: "accent5", accent6: "accent6", hlink: "hlink", folHlink: "folHlink" };
@@ -95,7 +93,7 @@ function hslToRgb([h, s, l]) {
   const f = (t) => { t = (t + 1) % 1; return t < 1 / 6 ? p + (q - p) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? p + (q - p) * (2 / 3 - t) * 6 : p; };
   return [f(h + 1 / 3) * 255, f(h) * 255, f(h - 1 / 3) * 255];
 }
-/** Apply DrawingML modifiers [{n: "lumMod", v: 75000}, …] → {hex, alpha}. */
+
 export function applyMods(hex, mods) {
   let rgb = hexToRgb(hex), alpha = 1;
   for (const { n, v } of mods || []) {
@@ -108,7 +106,7 @@ export function applyMods(hex, mods) {
   }
   return { hex: rgbToHex(...rgb), alpha };
 }
-/** A colour element parent (e.g. a:solidFill) → model colour: "#RRGGBB" | "scheme:accent1" with optional mods. */
+
 export function readColor(parent) {
   if (!parent) return null;
   const el = Array.from(parent.children).find((c) => ["srgbClr", "schemeClr", "sysClr", "prstClr", "scrgbClr", "hslClr"].includes(c.localName));
@@ -123,7 +121,7 @@ export function readColor(parent) {
   else base = "#000000";
   return mods.length ? { c: base, mods } : base;
 }
-/** model colour → CSS colour string using the theme palette + clrMap. `phClr` = placeholder colour (style refs). */
+
 export function cssColor(color, theme, phClr) {
   if (!color) return null;
   const base = typeof color === "string" ? color : color.c;
@@ -141,7 +139,7 @@ export function cssColor(color, theme, phClr) {
   const [R, G, B] = hexToRgb(r.hex);
   return `rgba(${R},${G},${B},${r.alpha.toFixed(3)})`;
 }
-/** model colour → XML (inside a fill / a:solidFill). */
+
 export function colorXml(color) {
   if (!color) return '<a:srgbClr val="000000"/>';
   const base = typeof color === "string" ? color : color.c;

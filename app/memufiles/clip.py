@@ -21,7 +21,6 @@ CF_HDROP = 15
 GMEM_MOVEABLE = 0x0002
 GMEM_ZEROINIT = 0x0040
 
-
 def _user32():
     import ctypes
     from ctypes import wintypes
@@ -46,7 +45,6 @@ def _user32():
     kernel32.GlobalFree.restype = wintypes.HGLOBAL
     kernel32.GlobalFree.argtypes = [wintypes.HGLOBAL]
     return ctypes, user32, kernel32
-
 
 def read_files() -> Dict[str, Any]:
     """``{"paths": [...], "cut": bool, "virtual": n}`` from the system clipboard (empty off Windows)."""
@@ -91,7 +89,6 @@ def read_files() -> Dict[str, Any]:
         user32.CloseClipboard()
     return {"paths": paths, "cut": cut, "virtual": virtual}
 
-
 def write_files(paths: List[str], cut: bool = False, owner: int = 0) -> bool:
     """Put *paths* on the clipboard for Explorer; an empty list clears files left there by a cut that was just
     pasted (Explorer does the same — a second paste must not try to move files that are gone)."""
@@ -109,7 +106,7 @@ def write_files(paths: List[str], cut: bool = False, owner: int = 0) -> bool:
         finally:
             user32.CloseClipboard()
     files = ("\0".join(paths) + "\0\0").encode("utf-16-le")
-    header = struct.pack("<IiiII", 20, 0, 0, 0, 1)        # DROPFILES: pFiles=20, pt, fNC, fWide=1
+    header = struct.pack("<IiiII", 20, 0, 0, 0, 1)
     blob = header + files
 
     def alloc(data: bytes):
@@ -131,10 +128,8 @@ def write_files(paths: List[str], cut: bool = False, owner: int = 0) -> bool:
         if not user32.SetClipboardData(fmt, handle):
             kernel32.GlobalFree(handle)
             return False
-        return True  # Windows owns the handle now
+        return True
 
-    # EmptyClipboard after OpenClipboard(NULL) leaves a NULL owner and makes
-    # SetClipboardData fail. Use the actual MemuFiles HWND whenever available.
     hwnd = owner or user32.GetForegroundWindow()
     if not hwnd or not user32.OpenClipboard(hwnd):
         return False
@@ -148,12 +143,9 @@ def write_files(paths: List[str], cut: bool = False, owner: int = 0) -> bool:
     finally:
         user32.CloseClipboard()
 
-
-# ---------------------------------------------------------------- virtual files (FileGroupDescriptorW / FileContents)
-DESCRIPTOR_SIZE = 592          # FILEDESCRIPTORW
+DESCRIPTOR_SIZE = 592
 FD_ATTRIBUTES, FD_WRITESTIME, FD_FILESIZE = 0x4, 0x20, 0x40
 FILE_ATTRIBUTE_DIRECTORY = 0x10
-
 
 def parse_group(data: bytes) -> List[Dict[str, Any]]:
     """FILEGROUPDESCRIPTORW → ``[{rel, size (-1 unknown), mtime (s, 0 unknown), dir}]``."""
@@ -178,7 +170,6 @@ def parse_group(data: bytes) -> List[Dict[str, Any]]:
                     "mtime": max(0.0, mtime), "dir": bool(flags & FD_ATTRIBUTES and attrs & FILE_ATTRIBUTE_DIRECTORY),
                     "index": index})
     return out
-
 
 def iter_virtual():
     """Yield ``(item, reader)`` for every virtual file on the clipboard (``reader`` is None for folders).
@@ -217,9 +208,9 @@ def iter_virtual():
     data_object = ctypes.c_void_p()
     if ole32.OleGetClipboard(ctypes.byref(data_object)) != 0 or not data_object:
         return
-    get_data = vcall(data_object, 3, ctypes.c_long, ctypes.POINTER(FORMATETC), ctypes.POINTER(STGMEDIUM))   # IDataObject::GetData
+    get_data = vcall(data_object, 3, ctypes.c_long, ctypes.POINTER(FORMATETC), ctypes.POINTER(STGMEDIUM))
     try:
-        fmt = FORMATETC(cf_group, None, 1, -1, 1)                  # DVASPECT_CONTENT, TYMED_HGLOBAL
+        fmt = FORMATETC(cf_group, None, 1, -1, 1)
         medium = STGMEDIUM()
         if get_data(data_object, ctypes.byref(fmt), ctypes.byref(medium)) != 0:
             return
@@ -230,21 +221,21 @@ def iter_virtual():
         finally:
             ole32.ReleaseStgMedium(ctypes.byref(medium))
         items = parse_group(blob)
-        # first a summary: the operation knows its total up front (an honest bar from the first byte)
+
         yield {"summary": True, "count": len(items), "bytes": sum(max(0, i["size"]) for i in items if not i["dir"])}, None
         for item in items:
             if item["dir"]:
                 yield item, None
                 continue
-            fmt = FORMATETC(cf_contents, None, 1, item["index"], 4 | 1)    # TYMED_ISTREAM | TYMED_HGLOBAL
+            fmt = FORMATETC(cf_contents, None, 1, item["index"], 4 | 1)
             medium = STGMEDIUM()
             if get_data(data_object, ctypes.byref(fmt), ctypes.byref(medium)) != 0:
                 yield item, _Failed()
                 continue
             try:
-                if medium.tymed == 4:                                       # IStream
+                if medium.tymed == 4:
                     yield item, _StreamReader(medium.data, vcall)
-                else:                                                       # HGLOBAL
+                else:
                     pointer = kernel32.GlobalLock(medium.data)
                     size = kernel32.GlobalSize(medium.data)
                     if item["size"] >= 0:
@@ -256,13 +247,11 @@ def iter_virtual():
             finally:
                 ole32.ReleaseStgMedium(ctypes.byref(medium))
     finally:
-        vcall(data_object, 2, ctypes.c_ulong)(data_object)                 # IUnknown::Release
-
+        vcall(data_object, 2, ctypes.c_ulong)(data_object)
 
 class _Failed:
     def read(self, size: int) -> bytes:
         raise OSError("the source app did not hand over the file")
-
 
 class _StreamReader:
     """``read(n)`` over an IStream (vtable 3: Read(pv, cb, pcbRead))."""

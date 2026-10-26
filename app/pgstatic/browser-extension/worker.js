@@ -36,7 +36,7 @@ async function metadata() {
   try {
     const [tab] = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
     if (tab && !tab.incognito) send({ op: "active_tab", value: { tab_id: tab.id, url: tab.url || "", title: tab.title || "" } });
-  } catch (_) { /* Chrome is closing */ }
+  } catch (_) {  }
 }
 
 async function connect() {
@@ -71,7 +71,7 @@ async function connect() {
     ws.onclose = (event) => {
       if (socket !== ws) return;
       socket = null; clearInterval(keepalive); keepalive = null;
-      // A rejected/revoked token cannot reconnect until paired again.
+
       if (event.code !== 1008) { clearTimeout(reconnect); reconnect = setTimeout(connect, 5000); }
       cleanupTabs();
     };
@@ -149,8 +149,7 @@ async function execute(op, args, callId = "") {
   if (op === "close_tabs") {
     if (!Array.isArray(args.tab_ids) || !args.tab_ids.length || args.tab_ids.length > 1000 || args.tab_ids.some(id => !Number.isSafeInteger(id) || id < 0)) throw new Error("Укажите список tab_ids для закрытия");
     const ids = [...new Set(args.tab_ids)];
-    // Validate the entire batch before the first mutation. In particular, an
-    // incognito or stale ID must not turn an approval into a partial close.
+
     const tabs = await Promise.all(ids.map(id => tabFor({ tab_id: id })));
     validateExpectedTabs(tabs, args._expected_tabs);
     try { await chrome.tabs.remove(ids); }
@@ -211,8 +210,7 @@ async function execute(op, args, callId = "") {
       await chrome.tabs.remove(id).catch(() => {}); ownedTabs.delete(id);
       await chrome.storage.session.set({ dfyTabs: [...ownedTabs] });
     }
-    // A matching start may still be awaiting debugger.attach. Keep its
-    // cancellation tombstone until that start observes it and settles.
+
     for (const [key, tab] of dfyStarts) if (tab === id) dfyStarts.delete(key);
     return { ok: true };
   }
@@ -228,11 +226,10 @@ async function execute(op, args, callId = "") {
 }
 
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
-  // No content script or arbitrary web page may proxy a local API request.
+
   if (sender.id !== chrome.runtime.id || sender.tab || !sender.url?.startsWith(chrome.runtime.getURL(""))) return false;
   (async () => {
-    // Opening the panel or checking the connection must not cancel running DFY.
-    // Configuration changes already perform their own cleanup and reconnect.
+
     if (message.op === "connect") { await connect(); return { ok: true }; }
     if (message.op === "status") return { connected: socket?.readyState === WebSocket.OPEN };
     if (message.op === "local_read") return read(message.args || {});
@@ -266,7 +263,7 @@ async function cleanupTabs() {
   }
   await chrome.storage.session.set({ dfyTabs: [] });
 }
-// Recover only tabs we created, never arbitrary tabs after a worker restart.
+
 chrome.storage.session.get({ dfyTabs: [] }).then(async ({ dfyTabs }) => {
   for (const id of dfyTabs) { await chrome.debugger.detach({ tabId: id }).catch(() => {}); await chrome.tabs.remove(id).catch(() => {}); }
   await chrome.storage.session.set({ dfyTabs: [] });

@@ -17,14 +17,12 @@ from .store import LearnError
 
 CARD_FIELDS = ("id", "course_id", "lesson_id", "kind", "front", "back", "extra", "ord", "state", "due", "tags", "buttons")
 
-
 def module_enabled() -> bool:
     from ..modules_host import default_root, list_modules
     try:
         return any(row.get("id") == "learn" and row.get("enabled") for row in list_modules(default_root()))
     except Exception:
         return False
-
 
 def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any) -> None:  # noqa: N803
     from . import api

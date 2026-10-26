@@ -19,7 +19,6 @@ from app.providers.gs.client import GensparkClient
 from app.providers.kiro import KiroProvider
 from app.state import Account, state
 
-
 class FakeResponse:
     def __init__(self, status=200, lines=(), payload=None, text=""):
         self.status_code = status
@@ -45,7 +44,6 @@ class FakeResponse:
     async def aclose(self):
         self.closed = True
 
-
 class CloseResponseTest(unittest.TestCase):
     def test_an_abandoned_curl_stream_is_aborted_not_drained(self):
         """curl_cffi's aclose() awaits the whole transfer; close_response must not."""
@@ -56,7 +54,7 @@ class CloseResponseTest(unittest.TestCase):
             writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\n"
                          b"Transfer-Encoding: chunked\r\n\r\n")
             try:
-                for _ in range(100):           # a «generation» of ~20 s
+                for _ in range(100):
                     writer.write(b"7\r\ndata:x\n\r\n")
                     await writer.drain()
                     await asyncio.sleep(0.2)
@@ -91,7 +89,6 @@ class CloseResponseTest(unittest.TestCase):
         asyncio.run(http.close_response(response))
         self.assertTrue(response.closed)
         asyncio.run(http.close_response(None))
-
 
 class KiroHistoryTest(unittest.TestCase):
     def _body_for(self, messages):
@@ -166,7 +163,6 @@ class KiroHistoryTest(unittest.TestCase):
             asyncio.run(run())
         self.assertEqual(account.extra["tokens"]["refreshToken"], "r")
 
-
 class AntigravityFixesTest(unittest.TestCase):
     def test_in_stream_429_is_a_rate_limit_and_bad_shapes_do_not_crash(self):
         with self.assertRaises(ProviderRateLimitError):
@@ -206,7 +202,6 @@ class AntigravityFixesTest(unittest.TestCase):
         with self.assertRaises(ProviderServerError):
             self._refresh({"expires_in": 3600})
 
-
 class GrokFixesTest(unittest.TestCase):
     def test_server_trouble_on_auth_session_does_not_kill_the_account(self):
         class Session:
@@ -223,7 +218,6 @@ class GrokFixesTest(unittest.TestCase):
                     await GrokProvider()._user_id(account)
             with self.assertRaises(error):
                 asyncio.run(run())
-
 
 class GensparkFixesTest(unittest.TestCase):
     def test_fingerprint_is_restored_when_every_fallback_gets_403(self):
@@ -281,7 +275,6 @@ class GensparkFixesTest(unittest.TestCase):
         self.assertEqual(out1[-1]["text"], "answer")
         self.assertEqual(modes, [None, "proj-1"], "the second turn must continue the Genspark project")
 
-
 class PricingFixesTest(unittest.TestCase):
     def test_version_first_claude_names_get_their_own_price(self):
         from app.model_info import lookup_known
@@ -292,7 +285,6 @@ class PricingFixesTest(unittest.TestCase):
         self.assertIsNotNone(lookup("claude-4-opus"))
         self.assertIsNotNone(lookup("claude-4-sonnet"))
         self.assertEqual(lookup("claude-3-haiku").input, 0.25)
-
 
 if __name__ == "__main__":
     unittest.main()

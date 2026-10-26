@@ -10,11 +10,9 @@ import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-
 def arg(name: str, default: str = "") -> str:
     argv = sys.argv[1:]
     return argv[argv.index(name) + 1] if name in argv else default
-
 
 PORT = int(arg("--port", "0"))
 ALIAS = arg("--alias", "model")
@@ -24,9 +22,8 @@ if "--crash" in sys.argv:
     print("error: failed to allocate buffer", flush=True)
     sys.exit(3)
 
-
 class Handler(BaseHTTPRequestHandler):
-    def log_message(self, *args):  # keep test output quiet
+    def log_message(self, *args):
         return
 
     def do_GET(self):
@@ -52,6 +49,5 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
             self.wfile.flush()
         self.wfile.write(b'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n')
-
 
 ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

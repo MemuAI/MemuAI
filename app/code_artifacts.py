@@ -25,19 +25,15 @@ MAX_CONTENT = 2_000_000
 MAX_SESSIONS = 80
 MAX_ARTIFACTS = 60
 
-
 def _safe_session(session_id: str) -> str:
     return "".join(ch for ch in str(session_id or "") if ch.isalnum() or ch in "-_")[:64] or "default"
-
 
 def _path(session_id: str) -> Path:
     return ARTIFACT_ROOT / f"{_safe_session(session_id)}.json"
 
-
 def _empty(session_id: str) -> Dict[str, Any]:
     return {"session": _safe_session(session_id), "created": time.time(),
             "updated": time.time(), "artifacts": []}
-
 
 def _load(session_id: str) -> Dict[str, Any]:
     path = _path(session_id)
@@ -51,7 +47,6 @@ def _load(session_id: str) -> Dict[str, Any]:
         return _empty(session_id)
     return data
 
-
 def _save(session_id: str, data: Dict[str, Any]) -> None:
     path = _path(session_id)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -62,7 +57,6 @@ def _save(session_id: str, data: Dict[str, Any]) -> None:
     finally:
         temporary.unlink(missing_ok=True)
 
-
 def _sanitize(kind: str, title: str, content: str) -> Dict[str, str]:
     kind = str(kind or "code").strip().lower()
     if kind not in KINDS:
@@ -71,11 +65,9 @@ def _sanitize(kind: str, title: str, content: str) -> Dict[str, str]:
     content = str(content or "")[:MAX_CONTENT]
     return {"kind": kind, "title": title, "content": content}
 
-
 def create(session_id: str, *, kind: str, title: str, content: str) -> Dict[str, Any]:
     with _LOCK:
         return _create_locked(session_id, kind=kind, title=title, content=content)
-
 
 def _create_locked(session_id: str, *, kind: str, title: str, content: str) -> Dict[str, Any]:
     data = _load(session_id)
@@ -91,12 +83,10 @@ def _create_locked(session_id: str, *, kind: str, title: str, content: str) -> D
     _prune_sessions()
     return artifact
 
-
 def update(session_id: str, artifact_id: str, *, kind: Optional[str] = None,
            title: Optional[str] = None, content: Optional[str] = None) -> Dict[str, Any]:
     with _LOCK:
         return _update_locked(session_id, artifact_id, kind=kind, title=title, content=content)
-
 
 def _update_locked(session_id: str, artifact_id: str, *, kind: Optional[str],
                    title: Optional[str], content: Optional[str]) -> Dict[str, Any]:
@@ -115,7 +105,6 @@ def _update_locked(session_id: str, artifact_id: str, *, kind: Optional[str],
     _save(session_id, data)
     return artifact
 
-
 def get(session_id: str, artifact_id: str) -> Dict[str, Any]:
     artifact = next((row for row in _load(session_id)["artifacts"]
                      if row.get("id") == str(artifact_id)), None)
@@ -123,11 +112,9 @@ def get(session_id: str, artifact_id: str) -> Dict[str, Any]:
         raise KeyError("artifact not found")
     return artifact
 
-
 def list_artifacts(session_id: str) -> List[Dict[str, Any]]:
     rows = _load(session_id)["artifacts"]
     return [{key: value for key, value in row.items() if key != "content"} for row in rows]
-
 
 def delete(session_id: str, artifact_id: str) -> None:
     with _LOCK:
@@ -135,7 +122,6 @@ def delete(session_id: str, artifact_id: str) -> None:
         data["artifacts"] = [row for row in data["artifacts"] if row.get("id") != str(artifact_id)]
         data["updated"] = time.time()
         _save(session_id, data)
-
 
 def publish(session_id: str, artifact_id: str, root: Path, rel_path: str) -> Dict[str, Any]:
     """Copy an artifact into the project. The path must stay inside the root."""
@@ -162,7 +148,6 @@ def publish(session_id: str, artifact_id: str, root: Path, rel_path: str) -> Dic
                                  "allow_shrink": True})
     return {"id": artifact["id"], "path": target.relative_to(root).as_posix(),
             "version": artifact.get("version", 1), "size": target.stat().st_size}
-
 
 def _prune_sessions() -> None:
     if not ARTIFACT_ROOT.is_dir():

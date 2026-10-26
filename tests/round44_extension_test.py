@@ -17,16 +17,13 @@ from app import browser_extension as extension, browser_extension_chat as chat_a
 from app import browser_extension_files as files, integrations, pgdata
 from app import browser_extension_store
 
-
 def data_url(raw: bytes, mime="application/octet-stream"):
     return "data:" + mime + ";base64," + base64.b64encode(raw).decode()
-
 
 def png(color=(44, 102, 200)):
     output = io.BytesIO()
     Image.new("RGB", (5, 4), color).save(output, "PNG")
     return data_url(output.getvalue(), "image/png")
-
 
 class ExtensionWorkspaceTests(unittest.TestCase):
     def setUp(self):
@@ -311,7 +308,6 @@ class ExtensionWorkspaceTests(unittest.TestCase):
         self.assertEqual(self.complete.await_count, 1)
         self.assertEqual(pgdata.load_chats("work"), [])
         self.assertEqual([m["role"] for m in browser_extension_store.load_chats("default")[0]["messages"]], ["user"])
-
 
 if __name__ == "__main__":
     unittest.main()

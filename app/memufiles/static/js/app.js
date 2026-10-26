@@ -1,5 +1,5 @@
-// MemuFiles · application shell: tabs, split panes, sidebar, address bar, commands, clipboard, drag & drop,
-// keyboard shortcuts (Explorer-compatible), events from the backend, session restore (Round 35).
+
+
 import { t, setLang, getLang } from "./i18n.js";
 import { S, api, $, $$, h, esc, icon, fileIcon, folderSvg, fmtSize, fmtNum, itemsWord, plural, joinPath, baseName,
   parentPath, splitPath, samePath, isInside, driveOf, extOf, stemOf, toast, showError, errText, menu, closeMenus,
@@ -10,11 +10,11 @@ import * as preview from "./preview.js";
 import * as ai from "./ai.js";
 import * as tools from "./tools.js";
 import * as titlebar from "./titlebar.js";
-import * as extras from "./extras.js";       // Round 39 (r39-files-feat): Quick Look, compare, templates…
-import { Ops } from "./ops.js";               // Round 40 (r40-files-core): operations flyout, progress, conflicts
-import * as dnd from "./dnd.js";              // Round 40 (r40-files-core): drag & drop incl. virtual files
-import * as feat40 from "./feat40.js";        // Round 40 (r40-files-max): type filter, pinned tabs, Properties tabs
-import * as feat41 from "./feat41.js";        // r41-files: settings window, look, archives as folders, «show in folder»
+import * as extras from "./extras.js";
+import { Ops } from "./ops.js";
+import * as dnd from "./dnd.js";
+import * as feat40 from "./feat40.js";
+import * as feat41 from "./feat41.js";
 
 const ARCHIVE_EXT = new Set(["zip", "tar", "gz", "tgz", "bz2", "xz", "7z", "rar"]);
 
@@ -23,17 +23,16 @@ class App {
     this.tabs = [];
     this.active = 0;
     this.closed = [];
-    this.clipboard = null;           // {paths: [], cut: bool, set: Set}
+    this.clipboard = null;
     this.tags = new Map();
     this.sidebar = { drives: [], places: [], pinned: [] };
     this.ops = new Map();
-    this.opsUi = new Ops(this);      // r40-files-core
-    this.right = null;               // null | "preview" | "ai"
+    this.opsUi = new Ops(this);
+    this.right = null;
     this.settings = {};
     this.eventsSeq = 0;
   }
 
-  // ================================================================ boot
   async boot() {
     const hash = new URLSearchParams(location.hash.slice(1));
     S.token = hash.get("t") || sessionStorage.getItem("mf.token") || "";
@@ -58,10 +57,9 @@ class App {
       this.closed = session.closed || [];
       this.switchTab(Math.min(session.active || 0, this.tabs.length - 1));
     }
-    if (boot.paths && boot.paths.length) for (const p of boot.paths) this.openPathInNewTab(p, (boot.path_info || {})[p], this.openOpts(boot, p));   // r39-files-perf: no /api/stat round trip
-    if (!this.tabs.length) this.addTab({ panes: [{ path: feat41.startPath(this) }] }, true);   // r41-files: «A new window opens»
-    // r40-files-max: in a narrow window (≤760 px) the preview is an overlay over the list — it is not opened by itself on
-    // start (it covered the list, the search banner and Home); the user opens it with Alt+P when wanted
+    if (boot.paths && boot.paths.length) for (const p of boot.paths) this.openPathInNewTab(p, (boot.path_info || {})[p], this.openOpts(boot, p));
+    if (!this.tabs.length) this.addTab({ panes: [{ path: feat41.startPath(this) }] }, true);
+
     const roomy = innerWidth > 760;
     if (session && session.layout) {
       if (session.layout.right && (roomy || session.layout.right !== "preview")) this.setRight(session.layout.right, false);
@@ -69,10 +67,10 @@ class App {
     document.body.classList.remove("booting");
     $(".boot-splash") && $(".boot-splash").remove();
     this.loadSidebar();
-    setInterval(() => { if (!document.hidden) this.loadSidebar(); }, 30000);   // r39-files-perf: nothing while hidden/minimized
+    setInterval(() => { if (!document.hidden) this.loadSidebar(); }, 30000);
     document.addEventListener("visibilitychange", () => { if (!document.hidden) { this.checkStamps(); this.loadSidebar(); } });
     this.pollEvents();
-    window.addEventListener("focus", () => this.reloadSettings());   // Round 38: a change made in MemuAI while the event was missed
+    window.addEventListener("focus", () => this.reloadSettings());
     setInterval(() => this.checkStamps(), 2500);
     this.refreshOps();
   }
@@ -84,10 +82,10 @@ class App {
     root.classList.toggle("fallback-tokens", !Object.keys(tokens).length);
     for (const name of [...root.style]) if (name.startsWith("--")) root.style.removeProperty(name);
     for (const [k, v] of Object.entries(tokens)) root.style.setProperty(k, v);
-    document.getElementById("mf-theme")?.remove();     // r39-files-perf: the first-frame palette the server put in index.html
+    document.getElementById("mf-theme")?.remove();
     if (theme.font_scale && theme.font_scale !== 100) root.style.fontSize = theme.font_scale + "%";
     this.theme = theme;
-    feat41.applyLook(this);   // r41-files: accent, font, text size, row shading, formats… (after the theme's tokens)
+    feat41.applyLook(this);
     api("window", { cmd: "theme", mode: theme.mode }).catch(() => {});
   }
 
@@ -98,7 +96,6 @@ class App {
   tagKey(path) { return isWin() ? path.toLowerCase() : path; }
   tagOf(path) { return this.tags.size ? this.tags.get(this.tagKey(path)) : null; }
 
-  // ================================================================ DOM
   build() {
     const app = h("div", { id: "app" });
     this.tabbar = h("header", { class: "tabbar" });
@@ -122,7 +119,7 @@ class App {
     this.bindResizers();
     this.bindKeys();
     this.bindGlobalDrop();
-    // labels hide only when the buttons really do not fit (a fixed 900 px cut clipped «Preview»/«AI» at 900–1000 px)
+
     new ResizeObserver(() => {
       const bar = this.cmdbar;
       bar.classList.remove("narrow");
@@ -131,7 +128,6 @@ class App {
     window.addEventListener("beforeunload", () => this.saveSession(true));
   }
 
-  // ---------------------------------------------------------------- tabs
   buildTabbar() {
     this.tabbar.innerHTML = "";
     const logo = h("img", { class: "logo", src: "memufiles-small.svg", alt: "" });
@@ -144,7 +140,7 @@ class App {
     right.append(settings);
     this.tabbar.append(logo, this.tabsEl, add, right);
     titlebar.mountControls(this.tabbar);
-    // a double click on the empty strip: a new tab — unless the strip is the window caption (then it maximizes)
+
     this.tabbar.addEventListener("dblclick", (e) => { if (!titlebar.active() && (e.target === this.tabbar || e.target === this.tabsEl)) this.newTab(); });
   }
   renderTabs() {
@@ -156,7 +152,7 @@ class App {
       el.innerHTML = ico + `<span class="tab-name">${esc(pane.title)}</span>` + (tab.panes.length > 1 ? `<span class="split-badge">${icon("split", "sm")}</span>` : "");
       const close = h("button", { class: "icon-btn sm tab-close", title: t("tab.close") + " (Ctrl+W)", html: icon("x") });
       close.addEventListener("click", (e) => { e.stopPropagation(); this.closeTab(index); });
-      if (!tab.pinned) el.append(close);   // r40-files-max: a pinned tab is a compact icon, closed from its menu
+      if (!tab.pinned) el.append(close);
       el.addEventListener("mousedown", (e) => { if (e.button === 1) { e.preventDefault(); this.closeTab(index); } });
       el.addEventListener("click", () => this.switchTab(index));
       el.addEventListener("contextmenu", (e) => { e.preventDefault(); this.tabMenu(index, e.clientX, e.clientY); });
@@ -195,7 +191,7 @@ class App {
       });
       this.tabsEl.append(el);
     });
-    const activeEl = this.tabsEl.children[this.active];   // many tabs in a narrow window: the strip scrolls
+    const activeEl = this.tabsEl.children[this.active];
     if (activeEl && this.tabsEl.scrollWidth > this.tabsEl.clientWidth) activeEl.scrollIntoView({ block: "nearest", inline: "nearest" });
     const pane = this.pane();
     if (pane) api("window", { cmd: "title", title: `${pane.title} — MemuFiles` }).catch(() => {});
@@ -210,19 +206,17 @@ class App {
     else this.renderTabs();
     return tab;
   }
-  newTab(path) { const p = path || feat41.newTabPath(this); this.addTab({ panes: [{ path: p }] }); this.saveSession(); }   // r41-files: «New tab» setting
-  /** opts (r41-files): {reveal} — open the PARENT and select the item even when it is a folder (explorer /select,);
-   *  {shell} — a folder from the shell's folder handler («Show in folder» in a browser): select the fresh file there. */
+  newTab(path) { const p = path || feat41.newTabPath(this); this.addTab({ panes: [{ path: p }] }); this.saveSession(); }
+
   openPathInNewTab(path, known, opts = {}) {
-    // a file opens its folder with the file selected; a folder already open in a tab (a restored session, the
-    // same folder sent again from Quick Access / the command line) is activated instead of piling up duplicates
+
     const existing = (folder) => this.tabs.findIndex((tab) => tab.panes.length === 1 && tab.panes[0].mode !== "search" && samePath(tab.panes[0].path, folder));
     const place = (info) => {
       const folder = ((info.exists && !info.is_dir) || (opts.reveal && parentPath(path))) && !opts.browse ? parentPath(path) : path;
       const index = existing(folder);
       if (index >= 0) {
         const pane = this.tabs[index].panes[0];
-        if (index !== this.active) {             // switchTab reloads the folder: the selection is applied after that load
+        if (index !== this.active) {
           if (folder !== path) pane.pendingSelect = [path];
           else if (opts.shell) pane.shellHint = true;
           this.switchTab(index);
@@ -237,12 +231,11 @@ class App {
       }
       this.saveSession();
     };
-    // r39-files-perf: the boot payload / the "open" event already carry {exists, is_dir} — the tab opens synchronously
-    // (no /api/stat round trip, and no extra «Home» tab created while the answer was on its way)
+
     if (known) return place(known);
     api("stat", { paths: [path] }).then((res) => place(res.items[path] || {})).catch(() => this.addTab({ panes: [{ path }] }));
   }
-  /** r41-files: how a start-up / handed-over path opens — {reveal} for «/select,», {shell} from the folder handler. */
+
   openOpts(src, path) { return { reveal: (src.reveal || []).includes(path), shell: (src.shell || []).includes(path), browse: (src.browse || []).includes(path) }; }
   switchTab(index) {
     if (index < 0 || index >= this.tabs.length) return;
@@ -267,7 +260,7 @@ class App {
     if (pane && pane.fv) setTimeout(() => pane.fv.focus({ preventScroll: true }), 0);
   }
   closeTab(index = this.active, force = false) {
-    if (this.tabs[index] && this.tabs[index].pinned && !force) { toast(t("tab.pinned_hint")); return; }   // r40-files-max
+    if (this.tabs[index] && this.tabs[index].pinned && !force) { toast(t("tab.pinned_hint")); return; }
     if (this.tabs.length === 1) {
       const tab = this.tabs[0];
       this.closed.push(this.serializeTab(tab));
@@ -283,7 +276,7 @@ class App {
     const closingActive = index === this.active;
     if (this.active >= this.tabs.length) this.active = this.tabs.length - 1;
     else if (index < this.active) this.active--;
-    if (closingActive) this.active = feat41.tabAfterClose(this, index);   // r41-files: «After closing a tab»
+    if (closingActive) this.active = feat41.tabAfterClose(this, index);
     this.active = Math.max(0, Math.min(this.active, this.tabs.length - 1));
     this.panesEl.innerHTML = "";
     const keep = this.active;
@@ -306,10 +299,10 @@ class App {
       { label: t("tab.new"), icon: "plus", kb: "Ctrl+T", run: () => this.newTab() },
       { label: t("tab.duplicate"), icon: "copy", run: () => this.duplicateTab(index) },
       { label: t("tab.reopen"), icon: "restore", kb: "Ctrl+Shift+T", disabled: !this.closed.length, run: () => this.reopenTab() },
-      { label: t(this.tabs[index].pinned ? "tab.unpin" : "tab.pin"), icon: "pin", run: () => feat40.pinTab(this, index, !this.tabs[index].pinned) },   // r40-files-max
+      { label: t(this.tabs[index].pinned ? "tab.unpin" : "tab.pin"), icon: "pin", run: () => feat40.pinTab(this, index, !this.tabs[index].pinned) },
       { sep: true },
       { label: t("tab.close"), icon: "x", kb: "Ctrl+W", run: () => this.closeTab(index, true) },
-      // r40-files-max: «close others / to the right» keep pinned tabs (Chrome, Arc, Files)
+
       { label: t("tab.close_others"), disabled: this.tabs.length < 2, run: () => { const keep = this.tabs[index]; const stay = (tb) => tb === keep || tb.pinned; this.tabs.filter((tb) => !stay(tb)).forEach((tb) => { this.closed.push(this.serializeTab(tb)); tb.panes.forEach((p) => p.unmount()); }); const current = this.tabs[this.active]; this.tabs = this.tabs.filter(stay); this.active = -1; this.switchTab(Math.max(0, this.tabs.indexOf(stay(current) ? current : keep))); } },
       { label: t("tab.close_right"), disabled: index >= this.tabs.length - 1, run: () => { const removed = this.tabs.slice(index + 1).filter((tb) => !tb.pinned); removed.forEach((tb) => { this.closed.push(this.serializeTab(tb)); tb.panes.forEach((p) => p.unmount()); }); const current = this.tabs[this.active]; this.tabs = this.tabs.filter((tb) => !removed.includes(tb)); const keep = this.tabs.includes(current) ? this.tabs.indexOf(current) : Math.min(index, this.tabs.length - 1); this.active = -1; this.switchTab(keep); } },
     ], x, y);
@@ -320,7 +313,7 @@ class App {
     const run = () => {
       const body = { tabs: this.tabs.map((tab) => this.serializeTab(tab)), active: this.active, closed: this.closed.slice(-10),
         layout: { right: this.right } };
-      if (now && navigator.sendBeacon) { /* the session is saved on every change anyway */ }
+      if (now && navigator.sendBeacon) {  }
       api("session", body).catch(() => {});
     };
     if (now) run(); else this.sessionTimer = setTimeout(run, 600);
@@ -359,7 +352,6 @@ class App {
     this.switchTab(keep);
   }
 
-  // called by panes
   paneChanged(pane) {
     if (pane === this.pane()) this.updateChrome();
     this.renderTabs();
@@ -376,7 +368,7 @@ class App {
   }
   selectionChanged(pane) {
     if (pane !== this.pane()) return;
-    feat41.reportState(this);       // r41-files: Quick Access over this window knows the folder and the selection
+    feat41.reportState(this);
     if (feat41.inArchive(pane)) this.renderBanner(pane);
     this.updateCommands();
     this.updateStatus();
@@ -393,7 +385,7 @@ class App {
   }
   saveFolderView(path, value) {
     const map = Object.assign({}, this.settings.view_by_folder || {});
-    if (folderKey(path) !== path) delete map[path];      // r39-files-perf: one normalised key per folder
+    if (folderKey(path) !== path) delete map[path];
     map[folderKey(path)] = value;
     this.settings.view_by_folder = map;
     clearTimeout(this.viewSaveTimer);
@@ -401,7 +393,6 @@ class App {
   }
   cutSet() { return this.clipboard && this.clipboard.cut ? this.clipboard.set : null; }
 
-  // ---------------------------------------------------------------- navbar (back/forward/up, address, search)
   buildNavbar() {
     const nav = h("div", { class: "nav-group" });
     this.btnBack = h("button", { class: "icon-btn", title: t("nav.back") + " (Alt+←)", html: icon("back") });
@@ -465,8 +456,7 @@ class App {
     home.addEventListener("click", () => pane.navigate(SPECIAL.HOME));
     this.crumbsEl.append(home);
     const parts = splitPath(pane.path);
-    // Linux/macOS: «⌂ › / › tmp» showed two roots — the first separator already lists "/", so the "/" crumb is
-    // shown only for the root folder itself
+
     if (!isWin() && parts.length > 1 && parts[0].path === "/") parts.shift();
     parts.forEach((part, i) => {
       const sep = h("button", { class: "crumb-sep", html: icon("right", "sm"), title: t("nav.subfolders") });
@@ -479,18 +469,17 @@ class App {
       crumb.addEventListener("contextmenu", (e) => { e.preventDefault(); this.folderMenu(part.path, e.clientX, e.clientY); });
       this.crumbsEl.append(sep, crumb);
     });
-    if (parts.length) {      // like Explorer: the arrow after the last folder lists its subfolders
+    if (parts.length) {
       const last = parts[parts.length - 1].path;
       const tail = h("button", { class: "crumb-sep", html: icon("right", "sm"), title: t("nav.subfolders") });
       tail.addEventListener("click", (e) => { e.stopPropagation(); this.crumbMenu(last, null, tail); });
       this.crumbsEl.append(tail);
     }
-    // keep the end of a long path visible — r40-files-max: leading folders fold into «…» instead of being cut
+
     requestAnimationFrame(() => feat40.fitCrumbs(this));
     if (!this.crumbFit) { this.crumbFit = true; let raf = 0; addEventListener("resize", () => { if (!raf) raf = requestAnimationFrame(() => { raf = 0; feat40.fitCrumbs(this); }); }, { passive: true }); }
   }
-  /** The arrow before a folder lists its parent's subfolders (siblings, the current one marked); before the first
-   *  folder — the drives (Windows) or "/"; ``current === null`` — the subfolders of ``parent`` itself. */
+
   async crumbMenu(parent, current, anchor) {
     const target = parent === null ? (isWin() ? null : "/") : parent;
     let items = [];
@@ -590,7 +579,6 @@ class App {
     if (!keepFocus) pane.fv.focus();
   }
 
-  // ---------------------------------------------------------------- command bar
   buildCmdbar() {
     const c = (id, ico, label, run, opts = {}) => {
       const b = h("button", { class: "cmd" + (opts.primary ? " primary" : ""), "data-cmd": id, title: label + (opts.kb ? ` (${opts.kb})` : "") });
@@ -611,7 +599,7 @@ class App {
       c("sort", "sort", t("cmd.sort"), (e, b) => this.sortMenu(b), { caret: true }),
       c("view", "view", t("cmd.view"), (e, b) => this.viewMenu(b), { caret: true }),
       c("select", "checkAll", t("cmd.select"), (e, b) => this.selectMenu(b), { caret: true }),
-      c("kinds", "filter", t("kind.bar"), () => feat40.toggleKindBar(this), { iconOnly: true, kb: "Ctrl+Shift+F" }),   // r40-files-max
+      c("kinds", "filter", t("kind.bar"), () => feat40.toggleKindBar(this), { iconOnly: true, kb: "Ctrl+Shift+F" }),
       h("span", { class: "spacer" }),
       c("split", "split", t("cmd.split"), () => this.toggleSplit(), { kb: "Ctrl+\\" }),
       c("preview", "preview", t("cmd.preview"), () => this.togglePreview(), { kb: "Alt+P" }),
@@ -634,7 +622,7 @@ class App {
     set("sort", pane.mode === "home");
     set("view", pane.mode === "home");
     set("select", pane.mode === "home");
-    set("kinds", pane.mode === "home" || pane.mode === "trash", feat40.kindBarOn());   // r40-files-max
+    set("kinds", pane.mode === "home" || pane.mode === "trash", feat40.kindBarOn());
     set("split", false, this.tab().panes.length > 1);
     set("preview", false, this.right === "preview");
     set("ai", false, this.right === "ai");
@@ -655,7 +643,7 @@ class App {
     this.updateStatus();
     this.renderBanner(pane);
   }
-  renderBanner(pane) {   // r40-files-max: text on one line (ellipsis), labels hide in a narrow pane
+  renderBanner(pane) {
     const b = pane.bannerEl;
     if (!b) return;
     if (pane.mode === "trash") {
@@ -672,27 +660,26 @@ class App {
       const src = s.source === "index" ? t("search.src_index") : t("search.src_walk");
       b.innerHTML = icon("search") + `<span class="bn-text">${esc(s.running ? t("search.running", { n: fmtNum(s.count) }) : t("search.done", { n: fmtNum(s.count), ms: s.done && s.done.ms !== undefined ? s.done.ms : "?" }))} · ${esc(src)}</span><span class="spacer"></span>`;
       if (s.running) { const stop = h("button", { class: "btn sm", html: icon("stop") + `<span class="lbl">${esc(t("search.stop"))}</span>`, title: t("search.stop") }); stop.addEventListener("click", () => pane.stopSearch()); b.append(stop); }
-      const save = h("button", { class: "btn sm ghost", html: icon("star") + `<span class="lbl">${esc(t("x.save_search"))}</span>`, title: t("x.save_search") });   // r39
+      const save = h("button", { class: "btn sm ghost", html: icon("star") + `<span class="lbl">${esc(t("x.save_search"))}</span>`, title: t("x.save_search") });
       save.addEventListener("click", () => extras.saveSearch(this, pane));
       b.append(save);
       const close = h("button", { class: "btn sm ghost", html: icon("x") + `<span class="lbl">${esc(t("search.close"))}</span>`, title: t("search.close") });
       close.addEventListener("click", () => this.clearSearch());
       b.append(close);
     } else if (feat41.inArchive(pane)) {
-      feat41.archiveBanner(this, pane, b);                  // r41-files
+      feat41.archiveBanner(this, pane, b);
     } else if (pane.head && pane.head.protected && pane.mode === "dir") {
       b.hidden = false; b.className = "banner warn";
       b.innerHTML = icon("lock") + `<span class="bn-text">${esc(t("banner.protected"))}</span>`;
     } else b.hidden = true;
   }
 
-  // ---------------------------------------------------------------- status bar
   buildStatus() {
     this.stCount = h("span", {});
     this.stSel = h("span", { class: "st-sel" });
     this.stFree = h("span", { class: "st-free" });
     this.opsBtn = h("button", { class: "ops-ind idle", title: t("ops.title") });
-    this.opsBtn.addEventListener("click", () => this.opsUi.toggle());     // r40-files-core
+    this.opsBtn.addEventListener("click", () => this.opsUi.toggle());
     const views = h("div", { class: "views" });
     for (const [v, ico, kb] of [["details", "details", "Ctrl+Shift+6"], ["list", "list", "Ctrl+Shift+5"], ["tiles", "tiles", "Ctrl+Shift+7"], ["grid", "grid", "Ctrl+Shift+2"], ["gallery", "gallery", "Ctrl+Shift+1"]]) {
       const b = h("button", { class: "icon-btn", "data-view": v, title: t("view." + v) + ` (${kb})`, html: icon(ico) });
@@ -724,7 +711,6 @@ class App {
     this.zoom.hidden = pane.view === "details" || pane.view === "list";
   }
 
-  // ---------------------------------------------------------------- sidebar
   async loadSidebar() {
     try {
       const data = await api("sidebar");
@@ -734,7 +720,7 @@ class App {
       this.updateStatus();
       const pane = this.pane();
       if (pane && pane.mode === "home") this.renderHome(pane, pane.homeEl);
-    } catch (err) { /* offline backend: keep the last state */ }
+    } catch (err) {  }
   }
   renderSidebar() {
     const el = this.sidebarEl;
@@ -772,7 +758,7 @@ class App {
       const fs = sec(t("side.favorites"));
       for (const f of favs.slice(0, 30)) item(fs, { ico: "star", label: baseName(f.path), path: f.path, drop: false, onclick: () => this.revealPath(f.path) });
     }
-    // r40-files-2: saved searches — «smart folders» one click away (right click: run in a new tab / remove)
+
     const saved = this.sidebar.saved || [];
     if (saved.length) {
       const ss = sec(t("x.saved"));
@@ -848,10 +834,8 @@ class App {
     this.loadSidebar();
   }
 
-  // home page ("This PC")
   renderHome(pane, el) { tools.renderHome(this, pane, el); }
 
-  // ---------------------------------------------------------------- right panel
   setRight(kind, save = true) {
     this.right = kind;
     this.rightEl.hidden = !kind;
@@ -896,13 +880,12 @@ class App {
     drag(this.rightResizer, this.rightEl, "preview_width", -1);
   }
 
-  // ================================================================ commands
   async openItem(pane, item) {
     if (!item) return;
     if (pane.mode === "trash") { this.trashRestore([item]); return; }
-    if (await feat41.openItem(this, pane, item)) return;   // r41-files: an archive opens like a folder; a file inside one opens
+    if (await feat41.openItem(this, pane, item)) return;
     if (item.d) { pane.navigate(item.path); return; }
-    try { const res = await api("open", { path: item.path }); if (res && res.navigate) pane.navigate(res.navigate); }   // r39: folder .lnk
+    try { const res = await api("open", { path: item.path }); if (res && res.navigate) pane.navigate(res.navigate); }
     catch (err) { showError(err); }
   }
   openSelected(newTab) {
@@ -969,23 +952,23 @@ class App {
     if (!dest) return;
     let clip = this.clipboard;
     if (isWin()) {
-      // files copied in Explorer since our own copy win
+
       try {
         const os = await api("osclip");
         const mine = clip && os.paths.length === clip.paths.length && os.paths.every((p, i) => samePath(p, clip.paths[i]));
         if (os.paths.length && !mine) clip = { paths: os.paths, cut: os.cut, set: new Set(os.paths) };
-        // r40-files-core: files copied out of a zip folder in Explorer / Outlook attachments — no paths, only contents
+
         if (!os.paths.length && os.virtual) {
           const res = await api("ops/submit", { kind: "vpaste", dest, count: os.virtual });
           this.trackOp(res.op);
           return;
         }
-      } catch (e) { /* keep the internal clipboard */ }
+      } catch (e) {  }
     }
     if (!clip || !clip.paths.length) return;
     await this.transfer(clip.paths, dest, clip.cut ? "move" : "copy");
     if (clip.cut && clip === this.clipboard) { this.clipboard = null; this.updateCommands(); }
-    if (clip.cut && isWin()) api("osclip", { paths: [], cut: false }).catch(() => {});   // r40-files-core: like Explorer
+    if (clip.cut && isWin()) api("osclip", { paths: [], cut: false }).catch(() => {});
   }
   async transfer(paths, dest, kind) {
     paths = paths.filter((p) => !(kind === "move" && samePath(parentPath(p), dest)));
@@ -993,7 +976,7 @@ class App {
     for (const p of paths) {
       if (isInside(dest, p)) { toast(t("err.into_self"), "err"); return; }
     }
-    if (feat41.transfer(this, paths, dest, kind)) return;   // r41-files: out of an archive = extract, into one = add
+    if (feat41.transfer(this, paths, dest, kind)) return;
     try {
       const res = await api("ops/submit", { kind, sources: paths, dest, args: { copy_suffix: t("copy.suffix") } });
       this.trackOp(res.op);
@@ -1020,9 +1003,9 @@ class App {
       const prot = await api("protected", { paths });
       const bad = Object.keys(prot.protected);
       if (bad.length) { toast(t("err.protected_list", { name: baseName(bad[0]) }), "err"); return; }
-    } catch (e) { /* the backend checks again */ }
+    } catch (e) {  }
     const label = paths.length === 1 ? `«${baseName(paths[0])}»` : itemsWord(paths.length);
-    if (permanent && this.settings.confirm_delete !== false) {   // r41-files: «Ask before deleting permanently»
+    if (permanent && this.settings.confirm_delete !== false) {
       const ok = await confirmDialog({ title: t("del.perm_title"), text: t("del.perm_text", { what: label }), ok: t("del.perm_ok"), danger: true, icon: "trash" });
       if (!ok) return;
     } else if (this.settings.confirm_trash) {
@@ -1033,7 +1016,7 @@ class App {
       const res = await api("ops/submit", { kind: permanent ? "delete" : "trash", sources: paths });
       this.trackOp(res.op);
       const pane = this.pane();
-      // move the focus to the next item, like Explorer
+
       const next = pane.shown.find((r, i) => i > pane.focus && !paths.includes(r.path)) || pane.shown.slice().reverse().find((r) => !paths.includes(r.path));
       if (next) pane.pendingSelect = [next.path];
     } catch (err) { showError(err); }
@@ -1042,7 +1025,7 @@ class App {
     try { const res = await api("ops/undo", {}); this.trackOp(res.op); toast(t("ops.undoing"), "info"); }
     catch (err) { if (err.code === "nothing_to_undo") toast(t("err.nothing_to_undo"), "info"); else showError(err); }
   }
-  async redo() {   // r40-files-2
+  async redo() {
     try { const res = await api("ops/redo", {}); this.trackOp(res.op); toast(t("ops.redoing"), "info"); }
     catch (err) { if (err.code === "nothing_to_redo") toast(t("err.nothing_to_redo"), "info"); else showError(err); }
   }
@@ -1052,8 +1035,8 @@ class App {
       const ta = h("textarea", { style: { position: "fixed", opacity: "0" } }); ta.value = text; document.body.append(ta); ta.select(); document.execCommand("copy"); ta.remove(); toast(t("clip.path_copied"), "info");
     });
   }
-  compress(paths) { return feat41.compressDialog(this, paths); }          // r41-files: format, level, password
-  extract(path, here) { return feat41.quickExtract(this, path, here); }   // r41-files: one root folder → no extra level
+  compress(paths) { return feat41.compressDialog(this, paths); }
+  extract(path, here) { return feat41.quickExtract(this, path, here); }
   async terminalHere(path) { try { await api("terminal", { path: path || this.pane().folder || S.home }); } catch (err) { showError(err); } }
   async setTag(paths, body) {
     try { const res = await api("tags", { paths, ...body }); this.setTags(res.tags); this.renderSidebar(); this.tabs.forEach((tab) => tab.panes.forEach((p) => { if (p.el) { p.dirty = true; p.renderVisible(true); } })); }
@@ -1078,7 +1061,6 @@ class App {
     try { await api("trash/empty", {}); this.pane().reload(true); toast(t("trash.emptied")); } catch (err) { showError(err); }
   }
 
-  // ---------------------------------------------------------------- menus
   sortMenu(anchor) {
     const pane = this.pane();
     const r = anchor.getBoundingClientRect();
@@ -1089,7 +1071,7 @@ class App {
       { label: t("sort.asc"), checked: pane.sort.dir > 0, run: () => { pane.sort.dir = 1; pane.rememberView(); pane.refresh(false); pane.renderHead(); } },
       { label: t("sort.desc"), checked: pane.sort.dir < 0, run: () => { pane.sort.dir = -1; pane.rememberView(); pane.refresh(false); pane.renderHead(); } },
       { sep: true },
-      { label: t("sort.folders"), icon: "folder", sub: () => ["auto", "top", "mixed"].map((v) => ({ label: t("sort.folders." + v), checked: foldersOrder(this.settings) === v, run: () => this.setSetting("folders_order", v) })) },   // r41-files
+      { label: t("sort.folders"), icon: "folder", sub: () => ["auto", "top", "mixed"].map((v) => ({ label: t("sort.folders." + v), checked: foldersOrder(this.settings) === v, run: () => this.setSetting("folders_order", v) })) },
       { sep: true },
       { label: t("group.by"), icon: "group", sub: () => ["none", "type", "date", "size", "name", "tag"].map((g) => ({ label: t("group." + g), checked: pane.group === g, run: () => pane.setGroup(g) })) },
     ], r.left, r.bottom + 4);
@@ -1101,7 +1083,7 @@ class App {
     menu([
       { label: t("view.details"), icon: "details", checked: pane.view === "details", kb: "Ctrl+Shift+6", run: () => pane.setView("details") },
       { label: t("view.list"), icon: "list", checked: pane.view === "list", kb: "Ctrl+Shift+5", run: () => pane.setView("list") },
-      { label: t("view.tiles"), icon: "tiles", checked: pane.view === "tiles", kb: "Ctrl+Shift+7", run: () => pane.setView("tiles") },   // r41-files
+      { label: t("view.tiles"), icon: "tiles", checked: pane.view === "tiles", kb: "Ctrl+Shift+7", run: () => pane.setView("tiles") },
       ...sizes.map(([k, s]) => ({ label: t("view.icons_" + k), checked: pane.view === "grid" && pane.iconSize === s, run: () => { pane.iconSize = s; pane.setView("grid"); } })),
       { label: t("view.gallery"), icon: "gallery", checked: pane.view === "gallery", kb: "Ctrl+Shift+1", run: () => pane.setView("gallery") },
       { sep: true },
@@ -1151,7 +1133,7 @@ class App {
     const sel = pane.selectedPaths();
     menu([
       { label: t("cmd.undo"), icon: "undo", kb: "Ctrl+Z", run: () => this.undo() },
-      { label: t("cmd.redo"), icon: "redo", kb: "Ctrl+Y", run: () => this.redo() },   // r40-files-2
+      { label: t("cmd.redo"), icon: "redo", kb: "Ctrl+Y", run: () => this.redo() },
       { label: t("ops.title"), icon: "clock", run: () => this.opsUi.toggle(true) },
       { sep: true },
       { label: t("cmd.compress"), icon: "zip", disabled: !sel.length || pane.mode !== "dir", run: () => this.compress(sel) },
@@ -1185,7 +1167,7 @@ class App {
     const one = sel.length === 1 ? sel[0] : null;
     const ext = one ? extOf(one.n) : "";
     const isArchive = one && !one.d && ARCHIVE_EXT.has(ext);
-    if (one && !one.d && isWin()) this.openWithList(one.path);    // prefetch: the submenu opens filled
+    if (one && !one.d && isWin()) this.openWithList(one.path);
     const tagRow = one ? this.tagOf(one.path) : null;
     const colorsNode = h("div", { class: "colors" });
     for (const c of S.boot.tag_colors) {
@@ -1200,7 +1182,7 @@ class App {
       one && one.d && this.tab().panes.length > 1 ? { label: t("ctx.open_other"), icon: "split", run: () => this.otherPane().navigate(one.path) } : null,
       one && !one.d && isWin() ? { label: t("ctx.open_with_menu"), icon: "windows", sub: () => this.openWithItems(one.path) } : null,
       pane.mode === "search" ? { label: t("ctx.open_location"), icon: "folder", run: () => this.revealPath(sel[0].path) } : null,
-      isArchive ? { label: t("ctx.browse_archive"), icon: "folder", run: () => pane.navigate(one.path) } : null,   // r41-files
+      isArchive ? { label: t("ctx.browse_archive"), icon: "folder", run: () => pane.navigate(one.path) } : null,
       isArchive ? { label: t("ctx.extract_to"), icon: "extract", run: () => feat41.extractDialog(this, one.path, {}) } : null,
       isArchive ? { label: t("ctx.extract"), icon: "extract", run: () => this.extract(one.path, false) } : null,
       isArchive ? { label: t("ctx.extract_here"), icon: "extract", run: () => this.extract(one.path, true) } : null,
@@ -1233,14 +1215,13 @@ class App {
     ];
     menu(items, x, y);
   }
-  /** «Open with» submenu: apps Windows recommends for the extension (cached per extension, prefetched when the
-   *  context menu opens) + the system chooser. Resolves to menu items. */
+
   openWithList(path) {
     const ext = extOf(baseName(path)) || "";
     if (!this._openWith) this._openWith = new Map();
     const hit = this._openWith.get(ext);
     if (hit && Date.now() - hit.at < 60000) return hit.promise;
-    // a failure (shell busy / timed out) is not cached: the next open asks again
+
     const promise = api("openwith?path=" + encodeURIComponent(path)).then((r) => r.handlers || [])
       .catch(() => { this._openWith.delete(ext); return []; });
     this._openWith.set(ext, { at: Date.now(), promise });
@@ -1317,24 +1298,22 @@ class App {
     this.updateChrome();
   }
 
-  // ================================================================ keyboard
   bindKeys() {
     document.addEventListener("keydown", (e) => {
       if ($(".modal-back")) return;
-      if ($(".menu") && ["Escape", "Delete", "Enter", " ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "F2"].includes(e.key)) return;   // r40-files-max: an open menu owns these keys
+      if ($(".menu") && ["Escape", "Delete", "Enter", " ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "F2"].includes(e.key)) return;
       const tag = e.target.tagName;
       const typing = tag === "INPUT" || tag === "TEXTAREA" || e.target.isContentEditable;
       const ctrl = e.ctrlKey || e.metaKey;
       const pane = this.pane();
       if (!pane) return;
       const key = e.key;
-      // r39-files-perf: letter shortcuts by physical key — with the Russian layout e.key is «с», not «c», and
-      // Ctrl+C/V/X/Z/A/T/W/L/N… silently did nothing
+
       const kl = /^Key[A-Z]$/.test(e.code || "") ? e.code.slice(3).toLowerCase() : key.toLowerCase();
       const run = (fn) => { e.preventDefault(); e.stopPropagation(); fn(); };
-      // window-wide shortcuts (also while typing)
-      if (ctrl && !e.shiftKey && kl === "t") return run(() => this.newTab());   // r41-files: Settings → «New tab (Ctrl+T)»
-      if (ctrl && !e.shiftKey && !e.altKey && kl === "n") return run(() => this.newTab(pane.folder || SPECIAL.HOME));   // r39: Ctrl+N (Explorer: new window) — a new tab here
+
+      if (ctrl && !e.shiftKey && kl === "t") return run(() => this.newTab());
+      if (ctrl && !e.shiftKey && !e.altKey && kl === "n") return run(() => this.newTab(pane.folder || SPECIAL.HOME));
       if (ctrl && e.shiftKey && kl === "t") return run(() => this.reopenTab());
       if (ctrl && kl === "w") return run(() => this.closeTab());
       if (ctrl && key === "Tab") return run(() => this.switchTab((this.active + (e.shiftKey ? -1 : 1) + this.tabs.length) % this.tabs.length));
@@ -1343,7 +1322,7 @@ class App {
       if ((ctrl && !e.shiftKey && (kl === "f" || kl === "e")) || key === "F3") return run(() => { this.searchInput.focus(); this.searchInput.select(); });
       if (key === "F11") return run(() => api("window", { cmd: "fullscreen" }));
       if (ctrl && e.shiftKey && kl === "a") return run(() => this.toggleAI());
-      if (ctrl && e.shiftKey && kl === "f") return run(() => feat40.toggleKindBar(this));   // r40-files-max: type filter
+      if (ctrl && e.shiftKey && kl === "f") return run(() => feat40.toggleKindBar(this));
       if (ctrl && key === "\\") return run(() => this.toggleSplit());
       if (e.altKey && kl === "p") return run(() => this.togglePreview());
       if (typing) return;
@@ -1363,22 +1342,22 @@ class App {
       if (ctrl && kl === "x") return run(() => this.cmdCut());
       if (ctrl && kl === "v") return run(() => this.cmdPaste());
       if (ctrl && kl === "z" && !e.shiftKey) return run(() => this.undo());
-      if (ctrl && (kl === "y" || (e.shiftKey && kl === "z"))) return run(() => this.redo());   // r40-files-2: Explorer's redo
+      if (ctrl && (kl === "y" || (e.shiftKey && kl === "z"))) return run(() => this.redo());
       if (ctrl && kl === "h") return run(() => this.setSetting("show_hidden", !this.settings.show_hidden));
       if (ctrl && e.shiftKey && kl === "n") return run(() => this.newFolder());
       if (ctrl && e.shiftKey && /^[1-8]$/.test(e.code.replace("Digit", ""))) {
         const n = +e.code.replace("Digit", "");
-        const map = { 1: ["grid", 224], 2: ["grid", 160], 3: ["grid", 96], 4: ["grid", 48], 5: ["list"], 6: ["details"], 7: ["tiles"], 8: ["gallery"] };   // r41-files: 7 = Tiles, like Explorer
+        const map = { 1: ["grid", 224], 2: ["grid", 160], 3: ["grid", 96], 4: ["grid", 48], 5: ["list"], 6: ["details"], 7: ["tiles"], 8: ["gallery"] };
         const [v, s] = map[n] || ["details"];
         return run(() => { if (s) pane.iconSize = s; pane.setView(n === 1 && false ? "gallery" : v); });
       }
       if (key === "F2") return run(() => this.cmdRename());
       if (key === "Delete") return run(() => this.cmdDelete(e.shiftKey));
-      if (ctrl && !e.shiftKey && kl === "d") return run(() => this.cmdDelete(false));   // r39: Ctrl+D = to the recycle bin (Explorer)
+      if (ctrl && !e.shiftKey && kl === "d") return run(() => this.cmdDelete(false));
       if (e.altKey && key === "Enter") return run(() => dialogs.properties(this, pane.selectedPaths().length ? pane.selectedPaths() : [pane.folder].filter(Boolean)));
       if (key === "Enter") return run(() => this.openSelected(ctrl));
       if (ctrl && (key === "=" || key === "+" || key === "-")) return run(() => { const p = pane; p.iconSize = Math.max(32, Math.min(256, p.iconSize + (key === "-" ? -16 : 16))); if (p.view === "details" || p.view === "list") p.view = "grid"; p.layout(); this.updateStatus(); });
-      if (key === " " && !ctrl && !e.shiftKey && !pane.typeBuffer && pane.focus >= 0) return run(() => extras.quickLook(this, pane));   // r39: Quick Look
+      if (key === " " && !ctrl && !e.shiftKey && !pane.typeBuffer && pane.focus >= 0) return run(() => extras.quickLook(this, pane));
       if (pane.onKey(e)) { e.preventDefault(); }
     });
     document.addEventListener("wheel", (e) => {
@@ -1396,12 +1375,11 @@ class App {
     });
   }
 
-  // ================================================================ drag & drop (r40-files-core: logic in dnd.js)
   dragStart(pane, e, paths) {
     if (!paths.length) { e.preventDefault(); return; }
     const nativeDrag = window.pywebview?.api?.file_drag;
     if (isWin() && nativeDrag && paths.every((p) => !p.includes("::"))) {
-      e.preventDefault(); // cancel Chromium's text drag before starting OLE
+      e.preventDefault();
       this.dragPaths = paths;
       this.dragFrom = pane;
       nativeDrag(paths).then((r) => { if (!r.ok) toast(t("err." + r.error), "err"); })
@@ -1411,7 +1389,7 @@ class App {
     this.dragPaths = paths;
     this.dragFrom = pane;
     e.dataTransfer.setData("application/x-memufiles", JSON.stringify(paths));
-    dnd.exportDownloadUrl(e, paths, pane.shown);        // one file can be dragged out to Explorer / the desktop
+    dnd.exportDownloadUrl(e, paths, pane.shown);
     e.dataTransfer.effectAllowed = "copyMove";
     const ghost = h("div", { class: "drag-ghost" });
     ghost.innerHTML = fileIcon(baseName(paths[0]), (pane.shown.find((r) => r.path === paths[0]) || {}).d) + `<span>${esc(baseName(paths[0]))}</span>` + (paths.length > 1 ? `<b>${paths.length}</b>` : "");
@@ -1422,7 +1400,7 @@ class App {
     document.addEventListener("dragend", end);
   }
   readDragPaths(e) {
-    try { const raw = e.dataTransfer.getData("application/x-memufiles"); if (raw) return JSON.parse(raw); } catch (err) { /* ignore */ }
+    try { const raw = e.dataTransfer.getData("application/x-memufiles"); if (raw) return JSON.parse(raw); } catch (err) {  }
     return this.dragPaths || [];
   }
   dropEffect(e, target) {
@@ -1442,24 +1420,23 @@ class App {
       return;
     }
     e.preventDefault();
-    // from outside: copy; Shift = move (only files Explorer gives us by path can really move)
+
     const effect = internal ? this.dropEffect(e, target) : (e.shiftKey && !e.ctrlKey && dt.types.includes("Files") ? "move" : "copy");
-    try { dt.dropEffect = effect; } catch (err) { /* ignore */ }
+    try { dt.dropEffect = effect; } catch (err) {  }
     if (this.dropEl !== el) { if (this.dropEl) this.dropEl.classList.remove("drop"); this.dropEl = el; if (el) el.classList.add("drop"); }
     dnd.showHint(this, e, effect, target);
   }
   dragLeave() { dnd.hideHint(this); }
   drop(e, target) {
     e.preventDefault();
-    // r40-files-core: NO stopPropagation — pywebview's document-level listener must see the drop to report
-    // the paths of files dragged from Explorer (desktop.py); before, this swallowed it and nothing was copied
+
     this.dragLeave();
     const paths = this.readDragPaths(e);
     if (paths.length) { this.transfer(paths, target, this.dropEffect(e, target)); this.dragPaths = null; return; }
-    const cap = dnd.captureExternal(e);              // synchronous: File objects / entries are gone after the event
+    const cap = dnd.captureExternal(e);
     dnd.externalDrop(this, cap, target).catch(showError);
   }
-  /* The backend "drop" event (pywebview, desktop only): [{name, path}] — path is "" for virtual files. */
+
   waitBackendDrop(ms) {
     if (this.backendDrop && Date.now() - this.backendDrop.at < 3000) { const rows = this.backendDrop.files; this.backendDrop = null; return Promise.resolve(rows); }
     this.backendDrop = null;
@@ -1469,12 +1446,11 @@ class App {
     });
   }
   bindGlobalDrop() {
-    // anything dropped outside a drop target must not make WebView2 navigate to the file
+
     document.addEventListener("dragover", (e) => { if (e.dataTransfer.types.includes("Files") && !e.defaultPrevented) e.preventDefault(); });
     document.addEventListener("drop", (e) => { if (!e.defaultPrevented) { e.preventDefault(); this.dragLeave(); } });
   }
 
-  // ================================================================ backend events
   async pollEvents() {
     for (;;) {
       try {
@@ -1494,24 +1470,23 @@ class App {
       this.tabs.forEach((tab) => tab.panes.forEach((p) => {
         if (!p.el) return;
         if (p.mode === "trash" && paths.includes("::trash")) p.reload(true);
-        else if (p.folder && paths.some((x) => samePath(x, p.folder))) { if (p.renaming) p.reloadAfterRename = true; else p.reload(true); }   // r40-files-2
+        else if (p.folder && paths.some((x) => samePath(x, p.folder))) { if (p.renaming) p.reloadAfterRename = true; else p.reload(true); }
       }));
       this.loadSidebar();
     } else if (ev.type === "open") { for (const p of ev.paths || []) this.openPathInNewTab(p, (ev.info || {})[p], this.openOpts(ev, p)); if (!(ev.paths || []).length) this.newTab(); }
-    else if (ev.type === "drop") {     // r40-files-core: paths of a drop (dnd.externalDrop waits for them)
+    else if (ev.type === "drop") {
       const rows = ev.files || (ev.paths || []).map((p) => ({ name: baseName(p), path: p }));
       if (this.dropWaiter) this.dropWaiter(rows); else this.backendDrop = { files: rows, at: Date.now() };
     } else if (ev.type === "shutdown") toast(t("app.closing"), "info");
     else if (ev.type === "settings") this.reloadSettings();
   }
-  /* Round 38: settings changed outside this window (MemuAI → Settings → MemuFiles): a "settings" event, or a
-     re-read when the window gets focus. Applied in place; only a language change reloads the page. */
+
   async reloadSettings() {
     let res;
     try { res = await api("settings"); } catch (err) { return; }
     if (JSON.stringify(res.settings) !== JSON.stringify(this.settings)) this.applySettings(res);
   }
-  /* res = reply of GET/POST /api/settings: { settings, lang, theme } (also used by the settings dialog). */
+
   applySettings(res) {
     if (res.lang !== getLang()) { setLang(res.lang); location.reload(); return true; }
     if (titlebar.available() && res.settings.custom_titlebar !== titlebar.active()) titlebar.setMode(res.settings.custom_titlebar);
@@ -1529,12 +1504,12 @@ class App {
   trackOp(op) { if (op) { this.onOp(op); } }
   onOp(op) {
     const before = this.ops.get(op.id);
-    if (before && (before.rev || 0) > (op.rev || 0)) return;   // an older snapshot (a submit reply after its events)
+    if (before && (before.rev || 0) > (op.rev || 0)) return;
     this.ops.set(op.id, op);
-    this.opsUi.onOp(op, before);        // r40-files-core: flyout card, status bar, conflicts, completion notices
+    this.opsUi.onOp(op, before);
     ai.opUpdated(this, op);
   }
-  async refreshOps() { try { const res = await api("ops"); for (const op of res.ops) this.ops.set(op.id, op); this.opsUi.schedule(); } catch (e) { /* ignore */ } }
+  async refreshOps() { try { const res = await api("ops"); for (const op of res.ops) this.ops.set(op.id, op); this.opsUi.schedule(); } catch (e) {  } }
   async checkStamps() {
     if (document.hidden) return;
     const panes = [];
@@ -1545,7 +1520,7 @@ class App {
     try {
       const res = await api("dirstamp", { paths: panes.map((p) => p.path) });
       for (const p of panes) { const s = res.stamps[p.path]; if (s && s !== p.stamp && !p.renaming) p.reload(true); }
-    } catch (e) { /* ignore */ }
+    } catch (e) {  }
   }
 }
 

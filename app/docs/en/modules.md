@@ -11,6 +11,12 @@ That leads to the main rule: **a module has no network access**. It cannot load 
 
 ## What you can build
 
+**Settings → Modules** shows a searchable, filterable list. Each row lets you enable or open a module. Click its name to expand its shortcut location, visibility, window size and permissions below the row; the row menu has further actions. “Create module” guides you through four steps: template, name and description, window, and permissions. The adjacent catalogue tab lets you inspect and download package source before installing it.
+
+Use **Customize sidebar** to show or hide all module shortcuts or choose individual ones. These controls share the shortcut location and visibility settings with the module settings; they do not enable or disable the module itself.
+
+You can also hide **Customize sidebar** itself. **Settings → Appearance → Sidebar** always provides sidebar customization and a switch to restore the button.
+
 - A calculator, notes, a habit tracker — anything that fits in one window.
 - A translator or a conversation with a model, on your own terms and instructions.
 - Design preview and refinement, image and video generation, speech and transcription.

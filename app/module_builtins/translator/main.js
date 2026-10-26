@@ -1,7 +1,5 @@
-/* Переводчик MemuAI. Только мост Memu: ни сети, ни своих запросов.
- * Все тексты интерфейса — в i18n.json; при смене языка MemuAI разметка
- * переводится мостом, а строки, собранные здесь, перерисовывает relabel().
- */
+
+
 const t = (key, vars) => Memu.t(key, vars);
 const LANGS = [
   ["auto", ""],
@@ -20,9 +18,6 @@ const defaults = (Memu.manifest && Memu.manifest.bridge) || {};
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
-/* The shipped instruction exists in every locale. An instruction that equals
- * one of them is "the default" and follows the language; anything else is the
- * person's own text and is never touched. */
 function shippedInstructions() {
   return Memu.i18n.locales().map((lang) => Memu.i18n.get("instructions.default", lang)).filter(Boolean);
 }
@@ -70,17 +65,15 @@ const el = {
   speakLabel: $("#speak-label"),
 };
 
-let images = [];      // [{ name, url }]
-let documents = [];   // [{ name, text }]
+let images = [];
+let documents = [];
 let history = Array.isArray(saved.history) ? saved.history.slice(0, 30) : [];
 let currentJob = null;
 let recorder = null;
 let recordTimer = null;
 let recordStarted = 0;
 let playing = null;
-let modelState = "loading"; // loading | ready | none | error
-
-/* --------------------------------- помощники -------------------------------- */
+let modelState = "loading";
 
 function esc(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g,
@@ -109,8 +102,6 @@ function languageName(code) {
 }
 
 const number = (value) => Memu.i18n.number(value);
-
-/* ----------------------------------- выборы --------------------------------- */
 
 function fillLanguages(select, value, withAuto) {
   const rows = withAuto ? LANGS : LANGS.filter(([id]) => id !== "auto");
@@ -150,8 +141,6 @@ syncLabels();
 syncMode();
 counts();
 
-/* --------------------------------- сохранение ------------------------------- */
-
 let saveTimer = null;
 function snapshot() {
   return {
@@ -164,7 +153,7 @@ function snapshot() {
     tone: el.tone.value,
     output: el.output.value,
     glossary: el.glossary.value,
-    // A default instruction is stored empty so it keeps following the language.
+
     instructions: isDefaultInstruction(el.instructions.value) ? "" : el.instructions.value,
     keep_in_chat: el.keep.checked,
     history: history.slice(0, 30),
@@ -177,16 +166,13 @@ function remember(immediate) {
   else saveTimer = setTimeout(run, 500);
 }
 ["input", "change"].forEach((name) => document.body.addEventListener(name, () => remember(false)));
-// Страница в iframe сносится без beforeunload, поэтому отложенную запись
-// сбрасываем ещё и на pagehide — иначе последние правки теряются.
+
 window.addEventListener("pagehide", () => remember(true));
 window.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") remember(true);
 });
 
-/* ----------------------------------- модель --------------------------------- */
-
-let modelNames = {};   // Round 34: id → readable name (the footer showed the raw id «nineaws-gpt-6.1-sol»)
+let modelNames = {};
 function syncModelLabel() {
   el.modelLabel.textContent = modelNames[el.model.value] || el.model.value || "";
   el.modelLabel.title = el.model.value ? t("model.hint") : "";
@@ -200,13 +186,13 @@ function drawEmptyModelOption() {
 
 Memu.models().then((rows) => {
   const list = Array.isArray(rows) ? rows : [];
-  const chat = list.filter((item) => !item.image && !item.video && !item.audio);
-  const usable = chat.length ? chat : list;
+  const chat = list.filter((item) => (item.kind || "chat") === "chat" && !item.image && !item.video && !item.audio);
+  const usable = chat;
   modelState = usable.length ? "ready" : "none";
   if (usable.length) el.model.innerHTML = usable.map((item) => `<option value="${esc(item.id)}">${esc(item.name && item.name !== item.id ? `${item.name} · ${item.id}` : item.id)}</option>`).join("");
   else drawEmptyModelOption();
   modelNames = Object.fromEntries(usable.map((item) => [item.id, item.name || item.id]));
-  // Round 34: MemuAI's default model comes before "the first one in the list".
+
   const wanted = [saved.model, defaults.model, (usable.find((item) => item.default) || {}).id].find((id) => id && usable.some((item) => item.id === id));
   if (wanted) el.model.value = wanted;
   if (!usable.length) setStatus(t("model.connect"), "error");
@@ -217,8 +203,6 @@ Memu.models().then((rows) => {
   setStatus(error.message, "error");
 });
 el.model.addEventListener("change", syncModelLabel);
-
-/* ---------------------------------- инструкции ------------------------------ */
 
 function buildInstructions(from, to) {
   const parts = [el.instructions.value.trim() || defaultInstructions() || t("rule.base")];
@@ -233,8 +217,6 @@ function buildInstructions(from, to) {
   parts.push(t("rule.output." + (OUTPUTS.includes(el.output.value) ? el.output.value : "only")));
   return parts.join("\n");
 }
-
-/* ------------------------------------ файлы --------------------------------- */
 
 function renderFiles() {
   const chips = [
@@ -277,8 +259,7 @@ $("#file-doc").onchange = async (event) => {
     const parsed = await Memu.extract({ name: file.name, data: await readFile(file) });
     const text = String(parsed.text || "");
     if (!text.trim()) throw new Error(t("status.no_text"));
-    // Пустая колонка получает текст целиком; иначе документ идёт вложением,
-    // чтобы не отправлять один и тот же текст дважды.
+
     if (!el.source.value.trim()) {
       el.source.value = text;
       documents = [];
@@ -293,8 +274,6 @@ $("#file-doc").onchange = async (event) => {
     setStatus(error.message, "error");
   }
 };
-
-/* ----------------------------------- диктовка ------------------------------- */
 
 function drawRecordLabel() {
   if (!recorder) { el.dictateLabel.textContent = t("dictate"); return; }
@@ -311,8 +290,6 @@ function recordingUi(active, started) {
   if (active) recordTimer = setInterval(drawRecordLabel, 500);
 }
 
-// Запись ведёт окно MemuAI (Memu.record): странице модуля в песочнице браузер
-// микрофон не даёт. Первое нажатие начинает запись, второе — распознаёт.
 el.dictate.onclick = async () => {
   if (recorder) {
     recorder = null;
@@ -349,8 +326,6 @@ el.dictate.onclick = async () => {
     el.dictate.disabled = false;
   }
 };
-
-/* ---------------------------------- история --------------------------------- */
 
 function drawHistory() {
   el.historyCount.textContent = String(history.length);
@@ -400,8 +375,6 @@ $("#history-clear").onclick = () => {
   setStatus(t("status.history_cleared"));
 };
 
-/* --------------------------------- выдвижные -------------------------------- */
-
 function openDrawer(node) {
   const open = node.hidden;
   closeDrawers();
@@ -423,8 +396,6 @@ function closeDrawers() {
 el.settings.onclick = () => openDrawer(el.panel);
 el.historyToggle.onclick = () => openDrawer(el.history);
 $$("[data-close-drawer]").forEach((node) => node.addEventListener("click", closeDrawers));
-
-/* ---------------------------------- действия -------------------------------- */
 
 $$("[data-mode]").forEach((button) => {
   button.onclick = () => {
@@ -545,8 +516,6 @@ el.stop.onclick = () => {
   if (currentJob && currentJob.cancel) currentJob.cancel();
 };
 
-/* ----------------------------------- перевод -------------------------------- */
-
 function setTranslating(active) {
   el.go.disabled = active;
   el.go.textContent = active ? t("translating") : t("translate");
@@ -612,9 +581,6 @@ async function translate() {
 }
 el.go.onclick = translate;
 
-/* ------------------------------------ язык ---------------------------------- */
-
-// Разметку переводит мост; здесь — строки, которые модуль собирает сам.
 function relabel() {
   const from = el.from.value, to = el.to.value;
   fillLanguages(el.from, from, true);
@@ -631,8 +597,6 @@ function relabel() {
   setTranslating(!!currentJob);
 }
 Memu.onLanguage(relabel);
-
-/* ----------------------------------- клавиши -------------------------------- */
 
 document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
@@ -651,7 +615,6 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-// Round 38: «переведи …» from the MemuAI chat / Quick Access (contributes.commands → run.open) — text and target language.
 Memu.on("navigate", (data) => {
   const args = (data && data.command === "translate" && data.args) || {};
   if (!args.text) return;
@@ -663,6 +626,6 @@ Memu.on("navigate", (data) => {
 });
 
 setTranslating(false);
-// Round 30: one header — in the MemuAI window the name, status and buttons of this bar live in the window's title row.
+
 if (Memu.toolbar && Memu.toolbar.adopt) Memu.toolbar.adopt({ buttons: [{ id: "settings", el: "#settings", icon: "sliders" }] });
 if (typeof Memu.ready === "function") Memu.ready();

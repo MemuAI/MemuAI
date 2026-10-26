@@ -43,7 +43,6 @@ BENCH = {"cache_arena": {"text": {"at": NOW * 1000 - 3600e3, "rows": [
                                             {"model": "GPT-6", "org": "OpenAI", "m": {"intelligence": 74}}]}}
 PNG = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=="
 
-
 def seed(root: Path) -> None:
     from app import modules_host as mh
     from app.characters_api import store_set
@@ -58,14 +57,12 @@ def seed(root: Path) -> None:
     store_set(root, "characters", "chatlist/c-rex", [{"id": "ch2", "updated": NOW * 1000 - 86400000 * 3, "count": 6, "preview": "Улики не врут."}])
     mh.save_persistent(root, "benchmarks", BENCH)
 
-
 def patches():
     from app import module_integration_data as d
     return [mock.patch.object(d, "_monitor", lambda module: EVENTS if module == "api-models" else {"events": [
                 {"id": 7, "title": "Бенчмарки · LMArena", "text": "Новый лидер: claude-opus-5.5", "at": NOW - 300}]}),
             mock.patch.object(d, "_monitor_status", lambda module: {"enabled": True, "sources": [{"id": "openrouter", "last_success": NOW - 1800}]}),
             mock.patch.object(d, "_fetch_openrouter", lambda: CATALOG)]
-
 
 class DataAndCommandsTest(unittest.TestCase):
     @classmethod
@@ -95,7 +92,7 @@ class DataAndCommandsTest(unittest.TestCase):
             manifest = json.loads((mh.builtin_dir() / module / "manifest.json").read_text(encoding="utf-8"))
             self.assertEqual(mi.validate_contributes(manifest["contributes"], builtin=True, folder=mh.builtin_dir() / module), [], module)
         self.assertEqual({r["module"] for r in mi.contributions(self.root)}, {"characters", "api-models", "benchmarks", "translator"})
-        # a custom module cannot ask for server data
+
         errors = []
         clean = mi.normalize_contributes({"panels": [{"id": "p", "entry": "a.html", "data": "characters.panel"}]}, errors=errors)
         self.assertNotIn("data", clean["panels"][0])
@@ -107,7 +104,7 @@ class DataAndCommandsTest(unittest.TestCase):
         self.assertEqual([r["name"] for r in data["recent"]][:2], ["Луна", "Рекс"])
         self.assertEqual(data["recent"][0]["preview"], "Звёзды сегодня шепчут о дороге на север.")
         self.assertTrue(data["recent"][0]["thumb"].startswith("data:image/png"))
-        self.assertEqual(data["day"]["name"], "Луна")          # favourites first, the only favourite
+        self.assertEqual(data["day"]["name"], "Луна")
         self.assertEqual(data["total"], 3)
         with self.assertRaises(KeyError):
             mi.panel_data("characters", "nope", {}, root=self.root)
@@ -117,7 +114,7 @@ class DataAndCommandsTest(unittest.TestCase):
         self.assertTrue(out["ok"], out)
         self.assertEqual(out["client"]["detail"]["query"], "c-rex")
         latest = self.run_cmd("characters", "open")
-        self.assertEqual(latest["card"]["title"], "Луна")       # most recently updated, not the chat id order
+        self.assertEqual(latest["card"]["title"], "Луна")
         from app import module_integration as mi
         self.assertEqual(mi.match_phrase("Открой чат с Луной", self.root)["command"], "open")
 
@@ -127,7 +124,7 @@ class DataAndCommandsTest(unittest.TestCase):
         names = [m["name"] for m in data["models"]]
         self.assertEqual(names, ["Claude Opus 5.5", "Qwen 4 Max", "GPT-6 mini"])
         self.assertEqual(data["models"][0]["input"], 15.0)
-        self.assertEqual(data["models"][1]["output"], 0.0)     # matched by the bare name (…:free)
+        self.assertEqual(data["models"][1]["output"], 0.0)
         self.assertFalse(data["models"][0]["seen"])
         self.assertTrue(data["models"][2]["seen"])
         self.assertTrue(data["enabled"])
@@ -142,7 +139,7 @@ class DataAndCommandsTest(unittest.TestCase):
         data = mi.panel_data("benchmarks", "leaders", {}, root=self.root)
         self.assertEqual([b["id"] for b in data["boards"]], ["arena-text", "aa", "simple"])
         self.assertEqual(data["boards"][0]["rows"][0]["model"], "claude-opus-5.5")
-        self.assertEqual([r["model"] for r in data["boards"][1]["rows"]], ["GPT-6"])   # deprecated dropped
+        self.assertEqual([r["model"] for r in data["boards"][1]["rows"]], ["GPT-6"])
         self.assertEqual(data["changes"][0]["text"], "Новый лидер: claude-opus-5.5")
         out = self.run_cmd("benchmarks", "leaders", {"board": "simple"})
         self.assertEqual(out["card"]["title"], "SimpleBench")
@@ -168,11 +165,10 @@ class DataAndCommandsTest(unittest.TestCase):
     def test_panel_document_has_kit_and_data(self):
         from app import module_integration as mi
         page = mi.panel_document("benchmarks", "leaders", root=self.root)
-        self.assertIn(".mk-row", page)                 # the shared kit
-        self.assertIn(".bm-place", page)               # the module's own styles after it
+        self.assertIn(".mk-row", page)
+        self.assertIn(".bm-place", page)
         self.assertIn("panel_data", page)
         self.assertIn("data-size", page)
-
 
 class StaticTest(unittest.TestCase):
     def test_js_syntax_and_wiring(self):
@@ -191,7 +187,6 @@ class StaticTest(unittest.TestCase):
         for name in files[:3]:
             text = (ROOT / name).read_text(encoding="utf-8")
             self.assertNotIn("setInterval", text)
-
 
 @unittest.skipUnless(sync_playwright and CHROMIUM, "needs playwright and Chromium")
 class LivePanelsTest(unittest.TestCase):
@@ -277,7 +272,7 @@ class LivePanelsTest(unittest.TestCase):
         if SHOTS:
             Path(SHOTS).mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(Path(SHOTS) / "w2-01-panels-dark.png"))
-        # a chat result card: the AI ran benchmarks.leaders; the card is drawn under the answer
+
         html = page.evaluate("""async () => {
             const m = { role: "assistant", content: "" };
             const out = await MemuModInt.runTool({ tool: "module_command", args: { module: "benchmarks", command: "leaders", args: { board: "arena" } } }, { message: m });
@@ -310,7 +305,6 @@ class LivePanelsTest(unittest.TestCase):
             page.screenshot(path=str(Path(SHOTS) / "w2-03-panels-light.png"))
         self.assertEqual([e for e in errors if "ResizeObserver" not in e], [])
         page.close()
-
 
 if __name__ == "__main__":
     unittest.main()

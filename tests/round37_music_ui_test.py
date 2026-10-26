@@ -25,12 +25,10 @@ except Exception:  # pragma: no cover
 
 PARTS = ("art.js", "api.js", "mock.js", "player.js", "fx.js", "views.js", "np.js")
 
-
 def package():
     from app.modules_host import load_package
     with tempfile.TemporaryDirectory() as temp:
         return load_package(Path(temp), "music")
-
 
 class MusicStaticTest(unittest.TestCase):
     def test_manifest_contract(self):
@@ -38,7 +36,7 @@ class MusicStaticTest(unittest.TestCase):
         self.assertEqual(m["id"], "music")
         self.assertEqual(m["title"], "MemuMusic")
         self.assertTrue(m["enabled"])
-        # Round 39: the drawn icon file (app/module_icons.py); older code still gets the glyph «music».
+
         self.assertEqual(m["icon"], "icon.svg")
         self.assertTrue((ROOT / "app" / "module_builtins" / "music" / "icon.svg").is_file())
         self.assertEqual((m["window"]["default_width"], m["window"]["default_height"]), (1280, 820))
@@ -87,20 +85,19 @@ class MusicStaticTest(unittest.TestCase):
     def test_performance_rules(self):
         css = (MODULE / "style.css").read_text(encoding="utf-8")
         js = "\n".join(p.read_text(encoding="utf-8") for p in MODULE.glob("*.js"))
-        self.assertNotRegex(css, r"backdrop-filter\s*:")   # nothing blurs a scrolling list
+        self.assertNotRegex(css, r"backdrop-filter\s*:")
         self.assertIn("prefers-reduced-motion", css)
         self.assertIn("html[data-calm]", css)
-        self.assertNotIn("setInterval", js)                  # timers only as one-shot chains
+        self.assertNotIn("setInterval", js)
         self.assertNotIn("MutationObserver", js)
         self.assertIn("document.hidden", js)
         self.assertIn('{ passive: true }', js)
-        self.assertRegex(js, r"mock=1")                      # the mock is opt-in or a fallback only
+        self.assertRegex(js, r"mock=1")
 
     def test_mock_only_when_bridge_is_missing(self):
         api = (MODULE / "api.js").read_text(encoding="utf-8")
         self.assertIn("typeof m.call === \"function\"", api)
         self.assertIn("|| !bridge()", api)
-
 
 @unittest.skipUnless(sync_playwright and harness.chromium(), "playwright + chromium required")
 class MusicBrowserTest(unittest.TestCase):
@@ -149,7 +146,7 @@ class MusicBrowserTest(unittest.TestCase):
         self.wait("() => [...document.querySelectorAll('.mm-row')].some((r) => +r.dataset.i > 2900)")
         self.ev("() => { const q = document.querySelector('#lib-q'); q.value = 'Track 4999'; q.dispatchEvent(new Event('input')); }")
         self.wait("() => document.querySelectorAll('.mm-row').length === 1")
-        self.ev("() => MemuMusic.setTracks(window.__realTracks)")   # later tests play real demo tracks
+        self.ev("() => MemuMusic.setTracks(window.__realTracks)")
         self.ev("() => MemuMusic.rerender()")
 
     def test_4_link_detection_is_instant(self):
@@ -181,8 +178,7 @@ class MusicBrowserTest(unittest.TestCase):
         self.assertTrue(self.ev("() => MemuMusic.Player.st.muted"))
         self.ev("() => document.dispatchEvent(new KeyboardEvent('keydown', {code: 'KeyM', key: 'm', bubbles: true}))")
         self.ev("() => document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', code: 'Escape', bubbles: true}))")
-        # Esc closes at once (isOpen() is false), the panel hides after its 340 ms exit animation — poll, a busy
-        # headless run can be later than a fixed 500 ms
+
         self.assertFalse(self.ev("() => MemuMusic.NP().isOpen()"))
         self.wait("() => document.querySelector('#np').hidden", 4000)
 
@@ -199,7 +195,7 @@ class MusicBrowserTest(unittest.TestCase):
         self.ev("() => MemuMusic.Player.pause()")
 
     def test_8_lite_effects_and_paste(self):
-        # r38: «облегчённые эффекты» — в Настройки → Оформление → Анимация (theme.js), вкладки настроек — feat-settings.js
+
         self.ev("() => MemuMusic.go('settings', {tab: 'appearance'}, {force: true, instant: true})")
         self.wait("() => !!document.querySelector('[data-ui=motion] [data-v=lite]')")
         self.ev("() => document.querySelector('[data-ui=motion] [data-v=lite]').click()")
@@ -211,13 +207,13 @@ class MusicBrowserTest(unittest.TestCase):
         self.wait("() => document.querySelector('#app').dataset.view === 'download' && !!document.querySelector('#dl-url') && document.querySelector('#dl-url').value.includes('soundcloud')")
 
     def test_10_lyrics_empty_state_and_paste(self):
-        # m7 has no lyrics in the demo library: a calm empty screen with «Найти текст» / «Вставить текст», no endless skeletons
+
         self.ev("() => { const S = MemuMusic.S; MemuMusic.Player.playList([S.byId.get('m7')], 'm7', 'T'); MemuMusic.NP().open('lyrics'); }")
         self.wait("() => !!document.querySelector('.mm-lyrics-empty [data-ly=find]') && !document.querySelector('.mm-lyric-skel')")
         self.ev("() => document.querySelector('[data-ly=paste]').click()")
         self.wait("() => !!document.querySelector('.mm-lyrics-paste textarea')")
         self.ev("""() => { const a = document.querySelector('.mm-lyrics-paste textarea'); a.value = ['[00:01.00] One', '[00:03.50] Two', '[00:06] Three'].join(String.fromCharCode(10));
-            document.querySelector('.mm-lyrics-paste [data-ly=save]').click(); }""")   # r40: a real button (a synthetic «submit» hid the dead sandboxed form)
+            document.querySelector('.mm-lyrics-paste [data-ly=save]').click(); }""")
         self.wait("() => document.querySelectorAll('.mm-lyric').length === 3")
         self.assertEqual(self.ev("() => [...document.querySelectorAll('.mm-lyric')].map((n) => Number(n.dataset.t))"), [1, 3.5, 6])
         self.ev("() => { MemuMusic.Player.pause(); MemuMusic.NP().close(); }")
@@ -243,10 +239,8 @@ class MusicBrowserTest(unittest.TestCase):
     def test_9_no_console_errors(self):
         self.assertEqual([e for e in self.errors if "favicon" not in e], [])
 
-
 DOCK_JS = ROOT / "app" / "pgstatic" / "music-dock.js"
 DOCK_CSS = ROOT / "app" / "pgstatic" / "music-dock.css"
-
 
 class MusicDockStaticTest(unittest.TestCase):
     """The host player in the main window (app/pgstatic/music-dock.*) must cost nothing until music played."""
@@ -254,18 +248,18 @@ class MusicDockStaticTest(unittest.TestCase):
     def test_loaded_lazily_and_light(self):
         html = (ROOT / "app" / "pgstatic" / "index.html").read_text(encoding="utf-8")
         self.assertRegex(html, r'<script src="/music-dock\.js\?v=[^"]+" defer></script>')
-        self.assertNotIn("music-dock.css", html)            # the stylesheet comes with the dock, not with every window
+        self.assertNotIn("music-dock.css", html)
         js = DOCK_JS.read_text(encoding="utf-8")
         css = DOCK_CSS.read_text(encoding="utf-8")
         self.assertIn("music-dock.css", js)
         self.assertIn("requestIdleCallback", js)
         self.assertIn("musicEnabled()", js)
         self.assertNotIn("MutationObserver", js)
-        self.assertEqual(js.count("setInterval("), 1)        # the expanded clock only, 1 s, visible page
+        self.assertEqual(js.count("setInterval("), 1)
         self.assertIn("setInterval(clock, 1000)", js)
         self.assertNotRegex(css, r"backdrop-filter\s*:")
         self.assertIn("prefers-reduced-motion", css)
-        self.assertIn("@keyframes mmd-progress", css)        # progress runs in CSS, no per-frame JS
+        self.assertIn("@keyframes mmd-progress", css)
         node = shutil.which("node")
         if node:
             subprocess.run([node, "--check", str(DOCK_JS)], check=True)
@@ -280,13 +274,11 @@ class MusicDockStaticTest(unittest.TestCase):
         self.assertIn('target: "dock"', main)
         self.assertIn('device_name: "MemuMusic"', main)
 
-
 def _free_port() -> int:
     import socket
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
-
 
 @unittest.skipUnless(sync_playwright and harness.chromium() and shutil.which("ffmpeg"), "playwright + chromium + ffmpeg required")
 class MusicDockLiveTest(unittest.TestCase):
@@ -339,7 +331,7 @@ class MusicDockLiveTest(unittest.TestCase):
         cls.proc.terminate()
         try:
             cls.proc.wait(5)
-        except subprocess.TimeoutExpired:   # an open SSE stream keeps uvicorn waiting for the graceful shutdown
+        except subprocess.TimeoutExpired:
             cls.proc.kill()
             cls.proc.wait(5)
         cls.tmp.cleanup()
@@ -376,14 +368,14 @@ class MusicDockLiveTest(unittest.TestCase):
         frame = self.module_frame()
         frame.evaluate("() => { const S = MemuMusic.S; MemuMusic.Player.playList(S.tracks, S.tracks[0].id, 'T'); }")
         self.poll("() => MemuMusic.Player.st.playing && MemuMusic.Player.times().cur > 2", 20000, frame)
-        self.assertTrue(frame.evaluate("() => !!MemuMusic.Player.analyser()"))      # CORS on stream → equalizer and visualizer
+        self.assertTrue(frame.evaluate("() => !!MemuMusic.Player.analyser()"))
         at = frame.evaluate("() => MemuMusic.Player.times().cur")
         self.assertEqual(self.call("player.state", {})["device_name"], "MemuMusic")
         self.page.evaluate("() => MemuModules.requestClose('music')")
         self.poll("() => { const d = MemuMusicDock.state(); return d.mode === 'local' && !d.paused; }", 15000)
         self.assertGreaterEqual(self.page.evaluate("() => MemuMusicDock.state().position"), at - 1)
         self.assertFalse(self.page.evaluate("() => document.getElementById('memu-music-dock').hidden"))
-        self.call("player.command", {"cmd": "pause"})                                  # the phone remote reaches the dock
+        self.call("player.command", {"cmd": "pause"})
         self.poll("() => MemuMusicDock.state().paused", 8000)
         self.call("player.command", {"cmd": "play"})
         self.poll("() => !MemuMusicDock.state().paused", 8000)
@@ -392,7 +384,6 @@ class MusicDockLiveTest(unittest.TestCase):
         self.poll("() => MemuMusic.Player.st.playing", 20000, frame)
         self.poll("() => MemuMusicDock.state().paused && MemuMusicDock.state().mode === 'remote'", 8000)
         self.assertEqual(self.errors, [])
-
 
 if __name__ == "__main__":
     unittest.main()

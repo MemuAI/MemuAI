@@ -23,7 +23,6 @@ sys.path.insert(0, str(ROOT))
 
 MODULE = ROOT / "app" / "module_builtins" / "characters"
 
-
 def chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or ""):
@@ -31,20 +30,17 @@ def chromium() -> str:
             return candidate
     return ""
 
-
 def module_html(lang: str = "en", theme: str = "dark") -> str:
     from app.modules_host import load_package, module_document
     with tempfile.TemporaryDirectory() as temp:
         package = load_package(Path(temp), "characters")
     return module_document(package, {}, env={"lang": lang, "theme": theme})
 
-
 def assets() -> dict:
     out = {}
     for path in (MODULE / "assets").rglob("*.json"):
         out[path.relative_to(MODULE / "assets").as_posix()] = json.loads(path.read_text(encoding="utf-8"))
     return out
-
 
 PARENT = r"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#111}
 iframe{border:0;width:100%;height:100%}</style></head><body>
@@ -107,7 +103,6 @@ window.addEventListener("message", (e) => {
 });
 </script></body></html>"""
 
-
 def open_page(pw, lang: str = "en", theme: str = "dark", size=(1360, 860)):
     browser = pw.chromium.launch(executable_path=chromium(), args=["--no-sandbox"])
     page = browser.new_page(viewport={"width": size[0], "height": size[1]})
@@ -121,10 +116,8 @@ def open_page(pw, lang: str = "en", theme: str = "dark", size=(1360, 860)):
     page.goto("http://harness.local/")
     return browser, page, errors
 
-
 def frame_of(page):
     return page.frames[1]
-
 
 if __name__ == "__main__":
     from playwright.sync_api import sync_playwright

@@ -39,35 +39,27 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 log = logging.getLogger("memuai.quick.selection")
 
-#: The longest selection Quick Ask works with (characters). Longer ones are cut and the chip says so.
 MAX_TEXT = 60000
-#: How long the clipboard fallback waits for the program to answer Ctrl+C (seconds). Round 27 (polish): the wait runs
-#: in the background while the window is already open, so it can afford a slow program (an Electron app under load).
+
 COPY_TIMEOUT = 0.5
-#: The UI Automation read must be quick: it runs before the window is shown. When it is slower, the Ctrl+C fallback
-#: (which no longer delays the window) gives the same answer — so the budget is small.
+
 UIA_TIMEOUT = 0.2
-#: The hotkey's modifiers (Alt of Alt+Space) get this long to come up naturally before Ctrl+C; still held, they are
-#: released by the injected input itself (the menu-mask trick in :meth:`WinBackend._chord`).
+
 MODIFIER_WAIT = 0.04
-#: How long :meth:`Backend.flush_input` may wait for the system to deliver the injected Ctrl+C to the program.
+
 INPUT_FLUSH = 0.05
-#: When delivery could not be confirmed: the shortest time between Ctrl+C and our window taking the focus.
+
 SETTLE_GAP = 0.03
-#: A clipboard bigger than this is not snapshotted (and therefore not touched).
+
 MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024
-#: After «Заменить» the user's clipboard comes back this much later (the program must have pasted by then).
+
 RESTORE_AFTER_PASTE = 1.0
-#: Reading the clipboard renders delay-rendered formats (a big Excel range can take seconds): past this budget the
-#: snapshot is incomplete — the clipboard is left alone and the Ctrl+C fallback is not used. It runs before the
-#: window shows; an ordinary clipboard (text, an image, an Office copy) takes a few milliseconds.
+
 SNAPSHOT_BUDGET = 0.25
 MAX_CUSTOM = 12
 
-# ---------------------------------------------------------------- languages
-
 LANGS: Dict[str, Tuple[str, str, str]] = {
-    # code: (Russian name in the accusative «на …», English name, the name in a Russian menu)
+
     "en": ("английский", "English", "Английский"),
     "ru": ("русский", "Russian", "Русский"),
     "de": ("немецкий", "German", "Немецкий"),
@@ -90,7 +82,6 @@ _LAT = re.compile(r"[A-Za-z]")
 _LAT_EXT = re.compile(r"[À-ɏ]")
 _EN_WORDS = re.compile(r"\b(the|and|is|are|of|to|in|that|it|you|for|with|this|have|be|on|not|was|we|i|my|your)\b", re.I)
 
-
 def detect_lang(text: str) -> str:
     """A cheap guess of the selection's language: ``"ru"``, ``"en"``, ``"uk"`` or ``""`` (something else / unsure).
 
@@ -107,7 +98,6 @@ def detect_lang(text: str) -> str:
         return "en"
     return ""
 
-
 def second_lang(prefs: Dict[str, Any], ui: str) -> str:
     """Where text that is ALREADY in the interface language is translated to."""
     value = str(prefs.get("quick_ask_selection_second_lang") or "")
@@ -115,12 +105,10 @@ def second_lang(prefs: Dict[str, Any], ui: str) -> str:
         return value
     return "en" if ui == "ru" else "ru"
 
-
 def translate_target(text: str, prefs: Dict[str, Any], ui: str) -> str:
     """Into the interface language; text that is already in it — into the second language."""
     ui = "en" if ui == "en" else "ru"
     return second_lang(prefs, ui) if detect_lang(text) == ui else ui
-
 
 def lang_name(code: str, lang: str) -> str:
     row = LANGS.get(code)
@@ -128,10 +116,6 @@ def lang_name(code: str, lang: str) -> str:
         return code
     return row[1] if lang == "en" else row[0]
 
-
-# ---------------------------------------------------------------- actions
-
-#: id → (needs the model, «replace the selection» makes sense, length override, web search allowed)
 BUILTIN: Dict[str, Dict[str, Any]] = {
     "translate": {"model": True, "replace": True, "style": "detailed", "web": False},
     "explain": {"model": True, "replace": False, "style": "", "web": True},
@@ -143,19 +127,18 @@ BUILTIN: Dict[str, Dict[str, Any]] = {
 DEFAULT_ACTIONS = ["translate", "explain", "fix", "summarize", "reply", "ask"]
 
 PREF_DEFAULTS: Dict[str, Any] = {
-    # The feature itself (the key predates Round 27: it was the opt-in «copy the selection with Ctrl+C»).
+
     "quick_ask_selection": True,
-    # The Ctrl+C fallback for programs that do not expose their selection through UI Automation.
+
     "quick_ask_selection_clipboard": True,
-    # The action row: built-in ids and «c_…» ids of the user's own actions, in the order shown.
+
     "quick_ask_selection_actions": list(DEFAULT_ACTIONS),
-    # The user's own actions: [{"id": "c_…", "name": "…", "prompt": "… {text} …", "replace": bool}]
+
     "quick_ask_selection_custom": [],
-    # Text already in the interface language is translated into this one ("" = English / Russian).
+
     "quick_ask_selection_second_lang": "",
     "quick_ask_selection_v": 2,
 }
-
 
 def _bool(value: Any, default: bool) -> bool:
     if value is None:
@@ -164,10 +147,8 @@ def _bool(value: Any, default: bool) -> bool:
         return value.strip().lower() in ("1", "true", "yes", "on")
     return bool(value)
 
-
 def _clean_line(value: Any, limit: int) -> str:
     return " ".join(str(value or "").split())[:limit]
-
 
 def normalize_custom(rows: Any) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
@@ -187,7 +168,6 @@ def normalize_custom(rows: Any) -> List[Dict[str, Any]]:
         if len(out) >= MAX_CUSTOM:
             break
     return out
-
 
 def normalize_prefs(out: Dict[str, Any], raw: Any = None) -> Dict[str, Any]:
     """Validate the ``quick_ask_selection*`` keys in place (called from ``quick_ask_core.normalize_prefs``).
@@ -219,7 +199,6 @@ def normalize_prefs(out: Dict[str, Any], raw: Any = None) -> Dict[str, Any]:
     out["quick_ask_selection_second_lang"] = second if second in LANGS else ""
     out["quick_ask_selection_v"] = 2
     return out
-
 
 def _prompts(lang: str) -> Dict[str, str]:
     if lang == "en":
@@ -258,7 +237,6 @@ def _prompts(lang: str) -> Dict[str, str]:
         "note": "Дополнительно: {note}",
     }
 
-
 def resolve_action(spec: Any, prefs: Dict[str, Any], *, lang: str, selection: str) -> Optional[Dict[str, Any]]:
     """``{"id", "target"?}`` from the page → what the model gets.
 
@@ -272,7 +250,7 @@ def resolve_action(spec: Any, prefs: Dict[str, Any], *, lang: str, selection: st
     en = lang == "en"
     action_id = str(spec.get("id") or "")
     if action_id == "ask":
-        return None             # «Спросить о выделенном» is an ordinary question with the selection as context
+        return None
     selection = str(selection or "").strip()
     if not selection:
         return {"id": action_id, "error": "There is no selected text." if en else "Нет выделенного текста."}
@@ -311,34 +289,27 @@ def resolve_action(spec: Any, prefs: Dict[str, Any], *, lang: str, selection: st
     return {"id": action_id, "text": prompt + "\n\n" + prompts["custom_suffix"] + tail, "selection": selection,
             "settings": settings, "replace": custom["replace"]}
 
-
-# ---------------------------------------------------------------- capture policy
-
-#: Ctrl+C there interrupts a running program (or goes to another computer) instead of copying.
 NO_COPY_EXES = {
     "windowsterminal.exe", "openconsole.exe", "conhost.exe", "cmd.exe", "powershell.exe", "pwsh.exe", "wsl.exe",
     "wslhost.exe", "bash.exe", "mintty.exe", "putty.exe", "kitty.exe", "alacritty.exe", "wezterm-gui.exe",
     "tabby.exe", "hyper.exe", "conemu.exe", "conemu64.exe", "mobaxterm.exe", "termius.exe", "warp.exe",
     "mstsc.exe", "msrdc.exe", "vmconnect.exe", "vmware.exe", "vmplayer.exe", "virtualboxvm.exe", "vncviewer.exe",
     "tvnviewer.exe", "anydesk.exe", "teamviewer.exe", "rustdesk.exe", "parsecd.exe",
-    # code editors with an integrated terminal (Ctrl+C with nothing selected there = SIGINT)
+
     "code.exe", "code - insiders.exe", "cursor.exe", "windsurf.exe", "vscodium.exe", "zed.exe",
     "idea64.exe", "pycharm64.exe", "webstorm64.exe", "clion64.exe", "goland64.exe", "rider64.exe",
     "phpstorm64.exe", "rubymine64.exe", "datagrip64.exe", "studio64.exe", "fleet.exe",
-    # Round 27 (review): Ctrl+C is a command there — Emacs waits for the rest of a «C-c …» key sequence (the next key
-    # the user types would run a command), Vim leaves Insert mode
+
     "emacs.exe", "runemacs.exe", "emacsclientw.exe", "gvim.exe", "vim.exe", "nvim-qt.exe", "neovide.exe",
 }
-#: Editors whose Ctrl+C with NOTHING selected copies the whole current line (Sublime Text; Visual Studio's
-#: «Apply Cut or Copy to blank lines…» is on by default): one line with its line break is that, not a selection.
+
 LINE_COPY_EXES = {"sublime_text.exe", "devenv.exe"}
 NO_COPY_CLASSES = {
     "ConsoleWindowClass", "CASCADIA_HOSTING_WINDOW_CLASS", "PseudoConsoleWindow", "mintty", "PuTTY",
     "TscShellContainerClass", "VMPlayerFrame", "VMwareUnityHostWndClass",
 }
-#: Nothing to select there; Ctrl+C would copy files (the desktop) or nothing at all.
-SHELL_CLASSES = {"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "NotifyIconOverflowWindow"}
 
+SHELL_CLASSES = {"Progman", "WorkerW", "Shell_TrayWnd", "Shell_SecondaryTrayWnd", "NotifyIconOverflowWindow"}
 
 def copy_allowed(window: Dict[str, Any]) -> Tuple[bool, str]:
     """May the clipboard fallback send Ctrl+C to this window? → (allowed, reason when not)."""
@@ -350,9 +321,7 @@ def copy_allowed(window: Dict[str, Any]) -> Tuple[bool, str]:
         return False, "terminal"
     return True, ""
 
-
 _CONTROL = re.compile(r"[\x00-\x08\x0c\x0e-\x1f\x7f]")
-
 
 def clean_text(text: Any) -> Tuple[str, bool]:
     """The captured text: ``\\r\\n`` → ``\\n``, Word's manual line break (``\\v``) → ``\\n``, other control
@@ -365,13 +334,11 @@ def clean_text(text: Any) -> Tuple[str, bool]:
     truncated = len(value) > MAX_TEXT
     return value[:MAX_TEXT], truncated
 
-
 def _result(text: str = "", source: str = "", reason: str = "", **extra: Any) -> Dict[str, Any]:
     out = {"text": text, "source": source, "reason": reason, "editable": None, "truncated": False,
            "hwnd": 0, "app": "", "title": "", "id": ""}
     out.update(extra)
     return out
-
 
 class Backend:
     """What :func:`capture` needs from the system. :class:`WinBackend` on Windows; tests subclass it."""
@@ -424,7 +391,6 @@ class Backend:
     def is_window(self, hwnd: int) -> bool:
         return False
 
-
 class Snapshot:
     """Everything that was on the clipboard, in a form that can be put back.
 
@@ -437,7 +403,7 @@ class Snapshot:
         self.items = list(items)
         self.lost = list(lost)
         self.size = size
-        self.restored = False          # handed back to the clipboard (it owns the EMF copy now)
+        self.restored = False
 
     @property
     def complete(self) -> bool:
@@ -447,10 +413,8 @@ class Snapshot:
     def empty(self) -> bool:
         return not self.items and not self.lost
 
-
 _state: Dict[str, Any] = {"backend": None, "last": None, "busy_until": 0.0, "pending": None}
 _state_lock = threading.Lock()
-
 
 def backend() -> Backend:
     with _state_lock:
@@ -465,7 +429,6 @@ def backend() -> Backend:
                 _state["backend"] = Backend()
         return _state["backend"]
 
-
 def set_backend(value: Optional[Backend]) -> None:
     """Tests: inject a fake backend (``None`` = back to the real one)."""
     with _state_lock:
@@ -473,16 +436,13 @@ def set_backend(value: Optional[Backend]) -> None:
         _state["last"] = None
         _state["pending"] = None
 
-
 def available() -> bool:
     return bool(backend().supported)
-
 
 def _wait_modifiers(api: Backend, seconds: float) -> None:
     deadline = time.monotonic() + seconds
     while api.modifiers_down() and time.monotonic() < deadline:
         time.sleep(0.01)
-
 
 class Capture:
     """One selection read (:func:`start`). Policy and UI Automation answers are ``done`` at once; the Ctrl+C fallback
@@ -494,8 +454,8 @@ class Capture:
         self._event = threading.Event()
         self._result: Dict[str, Any] = {}
         self._callbacks: List[Any] = []
-        self.copied_at = 0.0           # monotonic time of the injected Ctrl+C (0 = none)
-        self.flushed = True            # the system confirmed the keys reached the program
+        self.copied_at = 0.0
+        self.flushed = True
         if result is not None:
             self._finish(result)
 
@@ -543,11 +503,9 @@ class Capture:
         for callback in callbacks:
             self._call(callback)
 
-
 def capture(foreground: int, prefs: Optional[Dict[str, Any]] = None, *, api: Optional[Backend] = None) -> Dict[str, Any]:
     """The text selected in ``foreground`` — :func:`start` and wait for the result (blocking)."""
     return start(foreground, prefs, api=api).wait(COPY_TIMEOUT + 2.0)
-
 
 def start(foreground: int, prefs: Optional[Dict[str, Any]] = None, *, api: Optional[Backend] = None) -> Capture:
     """Begin reading the text selected in ``foreground`` (call BEFORE showing the Quick Ask window).
@@ -593,10 +551,8 @@ def start(foreground: int, prefs: Optional[Dict[str, Any]] = None, *, api: Optio
     line_copy = meta["app"].lower() in LINE_COPY_EXES
     return _start_copy(api, meta, line_copy=line_copy)
 
-
 def _start_copy(api: Backend, meta: Dict[str, Any], *, line_copy: bool = False) -> Capture:
-    # A copy still in flight (the hotkey pressed twice quickly) owns the clipboard until it restored it: a snapshot
-    # taken now would save ITS copied selection as «the user's clipboard».
+
     previous = _state.get("pending")
     if previous is not None and not previous.done and previous.wait(COPY_TIMEOUT + 1.5).get("reason") == "pending":
         return Capture(_result(reason="clipboard_busy", **meta))
@@ -606,8 +562,7 @@ def _start_copy(api: Backend, meta: Dict[str, Any], *, line_copy: bool = False) 
     if not snapshot.complete:
         api.discard(snapshot)
         return Capture(_result(reason="clipboard_unsafe", **meta))
-    # The hotkey's own modifiers (Alt of Alt+Space) must be up, or the program gets Ctrl+Alt+C.
-    # send_copy() releases what is still held, after a short natural wait.
+
     _wait_modifiers(api, MODIFIER_WAIT)
     before = api.sequence()
     _state["busy_until"] = time.monotonic() + COPY_TIMEOUT + 1.0
@@ -630,26 +585,23 @@ def _start_copy(api: Backend, meta: Dict[str, Any], *, line_copy: bool = False) 
         except Exception as exc:
             log.debug("selection: clipboard read failed: %s", exc)
         finally:
-            # Round 27 (review): every exit that did not put the snapshot back frees it — an Office copy (EMF)
-            # leaked one GDI handle per Quick Ask open where nothing was selected.
+
             if not snapshot.restored:
                 api.discard(snapshot)
             pending._finish(_remember(result))
     threading.Thread(target=finish, name="memuai-selection-copy", daemon=True).start()
     return pending
 
-
 def _finish_copy(api: Backend, meta: Dict[str, Any], snapshot: "Snapshot", before: int, line_copy: bool) -> Dict[str, Any]:
     deadline = time.monotonic() + COPY_TIMEOUT
     while api.sequence() == before and time.monotonic() < deadline:
         time.sleep(0.008)
     if api.sequence() == before:
-        # Nothing was copied: nothing is selected (or the program ignores Ctrl+C). The clipboard is untouched
-        # and its old content is NOT a selection.
+
         return _result(reason="empty", **meta)
     text = None
     for attempt in range(2):
-        time.sleep(0.015)                 # the program may still be writing its other formats
+        time.sleep(0.015)
         changed = api.sequence()
         text = api.read_text()
         if api.sequence() == changed:
@@ -658,12 +610,11 @@ def _finish_copy(api: Backend, meta: Dict[str, Any], snapshot: "Snapshot", befor
     if not restored:
         log.debug("selection: clipboard changed by someone else meanwhile — not restored")
     if line_copy and re.fullmatch(r"[^\r\n]*\r?\n", str(text or "")):
-        return _result(reason="empty", source="clipboard", **meta)     # the editor copied its current line
+        return _result(reason="empty", source="clipboard", **meta)
     text, truncated = clean_text(text)
     if not text:
         return _result(reason="no_text", source="clipboard", **meta)
     return _result(text, "clipboard", truncated=truncated, restored=restored, **meta)
-
 
 def _remember(result: Dict[str, Any]) -> Dict[str, Any]:
     if result.get("text"):
@@ -671,17 +622,14 @@ def _remember(result: Dict[str, Any]) -> Dict[str, Any]:
             _state["last"] = dict(result)
     return result
 
-
 def clipboard_busy() -> bool:
     """``True`` while the Ctrl+C fallback owns the clipboard (the copy, the read, the restore — and a second after):
     clipboard watchers (the clipboard history of quick features) should skip changes made in that window."""
     return time.monotonic() < float(_state.get("busy_until") or 0.0)
 
-
 def last() -> Optional[Dict[str, Any]]:
     with _state_lock:
         return dict(_state["last"]) if _state["last"] else None
-
 
 def public(result: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     """What the page gets about the selection (never the window handle)."""
@@ -690,7 +638,6 @@ def public(result: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     return {"id": result.get("id") or "", "source": result.get("source") or "", "app": result.get("app") or "",
             "title": result.get("title") or "", "editable": result.get("editable"),
             "truncated": bool(result.get("truncated")), "chars": len(result.get("text") or "")}
-
 
 def replace(manager: Any, text: str, selection_id: str, *, api: Optional[Backend] = None) -> Dict[str, Any]:
     """«Заменить выделение»: paste ``text`` over the selection in the program it came from.
@@ -734,9 +681,8 @@ def replace(manager: Any, text: str, selection_id: str, *, api: Optional[Backend
     else:
         api.discard(snapshot)
     with _state_lock:
-        _state["last"] = None            # the selection is gone now: a second «replace» must not paste again
+        _state["last"] = None
     return {"ok": True}
-
 
 def status(prefs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     api = backend()
@@ -746,13 +692,11 @@ def status(prefs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
             "clipboard": bool(prefs.get("quick_ask_selection_clipboard", True)),
             "uia": bool(getattr(api, "uia_ready", False))}
 
-
 def warm() -> None:
     """Load the UI Automation assemblies in the background (the first read would otherwise miss its timeout)."""
     api = backend()
     if api.supported and hasattr(api, "warm"):
         threading.Thread(target=api.warm, name="memuai-selection-warm", daemon=True).start()
-
 
 def register(app: Any, prefs: Any) -> None:
     """``GET /api/quick/selection/status`` — called from ``quick_ask_api.register``."""
@@ -762,22 +706,17 @@ def register(app: Any, prefs: Any) -> None:
     async def quick_selection_status():
         return await asyncio.to_thread(status, prefs())
 
-
-# ---------------------------------------------------------------- Windows
-
 CF_TEXT, CF_BITMAP, CF_METAFILEPICT, CF_OEMTEXT, CF_DIB, CF_PALETTE = 1, 2, 3, 7, 8, 9
 CF_UNICODETEXT, CF_ENHMETAFILE, CF_LOCALE, CF_DIBV5 = 13, 14, 16, 17
 CF_OWNERDISPLAY, CF_DSPTEXT, CF_DSPBITMAP, CF_DSPMETAFILEPICT, CF_DSPENHMETAFILE = 0x80, 0x81, 0x82, 0x83, 0x8E
 VK_CONTROL, VK_SHIFT, VK_MENU, VK_LWIN, VK_RWIN = 0x11, 0x10, 0x12, 0x5B, 0x5C
 VK_LSHIFT, VK_RSHIFT, VK_LCONTROL, VK_RCONTROL, VK_LMENU, VK_RMENU = 0xA0, 0xA1, 0xA2, 0xA3, 0xA4, 0xA5
-#: An unassigned virtual key: pressed before releasing a held Alt/Win so the program does not open its menu bar
-#: (Alt) or the Start menu (Win) — the same trick AutoHotkey uses («menu mask key»).
+
 VK_MASK = 0xE8
 VK_C, VK_V = 0x43, 0x56
-#: Formats the system re-creates from the ones we restore — not needed in the snapshot.
+
 SYNTHESIZED = {CF_TEXT: (CF_UNICODETEXT,), CF_OEMTEXT: (CF_UNICODETEXT,), CF_BITMAP: (CF_DIB, CF_DIBV5),
                CF_PALETTE: (CF_DIB, CF_DIBV5), CF_METAFILEPICT: (CF_ENHMETAFILE,), CF_DIB: (CF_DIBV5,)}
-
 
 def plan_snapshot(formats: Sequence[int]) -> Tuple[List[int], List[int]]:
     """Which formats to save (bytes or EMF copy) and which cannot be restored (→ the fallback is not used).
@@ -799,7 +738,6 @@ def plan_snapshot(formats: Sequence[int]) -> Tuple[List[int], List[int]]:
             continue
         save.append(fmt)
     return save, lost
-
 
 class WinBackend(Backend):  # pragma: no cover - needs Windows
     """ctypes + the managed UI Automation client (pythonnet, as in ``quick_ask_browser``).
@@ -836,7 +774,6 @@ class WinBackend(Backend):  # pragma: no cover - needs Windows
         self._uia_lock = threading.Lock()
         self._uia_failed = False
 
-    # ---- windows
     def window(self, hwnd: int) -> Dict[str, Any]:
         from . import quick_ask_browser as qb
         w = self.w
@@ -854,7 +791,6 @@ class WinBackend(Backend):  # pragma: no cover - needs Windows
     def is_window(self, hwnd: int) -> bool:
         return bool(self.w.IsWindow(hwnd))
 
-    # ---- UI Automation
     def warm(self) -> None:
         self._uia_client()
 
@@ -883,7 +819,6 @@ class WinBackend(Backend):  # pragma: no cover - needs Windows
         thread.join(UIA_TIMEOUT)
         return box.get("value")
 
-    # ---- clipboard
     def _open(self, tries: int = 12) -> bool:
         for _ in range(tries):
             if self.w.OpenClipboard(None):
@@ -914,7 +849,7 @@ class WinBackend(Backend):  # pragma: no cover - needs Windows
                     return Snapshot(items, lost + save[index:], total)
                 handle = w.GetClipboardData(fmt)
                 if not handle:
-                    continue          # delayed rendering failed: nothing we could restore anyway
+                    continue
                 if fmt == CF_ENHMETAFILE:
                     copy = self.CopyEnhMetaFileW(handle, None)
                     if copy:
@@ -940,7 +875,7 @@ class WinBackend(Backend):  # pragma: no cover - needs Windows
 
     def _put(self, fmt: int, data: bytes) -> bool:
         w, ctypes = self.w, self.ctypes
-        handle = w.GlobalAlloc(0x0002, max(1, len(data)))       # GMEM_MOVEABLE
+        handle = w.GlobalAlloc(0x0002, max(1, len(data)))
         if not handle:
             return False
         pointer = w.GlobalLock(handle)
@@ -955,7 +890,7 @@ class WinBackend(Backend):  # pragma: no cover - needs Windows
         return True
 
     def _private_marks(self) -> None:
-        # Restoring is not a new copy: keep it out of Win+V history, cloud clipboard and clipboard managers.
+
         zero = (0).to_bytes(4, "little")
         for name in ("ExcludeClipboardContentFromMonitorProcessing", "CanIncludeInClipboardHistory",
                      "CanUploadToCloudClipboard"):
@@ -973,13 +908,13 @@ class WinBackend(Backend):  # pragma: no cover - needs Windows
                 if fmt == CF_ENHMETAFILE:
                     placed = bool(self.w.SetClipboardData(fmt, data))
                     if not placed:
-                        self.DeleteEnhMetaFile(data)      # not taken by the clipboard: still ours to free
+                        self.DeleteEnhMetaFile(data)
                     ok = placed and ok
                 else:
                     ok = self._put(fmt, data) and ok
             if snapshot.items:
                 self._private_marks()
-            snapshot.restored = True               # whatever happened, the EMF copy is not ours any more
+            snapshot.restored = True
             return ok
         finally:
             self.w.CloseClipboard()
@@ -1023,7 +958,6 @@ class WinBackend(Backend):  # pragma: no cover - needs Windows
         finally:
             self.w.CloseClipboard()
 
-    # ---- keyboard
     def _down(self, vk: int) -> bool:
         return bool(self.GetAsyncKeyState(vk) & 0x8000)
 
@@ -1053,9 +987,7 @@ class WinBackend(Backend):  # pragma: no cover - needs Windows
         return self._chord(VK_V)
 
     def flush_input(self) -> bool:
-        # Injected input is processed in order: once the (unassigned, ignored by programs) mask key shows as down in
-        # the async key state, the Ctrl+C before it is in the program's queue — even with a low-level keyboard hook
-        # somewhere that makes the processing asynchronous. Only then may our window take the focus.
+
         from .assistant_actions_win import ActionError, WinBackend as Keys
         keys = Keys()
         try:
@@ -1071,7 +1003,6 @@ class WinBackend(Backend):  # pragma: no cover - needs Windows
         except ActionError:
             pass
         return delivered
-
 
 class _ManagedSelection:  # pragma: no cover - needs Windows + .NET
     """``AutomationElement.FocusedElement`` → TextPattern → ``GetSelection()`` (System.Windows.Automation)."""
@@ -1096,15 +1027,14 @@ class _ManagedSelection:  # pragma: no cover - needs Windows + .NET
             return None
         walker = self.TreeWalker.ControlViewWalker
         node = element
-        # The focus may sit on a child (a link or a paragraph of a web page): the TextPattern provider is
-        # usually the document a few levels up.
+
         for _ in range(6):
             if node is None:
                 break
             try:
-                pattern = node.GetCurrentPattern(self.TextPattern.Pattern)     # as quick_ask_browser does
+                pattern = node.GetCurrentPattern(self.TextPattern.Pattern)
             except Exception:
-                pattern = None                                                 # InvalidOperation: not supported
+                pattern = None
             if pattern is not None:
                 if pattern.SupportedTextSelection == getattr(self.SupportedTextSelection, "None"):
                     return None

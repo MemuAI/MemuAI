@@ -33,9 +33,8 @@ STAGE_CSP = (
     "worker-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'"
 )
 MAX_IMPORT = max(core.MAX_VRM_BYTES, core.MAX_ZIP_BYTES)
-CURSOR_HZ = 30                 # gaze feed rate (Round 25); a client may ask for 10…60
-CURSOR_HEARTBEAT = 10.0        # s — a comment line lets the server notice a closed stage
-
+CURSOR_HZ = 30
+CURSOR_HEARTBEAT = 10.0
 
 async def cursor_events(read, hz: float = CURSOR_HZ, is_disconnected=None, heartbeat: float = CURSOR_HEARTBEAT,
                         clock=None, sleep=None):
@@ -66,9 +65,7 @@ async def cursor_events(read, hz: float = CURSOR_HZ, is_disconnected=None, heart
             yield ": ping\n\n"
         await sleep(period)
 
-
 CURSOR_HOSTS = ("desktop", "quick", "main")
-
 
 def host_hwnd(state, host: str) -> int:
     """The HWND of the window that shows a stage (a4-companion-3): ``desktop`` — the desktop companion window,
@@ -83,11 +80,9 @@ def host_hwnd(state, host: str) -> int:
         return 0
     return int(getattr(owner, "hwnd", 0) or 0) if owner is not None else 0
 
-
 def data_root() -> Path:
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR) / "companion"
-
 
 async def _read_limited(request: Request, limit: int) -> bytes:
     try:
@@ -103,13 +98,11 @@ async def _read_limited(request: Request, limit: int) -> bytes:
             raise core.ModelError("too_large", "Файл больше 200 МБ", "The file is larger than 200 MB")
     return bytes(output)
 
-
 def _error(exc: Exception, status: int = 400) -> JSONResponse:
     code = getattr(exc, "code", "error")
-    # Round 25: the UI is ru/en; the stage and the settings pick ``error_en`` when the interface is English.
+
     english = getattr(exc, "message_en", "") or str(exc)
     return JSONResponse({"error": str(exc), "error_en": english, "code": code}, status)
-
 
 def register(app) -> None:
     library = core.Library(data_root())
@@ -147,7 +140,7 @@ def register(app) -> None:
             model = await asyncio.to_thread(library.import_bytes, filename, data, name)
         except core.ModelError as exc:
             return _error(exc, 413 if exc.code == "too_large" else 400)
-        except Exception as exc:  # disk full, permissions…
+        except Exception as exc:
             log.warning("companion import failed: %s", exc)
             return _error(exc, 500)
         return {"ok": True, "model": model}
@@ -183,7 +176,6 @@ def register(app) -> None:
                  ".moc3": "application/octet-stream"}.get(path.suffix.lower(), "application/octet-stream")
         return FileResponse(str(path), media_type=media, headers={"Cache-Control": "private, max-age=3600"})
 
-    # -------------------------------------------------------- Live2D runtime
     @app.get("/api/companion/runtime")
     async def companion_runtime():
         return core.runtime_status(data_root())
@@ -205,7 +197,7 @@ def register(app) -> None:
                 async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
                     downloaded: Dict[str, bytes] = {}
                     for name, (url, _digest, _marker) in core.RUNTIME_FILES.items():
-                        # Streamed with a cap: a wrong/hijacked answer can't fill the memory (Round 23).
+
                         async with client.stream("GET", url) as response:
                             response.raise_for_status()
                             if not str(response.url).startswith("https://"):
@@ -220,7 +212,7 @@ def register(app) -> None:
                         data = bytes(chunks)
                         core.check_runtime_file(name, data)
                         downloaded[name] = data
-                    # All four verified → write them together: never a half-installed runtime.
+
                     for name, data in downloaded.items():
                         tmp = folder / (name + ".part")
                         tmp.write_bytes(data)
@@ -251,7 +243,6 @@ def register(app) -> None:
             return JSONResponse({"error": "not installed"}, 404)
         return FileResponse(str(path), media_type="text/javascript", headers={"Cache-Control": "no-cache"})
 
-    # --------------------------------------------------- state and window
     @app.get("/api/companion/state")
     async def companion_state():
         return core.load_state(data_root())
@@ -264,10 +255,6 @@ def register(app) -> None:
             body = {}
         return core.save_state(data_root(), body if isinstance(body, dict) else {})
 
-    # Round 25: the companion follows the cursor ALWAYS, also over other programs. Windows only; elsewhere the
-    # stage keeps using the pointer events of its own page.
-    # ``host`` (desktop | quick | main) names the window that shows the stage: the point is then relative to its
-    # client area (physical px), which stays right on monitors with different scales.
     def cursor_read(host: str):
         from . import companion_window
         if host not in CURSOR_HOSTS:

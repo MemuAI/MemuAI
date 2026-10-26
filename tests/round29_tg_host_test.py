@@ -17,12 +17,10 @@ from prompt_toolkit.output import DummyOutput
 from tests.memucode_cli_test import make_runtime, setUpModule, tearDownModule  # noqa: F401  (module fixtures)
 from app.cli import paths, remote
 
-
 def _enable_tgapp():
     target = paths.memu_dir() / "tgapp.json"
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(json.dumps({"enabled": True, "code_control": True}), encoding="utf-8")
-
 
 def drive_host(runtime, drive, *, host=True):
     from app.cli.tui.app import TerminalUI
@@ -55,7 +53,6 @@ def drive_host(runtime, drive, *, host=True):
 
     return asyncio.run(main())
 
-
 async def wait_for(check, seconds=6.0):
     deadline = time.monotonic() + seconds
     while time.monotonic() < deadline:
@@ -64,7 +61,6 @@ async def wait_for(check, seconds=6.0):
             return value
         await asyncio.sleep(0.1)
     return check()
-
 
 class RemoteHost(unittest.TestCase):
     def setUp(self):
@@ -77,7 +73,7 @@ class RemoteHost(unittest.TestCase):
             remote.send_command(control.id, {"type": "prompt", "text": "/version"})
             state = await wait_for(lambda: (lambda s: s if s and any("MemuCode" in n["text"] for n in s.get("notes") or []) else None)(
                 remote.terminal_state(control.id)))
-            # /help is a dialog in the terminal: the phone sees it as an open question it can close.
+
             remote.send_command(control.id, {"type": "prompt", "text": "/help"})
             helped = await wait_for(lambda: (lambda s: s if s and (s.get("dialog") or {}).get("title") else None)(
                 remote.terminal_state(control.id)))
@@ -120,7 +116,6 @@ class RemoteHost(unittest.TestCase):
         ack = next(a for a in state["acks"] if a["id"] == command_id)
         self.assertFalse(ack["ok"])
         self.assertFalse(state.get("host"))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,4 @@
-/* Telegram Use personal account settings. Server owns auth, commands, quotas and session. */
+
 (function () {
   "use strict";
   const en = () => { try { return PG_LANG === "en"; } catch (_) { return (document.documentElement.lang || "").startsWith("en"); } };
@@ -13,7 +13,7 @@
   const check = (key, label, value) => `<label class="tgu-check"><input type="checkbox" data-tgu-field="${key}" ${value ? "checked" : ""}> ${esc(label)}</label>`;
   function models(value, key, fallback = L("Основная модель MemuAI", "Main MemuAI model")) {
     const rows = window.MemuModelPicker?.rows?.() || [];
-    const list = rows.filter(m => !window.MemuModelPicker?.kindOf || MemuModelPicker.kindOf(m) === "chat");
+    const list = rows.slice();
     if (value && !list.some(m => m.id === value)) list.push({id:value});
     return `<select class="pinput" data-tgu-field="${key}" data-tgu-model><option value="">${esc(fallback)}</option>${list.map(m => `<option value="${esc(m.id)}" ${m.id === value ? "selected" : ""}>${esc(window.MemuModelPicker?.name?.(m.id) || m.id)}</option>`).join("")}</select>`;
   }
@@ -288,7 +288,7 @@
       try {
         const result = await call("settings", data);
         state = result;
-        // A response must not reset an edit made while that request was running.
+
         const root = document.getElementById("tgu-root");
         for (const key of ["api_hash", "proxy"]) {
           const input = root?.querySelector(`[data-tgu-field="${key}"]`);
@@ -339,7 +339,7 @@
         } else if (action.startsWith("arg-delete-")) {
           const [i,j] = action.slice(11).split("-").map(Number); state.config.commands[i].arguments.splice(j,1);
         } else state.config.commands.splice(Number(action.slice(7)), 1);
-        // Preserve pasted secrets while editing the command list.
+
         const hash = data.api_hash || "", proxy = data.proxy || "";
         render(); const hashField = root.querySelector('[data-tgu-field="api_hash"]'); if (hashField) hashField.value = hash;
         const proxyField = root.querySelector('[data-tgu-field="proxy"]'); if (proxyField) proxyField.value = proxy;

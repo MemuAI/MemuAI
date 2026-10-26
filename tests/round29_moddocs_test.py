@@ -34,10 +34,8 @@ EXAMPLES = ROOT / "app" / "docs" / "module-examples"
 STATIC = ROOT / "app" / "pgstatic"
 CYR = re.compile(r"[А-Яа-яЁё]")
 
-
 def example_files(name: str):
     return {p.name: p.read_text(encoding="utf-8") for p in (EXAMPLES / name).iterdir() if p.is_file()}
-
 
 class PackTest(unittest.TestCase):
     def test_pack_both_languages(self) -> None:
@@ -68,7 +66,6 @@ class PackTest(unittest.TestCase):
                 target.write_text(text, encoding="utf-8")
                 result = subprocess.run(["node", "--check", str(target)], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
-
 
 class ValidateTest(unittest.TestCase):
     def test_examples_validate(self) -> None:
@@ -110,7 +107,6 @@ class ValidateTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             v.from_answer_text("no files here")
 
-
 class RoutesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -151,7 +147,6 @@ class RoutesTest(unittest.TestCase):
         for path in ("/modules-aipack.js", "/modules-aipack.css"):
             self.assertEqual(self.client.get(path).status_code, 200, path)
 
-
 class FrontendTest(unittest.TestCase):
     def test_wiring(self) -> None:
         index = (STATIC / "index.html").read_text(encoding="utf-8")
@@ -178,7 +173,6 @@ class FrontendTest(unittest.TestCase):
         for name in ("modules-aipack.js", "docs.js", "modules.js"):
             result = subprocess.run(["node", "--check", str(STATIC / name)], capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, (name, result.stderr))
-
 
 class DocsTest(unittest.TestCase):
     def test_page_registered(self) -> None:
@@ -208,7 +202,6 @@ class DocsTest(unittest.TestCase):
                     bad.append(f"{path.parent.name}/{path.name} block {number}")
         self.assertEqual(bad, [])
 
-
 class BuildTest(unittest.TestCase):
     def test_spec_and_build(self) -> None:
         spec = (ROOT / "MemuAI.spec").read_text(encoding="utf-8")
@@ -216,7 +209,6 @@ class BuildTest(unittest.TestCase):
         for module in ("app.modules_ai_pack", "app.modules_validate"):
             self.assertIn(f"'{module}'", spec)
             self.assertIn(f'"{module}"', build)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -31,14 +31,13 @@ log = logging.getLogger("memuai.quick.features")
 
 POLL_SECONDS = 0.4
 REGION_TIMEOUT = 180.0
-STICKER_SIZE = (340, 250)          # CSS px, scaled by the monitor DPI
+STICKER_SIZE = (340, 250)
 VK_LEFT = 0x25
 GMEM_SIZE_DWORD = 4
-BUSY = object()                    # the clipboard is held open by another program right now
+BUSY = object()
 
 _RUNTIMES: Dict[int, "Runtime"] = {}
 _RUNTIMES_LOCK = threading.Lock()
-
 
 def runtime(manager: Any) -> "Runtime":
     with _RUNTIMES_LOCK:
@@ -46,7 +45,6 @@ def runtime(manager: Any) -> "Runtime":
         if rt is None:
             rt = _RUNTIMES[id(manager)] = Runtime(manager)
         return rt
-
 
 def destroy_all() -> None:
     """MemuAI quits (``DesktopShell.quit_hooks``): stop the watcher and the hotkeys, close our windows."""
@@ -58,7 +56,6 @@ def destroy_all() -> None:
         except Exception as exc:
             log.debug("quick features: destroy failed: %s", exc)
 
-
 def selection_busy() -> bool:
     """The selection capture of Quick Ask (``app.quick_selection``) is copying / restoring the clipboard right now:
     its short Ctrl+C is not something the user copied."""
@@ -68,7 +65,6 @@ def selection_busy() -> bool:
     except Exception:
         return False
 
-
 def process_name(pid: int) -> str:
     if not pid:
         return ""
@@ -77,9 +73,6 @@ def process_name(pid: int) -> str:
         return psutil.Process(int(pid)).name().lower()
     except Exception:
         return ""
-
-
-# ---------------------------------------------------------------- clipboard
 
 class ClipboardFormats:
     """The registered «do not monitor» formats + owner lookup (ctypes, 64-bit-safe signatures)."""
@@ -140,7 +133,6 @@ class ClipboardFormats:
         allowed = self.history_allowed()
         return BUSY if allowed is BUSY else not allowed
 
-
 class ClipboardWatcher:
     def __init__(self, api: Any, foreground_pid=lambda: 0) -> None:
         self.api = api
@@ -161,8 +153,7 @@ class ClipboardWatcher:
         self.settings = dict(settings)
         if self.running and not self._stop.is_set():
             return
-        # Round 27 (review): every start gets its own stop event. Clearing the old one raced with a thread that had
-        # already seen it set and was leaving its loop (off → on quickly: «running», but nobody watching).
+
         self._stop = threading.Event()
         self._thread = threading.Thread(target=self._run, args=(self._stop,), name="memuai-clipboard", daemon=True)
         self._thread.start()
@@ -183,7 +174,7 @@ class ClipboardWatcher:
             self.error = str(exc)
             log.warning("quick clipboard: formats unavailable: %s", exc)
             return
-        last = int(self.api.GetClipboardSequenceNumber() or 0)   # what was there before we started is not «copied»
+        last = int(self.api.GetClipboardSequenceNumber() or 0)
         own = os.getpid()
         retries = 0
         while not stop.wait(POLL_SECONDS):
@@ -192,15 +183,15 @@ class ClipboardWatcher:
                 seq = int(self.api.GetClipboardSequenceNumber() or 0)
                 if seq == last:
                     continue
-                time.sleep(0.05)                # let the owner finish SetClipboardData for every format
+                time.sleep(0.05)
                 if self.settings.get("clipboard_paused") or selection_busy() or time.monotonic() < self.quiet_until:
                     last, retries = seq, 0
                     continue
                 if self.capture(own) is BUSY and retries < 4:
-                    retries += 1                # the owner still holds the clipboard open: look again next poll
+                    retries += 1
                     continue
                 last, retries = seq, 0
-            except Exception as exc:            # a busy clipboard never kills the watcher
+            except Exception as exc:
                 last, retries = seq, 0
                 log.debug("quick clipboard: %s", exc)
 
@@ -217,7 +208,7 @@ class ClipboardWatcher:
             return None
         pid = formats.owner_pid() or int(self.foreground_pid() or 0)
         if pid == own_pid:
-            return None                         # our own writes (insert, copy, selection grab restore)
+            return None
         app = process_name(pid)
         if qf.ignored_process(app, self.settings):
             self.skipped += 1
@@ -225,7 +216,7 @@ class ClipboardWatcher:
         available = self.api.clipboard_formats()
         if -1 in available:
             return BUSY
-        if 13 not in available:                        # CF_UNICODETEXT only: images/files are not kept
+        if 13 not in available:
             return None
         text = self.api.get_text()
         if text is None:
@@ -237,9 +228,6 @@ class ClipboardWatcher:
             self.skipped += 1
             return None
         return qf.CLIPBOARD.add(text, app=app, limit=int(self.settings.get("clipboard_limit") or 200))
-
-
-# ---------------------------------------------------------------- runtime
 
 class Runtime:
     def __init__(self, manager: Any) -> None:
@@ -266,13 +254,12 @@ class Runtime:
         hwnds = [self.overlay_hwnd] + [entry["hwnd"] for entry in self.stickers.values()]
         self.manager.extra_windows = tuple(h for h in hwnds if h)
 
-    # ---- lifecycle
     def ensure_started(self, settings: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
         """First call (the warm Quick Ask page loads the plugin at startup) also brings back open stickers."""
         with self._lock:
             first = not self._started
             self._started = True
-        status = self.apply(settings, lang)        # the hotkey errors in the user's language
+        status = self.apply(settings, lang)
         if first and settings.get("stickers", True):
             threading.Thread(target=self._restore_stickers, name="memuai-stickers", daemon=True).start()
         return status
@@ -292,7 +279,7 @@ class Runtime:
             for sticker_id in list(self.stickers):
                 self.close_sticker(sticker_id)
         elif self._stickers_on is False and self._started:
-            # turned back on: the stickers that were on screen come back (their «open» flag was kept)
+
             threading.Thread(target=self._restore_stickers, name="memuai-stickers", daemon=True).start()
         self._stickers_on = stickers_on
         return self.status()
@@ -320,7 +307,6 @@ class Runtime:
             except Exception:
                 pass
 
-    # ---- hotkeys
     def _set_hotkey(self, name: str, hotkey: str, callback, lang: str) -> Dict[str, Any]:
         listener = self._hotkeys.get(name)
         if not hotkey:
@@ -333,7 +319,7 @@ class Runtime:
             return {"ok": False, "hotkey": hotkey, "code": "quick_ask",
                     "error": qf.tr(lang, "Это сочетание открывает сам быстрый доступ", "This is the Quick Ask hotkey itself")}
         if listener is not None and listener.active == hotkey and listener.status.get("ok"):
-            return dict(listener.status)      # every window open re-applies the settings: nothing changed
+            return dict(listener.status)
         if listener is None:
             from .win_hotkey import HotkeyListener
             listener = self._hotkeys[name] = HotkeyListener(callback, lang=lang)
@@ -367,7 +353,6 @@ class Runtime:
         except Exception:
             return 0
 
-    # ---- text
     def clipboard_text(self) -> str:
         try:
             return self.api.get_text() or ""
@@ -386,8 +371,8 @@ class Runtime:
         restore = -1 not in formats and not (formats - TEXT_FORMATS)
         original = api.get_text() if restore and formats else None
         if formats and original is None:
-            restore = False                   # could not read it (busy): never «restore» an empty clipboard over it
-        self.watcher.quiet(3.0)               # our paste and the restore are not copies of the user's (history)
+            restore = False
+        self.watcher.quiet(3.0)
         if not self.manager.insert_text(text):
             return False
         if 0 < cursor <= 400:
@@ -395,12 +380,11 @@ class Runtime:
             for _ in range(int(cursor)):
                 api.chord(VK_LEFT)
         if restore:
-            time.sleep(0.25)                  # the target program reads the clipboard on Ctrl+V asynchronously
+            time.sleep(0.25)
             api.set_text(original)
             self.watcher.quiet(1.0)
         return True
 
-    # ---- region
     def session(self, token: str) -> Optional[qf.RegionSession]:
         return self._sessions.get(token) if token else None
 
@@ -430,12 +414,12 @@ class Runtime:
             if was_visible:
                 if manager.build >= EXCLUDE_FROM_CAPTURE_BUILD and api.SetWindowDisplayAffinity:
                     excluded = manager._affinity(manager.hwnd, WDA_EXCLUDEFROMCAPTURE)
-                    # Round 28: the panels/buttons of the screen layer are not part of the picture either
+
                     if excluded and layer_hwnd:
                         layer_excluded = manager._affinity(layer_hwnd, WDA_EXCLUDEFROMCAPTURE)
                 if not excluded:
                     hidden = manager.hide(restore_focus=True)
-                    time.sleep(0.2)           # the hide animation and DWM composition
+                    time.sleep(0.2)
             try:
                 if api.DwmFlush:
                     api.DwmFlush()
@@ -452,7 +436,7 @@ class Runtime:
                 return {"error": qf.tr(lang, f"Снимок не удался: {exc}", f"Screenshot failed: {exc}"), "code": "grab"}
             finally:
                 if excluded:
-                    manager._affinity(manager.hwnd, WDA_NONE)     # never leave it out of other people's captures
+                    manager._affinity(manager.hwnd, WDA_NONE)
                 if layer_excluded:
                     manager._affinity(layer_hwnd, WDA_NONE)
             session = qf.RegionSession(image, monitor, lang)
@@ -497,7 +481,7 @@ class Runtime:
     def _overlay_closing(self) -> bool:
         if self._quitting:
             return True
-        for session in list(self._sessions.values()):     # Alt+F4 on the overlay = cancel
+        for session in list(self._sessions.values()):
             session.finish(None)
         return False
 
@@ -515,7 +499,7 @@ class Runtime:
         self._ui(self.overlay_form, lambda: (self.overlay_form.Show(), None)[1])
         self.api.SetWindowPos(self.overlay_hwnd, HWND_TOPMOST, left, top, right - left, bottom - top, SWP_SHOWWINDOW)
         self.api.take_foreground(self.overlay_hwnd)
-        self._ui(self.overlay_form, self._focus_overlay_browser)   # keys (Esc / Enter) reach the page at once
+        self._ui(self.overlay_form, self._focus_overlay_browser)
         self._eval(self.overlay, "window.RegionPick && RegionPick.focus()")
         return True
 
@@ -533,7 +517,6 @@ class Runtime:
             self._eval(self.overlay, "window.RegionPick && RegionPick.reset()")
             self._ui(self.overlay_form, lambda: (self.overlay_form.Hide(), None)[1])
 
-    # ---- stickers
     def _restore_stickers(self) -> None:
         deadline = time.monotonic() + 60
         while not getattr(self.manager, "hwnd", 0) and time.monotonic() < deadline and not self._quitting:
@@ -576,7 +559,7 @@ class Runtime:
         if len(self.stickers) >= qf.STICKERS_OPEN:
             return False
         dark = (self.manager.load_prefs() or {}).get("theme") != "light"
-        # focus=True: the sticker can be edited; it is shown WITHOUT activation (SW_SHOWNOACTIVATE) below.
+
         options = dict(width=STICKER_SIZE[0], height=STICKER_SIZE[1], frameless=True, easy_drag=False, on_top=True,
                        hidden=True, focus=True, resizable=False, shadow=True, min_size=(160, 90),
                        background_color="#1b1c20" if dark else "#f7f6f3")
@@ -594,17 +577,15 @@ class Runtime:
         x, y, w, h = self._sticker_geometry(row)
         from .quick_ask import HWND_TOPMOST, SWP_NOACTIVATE, SWP_SHOWWINDOW
         self.api.SetWindowPos(hwnd, HWND_TOPMOST, x, y, w, h, SWP_NOACTIVATE)
-        self._ui(form, lambda: (self.api.ShowWindow(hwnd, 4), None)[1])           # SW_SHOWNOACTIVATE
+        self._ui(form, lambda: (self.api.ShowWindow(hwnd, 4), None)[1])
         self.api.SetWindowPos(hwnd, HWND_TOPMOST, x, y, w, h, SWP_NOACTIVATE | SWP_SHOWWINDOW)
         return True
 
     def _sticker_closing(self, sticker_id: str) -> bool:
-        # Round 27 (review): pywebview's destroy() is Form.Close() and raises this very event — close_sticker has
-        # already dropped the entry, so that close goes through (returning False here kept every sticker on screen
-        # after «Закрыть» / «Удалить» / stickers turned off).
+
         if self._quitting or sticker_id not in self.stickers:
             return True
-        # Alt+F4 on a sticker = «close» (kept in the list, can be reopened)
+
         threading.Thread(target=self._close_and_forget, args=(sticker_id,), daemon=True).start()
         return False
 
@@ -686,7 +667,6 @@ class Runtime:
                     row["geometry"] = {"x": x, "y": y, "w": w, "h": h}
         qf.mutate_stickers(save)
 
-    # ---- pywebview plumbing
     def _create_window(self, title: str, url: str, options: Dict[str, Any]):
         try:
             import webview
@@ -743,7 +723,6 @@ class Runtime:
         except Exception as exc:
             log.debug("quick features: evaluate_js failed: %s", exc)
             return None
-
 
 def contain(x: int, y: int, w: int, h: int, work: tuple) -> tuple:
     """The whole window inside the work area (shrunk when the area is smaller)."""

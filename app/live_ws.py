@@ -23,13 +23,11 @@ import json
 import urllib.parse
 from typing import Any, Callable, Dict, List, Tuple
 
-# Module level on purpose: with postponed annotations FastAPI resolves ``websocket: WebSocket`` from the module globals.
 from fastapi import WebSocket, WebSocketDisconnect
 
 STREAMS = ("/api/pg/music/player/events", "/api/pg/inbox/stream")
 CALLS = ("/api/pg/music/call",)
 CALL_BODY_LIMIT = 256 * 1024
-
 
 def _headers(websocket: Any, extra: Dict[str, str]) -> List[Tuple[bytes, bytes]]:
     skip = {"upgrade", "connection", "sec-websocket-key", "sec-websocket-version", "sec-websocket-extensions",
@@ -37,7 +35,6 @@ def _headers(websocket: Any, extra: Dict[str, str]) -> List[Tuple[bytes, bytes]]
     out = [(k.lower().encode("latin-1"), v.encode("latin-1")) for k, v in websocket.headers.items() if k.lower() not in skip]
     out += [(k.encode("latin-1"), v.encode("latin-1")) for k, v in extra.items()]
     return out
-
 
 def register(app: Any, local_check: Callable[[Any], bool]) -> None:
     @app.websocket("/api/pg/live")
@@ -96,7 +93,7 @@ def register(app: Any, local_check: Callable[[Any], bool]) -> None:
                 elif data:
                     await websocket.send_text(data.decode("utf-8", "replace"))
 
-        async def watch() -> None:   # the page went away → the stream's own disconnect check ends it
+        async def watch() -> None:
             try:
                 while True:
                     msg = await websocket.receive()
@@ -124,7 +121,6 @@ def register(app: Any, local_check: Callable[[Any], bool]) -> None:
                 if not task.done():
                     task.cancel()
             await asyncio.gather(runner, watcher, return_exceptions=True)
-
 
 class _Refused(Exception):
     """The stream answered with an error status: the socket closes and the page falls back / retries."""

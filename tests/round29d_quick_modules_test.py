@@ -5,11 +5,9 @@ import unittest
 
 from app.assistant_intents import match
 
-
 def _action(text):
     hit = match(text)
     return hit and hit["action"]
-
 
 class ImageIntentExcludesTextArtifacts(unittest.TestCase):
     """«Нарисуй mermaid-диаграмму…» in Quick Ask generated a PICTURE: the local image.generate rule fired on any
@@ -50,7 +48,7 @@ class ImageIntentExcludesTextArtifacts(unittest.TestCase):
         ("draw a cat in space", "a cat in space"),
         ("сгенерируй картинку закат над морем", None),
         ("generate an image of a red fox", "a red fox"),
-        ("нарисуй картинку с диаграммой на доске", None),   # an explicit picture word wins
+        ("нарисуй картинку с диаграммой на доске", None),
         ("draw a picture of a whiteboard with a chart", None),
         ("нарисуй дом у озера", None),
         ("paint a sunset", None),
@@ -69,7 +67,6 @@ class ImageIntentExcludesTextArtifacts(unittest.TestCase):
                 self.assertEqual(hit["action"], "image.generate")
                 if prompt:
                     self.assertEqual(hit["params"]["prompt"], prompt)
-
 
 class OcrErrorMessages(unittest.TestCase):
     """r29c fix: any Windows OCR failure used to say «add an OCR language in Settings → Time & language», even for a
@@ -108,7 +105,6 @@ class OcrErrorMessages(unittest.TestCase):
         self.assertEqual(out, {"text": "Итого 12 450 ₽", "lang": "ru", "lines": 1})
         from app import quick_extras
         self.assertEqual(quick_extras.ocr_image("data:text/plain;base64,AAAA", "en")["code"], "bad_image")
-
 
 class EmptyFollowUpAfterToolCard(unittest.TestCase):
     """Full access, real deepseek-flash: «Допиши в todo.txt …» was applied (card «Готово: 1 изменение»), then the
@@ -160,7 +156,6 @@ class EmptyFollowUpAfterToolCard(unittest.TestCase):
         events = self._run(ui=True, second=("error", "HTTP 429: rate limit"))
         self.assertEqual(events[-1]["event"], "error")
 
-
 class ExplorerNoteQuotes(unittest.TestCase):
     """EN answers said «waits for your «Apply»» — the tool note quoted the button in Russian guillemets."""
 
@@ -177,7 +172,6 @@ class ExplorerNoteQuotes(unittest.TestCase):
             if lang == "en":
                 self.assertNotIn("«", note)
 
-
 class QuickWindowFrontendFixes(unittest.TestCase):
     """Static guards for the Quick window fixes found with screenshots (r29d)."""
 
@@ -191,7 +185,7 @@ class QuickWindowFrontendFixes(unittest.TestCase):
         css, js = self.read("explorer.css"), self.read("explorer.js")
         self.assertRegex(css, r"\.qa-plugin\.qe-cards \{ max-height: min\(calc\(var\(--qa-max-h\)[^}]*overflow-y: auto")
         self.assertIn('const compact = !pending && set.id !== last && !set.expanded;', js)
-        self.assertIn("qe-undo-sm", js)      # «Undo» stays reachable on a collapsed card
+        self.assertIn("qe-undo-sm", js)
         self.assertNotEqual(self.index["explorer"]["v"], "1.0-r29")
 
     def test_extras_alignment_ocr_empty_and_kbd(self):
@@ -201,11 +195,10 @@ class QuickWindowFrontendFixes(unittest.TestCase):
         self.assertIn(".qxx-foot .qa-btn.accent kbd", css)
         self.assertIn('data-x="ocr-model"', js)
         self.assertIn('data-x="ocr-retry"', js)
-        # an empty OCR result no longer offers Copy / To note on an empty box
+
         empty = js[js.index("!o.text ? `"):js.index('<textarea class="qxx-text" id="qxx-ocr"')]
         self.assertNotIn("ocr-copy", empty)
         self.assertNotEqual(self.index["extras"]["v"], "1.0-r29")
-
 
 class PanelWallText(unittest.TestCase):
     """Screen layer at DPR 1.5, S tile: «Источник больше не отвечает или не нашёл данные. У MemuAI Proxy ещё нет
@@ -238,7 +231,6 @@ class PanelWallText(unittest.TestCase):
                 self.assertNotRegex(self._wall("en", wall), "[А-Яа-яЁё]")
         self.assertIn("rate-limiting", self._wall("en", {"status": "blocked:rate-limit", "message": "HTTP 429"}))
 
-
 class LayerTimersGoLive(unittest.TestCase):
     """Screen layer: the Pomodoro/timers card stayed «Загружаю таймеры…» for good (seen in layer_matrix with 5 s waits):
     panels.js checked for visible timer cards when its data arrived — before the layer had put the cards in the DOM —
@@ -252,15 +244,14 @@ class LayerTimersGoLive(unittest.TestCase):
         visible = panels[panels.index("const visibleCards = "):panels.index("const visibleChips = ")]
         self.assertIn("getClientRects().length > 0", visible)
         self.assertNotIn("offsetParent", visible)
-        api = panels[panels.index("cardHtml, chipHtml, "):]   # Round 30 exports miniOf/linesOf/… in between
+        api = panels[panels.index("cardHtml, chipHtml, "):]
         self.assertRegex(api, r"\bsyncLive,")
         self.assertIn("MemuPanels.syncLive()", layer)
         for fn in ("function render() {", "function renderPanels() {"):
             body = layer[layer.index(fn):]
             body = body[:body.index("\n  }\n")]
             self.assertIn("panelsLive();", body, fn)
-        self.assertRegex((static / "quick" / "layer.html").read_text(encoding="utf-8"), r'/quick/layer\.js\?v=1\.[3-9]-r(29|3\d)')   # ≥1.3 (r29e bumped it)
-
+        self.assertRegex((static / "quick" / "layer.html").read_text(encoding="utf-8"), r'/quick/layer\.js\?v=1\.[3-9]-r(29|3\d)')
 
 if __name__ == "__main__":
     unittest.main()

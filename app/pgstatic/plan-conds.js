@@ -1,11 +1,5 @@
-/* MemuAI — Round 37: more conditions and options of «Планирование» (window.MemuPlanConds).
-   Engine: app/schedule_conds_ext.py. plan.js calls:
-     catalog() — extra «Только если» entries; defaults(cond) — fills a new condition; row(cond, p, ctx) — the body of
-     calendar / sun / weather / wifi / last_result / group; head(cond, p) — the «НЕ» toggle of every condition row;
-     triggers() / newTrigger(id) — the sunrise / sunset trigger; whenBody(t, p, ctx) — sun and monthly (N-th weekday /
-     workday) rows; optionsHtml(o) — quiet hours, a daily limit, retries; checkHtml() — «Проверить сейчас»;
-     bind(root, ctx) — once per builder (its own data-act="pcx-*" clicks, place search, mode switches).
-   Routes: POST /api/plan/conds/check {task}, GET /api/plan/conds/geo?q=. Values go through plan.js data-path. */
+
+
 (function () {
   "use strict";
   if (window.MemuPlanConds) return;
@@ -24,10 +18,9 @@
     "pc-group": '<svg viewBox="0 0 24 24"><path d="M8 4H5v16h3M16 4h3v16h-3"/><path d="M9 9h6M9 15h6"/></svg>',
     "pc-quiet": '<svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-9.3-5M6 8c0 7-3 9-3 9h13M17.7 13A20 20 0 0 0 18 8M10.3 21a2 2 0 0 0 3.4 0M3 3l18 18"/></svg>',
   };
-  try { if (typeof ICONS === "object" && ICONS) for (const [k, v] of Object.entries(SVG)) if (!ICONS[k]) ICONS[k] = v; } catch (e) { /* no global icon set */ }
+  try { if (typeof ICONS === "object" && ICONS) for (const [k, v] of Object.entries(SVG)) if (!ICONS[k]) ICONS[k] = v; } catch (e) {  }
   const I = (name) => (typeof icon === "function" && (typeof ICONS !== "object" || ICONS[name]) ? icon(name) : `<span class="ui-icon">${SVG[name] || ""}</span>`);
 
-  /* ------------------------------------------------------------------ dictionaries */
   const COUNTRIES = () => [["RU", T("Россия", "Russia")], ["BY", T("Беларусь", "Belarus")], ["KZ", T("Казахстан", "Kazakhstan")],
     ["LT", T("Литва", "Lithuania")], ["LV", T("Латвия", "Latvia")], ["EE", T("Эстония", "Estonia")], ["PL", T("Польша", "Poland")],
     ["DE", T("Германия", "Germany")], ["FR", T("Франция", "France")], ["GB", T("Великобритания", "United Kingdom")], ["US", T("США", "United States")],
@@ -74,9 +67,8 @@
     return cond;
   }
 
-  /* ------------------------------------------------------------------ pieces */
   const optionList = (pairs, value) => pairs.map(([v, l]) => `<option value="${H(v)}" ${String(v) === String(value) ? "selected" : ""}>${H(l)}</option>`).join("");
-  /** a select that re-renders its block after plan.js stored the value */
+
   const rsel = (path, value, pairs, cls = "") => `<select class="pinput compact ${cls}" data-path="${path}" data-pcx-rerender="1">${optionList(pairs, value)}</select>`;
   function placeHtml(p, cond) {
     const has = Number.isFinite(+cond.lat) && cond.lat !== undefined && cond.lat !== "";
@@ -153,7 +145,6 @@
     return null;
   }
 
-  /* ------------------------------------------------------------------ triggers */
   function triggers() {
     return [{ id: "sun", icon: "pc-sunset", title: T("Восход / закат", "Sunrise / sunset"), desc: T("Каждый день в момент восхода или заката, можно со сдвигом", "Every day at sunrise or sunset, optionally shifted") }];
   }
@@ -179,7 +170,6 @@
     return null;
   }
 
-  /* ------------------------------------------------------------------ options («До каких пор» → тонкая настройка) */
   function optionsHtml(o, ctx) {
     const { num, timeIn } = ctx;
     const quiet = !!(o.quiet_from && o.quiet_to);
@@ -193,7 +183,6 @@
   }
   const hasOptions = (o) => !!(o.quiet_from || o.max_per_day || o.retry_count);
 
-  /* ------------------------------------------------------------------ «Проверить сейчас» */
   function checkHtml() {
     return `<div class="pcx-check"><button type="button" class="pbtn ghost compact" data-act="pcx-check">${I("check")}${T("Проверить условия сейчас", "Check the conditions now")}</button><div class="pcx-check-host" aria-live="polite"></div></div>`;
   }
@@ -205,7 +194,6 @@
     return `<div class="pcx-check-box ${res.ok ? "ok" : "bad"}"><div class="pcx-verdict">${mark(!!res.ok)}<b>${H(verdict)}</b></div>${rows || notes ? `<ul>${rows}${notes}</ul>` : ""}</div>`;
   }
 
-  /* ------------------------------------------------------------------ binding */
   function bind(root, ctx) {
     let geoTimer = 0, geoSeq = 0;
     const closeGeo = () => root.querySelectorAll(".pcx-geo-list").forEach((el) => el.remove());
@@ -213,7 +201,7 @@
       const btn = e.target.closest("[data-act^='pcx-']");
       if (!btn || !root.contains(btn)) { if (!e.target.closest(".pcx-place")) closeGeo(); return; }
       const act = btn.dataset.act, path = btn.dataset.path;
-      if (act === "pcx-quiet") return;   // a checkbox — handled on "change"
+      if (act === "pcx-quiet") return;
       if (act === "pcx-not") { const c = ctx.get(path); if (c.not) delete c.not; else c.not = true; return ctx.rerender("if"); }
       if (act === "pcx-off") { const c = ctx.get(path); if (c.off) delete c.off; else c.off = true; return ctx.rerender("if"); }
       if (act === "pcx-match") { ctx.get(path).match = btn.dataset.value; return ctx.rerender("if"); }
@@ -247,7 +235,7 @@
       if (act === "pcx-pick") {
         const p = btn.dataset.path, target = ctx.get(p);
         Object.assign(target, { lat: +btn.dataset.lat, lon: +btn.dataset.lon, place: btn.dataset.place });
-        try { localStorage.setItem(PLACE_KEY, JSON.stringify({ lat: +btn.dataset.lat, lon: +btn.dataset.lon, place: btn.dataset.place })); } catch (err) { /* private mode */ }
+        try { localStorage.setItem(PLACE_KEY, JSON.stringify({ lat: +btn.dataset.lat, lon: +btn.dataset.lon, place: btn.dataset.place })); } catch (err) {  }
         closeGeo();
         ctx.rerender(p.startsWith("rule.when") ? "when" : "if");
       }

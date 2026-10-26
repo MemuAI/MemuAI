@@ -35,25 +35,15 @@ from typing import Any, Dict, List, Optional, Tuple
 
 TIMEOUT_SECONDS = 180
 
-
-# --------------------------------------------------------------------------
-# Host side: called from the MemuAI server
-# --------------------------------------------------------------------------
-
 _capture_lock = threading.Lock()
-# End of the last cancelled selection. A request that arrives right after a
-# cancel is a replay (the browser re-sends a request whose answer it did not
-# like), not the user: reopening the overlay then left a frozen screen that
-# could not take keyboard focus.
+
 _last_cancel_at = 0.0
 REPLAY_WINDOW = 2.0
-
 
 def _worker_command(out_path: str, language: str) -> List[str]:
     if getattr(sys, "frozen", False):
         return [sys.executable, "--memuai-screen-capture", out_path, language]
     return [sys.executable, "-m", "app.screen_capture", out_path, language]
-
 
 def _set_cloak(hwnd: int, hidden: bool) -> bool:
     """Hide or show the MemuAI window instantly without changing its state."""
@@ -63,13 +53,11 @@ def _set_cloak(hwnd: int, hidden: bool) -> bool:
     from ctypes import wintypes
     value = ctypes.c_int(1 if hidden else 0)
     try:
-        # DWMWA_CLOAK = 13: the window stays where it is but is not drawn,
-        # so it is neither visible nor captured, and nothing animates.
+
         result = ctypes.windll.dwmapi.DwmSetWindowAttribute(wintypes.HWND(hwnd), 13, ctypes.byref(value), ctypes.sizeof(value))
         return result == 0
     except Exception:
         return False
-
 
 def capture_region(hwnd: int = 0, language: str = "ru", timeout: float = TIMEOUT_SECONDS) -> Dict[str, Any]:
     """Run the selector and return ``{"ok": True, "png": bytes, ...}`` or a reason."""
@@ -91,7 +79,6 @@ def capture_region(hwnd: int = 0, language: str = "ru", timeout: float = TIMEOUT
             _last_cancel_at = time.monotonic()
         _capture_lock.release()
 
-
 def _capture(hwnd: int, language: str, timeout: float, out: Path) -> Dict[str, Any]:
     import ctypes
     cloaked = False
@@ -100,12 +87,12 @@ def _capture(hwnd: int, language: str, timeout: float, out: Path) -> Dict[str, A
         if hwnd:
             cloaked = _set_cloak(hwnd, True)
             if not cloaked:
-                minimized = bool(ctypes.windll.user32.ShowWindow(hwnd, 6))   # SW_MINIMIZE
+                minimized = bool(ctypes.windll.user32.ShowWindow(hwnd, 6))
                 time.sleep(0.3)
             else:
-                time.sleep(0.12)   # let DWM compose a frame without MemuAI
+                time.sleep(0.12)
         try:
-            ctypes.windll.user32.AllowSetForegroundWindow(-1)   # ASFW_ANY: the overlay may take focus
+            ctypes.windll.user32.AllowSetForegroundWindow(-1)
         except Exception:
             pass
         root = Path(__file__).resolve().parent.parent
@@ -140,7 +127,7 @@ def _capture(hwnd: int, language: str, timeout: float, out: Path) -> Dict[str, A
         if cloaked:
             _set_cloak(hwnd, False)
         elif minimized:
-            ctypes.windll.user32.ShowWindow(hwnd, 9)   # SW_RESTORE
+            ctypes.windll.user32.ShowWindow(hwnd, 9)
         if hwnd:
             try:
                 ctypes.windll.user32.SetForegroundWindow(hwnd)
@@ -152,16 +139,10 @@ def _capture(hwnd: int, language: str, timeout: float, out: Path) -> Dict[str, A
             except OSError:
                 pass
 
-
-# --------------------------------------------------------------------------
-# Worker side: the overlay window (runs in its own process)
-# --------------------------------------------------------------------------
-
 HINTS = {
     "ru": "Выделите область мышью  ·  клик — окно  ·  Enter — весь экран  ·  Esc — отмена",
     "en": "Drag to select an area  ·  click — a window  ·  Enter — whole screen  ·  Esc — cancel",
 }
-
 
 def _take_foreground(user32, kernel32, hwnd) -> None:
     """SetForegroundWindow, and if Windows refuses it, borrow the input queue
@@ -180,7 +161,6 @@ def _take_foreground(user32, kernel32, hwnd) -> None:
             pass
     user32.SetFocus(hwnd)
 
-
 def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
     import ctypes
     from ctypes import wintypes
@@ -198,7 +178,6 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
     except OSError:
         shcore = None
 
-    # Physical pixels on every monitor; must happen before any window exists.
     try:
         user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4))
     except Exception:
@@ -237,7 +216,6 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
     class MONITORINFO(ctypes.Structure):
         _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
 
-    # Prototypes: handles are pointers, so 64-bit values must not be truncated.
     user32.DefWindowProcW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
     user32.DefWindowProcW.restype = LRESULT
     user32.CreateWindowExW.argtypes = [wintypes.DWORD, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_int, ctypes.c_int,
@@ -315,7 +293,6 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
     if vw <= 0 or vh <= 0:
         return {"ok": False, "error": "screen size unavailable"}
 
-    # ---- snapshot of the whole virtual desktop, taken before any drawing
     screen = user32.GetDC(None)
     orig_dc = gdi32.CreateCompatibleDC(screen)
     orig_bmp = gdi32.CreateCompatibleBitmap(screen, vw, vh)
@@ -337,7 +314,6 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
     gdi32.SelectObject(back_dc, back_bmp)
     user32.ReleaseDC(None, screen)
 
-    # ---- monitors and visible windows (for Enter and click-to-pick)
     monitors: List[Tuple[int, int, int, int]] = []
     MONITORENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, HANDLE, HANDLE, ctypes.POINTER(wintypes.RECT), wintypes.LPARAM)
 
@@ -364,7 +340,7 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
                 return True
             if dwmapi is not None:
                 cloaked = ctypes.c_int(0)
-                dwmapi.DwmGetWindowAttribute(hwnd, 14, ctypes.byref(cloaked), ctypes.sizeof(cloaked))   # DWMWA_CLOAKED
+                dwmapi.DwmGetWindowAttribute(hwnd, 14, ctypes.byref(cloaked), ctypes.sizeof(cloaked))
                 if cloaked.value:
                     return True
             name = ctypes.create_unicode_buffer(64)
@@ -374,7 +350,7 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
             rect = wintypes.RECT()
             got = False
             if dwmapi is not None:
-                # DWMWA_EXTENDED_FRAME_BOUNDS: the visible frame, without the invisible resize border.
+
                 got = dwmapi.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(rect), ctypes.sizeof(rect)) == 0
             if not got:
                 user32.GetWindowRect(hwnd, ctypes.byref(rect))
@@ -388,13 +364,12 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
     user32.EnumWindows.argtypes = [WNDENUMPROC, wintypes.LPARAM]
     user32.EnumWindows(WNDENUMPROC(on_window), 0)
 
-    # ---- state
     state: Dict[str, Any] = {"start": None, "end": None, "hover": None, "result": None, "was_active": False,
                              "cursor": (0, 0), "last_input": time.time(), "drag": False, "decor": None}
-    accent = 0x63 | (0x66 << 8) | (0xF1 << 16)   # #6366F1 as COLORREF (0x00BBGGRR)
+    accent = 0x63 | (0x66 << 8) | (0xF1 << 16)
     pen = gdi32.CreatePen(0, 2, accent)
     label_brush = gdi32.CreateSolidBrush(0x201A16)
-    null_brush = gdi32.GetStockObject(5)   # NULL_BRUSH
+    null_brush = gdi32.GetStockObject(5)
 
     def dpi_scale(x: int, y: int) -> float:
         if shcore is None:
@@ -415,7 +390,7 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
         return monitors[0]
 
     def window_at(x: int, y: int) -> Optional[Tuple[int, int, int, int]]:
-        for rect in windows:            # EnumWindows lists top-most first
+        for rect in windows:
             if rect[0] <= x < rect[2] and rect[1] <= y < rect[3]:
                 return rect
         return None
@@ -501,12 +476,12 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
                 gdi32.SetBkMode(back_dc, 1)
                 gdi32.SetTextColor(back_dc, 0xFFFFFF)
                 old_font = gdi32.SelectObject(back_dc, font(int(13 * scale)))
-                user32.DrawTextW(back_dc, f"{sel[2] - sel[0]} × {sel[3] - sel[1]}", -1, ctypes.byref(lab), 0x25)  # center|vcenter|singleline
+                user32.DrawTextW(back_dc, f"{sel[2] - sel[0]} × {sel[3] - sel[1]}", -1, ctypes.byref(lab), 0x25)
                 gdi32.SelectObject(back_dc, old_font)
             left, top, right, bottom, scale = hint_rect()
             box = wintypes.RECT(left, top, right, bottom)
             old_brush = gdi32.SelectObject(back_dc, label_brush)
-            old_pen = gdi32.SelectObject(back_dc, gdi32.GetStockObject(8))   # NULL_PEN
+            old_pen = gdi32.SelectObject(back_dc, gdi32.GetStockObject(8))
             gdi32.RoundRect(back_dc, left, top, right, bottom, int(16 * scale), int(16 * scale))
             gdi32.SelectObject(back_dc, old_brush)
             gdi32.SelectObject(back_dc, old_pen)
@@ -531,7 +506,7 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
         y = ctypes.c_short((lparam >> 16) & 0xFFFF).value
         return x, y
 
-    cross = user32.LoadCursorW(None, ctypes.c_void_p(32515))   # IDC_CROSS
+    cross = user32.LoadCursorW(None, ctypes.c_void_p(32515))
 
     WM_DESTROY, WM_PAINT, WM_ERASEBKGND, WM_ACTIVATE = 0x0002, 0x000F, 0x0014, 0x0006
     WM_SETCURSOR, WM_KEYDOWN, WM_MOUSEMOVE = 0x0020, 0x0100, 0x0200
@@ -571,7 +546,7 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
                 if abs(x2 - x1) >= 4 and abs(y2 - y1) >= 4:
                     finish(hwnd, selection())
                 else:
-                    # A click without a drag takes the window (or monitor) under the cursor.
+
                     state["start"] = state["end"] = None
                     finish(hwnd, window_at(x2, y2) or monitor_at(x2, y2))
                 return 0
@@ -585,9 +560,9 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
                 return 0
             if msg == WM_KEYDOWN:
                 state["last_input"] = time.time()
-                if wparam == 0x1B:            # Esc
+                if wparam == 0x1B:
                     cancel(hwnd)
-                elif wparam == 0x0D:          # Enter
+                elif wparam == 0x0D:
                     sel = selection() if state["start"] else None
                     finish(hwnd, sel or monitor_at(*state["cursor"]))
                 return 0
@@ -595,12 +570,11 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
                 if wparam & 0xFFFF:
                     state["was_active"] = True
                 elif state["was_active"] and state["result"] is None:
-                    cancel(hwnd)              # another window took focus: never linger
+                    cancel(hwnd)
                 return 0
             if msg == WM_TIMER:
                 if wparam == 2:
-                    # Without keyboard focus (Windows refused the foreground
-                    # switch) Esc must still close the overlay.
+
                     if user32.GetForegroundWindow() != hwnd and user32.GetAsyncKeyState(0x1B) & 0x8000:
                         cancel(hwnd)
                     return 0
@@ -655,11 +629,11 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
         info = BITMAPINFO()
         info.bmiHeader.biSize = ctypes.sizeof(BITMAPINFOHEADER)
         info.bmiHeader.biWidth = width
-        info.bmiHeader.biHeight = -height          # top-down rows
+        info.bmiHeader.biHeight = -height
         info.bmiHeader.biPlanes = 1
         info.bmiHeader.biBitCount = 32
         buffer = ctypes.create_string_buffer(width * height * 4)
-        gdi32.SelectObject(crop_dc, default_bmp)   # GetDIBits needs the bitmap deselected
+        gdi32.SelectObject(crop_dc, default_bmp)
         lines = gdi32.GetDIBits(crop_dc, crop_bmp, 0, height, buffer, ctypes.byref(info), 0)
         gdi32.DeleteDC(crop_dc)
         gdi32.DeleteObject(crop_bmp)
@@ -676,7 +650,6 @@ def _run_overlay(out_path: str, language: str) -> Dict[str, Any]:
         gdi32.DeleteObject(handle)
     return result
 
-
 def main(argv: List[str]) -> int:
     if len(argv) < 1:
         print(json.dumps({"ok": False, "error": "usage: screen_capture <out.png> [ru|en]"}))
@@ -685,7 +658,7 @@ def main(argv: List[str]) -> int:
     language = argv[1] if len(argv) > 1 else "ru"
     try:
         result = _run_overlay(out_path, language)
-    except Exception as exc:  # the worker must always answer with JSON
+    except Exception as exc:
         result = {"ok": False, "error": f"{type(exc).__name__}: {exc}"}
     try:
         Path(out_path + ".json").write_text(json.dumps(result), encoding="utf-8")
@@ -700,7 +673,6 @@ def main(argv: List[str]) -> int:
     if result.get("ok"):
         return 0
     return 2 if result.get("code") == "cancelled" else 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main(sys.argv[1:]))

@@ -37,9 +37,6 @@ from app.win_hotkey import ERROR_HOTKEY_ALREADY_REGISTERED, HOTKEY_ID, WM_APP_HO
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
-# ---------------------------------------------------------------- hotkeys
-
 class HotkeyParsingTests(unittest.TestCase):
     def test_canonical_forms_and_aliases(self) -> None:
         self.assertEqual(core.parse_hotkey("Alt+Space"), (core.MOD_ALT, 0x20, "Alt+Space"))
@@ -53,7 +50,7 @@ class HotkeyParsingTests(unittest.TestCase):
         self.assertEqual(core.parse_hotkey("Ctrl+Alt+F5")[1], 0x74)
         self.assertEqual(core.parse_hotkey("Ctrl+Numpad7")[2], "Ctrl+Num7")
         self.assertEqual(core.parse_hotkey("Ctrl+Alt+KeyJ")[2], "Ctrl+Alt+J")
-        self.assertEqual(core.parse_hotkey("F13")[2], "F13")        # rare keys may stand alone
+        self.assertEqual(core.parse_hotkey("F13")[2], "F13")
         self.assertEqual(core.parse_hotkey("Ctrl++")[2], "Ctrl+=")
 
     def test_invalid_hotkeys_have_stable_codes(self) -> None:
@@ -92,7 +89,7 @@ class HotkeyParsingTests(unittest.TestCase):
         self.assertEqual(core.hotkey_from_event("Digit5", ctrl=True, shift=True), "Ctrl+Shift+5")
         self.assertEqual(core.hotkey_from_event("Numpad3", ctrl=True), "Ctrl+Num3")
         self.assertEqual(core.parse_hotkey(core.hotkey_from_event("ArrowUp", ctrl=True, alt=True))[2], "Ctrl+Alt+Up")
-        # The settings page uses the same names (quick-settings.js CODE_KEYS).
+
         source = (STATIC / "quick-settings.js").read_text(encoding="utf-8")
         for code, name in (("Backquote", "`"), ("Space", "Space"), ("ArrowUp", "Up"), ("BracketLeft", "[")):
             self.assertIn(f'{code}: "{name}"', source)
@@ -103,7 +100,6 @@ class HotkeyParsingTests(unittest.TestCase):
         self.assertEqual({row["program"] for row in found}, {"PowerToys Run", "Flow Launcher"})
         self.assertEqual(core.conflicts_for("Ctrl+Alt+Space", running), [])
         self.assertEqual(core.conflicts_for("Alt+Space", ["explorer.exe"]), [])
-
 
 class FakeWin32:
     """Enough of user32/kernel32 for HotkeyListener: a message queue per thread."""
@@ -153,7 +149,6 @@ class FakeWin32:
 
     def last_error(self):
         return self.error
-
 
 class HotkeyListenerTests(unittest.TestCase):
     def make(self, taken=()):
@@ -208,12 +203,8 @@ class HotkeyListenerTests(unittest.TestCase):
         self.assertEqual(listener.clear()["code"], "off")
         self.assertEqual(fake.registered, {})
 
-
-# ---------------------------------------------------------------- placement
-
 def monitor(rect, work=None, dpi=96, primary=False):
     return {"rect": rect, "work": work or rect, "dpi": dpi, "primary": primary}
-
 
 class PlacementTests(unittest.TestCase):
     def assertInside(self, geometry, work):
@@ -250,7 +241,7 @@ class PlacementTests(unittest.TestCase):
         g = core.place(screens, (2000, 1000))
         self.assertEqual(g["monitor"], 0)
         self.assertEqual(g["scale"], 1.5)
-        self.assertEqual(g["w"], 1080)          # 720 css px at 150 %
+        self.assertEqual(g["w"], 1080)
         self.assertEqual(g["h"], round(core.COLLAPSED_HEIGHT * 1.5))
         self.assertInside(g, (0, 0, 3840, 2100))
 
@@ -261,7 +252,7 @@ class PlacementTests(unittest.TestCase):
         self.assertEqual(g["monitor"], 1)
         self.assertLess(g["y"], 0)
         self.assertInside(g, (-320, -1440, 2240, -40))
-        self.assertEqual(g["w"], 900)          # 720 × 1.25
+        self.assertEqual(g["w"], 900)
 
     def test_taskbar_on_every_edge(self) -> None:
         full = (0, 0, 1920, 1080)
@@ -335,9 +326,6 @@ class PlacementTests(unittest.TestCase):
         self.assertEqual(core.screenshot_args({"region": {"left": 50, "top": 50, "width": 50, "height": 50}})["region"],
                          {"left": 0.5, "top": 0.5, "width": 0.5, "height": 0.5})
 
-
-# ---------------------------------------------------------------- preferences
-
 class PreferenceTests(unittest.TestCase):
     def test_defaults_are_registered_in_pgdata(self) -> None:
         from app.pgdata import DEFAULT_PREFERENCES, _normalize_preferences
@@ -347,9 +335,8 @@ class PreferenceTests(unittest.TestCase):
         prefs = _normalize_preferences({})
         self.assertEqual(prefs["quick_ask_hotkey"], "Alt+Space")
         self.assertTrue(prefs["quick_ask_enabled"])
-        self.assertEqual(prefs["quick_ask_model"], "")   # = the application's default model
-        # Round 27: the selection actions are on by default — the selection is read through UI Automation first,
-        # the Ctrl+C fallback restores the whole clipboard and is its own switch (tests/round27_selection_test.py).
+        self.assertEqual(prefs["quick_ask_model"], "")
+
         self.assertTrue(prefs["quick_ask_selection"])
         self.assertTrue(prefs["quick_ask_selection_clipboard"])
 
@@ -385,8 +372,8 @@ class PreferenceTests(unittest.TestCase):
         from app.quick_ask import backdrop_kind
         self.assertEqual(backdrop_kind("auto", 22631), "acrylic")
         self.assertEqual(backdrop_kind("mica", 22631), "mica")
-        self.assertEqual(backdrop_kind("auto", 22000), "")     # Windows 11 21H2: no system backdrop API
-        self.assertEqual(backdrop_kind("auto", 19045), "")     # Windows 10: CSS card
+        self.assertEqual(backdrop_kind("auto", 22000), "")
+        self.assertEqual(backdrop_kind("auto", 19045), "")
         self.assertEqual(backdrop_kind("off", 26100), "")
 
     def test_history(self) -> None:
@@ -400,9 +387,6 @@ class PreferenceTests(unittest.TestCase):
             many = core.add_history(many, {"q": f"q{i}"})
         self.assertEqual(len(many), core.HISTORY_LIMIT)
         self.assertEqual(many[0]["q"], "q99")
-
-
-# ---------------------------------------------------------------- prompt and protocol
 
 class PromptAndProtocolTests(unittest.TestCase):
     def test_prompt_is_short_and_answer_first(self) -> None:
@@ -451,16 +435,13 @@ class PromptAndProtocolTests(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertEqual(core.parse_tool_calls("plain answer")[1], [])
 
-
 def sse(*events):
     for event in events:
         yield "data: " + json.dumps(event, ensure_ascii=False)
     yield "data: [DONE]"
 
-
 def delta(text):
     return {"choices": [{"delta": {"content": text}}]}
-
 
 class AnswerLoopTests(unittest.TestCase):
     def run_loop(self, rounds, *, text="вопрос", images=(), vision=True, settings=None, search_payload=None,
@@ -553,13 +534,12 @@ class AnswerLoopTests(unittest.TestCase):
         self.assertIn("cannot see images", requests[0]["messages"][0]["content"])
 
     def test_disabled_tools_refuse(self) -> None:
-        # Plugin tools (assistant_action) register globally when other test modules import them first —
-        # this test is about the built-in tools only.
+
         with mock.patch.dict(quick_ask_api.EXTRA_TOOLS, clear=True):
             _, requests, tools, _, captures = self.run_loop([
                 ['```memuai-tool\n[{"tool":"web_search","args":{"query":"x"}},{"tool":"take_screenshot","args":{}}]\n```'],
                 ["ok"]], settings={"quick_ask_web_search": False, "quick_ask_screenshot_tool": False,
-                                   # Round 35: the ask_user form tool is on by default (its own test: round35_askuser_test)
+
                                    "quick_ask_forms": False})
         self.assertEqual((tools, captures), ([], []))
         self.assertNotIn("memuai-tool", requests[0]["messages"][0]["content"])
@@ -635,9 +615,6 @@ class AnswerLoopTests(unittest.TestCase):
         self.assertEqual(len(messages), 1 + quick_ask_api.MAX_HISTORY_TURNS * 2 + 1)
         self.assertIn("<selected_text>\nhello\n</selected_text>", messages[-1]["content"])
 
-
-# ---------------------------------------------------------------- routes and static wiring
-
 class RoutesTests(unittest.TestCase):
     def setUp(self) -> None:
         from starlette.testclient import TestClient
@@ -679,13 +656,13 @@ class RoutesTests(unittest.TestCase):
         self.assertIn('/quick-settings.js', index)
         self.assertIn('/quick-settings.css', index)
         app_js = (STATIC / "app.js").read_text(encoding="utf-8")
-        self.assertIn('P("quick"', app_js)                     # Round 23: generated settings navigation
+        self.assertIn('P("quick"', app_js)
         self.assertIn('data-set-tab="${p.id}"', app_js)
         self.assertIn('id="pane-quick"', app_js)
         self.assertIn("MemuQuickSettings.bind", app_js)
         self.assertIn("window.MemuQuickHandoff", app_js)
         settings = (STATIC / "quick-settings.js").read_text(encoding="utf-8")
-        # Round 23 wording (same honest fact, shorter): no hidden second «vision» model.
+
         self.assertIn("отдельной модели для изображений нет", settings)
         self.assertIn("there is no separate image model", settings)
 
@@ -697,7 +674,7 @@ class RoutesTests(unittest.TestCase):
         shell = DesktopShell("http://x")
         ran = []
         shell.quit_hooks.append(lambda: ran.append(1))
-        shell.quit_hooks.append(lambda: 1 / 0)          # a failing hook never blocks quitting
+        shell.quit_hooks.append(lambda: 1 / 0)
         shell.request_quit()
         self.assertEqual(ran, [1])
         self.assertEqual(shell.quit_hooks, [])
@@ -722,7 +699,6 @@ class RoutesTests(unittest.TestCase):
         self.assertEqual((out["width"], out["height"]), (1920, 1080))
         self.assertEqual(out["bbox"], [0, 0, 3840, 2160])
 
-
 @unittest.skipUnless(shutil.which("node"), "Node.js is not installed")
 class InstantCalculatorTests(unittest.TestCase):
     def test_calculator_and_units(self) -> None:
@@ -741,16 +717,11 @@ console.log(JSON.stringify(cases.map((q) => {{ const r = c.evaluate(q, "en"); re
         self.assertEqual(values[6:9], [212, 3072, 4])
         self.assertEqual(values[9:], [None, None, None, None, None], "a normal question is never treated as maths")
 
-
 if __name__ == "__main__":
     unittest.main()
 
-
-# ================================================================ Round 22
-
 from app import quick_ask_browser as qb
 from app.win_hotkey import ComboCapture
-
 
 class Round22HotkeyTests(unittest.TestCase):
     def test_alt_space_and_any_number_of_modifiers(self) -> None:
@@ -763,7 +734,7 @@ class Round22HotkeyTests(unittest.TestCase):
         self.assertEqual(core.parse_hotkey("Ctrl+Alt+Shift+Space")[2], "Ctrl+Alt+Shift+Space")
 
     def test_f_keys_and_new_keys(self) -> None:
-        self.assertEqual(core.parse_hotkey("F9")[2], "F9")                    # standalone F-key is allowed now
+        self.assertEqual(core.parse_hotkey("F9")[2], "F9")
         self.assertIn("standalone", [w["code"] for w in core.hotkey_warnings("F9")])
         self.assertEqual(core.parse_hotkey("Shift+F2")[2], "Shift+F2")
         self.assertEqual(core.parse_hotkey("Ctrl+PrtSc")[1], 0x2C)
@@ -780,10 +751,10 @@ class Round22HotkeyTests(unittest.TestCase):
         self.assertEqual(core.hotkey_from_event("Space", alt=True), "Alt+Space")
         self.assertEqual(core.hotkey_from_event("KeyK", ctrl=True, alt=True, shift=True, meta=True), "Ctrl+Alt+Shift+Win+K")
         self.assertEqual(core.hotkey_from_event("NumpadAdd", ctrl=True), "Ctrl+Num+")
-        self.assertEqual(core.hotkey_from_vks([0xA4, 0x20]), "Alt+Space")            # left Alt + Space
+        self.assertEqual(core.hotkey_from_vks([0xA4, 0x20]), "Alt+Space")
         self.assertEqual(core.hotkey_from_vks([0x5B, 0xA2, 0xA0, 0x12, 0x4B]), "Ctrl+Alt+Shift+Win+K")
-        self.assertEqual(core.hotkey_from_vks([0x11, 0x10]), "")                      # modifiers only
-        # The settings' JS mirrors the same names (CODE_KEYS / MOD_CODES).
+        self.assertEqual(core.hotkey_from_vks([0x11, 0x10]), "")
+
         js = (STATIC / "quick-settings.js").read_text(encoding="utf-8")
         for code in ("NumpadAdd", "PrintScreen", "AltLeft", "MetaLeft", '"suspend"', '"capture"', '"resume"'):
             self.assertIn(code, js)
@@ -808,11 +779,10 @@ class Round22HotkeyTests(unittest.TestCase):
         self.assertEqual(run([[], [0x12], [0x12, 0x20]])["hotkey"], "Alt+Space")
         self.assertEqual(run([[0x11], [0x11, 0x10], [0x11, 0x10, 0x12], [0x11, 0x10, 0x12, 0x5B, 0x51]])["hotkey"],
                          "Ctrl+Alt+Shift+Win+Q")
-        self.assertEqual(run([[], [0x1B]])["code"], "cancelled")                     # Esc alone
-        # A key already held when the capture started does not count.
+        self.assertEqual(run([[], [0x1B]])["code"], "cancelled")
+
         self.assertEqual(run([[0x41], [0x41], [0x41, 0x12], [0x41, 0x12, 0x51]], held=(0x41,))["hotkey"], "Alt+Q")
         self.assertEqual(run([[0x12, 0x20]] * 3, foreground=lambda: False)["code"], "timeout")
-
 
 class Round22OwnRegistrationTests(unittest.TestCase):
     """«Taken by another program» must never be our own registration."""
@@ -825,7 +795,7 @@ class Round22OwnRegistrationTests(unittest.TestCase):
 
     def test_stale_own_registration_is_released_and_retried(self) -> None:
         listener, fake = self.make()
-        # Our own id still holds a registration the bookkeeping lost (e.g. after a failed change).
+
         fake.registered[HOTKEY_ID] = (core.MOD_ALT, 0x20)
         status = listener.set_hotkey("Alt+Space")
         self.assertTrue(status["ok"], status)
@@ -838,7 +808,7 @@ class Round22OwnRegistrationTests(unittest.TestCase):
         fake.taken = {(core.MOD_ALT, 0x20)}
 
         def register(_hwnd, ident, mods, vk, original=fake.RegisterHotKey):
-            # "taken" only while our own probe id holds it.
+
             if HOTKEY_ID + 1 not in fake.registered:
                 fake.taken.discard((core.MOD_ALT, 0x20))
             return original(_hwnd, ident, mods, vk)
@@ -859,7 +829,7 @@ class Round22OwnRegistrationTests(unittest.TestCase):
         self.assertEqual(listener.probe("Alt+Space")["code"], "ours", "probing our own (suspended) hotkey is not a conflict")
         self.assertTrue(listener.resume()["ok"])
         self.assertEqual(fake.registered[HOTKEY_ID][1], 0x20)
-        # Applying a new hotkey while suspended works and does not resurrect the old one.
+
         listener.suspend(5)
         self.assertTrue(listener.set_hotkey("Ctrl+Alt+Q")["ok"])
         self.assertEqual(listener.suspended, "")
@@ -874,7 +844,6 @@ class Round22OwnRegistrationTests(unittest.TestCase):
         self.assertEqual(found[0]["program"], "PowerToys Run")
         self.assertEqual(core.conflicts_for("Ctrl+Alt+Space", ["powertoys.powerlauncher.exe"]), [])
 
-
 class Round22PositionTests(unittest.TestCase):
     LEFT = {"rect": (-2880, 0, 0, 1620), "work": (-2880, 0, 0, 1560), "dpi": 144, "primary": False}
     MAIN = {"rect": (0, 0, 1920, 1080), "work": (0, 0, 1920, 1040), "dpi": 96, "primary": True}
@@ -887,8 +856,8 @@ class Round22PositionTests(unittest.TestCase):
 
     def test_snap_to_corners_and_edges_on_a_scaled_negative_monitor(self) -> None:
         monitors = [self.LEFT, self.MAIN]
-        w, h = 1080, 204                                   # 720×136 CSS at 150 %
-        margin = 24                                        # 16 CSS px at 150 %
+        w, h = 1080, 204
+        margin = 24
         top_left = core.snap(monitors, (-2880 + 30, 20, -2880 + 30 + w, 20 + h))
         self.assertEqual((top_left["x"], top_left["y"], top_left["dock"]), (-2880 + margin, margin, "top-left"))
         bottom_right = core.snap(monitors, (-w - 40, 1560 - h - 30, -40, 1560 - 30))
@@ -913,7 +882,7 @@ class Round22PositionTests(unittest.TestCase):
         self.assertEqual(geometry["x"] + geometry["w"], -24)
         grown = core.resize(geometry, 500)
         self.assertEqual(grown["y"] + grown["h"], 1560 - 24, "a longer answer extends upwards")
-        # The monitor is gone (another configuration): the record cannot be applied by rect, index 0 exists.
+
         self.assertIsNotNone(core.place_saved([self.MAIN], dict(snapped["record"], index=0), (0, 0)))
         self.assertIsNone(core.place_saved([self.MAIN], dict(snapped["record"], index=3), (0, 0)))
 
@@ -948,7 +917,7 @@ class Round22PositionTests(unittest.TestCase):
         from app.pgdata import _normalize_preferences
         old = _normalize_preferences({"quick_ask_v": 1, "quick_ask_position": "center"})
         self.assertEqual(old["quick_ask_position"], "last", "v1 'center' opens in the same place until dragged")
-        self.assertEqual(old["quick_ask_v"], 3)  # Round 23: v3 (model source)
+        self.assertEqual(old["quick_ask_v"], 3)
         kept = _normalize_preferences({"quick_ask_v": 2, "quick_ask_position": "center"})
         self.assertEqual(kept["quick_ask_position"], "center")
         self.assertEqual(_normalize_preferences({"quick_ask_position": "bottom-right"})["quick_ask_position"], "bottom-right")
@@ -959,7 +928,6 @@ class Round22PositionTests(unittest.TestCase):
         self.assertEqual(len(prefs["quick_ask_instructions"]), 4000)
         self.assertEqual(prefs["quick_ask_name"], "Джарвис")
         self.assertTrue(prefs["quick_ask_browser"])
-
 
 class Round22PersonalityTests(unittest.TestCase):
     PRESETS = [{"id": "live-a", "name": "Мой Джарвис", "ai_name": "Джарвис", "gender": "male", "primary": "witty",
@@ -993,7 +961,6 @@ class Round22PersonalityTests(unittest.TestCase):
         self.assertEqual((prefs["voice_live_primary_personality"], prefs["quick_ask_personality"]), ("romantic", "coach"))
         prefs = _normalize_preferences({"quick_ask_personality": "preset:live-a", "voice_live_personality_presets": self.PRESETS})
         self.assertEqual(prefs["quick_ask_personality"], "preset:live-a")
-
 
 class Round22RoutingTests(unittest.TestCase):
     def test_heuristic(self) -> None:
@@ -1057,7 +1024,6 @@ class Round22RoutingTests(unittest.TestCase):
         prompt = core.system_prompt(can_escalate=False)
         self.assertNotIn("escalate_to_advanced", prompt)
 
-
 class FakeUia:
     def __init__(self, edits=(), text="", empty_first=False) -> None:
         self._edits = list(edits)
@@ -1073,7 +1039,6 @@ class FakeUia:
         if self.empty_first and self.calls == 1:
             return ""
         return self._text[:limit]
-
 
 class Round22BrowserTests(unittest.TestCase):
     def test_browsers_and_titles(self) -> None:
@@ -1205,7 +1170,6 @@ class Round22BrowserTests(unittest.TestCase):
         self.assertIn("read_page", requests[0]["messages"][0]["content"])
         self.assertFalse(quick_ask_api.wants_page("сколько будет 2+2"))
 
-
 class Round22ContractAndChatsTests(unittest.TestCase):
     def tearDown(self) -> None:
         quick_ask_api.EXTRA_TOOLS.pop("demo_tool", None)
@@ -1237,7 +1201,7 @@ class Round22ContractAndChatsTests(unittest.TestCase):
                 event = json.loads(chunk[6:])
                 out.append(event)
                 if event["event"] == "client_tool":
-                    # The page runs the tool and posts the result (/api/quick/tool_result).
+
                     asyncio.get_running_loop().call_later(0.01, quick_ask_api.resolve_client_tool, event["id"], {"value": 42})
             return out
         events = asyncio.run(collect())

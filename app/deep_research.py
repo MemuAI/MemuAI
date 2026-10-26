@@ -39,13 +39,11 @@ SearchFn = Callable[[str, int], Awaitable[List[Dict[str, Any]]]]
 FetchFn = Callable[[str, int], Awaitable[Dict[str, Any]]]
 EmitFn = Callable[[Dict[str, Any]], Any]
 
-#: Домены, которые почти никогда не дают читаемого текста без входа.
 _LOW_VALUE_HOSTS = (
     "pinterest.", "facebook.com", "instagram.com", "tiktok.com", "x.com",
     "twitter.com", "linkedin.com", "vk.com/login", "accounts.google.com",
 )
 
-# Запасные формулировки на случай, если набор промптов не загружен.
 PLANNER_FALLBACK = (
     "You are the planning stage of a deep web research run. Assess the task, split it into "
     "sub-questions and decide yourself how many web searches are needed. Return JSON only."
@@ -58,7 +56,6 @@ REVIEWER_FALLBACK = (
     "You review the evidence gathered so far in a research run, judge coverage and decide "
     "whether more searching is needed. Return JSON only."
 )
-
 
 @dataclass
 class ResearchLimits:
@@ -87,7 +84,6 @@ class ResearchLimits:
                    max_rounds=number("research_max_rounds", 4, 1, 8),
                    max_sources=number("research_max_sources", 30, 4, 100))
 
-
 @dataclass
 class Source:
     n: int
@@ -96,7 +92,7 @@ class Source:
     snippet: str = ""
     domain: str = ""
     queries: List[str] = field(default_factory=list)
-    status: str = "found"  # found | reading | read | failed
+    status: str = "found"
     text: str = ""
     date: str = ""
     quality: str = ""
@@ -109,7 +105,6 @@ class Source:
         return {"n": self.n, "url": self.url, "title": self.title or self.domain,
                 "domain": self.domain, "status": self.status, "date": self.date,
                 "relevance": self.relevance, "findings": len(self.findings)}
-
 
 def extract_json(text: str) -> Any:
     """Первый JSON-объект из ответа модели: терпит ```json, пояснения и мусор вокруг."""
@@ -146,7 +141,7 @@ def extract_json(text: str) -> Any:
         try:
             value = json.loads(candidate)
         except (ValueError, TypeError):
-            # Частая ошибка моделей — запятая перед закрывающей скобкой.
+
             try:
                 value = json.loads(re.sub(r",\s*([}\]])", r"\1", candidate))
             except (ValueError, TypeError):
@@ -154,7 +149,6 @@ def extract_json(text: str) -> Any:
         if isinstance(value, dict):
             return value
     return {}
-
 
 def normalize_url(url: str) -> str:
     """Ключ для дедупликации: без фрагмента, utm-меток и завершающего слэша."""
@@ -171,7 +165,6 @@ def normalize_url(url: str) -> str:
     return urllib.parse.urlunsplit((parts.scheme.lower(), host, path,
                                     urllib.parse.urlencode(query), ""))
 
-
 def domain_of(url: str) -> str:
     try:
         host = (urllib.parse.urlsplit(url).hostname or "").lower()
@@ -179,18 +172,15 @@ def domain_of(url: str) -> str:
         return ""
     return host[4:] if host.startswith("www.") else host
 
-
 def _truthy(value: Any) -> bool:
     """A JSON flag from a model: ``"false"`` / ``"no"`` as a string used to count as True."""
     if isinstance(value, str):
         return value.strip().lower() in ("true", "yes", "1", "да")
     return bool(value)
 
-
 def _rows(value: Any) -> List[Any]:
     """A list from a model's JSON; a string here used to be iterated character by character."""
     return value if isinstance(value, list) else []
-
 
 def _clean_list(values: Any, limit: int, width: int = 300) -> List[str]:
     out: List[str] = []
@@ -204,7 +194,6 @@ def _clean_list(values: Any, limit: int, width: int = 300) -> List[str]:
         if len(out) >= limit:
             break
     return out
-
 
 class ResearchEngine:
     def __init__(self, *, complete: CompleteFn, search: SearchFn, fetch: FetchFn,
@@ -229,7 +218,6 @@ class ResearchEngine:
         self._model_gate = asyncio.Semaphore(self.limits.model_concurrency)
         self.model_calls = 0
 
-    # ------------------------------------------------------------ utilities
     async def emit(self, event: Dict[str, Any]) -> None:
         if self.emit_fn is None:
             return
@@ -254,7 +242,6 @@ class ResearchEngine:
     def budget_left(self) -> int:
         return max(0, self.limits.max_queries - len(self.queries_done))
 
-    # ------------------------------------------------------------ planning
     async def make_plan(self, query: str, context: str) -> Dict[str, Any]:
         first_round_cap = self.limits.max_queries if self.limits.max_rounds == 1 \
             else max(3, int(self.limits.max_queries * 0.7))
@@ -278,7 +265,7 @@ class ResearchEngine:
         plan: Dict[str, Any] = {}
         try:
             plan = extract_json(await self.ask(system, user))
-        except Exception as exc:  # модель недоступна или не уложилась во время
+        except Exception as exc:
             await self.emit({"type": "warning", "message": f"planner: {str(exc)[:200]}"})
         subs = []
         for index, row in enumerate(_rows(plan.get("sub_questions"))):
@@ -290,13 +277,12 @@ class ResearchEngine:
                 subs.append({"id": str(row.get("id") or f"q{index + 1}")[:12],
                              "question": question, "queries": queries})
         if not subs:
-            # Модель не справилась с JSON: исследуем тему как один подвопрос.
+
             topic = " ".join(query.split())[:240]
             subs = [{"id": "q1", "question": topic,
                      "queries": _clean_list([topic, f"{topic} overview", f"{topic} latest data"], 3)}]
         subs = subs[:12]
-        # Бюджет первого раунда распределяется по подвопросам поочерёдно,
-        # чтобы ни один подвопрос не остался без поиска.
+
         planned: List[Dict[str, str]] = []
         depth = 0
         while len(planned) < first_round_cap and any(depth < len(s["queries"]) for s in subs):
@@ -317,7 +303,6 @@ class ResearchEngine:
         await self.emit({"type": "plan", "plan": self.plan})
         return {"queries": planned}
 
-    # ------------------------------------------------------------ searching
     async def run_searches(self, pending: List[Dict[str, str]], round_no: int) -> int:
         gate = asyncio.Semaphore(self.limits.search_concurrency)
         found_before = len(self.order)
@@ -369,13 +354,11 @@ class ResearchEngine:
         await asyncio.gather(*(one(item) for item in fresh))
         return len(self.order) - found_before
 
-    # ------------------------------------------------------------ choosing
     def _heuristic_pick(self, candidates: List[Source], budget: int) -> List[Source]:
         """По кругу: лучший результат каждого запроса, затем следующий, без повторов доменов."""
         picked: List[Source] = []
         domains: Dict[str, int] = {}
-        # Position by identity: ``normalize_url(s.url)`` of a URL cut to 2000 characters is not its key,
-        # and ``order.index`` raised ValueError, ending the whole run.
+
         position = {id(self.sources[key]): index for index, key in enumerate(self.order)}
         ranked = sorted(candidates, key=lambda s: (-len(s.queries), position.get(id(s), 0)))
         for limit_per_domain in (1, 2, 4):
@@ -396,8 +379,7 @@ class ResearchEngine:
         if rounds_left == 1:
             budget = room
         elif round_no == 1:
-            # Первый раунд читает почти половину: рефлексия может решить,
-            # что данных уже достаточно, и досье не должно остаться тощим.
+
             budget = max(3, min(room, -(-room * 45 // 100)))
         else:
             budget = max(3, min(room, -(-room // rounds_left) + 1))
@@ -435,7 +417,6 @@ class ResearchEngine:
             pass
         return pool[:budget]
 
-    # ------------------------------------------------------------ reading
     async def read_sources(self, picked: List[Source]) -> None:
         gate = asyncio.Semaphore(self.limits.fetch_concurrency)
         next_number = max([s.n for s in self.sources.values()] + [0])
@@ -459,7 +440,7 @@ class ResearchEngine:
                 except Exception as exc:
                     source.status = "failed"
                     source.error = str(exc)[:200]
-                    # Сниппет выдачи всё равно полезен как слабое свидетельство.
+
                     source.text = source.snippet
             await self.emit({"type": "source", **source.public()})
 
@@ -516,17 +497,16 @@ class ResearchEngine:
                         source.sub_questions.append(sub)
             for source in batch:
                 if not source.findings and source.text and source.status == "read" and not rows:
-                    # Модель не вернула разбор: оставляем начало текста как сырую выписку.
+
                     source.findings = [source.text[:900]]
                     source.relevance = source.relevance or 1
                 await self.emit({"type": "notes", "n": source.n, "findings": len(source.findings),
                                  "relevance": source.relevance})
             for source in batch:
-                source.text = ""  # освобождаем память: дальше нужны только выписки
+                source.text = ""
 
         await asyncio.gather(*(one(batch) for batch in batches))
 
-    # ------------------------------------------------------------ reviewing
     def evidence_digest(self, limit: int = 24000) -> str:
         lines: List[str] = []
         for source in self.useful_sources():
@@ -581,7 +561,6 @@ class ResearchEngine:
                          "follow_up": [row["query"] for row in follow[:left]]})
         return [] if done else follow[:left]
 
-    # ------------------------------------------------------------ output
     def useful_sources(self) -> List[Source]:
         rows = [self.sources[key] for key in self.order
                 if self.sources[key].n and self.sources[key].findings and self.sources[key].relevance > 0]
@@ -629,7 +608,6 @@ class ResearchEngine:
                 "useful": len(self.useful_sources()), "model_calls": self.model_calls,
                 "seconds": int(time.time() - self.started)}
 
-    # ------------------------------------------------------------ main loop
     async def run(self, query: str, context: str = "") -> Dict[str, Any]:
         query = str(query or "").strip()
         if not query:

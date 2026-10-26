@@ -1,12 +1,10 @@
-// MemuNote — AI editing: pure helpers (no DOM, no CodeMirror; tested in Node by tests/round31_note_ai_test.py):
-// context excerpts for large files, outline/sections, word diff → hunks, resolving the agent's edit operations.
+
+
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-// ------------------------------------------------------------------ context (never the whole multi-MB file)
 const MARK_CURSOR = "⟦cursor⟧", MARK_SEL = "⟦selection⟧", MARK_SEL_END = "⟦/selection⟧";
 export const MARKERS_RE = /⟦(?:cursor|\/?selection)⟧/g;
 
-/** Markdown / rich-doc outline: [{level, title, line, from}] (first 200 headings, first 4 MB scanned). */
 export function outlineOf(text, kind) {
   const out = [];
   const max = Math.min(text.length, 4 * 1048576);
@@ -24,7 +22,6 @@ export function outlineOf(text, kind) {
   return out;
 }
 
-/** The section around `pos`: from its heading line to the next heading of the same or higher level. */
 export function sectionAt(text, kind, pos) {
   const heads = outlineOf(text, kind);
   let cur = -1;
@@ -37,7 +34,6 @@ export function sectionAt(text, kind, pos) {
   return { title: h.title, level: h.level, from: h.from, bodyFrom, to: end };
 }
 
-/** Paragraph-snapped window of about `size` chars around [a, b]. */
 function windowAround(text, a, b, size) {
   let from = Math.max(0, a - Math.floor(size / 2)), to = Math.min(text.length, Math.max(b, from + size));
   from = Math.max(0, Math.min(from, to - size));
@@ -48,11 +44,6 @@ function windowAround(text, a, b, size) {
 
 const lineOf = (text, pos) => { let n = 1, i = -1; while ((i = text.indexOf("\n", i + 1)) >= 0 && i < pos) n++; return n; };
 
-/**
- * info: {text, kind, selFrom, selTo, cursor, scope: auto|document|selection|section, limit}
- * → {text (excerpt with ⟦markers⟧), excerpt_pos, total_chars, lines, truncated, outline, scope, section_title,
- *    selection, selection_lines, range:[from,to] of the scope}
- */
 export function buildContext(info) {
   const text = info.text || "", kind = info.kind || "text";
   const limit = Math.max(4000, Math.min(info.limit || 48000, 120000));
@@ -66,7 +57,7 @@ export function buildContext(info) {
   let range = [0, text.length];
   if (scope === "selection") range = [selFrom, selTo];
   else if (scope === "section") range = [sec.from, sec.to];
-  // Excerpt: the whole file when it fits, otherwise the head + a window around the selection / section.
+
   let excerptFrom = 0, excerptTo = text.length, truncated = false;
   const total = text.length;
   if (total > limit) {
@@ -81,7 +72,7 @@ export function buildContext(info) {
   }
   const prefixLen = pieces.join("").length;
   let body = text.slice(excerptFrom, excerptTo);
-  // markers (only inside the excerpt)
+
   const rel = (p) => p - excerptFrom;
   if (hasSel && selFrom >= excerptFrom && selTo <= excerptTo && selTo - selFrom < 200000) {
     body = body.slice(0, rel(selTo)) + MARK_SEL_END + body.slice(rel(selTo));
@@ -100,10 +91,8 @@ export function buildContext(info) {
   };
 }
 
-// ------------------------------------------------------------------ diff (Myers on word tokens) → hunks
 export function tokenize(s) { return s.match(/\s+|[\p{L}\p{N}_]+|[^\s\p{L}\p{N}_]/gu) || []; }
 
-/** Myers O(ND): → [{op: "=", "-", "+", text}] or null when the texts are too different (D > maxD). */
 export function diffTokens(a, b, maxD = 3000) {
   let s = 0; while (s < a.length && s < b.length && a[s] === b[s]) s++;
   let ea = a.length, eb = b.length; while (ea > s && eb > s && a[ea - 1] === b[eb - 1]) { ea--; eb--; }
@@ -146,11 +135,6 @@ export function diffTokens(a, b, maxD = 3000) {
   return out;
 }
 
-/**
- * Hunks to turn `oldText` (at document offset `base`) into `newText`: [{from, to, insert, del}].
- * Neighbouring changes separated by ≤ 2 short equal tokens are merged; a rewrite that changes most words
- * becomes paragraph-sized hunks; too many tiny hunks are merged by line.
- */
 export function buildHunks(oldText, newText, base = 0) {
   if (oldText === newText) return [];
   const ta = tokenize(oldText), tb = tokenize(newText);
@@ -171,16 +155,15 @@ export function buildHunks(oldText, newText, base = 0) {
     }
   }
   if (cur) hunks.push(cur);
-  // A translation / full rewrite (most of the text changed): word hunks are noise ("everything but 1500") —
-  // review it by paragraphs instead.
+
   const changedChars = hunks.reduce((n, h) => n + (h.to - h.from), 0);
   if (oldText.length > 40 && changedChars > oldText.trim().length * 0.5) return paragraphHunks(oldText, newText, base);
-  // A rewrite: changes cover most of a paragraph → one hunk per paragraph (easier to review).
+
   hunks = mergeBy(hunks, oldText, /\n\s*\n/g, (h, para) => h.length > 2 && h.reduce((n, x) => n + Math.max(x.del.length, x.insert.length), 0) > para.trim().length * 0.55);
   if (hunks.length > 60) hunks = mergeBy(hunks, oldText, /\n/g, () => true);
   return hunks.map((h) => ({ from: base + h.from, to: base + h.to, insert: h.insert, del: oldText.slice(h.from, h.to) }));
 }
-/** Paragraph-level hunks (blank-line separated blocks; equal paragraphs stay untouched). */
+
 function paragraphHunks(oldText, newText, base) {
   const split = (t) => t.split(/(\n\s*\n)/);
   const parts = diffTokens(split(oldText), split(newText), 2000);
@@ -193,7 +176,7 @@ function paragraphHunks(oldText, newText, base) {
   }
   if (cur) out.push(cur);
   return out.map((h) => {
-    // a separator glued at the end of a hunk belongs to the unchanged text after it
+
     const del = oldText.slice(h.from, h.to);
     const m = /\n\s*\n$/.exec(del), n = /\n\s*\n$/.exec(h.insert);
     if (m && n && m[0] === n[0]) { h.to -= m[0].length; h.insert = h.insert.slice(0, -n[0].length); }
@@ -223,7 +206,6 @@ function mergeBy(hunks, oldText, sepRe, should) {
   return out;
 }
 
-/** HTML of a word-level inline diff old → new (for the preview cards). */
 export function diffHtml(oldText, newText, maxLen = 4000) {
   const a = oldText.length > maxLen ? oldText.slice(0, maxLen) + "…" : oldText, b = newText.length > maxLen ? newText.slice(0, maxLen) + "…" : newText;
   const parts = diffTokens(tokenize(a), tokenize(b), 1500);
@@ -231,9 +213,8 @@ export function diffHtml(oldText, newText, maxLen = 4000) {
   return parts.map((p) => (p.op === "=" ? esc(p.text) : p.op === "-" ? `<del>${esc(p.text)}</del>` : `<ins>${esc(p.text)}</ins>`)).join("");
 }
 
-// ------------------------------------------------------------------ resolving agent edits against the document
 export const escRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-/** Exact match nearest to `near`; then a whitespace-tolerant match (models re-wrap lines, eat double spaces). */
+
 export function locate(text, needle, near = 0) {
   needle = String(needle || "").replace(MARKERS_RE, "");
   if (!needle) return null;
@@ -248,10 +229,6 @@ export function locate(text, needle, near = 0) {
   return best;
 }
 
-/**
- * edit (from the server, see app/memunote/edits.py) → {changes:[{from,to,insert}], error?, label}
- * info: {cursor, selFrom, selTo, kind}
- */
 export function resolveEdit(edit, text, info) {
   const near = info.cursor ?? 0;
   const ins = String(edit.text ?? "");
@@ -290,7 +267,7 @@ export function resolveEdit(edit, text, info) {
       let body = ins; const first = body.split("\n", 1)[0];
       if (/^#{1,6}\s/.test(first) && first.replace(/^#+\s*/, "").trim() === hit.title.trim()) body = body.slice(first.length);
       body = body.replace(/^\s*\n/, "");
-      // keep the blank line(s) under the heading as they were
+
       const gap = /^(?:[ \t]*\n)*/.exec(text.slice(sec.bodyFrom, sec.to))[0].length;
       return { changes: [{ from: sec.bodyFrom + gap, to: sec.to, insert: sectionBody(body, text, sec.to) }] };
     }
@@ -298,7 +275,7 @@ export function resolveEdit(edit, text, info) {
   }
 }
 function sectionBody(body, text, to) { body = body.replace(/\s+$/, ""); return to < text.length ? body + "\n\n" : body + (text.endsWith("\n") ? "\n" : ""); }
-/** Blank-line separation for block inserts at the start/end/after a paragraph. */
+
 function joinInsert(text, pos, ins, at) {
   if (at === "cursor" || !ins) return ins;
   const before = text.slice(Math.max(0, pos - 2), pos), after = text.slice(pos, pos + 2);

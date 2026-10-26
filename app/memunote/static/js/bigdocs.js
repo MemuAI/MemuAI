@@ -1,14 +1,10 @@
-// Round 35 — documents of any size in the MemuNote AI panel (zone bigdocs; server: app/memunote/bigdocs_api.py → app/bigdocs.py).
-// Before: the panel saw a 60 000-character window of the document (and nothing of an opened PDF). For a PDF / DOCX / EPUB
-// opened from disk that is a PDF or longer than the window, a question now goes through the whole file:
-//   «Спросить» — the fragments a local search found, the answer cites [стр. N] (hover → the quote, click → the page);
-//   «Весь документ» — map-reduce over the chapters with the cost first and progress «глава 7 из 20».
-// Hooks in ai.js: runChat → applies/answer, renderScope → bar, renderBody → decorate.
+
+
 import { api, esc, I18N, toast } from "./core.js";
 
 const tr = (ru, en) => (I18N.lang === "en" ? en : ru);
 const DOC_RE = /\.(pdf|docx|epub|fb2)$/i;
-const docs = new Map();            // path → summary (this session)
+const docs = new Map();
 
 function tabOf(panel) { return panel.ctx.editor?.()?.tab || null; }
 function limitOf(panel) { return Math.min(+panel.ctx.settings?.().ai_context_chars || 60000, 60000); }
@@ -31,7 +27,6 @@ async function ensureDoc(path) {
   return res.doc;
 }
 
-/* The mode chips under the scope chips (only for a big document). */
 export function bar(panel, box, snap) {
   if (!box || !applies(panel, snap)) return;
   const tab = tabOf(panel), info = docs.get(tab.path);
@@ -49,7 +44,6 @@ function fakeSnap(snap, text, name) {
   return { ...snap, text, total: text.length, selFrom: text.length, selTo: text.length, cursor: text.length, kind: "text", doc: null, offset: 0, name };
 }
 
-/* A question about a big document (the user bubble is already shown). */
 export async function answer(panel, question, snap, model) {
   const tab = tabOf(panel);
   const bubble = panel.assistantBubble();
@@ -116,7 +110,6 @@ async function whole(panel, info, question, model, say) {
   throw new Error(state.error || tr("Ошибка", "Error"));
 }
 
-/* [стр. N] in a rendered answer → a mark with the quote on hover. */
 const CITE_RE = /\[(≈)?\s*(стр\.?|с\.|p\.|page)\s*(\d+(?:\s*[,–-]\s*\d+)*)(?:[,;]\s*(?:§|п\.|пп\.|para\.?|section|раздел|разд\.)[^\]\[]{0,40})?\]/gi;
 const CITE_TEST = new RegExp(CITE_RE.source, "i");
 export function decorate(body, refs) {

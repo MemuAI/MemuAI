@@ -15,10 +15,8 @@ import httpx
 
 G = "https://www.googleapis.com/auth/"
 
-
 def _b64(text: str) -> str:
     return base64.urlsafe_b64encode(text.encode("utf-8")).decode("ascii").rstrip("=")
-
 
 class FakeApis:
     def __init__(self) -> None:
@@ -50,7 +48,6 @@ class FakeApis:
         self.created_pages: List[Dict[str, Any]] = []
         self.appended: List[Dict[str, Any]] = []
 
-    # ------------------------------------------------------------------ helpers
     @staticmethod
     def _json(request: httpx.Request) -> Any:
         try:
@@ -73,14 +70,13 @@ class FakeApis:
         return {"object": "page", "id": pid, "url": "https://www.notion.so/" + pid, "last_edited_time": "2026-10-09T10:00:00Z",
                 "properties": {"title": {"type": "title", "title": [{"plain_text": page["title"]}]}}}
 
-    # ------------------------------------------------------------------ handler
     def handler(self, request: httpx.Request) -> httpx.Response:
         url = str(request.url).split("?")[0]
         body = self._json(request)
         self.calls.append((request.method, url, body))
         q = dict(request.url.params)
         auth = request.headers.get("authorization", "")
-        # ---- Google OAuth
+
         if url == "https://oauth2.googleapis.com/token":
             form = dict(x.split("=", 1) for x in request.content.decode().split("&") if "=" in x)
             if form.get("grant_type") == "refresh_token" and form.get("refresh_token", "").replace("%2F", "/") not in (self.refresh, "1//seeded-refresh-token"):
@@ -94,7 +90,7 @@ class FakeApis:
             return httpx.Response(200, json={"email": "me@example.com", "name": "Me"})
         if url.startswith(("https://gmail.googleapis.com", "https://www.googleapis.com")) and auth != "Bearer " + self.access:
             return httpx.Response(401, json={"error": {"code": 401, "message": "Invalid Credentials", "status": "UNAUTHENTICATED"}})
-        # ---- Gmail
+
         gm = "https://gmail.googleapis.com/gmail/v1/users/me"
         if url == gm + "/profile":
             return httpx.Response(200, json={"emailAddress": "me@example.com", "messagesTotal": 2})
@@ -117,7 +113,7 @@ class FakeApis:
         if url in (gm + "/messages/send", gm + "/drafts/send"):
             self.sent.append(body)
             return httpx.Response(200, json={"id": "s%d" % len(self.sent), "threadId": "ts"})
-        # ---- Calendar
+
         cal = "https://www.googleapis.com/calendar/v3"
         if url == cal + "/users/me/calendarList":
             return httpx.Response(200, json={"items": [{"id": "me@example.com", "summary": "me@example.com", "primary": True}]})
@@ -138,7 +134,7 @@ class FakeApis:
             if request.method == "DELETE":
                 self.events = [row for row in self.events if row["id"] != cm.group(2)]
                 return httpx.Response(204)
-        # ---- Drive
+
         drv = "https://www.googleapis.com/drive/v3"
         if url == drv + "/files" and request.method == "GET":
             return httpx.Response(200, json={"files": list(self.files.values())})
@@ -158,7 +154,7 @@ class FakeApis:
             name = re.search(r'"name":\s*"([^"]+)"', text)
             self.files[fid] = {"id": fid, "name": name.group(1) if name else "file", "mimeType": "text/plain"}
             return httpx.Response(200, json={"id": fid, "name": self.files[fid]["name"], "webViewLink": "https://drive.google.com/" + fid})
-        # ---- Notion
+
         if url.startswith("https://api.notion.com/v1"):
             path = url[len("https://api.notion.com/v1"):]
             if path == "/oauth/revoke":
@@ -194,7 +190,6 @@ class FakeApis:
                 self.created_pages.append(body)
                 return httpx.Response(200, json={"id": "22222222-2222-2222-2222-222222222222", "url": "https://www.notion.so/new"})
         return httpx.Response(404, json={"error": {"code": 404, "message": "fake: no route " + url}})
-
 
 def install(fake: FakeApis) -> Callable[[], None]:
     """Route app.integrations and the shared Google account through ``fake``; returns the undo function."""

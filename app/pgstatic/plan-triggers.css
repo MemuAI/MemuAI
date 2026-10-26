@@ -1,6 +1,3 @@
-/* MemuAI — Round 35: data & integration triggers of «Планирование» (plan-triggers.js). Theme tokens only. */
-
-/* the categorized picker */
 .ptx-picker .ptx-picker-box { width: 720px; }
 .ptx-picker-main { display: grid; grid-template-columns: minmax(170px, 220px) 1fr; gap: 12px; min-height: 0; }
 .ptx-cats { display: flex; flex-direction: column; gap: 2px; padding-right: 10px; border-right: 1px solid var(--border); }
@@ -21,8 +18,6 @@
 .ptx-src small { font-size: 12px; color: var(--muted); line-height: 1.35; }
 .ptx-badge { font-style: normal; font-size: 10.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--muted); white-space: nowrap; align-self: center; }
 .ptx-badge.warn { color: color-mix(in srgb, #e3a33b 62%, var(--text)); border-color: color-mix(in srgb, #e3a33b 45%, var(--border)); }
-
-/* builder row */
 .pln-row .ptx-cat { margin-right: 2px; }
 .ptx-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
 .ptx-health { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); min-width: 0; }
@@ -53,19 +48,12 @@
 .ptx-sub { display: flex; flex-direction: column; gap: 8px; padding: 8px 10px; border-radius: var(--r-sm, 9px); border: 1px dashed var(--border); position: relative; }
 .ptx-sub .pln-or { position: absolute; top: -10px; left: 12px; }
 .ptx-sub > .pln-line > .ui-icon { color: var(--accent); }
-
-/* task card */
 .ptx-card-health { display: flex; align-items: center; gap: 6px; margin-top: 5px; font-size: 12px; color: var(--muted); min-width: 0; }
 .ptx-card-health > .ui-icon { width: 13px; height: 13px; flex: none; }
 .ptx-card-health > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ptx-card-health.bad { color: var(--danger, #e06c5a); }
 .ptx-card-health .pln-link { flex: none; }
-
-/* Round 35 (finish-c): the overlay covers the whole builder even when it is scrolled (absolute inset:0 moved with
-   the scroll and left the bottom and the «Итог» footer undimmed); #panel is the containing block when it has one. */
 .pln-picker.ptx-picker { position: fixed; border-radius: 0; z-index: 1200; }
-
-/* designs */
 :root[data-design="brutal"] .ptx-picker .ptx-picker-box { border-radius: 12px; background: var(--b-card, var(--panel)); border: var(--b-line, 2px solid var(--text)); box-shadow: var(--b-sh-2, 6px 6px 0 var(--text)); }
 :root[data-design="brutal"] .ptx-src { border: var(--b-w, 2px) solid var(--b-ink, var(--text)); border-radius: 8px; }
 :root[data-design="brutal"] .ptx-src:hover, :root[data-design="brutal"] .ptx-src:focus-visible { background: var(--b-block, color-mix(in srgb, var(--accent) 12%, var(--panel))); box-shadow: 3px 3px 0 var(--b-ink, var(--text)); outline: 0; }

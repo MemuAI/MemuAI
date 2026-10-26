@@ -10,8 +10,6 @@ from __future__ import annotations
 import os
 import tempfile
 
-# The same guard as tests/_isolation_test.py: a single-module run must never
-# touch the real %APPDATA%\MemuAI folder.
 if not os.environ.get("MEMUAI_DATA_DIR"):
     os.environ["MEMUAI_DATA_DIR"] = tempfile.mkdtemp(prefix="memuai-tests-")
 
@@ -42,9 +40,6 @@ from app.providers.base import (  # noqa: E402
 from app.state import ST_INVALID, ST_OK, ST_UNKNOWN, Account, ModelEntry, state  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-
-
-# ------------------------------------------------------------------ no cooldown
 
 class AccountsAreNeverPausedTest(unittest.TestCase):
     """«Откат»: after an error the account stays in the rotation."""
@@ -100,8 +95,8 @@ class AccountsAreNeverPausedTest(unittest.TestCase):
         self.assertTrue(account.usable())
         self.assertNotIn("cooldown_until", account.public_dict())
         self.assertNotIn("cooldown_until", account.__dict__)
-        self.assertNotIn("cooldown_until", account._unknown)      # not carried around forever either
-        self.assertEqual(account.stats["requests"], 3)              # the history is kept
+        self.assertNotIn("cooldown_until", account._unknown)
+        self.assertEqual(account.stats["requests"], 3)
 
     def test_manual_checks_and_successes_just_mark_the_account_working(self) -> None:
         account = Account("custom", {"name": "demo"}, status=ST_INVALID, status_message="bad")
@@ -118,9 +113,6 @@ class AccountsAreNeverPausedTest(unittest.TestCase):
         for name in names:
             text = (ROOT / name).read_text(encoding="utf-8")
             self.assertIsNone(bad.search(text), f"{name} still mentions the removed cooldown")
-
-
-# ------------------------------------------------------------------ orphan models
 
 class OrphanModelsTest(unittest.TestCase):
     def catalogue(self):
@@ -139,12 +131,12 @@ class OrphanModelsTest(unittest.TestCase):
     def test_models_of_providers_without_accounts_disappear(self) -> None:
         accounts = {"k": Account("kiro", {}, id="k"), "c1": Account("custom", {"name": "mysite"}, id="c1")}
         count, save, left = self.prune(accounts, self.catalogue())
-        self.assertEqual(count, 5)                   # 2 × genspark, notion, zcode, antigravity
-        save.assert_called_once()                    # one write for hundreds of models
+        self.assertEqual(count, 5)
+        save.assert_called_once()
         self.assertEqual(left, ["kiro-claude-sonnet-4-5", "local-qwen3", "mysite-gpt-x"])
 
     def test_local_catalogue_never_depends_on_accounts(self) -> None:
-        # Round 26: a custom connection's models leave with the connection (prefix = its name).
+
         count, _, left = self.prune({}, self.catalogue())
         self.assertEqual(left, ["local-qwen3"])
         self.assertEqual(count, 7)
@@ -174,13 +166,9 @@ class OrphanModelsTest(unittest.TestCase):
         self.assertIn("state.prune_orphan_models", text)
         self.assertLess(text.index("state.prune_orphan_models"), text.index("local_models.sync_catalog"))
 
-
-# ------------------------------------------------------------------ Antigravity: names
-
 from app import model_seeds  # noqa: E402
 from app.providers import antigravity, antigravity_models as names, antigravity_quota as quota  # noqa: E402
 from app.providers import http as provider_http  # noqa: E402
-
 
 def server_models():
     """The shape of a real ``fetchAvailableModels`` answer (trimmed to what matters)."""
@@ -202,7 +190,7 @@ def server_models():
             "gemini-2.5-flash-thinking": model("Gemini 3.5 Flash Lite"),
             "gemini-2.5-pro": model("Gemini 2.5 Pro"),
             "gemini-3-flash": model("Gemini 3 Flash"),
-            # Gemini 3.5 Flash is retired: the server still lists it, but answers with a canned phrase.
+
             "gemini-3-flash-agent": model("Gemini 3.5 Flash (High)"),
             "gemini-3.1-flash-image": model("Gemini 3.1 Flash Image"),
             "gemini-3.1-flash-lite": model("Gemini 3.1 Flash Lite"),
@@ -222,7 +210,6 @@ def server_models():
         "imageGenerationModelIds": ["gemini-3.1-flash-image"],
     }
 
-
 class ModelNamesTest(unittest.TestCase):
     def setUp(self) -> None:
         names.reset_learned()
@@ -234,31 +221,31 @@ class ModelNamesTest(unittest.TestCase):
             self.assertIn(f"gemini-3.6-flash-{level}", public)
         self.assertIn("gemini-3.1-pro-high", public)
         self.assertIn("gemini-3.1-pro-low", public)
-        self.assertNotIn("gemini-3.1-pro-medium", public)             # Pro has two levels only
-        # The newest Flash models choose the level themselves or take it from the name; 3.5 is retired.
+        self.assertNotIn("gemini-3.1-pro-medium", public)
+
         for family in ("gemini-3.7-flash", "gemini-3.8-flash"):
             self.assertIn(family, public)
             for level in ("high", "medium", "low"):
                 self.assertIn(f"{family}-{level}", public)
         self.assertFalse([name for name in public if name.startswith("gemini-3.5-flash-") and not name.endswith("lite")])
-        # Opus and Sonnet are both «(Thinking)» at Google, so both are named alike.
+
         self.assertIn("claude-opus-4-6-thinking", public)
         self.assertIn("claude-sonnet-4-6-thinking", public)
         self.assertNotIn("claude-sonnet-4-6", public)
         self.assertEqual(len(public), len(set(public)))
-        # Every shipped model has the title Google shows for it.
+
         for model in names.CURATED:
             self.assertTrue(model.note)
 
     def test_public_names_translate_back_and_old_ids_keep_working(self) -> None:
         for model in names.CURATED:
             self.assertEqual(names.upstream_id(model.public), model.upstream)
-            if not model.level:            # one Google id serves every level of a «tiered» model
+            if not model.level:
                 self.assertEqual(names.public_id(model.upstream), model.public)
         self.assertEqual(names.upstream_id("gemini-3.8-flash-medium"), "gemini-3.8-flash-tiered")
         self.assertEqual(names.public_id("gemini-3.8-flash-tiered"), "gemini-3.8-flash")
-        self.assertEqual(names.upstream_id("claude-sonnet-4-6"), "claude-sonnet-4-6")          # old id
-        self.assertEqual(names.upstream_id("gemini-pro-agent"), "gemini-pro-agent")            # Google's own id
+        self.assertEqual(names.upstream_id("claude-sonnet-4-6"), "claude-sonnet-4-6")
+        self.assertEqual(names.upstream_id("gemini-pro-agent"), "gemini-pro-agent")
         self.assertEqual(names.upstream_id("gemini-3.1-pro-high"), "gemini-pro-agent")
         self.assertEqual(names.upstream_id("gemini-3.7-flash"), "gemini-3.7-flash-tiered")
         self.assertEqual(names.upstream_id("gemini-3.7-flash-tiered"), "gemini-3.7-flash-tiered")
@@ -270,14 +257,14 @@ class ModelNamesTest(unittest.TestCase):
         self.assertEqual([item.public for item in found], [m.public for m in names.CURATED])
         by_public = {item.public: item for item in found}
         self.assertEqual(by_public["gemini-3.1-pro-high"].upstream, "gemini-pro-agent")
-        self.assertEqual(by_public["gemini-3.7-flash"].upstream, "gemini-3.7-flash-tiered")   # the server gives it no title
+        self.assertEqual(by_public["gemini-3.7-flash"].upstream, "gemini-3.7-flash-tiered")
         self.assertEqual(by_public["gemini-3.7-flash"].display, "Gemini 3.7 Flash (auto thinking)")
         self.assertEqual(by_public["claude-sonnet-4-6-thinking"].upstream, "claude-sonnet-4-6")
         for gone in ("gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash-thinking", "gemini-3.6-flash-tiered",
                      "gemini-3.1-flash-image", "chat_20706", "tab_flash_lite_preview", "gemini-pro-agent",
                      "gemini-3-flash-agent", "gemini-3.5-flash-low", "gemini-3.5-flash-extra-low",
                      "gemini-3.5-flash-high", "gemini-3.5-flash-medium", "claude-sonnet-4-6"):
-            self.assertNotIn(gone, by_public)                # only current public names are listed
+            self.assertNotIn(gone, by_public)
         self.assertEqual(names.upstream_id("gemini-3.1-pro-high"), "gemini-pro-agent")
 
     def test_future_models_get_an_honest_name_from_their_title(self) -> None:
@@ -299,12 +286,12 @@ class ModelNamesTest(unittest.TestCase):
         rows = [entry("claude-sonnet-4-6", note="Claude Sonnet 4.6 (Thinking)"), entry("claude-opus-4-6-thinking"),
                 entry("gemini-pro-agent", enabled=False), entry("gemini-3.1-pro-low"),
                 entry("gemini-3.6-flash-high"),
-                entry("gemini-3-flash-agent", note="discovered 28.09"),          # retired Gemini 3.5 Flash ×3
+                entry("gemini-3-flash-agent", note="discovered 28.09"),
                 entry("gemini-3.5-flash-low", note="discovered 28.09"),
                 entry("gemini-3.5-flash-extra-low", note="discovered 28.09"),
-                entry("gemini-2.5-flash", note="discovered 28.09"),              # an old name of 3.5 Flash Lite
-                entry("gemini-3.6-flash-tiered", note="discovered 28.09"),       # 3.6 has explicit levels instead
-                entry("gemini-3.7-flash-tiered", note="discovered 28.09"),       # the real 3.7 Flash
+                entry("gemini-2.5-flash", note="discovered 28.09"),
+                entry("gemini-3.6-flash-tiered", note="discovered 28.09"),
+                entry("gemini-3.7-flash-tiered", note="discovered 28.09"),
                 entry("gemini-3.1-flash-image", source="manual"),
                 ModelEntry("kiro", "kiro", "claude-sonnet-4-6")]
         models = {row.id: row for row in rows}
@@ -316,26 +303,26 @@ class ModelNamesTest(unittest.TestCase):
                               enabled=template.enabled, source=template.source, note=note)
 
         change = names.upgrade_catalog(models, make)
-        self.assertEqual(tuple(change), (3, 5, 11, 3))                  # renamed, removed, added, got a real title
+        self.assertEqual(tuple(change), (3, 5, 11, 3))
         self.assertEqual(models["antigravity-claude-opus-4-6-thinking"].note, "Claude Opus 4.6 (Thinking)")
         self.assertEqual(models["antigravity-claude-sonnet-4-6-thinking"].note, "Claude Sonnet 4.6 (Thinking)")
         self.assertNotIn("antigravity-claude-sonnet-4-6", models)
         self.assertIn("antigravity-claude-sonnet-4-6-thinking", models)
-        self.assertIn("kiro-claude-sonnet-4-6", models)                          # other providers are not touched
-        self.assertFalse(models["antigravity-gemini-3.1-pro-high"].enabled)       # the person's choice survives a rename
+        self.assertIn("kiro-claude-sonnet-4-6", models)
+        self.assertFalse(models["antigravity-gemini-3.1-pro-high"].enabled)
         self.assertEqual(models["antigravity-gemini-3.7-flash"].note, "Gemini 3.7 Flash (auto thinking)")
         for gone in ("antigravity-gemini-2.5-flash", "antigravity-gemini-3.6-flash-tiered", "antigravity-gemini-pro-agent",
                      "antigravity-gemini-3-flash-agent", "antigravity-gemini-3.5-flash-low",
                      "antigravity-gemini-3.5-flash-extra-low", "antigravity-gemini-3.7-flash-tiered"):
             self.assertNotIn(gone, models)
-        self.assertIn("antigravity-gemini-3.1-flash-image", models)              # added by hand: stays
+        self.assertIn("antigravity-gemini-3.1-flash-image", models)
         for public, _note in names.seed_rows():
             self.assertIn(f"antigravity-{public}", models)
         again = names.upgrade_catalog(models, make)
-        self.assertEqual(tuple(again), (0, 0, 0, 0))                              # idempotent
+        self.assertEqual(tuple(again), (0, 0, 0, 0))
 
     def test_a_catalogue_upgrade_does_not_reintroduce_historical_models_or_levels(self) -> None:
-        # Round 45: only the upstream picker can establish current models / entitlements.
+
         kept = [public for public, _ in names.seed_rows()
                 if public != "gemini-3-flash" and public not in names.level_variants()]
         models = {f"antigravity-{public}": ModelEntry("antigravity", "antigravity", public) for public in kept}
@@ -379,7 +366,7 @@ class ModelNamesTest(unittest.TestCase):
                 patch.object(state, "save_models") as save, \
                 patch.object(config_store.settings, "model_seed_version", 0), patch.object(config_store, "apply_updates"):
             self.assertEqual(model_seeds.upgrade(state), {})
-        self.assertEqual(bare, {})                                               # no account: nothing is seeded
+        self.assertEqual(bare, {})
         save.assert_not_called()
 
     def test_a_new_account_waits_for_its_upstream_picker_instead_of_stale_seeds(self) -> None:
@@ -391,24 +378,21 @@ class ModelNamesTest(unittest.TestCase):
         self.assertIn("model_seeds.upgrade", text)
         self.assertLess(text.index("state.prune_orphan_models"), text.index("model_seeds.upgrade"))
 
-
-# ------------------------------------------------------------------ Antigravity: quota maths
-
 class QuotaMathTest(unittest.TestCase):
     def test_a_bucket_without_a_fraction_but_with_a_reset_is_an_exhausted_one(self) -> None:
         self.assertEqual(quota.bucket_state({"remainingFraction": 0.25, "resetTime": "2026-09-30T10:00:00Z"})[0], 0.25)
         self.assertEqual(quota.bucket_state({"resetTime": "2026-09-30T10:00:00Z"})[0], 0.0)
-        self.assertEqual(quota.bucket_state({"remainingFraction": 1}), (1.0, 0.0))     # untouched, no reset yet
+        self.assertEqual(quota.bucket_state({"remainingFraction": 1}), (1.0, 0.0))
         self.assertIsNone(quota.bucket_state({}))
         self.assertIsNone(quota.bucket_state("nonsense"))
         self.assertEqual(quota.bucket_state({"remainingFraction": 7})[0], 1.0)
-        self.assertEqual(quota.used_percent(0.9997), 0.03)                 # not «0 / 100»
+        self.assertEqual(quota.used_percent(0.9997), 0.03)
         self.assertEqual(quota.used_percent(0.575), 42.5)
 
     def test_a_window_ending_days_away_is_the_long_one(self) -> None:
         now = 1_000_000.0
         found = quota.windows([(0.4, now + 3 * 3600), (0.9, now + 2 * 3600), (0.0, now + 6 * 86400)], now)
-        self.assertEqual(found["5h"], (0.4, now + 3 * 3600))               # the most spent bucket of the group
+        self.assertEqual(found["5h"], (0.4, now + 3 * 3600))
         self.assertEqual(found["week"], (0.0, now + 6 * 86400))
         self.assertNotIn("week", quota.windows([(1.0, now + 4.9 * 3600)], now))
 
@@ -416,30 +400,30 @@ class QuotaMathTest(unittest.TestCase):
         now = 10_000_000.0
         day = 86400.0
         extra = {}
-        samples = [(now - 2 * day, 0.9, now - 2 * day + 3000),            # window A: two samples, 0.4 left at the lowest
+        samples = [(now - 2 * day, 0.9, now - 2 * day + 3000),
                    (now - 2 * day + 7200, 0.4, now - 2 * day + 3000),
-                   (now - day, 0.5, now - day + 3000),                    # window B
-                   (now - 100, 0.5, now + 3000)]                          # window C
+                   (now - day, 0.5, now - day + 3000),
+                   (now - 100, 0.5, now + 3000)]
         for ts, remaining, reset in samples:
             self.assertTrue(quota.record_point(extra, "Gemini", remaining, reset, now=ts))
-        self.assertEqual(quota.history_windows(extra, "Gemini", now), 1.6)     # 0.6 + 0.5 + 0.5 windows
+        self.assertEqual(quota.history_windows(extra, "Gemini", now), 1.6)
         self.assertIsNone(quota.history_windows(extra, "Claude / GPT", now))
 
     def test_old_samples_expire_and_close_ones_merge(self) -> None:
         now = 10_000_000.0
         extra = {"weekly_quota": {"Gemini": [[now - 9 * 86400, 0.0, 0], [now - 100, 0.8, now + 4000]]}}
-        self.assertEqual(quota.history_windows(extra, "Gemini", now), 0.2)       # the nine-day-old zero is forgotten
+        self.assertEqual(quota.history_windows(extra, "Gemini", now), 0.2)
         quota.record_point(extra, "Gemini", 0.7, now + 4000, now=now)
         quota.record_point(extra, "Gemini", 0.9, now + 4000, now=now + 10)
-        self.assertEqual(len(extra["weekly_quota"]["Gemini"]), 1)                # the old one expired, the close ones merged
-        self.assertEqual(quota.history_windows(extra, "Gemini", now + 20), 0.3)  # the lowest value of the window wins
+        self.assertEqual(len(extra["weekly_quota"]["Gemini"]), 1)
+        self.assertEqual(quota.history_windows(extra, "Gemini", now + 20), 0.3)
 
     def test_a_quota_exhausted_answer_belongs_to_the_window_already_being_tracked(self) -> None:
         now = 10_000_000.0
         extra = {}
         quota.record_point(extra, "Gemini", 0.9, now + 3600, now=now - 4000)
         quota.record_point(extra, "Gemini", 0.0, None, now=now)
-        self.assertEqual(quota.history_windows(extra, "Gemini", now), 1.0)       # one window, fully spent — not 1.1
+        self.assertEqual(quota.history_windows(extra, "Gemini", now), 1.0)
 
     def test_garbage_in_the_account_never_breaks_the_tracker(self) -> None:
         self.assertFalse(quota.record_point(None, "Gemini", 0.5))
@@ -448,14 +432,10 @@ class QuotaMathTest(unittest.TestCase):
         self.assertIsNone(quota.history_windows(bad, "Gemini"))
         self.assertIsNone(quota.history_windows({"weekly_quota": "junk"}, "Gemini"))
 
-
-# ------------------------------------------------------------------ Antigravity: the wire
-
 from unittest.mock import AsyncMock  # noqa: E402
 
 PROD = antigravity.ENDPOINTS[0]
 DAILY = antigravity.ENDPOINTS[1]
-
 
 class StreamResponse:
     """A streamed curl_cffi response: the body is unread, so ``text`` is empty."""
@@ -477,7 +457,6 @@ class StreamResponse:
     async def aclose(self):
         self.closed = True
 
-
 class JsonResponse:
     def __init__(self, payload, status=200):
         self.status_code = status
@@ -487,21 +466,17 @@ class JsonResponse:
     def json(self):
         return self._payload
 
-
 def sse(*events):
     lines = []
     for event in events:
         lines += [("data: " + json.dumps({"response": event})).encode("utf-8"), b""]
     return lines
 
-
 def answer(text="ok", **extra):
     return sse({"candidates": [{"content": {"parts": [{"text": text}]}, **extra}]})
 
-
 def google_error(code, message, status, *details):
     return json.dumps({"error": {"code": code, "message": message, "status": status, "details": list(details)}})
-
 
 class Session:
     """Scripted HTTP session: ``script(url, kwargs, call_number)`` returns the response."""
@@ -511,8 +486,7 @@ class Session:
         self.calls = []
 
     async def post(self, url, **kwargs):
-        # The provider edits its request body between attempts (renamed model, no
-        # thinking): keep what was really sent at that moment.
+
         snapshot = dict(kwargs)
         if "json" in snapshot:
             snapshot["json"] = copy.deepcopy(snapshot["json"])
@@ -526,13 +500,11 @@ class Session:
     def chats(self):
         return [(url, kwargs) for url, kwargs in self.calls if "streamGenerateContent" in url]
 
-
 def make_account(**extra):
     data = {"oauth": {"access_token": "tok-1", "refresh_token": "ref-1", "expires_at": time.time() + 3600},
             "project_id": "proj-1"}
     data.update(extra)
     return Account("antigravity", {}, id="acc-x", extra=data)
-
 
 class WireCase(unittest.TestCase):
     """Runs the real provider code against a scripted session."""
@@ -568,7 +540,6 @@ class WireCase(unittest.TestCase):
     def body(self, session, index=0):
         return session.chats()[index][1]["json"]
 
-
 class ErrorsAndEndpointsTest(WireCase):
     def test_googles_own_words_reach_the_person(self) -> None:
         def script(url, kwargs, number):
@@ -582,7 +553,7 @@ class ErrorsAndEndpointsTest(WireCase):
         with self.assertRaises(ProviderServerError) as caught:
             self.chat(session)
         self.assertIn("User location is not supported", str(caught.exception))
-        # Not a validation error of the request, so the next account is tried too.
+
         self.assertGreaterEqual(caught.exception.status, 500)
         self.assertEqual(len(session.chats()), 2)
 
@@ -609,7 +580,7 @@ class ErrorsAndEndpointsTest(WireCase):
         antigravity.reset_health()
         third = Session(script)
         self.chat(third)
-        self.assertEqual(third.chats()[0][0].split("/v1internal")[0], PROD)             # memory is cleared by a restart
+        self.assertEqual(third.chats()[0][0].split("/v1internal")[0], PROD)
 
     def test_the_endpoint_setting_still_pins_one_host(self) -> None:
         session = Session(lambda url, kwargs, n: StreamResponse(200, lines=answer()))
@@ -666,7 +637,7 @@ class ErrorsAndEndpointsTest(WireCase):
         self.assertEqual(self.chat(session), [{"type": "text", "text": "later"}])
         self.assertGreaterEqual(time.time() - started, 0.2)
         hosts = [url.split("/v1internal")[0] for url, _ in session.chats()]
-        self.assertEqual(hosts, [PROD, PROD])                          # the same host, after the wait
+        self.assertEqual(hosts, [PROD, PROD])
 
     def test_a_wait_google_asks_for_is_taken_once_per_host_and_never_long(self) -> None:
         long_wait = {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "40s"}
@@ -674,7 +645,7 @@ class ErrorsAndEndpointsTest(WireCase):
             429, body=google_error(429, "Capacity.", "RESOURCE_EXHAUSTED", long_wait)))
         with self.assertRaises(ProviderRateLimitError):
             self.chat(session)
-        self.assertEqual(len(session.chats()), 2)                      # one try per host, no 40-second sleep
+        self.assertEqual(len(session.chats()), 2)
 
     def test_an_exhausted_quota_stops_at_once_and_is_remembered(self) -> None:
         account = make_account()
@@ -697,7 +668,7 @@ class ErrorsAndEndpointsTest(WireCase):
         with self.assertRaises(ProviderModelUnavailableError) as caught:
             self.chat(session)
         self.assertIn("Verify your account", str(caught.exception))
-        self.assertEqual(caught.exception.model, "")          # the pool then blocks the model the client asked for
+        self.assertEqual(caught.exception.model, "")
         self.assertFalse([url for url, _ in session.calls if "loadCodeAssist" in url])
 
     def test_a_plain_403_refreshes_the_project_once_and_then_moves_on(self) -> None:
@@ -710,7 +681,7 @@ class ErrorsAndEndpointsTest(WireCase):
         account = make_account()
         with self.assertRaises(ProviderServerError) as caught:
             self.chat(session, account)
-        self.assertEqual(caught.exception.status, 502)                 # an account problem: the next account is tried
+        self.assertEqual(caught.exception.status, 502)
         self.assertIn("HTTP 403", str(caught.exception))
         self.assertEqual(account.extra["project_id"], "proj-2")
         self.assertEqual(sum(1 for url, _ in session.calls if "loadCodeAssist" in url), 1)
@@ -729,7 +700,6 @@ class ErrorsAndEndpointsTest(WireCase):
         session = Session(script)
         self.assertEqual(self.chat(session, model="gemini-old-one"), [{"type": "text", "text": "renamed"}])
         self.assertEqual([call[1]["json"]["model"] for call in session.chats()], ["gemini-old-one", "gemini-3.6-flash-high"])
-
 
 class ThinkingAndModelsTest(WireCase):
     def ok(self):
@@ -770,13 +740,13 @@ class ThinkingAndModelsTest(WireCase):
         self.chat(session, model="claude-opus-4-6-thinking", cfg={"thinking_budget": "5000", "max_output_tokens": "4096"})
         config = self.body(session)["request"]["generationConfig"]
         self.assertEqual(config["thinkingConfig"]["thinkingBudget"], 5000)
-        self.assertEqual(config["maxOutputTokens"], 5000 + 2048)       # the answer must fit after the thoughts
-        for unset in ("junk", "", "   ", None):                        # not a number / cleared field: the usual budget
+        self.assertEqual(config["maxOutputTokens"], 5000 + 2048)
+        for unset in ("junk", "", "   ", None):
             session = self.ok()
             self.chat(session, model="claude-opus-4-6-thinking", cfg={"thinking_budget": unset})
             self.assertEqual(self.body(session)["request"]["generationConfig"]["thinkingConfig"]["thinkingBudget"], 8192)
         session = self.ok()
-        self.chat(session, model="claude-opus-4-6-thinking", cfg={"thinking_budget": 4096})   # a number from the UI
+        self.chat(session, model="claude-opus-4-6-thinking", cfg={"thinking_budget": 4096})
         self.assertEqual(self.body(session)["request"]["generationConfig"]["thinkingConfig"]["thinkingBudget"], 4096)
 
     def test_gemini_returns_thought_summaries_unless_switched_off_and_gpt_oss_is_left_alone(self) -> None:
@@ -794,12 +764,12 @@ class ThinkingAndModelsTest(WireCase):
         for family in ("gemini-3.7-flash", "gemini-3.8-flash"):
             for level in ("high", "medium", "low"):
                 session = self.ok()
-                self.chat(session, model=f"{family}-{level}", params={"effort": "max"})   # the name wins over the effort
+                self.chat(session, model=f"{family}-{level}", params={"effort": "max"})
                 body = self.body(session)
                 self.assertEqual(body["model"], f"{family}-tiered")
                 self.assertEqual(body["request"]["generationConfig"]["thinkingConfig"],
                                  {"thinkingLevel": level, "includeThoughts": True})
-            # Without a level in the name Google decides, unless the client set an effort.
+
             session = self.ok()
             self.chat(session, model=family)
             self.assertEqual(self.body(session)["request"]["generationConfig"]["thinkingConfig"], {"includeThoughts": True})
@@ -811,7 +781,7 @@ class ThinkingAndModelsTest(WireCase):
         session = self.ok()
         self.chat(session, model="gemini-3.8-flash-low", cfg={"show_thoughts": "off"})
         self.assertEqual(self.body(session)["request"]["generationConfig"]["thinkingConfig"], {"thinkingLevel": "low"})
-        # Models whose level is already part of Google's id never get the field.
+
         session = self.ok()
         self.chat(session, model="gemini-3.6-flash-low", params={"effort": "high"})
         self.assertNotIn("thinkingLevel", self.body(session)["request"]["generationConfig"]["thinkingConfig"])
@@ -860,7 +830,7 @@ class ThinkingAndModelsTest(WireCase):
         for event in ({"candidates": [{"finishReason": "SAFETY"}]}, {"promptFeedback": {"blockReason": "PROHIBITED_CONTENT"}}):
             with self.assertRaises(ProviderContentFilterError):
                 self.chat(Session(lambda url, kwargs, n, event=event: StreamResponse(200, lines=sse(event))))
-        # A normal end without a word is left to the chat service (it retries another account).
+
         self.assertEqual(self.chat(Session(lambda url, kwargs, n: StreamResponse(
             200, lines=sse({"candidates": [{"finishReason": "STOP"}]})))), [])
 
@@ -869,7 +839,6 @@ class ThinkingAndModelsTest(WireCase):
         self.assertEqual(keys["thinking_budget"].default, "8192")
         self.assertEqual(keys["show_thoughts"].options, ["on", "off"])
         self.assertIn("auto", keys["endpoint"].options)
-
 
 @unittest.skipUnless(shutil.which("node"), "Node.js is required for the UI runner")
 class ProxyModelListSelectionTest(unittest.TestCase):
@@ -883,7 +852,7 @@ class ProxyModelListSelectionTest(unittest.TestCase):
         out = json.loads(lines[-1])
         self.assertNotIn("error", out, out.get("error"))
         self.assertEqual(out["dragThree"], ["r0", "r1", "r2"])
-        self.assertEqual(out["dragUpwards"], out["dragThree"])             # direction does not matter
+        self.assertEqual(out["dragUpwards"], out["dragThree"])
         self.assertEqual(out["dragOne"], ["r1"])
         self.assertEqual(out["dragNothing"], [])
         self.assertEqual(out["dragAll"], ["r0", "r1", "r2", "r3", "r4", "r5"])
@@ -896,8 +865,7 @@ class ProxyModelListSelectionTest(unittest.TestCase):
         self.assertEqual(out["ctrlShift"], ["r0", "r1", "r2", "r3", "r4"])
         self.assertEqual(out["plainAgain"], ["r5"])
         self.assertEqual(out["shiftBackwards"], ["r1", "r2", "r3", "r4", "r5"])
-        # Round 13: a click on the only selected row clears it, and a drag keeps the rows
-        # that scrolled out of view.
+
         self.assertEqual(out["clickTwice"], [])
         self.assertEqual(out["clickOneOfTwo"], ["r2"])
         self.assertEqual(out["keyboardKeeps"], ["r4"])
@@ -905,7 +873,6 @@ class ProxyModelListSelectionTest(unittest.TestCase):
         self.assertEqual(out["dragWhileScrolling"], ["r0", "r1", "r2", "r3", "r4", "r5"])
         self.assertEqual(out["startFollowsTheList"], 25)
         self.assertEqual(out["dragScrolledBack"], ["r0", "r1"])
-
 
 class RetiredModelsAndFiltersTest(WireCase):
     def test_a_retired_model_answering_with_its_canned_phrase_is_an_error_not_an_answer(self) -> None:
@@ -917,7 +884,7 @@ class RetiredModelsAndFiltersTest(WireCase):
         self.assertIn("no longer available", str(caught.exception))
         self.assertEqual(caught.exception.model, "")
         self.assertTrue(names.is_retired("gemini-9-fictional-flash"))
-        # The list of models stops offering it from now on.
+
         data = {"models": {"gemini-9-fictional-flash": {"displayName": "Gemini 9 Flash", "recommended": True}}}
         self.assertEqual(names.from_server(data), [])
 
@@ -942,7 +909,7 @@ class RetiredModelsAndFiltersTest(WireCase):
         self.assertEqual([len(call[1]["json"]["request"]["safetySettings"]) for call in session.chats()], [5, 4])
         again = Session(script)
         self.chat(again, model="gemini-3.1-flash-lite")
-        self.assertEqual(len(again.chats()), 1)                        # learned: no failing first attempt any more
+        self.assertEqual(len(again.chats()), 1)
 
     def test_a_model_that_takes_no_safety_settings_at_all_gets_none(self) -> None:
         def script(url, kwargs, number):
@@ -952,9 +919,8 @@ class RetiredModelsAndFiltersTest(WireCase):
 
         session = Session(script)
         self.assertEqual(self.chat(session, model="gemini-x"), [{"type": "text", "text": "bare"}])
-        self.assertEqual(len(session.chats()), 3)                       # five categories, four, none
+        self.assertEqual(len(session.chats()), 3)
         self.assertNotIn("safetySettings", session.chats()[-1][1]["json"]["request"])
-
 
 class ClientVersionTest(WireCase):
     def refresh(self, script, account=None):
@@ -997,14 +963,14 @@ class ClientVersionTest(WireCase):
         self.refresh(lambda url, kwargs, n: JsonResponse({}, status=503))
         self.assertEqual(antigravity.client_version(), antigravity.FALLBACK_VERSION)
         soon = antigravity._client_version["checked"] + antigravity.VERSION_TTL
-        self.assertLess(soon - time.time(), 1000)                       # a failure is retried in ~15 minutes, not in 6 hours
+        self.assertLess(soon - time.time(), 1000)
 
     def test_a_version_set_by_hand_wins_and_turns_the_check_off(self) -> None:
         with patch.dict(config_store.settings.provider_settings, {"antigravity": {"client_version": "2.9.1"}}):
             self.assertEqual(antigravity.user_agent(), "antigravity/2.9.1 win32/x64")
             self.refresh(lambda url, kwargs, n: self.fail("the update service must not be asked"))
         with patch.dict(config_store.settings.provider_settings, {"antigravity": {"client_version": "latest; evil"}}):
-            self.assertEqual(antigravity.client_version(), antigravity.FALLBACK_VERSION)       # not a version: ignored
+            self.assertEqual(antigravity.client_version(), antigravity.FALLBACK_VERSION)
         keys = {field.key for field in antigravity.AntigravityProvider().settings_fields()}
         self.assertIn("client_version", keys)
 
@@ -1014,7 +980,6 @@ class ClientVersionTest(WireCase):
 
         self.refresh(script)
         self.assertEqual(antigravity.client_version(), antigravity.FALLBACK_VERSION)
-
 
 class TokenRefreshTest(WireCase):
     def test_parallel_requests_share_one_token_refresh(self) -> None:
@@ -1035,7 +1000,6 @@ class TokenRefreshTest(WireCase):
 
         self.assertEqual(asyncio.run(run()), ["fresh"] * 6)
         self.assertEqual(len(refreshes), 1)
-
 
 class UsageTest(WireCase):
     def usage(self, buckets, account=None, tier="Google AI Pro", **patches):
@@ -1072,36 +1036,36 @@ class UsageTest(WireCase):
         self.assertEqual(rows["Claude / GPT — 5 часов"]["display_en"], "Claude / GPT — 5h")
         self.assertEqual(result["subscription"], "Google AI Pro")
         self.assertAlmostEqual(result["next_reset"], antigravity._iso_ts(reset_gemini), delta=1)
-        self.assertNotIn("Gemini — неделя", rows)                     # Google reports no weekly window for this account
+        self.assertNotIn("Gemini — неделя", rows)
         self.assertNotIn("notice", result)
-        # One look at the limits is enough for a first estimate of what the last 7 days cost.
+
         estimate = rows["Claude / GPT — за 7 дней (оценка)"]
         self.assertEqual((estimate["used"], estimate["limit"]), (0.42, None))
         self.assertEqual(estimate["unit_en"], "5-hour windows")
-        self.assertEqual(rows["Gemini — за 7 дней (оценка)"]["used"], 0.0)  # Google has no weekly figure: the row says so, with 0 windows spent
+        self.assertEqual(rows["Gemini — за 7 дней (оценка)"]["used"], 0.0)
         self.assertIn("Claude / GPT", account.extra["weekly_quota"])
 
     def test_a_window_that_ends_in_days_is_shown_as_the_weekly_limit(self) -> None:
         week = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 6 * 86400))
         soon = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time() + 3600))
-        result, account = self.usage({"gemini-3.6-flash-high": {"resetTime": week},            # exhausted until next week
+        result, account = self.usage({"gemini-3.6-flash-high": {"resetTime": week},
                                       "claude-opus-4-6-thinking": {"resetTime": soon, "remainingFraction": 0.4}})
         rows = {row["display"]: row for row in result["rows"]}
         self.assertEqual(rows["Gemini — неделя"]["used"], 100.0)
         self.assertAlmostEqual(rows["Gemini — неделя"]["reset"], antigravity._iso_ts(week), delta=1)
         self.assertNotIn("Gemini — 5 часов", rows)
-        self.assertNotIn("Gemini — за 7 дней (оценка)", rows)          # a real weekly figure needs no estimate
+        self.assertNotIn("Gemini — за 7 дней (оценка)", rows)
         self.assertEqual(rows["Claude / GPT — 5 часов"]["used"], 60.0)
 
     def test_the_estimate_grows_window_by_window(self) -> None:
         account = make_account()
         now = time.time()
-        for index in range(3):                                          # three earlier windows, 40 % spent in each
+        for index in range(3):
             quota.record_point(account.extra, "Gemini", 0.6, now - (index + 1) * 86400 + 3600, now=now - (index + 1) * 86400)
         soon = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(now + 3600))
         result, _ = self.usage({"gemini-3.6-flash-high": {"resetTime": soon, "remainingFraction": 0.5}}, account)
         estimate = {row["display"]: row for row in result["rows"]}["Gemini — за 7 дней (оценка)"]
-        self.assertEqual(estimate["used"], 1.7)                        # 3 × 0.4 + 0.5
+        self.assertEqual(estimate["used"], 1.7)
 
     def test_google_asking_to_verify_the_account_becomes_a_notice_not_an_empty_dialog(self) -> None:
         detail = {"@type": "type.googleapis.com/google.rpc.ErrorInfo", "reason": "VALIDATION_REQUIRED",
@@ -1133,7 +1097,7 @@ class UsageTest(WireCase):
         self.assertIn("Verify your account", usage["notice"] + usage["notice_en"])
         self.assertTrue(usage["notice_url"].startswith("https://accounts.google.com/"))
         self.assertEqual(usage["subscription"], "Google AI Pro")
-        self.assertIs(checked[0], True)                                # the token works: the account is not «invalid»
+        self.assertIs(checked[0], True)
         self.assertIn("⚠", checked[1])
 
     def test_a_dead_sign_in_is_an_error_message_not_a_silent_empty_dialog(self) -> None:
@@ -1145,7 +1109,6 @@ class UsageTest(WireCase):
     def test_no_buckets_means_no_data(self) -> None:
         result, _ = self.usage({})
         self.assertIsNone(result)
-
 
 class AfterChatSamplingTest(WireCase):
     def test_a_successful_chat_schedules_one_background_sample_per_interval(self) -> None:
@@ -1176,7 +1139,6 @@ class AfterChatSamplingTest(WireCase):
         asyncio.run(run())
         self.assertEqual(sum(1 for url, _ in session.calls if "retrieveUserQuota" in url), 1)
         self.assertEqual(quota.history_windows(account.extra, "Gemini"), 0.3)
-
 
 class ErrorBodyTest(unittest.TestCase):
     def test_a_streamed_error_body_is_read_however_the_client_spells_it(self) -> None:
@@ -1223,7 +1185,6 @@ class ErrorBodyTest(unittest.TestCase):
             google_error(429, "Your quota will reset after 3s.", "X", {"reason": "QUOTA_EXHAUSTED"}), PROD),
             ProviderRateLimitError)
 
-
 class PoolReasonsTest(unittest.TestCase):
     def test_a_blocked_model_remembers_why_and_a_check_lifts_it(self) -> None:
         pool = AccountPool()
@@ -1261,7 +1222,6 @@ class PoolReasonsTest(unittest.TestCase):
         error = asyncio.run(run())
         self.assertEqual(error.status, 404)
         self.assertIn("Google asks to verify this account", str(error))
-
 
 if __name__ == "__main__":
     unittest.main()

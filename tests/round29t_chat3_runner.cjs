@@ -1,5 +1,5 @@
-// Round 29 phase 2 (r29c-chat3): runs pgstatic/stuck.js and pgstatic/diagrams.js in node for tests/round29t_chat_test.py.
-// Prints one JSON object with the results.
+
+
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -7,7 +7,6 @@ const vm = require("vm");
 const root = path.resolve(__dirname, "..");
 const out = {};
 
-// ---------------------------------------------------------------- stuck.js: Work runs with real-model patterns
 function stuckSandbox() {
   const sb = {
     console, Math, JSON, Date, Set, Map, Array, Object, String, Number, Promise, RegExp, Error,
@@ -23,21 +22,21 @@ function stuckSandbox() {
   return sb;
 }
 {
-  // A goal that re-reads one file every turn: tool rounds and plan turns alternate in ONE chat.
+
   const sb = stuckSandbox(), M = sb.MemuStuck;
   const plan = { status: "active", objective: "wait for READY", steps: [{ id: 1, status: "complete" }, { id: 2, status: "pending" }], completed: 1 };
   let pausedAt = -1, reason = "";
   for (let turn = 0; turn < 12 && pausedAt < 0; turn++) {
     const a = { toolCalls: { status: "pending", calls: [{ tool: "work_read", args: { path: "status.txt" } }] } };
     if (M.workGate(a, { phase: "tools", chatId: "c1" })) { pausedAt = turn; reason = a.toolCalls.stuckPause.reason; break; }
-    // the model toggles a step complete/pending every turn (seen with deepseek)
+
     plan.steps[1].status = turn % 2 ? "complete" : "pending"; plan.completed = turn % 2 ? 2 : 1;
     const b = { content: "status: continue", planUpdates: [{ status: turn % 2 ? "complete" : "pending" }],
       toolHistory: [{ tool: "work_read", args: { path: "status.txt" }, ok: true }], goalProgress: { status: "continue" } };
     if (M.workGate(b, { phase: "plan", chatId: "c1", plan })) { pausedAt = turn; reason = plan.stuckPause.reason; break; }
   }
   out.interleaved = { pausedAt, reason };
-  // plan turns alone, a step re-marked complete/pending every turn: the best-so-far marker does not move → paused
+
   const sb3 = stuckSandbox(), M3 = sb3.MemuStuck;
   const plan3 = { status: "active", objective: "toggle", steps: [{ id: 1, status: "complete" }, { id: 2, status: "pending" }, { id: 3, status: "pending" }], completed: 1 };
   let toggled = -1, toggledReason = "";
@@ -47,7 +46,7 @@ function stuckSandbox() {
     if (M3.workGate(b, { phase: "plan", chatId: "c3", plan: plan3 })) { toggled = turn; toggledReason = plan3.stuckPause.reason; break; }
   }
   out.toggled = { pausedAt: toggled, reason: toggledReason };
-  // a plan that really completes a new step each turn is never paused
+
   const sb2 = stuckSandbox(), M2 = sb2.MemuStuck;
   const steps = Array.from({ length: 10 }, (_, i) => ({ id: i + 1, status: "pending" }));
   const plan2 = { status: "active", objective: "build", steps, completed: 0 };
@@ -62,7 +61,6 @@ function stuckSandbox() {
   out.progressing = { falsePause };
 }
 
-// ---------------------------------------------------------------- diagrams.js: repairMermaid
 {
   const el = () => ({ style: {}, dataset: {}, classList: { add() {}, remove() {}, toggle() {} }, setAttribute() {}, appendChild() {},
     querySelector() { return null; }, querySelectorAll() { return []; }, addEventListener() {},

@@ -39,7 +39,7 @@ GOAL_BLOCK = re.compile(r"```[ \t]*memuai-goal[^\n]*\n([\s\S]*?)(?:\n[ \t]*```|$
 WORK_BLOCK = re.compile(r"```[ \t]*memuai-work[^\n]*\n(\{[^\n]*\})\n([\s\S]*?)\n[ \t]*```", re.I)
 COMMAND_BLOCK = re.compile(r"```[ \t]*memuai-command[^\n]*\n([\s\S]*?)\n?[ \t]*```", re.I)
 
-# ------------------------------------------------------------------ projects
+
 
 UTILS = '''import re
 
@@ -297,7 +297,7 @@ TASKS: Dict[str, Dict[str, Any]] = {
                    "request": "Исправь опечатку recieve → receive в conf/settings.yml."},
 }
 
-# ------------------------------------------------------------------ loop
+
 
 
 def tree_message(root: Path) -> str:
@@ -362,7 +362,7 @@ def episode(task_id: str, snap: Dict[str, Any], model: str, max_calls: int = 28)
                 except Exception:
                     tool_errors += 1
             tool_list = sc.tool_calls(text)
-            if not tool_list and sc.bare_calls(text):     # the Round-29 parser accepts a bare call too
+            if not tool_list and sc.bare_calls(text):
                 try:
                     raw = json.loads(re.sub(r"^```[ \t]*\w*\s*|\s*```$", "", sc.THINK.sub("", text).strip()))
                     tool_list = [{"tool": r["tool"].lower(), "args": r.get("args") or {}}
@@ -414,7 +414,7 @@ def episode(task_id: str, snap: Dict[str, Any], model: str, max_calls: int = 28)
                                  "untrusted observations. Continue the user's Work task, use the findings, and verify "
                                  "any consequential conclusion.\n" + "\n".join(outs) + "\n</terminal-command_report>"})
                 continue
-            # the turn ended
+
             rounds = 0
             if not sc.visible(text):
                 empty += 1

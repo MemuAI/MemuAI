@@ -27,12 +27,11 @@ from . import sources
 
 SEARCH_SOURCES = ("ytmusic", "youtube", "soundcloud")
 _YTM_CLIENT = {"clientName": "WEB_REMIX", "clientVersion": "1.20241023.01.00"}
-_YTM_SONGS = "EgWKAQIIAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D"   # the «Songs» filter of music.youtube.com search
+_YTM_SONGS = "EgWKAQIIAWoQEAMQBBAJEAoQBRAREBAQFQ%3D%3D"
 _SEARCH_TTL, _DETAILS_TTL = 600, 1800
 
 _cache: Dict[tuple, tuple] = {}
 _cache_lock = threading.Lock()
-
 
 def _cached(key: tuple, ttl: float, make: Callable[[], Any]) -> Any:
     now = time.time()
@@ -42,19 +41,15 @@ def _cached(key: tuple, ttl: float, make: Callable[[], Any]) -> Any:
             return hit[1]
     value = make()
     with _cache_lock:
-        if len(_cache) > 300:   # small LRU-ish trim: the oldest half goes
+        if len(_cache) > 300:
             for old in sorted(_cache, key=lambda k: _cache[k][0])[:150]:
                 _cache.pop(old, None)
         _cache[key] = (now, value)
     return value
 
-
 def clear_cache() -> None:
     with _cache_lock:
         _cache.clear()
-
-
-# ---------------------------------------------------------------------- what a result is
 
 _TAG_RULES = [
     ("official_audio", r"official\s+audio|официальн\w*\s+аудио|\(audio\)|\[audio\]"),
@@ -72,16 +67,15 @@ _TAG_RULES = [
     ("visualizer", r"visuali[sz]er"),
 ]
 
-
 def tags_of(title: str, channel: str = "", source: str = "", duration: float = 0, preview: bool = False) -> List[str]:
     """What a result is, from its title and channel: official audio/video, live, cover, remix… (ordered, unique)."""
     text = str(title or "").lower()
     tags = [name for name, rule in _TAG_RULES if re.search(rule, text, re.I)]
     chan = str(channel or "")
     if source == "ytmusic" and "official_audio" not in tags and not ({"live", "cover", "karaoke"} & set(tags)):
-        tags.insert(0, "official_audio")   # a YouTube Music «song» is the label's audio track
+        tags.insert(0, "official_audio")
     elif re.search(r"-\s*Topic$", chan) and "official_audio" not in tags:
-        tags.insert(0, "official_audio")   # «Artist - Topic» channels are auto-generated official audio
+        tags.insert(0, "official_audio")
     elif re.search(r"vevo$", chan, re.I) and "official_video" not in tags and "official_audio" not in tags:
         tags.insert(0, "official_video")
     if preview:
@@ -89,7 +83,6 @@ def tags_of(title: str, channel: str = "", source: str = "", duration: float = 0
     if "official_audio" in tags and "official_video" in tags:
         tags.remove("official_video")
     return tags
-
 
 def _num(value: Any) -> int:
     """«852M plays» / «1.2K» / 1234 → int."""
@@ -104,7 +97,6 @@ def _num(value: Any) -> int:
         return 0
     return int(n * {"K": 1e3, "M": 1e6, "B": 1e9}.get((m.group(2) or "").upper(), 1))
 
-
 def _secs(text: str) -> float:
     parts = [p for p in str(text or "").strip().split(":") if p.isdigit()]
     if not parts or len(parts) > 3:
@@ -113,7 +105,6 @@ def _secs(text: str) -> float:
     for p in parts:
         total = total * 60 + int(p)
     return float(total)
-
 
 def _date(entry: Dict[str, Any]) -> str:
     """ISO date from yt-dlp fields (upload_date YYYYMMDD / release_date / timestamp)."""
@@ -126,7 +117,6 @@ def _date(entry: Dict[str, Any]) -> str:
         return time.strftime("%Y-%m-%d", time.gmtime(ts))
     return ""
 
-
 def _item(**fields: Any) -> Dict[str, Any]:
     base = {"id": "", "url": "", "title": "", "artist": "", "raw_title": "", "album": "", "year": "", "duration": 0,
             "thumb": "", "source": "", "channel": "", "channel_url": "", "verified": False, "views": 0, "likes": 0,
@@ -137,15 +127,11 @@ def _item(**fields: Any) -> Dict[str, Any]:
         base["tags"] = tags_of(base["raw_title"] or base["title"], base["channel"], base["source"], base["duration"], base["preview"])
     return base
 
-
 def _ytm_thumb(thumbs: List[Dict[str, Any]], size: int = 544) -> str:
     if not thumbs:
         return ""
     url = str(thumbs[-1].get("url") or "")
     return re.sub(r"=w\d+-h\d+", f"=w{size}-h{size}", url) if "googleusercontent" in url else url
-
-
-# ---------------------------------------------------------------------- YouTube Music web API
 
 def _walk(obj: Any, key: str):
     if isinstance(obj, dict):
@@ -156,7 +142,6 @@ def _walk(obj: Any, key: str):
     elif isinstance(obj, list):
         for value in obj:
             yield from _walk(value, key)
-
 
 def _innertube(endpoint: str, payload: Dict[str, Any], client_factory=None) -> Dict[str, Any]:
     body = {"context": {"client": {**_YTM_CLIENT, "hl": "en"}}, **payload}
@@ -173,16 +158,13 @@ def _innertube(endpoint: str, payload: Dict[str, Any], client_factory=None) -> D
         except Exception:
             pass
 
-
 def _runs(col: Dict[str, Any]) -> List[Dict[str, Any]]:
     return ((col.get("musicResponsiveListItemFlexColumnRenderer") or {}).get("text") or {}).get("runs") or []
-
 
 def _page_type(run: Dict[str, Any]) -> str:
     ep = (run.get("navigationEndpoint") or {}).get("browseEndpoint") or {}
     return (((ep.get("browseEndpointContextSupportedConfigs") or {}).get("browseEndpointContextMusicConfig") or {})
             .get("pageType") or "")
-
 
 def ytm_search(q: str, limit: int = 12, client_factory=None) -> List[Dict[str, Any]]:
     data = _innertube("search", {"query": q, "params": _YTM_SONGS}, client_factory)
@@ -199,7 +181,7 @@ def ytm_search(q: str, limit: int = 12, client_factory=None) -> List[Dict[str, A
         artists = [r["text"] for r in meta if _page_type(r) == "MUSIC_PAGE_TYPE_ARTIST"]
         album = next((r["text"] for r in meta if _page_type(r) == "MUSIC_PAGE_TYPE_ALBUM"), "")
         duration = next((_secs(r["text"]) for r in meta if re.fullmatch(r"\d+(:\d\d){1,2}", r["text"].strip())), 0)
-        if not artists:   # plain text runs: «Artist • Album • 3:45»
+        if not artists:
             plain = [r["text"] for r in meta if not re.fullmatch(r"\d+(:\d\d){1,2}", r["text"].strip())]
             artists = plain[:1]
         plays = _num("".join(r.get("text", "") for c in cols[2:] for r in _runs(c)))
@@ -212,7 +194,6 @@ def ytm_search(q: str, limit: int = 12, client_factory=None) -> List[Dict[str, A
             break
     return out
 
-
 def ytm_related(video_id: str, limit: int = 20, client_factory=None) -> List[Dict[str, Any]]:
     data = _innertube("next", {"videoId": video_id, "playlistId": "RDAMVM" + video_id, "isAudioOnly": True}, client_factory)
     out = []
@@ -221,7 +202,7 @@ def ytm_related(video_id: str, limit: int = 20, client_factory=None) -> List[Dic
         if not vid or vid == video_id:
             continue
         title = "".join(r.get("text", "") for r in (v.get("title") or {}).get("runs") or [])
-        byline = "".join(r.get("text", "") for r in (v.get("longBylineText") or {}).get("runs") or [])   # «A, B • Album • 2013»
+        byline = "".join(r.get("text", "") for r in (v.get("longBylineText") or {}).get("runs") or [])
         parts = [p.strip() for p in byline.split("•") if p.strip()]
         year = next((p for p in parts if re.fullmatch(r"(19|20)\d\d", p)), "")
         rest = [p for p in parts if p != year and not re.search(r"(views|просмотр|plays)", p, re.I)]
@@ -233,9 +214,6 @@ def ytm_related(video_id: str, limit: int = 20, client_factory=None) -> List[Dic
         if len(out) >= limit:
             break
     return out
-
-
-# ---------------------------------------------------------------------- yt-dlp search (YouTube, SoundCloud, fallback)
 
 def _from_ytdlp(e: Dict[str, Any], source: str) -> Optional[Dict[str, Any]]:
     from .downloader import split_title
@@ -268,7 +246,6 @@ def _from_ytdlp(e: Dict[str, Any], source: str) -> Optional[Dict[str, Any]]:
         item["tags"].append("live")
     return item
 
-
 def ytdlp_search(q: str, limit: int, source: str, runner_factory=None) -> List[Dict[str, Any]]:
     from .downloader import Runner, _quote
     runner = (runner_factory or Runner)()
@@ -279,7 +256,6 @@ def ytdlp_search(q: str, limit: int, source: str, runner_factory=None) -> List[D
     else:
         data = runner.json(f"ytsearch{limit}:{q}", flat=True, timeout=60)
     return [x for x in (_from_ytdlp(e, source) for e in (data.get("entries") or [])[:limit]) if x]
-
 
 def mark_library(lib, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """``in_library``: id of the same original (source key) or of a similar track (title + artist + duration)."""
@@ -294,7 +270,6 @@ def mark_library(lib, items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             found = None
         it["in_library"] = (found or {}).get("id", "") if found else ""
     return items
-
 
 def search(lib, q: str, limit: int = 12, source: str = "ytmusic", client_factory=None, runner_factory=None) -> Dict[str, Any]:
     """{results, source, via, error}: ``via`` says which method answered (``ytmusic-api`` or ``yt-dlp``)."""
@@ -311,7 +286,7 @@ def search(lib, q: str, limit: int = 12, source: str = "ytmusic", client_factory
                 found = ytm_search(q, limit, client_factory)
                 if found:
                     return {"results": found, "source": source, "via": "ytmusic-api", "error": ""}
-            except Exception as exc:   # the web API changed or is blocked — yt-dlp still knows the way
+            except Exception as exc:
                 error = str(exc)[:200]
         try:
             return {"results": ytdlp_search(q, limit, source, runner_factory), "source": source, "via": "yt-dlp", "error": ""}
@@ -319,15 +294,12 @@ def search(lib, q: str, limit: int = 12, source: str = "ytmusic", client_factory
             return {"results": [], "source": source, "via": "", "error": (str(exc) or error)[:300]}
 
     answer = _cached(("search", source, q.lower(), limit), _SEARCH_TTL, make)
-    if answer.get("error") and not answer["results"]:   # failures are not cached
+    if answer.get("error") and not answer["results"]:
         with _cache_lock:
             _cache.pop(("search", source, q.lower(), limit), None)
     out = {**answer, "results": [dict(x, tags=list(x["tags"])) for x in answer["results"]]}
     mark_library(lib, out["results"])
     return out
-
-
-# ---------------------------------------------------------------------- details (the «Track info» sheet)
 
 def _formats(info: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Audio-only formats, best first: ext, codec, kbps, kHz, size."""
@@ -346,11 +318,10 @@ def _formats(info: Dict[str, Any]) -> List[Dict[str, Any]]:
     out.sort(key=lambda x: -x["kbps"])
     return out[:6]
 
-
 def _full_info(url: str, runner_factory=None) -> Dict[str, Any]:
     from .downloader import Runner
     info = (runner_factory or Runner)().json(url, flat=False, timeout=45)
-    if not isinstance(info, dict) or not info:   # «--ignore-errors» answers null (YouTube «not a bot», region, removed)
+    if not isinstance(info, dict) or not info:
         raise RuntimeError("blocked: the source gave no details")
     desc = str(info.get("description") or "")
     return {"description": desc[:4000], "published": _date(info), "likes": int(info.get("like_count") or 0),
@@ -362,11 +333,9 @@ def _full_info(url: str, runner_factory=None) -> Dict[str, Any]:
             "genre": ", ".join(info.get("genres") or []) or "", "categories": info.get("categories") or [],
             "duration": float(info.get("duration") or 0), "thumb": info.get("thumbnail") or ""}
 
-
 def _similar(a: str, b: str) -> bool:
     from .lyrics import similarity
     return similarity(a, b) >= 0.6
-
 
 def enrich(title: str, artist: str, client_factory=None) -> Dict[str, Any]:
     """Album, year, genre and an HD cover: iTunes Search API, Deezer as the fallback. No keys; errors → {}."""
@@ -405,7 +374,6 @@ def enrich(title: str, artist: str, client_factory=None) -> Dict[str, Any]:
             pass
     return {}
 
-
 def _error_code(text: str) -> str:
     low = str(text or "").lower()
     if "not a bot" in low or "sign in to confirm" in low:
@@ -417,7 +385,6 @@ def _error_code(text: str) -> str:
     if "timed out" in low or "timeout" in low:
         return "timeout"
     return "failed"
-
 
 def details(lib, url: str, hint: Optional[Dict[str, Any]] = None, client_factory=None, runner_factory=None) -> Dict[str, Any]:
     """Everything known about one online result. The two network parts run in parallel; each may fail alone."""
@@ -445,7 +412,7 @@ def details(lib, url: str, hint: Optional[Dict[str, Any]] = None, client_factory
 
     raw = _cached(("details", url, (hint.get("title") or "").lower()), _DETAILS_TTL, make)
     if raw["errors"].get("info") in ("timeout", "failed") and not raw.get("info"):
-        with _cache_lock:   # a transient failure is retried next time
+        with _cache_lock:
             _cache.pop(("details", url, (hint.get("title") or "").lower()), None)
     info, meta = raw.get("info") or {}, raw.get("meta") or {}
     merged = {
@@ -470,7 +437,6 @@ def details(lib, url: str, hint: Optional[Dict[str, Any]] = None, client_factory
     mark_library(lib, [merged])
     return merged
 
-
 def related(lib, url: str, limit: int = 20, client_factory=None, runner_factory=None) -> List[Dict[str, Any]]:
     """«Similar tracks» the source itself suggests."""
     info = sources.detect(url)
@@ -488,7 +454,6 @@ def related(lib, url: str, limit: int = 20, client_factory=None, runner_factory=
 
     found = _cached(("related", url, limit), _DETAILS_TTL, make)
     return mark_library(lib, [dict(x, tags=list(x["tags"])) for x in found])
-
 
 def lyrics_lookup(lib, title: str, artist: str, duration: float = 0, client_factory=None) -> Dict[str, Any]:
     """Lyrics for a track that is not downloaded yet: the best candidate of the library's lyrics sources."""

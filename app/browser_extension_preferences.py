@@ -4,12 +4,10 @@ from __future__ import annotations
 from . import pgdata
 from .storage import mutate_json
 
-
 def _model(value):
     if not isinstance(value, str) or len(value) > 512 or any(ord(char) < 32 for char in value):
         raise ValueError("Некорректный идентификатор модели")
     return value
-
 
 def update_models(body):
     changes = {}

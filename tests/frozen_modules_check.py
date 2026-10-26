@@ -13,12 +13,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-# The frozen bundle puts the code on its own import path; running from source
-# needs the repository root so ``app`` resolves the same way in both cases.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app import modules_host as host  # noqa: E402
-
 
 def main() -> int:
     report = {
@@ -37,8 +34,7 @@ def main() -> int:
     rows = host.list_modules(root)
     module_ids = [row["id"] for row in rows]
     report["modules"] = module_ids
-    # Пустой список раньше давал «ноль проблем» и чистый выход 0: бандл без
-    # единого модуля считался исправным. Теперь это отказ.
+
     if not module_ids:
         report["problems"] = ["в бундле нет ни одного встроенного модуля"]
         print(json.dumps(report, ensure_ascii=False, indent=1))
@@ -71,7 +67,6 @@ def main() -> int:
     report["problems"] = problems
     print(json.dumps(report, ensure_ascii=False, indent=1))
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

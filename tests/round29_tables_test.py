@@ -26,7 +26,6 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 _CACHE: dict = {}
 
-
 def run_js() -> dict:
     if "out" not in _CACHE:
         proc = subprocess.run(["node", str(ROOT / "tests" / "round29_tables_runner.cjs")], cwd=ROOT,
@@ -35,7 +34,6 @@ def run_js() -> dict:
             raise AssertionError(proc.stderr[-3000:])
         _CACHE["out"] = json.loads(proc.stdout)
     return _CACHE["out"]
-
 
 @unittest.skipUnless(shutil.which("node"), "node is not available")
 class TablesJsTest(unittest.TestCase):
@@ -113,7 +111,6 @@ class TablesJsTest(unittest.TestCase):
         self.assertEqual(book["sheets"][0]["name"], "Fruit")
         self.assertEqual(book["sheets"][0]["rows"], [["Name", "Qty", "Price"], ["Apple", "3", "1.5"], ["Pear <&>", "10", "2"]])
 
-
 def _xlsx(sheet_xml: str, shared: list | None = None, styles: str = "", extra_sheet: bool = False) -> bytes:
     buf = io.BytesIO()
     ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
@@ -130,7 +127,6 @@ def _xlsx(sheet_xml: str, shared: list | None = None, styles: str = "", extra_sh
         if styles:
             zf.writestr("xl/styles.xml", f"<styleSheet {ns}>{styles}</styleSheet>")
     return buf.getvalue()
-
 
 class XlsxImportTest(unittest.TestCase):
     def test_shared_strings_dates_booleans_offsets(self) -> None:
@@ -174,14 +170,13 @@ class XlsxImportTest(unittest.TestCase):
         self.assertIn("error_ru", bad.json())
         self.assertEqual(client.post("/api/tables/xlsx", json=[1]).status_code, 400)
 
-
 class WiringTest(unittest.TestCase):
     def test_files_tags_and_hooks(self) -> None:
         index = (STATIC / "index.html").read_text(encoding="utf-8")
         quick = (STATIC / "quick" / "index.html").read_text(encoding="utf-8")
         for page in (index, quick):
             for tag in ('src="/tables.js?v=1.0-r29"', 'src="/diagrams.js?v=1.2-r36"', 'href="/tables.css?v=1.1-r30"', 'href="/diagrams.css?v=1.1-r30"',
-                        'src="/diagram-zoom.js?v=1.1-r36"'):   # round 30: zoom/pan of schemes, before diagrams.js
+                        'src="/diagram-zoom.js?v=1.1-r36"'):
                 self.assertIn(tag, page)
         self.assertLess(index.index("/tables.js"), index.index("/app.js"), "loaded before app.js (md() uses it)")
         self.assertLess(quick.index("/tables.js"), quick.index("/quick/quick-md.js"))
@@ -200,12 +195,11 @@ class WiringTest(unittest.TestCase):
         self.assertIn('"app.tables_api"', (ROOT / "build.py").read_text(encoding="utf-8"))
 
     def test_english_strings_have_no_cyrillic(self) -> None:
-        # every t("ru", "en") / L2("ru", "en") pair: the English half is English
+
         for name in ("tables.js", "diagrams.js"):
             text = (STATIC / name).read_text(encoding="utf-8")
             for match in re.finditer(r'\b(?:t|L2)\(\s*(["`])(?:\\.|(?!\1).)*\1\s*,\s*(["`])((?:\\.|(?!\2).)*)\2', text):
                 self.assertIsNone(re.search(r"[А-Яа-яЁё]", match.group(3)), f"{name}: {match.group(0)[:120]}")
-
 
 if __name__ == "__main__":
     unittest.main()

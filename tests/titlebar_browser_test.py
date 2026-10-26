@@ -62,14 +62,12 @@ FIXTURE = """<!DOCTYPE html><html lang="ru" data-theme="dark" data-design="class
 <script src="/titlebar.js"></script>
 </body></html>"""
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or ""):
         if candidate and Path(candidate).exists():
             return candidate
     return ""
-
 
 @unittest.skipUnless(_chromium(), "Chromium is not installed")
 class TitlebarBrowserTest(unittest.TestCase):
@@ -108,7 +106,6 @@ class TitlebarBrowserTest(unittest.TestCase):
         self.page.close()
         self.assertEqual(self.errors, [])
 
-    # helpers
     def install(self, **state):
         self.page.evaluate("(s) => installMock(s)", state)
         self.page.wait_for_function("document.documentElement.dataset.titlebar === 'custom'", timeout=3000)
@@ -129,7 +126,6 @@ class TitlebarBrowserTest(unittest.TestCase):
         self.page.mouse.down(button=button)
         self.page.mouse.up(button=button)
 
-    # tests
     def test_browser_preview_has_no_controls(self):
         self.page.wait_for_timeout(200)
         self.assertIsNone(self.page.evaluate("document.documentElement.dataset.titlebar || null"))
@@ -170,12 +166,12 @@ class TitlebarBrowserTest(unittest.TestCase):
         self.clear()
         self.press("#grow")
         self.assertEqual(self.calls("titlebar_drag"), [["titlebar_drag", "caption"]])
-        self.page.wait_for_timeout(600)   # leave the double-click window
+        self.page.wait_for_timeout(600)
         for selector in ("#bar-menu", "#chat-search", "#model-current", "#btn-theme", "#content", "#chat-row"):
             self.clear()
             self.press(selector)
             self.assertEqual(self.calls("titlebar_drag"), [], selector)
-        # plain text inside the bar and the sidebar brand drag the window
+
         for selector in ("#plain-text", ".brand"):
             self.page.wait_for_timeout(600)
             self.clear()
@@ -211,7 +207,7 @@ class TitlebarBrowserTest(unittest.TestCase):
         self.install()
         self.assertFalse(self.page.evaluate("document.querySelector('[data-wc=maximize]').classList.contains('is-maximized')"))
         self.page.evaluate("window.__state.maximized = true")
-        self.page.set_viewport_size({"width": 1210, "height": 700})   # a maximize resizes the page
+        self.page.set_viewport_size({"width": 1210, "height": 700})
         self.page.wait_for_function("document.querySelector('[data-wc=maximize]').classList.contains('is-maximized')", timeout=2000)
         self.assertEqual(self.page.get_attribute("[data-wc=maximize]", "aria-label"), "Восстановить")
         self.assertEqual(self.page.evaluate("document.documentElement.dataset.titlebarMax"), "true")
@@ -260,7 +256,7 @@ class TitlebarBrowserTest(unittest.TestCase):
         self.page.wait_for_timeout(50)
         box = self.page.locator("#memu-wincontrols").bounding_box()
         self.assertEqual((round(box["y"]), round(box["x"] + box["width"]), round(box["height"])), (0, 1200, 32))
-        # the overlay keeps the band free and the band drags the window
+
         self.assertEqual(self.page.evaluate("getComputedStyle(document.getElementById('overlay')).paddingTop"), "32px")
         self.clear()
         self.page.mouse.move(400, 16); self.page.mouse.down(); self.page.mouse.up()
@@ -281,7 +277,6 @@ class TitlebarBrowserTest(unittest.TestCase):
         self.install()
         labels = self.page.eval_on_selector_all("[data-wc]", "els => els.map(e => e.title)")
         self.assertEqual(labels, ["Minimize", "Maximize", "Close"])
-
 
 if __name__ == "__main__":
     unittest.main()

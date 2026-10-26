@@ -17,14 +17,14 @@ from typing import List, Optional, Tuple
 
 _FONT_CANDIDATES = {
     "": [
-        # Windows (Arial / Segoe UI / Calibri / Tahoma all carry Cyrillic and Greek)
+
         "{windir}/Fonts/arial.ttf", "{windir}/Fonts/segoeui.ttf", "{windir}/Fonts/calibri.ttf", "{windir}/Fonts/tahoma.ttf",
         "{windir}/Fonts/verdana.ttf",
-        # Linux
+
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", "/usr/share/fonts/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/TTF/DejaVuSans.ttf", "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
         "/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf",
-        # macOS
+
         "/System/Library/Fonts/Supplemental/Arial.ttf", "/Library/Fonts/Arial.ttf",
     ],
     "bold": [
@@ -33,7 +33,6 @@ _FONT_CANDIDATES = {
         "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf", "/System/Library/Fonts/Supplemental/Arial Bold.ttf",
     ],
 }
-
 
 def unicode_font_path(style: str = "") -> Optional[str]:
     """Path of a ``.ttf`` (not ``.ttc``: pdf-lib embeds single fonts) with Cyrillic; None when none is found."""
@@ -44,10 +43,9 @@ def unicode_font_path(style: str = "") -> Optional[str]:
             return path
     return None
 
-
 def _page_lines(page) -> List[Tuple[str, float]]:
     """Lines of a page with the biggest font size used in each (pypdf visitor)."""
-    rows: List[Tuple[float, str, float]] = []     # (y, text, size)
+    rows: List[Tuple[float, str, float]] = []
 
     def visit(text, cm, tm, font, size):  # noqa: ANN001 - pypdf callback
         if not text:
@@ -82,10 +80,9 @@ def _page_lines(page) -> List[Tuple[str, float]]:
     lines.append((text, size))
     return [(t.rstrip(), s) for t, s in lines]
 
-
 def extract(path: str, fmt: str = "text", max_chars: int = 2_000_000) -> str:
     """Text (``fmt="text"``) or Markdown (``"markdown"``) of the PDF at *path*."""
-    from pypdf import PdfReader      # lazy: only this feature needs it
+    from pypdf import PdfReader
 
     reader = PdfReader(path)
     if reader.is_encrypted:
@@ -131,7 +128,7 @@ def extract(path: str, fmt: str = "text", max_chars: int = 2_000_000) -> str:
                 flush(); blocks.append(line)
             else:
                 if para and para[-1].endswith("-") and not para[-1].endswith(" -"):
-                    para[-1] = para[-1][:-1] + line          # a word hyphenated across lines
+                    para[-1] = para[-1][:-1] + line
                 else:
                     para.append(line)
         flush()

@@ -1,6 +1,5 @@
-// Runs the real selection code of the Proxy model list (app/static/app.js) against
-// a tiny fake DOM: click / Ctrl / Shift picking and the drag rectangle (the
-// Windows-desktop selection). Prints one JSON line; round12_test.py asserts on it.
+
+
 const fs = require("fs");
 const vm = require("vm");
 const path = require("path");

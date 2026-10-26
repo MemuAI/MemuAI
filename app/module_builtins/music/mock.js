@@ -1,5 +1,5 @@
-/* MemuMusic · mock.js — демо-библиотека без бэкенда (?mock=1 или нет Memu.music.call).
- * Все артисты и треки вымышлены; звук синтезируется в WAV прямо в окне. */
+
+
 const MockMusic = (() => {
   const ARTISTS = ["Lumen Park", "Velvet Hours", "Северный Ветер", "Kairo Sun", "Neon Orchard", "Сонная Лиса", "Atlas Bloom", "Midnight Tram", "Mira Vale", "Polar Kites"];
   const WORDS = ["Golden", "Glass", "Static", "Ocean", "Paper", "Velvet", "Silver", "Northern", "Quiet", "Electric", "Lost", "Slow", "Neon", "Dream", "Ember"];
@@ -52,7 +52,7 @@ const MockMusic = (() => {
     const items = p.track_ids.map(byId).filter(Boolean);
     return { id: p.id, name: p.name, cover: null, count: items.length, duration: items.reduce((s, t) => s + t.duration, 0), covers: items.slice(0, 4).map((t) => t.cover), track_ids: p.track_ids.slice() };
   };
-  /** Умные плейлисты — как в бэкенде: «Недавно добавленные», «Самые слушаемые», «Любимые». */
+
   function smartLists() {
     return [["smart:recent", "Недавно добавленные", "Recently added", tracks.slice().sort((x, y) => y.added_at.localeCompare(x.added_at)).slice(0, 25)],
       ["smart:top", "Самые слушаемые", "Most played", tracks.filter((t) => t.plays > 0).sort((x, y) => y.plays - x.plays).slice(0, 25)],
@@ -101,7 +101,7 @@ const MockMusic = (() => {
     const synced = [];
     let at = 6;
     while (at < t.duration - 6) { synced.push([Math.round(at * 10) / 10, LYRICS[Math.floor(r() * LYRICS.length)]]); at += 3.2 + r() * 2.6; if (r() < .1) { synced.push([at, ""]); at += 4; } }
-    return { synced, plain: synced.map((l) => l[1]).join("\n"), source: "lrclib", source_name: "LRCLIB (demo)", offset: 0, choice: 0,   // r39: варианты для демо
+    return { synced, plain: synced.map((l) => l[1]).join("\n"), source: "lrclib", source_name: "LRCLIB (demo)", offset: 0, choice: 0,
       alts: [{ index: 0, source: "lrclib", name: "LRCLIB", synced: true, words: false, duration: t.duration, title: t.title, artist: t.artist, lines: synced.length },
         { index: 1, source: "genius", name: "Genius", synced: false, words: false, duration: 0, title: t.title, artist: t.artist, lines: synced.length }] };
   }
@@ -121,7 +121,7 @@ const MockMusic = (() => {
       }
     });
   }
-  /* --- синтез звука: аккорды I–V–vi–IV, бас, бочка; WAV 11 кГц, моно ---------------- */
+
   const audioUrls = new Map();
   function synth(track) {
     if (audioUrls.has(track.id)) return audioUrls.get(track.id);
@@ -203,7 +203,7 @@ const MockMusic = (() => {
           artist: ARTISTS[(hash(q) + i) % ARTISTS.length], duration: 160 + i * 17, url: "https://music.youtube.com/watch?v=demo" + i, thumb: null, source: i % 3 ? "youtube" : "ytmusic" }));
       }
       case "lyrics.get": return lyrics(a.id);
-      /* r41b-online: онлайн-поиск с площадкой, каналом и метками; лист «Информация о треке» */
+
       case "online.search": {
         const q = String(a.q || "").trim(); if (!q) return { results: [], source: a.source, via: "", error: "" };
         await delay(250);
@@ -227,11 +227,11 @@ const MockMusic = (() => {
           formats: h.source === "soundcloud" ? [{ ext: "mp3", codec: "mp3", kbps: 128, khz: 44.1, size: 3900000 }, { ext: "opus", codec: "opus", kbps: 64, khz: 48, size: 1800000 }]
             : [{ ext: "webm", codec: "opus", kbps: 160, khz: 48, size: 4700000 }, { ext: "m4a", codec: "aac", kbps: 129, khz: 44.1, size: 3800000 }, { ext: "webm", codec: "opus", kbps: 70, khz: 48, size: 2100000 }],
           cover: "", thumb: "", explicit: !!h.explicit, meta_source: "itunes", meta_url: "", categories: ["Music"], errors: {}, related: true,
-          tags: [], in_library: "" };   // метки уже пришли с результатом поиска
+          tags: [], in_library: "" };
       }
       case "online.related": await delay(400); return ARTISTS.slice(0, 6).map((artist, i) => ({ id: "rel" + i, url: "https://music.youtube.com/watch?v=rel" + i, title: ["Paper Planes", "Night Shift", "Golden Hour", "Low Tide", "Slow Motion", "Neon Bloom"][i], artist, album: "", year: "2023", duration: 190 + i * 11, thumb: null, source: "ytmusic", tags: ["official_audio"], in_library: "" }));
       case "online.lyrics": await delay(300); return { found: true, text: "Glass rivers running through the night\nEvery light a little brighter\nHold the moment, hold it tight\nWe were paper, we were lighter\n\nAnd the city hums along\nTo the rhythm of our song", synced: true, source: "lrclib", instrumental: false };
-      /* функции раунда 38 (жанры, папки, дубликаты, правила, обложки) — чтобы демо и ревизор видели настоящие экраны */
+
       case "library.genres": {
         const g = new Map();
         tracks.forEach((t) => { const name = genreOf(t); const x = g.get(name) || { name, tracks: 0, duration: 0, plays: 0, cover: t.cover, accent: "" }; x.tracks++; x.duration += t.duration; x.plays += t.plays; g.set(name, x); });
@@ -257,7 +257,7 @@ const MockMusic = (() => {
       default: throw new Error("mock: unknown op " + op);
     }
   }
-  /** Заменить демо-библиотеку (скриншоты/ревизор): плейлисты, «недавние» и статистика остаются согласованными с новым списком. */
+
   function seed(list) {
     tracks.splice(0, tracks.length, ...clone(list));
     const ids = new Set(tracks.map((t) => t.id));

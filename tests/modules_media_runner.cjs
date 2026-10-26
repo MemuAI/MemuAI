@@ -137,7 +137,6 @@ async function main() {
     return messages[messages.length - 1];
   }
 
-  // Открываем модуль: без открытого окна мост отвечает «Окно модуля закрыто».
   await host.refresh();
   await host.open("translator");
   report.opened = host.openId;

@@ -17,19 +17,15 @@ MUSIC = ROOT / "app" / "module_builtins" / "music"
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
-
 def read(name: str) -> str:
     return (MUSIC / name).read_text(encoding="utf-8")
 
-
-# ------------------------------------------------------------------ static
 def test_theme_part_is_inlined_after_art():
     main = read("main.js")
     assert main.index("/* @memu-part:art.js */") < main.index("/* @memu-part:theme.js */") < main.index("/* @memu-part:views.js */")
     assert "const SETTINGS_TABS = [];" in main and main.index("const SETTINGS_TABS") < main.index("/* @memu-part:theme.js */")
     theme = read("theme.js")
     assert 'SETTINGS_TABS.push({ id: "appearance"' in theme
-
 
 def test_catalogue_has_enough_themes_and_designs():
     theme = read("theme.js")
@@ -41,7 +37,6 @@ def test_catalogue_has_enough_themes_and_designs():
     css = read("style.css")
     for design in ("minimal", "retro", "neon", "compact"):
         assert f'html[data-mm-design="{design}"]' in css
-
 
 def test_i18n_has_every_appearance_key_in_both_languages():
     data = json.loads(read("i18n.json"))
@@ -55,7 +50,6 @@ def test_i18n_has_every_appearance_key_in_both_languages():
     for th in re.findall(r'\{ id: "([a-z]+)", h:', theme):
         assert f"ui.theme.{th}" in ru and f"ui.theme.{th}_hint" in ru
 
-
 def test_css_bugs_of_round37_are_gone():
     css = read("style.css")
     assert 'html[data-theme="light"]' not in css, "light scheme must follow the MemuMusic mode, not only the host"
@@ -67,7 +61,6 @@ def test_css_bugs_of_round37_are_gone():
     assert "startViewTransition" not in read("main.js")
     assert ".mm-np-tabs-pill" in css and 'data-len="xl"' in css
 
-
 def test_np_markup_has_four_styles_and_tab_pill():
     html = read("index.html")
     for style in ("card", "vinyl", "full", "minimal"):
@@ -76,15 +69,11 @@ def test_np_markup_has_four_styles_and_tab_pill():
     assert 'class="mm-dragzone" data-memu-drag' in html
     assert "setMode(m)" in read("fx.js")
 
-
-# ------------------------------------------------------------------ headless
 def _chromium() -> str:
     from round37_music_harness import chromium
     return chromium()
 
-
 needs_browser = pytest.mark.skipif(not _chromium(), reason="no Chromium")
-
 
 @pytest.fixture(scope="module")
 def page_frame():
@@ -101,7 +90,6 @@ def page_frame():
         yield page, frame, errors
         browser.close()
 
-
 @needs_browser
 def test_real_covers_never_take_the_screen(page_frame):
     from round38_music_design_audit import AUDIT_JS
@@ -115,7 +103,6 @@ def test_real_covers_never_take_the_screen(page_frame):
     assert not found, found
     assert not errors, errors
 
-
 @needs_browser
 def test_auditor_catches_a_planted_bug(page_frame):
     from round38_music_design_audit import AUDIT_JS
@@ -124,7 +111,6 @@ def test_auditor_catches_a_planted_bug(page_frame):
     kinds = {f["kind"] for f in frame.evaluate(AUDIT_JS, {"layer": ""})}
     frame.evaluate("() => document.querySelector('#planted').remove()")
     assert "image-huge" in kinds and "image-ratio" in kinds
-
 
 @needs_browser
 def test_every_theme_is_readable_in_both_schemes(page_frame):
@@ -143,7 +129,6 @@ def test_every_theme_is_readable_in_both_schemes(page_frame):
         assert r["ink"] >= 4.5, r
         assert r["button"] >= 4.5, r
 
-
 @needs_browser
 def test_switching_sections_does_not_shift_layout(page_frame):
     from round38_music_design_audit import CLS_INSTALL
@@ -160,7 +145,6 @@ def test_switching_sections_does_not_shift_layout(page_frame):
     assert frame.evaluate("() => window.__cls") < 0.01
     frame.evaluate("() => MemuMusic.Theme.set('motion', 'off')")
 
-
 @needs_browser
 def test_appearance_tab_applies_instantly(page_frame):
     page, frame, _ = page_frame
@@ -174,7 +158,6 @@ def test_appearance_tab_applies_instantly(page_frame):
     assert got == ["ocean", "retro", "light", "compact", "serif", "true"]
     frame.evaluate("() => document.querySelector('#ap-reset').click()")
     assert frame.evaluate("() => document.documentElement.dataset.mmDesign") == "glass"
-
 
 @needs_browser
 def test_now_playing_styles_and_long_title(page_frame):

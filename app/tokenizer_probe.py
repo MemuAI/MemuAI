@@ -50,10 +50,6 @@ SEGMENTS: Dict[str, str] = {
 }
 ORDER = ("prose", "symbols", "scripts")
 
-#: Reference counts: tokens of ``PREFIX + segment + SUFFIX`` minus tokens of
-#: ``PREFIX + SUFFIX``, in the order of ``ORDER``. How each one was obtained is
-#: written down in UPDATE_ROUND13.md; to add a tokenizer, measure the same three
-#: differences and append a row.
 REFERENCES: List[Dict[str, Any]] = [
     {"id": "o200k", "label": "OpenAI o200k (GPT-4o … GPT-5.x, o-series, gpt-oss)", "families": ["gpt"],
      "source": "offline", "counts": [159, 192, 147]},
@@ -80,28 +76,21 @@ REFERENCES: List[Dict[str, Any]] = [
     {"id": "yi", "label": "Yi (1.5)", "families": ["yi"], "source": "offline", "counts": [200, 315, 311]},
 ]
 
-#: A request with nothing but the baseline line costs about this many tokens in every
-#: tokenizer above (chat template included). What the provider reports beyond it was
-#: added on its side: a hidden system prompt, a tool list, a persona.
 BARE_REQUEST_TOKENS = 30
-#: No real tokenizer counts the probe texts this low: such numbers are made up by the gateway.
+
 IMPLAUSIBLE_RATIO = 0.6
 
-#: Largest relative difference on any segment that still counts as the same tokenizer.
 MATCH_TOLERANCE = 0.025
-#: The same, after removing a constant offset (see ``shifted``): tighter, because one degree
-#: of freedom is spent on the offset.
-SHIFT_TOLERANCE = 0.012
-#: Offsets larger than this are not "the hidden prompt moved a little" any more.
-MAX_SHIFT = 120
-#: Beyond this the tokenizer is clearly a different one.
-MISMATCH_TOLERANCE = 0.08
 
+SHIFT_TOLERANCE = 0.012
+
+MAX_SHIFT = 120
+
+MISMATCH_TOLERANCE = 0.08
 
 def messages(segment: str = "") -> List[Dict[str, str]]:
     """The probe request for one segment; an empty name gives the baseline."""
     return [{"role": "user", "content": PREFIX + SEGMENTS.get(segment, "") + SUFFIX}]
-
 
 def probe_plan() -> List[Dict[str, Any]]:
     """Baseline, the three texts, the baseline again.
@@ -115,7 +104,6 @@ def probe_plan() -> List[Dict[str, Any]]:
                 "messages": messages(segment)}
     return [step("base", "")] + [step(name, name) for name in ORDER] + [step("base2", "")]
 
-
 def measure(results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     """Token counts of the three segments from the probe results, or why there are none."""
     rows = {name: results.get(f"tokenizer_{name}") or {} for name in ("base",) + ORDER}
@@ -126,14 +114,13 @@ def measure(results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
         return {"status": "failed", "failed": failed}
     usages = {name: row.get("usage") or {} for name, row in rows.items()}
     if any(not usage or usage.get("estimated") is not False for usage in usages.values()):
-        # The provider gave no counts of its own: Proxy's length-based estimate says nothing.
+
         return {"status": "no_usage"}
     first = int(usages["base"].get("prompt_tokens") or 0)
     again = results.get("tokenizer_base2") or {}
     second = int((again.get("usage") or {}).get("prompt_tokens") or 0) \
         if not again.get("error") and (again.get("usage") or {}).get("estimated") is False else 0
-    # The closing baseline was taken in the same state as the three texts; the opening one may
-    # include a cache write or another hidden prompt.
+
     base = second or first
     counts = [int(usages[name].get("prompt_tokens") or 0) - base for name in ORDER]
     if base <= 0 or any(value <= 0 for value in counts):
@@ -142,11 +129,9 @@ def measure(results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     return {"status": "measured", "counts": counts, "base": base,
             "stable": jitter <= 2, "jitter": jitter if jitter > 2 else 0}
 
-
 def distance(counts: List[int], reference: List[int]) -> float:
     """Largest relative difference over the three segments."""
     return max(abs(got - want) / max(1, want) for got, want in zip(counts, reference))
-
 
 def shifted(counts: List[int], reference: List[int]) -> tuple:
     """The constant offset that brings the counts closest to a reference, and what is left.
@@ -157,7 +142,6 @@ def shifted(counts: List[int], reference: List[int]) -> tuple:
     offset = round(sum(got - want for got, want in zip(counts, reference)) / len(reference))
     return offset, max(abs(got - want - offset) / max(1, want) for got, want in zip(counts, reference))
 
-
 def compare(counts: List[int], references: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """References ordered by closeness to the measured counts."""
     rows = [{"id": row["id"], "label": row["label"], "families": list(row["families"]),
@@ -165,7 +149,6 @@ def compare(counts: List[int], references: Optional[List[Dict[str, Any]]] = None
              "distance": round(distance(counts, row["counts"]), 4)}
             for row in (REFERENCES if references is None else references)]
     return sorted(rows, key=lambda row: row["distance"])
-
 
 def assess(results: Dict[str, Dict[str, Any]], claimed: str,
            references: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
@@ -184,8 +167,7 @@ def assess(results: Dict[str, Dict[str, Any]], claimed: str,
     out: Dict[str, Any] = {"counts": measured["counts"], "base": measured["base"], "nearest": ranked[:3],
                            "matches": close, "families": sorted({family for row in close for family in row["families"]}),
                            "hidden_tokens": max(0, measured["base"] - BARE_REQUEST_TOKENS),
-                           # Proof needs a reference we computed or measured at the vendor; a count seen
-                           # only through gateways is a hint.
+
                            "strong": any(row["source"] != "observed" for row in close),
                            "stable": measured.get("stable", True), "shift": 0}
     pool = REFERENCES if references is None else references
@@ -198,10 +180,7 @@ def assess(results: Dict[str, Dict[str, Any]], claimed: str,
     out["claimed_reference"] = own[0] if own else None
     jitter = int(measured.get("jitter") or 0)
     if not close:
-        # No direct match. Two honest explanations leave the fingerprint recognisable:
-        # the hidden part of the request moved once between the baseline and the texts (the
-        # same number of tokens on every text), or it flips between two sizes from request to
-        # request (the two baselines differ by ``jitter``, and so may any single text).
+
         moved = []
         for row in ranked:
             offset, rest = shifted(measured["counts"], row["counts"])
@@ -213,7 +192,7 @@ def assess(results: Dict[str, Dict[str, Any]], claimed: str,
                 if rest <= SHIFT_TOLERANCE:
                     moved.append({**row, "distance": round(rest, 4), "shift": jitter})
         families = sorted({family for row in moved for family in row["families"]})
-        # Shapes of different families can coincide, so this only counts when one family fits.
+
         if moved and len(families) == 1:
             close = sorted(moved, key=lambda row: row["distance"])
             out.update({"matches": close, "families": families, "strong": False, "shift": close[0]["shift"],
@@ -227,8 +206,7 @@ def assess(results: Dict[str, Dict[str, Any]], claimed: str,
             out["verdict"] = "mismatch"
     elif (own and out["stable"] and own[0]["distance"] > MISMATCH_TOLERANCE
           and all(row["distance"] > MISMATCH_TOLERANCE for row in own)):
-        # Nothing matches, and the claimed family's own tokenizers are far away. Only said when
-        # the measurement was steady: an unstable hidden prompt alone can move the counts.
+
         out["verdict"] = "unlike_claimed"
     else:
         out["verdict"] = "unknown"

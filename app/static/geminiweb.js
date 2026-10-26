@@ -1,11 +1,10 @@
-/* Round 37 (r37-gemini): Gemini Web — guide, cookie import feedback, sign-in window and step-by-step check.
-   Used from app.js: accountSetupGuide("geminiweb") → GeminiWebSetup.guide(); wireAccountGuides → GeminiWebSetup.wire(). */
+
+
 (function () {
   "use strict";
   const en = () => LANG === "en";
   const tr = (ru, eng) => (en() ? eng : ru);
 
-  // Mini illustrations (inline SVG, theme colours through currentColor / CSS variables).
   const svgDevtools = () => `<svg viewBox="0 0 240 92" class="gw-ill" aria-hidden="true">
     <rect x="1" y="1" width="238" height="90" rx="8" class="gw-ill-frame"/>
     <rect x="1" y="1" width="238" height="16" rx="8" class="gw-ill-bar"/>
@@ -82,7 +81,6 @@
     box.innerHTML = `<ol class="gw-diag">${result.steps.map((s) => `<li class="gw-st-${s.status}"><i>${icon[s.status] || "·"}</i><div><b>${esc(en() ? s.title_en : s.title_ru)}</b><p>${esc(en() ? s.detail_en : s.detail_ru)}</p>${s.fix_ru ? `<p class="gw-fix">${esc(en() ? s.fix_en : s.fix_ru)}</p>` : ""}</div></li>`).join("")}</ol>${renderLimits(result.limits)}${renderModels(result.models)}`;
   }
 
-  // Round 41b (r41b-gemini): the Gemini «Usage limits» window — plan, 5-hour/weekly windows, Pro/Flash/Thinking counters.
   function renderLimits(data) {
     if (!data || !Array.isArray(data.rows) || !data.rows.length) return "";
     const when = (ts) => (Number(ts) > 0 ? new Date(Number(ts) * 1000).toLocaleString(en() ? "en-GB" : "ru-RU", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "");
@@ -100,7 +98,6 @@
     return `<div class="gw-limits"><div class="gw-lim-head"><b>${esc(tr("Лимиты аккаунта", "Account limits"))}</b>${plan}</div><ul>${rows}</ul><p class="gw-muted">${esc(tr("Как в окне «Лимиты использования» Gemini. Также — кнопка ✦ на карточке аккаунта.", "As in Gemini's «Usage limits» window. Also — the ✦ button on the account card."))}</p></div>`;
   }
 
-  // Round 41 (r41-gemini): the account's own model picker as Google returned it (name to use in the Proxy + availability).
   function renderModels(models) {
     if (!Array.isArray(models) || !models.length) return "";
     const rows = models.map((m) => {
@@ -137,13 +134,13 @@
     };
     field.addEventListener("input", parse);
     field.addEventListener("blur", async () => {
-      // Normalize on blur: keep only the recognized .google.com cookies as a Cookie string.
+
       const raw = field.value.trim();
       if (!raw) return;
       try {
         const data = await api("/api/admin/geminiweb/parse", { method: "POST", body: { cookie: raw } });
         if (data.ok && data.cookie && data.cookie !== raw) { field.value = data.cookie; renderParse(feedback, data); }
-      } catch (e) { /* the inline feedback already shows the problem */ }
+      } catch (e) {  }
     });
     if (field.value.trim()) parse();
 

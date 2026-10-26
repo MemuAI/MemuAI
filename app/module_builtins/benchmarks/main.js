@@ -1,23 +1,10 @@
 /* @memu-shared:benchmarks */
-/* Бенчмарки ИИ-моделей: arena.ai по всем аренам и категориям, Artificial
- * Analysis (индекс интеллекта и десяток тестов), LiveBench, SimpleBench и
- * EQ-Bench — в одном окне, плюс собственный сводный рейтинг MemuAI Index и
- * «Личная арена», где выбранная модель-судья вслепую оценивает ответы
- * моделей пользователя на одинаковый набор заданий.
- *
- * Модуль не ходит в сеть сам: страницы и файлы данных читает мост
- * (Memu.fetch с raw: true — с проверкой адреса и лимитом размера), а разбор
- * делается здесь. Сайты публикуют данные по-разному: arena.ai и Artificial
- * Analysis — в потоке React Server Components внутри HTML, LiveBench — в CSV,
- * SimpleBench и EQ-Bench — в JavaScript-файлах. Результаты кэшируются на 6 часов через Memu.save.
- */
+
 const t = (key, vars) => Memu.t(key, vars);
 const tt = (key, fallback, vars) => (Memu.i18n.has(key) ? Memu.t(key, vars) : fallback);
 const saved = Memu.saved || {};
 const $ = (selector) => document.querySelector(selector);
 const TTL = 6 * 60 * 60 * 1000;
-
-/* ------------------------------------------------------------ состояние */
 
 const state = {
   view: ["board", "own", "monitor"].includes(saved.view) ? saved.view : "overview",
@@ -40,8 +27,6 @@ const state = {
   },
 };
 
-/* ------------------------------------------------------------ сохранение */
-
 let saveTimer = 0;
 const dirty = new Set();
 function remember(now = false) {
@@ -51,16 +36,14 @@ function remember(now = false) {
     for (const key of dirty) fields["cache_" + key] = state.cache[key];
     dirty.clear();
     Memu.save(fields).catch(() => {
-      // Кэш — не главное: если он не поместился, модуль просто загрузит заново.
+
       Memu.save({ view: state.view, board: state.board, mine_only: state.mine, hide_deprecated: state.hideDeprecated }).catch(() => {});
     });
   };
   if (now) flush(); else saveTimer = setTimeout(flush, 600);
 }
-// Отложенную запись сбрасываем и на pagehide — иначе свежий кэш теряется.
-window.addEventListener("pagehide", () => remember(true));
 
-/* ------------------------------------------------------------ утилиты */
+window.addEventListener("pagehide", () => remember(true));
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const num = (value, digits = 0) => (value === null || value === undefined || !Number.isFinite(+value) ? "—"
@@ -89,8 +72,6 @@ function isMine(model) {
   return !!key && state.mySet.has(key);
 }
 
-/* ------------------------------------------------------------ загрузка */
-
 const benchmarkData = window.MemuBenchmarkData.create(Memu, {
   state, onChange: () => { renderStatus(); render(); }, onDirty: key => { dirty.add(key); remember(); }
 });
@@ -98,7 +79,6 @@ const { canon, fetchText, rscText, extractJson, fresh, ARENAS, SIGNAL, AA_METRIC
   loadArenaNav, arenaSlugs, parseAgentArena, loadArena, loadAA, loadLiveBench, loadSimple, loadEq,
   arenaTitle, catalog, boardTitle, ensure, loadingKeyFor, percentiles, indexData, indexShort, indexCell, loadIndex, boardData } = benchmarkData;
 
-/** Sorted, ranked rows after search and the "my models" filter. */
 function prepared(id) {
   const data = boardData(id);
   if (!data) return null;
@@ -124,8 +104,6 @@ function prepared(id) {
   return { ...data, rows, total: ranked.length, best: data.score.higher ? Math.max(...scores) : Math.min(...scores),
     worst: data.score.higher ? Math.min(...scores) : Math.max(...scores) };
 }
-
-/* ------------------------------------------------------------ отрисовка */
 
 const OVERVIEW = ["memu:index", "arena:text", "arena:code/webdev", "aa:intelligence", "livebench:global",
   "arena:vision", "arena:text-to-image", "simple:simplebench", "eq:eqbench4"];
@@ -172,10 +150,6 @@ function renderStatus() {
     : t("status.empty");
 }
 
-/* Когда обновлялось то, что сейчас на экране. Раньше бралась самая старая запись всего кэша —
-   включая доски, открытые один раз неделю назад: «Обновить» их не трогает, и шапка вечно
-   показывала «давно», хотя видимые данные были свежими. Самая старая из ПОКАЗАННЫХ досок —
-   честная оценка: по ней видно, что что-то на экране устарело. */
 function cacheStamp(id) {
   const [source, rest] = id.split(/:(.*)/s);
   if (source === "arena") return (state.cache.arena[rest] || {}).at || 0;
@@ -252,7 +226,7 @@ function renderBoard(main) {
         ${data && data.source ? `<button type="button" class="bm-btn ghost" data-open-url="${esc(data.source)}">${esc(t("open.site"))}</button>` : ""}
       </div></header>`;
   if (!data) {
-    // У сводного рейтинга нет своего источника: пусто — значит, не загрузилось хотя бы два источника.
+
     const stalled = source === "memu" && !state.loading.size;
     main.innerHTML = head + (stalled
       ? `<div class="bm-error"><b>${esc(t("index.nodata"))}</b><p>${esc(t("index.nodata.sub"))}</p><button type="button" class="bm-btn" data-retry="${esc(id)}">${esc(t("retry"))}</button></div>`
@@ -295,8 +269,6 @@ function render() {
   else renderBoard(main);
 }
 
-/* ------------------------------------------------------------ фоновый мониторинг */
-
 const monitoringText = (ru, en) => Memu.lang === "en" ? en : ru;
 const monitor = {
   ready: false, busy: false, dirty: false, enabled: false, interval: 21600, telegram: true,
@@ -338,8 +310,7 @@ function monitorSource(board) {
       id_keys: ["slug"], label_keys: ["name", "slug"], value_keys: fields });
   } else if (provider === "livebench") {
     const tasks = ((state.cache.livebench || {}).category_tasks || {})[rest];
-    // Category averages are derived from these task scores. Monitor only that
-    // category's columns; the overall board tracks all published numeric columns.
+
     if (rest !== "global" && (!Array.isArray(tasks) || !tasks.length)) return null;
     Object.assign(source, { title: `LiveBench · ${rest}`, url: "https://livebench.ai/", format: "csv",
       discover: [{ kind: "script", contains: "static/js/main." }, { kind: "date", template: "/table_{date}.csv" }],
@@ -366,8 +337,7 @@ function monitorChoices() {
     }
     return items.map((item) => ({ ...item, key: monitorSourceId(item.id), spec: monitorSource(item.id) }));
   }) }));
-  // A saved category still belongs to the selection if its page was evicted
-  // from the bounded display cache. Keep its original declarative source spec.
+
   const known = new Set(groups.flatMap((group) => group.boards.map((board) => board.key)));
   const retained = monitor.sources.filter((source) => !known.has(source.id)).map((source) => ({
     id: source.id, key: source.id, title: source.title || source.id, spec: source,
@@ -506,7 +476,6 @@ async function discoverMonitoringBoards() {
   finally { monitor.busy = false; render(); }
 }
 
-// Round 31: MemuAI asks before closing the window while the monitoring settings are unsaved.
 function reportUnsaved(flag) {
   if (typeof Memu.unsaved === "function") Memu.unsaved(!!flag, monitoringText("Настройки наблюдения не сохранены.", "The monitoring settings are not saved.")).catch(() => {});
 }
@@ -519,8 +488,6 @@ function markMonitoringDirty() {
   const label = $("#monitor-dirty");
   if (label) label.textContent = monitoringText("Есть несохранённые изменения", "Unsaved changes");
 }
-
-/* ------------------------------------------------------------ модель во всех рейтингах */
 
 function allLoadedBoards() {
   const ids = [];
@@ -608,7 +575,7 @@ async function loadEverything(force = false) {
   await loadArenaNav(force);
   const jobs = [() => loadAA(force), () => loadLiveBench(force),
     () => loadSimple(force), () => loadEq(force), ...INDEX_ARENAS.map((id) => () => ensure(id, force)), ...OVERVIEW.filter((id) => id.startsWith("arena:")).map((id) => () => ensure(id, force))];
-  // Не больше трёх загрузок сразу: страницы весят до нескольких мегабайт.
+
   let next = 0;
   await Promise.all([0, 1, 2].map(async () => {
     while (next < jobs.length) {
@@ -619,14 +586,6 @@ async function loadEverything(force = false) {
   }));
 }
 
-/* ------------------------------------------------------------ личная арена */
-
-/* Публичные рейтинги измеряют официальные API. Через Proxy за тем же именем
- * может стоять другая версия или урезанная конфигурация, а русский язык почти
- * нигде не проверяют отдельно. Личная арена прогоняет выбранные модели
- * пользователя по одинаковым заданиям: где ответ однозначен — проверяет код,
- * остальное вслепую (ответы перемешаны и подписаны буквами) оценивает
- * модель-судья по рубрике. Итог — среднее по заданиям, 0–100. */
 const OWN_MAX_MODELS = 6;
 const OWN_KEEP_RUNS = 3;
 const OWN_ANSWER_LIMIT = 3000;
@@ -706,7 +665,6 @@ function shuffle(list) {
   return out;
 }
 
-/** Blind judging: answers are shuffled, labelled A, B, C… and scored 0–10 as JSON. */
 async function judgeTask(task, lang, answers, run) {
   const letters = "ABCDEFGH";
   const order = shuffle(Object.keys(answers).filter((model) => !answers[model].error));
@@ -744,7 +702,7 @@ async function runOwn() {
     for (const task of tasks) {
       const answers = {};
       let cursor = 0;
-      // Два запроса одновременно: быстрее, но без перегрузки провайдеров.
+
       await Promise.all([0, 1].map(async () => {
         while (cursor < run.models.length && !job.cancelled) {
           const model = run.models[cursor];
@@ -854,8 +812,6 @@ function openAnswer(taskId, model) {
   $("#scrim").hidden = false;
   card.querySelector("[data-close]").focus();
 }
-
-/* ------------------------------------------------------------ события */
 
 document.addEventListener("click", async (event) => {
   const target = event.target.closest("button, [data-close]");
@@ -1022,14 +978,12 @@ async function loadMyModels() {
 
 Memu.onLanguage(() => render());
 
-/* ------------------------------------------------------------ старт */
-
 render();
 loadMyModels().then(render);
 if (state.view === "overview") loadEverything();
 else if (state.view === "board") ensure(state.board);
 else if (state.view === "monitor") loadMonitoring();
-// Round 30: one header — in the MemuAI window the name, status and buttons of this bar live in the window's title row.
+
 if (Memu.toolbar && Memu.toolbar.adopt) Memu.toolbar.adopt({ hide: ".bm-brand", status: "#status",
   buttons: [{ id: "monitor", el: "#monitor-open", icon: "bell" }, { id: "refresh", el: "#refresh", icon: "refresh" }] });
 if (typeof Memu.ready === "function") Memu.ready();

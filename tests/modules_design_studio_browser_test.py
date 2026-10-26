@@ -28,10 +28,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
-# Run alone (python -m unittest tests.modules_design_studio_browser_test) the
-# isolation module is not loaded: never read overrides from a real profile.
-os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="memuai-design-studio-"))
 
+os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="memuai-design-studio-"))
 
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome",
@@ -40,8 +38,6 @@ def _chromium() -> str:
             return candidate
     return ""
 
-
-# 1x1 PNG, a real decodable image.
 PNG = ("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
 
 DOC = ("<!DOCTYPE html><html lang=\"ru\"><head><meta charset=\"utf-8\"><title>{title}</title>"
@@ -102,7 +98,6 @@ const q = new URLSearchParams(location.search);
 document.querySelector('iframe').src = '/module/' + q.get('module') + '?' + q.toString();
 </script></body></html>""".replace("__PNG__", json.dumps(PNG))
 
-
 class _Handler(http.server.BaseHTTPRequestHandler):
     saved_by_module: dict = {}
 
@@ -128,19 +123,14 @@ class _Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
-
-# The preview is double-buffered: the visible document is the front iframe.
 FRONT = "document.querySelector('.ds-frames iframe.front')"
-
 
 def _doc(title: str, body: str = "Тёплая кофейня у моря с настоящими текстами и крупной типографикой.") -> str:
     return DOC.format(title=title, body=body)
 
-
 def _chunks(text: str, parts: int = 14):
     size = max(1, len(text) // parts + 1)
     return [text[i:i + size] for i in range(0, len(text), size)]
-
 
 @unittest.skipUnless(_chromium(), "Chromium is not installed")
 class DesignStudioBrowserTest(unittest.TestCase):
@@ -163,7 +153,6 @@ class DesignStudioBrowserTest(unittest.TestCase):
         cls.server.shutdown()
         cls.server.server_close()
 
-    # ------------------------------------------------------------- helpers
     def open(self, module: str, saved=None, size=(1360, 860), theme="light"):
         from urllib.parse import urlencode
         page = self.browser.new_page(viewport={"width": size[0], "height": size[1]})
@@ -191,16 +180,15 @@ class DesignStudioBrowserTest(unittest.TestCase):
                 raise AssertionError(f"timed out: {expression}")
             time.sleep(0.04)
 
-    # --------------------------------------------------------------- Design
     def test_design_streams_live_preview_and_records_versions(self):
         page, frame = self.open("design")
         first = _doc("Кофейня «Прибой»")
         page.evaluate("(c) => { cfg.streamChunks = c; cfg.streamEvery = 140; }", _chunks("```html\n" + first + "\n```", 16))
         frame.evaluate("() => { document.querySelector('#brief').value = 'Сайт кофейни у моря'; document.querySelector('#make').click(); }")
-        # Stages and the progress pill appear at once.
+
         self.wait(frame, "!document.querySelector('#live-pill').hidden")
         self.wait(frame, "document.querySelector('.ds-stages li.now')")
-        # The partial document reaches the preview before the stream ends.
+
         self.wait(frame, f"{FRONT}.srcdoc.includes('<body') && !document.querySelector('#live-badge').hidden")
         partial = frame.evaluate(f"() => {FRONT}.srcdoc")
         self.assertNotIn("</html>", partial.split("<script>document.addEventListener")[0])
@@ -211,7 +199,6 @@ class DesignStudioBrowserTest(unittest.TestCase):
         self.assertEqual(state["label"], "Версия 1 из 1")
         self.assertTrue(state["live"] and state["undo"], state)
 
-        # A refinement keeps the current design on screen (no waiting card) and adds version 2.
         second = _doc("Кофейня «Прибой» — меню")
         page.evaluate("(c) => { cfg.streamChunks = c; }", _chunks(second, 8))
         frame.evaluate("() => { document.querySelector('#refine').value = 'Добавь меню'; document.querySelector('#refine-go').click(); }")
@@ -223,13 +210,12 @@ class DesignStudioBrowserTest(unittest.TestCase):
         self.assertEqual(saved["version_cursor"], 1)
         self.assertEqual(saved["versions"][1]["label"], "Добавь меню")
 
-        # Undo / redo through the toolbar and the keyboard; the code follows.
         frame.evaluate("() => document.querySelector('#undo').click()")
         self.assertIn("«Прибой»</title>", frame.evaluate("() => document.querySelector('#code').value"))
         self.assertEqual(frame.evaluate("() => document.querySelector('#history-label').textContent"), "Версия 1 из 2")
         frame.evaluate("() => { document.activeElement.blur(); document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Z', code: 'KeyZ', ctrlKey: true, shiftKey: true, bubbles: true, cancelable: true })); }")
         self.assertIn("меню</title>", frame.evaluate("() => document.querySelector('#code').value"))
-        # The history menu lists both, newest first; Esc closes it and is marked handled.
+
         frame.evaluate("() => document.querySelector('#history-toggle').click()")
         items = frame.evaluate("() => [...document.querySelectorAll('#history-list [data-version]')].map(n => [n.dataset.version, n.getAttribute('aria-checked')])")
         self.assertEqual(items, [["1", "true"], ["0", "false"]])
@@ -238,7 +224,7 @@ class DesignStudioBrowserTest(unittest.TestCase):
         self.assertTrue(frame.evaluate("() => document.querySelector('#history-pop').hidden"))
         page.wait_for_timeout(100)
         self.assertEqual(page.evaluate("keys"), [], "a handled Esc must not reach the host")
-        # Typing in the brief saves the light fields only, not the whole history again.
+
         before = page.evaluate("saved.length")
         frame.evaluate("() => { const b = document.querySelector('#brief'); b.value += ' и террасой'; b.dispatchEvent(new Event('input', { bubbles: true })); }")
         page.wait_for_timeout(900)
@@ -281,7 +267,6 @@ class DesignStudioBrowserTest(unittest.TestCase):
         self.assertIn("оборвался", frame.evaluate("() => document.querySelector('#design-status').textContent"))
         self.assertEqual(frame.evaluate("() => document.querySelector('#history-label').textContent"), "Версия 1 из 1")
 
-    # --------------------------------------------------------------- Studio
     def test_studio_keeps_a_session_history_and_reuses_the_raw_prompt(self):
         page, frame = self.open("studio")
         page.evaluate("() => { cfg.imageDelay = 60; }")
@@ -293,7 +278,7 @@ class DesignStudioBrowserTest(unittest.TestCase):
         state = frame.evaluate("() => ({ hidden: document.querySelector('#image-history').hidden, count: document.querySelector('#image-history-count').textContent,"
                                " current: document.querySelectorAll('#image-history-row .current').length })")
         self.assertEqual(state, {"hidden": False, "count": "3", "current": 1})
-        # The oldest picture opens in the viewer with its prompt; reuse restores the raw text, not the composed prompt.
+
         frame.evaluate("() => document.querySelector('#image-history-row [data-history=\"2\"]').click()")
         caption = frame.evaluate("() => document.querySelector('#lightbox-caption').textContent")
         self.assertIn("Маяк в тумане", caption)
@@ -314,7 +299,7 @@ class DesignStudioBrowserTest(unittest.TestCase):
         self.assertFalse(state["stop"])
         self.assertEqual(state["label"], "Создать")
         self.assertIn("Остановлено", state["status"])
-        page.wait_for_timeout(1500)   # the late answer arrives and must be ignored
+        page.wait_for_timeout(1500)
         self.assertTrue(frame.evaluate("() => document.querySelector('#image-history').hidden"))
         self.assertIn("Остановлено", frame.evaluate("() => document.querySelector('#studio-status').textContent"))
 
@@ -352,7 +337,6 @@ class DesignStudioBrowserTest(unittest.TestCase):
         }""")
         self.assertEqual(added, {"shown": True, "hidden": True, "refs": 1})
 
-    # ------------------------------------------- Round 22: drop overlays
     DRAG = """(args) => {
       const [selector, kind, name, type] = args;
       const target = document.querySelector(selector);
@@ -363,9 +347,7 @@ class DesignStudioBrowserTest(unittest.TestCase):
     }"""
 
     def test_studio_transcribe_file_zone_is_a_normal_field_not_a_full_window_overlay(self):
-        # Round 22 bug: the overlay class .st-drop was shared with the transcription file
-        # field, so opening «Расшифровка» covered the whole module with an unclickable
-        # «Выберите или перетащите файл» that accepted no files.
+
         page, frame = self.open("studio", size=(1200, 760))
         frame.evaluate("() => document.querySelector('[data-tab=\"transcribe\"]').click()")
         page.wait_for_timeout(150)
@@ -384,12 +366,11 @@ class DesignStudioBrowserTest(unittest.TestCase):
         self.assertFalse(geo["hitInsideZone"], geo)
         self.assertTrue(geo["hitTranscript"], geo)
         self.assertEqual(geo["overlays"], [True, True], geo)
-        # The field opens the file chooser on click.
+
         with page.expect_file_chooser(timeout=3000) as chooser:
             frame.click("#drop-zone")
         self.assertIsNotNone(chooser.value)
 
-        # Dropping an audio file anywhere on the tab selects it; the overlay shows only during the drag.
         frame.evaluate(self.DRAG, ["#transcript", "dragenter", "talk.mp3", "audio/mpeg"])
         self.assertFalse(frame.evaluate("() => document.querySelector('#audio-drop').hidden"))
         self.assertTrue(frame.evaluate("() => document.querySelector('#drop-zone').classList.contains('over')"))
@@ -400,26 +381,26 @@ class DesignStudioBrowserTest(unittest.TestCase):
                                " name: document.querySelector('#transcribe-file-name').textContent })")
         self.assertTrue(state["overlay"] and not state["over"] and state["source"], state)
         self.assertIn("talk.mp3", state["name"])
-        # …and it can be removed again.
+
         frame.click("#transcribe-forget")
         self.assertTrue(frame.evaluate("() => document.querySelector('#transcribe-source').hidden"))
-        # A non-audio file is refused with a message, not silently taken.
+
         frame.evaluate(self.DRAG, ["#transcript", "drop", "notes.pdf", "application/pdf"])
         self.assertTrue(frame.evaluate("() => document.querySelector('#transcribe-source').hidden"))
 
     def test_studio_drop_overlay_never_gets_stuck(self):
         page, frame = self.open("studio", size=(1200, 760))
         shown = "() => !document.querySelector('#image-drop').hidden"
-        # A drag of plain text (not files) never shows it.
+
         frame.evaluate("""() => { const d = new DataTransfer(); d.setData('text/plain', 'x');
           document.querySelector('#image-stage').dispatchEvent(new DragEvent('dragenter', { dataTransfer: d, bubbles: true, cancelable: true })); }""")
         self.assertFalse(frame.evaluate(shown))
-        # Enter + leave to the outside (relatedTarget null) hides it.
+
         frame.evaluate(self.DRAG, ["#image-stage", "dragenter", "a.png", "image/png"])
         self.assertTrue(frame.evaluate(shown))
         frame.evaluate(self.DRAG, ["#image-stage", "dragleave", "a.png", "image/png"])
         self.assertFalse(frame.evaluate(shown))
-        # Enter twice (child elements) without any leave: Esc hides it and is marked handled.
+
         frame.evaluate(self.DRAG, ["#image-stage", "dragenter", "a.png", "image/png"])
         frame.evaluate(self.DRAG, ["#image-prompt", "dragenter", "a.png", "image/png"])
         prevented = frame.evaluate("() => { const e = new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true });"
@@ -428,17 +409,17 @@ class DesignStudioBrowserTest(unittest.TestCase):
         self.assertFalse(frame.evaluate(shown))
         page.wait_for_timeout(100)
         self.assertEqual(page.evaluate("keys"), [], "the handled Esc must not collapse the host sheet")
-        # Lost dragleave: any ordinary mouse movement clears it…
+
         frame.evaluate(self.DRAG, ["#image-stage", "dragenter", "a.png", "image/png"])
         page.mouse.move(300, 300)
         page.mouse.move(320, 310)
         self.assertFalse(frame.evaluate(shown))
-        # …and so does a drag that simply stops sending dragover (dropped outside the window).
+
         frame.evaluate(self.DRAG, ["#image-stage", "dragenter", "a.png", "image/png"])
         self.assertTrue(frame.evaluate(shown))
         page.wait_for_timeout(1500)
         self.assertFalse(frame.evaluate(shown))
-        # A drop on the document outside any zone is swallowed (no navigation) and hides overlays.
+
         frame.evaluate(self.DRAG, ["#image-stage", "dragenter", "a.png", "image/png"])
         frame.evaluate(self.DRAG, [".st-tabs", "drop", "a.png", "image/png"])
         self.assertFalse(frame.evaluate(shown))
@@ -461,7 +442,6 @@ class DesignStudioBrowserTest(unittest.TestCase):
         page.mouse.move(200, 200)
         page.mouse.move(210, 220)
         self.assertFalse(frame.evaluate(shown))
-
 
 if __name__ == "__main__":
     unittest.main()

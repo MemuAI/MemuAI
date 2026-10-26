@@ -28,14 +28,11 @@ class _LazyLog:
         import logging
         return getattr(logging.getLogger("memufiles"), name)
 
-
 log = _LazyLog()
 INSTANCE_FILE = "instance.json"
 
-
 def _instance_path() -> Path:
     return files_dir() / INSTANCE_FILE
-
 
 def _remote(action: str, payload: Dict[str, Any], timeout: float = 3.0) -> Optional[Dict[str, Any]]:
     """POST ``/api/remote`` to the running instance over a plain loopback socket.
@@ -70,7 +67,6 @@ def _remote(action: str, payload: Dict[str, Any], timeout: float = 3.0) -> Optio
     except Exception:  # noqa: BLE001 - a stale file: we become the instance
         return None
 
-
 def hand_off(paths: List[str], reveal: Optional[List[str]] = None, shell: bool = False, browse: bool = False) -> bool:
     """Give *paths* to the running instance in ONE request (Round 39; was ping + open). The instance refuses when it
     is a ghost (a window that never showed) — then it is shut down and this process becomes the instance.
@@ -82,7 +78,7 @@ def hand_off(paths: List[str], reveal: Optional[List[str]] = None, shell: bool =
     if shell:
         payload["shell"] = True
     if browse:
-        payload["browse"] = True              # r41-files: «--archive x.zip» — the archive opens like a folder
+        payload["browse"] = True
     reply = _remote("open", payload)
     if reply is None:
         return False
@@ -90,7 +86,6 @@ def hand_off(paths: List[str], reveal: Optional[List[str]] = None, shell: bool =
         _remote("shutdown", {}, timeout=3.0)
         return False
     return True
-
 
 def open_path(path: str) -> bool:
     """Show a folder/file in MemuFiles from the MemuAI process (Quick Access file search, Alt+Enter —
@@ -101,10 +96,8 @@ def open_path(path: str) -> bool:
     from .. import memufiles_manager
     return bool(memufiles_manager.open_app([path]).get("ok"))
 
-
 def publish_instance(port: int, token: str) -> None:
     write_json(_instance_path(), {"port": port, "token": token, "pid": os.getpid(), "started": int(time.time())})
-
 
 def clear_instance(port: int) -> None:
     data = read_json(_instance_path(), {})
@@ -114,17 +107,16 @@ def clear_instance(port: int) -> None:
         except OSError:
             pass
 
-
 class Desktop:
     def __init__(self, webview_module: Any, window: Any, theme_mode: str, titlebar: Any = None) -> None:
         self.webview = webview_module
         self.window = window
         self.theme_mode = theme_mode
         self.titlebar = titlebar
-        self._hwnd = 0           # cached on the UI thread (``shown``): request threads must not touch .NET Handle
+        self._hwnd = 0
         self.quitting = False
-        self.dnd_paths = False   # r40-files-core: pywebview reports full paths of files dropped from Explorer
-        self.taskbar: Any = None  # r40-files-core: operation progress on the taskbar button (taskbar.py)
+        self.dnd_paths = False
+        self.taskbar: Any = None
 
     def _native(self):
         try:
@@ -220,7 +212,7 @@ class Desktop:
             log.warning("window command %s failed: %s", cmd, exc)
 
     def force_close(self) -> None:
-        self.quitting = True                 # Round 39: a real quit, even with «keep ready in the background»
+        self.quitting = True
         timer = threading.Timer(6.0, os._exit, args=(0,))
         timer.daemon = True
         timer.start()
@@ -229,9 +221,7 @@ class Desktop:
         except Exception:  # noqa: BLE001
             os._exit(0)
 
-
 _EXPLORER_SWITCH = re.compile(r"^/(select|e|n|root|separate|idlist)(?:,(.*))?$", re.I | re.S)
-
 
 def _parse_args(argv: List[str]) -> Dict[str, Any]:
     """Round 41: Explorer's own switches work too — ``/select,"C:\\a\\b.txt"`` (also split as ``/select,`` ``path``),
@@ -280,7 +270,6 @@ def _parse_args(argv: List[str]) -> Dict[str, Any]:
                 want_select = False
     return {"paths": paths, "flags": flags, "raw": raw, "reveal": reveal}
 
-
 def _shell_open(raw: List[str]) -> Optional[List[str]]:
     """``--shell-open`` (the folder handler in the registry, Round 38): what MemuFiles cannot show goes to the
     real Explorer through the untouched ``explore`` verb; ``None`` = nothing left for MemuFiles to open."""
@@ -289,8 +278,7 @@ def _shell_open(raw: List[str]) -> Optional[List[str]]:
     if kind == "explorer":
         default_shell.explore(target)
         return None
-    return [target or os.path.expanduser("~")]      # Win+E (no folder): a new tab, like a new Explorer window
-
+    return [target or os.path.expanduser("~")]
 
 def _win_shell_extras(app: Any) -> None:
     """Round 38, Windows: re-point the folder handler if MemuFiles.exe moved; the optional Win+E hook."""
@@ -298,7 +286,7 @@ def _win_shell_extras(app: Any) -> None:
     try:
         default_shell.heal()
         from . import settings as settings_store
-        if settings_store.load().get("open_archives"):     # r41-files: re-point the archive association if the exe moved
+        if settings_store.load().get("open_archives"):
             from . import archive_assoc
             archive_assoc.sync(True)
         if default_shell.load_state().get("hook"):
@@ -306,7 +294,6 @@ def _win_shell_extras(app: Any) -> None:
             winkey.start(lambda: _remote("open", {"paths": [os.path.expanduser("~")]}))
     except Exception:  # noqa: BLE001 - never block start-up
         log.exception("default shell check failed")
-
 
 def _say(text: str) -> None:
     stream = sys.stdout
@@ -317,7 +304,6 @@ def _say(text: str) -> None:
         stream.flush()
     except Exception:  # noqa: BLE001
         pass
-
 
 def _setup_logging(debug: bool) -> None:
     import logging
@@ -333,7 +319,6 @@ def _setup_logging(debug: bool) -> None:
     except OSError:
         logging.basicConfig(level=level, format=fmt, handlers=[logging.NullHandler()])
 
-
 def _load_webview() -> Tuple[Any, str]:
     if os.name == "nt":
         from ..memunote import winsys
@@ -345,7 +330,6 @@ def _load_webview() -> Tuple[Any, str]:
         log.exception("pywebview is unavailable")
         return None, f"pywebview: {type(exc).__name__}: {exc}"
     return webview, ""
-
 
 def _serve_in_browser(app: Any, url: str) -> int:
     import webbrowser
@@ -363,14 +347,13 @@ def _serve_in_browser(app: Any, url: str) -> int:
             break
     return 0
 
-
 def main(argv: Optional[List[str]] = None) -> int:
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
     flags = args["flags"]
     if "--shutdown" in flags:
         _remote("shutdown", {}, timeout=5.0)
         return 0
-    if "--restore-explorer" in flags:             # emergency rollback / the uninstaller (Round 38)
+    if "--restore-explorer" in flags:
         from .default_shell import cli_restore
         return cli_restore()
     if "--shell-open" in flags:
@@ -379,7 +362,7 @@ def main(argv: Optional[List[str]] = None) -> int:
             return 0
         args["paths"] = opened
     shell = "--shell-open" in flags and bool(args["raw"])
-    browse = "--archive" in flags                 # r41-files: the archive file association (archive_assoc.py)
+    browse = "--archive" in flags
     if "--new-instance" not in flags and hand_off(args["paths"], args.get("reveal"), shell, browse):
         return 0
     _setup_logging("--debug" in flags)
@@ -429,7 +412,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         except Exception:  # noqa: BLE001
             pass
 
-
 def _icon_path(system: str = os.name, frozen: Optional[bool] = None) -> Optional[str]:
     """``.ico`` on Windows (a PNG there kills pywebview ≥ 6.2, see MemuNote), PNG elsewhere; None when frozen."""
     frozen = bool(getattr(sys, "frozen", False)) if frozen is None else frozen
@@ -442,7 +424,6 @@ def _icon_path(system: str = os.name, frozen: Optional[bool] = None) -> Optional
             if (folder / name).is_file():
                 return str(folder / name)
     return None
-
 
 def _create_titlebar(flags: set) -> Any:
     """MemuAI's custom caption (``app/win_titlebar.py``): tabs become the title bar. ``None`` off Windows or if
@@ -460,7 +441,6 @@ def _create_titlebar(flags: set) -> Any:
         log.warning("custom title bar unavailable: %s", exc)
         return None
 
-
 def _attach_titlebar(controller: Any, native: Any) -> bool:
     """Install the caption hook on the WinForms window (UI thread, like ``memuai._attach_titlebar``)."""
     if controller is None or native is None:
@@ -476,7 +456,6 @@ def _attach_titlebar(controller: Any, native: Any) -> bool:
     except Exception as exc:  # noqa: BLE001
         log.warning("custom title bar not attached: %s", exc)
         return False
-
 
 def _open_window(webview: Any, app: Any, flags: set, url: str) -> None:
     from ..memunote.desktop import closing_geometry, sane_geometry
@@ -499,7 +478,7 @@ def _open_window(webview: Any, app: Any, flags: set, url: str) -> None:
     extra: Dict[str, Any] = {}
     if titlebar is not None:
         from ..win_titlebar import TitlebarBridge
-        extra["js_api"] = TitlebarBridge(titlebar)      # window.pywebview.api.titlebar_* (static/js/titlebar.js)
+        extra["js_api"] = TitlebarBridge(titlebar)
     window = webview.create_window(
         APP_NAME, url, width=geometry["width"], height=geometry["height"], x=geometry["x"], y=geometry["y"],
         min_size=(560, 380), background_color="#17171a" if mode != "light" else "#f7f6f3", text_select=False,
@@ -525,8 +504,7 @@ def _open_window(webview: Any, app: Any, flags: set, url: str) -> None:
 
     def on_closing() -> bool:
         if app.ui == "window" and not desktop.quitting and not app.stopping.is_set() and _keep_running():
-            # Round 39: «Держать готовым в фоне» — the window hides instead of closing; the next Win+E / folder
-            # double-click shows it again at once (``activate``), with a new tab for the folder
+
             app.events.push({"type": "hidden"})
             app.ui = "warm"
             try:
@@ -568,14 +546,12 @@ def _open_window(webview: Any, app: Any, flags: set, url: str) -> None:
         options = {"debug": options["debug"]}
     webview.start(**options)
 
-
 def _keep_running() -> bool:
     try:
         from . import settings
         return bool(settings.load().get("keep_running"))
     except Exception:  # noqa: BLE001
         return False
-
 
 def _attach_drop(window: Any, app: Any) -> None:
     """Files dropped from Explorer: pywebview gives full paths (``pywebviewFullPath``); the page knows the target.
@@ -598,7 +574,7 @@ def _attach_drop(window: Any, app: Any) -> None:
                     continue
                 path = f.get("pywebviewFullPath") or ""
                 if path and not os.path.exists(path):
-                    path = ""                    # a temp file of a virtual item that is already gone
+                    path = ""
                 rows.append({"name": str(f.get("name") or ""), "path": path})
             if rows:
                 app.events.push({"type": "drop", "files": rows, "paths": [r["path"] for r in rows if r["path"]]})

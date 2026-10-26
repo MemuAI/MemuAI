@@ -24,10 +24,10 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Tuple
 
 from . import fsops
 
-MAX_FILES = 300            # files classified in one plan
-BATCH = 12                 # files per model call
-PARALLEL = 4               # model calls at once
-SNIPPET = 700              # characters of each document sent to the model
+MAX_FILES = 300
+BATCH = 12
+PARALLEL = 4
+SNIPPET = 700
 TEXT_EXT = {".txt", ".md", ".markdown", ".csv", ".tsv", ".json", ".xml", ".html", ".htm", ".log", ".ini", ".cfg",
             ".yaml", ".yml", ".py", ".js", ".ts", ".java", ".c", ".cpp", ".h", ".cs", ".go", ".rs", ".php", ".rb",
             ".sh", ".ps1", ".bat", ".sql", ".tex", ".srt", ".rtf", ".eml"}
@@ -52,9 +52,6 @@ For every file below (number, name, start of contents or metadata) propose:
 Files with the same meaning go to the same folder. Never invent data that is not in the contents.
 {instructions}Answer ONLY with a JSON array, no prose: [{{"i": 0, "folder": "...", "name": "...", "why": "..."}}, ...]"""
 
-
-# ================================================================= reading documents
-
 def _xml_text(data: bytes, limit: int) -> str:
     text = re.sub(rb"</(w:p|text:p|a:p|si)>", b"\n", data)
     text = re.sub(rb"<[^>]+>", b" ", text)
@@ -63,11 +60,10 @@ def _xml_text(data: bytes, limit: int) -> str:
     out = re.sub(r"[ \t\r\f\v]+", " ", out)
     return re.sub(r"\n\s*\n+", "\n", out).strip()[:limit]
 
-
 def _pdf_text(path: str, limit: int) -> Tuple[str, Dict[str, Any]]:
     meta: Dict[str, Any] = {}
     try:
-        from pypdf import PdfReader  # optional: in requirements.txt; without it — a crude reader below
+        from pypdf import PdfReader
     except Exception:  # noqa: BLE001
         PdfReader = None
     if PdfReader is not None:
@@ -107,7 +103,6 @@ def _pdf_text(path: str, limit: int) -> Tuple[str, Dict[str, Any]]:
     text = b" ".join(chunks).decode("latin-1", "replace")
     return re.sub(r"\s+", " ", text).strip()[:limit], meta
 
-
 def _image_meta(path: str) -> Dict[str, Any]:
     meta: Dict[str, Any] = {}
     try:
@@ -130,10 +125,9 @@ def _image_meta(path: str) -> Dict[str, Any]:
         pass
     return meta
 
-
 def _audio_meta(path: str) -> Dict[str, Any]:
     try:
-        import mutagen  # optional (MemuMusic dependency)
+        import mutagen
         tags = mutagen.File(path, easy=True)
     except Exception:  # noqa: BLE001
         return {}
@@ -143,7 +137,6 @@ def _audio_meta(path: str) -> Dict[str, Any]:
     if getattr(tags, "info", None) is not None and getattr(tags.info, "length", 0):
         meta["duration"] = int(tags.info.length)
     return meta
-
 
 def describe(path: str, limit: int = SNIPPET) -> Dict[str, Any]:
     """What the model sees about one file: ``{text?, meta?}`` — the first page / lines / metadata."""
@@ -188,11 +181,7 @@ def describe(path: str, limit: int = SNIPPET) -> Dict[str, Any]:
         out.pop("meta", None)
     return out
 
-
-# ================================================================= names
-
 _BAD = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
-
 
 def clean_component(text: str, limit: int = 80) -> str:
     """One safe path component («Счета», «2026-09-Ромашка»): no separators / reserved chars / dots at the ends."""
@@ -205,13 +194,11 @@ def clean_component(text: str, limit: int = 80) -> str:
         return ""
     return text
 
-
 def clean_folder(text: str) -> str:
     """«Бухгалтерия/Счета» → a relative path of ≤3 safe components (never absolute, never «..»)."""
     parts = [clean_component(p, 60) for p in re.split(r"[\\/]+", str(text or ""))]
     parts = [p for p in parts if p]
     return os.path.join(*parts[:3]) if parts else ""
-
 
 def new_file_name(original: str, proposed: str) -> str:
     """The model's name with the ORIGINAL extension (the model may drop or change it — never trusted)."""
@@ -221,9 +208,6 @@ def new_file_name(original: str, proposed: str) -> str:
         name = name[: -len(ext)]
     name = clean_component(name, 120) or stem
     return name + ext
-
-
-# ================================================================= model
 
 def _parse_answer(text: str) -> List[Dict[str, Any]]:
     text = re.sub(r"<think>.*?</think>", "", text or "", flags=re.S)
@@ -244,7 +228,6 @@ def _parse_answer(text: str) -> List[Dict[str, Any]]:
         except ValueError:
             continue
     return rows
-
 
 def classify(llm: Callable[[List[Dict[str, str]]], Iterator[str]], docs: List[Dict[str, Any]], lang: str = "ru",
              instructions: str = "", cancel: Optional[threading.Event] = None) -> Dict[int, Dict[str, str]]:
@@ -295,14 +278,11 @@ def classify(llm: Callable[[List[Dict[str, str]]], Iterator[str]], docs: List[Di
         for batch in batches:
             out.update(one(batch))
         return out
-    from concurrent.futures import ThreadPoolExecutor   # fast models answer one batch in seconds; four at once
+    from concurrent.futures import ThreadPoolExecutor
     with ThreadPoolExecutor(max_workers=PARALLEL, thread_name_prefix="memufiles-organize") as pool:
         for found in pool.map(one, batches):
             out.update(found)
     return out
-
-
-# ================================================================= plan items
 
 def collect(root: str, recursive: bool, select: Optional[Dict[str, Any]], scope: str,
             cancel: Optional[threading.Event] = None) -> List[Dict[str, Any]]:
@@ -339,7 +319,6 @@ def collect(root: str, recursive: bool, select: Optional[Dict[str, Any]], scope:
                 break
     return rows
 
-
 def plan_items(scope: str, action: Dict[str, Any], llm: Optional[Callable], lang: str,
                resolve: Callable[[str, Any], str], check: Callable[[str, str], str],
                cancel: Optional[threading.Event] = None,
@@ -371,7 +350,7 @@ def plan_items(scope: str, action: Dict[str, Any], llm: Optional[Callable], lang
         notify({"t": "step", "tool": "classify_docs", "args": {"root": root, "files": len(docs)}, "note": ""})
     answers = classify(llm, docs, lang, str(action.get("instructions") or action.get("reason") or ""), cancel)
     items: List[Dict[str, Any]] = []
-    taken: Dict[str, str] = {}                 # norm(target) → source: two files never get one name
+    taken: Dict[str, str] = {}
     for doc in docs:
         row = files[doc["i"]]
         answer = answers.get(doc["i"])

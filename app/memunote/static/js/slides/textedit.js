@@ -1,12 +1,9 @@
-// MemuNote Slides — rich text editing inside a text box / table cell. The browser edits a
-// contenteditable copy of the rendered paragraphs; every input is parsed back into the model
-// (paras → runs with their explicit properties); formatting commands work on the model and re-render.
+
 
 const ZW = /\u200b/g;
 const clone = (v) => JSON.parse(JSON.stringify(v));
 const RUN_KEYS = ["b", "i", "u", "s", "sz", "color", "font", "hl", "base", "cap", "spc", "href", "_x", "fld", "_fid"];
 
-/** Parse the edited DOM back into paragraphs. `old` = paragraphs the DOM was rendered from. */
 export function domToParas(root, old) {
   const paras = [];
   const divs = Array.from(root.children).filter((c) => c.classList.contains("sl-p") || c.tagName === "DIV" || c.tagName === "P");
@@ -29,17 +26,17 @@ export function domToParas(root, old) {
         } else if (n.nodeType === 1) {
           if (n.classList.contains("sl-bu")) continue;
           if (n.tagName === "BR") { if (n.nextSibling || n.previousSibling && n.parentElement === div && div.lastChild !== n) para.runs.push({ br: true, t: "\n" }); continue; }
-          if (n.tagName === "DIV" || n.tagName === "P") continue;   // nested blocks are handled as their own paragraphs
+          if (n.tagName === "DIV" || n.tagName === "P") continue;
           walk(n);
         }
       }
     };
     walk(div);
-    // drop a trailing <br> placeholder Chromium leaves in an emptied paragraph
+
     while (para.runs.length && para.runs[para.runs.length - 1].br && !para.runs.some((r) => !r.br && r.t)) para.runs.pop();
     if (!para.runs.length && src.runs?.[0]) { const p = runProps(src.runs.find((r) => !r.br) || {}); if (p.sz) para.endSz = p.sz; }
     paras.push(para);
-    // Chromium may nest a new <div> inside the paragraph div when pressing Enter at the end
+
     for (const inner of Array.from(div.children).filter((c) => c.tagName === "DIV" || c.tagName === "P")) {
       const sub = domToParas({ children: [inner], textContent: inner.textContent }, [src]);
       paras.push(...sub);
@@ -55,13 +52,12 @@ function pushText(runs, props, text) {
   else runs.push({ ...props, t: text });
 }
 
-// ------------------------------------------------------------------ selection as (paragraph, offset)
 function paraDivs(root) { return Array.from(root.querySelectorAll(":scope > .sl-p, :scope > div")); }
 function offsetIn(div, node, off) {
   let n = 0;
   const walker = document.createTreeWalker(div, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
   let cur = walker.currentNode;
-  if (node === div) {   // offset counts child nodes
+  if (node === div) {
     for (let i = 0; i < off && i < div.childNodes.length; i++) n += textLen(div.childNodes[i]);
     return n;
   }
@@ -116,8 +112,6 @@ export function setSel(root, s) {
   const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
 }
 
-// ------------------------------------------------------------------ model operations
-/** Split runs so that [start,end) of each paragraph is covered by whole runs; returns the covered runs. */
 export function splitRange(paras, s) {
   const out = [];
   for (let p = s.start.p; p <= s.end.p; p++) {
@@ -164,7 +158,7 @@ export function mergeRuns(paras) {
   }
   return paras;
 }
-/** Insert plain text (may contain newlines) at a position; returns the caret after it. */
+
 export function insertText(paras, s, text) {
   if (!s.collapsed) deleteRange(paras, s);
   const at = s.start;
@@ -199,7 +193,7 @@ export function deleteRange(paras, s) {
     paras.splice(s.start.p + 1, s.end.p - s.start.p);
   }
 }
-/** Properties at the caret / start of a range (explicit props only). */
+
 export function propsAt(paras, pos) {
   const para = paras[pos.p]; if (!para) return {};
   let n = 0, found = null;

@@ -7,7 +7,6 @@ from unittest import mock
 
 from app import storage
 
-
 class StorageSpeedTest(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.TemporaryDirectory()
@@ -50,16 +49,12 @@ class StorageSpeedTest(unittest.TestCase):
                                   validator=lambda v: isinstance(v, list), repair_invalid=True)
         self.assertEqual(out, [])
 
-
-
-
 class FreeVariantPriceTest(unittest.TestCase):
     def test_explicit_free_variant_costs_nothing(self):
         from app import pricing
         price = pricing.lookup("custom-qwen/qwen3.8-max:free", "custom")
         self.assertEqual((price.input, price.output), (0.0, 0.0))
         self.assertGreater(pricing.lookup("qwen/qwen3.8-max", "custom").input, 0)
-
 
 if __name__ == "__main__":
     unittest.main()

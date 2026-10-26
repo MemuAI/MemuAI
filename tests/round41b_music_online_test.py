@@ -21,14 +21,12 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r41b-online-")
 
 from app.music import online  # noqa: E402
 
-
 def _run(text, page="", artist=False, album=False):
     run = {"text": text}
     if page:
         run["navigationEndpoint"] = {"browseEndpoint": {"browseId": "x", "browseEndpointContextSupportedConfigs": {
             "browseEndpointContextMusicConfig": {"pageType": page}}}}
     return run
-
 
 def ytm_song(vid, title, artists, album, length, plays, explicit=False):
     meta = []
@@ -44,7 +42,6 @@ def ytm_song(vid, title, artists, album, length, plays, explicit=False):
     if explicit:
         item["badges"] = [{"musicInlineBadgeRenderer": {"icon": {"iconType": "MUSIC_EXPLICIT_BADGE"}}}]
     return {"musicResponsiveListItemRenderer": item}
-
 
 SEARCH_JSON = {"contents": {"tabbedSearchResultsRenderer": {"tabs": [{"content": {"sectionListRenderer": {"contents": [
     {"musicShelfRenderer": {"contents": [
@@ -63,14 +60,12 @@ NEXT_JSON = {"contents": {"playlistPanelRenderer": {"contents": [
                                     "lengthText": {"runs": [{"text": "3:58"}]}}},
 ]}}}
 
-
 class Resp:
     def __init__(self, data, status=200):
         self.data, self.status_code = data, status
 
     def json(self):
         return self.data
-
 
 class FakeClient:
     calls: list = []
@@ -96,7 +91,6 @@ class FakeClient:
     def close(self):
         pass
 
-
 class FakeRunner:
     targets: list = []
     full: dict = {}
@@ -120,9 +114,8 @@ class FakeRunner:
         if target.endswith("/recommended"):
             return {"entries": [{"id": "9", "title": "Around the World", "uploader": "Daft Punk", "webpage_url": "https://soundcloud.com/daftpunk/atw", "duration": 400.0}]}
         if FakeRunner.full is None:
-            return None   # «--ignore-errors» → null: YouTube «not a bot»
+            return None
         return FakeRunner.full
-
 
 FULL_INFO = {"id": "aaaaaaaaaa1", "title": "One More Time", "description": "Official audio\nDiscovery (2001)", "upload_date": "20180307",
              "like_count": 4100000, "view_count": 852000000, "channel": "Daft Punk", "channel_follower_count": 9800000, "channel_is_verified": True,
@@ -130,7 +123,6 @@ FULL_INFO = {"id": "aaaaaaaaaa1", "title": "One More Time", "description": "Offi
              "formats": [{"format_id": "251", "ext": "webm", "acodec": "opus", "vcodec": "none", "abr": 135.2, "asr": 48000, "filesize": 5300000},
                          {"format_id": "140", "ext": "m4a", "acodec": "mp4a.40.2", "vcodec": "none", "abr": 129.5, "asr": 44100, "filesize": 5200000},
                          {"format_id": "18", "ext": "mp4", "acodec": "mp4a.40.2", "vcodec": "avc1", "abr": 96}]}
-
 
 class FakeLib:
     def __init__(self, by_source=None, similar=None, settings=None):
@@ -144,7 +136,6 @@ class FakeLib:
 
     def settings(self):
         return self._settings
-
 
 class OnlineBackendTest(unittest.TestCase):
     def setUp(self):
@@ -168,26 +159,26 @@ class OnlineBackendTest(unittest.TestCase):
         self.assertTrue(b["explicit"])
         self.assertEqual(b["views"], 1200000000)
         self.assertIn("cover", c["tags"])
-        self.assertNotIn("official_audio", c["tags"])   # a cover is not the label's audio
-        self.assertEqual(FakeRunner.targets, [])   # no yt-dlp needed
+        self.assertNotIn("official_audio", c["tags"])
+        self.assertEqual(FakeRunner.targets, [])
 
     def test_ytmusic_falls_back_to_ytdlp(self):
         FakeClient.fail_ytm = True
         res = self.search("ytmusic")
         self.assertEqual(res["via"], "yt-dlp")
         self.assertEqual(res["results"][0]["url"], "https://music.youtube.com/watch?v=wU26xVT_vBU")
-        self.assertNotIn("remix", res["results"][0]["tags"])   # «Radio Edit» is not a remix
+        self.assertNotIn("remix", res["results"][0]["tags"])
 
     def test_youtube_channel_verified_and_kind(self):
         a, b, c = self.search("youtube")["results"]
         self.assertEqual((a["artist"], a["title"], a["channel"], a["verified"]), ("Daft Punk", "One More Time", "Daft Punk", True))
         self.assertEqual(a["tags"], ["official_video"])
-        self.assertEqual(b["tags"], ["official_audio"])   # «- Topic» channel
+        self.assertEqual(b["tags"], ["official_audio"])
         self.assertIn("slowed", c["tags"])
 
     def test_soundcloud_preview_likes_date(self):
         a, b = self.search("soundcloud")["results"]
-        self.assertEqual(a["url"], "https://soundcloud.com/daftpunk/one-more-time")   # not the api.soundcloud URL
+        self.assertEqual(a["url"], "https://soundcloud.com/daftpunk/one-more-time")
         self.assertTrue(a["preview"])
         self.assertIn("preview", a["tags"])
         self.assertEqual((a["likes"], a["published"], a["channel_url"]), (92042, "2016-03-22", "https://soundcloud.com/daftpunk"))
@@ -216,7 +207,7 @@ class OnlineBackendTest(unittest.TestCase):
         d = online.details(FakeLib(), "https://music.youtube.com/watch?v=aaaaaaaaaa1", hint, client_factory=FakeClient, runner_factory=FakeRunner)
         self.assertEqual((d["album"], d["year"], d["genre"]), ("Discovery", "2001", "Electronic"))
         self.assertEqual((d["published"], d["likes"], d["followers"]), ("2018-03-07", 4100000, 9800000))
-        self.assertEqual([(f["codec"], f["kbps"]) for f in d["formats"]], [("opus", 135), ("aac", 130)])   # audio only, best first
+        self.assertEqual([(f["codec"], f["kbps"]) for f in d["formats"]], [("opus", 135), ("aac", 130)])
         self.assertEqual(d["formats"][0]["khz"], 48.0)
         self.assertTrue(d["cover"].endswith("1000x1000bb.jpg"))
         self.assertEqual(d["meta_source"], "itunes")
@@ -225,11 +216,11 @@ class OnlineBackendTest(unittest.TestCase):
         self.assertIn("Discovery (2001)", d["description"])
 
     def test_details_graceful_when_source_blocks(self):
-        FakeRunner.full = None   # YouTube «not a bot»: yt-dlp answers null
+        FakeRunner.full = None
         d = online.details(FakeLib(), "https://www.youtube.com/watch?v=FGBhQbmPwH8", {"title": "One More Time", "artist": "Daft Punk", "source": "youtube", "views": 5},
                            client_factory=FakeClient, runner_factory=FakeRunner)
         self.assertEqual(d["errors"], {"info": "blocked"})
-        self.assertEqual((d["album"], d["year"], d["views"]), ("Discovery", "2001", 5))   # iTunes and the hint still answer
+        self.assertEqual((d["album"], d["year"], d["views"]), ("Discovery", "2001", 5))
         self.assertEqual(d["formats"], [])
         with self.assertRaises(ValueError):
             online.details(FakeLib(), "not a link", {})
@@ -274,7 +265,6 @@ class OnlineBackendTest(unittest.TestCase):
         self.assertEqual(res["source"], "soundcloud")
         self.assertTrue(res["results"][0]["thumb"].startswith("/api/pg/music/thumb?u="))
 
-
 class OnlineUiTest(unittest.TestCase):
     """The real module in demo mode: rows with source/tags, the sheet, source switch, «originals only», Esc."""
 
@@ -306,17 +296,17 @@ class OnlineUiTest(unittest.TestCase):
                 self.assertEqual(row["seg"], 3)
                 for tag in ("Офиц. аудио", "Live", "Ремикс", "Кавер", "Замедлено"):
                     self.assertIn(tag, row["tags"])
-                # «Originals only» hides covers / remixes / slowed
+
                 f.evaluate("() => document.querySelector('[data-orig]').click()")
                 self.assertTrue(wait(page, f, "() => document.querySelectorAll('.mm-orow').length === 5"))
                 f.evaluate("() => document.querySelector('[data-orig]').click()")
                 self.assertTrue(wait(page, f, "() => document.querySelectorAll('.mm-orow').length === 8"))
-                # source switch is remembered
+
                 f.evaluate("() => document.querySelector('.mm-oseg [data-src=soundcloud]').click()")
                 self.assertTrue(wait(page, f, "() => document.querySelector('.mm-orow .mm-osrc') && document.querySelector('.mm-orow .mm-osrc').textContent.includes('SoundCloud')"))
                 self.assertEqual(f.evaluate("() => MemuMusic.S.prefs.onlineSource"), "soundcloud")
                 self.assertTrue(f.evaluate("() => [...document.querySelectorAll('.mm-otag')].some((x) => x.textContent === 'Превью 30 с')"))
-                # the sheet
+
                 f.evaluate("() => document.querySelectorAll('.mm-orow')[1].click()")
                 self.assertTrue(wait(page, f, "() => document.querySelector('.mm-osheet.open') && document.querySelectorAll('.mm-ogrid dt').length >= 6"))
                 sheet = f.evaluate("""() => { const s = document.querySelector('.mm-osheet-panel');
@@ -330,7 +320,7 @@ class OnlineUiTest(unittest.TestCase):
                 self.assertIn("SoundCloud", sheet["source"])
                 for a in ("listen", "dl", "queue", "pl", "copy", "open", "lyrics"):
                     self.assertIn(a, sheet["acts"])
-                self.assertTrue(wait(page, f, "() => document.querySelectorAll('.mm-osim').length === 6"))   # similar, lazily
+                self.assertTrue(wait(page, f, "() => document.querySelectorAll('.mm-osim').length === 6"))
                 f.evaluate("() => document.querySelector('[data-a=lyrics]').click()")
                 self.assertTrue(wait(page, f, "() => !!document.querySelector('.mm-otext')"))
                 f.evaluate("() => document.querySelector('[data-a=more-desc]').click()")
@@ -338,12 +328,12 @@ class OnlineUiTest(unittest.TestCase):
                 if shots:
                     Path(shots).mkdir(parents=True, exist_ok=True)
                     page.screenshot(path=str(Path(shots) / "test-sheet.png"))
-                # Listen on a track that is not in the library → download.start + «will start once downloaded»; Esc closes
+
                 f.evaluate("() => document.querySelector('[data-a=listen]').click()")
                 self.assertTrue(wait(page, f, "() => [...document.querySelectorAll('.mm-toast')].some((x) => x.textContent.includes('включится'))"))
                 f.evaluate("() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))")
                 self.assertTrue(wait(page, f, "() => document.querySelector('.mm-osheet').hidden"))
-                # the Download screen uses the same rows
+
                 f.evaluate("() => { MemuMusic.S.prefs.onlineSource = 'youtube'; MemuMusic.go('download', {}, { instant: true }); }")
                 page.wait_for_timeout(300)
                 f.evaluate("() => { const q = document.querySelector('#dl-q'); q.value = 'Night'; q.dispatchEvent(new Event('input', { bubbles: true })); }")
@@ -352,7 +342,6 @@ class OnlineUiTest(unittest.TestCase):
                 self.assertEqual([e for e in errors if "favicon" not in e], [])
             finally:
                 browser.close()
-
 
 class OnlineStaticTest(unittest.TestCase):
     def test_parts_strings_and_no_heavy_patterns(self):
@@ -374,7 +363,6 @@ class OnlineStaticTest(unittest.TestCase):
             self.assertIn(k, i18n["ru"], k)
             self.assertIn(k, i18n["en"], k)
         self.assertNotIn("function onlineSearch", (music / "feat-extra.js").read_text(encoding="utf-8"))
-
 
 if __name__ == "__main__":
     unittest.main()

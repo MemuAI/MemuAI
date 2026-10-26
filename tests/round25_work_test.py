@@ -23,12 +23,9 @@ from app import youtube_analysis as yt
 ROOT = Path(__file__).resolve().parents[1]
 VID = "dQw4w9WgXcQ"
 
-
 def run(coro):
     return asyncio.run(coro)
 
-
-# ---------------------------------------------------------------- Work tools
 class WorkToolsTest(unittest.TestCase):
     def setUp(self) -> None:
         self.root = Path(tempfile.mkdtemp()).resolve()
@@ -40,7 +37,7 @@ class WorkToolsTest(unittest.TestCase):
         result = work_tools.run("work_delete", self.root, {"path": "lib"})
         self.assertTrue(result["deleted"])
         self.assertFalse(os.path.lexists(self.root / "lib"))
-        self.assertTrue((self.root / "src" / "main.py").is_file())    # used to remove the whole src folder
+        self.assertTrue((self.root / "src" / "main.py").is_file())
 
     def test_moving_a_link_moves_the_link(self) -> None:
         os.symlink(self.root / "src", self.root / "lib", target_is_directory=True)
@@ -75,11 +72,9 @@ class WorkToolsTest(unittest.TestCase):
                 work_tools.run("work_search", self.root, {"query": pattern, "regex": True})
         for pattern in (r"def \w+\(", r"(ab|cd)+", r"\d+\.\d+", r"foo.*bar", r"(a{2,3})+"):
             work_tools.run("work_search", self.root, {"query": pattern, "regex": True})
-        # A literal query is escaped: «(a+)+» as plain text is fine.
+
         work_tools.run("work_search", self.root, {"query": "(a+)+"})
 
-
-# ---------------------------------------------------------------- agents
 class AgentsTest(unittest.TestCase):
     def test_an_agent_stopped_before_its_first_step_frees_its_slot(self) -> None:
         async def complete(_model, _messages):
@@ -94,7 +89,7 @@ class AgentsTest(unittest.TestCase):
             job = pool.spawn("s", title="t", task="x", model="m", limit=1)
             pool.cancel("s", job.id)
             await asyncio.sleep(0.05)
-            second = pool.spawn("s", title="t2", task="y", model="m", limit=1)   # used to raise «1 agents running»
+            second = pool.spawn("s", title="t2", task="y", model="m", limit=1)
             await asyncio.wait_for(second.handle, 2)
             return job, second
 
@@ -179,12 +174,10 @@ class AgentsTest(unittest.TestCase):
         self.assertNotIn("error", out, out.get("error"))
         self.assertEqual((out["stale"]["status"], out["stale"]["delivered"], out["stale"]["resumed"]),
                          ("cancelled", True, 0))
-        self.assertFalse(out["stale"]["card"]["actions"])            # no «Stop the agents» for a dead agent
+        self.assertFalse(out["stale"]["card"]["actions"])
         self.assertIn("restarted", out["stale"]["error"])
         self.assertEqual((out["freshAfterRace"], out["freshNext"]), ("running", "running"))
 
-
-# ---------------------------------------------------------------- MCP
 FAKE_SERVER = textwrap.dedent(r'''
     import json, sys
     def send(obj):
@@ -216,7 +209,6 @@ FAKE_SERVER = textwrap.dedent(r'''
                 send({"jsonrpc": "2.0", "id": rid, "result": {"content": [{"type": "text", "text": name}]}})
 ''')
 
-
 class MCPClientTest(unittest.TestCase):
     def setUp(self) -> None:
         self.dir = Path(tempfile.mkdtemp())
@@ -241,7 +233,7 @@ class MCPClientTest(unittest.TestCase):
             asked = await registry.call("t", "ask_back", {})
             return names, asked["content"]
         names, content = self.scenario(body)
-        self.assertEqual(names, ["first", "second"])                    # paginated tools/list
+        self.assertEqual(names, ["first", "second"])
         self.assertEqual(content, "pong ok")
 
     def test_malformed_answers_become_readable_errors(self) -> None:
@@ -266,8 +258,6 @@ class MCPClientTest(unittest.TestCase):
             return str(cm.exception)
         self.assertIn("slow", self.scenario(body))
 
-
-# ---------------------------------------------------------------- deep research
 class DeepResearchTest(unittest.TestCase):
     def engine(self, answers):
         async def complete(messages):
@@ -297,14 +287,12 @@ class DeepResearchTest(unittest.TestCase):
                               "extract evidence": reader})
         result = run(engine.run("topic"))
         queries = [q["query"] for q in result["queries"]]
-        # «"done": "false"» used to end the run after one round; a string list became one-letter queries.
+
         self.assertNotIn("g", queries)
         self.assertIn("delta", queries)
         self.assertGreaterEqual(result["stats"]["rounds"], 2)
-        self.assertTrue(result["sources"])                              # URLs over 2000 characters did not crash it
+        self.assertTrue(result["sources"])
 
-
-# ---------------------------------------------------------------- web pages
 class FetchPageTextTest(unittest.TestCase):
     def test_blank_indented_lines_collapse_and_short_article_falls_back(self) -> None:
         body = ("<html><head><title>Page</title></head><body>\n\t\n\t\n <nav>\n\t\n</nav>"
@@ -314,7 +302,7 @@ class FetchPageTextTest(unittest.TestCase):
         self.assertNotRegex(text, r"\n[ \t]+\n")
         self.assertNotIn("\n\n\n", text)
         article = re.search(websearch._ARTICLE_RE, body).group("body")
-        self.assertLess(len(websearch._page_text(article)), 1000)      # fetch_page then reads the whole page
+        self.assertLess(len(websearch._page_text(article)), 1000)
         self.assertIn("Real content paragraph.", text)
 
     def test_empty_results_are_not_cached(self) -> None:
@@ -330,8 +318,6 @@ class FetchPageTextTest(unittest.TestCase):
             run(websearch.search("nothing here"))
         self.assertEqual(len(calls), 2)
 
-
-# ---------------------------------------------------------------- YouTube
 PLAYER = {
     "playabilityStatus": {"status": "OK"},
     "videoDetails": {"videoId": VID, "lengthSeconds": "212"},
@@ -342,7 +328,6 @@ PLAYER = {
 }
 JSON3 = json.dumps({"events": [{"tStartMs": 0, "segs": [{"utf8": "Hello"}]},
                                {"tStartMs": 65000, "segs": [{"utf8": "World"}]}]})
-
 
 class YouTubeTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -355,7 +340,7 @@ class YouTubeTest(unittest.TestCase):
             if "/watch?" in url:
                 return "<script>var ytInitialPlayerResponse = " + json.dumps(PLAYER) + ";</script>"
             if "exp=xpe" in url:
-                return ""                                  # what YouTube now sends without a PO token
+                return ""
             if "timedtext" in url and "fmt=json3" in url:
                 return JSON3
             if "oembed" in url:
@@ -404,11 +389,11 @@ class YouTubeTest(unittest.TestCase):
         async def complete(prompt):
             prompts.append(prompt)
             return "note"
-        segs = [{"start": i * 5.0, "text": "word " * 40} for i in range(1000)]   # ~200 000 characters
+        segs = [{"start": i * 5.0, "text": "word " * 40} for i in range(1000)]
         run(yt.summarize({"id": VID, "title": "t"}, segs, complete, mode="brief", lang="en"))
         parts = prompts[:-1]
         covered = sum(len(p) for p in parts)
-        self.assertGreater(covered, 190_000)               # used to sample 12 of ~23 chunks: half the video unseen
+        self.assertGreater(covered, 190_000)
         self.assertTrue(all(p.startswith("Video:") and "Part " in p for p in parts))
         self.assertNotIn("Часть", prompts[-1])
         self.assertIn("Below are notes", prompts[-1])
@@ -458,7 +443,6 @@ class YouTubeTest(unittest.TestCase):
                 patch.object(yt.subprocess, "run", side_effect=lambda *a, **k: started.append(a)):
             self.assertEqual(run(yt._ytdlp(VID, "ru")), [])
         self.assertEqual(started, [])
-
 
 if __name__ == "__main__":
     unittest.main()

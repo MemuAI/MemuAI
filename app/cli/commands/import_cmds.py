@@ -26,14 +26,12 @@ KIND_TITLES = {
     "instructions": ("инструкции", "instructions"), "skill": ("скиллы", "skills"),
     "command": ("команды", "custom commands"), "agent": ("агенты", "agents"), "sessions": ("сессии", "sessions"),
 }
-#: Groups nobody should get without asking for them: rules widen what Auto mode may do, sessions are many.
-OPT_IN = {"permission", "sessions"}
 
+OPT_IN = {"permission", "sessions"}
 
 def kind_title(kind: str) -> str:
     ru, en = KIND_TITLES[kind]
     return tr(ru, en)
-
 
 async def scan(ctx: Context, only: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
     """``{tool: {"items": [...], "sessions": [...]}}`` for every tool that has something."""
@@ -51,7 +49,6 @@ async def scan(ctx: Context, only: Optional[str] = None) -> Dict[str, Dict[str, 
             found[key] = {"items": rows, "sessions": sess}
     return found
 
-
 def groups(found: Dict[str, Dict[str, Any]]) -> List[Tuple[str, str, List[Any]]]:
     """``(tool, kind, entries)`` for every group worth a row: the sessions and the items that are not native."""
     out: List[Tuple[str, str, List[Any]]] = []
@@ -67,7 +64,6 @@ def groups(found: Dict[str, Dict[str, Any]]) -> List[Tuple[str, str, List[Any]]]
             out.append((key, "sessions", list(data["sessions"])))
     return out
 
-
 def native_note(found: Dict[str, Dict[str, Any]]) -> str:
     counter: Counter = Counter()
     for data in found.values():
@@ -80,7 +76,6 @@ def native_note(found: Dict[str, Dict[str, Any]]) -> str:
     return tr(f"Уже доступно без импорта (MemuCode читает их из ~/.claude): {parts}.",
               f"Already available without importing (MemuCode reads them from ~/.claude): {parts}.")
 
-
 def _row(tool: str, kind: str, entries: List[Any]) -> dlg.Option:
     source = foreign.SOURCES[tool]
     names = ", ".join((entry.name if hasattr(entry, "name") else (entry.title or entry.id))[:28] for entry in entries[:4])
@@ -88,7 +83,6 @@ def _row(tool: str, kind: str, entries: List[Any]) -> dlg.Option:
     label = f"{source.title} · {kind_title(kind)} ({len(entries)})"
     hint = tr("по желанию", "opt-in") if kind in OPT_IN else ""
     return dlg.Option(label, (tool, kind), names + more, hint=hint)
-
 
 async def choose_sessions(ctx: Context, tool: str, rows: List[SessionInfo]) -> List[SessionInfo]:
     """Which of a tool's sessions: those of this project are ticked, the rest are one Tab away."""
@@ -101,7 +95,6 @@ async def choose_sessions(ctx: Context, tool: str, rows: List[SessionInfo]) -> L
                               body=ctx.r.render(Text("  " + tr("● — сессии этого проекта (отмечены). Tab — отметить, Enter — готово.",
                                                               "● — sessions of this project (ticked). Tab ticks, Enter confirms."), style="dim")))
     return list(picked or [])
-
 
 def _summary(items: List[configs.Item], sessions: List[SessionInfo]) -> str:
     lines: List[str] = []
@@ -117,7 +110,6 @@ def _summary(items: List[configs.Item], sessions: List[SessionInfo]) -> str:
     if sessions:
         lines.append(f"• {len(sessions)} {kind_title('sessions')}")
     return "\n".join(lines)
-
 
 async def import_sessions(ctx: Context, infos: List[SessionInfo]) -> Tuple[int, int]:
     """Import these sessions as MemuCode conversations. Returns (added, skipped)."""
@@ -148,7 +140,6 @@ async def import_sessions(ctx: Context, infos: List[SessionInfo]) -> Tuple[int, 
         ctx.say(f"{count} × {why}", "warn")
     return added, skipped
 
-
 async def apply_items(ctx: Context, items: List[configs.Item]) -> Tuple[int, Counter]:
     env = configs.default_env(ctx.runtime)
     added = 0
@@ -170,7 +161,6 @@ async def apply_items(ctx: Context, items: List[configs.Item]) -> Tuple[int, Cou
         except Exception:
             pass
     return added, reasons
-
 
 @command("import", "Перенести из других инструментов: сессии, MCP-серверы, правила, инструкции, скиллы, команды",
          "Import from other tools: sessions, MCP servers, rules, instructions, skills, commands",

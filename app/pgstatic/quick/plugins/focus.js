@@ -1,11 +1,5 @@
-/* Quick Ask plugin: «Время и фокус» (Round 27, r27-reflect).
 
-   Uses only the MemuQuick contract (events open/submit, registerPanel):
-   * opening Quick Ask during the user's quiet hours shows a calm strip «Сейчас ваши тихие часы» with
-     «Продолжить» (hides it until the window ends) and «Позже» (closes the window) — a reminder, never a lock;
-   * every request pings /api/focus/activity: the day's time with MemuAI is shared with the main window
-     and the Telegram bot (app/reflect.py FocusTracker) and answers break_due once the user's break threshold is reached.
-   Settings live in MemuAI → Settings → «Время и фокус». */
+
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -76,7 +70,7 @@
     }
   });
   Q.on("submit", async () => {
-    if (mode === "quiet") hide();          // sending is the answer to the reminder
+    if (mode === "quiet") hide();
     const a = await activity();
     if (a && a.break_due) breakDue(a.minutes_today);
   });

@@ -1,24 +1,5 @@
-/* MemuAI — меню «+» в поле ввода и чипы активных инструментов.
- *
- * Раньше в поле ввода была скрепка, которая умела только прикреплять файлы.
- * Теперь «+» открывает единое меню: вложения (файлы, буфер обмена, снимок
- * экрана), инструменты ответа (изображение, веб-поиск, глубокое
- * исследование) и быстрые действия (Live, диктовка, скиллы, инструкции
- * чата, планирование, временный чат).
- *
- * Размышления и визуализация в меню не показываются: модель сама решает,
- * когда нарисовать схему, а размышления включаются настройкой по умолчанию.
- * Если их включили командой (/think, /visual), состояние видно в поле ввода
- * и снимается там же. «Агенты» есть только в Work и MemuCode: в обычном чате
- * агентов нет, а в проектных режимах они работают лишь по просьбе пользователя.
- *
- * Состояние инструментов принадлежит чату: оно лежит в S.chatCaps и
- * сохраняется вместе с ним. Включённый инструмент показывается чипом рядом
- * с «+», и его можно снять одним нажатием.
- *
- * Модуль не подменяет функции app.js: app.js сам вызывает
- * MemuTools.open(), MemuTools.renderChips() и MemuTools.isOn().
- */
+
+
 "use strict";
 const MemuTools = (() => {
   let menu = null;
@@ -30,7 +11,6 @@ const MemuTools = (() => {
   const en = () => PG_LANG === "en";
   const t = (ru, eng) => (en() ? eng : ru);
 
-  /* ---------------------------------------------------------- состояние */
   function isOn(id) {
     const caps = S.chatCaps || {};
     switch (id) {
@@ -54,7 +34,7 @@ const MemuTools = (() => {
     if (id === "research") {
       S.chatCaps.deep_research = !!on;
       if (on) {
-        // Исследование и генерация картинки — взаимоисключающие режимы.
+
         if ($("#input")?.dataset.imagine) setImagine(false);
         toast(t("Глубокое исследование включено: ИИ сам решит, сколько искать, и напишет доклад со ссылками",
           "Deep research is on: the AI decides how much to search and writes a cited report"), "info");
@@ -89,7 +69,6 @@ const MemuTools = (() => {
 
   function toggle(id) { setOn(id, !isOn(id)); }
 
-  /* ---------------------------------------------------------- действия */
   async function pasteClipboard() {
     try {
       if (!navigator.clipboard?.read) throw new Error("clipboard");
@@ -121,8 +100,6 @@ const MemuTools = (() => {
     }
   }
 
-  /* Снимок любой области экрана: собственный выделитель MemuAI. Окно MemuAI
-     на время выбора прячется; результат сразу попадает во вложения. */
   let capturing = false;
   async function captureScreen() {
     if (capturing) return;
@@ -203,7 +180,6 @@ const MemuTools = (() => {
     setTimeout(() => $("#tool-chat-system")?.focus(), 30);
   }
 
-  /* ---------------------------------------------------------- каталог */
   function catalog() {
     const project = typeof isProjectMode === "function" && isProjectMode();
     const model = currentModel();
@@ -215,7 +191,7 @@ const MemuTools = (() => {
       { section: t("Добавить", "Add") },
       { id: "files", icon: "attach", label: t("Фото и файлы", "Photos and files"),
         hint: t("Изображения, PDF, DOCX, код и текст", "Images, PDF, DOCX, code and text"), run: () => $("#file-input").click() },
-      // Round 29 (gdrive-picker.js): pick files on Google Drive; Docs/Sheets/Slides are exported.
+
       { id: "gdrive", icon: "folder", label: t("Добавить с Google Диска", "Add from Google Drive"),
         svg: window.MemuDrivePick ? MemuDrivePick.icon : "",
         hint: window.MemuDrivePick ? MemuDrivePick.menuHint() : "", hidden: !window.MemuDrivePick, run: () => MemuDrivePick.open() },
@@ -226,13 +202,12 @@ const MemuTools = (() => {
       { id: "sketch", icon: "edit", label: t("Нарисовать", "Sketch"),
         hint: t("Набросок от руки, фигуры, текст — прикрепится картинкой", "A freehand sketch, shapes, text — attached as an image"),
         run: () => MemuSketch.open() },
-      // Round 29 (tables.js): build a table, paste it from Excel or import CSV/XLSX, attach it as Markdown.
+
       { id: "table", icon: "table", label: t("Таблица", "Table"),
         hint: t("Создать, вставить из Excel или импортировать CSV/XLSX", "Create, paste from Excel or import CSV/XLSX"),
         hidden: !window.MemuTables, run: () => MemuTables.openEditor() },
       { section: t("Инструменты ответа", "Answer tools") },
-      // Round 29 (media-routing.js): the items only insert /image or /video — the AI also recognises such
-      // requests on its own; without a model they explain where to set one up instead of being dead.
+
       ...(window.MemuMedia ? [
         { id: "image", icon: "image", label: t("Создать изображение", "Create an image"),
           hint: MemuMedia.pickModel("image", { explicit: true }) ? t("Вставит /image — опишите картинку", "Inserts /image — describe the picture")
@@ -251,8 +226,7 @@ const MemuTools = (() => {
       { id: "research", icon: "research", toggle: true, label: t("Глубокое исследование", "Deep research"),
         hint: t("Десятки запросов, чтение источников и доклад со ссылками", "Dozens of searches, reading sources and a cited report"),
         hidden: project },
-      // Агенты есть только в Work и MemuCode и только по просьбе: переключатель —
-      // один из двух способов попросить (второй — написать об этом в сообщении).
+
       { id: "agents", icon: "users", toggle: true, label: t("Агенты", "Agents"),
         hint: t("Разрешить ИИ запускать параллельных агентов в этом чате", "Let the AI start parallel agents in this chat"),
         hidden: !project },
@@ -279,8 +253,6 @@ const MemuTools = (() => {
     return items.filter((item) => !item.hidden);
   }
 
-  /* Источники поиска раскрываются прямо в меню: отдельное контекстное меню
-     закрывало бы «+». */
   function searchSources() {
     const mode = pref("web_search_mode", "auto");
     const native = !!modelCaps(currentModel()).search;
@@ -298,7 +270,6 @@ const MemuTools = (() => {
     ].filter(Boolean);
   }
 
-  /* ---------------------------------------------------------- меню */
   function close() {
     if (!menu) return;
     menu.remove();
@@ -453,7 +424,6 @@ const MemuTools = (() => {
     }
   }
 
-  /* ---------------------------------------------------------- чипы */
   const CHIPS = [
     ["research", "research", "Исследование", "Research"],
     ["visualize", "chart", "Визуализация", "Visualization"],
@@ -465,7 +435,7 @@ const MemuTools = (() => {
     const box = $("#tool-chips");
     if (!box) return;
     const project = typeof isProjectMode === "function" && isProjectMode();
-    // В проектных режимах — только «Изображение» и «Агенты»; в обычном чате агентов нет.
+
     const chips = CHIPS.filter(([id]) => isOn(id) && (project ? (id === "image" || id === "agents") : id !== "agents"));
     let html = chips.map(([id, glyph, ru, eng]) => `<button type="button" class="tool-chip" data-chip="${id}" title="${esc(t("Нажмите, чтобы выключить", "Click to turn off"))}">
         ${icon(glyph)}<span>${esc(t(ru, eng))}</span><i class="tool-chip-x" aria-hidden="true">${icon("close")}</i></button>`).join("");
@@ -480,8 +450,7 @@ const MemuTools = (() => {
     });
     const plus = $("#btn-plus");
     if (plus) {
-      // Active tools are explicit removable chips; a second anonymous dot
-      // suggested a hidden research mode even when only images were selected.
+
       plus.classList.remove("has-tools");
       plus.setAttribute("aria-label", t("Добавить файлы и инструменты", "Add files and tools"));
     }

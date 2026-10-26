@@ -15,32 +15,28 @@ GROUPS: List[Dict[str, str]] = [
     {"id": "appearance", "ru": "Внешний вид", "en": "Appearance"},
     {"id": "view", "ru": "Просмотр", "en": "Browsing"},
     {"id": "files", "ru": "Файлы", "en": "Files"},
-    {"id": "tabs", "ru": "Запуск и вкладки", "en": "Start-up and tabs"},          # r41-files
-    {"id": "archives", "ru": "Архивы", "en": "Archives"},                         # r41-files
+    {"id": "tabs", "ru": "Запуск и вкладки", "en": "Start-up and tabs"},
+    {"id": "archives", "ru": "Архивы", "en": "Archives"},
     {"id": "ai", "ru": "ИИ", "en": "AI"},
     {"id": "hotkeys", "ru": "Горячие клавиши", "en": "Shortcuts"},
     {"id": "windows", "ru": "Интеграция с Windows", "en": "Windows integration"},
     {"id": "advanced", "ru": "Дополнительно", "en": "Advanced"},
 ]
 
-
 def _b(key, default, group, ru, en, dru="", den="", **extra):
     return {"key": key, "type": "bool", "default": default, "group": group, "ru": ru, "en": en, "desc_ru": dru, "desc_en": den, **extra}
-
 
 def _i(key, default, group, ru, en, lo, hi, step=1, unit="", dru="", den="", **extra):
     return {"key": key, "type": "int", "default": default, "group": group, "ru": ru, "en": en, "desc_ru": dru, "desc_en": den,
             "min": lo, "max": hi, "step": step, "unit": unit, **extra}
-
 
 def _e(key, default, group, ru, en, choices, dru="", den="", **extra):
     """``choices``: [(value, ru, en)]."""
     return {"key": key, "type": "enum", "default": default, "group": group, "ru": ru, "en": en, "desc_ru": dru, "desc_en": den,
             "choices": [{"value": v, "ru": r, "en": e} for v, r, e in choices], **extra}
 
-
 SCHEMA: List[Dict[str, Any]] = [
-    # ---------------------------------------------------------------- appearance
+
     _e("language", "auto", "appearance", "Язык", "Language",
        [("auto", "Как в MemuAI", "Same as MemuAI"), ("ru", "Русский", "Русский"), ("en", "English", "English")]),
     _e("theme", "auto", "appearance", "Тема", "Theme",
@@ -48,7 +44,7 @@ SCHEMA: List[Dict[str, Any]] = [
        "«Как в MemuAI» берёт тему, фон и акцент MemuAI.", "“Same as MemuAI” uses MemuAI's theme, surface and accent."),
     _e("density", "normal", "appearance", "Плотность", "Density",
        [("compact", "Компактно", "Compact"), ("normal", "Обычно", "Normal"), ("comfortable", "Просторно", "Comfortable")]),
-    # r41-files: more ways to make MemuFiles your own (all applied at once, no restart)
+
     _e("accent", "auto", "appearance", "Акцентный цвет", "Accent colour",
        [("auto", "Как в теме", "From the theme"), ("blue", "Синий", "Blue"), ("violet", "Фиолетовый", "Violet"),
         ("pink", "Розовый", "Pink"), ("red", "Красный", "Red"), ("orange", "Оранжевый", "Orange"),
@@ -72,7 +68,7 @@ SCHEMA: List[Dict[str, Any]] = [
        "Своя полоса заголовка Windows; выключено — системная рамка.", "A custom Windows caption; off — the system frame."),
     _i("sidebar_width", 236, "appearance", "Ширина боковой панели", "Sidebar width", 160, 760, 4, " px"),
     _i("preview_width", 340, "appearance", "Ширина предпросмотра", "Preview width", 160, 760, 4, " px"),
-    # ---------------------------------------------------------------- view
+
     _e("default_view", "details", "view", "Вид по умолчанию", "Default view",
        [("details", "Таблица", "Details"), ("list", "Список", "List"), ("tiles", "Плитка", "Tiles"), ("grid", "Значки", "Icons"), ("gallery", "Галерея", "Gallery")],
        "Для папок, где вид не меняли.", "For folders whose view you haven't changed."),
@@ -106,7 +102,7 @@ SCHEMA: List[Dict[str, Any]] = [
     _b("shell_select_recent", True, "view", "Выделять только что скачанный файл", "Select the file you just downloaded",
        "Когда браузер или другая программа просит «Показать в папке», MemuFiles выделяет свежий файл в этой папке.",
        "When a browser or another app asks to “Show in folder”, MemuFiles selects the fresh file in that folder."),
-    # ---------------------------------------------------------------- files
+
     _b("confirm_trash", False, "files", "Спрашивать перед удалением в корзину", "Ask before moving to the Recycle Bin",
        "Удаление всегда можно отменить Ctrl+Z.", "A delete can always be undone with Ctrl+Z."),
     _b("confirm_delete", True, "files", "Спрашивать перед удалением навсегда", "Ask before deleting permanently",
@@ -128,12 +124,12 @@ SCHEMA: List[Dict[str, Any]] = [
        "После закрытия окна MemuFiles остаётся в памяти (~100 МБ) и следующее окно открывается мгновенно. "
        "Выключите, чтобы закрываться полностью.",
        "After you close the window MemuFiles stays in memory (~100 MB) so the next window opens instantly. "
-       "Turn off to quit completely."),   # Round 39 (r39-files-perf)
+       "Turn off to quit completely."),
     _b("search_content", False, "files", "Искать и по содержимому", "Search file contents too", "Медленнее, но находит текст внутри файлов.", "Slower, but finds text inside files."),
     _e("terminal", "auto", "files", "Терминал", "Terminal",
        [("auto", "Выбрать автоматически", "Pick automatically"), ("wt", "Windows Terminal", "Windows Terminal"),
         ("powershell", "PowerShell", "PowerShell"), ("cmd", "cmd", "cmd")], "Команда «Открыть в терминале».", "The “Open in terminal” command."),
-    # ---------------------------------------------------------------- archives (r41-files)
+
     _b("open_archives", False, "archives", "Открывать архивы в MemuFiles", "Open archives in MemuFiles",
        "ZIP, 7z, RAR, TAR, GZ и другие открываются двойным щелчком в MemuFiles как папка — в Проводнике и других программах тоже. "
        "Выключите, чтобы вернуть прежнюю программу. Только для вашей учётной записи, без прав администратора.",
@@ -149,7 +145,7 @@ SCHEMA: List[Dict[str, Any]] = [
        [("folder", "В папку с именем архива", "To a folder named after the archive"), ("here", "Сюда", "Here")],
        "Если в архиве одна папка, она извлекается без лишней вложенности.", "When the archive holds a single folder it is extracted without an extra level."),
     _b("archive_delete_after", False, "archives", "Предлагать удалить архив после извлечения", "Offer to delete the archive after extracting"),
-    # ---------------------------------------------------------------- AI
+
     _b("ai_enabled", True, "ai", "ИИ-ассистент", "AI assistant", "Вопросы о файлах и уборка по плану. Работает через MemuAI Proxy.",
        "Questions about files and planned tidy-ups. Works through MemuAI Proxy."),
     {"key": "ai_model", "type": "text", "default": "", "group": "ai", "ru": "Модель", "en": "Model", "maxlen": 120, "models": True,
@@ -157,14 +153,14 @@ SCHEMA: List[Dict[str, Any]] = [
     {"key": "ai_fast_model", "type": "text", "default": "", "group": "ai", "ru": "Быстрая модель для документов",
      "en": "Fast model for documents", "maxlen": 120, "models": True, "when": "ai_enabled",
      "desc_ru": "Читает начало документов, когда ассистент раскладывает файлы по смыслу. Пусто — основная модель.",
-     "desc_en": "Reads the start of documents when the assistant sorts files by meaning. Empty — the main model."},   # r40-files-max
+     "desc_en": "Reads the start of documents when the assistant sorts files by meaning. Empty — the main model."},
     {"key": "proxy_url", "type": "url", "default": "", "group": "ai", "ru": "Адрес Proxy", "en": "Proxy address", "maxlen": 200,
      "desc_ru": "Только локальный адрес. Пусто — найти автоматически.", "desc_en": "Local address only. Empty — find it automatically.",
      "placeholder": "http://127.0.0.1:8317", "local_only": True},
-    # ---------------------------------------------------------------- app state in the same file (not shown)
+
     {"key": "pinned", "type": "list", "default": [], "group": "advanced", "ru": "", "en": "", "hidden": True},
     {"key": "view_by_folder", "type": "map", "default": {}, "group": "advanced", "ru": "", "en": "", "hidden": True},
-    # before round 41 «Папки сверху» was a switch; read as folders_order (False → «mixed»), never shown
+
     {"key": "folders_first", "type": "bool", "default": True, "group": "advanced", "ru": "", "en": "", "hidden": True},
     {"key": "views_rev", "type": "int", "default": 0, "group": "advanced", "ru": "", "en": "", "hidden": True, "min": 0, "max": 1000},
 ]
@@ -186,7 +182,6 @@ DEFAULTS: Dict[str, Any] = {item["key"]: item["default"] for item in SCHEMA}
 CHOICES: Dict[str, Tuple[Any, ...]] = {item["key"]: tuple(c["value"] for c in item["choices"]) for item in SCHEMA if item["type"] == "enum"}
 RANGES: Dict[str, Tuple[int, int]] = {item["key"]: (item["min"], item["max"]) for item in SCHEMA if item["type"] == "int"}
 
-
 def _local_url(value: str) -> bool:
     import urllib.parse
     try:
@@ -194,7 +189,6 @@ def _local_url(value: str) -> bool:
     except ValueError:
         return False
     return parts.scheme in ("http", "https") and (parts.hostname or "") in ("127.0.0.1", "localhost", "::1")
-
 
 def check(key: str, value: Any) -> Tuple[bool, Any, str]:
     """Strict check of one value: ``(ok, clean value, error code)``. Used for writes from MemuAI."""
@@ -219,7 +213,6 @@ def check(key: str, value: Any) -> Tuple[bool, Any, str]:
         return False, None, "url"
     return True, value, ""
 
-
 def validate(changes: Any) -> Tuple[Dict[str, Any], Dict[str, str]]:
     """``(clean changes, {key: error})`` — nothing is written when errors is not empty."""
     clean: Dict[str, Any] = {}
@@ -231,7 +224,6 @@ def validate(changes: Any) -> Tuple[Dict[str, Any], Dict[str, str]]:
         else:
             errors[str(key)] = err
     return clean, errors
-
 
 def public() -> Dict[str, Any]:
     """The schema as JSON for the MemuAI page (hidden keys left out)."""

@@ -1,18 +1,5 @@
-/* MemuAI · Settings kit and shell runtime (Round 23).
 
-   1. Component helpers (window.MemuSettingsKit / window.SX): small functions that
-      return HTML strings for rows, sections, toggles, selects, segmented controls,
-      sliders, fields, "Дополнительно" disclosures, sub-pages, notes and badges.
-      Every id passed in is written literally (id="…"), callers bind by id.
-   2. Shell runtime: navigation between pages and sub-pages with breadcrumbs,
-      global fuzzy search (ru/en, keyboard-layout aware) that jumps to and
-      highlights a setting, `when` dependencies, per-setting and per-section
-      reset to defaults, the «Сохранено» indicator and keyboard navigation.
 
-   The page markup itself is produced by app.js (renderSettingsPanel); this file
-   never owns preference state — resets only set a control and dispatch the same
-   input/change events a user would, so the existing handlers save it.
-   Documented for other agents in round23/SETTINGS_KIT.md. */
 (function () {
   "use strict";
 
@@ -37,8 +24,6 @@
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const attr = (name, value) => (value === undefined || value === null || value === "" || value === false ? "" : ` ${name}="${esc(value === true ? "" : value)}"`);
   const json = (value) => { try { return JSON.stringify(value); } catch (e) { return ""; } };
-
-  /* ------------------------------------------------------------ helpers */
 
   function badge(kind) {
     if (!kind) return "";
@@ -105,7 +90,6 @@
     return `<div class="sx-seg" role="radiogroup"${attr("id", o.id)}${attr("aria-label", o.label)} ${o.attrs || ""}>${rows.map((item) => `<label class="sx-seg-opt"${attr("title", item.title)}><input type="radio" name="${esc(name)}" value="${esc(item.value)}" ${String(item.value) === String(value) ? "checked" : ""} ${item.disabled ? "disabled" : ""}><span>${item.icon || ""}${esc(item.label)}</span></label>`).join("")}</div>`;
   }
 
-  // signed:true shows «+3» / «−2» / «0» (rates and offsets around a neutral middle)
   function sliderText(value, unit, signed) {
     const n = Number(value);
     const v = signed && Number.isFinite(n) ? (n > 0 ? "+" + n : n < 0 ? "−" + Math.abs(n) : "0") : String(value);
@@ -180,18 +164,16 @@
 
   function card(body, cls = "") { return `<div class="sx-card${cls ? " " + cls : ""}">${body}</div>`; }
 
-  /* ------------------------------------------------------------ shell state */
-
   const state = {
     page: "",
-    sub: {},           // pageId -> sub id
+    sub: {},
     query: "",
     index: null,
     results: [],
     active: 0,
-    extra: [],         // registered search entries
-    opener: null,      // app.js: (pageId, opts) => void
-    pages: [],         // [{ id, title, desc, icon, group, keywords }]
+    extra: [],
+    opener: null,
+    pages: [],
     savedTimer: 0,
   };
 
@@ -202,8 +184,6 @@
     if (typeof o.openPage === "function") state.opener = o.openPage;
     if (Array.isArray(o.pages)) state.pages = o.pages;
   }
-
-  /* ---------------------------------------------------------- dependencies */
 
   function controlValue(id) {
     const el = document.getElementById(id);
@@ -241,14 +221,12 @@
     });
   }
 
-  /* ----------------------------------------------------------------- reset */
-
   function rowControl(row) {
     if (row.dataset.sxControl) return document.getElementById(row.dataset.sxControl);
     const box = row.querySelector(":scope > .sx-control") || row;
     const radios = box.querySelectorAll("input[type=radio]");
     if (radios.length) return { radios: [...radios] };
-    // the type-to-filter field inside a searchable select (.mpick-search) is not the row's value
+
     return box.querySelector("input:not([type=hidden]):not(.mpick-search), select, textarea");
   }
   function readControl(control) {
@@ -293,8 +271,6 @@
     return true;
   }
 
-  /* ------------------------------------------------------------ saved pill */
-
   function saved(ok = true) {
     const pill = document.querySelector("#panel .sx-saved");
     if (!pill) return;
@@ -304,8 +280,6 @@
     pill.classList.remove("show"); void pill.offsetWidth; pill.classList.add("show");
     state.savedTimer = setTimeout(() => pill.classList.remove("show"), ok ? 1600 : 4000);
   }
-
-  /* ------------------------------------------------------------- sub-pages */
 
   function activePane() { return document.querySelector("#panel .sx-shell .settings-tab-pane.active"); }
 
@@ -323,7 +297,7 @@
     const pageId = pane.dataset.page || state.page;
     if (!target) { state.sub[pageId] = ""; crumbs(); if (scroll && body()) body().scrollTop = 0; return false; }
     target.hidden = false;
-    // Hide every sibling along the path from the sub-page up to the pane.
+
     let node = target;
     while (node && node !== pane) {
       const parent = node.parentElement;
@@ -336,8 +310,7 @@
     crumbs();
     if (scroll && body()) body().scrollTop = 0;
     if (animate) animateIn(target);
-    // Round 25: focus moves at once — the opener has just been hidden, and until a later frame
-    // focus sat on <body>, outside the shell, so an early Escape closed the whole dialog.
+
     if (focus) target.querySelector(".sx-sub-back")?.focus({ preventScroll: true, focusVisible: false });
     if (window.enhanceSelects) try { window.enhanceSelects(target); } catch (e) {}
     refreshDeps(target); refreshModified(target);
@@ -393,8 +366,6 @@
     host.innerHTML = parts.join("");
   }
 
-  /* ---------------------------------------------------------------- search */
-
   const EN_RU = { q: "й", w: "ц", e: "у", r: "к", t: "е", y: "н", u: "г", i: "ш", o: "щ", p: "з", "[": "х", "]": "ъ", a: "ф", s: "ы", d: "в", f: "а", g: "п", h: "р", j: "о", k: "л", l: "д", ";": "ж", "'": "э", z: "я", x: "ч", c: "с", v: "м", b: "и", n: "т", m: "ь", ",": "б", ".": "ю", "`": "ё" };
   const RU_EN = Object.fromEntries(Object.entries(EN_RU).map(([k, v]) => [v, k]));
   function swapLayout(text) {
@@ -408,7 +379,7 @@
     return String(text || "").toLowerCase().replace(/ё/g, "е").replace(/[«»"“”„()\[\]{}.,:;!?·—–\-/\\|+*]/g, " ").replace(/\s+/g, " ").trim();
   }
   function lev1(a, b) {
-    // true when edit distance <= 1 (insert/delete/substitute/transpose)
+
     if (a === b) return true;
     const la = a.length, lb = b.length;
     if (Math.abs(la - lb) > 1) return false;
@@ -423,7 +394,7 @@
     if (text.includes(token)) return token.length >= 4 ? 3.5 : 2.5;
     if (token.length >= 4 && words.some((w) => lev1(token, w.slice(0, token.length)) || lev1(token, w))) return 3;
     if (token.length >= 3) {
-      // subsequence inside one word ("уведм" → "уведомления")
+
       for (const w of words) {
         let j = 0;
         for (let k = 0; k < w.length && j < token.length; k++) if (w[k] === token[j]) j++;
@@ -470,12 +441,12 @@
       pane.querySelectorAll(rowSel).forEach((node) => {
         if (seen.has(node)) return;
         if (node.closest(".sx-results")) return;
-        // One entry per row: skip a row nested in an already indexed row.
+
         const outer = node.parentElement?.closest(rowSel);
         if (outer && pane.contains(outer) && !outer.matches("section, details, .sx-section, [data-sx-section]")) return;
         let label = "";
         const labelNode = firstOf(node, [".sx-label", ".tl", ".settings-title", "b", "label"]);
-        // data-sx-label names a picker whose first <b>/<label> is just one of its options (the design and accent grids).
+
         if (node.dataset.sxLabel) label = node.dataset.sxLabel;
         else if (node.matches(".sx-section, section")) label = textOf(node.querySelector(".sx-section-title, .settings-title"));
         else label = textOf(labelNode);
@@ -486,7 +457,7 @@
         let context = "";
         if (sectionNode && sectionNode !== node) {
           const titleNode = sectionNode.querySelector(".sx-section-title > span:not([class]), .sx-more > summary > span, .settings-title, .tg-card-title, summary");
-          // a <summary> may carry a hint (<small>) after its title: index only the title
+
           if (titleNode && titleNode.matches("summary")) {
             const own = titleNode.querySelector(":scope > span, :scope > b");
             context = own ? textOf(own) : [...titleNode.childNodes].filter((n) => !(n.nodeType === 1 && n.matches("small, .sx-more-hint"))).map((n) => n.textContent).join(" ").replace(/\s+/g, " ").trim();
@@ -538,7 +509,7 @@
     let html = esc(text);
     const ts = [...new Set(tokens)].filter((t) => t.length >= 2).sort((a, b) => b.length - a.length);
     if (!ts.length) return html;
-    // Highlight on the normalized text, mapping ё→е; accept a small mismatch.
+
     const pattern = ts.map((t) => t.replace(/е/g, "[её]").replace(/[.*+?^${}()|\\]/g, "\\$&")).join("|");
     try { html = html.replace(new RegExp(`(${pattern})`, "gi"), "<mark>$1</mark>"); } catch (e) {}
     return html;
@@ -597,7 +568,7 @@
   }
 
   function revealNode(node) {
-    // open parent <details>, then flash
+
     let parent = node.parentElement;
     while (parent) {
       if (parent.tagName === "DETAILS" && !parent.open) parent.open = true;
@@ -620,12 +591,12 @@
       let node = entry.node && entry.node.isConnected ? entry.node : null;
       if (!node && entry.anchor) node = document.querySelector(entry.anchor);
       if (!node && entry.kind !== "page") {
-        // The pane was re-rendered: find the row again by its label.
+
         const pane = activePane();
         node = [...(pane?.querySelectorAll(".sx-label, .tl, .settings-title") || [])].find((el) => norm(el.textContent) === entry.labelN)?.closest(".sx-row, .p-toggle, .tg-row, .sx-field, section") || null;
       }
       if (!node) { activePane()?.querySelector(".sx-page-title")?.focus?.({ preventScroll: true }); return; }
-      // A link row («GitHub ›») stands for its sub-page: open it instead of just highlighting the link.
+
       if (node.matches("[data-sx-open]") && node.dataset.sxOpen) { openSub(node.dataset.sxOpen); return; }
       revealNode(node);
       node.scrollIntoView({ block: "center", behavior: reducedMotion() ? "auto" : "smooth" });
@@ -636,21 +607,18 @@
     });
   }
 
-  /* ------------------------------------------------------------- navigation */
-
   function open(pageId, o = {}) {
     if (!o.keepQuery && state.query) clearSearch();
     if (typeof state.opener === "function") state.opener(pageId, o);
   }
 
-  // Called by app.js after it switched panes.
   function pageShown(pageId, o = {}) {
     state.page = pageId;
     const sh = shell();
     if (sh) {
       sh.classList.remove("sx-nav-open");
       sh.classList.toggle("sx-quiet", o.animate === false);
-      // keep the active page visible in a long sidebar (scroll only the nav, never the dialog)
+
       const nav = sh.querySelector(".sx-nav"), btn = nav && nav.querySelector(".settings-tab-btn.active");
       if (nav && btn) {
         const n = nav.getBoundingClientRect(), r = btn.getBoundingClientRect();
@@ -661,19 +629,18 @@
     const sub = o.sub !== undefined ? o.sub : state.sub[pageId] || "";
     if (sub) openSub(sub, { focus: false, scroll: o.scroll !== false, animate: o.animate !== false });
     else { const pane = activePane(); if (pane) clearSubMarks(pane); state.sub[pageId] = ""; crumbs(); }
-    // Round 25: an in-place re-render (o.animate === false) must not replay the fade from opacity 0.
+
     if (o.animate !== false) animateIn(activePane());
-    refreshDeps(); refreshModified();
+    refreshDeps(activePane()); refreshModified(activePane());
     state.index = null;
   }
 
   function invalidate() { state.index = null; }
 
-  /* ------------------------------------------------------------- mounting */
-
   function mount(o = {}) {
     const sh = shell();
     if (!sh) return;
+    state.observer?.disconnect();
     if (o.page) state.page = o.page;
     state.index = null;
     const input = sh.querySelector("#sx-search");
@@ -685,11 +652,11 @@
         const out = sh.querySelector(`output.sx-slider-value[for="${CSS.escape(t.id)}"]`);
         if (out) out.textContent = sliderText(t.value, out.dataset.unit || "", out.dataset.signed === "1");
       }
-      refreshDeps(); refreshModified();
+      refreshDeps(activePane()); refreshModified(activePane());
     });
     sh.addEventListener("change", (event) => {
       if (event.target.id === "sx-search") return;
-      refreshDeps(); refreshModified();
+      refreshDeps(activePane()); refreshModified(activePane());
     });
     sh.addEventListener("click", (event) => {
       const t = event.target;
@@ -748,7 +715,7 @@
       }
       if (event.key === "Escape" && !prettyOpen) {
         if (state.query) { event.preventDefault(); event.stopPropagation(); clearSearch(); input?.focus(); return; }
-        if (sh.classList.contains("sx-nav-open") && sh.classList.contains("sx-narrow-able")) { /* fallthrough to close */ }
+        if (sh.classList.contains("sx-nav-open") && sh.classList.contains("sx-narrow-able")) {  }
         if (state.sub[state.page] && !t.closest("input, textarea, select")) { event.preventDefault(); event.stopPropagation(); closeSub(); return; }
       }
       if ((event.ctrlKey || event.metaKey) && !event.altKey && (event.code === "KeyF" || event.key === "f" || event.key === "а")) {
@@ -765,11 +732,12 @@
       }
       if ((window.MemuKeys ? MemuKeys.latin(event) : event.key) === "/" && !t.closest("input, textarea, select, [contenteditable]")) { event.preventDefault(); input?.focus(); }
     });
-    // Other scripts (modules.js, docs.js) switch panes by toggling classes
-    // directly; follow them so the breadcrumbs and sub-page state stay right.
+
     const bodyNode = sh.querySelector(".settings-body");
     if (bodyNode && window.MutationObserver) {
-      new MutationObserver(() => {
+      state.observer = new MutationObserver((records) => {
+        if (!sh.isConnected) { state.observer.disconnect(); return; }
+        if (!records.some((record) => record.type === "childList" || record.target.matches(".settings-tab-pane"))) return;
         const pane = activePane();
         const id = pane?.dataset.page;
         if (id && id !== state.page) {
@@ -779,21 +747,20 @@
           crumbs();
         }
         state.index = null;
-      }).observe(bodyNode, { subtree: true, attributes: true, attributeFilter: ["class"], childList: true });
+      });
+      state.observer.observe(bodyNode, { subtree: true, attributes: true, attributeFilter: ["class"], childList: true });
     }
     if (o.query) { input.value = o.query; setQuery(o.query); }
-    // The search field is the natural first stop (Raycast/Linear style); a
-    // fresh opening focuses it instead of the close button.
+
     if (o.focusSearch) setTimeout(() => {
       if (!sh.isConnected) return;
-      // In a narrow window the sidebar (and its search) is folded away: focus the page title instead of the
-      // close button, so nothing wears a focus ring right after opening.
+
       const visible = input && (typeof input.checkVisibility === "function" ? input.checkVisibility({ visibilityProperty: true, opacityProperty: true }) : input.offsetParent !== null);
       if (visible) input.focus({ preventScroll: true });
       else { const title = activePane()?.querySelector(".sx-page-title"); if (title) { if (!title.hasAttribute("tabindex")) title.setAttribute("tabindex", "-1"); title.focus({ preventScroll: true }); } }
     }, 0);
     else crumbs();
-    refreshDeps(); refreshModified();
+    refreshDeps(activePane()); refreshModified(activePane());
   }
 
   function registerSearch(entries) {

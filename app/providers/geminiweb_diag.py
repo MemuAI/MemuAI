@@ -24,12 +24,10 @@ STEPS = (
     ("request", "Тестовый запрос", "Test request"),
 )
 
-
 def _step(sid: str, status: str, ru: str, en: str, fix_ru: str = "", fix_en: str = "") -> Dict[str, Any]:
     title_ru, title_en = next((r, e) for s, r, e in STEPS if s == sid)
     return {"id": sid, "status": status, "title_ru": title_ru, "title_en": title_en,
             "detail_ru": ru, "detail_en": en, "fix_ru": fix_ru, "fix_en": fix_en}
-
 
 def _pending(steps: List[Dict[str, Any]]) -> None:
     done = {s["id"] for s in steps}
@@ -37,7 +35,6 @@ def _pending(steps: List[Dict[str, Any]]) -> None:
         if sid not in done:
             steps.append(_step(sid, "skip", "Не проверялось — сначала исправьте шаг выше.",
                                "Not checked — fix the step above first."))
-
 
 def _result(steps: List[Dict[str, Any]], signed_in: bool, email: str = "",
             models: Optional[List[Dict[str, Any]]] = None, limits: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -50,7 +47,6 @@ def _result(steps: List[Dict[str, Any]], signed_in: bool, email: str = "",
         summary = f"Gemini Web работает · {mode}"
     return {"ok": failed is None, "summary": summary, "steps": steps,
             "signed_in": signed_in, "email": email, "models": models or [], "limits": limits or {}}
-
 
 async def run_diagnosis(provider, account, *, test_request: bool = True) -> Dict[str, Any]:
     steps: List[Dict[str, Any]] = []
@@ -156,11 +152,9 @@ async def run_diagnosis(provider, account, *, test_request: bool = True) -> Dict
         steps.append(_step("request", "skip", "Пропущен в быстрой проверке.", "Skipped in the quick check."))
     return _result(steps, info.signed_in, info.email, models, limits)
 
-
 def _fmt_reset(ts: Any) -> str:
     import time
     return time.strftime("%d.%m %H:%M", time.localtime(ts)) if isinstance(ts, (int, float)) and ts > 0 else ""
-
 
 async def _limits_step(provider, account, info, steps: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Лимиты из окна «Лимиты использования» Gemini. Никогда не валит проверку: это справка, а не условие работы."""
@@ -201,7 +195,6 @@ async def _limits_step(provider, account, info, steps: List[Dict[str, Any]]) -> 
                        "Pick another model or wait for the reset." if exhausted else ""))
     return data
 
-
 async def _models_step(provider, account, info, steps: List[Dict[str, Any]]):
     """Модели из выбора модели самого аккаунта; без ответа Google — статический список с предупреждением."""
     from .geminiweb import DEFAULT_MODEL, MODELS
@@ -240,7 +233,6 @@ async def _models_step(provider, account, info, steps: List[Dict[str, Any]]):
                        "Модели, недоступные аккаунту, вернут понятную ошибку. Повторите проверку позже.",
                        "Models the account lacks return a clear error. Re-run the check later."))
     return rows, DEFAULT_MODEL
-
 
 async def _ask(provider, account, model: str) -> str:
     out = []

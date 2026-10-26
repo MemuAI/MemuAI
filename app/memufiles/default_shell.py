@@ -45,21 +45,17 @@ log = logging.getLogger("memufiles.default_shell")
 REG_SZ, REG_EXPAND_SZ, REG_DWORD = 1, 2, 4
 CLASSES = r"Software\Classes"
 VERB = "MemuFiles"
-MARKER = "memufiles"                     # every command we write contains it (lower-cased match)
+MARKER = "memufiles"
 WIN_E_CLSID = "{52205fd8-5dfb-447d-801a-d0b52f2e83e1}"
 THIS_PC = "::{20D04FE0-3AEA-1069-A2D8-08002B30309D}"
 FEATURES = ("folders", "win_e")
 WSH_KEY = r"Software\Microsoft\Windows Script Host\Settings"
 _LOCK = threading.RLock()
 
-
 class ShellError(Exception):
     def __init__(self, code: str, message: str = "") -> None:
         super().__init__(message or code)
         self.code = code
-
-
-# ------------------------------------------------------------------ registry layer (HKCU only)
 
 class WinReg:
     """Thin ``winreg`` wrapper over HKEY_CURRENT_USER; tests replace it with a fake of the same shape."""
@@ -123,9 +119,7 @@ class WinReg:
         except Exception:  # noqa: BLE001
             pass
 
-
 _REG: Any = None
-
 
 def _reg() -> Any:
     global _REG
@@ -133,46 +127,35 @@ def _reg() -> Any:
         _REG = WinReg()
     return _REG
 
-
 def set_registry(reg: Any) -> None:
     """Tests: plug a fake registry (``None`` restores the real one lazily)."""
     global _REG
     _REG = reg
 
-
 def available() -> bool:
     return os.name == "nt" or _REG is not None and not isinstance(_REG, WinReg)
-
-
-# ------------------------------------------------------------------ files
 
 def shell_dir() -> Path:
     path = files_dir() / "shell"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-
 def _state_path() -> Path:
     return shell_dir() / "state.json"
-
 
 def load_state() -> Dict[str, Any]:
     state = read_json(_state_path(), {})
     state.setdefault("features", {})
     return state
 
-
 def _save_state(state: Dict[str, Any]) -> None:
     write_json(_state_path(), state)
-
 
 def launcher_path() -> Path:
     return shell_dir() / "memufiles-open.js"
 
-
 def emergency_reg_path() -> Path:
     return shell_dir() / "restore-explorer.reg"
-
 
 def current_exe() -> Optional[str]:
     """MemuFiles.exe of this install (frozen), else the installed one MemuAI knows about."""
@@ -187,9 +170,6 @@ def current_exe() -> Optional[str]:
         pass
     return None
 
-
-# ------------------------------------------------------------------ what we write
-
 def _wsh_enabled(reg: Any) -> bool:
     got = reg.get(WSH_KEY, "Enabled")
     if got is None:
@@ -199,13 +179,11 @@ def _wsh_enabled(reg: Any) -> bool:
     except ValueError:
         return True
 
-
 def _command(exe: str, mode: str, with_arg: bool) -> str:
     arg = ' "%1"' if with_arg else ""
     if mode == "launcher":
         return f'"%SystemRoot%\\System32\\wscript.exe" //B //Nologo "{launcher_path()}"{arg}'
     return f'"{exe}" --shell-open{arg}'
-
 
 def _plan(feature: str, exe: str, mode: str, lang: str) -> List[Tuple[str, str, int, Any]]:
     """``(key, value name, type, data)`` for one feature; "" is the key's default value."""
@@ -227,7 +205,6 @@ def _plan(feature: str, exe: str, mode: str, lang: str) -> List[Tuple[str, str, 
         return [(key, "", REG_EXPAND_SZ, _command(exe, mode, False)), (key, "DelegateExecute", REG_SZ, "")]
     raise ShellError("bad_feature", feature)
 
-
 def _parents(key: str) -> List[str]:
     """``A\\B\\C`` → [``A\\B\\C``, ``A\\B``, ``A``] (only below ``Software\\Classes``)."""
     out, parts = [], key.split("\\")
@@ -235,12 +212,8 @@ def _parents(key: str) -> List[str]:
         out.append("\\".join(parts[:n]))
     return out
 
-
-# ------------------------------------------------------------------ the launcher
-
 def _js(text: str) -> str:
     return json.dumps(text, ensure_ascii=False)
-
 
 def launcher_source(exe: str) -> str:
     """JScript for wscript.exe: folder → MemuFiles; anything MemuFiles cannot show, a missing/broken MemuFiles →
@@ -293,7 +266,6 @@ if (special || (target && !fso.FolderExists(target)) || !fso.FileExists(EXE)) {{
 }}
 """
 
-
 def _launcher_outdated(exe: str) -> bool:
     try:
         current = launcher_path().read_bytes()
@@ -301,16 +273,12 @@ def _launcher_outdated(exe: str) -> bool:
         return True
     return current != b"\xff\xfe" + launcher_source(exe).replace("\n", "\r\n").encode("utf-16-le")
 
-
 def _write_launcher(exe: str) -> None:
     path = launcher_path()
     data = launcher_source(exe).replace("\n", "\r\n").encode("utf-16-le")
     tmp = path.with_suffix(".tmp")
-    tmp.write_bytes(b"\xff\xfe" + data)          # UTF-16 + BOM: WSH reads Cyrillic exe paths only this way
+    tmp.write_bytes(b"\xff\xfe" + data)
     os.replace(tmp, path)
-
-
-# ------------------------------------------------------------------ backup / emergency .reg
 
 def _backup(reg: Any, rows: List[Tuple[str, str, int, Any]]) -> Dict[str, Any]:
     values, keys = [], []
@@ -318,7 +286,7 @@ def _backup(reg: Any, rows: List[Tuple[str, str, int, Any]]) -> Dict[str, Any]:
     for key, name, _kind, _data in rows:
         got = reg.get(key, name)
         if got is not None and name == "" and MARKER in str(got[1]).lower():
-            got = None                   # already ours (state file lost): the original was "absent"
+            got = None
         values.append({"key": key, "name": name, "existed": got is not None,
                        "type": got[0] if got else None, "data": _jsonable(got[1]) if got else None})
         for parent in _parents(key):
@@ -328,18 +296,15 @@ def _backup(reg: Any, rows: List[Tuple[str, str, int, Any]]) -> Dict[str, Any]:
             keys.append({"key": parent, "existed": reg.key_exists(parent)})
     return {"values": values, "keys": keys, "saved_at": int(time.time())}
 
-
 def _jsonable(data: Any) -> Any:
     if isinstance(data, bytes):
         return {"hex": data.hex()}
     return data
 
-
 def _from_json(data: Any) -> Any:
     if isinstance(data, dict) and "hex" in data:
         return bytes.fromhex(data["hex"])
     return data
-
 
 def _reg_value(kind: Optional[int], data: Any) -> str:
     if kind == REG_SZ:
@@ -351,11 +316,10 @@ def _reg_value(kind: Optional[int], data: Any) -> str:
         return "hex(2):" + ",".join("%02x" % b for b in raw)
     if isinstance(data, (bytes, bytearray)):
         return "hex(%x):" % int(kind or 3) + ",".join("%02x" % b for b in data)
-    if isinstance(data, list):                    # REG_MULTI_SZ
+    if isinstance(data, list):
         raw = ("\0".join(str(x) for x in data) + "\0\0").encode("utf-16-le")
         return "hex(7):" + ",".join("%02x" % b for b in raw)
     return "hex(%x):" % int(kind or 3)
-
 
 def emergency_reg_text(state: Optional[Dict[str, Any]] = None) -> str:
     """A .reg that undoes everything (from the backup; without one — removes what points to MemuFiles)."""
@@ -383,19 +347,16 @@ def emergency_reg_text(state: Optional[Dict[str, Any]] = None) -> str:
             lines += [f"[{hkcu}{row['key']}]", f"{name}={value}", ""]
     return "\r\n".join(lines) + "\r\n"
 
-
 def _ours_only(key: str) -> bool:
     """Keys that only MemuFiles ever creates — safe to delete whole in the emergency file."""
     low = key.lower()
     return low.endswith("\\shell\\" + VERB.lower()) or low.endswith("\\" + WIN_E_CLSID.lower())
-
 
 def _write_emergency(state: Dict[str, Any]) -> None:
     path = emergency_reg_path()
     tmp = path.with_suffix(".tmp")
     tmp.write_bytes(b"\xff\xfe" + emergency_reg_text(state).encode("utf-16-le"))
     os.replace(tmp, path)
-
 
 def _fallback_backup(_reg_unused: Any) -> Dict[str, Any]:
     """No backup on disk: on a clean Windows none of these HKCU values exist — the original state is "absent"."""
@@ -405,19 +366,15 @@ def _fallback_backup(_reg_unused: Any) -> Dict[str, Any]:
         for parent in _parents(key):
             if parent.lower() not in seen:
                 seen.add(parent.lower())
-                keys.append({"key": parent, "existed": False})     # deleted only when empty (or ours)
+                keys.append({"key": parent, "existed": False})
     return {"values": [{"key": k, "name": n, "existed": False} for k, n, _t, _d in rows], "keys": keys}
-
-
-# ------------------------------------------------------------------ status
 
 def _is_ours(got: Optional[Tuple[int, Any]], expected: Any) -> bool:
     if got is None:
         return False
     if isinstance(expected, str) and MARKER in expected.lower():
-        return MARKER in str(got[1]).lower()        # our command, maybe for an older exe path
+        return MARKER in str(got[1]).lower()
     return got[1] == expected
-
 
 def _feature_state(reg: Any, feature: str, exe: str, mode: str) -> str:
     rows = _plan(feature, exe, mode, "en")
@@ -425,13 +382,12 @@ def _feature_state(reg: Any, feature: str, exe: str, mode: str) -> str:
     for key, name, _kind, data in rows:
         got = reg.get(key, name)
         if name == "" and key.endswith("\\" + VERB):
-            hits += got is not None           # the verb title is language-dependent
+            hits += got is not None
         elif _is_ours(got, data):
             hits += 1
     if hits == len(rows):
         return "on"
     return "off" if hits == 0 else "partial"
-
 
 def status() -> Dict[str, Any]:
     if not available():
@@ -456,9 +412,6 @@ def status() -> Dict[str, Any]:
                 "wsh": _wsh_enabled(reg), "emergency_reg": str(emergency_reg_path()),
                 "can_restore": any(f["state"] != "off" or f["has_backup"] for f in features.values())}
 
-
-# ------------------------------------------------------------------ enable / disable / restore
-
 def _lang() -> str:
     try:
         from . import settings
@@ -468,7 +421,6 @@ def _lang() -> str:
     except Exception:  # noqa: BLE001
         pass
     return "ru"
-
 
 def enable(feature: str, exe: Optional[str] = None) -> Dict[str, Any]:
     """Turn one feature on (backing the original values up first — never twice: a second enable keeps the
@@ -491,7 +443,7 @@ def enable(feature: str, exe: Optional[str] = None) -> Dict[str, Any]:
         saved.update({"enabled": True, "enabled_at": int(time.time())})
         state["features"][feature] = saved
         state.update({"exe": exe, "mode": mode, "version": 1})
-        _save_state(state)                         # the backup is on disk BEFORE the first registry write
+        _save_state(state)
         _write_emergency(state)
         if mode == "launcher":
             _write_launcher(exe)
@@ -506,13 +458,12 @@ def enable(feature: str, exe: Optional[str] = None) -> Dict[str, Any]:
         log.info("default shell: %s enabled (%s)", feature, mode)
         return status()
 
-
 def _restore_feature(reg: Any, state: Dict[str, Any], feature: str) -> List[str]:
     saved = state["features"].get(feature) or {}
     backup = saved.get("backup") or _fallback_feature_backup(feature)
     problems: List[str] = []
     exact = bool(saved.get("backup"))
-    # no backup: touch only keys whose default value is ours (a command / verb / title naming MemuFiles)
+
     ours = {row["key"].lower() for row in backup.get("values", []) if row["name"] == ""
             and MARKER in str((reg.get(row["key"], "") or (0, ""))[1]).lower()}
     for row in backup.get("values", []):
@@ -524,7 +475,7 @@ def _restore_feature(reg: Any, state: Dict[str, Any], feature: str) -> List[str]
         except OSError as exc:
             problems.append(f"{row['key']}\\{row['name'] or '@'}: {exc}")
     created = [k["key"] for k in backup.get("keys", []) if not k.get("existed")]
-    for key in sorted(created, key=lambda k: -k.count("\\")):     # deepest first; only when nothing else lives there
+    for key in sorted(created, key=lambda k: -k.count("\\")):
         try:
             if _ours_only(key) and reg.key_exists(key):
                 _delete_ours(reg, key)
@@ -534,7 +485,6 @@ def _restore_feature(reg: Any, state: Dict[str, Any], feature: str) -> List[str]
             problems.append(f"{key}: {exc}")
     state["features"].pop(feature, None)
     return problems
-
 
 def _delete_ours(reg: Any, key: str) -> None:
     """Our verb / our Win+E CLSID key: delete it unless something foreign was added inside since."""
@@ -546,14 +496,12 @@ def _delete_ours(reg: Any, key: str) -> None:
         return
     reg.delete_tree(key)
 
-
 def _fallback_feature_backup(feature: str) -> Dict[str, Any]:
     full = _fallback_backup(None)
     mine = {(k, n) for k, n, _t, _d in _plan(feature, "x", "direct", "en")}
     keys = {p.lower() for k, _n in mine for p in _parents(k)}
     return {"values": [v for v in full["values"] if (v["key"], v["name"]) in mine],
             "keys": [k for k in full["keys"] if k["key"].lower() in keys]}
-
 
 def disable(feature: str) -> Dict[str, Any]:
     """Turn one feature off: its values go back to exactly what they were before :func:`enable`."""
@@ -570,7 +518,6 @@ def disable(feature: str) -> Dict[str, Any]:
         result = status()
         result["problems"] = problems
         return result
-
 
 def restore_all() -> Dict[str, Any]:
     """«Вернуть Проводник Windows»: every feature back to the backup (or removed when there is none)."""
@@ -591,7 +538,6 @@ def restore_all() -> Dict[str, Any]:
         log.info("default shell: Explorer restored (%d problems)", len(problems))
         return result
 
-
 def _finish(state: Dict[str, Any]) -> None:
     if state["features"]:
         _save_state(state)
@@ -611,14 +557,12 @@ def _finish(state: Dict[str, Any]) -> None:
         except OSError:
             pass
 
-
 def set_hook(on: bool) -> Dict[str, Any]:
     with _LOCK:
         state = load_state()
         state["hook"] = bool(on)
         _save_state(state)
         return status()
-
 
 def heal(exe: Optional[str] = None) -> bool:
     """MemuFiles start-up: re-point the launcher / commands when MemuFiles.exe moved. True when anything changed."""
@@ -631,7 +575,7 @@ def heal(exe: Optional[str] = None) -> bool:
         if not enabled or not exe:
             return False
         if os.path.normcase(exe) == os.path.normcase(state.get("exe") or ""):
-            # Round 39: same exe, but a launcher written by an older MemuFiles (no direct hand-off) is upgraded
+
             if (state.get("mode") or "launcher") == "launcher" and _launcher_outdated(exe):
                 _write_launcher(exe)
                 return True
@@ -650,16 +594,13 @@ def heal(exe: Optional[str] = None) -> bool:
         log.info("default shell: re-pointed to %s", exe)
         return True
 
-
-# ------------------------------------------------------------------ MemuFiles.exe --shell-open
-
 def route(raw: str) -> Tuple[str, str]:
     """``("explorer", target)`` for what MemuFiles cannot show, else ``("open", folder)``.
 
     Repairs ``"C:\\"`` quoting (``C:"`` after CommandLineToArgvW) and keeps UNC / long / Cyrillic paths as is."""
     target = (raw or "").strip()
     if target.endswith('"') and not target.startswith('"'):
-        target = target[:-1] + "\\"            # "C:\" on the command line arrives as C:"
+        target = target[:-1] + "\\"
     target = target.strip('"')
     if not target:
         return "open", ""
@@ -671,7 +612,6 @@ def route(raw: str) -> Tuple[str, str]:
     if not os.path.isdir(target):
         return "explorer", target
     return "open", target
-
 
 def explore(target: str) -> None:
     """Hand a path to the real Explorer through the untouched ``explore`` verb (no recursion into MemuFiles)."""
@@ -687,11 +627,10 @@ def explore(target: str) -> None:
     import subprocess
     subprocess.Popen(["explorer.exe", "/e," + (target or THIS_PC)])   # noqa: S603,S607
 
-
 def cli_restore() -> int:
     """``MemuFiles.exe --restore-explorer`` (the uninstaller runs it too)."""
     result = restore_all()
-    try:                                         # r41-files: the archive association goes too (uninstall / rollback)
+    try:
         from . import archive_assoc
         archive_assoc.sync(False)
     except Exception:  # noqa: BLE001
@@ -707,7 +646,6 @@ def cli_restore() -> int:
         pass
     return 0 if not result.get("problems") else 1
 
-
 def handle(body: Dict[str, Any]) -> Dict[str, Any]:
     """One entry point for both HTTP APIs (MemuFiles ``/api/default_shell``, MemuAI ``/api/pg/memufiles/default-shell``).
     Errors come back as ``{"ok": False, "error": code}`` — never an exception (Linux: ``unavailable``)."""
@@ -720,7 +658,7 @@ def handle(body: Dict[str, Any]) -> Dict[str, Any]:
         if not available():
             return {"ok": False, "available": False, "error": "unavailable", "state": "unavailable"}
         if action == "enable":
-            if body.get("confirmed") is not True:          # only an explicit, confirmed user action
+            if body.get("confirmed") is not True:
                 return {"ok": False, "error": "not_confirmed"}
             return enable(feature)
         if action == "disable":

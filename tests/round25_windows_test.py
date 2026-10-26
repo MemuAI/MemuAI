@@ -26,13 +26,11 @@ if str(ROOT) not in sys.path:
 
 X64 = ctypes.sizeof(ctypes.c_void_p) == 8
 
-
 class _FakeFunction:
     """Stands in for a DLL export: accepts ``argtypes``/``restype`` like the real one."""
 
     def __call__(self, *args, **kwargs):  # pragma: no cover - never called by these tests
         raise AssertionError("a Win32 function was called off Windows")
-
 
 class _FakeDLL:
     def __init__(self, *_args, **_kwargs) -> None:
@@ -44,7 +42,6 @@ class _FakeDLL:
         function = _FakeFunction()
         setattr(self, name, function)
         return function
-
 
 def _llp64_wintypes() -> types.ModuleType:
     """``ctypes.wintypes`` with the widths of Windows (Linux' own uses 64-bit ``long``)."""
@@ -78,7 +75,6 @@ def _llp64_wintypes() -> types.ModuleType:
     wt.RECT, wt.POINT, wt.FILETIME, wt.MSG = RECT, POINT, FILETIME, MSG
     return wt
 
-
 @contextlib.contextmanager
 def windows_x64_ctypes():
     """Run a binding layer's constructor here as if on 64-bit Windows (layouts only, nothing is called)."""
@@ -91,7 +87,6 @@ def windows_x64_ctypes():
         stack.enter_context(mock.patch.object(ctypes, "wintypes", wt, create=True))
         stack.enter_context(mock.patch.dict(sys.modules, {"ctypes.wintypes": wt}))
         yield wt
-
 
 @unittest.skipUnless(X64, "the expected sizes are the 64-bit Windows ones")
 class StructLayoutsX64(unittest.TestCase):
@@ -115,7 +110,7 @@ class StructLayoutsX64(unittest.TestCase):
         self.assertEqual(ctypes.sizeof(types_["INPUT"]), 40)
         self.assertEqual(ctypes.sizeof(types_["MOUSEINPUT"]), 32)
         self.assertEqual(ctypes.sizeof(types_["KEYBDINPUT"]), 24)
-        self.assertEqual(ar._utf16_units("\ud83d"), [0xD83D])   # lone surrogate: no UnicodeEncodeError
+        self.assertEqual(ar._utf16_units("\ud83d"), [0xD83D])
 
     def test_titlebar_bindings(self):
         from app import win_titlebar
@@ -130,7 +125,7 @@ class StructLayoutsX64(unittest.TestCase):
         with windows_x64_ctypes():
             api = win_hotkey._Win32()
         msg_type = api.GetMessageW.argtypes[0]._type_
-        self.assertEqual(ctypes.sizeof(msg_type), 48)   # MSG incl. lPrivate
+        self.assertEqual(ctypes.sizeof(msg_type), 48)
 
     def test_companion_window_bindings(self):
         from app import companion_window
@@ -138,9 +133,8 @@ class StructLayoutsX64(unittest.TestCase):
             api = companion_window._Win32()
         self.assertEqual(ctypes.sizeof(api.POINT), 8)
         self.assertEqual(ctypes.sizeof(api.MONITORINFO), 40)
-        # The gaze feed reads physical pixels whatever the thread's DPI context.
-        self.assertIsNotNone(api.GetPhysicalCursorPos)
 
+        self.assertIsNotNone(api.GetPhysicalCursorPos)
 
 class TypingPlan(unittest.TestCase):
     def test_unicode_enter_tab_and_surrogates(self):
@@ -149,7 +143,7 @@ class TypingPlan(unittest.TestCase):
                          [("unit", ord("Я")), ("vk", 0x0D), ("unit", ord("b")), ("vk", 0x0D),
                           ("unit", ord("c")), ("vk", 0x09), ("unit", ord("d"))])
         self.assertEqual(text_key_plan("😀"), [("unit", 0xD83D), ("unit", 0xDE00)])
-        # A lone surrogate (broken JSON from a model) used to raise and drop the whole text.
+
         self.assertEqual(text_key_plan("a\ud83d"), [("unit", ord("a")), ("unit", 0xD83D)])
 
     def test_numlock_and_numpad_divide_are_extended(self):
@@ -158,7 +152,6 @@ class TypingPlan(unittest.TestCase):
         for vk in (0x90, 0x6F, 0x5C):
             self.assertIn(vk, aw.EXTENDED)
             self.assertIn(vk, ar._EXTENDED_VK)
-
 
 class StartupBackground(unittest.TestCase):
     def _background(self, prefs):
@@ -175,7 +168,7 @@ class StartupBackground(unittest.TestCase):
     def test_matches_the_first_paint_of_the_page(self):
         from app import themes
         html = (ROOT / "app" / "pgstatic" / "index.html").read_text(encoding="utf-8")
-        # index.html falls back to these when it has no cached --bg; the native window must agree.
+
         self.assertEqual(self._background(None), ("dark", themes.variant_tokens("dark")["--bg"]))
         self.assertIn('"' + themes.variant_tokens("dark")["--bg"] + '"', html)
         self.assertEqual(self._background({"theme": "light"}), ("light", themes.variant_tokens("light")["--bg"]))
@@ -200,7 +193,6 @@ class StartupBackground(unittest.TestCase):
         default = inspect.signature(desktop.DesktopShell.__init__).parameters["background_color"].default
         self.assertIn(f"--bg: {default};", css)
 
-
 class FrozenBuildContents(unittest.TestCase):
     def setUp(self):
         import build
@@ -210,12 +202,12 @@ class FrozenBuildContents(unittest.TestCase):
         hidden = set(self.targets["memuai"]["hidden"])
         for module in ("app.assistant_r25", "app.tts_providers"):
             self.assertIn(module, hidden)
-        # Every assistant/quick/DFY/panels module is named: they are imported inside functions.
+
         for path in sorted((ROOT / "app").glob("*.py")):
             if path.stem.startswith(("assistant_", "quick_ask", "dfy", "panels")):
                 with self.subTest(module=path.stem):
                     self.assertIn(f"app.{path.stem}", hidden)
-        self.assertIn("app.tts_providers", self.targets["proxy"]["hidden"])   # Telegram voice replies
+        self.assertIn("app.tts_providers", self.targets["proxy"]["hidden"])
 
     def test_new_static_files_and_docs_are_in_bundled_folders(self):
         data = {item.split(";")[0] for item in self.targets["memuai"]["data"]}
@@ -235,7 +227,6 @@ class FrozenBuildContents(unittest.TestCase):
             with self.subTest(spec=spec):
                 self.assertIn("'app.tts_providers'", source)
         self.assertIn("'app.assistant_r25'", (ROOT / "MemuAI.spec").read_text(encoding="utf-8"))
-
 
 if __name__ == "__main__":
     unittest.main()

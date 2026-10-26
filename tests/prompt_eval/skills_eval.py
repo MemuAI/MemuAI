@@ -43,7 +43,6 @@ process.stdout.write(JSON.stringify({ block: base }));
 
 SKILL_BLOCK = re.compile(r"```[ \t]*memuai-skill[^\n]*\n([\s\S]*?)(?:\n[ \t]*```|$)", re.I)
 
-# (id, message, expected skill ids or () for "answer directly")
 CASES = [
     ("load-review", "Сделай ревью этого диффа перед мержем:\n```diff\n- def total(items):\n-     return sum(i.price for i in items)\n+ def total(items, discount=None):\n+     t = sum(i.price * i.qty for i in items)\n+     if discount: t = t - t * discount / 100\n+     return round(t)\n```", ("code_review",)),
     ("load-debug", "У меня периодически падает сервис на FastAPI с ошибкой 'RuntimeError: Event loop is closed' только в проде под gunicorn, локально всё ок. Помоги найти причину и починить.", ("debugging",)),
@@ -61,11 +60,9 @@ CASES = [
     ("skip-regex", "Регулярка для проверки email?", ()),
 ]
 
-
 def skill_block(tree: Path) -> str:
     out = subprocess.run(["node", "-e", JS, str(tree)], capture_output=True, text=True, check=True)
     return json.loads(out.stdout)["block"]
-
 
 def loaded(reply: str):
     ids = []
@@ -76,7 +73,6 @@ def loaded(reply: str):
         except Exception:
             ids.append("_invalid")
     return ids
-
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -121,7 +117,6 @@ def main() -> None:
     path = out / time.strftime("skills-%Y%m%d-%H%M%S.json")
     path.write_text(json.dumps(results, ensure_ascii=False, indent=1), "utf-8")
     print("saved", path, "| catalogue tokens:", {k: len(v) // 4 for k, v in blocks.items()})
-
 
 if __name__ == "__main__":
     main()

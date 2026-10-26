@@ -1,31 +1,5 @@
-/* MemuAI — one context menu for panels and Quick Ask items (Round 29, r29-panels).
 
-   Used by pgstatic/panels.js (MemuAI window), quick/layer.js (the screen layer of Quick Ask) and
-   quick/plugins/canvas.js (the in-window grid). Before Round 29 each of them had its own little menu that only closed
-   on a left click inside its own page (on the click-through screen layer — never), lost right clicks on cards that
-   re-render live and looked like a list of plain text. This one:
 
-     MemuCtxMenu.open({
-       x, y | anchor (Element | DOMRect),      where (a point wins; the anchor is used for keyboard / ⚙ buttons)
-       items: [ {id, label, icon?, hint?, checked?, danger?, disabled?, keep?, title?}
-              | {type: "sep"} | {type: "label", label}
-              | {type: "seg", id, label?, options: [{id, label, title?, pressed?}], keep?}
-              | {type: "head", label, sub?, icon?} ],
-       onPick(id, item, optionId?) → false keeps the menu open,
-       onClose(reason)  reason: pick | outside | escape | blur | scroll | resize | replaced | hidden | api,
-       owner?            the element it belongs to (aria-expanded, focus comes back to it),
-       boundary?         {left, top, right, bottom} (default: the viewport),
-       container?        where to put it (default: document.body),
-       keyboard?         true → the first item is focused (opened with Shift+F10 / the context-menu key / Enter),
-       className?, label? (aria-label)
-     }) → {el, close(reason), update(items)}
-     MemuCtxMenu.close(reason?) · MemuCtxMenu.isOpen(owner?) · MemuCtxMenu.current()
-     MemuCtxMenu.icon(name) — the icon set (stroke SVG, 24×24).
-
-   It closes on a pointer press outside, Esc, the window losing the focus, scrolling / wheel outside, resize, the page
-   being hidden and after an item is picked; it never leaves the boundary (flips up / left, then clamps and scrolls);
-   arrows / Home / End / letters move, Enter / Space pick, ←/→ change a segmented row. With pgstatic/memu-layers.js on
-   the page it registers there too, so any other MemuAI menu closes it and it closes them. */
 (function () {
   "use strict";
   if (window.MemuCtxMenu) return;
@@ -56,7 +30,7 @@
     chat: '<path d="M5 18.5V6.5A2.5 2.5 0 0 1 7.5 4h9A2.5 2.5 0 0 1 19 6.5v7a2.5 2.5 0 0 1-2.5 2.5H9z"/>',
     front: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 4H6a2 2 0 0 0-2 2v10"/>',
     reset: '<path d="M4 12a8 8 0 1 0 2.3-5.6"/><path d="M4 4v4.5h4.5"/>',
-    // Round 33 (r33-panels): the places of the MemuAI window
+
     ztop: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><rect x="6.5" y="7" width="11" height="3" rx="1"/>',
     zcomposer: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M8 9h8"/><rect x="6.5" y="12" width="11" height="4" rx="1.6"/>',
     zhome: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><rect x="6.5" y="7" width="11" height="3.2" rx="1.4"/><path d="M6.5 13.5h4.5M13 13.5h4.5M6.5 16.5h4.5M13 16.5h4.5"/>',
@@ -122,7 +96,7 @@
 :root[data-motion="off"] .mcm { animation: none !important; }
 @media (prefers-reduced-motion: reduce) { .mcm { animation: none !important; } }`;
 
-  let cur = null;          // {el, opts, close, owner, closing}
+  let cur = null;
   function ensureCss() {
     if (document.getElementById("mcm-style")) return;
     const st = document.createElement("style");
@@ -156,8 +130,8 @@
       const pressed = node.querySelector('[aria-pressed="true"]') || node.querySelector("button");
       if (pressed) pressed.classList.add("mcm-active");
     }
-    if (focus) { try { node.focus({ preventScroll: true }); } catch (e) { /* old engines */ } if (node.tagName !== "BUTTON") el.focus({ preventScroll: true }); }
-    try { node.scrollIntoView({ block: "nearest" }); } catch (e) { /* ok */ }
+    if (focus) { try { node.focus({ preventScroll: true }); } catch (e) {  } if (node.tagName !== "BUTTON") el.focus({ preventScroll: true }); }
+    try { node.scrollIntoView({ block: "nearest" }); } catch (e) {  }
   }
 
   function boundaryOf(o) {
@@ -176,7 +150,7 @@
     else {
       const r = o.anchor ? (typeof o.anchor.getBoundingClientRect === "function" ? o.anchor.getBoundingClientRect() : o.anchor) : { left: B.left, top: B.top, width: 0, height: 0 };
       ax = r.left; ay = r.top; aw = r.width || 0; ah = r.height || 0;
-      if (aw > 120 && ah > 60) { ax = r.left + 12; ay = r.top + 12; aw = 0; ah = 0; }     // a whole card: open inside its corner
+      if (aw > 120 && ah > 60) { ax = r.left + 12; ay = r.top + 12; aw = 0; ah = 0; }
     }
     let left = ax, top = ay + ah + (ah ? 4 : 2), ox = "left", oy = "top";
     if (left + w > B.right - pad) { left = (aw ? ax + aw : ax) - w; ox = "right"; }
@@ -194,19 +168,18 @@
     c.closing = true;
     cur = null;
     detach();
-    try { c.el.remove(); } catch (e) { /* gone */ }
+    try { c.el.remove(); } catch (e) {  }
     if (c.owner && c.owner.setAttribute && c.owner.hasAttribute("aria-expanded")) c.owner.setAttribute("aria-expanded", "false");
-    if (window.MemuLayers && c.layer) { try { MemuLayers.close(c.el, reason); } catch (e) { /* ok */ } }
+    if (window.MemuLayers && c.layer) { try { MemuLayers.close(c.el, reason); } catch (e) {  } }
     const back = reason === "escape" || reason === "pick";
     if (back && c.opts.returnFocus !== false) {
       const target = c.opts.returnFocus || c.owner;
-      if (target && target.isConnected && target.focus) { try { target.focus({ preventScroll: true }); } catch (e) { /* ok */ } }
+      if (target && target.isConnected && target.focus) { try { target.focus({ preventScroll: true }); } catch (e) {  } }
     }
     try { c.opts.onClose && c.opts.onClose(reason); } catch (e) { console.warn("[MemuCtxMenu]", e); }
     return true;
   }
 
-  /* ---- global listeners, only while a menu is open */
   const inside = (t) => !!(cur && t && t.nodeType === 1 && cur.el.contains(t));
   function onDown(e) {
     if (!cur || inside(e.target)) return;
@@ -315,14 +288,14 @@
     if (o.label) el.setAttribute("aria-label", o.label);
     if (reduced()) el.dataset.still = "1";
     const items = o.items.filter(Boolean);
-    // no separator at the edges or twice in a row
+
     const clean = items.filter((it, i, all) => it.type !== "sep" || (i > 0 && i < all.length - 1 && all[i - 1].type !== "sep"));
     const c = { el, opts: o, items: clean, owner: o.owner || null, closing: false, layer: false };
     render(c);
     (o.container || document.body).appendChild(el);
     place(el, o);
     cur = c;
-    el.addEventListener("pointerdown", (e) => { e.stopPropagation(); });   // a press inside never reaches page handlers (drag, long press)
+    el.addEventListener("pointerdown", (e) => { e.stopPropagation(); });
     el.addEventListener("contextmenu", (e) => { e.preventDefault(); e.stopPropagation(); });
     el.addEventListener("click", (e) => {
       e.stopPropagation();
@@ -338,9 +311,9 @@
     });
     if (c.owner && c.owner.setAttribute) c.owner.setAttribute("aria-expanded", "true");
     if (window.MemuLayers && typeof MemuLayers.open === "function") {
-      try { MemuLayers.open({ el, anchor: c.owner || null, owner: el, close: (reason) => { if (cur === c) close(reason || "replaced"); }, focus: false }); c.layer = true; } catch (e) { /* ok */ }
+      try { MemuLayers.open({ el, anchor: c.owner || null, owner: el, close: (reason) => { if (cur === c) close(reason || "replaced"); }, focus: false }); c.layer = true; } catch (e) {  }
     }
-    // the press that opened it (right button / long press) must not count as «outside»
+
     setTimeout(() => { if (cur === c) attach(); }, 0);
     requestAnimationFrame(() => {
       if (cur !== c) return;

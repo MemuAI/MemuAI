@@ -10,7 +10,6 @@ from unittest.mock import patch
 from app import pgdata, telegram_bot
 from tests.telegram_r20_test import BotTestCase
 
-
 class TelegramNewChatTitle(BotTestCase):
     """The AI title never came for a brand-new Telegram chat: the turn was
     saved into the same dict, so «first turn» looked like «has messages»."""
@@ -45,8 +44,7 @@ class TelegramNewChatTitle(BotTestCase):
             await self.send("Первое")
             await self.send("Второе")
             await self.settle()
-        self.assertEqual(len(calls), 2)     # no title request at all when titles are off
-
+        self.assertEqual(len(calls), 2)
 
 class AutomationLogLanguage(unittest.TestCase):
     """Work browser/Computer Use: the action log and the approval card were English in the Russian UI."""
@@ -98,7 +96,6 @@ class AutomationLogLanguage(unittest.TestCase):
         self.assertEqual(runtime.status, "cancelled")
         self.assertEqual(runtime.logs[-1]["message"], "Stopped by the user")
 
-
 class SchedulerLanguage(unittest.IsolatedAsyncioTestCase):
     """A scheduled task's result, Windows/Telegram notifications were Russian in the English UI."""
 
@@ -130,7 +127,6 @@ class SchedulerLanguage(unittest.IsolatedAsyncioTestCase):
         results, notes = await self._run("ru", {"id": "t", "name": "Сводка", "prompt": "x", "model": "m"})
         self.assertEqual(notes, ["Планирование · Сводка"])
 
-
 class MiniAppNarrowPhone(unittest.TestCase):
     """Mini App at 320–350 px (iPhone SE): the six tab labels ran into each other (1fr grew with the
     longest label) and the default palette was listed twice with both cards highlighted."""
@@ -139,8 +135,8 @@ class MiniAppNarrowPhone(unittest.TestCase):
         from pathlib import Path
         css = (Path(__file__).resolve().parents[1] / "app/tgapp/app.css").read_text(encoding="utf-8")
         self.assertIn("grid-template-columns: repeat(var(--tabs, 5), minmax(0, 1fr))", css)
-        self.assertIn("@media (max-width: 380px) { .tab {", css)   # r29: widened from 350 px («MemuCode» whole on 360–380)
-        # the narrow-phone value width must come after the base .cell-value rule to win
+        self.assertIn("@media (max-width: 380px) { .tab {", css)
+
         self.assertLess(css.index(".cell-value { color"), css.index("@media (max-width: 350px) { .cell-value"))
         html = (Path(__file__).resolve().parents[1] / "app/tgapp/index.html").read_text(encoding="utf-8")
         self.assertNotIn("app.css?v=25", html)
@@ -153,7 +149,6 @@ class MiniAppNarrowPhone(unittest.TestCase):
                 self.assertEqual(len(ids), len(set(ids)), (mode, ids))
                 self.assertEqual(ids[0], "")
         self.assertEqual(theme_catalog("en")["variants"]["light"][0]["name"], "Light")
-
 
 class DeletedChatStaysDeleted(BotTestCase):
     """A chat deleted in MemuAI while the bot / Mini App was answering in it came back on save."""
@@ -177,7 +172,7 @@ class DeletedChatStaysDeleted(BotTestCase):
         with patch("app.chat.chat_service.stream_completion", lambda *a, **k: slow()):
             task = asyncio.create_task(self.send("Второе"))
             await asyncio.sleep(0.3)
-            pgdata.save_chats([], "default")          # deleted in the MemuAI window meanwhile
+            pgdata.save_chats([], "default")
             release.set()
             await task
         self.assertEqual(pgdata.load_chats("default"), [])
@@ -198,7 +193,6 @@ class DeletedChatStaysDeleted(BotTestCase):
                                                   "m", "default", ""))
         self.assertEqual(pgdata.load_chats("default"), [])
 
-
 class MiniAppSignInLimits(unittest.TestCase):
     """The strict sign-in cap counted successful sign-ins of the app itself (and the failure counter was
     never checked): 12 openings a minute locked the owner out, guessing was capped no harder."""
@@ -214,7 +208,6 @@ class MiniAppSignInLimits(unittest.TestCase):
         src = (__import__("pathlib").Path(__file__).resolve().parents[1] / "app/tgapp_api.py").read_text(encoding="utf-8")
         self.assertIn('if auth_failures.full("f:" + key) or not auth_limiter.hit("a:" + key):', src)
         self.assertIn('"Too often — please wait"', src)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -47,20 +47,16 @@ PROTOCOL = 1
 _ANSI = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1b\][^\x07]*(?:\x07|\x1b\\)")
 _RC_ID = re.compile(r"^[0-9]{1,10}-[0-9a-f]{8}$")
 
-
 def remote_dir() -> Path:
     path = paths.home() / "remote"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-
 def strip_ansi(text: str) -> str:
     return _ANSI.sub("", str(text or ""))
 
-
 def valid_rc_id(value: Any) -> bool:
     return bool(_RC_ID.match(str(value or "")))
-
 
 def tgapp_allows() -> bool:
     """The Mini App is on and may drive MemuCode (read without importing the Proxy side)."""
@@ -72,14 +68,10 @@ def tgapp_allows() -> bool:
         return False
     return isinstance(data, dict) and data.get("enabled") is True and data.get("code_control") is not False
 
-
 def _atomic_write(path: Path, payload: Dict[str, Any]) -> None:
     tmp = path.with_name(path.name + f".{secrets.token_hex(3)}.tmp")
     tmp.write_text(json.dumps(payload, ensure_ascii=False, default=str), encoding="utf-8")
     os.replace(tmp, path)
-
-
-# --------------------------------------------------------------------------- server side helpers
 
 def list_terminals() -> List[Dict[str, Any]]:
     """Live terminals (fresh heartbeat). Stale files of crashed terminals are removed."""
@@ -112,7 +104,6 @@ def list_terminals() -> List[Dict[str, Any]]:
     rows.sort(key=lambda row: -float(row.get("started") or 0))
     return rows
 
-
 def terminal_state(rc_id: str) -> Optional[Dict[str, Any]]:
     if not valid_rc_id(rc_id):
         return None
@@ -125,7 +116,6 @@ def terminal_state(rc_id: str) -> Optional[Dict[str, Any]]:
         return None
     data["rc"] = rc_id
     return data
-
 
 def send_command(rc_id: str, command: Dict[str, Any]) -> str:
     """Drop a command into a terminal's inbox; returns its id (acknowledged in the state)."""
@@ -143,9 +133,6 @@ def send_command(rc_id: str, command: Dict[str, Any]) -> str:
     _atomic_write(inbox / f"{command_id}.json", payload)
     return command_id
 
-
-# --------------------------------------------------------------------------- terminal side
-
 def _option_rows(dialog: Any) -> List[Dict[str, Any]]:
     rows = []
     for index, option in enumerate(getattr(dialog, "options", []) or []):
@@ -156,7 +143,6 @@ def _option_rows(dialog: Any) -> List[Dict[str, Any]]:
                      "cancel": value is None, "danger": "danger" in str(getattr(option, "style", "") or ""),
                      "value": value if isinstance(value, (str, int, float, bool)) or value is None else str(value)})
     return rows
-
 
 def _tool_detail(request: Any) -> Dict[str, Any]:
     """The exact call a permission dialog is about (what the phone must show)."""
@@ -183,7 +169,6 @@ def _tool_detail(request: Any) -> Dict[str, Any]:
     except Exception:
         return {}
 
-
 class RemoteControl:
     """Publishes one terminal and executes the Mini App's commands in it."""
 
@@ -204,7 +189,6 @@ class RemoteControl:
         self._last_check = 0.0
         self._allowed = False
 
-    # lifecycle ------------------------------------------------------------
     def start(self) -> None:
         if self.task is None or self.task.done():
             self.task = asyncio.ensure_future(self._loop())
@@ -256,7 +240,6 @@ class RemoteControl:
                     self.ui.runtime.log_error(traceback.format_exc())
             await asyncio.sleep(POLL)
 
-    # state ----------------------------------------------------------------
     def _dialog_id(self, dialog: Any) -> int:
         key = id(dialog)
         if key not in self.dialog_ids:
@@ -330,7 +313,6 @@ class RemoteControl:
         self._last_payload = body
         self._last_write = now
 
-    # commands -------------------------------------------------------------
     async def _drain_inbox(self) -> None:
         if not self.inbox.is_dir():
             return
@@ -384,10 +366,7 @@ class RemoteControl:
         """What Enter in the input box does with this text (see ``TerminalUI.submit``)."""
         ui = self.ui
         if text.lstrip().startswith("!"):
-            # «!команда» в терминале выполняется сразу, без диалога разрешений и без
-            # списка запрещённых команд. С телефона это обходило бы подтверждение
-            # опасных действий, поэтому удалённо такая строка не выполняется:
-            # попросите агента обычным сообщением — команда пройдёт через разрешения.
+
             with contextlib.suppress(Exception):
                 from .i18n import tr
                 ui.say(tr("«!команда» из Telegram не выполняется: попросите агента обычным сообщением, "
@@ -438,7 +417,6 @@ class RemoteControl:
             raise PermissionError("dangerous action needs confirmation")
         dialog.resolve(option.value)
 
-
 def attach(ui: Any) -> Optional[RemoteControl]:
     """Start publishing this terminal (never raises: remote control is optional)."""
     try:
@@ -447,7 +425,6 @@ def attach(ui: Any) -> Optional[RemoteControl]:
         return control
     except Exception:
         return None
-
 
 async def detach(control: Optional[RemoteControl]) -> None:
     if control is not None:

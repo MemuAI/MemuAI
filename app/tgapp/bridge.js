@@ -1,12 +1,5 @@
-/* MemuAI Mini App — connection to the Telegram client.
- *
- * The official telegram-web-app.js is shipped in vendor/ and loaded from our
- * own origin first, then from telegram.org. Where both fail (the Mini App itself still opens: the client talks
- * to it directly), a compact built-in bridge takes over after a short wait:
- * it reads the launch parameters from the URL hash and speaks the same
- * postEvent / receiveEvent protocol (core.telegram.org/api/web-events), so
- * initData, the theme, the Back/Main buttons, haptics and popups keep working.
- */
+
+
 (function () {
   "use strict";
   const OFFICIAL = "https://telegram.org/js/telegram-web-app.js?59";
@@ -20,7 +13,7 @@
       const at = pair.indexOf("=");
       const key = decodeURIComponent(at < 0 ? pair : pair.slice(0, at));
       let value = at < 0 ? "" : pair.slice(at + 1);
-      try { value = decodeURIComponent(value.replace(/\+/g, "%20")); } catch (e) { /* keep raw */ }
+      try { value = decodeURIComponent(value.replace(/\+/g, "%20")); } catch (e) {  }
       out[key] = value;
     });
     return out;
@@ -29,7 +22,7 @@
   function launchParams() {
     let params = parseQuery(location.hash);
     if (params.tgWebAppData) {
-      try { sessionStorage.setItem("memu_tg_launch", JSON.stringify(params)); } catch (e) { /* private mode */ }
+      try { sessionStorage.setItem("memu_tg_launch", JSON.stringify(params)); } catch (e) {  }
       return params;
     }
     try { params = JSON.parse(sessionStorage.getItem("memu_tg_launch") || "{}") || {}; } catch (e) { params = {}; }
@@ -45,7 +38,6 @@
     return true;
   }
 
-  /* ---------------------------------------------------------------- built-in bridge */
   function makeShim() {
     const params = launchParams();
     const listeners = {};
@@ -57,7 +49,7 @@
         if (window.TelegramWebviewProxy !== undefined) { window.TelegramWebviewProxy.postEvent(type, body); return; }
         if (window.external && "notify" in window.external) { window.external.notify(JSON.stringify({ eventType: type, eventData: data || {} })); return; }
         if (isIframe) window.parent.postMessage(JSON.stringify({ eventType: type, eventData: data || {} }), "*");
-      } catch (e) { /* not inside Telegram */ }
+      } catch (e) {  }
     }
     function emit(name, arg) { (listeners[name] || []).slice().forEach((fn) => { try { fn.call(app, arg); } catch (e) { console.error(e); } }); }
 
@@ -65,7 +57,7 @@
     try { theme = JSON.parse(params.tgWebAppThemeParams || "{}") || {}; } catch (e) { theme = {}; }
     const initData = params.tgWebAppData || "";
     const unsafe = parseQuery(initData);
-    ["user", "receiver", "chat"].forEach((key) => { if (unsafe[key]) { try { unsafe[key] = JSON.parse(unsafe[key]); } catch (e) { /* ignore */ } } });
+    ["user", "receiver", "chat"].forEach((key) => { if (unsafe[key]) { try { unsafe[key] = JSON.parse(unsafe[key]); } catch (e) {  } } });
 
     function luminance(hex) {
       const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ""));
@@ -163,17 +155,16 @@
       if (msg && msg.eventType) receive(msg.eventType, msg.eventData);
     });
     window.Telegram.WebApp = app;
-    // The official script may still arrive after the wait: it must not take the events away from this bridge.
+
     const webView = window.Telegram.WebView;
     try {
       Object.defineProperty(window.Telegram, "WebView", { get: () => webView, set: () => {}, configurable: false });
       Object.defineProperty(window.Telegram, "WebApp", { get: () => app, set: () => {}, configurable: false });
-    } catch (e) { /* frozen by someone else */ }
+    } catch (e) {  }
     if (initData) { postEvent("web_app_request_theme"); postEvent("web_app_request_viewport"); postEvent("web_app_request_safe_area"); postEvent("web_app_request_content_safe_area"); }
     return app;
   }
 
-  /* ---------------------------------------------------------------- loader */
   function loadScript(src, timeout) {
     return new Promise((resolve) => {
       const script = document.createElement("script");
@@ -189,13 +180,13 @@
 
   async function loadOfficial() {
     if (window.Telegram && window.Telegram.WebApp) return true;
-    // Only worth loading inside Telegram (launch data present).
+
     if (!launchParams().tgWebAppData) return false;
-    // 1) the copy shipped with MemuAI (same origin: no extra connection, works where telegram.org is slow);
+
     if (await loadScript(VENDORED, WAIT_MS)) return true;
-    // 2) telegram.org itself (HTTPS only — the page is always HTTPS inside Telegram).
+
     if (location.protocol === "https:" && await loadScript(OFFICIAL, WAIT_MS)) return true;
-    return false;                                     // 3) the built-in bridge
+    return false;
   }
 
   window.MemuBridge = {

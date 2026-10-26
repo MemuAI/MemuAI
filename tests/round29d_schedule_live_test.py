@@ -33,10 +33,9 @@ from pathlib import Path
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-# The Yandex folder prefix comes from YANDEX_MODEL (gpt://<folder>/<model>/latest) — no account ids in the repo.
+
 FOLDER = re.sub(r"[^/]+/[^/]+$", "", os.environ.get("YANDEX_MODEL", "")) or "gpt://<folder>/"
-# Round 31: the Yandex key answers PermissionDenied — the XKIRO endpoint (OpenAI-compatible, free qwen
-# models, a pool of keys) is used when its env is set; Yandex stays the fallback.
+
 XKIRO = bool(os.environ.get("XKIRO_BASE") and os.environ.get("XKIRO_KEY")) and os.environ.get("MEMU_LIVE_YANDEX") != "1"
 if XKIRO:
     TEXT_MODEL = os.environ.get("MEMU_LIVE_MODEL") or "qwen/qwen3.7-flash:free"
@@ -44,11 +43,10 @@ if XKIRO:
 else:
     TEXT_MODEL = os.environ.get("MEMU_LIVE_MODEL") or FOLDER + "deepseek-v4.1-flash/latest"
     VISION_MODEL = os.environ.get("MEMU_LIVE_VISION_MODEL") or FOLDER + "qwen3.6-35b-a3b/latest"
-TMP = os.environ.get("MEMU_TEST_TMP") or None     # /tmp can be wiped in shared sandboxes
+TMP = os.environ.get("MEMU_TEST_TMP") or None
 LIVE = XKIRO or bool(os.environ.get("YANDEX_BASE") and os.environ.get("YANDEX_KEY"))
 CHROMIUM = shutil.which("chromium") or ("/workspace/work/chromium/chrome"
                                         if os.path.exists("/workspace/work/chromium/chrome") else None)
-
 
 @unittest.skipUnless(LIVE, "XKIRO_* / YANDEX_* are not set — live scheduling test skipped")
 class LiveSchedulingTest(unittest.TestCase):
@@ -98,7 +96,7 @@ class LiveSchedulingTest(unittest.TestCase):
     def tearDownClass(cls) -> None:
         if cls.srv is not None:
             cls.srv.stop()
-        try:        # the DFY browser is a separate process: do not leave it running after the test
+        try:
             import psutil
             for proc in psutil.process_iter(["cmdline"]):
                 if any(cls.data in part for part in (proc.info.get("cmdline") or [])):
@@ -110,7 +108,6 @@ class LiveSchedulingTest(unittest.TestCase):
             os.environ["MEMUAI_DATA_DIR"] = cls._old_data
         shutil.rmtree(cls.data, ignore_errors=True)
 
-    # ------------------------------------------------------------------ helpers
     def save(self, task: dict) -> str:
         r = self.client.post(self.srv.pg + "/api/plan/save", json={"task": task, "lang": "ru"})
         self.assertEqual(r.status_code, 200, r.text[:400])
@@ -133,7 +130,6 @@ class LiveSchedulingTest(unittest.TestCase):
 
     FAR_RULE = {"when": [{"type": "daily", "times": ["03:17"], "days": [7]}]}
 
-    # ------------------------------------------------------------------ tests
     def test_1_chat_task_run_now(self) -> None:
         tid = self.save({"name": "Live chat", "kind": "chat", "model": self.model, "rule": self.FAR_RULE,
                          "prompt": "Ответь одним словом: какого цвета ясное дневное небо?"})
@@ -183,8 +179,7 @@ class LiveSchedulingTest(unittest.TestCase):
     @unittest.skipUnless(os.environ.get("MEMU_LIVE_DFY") == "1" and CHROMIUM,
                          "MEMU_LIVE_DFY=1 not set or no Chromium")
     def test_4_dfy_task_via_window(self) -> None:
-        # The DFY browser refuses localhost / private literal addresses by design, and the sandbox has no direct
-        # internet: a Chromium wrapper maps the made-up host «shop.memu.test» to a local page server.
+
         page = tempfile.mkdtemp(prefix="memu-r29d-dfy-", dir=TMP)
         Path(page, "index.html").write_text(
             "<html><head><title>Shop</title></head><body style='font:28px sans-serif;padding:40px'><h1>Shop</h1>"
@@ -205,8 +200,7 @@ class LiveSchedulingTest(unittest.TestCase):
         wrapper.chmod(0o755)
         old = os.environ.get("MEMUAI_BROWSER_EXECUTABLE")
         os.environ["MEMUAI_BROWSER_EXECUTABLE"] = str(wrapper)
-        # MemuAI's own address check resolves the host first (private addresses are refused); the made-up
-        # host is reported as a public address to it, while Chromium's resolver rule sends it to the page server.
+
         from app import automation_runtime
         real_getaddrinfo = socket.getaddrinfo
 

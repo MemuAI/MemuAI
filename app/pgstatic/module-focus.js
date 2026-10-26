@@ -1,33 +1,8 @@
-/* Round 38 (п.4): «режим фокуса» для развёрнутого модуля.
- *
- * Развёрнутый лист модуля (modules.js, data-full="1") закрывает содержимое
- * MemuAI, но боковая панель, шапка и горячие клавиши оставались живыми: можно
- * было открыть настройки или поиск — и они оказывались ПОД модулем (слой
- * модулей z-index 300, панель настроек 200, поиск 245).
- *
- * Решение — модуль «уступает место», а не блокирует:
- *  - пока лист развёрнут, <html data-module-focus>: закрытое содержимое
- *    (#main-content) становится inert (Tab и экранный диктор туда не попадают),
- *    боковая панель приглушена;
- *  - щелчок по фону (боковая панель, шапка) или любое окно MemuAI, которое
- *    открылось под слоем модулей (настройки, поиск Ctrl+K, просмотр картинок,
- *    палитра MemuCode…), плавно «паркует» модуль в его пилюлю на панели модулей;
- *  - сочетания клавиш главного окна, нажатые ВНУТРИ модуля (мост пересылает
- *    необработанные Ctrl/Alt-комбинации), проигрываются в MemuAI — Ctrl+K в
- *    музыке открывает поиск, модуль уходит в пилюлю;
- *  - если модуль ушёл из-за временного окна (настройки, поиск), он сам
- *    возвращается в полноэкранный вид, когда это окно закрыли (Esc, × или то
- *    же сочетание ещё раз). Иначе — пилюля с меткой «⤢», один щелчок.
- *  - системные слои (вопрос модуля #panel-back.over-modules, тосты, меню
- *    MemuLayers, подсказки) и так выше слоя модулей и ничего не паркуют.
- *
- * Наблюдение дешёвое: атрибуты внутри #module-layer (data-full/hidden) и
- * прямые дети <body> + class/hidden у нескольких известных окон. Без таймеров.
- */
+
+
 (function () {
   "use strict";
 
-  // Окна MemuAI, которые рисуются ниже слоя модулей и потому прятались под ним.
   const UNDER = [
     "#panel-back.visible:not(.over-modules)",
     "#image-viewer.visible",
@@ -35,9 +10,9 @@
     "#code-palette:not([hidden])",
     ".prd-sheet.open", ".prd-sheet.visible",
   ];
-  // Где щелчок НЕ считается «фоном».
+
   const SAFE = "#module-layer, #module-headbar, .module-headbar, .topbar, [data-module-open], #panel-back, .toast-container, .memu-titlebar, .memu-wc, [data-memu-layer], .context-menu, .pretty-select-menu, .msx-root, #image-viewer";
-  const AUTO_WINDOW = 900; // мс: окно, открывшееся сразу после парковки, — её причина
+  const AUTO_WINDOW = 900;
 
   const st = { focus: false, parked: null, raf: 0, lastUnder: false };
   const MM = () => window.MemuModules;
@@ -54,7 +29,7 @@
   }
   function reducedMotion() {
     const root = document.documentElement;
-    try { if (matchMedia("(prefers-reduced-motion: reduce)").matches) return true; } catch (error) { /* старый движок */ }
+    try { if (matchMedia("(prefers-reduced-motion: reduce)").matches) return true; } catch (error) {  }
     return root.dataset.motion === "off" || (document.body && document.body.classList.contains("reduce-motion"));
   }
   function pillOf(id) {
@@ -62,7 +37,6 @@
     return root ? root.querySelector(`[data-task="${CSS.escape(id)}"]`) : null;
   }
 
-  /* --------------------------------------------------------- режим фокуса */
   function sync() {
     st.raf = 0;
     const on = fullWindows().length > 0;
@@ -75,7 +49,7 @@
     }
     const under = underOpen();
     if (under && !st.lastUnder && st.parked && st.parked.pending && Date.now() - st.parked.at < AUTO_WINDOW) {
-      // Щелчок по фону открыл окно (настройки из боковой панели) — модуль вернётся, когда его закроют.
+
       st.parked.auto = true;
       st.parked.pending = false;
     }
@@ -86,7 +60,6 @@
   }
   function schedule() { if (!st.raf) st.raf = requestAnimationFrame(sync); }
 
-  /* -------------------------------------------------- парковка и возврат */
   function animateTo(el, pill, reverse) {
     if (!el || !el.animate || reducedMotion()) return Promise.resolve();
     const a = el.getBoundingClientRect();
@@ -108,7 +81,7 @@
     const auto = reason === "overlay";
     st.parked = { ids, auto, at: Date.now(), reason };
     for (const el of els) {
-      // Сначала свернуть (пилюля появляется сразу), потом показать «полёт» пустой карточки окна.
+
       const box = el.getBoundingClientRect();
       MM().minimize(el.dataset.module);
       flyGhost(box, pillOf(el.dataset.module));
@@ -155,7 +128,6 @@
     if (st.parked && !ids.some((id) => (MM() && MM().windowState(id) || {}).minimized)) st.parked = null;
   }
 
-  /* ------------------------------------------------------------- события */
   function onPointer(event) {
     if (!st.focus || event.button > 0) return;
     const target = event.target;
@@ -164,7 +136,6 @@
     if (park("chrome")) st.parked.pending = true;
   }
 
-  /** Сочетание главного окна, нажатое внутри развёрнутого модуля. */
   function replayKey(moduleId, combo) {
     if (!st.focus || !combo || !(combo.ctrlKey || combo.altKey || combo.metaKey)) return false;
     const state = MM() && MM().windowState(moduleId);
@@ -180,7 +151,7 @@
     if (!root || document.documentElement.hasAttribute("data-module-app")) return;
     const watch = new MutationObserver(schedule);
     watch.observe(root, { subtree: true, attributes: true, attributeFilter: ["data-full", "hidden"], childList: true });
-    // Прямые дети <body> (поиск, листы товаров создаются при первом открытии)…
+
     const bodyWatch = new MutationObserver((records) => {
       for (const record of records) for (const node of record.addedNodes) {
         if (node.nodeType === 1 && node.matches && node.matches(".msx-root, .prd-sheet")) watch.observe(node, { attributes: true, attributeFilter: ["class", "hidden"] });
@@ -188,7 +159,7 @@
       schedule();
     });
     bodyWatch.observe(document.body, { childList: true });
-    // …и class/hidden у известных окон (без subtree — чат не наблюдаем).
+
     for (const sel of ["#panel-back", "#image-viewer", "#code-palette", ".msx-root", ".prd-sheet"]) {
       document.querySelectorAll(sel).forEach((node) => watch.observe(node, { attributes: true, attributeFilter: ["class", "hidden"] }));
     }

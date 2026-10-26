@@ -38,14 +38,12 @@ COLORS = ("accent", "blue", "green", "orange", "red", "purple", "pink", "gray")
 _ID = re.compile(r"^[lt]_[a-z0-9]{6,16}$")
 _SUB_ID = re.compile(r"^s_[a-z0-9]{4,16}$")
 
-
 class LocalError(ValueError):
     """Понятная пользователю ошибка операции над задачами (``en`` — тот же текст для английского интерфейса)."""
 
     def __init__(self, message: str, en: str = "") -> None:
         super().__init__(message)
         self.en = en or message
-
 
 def _path():
     from .pgdata import MEMU_DIR, _profile_data_name
@@ -55,14 +53,11 @@ def _path():
         name = FILE_NAME
     return MEMU_DIR / name
 
-
 def _new(prefix: str, size: int = 10) -> str:
     return f"{prefix}_" + uuid.uuid4().hex[:size]
 
-
 def _text(value: Any, limit: int) -> str:
     return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(value or "")).strip()[:limit]
-
 
 def _num(value: Any) -> Optional[float]:
     try:
@@ -70,9 +65,6 @@ def _num(value: Any) -> Optional[float]:
     except (TypeError, ValueError):
         return None
     return number if 0 <= number < 1e11 else None
-
-
-# ============================================================ разбор и очистка
 
 def clean_due(value: Any) -> str:
     """«2026-10-08» или «2026-10-08T18:30» (местное время); всё остальное — пусто."""
@@ -93,7 +85,6 @@ def clean_due(value: Any) -> str:
         return day.isoformat()
     return f"{day.isoformat()}T{hour:02d}:{minute:02d}"
 
-
 def clean_repeat(value: Any) -> Optional[Dict[str, Any]]:
     if isinstance(value, str):
         value = {"every": value}
@@ -112,9 +103,8 @@ def clean_repeat(value: Any) -> Optional[Dict[str, Any]]:
     except (TypeError, ValueError):
         anchor = 0
     if every in ("month", "year") and 1 <= anchor <= 31:
-        out["day"] = anchor                # the day of month the task was set for (31 survives a 28-day February)
+        out["day"] = anchor
     return out
-
 
 def clean_tags(value: Any) -> List[str]:
     if isinstance(value, str):
@@ -125,7 +115,6 @@ def clean_tags(value: Any) -> List[str]:
         if tag and tag not in out:
             out.append(tag)
     return out[:MAX_TAGS]
-
 
 def clean_item(raw: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(raw, dict):
@@ -165,7 +154,6 @@ def clean_item(raw: Any) -> Optional[Dict[str, Any]]:
         if str(raw.get("completed_count") or "0").isdigit() else 0,
     }
 
-
 def clean_list(raw: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(raw, dict):
         return None
@@ -181,7 +169,6 @@ def clean_list(raw: Any) -> Optional[Dict[str, Any]]:
             "name": _text(raw.get("name"), 60) or "Задачи", "color": color if color in COLORS else "accent",
             "created": _num(raw.get("created")) or time.time(), "items": items}
 
-
 def _normalize(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     lists, seen = [], set()
@@ -196,7 +183,6 @@ def _normalize(raw: Any) -> Dict[str, Any]:
             notes[str(key)] = {"text": str(value.get("text") or "")[:20000], "updated": _num(value.get("updated")) or 0}
     return {"version": 1, "lists": lists, "notes": notes}
 
-
 def mutate(mutator: Callable[[Dict[str, Any]], Any]) -> Tuple[Dict[str, Any], Any]:
     from .storage import mutate_json
     box: Dict[str, Any] = {}
@@ -209,11 +195,9 @@ def mutate(mutator: Callable[[Dict[str, Any]], Any]) -> Tuple[Dict[str, Any], An
     doc = mutate_json(_path(), {}, update, backup=True)
     return doc, box.get("result")
 
-
 def load() -> Dict[str, Any]:
     from .storage import load_json_with_recovery
     return _normalize(load_json_with_recovery(_path(), {}))
-
 
 def _list(doc: Dict[str, Any], lid: str) -> Dict[str, Any]:
     for row in doc["lists"]:
@@ -221,15 +205,11 @@ def _list(doc: Dict[str, Any], lid: str) -> Dict[str, Any]:
             return row
     raise LocalError("Список не найден", "List not found")
 
-
 def _item(lst: Dict[str, Any], iid: str) -> Dict[str, Any]:
     for row in lst["items"]:
         if row["id"] == iid:
             return row
     raise LocalError("Задача не найдена", "Task not found")
-
-
-# ============================================================ быстрый ввод
 
 _WEEKDAYS = {"пн": 0, "понедельник": 0, "mon": 0, "monday": 0, "вт": 1, "вторник": 1, "tue": 1, "tuesday": 1,
              "ср": 2, "среда": 2, "среду": 2, "wed": 2, "wednesday": 2, "чт": 3, "четверг": 3, "thu": 3, "thursday": 3,
@@ -242,7 +222,6 @@ _REPEAT_WORDS = [
     (r"(?:каждый месяц|ежемесячно|every month|monthly)", {"every": "month", "n": 1}),
     (r"(?:каждый год|ежегодно|every year|yearly|annually)", {"every": "year", "n": 1}),
 ]
-
 
 def parse_quick(text: str, *, today: Optional[date] = None) -> Dict[str, Any]:
     """«Купить хлеб завтра в 18:00 !1 #дом каждую неделю» → поля задачи.
@@ -317,7 +296,6 @@ def parse_quick(text: str, *, today: Optional[date] = None) -> Dict[str, Any]:
     out["title"] = re.sub(r"\s+", " ", rest).strip()
     return out
 
-
 def next_due(due: str, repeat: Dict[str, Any], *, today: Optional[date] = None) -> str:
     """Следующий срок повторяющейся задачи — не раньше завтрашнего дня."""
     today = today or date.today()
@@ -335,8 +313,7 @@ def next_due(due: str, repeat: Dict[str, Any], *, today: Optional[date] = None) 
             return day
         if every == "week":
             return day + timedelta(weeks=n)
-        # Months and years count from the original day (Round 26): «every month» on the 31st went 31.01 → 28.02 →
-        # 28.03 … and stayed on the 28th for good; 29.02 «every year» became 28.02 forever.
+
         months = (n if every == "month" else 12 * n) * count
         month = base_day.month - 1 + months
         year = base_day.year + month // 12
@@ -351,9 +328,6 @@ def next_due(due: str, repeat: Dict[str, Any], *, today: Optional[date] = None) 
         day = step(day)
     return day.isoformat() + tail
 
-
-# ============================================================ напоминания
-
 def _schedule_reminder(item: Dict[str, Any], lang: str = "ru") -> Dict[str, str]:
     """Ставит напоминание задачи тем же путём, что «напомни мне…» в «Быстром доступе»."""
     when = datetime.fromisoformat(item["remind"])
@@ -365,7 +339,7 @@ def _schedule_reminder(item: Dict[str, Any], lang: str = "ru") -> Dict[str, str]
     channel = (eng.settings() or {}).get("reminder_channel") or "local"
     text = ("Задача: " if lang != "en" else "Task: ") + item["title"]
     if channel in ("telegram", "both") and not assistant_commands.telegram_status().get("ok"):
-        # Бот не подключён — задача Proxy никогда бы не дошла; напоминаем на этом компьютере, а не молча теряем.
+
         channel = "local"
     if channel in ("local", "both"):
         timer = eng.timers.add_timer(0, item["title"][:60], kind="reminder", text=text, ends_at=when.timestamp(),
@@ -375,22 +349,17 @@ def _schedule_reminder(item: Dict[str, Any], lang: str = "ru") -> Dict[str, str]
         ids["telegram"] = str(assistant_commands.add_reminder_task(text, when.astimezone(), lang))
     return ids
 
-
 def _cancel_reminder(ids: Dict[str, str]) -> None:
     from . import assistant_commands
     if ids.get("local"):
         timers = assistant_commands.engine().timers
-        # Только точное совпадение id: cancel() при промахе ищет по подстроке в подписях и мог бы снять чужое
-        # напоминание (своё уже прозвенело и удалено).
+
         if any(t.get("id") == ids["local"] for t in timers.find("", "reminder")):
             timers.cancel(ids["local"], kind="reminder")
     if ids.get("telegram"):
         assistant_commands.remove_reminder_task(ids["telegram"])
 
-
-#: Подменяются в тестах.
 REMINDERS = {"schedule": _schedule_reminder, "cancel": _cancel_reminder}
-
 
 def _sync_reminder(before: Optional[Dict[str, Any]], after: Optional[Dict[str, Any]], lang: str) -> None:
     """Снимает старое и ставит новое напоминание, если изменились время, название или статус."""
@@ -413,13 +382,9 @@ def _sync_reminder(before: Optional[Dict[str, Any]], after: Optional[Dict[str, A
         except Exception as exc:  # noqa: BLE001
             log.info("todo: reminder not scheduled: %s", exc)
 
-
-# ============================================================ операции
-
 def snapshot() -> Dict[str, Any]:
     doc = load()
     return {"lists": doc["lists"]}
-
 
 def ensure_default_list(name: str = "") -> Dict[str, Any]:
     """Первый список создаётся сам, чтобы у новой панели было куда добавлять."""
@@ -433,7 +398,6 @@ def ensure_default_list(name: str = "") -> Dict[str, Any]:
 
     return mutate(update)[1]
 
-
 def create_list(name: str, color: str = "accent") -> Dict[str, Any]:
     def update(doc):
         if len(doc["lists"]) >= MAX_LISTS:
@@ -443,7 +407,6 @@ def create_list(name: str, color: str = "accent") -> Dict[str, Any]:
         return copy.deepcopy(lst)
 
     return mutate(update)[1]
-
 
 def update_list(lid: str, changes: Dict[str, Any]) -> Dict[str, Any]:
     def update(doc):
@@ -456,7 +419,6 @@ def update_list(lid: str, changes: Dict[str, Any]) -> Dict[str, Any]:
 
     return mutate(update)[1]
 
-
 def delete_list(lid: str) -> None:
     removed: List[Dict[str, Any]] = []
 
@@ -468,7 +430,6 @@ def delete_list(lid: str) -> None:
     mutate(update)
     for item in removed:
         _sync_reminder(item, None, "ru")
-
 
 def add_item(lid: str, fields: Dict[str, Any], *, quick: bool = False, lang: str = "ru",
              index: Optional[int] = None) -> Dict[str, Any]:
@@ -502,7 +463,6 @@ def add_item(lid: str, fields: Dict[str, Any], *, quick: bool = False, lang: str
         _store_reminder(lid, created)
     return created
 
-
 def _store_reminder(lid: str, item: Dict[str, Any]) -> None:
     def update(doc):
         try:
@@ -511,7 +471,6 @@ def _store_reminder(lid: str, item: Dict[str, Any]) -> None:
             pass
 
     mutate(update)
-
 
 def update_item(lid: str, iid: str, changes: Dict[str, Any], *, lang: str = "ru") -> Dict[str, Any]:
     """Правка задачи. ``done: true`` у повторяющейся — перенос на следующий срок."""
@@ -529,11 +488,11 @@ def update_item(lid: str, iid: str, changes: Dict[str, Any], *, lang: str = "ru"
         if isinstance(merged.get("repeat"), dict):
             if (str(merged.get("due") or "")[:10] != str(item.get("due") or "")[:10]
                     or merged["repeat"].get("every") != old_rule.get("every")):
-                merged["repeat"] = {k: v for k, v in merged["repeat"].items() if k != "day"}   # a new date: new anchor
+                merged["repeat"] = {k: v for k, v in merged["repeat"].items() if k != "day"}
             elif old_rule.get("day") and not merged["repeat"].get("day"):
-                merged["repeat"] = {**merged["repeat"], "day": old_rule["day"]}   # the editor sends {every} only
+                merged["repeat"] = {**merged["repeat"], "day": old_rule["day"]}
             if merged["repeat"].get("every") == old_rule.get("every") and "n" not in merged["repeat"]:
-                merged["repeat"] = {**merged["repeat"], "n": old_rule.get("n", 1)}   # …and «every 2 weeks» stays 2
+                merged["repeat"] = {**merged["repeat"], "n": old_rule.get("n", 1)}
         if changes.get("toggle_subtask"):
             for sub in merged["subtasks"]:
                 if sub["id"] == changes["toggle_subtask"]:
@@ -577,7 +536,6 @@ def update_item(lid: str, iid: str, changes: Dict[str, Any], *, lang: str = "ru"
     item["advanced"] = box.get("advanced") or ""
     return item
 
-
 def delete_item(lid: str, iid: str) -> Dict[str, Any]:
     def update(doc):
         lst = _list(doc, lid)
@@ -588,7 +546,6 @@ def delete_item(lid: str, iid: str) -> Dict[str, Any]:
     item = mutate(update)[1]
     _sync_reminder(item, None, "ru")
     return item
-
 
 def restore_item(lid: str, item: Dict[str, Any], index: Optional[int] = None) -> Dict[str, Any]:
     """«Вернуть» после удаления: та же задача на прежнем месте."""
@@ -610,7 +567,6 @@ def restore_item(lid: str, item: Dict[str, Any], index: Optional[int] = None) ->
     _store_reminder(lid, restored)
     return restored
 
-
 def move_item(lid: str, iid: str, *, to_list: str = "", index: int = -1) -> Dict[str, Any]:
     """Порядок внутри списка или перенос в другой список (``index`` −1 — в конец)."""
 
@@ -625,7 +581,6 @@ def move_item(lid: str, iid: str, *, to_list: str = "", index: int = -1) -> Dict
 
     return mutate(update)[1]
 
-
 def clear_done(lid: str) -> int:
     def update(doc):
         lst = _list(doc, lid)
@@ -635,12 +590,8 @@ def clear_done(lid: str) -> int:
 
     return mutate(update)[1]
 
-
-# ------------------------------------------------------------ заметки
-
 def note_text(pid: str) -> Dict[str, Any]:
     return load()["notes"].get(pid) or {"text": "", "updated": 0}
-
 
 def save_note(pid: str, text: str) -> Dict[str, Any]:
     if not re.fullmatch(r"p_[a-z0-9]{6,24}", str(pid)):
@@ -651,7 +602,6 @@ def save_note(pid: str, text: str) -> Dict[str, Any]:
         return dict(doc["notes"][pid])
 
     return mutate(update)[1]
-
 
 def drop_note(pid: str) -> None:
     def update(doc):

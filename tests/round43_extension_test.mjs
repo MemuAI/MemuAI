@@ -1,4 +1,4 @@
-/* Actual extension functions with Chrome/DOM mocks; no Chrome or desktop control. */
+
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import vm from "node:vm";

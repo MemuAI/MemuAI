@@ -4,7 +4,6 @@ from unittest.mock import patch
 
 from app.playground_api import _ip_is_public, _require_public_response_peer, _safe_media_url
 
-
 class MediaProxyPublicAddressTest(unittest.TestCase):
     def test_multicast_and_reserved_are_not_public(self) -> None:
         for bad in ("224.0.0.1", "239.255.255.250", "ff02::1", "ff0e::1", "240.0.0.1", "0.0.0.0",
@@ -25,10 +24,8 @@ class MediaProxyPublicAddressTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             _require_public_response_peer(type("R", (), {"extensions": {"network_stream": Stream()}})())
 
-
 if __name__ == "__main__":
     unittest.main()
-
 
 import json
 import shutil
@@ -59,7 +56,6 @@ MODULE_JS = r"""
   } catch (e) { Memu.log("FAIL " + (e && e.message), "error"); }
 })();
 """
-
 
 @unittest.skipUnless(shutil.which("node"), "node is required")
 class ModuleTestStandMocksTest(unittest.TestCase):
@@ -96,7 +92,7 @@ class ModuleTestStandMocksTest(unittest.TestCase):
             self.assertEqual(data["resolved"], "chub:someone/some-card")
             self.assertEqual(data["type"], "character")
             self.assertEqual(data["name"], "Mock character")
-            self.assertIn("лорбук", data["wrong"])  # the bridge passes the message (codes stay in MemuAI)
+            self.assertIn("лорбук", data["wrong"])
             self.assertIn("не распознана", data["bad"])
 
     def test_net_import_needs_permission(self) -> None:
@@ -115,9 +111,7 @@ class ModuleTestStandMocksTest(unittest.TestCase):
             logs = json.loads(proc.stdout).get("logs") or []
             self.assertTrue(any("DENIED" in x and "net-import" in x for x in logs), logs)
 
-
 ROOT = Path(__file__).resolve().parents[1]
-
 
 class NetImportPromptLayerTest(unittest.TestCase):
     """The «Download from the internet?» question is asked from a module window, so it must be drawn
@@ -130,13 +124,12 @@ class NetImportPromptLayerTest(unittest.TestCase):
         over = re.search(r"#panel-back\.visible\.over-modules\s*\{\s*z-index:\s*(\d+)", css)
         self.assertIsNotNone(over)
         self.assertGreater(int(over.group(1)), layer)
-        self.assertLess(int(over.group(1)), 400)  # toasts (400) stay on top
+        self.assertLess(int(over.group(1)), 400)
         js = (ROOT / "app/pgstatic/modules.js").read_text(encoding="utf-8")
         ask = js[js.index("function askNetImport"):js.index("function askNetImport") + 4000]
         self.assertIn('classList.add("over-modules")', ask)
         self.assertIn('classList.remove("over-modules")', ask)
         self.assertIn("shortLabel", ask)
-
 
 class CharactersDefaultPersonaTest(unittest.TestCase):
     def test_default_persona_is_a_name_not_a_pronoun(self) -> None:
@@ -144,5 +137,5 @@ class CharactersDefaultPersonaTest(unittest.TestCase):
         self.assertEqual(i18n["en"]["default_user_name"], "User")
         self.assertEqual(i18n["ru"]["default_user_name"], "Пользователь")
         js = (ROOT / "app/module_builtins/characters/main.js").read_text(encoding="utf-8")
-        # the untouched old starter persona «Вы»/«You» is renamed (wave D: and follows the UI language)
+
         self.assertIn('/^(Вы|You|Пользователь|User)$/.test(p.name', js)

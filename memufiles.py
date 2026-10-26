@@ -8,7 +8,6 @@ running window (new tabs). Unhandled errors go to
 """
 import sys
 
-
 def _main() -> int:
     from app.memufiles import crash
     crash.install()
@@ -20,7 +19,6 @@ def _main() -> int:
     except BaseException:  # noqa: BLE001 - last resort: tell the user why, then exit non-zero
         crash.report(*sys.exc_info(), where="start-up")
         return 1
-
 
 if __name__ == "__main__":
     sys.exit(_main())

@@ -40,7 +40,6 @@ CHROMIUM = next((c for c in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/workspa
 SHOTS = os.environ.get("R41_SHOTS", "")
 PY = sys.executable
 
-# -------------------------------------------------------------------------------- the crawler (runs in the page)
 CRAWL_JS = r"""
 (() => {
   if (window.__r41) return;
@@ -128,12 +127,10 @@ CRAWL_JS = r"""
 })();
 """
 
-
 def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
-
 
 def _wait_http(url: str, timeout: float = 150) -> None:
     import httpx
@@ -146,7 +143,6 @@ def _wait_http(url: str, timeout: float = 150) -> None:
             pass
         time.sleep(0.5)
     raise TimeoutError(url)
-
 
 @unittest.skipUnless(sync_playwright and CHROMIUM, "needs playwright and Chromium")
 class LayersCrawlTest(unittest.TestCase):
@@ -168,7 +164,7 @@ class LayersCrawlTest(unittest.TestCase):
             "uvicorn.run(create_app(), host='127.0.0.1', port=%d, log_level='error')" % (str(ROOT), cls.pg_port),
         ):
             cls.procs.append(subprocess.Popen([PY, "-c", code], env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
-        # MemuFiles and MemuNote: their own small HTTP servers; a line «PORT TOKEN» on stdout
+
         cls.apps = {}
         for key, mod, cls_name in (("files", "app.memufiles.server", "FilesApp"), ("note", "app.memunote.server", "NoteApp")):
             code = ("import sys, time; sys.path.insert(0, %r); import %s as s; a = s.%s(); h, _ = s.start(a); "
@@ -206,7 +202,6 @@ class LayersCrawlTest(unittest.TestCase):
         if cls.findings:
             print("\n[round41 layers] findings:\n" + json.dumps(cls.findings, ensure_ascii=False, indent=1))
 
-    # ------------------------------------------------------------------ helpers
     def page(self, url, viewport=(1280, 800)):
         ctx = self.browser.new_context(viewport={"width": viewport[0], "height": viewport[1]})
         self.addCleanup(ctx.close)
@@ -257,7 +252,6 @@ class LayersCrawlTest(unittest.TestCase):
         if problems:
             self.findings[key] = problems
 
-    # ------------------------------------------------------------------ the main window: settings
     def test_settings_every_page(self):
         page = self.page(self.pg + "/")
         self.ready(page)
@@ -280,7 +274,7 @@ class LayersCrawlTest(unittest.TestCase):
             found, n = self.crawl(page, "settings-" + pid, root=f"#pane-{pid}", reopen=reopen)
             problems += found
             opened += n
-            # every sub-page of the page (Settings kit «›» rows): its own selects and menus
+
             subs = page.evaluate("(id) => [...document.querySelectorAll(`#pane-${id} .sx-sub[data-sx-sub]`)].map((n) => n.dataset.sxSub)", pid)
             for sub in subs:
                 def reopen_sub(pid=pid, sub=sub):
@@ -305,7 +299,7 @@ class LayersCrawlTest(unittest.TestCase):
         self.ready(page)
         page.evaluate("() => { currentSettingsTab = 'modules'; showSettings(); }")
         page.wait_for_selector("[data-module-more]", timeout=20000)
-        page.wait_for_timeout(1500)   # the catalog re-renders once the module list arrives
+        page.wait_for_timeout(1500)
         page.locator("[data-module-more]").nth(1).click()
         page.locator("#context-menu button", has_text="Сменить иконку").click()
         page.wait_for_selector(".mico-dialog", timeout=5000)
@@ -314,14 +308,14 @@ class LayersCrawlTest(unittest.TestCase):
         self.assertNotIn("over-modules", page.evaluate("() => document.getElementById('panel-back').className"))
         page.evaluate(CRAWL_JS)
         for i in (0, 1):
-            page.evaluate("(i) => __r41.open('#pane-modules', '', -1, 'center')", i)   # closes any layer
+            page.evaluate("(i) => __r41.open('#pane-modules', '', -1, 'center')", i)
             page.locator("[data-module-more]").nth(i).click()
             page.wait_for_timeout(200)
             res = page.evaluate("""() => { const m = document.getElementById('context-menu'); const r = m.getBoundingClientRect();
                 const pts = [[r.left + 8, r.top + 8], [r.left + r.width / 2, r.top + r.height / 2], [r.right - 8, r.bottom - 8]];
                 return pts.every(([x, y]) => m.contains(document.elementFromPoint(x, y))); }""")
             self.assertTrue(res, f"⋯ #{i}: the menu is covered")
-            # opens next to its button, never over it
+
             over = page.evaluate("""(i) => { const b = document.querySelectorAll('[data-module-more]')[i].getBoundingClientRect();
                 const m = document.getElementById('context-menu').getBoundingClientRect();
                 return !(m.bottom <= b.top + 1 || m.top >= b.bottom - 1) ? [b.top, b.bottom, m.top, m.bottom, innerHeight] : null; }""", i)
@@ -345,12 +339,11 @@ class LayersCrawlTest(unittest.TestCase):
         self.assertIsNotNone(info, "the list is not in the top layer")
         self.assertTrue(info["up"])
         self.assertEqual(info["covered"], 0)
-        # picking still works from the top layer, and the list goes back home
+
         page.locator("body > .mpick-pop .mpick-item").nth(1).click()
         page.wait_for_timeout(300)
         self.assertEqual(page.evaluate("() => document.querySelectorAll('body > .mpick-pop').length"), 0)
 
-    # ------------------------------------------------------------------ the main window: chat, sidebar, composer
     def test_main_window(self):
         page = self.page(self.pg + "/")
         self.ready(page)
@@ -359,7 +352,6 @@ class LayersCrawlTest(unittest.TestCase):
         self.record("main", problems, opened)
         self.assertEqual(problems, [], json.dumps(problems, ensure_ascii=False, indent=1))
 
-    # ------------------------------------------------------------------ Quick Access
     def test_quick_access(self):
         page = self.page(self.pg + "/quick/", (760, 560))
         page.wait_for_timeout(3000)
@@ -368,7 +360,6 @@ class LayersCrawlTest(unittest.TestCase):
         self.record("quick", problems, opened)
         self.assertEqual(problems, [], json.dumps(problems, ensure_ascii=False, indent=1))
 
-    # ------------------------------------------------------------------ MemuAI Proxy panel (app/static)
     def test_proxy_panel(self):
         page = self.page(self.proxy + "/", (1440, 900))
         page.wait_for_timeout(2500)
@@ -383,7 +374,6 @@ class LayersCrawlTest(unittest.TestCase):
         self.record("proxy", problems, opened)
         self.assertEqual(problems, [], json.dumps(problems, ensure_ascii=False, indent=1))
 
-    # ------------------------------------------------------------------ MemuFiles / MemuNote: read only
     def _app_url(self, key):
         line = self.apps[key].stdout.readline().split()
         return f"http://127.0.0.1:{line[0]}/index.html#t={line[1]}"
@@ -398,19 +388,17 @@ class LayersCrawlTest(unittest.TestCase):
             if strict:
                 self.assertEqual(problems, [], json.dumps(problems, ensure_ascii=False, indent=1))
 
-
 class StaticContracts(unittest.TestCase):
     def test_top_layer_wiring(self):
         layers = (ROOT / "app/pgstatic/memu-layers.js").read_text(encoding="utf-8")
         self.assertIn("function float(", layers)
         self.assertIn("function unfloat(", layers)
         app = (ROOT / "app/pgstatic/app.js").read_text(encoding="utf-8")
-        self.assertIn("MemuLayers.float(pop, button", app)                     # the searchable list
-        self.assertIn('host.classList.remove("over-modules")', app)            # a dialog's class never outlives it
+        self.assertIn("MemuLayers.float(pop, button", app)
+        self.assertIn('host.classList.remove("over-modules")', app)
         css = (ROOT / "app/pgstatic/style.css").read_text(encoding="utf-8")
         self.assertIn("body > .mpick-pop", css)
         self.assertIn("z-index: 100100", css)
-
 
 if __name__ == "__main__":
     unittest.main()

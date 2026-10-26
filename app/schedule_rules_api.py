@@ -31,7 +31,6 @@ from . import schedule_rules as rules
 log = logging.getLogger("memuai.plan")
 EXECUTOR_POLL = 2.0
 
-
 def _lang(body: Dict[str, Any]) -> str:
     if body.get("lang") in ("ru", "en"):
         return body["lang"]
@@ -41,11 +40,9 @@ def _lang(body: Dict[str, Any]) -> str:
     except Exception:
         return "ru"
 
-
 def _err(exc: Exception, lang: str, status: int = 400) -> JSONResponse:
     text = exc.text(lang) if isinstance(exc, rules.RuleError) else str(exc)
     return JSONResponse({"error": text[:600]}, status)
-
 
 async def _json(request: Request) -> Dict[str, Any]:
     try:
@@ -54,11 +51,9 @@ async def _json(request: Request) -> Dict[str, Any]:
         return {}
     return data if isinstance(data, dict) else {}
 
-
 def _load_tasks() -> List[Dict[str, Any]]:
     from .pgdata import load_schedules
     return load_schedules()
-
 
 def _public_task(task: Dict[str, Any], lang: str, by_id: Dict[str, Dict[str, Any]], now: float) -> Dict[str, Any]:
     out = dict(task)
@@ -72,7 +67,6 @@ def _public_task(task: Dict[str, Any], lang: str, by_id: Dict[str, Dict[str, Any
     out["event_only"] = bool(norm) and not rules.has_time_triggers(norm)
     return out
 
-
 def preview_payload(task: Dict[str, Any], tasks: List[Dict[str, Any]], lang: str, now: Optional[float] = None) -> Dict[str, Any]:
     now = time.time() if now is None else now
     rule = rules.normalize_rule(task.get("rule"))
@@ -84,7 +78,7 @@ def preview_payload(task: Dict[str, Any], tasks: List[Dict[str, Any]], lang: str
         from .schedule_integrations import validate
         validate(task.get("tool"), task.get("args", {}))
     if isinstance(task.get("steps"), list) and task["steps"]:
-        # Round 35 (finish-c): a chat ```schedule block with steps — canonical steps + the same checks as saving
+
         from .flow_engine import FlowError, autolink, describe, normalize_steps, validate_flow
         try:
             steps = autolink(normalize_steps(task["steps"]))
@@ -99,15 +93,14 @@ def preview_payload(task: Dict[str, Any], tasks: List[Dict[str, Any]], lang: str
             "warnings": rules.warnings(probe, [t for t in tasks if str(t.get("id")) != str(task.get("id"))] + [probe],
                                        lang, now=now)}
 
-
 def _clean_task(raw: Dict[str, Any]) -> Dict[str, Any]:
     """A task coming from the builder: only known user fields."""
     keys = ("id", "name", "prompt", "model", "mode", "kind", "enabled", "notify_telegram", "notify_email",
             "project_id", "access_mode", "command", "command_id", "project_path", "permission_mode", "rule",
-            "run_at", "interval_minutes", "daily_at", "created_by", "lang", "reminder_text", "icon", "steps", "tool", "args", "dfy_browser")
+            "run_at", "interval_minutes", "daily_at", "created_by", "lang", "reminder_text", "icon", "steps", "tool", "args", "dfy_browser", "team_id")
     task = {k: raw.get(k) for k in keys if k in raw}
     if isinstance(task.get("steps"), list) and task["steps"]:
-        # Round 35 (flows): a task with steps — canonical steps, kind «flow» (app/flow_engine.py)
+
         from .flow_engine import FlowError, normalize_steps
         try:
             task["steps"] = normalize_steps(task["steps"])
@@ -132,12 +125,13 @@ def _clean_task(raw: Dict[str, Any]) -> Dict[str, Any]:
         if browser not in ("", "isolated", "chrome"):
             raise rules.RuleError("Неизвестный браузер DFY", "Unknown DFY browser")
         task["dfy_browser"] = browser
+    if task["kind"] == "team":
+        task["team_id"] = str(task.get("team_id") or "").strip()[:120]
     if task["kind"] == "memucode":
         task["permission_mode"] = str(task.get("permission_mode") or "plan")
         if task["permission_mode"] not in ("default", "plan", "acceptEdits", "bypassPermissions"):
             task["permission_mode"] = "plan"
     return task
-
 
 def _validate_action(task: Dict[str, Any], lang: str) -> None:
     en = lang == "en"
@@ -150,16 +144,26 @@ def _validate_action(task: Dict[str, Any], lang: str) -> None:
             raise rules.RuleError("Добавьте хотя бы один шаг", "Add at least one step")
         errors = [p for p in validate_flow(task["steps"], lang) if p["level"] == "error"]
         if errors:
-            raise rules.RuleError(errors[0]["text"], errors[0]["text"])   # already in the user's language
+            raise rules.RuleError(errors[0]["text"], errors[0]["text"])
         return
     if kind == "integration":
         from .schedule_integrations import validate
         task.update(validate(task.get("tool"), task.get("args", {})))
         return
-    if kind in ("chat", "notify", "dfy", "memucode", "reminder") and not task["prompt"].strip():
-        raise rules.RuleError({"notify": "Введите текст уведомления", "dfy": "Опишите, что сделать в браузере"}.get(
-            kind, "Введите задание для модели"), {"notify": "Enter the notification text", "dfy": "Describe the browser task"}.get(
+    if kind in ("chat", "team", "notify", "dfy", "memucode", "reminder") and not task["prompt"].strip():
+        raise rules.RuleError({"notify": "Введите текст уведомления", "dfy": "Опишите, что сделать в браузере", "team": "Введите задание для команды"}.get(
+            kind, "Введите задание для модели"), {"notify": "Enter the notification text", "dfy": "Describe the browser task", "team": "Enter the task for the team"}.get(
             kind, "Enter the task for the model"))
+    if kind == "team":
+        from . import teams as _teams
+        team_rows = _teams.load()
+        tid = str(task.get("team_id") or "").strip()
+        if not tid and team_rows:
+            task["team_id"] = str(team_rows[0]["id"])
+        elif not tid:
+            raise rules.RuleError("Выберите команду (или создайте её в разделе «Команда»)", "Choose a team (or create one in the Team section)")
+        elif team_rows and not any(r.get("id") == tid for r in team_rows):
+            raise rules.RuleError("Выбранная команда не найдена", "The selected team was not found")
     if kind == "command" and not (task.get("command") or task.get("command_id")):
         raise rules.RuleError("Выберите команду быстрого доступа", "Choose a Quick Access command")
     if kind == "memucode" and not str(task.get("project_path") or "").strip():
@@ -167,7 +171,6 @@ def _validate_action(task: Dict[str, Any], lang: str) -> None:
     if task.get("mode") == "work" and not task.get("project_id"):
         raise rules.RuleError("Выберите проект Work", "Choose a Work project")
     del en
-
 
 def save_task(raw: Dict[str, Any], lang: str = "ru") -> str:
     """Validates and upserts one task of the builder (MemuAI window, Mini App, Quick Access); returns its id.
@@ -209,9 +212,6 @@ def save_task(raw: Dict[str, Any], lang: str = "ru") -> str:
     _mutate_schedules(upsert)
     return task["id"]
 
-
-# --------------------------------------------------------------------------- handoff executor
-
 class Executor:
     """Runs DFY / Quick Access command actions handed over by MemuAI Proxy."""
 
@@ -239,7 +239,7 @@ class Executor:
     async def loop(self) -> None:
         from .schedule_runtime import handoff_path
         await asyncio.sleep(1.0)
-        # Items a previous MemuAI process claimed and never finished (it was closed): report them.
+
         await asyncio.to_thread(self._recover)
         while True:
             try:
@@ -311,7 +311,7 @@ class Executor:
                 from .schedule_integrations import run
                 ok, text, extra = await run(item.get("task") or {})
             elif item.get("kind") in ("macro", "action"):
-                # Round 35 (flows): a quick-action macro / one assistant action as a step of a flow
+
                 from .flow_adapters import run_handoff
                 ok, text, extra = await run_handoff(item)
             else:
@@ -352,9 +352,7 @@ class Executor:
             version = data.get("version", version)
             status = data.get("status")
             if status == "waiting_user" and unattended:
-                # Authorized extension schedules never open an approval/input
-                # card and linger until timeout. Missing human input is a
-                # failed run the user can repair before the next schedule.
+
                 await manager.cancel(dfy.id)
                 self.dfy_ids.pop(item["id"], None)
                 question = data.get("question") or {}
@@ -390,8 +388,7 @@ class Executor:
             return False, (f"Quick Access command “{ref}” not found" if lang == "en"
                            else f"Команда быстрого доступа «{ref}» не найдена"), {}
         tier = ac.command_tier(command, eng._find_command, honour_trusted=True)
-        # The user scheduled it on purpose: confirm-level steps run; «dangerous» ones (shutdown, sleep…)
-        # still ask with the countdown card in Quick Access.
+
         card = await eng.run("command.run", {"id": command["id"], "name": command.get("name") or ""}, source="routine-bg", lang=lang,
                              confirmed=tier != "dangerous", emit=True)
         status = card.get("status")
@@ -406,7 +403,6 @@ class Executor:
                          else "Ждёт подтверждения в окне быстрого доступа")
         return status == "done", "\n".join(x for x in lines if x).strip(), {"command": command.get("name")}
 
-
 def _finish(rows: List[Dict[str, Any]], item_id: str, ok: bool, text: str, extra: Dict[str, Any]) -> bool:
     for row in rows:
         if row.get("id") == item_id:
@@ -414,16 +410,12 @@ def _finish(rows: List[Dict[str, Any]], item_id: str, ok: bool, text: str, extra
             return True
     return False
 
-
 def _set_fields(rows: List[Dict[str, Any]], item_id: str, **fields: Any) -> bool:
     for row in rows:
         if row.get("id") == item_id:
             row.update(fields)
             return True
     return False
-
-
-# --------------------------------------------------------------------------- routes
 
 def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = None) -> Executor:
     executor = Executor(app)
@@ -442,13 +434,13 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
 
     app.router.lifespan_context = lifespan
 
-    try:   # Round 35: data / integration triggers — catalog, «Проверить сейчас», health, pickers
+    try:
         from .schedule_triggers_ext import register_routes as _register_trigger_routes
         _register_trigger_routes(app)
     except Exception as exc:  # noqa: BLE001
         log.warning("plan: trigger routes not registered: %s", exc)
 
-    try:   # Round 37: «Проверить сейчас» for conditions, place search (sun / weather)
+    try:
         from .schedule_conds_ext import register_routes as _register_cond_routes
         _register_cond_routes(app)
     except Exception as exc:  # noqa: BLE001
@@ -467,7 +459,7 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
                    "dfy_task": it.get("dfy_task", ""), "created": it.get("created")}
                   for it in await asyncio.to_thread(handoff_items) if it.get("status") in ("queued", "running")]
         rows = [_public_task(t, lang, by_id, now) for t in tasks]
-        try:   # Round 35: health of data / integration watches (last check, errors, fires) for the cards
+        try:
             from .schedule_triggers_ext import health as _watch_health
             watch = await asyncio.to_thread(_watch_health, lang)
             for row in rows:
@@ -493,6 +485,12 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
             import psutil  # noqa: F401
         except Exception:
             out["can"]["processes"] = False
+        try:
+            from . import teams as _teams
+            out["teams"] = [{"id": t.get("id"), "name": t.get("name"), "manager_model": t.get("manager_model", ""),
+                             "members_count": len(t.get("members") or [])} for t in await asyncio.to_thread(_teams.load)][:100]
+        except Exception:
+            out["teams"] = []
         try:
             from . import assistant_commands as ac
             commands = ac.engine().store.load().get("commands") or []
@@ -611,7 +609,7 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
                     state = row.get("rule_state") if isinstance(row.get("rule_state"), dict) else {}
                     row["rule_state"] = {k: v for k, v in state.items() if k in ("seen_done",)}
                     if state.get("status") == "finished":
-                        # a finished rule switched back on starts its limits over
+
                         row["run_count"] = 0
                         row["fail_streak"] = 0
                 row.pop("next_run", None)
@@ -629,7 +627,7 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
             if isinstance(row.get("rule"), dict):
                 row["run_now"] = time.time()
             else:
-                # legacy task: the Mini App way — due now; a one-shot is re-armed for this single run
+
                 row["next_run"] = time.time()
                 if row.get("enabled") is False:
                     row["enabled"] = True
@@ -704,16 +702,12 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
         rows = await asyncio.to_thread(load_schedule_results)
         return {"results": [r for r in rows if str(r.get("task_id")) == str(id)][:50]}
 
-    # Round 35 (flows): steps inside a task — constructor, test run, run history (app/flow_api.py)
     try:
         from . import flow_api
         flow_api.register(app, completion=completion)
     except Exception:  # noqa: BLE001 - Planning keeps working without the flow routes
         log.exception("flow routes are unavailable")
     return executor
-
-
-# --------------------------------------------------------------------------- natural language
 
 async def parse_text(text: str, model: str, completion: Callable[..., Awaitable[str]], *, lang: str = "ru",
                      tasks: Optional[List[Dict[str, Any]]] = None, commands: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -725,8 +719,14 @@ async def parse_text(text: str, model: str, completion: Callable[..., Awaitable[
             commands = [str(c.get("name")) for c in ac.engine().store.load().get("commands") or []][:60]
         except Exception:
             commands = []
+    try:
+        from . import teams as _teams
+        team_list = [{"id": t.get("id"), "name": t.get("name")} for t in _teams.load()][:40]
+    except Exception:
+        team_list = []
     context = {"NOW": now.strftime("%Y-%m-%d %H:%M (%A)"), "user_language": lang,
                "existing_tasks": [{"id": t.get("id"), "name": t.get("name")} for t in (tasks or [])][:60],
+               "teams": team_list,
                "quick_access_commands": commands}
     try:
         from .schedule_integrations import catalog
@@ -734,7 +734,7 @@ async def parse_text(text: str, model: str, completion: Callable[..., Awaitable[
     except Exception:
         context["connected_integration_tools"] = []
     system = rules.PARSE_PROMPT
-    try:   # Round 35: data / integration triggers + what the model needs to fill their ids (panels, repo…)
+    try:
         from . import schedule_triggers_ext as trigger_ext
         system += trigger_ext.parse_prompt(lang)
         context.update(await asyncio.to_thread(trigger_ext.parse_context))
@@ -748,7 +748,7 @@ async def parse_text(text: str, model: str, completion: Callable[..., Awaitable[
         try:
             data = rules.parse_model_json(answer)
             draft = rules.draft_from_model(data, lang)
-            try:   # Round 35: «только в рабочее время» for watch triggers → events wait instead of being lost
+            try:
                 from .schedule_triggers_ext import tune_draft
                 draft = tune_draft(draft)
             except Exception:  # noqa: BLE001

@@ -29,11 +29,9 @@ PRESETS = [
 ]
 _JOBS = {}
 
-
 def model_names(fields):
     return list(dict.fromkeys(value.strip() for value in re.split(r"[,\n;]", str(fields.get("music_models", "") or ""))
                               if value.strip()))[:100]
-
 
 def parse_config(fields):
     raw = fields.get("music_config", "") or ""
@@ -73,13 +71,11 @@ def parse_config(fields):
         raise ValueError("Опрос музыки должен содержать {id} и использовать тот же API / Music polling requires {id} on the same API origin")
     return config
 
-
 def capabilities(config):
     preset = config.get("preset", "generic")
     return {"lyrics": True, "instrumental": True, "duration": "hint" if preset == "minimax" else True,
             "tempo": "hint", "prompt_limit": 4100 if preset == "elevenlabs" else 2000 if preset == "minimax" else 12000,
             "lyrics_limit": 3500 if preset == "minimax" else 12000, "duration_min": 5, "duration_max": 600}
-
 
 def _pretty(raw):
     """Round 33 (r33c-models-lists): the readable name every MemuAI list uses (app/model_names.py)."""
@@ -88,7 +84,6 @@ def _pretty(raw):
         return pretty(raw) or raw
     except Exception:
         return raw
-
 
 def models():
     rows = {}
@@ -110,7 +105,6 @@ def models():
                 "capabilities": capabilities(config)}
     return list(rows.values())
 
-
 def is_music_model(model_id, *, resolved=None):
     """Classify declared music routes even when their account/model is disabled."""
     resolved = resolved or resolve(str(model_id or ""))
@@ -119,7 +113,6 @@ def is_music_model(model_id, *, resolved=None):
     return any(account.provider == "custom" and account.fields.get("music_config")
                and str(account.fields.get("name", "")).strip().lower().replace(" ", "-") == resolved.prefix
                and resolved.model in model_names(account.fields) for account in list(state.accounts.values()))
-
 
 def _selection(model_id):
     resolved = resolve(str(model_id or ""))
@@ -134,7 +127,6 @@ def _selection(model_id):
     if not accounts:
         raise ValueError("Для этой модели нет доступного музыкального аккаунта / No usable music account for this model")
     return accounts, resolved.model
-
 
 def _adapter(config, payload, raw_model):
     values = {**payload, "model": raw_model}
@@ -172,7 +164,6 @@ def _adapter(config, payload, raw_model):
                 "is_instrumental": instrumental, "output_format": "url", "stream": False,
                 "audio_setting": {"sample_rate": 44100, "bitrate": 256000, "format": "mp3"}}}, values
 
-
 def _error_text(exc):
     """«API HTTP 422» plus the reason the music API gave in its body (ElevenLabs:
     ``{"detail": {"status": "bad_prompt", "message": …, "data": {"prompt_suggestion": …}}}`` or a
@@ -199,7 +190,6 @@ def _error_text(exc):
     else:
         reason = str(detail or "")[:400]
     return f"{message}: {reason}" if reason.strip() else message
-
 
 async def generate(payload, *, guard=None):
     if guard is not None:
@@ -259,7 +249,6 @@ async def generate(payload, *, guard=None):
                     break
                 raise ValueError(message) from exc
     raise last_error or ValueError("Нет доступного музыкального аккаунта / No usable music account")
-
 
 async def run(payload, *, scope="api"):
     request_id = str(payload.get("request_id") or uuid.uuid4().hex)

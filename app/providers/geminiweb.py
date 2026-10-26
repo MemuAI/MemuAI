@@ -50,16 +50,13 @@ from .geminiweb_cookies import PSID, PSIDTS, parse_cookie_import, parse_header, 
 BASE = proto.BASE
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
       "(KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36")
-PAGE_TTL = 30 * 60          # токены страницы живут ~полчаса
-ROTATE_EVERY = 10 * 60      # Google сам обновляет 1PSIDTS примерно так же часто
+PAGE_TTL = 30 * 60
+ROTATE_EVERY = 10 * 60
 ROTATE_MIN_GAP = 60
 
-LIMITS_TTL = 120           # счётчики лимитов аккаунта
-MODELS_TTL = 6 * 3600       # список моделей аккаунта (GetUserStatus) перечитывается раз в 6 часов
+LIMITS_TTL = 120
+MODELS_TTL = 6 * 3600
 
-# Статический список = выбор модели в приложении Gemini (октябрь 2026: 9to5Google 13.10.2026, blog.google).
-# Это лишь запасной вариант: основной источник — модели самого аккаунта с gemini.google.com (account_models),
-# с их внутренними id для заголовка выбора модели. mode — MODE_CATEGORY индекса 79, когда заголовка нет.
 MODELS: Dict[str, Dict[str, Any]] = {
     "gemini-3.8-flash": {"family": "flash", "mode": 1, "display": "3.8 Flash",
                          "note": "Gemini 3.8 Flash · everyday model (works without sign-in)"},
@@ -70,7 +67,7 @@ MODELS: Dict[str, Dict[str, Any]] = {
     "gemini-4-argon": {"family": "argon", "mode": 0, "display": "4 Argon", "paid": True,
                        "note": "Gemini 4 Argon · Google AI Pro / Ultra only"},
 }
-# Старые имена (раунды 37–40) — чтобы сохранённые настройки и составные модели не ломались; в каталоге их нет.
+
 LEGACY: Dict[str, Tuple[str, bool]] = {
     "gemini-3.7-flash": ("gemini-3.8-flash", False),
     "gemini-3.6-flash": ("gemini-3.8-flash", False),
@@ -87,20 +84,14 @@ DEFAULT_MODEL = "gemini-3.8-flash"
 _THINK_SUFFIX_RE = re.compile(r"@think=([0-4])\s*$", re.IGNORECASE)
 _EFFORT_SUFFIX_RE = re.compile(r"@effort=([a-z]+)\s*$", re.IGNORECASE)
 
-# «Thinking level» Low / Medium / High — отдельный контрол рядом с выбором модели в приложении Gemini.
-# В запросе: глубина размышлений (индекс 17 f.req: 0 — глубже, 4 — легче) и расширенное мышление
-# (индекс 80 = 2 и хвост заголовка модели 2). Точное соответствие уровней приложения проводу не опубликовано —
-# High = расширенное мышление (как extended_thinking у HanaokaYuzu/Gemini-API), Low = самая лёгкая глубина.
 EFFORTS: Dict[str, Tuple[int, bool]] = {"low": (4, False), "medium": (0, False), "high": (0, True)}
 EFFORT_ALIASES = {"off": "low", "minimal": "low", "low": "low", "fast": "low",
                   "medium": "medium", "standard": "medium", "default": "medium", "on": "medium",
                   "high": "high", "xhigh": "high", "max": "high", "extended": "high", "deep": "high"}
 
-
 def effort_level(value: Any) -> str:
     """Уровень из любого словаря (OpenAI reasoning_effort, наши уровни, суффикс) → low | medium | high | ""."""
     return EFFORT_ALIASES.get(str(value or "").strip().lower(), "")
-
 
 def _family(text: str) -> str:
     low = (text or "").lower()
@@ -109,12 +100,10 @@ def _family(text: str) -> str:
             return key
     return "flash" if ("flash" in low or "fast" in low) else low
 
-
 def _sapisidhash(sapisid: str, origin: str = BASE) -> str:
     ts = int(time.time())
     digest = hashlib.sha1(f"{ts} {sapisid} {origin}".encode()).hexdigest()
     return f"SAPISIDHASH {ts}_{digest}"
-
 
 def _parse_cookie_blob(raw: str) -> Tuple[str, str]:
     """Любой формат кук → (строка Cookie, SAPISID). Пусто, если распознать не удалось."""
@@ -124,14 +113,12 @@ def _parse_cookie_blob(raw: str) -> Tuple[str, str]:
     cookie = parsed.header
     return cookie, _sapisid_from(cookie)
 
-
 def _sapisid_from(cookie: str) -> str:
     values = parse_header(cookie)
     for name in ("SAPISID", "__Secure-3PAPISID", "__Secure-1PAPISID", "APISID"):
         if values.get(name):
             return values[name]
     return ""
-
 
 def _set_cookies(resp) -> Dict[str, str]:
     """Set-Cookie ответа Google (только .google.com) → {name: value}."""
@@ -161,7 +148,6 @@ def _set_cookies(resp) -> Dict[str, str]:
         out[name] = value
     return out
 
-
 class GeminiWebProvider(Provider):
     id = "geminiweb"
     title = "Gemini Web"
@@ -179,10 +165,8 @@ class GeminiWebProvider(Provider):
         self._reqid = random.randint(10000, 99999)
         self._rotator: Optional[asyncio.Task] = None
         self._status: Dict[str, Tuple[float, proto.UserStatus]] = {}
-        self._client_ids: Dict[str, str] = {}    # uuid «сессии клиента» — хвост заголовков выбора модели
-        self._limits: Dict[str, Tuple[float, Dict[str, Any]]] = {}   # лимиты аккаунта (GetUsageInfo и др.)
-
-    # ------------------------------ метаданные ------------------------------
+        self._client_ids: Dict[str, str] = {}
+        self._limits: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
     def account_fields(self) -> List[Field]:
         return [
@@ -277,8 +261,6 @@ class GeminiWebProvider(Provider):
             return [m.name for m in status.models if m.available]
         return list(MODELS) if self._cookie(account) else [DEFAULT_MODEL]
 
-    # ------------------------------ сессия и куки ------------------------------
-
     @staticmethod
     def _fields(account) -> Dict[str, Any]:
         return account.fields or {}
@@ -305,8 +287,7 @@ class GeminiWebProvider(Provider):
             session = AsyncSession(**kwargs)
             self._sessions[key] = session
         if self._cookie(account):
-            # Вошедший аккаунт: источник правды — поле cookie (обновления из Set-Cookie переносятся туда).
-            # Гость: jar сохраняется — Google требует гостевые куки, выданные страницей /app (иначе ошибка 1096).
+
             try:
                 session.cookies.clear()
             except Exception:
@@ -405,8 +386,6 @@ class GeminiWebProvider(Provider):
                 except Exception:
                     continue
 
-    # ------------------------------ страница ------------------------------
-
     async def page(self, account, *, force: bool = False, cookie: Optional[str] = None) -> proto.PageInfo:
         key = getattr(account, "id", "") or "draft"
         cached = self._pages.get(key)
@@ -425,8 +404,6 @@ class GeminiWebProvider(Provider):
             self._absorb(account, resp)
             self._pages[key] = (time.time(), info)
         return info
-
-    # ------------------------------ модели ------------------------------
 
     @staticmethod
     def _accounts() -> List[Any]:
@@ -605,8 +582,6 @@ class GeminiWebProvider(Provider):
         same.sort(key=lambda m: (m.available, version(m)), reverse=True)
         return same[0]
 
-    # ------------------------------ вложения ------------------------------
-
     async def _attachments(self, account, messages: List[Dict[str, Any]], push_id: str) -> List[Tuple[str, str]]:
         """Вложения последнего сообщения (картинки, файлы, видео) → загрузка в Gemini → [(ссылка, имя)] для f.req."""
         try:
@@ -669,8 +644,6 @@ class GeminiWebProvider(Provider):
                                       message_ru=f"Gemini не вернул ссылку на загруженный файл (HTTP {done.status_code}).")
         return ref
 
-    # ------------------------------ сгенерированные картинки и видео ------------------------------
-
     def _settings(self) -> Dict[str, Any]:
         return (getattr(config_store.settings, "provider_settings", None) or {}).get(self.id) or {}
 
@@ -698,7 +671,7 @@ class GeminiWebProvider(Provider):
             data = bytes(data)
             kind = media.sniff_mime(data, "")
             if not kind.startswith(("image/", "video/")):
-                return None                       # страница входа/ошибки вместо файла
+                return None
             return data, kind
 
     async def _store_remote(self, account, url: str, *, video: bool = False) -> str:
@@ -722,8 +695,6 @@ class GeminiWebProvider(Provider):
             out.append((item, url, thumb))
         return media.markdown(out)
 
-    # ------------------------------ чат ------------------------------
-
     def _gen_headers(self, account, request_uuid: str, picked: Optional[proto.AccountModel],
                      extended: bool) -> Dict[str, str]:
         headers = self._base_headers(account)
@@ -733,7 +704,7 @@ class GeminiWebProvider(Provider):
             "X-Same-Domain": "1", "x-goog-ext-525005358-jspb": f'["{request_uuid}",1]',
         })
         if picked is not None:
-            # Модель выбирается её id из списка самого аккаунта (тариф уже учтён в capacity).
+
             headers[proto.MODEL_HEADER] = picked.header(self._client_id(account), extended=extended)
             headers["x-goog-ext-73010989-jspb"] = "[0]"
             headers["x-goog-ext-73010990-jspb"] = "[0,0,0]"
@@ -845,7 +816,7 @@ class GeminiWebProvider(Provider):
         self._raise_page_problem(info, has_cookie)
         status = await self.account_models(account, info=info)
         self._raise_account_status(status, has_cookie)
-        account.extra.pop("no_model_header", None)     # флаг раунда 37: больше не нужен, заголовок строится из списка аккаунта
+        account.extra.pop("no_model_header", None)
         name, picked, mode, think, extended = self._resolve_model(model, account, params)
 
         file_refs = await self._attachments(account, messages, info.push_id)
@@ -870,7 +841,7 @@ class GeminiWebProvider(Provider):
                     body = await http.read_error_text(resp, 4000)
                     await http.close_response(resp)
                     if code in (400, 401) and attempt == 1:
-                        info = await self.page(account, force=True)     # устарели bl/at — обновляем и повторяем
+                        info = await self.page(account, force=True)
                         self._raise_page_problem(info, has_cookie)
                         continue
                     self._raise_http(code, body, has_cookie)
@@ -889,8 +860,7 @@ class GeminiWebProvider(Provider):
                         raise self._canned_error(name, picked, retry.message)
                     raise ProviderServerError(retry.message, 502)
                 if retry.model_problem:
-                    # Неверный id модели / заглушка: сначала без расширенного мышления, затем перечитываем
-                    # список моделей аккаунта (Google мог сменить id) и выбираем модель заново.
+
                     if extended:
                         extended = False
                     else:
@@ -955,8 +925,7 @@ class GeminiWebProvider(Provider):
                 if "BardErrorInfo" in line:
                     self._raise_bard(line)
                 events = list(self._events(frames, images))
-                # Ошибку из того же куска обрабатываем раньше текста: гостю Google шлёт заглушку
-                # «I'm having a hard time…» и следом код 1096 — заглушку клиенту отдавать незачем.
+
                 for event in events:
                     if event[0] == "error":
                         self._raise_code(event[1], "" if not released else sent_text, self._known_reset(account))
@@ -1017,8 +986,6 @@ class GeminiWebProvider(Provider):
                     if url not in images:
                         images.append(url)
                 yield ("snap", snap)
-
-    # ------------------------------ ошибки ------------------------------
 
     @staticmethod
     def _raise_page_problem(info: proto.PageInfo, has_cookie: bool) -> None:
@@ -1106,8 +1073,6 @@ class GeminiWebProvider(Provider):
                 raise ProviderContentFilterError(f"Gemini refused to answer this request (BardErrorInfo {code}).")
             raise ProviderServerError(f"Gemini rejected the request (BardErrorInfo {code})", 502)
 
-    # ------------------------------ проверка ------------------------------
-
     async def diagnose(self, account, *, test_request: bool = True) -> Dict[str, Any]:
         """Пошаговая проверка: куки → страница → токен → тестовый запрос → модели."""
         from .geminiweb_diag import run_diagnosis
@@ -1124,10 +1089,9 @@ class GeminiWebProvider(Provider):
         for session in sessions:
             await http.close_quietly(session.close)
 
-
 class _Retry(Exception):
     def __init__(self, message: str, *, model_problem: bool = False, canned: bool = False) -> None:
         super().__init__(message)
         self.message = message
-        self.model_problem = model_problem      # неверный/недоступный выбор модели (1050/1052, заглушка)
-        self.canned = canned                    # сервер ответил служебной заглушкой вместо ответа
+        self.model_problem = model_problem
+        self.canned = canned

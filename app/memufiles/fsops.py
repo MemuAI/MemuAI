@@ -26,7 +26,6 @@ FILE_ATTRIBUTE_SYSTEM = 0x4
 FILE_ATTRIBUTE_READONLY = 0x1
 _CREATE_NO_WINDOW = 0x08000000
 
-
 class FsError(Exception):
     """An expected failure with a stable code the page translates (``exists``, ``protected``, …)."""
 
@@ -34,9 +33,6 @@ class FsError(Exception):
         super().__init__(message or code)
         self.code = code
         self.extra = extra
-
-
-# ------------------------------------------------------------------ paths
 
 def clean_path(value: Any) -> str:
     text = str(value or "").strip().strip('"')
@@ -48,7 +44,6 @@ def clean_path(value: Any) -> str:
     if not os.path.isabs(text):
         raise FsError("bad_path", "path must be absolute")
     return os.path.normpath(text)
-
 
 def lnk_target(path: str) -> str:
     """Round 39: the target of a Windows shortcut (``.lnk``) from its LinkInfo (MS-SHLLINK §2.3) — local paths
@@ -64,9 +59,9 @@ def lnk_target(path: str) -> str:
         return ""
     flags = struct.unpack_from("<I", data, 0x14)[0]
     pos = 0x4C
-    if flags & 0x1:                                          # HasLinkTargetIDList
+    if flags & 0x1:
         pos += 2 + struct.unpack_from("<H", data, pos)[0]
-    if not flags & 0x2 or pos + 28 > len(data):              # HasLinkInfo
+    if not flags & 0x2 or pos + 28 > len(data):
         return ""
     size, header, info_flags, _vol, local_off, net_off, suffix_off = struct.unpack_from("<7I", data, pos)
     info = data[pos:pos + size]
@@ -88,9 +83,9 @@ def lnk_target(path: str) -> str:
                 suffix = wide(suffix_u)
             if info_flags & 0x1 and local_u:
                 return wide(local_u) + suffix
-        if info_flags & 0x1 and local_off:                   # VolumeIDAndLocalBasePath
+        if info_flags & 0x1 and local_off:
             return ansi(local_off) + suffix
-        if info_flags & 0x2 and net_off:                     # CommonNetworkRelativeLinkAndPathSuffix
+        if info_flags & 0x2 and net_off:
             net_name_off = struct.unpack_from("<I", info, net_off + 8)[0]
             share = ansi(net_off + net_name_off)
             return share + ("\\" + suffix if suffix and not share.endswith("\\") else suffix)
@@ -98,9 +93,7 @@ def lnk_target(path: str) -> str:
         return ""
     return ""
 
-
 STAMP_SCAN_LIMIT = 3000
-
 
 def dir_stamp(path: str) -> str:
     """Round 39: «did this folder change?» for the auto-refresh poll (``/api/ls`` head and ``/api/dirstamp``).
@@ -126,10 +119,8 @@ def dir_stamp(path: str) -> str:
         sig = -2
     return f"{st.st_mtime_ns}:{sig & 0xFFFFFFFFFFFF if sig >= 0 else sig}"
 
-
 def norm(path: str) -> str:
     return os.path.normcase(os.path.normpath(path))
-
 
 def is_inside(path: str, root: str) -> bool:
     """``path`` is ``root`` or below it (case-insensitive on Windows)."""
@@ -139,7 +130,6 @@ def is_inside(path: str, root: str) -> bool:
     r = r if r.endswith(os.sep) else r + os.sep
     return p.startswith(r)
 
-
 def split_name(name: str):
     """``("archive.tar", ".gz")`` style split that keeps dot-files whole (``.bashrc`` has no extension)."""
     if name.startswith(".") and name.count(".") == 1:
@@ -147,10 +137,8 @@ def split_name(name: str):
     base, ext = os.path.splitext(name)
     return base, ext
 
-
 INVALID_CHARS = set('<>:"/\\|?*') if IS_WIN else {"/"}
 RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)), *(f"LPT{i}" for i in range(1, 10))}
-
 
 def valid_name(name: str) -> Optional[str]:
     """None when *name* is a valid file name on this OS, else an error code."""
@@ -166,7 +154,6 @@ def valid_name(name: str) -> Optional[str]:
         if name.split(".")[0].upper() in RESERVED:
             return "reserved_name"
     return None
-
 
 def unique_name(folder: str, name: str) -> str:
     """``name`` or ``name (2).ext`` … the first one that does not exist in *folder* (Explorer style)."""
@@ -185,9 +172,6 @@ def unique_name(folder: str, name: str) -> str:
             return candidate
     raise FsError("exists", name)
 
-
-# ------------------------------------------------------------------ protected paths (safety)
-
 def _win_dirs() -> List[str]:
     env = os.environ
     dirs = [env.get("SystemRoot") or r"C:\Windows", env.get("ProgramFiles") or r"C:\Program Files",
@@ -196,10 +180,8 @@ def _win_dirs() -> List[str]:
             r"C:\Boot", r"C:\Users\Default", r"C:\Users\Public"]
     return [d for d in dirs if d]
 
-
 POSIX_SYSTEM = ["/bin", "/boot", "/dev", "/etc", "/lib", "/lib32", "/lib64", "/libx32", "/proc",
                 "/sbin", "/snap", "/srv", "/sys", "/usr", "/var", "/opt", "/System", "/Library", "/Applications"]
-
 
 def protected_reason(path: str) -> Optional[str]:
     """Why *path* must never be deleted / moved by MemuFiles (or the AI): ``root``, ``system``, ``home``…
@@ -239,22 +221,16 @@ def protected_reason(path: str) -> Optional[str]:
         pass
     return None
 
-
 SPECIAL_NAMES = {"Desktop", "Documents", "Downloads", "Pictures", "Music", "Videos", "AppData", "OneDrive",
                  "Рабочий стол", "Документы", "Загрузки", "Изображения", "Музыка", "Видео"}
-
 
 def ensure_mutable(path: str) -> None:
     reason = protected_reason(path)
     if reason:
         raise FsError("protected", path, reason=reason, path=path)
 
-
-# ------------------------------------------------------------------ listing
-
 def _attrs(entry_stat) -> int:
     return int(getattr(entry_stat, "st_file_attributes", 0) or 0)
-
 
 def entry_row(name: str, full: str, st: Optional[os.stat_result], is_dir: bool, is_link: bool) -> Dict[str, Any]:
     """The compact row the page renders: n(ame) d(ir) s(ize) m(time ms) c(reated) h(idden) l(ink) r(eadonly)."""
@@ -277,13 +253,12 @@ def entry_row(name: str, full: str, st: Optional[os.stat_result], is_dir: bool, 
             row["sys"] = 1
     else:
         row["s"], row["m"] = 0, 0
-        row["e"] = 1                # stat failed (broken link, no access)
+        row["e"] = 1
     if hidden:
         row["h"] = 1
     if is_link:
         row["l"] = 1
     return row
-
 
 def iter_dir(path: str, chunk: int = 2000) -> Iterator[List[Dict[str, Any]]]:
     """Stream a folder's rows in chunks (``os.scandir`` — one syscall per entry on Windows)."""
@@ -313,13 +288,11 @@ def iter_dir(path: str, chunk: int = 2000) -> Iterator[List[Dict[str, Any]]]:
     if batch:
         yield batch
 
-
 def list_dir(path: str) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
     for batch in iter_dir(path):
         rows.extend(batch)
     return rows
-
 
 def complete(prefix: str, limit: int = 30, show_hidden: bool = False) -> List[str]:
     """Address-bar autocomplete: sub-folders of the typed parent that start with the typed tail."""
@@ -353,11 +326,7 @@ def complete(prefix: str, limit: int = 30, show_hidden: bool = False) -> List[st
     out.sort(key=lambda s: s.lower())
     return out[:limit]
 
-
-# ------------------------------------------------------------------ drives & places
-
 DRIVE_TYPES = {0: "unknown", 1: "none", 2: "removable", 3: "fixed", 4: "network", 5: "cdrom", 6: "ram"}
-
 
 def drives() -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
@@ -365,7 +334,7 @@ def drives() -> List[Dict[str, Any]]:
         import ctypes
         kernel = ctypes.windll.kernel32
         mask = kernel.GetLogicalDrives()
-        old_mode = kernel.SetErrorMode(1)      # no "insert a disk" pop-ups for empty card readers
+        old_mode = kernel.SetErrorMode(1)
         try:
             for index in range(26):
                 if not mask & (1 << index):
@@ -421,8 +390,7 @@ def drives() -> List[Dict[str, Any]]:
             break
     return rows
 
-
-_KNOWN_FOLDERS = {   # Windows KNOWNFOLDERID GUIDs
+_KNOWN_FOLDERS = {
     "desktop": "{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}",
     "documents": "{FDD39AD0-238F-46AF-ADB4-6C85480369C7}",
     "downloads": "{374DE290-123F-4565-9164-39C4925E467B}",
@@ -430,7 +398,6 @@ _KNOWN_FOLDERS = {   # Windows KNOWNFOLDERID GUIDs
     "music": "{4BD8D571-6D19-48D3-BE97-422220080E43}",
     "videos": "{18989B1D-99B5-455B-841C-AB7C74E4DDFC}",
 }
-
 
 def _known_folder(guid: str) -> str:
     import ctypes
@@ -449,7 +416,6 @@ def _known_folder(guid: str) -> str:
     ctypes.windll.ole32.CoTaskMemFree(out)
     return value
 
-
 def _xdg_dirs() -> Dict[str, str]:
     home = os.path.expanduser("~")
     result = {}
@@ -465,7 +431,6 @@ def _xdg_dirs() -> Dict[str, str]:
     except OSError:
         pass
     return result
-
 
 def places() -> List[Dict[str, Any]]:
     """Libraries: Desktop, Documents, Downloads, Pictures, Music, Videos (only the ones that exist) + home."""
@@ -487,12 +452,8 @@ def places() -> List[Dict[str, Any]]:
     rows.append({"id": "onedrive", "path": onedrive, "exists": bool(onedrive and os.path.isdir(onedrive))})
     return rows
 
-
-# ------------------------------------------------------------------ properties
-
 def _fmt_time(ts: Optional[float]) -> Optional[int]:
     return int(ts * 1000) if ts else None
-
 
 def properties(path: str) -> Dict[str, Any]:
     st = os.stat(path, follow_symlinks=False)
@@ -543,7 +504,6 @@ def properties(path: str) -> Dict[str, Any]:
             pass
     return info
 
-
 def set_attributes(path: str, hidden: Optional[bool] = None, readonly: Optional[bool] = None) -> Dict[str, Any]:
     if readonly is not None:
         st = os.stat(path)
@@ -570,7 +530,6 @@ def set_attributes(path: str, hidden: Optional[bool] = None, readonly: Optional[
                 raise FsError("hidden_posix", "rename the file without the leading dot")
     return properties(path)
 
-
 def file_hash(path: str, algo: str = "sha256", cancel=None) -> str:
     if algo not in ("md5", "sha1", "sha256"):
         raise FsError("bad_algo", algo)
@@ -585,9 +544,6 @@ def file_hash(path: str, algo: str = "sha256", cancel=None) -> str:
             digest.update(block)
     return digest.hexdigest()
 
-
-# ------------------------------------------------------------------ create
-
 def make_folder(parent: str, name: str) -> str:
     error = valid_name(name)
     if error:
@@ -598,16 +554,14 @@ def make_folder(parent: str, name: str) -> str:
     os.mkdir(target)
     return target
 
-
 def make_file(parent: str, name: str, content: bytes = b"") -> str:
     error = valid_name(name)
     if error:
         raise FsError(error, name)
     target = os.path.join(parent, name)
-    with open(target, "xb") as handle:      # "x": never overwrite
+    with open(target, "xb") as handle:
         handle.write(content)
     return target
-
 
 def rename(path: str, new_name: str) -> str:
     error = valid_name(new_name)
@@ -618,7 +572,7 @@ def rename(path: str, new_name: str) -> str:
     target = os.path.join(parent, new_name)
     if norm(target) != norm(path) and os.path.lexists(target):
         raise FsError("exists", target, path=target)
-    if norm(target) == norm(path) and target != path:     # case-only rename on Windows
+    if norm(target) == norm(path) and target != path:
         temp = os.path.join(parent, f".~memufiles-{os.getpid()}-{time.time_ns()}")
         os.rename(path, temp)
         os.rename(temp, target)
@@ -631,14 +585,10 @@ def rename(path: str, new_name: str) -> str:
         pass
     return target
 
-
-# ------------------------------------------------------------------ shell glue
-
 def _popen(command: List[str], cwd: Optional[str] = None) -> None:
-    flags = 0x00000008 | 0x00000200 if IS_WIN else 0      # DETACHED_PROCESS | NEW_PROCESS_GROUP
+    flags = 0x00000008 | 0x00000200 if IS_WIN else 0
     subprocess.Popen(command, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,   # noqa: S603
                      stderr=subprocess.DEVNULL, close_fds=True, creationflags=flags, start_new_session=not IS_WIN)
-
 
 def open_default(path: str) -> None:
     if IS_WIN:
@@ -651,7 +601,6 @@ def open_default(path: str) -> None:
             raise FsError("no_opener", "xdg-open is not installed")
         _popen([opener, "open", path] if opener.endswith("gio") else [opener, path])
 
-
 def open_with_dialog(path: str, hwnd: int = 0) -> str:
     """The Windows «Open with» chooser (``openwith.chooser``: SHOpenWithDialog on its own STA thread)."""
     if not IS_WIN:
@@ -661,7 +610,6 @@ def open_with_dialog(path: str, hwnd: int = 0) -> str:
         return openwith.chooser(path, hwnd)
     except openwith.OpenWithError as exc:
         raise FsError(exc.code, str(exc)) from None
-
 
 def shell_verb(path: str, verb: str, hwnd: int = 0) -> None:
     """ShellExecuteEx with a verb (``properties``, ``runas``, ``print``…) — the real Windows dialogs, run on the
@@ -673,7 +621,6 @@ def shell_verb(path: str, verb: str, hwnd: int = 0) -> None:
         openwith.shell_verb(path, verb, hwnd)
     except openwith.OpenWithError as exc:
         raise FsError(exc.code, str(exc)) from None
-
 
 def open_terminal(folder: str, preference: str = "auto") -> str:
     if IS_WIN:
@@ -703,7 +650,6 @@ def open_terminal(folder: str, preference: str = "auto") -> str:
             return term
     raise FsError("no_terminal")
 
-
 def reveal_native(path: str) -> None:
     """Show the item in the system file manager (Explorer) — "open in Explorer" for anything we lack."""
     if IS_WIN:
@@ -711,10 +657,8 @@ def reveal_native(path: str) -> None:
     else:
         open_default(os.path.dirname(path) if os.path.isfile(path) else path)
 
-
 def now_ms() -> int:
     return int(time.time() * 1000)
-
 
 def iso(ms: Optional[int]) -> str:
     if not ms:

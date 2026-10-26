@@ -1,15 +1,9 @@
-/* MemuAI — Round 31 (design-main): tour, first-run card, one-time hints and the «?» help menu (tour.js).
-   Colours: theme tokens + color-mix() only; radii --r-*; durations --m-dur-*. Works in every design. */
-
-/* ---------- «?» button in the top bar ---------- */
 .memu-help-btn { position: relative; }
 .memu-help-btn .ui-icon { width: 17px; height: 17px; }
 .memu-help-btn.has-dot::after {
   content: ""; position: absolute; top: 7px; right: 7px; width: 7px; height: 7px; border-radius: 50%;
   background: var(--accent); box-shadow: 0 0 0 2px var(--bg, var(--panel));
 }
-
-/* ---------- help menu ---------- */
 .memu-help-menu {
   position: fixed; z-index: 700; width: 300px; max-width: calc(100vw - 16px); max-height: calc(100vh - 24px); overflow-y: auto;
   padding: 6px; border: 1px solid var(--d-line, var(--border)); border-radius: var(--r-md, 12px);
@@ -27,8 +21,6 @@
 .memu-help-menu .hm-text small { color: var(--muted); font-size: 12px; }
 .memu-help-menu .hm-sep { height: 1px; margin: 5px 6px; background: var(--d-line, var(--border)); }
 .memu-help-menu .hm-switch .switch { flex: none; }
-
-/* ---------- tour ---------- */
 .memu-tour-block { position: fixed; inset: 0; z-index: 9000; background: transparent; }
 .memu-tour-spot {
   position: fixed; z-index: 9001; pointer-events: none; border-radius: var(--r-md, 12px);
@@ -42,7 +34,7 @@
   background: var(--panel); color: var(--text); box-shadow: var(--d-pop-shadow, 0 18px 50px rgba(0, 0, 0, .3));
   animation: memu-tour-in var(--m-dur-2, 180ms) var(--m-ease-out, ease-out);
 }
-.memu-tour-bubble::before, .memu-hint::before {   /* the arrow */
+.memu-tour-bubble::before, .memu-hint::before {
   content: ""; position: absolute; width: 12px; height: 12px; background: inherit; border: inherit; border-radius: 2px;
   transform: rotate(45deg); clip-path: polygon(0 0, 100% 0, 0 100%);
 }
@@ -72,8 +64,6 @@
 :is(.tour-x, .mh-x, .mw-x) svg { width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
 :is(.memu-tour-bubble, .memu-hint, .memu-welcome, .memu-help-menu) svg { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 :is(.memu-tour-bubble, .memu-hint, .memu-welcome) :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-/* ---------- one-time hint ---------- */
 .memu-hint { z-index: 650; width: 320px; padding: 12px 14px 10px; }
 .memu-hint .mh-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .memu-hint .mh-head b { flex: 1; font-size: 14px; font-weight: 650; }
@@ -81,8 +71,6 @@
   background: color-mix(in srgb, var(--accent) 14%, transparent); flex: none; }
 .memu-hint .mh-ico svg { width: 15px; height: 15px; }
 .memu-hint .mh-foot { justify-content: space-between; margin-top: 10px; }
-
-/* ---------- first-run card ---------- */
 .memu-welcome {
   position: fixed; z-index: 150; right: 20px; bottom: 20px; width: 330px; max-width: calc(100vw - 32px); padding: 16px 16px 14px;
   border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--d-line, var(--border))); border-radius: var(--r-lg, 16px);
@@ -102,12 +90,10 @@
 @media (prefers-reduced-motion: reduce) { .memu-tour-bubble, .memu-hint, .memu-welcome, .memu-tour-spot { animation: none !important; transition: none !important; } }
 :root[data-motion="off"] :is(.memu-tour-bubble, .memu-hint, .memu-welcome, .memu-tour-spot),
 :root[data-motion="reduced"] :is(.memu-tour-bubble, .memu-hint, .memu-welcome, .memu-tour-spot) { animation: none !important; transition: none !important; }
-
-/* designs with square corners / hard shadows keep their character */
 :root[data-design="brutal"] :is(.memu-tour-bubble, .memu-hint, .memu-welcome, .memu-help-menu) { border-width: 2px; border-color: var(--text); box-shadow: 4px 4px 0 var(--text); border-radius: 0; }
 :root[data-design="terminal"] :is(.memu-tour-bubble, .memu-hint, .memu-welcome, .memu-help-menu),
 :root[data-design="grid"] :is(.memu-tour-bubble, .memu-hint, .memu-welcome, .memu-help-menu) { border-radius: var(--r-xs, 6px); }
-:root[data-design="glass"] :is(.memu-tour-bubble, .memu-hint, .memu-welcome, .memu-help-menu) { background: var(--panel); }   /* opaque: text must stay readable */
+:root[data-design="glass"] :is(.memu-tour-bubble, .memu-hint, .memu-welcome, .memu-help-menu) { background: var(--panel); }
 
 @media (max-width: 600px) {
   .memu-welcome { right: 10px; left: 10px; bottom: 10px; width: auto; }

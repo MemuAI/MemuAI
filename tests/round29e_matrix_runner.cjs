@@ -1,4 +1,4 @@
-// Round 29 phase 2 (r29e-matrix): stuck.js in node — MemuCode window tool-round pause (label, badge, stale card).
+
 const fs=require("fs"),path=require("path"),vm=require("vm");
 const root=process.argv[2];
 const sb={console,Math,JSON,Date,Set,Map,Array,Object,String,Number,Promise,RegExp,Error,

@@ -50,16 +50,15 @@ from urllib.parse import urlparse
 log = logging.getLogger("memuai.flows")
 
 FLOW_VERSION = 1
-MAX_STEPS = 80            # all steps, nested included
-MAX_DEPTH = 4             # if / foreach nesting
-MAX_LOOP = 200            # iterations of one foreach
-MAX_TEXT = 20000          # a text field of a step
-MAX_OUTPUT = 200_000      # a stored step result (JSON length)
-MAX_RUNS = 300            # run files kept
+MAX_STEPS = 80
+MAX_DEPTH = 4
+MAX_LOOP = 200
+MAX_TEXT = 20000
+MAX_OUTPUT = 200_000
+MAX_RUNS = 300
 MAX_TEMPLATE_OUT = 100_000
 PROCESS_BOOT = uuid.uuid4().hex[:10]
 
-#: type → category, side effect (simulated in a dry run), default timeout (s), titles ru/en, icon
 STEP_TYPES: Dict[str, Dict[str, Any]] = {
     "web_search":      {"cat": "data", "side": False, "timeout": 60, "ru": "Веб-поиск", "en": "Web search", "icon": "search"},
     "model":           {"cat": "ai", "side": False, "timeout": 240, "ru": "Запрос к модели", "en": "Ask a model", "icon": "sparkles"},
@@ -82,16 +81,16 @@ STEP_TYPES: Dict[str, Dict[str, Any]] = {
     "tool":            {"cat": "app", "side": True, "timeout": 300, "ru": "Действие ассистента", "en": "Assistant action", "icon": "tool"},
     "dfy":             {"cat": "app", "side": True, "timeout": 3600, "ru": "Сделай за меня (браузер)", "en": "Do For You (browser)", "icon": "globe"},
     "memucode":        {"cat": "app", "side": True, "timeout": 1800, "ru": "MemuCode", "en": "MemuCode", "icon": "code"},
-    # r40-mcp: a tool of a connected MCP server (app/mcp_hub.py); read-only tools run in a test run too
+    "team":            {"cat": "ai", "side": False, "timeout": 1800, "ru": "Команда агентов", "en": "Agent team", "icon": "users"},
+
     "mcp_call":        {"cat": "app", "side": True, "timeout": 120, "ru": "Инструмент MCP", "en": "MCP tool", "icon": "tool"},
     "integration":    {"cat": "app", "side": True, "timeout": 300, "ru": "Telegram Use / Chrome", "en": "Telegram Use / Chrome", "icon": "tool"},
 }
 CONTAINERS = ("if", "foreach")
-#: GET http steps read only — they run in a dry run too
+
 READONLY_HTTP = ("GET", "HEAD")
 COND_OPS = ("is_true", "is_false", "eq", "ne", "gt", "ge", "lt", "le", "contains", "not_contains",
             "empty", "not_empty", "matches")
-
 
 class FlowError(ValueError):
     """A user-facing error with Russian and English text."""
@@ -103,10 +102,8 @@ class FlowError(ValueError):
     def text(self, lang: str = "ru") -> str:
         return self.en if lang == "en" else self.ru
 
-
 class StepFailed(Exception):
     pass
-
 
 class Paused(Exception):
     """A step paused the run (ask_user, a long wait, step-by-step test)."""
@@ -115,18 +112,13 @@ class Paused(Exception):
         super().__init__("paused")
         self.wait = wait
 
-
 class Stop(Exception):
     def __init__(self, message: str = "") -> None:
         super().__init__(message)
         self.message = message
 
-
 def tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
-
-# =========================================================================== templating
 
 _TPL = re.compile(r"\{\{\s*((?:(?!\}\}|\{\{).)*?)\s*\}\}", re.S)
 _SEG = re.compile(r"\s*([^\s.\[\]|]+)|\[\s*(-?\d+)\s*\]|\[\s*['\"]([^'\"]{1,80})['\"]\s*\]")
@@ -136,7 +128,6 @@ KEY_ALIASES = {"результат": "result", "текст": "text", "стату
                "количество": "count", "индекс": "index", "номер": "number", "данные": "payload", "время": "at",
                "тип": "type"}
 _STEP_REF = re.compile(r"^(?:step|шаг)[_ ]?(\d+(?:\.\d+)*)$", re.I)
-
 
 def _stringify(value: Any) -> str:
     if value is None:
@@ -148,7 +139,6 @@ def _stringify(value: Any) -> str:
     if isinstance(value, (dict, list, tuple)):
         return json.dumps(value, ensure_ascii=False)
     return str(value)
-
 
 def _split_filters(expr: str) -> Tuple[str, List[str]]:
     parts, buf, quote, depth = [], "", "", 0
@@ -172,7 +162,6 @@ def _split_filters(expr: str) -> Tuple[str, List[str]]:
     parts.append(buf.strip())
     return parts[0], [p for p in parts[1:] if p]
 
-
 def _filter_args(raw: str) -> Tuple[str, List[Any]]:
     m = re.match(r"^([a-zA-Zа-яА-ЯёЁ_]+)\s*(?:\((.*)\))?$", raw.strip(), re.S)
     if not m:
@@ -184,7 +173,6 @@ def _filter_args(raw: str) -> Tuple[str, List[Any]]:
         else:
             args.append((token[0] or token[1]).replace('\\"', '"').replace("\\'", "'").replace("\\n", "\n"))
     return m.group(1).lower(), args
-
 
 def _as_list(value: Any) -> List[Any]:
     if value is None or value == "":
@@ -208,12 +196,11 @@ def _as_list(value: Any) -> List[Any]:
         return [line.strip(" \t-•*") for line in text.splitlines() if line.strip(" \t-•*")]
     return [value]
 
-
 def item_line(item: Any) -> str:
     """One list row for Telegram / notifications: «Title — Company — url»."""
     if isinstance(item, dict):
         title = next((str(item[k]) for k in ("title", "name", "название", "заголовок", "vacancy", "position") if item.get(k)), "")
-        # Раунд 36: без повтора — «Junior Python (удалённо) — Acme — Acme», когда компания уже в заголовке
+
         extra = [str(item[k]) for k in ("company", "компания", "salary", "зарплата", "location", "город")
                  if item.get(k) and str(item[k]).strip().lower() not in title.lower()]
         url = next((str(item[k]) for k in ("url", "link", "ссылка", "href") if item.get(k)), "")
@@ -221,7 +208,6 @@ def item_line(item: Any) -> str:
             return ", ".join(f"{k}: {_stringify(v)}" for k, v in list(item.items())[:6])
         return " — ".join([x for x in [title, *extra] if x]) + (f"\n  {url}" if url else "")
     return _stringify(item)
-
 
 def _apply_filter(value: Any, name: str, args: List[Any]) -> Any:
     if name in ("json",):
@@ -284,17 +270,16 @@ def _apply_filter(value: Any, name: str, args: List[Any]) -> Any:
         return _stringify(value)
     return value
 
-
 class Ctx:
     """Variables of one run (what templates can read)."""
 
     def __init__(self, *, trigger: Optional[Dict[str, Any]] = None, task: Optional[Dict[str, Any]] = None,
                  run_id: str = "", lang: str = "ru") -> None:
-        self.steps: Dict[str, Dict[str, Any]] = {}      # step id → {result, text, status, error, answers}
-        self.numbers: Dict[str, str] = {}               # "3" / "4.1" → step id
-        self.names: Dict[str, str] = {}                 # alias → step id
+        self.steps: Dict[str, Dict[str, Any]] = {}
+        self.numbers: Dict[str, str] = {}
+        self.names: Dict[str, str] = {}
         self.vars: Dict[str, Any] = {}
-        self.locals: List[Dict[str, Any]] = []          # foreach frames: {as, item, loop}
+        self.locals: List[Dict[str, Any]] = []
         self.trigger = dict(trigger or {})
         self.task = {"id": str((task or {}).get("id") or ""), "name": str((task or {}).get("name") or "")}
         self.run_id = run_id
@@ -355,7 +340,7 @@ class Ctx:
             pos = m.end()
         if not segs:
             return False, None
-        # «step.<id>» / «step.3» / «шаг 3»
+
         if isinstance(segs[0], str) and ROOT_ALIASES.get(segs[0].lower(), segs[0].lower()) == "step" and len(segs) > 1:
             key = str(segs[1])
             sid = self.numbers.get(key) or (key if key in self.steps else None)
@@ -370,11 +355,11 @@ class Ctx:
             if not ok:
                 return False, None
             if len(segs) == 1 and _STEP_REF.match(str(segs[0])) and isinstance(value, dict):
-                return True, value.get("result")      # Раунд 36: «{{шаг2}}» = результат шага, а не вся запись
+                return True, value.get("result")
             segs = segs[1:]
         for seg in segs:
             if isinstance(seg, str) and seg.isdigit() and isinstance(value, (list, tuple)):
-                seg = int(seg)                        # «{{шаг1.результат.0.title}}» = «[0]»
+                seg = int(seg)
             if isinstance(seg, int):
                 items = _as_list(value)
                 if -len(items) <= seg < len(items):
@@ -439,7 +424,6 @@ class Ctx:
     def text(self, template: Any) -> str:
         return _stringify(self.render(template))
 
-
 def refs_in(value: Any) -> List[str]:
     """``{{…}}`` expressions in a step config (for validation / the variable picker)."""
     found: List[str] = []
@@ -452,7 +436,6 @@ def refs_in(value: Any) -> List[str]:
         for v in value:
             found += refs_in(v)
     return found
-
 
 def truthy(value: Any) -> bool:
     if isinstance(value, bool):
@@ -468,13 +451,11 @@ def truthy(value: Any) -> bool:
         return False
     return True
 
-
 def _num(value: Any) -> Optional[float]:
     try:
         return float(str(value).replace(",", ".").strip())
     except (TypeError, ValueError):
         return None
-
 
 def check_cond(cond: Dict[str, Any], ctx: Ctx) -> bool:
     op = str(cond.get("op") or "is_true")
@@ -511,16 +492,11 @@ def check_cond(cond: Dict[str, Any], ctx: Ctx) -> bool:
             return False
     return False
 
-
-# =========================================================================== normalization
-
 def _sid() -> str:
     return "s" + uuid.uuid4().hex[:7]
 
-
 def _clip(value: Any, limit: int = MAX_TEXT) -> str:
     return str(value if value is not None else "")[:limit]
-
 
 def _intv(value: Any, default: int, lo: int, hi: int) -> int:
     try:
@@ -528,7 +504,6 @@ def _intv(value: Any, default: int, lo: int, hi: int) -> int:
     except (TypeError, ValueError):
         return default
     return max(lo, min(hi, number))
-
 
 _TYPE_ALIASES = {"search": "web_search", "websearch": "web_search", "web": "web_search", "llm": "model", "prompt": "model",
                  "ai": "model", "decision": "decide", "condition": "if", "branch": "if", "loop": "foreach",
@@ -560,12 +535,12 @@ _FIELDS: Dict[str, Dict[str, Any]] = {
     "tool": {"action": "", "params": {}},
     "dfy": {"goal": "", "dfy_browser": ""},
     "memucode": {"project_path": "", "prompt": "", "permission_mode": "plan", "model": ""},
+    "team": {"team_id": "", "prompt": ""},
     "mcp_call": {"server": "", "tool": "", "args": {}, "approved": False},
     "integration": {"tool": "", "args": {}},
     "if": {"cond": {}},
     "foreach": {"items": "", "as": "item", "limit": 50},
 }
-
 
 def _norm_value(default: Any, value: Any) -> Any:
     if isinstance(default, bool):
@@ -582,9 +557,8 @@ def _norm_value(default: Any, value: Any) -> Any:
     if default is None:
         return value if isinstance(value, (dict, list)) else None
     if isinstance(value, (dict, list)):
-        return value       # e.g. memubase rows given as a literal list
+        return value
     return _clip(value if value is not None else default)
-
 
 def normalize_step(raw: Any, depth: int = 0, counter: Optional[List[int]] = None) -> Dict[str, Any]:
     counter = counter if counter is not None else [0]
@@ -599,7 +573,7 @@ def normalize_step(raw: Any, depth: int = 0, counter: Optional[List[int]] = None
         raise FlowError(f"Неизвестный тип шага «{kind or '?'}»", f"Unknown step type “{kind or '?'}”")
     sid = re.sub(r"[^0-9A-Za-z_-]", "", str(raw.get("id") or ""))[:24] or _sid()
     step: Dict[str, Any] = {"id": sid, "type": kind}
-    # «title» is a field of notify steps (the notification's title), a label everywhere else
+
     label = _clip(raw.get("label") or (raw.get("title") if "title" not in _FIELDS.get(kind, {}) else "") or "", 120).strip()
     if label:
         step["label"] = label
@@ -613,6 +587,8 @@ def normalize_step(raw: Any, depth: int = 0, counter: Optional[List[int]] = None
             value = raw.get("text") or raw.get("q") or ""
         if kind == "model" and key == "prompt" and not value:
             value = raw.get("text") or raw.get("task") or ""
+        if kind == "team" and key == "prompt" and not value:
+            value = raw.get("text") or raw.get("task") or ""
         if kind == "telegram" and key == "text" and not value:
             value = raw.get("message") or ""
         if kind == "foreach" and key == "items" and not value:
@@ -621,7 +597,7 @@ def normalize_step(raw: Any, depth: int = 0, counter: Optional[List[int]] = None
     if kind == "integration":
         from .schedule_integrations import normalize
         try:
-            # Empty selections are valid drafts; validation below prevents saving.
+
             if raw.get("tool"):
                 step.update(normalize(raw.get("tool"), raw.get("args", {})))
             elif not isinstance(raw.get("args", {}), dict):
@@ -688,7 +664,7 @@ def normalize_step(raw: Any, depth: int = 0, counter: Optional[List[int]] = None
     if kind == "foreach":
         step["body"] = [normalize_step(s, depth + 1, counter) for s in (raw.get("body") or raw.get("do") or raw.get("steps") or [])[:MAX_STEPS]
                         if isinstance(s, dict)]
-    # network / model steps retry once by default (a 503 of the provider is usually gone a few seconds later)
+
     step["retries"] = _intv(raw.get("retries"), 1 if kind in ("web_search", "model", "decide", "http", "memubase_query") else 0, 0, 5)
     step["retry_delay"] = _intv(raw.get("retry_delay"), 5, 1, 600)
     base_timeout = STEP_TYPES[kind]["timeout"]
@@ -698,7 +674,6 @@ def normalize_step(raw: Any, depth: int = 0, counter: Optional[List[int]] = None
     if raw.get("disabled") is True:
         step["disabled"] = True
     return step
-
 
 def normalize_steps(raw: Any) -> List[Dict[str, Any]]:
     if raw in (None, ""):
@@ -714,14 +689,12 @@ def normalize_steps(raw: Any) -> List[Dict[str, Any]]:
         seen.add(step["id"])
     return steps
 
-
 def walk(steps: List[Dict[str, Any]]):
     for step in steps or []:
         yield step
         for key in ("then", "else", "body"):
             if isinstance(step.get(key), list):
                 yield from walk(step[key])
-
 
 def numbering(steps: List[Dict[str, Any]], prefix: str = "") -> Dict[str, str]:
     """step id → its display number: top level 1, 2, 3; inside step 3: 3.1, 3.2 (then/else/body share)."""
@@ -734,17 +707,15 @@ def numbering(steps: List[Dict[str, Any]], prefix: str = "") -> Dict[str, str]:
             out.update(numbering(inner, number + "."))
     return out
 
-
-#: r36: validation names a field the way the builder labels it (flows.js formHtml)
 _FIELD_LABELS = {
     "query": ("Что искать", "Search for"), "model.prompt": ("Задание для модели", "Job for the model"),
     "question": ("Вопрос", "Question"), "text": ("Сообщение", "Message"), "items": ("Список", "List"),
     "table": ("Таблица", "Table"), "url": ("Адрес", "URL"), "command": ("Сценарий", "Scenario"),
     "action_id": ("Кнопка", "Button"), "action": ("Действие", "Action"), "goal": ("Что сделать в браузере", "What to do in the browser"),
-    "memucode.prompt": ("Задание", "Task"), "task_id": ("Задача", "Task"), "var": ("Имя переменной", "Variable name"),
+    "memucode.prompt": ("Задание", "Task"), "team.prompt": ("Задание для команды", "Task for the team"),
+    "task_id": ("Задача", "Task"), "var": ("Имя переменной", "Variable name"),
     "mcp_call.tool": ("Инструмент", "Tool"),
 }
-
 
 def validate_flow(steps: List[Dict[str, Any]], lang: str = "ru") -> List[Dict[str, str]]:
     """Problems the builder shows next to the step (never blocks saving except empty required fields)."""
@@ -753,7 +724,7 @@ def validate_flow(steps: List[Dict[str, Any]], lang: str = "ru") -> List[Dict[st
     names = {s["name"]: s["id"] for s in walk(steps) if s.get("name")}
     by_number = {v: k for k, v in numbers.items()}
     problems: List[Dict[str, str]] = []
-    required = {"web_search": "query", "model": "prompt", "decide": "question", "telegram": "text",
+    required = {"web_search": "query", "model": "prompt", "team": "prompt", "decide": "question", "telegram": "text",
                 "foreach": "items", "only_new": "items", "memubase_insert": "table", "memubase_query": "table",
                 "http": "url", "qa_command": "command", "qa_macro": "action_id", "tool": "action", "dfy": "goal",
                 "memucode": "prompt", "run_task": "task_id", "set": "var", "ask_user": "question", "mcp_call": "tool",
@@ -762,10 +733,13 @@ def validate_flow(steps: List[Dict[str, Any]], lang: str = "ru") -> List[Dict[st
         n = numbers.get(step["id"], "?")
         field = required.get(step["type"])
         if field and not str(step.get(field) or "").strip():
-            # r36: the builder's own field labels, not the internal key («заполните поле «query»»)
+
             label = _FIELD_LABELS.get(f"{step['type']}.{field}") or _FIELD_LABELS.get(field) or (field, field)
             problems.append({"step": step["id"], "level": "error",
                              "text": tr(lang, f"Шаг {n}: заполните поле «{label[0]}»", f"Step {n}: fill in “{label[1]}”")})
+        if step["type"] == "team" and not str(step.get("team_id") or "").strip():
+            problems.append({"step": step["id"], "level": "error",
+                             "text": tr(lang, f"Шаг {n}: выберите команду", f"Step {n}: choose a team")})
         if step["type"] == "if" and step["cond"]["mode"] == "decide" and not step["cond"]["question"].strip():
             problems.append({"step": step["id"], "level": "error", "text": tr(lang, f"Шаг {n}: какой вопрос задать модели решений?",
                                                                                f"Step {n}: what should the decision model answer?")})
@@ -801,14 +775,12 @@ def validate_flow(steps: List[Dict[str, Any]], lang: str = "ru") -> List[Dict[st
                     f"Step {n} uses the result of step {numbers.get(target)}, which comes later")})
     return problems
 
-
 def _is_ancestor(steps: List[Dict[str, Any]], ancestor: str, child: str) -> bool:
     for step in walk(steps):
         if step["id"] == ancestor:
             inner = (step.get("then") or []) + (step.get("else") or []) + (step.get("body") or [])
             return any(s["id"] == child for s in walk(inner))
     return False
-
 
 def autolink(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """For model-made flows: a model / decide step that reads nothing although an earlier step produced data
@@ -833,10 +805,8 @@ def autolink(steps: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     fix(steps, None)
     return steps
 
-
 def is_flow(task: Dict[str, Any]) -> bool:
     return isinstance(task.get("steps"), list) and bool(task.get("steps"))
-
 
 def task_to_flow(task: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Lazy migration: an old single-action task as a one-step flow (not saved until the user saves)."""
@@ -859,16 +829,19 @@ def task_to_flow(task: Dict[str, Any]) -> List[Dict[str, Any]]:
     if kind == "memucode":
         return normalize_steps([{"type": "memucode", "project_path": task.get("project_path") or "", "prompt": prompt,
                                  "permission_mode": task.get("permission_mode") or "plan", "model": task.get("model") or ""}])
+    if kind == "team":
+        steps = [{"type": "team", "team_id": task.get("team_id") or "", "prompt": prompt}]
+        if task.get("notify_telegram"):
+            steps.append({"type": "telegram", "text": "{{step1.text}}"})
+        return normalize_steps(steps)
     steps: List[Dict[str, Any]] = [{"type": "model", "prompt": prompt, "model": task.get("model") or ""}]
     if task.get("notify_telegram"):
         steps.append({"type": "telegram", "text": "{{step1.text}}"})
     return normalize_steps(steps)
 
-
 def legacy_convertible(task: Dict[str, Any]) -> bool:
     """Work-mode tasks keep the classic form (files, approval) — everything else can become steps."""
     return not (str(task.get("kind") or "chat") == "chat" and str(task.get("mode") or "") == "work")
-
 
 def _mcp_read_only(step: Dict[str, Any]) -> bool:
     """A test run executes an MCP step only when its tool is read-only and allowed without asking."""
@@ -881,7 +854,6 @@ def _mcp_read_only(step: Dict[str, Any]) -> bool:
     except Exception:
         return False
 
-
 def _integration_read_only(step: Dict[str, Any]) -> bool:
     try:
         from .connected_services import write_tools
@@ -891,7 +863,6 @@ def _integration_read_only(step: Dict[str, Any]) -> bool:
     except Exception:
         return False
 
-
 def describe(step: Dict[str, Any], lang: str = "ru") -> str:
     """One short line about a step (run log, Mini App, NL card)."""
     meta = STEP_TYPES.get(step.get("type"), {})
@@ -900,7 +871,7 @@ def describe(step: Dict[str, Any], lang: str = "ru") -> str:
     detail = ""
     if t == "web_search":
         detail = step.get("query", "")
-    elif t in ("model",):
+    elif t in ("model", "team"):
         detail = step.get("prompt", "")
     elif t == "decide":
         detail = step.get("question", "")
@@ -936,9 +907,6 @@ def describe(step: Dict[str, Any], lang: str = "ru") -> str:
     detail = re.sub(r"\s+", " ", str(detail or "")).strip()
     return f"{title}: {detail[:90]}" if detail and detail != title else str(title)
 
-
-# =========================================================================== storage
-
 def _memu_dir() -> Path:
     try:
         from .pgdata import MEMU_DIR
@@ -946,12 +914,10 @@ def _memu_dir() -> Path:
     except Exception:   # pragma: no cover
         return Path(os.environ.get("MEMUAI_DATA_DIR") or ".") / "memuai"
 
-
 def runs_dir() -> Path:
     path = _memu_dir() / "flow_runs"
     path.mkdir(parents=True, exist_ok=True)
     return path
-
 
 def _run_path(run_id: str) -> Path:
     safe = re.sub(r"[^0-9A-Za-z_-]", "", run_id)[:40]
@@ -959,11 +925,9 @@ def _run_path(run_id: str) -> Path:
         raise FlowError("Неверный id запуска", "Bad run id")
     return runs_dir() / f"{safe}.json"
 
-
 def _index_entry(run: Dict[str, Any]) -> Dict[str, Any]:
     return {k: run.get(k) for k in ("id", "task_id", "task_name", "status", "dry_run", "started", "finished",
                                     "trigger", "boot", "summary", "wait_kind", "wake_at", "form_id")}
-
 
 def save_run(run: Dict[str, Any]) -> None:
     from .storage import mutate_json, save_json
@@ -986,7 +950,6 @@ def save_run(run: Dict[str, Any]) -> None:
     mutate_json(runs_dir() / "index.json", {"runs": []}, upd, backup=False,
                 validator=lambda v: isinstance(v, dict), repair_invalid=True)
 
-
 def load_run(run_id: str) -> Optional[Dict[str, Any]]:
     from .storage import load_json_with_recovery
     try:
@@ -997,7 +960,6 @@ def load_run(run_id: str) -> Optional[Dict[str, Any]]:
         return None
     data = load_json_with_recovery(path, None)
     return data if isinstance(data, dict) else None
-
 
 def list_runs(task_id: str = "", limit: int = 30, *, status: str = "") -> List[Dict[str, Any]]:
     from .storage import load_json_with_recovery
@@ -1010,7 +972,6 @@ def list_runs(task_id: str = "", limit: int = 30, *, status: str = "") -> List[D
         rows = [r for r in rows if r.get("status") in wanted]
     return rows[:max(1, limit)]
 
-
 def update_run(run_id: str, **fields: Any) -> Optional[Dict[str, Any]]:
     run = load_run(run_id)
     if run is None:
@@ -1019,19 +980,14 @@ def update_run(run_id: str, **fields: Any) -> Optional[Dict[str, Any]]:
     save_run(run)
     return run
 
-
-# ---- «only new»: seen keys per task (committed only when the run finishes successfully)
-
 def _seen_path() -> Path:
     return _memu_dir() / "flow_state.json"
-
 
 def seen_keys(task_id: str, step_id: str) -> set:
     from .storage import load_json_with_recovery
     data = load_json_with_recovery(_seen_path(), {}, validator=lambda v: isinstance(v, dict))
     bucket = ((data.get(task_id) or {}).get(step_id) or {}) if isinstance(data, dict) else {}
     return set(bucket.keys()) if isinstance(bucket, dict) else set()
-
 
 def commit_seen(task_id: str, marks: Dict[str, List[str]]) -> None:
     if not marks:
@@ -1046,13 +1002,12 @@ def commit_seen(task_id: str, marks: Dict[str, List[str]]) -> None:
             bucket = task.setdefault(step_id, {})
             for key in keys:
                 bucket[key] = now
-            if len(bucket) > 5000:      # keep the newest 5000 keys per step
+            if len(bucket) > 5000:
                 for old in sorted(bucket, key=bucket.get)[:len(bucket) - 5000]:
                     bucket.pop(old, None)
         return True, data
 
     mutate_json(_seen_path(), {}, upd, backup=False, validator=lambda v: isinstance(v, dict), repair_invalid=True)
-
 
 def forget_seen(task_id: str) -> None:
     from .storage import mutate_json
@@ -1062,7 +1017,6 @@ def forget_seen(task_id: str) -> None:
         return data.pop(task_id, None) is not None, data
 
     mutate_json(_seen_path(), {}, upd, backup=False, validator=lambda v: isinstance(v, dict), repair_invalid=True)
-
 
 def item_key(item: Any, key: str = "") -> str:
     if key and isinstance(item, dict):
@@ -1076,9 +1030,6 @@ def item_key(item: Any, key: str = "") -> str:
         value = _stringify(item)
     return hashlib.sha1(re.sub(r"\s+", " ", str(value)).strip().lower().encode("utf-8")).hexdigest()[:20]
 
-
-# ---- MemuBase (local tables). A real ``app.memubase`` module, when present, is used instead.
-
 def _memubase_module():
     try:
         from . import memubase  # type: ignore[attr-defined]
@@ -1088,7 +1039,6 @@ def _memubase_module():
         pass
     return None
 
-
 def _table_path(table: str) -> Path:
     safe = re.sub(r"[^0-9A-Za-zА-Яа-яЁё_ -]", "", table).strip()[:60]
     if not safe:
@@ -1096,7 +1046,6 @@ def _table_path(table: str) -> Path:
     path = _memu_dir() / "memubase"
     path.mkdir(parents=True, exist_ok=True)
     return path / f"{safe}.json"
-
 
 def memubase_insert(table: str, rows: List[Dict[str, Any]], unique: str = "") -> Dict[str, Any]:
     module = _memubase_module()
@@ -1123,7 +1072,6 @@ def memubase_insert(table: str, rows: List[Dict[str, Any]], unique: str = "") ->
                 validator=lambda v: isinstance(v, dict), repair_invalid=True)
     return box
 
-
 def memubase_query(table: str, where: Dict[str, Any], search: str = "", limit: int = 50) -> List[Dict[str, Any]]:
     module = _memubase_module()
     if module is not None:
@@ -1143,7 +1091,6 @@ def memubase_query(table: str, where: Dict[str, Any], search: str = "", limit: i
             break
     return out
 
-
 def memubase_tables() -> List[Dict[str, Any]]:
     module = _memubase_module()
     if module is not None and hasattr(module, "tables"):
@@ -1160,9 +1107,6 @@ def memubase_tables() -> List[Dict[str, Any]]:
             rows = []
         out.append({"name": file.stem, "rows": len(rows)})
     return out
-
-
-# =========================================================================== services (injectable)
 
 def _public_url(url: str) -> str:
     """HTTP(S) to a public host only (SSRF guard: localhost / LAN / link-local refused, also after DNS)."""
@@ -1181,7 +1125,6 @@ def _public_url(url: str) -> str:
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast or ip.is_unspecified:
             raise StepFailed("Запросы к локальным и внутренним адресам запрещены")
     return url
-
 
 class Services:
     """Everything a step touches outside the engine. Tests replace methods; the Proxy uses the defaults."""
@@ -1294,6 +1237,10 @@ class Services:
         from .schedule_runtime import _memucode
         return await _memucode(payload)
 
+    async def team(self, payload: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
+        from .schedule_runtime import _team
+        return await _team(payload)
+
     async def run_task(self, task_id: str) -> Tuple[bool, str]:
         from .pgdata import load_schedules, load_schedule_results
         tasks = await asyncio.to_thread(load_schedules)
@@ -1339,7 +1286,7 @@ class Services:
             state = aut.new_state(form_id, form, self.lang)
             previous = aut._ACTIVE.get(chat_id)
             if previous and previous.get("id") != form_id:
-                return False            # the chat already waits for another form: the Inbox still has this one
+                return False
             aut._ACTIVE[chat_id] = state
             text, markup = aut.render(state)
             head = "🗓 <b>" + (tr(self.lang, "Планирование · ", "Planning · ") + title)[:120].replace("<", "&lt;") + "</b>\n"
@@ -1374,13 +1321,9 @@ class Services:
         from .schedule_runtime import notify
         await notify(task, ok, text, windows=not ok)
 
-
-# =========================================================================== engine
-
 _JSON_SYSTEM = ("Return ONLY valid JSON (no prose, no code fence). Take facts only from the given data, never invent them; "
                 "when a field of a matching item is unknown, put an empty string there instead of dropping the item. "
                 "If nothing matches, return an empty array/object of the requested shape.")
-
 
 def _extract_json(text: str) -> Any:
     source = re.sub(r"<think>[\s\S]*?</think>", "", str(text or "")).strip()
@@ -1400,7 +1343,6 @@ def _extract_json(text: str) -> Any:
             except ValueError:
                 continue
     raise ValueError("no JSON in the answer")
-
 
 def schema_errors(value: Any, schema: Dict[str, Any], path: str = "$") -> List[str]:
     """A small JSON-schema subset: type, properties, required, items, enum, minItems/maxItems."""
@@ -1434,11 +1376,9 @@ def schema_errors(value: Any, schema: Dict[str, Any], path: str = "$") -> List[s
                 errors += schema_errors(item, schema["items"], f"{path}[{i}]")
     return errors[:20]
 
-
 def _preview(value: Any, limit: int = 4000) -> str:
     text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False, indent=1) if value is not None else ""
     return text if len(text) <= limit else text[:limit] + "…"
-
 
 def _cap(value: Any) -> Any:
     try:
@@ -1458,7 +1398,6 @@ def _cap(value: Any) -> Any:
         return out
     return raw[:MAX_OUTPUT]
 
-
 class FlowRunner:
     """Executes (or resumes) one run of a flow."""
 
@@ -1472,16 +1411,15 @@ class FlowRunner:
         self.ctx.numbers = {v: k for k, v in numbering(self.steps).items()}
         self.ctx.names = {s["name"]: s["id"] for s in walk(self.steps) if s.get("name")}
         self.numbers = numbering(self.steps)
-        self.done: Dict[str, Any] = run.setdefault("done", {})       # replay key → {"result", "text", "status"}
+        self.done: Dict[str, Any] = run.setdefault("done", {})
         self.dry = bool(run.get("dry_run"))
         self.stepwise = bool(run.get("stepwise"))
         self.cancel = asyncio.Event()
-        # replayed vars
+
         for key, rec in self.done.items():
             if isinstance(rec, dict) and rec.get("var"):
                 self.ctx.vars[rec["var"]] = rec.get("result")
 
-    # ---- log
     def _log(self, entry: Dict[str, Any]) -> None:
         log_rows = self.run.setdefault("log", [])
         for i, row in enumerate(log_rows):
@@ -1506,7 +1444,6 @@ class FlowRunner:
         if rec.get("var"):
             self.ctx.vars[rec["var"]] = rec.get("result")
 
-    # ---- run
     async def execute(self) -> Dict[str, Any]:
         run = self.run
         run["status"] = "running"
@@ -1580,7 +1517,7 @@ class FlowRunner:
     def final_output(self) -> str:
         """The last message-like output (what was sent / the last model answer)."""
         for row in reversed(self.run.get("log") or []):
-            if row.get("type") in ("telegram", "notify", "model") and row.get("status") in ("ok", "simulated") and row.get("sent"):
+            if row.get("type") in ("telegram", "notify", "model", "team") and row.get("status") in ("ok", "simulated") and row.get("sent"):
                 return str(row.get("sent"))[:6000]
         return ""
 
@@ -1597,7 +1534,7 @@ class FlowRunner:
         title = step.get("label") or STEP_TYPES[step["type"]]["en" if self.lang == "en" else "ru"]
         rec = self.done.get(key)
         if isinstance(rec, dict) and rec.get("status") in ("ok", "error", "simulated", "skipped") and step["type"] not in CONTAINERS:
-            self._set_output(step, rec)        # replay: finished before a pause / restart
+            self._set_output(step, rec)
             return
         if step["type"] in CONTAINERS:
             await self._container(step, key, depth, number, title)
@@ -1719,7 +1656,7 @@ class FlowRunner:
             branch = step.get(rec["branch"]) or []
             await self._block(branch, key + "/" + rec["branch"][0] + "/", depth + 1)
             return
-        # foreach
+
         rec = self.done.get(key)
         if isinstance(rec, dict) and isinstance(rec.get("items"), list):
             items = rec["items"]
@@ -1786,7 +1723,6 @@ class FlowRunner:
             answer = next((o for o in options if str(answer).lower() == o.lower()), options[0])
         return answer, reason[:500]
 
-    # ---- one step
     async def _exec(self, step: Dict[str, Any], entry: Dict[str, Any], key: str) -> Dict[str, Any]:
         t = step["type"]
         r = self.ctx.render
@@ -1942,6 +1878,13 @@ class FlowRunner:
             if not ok:
                 raise StepFailed(out[:600] or "MemuCode failed")
             return {"result": out}
+        if t == "team":
+            ok, out, extra = await self.sv.team({"team_id": text(step["team_id"]), "prompt": text(step["prompt"]),
+                                                 "name": self.task.get("name"), "id": self.task.get("id"), "lang": self.lang})
+            if not ok:
+                raise StepFailed(out[:600] or "Team run failed")
+            return {"result": out, "text": out, "sent": out, "short": _preview(out.replace("\n", " "), 100),
+                    "input": text(step["prompt"])}
         raise StepFailed(f"unknown step {t}")
 
     async def _mcp_call(self, step: Dict[str, Any]) -> Dict[str, Any]:
@@ -2046,7 +1989,7 @@ class FlowRunner:
                 problem = "; ".join(errors)
             except ValueError as exc:
                 problem = str(exc)
-            if attempt == 0:   # one repair round with the validation error
+            if attempt == 0:
                 messages = messages + [{"role": "assistant", "content": raw[:8000]},
                                        {"role": "user", "content": f"That JSON is not valid ({problem[:500]}). "
                                                                    "Return only the corrected JSON."}]
@@ -2071,7 +2014,7 @@ class FlowRunner:
         record = await asyncio.to_thread(self.sv.form_state, form_id)
         deadline = float((self.run.get("asked_at") or {}).get(key) or time.time()) + step.get("timeout_hours", 12) * 3600
         if self.dry and record and record.get("status") == "pending":
-            # an interactive test waits right here (up to 10 min) instead of parking the run
+
             limit = time.time() + 600
             while record and record.get("status") == "pending" and time.time() < limit:
                 await asyncio.sleep(0.7)
@@ -2101,7 +2044,6 @@ class FlowRunner:
                 "short": (tr(self.lang, "ответ: ", "answer: ") + _preview(single, 80)) if status == "answered" else
                 tr(self.lang, "без ответа — по умолчанию", "no answer — default")}
 
-
 def _transform(value: Any, how: str) -> Any:
     if how == "json":
         if isinstance(value, str):
@@ -2114,9 +2056,6 @@ def _transform(value: Any, how: str) -> Any:
         return _apply_filter(value, how, [])
     return value
 
-
-# =========================================================================== public API
-
 def new_run(task: Dict[str, Any], *, trigger: Optional[Dict[str, Any]] = None, dry_run: bool = False,
             stepwise: bool = False, lang: str = "ru") -> Dict[str, Any]:
     steps = task_to_flow(task)
@@ -2124,8 +2063,7 @@ def new_run(task: Dict[str, Any], *, trigger: Optional[Dict[str, Any]] = None, d
         raise FlowError("В задаче нет шагов", "The task has no steps")
     trig = dict(trigger or {})
     payload = trig.get("payload") if isinstance(trig.get("payload"), dict) else {}
-    # Round 35 (finish-c): «source» = the actual event type (gmail.new_email, process_start…); «trigger» is the
-    # history badge ("event"/"time"/"manual"/"task_done") and the fallback.
+
     trigger_payload = {**payload, "type": str(trig.get("source") or payload.get("type") or trig.get("trigger")
                                               or trig.get("type") or "manual"),
                        "at": trig.get("at") or datetime.now().isoformat(timespec="seconds"), "payload": payload}
@@ -2134,10 +2072,8 @@ def new_run(task: Dict[str, Any], *, trigger: Optional[Dict[str, Any]] = None, d
             "trigger": trigger_payload["type"], "trigger_payload": trigger_payload, "meta": {k: v for k, v in trig.items() if k != "payload"},
             "started": time.time(), "finished": None, "log": [], "done": {}, "version": FLOW_VERSION}
 
-
 _ACTIVE: Dict[str, "asyncio.Task[Any]"] = {}
 _RUNNERS: Dict[str, FlowRunner] = {}
-
 
 async def execute_run(task: Dict[str, Any], run: Dict[str, Any], services: Optional[Services] = None,
                       *, record: bool = True) -> Dict[str, Any]:
@@ -2168,7 +2104,6 @@ async def execute_run(task: Dict[str, Any], run: Dict[str, Any], services: Optio
                 log.info("flow: delivery failed: %s", exc)
     return result
 
-
 async def run_task_flow(task: Dict[str, Any], meta: Optional[Dict[str, Any]] = None,
                         services: Optional[Services] = None) -> Dict[str, Any]:
     """Entry point of the scheduler for a task with ``steps``."""
@@ -2183,16 +2118,14 @@ async def run_task_flow(task: Dict[str, Any], meta: Optional[Dict[str, Any]] = N
     run = new_run(task, trigger=meta or {}, lang=lang)
     return await execute_run(task, run, services)
 
-
 def _task_by_id(task_id: str) -> Optional[Dict[str, Any]]:
     from .pgdata import load_schedules
     return next((t for t in load_schedules() if str(t.get("id")) == str(task_id)), None)
 
-
 def _ready_to_resume(run: Dict[str, Any], services: Services) -> bool:
     wait = run.get("wait") or {}
     if run.get("status") == "running":
-        return run.get("boot") != PROCESS_BOOT      # interrupted by a restart
+        return run.get("boot") != PROCESS_BOOT
     if run.get("status") != "waiting":
         return False
     if wait.get("kind") == "wait":
@@ -2203,7 +2136,6 @@ def _ready_to_resume(run: Dict[str, Any], services: Services) -> bool:
         record = services.form_state(str(wait.get("form_id") or ""))
         return record is None or record.get("status") != "pending"
     return False
-
 
 async def resume_pending(services_factory: Optional[Callable[[], Services]] = None) -> int:
     """Called by the scheduler loop: resumes answered / woken / interrupted real runs (never dry runs)."""
@@ -2235,12 +2167,10 @@ async def resume_pending(services_factory: Optional[Callable[[], Services]] = No
         started += 1
     return started
 
-
 def start_background(task: Dict[str, Any], run: Dict[str, Any], services: Services, *, record: bool = True) -> None:
     job = asyncio.ensure_future(execute_run(task, run, services, record=record))
     _ACTIVE[run["id"]] = job
     job.add_done_callback(lambda _j, key=run["id"]: _ACTIVE.pop(key, None))
-
 
 def cancel_run(run_id: str) -> bool:
     run = load_run(run_id)
@@ -2263,7 +2193,6 @@ def cancel_run(run_id: str) -> bool:
     save_run(run)
     return True
 
-
 def continue_run(run_id: str, *, all_steps: bool = False) -> bool:
     run = load_run(run_id)
     if not run or run.get("status") not in ("paused", "running"):
@@ -2275,11 +2204,9 @@ def continue_run(run_id: str, *, all_steps: bool = False) -> bool:
     save_run(run)
     return True
 
-
 def step_catalog(lang: str = "ru") -> List[Dict[str, Any]]:
     return [{"type": k, "cat": v["cat"], "title": v["en" if lang == "en" else "ru"], "icon": v["icon"], "side_effect": v["side"],
              "fields": list(_FIELDS.get(k, {}).keys())} for k, v in STEP_TYPES.items()]
-
 
 def variables_for(steps: List[Dict[str, Any]], before: str = "", lang: str = "ru") -> List[Dict[str, str]]:
     """The variable picker: what a step can use (results of earlier steps, loop item, trigger, now)."""

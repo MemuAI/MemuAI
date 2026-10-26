@@ -21,7 +21,7 @@ import re
 import zipfile
 from typing import Dict, List, Optional, Tuple
 from xml.etree import ElementTree as ET
-from .sheets import safe_fromstring  # Round 31: no <!ENTITY> expansion (billion laughs)
+from .sheets import safe_fromstring
 from xml.sax.saxutils import escape
 
 from .richhtml import Block, Cell, Para, Rule, Run, Table, norm_color, safe_link
@@ -35,12 +35,10 @@ V = "urn:schemas-microsoft-com:vml"
 MC = "http://schemas.openxmlformats.org/markup-compatibility/2006"
 PKG_REL = "http://schemas.openxmlformats.org/package/2006/relationships"
 
-MAX_PART = 200 * 1024 * 1024      # refuse zip bombs: a single XML part above this is not parsed
-
+MAX_PART = 200 * 1024 * 1024
 
 def q(ns: str, tag: str) -> str:
     return "{%s}%s" % (ns, tag)
-
 
 HIGHLIGHT = {"yellow": "#ffff00", "green": "#00ff00", "cyan": "#00ffff", "magenta": "#ff00ff", "blue": "#0000ff",
              "red": "#ff0000", "darkBlue": "#000080", "darkCyan": "#008080", "darkGreen": "#008000",
@@ -51,10 +49,8 @@ MIME = {"png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "i
         "webp": "image/webp", "svg": "image/svg+xml", "tif": "image/tiff", "tiff": "image/tiff",
         "emf": "image/emf", "wmf": "image/wmf"}
 
-
 class DocxError(ValueError):
     pass
-
 
 def _read_part(archive: zipfile.ZipFile, name: str) -> Optional[bytes]:
     try:
@@ -65,7 +61,6 @@ def _read_part(archive: zipfile.ZipFile, name: str) -> Optional[bytes]:
         raise DocxError(f"{name} is too large")
     return archive.read(info)
 
-
 def _rels(archive: zipfile.ZipFile, part: str) -> Dict[str, Tuple[str, str]]:
     folder, _, base = part.rpartition("/")
     data = _read_part(archive, f"{folder}/_rels/{base}.rels" if folder else f"_rels/{base}.rels")
@@ -75,7 +70,6 @@ def _rels(archive: zipfile.ZipFile, part: str) -> Dict[str, Tuple[str, str]]:
     for rel in safe_fromstring(data):
         out[rel.get("Id", "")] = (rel.get("Target", ""), rel.get("TargetMode", ""))
     return out
-
 
 def _resolve(folder: str, target: str) -> str:
     if target.startswith("/"):
@@ -90,7 +84,6 @@ def _resolve(folder: str, target: str) -> str:
             out.append(part)
     return "/".join(out)
 
-
 def _main_part(archive: zipfile.ZipFile) -> str:
     data = _read_part(archive, "_rels/.rels")
     if data:
@@ -98,7 +91,6 @@ def _main_part(archive: zipfile.ZipFile) -> str:
             if rel.get("Type", "").endswith("/officeDocument"):
                 return _resolve("", rel.get("Target", ""))
     return "word/document.xml"
-
 
 class _Reader:
     def __init__(self, data: bytes) -> None:
@@ -203,7 +195,6 @@ class _Reader:
             sid = style["based"]
         return "p"
 
-    # ---------------------------------------------------------------- body
     def blocks(self) -> List[Block]:
         body = self.doc.find(q(W, "body"))
         out: List[Block] = []
@@ -273,7 +264,7 @@ class _Reader:
                     para.list = self.numbering.get((nid, level), "ul")
         breaks: List[Rule] = []
         self._inline(element, para, Run(), breaks)
-        if not (breaks and not para.runs):        # a paragraph that only holds a page break
+        if not (breaks and not para.runs):
             out.append(para)
         out.extend(breaks)
 
@@ -395,7 +386,6 @@ class _Reader:
             elif tag in (q(W, "ins"), q(W, "smartTag"), q(W, "fldSimple"), q(W, "customXml"), q(W, "sdt"),
                          q(W, "sdtContent"), q(W, "bdo"), q(W, "dir")):
                 self._inline(child, para, base, breaks)
-            # w:del, w:proofErr, w:bookmark*, w:commentRange* are skipped
 
     @staticmethod
     def _append(para: Para, run: Run) -> None:
@@ -430,7 +420,6 @@ class _Reader:
                 out[name] = child.text.strip()[:500]
         return out
 
-
 def read_docx(data: bytes) -> Tuple[List[Block], dict]:
     from .richhtml import tidy
     reader = _Reader(data)
@@ -438,13 +427,9 @@ def read_docx(data: bytes) -> Tuple[List[Block], dict]:
     meta = {"page": reader.page_setup(), "properties": reader.properties(), "images": reader.images}
     return blocks, meta
 
-
 def docx_text(data: bytes) -> str:
     from .richhtml import to_text
     return to_text(read_docx(data)[0])
-
-
-# ======================================================================================= writer
 
 _STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="%(W)s">
@@ -464,7 +449,6 @@ _STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 
 _HEADING_SIZES = {1: 32, 2: 28, 3: 26, 4: 24, 5: 22, 6: 22}
 
-
 def _styles_xml() -> str:
     headings = []
     for level in range(1, 7):
@@ -476,7 +460,6 @@ def _styles_xml() -> str:
             f'<w:rPr><w:b/><w:sz w:val="{_HEADING_SIZES[level]}"/><w:szCs w:val="{_HEADING_SIZES[level]}"/>'
             f'{color}</w:rPr></w:style>')
     return _STYLES % {"W": W, "headings": "\n".join(headings)}
-
 
 def _numbering_xml(nums: List[Tuple[int, str]]) -> str:
     bullets = ["\u2022", "\u25e6", "\u25aa"]
@@ -501,26 +484,22 @@ def _numbering_xml(nums: List[Tuple[int, str]]) -> str:
     out.append("</w:numbering>")
     return "".join(out)
 
-
 def _attr(value: str) -> str:
     return escape(str(value), {'"': "&quot;"})
 
-
 _XML_BAD = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]")
-
 
 def _text(value: str) -> str:
     return escape(_XML_BAD.sub("", value))
 
-
 class _Writer:
     def __init__(self, page: Optional[dict] = None) -> None:
-        self.rels: List[Tuple[str, str, str, str]] = []    # id, type, target, mode
+        self.rels: List[Tuple[str, str, str, str]] = []
         self.media: List[Tuple[str, bytes]] = []
         self.nums: List[Tuple[int, str]] = []
         self.page = page or {}
         self.drawing_id = 0
-        self._rid = 3       # rId1 styles, rId2 numbering, rId3 settings
+        self._rid = 3
 
     def rid(self) -> str:
         self._rid += 1
@@ -611,7 +590,7 @@ class _Writer:
                     width, height = size
             else:
                 width, height = width or 320, height or 240
-        max_width = 624      # 6.5 in at 96 dpi: the text width of A4/Letter with default margins
+        max_width = 624
         if width > max_width:
             height = int(height * max_width / width)
             width = max_width
@@ -698,7 +677,7 @@ class _Writer:
                 continue
             prev_list = ""
             if isinstance(block, Table) and out and out[-1].startswith("<w:tbl>"):
-                out.append("<w:p/>")          # two tables in a row would merge into one in Word
+                out.append("<w:p/>")
             if isinstance(block, Rule):
                 out.append('<w:p><w:r><w:br w:type="page"/></w:r></w:p>' if block.page_break else
                            '<w:p><w:pPr><w:pBdr><w:bottom w:val="single" w:sz="6" w:space="1" w:color="BFBFBF"/>'
@@ -718,7 +697,6 @@ class _Writer:
         margin_xml = " ".join(f'w:{k}="{_attr(v)}"' for k, v in margin.items() if re.fullmatch(r"\w+", k))
         out.append(f"<w:sectPr><w:pgSz {size_xml}/><w:pgMar {margin_xml}/></w:sectPr>")
         return "".join(out)
-
 
 def _image_size(data: bytes) -> Optional[Tuple[int, int]]:
     if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
@@ -740,10 +718,8 @@ def _image_size(data: bytes) -> Optional[Tuple[int, int]]:
         return int.from_bytes(data[18:22], "little"), abs(int.from_bytes(data[22:26], "little", signed=True))
     return None
 
-
 _HF_TYPES = {"headerReference": ("header", "application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"),
              "footerReference": ("footer", "application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml")}
-
 
 def _carry_headers(original: bytes) -> dict:
     """Headers/footers of the original document, copied verbatim into the rewritten package.
@@ -801,7 +777,7 @@ def _carry_headers(original: bytes) -> dict:
                     media = None
                 ext = media_part.rsplit(".", 1)[-1].lower() if "." in media_part else ""
                 if not media or ext not in MIME:
-                    continue          # only pictures are carried; other targets would dangle
+                    continue
                 media_name = f"media/mn_{kind}{count}_{len(items) + 1}.{ext}"
                 out["parts"].append((f"word/{media_name}", media))
                 out["defaults"][ext] = MIME[ext]
@@ -818,7 +794,6 @@ def _carry_headers(original: bytes) -> dict:
         out["overrides"].append(f'<Override PartName="/word/{name}" ContentType="{ctype}"/>')
     return out
 
-
 def _original_core(original: bytes) -> Dict[str, str]:
     """creator / created of the original (a save must not claim MemuNote wrote the document)."""
     try:
@@ -832,7 +807,6 @@ def _original_core(original: bytes) -> Dict[str, str]:
         if local in ("creator", "created", "subject", "keywords", "description", "lastModifiedBy") and child.text:
             out[local] = child.text.strip()[:500]
     return out
-
 
 def write_docx(blocks: List[Block], title: str = "", original: Optional[bytes] = None) -> bytes:
     page = {}

@@ -20,10 +20,10 @@ An enabled module gets a button. Where it sits is the author's `launcher.slot`, 
 
 ## Order
 
-`launcher.order` sets the position inside a slot: lower comes first. In the settings section the order is changed by dragging, which overwrites this value.
+`launcher.order` sets the position inside a slot: lower comes first. Authors set this value in their package’s `manifest.json`.
 
 ## What the person sees
 
-Each module card has an enable switch, a hide-button checkbox, a slot picker and an "Open" button. All of it lives in `state.json` and survives restarts and MemuAI updates.
+Select a module in the library on the left. The right side has an enable switch, shortcut visibility, a slot picker and “Open module”. All of it lives in `state.json` and survives restarts and MemuAI updates. “Customize sidebar” controls individual module shortcuts using the same settings.
 
 > A module button is not a menu entry and not a separate window. It is how you open the module window inside MemuAI. If the button is hidden, the window is still reachable from the settings section.

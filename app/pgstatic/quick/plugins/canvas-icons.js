@@ -1,5 +1,5 @@
-/* Round 27 (r27-quick-canvas): built-in icons of the Quick Actions buttons. 24×24, stroke = currentColor.
-   Shared by canvas.js (the window) and canvas-settings.js (MemuAI → Settings). */
+
+
 (function () {
   "use strict";
   const P = {

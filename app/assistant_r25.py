@@ -86,13 +86,11 @@ NEW_ACTIONS: List[Dict[str, Any]] = [
       windows=False),
 ]
 NEW_IDS = [a["id"] for a in NEW_ACTIONS]
-#: Read-only answers: allowed for phrases that look like questions («сколько дней до …?»).
+
 QUESTION_OK = {"color.convert", "text.stats", "date.calc", "time.zone", "hash.text"}
-#: The user's text is never written to the action journal.
+
 NO_AUDIT_PARAMS = {"text.encode", "json.format", "hash.text", "text.case", "text.stats"}
 
-
-# ================================================================== colour
 def parse_color(value: str) -> Optional[Tuple[int, int, int, Optional[float]]]:
     """``#rgb``, ``#rgba``, ``#rrggbb``, ``#rrggbbaa``, ``rgb()/rgba()``, ``hsl()/hsla()`` → (r, g, b, alpha|None)."""
     text = str(value or "").strip().lower().replace(" ", "")
@@ -116,13 +114,11 @@ def parse_color(value: str) -> Optional[Tuple[int, int, int, Optional[float]]]:
         return int(round(r * 255)), int(round(g * 255)), int(round(b * 255)), _alpha(m.group(4))
     return None
 
-
 def _alpha(value: Optional[str]) -> Optional[float]:
     if not value:
         return None
     a = float(value[:-1]) / 100 if value.endswith("%") else float(value)
     return round(min(1.0, max(0.0, a)), 3)
-
 
 def color_forms(r: int, g: int, b: int, alpha: Optional[float] = None) -> Dict[str, str]:
     h, l, s = colorsys.rgb_to_hls(r / 255, g / 255, b / 255)
@@ -134,15 +130,12 @@ def color_forms(r: int, g: int, b: int, alpha: Optional[float] = None) -> Dict[s
     return {"hex": hex_ + "%02x" % int(round(alpha * 255)), "rgb": f"rgba({r}, {g}, {b}, {a})",
             "hsl": f"hsla({hsl[0]}, {hsl[1]}%, {hsl[2]}%, {a})"}
 
-
-# ================================================================== text tools
 def b64_decode(text: str) -> str:
     raw = re.sub(r"\s+", "", text)
-    raw = raw.replace("-", "+").replace("_", "/")      # URL-safe alphabet too
+    raw = raw.replace("-", "+").replace("_", "/")
     raw += "=" * (-len(raw) % 4)
     data = base64.b64decode(raw, validate=True)
     return data.decode("utf-8")
-
 
 def looks_base64(text: str) -> bool:
     raw = re.sub(r"\s+", "", text)
@@ -153,7 +146,6 @@ def looks_base64(text: str) -> bool:
     except (binascii.Error, ValueError, UnicodeDecodeError):
         return False
     return bool(out) and all(ch.isprintable() or ch in "\r\n\t" for ch in out)
-
 
 def encode_text(text: str, codec: str, op: str = "auto") -> Tuple[str, str]:
     """→ (result, op actually done). Raises ``ValueError("not_base64" | "not_utf8")`` on bad input."""
@@ -172,7 +164,6 @@ def encode_text(text: str, codec: str, op: str = "auto") -> Tuple[str, str]:
             raise ValueError("not_base64") from None
     return base64.b64encode(text.encode("utf-8")).decode("ascii"), op
 
-
 def format_json(text: str, mode: str = "pretty") -> str:
     """Pretty-print or minify; a syntax error propagates as ``json.JSONDecodeError`` (line, column, message)."""
     data = json.loads(text)
@@ -180,17 +171,14 @@ def format_json(text: str, mode: str = "pretty") -> str:
         return json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     return json.dumps(data, ensure_ascii=False, indent=2)
 
-
 def hash_text(text: str, algo: str = "sha256") -> str:
     return hashlib.new(algo, text.encode("utf-8")).hexdigest()
-
 
 _TRANSLIT = {
     "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "yo", "ж": "zh", "з": "z", "и": "i", "й": "y",
     "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f",
     "х": "kh", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "shch", "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
 }
-
 
 def translit(text: str) -> str:
     out = []
@@ -203,11 +191,9 @@ def translit(text: str) -> str:
             out.append(ch)
     return "".join(out)
 
-
 def _words(text: str) -> List[str]:
-    spaced = re.sub(r"([a-zа-яё0-9])([A-ZА-ЯЁ])", r"\1 \2", text)      # camelCase → camel Case
+    spaced = re.sub(r"([a-zа-яё0-9])([A-ZА-ЯЁ])", r"\1 \2", text)
     return [w for w in re.split(r"[^0-9A-Za-zА-Яа-яЁё]+", spaced) if w]
-
 
 def change_case(text: str, case: str) -> str:
     if case == "upper":
@@ -230,21 +216,18 @@ def change_case(text: str, case: str) -> str:
         return "".join(w if i == 0 else w[:1].upper() + w[1:] for i, w in enumerate(words))
     raise ValueError(case)
 
-
 def text_stats(text: str) -> Dict[str, int]:
     words = re.findall(r"[^\W_]+(?:[-'’][^\W_]+)*", text)
     sentences = [s for s in re.split(r"[.!?…]+(?:\s+|$)", text.strip()) if re.search(r"[^\W_]", s)]
     return {"words": len(words), "chars": len(text), "chars_no_spaces": len(re.sub(r"\s", "", text)),
             "lines": text.count("\n") + 1 if text else 0, "sentences": len(sentences),
             "paragraphs": len([p for p in re.split(r"\n\s*\n", text) if p.strip()]),
-            "read_seconds": int(round(len(words) / 200 * 60))}       # ~200 words a minute
-
+            "read_seconds": int(round(len(words) / 200 * 60))}
 
 LOREM = ("lorem ipsum dolor sit amet consectetur adipiscing elit sed do eiusmod tempor incididunt ut labore et dolore "
          "magna aliqua ut enim ad minim veniam quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo "
          "consequat duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur "
          "excepteur sint occaecat cupidatat non proident sunt in culpa qui officia deserunt mollit anim id est laborum").split()
-
 
 def lorem(words: int = 0, paragraphs: int = 0) -> str:
     """Deterministic: always starts with «Lorem ipsum dolor sit amet»; sentences of 8–14 words."""
@@ -253,7 +236,6 @@ def lorem(words: int = 0, paragraphs: int = 0) -> str:
     if words:
         return _sentences(max(1, min(2000, int(words))), 0)
     return "\n\n".join(_sentences(48 + (i % 3) * 8, i * 7) for i in range(max(1, min(20, int(paragraphs)))))
-
 
 def _sentences(count: int, offset: int) -> str:
     out, sentence, n = [], [], 0
@@ -266,8 +248,6 @@ def _sentences(count: int, offset: int) -> str:
             sentence, n = [], 0
     return " ".join(out)
 
-
-# ================================================================== dates
 _MONTHS = {
     "янв": 1, "фев": 2, "мар": 3, "апр": 4, "мая": 5, "май": 5, "июн": 6, "июл": 7, "авг": 8, "сен": 9, "окт": 10,
     "ноя": 11, "дек": 12, "jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7, "aug": 8, "sep": 9,
@@ -277,7 +257,6 @@ _MONTH_RE = r"(?:январ\w*|феврал\w*|март\w*|апрел\w*|ма[я
             r"jan\w*|feb\w*|mar\w*|apr\w*|may|jun\w*|jul\w*|aug\w*|sep\w*|oct\w*|nov\w*|dec\w*)"
 WEEKDAYS = {"ru": ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"],
             "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]}
-
 
 def parse_date(text: str, today: date, *, future: bool = True) -> Optional[date]:
     """A date in the forms people type. A date without a year is the next one (``future``) or this year's."""
@@ -319,13 +298,11 @@ def parse_date(text: str, today: date, *, future: bool = True) -> Optional[date]
     except ValueError:
         return None
 
-
 def _year(value: Optional[str]) -> Optional[int]:
     if not value:
         return None
     n = int(value)
     return 2000 + n if n < 100 else n
-
 
 def add_to_date(start: date, amount: int, unit: str) -> date:
     if unit == "weeks":
@@ -337,7 +314,6 @@ def add_to_date(start: date, amount: int, unit: str) -> date:
         return date(year, month, min(start.day, calendar.monthrange(year, month)[1]))
     return start + timedelta(days=amount)
 
-
 def plural_ru(n: int, one: str, few: str, many: str) -> str:
     n = abs(n)
     if n % 10 == 1 and n % 100 != 11:
@@ -346,24 +322,17 @@ def plural_ru(n: int, one: str, few: str, many: str) -> str:
         return few
     return many
 
-
 def fmt_date(d: date, lang: str) -> str:
     if lang == "en":
         return f"{WEEKDAYS['en'][d.weekday()]}, {calendar.month_name[d.month]} {d.day}, {d.year}"
     months = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
     return f"{d.day} {months[d.month - 1]} {d.year}, {WEEKDAYS['ru'][d.weekday()]}"
 
-
 def days_text(n: int, lang: str) -> str:
     return f"{n} " + (("day" if abs(n) == 1 else "days") if lang == "en" else plural_ru(n, "день", "дня", "дней"))
 
-
-# ================================================================== time zones
-# (standard UTC offset in minutes, DST rule) — rule: None, "eu" (last Sun Mar → last Sun Oct, 01:00 UTC),
-# "us" (2nd Sun Mar → 1st Sun Nov, 02:00 local), "au" (southern: 1st Sun Oct → 1st Sun Apr, 02:00 local),
-# "nz" (last Sun Sep → 1st Sun Apr). Offline on purpose: Windows Python has no tz database without ``tzdata``.
 ZONES: Dict[str, Tuple[int, Optional[str], str, str]] = {
-    # key: (offset, rule, Russian name, English name)
+
     "moscow": (180, None, "Москва", "Moscow"), "spb": (180, None, "Санкт-Петербург", "Saint Petersburg"),
     "kaliningrad": (120, None, "Калининград", "Kaliningrad"), "samara": (240, None, "Самара", "Samara"),
     "yekaterinburg": (300, None, "Екатеринбург", "Yekaterinburg"), "omsk": (360, None, "Омск", "Omsk"),
@@ -398,7 +367,7 @@ ZONES: Dict[str, Tuple[int, Optional[str], str, str]] = {
     "sao_paulo": (-180, None, "Сан-Паулу", "São Paulo"), "buenos_aires": (-180, None, "Буэнос-Айрес", "Buenos Aires"),
     "utc": (0, None, "UTC", "UTC"),
 }
-#: Spoken forms → zone key. Russian stems cover the cases («в Лондоне», «по Москве», «из Токио»).
+
 _CITY_WORDS: List[Tuple[str, str]] = [
     ("москв", "moscow"), ("мск", "moscow"), ("moscow", "moscow"), ("msk", "moscow"), ("питер", "spb"), ("петербург", "spb"),
     ("спб", "spb"), ("st petersburg", "spb"), ("saint petersburg", "spb"), ("калининград", "kaliningrad"),
@@ -438,18 +407,16 @@ _CITY_WORDS: List[Tuple[str, str]] = [
     ("utc", "utc"), ("gmt", "utc"), ("гринвич", "utc"),
 ]
 
-
 def zone_key(text: str) -> str:
     t = re.sub(r"\s+", " ", str(text or "").strip().lower().replace("ё", "е")).strip(" ?.,")
     t = re.sub(r"^(?:в|во|по|из|in|at|from)\s+", "", t)
     t = re.sub(r"\s+(?:time|времени|время)$", "", t)
     if not t:
         return ""
-    for word, key in _CITY_WORDS:              # whole phrase or its Russian case form (stem + ending ≤ 3)
+    for word, key in _CITY_WORDS:
         if t == word or (len(word) >= 3 and re.fullmatch(r"[а-я]", word[0]) and t.startswith(word) and len(t) - len(word) <= 3):
             return key
     return ""
-
 
 def _nth_sunday(year: int, month: int, n: int) -> date:
     """n-th Sunday of the month (n = -1 → the last)."""
@@ -459,7 +426,6 @@ def _nth_sunday(year: int, month: int, n: int) -> date:
     first = date(year, month, 1)
     return first + timedelta(days=(6 - first.weekday()) % 7 + 7 * (n - 1))
 
-
 def utc_offset(key: str, at_utc: datetime) -> int:
     """UTC offset of the zone in minutes at the UTC instant ``at_utc`` (naive, UTC)."""
     base, rule, _ru, _en = ZONES[key]
@@ -468,7 +434,7 @@ def utc_offset(key: str, at_utc: datetime) -> int:
         start = datetime.combine(_nth_sunday(y, 3, -1), datetime.min.time()) + timedelta(hours=1)
         end = datetime.combine(_nth_sunday(y, 10, -1), datetime.min.time()) + timedelta(hours=1)
         return base + (60 if start <= at_utc < end else 0)
-    if rule == "il":          # Friday before the last Sunday of March → last Sunday of October (02:00 local)
+    if rule == "il":
         start = datetime.combine(_nth_sunday(y, 3, -1) - timedelta(days=2), datetime.min.time()) + timedelta(hours=2) - timedelta(minutes=base)
         end = datetime.combine(_nth_sunday(y, 10, -1), datetime.min.time()) + timedelta(hours=2) - timedelta(minutes=base + 60)
         return base + (60 if start <= at_utc < end else 0)
@@ -476,23 +442,20 @@ def utc_offset(key: str, at_utc: datetime) -> int:
         start = datetime.combine(_nth_sunday(y, 3, 2), datetime.min.time()) + timedelta(hours=2) - timedelta(minutes=base)
         end = datetime.combine(_nth_sunday(y, 11, 1), datetime.min.time()) + timedelta(hours=2) - timedelta(minutes=base + 60)
         return base + (60 if start <= at_utc < end else 0)
-    if rule in ("au", "nz"):  # southern hemisphere: summer time spans the new year
+    if rule in ("au", "nz"):
         end = datetime.combine(_nth_sunday(y, 4, 1), datetime.min.time()) + timedelta(hours=3) - timedelta(minutes=base + 60)
         start_day = _nth_sunday(y, 10, 1) if rule == "au" else _nth_sunday(y, 9, -1)
         start = datetime.combine(start_day, datetime.min.time()) + timedelta(hours=2) - timedelta(minutes=base)
         return base + (60 if at_utc < end or at_utc >= start else 0)
     return base
 
-
 def zone_name(key: str, lang: str) -> str:
     return ZONES[key][3 if lang == "en" else 2]
-
 
 def fmt_offset(minutes: int) -> str:
     sign = "+" if minutes >= 0 else "−"
     h, m = divmod(abs(minutes), 60)
     return f"UTC{sign}{h}" + (f":{m:02d}" if m else "")
-
 
 def parse_clock(text: str) -> Optional[Tuple[int, int]]:
     t = str(text or "").strip().lower().replace(".", ":")
@@ -508,8 +471,6 @@ def parse_clock(text: str) -> Optional[Tuple[int, int]]:
         return None
     return h, mi
 
-
-# ================================================================== phrases
 def install() -> None:
     """Идемпотентно добавить действия и фразы (категория «tools» объявлена в ``assistant_catalog.CATEGORIES``)."""
     for row in NEW_ACTIONS:
@@ -566,7 +527,6 @@ def install() -> None:
     ]
     intents._RULES[0:0] = rules
 
-
 def _clip_text(value: Optional[str]) -> str:
     """The text after the command; «буфер»/«clipboard» (or nothing) means the clipboard → ''."""
     text = str(value or "").strip()
@@ -574,10 +534,8 @@ def _clip_text(value: Optional[str]) -> str:
         return ""
     return text
 
-
 def _color(m: "re.Match[str]", ctx: Any):
     return ("color.convert", {"color": m.group(1)}) if parse_color(m.group(1)) else None
-
 
 def _encode(m: "re.Match[str]", ctx: Any):
     verb, codec, suffix, rest = (m.group(i) or "" for i in (1, 2, 3, 4))
@@ -586,11 +544,10 @@ def _encode(m: "re.Match[str]", ctx: Any):
     op = "decode" if re.search(r"раскод|декод|decode", word) else ("encode" if word.strip() else "auto")
     text = _clip_text(rest)
     if codec == "url" and op == "auto":
-        return None                        # «url https://…» is not a request to encode
+        return None
     if not word.strip() and not text and not re.search(r"буфер|clipboard", rest, re.I):
-        return None                        # a bare «base64» is a question for the model; «base64 буфер» is not
+        return None
     return "text.encode", {"codec": codec, "op": op, **({"text": text} if text else {})}
-
 
 def _json(m: "re.Match[str]", ctx: Any):
     verb, rest = (m.group(1) or "").lower(), m.group(2) or ""
@@ -598,15 +555,13 @@ def _json(m: "re.Match[str]", ctx: Any):
     if not verb and not text.startswith(("{", "[")) and not re.search(r"буфер|clipboard", rest, re.I):
         return None
     if verb and text and not text.startswith(("{", "[", '"')) and not re.fullmatch(r"-?\d.*|true|false|null", text):
-        return None                        # «проверь json схему для…» is a question
+        return None
     mode = "minify" if re.match(r"сожм|миниф|minify|compact", verb) else ("validate" if re.match(r"провер|валид|validate|check", verb) else "pretty")
     return "json.format", {"mode": mode, **({"text": text} if text else {})}
-
 
 def _hash(m: "re.Match[str]", ctx: Any):
     algo = m.group(1).lower().replace("-", "")
     return "hash.text", {"algo": algo, **({"text": _clip_text(m.group(2))} if _clip_text(m.group(2)) else {})}
-
 
 def _case(m: "re.Match[str]", ctx: Any):
     word = re.sub(r"\s+", " ", m.group(1).lower())
@@ -617,22 +572,18 @@ def _case(m: "re.Match[str]", ctx: Any):
     text = _clip_text(m.group(2))
     return "text.case", {"case": case, **({"text": text} if text else {})}
 
-
 def _stats(m: "re.Match[str]", ctx: Any):
     text = _clip_text(m.group(3))
     if text and not m.group(2) and not re.match(r"[«\"'“]", text):
-        return None                        # «сколько слов в романе …» is a question for the model, not a text to count
+        return None
     return "text.stats", ({"text": text} if text else {})
-
 
 def _today(ctx: Any) -> date:
     now = getattr(ctx, "now", None)
     return now.date() if isinstance(now, datetime) else date.today()
 
-
 def _days_until(m: "re.Match[str]", ctx: Any):
     return ("date.calc", {"op": "until", "date": m.group(1).strip()}) if parse_date(m.group(1), _today(ctx)) else None
-
 
 def _days_between(m: "re.Match[str]", ctx: Any):
     today = _today(ctx)
@@ -641,16 +592,14 @@ def _days_between(m: "re.Match[str]", ctx: Any):
         return None
     return "date.calc", {"op": "between", "date": a, "date2": b}
 
-
 def _weekday(m: "re.Match[str]", ctx: Any):
     value = next((g for g in m.groups() if g), "").strip()
     return ("date.calc", {"op": "weekday", "date": value}) if parse_date(value, _today(ctx), future=False) else None
 
-
 def _date_add(m: "re.Match[str]", ctx: Any):
     lead, num, unit_word, tail, base = m.group(1), m.group(2), m.group(3).lower(), (m.group(4) or "").lower(), m.group(5)
     text = ctx.low if hasattr(ctx, "low") else m.group(0).lower()
-    # Only an explicit date question: «через 30 дней» alone is the start of a reminder/timer phrase.
+
     if not (re.search(r"дата|число|date|какое|какая", text) or lead in ("+", "-", "минус", "plus", "minus")
             or re.search(r"назад|ago|from now|from today|спустя", tail) or base):
         return None
@@ -664,11 +613,9 @@ def _date_add(m: "re.Match[str]", ctx: Any):
         params["date"] = base.strip()
     return "date.calc", params
 
-
 def _tz_now(m: "re.Match[str]", ctx: Any):
     key = zone_key(m.group(1))
     return ("time.zone", {"city": key}) if key else None
-
 
 def _tz_convert(m: "re.Match[str]", ctx: Any):
     clock, src, dst = m.group(1), m.group(2), m.group(3)
@@ -679,11 +626,9 @@ def _tz_convert(m: "re.Match[str]", ctx: Any):
         return None
     return "time.zone", {"time": clock.strip(), "from": a, "city": b}
 
-
 def _dice(m: "re.Match[str]", ctx: Any):
     count, sides = m.group(1) or m.group(2), m.group(3)
     return "random.pick", {"kind": "dice", "count": int(count or 1), "sides": int(sides or 6)}
-
 
 def _number(m: "re.Match[str]", ctx: Any):
     lo, hi = m.group(1) or m.group(3), m.group(2) or m.group(4)
@@ -691,13 +636,11 @@ def _number(m: "re.Match[str]", ctx: Any):
         lo, hi = "1", m.group(5)
     return "random.pick", {"kind": "number", "min": int(lo or 1), "max": int(hi or 100)}
 
-
 def _choice(m: "re.Match[str]", ctx: Any):
     if not re.search(r"случайн|наугад|рандом|random|\bone\b|:", m.group(0), re.I):
-        return None                        # «выбери файл, папку» is not a lottery
+        return None
     items = [x.strip() for x in re.split(r",|;|\s+или\s+|\s+or\s+", m.group(1)) if x.strip()]
     return ("random.pick", {"kind": "choice", "items": ", ".join(items)}) if len(items) >= 2 else None
-
 
 def _lorem(m: "re.Match[str]", ctx: Any):
     n, unit = m.group(1), (m.group(2) or "").lower()
@@ -705,8 +648,6 @@ def _lorem(m: "re.Match[str]", ctx: Any):
         return "lorem.generate", {"paragraphs": 1}
     return "lorem.generate", ({"words": int(n)} if re.match(r"слов|word", unit) else {"paragraphs": int(n)})
 
-
-# ================================================================== handlers
 def bind(eng: Any) -> None:
     from .assistant_commands import ActionError, tr
 

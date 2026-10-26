@@ -1,6 +1,5 @@
-// Round 25 (b3-work-agents): the real agents.js in Node. A card saved as «running» whose agent the
-// server no longer knows (MemuAI was restarted) is marked interrupted; an agent spawned while a poll
-// was in flight is not. Prints one JSON line for round25_work_test.py.
+
+
 const fs = require("fs");
 const path = require("path");
 const vm = require("vm");

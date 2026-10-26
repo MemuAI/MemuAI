@@ -1,11 +1,5 @@
-/* MemuAI Proxy — вкладка «Чат»: простой разговор с любой моделью Proxy.
- *
- * Это инструмент проверки, а не чат-приложение: здесь нет системного промпта,
- * памяти, инструментов и скрытых блоков. Модель получает ровно то, что
- * написано в поле ввода (и, по желанию, свой системный промпт из
- * «Параметров»). Запрос идёт через обычный конвейер Proxy и виден в логах,
- * поэтому вкладка удобна, чтобы быстро проверить аккаунт или модель.
- */
+
+
 "use strict";
 
 window.MemuProxyChat = (() => {
@@ -27,18 +21,16 @@ window.MemuProxyChat = (() => {
   }
   function save() {
     try {
-      // Pictures are not kept between sessions: a few of them would fill localStorage.
+
       const rows = S.history.slice(-80).map((m) => (m.images ? { ...m, images: undefined, hadImages: m.images.length } : m));
       localStorage.setItem(STORE, JSON.stringify(rows));
       localStorage.setItem(PREFS, JSON.stringify(S.prefs));
-    } catch (error) { /* хранилище недоступно */ }
+    } catch (error) {  }
   }
 
   const md = (text) => (window.MemuCompanion && MemuCompanion.markdown ? MemuCompanion.markdown(text) : esc(text).replace(/\n/g, "<br>"));
   const errorOf = (error) => (error && error.message ? error.message : String(error || ""));
   const tokens = (n) => (n >= 1000 ? `${(n / 1000).toFixed(n >= 10000 ? 0 : 1)}K` : String(n));
-
-  /* ---------------- каркас ---------------- */
 
   function shell(root) {
     root.dataset.ready = "1";
@@ -135,13 +127,12 @@ window.MemuProxyChat = (() => {
     if (!root) return;
     if (!root.dataset.ready) {
       shell(root);
-      // relabel() во время ответа пересоздаёт кнопку с текстом «Отправить»,
-      // хотя запрос ещё идёт: возвращаем ей состояние «Стоп».
+
       setBusy(S.busy);
     }
     try {
       const data = await api("/api/admin/models");
-      S.models = (data.models || []).filter((m) => m.enabled !== false
+      S.models = (data.models || []).filter((m) => m.enabled !== false && (m.kind || m.caps?.kind || "chat") === "chat"
         && !(m.caps?.music && m.caps?.text !== true) && !(m.capabilities?.music && m.capabilities?.text !== true))
         .map((m) => ({ id: m.id, provider: m.provider || "" }))
         .sort((a, b) => a.id.localeCompare(b.id));
@@ -154,8 +145,6 @@ window.MemuProxyChat = (() => {
     render();
     if (!S.busy) setTimeout(() => $("#pc-input")?.focus(), 30);
   }
-
-  /* ---------------- отрисовка ---------------- */
 
   function render() {
     const log = $("#pc-log");
@@ -236,8 +225,6 @@ window.MemuProxyChat = (() => {
     button.classList.toggle("danger", on);
     button.classList.toggle("primary", !on);
   }
-
-  /* ---------------- действия ---------------- */
 
   function addImages(files) {
     files.forEach((file) => {
@@ -332,7 +319,7 @@ window.MemuProxyChat = (() => {
       if (resp.status === 401) { showLogin(""); throw new Error(L("Требуется вход", "Sign-in required")); }
       if (!resp.ok || !resp.body) {
         let data = null;
-        try { data = await resp.json(); } catch (error) { /* не JSON */ }
+        try { data = await resp.json(); } catch (error) {  }
         throw new Error((data && (LANG === "en" ? data.error_en || data.error : data.error)) || `HTTP ${resp.status}`);
       }
       const reader = resp.body.getReader();
@@ -342,8 +329,7 @@ window.MemuProxyChat = (() => {
       while (!finished) {
         const { value, done } = await reader.read();
         if (done) break;
-        // SSE допускает CRLF: без нормализации кадры «\r\n\r\n» не делились бы
-        // по «\n\n», и ответ появлялся бы только целиком (или не появлялся).
+
         buffer = (buffer + decoder.decode(value, { stream: true })).replace(/\r\n/g, "\n");
         let cut;
         while ((cut = buffer.indexOf("\n\n")) >= 0) {

@@ -30,18 +30,15 @@ STATIC = ROOT / "app" / "pgstatic"
 CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
 SHOW = "QuickAsk.onShow({fresh:true, maxHeight:640, rounded:true, corner:'dwm', radius:8})"
 
-
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
-
 
 def serve():
     handler = functools.partial(Quiet, directory=str(STATIC))
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, f"http://127.0.0.1:{server.server_address[1]}"
-
 
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
@@ -81,7 +78,7 @@ async def main(out: Path) -> int:
             task["_source"] = data.get("source")
             return await route_obj.fulfill(json={"id": "t1", "status": "queued"})
         if path == "/api/dfy/tasks/t1/events":
-            return await route_obj.fulfill(status=500, body="")     # force the polling fallback
+            return await route_obj.fulfill(status=500, body="")
         if path == "/api/dfy/tasks/t1":
             return await route_obj.fulfill(json={k: v for k, v in task.items() if not k.startswith("_")})
         if path == "/api/dfy/tasks/t1/answer":
@@ -109,19 +106,17 @@ async def main(out: Path) -> int:
         await page.evaluate(SHOW)
         await page.wait_for_timeout(300)
 
-        # 1. focus loss never hides
         calls.clear()
         await page.evaluate("window.dispatchEvent(new Event('blur'))")
         await page.wait_for_timeout(700)
         check(not [c for c in calls if c[1] == "/api/quick/window" and ('"blur"' in c[2] or '"hide"' in c[2])], "blur must not hide the window")
 
-        # 2. DFY offer + Ctrl+Enter
         await page.fill("#qa-input", "забронируй отель в Казани на 12–14 ноября")
         await page.dispatch_event("#qa-input", "input")
         await page.wait_for_timeout(700)
         check(await page.locator(".qdfy-offer").count() == 1, "the DFY offer should appear for an action-like request")
         await page.screenshot(path=str(out / "r24qw-dfy-offer.png"))
-        # Escape drops the offer first (one level), the window stays
+
         calls.clear()
         await page.keyboard.press("Escape")
         await page.wait_for_timeout(200)
@@ -132,18 +127,17 @@ async def main(out: Path) -> int:
         await page.wait_for_timeout(2200)
         check(task.get("_source") == "quick", "the task should start with source=quick")
         check(await page.locator(".qdfy-card").count() == 1, "the progress card should appear")
-        # Round 34 (r34-quick-agentic): a step shows the server's line (detail) and the action word only without one
+
         check("booking.com" in (await page.inner_text(".qdfy-card .qdfy-steps")), "steps are shown")
         await page.screenshot(path=str(out / "r24qw-dfy-running.png"))
 
-        # 3. secret question
         task.update(status="waiting_user", question={"kind": "secret", "secret_kind": "login", "prompt": "Пароль от booking.com", "fields": [{"name": "password", "label": "Пароль"}]},
                     steps=task["steps"] + [{"n": 2, "action": "Вход", "detail": "нужен пароль"}])
         await page.wait_for_timeout(2000)
         check(await page.locator(".qdfy-card input[type=password]").count() == 1, "a secret question renders a password field")
         await page.screenshot(path=str(out / "r24qw-dfy-secret.png"))
         await page.fill(".qdfy-card input[type=password]", "hunter2")
-        # Escape inside the field leaves the field (does not hide)
+
         calls.clear()
         await page.keyboard.press("Escape")
         await page.wait_for_timeout(150)
@@ -151,26 +145,23 @@ async def main(out: Path) -> int:
         await page.focus(".qdfy-card input[type=password]")
         await page.keyboard.press("Enter")
         await page.wait_for_timeout(2200)
-        # Round 25 (a3-dfy): secrets go by the contract {secret: {fields: {...}}}, never as a plain «answer»
+
         check(((task.get("_answer") or {}).get("secret") or {}).get("fields", {}).get("password") == "hunter2", "the secret goes to /answer")
         check("hunter2" not in (await page.content()), "the secret is not left in the page")
         check("забронирован" in (await page.inner_text(".qa-plugin.qdfy")), "the result is shown")
         await page.screenshot(path=str(out / "r24qw-dfy-done.png"))
 
-        # 4. hide/show keeps the card (re-attached)
         await page.evaluate("QuickAsk.onHide()")
         await page.evaluate(SHOW)
         await page.wait_for_timeout(800)
         check(await page.locator(".qdfy-card").count() == 1, "the DFY card survives hide/show")
 
-        # 5. Escape with nothing open hides the window
         await page.focus("#qa-input")
         calls.clear()
         await page.keyboard.press("Escape")
         await page.wait_for_timeout(400)
         check([c for c in calls if c[1] == "/api/quick/window" and '"hide"' in c[2]], "Escape with nothing open should hide")
 
-        # 6. text file drop → context
         await page.evaluate(SHOW)
         await page.wait_for_timeout(300)
         await page.evaluate("""() => { const dt = new DataTransfer(); dt.items.add(new File(['def f():\\n  return 42\\n'], 'code.py', {type: 'text/x-python'}));
@@ -184,7 +175,6 @@ async def main(out: Path) -> int:
         print("FAIL:", e)
     print("ok" if not errors else f"{len(errors)} problem(s)")
     return 1 if errors else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/r24qw"))))

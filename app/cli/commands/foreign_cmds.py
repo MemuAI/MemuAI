@@ -21,15 +21,12 @@ from ..timefmt import ago
 from ..tui import dialogs as dlg
 from . import Context, command
 
-
 def _article(title: str) -> str:
     """English article for a tool name: "an OpenCode session", "a Codex session"."""
     return "an" if title[:1].lower() in "aeiou" else "a"
 
-
 def where_text(info: SessionInfo) -> str:
     return Path(info.cwd).name or info.cwd if info.cwd else tr("папка неизвестна", "folder unknown")
-
 
 def session_option(info: SessionInfo, here: str = "") -> dlg.Option:
     """One row of a list of foreign sessions."""
@@ -38,11 +35,9 @@ def session_option(info: SessionInfo, here: str = "") -> dlg.Option:
     mark = "●" if here and foreign.same_folder(info.cwd, here) else ""
     return dlg.Option((info.title or info.id)[:90], info, " · ".join(bit for bit in bits if bit), hint=mark)
 
-
 def order_rows(rows: List[SessionInfo], here: str) -> List[SessionInfo]:
     """Sessions of this project first, then by time."""
     return sorted(rows, key=lambda row: (not foreign.same_folder(row.cwd, here), -row.updated))
-
 
 async def read_session(ctx: Context, info: SessionInfo) -> Optional[ForeignSession]:
     ctx.ui.status_text = tr("читаю сессию", "reading the session")
@@ -53,7 +48,6 @@ async def read_session(ctx: Context, info: SessionInfo) -> Optional[ForeignSessi
         return None
     finally:
         ctx.ui.status_text = ""
-
 
 async def continue_from(ctx: Context, info: SessionInfo, *, request: str = "") -> bool:
     """Carry on a foreign session: read it, move to its folder when the person agrees, put the hand-over note at the
@@ -95,7 +89,6 @@ async def continue_from(ctx: Context, info: SessionInfo, *, request: str = "") -
     await ctx.prompt(prompt, display=wanted or tr("продолжай", "continue"))
     return True
 
-
 async def pick_session(ctx: Context, source: Source, rows: List[SessionInfo], query: str) -> Optional[SessionInfo]:
     here = str(ctx.runtime.root)
     rows = order_rows(rows, here)
@@ -115,7 +108,6 @@ async def pick_session(ctx: Context, source: Source, rows: List[SessionInfo], qu
     return await ctx.select(tr(f"Продолжить сессию {source.title}", f"Continue {_article(source.title)} {source.title} session"), options, filterable=True,
                             max_visible=8, body=body)
 
-
 async def resume_foreign(ctx: Context, source: Source) -> None:
     if not source.present():
         ctx.say(tr(f"Сессий {source.title} на этом компьютере не нашёл (искал в {source.where()}).",
@@ -134,11 +126,10 @@ async def resume_foreign(ctx: Context, source: Source) -> None:
     first, _, rest = query.partition(" ")
     if rest.strip() and re.fullmatch(r"[\w-]{6,}", first) and foreign.find(rows, first) and \
             any(row.id.lower().startswith(first.lower()) for row in rows):
-        query, request = first, rest.strip()                  # "<id> <what to do next>"
+        query, request = first, rest.strip()
     info = await pick_session(ctx, source, rows, query)
     if info is not None:
         await continue_from(ctx, info, request=request)
-
 
 def _register(source: Source) -> None:
     async def handler(ctx: Context) -> None:
@@ -149,7 +140,6 @@ def _register(source: Source) -> None:
             f"Продолжить сессию {source.title} по её ID (или выбрать из списка)",
             f"Continue {_article(source.title)} {source.title} session by its ID (or pick it from a list)",
             hint="[id|words] [next request]", category="session", while_busy=False, immediate=True)(handler)
-
 
 for _source in foreign.SOURCES.values():
     _register(_source)

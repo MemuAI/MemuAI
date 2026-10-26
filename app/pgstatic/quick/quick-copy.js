@@ -1,16 +1,5 @@
-/* MemuAI Quick Ask · copying (Round 30, r30-quick-core).
 
-   What the user gets:
-   • «Копировать» под каждым ответом (у последнего — в ряду действий, у прежних — в строке «кто ответил»),
-     ▾ рядом — формат: «С оформлением» (HTML + простой текст — Word, почта, мессенджеры), «Markdown», «Простой текст».
-   • Выделенный кусок ответа: всплывающая полоска «Копировать · Спросить об этом»; Ctrl+C копирует его без служебных
-     надписей (кнопок блоков кода, курсора стрима), формулы — их TeX.
-   • Ctrl+C, когда ничего не выделено (и поле пустое/без выделения), — копирует последний ответ; Ctrl+Shift+C — тоже.
-   • Каждое копирование подтверждается тостом «Скопировано».
 
-   window.QuickCopy = { toPlain(md), toHtml(md), fromNode(node), write({plain, html}), copyMarkdown(md, format, opts),
-                        openFormats(anchor, md), openMenu(anchor, {head, items, radio}), FORMATS }
-   quick.js calls it for the answer buttons; everything else (selection bar, copy event, Ctrl+C) lives here. */
 (function () {
   "use strict";
   const Q = () => window.MemuQuick;
@@ -19,7 +8,6 @@
   const FORMAT_KEY = "memu_quick_copy_format";
   const FORMATS = ["rich", "markdown", "plain"];
 
-  /* ---------------------------------------------------------------- markdown → text / html */
   function rendered(md) {
     const box = document.createElement("div");
     box.innerHTML = window.QuickMarkdown ? QuickMarkdown.render(String(md || ""), { streaming: false }) : esc(md);
@@ -31,8 +19,6 @@
     return ann ? ann.textContent.trim() : el.textContent.trim();
   }
 
-  /* DOM → readable plain text: paragraphs separated by a blank line, list bullets and numbers kept, code verbatim,
-     table rows tab-separated, formulas as TeX. Works on a detached tree (no layout, unlike innerText). */
   function fromNode(rootNode) {
     const out = [];
     const block = (s) => { const v = s.replace(/[ \t]+\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim(); if (v) out.push(v); };
@@ -44,7 +30,7 @@
         if (child.matches(".katex-display, .katex")) { const tex = texOf(child); s += child.matches(".katex-display") ? `\n${tex}\n` : tex; continue; }
         if (child.tagName === "BR") { s += "\n"; continue; }
         if (child.tagName === "A") { const label = inline(child); const href = child.getAttribute("href") || ""; s += href && label.trim() !== href ? `${label} (${href})` : label; continue; }
-        if (child.matches("ul, ol, table, pre, .code-block-wrap, .table-wrap, p, div, blockquote, h1, h2, h3, h4, h5, h6, hr")) continue;  // blocks are walked by walk()
+        if (child.matches("ul, ol, table, pre, .code-block-wrap, .table-wrap, p, div, blockquote, h1, h2, h3, h4, h5, h6, hr")) continue;
         s += inline(child);
       }
       return s;
@@ -86,8 +72,6 @@
   }
   const toPlain = (md) => fromNode(rendered(md));
 
-  /* HTML for rich paste (Word / Outlook / Google Docs / Telegram Desktop): the rendered answer without our buttons,
-     with formulas as their TeX in <code> (KaTeX markup needs its CSS and pastes as garbage elsewhere). */
   function cleanHtml(box) {
     box.querySelectorAll(".code-header, .code-copy-btn, .qa-caret, button, [data-nocopy]").forEach((el) => el.remove());
     box.querySelectorAll(".katex-display, .katex").forEach((el) => {
@@ -102,7 +86,6 @@
   }
   const toHtml = (md) => cleanHtml(rendered(md));
 
-  /* ---------------------------------------------------------------- clipboard */
   async function write({ plain, html }) {
     plain = String(plain || "");
     if (!plain.trim()) return false;
@@ -114,10 +97,10 @@
         })]);
         return true;
       }
-    } catch (e) { /* plain text below */ }
-    try { await navigator.clipboard.writeText(plain); return true; } catch (e) { /* native / execCommand below */ }
+    } catch (e) {  }
+    try { await navigator.clipboard.writeText(plain); return true; } catch (e) {  }
     if (Q() && Q().native) {
-      try { const r = await Q().api("/api/quick/window", { method: "POST", body: { action: "copy", text: plain } }); if (r && r.ok) return true; } catch (e) { /* next */ }
+      try { const r = await Q().api("/api/quick/window", { method: "POST", body: { action: "copy", text: plain } }); if (r && r.ok) return true; } catch (e) {  }
     }
     const area = document.createElement("textarea");
     area.value = plain; area.setAttribute("readonly", ""); area.style.cssText = "position:fixed;left:-9999px;top:0;opacity:0";
@@ -138,7 +121,7 @@
   function toast(ok, text) {
     if (Q()) Q().toast(ok ? text : t("Не удалось скопировать", "Could not copy"), ok ? "ok" : "err", 1800);
   }
-  /* format: "rich" | "markdown" | "plain" | undefined (= the last one the user picked). */
+
   async function copyMarkdown(md, format, { notify = true } = {}) {
     const text = String(md || "").replace(/<think>[\s\S]*?(<\/think>|$)/g, "").trim();
     if (!text) return false;
@@ -151,17 +134,15 @@
     return ok;
   }
 
-  /* ---------------------------------------------------------------- the format menu (▾ next to «Копировать») */
   let menu = null;
   function closeFormats() {
     if (!menu) return;
     const anchor = menu._anchor;
     menu.remove(); menu = null;
     if (anchor) anchor.setAttribute("aria-expanded", "false");
-    if (anchor && anchor.classList && anchor.classList.contains("qc-ctx-anchor")) anchor.remove();   // Round 31: the context menu's point
+    if (anchor && anchor.classList && anchor.classList.contains("qc-ctx-anchor")) anchor.remove();
   }
-  /* A small menu next to a button (also «⋯ Ещё» under the answer): items = [{id?, label, sub?, keys?, icon?, checked?, run}].
-     ↑↓ move, Enter/Space pick, Esc closes and returns the focus to the button. */
+
   function openMenu(anchor, { head = "", items = [], radio = false } = {}) {
     if (menu && menu._anchor === anchor) { closeFormats(); return; }
     closeFormats();
@@ -175,8 +156,7 @@
         ${it.sub ? `<small>${esc(it.sub)}</small>` : ""}</button>`).join("");
     const card = document.getElementById("qa-card") || document.body;
     card.appendChild(menu);
-    // Round 34 (r34-quick-design-2): the layout size, not getBoundingClientRect — the qc-pop scale-in made the menu look
-    // ~4 % narrower, so «⋯ Ещё» opened 2–3 px from the card edge instead of 8.
+
     const a = anchor.getBoundingClientRect(), c = card.getBoundingClientRect(), m = { width: menu.offsetWidth, height: menu.offsetHeight };
     const left = Math.max(8, Math.min(a.right - c.left - m.width, c.width - m.width - 8));
     const above = a.top - c.top - m.height - 6;
@@ -204,17 +184,15 @@
     const subs = { rich: t("для Word, почты, мессенджеров", "for Word, email, messengers"), markdown: t("с разметкой ** # `", "with ** # ` markup"), plain: t("без разметки", "no markup") };
     openMenu(anchor, { head: t("Копировать как", "Copy as"), radio: true, items: FORMATS.map((f) => ({ label: label(f), sub: subs[f], checked: f === current,
       run: async () => {
-        try { localStorage.setItem(FORMAT_KEY, f); } catch (err) { /* private mode */ }
+        try { localStorage.setItem(FORMAT_KEY, f); } catch (err) {  }
         const ok = await copyMarkdown(md, f);
         if (onDone) onDone(ok);
       } })) });
   }
   document.addEventListener("pointerdown", (e) => { if (menu && !menu.contains(e.target) && e.target !== menu._anchor && !menu._anchor.contains(e.target)) closeFormats(); }, true);
 
-  /* ---------------------------------------------------------------- selection inside an answer */
   const answerBox = () => document.getElementById("qa-answer");
-  /* Round 31 (r31-quick): not only the answer — a selection anywhere in the window (the question, command cards, Computer
-     Use steps, Explorer change sets, DFY, errors…) gets the bar and the clean Ctrl+C. Fields keep their own copy. */
+
   const selectableRoot = () => document.getElementById("qa-card");
   function inField(node) {
     const el = node && (node.nodeType === 1 ? node : node.parentElement);
@@ -246,7 +224,7 @@
       const icons = (Q() && Q().icons) || {};
       bar.innerHTML = `<button type="button" data-sel="copy" title="Ctrl+C">${icons.copy || ""}<span>${esc(t("Копировать", "Copy"))}</span></button>
         <button type="button" data-sel="ask">${icons.ask || ""}<span>${esc(t("Спросить об этом", "Ask about this"))}</span></button>`;
-      bar.addEventListener("pointerdown", (e) => e.preventDefault());   // keep the selection
+      bar.addEventListener("pointerdown", (e) => e.preventDefault());
       bar.addEventListener("click", async (e) => {
         const b = e.target.closest("[data-sel]");
         const cur = answerSelection();
@@ -261,8 +239,8 @@
       });
       card.appendChild(bar);
     }
-    // over the selection, else under it — always inside the visible part of the answer (never over the footer)
-    const r = got.range.getBoundingClientRect(), c = card.getBoundingClientRect(), b = { width: bar.offsetWidth, height: bar.offsetHeight };  // Round 34: unscaled (qc-pop)
+
+    const r = got.range.getBoundingClientRect(), c = card.getBoundingClientRect(), b = { width: bar.offsetWidth, height: bar.offsetHeight };
     const ans = answerBox();
     const inAnswer = ans && !ans.hidden && ans.contains(got.range.commonAncestorContainer);
     const view = inAnswer ? ans.getBoundingClientRect() : c;
@@ -278,7 +256,6 @@
   document.addEventListener("selectionchange", () => { if (bar && !answerSelection()) hideBar(); });
   document.addEventListener("scroll", hideBar, true);
 
-  /* Ctrl+C on a selected part of an answer: clean text (no «Копировать» of code headers, no caret) + HTML. */
   document.addEventListener("copy", (e) => {
     const got = answerSelection();
     if (!got || !e.clipboardData) return;
@@ -288,18 +265,17 @@
     toast(true, t("Скопировано", "Copied"));
   });
 
-  /* Ctrl+C with nothing selected anywhere — the last answer (the field keeps its own Ctrl+C when text is selected). */
   document.addEventListener("keydown", (e) => {
     if (e.defaultPrevented || e.isComposing) return;
     if (e.key === "Escape" && (menu || bar)) { e.preventDefault(); e.stopPropagation(); closeFormats(); hideBar(); return; }
     const mod = e.ctrlKey || e.metaKey;
     if (!mod || e.shiftKey || e.altKey || e.code !== "KeyC") return;
     const sel = window.getSelection();
-    if (sel && !sel.isCollapsed && String(sel).trim()) return;          // the browser copies the selection (copy event above)
+    if (sel && !sel.isCollapsed && String(sel).trim()) return;
     const target = e.target;
     if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName) && target.selectionStart !== target.selectionEnd) return;
     if (target && target.isContentEditable) return;
-    if (document.documentElement.dataset.qxView) return;               // the clipboard view has its own Ctrl+C
+    if (document.documentElement.dataset.qxView) return;
     const st = Q() && Q().state();
     const last = st && [...st.turns].reverse().find((x) => x.done && String(x.a || "").trim());
     if (!last || st.busy) return;
@@ -307,12 +283,6 @@
     copyMarkdown(last.a);
   }, true);
 
-  /* ---------------------------------------------------------------- Round 31 (r31-quick): copy anything */
-  /* «Far from everything can be copied»: the question, errors, command cards, Explorer change sets, DFY, Computer Use
-     steps and its report had no copy button, and the native window has no context menu (WebView2's own one is off).
-     • a quiet «copy» button on every such block (hover / focus; data-nocopy — never part of what is copied);
-     • a context menu (right click / the menu key / Shift+F10): Копировать · как простой текст · блок · ответ · код ·
-       Выделить всё · Спросить об этом; in fields — Вырезать / Копировать / Вставить / Выделить всё. */
   const BLOCKS = [".qa-q", ".qa-error", ".qa-instant", ".mqc-card", ".qe-card", ".qdfy-card", ".qcu-task", ".qcu-report", ".qcu-steps",
     ".qcu-approve-text", ".qxx-text", ".dfy-cmd-out", ".memu-stuck"].join(", ");
   const COPY_ICON = () => ((Q() && Q().icons && Q().icons.copy) || '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"><rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2"/><path d="M15.5 8.5V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v7.5a2 2 0 0 0 2 2h2.5"/></svg>');
@@ -326,7 +296,7 @@
   function decorate(root) {
     (root || document).querySelectorAll(BLOCKS).forEach((el) => {
       if (el.querySelector(":scope > .qc-blk-copy") || el.closest(".qc-menu, .qc-selbar")) return;
-      if (el.parentElement && el.parentElement.closest(BLOCKS)) return;      // one button per outermost block
+      if (el.parentElement && el.parentElement.closest(BLOCKS)) return;
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "qc-blk-copy";
@@ -360,8 +330,6 @@
   }
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", watch); else watch();
 
-  /* Round 31 (wave 2): selecting a sortable header's text by dragging ends with a click — the table re-sorted under the
-     user's selection. A click that finishes a selection inside the header is not a «sort». */
   document.addEventListener("click", (e) => {
     const th = e.target.closest && e.target.closest("#qa-card th.mt-sortable");
     if (!th) return;
@@ -369,7 +337,6 @@
     if (sel && !sel.isCollapsed && String(sel).trim() && (th.contains(sel.anchorNode) || th.contains(sel.focusNode))) e.stopPropagation();
   }, true);
 
-  /* the context menu */
   function selectNode(node) {
     const sel = window.getSelection();
     const range = document.createRange();
@@ -447,14 +414,14 @@
     openMenu(anchor, { items });
     if (menu) {
       menu.classList.add("qc-ctx");
-      const m = { width: menu.offsetWidth, height: menu.offsetHeight };   // Round 34: unscaled by the qc-pop animation
+      const m = { width: menu.offsetWidth, height: menu.offsetHeight };
       menu.style.left = Math.max(6, Math.min(x - c.left, c.width - m.width - 6)) + "px";
       menu.style.top = Math.max(6, Math.min(y - c.top, c.height - m.height - 6)) + "px";
     } else anchor.remove();
     return true;
   }
   document.addEventListener("contextmenu", (e) => {
-    if (e.defaultPrevented || e.ctrlKey || e.shiftKey) return;              // a plugin's own menu (panels, tiles); Ctrl/Shift — the native one if any
+    if (e.defaultPrevented || e.ctrlKey || e.shiftKey) return;
     const card = document.getElementById("qa-card");
     if (!card || !card.contains(e.target) || e.target.closest(".qc-menu, [data-own-menu]")) return;
     const field = e.target.closest("input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=file]), textarea");

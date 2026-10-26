@@ -33,8 +33,6 @@ _LOCK = threading.Lock()
 RECENT_MAX = 60
 SAVED_MAX = 40
 
-
-# ====================================================================== folder compare
 def _scan(root: str, recursive: bool, job: Any) -> Dict[str, Dict[str, Any]]:
     out: Dict[str, Dict[str, Any]] = {}
     stack = [""]
@@ -59,7 +57,6 @@ def _scan(root: str, recursive: bool, job: Any) -> Dict[str, Dict[str, Any]]:
             continue
     return out
 
-
 def _sha(path: str, job: Any) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as fh:
@@ -68,7 +65,6 @@ def _sha(path: str, job: Any) -> str:
                 raise FsError("cancelled")
             digest.update(chunk)
     return digest.hexdigest()
-
 
 def compare_job(job: Any) -> Dict[str, Any]:
     """``{left, right, recursive=True, content=False}`` → rows ``{rel, d, state, l, r}``.
@@ -110,7 +106,7 @@ def compare_job(job: Any) -> Dict[str, Any]:
                 state = "differ"
             else:
                 state = "newer_left" if dt > 0 else "newer_right"
-        # a folder that exists on one side only: list only the folder, not every file inside it
+
         parent = rel.rsplit("/", 1)[0] if "/" in rel else ""
         if parent and state in ("left", "right") and rows and any(
                 r["rel"] == parent and r["state"] == state for r in rows[-200:]):
@@ -119,10 +115,7 @@ def compare_job(job: Any) -> Dict[str, Any]:
         rows.append({"rel": rel, "d": bool((la or rb)["d"]), "state": state, "l": la, "r": rb})
     return {"left": left, "right": right, "rows": rows[:20000], "counts": counts, "truncated": len(rows) > 20000}
 
-
-# ====================================================================== image conversion
 IMG_FORMATS = {"png": "PNG", "jpg": "JPEG", "webp": "WEBP", "bmp": "BMP", "gif": "GIF", "tiff": "TIFF"}
-
 
 def imgconvert_job(job: Any) -> Dict[str, Any]:
     """``{paths, format: png|jpg|webp|bmp|gif|tiff|keep, max_side: 0|px, quality: 1..100, subfolder: str}``."""
@@ -180,10 +173,7 @@ def imgconvert_job(job: Any) -> Dict[str, Any]:
     job.progress.update(files=len(paths), current="")
     return {"done": done, "failed": failed}
 
-
-# ====================================================================== new document templates
 _CT = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
-
 
 def _ooxml(parts: Dict[str, str]) -> bytes:
     buf = io.BytesIO()
@@ -191,7 +181,6 @@ def _ooxml(parts: Dict[str, str]) -> bytes:
         for name, text in parts.items():
             zf.writestr(name, text)
     return buf.getvalue()
-
 
 def _docx() -> bytes:
     return _ooxml({
@@ -204,7 +193,6 @@ def _docx() -> bytes:
         "word/document.xml": _CT + '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
         '<w:body><w:p/><w:sectPr><w:pgSz w:w="11906" w:h="16838"/></w:sectPr></w:body></w:document>',
     })
-
 
 def _xlsx() -> bytes:
     return _ooxml({
@@ -222,7 +210,6 @@ def _xlsx() -> bytes:
         '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
         "xl/worksheets/sheet1.xml": _CT + '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData/></worksheet>',
     })
-
 
 def _pptx() -> bytes:
     p = "http://schemas.openxmlformats.org/presentationml/2006/main"
@@ -280,7 +267,6 @@ def _pptx() -> bytes:
         "ppt/theme/theme1.xml": theme,
     })
 
-
 _TEXT_TEMPLATES: Dict[str, str] = {
     "txt": "", "md": "# {title}\n\n", "csv": "name,value\n", "json": "{}\n",
     "html": '<!doctype html>\n<html lang="ru">\n<head>\n<meta charset="utf-8">\n<title>{title}</title>\n</head>\n<body>\n\n</body>\n</html>\n',
@@ -291,7 +277,6 @@ _TEXT_TEMPLATES: Dict[str, str] = {
 }
 _BINARY_TEMPLATES: Dict[str, Callable[[], bytes]] = {"docx": _docx, "xlsx": _xlsx, "pptx": _pptx}
 TEMPLATE_KINDS = sorted(set(_TEXT_TEMPLATES) | set(_BINARY_TEMPLATES))
-
 
 def new_document(parent: str, name: str) -> str:
     """Create *name* in *parent* from the template of its extension (unique name, like Explorer «Создать»)."""
@@ -313,8 +298,6 @@ def new_document(parent: str, name: str) -> str:
         fh.write(data)
     return target
 
-
-# ====================================================================== editors
 def _editor_candidates() -> List[Dict[str, str]]:
     local = os.environ.get("LOCALAPPDATA", "")
     pf = [os.environ.get("ProgramFiles", ""), os.environ.get("ProgramFiles(x86)", "")]
@@ -334,15 +317,12 @@ def _editor_candidates() -> List[Dict[str, str]]:
             found.append({"id": ident, "name": label, "exe": exe})
     return found
 
-
 _EDITORS: Dict[str, Any] = {"at": 0.0, "list": []}
-
 
 def editors() -> List[Dict[str, str]]:
     if time.time() - _EDITORS["at"] > 60:
         _EDITORS.update(at=time.time(), list=_editor_candidates())
     return _EDITORS["list"]
-
 
 def open_in_editor(path: str, ident: str = "") -> str:
     path = clean_path(path)
@@ -352,18 +332,15 @@ def open_in_editor(path: str, ident: str = "") -> str:
         raise FsError("no_editor")
     exe = choice["exe"]
     command = [exe, path]
-    flags = 0x08000000 if IS_WIN else 0            # CREATE_NO_WINDOW for the code.cmd shim
+    flags = 0x08000000 if IS_WIN else 0
     if IS_WIN and exe.lower().endswith((".cmd", ".bat")):
         command = ["cmd.exe", "/c", exe, path]
     subprocess.Popen(command, cwd=path if os.path.isdir(path) else os.path.dirname(path),  # noqa: S603
                      creationflags=flags, close_fds=True)
     return choice["name"]
 
-
-# ====================================================================== recent files / saved searches
 def _recent_file():
     return files_dir() / "recent.json"
-
 
 def note_recent(path: str) -> None:
     try:
@@ -375,7 +352,6 @@ def note_recent(path: str) -> None:
             write_json(_recent_file(), items[:RECENT_MAX])
     except Exception:  # noqa: BLE001 — history must never break opening a file
         pass
-
 
 def recent() -> List[Dict[str, Any]]:
     out = []
@@ -390,10 +366,8 @@ def recent() -> List[Dict[str, Any]]:
                     "d": os.path.isdir(row["path"])})
     return out
 
-
 def _saved_file():
     return files_dir() / "saved_searches.json"
-
 
 def saved_searches(update: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     with _LOCK:
@@ -409,8 +383,6 @@ def saved_searches(update: Optional[Dict[str, Any]] = None) -> List[Dict[str, An
             write_json(_saved_file(), items)
         return items
 
-
-# ====================================================================== drives
 def eject(path: str) -> None:
     if not IS_WIN:
         raise FsError("unavailable")
@@ -424,8 +396,6 @@ def eject(path: str) -> None:
     if result.returncode:
         raise FsError("eject_failed", drive)
 
-
-# ====================================================================== HTTP entry
 def handle(op: str, method: str, body: Dict[str, Any], query: Dict[str, str]) -> Dict[str, Any]:
     if op == "editors":
         return {"ok": True, "editors": [{"id": e["id"], "name": e["name"]} for e in editors()]}
@@ -444,7 +414,6 @@ def handle(op: str, method: str, body: Dict[str, Any], query: Dict[str, str]) ->
         eject(body.get("path"))
         return {"ok": True}
     raise FileNotFoundError(op)
-
 
 def register(jobs_cls: Any) -> None:
     """Add the job kinds of this module to ``jobs.EXTRA_RUNNERS`` (called by jobs on import)."""

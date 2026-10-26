@@ -31,7 +31,6 @@ STATIC = ROOT / "app" / "memufiles" / "static"
 ICO_SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
 SMALL_MAX = 40
 
-
 def svg(small: bool = False) -> str:
     inset, radius = (16, 124) if small else (28, 118)
     side = 512 - 2 * inset
@@ -60,10 +59,10 @@ def svg(small: bool = False) -> str:
         f'<rect x="{inset}" y="{inset}" width="{side}" height="{side}" rx="{radius}" fill="url(#bg)"/>',
         f'<rect x="{inset}" y="{inset}" width="{side}" height="{side}" rx="{radius}" fill="url(#light)"/>',
         '<g filter="url(#shadow)">',
-        # back of the folder with its tab
+
         f'<path d="M{fx + 26} {fy - tab_h} h{tab_w - 30} q14 0 24 12 l20 {tab_h - 12} h{fw - tab_w - 66} '
         f'q26 0 26 26 v{fh - 30} h-{fw} v-{fh + tab_h - 30} q0 -26 26 -26 z" fill="url(#back)"/>',
-        # front flap
+
         f'<rect x="{fx}" y="{fy + 26}" width="{fw}" height="{fh - 26}" rx="30" fill="url(#front)"/>',
         '</g>',
     ]
@@ -71,7 +70,6 @@ def svg(small: bool = False) -> str:
     parts.append(f'<path d="{star(fx + fw / 2, fy + 26 + (fh - 26) / 2 + 4, r)}" fill="url(#brand)"/>')
     parts.append("</svg>")
     return "".join(parts)
-
 
 def render(markup: str, size: int = 512) -> bytes:
     from playwright.sync_api import sync_playwright
@@ -86,7 +84,6 @@ def render(markup: str, size: int = 512) -> bytes:
         finally:
             browser.close()
 
-
 def build() -> None:
     from PIL import Image
     full_svg, small_svg = svg(False), svg(True)
@@ -100,7 +97,6 @@ def build() -> None:
     frames = {size: (small if size <= SMALL_MAX else full).resize((size, size), Image.LANCZOS) for size in ICO_SIZES}
     from build_memuai_icon import write_ico
     write_ico(frames, ROOT / "memufiles-icon.ico")
-
 
 if __name__ == "__main__":
     build()

@@ -25,26 +25,20 @@ from typing import List, Optional, Tuple
 
 CODE_MARK = "\x01"
 INLINE_MARK = "\x02"
-# Telegram counts the limit in UTF-16 code units after entity parsing; raw
-# HTML is always longer than its visible text, so this keeps a safe margin.
+
 MAX_LENGTH = 3800
-TABLE_GRID_MAX_WIDTH = 46   # wider tables are unreadable as a grid on a phone
+TABLE_GRID_MAX_WIDTH = 46
 
 _FENCE_OPEN = re.compile(r"^(\s{0,3})(`{3,}|~{3,})[ \t]*([\w+.#-]*)[^\n`]*$")
 _TAGS = ("b", "strong", "i", "em", "u", "ins", "s", "strike", "del", "a", "code",
          "pre", "blockquote", "span", "tg-spoiler", "tg-emoji")
 
-
 def _escape(text: str) -> str:
     return html.escape(str(text or ""), quote=False)
-
 
 def utf16_len(text: str) -> int:
     """Length as Telegram counts it (astral characters such as emoji take 2)."""
     return len(str(text or "").encode("utf-16-le")) // 2
-
-
-# --------------------------------------------------------------------- LaTeX
 
 _TEX_SYMBOLS = {
     "alpha": "α", "beta": "β", "gamma": "γ", "delta": "δ", "epsilon": "ε", "varepsilon": "ε",
@@ -74,7 +68,6 @@ _TEX_SYMBOLS = {
 _SUPERSCRIPT = str.maketrans("0123456789+-=()niax", "⁰¹²³⁴⁵⁶⁷⁸⁹⁺⁻⁼⁽⁾ⁿⁱᵃˣ")
 _SUBSCRIPT = str.maketrans("0123456789+-=()aeoxijn", "₀₁₂₃₄₅₆₇₈₉₊₋₌₍₎ₐₑₒₓᵢⱼₙ")
 
-
 def _tex_group(source: str, start: int) -> Tuple[str, int]:
     """Return the {…} group (or single character) starting at ``start``."""
     while start < len(source) and source[start] == " ":
@@ -98,14 +91,12 @@ def _tex_group(source: str, start: int) -> Tuple[str, int]:
         index += 1
     return source[start + 1:], len(source)
 
-
 def _script(value: str, table: dict, marker: str) -> str:
     converted = value.translate(table)
     allowed = {chr(code) for code in table.values()}
     if converted and all(ch in allowed for ch in converted):
         return converted
     return marker + ("(" + value + ")" if len(value) > 1 else value)
-
 
 def tex_to_unicode(source: str) -> str:
     """Best-effort readable rendering of a LaTeX formula (Telegram has no math)."""
@@ -168,21 +159,15 @@ def tex_to_unicode(source: str) -> str:
         index += 1
     return re.sub(r"[ \t]{2,}", " ", "".join(out)).strip()
 
-
 def _looks_like_math(body: str) -> bool:
     body = body.strip()
     if not body or body != body.strip("$"):
         return False
-    if re.fullmatch(r"[\d.,\s]+", body):  # "$5 and $10" are prices, not math
+    if re.fullmatch(r"[\d.,\s]+", body):
         return False
     return bool(re.search(r"[\\^_=+<>]|\b[a-zA-Z]\b", body))
 
-
-# ------------------------------------------------------------------ inline
-
-
 _EMPHASIS_TAG = re.compile(r"<(/?)(b|i|s|tg-spoiler)>")
-
 
 def _repair_nesting(value: str) -> str:
     """Emphasis regexes can produce crossed tags (``<i>a<b>b</i>c</b>`` from
@@ -212,7 +197,6 @@ def _repair_nesting(value: str) -> str:
     out.extend(f"</{tag}>" for tag in reversed(stack))
     return re.sub(r"<(b|i|s|tg-spoiler)></\1>", "", "".join(out))
 
-
 def _inline(text: str) -> str:
     """Convert inline Markdown of a single line/paragraph to Telegram HTML."""
     spans: List[str] = []
@@ -222,9 +206,9 @@ def _inline(text: str) -> str:
         return f"{INLINE_MARK}{len(spans) - 1}{INLINE_MARK}"
 
     source = str(text or "")
-    # Code spans first: nothing inside them is Markdown.
+
     source = re.sub(r"(`+)([^`]+?)\1", lambda m: keep("<code>" + _escape(m.group(2)) + "</code>"), source)
-    # Inline math, before emphasis eats the underscores of x_1.
+
     source = re.sub(r"\\\((.+?)\\\)", lambda m: keep("<code>" + _escape(tex_to_unicode(m.group(1))) + "</code>"), source)
     source = re.sub(r"(?<![\\$\w])\$(?!\s)([^$\n]{1,200}?)(?<!\s)\$(?![\w$])",
                     lambda m: keep("<code>" + _escape(tex_to_unicode(m.group(1))) + "</code>")
@@ -254,15 +238,11 @@ def _inline(text: str) -> str:
     value = re.sub(r"(?<![\w*])\*(?=\S)([^*\n]+?)(?<=\S)\*(?![\w*])", r"<i>\1</i>", value)
     value = re.sub(r"(?<![\w_])_(?=\S)([^_\n]+?)(?<=\S)_(?![\w_])", r"<i>\1</i>", value)
     value = _repair_nesting(value)
-    for _ in range(3):  # spans can contain spans (a link label with code)
+    for _ in range(3):
         if INLINE_MARK not in value:
             break
         value = re.sub(f"{INLINE_MARK}(\\d+){INLINE_MARK}", lambda m: spans[int(m.group(1))], value)
     return value
-
-
-# ------------------------------------------------------------------ tables
-
 
 def _display_width(text: str) -> int:
     width = 0
@@ -272,7 +252,6 @@ def _display_width(text: str) -> int:
         width += 2 if unicodedata.east_asian_width(char) in ("W", "F") else 1
     return width
 
-
 def _pad(text: str, width: int, align: str) -> str:
     gap = max(0, width - _display_width(text))
     if align == "right":
@@ -281,10 +260,8 @@ def _pad(text: str, width: int, align: str) -> str:
         return " " * (gap // 2) + text + " " * (gap - gap // 2)
     return text + " " * gap
 
-
 def _is_divider_row(cells: List[str]) -> bool:
     return bool(cells) and all(re.fullmatch(r":?-{2,}:?", cell.strip() or "x") for cell in cells)
-
 
 def _cells(line: str) -> List[str]:
     value = line.strip()
@@ -294,7 +271,6 @@ def _cells(line: str) -> List[str]:
         value = value[:-1]
     return [cell.strip().replace("\\|", "|") for cell in re.split(r"(?<!\\)\|", value)]
 
-
 def _plain(text: str) -> str:
     """Strip Markdown emphasis for monospace table cells (not escaped)."""
     value = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", str(text or ""))
@@ -302,7 +278,6 @@ def _plain(text: str) -> str:
     value = re.sub(r"\$([^$]+)\$", lambda m: tex_to_unicode(m.group(1)), value)
     value = re.sub(r"<br\s*/?>", " ", value, flags=re.I)
     return value.strip()
-
 
 def _table(lines: List[str]) -> str:
     raw_rows = [_cells(line) for line in lines]
@@ -328,7 +303,7 @@ def _table(lines: List[str]) -> str:
             if index == 0 and len(rows) > 1:
                 out.append("─┼─".join("─" * widths[column] for column in range(width)))
         return "<pre>" + _escape("\n".join(out)) + "</pre>"
-    # Too wide for a phone: one card per row, "Header: value" lines.
+
     header, body = rows[0], rows[1:] or [rows[0]]
     cards: List[str] = []
     for row in body:
@@ -341,14 +316,9 @@ def _table(lines: List[str]) -> str:
         cards.append("\n".join(lines_out))
     return "\n".join(cards)
 
-
-# ------------------------------------------------------------------ blocks
-
-
 def _list_depth(indent: str, unit: int) -> int:
     width = len(indent.replace("\t", "    "))
     return min(5, width // max(1, unit))
-
 
 def _code_block(language: str, body: str) -> str:
     code = _escape(body.strip("\n"))
@@ -356,7 +326,6 @@ def _code_block(language: str, body: str) -> str:
     if language:
         return f'<pre><code class="language-{_escape(language)}">{code}</code></pre>'
     return f"<pre>{code}</pre>"
-
 
 def markdown_to_telegram_html(text: str, *, partial: bool = False) -> str:
     """Render model Markdown as Telegram HTML.
@@ -368,8 +337,7 @@ def markdown_to_telegram_html(text: str, *, partial: bool = False) -> str:
     lines_in = str(text or "").replace("\r\n", "\n").replace("\r", "\n").split("\n")
     lines: List[str] = []
     index = 0
-    # Pass 1: lift fenced code and display math out, so nothing inside them
-    # is parsed as Markdown.
+
     while index < len(lines_in):
         line = lines_in[index]
         fence = _FENCE_OPEN.match(line)
@@ -420,7 +388,6 @@ def markdown_to_telegram_html(text: str, *, partial: bool = False) -> str:
         lines.append(line)
         index += 1
 
-    # Indentation unit for nested lists: 2 or 4 spaces, whichever the text uses.
     indents = [len(m.group(1)) for m in (re.match(r"^( +)(?:[-*+]|\d{1,3}[.)])\s", l) for l in lines) if m]
     unit = 2 if any(value % 4 for value in indents) or not indents else 4
     if indents and min(indents) >= 4 and all(value % 4 == 0 for value in indents):
@@ -493,40 +460,33 @@ def markdown_to_telegram_html(text: str, *, partial: bool = False) -> str:
     result = re.sub(f"{CODE_MARK}(\\d+){CODE_MARK}", lambda m: blocks[int(m.group(1))], result)
     return re.sub(r"\n{3,}", "\n\n", result).strip()
 
-
 def render_partial(text: str) -> str:
     """Render a streaming (unfinished) answer: open fences are closed."""
     value = str(text or "")
-    # A dangling emphasis/link marker at the very end would flicker as raw text.
+
     value = re.sub(r"(\*\*|__|~~|\[[^\]]*|`)$", "", value)
     return markdown_to_telegram_html(_close_open_emphasis(value), partial=True)
-
 
 def _close_open_emphasis(value: str) -> str:
     """Round 26: ``**Сравнение Pyth`` mid-stream was shown with raw asterisks
     until the closing marker arrived; close what the last paragraph opened."""
     if value.count("```") % 2:
-        return value        # inside a code block (its fence is closed later)
+        return value
     paragraph = value[value.rfind("\n\n") + 1:]
     if paragraph.count("`") % 2:
         return value + "`"
     plain = re.sub(r"`[^`]*`", "", paragraph)
     marks = [mark for mark in ("**", "~~") if plain.count(mark) % 2]
-    marks.sort(key=plain.rfind, reverse=True)       # innermost first
+    marks.sort(key=plain.rfind, reverse=True)
     return value + "".join(marks)
 
-
-# ------------------------------------------------------------------ split
-
 _TOKEN = re.compile(r"<[^>]*>|&#?\w+;|\n|[ \t]+|[^<&\n \t]+|[<&]")
-
 
 def _tag_name(tag: str) -> Tuple[str, bool]:
     match = re.match(r"^<\s*(/?)\s*([\w-]+)", tag)
     if not match:
         return "", False
     return match.group(2).lower(), bool(match.group(1))
-
 
 def html_to_plain(text: str) -> str:
     """Telegram rejected the markup: keep the words, drop the tags."""
@@ -536,14 +496,12 @@ def html_to_plain(text: str) -> str:
                                            " (" + html.unescape(m.group(1)) + ")"), value)
     return html.unescape(re.sub(r"<[^>]+>", "", value))
 
-
 def _drop_empty_elements(chunk: str) -> str:
     previous = None
     while previous != chunk:
         previous = chunk
         chunk = re.sub(r"<(\w[\w-]*)(?:\s[^>]*)?>(\s*)</\1>", r"\2", chunk)
     return chunk.strip("\n")
-
 
 def split_telegram_html(text: str, limit: int = MAX_LENGTH) -> List[str]:
     """Split rendered HTML into valid messages of at most ``limit`` units.
@@ -562,7 +520,7 @@ def split_telegram_html(text: str, limit: int = MAX_LENGTH) -> List[str]:
         if token.startswith("<") and len(token) > 1:
             name, _ = _tag_name(token)
             if name not in _TAGS:
-                token = _escape(token)  # stray "<" or unknown tag: show literally
+                token = _escape(token)
                 tokens.extend(_TOKEN.findall(token))
                 continue
         if token in ("<", "&"):
@@ -598,7 +556,7 @@ def split_telegram_html(text: str, limit: int = MAX_LENGTH) -> List[str]:
         prefix = "".join(opening for _, opening in stack)
         length = utf16_len(prefix)
         body: List[str] = []
-        # (token index to resume from, stack at the cut, priority, length)
+
         breaks: List[Tuple[int, List[Tuple[str, str]], int, int]] = []
         probe = index
         while probe < len(tokens):
@@ -638,7 +596,7 @@ def split_telegram_html(text: str, limit: int = MAX_LENGTH) -> List[str]:
             chunks.append(rendered)
         index = cut
         if any(name in ("pre", "code") for name, _ in cut_stack):
-            # Inside code only the line break goes: indentation is content.
+
             if index < len(tokens) and tokens[index] == "\n":
                 index += 1
         else:
@@ -648,9 +606,7 @@ def split_telegram_html(text: str, limit: int = MAX_LENGTH) -> List[str]:
     return [chunk for chunk in chunks if html_to_plain(chunk).strip()] or [
         chunk for chunk in chunks if chunk.strip()] or ["—"]
 
-
 _HEADING_LINE = re.compile(r"^\s{0,3}(#{1,6}\s+\S|\*\*[^*\n]+\*\*:?\s*$|__[^_\n]+__:?\s*$)")
-
 
 def split_markdown_source(text: str, limit: int) -> Tuple[str, str, int]:
     """Cut a streaming Markdown answer: ``(head, carry, consumed)``.
@@ -673,7 +629,7 @@ def split_markdown_source(text: str, limit: int) -> Tuple[str, str, int]:
         cut = window.rfind(" ")
     if cut <= 0:
         cut = limit
-    # Round 26: a heading must not end a part with its text in the next one.
+
     last_line = value[:cut].rstrip("\n").rsplit("\n", 1)[-1]
     if _HEADING_LINE.match(last_line):
         before = value[:cut].rstrip("\n").rfind("\n")

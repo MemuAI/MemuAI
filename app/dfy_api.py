@@ -12,14 +12,12 @@ from .dfy import DFYManager, BrowserChoiceRequired
 from .dfy_browser import in_language
 from .dfy_vault import VaultError
 
-
 async def _body(request: Request) -> dict:
     try:
         data = await request.json()
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
-
 
 def build_router(manager: DFYManager) -> APIRouter:
     router = APIRouter()
@@ -92,7 +90,7 @@ def build_router(manager: DFYManager) -> APIRouter:
         body = await _body(request)
         try:
             task = await manager.answer(task_id, body)
-        except KeyError as exc:      # Round 34: the toast in the UI language
+        except KeyError as exc:
             return JSONResponse({"error": in_language(str(exc.args[0] if exc.args else exc), manager._lang())}, 404)
         except RuntimeError as exc:
             return JSONResponse({"error": in_language(str(exc), manager._lang())}, 409)
@@ -108,7 +106,6 @@ def build_router(manager: DFYManager) -> APIRouter:
             return JSONResponse({"error": in_language("Задача DFY не найдена", manager._lang())}, 404)
         return {"ok": True, "id": task.id, "status": task.status}
 
-    # --- vault management (values are write-only: never returned) ---------
     @router.get("/api/dfy/vault")
     async def dfy_vault_list():
         return {"items": manager.vault.list(), **manager.vault.info()}
@@ -143,7 +140,6 @@ def build_router(manager: DFYManager) -> APIRouter:
             return JSONResponse({"error": "Секрет не найден"}, 404)
         return {"ok": True}
 
-    # --- Round 30: the user takes over the browser (app/dfy_takeover.py) ---
     def _lang() -> str:
         return manager._lang()
 
@@ -179,7 +175,6 @@ def build_router(manager: DFYManager) -> APIRouter:
             return
         await serve_websocket(websocket, session, _lang)
 
-    # --- Round 30: the DFY proxy (app/dfy_proxy.py); login/password are write-only ---
     def _unknown_machine(machine: str) -> Optional[JSONResponse]:
         """``?machine=`` is «local» or a machine from Settings → DFY (its proxy goes away with it)."""
         if machine in ("", "local") or manager.machines.store.get(machine) is not None:
@@ -192,7 +187,7 @@ def build_router(manager: DFYManager) -> APIRouter:
             return missing
         out = manager.proxy.get(machine)
         if machine in ("", "local"):
-            out["status"] = manager.status().get("proxy")   # the local relay's state; a machine has none here
+            out["status"] = manager.status().get("proxy")
         return out
 
     @router.put("/api/dfy/proxy")
@@ -236,9 +231,7 @@ def build_router(manager: DFYManager) -> APIRouter:
 
     return router
 
-
 VISION_TTL = 30.0
-
 
 def install(app: Any, completion: Any, load_preferences: Any) -> DFYManager:
     """Create the manager, mount ``/api/dfy/*`` on ``app`` and keep it in ``app.state.dfy_manager``.
@@ -266,7 +259,7 @@ def install(app: Any, completion: Any, load_preferences: Any) -> DFYManager:
         if isinstance(rows, list) and rows:
             cache["vision"] = {str(row.get("id")): (row.get("caps") or {}).get("vision") is True
                                for row in rows if isinstance(row, dict) and row.get("id")}
-            # Not chat models (excluded from the DFY list by app.js too): image generators, music-only.
+
             cache["image"] = {str(x) for x in data.get("image_models") or []} | {
                 str(row.get("id")) for row in rows if isinstance(row, dict)
                 and (row.get("caps") or {}).get("music") is True and (row.get("caps") or {}).get("text") is not True}
@@ -275,8 +268,7 @@ def install(app: Any, completion: Any, load_preferences: Any) -> DFYManager:
         vision = cache["vision"]
         if model in vision:
             return vision[model]
-        # The Proxy is offline or the model is not in its list: only direct evidence counts
-        # (manual override, probe, local projector, the provider's own row) — unknown stays None.
+
         try:
             from . import model_capabilities
             return model_capabilities.has_vision(model)
@@ -284,13 +276,13 @@ def install(app: Any, completion: Any, load_preferences: Any) -> DFYManager:
             return None
 
     def first_vision_model() -> str:
-        # Same rule as defaultVisionModel() in app.js: the first model of the list that sees images.
+
         return next((model for model, sees in cache["vision"].items() if sees and model not in cache["image"]), "")
 
     manager = DFYManager(completion, load_preferences, data_root=Path(DATA_DIR) / "memuai",
                          vision_lookup=lookup, fallback_model=first_vision_model, vision_refresh=refresh_vision)
     app.state.dfy_manager = manager
     app.include_router(build_router(manager))
-    from .dfy_remote_api import build_router as build_remote_router   # Round 30: remote machines
+    from .dfy_remote_api import build_router as build_remote_router
     app.include_router(build_remote_router(manager))
     return manager

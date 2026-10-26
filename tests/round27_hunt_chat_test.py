@@ -21,7 +21,6 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r27hc-test-"))
 APP_JS = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
 NODE = shutil.which("node")
 
-
 def _run_node(script: str) -> dict:
     """Выполняет кусок app.js в node: функции берутся из настоящего файла, а не из копии."""
     out = subprocess.run([NODE, "-e", script], cwd=str(ROOT), capture_output=True, text=True, timeout=60)
@@ -29,13 +28,11 @@ def _run_node(script: str) -> dict:
         raise AssertionError(out.stderr[-2000:])
     return json.loads(out.stdout.strip().splitlines()[-1])
 
-
 def _slice_js(start: str, end: str) -> str:
     return (f"const src = require('fs').readFileSync('app/pgstatic/app.js', 'utf8');\n"
             f"const a = src.indexOf({json.dumps(start)}), b = src.indexOf({json.dumps(end)}, a);\n"
             f"if (a < 0 || b < 0) throw new Error('slice not found');\n"
             f"const code = src.slice(a, b);\n")
-
 
 def _pdf(pages):
     """Минимальный PDF с текстом Helvetica — pypdf извлекает его без шрифтовых таблиц."""
@@ -62,7 +59,6 @@ def _pdf(pages):
     out += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
     return bytes(out)
 
-
 @unittest.skipUnless(NODE, "node is required")
 class ImportedChats(unittest.TestCase):
     def _parse(self, data):
@@ -73,7 +69,7 @@ class ImportedChats(unittest.TestCase):
         return _run_node(script)
 
     def test_chatgpt_keeps_only_the_shown_branch(self):
-        # n2 — старый (перегенерированный) ответ: соседняя ветвь, в чат она попадать не должна.
+
         mapping = {
             "root": {"message": None, "parent": None},
             "n1": {"message": {"author": {"role": "user"}, "content": {"parts": ["Plan Rome"]}, "create_time": 1}, "parent": "root"},
@@ -87,7 +83,7 @@ class ImportedChats(unittest.TestCase):
         mapping["n1"]["parent"] = "h"
         chats = self._parse([{"title": "Trip", "current_node": "n5", "mapping": mapping}])
         self.assertEqual([m["content"] for m in chats[0]["messages"]], ["Plan Rome", "NEW", "Florence?", "Yes"])
-        # Без current_node (старые выгрузки) — прежний порядок по времени.
+
         del mapping["h"]
         mapping["n1"]["parent"] = "root"
         chats = self._parse([{"title": "Trip", "mapping": mapping}])
@@ -109,7 +105,6 @@ class ImportedChats(unittest.TestCase):
         panel = APP_JS[APP_JS.index("function openChatImportPanel("):APP_JS.index("// --- импорт информации о пользователе")]
         self.assertIn(".sort((a, b) => (+b.updated || 0) - (+a.updated || 0))", panel)
         self.assertNotIn("Math.min(rows.length, 200)", panel)
-
 
 @unittest.skipUnless(NODE, "node is required")
 class SystemPromptWithoutPrompt(unittest.TestCase):
@@ -160,7 +155,6 @@ class SystemPromptWithoutPrompt(unittest.TestCase):
         full = self._build("work", "empty", "full")
         self.assertIn("Existing files are edited with work_patch", full)
 
-
 class ChatClientFixes(unittest.TestCase):
     def test_user_stop_is_marked(self):
         self.assertIn('assistant.stopped = e.name === "AbortError" && localController.signal.aborted', APP_JS)
@@ -188,7 +182,6 @@ class ChatClientFixes(unittest.TestCase):
         self.assertIn('"Temporary chat" : "Временный чат"', APP_JS)
         self.assertNotIn('|| "Чат";', APP_JS)
 
-
 class AttachmentExtraction(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -212,7 +205,6 @@ class AttachmentExtraction(unittest.TestCase):
         out = self._extract(_pdf([line] * 1800))
         self.assertTrue(out["truncated"])
         self.assertLessEqual(len(out["text"]), 200000)
-
 
 class PanelsTransientRetry(unittest.TestCase):
     def setUp(self):
@@ -239,7 +231,6 @@ class PanelsTransientRetry(unittest.TestCase):
         self.assertLessEqual(out["next_refresh"] - now, 61)
         out = self.panels._finish(p["id"], wall=self.panels.Wall("blocked:rate-limit", "429", retry_after=900), now=now)
         self.assertGreaterEqual(out["next_refresh"] - now, 900)
-
 
 class PanelsHumanWalls(unittest.TestCase):
     """r27-hunt-chat-2: погода на HTTP 429 писала голое «HTTP 429» (Telegram-бот, Mini App, подсказки),
@@ -305,7 +296,6 @@ class PanelsHumanWalls(unittest.TestCase):
         self.assertIn('panel.status === "failed" && !!panel.wall', body)
         self.assertIn("wallText(panel.wall, panel)", body, "the tooltip explains the wall")
 
-
 @unittest.skipUnless(NODE, "node is required")
 class DeepResearchInterrupted(unittest.TestCase):
     """r27-hunt-chat-2 (вживую): перезагрузка окна посреди исследования давала «Глубокое исследование
@@ -333,7 +323,6 @@ class DeepResearchInterrupted(unittest.TestCase):
         self.assertIn("connectionLost", catch)
         self.assertIn("связь с MemuAI прервалась", catch)
         self.assertIn("the connection to MemuAI was interrupted", catch)
-
 
 @unittest.skipUnless(NODE, "node is required")
 class PrivateAttachmentPrep(unittest.TestCase):
@@ -373,7 +362,6 @@ class PrivateAttachmentPrep(unittest.TestCase):
         self.assertIn("if (!reports) return;", body)
         self.assertNotIn('panel(`<div class="vision-routing-progress">', body)
 
-
 class MediaBridgeErrors(unittest.TestCase):
     """r27-hunt-chat-3: ошибки /api/pg/vision/describe и /api/pg/video/analyze (тосты окна) были только
     по-русски в английском интерфейсе; недоступный Proxy показывался голым текстом httpx."""
@@ -407,7 +395,6 @@ class MediaBridgeErrors(unittest.TestCase):
             r = self.client.post("/api/pg/vision/describe", json={"model": "m", "images": [frame]})
             self.assertIn("MemuAI Proxy", r.json()["error"])
 
-
 @unittest.skipUnless(NODE, "node is required")
 class SketchIsNotLost(unittest.TestCase):
     """r27-hunt-chat-3: «Прикрепить» при 10 вложениях (или PNG со вставленной фотографией > 5 МБ)
@@ -415,7 +402,7 @@ class SketchIsNotLost(unittest.TestCase):
 
     def test_add_attachment_files_reports_how_many_were_attached(self):
         script = _slice_js("async function addAttachmentFiles", "/* Видео разбирается на кадры") + (
-            "globalThis.window=globalThis;"   # Round 35: addAttachmentFiles asks window.MemuBigDocs first
+            "globalThis.window=globalThis;"
             "globalThis.PG_LANG='en';globalThis.MemuVideo=undefined;const toasts=[];"
             "globalThis.toast=(m)=>toasts.push(m);globalThis.renderAttachments=()=>{};"
             "globalThis.FileReader=class{readAsDataURL(f){this.result='data:image/png;base64,AA';setTimeout(()=>this.onload(),1);}};"
@@ -437,14 +424,12 @@ class SketchIsNotLost(unittest.TestCase):
         self.assertIn("png.size <= MAX_PNG", to_blob)
         self.assertIn('"image/jpeg", 0.9', to_blob)
 
-
 class MessageModelName(unittest.TestCase):
     """r27-hunt-chat-3 (вживую, Yandex): шапка ответа показывала сырой id «ya-gpt://b1g…/deepseek…/latest»
     и игнорировала своё название модели, а выбор модели вверху — красивое имя."""
 
     def test_answer_header_uses_the_display_name(self):
         self.assertIn('title="${esc(m.model)}">${esc(modelDisplayName(m.model))}</span>', APP_JS)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -21,9 +21,7 @@ from . import model_names
 PROVIDER_LABELS = {"genspark": "Genspark", "kiro": "Kiro", "antigravity": "Antigravity", "geminiweb": "Gemini Web",
                    "grok": "Grok", "local": "Local", "custom": "Custom API"}
 
-#: vision_src values: how sure the answer is.
 VERIFIED_SOURCES = ("probe", "user")
-
 
 def vision_state(public_id: str, provider: str, entry: Any = None) -> Dict[str, str]:
     """``{"state": yes|no|unknown, "src": probe|user|local|adapter|provider|catalog|family|name|none}``.
@@ -70,17 +68,9 @@ def vision_state(public_id: str, provider: str, entry: Any = None) -> Dict[str, 
         return {"state": "no", "src": str(summary.get("vision_source") or "catalog")}
     return {"state": "unknown", "src": "none"}
 
-
 def _kind(row: Dict[str, Any]) -> str:
-    caps = row.get("caps") or {}
-    if caps.get("video"):
-        return "video"
-    if caps.get("image"):
-        return "image"
-    if caps.get("music") and caps.get("text") is not True:
-        return "music"
-    return "chat"
-
+    from .model_capabilities import kind_for_row
+    return kind_for_row(row)
 
 def enrich(payload: Dict[str, Any], *, find_model=None) -> Dict[str, Any]:
     """Add names, kind, account and the vision answer to every ``/pg/state`` row (in place; returns ``payload``)."""
@@ -108,7 +98,7 @@ def enrich(payload: Dict[str, Any], *, find_model=None) -> Dict[str, Any]:
             prefix = public_id.split("/", 1)[0]
         parsed = model_names.parse(public_id, prefix=prefix)
         if row.get("composite"):
-            # Round 35: a composite model (app/composite_models.py) brings its own title and capability summary.
+
             row["name"] = str(row.get("display_name") or parsed["name"] or public_id)
             row.setdefault("account", str(row.get("provider_label") or "MemuAI Proxy"))
             row["kind"] = "chat"
@@ -125,19 +115,19 @@ def enrich(payload: Dict[str, Any], *, find_model=None) -> Dict[str, Any]:
         provider = str(row.get("provider") or "")
         account = row.get("provider_label") or (labels.get(prefix) if prefix else "") or \
             ("Genspark" if public_id.startswith("genspark-") else "") or PROVIDER_LABELS.get(provider) or provider or "—"
-        if " · " in str(account) and prefix:      # «reform · Images» rows of Proxy: the account is «Reform»
+        if " · " in str(account) and prefix:
             account = labels.get(prefix) or prefix
         row.setdefault("account", str(account))
         kind = "video" if public_id in video_ids else "image" if public_id in image_ids else \
             "music" if public_id in music_ids and (row.get("caps") or {}).get("text") is not True else _kind(row)
         row["kind"] = kind
         caps = row.setdefault("caps", {})
-        if kind in ("image", "video", "music"):
+        if kind != "chat":
             caps["vision_state"], caps["vision_src"] = ("no", "kind")
         else:
             found = vision_state(public_id, provider, entry)
             caps["vision_state"], caps["vision_src"] = found["state"], found["src"]
-            # The old boolean follows a firm answer; «unknown» keeps the old «let the user try».
+
             if found["state"] == "no" and found["src"] in VERIFIED_SOURCES + ("provider", "local", "adapter"):
                 caps["vision"] = False
             elif found["state"] == "yes":
@@ -145,7 +135,6 @@ def enrich(payload: Dict[str, Any], *, find_model=None) -> Dict[str, Any]:
         if "free" in parsed["badges"]:
             caps["free"] = True
     return payload
-
 
 def pick_rows(rows: Iterable[Dict[str, Any]], *, kind: str = "", need: str = "",
               hidden: Optional[Iterable[str]] = None, include_hidden: bool = False) -> List[Dict[str, Any]]:
@@ -158,7 +147,7 @@ def pick_rows(rows: Iterable[Dict[str, Any]], *, kind: str = "", need: str = "",
         row_kind = row.get("kind") or _kind(row)
         if kind == "text" and row_kind not in ("chat",):
             continue
-        if kind in ("chat", "image", "video", "music") and row_kind != kind:
+        if kind and kind != "text" and row_kind != kind:
             continue
         if need == "vision" and (row.get("caps") or {}).get("vision_state") == "no":
             continue
@@ -166,7 +155,6 @@ def pick_rows(rows: Iterable[Dict[str, Any]], *, kind: str = "", need: str = "",
             continue
         out.append(row)
     return out
-
 
 def label(row: Dict[str, Any], *, aliases: Optional[Dict[str, str]] = None, full: bool = True) -> str:
     """Plain-text label (Telegram, the CLI): ``Claude Opus 4.6 · aws9-claude-opus-4.6``."""

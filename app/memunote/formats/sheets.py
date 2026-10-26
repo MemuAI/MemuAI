@@ -24,7 +24,6 @@ _NS_REL = "{http://schemas.openxmlformats.org/officeDocument/2006/relationships}
 _NS_PKG_REL = "{http://schemas.openxmlformats.org/package/2006/relationships}"
 _DATE_IDS = set(range(14, 23)) | {27, 30, 36, 45, 46, 47, 50, 57}
 
-
 def _check_no_entities(data: bytes) -> bytes:
     """Refuse <!ENTITY> declarations: a crafted .xlsx/.ods/.epub/.fb2 ("billion laughs") would expand to gigabytes
     in memory. Declarations can only sit in the DOCTYPE before the root element. Round 31 note-core finisher."""
@@ -35,14 +34,11 @@ def _check_no_entities(data: bytes) -> bytes:
         raise ValueError("XML entity declarations are not allowed")
     return data
 
-
 def safe_iterparse(data: bytes):
     return ET.iterparse(io.BytesIO(_check_no_entities(data)))
 
-
 def safe_fromstring(data):
     return ET.fromstring(_check_no_entities(data))
-
 
 def _col_index(ref: str) -> int:
     n = 0
@@ -55,7 +51,6 @@ def _col_index(ref: str) -> int:
             break
     return n - 1
 
-
 def _num(text: str) -> str:
     try:
         value = float(text)
@@ -64,7 +59,6 @@ def _num(text: str) -> str:
     if value.is_integer() and abs(value) < 1e15:
         return str(int(value))
     return repr(value) if "e" in repr(value) else ("%.10f" % value).rstrip("0").rstrip(".")
-
 
 def _date(serial: str, system1904: bool = False) -> str:
     try:
@@ -80,7 +74,6 @@ def _date(serial: str, system1904: bool = False) -> str:
         return moment.strftime("%Y-%m-%d")
     return moment.strftime("%Y-%m-%d %H:%M")
 
-
 def _text_of(el) -> str:
     """Concatenated <t> text of a shared/inline string (rich runs included, phonetic runs skipped)."""
     parts = []
@@ -90,7 +83,6 @@ def _text_of(el) -> str:
         if node.tag == _NS_MAIN + "t" and node.text:
             parts.append(node.text)
     return "".join(parts)
-
 
 def read_xlsx(data: bytes) -> Dict[str, Any]:
     with zipfile.ZipFile(io.BytesIO(data)) as z:
@@ -134,11 +126,11 @@ def read_xlsx(data: bytes) -> Dict[str, Any]:
                 continue
             rows: List[List[str]] = []
             truncated = False
-            formulas: Dict[str, str] = {}       # Round 40 (r40-note): "row,col" → formula (no "="), for the editor
-            shared_f: Dict[str, Any] = {}       # si → (formula, row, col) of a shared formula's master
+            formulas: Dict[str, str] = {}
+            shared_f: Dict[str, Any] = {}
             widths: Dict[int, int] = {}
             merges: List[str] = []
-            cell_styles: Dict[str, int] = {}    # "row,col" → index into the workbook's "looks" (display only)
+            cell_styles: Dict[str, int] = {}
             for _ev, el in safe_iterparse(z.read(target)):
                 if el.tag == _NS_MAIN + "col":
                     try:
@@ -164,7 +156,7 @@ def read_xlsx(data: bytes) -> Dict[str, Any]:
                 while r_index > len(rows) and len(rows) < 1_000_000:
                     rows.append([])
                 row: List[str] = []
-                ri = len(rows)                  # where this row lands (rows without r= / out of order included)
+                ri = len(rows)
                 for c in el.findall(_NS_MAIN + "c"):
                     col = _col_index(c.get("r", "")) if c.get("r") else len(row)
                     if col >= MAX_COLS:
@@ -213,9 +205,7 @@ def read_xlsx(data: bytes) -> Dict[str, Any]:
                            "styles": cell_styles})
     return {"sheets": sheets, "editable": True, "looks": looks}
 
-
 _BUILTIN_FMT = {1: "0", 2: "0.00", 3: "#,##0", 4: "#,##0.00", 9: "0%", 10: "0.00%", 11: "0.00E+00"}
-
 
 def _rgb(el) -> str:
     """``<color rgb="FF336699"/>`` → ``#336699`` (theme / indexed colours are not resolved: left to the grid's theme)."""
@@ -223,7 +213,6 @@ def _rgb(el) -> str:
         return ""
     rgb = el.get("rgb") or ""
     return "#" + rgb[-6:] if re.fullmatch(r"[0-9A-Fa-f]{6,8}", rgb) else ""
-
 
 def _looks(root, xfs) -> List[Dict[str, str]]:
     """Round 40 (r40-note): how each cell style looks in the grid — bold / italic / colour / fill / alignment / the
@@ -270,11 +259,9 @@ def _looks(root, xfs) -> List[Dict[str, str]]:
         out.append(look)
     return out
 
-
 _NS_TABLE = "{urn:oasis:names:tc:opendocument:xmlns:table:1.0}"
 _NS_OFFICE = "{urn:oasis:names:tc:opendocument:xmlns:office:1.0}"
 _NS_TEXT = "{urn:oasis:names:tc:opendocument:xmlns:text:1.0}"
-
 
 def _ods_cell_text(cell) -> str:
     kind = cell.get(_NS_OFFICE + "value-type", "")
@@ -291,7 +278,6 @@ def _ods_cell_text(cell) -> str:
     for p in cell.findall(_NS_TEXT + "p"):
         lines.append("".join(p.itertext()))
     return "\n".join(lines)
-
 
 def read_ods(data: bytes) -> Dict[str, Any]:
     with zipfile.ZipFile(io.BytesIO(data)) as z:
@@ -317,7 +303,7 @@ def read_ods(data: bytes) -> Dict[str, Any]:
                     row.append(text)
             while row and not row[-1]:
                 row.pop()
-            for _ in range(repeat_rows if row else min(repeat_rows, 1000)):   # trailing empty rows are dropped below
+            for _ in range(repeat_rows if row else min(repeat_rows, 1000)):
                 if budget <= 0:
                     truncated = True
                     break
@@ -330,13 +316,11 @@ def read_ods(data: bytes) -> Dict[str, Any]:
         sheets.append({"name": table.get(_NS_TABLE + "name", f"Sheet{len(sheets) + 1}"), "rows": rows, "truncated": truncated})
     return {"sheets": sheets}
 
-
 def read_sheet(path: str, data: Optional[bytes] = None) -> Dict[str, Any]:
     data = data if data is not None else open(path, "rb").read()
     if path.lower().endswith(".ods"):
         return read_ods(data)
     return read_xlsx(data)
-
 
 def to_csv(rows: List[List[str]], delimiter: str = ",") -> str:
     import csv

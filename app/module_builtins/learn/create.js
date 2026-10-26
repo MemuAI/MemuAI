@@ -1,6 +1,5 @@
-/* MemuLearn · create.js — новый курс из любого источника: тема, книга или документация (PDF/DOCX/EPUB/TXT/MD —
- * разбор app/bigdocs.py), документ MemuNote (недавние файлы), колода Anki .apkg или таблица .csv.
- * ИИ строит дерево модулей и уроков (задача outline), потом курс открывается. */
+
+
 const CREATE = { src: "topic", doc: null, notes: null };
 
 VIEWS.create = async () => {

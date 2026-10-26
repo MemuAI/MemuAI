@@ -17,10 +17,10 @@ from typing import Any, Dict, List, Optional
 
 UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) "
       "Chrome/126.0 Safari/537.36")
-#: Sources yt-dlp downloads itself (anything else with http(s) is tried through yt-dlp too).
+
 DIRECT = {"youtube", "ytmusic", "soundcloud", "bandcamp", "vk", "vimeo", "mixcloud", "audiomack", "tiktok",
           "twitch", "dailymotion", "rutube", "odnoklassniki", "web"}
-#: Sources resolved through metadata + a YouTube Music search.
+
 META = {"spotify", "apple", "deezer", "yandex", "tidal", "amazon", "napster", "qobuz", "pandora", "boomplay", "anghami", "zvuk"}
 
 LABELS = {"youtube": "YouTube", "ytmusic": "YouTube Music", "spotify": "Spotify", "apple": "Apple Music",
@@ -30,11 +30,9 @@ LABELS = {"youtube": "YouTube", "ytmusic": "YouTube Music", "spotify": "Spotify"
           "odnoklassniki": "OK", "napster": "Napster", "qobuz": "Qobuz", "pandora": "Pandora", "boomplay": "Boomplay",
           "anghami": "Anghami", "zvuk": "Звук", "web": "Web", "search": "Search"}
 
-
 def _result(source: str, kind: str, url: str, item_id: str = "", **extra: Any) -> Dict[str, Any]:
     return {"source": source, "kind": kind, "url": url, "id": item_id, "label": LABELS.get(source, source),
             "direct": source in DIRECT, **extra}
-
 
 def detect(raw: str) -> Dict[str, Any]:
     text = str(raw or "").strip()
@@ -167,26 +165,20 @@ def detect(raw: str) -> Dict[str, Any]:
             return _result(source, kind, text)
     return _result("web", "track", text)
 
-
 def _apple_country(path: str) -> str:
     m = re.match(r"^/([a-z]{2})/", path)
     return m.group(1) if m else "us"
-
-
-# ---------------------------------------------------------------------- metadata
 
 def _client():
     import httpx
     return httpx.Client(follow_redirects=True, timeout=httpx.Timeout(12, read=20),
                         headers={"User-Agent": UA, "Accept-Language": "en-US,en;q=0.8,ru;q=0.6"})
 
-
 def _item(title: str, artist: str = "", album: str = "", duration: float = 0, cover: str = "",
           url: str = "", isrc: str = "", track_no: int = 0, year: str = "") -> Dict[str, Any]:
     return {"title": str(title or "").strip(), "artist": str(artist or "").strip(), "album": str(album or "").strip(),
             "duration": float(duration or 0), "cover_url": cover or "", "source_url": url, "isrc": isrc,
             "track_no": int(track_no or 0), "year": str(year or "")[:4]}
-
 
 def expand_short(info: Dict[str, Any], client) -> Dict[str, Any]:
     """spotify.link / link.deezer.com / on.soundcloud.com → the real URL, then detect again."""
@@ -200,7 +192,6 @@ def expand_short(info: Dict[str, Any], client) -> Dict[str, Any]:
     fresh = detect(final)
     fresh.pop("short", None)
     return fresh
-
 
 def resolve_meta(info: Dict[str, Any], client=None) -> Dict[str, Any]:
     """{kind, title, artist, cover_url, items:[item]} for a META source (items are what we search for)."""
@@ -228,13 +219,11 @@ def resolve_meta(info: Dict[str, Any], client=None) -> Dict[str, Any]:
         if own:
             client.close()
 
-
 def _next_data(text: str) -> Dict[str, Any]:
     m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', text, re.S)
     if not m:
         raise ValueError("no __NEXT_DATA__")
     return json.loads(m.group(1))
-
 
 def _spotify(info: Dict[str, Any], client) -> Dict[str, Any]:
     kind, sid = info["kind"], info["id"]
@@ -261,10 +250,8 @@ def _spotify(info: Dict[str, Any], client) -> Dict[str, Any]:
     return {"kind": kind, "title": entity.get("title") or entity.get("name") or "", "artist": entity.get("subtitle", ""),
             "cover_url": cover, "items": items}
 
-
 def _art(url: str, size: int = 1000) -> str:
     return re.sub(r"/\d+x\d+bb\.(jpg|png)$", f"/{size}x{size}bb.jpg", url or "")
-
 
 def _apple(info: Dict[str, Any], client) -> Dict[str, Any]:
     kind, aid, country = info["kind"], info["id"], info.get("country", "us")
@@ -286,7 +273,6 @@ def _apple(info: Dict[str, Any], client) -> Dict[str, Any]:
         return {"kind": kind, "title": title or "", "artist": head.get("artistName", ""),
                 "cover_url": _art(head.get("artworkUrl100", "")), "items": items}
     return _generic(info, client)
-
 
 def _deezer(info: Dict[str, Any], client) -> Dict[str, Any]:
     kind, did = info["kind"], info["id"]
@@ -314,17 +300,14 @@ def _deezer(info: Dict[str, Any], client) -> Dict[str, Any]:
             "artist": (data.get("artist") or {}).get("name", "") or (data.get("creator") or {}).get("name", ""),
             "cover_url": cover, "items": items}
 
-
 def _ya_cover(uri: str) -> str:
     return ("https://" + uri.replace("%%", "800x800")) if uri else ""
-
 
 def _ya_item(t: Dict[str, Any]) -> Dict[str, Any]:
     albums = t.get("albums") or [{}]
     return _item(t.get("title", ""), ", ".join(a.get("name", "") for a in t.get("artists") or []),
                  albums[0].get("title", ""), (t.get("durationMs") or 0) / 1000, _ya_cover(t.get("coverUri", "")),
                  f"https://music.yandex.ru/track/{t.get('id', '')}", year=str(albums[0].get("year", "")))
-
 
 def _yandex(info: Dict[str, Any], client) -> Dict[str, Any]:
     api = "https://api.music.yandex.net"
@@ -356,7 +339,6 @@ def _yandex(info: Dict[str, Any], client) -> Dict[str, Any]:
                 "cover_url": _ya_cover(cover), "items": items}
     raise ValueError("yandex: unsupported")
 
-
 def _meta_tag(text: str, name: str) -> str:
     for pattern in (rf'<meta[^>]+(?:property|name)=["\']{re.escape(name)}["\'][^>]+content=["\']([^"\']*)["\']',
                     rf'<meta[^>]+content=["\']([^"\']*)["\'][^>]+(?:property|name)=["\']{re.escape(name)}["\']'):
@@ -364,7 +346,6 @@ def _meta_tag(text: str, name: str) -> str:
         if m:
             return html.unescape(m.group(1)).strip()
     return ""
-
 
 def _jsonld(text: str) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
@@ -378,7 +359,6 @@ def _jsonld(text: str) -> List[Dict[str, Any]]:
                 out.append(node)
     return out
 
-
 def _name(value: Any) -> str:
     if isinstance(value, list):
         return ", ".join(_name(v) for v in value if _name(v))
@@ -386,14 +366,12 @@ def _name(value: Any) -> str:
         return str(value.get("name") or "")
     return str(value or "")
 
-
 def _iso_duration(value: Any) -> float:
     m = re.match(r"^P(?:T)?(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?$", str(value or ""))
     if not m:
         return 0.0
     h, mi, s = m.groups()
     return int(h or 0) * 3600 + int(mi or 0) * 60 + float(s or 0)
-
 
 def _generic(info: Dict[str, Any], client) -> Dict[str, Any]:
     """JSON-LD (MusicRecording / MusicAlbum / MusicPlaylist), else og:title / og:description."""
@@ -439,11 +417,9 @@ def _generic(info: Dict[str, Any], client) -> Dict[str, Any]:
     return {"kind": info["kind"], "title": title, "artist": artist, "cover_url": cover,
             "items": [_item(title, artist, cover=cover, url=info["url"])], "approximate": info["kind"] != "track"}
 
-
 def _artist_from_desc(desc: str) -> str:
     m = re.match(r"^(?:Listen to .*? by |Song · |Album · |Single · )?([^·]+?)\s*·", desc or "")
     return m.group(1).strip() if m else ""
-
 
 def search_query(item: Dict[str, Any]) -> str:
     title = re.sub(r"\s*[\(\[](feat|ft|with)\.?[^\)\]]*[\)\]]", "", item.get("title", ""), flags=re.I)

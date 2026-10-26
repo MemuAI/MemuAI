@@ -1,8 +1,5 @@
-/* Offline UI integration checks against the actual application.
- * Generate the fixture with appearance_fixture.py, then run:
- * node tests/appearance_browser_test.cjs /absolute/path/fixture.html /tmp/ui-states
- * Requires Playwright and a locally installed Chromium. No external requests.
- */
+
+
 const { chromium } = require('playwright');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -88,7 +85,7 @@ const assert = require('node:assert/strict');
   check(regular.width < wide.width, 'comfortable width actually narrows the conversation');
   await page.evaluate(() => {S.preferences.theme='dark';setTheme('dark',false);S.preferences.accent_color='violet';applyAppearancePrefs();currentSettingsTab='appearance';return showSettings();});
   await noViewportOverflow(); await snapshot('dark-settings');
-  // New controls stay keyboard-operable inside the existing modal focus trap.
+
   await page.keyboard.press('Escape');
   check(!await page.locator('#panel-back').evaluate(el=>el.classList.contains('visible')), 'Escape closes modal');
   await snapshot('dark-chat');

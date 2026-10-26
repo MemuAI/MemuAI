@@ -12,12 +12,10 @@ from starlette.requests import Request
 from app import admin_api, anthropic_api, chat, openai_api, responses_api
 from app import prompt_logging, state as storage
 
-
 def request(body, path="/v1/chat/completions"):
     async def receive():
         return {"type": "http.request", "body": json.dumps(body).encode(), "more_body": False}
     return Request({"type": "http", "method": "POST", "path": path, "headers": []}, receive)
-
 
 class PromptSnapshotTests(unittest.TestCase):
     def setUp(self):
@@ -299,7 +297,6 @@ class PromptSnapshotTests(unittest.TestCase):
                 path.write_bytes(rows[0] + b"x" * 3000 + b"\n" + rows[-1])
                 storage.state._rotate_logs()
                 self.assertEqual(json.loads(path.read_bytes())["id"], 4)
-
 
 if __name__ == "__main__":
     unittest.main()

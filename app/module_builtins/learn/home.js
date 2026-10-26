@@ -1,5 +1,5 @@
-/* MemuLearn · home.js — боковая панель курсов и экран «Сегодня»: сколько повторить (карточки · минуты),
- * серия дней, неделя, курсы с прогрессом. Одно чтение overview при входе, без опросов. */
+
+
 async function refreshSide() {
   try { S.overview = await API.call("overview"); } catch (e) { S.overview = { courses: [], today: { total: 0 }, minutes: 0, streak: 0 }; fail(e); }
   const list = $("#side-courses");

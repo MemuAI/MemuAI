@@ -1,7 +1,5 @@
-// MemuFiles · Round 39 features (r39-files-feat): Quick Look (Space), «Копировать как…», «Открыть в VS Code»,
-// folder compare & sync, batch image conversion, document templates (DOCX/XLSX/PPTX…), recent files and
-// saved searches on the Home page, squarified treemap for «Место на диске», safe drive eject.
-// Everything here is created on demand: nothing runs until the user opens one of these tools.
+
+
 import { t, addStrings } from "./i18n.js";
 import { S, api, $, h, esc, icon, fileIcon, folderSvg, fmtSize, fmtNum, fmtDate, itemsWord, joinPath, baseName,
   parentPath, extOf, typeOf, rawUrl, BROWSER_IMG, IMAGE_EXT, toast, showError, errText, modal, isWin } from "./core.js";
@@ -88,13 +86,12 @@ const TEXTISH = new Set(["txt", "md", "markdown", "log", "csv", "tsv", "json", "
   "less", "sh", "bash", "zsh", "ps1", "bat", "cmd", "sql", "kt", "swift", "lua", "r", "pl", "vue", "svelte", "dart", "gradle", "properties",
   "gitignore", "dockerfile", "makefile", "srt", "vtt", "rst", "tex", "nfo", "reg", "editorconfig", "lock"]);
 
-// ================================================================== Quick Look
 let ql = null;
 
 export function quickLook(app, pane) {
   if (ql) { closeQuickLook(); return; }
   if (!pane || pane.focus < 0 || !pane.shown[pane.focus]) return;
-  // .modal-back: the window shortcuts (Delete, F2…) stay off while Quick Look is open
+
   const back = h("div", { class: "modal-back ql-back", role: "dialog", "aria-modal": "true" });
   const box = h("div", { class: "ql" });
   const head = h("div", { class: "ql-head" });
@@ -133,7 +130,7 @@ export function quickLook(app, pane) {
 export function closeQuickLook() {
   if (!ql) return;
   document.removeEventListener("keydown", ql.onKey, true);
-  ql.stage.querySelectorAll("video,audio").forEach((m) => { try { m.pause(); } catch (e) { /* gone */ } });
+  ql.stage.querySelectorAll("video,audio").forEach((m) => { try { m.pause(); } catch (e) {  } });
   ql.back.remove();
   const pane = ql.pane;
   ql = null;
@@ -160,7 +157,7 @@ async function render() {
   close.addEventListener("click", closeQuickLook);
   nav.append(prev, next, open, close);
   head.append(title, nav);
-  stage.querySelectorAll("video,audio").forEach((m) => { try { m.pause(); } catch (e) { /* gone */ } });
+  stage.querySelectorAll("video,audio").forEach((m) => { try { m.pause(); } catch (e) {  } });
   stage.innerHTML = "";
   stage.className = "ql-stage";
   const ext = extOf(item.n);
@@ -171,7 +168,7 @@ async function render() {
     try {
       const res = await runJob("size", { paths: [item.path], wait: 1.5 }, () => {});
       if (alive() && res) big(`<span class="fi">${folderSvg()}</span>`, t("x.ql.folder", { n: `${fmtSize(res.size)} · ${t("props.contents", { files: fmtNum(res.files), folders: fmtNum(res.folders) })}` }));
-    } catch (e) { /* keep the icon */ }
+    } catch (e) {  }
     return;
   }
   if (BROWSER_IMG.has(ext) || IMAGE_EXT.has(ext)) {
@@ -225,7 +222,6 @@ async function render() {
   big(fileIcon(item.n, false), `${typeOf(item.n, false) === "file" ? (ext || "").toUpperCase() : t("type." + typeOf(item.n, false))} · ${t("x.ql.no_preview")}`);
 }
 
-// ================================================================== copy path as…
 function setClip(text, what) {
   const done = () => toast(t("x.copy.done", { what }), "info");
   navigator.clipboard.writeText(text).then(done).catch(() => {
@@ -254,7 +250,6 @@ export function copyAsItems(paths) {
   } }));
 }
 
-// ================================================================== code editors
 let editorsCache = null;
 export async function editorItems(path) {
   if (!editorsCache) {
@@ -269,7 +264,6 @@ async function openInEditor(path, editor) {
   catch (err) { showError(err); }
 }
 
-// ================================================================== new document templates
 export function templateItems(app) {
   const make = (key, name) => ({ label: t("x.new." + key), icon: key === "py" || key === "ps1" || key === "bat" ? "code" : "file", run: () => newDoc(app, name) });
   return [
@@ -292,7 +286,6 @@ export async function newDoc(app, name) {
   } catch (err) { showError(err); }
 }
 
-// ================================================================== folder compare & sync
 export function compareDialog(app, leftPath, rightPath) {
   const body = h("div", { class: "tool-wrap cmp" });
   const holder = {};
@@ -359,8 +352,7 @@ export function compareDialog(app, leftPath, rightPath) {
     draw();
   };
   runBtn.addEventListener("click", run);
-  // copy rows to one side: each source goes into the matching parent folder of the other side (it always exists —
-  // a folder present on one side only is listed as one row, its contents are not)
+
   const copy = async (rows, toRight, replace) => {
     const groups = new Map();
     for (const r of rows) {
@@ -395,7 +387,6 @@ export function compareDialog(app, leftPath, rightPath) {
   return dlg;
 }
 
-// ================================================================== batch image conversion
 export function isImage(row) { return row && !row.d && (BROWSER_IMG.has(extOf(row.n)) || IMAGE_EXT.has(extOf(row.n))) && extOf(row.n) !== "svg" && extOf(row.n) !== "ico"; }
 
 export function imageDialog(app, paths) {
@@ -433,7 +424,6 @@ export function imageDialog(app, paths) {
     onClose: () => { if (holder.id) api("jobs/cancel", { id: holder.id }).catch(() => {}); } });
 }
 
-// ================================================================== Home: recent files, saved searches, tools
 export async function renderHomeExtras(app, pane, el) {
   const tools = el.querySelector(".home-grid:last-of-type");
   if (tools) {
@@ -497,12 +487,11 @@ export async function saveSearch(app, pane) {
   try { await api("x/saved", { name, query: s.query, root: s.root || "", scope: s.scope || "folder" }); toast(t("x.saved_done")); app.loadSidebar(); }
   catch (err) { showError(err); }
 }
-/** r40-files-2: remove a saved search (Home chip, sidebar «smart folder»). */
+
 export async function removeSaved(app, s) {
   try { await api("x/saved", { remove: s.id }); app.loadSidebar(); } catch (err) { showError(err); }
 }
 
-// ================================================================== squarified treemap for «Место на диске»
 export function treemap(children, total, colors, onPick) {
   const box = h("div", { class: "treemap sq" });
   const items = children.filter((c) => c.size > 0 && c.size / (total || 1) > 0.004).slice(0, 60);
@@ -535,7 +524,6 @@ export function treemap(children, total, colors, onPick) {
   return box;
 }
 
-// ================================================================== drives
 export function ejectItem(app, path) {
   if (!isWin()) return null;
   const d = (app.sidebar.drives || []).find((x) => x.path && x.path.toLowerCase() === String(path).toLowerCase());

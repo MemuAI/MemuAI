@@ -1,11 +1,5 @@
-// MemuNote — Round 40 (r40-note): the spreadsheet editor for .xlsx/.xlsm (.ods stays read-only in the same grid).
-// Virtualised grid (rows and columns), formula bar with the name box, cell editing (values and formulas; clicking a
-// cell while typing a formula inserts its reference), keyboard navigation, fill handle (series / shifted formulas),
-// copy / cut / paste (TSV from and to other apps, formulas kept inside MemuNote), undo / redo, sheet tabs (+ new
-// sheet), selection sum / average / count. Formulas are computed by formula.js; a function the engine does not know
-// shows the value cached in the file with a marker. Saving sends only the changed cells (/api/sheet_save,
-// formats/xlsx_edit.py keeps styles, widths, merges and the other sheets). AI: text() for the context,
-// plan()/applyPlan() for the agent's set_cells / add_column / add_sheet edits (one undo step). Styles: sheetgrid.css.
+
+
 import { esc, icon, t, api, I18N } from "./core.js";
 import { Workbook, colName, parseRange, shiftFormula, valueOf, display, cellRef, FUNCTIONS } from "./formula.js";
 
@@ -18,24 +12,23 @@ import { Workbook, colName, parseRange, shiftFormula, valueOf, display, cellRef,
 const ROW_H = 26, HEAD_H = 26, ROWHEAD_W = 52, DEF_W = 104, MIN_ROWS = 60, MIN_COLS = 16, PAD_ROWS = 30, PAD_COLS = 6;
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
 
-/** The workbook model without a view: what the AI panel previews against for a sheet tab that was never shown. */
 export class SheetData {
   constructor(tab) {
     this.tab = tab; this.editable = !!tab.sheetEditable;
     this.sheets = (tab.sheets || []).map((s) => normSheet(s));
     if (!this.sheets.length) this.sheets.push(normSheet({ name: "Sheet1", rows: [] }));
     this.wb = new Workbook(this.sheets); this.index = 0;
-    this.looks = (tab.looks || []).map(lookCss);       // cell styles of the file: bold / colours / alignment / number format
+    this.looks = (tab.looks || []).map(lookCss);
   }
   get sheet() { return this.sheets[this.index]; }
   dims(sheet = this.sheet) { return { rows: sheet.rows.length, cols: sheet.cols }; }
   raw(r, c, sheet = this.sheet) { return sheet.rows[r]?.[c] ?? ""; }
   formula(r, c, sheet = this.sheet) { return sheet.formulas[r + "," + c] || ""; }
-  /** What the formula bar / editor shows: "=FORMULA" or the value as typed. */
+
   source(r, c, sheet = this.sheet) { const f = this.formula(r, c, sheet); return f ? "=" + f : this.raw(r, c, sheet); }
-  /** The workbook as the model sees it: per sheet, a grid with column letters / row numbers, formulas with values. */
+
   text(limit = 400000) {
-    const key = (this.gen || 0) + ":" + limit + ":" + this.sheets.length;      // the AI panel asks often: rebuild only after a change
+    const key = (this.gen || 0) + ":" + limit + ":" + this.sheets.length;
     if (this._text?.key === key) return this._text.value;
     const value = this.buildText(limit); this._text = { key, value }; return value;
   }
@@ -58,10 +51,7 @@ export class SheetData {
   }
   csv(i = this.index) { const s = this.sheets[i]; return (s?.rows || []).map((row, r) => row.map((v, c) => { const x = this.formula(r, c, s) ? this.wb.text(s, r, c) : v; return /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x; }).join(",")).join("\n") + "\n"; }
   findSheet(name) { if (!name) return this.sheet; const n = String(name).toLowerCase(); return this.sheets.find((s) => s.name.toLowerCase() === n) || null; }
-  /**
-   * The agent's spreadsheet edits → a plan: {cells: [{sheet, r, c, before, value}], newSheets: [sheet], errors: []}.
-   * Nothing changes until applyPlan(plan) — the AI panel previews it first.
-   */
+
   plan(edits, pendingSheets = []) {
     const plan = { cells: [], newSheets: [], errors: [] };
     const sheetsNow = () => [...this.sheets, ...pendingSheets, ...plan.newSheets];
@@ -94,7 +84,7 @@ export class SheetData {
     plan.cells = plan.cells.filter((x) => x.before !== x.value);
     return plan;
   }
-  /** Preview text of a plan cell: "B2: 10 → =SUM(…) (= 42)". */
+
   previewValue(x) {
     if (!String(x.value).startsWith("=")) return x.value;
     const tmp = new Workbook(this.sheets.map((s) => (s === x.sheet ? { ...s, formulas: { ...s.formulas, [x.r + "," + x.c]: x.value.slice(1) } } : s)));
@@ -151,7 +141,7 @@ export class SheetGrid extends SheetData {
     this.ro.observe(this.scroll);
     this.show(0);
   }
-  // ---------------------------------------------------------------- model helpers
+
   width(c) { return this.sheet.widths[c] || DEF_W; }
   colX(c) { const xs = this.sheet._xs; return c < xs.length ? xs[c] : xs[xs.length - 1] + (c - xs.length + 1) * DEF_W; }
   colAt(x) { const xs = this.sheet._xs; let lo = 0, hi = xs.length - 2; if (x >= xs[xs.length - 1]) return xs.length - 1 + Math.floor((x - xs[xs.length - 1]) / DEF_W); while (lo < hi) { const m = (lo + hi + 1) >> 1; if (xs[m] <= x) lo = m; else hi = m - 1; } return lo; }
@@ -162,7 +152,7 @@ export class SheetGrid extends SheetData {
     s._xs = xs;
     this.sizer.style.width = xs[this.vCols] + "px"; this.sizer.style.height = this.vRows * ROW_H + "px";
   }
-  // ---------------------------------------------------------------- rendering
+
   show(i) {
     this.commitEdit(); this.index = clamp(i, 0, this.sheets.length - 1);
     this.layout(); this.scroll.scrollTop = 0; this.scroll.scrollLeft = 0; this.last = null;
@@ -260,15 +250,15 @@ export class SheetGrid extends SheetData {
   hit(e) {
     const rect = this.scroll.getBoundingClientRect();
     const x = e.clientX - rect.left + this.scroll.scrollLeft, y = e.clientY - rect.top + this.scroll.scrollTop;
-    if (e.clientX - rect.left > this.scroll.clientWidth || e.clientY - rect.top > this.scroll.clientHeight) return null;   // scrollbar
+    if (e.clientX - rect.left > this.scroll.clientWidth || e.clientY - rect.top > this.scroll.clientHeight) return null;
     return { r: Math.max(0, Math.floor(y / ROW_H)), c: Math.max(0, this.colAt(x)) };
   }
-  // ---------------------------------------------------------------- pointer
+
   onPointer(e) {
     if (e.button !== 0) return;
     if (e.target === this.fillEl) { this.fillDrag(e); return; }
     const p = this.hit(e); if (!p) return;
-    if (this.editing && this.editing.value.startsWith("=") && this.editor && e.target !== this.editor) {   // formula: click inserts a reference
+    if (this.editing && this.editing.value.startsWith("=") && this.editor && e.target !== this.editor) {
       e.preventDefault(); this.insertRef(p, e); return;
     }
     if (e.target === this.editor) return;
@@ -283,7 +273,7 @@ export class SheetGrid extends SheetData {
     const ed = this.editor || this.input; const v = ed.value;
     const ref = cellRef(p.r, p.c);
     let start = ed.selectionStart ?? v.length, end = ed.selectionEnd ?? v.length;
-    if (this.refSpan && this.refSpan.end === start) start = this.refSpan.start;    // a second click replaces the ref just inserted
+    if (this.refSpan && this.refSpan.end === start) start = this.refSpan.start;
     const text = e.shiftKey && this.refSpan ? v.slice(this.refSpan.start, this.refSpan.end).split(":")[0] + ":" + ref : ref;
     if (e.shiftKey && this.refSpan) start = this.refSpan.start;
     const nv = v.slice(0, start) + text + v.slice(end);
@@ -304,14 +294,14 @@ export class SheetGrid extends SheetData {
     const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
   }
-  resizeCol(e, c) {   // view only: column widths of the file are kept as they are
+  resizeCol(e, c) {
     e.preventDefault(); e.stopPropagation();
     const x0 = e.clientX, w0 = this.width(c);
     const move = (ev) => { this.sheet.widths[c] = clamp(w0 + ev.clientX - x0, 24, 900); this.layout(); this.render(true); this.drawSel(); };
     const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); };
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
   }
-  // ---------------------------------------------------------------- keyboard
+
   onKey(e) {
     if (this.editing) return;
     const { ar, ac } = this.sel, mod = e.ctrlKey || e.metaKey;
@@ -327,7 +317,7 @@ export class SheetGrid extends SheetData {
       case "Home": e.preventDefault(); return this.selectCell(mod ? 0 : head.r, 0, ext);
       case "End": { e.preventDefault(); const row = this.sheet.rows[head.r] || []; return this.selectCell(head.r, Math.max(0, row.length - 1), ext); }
       case "Tab": e.preventDefault(); return this.selectCell(ar, Math.max(0, ac + (e.shiftKey ? -1 : 1)));
-      case "Enter": e.preventDefault(); return this.selectCell(Math.max(0, ar + (e.shiftKey ? -1 : 1)), ac);   // as in Excel: F2 / typing edits
+      case "Enter": e.preventDefault(); return this.selectCell(Math.max(0, ar + (e.shiftKey ? -1 : 1)), ac);
       case "F2": e.preventDefault(); return this.editable && this.startEdit(null);
       case "Delete": case "Backspace": e.preventDefault(); return this.editable && this.clearSel();
       case "Escape": return;
@@ -338,7 +328,7 @@ export class SheetGrid extends SheetData {
     if (mod && (e.key === "d" || e.key === "в")) { e.preventDefault(); return this.editable && this.fillDown(); }
     if (!mod && !e.altKey && e.key.length === 1 && this.editable) { e.preventDefault(); this.startEdit(e.key); }
   }
-  edge(r, c, dr, dc) {   // Ctrl+arrow: to the end of the data block
+  edge(r, c, dr, dc) {
     const filled = (rr, cc) => rr >= 0 && cc >= 0 && this.source(rr, cc) !== "";
     const d = this.dims(); const maxR = Math.max(d.rows, 1) - 1, maxC = Math.max(d.cols, 1) - 1;
     let rr = r + dr, cc = c + dc;
@@ -346,7 +336,7 @@ export class SheetGrid extends SheetData {
     while (rr >= 0 && cc >= 0 && rr <= maxR && cc <= maxC && !filled(rr, cc)) { rr += dr; cc += dc; }
     return [clamp(rr, 0, dr > 0 ? Math.max(maxR, r) : maxR), clamp(cc, 0, dc > 0 ? Math.max(maxC, c) : maxC)];
   }
-  // ---------------------------------------------------------------- editing
+
   startEdit(initial, at = null, where = "cell") {
     if (!this.editable) return;
     if (at) this.selectCell(at.r, at.c);
@@ -365,7 +355,7 @@ export class SheetGrid extends SheetData {
     ed.focus(); const n = ed.value.length; ed.setSelectionRange(n, n);
   }
   fit(ed) { ed.style.width = Math.max(this.width(this.editing?.c ?? 0), Math.min(600, ed.value.length * 7.6 + 24)) + "px"; }
-  hint(ed) {   // function names while typing a formula
+  hint(ed) {
     const m = /=.*?([A-Za-z]{2,})$/.exec(ed.value.slice(0, ed.selectionStart));
     const list = m ? FUNCTIONS.filter((f) => f.startsWith(m[1].toUpperCase())).slice(0, 6) : [];
     let tip = this.sizer.querySelector(".sg-tip");
@@ -401,7 +391,7 @@ export class SheetGrid extends SheetData {
     if (value === this.source(ed.r, ed.c, sheet)) { this.syncBar(); return; }
     this.apply([{ sheet, r: ed.r, c: ed.c, value }]);
   }
-  /** One undoable step: [{sheet, r, c, value ("=f" | text)}] (+ new sheets). */
+
   apply(changes, opts = {}) {
     const step = { cells: [], sheets: opts.newSheets || [], label: opts.label };
     for (const ch of changes) {
@@ -452,7 +442,7 @@ export class SheetGrid extends SheetData {
     this.show(this.sheets.indexOf(sheet));
     return sheet;
   }
-  // ---------------------------------------------------------------- clipboard and fill
+
   block() { const { r1, c1, r2, c2 } = this.sel; const rows = []; for (let r = r1; r <= r2; r++) { const row = []; for (let c = c1; c <= c2; c++) row.push(this.source(r, c)); rows.push(row); } return rows; }
   onCopy(e, cut) {
     if (this.editing) return;
@@ -493,7 +483,7 @@ export class SheetGrid extends SheetData {
     const up = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); ghost.remove(); if (target !== src) { this.fill(src, target); this.select({ ...target, ar: src.ar, ac: src.ac }, false); } };
     window.addEventListener("pointermove", move); window.addEventListener("pointerup", up);
   }
-  /** Fill target from src (Excel rules): numbers in steps (2+ cells) or copies, "Item 1" → "Item 2", formulas shifted. */
+
   fill(src, target) {
     const out = []; const s = this.sheet;
     const vertical = target.r1 !== src.r1 || target.r2 !== src.r2;
@@ -507,7 +497,7 @@ export class SheetGrid extends SheetData {
       const cells = vertical ? range(target.r1, target.r2).filter((r) => r < src.r1 || r > src.r2).map((r) => ({ r, c: line })) : range(target.c1, target.c2).filter((c) => c < src.c1 || c > src.c2).map((c) => ({ r: line, c }));
       const n = vals.length;
       for (const p of cells) {
-        const off = vertical ? p.r - src.r1 : p.c - src.c1;            // position relative to the source start
+        const off = vertical ? p.r - src.r1 : p.c - src.c1;
         const k = ((off % n) + n) % n; const base = seq[k]; const v = vals[k];
         let value = v;
         if (linear) value = String(+(valueOf(vals[0]) + off * step).toPrecision(15));
@@ -518,7 +508,7 @@ export class SheetGrid extends SheetData {
     }
     this.apply(out);
   }
-  // ---------------------------------------------------------------- saving
+
   changes() {
     const sheets = [];
     for (const [sheet, keys] of this.dirty) {
@@ -534,18 +524,21 @@ export class SheetGrid extends SheetData {
   }
   async save(path, opts = {}) {
     this.commitEdit();
+    const savedTop = this.undoStack[this.undoStack.length - 1] || null;
+    const savedSheets = [...this.newSheets];
     const r = await api("sheet_save", { path, target: opts.target, mtime: opts.mtime, force: !!opts.force, changes: this.changes() }, { allowError: true });
     if (!r.ok) { if (r.conflict) return r; throw new Error(r.error || "save failed"); }
-    this.dirty.clear();
-    for (const s of this.sheets) s.isNew = false;
-    this.newSheets = [];
-    this.savedTop = this.undoStack[this.undoStack.length - 1] || null;   // undo history stays usable after a save
-    // the server read the file back: refresh cached values (formulas keep their computed values)
-    for (const fresh of r.sheets || []) { const s = this.sheets.find((x) => x.name === fresh.name); if (s) { s.rows = fresh.rows; s.formulas = fresh.formulas || {}; } }
+    const changedWhileSaving = (this.undoStack[this.undoStack.length - 1] || null) !== savedTop;
+    if (!changedWhileSaving) this.dirty.clear();
+    for (const s of savedSheets) s.isNew = false;
+    this.newSheets = this.sheets.filter(s => s.isNew);
+    this.savedTop = savedTop;
+
+    if (!changedWhileSaving) for (const fresh of r.sheets || []) { const s = this.sheets.find((x) => x.name === fresh.name); if (s) { s.rows = fresh.rows; s.formulas = fresh.formulas || {}; } }
     this.refresh(); this.changed();
     return r;
   }
-  // ---------------------------------------------------------------- AI
+
   applyPlan(plan) {
     for (const s of plan.newSheets) if (this.sheets.some((x) => x.name.toLowerCase() === s.name.toLowerCase())) s.name = uniqueName(s.name, this.sheets);
     const step = this.apply(plan.cells.map((x) => ({ sheet: x.sheet, r: x.r, c: x.c, value: x.value })), { newSheets: plan.newSheets.filter((s) => !this.sheets.includes(s)), label: "ai" });
@@ -573,7 +566,7 @@ function normSheet(s) {
   const widths = {}; for (const [k, v] of Object.entries(s.widths || {})) widths[+k] = Math.max(24, Math.min(900, +v || DEF_W));
   let cols = 0; for (const r of rows.slice(0, 5000)) cols = Math.max(cols, r.length);
   for (const k of Object.keys(formulas)) cols = Math.max(cols, +k.split(",")[1] + 1);
-  // merged areas: the top-left cell spans the area, the others are covered (and count as used columns)
+
   const spans = new Map(), covered = new Set();
   for (const ref of (s.merges || []).slice(0, 2000)) {
     const g = parseRange(ref); if (!g || (g.r2 - g.r1 + 1) * (g.c2 - g.c1 + 1) > 20000) continue;
@@ -597,7 +590,7 @@ function lookCss(l) {
   if (l.align) css += `;text-align:${l.align}`;
   return { css, fill: safe(l.fill), fmt: l.fmt || "" };
 }
-/** A number shown with an Excel format code (first section): decimals, thousands, %, currency / literal text. */
+
 export function formatNumber(n, code) {
   const sec = String(code).split(/;(?=(?:[^"]*"[^"]*")*[^"]*$)/)[n < 0 && /;/.test(code) ? 1 : 0] || code;
   const body = sec.replace(/\[\$([^\]-]*)[^\]]*\]/g, '"$1"').replace(/\[[^\]]*\]/g, "").replace(/_.|\*./g, "");

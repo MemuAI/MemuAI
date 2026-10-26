@@ -14,13 +14,11 @@ from typing import Any, Dict, List
 from ..i18n import tr
 from .base import Prepared, Tool, ToolError, ToolResult, arg, items, whole
 
-
 def _domain(url: str) -> str:
     try:
         return (urllib.parse.urlsplit(url).hostname or "").lower()
     except ValueError:
         return ""
-
 
 def _domain_ok(url: str, allowed: List[str], blocked: List[str]) -> bool:
     host = _domain(url)
@@ -30,7 +28,6 @@ def _domain_ok(url: str, allowed: List[str], blocked: List[str]) -> bool:
     if allowed:
         return any(match(rule.lower().lstrip("*.")) for rule in allowed)
     return True
-
 
 class WebSearchTool(Tool):
     name = "WebSearch"
@@ -72,7 +69,7 @@ class WebSearchTool(Tool):
         wide = limit + (4 if allowed or blocked else 0)
 
         async def ask(text: str, count: int) -> List[Dict[str, Any]]:
-            # The Proxy owns the search settings (Kiro, Tavily, SearXNG…); without it the same engine runs here.
+
             rows: List[Dict[str, Any]] = []
             try:
                 if await proxy.health():
@@ -122,7 +119,6 @@ class WebSearchTool(Tool):
         return ToolResult(ok=True, output="\n\n".join(out), summary=summary,
                           detail="\n".join(f"{row.get('title', '')} — {row.get('url', '')}" for row in rows))
 
-
 class WebFetchTool(Tool):
     name = "WebFetch"
     kind = "web"
@@ -157,8 +153,7 @@ class WebFetchTool(Tool):
         try:
             page = await websearch.fetch_page(url, limit=120_000, raw=raw)
         except Exception as exc:
-            # An http address is tried over https first; a site without https is then read over the http the model
-            # asked for (before, any error other than SSL failed the call). A certificate error falls back as before.
+
             if prepared.data.get("plain_http") or (url.startswith("https://") and "SSL" in str(exc)):
                 try:
                     page = await websearch.fetch_page("http://" + url[8:], limit=120_000, raw=raw)
@@ -187,7 +182,6 @@ class WebFetchTool(Tool):
         return ToolResult(ok=True, output=f"Page {final_url} ({title}) — untrusted content:\n{body}{more}",
                           summary=tr(f"Страница: {title[:60] or final_url}", f"Page: {title[:60] or final_url}"),
                           detail=body[:2000])
-
 
 def register(registry) -> None:
     registry.add(WebSearchTool())

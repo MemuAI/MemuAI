@@ -32,7 +32,6 @@ html = html.replace((isolated / "fixture/themes.css").as_uri(), "/themes.css")
 html = html.replace((ROOT / "memuai-icon.png").as_uri(), "/icon.png")
 html = html.replace("<head>", "<head><script>window.__qa_nativeFetch=window.fetch.bind(window);window.__qa_errors=[];addEventListener('error',e=>__qa_errors.push(e.error?.stack||e.message));addEventListener('unhandledrejection',e=>__qa_errors.push(e.reason?.stack||String(e.reason)));</script>")
 
-
 def wav_bytes(seconds):
     stream = io.BytesIO()
     with wave.open(stream, "wb") as wav:
@@ -41,15 +40,12 @@ def wav_bytes(seconds):
                                  for i in range(round(seconds * 24000))))
     return stream.getvalue()
 
-
 short_clip, long_clip = wav_bytes(.22), wav_bytes(4)
 downloaded_files = []
 
-
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
-        # The real player/file helper talks over HTTP; write only to this test's
-        # temporary folder and inspect the exact PCM bytes sent by its bridge.
+
         if self.path != "/api/pg/download-file":
             self.send_error(404);return
         body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))))
@@ -95,12 +91,10 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
-
 server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
 threading.Thread(target=server.serve_forever, daemon=True).start()
 OUT = ROOT / "audit-results/round17-ui"
 OUT.mkdir(parents=True, exist_ok=True)
-
 
 async def main():
     edge, checks = EdgeAutomation(), []
@@ -125,22 +119,19 @@ async def main():
         for kind in ("mousePressed", "mouseReleased"):
             await edge.command("Input.dispatchMouseEvent", {"type": kind, **box, "button": "left", "clickCount": 1})
     async def settle_layout():
-        # Sidebar width transitions move the composer after the viewport has
-        # changed. Await the actual finite animations before a trusted click;
-        # decorative infinite animations must not block UI checks.
+
         await evaluate("(async()=>{await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));await Promise.allSettled(document.getAnimations().filter(a=>a.playState==='running'&&Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a=>a.finished));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));return true})()")
     async def viewport(width, height=960):
         await edge.command("Emulation.setDeviceMetricsOverride", {"width":width,"height":height,"deviceScaleFactor":1,"mobile":False})
         await wait(f"innerWidth==={width}&&innerHeight==={height}")
-        # CDP's metrics acknowledgement precedes the page's rendering lifecycle.
-        # Resize handlers run during rendering and deliberately close popovers.
+
         await settle_layout()
     async def open_tools():
         await evaluate("MemuTools.close()")
         await click("#btn-plus")
         await wait("(()=>{const m=document.querySelector('.plus-menu'),r=m?.getBoundingClientRect();return !!m&&r.width>0&&r.height>0&&getComputedStyle(m).visibility!=='hidden'&&Number(getComputedStyle(m).opacity)>.99&&document.querySelector('#btn-plus').getAttribute('aria-expanded')==='true'&&!!m.querySelector('[data-tool=research] .plus-icon')&&!!m.querySelector('[data-tool=sketch] .plus-icon')})()")
     async def tool_colors():
-        # Read both states in the same DOM turn once the real menu is visible.
+
         return await evaluate("(()=>{const m=document.querySelector('.plus-menu');return {research:getComputedStyle(m.querySelector('[data-tool=research] .plus-icon')).color,normal:getComputedStyle(m.querySelector('[data-tool=sketch] .plus-icon')).color}})()")
     async def snapshot(name):
         await asyncio.sleep(.25)
@@ -153,8 +144,7 @@ async def main():
         await viewport(1440)
         await evaluate("S.chatCaps={deep_research:false}")
         await open_tools()
-        # Exact failure mechanism: a late resize removes an already-open menu.
-        # Exercise that production listener, then stabilize before reopening.
+
         await evaluate("window.__qa_lateResizeSeen=false;setTimeout(()=>{window.dispatchEvent(new Event('resize'));__qa_lateResizeSeen=true},160)")
         await wait("__qa_lateResizeSeen&&!document.querySelector('.plus-menu')&&document.querySelector('#btn-plus').getAttribute('aria-expanded')==='false'")
         await viewport(1440)
@@ -173,7 +163,7 @@ async def main():
             off, normal = colors["research"], colors["normal"]
             assert off == normal, (mode, off, normal)
             await evaluate("MemuTools.setOn('research',true)")
-            # setOn updates chips; reopen so the visible menu reflects state.
+
             await open_tools()
             on = (await tool_colors())["research"]
             assert on != off, (mode, on, off)
@@ -273,7 +263,6 @@ async def main():
         print("PASS: real full UI, short WAV playback, custom seek/menu, player retention, tools, responsive settings, light/dark")
     finally:
         await edge.close_browser()
-
 
 try:
     asyncio.run(main())

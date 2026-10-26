@@ -17,7 +17,6 @@ from starlette.requests import Request
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def _request(body, *, hang_up_after: float | None = None, path: str = "/", headers=None):
     """An ASGI request whose client stays connected (a real server blocks in receive) or hangs up."""
     payload = json.dumps(body).encode()
@@ -36,7 +35,6 @@ def _request(body, *, hang_up_after: float | None = None, path: str = "/", heade
     extra = [(key.lower().encode(), value.encode()) for key, value in (headers or {}).items()]
     return Request({"type": "http", "method": "POST", "path": path,
                     "headers": [(b"content-type", b"application/json"), *extra]}, receive)
-
 
 class ClientDisconnectTests(unittest.TestCase):
     def test_work_is_cancelled_when_the_client_hangs_up(self):
@@ -96,7 +94,6 @@ class ClientDisconnectTests(unittest.TestCase):
 
         self.assertEqual(asyncio.run(run()).status_code, 499)
 
-
 class CountTokensTests(unittest.TestCase):
     def test_count_tokens_route_estimates_messages_system_and_tools(self):
         from app import anthropic_api
@@ -110,7 +107,7 @@ class CountTokensTests(unittest.TestCase):
                 return await anthropic_api.count_tokens(_request(payload))
 
         result = asyncio.run(run(body))
-        self.assertGreater(result["input_tokens"], 200)                  # "hello " × 200 is 200 tokens in o200k
+        self.assertGreater(result["input_tokens"], 200)
         without_tools = asyncio.run(run({k: v for k, v in body.items() if k != "tools"}))
         self.assertGreater(result["input_tokens"], without_tools["input_tokens"])
         self.assertEqual(asyncio.run(run({"model": "m"})).status_code, 400)
@@ -120,7 +117,6 @@ class CountTokensTests(unittest.TestCase):
         self.assertIn("/v1/messages/count_tokens", {route.path for route in router.routes})
         source = (ROOT / "app" / "public_api.py").read_text(encoding="utf-8")
         self.assertIn('@app.post("/v1/messages/count_tokens")', source)
-
 
 class LoopbackTests(unittest.TestCase):
     CASES = {
@@ -176,7 +172,6 @@ class LoopbackTests(unittest.TestCase):
         self.assertEqual(response.status_code, 502)
         self.assertEqual(seen, {"proxy": "", "impersonate": False, "url": "http://127.0.0.1:1234/v1"})
 
-
 class AccountStatusLanguageTests(unittest.TestCase):
     def test_success_status_is_russian_with_an_english_phrase(self):
         from app.pool import pool
@@ -187,7 +182,6 @@ class AccountStatusLanguageTests(unittest.TestCase):
         self.assertEqual(account.status_message, "ответил успешно")
         app_js = (ROOT / "app" / "static" / "app.js").read_text(encoding="utf-8")
         self.assertIn('["ответил успешно", "answered successfully"]', app_js)
-
 
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
 class LowerBoundCostTests(unittest.TestCase):
@@ -200,7 +194,6 @@ class LowerBoundCostTests(unittest.TestCase):
         out = json.loads(subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True).stdout)
         self.assertEqual(out, ["≥ $0.000094", "<$0.0001", "≥ $1.5", "$0"])
         self.assertNotIn('"≥ ") + fmtUsd', source)
-
 
 class MemuCodeProxyUsageTests(unittest.TestCase):
     def test_proxy_stream_keeps_cached_reasoning_and_billed_cost(self):
@@ -227,10 +220,8 @@ class MemuCodeProxyUsageTests(unittest.TestCase):
                          (1041, 20, 1024, 7, False))
         self.assertAlmostEqual(got.cost, 0.0021)
 
-
 if __name__ == "__main__":
     unittest.main()
-
 
 class RetryAfterTests(unittest.TestCase):
     """HTTP 429 with Retry-After: the Proxy waits out a short pause and passes a long one to the client."""
@@ -341,7 +332,6 @@ class RetryAfterTests(unittest.TestCase):
         source = (ROOT / "app" / "passthrough.py").read_text(encoding="utf-8")
         self.assertIn('"retry-after"', source)
 
-
 class RevokedKeyTests(unittest.TestCase):
     """The only account's key is revoked (HTTP 401): one attempt, a clear error, the account marked."""
 
@@ -379,8 +369,8 @@ class RevokedKeyTests(unittest.TestCase):
 
         exc, elapsed = asyncio.run(run())
         self.assertEqual(calls, [1])
-        self.assertLess(elapsed, 1.0)  # no pointless retry delay with nothing left to retry
-        self.assertEqual(exc.status, 503)  # not 401: that would read as a wrong Proxy key
+        self.assertLess(elapsed, 1.0)
+        self.assertEqual(exc.status, 503)
         self.assertEqual(exc.err_type, "authentication_error")
         self.assertIn("invalid api key", exc.message)
         self.assertIn("invalid api key", exc.message_en)
@@ -388,7 +378,6 @@ class RevokedKeyTests(unittest.TestCase):
         self.assertEqual(account.status, ST_INVALID)
         self.assertNotIn("{", account.status_message)
         self.assertIn("invalid api key", account.status_message)
-
 
 class ErrorLanguageTests(unittest.TestCase):
     """Provider errors: Russian text fully Russian, English text fully English, API clients get English."""
@@ -433,7 +422,7 @@ class ErrorLanguageTests(unittest.TestCase):
             english = asyncio.run(run(handler, {}))
             self.assertTrue(english["message"].startswith("Every “custom” account failed"), english)
             self.assertIn("API-ключ отклонён", english["message_ru"])
-            if "hint" in english:   # OpenAI shape carries a «what to do» hint in the same language
+            if "hint" in english:
                 self.assertNotRegex(english["hint"], "[а-яА-Я]")
                 self.assertRegex(english["hint_ru"], "[а-яА-Я]")
             russian = asyncio.run(run(handler, {"X-MemuAI-Lang": "ru"}))

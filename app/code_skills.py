@@ -16,19 +16,15 @@ PERSONAL_ROOT = Path(DATA_DIR) / "memuai" / "code_skills"
 PROJECT_DIR = ".memuai/skills"
 MAX_SKILL_PROMPT = 20_000
 
-#: The built-in playbooks live in ``code_skill_texts`` (Round 21: real step-by-step playbooks instead of one-liners;
-#: new: write-tests, explore, pr, data, office-files, windows-shell). Ids of the older set are all kept.
 BUILTIN_SKILLS: List[Dict[str, str]] = [dict(item) for item in _TEXTS.SKILLS]
 _BUILTIN_PROMPTS = dict(_TEXTS.PROMPTS)
-
 
 def _parse_markdown(path: Path) -> Dict[str, str] | None:
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
-    # Round 32: the shared Agent Skills parser (block scalars «description: >», quotes, metadata) instead of a
-    # line regex that read a folded description as «>».
+
     from .skills_catalog import parse_front_matter
     meta, text = parse_front_matter(text)
     title = str(meta.get("title") or meta.get("name") or "").strip()
@@ -39,7 +35,6 @@ def _parse_markdown(path: Path) -> Dict[str, str] | None:
         return None
     return {"id": path.parent.name.lower(), "title": title[:120],
             "description": description[:240], "prompt": prompt, "source": str(path), "path": str(path)}
-
 
 def _from_dir(root: Path, source: str) -> List[Dict[str, str]]:
     rows: List[Dict[str, str]] = []
@@ -52,19 +47,16 @@ def _from_dir(root: Path, source: str) -> List[Dict[str, str]]:
             rows.append(skill)
     return rows
 
-
 def _cli_personal_root() -> Path:
     import os
     override = os.environ.get("MEMUCODE_CONFIG_DIR", "").strip()
     return (Path(override) if override else Path(DATA_DIR) / "memucode") / "skills"
 
-
 def catalogue(root: str | Path = "", *, include_prompt: bool = False) -> List[Dict[str, Any]]:
     """Project skills win over personal skills, which win over built-ins."""
     project = _from_dir(Path(root).resolve() / PROJECT_DIR, "project") if root else []
     personal = _from_dir(PERSONAL_ROOT, "personal")
-    # Round 32: skills installed from the skill catalog (and made in MemuCode CLI) live in the CLI's personal
-    # folder; the MemuCode window lists them too. The window's own folder wins on an id clash.
+
     seen = {row["id"] for row in personal}
     personal += [row for row in _from_dir(_cli_personal_root(), "personal") if row["id"] not in seen]
     project_ids = {row["id"] for row in project}
@@ -83,14 +75,12 @@ def catalogue(root: str | Path = "", *, include_prompt: bool = False) -> List[Di
         return ordered
     return [{key: value for key, value in row.items() if key != "prompt"} for row in ordered]
 
-
 def prompt_for(root: str | Path, skill_id: str) -> str:
     wanted = str(skill_id or "").strip().lower()
     for row in catalogue(root, include_prompt=True):
         if row["id"] == wanted:
             return str(row.get("prompt") or row.get("description") or "")
     return ""
-
 
 def match_skills(query: str, limit: int = 3) -> List[str]:
     query = str(query or "").lower()

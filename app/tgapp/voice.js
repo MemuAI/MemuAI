@@ -1,26 +1,18 @@
-/* MemuAI Mini App — voice input (Round 29).
- *
- * A microphone button in the chat and MemuCode composers: tap to record (MediaRecorder: WebM/Opus in
- * Chromium/Android/Telegram Desktop, MP4/AAC on iOS), tap again to stop; long-press (right-click) for
- * «Upload an audio file». Audio files attached with the paperclip are transcribed too. The audio goes to the
- * computer (voice.transcribe) and is recognised there by the local Whisper model. Without a downloaded
- * model the button is dimmed and explains how to install it (MemuAI → Settings → Voice). The transcript is
- * sent at once, or put into the input for review when «Show the transcript before sending» is on (or when
- * there is already text in the input).
- */
+
+
 (function () {
   "use strict";
   (window.MemuTgPlugins = window.MemuTgPlugins || []).push(function (kit) {
     const { S, $, esc, tr, icon, haptic, toast, api, actionSheet, openSheet } = kit;
     const MAX_SECONDS = 10 * 60, MAX_UPLOAD_SECONDS = 15 * 60, MAX_BYTES = 20 * 1024 * 1024;
     const AUDIO_RE = /\.(ogg|oga|opus|mp3|m4a|mp4|aac|wav|flac|webm|weba|amr)$/i;
-    let active = null;            // the recording in progress
+    let active = null;
 
     const status = () => (S.features && S.features.voice) || { available: false, message: "" };
     const canRecord = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
     function pickMime() {
       const options = ["audio/webm;codecs=opus", "audio/ogg;codecs=opus", "audio/webm", "audio/mp4", "audio/aac"];
-      for (const type of options) { try { if (MediaRecorder.isTypeSupported(type)) return type; } catch (e) { /* old */ } }
+      for (const type of options) { try { if (MediaRecorder.isTypeSupported(type)) return type; } catch (e) {  } }
       return "";
     }
     const isAudioFile = (file) => /^audio\//.test(file.type || "") || AUDIO_RE.test(file.name || "");
@@ -35,7 +27,7 @@
     }
     async function refreshStatus(force) {
       if (!force && S.voiceCheckedAt && Date.now() - S.voiceCheckedAt < 30000) return status();
-      try { S.features.voice = await api("voice.status"); S.voiceCheckedAt = Date.now(); } catch (e) { /* keep the old */ }
+      try { S.features.voice = await api("voice.status"); S.voiceCheckedAt = Date.now(); } catch (e) {  }
       document.querySelectorAll("[data-mic]").forEach(syncButton);
       return status();
     }
@@ -47,7 +39,6 @@
       button.setAttribute("aria-label", button.title);
     }
 
-    /* ---------------------------------------------------------------- hooking the composers */
     kit.hooks.composerExtras.push((target, view, entry, options = {}) => {
       const row = view.querySelector(".composer-row");
       const send = options.code ? $("#t-send", view) : $("#send-btn", view);
@@ -77,7 +68,6 @@
 
     function startOrUpload(ctx) { if (canRecord()) start(ctx); else chooseFile(ctx); }
 
-    /* ---------------------------------------------------------------- recording */
     async function start(ctx) {
       if (active) return;
       let stream;
@@ -100,7 +90,7 @@
       recorder.start(1000);
       haptic("medium");
       showBar(ctx);
-      try { if (S.tg && S.tg.enableClosingConfirmation) S.tg.enableClosingConfirmation(); } catch (e) { /* old */ }
+      try { if (S.tg && S.tg.enableClosingConfirmation) S.tg.enableClosingConfirmation(); } catch (e) {  }
     }
     function showBar(ctx) {
       const box = ctx.view.querySelector(".composer-box");
@@ -137,7 +127,7 @@
           active.meter = requestAnimationFrame(draw);
         };
         draw();
-      } catch (e) { /* no meter */ }
+      } catch (e) {  }
     }
     function stop(send) {
       if (!active) return;
@@ -150,7 +140,7 @@
       rec.stream.getTracks().forEach((t) => t.stop());
       if (rec.bar) rec.bar.remove();
       rec.ctx.button.classList.remove("recording"); rec.ctx.button.innerHTML = icon("mic"); syncButton(rec.ctx.button);
-      try { if (S.tg && S.tg.disableClosingConfirmation) S.tg.disableClosingConfirmation(); } catch (e) { /* old */ }
+      try { if (S.tg && S.tg.disableClosingConfirmation) S.tg.disableClosingConfirmation(); } catch (e) {  }
     }
     async function finish(rec, mime) {
       if (!rec || rec.done) return;
@@ -164,7 +154,6 @@
       await transcribe(rec.ctx, blob, "voice." + (/mp4|aac/.test(mime) ? "m4a" : /ogg/.test(mime) ? "ogg" : "webm"));
     }
 
-    /* ---------------------------------------------------------------- files */
     function chooseFile(ctx) {
       const input = document.createElement("input");
       input.type = "file"; input.accept = "audio/*,.ogg,.oga,.opus,.mp3,.m4a,.aac,.wav,.flac,.webm,.amr";
@@ -176,7 +165,7 @@
         let url = "";
         try { url = URL.createObjectURL(file); } catch (e) { resolve(0); return; }
         const audio = document.createElement("audio");
-        const done = (value) => { try { URL.revokeObjectURL(url); } catch (e) { /* ignore */ } resolve(value); };
+        const done = (value) => { try { URL.revokeObjectURL(url); } catch (e) {  } resolve(value); };
         audio.preload = "metadata";
         audio.onloadedmetadata = () => done(isFinite(audio.duration) ? audio.duration : 0);
         audio.onerror = () => done(0);
@@ -192,7 +181,6 @@
       await transcribe(ctx, file, file.name || "audio");
     }
 
-    /* ---------------------------------------------------------------- transcription */
     async function transcribe(ctx, blob, name) {
       const button = ctx.button;
       button.classList.add("busy"); button.disabled = true;

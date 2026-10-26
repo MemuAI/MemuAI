@@ -40,7 +40,7 @@ MAX_IMAGE_BYTES = 30 * 1024 * 1024
 FORMATS = ("pdf", "docx", "html", "md", "json", "txt")
 
 PREF_DEFAULTS: Dict[str, Any] = {
-    # The last options of the export dialog (format, theme, fonts, page…), restored next time.
+
     "chat_export_options": {},
 }
 _OPTION_KEYS = {
@@ -51,7 +51,6 @@ _OPTION_KEYS = {
     "tools": None, "meta": None, "header": None, "footer": None, "numbers": None, "toc": None,
     "range": ("all", "from", "selected"), "save": ("downloads", "ask"), "stats": None, "timestamps": None,
 }
-
 
 def normalize_prefs(out: Dict[str, Any], raw: Any) -> None:
     source = raw if isinstance(raw, dict) else {}
@@ -73,9 +72,6 @@ def normalize_prefs(out: Dict[str, Any], raw: Any) -> None:
                 clean[key] = item[:120]
     out["chat_export_options"] = clean
 
-
-# --------------------------------------------------------------------------- small helpers
-
 def safe_filename(name: str, ext: str) -> str:
     stem = re.sub(r"[\\/:*?\"<>|\r\n\t]+", "_", str(name or "")).strip(" .")[:100] or "MemuAI chat"
     if stem.split(".", 1)[0].strip().casefold() in {"con", "prn", "aux", "nul", *(f"com{i}" for i in range(1, 10)),
@@ -83,7 +79,6 @@ def safe_filename(name: str, ext: str) -> str:
         stem = "_" + stem
     ext = re.sub(r"[^a-z0-9]", "", str(ext or "").lower())[:8] or "txt"
     return f"{stem}.{ext}"
-
 
 def decode_data_url(value: str, limit: int = MAX_IMAGE_BYTES) -> Tuple[str, bytes]:
     if not isinstance(value, str) or not value.startswith("data:") or "," not in value:
@@ -101,11 +96,9 @@ def decode_data_url(value: str, limit: int = MAX_IMAGE_BYTES) -> Tuple[str, byte
         raise ValueError("too large")
     return mime, raw
 
-
 _HEX = re.compile(r"^#?([0-9a-fA-F]{6})$")
 _SHORT_HEX = re.compile(r"^#?([0-9a-fA-F]{3})$")
 _RGB = re.compile(r"^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)")
-
 
 def hex_color(value: Any, fallback: str = "000000") -> str:
     text = str(value or "").strip()
@@ -120,7 +113,6 @@ def hex_color(value: Any, fallback: str = "000000") -> str:
         return "".join(f"{max(0, min(255, int(part))):02X}" for part in match.groups())
     return fallback
 
-
 DEFAULT_PALETTE = {
     "bg": "FFFFFF", "text": "1F2328", "muted": "656D76", "accent": "B4532F", "border": "D0D7DE",
     "code_bg": "F6F8FA", "code_text": "1F2328", "quote_bg": "F6F8FA", "user_bg": "F3F0EA", "user_border": "B4532F",
@@ -129,7 +121,6 @@ DEFAULT_PALETTE = {
                "op": "CF222E", "lit": "0550AE", "tag": "116329", "attr": "0550AE", "prop": "0550AE", "var": "953800",
                "meta": "6E7781", "punct": "57606A"},
 }
-
 
 def palette_from(raw: Any) -> Dict[str, Any]:
     source = raw if isinstance(raw, dict) else {}
@@ -142,21 +133,15 @@ def palette_from(raw: Any) -> Dict[str, Any]:
             out[key] = hex_color(source.get(key), value)
     return out
 
-
 def xml_text(value: str) -> str:
-    # Control characters are not allowed in XML 1.0 (a model may emit \x0b or \x1b).
+
     clean = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\ufffe\uffff]", "", str(value))
     return html.escape(clean, quote=False)
-
 
 def xml_attr(value: str) -> str:
     return html.escape(re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f]", "", str(value)), quote=True)
 
-
-# --------------------------------------------------------------------------- KaTeX CSS with embedded fonts
-
 _KATEX_CACHE: Dict[str, Any] = {}
-
 
 def katex_inline_css() -> str:
     """KaTeX's stylesheet with its WOFF2 fonts embedded as data URLs (offline HTML/PDF)."""
@@ -185,11 +170,7 @@ def katex_inline_css() -> str:
     _KATEX_CACHE.update({"stamp": stamp, "css": css})
     return css
 
-
-# --------------------------------------------------------------------------- tiny DOM
-
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
-
 
 class Node:
     __slots__ = ("tag", "attrs", "children", "parent")
@@ -227,7 +208,6 @@ class Node:
     def elements(self) -> List["Node"]:
         return [child for child in self.children if isinstance(child, Node)]
 
-
 class _TreeBuilder(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -256,21 +236,16 @@ class _TreeBuilder(HTMLParser):
         if data:
             self.cur.children.append(data)
 
-
 def parse_html(source: str) -> Node:
     builder = _TreeBuilder()
     builder.feed(str(source or ""))
     builder.close()
     return builder.root
 
-
-# --------------------------------------------------------------------------- MathML → OMML
-
 M_NS = "http://schemas.openxmlformats.org/officeDocument/2006/math"
 NARY = set("∑∏∐∫∬∭∮∯∰⋃⋂⋁⋀⨁⨂⨀")
 ACCENTS = {"^": "̂", "ˆ": "̂", "~": "̃", "˜": "̃", "¯": "̅", "‾": "̅", "→": "⃗", "⃗": "⃗", "˙": "̇", "¨": "̈",
            "ˇ": "̌", "´": "́", "`": "̀", "˘": "̆", "⏞": "⏞", "⏟": "⏟"}
-
 
 class MathConverter:
     def __init__(self, font: str = "Cambria Math", color: str = "") -> None:
@@ -302,7 +277,7 @@ class MathConverter:
             node = nodes[index]
             op = self._nary_operator(node)
             if op is not None:
-                # «∑_{i}^{n} x_i»: the operand is the next sibling of the n-ary operator.
+
                 operand = nodes[index + 1] if index + 1 < len(nodes) else None
                 out.append(self._nary(node, op, operand))
                 index += 2 if operand is not None else 1
@@ -434,9 +409,8 @@ class MathConverter:
                     + "".join(f"<m:e>{self.node(kid)}</m:e>" for kid in kids) + "</m:d>")
         if tag in ("mmultiscripts",):
             return self.seq(kids)
-        # Unknown element: its text, so nothing silently disappears.
-        return self.seq(kids) if kids else self.run(node.text())
 
+        return self.seq(kids) if kids else self.run(node.text())
 
 def latex_of(katex: Node) -> str:
     annotation = None
@@ -453,12 +427,8 @@ def latex_of(katex: Node) -> str:
             break
     return annotation.text().strip() if annotation is not None else katex.text().strip()
 
-
 def mathml_to_omml(math: Node, *, color: str = "") -> str:
     return MathConverter(color=color).convert(math)
-
-
-# --------------------------------------------------------------------------- DOCX writer
 
 EMU_PER_PX = 9525
 TWIPS_PER_MM = 1440 / 25.4
@@ -482,7 +452,6 @@ SKIP_TAGS = {"script", "style", "button", "noscript", "template", "input", "sele
              "meta", "link", "svg", "canvas", "video", "audio", "object", "embed"}
 SKIP_CLASSES = {"code-header", "katex-html", "code-copy-btn", "mx-noprint", "msg-actions", "sr-only", "mx-skip"}
 
-
 class DocxBuilder:
     def __init__(self, options: Dict[str, Any]) -> None:
         self.opt = options
@@ -490,11 +459,11 @@ class DocxBuilder:
         self.font = str(options.get("font") or "Calibri")[:80]
         self.mono = str(options.get("mono") or "Consolas")[:80]
         self.size = max(8, min(20, int(options.get("size") or 11)))
-        self.rels: List[Tuple[str, str, str, str]] = []   # (id, type, target, mode)
+        self.rels: List[Tuple[str, str, str, str]] = []
         self.media: List[Tuple[str, bytes]] = []
         self.content_types: set = set()
         self.nums: List[str] = []
-        self.next_num = 3                                  # 1 = bullets, 2 = default decimal
+        self.next_num = 3
         self.doc_pr = 1
         self.warnings: List[str] = []
         page = PAGE_SIZES.get(str(options.get("page") or "a4"), PAGE_SIZES["a4"])
@@ -509,7 +478,6 @@ class DocxBuilder:
         self.margin_mm = max(5.0, min(50.0, margin))
         self.content_width_emu = int((page[0] - 2 * self.margin_mm) / 25.4 * 914400)
 
-    # ---- relationships & media
     def rel(self, rtype: str, target: str, external: bool = False) -> str:
         rid = f"rId{len(self.rels) + 10}"
         self.rels.append((rid, rtype, target, "External" if external else ""))
@@ -561,7 +529,6 @@ class DocxBuilder:
                 '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic>'
                 '</wp:inline></w:drawing></w:r>')
 
-    # ---- runs
     def run(self, text: str, fmt: Dict[str, Any]) -> str:
         if text == "":
             return ""
@@ -635,7 +602,6 @@ class DocxBuilder:
         pprxml = f"<w:pPr>{''.join(props)}</w:pPr>" if props else ""
         return f"<w:p>{pprxml}{content}</w:p>"
 
-    # ---- numbering
     def new_list(self, ordered: bool, start: int = 1, level: int = 0) -> int:
         """Bullets share one numbering; every numbered list gets its own (it restarts at ``start``)."""
         if not ordered:
@@ -646,7 +612,6 @@ class DocxBuilder:
                          f'<w:lvlOverride w:ilvl="{level}"><w:startOverride w:val="{max(1, int(start))}"/></w:lvlOverride></w:num>')
         return num_id
 
-    # ---- conversion
     def convert(self, root: Node) -> str:
         ctx = {"ppr": {}, "fmt": {}, "list": None, "indent": 0}
         return "".join(self.blocks(root, ctx))
@@ -743,7 +708,7 @@ class DocxBuilder:
             return [self.para("".join(self.inline_children(node, ctx, {**ctx["fmt"], "bold": True})), dict(ctx["ppr"]))]
         if tag == "dd":
             return self.blocks(node, self._child_ctx(ctx, ppr={"indent": int(ctx["ppr"].get("indent") or 0) + 360}))
-        # div / section / article / header / p and friends
+
         if "code-block-wrap" in cls:
             pre = node.find("pre")
             label = str(node.attrs.get("data-lang") or "").strip()
@@ -804,8 +769,7 @@ class DocxBuilder:
                    "fmt": dict(ctx["fmt"]), "list_level": level}
             produced = self.blocks(item, sub) or [self.para("", sub["ppr"])]
             out.append(produced[0])
-            # Only the first paragraph of an item carries the bullet; the rest are indented continuations
-            # (nested lists keep their own numbering).
+
             for extra in produced[1:]:
                 if marker in extra:
                     extra = extra.replace(marker, continuation, 1)
@@ -891,7 +855,7 @@ class DocxBuilder:
             parts.append("</w:tr>")
             xml.append("".join(parts))
         xml.append("</w:tbl>")
-        # An empty paragraph keeps two adjacent tables apart and gives the table air.
+
         return ["".join(xml), self.para("", {"spacing": (0, 80)})]
 
     @staticmethod
@@ -909,7 +873,6 @@ class DocxBuilder:
         value = (match.group(1) if match else align).lower()
         return {"left": "left", "right": "right", "center": "center", "justify": "both"}.get(value, "")
 
-    # ---- inline
     def inline_children(self, node: Node, ctx: Dict[str, Any], fmt: Dict[str, Any]) -> List[str]:
         out: List[str] = []
         first = True
@@ -971,7 +934,7 @@ class DocxBuilder:
             if name.startswith("tok-") and name[4:] in pal["tokens"]:
                 sub["color"] = pal["tokens"][name[4:]]
         if self._is_block(node):
-            # A block inside an inline context (rare markup): keep its text.
+
             return self.inline_children(node, ctx, sub)
         return self.inline_children(node, ctx, sub)
 
@@ -1016,7 +979,6 @@ class DocxBuilder:
             width = int(css_width)
         return self.drawing(rid, width, height, alt=alt)
 
-    # ---- parts
     def styles_xml(self) -> str:
         pal, font, mono, size = self.pal, xml_attr(self.font), xml_attr(self.mono), self.size
         half = size * 2
@@ -1194,14 +1156,10 @@ class DocxBuilder:
                 archive.writestr(f"word/media/{name}", data, compress_type=zipfile.ZIP_STORED)
         return buffer.getvalue()
 
-
 def html_to_docx(body_html: str, options: Optional[Dict[str, Any]] = None) -> bytes:
     if len(body_html or "") > MAX_HTML_CHARS:
         raise ValueError("document too large")
     return DocxBuilder(dict(options or {})).build(body_html)
-
-
-# --------------------------------------------------------------------------- HTML document helpers
 
 def finalize_html(document: str, *, embed_katex: bool) -> str:
     """Insert the KaTeX stylesheet (fonts embedded) where the window left its placeholder."""

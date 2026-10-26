@@ -1,7 +1,5 @@
-// Prompt snapshot of the MemuAI window (app/pgstatic/app.js) for the prompt eval harness.
-// Usage: node snapshot.js <tree-root>  → JSON on stdout. Not part of the normal test suite.
-// Extracts the static prompt constants and evaluates workRuntimePrompt() with small stubs, so the
-// eval sees exactly the text the window would send.
+
+
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -13,7 +11,7 @@ const src = fs.readFileSync(path.join(root, "app/pgstatic/app.js"), "utf8");
 function topLevel(name, opener) {
   const start = src.indexOf(opener);
   if (start < 0) return "";
-  // A top-level statement ends at the first line that starts at column 0 after it (or a `}` line for functions).
+
   const rest = src.slice(start);
   const lines = rest.split("\n");
   const out = [lines[0]];

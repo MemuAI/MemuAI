@@ -1,22 +1,12 @@
-// MemuNote (Round 33, item #9) — combined live-preview Markdown editor (Obsidian / Typora style).
-//
-// The document text is never changed: everything here is CodeMirror decorations over the Markdown syntax tree.
-// Formatting is shown rendered (headings, bold/italic, strike, inline code, links, lists, task checkboxes, quotes,
-// rules, code blocks, tables, images); the raw Markdown of an element appears only where the caret is:
-//   * inline elements (bold, italic, `code`, links, images, ~~strike~~) — when the caret/selection touches THAT element,
-//   * line markers (# heading, > quote, - bullet, ---) — when the caret is on that line,
-//   * blocks (tables, ``` fences) — when the caret is inside the block.
-// Undo, IME, search, AI edits and saving work on the real text as before (saving writes exactly what was typed).
-// Inline/line decorations come from a ViewPlugin over the visible ranges only (fast on big files); tables are
-// block widgets, which CodeMirror allows only from a StateField.
+
+
 import { CM } from "./editor.js";
 import { assetUrl, api, t } from "./core.js";
 
 const { Decoration, ViewPlugin, WidgetType, EditorView, StateField, syntaxTree } = CM;
 
-export const LIVE_MAX = 3 * 1048576;     // larger Markdown files open in the source mode (decorations cost)
+export const LIVE_MAX = 3 * 1048576;
 
-// ------------------------------------------------------------------ helpers
 function touches(sel, from, to) {
   for (const r of sel.ranges) if (r.from <= to && r.to >= from) return true;
   return false;
@@ -32,9 +22,9 @@ const markDeco = (cls, attrs) => Decoration.mark({ class: cls, attributes: attrs
 export function resolveImage(src, base, sep = "\\") {
   if (!src) return { url: "" };
   if (/^(data:image\/|blob:)/i.test(src)) return { url: src };
-  if (/^https?:/i.test(src)) return { remote: src };          // CSP: the page never loads remote pictures by itself
+  if (/^https?:/i.test(src)) return { remote: src };
   let path = src;
-  try { path = decodeURIComponent(src); } catch { /* keep as typed */ }
+  try { path = decodeURIComponent(src); } catch {  }
   path = path.replace(/^<|>$/g, "").replace(/^file:\/\/\/?/i, "");
   if (!/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(path)) {
     if (!base) return { url: "" };
@@ -43,7 +33,6 @@ export function resolveImage(src, base, sep = "\\") {
   return { url: assetUrl(path) };
 }
 
-// ------------------------------------------------------------------ widgets
 class BulletWidget extends WidgetType {
   constructor(depth) { super(); this.depth = depth; }
   eq(o) { return o.depth === this.depth; }
@@ -110,15 +99,15 @@ class TableWidget extends WidgetType {
     wrap.title = t("lm_table_edit");
     wrap.addEventListener("mousedown", (e) => {
       e.preventDefault();
-      // caret into the clicked cell's row (or the table start): the raw table appears for editing
+
       const rows = [...wrap.querySelectorAll("tr")];
       const tr = e.target.closest?.("tr");
       let row = Math.max(0, rows.indexOf(tr));
-      if (row > 0) row += 1;     // skip the |---| delimiter line
+      if (row > 0) row += 1;
       const start = view.posAtDOM(wrap);
       const line = view.state.doc.lineAt(Math.min(view.state.doc.length, start));
       const target = view.state.doc.line(Math.min(view.state.doc.lines, line.number + row));
-      // …and into the clicked cell: after the (n+1)-th unescaped pipe
+
       const cell = e.target.closest?.("td,th"), idx = cell ? cell.cellIndex : 0;
       const pipes = []; for (let i = 0; i < target.text.length; i++) if (target.text[i] === "|" && target.text[i - 1] !== "\\") pipes.push(i);
       const lead = /^\s*\|/.test(target.text) ? 0 : -1;
@@ -134,7 +123,6 @@ class TableWidget extends WidgetType {
   get estimatedHeight() { return 32 * (this.text.split("\n").length - 1) + 8; }
 }
 
-// Markdown table → HTML (GFM pipes, alignment row, escaped pipes, inline formatting kept as text + simple marks)
 function splitCells(line) {
   let s = line.trim();
   if (s.startsWith("|")) s = s.slice(1);
@@ -174,7 +162,6 @@ export function renderTable(text) {
   return h + "</tbody></table>";
 }
 
-// ------------------------------------------------------------------ inline + line decorations (visible ranges)
 function buildDecos(view, opts) {
   const { state } = view;
   const sel = state.selection;
@@ -191,7 +178,7 @@ function buildDecos(view, opts) {
       from, to,
       enter: (node) => {
         const name = node.name;
-        // ---- headings
+
         const hm = /^ATXHeading(\d)$/.exec(name);
         if (hm) {
           lineAdd(node.from, "mn-lm-h mn-lm-h" + hm[1]);
@@ -318,7 +305,7 @@ function buildDecos(view, opts) {
           case "Table": {
             const active = isActive(node.from, node.to);
             if (active) for (let l = state.doc.lineAt(node.from).number, e = state.doc.lineAt(node.to).number; l <= e; l++) lineAdd(state.doc.line(l).from, "mn-lm-table-raw");
-            return false;          // the rendered table is a block widget (tableField)
+            return false;
           }
           case "HTMLBlock": case "CommentBlock": case "ProcessingInstructionBlock": return false;
           default: return;
@@ -338,7 +325,6 @@ function livePlugin(opts) {
   }, { decorations: (v) => v.decorations });
 }
 
-// ------------------------------------------------------------------ tables (block widgets, StateField)
 function tableDecos(state, focusedRef) {
   const out = [];
   const sel = state.selection;
@@ -351,7 +337,7 @@ function tableDecos(state, focusedRef) {
         }
         return false;
       }
-      // only containers can hold a table: skip the inside of everything else
+
       return node.name === "Document" || node.name === "Blockquote" || node.name === "BulletList" || node.name === "OrderedList" || node.name === "ListItem" ? undefined : false;
     },
   });
@@ -375,7 +361,6 @@ function tableField() {
   return [field, focusWatch];
 }
 
-// ------------------------------------------------------------------ clicks on links
 function linkClicks(opts) {
   return EditorView.domEventHandlers({
     mousedown: (e, view) => {
@@ -388,7 +373,6 @@ function linkClicks(opts) {
   });
 }
 
-/** opts: {getBase() → {dir, sep}, openLink(href)} */
 export function liveMarkdown(opts = {}) {
   return [
     EditorView.editorAttributes.of({ class: "mn-live" }),

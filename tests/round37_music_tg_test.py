@@ -29,11 +29,9 @@ import round37_music_tg_seed as seed  # noqa: E402
 TOKEN = "123456:TEST-token_for-mini-app"
 USER = 4242
 
-
 def init_data() -> str:
     return tg_webapp.sign_init_data({"auth_date": int(time.time()), "query_id": "AAH",
                                      "user": {"id": USER, "first_name": "Yono"}}, TOKEN)
-
 
 class Static(unittest.TestCase):
     def read(self, name):
@@ -59,18 +57,17 @@ class Static(unittest.TestCase):
     def test_light_on_the_phone(self):
         js = self.read("music.js")
         css = self.read("music.css")
-        self.assertNotRegex(js, r"setInterval\([^,]+,\s*(?:[1-9]\d{0,2})\)")   # nothing faster than a second
+        self.assertNotRegex(js, r"setInterval\([^,]+,\s*(?:[1-9]\d{0,2})\)")
         self.assertIn("document.hidden", js)
         self.assertIn("prefers-reduced-motion", css)
-        self.assertIn("animation-play-state: paused", css)                       # the live background stops when paused
+        self.assertIn("animation-play-state: paused", css)
         self.assertIn("html.mm-light", css)
-        self.assertNotIn("backdrop-filter", css)                                 # no blur over scrolling lists
+        self.assertNotIn("backdrop-filter", css)
         self.assertIn("navigator.mediaSession", js)
         self.assertIn("HapticFeedback", (TGAPP / "app.js").read_text(encoding="utf-8"))
         self.assertIn('haptic("', js)
         self.assertIn("caches.open", js)
         self.assertIn("navigator.storage.estimate", js)
-
 
 class Unit(unittest.TestCase):
     def test_urls_rewrite_to_the_mini_app(self):
@@ -94,7 +91,7 @@ class Unit(unittest.TestCase):
         secret = tg_webapp.load_config()["secret"]
         token, _ = tgapp_ops.issue_media_token(str(USER), secret)
         self.assertTrue(tgapp_ops.media_token_ok(token))
-        app_token, _ = tg_webapp.issue_token(str(USER), secret)              # a session token is not a media token
+        app_token, _ = tg_webapp.issue_token(str(USER), secret)
         self.assertFalse(tgapp_ops.media_token_ok(app_token))
         self.assertFalse(tgapp_ops.media_token_ok(""))
         stranger, _ = tgapp_ops.issue_media_token("999", secret)
@@ -105,7 +102,7 @@ class Unit(unittest.TestCase):
         self.assertFalse(tgapp_ops._player_view(None, urls)["online"])
         old = tgapp_ops._player_view({"track": {"id": "a", "title": "x", "artist": ""}, "playing": True,
                                       "updated_at": time.time() - 3600}, urls)
-        self.assertFalse(old["online"])                                         # stale «playing» = the window is gone
+        self.assertFalse(old["online"])
         fresh = tgapp_ops._player_view({"track": {"id": "a", "title": "x", "artist": ""}, "playing": True,
                                         "updated_at": time.time(), "position_now": 12.5, "volume": .4}, urls)
         self.assertTrue(fresh["online"])
@@ -121,7 +118,6 @@ class Unit(unittest.TestCase):
         finally:
             del os.environ["MEMUAI_MUSIC_WINDOW_URL"]
 
-
 class Api(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -133,7 +129,7 @@ class Api(unittest.TestCase):
         from app.tgapp_api import create_tgapp, auth_failures, auth_limiter
         auth_failures._hits.clear()
         auth_limiter._hits.clear()
-        os.environ["MEMUAI_MUSIC_WINDOW_URL"] = ""                       # no window: in-process library
+        os.environ["MEMUAI_MUSIC_WINDOW_URL"] = ""
         cls.client = TestClient(create_tgapp())
         cls.client.__enter__()
         cls.token = cls.client.post("/tgapp/api/auth", json={"init_data": init_data()}).json()["token"]
@@ -158,9 +154,9 @@ class Api(unittest.TestCase):
         self.assertTrue(data["liked"])
         self.assertTrue(all(t["stream"].startswith("music/stream/") for t in data["added"]))
         self.assertTrue(all((t["cover"] or "").startswith("music/cover/") for t in data["added"]))
-        self.assertFalse(data["player"]["online"])                       # the window is not running
+        self.assertFalse(data["player"]["online"])
         self.assertTrue(any(p["id"] == self.playlist for p in data["playlists"]))
-        self.assertNotIn("/api/pg/", json.dumps(data))                   # nothing points at the playground
+        self.assertNotIn("/api/pg/", json.dumps(data))
 
     def test_stream_with_range_and_cover(self):
         track = self.post("music.list", {"q": "Midnight"})["tracks"][0]
@@ -175,7 +171,7 @@ class Api(unittest.TestCase):
         cover = self.client.get("/tgapp/" + track["cover"])
         self.assertEqual(cover.status_code, 200)
         self.assertEqual(cover.content[:2], b"\xff\xd8")
-        bad = track["stream"].split("?")[0] + "?t=" + self.token        # a session token is not accepted
+        bad = track["stream"].split("?")[0] + "?t=" + self.token
         self.assertEqual(self.client.get("/tgapp/" + bad).status_code, 403)
         self.assertEqual(self.client.get("/tgapp/music/stream/../../x?t=1").status_code, 404)
 
@@ -235,13 +231,13 @@ class Api(unittest.TestCase):
         last = player.pending(seq)[-1]
         self.assertEqual(last["cmd"], "play_track")
         self.assertTrue(last["args"]["queue"])
-        # «Продолжить на телефоне»: the phone gets the track + position + queue, the computer pauses
+
         seq = player.cmd_seq
         taken = self.post("music.handoff", {"to": "phone"})
         self.assertEqual(taken["track"]["id"], self.ids[2])
         self.assertGreaterEqual(taken["position"], 61)
         self.assertEqual([c["cmd"] for c in player.pending(seq)], ["pause"])
-        # «Продолжить на компьютере»
+
         seq = player.cmd_seq
         self.post("music.handoff", {"to": "pc", "track_id": self.ids[3], "position": 33, "queue": self.ids[:4]})
         cmd = player.pending(seq)[-1]
@@ -249,13 +245,11 @@ class Api(unittest.TestCase):
         player.update({"track_id": "", "playing": False})
         self.assertEqual(self.post("music.handoff", {"to": "phone"}, status=409)["code"], "nothing_playing")
 
-
 def _chromium() -> str:
     for path in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/workspace/work/chromium/chrome", "/usr/bin/chromium"):
         if path and Path(path).exists():
             return path
     return ""
-
 
 @unittest.skipUnless(_chromium(), "headless Chromium is not available")
 class Browser(unittest.TestCase):
@@ -284,7 +278,7 @@ class Browser(unittest.TestCase):
         self.assertTrue(page.query_selector('.tab[data-tab="music"].active'))
         self.assertTrue(page.query_selector("#mm-pc-card.mm-pc"), "what plays on the computer")
         self.assertGreaterEqual(len(page.query_selector_all(".mm-card")), 4)
-        # nothing wider than the phone
+
         self.assertLessEqual(page.evaluate("document.querySelector('.view.root').scrollWidth"), 390)
         page.click('.mm-seg [data-sub="library"]')
         page.wait_for_selector(".mm-row")
@@ -300,7 +294,7 @@ class Browser(unittest.TestCase):
         self.assertEqual(page.inner_text(".mm-meta h2"), "Ocean Eyes")
         page.evaluate("window.MemuMusicTg.closeFull()")
         page.wait_for_timeout(500)
-        # offline: save to the phone, then the «Скачано» list and the storage numbers
+
         page.evaluate("""(async () => { const st = window.MemuMusicTg; await st.saveOffline(st.state.queue[0]); })()""")
         page.click('.mm-seg [data-sub="device"]')
         page.wait_for_selector("#mm-off-list .mm-row")
@@ -308,7 +302,7 @@ class Browser(unittest.TestCase):
         played = page.evaluate("""(async () => { const st = window.MemuMusicTg; const id = st.state.queue[0].id;
             const info = await st.storageInfo(); await st.dropOffline(id); return [info.count, (await st.storageInfo()).count]; })()""")
         self.assertEqual(played, [1, 0])
-        # the remote
+
         page.evaluate("window.MemuMusicTg.setMode('pc')")
         page.wait_for_timeout(900)
         self.assertIn("Компьютер", page.inner_text("#mm-mini"))
@@ -326,12 +320,11 @@ class Browser(unittest.TestCase):
         text = page.inner_text("#app")
         self.assertIn("Library", text)
         shown = page.inner_text(".mm-root")
-        for title, artist, album, *_ in seed.TRACKS:                          # the user's own data stays as it is
+        for title, artist, album, *_ in seed.TRACKS:
             shown = shown.replace(title, "").replace(artist, "").replace(album, "")
         shown = shown.replace("Вечер пятницы", "")
         self.assertNotRegex(shown, r"[А-Яа-яЁё]{2,}")
         self.assertEqual(errors, [])
-
 
 if __name__ == "__main__":
     unittest.main()

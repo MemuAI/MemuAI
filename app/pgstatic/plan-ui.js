@@ -1,20 +1,5 @@
-/* MemuAI — Round 30 (r30-design): form controls of «Планирование» (plan.js), usable by any panel.
 
-   MemuPlanUI.menu(anchor, items, opts)  — a popover menu fixed to the viewport: never cut by the panel,
-       flips above the anchor near the bottom, keyboard (↑ ↓ Home End Enter Esc), a filter field for long
-       lists, closes on an outside click / Esc / scroll / resize.
-       items: { sep: "Group" } | { icon: "<svg html>", title, desc?, badge?, danger?, disabled?, run() }
-       opts:  { lang: "ru"|"en", filter: bool (default: more than 9 items), cls: "extra class" }
-   MemuPlanUI.enhanceTimes(root)         — every <input data-time> becomes a 24-hour time field: typed
-       «9», «930», «9.30», «21:5» are understood, a list of times opens on focus/click/↓, the value is
-       committed as HH:MM with a "change" event (an invalid entry returns to the last good value).
-       There is no native <input type=time>: its look and its 12-hour AM/PM clock depended on the OS locale.
-   MemuPlanUI.enhanceDates(root)         — every <input data-date> (its value — YYYY-MM-DD or empty) becomes a date
-       field in the format of the UI language, not of the OS (<input type=date> showed «10/11/2026» or
-       «11.10.2026» depending on Windows): RU «11.10.2026», EN «Oct 11, 2026». Typed «11.10», «11.10.26»,
-       «2026-10-11», «Oct 11», «10/11/2026» (EN: month first) are understood; a month calendar opens on
-       focus/click/↓ (↑ ↓ — a day, PgUp PgDn — a month, Enter, Esc). input.dataset.iso holds the value, a "change"
-       event fires on commit; data-optional="1" allows clearing it. */
+
 (function () {
   "use strict";
   if (window.MemuPlanUI) return;
@@ -23,7 +8,6 @@
   const pad = (n) => String(n).padStart(2, "0");
   let openMenu = null;
 
-  /* ------------------------------------------------------------------ positioning */
   function place(pop, anchor, { gap = 6, minHeight = 160, align = "start" } = {}) {
     const r = anchor.getBoundingClientRect();
     const vw = window.innerWidth, vh = window.innerHeight, edge = 8;
@@ -41,7 +25,7 @@
   }
   function closeOnOutside(pop, anchor, close) {
     const down = (ev) => { if (!pop.contains(ev.target) && !anchor.contains(ev.target)) close(); };
-    // a scroll elsewhere (the panel, a re-render that clamps it) follows the anchor; it closes only when the anchor leaves the view
+
     const scroll = (ev) => {
       if (pop.contains(ev.target)) return;
       const r = anchor.getBoundingClientRect();
@@ -63,7 +47,6 @@
     };
   }
 
-  /* ------------------------------------------------------------------ menu */
   function menu(anchor, items, opts = {}) {
     if (openMenu) openMenu.close(false);
     const en = isEn(opts.lang);
@@ -84,7 +67,7 @@
       if (!pop.isConnected) return;
       pop.remove(); detach(); anchor.setAttribute("aria-expanded", "false");
       if (openMenu && openMenu.pop === pop) openMenu = null;
-      if (refocus) { try { anchor.focus({ preventScroll: true }); } catch (e) { /* gone */ } }
+      if (refocus) { try { anchor.focus({ preventScroll: true }); } catch (e) {  } }
       opts.onClose?.();
     };
     detach = closeOnOutside(pop, anchor, () => close(false));
@@ -96,7 +79,7 @@
         const q = filter.value.trim().toLowerCase();
         let shown = 0;
         pop.querySelectorAll(".pln-pop-list button").forEach((b) => { const hit = !q || b.textContent.toLowerCase().includes(q); b.hidden = !hit; if (hit) shown++; });
-        // a group title stays only while one of its items is visible
+
         pop.querySelectorAll(".pln-pop-sep").forEach((sep) => {
           let n = sep.nextElementSibling, any = false;
           while (n && !n.classList.contains("pln-pop-sep")) { if (n.tagName === "BUTTON" && !n.hidden) { any = true; break; } n = n.nextElementSibling; }
@@ -129,8 +112,6 @@
     return pop;
   }
 
-  /* ------------------------------------------------------------------ time field */
-  /** «9» → 09:00, «930» → 09:30, «0930» → 09:30, «9:3» → 09:30, «21.45» → 21:45, «24:00»/«9:75» → "" */
   function parseTime(text) {
     const v = String(text || "").trim().replace(/[.,\s-]/g, ":");
     let h, m;
@@ -190,7 +171,7 @@
         if (good && !times.includes(good)) { times.push(good); times.sort(); }
         list.innerHTML = times.map((t) => `<button type="button" role="option" tabindex="-1" data-t="${t}">${t}</button>`).join("");
         document.body.appendChild(list);
-        list.addEventListener("mousedown", (ev) => ev.preventDefault());   // keep the focus in the field
+        list.addEventListener("mousedown", (ev) => ev.preventDefault());
         list.addEventListener("click", (ev) => {
           const b = ev.target.closest("button[data-t]");
           if (!b) return;
@@ -223,12 +204,11 @@
     });
   }
 
-  /* ------------------------------------------------------------------ date field */
   const MONTHS = {
     ru: ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"],
     en: ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"],
   };
-  // typed month names: «окт», «октября», «Oct», «October»
+
   const MONTH_STEMS = [["янв", "jan"], ["фев", "feb"], ["мар", "mar"], ["апр", "apr"], ["ма", "may"], ["июн", "jun"],
     ["июл", "jul"], ["авг", "aug"], ["сен", "sep"], ["окт", "oct"], ["ноя", "nov"], ["дек", "dec"]];
   const WEEK = { ru: ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"], en: ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"] };
@@ -240,14 +220,14 @@
     return dt.getFullYear() === +mm[1] && dt.getMonth() === +mm[2] - 1 && dt.getDate() === +mm[3] ? mm[0] : "";
   };
   const todayIso = () => { const t = new Date(); return isoOf(t.getFullYear(), t.getMonth() + 1, t.getDate()); };
-  /** "2026-10-11" → RU «11.10.2026», EN «Oct 11, 2026» (the same in every OS locale). */
+
   function formatDate(iso, lang) {
     const v = validIso(iso);
     if (!v) return "";
     const [y, m, d] = v.split("-").map(Number);
     return isEn(lang) ? `${MONTHS.en[m - 1].slice(0, 3)} ${d}, ${y}` : `${pad(d)}.${pad(m)}.${y}`;
   }
-  /** Typed text → "YYYY-MM-DD" or "". A missing year is the next such date from today on. */
+
   function parseDate(text, lang) {
     const v = String(text || "").trim().toLowerCase().replace(/,/g, " ").replace(/\s+/g, " ");
     if (!v) return "";
@@ -258,7 +238,7 @@
     if ((mm = /^(\d{1,2})\s*([a-zа-яё]+)\.?(?:\s+(\d{2,4}))?$/.exec(v))) { d = +mm[1]; m = monthOf(mm[2]); y = mm[3]; }
     else if ((mm = /^([a-zа-яё]+)\.?\s*(\d{1,2})(?:\s+(\d{2,4}))?$/.exec(v))) { m = monthOf(mm[1]); d = +mm[2]; y = mm[3]; }
     else if ((mm = /^(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?$/.exec(v))) {
-      // RU (and «11.10» with dots in EN): day first; EN with slashes: month first
+
       if (isEn(lang) && v.includes("/")) { m = +mm[1]; d = +mm[2]; } else { d = +mm[1]; m = +mm[2]; }
       y = mm[3];
     } else return "";
@@ -287,7 +267,7 @@
       input.setAttribute("aria-haspopup", "dialog");
       input.setAttribute("aria-expanded", "false");
       const en = isEn(), lang = en ? "en" : "ru";
-      if (!input.placeholder) input.placeholder = en ? "MMM D, YYYY" : "дд.мм.гггг";   // a format, not a date: an example read as a set value
+      if (!input.placeholder) input.placeholder = en ? "MMM D, YYYY" : "дд.мм.гггг";
       let good = validIso(input.value);
       input.dataset.iso = good;
       input.value = formatDate(good, lang);
@@ -308,7 +288,7 @@
       const draw = () => {
         if (!pop) return;
         const [y, m] = view.split("-").map(Number);
-        const first = new Date(y, m - 1, 1).getDay();            // 0 = Sunday
+        const first = new Date(y, m - 1, 1).getDay();
         const lead = en ? first : (first + 6) % 7;
         const days = new Date(y, m, 0).getDate(), today = todayIso();
         let cells = "";
@@ -332,7 +312,7 @@
         pop.setAttribute("aria-label", en ? "Pick a date" : "Выбор даты");
         document.body.appendChild(pop);
         draw();
-        pop.addEventListener("mousedown", (ev) => ev.preventDefault());   // keep the focus in the field
+        pop.addEventListener("mousedown", (ev) => ev.preventDefault());
         pop.addEventListener("click", (ev) => {
           const b = ev.target.closest("button");
           if (!b) return;

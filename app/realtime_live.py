@@ -37,8 +37,6 @@ import urllib.parse
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-#: Каталог провайдеров. ``protocol`` выбирает адаптер, ``models``/``voices`` —
-#: подсказки для интерфейса; вписать можно любой ID.
 PROVIDERS: Dict[str, Dict[str, Any]] = {
     "openai-live": {
         "label": "OpenAI GPT-Live", "protocol": "gpt-live",
@@ -89,7 +87,6 @@ TURN_DETECTION = ("auto", "server_vad", "semantic_vad")
 DIALECTS = ("ga", "beta")
 DELEGATION = ("memuai", "responses", "off")
 
-
 def catalog() -> List[Dict[str, Any]]:
     """Каталог для окна настроек, без URL-подробностей протокола."""
     return [{"id": key, "label": row["label"], "protocol": row["protocol"],
@@ -97,10 +94,8 @@ def catalog() -> List[Dict[str, Any]]:
              "default_voice": row["default_voice"], "custom": key.startswith("custom"),
              "key_hint": row["key_hint"]} for key, row in PROVIDERS.items()]
 
-
 class RealtimeConfigError(ValueError):
     """Понятная пользователю ошибка настройки Live-модели."""
-
 
 @dataclass
 class LiveConfig:
@@ -156,8 +151,6 @@ class LiveConfig:
                    language="" if language in ("", "auto") else language[:12],
                    search=prefs.get("voice_realtime_search", True) is not False)
 
-
-#: Инструменты, которые MemuAI выполняет сам по просьбе Live-модели.
 SEARCH_TOOLS: List[Dict[str, Any]] = [
     {"name": "web_search",
      "description": "Search the web for fresh or factual information: news, prices, weather, schedules, "
@@ -171,7 +164,7 @@ SEARCH_TOOLS: List[Dict[str, Any]] = [
                     "properties": {"url": {"type": "string", "description": "Full http(s) address"}},
                     "required": ["url"]}},
 ]
-MAX_FRAME_CHARS = 2_800_000   # base64 одного кадра (~2 МБ JPEG)
+MAX_FRAME_CHARS = 2_800_000
 
 _SEARCH_NOTE = ("\n\nYou can look things up on the web during this conversation. Do it whenever the answer "
                 "depends on fresh or checkable facts (news, prices, weather, schedules, releases, people, "
@@ -187,7 +180,6 @@ _VIDEO_NOTES = {
                  "receives the latest frame and tells you what is there."),
 }
 
-
 @dataclass
 class Adapter:
     """Базовый адаптер: превращает события провайдера в события MemuAI."""
@@ -196,17 +188,16 @@ class Adapter:
     ready_sent: bool = False
     assistant_open: bool = False
     transcript: List[Dict[str, str]] = field(default_factory=list)
-    #: Сообщения провайдеру, которые родились при разборе его же событий
-    #: (кадр к началу реплики, повторная настройка без отвергнутого инструмента).
+
     outbox: List[Dict[str, Any]] = field(default_factory=list)
-    #: Последний кадр камеры/экрана и его номер; ``frame_sent`` — номер уже переданного.
+
     frame: str = ""
     frame_mime: str = "image/jpeg"
     frame_id: int = 0
     frame_sent: int = 0
-    #: Сколько раз уже упростили поиск (см. search_plan).
+
     search_step: int = 0
-    #: Откуда берутся субтитры ответа (item_id → "audio" или "text"), чтобы не задвоить их.
+
     caption_source: Dict[str, str] = field(default_factory=dict)
 
     protocol = "base"
@@ -285,10 +276,9 @@ class Adapter:
         if not key:
             return {}
         if key.lower().startswith(("bearer ", "api-key ")):
-            # Схема вписана вместе с ключом — передаём как есть.
+
             return {"Authorization": key}
-        # Yandex принимает API-ключ только как «Api-Key …» (на Bearer отвечает
-        # invalid_credentials и закрывает сессию); Bearer — для IAM-токенов «t1.…».
+
         if self.yandex and not key.startswith("t1."):
             return {"Authorization": f"Api-Key {key}"}
         return {"Authorization": f"Bearer {key}"}
@@ -323,8 +313,6 @@ class Adapter:
                 "full_duplex": self.protocol == "gpt-live",
                 "video": self.video_mode, "search": self.search_mode}
 
-    # Короткая стенограмма нужна делегированию: модели MemuAI передаётся,
-    # о чём шла речь, раз сам запрос делегирования её не содержит.
     def remember(self, role: str, text: str, final: bool = False) -> None:
         if not text:
             return
@@ -341,13 +329,11 @@ class Adapter:
                  for row in self.transcript if row["text"].strip()]
         return "\n".join(lines)[-limit:]
 
-
 def _instructions_with_language(config: LiveConfig) -> str:
     text = config.instructions.strip()
     if config.language:
         text += f"\nPreferred spoken language: {config.language} (switch if the user switches)."
     return text
-
 
 class OpenAIRealtimeAdapter(Adapter):
     """OpenAI Realtime API и совместимые (xAI Grok Voice, Azure, свои серверы)."""
@@ -356,14 +342,11 @@ class OpenAIRealtimeAdapter(Adapter):
 
     @property
     def video_mode(self) -> str:
-        # Картинки в разговоре понимает только текущая схема OpenAI (gpt-realtime).
-        # Yandex на input_image отвечает malformed_event и рвёт всю сессию (1008).
+
         return "turn" if self.config.dialect == "ga" and not self.yandex else ""
 
     def search_plan(self) -> List[str]:
-        # У Grok Voice свой поиск по вебу и X; остальным ищет MemuAI. Речевые модели
-        # Yandex функции не вызывают: «[TOOL_CALL_START]web_search {…}» звучит вслух
-        # или ответ приходит пустым, а тип web_search рвёт сессию — поиска нет.
+
         if self.yandex:
             return [""]
         return ["native", "tool", ""] if self.config.dialect == "xai" else ["tool", ""]
@@ -479,12 +462,11 @@ class OpenAIRealtimeAdapter(Adapter):
             error = event.get("error") if isinstance(event.get("error"), dict) else {}
             message = str(error.get("message") or event.get("message") or "Ошибка Live-модели")
             code = str(error.get("code") or "")
-            # Отмена ответа, которого уже нет, — не ошибка для пользователя.
+
             if code in ("response_cancel_not_active",) or "no active response" in message.lower():
                 return []
             if self.search_mode and "tool" in message.lower() and self.degrade():
-                # Сервер не принял инструменты поиска: настраиваем сессию заново без них,
-                # разговор при этом не рвётся.
+
                 self.outbox.extend(self.setup_messages())
                 return [{"type": "search_mode", "search": self.search_mode}]
             return [{"type": "error", "message": message[:600], "code": code[:80]}]
@@ -503,8 +485,7 @@ class OpenAIRealtimeAdapter(Adapter):
                 out.append({"type": "audio", "data": delta, **turn})
             return out
         if kind == "response.output_text.delta":
-            # Yandex озвучивает ответ без output_audio_transcript.delta: живые
-            # субтитры идут текстом, а у расшифровки озвучки только итоговый .done.
+
             text = str(event.get("delta") or "")
             if not text or self._caption_from(item_id, "text") != "text":
                 return []
@@ -517,7 +498,7 @@ class OpenAIRealtimeAdapter(Adapter):
                     text = str(event.get("delta") or event.get("transcript") or event.get("text") or "")
                     final = kind.endswith(".updated") and bool(event.get("is_final") or event.get("final"))
                     if kind.endswith(".updated"):
-                        # xAI шлёт накопленный текст, а не приращение.
+
                         self.remember("user", text, final=True)
                         return [{"type": "user_transcript", "text": text, "final": final, **turn}]
                     self.remember("user", text)
@@ -539,7 +520,7 @@ class OpenAIRealtimeAdapter(Adapter):
                 return [{"type": "assistant_transcript", "text": text, "final": True, **turn}]
             return []
         if kind == "input_audio_buffer.speech_started":
-            # Кадр встаёт в историю перед звуком реплики: модель видит то же, что и пользователь.
+
             self.outbox.extend(self._frame_item())
             if self.assistant_open:
                 self.assistant_open = False
@@ -558,7 +539,6 @@ class OpenAIRealtimeAdapter(Adapter):
                         {"type": "turn_complete"}]
             return [{"type": "turn_complete"}]
         return out
-
 
 class GptLiveAdapter(Adapter):
     """OpenAI GPT-Live (``/v1/live/sessions``): полный дуплекс с делегированием."""
@@ -586,7 +566,7 @@ class GptLiveAdapter(Adapter):
                                                    **({"tools": [{"type": "web_search"}],
                                                        "tool_choice": "auto"} if self.config.search else {})}}
         else:
-            # null — клиентское делегирование: сложные вопросы решает модель MemuAI.
+
             session["delegation"] = None
         return [{"type": "session.start", "session": session}]
 
@@ -616,7 +596,7 @@ class GptLiveAdapter(Adapter):
         if kind == "session.input_transcript.delta":
             text = str(event.get("delta") or "")
             if self.assistant_open:
-                # Пользователь заговорил поверх ответа: реплика ассистента закончена.
+
                 self.assistant_open = False
             self.remember("user", text)
             return [{"type": "user_transcript", "delta": text}] if text else []
@@ -638,7 +618,6 @@ class GptLiveAdapter(Adapter):
                      "code": str(error.get("code") or "")[:80]}]
         return []
 
-
 class GeminiLiveAdapter(Adapter):
     """Google Gemini Live API (BidiGenerateContent)."""
 
@@ -649,7 +628,7 @@ class GeminiLiveAdapter(Adapter):
         return "stream"
 
     def search_plan(self) -> List[str]:
-        # Сначала Google Search самой модели; если она его не принимает — поиск MemuAI.
+
         return ["native", "tool", ""]
 
     def _tools(self) -> List[Dict[str, Any]]:
@@ -756,7 +735,6 @@ class GeminiLiveAdapter(Adapter):
             out.append({"type": "error", "message": str(error.get("message") or "Ошибка Gemini Live")[:600]})
         return out
 
-
 def _grounding_sources(metadata: Any) -> List[Dict[str, str]]:
     """Источники встроенного поиска Gemini: адрес и название страницы."""
     if not isinstance(metadata, dict):
@@ -768,7 +746,6 @@ def _grounding_sources(metadata: Any) -> List[Dict[str, str]]:
             rows.append({"url": str(web["uri"])[:2000], "title": str(web.get("title") or "")[:300]})
     return rows[:12]
 
-
 def build_adapter(config: LiveConfig) -> Adapter:
     protocol = PROVIDERS[config.provider]["protocol"]
     if protocol == "gpt-live":
@@ -776,7 +753,6 @@ def build_adapter(config: LiveConfig) -> Adapter:
     if protocol == "gemini-live":
         return GeminiLiveAdapter(config)
     return OpenAIRealtimeAdapter(config)
-
 
 def decode_frame(message: Any) -> Dict[str, Any]:
     """Кадр провайдера → dict. Gemini присылает JSON и в бинарных кадрах."""
@@ -791,7 +767,6 @@ def decode_frame(message: Any) -> Dict[str, Any]:
         return {}
     return value if isinstance(value, dict) else {}
 
-
 def redact(text: str, config: LiveConfig) -> str:
     """Ключ провайдера не должен попасть ни в окно, ни в журнал."""
     value = str(text or "")
@@ -800,8 +775,6 @@ def redact(text: str, config: LiveConfig) -> str:
         value = value.replace(urllib.parse.quote(config.api_key), "***")
     return value
 
-
-#: Сообщения MemuAI Live (этот модуль и ретранслятор в playground_api) по-английски — для окна на английском.
 _MESSAGES_EN = (
     (r"Укажите адрес WebSocket своего Live API в настройках «Голос и Live»",
      "Enter the WebSocket address of your Live API in “Voice & Live” settings"),
@@ -828,7 +801,6 @@ _MESSAGES_EN = (
     (r"Не удалось снять экран: (.*)", r"Could not capture the screen: \1"),
     (r"Live-модель закрыла соединение: (.*)", r"The live model closed the connection: \1"),
 )
-
 
 def localize(text: str, lang: str) -> str:
     """Текст ошибки/уведомления Live на языке окна (``en``); чужие (провайдерские) тексты — как есть."""

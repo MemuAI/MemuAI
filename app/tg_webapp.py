@@ -78,29 +78,22 @@ PROTOCOLS = ("auto", "http2", "quic")
 EDGE_IP_VERSIONS = ("auto", "4", "6")
 NAMED_TOKEN_RE = re.compile(r"^[A-Za-z0-9+/=_-]{40,4096}$")
 
-
-# --------------------------------------------------------------------------- files
-
 def _memu_dir() -> Path:
     from .config import DATA_DIR
     path = Path(DATA_DIR) / "memuai"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-
 def config_path() -> Path:
     return _memu_dir() / CONFIG_NAME
 
-
 def status_path() -> Path:
     return _memu_dir() / STATUS_NAME
-
 
 def bin_dir() -> Path:
     path = _memu_dir() / "bin"
     path.mkdir(parents=True, exist_ok=True)
     return path
-
 
 def _read_json(path: Path) -> Dict[str, Any]:
     try:
@@ -109,13 +102,9 @@ def _read_json(path: Path) -> Dict[str, Any]:
     except (OSError, ValueError):
         return {}
 
-
 def _write_json(path: Path, value: Dict[str, Any]) -> None:
     from .storage import save_json
     save_json(str(path), value, backup=False)
-
-
-# --------------------------------------------------------------------------- config
 
 DEFAULT_CONFIG: Dict[str, Any] = {
     "enabled": False,
@@ -123,22 +112,19 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     "custom_url": "",
     "port": DEFAULT_PORT,
     "max_age_hours": 24,
-    # MemuCode CLI sessions may be watched and driven from the Mini App.
+
     "code_control": True,
-    # Round 29: sign in from a normal browser (QR confirmed in the Mini App / one-time link from the bot).
+
     "web_login": True,
     "secret": "",
     "secret_created": 0,
-    # Round 21: transport of cloudflared ("auto" starts with QUIC and falls
-    # back to HTTP/2 after a failure — UDP/QUIC is often blocked), the edge IP
-    # family, a named Cloudflare Tunnel (stable own domain) and a manual retry.
+
     "cf_protocol": "auto",
     "cf_edge_ip": "auto",
     "named_token": "",
     "named_url": "",
     "retry_at": 0,
 }
-
 
 def normalize_custom_url(value: Any) -> str:
     """``https://host[:port][/prefix]`` without query, fragment or credentials; '' when invalid."""
@@ -164,7 +150,6 @@ def normalize_custom_url(value: Any) -> str:
     if path.endswith("/tgapp"):
         path = path[: -len("/tgapp")]
     return f"https://{netloc}{path}"
-
 
 def _normalize_config(raw: Any) -> Dict[str, Any]:
     out = dict(DEFAULT_CONFIG)
@@ -202,9 +187,7 @@ def _normalize_config(raw: Any) -> Dict[str, Any]:
         out["secret_created"] = 0
     return out
 
-
 _CONFIG_LOCK = threading.Lock()
-
 
 def load_config() -> Dict[str, Any]:
     """The settings, with a session secret created on first use."""
@@ -219,7 +202,6 @@ def load_config() -> Dict[str, Any]:
                 log.warning("tgapp: could not persist the session secret")
         return config
 
-
 def save_config(updates: Dict[str, Any]) -> Dict[str, Any]:
     """Accept only the user-editable keys; the secret is changed by ``regenerate_secret``."""
     accepted = {key: updates[key] for key in ("enabled", "mode", "custom_url", "port", "max_age_hours",
@@ -232,7 +214,7 @@ def save_config(updates: Dict[str, Any]) -> Dict[str, Any]:
     if "named_token" in accepted:
         token = str(accepted["named_token"] or "").strip()
         if token.startswith("cloudflared"):
-            # People paste the whole "cloudflared service install <token>" line.
+
             token = token.split()[-1]
         if token and not NAMED_TOKEN_RE.fullmatch(token):
             raise ValueError("Это не похоже на токен Cloudflare Tunnel (длинная строка из Zero Trust → Tunnels)")
@@ -248,7 +230,6 @@ def save_config(updates: Dict[str, Any]) -> Dict[str, Any]:
         _write_json(config_path(), config)
     return config
 
-
 def regenerate_secret() -> Dict[str, Any]:
     """New secret: every issued Mini App session stops working at once."""
     current = load_config()
@@ -259,15 +240,11 @@ def regenerate_secret() -> Dict[str, Any]:
         _write_json(config_path(), config)
     return config
 
-
 def public_config(config: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     config = config or load_config()
     out = {key: value for key, value in config.items() if key not in ("secret", "named_token")}
     out["named_token_set"] = bool(config.get("named_token"))
     return out
-
-
-# --------------------------------------------------------------------------- preferences
 
 def _preferences() -> Dict[str, Any]:
     try:
@@ -276,11 +253,9 @@ def _preferences() -> Dict[str, Any]:
     except Exception:
         return {}
 
-
 def bot_token(prefs: Optional[Dict[str, Any]] = None) -> str:
     prefs = prefs if prefs is not None else _preferences()
     return str(prefs.get("telegram_bot_token") or "").strip()
-
 
 def paired_user_id(prefs: Optional[Dict[str, Any]] = None) -> str:
     """The one Telegram user allowed in.
@@ -298,13 +273,11 @@ def paired_user_id(prefs: Optional[Dict[str, Any]] = None) -> str:
             return text
     return ""
 
-
 def _user_id_text(value: Any) -> str:
     if isinstance(value, dict):
         value = value.get("id")
     text = str(value or "").strip()
-    return text if re.fullmatch(r"\d{1,20}", text) else ""      # users have positive ids; groups are negative
-
+    return text if re.fullmatch(r"\d{1,20}", text) else ""
 
 def authorized_user_ids(prefs: Optional[Dict[str, Any]] = None) -> List[str]:
     """Every Telegram user allowed into the Mini App: the paired owner first, then the whitelist.
@@ -322,20 +295,15 @@ def authorized_user_ids(prefs: Optional[Dict[str, Any]] = None) -> List[str]:
     if not any(ids):
         ids = [_user_id_text(paired_user_id(prefs))]
         ids.extend(_user_id_text(x) for x in prefs.get("telegram_allowed_users") or [])
-    # A dedicated paired-user field, if some settings provide it, is always allowed too.
+
     for key in ("telegram_user_id", "telegram_paired_user_id", "telegram_paired_user"):
         ids.append(_user_id_text(prefs.get(key)))
     return [x for x in dict.fromkeys(ids) if x]
-
 
 def is_authorized_user(user_id: Any, prefs: Optional[Dict[str, Any]] = None) -> bool:
     text = _user_id_text(user_id)
     return bool(text) and text in authorized_user_ids(prefs)
 
-
-# --------------------------------------------------------------------------- initData
-
-# English texts of ``InitDataError`` (the Russian one is the exception message).
 INIT_DATA_ERRORS_EN = {
     "no_token": "The bot is not set up: no token",
     "empty": "No Telegram data (initData)",
@@ -348,12 +316,10 @@ INIT_DATA_ERRORS_EN = {
     "no_user": "The Telegram data has no user",
 }
 
-
 class InitDataError(ValueError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
-
 
 def validate_init_data(init_data: str, token: str, *, max_age: int = 86400,
                        now: Optional[float] = None) -> Dict[str, Any]:
@@ -404,7 +370,6 @@ def validate_init_data(init_data: str, token: str, *, max_age: int = 86400,
         raise InitDataError("no_user", "В данных Telegram нет пользователя")
     return {"user": user, "auth_date": auth_date, "fields": fields}
 
-
 def sign_init_data(fields: Dict[str, Any], token: str) -> str:
     """Build a valid initData string (tests and the local browser preview)."""
     values = {key: (json.dumps(value, ensure_ascii=False, separators=(",", ":"))
@@ -415,19 +380,13 @@ def sign_init_data(fields: Dict[str, Any], token: str) -> str:
     values["hash"] = hmac.new(secret, check.encode("utf-8"), hashlib.sha256).hexdigest()
     return urllib.parse.urlencode(values, quote_via=urllib.parse.quote)
 
-
-# --------------------------------------------------------------------------- session tokens
-
 SESSION_TTL = 12 * 3600
-
 
 def _b64(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
-
 def _unb64(text: str) -> bytes:
     return base64.urlsafe_b64decode(text + "=" * (-len(text) % 4))
-
 
 def issue_token(user_id: str, secret: str, *, ttl: int = SESSION_TTL, scope: str = "app",
                 extra: str = "", now: Optional[float] = None) -> Tuple[str, int]:
@@ -436,7 +395,6 @@ def issue_token(user_id: str, secret: str, *, ttl: int = SESSION_TTL, scope: str
                           "n": secrets.token_hex(6)}, separators=(",", ":")).encode()
     signature = hmac.new(bytes.fromhex(secret), b"tgapp|" + payload, hashlib.sha256).digest()
     return _b64(payload) + "." + _b64(signature), expires
-
 
 def verify_token(token: str, secret: str, *, scope: str = "app",
                  now: Optional[float] = None) -> Optional[Dict[str, Any]]:
@@ -455,9 +413,6 @@ def verify_token(token: str, secret: str, *, scope: str = "app",
     if float(data.get("e") or 0) < (time.time() if now is None else now):
         return None
     return data
-
-
-# --------------------------------------------------------------------------- rate limiting
 
 class RateLimiter:
     """Sliding-window counter per key (thread-safe, in memory)."""
@@ -491,9 +446,6 @@ class RateLimiter:
                     self._hits.pop(stale, None)
             return True
 
-
-# --------------------------------------------------------------------------- tunnel output
-
 def parse_tunnel_url(line: str) -> Optional[str]:
     """The quick-tunnel address from a line of cloudflared output."""
     match = TRYCLOUDFLARE_RE.search(str(line or ""))
@@ -504,16 +456,10 @@ def parse_tunnel_url(line: str) -> Optional[str]:
         return None
     return url
 
-
 def _is_registered_line(line: str) -> bool:
     lowered = str(line or "").lower()
     return "registered tunnel connection" in lowered or "connection registered" in lowered
 
-
-#: Round 27: the tunnel's status texts (``error``, ``detail``) are composed in Russian from many pieces
-#: («cloudflared не скачан: Автоматическая загрузка… · 3 попыток подряд…») and reached the English window
-#: as is. Every fragment has its English twin here; ``status_en`` swaps them piece by piece, so composed
-#: messages translate whole and cloudflared's own English log lines pass through untouched.
 _STATUS_EN: List[Tuple["re.Pattern[str]", str]] = [(re.compile(ru), en) for ru, en in (
     (r"Cloudflare отклонил токен именованного туннеля — скопируйте его заново в Zero Trust → Tunnels",
      "Cloudflare rejected the named tunnel token — copy it again from Zero Trust → Tunnels"),
@@ -559,14 +505,12 @@ _STATUS_EN: List[Tuple["re.Pattern[str]", str]] = [(re.compile(ru), en) for ru, 
     (r"Не удалось открыть порт (\d+)", r"Could not open port \1"),
 )]
 
-
 def status_en(text: str) -> str:
     """The English twin of a Russian tunnel status text (see ``_STATUS_EN``)."""
     out = str(text or "")
     for pattern, english in _STATUS_EN:
         out = pattern.sub(english, out)
     return out
-
 
 def _tunnel_error_hint(line: str) -> str:
     lowered = str(line or "").lower()
@@ -593,17 +537,12 @@ def _tunnel_error_hint(line: str) -> str:
         return "Нет соединения с Cloudflare — возможна блокировка; попробуйте HTTP/2, VPN или свой адрес"
     return ""
 
-
 def _quic_trouble(line: str) -> bool:
     lowered = str(line or "").lower()
     return "quic" in lowered and ("failed" in lowered or "timeout" in lowered or "no recent network activity" in lowered)
 
-
-# --------------------------------------------------------------------------- cloudflared binary
-
 def _expected_binary_name() -> str:
     return "cloudflared.exe" if os.name == "nt" else "cloudflared"
-
 
 def find_cloudflared() -> Optional[Path]:
     """Our downloaded copy first, then one on PATH (a user who installed it)."""
@@ -612,7 +551,6 @@ def find_cloudflared() -> Optional[Path]:
         return own
     found = shutil.which("cloudflared")
     return Path(found) if found else None
-
 
 def _digest_from_release(release: Dict[str, Any]) -> Tuple[str, str]:
     """(download url, sha256) of the Windows binary from the GitHub release document."""
@@ -631,7 +569,6 @@ def _digest_from_release(release: Dict[str, Any]) -> Tuple[str, str]:
         url = ""
     return url, digest
 
-
 async def download_cloudflared(progress: Optional[Callable[[int, int], None]] = None,
                                *, client: Any = None) -> Path:
     """Download cloudflared.exe from the official GitHub release into the data folder."""
@@ -649,7 +586,7 @@ async def download_cloudflared(progress: Optional[Callable[[int, int], None]] = 
             if response.status_code == 200:
                 found_url, digest = _digest_from_release(response.json())
                 url = found_url or url
-        except Exception as exc:  # the API is rate limited; the plain URL still works
+        except Exception as exc:
             log.info("tgapp: release metadata unavailable (%s)", type(exc).__name__)
         hasher = hashlib.sha256()
         total = 0
@@ -685,9 +622,6 @@ async def download_cloudflared(progress: Optional[Callable[[int, int], None]] = 
                 partial.unlink()
         if own_client:
             await client.aclose()
-
-
-# --------------------------------------------------------------------------- tunnel process
 
 class CloudflaredTunnel:
     """One ``cloudflared`` process with restart, backoff, timeouts and a retry cap.
@@ -780,10 +714,10 @@ class CloudflaredTunnel:
             if self._stopping:
                 break
             if time.monotonic() - started > 300:
-                self.failures = 0                       # it ran fine for a while: start the backoff again
+                self.failures = 0
             self.failures += 1
             if not self.registered and self.protocol == "auto" and not self.use_http2:
-                # QUIC (UDP 7844) is the usual victim of firewalls and DPI.
+
                 self.use_http2 = True
             if self.failures >= self.max_failures:
                 self.gave_up = True
@@ -926,20 +860,15 @@ class CloudflaredTunnel:
             self.url = None
             self.on_url(None)
 
-
-# --------------------------------------------------------------------------- public reachability
-
 DOH_ENDPOINTS = ("https://1.1.1.1/dns-query", "https://8.8.8.8/resolve")
 VERIFY_TIMEOUT = 150.0
 VERIFY_EVERY = 4.0
 _NONCE = secrets.token_hex(8)
 
-
 def instance_nonce() -> str:
     """Random per process: /tgapp/healthz echoes it, so a check over the
     public URL proves the answer came from *this* listener."""
     return _NONCE
-
 
 async def doh_resolve(host: str, client: Any) -> Optional[bool]:
     """Does ``host`` resolve in public DNS? True/False, None when no DoH
@@ -965,7 +894,6 @@ async def doh_resolve(host: str, client: Any) -> Optional[bool]:
     except OSError:
         return None
 
-
 async def check_public_url(base: str, client: Any) -> Tuple[str, str]:
     """One reachability probe of the public address: ("ok"|"dns"|"http", detail)."""
     host = urllib.parse.urlsplit(base).hostname or ""
@@ -981,9 +909,6 @@ async def check_public_url(base: str, client: Any) -> Tuple[str, str]:
         return "ok", ""
     return "http", f"Адрес отвечает, но не MemuAI (HTTP {response.status_code})"
 
-
-# --------------------------------------------------------------------------- listener
-
 def _port_free(port: int) -> bool:
     with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as probe:
         try:
@@ -992,7 +917,6 @@ def _port_free(port: int) -> bool:
         except OSError:
             return False
 
-
 def pick_port(preferred: int) -> int:
     for port in range(preferred, min(65535, preferred + 40) + 1):
         if _port_free(port):
@@ -1000,7 +924,6 @@ def pick_port(preferred: int) -> int:
     with contextlib.closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as probe:
         probe.bind(("127.0.0.1", 0))
         return int(probe.getsockname()[1])
-
 
 def _make_server(app: Any, port: int) -> Any:
     import uvicorn
@@ -1012,15 +935,12 @@ def _make_server(app: Any, port: int) -> Any:
         def capture_signals(self):  # type: ignore[override]
             yield
 
-        def install_signal_handlers(self) -> None:  # older uvicorn
+        def install_signal_handlers(self) -> None:
             return None
 
     return _QuietServer(uvicorn.Config(app, host="127.0.0.1", port=port, log_config=None,
                                        access_log=False, lifespan="off",
                                        timeout_keep_alive=20, ws="none"))
-
-
-# --------------------------------------------------------------------------- manager
 
 class Manager:
     """Keeps the listener and the tunnel in the state the settings ask for."""
@@ -1046,10 +966,9 @@ class Manager:
         self.verified = False
         self._verify_task: Optional[asyncio.Task] = None
         self._retry_handled: Optional[float] = None
-        # Injectable for tests: probe(base_url) -> ("ok"|"dns"|"http", detail).
+
         self.probe: Optional[Callable[[str], Any]] = None
 
-    # status -------------------------------------------------------------
     def snapshot(self) -> Dict[str, Any]:
         tunnel = self.tunnel
         return {"pid": os.getpid(), "heartbeat": time.time(), "state": self.state, "error": self.error,
@@ -1083,7 +1002,6 @@ class Manager:
         self._notified = url
         notify_bot(url)
 
-    # reconcile ----------------------------------------------------------
     def desired(self) -> Dict[str, Any]:
         config = load_config()
         prefs = _preferences()
@@ -1108,7 +1026,7 @@ class Manager:
         if self._retry_handled is None:
             self._retry_handled = config["retry_at"]
         if config["retry_at"] > self._retry_handled:
-            # «Retry» in Settings: a brand-new tunnel (new address, fresh failure count).
+
             self._retry_handled = config["retry_at"]
             if self.tunnel is not None:
                 await self._stop_tunnel()
@@ -1134,7 +1052,7 @@ class Manager:
             return
         self.mode = config["mode"]
         if self.server_task is not None and self._preferred_port != config["port"]:
-            await self.stop_all()                          # the user moved the listener to another port
+            await self.stop_all()
         await self._ensure_server(config["port"])
         if self.server_task is None:
             return
@@ -1143,10 +1061,10 @@ class Manager:
             self.url = config["custom_url"]
             self.verified = False
             self._set_state("online")
-            # Diagnostics only: the user's own address is published at once.
+
             self._start_verify(publish=False)
             return
-        await self._stop_tunnel()            # mode/protocol/token changed: a fresh process
+        await self._stop_tunnel()
         self.url = config["named_url"] if config["mode"] == "named" else None
         await self._ensure_tunnel()
 
@@ -1204,7 +1122,7 @@ class Manager:
 
         def on_url(url: Optional[str]) -> None:
             if named:
-                return                      # the named address is fixed
+                return
             if url != self.url:
                 self.verified = False
             self.url = url
@@ -1213,8 +1131,7 @@ class Manager:
 
         def on_state(state: str, error: str) -> None:
             if state == "online":
-                # cloudflared is connected, but the address is published to
-                # Telegram only after it resolves in public DNS and answers.
+
                 self._set_state("verifying", "")
                 self._start_verify(publish=True)
                 return
@@ -1227,7 +1144,6 @@ class Manager:
                                         token=config["named_token"] if named else "")
         self.tunnel.start()
 
-    # public reachability -------------------------------------------------
     def _cancel_verify(self) -> None:
         task, self._verify_task = self._verify_task, None
         if task is not None and not task.done() and task is not asyncio.current_task():
@@ -1262,7 +1178,7 @@ class Manager:
             except Exception as exc:
                 kind, detail = "http", type(exc).__name__
             if self.url != base:
-                return                                  # a newer address took over
+                return
             if kind == "ok":
                 self.verified, self.detail = True, ""
                 if publish:
@@ -1282,14 +1198,13 @@ class Manager:
                 self.write_status()
             return
         if kind == "dns":
-            # This host never appeared in DNS: ask cloudflared for a new one.
+
             self._set_state("error", "Адрес туннеля так и не появился в DNS — запрашиваю новый")
             tunnel = self.tunnel
             if tunnel is not None and not tunnel.named:
                 tunnel._terminate()
             return
-        # It resolves, but our own check could not reach it (the PC's network
-        # may differ from the phone's): publish, and say so.
+
         self.verified = False
         self.detail = "Проверка через интернет не прошла (" + detail + ") — адрес всё равно отправлен в Telegram"
         self._set_state("online", "")
@@ -1318,9 +1233,7 @@ class Manager:
     def wake(self) -> None:
         self._wake.set()
 
-
 _MANAGER: Optional[Manager] = None
-
 
 def notify_bot(url: Optional[str]) -> None:
     """Tell the bot about a new address; the bot module is optional."""
@@ -1338,7 +1251,6 @@ def notify_bot(url: Optional[str]) -> None:
             task.add_done_callback(lambda done: done.exception() if not done.cancelled() else None)
     except Exception:
         log.exception("tgapp: on_webapp_url_changed failed")
-
 
 async def run_manager(poll: float = 2.0) -> None:
     """Proxy background task: follow the settings until cancelled."""
@@ -1365,19 +1277,14 @@ async def run_manager(poll: float = 2.0) -> None:
             await manager.stop_all()
         finally:
             manager.state = "off"
-            # Round 26: the Proxy is going away — a fresh «off» heartbeat made the
-            # window show «Starting…» for 20 s instead of «MemuAI Proxy is not running».
+
             with contextlib.suppress(OSError):
                 _write_json(status_path(), {**manager.snapshot(), "heartbeat": 0})
             if _MANAGER is manager:
                 _MANAGER = None
 
-
 def manager() -> Optional[Manager]:
     return _MANAGER
-
-
-# --------------------------------------------------------------------------- public contract
 
 def read_status() -> Dict[str, Any]:
     """Status as the desktop window sees it (from the file the Proxy keeps fresh)."""
@@ -1390,7 +1297,6 @@ def read_status() -> Dict[str, Any]:
                 "mode": load_config()["mode"], "download": {"done": 0, "total": 0}}
     return data
 
-
 def webapp_url() -> Optional[str]:
     """Public HTTPS URL of the Mini App (``…/tgapp/``) while it is reachable, else None."""
     if _MANAGER is not None:
@@ -1399,14 +1305,12 @@ def webapp_url() -> Optional[str]:
     url = data.get("url")
     return str(url) if data.get("state") == "online" and url else None
 
-
 def webapp_enabled() -> bool:
     """The user turned the Mini App on (the address may still be starting)."""
     try:
         return bool(load_config()["enabled"])
     except Exception:
         return False
-
 
 def desktop_status() -> Dict[str, Any]:
     """Everything the settings card in the desktop window shows."""

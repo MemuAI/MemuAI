@@ -32,7 +32,7 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 from . import modules_host
 
 PANEL_SIZES = ("s", "m", "l", "w")
-# Round 39 (r39-integ): main.dock — the host player of the MemuAI window (music-dock.js), chat.cards — command result cards in the chat
+
 WIDGET_SLOTS = ("quick.ring", "quick.card", "chat.composer", "main.dock", "chat.cards")
 WIDGET_KINDS = ("equalizer", "nowplaying", "miniplayer", "dock", "cards")
 WIDGET_SOURCES = ("music.player",)
@@ -42,17 +42,14 @@ _ID_RE = re.compile(r"^[a-z][a-z0-9_-]{0,40}$")
 _FILE_RE = re.compile(r"^[A-Za-z0-9_][A-Za-z0-9_./-]{0,120}\.(?:html|js|css|md)$")
 _LOCK = threading.RLock()
 
-
 def _text(value: Any, limit: int) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()[:limit]
-
 
 def _file(value: Any) -> str:
     name = str(value or "").strip().replace("\\", "/")
     if not _FILE_RE.match(name) or ".." in name.split("/"):
         return ""
     return name
-
 
 def _settings(raw: Any, errors: List[str], where: str) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
@@ -85,7 +82,6 @@ def _settings(raw: Any, errors: List[str], where: str) -> List[Dict[str, Any]]:
         out.append(row)
     return out
 
-
 def _schema(raw: Any, errors: List[str], where: str) -> Dict[str, Any]:
     """A small JSON schema of command arguments: an object of string/number/boolean/enum properties."""
     if raw in (None, {}):
@@ -105,7 +101,6 @@ def _schema(raw: Any, errors: List[str], where: str) -> Dict[str, Any]:
         props[str(key)] = row
     required = [str(k) for k in (raw.get("required") or []) if str(k) in props]
     return {"type": "object", "properties": props, "required": required}
-
 
 def normalize_contributes(raw: Any, *, builtin: bool = False, errors: Optional[List[str]] = None) -> Dict[str, Any]:
     """Clean ``manifest.contributes``. Problems are appended to ``errors`` (the item is dropped)."""
@@ -196,7 +191,6 @@ def normalize_contributes(raw: Any, *, builtin: bool = False, errors: Optional[L
         out["widgets"] = widgets
     return out
 
-
 def validate_contributes(raw: Any, *, builtin: bool = False, folder: Optional[Path] = None) -> List[str]:
     """Errors of a ``contributes`` block (and missing files when the package folder is known)."""
     errors: List[str] = []
@@ -216,12 +210,8 @@ def validate_contributes(raw: Any, *, builtin: bool = False, folder: Optional[Pa
             errors.append(f"commands.{cmd['id']}: обработчик {handler!r} неизвестен / unknown handler")
     return errors
 
-
-# ------------------------------------------------------------------------------- package files (export/import)
-
 PACKAGE_FILE_LIMIT = 400_000
 PACKAGE_FILES_TOTAL = 2_000_000
-
 
 def contributed_files(raw: Any) -> List[str]:
     """Files of the package a ``contributes`` block names: panel pages / scripts / styles and the skill."""
@@ -229,7 +219,6 @@ def contributed_files(raw: Any) -> List[str]:
     names = [f for p in clean.get("panels", []) for f in [p["entry"], *p["scripts"], *p["styles"]]]
     names += [clean["skill"]["file"]] if clean.get("skill", {}).get("file") else []
     return list(dict.fromkeys(names))
-
 
 def package_files(folder: Path, raw: Any) -> Dict[str, str]:
     """``{name: text}`` of the contributed files for an exported package (missing files are skipped)."""
@@ -242,7 +231,6 @@ def package_files(folder: Path, raw: Any) -> Dict[str, str]:
             except (OSError, UnicodeDecodeError):
                 continue
     return out
-
 
 def write_package_files(folder: Path, raw: Any, files: Dict[str, Any]) -> List[str]:
     """Write the contributed files an imported package carries into its folder (only names ``contributes`` declares,
@@ -261,16 +249,11 @@ def write_package_files(folder: Path, raw: Any, files: Dict[str, Any]) -> List[s
         written.append(name)
     return written
 
-
-# ---------------------------------------------------------------------------------------------------- catalogue
-
 def _root(root: Optional[Path] = None) -> Path:
     return Path(root) if root is not None else modules_host.default_root()
 
-
 def _package_files(root: Path, module_id: str) -> Optional[Path]:
     return modules_host._package_dir(root, module_id)
-
 
 def contributions(root: Optional[Path] = None, *, include_disabled: bool = False) -> List[Dict[str, Any]]:
     """``[{module, title, title_en, icon, accent, enabled, panels, commands, widgets, has_skill}]`` of modules with a
@@ -300,16 +283,11 @@ def contributions(root: Optional[Path] = None, *, include_disabled: bool = False
                     "widgets": clean.get("widgets", []), "skill": clean.get("skill") or {}, "folder": str(folder)})
     return out
 
-
 def find(module_id: str, *, root: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     return next((row for row in contributions(root) if row["module"] == module_id), None)
 
-
-# ------------------------------------------------------------------------------------------- settings storage
-
 def _settings_file(root: Path) -> Path:
     return root / "integration.json"
-
 
 def load_settings(root: Optional[Path] = None) -> Dict[str, Any]:
     path = _settings_file(_root(root))
@@ -318,7 +296,6 @@ def load_settings(root: Optional[Path] = None) -> Dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
-
 
 def _clean_value(spec: Dict[str, Any], value: Any) -> Any:
     if spec["type"] == "bool":
@@ -329,7 +306,6 @@ def _clean_value(spec: Dict[str, Any], value: Any) -> Any:
         return str(value) if re.fullmatch(r"#[0-9a-fA-F]{6}|auto|accent|cover", str(value)) else spec["default"]
     return _text(value, 200)
 
-
 def item_settings(module_id: str, kind: str, item_id: str, *, root: Optional[Path] = None) -> Dict[str, Any]:
     """Effective settings (defaults + saved) of one widget or panel of an enabled module."""
     row = find(module_id, root=root)
@@ -339,7 +315,6 @@ def item_settings(module_id: str, kind: str, item_id: str, *, root: Optional[Pat
     saved = load_settings(root).get(f"{module_id}:{kind}:{item_id}") or {}
     return {spec["key"]: _clean_value(spec, saved[spec["key"]]) if spec["key"] in saved else spec["default"]
             for spec in item.get("settings", [])}
-
 
 def save_item_settings(module_id: str, kind: str, item_id: str, values: Dict[str, Any], *,
                        root: Optional[Path] = None) -> Dict[str, Any]:
@@ -364,7 +339,6 @@ def save_item_settings(module_id: str, kind: str, item_id: str, values: Dict[str
         tmp.replace(path)
     return item_settings(module_id, kind, item_id, root=root)
 
-
 def public(root: Optional[Path] = None, lang: str = "ru") -> Dict[str, Any]:
     """What the windows need: panels for the gallery, commands for local matching, widgets with their settings."""
     root = _root(root)
@@ -380,9 +354,6 @@ def public(root: Optional[Path] = None, lang: str = "ru") -> Dict[str, Any]:
                                                         "phrases", "phrases_en", "danger")} for c in row["commands"]],
                         "widgets": widgets})
     return {"modules": modules}
-
-
-# ------------------------------------------------------------------------------------------- panel documents
 
 PANEL_PRELUDE = r"""
 (function () {
@@ -427,9 +398,7 @@ PANEL_PRELUDE = r"""
 })();
 """
 
-
-PANEL_KIT_CSS = Path(__file__).parent / "pgstatic" / "module-panel-kit.css"   # the shared look of every module panel
-
+PANEL_KIT_CSS = Path(__file__).parent / "pgstatic" / "module-panel-kit.css"
 
 def panel_document(module_id: str, panel_id: str, *, env: Optional[Dict[str, Any]] = None,
                    root: Optional[Path] = None) -> str:
@@ -460,17 +429,14 @@ def panel_document(module_id: str, panel_id: str, *, env: Optional[Dict[str, Any
     page["js"] = prelude + "\n" + "\n".join(read(name) for name in panel["scripts"])
     return modules_host.module_document(page, {}, env={**(env or {}), "toolbar": ""})
 
-
 DataHandler = Callable[[Dict[str, Any], Dict[str, Any]], Dict[str, Any]]
 DATA: Dict[str, DataHandler] = {}
-
 
 def data_source(name: str):
     def wrap(fn: DataHandler) -> DataHandler:
         DATA[name] = fn
         return fn
     return wrap
-
 
 def panel_data(module_id: str, panel_id: str, args: Any = None, *, lang: str = "ru",
                root: Optional[Path] = None) -> Dict[str, Any]:
@@ -485,9 +451,6 @@ def panel_data(module_id: str, panel_id: str, args: Any = None, *, lang: str = "
     return fn(args if isinstance(args, dict) else {}, {"lang": lang, "en": en, "root": root, "module": row,
                                                         "tr": (lambda ru, e: e if en else ru)})
 
-
-# ---------------------------------------------------------------------------------------------- skill for the AI
-
 def _skill_text(row: Dict[str, Any], en: bool) -> str:
     skill = row.get("skill") or {}
     if skill.get("file"):
@@ -496,7 +459,6 @@ def _skill_text(row: Dict[str, Any], en: bool) -> str:
         except OSError:
             return ""
     return str(skill.get("text_en" if en else "text") or "").strip()
-
 
 def command_line(row: Dict[str, Any], cmd: Dict[str, Any], en: bool) -> str:
     props = cmd["args"].get("properties") or {}
@@ -507,7 +469,6 @@ def command_line(row: Dict[str, Any], cmd: Dict[str, Any], en: bool) -> str:
     phrases = cmd["phrases_en"] if en else cmd["phrases"]
     return (f"- {row['module']}.{cmd['id']} {{{args}}} — {desc or cmd['title']}"
             + (f" (e.g. «{'», «'.join(phrases[:3])}»)" if phrases else "") + (" [asks the user to confirm]" if cmd["danger"] else ""))
-
 
 def skill_prompt(root: Optional[Path] = None, *, lang: str = "ru", surface: str = "chat") -> str:
     """The module commands block for the system prompt (empty when no enabled module has commands)."""
@@ -529,7 +490,6 @@ def skill_prompt(root: Optional[Path] = None, *, lang: str = "ru", surface: str 
             lines.append(text)
     lines.append("</module_commands>")
     return "\n".join(lines)
-
 
 def alias_tool(name: str, args: Any = None, root: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     """Round 39 (r39-integ): a model that names the module command as the tool («music_play», «music.play», «music:next»)
@@ -553,12 +513,8 @@ def alias_tool(name: str, args: Any = None, root: Optional[Path] = None) -> Opti
                                                            "args": inner if isinstance(inner, dict) else params}}
     return None
 
-
-# --------------------------------------------------------------------------------------------- command runtime
-
 Handler = Callable[[Dict[str, Any], Dict[str, Any]], Awaitable[Dict[str, Any]]]
 HANDLERS: Dict[str, Handler] = {}
-
 
 def handler(name: str):
     def wrap(fn: Handler) -> Handler:
@@ -566,10 +522,8 @@ def handler(name: str):
         return fn
     return wrap
 
-
 class CommandError(Exception):
     pass
-
 
 def _check_args(cmd: Dict[str, Any], args: Any) -> Dict[str, Any]:
     args = args if isinstance(args, dict) else {}
@@ -595,7 +549,6 @@ def _check_args(cmd: Dict[str, Any], args: Any) -> Dict[str, Any]:
     if missing:
         raise CommandError(f"Не хватает аргументов: {', '.join(missing)} / Missing arguments: {', '.join(missing)}")
     return out
-
 
 async def run_command(module_id: str, command: str, args: Any = None, *, lang: str = "ru", confirmed: bool = False,
                       surface: str = "chat", root: Optional[Path] = None, base: str = "") -> Dict[str, Any]:
@@ -636,9 +589,6 @@ async def run_command(module_id: str, command: str, args: Any = None, *, lang: s
     result.setdefault("command", cmd["id"])
     return result
 
-
-# --------------------------------------------------------------------------------------------- phrase matching
-
 def _phrase_regex(phrase: str) -> Optional[Tuple["re.Pattern", List[str]]]:
     names = re.findall(r"\{([a-z_][a-z0-9_]*)\}", phrase)
     parts = re.split(r"\{[a-z_][a-z0-9_]*\}", phrase.strip().lower())
@@ -648,7 +598,6 @@ def _phrase_regex(phrase: str) -> Optional[Tuple["re.Pattern", List[str]]]:
         return re.compile(r"^\s*" + pattern + r"\s*[.!?]*\s*$", re.I), names
     except re.error:
         return None
-
 
 def match_phrase(text: str, root: Optional[Path] = None) -> Optional[Dict[str, Any]]:
     """A request that matches a declared phrase exactly («включи трек Believer») → {module, command, args}."""
@@ -666,7 +615,6 @@ def match_phrase(text: str, root: Optional[Path] = None) -> Optional[Dict[str, A
                     return {"module": row["module"], "command": cmd["id"],
                             "args": {name: found.group(i + 1).strip(" «»\"'") for i, name in enumerate(compiled[1])}}
     return None
-
 
 from . import module_integration_handlers  # noqa: E402,F401  (registers the built-in handlers)
 from . import module_integration_data  # noqa: E402,F401  (registers the built-in panel data sources)

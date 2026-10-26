@@ -1,5 +1,5 @@
-/* MemuAI Proxy — Round 35 (composite): strings of the «Составные модели» tab used by data-i18n in index.html.
-   Loaded before app.js so the first applyI18n() already knows them; the rest lives in composite.js. */
+
+
 "use strict";
 Object.assign(I18N.ru, {
   "nav.composite": "Составные модели",

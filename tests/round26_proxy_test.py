@@ -26,14 +26,12 @@ from app.config import config_store  # noqa: E402
 from app.main import create_app  # noqa: E402
 from app.state import Account, ModelEntry, state  # noqa: E402
 
-
 def _catalogue():
     rows = [ModelEntry("genspark", "genspark", "claude-opus-5"), ModelEntry("genspark", "genspark", "nano-banana-pro"),
             ModelEntry("kiro", "kiro", "claude-sonnet-4-6"), ModelEntry("local", "local", "qwen3"),
             ModelEntry("mysite", "custom", "gpt-x", account_id="c1"),
             ModelEntry("gone", "custom", "gpt-y", account_id="c-deleted")]
     return {row.id: row for row in rows}
-
 
 class _StateCase(unittest.TestCase):
     def setUp(self) -> None:
@@ -48,7 +46,6 @@ class _StateCase(unittest.TestCase):
     def tearDown(self) -> None:
         for item in reversed(self.patches):
             item.stop()
-
 
 class OrphanModelsHiddenTest(_StateCase):
     """Models of a provider whose last account is gone must not be listed anywhere, even before a prune."""
@@ -80,7 +77,6 @@ class OrphanModelsHiddenTest(_StateCase):
     def test_prune_also_removes_models_of_deleted_custom_connections(self) -> None:
         self.assertEqual(state.prune_orphan_models(), 3)
         self.assertEqual(sorted(self.models), ["kiro-claude-sonnet-4-6", "local-qwen3", "mysite-gpt-x"])
-
 
 class LegacyImportTest(unittest.TestCase):
     """Deleting every account used to bring the old genspark2api account and models back on every start."""
@@ -126,7 +122,6 @@ class LegacyImportTest(unittest.TestCase):
         own = os.path.normcase(os.path.abspath(state_module.DATA_DIR))
         self.assertNotIn(own, [os.path.normcase(os.path.abspath(c)) for c in state_module.LEGACY_DIR_CANDIDATES])
 
-
 class AdminCase(_StateCase):
     def setUp(self) -> None:
         super().setUp()
@@ -141,7 +136,6 @@ class AdminCase(_StateCase):
         self.port_patch.stop()
         self.host_patch.stop()
         super().tearDown()
-
 
 class AdminCatalogueTest(AdminCase):
     def test_overview_does_not_count_models_of_a_deleted_provider(self) -> None:
@@ -207,7 +201,6 @@ class AdminCatalogueTest(AdminCase):
         self.assertTrue(grok["error_en"].startswith("Fill in the “"), grok)
         self.assertNotRegex(grok["error_en"], "[а-яА-Я]")
 
-
 class ResponsesUsageTest(unittest.TestCase):
     def test_reasoning_and_cached_tokens_reach_the_client(self) -> None:
         usage = {"prompt_tokens": 40, "completion_tokens": 50, "total_tokens": 90,
@@ -217,7 +210,6 @@ class ResponsesUsageTest(unittest.TestCase):
         self.assertEqual(body["input_tokens_details"], {"cached_tokens": 7})
         plain = responses_api._response("resp_1", "m", [], {"prompt_tokens": 1})["usage"]
         self.assertEqual(plain["output_tokens_details"], {"reasoning_tokens": 0})
-
 
 class MetricsLastHourTest(unittest.TestCase):
     def test_requests_before_a_restart_still_count_for_the_last_hour(self) -> None:
@@ -233,7 +225,6 @@ class MetricsLastHourTest(unittest.TestCase):
             restarted.record(provider="custom", model="m", ok=True, ms=100)
             snap = restarted.snapshot("day")
             self.assertEqual((snap["last_hour"], snap["last_hour_failed"]), (4, 1), "no double counting")
-
 
 class DetectorClaimTest(unittest.TestCase):
     def test_uri_schemes_and_folders_are_not_claims(self) -> None:
@@ -252,13 +243,11 @@ class DetectorClaimTest(unittest.TestCase):
                 patch.object(state, "accounts", {"c": Account("custom", {"name": "gptproxy"}, id="c")}):
             self.assertEqual(detector.claimed_family(entry.id), "claude")
 
-
 class ProxyUiTest(unittest.TestCase):
     def test_genspark_catalogue_tools_follow_the_account(self) -> None:
         text = (ROOT / "app" / "static" / "app.js").read_text(encoding="utf-8")
         self.assertIn("function syncGensparkModelTools()", text)
         self.assertGreaterEqual(text.count("syncGensparkModelTools();"), 2)
-
 
 if __name__ == "__main__":
     unittest.main()

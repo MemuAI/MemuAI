@@ -20,16 +20,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 log = logging.getLogger("memuai.flows.adapters")
 
-
 def tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
 
-
-# --------------------------------------------------------------------------- describe as flows
-
 def _sid(prefix: str, index: int) -> str:
     return f"{prefix}{index + 1}"
-
 
 def scenario_step_to_flow(step: Dict[str, Any], index: int, lang: str = "ru") -> Dict[str, Any]:
     kind = str(step.get("type") or "action")
@@ -60,14 +55,12 @@ def scenario_step_to_flow(step: Dict[str, Any], index: int, lang: str = "ru") ->
         out["when"] = step["when"]
     return out
 
-
 def scenario_to_flow(command: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
     steps = [scenario_step_to_flow(s, i, lang) for i, s in enumerate(command.get("steps") or []) if isinstance(s, dict)]
     return {"source": "scenario", "id": str(command.get("id") or ""), "name": str(command.get("name") or ""),
             "enabled": command.get("enabled", True) is not False, "steps": steps,
             "starts": {"phrases": list(command.get("triggers") or [])[:8], "hotkey": command.get("hotkey") or ""},
             "editable_in": "quick_commands"}
-
 
 def macro_step_to_flow(step: Dict[str, Any], index: int, lang: str = "ru") -> Dict[str, Any]:
     kind = str(step.get("type") or "")
@@ -81,7 +74,7 @@ def macro_step_to_flow(step: Dict[str, Any], index: int, lang: str = "ru") -> Di
         out.update(type="tool", action=step.get("action") or "", params=dict(step.get("params") or {}))
     elif kind == "ask":
         out.update(type="model", prompt=step.get("prompt") or step.get("text") or "")
-    elif kind == "wait":   # quick-action waits are stored in ms
+    elif kind == "wait":
         out.update(type="wait", seconds=float(step.get("seconds") or (float(step.get("ms") or 1000) / 1000.0)))
     elif kind == "dfy":
         out.update(type="dfy", goal=step.get("goal") or step.get("prompt") or step.get("text") or "")
@@ -92,13 +85,11 @@ def macro_step_to_flow(step: Dict[str, Any], index: int, lang: str = "ru") -> Di
         out["continue_on_error"] = True
     return out
 
-
 def macro_to_flow(action: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
     steps = [macro_step_to_flow(s, i, lang) for i, s in enumerate(action.get("steps") or []) if isinstance(s, dict)]
     return {"source": "macro", "id": str(action.get("id") or ""), "name": str(action.get("label") or ""),
             "enabled": True, "steps": steps, "starts": {"hotkey": action.get("hotkey") or ""},
             "editable_in": "quick_actions"}
-
 
 def flow_to_scenario_steps(flow: Dict[str, Any]) -> List[Dict[str, Any]]:
     """The reverse of :func:`scenario_to_flow` (lossless for unchanged steps)."""
@@ -116,7 +107,6 @@ def flow_to_scenario_steps(flow: Dict[str, Any]) -> List[Dict[str, Any]]:
             out.append({"type": "notify", "text": step.get("text", "")})
     return out
 
-
 def flow_to_macro_steps(flow: Dict[str, Any]) -> List[Dict[str, Any]]:
     out = []
     for step in flow.get("steps") or []:
@@ -130,14 +120,12 @@ def flow_to_macro_steps(flow: Dict[str, Any]) -> List[Dict[str, Any]]:
             out.append({"type": "ask", "prompt": step.get("prompt", ""), "mode": "silent"})
     return out
 
-
 def as_task(flow: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
     """«Сделать задачей»: a task draft whose single step runs the scenario / button by its own runner."""
     step = {"type": "qa_command", "command": flow["name"] or flow["id"]} if flow["source"] == "scenario" else \
         {"type": "qa_macro", "action_id": flow["id"]}
     return {"name": flow["name"] or tr(lang, "Сценарий", "Scenario"), "kind": "flow", "steps": [step],
             "rule": {"when": [{"type": "daily", "times": ["09:00"]}]}, "enabled": False}
-
 
 def list_automations(lang: str = "ru") -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
@@ -157,9 +145,6 @@ def list_automations(lang: str = "ru") -> List[Dict[str, Any]]:
     except Exception as exc:  # noqa: BLE001
         log.info("quick actions unavailable: %s", exc)
     return out
-
-
-# --------------------------------------------------------------------------- run inside a flow (window process)
 
 async def _run_macro(ref: str, lang: str) -> Tuple[bool, str, Dict[str, Any]]:
     from . import quick_actions as qa
@@ -191,7 +176,6 @@ async def _run_macro(ref: str, lang: str) -> Tuple[bool, str, Dict[str, Any]]:
         lines.append("\n" + run.output)
     return run.status == "done", "\n".join(lines).strip() or run.error, {"label": action.get("label")}
 
-
 async def _run_action(action_id: str, params_text: str, lang: str) -> Tuple[bool, str, Dict[str, Any]]:
     from . import assistant_catalog as catalog
     from . import assistant_commands as ac
@@ -212,7 +196,6 @@ async def _run_action(action_id: str, params_text: str, lang: str) -> Tuple[bool
     if status == "confirm":
         text += "\n" + tr(lang, "Ждёт подтверждения в окне быстрого доступа", "Waiting for confirmation in Quick Access")
     return status == "done", text.strip(), {"action": action_id}
-
 
 async def run_handoff(item: Dict[str, Any]) -> Tuple[bool, str, Dict[str, Any]]:
     """``schedule_handoff.json`` item of kind ``macro`` / ``action`` (from a flow step running in the Proxy)."""

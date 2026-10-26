@@ -12,7 +12,6 @@ import httpx
 
 from app import local_models as lm
 
-
 class Process:
     def __init__(self, *_args, **_kwargs):
         self.returncode = None
@@ -29,7 +28,6 @@ class Process:
 
     def kill(self):
         self.returncode = 1
-
 
 class PoolLifecycleRegression(unittest.TestCase):
     def setUp(self):
@@ -131,7 +129,6 @@ class PoolLifecycleRegression(unittest.TestCase):
         self.assertEqual(sum(process.poll() is None for process in processes), 1)
         self.assertEqual(self.pool.states()["a"]["state"], "stopped")
         self.assertEqual(self.pool.states()["b"]["state"], "ready")
-
 
 if __name__ == "__main__":
     unittest.main()

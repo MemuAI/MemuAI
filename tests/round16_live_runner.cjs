@@ -1,5 +1,5 @@
-/* Executes the production Live turn accumulator and production recording/TTS
- * ownership seams with deterministic media/API fixtures. No provider calls. */
+
+
 const fs = require("fs"), vm = require("vm"), assert = require("assert");
 const root = require("path").resolve(__dirname, "..");
 const app = fs.readFileSync(root + "/app/pgstatic/app.js", "utf8");
@@ -75,7 +75,7 @@ assert.equal(messages.size, 4, "full-duplex GPT-Live replies must not merge with
 assert.deepEqual([...messages.values()].filter(m=>m.role==="assistant").map(m=>m.text),["First answer","Second answer"]);
 delete live.session.info;
 reset();
-// Round 26: an untranscribed clip is published only for speech the provider heard.
+
 live.onEvent({ type: "speech_started" });
 live.recordInput(new Uint8Array(24000 * 2 * 181).buffer, 0.2);
 live.commit("user");

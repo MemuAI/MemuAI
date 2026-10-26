@@ -33,13 +33,10 @@ NOTE_CHARS = 6000
 NOTE_WIDTH = 96
 CATALOG_EVERY = 60.0
 DEFAULT_IDLE_MINUTES = 30
-# Lines the remote control itself prints into the terminal: noise on the phone.
+
 _SKIP_NOTES = ("Сообщение из Telegram", "Message from Telegram",
-               # the phone marks a stopped turn itself («Прервано пользователем» / "Interrupted by the user")
+
                "Interrupted · ", "Прервано · ")
-
-
-# --------------------------------------------------------------------------- published extras
 
 def _block_text(block: Any) -> str:
     from .remote import strip_ansi
@@ -55,7 +52,6 @@ def _block_text(block: Any) -> str:
         lines.pop()
     text = "\n".join(lines)
     return text if len(text) <= NOTE_CHARS else text[:NOTE_CHARS] + "\n…"
-
 
 def notes_feed(ui: Any) -> List[Dict[str, Any]]:
     """The latest notices printed in the terminal (command output, warnings), oldest first.
@@ -94,7 +90,7 @@ def notes_feed(ui: Any) -> List[Dict[str, Any]]:
             ts = cached[3] if cached is not None and cached[0] is block else time.time()
             cached = (block, version, seq, ts, _block_text(block))
             cache[key] = cached
-        # «⎿» (the terminal's tree corner) is missing from phone fonts and showed as a box.
+
         text = cached[4].lstrip().removeprefix("⎿").lstrip(" ").rstrip() if cached[4].lstrip().startswith("⎿") else cached[4]
         if not text.strip() or text.lstrip("·•! ").startswith(_SKIP_NOTES):
             continue
@@ -102,7 +98,6 @@ def notes_feed(ui: Any) -> List[Dict[str, Any]]:
     for key in [key for key in cache if key not in alive]:
         cache.pop(key, None)
     return out
-
 
 def command_catalog(ui: Any) -> Dict[str, Any]:
     """Slash commands, custom commands and skills of this terminal + the models it can use."""
@@ -130,7 +125,6 @@ def command_catalog(ui: Any) -> Dict[str, Any]:
     return {"commands": rows, "models": models, "model": str(getattr(ui.runtime, "model", "") or ""),
             "updated": time.time()}
 
-
 def remote_extras(control: Any) -> Dict[str, Any]:
     """Extra snapshot fields of a published terminal (called from ``RemoteControl.snapshot``)."""
     ui = control.ui
@@ -151,13 +145,9 @@ def remote_extras(control: Any) -> Dict[str, Any]:
                 _atomic_write(control.folder / "commands-cache.json", catalog)
     return out
 
-
 def drop_catalog(control: Any) -> None:
     with contextlib.suppress(OSError):
         (control.folder / f"{control.id}.commands.json").unlink()
-
-
-# --------------------------------------------------------------------------- the host process
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="memucode remote-host", add_help=True)
@@ -169,7 +159,6 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--idle-minutes", type=int, default=DEFAULT_IDLE_MINUTES)
     parser.add_argument("--lang", default="")
     return parser
-
 
 def main(argv: Optional[List[str]] = None) -> int:
     args = build_parser().parse_args(list(sys.argv[1:] if argv is None else argv))
@@ -187,7 +176,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     except KeyboardInterrupt:
         return 130
 
-
 def _session(root: Path, resume: str):
     from .session import Session
     if resume:
@@ -196,7 +184,6 @@ def _session(root: Path, resume: str):
             raise SystemExit(2)
         return Session.load(root, resume), True
     return Session(root), False
-
 
 async def _host(root: Path, args: argparse.Namespace) -> int:
     from prompt_toolkit.input import create_pipe_input
@@ -219,7 +206,7 @@ async def _host(root: Path, args: argparse.Namespace) -> int:
     if session.root != root:
         settings = Settings(session.root, overrides)
         os.chdir(session.root)
-    session.ensure_saved()                       # listed and resumable at once, even before the first message
+    session.ensure_saved()
     runtime = Runtime(session.root, settings, session=session, model=args.model)
     ui = TerminalUI(runtime)
     ui._remote_host = {"nonce": os.environ.get("MEMUCODE_REMOTE_HOST_NONCE", "")[:64],
@@ -262,7 +249,7 @@ async def _host(root: Path, args: argparse.Namespace) -> int:
 
     sink = open(os.devnull, "w", encoding="utf-8")
     original = sys.stdout
-    sys.stdout = sink                              # nothing may draw on the (absent) console
+    sys.stdout = sink
     try:
         with create_pipe_input() as keys:
             code = await ui.run(after_start=after_start, input=keys, output=DummyOutput())
@@ -279,12 +266,10 @@ async def _host(root: Path, args: argparse.Namespace) -> int:
         runtime.session.ensure_saved()
     return code
 
-
 def mark_activity(ui: Any) -> None:
     host = getattr(ui, "_remote_host", None)
     if host:
         host["last"] = time.monotonic()
-
 
 def close_host(ui: Any) -> None:
     """The ``close`` remote command: only a host may be closed from the phone."""
@@ -294,7 +279,6 @@ def close_host(ui: Any) -> None:
         with contextlib.suppress(Exception):
             ui.interrupt()
     ui.exit(0)
-
 
 def describe() -> str:
     return json.dumps({"protocol": "memucode-remote-host", "version": 1})

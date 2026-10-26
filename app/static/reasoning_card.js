@@ -1,11 +1,5 @@
-/* MemuAI Proxy — Round 33 (r33-thinking): «Reasoning levels» section of the model card.
 
-   Shows which reasoning levels clients (the chat window, Quick Access, MemuCode, Telegram) offer for the model, how the
-   Proxy passes them to the API, what the API rejected earlier — and lets the user set the profile by hand for a
-   model the table does not know yet (a new release, an unusual gateway).
 
-   API: GET /api/admin/reasoning/profile?model=, POST /api/admin/reasoning/override, POST /api/admin/reasoning/forget
-   (app/reasoning_levels_api.py). model_caps.js calls MemuReasoningCard.placeholder(card) in renderCard. */
 "use strict";
 (function () {
   const L2 = (ru, en) => (typeof LANG !== "undefined" && LANG === "en" ? en : ru);

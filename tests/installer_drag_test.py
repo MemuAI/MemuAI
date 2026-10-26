@@ -31,14 +31,11 @@ UI = ROOT / "installer" / "ui" / "index.html"
 CHROME = [os.environ.get("MEMUAI_CHROMIUM", ""), "/usr/bin/chromium", "/usr/bin/chromium-browser",
           "/workspace/work/chromium/chrome"]
 
-
 def _chrome() -> str:
     return next((c for c in CHROME if c and os.path.exists(c)), "")
 
-
 class _Engine:
     cancel_event = None
-
 
 class BridgeDrag(unittest.TestCase):
     def make(self):
@@ -64,7 +61,7 @@ class BridgeDrag(unittest.TestCase):
 
     def test_move_window(self):
         bridge = self.make()
-        self.assertFalse(bridge.move_window(10, 20))       # no window yet
+        self.assertFalse(bridge.move_window(10, 20))
         window = mock.Mock()
         bridge._window = window
         self.assertTrue(bridge.move_window(10.6, "20"))
@@ -81,7 +78,6 @@ class BridgeDrag(unittest.TestCase):
         if os.name != "nt":
             self.assertFalse(main.native_drag(mock.Mock()))
 
-
 class _Fn:
     def __init__(self, result=1, effect=None):
         self.calls, self.result, self.effect = [], result, effect
@@ -91,7 +87,6 @@ class _Fn:
         if self.effect:
             self.effect(*args)
         return self.result
-
 
 class FakeUser32(types.SimpleNamespace):
     def __init__(self, pressed=True, cursor=(-1500, 300)):
@@ -105,7 +100,6 @@ class FakeUser32(types.SimpleNamespace):
             SendMessageW=_Fn(0),
         )
 
-
 class NativeDrag(unittest.TestCase):
     def run_with(self, user32, hwnd=0x1234):
         fake = types.SimpleNamespace(user32=user32)
@@ -118,8 +112,8 @@ class NativeDrag(unittest.TestCase):
         self.assertTrue(self.run_with(user32))
         self.assertEqual(len(user32.ReleaseCapture.calls), 1)
         (hwnd, msg, wparam, lparam), = user32.SendMessageW.calls
-        self.assertEqual((hwnd, msg, wparam), (0x1234, 0x00A1, 2))   # WM_NCLBUTTONDOWN, HTCAPTION
-        self.assertEqual(lparam & 0xFFFF, (-1500) & 0xFFFF)          # x on a monitor left of the primary
+        self.assertEqual((hwnd, msg, wparam), (0x1234, 0x00A1, 2))
+        self.assertEqual(lparam & 0xFFFF, (-1500) & 0xFFFF)
         self.assertEqual(lparam >> 16, 300)
         self.assertEqual(user32.SendMessageW.restype, ctypes.c_ssize_t)
         self.assertEqual(len(user32.SendMessageW.argtypes), 4)
@@ -138,12 +132,11 @@ class NativeDrag(unittest.TestCase):
     def test_no_window_and_no_win32_never_raise(self):
         self.assertFalse(self.run_with(FakeUser32(), hwnd=0))
         if os.name != "nt":
-            self.assertFalse(winplat.begin_window_drag(0x1234))   # ctypes.windll missing → False
+            self.assertFalse(winplat.begin_window_drag(0x1234))
 
     def test_pack_point(self):
         self.assertEqual(winplat._pack_point(1, 2), (2 << 16) | 1)
         self.assertEqual(winplat._pack_point(-1, -1), 0xFFFFFFFF)
-
 
 def _playwright_ok() -> bool:
     try:
@@ -151,7 +144,6 @@ def _playwright_ok() -> bool:
     except Exception:  # noqa: BLE001
         return False
     return bool(_chrome())
-
 
 ZONES_JS = """() => {
   const ui = window.__memuUi; const r = {};
@@ -163,7 +155,6 @@ ZONES_JS = """() => {
   pick('title', '#welcome-title'); pick('primary', '#btn-start'); pick('express', '#btn-express');
   return r;
 }"""
-
 
 @unittest.skipUnless(_playwright_ok(), "Playwright/Chromium not available")
 class PageDragZones(unittest.TestCase):
@@ -190,8 +181,6 @@ class PageDragZones(unittest.TestCase):
             for name in ("min", "close", "lang", "title", "primary", "express"):
                 self.assertIs(zones[name], False, f"{name} must not start a drag: {zones}")
 
-            # Press the titlebar (left of the brand) and move: the mock bridge has no native
-            # drag, so the page moves the window itself by the pointer delta.
             await page.evaluate("() => { window.__memuDrag = []; window.addEventListener('mousemove', e => {"
                                 " window.__off = [e.screenX - e.clientX, e.screenY - e.clientY]; }); }")
             box = await page.evaluate("() => { const r = document.querySelector('.titlebar').getBoundingClientRect();"
@@ -207,17 +196,16 @@ class PageDragZones(unittest.TestCase):
             self.assertEqual(calls[0], ["drag"])
             moves = [c for c in calls if c[0] == "move"]
             self.assertTrue(moves, calls)
-            # window origin = screen pointer − client offset of the press
+
             off = await page.evaluate("() => window.__off")
             self.assertAlmostEqual(moves[-1][1], off[0] + 30, delta=1)
             self.assertAlmostEqual(moves[-1][2], off[1] + 12, delta=1)
-            # after release nothing moves any more
+
             await page.evaluate("() => { window.__memuDrag = []; }")
             await page.mouse.move(box["x"] + 90, box["y"] + 40, steps=3)
             await page.wait_for_timeout(80)
             self.assertEqual(await page.evaluate("() => window.__memuDrag"), [])
 
-            # A button press does not drag, and the click still works (language switch).
             btn = await page.evaluate("() => { const r = document.querySelector('.seg button[data-lang=\"en\"]').getBoundingClientRect();"
                                       " return {x: r.left + r.width / 2, y: r.top + r.height / 2}; }")
             await page.mouse.click(btn["x"], btn["y"])
@@ -225,14 +213,12 @@ class PageDragZones(unittest.TestCase):
             self.assertEqual(await page.evaluate("() => window.__memuDrag"), [])
             self.assertEqual(await page.evaluate("() => document.documentElement.lang"), "en")
 
-            # Double click on the titlebar: at most the first press drags, never a second one.
             await page.mouse.dblclick(box["x"], box["y"])
             await page.wait_for_timeout(120)
             drags = [c for c in await page.evaluate("() => window.__memuDrag") if c[0] == "drag"]
             self.assertLessEqual(len(drags), 1)
             self.assertEqual(errors, [])
             await browser.close()
-
 
 if __name__ == "__main__":
     unittest.main()

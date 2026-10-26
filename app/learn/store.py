@@ -48,18 +48,17 @@ CREATE TABLE IF NOT EXISTS exams (
 """
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
-    "desired_retention": 0.9,   # FSRS target recall
-    "new_per_day": 20,          # new cards introduced per day (all courses)
-    "max_reviews": 200,         # reviews per day
+    "desired_retention": 0.9,
+    "new_per_day": 20,
+    "max_reviews": 200,
     "fuzz": True,
-    "seconds_per_card": 9,      # the «M min» estimate on the panel until there is own history
-    "day_starts": 4,            # the learning day starts at 4:00 local time (as Anki)
+    "seconds_per_card": 9,
+    "day_starts": 4,
 }
 CARD_KINDS = ("basic", "cloze")
 CLOZE_RE = re.compile(r"\{\{c(\d+)::(.*?)(?:::(.*?))?\}\}", re.S)
 _LOCK = threading.RLock()
 _STORES: Dict[str, "Store"] = {}
-
 
 class LearnError(ValueError):
     """A user-facing problem (bilingual)."""
@@ -71,7 +70,6 @@ class LearnError(ValueError):
     def text(self, lang: str = "ru") -> str:
         return self.en if lang == "en" else self.ru
 
-
 def data_root() -> Path:
     env = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if env:
@@ -79,18 +77,14 @@ def data_root() -> Path:
     from ..config import DATA_DIR
     return Path(DATA_DIR) / "learn"
 
-
 def new_id() -> str:
     return uuid.uuid4().hex[:12]
-
 
 def clean(value: Any, limit: int = 20000) -> str:
     return str(value if value is not None else "").replace("\x00", "").strip()[:limit]
 
-
 def cloze_numbers(text: str) -> List[int]:
     return sorted({int(m.group(1)) for m in CLOZE_RE.finditer(text or "") if int(m.group(1)) > 0})
-
 
 class Store:
     def __init__(self, root: Path) -> None:
@@ -103,7 +97,6 @@ class Store:
         self._db.executescript(SCHEMA)
         self._db.commit()
 
-    # ------------------------------------------------------------------ helpers
     def q(self, sql: str, params: Iterable[Any] = ()) -> List[Dict[str, Any]]:
         with _LOCK:
             return [dict(r) for r in self._db.execute(sql, tuple(params)).fetchall()]
@@ -126,7 +119,6 @@ class Store:
         with _LOCK:
             self._db.close()
 
-    # ------------------------------------------------------------------ settings
     def settings(self) -> Dict[str, Any]:
         row = self.one("SELECT value FROM meta WHERE key='settings'")
         out = dict(DEFAULT_SETTINGS)
@@ -155,14 +147,13 @@ class Store:
         s = self.settings()
         return fsrs.Scheduler(desired_retention=s["desired_retention"], enable_fuzzing=bool(s["fuzz"]))
 
-    # ------------------------------------------------------------------ courses and the tree
     def create_course(self, title: str, description: str = "", *, source_kind: str = "topic", source_ref: str = "",
                       source_name: str = "", lang: str = "ru", hue: Optional[int] = None) -> Dict[str, Any]:
         title = clean(title, 200)
         if not title:
             raise LearnError("Название курса пустое", "The course title is empty")
         cid, now = new_id(), time.time()
-        if hue is None:   # a calm spread of colours: the golden angle over the number of courses
+        if hue is None:
             hue = (int(self.one("SELECT COUNT(*) AS n FROM courses")["n"]) * 137 + 168) % 360
         self.run("INSERT INTO courses(id,title,description,source_kind,source_ref,source_name,lang,hue,created,updated)"
                  " VALUES(?,?,?,?,?,?,?,?,?,?)",
@@ -265,7 +256,6 @@ class Store:
             out.append(top)
         return out
 
-    # ------------------------------------------------------------------ cards
     def add_card(self, cid: str, front: str, back: str = "", *, kind: str = "basic", lesson_id: str = "",
                  extra: str = "", tags: str = "", origin: str = "", ord_: int = 1, due: Optional[float] = None) -> Dict[str, Any]:
         self.course(cid)
@@ -338,7 +328,6 @@ class Store:
                       params + [max(1, min(int(limit), 2000)), max(0, int(offset))])
         return {"total": total, "cards": rows}
 
-    # ------------------------------------------------------------------ the learning day
     def day_start(self, now: Optional[float] = None, hour: Optional[int] = None) -> float:
         now = time.time() if now is None else now
         hour = self.settings()["day_starts"] if hour is None else hour
@@ -348,7 +337,6 @@ class Store:
     def day_end(self, now: Optional[float] = None) -> float:
         return self.day_start(now) + fsrs.DAY
 
-    # ------------------------------------------------------------------ review
     def _state(self, row: Dict[str, Any]) -> fsrs.CardState:
         return fsrs.CardState.from_dict(row)
 
@@ -374,7 +362,7 @@ class Store:
         new_room = max(0, s["new_per_day"] - int(new_seen))
         fresh = self.q(f"SELECT * FROM cards WHERE suspended=0 AND state=0 {scope} ORDER BY created, ord LIMIT ?",
                        params + [new_room])
-        # Learning first only when already due; otherwise reviews → new → learning that comes due later.
+
         due_now = [c for c in learning if c["due"] <= now]
         later = [c for c in learning if c["due"] > now]
         ordered = due_now + reviews + fresh + later
@@ -430,7 +418,6 @@ class Store:
             self._db.commit()
         return self.card(last["card_id"])
 
-    # ------------------------------------------------------------------ overview and stats
     def course_counts(self, cid: str, now: Optional[float] = None) -> Dict[str, Any]:
         now = time.time() if now is None else now
         row = self.one("SELECT COUNT(*) AS cards, SUM(CASE WHEN state=0 THEN 1 ELSE 0 END) AS new,"
@@ -489,7 +476,6 @@ class Store:
                 "states": {"new": states.get(0, 0), "learning": states.get(1, 0) + states.get(3, 0), "review": states.get(2, 0)},
                 "streak": self.streak(now)}
 
-    # ------------------------------------------------------------------ exams
     def save_exam(self, cid: str, title: str, questions: List[Dict[str, Any]]) -> Dict[str, Any]:
         self.course(cid)
         eid = new_id()
@@ -524,7 +510,6 @@ class Store:
                   score, finished, eid))
         return self.exam(eid)
 
-
 def get_store(root: Optional[Path] = None) -> Store:
     path = str(root or data_root())
     with _LOCK:
@@ -532,7 +517,6 @@ def get_store(root: Optional[Path] = None) -> Store:
         if store is None:
             store = _STORES[path] = Store(Path(path))
         return store
-
 
 def reset_stores() -> None:
     """Tests: forget cached connections (a new MEMUAI_DATA_DIR)."""

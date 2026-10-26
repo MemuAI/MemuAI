@@ -34,10 +34,8 @@ PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4
 JPEG = b"\xff\xd8\xff\xe0" + b"\x00" * 64
 NODE = shutil.which("node")
 
-
 def run(coro):
     return asyncio.new_event_loop().run_until_complete(coro)
-
 
 class MockedNet:
     """Patches DNS, the peer check and the HTTP client of app.media_cache with a MockTransport."""
@@ -70,10 +68,8 @@ class MockedNet:
     def __exit__(self, *exc):
         self.mc._resolve, self.mc._check_peer, self.mc._client = self.saved
 
-
 def png_handler(request):
     return httpx.Response(200, content=PNG, headers={"content-type": "image/png"})
-
 
 class BackendTest(unittest.TestCase):
     def setUp(self):
@@ -99,7 +95,7 @@ class BackendTest(unittest.TestCase):
         raw, mime = self.mc.read_local(stored["url"])
         self.assertEqual((raw, mime), (PNG, "image/png"))
         self.assertTrue(self.mc.local_data_url(stored["url"]).startswith("data:image/png;base64,"))
-        # another profile's address is not readable from the active one
+
         self.assertIsNone(self.mc.read_local(stored["url"].replace("default", "other")))
         self.assertIsNone(self.mc.read_local("/api/pg/media/file/../../secret.png"))
 
@@ -129,7 +125,7 @@ class BackendTest(unittest.TestCase):
         with MockedNet(png_handler, peer_ok=False):
             with self.assertRaises(self.mc.Unreachable):
                 run(self.mc.download_image("https://cdn.example/x.png"))
-        # a public redirect is followed; too many is an error
+
         hops = {"n": 0}
 
         def loop(request):
@@ -224,7 +220,7 @@ class BackendTest(unittest.TestCase):
         old = self.mc._genspark_fetch
         self.mc._genspark_fetch = None
         try:
-            self.assertEqual(run(self.mc.localize_urls([url])), [url])   # no bridge → kept, not lost
+            self.assertEqual(run(self.mc.localize_urls([url])), [url])
         finally:
             self.mc._genspark_fetch = old
 
@@ -279,10 +275,9 @@ class BackendTest(unittest.TestCase):
         with MockedNet(png_handler):
             urls = run(tmg.stored_urls("image", ["https://cdn.example/tg.png"], "default"))
         self.assertTrue(self.mc.is_local(urls[0]))
-        blob, mime = run(tmg.fetch_bytes(urls[0]))   # the bot / Mini App read the stored file
+        blob, mime = run(tmg.fetch_bytes(urls[0]))
         self.assertEqual((blob, mime), (PNG, "image/png"))
         self.assertEqual(run(tmg.stored_urls("video", ["https://cdn.example/v.mp4"], "default")), ["https://cdn.example/v.mp4"])
-
 
 class WiringTest(unittest.TestCase):
     def test_hooks_tags_spec(self):
@@ -296,7 +291,7 @@ class WiringTest(unittest.TestCase):
         self.assertIn('src="/media-cache.js?v=', html)
         self.assertIn('href="/media-cache.css?v=', html)
         app_js = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
-        # Round 34: renderMessages hydrates only the re-rendered message nodes (or the whole box after a full rebuild)
+
         for hook in ("MemuMediaCache.expiredHtml(i, u)", "(fresh || [box]).forEach((node) => MemuMediaCache.hydrate(node))", "MemuMediaCache.forModel(imgList, m)"):
             self.assertIn(hook, app_js)
         for spec in ("MemuAI.spec", "MemuAIProxy.spec"):
@@ -315,7 +310,6 @@ class WiringTest(unittest.TestCase):
         for ru, en in re.findall(r't\("([^"]*)",\s*"([^"]*)"\)', js):
             self.assertRegex(ru, "[А-Яа-я]")
             self.assertNotRegex(en, "[А-Яа-яЁё]")
-
 
 @unittest.skipUnless(NODE, "node is not installed")
 class FrontTest(unittest.TestCase):
@@ -360,22 +354,21 @@ const MC = ctx.window.MemuMediaCache;
         self.assertEqual(res.returncode, 0, res.stderr)
         out = json.loads(res.stdout)
         local = "/api/pg/media/file/" + "b" * 64 + ".png?profile_id=default"
-        # one request per link; never for a picture not yet allowed, never while the answer streams
+
         self.assertEqual(sorted(out["posted"]), ["https://cdn.example/dead.png", "https://cdn.example/down.png", "https://cdn.example/ok.png"])
         self.assertEqual(out["images"][0], local)
         self.assertEqual(out["history"], [local])
         self.assertEqual(out["expired"], ["https://cdn.example/dead.png"])
-        self.assertIn("https://cdn.example/down.png", out["images"])   # transient trouble: left for next time
+        self.assertIn("https://cdn.example/down.png", out["images"])
         self.assertGreaterEqual(out["saves"], 2)
         self.assertIn("Image expired", out["html"])
         self.assertIn('data-mc-regen="1"', out["html"])
         self.assertNotRegex(out["html"], "[А-Яа-я]")
-        self.assertEqual(out["model"][0], "data:image/png;base64,QQ==")   # stored file → data: for the model
+        self.assertEqual(out["model"][0], "data:image/png;base64,QQ==")
         self.assertNotIn("https://cdn.example/dead.png", out["model"])
         self.assertEqual(out["again"], [1])
         self.assertNotIn("https://cdn.example/dead.png", out["after"])
         self.assertEqual(out["afterExpired"], [])
-
 
 @unittest.skipUnless(os.environ.get("REFORM_BASE") and os.environ.get("REFORM_KEY"), "REFORM_BASE/REFORM_KEY not set")
 class LiveReformTest(unittest.TestCase):
@@ -394,7 +387,6 @@ class LiveReformTest(unittest.TestCase):
         stored = run(media_cache.cache_url(url))
         self.assertRegex(stored["url"], r"^/api/pg/media/file/[0-9a-f]{64}\.(png|jpg|webp)")
         self.assertGreater(stored["size"], 1000)
-
 
 if __name__ == "__main__":
     unittest.main()

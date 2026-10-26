@@ -18,9 +18,7 @@ from app.modules_host import (ACTION_PERMISSION, BUILTIN_ORDER, PERMISSIONS, TEM
                               reset_override, save_persistent, template_manifest, update_code,
                               validate_module_source, window_policy)
 
-
 ROOT = Path(__file__).resolve().parents[1]
-
 
 class ModuleHostContracts(unittest.TestCase):
     def test_builtins_start_disabled_and_round_trip_launcher_state(self) -> None:
@@ -66,7 +64,6 @@ class ModuleHostContracts(unittest.TestCase):
         studio = next(row for row in rows if row["id"] == "studio")
         translator = next(row for row in rows if row["id"] == "translator")
 
-        # Every window drags; resizing is on by default and the person's choice.
         chosen = window_policy(translator, {"width": 500, "height": 360})
         self.assertTrue(chosen["resizable"])
         self.assertTrue(chosen["draggable"])
@@ -77,7 +74,6 @@ class ModuleHostContracts(unittest.TestCase):
         self.assertTrue(locked["draggable"])
         self.assertEqual(locked["size_source"], "authored")
 
-        # size_mode authored opens at the authored size unless the person resized it.
         authored = window_policy({**translator, "window": {**translator["window"],
                                                            "size_mode": "authored"}},
                                  {"width": 500, "height": 360})
@@ -88,7 +84,6 @@ class ModuleHostContracts(unittest.TestCase):
                                 {"width": 500, "height": 360, "resized": True})
         self.assertEqual(resized["width"], 500)
 
-        # An unmoved window is centred: a stale x/y never pins it to a corner.
         self.assertTrue(window_policy(studio, {"x": 0, "y": 0})["center"])
         moved = window_policy(studio, {"x": 40, "y": 30, "moved": True})
         self.assertFalse(moved["center"])
@@ -158,8 +153,8 @@ class ModuleHostContracts(unittest.TestCase):
                                  "persist": [], "permissions": []})
             self.assertEqual(load_package(root, "deny-all")["permissions"], [])
             absent = normalize_manifest({"id": "old-mod", "title": "O"}, module_id="old-mod")
-            # «Все» права, кроме сетевого импорта (Round 29) и музыкальной библиотеки (Round 37): их модуль объявляет явно.
-            self.assertEqual(sorted(absent["permissions"]), sorted(p for p in PERMISSIONS if p not in ("net-import", "music", "learn")))
+
+            self.assertEqual(sorted(absent["permissions"]), sorted(p for p in PERMISSIONS if p not in ("net-import", "music", "learn", "database")))
 
     def test_env_cannot_inject_markup_into_the_document(self) -> None:
         """The preview route accepts env from a request: it must not reach HTML."""
@@ -219,8 +214,6 @@ class ModuleHostContracts(unittest.TestCase):
         self.assertFalse(payload["frozen"])
         self.assertIn("frozen", payload["error"])
 
-    # ------------------------------------------------------------ helpers
-
     def _root(self) -> Path:
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
@@ -233,8 +226,6 @@ class ModuleHostContracts(unittest.TestCase):
                 "persist": ["draft", "model"], "permissions": ["storage", "chat"]}
         spec.update(extra)
         return create_module(root, spec)
-
-    # --------------------------------------------------------- id validation
 
     def test_bad_ids_are_refused_everywhere(self) -> None:
         root = self._root()
@@ -292,8 +283,6 @@ class ModuleHostContracts(unittest.TestCase):
         with self.assertRaises(KeyError):
             template_manifest("no-such-template", "x", "")
 
-    # ------------------------------------------------- built-in code overrides
-
     def test_update_code_of_builtin_writes_an_override(self) -> None:
         root = self._root()
         shipped = (host.builtin_dir() / "translator" / "main.js").read_text(encoding="utf-8")
@@ -302,12 +291,12 @@ class ModuleHostContracts(unittest.TestCase):
         self.assertTrue(row["builtin"])
         override = root / "overrides" / "translator"
         self.assertEqual((override / "main.js").read_text(encoding="utf-8"), "Memu.ready(); // mine")
-        # The installed package is never touched.
+
         self.assertEqual((host.builtin_dir() / "translator" / "main.js").read_text(encoding="utf-8"),
                          shipped)
         package = load_package(root, "translator")
         self.assertEqual(package["js"], "Memu.ready(); // mine")
-        # Untouched files come from the shipped package, not empty.
+
         self.assertGreater(len(package["html"]), 400)
         self.assertTrue(package["edited"])
 
@@ -332,7 +321,7 @@ class ModuleHostContracts(unittest.TestCase):
         package = load_package(root, "studio")
         self.assertEqual(package["js"], shipped)
         self.assertEqual(package["title"], "MemuAI Studio")
-        # Resetting twice is harmless.
+
         self.assertFalse(reset_override(root, "studio")["edited"])
 
     def test_reset_override_is_only_for_builtins(self) -> None:
@@ -357,8 +346,6 @@ class ModuleHostContracts(unittest.TestCase):
         with self.assertRaises(ValueError):
             update_code(root, "notes", {"js": "x" * (host._CODE_LIMIT + 1)})
 
-    # ------------------------------------------------------------- deletion
-
     def test_delete_module_removes_package_state_and_saved_fields(self) -> None:
         root = self._root()
         self._custom(root, "notes")
@@ -370,7 +357,7 @@ class ModuleHostContracts(unittest.TestCase):
         self.assertNotIn("notes", [row["id"] for row in list_modules(root)])
         state = json.loads((root / "state.json").read_text(encoding="utf-8"))
         self.assertNotIn("notes", state["modules"])
-        # The same id can be used again afterwards and starts clean.
+
         self._custom(root, "notes")
         self.assertEqual(load_persistent(root, "notes"), {})
         self.assertFalse(next(row for row in list_modules(root) if row["id"] == "notes")["enabled"])
@@ -390,7 +377,7 @@ class ModuleHostContracts(unittest.TestCase):
             delete_module(root, "studio")
         with self.assertRaises(KeyError):
             configure_module(root, "studio", enabled=True)
-        # The id stays reserved even while the built-in is removed.
+
         with self.assertRaises(ValueError):
             self._custom(root, "studio")
         row = host.restore_builtin(root, "studio")
@@ -414,8 +401,6 @@ class ModuleHostContracts(unittest.TestCase):
         with self.assertRaises(ValueError):
             delete_module(root, "../custom")
 
-    # ------------------------------------------------------ persistent fields
-
     def test_only_declared_keys_are_saved(self) -> None:
         root = self._root()
         self._custom(root, "notes")
@@ -423,7 +408,7 @@ class ModuleHostContracts(unittest.TestCase):
                                                 "__proto__": 1})
         self.assertEqual(saved, {"draft": "a", "model": "m"})
         self.assertEqual(load_persistent(root, "notes"), {"draft": "a", "model": "m"})
-        # A second save merges instead of replacing.
+
         save_persistent(root, "notes", {"draft": "b"})
         self.assertEqual(load_persistent(root, "notes"), {"draft": "b", "model": "m"})
 
@@ -434,7 +419,7 @@ class ModuleHostContracts(unittest.TestCase):
         (root / "persist" / "notes.json").write_text(
             json.dumps({"draft": "ok", "token": "leak"}), encoding="utf-8")
         self.assertEqual(load_persistent(root, "notes"), {"draft": "ok"})
-        # Dropping a key from the manifest hides its old value too.
+
         update_code(root, "notes", {"persist": ["model"]})
         self.assertEqual(load_persistent(root, "notes"), {})
 
@@ -446,7 +431,7 @@ class ModuleHostContracts(unittest.TestCase):
         original = host._TEXT_LIMIT
         host._TEXT_LIMIT = 20
         try:
-            # An oversized field is reported; the fields that fit are still saved.
+
             with self.assertRaises(ValueError):
                 save_persistent(root, "notes", {"draft": "x" * 100, "model": "short"})
         finally:
@@ -469,8 +454,6 @@ class ModuleHostContracts(unittest.TestCase):
         saved = save_persistent(root, "translator", {"source": "hi", "nope": 1})
         self.assertEqual(saved, {"source": "hi"})
         self.assertEqual(load_package(root, "translator")["saved"], {"source": "hi"})
-
-    # ------------------------------------------------------------ validation
 
     def test_validation_warns_about_markup_that_breaks_the_document(self) -> None:
         checked = validate_module_source({
@@ -510,8 +493,6 @@ class ModuleHostContracts(unittest.TestCase):
                                      "persist": ["a", "b"]})
         self.assertEqual(ok["problems"], [])
         self.assertTrue(ok["ok"])
-
-    # ---------------------------------------------------- export and import
 
     def test_export_then_import_round_trips_a_module(self) -> None:
         root = self._root()
@@ -554,13 +535,11 @@ class ModuleHostContracts(unittest.TestCase):
         for payload in broken:
             with self.assertRaises(ValueError, msg=repr(payload)[:60]):
                 import_package(root, payload)
-        # A flat package (no "manifest" key) still imports.
+
         row = import_package(root, {"id": "flat", "title": "Плоский", "js": "Memu.ready()",
                                     "enabled": True})
         self.assertEqual(row["id"], "flat")
         self.assertFalse(row["enabled"], "an imported module must start disabled")
-
-    # ------------------------------------------------------------- duplicate
 
     def test_duplicate_copies_code_and_settings(self) -> None:
         root = self._root()
@@ -584,22 +563,18 @@ class ModuleHostContracts(unittest.TestCase):
         duplicate_module(root, "studio", "studio-copy")
         self.assertEqual(load_package(root, "studio-copy")["js"], "Memu.ready(); // edited")
 
-    # --------------------------------------------------------------- order
-
     def test_reorder_applies_the_listed_order_and_keeps_the_rest(self) -> None:
         root = self._root()
         self._custom(root, "notes")
         rows = reorder_modules(root, ["notes", "design", "ghost", "notes"])
-        self.assertEqual([row["id"] for row in rows], ["notes", "design", "translator", "studio", "benchmarks", "catalog", "api-models", "characters", "music", "learn"])
+        self.assertEqual([row["id"] for row in rows], ["notes", "design", "translator", "studio", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb"])
         self.assertEqual([row["launcher"]["order"] for row in rows], list(range(len(rows))))
         again = reorder_modules(root, ["studio"])
         self.assertEqual([row["id"] for row in again][0], "studio")
         self.assertEqual(sorted(row["id"] for row in again),
-                         sorted(["notes", "design", "translator", "studio", "benchmarks", "catalog", "api-models", "characters", "music", "learn"]))
+                         sorted(["notes", "design", "translator", "studio", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb"]))
         self.assertEqual([row["id"] for row in reorder_modules(root, [])],
                          [row["id"] for row in again])
-
-    # ------------------------------------------------------------ the bridge
 
     def test_build_request_shapes_the_conversation(self) -> None:
         body = build_request(
@@ -615,7 +590,7 @@ class ModuleHostContracts(unittest.TestCase):
         roles = [message["role"] for message in body["messages"]]
         self.assertEqual(roles, ["system", "user", "assistant", "user", "user"])
         self.assertEqual(body["messages"][-1]["content"], "Вопрос")
-        # The last user turn in history is the current text: it is not sent twice.
+
         self.assertEqual(sum(1 for m in body["messages"] if m["content"] == "Вопрос"), 1)
         self.assertEqual(body["temperature"], 2.0)
         self.assertTrue(body["thinking"] and body["web_search"])
@@ -657,8 +632,6 @@ class ModuleHostContracts(unittest.TestCase):
         self.assertEqual(single["files"], [{"name": "page.html", "content": "<p>code</p>"}])
         fallback = design_handoff(code="c", filename='///')
         self.assertEqual(fallback["files"][0]["name"], "index.html")
-
-    # --------------------------------------------------------------- window
 
     def test_normalize_window_is_never_degenerate(self) -> None:
         for spec in (None, "x", {}, {"default_width": 10 ** 9, "default_height": -5},
@@ -713,7 +686,6 @@ class ModuleHostContracts(unittest.TestCase):
                                      ("Memu.stream(", "chat"), ("Memu.image(", "media")):
                 if call in template["js"]:
                     self.assertIn(permission, template["permissions"], (template["id"], call))
-
 
 if __name__ == "__main__":
     unittest.main()

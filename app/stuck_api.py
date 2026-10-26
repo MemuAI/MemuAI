@@ -12,16 +12,12 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 
-# The route signatures below are strings (PEP 563, ``from __future__ import annotations``) and FastAPI resolves them in
-# THIS module's globals. With ``Request`` imported only inside register(), ``request: Request`` became an unknown name,
-# FastAPI read it as a required query parameter and every «Продолжить / С подсказкой / Сменить подход» answered HTTP 422.
 try:
     from fastapi import Request
 except Exception:  # pragma: no cover - FastAPI is a hard dependency of the server
     Request = Any  # type: ignore
 
 from .stuck_detector import DECISIONS, PREF_KEY, normalize_sensitivity, public_pause, gate_of
-
 
 def _sensitivity() -> str:
     try:
@@ -30,11 +26,9 @@ def _sensitivity() -> str:
     except Exception:
         return normalize_sensitivity(None)
 
-
 def sensitivity() -> str:
     """The current setting (used by the run routes)."""
     return _sensitivity()
-
 
 def collect_pauses(app: Any, runtimes: Dict[str, Any]) -> list:
     out = []
@@ -53,7 +47,6 @@ def collect_pauses(app: Any, runtimes: Dict[str, Any]) -> list:
         except Exception:
             pass
     return out
-
 
 def register(app: Any, *, runtimes: Optional[Dict[str, Any]] = None) -> None:
     from fastapi import Request

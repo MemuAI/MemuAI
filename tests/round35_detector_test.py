@@ -21,8 +21,7 @@ from unittest.mock import patch  # noqa: E402
 from app import detector, model_call, tokenizer_probe, visual_test  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
-O200K = [159, 192, 147]   # how OpenAI's o200k (and so tiktoken in a gateway) counts the three texts
-
+O200K = [159, 192, 147]
 
 def measured(base: int, counts, base2: int = 0) -> dict:
     usage = lambda tokens: {"usage": {"prompt_tokens": tokens, "estimated": False}, "kind": "tokenizer", "text": "OK"}  # noqa: E731
@@ -32,13 +31,11 @@ def measured(base: int, counts, base2: int = 0) -> dict:
     out["tokenizer_base2"] = usage(base2 or base)
     return out
 
-
 def identity(text: str, version: str = "") -> dict:
     return {"identity_en": {"kind": "identity", "text": text},
             "identity_ru": {"kind": "identity", "text": text},
             "identity_base": {"kind": "identity", "text": text},
             "identity_version": {"kind": "identity", "text": version or text}}
-
 
 class GatewayRecountTest(unittest.TestCase):
     """tooken.club reports o200k counts for its Claude models (live, 2026-10-12): 37 / 196 / 229 / 184 / 37,
@@ -86,7 +83,6 @@ class GatewayRecountTest(unittest.TestCase):
     def test_the_panel_knows_the_new_verdict(self) -> None:
         js = (ROOT / "app" / "static" / "detector.js").read_text(encoding="utf-8")
         self.assertIn('recount: ["warn"', js)
-
 
 class SilentProbesAndRunTest(unittest.TestCase):
     def _run(self, answer_for, depth="quick"):
@@ -155,7 +151,6 @@ class SilentProbesAndRunTest(unittest.TestCase):
         self.assertTrue(singles[1].startswith("Answer each question with the final answer only"), "and the reasoning batch")
         self.assertEqual(detector.PARALLEL_PROBES, 4)
 
-
 class NewerQuizAndCatalogueTest(unittest.TestCase):
     def test_the_quiz_stays_the_list_current_models_answer_in_full(self) -> None:
         """Round 35 live finding: appending March–July 2026 questions made Claude Sonnet 5.5 answer "unknown"
@@ -167,7 +162,7 @@ class NewerQuizAndCatalogueTest(unittest.TestCase):
         self.assertIn("do NOT append events newer than what current models know", source)
 
     def test_knowing_the_whole_list_gives_february_2026(self) -> None:
-        # A literal right answer from each pattern: its first alternative without regex syntax.
+
         answers = [re.sub(r"\[(.)[^\]]*\]", r"\1", pattern.split("|")[0].replace("\\b", "")).strip()
                    for _date, _question, pattern in detector.QUIZ]
         self.assertEqual(detector.score_quiz(json.dumps(answers))["estimate"], "2026-02")
@@ -180,7 +175,6 @@ class NewerQuizAndCatalogueTest(unittest.TestCase):
                                 ("genspark-claude-opus-5-5", "claude-opus-5-5")):
             self.assertEqual((detector.expected_model(model) or {}).get("id"), expected, model)
         self.assertEqual(set(detector.score_specific_model(["I am GPT-6.1 Sol"])), {"gpt-6-1"})
-
 
 class ReferencePagesTest(unittest.TestCase):
     """Round 36: the Claude Opus 5.5 references were removed at the user's request (see round36_proxy_test.py)."""
@@ -197,7 +191,6 @@ class ReferencePagesTest(unittest.TestCase):
         index = (ROOT / "app" / "static" / "index.html").read_text(encoding="utf-8")
         self.assertIn('href="/detector-compare.css', index)
         self.assertTrue((ROOT / "app" / "static" / "detector-compare.css").exists())
-
 
 class VisualRetryTest(unittest.TestCase):
     def test_a_gateway_timeout_before_the_first_token_is_retried_once(self) -> None:
@@ -224,7 +217,6 @@ class VisualRetryTest(unittest.TestCase):
             state = asyncio.run(go())
         self.assertEqual((state["state"], state["retried"]), ("done", True))
         self.assertEqual(calls, [{"max_tokens": visual_test.MAX_OUTPUT_TOKENS}] * 2)
-
 
 if __name__ == "__main__":
     unittest.main()

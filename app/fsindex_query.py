@@ -34,16 +34,12 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
 
-# ---------------------------------------------------------------- normalization
-
-
 def low(text: str) -> str:
     """Lowered text of the same length (the index keeps original and lowered names side by side)."""
     out = str(text).lower()
     if len(out) != len(text):
         out = "".join(ch.lower() if len(ch.lower()) == 1 else ch for ch in str(text))
     return out.replace("ё", "е")
-
 
 def norm_path(path: str) -> str:
     """Lowered folder path with ``/`` separators and no trailing separator: ``C:\\Users\\`` → ``c:/users``."""
@@ -56,12 +52,8 @@ def norm_path(path: str) -> str:
         return ""
     return text
 
-
 def full_lpath(ldir: str, lname: str) -> str:
     return ldir + "/" + lname
-
-
-# ---------------------------------------------------------------- kinds
 
 KINDS: Dict[str, Tuple[str, ...]] = {
     "image": ("jpg", "jpeg", "png", "gif", "bmp", "webp", "tif", "tiff", "heic", "heif", "svg", "ico", "raw", "cr2",
@@ -94,7 +86,6 @@ KIND_ALIASES = {
     "file": "file", "files": "file", "файл": "file", "файлы": "file",
 }
 
-
 def kind_of(name: str, is_dir: bool = False) -> str:
     """The icon group of a name: folder / image / video / audio / doc / archive / exe / code / text / file."""
     if is_dir:
@@ -109,14 +100,11 @@ def kind_of(name: str, is_dir: bool = False) -> str:
         return "doc"
     return "file"
 
-
-# ---------------------------------------------------------------- sizes / dates
-
 _UNITS = {"": 1, "b": 1, "б": 1, "byte": 1, "bytes": 1, "k": 1024, "kb": 1024, "кб": 1024, "к": 1024,
           "m": 1024 ** 2, "mb": 1024 ** 2, "мб": 1024 ** 2, "м": 1024 ** 2,
           "g": 1024 ** 3, "gb": 1024 ** 3, "гб": 1024 ** 3, "г": 1024 ** 3,
           "t": 1024 ** 4, "tb": 1024 ** 4, "тб": 1024 ** 4}
-SIZE_WORDS = {  # Everything's definitions
+SIZE_WORDS = {
     "empty": (0, 0), "пустой": (0, 0), "пустые": (0, 0),
     "tiny": (0, 10 * 1024), "small": (10 * 1024 + 1, 100 * 1024), "medium": (100 * 1024 + 1, 1024 ** 2),
     "large": (1024 ** 2 + 1, 16 * 1024 ** 2), "huge": (16 * 1024 ** 2 + 1, 128 * 1024 ** 2),
@@ -124,17 +112,14 @@ SIZE_WORDS = {  # Everything's definitions
 }
 INF = float("inf")
 
-
 class QueryError(ValueError):
     pass
-
 
 def parse_size(text: str) -> int:
     m = re.fullmatch(r"\s*(\d+(?:[.,]\d+)?)\s*([a-zа-я]*)\s*", low(text))
     if not m or m.group(2) not in _UNITS:
         raise QueryError(f"bad size: {text}")
     return int(float(m.group(1).replace(",", ".")) * _UNITS[m.group(2)])
-
 
 def size_range(value: str) -> Tuple[float, float]:
     """``>5mb`` → (5mb+1, inf); ``1mb..10mb`` → (1mb, 10mb); ``tiny`` → …; inclusive bounds."""
@@ -159,16 +144,13 @@ def size_range(value: str) -> Tuple[float, float]:
         return 0.0, float(n)
     return float(n), float(n)
 
-
 _DATE_WORDS = {"сегодня": "today", "вчера": "yesterday", "этанеделя": "thisweek", "наэтойнеделе": "thisweek",
                "прошлаянеделя": "lastweek", "этотмесяц": "thismonth", "прошлыймесяц": "lastmonth",
                "этотгод": "thisyear", "прошлыйгод": "lastyear"}
 
-
 def _day_start(ts: float) -> float:
     lt = time.localtime(ts)
     return time.mktime((lt.tm_year, lt.tm_mon, lt.tm_mday, 0, 0, 0, 0, 0, -1))
-
 
 def _month_start(year: int, month: int) -> float:
     while month < 1:
@@ -179,14 +161,12 @@ def _month_start(year: int, month: int) -> float:
         year += 1
     return time.mktime((year, month, 1, 0, 0, 0, 0, 0, -1))
 
-
 def _check_date(text: str, year: int, month: int, day: int) -> None:
     import datetime
     try:
         datetime.date(year, month, day)
     except ValueError:
         raise QueryError(f"bad date: {text}") from None
-
 
 def _date_span(text: str, now: float) -> Tuple[float, float]:
     """One date → [start, end) in epoch seconds (local time)."""
@@ -226,7 +206,7 @@ def _date_span(text: str, now: float) -> Tuple[float, float]:
     m = re.fullmatch(r"(\d{4})(?:[-./](\d{1,2})(?:[-./](\d{1,2}))?)?", v)
     if m:
         y, mo, d = int(m.group(1)), m.group(2), m.group(3)
-        _check_date(text, y, int(mo or 1), int(d or 1))      # Round 36: «2026-13» was January 2027, «02-30» March 2
+        _check_date(text, y, int(mo or 1), int(d or 1))
         if d:
             start = time.mktime((y, int(mo), int(d), 0, 0, 0, 0, 0, -1))
             return start, start + 86400
@@ -239,7 +219,6 @@ def _date_span(text: str, now: float) -> Tuple[float, float]:
         start = time.mktime((int(m.group(3)), int(m.group(2)), int(m.group(1)), 0, 0, 0, 0, 0, -1))
         return start, start + 86400
     raise QueryError(f"bad date: {text}")
-
 
 def date_range(value: str, now: Optional[float] = None) -> Tuple[float, float]:
     """``today`` / ``>2026-01`` / ``2026-01-01..2026-02-01`` → [lo, hi) epoch seconds."""
@@ -261,28 +240,23 @@ def date_range(value: str, now: Optional[float] = None) -> Tuple[float, float]:
         return 0.0, hi
     return lo, hi
 
-
-# ---------------------------------------------------------------- terms
-
-Rec = Tuple[str, str, int, float, bool]   # lname, ldir, size, mtime, is_dir
-
+Rec = Tuple[str, str, int, float, bool]
 
 @dataclass
 class Term:
-    kind: str                       # text | glob | ext | size | dm | dir | file | in | parent | path | regex | none
+    kind: str
     neg: bool = False
     value: Any = None
     test: Callable[[str, str, int, float, bool], bool] = field(default=lambda *a: True, repr=False)
-    #: literal strings in the lowered NAME blob ("\n" + name + "\n" lines) that every match contains — any of them
-    #: (OR); empty → this term cannot drive the search
+
     lits: Tuple[str, ...] = ()
-    #: plain text term → the exact / prefix passes of the ranking may use it
+
     plain: str = ""
     needs_size: bool = False
     needs_time: bool = False
-    #: path terms: literal in the lowered full path ("c:/users/x/name")
+
     path_lit: str = ""
-    #: in:/parent: folder (normalized)
+
     folder: str = ""
 
     def lit_score(self) -> int:
@@ -290,7 +264,6 @@ class Term:
             return -1
         best = min(len(x) for x in self.lits)
         return best * 2 - (len(self.lits) - 1)
-
 
 @dataclass
 class Query:
@@ -303,10 +276,8 @@ class Query:
     def empty(self) -> bool:
         return not any(group for group in self.groups)
 
-
 def _glob_regex(pattern: str) -> "re.Pattern[str]":
     return re.compile(fnmatch.translate(pattern), re.S)
-
 
 def _glob_lits(pattern: str) -> Tuple[str, ...]:
     pieces = re.split(r"[*?]+", pattern)
@@ -328,7 +299,6 @@ def _glob_lits(pattern: str) -> Tuple[str, ...]:
     cands.sort(reverse=True)
     return (cands[0][1],)
 
-
 def _tokens(text: str) -> List[str]:
     """Split on spaces, keeping "quoted parts" (also inside key:"a b") and turning ``|`` into its own token."""
     out: List[str] = []
@@ -343,7 +313,7 @@ def _tokens(text: str) -> List[str]:
                 out.append(cur)
             cur = ""
         elif ch == "|" and not quoted and not cur.lower().startswith(("regex:", "!regex:")):
-            # «a | b» (spaced) separates whole alternatives; «a|b» (glued) binds just the two neighbours
+
             nxt = text[i + 1] if i + 1 < len(text) else " "
             tight = bool(cur) and not nxt.isspace()
             if cur:
@@ -356,14 +326,11 @@ def _tokens(text: str) -> List[str]:
         out.append(cur)
     return out
 
-
 def _unquote(text: str) -> str:
     return text.replace('"', "")
 
-
 def _looks_like_path(text: str) -> bool:
     return "/" in text or "\\" in text or bool(re.match(r"^[a-zA-Z]:", text)) or text.startswith("~")
-
 
 def expand_folder(text: str, places: Optional[Callable[[str], str]] = None) -> str:
     """``~``, ``%USERPROFILE%``, ``$HOME`` and place words (``Desktop``, ``Загрузки`` via ``places``) → a path."""
@@ -377,16 +344,13 @@ def expand_folder(text: str, places: Optional[Callable[[str], str]] = None) -> s
             return found
     return os.path.expandvars(os.path.expanduser(raw))
 
-
 KEYS = {"ext", "size", "dm", "datemodified", "date", "folder", "folders", "file", "files", "in", "infolder",
         "parent", "path", "regex", "type", "kind", "sort", "тип", "папка", "в", "размер", "дата", "расширение"}
 _KEY_ALIAS = {"datemodified": "dm", "date": "dm", "дата": "dm", "размер": "size", "расширение": "ext",
               "infolder": "in", "в": "in", "folders": "folder", "папка": "folder", "files": "file", "kind": "type",
               "тип": "type"}
 
-
 _NEEDS_VALUE = {"type", "size", "dm", "in", "parent", "regex", "path", "ext"}
-
 
 def _make_term(token: str, now: float, places: Optional[Callable[[str], str]]) -> Optional[Term]:
     neg = False
@@ -400,7 +364,7 @@ def _make_term(token: str, now: float, places: Optional[Callable[[str], str]]) -
         key = _KEY_ALIAS.get(key, key)
     value = _unquote(value)
     if key in _NEEDS_VALUE and not value.strip(" <>="):
-        return None     # Round 36: a filter still being typed («type:», «size:>», «in:») — no error flash on every key
+        return None
     if key == "sort":
         return Term(kind="sort", value=low(value) or "relevance")
     if key == "ext":
@@ -441,7 +405,7 @@ def _make_term(token: str, now: float, places: Optional[Callable[[str], str]]) -
         pre = folder + "/"
         return Term(kind="in", neg=neg, folder=folder, value=folder,
                     test=lambda n, d, s, t, isdir, _f=folder, _p=pre: d == _f or d.startswith(_p))
-    if key in ("folder", "file"):     # folder:name / file:name
+    if key in ("folder", "file"):
         sub = low(value)
         want_dir = key == "folder"
         if any(c in sub for c in "*?"):
@@ -467,7 +431,7 @@ def _make_term(token: str, now: float, places: Optional[Callable[[str], str]]) -
             return Term(kind="pathglob", neg=neg, value=lit,
                         lits=_glob_lits(name_part) if name_part and name_part not in ("*",) else (),
                         test=lambda n, d, s, t, isdir, _r=rx: bool(_r.match(full_lpath(d, n))))
-        # no name literal: the text may be in the folder part (the index drives it through the folder paths)
+
         return Term(kind="path", neg=neg, value=lit, path_lit=lit,
                     test=lambda n, d, s, t, isdir, _l=lit: _l in full_lpath(d, n))
     if any(c in text for c in "*?"):
@@ -476,7 +440,6 @@ def _make_term(token: str, now: float, places: Optional[Callable[[str], str]]) -
                     test=lambda n, d, s, t, isdir, _r=rx: bool(_r.match(n)))
     return Term(kind="text", neg=neg, value=text, lits=(text,), plain=text,
                 test=lambda n, d, s, t, isdir, _s=text: _s in n)
-
 
 def _or_term(a: Term, b: Term) -> Term:
     """``a | b`` — Everything's precedence: OR binds tighter than the space (AND)."""
@@ -490,7 +453,6 @@ def _or_term(a: Term, b: Term) -> Term:
     return Term(kind="or", value=subs, lits=lits, test=test,
                 needs_size=any(t.needs_size for t in subs), needs_time=any(t.needs_time for t in subs))
 
-
 def _merge_single_alternatives(groups: List[List[Term]]) -> List[List[Term]]:
     """``*.jpg | *.png`` (one term on each side) is the same as the glued form: one ``or`` term, one group —
     the index then drives it with both literals at once."""
@@ -500,7 +462,6 @@ def _merge_single_alternatives(groups: List[List[Term]]) -> List[List[Term]]:
             merged = _or_term(merged, g[0])
         return [[merged]]
     return groups
-
 
 def parse(text: str, now: Optional[float] = None, places: Optional[Callable[[str], str]] = None,
           kinds: Optional[Sequence[str]] = None, roots: Optional[Sequence[str]] = None) -> Query:
@@ -516,7 +477,7 @@ def parse(text: str, now: Optional[float] = None, places: Optional[Callable[[str
             pending_or = bool(terms)
             continue
         if token in ("|", "OR"):
-            # a spaced «|» (or OR) between multi-word sides: alternatives of whole groups
+
             if terms:
                 groups.append(terms)
                 terms = []
@@ -578,17 +539,14 @@ def parse(text: str, now: Optional[float] = None, places: Optional[Callable[[str
         query.groups = [g + extra for g in query.groups]
     return query
 
-
 def has_terms(query: Query) -> bool:
     return any(t.kind not in ("sort",) for g in query.groups for t in g)
-
 
 def match(group: Sequence[Term], lname: str, ldir: str, size: int, mtime: float, is_dir: bool) -> bool:
     for term in group:
         if term.test(lname, ldir, size, mtime, is_dir) == term.neg:
             return False
     return True
-
 
 def quality(group: Sequence[Term], lname: str) -> int:
     """0 exact name (or name without extension), 1 name starts with, 2 starts a word, 3 elsewhere / no text."""
@@ -608,9 +566,6 @@ def quality(group: Sequence[Term], lname: str) -> int:
         best = min(best, q)
         break
     return best
-
-
-# ---------------------------------------------------------------- Everything translation
 
 def to_everything(text: str, kinds: Optional[Sequence[str]] = None, roots: Optional[Sequence[str]] = None,
                   places: Optional[Callable[[str], str]] = None, now: Optional[float] = None) -> str:

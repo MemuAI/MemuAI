@@ -18,7 +18,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
 class Static(unittest.TestCase):
     def test_monitor_setting(self):
         src = (STATIC / "quick-settings.js").read_text(encoding="utf-8")
@@ -53,7 +52,6 @@ class Static(unittest.TestCase):
         for ru, en in re.findall(r't\("([^"]*)", "([^"]*)"\)', src):
             self.assertFalse(re.search("[а-яА-ЯёЁ]", en), en)
 
-
 class Headless(unittest.TestCase):
     def setUp(self):
         try:
@@ -74,7 +72,6 @@ class Headless(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout[-3000:] + result.stderr[-3000:])
         finally:
             shutil.rmtree(out, ignore_errors=True)
-
 
 if __name__ == "__main__":
     unittest.main()

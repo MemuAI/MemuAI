@@ -16,7 +16,6 @@ from .. import pricing
 from . import VERSION, paths
 from .i18n import tr
 
-
 COMPONENTS = (
     "app.cli.tui.app", "app.cli.tui.input", "app.cli.tui.transcript", "app.cli.tui.activity",
     "app.cli.lang", "app.cli.splash", "app.cli.clipboard",
@@ -29,10 +28,8 @@ COMPONENTS = (
 ) + (("prompt_toolkit.input.win32", "prompt_toolkit.output.win32", "prompt_toolkit.output.windows10")
      if os.name == "nt" else ("prompt_toolkit.input.vt100",))
 
-
 def _row(name: str, status: str, detail: str, hint: str = "") -> Dict[str, str]:
     return {"name": name, "status": status, "detail": detail, "hint": hint}
-
 
 async def run_checks(runtime: Any) -> List[Dict[str, str]]:
     rows: List[Dict[str, str]] = []
@@ -40,12 +37,11 @@ async def run_checks(runtime: Any) -> List[Dict[str, str]]:
     rows.append(_row("MemuCode", "ok", f"{VERSION} · {'exe' if frozen else 'Python ' + platform.python_version()} · "
                                        f"{platform.system()} {platform.release()}"))
 
-    # terminal
     size = shutil.get_terminal_size((0, 0))
     term = os.environ.get("TERM_PROGRAM") or ("Windows Terminal" if os.environ.get("WT_SESSION") else
                                                ("conhost" if os.name == "nt" else os.environ.get("TERM", "?")))
     if not size.columns:
-        # `memucode doctor > report.txt`: there is no window to measure.
+
         rows.append(_row(tr("Терминал", "Terminal"), "info", f"{term} · " + tr("вывод перенаправлен", "output redirected")))
     else:
         status = "ok" if size.columns >= 60 else "warn"
@@ -59,7 +55,6 @@ async def run_checks(runtime: Any) -> List[Dict[str, str]]:
                    "Shift+Enter depends on the terminal; Alt+Enter, Ctrl+J and \\+Enter always work")
     rows.append(_row(tr("Новая строка", "New line"), "info", shift, tr("Настройка: /terminal-setup", "Setup: /terminal-setup")))
 
-    # proxy
     proxy = runtime.router.proxy
     health = await proxy.health()
     if health:
@@ -92,7 +87,6 @@ async def run_checks(runtime: Any) -> List[Dict[str, str]]:
         if name != "proxy":
             rows.append(_row(f"API {name}", "error", error.splitlines()[0][:160], tr("Проверьте ключ: /proxy add", "Check the key: /proxy add")))
 
-    # tools
     from .tools.shell import shell_label
     rows.append(_row(tr("Оболочка", "Shell"), "ok", shell_label(runtime.settings),
                      tr("Git Bash не найден — команды идут через PowerShell" if os.name == "nt" and not shell_label(runtime.settings).startswith("bash") else "",
@@ -118,12 +112,11 @@ async def run_checks(runtime: Any) -> List[Dict[str, str]]:
         rows.append(_row(label, "ok" if found else "warn", tr("есть", "available") if found else tr("нет", "missing"),
                          "" if found else hint))
 
-    # components: a broken install shows up here instead of as a crash later
     missing = []
     for module in COMPONENTS:
         try:
             importlib.import_module(module)
-        except Exception as exc:  # ImportError, or a DLL that fails to load
+        except Exception as exc:
             missing.append(f"{module} ({type(exc).__name__})")
     try:
         from pygments.lexers import get_lexer_by_name
@@ -135,7 +128,6 @@ async def run_checks(runtime: Any) -> List[Dict[str, str]]:
                      ", ".join(missing[:6]) if missing else tr(f"все {len(COMPONENTS)} на месте", f"all {len(COMPONENTS)} present"),
                      tr("Переустановите MemuAI", "Reinstall MemuAI") if missing else ""))
 
-    # sandbox
     try:
         from .. import code_sandbox
         job = code_sandbox.SessionJob("doctor-probe", Path(runtime.root))
@@ -146,14 +138,12 @@ async def run_checks(runtime: Any) -> List[Dict[str, str]]:
         rows.append(_row(tr("Песочница", "Sandbox"), "error", str(exc)[:160],
                          tr("Команды не смогут запускаться; можно отключить: /sandbox", "Commands cannot run; you may disable it: /sandbox")))
 
-    # mcp
     for row in runtime.mcp.catalogue():
         if row["enabled"]:
             status = "ok" if row["running"] else ("error" if row["error"] else "warn")
             rows.append(_row(f"MCP {row['name']}", status, (f"{len(row['tools'])} " + tr("инстр.", "tools")) if row["running"]
                              else (row["error"] or tr("не запущен", "not running"))))
 
-    # settings & storage
     for warning in runtime.settings.warnings:
         rows.append(_row(tr("Настройки", "Settings"), "warn", warning))
     try:
@@ -178,7 +168,6 @@ async def run_checks(runtime: Any) -> List[Dict[str, str]]:
                      else tr("каталога нет — встроенная таблица", "no catalogue — built-in table"),
                      "" if age is not None else "/cost refresh"))
 
-    # decision model
     decisions = runtime.decisions
     if decisions.provider not in ("off", ""):
         if not decisions.enabled:

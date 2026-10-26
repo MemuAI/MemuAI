@@ -27,10 +27,8 @@ if TYPE_CHECKING:  # pragma: no cover
 KINDS = ("read", "edit", "exec", "web", "meta", "agent", "mcp", "automation")
 _CALL_SEQUENCE = itertools.count()
 
-
 class ToolError(Exception):
     """A failure the model can act on (bad path, no match, denied…)."""
-
 
 @dataclass
 class ToolCall:
@@ -38,28 +36,27 @@ class ToolCall:
     args: Dict[str, Any]
     id: str = field(default_factory=lambda: "t" + uuid.uuid4().hex[:10])
     raw_name: str = ""
-    status: str = "pending"          # pending | running | done | error | denied | cancelled
+    status: str = "pending"
     started: float = 0.0
     finished: float = 0.0
     result: Optional["ToolResult"] = None
-    display: str = ""                # "Read(src/app.py)"
-    live: List[str] = field(default_factory=list)   # streaming output lines for the UI
-    seq: int = field(default_factory=lambda: next(_CALL_SEQUENCE))   # order in which calls were issued
-    notes: List[str] = field(default_factory=list)  # what had to be repaired to read this call's JSON
+    display: str = ""
+    live: List[str] = field(default_factory=list)
+    seq: int = field(default_factory=lambda: next(_CALL_SEQUENCE))
+    notes: List[str] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {"id": self.id, "name": self.name, "args": self.args}
 
-
 @dataclass
 class ToolResult:
     ok: bool
-    output: Any = ""                 # what the model receives (str or JSON-able)
-    summary: str = ""                # one line for the UI: "Read 120 lines"
-    detail: str = ""                 # longer UI text (command output, listing)
-    diff: str = ""                   # unified diff for the UI
+    output: Any = ""
+    summary: str = ""
+    detail: str = ""
+    diff: str = ""
     error: str = ""
-    images: List[Dict[str, Any]] = field(default_factory=list)   # {"media_type", "data"}
+    images: List[Dict[str, Any]] = field(default_factory=list)
     meta: Dict[str, Any] = field(default_factory=dict)
 
     @staticmethod
@@ -67,17 +64,15 @@ class ToolResult:
         return ToolResult(ok=False, output="", summary=message.splitlines()[0][:200] if message else "",
                           error=message, meta=dict(meta))
 
-
 @dataclass
 class Prepared:
-    key: str = ""                    # permission key: path, command, domain
-    preview: str = ""                # text shown in the permission dialog
+    key: str = ""
+    preview: str = ""
     diff: str = ""
-    title: str = ""                  # dialog title ("Edit file", "Run command")
-    outside: bool = False            # target outside the workspace
-    readonly: bool = False           # this call only reads, although the tool can also change things
+    title: str = ""
+    outside: bool = False
+    readonly: bool = False
     data: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class ToolContext:
@@ -86,7 +81,7 @@ class ToolContext:
     turn: str = ""
     depth: int = 0
     progress: Optional[Callable[[str], None]] = None
-    agent_session: Any = None          # a sub-agent's own session (fresh read cache)
+    agent_session: Any = None
     ui: Any = None
 
     @property
@@ -108,20 +103,19 @@ class ToolContext:
             except Exception:
                 pass
 
-
 class Tool:
     """Base class. Subclasses set the class attributes and implement ``run``."""
 
     name: str = ""
     aliases: Tuple[str, ...] = ()
     kind: str = "read"
-    description: str = ""            # full description for native schemas
-    short: str = ""                  # one line for the text protocol listing
+    description: str = ""
+    short: str = ""
     parameters: Dict[str, Any] = {"type": "object", "properties": {}}
     required: Tuple[str, ...] = ()
-    allow_empty: Tuple[str, ...] = ()  # required arguments for which "" is a real answer (the content of an empty file)
-    parallel: bool = False           # safe to run alongside other parallel tools
-    plan_safe: bool = True           # allowed in plan mode
+    allow_empty: Tuple[str, ...] = ()
+    parallel: bool = False
+    plan_safe: bool = True
 
     def enabled(self, runtime: "Runtime") -> bool:
         return True
@@ -144,7 +138,6 @@ class Tool:
     async def run(self, ctx: ToolContext, args: Dict[str, Any], prepared: Prepared) -> ToolResult:
         raise NotImplementedError
 
-    # -------- schema
     def schema(self) -> Dict[str, Any]:
         params = dict(self.parameters)
         params.setdefault("type", "object")
@@ -163,8 +156,7 @@ class Tool:
                 label += ": " + "|".join(str(choice) for choice in choices)
             names.append(label)
         signature = "{" + ", ".join(names) + "}" if names else "{}"
-        # Many one-liners repeat the signature in braces ("… {command, timeout?}"): said once is enough — the
-        # listing is in every request of a text-protocol model. A brace group inside a word (*.{ts,tsx}) stays.
+
         text = re.sub(r"(?:\s*:)?\s+\{[^{}]*\}", "", self.short or self.description).strip().rstrip(":")
         return f"• {self.name} {signature} — {text or self.short or self.description}"
 
@@ -192,9 +184,6 @@ class Tool:
             return False
         return value != "" or (canonical or key) in self.allow_empty
 
-
-#: Other names models use for the same argument. Only the names a tool *requires* are listed: the tools read their
-#: optional arguments through :func:`arg`, which knows the aliases itself.
 ARG_ALIASES: Dict[str, Tuple[str, ...]] = {
     "file_path": ("path", "filePath", "filename", "file"),
     "old_string": ("old_text", "old_str", "oldString"),
@@ -213,16 +202,12 @@ ARG_ALIASES: Dict[str, Tuple[str, ...]] = {
     "task_id": ("id",),
 }
 
-
-# ---------------------------------------------------------------- paths
-
 def arg(args: Dict[str, Any], *names: str, default: Any = None) -> Any:
     """First present argument among aliases (``file_path``/``path``)."""
     for name in names:
         if name in args and args[name] not in (None, ""):
             return args[name]
     return default
-
 
 def whole(value: Any, default: int, name: str = "value", *, low: Optional[int] = None, high: Optional[int] = None) -> int:
     """A whole number from what a model wrote: ``5``, ``5.0``, ``"5"`` — clamped to ``low``..``high``; the default
@@ -242,7 +227,6 @@ def whole(value: Any, default: int, name: str = "value", *, low: Optional[int] =
         number = min(high, number)
     return number
 
-
 def flag(value: Any, default: bool = False) -> bool:
     """A yes/no argument from what a model wrote: ``true``, ``"true"``, ``"yes"``, ``1`` — and ``"false"``, ``"0"``,
     ``"no"`` as False (``bool("false")`` is True, which once turned a careful Edit into a replace-all)."""
@@ -258,7 +242,6 @@ def flag(value: Any, default: bool = False) -> bool:
     if text in ("false", "no", "n", "0", "off", "none", "null", "нет"):
         return False
     return default
-
 
 def structured(value: Any) -> Any:
     """The JSON a model put into a string argument (``"edits": "[{...}]"``) as a value; anything else unchanged.
@@ -279,7 +262,6 @@ def structured(value: Any) -> Any:
                 pass
     return value
 
-
 def items(value: Any) -> List[Any]:
     """A list from what a model wrote: a list stays, one string becomes a list of one, anything else is empty."""
     if isinstance(value, (list, tuple)):
@@ -287,7 +269,6 @@ def items(value: Any) -> List[Any]:
     if isinstance(value, str) and value.strip():
         return [value]
     return []
-
 
 def resolve_path(runtime: "Runtime", value: Any, *, must_exist: bool = False) -> Path:
     raw = str(value or "").strip().strip('"').strip("'")
@@ -308,7 +289,6 @@ def resolve_path(runtime: "Runtime", value: Any, *, must_exist: bool = False) ->
         raise ToolError(f"File does not exist: {display_path(runtime, path)}")
     return path
 
-
 def workspace_of(runtime: "Runtime", path: Path) -> Optional[Path]:
     """The workspace folder (project root or an added directory) containing ``path``."""
     for base in [runtime.root, *runtime.add_dirs]:
@@ -319,7 +299,6 @@ def workspace_of(runtime: "Runtime", path: Path) -> Optional[Path]:
             continue
     return None
 
-
 def display_path(runtime: "Runtime", path: Path) -> str:
     base = workspace_of(runtime, path)
     if base is None:
@@ -329,7 +308,6 @@ def display_path(runtime: "Runtime", path: Path) -> str:
         return rel or "."
     return f"{base.name}/{rel}" if rel else base.name
 
-
 def relative_key(runtime: "Runtime", path: Path) -> str:
     """Permission-rule key: project-relative posix path, else absolute posix."""
     try:
@@ -337,12 +315,9 @@ def relative_key(runtime: "Runtime", path: Path) -> str:
     except ValueError:
         return path.as_posix()
 
-
-# ---------------------------------------------------------------- registry
-
 class ToolRegistry:
     ALIASES = {
-        # MemuAI desktop MemuCode / Work names
+
         "work_read": "Read", "code_read_cached": "Read", "read_file": "Read", "view": "Read", "cat": "Read",
         "work_write": "Write", "write_file": "Write", "create_file": "Write",
         "work_patch": "Edit", "edit_file": "Edit", "str_replace": "Edit", "replace": "Edit",
@@ -387,7 +362,7 @@ class ToolRegistry:
         if alias and alias in self.tools:
             return self.tools[alias]
         if low.startswith("mcp_") and not low.startswith("mcp__"):
-            # MemuAI desktop spelling mcp_<server>_<tool>
+
             for tool_name, tool in self.tools.items():
                 if tool_name.startswith("mcp__") and tool_name.replace("__", "_").lower() == low:
                     return tool
@@ -400,7 +375,7 @@ class ToolRegistry:
             properties = (tool.parameters or {}).get("properties") or {}
             if isinstance(properties, dict):
                 names.update(str(key) for key in properties)
-        for aliases in ARG_ALIASES.values():             # "path" for "file_path": a key too, not text
+        for aliases in ARG_ALIASES.values():
             names.update(aliases)
         return sorted(names)
 

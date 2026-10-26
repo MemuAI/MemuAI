@@ -3,7 +3,6 @@ from __future__ import annotations
 
 from . import telegram_use_config as config
 
-
 def preferences(prefs: dict | None = None) -> dict:
     from .pgdata import load_preferences
     source = dict(load_preferences() if prefs is None else prefs)
@@ -16,10 +15,9 @@ def preferences(prefs: dict | None = None) -> dict:
     if choice["stt_local_model"]:
         source["voice_stt_local_model"] = choice["stt_local_model"]
     source["voice_language"] = choice["stt_language"]
-    # Telegram has its own cleanup stage; never run Voice cleanup implicitly.
+
     source["voice_postprocess_enabled"] = False
     return source
-
 
 def options() -> dict:
     from .pgdata import internal_prompt
@@ -50,7 +48,6 @@ def options() -> dict:
             "inherited_model": prefs.get("voice_stt_api_model") if prefs.get("voice_stt_provider") == "api"
                                else prefs.get("voice_stt_local_model")}
 
-
 async def transcribe(raw: bytes, mime: str) -> dict:
     from .telegram_voice import transcribe as recognize
     from .telegram_use_ai import complete
@@ -72,7 +69,7 @@ async def transcribe(raw: bytes, mime: str) -> dict:
                 allow_tools=False, general=False)
             result.update(text=cleaned, postprocessed=True)
         except Exception as exc:
-            # Recognition remains useful when the optional model is unavailable.
+
             from .telegram_use import friendly
             result["postprocess_error"] = friendly(exc)
     return result

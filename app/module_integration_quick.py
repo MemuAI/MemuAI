@@ -13,7 +13,6 @@ from typing import Any, Dict
 from . import module_integration as mi
 from .quick_ask_api import register_tool
 
-
 def _description(settings: Dict[str, Any]) -> str:
     lang = "en" if str((settings or {}).get("language") or (settings or {}).get("lang") or "") == "en" else "ru"
     block = mi.skill_prompt(None, lang=lang, surface="quick")
@@ -23,13 +22,11 @@ def _description(settings: Dict[str, Any]) -> str:
     return ("{module, command, args} — run a command of an enabled MemuAI module (music, characters…); the window shows "
             "a result card, so answer in one short sentence. Commands:\n" + body)
 
-
 def _enabled(settings: Dict[str, Any]) -> bool:
     try:
         return any(row["commands"] for row in mi.contributions())
     except Exception:  # noqa: BLE001 - a broken module never breaks Quick Access
         return False
-
 
 async def _run(args: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any]:
     lang = "en" if ctx.get("lang") == "en" else "ru"
@@ -49,10 +46,8 @@ async def _run(args: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any]:
         value["note"] = "The window asks the user to confirm on the card; tell them to press the button."
     return value
 
-
 def _label(args: Dict[str, Any], lang: str) -> str:
     command = str((args or {}).get("command") or "")
     return ("Команда модуля: " if lang != "en" else "Module command: ") + f"{(args or {}).get('module') or ''}.{command}"
-
 
 register_tool("module_command", _description, _run, label=_label, enabled=_enabled)

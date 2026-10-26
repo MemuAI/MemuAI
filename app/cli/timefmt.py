@@ -6,7 +6,6 @@ import time
 
 from .i18n import tr
 
-
 def ago(stamp: float) -> str:
     seconds = max(0.0, time.time() - float(stamp or 0))
     if seconds < 90:
@@ -19,10 +18,9 @@ def ago(stamp: float) -> str:
         return tr(f"{int(seconds // 86400)} дн назад", f"{int(seconds // 86400)}d ago")
     return _dt.datetime.fromtimestamp(float(stamp)).strftime("%d.%m.%Y")
 
-
 def duration(seconds: float) -> str:
     if 0 < seconds < 9.95:
-        return f"{seconds:.1f}s"   # "0.4s", not "0s", for quick answers
+        return f"{seconds:.1f}s"
     seconds = int(seconds)
     if seconds < 60:
         return f"{seconds}s"

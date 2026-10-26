@@ -21,7 +21,6 @@ from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any, Iterable, Mapping, Optional
 
-#: Never believe a reset further away than this (a garbled number would schedule a request for next year).
 MAX_AHEAD = 8 * 86400
 
 _UNIT_SECONDS = {
@@ -34,7 +33,7 @@ _UNIT_SECONDS = {
     "d": 86400, "day": 86400, "days": 86400, "д": 86400, "дн": 86400, "день": 86400, "дня": 86400, "дней": 86400,
 }
 _UNIT = "|".join(sorted((re.escape(unit) for unit in _UNIT_SECONDS), key=len, reverse=True))
-#: ``1h2m3.5s``, ``6m0s``, ``20ms``, ``2 hours 5 minutes``, ``5 минут``.
+
 _DURATION = re.compile(rf"((?:\d+(?:[.,]\d+)?\s*(?:{_UNIT})(?![a-zа-я])\s*(?:and\s+|и\s+|,\s*)?)+)", re.I)
 _PIECE = re.compile(rf"(\d+(?:[.,]\d+)?)\s*({_UNIT})(?![a-zа-я])", re.I)
 _ISO = re.compile(r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?\s*(?:Z|UTC|GMT|[+-]\d{2}:?\d{2}))", re.I)
@@ -48,10 +47,8 @@ _FIELD_EPOCH = re.compile(r"\"?(?:reset_at|resets_at|reset_time|resetAt|resetsAt
 _FIELD_SECONDS = re.compile(r"\"?(?:retry_after|retryAfter|retry_after_seconds|retryDelay|retry_delay)\"?\s*[:=]\s*"
                             r"\"?(\d+(?:\.\d+)?)\s*(ms|s)?\b", re.I)
 
-
 def _sane(at: float, now: float) -> float:
     return at if now < at <= now + MAX_AHEAD else 0.0
-
 
 def duration_seconds(text: str) -> float:
     """``"1h2m3.5s"`` / ``"6m0s"`` / ``"20ms"`` / ``"2 hours 5 minutes"`` → seconds (0 when it is not a duration)."""
@@ -64,7 +61,6 @@ def duration_seconds(text: str) -> float:
         total += float(number.replace(",", ".")) * factor
         found = True
     return total if found else 0.0
-
 
 def _date(text: str) -> float:
     text = text.strip().replace("UTC", "+00:00").replace("GMT", "+00:00").replace("utc", "+00:00")
@@ -82,7 +78,6 @@ def _date(text: str) -> float:
         value = value.replace(tzinfo=timezone.utc)
     return value.timestamp()
 
-
 def _header(headers: Any, name: str) -> str:
     if headers is None:
         return ""
@@ -93,7 +88,6 @@ def _header(headers: Any, name: str) -> str:
     except Exception:
         return ""
     return str(value or "").strip()
-
 
 def from_headers(headers: Any, now: Optional[float] = None) -> float:
     """The end of the limit named by HTTP headers, or 0.0."""
@@ -131,7 +125,7 @@ def from_headers(headers: Any, now: Optional[float] = None) -> float:
     if value:
         try:
             number = float(value)
-            # an epoch (seconds or milliseconds) or a delta in seconds
+
             at = number / 1000.0 if number > 1e12 else (number if number > 1e9 else now + number)
             candidates.append(at)
         except ValueError:
@@ -139,11 +133,8 @@ def from_headers(headers: Any, now: Optional[float] = None) -> float:
             if at:
                 candidates.append(at)
     candidates = [at for at in candidates if _sane(at, now)]
-    # Several limits can be exhausted at once; the request goes through only when the longest one ends —
-    # but a header for a limit that is NOT exhausted also carries a reset, so the soonest sane one is the
-    # honest first try (a retry follows if it was not enough).
-    return min(candidates) if candidates else 0.0
 
+    return min(candidates) if candidates else 0.0
 
 def from_text(text: str, now: Optional[float] = None) -> float:
     """The end of the limit named in an error message (or a JSON error body), or 0.0."""
@@ -180,7 +171,6 @@ def from_text(text: str, now: Optional[float] = None) -> float:
         if at:
             return _sane(at, now)
     return 0.0
-
 
 def reset_at(*sources: Any, headers: Any = None, now: Optional[float] = None) -> float:
     """The first known reset among headers and texts (an exception counts by its ``retry_at`` and its message)."""

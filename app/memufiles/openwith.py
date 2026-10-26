@@ -39,17 +39,13 @@ SEE_MASK_CLASSNAME, SEE_MASK_NOASYNC, SEE_MASK_FLAG_NO_UI, SEE_MASK_INVOKEIDLIST
 COINIT_APARTMENTTHREADED, COINIT_DISABLE_OLE1DDE = 0x2, 0x4
 ERROR_CANCELLED_HR = 0x800704C7
 MAX_HANDLERS = 24
-_ICONS: Dict[str, Tuple[str, int]] = {}      # handler id -> icon location
+_ICONS: Dict[str, Tuple[str, int]] = {}
 _ICON_PNG: Dict[str, Optional[bytes]] = {}
-
 
 class OpenWithError(Exception):
     def __init__(self, code: str, detail: str = "") -> None:
         super().__init__(detail or code)
         self.code = code
-
-
-# ------------------------------------------------------------------ STA worker
 
 class _StaWorker:
     """One background STA thread; ``call(fn)`` runs ``fn`` there and returns its result."""
@@ -68,7 +64,7 @@ class _StaWorker:
         done = threading.Event()
         self._jobs.put((fn, box, done))
         if not done.wait(timeout):
-            box["abandoned"] = True      # still queued behind a hung call: skip it instead of launching it late
+            box["abandoned"] = True
             raise OpenWithError("timeout", "the Windows shell did not answer")
         if "error" in box:
             raise box["error"]
@@ -93,14 +89,11 @@ class _StaWorker:
                 done.set()
             _pump()
 
-
 _WORKER = _StaWorker()
-
 
 def _api() -> Any:
     """``ctypes.windll`` (tests substitute a fake with shell32/ole32/user32/shlwapi attributes)."""
     return ctypes.windll  # type: ignore[attr-defined]
-
 
 def _co_init() -> None:
     if not IS_WIN:
@@ -109,7 +102,6 @@ def _co_init() -> None:
         _api().ole32.CoInitializeEx(None, COINIT_APARTMENTTHREADED | COINIT_DISABLE_OLE1DDE)
     except Exception as exc:  # noqa: BLE001
         log.debug("CoInitializeEx failed: %s", exc)
-
 
 def _pump() -> None:
     """Dispatch pending window messages of the STA thread (DDE launches and shell extensions need it)."""
@@ -120,23 +112,19 @@ def _pump() -> None:
         msg = wintypes.MSG()
         user32 = _api().user32
         for _ in range(64):
-            if not user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 1):    # PM_REMOVE
+            if not user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 1):
                 return
             user32.TranslateMessage(ctypes.byref(msg))
             user32.DispatchMessageW(ctypes.byref(msg))
     except Exception as exc:  # noqa: BLE001 - the worker must never die in its idle loop
         log.debug("message pump failed: %s", exc)
 
-
 def _allow_foreground() -> None:
     """Let the launched app / OpenWith.exe come to the front instead of flashing behind MemuFiles."""
     try:
-        _api().user32.AllowSetForegroundWindow(-1)        # ASFW_ANY
+        _api().user32.AllowSetForegroundWindow(-1)
     except Exception:  # noqa: BLE001
         pass
-
-
-# ------------------------------------------------------------------ COM helpers
 
 class GUID(ctypes.Structure):
     _fields_ = [("Data1", ctypes.c_uint32), ("Data2", ctypes.c_uint16), ("Data3", ctypes.c_uint16),
@@ -149,18 +137,15 @@ class GUID(ctypes.Structure):
             raw = uuid.UUID(text).bytes_le
             ctypes.memmove(ctypes.byref(self), raw, 16)
 
-
 IID_IShellItem = "43826d1e-e718-42ee-bc55-a1e261c37bfe"
 BHID_DataObject = "b8c0bd9f-ed24-455c-83e6-d5390c4fe8c4"
 IID_IDataObject = "0000010e-0000-0000-c000-000000000046"
-
 
 def _vcall(ptr: int, index: int, argtypes: List[Any], *args: Any) -> int:
     """Call method ``index`` of the COM vtable of ``ptr``; returns the raw HRESULT."""
     vtbl = ctypes.cast(ctypes.c_void_p(ptr), ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p)))[0]
     proto = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, *argtypes)   # type: ignore[attr-defined]
     return int(proto(vtbl[index])(ptr, *args))
-
 
 def _release(ptr: Optional[int]) -> None:
     if ptr:
@@ -169,10 +154,8 @@ def _release(ptr: Optional[int]) -> None:
         except Exception:  # noqa: BLE001
             pass
 
-
 def _failed(hr: int) -> bool:
     return (hr & 0xFFFFFFFF) >= 0x80000000
-
 
 def _co_string(ptr: int, index: int) -> str:
     out = ctypes.c_wchar_p()
@@ -186,15 +169,12 @@ def _co_string(ptr: int, index: int) -> str:
         pass
     return value
 
-
 def _ext(path: str) -> str:
     ext = os.path.splitext(path)[1].lower()
     return ext if len(ext) > 1 else ""
 
-
 def _norm(path: str) -> str:
     return os.path.normcase(os.path.normpath(os.path.expandvars(path.strip().strip('"')))) if path else ""
-
 
 def assoc_query(assoc: str, what: int, flags: int = ASSOCF_INIT_IGNOREUNKNOWN) -> str:
     """``AssocQueryStringW`` (shlwapi): the default executable / friendly name for an extension, ProgID or exe."""
@@ -206,12 +186,8 @@ def assoc_query(assoc: str, what: int, flags: int = ASSOCF_INIT_IGNOREUNKNOWN) -
         return ""
     return buf.value if not _failed(int(hr)) else ""
 
-
 def _handler_id(kind: str, name: str) -> str:
     return f"{kind}:{name}"
-
-
-# ------------------------------------------------------------------ listing
 
 def _enum_shell(ext: str) -> List[Dict[str, Any]]:
     """Recommended handlers from ``SHAssocEnumHandlers`` (must run on the STA worker)."""
@@ -229,7 +205,7 @@ def _enum_shell(ext: str) -> List[Dict[str, Any]]:
             if hr != 0 or not fetched.value or not item.value:
                 break
             try:
-                name = _co_string(item.value, 3)            # GetName: exe path or AppX id
+                name = _co_string(item.value, 3)
                 ui = _co_string(item.value, 4) or os.path.basename(name)
                 icon_path = ctypes.c_wchar_p()
                 icon_index = ctypes.c_int(0)
@@ -250,7 +226,6 @@ def _enum_shell(ext: str) -> List[Dict[str, Any]]:
     finally:
         _release(enum.value)
     return found
-
 
 def _enum_registry(ext: str) -> List[Dict[str, Any]]:
     """Fallback list from the registry: ProgIDs and ``Applications\\*.exe`` registered for the extension."""
@@ -317,19 +292,18 @@ def _enum_registry(ext: str) -> List[Dict[str, Any]]:
             name = assoc_query(cls, ASSOCSTR_FRIENDLYAPPNAME)
             exe = assoc_query(cls, ASSOCSTR_EXECUTABLE)
         if not name and not exe:
-            continue                                   # a stale ProgID: nothing would open
+            continue
         found.append({"id": _handler_id("class", cls), "name": name or os.path.basename(exe) or cls, "exe": exe,
                       "icon_loc": (exe, 0) if exe and exe.lower().endswith(".exe") else None})
         if len(found) >= MAX_HANDLERS:
             break
     return found
 
-
 def _dedupe_and_sort(items: List[Dict[str, Any]], default_exe: str, default_name: str = "") -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
     seen: set = set()
     target = _norm(default_exe)
-    # Store apps (Photos, Media Player…) have no executable path for AssocQueryString: match the friendly name
+
     by_name = default_name.strip().lower() if not any(target and _norm(i.get("exe") or "") == target for i in items) else ""
     for item in items:
         key = (_norm(item.get("exe") or "") or item["id"].lower(), item["name"].lower())
@@ -341,7 +315,6 @@ def _dedupe_and_sort(items: List[Dict[str, Any]], default_exe: str, default_name
         out.append(item)
     out.sort(key=lambda item: (not item["default"], item["name"].lower()))
     return out
-
 
 def _list_now(path: str) -> List[Dict[str, Any]]:
     ext = _ext(path)
@@ -367,15 +340,11 @@ def _list_now(path: str) -> List[Dict[str, Any]]:
         item["icon"] = bool(loc)
     return items
 
-
 def handlers(path: str) -> List[Dict[str, Any]]:
     """``[{id, name, exe, default, icon}]`` — apps that can open ``path`` (empty off Windows / no extension)."""
     if not IS_WIN or os.path.isdir(path):
         return []
     return list(_WORKER.call(lambda: _list_now(path)))
-
-
-# ------------------------------------------------------------------ launching
 
 def _shell_execute(path: str, verb: Optional[str] = None, cls: Optional[str] = None,
                    exe: Optional[str] = None, hwnd: int = 0) -> None:
@@ -393,7 +362,7 @@ def _shell_execute(path: str, verb: Optional[str] = None, cls: Optional[str] = N
     info.hwnd = hwnd or None
     info.nShow = 1
     info.lpDirectory = os.path.dirname(path) or None
-    if exe:                                   # a plain program: the file is its one, quoted argument
+    if exe:
         info.lpFile = exe
         info.lpParameters = '"' + path + '"'
     else:
@@ -407,7 +376,6 @@ def _shell_execute(path: str, verb: Optional[str] = None, cls: Optional[str] = N
     _allow_foreground()
     if not _api().shell32.ShellExecuteExW(ctypes.byref(info)):
         raise OpenWithError("shell_failed", f"{verb or cls or exe}: error {ctypes.GetLastError()}")   # type: ignore[attr-defined]
-
 
 def _data_object(path: str) -> int:
     item = ctypes.c_void_p()
@@ -426,7 +394,6 @@ def _data_object(path: str) -> int:
         return int(data.value)
     finally:
         _release(item.value)
-
 
 def _invoke_shell(path: str, exe: str) -> bool:
     """Find the recommended handler named ``exe`` again (fresh pointers, same thread) and ``Invoke`` it."""
@@ -449,7 +416,7 @@ def _invoke_shell(path: str, exe: str) -> bool:
                 data = _data_object(path)
                 try:
                     _allow_foreground()
-                    hr = _vcall(item.value, 8, [ctypes.c_void_p], data)     # IAssocHandler::Invoke
+                    hr = _vcall(item.value, 8, [ctypes.c_void_p], data)
                 finally:
                     _release(data)
                 if _failed(hr):
@@ -460,7 +427,6 @@ def _invoke_shell(path: str, exe: str) -> bool:
     finally:
         _release(enum.value)
     return False
-
 
 def _launch_now(path: str, handler_id: str) -> None:
     kind, _sep, name = handler_id.partition(":")
@@ -481,7 +447,6 @@ def _launch_now(path: str, handler_id: str) -> None:
         return
     raise OpenWithError("bad_handler", handler_id)
 
-
 def launch(path: str, handler_id: str) -> None:
     if not IS_WIN:
         raise OpenWithError("unsupported", "Open with needs Windows")
@@ -489,14 +454,12 @@ def launch(path: str, handler_id: str) -> None:
         raise FileNotFoundError(path)
     _WORKER.call(lambda: _launch_now(path, handler_id), timeout=30.0)
 
-
 def _openas_rundll(path: str) -> None:
     """Last resort: OpenAs_RunDLL reads the raw command-line tail, so the path must NOT be quoted."""
     import subprocess
     system = os.environ.get("SystemRoot") or r"C:\Windows"
     command = f'"{os.path.join(system, "System32", "rundll32.exe")}" shell32.dll,OpenAs_RunDLL {path}'
     subprocess.Popen(command, close_fds=True)   # noqa: S603 - a string: no list2cmdline quoting
-
 
 def _chooser_now(path: str, hwnd: int) -> str:
     class OPENASINFO(ctypes.Structure):
@@ -521,7 +484,6 @@ def _chooser_now(path: str, hwnd: int) -> str:
     _openas_rundll(path)
     return "rundll"
 
-
 def chooser(path: str, hwnd: int = 0) -> str:
     """Show the Windows «Open with» chooser without blocking the caller; returns how it was started."""
     if not IS_WIN:
@@ -544,13 +506,10 @@ def chooser(path: str, hwnd: int = 0) -> str:
 
     thread = threading.Thread(target=run, name="memufiles-openwith", daemon=True)
     thread.start()
-    thread.join(0.6)                  # quick failures are reported; a shown (modal) dialog keeps its own thread
+    thread.join(0.6)
     if "error" in box:
         raise box["error"]
     return str(box.get("how") or "dialog")
-
-
-# ------------------------------------------------------------------ icons
 
 def _icon_from_exe(location: str, index: int, size: int = 32) -> Optional[bytes]:
     from ctypes import wintypes
@@ -570,7 +529,7 @@ def _icon_from_exe(location: str, index: int, size: int = 32) -> Optional[bytes]
         bits = ctypes.c_void_p()
         gdi = api.gdi32
         for name in ("CreateCompatibleDC", "CreateDIBSection", "SelectObject"):
-            getattr(gdi, name).restype = ctypes.c_void_p      # HDC / HBITMAP / HGDIOBJ are pointer-sized
+            getattr(gdi, name).restype = ctypes.c_void_p
         dc = ctypes.c_void_p(gdi.CreateCompatibleDC(None))
         if not dc.value:
             return None
@@ -579,7 +538,7 @@ def _icon_from_exe(location: str, index: int, size: int = 32) -> Optional[bytes]
             if not bitmap.value or not bits.value:
                 return None
             old = ctypes.c_void_p(gdi.SelectObject(dc, bitmap))
-            api.user32.DrawIconEx(dc, 0, 0, large, size, size, 0, None, 3)       # DI_NORMAL
+            api.user32.DrawIconEx(dc, 0, 0, large, size, size, 0, None, 3)
             gdi.SelectObject(dc, old)
             raw = ctypes.string_at(bits, size * size * 4)
         finally:
@@ -590,20 +549,18 @@ def _icon_from_exe(location: str, index: int, size: int = 32) -> Optional[bytes]
         api.user32.DestroyIcon(large)
     return _bgra_png(raw, size)
 
-
 def _bgra_png(raw: bytes, size: int) -> Optional[bytes]:
     try:
         from PIL import Image
     except Exception:  # noqa: BLE001 - Pillow is optional
         return None
     import io
-    if not any(raw[3::4]):                       # an icon without alpha: make it opaque
+    if not any(raw[3::4]):
         raw = b"".join(raw[i:i + 3] + b"\xff" for i in range(0, len(raw), 4))
     image = Image.frombuffer("RGBA", (size, size), raw, "raw", "BGRA", 0, 1)
     out = io.BytesIO()
     image.save(out, "PNG")
     return out.getvalue()
-
 
 def _icon_from_resource(location: str, size: int = 32) -> Optional[bytes]:
     """Store apps report ``@{Package?ms-resource://…}``: ``SHLoadIndirectString`` resolves it to a PNG asset."""
@@ -623,7 +580,6 @@ def _icon_from_resource(location: str, size: int = 32) -> Optional[bytes]:
         with open(buf.value, "rb") as handle:
             return handle.read(512 * 1024)
 
-
 def _icon_now(handler_id: str) -> Optional[bytes]:
     location = _ICONS.get(handler_id)
     if not location:
@@ -632,7 +588,6 @@ def _icon_now(handler_id: str) -> Optional[bytes]:
     if path.startswith("@"):
         return _icon_from_resource(path)
     return _icon_from_exe(os.path.expandvars(path.strip('"')), index)
-
 
 def icon_png(handler_id: str) -> Optional[bytes]:
     """32 px PNG of an app from the last ``handlers()`` list (cached; None when unknown / no Pillow)."""
@@ -647,7 +602,6 @@ def icon_png(handler_id: str) -> Optional[bytes]:
             log.debug("icon %s failed: %s", handler_id, exc)
             _ICON_PNG[handler_id] = None
     return _ICON_PNG[handler_id]
-
 
 def shell_verb(path: str, verb: str, hwnd: int = 0) -> None:
     """``ShellExecuteEx`` with a verb (Properties, Run as administrator…) on the STA worker."""

@@ -1,20 +1,5 @@
-/* MemuAI Quick Ask plugin «Команды» (Round 22, r22-commands).
 
-   What it adds to the Quick Ask window (through window.MemuQuick, see README_FOR_AI.md):
-   • natural-language commands: every short request is first offered to POST /api/assistant/run
-     (a local ru/en matcher — no model round trip); no match → the normal model answer, where the
-     same actions are a model tool («assistant_action», backend: app/assistant_commands.py);
-   • result cards (done / error / confirm with countdown / undo / images / lists / routine steps);
-   • a strip of running timers, alarms, Pomodoro and the stopwatch + the ringing banner;
-   • voice — MemuAI Live-lite: push-to-talk mic (non-realtime STT from Settings → Voice & Live or the
-     Quick Ask override), spoken answers (non-realtime TTS) with interruption.
 
-   Voice for other plugins (the companion's lip-sync):
-     window.MemuQuickVoice = { speak(text), stop(), listening(), speaking(), level(),
-                               audio(), analyser(), onLevel(fn) → off }
-   Events through MemuQuick.emit: "speak-start" {text, audio, analyser}, "speak-level" {level 0..1},
-   "speak-end" {text, interrupted}, "listen-start", "listen-end" {text}.
-   level() / speak-level is the RMS amplitude of the playing answer (AnalyserNode, ~60 fps). */
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -68,15 +53,13 @@
   };
   const lang = () => Q.lang();
 
-  /* ------------------------------------------------------------ panels */
   let stripEl = null, cardsEl = null;
   Q.registerPanel("commands-timers", (el) => { stripEl = el; el.classList.add("mqc-strip-host"); return { show() {}, hide() {} }; }, { slot: "top", order: 1, hidden: true });
   Q.registerPanel("commands-cards", (el) => { cardsEl = el; el.classList.add("mqc-cards-host"); return {}; }, { slot: "top", order: 2, hidden: true });
-  // Round 24: задачи «Сделай за меня» — своя панель, её не перерисовывает renderCards (карточка DFY живёт сама).
+
   let dfyEl = null;
   Q.registerPanel("commands-dfy", (el) => { dfyEl = el; el.classList.add("mqc-dfy-host"); return {}; }, { slot: "top", order: 3, hidden: true });
 
-  /* ------------------------------------------------------------ config & polling */
   async function loadState() {
     try {
       const data = await Q.api("/api/assistant/state?after=" + S.seq);
@@ -84,7 +67,7 @@
       applyTimers(data.timers);
       ingestEvents(data.events || [], data.seq);
       Voice.configure(data.settings && data.settings.voice);
-    } catch (e) { /* the backend may be an older build: commands stay off */ S.enabled = false; }
+    } catch (e) {  S.enabled = false; }
   }
   function ingestEvents(events, seq) {
     if (typeof seq === "number") S.seq = Math.max(S.seq, seq);
@@ -102,13 +85,13 @@
       const data = await Q.api("/api/assistant/state?after=" + S.seq);
       applyTimers(data.timers);
       ingestEvents(data.events || [], data.seq);
-    } catch (e) { /* server restarting */ }
+    } catch (e) {  }
     const active = S.timers && ((S.timers.timers || []).length || (S.timers.ringing || []).length ||
       (S.timers.pomodoro && S.timers.pomodoro.active) || (S.timers.stopwatch && S.timers.stopwatch.running));
     S.pollTimer = setTimeout(poll, active ? 2000 : 4000);
   }
   async function refreshTimers() {
-    try { applyTimers((await Q.api("/api/assistant/state?after=" + S.seq)).timers); } catch (e) { /* ignore */ }
+    try { applyTimers((await Q.api("/api/assistant/state?after=" + S.seq)).timers); } catch (e) {  }
   }
 
   Q.on("open", () => { S.open = true; loadState().then(poll); startTick(); });
@@ -116,7 +99,6 @@
   Q.on("chat-new", () => { S.cards = []; renderCards(); });
   Q.on("plugins-ready", () => { S.open = true; loadState().then(poll); startTick(); });
 
-  /* ------------------------------------------------------------ submit → command */
   const PAGE_ASK = /(сам+ари|резюм|перескаж|кратко|суть|главное|о ч[её]м|суммариз|summar|tl;?dr|key points|gist)/i;
   const PAGE_NOUN = /(страниц|стать|вкладк|сайт|\b(?:page|article|tab|site)\b)/i;
   Q.on("submit", (e) => {
@@ -124,8 +106,7 @@
     if (S.bypass && S.bypass === text) { S.bypass = ""; return; }
     Voice.stopSpeaking(true);
     if (!S.enabled || !text || e.images || e.selection || e.page || text.length > 300 || text.includes("\n")) return;
-    // Round 26: «сделай саммари / перескажи страницу» is about the browser tab — the core finds the tab the user is
-    // on; the local text.summarize would summarize the clipboard or the words «эту страницу».
+
     if (PAGE_ASK.test(text) && PAGE_NOUN.test(text)) return;
     if (S.settings && S.settings.local_match === false) return;
     e.preventDefault();
@@ -137,8 +118,6 @@
     Q.send(text);
   }
 
-  /* Round 34: a new typed command retires the unanswered confirmations above it — they used to pile up (four
-     «Выполнить» buttons for old requests, one click on the wrong one runs a command the user moved on from). */
   function dropStaleConfirms() {
     const stale = S.cards.filter((c) => c.status === "confirm" && c.confirm && c.confirm.token);
     if (!stale.length) return;
@@ -153,16 +132,13 @@
   async function runText(text) {
     dropStaleConfirms();
     const pending = { id: "p" + Date.now(), status: "running", title: t("Выполняю…", "Working…"), message: text, action: "" };
-    // Round 34 (r34-quick-design): the «Выполняю…» card only for a check that takes a while — shown at once it flashed
-    // (and resized the window twice) before EVERY ordinary question that goes to the model.
-    // Meanwhile the idle lists stay hidden (quick-design.css): the cleared field brought «Недавние» back for a moment.
+
     const showPending = setTimeout(() => pushCard(pending, true), 280);
     document.documentElement.dataset.qaCmdCheck = "1";
     let data = null;
-    // in_chat (Round 23, r23-bughunt #1): mid-conversation one-word replies («продолжи», «отмени», «next»)
-    // go to the model instead of pressing media keys / undoing the last action.
+
     const inChat = !!((Q.state && Q.state().turns) || []).length;
-    // Round 33 (r33-quick): a phrase the local matcher does not know may wait for the AI router (one short model call)
+
     const slow = setTimeout(() => { if (S.cards.some((c) => c.id === pending.id)) { pending.title = t("Разбираю команду…", "Understanding the command…"); renderCards(); } }, 450);
     try { data = await Q.api("/api/assistant/run", { body: { text, lang: lang(), in_chat: inChat } }); }
     catch (e) { data = null; }
@@ -170,18 +146,16 @@
     delete document.documentElement.dataset.qaCmdCheck;
     removeCard(pending.id);
     if (!data || !data.card) { forwardToModel(text); return; }
-    if (data.card.fallback) { forwardToModel(text); return; }   // may come without id/message (precheck)
+    if (data.card.fallback) { forwardToModel(text); return; }
     if (!data.card.id) data.card.id = "c" + Date.now().toString(36);
-    // Round 34: a phrase typed in the wrong keyboard layout («jnrhjq [hjv») — the card says how it was read
+
     if (data.match && data.match.layout) data.card.layout = String(data.match.layout).slice(0, 120);
-    if (data.card.status === "confirm") data.card.ask = text;   // recorded once the user answers (confirmToken)
+    if (data.card.status === "confirm") data.card.ask = text;
     pushCard(data.card);
     recordResult(text, data.card);
     afterCard(data.card);
   }
 
-  /* Round 24: DFY — карточка действия dfy.start (после подтверждения) передаёт задачу агенту по контракту
-     /api/dfy/* через window.MemuDFY (dfy-client.js грузится по требованию). Контекст — последние ходы чата. */
   function loadDfyClient() {
     if (window.MemuDFY) return Promise.resolve(window.MemuDFY);
     return new Promise((resolve, reject) => {
@@ -196,8 +170,7 @@
     if (!card || card._dfyStarted) return;
     card._dfyStarted = true;
     const goal = (card.client && card.client.goal) || "";
-    // Окно быстрого доступа (quick-dfy.js, агент quick-window) рисует свою карточку DFY и переподключает её
-    // при следующем открытии — если она есть, отдаём задачу ей, чтобы не было двух интерфейсов.
+
     if (window.QuickDFY && typeof window.QuickDFY.run === "function") {
       removeCard(card.id);
       try { await window.QuickDFY.run(goal); } catch (e) { Q.toast(String(e.message || e), "err"); }
@@ -230,10 +203,8 @@
     }
   }
 
-  /* Round 24: Computer Use — после подтверждения на карточке страница запускает существующий рантайм
-     (/api/work/computer/run, режим «спрашивать каждое действие») и показывает шаги, запрос разрешения и «Стоп». */
   async function startComputer(card) {
-    // Round 30: the Computer Use card (steps, thumbnails, approvals, compact strip) lives in quick/quick-computer.js
+
     if (window.QuickComputer) { removeCard(card && card.id); window.QuickComputer.start(card); return; }
     if (!card || card._cuStarted || !dfyEl) return;
     card._cuStarted = true;
@@ -249,8 +220,7 @@
       const finished = ["done", "error", "cancelled"].includes(status);
       const label = { starting: t("запуск", "starting"), running: t("работает", "running"), waiting_approval: t("ждёт разрешения", "waiting for approval"),
         done: t("готово", "done"), error: t("ошибка", "error"), cancelled: t("отменено", "cancelled") }[status] || status;
-      // Round 26: st.report is the instruction for the model («…завершился с ошибкой. Продолжайте основную задачу…», always
-      // Russian) — shown only for a finished task; the error once, unless the last log lines already say it.
+
       const report = status === "done" ? String(st.report || "") : "";
       const error = String(st.error || "");
       const showError = error && !logs.some((x) => String(x).includes(error.slice(0, 80)));
@@ -273,7 +243,7 @@
       b.disabled = true;
       try { await Q.api("/api/work/computer/action", { body: { action: b.dataset.cu } }); } catch (e) { Q.toast(e.message || String(e), "err"); }
     });
-    // Round 26 (review): the outcome is a chat turn too — Chats / Recent showed an empty chat after Computer Use
+
     const record = (st) => {
       const a = st.status === "done" ? String(st.report || t("Готово", "Done")) : String(st.error || st.status || "");
       if (Q.recordTurn && a.trim()) Q.recordTurn({ q: card.ask || c.task || "", a: (st.status === "done" ? "" : t("Управление компьютером: ", "Computer use: ")) + a });
@@ -292,11 +262,10 @@
     }
   }
 
-  /* Round 26: the result goes into the quick chat too (Chats / Recent open it with the answer), not only the card. */
   function recordResult(text, card) {
-    // a hand-over (DFY / Computer Use: card.client) has no result yet — its own card reports it
+
     if (!Q.recordTurn || !card || card.client || ["running", "confirm"].includes(card.status)) return;
-    // Round 26 (review): the card's details are the result too («#ff8800 в rgb» → RGB/HSL rows; the chat kept only «#ff8800»)
+
     const rows = (Array.isArray(card.details) ? card.details : []).filter((row) => Array.isArray(row) && row[1] != null && String(row[1]).trim())
       .slice(0, 8).map((row) => `- ${String(row[0] || "").trim()}: ${String(row[1]).trim()}`);
     const answer = [String(card.answer || card.message || card.title || "").trim(), rows.join("\n")].filter(Boolean).join("\n\n");
@@ -311,7 +280,6 @@
     if (/^(timer|alarm|reminder|pomodoro|stopwatch)\./.test(card.action || "")) refreshTimers();
   }
 
-  /* model tool results (backend tool «assistant_action» returns {ui: card}) */
   Q.on("tool-ui", (e) => {
     if (!e || e.tool !== "assistant_action" || !e.ui) return;
     pushCard(e.ui);
@@ -319,12 +287,11 @@
   });
   Q.on("answer-done", (e) => {
     if (e && e.text && !e.error && Voice.autoSpeak()) Voice.speak(e.text);
-    // tool cards created during the answer that did not arrive as tool-ui (older core)
+
     Q.api("/api/assistant/events?after=" + S.seq).then((d) => ingestEvents(d.events || [], d.seq)).catch(() => {});
   });
   Q.on("answer-start", () => { Voice.stopSpeaking(true); });
 
-  /* ------------------------------------------------------------ cards */
   function pushCard(card, transient = false) {
     if (!card || !card.id) return;
     if (!transient) S.seen.add(card.id);
@@ -341,8 +308,6 @@
     return (h ? h + ":" + String(m).padStart(2, "0") : String(m)) + ":" + String(s).padStart(2, "0");
   }
 
-  /* Round 24: ссылки-таймкоды [м:сс](https://www.youtube.com/watch?v=…&t=Ns) и обычные markdown-ссылки
-     становятся кнопками (открываются через open.url, как остальные ссылки карточек). Только http(s). */
   function richMessage(card) {
     const safe = esc(card.message);
     if (card.kind !== "youtube" && card.kind !== "text") return safe;
@@ -367,7 +332,7 @@
       ${card.source === "model" ? `<span class="mqc-src">${t("модель", "model")}</span>` : card.source === "router" ? `<span class="mqc-src mqc-src-ai" title="${esc(t("Команду понял ИИ", "Understood by AI") + (card.router && card.router.model ? " · " + card.router.model : "") + (card.router && card.router.ms ? " · " + (card.router.ms / 1000).toFixed(1) + " " + t("с", "s") : ""))}">${t("ИИ", "AI")}</span>` : card.source === "hotkey" ? `<span class="mqc-src">${t("клавиша", "hotkey")}</span>` : ""}
       <button type="button" class="mqc-x" data-mqc="close" aria-label="${t("Скрыть", "Dismiss")}">${IC.x}</button></div>`);
     if (card.layout) parts.push(`<div class="mqc-layout">${t("Понял как: «" + esc(card.layout) + "»", "Read as: “" + esc(card.layout) + "”")}</div>`);
-    // Round 25: color.convert shows a swatch (only a validated #rrggbb ever reaches the style attribute).
+
     const swatch = /^#[0-9a-f]{6}$/i.test(String(card.swatch || "")) ? `<span class="mqc-swatch" style="background:${card.swatch}" aria-hidden="true"></span>` : "";
     if (card.message && card.kind !== "help" && card.message !== card.title) parts.push(`<div class="mqc-msg${card.kind === "text" || card.kind === "code" || card.kind === "youtube" ? " mqc-pre" : ""}${card.kind === "code" ? " mqc-code" : ""}">${swatch}${richMessage(card)}</div>`);
     if (card.kind === "level" && card.data && typeof card.data.level === "number") {
@@ -376,7 +341,7 @@
     if (Array.isArray(card.details) && card.details.length) {
       parts.push(`<dl class="mqc-details">${card.details.map((row) => `<dt>${esc(row[0])}</dt><dd>${esc(row[1])}</dd>`).join("")}</dl>`);
     }
-    // Round 29 (Planning 2.0): «запланируй…» — the next runs under their own label, then the warnings
+
     if (card.plan && card.plan.next_label && Array.isArray(card.list) && card.list.length) parts.push(`<div class="mqc-plan-label">${esc(card.plan.next_label)}</div>`);
     if (Array.isArray(card.list) && card.list.length) {
       parts.push(`<ul class="mqc-list">${card.list.slice(0, 20).map((row) => `<li>${esc(row)}</li>`).join("")}</ul>`);
@@ -407,7 +372,7 @@
         buttons.push(`<button type="button" class="mqc-btn" data-mqc="reject" data-token="${esc(card.confirm.token)}">${t("Отмена", "Cancel")}</button>`);
       }
     }
-    // Round 33 (r33-quick): a follow-up the result offers — «Окно закрыто, программа в трее» → «Завершить полностью»
+
     if (status === "done" && card.next && card.next.action) buttons.push(`<button type="button" class="mqc-btn mqc-btn-ghost" data-mqc="next">${IC.power}<span>${esc(card.next.label || t("Продолжить", "Continue"))}</span></button>`);
     if (status === "done" && card.plan_id) buttons.push(`<button type="button" class="mqc-btn mqc-btn-ghost" data-mqc="plan-open">${IC.open}<span>${t("Открыть «Планирование»", "Open Planning")}</span></button>`);
     if (status === "done" && card.undo) buttons.push(`<button type="button" class="mqc-btn mqc-btn-ghost" data-mqc="undo" data-undo="${esc(card.undo)}">${IC.undo}<span>${t("Отменить", "Undo")}</span></button>`);
@@ -429,8 +394,7 @@
     if (!cardsEl) return;
     cardsEl.innerHTML = S.cards.length ? `<div class="mqc-cards">${S.cards.map(cardHtml).join("")}</div>` : "";
     if (S.cards.length) Q.showPanel("commands-cards"); else Q.hidePanel("commands-cards");
-    // while result cards are on screen the idle «Recent / ideas» list is noise and would push the
-    // footer out of a full-height window: commands.css hides it (and Q.resize() re-fits the window)
+
     if (S.cards.length) document.documentElement.dataset.mqcCards = "1"; else delete document.documentElement.dataset.mqcCards;
     Q.resize();
   }
@@ -445,7 +409,7 @@
     if (kind === "try") { Q.setInput(btn.dataset.text); return; }
     if (kind === "ask") { forwardToModel(btn.dataset.text); return; }
     if (kind === "settings") { Q.api("/api/quick/window", { body: { action: "open_settings" } }).catch(() => {}); return; }
-    // Round 29: the draft of «запланируй…» opens in the Planning builder of the main window (or just the panel)
+
     if (kind === "plan-edit" || kind === "plan-open") {
       const plan = kind === "plan-edit" && card && card.plan ? { task: card.plan.task } : { open: true };
       Q.api("/api/quick/window", { body: { action: "handoff", handoff: { plan } } }).catch((e) => Q.toast(e.message, "err"));
@@ -473,7 +437,7 @@
     }
     if (kind === "abort") { const cd = S.countdowns.get(btn.dataset.token); if (cd) { clearInterval(cd.timer); S.countdowns.delete(btn.dataset.token); } confirmToken(btn.dataset.token, false, card); return; }
     if (kind === "reject") { confirmToken(btn.dataset.token, false, card); return; }
-    // timer strip
+
     const id = btn.dataset.id || "";
     if (kind === "t-pause") return timerOp({ op: "pause", id });
     if (kind === "t-resume") return timerOp({ op: "resume", id });
@@ -510,13 +474,13 @@
     try {
       const data = await Q.api("/api/assistant/confirm", { body: { token, accept, lang: lang() } });
       if (card) removeCard(card.id);
-      if (card && card.ask && data.card) data.card.ask = card.ask;   // Computer Use records its outcome under the request
+      if (card && card.ask && data.card) data.card.ask = card.ask;
       pushCard(data.card);
-      // Round 26 (review): a confirmed (or cancelled) command is a chat turn too — «закрой хром» → «Выполнить» left the chat empty
+
       if (card && card.ask) recordResult(card.ask, data.card);
       afterCard(data.card);
     } catch (e) {
-      // Round 34: a failed request left the card spinning «Выполняю…» for ever, its buttons gone
+
       if (card && before) { card.status = before.status; card.title = before.title; renderCards(); }
       Q.toast(e.message, "err");
     }
@@ -531,7 +495,6 @@
     } catch (e) { Q.toast(e.message, "err"); return null; }
   }
 
-  /* ------------------------------------------------------------ timers strip */
   function applyTimers(snapshot) {
     if (!snapshot) return;
     S.timers = snapshot;
@@ -619,7 +582,6 @@
     if (due) setTimeout(refreshTimers, 700);
   }
 
-  /* ------------------------------------------------------------ voice (MemuAI Live-lite: STT + TTS, never realtime) */
   const Voice = (() => {
     const V = { cfg: { enabled: true, auto_speak: false, send_on_release: true, hold_to_talk: true }, rec: null, chunks: [], stream: null,
       recording: false, startedAt: 0, audio: null, ctx: null, analyser: null, source: null, raf: 0, levelValue: 0,
@@ -633,12 +595,10 @@
     async function setAutoSpeak(value) {
       V.cfg.auto_speak = !!value;
       refreshButtons();
-      try { await Q.api("/api/assistant/settings", { body: { settings: { voice: { auto_speak: !!value } } } }); } catch (e) { /* offline */ }
+      try { await Q.api("/api/assistant/settings", { body: { settings: { voice: { auto_speak: !!value } } } }); } catch (e) {  }
       if (!value) stopSpeaking(true);
     }
 
-    /* --- listening */
-    // Round 30: the browser's own errors («Requested device not found») said in plain words
     function micError(e) {
       const name = (e && e.name) || "";
       if (name === "NotFoundError" || name === "OverconstrainedError") return t("Микрофон не найден — подключите его или выберите в Настройки → Голос и Live", "No microphone found — plug one in or pick it in Settings → Voice & Live");
@@ -666,7 +626,7 @@
       refreshButtons();
     }
     function watchSilence() {
-      // Hands-free mode (button click, not hold): stop after ~1.4 s of silence once speech was heard.
+
       try {
         const ctx = ensureCtx();
         const src = ctx.createMediaStreamSource(V.stream);
@@ -674,7 +634,7 @@
         const buf = new Float32Array(an.fftSize);
         let heard = false;
         const step = () => {
-          if (!V.recording) { try { src.disconnect(); } catch (e) { /* closed */ } return; }
+          if (!V.recording) { try { src.disconnect(); } catch (e) {  } return; }
           an.getFloatTimeDomainData(buf);
           let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
           const rms = Math.sqrt(sum / buf.length);
@@ -687,7 +647,7 @@
           V.vadTimer = requestAnimationFrame(step);
         };
         V.vadTimer = requestAnimationFrame(step);
-      } catch (e) { /* no WebAudio: stop by button */ }
+      } catch (e) {  }
     }
     function stopListening(cancel = false) {
       if (!V.recording) return;
@@ -717,7 +677,6 @@
       finally { delete document.documentElement.dataset.mqcTranscribing; refreshButtons(); }
     }
 
-    /* --- speaking */
     function ensureCtx() {
       if (!V.ctx) { const AC = window.AudioContext || window.webkitAudioContext; V.ctx = new AC(); }
       if (V.ctx.state === "suspended") V.ctx.resume().catch(() => {});
@@ -738,7 +697,7 @@
         if (ticket === V.queue) { delete document.documentElement.dataset.mqcSpeaking; refreshButtons(); Q.toast(t("Озвучка: ", "Speech: ") + (e.message || e), "err", 3500); }
         return;
       }
-      if (ticket !== V.queue) return;               // interrupted while synthesizing
+      if (ticket !== V.queue) return;
       const audio = new Audio(out.audio);
       V.audio = audio; V.speakingText = text;
       try {
@@ -763,7 +722,7 @@
         V.analyser.getFloatTimeDomainData(buf);
         let sum = 0; for (let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
         V.levelValue = Math.min(1, Math.sqrt(sum / buf.length) * 4);
-        for (const fn of V.levelFns) { try { fn(V.levelValue); } catch (e) { /* listener */ } }
+        for (const fn of V.levelFns) { try { fn(V.levelValue); } catch (e) {  } }
         Q.emit("speak-level", { level: V.levelValue });
         V.raf = requestAnimationFrame(step);
       };
@@ -772,20 +731,19 @@
     function endSpeaking(interrupted) {
       const text = V.speakingText;
       cancelAnimationFrame(V.raf);
-      if (V.source) { try { V.source.disconnect(); } catch (e) { /* gone */ } }
+      if (V.source) { try { V.source.disconnect(); } catch (e) {  } }
       V.audio = null; V.source = null; V.analyser = null; V.levelValue = 0; V.speakingText = "";
-      for (const fn of V.levelFns) { try { fn(0); } catch (e) { /* listener */ } }
+      for (const fn of V.levelFns) { try { fn(0); } catch (e) {  } }
       delete document.documentElement.dataset.mqcSpeaking; refreshButtons();
       if (text) Q.emit("speak-end", { text, interrupted: !!interrupted });
     }
     function stopSpeaking(interrupted = true) {
       V.queue += 1;
-      if (V.audio) { try { V.audio.pause(); } catch (e) { /* gone */ } endSpeaking(interrupted); }
+      if (V.audio) { try { V.audio.pause(); } catch (e) {  } endSpeaking(interrupted); }
       else if (document.documentElement.dataset.mqcSpeaking) { delete document.documentElement.dataset.mqcSpeaking; refreshButtons(); }
     }
     function stopAll() { stopListening(true); stopSpeaking(true); }
 
-    /* --- buttons (composer) */
     let micBtn = null, spkBtn = null;
     function refreshButtons() { if (micBtn) micBtn.update(); if (spkBtn) spkBtn.update(); }
     micBtn = Q.addComposerButton({
@@ -806,7 +764,7 @@
       hidden: () => !V.cfg.enabled,
       onClick: () => { if (document.documentElement.dataset.mqcSpeaking) stopSpeaking(true); else setAutoSpeak(!V.cfg.auto_speak); },
     });
-    // push-to-talk: holding the mic button (≥ 300 ms) records until release
+
     let holdTimer = 0;
     document.addEventListener("pointerdown", (e) => {
       const btn = e.target.closest('[data-plugin="voice"]');
@@ -817,7 +775,7 @@
       clearTimeout(holdTimer);
       if (V.hold) { setTimeout(() => { V.hold = false; }, 50); stopListening(); }
     });
-    // Ctrl+Space held in the window = push-to-talk
+
     document.addEventListener("keydown", (e) => {
       if (e.code === "Space" && e.ctrlKey && !e.altKey && !e.repeat && V.cfg.enabled) { e.preventDefault(); V.hold = true; startListening(); }
       else if (e.key === "Escape" && (V.recording || V.audio)) { e.preventDefault(); e.stopPropagation(); stopAll(); }
@@ -837,11 +795,9 @@
     listening: Voice.listening, speaking: Voice.speaking, level: Voice.level, audio: Voice.audio, analyser: Voice.analyser,
     onLevel: Voice.onLevel,
   };
-  // after(card): Round 27 (quick canvas) — a button's confirmed DFY / Computer Use card is handed over here, like a typed command
+
   window.MemuQuickCommands = { run: runText, action: runAction, after: afterCard, cards: () => S.cards.slice(), refresh: loadState };
 
-  /* Settings section (rendered by the main window's Quick Ask settings when the core supports it;
-     the editor itself lives in commands-settings.js). */
   if (typeof Q.settingsSection === "function") {
     Q.settingsSection("commands", (el, ctx) => (window.MemuCommandsSettings ? window.MemuCommandsSettings.mount(el, ctx || {}) : null),
       { title: { ru: "Команды и голос", en: "Commands and voice" }, script: "commands-settings.js", css: "commands-settings.css" });

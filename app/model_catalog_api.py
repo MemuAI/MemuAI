@@ -23,7 +23,6 @@ from fastapi.responses import JSONResponse
 
 from . import model_catalog
 
-
 def _prefs() -> Dict[str, Any]:
     try:
         from .pgdata import load_preferences
@@ -32,11 +31,10 @@ def _prefs() -> Dict[str, Any]:
     except Exception:
         return {}
 
-
 def build(state: Dict[str, Any], prefs: Dict[str, Any], *, kind: str = "", need: str = "",
           include_hidden: bool = False) -> Dict[str, Any]:
     rows = [dict(row) for row in (state.get("models") or []) if isinstance(row, dict) and row.get("id")]
-    if rows and "name" not in rows[0]:            # an older Proxy: name the rows here
+    if rows and "name" not in rows[0]:
         model_catalog.enrich({**state, "models": rows})
     aliases = prefs.get("model_aliases") if isinstance(prefs.get("model_aliases"), dict) else {}
     hidden = set(prefs.get("hidden_models") or [])
@@ -56,7 +54,6 @@ def build(state: Dict[str, Any], prefs: Dict[str, Any], *, kind: str = "", need:
     return {"models": picked, "default": default, "pinned": pinned, "count": len(picked),
             "image_models": state.get("image_models") or [], "video_models": state.get("video_models") or []}
 
-
 def register(app, *, proxy_json: Callable[..., Awaitable[Tuple[int, Any]]]) -> None:
 
     @app.get("/api/pg/model-catalog")
@@ -65,7 +62,7 @@ def register(app, *, proxy_json: Callable[..., Awaitable[Tuple[int, Any]]]) -> N
         if status != 200 or not isinstance(data, dict):
             return JSONResponse({"error": (data or {}).get("error") if isinstance(data, dict) else "offline",
                                  "models": []}, status if status >= 400 else 502)
-        kind = kind if kind in ("chat", "text", "image", "video", "music") else ""
+        kind = kind if kind in ("chat", "text", "image", "video", "music", "audio", "stt", "tts", "embedding", "rerank", "decisions") else ""
         need = "vision" if need == "vision" else ""
         return build(data, _prefs(), kind=kind, need=need, include_hidden=all in ("1", "true", "yes"))
 

@@ -10,11 +10,9 @@ import unittest
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-
 def source(rel):
     with open(os.path.join(ROOT, rel), encoding="utf-8") as handle:
         return handle.read()
-
 
 class MemeSidebarTest(unittest.TestCase):
     def setUp(self):
@@ -39,7 +37,7 @@ class MemeSidebarTest(unittest.TestCase):
     def test_storage_and_chat_link(self):
         for marker in ("memu_memes", "memu_chat_memes", "memeIdForChat", "setMemeForChat", "startMemeChat"):
             self.assertIn(marker, self.js, marker)
-        # чаты мемесов не дублируются в общем списке
+
         self.assertIn(".filter((c) => !memeIdForChat(c.id))", self.js)
         self.assertIn("meme-chat", self.css)
 
@@ -65,9 +63,8 @@ class MemeSidebarTest(unittest.TestCase):
         self.assertIn("memePromptBlock", self.js)
         self.assertIn("agent_profile", self.js)
         self.assertIn("highest", self.js)
-        # блок мемеса вставляется ПЕРЕД общим промптом
-        self.assertIn('sys = memeBlock + (sys ? "\\n\\n" + sys : "")', self.js)
 
+        self.assertIn('sys = memeBlock + (sys ? "\\n\\n" + sys : "")', self.js)
 
 if __name__ == "__main__":
     unittest.main()

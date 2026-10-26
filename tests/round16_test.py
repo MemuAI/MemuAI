@@ -18,15 +18,12 @@ from fastapi.testclient import TestClient
 from app import module_media as media, module_monitor as monitor, modules_host as host, pgdata
 from app.playground_api import create_app
 
-
 def record(identity, score=1):
     return {"id": identity, "name": identity, "values": {"score": score},
             "family": identity.split("/")[0] if "/" in identity else ""}
 
-
 def audio(raw=b"RIFF\x00\x00\x00\x00WAVEfixture", mime="audio/wav"):
     return f"data:{mime};base64," + base64.b64encode(raw).decode()
-
 
 class MonitorTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -197,7 +194,6 @@ class MonitorTest(unittest.IsolatedAsyncioTestCase):
             await monitor.read_source(source)
         self.assertEqual(reader.await_count, 2)
 
-
 class ExtractionTest(unittest.TestCase):
     def test_proxy_builds_ship_manifests_required_by_background_permissions(self):
         import build
@@ -228,7 +224,6 @@ class ExtractionTest(unittest.TestCase):
         for text in ('{"data":[]}', '{"data":[{"label":"a"}]}', '<html>maintenance</html>'):
             with self.subTest(text=text), self.assertRaises(ValueError):
                 monitor.extract(text, {})
-
 
 class PublicRequestTest(unittest.IsolatedAsyncioTestCase):
     async def request(self, handler, **kwargs):
@@ -263,7 +258,6 @@ class PublicRequestTest(unittest.IsolatedAsyncioTestCase):
             return response
         with self.assertRaisesRegex(ValueError, "Credential redirect"):
             await self.request(redirect, headers={"Authorization": "Bearer secret"})
-
 
 class MediaTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -372,7 +366,6 @@ class MediaTest(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(client.post("/api/voice/clips", json={"audio": audio(), "profile_id": "other"}).status_code, 409)
             self.assertEqual(client.get("/api/voice/clips/not-a-hash.wav").status_code, 404)
 
-
 class ReasoningAndCookieTest(unittest.IsolatedAsyncioTestCase):
     async def test_standard_effort_fields_reach_proxy_provider(self):
         from app.openai_api import chat_completions
@@ -399,7 +392,6 @@ class ReasoningAndCookieTest(unittest.IsolatedAsyncioTestCase):
                       json.dumps([{"name": "SAPISID", "value": "fixture"}, {"name": "other", "value": "value"}])]:
             with self.subTest(value=value):
                 self.assertEqual(_parse_cookie_blob(value), (cookie, "fixture"))
-
 
 if __name__ == "__main__":
     unittest.main()

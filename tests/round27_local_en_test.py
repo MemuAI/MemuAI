@@ -24,7 +24,6 @@ CYRILLIC = re.compile("[А-Яа-яЁё]")
 sys.path.insert(0, str(ROOT / "tests"))
 from local_models_test import write_model  # noqa: E402
 
-
 class LocalModelErrorTextTests(unittest.TestCase):
     def test_every_raise_in_local_models_has_an_english_text(self):
         tree = ast.parse((ROOT / "app" / "local_models.py").read_text(encoding="utf-8"))
@@ -54,7 +53,7 @@ class LocalModelErrorTextTests(unittest.TestCase):
             lm.start_download("org/repo", ["Model-draft-Q4_K_M.gguf"])
         self.assertIn("draft", str(caught.exception))
         self.assertIsNone(CYRILLIC.search(caught.exception.message_en), caught.exception.message_en)
-        # A plain error without an English text still reads the same in both.
+
         self.assertEqual(lm.LocalModelError("x").message_en, "x")
 
     def test_crash_description_in_english(self):
@@ -80,7 +79,6 @@ class LocalModelErrorTextTests(unittest.TestCase):
             status = lm.runtime_status()["install"]
         self.assertEqual(status["state"], "error")
         self.assertEqual(status["error_en"], "Could not find the latest llama.cpp build on GitHub")
-
 
 class LocalProviderLanguageTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -131,7 +129,6 @@ class LocalProviderLanguageTests(unittest.TestCase):
         state = lm.get_model(slug)
         self.assertIn("exited with code", state["error_en"])
         self.assertIn("завершился", state["error"])
-
 
 class ChatLanguageTests(unittest.TestCase):
     """The chat error of a local model that cannot start: Russian text Russian, English text English."""
@@ -222,7 +219,6 @@ class ChatLanguageTests(unittest.TestCase):
         self.assertIn("did not load", asyncio.run(run({}))["message"])
         self.assertIn("не успела", asyncio.run(run({"X-MemuAI-Lang": "ru"}))["message"])
 
-
 class PanelRouteTests(unittest.TestCase):
     """/api/admin/local/* answer with the exception's own English text (no lookup table)."""
 
@@ -234,7 +230,7 @@ class PanelRouteTests(unittest.TestCase):
         self.assertEqual(json.loads(response.body), {"error": "Репозиторий не найден", "error_en": "Repository not found"})
         dynamic = lm.LocalModelError("Hugging Face ответил HTTP 418", "Hugging Face answered HTTP 418")
         self.assertEqual(json.loads(proxy_tools_api._local_error(dynamic).body)["error_en"], "Hugging Face answered HTTP 418")
-        # A ValueError of the settings route has one text only.
+
         self.assertEqual(json.loads(proxy_tools_api._local_error(ValueError("bad")).body)["error_en"], "bad")
 
     def test_update_route_end_to_end(self):
@@ -254,7 +250,6 @@ class PanelRouteTests(unittest.TestCase):
         source = (ROOT / "app" / "static" / "local.js").read_text(encoding="utf-8")
         for field in ("install.error_en", "d.error_en", "m.error_en"):
             self.assertIn(field, source)
-
 
 class ProxyOwnErrorLanguageTests(unittest.TestCase):
     """The Proxy's own errors (validation, routing, tools) follow the same scheme as provider errors:
@@ -330,14 +325,12 @@ class ProxyOwnErrorLanguageTests(unittest.TestCase):
         self.assertIn("не маршрутизируется", exc.message)
         self.assertIsNone(CYRILLIC.search(exc.message_en), exc.message_en)
 
-
 def _installer_browser_ok() -> bool:
     try:
         from tests.installer_layout_test import _playwright_ok
     except Exception:  # noqa: BLE001
         return False
     return _playwright_ok()
-
 
 @unittest.skipUnless(_installer_browser_ok(), "Playwright/Chromium not available")
 class UninstallKeepOffTests(unittest.TestCase):
@@ -357,7 +350,7 @@ class UninstallKeepOffTests(unittest.TestCase):
                     page = await browser.new_page(viewport={"width": w, "height": h})
                     await page.goto(f"{UI.as_uri()}?mock=1&shot=1&mode=uninstall&lang={lang}", wait_until="load")
                     await page.wait_for_timeout(700)
-                    # No __memuFit() call here: the change handler alone must refit the screen.
+
                     out.append(await page.evaluate("""(() => {
                       const keep = document.getElementById('opt-keep');
                       keep.checked = false; keep.dispatchEvent(new Event('change'));
@@ -383,9 +376,8 @@ class UninstallKeepOffTests(unittest.TestCase):
             self.assertLessEqual(row["go"], row["panel"] - 4, row)
             self.assertIn("pretty", row["wrap"], row)
             if row["lastLine"]:
-                # a lone «off.» is ~20 px of a ~350 px line
-                self.assertGreater(row["lastLine"], row["smallWidth"] * 0.12, row)
 
+                self.assertGreater(row["lastLine"], row["smallWidth"] * 0.12, row)
 
 if __name__ == "__main__":
     unittest.main()

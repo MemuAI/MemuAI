@@ -1,24 +1,9 @@
-/* MemuAI — сколько токенов стоит текст: честная оценка с учётом языка.
- *
- * JS-двойник app/token_estimate.py: те же признаки (латинские и кириллические
- * буквы и слова, цифры, знаки, переводы строк, пробелы, отступы, CJK, хангыль,
- * прочее) и та же таблица коэффициентов по семействам моделей, откалиброванная
- * по настоящим токенизаторам (o200k, Gemma, Qwen, DeepSeek, Llama, Mistral,
- * GLM, MiniMax; Claude — приближённо). Таблицу правят в обоих файлах сразу —
- * tests/round30_misc_test.py сверяет их и проверяет одинаковые числа.
- *
- *   MemuTokens.estimate(text, model?)  — типичное число (медиана семейств) или
- *                                        число семейства модели;
- *   MemuTokens.breakdown(text)         — {tokens, low, high, families[], mix};
- *   MemuTokens.labelOf(model)          — «Claude 3 – 4.6» (или "" — тогда считается медиана);
- *   MemuTokens.approx(n) / short(n)    — 84 300 / «84 тыс.»: у оценки нет ложной точности.
- *
- * Без состояния приложения: работает в окне MemuAI, в Node (тесты) и где угодно.
- */
+
+
 "use strict";
 const MemuTokens = (() => {
   const FEATURES = ["latw", "lat", "cyrw", "cyr", "dig", "punct", "nl", "ws", "wsrun", "cjk", "hang", "other"];
-  /* TABLE-BEGIN */
+
   const FAMILIES = [
     { id: "gpt", label: "GPT-4o / GPT-5", coef: [0.484, 0.079, 1.053, 0.075, 1.033, 0.529, 0.438, 0.320, 0.046, 0.794, 0.673, 0.544] },
     { id: "claude", label: "Claude 3 – 4.6", coef: [0.724, 0.111, 0.907, 0.338, 1.180, 0.679, 0.721, 0.046, 0.010, 0.916, 1.195, 0.523] },
@@ -31,7 +16,7 @@ const MemuTokens = (() => {
     { id: "glm", label: "GLM", coef: [0.529, 0.068, 1.106, 0.075, 1.145, 0.504, 0.448, 0.345, 0.046, 0.717, 0.974, 0.334] },
     { id: "minimax", label: "MiniMax", coef: [0.450, 0.081, 1.209, 0.112, 0.907, 0.566, 0.378, 0.325, 0.063, 0.414, 0.567, 0.921] },
   ];
-  /* TABLE-END */
+
   const BY_ID = Object.fromEntries(FAMILIES.map((row) => [row.id, row]));
 
   const LATIN_WORD = /[A-Za-z\u00C0-\u024F]+/g;
@@ -41,7 +26,7 @@ const MemuTokens = (() => {
   const WS_RUN = /[ \t]{2,}/g;
   const CJK = /[\u3040-\u30FF\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/g;
   const HANGUL = /[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g;
-  const SURROGATE = /[\uD800-\uDBFF]/g;      // эмодзи и прочее вне BMP: одна буква, а в JS — две единицы
+  const SURROGATE = /[\uD800-\uDBFF]/g;
 
   const count = (text, re) => { const m = text.match(re); return m ? m.length : 0; };
   const sumLength = (text, re) => { let n = 0, words = 0; for (const m of text.match(re) || []) { n += m.length; words += 1; } return [words, n]; };
@@ -85,7 +70,6 @@ const MemuTokens = (() => {
     return "";
   }
 
-  // Разговор пересчитывается на каждый запрос, а почти весь он — те же строки: длинные считаем один раз.
   const memo = new Map();
   const MEMO_FROM = 400, MEMO_LIMIT = 1500;
 
@@ -122,14 +106,13 @@ const MemuTokens = (() => {
       families, mix: scriptMix(counts), estimated: true };
   }
 
-  /** Оценке не нужна ложная точность: три значащие цифры (84 330 → 84 300). */
   function approx(n) {
     const value = Math.round(Number(n) || 0);
     if (value < 1000) return value;
     const step = 10 ** (Math.floor(Math.log10(value)) - 2);
     return Math.round(value / step) * step;
   }
-  /** Коротко: «84 тыс.» / «84k», «1,2 млн» / «1.2M». */
+
   function short(n, lang) {
     const en = lang === "en", value = Number(n) || 0;
     const fmt = (v) => (+v.toFixed(v < 10 ? 1 : 0)).toLocaleString(en ? "en-US" : "ru-RU");
@@ -137,7 +120,7 @@ const MemuTokens = (() => {
     if (value >= 1e3) return fmt(value / 1e3) + (en ? "k" : " тыс.");
     return String(Math.round(value));
   }
-  /** «79–126 тыс.» / «79k–126k»: единица один раз, если она у обоих концов одна. */
+
   function shortRange(low, high, lang) {
     const a = short(low, lang), b = short(high, lang);
     const unit = / (тыс\.|млн)$/.exec(b);

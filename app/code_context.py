@@ -36,7 +36,6 @@ TEXT_SUFFIXES = {
     ".toml", ".ts", ".tsx", ".txt", ".vue", ".xml", ".yaml", ".yml",
 }
 
-
 class CodeContextEngine:
     """Per-session repository cache. In-memory only; a session is a chat id."""
 
@@ -52,7 +51,6 @@ class CodeContextEngine:
         self._text_order: List[str] = []
         self._lock = threading.Lock()
 
-    # ---------------- tree ----------------
     def refresh(self) -> Dict[str, Any]:
         """Walk the project and update only entries whose mtime/size changed."""
         with self._lock:
@@ -68,8 +66,7 @@ class CodeContextEngine:
                 dirs[:] = []
                 continue
             base = Path(current)
-            # followlinks=False does not stop os.walk at a Windows junction (islink() is False for it): a junction
-            # to a big folder outside the project was walked file by file although none of it is indexed.
+
             dirs[:] = sorted(d for d in dirs
                              if d.lower() not in SKIP_DIRS and d not in SKIP_DIRS and not is_link(base / d))
             for name in sorted(files):
@@ -120,7 +117,7 @@ class CodeContextEngine:
             resolved = (self.root / raw).resolve()
             return resolved.relative_to(self.root).as_posix()
         except ValueError:
-            return "../" + raw  # ссылка или путь ведёт за пределы проекта
+            return "../" + raw
         except OSError:
             return raw
 
@@ -205,7 +202,6 @@ class CodeContextEngine:
             "saved_chars": self.saved_chars, "requested_chars": self.requested_chars,
         }
 
-    # ---------------- reads ----------------
     def read_cached(self, rel: str, start_line: int = 1, end_line: int = 0,
                     max_chars: int = 16_000) -> Dict[str, Any]:
         with self._lock:
@@ -372,9 +368,7 @@ class CodeContextEngine:
                 "index_truncated": self.tree_truncated, "files": files,
                 **self.stats()}
 
-
 _SESSIONS: Dict[str, CodeContextEngine] = {}
-
 
 def engine_for(session_id: str, root: str | Path) -> CodeContextEngine:
     session_id = str(session_id or "default")
@@ -383,7 +377,6 @@ def engine_for(session_id: str, root: str | Path) -> CodeContextEngine:
         engine = CodeContextEngine(root)
         _SESSIONS[session_id] = engine
     return engine
-
 
 def drop_session(session_id: str) -> None:
     _SESSIONS.pop(str(session_id or ""), None)

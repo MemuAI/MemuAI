@@ -14,17 +14,12 @@ from typing import Any, Dict, List
 
 from .module_integration import CommandError, handler
 
-
-# ------------------------------------------------------------------------------------------------------ MemuMusic
-
 def _music(op: str, args: Dict[str, Any], ctx: Dict[str, Any]) -> Any:
     from .music import api as music_api
     return music_api.call(op, args, base=ctx.get("base") or "", lang=ctx["lang"], sender="memuai")
 
-
 async def _m(op: str, args: Dict[str, Any], ctx: Dict[str, Any]) -> Any:
     return await asyncio.to_thread(_music, op, args, ctx)
-
 
 def _track_card(track: Dict[str, Any], ctx: Dict[str, Any], *, playing: bool = True, note: str = "",
                 state: Dict[str, Any] = None) -> Dict[str, Any]:
@@ -40,13 +35,12 @@ def _track_card(track: Dict[str, Any], ctx: Dict[str, Any], *, playing: bool = T
                          "command": "pause" if playing else "resume", "toggle": True},
                         {"icon": "next", "label": tr("Дальше", "Next"), "command": "next"},
                         {"icon": "open", "label": tr("Открыть MemuMusic", "Open MemuMusic"), "open": True}]}
-    # Round 39: what the Quick Access player shows at once (position, volume) before the live state arrives
+
     if state.get("position_now") is not None:
         card["position"] = float(state.get("position_now") or 0)
     if isinstance(state.get("volume"), (int, float)):
         card["volume"] = float(state["volume"])
     return card
-
 
 def _score(track: Dict[str, Any], query: str) -> float:
     q = query.lower()
@@ -57,12 +51,11 @@ def _score(track: Dict[str, Any], query: str) -> float:
     hits = sum(1 for w in words if w in hay) / max(1, len(words))
     return ratio * 0.5 + hits * 0.5 + (0.2 if title == q else 0)
 
-
 async def _find_tracks(query: str, ctx: Dict[str, Any], limit: int = 50) -> List[Dict[str, Any]]:
     query = re.sub(r"\s+", " ", query).strip(" «»\"'")
     found = (await _m("library.list", {"q": query, "limit": limit, "sort": "plays"}, ctx)).get("tracks") or []
     if not found:
-        # «Imagine Dragons — Believer» / «believer by imagine dragons»: try the words one by one, best match wins.
+
         words = [w for w in re.split(r"[\s\-—–,]+|\bby\b|\bот\b", query) if len(w) > 2][:4]
         seen = {}
         for word in words:
@@ -70,23 +63,20 @@ async def _find_tracks(query: str, ctx: Dict[str, Any], limit: int = 50) -> List
                 seen[track["id"]] = track
         found = [t for t in seen.values() if _score(t, query) >= 0.45]
     if not found:
-        # A typo («beliver», «имаджин драгонс») — fuzzy over the library titles (bounded: the 3000 most played).
+
         rows = (await _m("library.list", {"limit": 3000, "sort": "plays"}, ctx)).get("tracks") or []
         found = [t for t in rows if _score(t, query) >= 0.42]
     return sorted(found, key=lambda t: -_score(t, query))
-
 
 async def _play_ids(ids: List[str], start: str, context: str, ctx: Dict[str, Any]) -> Dict[str, Any]:
     command = {"cmd": "play_track", "args": {"track_id": start, "queue": ids[:1000], "context": {"name": context}}, "target": "pc"}
     await _m("player.command", {"cmd": "play_track", **command["args"], "target": "pc"}, ctx)
     return command
 
-
 def _boot(command: Dict[str, Any]) -> Dict[str, Any]:
     """The main window starts the host player (pgstatic/music-dock.js) when nothing listens yet and applies ``command``
     (the dock ignores commands sent before it started listening)."""
     return {"music_boot": True, "command": command}
-
 
 @handler("music.play")
 async def music_play(args: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -113,17 +103,15 @@ async def music_play(args: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any
     best = tracks[0]
     artist = str(best.get("artist") or "")
     queue = [t["id"] for t in tracks[:50]]
-    if len(queue) < 5 and artist:   # one song asked for → keep playing more of the same artist after it
+    if len(queue) < 5 and artist:
         more = (await _m("library.list", {"q": artist, "limit": 40, "sort": "plays"}, ctx)).get("tracks") or []
         queue += [t["id"] for t in more if t["id"] not in queue]
     command = await _play_ids(queue, best["id"], tr(f"По запросу «{query}»", f"Request “{query}”"), ctx)
     return {"text": tr(f"Играет: {best.get('title')} — {artist}", f"Playing: {best.get('title')} — {artist}"),
             "card": _track_card(best, ctx), "client": _boot(command)}
 
-
 async def _simple(cmd: str, ctx: Dict[str, Any], text_ru: str, text_en: str, **extra: Any) -> Dict[str, Any]:
-    # Round 39 (r39-integ): no sleep-then-read — the card shows the state the command leads to (the player confirms by its
-    # own report a moment later); the old 0.15 s pause still read the previous state and cost every button a round.
+
     await _m("player.command", {"cmd": cmd, "target": "pc", **extra}, ctx)
     state = await _m("player.state", {}, ctx)
     track = state.get("track") or {}
@@ -134,13 +122,11 @@ async def _simple(cmd: str, ctx: Dict[str, Any], text_ru: str, text_en: str, **e
     out["client"] = _boot({"cmd": cmd, "args": extra, "target": "pc"}) if cmd != "pause" else {}
     return out
 
-
 async def _library_order(ctx: Dict[str, Any]) -> List[str]:
     """All tracks in the library order (the MemuMusic «Library» view): what «next» plays once the queue
     ran out — a one-track queue used to restart the same song."""
     rows = (await _m("library.list", {"limit": 2000, "sort": "added"}, ctx)).get("tracks") or []
     return [str(t["id"]) for t in rows if t.get("id")]
-
 
 async def _skip(direction: int, ctx: Dict[str, Any]) -> Dict[str, Any]:
     """Round 39: «next» / «previous» resolved here, against the queue the player reported.
@@ -151,7 +137,7 @@ async def _skip(direction: int, ctx: Dict[str, Any]) -> Dict[str, Any]:
     state = await _m("player.state", {}, ctx)
     current = str(state.get("track_id") or "")
     queue = [str(x) for x in state.get("queue") or [] if x] or ([current] if current else [])
-    if not current:   # nothing reported yet (the player is just starting) — the plain command, the player decides
+    if not current:
         cmd = "next" if direction > 0 else "prev"
         await _m("player.command", {"cmd": cmd, "target": "pc"}, ctx)
         return {"text": tr("Следующий трек", "Next track") if direction > 0 else tr("Предыдущий трек", "Previous track"),
@@ -175,7 +161,7 @@ async def _skip(direction: int, ctx: Dict[str, Any]) -> Dict[str, Any]:
         if direction > 0:
             tail = library[at + 1:] if at >= 0 else library
             if not tail:
-                tail = [x for x in library if x != current][:1] or [current]   # the last track of the library → the first one
+                tail = [x for x in library if x != current][:1] or [current]
             queue = queue + [x for x in tail[:200] if x not in queue]
             target_index = index + 1 if index + 1 < len(queue) else index
         else:
@@ -192,7 +178,7 @@ async def _skip(direction: int, ctx: Dict[str, Any]) -> Dict[str, Any]:
         track = await _m("library.get", {"id": target}, ctx)
     except Exception:  # noqa: BLE001 - the track left the library
         track = {}
-    if module_plays:   # the module window continues its own queue (shuffle order, radio, the library after the end)
+    if module_plays:
         await _m("player.command", {"cmd": "next" if direction > 0 else "prev", "target": "pc"}, ctx)
         command = {"cmd": "next" if direction > 0 else "prev", "args": {}, "target": "pc"}
     else:
@@ -204,32 +190,26 @@ async def _skip(direction: int, ctx: Dict[str, Any]) -> Dict[str, Any]:
             "card": _track_card(track, ctx, playing=True, state={"position_now": 0, "volume": state.get("volume")}) if track else None,
             "client": _boot(command)}
 
-
 @handler("music.pause")
 async def music_pause(args, ctx):
     return await _simple("pause", ctx, "Пауза", "Paused")
-
 
 @handler("music.resume")
 async def music_resume(args, ctx):
     return await music_play({}, ctx)
 
-
 @handler("music.next")
 async def music_next(args, ctx):
     return await _skip(1, ctx)
-
 
 @handler("music.prev")
 async def music_prev(args, ctx):
     return await _skip(-1, ctx)
 
-
 @handler("music.volume")
 async def music_volume(args, ctx):
     level = max(0, min(100, int(float(args.get("level", 50)))))
     return await _simple("volume", ctx, f"Громкость {level}%", f"Volume {level}%", value=level / 100)
-
 
 @handler("music.now")
 async def music_now(args, ctx):
@@ -244,7 +224,6 @@ async def music_now(args, ctx):
               + (f" ({where})" if where else ""),
               f"{'Playing' if playing else 'Paused'}: {track.get('title')} — {track.get('artist') or '—'}" + (f" ({where})" if where else ""))
     return {"text": text, "card": _track_card(track, ctx, playing=playing)}
-
 
 @handler("music.playlist")
 async def music_playlist(args, ctx):
@@ -273,7 +252,6 @@ async def music_playlist(args, ctx):
     return {"text": tr(f"Включаю плейлист «{best['name']}» ({len(ids)} треков)", f"Playing the playlist “{best['name']}” ({len(ids)} tracks)"),
             "card": card, "client": _boot(command)}
 
-
 @handler("music.download")
 async def music_download(args, ctx):
     tr = ctx["tr"]
@@ -289,9 +267,6 @@ async def music_download(args, ctx):
                      "subtitle": str(info.get("title") or info.get("source") or url)[:120], "job": job.get("id") if isinstance(job, dict) else "",
                      "actions": [{"icon": "open", "label": tr("Открыть загрузки", "Open downloads"), "open": True,
                                   "detail": {"route": "download"}}]}}
-
-
-# ------------------------------------------------------------------------------------------------------ Characters
 
 @handler("characters.open")
 async def characters_open(args, ctx):
@@ -317,14 +292,10 @@ async def characters_open(args, ctx):
                      "cover": best.get("thumb") if str(best.get("thumb") or "").startswith("data:image/") else ""},
             "client": {"open_module": "characters", "detail": {"query": str(best["id"]), "from": "command"}}}
 
-
-# --------------------------------------------------------------------------------------- API models / Benchmarks
-
 def _monitor_rows(module_id: str, limit: int) -> List[Dict[str, Any]]:
     from . import module_monitor
     events = module_monitor.events(0, module_id).get("events") or []
     return list(reversed(events))[:limit]
-
 
 def _money(value: Any, en: bool) -> str:
     if value is None:
@@ -332,7 +303,6 @@ def _money(value: Any, en: bool) -> str:
     if not value:
         return "free" if en else "бесплатно"
     return f"${value:.3f}".rstrip("0").rstrip(".") if value < 1 else f"${value:.2f}".rstrip("0").rstrip(".")
-
 
 @handler("api-models.recent")
 async def api_models_recent(args, ctx):
@@ -359,7 +329,6 @@ async def api_models_recent(args, ctx):
             "card": {"kind": "list", "module": "api-models", "title": tr("Новые модели API", "New API models"), "items": items,
                      "actions": [{"icon": "open", "label": tr("Открыть ленту", "Open the feed"), "open": True}]}}
 
-
 @handler("benchmarks.leaders")
 async def benchmarks_leaders(args, ctx):
     tr, en = ctx["tr"], ctx["en"]
@@ -380,7 +349,6 @@ async def benchmarks_leaders(args, ctx):
             "card": {"kind": "list", "module": "benchmarks", "title": title, "subtitle": tr("Лидеры", "Leaders"), "items": items,
                      "actions": [{"icon": "open", "label": tr("Открыть «Бенчмарки»", "Open Benchmarks"), "open": True}]}}
 
-
 @handler("benchmarks.changes")
 async def benchmarks_changes(args, ctx):
     tr = ctx["tr"]
@@ -395,7 +363,6 @@ async def benchmarks_changes(args, ctx):
                                   "detail": {"query": str(args.get("topic") or "")}}]},
             "client": {"open_module": "benchmarks", "detail": {"query": str(args.get("topic") or ""), "from": "command"}}
             if args.get("open") else {}}
-
 
 @handler("learn.due")
 async def learn_due(args, ctx):

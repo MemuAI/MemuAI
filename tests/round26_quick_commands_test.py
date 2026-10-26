@@ -21,20 +21,16 @@ from app import youtube_analysis as yt  # noqa: E402
 from app.assistant_actions_win import NullBackend  # noqa: E402
 from tests.assistant_commands_test import NOW, EngineCase, setUpModule, tearDownModule  # noqa: E402,F401
 
-
 def run(coro):
     return asyncio.run(coro)
 
-
 def m(text, conversation=False):
     return intents.match(text, now=NOW, conversation=conversation)
-
 
 SAMPLES = {"text": "hello world", "name": "Telegram", "url": "https://example.com", "query": "test", "path": "/tmp",
            "color": "#ff0000", "time": "10:00", "to": "eur", "from": "usd", "keys": "ctrl+c", "command": "echo 1",
            "goal": "find a table", "task": "open notepad", "prompt": "a cat", "city": "Tokyo", "date": "31.12.2026",
            "items": "a, b", "id": "x", "label": "x"}
-
 
 def sample(key, spec):
     if spec.get("enum"):
@@ -45,7 +41,6 @@ def sample(key, spec):
         return True
     return SAMPLES.get(key, "x")
 
-
 class Page:
     def __init__(self, page=None, text=""):
         self.page = page
@@ -54,7 +49,6 @@ class Page:
 
     def page_text(self, page_id="", limit=60000):
         return self._text
-
 
 class CatalogSmokeTest(EngineCase):
     """Each handler at least once (full and minimal params): no AttributeError/NameError/TypeError anywhere."""
@@ -83,7 +77,6 @@ class CatalogSmokeTest(EngineCase):
                     self.assertNotEqual(card.get("code"), "unknown", (action, params))
                     self.assertIn(card["status"], ("done", "error", "unsupported", "running", "partial", "disabled"), action)
 
-
 class SummarizePageTest(EngineCase):
     def setUp(self):
         super().setUp()
@@ -104,15 +97,15 @@ class SummarizePageTest(EngineCase):
     def test_phrases(self):
         for text in ("саммари страницы", "сделай саммари этой страницы", "кратко перескажи эту страницу",
                      "summarize this page", "дай саммари по статье", "кратко перескажи этот сайт"):
-            # the Quick Ask window answers these with the tab on screen (current_page/read_page), never the clipboard
+
             self.assertIsNone(m(text), text)
         self.assertEqual(m("кратко перескажи")["params"], {"text": ""})
         self.assertEqual(m("кратко перескажи буфер обмена")["params"], {"text": ""})
         self.assertEqual(m("summarize https://example.com/a")["params"], {"text": "https://example.com/a"})
-        # a topic is a question for the model, not the literal text to summarize
+
         self.assertIsNone(m("кратко перескажи что такое квантовая физика"))
         self.assertIsNone(m("summarize the history of Rome"))
-        # mid-chat «кратко перескажи» / «переведи на английский» are about the last answer
+
         self.assertIsNone(m("кратко перескажи", conversation=True))
         self.assertIsNone(m("переведи на английский", conversation=True))
 
@@ -140,7 +133,7 @@ class SummarizePageTest(EngineCase):
             card = run(self.engine.run("text.summarize", {}, source="model"))
         self.assertEqual(fetch.await_args.args[0], "https://news.example/new")
         self.assertEqual(card["status"], "done")
-        manager.current_page = lambda: None      # no browser window now → the clipboard, which needs a click
+        manager.current_page = lambda: None
         self.assertEqual(run(self.engine.run("text.summarize", {}, source="model"))["status"], "confirm")
 
     def test_unfetchable_page_falls_back_to_screen_text(self):
@@ -168,7 +161,6 @@ class SummarizePageTest(EngineCase):
         analyze.assert_not_awaited()
         self.assertEqual(card["status"], "done")
 
-
 class ModelClipboardTest(EngineCase):
     def test_model_reading_the_clipboard_needs_a_click(self):
         self.engine.quick_manager = lambda: None
@@ -178,10 +170,9 @@ class ModelClipboardTest(EngineCase):
             card = run(self.engine.run(action, params, source="model"))
             self.assertEqual(card["status"], "confirm", action)
             self.assertIn("буфер", card["message"])
-        # with a text — no clipboard, no confirmation; the user's own phrase — no confirmation either
+
         self.assertEqual(run(self.engine.run("hash.text", {"text": "abc"}, source="model"))["status"], "done")
         self.assertEqual(run(self.engine.run("hash.text", {}, source="local"))["status"], "done")
-
 
 class AiTextTest(unittest.TestCase):
     def test_reasoning_is_removed(self):
@@ -206,7 +197,6 @@ class AiTextTest(unittest.TestCase):
                 mock.patch("app.quick_ask_endpoint.active", return_value=False):
             self.assertEqual(run(eng._ask_ai("x", "ru", system="TOOL")), "Bonjour")
         self.assertTrue(seen["system"].startswith("TOOL"))
-
 
 class IntentFixesTest(unittest.TestCase):
     def test_units_by_full_name(self):
@@ -239,7 +229,6 @@ class IntentFixesTest(unittest.TestCase):
         self.assertEqual(m("поставь будильник на 23")["params"], {"time": "23:00", "date": "2026-10-08"})
         self.assertIsNone(m("будильник на 30"))
 
-
 class ComputerUseRoutingTest(EngineCase):
     def test_handover_has_no_work_project(self):
         prefs = {"computer_model": "qwen-vl", "computer_max_steps": 9}
@@ -248,10 +237,9 @@ class ComputerUseRoutingTest(EngineCase):
             card = run(self.engine.run("computer.use", {"task": "открой блокнот"}, confirmed=True))
         self.assertEqual(card["status"], "running", card)
         self.assertEqual(card["client"], {"type": "computer", "task": "открой блокнот", "model": "qwen-vl",
-                                          "model_source": "work", "max_steps": 9})   # Round 31: model_source
+                                          "model_source": "work", "max_steps": 9})
         self.assertEqual(m("управляй компьютером открой блокнот")["action"], "computer.use")
         self.assertEqual(m("сделай за меня найди билеты в казань")["params"], {"goal": "найди билеты в казань"})
-
 
 class HelpExamplesTest(unittest.TestCase):
     def test_every_help_example_is_recognized(self):
@@ -263,7 +251,6 @@ class HelpExamplesTest(unittest.TestCase):
         self.assertEqual(m("open sound settings")["params"], {"page": "sound"})
         self.assertEqual(m("my ip")["params"], {"what": "network"})
         self.assertEqual(m("сколько оперативки")["params"], {"what": "ram"})
-
 
 class CurrencyTest(EngineCase):
     def test_names_and_unknown(self):
@@ -283,7 +270,6 @@ class CurrencyTest(EngineCase):
         for text in ("курс доллара", "5 сомов в рубли", "курс лиры", "10 usd to eur", "курс юаня к рублю"):
             self.assertEqual(instant_answers.intent(text), "currency", text)
 
-
 class DateAndYoutubeTest(EngineCase):
     def test_days_until_needs_a_date(self):
         card = run(self.engine.run("date.calc", {"op": "until"}))
@@ -295,7 +281,6 @@ class DateAndYoutubeTest(EngineCase):
         with mock.patch.object(yt, "analyze", mock.AsyncMock(side_effect=exc)):
             card = run(self.engine.run("youtube.analyze", {"url": "https://youtu.be/dQw4w9WgXcQ"}, lang="en"))
         self.assertEqual((card["code"], card["message"]), ("no_captions", "no captions"))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -13,14 +13,12 @@ from app import telegram_use as use
 from app import telegram_use_ai as ai
 from app import telegram_use_config as config
 
-
 def message(mid=1, text="hello", *, sender=7, outgoing=False, media=None):
     row = types.SimpleNamespace(id=mid, raw_text=text, sender_id=sender, chat_id=7, out=outgoing,
         date=dt.datetime.now(dt.timezone.utc), media=media, document=None, photo=None, voice=None,
         audio=None, video=None, reply_to_msg_id=None, fwd_from=None)
     row.get_reply_message = AsyncMock(return_value=None)
     return row
-
 
 class Client:
     def __init__(self):
@@ -54,7 +52,6 @@ class Client:
         return next((m for m in self.rows if m.id == ids), None)
     async def download_media(self, msg, file): file.write(b"x" * 1000)
 
-
 class TempConfig(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix="memuai-tguse-")
@@ -63,7 +60,6 @@ class TempConfig(unittest.TestCase):
         self.patcher.start()
     def tearDown(self):
         self.patcher.stop(); config._stores.clear(); self.tmp.cleanup()
-
 
 class ConfigCase(TempConfig):
     def test_proxy_protocols(self):
@@ -108,7 +104,6 @@ class ConfigCase(TempConfig):
         with patch.object(use,"_instance",runtime):
             use.stop()
         self.assertFalse(runtime.thread.is_alive())
-
 
 class RuntimeCase(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -286,7 +281,6 @@ class RuntimeCase(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(result["has_session"])
         self.assertIn("Devices",result["last_error"])
 
-
 class APICase(TempConfig):
     def test_api_origin_and_private_bridge_permissions(self):
         from fastapi import FastAPI
@@ -301,7 +295,6 @@ class APICase(TempConfig):
             self.assertEqual(client.get("/api/pg/integrations/telegram-use",headers={"Host":"evil.example"}).status_code,403)
             self.assertEqual(client.post("/api/pg/integrations/telegram-use/tool",json={"tool":"telegram_use_send"}).status_code,403)
             self.assertEqual(client.post("/api/pg/integrations/telegram-use/tool",json={"tool":"telegram_use_status"},headers={"X-MemuAI-Telegram-Use":api.bridge_token()}).status_code,200)
-
 
 class AICase(unittest.IsolatedAsyncioTestCase):
     async def test_real_proxy_sse_parser_uses_selected_model_and_filters_thinking(self):
@@ -342,6 +335,5 @@ class AICase(unittest.IsolatedAsyncioTestCase):
         frames = ai.video_content(video.getvalue())
         self.assertGreaterEqual(len(frames),2); self.assertLessEqual(len(frames),12)
         self.assertEqual(frames[0]["type"],"text")
-
 
 if __name__ == "__main__": unittest.main()

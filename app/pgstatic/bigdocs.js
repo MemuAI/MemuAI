@@ -1,17 +1,5 @@
-/* Round 35 — documents of any size in the chat (zone bigdocs; server: app/bigdocs.py, /api/pg/bigdocs/*).
 
-   • A PDF / DOCX / EPUB / FB2 (any size up to 200 MB) or a long TXT/MD/HTML is read WHOLE on this computer:
-     the composer chip shows pages, size and tokens and offers two modes — «Спросить» and «Весь документ».
-   • «Спросить»: when the document fits the model's context the whole text goes with page marks; otherwise a local
-     search picks the fragments for the question. The answer cites pages as [стр. N]: hovering a mark shows the
-     quote from that page, clicking opens the page.
-   • «Весь документ»: map-reduce over the document's chapters with the cost shown BEFORE starting (confirmation above
-     the threshold), a progress card «глава 7 из 20», Stop, and resume (finished chapters are cached on disk).
 
-   Hooks in app.js (one line each): addAttachmentFiles → takes/attach, renderAttachments → chipHtml/wireChips,
-   generate → contextBlocks/systemNote, answerHtml → linkCitations, the message template → html, openAttachmentPreview → preview.
-   Data lives on the message objects (m.bigdoc — the card state, m.bigdocRefs — which documents the answer used), so it follows
-   the chat's active branch (branches contract) without assuming indexes. */
 (() => {
   "use strict";
   const EN = () => (typeof PG_LANG !== "undefined" && PG_LANG === "en");
@@ -37,7 +25,7 @@
     if (!file || /^image\//.test(file.type || "") || file.size > MAX_BYTES) return false;
     const name = String(file.name || "");
     if (PACKED.test(name) || /pdf|wordprocessingml|epub/.test(file.type || "")) return true;
-    return TEXTY.test(name) && file.size > 300 * 1024;          // a short note stays an ordinary text attachment
+    return TEXTY.test(name) && file.size > 300 * 1024;
   }
   const fmtBytes = (n) => (n >= 1024 * 1024 ? `${(n / 1048576).toFixed(1)} ${tr("МБ", "MB")}` : `${Math.max(1, Math.round(n / 1024))} ${tr("КБ", "KB")}`);
   const fmtTokens = (n) => (n >= 1e6 ? `${(n / 1e6).toFixed(1)} ${tr("млн", "M")}` : n >= 1000 ? `${Math.round(n / 1000)} ${tr("тыс.", "K")}` : String(n || 0));
@@ -58,7 +46,6 @@
     return (String(a.name || "").match(/\.(\w{1,6})$/)?.[1] || "DOC").toUpperCase();
   }
 
-  /* ---------------------------------------------------------------- composer chip */
   async function readNdjson(response, onLine) {
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
@@ -71,7 +58,7 @@
       while ((nl = buf.indexOf("\n")) >= 0) {
         const line = buf.slice(0, nl).trim(); buf = buf.slice(nl + 1);
         if (!line) continue;
-        try { last = JSON.parse(line); onLine(last); } catch (e) { /* partial */ }
+        try { last = JSON.parse(line); onLine(last); } catch (e) {  }
       }
     }
     if (buf.trim()) { try { last = JSON.parse(buf.trim()); onLine(last); } catch (e) {} }
@@ -106,7 +93,7 @@
       if (now - lastPaint > 180) { lastPaint = now; patchChip(item) || render(); }
     }).then((doc) => {
       item.pending = false; item.bigdoc = doc; item.progress = "";
-      if (!list.includes(item)) return;                       // removed while reading
+      if (!list.includes(item)) return;
       render();
       toastSafe(tr(`«${item.name}»: ${pagesText(doc)} — можно спрашивать`, `“${item.name}”: ${pagesText(doc)} — ready for questions`), "ok", 3200);
     }).catch((error) => {
@@ -146,7 +133,6 @@
     });
   }
 
-  /* ---------------------------------------------------------------- context for the model */
   function contextLimit(model) {
     try { if (typeof modelContextLimit === "function") return Math.max(4000, +modelContextLimit(model) || 32000); } catch (e) {}
     return 32000;
@@ -165,14 +151,13 @@
     const users = messages.filter((m) => m.role === "user");
     const latest = [...users].reverse().find((m) => !m.internal) || users[users.length - 1];
     const question = String(latest?.content || "").trim();
-    // every distinct document of the conversation, the latest attachment of it wins (its mode)
+
     const docs = new Map();
     for (const m of users) for (const a of (m.attachments || [])) if (a.bigdoc?.id) docs.set(a.bigdoc.id, { a, latest: m === latest });
     if (!docs.size) return [];
     const lang = EN() ? "en" : "ru";
     const limit = contextLimit(model);
-    // «Спросить» = a local search for fragments; only a document that is small anyway (≤ 60K tokens, the server's
-    // mode_hint) goes whole — a 600-page book in every question would cost ~90K tokens per message
+
     let budget = Math.min(60000, Math.floor(limit * 0.45));
     const blocks = [];
     const refs = { docs: [] };
@@ -199,7 +184,7 @@
             + summary + "\n</document>");
           continue;
         }
-        // «Спросить вместо этого» in the confirmation: fall through to the Q&A path
+
       }
       if (info.tokens <= budget) {
         budget -= info.tokens;
@@ -215,7 +200,7 @@
     }
     return blocks;
   }
-  /* A short follow-up («а сколько стоит?») is searched together with the previous question. */
+
   function searchQuery(users, latest, question) {
     const real = users.filter((m) => !m.internal);
     const index = real.indexOf(latest);
@@ -237,8 +222,7 @@
     return parts.join("") + ".</document_citations>";
   }
 
-  /* ---------------------------------------------------------------- whole document: estimate, confirm, run */
-  const waiters = new Map();     // card key → resolve(choice)
+  const waiters = new Map();
   function cardKey(m) { return m._bdKey || (m._bdKey = "bd" + Math.random().toString(36).slice(2, 10)); }
 
   async function runWhole(info, a, assistant, { model, signal, render, question, lang }) {
@@ -309,7 +293,7 @@
       };
       source.onerror = () => {
         if (closed) return;
-        // the connection dropped (the server restarted): poll the state once, the parts done so far are on disk
+
         getJson(`${BASE}/jobs/${job.id}`).then((state) => {
           if (state.status === "done") { stop(); resolve(finishWhole(st, state, render)); }
         }).catch(() => {
@@ -356,7 +340,7 @@
       const pct = st.total ? Math.round((100 * (st.done || 0)) / st.total) : 0;
       const unitCap = String(st.unit || "").replace(/^./, (c) => c.toUpperCase());
       const label = st.reducing ? st.label : (st.total ? `${unitCap} ${st.currentIndex || Math.min(st.total, (st.done || 0) + 1)} ${tr("из", "of")} ${st.total}` : "");
-      // Round 36: «Глава 3 из 6 · Глава 3» — the part title repeats the label; keep only what it adds («Глава 3. Море» → «Море»).
+
       const current = String(st.current || "").replace(/^\s*(?:глава|часть|раздел|chapter|part|section)\s+[\divxlc]+\s*[.:—–-]?\s*/iu, "");
       body = `<div class="bd-progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${st.reducing ? 100 : pct}%"></i></div>
         <div class="bd-line"><b class="bd-label">${esc(label)}</b>${current && !st.reducing ? `<span class="bd-current" title="${esc(st.current)}">${esc(current)}</span>` : ""}<span class="grow"></span><span class="muted bd-count">${num(st.done || 0)}/${num(st.total || 0)}</span></div>
@@ -372,7 +356,7 @@
     else if (st.stage === "skipped") body = `<div class="bd-line muted">${esc(tr("Ответ по найденным фрагментам вместо чтения всего документа", "Answered from the fragments found instead of reading the whole document"))}</div>`;
     return `<div class="bd-card bd-${esc(st.stage)}" data-bd-card="${key}">${head}${body}</div>`;
   }
-  // with parallel requests the card names the earliest part still being read: «Глава 7 из 20 · Название»
+
   function pickCurrent(st) {
     const open = Object.keys(st.inflight || {}).map(Number).sort((x, y) => x - y);
     if (open.length) { st.currentIndex = open[0]; st.current = st.inflight[open[0]]; }
@@ -400,8 +384,7 @@
     if (cite) { event.preventDefault(); openPage(cite.dataset.bdDoc, +cite.dataset.bdPage, cite.dataset.bdName || "", claimOf(cite)); }
   });
 
-  /* ---------------------------------------------------------------- citations */
-  const CITE_RE = /\[(≈)?\s*(стр\.?|страницы?|с\.|p\.|pp\.|page|pages)\s*(\d[\d,\s–\-—и]*?)(?:[,;]\s*(?:§|п\.|пп\.|para\.?|section|раздел|разд\.)[^\]\[]{0,40})?\]/gi;   // «[p. 57, § 57.2]» too
+  const CITE_RE = /\[(≈)?\s*(стр\.?|страницы?|с\.|p\.|pp\.|page|pages)\s*(\d[\d,\s–\-—и]*?)(?:[,;]\s*(?:§|п\.|пп\.|para\.?|section|раздел|разд\.)[^\]\[]{0,40})?\]/gi;
   function pagesOf(body) {
     const out = [];
     for (const part of String(body).split(/[,;]|\sи\s/)) {
@@ -411,7 +394,7 @@
     }
     return out;
   }
-  /* [стр. N] in the rendered answer → buttons (not inside code). The document is the one whose pages include N. */
+
   function linkCitations(htmlText, m) {
     const docs = m?.bigdocRefs?.docs || [];
     if (!docs.length || !/\[/.test(htmlText)) return htmlText;
@@ -437,7 +420,7 @@
     }).join("");
   }
   function claimOf(button) {
-    // the text of the same paragraph/list item before the mark
+
     const block = button.closest("p, li, td, blockquote, h1, h2, h3, h4") || button.parentElement;
     if (!block) return "";
     const range = document.createRange();
@@ -457,7 +440,7 @@
     return promise;
   }
   let tip = null, tipFor = null, tipTimer = 0;
-  // Round 36: the capture «scroll» listener lives only while a tooltip is shown (was: on window for every scroll, always).
+
   function hideTip() { clearTimeout(tipTimer); if (tip) { tip.remove(); window.removeEventListener("scroll", hideTip, true); } tip = null; tipFor = null; }
   function placeTip(button) {
     if (!tip) return;
@@ -507,7 +490,6 @@
   document.addEventListener("focusout", (event) => { if (event.target.closest?.(".bd-cite")) hideTip(); });
   document.addEventListener("keydown", (event) => { if (event.key === "Escape" && tip) hideTip(); });
 
-  /* ---------------------------------------------------------------- page viewer / document preview */
   function highlight(text, quote) {
     const safe = esc(text);
     if (!quote) return safe;

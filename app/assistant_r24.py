@@ -28,7 +28,7 @@ from . import assistant_catalog as catalog
 A, _s, _n, _b, _e = catalog.A, catalog._s, catalog._n, catalog._b, catalog._e
 
 UNITS: Dict[str, Tuple[str, float]] = {
-    # единица → (величина, множитель к базовой)
+
     "mm": ("len", 0.001), "cm": ("len", 0.01), "m": ("len", 1.0), "km": ("len", 1000.0),
     "in": ("len", 0.0254), "ft": ("len", 0.3048), "yd": ("len", 0.9144), "mi": ("len", 1609.344), "nmi": ("len", 1852.0),
     "mg": ("mass", 1e-6), "g": ("mass", 0.001), "kg": ("mass", 1.0), "t": ("mass", 1000.0), "lb": ("mass", 0.45359237),
@@ -51,8 +51,7 @@ ALIASES = {
     "сек": "s", "секунд": "s", "sec": "s", "second": "s", "мин": "min", "минут": "min", "minute": "min",
     "час": "h", "hour": "h", "ч": "h", "день": "day", "дн": "day", "сут": "day", "неделя": "week", "недел": "week",
     "°c": "c", "℃": "c", "цельси": "c", "celsius": "c", "градус": "c", "°f": "f", "фаренгейт": "f", "fahrenheit": "f", "кельвин": "k", "kelvin": "k",
-    # Round 26: полные названия («500 миллиграмм», «2 гигабайта», «3 дня», «10 kilometers») — раньше «миллиграмм»
-    # распознавался как «мил(я)», а остальные не распознавались вовсе, и фраза уходила модели.
+
     "миллиграмм": "mg", "миллилитр": "ml", "тонн": "t", "унци": "oz", "дней": "day", "дня": "day",
     "килобайт": "kb", "мегабайт": "mb", "гигабайт": "gb", "терабайт": "tb",
     "kilometer": "km", "kilometre": "km", "meter": "m", "metre": "m", "centimeter": "cm", "centimetre": "cm",
@@ -61,13 +60,11 @@ ALIASES = {
     "days": "day", "weeks": "week", "hrs": "h", "mins": "min", "secs": "s",
 }
 
-
 def computer_supported() -> bool:
     """Round 31: Computer Use drives the real mouse/keyboard — Windows only. A function (not an inline check) so a
     test stand can run the whole Quick Access → model loop on Linux with a mocked OS layer."""
     import sys
     return sys.platform == "win32"
-
 
 def unit_key(text: str) -> str:
     t = str(text or "").strip().lower().replace("ё", "е").rstrip(".")
@@ -75,14 +72,13 @@ def unit_key(text: str) -> str:
         return t
     if t in ALIASES:
         return ALIASES[t]
-    for k in sorted(ALIASES, key=len, reverse=True):     # «километров», «фунтов», «градусов цельсия»
+    for k in sorted(ALIASES, key=len, reverse=True):
         if len(k) >= 3 and t.startswith(k):
             return ALIASES[k]
     for k in sorted(ALIASES, key=len, reverse=True):
         if len(k) >= 5 and k in t:
             return ALIASES[k]
     return ""
-
 
 def convert(amount: float, src: str, dst: str) -> float:
     a, b = unit_key(src), unit_key(dst)
@@ -96,13 +92,11 @@ def convert(amount: float, src: str, dst: str) -> float:
         return c if b == "c" else c * 9 / 5 + 32 if b == "f" else c + 273.15
     return amount * UNITS[a][1] / UNITS[b][1]
 
-
 def fmt_num(x: float) -> str:
     if abs(x) >= 1e6 or (abs(x) < 1e-3 and x):
         return f"{x:.4g}"
     s = f"{x:,.4f}".rstrip("0").rstrip(".")
     return s.replace(",", "\u202f")
-
 
 def make_password(length: int = 20, symbols: bool = True) -> str:
     length = max(8, min(128, int(length or 20)))
@@ -112,7 +106,6 @@ def make_password(length: int = 20, symbols: bool = True) -> str:
         pw = "".join(secrets.choice(alphabet) for _ in range(length))
         if all(any(c in pool for c in pw) for pool in pools):
             return pw
-
 
 NEW_ACTIONS: List[Dict[str, Any]] = [
     A("password.generate", "assistant", "safe", "Сгенерировать пароль", "Generate a password",
@@ -147,13 +140,11 @@ NEW_ACTIONS: List[Dict[str, Any]] = [
       {"task": _s("What to do on the computer")}, ("task",)),
 ]
 NEW_IDS = [a["id"] for a in NEW_ACTIONS]
-#: Системная подсказка для текстовых инструментов (перевод, пересказ, YouTube): без неё ``Engine._ask_ai`` берёт
-#: подсказку шага рутины «отвечай кратко», и подробный конспект видео превращался в пару строк.
+
 TOOL_SYSTEM = ("You are a text tool inside MemuAI Quick Ask. Follow the instruction exactly and output only the "
                "result, without preambles or comments about the task.")
-#: Действия, чьи параметры не пишутся в журнал (секреты/личный текст).
-NO_AUDIT_PARAMS = {"password.generate", "text.translate", "text.summarize"}
 
+NO_AUDIT_PARAMS = {"password.generate", "text.translate", "text.summarize"}
 
 def install() -> None:
     """Идемпотентно добавить действия в каталог и фразы в распознаватель."""
@@ -186,15 +177,12 @@ def install() -> None:
     ]
     intents._RULES[0:0] = rules
 
-
-#: Язык перевода — только названия языков: «переведи на карту», «переведи 500 рублей на сбер» — это деньги, не перевод.
 _LANGS = (r"(?:английск|русск|немецк|французск|испанск|итальянск|китайск|японск|корейск|украинск|белорусск|казахск|"
           r"турецк|арабск|португальск|польск|чешск|греческ|иврит|хинди|вьетнамск|тайск|индонезийск|нидерландск|голландск|"
           r"шведск|финск|норвежск|датск|венгерск|румынск|болгарск|сербск|грузинск|армянск|азербайджанск|узбекск|латыш|литовск|"
           r"эстонск|татарск|латин)\w*|english|russian|german|french|spanish|italian|chinese|japanese|korean|ukrainian|"
           r"kazakh|turkish|arabic|portuguese|polish|czech|greek|hebrew|hindi|vietnamese|thai|indonesian|dutch|swedish|"
           r"finnish|norwegian|danish|hungarian|romanian|bulgarian|serbian|georgian|armenian|latin|en|ru|de|fr|es|it|zh|ja|ko|uk")
-
 
 def _youtube(m: "re.Match[str]", ctx: Any):
     url = m.group(1)
@@ -209,11 +197,9 @@ def _youtube(m: "re.Match[str]", ctx: Any):
         return "youtube.analyze", {"url": url, "mode": "question", "question": rest}
     return "youtube.analyze", {"url": url, "mode": mode}
 
-
 def _youtube_clip(m: "re.Match[str]", ctx: Any):
     mode = "timestamps" if "таймкод" in m.group(0).lower() else "brief"
     return "youtube.analyze", {"url": "", "mode": mode}
-
 
 def _password(m: "re.Match[str]", ctx: Any):
     params: Dict[str, Any] = {}
@@ -223,7 +209,6 @@ def _password(m: "re.Match[str]", ctx: Any):
         params["symbols"] = False
     return "password.generate", params
 
-
 def _convert(m: "re.Match[str]", ctx: Any):
     amount = float(m.group(1).replace(",", "."))
     a, b = unit_key(m.group(2)), unit_key(m.group(3))
@@ -231,13 +216,11 @@ def _convert(m: "re.Match[str]", ctx: Any):
         return None
     return "unit.convert", {"amount": amount, "from": a, "to": b}
 
-
 def _translate(m: "re.Match[str]", ctx: Any):
     text = (m.group(2) or "").strip()
-    if text and str(getattr(ctx, "text", "")).endswith("?"):   # the matcher strips the «?» — it belongs to the text
+    if text and str(getattr(ctx, "text", "")).endswith("?"):
         text += "?"
     return _translate_to(m.group(1), text)
-
 
 def _translate_to(target: str, text: str):
     text = text.strip()
@@ -246,10 +229,8 @@ def _translate_to(target: str, text: str):
         text = ""
     return "text.translate", {"to": target, "text": text}
 
-
 _PAGE_REF = re.compile(r"^(?:(?:эт(?:у|ой|а|от|ого)|текущ\w+|открыт\w+|the|this|current)\s+)?"
                        r"(?:страниц\w*|стать\w*|вкладк\w*|сайт\w*|page|article|tab|site)$", re.I)
-
 
 def _summarize(m: "re.Match[str]", ctx: Any):
     """«кратко перескажи» → буфер, «… https://…» → ссылка, «… эту страницу» → модели (окно читает вкладку).
@@ -260,20 +241,16 @@ def _summarize(m: "re.Match[str]", ctx: Any):
     if not rest:
         return "text.summarize", {"text": ""}
     if _PAGE_REF.match(rest):
-        # «перескажи эту страницу» — вопрос о вкладке: его ведёт окно быстрого доступа (current_page + read_page у
-        # модели, честное «страница не найдена» без вкладки) — r26-quick-core
+
         return None
     if re.fullmatch(r"https?://\S+", rest):
         return "text.summarize", {"text": rest}
     return None
 
-
 def _dfy(m: "re.Match[str]", ctx: Any):
     goal = m.group(1).strip()
     return ("dfy.start", {"goal": goal}) if len(goal) >= 4 else None
 
-
-# ------------------------------------------------------------------ обработчики
 def bind(eng: Any) -> None:
     from .assistant_commands import ActionError, tr
 
@@ -337,7 +314,7 @@ def bind(eng: Any) -> None:
                 text = str(fetched.get("text") or "")
             except Exception:
                 text = ""
-        if len(text.strip()) < 200:                   # страница за логином / пустая без JS — читаем экран
+        if len(text.strip()) < 200:
             try:
                 manager = eng.quick_manager()
                 shown = await eng._blocking(manager.page_text, str(page.get("id") or ""), 60_000)
@@ -352,8 +329,7 @@ def bind(eng: Any) -> None:
     async def h_summarize(params: Dict[str, Any], lang: str = "ru", source: str = "local", **_k: Any) -> Dict[str, Any]:
         from . import youtube_analysis as yt
         text = str(params.get("text") or "").strip()
-        # Пустой текст от модели — почти всегда «перескажи страницу»: открытая вкладка, а не буфер обмена
-        # (там мог остаться любой старый текст — «саммари про бенчмарк аквариум» вместо статьи).
+
         page = await eng.open_page() if params.get("page") or (not text and source == "model") else None
         if params.get("page") and page is None:
             raise ActionError(tr(lang, "Не вижу открытой страницы: вызовите быстрый доступ из вкладки браузера или дайте ссылку.",
@@ -367,7 +343,7 @@ def bind(eng: Any) -> None:
             text = await page_text(page, lang)
         else:
             text = await text_or_clip(params, lang)
-            # только ссылка: любые 11 букв/цифр в буфере («password123») — тоже «id видео» для yt.video_id
+
             if re.fullmatch(r"https?://\S+", text) and yt.video_id(text):
                 return await h_youtube({"url": text, "mode": "brief"}, lang=lang)
             if re.fullmatch(r"https?://\S+", text):
@@ -425,8 +401,7 @@ def bind(eng: Any) -> None:
 
     async def h_dfy(params: Dict[str, Any], lang: str = "ru", **_k: Any) -> Dict[str, Any]:
         goal = str(params.get("goal") or "").strip()
-        # Запуск — на стороне страницы (window.MemuDFY.start(goal, context, "quick")): у неё есть контекст переписки
-        # и карточка прогресса. Здесь — только подтверждённая пользователем передача.
+
         return {"message": tr(lang, "Передаю задачу агенту «Сделай за меня»…", "Handing the task to the Do-For-You agent…"),
                 "kind": "dfy", "status": "running", "client": {"type": "dfy", "goal": goal, "source": "quick"}}
 
@@ -440,20 +415,17 @@ def bind(eng: Any) -> None:
         prefs = load_preferences()
         if prefs.get("computer_use_enabled") is False:
             raise ActionError(tr(lang, "Управление компьютером выключено (Настройки → Работа).", "Computer use is off (Settings → Work)."), "disabled")
-        # Round 31 (r31-quick): an empty Settings → Work model no longer stops Quick Access with «choose a vision
-        # model» — the run uses the window's own model (the page fills it in and checks that it sees, see
-        # quick-computer.js); «no_model» only when there is no model at all.
+
         model = computer_model(prefs)
         if not model:
             raise ActionError(tr(lang, "Нет модели для управления компьютером: выберите модель в окне быстрого доступа или в Настройки → Работа.",
                                  "No model for computer use: pick a model in the Quick Access window or in Settings → Work."), "no_model")
-        # Без project_id: /api/work/computer/run принимает source:"quick" без проекта Work, а любой project_id там
-        # проверяется — устаревший active_id (проект удалён) давал «не найден» вместо запуска (Round 26).
+
         return {"message": tr(lang, "Передаю управление агенту. Каждое действие спросит разрешения; Escape — остановить.",
                               "Handing control to the agent. Each step asks for approval; Escape stops it."),
                 "kind": "computer", "status": "running",
                 "client": {"type": "computer", "task": str(params.get("task") or "")[:6000], "model": model,
-                           # Round 31: «work» = chosen in Settings → Work (wins); «quick» = the window's model fallback
+
                            "model_source": "work" if str(prefs.get("computer_model") or "").strip() and model == str(prefs.get("computer_model")).strip() else "quick",
                            "max_steps": int(prefs.get("computer_max_steps") or 12)}}
 
@@ -461,12 +433,9 @@ def bind(eng: Any) -> None:
                          "text.translate": h_translate, "text.summarize": h_summarize, "youtube.analyze": h_youtube,
                          "dfy.start": h_dfy})
 
-
-# ------------------------------------------------------------------ статус голоса быстрого доступа
 STT_LABELS = {"": ("как в «Голос и Live»", "as in Voice & Live"), "local": ("локальная модель", "local model"), "api": ("API", "API")}
 TTS_LABELS = {"windows": ("голоса Windows", "Windows voices"), "downloaded": ("скачанный голос", "downloaded voice"),
               "api": ("API", "API"), "local": ("локальный сервер", "local server")}
-
 
 def voice_status(prefs: Dict[str, Any], quick: Dict[str, Any], stt_models: List[Dict[str, Any]],
                  tts_models: List[Dict[str, Any]], windows_voices: List[Dict[str, Any]], platform: str = "win32",
@@ -525,9 +494,7 @@ def voice_status(prefs: Dict[str, Any], quick: Dict[str, Any], stt_models: List[
                    fix="" if ready else "download", fix_id=first, fix_kind="tts",
                    downloading=bool(row and row.get("download_status") == "running"), progress=(row or {}).get("progress", 0))
     else:
-        # Round 25: the cloud service is named (OpenAI / Gemini / ElevenLabs / Azure, from the URL — tts_providers)
-        # and a known cloud service without a key is not «ready». The voice override of Quick Access applies to the
-        # provider in use (assistant_commands.voice_prefs: the local server's voice for «local»).
+
         from . import tts_providers
         local = tts_provider == "local"
         url = str(prefs.get("voice_tts_local_url" if local else "voice_tts_api_url") or "")
@@ -548,11 +515,9 @@ def voice_status(prefs: Dict[str, Any], quick: Dict[str, Any], stt_models: List[
         "Модели MemuAI Proxy для голоса не используются: «API» — это адрес и ключ из Настройки → Голос и Live.",
         "MemuAI Proxy models are not used for voice: “API” means the URL and key from Settings → Voice & Live.")}
 
-
 def _host(url: str) -> str:
     m = re.match(r"https?://([^/]+)", str(url or "").strip())
     return m.group(1) if m else ""
-
 
 def register(app, eng: Any) -> None:
     """``GET /api/assistant/voice/status?lang=`` и ``/api/youtube/*``."""

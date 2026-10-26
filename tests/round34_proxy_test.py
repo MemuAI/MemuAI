@@ -23,7 +23,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 STATIC = ROOT / "app" / "static"
 
-
 def _request(body):
     payload = json.dumps(body).encode()
     sent = False
@@ -38,10 +37,8 @@ def _request(body):
     return Request({"type": "http", "method": "POST", "path": "/",
                     "headers": [(b"content-type", b"application/json")]}, receive)
 
-
 def _chunk(delta, finish=None):
     return {"object": "chat.completion.chunk", "choices": [{"index": 0, "delta": delta, "finish_reason": finish}]}
-
 
 def _call(handler, body, chunks=()):
     """Run an API handler against a fake chat service; returns (response, params the service got)."""
@@ -70,7 +67,6 @@ def _call(handler, body, chunks=()):
     response, streamed = asyncio.run(run())
     return response, seen, streamed
 
-
 def _sse_events(text):
     events = []
     for block in text.split("\n\n"):
@@ -78,7 +74,6 @@ def _sse_events(text):
         if data and data[0] != "[DONE]":
             events.append(json.loads(data[0]))
     return events
-
 
 class OpenAIParamsTest(unittest.TestCase):
     """#1: stop / seed / penalties / response_format reach the provider."""
@@ -103,7 +98,6 @@ class OpenAIParamsTest(unittest.TestCase):
     def test_custom_provider_forwards_response_format(self):
         source = (ROOT / "app" / "providers" / "custom.py").read_text(encoding="utf-8")
         self.assertIn('("response_format", "response_format")', source)
-
 
 class AnthropicParamsTest(unittest.TestCase):
     """#2: stop_sequences / top_k / thinking; thinking blocks come back."""
@@ -132,7 +126,7 @@ class AnthropicParamsTest(unittest.TestCase):
         blocks = response["content"]
         self.assertEqual([b["type"] for b in blocks], ["thinking", "text"])
         self.assertEqual(blocks[0]["thinking"], "Let me think.")
-        # Without «thinking» the reasoning stays out of the answer.
+
         response, _p, _ = _call(anthropic_api.messages, self.BODY, self.CHUNKS)
         self.assertEqual([b["type"] for b in response["content"]], ["text"])
 
@@ -147,7 +141,6 @@ class AnthropicParamsTest(unittest.TestCase):
         self.assertEqual(stops, [0, 1])
         deltas = [e["delta"]["type"] for e in events if e["type"] == "content_block_delta"]
         self.assertEqual(deltas, ["thinking_delta", "signature_delta", "text_delta"])
-
 
 class PublicScrubTest(unittest.TestCase):
     """#3: the public server does not name the owner's accounts, hosts or hints."""
@@ -172,7 +165,6 @@ class PublicScrubTest(unittest.TestCase):
         self.assertEqual(scrub_sse_chunk(plain), plain)
         self.assertFalse(scrub_error_payload({"choices": []}))
 
-
 class ErrorTextTest(unittest.TestCase):
     """#4 the first-byte timeout speaks English to API clients; #5 no libcurl boilerplate tail."""
 
@@ -191,7 +183,7 @@ class ErrorTextTest(unittest.TestCase):
                         return self
 
                     async def __anext__(self):
-                        raise asyncio.TimeoutError()      # what asyncio.wait_for raises on a silent upstream
+                        raise asyncio.TimeoutError()
                 return It()
 
         async def run():
@@ -221,7 +213,6 @@ class ErrorTextTest(unittest.TestCase):
                 "See https://curl.se/libcurl/c/libcurl-errors.html first for more details.")
         self.assertEqual(safe_provider_error(text), "Failed to perform, curl: (28) Operation timed out after 30000 milliseconds.")
 
-
 class VisionRulesTest(unittest.TestCase):
     """#6: vision hints checked live in October 2026."""
 
@@ -232,8 +223,7 @@ class VisionRulesTest(unittest.TestCase):
             self.assertIs(vision_hint(model), True, model)
         for model in ("kimi-k2", "kimi-k2-0905", "glm-5.3", "deepseek-chat"):
             self.assertIs(vision_hint(model), False, model)
-        self.assertIsNot(vision_hint("deepseek-v4-flash"), True)   # answered «I don't see any image» live
-
+        self.assertIsNot(vision_hint("deepseek-v4-flash"), True)
 
 class StaticUiTest(unittest.TestCase):
     """#9 «Only free» in the model picker; #10/#15 the limit badge; cache version."""
@@ -261,7 +251,6 @@ class StaticUiTest(unittest.TestCase):
     @unittest.skipUnless(shutil.which("node"), "node is not installed")
     def test_app_js_parses(self):
         subprocess.run(["node", "--check", str(STATIC / "app.js")], check=True)
-
 
 class BackgroundCheckTest(unittest.TestCase):
     """#15: the background account check keeps «limit reached» instead of turning the card green."""
@@ -310,7 +299,6 @@ class BackgroundCheckTest(unittest.TestCase):
         self.assertEqual(acc.status, ST_OK)
         self.assertEqual(acc.status_message, message)
 
-
 class DesignFixesTest(unittest.TestCase):
     """Design items: one accounts hint, no duplicate «Add account», equal tiles, no empty «Note» column,
     public step text, «Per page», the assistant button in a narrow window."""
@@ -332,7 +320,7 @@ class DesignFixesTest(unittest.TestCase):
         self.assertNotIn('t("set.models.note")', self.js)
         self.assertIn('class="pm-note"', self.js)
         caps = (STATIC / "model_caps.css").read_text(encoding="utf-8")
-        self.assertNotIn("nth-child(7)", caps)       # the context column is the 6th now
+        self.assertNotIn("nth-child(7)", caps)
 
     def test_public_models_show_readable_names(self):
         public = (STATIC / "public.js").read_text(encoding="utf-8")
@@ -346,7 +334,6 @@ class DesignFixesTest(unittest.TestCase):
 
     def test_provider_tiles_share_a_height(self):
         self.assertIn(".pick-grid { grid-auto-rows: 1fr; }", self.css)
-
 
 if __name__ == "__main__":
     unittest.main()

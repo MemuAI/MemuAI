@@ -6,19 +6,16 @@ from pathlib import Path
 
 from app.pgdata import INTERNAL_PROMPTS
 
-
 ROOT = Path(__file__).resolve().parents[1]
-
 
 class PromptCatalogueText(unittest.TestCase):
     def test_media_router_russian_description_is_intact(self) -> None:
-        # Round 29 (r29c-media): the unused "image-generation-router" was replaced by the real media router.
+
         self.assertFalse(any(item["id"] == "image-generation-router" for item in INTERNAL_PROMPTS))
         row = next(item for item in INTERNAL_PROMPTS if item["id"] == "media-router")
         text = row["description_ru"]
         self.assertIn("модели решений", text)
         self.assertNotIn("\ufffd", text)
-
 
 class InterfaceSourceContracts(unittest.TestCase):
     def setUp(self) -> None:
@@ -57,7 +54,6 @@ class InterfaceSourceContracts(unittest.TestCase):
         names = self.css.split(".model-id-full", 1)[1].split("}", 1)[0]
         self.assertIn("overflow-wrap: anywhere", names)
         self.assertIn(".dd-list { overflow-x: hidden;", self.css)
-
 
 if __name__ == "__main__":
     unittest.main()

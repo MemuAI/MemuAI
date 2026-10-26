@@ -33,7 +33,6 @@ from app import gdrive_sync_drive as drive  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def make_data(root: Path) -> None:
     (root / "memuai" / "modules" / "notes").mkdir(parents=True)
     (root / "memuai" / "profiles" / "p2").mkdir(parents=True)
@@ -51,7 +50,6 @@ def make_data(root: Path) -> None:
         path = root / junk
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("junk", encoding="utf-8")
-
 
 class ClassificationTest(unittest.TestCase):
     def test_categories_and_exclusions(self) -> None:
@@ -88,15 +86,14 @@ class ClassificationTest(unittest.TestCase):
         self.assertNotIn("telegram_bot_token", cleaned)
         self.assertNotIn("smtp_password", cleaned)
         self.assertNotIn("search_api_keys", cleaned)
-        self.assertEqual(cleaned["max_tokens"], 4096)       # numbers are never secrets
-        self.assertEqual(cleaned["voice_stt_api_key"], "")  # empty values stay
+        self.assertEqual(cleaned["max_tokens"], 4096)
+        self.assertEqual(cleaned["voice_stt_api_key"], "")
         self.assertEqual(cleaned["nested"], {"ok": 1})
         local = {"telegram_bot_token": "LOCAL", "smtp_password": "LP", "nested": {"client_secret": "LS"}}
         merged = core._merge_redacted(cleaned, local, removed)
         self.assertEqual(merged["telegram_bot_token"], "LOCAL")
         self.assertEqual(merged["nested"]["client_secret"], "LS")
         self.assertEqual(merged["language"], "ru")
-
 
 class CryptoTest(unittest.TestCase):
     def test_roundtrip_tamper_and_wrong_passphrase(self) -> None:
@@ -136,7 +133,6 @@ class CryptoTest(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-
 class FolderBackupTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="r29sync-"))
@@ -162,11 +158,11 @@ class FolderBackupTest(unittest.TestCase):
         self.assertIn("memuai/chats.json", files)
         self.assertIn("memuai/profiles/p2/chats.json", files)
         self.assertIn("config.json", files)
-        self.assertNotIn("accounts.json", files)            # secrets are off by default
+        self.assertNotIn("accounts.json", files)
         for junk in ("logs/requests.jsonl", "memuai/proxy.json", "memuai/pricing-cache.json"):
             self.assertNotIn(junk, files)
         self.assertTrue(all(not k.startswith("memuai/sync/") for k in files))
-        # Tokens are cut out of settings files: no secret byte anywhere in the repository.
+
         raw = b"".join(p.read_bytes() for p in self.repo.iterdir())
         packs = [p for p in self.repo.iterdir() if p.name.startswith("memuai-pack-")]
         for pack in packs:
@@ -185,10 +181,10 @@ class FolderBackupTest(unittest.TestCase):
         (self.root / "memuai" / "chats.json").write_text('[{"id": "c1", "messages": ["hello", "again"]}]', encoding="utf-8")
         second = self.svc.backup("auto")
         self.assertFalse(second["unchanged"])
-        self.assertEqual(second["new_files"], 1)            # only the changed file is uploaded
+        self.assertEqual(second["new_files"], 1)
         manifest = self._manifest(second["id"])
         self.assertEqual(set(manifest["header"]["packs"]) - {n for n in os.listdir(self.repo)}, set())
-        # Retention: keep 2 versions, a pinned one survives.
+
         self.svc.pin(first["id"], True)
         self.svc.save_settings({"keep_versions": 1})
         for i in range(3):
@@ -196,13 +192,13 @@ class FolderBackupTest(unittest.TestCase):
             last = self.svc.backup("manual")
         ids = [row["id"] for row in self.svc.list_snapshots()["snapshots"]]
         self.assertEqual(set(ids), {first["id"], last["id"]})
-        # Garbage collection: every pack left is referenced by a kept manifest.
+
         referenced = set()
         for snap in ids:
             referenced.update(self._manifest(snap)["header"]["packs"])
         on_disk = {n for n in os.listdir(self.repo) if n.startswith("memuai-pack-")}
         self.assertEqual(on_disk, referenced)
-        # The pinned first snapshot is still fully restorable.
+
         preview = self.svc.preview_restore(first["id"])
         self.assertIn("chats", preview["categories"])
 
@@ -218,10 +214,10 @@ class FolderBackupTest(unittest.TestCase):
         self.assertTrue(report["ok"])
         restored = json.loads(prefs.read_text(encoding="utf-8"))
         self.assertEqual(restored["language"], "ru")
-        self.assertEqual(restored["telegram_bot_token"], "NEW-LOCAL")   # the local token is kept
+        self.assertEqual(restored["telegram_bot_token"], "NEW-LOCAL")
         self.assertEqual(json.loads((self.root / "memuai" / "chats.json").read_text())[0]["id"], "c1")
-        self.assertFalse((self.root / "memuai" / "modules" / "extra" / "index.html").exists())  # mirror
-        self.assertEqual(json.loads((self.root / "memuai" / "memory.json").read_text())["items"], ["changed"])  # not selected
+        self.assertFalse((self.root / "memuai" / "modules" / "extra" / "index.html").exists())
+        self.assertEqual(json.loads((self.root / "memuai" / "memory.json").read_text())["items"], ["changed"])
         self.assertTrue((self.svc.safety_dir() / report["safety"]).is_file())
         undo = self.svc.undo_restore(report["safety"])
         self.assertTrue(undo["ok"])
@@ -243,14 +239,14 @@ class FolderBackupTest(unittest.TestCase):
         self.svc.restore(snap, ["settings"])
         self.assertFalse((self.root.parent / "escaped.json").exists())
         self.assertEqual((self.root / "accounts.json").read_text(), accounts_before)
-        # The sync key store is never written from a manifest: unchanged, or still absent.
+
         self.assertEqual(secrets_file.read_bytes() if secrets_file.exists() else None, secrets_before)
 
     def test_encryption_secrets_and_restore_on_another_pc(self) -> None:
         with self.assertRaises(core.SyncError):
-            self.svc.save_settings({"include_secrets": True})          # secrets need encryption
+            self.svc.save_settings({"include_secrets": True})
         with self.assertRaises(core.SyncError):
-            self.svc.save_settings({"encrypt": True})                  # encryption needs a passphrase
+            self.svc.save_settings({"encrypt": True})
         self.svc.save_settings({"passphrase": "my long passphrase", "encrypt": True, "include_secrets": True})
         snap = self.svc.backup("manual")
         self.assertTrue(snap["encrypted"])
@@ -259,7 +255,7 @@ class FolderBackupTest(unittest.TestCase):
         blob = b"".join(p.read_bytes() for p in self.repo.iterdir())
         for secret in (b"SESSION-COOKIE", b"hello", b"likes tea", b"SECRET-BOT"):
             self.assertNotIn(secret, blob)
-        # Another PC: empty data folder, same backup folder, no stored keys.
+
         other_root = self.tmp / "other"
         other_root.mkdir()
         other = core.SyncService(other_root)
@@ -311,7 +307,7 @@ class FolderBackupTest(unittest.TestCase):
         self.assertTrue(status["last_success"])
         self.assertIsNone(status["last_error"])
         self.assertEqual(status["history"][0]["kind"], "backup")
-        self.assertNotIn('"passphrase"', json.dumps(status))       # only the has_passphrase flag
+        self.assertNotIn('"passphrase"', json.dumps(status))
 
     def test_failure_is_recorded_with_backoff(self) -> None:
         shutil.rmtree(self.dest)
@@ -322,7 +318,6 @@ class FolderBackupTest(unittest.TestCase):
         self.assertEqual(state["last_error"]["code"], "folder_missing")
         due = self.svc.next_due()
         self.assertGreaterEqual(due, state["last_attempt"] + 299)
-
 
 class SchedulerTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -338,25 +333,25 @@ class SchedulerTest(unittest.TestCase):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_due_tick_request_and_exit(self) -> None:
-        self.assertGreater(self.svc.next_due(), time.time())       # first run 2 minutes after enabling
+        self.assertGreater(self.svc.next_due(), time.time())
         self.svc._update_state(last_success=time.time() - 3700)
         result = self.svc.tick()
         self.assertTrue(result and result["id"])
-        self.assertIsNone(self.svc.tick())                         # not due again
+        self.assertIsNone(self.svc.tick())
         self.svc.request("exit")
-        self.assertIsNotNone(self.svc.tick())                      # a request is served at once
+        self.assertIsNotNone(self.svc.tick())
         self.assertFalse((self.svc.dir / "request.json").exists())
-        # On exit: with a live Proxy scheduler the backup is handed over…
+
         proxy = core.SyncService(self.root, role="proxy")
         proxy._write_json("heartbeat-proxy.json", {"pid": os.getpid(), "ts": time.time()})
         self.assertEqual(self.svc.on_exit(), "handed")
         self.assertTrue((self.svc.dir / "request.json").exists())
-        # …the installer's quick close only leaves a request…
+
         self.assertEqual(self.svc.on_exit(quick=True), "queued")
-        # …and without the Proxy MemuAI makes it itself.
+
         (self.svc.dir / "heartbeat-proxy.json").unlink()
         self.assertEqual(self.svc.on_exit(), "done")
-        # Paused (safe mode): nothing happens.
+
         self.svc.paused_reason = lambda: "safe_mode"
         self.assertEqual(self.svc.on_exit(), "none")
         self.svc._update_state(last_success=0)
@@ -370,7 +365,6 @@ class SchedulerTest(unittest.TestCase):
         self.assertEqual((local.tm_hour, local.tm_min), (3, 30))
         self.assertGreater(due, time.time())
 
-
 class FakeGoogle:
     """In-memory Google OAuth + Drive v3 sufficient for the sync feature."""
 
@@ -381,8 +375,8 @@ class FakeGoogle:
         self.access = "ya29.ACCESS-1"
         self.refresh = "1//REFRESH-xyz"
         self.revoked = False
-        self.fail_next = 0          # 503 for the next N API requests
-        self.expire_next = False    # 401 once
+        self.fail_next = 0
+        self.expire_next = False
         self.requests: list[str] = []
         self.lock = threading.Lock()
 
@@ -438,7 +432,7 @@ class FakeGoogle:
                     continue
                 rows.append({"id": fid, "name": row["name"], "size": str(len(row["data"])), "modifiedTime": row["modified"]})
             page = int(url.params.get("pageToken") or 0)
-            chunk = rows[page:page + 3]                 # tiny pages exercise nextPageToken
+            chunk = rows[page:page + 3]
             body = {"files": chunk}
             if page + 3 < len(rows):
                 body["nextPageToken"] = str(page + 3)
@@ -479,7 +473,7 @@ class FakeGoogle:
             have = len(session["data"])
             return httpx.Response(308, headers={"Range": f"bytes=0-{have - 1}"} if have else {})
         if session["flaky"] and session["data"]:
-            session["flaky"] = False   # drop the second chunk once: the client must ask and resume
+            session["flaky"] = False
             return httpx.Response(503)
         start, end = (int(x) for x in rng.split(" ")[1].split("/")[0].split("-"))
         assert start == len(session["data"]), (start, len(session["data"]))
@@ -497,13 +491,12 @@ class FakeGoogle:
                            "modified": f"2026-10-09T12:{len(self.files) // 60:02d}:{len(self.files) % 60:02d}.000Z"}
         return fid
 
-
 class DriveTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="r29drive-"))
         self.root = self.tmp / "data"
         make_data(self.root)
-        # A file large enough for the resumable path (with the limits lowered below).
+
         (self.root / "memuai" / "companion").mkdir(parents=True, exist_ok=True)
         (self.root / "memuai" / "companion" / "voice.wav").write_bytes(os.urandom(700 * 1024))
         self.google = FakeGoogle()
@@ -529,7 +522,7 @@ class DriveTest(unittest.TestCase):
         query = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(started["auth_url"]).query))
         self.assertEqual(query["code_challenge_method"], "S256")
         self.assertIn(drive.SCOPE_APPDATA, query["scope"])
-        self.assertNotIn("auth/drive ", query["scope"] + " ")     # never the full-Drive scope
+        self.assertNotIn("auth/drive ", query["scope"] + " ")
         self.assertTrue(query["redirect_uri"].startswith("http://127.0.0.1:"))
         self.google.challenge = query["code_challenge"]
         redirect = query["redirect_uri"] + "?" + urllib.parse.urlencode({"state": query["state"], "code": "AUTH-CODE"})
@@ -559,18 +552,18 @@ class DriveTest(unittest.TestCase):
         stored = (self.svc.dir / "secrets.json").read_text()
         self.assertNotIn("REFRESH-xyz", stored)
         self.assertEqual(self.svc.state()["account"]["email"], "user@example.com")
-        self.google.fail_next = 2          # transient 503s are retried
+        self.google.fail_next = 2
         result = self.svc.backup("manual")
         self.assertFalse(result["unchanged"])
         names = {row["name"] for row in self.google.files.values()}
         self.assertTrue(any(n.startswith("memuai-manifest-") for n in names))
         self.assertTrue(all(row["parents"] == ["appDataFolder"] for row in self.google.files.values()))
-        # The access token expired: refreshed transparently.
+
         self.google.expire_next = True
         listed = self.svc.list_snapshots()
         self.assertEqual(len(listed["snapshots"]), 1)
         self.assertEqual(listed["target"], "Google Drive")
-        # Restore through Drive.
+
         wav = (self.root / "memuai" / "companion" / "voice.wav").read_bytes()
         (self.root / "memuai" / "companion" / "voice.wav").write_bytes(b"broken")
         (self.root / "memuai" / "chats.json").write_text("[]", encoding="utf-8")
@@ -578,10 +571,10 @@ class DriveTest(unittest.TestCase):
         self.assertTrue(report["ok"])
         self.assertEqual((self.root / "memuai" / "companion" / "voice.wav").read_bytes(), wav)
         self.assertIn("c1", (self.root / "memuai" / "chats.json").read_text())
-        # Delete the snapshot: its packs go too.
+
         self.svc.delete_snapshot(result["id"])
         self.assertFalse(any(row["name"].startswith(("memuai-pack-", "memuai-manifest-")) for row in self.google.files.values()))
-        # Disconnect revokes the token at Google.
+
         self.svc.auth.disconnect()
         self.assertTrue(self.google.revoked)
         self.assertFalse(self.svc.auth.connected())
@@ -596,7 +589,7 @@ class DriveTest(unittest.TestCase):
         self.assertEqual(len(folders), 1)
         self.assertTrue(all(folders[0] in row["parents"] for row in self.google.files.values()
                             if row["name"].startswith("memuai-")))
-        # Access revoked in the Google account: a clear «connect again» error.
+
         self.google.revoked = True
         self.google.access = "ya29.REVOKED"
         self.svc.auth._access = ("", 0.0)
@@ -604,7 +597,6 @@ class DriveTest(unittest.TestCase):
             self.svc.backup("manual")
         self.assertEqual(caught.exception.code, "invalid_grant")
         self.assertEqual(self.svc.state()["last_error"]["code"], "invalid_grant")
-
 
 class ApiTest(unittest.TestCase):
     def test_routes(self) -> None:
@@ -622,10 +614,10 @@ class ApiTest(unittest.TestCase):
             with TestClient(app) as client:
                 status = client.get("/api/pg/sync/status").json()
                 self.assertEqual({c["id"] for c in status["categories"]}, set(core.CATEGORY_IDS))
-                self.assertEqual(client.post("/api/pg/sync/backup", json={}).status_code, 400)   # not ready
+                self.assertEqual(client.post("/api/pg/sync/backup", json={}).status_code, 400)
                 bad = client.post("/api/pg/sync/settings", json={"include_secrets": True})
                 self.assertEqual(bad.json()["code"], "secrets_need_encryption")
-                # A path is never taken from the request: only a detected folder or the native dialog.
+
                 refused = client.post("/api/pg/sync/pick-folder", json={"detected": str(tmp / "dest")})
                 self.assertEqual(refused.status_code, 400)
                 svc.save_settings({"target": "folder", "folder_path": str(tmp / "dest")})
@@ -651,7 +643,6 @@ class ApiTest(unittest.TestCase):
                 self.assertTrue(client.get("/api/pg/sync/status").json()["settings"]["has_client_secret"])
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
-
 
 class ContractTest(unittest.TestCase):
     def test_hooks_docs_build_and_ui(self) -> None:
@@ -682,13 +673,12 @@ class ContractTest(unittest.TestCase):
     def test_english_strings_have_no_cyrillic(self) -> None:
         source = (ROOT / "app" / "pgstatic" / "sync-settings.js").read_text(encoding="utf-8")
         source += (ROOT / "app" / "pgstatic" / "safe-mode.js").read_text(encoding="utf-8")
-        # Every L("ru", "en") pair: the English half has no Cyrillic letter.
+
         for match in re.finditer(r'L\(\s*(?:"(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)\s*,\s*("(?:[^"\\]|\\.)*"|`(?:[^`\\]|\\.)*`)', source):
             english = re.sub(r"\$\{[^}]*\}", "", match.group(1))
             self.assertIsNone(re.search(r"[А-Яа-яЁё]", english), match.group(0)[:120])
         for row in core.CATEGORIES:
             self.assertIsNone(re.search(r"[А-Яа-яЁё]", row[2] + row[4]), row[0])
-
 
 if __name__ == "__main__":
     unittest.main()

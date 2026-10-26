@@ -26,9 +26,6 @@ from ..tokens import compact_number
 from ..tui import dialogs as dlg
 from . import CATEGORIES, REGISTRY, Context, command
 
-
-# ---------------------------------------------------------------- help
-
 @command("help", "Все команды и горячие клавиши", "All commands and shortcuts", hint="[command]", aliases=("?", "h"),
          category="general", while_busy=True)
 async def help_cmd(ctx: Context) -> None:
@@ -36,7 +33,7 @@ async def help_cmd(ctx: Context) -> None:
     if name:
         cmd = ctx.ui.commands.find(name)
         if cmd is None and len(name.split()) > 1:
-            # Round 33: «/help how do I plan?» — a question, answered from the built-in MemuCode guide.
+
             ctx.ui.run_command_text("/help-ask " + ctx.args.strip())
             return
         if cmd is None:
@@ -75,7 +72,6 @@ async def help_cmd(ctx: Context) -> None:
         ctx.ui.input_buffer.text = choice + " "
         ctx.ui.input_buffer.cursor_position = len(ctx.ui.input_buffer.text)
 
-
 HELP_KEYS = [("/", "browse commands"), ("@", "mention a file"), ("!", "run a shell command"),
              ("#", "save a rule to memory"), ("Shift+Tab", "cycle permission modes"),
              ("Esc Esc", "rewind to an earlier message"), ("Shift+Enter", "new line"),
@@ -91,7 +87,6 @@ HELP_NOTES = [
     "when the limits ran out.",
     "Guide: MemuAI → Settings → Documentation → MemuCode CLI",
 ]
-
 
 def help_overview(width: int) -> Any:
     """The «General» tab of /help, laid out for the window it is shown in.
@@ -116,15 +111,11 @@ def help_overview(width: int) -> Any:
         parts += [Text(""), Padding(Text(note, style="text"), (0, 0, 0, 2))]
     return Group(*parts)
 
-
-# ---------------------------------------------------------------- status
-
 @command("status", "Версия, модель, подключение, режимы, память, MCP", "Version, model, connection, modes, memory, MCP",
          category="info", while_busy=True)
 async def status(ctx: Context) -> None:
     runtime = ctx.runtime
-    # A Proxy on this computer answers in milliseconds; one that is not running would hold the
-    # whole report for seconds while Windows retries the connection.
+
     health = None
     if runtime.settings.get("backend") != "direct":
         try:
@@ -167,13 +158,9 @@ async def status(ctx: Context) -> None:
     for warning in runtime.settings.warnings:
         ctx.say(warning, "warn")
 
-
 @command("version", "Версия MemuCode", "MemuCode version", category="info", while_busy=True, hidden=True)
 async def version(ctx: Context) -> None:
     ctx.say(f"MemuCode {VERSION}")
-
-
-# ---------------------------------------------------------------- doctor
 
 @command("doctor", "Проверить установку, подключение, терминал и инструменты", "Check the install, connection, terminal and tools",
          category="info", while_busy=True)
@@ -205,9 +192,6 @@ async def doctor(ctx: Context) -> None:
     else:
         ctx.say(tr("Всё в порядке", "All good"), "success")
 
-
-# ---------------------------------------------------------------- usage & cost
-
 def _usage_table(ctx: Context, costs: Dict[str, Any]) -> Table:
     table = Table(box=None, pad_edge=False, show_header=True, header_style="bold")
     for column, justify in ((tr("Модель", "Model"), "left"), (tr("Запросы", "Requests"), "right"),
@@ -229,7 +213,6 @@ def _usage_table(ctx: Context, costs: Dict[str, Any]) -> Table:
                       Text(billing + source + (" *" if usage.estimated else ""), style="dim"))
     return table
 
-
 @command("usage", "Токены, время и стоимость сессии, лимиты аккаунтов", "Tokens, time and cost of the session, account limits",
          category="info", while_busy=True)
 async def usage(ctx: Context) -> None:
@@ -242,8 +225,7 @@ async def usage(ctx: Context) -> None:
         await _limits(capture)
         ctx.print(*captured)
         return
-    # The window opens at once with this session's numbers. The ledger is read from disk and the
-    # account limits come from the Proxy (which asks the provider): they are added when they arrive.
+
     waiting = Text("\n  " + tr("Загружаю активность и лимиты аккаунтов…", "Loading activity and account limits…"), style="dim")
 
     def body(done: bool = False) -> str:
@@ -256,7 +238,6 @@ async def usage(ctx: Context) -> None:
         set_body(body(done=True))
 
     await ctx.ui.open_document("Usage", body(), loader=load)
-
 
 def _session_usage(ctx: Context) -> None:
     runtime = ctx.runtime
@@ -290,7 +271,6 @@ def _session_usage(ctx: Context) -> None:
         ctx.say(tr(f"Нет цены для: {', '.join(costs['unknown'])}. Задайте: /cost set <модель> <вход> <выход>",
                    f"No price for: {', '.join(costs['unknown'])}. Set one: /cost set <model> <in> <out>"), "warn")
 
-
 async def _ledger(ctx: Context) -> None:
     try:
         from ... import code_stats
@@ -310,7 +290,6 @@ async def _ledger(ctx: Context) -> None:
     if month["_cost"]:
         table.add_row(tr("≈ по ценам API", "≈ at API prices"), pricing.format_usd(today["_cost"]), pricing.format_usd(month["_cost"]))
     ctx.print(Text(""), Panel(table, title="Activity · this computer", border_style="brand2"))
-
 
 async def _limits(ctx: Context) -> None:
     runtime = ctx.runtime
@@ -358,7 +337,6 @@ async def _limits(ctx: Context) -> None:
             rows.append(Text("    " + json.dumps(data, ensure_ascii=False)[:160], style="dim"))
     if rows:
         ctx.print(Text(""), Panel(Group(*rows), title=f"{provider} account limits", border_style="info"))
-
 
 @command("cost", "Стоимость сессии по моделям; свои цены: /cost set", "Session cost per model; custom prices: /cost set",
          hint="[set|refresh|prices]", category="info", while_busy=True)
@@ -418,9 +396,6 @@ async def cost(ctx: Context) -> None:
             + tr(". Аккаунты веб-провайдеров (Genspark, Kiro, Antigravity…) не списывают деньги за запрос — это оценка по ценам API.",
                  ". Web-provider accounts (Genspark, Kiro, Antigravity…) are not billed per request — this is the API-price equivalent."))
 
-
-# ---------------------------------------------------------------- stats
-
 @command("stats", "Статистика MemuCode: активность, модели, токены", "MemuCode statistics: activity, models, tokens",
          hint="[7|30|all]", category="info", while_busy=True)
 async def stats_cmd(ctx: Context) -> None:
@@ -474,9 +449,6 @@ async def stats_cmd(ctx: Context) -> None:
     if data.get("estimated"):
         ctx.say(tr("Часть токенов оценена по длине текста.", "Some token counts are estimates."))
 
-
-# ---------------------------------------------------------------- tasks
-
 @command("tasks", "Фоновые агенты и команды: вывод, указание, остановка", "Background agents and shells: output, follow-up, stop",
          hint="[number|name] [follow-up]", aliases=("bashes", "jobs"), category="agents", while_busy=True)
 async def tasks(ctx: Context) -> None:
@@ -490,7 +462,7 @@ async def tasks(ctx: Context) -> None:
             ctx.say(tr("Нет такой задачи", "No such job"), "warn")
             return
         if rest.strip():
-            # Round 32: «/tasks 2 also check the README» — follow-up instructions for that agent.
+
             try:
                 outcome = runtime.jobs.send(job["id"], rest.strip())
             except ValueError as exc:
@@ -530,7 +502,6 @@ async def tasks(ctx: Context) -> None:
         if data["running"] and await ctx.confirm(tr("Остановить команду?", "Stop this command?")):
             runtime.shells.kill(item["id"])
 
-
 def _show_job(ctx: Context, job: Dict[str, Any]) -> None:
     who = " · ".join(part for part in (job.get("name"), job.get("role"), job.get("model")) if part)
     ctx.print(Text(f"#{job['id']} · {job['status']}" + (f" · {who}" if who else "") + f" · {job['prompt'][:200]}",
@@ -538,9 +509,6 @@ def _show_job(ctx: Context, job: Dict[str, Any]) -> None:
               *[Text("  " + line.rstrip(), style="dim") for line in job["log"][-15:]])
     if job.get("result"):
         ctx.ui.write(ctx.r.assistant(job["result"]))
-
-
-# ---------------------------------------------------------------- mcp
 
 @command("mcp", "Серверы MCP: список, добавить, включить, перезапустить", "MCP servers: list, add, toggle, restart",
          category="agents", while_busy=False)
@@ -599,7 +567,6 @@ async def mcp(ctx: Context) -> None:
             runtime.mcp.register_tools()
             runtime.invalidate_prompt()
 
-
 async def _mcp_add(ctx: Context) -> None:
     from ... import mcp_client
     name = await ctx.ask(tr("Имя сервера (латиница)", "Server name"))
@@ -623,8 +590,7 @@ async def _mcp_add(ctx: Context) -> None:
         import shlex
         parts = shlex.split(target, posix=os.name != "nt")
         if os.name == "nt":
-            # Non-POSIX shlex keeps the quotes in each word: "C:\Program Files\x.exe" became a command
-            # name with literal quotes that could never start. Backslashes stay as they are.
+
             parts = [part[1:-1] if len(part) >= 2 and part[0] == part[-1] and part[0] in "\"'" else part
                      for part in parts]
         if not parts:
@@ -647,7 +613,7 @@ async def _mcp_add(ctx: Context) -> None:
         except (OSError, ValueError, UnicodeDecodeError) as exc:
             data = exc
         if not isinstance(data, dict) or not isinstance(data.get("mcpServers", {}), dict):
-            # An unreadable .mcp.json used to be replaced by {} — every other server in it was lost.
+
             ctx.say(tr(f"{path} не читается как JSON-объект — файл не изменён. Исправьте его и повторите.",
                        f"{path} is not a readable JSON object — the file was left untouched. Fix it and try again."),
                     "error")
@@ -667,9 +633,6 @@ async def _mcp_add(ctx: Context) -> None:
     finally:
         ctx.ui.status_text = ""
     ctx.runtime.invalidate_prompt()
-
-
-# ---------------------------------------------------------------- memory / agents / skills / tools
 
 @command("memory", "Файлы памяти: правила для агента (MEMUCODE.md и др.)", "Memory files: rules for the agent (MEMUCODE.md etc.)",
          category="context", while_busy=True)
@@ -694,7 +657,6 @@ async def memory(ctx: Context) -> None:
     if await edit_file(ctx, path, title=path.name, create="# MEMUCODE.md\n\n"):
         runtime.invalidate_prompt(memory=True)
         ctx.say(tr(f"Память обновлена: {path}", f"Memory updated: {path}"), "success")
-
 
 @command("remember", "Запомнить факт о себе в памяти MemuAI (общей с окном MemuAI)",
          "Remember a fact about you in MemuAI memory (shared with the MemuAI window)",
@@ -737,7 +699,6 @@ async def remember(ctx: Context) -> None:
         ctx.say(tr("Не сохранено (память выключена или правило запрещает).",
                    "Not saved (memory is off or a rule forbids it)."), "warn")
 
-
 @command("tools", "Инструменты агента и их состояние", "The agent's tools and their state", category="agents", while_busy=True)
 async def tools(ctx: Context) -> None:
     runtime = ctx.runtime
@@ -750,9 +711,6 @@ async def tools(ctx: Context) -> None:
         table.add_row(tool.name + ("" if enabled else " ✗"), tool.kind, (tool.short or tool.description)[:90])
     ctx.print(table)
 
-
-# ---------------------------------------------------------------- misc
-
 @command("bug", "Собрать отчёт о проблеме (без ключей) в Загрузки/MemuAI", "Collect a problem report (no keys) in Downloads/MemuAI",
          aliases=("feedback",), category="info", while_busy=True)
 async def bug(ctx: Context) -> None:
@@ -760,7 +718,7 @@ async def bug(ctx: Context) -> None:
     from ..settings import flatten, mask
     note = await ctx.ask(tr("Что случилось? (необязательно)", "What happened? (optional)"))
     if note is None:
-        return                                  # Esc means "go back", not "write the report anyway"
+        return
     checks = await run_checks(ctx.runtime)
     runtime = ctx.runtime
     settings = {key: mask(key, value) for key, value in flatten(runtime.settings.data).items()}
@@ -778,7 +736,6 @@ async def bug(ctx: Context) -> None:
     path = paths.downloads_dir() / f"memucode-report-{int(time.time())}.md"
     path.write_text("\n".join(lines), encoding="utf-8")
     ctx.say(tr(f"Отчёт: {path}", f"Report: {path}"), "success")
-
 
 RELEASE_NOTES = {
     "ru": """**MemuCode CLI {version}** — агент для кода из комплекта MemuAI.
@@ -807,8 +764,7 @@ RELEASE_NOTES = {
 **Round 33:** `/auto-continue` — out of limits? MemuCode sends “continue” by itself at 18:30, in 2 hours or when the provider lifts the limit (`auto`), with retries and a fallback model; `/help-ask` and a built-in guide — MemuCode knows its own commands, keys and settings exactly.""",
 }
 
-
 @command("release-notes", "Что нового в MemuCode", "What's new in MemuCode", category="info", while_busy=True)
 async def release_notes(ctx: Context) -> None:
-    # The CLI has no version of its own: the heading follows app/version.py (it said "1.0" in MemuAI 3.0).
+
     ctx.md(RELEASE_NOTES["en" if language() == "en" else "ru"].replace("{version}", VERSION))

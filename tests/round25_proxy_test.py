@@ -23,16 +23,14 @@ sys.path.insert(0, str(ROOT))
 from app import public_api, public_tunnel  # noqa: E402
 from tests.round24_proxy_test import KeysCase  # noqa: E402
 
-
 class _Request:
     def __init__(self, peer: str, headers: dict) -> None:
         self.client = type("C", (), {"host": peer})()
         self.headers = headers
 
-
 class ClientAddressTest(unittest.TestCase):
     def test_only_the_last_forwarded_entry_counts(self) -> None:
-        # nginx appends the real client to whatever the client sent: the first entry is the client's lie.
+
         request = _Request("127.0.0.1", {"x-forwarded-for": "203.0.113.7, 198.51.100.20"})
         with patch.object(public_tunnel.tunnel, "running", lambda: False):
             self.assertEqual(public_api.client_ip(request), "198.51.100.20")
@@ -44,7 +42,6 @@ class ClientAddressTest(unittest.TestCase):
         with patch.object(public_tunnel.tunnel, "running", lambda: True):
             self.assertEqual(public_api.client_ip(request), "203.0.113.7")
         self.assertEqual(public_api.client_ip(_Request("198.51.100.1", request.headers)), "198.51.100.1")
-
 
 class IpListTest(KeysCase):
     def test_a_typo_is_refused_instead_of_opening_the_key(self) -> None:
@@ -73,7 +70,6 @@ class IpListTest(KeysCase):
             self.assertEqual(edit.status_code, 400, "a bad value is not 'key not found'")
             self.assertEqual(client.post("/api/admin/public/keys/missing", json={"name": "x"}).status_code, 404)
 
-
 class BilingualErrorsTest(unittest.TestCase):
     def test_tunnel_errors_carry_english(self) -> None:
         tunnel = public_tunnel.Tunnel()
@@ -97,7 +93,7 @@ class BilingualErrorsTest(unittest.TestCase):
         self.assertIn("taken by another program", en)
 
     def test_a_port_freed_a_moment_ago_is_not_busy(self) -> None:
-        # Connections of a stopped listener stay in TIME_WAIT; uvicorn can bind (SO_REUSEADDR), so must the probe.
+
         server = socket.socket()
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind(("127.0.0.1", 0))
@@ -105,12 +101,11 @@ class BilingualErrorsTest(unittest.TestCase):
         port = server.getsockname()[1]
         client = socket.create_connection(("127.0.0.1", port))
         accepted, _ = server.accept()
-        accepted.close()          # the server side closes first: its socket goes to TIME_WAIT
+        accepted.close()
         client.close()
         server.close()
         if os.name != "nt":
             self.assertIsNone(public_api._port_busy("127.0.0.1", port))
-
 
 class PortFieldTest(unittest.TestCase):
     def test_zero_or_empty_port_is_the_default_not_port_1(self) -> None:
@@ -127,7 +122,6 @@ class PortFieldTest(unittest.TestCase):
         self.assertIn("status.error_en", source)
         self.assertIn("if (await keyCall(key.id, body)) closeModal();", source,
                       "a refused edit (a bad IP) keeps the form open with what was typed")
-
 
 class TunnelStopsWithServerTest(unittest.TestCase):
     def test_lifespan_stops_the_tunnel(self) -> None:
@@ -150,7 +144,6 @@ class TunnelStopsWithServerTest(unittest.TestCase):
                     pass
         asyncio.run(go())
         self.assertEqual(stopped, [True])
-
 
 if __name__ == "__main__":
     unittest.main()

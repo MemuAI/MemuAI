@@ -36,7 +36,7 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-try:   # FastAPI resolves the string annotations of the routes below against this module
+try:
     from fastapi import Request
 except Exception:  # noqa: BLE001 - the engine works without FastAPI (MemuNote, tests)
     Request = Any  # type: ignore[assignment,misc]
@@ -46,7 +46,7 @@ log = logging.getLogger("memuai.schedule_conds_ext")
 CONDITION_TYPES = ("calendar", "sun", "weather", "wifi", "last_result", "group")
 CALENDAR_MODES = ("workday", "weekend", "holiday", "day_off", "short_day", "nth_weekday", "first_workday", "last_workday",
                   "first_workday_week", "last_workday_week", "month_days", "months", "week_parity", "date_range")
-#: modes that depend on a country's calendar (holidays / Russia's production calendar)
+
 COUNTRY_MODES = ("workday", "holiday", "day_off", "short_day", "first_workday", "last_workday", "first_workday_week",
                  "last_workday_week")
 WEATHER_METRICS = ("temp", "feels", "precip", "precip_prob", "wind", "cloud", "humidity", "rain", "snow", "clear")
@@ -59,7 +59,6 @@ WIFI_TTL = 30.0
 MAX_RETRY = 5
 LAST_TEXT = 600
 
-# Countries with built-in public holidays (no network). Others use Nager.Date (cached per year on disk).
 COUNTRIES = {
     "RU": ("Россия", "Russia"), "BY": ("Беларусь", "Belarus"), "KZ": ("Казахстан", "Kazakhstan"),
     "LT": ("Литва", "Lithuania"), "LV": ("Латвия", "Latvia"), "EE": ("Эстония", "Estonia"),
@@ -67,17 +66,14 @@ COUNTRIES = {
     "GB": ("Великобритания", "United Kingdom"), "US": ("США", "United States"),
 }
 
-
 class CondError(ValueError):
     def __init__(self, ru: str, en: str) -> None:
         super().__init__(en)
         self.ru, self.en = ru, en
 
-
 def _rule_error(ru: str, en: str) -> Exception:
     from .schedule_rules import RuleError
     return RuleError(ru, en)
-
 
 def _int(value: Any, default: int, lo: int, hi: int) -> int:
     try:
@@ -86,14 +82,12 @@ def _int(value: Any, default: int, lo: int, hi: int) -> int:
         return default
     return max(lo, min(hi, number))
 
-
 def _float(value: Any, default: Optional[float] = None) -> Optional[float]:
     try:
         number = float(value)
     except (TypeError, ValueError):
         return default
     return number if math.isfinite(number) else default
-
 
 def _int_list(value: Any, lo: int, hi: int, limit: int = 31) -> List[int]:
     if isinstance(value, (int, float, str)):
@@ -118,7 +112,6 @@ def _int_list(value: Any, lo: int, hi: int, limit: int = 31) -> List[int]:
             out.add(n)
     return sorted(out)[:limit]
 
-
 def _mmdd(value: Any) -> str:
     """«MM-DD», «YYYY-MM-DD» or «DD.MM» → «MM-DD»."""
     text = str(value or "").strip()
@@ -134,7 +127,6 @@ def _mmdd(value: Any) -> str:
         raise _rule_error("Неверная дата", "Invalid date")
     return f"{month:02d}-{day:02d}"
 
-
 def _place(raw: Dict[str, Any], out: Dict[str, Any]) -> None:
     lat, lon = _float(raw.get("lat")), _float(raw.get("lon"))
     if lat is None or lon is None or not (-90 <= lat <= 90 and -180 <= lon <= 180):
@@ -144,15 +136,11 @@ def _place(raw: Dict[str, Any], out: Dict[str, Any]) -> None:
     if place:
         out["place"] = place
 
-
 def _country(value: Any) -> str:
     code = str(value or "").strip().upper()[:2]
     if not re.fullmatch(r"[A-Z]{2}", code):
         return "RU"
     return code
-
-
-# --------------------------------------------------------------------------- normalization
 
 def normalize_condition(raw: Dict[str, Any], kind: str, *, depth: int = 0) -> Dict[str, Any]:
     """Validate one of :data:`CONDITION_TYPES` (``not`` is handled by the caller)."""
@@ -231,14 +219,12 @@ def normalize_condition(raw: Dict[str, Any], kind: str, *, depth: int = 0) -> Di
         return out
     raise _rule_error(f"Неизвестное условие «{kind[:30]}»", f"Unknown condition “{kind[:30]}”")
 
-
 def normalize_sun_trigger(raw: Dict[str, Any]) -> Dict[str, Any]:
     from .schedule_rules import _days
     out = {"type": "sun", "event": "sunset" if str(raw.get("event") or "sunrise").lower().startswith("sunset") else "sunrise",
            "offset": _int(raw.get("offset"), 0, -180, 180), "days": _days(raw.get("days"))}
     _place(raw, out)
     return out
-
 
 def normalize_monthly(raw: Dict[str, Any], time_text: str) -> Optional[Dict[str, Any]]:
     """The extended monthly modes, or None for the classic «day N»."""
@@ -252,7 +238,6 @@ def normalize_monthly(raw: Dict[str, Any], time_text: str) -> Optional[Dict[str,
         return {"type": "monthly", "mode": "workday", "nth": -1 if nth <= 0 else nth,
                 "country": _country(raw.get("country")), "time": time_text}
     return None
-
 
 def normalize_options(raw: Dict[str, Any], out: Dict[str, Any]) -> None:
     """Adds the Round 37 options only when set (old rules keep their exact signature)."""
@@ -270,16 +255,13 @@ def normalize_options(raw: Dict[str, Any], out: Dict[str, Any]) -> None:
         out["retry_count"] = retries
         out["retry_minutes"] = _int(raw.get("retry_minutes"), 5, 1, 1440)
 
-
-# --------------------------------------------------------------------------- calendar
-
 def _easter(year: int, orthodox: bool = False) -> date:
     if orthodox:
         a, b, c = year % 4, year % 7, year % 19
         d = (19 * c + 15) % 30
         e = (2 * a + 4 * b - d + 34) % 7
         month, day = divmod(d + e + 114, 31)
-        return date(year, month, day + 1) + timedelta(days=13)   # Julian → Gregorian (1900–2099)
+        return date(year, month, day + 1) + timedelta(days=13)
     a, b, c = year % 19, year // 100, year % 100
     d, e = b // 4, b % 4
     f = (b + 8) // 25
@@ -291,7 +273,6 @@ def _easter(year: int, orthodox: bool = False) -> date:
     month, day = divmod(h + l_ - 7 * m + 114, 31)
     return date(year, month, day + 1)
 
-
 def nth_weekday_of(year: int, month: int, weekday: int, nth: int) -> Optional[date]:
     """``weekday`` 1=Mon…7=Sun; ``nth`` 1…5 or -1 (last). None when the month has no such day."""
     if nth == -1:
@@ -301,10 +282,8 @@ def nth_weekday_of(year: int, month: int, weekday: int, nth: int) -> Optional[da
     day = first + timedelta(days=(weekday - first.isoweekday()) % 7 + 7 * (nth - 1))
     return day if day.month == month else None
 
-
 def _us_observed(d: date) -> date:
     return d - timedelta(days=1) if d.isoweekday() == 6 else d + timedelta(days=1) if d.isoweekday() == 7 else d
-
 
 def builtin_holidays(year: int, country: str) -> Optional[set]:
     fixed = lambda *pairs: {date(year, m, d) for m, d in pairs}   # noqa: E731
@@ -364,16 +343,13 @@ def builtin_holidays(year: int, country: str) -> Optional[set]:
         return out
     return None
 
-
 _HOLIDAYS: Dict[Tuple[str, int], set] = {}
 _HOL_LOCK = threading.Lock()
 _HOL_TRIED: Dict[Tuple[str, int], float] = {}
 
-
 def _holidays_dir() -> Path:
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR) / "holidays"
-
 
 def holidays(year: int, country: str, *, fetch: bool = False) -> Optional[set]:
     """Public holidays of ``country`` in ``year`` — built-in, else Nager.Date cached on disk.
@@ -397,7 +373,6 @@ def holidays(year: int, country: str, *, fetch: bool = False) -> Optional[set]:
             _HOLIDAYS[key] = found
     return found
 
-
 def _fetch_nager(year: int, country: str, path: Path) -> Optional[set]:
     try:
         import httpx
@@ -413,11 +388,6 @@ def _fetch_nager(year: int, country: str, path: Path) -> Optional[set]:
         log.debug("holidays %s %s: %s", country, year, exc)
         return None
 
-
-# Russia's production calendar: the official moves of days off («переносы»). Per year — weekdays that are days off,
-# weekend days that are workdays, shortened pre-holiday days (MMDD). Built in for the years below (from the
-# government decrees, checked against isdayoff.ru); other years come from isdayoff.ru (xmlcalendar.ru as a
-# fallback) in the background and are cached on disk. No data → the fixed holidays above.
 RU_PRODUCTION = {
     2025: ("0101 0102 0103 0106 0107 0108 0501 0502 0508 0509 0612 0613 1103 1104 1231", "1101",
            "0307 0430 0611 1101"),
@@ -425,7 +395,6 @@ RU_PRODUCTION = {
 }
 _PROD: Dict[int, Dict[str, Any]] = {}
 _PROD_TRIED: Dict[int, float] = {}
-
 
 def _prod_from_codes(year: int, codes: str, source: str) -> Optional[Dict[str, Any]]:
     """isdayoff.ru «getdata» answer: one digit per day (0 work, 1 day off, 2 shortened, 4 work)."""
@@ -445,7 +414,6 @@ def _prod_from_codes(year: int, codes: str, source: str) -> Optional[Dict[str, A
             short.add(d)
     return {"off": off, "work": work, "short": short, "source": source}
 
-
 def _prod_from_xmlcalendar(year: int, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """xmlcalendar.ru JSON: per month the non-working days («9+» moved day off) and «30*» shortened days."""
     listed: Dict[date, str] = {}
@@ -463,7 +431,6 @@ def _prod_from_xmlcalendar(year: int, data: Dict[str, Any]) -> Optional[Dict[str
         codes.append("2" if mark == "*" else "1" if mark is not None else "0")
         d += timedelta(days=1)
     return _prod_from_codes(year, "".join(codes), "xmlcalendar.ru")
-
 
 def _fetch_production(year: int, path: Path) -> Optional[Dict[str, Any]]:
     import httpx
@@ -489,7 +456,6 @@ def _fetch_production(year: int, path: Path) -> Optional[Dict[str, Any]]:
         except OSError as exc:
             log.debug("production calendar cache: %s", exc)
     return found
-
 
 def production_calendar(year: int, *, fetch: bool = False) -> Optional[Dict[str, Any]]:
     """Russia's production calendar of ``year``: ``{"off", "work", "short": set of dates, "source"}`` or None.
@@ -518,7 +484,6 @@ def production_calendar(year: int, *, fetch: bool = False) -> Optional[Dict[str,
             _PROD[year] = found
     return found
 
-
 def day_type(d: date, country: str) -> Optional[str]:
     """``work`` / ``short`` (a shortened pre-holiday workday) / ``off``; None — the holidays are not known yet."""
     if country == "RU":
@@ -540,11 +505,9 @@ def day_type(d: date, country: str) -> Optional[str]:
         return "off"
     return "short" if (d + timedelta(days=1)) in hol else "work"
 
-
 def is_workday(d: date, country: str) -> Optional[bool]:
     kind = day_type(d, country)
     return None if kind is None else kind != "off"
-
 
 def _workdays_of_month(year: int, month: int, country: str) -> Optional[List[date]]:
     out = []
@@ -557,7 +520,6 @@ def _workdays_of_month(year: int, month: int, country: str) -> Optional[List[dat
             out.append(d)
         d += timedelta(days=1)
     return out
-
 
 def check_calendar(cond: Dict[str, Any], d: date) -> Optional[bool]:
     mode = cond["mode"]
@@ -602,7 +564,6 @@ def check_calendar(cond: Dict[str, Any], d: date) -> Optional[bool]:
         return a <= key <= b if a <= b else (key >= a or key <= b)
     return None
 
-
 def monthly_target(trigger: Dict[str, Any], d: date) -> Optional[date]:
     """The day of ``d``'s month an extended monthly trigger fires on."""
     if trigger.get("mode") == "nth_weekday":
@@ -616,9 +577,6 @@ def monthly_target(trigger: Dict[str, Any], d: date) -> Optional[date]:
             return days[-1]
         return days[n - 1] if n <= len(days) else None
     return None
-
-
-# --------------------------------------------------------------------------- sun
 
 def sun_event(d: date, lat: float, lon: float, rising: bool) -> Optional[float]:
     """UTC timestamp of sunrise/sunset on local day ``d`` (None in polar day/night). ±1–2 min accuracy."""
@@ -640,7 +598,7 @@ def sun_event(d: date, lat: float, lon: float, rising: bool) -> Optional[float]:
     ut = (local_t - lng_hour) % 24
     base = datetime(d.year, d.month, d.day, tzinfo=timezone.utc).timestamp()
     value = base + ut * 3600
-    # the UTC instant may land on the neighbouring local day for far longitudes — bring it back
+
     for _ in range(2):
         local = datetime.fromtimestamp(value).date()
         if local < d:
@@ -651,17 +609,15 @@ def sun_event(d: date, lat: float, lon: float, rising: bool) -> Optional[float]:
             break
     return value
 
-
 def sun_slot(trigger: Dict[str, Any], d: date) -> Optional[float]:
     moment = sun_event(d, trigger["lat"], trigger["lon"], trigger["event"] == "sunrise")
     return None if moment is None else moment + trigger.get("offset", 0) * 60
-
 
 def check_sun(cond: Dict[str, Any], now: float) -> Optional[bool]:
     d = datetime.fromtimestamp(now).date()
     rise, sset = sun_event(d, cond["lat"], cond["lon"], True), sun_event(d, cond["lat"], cond["lon"], False)
     if rise is None or sset is None:
-        # polar: the sun is up all day in summer (|declination| side), down in winter — decide by noon elevation
+
         summer = (d.month in range(4, 10)) == (cond["lat"] > 0)
         day = summer
     else:
@@ -669,17 +625,12 @@ def check_sun(cond: Dict[str, Any], now: float) -> Optional[bool]:
         day = rise + off <= now < sset - off
     return day if cond["value"] == "day" else not day
 
-
-# --------------------------------------------------------------------------- weather / Wi-Fi (sampled)
-
 _WEATHER: Dict[str, Dict[str, Any]] = {}
 _WEATHER_LOCK = threading.Lock()
 _WIFI: Dict[str, Any] = {"at": 0.0, "value": None}
 
-
 def weather_key(cond: Dict[str, Any]) -> str:
     return f"{round(cond['lat'], 2)},{round(cond['lon'], 2)}"
-
 
 def fetch_weather(lat: float, lon: float) -> Dict[str, Any]:
     """Open-Meteo current conditions (no key). Patched in tests."""
@@ -710,7 +661,6 @@ def fetch_weather(lat: float, lon: float) -> Dict[str, Any]:
             "snow": bool((cur.get("snowfall") or 0) > 0 or code in range(71, 78) or code in (85, 86)),
             "clear": code in (0, 1)}
 
-
 def weather_now(key: str, lat: float, lon: float, now: float, *, fetch: bool = True) -> Optional[Dict[str, Any]]:
     """Cached current weather; no network → the last value for up to ``WEATHER_STALE``, then None."""
     with _WEATHER_LOCK:
@@ -729,7 +679,6 @@ def weather_now(key: str, lat: float, lon: float, now: float, *, fetch: bool = T
         _WEATHER[key] = entry
     return entry.get("data")
 
-
 def wifi_ssid() -> Optional[str]:
     """The SSID of the connected Wi-Fi ("" = not on Wi-Fi), None when this system cannot tell."""
     try:
@@ -740,7 +689,7 @@ def wifi_ssid() -> Optional[str]:
             if out.returncode != 0 and not text:
                 return None
             for line in text.splitlines():
-                m = re.match(r"^\s*SSID\s*:\s*(.*)$", line)   # not «BSSID»
+                m = re.match(r"^\s*SSID\s*:\s*(.*)$", line)
                 if m:
                     return m.group(1).strip()
             return ""
@@ -762,14 +711,12 @@ def wifi_ssid() -> Optional[str]:
         log.debug("wifi: %s", exc)
     return None
 
-
 def wifi_now(now: float, probe=None) -> Optional[str]:
     if now - _WIFI["at"] < WIFI_TTL and _WIFI["at"]:
         return _WIFI["value"]
     _WIFI["value"] = (probe or wifi_ssid)()
     _WIFI["at"] = now
     return _WIFI["value"]
-
 
 def _walk(conds: Iterable[Dict[str, Any]]) -> Iterable[Dict[str, Any]]:
     for cond in conds:
@@ -779,7 +726,6 @@ def _walk(conds: Iterable[Dict[str, Any]]) -> Iterable[Dict[str, Any]]:
             yield from _walk(cond.get("items") or [])
         else:
             yield cond
-
 
 def needs_ext(rule: Dict[str, Any], out: Dict[str, Any]) -> None:
     """Adds ``out["ext"]`` (key → spec) and the core flags that grouped conditions need."""
@@ -806,20 +752,14 @@ def needs_ext(rule: Dict[str, Any], out: Dict[str, Any]) -> None:
     if not ext:
         out.pop("ext", None)
 
-
 def _loads_calendar(country: str) -> bool:
     """A country whose calendar may need the network: no built-in holidays, or Russia's production calendar."""
     return country == "RU" or builtin_holidays(2000, country) is None
 
-
-# Network and slow probes (weather, geocoding-free holidays, Wi-Fi via netsh) never block the Proxy tick: they run
-# in a small pool; the tick waits at most BACKGROUND_WAIT and otherwise uses the cached value (None the first time,
-# the fresh value on the next tick).
 BACKGROUND_WAIT = 0.4
 _BG_POOL: Optional[concurrent.futures.ThreadPoolExecutor] = None
 _BG: Dict[str, concurrent.futures.Future] = {}
 _BG_LOCK = threading.Lock()
-
 
 def _offload(key: str, fn) -> None:
     global _BG_POOL
@@ -839,7 +779,6 @@ def _offload(key: str, fn) -> None:
         if _BG.get(key) is fut:
             del _BG[key]
 
-
 def _weather_due(key: str, now: float) -> bool:
     with _WEATHER_LOCK:
         entry = _WEATHER.get(key)
@@ -847,13 +786,11 @@ def _weather_due(key: str, now: float) -> bool:
         return True
     return now - entry["at"] >= WEATHER_TTL and now - entry.get("tried", 0) >= WEATHER_RETRY
 
-
 def weather_cached(key: str, lat: float, lon: float, now: float) -> Optional[Dict[str, Any]]:
     """The current weather without blocking: a due refresh runs in the background pool."""
     if _weather_due(key, now):
         _offload("weather:" + key, lambda: weather_now(key, lat, lon, now))
     return weather_now(key, lat, lon, now, fetch=False)
-
 
 def prefetch(ext: Dict[str, Any], now: float) -> None:
     """Blocking warm-up for «Проверить сейчас» (a request thread, not the tick): fresh weather, Wi-Fi, calendars."""
@@ -868,7 +805,6 @@ def prefetch(ext: Dict[str, Any], now: float) -> None:
                 production_calendar(year, fetch=True)
             else:
                 holidays(year, key[9:], fetch=True)
-
 
 def measure(ext: Dict[str, Any], now: float, *, probes: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """The sampler's part: weather per place, Wi-Fi, a country's holidays (all cached, loaded in the background)."""
@@ -895,9 +831,6 @@ def measure(ext: Dict[str, Any], now: float, *, probes: Optional[Dict[str, Any]]
                 _offload(key, load)
             out[key] = (production_calendar(year) if country == "RU" else holidays(year, country)) is not None
     return out
-
-
-# --------------------------------------------------------------------------- checks
 
 def check(cond: Dict[str, Any], sample: Dict[str, Any], now: float, ctx: Optional[Dict[str, Any]] = None) -> Optional[bool]:
     kind = cond["type"]
@@ -941,7 +874,6 @@ def check(cond: Dict[str, Any], sample: Dict[str, Any], now: float, ctx: Optiona
         return True
     return None
 
-
 def check_group(cond: Dict[str, Any], sample: Dict[str, Any], now: float, ctx: Optional[Dict[str, Any]],
                 one) -> Optional[bool]:
     values = [one(item, sample, now, ctx) for item in cond.get("items") or [] if not item.get("off")]
@@ -953,9 +885,6 @@ def check_group(cond: Dict[str, Any], sample: Dict[str, Any], now: float, ctx: O
         return False
     return None if any(v is None for v in values) else True
 
-
-# --------------------------------------------------------------------------- options
-
 def _in_window(start: str, end: str, now: float) -> Optional[float]:
     """The end timestamp of the [start, end) daily window containing ``now``, else None."""
     from .schedule_rules import _window_bounds
@@ -966,23 +895,19 @@ def _in_window(start: str, end: str, now: float) -> Optional[float]:
             return finish.timestamp()
     return None
 
-
 def quiet_until(options: Dict[str, Any], now: float) -> Optional[float]:
     if not options.get("quiet_from"):
         return None
     return _in_window(options["quiet_from"], options["quiet_to"], now)
-
 
 def day_runs(state: Dict[str, Any], now: float) -> int:
     today = datetime.fromtimestamp(now).date().isoformat()
     row = state.get("day_runs")
     return int(row.get("n") or 0) if isinstance(row, dict) and row.get("d") == today else 0
 
-
 def count_day_run(state: Dict[str, Any], now: float) -> None:
     today = datetime.fromtimestamp(now).date().isoformat()
     state["day_runs"] = {"d": today, "n": day_runs(state, now) + 1}
-
 
 def plan_retry(task: Dict[str, Any], ok: bool, now: float) -> None:
     """After a run: a failed one gets ``rule_state.retry_at`` (exponential back-off), success clears it."""
@@ -1000,7 +925,7 @@ def plan_retry(task: Dict[str, Any], ok: bool, now: float) -> None:
     reason = state.get("reason") if isinstance(state.get("reason"), dict) else {}
     if not task.get("enabled", True) and state.get("status") == "finished" \
             and reason.get("en") == "No more runs are planned" and used < count:
-        # a one-time run that failed: it stays alive for its retries
+
         task["enabled"] = True
         state["status"] = "waiting"
         state.pop("reason", None)
@@ -1011,9 +936,6 @@ def plan_retry(task: Dict[str, Any], ok: bool, now: float) -> None:
     minutes = _int(options.get("retry_minutes"), 5, 1, 1440)
     state["retry_at"] = now + minutes * 60 * (2 ** used)
     state["retry_n"] = used + 1
-
-
-# --------------------------------------------------------------------------- texts
 
 _WD_RU = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
 _WD_RU_ACC = ["понедельник", "вторник", "среду", "четверг", "пятницу", "субботу", "воскресенье"]
@@ -1031,7 +953,6 @@ _METRIC = {"temp": ("температура", "temperature", "°C"), "feels": ("
            "rain": ("идёт дождь", "it is raining", ""), "snow": ("идёт снег", "it is snowing", ""),
            "clear": ("ясно", "the sky is clear", "")}
 
-
 def _wd_nth(nth: int, weekday: int, en: bool) -> str:
     if en:
         return f"the {_NTH_EN[nth]} {_WD_EN[weekday - 1]} of the month"
@@ -1045,15 +966,12 @@ def _wd_nth(nth: int, weekday: int, en: bool) -> str:
                     "пятый": "пятое", "последний": "последнее"}[nth_word]
     return f"{nth_word} {_WD_RU[weekday - 1]} месяца"
 
-
 def _country_text(code: str, en: bool) -> str:
     names = COUNTRIES.get(code)
     return (names[1] if en else names[0]) if names else code
 
-
 def _place_text(cond: Dict[str, Any]) -> str:
     return cond.get("place") or f"{cond['lat']:.2f}, {cond['lon']:.2f}"
-
 
 def condition_text(cond: Dict[str, Any], lang: str, *, one=None) -> str:
     en = lang == "en"
@@ -1134,20 +1052,16 @@ def condition_text(cond: Dict[str, Any], lang: str, *, one=None) -> str:
         return who + " " + ", ".join(parts)
     return kind
 
-
 def _compact_days(days: List[int]) -> List[Any]:
     return days if len(days) <= 6 else days[:5] + ["…"]
-
 
 def _ddmm(mmdd: str) -> str:
     month, day = mmdd.split("-")
     return f"{day}.{month}"
 
-
 def _fmt_num(value: Any) -> str:
     number = float(value)
     return str(int(number)) if number == int(number) else f"{number:.1f}"
-
 
 def trigger_text(trigger: Dict[str, Any], lang: str) -> str:
     en = lang == "en"
@@ -1180,7 +1094,6 @@ def trigger_text(trigger: Dict[str, Any], lang: str) -> str:
         return f"каждый месяц {which} ({country}) в {trigger['time']}"
     return ""
 
-
 def options_text(options: Dict[str, Any], lang: str) -> List[str]:
     en = lang == "en"
     out = []
@@ -1195,7 +1108,6 @@ def options_text(options: Dict[str, Any], lang: str) -> List[str]:
         out.append((f"retry {n}× on failure" if en else f"при ошибке повторить {n} {times}"))
     return out
 
-
 def reason_text(cond: Dict[str, Any], lang: str) -> Optional[str]:
     en = lang == "en"
     if cond.get("type") == "quiet":
@@ -1204,9 +1116,6 @@ def reason_text(cond: Dict[str, Any], lang: str) -> Optional[str]:
     if cond.get("type") == "day_limit":
         return (f"Daily limit reached ({cond['max']})" if en else f"Дневной лимит запусков исчерпан ({cond['max']})")
     return None
-
-
-# --------------------------------------------------------------------------- «Проверить сейчас»
 
 def _detail(cond: Dict[str, Any], sample: Dict[str, Any], now: float, ctx: Dict[str, Any], lang: str) -> str:
     en = lang == "en"
@@ -1268,7 +1177,6 @@ def _detail(cond: Dict[str, Any], sample: Dict[str, Any], now: float, ctx: Dict[
         return f"{when} — {word}"
     return ""
 
-
 def explain(rule: Dict[str, Any], sample: Dict[str, Any], now: float, lang: str,
             ctx: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Every condition now: ``{"rows": [{text, ok, detail, not, depth}], "ok": bool, "options": [...]}``."""
@@ -1309,11 +1217,7 @@ def explain(rule: Dict[str, Any], sample: Dict[str, Any], now: float, lang: str,
     return {"rows": rows, "ok": bool(ok) and not notes, "notes": notes,
             "reason": rules.reason_text(failed, lang) if failed else ""}
 
-
-# --------------------------------------------------------------------------- {{variables}} in a plain prompt
-
 _VAR_RE = re.compile(r"\{\{\s*(date|time|datetime|weekday|month|year|run_count|last_result|last_status|task_name)\s*\}\}")
-
 
 def render_vars(task: Dict[str, Any], now: Optional[float] = None, lang: str = "ru") -> Dict[str, Any]:
     """``{{date}}`` / ``{{time}}`` / ``{{weekday}}`` / ``{{last_result}}`` … in ``prompt`` (and ``reminder_text``)."""
@@ -1336,9 +1240,6 @@ def render_vars(task: Dict[str, Any], now: Optional[float] = None, lang: str = "
     for key in fields:
         out[key] = _VAR_RE.sub(lambda m: values[m.group(1)], out[key])
     return out
-
-
-# --------------------------------------------------------------------------- HTTP (window)
 
 def register_routes(app: Any) -> None:
     """``POST /api/plan/conds/check {task}`` — «Проверить сейчас»; ``GET /api/plan/conds/geo?q=`` — city search."""
@@ -1370,7 +1271,7 @@ def register_routes(app: Any) -> None:
             await asyncio.to_thread(prefetch, needs["ext"], now)
         _prev, sample = await asyncio.to_thread(Sampler().get, needs, now=now, fresh=True)
         sample = dict(sample or {})
-        sample.setdefault("memuai_open", True)    # the window asks — it is open
+        sample.setdefault("memuai_open", True)
         ctx = {"task": saved, "tasks_by_id": by_id, "state": saved.get("rule_state") or {}}
         return await asyncio.to_thread(explain, rule, sample, now, lang, ctx)
 
@@ -1386,7 +1287,6 @@ def register_routes(app: Any) -> None:
             log.debug("geocode: %s", exc)
             return JSONResponse({"error": msg, "places": []}, 502)
         return {"places": places}
-
 
 def geocode(q: str, lang: str) -> List[Dict[str, Any]]:
     """Open-Meteo geocoding (no key). Patched in tests."""

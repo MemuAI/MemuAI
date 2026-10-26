@@ -1,5 +1,5 @@
-/* MemuMusic · api.js — единственная точка обращения к бэкенду (Memu.music.call).
- * Мок (mock.js) включается, только если моста библиотеки нет или в адресе ?mock=1. */
+
+
 const API = (() => {
   const bridge = () => {
     const m = window.Memu && Memu.music;
@@ -10,7 +10,7 @@ const API = (() => {
     if (mocked) return MockMusic.call(op, args || {});
     return bridge().call(op, args || {});
   }
-  /** Тихий вызов: ошибка не роняет экран, а возвращает fallback. */
+
   async function soft(op, args, fallback) {
     try { return await call(op, args); } catch (error) { console.warn("[music]", op, error && error.message || error); return fallback; }
   }

@@ -22,10 +22,8 @@ ROOT = Path(__file__).resolve().parents[1]
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 PNG = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
 
-
 def _clean_env():
     return mock.patch.dict(os.environ, {"XDG_DOWNLOAD_DIR": "", "XDG_CONFIG_HOME": ""})
-
 
 class DownloadsFolder(unittest.TestCase):
     def setUp(self) -> None:
@@ -36,7 +34,7 @@ class DownloadsFolder(unittest.TestCase):
         return mock.patch("pathlib.Path.home", return_value=self.home)
 
     def test_no_folder_lists_nothing_not_the_working_folder(self) -> None:
-        # Path("") is "." — the list used to show MemuAI's own folder (spec files, README) when Downloads is missing.
+
         cwd = os.getcwd()
         os.chdir(ROOT)
         try:
@@ -67,14 +65,14 @@ class DownloadsFolder(unittest.TestCase):
     def test_xdg_user_dirs(self) -> None:
         local = self.home / "Загрузки"
         local.mkdir()
-        (self.home / "Downloads").mkdir()          # the localised XDG folder wins over a stray ~/Downloads
+        (self.home / "Downloads").mkdir()
         conf = self.home / ".config"
         conf.mkdir()
         (conf / "user-dirs.dirs").write_text('# comment\nXDG_DESKTOP_DIR="$HOME/Рабочий стол"\nXDG_DOWNLOAD_DIR="$HOME/Загрузки"\n',
                                              encoding="utf-8")
         with self._home(), _clean_env(), mock.patch.object(quick_apps, "IS_WINDOWS", False):
             self.assertEqual(quick_apps.downloads_folder(), str(local))
-            # disabled (= $HOME) or missing → fall back to ~/Downloads
+
             (conf / "user-dirs.dirs").write_text('XDG_DOWNLOAD_DIR="$HOME/"\n', encoding="utf-8")
             self.assertEqual(quick_apps.downloads_folder(), str(self.home / "Downloads"))
             (conf / "user-dirs.dirs").write_text('XDG_DOWNLOAD_DIR="$HOME/nope"\n', encoding="utf-8")
@@ -96,11 +94,10 @@ class DownloadsFolder(unittest.TestCase):
                 mock.patch.dict(os.environ, {"USERPROFILE": str(profile)}):
             with mock.patch.object(quick_apps_win, "known_folder", return_value=str(known)):
                 self.assertEqual(quick_apps.downloads_folder(), str(known))
-            # the shell API failed or names a folder that is gone (redirected to an unplugged drive)
+
             for value in ("", str(known / "gone")):
                 with mock.patch.object(quick_apps_win, "known_folder", return_value=value):
                     self.assertEqual(quick_apps.downloads_folder(), str(profile / "Downloads"))
-
 
 class DownloadImage(unittest.TestCase):
     def setUp(self) -> None:
@@ -129,7 +126,7 @@ class DownloadImage(unittest.TestCase):
         self.assertNotIn("image", out)
         self.assertIn("12 MB", out["image_error"])
         self.assertIn("context", out)
-        self.assertNotIn("image", quick_extras.downloads_context("empty.png", "en"))   # not found → error
+        self.assertNotIn("image", quick_extras.downloads_context("empty.png", "en"))
 
     def test_frontend_attaches_it_as_an_image(self) -> None:
         js = (QUICK / "plugins" / "extras.js").read_text(encoding="utf-8")
@@ -139,7 +136,6 @@ class DownloadImage(unittest.TestCase):
         quick = (QUICK / "quick.js").read_text(encoding="utf-8")
         self.assertIn("addImage", quick)
 
-
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
 class AnswerPinOnResize(unittest.TestCase):
     """quick.js pinAnswerOnResize: when the cards under the answer grow, the answer box shrinks; if the reader was at the
@@ -147,7 +143,7 @@ class AnswerPinOnResize(unittest.TestCase):
 
     def test_pin(self) -> None:
         src = (QUICK / "quick.js").read_text(encoding="utf-8")
-        start = src.index("const answerFollow = {")   # Round 30: following is the reader's choice (user scrolls only)
+        start = src.index("const answerFollow = {")
         end = src.index("})();", start) + len("})();")
         script = """
 const listeners = {}; let observer = null;
@@ -174,7 +170,6 @@ console.log(JSON.stringify(out));
         self.assertEqual(res.returncode, 0, res.stderr)
         self.assertEqual(json.loads(res.stdout.strip()), [1000, 200, 940, 1000, 5])
 
-
 class MiniAppWideLayout(unittest.TestCase):
     """r29f Mini App EN sweep (tablet landscape / desktop / phone): the split list was narrower than a phone (340 px) and
     cut English settings rows; short row values sat away from the chevron; empty-pane hints left a lone last word."""
@@ -184,9 +179,9 @@ class MiniAppWideLayout(unittest.TestCase):
         layout = (self.TG / "layout.css").read_text(encoding="utf-8")
         device = (self.TG / "device.js").read_text(encoding="utf-8")
         self.assertIn('html[data-layout="split"] { --list-w: 360px; }', layout)
-        self.assertIn("--lw: clamp(250px, var(--list-w), 46vw)", layout)      # still capped on small tablets
+        self.assertIn("--lw: clamp(250px, var(--list-w), 46vw)", layout)
         self.assertIn("DEFAULT_LIST = 360", device)
-        # double-click resets to the CSS width (not a hard-coded inline one)
+
         self.assertIn('addEventListener("dblclick", () => { root.style.removeProperty("--list-w")', device)
 
     def test_values_and_hints(self) -> None:
@@ -196,13 +191,12 @@ class MiniAppWideLayout(unittest.TestCase):
         layout = (self.TG / "layout.css").read_text(encoding="utf-8")
         self.assertRegex(layout, r"\.detail-empty p \{[^}]*text-wrap: balance")
         html = (self.TG / "index.html").read_text(encoding="utf-8")
-        # the cache-busting versions moved past r29 (r30 bumped them again): only require "at least the r29 bump"
+
         for asset in ("app.css", "layout.css", "device.js", "app.js"):
             m = re.search(r'"%s\?v=\d+\.\d+-r(\d+)"' % re.escape(asset), html)
             self.assertIsNotNone(m, asset)
             self.assertGreaterEqual(int(m.group(1)), 29, asset)
         self.assertIn('"Images for non-vision models"', (self.TG / "app.js").read_text(encoding="utf-8"))
-
 
 if __name__ == "__main__":
     unittest.main()

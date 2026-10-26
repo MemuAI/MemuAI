@@ -42,7 +42,6 @@ log = logging.getLogger("memuai.assistant.win")
 IS_WINDOWS = sys.platform == "win32"
 CREATE_NO_WINDOW = 0x08000000
 
-
 class ActionError(RuntimeError):
     """A failure with a message fit for the user (``code`` for the UI)."""
 
@@ -55,14 +54,10 @@ class ActionError(RuntimeError):
         """The message in the interface language (``en`` when given, else the Russian one)."""
         return self.en if lang == "en" and self.en else str(self)
 
-
 class Unsupported(ActionError):
     def __init__(self, message: str = "", en: str = "") -> None:
         super().__init__(message or "Это действие доступно только в Windows-приложении MemuAI.", "unsupported",
                          en or ("" if message else "This action works only in the MemuAI Windows app."))
-
-
-# ------------------------------------------------------------------ key names (pure, tested)
 
 VK = {
     "ctrl": 0x11, "control": 0x11, "ctl": 0x11, "alt": 0x12, "menu": 0x12, "shift": 0x10, "win": 0x5B, "windows": 0x5B,
@@ -80,11 +75,9 @@ for _i in range(1, 25):
     VK[f"f{_i}"] = 0x6F + _i
 for _c in "abcdefghijklmnopqrstuvwxyz0123456789":
     VK[_c] = ord(_c.upper())
-# Keys on the extended part of the keyboard (KEYEVENTF_EXTENDEDKEY), as in automation_runtime._EXTENDED_VK:
-# NumLock (Microsoft's own keybd_event sample sets the flag for it), right Win and numpad «/» included.
+
 EXTENDED = {0x2D, 0x2E, 0x24, 0x23, 0x21, 0x22, 0x25, 0x26, 0x27, 0x28, 0x5B, 0x5C, 0x5D, 0x2C, 0x6F, 0x90,
             0xAD, 0xAE, 0xAF, 0xB0, 0xB1, 0xB2, 0xB3}
-
 
 def text_key_plan(text: str) -> List[Tuple[str, int]]:
     """How :meth:`WinBackend.type_text` types ``text``: ``("vk", code)`` for Enter/Tab (many apps ignore a Unicode
@@ -111,7 +104,6 @@ _KEY_ALIASES_RU = {"контрол": "ctrl", "ктрл": "ctrl", "альт": "al
 BLOCKED_COMBOS = {("ctrl", "alt", "delete")}
 MEDIA_KEYS = {"play_pause": 0xB3, "next": 0xB0, "prev": 0xB1, "stop": 0xB2}
 
-
 def parse_keys(text: str) -> List[int]:
     """``"Ctrl+Shift+T"`` → ``[0x11, 0x10, 0x54]``; raises ActionError for unknown keys."""
     parts = [p.strip().lower() for p in re.split(r"\s*\+\s*", str(text or "").strip()) if p.strip()]
@@ -129,9 +121,6 @@ def parse_keys(text: str) -> List[int]:
         out.append(VK[name])
     return out
 
-
-# ------------------------------------------------------------------ helpers
-
 def run_powershell(script: str, timeout: float = 20.0) -> Tuple[int, str, str]:
     if not IS_WINDOWS:
         raise Unsupported()
@@ -144,7 +133,6 @@ def run_powershell(script: str, timeout: float = 20.0) -> Tuple[int, str, str]:
     except OSError as exc:
         raise ActionError(f"PowerShell недоступен: {exc}", en=f"PowerShell is unavailable: {exc}") from None
     return proc.returncode, proc.stdout.decode("utf-8", "replace").strip(), proc.stderr.decode("utf-8", "replace").strip()
-
 
 def _run(args: List[str], timeout: float = 15.0) -> Tuple[int, str]:
     try:
@@ -160,7 +148,6 @@ def _run(args: List[str], timeout: float = 15.0) -> Tuple[int, str]:
         except UnicodeDecodeError:
             continue
     return proc.returncode, raw.decode("utf-8", "replace")
-
 
 RADIO_SCRIPT = r"""
 Add-Type -AssemblyName System.Runtime.WindowsRuntime
@@ -182,7 +169,6 @@ PROTECTED_PROCESSES = {"system", "system idle process", "idle", "csrss.exe", "wi
                        "lsass.exe", "services.exe", "svchost.exe", "dwm.exe", "fontdrvhost.exe", "lsaiso.exe",
                        "registry", "memory compression", "secure system", "audiodg.exe", "msmpeng.exe",
                        "memuai.exe", "memuaiproxy.exe", "sihost.exe", "ctfmon.exe", "conhost.exe"}
-
 
 def known_folder(name: str) -> str:
     home = os.path.expanduser("~")
@@ -210,9 +196,6 @@ def known_folder(name: str) -> str:
             pass
     return fallback.get(name, home)
 
-
-# ------------------------------------------------------------------ backend API
-
 class Backend:
     """Interface (and the non-Windows behaviour): OS actions raise :class:`Unsupported`."""
     name = "null"
@@ -225,18 +208,14 @@ class Backend:
     brightness_get = brightness_set = theme_get = theme_set = radio = screenshot = clipboard_get = _no
     clipboard_set = recycle_info = recycle_empty = sysinfo = processes = kill = lock = sleep = hibernate = _no
     shutdown = restart = signout = cancel_shutdown = powershell = app_index = _no
-    # Round 33 (r33-quick): processes without a visible window (tray apps) — assistant_procs_win.py
+
     procs = pid_alive = close_pid = _no
 
     def own_pid(self) -> int:
         return os.getpid()
 
-
 class NullBackend(Backend):
     pass
-
-
-# ------------------------------------------------------------------ Win32 bindings
 
 class _W:
     """Lazily created ctypes bindings (only on Windows, only when first needed)."""
@@ -316,7 +295,7 @@ class _W:
                         ("SystemStatusFlag", wt.BYTE), ("BatteryLifeTime", DWORD), ("BatteryFullLifeTime", DWORD)]
 
         class SHQUERYRBINFO(ctypes.Structure):
-            # shellapi.h packs to 1 byte on 32-bit only
+
             if ctypes.sizeof(ctypes.c_void_p) == 4:
                 _pack_ = 1
             _fields_ = [("cbSize", DWORD), ("i64Size", ctypes.c_longlong), ("i64NumItems", ctypes.c_longlong)]
@@ -440,7 +419,7 @@ class _W:
         previous = None
         if self.SetThreadDpiAwarenessContext is not None:
             try:
-                previous = self.SetThreadDpiAwarenessContext(ctypes.c_void_p(-4))   # PER_MONITOR_AWARE_V2
+                previous = self.SetThreadDpiAwarenessContext(ctypes.c_void_p(-4))
             except Exception:
                 previous = None
         try:
@@ -452,21 +431,16 @@ class _W:
                 except Exception:
                     pass
 
-
-# ------------------------------------------------------------------ COM: Core Audio
-
 CLSID_MMDeviceEnumerator = "BCDE0395-E52F-467C-8E3D-C4579291692E"
 IID_IMMDeviceEnumerator = "A95664D2-9614-4F35-A746-DE8DB63617E6"
 IID_IAudioEndpointVolume = "5CDF2C82-841E-4546-9722-0CF74078229A"
 RPC_E_CHANGED_MODE = -2147417850
-
 
 def _vcall(ptr: ctypes.c_void_p, index: int, restype, *args_types):
     vtbl = ctypes.cast(ptr, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
     proto = ctypes.WINFUNCTYPE(restype, ctypes.c_void_p, *args_types)
     fn = proto(vtbl[index])
     return lambda *a: fn(ptr, *a)
-
 
 def _release(ptr: ctypes.c_void_p) -> None:
     if ptr and ptr.value:
@@ -475,16 +449,14 @@ def _release(ptr: ctypes.c_void_p) -> None:
         except Exception:
             pass
 
-
 @contextlib.contextmanager
 def _com(w: _W):
-    hr = w.CoInitializeEx(None, 0)          # COINIT_MULTITHREADED
+    hr = w.CoInitializeEx(None, 0)
     try:
         yield
     finally:
-        if hr in (0, 1):                     # S_OK / S_FALSE: balance it
+        if hr in (0, 1):
             w.CoUninitialize()
-
 
 @contextlib.contextmanager
 def _endpoint_volume(w: _W):
@@ -498,12 +470,12 @@ def _endpoint_volume(w: _W):
             if hr != 0 or not enum.value:
                 raise ActionError(f"Аудиоустройство недоступно (0x{hr & 0xFFFFFFFF:08X})",
                                   en=f"The audio device is unavailable (0x{hr & 0xFFFFFFFF:08X})")
-            # IMMDeviceEnumerator::GetDefaultAudioEndpoint(eRender, eMultimedia, &device)
+
             hr = _vcall(enum, 4, ctypes.c_long, ctypes.c_int, ctypes.c_int, ctypes.POINTER(ctypes.c_void_p))(
                 0, 1, ctypes.byref(device))
             if hr != 0 or not device.value:
                 raise ActionError("Нет устройства воспроизведения по умолчанию", "no_device", "No default playback device")
-            # IMMDevice::Activate(IID_IAudioEndpointVolume, CLSCTX_ALL, NULL, &volume)
+
             hr = _vcall(device, 3, ctypes.c_long, ctypes.POINTER(w.GUID), ctypes.c_uint32, ctypes.c_void_p,
                         ctypes.POINTER(ctypes.c_void_p))(ctypes.byref(w.guid(IID_IAudioEndpointVolume)), 0x17, None,
                                                          ctypes.byref(volume))
@@ -514,9 +486,6 @@ def _endpoint_volume(w: _W):
             _release(volume)
             _release(device)
             _release(enum)
-
-
-# ------------------------------------------------------------------ the backend
 
 class WinBackend(Backend):
     name = "windows"
@@ -530,7 +499,6 @@ class WinBackend(Backend):
             self._w = _W.get()
         return self._w
 
-    # ---------------------------------------------------------- opening things
     def open_target(self, target: str) -> None:
         try:
             if target.lower().startswith("shell:appsfolder\\"):
@@ -552,7 +520,6 @@ class WinBackend(Backend):
         from . import assistant_apps
         return assistant_apps.index(wait=False)
 
-    # ---------------------------------------------------------- windows
     def _title(self, hwnd) -> str:
         w = self.w
         length = w.GetWindowTextLengthW(hwnd)
@@ -574,7 +541,7 @@ class WinBackend(Backend):
 
     def _exe_path(self, pid: int) -> str:
         w = self.w
-        handle = w.OpenProcess(0x1000, False, pid)        # PROCESS_QUERY_LIMITED_INFORMATION
+        handle = w.OpenProcess(0x1000, False, pid)
         if not handle:
             return ""
         try:
@@ -592,7 +559,7 @@ class WinBackend(Backend):
             return False
         value = ctypes.c_int(0)
         try:
-            w.DwmGetWindowAttribute(hwnd, 14, ctypes.byref(value), ctypes.sizeof(value))   # DWMWA_CLOAKED
+            w.DwmGetWindowAttribute(hwnd, 14, ctypes.byref(value), ctypes.sizeof(value))
         except Exception:
             return False
         return bool(value.value)
@@ -602,7 +569,7 @@ class WinBackend(Backend):
         rect = w.RECT()
         if w.dwmapi is not None:
             try:
-                if w.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(rect), ctypes.sizeof(rect)) == 0:   # EXTENDED_FRAME_BOUNDS
+                if w.DwmGetWindowAttribute(hwnd, 9, ctypes.byref(rect), ctypes.sizeof(rect)) == 0:
                     return rect.left, rect.top, rect.right, rect.bottom
             except Exception:
                 pass
@@ -624,10 +591,10 @@ class WinBackend(Backend):
         w = self.w
         if not w.IsWindowVisible(hwnd) or self._cloaked(hwnd):
             return False
-        if w.GetWindow(hwnd, 4):          # GW_OWNER: owned popups are not app windows
+        if w.GetWindow(hwnd, 4):
             return False
-        ex = w.GetWindowLongPtrW(hwnd, -20)   # GWL_EXSTYLE
-        if ex & 0x00000080 and not ex & 0x00040000:     # TOOLWINDOW without APPWINDOW
+        ex = w.GetWindowLongPtrW(hwnd, -20)
+        if ex & 0x00000080 and not ex & 0x00040000:
             return False
         if not self._title(hwnd):
             return False
@@ -668,7 +635,7 @@ class WinBackend(Backend):
                     visible = self._visible_rect(hwnd)
                     normal = (rc.left, rc.top, rc.right, rc.bottom)
                     if state != "normal":
-                        # rcNormalPosition is in workspace coordinates of its monitor
+
                         mon = mons[geo.monitor_for_rect(normal, mons)] if mons else None
                         if mon:
                             dx, dy = mon["work"][0] - mon["rect"][0], mon["work"][1] - mon["rect"][1]
@@ -697,7 +664,7 @@ class WinBackend(Backend):
         for row in rows:
             if fg and row["hwnd"] == int(fg) and row["pid"] != own:
                 return row
-        # z-order: EnumWindows walks top → bottom
+
         for row in rows:
             if row["pid"] != own:
                 return row
@@ -707,15 +674,15 @@ class WinBackend(Backend):
         w = self.w
         handle = w.wt.HWND(hwnd)
         if w.IsIconic(handle):
-            w.ShowWindow(handle, 9)               # SW_RESTORE
+            w.ShowWindow(handle, 9)
         if not w.SetForegroundWindow(handle):
-            # The classic workaround: a synthetic Alt press unlocks SetForegroundWindow.
+
             self._keys([0x12], press_only=True)
             w.SetForegroundWindow(handle)
         w.BringWindowToTop(handle)
 
     def close_window(self, hwnd: int) -> None:
-        self.w.PostMessageW(self.w.wt.HWND(hwnd), 0x0010, 0, 0)     # WM_CLOSE
+        self.w.PostMessageW(self.w.wt.HWND(hwnd), 0x0010, 0, 0)
 
     def window_cmd(self, hwnd: int, action: str) -> None:
         w = self.w
@@ -739,18 +706,18 @@ class WinBackend(Backend):
         handle = w.wt.HWND(hwnd)
         with w.per_monitor_dpi():
             if w.IsIconic(handle) or w.IsZoomed(handle):
-                w.ShowWindow(handle, 1)            # SW_SHOWNORMAL — only a normal window can be moved
+                w.ShowWindow(handle, 1)
                 time.sleep(0.05)
             for _attempt in range(2):
-                # twice: crossing to a monitor with another DPI makes the app rescale itself after the first move
+
                 offsets = geo.frame_offsets(self._window_rect(handle), self._visible_rect(handle))
                 left, top, right, bottom = geo.expand(tuple(int(v) for v in rect), offsets)
-                w.SetWindowPos(handle, None, left, top, right - left, bottom - top, 0x0004 | 0x0010)  # NOZORDER|NOACTIVATE
+                w.SetWindowPos(handle, None, left, top, right - left, bottom - top, 0x0004 | 0x0010)
                 time.sleep(0.08)
             if state == "maximized":
                 w.ShowWindow(handle, 3)
             elif state == "minimized":
-                w.ShowWindow(handle, 7)            # SW_SHOWMINNOACTIVE
+                w.ShowWindow(handle, 7)
 
     def monitors(self) -> List[Dict[str, Any]]:
         w = self.w
@@ -782,7 +749,6 @@ class WinBackend(Backend):
             mon["index"] = i
         return out
 
-    # ---------------------------------------------------------- keyboard
     def _send(self, inputs) -> None:
         w = self.w
         count = len(inputs)
@@ -828,13 +794,12 @@ class WinBackend(Backend):
             for up in (False, True):
                 item = w.INPUT()
                 item.type = 1
-                item.ki = w.KEYBDINPUT(0, code, 0x0004 | (0x0002 if up else 0), 0, 0)    # KEYEVENTF_UNICODE
+                item.ki = w.KEYBDINPUT(0, code, 0x0004 | (0x0002 if up else 0), 0, 0)
                 items.append(item)
         for i in range(0, len(items), 200):
             self._send(items[i:i + 200])
             time.sleep(0.01)
 
-    # ---------------------------------------------------------- audio
     def volume_get(self) -> Dict[str, Any]:
         w = self.w
         try:
@@ -863,7 +828,7 @@ class WinBackend(Backend):
         except ActionError:
             raise
         except Exception:
-            # Fallback: volume keys (2 % per press) — imprecise but works without COM.
+
             self._send([x for _ in range(50) for x in (self._key(0xAE), self._key(0xAE, True))])
             self._send([x for _ in range(level // 2) for x in (self._key(0xAF), self._key(0xAF, True))])
         return self.volume_get()
@@ -883,7 +848,6 @@ class WinBackend(Backend):
             self._keys([0xAD])
         return self.volume_get()
 
-    # ---------------------------------------------------------- brightness
     def _ddc_handles(self):
         w = self.w
         if w.dxva2 is None:
@@ -960,7 +924,6 @@ class WinBackend(Backend):
                               "This screen's brightness cannot be changed by a program (no WMI backlight or DDC/CI).")
         return {"level": level, "changed": changed}
 
-    # ---------------------------------------------------------- theme, radios
     _THEME_KEY = r"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize"
 
     def theme_get(self) -> Dict[str, Any]:
@@ -1007,7 +970,6 @@ class WinBackend(Backend):
                               if data else (err[:300] or "Could not change the radio"))
         return {"before": str(data.get("before") or ""), "on": on}
 
-    # ---------------------------------------------------------- screenshot, clipboard
     def screenshot(self, mode: str = "screen", rect=None, copy: bool = False) -> Dict[str, Any]:
         if mode == "region":
             self.open_target("ms-screenclip:")
@@ -1019,7 +981,7 @@ class WinBackend(Backend):
         with self.w.per_monitor_dpi():
             image = ImageGrab.grab(all_screens=True, include_layered_windows=True)
             if rect:
-                vx, vy = self.w.GetSystemMetrics(76), self.w.GetSystemMetrics(77)     # SM_X/YVIRTUALSCREEN
+                vx, vy = self.w.GetSystemMetrics(76), self.w.GetSystemMetrics(77)
                 l, t, r, b = rect
                 image = image.crop((l - vx, t - vy, r - vx, b - vy))
         folder = known_folder("screenshots")
@@ -1031,7 +993,7 @@ class WinBackend(Backend):
                 import io
                 buf = io.BytesIO()
                 image.convert("RGB").save(buf, "BMP")
-                self._clipboard_put(8, buf.getvalue()[14:])       # CF_DIB = BMP without the file header
+                self._clipboard_put(8, buf.getvalue()[14:])
             except Exception as exc:
                 log.debug("screenshot to clipboard failed: %s", exc)
         return {"path": path, "width": image.width, "height": image.height}
@@ -1053,7 +1015,7 @@ class WinBackend(Backend):
     def clipboard_get(self) -> str:
         w = self.w
         with self._clipboard():
-            if not w.IsClipboardFormatAvailable(13):        # CF_UNICODETEXT
+            if not w.IsClipboardFormatAvailable(13):
                 return ""
             handle = w.GetClipboardData(13)
             if not handle:
@@ -1068,7 +1030,7 @@ class WinBackend(Backend):
 
     def _clipboard_put(self, fmt: int, data: bytes) -> None:
         w = self.w
-        handle = w.GlobalAlloc(0x0002, len(data))           # GMEM_MOVEABLE
+        handle = w.GlobalAlloc(0x0002, len(data))
         if not handle:
             raise ActionError("Недостаточно памяти для буфера обмена", en="Not enough memory for the clipboard")
         pointer = w.GlobalLock(handle)
@@ -1090,7 +1052,6 @@ class WinBackend(Backend):
             return
         self._clipboard_put(13, (str(text) + "\0").encode("utf-16-le"))
 
-    # ---------------------------------------------------------- recycle bin
     def recycle_info(self) -> Dict[str, Any]:
         info = self.w.SHQUERYRBINFO()
         info.cbSize = ctypes.sizeof(info)
@@ -1103,7 +1064,7 @@ class WinBackend(Backend):
         before = self.recycle_info()
         if before["items"] == 0:
             return {**before, "emptied": False}
-        hr = self.w.SHEmptyRecycleBinW(None, None, 0x1 | 0x2 | 0x4)      # NOCONFIRMATION|NOPROGRESSUI|NOSOUND
+        hr = self.w.SHEmptyRecycleBinW(None, None, 0x1 | 0x2 | 0x4)
         if hr != 0:
             after = self.recycle_info()
             if after["items"]:
@@ -1111,7 +1072,6 @@ class WinBackend(Backend):
                                   en=f"The Recycle Bin was not emptied (0x{hr & 0xFFFFFFFF:08X})")
         return {**before, "emptied": True}
 
-    # ---------------------------------------------------------- system info
     def _cpu_percent(self, interval: float = 0.3) -> float:
         w = self.w
 
@@ -1159,7 +1119,7 @@ class WinBackend(Backend):
                 if not mask & (1 << i):
                     continue
                 root = f"{chr(65 + i)}:\\"
-                if w.GetDriveTypeW(root) not in (2, 3):        # removable, fixed
+                if w.GetDriveTypeW(root) not in (2, 3):
                     continue
                 try:
                     usage = shutil.disk_usage(root)
@@ -1171,7 +1131,7 @@ class WinBackend(Backend):
             ip = ""
             try:
                 with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-                    sock.connect(("192.0.2.1", 9))           # TEST-NET: no packet is sent for UDP connect
+                    sock.connect(("192.0.2.1", 9))
                     ip = sock.getsockname()[0]
             except OSError:
                 pass
@@ -1204,14 +1164,13 @@ class WinBackend(Backend):
                 continue
         return rows
 
-    # ---------------------------------------------------------- Round 33: tray apps (assistant_procs_win.py)
     def procs(self) -> List[Dict[str, Any]]:
         from . import assistant_procs_win as pw
         try:
             return pw.list_processes()
         except (Unsupported, ActionError):
             raise
-        except Exception as exc:                 # a broken snapshot: the slow but sure tasklist
+        except Exception as exc:
             log.debug("toolhelp failed: %s", exc)
             return [{"pid": r["pid"], "ppid": 0, "exe": r["name"].lower(), "name": r["name"], "path": ""}
                     for r in self.processes()]
@@ -1230,14 +1189,12 @@ class WinBackend(Backend):
     def kill(self, pid: int) -> None:
         if pid == os.getpid():
             raise ActionError("Нельзя завершить сам MemuAI", "blocked", "MemuAI cannot end itself")
-        # No /T: «заверши процесс explorer» with /T used to kill the whole tree — every program
-        # started from Explorer (that is, nearly everything, MemuAI included) without saving.
+
         code, text = _run(["taskkill", "/PID", str(int(pid)), "/F"], timeout=15)
         if code != 0:
             raise ActionError(text.strip()[:300] or "Процесс не завершён (возможно, нужны права администратора)",
                               en=text.strip()[:300] or "The process was not ended (administrator rights may be needed)")
 
-    # ---------------------------------------------------------- power
     def lock(self) -> None:
         if not self.w.LockWorkStation():
             raise ActionError("Windows не заблокировал компьютер", en="Windows did not lock the computer")
@@ -1266,13 +1223,12 @@ class WinBackend(Backend):
         return code == 0
 
     def signout(self) -> None:
-        if not self.w.ExitWindowsEx(0, 0x80000000):          # EWX_LOGOFF, SHTDN_REASON_FLAG_PLANNED
+        if not self.w.ExitWindowsEx(0, 0x80000000):
             raise ActionError("Windows не выполнил выход из системы", en="Windows did not sign you out")
 
     def powershell(self, command: str, timeout: float = 60.0) -> Dict[str, Any]:
         code, out, err = run_powershell(command, timeout=timeout)
         return {"code": code, "stdout": out[-8000:], "stderr": err[-4000:]}
-
 
 def default_backend() -> Backend:
     return WinBackend() if IS_WINDOWS else NullBackend()

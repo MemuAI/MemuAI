@@ -1,6 +1,5 @@
-// MemuNote Slides — AI for presentations (through MemuAI Proxy, route /api/slides_ai):
-// generate a deck from a topic / outline / document, improve or shorten slide text, suggest a layout,
-// speaker notes (one slide / all), translate the deck. Each applied result is one undo step.
+
+
 import { api, esc, t, I18N, toast, modal, uid as cuid } from "../core.js";
 import { AI, refreshStatus } from "../ai.js";
 import { makeSlide, plainText, uid } from "./pptx.js";
@@ -8,17 +7,16 @@ import { isLineGeom } from "./render.js";
 
 const LANGS = ["ru", "en", "de", "fr", "es", "it", "pt", "uk", "pl", "tr", "zh", "ja", "ko", "ar", "kk"];
 
-/** Stream a slides AI task; resolves with the full text. onDelta(textSoFar). */
 export function streamTask(task, input, { onDelta, signal } = {}) {
   const id = cuid();
   const ctrl = new AbortController();
   signal?.addEventListener("abort", () => { api("ai/stop", { id }).catch(() => {}); ctrl.abort(); });
   return (async () => {
     const res = await api("slides_ai", { task, input, id, model: AI.model || undefined }, { stream: true, signal: ctrl.signal });
-    if (!res.ok) { let msg = "HTTP " + res.status; try { msg = (await res.json()).error || msg; } catch { /* */ } const e = new Error(msg); e.status = res.status; throw e; }
+    if (!res.ok) { let msg = "HTTP " + res.status; try { msg = (await res.json()).error || msg; } catch {  } const e = new Error(msg); e.status = res.status; throw e; }
     const reader = res.body.getReader(), dec = new TextDecoder();
-    let buf = "", out = "";
-    for (;;) {
+    let buf = "", out = "", finished = false;
+    try { for (;;) {
       const { value, done } = await reader.read(); if (done) break;
       buf += dec.decode(value, { stream: true });
       let i;
@@ -26,15 +24,17 @@ export function streamTask(task, input, { onDelta, signal } = {}) {
         const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
         if (!chunk.startsWith("data:")) continue;
         let ev; try { ev = JSON.parse(chunk.slice(5)); } catch { continue; }
-        if (ev.t === "delta") { out += ev.text; onDelta?.(out); }
+        if (ev.t === "delta") { out += String(ev.text || ""); if(out.length>240000)throw new Error("Presentation AI response exceeded the size limit"); onDelta?.(out); }
         else if (ev.t === "error") { const e = new Error(ev.message || "error"); e.kind = ev.kind; e.status = ev.status; throw e; }
+        else if (ev.t === "done") { if(ev.cancelled)throw new DOMException("Cancelled","AbortError");finished=true; }
       }
     }
+    if(!finished)throw new Error("Presentation AI response ended before completion; no draft was applied");
     return out;
+    } finally {if(!finished)reader.cancel().catch(()=>{});reader.releaseLock();}
   })();
 }
 
-/** Extract the JSON object from a model answer (code fences, prose, trailing commas, cut-off tails). */
 export function parseJsonLoose(text) {
   let s = String(text || "").replace(/^\uFEFF/, "").trim();
   s = s.replace(/<think>[\s\S]*?<\/think>/g, "");
@@ -47,7 +47,7 @@ export function parseJsonLoose(text) {
   if (v !== undefined) return v;
   const cleaned = s.slice(0, b + 1).replace(/,\s*([}\]])/g, "$1").replace(/[\u201c\u201d]/g, '"');
   v = tryParse(cleaned); if (v !== undefined) return v;
-  // cut-off answer: close open strings / brackets
+
   let depth = [], inStr = false, esc2 = false, cut = s;
   for (let i = 0; i < s.length; i++) {
     const c = s[i];
@@ -62,7 +62,7 @@ export function parseJsonLoose(text) {
   throw new Error("the model answered with invalid JSON");
 }
 
-function linesToParas(lines, base = []) {
+export function linesToParas(lines, base = []) {
   const out = [];
   for (const raw of lines) {
     if (raw === undefined || raw === null) continue;
@@ -92,11 +92,10 @@ function layoutFor(deck, kind) {
 const phOf = (s, types) => s.elements.find((e) => e.ph && types.includes(e.ph.type || "body"));
 function bodies(deck, s) { return s.elements.filter((e) => e.ph && ["body", "obj", ""].includes(e.ph.type || "") && e.ph.type !== "title").sort((a, b) => deck.boxOf(s, a).x - deck.boxOf(s, b).x); }
 
-/** Build a slide from an AI spec (layout + texts + chart/table + notes). */
 export function slideFromSpec(deck, spec) {
   let kind = spec.layout || (spec.chart ? "chart" : spec.table ? "table" : spec.left ? "two" : spec.bullets?.length ? "content" : "title");
   let layout = layoutFor(deck, kind);
-  // a "statement" layout is often title-only (Statement / Title Only): with supporting text, use a layout that can hold it
+
   if (kind === "statement" && (spec.bullets?.length || spec.subtitle) && !layout.placeholders.some((p) => ["body", "obj", ""].includes(p.type || ""))) {
     if (spec.bullets?.length > 1) { kind = "content"; layout = layoutFor(deck, kind); }
     else { kind = "section"; layout = layoutFor(deck, kind); spec = { ...spec, subtitle: spec.subtitle || spec.bullets[0] }; }
@@ -139,13 +138,12 @@ export function slideFromSpec(deck, spec) {
 }
 const roundBox = (b) => ({ x: Math.round(b.x), y: Math.round(b.y), w: Math.round(b.w), h: Math.round(b.h) });
 
-// ------------------------------------------------------------------ UI
-async function ensureOnline() {
+export async function ensureOnline() {
   await refreshStatus();
   if (!AI.online) { toast(t("ai_offline"), { kind: "error", ms: 7000 }); return false; }
   return true;
 }
-function progressModal(title) {
+export function progressModal(title) {
   const ctrl = new AbortController();
   let set = null, close = null, closed = false;
   const p = modal({ title, body: `<div class="sl-ai-progress"><div class="sl-ai-status"></div><div class="bar"><i></i></div><div class="sl-ai-log"></div></div>`, dismiss: false,
@@ -221,7 +219,7 @@ export async function runAI(view, action, job) {
       let text; try { text = await streamTask("rewrite", { mode: action, items: items.map((e) => ({ id: e.id, text: itemText(e) })) }, { signal: pm.signal, onDelta: (x) => pm.set(t("sl_ai_writing"), x.slice(-400)) }); } finally { pm.close(); }
       const data = parseJsonLoose(text);
       const upd = (data.items || []).filter((it) => { const el = items.find((e) => e.id === it.id); return el && typeof it.text === "string" && it.text.trim() && it.text.trim() !== itemText(el).trim(); });
-      if (!upd.length) { toast(t("sl_ai_unchanged")); return; }   // the model kept the text as it was: no empty undo step
+      if (!upd.length) { toast(t("sl_ai_unchanged")); return; }
       view.change(() => { for (const it of upd) { const el = items.find((e) => e.id === it.id); el.text.paras = linesToParas(it.text.split("\n"), el.text.paras); } });
       toast(t("sl_ai_applied"), { kind: "ok", action: { label: t("undo"), run: () => view.undo() } });
       return;

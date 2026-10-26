@@ -10,7 +10,6 @@ _pending = {}
 _challenge = re.compile(r"[0-9a-f]{32}")
 _extension = re.compile(r"[a-p]{32}")
 
-
 def approve(challenge, extension_id):
     if not _challenge.fullmatch(str(challenge)) or not _extension.fullmatch(str(extension_id)):
         raise ValueError("Некорректный запрос подключения Chrome")
@@ -26,7 +25,6 @@ def approve(challenge, extension_id):
         _pending[challenge] = (extension_id, code, now + 300)
     return {"ok": True, "message": "Подключение разрешено. Вернитесь в параметры расширения Chrome.",
             "ui": {"do": "settings.open", "section": "integrations"}}
-
 
 def claim(challenge, extension_id):
     if not _challenge.fullmatch(str(challenge)):

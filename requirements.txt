@@ -29,3 +29,6 @@ mutagen>=1.47
 telethon>=1.45,<2
 python-socks[asyncio]>=2.4,<3
 qrcode>=8,<9
+
+# MemuDB local analytical databases
+duckdb>=1.4,<2

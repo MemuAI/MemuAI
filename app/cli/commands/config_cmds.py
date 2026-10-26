@@ -68,14 +68,12 @@ CHOICES = {
     "backend": ["auto", "proxy", "direct"], "accent": [""] + list(ACCENTS),
 }
 
-
 def _value_text(value: Any) -> str:
     if isinstance(value, bool):
         return tr("вкл", "on") if value else tr("выкл", "off")
     if value in ("", None):
         return tr("по умолчанию", "default")
     return str(value)
-
 
 def apply_live(ctx: Context, key: str) -> None:
     """Settings that change the interface right away."""
@@ -101,7 +99,6 @@ def apply_live(ctx: Context, key: str) -> None:
     elif key in ("output_style", "shell", "tool_protocol"):
         ctx.runtime.invalidate_prompt()
 
-
 async def edit_setting(ctx: Context, key: str, scope: str = "user") -> bool:
     current = ctx.settings.get(key)
     label = tr(*SETTING_INFO[key]) if key in SETTING_INFO else key
@@ -126,14 +123,11 @@ async def edit_setting(ctx: Context, key: str, scope: str = "user") -> bool:
     apply_live(ctx, key)
     return True
 
-
 DEFAULTS_FLAT = flatten(DEFAULTS)
-
 
 @command("config", "Настройки через команды", "Read or change configuration keys", hint="[get|set|list …]", category="config", while_busy=True)
 async def config_cmd(ctx: Context) -> None:
     await _config_cli(ctx, ctx.words() or ["list"])
-
 
 @command("settings", "Настройки MemuCode", "MemuCode settings", aliases=("preferences",),
          category="config", immediate=True, while_busy=True)
@@ -152,7 +146,6 @@ async def settings_cmd(ctx: Context) -> None:
             return
         index = list(SETTING_INFO).index(choice)
         await edit_setting(ctx, choice)
-
 
 async def _config_cli(ctx: Context, words: List[str]) -> None:
     action = words[0].lower()
@@ -205,7 +198,6 @@ async def _config_cli(ctx: Context, words: List[str]) -> None:
     ctx.say(tr("Использование: /config list | get <ключ> | set <ключ> <значение> [--project|--local] | unset <ключ> | edit",
                "Usage: /config list | get <key> | set <key> <value> [--project|--local] | unset <key> | edit"), "warn")
 
-
 def _open_file(path: Path) -> None:
     try:
         if os.name == "nt":
@@ -219,9 +211,7 @@ def _open_file(path: Path) -> None:
     except OSError:
         pass
 
-
 SAMPLE_DIFF = "@@ -1,3 +1,3 @@\n def greet(name):\n-    return 'Hi ' + name\n+    return f'Hello, {name}!'\n \n"
-
 
 @command("theme", "Тема оформления терминала", "Terminal colour theme", hint="[name]", category="config", while_busy=True)
 async def theme(ctx: Context) -> None:
@@ -256,7 +246,6 @@ async def theme(ctx: Context) -> None:
     apply_live(ctx, "theme")
     ctx.say(tr(f"Тема: {wanted}", f"Theme: {wanted}"), "success")
 
-
 @command("color", "Цвет акцента (рамки, спиннер) — удобно различать сессии", "Accent colour — handy to tell sessions apart",
          hint="[color|#hex|reset]", category="config", while_busy=True)
 async def color(ctx: Context) -> None:
@@ -275,7 +264,6 @@ async def color(ctx: Context) -> None:
     apply_live(ctx, "accent")
     ctx.say(tr(f"Акцент: {value or 'по умолчанию'}", f"Accent: {value or 'default'}"), "success")
 
-
 @command("vim", "Режим Vim в поле ввода вкл/выкл", "Toggle Vim editing mode", category="config", while_busy=True)
 async def vim(ctx: Context) -> None:
     value = not bool(ctx.settings.get("vim_mode"))
@@ -284,12 +272,10 @@ async def vim(ctx: Context) -> None:
     ctx.say(tr("Режим Vim: ", "Vim mode: ") + (tr("вкл (Esc — normal, i — insert)", "on (Esc for normal, i for insert)")
                                              if value else tr("выкл", "off")), "success")
 
-
 @command("lang", "Язык интерфейса", "Interface language (English)", aliases=("language",),
          category="config", while_busy=True)
 async def lang(ctx: Context) -> None:
     ctx.say("MemuCode CLI uses English for its interface.")
-
 
 @command("output-style", "Стиль ответов: обычный, объясняющий, обучающий, краткий", "Answer style: default, explanatory, learning, concise",
          hint="[style]", category="config", while_busy=True)
@@ -312,7 +298,6 @@ async def output_style(ctx: Context) -> None:
     apply_live(ctx, "output_style")
     ctx.say(tr(f"Стиль ответов: {value}", f"Output style: {value}"), "success")
 
-
 @command("statusline", "Строка состояния: встроенная, своя команда или скрыть", "Status line: built-in, a custom command, or off",
          hint="[command|builtin|off]", category="config", while_busy=True)
 async def statusline(ctx: Context) -> None:
@@ -333,7 +318,6 @@ async def statusline(ctx: Context) -> None:
     ctx.ui.statusline_cache = ("", 0.0)
     ctx.say(tr("Строка состояния обновлена", "Status line updated"), "success")
 
-
 MODE_ORDER = ("default", "acceptEdits", "plan", "auto", "bypassPermissions")
 _MODE_WORDS = {
     "default": ("default", "normal", "ask", "ask-first", "обычный", "спрашивать"),
@@ -343,7 +327,6 @@ _MODE_WORDS = {
     "bypasspermissions": ("bypasspermissions", "bypass", "yolo", "always-approve", "без"),
 }
 
-
 def parse_mode(text: str) -> str:
     """A permission mode from what a person types (``auto``, ``accept edits``, ``обычный``…); "" when unknown."""
     word = re.sub(r"[\s_]+", "-", text.strip().lower())
@@ -351,7 +334,6 @@ def parse_mode(text: str) -> str:
         if word in names or word.replace("-", "") == mode:
             return next(real for real in MODE_ORDER if real.lower() == mode)
     return ""
-
 
 def _judge_note(ctx: Context) -> str:
     """Who decides in auto mode, in plain words."""
@@ -365,7 +347,6 @@ def _judge_note(ctx: Context) -> str:
                   "Right now a fast chat model judges; connect a decision model: /decisions.")
     return tr("Сейчас решают встроенные правила; модель решений: /decisions.",
               "Right now built-in rules judge; connect a decision model: /decisions.")
-
 
 async def set_permission_mode(ctx: Context, mode: str) -> bool:
     """Switch the mode on the user's word. A chosen mode applies to every window (plan mode: this one)."""
@@ -384,7 +365,6 @@ async def set_permission_mode(ctx: Context, mode: str) -> bool:
             return False
     perms.set_mode(mode, source="command", persist=mode in SYNCED)
     return True
-
 
 async def pick_permission_mode(ctx: Context) -> None:
     perms = ctx.runtime.permissions
@@ -406,7 +386,6 @@ async def pick_permission_mode(ctx: Context) -> None:
     if choice:
         await set_permission_mode(ctx, choice)
 
-
 @command("mode", "Режим разрешений: спрашивать, принимать правки, план, авто, без подтверждений (Shift+Tab)",
          "Permission mode: ask first, accept edits, plan, auto, bypass (Shift+Tab)", hint="[mode]", category="config",
          while_busy=True)
@@ -420,7 +399,6 @@ async def mode_cmd(ctx: Context) -> None:
         await set_permission_mode(ctx, mode)
         return
     await pick_permission_mode(ctx)
-
 
 @command("permissions", "Режим разрешений и правила: что агент делает сам, а о чём спрашивает",
          "Permission mode and rules: what the agent does on its own and what it asks about",
@@ -495,17 +473,14 @@ async def permissions(ctx: Context) -> None:
             ctx.settings.append(f"permissions.{choice}", text.strip(), scope)
             ctx.say(tr(f"Добавлено: {text.strip()}", f"Added: {text.strip()}"), "success")
 
-
 CREATE_FLAG = re.compile(r"(?:^|\s)(?:--new|—new|–new|--create|--mkdir|--make|-n)(?=\s|$)", re.I)
 _WINDOWS_RESERVED = {"con", "prn", "aux", "nul", *(f"com{n}" for n in range(1, 10)), *(f"lpt{n}" for n in range(1, 10))}
-
 
 def split_create_flag(args: str) -> tuple:
     """``("path", create)``: the argument without a ``--new`` flag (a typed «—new» counts too) and whether it was there."""
     text = args.strip()
     create = bool(CREATE_FLAG.search(text))
     return CREATE_FLAG.sub(" ", text).strip().strip('"').strip("'").strip(), create
-
 
 def folder_problem(path: Path) -> str:
     """Why a folder cannot be created at this path (empty when it can), without touching the disk."""
@@ -523,7 +498,6 @@ def folder_problem(path: Path) -> str:
     if len(str(path)) > 250 and os.name == "nt":
         return tr("Путь слишком длинный для Windows", "The path is too long for Windows")
     return ""
-
 
 async def offer_to_create(ctx: Context, path: Path, create: bool, *, what: str = "folder") -> bool:
     """A folder that does not exist: create it when asked to (``--new``) or when the user says yes (the
@@ -558,7 +532,6 @@ async def offer_to_create(ctx: Context, path: Path, create: bool, *, what: str =
     ctx.say(tr(f"Создана папка: {path}", f"Created folder: {path}"), "success")
     return True
 
-
 def resolve_folder(root: Path, target: str) -> Path:
     path = Path(os.path.expanduser(os.path.expandvars(target)))
     if not path.is_absolute():
@@ -567,7 +540,6 @@ def resolve_folder(root: Path, target: str) -> Path:
         return path.resolve()
     except OSError:
         return path
-
 
 @command("add-dir", "Дать агенту доступ к ещё одной папке", "Give the agent access to another folder",
          hint="<path> [--new]", category="config", while_busy=True)
@@ -594,7 +566,6 @@ async def add_dir(ctx: Context) -> None:
         ctx.settings.append("permissions.additional_directories", str(path), "local")
     ctx.say(tr(f"Рабочая папка добавлена: {path}", f"Added working directory: {path}"), "success")
 
-
 @command("cd", "Сменить папку проекта. Нет такой папки — предложит создать (или /cd путь --new)",
          "Change the project folder. A missing folder is offered for creation (or /cd path --new)",
          hint="<path> [--new]", category="config", while_busy=False)
@@ -613,7 +584,6 @@ async def cd(ctx: Context) -> None:
     path = await switch_folder(ctx, resolved)
     if path is not None:
         ctx.say(tr(f"Проект: {path} (новый разговор)", f"Project: {path} (new conversation)"), "success")
-
 
 async def switch_folder(ctx: Context, resolved: Path) -> Optional[Path]:
     """Make ``resolved`` the project: a new conversation there, its prompt history, and — for a folder not
@@ -635,7 +605,6 @@ async def switch_folder(ctx: Context, resolved: Path) -> Optional[Path]:
             runtime.invalidate_prompt(memory=True)
     return path
 
-
 @command("terminal-setup", "Настроить Shift+Enter для новой строки в вашем терминале", "Set up Shift+Enter for new lines in your terminal",
          category="config", while_busy=True)
 async def terminal_setup(ctx: Context) -> None:
@@ -654,7 +623,6 @@ async def terminal_setup(ctx: Context) -> None:
             ok, where = _vscode_keybinding()
             ctx.say(tr(f"Готово: {where}" if ok else f"Не удалось: {where}", f"Done: {where}" if ok else f"Failed: {where}"),
                     "success" if ok else "error")
-
 
 def _vscode_keybinding() -> tuple:
     base = Path(os.environ.get("APPDATA", Path.home() / ".config")) / "Code" / "User"
@@ -677,15 +645,11 @@ def _vscode_keybinding() -> tuple:
     except (OSError, ValueError) as exc:
         return False, str(exc)
 
-
 @command("keybindings", "Все горячие клавиши", "All keyboard shortcuts", aliases=("shortcuts", "keys"),
          category="config", while_busy=True)
 async def keybindings(ctx: Context) -> None:
     ctx.ui.show_help = True
     ctx.ui.invalidate()
-
-
-# ---------------------------------------------------------------- connections
 
 PRESETS = {
     "anthropic": ("Anthropic (Claude API)", "anthropic", "https://api.anthropic.com", "ANTHROPIC_API_KEY",
@@ -696,10 +660,8 @@ PRESETS = {
     "custom": (("Другой OpenAI-совместимый API", "Another OpenAI-compatible API"), "openai", "", "", ""),
 }
 
-
 def _preset_label(value: Any) -> str:
     return tr(*value) if isinstance(value, tuple) else str(value)
-
 
 async def add_connection(ctx: Context) -> None:
     """Connect models directly with an API key (Anthropic, OpenAI, OpenRouter, any OpenAI-compatible API)."""
@@ -750,7 +712,6 @@ async def add_connection(ctx: Context) -> None:
         ctx.say(tr(f"Подключение «{name}» сохранено. Модели будут вида @{name}:<модель>.",
                    f"Saved “{name}”. Its models are named @{name}:<model>."), "success")
 
-
 async def remove_connection(ctx: Context) -> None:
     """Remove a direct API connection saved with :func:`add_connection`."""
     rows = [row for row in (ctx.settings.get("connections") or []) if isinstance(row, dict)]
@@ -766,7 +727,6 @@ async def remove_connection(ctx: Context) -> None:
     ctx.settings.set("connections", [row for row in rows if row.get("name") != name])
     ctx.runtime.router.reset()
     ctx.say(tr(f"Удалено: {name}", f"Removed: {name}"), "success")
-
 
 @command("proxy", "MemuAI Proxy: состояние и запуск; здесь же прямые API-подключения (ключи Anthropic, OpenAI, OpenRouter…)",
          "MemuAI Proxy: status and start; direct API connections (Anthropic, OpenAI, OpenRouter keys…) are managed here too",
@@ -817,14 +777,12 @@ async def proxy(ctx: Context) -> None:
     elif choice == "remove":
         await remove_connection(ctx)
 
-
 @command("notifications", "Уведомления о завершении и вопросах", "Notifications when work finishes or needs you",
          category="config", while_busy=True)
 async def notifications(ctx: Context) -> None:
     if not await edit_setting(ctx, "notifications"):
-        return                                  # Esc: nothing changed, no "✓" line
+        return
     ctx.say(tr(f"Уведомления: {ctx.settings.get('notifications')}", f"Notifications: {ctx.settings.get('notifications')}"), "success")
-
 
 @command("sandbox", "Песочница для команд: состояние и настройки", "Command sandbox: status and settings", category="config", while_busy=True)
 async def sandbox(ctx: Context) -> None:
@@ -851,7 +809,6 @@ async def sandbox(ctx: Context) -> None:
         code_sandbox.manager.close(ctx.runtime.session.id)
         ctx.runtime.shells.kill_all()
         ctx.say(tr("Процессы остановлены", "Processes stopped"), "success")
-
 
 @command("hooks", "Хуки: команды на событиях агента", "Hooks: commands on agent events", category="config", while_busy=True)
 async def hooks(ctx: Context) -> None:
@@ -881,7 +838,6 @@ async def hooks(ctx: Context) -> None:
         "Events: " + ", ".join(EVENTS) + ". Exit code 2 blocks the action."))
     for error in runner.last_errors[-5:]:
         ctx.say(error, "warn")
-
 
 @command("install", "Добавить команду memucode в PATH", "Add the memucode command to PATH", category="config", while_busy=True)
 async def install(ctx: Context) -> None:

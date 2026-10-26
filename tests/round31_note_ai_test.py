@@ -35,7 +35,6 @@ from app.memunote import edits, prompts  # noqa: E402
 
 NODE = shutil.which("node")
 
-
 def run_stream(text, chunks=None):
     s = edits.EditStream()
     out = []
@@ -48,7 +47,6 @@ def run_stream(text, chunks=None):
     prose = "".join(v for k, v in out if k == "delta")
     found = [v for k, v in out if k == "edit"]
     return prose, found, out
-
 
 ANSWER = '''Исправлю опечатку и добавлю вывод.
 
@@ -67,7 +65,6 @@ ANSWER = '''Исправлю опечатку и добавлю вывод.
 Готово. Текст <editor> и a < b. ```python
 x = 1
 ```'''
-
 
 class EditProtocolTest(unittest.TestCase):
     def test_tag_blocks_are_parsed_and_fences_around_them_dropped(self) -> None:
@@ -111,8 +108,8 @@ class EditProtocolTest(unittest.TestCase):
     def test_normalize_validates_and_aliases(self) -> None:
         n = edits.normalize
         self.assertIsNone(n({"op": "bogus", "text": "x"}))
-        self.assertIsNone(n({"op": "replace", "text": "x"}))              # no <find>
-        self.assertIsNone(n({"op": "insert", "at": "after", "text": "x"}))  # no anchor
+        self.assertIsNone(n({"op": "replace", "text": "x"}))
+        self.assertIsNone(n({"op": "insert", "at": "after", "text": "x"}))
         self.assertEqual(n({"op": "append", "text": "x"}), {"op": "insert", "text": "x", "at": "end"})
         self.assertEqual(n({"type": "remove", "find": "z"}), {"op": "delete", "text": "", "find": "z"})
         self.assertEqual(n({"op": "replace", "find": "a⟦cursor⟧b", "text": "c"})["find"], "ab")
@@ -123,7 +120,6 @@ class EditProtocolTest(unittest.TestCase):
     def test_text_may_mention_its_own_tag(self) -> None:
         _, found = edits.parse_all('<edit op="insert" at="end"><text>use <text> tags</text></edit>')
         self.assertEqual(found[0]["text"], "use <text> tags")
-
 
 class AgentPromptTest(unittest.TestCase):
     def build(self, context, input_text="", history=None):
@@ -163,7 +159,6 @@ class AgentPromptTest(unittest.TestCase):
             {"role": "user", "content": "два"}])
         self.assertEqual([m["content"] for m in msgs[-3:]], ["раз", "ок (Proposed edits: [insert])", "два"])
 
-
 class ModelsAndStatusTest(unittest.TestCase):
     def test_context_family_label_is_not_the_model_name(self) -> None:
         from app.memunote import ai
@@ -172,8 +167,7 @@ class ModelsAndStatusTest(unittest.TestCase):
                             {"id": "named", "label": "Nice name"}]}
         with mock.patch.object(ai, "request_json", return_value=state):
             rows = ai.models("http://127.0.0.1:1")
-        # Round 33 (r33c-models-lists): the label is the model's own readable name (app/model_names.py), still
-        # never the shared context family — the two qwen models must not look like twins.
+
         labels = [r["label"] for r in rows]
         self.assertEqual(labels, ["Qwen3.8 Max", "Qwen3.7 Flash", "Nice name"])
         self.assertNotIn("Qwen3 (256K)", labels)
@@ -195,7 +189,6 @@ class ModelsAndStatusTest(unittest.TestCase):
             ai.status("")
         self.assertEqual(len(calls), 2, calls)
         ai._STATUS_CACHE.update(at=0.0, value=None)
-
 
 class _FakeProxy(http.server.BaseHTTPRequestHandler):
     answer = ""
@@ -220,7 +213,6 @@ class _FakeProxy(http.server.BaseHTTPRequestHandler):
             chunk = {"choices": [{"delta": {"content": self.answer[i:i + 5]}}]}
             self.wfile.write(("data: " + json.dumps(chunk, ensure_ascii=False) + "\n\n").encode())
         self.wfile.write(b"data: [DONE]\n\n")
-
 
 class ServerAgentStreamTest(unittest.TestCase):
     def test_agent_chat_emits_edit_events(self) -> None:
@@ -263,7 +255,6 @@ class ServerAgentStreamTest(unittest.TestCase):
         self.assertNotIn("<edit ", prose)
         self.assertNotIn("```xml", prose)
         self.assertIn("<editor>", prose)
-
 
 @unittest.skipUnless(NODE, "node is not installed")
 class DiffHelpersNodeTest(unittest.TestCase):
@@ -345,7 +336,6 @@ console.log(JSON.stringify({ total: big.length, len: c.text.length, truncated: c
         self.assertEqual(r["sel"], "def")
         self.assertEqual(r["range"], [4, 7])
 
-
 class StaticWiringTest(unittest.TestCase):
     def test_scripts_parse(self) -> None:
         if not NODE:
@@ -358,7 +348,7 @@ class StaticWiringTest(unittest.TestCase):
         for cls in (".aip-head", ".aip-card", ".aip-hunk", ".aip-compose", ".aip-empty", ".aip.collapsed", ".mn-ai-del",
                     ".mn-ai-ins", ".mn-ai-stream", "@container aip", ':root[data-theme="light"]'):
             self.assertIn(cls, css)
-        # only theme tokens / colour mixes — no hard-coded palette that would ignore the MemuAI theme
+
         self.assertNotRegex(css, r"background:\s*#[0-9a-f]{3,6}\b(?!.*var\()")
         self.assertIn('ai-panel.css', (JS / "ai.js").read_text(encoding="utf-8"))
 
@@ -402,7 +392,6 @@ console.log(JSON.stringify(out));
         self.assertNotIn("text.slice(0, 2_000_000)", app_js)
         self.assertIn("aiExcerpt(", app_js)
 
-
 @unittest.skipUnless(os.environ.get("XKIRO_BASE") and os.environ.get("XKIRO_KEY"), "live keys are not set")
 class LiveAgentTest(unittest.TestCase):
     """A real model answers the agent prompt with edit blocks that parse and resolve."""
@@ -438,7 +427,6 @@ class LiveAgentTest(unittest.TestCase):
             if e["op"] == "replace":
                 self.assertIn(e["find"], doc)
         self.assertNotIn("<edit ", prose)
-
 
 if __name__ == "__main__":
     unittest.main()

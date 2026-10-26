@@ -25,8 +25,6 @@ os.environ.setdefault("NO_PROXY", "127.0.0.1,localhost")
 
 from app import ask_user as au  # noqa: E402
 
-
-# ---------------------------------------------------------------- schema
 def test_normalize_aliases_and_limits():
     form = au.normalize_form({"title": "Письмо", "fields": [
         {"type": "chips", "label": "Тон", "options": ["Формальный", "Дружеский", "Другое"], "default": "дружеский",
@@ -38,15 +36,14 @@ def test_normalize_aliases_and_limits():
     assert len(form["fields"]) == au.MAX_FIELDS == 3
     assert form["dropped_fields"] == 1
     tone, add, length = form["fields"]
-    assert tone["type"] == "choice" and tone["options"] == ["Формальный", "Дружеский"]   # «Другое» → allow_other
+    assert tone["type"] == "choice" and tone["options"] == ["Формальный", "Дружеский"]
     assert tone["default"] == "Дружеский" and tone["allow_other"] is True
     assert add["type"] == "multi" and add["options"] == ["Подпись", "Ссылку"]
     assert length["type"] == "number" and (length["min"], length["max"]) == (50, 500) and length["default"] == 50
     assert len({f["id"] for f in form["fields"]}) == 3
 
-
 def test_normalize_degrades_and_sanitizes():
-    # chips without options → text; one option → bool; markup and control chars stripped; long labels cut
+
     form = au.normalize_form({"fields": [
         {"type": "choice", "label": "<b>Город</b>\u202e"},
         {"type": "choice", "label": "", "options": ["Согласны?"]},
@@ -58,16 +55,15 @@ def test_normalize_degrades_and_sanitizes():
     assert len(long["fields"][0]["label"]) <= au.MAX_LABEL
     many = au.normalize_form({"fields": [{"type": "choice", "label": "a", "options": [str(i) for i in range(30)]}]})
     assert len(many["fields"][0]["options"]) == au.MAX_OPTIONS
-    # a bare question becomes one text field; nothing usable raises
+
     assert au.normalize_form({"question": "Как назвать?"})["fields"][0]["type"] == "text"
     with pytest.raises(au.FormError):
         au.normalize_form({"fields": [{"type": "text"}]})
     with pytest.raises(au.FormError):
         au.normalize_form(42)
-    # JSON string arguments and a dict of fields
+
     form = au.normalize_form(json.dumps({"fields": {"size": {"type": "select", "label": "Размер", "options": ["S", "M"]}}}))
     assert form["fields"][0]["id"] == "size" and form["fields"][0]["type"] == "choice"
-
 
 def test_validate_answers():
     form = au.normalize_form({"fields": [
@@ -86,9 +82,8 @@ def test_validate_answers():
     assert au.validate_answers(date_form, {"d": "12.10.2026", "ok": "да"}) == ({"d": "2026-10-12", "ok": True}, [])
     assert au.validate_answers(date_form, {"d": "2025-05-05"})[1] == [{"field": "d", "error": "below_min"}]
     assert au.validate_answers(date_form, {"d": "31.02.2026"})[1] == [{"field": "d", "error": "not_a_date"}]
-    # a free reply typed instead of the form is kept
-    assert au.validate_answers(date_form, {"_reply": "как хочешь"})[0] == {"_reply": "как хочешь"}
 
+    assert au.validate_answers(date_form, {"_reply": "как хочешь"})[0] == {"_reply": "как хочешь"}
 
 def test_tool_result_and_summary():
     form = au.normalize_form({"question": "Q", "fields": [{"id": "a", "type": "bool", "label": "Да?"},
@@ -100,18 +95,16 @@ def test_tool_result_and_summary():
     assert au.summary(form, {"a": False, "b": 3}) == "Да?: Нет · Сколько: 3 шт"
     assert au.summary(form, {}, "skipped", "en").startswith("Skipped")
 
-
 def test_extract_call_text_protocol():
     text = 'Уточню.\n```memuai-tool\n[{"tool":"ask_user","args":{"fields":[{"type":"bool","label":"Да?"}]}}]\n```'
     rest, args = au.extract_call(text)
     assert rest == "Уточню." and args["fields"][0]["label"] == "Да?"
     assert au.extract_call('<tool_call>{"name":"ask_user","arguments":{"question":"Q"}}</tool_call>')[1] == {"question": "Q"}
     assert au.extract_call('[{"tool":"ask_user","args":{"question":"Q"}}]')[1] == {"question": "Q"}
-    # other tools and plain JSON examples are not ask_user calls
+
     assert au.extract_call('```memuai-tool\n[{"tool":"web_search","args":{"query":"x"}}]\n```')[1] is None
     assert au.extract_call('Пример: {"a": 1}')[1] is None
     assert au.strip_calls('a\n```memuai-tool\n[{"tool":"x","args":{}}]\n```\nb') == "a\n\nb"
-
 
 def test_swapped_closers_are_repaired_everywhere():
     """Live finding (finish-a, nemotron :free): the model closed «]}]}]» instead of «]}}]» seven times in a row —
@@ -137,7 +130,6 @@ def test_swapped_closers_are_repaired_everywhere():
     assert not data["errors"] and data["calls"][0]["tool"] == "ask_user", out.stdout + out.stderr
     assert data["text"].strip() == "hi"
 
-
 def test_prompt_rules():
     text = au.prompt_section()
     assert "at most 3" in text.lower() or "At most 3" in text
@@ -149,8 +141,6 @@ def test_prompt_rules():
     assert tool["function"]["name"] == "ask_user"
     assert tool["function"]["parameters"]["properties"]["fields"]["maxItems"] == 3
 
-
-# ---------------------------------------------------------------- store
 def test_store_wait_answer_timeout_cancel(tmp_path):
     st = au.PendingStore(str(tmp_path / "ask.json"))
     form = au.normalize_form({"fields": [{"id": "x", "type": "choice", "label": "X", "options": ["a", "b"]}]})
@@ -161,17 +151,17 @@ def test_store_wait_answer_timeout_cancel(tmp_path):
         task = asyncio.create_task(st.wait(rec["id"], timeout=5))
         await asyncio.sleep(0.1)
         record, errors = st.settle(rec["id"], "answered", {"x": "zzz"})
-        assert errors and record["status"] == "pending"       # invalid answers do not settle the form
+        assert errors and record["status"] == "pending"
         st.settle(rec["id"], "answered", {"x": "B"})
         done = await asyncio.wait_for(task, 2)
         assert done["status"] == "answered" and done["answers"] == {"x": "b"}
-        # the first answer wins
+
         again, _ = st.settle(rec["id"], "skipped")
         assert again["status"] == "answered"
-        # timeout
+
         rec2 = st.open(form, inbox_post=False)
         assert (await st.wait(rec2["id"], timeout=1, poll=0.2))["status"] == "timeout"
-        # stop → cancelled
+
         rec3 = st.open(form, inbox_post=False)
         stop = asyncio.Event()
         task3 = asyncio.create_task(st.wait(rec3["id"], timeout=10, stop=stop, poll=0.1))
@@ -180,7 +170,6 @@ def test_store_wait_answer_timeout_cancel(tmp_path):
         assert (await asyncio.wait_for(task3, 2))["status"] == "cancelled"
 
     asyncio.run(scenario())
-
 
 def test_store_cross_process_answer(tmp_path):
     """An answer written by another process (another store on the same file) reaches the waiter by polling."""
@@ -191,7 +180,6 @@ def test_store_cross_process_answer(tmp_path):
     threading.Timer(0.3, lambda: other_store.settle(rec["id"], "answered", {"ok": "yes"})).start()
     done = asyncio.run(waiter_store.wait(rec["id"], timeout=5, poll=0.1))
     assert done["status"] == "answered" and done["answers"] == {"ok": True}
-
 
 def test_inbox_post_and_resolve(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMUAI_DATA_DIR", str(tmp_path))
@@ -208,14 +196,12 @@ def test_inbox_post_and_resolve(tmp_path, monkeypatch):
     assert item and item["status"] == "open" and item["source"] == "ask_user"
     assert "ждёт ответа" in item["body"].lower() and item["ref"]["form_id"] == rec["id"]
     assert {a["id"] for a in item["actions"]} >= {"open", "skip"}
-    # «Пропустить» from the Inbox settles the form through the registered handler
+
     monkeypatch.setattr(au, "STORE", st)
     result = au._inbox_handler(item, "skip", {})
     assert result.get("resolve") and st.get(rec["id"])["status"] == "skipped"
     assert not inbox.is_open("ask_user:" + rec["id"])
 
-
-# ---------------------------------------------------------------- HTTP
 def test_http_routes(tmp_path):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -238,8 +224,6 @@ def test_http_routes(tmp_path):
     assert client.get(f"/api/pg/ask_user/{rec['id']}").json()["status"] == "answered"
     assert client.post("/api/pg/ask_user/nope/skip").status_code == 404
 
-
-# ---------------------------------------------------------------- Telegram
 def test_telegram_keyboard_flow():
     from app import ask_user_telegram as tg
     form = au.normalize_form({"question": "Поездка", "fields": [
@@ -252,7 +236,7 @@ def test_telegram_keyboard_flow():
     assert all(len(b["callback_data"].encode()) <= 64 for b in flat)
     assert any("Море" in b["text"] for b in flat) and any("Готово" in b["text"] for b in flat)
     assert any("Пропустить" in b["text"] for b in flat)
-    # choice toggles, multi toggles, number via a text reply
+
     assert tg.on_callback(state, "c:0:1")["changed"]
     assert state["values"]["kind"] == "Горы"
     tg.on_callback(state, "m:1:0"); tg.on_callback(state, "m:1:1"); tg.on_callback(state, "m:1:0")
@@ -265,12 +249,11 @@ def test_telegram_keyboard_flow():
     clean, errors = au.validate_answers(form, done["submit"])
     assert errors == [] and clean["budget"] == 15000
     assert tg.on_callback(state, "skip")["skip"]
-    # «Другое» asks for a text reply
+
     other = tg.on_callback(state, "o:0")
     assert other["ask_text"] and state["awaiting"] == "kind__other"
     tg.on_text(state, "Озеро")
     assert tg.collect(state)["kind"] == "Озеро"
-
 
 def test_telegram_wiring_static():
     bot = (ROOT / "app/telegram_bot.py").read_text(encoding="utf-8")
@@ -278,8 +261,6 @@ def test_telegram_wiring_static():
     src = (ROOT / "app/ask_user_telegram.py").read_text(encoding="utf-8")
     assert "callback_data" in src and "au:" in src
 
-
-# ---------------------------------------------------------------- clients (static)
 def test_chat_client_wiring():
     app_js = (ROOT / "app/pgstatic/app.js").read_text(encoding="utf-8")
     index = (ROOT / "app/pgstatic/index.html").read_text(encoding="utf-8")
@@ -292,14 +273,12 @@ def test_chat_client_wiring():
                    'role="radiogroup"', 'role="checkbox"', "Ctrl+Enter", "Пропустить — решай сам", "Skip — you decide"):
         assert needle in js, needle
 
-
 def test_quick_client_wiring():
     quick = (ROOT / "app/pgstatic/quick/quick.js").read_text(encoding="utf-8")
     index = (ROOT / "app/pgstatic/quick/index.html").read_text(encoding="utf-8")
     assert '/askuser.js' in index and 'case "ask_user"' in quick and 'case "ask_user_done"' in quick
     api = (ROOT / "app/quick_ask_api.py").read_text(encoding="utf-8")
     assert '"event": "ask_user"' in api and "_ask_user.STORE.wait" in api
-
 
 def test_spec_and_build_list_modules():
     build = (ROOT / "build.py").read_text(encoding="utf-8")
@@ -308,8 +287,6 @@ def test_spec_and_build_list_modules():
         assert "'app.ask_user'" in text and "'app.ask_user_telegram'" in text, spec
     assert '"app.ask_user"' in build and '"app.ask_user_telegram"' in build
 
-
-# ---------------------------------------------------------------- live
 def _live_models():
     rows = []
     if os.environ.get("SOL_KEY"):
@@ -319,7 +296,6 @@ def _live_models():
     if os.environ.get("OPENROUTER_KEY"):
         rows.append(("OPENROUTER_BASE", "OPENROUTER_KEY", os.environ.get("ASKUSER_OR_MODEL", "nvidia/nemotron-3-super-120b-a12b:free")))
     return rows
-
 
 @pytest.mark.parametrize("row", _live_models() or [None])
 def test_live_model_calls_ask_user(row):
@@ -343,11 +319,9 @@ def test_live_model_calls_ask_user(row):
     form = au.normalize_form(args)
     assert 1 <= len(form["fields"]) <= 3
 
-
-# ---------------------------------------------------------------- DFY
 def test_dfy_form_question(tmp_path):
     sys.path.insert(0, str(ROOT / "tests"))
-    from round24_dfy_test import FakeBrowser, ScriptedModel   # the DFY test doubles
+    from round24_dfy_test import FakeBrowser, ScriptedModel
     from app.dfy import DFYManager
     from app.dfy_vault import SecretVault
 
@@ -386,7 +360,6 @@ def test_dfy_form_question(tmp_path):
 
     asyncio.run(scenario())
 
-
 def test_dfy_client_and_miniapp_static():
     dfy = (ROOT / "app/pgstatic/dfy-client.js").read_text(encoding="utf-8")
     assert 'q.kind === "form"' in dfy and "MemuAskForm.mount" in dfy
@@ -395,7 +368,6 @@ def test_dfy_client_and_miniapp_static():
     assert 'case "ask_user"' in tg_js and "jobs.answer" in tg_js and "shared/askuser.js" in tg_html
     api = (ROOT / "app/tgapp_api.py").read_text(encoding="utf-8")
     assert '"askuser.js"' in api and '@op("jobs.answer")' in api
-
 
 def test_miniapp_generate_with_form(tmp_path, monkeypatch):
     """The Mini App job: the model asks, the job emits ask_user, jobs.answer settles, the same job continues."""
@@ -440,7 +412,6 @@ def test_miniapp_generate_with_form(tmp_path, monkeypatch):
         assert "local-tool_report" in calls[1][-1]["content"] and '"Blue"' in calls[1][-1]["content"]
 
     asyncio.run(scenario())
-
 
 def test_telegram_answer_loop_with_form(monkeypatch, tmp_path):
     """telegram_bot._stream_answer: ask_user → a button form → the user taps → the same answer continues."""
@@ -498,17 +469,14 @@ def test_telegram_answer_loop_with_form(monkeypatch, tmp_path):
     assert not any("memuai-tool" in str(p.get("text")) for m, p in sent)
     assert "777" not in tg._ACTIVE
 
-
 def test_inbox_toast_quiet_for_visible_form():
     """finish-a: the «Входящие: новый вопрос» toast is not shown while the same ask_user form is on screen."""
     js = (ROOT / "app/pgstatic/inbox.js").read_text(encoding="utf-8")
     assert '!document.querySelector("#messages .au-pending")' in js
 
-
 def test_quick_ask_forms_setting_hides_the_tool():
     api = (ROOT / "app/quick_ask_api.py").read_text(encoding="utf-8")
     assert 'settings.get("quick_ask_forms", True) is not False' in api
-
 
 def test_date_field_follows_app_theme():
     css = (ROOT / "app/pgstatic/askuser.css").read_text(encoding="utf-8")

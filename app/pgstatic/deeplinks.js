@@ -1,19 +1,13 @@
-/* MemuAI · Round 35 (protocol): memuai:// links in the window.
 
-   The server (app/deeplinks*.py) validates every link and queues it; this file shows the queue:
-     safe     → runs at once (open a chat / section / settings page, prefill a text — nothing is sent or saved)
-     confirm  → a dialog INSIDE MemuAI: what will happen, the link, where it came from, optional preview
-                (skill text, composite JSON), fields the user types (an API key) — «Выполнить» unlocks after 1.2 s.
-   window.MemuLinks = { poll, registerAction(name, fn), copyLink(route, params), chatMenuItems(chat), settings }
-   Other zones: a server route (deeplinks.register_route(..., ui="zone.action")) + MemuLinks.registerAction("zone.action", fn). */
+
 (function () {
   "use strict";
   if (window.MemuLinks) return;
 
-  const isEn = () => { try { if (typeof PG_LANG !== "undefined") return PG_LANG === "en"; } catch (e) { /* ignore */ } return (document.documentElement.lang || "ru").startsWith("en"); };
+  const isEn = () => { try { if (typeof PG_LANG !== "undefined") return PG_LANG === "en"; } catch (e) {  } return (document.documentElement.lang || "ru").startsWith("en"); };
   const L = (ru, en) => (isEn() ? en : ru);
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const say = (text, kind) => { try { if (typeof toast === "function") toast(text, kind || "ok"); } catch (e) { /* ignore */ } };
+  const say = (text, kind) => { try { if (typeof toast === "function") toast(text, kind || "ok"); } catch (e) {  } };
   const lang = () => (isEn() ? "en" : "ru");
   const SVG = {
     link: '<svg viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1"/><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1"/></svg>',
@@ -31,19 +25,18 @@
     return data;
   }
 
-  /* ------------------------------------------------------------ UI actions */
   const actions = new Map();
   function registerAction(name, fn) { if (name && typeof fn === "function") actions.set(String(name), fn); }
   const g = (name) => (typeof window[name] === "function" ? window[name] : null);
   const clickId = (id) => { const el = document.getElementById(id); if (el) { el.click(); return true; } return false; };
-  function closePanels() { try { if (typeof closePanel === "function") closePanel(); } catch (e) { /* ignore */ } }
+  function closePanels() { try { if (typeof closePanel === "function") closePanel(); } catch (e) {  } }
   function prefill(text) {
     const box = document.getElementById("input");
     if (!box || !text) return box;
     box.value = String(text);
     box.dispatchEvent(new Event("input", { bubbles: true }));
     box.focus();
-    try { box.setSelectionRange(box.value.length, box.value.length); } catch (e) { /* ignore */ }
+    try { box.setSelectionRange(box.value.length, box.value.length); } catch (e) {  }
     return box;
   }
 
@@ -58,7 +51,7 @@
       else say(L("Модели «" + a.model + "» нет в списке — выбрана обычная.", "Model \"" + a.model + "\" is not in the list — the usual one is used."), "warn");
     }
     prefill(a.q);
-    // `send` reaches here only after the dialog (the server marks it confirm).
+
     if (a.send && a.q) { const btn = document.getElementById("btn-send"); if (btn) setTimeout(() => btn.click(), 80); }
   });
   registerAction("chat.open", async (a) => {
@@ -114,7 +107,6 @@
     try { await fn(ui); } catch (e) { say(String(e.message || e), "error"); }
   }
 
-  /* ------------------------------------------------------------ queue */
   const seen = new Set();
   let polling = false, dialogOpen = false;
   const queue = [];
@@ -129,7 +121,7 @@
         seen.add(item.id);
         queue.push(item);
       }
-    } catch (e) { /* server restarting */ }
+    } catch (e) {  }
     polling = false;
     pump();
   }
@@ -155,7 +147,6 @@
     if (res.ui) runUi(res.ui);
   }
 
-  /* ------------------------------------------------------------ the dialog */
   function confirmDialog(item) {
     return new Promise((resolve) => {
       const opener = document.activeElement;
@@ -187,7 +178,7 @@
         document.removeEventListener("keydown", onKey, true);
         node.classList.add("dlk-leaving");
         setTimeout(() => node.remove(), 140);
-        try { opener && opener.focus && opener.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+        try { opener && opener.focus && opener.focus({ preventScroll: true }); } catch (e) {  }
         resolve(value);
       };
       const onKey = (e) => {
@@ -219,7 +210,7 @@
       document.addEventListener("keydown", onKey, true);
       document.body.appendChild(node);
       requestAnimationFrame(() => no.focus());
-      // A short pause before «Run» can be pressed: no accidental Enter / double click from the opening app.
+
       setTimeout(() => { unlocked = true; sync(); }, 1200);
       if (item.has_preview) {
         const box = node.querySelector(".dlk-preview");
@@ -237,7 +228,6 @@
     });
   }
 
-  /* ------------------------------------------------------------ links inside MemuAI (chat replies, docs) */
   document.addEventListener("click", (e) => {
     const a = e.target.closest && e.target.closest('a[href^="memuai:" i]');
     if (!a) return;
@@ -253,7 +243,6 @@
     return res;
   }
 
-  /* ------------------------------------------------------------ «Копировать ссылку memuai://» */
   async function copyLink(route, params) {
     const res = await call("/api/pg/deeplink/build", { route, params: params || {}, lang: lang() });
     if (!res.ok) { say(res.message || L("Не удалось сделать ссылку", "Could not make the link"), "error"); return ""; }
@@ -268,7 +257,6 @@
     return [{ label: L("Копировать ссылку memuai://", "Copy memuai:// link"), icon: "link", run: () => copyLink("chat", { id: chat.id }) }];
   }
 
-  /* ------------------------------------------------------------ Settings → «Ссылки и командная строка» */
   const settings = (() => {
     let st = null, ctx = null;
     const root = () => document.getElementById("dlk-settings-root");
@@ -351,7 +339,7 @@
         });
         el.addEventListener("click", async (e) => {
           const c2 = e.target.closest("[data-dlk-copy]");
-          if (c2) { try { if (typeof copyText === "function") await copyText(c2.dataset.dlkCopy, false); else await navigator.clipboard.writeText(c2.dataset.dlkCopy); say(L("Скопировано", "Copied"), "ok"); } catch (err) { /* ignore */ } return; }
+          if (c2) { try { if (typeof copyText === "function") await copyText(c2.dataset.dlkCopy, false); else await navigator.clipboard.writeText(c2.dataset.dlkCopy); say(L("Скопировано", "Copied"), "ok"); } catch (err) {  } return; }
           const act = e.target.closest("[data-dlk-act]");
           if (act && act.dataset.dlkAct === "clear") { await call("/api/pg/deeplink/journal/clear", {}); await load(); }
         });
@@ -364,9 +352,6 @@
   window.MemuLinks = { poll, open, registerAction, copyLink, chatMenuItems, settings, _actions: actions };
   window.MemuLinksSettings = settings;
 
-  // The queue is read at start (a link that started MemuAI), on focus, when the server nudges
-  // (evaluate_js → MemuLinks.poll) and on the «links» event of the inbox SSE stream (memu:links).
-  // Round 36 (perf): no 4-second timer any more — nothing runs while no link is waiting.
   const boot = () => { poll(); document.addEventListener("memu:links", () => poll()); };
   window.addEventListener("focus", () => poll());
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") poll(); });

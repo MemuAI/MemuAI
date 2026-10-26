@@ -24,67 +24,67 @@ from ..storage import load_json_with_recovery, mutate_json, save_json
 from . import paths
 
 PERMISSION_MODES = ("default", "acceptEdits", "plan", "auto", "bypassPermissions")
-EFFORTS = ("auto", "off", "on", "minimal", "low", "medium", "high", "xhigh", "max")   # Round 33: + off / on / xhigh
+EFFORTS = ("auto", "off", "on", "minimal", "low", "medium", "high", "xhigh", "max")
 THEMES = ("dark", "light", "dark-daltonized", "light-daltonized", "dark-ansi", "light-ansi")
 SHELLS = ("auto", "bash", "powershell", "pwsh", "cmd")
 OUTPUT_STYLES = ("default", "explanatory", "learning", "concise")
 NOTIFY = ("auto", "bell", "toast", "off")
 
 DEFAULTS: Dict[str, Any] = {
-    # --- models ---
+
     "model": "",
     "small_model": "",
     "worker_model": "",
-    "worker_models": [],           # models agents may use; with several, one is chosen per agent
-    "worker_pick": "model",        # model = the main model chooses | auto = decision model and remarks | first
+    "worker_models": [],
+    "worker_pick": "model",
     "advisor_model": "",
-    "vision_model": "",            # legacy: the image model is MemuAI's vision_fallback_model (see vision.py)
-    "vision_mode": "auto",         # auto = a picture the model cannot see is described by the image model | off
+    "vision_model": "",
+    "vision_mode": "auto",
     "browser_model": "",
     "computer_model": "",
     "model_routing": {"enabled": False, "tiers": {"fast": [], "balanced": [], "strong": []}},
-    "model_notes": {},             # {model id: what the user says it is good at}
+    "model_notes": {},
     "effort": "auto",
     "thinking": False,
     "web_search": False,
     "temperature": None,
     "max_output_tokens": 0,
-    # --- connection ---
+
     "backend": "auto",
     "proxy_url": "",
     "proxy_api_key": "",
     "proxy_autostart": True,
     "connections": [],
     "tool_protocol": "auto",
-    # --- behaviour ---
+
     "permission_mode": "default",
-    "permission_sync": True,       # a mode chosen in one window applies to every MemuCode window
+    "permission_sync": True,
     "permissions": {"allow": [], "deny": [], "ask": [], "additional_directories": []},
     "max_turns": 80,
-    "subagents": "ask",            # ask = only when the user asks for agents | auto = the model decides | off
+    "subagents": "ask",
     "auto_compact": True,
     "auto_compact_threshold": 85,
-    # Round 32: tokens of history past which old large tool results are stubbed (0 = only by window share)
+
     "context_budget": 40000,
     "context_window": 0,
     "keep_recent_messages": 8,
     "output_style": "default",
     "language": "en",
     "memory_files": ["MEMUCODE.md", "AGENTS.md", "CLAUDE.md"],
-    "memuai_memory": True,         # Round 29: facts from MemuAI memory (shared with the MemuAI window)
+    "memuai_memory": True,
     "respect_gitignore": True,
     "auto_title": True,
     "include_co_authored_by": True,
     "cleanup_period_days": 45,
     "env": {},
     "hooks": {},
-    # --- tools ---
+
     "shell": "auto",
     "sandbox": {"enabled": True, "env": "filtered", "memory_mb": 2048},
     "browser": {"enabled": True},
     "computer": {"enabled": True, "ask_each_action": True},
     "web": {"fetch_ask": True},
-    # --- interface ---
+
     "theme": "dark",
     "accent": "",
     "vim_mode": False,
@@ -98,36 +98,34 @@ DEFAULTS: Dict[str, Any] = {
     "statusline": {"type": "builtin", "command": ""},
     "footer_metric": "cost",
     "tips": True,
-    # --- services ---
+
     "decisions": {
-        "provider": "off",           # off | typesafe | openrouter | custom | model
+        "provider": "off",
         "api_key": "",
         "base_url": "",
         "model": "",
-        "use_models": {},            # a model of its own per kind of check: {"auto_mode": "…", "routing": "…"}
-        "fallbacks": [],             # models tried in turn when the chosen one fails
+        "use_models": {},
+        "fallbacks": [],
         "uses": {"auto_mode": True, "routing": True, "agents": True, "skills": True, "goal": True, "intent": True},
     },
-    "skills": {"disabled": []},    # skill ids switched off in /skills
-    # Round 33: /auto-continue — retries while still limited, a model for those retries, the text it sends
+    "skills": {"disabled": []},
+
     "auto_continue": {"retries": 4, "fallback_model": "", "message": ""},
     "pricing": {"overrides": {}, "online_catalog": True, "show_in_footer": True},
     "stats": {"record": True},
-    # --- user-only state ---
+
     "trusted_dirs": [],
     "onboarded": False,
 }
 
-#: Keys that may contain secrets. Only the user layer may define them.
 SECRET_PATHS = ("proxy_api_key", "connections", "decisions.api_key")
-#: Lists that accumulate across layers instead of being replaced.
+
 CONCAT_PATHS = ("permissions.allow", "permissions.deny", "permissions.ask",
                 "permissions.additional_directories")
-#: Keys only the user file may set (machine-wide state).
+
 USER_ONLY = ("trusted_dirs", "onboarded", "model_notes", "model_routing", "worker_models", "worker_pick")
 
 SCOPES = ("user", "project", "local")
-
 
 def _get_path(data: Dict[str, Any], dotted: str, default: Any = None) -> Any:
     node: Any = data
@@ -136,7 +134,6 @@ def _get_path(data: Dict[str, Any], dotted: str, default: Any = None) -> Any:
             return default
         node = node[part]
     return node
-
 
 def _set_path(data: Dict[str, Any], dotted: str, value: Any) -> None:
     parts = dotted.split(".")
@@ -147,7 +144,6 @@ def _set_path(data: Dict[str, Any], dotted: str, value: Any) -> None:
             child = node[part] = {}
         node = child
     node[parts[-1]] = value
-
 
 def _del_path(data: Dict[str, Any], dotted: str) -> bool:
     parts = dotted.split(".")
@@ -161,13 +157,11 @@ def _del_path(data: Dict[str, Any], dotted: str) -> bool:
         return True
     return False
 
-
 def _strip(data: Dict[str, Any], dotted_keys: Iterable[str]) -> Dict[str, Any]:
     clean = copy.deepcopy(data)
     for key in dotted_keys:
         _del_path(clean, key)
     return clean
-
 
 def _merge(base: Dict[str, Any], layer: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
     for key, value in layer.items():
@@ -186,22 +180,18 @@ def _merge(base: Dict[str, Any], layer: Dict[str, Any], prefix: str = "") -> Dic
             base[key] = copy.deepcopy(value)
     return base
 
-
 def _read(path: Path) -> Dict[str, Any]:
     if not path.is_file():
         return {}
     try:
         data = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
-        # A hand-edited file with a syntax error must not wipe the settings:
-        # the user file has rotating backups, a project file is left alone.
+
         data = load_json_with_recovery(path, {}, validator=lambda x: isinstance(x, dict))
     return data if isinstance(data, dict) else {}
 
-
 class SettingsError(ValueError):
     pass
-
 
 class Settings:
     """Merged view over all layers. Cheap to reload; writes go to one layer."""
@@ -215,7 +205,6 @@ class Settings:
         self.warnings: List[str] = []
         self.reload()
 
-    # ------------------------------------------------------------ files
     def file_for(self, scope: str) -> Path:
         if scope == "user":
             return paths.user_settings_file()
@@ -241,8 +230,7 @@ class Settings:
                            ("project", self.file_for("project"), project),
                            ("local", self.file_for("local"), local),
                            ("cli", Path(), self.overrides)]
-            # Trust comes only from the user/command line, never from files in
-            # the repository being opened. Keep raw layers available for edits.
+
             self.data = _merge(_merge(copy.deepcopy(DEFAULTS), user), self.overrides)
             trusted = self.is_trusted()
             merged: Dict[str, Any] = copy.deepcopy(DEFAULTS)
@@ -254,7 +242,6 @@ class Settings:
                 merged = _merge(merged, layer)
             self.data = merged
 
-    # ------------------------------------------------------------ reads
     def get(self, key: str, default: Any = None) -> Any:
         value = _get_path(self.data, key, None)
         if value is None:
@@ -279,7 +266,6 @@ class Settings:
                 return data
         return {}
 
-    # ------------------------------------------------------------ writes
     def set(self, key: str, value: Any, scope: str = "user") -> None:
         if scope not in SCOPES:
             raise SettingsError(f"unknown scope {scope}")
@@ -343,7 +329,6 @@ class Settings:
         self.set(key, [value for value in current if value != item], scope)
         return True
 
-    # ------------------------------------------------------------ trust
     def is_trusted(self, folder: Path | str | None = None) -> bool:
         target = os.path.normcase(str(Path(folder or self.root).resolve()))
         for entry in self.get("trusted_dirs") or []:
@@ -355,7 +340,6 @@ class Settings:
     def trust(self, folder: Path | str | None = None) -> None:
         self.append("trusted_dirs", str(Path(folder or self.root).resolve()), scope="user")
 
-    # ------------------------------------------------------------ connections
     def connections(self) -> List[Dict[str, Any]]:
         """Direct API connections: configured ones plus well-known env keys."""
         rows = [dict(row) for row in (self.get("connections") or []) if isinstance(row, dict) and row.get("name")]
@@ -371,7 +355,6 @@ class Settings:
                 rows.append({"name": name, "format": fmt, "base_url": base, "api_key": key,
                              "models": [], "from_env": variable})
         return rows
-
 
 def validate(key: str, value: Any) -> Any:
     """Coerce a value typed by a human (``/config set``) to the setting's type."""
@@ -418,7 +401,6 @@ def validate(key: str, value: Any) -> Any:
             raise SettingsError(f"{key}: one of {', '.join(repr(c) for c in choices if c) or choices}")
     return value
 
-
 def _ensure_gitignored(root: Path) -> None:
     """settings.local.json is personal: keep it out of commits."""
     if not (root / ".git").exists():
@@ -434,7 +416,6 @@ def _ensure_gitignored(root: Path) -> None:
     except OSError:
         pass
 
-
 def flatten(data: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
     """``{"a": {"b": 1}}`` → ``{"a.b": 1}`` for listing and completion."""
     rows: Dict[str, Any] = {}
@@ -445,7 +426,6 @@ def flatten(data: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
         else:
             rows[dotted] = value
     return rows
-
 
 def mask(key: str, value: Any) -> Any:
     """Secrets are shown as ``sk-…abcd``."""

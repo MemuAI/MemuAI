@@ -41,7 +41,6 @@ MODELS = [{"id": "qwen3-vl-plus", "caps": {"vision": True, "search": False}}]
 ASKS: list = []
 ANSWER = {"text": "Счёт № 4471\nИтого: 12 300 ₽"}
 
-
 class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):  # noqa: D401
         pass
@@ -59,7 +58,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(("data: " + json.dumps(event, ensure_ascii=False) + "\n\n").encode("utf-8"))
             self.wfile.flush()
 
-
 def demo_png(width=900, height=520) -> bytes:
     from PIL import Image, ImageDraw
     image = Image.new("RGB", (width, height), (238, 241, 246))
@@ -70,15 +68,13 @@ def demo_png(width=900, height=520) -> bytes:
         draw.rectangle((56, y + 12, 56 + 120 + (i * 37) % 260, y + 24), fill=(120, 128, 145))
     return buf(image)
 
-
 def buf(image) -> bytes:
     out = io.BytesIO()
     image.save(out, format="PNG")
     return out.getvalue()
 
-
 def tiny_pdf() -> bytes:
-    # a minimal valid one-page PDF with a text layer (pypdf can read it)
+
     objects = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
                "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 144] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
                None, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
@@ -95,7 +91,6 @@ def tiny_pdf() -> bytes:
         out.write(f"{off:010d} 00000 n \n".encode())
     out.write(f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF".encode())
     return out.getvalue()
-
 
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
@@ -125,7 +120,7 @@ async def main(out: Path) -> int:
         url = request.url
         path = "/" + url.split("://", 1)[1].split("/", 1)[1].split("?", 1)[0]
         query = url.split("?", 1)[1] if "?" in url else ""
-        try:   # Round 35: some POSTs carry raw bytes (a big document goes to /ingest as the file itself)
+        try:
             body = json.loads(request.post_data or "{}") if request.method == "POST" else {}
         except (ValueError, UnicodeDecodeError):
             body = {}
@@ -248,7 +243,6 @@ async def main(out: Path) -> int:
                 c["pinned"] = c["id"] == "c1"
             page = await open_page(theme, lang, design)
 
-            # Ctrl+K
             await page.keyboard.press("Control+KeyK")
             await page.wait_for_timeout(250)
             menu = await page.inner_text("#qa-menu")
@@ -258,7 +252,6 @@ async def main(out: Path) -> int:
             await shot(page, f"menu-{sfx}")
             await page.keyboard.press("Escape")
 
-            # clipboard: off → turn on → list
             await page.keyboard.press("Alt+KeyV")
             await page.wait_for_timeout(350)
             text = await page.inner_text("#qa-slot-top")
@@ -272,7 +265,7 @@ async def main(out: Path) -> int:
             check(rows == 3, f"{sfx}: the clipboard list shows 3 items ({rows})")
             meta = await page.locator(".qx-row").nth(2).inner_text()
             check(("start: 82 of 52,000 chars" if en else "начало: 82 из 52\u00a0000 зн.") in meta,
-                  f"{sfx}: a long copy says it is kept by its beginning ({meta!r})")   # r27-quick-polish
+                  f"{sfx}: a long copy says it is kept by its beginning ({meta!r})")
             await page.keyboard.press("ArrowDown")
             await shot(page, f"clipboard-list-{sfx}")
             await page.keyboard.press("Control+KeyP")
@@ -302,7 +295,6 @@ async def main(out: Path) -> int:
             check(await page.evaluate("!document.documentElement.dataset.qxView"), f"{sfx}: Esc closes the clipboard view")
             check(await page.evaluate("QuickAsk.state().turns.length") == 0 and await page.locator("#qa-card").is_visible(), f"{sfx}: Esc did not close the window")
 
-            # ;snippets inline
             await page.fill("#qa-input", ";")
             await page.dispatch_event("#qa-input", "input")
             await page.wait_for_timeout(250)
@@ -332,8 +324,7 @@ async def main(out: Path) -> int:
                 shown = await page.inner_text("#qa-answer .qa-q")
                 check(shown.strip() == next(s["name"] for s in st["snippets"] if s["keyword"] == kw), f"{sfx}: the chat shows the snippet name ({shown!r})")
             await shot(page, f"snippet-ai-answer-{sfx}")
-            # the Sticker button under the answer
-            # Round 30: plugin answer actions live in «⋯ Ещё» under the answer
+
             if await page.locator("#qa-act-more").count():
                 await page.click("#qa-act-more")
                 await page.wait_for_timeout(150)
@@ -346,7 +337,6 @@ async def main(out: Path) -> int:
                 check(bool(created) and created.get("action") == "create" and "12 300" in created.get("text", ""), f"{sfx}: the sticker is created from the answer")
             ASKS.clear()
 
-            # snippet manager + editor
             await page.keyboard.press("Control+KeyN")
             await page.wait_for_timeout(200)
             await page.evaluate("QuickFeatures.open('snippets')")
@@ -371,14 +361,12 @@ async def main(out: Path) -> int:
             await page.keyboard.press("Escape")
             await page.wait_for_timeout(150)
 
-            # stickers view
             await page.evaluate("QuickFeatures.open('stickers')")
             await page.wait_for_timeout(350)
             check(await page.locator(".qx-row").count() == 1, f"{sfx}: the stickers view lists the sticker")
             await shot(page, f"stickers-view-{sfx}")
             await page.keyboard.press("Escape")
 
-            # region strip
             png = "data:image/png;base64," + base64.b64encode(demo_png(640, 300)).decode()
             await page.evaluate(f"QuickFeatures.attachRegion({{data: {json.dumps(png)}, width: 640, height: 300, label: '640×300'}})")
             await page.wait_for_timeout(300)
@@ -394,11 +382,10 @@ async def main(out: Path) -> int:
             await shot(page, f"region-answer-{sfx}")
             ASKS.clear()
 
-            # a PDF from the file dialog
             await page.keyboard.press("Control+KeyN")
             await page.set_input_files("#qa-file-input", files=[{"name": "contract.pdf", "mimeType": "application/pdf", "buffer": pdf}])
             sel = ""
-            for _ in range(40):                       # the first pypdf import can take a moment
+            for _ in range(40):
                 await page.wait_for_timeout(150)
                 sel = await page.evaluate("QuickAsk.state().selection")
                 if sel:
@@ -407,7 +394,6 @@ async def main(out: Path) -> int:
             await shot(page, f"document-{sfx}")
             await page.close()
 
-        # designs: glass dark ru / terminal light ru (views must keep their look)
         for design, theme in (("glass", "dark"), ("terminal", "light")):
             page = await open_page(theme, "ru", design)
             await page.keyboard.press("Alt+KeyV")
@@ -421,7 +407,6 @@ async def main(out: Path) -> int:
             await shot(page, f"snippets-inline-{design}-{theme}")
             await page.close()
 
-        # the sticker page (as a browser page; the native window is the same page)
         for theme, lang in (("dark", "ru"), ("light", "en")):
             st["prefs"].update(theme=theme, language=lang)
             st["stickers"] = [qf.normalize_sticker({"id": "k1", "title": "Как вернуть заказ", "color": "yellow",
@@ -446,7 +431,6 @@ async def main(out: Path) -> int:
             check(await page.locator("#st-edit").is_visible(), "sticker: double click edits")
             await page.close()
 
-        # the region overlay page
         page = await browser.new_page(viewport={"width": 1280, "height": 720})
         page.on("pageerror", lambda e: problems.append(f"region pageerror: {e}"))
         await page.route("**/*", route)
@@ -473,13 +457,12 @@ async def main(out: Path) -> int:
         check(done and done.get("token") == "t2" and done.get("rect") is None, f"region: Esc cancels ({done})")
         await page.close()
 
-        # the settings sub-page (settings kit + our script, mocked api)
         for theme, lang in (("dark", "ru"), ("light", "en")):
             st["settings"] = dict(qf.DEFAULT_SETTINGS, clipboard=True)
             page = await browser.new_page(viewport={"width": 860, "height": 900})
             page.on("pageerror", lambda e: problems.append(f"settings pageerror: {e}"))
             await page.route("**/*", route)
-            await page.goto(base + "/quick/region.html", wait_until="load")      # any same-origin page
+            await page.goto(base + "/quick/region.html", wait_until="load")
             await page.set_content(f"""<!DOCTYPE html><html data-theme="{theme}" lang="{lang}"><head>
               <link rel="stylesheet" href="{base}/themes.css"><link rel="stylesheet" href="{base}/style.css"><link rel="stylesheet" href="{base}/settings.css">
               <link rel="stylesheet" href="{base}/quick/plugins/features-settings.css"></head>
@@ -508,7 +491,6 @@ async def main(out: Path) -> int:
     for item in problems:
         print(" -", item)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r27/r27-quick-features"))))

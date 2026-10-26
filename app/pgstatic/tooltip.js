@@ -1,20 +1,12 @@
-/* MemuAI tooltips.
- * WebView2 shows native title tooltips late, inconsistently or not at all, so
- * every hint in the interface would silently vanish. This layer takes over:
- * any element with a title (or data-tip) gets a styled tooltip on hover and
- * on keyboard focus. The title is moved to data-tip so the native one never
- * doubles it, and an icon-only control keeps its accessible name.
- * "Label — Ctrl+S" is shown as the label plus a key hint.
- * Text cut by an ellipsis or a line clamp needs no title: hovering or focusing
- * its control shows the full text (data-tip="" opts an element out).
- */
+
+
 "use strict";
 const MemuTooltip = (() => {
   const SHOW_DELAY = 450;
   const WARM_DELAY = 60;
   const WARM_WINDOW = 600;
   const GAP = 8;
-  // Controls whose clipped labels get their full text; outside them only the hovered text itself counts.
+
   const CONTROL = "button, a[href], label, summary, .sx-row, [role='button'], [role='option'], [role='menuitem'], [role='menuitemradio'], [role='tab'], [role='link']";
   const SCAN_LIMIT = 60;
   let tip = null;
@@ -23,8 +15,7 @@ const MemuTooltip = (() => {
   let watch = 0;
   let lastHidden = 0;
   let clipTimer = 0;
-  // Round 36 (perf): whether hovered text is clipped is checked only once the pointer rests on it — that check reads
-  // computed style and layout, and wheel-scrolling a chat slides a new element under the pointer every frame.
+
   const CLIP_WAIT = 150;
   let observer = null;
 
@@ -43,7 +34,6 @@ const MemuTooltip = (() => {
     return tip;
   }
 
-  /** An ellipsis or line clamp that is actually hiding part of the text. */
   function clipped(el) {
     const style = getComputedStyle(el);
     const clamp = style.webkitLineClamp && style.webkitLineClamp !== "none";
@@ -51,15 +41,13 @@ const MemuTooltip = (() => {
     return el.scrollWidth > el.clientWidth + 1 || el.scrollHeight > el.clientHeight + 1;
   }
 
-  /** Visible words of an element: decorative aria-hidden parts (✓ marks, icons) are left out. */
   function wordsOf(el) {
     const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
       acceptNode: (text) => (text.parentElement.closest("[aria-hidden='true']") && !el.closest("[aria-hidden='true']")
         ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
     });
     let out = "", prevBox = null;
-    // Text of two different boxes (a badge «model» + the snippet) gets a space between them; inline parts
-    // of one word (<mark>ара</mark>хис) stay glued.
+
     const boxOf = (node) => {
       for (let n = node.parentElement; n && n !== el; n = n.parentElement) {
         const display = getComputedStyle(n).display;
@@ -75,7 +63,6 @@ const MemuTooltip = (() => {
     return out.replace(/\s+/g, " ").trim();
   }
 
-  /** Full text of every clipped label inside a control, one per line. */
   function overflowText(host) {
     const found = [];
     const lines = [];
@@ -88,7 +75,6 @@ const MemuTooltip = (() => {
     return lines.join("\n");
   }
 
-  /** Take the text from title (moving it aside) or data-tip, else from clipped labels. */
   function textOf(node) {
     const title = node.getAttribute("title");
     if (title !== null) {
@@ -128,7 +114,6 @@ const MemuTooltip = (() => {
     tip.dataset.side = side;
   }
 
-  /** Round 31: no hint over a control whose own menu is open (it covered the model search field). */
   function menuOpen(node) {
     if (node.closest('[aria-expanded="true"]')) return true;
     const dd = node.closest(".dropdown");
@@ -147,15 +132,14 @@ const MemuTooltip = (() => {
     requestAnimationFrame(() => tip && tip.classList.add("visible"));
     node.setAttribute("aria-describedby", tip.id);
     clearInterval(watch);
-    // The target can disappear under the pointer (re-render, closed menu).
+
     watch = setInterval(() => { if (!target || !target.isConnected) hide(); }, 250);
   }
 
-  /** A control that changes its hint under the pointer (Send → Stop) updates the visible tooltip too. */
   function follow(node) {
     observer = observer || new MutationObserver(() => {
       if (!target) return;
-      const text = textOf(target); // also moves a new title aside while the tooltip is still pending
+      const text = textOf(target);
       if (!tip || tip.hidden) return;
       if (!text) { hide(); return; }
       const html = render(text);
@@ -179,13 +163,12 @@ const MemuTooltip = (() => {
     if (node === target) return;
     hide();
     target = node;
-    if (node.hasAttribute("title")) textOf(node); // move the title away before the browser can show its own
+    if (node.hasAttribute("title")) textOf(node);
     follow(node);
     const warm = Date.now() - lastHidden < WARM_WINDOW;
     timer = setTimeout(() => { if (target === node) show(node); }, warm ? WARM_DELAY : delay);
   }
 
-  /** The control around a clipped label, or the clipped text itself. */
   function clippedHost(start) {
     const control = start.closest(CONTROL);
     if (control) return control;
@@ -233,8 +216,7 @@ const MemuTooltip = (() => {
     }, true);
     document.addEventListener("focusout", hide, true);
     ["pointerdown", "wheel", "dragstart"].forEach((name) => document.addEventListener(name, hide, { capture: true, passive: true }));
-    // Wheel and keys already hide it; a scroll without them is layout settling (fonts of a new design,
-    // scroll anchoring), so the tooltip follows its target instead of vanishing under a still pointer.
+
     document.addEventListener("scroll", () => {
       if (!tip || tip.hidden || !target) return;
       const box = target.getBoundingClientRect();

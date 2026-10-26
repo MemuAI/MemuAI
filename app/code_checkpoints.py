@@ -22,15 +22,13 @@ from .config import DATA_DIR
 from .path_safety import is_link
 
 CHECKPOINT_ROOT = Path(DATA_DIR) / "memuai" / "checkpoints"
-# Снимки живут, пока жив чат: 40 сессий стирали откат ещё открытых разговоров.
+
 MAX_SESSIONS = 200
 MAX_FILE_BYTES = 8 * 1024 * 1024
 INDEX_NAME = "index.json"
 
-
 _LOCKS: Dict[str, threading.Lock] = {}
 _LOCKS_GUARD = threading.Lock()
-
 
 def _lock_for(session_id: str) -> threading.Lock:
     """Сохранение в редакторе и запись агента идут в разных потоках: без
@@ -38,19 +36,15 @@ def _lock_for(session_id: str) -> threading.Lock:
     with _LOCKS_GUARD:
         return _LOCKS.setdefault(str(session_id or "default"), threading.Lock())
 
-
 def _key(root: Any, rel: str) -> tuple:
     return (os.path.normcase(str(root)), os.path.normcase(str(rel).replace("\\", "/")))
-
 
 def _session_dir(session_id: str) -> Path:
     safe = "".join(ch for ch in str(session_id or "") if ch.isalnum() or ch in "-_")[:64]
     return CHECKPOINT_ROOT / (safe or "default")
 
-
 def _index_path(session_id: str) -> Path:
     return _session_dir(session_id) / INDEX_NAME
-
 
 def _load_index(session_id: str) -> Dict[str, Any]:
     path = _index_path(session_id)
@@ -64,7 +58,6 @@ def _load_index(session_id: str) -> Dict[str, Any]:
         return {"session": session_id, "created": time.time(), "entries": []}
     return data
 
-
 def _save_index(session_id: str, index: Dict[str, Any]) -> None:
     folder = _session_dir(session_id)
     folder.mkdir(parents=True, exist_ok=True)
@@ -74,7 +67,6 @@ def _save_index(session_id: str, index: Dict[str, Any]) -> None:
         os.replace(temporary, folder / INDEX_NAME)
     finally:
         temporary.unlink(missing_ok=True)
-
 
 def _prune_sessions() -> None:
     """Старые сессии удаляются: снимки не должны расти бесконечно."""
@@ -86,7 +78,6 @@ def _prune_sessions() -> None:
     folders.sort(key=lambda p: p.stat().st_mtime)
     for stale in folders[:len(folders) - MAX_SESSIONS]:
         shutil.rmtree(stale, ignore_errors=True)
-
 
 def _inside(root: Path, rel_path: str) -> Optional[Path]:
     """The file ``rel_path`` inside ``root``, or None when it escapes the project.
@@ -101,9 +92,7 @@ def _inside(root: Path, rel_path: str) -> Optional[Path]:
         target.relative_to(base)
         if target == base:
             return None
-        # Undo must never follow a replaced directory into an unrelated tree,
-        # even when that tree is still inside the project. Check lexical path
-        # components before resolve(), which would hide the link itself.
+
         for part in (target, *target.parents):
             if is_link(part):
                 return None
@@ -113,7 +102,6 @@ def _inside(root: Path, rel_path: str) -> Optional[Path]:
     except (OSError, ValueError):
         return None
     return target
-
 
 def snapshot(session_id: str, root: Path, rel_path: str, *, label: str = "",
              turn: str = "", directory: bool = False) -> Dict[str, Any]:
@@ -125,7 +113,6 @@ def snapshot(session_id: str, root: Path, rel_path: str, *, label: str = "",
     with _lock_for(session_id):
         return _snapshot_locked(session_id, root, rel_path, label=label, turn=turn, directory=directory)
 
-
 def _snapshot_locked(session_id: str, root: Path, rel_path: str, *, label: str = "",
                      turn: str = "", directory: bool = False) -> Dict[str, Any]:
     index = _load_index(session_id)
@@ -134,12 +121,9 @@ def _snapshot_locked(session_id: str, root: Path, rel_path: str, *, label: str =
     source = _inside(root, str(rel_path).replace("\\", "/"))
     if source is None:
         return {"path": str(rel_path), "stored": False, "reason": "outside the project"}
-    # Один файл — один ключ: «./a.txt», «a.txt» и «A.txt» в Windows раньше
-    # давали разные записи, и откат возвращал промежуточную версию.
+
     rel_path = source.relative_to(base_path).as_posix()
-    # Снимок берётся один раз на файл в каждом ответе (turn): так «откатить
-    # это сообщение» возвращает файл к состоянию перед этим ответом, а не к
-    # началу всей сессии. Общий откат идёт с конца, и побеждает самый ранний.
+
     turn = str(turn or "")[:80]
     known = {_key(entry.get("root") or index.get("root") or base, entry["path"]) + (str(entry.get("turn") or ""),)
              for entry in index["entries"]}
@@ -154,8 +138,7 @@ def _snapshot_locked(session_id: str, root: Path, rel_path: str, *, label: str =
     entry: Dict[str, Any] = {
         "path": rel_path, "at": time.time(), "label": str(label)[:120],
         "existed": source.is_dir() if directory else source.is_file(), "turn": turn,
-        # Проект записывается в каждую запись: откат идёт туда, где файл
-        # меняли, даже если активным в интерфейсе стал другой проект.
+
         "root": str(Path(root).resolve()),
     }
     if directory:
@@ -182,7 +165,6 @@ def _snapshot_locked(session_id: str, root: Path, rel_path: str, *, label: str =
     _prune_sessions()
     return {"path": rel_path, "stored": True, "existed": entry["existed"]}
 
-
 def _tree_entries(root: Path, target: Path) -> List[tuple[Path, bool]]:
     """Collect one bounded tree without traversing links or junctions."""
     base = Path(root).resolve()
@@ -205,7 +187,6 @@ def _tree_entries(root: Path, target: Path) -> List[tuple[Path, bool]]:
                     raise ValueError("В папке слишком много путей для отката (>4000)")
     return entries
 
-
 def _capture_entries(session_id: str, root: Path, entries: List[tuple[Path, bool]], *,
                      label: str, turn: str) -> None:
     base = Path(root).resolve()
@@ -215,7 +196,6 @@ def _capture_entries(session_id: str, root: Path, entries: List[tuple[Path, bool
         if not result.get("stored") and result.get("reason") != "already captured":
             raise ValueError(f"Не удалось сохранить путь для отката: {path} ({result.get('reason')})")
 
-
 def require_snapshot(session_id: str, root: Path, rel_path: str, *, label: str = "",
                      turn: str = "") -> None:
     """Refuse a session write when its previous contents cannot be restored."""
@@ -224,7 +204,6 @@ def require_snapshot(session_id: str, root: Path, rel_path: str, *, label: str =
         raise ValueError("Путь находится вне проекта или содержит ссылку")
     entries = _tree_entries(root, target) if target.is_dir() else [(target, False)]
     _capture_entries(session_id, root, entries, label=label, turn=turn)
-
 
 def require_move_snapshots(session_id: str, root: Path, source_rel: str, destination_rel: str,
                            *, label: str = "work_move", turn: str = "") -> None:
@@ -240,25 +219,23 @@ def require_move_snapshots(session_id: str, root: Path, source_rel: str, destina
         require_snapshot(session_id, root, destination_rel, label=label, turn=turn)
         return
     base = Path(root).resolve()
-    # Record parents first so undo removes children before empty parents.
+
     missing = []
     parent = destination.parent
     while parent != base and not parent.exists():
         missing.append(parent)
         parent = parent.parent
     pairs = [(path, True) for path in reversed(missing)]
-    # Reuse exactly the source inventory. A file created after capture must not
-    # receive an absent-destination marker without a corresponding source blob.
+
     pairs += [(destination / path.relative_to(source), is_directory)
               for path, is_directory in entries]
     _capture_entries(session_id, root, pairs, label=label, turn=turn)
-
 
 def list_entries(session_id: str) -> List[Dict[str, Any]]:
     index = _load_index(session_id)
     rows, seen = [], set()
     for entry in index["entries"]:
-        # В списке — один файл один раз (самый ранний снимок сессии).
+
         key = _key(entry.get("root") or index.get("root") or "", entry["path"])
         if key in seen:
             continue
@@ -267,7 +244,6 @@ def list_entries(session_id: str) -> List[Dict[str, Any]]:
                      "at": entry.get("at", 0), "label": entry.get("label", ""),
                      "restorable": bool(entry.get("blob")) or bool(entry.get("directory")) or not entry.get("existed", False)})
     return rows
-
 
 def restore(session_id: str, root: Path, *, paths: Optional[List[str]] = None,
             turn: str = "") -> Dict[str, Any]:
@@ -279,7 +255,6 @@ def restore(session_id: str, root: Path, *, paths: Optional[List[str]] = None,
     with _lock_for(session_id):
         return _restore_locked(session_id, root, paths=paths, turn=turn)
 
-
 def _restore_locked(session_id: str, root: Path, *, paths: Optional[List[str]] = None,
                     turn: str = "") -> Dict[str, Any]:
     index = _load_index(session_id)
@@ -289,15 +264,13 @@ def _restore_locked(session_id: str, root: Path, *, paths: Optional[List[str]] =
     failed: List[Dict[str, str]] = []
     kept: List[Dict[str, Any]] = []
     folder = _session_dir(session_id) / "files"
-    # С конца: если у файла всё же оказалось несколько записей, последней
-    # восстанавливается самая ранняя — версия до вмешательства агента.
+
     for entry in reversed(index["entries"]):
         rel = entry["path"]
         if (wanted and os.path.normcase(rel) not in wanted) or (turn and str(entry.get("turn") or "") != turn):
             kept.append(entry)
             continue
-        # Откат идёт в тот проект, где файл меняли: активным в интерфейсе к
-        # этому времени мог стать другой, и относительный путь попал бы в него.
+
         recorded = str(entry.get("root") or index.get("root") or "")
         if recorded and not Path(recorded).is_dir():
             failed.append({"path": rel, "error": "исходный проект недоступен"})
@@ -316,7 +289,7 @@ def _restore_locked(session_id: str, root: Path, *, paths: Optional[List[str]] =
                     restored.append(rel)
                 else:
                     if target.exists():
-                        target.rmdir()  # Keep files added later by the user.
+                        target.rmdir()
                     removed.append(rel)
             except OSError as exc:
                 failed.append({"path": rel, "error": str(exc)[:200]})
@@ -347,7 +320,6 @@ def _restore_locked(session_id: str, root: Path, *, paths: Optional[List[str]] =
     _save_index(session_id, index)
     return {"restored": restored, "removed": removed, "failed": failed,
             "remaining": len(kept)}
-
 
 def clear(session_id: str) -> None:
     shutil.rmtree(_session_dir(session_id), ignore_errors=True)

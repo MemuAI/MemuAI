@@ -1,17 +1,9 @@
-/* Settings page «Do For You» (Round 24, Round 25). window.MemuDFYSettings { html(ctx), bind(ctx) }.
 
-   html() is pure (called on every settings render); bind() is idempotent — listeners of the
-   previous render belong to one AbortController that the next bind() aborts.
-   The model list shows ONLY models that see images: caps.vision === true of /api/pg/state — the
-   same value the backend reads for /api/dfy/status (app/dfy_api.py), so both always agree.
-   Changing a setting updates this page in place (no full settings re-render: no white flash).
-   Personal data and secrets are write-only: forms post them to /api/dfy/vault (PUT to edit, an
-   empty field keeps the stored value) and clear the inputs; the server never returns values.
-   Field descriptions, validation and phone formatting come from MemuDFY.forms (dfy-client.js). */
+
 (function () {
   "use strict";
   let controller = null;
-  let last = { models: [], fallback: "" };   // what the last html() saw, for in-place updates
+  let last = { models: [], fallback: "" };
 
   const F = () => (window.MemuDFY && window.MemuDFY.forms) || null;
   const sees = (m) => m && m.caps && m.caps.vision === true;
@@ -80,7 +72,7 @@
         control: K.select("st-dfy-schedule-browser", [["isolated", L("Отдельный браузер DFY", "Separate DFY browser")], ["chrome", L("Мой Chrome", "My Chrome")]], pref("dfy_schedule_browser", "isolated"), { width: 240 }) })
       + K.row({ label: L("Очистить сессии", "Clear sessions"), desc: L("Выйти со всех сайтов: удалить куки, кэш и хранилище профиля DFY", "Sign out everywhere: delete cookies, cache and storage of the DFY profile"), keywords: "cookies куки сессии sessions clear очистить",
         control: `<button type="button" class="pbtn ghost danger" id="st-dfy-clear">${esc(L("Очистить", "Clear"))}</button>` }) });
-    // Round 30: the DFY proxy (app/dfy_proxy.py). Not a preference: GET/PUT /api/dfy/proxy, login/password write-only.
+
     const proxy = K.section({ id: "dfy-proxy", title: L("Прокси", "Proxy"),
       desc: L("Весь трафик браузера DFY — страницы, загрузки, WebSocket — идёт через ваш прокси. Имена сайтов разрешает прокси (без утечки DNS), WebRTC не раскрывает ваш адрес. Если прокси недоступен, DFY не откроет сайт напрямую.",
         "All DFY browser traffic — pages, downloads, WebSocket — goes through your proxy. Site names are resolved by the proxy (no DNS leak) and WebRTC does not reveal your address. If the proxy is down, DFY never falls back to a direct connection."),
@@ -123,7 +115,7 @@
               <button type="button" class="pbtn ghost" id="st-dfy-vault-cancel" style="display:none">${esc(L("Отмена", "Cancel"))}</button>
               <span class="td" id="st-dfy-vault-hint" style="font-size:12px"></span></div>
           </form></div>` });
-    // Round 30: remote machines and «This computer» (dfy-remote.js)
+
     const machines = window.MemuDFYRemote ? window.MemuDFYRemote.sectionHtml({ ...ctx, L }) : "";
     return `<div id="dfy-settings">${main}${machines}${browser}${proxy}${vault}</div>`;
   }
@@ -175,11 +167,11 @@
     listen($("st-dfy-enabled"), "change", (e) => save({ dfy_enabled: !!e.target.checked }));
     listen($("st-dfy-visible"), "change", (e) => save({ dfy_browser_visible: !!e.target.checked }));
     listen($("st-dfy-schedule-browser"), "change", (e) => save({ dfy_schedule_browser: e.target.value === "chrome" ? "chrome" : "isolated" }));
-    // The model note is updated in place: re-rendering the whole settings page made the window flash.
+
     const view = { ...ctx, kit: window.MemuSettingsKit, modelName: last.modelName || ((id) => id) };
     const setModel = (value) => {
       save({ dfy_model: value });
-      // Rebuilt from the same list (a stale «— no vision» entry disappears), note updated in place.
+
       const select = $("st-dfy-model"), box = $("st-dfy-model-note");
       if (select) select.innerHTML = modelOptions(view, value);
       if (box) { const note = modelNote(view, value); box.innerHTML = note; box.style.display = note ? "" : "none"; }
@@ -201,7 +193,6 @@
 
     if (window.MemuDFYRemote) window.MemuDFYRemote.bindSection({ ...ctx, L, signal });
 
-    /* ---- Round 30: proxy ---- */
     const px = { on: $("st-dfy-proxy-on"), form: $("st-dfy-proxy-form"), fields: $("st-dfy-proxy-fields"), scheme: $("st-dfy-proxy-scheme"),
       host: $("st-dfy-proxy-host"), port: $("st-dfy-proxy-port"), user: $("st-dfy-proxy-user"), pass: $("st-dfy-proxy-pass"),
       state: $("st-dfy-proxy-state"), result: $("st-dfy-proxy-result"), forget: $("st-dfy-proxy-forget") };
@@ -272,10 +263,9 @@
       });
     }
 
-    /* ---- personal data / secrets: add and edit share one form ---- */
     const form = $("st-dfy-vault-form"), fields = $("st-dfy-vault-fields"), kind = $("st-dfy-vault-kind");
     const domain = $("st-dfy-vault-domain"), label = $("st-dfy-vault-label");
-    let items = [], editing = null;   // editing: the vault item being changed
+    let items = [], editing = null;
     const paintFields = () => {
       if (!fields || !forms) return;
       const k = kind.value, spec = forms.KINDS[k] || forms.KINDS.text;

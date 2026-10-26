@@ -26,7 +26,6 @@ from typing import Dict, Iterable, List, Optional, Set, Tuple
 ROOT = Path(__file__).resolve().parents[1]
 STDLIB = set(getattr(sys, "stdlib_module_names", ())) | {"__future__"}
 
-
 def _module_file(name: str) -> Optional[Path]:
     """``app.x.y`` → its .py (module or package ``__init__``); ``app`` is a namespace package."""
     parts = name.split(".")
@@ -39,10 +38,8 @@ def _module_file(name: str) -> Optional[Path]:
         return base / "__init__.py"
     return None
 
-
 def _is_package(name: str) -> bool:
     return name == "app" or (ROOT.joinpath(*name.split(".")) / "__init__.py").is_file()
-
 
 def _imports(path: Path, name: str) -> Iterable[str]:
     """Every module an ``import`` statement anywhere in ``path`` names (absolute names)."""
@@ -68,14 +65,12 @@ def _imports(path: Path, name: str) -> Iterable[str]:
             out.append(base)
             for alias in node.names:
                 if alias.name != "*":
-                    out.append(f"{base}.{alias.name}")   # «from pkg import sub» may be a submodule
+                    out.append(f"{base}.{alias.name}")
     return out
-
 
 def _excluded(name: str, excludes: Set[str]) -> bool:
     parts = name.split(".")
     return any(".".join(parts[:i]) in excludes for i in range(1, len(parts) + 1))
-
 
 def analyse(entry: str, hidden: Iterable[str] = (), excludes: Iterable[str] = ()) -> Dict[str, object]:
     """BFS over the project's modules from ``entry`` (a script in the repo root) + ``hidden``.
@@ -100,7 +95,7 @@ def analyse(entry: str, hidden: Iterable[str] = (), excludes: Iterable[str] = ()
             if top not in STDLIB and top not in external and not _excluded(top, excludes):
                 external[top] = via
             continue
-        # a parent package is imported first
+
         parts = name.split(".")
         for i in range(2, len(parts)):
             pkg = ".".join(parts[:i])
@@ -116,7 +111,6 @@ def analyse(entry: str, hidden: Iterable[str] = (), excludes: Iterable[str] = ()
             queue.append((sub, name))
     return {"app": parent, "external": external}
 
-
 def chain(result: Dict[str, object], name: str) -> List[str]:
     parents: Dict[str, str] = dict(result["app"])  # type: ignore[arg-type]
     externals: Dict[str, str] = result["external"]  # type: ignore[assignment]
@@ -127,14 +121,12 @@ def chain(result: Dict[str, object], name: str) -> List[str]:
         current = parents.get(current)
     return out
 
-
 def target(key: str) -> Tuple[str, List[str], List[str]]:
     sys.path.insert(0, str(ROOT))
     import build  # noqa: WPS433 — the one place targets are defined
     spec = build.TARGETS[key]
     hidden = list(spec["hidden"]) + [f"{name}" for name in spec.get("collect", [])]
     return spec["entry"], hidden, list(spec.get("exclude", []))
-
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -157,7 +149,6 @@ def main() -> None:
         dump[key] = {"app": sorted(apps), "external": sorted(ext)}
     if args.json:
         Path(args.json).write_text(json.dumps(dump, indent=1), encoding="utf-8")
-
 
 if __name__ == "__main__":
     main()

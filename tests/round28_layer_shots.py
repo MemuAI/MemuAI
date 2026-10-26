@@ -36,10 +36,8 @@ sys.path.insert(0, str(ROOT / "tests"))
 WALLPAPER = ("document.body.style.background = 'linear-gradient(135deg, #2b4c7e 0%, #567ebb 40%, #c38d9e 75%, #e8a87c 100%)';"
              "document.documentElement.style.background = '#2b4c7e';")
 
-
 def overlaps(a, b, pad=0.0):
     return a["x"] < b["x"] + b["w"] + pad - 0.5 and b["x"] < a["x"] + a["w"] + pad - 0.5 and a["y"] < b["y"] + b["h"] + pad - 0.5 and b["y"] < a["y"] + a["h"] + pad - 0.5
-
 
 async def main(out: Path) -> int:
     import httpx
@@ -49,7 +47,7 @@ async def main(out: Path) -> int:
     from app import quick_canvas, themes
     out.mkdir(parents=True, exist_ok=True)
     seeded = base.seed_panels()
-    # a Round 27 file: a grid with panels and buttons (one of them risky), written as Round 27 wrote it
+
     port = base.free_port()
     server = uvicorn.Server(uvicorn.Config(base.make_app(), host="127.0.0.1", port=port, log_level="warning"))
     threading.Thread(target=server.run, daemon=True).start()
@@ -71,7 +69,6 @@ async def main(out: Path) -> int:
     def post(path, body):
         return httpx.post(B + path, json=body, timeout=20).json()
 
-    # ---- seed: build the layout through the Round 27 API, then strip the screen layer → a Round 27 file
     for key, size in (("weather", "m"), ("todo", "l"), ("clock", "s")):
         post("/api/quick/canvas/panels", {"panel": seeded[key], "size": size})
     tpls = httpx.get(B + "/api/quick/canvas/catalog?lang=ru", timeout=20).json()["templates"]
@@ -112,7 +109,7 @@ async def main(out: Path) -> int:
             native.append(("window", json.loads(req.post_data or "{}")))
             return await r.fulfill(json={"ok": True})
         if p == "/api/quick/canvas" and req.method == "GET":
-            # the Windows app reports the layer as available → the window runs in screen mode
+
             resp = await r.fetch()
             data = await resp.json()
             data["layer"] = {**data.get("layer", {}), "available": True, "visible": layer_state["visible"]}
@@ -167,7 +164,6 @@ async def main(out: Path) -> int:
             await page.wait_for_timeout(350)
             await page.screenshot(path=str(out / f"{name}.png"))
 
-        # ---------------------------------------------------------------- 1. 1920×1040, migrated Round 27 grid
         mon = {"key": "1920x1080@96", "w": 1920, "h": 1040}
         keep = {"hard": [600, 229, 720, 136], "soft": [600, 229, 720, 640]}
         ctx = await new_ctx(1920, 1040)
@@ -183,7 +179,6 @@ async def main(out: Path) -> int:
         check(state["settings"]["screen"] == "show" and state["layer"]["migrated"] == "r27-grid", f"migrated settings/layer ({state['settings'].get('screen')}, {state['layer']})")
         await shot(layer, "ql-1920-dark-ru")
 
-        # 300 ms guard + relay to the Quick Ask window (same browser profile → BroadcastChannel)
         quick = await ctx.new_page()
         quick.on("pageerror", lambda e: problems.append(f"quick pageerror: {e}"))
         await quick.set_viewport_size({"width": 720, "height": 520})
@@ -213,7 +208,6 @@ async def main(out: Path) -> int:
         rings = await layer.evaluate("document.querySelectorAll('.ql-ring').length")
         print("rings seen on the layer:", rings)
 
-        # the window in screen mode: Ctrl+B → the native toggle; the summary body
         native.clear()
         await quick.evaluate("MemuQuickCanvas.setOpen(false, {save: false}); document.getElementById('qa-input').focus()")
         await quick.keyboard.press("Control+b")
@@ -233,7 +227,6 @@ async def main(out: Path) -> int:
         await quick.wait_for_timeout(300)
         check(any(k == "layer" and b.get("action") == "edit" and b.get("on") is True for k, b in native), "Ctrl+E in the window starts arranging the layer")
 
-        # ---------------------------------------------------------------- 2. arrange: edit mode, drag anywhere, snap, no overlaps, saved
         native.clear()
         await layer.bring_to_front()
         await layer.evaluate("MemuLayer.setEdit(true)")
@@ -246,7 +239,7 @@ async def main(out: Path) -> int:
         btn_row = next(r for r in rows if r["type"] == "action")
         await layer.mouse.move(btn_row["x"] + btn_row["w"] / 2, btn_row["y"] + btn_row["h"] / 2)
         await layer.mouse.down()
-        target = (60 + 3 + btn_row["w"] / 2, 1040 - 60 - btn_row["h"] / 2)      # near the bottom-left corner
+        target = (60 + 3 + btn_row["w"] / 2, 1040 - 60 - btn_row["h"] / 2)
         await layer.mouse.move(*target, steps=14)
         await layer.wait_for_timeout(120)
         await layer.screenshot(path=str(out / "ql-dragging-dark-ru.png"))
@@ -259,7 +252,7 @@ async def main(out: Path) -> int:
         doc = quick_canvas.load()
         saved = doc["layer"]["monitors"].get("1920x1080@96", {}).get("items", {})
         check(btn_row["id"] in saved and saved[btn_row["id"]]["ax"] == "l" and saved[btn_row["id"]]["ay"] == "b", f"saved for this monitor, anchored bottom-left ({saved.get(btn_row['id'])})")
-        # drop onto a panel → the nearest free spot, never on top
+
         panel_row = next(r for r in rows2 if r["type"] == "panel")
         other = next(r for r in rows2 if r["type"] == "action" and r["id"] != btn_row["id"])
         await layer.mouse.move(other["x"] + other["w"] / 2, other["y"] + other["h"] / 2)
@@ -268,7 +261,7 @@ async def main(out: Path) -> int:
         await layer.mouse.up()
         await layer.wait_for_timeout(900)
         check_layout(await layout(layer), mon, keep, "dropped onto a panel", soft=False)
-        # resize a panel with its corner
+
         prow = next(r for r in await layout(layer) if r["type"] == "panel")
         await layer.mouse.move(prow["x"] + prow["w"] - 8, prow["y"] + prow["h"] - 8)
         await layer.mouse.down()
@@ -286,12 +279,11 @@ async def main(out: Path) -> int:
         await layer.wait_for_timeout(200)
         check(any(k == "window" and b.get("action") == "hide" for k, b in native), "Esc again closes Quick Ask (with the layer)")
 
-        # ---------------------------------------------------------------- 3. hide: no cards, no polling
         await layer.evaluate("MemuLayer.onHide()")
         await layer.wait_for_timeout(200)
         calls = []
         layer.on("request", lambda rq: calls.append(rq.url) if "/api/pg/" in rq.url else None)
-        await layer.evaluate("MemuPanels.load()")          # whatever was scheduled
+        await layer.evaluate("MemuPanels.load()")
         await layer.wait_for_timeout(300)
         calls.clear()
         await layer.wait_for_timeout(3500)
@@ -300,7 +292,6 @@ async def main(out: Path) -> int:
         check(not calls, f"no panel polling while hidden ({calls[:4]})")
         await ctx.close()
 
-        # ---------------------------------------------------------------- 4. smaller monitor + 150 % monitor adapt
         for (w, h, key, scale, name, lang, theme) in ((1366, 728, "1366x768@96", 1, "ql-1366-light-en", "en", "light"),
                                                       (1280, 696, "1920x1080@144", 1.5, "ql-150pct-dark-ru", "ru", "dark")):
             keep2 = {"hard": [round((w - 640) / 2), 160, 640, 120], "soft": [round((w - 640) / 2), 160, 640, h - 176]}
@@ -317,7 +308,6 @@ async def main(out: Path) -> int:
         check("1366x768@96" not in doc["layer"]["monitors"], "only showing on a monitor saves nothing for it (adapted from the default)")
         check("1920x1080@96" in doc["layer"]["monitors"], "the arranged monitor keeps its own layout")
 
-        # ---------------------------------------------------------------- 5. reduced motion: no wiggle
         ctx = await new_ctx(1920, 1040, reduced=True)
         page = await open_layer(ctx, mon, keep)
         await page.evaluate("MemuLayer.setEdit(true)")
@@ -331,7 +321,6 @@ async def main(out: Path) -> int:
     for p in problems:
         print(" -", p)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     out_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r28/layer")

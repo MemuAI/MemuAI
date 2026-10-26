@@ -7,7 +7,6 @@ from unittest.mock import patch
 from app import local_models as lm
 from tests.local_models_test import gguf_bytes
 
-
 class Response:
     def __init__(self, status, headers=None, chunks=(), before_chunk=None, after_body=None):
         self.status_code = status
@@ -31,7 +30,6 @@ class Response:
         if self.after_body:
             self.after_body()
 
-
 class Client:
     def __init__(self, response):
         self.response = response
@@ -40,7 +38,6 @@ class Client:
     def stream(self, *args, headers=None):
         self.headers = headers
         return self.response
-
 
 class DownloadVerificationTests(unittest.TestCase):
     def setUp(self):
@@ -64,7 +61,7 @@ class DownloadVerificationTests(unittest.TestCase):
         with self.assertRaises(lm.LocalModelError):
             self.fetch(response, len(self.downloaded))
         self.assertEqual(self.target.read_bytes(), self.original)
-        # r26: an oversized (provably corrupt) part is removed so a retry can start clean
+
         self.assertFalse(self.part.exists())
         self.assertTrue(response.closed)
 
@@ -88,7 +85,7 @@ class DownloadVerificationTests(unittest.TestCase):
         with self.assertRaises(lm.LocalModelError):
             self.fetch(response, len(invalid))
         self.assertEqual(self.target.read_bytes(), self.original)
-        # r26: a complete-size but invalid GGUF part is removed (a retry would hit it again)
+
         self.assertFalse(self.part.exists())
         self.assertTrue(response.closed)
 
@@ -161,7 +158,7 @@ class DownloadVerificationTests(unittest.TestCase):
         with self.assertRaises(lm.LocalModelError):
             self.fetch(response)
         self.assertEqual(self.target.read_bytes(), self.original)
-        self.assertFalse(self.part.exists())  # r26: a corrupt complete payload is removed
+        self.assertFalse(self.part.exists())
 
     def test_cancel_during_transfer_closes_response_and_keeps_partial(self):
         self.part.write_bytes(self.downloaded[:30])
@@ -181,7 +178,6 @@ class DownloadVerificationTests(unittest.TestCase):
         self.assertEqual(self.target.read_bytes(), self.original)
         self.assertEqual(self.part.read_bytes(), self.downloaded)
         self.assertTrue(response.closed)
-
 
 class ImportOwnershipTests(unittest.TestCase):
     def test_copying_models_with_same_basename_preserves_existing_model(self):
@@ -220,7 +216,6 @@ class ImportOwnershipTests(unittest.TestCase):
             self.assertEqual(previous.read_bytes(), original)
             self.assertEqual(list(previous.parent.glob("*.gguf")), [previous])
 
-
 class DownloadIdentityRegressionTest(unittest.TestCase):
     def test_repository_names_cannot_share_download_directory(self):
         with tempfile.TemporaryDirectory() as temp, patch.object(lm, "models_dir", return_value=Path(temp)):
@@ -242,7 +237,6 @@ class DownloadIdentityRegressionTest(unittest.TestCase):
                     with self.assertRaises(lm.LocalModelError):
                         lm.start_download("owner/repo", files, projector, draft)
             worker.assert_not_called()
-
 
 if __name__ == "__main__":
     unittest.main()

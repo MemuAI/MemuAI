@@ -12,7 +12,6 @@ from app import pgdata
 ROOT = Path(__file__).resolve().parents[1]
 PG = ROOT / "app" / "pgstatic"
 
-
 class MotionPreferenceTest(unittest.TestCase):
     def test_default_and_validation(self):
         prefs = pgdata._normalize_preferences({})
@@ -40,19 +39,18 @@ class MotionPreferenceTest(unittest.TestCase):
             saved = pgdata.save_preferences({"ui_motion": "reduced", "reduce_motion": False})
             self.assertEqual(saved["ui_motion"], "reduced")
             self.assertEqual(json.loads((Path(temp) / "preferences.json").read_text("utf-8"))["ui_motion"], "reduced")
-            # A writer that still only knows the old switch turns motion off ...
+
             saved = pgdata.save_preferences({"reduce_motion": True})
             self.assertEqual(saved["ui_motion"], "off")
             self.assertTrue(saved["reduce_motion"])
-            # ... and back on, without inventing "reduced".
+
             saved = pgdata.save_preferences({"reduce_motion": False})
             self.assertEqual(saved["ui_motion"], "full")
-            # Clearing the switch never overrides an explicit "reduced".
+
             pgdata.save_preferences({"ui_motion": "reduced"})
             saved = pgdata.save_preferences({"reduce_motion": False})
             self.assertEqual(saved["ui_motion"], "reduced")
             self.assertEqual(pgdata.load_preferences()["ui_motion"], "reduced")
-
 
 class MotionWiringTest(unittest.TestCase):
     def test_files_are_linked_after_the_designs(self):
@@ -69,7 +67,7 @@ class MotionWiringTest(unittest.TestCase):
             self.assertIn(label, js)
         self.assertIn("dataset.motion = motionLevel", js)
         self.assertIn("savePreferences({ ui_motion: level, reduce_motion: level === \"off\" })", js)
-        # the old checkbox id is gone; the class used by every design stays
+
         self.assertNotIn('id="st-reduce-motion"', js)
         self.assertIn('classList?.toggle("reduce-motion"', js)
 
@@ -79,7 +77,7 @@ class MotionWiringTest(unittest.TestCase):
         self.assertIn(':root[data-motion="reduced"]', css)
         self.assertIn(':root[data-motion="off"] *', css)
         self.assertIn("body:not(.reduce-motion)", css)
-        # only compositor-friendly properties are animated by the keyframes
+
         for body in re.findall(r"@keyframes m-[\w-]+\s*\{(.*?)\}\s*(?=@|/\*|:root|\Z)", css, flags=re.S):
             for prop in re.findall(r"([a-z-]+)\s*:", body):
                 self.assertIn(prop, {"opacity", "translate", "scale", "transform", "stroke-dashoffset",
@@ -92,7 +90,6 @@ class MotionWiringTest(unittest.TestCase):
             self.assertIn(needle, js)
         appearance = (PG / "appearance.js").read_text(encoding="utf-8")
         self.assertIn("MemuMotion.swap", appearance)
-
 
 if __name__ == "__main__":
     unittest.main()

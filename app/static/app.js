@@ -1,12 +1,11 @@
-/* MemuAI Proxy — панель управления */
+
 "use strict";
 
 const $ = (s) => document.querySelector(s);
 const $$ = (s) => Array.from(document.querySelectorAll(s));
 
 let TOKEN = sessionStorage.getItem("oh_token") || "";
-// Старые версии держали долгоживущую админ-сессию в localStorage. Не переносим
-// её в более короткоживущее хранилище: при сетевом доступе лучше войти заново.
+
 localStorage.removeItem("oh_token");
 let providersMeta = [];
 let accountsCache = [];
@@ -31,8 +30,6 @@ let applogTimer = null;
 let metricsPeriod = localStorage.getItem("oh_metrics_period") || "day";
 let metricsCache = null;
 
-/* ------------------------------ api ------------------------------ */
-
 async function api(path, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (options.body !== undefined) headers["Content-Type"] = "application/json";
@@ -50,8 +47,8 @@ async function api(path, options = {}) {
     throw new Error(LANG === "en" ? "Cannot reach MemuAI Proxy" : "Нет связи с MemuAI Proxy");
   }
   let data = null;
-  try { data = await resp.json(); } catch (e) { /* пустой ответ */ }
-  // Бэкенд отдаёт сообщение сразу на двух языках — берём подходящее.
+  try { data = await resp.json(); } catch (e) {  }
+
   const errorText = data ? (LANG === "en" ? (data.error_en || data.error) : data.error) : "";
   if (resp.status === 401) {
     if (!path.endsWith("/login")) {
@@ -64,8 +61,6 @@ async function api(path, options = {}) {
   if (!resp.ok) throw new Error(translateMessage(errorText) || `HTTP ${resp.status}`);
   return data;
 }
-
-/* ------------------------------ утилиты ------------------------------ */
 
 function toast(message, type = "ok", ms = 3500) {
   const container = $("#toasts");
@@ -103,7 +98,7 @@ function cleanupModalWork() {
   if (!modalCleanup) return;
   const cleanup = modalCleanup;
   modalCleanup = null;
-  try { cleanup(); } catch (e) { /* очистка не должна ломать закрытие */ }
+  try { cleanup(); } catch (e) {  }
 }
 function onModalClose(cleanup) { modalCleanup = cleanup; }
 function wireFieldLabels(root = document) {
@@ -198,7 +193,7 @@ function structuredFieldHelp(value, className = "help") {
 }
 
 function accountSetupGuide(providerId) {
-  if (providerId === "geminiweb" && window.GeminiWebSetup) return window.GeminiWebSetup.guide(); // Round 37 (r37-gemini)
+  if (providerId === "geminiweb" && window.GeminiWebSetup) return window.GeminiWebSetup.guide();
   const en = LANG === "en";
   const pair = (ru, eng) => en ? eng : ru;
   const guides = {
@@ -289,7 +284,7 @@ function wireMusicAccount(prefix) {
     note.innerHTML = esc(text) + (preset?.docs ? ` <a href="${esc(preset.docs)}" target="_blank" rel="noopener noreferrer">${en ? "API documentation" : "Документация API"} ↗</a>` : "");
   };
   const draw = () => {
-    let current = "generic"; try { current = JSON.parse(config.value || "{}").preset || "generic"; } catch (error) { /* preserve the editable draft */ }
+    let current = "generic"; try { current = JSON.parse(config.value || "{}").preset || "generic"; } catch (error) {  }
     select.innerHTML = musicPresetsCache.map((item) => `<option value="${esc(item.id)}">${esc(item.title)}</option>`).join("");
     select.value = current; describe();
   };
@@ -310,7 +305,7 @@ function wireMusicAccount(prefix) {
 function wireAccountGuides(providerId, prefix, accountId = "") {
   $$("#modal-box [data-copy-guide]").forEach((button) => button.onclick = () => copyText(button.closest(".provider-guide-example").querySelector("code").textContent));
   if (providerId === "custom") wireMusicAccount(prefix);
-  if (providerId === "geminiweb" && window.GeminiWebSetup) return window.GeminiWebSetup.wire(prefix, accountId); // Round 37 (r37-gemini)
+  if (providerId === "geminiweb" && window.GeminiWebSetup) return window.GeminiWebSetup.wire(prefix, accountId);
   if (!["genspark", "grok"].includes(providerId)) return;
   const key = providerId === "grok" ? "cookies" : "cookie";
   const field = document.getElementById(prefix + key);
@@ -349,8 +344,6 @@ function wireAccountGuides(providerId, prefix, accountId = "") {
   });
 }
 
-/* Бэкенд отдаёт и русские, и английские подписи. Выбираем нужные один раз,
-   чтобы в английском интерфейсе не оставалось русских описаний и подсказок. */
 function localizeProviders(list) {
   const en = LANG === "en";
   return (list || []).map((p) => ({
@@ -379,10 +372,6 @@ async function fetchProviders(force = false) {
   return providersMeta;
 }
 
-/* Сообщения провайдеров исторически приходят по-русски. В английском интерфейсе
-   переводим известные фразы, чтобы в статусах и логах не было смеси языков. */
-/* Готовые фразы идут первыми: целую фразу всегда можно перевести правильно,
-   а перевод по отдельным словам оставляет калечные гибриды. */
 const MSG_PHRASES = [
   ["оценка по 5-часовым окнам за 7 дней", "estimate from 5-hour windows over 7 days"],
   ["получено с сервера", "received from the server"],
@@ -442,9 +431,6 @@ const MSG_PHRASES = [
   ["работает", "works"],
 ];
 
-/* Отдельные слова переводим только целиком: границы слова не дают превратить
-   «сервера» в «servera». Формы одного слова перечислены явно — так в
-   английском интерфейсе не остаётся русских окончаний. */
 const MSG_WORDS = [
   [["сервер", "сервера", "серверу", "сервером", "сервере"], "server"],
   [["серверы", "серверов", "серверам", "серверами", "серверах"], "servers"],
@@ -495,27 +481,24 @@ function translateMessage(text) {
   if (LANG !== "en" || !/[А-Яа-яЁё]/.test(value)) return value;
   let out = value;
   MSG_RULES.forEach(([from, to]) => { out = out.replace(from, to); });
-  // Предлоги переводим последними: раньше они разрывали бы фразы из таблицы.
+
   out = out
     .replace(/(?<![А-Яа-яЁё])с(?![А-Яа-яЁё])/gi, "from")
     .replace(/(?<![А-Яа-яЁё])без(?![А-Яа-яЁё])/gi, "without")
     .replace(/(?<![А-Яа-яЁё])для(?![А-Яа-яЁё])/gi, "for")
     .replace(/(?<![А-Яа-яЁё])нет(?![А-Яа-яЁё])/gi, "no")
     .replace(/(?<![А-Яа-яЁё])не(?![А-Яа-яЁё])/gi, "not")
-    // «90 c» / «5 мин» — сокращения единиц рядом с числом.
+
     .replace(/(\d)\s*[сc](?![А-Яа-яЁёa-z])/g, "$1 s")
     .replace(/(\d)\s*мин(?![А-Яа-яЁё])/g, "$1 min")
     .replace(/(\d)\s*ч(?![А-Яа-яЁё])/g, "$1 h")
-    // Русское окончание, прилипшее к переведённому слову («authorizedа»):
-    // исходный текст никогда не смешивает алфавиты внутри слова, поэтому
-    // такой «хвост» всегда остаток подстановки.
+
     .replace(/([A-Za-z])[А-Яа-яЁё]+/g, "$1")
     .replace(/\s{2,}/g, " ")
     .trim();
   return out;
 }
 
-/* Скачивание защищённого файла: fetch с токеном, затем локальная ссылка. */
 async function downloadAuthed(path, filename) {
   try {
     const headers = TOKEN ? { Authorization: "Bearer " + TOKEN } : {};
@@ -531,11 +514,6 @@ async function downloadAuthed(path, filename) {
   } catch (e) { toast(e.message, "err"); }
 }
 
-/* Копирование, которое работает везде, где живёт панель: в pywebview/WebView2, в обычном
-   браузере и по адресу LAN (http://192.168…), где navigator.clipboard нет вовсе. Clipboard API
-   пробуем только в безопасном контексте и не ждём дольше 1,5 с (без фокуса документа обещание
-   может не завершиться); запасной путь — скрытая textarea + execCommand("copy"), вставленная в
-   открытое модальное окно (иначе ловушка фокуса/inert не даёт её выделить). */
 function legacyCopy(value) {
   const host = document.querySelector("#modal-back.visible #modal-box") || document.body;
   const active = document.activeElement;
@@ -558,9 +536,9 @@ function legacyCopy(value) {
     done = document.execCommand("copy");
   } catch (err) { done = false; }
   area.remove();
-  if (selection) { try { selection.removeAllRanges(); ranges.forEach((r) => selection.addRange(r)); } catch (err) { /* ignore */ } }
+  if (selection) { try { selection.removeAllRanges(); ranges.forEach((r) => selection.addRange(r)); } catch (err) {  } }
   if (active && typeof active.focus === "function" && document.contains(active)) {
-    try { active.focus({ preventScroll: true }); } catch (err) { /* ignore */ }
+    try { active.focus({ preventScroll: true }); } catch (err) {  }
   }
   return done;
 }
@@ -572,7 +550,7 @@ async function writeClipboard(text) {
       await Promise.race([navigator.clipboard.writeText(value),
         new Promise((_, reject) => setTimeout(() => reject(new Error("clipboard timeout")), 1500))]);
       return true;
-    } catch (e) { /* запасной путь ниже */ }
+    } catch (e) {  }
   }
   return legacyCopy(value);
 }
@@ -583,8 +561,6 @@ async function copyText(text, okMessage) {
   return done;
 }
 const STATUS_BADGE = { ok: "ok", invalid: "invalid", unknown: "unknown", disabled: "disabled" };
-
-/* ------------------------------ вход ------------------------------ */
 
 function showLogin(message = "") {
   closeModal();
@@ -629,13 +605,11 @@ $("#login-form").addEventListener("submit", async (event) => {
   }
 });
 $("#logout-btn").onclick = async () => {
-  try { await api("/api/admin/logout", { method: "POST" }); } catch (e) { /* локально очищаем в любом случае */ }
+  try { await api("/api/admin/logout", { method: "POST" }); } catch (e) {  }
   TOKEN = "";
   sessionStorage.removeItem("oh_token");
   showLogin();
 };
-
-/* ------------------------------ вкладки / адаптив ------------------------------ */
 
 $$(".nav-item[data-tab]").forEach((btn) => {
   btn.onclick = () => {
@@ -688,7 +662,6 @@ $$("[data-copy]").forEach((btn) => {
   };
 });
 
-/* язык */
 function initLang() {
   $("#lang-select").value = LANG;
   $("#lang-select-2").value = LANG;
@@ -719,13 +692,11 @@ function onLangChanged() {
   if (window.MemuSettings) MemuSettings.relabel();
 }
 
-/* ------------------------------ главная ------------------------------ */
-
 async function loadHome() {
   try {
     const o = await api("/api/admin/overview");
     overviewCache = o;
-    // В overview лежит срез за сутки; на главной показываем выбранный период.
+
     if (o.metrics) {
       $("#metrics-body").hidden = false;
       $("#metrics-off").hidden = true;
@@ -749,7 +720,7 @@ async function loadHome() {
     $("#hero-dot").style.background = o.proxy_enabled ? "var(--ok)" : "var(--err)";
     $("#hero-dot").style.boxShadow = o.proxy_enabled ? "0 0 10px var(--ok)" : "none";
     $("#hero-title").textContent = o.proxy_enabled ? t("home.title") : t("home.stopped");
-    // Round 31: a first-run «С чего начать» card while no account exists at all.
+
     const accountTotal = Number.isFinite(o.accounts_total) ? o.accounts_total
       : (o.providers || []).reduce((sum, p) => sum + (Number(p.accounts) || 0), 0);
     if ($("#start-card")) $("#start-card").hidden = accountTotal > 0;
@@ -791,7 +762,7 @@ function fmtDuration(seconds) {
   const total = Math.max(0, Math.floor(Number(seconds) || 0));
   const d = Math.floor(total / 86400), h = Math.floor((total % 86400) / 3600);
   const m = Math.floor((total % 3600) / 60), sec = total % 60;
-  // "1m 59s" in the Russian panel read as untranslated: the units follow the language.
+
   const forms = t("metrics.dur").split("|");
   const form = forms[d ? 0 : h ? 1 : m ? 2 : 3];
   return form.replace("{d}", d).replace("{h}", h).replace("{m}", m).replace("{s}", sec);
@@ -823,15 +794,14 @@ function fmtMs(ms) {
 function fmtUsd(value, atLeast = false) {
   const n = Number(value) || 0;
   if (!n) return "$0";
-  /* An incomplete total is a lower bound: "≥ <$0.0001" said nothing, so a tiny bound keeps two digits too. */
+
   if (atLeast) return "≥ " + (n < 0.0001 ? "$" + n.toLocaleString(locale(), { maximumSignificantDigits: 2 }) : fmtUsd(n));
-  /* Small sums keep two significant digits: a whole row of "<$0.01" hid how far apart models are. */
+
   if (n < 0.0001) return "<$0.0001";
   if (n < 0.01) return "$" + n.toLocaleString(locale(), { maximumSignificantDigits: 2 });
   return "$" + n.toLocaleString(locale(), { maximumFractionDigits: n < 100 ? 2 : 0 });
 }
 
-/* «$3 / $15 за 1M · кэш $0.3 · каталог OpenRouter: anthropic/claude-sonnet-4.5» */
 function fmtPrice(price) {
   if (!price) return "";
   const num = (v) => (v === null || v === undefined ? "—" : "$" + (+Number(v).toPrecision(3)).toLocaleString(locale(), { maximumFractionDigits: 4 }));
@@ -843,7 +813,6 @@ function fmtPrice(price) {
     + (price.approximate ? ` · ${t("metrics.price.approx")}` : "");
 }
 
-/* Ячейка «≈ $» таблицы моделей: сумма, «цена неизвестна» вместо обманчивого $0, пометки подписки и оценки. */
 function metricsCostCell(x) {
   if (x.cost_state === "unknown" || x.cost_usd === null || x.cost_usd === undefined) {
     return `<span class="m-cost unknown" title="${esc(t("metrics.cost.unknown.title"))}">${esc(t("metrics.cost.unknown"))}</span>`;
@@ -881,7 +850,6 @@ function metricsCostKpi(m) {
   return { value, sub, title };
 }
 
-/* Δ к предыдущему такому же периоду. better: "up" — рост хорошо, "down" — рост плохо. */
 function metricsDelta(change, better = "up", unit = "%") {
   if (change === null || change === undefined || !Number.isFinite(Number(change))) return "";
   const n = Number(change);
@@ -938,7 +906,6 @@ function renderMetricsChart(m) {
     : `<span>${esc(t(metricsKind === "tokens" ? "metrics.legend.tokens" : metricsKind === "cost" ? "metrics.legend.cost" : "metrics.legend.latency"))}</span>`;
 }
 
-/* Round 40 (r40-proxy): «Сэкономлено кэшем» — a quiet line under the KPI cards, only when something was cached. */
 function renderMetricsCache(m) {
   const box = $("#metrics-cache");
   if (!box) return;
@@ -1030,7 +997,7 @@ $$("#metrics-chart-kind [data-kind]").forEach((btn) => btn.onclick = () => {
 
 async function loadMetrics() {
   try { renderMetrics(await api("/api/admin/metrics?period=" + encodeURIComponent(metricsPeriod))); }
-  catch (e) { /* статистика необязательна */ }
+  catch (e) {  }
 }
 
 $$("#metrics-period [data-period]").forEach((btn) => btn.onclick = () => {
@@ -1070,7 +1037,7 @@ $("#open-memuai").onclick = async () => {
 
 $("#proxy-toggle").onclick = async (event) => {
   const on = !(overviewCache && overviewCache.proxy_enabled);
-  // event.currentTarget is nulled once the handler yields, so keep the node.
+
   const button = event.currentTarget || $("#proxy-toggle");
   button.disabled = true;
   try {
@@ -1079,8 +1046,6 @@ $("#proxy-toggle").onclick = async (event) => {
   } catch (e) { toast(e.message, "err"); }
   finally { button.disabled = false; }
 };
-
-/* ------------------------------ аккаунты (карточки) ------------------------------ */
 
 function accStatusText(a) {
   const key = "acc.status." + a.status;
@@ -1123,11 +1088,9 @@ function matchesAccountSearch(a) {
 function syncAccountBulkBar() {
   const bar = $("#acc-bulk-bar");
   if (!bar) return;
-  // Панель нужна ровно тогда, когда есть что применять: отдельный режим
-  // «выбор нескольких» только мешал — выделять можно всегда.
+
   bar.hidden = !accountsSelectMode && accountsSelected.size === 0;
-  // Round 34: two hint strips stood one under the other — the reorder hint shows while cards can be dragged,
-  // the mouse-selection hint while selecting (proxy-r34.css).
+
   const tab = $("#tab-accounts");
   if (tab) {
     tab.classList.toggle("acc-selecting", !bar.hidden);
@@ -1136,11 +1099,9 @@ function syncAccountBulkBar() {
   $("#acc-bulk-count").textContent = `${accountsSelected.size} ${t("bulk.selected")}`;
   $$("#accounts-grid .acc-card").forEach((card) =>
     card.classList.toggle("selected", accountsSelected.has(card.dataset.accId)));
-  if (window.MemuAccR33) MemuAccR33.sync();   // r33: count «N of M», idle state, select-all label, checkboxes
+  if (window.MemuAccR33) MemuAccR33.sync();
 }
 
-/* Выделение мышью: клик по свободному месту карточки, Ctrl — добавить,
-   Shift — диапазон от последней выделенной. */
 let lastPickedAccount = "";
 
 function visibleAccounts() {
@@ -1230,7 +1191,6 @@ async function runAccountMenuAction(action, accountId) {
   await accountsBulk(action);
 }
 
-/* Перемещение всей выделенной группы: карточки сохраняют взаимный порядок. */
 async function moveSelectedAccounts(where) {
   const list = globalOrder();
   const picked = list.filter((a) => accountsSelected.has(a.id));
@@ -1274,16 +1234,11 @@ async function accountsBulk(action) {
   }
 }
 
-/* Перетаскивание карточек: порядок = приоритет выбора аккаунта. */
-
 function wireAccountDnd() {
   const grid = $("#accounts-grid");
   if (!grid) return;
   $$("#accounts-grid .acc-card").forEach((card) => {
-    // r33 (#19): reordering is pointer-driven (proxy-r33.js) — the native HTML5 drag blocked the mouse
-    // wheel on Windows, so the list could not be scrolled while a card was held.
-    // Клик по свободному месту карточки выделяет её; кнопки и переключатели
-    // продолжают работать как раньше.
+
     card.addEventListener("click", (event) => {
       if (event.target.closest("button, input, label, a, select, textarea")) return;
       if (window.MemuAccR33 && MemuAccR33.justDragged()) return;
@@ -1319,9 +1274,6 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
-/* Порядок общий для всех провайдеров: карточку можно поставить куда угодно.
-   Приоритет при этом сохраняется — аккаунт, который стоит выше своего соседа
-   по провайдеру, выбирается раньше. */
 function globalOrder() {
   return accountsCache.slice().sort((x, y) => (x.order - y.order) || (x.created - y.created));
 }
@@ -1337,7 +1289,7 @@ async function saveAccountOrder(list) {
 async function reorderAccounts(sourceId, targetId, after = false) {
   const list = globalOrder();
   if (list.findIndex((a) => a.id === targetId) < 0) return;
-  // Тащим всю выделенную группу, если тянут за одну из выделенных карточек.
+
   const moving = accountsSelected.has(sourceId) && accountsSelected.size > 1
     ? list.filter((a) => accountsSelected.has(a.id))
     : list.filter((a) => a.id === sourceId);
@@ -1380,7 +1332,7 @@ async function loadAccounts() {
     accs = accs.filter(matchesAccountSearch);
     accs = sortAccounts(accs);
     syncAccountBulkBar();
-    // Round 31: the reorder/selection hints mean nothing without accounts — show a real empty state instead.
+
     $("#tab-accounts").classList.toggle("is-empty", !accountsCache.length);
     if (!accs.length) {
       $("#accounts-grid").innerHTML = accountsCache.length
@@ -1396,8 +1348,7 @@ async function loadAccounts() {
       if (emptyAdd) emptyAdd.onclick = () => $("#acc-add-btn").click();
       return;
     }
-    // #N — место в общей очереди, #N в подсказке — место среди аккаунтов
-    // своего провайдера: именно оно решает, кого пул возьмёт первым.
+
     const perProvider = {};
     globalOrder().forEach((a, index) => {
       a._pos = index + 1;
@@ -1407,8 +1358,7 @@ async function loadAccounts() {
 
     $("#accounts-grid").innerHTML = accs.map((a) => {
       const meta = providerMeta(a.provider);
-      // Round 34: a key that answers 429 (daily quota spent) is accepted, but «working» in green hid that it
-      // cannot serve requests right now.
+
       const limitCode = a.status === "ok" ? (String(a.status_message || "").match(/\bHTTP (402|429)\b/) || [])[1] : "";
       const badge = limitCode ? "warn" : (STATUS_BADGE[a.status] || "unknown");
       const statusText = limitCode === "402" ? (LANG === "en" ? "no balance" : "нет средств")
@@ -1504,7 +1454,7 @@ async function showAccountUsage(accountId) {
       <h3>${t("usage.title")}</h3>
       ${u.subscription ? `<p class="muted">${t("usage.sub")} <b style="color:var(--text)">${esc(u.subscription)}</b>${u.email ? " · " + esc(u.email) : ""}</p>` : ""}
       ${(() => {
-        // Предупреждение провайдера (например, Google просит подтвердить аккаунт).
+
         const notice = (LANG === "en" && u.notice_en) || u.notice || "";
         const link = /^https:\/\//i.test(String(u.notice_url || ""))
           ? ` <a href="${esc(u.notice_url)}" target="_blank" rel="noopener noreferrer">${t("usage.notice.open")}</a>` : "";
@@ -1512,12 +1462,11 @@ async function showAccountUsage(accountId) {
       })()}
       ${(u.rows || []).map((row) => {
         const used = Number(row.used), limit = Number(row.limit);
-        // Без предела (оценка «за 7 дней») полоска не нужна: процента там нет.
+
         const hasLimit = row.limit !== null && row.limit !== undefined && Number.isFinite(limit) && limit > 0;
         const percent = hasLimit && Number.isFinite(used)
           ? Math.max(0, Math.min(100, Math.round(used / limit * 100))) : 0;
-        // Бэкенд отдаёт подписи сразу на двух языках (display/display_en) — как
-        // error/error_en в логах; русского варианта нет только у переводимых.
+
         const display = (LANG === "en" && row.display_en) || row.display || "—";
         const note = (LANG === "en" && row.note_en) || row.note || "";
         const unit = (LANG === "en" && row.unit_en) || row.unit || "";
@@ -1547,8 +1496,7 @@ async function editAccount(accountId) {
   const a = accountsCache.find((x) => x.id === accountId);
   if (!a) return;
   const meta = providerMeta(a.provider);
-  // Список аккаунтов приходит с замаскированными секретами. Для формы
-  // запрашиваем настоящие значения: ключ и куку надо уметь править на месте.
+
   let secrets = {};
   let realProxy = "";
   try {
@@ -1574,8 +1522,7 @@ async function editAccount(accountId) {
       </select></div>
     ${meta.fields.filter((f) => !(a.provider === "custom" && f.key === "name")).map((f) => {
       const id = `m-f-${esc(f.key)}`;
-      // Секреты приходят настоящими: поле сразу заполнено и правится на месте,
-      // а показ значения включается глазом.
+
       const existing = String(secrets[f.key] ?? a.fields?.[f.key] ?? "");
       const secret = isSecretField(f);
       let control;
@@ -1589,7 +1536,7 @@ async function editAccount(accountId) {
       }
       const reveal = secret && existing
         ? `<button type="button" class="btn small reveal-btn" data-reveal="${id}" aria-pressed="false">${t("acc.field.show")}</button>` : "";
-      // r33 (#12): «Копировать» lives right next to the key it copies (it used to be a lone card button).
+
       const copy = secret && existing
         ? `<button type="button" class="btn small reveal-btn field-copy-btn" data-copyfield="${id}" title="${esc(t("acc.btn.copykey"))}">${t("acc.field.copy")}</button>` : "";
       return `<div class="field"><label for="${id}">${esc(f.label)}${reveal ? ` ${reveal}` : ""}${copy ? ` ${copy}` : ""}</label>${control}${accountFieldHelp(a.provider, f)}</div>`;
@@ -1627,8 +1574,7 @@ async function editAccount(accountId) {
     const fields = {};
     meta.fields.forEach((f) => {
       const inp = document.getElementById("m-f-" + f.key);
-      // Поля заполнены настоящими значениями, поэтому отправляем их целиком:
-      // иначе правка «стереть лишний хвост в куке» не сохранялась бы.
+
       if (inp) fields[f.key] = inp.value.trim();
     });
     try {
@@ -1649,7 +1595,7 @@ $("#acc-search").addEventListener("input", (e) => { accountsSearch = e.target.va
 $("#acc-sort").addEventListener("change", (e) => { accountsSort = e.target.value; loadAccounts(); });
 $("#companion-top").addEventListener("click", () => $("#companion-fab").click());
 $("#acc-select-mode").addEventListener("click", () => {
-  // r33 (#19): a button instead of a switch; leaving the mode (button, Esc, «Отменить выделение») clears the selection.
+
   accountsSelectMode = !accountsSelectMode;
   if (!accountsSelectMode) accountsSelected.clear();
   loadAccounts();
@@ -1662,8 +1608,6 @@ $("#acc-select-all").onclick = () => {
 };
 $$("#acc-bulk-bar [data-bulk]").forEach((el) => el.onclick = () => accountsBulk(el.dataset.bulk));
 $("#acc-export").onclick = () => downloadAuthed("/api/admin/accounts/export", "memuai-accounts.json");
-
-/* --------- добавление аккаунта --------- */
 
 let presetsCache = [];
 let musicPresetsCache = [], legacyMusicAvailable = false;
@@ -1679,7 +1623,7 @@ $("#acc-add-btn").onclick = async () => {
     <h3>${t("acc.pick")}</h3>
     <p class="muted acc-pick-guide">${t("acc.pick.guide")}</p>
     <div class="pick-grid">
-      ${/* Round 31: «Собственный API» (any key) first, the music API last — it is the rarest pick. */
+      ${
         providersMeta.slice().sort((a, b) => (b.id === "custom") - (a.id === "custom")).map((p) => {
         const how = t(`acc.how.${p.id}`);
         return `
@@ -1712,22 +1656,19 @@ $("#acc-add-btn").onclick = async () => {
   };
   $$("#modal-box [data-pick]").forEach((tile) => tile.onclick = () => showAccountForm(tile.dataset.pick));
   $$("#modal-box [data-preset]").forEach((tile) => tile.onclick = () => showPresetForm(tile.dataset.preset));
-  // r33 (#24): the ready-made connections — top services as tiles, «Show all» opens the A–Z searchable list.
+
   if (window.MemuCatalogR33 && $("#acc-catalog")) MemuCatalogR33.render($("#acc-catalog"), presetsCache);
 };
 
-/* Round 31: «Добавить аккаунт» on the home first-run card opens the same picker on the Accounts tab. */
 if ($("#start-add")) $("#start-add").onclick = () => {
   $('.nav-item[data-tab="accounts"]')?.click();
   setTimeout(() => $("#acc-add-btn").click(), 60);
 };
 
-/* Пресет — это «Собственный API» с уже заполненным адресом и моделями.
-   Пользователю остаётся вставить ключ. */
 function showPresetForm(presetId) {
   const preset = presetsCache.find((p) => p.id === presetId);
   if (!preset) return;
-  if (window.MemuCatalogR33) { MemuCatalogR33.form(preset); return; }   // r33: params, auth note, models
+  if (window.MemuCatalogR33) { MemuCatalogR33.form(preset); return; }
   const used = new Set(accountsCache.filter((a) => a.provider === "custom")
     .map((a) => String(a.fields?.name || "").toLowerCase()));
   let name = preset.name;
@@ -1786,13 +1727,12 @@ function showAccountForm(providerId) {
   const p = providersMeta.find((x) => x.id === providerId);
   if (!p) return;
   if (p.managed) {
-    // Local models are not an account form: they live on their own tab.
+
     closeModal();
     $('.nav-item[data-tab="local"]')?.click();
     return;
   }
-  // Round 31: the Custom API form showed 13 fields at once. The four that connect an API stay on top;
-  // the key pool, headers, media models and the account's label/note/tags/proxy/priority fold into «Дополнительно».
+
   const ESSENTIAL = { custom: ["name", "base_url", "api_key", "models"] };
   const essential = ESSENTIAL[providerId];
   const mainFields = essential ? p.fields.filter((f) => essential.includes(f.key) || f.required) : p.fields;
@@ -1841,8 +1781,7 @@ function showAccountForm(providerId) {
     </div>`, true);
   $("#m-cancel").onclick = closeModal;
   wireAccountGuides(providerId, "af-");
-  // Round 34: several keys pasted into the one-line «API key» field were glued into one invalid key (the
-  // browser drops line breaks). The first key stays, the rest go to the key pool under «More».
+
   const keyInput = $("#af-api_key"), poolInput = $("#af-api_keys");
   if (keyInput && poolInput) keyInput.addEventListener("paste", (event) => {
     const keys = String(event.clipboardData?.getData("text") || "").split(/[\r\n;]+/).map((k) => k.trim()).filter(Boolean);
@@ -1967,11 +1906,8 @@ $("#acc-check-all").onclick = async (e) => {
   finally { button.disabled = false; loadAccounts(); }
 };
 
-/* ------------------------------ настройки ------------------------------ */
-
 let settingsStatusTimer = null;
-/* Round 23: the status pill of the Settings page (settings.js) shows saving / saved / error and
-   lights up the row that changed. Without settings.js the old fade-in label still works. */
+
 function flashSettingsSaved() {
   if (window.MemuSettings) { MemuSettings.saved(true); return; }
   const el = $("#settings-status");
@@ -1995,8 +1931,7 @@ async function autoSaveSetting(payload) {
     if (window.MemuSettings) MemuSettings.saved(false, e.message);
   }
 }
-/* Value of a settings control: switches send booleans (provider switches send the provider's own
-   pair of strings, e.g. "true"/"false" or "on"/"off", exactly what the old select sent). */
+
 function settingValue(el) {
   if (el.type === "checkbox") return el.dataset.on !== undefined ? (el.checked ? el.dataset.on : el.dataset.off) : el.checked;
   return el.value;
@@ -2005,10 +1940,7 @@ function setSettingControl(el, value) {
   if (el.type === "checkbox") el.checked = el.dataset.on !== undefined ? String(value) === el.dataset.on : value === true || value === "true";
   else el.value = value;
 }
-/* Настройки провайдеров строятся из схемы, которую отдаёт сам провайдер:
-   добавили поле в settings_fields() — оно сразу появилось в панели.
-   Раунд 23: строки в стиле страницы настроек; провайдеры с аккаунтами — сверху, без аккаунтов —
-   под «Дополнительно»; да/нет и on/off — переключатели. */
+
 function providerSettingControl(p, f, value) {
   const id = `ps-${esc(p.id)}-${esc(f.key)}`;
   const attrs = `id="${id}" data-psetting="${esc(p.id)}" data-key="${esc(f.key)}"`;
@@ -2067,8 +1999,8 @@ async function loadSettings() {
   try {
     const data = await api("/api/admin/settings");
     settingsCache = data.settings;
-    try { await fetchProviders(); } catch (e) { /* метаданные необязательны */ }
-    if (!accountsCache.length) { try { accountsCache = (await api("/api/admin/accounts")).accounts || []; } catch (e) { /* счётчики необязательны */ } }
+    try { await fetchProviders(); } catch (e) {  }
+    if (!accountsCache.length) { try { accountsCache = (await api("/api/admin/accounts")).accounts || []; } catch (e) {  } }
     renderProviderSettings();
     $$("[data-setting]").forEach((el) => {
       if (el.dataset.setting in settingsCache) setSettingControl(el, settingsCache[el.dataset.setting]);
@@ -2087,8 +2019,7 @@ async function loadSettings() {
     if (window.MemuSettings) MemuSettings.sync();
   } catch (e) { if (e.message !== "401") toast(e.message, "err"); }
 }
-/* Веб-поиск Proxy: источников много, у каждого свой ключ и адрес — они хранятся по
-   источникам, поэтому при смене источника ничего не теряется. */
+
 let searchEngines = [];
 function renderSearchSettings() {
   const select = $("#search-engine");
@@ -2184,8 +2115,6 @@ $("#app-shutdown").onclick = () => {
   }, t("set.shutdown"));
 };
 
-/* --------- каталог моделей --------- */
-
 function visibleModels() {
   const needle = modelsFilter.toLowerCase();
   return modelsCache.filter((m) => {
@@ -2202,8 +2131,7 @@ function visibleModels() {
 function syncModelsBulkBar() {
   const bar = $("#models-bulk-bar");
   if (!bar) return;
-  // Панель всегда на месте: раньше она появлялась над списком при первом выделении и
-  // сдвигала его вниз — второй щелчок «по той же модели» попадал уже в другую строку.
+
   const idle = modelsSelected.size === 0;
   bar.hidden = false;
   bar.classList.toggle("idle", idle);
@@ -2211,10 +2139,6 @@ function syncModelsBulkBar() {
   $("#models-bulk-count").textContent = idle ? t("bulk.models.hint") : `${modelsSelected.size} ${t("bulk.selected")}`;
 }
 
-/* Выделение строк каталога мышью — как в проводнике Windows: клик выделяет
-   одну строку, Ctrl — добавляет/снимает, Shift — диапазон от последней.
-   Управляет тем же Set modelsSelected, что и чекбоксы, поэтому bulk-бар и
-   массовые действия работают без изменений. */
 let lastPickedModel = "";
 
 function syncModelsSelection() {
@@ -2228,14 +2152,14 @@ function syncModelsSelection() {
 }
 
 function pickModel(modelId, event) {
-  // порядок строк берём из DOM: при группировке он отличается от видимого списка
+
   const visible = $$("#models-table tr[data-mid]").map((tr) => tr.dataset.mid);
   if (event && event.shiftKey && lastPickedModel) {
     const from = visible.indexOf(lastPickedModel);
     const to = visible.indexOf(modelId);
     if (from >= 0 && to >= 0) {
       const [start, end] = from <= to ? [from, to] : [to, from];
-      // как в Windows: Shift заменяет выделение диапазоном, Ctrl+Shift добавляет
+
       if (!event.ctrlKey && !event.metaKey) modelsSelected.clear();
       visible.slice(start, end + 1).forEach((id) => modelsSelected.add(id));
       syncModelsSelection();
@@ -2246,7 +2170,7 @@ function pickModel(modelId, event) {
     if (modelsSelected.has(modelId)) modelsSelected.delete(modelId);
     else modelsSelected.add(modelId);
   } else if (event && modelsSelected.size === 1 && modelsSelected.has(modelId)) {
-    // щелчок по единственной выделенной строке снимает выделение — второй раз искать пустое место не нужно
+
     modelsSelected.clear();
   } else {
     modelsSelected.clear();
@@ -2256,10 +2180,6 @@ function pickModel(modelId, event) {
   syncModelsSelection();
 }
 
-/* Выделение рамкой и с клавиатуры — как на рабочем столе Windows: потяните мышью по
-   пустому месту или по строкам, и всё, что попало в рамку, выделится (Ctrl — добавить
-   к уже выделенному). Ctrl+A — все видимые, Esc — снять, стрелки — двигать выделение
-   (Shift — растягивать), Delete — удалить выделенное, Ctrl+C — скопировать их ID. */
 const marquee = { active: false, pending: false, x0: 0, y0: 0, base: new Set(), box: null, scrollTimer: 0,
   lastX: 0, lastY: 0, suppressClick: false, scroll0: 0, page0: 0 };
 
@@ -2267,9 +2187,6 @@ function marqueeRows() {
   return $$("#models-table tr[data-mid]");
 }
 
-/* Начало рамки привязано к списку, а не к экрану: когда список прокручивается (у края
-   или колесом), точка, с которой начали тянуть, уезжает вместе со строками. Иначе рамка
-   теряла всё, что ушло за край, и выделялись только видимые модели. */
 function marqueeStartY() {
   const list = $("#models-table");
   return marquee.y0 - ((list ? list.scrollTop : 0) - marquee.scroll0) - (window.scrollY - marquee.page0);
@@ -2297,7 +2214,7 @@ function marqueeDraw() {
     marquee.box.className = "marquee-box";
     document.body.appendChild(marquee.box);
   }
-  // рамку рисуем только в пределах списка: её начало может быть уже прокручено за край
+
   const list = $("#models-table");
   const bounds = list ? list.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
   const startY = Math.max(bounds.top, Math.min(bounds.bottom, marqueeStartY()));
@@ -2322,7 +2239,7 @@ function marqueeEnd() {
   marquee.scrollTimer = 0;
   if (marquee.box) { marquee.box.remove(); marquee.box = null; }
   document.body.classList.remove("marquee-on");
-  if (marquee.active) marquee.suppressClick = true;      // the click that ends a drag must not reselect one row
+  if (marquee.active) marquee.suppressClick = true;
   marquee.active = marquee.pending = false;
   setTimeout(() => { marquee.suppressClick = false; }, 60);
 }
@@ -2335,12 +2252,12 @@ function marqueeMove(event) {
     marquee.active = true;
     document.body.classList.add("marquee-on");
     window.getSelection()?.removeAllRanges();
-    // near the edge of the scrolling list the drag keeps scrolling it, like a file manager does
+
     marquee.scrollTimer = setInterval(() => {
       const list = $("#models-table");
       if (!list || !marquee.active) return;
       const box = list.getBoundingClientRect();
-      // чем дальше курсор за краем, тем быстрее листается — как в проводнике
+
       const over = marquee.lastY > box.bottom - 28 ? marquee.lastY - (box.bottom - 28)
         : marquee.lastY < box.top + 28 ? marquee.lastY - (box.top + 28) : 0;
       const step = Math.sign(over) * Math.min(60, 12 + Math.abs(over) * 0.5);
@@ -2357,9 +2274,9 @@ function marqueeMove(event) {
   if (!list) return;
   list.addEventListener("mousedown", (event) => {
     if (event.button !== 0 || event.shiftKey) return;
-    // switches, buttons and links keep working exactly as before
+
     if (event.target.closest("button, input, label, a, select, textarea, .switch, thead")) return;
-    if (event.offsetX > list.clientWidth) return;            // the scroll bar
+    if (event.offsetX > list.clientWidth) return;
     marquee.pending = true;
     marquee.active = false;
     marquee.additive = event.ctrlKey || event.metaKey;
@@ -2370,12 +2287,12 @@ function marqueeMove(event) {
     marquee.page0 = window.scrollY;
     window.addEventListener("mousemove", marqueeMove, true);
     window.addEventListener("mouseup", marqueeEnd, true);
-    window.addEventListener("scroll", marqueeScrolled, true);   // колесо во время протяжки
+    window.addEventListener("scroll", marqueeScrolled, true);
   });
-  // capture: runs before the per-row click that would collapse the selection to one row
+
   list.addEventListener("click", (event) => {
     if (marquee.suppressClick) { event.stopPropagation(); event.preventDefault(); marquee.suppressClick = false; return; }
-    // a click on empty space clears the selection, as on the desktop
+
     if (!event.target.closest("tr[data-mid], button, input, label, a, select, .model-group-head") && modelsSelected.size) {
       modelsSelected.clear();
       syncModelsSelection();
@@ -2385,7 +2302,7 @@ function marqueeMove(event) {
 
 document.addEventListener("keydown", (event) => {
   const view = $("#models-table");
-  if (!view || !view.offsetParent) return;                   // the models tab is not on screen
+  if (!view || !view.offsetParent) return;
   const target = event.target;
   if (target && target.closest && target.closest("input, textarea, select, [contenteditable]")) return;
   if (document.querySelector(".modal-back:not([hidden]), #modal:not([hidden])")) return;
@@ -2431,7 +2348,6 @@ function compactTokens(value) {
   return n >= 1_000_000 ? `${+(n / 1_000_000).toFixed(n % 1_000_000 ? 2 : 0)}M` : n >= 1000 ? `${Math.round(n / 1000)}K` : String(n);
 }
 
-/* Where the context window of a model came from (see app/model_info.py). */
 function contextSourceLabel(info) {
   if (!info || !info.context) return LANG === "en" ? "Unknown: the client uses its default" : "Неизвестно: клиент возьмёт значение по умолчанию";
   const source = String(info.source || "");
@@ -2443,8 +2359,6 @@ function contextSourceLabel(info) {
   return `${LANG === "en" ? "Context" : "Контекст"}: ${Number(info.context).toLocaleString()} — ${where}${output}`;
 }
 
-/* Round 33 (r33c-models-lists): the readable name every window shows (static/model-names.js — the same rules
-   and test vectors as app/model_names.py); the full id stays beside it, smaller and muted. */
 function proxyModelName(m) {
   try { if (window.MemuModelNames && m && m.id) return MemuModelNames.pretty(m.id, { prefix: m.prefix || "" }) || m.id; } catch (e) {}
   return (m && m.id) || "";
@@ -2456,8 +2370,6 @@ function proxyModelCell(m) {
     : `<span class="pm-name mono">${esc(m.id)}</span>`;
 }
 
-/* Round 34: with several «Собственный API» connections every row said the same «Custom API» + «custom
-   connection» — the chip now names the connection (OpenRouter, aws9 …) and the stock note is left out. */
 const STOCK_MODEL_NOTES = new Set(["кастомное подключение"]);
 function modelNote(m) {
   return STOCK_MODEL_NOTES.has(String(m.note || "").trim()) ? "" : translateMessage(m.note || "");
@@ -2473,7 +2385,7 @@ function modelSourceChip(m) {
 function modelRow(m) {
   const unavailable = m.availability?.available === false;
   const cls = [m.enabled && !unavailable ? "" : "row-off", modelsSelected.has(m.id) ? "selected" : ""].filter(Boolean).join(" ");
-  // Round 22: значки возможностей и кнопка карточки модели (static/model_caps.js).
+
   const caps = window.MemuModelCaps ? MemuModelCaps.badges(m.id) : "";
   return `
     <tr class="${cls}" data-mid="${esc(m.id)}">
@@ -2487,9 +2399,6 @@ function modelRow(m) {
     </tr>`;
 }
 
-/* Round 22: список рисуется из кэша — фильтры и значки больше не перезапрашивают /api/admin/models
-   на каждую букву. Длинный плоский список дорисовывается порциями (первые строки сразу, остальное
-   в простое), обработчики — делегированием на #models-table, поэтому дорисованные строки работают так же. */
 const MODELS_FIRST_ROWS = 160;
 const MODELS_CHUNK = 220;
 let modelsRenderToken = 0;
@@ -2499,7 +2408,7 @@ async function loadModels() {
     const data = await api("/api/admin/models");
     modelsCache = data.models;
     if (!accountsCache.length && modelsCache.some((m) => m.provider === "custom")) {
-      try { accountsCache = (await api("/api/admin/accounts")).accounts || []; } catch (e) { /* the chip falls back to the kind */ }
+      try { accountsCache = (await api("/api/admin/accounts")).accounts || []; } catch (e) {  }
     }
     const alive = new Set(modelsCache.map((m) => m.id));
     modelsSelected = new Set(Array.from(modelsSelected).filter((id) => alive.has(id)));
@@ -2509,7 +2418,7 @@ async function loadModels() {
 }
 
 function syncGensparkModelTools() {
-  // Инструменты каталога Genspark без аккаунта Genspark только возвращали его модели в список.
+
   const live = accountsCache.some((a) => a.provider === "genspark");
   for (const id of ["#models-gs-config", "#models-gs-discover"]) {
     const button = $(id);
@@ -2579,7 +2488,7 @@ function renderModelsTable() {
     if (box) {
       if (box.checked) modelsSelected.add(box.dataset.msel);
       else modelsSelected.delete(box.dataset.msel);
-      // чекбокс и подсветка строки — одно и то же выделение
+
       box.closest("tr[data-mid]")?.classList.toggle("selected", box.checked);
       syncModelsBulkBar();
       return;
@@ -2609,7 +2518,7 @@ function renderModelsTable() {
       return;
     }
     const tr = event.target.closest("tr[data-mid]");
-    // контролы строки работают как раньше: клик по ним не перехватываем
+
     if (!tr || event.target.closest("button, input, label, a, select, textarea")) return;
     pickModel(tr.dataset.mid, event);
   });
@@ -2618,16 +2527,12 @@ function renderModelsTable() {
     if (!tr || event.target.closest("button, input, label, a, select, textarea")) return;
     if (window.MemuModelCaps) MemuModelCaps.open(tr.dataset.mid);
   });
-  // Shift+клик не должен растягивать текстовое выделение по таблице
+
   view.addEventListener("mousedown", (event) => {
     if (event.shiftKey && event.target.closest("tr[data-mid]")) event.preventDefault();
   });
 })();
 
-/* После добавления аккаунта с большим каталогом (свой API, готовое подключение, провайдер с
-   десятками моделей) сразу спрашиваем, какие модели оставить включёнными. Все включены;
-   «Выключить все» + поиск позволяют быстро оставить только нужные. Выключенные модели не
-   удаляются — они остаются в каталоге, их можно включить позже в «Настройки → Модели». */
 const MODEL_PICK_MIN = 30;
 
 async function modelIdsSnapshot() {
@@ -2636,15 +2541,14 @@ async function modelIdsSnapshot() {
 }
 
 async function offerNewModels(before, accountId) {
-  // Новый аккаунт сразу опрашивается: его модели появляются в каталоге без похода в
-  // «Настройки → Обновить с серверов». Опрос только этого аккаунта, чужие модели не чистятся.
+
   if (accountId) {
     try {
       const r = await api("/api/admin/models/refresh", { method: "POST", body: { accounts: [accountId], prune: false } });
       if (r.added) toast(`${LANG === "en" ? "Models added" : "Добавлено моделей"}: ${r.added}`, "ok");
-    } catch (e) { /* каталог из набора по умолчанию уже есть */ }
+    } catch (e) {  }
     loadModels(); loadHome();
-    // Round 34: a new card stayed «not checked» although its key had just been used — check it once.
+
     api(`/api/admin/accounts/${encodeURIComponent(accountId)}/check`, { method: "POST", body: {} })
       .then(() => loadAccounts()).catch(() => loadAccounts());
   }
@@ -2660,7 +2564,7 @@ async function offerNewModels(before, accountId) {
 function openModelPicker(models) {
   const en = LANG === "en";
   const chosen = new Map(models.map((m) => [m.id, !!m.enabled]));
-  // Round 34: OpenRouter adds ~460 models, most of them paid — one click keeps the «:free» ones.
+
   const isFree = (m) => /(:free|[-_]free)$/i.test(String(m.id || ""));
   const freeCount = models.filter(isFree).length;
   let filter = "";
@@ -2704,7 +2608,7 @@ function openModelPicker(models) {
     count();
   });
   $("#mp-filter").addEventListener("input", (event) => { filter = event.target.value; render(); });
-  // Кнопки действуют на то, что сейчас показано: «выключить все», найти нужное, «включить все» найденные.
+
   $("#mp-all").onclick = () => { shown().forEach((m) => chosen.set(m.id, true)); render(); };
   $("#mp-none").onclick = () => { shown().forEach((m) => chosen.set(m.id, false)); render(); };
   if ($("#mp-free")) $("#mp-free").onclick = () => { models.forEach((m) => chosen.set(m.id, isFree(m))); render(); };
@@ -2781,8 +2685,7 @@ $("#models-filter").addEventListener("input", (e) => {
 $("#models-provider-filter").addEventListener("change", (e) => { modelsProviderFilter = e.target.value; renderModelsTable(); });
 $("#models-state-filter").addEventListener("change", (e) => { modelsStateFilter = e.target.value; renderModelsTable(); });
 $("#models-group").addEventListener("change", (e) => { modelsGroup = e.target.value; renderModelsTable(); });
-/* Ctrl+A и Esc в каталоге моделей — как при выделении файлов в Windows.
-   В полях ввода не мешаем: там Ctrl+A выделяет текст, Esc закрывает подсказки. */
+
 document.addEventListener("keydown", (event) => {
   if (!$("#tab-settings")?.classList.contains("active")) return;
   if ($("#modal-back").classList.contains("visible")) return;
@@ -2796,11 +2699,10 @@ document.addEventListener("keydown", (event) => {
     syncModelsSelection();
   }
 });
-/* Кнопка «Обновить с серверов» сначала спрашивает, чьи каталоги тянуть:
-   опрос всех провайдеров сразу долгий, а нужен обычно один. */
+
 async function askRefreshProviders() {
-  try { await fetchProviders(); } catch (e) { /* метаданные необязательны */ }
-  if (!accountsCache.length) { try { await loadAccounts(); } catch (e) { /* ignore */ } }
+  try { await fetchProviders(); } catch (e) {  }
+  if (!accountsCache.length) { try { await loadAccounts(); } catch (e) {  } }
   const usable = [...new Set(accountsCache.filter((a) => a.enabled).map((a) => a.provider))].sort();
   if (!usable.length) { toast(t("set.models.norefresh"), "warn", 5000); return; }
   const preset = new Set(modelsProviderFilter ? [modelsProviderFilter] : usable);
@@ -2898,8 +2800,6 @@ $("#models-gs-discover").onclick = async (e) => {
   finally { button.textContent = old; button.disabled = false; }
 };
 
-/* --------- ключи --------- */
-
 async function loadKeys() {
   try {
     const data = await api("/api/admin/keys");
@@ -2930,7 +2830,7 @@ $("#key-generate").onclick = async () => {
   try {
     const r = await api("/api/admin/keys", { method: "POST", body: {} });
     let copied = false;
-    try { copied = await writeClipboard(r.key); } catch (e) { /* покажем ключ ниже */ }
+    try { copied = await writeClipboard(r.key); } catch (e) {  }
     if (copied) {
       toast(LANG === "en" ? "Key created and copied" : "Ключ создан и скопирован", "ok", 5000);
     } else {
@@ -2941,8 +2841,6 @@ $("#key-generate").onclick = async () => {
   } catch (e) { toast(e.message, "err"); }
   finally { button.disabled = false; }
 };
-
-/* ------------------------------ логи ------------------------------ */
 
 let logsLoading = false;
 let logsFacetsLoaded = false;
@@ -3289,8 +3187,6 @@ $("#logs-clear").onclick = () => {
   }, t("logs.clear"));
 };
 
-/* --------- журнал сервера --------- */
-
 let applogCache = [];
 async function loadApplog(quiet = false) {
   try {
@@ -3321,8 +3217,6 @@ $("#applog-clear").onclick = () => confirmDialog(t("logs.clear") + "?", t("logs.
   catch (e) { toast(e.message, "err"); }
 }, t("logs.clear"));
 
-/* ------------------------------ старт ------------------------------ */
-
 initLang();
 (async function init() {
   applyI18n();
@@ -3330,7 +3224,6 @@ initLang();
   showApp();
 })();
 
-/* Перетаскивание аккаунтов: у края прокручиваемой области она листается сама. */
 (function dragAutoScroll() {
   let frame = 0, box = null, speed = 0;
   const scrollable = (node) => {

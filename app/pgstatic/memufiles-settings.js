@@ -1,19 +1,10 @@
-/* MemuAI · Settings → «MemuFiles» (Round 35).
 
-   MemuFiles is the optional fast file manager of the suite (app/memufiles/**, MemuFiles.exe). The Setup
-   installs it when its switch is on; otherwise it ships as <app>\Packages\MemuFiles.zip and this page
-   installs it in one click. Backend: app/memufiles_manager.py, routes /api/pg/memufiles*.
 
-   Mounted like «MemuNote»: settingsPages() has the page «memufiles» when window.MemuFilesSettings exists;
-   the pane calls MemuFilesSettings.html(ctx) and, when shown, MemuFilesSettings.mount(ctx).
-   Other parts of MemuAI open folders/files in it with MemuFilesSettings.open(["C:\\path"]) (Quick Access
-   file search: Alt+Enter). Round 38: the page also edits every MemuFiles preference (app-settings-form.js,
-   /api/pg/appsettings/memufiles). */
 (function () {
   "use strict";
 
   const isEn = () => {
-    try { if (typeof PG_LANG !== "undefined") return PG_LANG === "en"; } catch (e) { /* ignore */ }
+    try { if (typeof PG_LANG !== "undefined") return PG_LANG === "en"; } catch (e) {  }
     return (document.documentElement.lang || "ru").startsWith("en");
   };
   const L = (ru, en) => (isEn() ? en : ru);
@@ -72,7 +63,6 @@
     paint();
   }
 
-  // ------------------------------------------------------------------ render
   function stateChip() {
     if (!st) return `<span class="mf-chip">${esc(L("Проверяю…", "Checking…"))}</span>`;
     if (st.error) return `<span class="mf-chip warn">${esc(L("Нет связи", "Unavailable"))}</span>`;
@@ -121,9 +111,7 @@
     ];
     return `<div class="mf-features">${items.map(([icon, title, text]) => `<div class="mf-feature">${ico(icon)}<div><b>${esc(title)}</b><small>${esc(text)}</small></div></div>`).join("")}</div>`;
   }
-  /* Round 38: every MemuFiles preference (app-settings-form.js) between the status block and, while MemuFiles is
-     not installed, «Что умеет». Status repaints touch only #mf-settings-top / -tail, never the form.
-     «Интеграция с Windows» carries r38-files' block (memufiles-default.js: default file manager, Win+E). */
+
   const form = window.MemuAppSettings ? MemuAppSettings.create({ app: "memufiles", idp: "mfset-", name: "MemuFiles", toast: (text, kind) => toast(text, kind),
     extra: { windows: {
       html: () => (window.MemuFilesDefaultShell ? MemuFilesDefaultShell.html() : ""),
@@ -153,7 +141,6 @@
     kit()?.invalidate();
   }
 
-  /* The app's own styled confirm (reuses .sync-confirm of sync-settings.css, always loaded with the settings). */
   function confirmBox(text, okText) {
     return new Promise((resolve) => {
       const opener = document.activeElement;
@@ -165,7 +152,7 @@
           <button type="button" class="pbtn danger" data-yes>${esc(okText)}</button></div></div>`;
       const finish = (value) => {
         node.remove(); document.removeEventListener("keydown", onKey, true);
-        try { opener && opener.focus && opener.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+        try { opener && opener.focus && opener.focus({ preventScroll: true }); } catch (e) {  }
         resolve(value);
       };
       const onKey = (event) => {
@@ -185,7 +172,6 @@
     });
   }
 
-  // ------------------------------------------------------------------ actions
   async function act(action) {
     if (busy) return;
     if (action === "refresh") { st = null; paint(); await load(); return; }
@@ -220,7 +206,6 @@
     if (form) form.mount();
   }
 
-  /** Open folders/files in MemuFiles from anywhere in MemuAI. A file opens its folder with the file selected. */
   async function open(paths) {
     try {
       const r = await call("/api/pg/memufiles/open", { paths: (paths || []).filter(Boolean) });

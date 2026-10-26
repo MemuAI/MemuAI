@@ -1,33 +1,18 @@
-/* MemuAI — агенты Work и MemuCode: совместная работа.
- *
- * Основная модель запускает агента инструментом agent_spawn и сразу продолжает
- * свою часть задачи: агенты работают в фоне на сервере (app/work_agents.py),
- * одновременно друг с другом и с ней. Здесь — всё, что нужно интерфейсу:
- * когда агенты разрешены, что о них знает модель, карточки агентов в ответе
- * и возврат отчётов, которых никто не дождался.
- *
- * В обычном чате агентов нет вовсе. В Work и MemuCode они доступны, только
- * когда о них попросил пользователь: словами в сообщении или переключателем
- * «Агенты» в меню «+». Сама модель позвать агента не может.
- *
- * Модуль не подменяет функции app.js: app.js вызывает MemuAgents.* явно.
- */
+
+
 "use strict";
 const MemuAgents = (() => {
   const en = () => PG_LANG === "en";
   const t = (ru, eng) => (en() ? eng : ru);
   const TOOLS = ["agent_spawn", "agent_status", "agent_wait", "agent_result", "agent_cancel"];
-  /* Слова, которыми просят агентов. Список щедрый: совпадение лишь разрешает
-     инструмент и ничего не запускает само. */
+
   const ASKS = /\b(?:sub-?agents?|agents?|workers?|delegat\w*|in parallel|parallel\w*|simultaneous\w*|concurrent\w*|in the background|multi-?agent\w*)\b|агент|делегир|параллел|одновременно|в фоне|воркер/i;
   const POLL_MS = 1500;
-  const watched = new Map();   // chatId → { messages, mode, misses }
+  const watched = new Map();
   let timer = null;
 
   function isTool(name) { return TOOLS.includes(String(name || "")); }
 
-  /* Просил ли пользователь агентов: переключатель чата или одно из трёх
-     последних его сообщений («продолжай» после такой просьбы тоже считается). */
   function allowed(messages, caps, mode) {
     if (!(mode === "work" || mode === "code")) return false;
     if (caps && caps.agents === "always") return true;
@@ -49,7 +34,6 @@ When your own part is done and agents are still running, call agent_wait. Treat 
 </agents>`;
   }
 
-  /* ------------------------------------------------------------ состояние */
   function jobsOf(message) { return Array.isArray(message?.agentJobs) ? message.agentJobs : []; }
 
   function merge(message, row) {
@@ -59,8 +43,6 @@ When your own part is done and agents are still running, call agent_wait. Treat 
     if (found) Object.assign(found, row); else message.agentJobs.push({ ...row });
   }
 
-  /* Результат инструмента agent_* основной модели: запоминаем агентов в её
-     сообщении и начинаем следить за ними. */
   function onToolResult(assistant, call, result, source) {
     if (!isTool(call?.tool) || !result || result.error) return;
     if (call.tool === "agent_spawn") merge(assistant, { id: result.id, title: result.title, model: result.model, status: "running", can_write: result.can_write });
@@ -79,7 +61,6 @@ When your own part is done and agents are still running, call agent_wait. Treat 
     return "";
   }
 
-  /* ------------------------------------------------------------ наблюдение */
   function watch(chatId, messages, mode) {
     if (!chatId) return;
     watched.set(String(chatId), { messages, mode: mode || "work", misses: 0 });
@@ -101,7 +82,7 @@ When your own part is done and agents are still running, call agent_wait. Treat 
 
   async function poll() {
     for (const [chatId, entry] of [...watched]) {
-      const seen = new Set();   // карточки «работает», существовавшие до запроса (не только что запущенные)
+      const seen = new Set();
       const before = S.currentId === chatId ? S.messages : ((S.chats || []).find((item) => item.id === chatId)?.messages || entry.messages || []);
       for (const message of before) if (message.role === "assistant") for (const job of jobsOf(message)) if (job.status === "running") seen.add(job);
       let rows;
@@ -119,13 +100,12 @@ When your own part is done and agents are still running, call agent_wait. Treat 
         const message = owner(messages, row.id);
         if (!message) continue;
         const known = jobsOf(message).find((job) => job.id === row.id);
-        // Секундомер сам по себе не повод перерисовывать чат каждые полторы секунды.
+
         const differs = ["status", "tools", "last", "report", "error", "delivered"].some((key) => known[key] !== row[key]);
         Object.assign(known, row);
         if (differs) changed = true;
       }
-      // Агенты живут в памяти сервера: после перезапуска MemuAI сохранённая карточка «работает»
-      // навсегда оставалась со спиннером и кнопкой «Остановить». Сервер о ней не знает — она прервана.
+
       for (const message of messages) {
         if (message.role !== "assistant") continue;
         for (const job of jobsOf(message)) {
@@ -137,8 +117,7 @@ When your own part is done and agents are still running, call agent_wait. Treat 
       if (changed && S.currentId === chatId) renderMessages();
       const running = rows.some((row) => row.status === "running");
       const waiting = rows.filter((row) => row.status !== "running" && !row.delivered);
-      // Отчёт готов, а основная модель уже закончила ход и не ждёт его:
-      // возвращаем отчёт в разговор — она продолжит сама.
+
       if (waiting.length && !busy(chatId, messages)) {
         await deliver(chatId, messages);
       } else if (!running && !waiting.length) {
@@ -177,20 +156,17 @@ When your own part is done and agents are still running, call agent_wait. Treat 
     poll();
   }
 
-  /* «Стоп» в поле ввода: молча останавливает агентов чата, если они есть. */
   function cancel(chatId) {
     if (!watched.has(String(chatId))) return;
     api("/api/work/agents", { method: "POST", body: { session: chatId, action: "cancel" } }).then(poll).catch(() => {});
   }
 
-  /* Чат открыт заново (или окно перезагружено), а агенты ещё работают. */
   function resume(chatId, messages, mode) {
     if (messages.some((m) => m.role === "assistant" && jobsOf(m).some((job) => job.status === "running" || (job.status !== "running" && job.delivered === false)))) {
       watch(chatId, messages, mode);
     }
   }
 
-  /* ------------------------------------------------------------ карточки */
   const STATUS = { running: "running", done: "done", error: "error", cancelled: "info" };
 
   function seconds(value) {

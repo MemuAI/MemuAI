@@ -1,9 +1,8 @@
-/* Round 26 Live: production realtime.js turn logic and realtime-worklet.js
- * resampler with deterministic fixtures. No provider, microphone or network. */
+
+
 const fs = require("fs"), vm = require("vm"), assert = require("assert"), path = require("path");
 const root = path.resolve(__dirname, "..");
 
-// ---------------------------------------------------------------- worklet
 const worklet = fs.readFileSync(path.join(root, "app/pgstatic/realtime-worklet.js"), "utf8");
 function resample(rate, target, freq = 300, blocks = 400) {
   let Processor; const out = [];
@@ -23,13 +22,12 @@ function resample(rate, target, freq = 300, blocks = 400) {
 }
 for (const [rate, target] of [[48000, 24000], [44100, 24000], [44100, 16000], [48000, 16000], [16000, 24000]]) {
   const r = resample(rate, target);
-  // Ideal max step of a 300 Hz half-scale sine: 2π·300/target·16383.
+
   const ideal = 2 * Math.PI * 300 / target * 16383;
   assert(r.step < ideal * 1.05, `${rate}→${target}: block-boundary step ${r.step} > ${ideal.toFixed(0)}`);
   assert(Math.abs(r.count - r.expected) <= 2, `${rate}→${target}: ${r.count} samples, expected ${r.expected}`);
 }
 
-// ---------------------------------------------------------------- turns
 const ctx = vm.createContext({ console, Uint8Array, DataView, Set, Map, Date, Math, PG_LANG: "ru",
   pref: (_k, fallback) => fallback, btoa: s => Buffer.from(s, "binary").toString("base64"),
   atob: s => Buffer.from(s, "base64").toString("binary") });
@@ -53,8 +51,6 @@ function reset(protocol = "openai-realtime") {
 ctx.WebSocket = { OPEN: 1 };
 const pcm = Buffer.alloc(4800, 1).toString("base64");
 
-// Interrupting by click: the rest of the cancelled reply that was already in
-// flight is not played again, the next reply is.
 reset();
 live.onEvent({ type: "audio", data: pcm, turn_id: "a1" });
 assert.equal(played, 1);
@@ -65,12 +61,11 @@ assert.equal(played, 1, "tail of the interrupted reply must not play");
 assert.equal(live.session.state, "listening");
 live.onEvent({ type: "audio", data: pcm, turn_id: "a2" });
 assert.equal(played, 2, "the next reply plays");
-// Server-side barge-in (interrupted event) drops the same reply's tail too.
+
 live.onEvent({ type: "interrupted" });
 live.onEvent({ type: "audio", data: pcm, turn_id: "a2" });
 assert.equal(played, 2);
 
-// Providers without reply IDs (Gemini, GPT-Live): silence until the turn ends or the user speaks.
 reset("gemini-live");
 live.onEvent({ type: "audio", data: pcm });
 api.interrupt();
@@ -85,14 +80,12 @@ live.onEvent({ type: "audio", data: pcm }); assert.equal(played, 1);
 live.onEvent({ type: "user_transcript", delta: "Ещё" });
 live.onEvent({ type: "audio", data: pcm }); assert.equal(played, 2, "GPT-Live has no turn_complete: user speech re-enables");
 
-// Loud background noise above the local gate, never heard by the provider and
-// never transcribed, is not saved as an empty voice message.
 reset();
 live.recordInput(new Uint8Array(24000).buffer, 0.2);
 live.onEvent({ type: "audio", data: pcm, turn_id: "b1" });
 live.onEvent({ type: "turn_complete" });
 assert.deepEqual([...rows.values()].map(r => r.role), ["assistant"], "noise became a blank user message");
-// …but speech the provider heard is kept even without a transcript.
+
 reset();
 live.onEvent({ type: "speech_started", turn_id: "u1" });
 live.recordInput(new Uint8Array(24000).buffer, 0.2);
@@ -100,12 +93,11 @@ live.onEvent({ type: "speech_stopped", turn_id: "u1" });
 const heard = [...rows.values()].find(r => r.role === "user");
 assert(heard && heard.audio && heard.text === "", "provider-detected speech keeps its clip");
 
-// Typed text replaces the user caption.
 reset();
 live.onEvent({ type: "user_transcript", text: "Привет", final: true, turn_id: "u1" });
 api.sendText("Тест текстом");
 assert.deepEqual(captions.at(-1), ["user", "Тест текстом"]);
-// Video attachments: a speech-API failure is not reported as an unreadable audio track.
+
 const videoCtx = vm.createContext({ PG_LANG: "ru", window: {}, URL, console });
 vm.runInContext(fs.readFileSync(path.join(root, "app/pgstatic/video.js"), "utf8") + "\nglobalThis.V = MemuVideo;", videoCtx);
 assert.equal(videoCtx.V.noteText({ transcriptNote: "stt_failed", transcriptError: "Неверный ключ API" }),

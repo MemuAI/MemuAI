@@ -5,14 +5,12 @@ from .. import selfdoc
 from ..i18n import tr
 from . import Context, command
 
-
 def offline_markdown(question: str) -> str:
     lines = selfdoc.offline_answer(question)
     if not lines:
         return tr("В справочнике ничего не нашлось. Список команд: /help.",
                   "Nothing in the reference matches. The command list: /help.")
     return "\n".join(f"- {line}" for line in lines)
-
 
 @command("help-ask", "Спросить что угодно о самом MemuCode — ответ по встроенному справочнику: /help-ask как включить "
                      "планирование?",
@@ -36,6 +34,6 @@ async def help_ask(ctx: Context) -> None:
         ctx.md(offline_markdown(question))
         return
     session = runtime.session
-    # The reference is attached to exactly the turn this question starts (selfdoc.turn_block).
+
     runtime.selfdoc_forced_for = (session.id, len(session.user_prompts()) + 1)
     await ctx.prompt(question, display=ctx.raw)

@@ -46,7 +46,6 @@ CHECK_JS = """(lang) => {
   return {clip, cyr};
 }"""
 
-
 def states() -> list[tuple[str, str, int]]:
     return [
         ("apps", "showSettings(); openSettingsPage('apps')", 1500),
@@ -55,7 +54,6 @@ def states() -> list[tuple[str, str, int]]:
         ("notion", "showSettings(); openSettingsPage('apps'); setTimeout(() => MemuSettingsKit.openSub('int-notion'), 500)", 1800),
         ("github", "showSettings(); openSettingsPage('apps'); setTimeout(() => MemuSettingsKit.openSub('int-github'), 500)", 1500),
     ]
-
 
 def seed_connected(data_dir: str, drive: bool = False) -> None:
     """A connected Google account (Gmail + Calendar granted, Drive not yet) and a Notion token — local state only."""
@@ -77,7 +75,6 @@ def seed_connected(data_dir: str, drive: bool = False) -> None:
     (memu / "integrations.json").write_text(json.dumps({
         "google": {"services": ["gmail", "calendar", "drive"]},
         "notion": {"mode": "token", "account": "Alex's Notion", "checked": 1700000000}}), encoding="utf-8")
-
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -142,7 +139,6 @@ def main() -> int:
         print(line)
     print("problems:", len(problems))
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

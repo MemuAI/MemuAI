@@ -34,9 +34,6 @@ import traceback
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# prompt_toolkit rings the terminal bell on its own (a key with nothing to do, an empty
-# search): on Windows that is the system "ding". MemuCode makes a sound only when the
-# "notifications" setting is "bell", and then writes it itself.
 os.environ.setdefault("PROMPT_TOOLKIT_BELL", "false")
 
 from prompt_toolkit.application import Application
@@ -72,8 +69,6 @@ from .render import Renderer, live_preview, split_stable, strip_ansi, tool_title
 from .theme import color_depth, palette_for, pt_style
 from .transcript import Block, Transcript, TranscriptControl
 
-# Claude-style asterisk pulse. U+2733 (the eight-spoked asterisk) is left out on purpose: Windows Terminal
-# draws it as a green emoji tile, which used to flash in the middle of the animation.
 SPINNER = ["·", "✢", "*", "✶", "✻", "✽", "✻", "✶", "*", "✢"]
 VERBS = ["Thinking", "Pondering", "Cogitating", "Brewing", "Crafting", "Noodling", "Musing", "Scheming",
          "Tinkering", "Percolating", "Ruminating", "Conjuring", "Deliberating", "Synthesizing", "Untangling",
@@ -85,8 +80,6 @@ TIPS = ["Shift+Tab cycles modes: accept edits, plan, auto.", "Press Esc twice to
         "Click a gray summary line to see exactly what was done; Ctrl+O unfolds all.",
         "/subtask runs a task in parallel while you keep talking.", "/goal keeps working until the goal is met."]
 
-
-#: The "?" shortcut panel. Round 33: a module constant, so the built-in MemuCode guide (selfdoc.py) lists exactly these.
 SHORTCUT_ROWS = (
     ("/", "commands"), ("@", "mention a file"),
     ("!", "bash mode"), ("#", "save a memory"),
@@ -98,9 +91,6 @@ SHORTCUT_ROWS = (
     ("alt+t", "toggle thinking"), ("alt+r", "show / hide the model's thinking"), ("ctrl+l", "clear screen"),
     ("ctrl+c ×2 / ctrl+d", "exit"),
 )
-
-
-# ---------------------------------------------------------------- processors
 
 class _Tokens(Processor):
     PATTERN = re.compile(r"\[Image #\d+\]|\[File #\d+: [^\]]+\]|\[Pasted text #\d+ \+\d+ lines\]|(?<![\w@])@(?:\"[^\"]+\"|[^\s@]+)")
@@ -119,7 +109,6 @@ class _Tokens(Processor):
                 fragments[index] = (style + " class:brand", char)
         return Transformation(fragments)
 
-
 class _Placeholder(Processor):
     def __init__(self, text) -> None:
         self.text = text
@@ -128,7 +117,6 @@ class _Placeholder(Processor):
         if ti.lineno == 0 and not ti.document.text:
             return Transformation(list(ti.fragments) + [("class:placeholder", self.text())])
         return Transformation(ti.fragments)
-
 
 def _ellipsize(text: str, cells: int) -> str:
     """Cut a one-line status to the window width with «…» — never let the live area wrap mid-word (round 34)."""
@@ -145,7 +133,6 @@ def _ellipsize(text: str, cells: int) -> str:
         out.append(char)
         used += size
     return "".join(out).rstrip() + "…"
-
 
 def fit_meta(meta: List[str], cells: int) -> str:
     """« (12s · ↓ 1k tokens · … · esc to interrupt)» that fits ``cells`` cells.
@@ -164,7 +151,6 @@ def fit_meta(meta: List[str], cells: int) -> str:
         parts = parts[:1]
     line = render(parts)
     return line if get_cwidth(line) <= cells else _ellipsize(line, cells)
-
 
 class _MouseListControl(FormattedTextControl):
     """Keep wheel events inside a picker instead of selecting terminal text."""
@@ -186,7 +172,6 @@ class _MouseListControl(FormattedTextControl):
             self._after_click()
         return result
 
-
 class Menu:
     """The suggestion list of the input box: commands, files, arguments.
 
@@ -200,7 +185,7 @@ class Menu:
 
     def __init__(self, items: List[Any], text: str, kind: str, index: Optional[int] = None) -> None:
         self.items = items
-        self.text = text            # the text before the cursor these items were found for
+        self.text = text
         self.kind = kind
         self.index = index
 
@@ -217,7 +202,6 @@ class Menu:
             self.index = 0 if delta > 0 else len(self.items) - 1
         else:
             self.index = (self.index + delta) % len(self.items)
-
 
 class _SnappyApplication(Application):
     """An Application whose lone Escape acts at once.
@@ -240,7 +224,6 @@ class _SnappyApplication(Application):
     def timeoutlen(self, value: Optional[float]) -> None:
         self._timeoutlen = value
 
-
 class _CopyOnSelectBufferControl(BufferControl):
     def __init__(self, *args, copied, clicked=None, **kwargs):
         super().__init__(*args, **kwargs)
@@ -257,9 +240,6 @@ class _CopyOnSelectBufferControl(BufferControl):
         if mouse_event.event_type == MouseEventType.MOUSE_UP and not selected and self._clicked:
             self._clicked()
         return result
-
-
-# ---------------------------------------------------------------- the UI
 
 class TerminalUI(BaseUI):
     interactive = True
@@ -279,7 +259,7 @@ class TerminalUI(BaseUI):
         self.busy_started = 0.0
         self.task: Optional[asyncio.Task] = None
         self.side_tasks: List[asyncio.Task] = []
-        self._scheduled_running: set = set()          # tasks of /schedule that this window has started
+        self._scheduled_running: set = set()
         self._schedule_checked = 0.0
         self.verb = ""
         self.status_text = ""
@@ -289,21 +269,20 @@ class TerminalUI(BaseUI):
         self.reasoning = ""
         self.reasoning_started = 0.0
         self.reasoning_printed = False
-        self.mode_toast: Optional[tuple] = None             # (text, until) shown in the status line after a mode change
-        self.live_thinking = bool(self.settings.get("show_thinking"))   # the thinking text under the spinner
-        self.turn_out_tokens = 0.0              # estimated tokens written during this turn (all its requests)
-        self.rate = RateMeter()                 # speed of the request in progress; see tokens.RateMeter
-        # What is going on with the request right now, for the line under the answer: waiting for the
-        # provider, its pings, the first token, a tool call being written.
-        self.stream_phase = ""                  # request | accepted | (empty: tokens are arriving)
+        self.mode_toast: Optional[tuple] = None
+        self.live_thinking = bool(self.settings.get("show_thinking"))
+        self.turn_out_tokens = 0.0
+        self.rate = RateMeter()
+
+        self.stream_phase = ""
         self.stream_started_at = 0.0
         self.first_token_at = 0.0
         self.pings = 0
         self.last_ping = 0.0
-        self.block_what = ""                    # "Write(src/App.jsx)" while the model writes a hidden tool block
+        self.block_what = ""
         self.block_chars = 0
         self._block_counted = 0
-        self._streamers: Dict[str, bool] = {}   # model → does it stream? (learned from how its answers arrive)
+        self._streamers: Dict[str, bool] = {}
         self.active_tools: Dict[str, Any] = {}
         self.dialogs: List[dlg.Dialog] = []
         self.show_help = False
@@ -322,26 +301,25 @@ class TerminalUI(BaseUI):
         self.app: Optional[Application] = None
         self.copied_count = 0
         self.copied_until = 0.0
-        self.activity_block: Optional[Block] = None       # the open "what the agent did" group
+        self.activity_block: Optional[Block] = None
         self.activity_steps: List[Step] = []
-        self.last_kind = ""                               # kind of the newest transcript block
+        self.last_kind = ""
         self.connecting = False
         self._auto_resumes = 0
         self.clipboard_image_seen = False
         self.menu: Optional[Menu] = None
-        self._menu_text: Optional[str] = None             # the text the list was last built for
+        self._menu_text: Optional[str] = None
         self._menu_serial = 0
-        self._menu_closed_for: Optional[str] = None       # Esc hid the list for exactly this text
+        self._menu_closed_for: Optional[str] = None
         self._live_cache: Dict[str, Any] = {}
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self.exit_code = 0
         from ..commands import CommandRegistry
         self.commands = CommandRegistry(self)
         from ..autocontinue import AutoContinue
-        self.auto_continue = AutoContinue(self)            # Round 33: /auto-continue
+        self.auto_continue = AutoContinue(self)
         self._build()
 
-    # ------------------------------------------------------------ building
     @property
     def verbose(self) -> bool:
         """Unfold every folded block (Ctrl+O, /settings → verbose output)."""
@@ -360,8 +338,7 @@ class TerminalUI(BaseUI):
         return max(30, shutil.get_terminal_size((100, 30)).columns)
 
     def _build(self) -> None:
-        # Suggestions are the interface's own (see Menu): the buffer has no completer at all.
-        # ``runtime.files`` is replaced by /cd, so the completer asks for it each time instead of binding it.
+
         self.completer = MemuCompleter(
             self.commands.items, lambda: self.runtime.files.files(sync=False),
             lambda: list(self.runtime.agents()), lambda: self.runtime.root,
@@ -412,13 +389,10 @@ class TerminalUI(BaseUI):
             Window(_MouseListControl(self._completion_list, self._completion_scroll), wrap_lines=False,
                    dont_extend_height=True),
             filter=Condition(lambda: bool(self.menu and self.menu.items)) & ~has_dialog)
-        # One window for both halves: two half-width windows clipped the left part mid-word and glued
-        # it to the model name ("● 2 agentssol-gpt-…"). fit_footer() makes them share the row instead.
+
         footer = ConditionalContainer(Window(FormattedTextControl(self._footer_line), height=1),
                                       filter=~has_dialog)
-        # The suggestion list floats over the bottom rows of the transcript. As a row of the layout it
-        # pushed the whole transcript up and down on every keystroke that changed its length, and the
-        # terminal had to repaint the full screen each time.
+
         upper = FloatContainer(HSplit([self.transcript_window, live]),
                                floats=[Float(completions, left=0, right=0, bottom=0)])
         root = HSplit([upper, ConditionalContainer(dialog, filter=has_dialog),
@@ -429,9 +403,7 @@ class TerminalUI(BaseUI):
     def make_app(self, *, input: Any = None, output: Any = None) -> Application:
         depth = {"truecolor": ColorDepth.TRUE_COLOR, "256": ColorDepth.DEPTH_8_BIT,
                  "none": ColorDepth.DEPTH_1_BIT}.get(self.depth, ColorDepth.TRUE_COLOR)
-        # ``max_render_postpone_time=None`` matters on Windows: with a value, prompt_toolkit re-queues its
-        # render callback while the (Proactor) loop has anything else pending, which is always — every
-        # keystroke then waited the whole postpone time while the loop spun at full speed.
+
         app = _SnappyApplication(layout=self.layout, key_bindings=self.key_bindings, style=pt_style(self.palette),
                           full_screen=True, mouse_support=True,
                           color_depth=depth,
@@ -442,7 +414,6 @@ class TerminalUI(BaseUI):
         app.timeoutlen = 0.12
         return app
 
-    # ------------------------------------------------------------ small views
     def _transcript_height(self) -> int:
         info = self.transcript_window.render_info
         return info.window_height if info is not None else max(1, self._rows() - 7)
@@ -467,7 +438,6 @@ class TerminalUI(BaseUI):
         self._menu_closed_for = None
         self._refresh_menu()
 
-    # ------------------------------------------------------------ suggestions
     def _refresh_menu(self, *, force: bool = False) -> None:
         """Bring the suggestion list in line with the text before the cursor.
 
@@ -523,7 +493,7 @@ class TerminalUI(BaseUI):
             return False
         start = len(before) - span
         buffer.save_to_undo_stack()
-        # One change, so the list is rebuilt once (for the text as it ends up).
+
         buffer.document = Document(before[:start] + completion.text + buffer.document.text_after_cursor,
                                    start + len(completion.text))
         return True
@@ -570,7 +540,6 @@ class TerminalUI(BaseUI):
         todos = self.runtime.session.todos or []
         return todos if any(todo.get("status") != "completed" for todo in todos) else []
 
-    # ------------------------------------------------------------ live area
     def _tail_fragments(self, tail: str, width: int) -> StyleAndTextTuples:
         """The unfinished end of the streaming answer, rendered at most ~25 times a second."""
         key = (width, self.stream_bullet, id(self.renderer.theme))
@@ -780,8 +749,7 @@ class TerminalUI(BaseUI):
         if not menu or not menu.items:
             return []
         completions = menu.items
-        # Nothing is highlighted until an arrow is pressed, but Enter and Tab take the first row,
-        # so that row is the one drawn as current.
+
         index = menu.index if menu.index is not None else 0
         visible = 8
         start = max(0, min(index - visible // 2, len(completions) - visible))
@@ -807,7 +775,7 @@ class TerminalUI(BaseUI):
                 meta = meta[:width - name_width - 6]
                 used += len(meta)
                 out.append(("class:completion.meta.selected" if active else "class:completion.meta", meta, click))
-            out.append(("class:completion", " " * max(0, width - used), click))      # a full row: covers the transcript under it
+            out.append(("class:completion", " " * max(0, width - used), click))
             out.append(("", "\n"))
         if len(completions) > visible:
             counter = f"  {index + 1}/{len(completions)}"
@@ -862,7 +830,7 @@ class TerminalUI(BaseUI):
             state = "paused" if goal.get("paused") else f"{goal.get('continuations', 0)}/{goal.get('max', 10)}"
             parts.append(("class:brand", f"  ◎ goal {state}"))
         auto_continue = self.auto_continue.footer() if getattr(self, "auto_continue", None) is not None else ""
-        if auto_continue:                                   # Round 33: /auto-continue countdown
+        if auto_continue:
             parts.append(("class:brand", "  " + auto_continue,
                           self._click(lambda: self.run_command_text("/auto-continue status"))))
         agents, commands = self.runtime.jobs.running(), self.runtime.shells.running()
@@ -950,8 +918,7 @@ class TerminalUI(BaseUI):
         return out
 
     def _context_share(self) -> float:
-        # The share only changes with the conversation (or the model): it is not recomputed on a
-        # timer. Counting a long session every few seconds held the interpreter and made typing stutter.
+
         messages = (len(self.runtime.session.messages), self.runtime.model)
         cached_count, cached_share, stamp = self.context_cache
         if cached_count == messages and (not self.busy or time.monotonic() - stamp < 20):
@@ -996,8 +963,7 @@ class TerminalUI(BaseUI):
                          "total_lines_removed": runtime.stats.lines_removed},
                 "permission_mode": runtime.permissions.mode,
             })
-            # Bounded for the whole process tree: with subprocess.run a script that left a child holding
-            # stdout hung this thread forever on Windows, and the status line never refreshed again.
+
             from ... import code_sandbox
             _code, out, _err, _late = code_sandbox.run_bounded(argv_for(self.settings, command),
                                                                 input_bytes=payload.encode("utf-8"),
@@ -1010,7 +976,6 @@ class TerminalUI(BaseUI):
             self._statusline_running = False
         self.invalidate()
 
-    # ------------------------------------------------------------ dialogs
     def _dialog_head(self) -> StyleAndTextTuples:
         if not self.dialogs:
             return []
@@ -1066,7 +1031,7 @@ class TerminalUI(BaseUI):
             self.dialogs[0].refilter()
 
     def _focus_dialog(self) -> None:
-        # The layout exists before the application runs: a dialog shown at startup takes the keys from the start.
+
         if not self.dialogs:
             return
         dialog = self.dialogs[0]
@@ -1174,7 +1139,6 @@ class TerminalUI(BaseUI):
             return str(result.get("text") or "")
         return None
 
-    # ------------------------------------------------------------ printing
     def invalidate(self) -> None:
         if self.app is not None and self.app.is_running:
             self.app.invalidate()
@@ -1216,7 +1180,6 @@ class TerminalUI(BaseUI):
         lead = "\n" if first else ""
         self.add_block(lambda width, expanded: lead + self.renderer.assistant_chunk(text, first, width), kind="assistant")
 
-    # ------------------------------------------------------------ BaseUI: agent events
     def status(self, text: str) -> None:
         self.status_text = text[:80]
         self.invalidate()
@@ -1292,7 +1255,7 @@ class TerminalUI(BaseUI):
         self.block_what = what or self.block_what
         if chars:
             self.block_chars = chars
-            if chars > self._block_counted:                  # hidden text counts toward the token estimate
+            if chars > self._block_counted:
                 piece = (chars - self._block_counted) / 3.8
                 self.turn_out_tokens += piece
                 self.rate.add(piece, time.monotonic())
@@ -1323,8 +1286,7 @@ class TerminalUI(BaseUI):
     def _flush_reasoning(self) -> None:
         if self.reasoning and not self.reasoning_printed:
             seconds = time.monotonic() - self.reasoning_started if self.reasoning_started else 0
-            # Open when the user was watching it live (or asked for it in the settings): it must not vanish
-            # the moment the answer starts.
+
             text, full = self.reasoning, self.live_thinking or bool(self.settings.get("show_thinking"))
             self.add_block(lambda width, expanded: self.renderer.thinking(text, seconds, full=full, expanded=expanded,
                                                                           width=width),
@@ -1434,7 +1396,7 @@ class TerminalUI(BaseUI):
         if result.stopped == "interrupted":
             self.write(self.renderer.render(Text("  ⎿  Interrupted · What should MemuCode do instead?", style="err")))
         elif result.stopped == "error" and result.error:
-            # Round 32: a classified model error (app/cli/errors.py) leads with what happened in plain words.
+
             head, _sep, rest = result.error.partition("\n")
             if getattr(result, "error_category", "") and rest:
                 self.write(self.renderer.error(head, rest))
@@ -1443,10 +1405,10 @@ class TerminalUI(BaseUI):
         elif result.stopped == "limit":
             self.say("Round limit reached — the agent summarised.", "warn")
         elif result.stopped == "stuck" and result.error and not (result.text or "").strip():
-            # Round 29: «Stop» on the stuck pause ended the turn — say so instead of falling silent.
+
             self.say(result.error + " — send a new message to continue.", "warn")
         try:
-            # Round 33: settle an /auto-continue try, or offer the command under a limit error.
+
             self.auto_continue.turn_finished(result)
         except Exception:
             self.runtime.log_error(traceback.format_exc())
@@ -1477,7 +1439,7 @@ class TerminalUI(BaseUI):
         now = time.time()
         for job in self.runtime.jobs.jobs:
             if job["status"] == "running":
-                # Round 32: one live line per agent — name, role, progress, what it does right now.
+
                 seconds = int(now - job["started"])
                 extra = f" — {job['last']}" if job.get("last") else ""
                 who = job.get("name") or job.get("description") or ""
@@ -1497,7 +1459,6 @@ class TerminalUI(BaseUI):
         self.invalidate()
         return items
 
-    # ------------------------------------------------------------ BaseUI: questions
     async def ask_permission(self, request: Any) -> Dict[str, Any]:
         tool = request.tool
         prepared = request.prepared
@@ -1531,7 +1492,7 @@ class TerminalUI(BaseUI):
         options = dlg.permission_options(request)
         self._notify(tr("MemuCode ждёт разрешения", "MemuCode needs your permission"), title, only_idle=True)
         dialog = dlg.Dialog(title=title, options=options, body="".join(body_parts), danger=request.danger, guard=True)
-        dialog.remote_request = request          # app/cli/remote.py shows the exact call in the Telegram Mini App
+        dialog.remote_request = request
         answer = await self.open_dialog(dialog)
         if isinstance(answer, dict):
             return {"choice": "feedback", "feedback": str(answer.get("text") or "")}
@@ -1545,7 +1506,7 @@ class TerminalUI(BaseUI):
         dialog = dlg.Dialog(title="MemuCode asks", options=rows, multi=multi and bool(options), guard=True,
                             body=self.renderer.render(self.renderer.md(question)))
         if not options:
-            dialog.text_mode = True   # nothing to choose (e.g. «Hint for the model:»): the text field is open at once
+            dialog.text_mode = True
         self._notify(tr("MemuCode задаёт вопрос", "MemuCode has a question"), question[:120], only_idle=True)
         answer = await self.open_dialog(dialog)
         if isinstance(answer, dict):
@@ -1575,7 +1536,6 @@ class TerminalUI(BaseUI):
         answer = await self.open_dialog(dlg.Dialog(title=title, options=options, body=rendered, danger=danger, guard=True))
         return answer is True
 
-    # ------------------------------------------------------------ notifications
     def _ring(self) -> None:
         """The terminal bell, written straight to the terminal: the toolkit's own bell is switched
         off (see the top of this module) so that it never dings on its own."""
@@ -1592,8 +1552,7 @@ class TerminalUI(BaseUI):
             return
         if only_idle and self.busy and time.monotonic() - self.busy_started < 20:
             return
-        # The terminal bell is the Windows "ding": it sounds only when asked for ("bell").
-        # The default is a silent toast.
+
         if mode == "bell":
             self._ring()
         if mode in ("auto", "toast"):
@@ -1604,13 +1563,11 @@ class TerminalUI(BaseUI):
             except Exception:
                 pass
 
-    # ------------------------------------------------------------ key bindings
     def _bindings(self, has_dialog, text_mode, filterable) -> KeyBindings:
         kb = KeyBindings()
         no_dialog = ~has_dialog
         empty = Condition(lambda: not self.input_buffer.text)
 
-        # eager: with a selection, Emacs mode also knows "Ctrl+C >" and would wait for a second key.
         @kb.add("c-c", eager=True)
         def _ctrl_c(event):
             if self.dialogs:
@@ -1619,8 +1576,8 @@ class TerminalUI(BaseUI):
             selected = event.current_buffer
             if selected.selection_state and selected.text:
                 state = selected.selection_state
-                text = selected.copy_selection().text       # Ctrl+C on a selection copies it, like everywhere
-                selected.selection_state = state            # …and the selection stays
+                text = selected.copy_selection().text
+                selected.selection_state = state
                 if text and copy_text(text):
                     self._copied(len(text))
                 return
@@ -1649,8 +1606,7 @@ class TerminalUI(BaseUI):
                 return
             buffer.cursor_position = 0
             buffer.start_selection(selection_type=SelectionType.CHARACTERS)
-            # "Shift mode" is prompt_toolkit's ordinary-editor selection: typing replaces it,
-            # an arrow key drops it.
+
             buffer.selection_state.enter_shift_mode()
             buffer.cursor_position = len(buffer.text)
 
@@ -1687,7 +1643,6 @@ class TerminalUI(BaseUI):
             self.verbose = not self.verbose
             self.say("Details: all unfolded (Ctrl+O to fold)" if self.verbose else "Details: folded (click a gray line to unfold it)")
 
-        # ---- dialog keys
         @kb.add("up", filter=has_dialog & ~text_mode, eager=True)
         @kb.add("c-p", filter=has_dialog & ~text_mode, eager=True)
         def _up(event):
@@ -1714,8 +1669,6 @@ class TerminalUI(BaseUI):
         def _pgdn(event):
             self.dialogs[0].move(8)
 
-        # Ctrl+J too: an Enter typed before the terminal switched to raw mode (while MemuCode was starting)
-        # arrives as a line feed, and the first-run questions must not lose it.
         @kb.add("enter", filter=has_dialog & ~text_mode, eager=True)
         @kb.add("c-j", filter=has_dialog & ~text_mode, eager=True)
         def _choose(event):
@@ -1754,8 +1707,7 @@ class TerminalUI(BaseUI):
                 self._focus_dialog()
                 return
             if dialog.multi:
-                # Tab ticks the row and moves on — in a list with a search box Space is a letter of the search, so
-                # Tab is the one key that works in every list of ticks.
+
                 if dialog.armed():
                     dialog.toggle()
                     dialog.move(1)
@@ -1787,7 +1739,6 @@ class TerminalUI(BaseUI):
             if self.dialogs[0].armed():
                 self.dialogs[0].toggle()
 
-        # In a list with a search box Space ticks a row while nothing is typed yet (a space cannot start a search).
         @kb.add(" ", filter=has_dialog & filterable & Condition(
             lambda: self.dialogs[0].multi and not self.dialog_filter.text), eager=True)
         def _space_in_search(event):
@@ -1827,16 +1778,14 @@ class TerminalUI(BaseUI):
                 buffer = self.dialog_text if dialog.text_mode else self.dialog_filter
                 self._delete_input(buffer, backward=False)
 
-        # ---- input keys
         @kb.add("enter", filter=no_dialog)
         def _enter(event):
             buffer = self.input_buffer
             menu = self.menu
-            # A suggestion that is already typed out in full changes nothing: Enter then sends the line.
-            # Folders behave like a shell: Tab completes, Enter runs — unless a row was picked with the arrows.
+
             wanted = bool(menu and menu.items and (menu.kind != "path" or menu.index is not None))
             if wanted and menu.kind == "command" and menu.index is None and self.commands.exists(buffer.text):
-                wanted = False                  # a whole command name was typed: run it, not the first look-alike
+                wanted = False
             if wanted and self._apply_suggestion(menu.current):
                 text = buffer.text
                 if text.startswith("/") and self.commands.runs_immediately(text.strip()):
@@ -1872,7 +1821,7 @@ class TerminalUI(BaseUI):
                 if buffer.text.startswith("/") and " " not in buffer.text:
                     buffer.insert_text(" ")
             elif self._completion_context():
-                self._refresh_menu(force=True)              # Tab brings back a list hidden with Esc
+                self._refresh_menu(force=True)
             else:
                 buffer.insert_text("    ")
 
@@ -1972,22 +1921,22 @@ class TerminalUI(BaseUI):
 
         @kb.add("c-v", filter=no_dialog)
         @kb.add("escape", "v", filter=no_dialog)
-        @kb.add("escape", "м", filter=no_dialog)   # r33: the same physical key in the Russian layout
+        @kb.add("escape", "м", filter=no_dialog)
         def _paste_image(event):
             asyncio.ensure_future(self.paste_image(fallback_text=True))
 
         @kb.add("escape", "p", filter=no_dialog)
-        @kb.add("escape", "з", filter=no_dialog)   # r33: the same physical key in the Russian layout
+        @kb.add("escape", "з", filter=no_dialog)
         def _model(event):
             self.run_command_text("/model")
 
         @kb.add("escape", "r", filter=no_dialog)
-        @kb.add("escape", "к", filter=no_dialog)   # r33: the same physical key in the Russian layout
+        @kb.add("escape", "к", filter=no_dialog)
         def _thinking_view(event):
             self._toggle_thinking()
 
         @kb.add("escape", "t", filter=no_dialog)
-        @kb.add("escape", "е", filter=no_dialog)   # r33: the same physical key in the Russian layout
+        @kb.add("escape", "е", filter=no_dialog)
         def _thinking(event):
             value = not bool(self.settings.get("thinking"))
             self.settings.overrides["thinking"] = value
@@ -2005,7 +1954,6 @@ class TerminalUI(BaseUI):
 
         return kb
 
-    # ------------------------------------------------------------ input actions
     def _edit_clicked_paste(self) -> None:
         pos = self.input_buffer.cursor_position
         for match in re.finditer(r"\[Pasted text #(\d+) \+\d+ lines\]", self.input_buffer.text):
@@ -2044,7 +1992,7 @@ class TerminalUI(BaseUI):
         elif not backward and pos < len(buffer.text):
             buffer.delete(1)
 
-    PASTE_CHARS = 800          # a paste longer than this becomes a "[Pasted text #n +m lines]" chip
+    PASTE_CHARS = 800
     PASTE_LINES = 10
 
     def handle_paste(self, data: str) -> None:
@@ -2053,7 +2001,7 @@ class TerminalUI(BaseUI):
             return
         buffer = self.input_buffer
         if buffer.selection_state:
-            buffer.cut_selection()                      # a paste replaces what is selected
+            buffer.cut_selection()
         found = pasted_paths(data)
         if found:
             for path in found:
@@ -2144,19 +2092,17 @@ class TerminalUI(BaseUI):
         raw = buffer.text
         if not raw.strip():
             return
-        # Some Windows terminals deliver dropped paths as keystrokes instead
-        # of a bracketed paste. Convert the complete path before dispatch.
+
         dropped = pasted_paths(raw)
         if dropped and all(Path(item).is_file() for item in dropped):
             chips = [self._chip_for(Path(item))[0] for item in dropped]
             if all(chips):
                 buffer.document = Document(" ".join(chips) + " ")
                 return
-            # Not all of them can be chips (a big or a binary file): the line is an ordinary message.
+
         self.history.add(raw)
         buffer.reset()
-        # Round 33: Buffer.reset() does not fire on_text_changed — an argument list («status», «auto») stayed on
-        # screen under an empty input after «/goal status» or «/auto-continue auto» was sent.
+
         self._refresh_menu()
         self.show_help = False
         self._auto_resumes = 0
@@ -2165,7 +2111,7 @@ class TerminalUI(BaseUI):
             if self._while_busy(text):
                 return
             content, images = self.attachments.expand(text)
-            # "display" keeps the chips (↑ puts it back into the input box), "shown" is what the chat prints.
+
             self.queue.append({"content": self._content(content, images), "display": text,
                                "shown": self.attachments.expand_pastes(text), "attachments": self.attachments})
             self.attachments = Attachments(counter=self.attachments.counter)
@@ -2192,7 +2138,7 @@ class TerminalUI(BaseUI):
         if not _is_command(text):
             return False
         if self.commands.allowed_while_busy(text) or not self.commands.exists(self.commands.split(text)[0]):
-            self.run_command_text(text)             # runs now (an unknown name just says so)
+            self.run_command_text(text)
             return True
         self._queue_command(text, text)
         return True
@@ -2280,14 +2226,12 @@ class TerminalUI(BaseUI):
             extra = "\n\n<session_start_context>\n" + "\n".join(self.runtime.session_context) + "\n</session_start_context>"
             self.runtime.session_context = []
             content = content + extra if isinstance(content, str) else [*content, {"type": "text", "text": extra}]
-        # The stored "display" is what a resumed session prints: needed whenever the model received
-        # more than the person wrote (pictures, attached file contents, the session context).
+
         same = isinstance(content, str) and content == shown
         self.start(self.run_agent(content, display="" if same and display is None else shown, kind=kind))
 
     def start(self, coroutine, *, busy: bool = True) -> None:
-        # The interface is busy from this very moment, not from when the task first runs: a second Enter in
-        # between must queue instead of starting a second agent on the same conversation.
+
         if busy:
             self._set_busy(True)
 
@@ -2330,8 +2274,7 @@ class TerminalUI(BaseUI):
         while self.queue and not self.busy:
             item = self.queue.pop(0)
             if item.get("command"):
-                # A queued command runs as a command, never as a prompt. A command that only shows or sets
-                # something leaves the interface free, so the next queued item may follow at once.
+
                 self.dispatch(str(item["command"]))
                 continue
             text = str(item.get("shown") or item.get("display") or "")
@@ -2344,12 +2287,11 @@ class TerminalUI(BaseUI):
         self.status_text = "interrupting…"
         self.invalidate()
 
-    # ------------------------------------------------------------ work
     async def run_agent(self, content: Any, *, display: str = "", kind: str = "prompt") -> None:
         from ..agent import Agent
         runtime = self.runtime
         if self.connecting:
-            # The models load in the background; a message sent right away simply waits for them.
+
             self.status_text = "connecting…"
             await runtime.wait_ready(40)
             self.status_text = ""
@@ -2369,7 +2311,7 @@ class TerminalUI(BaseUI):
             if looked is not None:
                 try:
                     await self._act_on(looked)
-                except Exception:                    # a hint about the request must never stop the request
+                except Exception:
                     runtime.log_error(traceback.format_exc())
             agent = Agent(runtime, model=routed[0] if routed else "")
             if routed and routed[0] != runtime.model:
@@ -2396,7 +2338,6 @@ class TerminalUI(BaseUI):
         if self.settings.get("auto_title", True) and not runtime.session.meta.get("title") and result.stopped == "done":
             asyncio.ensure_future(self._make_title())
 
-    # ------------------------------------------------------------ scheduled tasks
     def _check_schedule(self) -> None:
         """Start the tasks of ``/schedule`` that are due. A run that was missed because no window was open is not
         made up for here (that is what the Windows scheduler is for): it is only marked and moved on."""
@@ -2431,7 +2372,7 @@ class TerminalUI(BaseUI):
                 *schedule.command_line("schedule", "run", task.id), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
             _out, err = await process.communicate()
-            if process.returncode not in (0, 1):               # 1 is "the task failed", which the task itself records
+            if process.returncode not in (0, 1):
                 failure = (err.decode("utf-8", "replace").strip().splitlines() or [f"exit code {process.returncode}"])[-1][:200]
         except Exception as exc:
             failure = str(exc)
@@ -2448,7 +2389,6 @@ class TerminalUI(BaseUI):
             level = "success" if fresh.last_status == "ok" else "warn"
             self.say(f"◷ «{fresh.title}»: {fresh.last_status or '?'} — {fresh.last_summary[:160]}  (/schedule log {fresh.id})", level)
 
-    # ------------------------------------------------------------ a look at the request
     def _may_offer_plan(self) -> bool:
         """Plan mode is offered only where it helps (the modes that ask or accept edits, not auto/bypass/plan
         itself) and not on every message: once in five turns at most."""
@@ -2571,7 +2511,6 @@ class TerminalUI(BaseUI):
         self.runtime.invalidate_prompt(memory=True)
         self.say(tr(f"Записано в {target}", f"Saved to {target}"), "success")
 
-    # ------------------------------------------------------------ lifecycle
     def exit(self, code: int = 0) -> None:
         self.exit_code = code
         if self.app is not None and self.app.is_running:
@@ -2598,9 +2537,7 @@ class TerminalUI(BaseUI):
     async def run(self, *, initial: Optional[str] = None, after_start=None, input: Any = None,
                   output: Any = None) -> int:
         self._loop = asyncio.get_running_loop()
-        # The keyboard is read on a thread of the loop's default pool (prompt_toolkit, Windows). The stock pool has
-        # a handful of threads, and a handful of slow reads (a search, a hook, a big file) would leave the keys
-        # unread — Esc included — so the pool is made roomy. Threads are only started when there is work.
+
         from concurrent.futures import ThreadPoolExecutor
         self._loop.set_default_executor(ThreadPoolExecutor(max_workers=64, thread_name_prefix="memucode-io"))
         self.app = self.make_app(input=input, output=output)
@@ -2638,8 +2575,7 @@ class TerminalUI(BaseUI):
     def _warm_up(self) -> None:
         """Work for after the first frame: imports and caches the first message would otherwise wait for."""
         try:
-            # Round 21: httpx больше не импортируется до первого кадра (см.
-            # llm.LazyModule) — он нужен фоновой загрузке моделей сразу после.
+
             import httpx  # noqa: F401
             from .render import warm_up
             warm_up()
@@ -2660,13 +2596,13 @@ class TerminalUI(BaseUI):
             await asyncio.sleep(0.11 if animating else 0.4)
             now = time.monotonic()
             changed = animating or self.copied_until > now or (self.exit_armed and now - self.exit_armed < 2)
-            if self.runtime.permissions.sync_from_disk() is not None:     # another window chose a mode
+            if self.runtime.permissions.sync_from_disk() is not None:
                 changed = True
             if now - self._schedule_checked > 20:
                 self._schedule_checked = now
                 self._check_schedule()
             try:
-                if self.auto_continue.tick():                # Round 33: /auto-continue countdown and send
+                if self.auto_continue.tick():
                     changed = True
             except Exception:
                 self.runtime.log_error(traceback.format_exc())
@@ -2685,11 +2621,7 @@ class TerminalUI(BaseUI):
             if changed:
                 self.invalidate()
 
-
-# ---------------------------------------------------------------- helpers
-
 _WORKERS: Any = None
-
 
 def _suggestion_workers() -> Any:
     """The threads that look for suggestions (files, folders). They are their own small pool, not the loop's default
@@ -2701,7 +2633,6 @@ def _suggestion_workers() -> Any:
         _WORKERS = ThreadPoolExecutor(max_workers=2, thread_name_prefix="memucode-suggest")
     return _WORKERS
 
-
 def _plain_text(content: Any) -> str:
     if isinstance(content, str):
         return content
@@ -2709,11 +2640,9 @@ def _plain_text(content: Any) -> str:
         return "\n".join(str(part.get("text") or "") for part in content if isinstance(part, dict))
     return ""
 
-
 def _keeps_going(text: str) -> bool:
     """A folder suggestion (``@src/``, ``@"my dir/``): the user goes on typing inside it, so no space follows."""
     return text.startswith("@") and (text.endswith("/") or (text.startswith('@"') and not text.endswith('"')))
-
 
 def _is_command(text: str) -> bool:
     """``/name …`` is a slash command; ``//text`` and a line that starts with an existing absolute path
@@ -2728,9 +2657,7 @@ def _is_command(text: str) -> bool:
     except OSError:
         return True
 
-
 _PATH_TAIL = re.compile(r'(?:^|\s)"?(?:[A-Za-z]:\\|\\\\|\.{1,2}\\|~\\)(?:[^\n]*\\)?$|[^\s\\]\\[^\s\\]+\\$')
-
 
 def _continues_line(before: str) -> bool:
     """A trailing backslash + Enter starts a new line — unless the backslash ends a Windows path.
@@ -2745,10 +2672,8 @@ def _continues_line(before: str) -> bool:
         return False
     return not _PATH_TAIL.search(last_line)
 
-
 def _indent(text: str, prefix: str = "  ") -> str:
     return "\n".join(prefix + line for line in str(text).splitlines())
-
 
 def _fine_timer(on: bool) -> bool:
     """Ask Windows for 1 ms timers while the interface runs.
@@ -2765,7 +2690,6 @@ def _fine_timer(on: bool) -> bool:
     except Exception:
         return False
 
-
 def _set_title(title: str) -> None:
     try:
         if os.name == "nt":
@@ -2777,9 +2701,7 @@ def _set_title(title: str) -> None:
     except Exception:
         pass
 
-
 _BRANCH_CACHE: Dict[str, tuple] = {}
-
 
 def _git_branch(root: Path) -> str:
     key = str(root)
@@ -2804,7 +2726,6 @@ def _git_branch(root: Path) -> str:
     _BRANCH_CACHE[key] = (branch, time.monotonic())
     return branch
 
-
 def _clipboard_text() -> str:
     if os.name == "nt":
         completed = subprocess.run(["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"],
@@ -2815,11 +2736,9 @@ def _clipboard_text() -> str:
             return subprocess.run(command, capture_output=True, timeout=5).stdout.decode("utf-8", "replace")
     return ""
 
-
 def _frag_width(fragments: StyleAndTextTuples) -> int:
     from prompt_toolkit.utils import get_cwidth
     return sum(get_cwidth(part[1]) for part in fragments)
-
 
 def _cut_fragments(fragments: StyleAndTextTuples, width: int, *, keep_end: bool = False) -> StyleAndTextTuples:
     """The fragments cut to ``width`` cells, styles and click handlers kept, with "…" where text was lost."""
@@ -2853,7 +2772,6 @@ def _cut_fragments(fragments: StyleAndTextTuples, width: int, *, keep_end: bool 
     style = out[-1][0] if out else (fragments[0][0] if fragments else "")
     return out + [(style, "…")]
 
-
 def fit_footer(left: StyleAndTextTuples, right: StyleAndTextTuples, width: int) -> StyleAndTextTuples:
     """One status line from the left and right parts that never lets them run into each other.
 
@@ -2862,7 +2780,7 @@ def fit_footer(left: StyleAndTextTuples, right: StyleAndTextTuples, width: int) 
     optional pieces go first, in order of how little they are missed: the keyboard hints, the git
     branch, the metric, the context share; then the agents label gets shorter, then the model name,
     and only then is the left text cut with "…". At least two spaces always separate the parts."""
-    width = max(1, int(width) - 1)  # the last column of a terminal row is avoided: some wrap there
+    width = max(1, int(width) - 1)
     gap = 2
     left, right = list(left), list(right)
 
@@ -2870,34 +2788,32 @@ def fit_footer(left: StyleAndTextTuples, right: StyleAndTextTuples, width: int) 
         return _frag_width(left) + _frag_width(right) + (gap if left and right else 0) > width
 
     def drop_right(test) -> None:
-        for index in range(len(right) - 1, 0, -1):  # the first fragment (the model) always stays
+        for index in range(len(right) - 1, 0, -1):
             if over() and test(right[index][1]):
                 del right[index]
 
-    # 1. keyboard hints on the mode line
     if over() and left and str(left[0][0]).startswith("class:mode."):
         hints = [i for i, part in enumerate(left) if i and part[0] == "class:subtle"]
         for index in reversed(hints):
             if over():
                 del left[index]
-    # 2..4. optional right pieces
+
     drop_right(lambda text: "⎇" in text)
     if over() and len(right) > 1 and not right[-1][1].lstrip().startswith("·  ctx"):
         if "⎇" not in right[-1][1]:
-            del right[-1]  # the metric is the last piece
+            del right[-1]
     drop_right(lambda text: "ctx" in text)
-    # 5. the agents/commands label gets shorter
+
     for i, part in enumerate(left):
         if over() and "●" in part[1]:
             for short in (part[1].replace(" running · /tasks", " · /tasks"), part[1].replace(" running · /tasks", "")):
                 if over():
                     left[i] = (part[0], short, *part[2:])
-    # 6. the model name (its end is the informative part), not below 12 cells; on a very narrow
-    #    terminal it goes entirely: the left part says what is going on and what the keys do now
+
     if over() and right:
         room = width - _frag_width(left) - gap
         right = _cut_fragments(right, room, keep_end=True) if room >= 12 else []
-    # 7. the left text itself
+
     if over():
         left = _cut_fragments(left, width)
     pad = width - _frag_width(left) - _frag_width(right)

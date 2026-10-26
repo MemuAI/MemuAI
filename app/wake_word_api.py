@@ -22,14 +22,12 @@ from .wake_word import SERVICE
 router = APIRouter(prefix="/api/wake")
 _install: Dict[str, Any] = {"state": "idle", "error": ""}
 
-
 async def _body(request: Request) -> Dict[str, Any]:
     try:
         data = await request.json()
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
-
 
 def _state() -> Dict[str, Any]:
     settings = SERVICE.settings
@@ -38,13 +36,11 @@ def _state() -> Dict[str, Any]:
             "defaults": {lang: meta["phrase"] for lang, meta in wake_word.MODELS.items()},
             "ranges": {"sensitivity": wake_word.SENSITIVITY_RANGE, "cooldown": wake_word.COOLDOWN_RANGE}}
 
-
 @router.get("/state")
 async def wake_state():
-    # Listing WinMM devices and reading the settings file are quick, but keep the event loop free anyway.
+
     await asyncio.to_thread(SERVICE.ensure_loaded)
     return await asyncio.to_thread(_state)
-
 
 @router.post("/settings")
 async def wake_settings(request: Request):
@@ -54,7 +50,6 @@ async def wake_settings(request: Request):
     await asyncio.to_thread(SERVICE.reload)
     return await asyncio.to_thread(_state)
 
-
 @router.post("/phrase")
 async def wake_phrase(request: Request):
     body = await _body(request)
@@ -63,7 +58,6 @@ async def wake_phrase(request: Request):
         return await asyncio.to_thread(SERVICE.check_phrase, str(body.get("phrase") or ""), lang)
     except Exception as exc:
         return JSONResponse({"error": str(exc)[:300]}, 500)
-
 
 @router.post("/model")
 async def wake_model(request: Request):
@@ -85,7 +79,6 @@ async def wake_model(request: Request):
         return JSONResponse({"error": "unknown action", "code": "action"}, 400)
     return await asyncio.to_thread(_state)
 
-
 def _pip_install() -> None:
     _install.update(state="running", error="")
     try:
@@ -101,7 +94,6 @@ def _pip_install() -> None:
     except Exception as exc:
         _install.update(state="error", error=str(exc)[:300])
 
-
 @router.post("/engine/install")
 async def wake_engine_install():
     info = wake_word.engine_info()
@@ -116,24 +108,20 @@ async def wake_engine_install():
         _install["state"] = "running"
     return await asyncio.to_thread(_state)
 
-
 @router.post("/test")
 async def wake_test(request: Request):
     body = await _body(request)
     await asyncio.to_thread(SERVICE.set_test, bool(body.get("on", True)))
     return SERVICE.status()
 
-
 @router.get("/status")
 async def wake_status():
     await asyncio.to_thread(SERVICE.ensure_loaded)
     return SERVICE.status()
 
-
 @router.get("/session")
 async def wake_session(audio: int = 0):
     return {"session": SERVICE.session_public(with_audio=bool(audio))}
-
 
 @router.post("/session/end")
 async def wake_session_end(request: Request):
@@ -143,7 +131,6 @@ async def wake_session_end(request: Request):
         return JSONResponse({"error": "unknown action", "code": "action"}, 400)
     ok = SERVICE.end_session(body.get("id"), action)
     return {"ok": ok}
-
 
 @router.post("/busy")
 async def wake_busy(request: Request):
@@ -157,10 +144,8 @@ async def wake_busy(request: Request):
     SERVICE.busy(str(body.get("source") or "voice"), seconds if body.get("on", True) else 0)
     return {"ok": True}
 
-
 def _register() -> None:
     from . import quick_ask_api
     quick_ask_api.register_router(router)
-
 
 _register()

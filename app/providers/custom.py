@@ -17,7 +17,6 @@ from urllib.parse import urlsplit, urlunsplit
 
 from .. import reasoning_levels
 
-#: Round 35: a 403 that names a model / this request — the key lacks access to one model, it is not rejected.
 _MODEL_DENIED_RE = re.compile(r"\bmodels?\b|модел|this request|этому запросу|not allowed to use|"
                               r"does not have access to|no access to", re.I)
 
@@ -36,10 +35,6 @@ from .base import (
 from ..config import config_store
 from . import http
 
-
-# Готовые подключения: всё, кроме ключа, уже заполнено. Каждый пресет — это
-# обычный «Собственный API», поэтому ничего нового в маршрутизации не нужно.
-# "models" пустой список означает «спросить /models у сервиса при проверке».
 PRESETS: List[Dict[str, Any]] = [
     {
         "id": "openrouter", "title": "OpenRouter", "icon": "◇",
@@ -144,7 +139,6 @@ PRESETS: List[Dict[str, Any]] = [
     },
 ]
 
-
 class CustomProvider(Provider):
     id = "custom"
     title = "Собственный API"
@@ -209,7 +203,7 @@ class CustomProvider(Provider):
                   label_en="Image generation models",
                   help_en="Optional. List the models served through /images/generations. "
                           "MemuAI recognises well-known names automatically."),
-            # Round 29 (media routing): OpenAI-compatible /videos (Sora-style) or Google AI Studio Veo.
+
             Field("video_models", "Модели генерации видео", "textarea", required=False,
                   placeholder="sora-2, veo-3.1-generate-preview",
                   help="Необязательно. Модели, которые создают видео через /videos (как у OpenAI) или Veo в "
@@ -258,8 +252,6 @@ class CustomProvider(Provider):
             return "Выберите музыкальную схему / Choose a music schema"
         return None
 
-    # ---- служебные ----
-
     @staticmethod
     def base_of(account) -> str:
         return str(account.fields.get("base_url", "")).strip().rstrip("/")
@@ -295,8 +287,7 @@ class CustomProvider(Provider):
         return f"{base}/{endpoint}"
 
     def proxy_for(self, account) -> str:
-        # The proxy set on the connection itself is a deliberate choice; the global default proxy (set to
-        # reach blocked services) cannot reach LM Studio/Ollama/llama.cpp on this computer.
+
         if not account.proxy and http.is_loopback(self.base_of(account)):
             return ""
         return super().proxy_for(account)
@@ -317,9 +308,7 @@ class CustomProvider(Provider):
         return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
     def _all_keys(self, account) -> List[str]:
-        # Round 34: several keys pasted into the main «API key» field (one per line) went out as ONE header
-        # value with line breaks — libcurl refused it and the card said «network unavailable: RequestException».
-        # The main field is split like the pool field.
+
         raw = str(account.fields.get("api_key", "") or "") + "\n" + str(account.fields.get("api_keys", "") or "")
         values = [part.strip() for part in re.split(r"[\r\n;]+", raw) if part.strip()]
         return list(dict.fromkeys(values))
@@ -335,11 +324,10 @@ class CustomProvider(Provider):
                 "Every API key of this connection is disabled by the rotation rules. "
                 "Change the pool or the error keywords.")
         random.shuffle(active)
-        active.sort(key=self._key_cooling)      # keys that just hit 429 go last (stable)
+        active.sort(key=self._key_cooling)
         mode = str(account.fields.get("key_pool_mode", "random") or "random")
         return active if mode == "failover-on-match" else active[:1]
 
-    #: key hash → monotonic time until which the key is skipped first (it answered HTTP 429).
     _rate_limited: Dict[str, float] = {}
 
     def _key_cooling(self, key: str) -> bool:
@@ -383,9 +371,7 @@ class CustomProvider(Provider):
         h = {"Accept": accept, "Content-Type": "application/json"}
         key = self._key_candidates(account)[0] if api_key is None else api_key
         extra = self.extra_headers(account)
-        # Round 33 (catalog): a header value "{api_key}" receives the key, e.g. Azure's "api-key" or
-        # Anthropic's "x-api-key". Then the default Bearer header is dropped (Azure rejects a key sent
-        # as a Bearer token) unless the preset sets Authorization itself.
+
         templated = any("{api_key}" in value for value in extra.values())
         if templated:
             extra = {name: value.replace("{api_key}", key or "") for name, value in extra.items()}
@@ -403,8 +389,6 @@ class CustomProvider(Provider):
         Unsupported compatible APIs are retried once without these optional fields by ``chat_stream``."""
         from .. import prompt_cache
         return prompt_cache.apply(body, model, base=base, enabled=enabled)
-
-    # ---- чат ----
 
     async def chat_stream(self, account, model: str, messages: List[Dict[str, Any]],
                           params: Dict[str, Any]) -> AsyncIterator[Dict[str, Any]]:
@@ -425,15 +409,14 @@ class CustomProvider(Provider):
                          ("top_p", "top_p"), ("stream_options", "stream_options"),
                          ("tools", "tools"), ("tool_choice", "tool_choice"),
                          ("parallel_tool_calls", "parallel_tool_calls"),
-                         # Round 29: samplers a module (Memu.complete) set explicitly.
+
                          ("top_k", "top_k"), ("min_p", "min_p"), ("top_a", "top_a"),
                          ("frequency_penalty", "frequency_penalty"), ("presence_penalty", "presence_penalty"),
                          ("repetition_penalty", "repetition_penalty"), ("seed", "seed"), ("stop", "stop"),
                          ("response_format", "response_format")):
             if params.get(src) is not None and params.get(src) != []:
                 body[dst] = params[src]
-        # Round 33 (r33-thinking): the reasoning level in this API's own dialect (reasoning_effort,
-        # enable_thinking + thinking_budget, thinking.type, OpenRouter reasoning…); see reasoning_levels.
+
         reasoning_info: Dict[str, Any] = {"fields": []}
         try:
             if isinstance(params.get("_reasoning"), dict) and params.get("_reasoning_level"):
@@ -443,18 +426,15 @@ class CustomProvider(Provider):
             reasoning_info = {"fields": []}
         cached_body, cache_hint = self._with_prompt_cache(
             body, model, bool(params.get("prompt_caching", True)), base)
-        # Ask for the real token counts. A server that rejects the option gets the plain request.
+
         usage_requested = protocol == "chat" and "stream_options" not in body
         if usage_requested:
             cached_body = {**cached_body, "stream_options": {"include_usage": True}}
-        # Last resort when the API refuses the reasoning value (400 «unsupported value»): the same request
-        # without it; success teaches the Proxy never to offer / send that level for this model again.
+
         reasoning_plain = reasoning_levels.strip_fields(body, reasoning_info["fields"]) \
             if reasoning_info.get("fields") else None
         candidates = self._key_candidates(account)
-        # Round 31: a pool key that hit its rate limit / daily quota (HTTP 429) must not fail
-        # the whole request while other keys of the same pool are idle: try them in turn
-        # (without disabling the throttled key — 429 is temporary).
+
         rate_limit_spare = [key for key in self._rate_limit_spares(account) if key not in candidates]
         resp = None
         selected_key = ""
@@ -492,7 +472,7 @@ class CustomProvider(Provider):
                     break
                 retry_after = retry_after_seconds(getattr(resp, "headers", None))
                 if status == 429:
-                    try:  # Round 35 (quota): a 429 still carries x-ratelimit-* — «remaining 0» is a sample too
+                    try:
                         from .. import quota_planner
                         quota_planner.observe_headers(account.id, getattr(resp, "headers", None), selected_key)
                     except Exception:
@@ -515,7 +495,7 @@ class CustomProvider(Provider):
                     continue
                 if reasoning_plain is not None and request_body is body \
                         and reasoning_levels.looks_like_rejection(status, head):
-                    # Some gateways turn the upstream 400 into «503 No available accounts».
+
                     reasoning_refused = True
                     continue
                 break
@@ -527,8 +507,7 @@ class CustomProvider(Provider):
                     continue
             if status == 429:
                 self._note_rate_limited(selected_key, retry_after)
-                # failover-on-match already lists every active key: go to the next one;
-                # random mode picked one key: borrow an idle key of the pool.
+
                 if key_index + 1 < len(candidates):
                     continue
                 if rate_limit_spare:
@@ -537,7 +516,7 @@ class CustomProvider(Provider):
             await self._raise_for_status(status, head, messages_have_images(messages), retry_after=retry_after)
         if resp is None:
             raise ProviderServerError("Could not pick an API key for the request")
-        try:  # Round 35 (quota): x-ratelimit-* / anthropic-ratelimit-* → quota planner samples
+        try:
             from .. import quota_planner
             quota_planner.observe_headers(account.id, getattr(resp, "headers", None), selected_key)
         except Exception:
@@ -551,9 +530,7 @@ class CustomProvider(Provider):
                 async for item in line_stream:
                     yield item
                 return
-            # A compatible server may ignore stream=true and return a pretty-
-            # printed JSON document.  Reassemble only that bounded non-stream
-            # representation; actual SSE remains incremental.
+
             parts: List[str] = []
             size = 0
             async for item in line_stream:
@@ -602,18 +579,15 @@ class CustomProvider(Provider):
             adapter.require_terminal()
 
         saw_output = False
-        # Часть совместимых серверов не присылает index у tool_calls. Новый id —
-        # новый вызов, без id — продолжение предыдущего; иначе все вызовы
-        # склеивались в один («readwrite», «{}{}»).
+
         tool_slots = {"next": 0, "last": 0}
-        done_reason = ""              # set once the answer is finished: only the usage chunk may still follow
+        done_reason = ""
         reasoning_seen = False
         lines = response_lines().__aiter__()
         try:
             while True:
                 try:
-                    # After the last piece of the answer the token counts arrive in one more
-                    # chunk (stream_options.include_usage). Wait for it briefly, never for long.
+
                     line = await (asyncio.wait_for(lines.__anext__(), 3.0) if done_reason else lines.__anext__())
                 except StopAsyncIteration:
                     break
@@ -664,15 +638,14 @@ class CustomProvider(Provider):
                     raise ProviderServerError(detail, err_status if 400 <= err_status <= 599 else 502)
                 counted = obj.get("usage")
                 if isinstance(counted, dict) and (counted.get("prompt_tokens") or counted.get("completion_tokens")):
-                    # The upstream's own token counts: the Proxy reports them instead of its estimate.
+
                     usage_event = {"type": "usage", "prompt_tokens": counted.get("prompt_tokens"),
                                    "completion_tokens": counted.get("completion_tokens")}
                     details = counted.get("completion_tokens_details")
                     if isinstance(details, dict) and isinstance(details.get("reasoning_tokens"), int):
-                        # o-series / DeepSeek / OpenRouter report hidden reasoning here.
+
                         usage_event["reasoning_tokens"] = details["reasoning_tokens"]
-                    # Cached input (OpenAI/OpenRouter ``prompt_tokens_details``, DeepSeek
-                    # ``prompt_cache_hit_tokens``) is billed at a fraction of the input price.
+
                     prompt_details = counted.get("prompt_tokens_details")
                     cached = (prompt_details.get("cached_tokens") if isinstance(prompt_details, dict) else None)
                     if not isinstance(cached, int):
@@ -682,7 +655,7 @@ class CustomProvider(Provider):
                     written = prompt_details.get("cache_write_tokens") if isinstance(prompt_details, dict) else None
                     if isinstance(written, int) and not isinstance(written, bool) and written > 0:
                         usage_event["cache_write_tokens"] = written
-                    # OpenRouter (and compatible gateways) report the real charge in USD.
+
                     if isinstance(counted.get("cost"), (int, float)) and not isinstance(counted.get("cost"), bool) \
                             and counted["cost"] >= 0:
                         usage_event["cost"] = float(counted["cost"])
@@ -696,9 +669,7 @@ class CustomProvider(Provider):
                 for choice in obj.get("choices") or []:
                     if not isinstance(choice, dict):
                         continue
-                    # Some compatible servers ignore ``stream=true`` and send
-                    # a normal chat.completion object.  Treat ``message`` as a
-                    # one-shot delta so those responses do not become empty.
+
                     delta = choice.get("delta") or choice.get("message") or {}
                     if not isinstance(delta, dict):
                         delta = {}
@@ -707,8 +678,7 @@ class CustomProvider(Provider):
                         saw_output = True
                         if not reasoning_seen:
                             reasoning_seen = True
-                            # Round 33 (r33-thinking): a model the tables did not know turns out to reason —
-                            # from now on its clients offer the common levels (adjustable in the model card).
+
                             prof = params.get("_reasoning") if isinstance(params.get("_reasoning"), dict) else {}
                             if prof.get("source") == "guess" and prof.get("kind") == "none":
                                 try:
@@ -762,25 +732,21 @@ class CustomProvider(Provider):
         except Exception as e:
             raise ProviderServerError(f"The upstream stream broke off: {type(e).__name__}: {e}")
         finally:
-            # Abort, not drain: a Stop must end the upstream generation too.
+
             await http.close_response(resp)
 
     async def _raise_for_status(self, status: int, head: str, had_images: bool = False,
                                 *, retry_after: Optional[float] = None) -> None:
         if status == 403 and _MODEL_DENIED_RE.search(_upstream_detail(head) or head[:400]):
-            # Round 35 (composite): a key that may not use ONE model (reformboss: «Для API-ключа нет доступа к этому
-            # запросу», OpenAI: «does not have access to model …») is not a rejected key. Marking the whole account
-            # invalid stopped every other model of the connection — a composite model could not fall back to them.
+
             from .base import ProviderModelUnavailableError
             raise ProviderModelUnavailableError(
                 f"The key has no access to this model (HTTP 403): {_upstream_detail(head)}",
                 message_ru=f"У ключа нет доступа к этой модели (HTTP 403): {_upstream_detail(head)}")
         if status in (401, 403):
-            # Round 33 (r33-models): the upstream's own words, parsed — «head[:150]» cut the JSON in the middle and
-            # the user saw «{"error": {"message": "\u0414\u043b\u044f…» (e.g. no access to one model).
+
             raise ProviderAuthError(f"The API key was rejected (HTTP {status}): {_upstream_detail(head)}")
-        # Round 32: the upstream's own words go along («No available accounts» arrives as 429 from some
-        # gateways); without them the user only saw a generic class of error.
+
         detail = _upstream_detail(head)
         if status == 429:
             raise ProviderRateLimitError("Upstream rate limit (HTTP 429)" + (f": {detail}" if detail else ""),
@@ -836,8 +802,6 @@ class CustomProvider(Provider):
         except Exception as e:
             raise ProviderServerError(f"Could not parse the generation response: {type(e).__name__}: {e}")
 
-    # ---- аккаунт ----
-
     async def check(self, account) -> Tuple[Optional[bool], str]:
         base = self.base_of(account)
         try:
@@ -851,8 +815,7 @@ class CustomProvider(Provider):
         if resp.status_code in (401, 403):
             return False, f"ключ отклонён (HTTP {resp.status_code})"
         if resp.status_code != 200:
-            # Responses-only and custom routes need not publish /models. Their
-            # explicitly declared models can still authenticate on the actual route.
+
             if account.fields.get("models") and (account.fields.get("chat_endpoint")
                                                   or self.chat_protocol(account) == "responses"):
                 verdict = await self._probe_key(account, session, base, [])
@@ -866,8 +829,7 @@ class CustomProvider(Provider):
             ids = [m.get("id") for m in (data.get("data") or []) if isinstance(m, dict) and m.get("id")]
         except Exception:
             parsed = False
-        # Round 31: many gateways (OpenRouter, XKIRO, …) publish /models without
-        # auth, so a wrong key used to show «подключено». Probe the key itself.
+
         verdict = await self._probe_key(account, session, base, ids)
         if verdict is not None:
             return verdict
@@ -891,8 +853,7 @@ class CustomProvider(Provider):
             protocol = self.chat_protocol(account)
             payload = {"model": model, "messages": [], "max_tokens": 1}
             if protocol == "responses":
-                # Deliberately invalid input, not an empty conversation that
-                # some servers would happily generate (and bill) for.
+
                 payload = {"model": model, "input": None, "max_output_tokens": 0, "store": False}
             probe = await session.post(self.chat_url(account), headers=self._headers(account),
                                        json=payload, timeout=20)
@@ -914,7 +875,7 @@ class CustomProvider(Provider):
         from ..music_runtime import model_names
         explicit = [value.strip() for value in re.split(r"[,\n;]", str(account.fields.get("models", "") or "")) if value.strip()]
         music = model_names(account.fields)
-        # Declared image/video generators must exist as models even when /models does not list them (Round 29).
+
         media = [value.strip() for field in ("image_models", "video_models")
                  for value in re.split(r"[,\n;]", str(account.fields.get(field, "") or "")) if value.strip()]
         if explicit or music:
@@ -931,12 +892,11 @@ class CustomProvider(Provider):
             data = resp.json()
             rows = data.get("data") or data.get("models") or []
             try:
-                # OpenRouter, vLLM, LM Studio, Together and others publish the
-                # context window here: remember it for MemuAI's context meter.
+
                 from .. import model_info
                 prefix = str(account.fields.get("name", "")).strip().lower().replace(" ", "-")
                 model_info.record_rows(prefix or "custom", rows, source="api:models")
-                # Round 22: the whole row (modalities, prices, capabilities…) for the model card.
+
                 from .. import model_capabilities
                 model_capabilities.record_raw(prefix or "custom", rows, source="api:models")
             except Exception:
@@ -945,7 +905,6 @@ class CustomProvider(Provider):
             return list(dict.fromkeys(listed + media))
         except Exception:
             return None
-
 
 def _upstream_detail(head: str, limit: int = 300) -> str:
     """The message an upstream error body carries (``{"error":{"message":…}}``), else its first characters.

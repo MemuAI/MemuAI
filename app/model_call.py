@@ -9,7 +9,6 @@ from __future__ import annotations
 import time
 from typing import Any, AsyncIterator, Dict, List, Optional
 
-
 async def stream(model: str, messages: List[Dict[str, Any]],
                  params: Optional[Dict[str, Any]] = None) -> AsyncIterator[Dict[str, Any]]:
     """Yield ``{"type": "text"|"reasoning", "text": ...}`` events and one final
@@ -28,7 +27,7 @@ async def stream(model: str, messages: List[Dict[str, Any]],
             if chunk.get("object") == "memuai.event":
                 continue
             if isinstance(chunk.get("usage"), dict):
-                # ``estimated: False`` — the provider's own count, not Proxy's guess by length.
+
                 yield {"type": "usage", "usage": dict(chunk["usage"])}
             for choice in chunk.get("choices") or []:
                 delta = choice.get("delta") or {}
@@ -44,7 +43,6 @@ async def stream(model: str, messages: List[Dict[str, Any]],
     finally:
         trace.ms = int((time.time() - started) * 1000)
         state.commit_trace(trace)
-
 
 async def complete(model: str, messages: List[Dict[str, Any]],
                    params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

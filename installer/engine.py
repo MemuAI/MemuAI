@@ -55,9 +55,6 @@ HKCU = "HKCU"
 HKLM = "HKLM"
 IS_WINDOWS = os.name == "nt"
 
-
-# --------------------------------------------------------------------------- errors
-
 class SetupError(Exception):
     """An error with a user-facing i18n code (shown by the UI, logged in silent mode)."""
 
@@ -66,19 +63,14 @@ class SetupError(Exception):
         self.code = code
         self.details = details
 
-
 class AppsRunning(SetupError):
     def __init__(self, apps: Sequence[str]) -> None:
         super().__init__("apps_running", "programs are still running: " + ", ".join(apps), apps=list(apps))
         self.apps = list(apps)
 
-
 class Cancelled(SetupError):
     def __init__(self) -> None:
         super().__init__("cancelled", "cancelled by the user")
-
-
-# --------------------------------------------------------------------------- versions
 
 def parse_version(text: str) -> Tuple[Tuple[int, ...], int, str]:
     """``"2.1"`` -> ``((2, 1, 0, 0), 1, "")``; a pre-release suffix sorts before the release."""
@@ -91,13 +83,9 @@ def parse_version(text: str) -> Tuple[Tuple[int, ...], int, str]:
     suffix = match.group(2).strip(" -_.+")
     return tuple(numbers), (0 if suffix else 1), suffix.lower()
 
-
 def compare_versions(left: str, right: str) -> int:
     a, b = parse_version(left), parse_version(right)
     return (a > b) - (a < b)
-
-
-# --------------------------------------------------------------------------- paths
 
 def long_path(path: os.PathLike | str) -> str:
     """Extended-length form on Windows (``\\\\?\\C:\\...``), unchanged elsewhere."""
@@ -108,7 +96,6 @@ def long_path(path: os.PathLike | str) -> str:
         return "\\\\?\\UNC\\" + text[2:]
     return "\\\\?\\" + text
 
-
 def same_path(left: str, right: str) -> bool:
     def norm(value: str) -> str:
         value = os.path.expandvars(str(value or "").strip().strip('"'))
@@ -116,18 +103,15 @@ def same_path(left: str, right: str) -> bool:
         return value.casefold()
     return bool(left) and norm(left) == norm(right)
 
-
 def remove_path_entry(paths: str, entry: str) -> str:
     """The PATH string without *entry* (case-insensitive, trailing backslash ignored)."""
     return ";".join(item for item in str(paths or "").split(";") if item.strip() and not same_path(item, entry))
-
 
 def add_path_entry(paths: str, entry: str) -> str:
     items = [item for item in str(paths or "").split(";") if item.strip()]
     if any(same_path(item, entry) for item in items):
         return ";".join(items)
     return ";".join(items + [entry])
-
 
 def _rmtree(path: Path) -> None:
     def onerror(func, target, _exc):
@@ -141,7 +125,6 @@ def _rmtree(path: Path) -> None:
     else:  # pragma: no cover - older runtimes
         shutil.rmtree(long_path(path), onerror=onerror)
 
-
 def remove_entry(path: Path) -> None:
     lp = long_path(path)
     if os.path.isdir(lp) and not os.path.islink(lp):
@@ -153,10 +136,8 @@ def remove_entry(path: Path) -> None:
             os.chmod(lp, stat.S_IWRITE)
             os.remove(lp)
 
-
 def exists(path: Path) -> bool:
     return os.path.lexists(long_path(path))
-
 
 def retry(action: Callable[[], object], attempts: int = 12, delay: float = 0.25,
           sleep: Callable[[float], None] = time.sleep):
@@ -170,16 +151,13 @@ def retry(action: Callable[[], object], attempts: int = 12, delay: float = 0.25,
             sleep(delay * (1 + attempt * 0.5))
     return None
 
-
-# --------------------------------------------------------------------------- platform
-
 class Platform:
     """Interface to the operating system. Every method may raise OSError."""
 
     def env(self, name: str) -> str:
         return os.environ.get(name, "")
 
-    def known_folder(self, name: str) -> Path:      # "programs" | "desktop"
+    def known_folder(self, name: str) -> Path:
         raise NotImplementedError
 
     def reg_get(self, root: str, key: str, name: str):
@@ -238,7 +216,6 @@ class Platform:
 
     def sleep(self, seconds: float) -> None:
         time.sleep(seconds)
-
 
 class PortablePlatform(Platform):
     """Development stand-in on non-Windows systems (``--ui-dev`` runs, frozen smoke tests).
@@ -308,9 +285,6 @@ class PortablePlatform(Platform):
     def terminate(self, pid: int) -> None:
         pass
 
-
-# --------------------------------------------------------------------------- state
-
 @dataclass
 class Options:
     install_dir: str
@@ -319,7 +293,6 @@ class Options:
     language: str = "en"
     launch: bool = False
 
-
 @dataclass
 class Existing:
     install_dir: str = ""
@@ -327,7 +300,7 @@ class Existing:
     components: List[str] = field(default_factory=list)
     tasks: List[str] = field(default_factory=list)
     language: str = ""
-    source: str = ""                 # "" | "memuai" | "inno" | "files"
+    source: str = ""
     entries: Dict[str, List[str]] = field(default_factory=dict)
     legacy_machine: bool = False
 
@@ -335,13 +308,9 @@ class Existing:
     def found(self) -> bool:
         return bool(self.source)
 
-
 Progress = Callable[[Dict[str, object]], None]
 
-
-#: Default grace period for running programs to exit after a ``--shutdown`` request.
 DEFAULT_CLOSE_WAIT = 8.0
-
 
 class Engine:
     def __init__(self, product: Product, platform: Platform, payload: Optional[Payload] = None,
@@ -351,15 +320,13 @@ class Engine:
         self.os = platform
         self.payload = payload
         self.version = version or (str(payload.meta.get("version", "")) if payload else "")
-        #: The Setup exe whose stub bytes become the uninstaller (defaults to the payload file).
+
         self.stub_source = stub_source
         self.cancel_event = threading.Event()
         self.warnings: List[str] = []
-        #: Seconds to wait for running programs to exit after ``--shutdown`` before
-        #: reporting them (or terminating them when the user chose "close for me").
+
         self.close_wait = max(0.0, float(close_wait))
 
-    # ------------------------------------------------------------------ discovery
     @property
     def uninstall_key(self) -> str:
         return UNINSTALL_ROOT + "\\" + self.product.reg_key
@@ -408,15 +375,14 @@ class Engine:
                 found.components = present
                 found.source = found.source or "files"
         if found.install_dir and found.components:
-            # Round 29: an optional component the app installed later from its package
-            # (MemuAI → Settings → MemuNote) is kept selected by an update.
+
             for comp_id, _zip in self.product.packages:
                 comp = self.product.component(comp_id)
                 if comp_id not in found.components and comp.exe and \
                         exists(Path(found.install_dir) / comp.exe.replace("\\", os.sep)):
                     found.components.append(comp_id)
         if found.install_dir and not exists(Path(found.install_dir)):
-            # Stale entry of a folder deleted by hand: treat as a fresh install there.
+
             found.source, found.components, found.version = "", [], ""
         found.version = versions.normalize_version(found.version)
         if found.found and not found.version:
@@ -468,7 +434,7 @@ class Engine:
                 tasks = product.default_tasks()
         else:
             tasks = product.default_tasks()
-        # Autostart toggled from inside the apps must survive an update.
+
         for run in product.run_values:
             if self._run_value_present(run.name) and run.task not in tasks:
                 tasks.append(run.task)
@@ -481,7 +447,6 @@ class Engine:
         """``fresh`` | ``upgrade`` | ``reinstall`` | ``downgrade`` (see :mod:`installer.versions`)."""
         return versions.classify(self.version, existing.version, existing.found)
 
-    # ------------------------------------------------------------------ state file
     @staticmethod
     def read_state(app_dir: Path) -> Optional[dict]:
         try:
@@ -491,7 +456,6 @@ class Engine:
         except (OSError, ValueError):
             return None
 
-    # ------------------------------------------------------------------ folder validation
     def required_bytes(self, components: Iterable[str]) -> int:
         if not self.payload:
             return 0
@@ -516,7 +480,7 @@ class Engine:
             return result
         target = Path(os.path.normpath(text))
         result["path"] = str(target)
-        # A system/profile root or a non-empty foreign folder gets our own subfolder.
+
         protected = {self.os.env(name).rstrip("\\/").casefold() for name in
                      ("USERPROFILE", "LOCALAPPDATA", "APPDATA", "ProgramFiles", "ProgramFiles(x86)",
                       "SystemRoot", "TEMP") if self.os.env(name)}
@@ -552,7 +516,6 @@ class Engine:
         result["ok"] = True
         return result
 
-    # ------------------------------------------------------------------ processes
     def _shutdown_apps(self, app_dir: Path, report: Progress) -> None:
         for relative in self.product.shutdown:
             exe = app_dir / relative.replace("\\", os.sep)
@@ -590,20 +553,17 @@ class Engine:
         if running:
             names = sorted({Path(path.replace("\\", "/")).name for _pid, path in running})
             raise AppsRunning(names)
-        # A log viewer or terminal can outlive MemuAI while retaining its CWD.
-        # Never terminate unrelated programs (and potentially lose their work),
-        # even if force-close was authorized for the installed applications.
+
         external = self.os.directory_users(app_dir)
         if external:
             names = sorted({f"{name} (PID {pid})" for pid, name in external})
             log.warning("installation directory held by external programs: %s", ", ".join(names))
             raise SetupError("directory_in_use", ", ".join(names), apps=names)
 
-    # ------------------------------------------------------------------ install
     def install(self, options: Options, report: Progress = lambda _e: None, force_close: bool = False) -> Dict[str, object]:
         if not self.payload:
             raise SetupError("no_payload", "this Setup has no payload")
-        self.warnings = []          # a retry reports its own warnings, not the failed attempt's
+        self.warnings = []
         product = self.product
         components, tasks = product.normalize(options.components, options.tasks)
         options = Options(install_dir=str(Path(options.install_dir)), components=components, tasks=tasks,
@@ -639,7 +599,7 @@ class Engine:
         stage = app_dir / (STAGE_PREFIX + token)
         backup = app_dir / (BACKUP_PREFIX + token)
         os.makedirs(long_path(stage))
-        swapped: List[Tuple[str, bool]] = []      # (entry, had_previous)
+        swapped: List[Tuple[str, bool]] = []
         try:
             self._extract(stage, components, total, lambda pct, name, done: emit(
                 "extracting", 5 + pct * 0.85, file=name, done=done, total=total))
@@ -678,7 +638,7 @@ class Engine:
                 log.warning("could not remove %s now (cleaned on the next run): %s", leftover, exc)
 
         emit("registering", 94)
-        # Components that are no longer selected, and entries an older version owned.
+
         for comp in product.components:
             keep = set(owned.get(comp.id, []))
             old = set(previous_entries.get(comp.id, []))
@@ -742,7 +702,7 @@ class Engine:
                     continue
                 if comp_id not in self.payload.index.components():
                     continue
-                # Only where the component could be selected at all (e.g. MemuNote needs the full edition).
+
                 if comp_id not in self.product.normalize(list(components) + [comp_id], [])[0]:
                     if exists(target):
                         remove_entry(target)
@@ -761,8 +721,7 @@ class Engine:
         try:
             with zipfile.ZipFile(long_path(partial), "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6,
                                  allowZip64=True) as archive:
-                # Round 35: "<component>-package.json" (memunote-package.json for MemuNote, as before;
-                # memufiles-package.json for MemuFiles) — read by app/<component>_manager.py.
+
                 archive.writestr(f"{comp.id}-package.json", json.dumps(
                     {"component": comp.id, "name": comp.dest or comp.id, "version": self.version,
                      "exe": Path(comp.exe.replace("\\", "/")).name, "format": 1}, ensure_ascii=False))
@@ -891,7 +850,6 @@ class Engine:
             json.dump(data, handle, ensure_ascii=False, indent=2)
         os.replace(long_path(temporary), long_path(path))
 
-    # ------------------------------------------------------------------ shell integration
     def shortcut_name(self, name: str, language: str) -> str:
         return i18n.tr(name[1:], language) if name.startswith("@") else name
 
@@ -922,7 +880,7 @@ class Engine:
                 self._warn(f"shortcut folder unavailable: {exc}")
                 continue
             wanted = shortcut.component in components and (not shortcut.task or shortcut.task in tasks)
-            # The other-language twin of a localized name is always retired.
+
             for stale in paths[1:]:
                 if exists(stale):
                     try:
@@ -946,7 +904,7 @@ class Engine:
                 self.os.create_shortcut(link, target, shortcut.args, workdir, str(target), "", shortcut.app_id)
             except OSError as exc:
                 self._warn(f"could not create shortcut {link.name}: {exc}")
-        # Shell-level clean-up of an empty Start-menu group.
+
         try:
             group = self.os.known_folder("programs") / self.product.group
             if exists(group) and not os.listdir(long_path(group)):
@@ -1060,7 +1018,7 @@ class Engine:
             "MemuAI: Language": language,
         }
         try:
-            # A clean key: the values of an older Inno installation are dropped.
+
             try:
                 self.os.reg_delete_key(HKCU, self.uninstall_key)
             except FileNotFoundError:
@@ -1073,7 +1031,6 @@ class Engine:
         except OSError as exc:
             self._warn(f"could not register in Installed apps: {exc}")
 
-    # ------------------------------------------------------------------ launch
     def launch(self, app_dir: Path, components: Sequence[str]) -> bool:
         for comp, exe, args in self.product.launch:
             if comp in components:
@@ -1087,7 +1044,6 @@ class Engine:
                         return False
         return False
 
-    # ------------------------------------------------------------------ uninstall
     def data_dirs(self) -> List[Path]:
         result = []
         for env_name, folder in self.product.data_dirs:
@@ -1135,8 +1091,7 @@ class Engine:
         except OSError:
             pass
         for run in product.run_values:
-            # Values created by the apps' own settings switch are removed too: they would
-            # point at a deleted exe.
+
             try:
                 self.os.reg_delete_value(HKCU, RUN_KEY, run.name)
             except OSError:
@@ -1144,7 +1099,7 @@ class Engine:
         path_changed = self._apply_path(app_dir, [], removing=True)
         self._apply_protocols(app_dir, [], removing=True)
         for _comp, relative, args in product.pre_uninstall:
-            # Round 29: e.g. MemuNote removes its "Open with" registry entries itself.
+
             exe = app_dir / relative.replace("\\", os.sep)
             if exists(exe):
                 try:
@@ -1223,9 +1178,8 @@ class Engine:
             return False
         app = str(app_dir).rstrip("\\/").casefold()
         data = str(folder).rstrip("\\/").casefold()
-        # Never when the program folder itself is the data folder or contains it.
-        return not (app == data or data.startswith(app + os.sep) or data.startswith(app + "\\"))
 
+        return not (app == data or data.startswith(app + os.sep) or data.startswith(app + "\\"))
 
 def options_to_dict(options: Options) -> dict:
     return asdict(options)

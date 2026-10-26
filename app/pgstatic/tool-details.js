@@ -1,15 +1,5 @@
-/* Round 33 (r33-chat, item #20): every tool of an answer says what it actually did.
 
-   Before: the «Tools» step listed «docs_read  quick-access» — the tool's internal name and one raw argument.
-   Now each row is a readable, expandable line: «Read the article “Quick Access”», «Web search “…” · 6 results»,
-   «Opened example.com», «Command `npm test` · exit 0», «Saved to memory: …», with its duration and status; opened,
-   it shows what the tool returned that a person cares about (links, articles with an «open» button, file paths,
-   matches, command output, the exact parameters and the error).
 
-   capture(tool, args, result) → a small, bounded `detail` object stored with the row (app.js recordCall) — the
-   result itself is not kept (a web page can be 400 KB). rowHtml(row, key) renders a row; rows of chats saved
-   before Round 33 (no `detail`) still get the readable title from their arguments. RU/EN, every design
-   (tool-details.css uses the design tokens only). */
 const MemuToolDetails = (() => {
   const en = () => typeof PG_LANG !== "undefined" && PG_LANG === "en";
   const L = (ru, enText) => (en() ? enText : ru);
@@ -29,7 +19,6 @@ const MemuToolDetails = (() => {
     return `${v >= 100 || i === 0 ? Math.round(v) : v.toFixed(1)} ${u[i]}`; };
   const dur = (ms) => (ms > 0 ? (ms < 1000 ? `${Math.max(1, Math.round(ms / 10) * 10)} ${L("мс", "ms")}` : `${(ms / 1000).toFixed(ms < 10000 ? 1 : 0)} ${L("с", "s")}`) : "");
 
-  /* ------------------------------------------------------------ capture */
   const links = (rows, size = 8) => (Array.isArray(rows) ? rows : []).filter((row) => row && typeof row === "object")
     .map((row) => ({ title: cut(row.title || row.name || row.url || "", 140), url: safeUrl(row.url || row.link || ""),
       snippet: cut(row.snippet || row.content || row.description || "", 180) }))
@@ -102,7 +91,7 @@ const MemuToolDetails = (() => {
         d.count = Object.keys(r.value).length; d.hidden = num(r.hidden);
       } else if (name === "network_status" && r.value && typeof r.value === "object") {
         d.value = cut(r.value.hostname || "", 80);
-      } else if (name === "search_files") {   // Round 35: PC-wide file search (app/fsindex_api.py)
+      } else if (name === "search_files") {
         d.query = cut(r.query || a.query || "", 120);
         if (r.count !== undefined) d.count = num(r.count);
         if (Array.isArray(r.results)) d.files = r.results.slice(0, 12).map((f) => cut(f.path || "", 200));
@@ -114,16 +103,15 @@ const MemuToolDetails = (() => {
         d.count = r.value.length;
         d.files = r.value.slice(0, 12).map((f) => cut(f, 200));
       }
-      // A readable headline from the common fields of any other result (panels, integrations, agents).
+
       const headline = r.title || r.name || r.subject || r.message || r.summary || r.panel?.title || r.issue?.title || r.file?.name || "";
       if (!d.title && headline && typeof headline === "string") d.title = cut(headline, 140);
       const link = safeUrl(r.html_url || r.web_url || r.webViewLink || r.url || r.link || "");
       if (link && !d.url && name !== "web_search") d.url = link;
-    } catch (error) { /* a detail is decoration: never break the tool loop */ }
+    } catch (error) {  }
     return d;
   }
 
-  /* -------------------------------------------------------------- labels */
   const INTEGRATION = { gmail: "Gmail", github: "GitHub", gdrive: "Google Drive", drive: "Google Drive", gcal: "Google Calendar",
     calendar: "Google Calendar", notion: "Notion" };
   const VERB = {
@@ -179,7 +167,7 @@ const MemuToolDetails = (() => {
       const verb = Object.keys(VERB).find((key) => tool.includes("_" + key));
       return { glyph: "zap", title: INTEGRATION[prefix] + (verb ? ` · ${L(VERB[verb][0], VERB[verb][1])}` : ""), subject: quote(d.title || a.query || a.subject || a.title || a.name || a.path || "") };
     }
-    // Unknown tool: its name and its most telling argument — still more than nothing.
+
     const arg = typeof toolArgLabel === "function" ? toolArgLabel(a) : "";
     return { glyph: "terminal", title: `<code>${e(tool)}</code>`, subject: arg ? e(cut(arg, 90)) : "", html: true, rawTitle: true };
   }
@@ -202,7 +190,6 @@ const MemuToolDetails = (() => {
     return bits.join(" · ");
   }
 
-  /* ---------------------------------------------------------------- body */
   function argsTable(args) {
     const rows = Object.entries(args || {}).filter(([key]) => key !== "project_id").slice(0, 12);
     if (!rows.length) return "";
@@ -256,7 +243,6 @@ const MemuToolDetails = (() => {
     return parts.filter(Boolean).join("");
   }
 
-  /* ---------------------------------------------------------------- row */
   const userOpen = new Map();
   document.addEventListener("click", (event) => {
     const summary = event.target.closest?.("details.tool-x[data-tool-key] > summary");
@@ -283,7 +269,6 @@ const MemuToolDetails = (() => {
     </details>`;
   }
 
-  /* A finished answer's saved memory, as a row of its own (memory.js announces it after the answer). */
   function memoryRow(res) {
     const added = (res?.added || []).map((item) => ({ text: item.text, updated: false }));
     const updated = (res?.updated || []).map((item) => ({ text: item.text, updated: true }));

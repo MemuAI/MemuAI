@@ -1,16 +1,10 @@
-/* Round 29 — documentation extras (window.MemuDocsAI), used by docs.js:
- *  • «Кратко от ИИ» / «AI summary»: a collapsible card under the page title.
- *    The summary is shipped with the docs (app/docs/summaries/*.json, reviewed);
- *    «Пересказать моей моделью» and «Спросить об этой статье» go through the
- *    user's current model via MemuAI Proxy (POST /api/pg/docs/ai).
- *  • Screenshots: ![alt](docs-img/<lang>/<name>.webp "caption") become lazy
- *    figures that open in the app's image viewer.
- */
+
+
 "use strict";
 window.MemuDocsAI = (() => {
   const OPEN_KEY = "memu_docs_ai_open";
-  const answers = new Map();      // "lang:id" → [{q, a, error}]
-  const retold = new Map();       // "lang:id" → {tldr, points, model}
+  const answers = new Map();
+  const retold = new Map();
   const busy = new Set();
 
   const en = () => (typeof PG_LANG !== "undefined" && PG_LANG === "en");
@@ -26,12 +20,10 @@ window.MemuDocsAI = (() => {
   const keyOf = (page) => `${page.lang}:${page.id}`;
   const SPARK = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2.8l1.9 5.3 5.3 1.9-5.3 1.9L12 17.2l-1.9-5.3L4.8 10l5.3-1.9z" fill="currentColor"/><path d="M18.6 14.6l.9 2.4 2.4.9-2.4.9-.9 2.4-.9-2.4-2.4-.9 2.4-.9z" fill="currentColor" opacity=".7"/></svg>`;
 
-  /* ------------------------------- screenshots ------------------------------ */
-
   function figure(path, alt, caption) {
     const src = "/" + String(path).replace(/^\/+/, "");
     const text = caption || alt || "";
-    const plainText = text.replace(/\+\+(.+?)\+\+/g, "$1").replace(/[`*]/g, "");   // attributes / viewer title: no markup
+    const plainText = text.replace(/\+\+(.+?)\+\+/g, "$1").replace(/[`*]/g, "");
     return `<figure class="docs-figure"><button type="button" class="docs-figure-zoom" data-docs-zoom="${esc(src)}" data-docs-caption="${esc(plainText)}"
         title="${esc(L("Открыть крупно", "Open full size"))}" aria-label="${esc(L("Открыть крупно: ", "Open full size: ") + plainText)}">
         <img src="${esc(src)}" alt="${esc(alt || caption || "")}" loading="lazy" decoding="async"
@@ -46,8 +38,6 @@ window.MemuDocsAI = (() => {
     if (typeof openImagePreview === "function") openImagePreview(src, name);
     else window.open(src, "_blank", "noopener");
   }
-
-  /* --------------------------------- summary -------------------------------- */
 
   function summaryOf(page) {
     return retold.get(keyOf(page)) || page.ai_summary || null;
@@ -247,12 +237,11 @@ window.MemuDocsAI = (() => {
     });
     const input = card.querySelector("[data-ai-input]");
     if (input) input.addEventListener("keydown", (event) => {
-      // Esc in the field closes the question box, not the whole settings window.
+
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); card.querySelector("[data-ai='ask']").click(); }
     });
   }
 
-  /** Called by docs.js after every page render. */
   function decorate(article, page) {
     if (!article || !page) return;
     article.querySelectorAll("[data-docs-zoom]").forEach((button) => { button.onclick = () => zoom(button); });

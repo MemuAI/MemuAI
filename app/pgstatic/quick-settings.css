@@ -1,10 +1,5 @@
-/* Settings → «Быстрый доступ» (Round 23). The page itself is built from the settings kit (settings.css, r23-settings);
-   this file only styles what is unique to Quick Ask: the status chip, the hotkey capture field and its messages,
-   the endpoint key line and the connection result. Theme tokens only. */
 .qs-settings { display: block; }
 .qs-inline { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
-
-/* status chip in the «Основное» header */
 .qs-pill { display: inline-flex; align-items: center; gap: 7px; max-width: 100%; height: 24px; padding: 0 10px; border-radius: 999px;
   background: color-mix(in srgb, var(--text) 6%, transparent); color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap;
   overflow: hidden; vertical-align: middle; letter-spacing: 0; text-transform: none; }
@@ -19,8 +14,6 @@
 .qs-pill[data-state="capturing"] { color: var(--accent); background: var(--accent-soft); }
 .qs-pill[data-state="capturing"] i, .qs-pill[data-state="loading"] i { background: var(--accent); animation: qs-pulse 1.2s ease-in-out infinite; }
 @keyframes qs-pulse { 50% { opacity: .3; } }
-
-/* hotkey capture: real keycaps */
 .qs-capture { display: inline-flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 4px; min-width: 150px; min-height: 36px; padding: 4px 12px;
   border-radius: 10px; cursor: pointer; border: 1px solid var(--control-border, var(--border)); background: var(--panel); color: var(--text);
   transition: border-color .15s, box-shadow .2s; }
@@ -52,8 +45,6 @@
 .qs-alt.taken { opacity: .45; cursor: not-allowed; text-decoration: line-through; }
 .qs-free { margin-left: 4px; color: var(--ok); font-weight: 700; font-size: 12px; }
 .qs-alt kbd { height: 22px; min-width: 22px; padding: 0 6px; font-size: 11px; }
-
-/* own endpoint */
 .qs-key-line { display: flex; align-items: center; gap: 8px; }
 .qs-key-line > :first-child { flex: 1; min-width: 0; }
 .qs-key-line input { width: 100%; }
@@ -66,8 +57,6 @@
 .qs-count { font-variant-numeric: tabular-nums; margin-left: 6px; opacity: .8; }
 #qs-persona-desc:empty { display: none; }
 .qs-sub-body { display: grid; gap: 14px; }
-
-/* the fallback kit (settings-kit.js not loaded) still reads as a settings page */
 .qs-settings[data-kit="fallback"] .sx-section { margin: 0 0 18px; }
 .qs-settings[data-kit="fallback"] .sx-section-title { display: flex; align-items: center; gap: 10px; font-size: 14px; margin: 0 0 8px; }
 .qs-settings[data-kit="fallback"] .sx-card { border: 1px solid var(--border); border-radius: 12px; padding: 4px 16px; background: var(--panel); }
@@ -83,9 +72,6 @@
 .qs-settings[data-kit="fallback"] .sx-sub { margin: 18px 0; }
 .qs-settings[data-kit="fallback"] .sx-sub-title { font-weight: 650; font-size: 14px; margin-bottom: 6px; }
 @media (prefers-reduced-motion: reduce) { .qs-pill i { animation: none !important; } }
-
-/* Round 23 (r23-quick, pass 2): the model block keeps the kit dividers right for both sources; the vision hint is a
-   quiet line, not a box (it is information, not a warning). */
 :root .sx-shell .qs-settings .qs-model-block > :is(.sx-row, .sx-field, .qs-ep-test) { border-top: 0; }
 :root .sx-shell .qs-settings .qs-model-block > :not([hidden]) ~ :not([hidden]):not(.qs-ep-test) { border-top: 1px solid var(--sx-line-soft); }
 .qs-model-block > .qs-ep-test .sx-actions { margin-top: -4px; }

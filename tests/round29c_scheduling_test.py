@@ -28,7 +28,6 @@ MODEL_JSON = json.dumps({"name": "Новости ИИ", "kind": "chat", "prompt"
                          "rule": {"when": [{"type": "daily", "times": ["09:00"], "days": [1, 2, 3, 4, 5]}]}},
                         ensure_ascii=False)
 
-
 class MiniAppPlanning(unittest.TestCase):
     """Mini App: rule summaries/status in schedules.list, create-from-text (parse → preview → create), delete."""
 
@@ -69,7 +68,7 @@ class MiniAppPlanning(unittest.TestCase):
                         {"id": "l", "name": "L", "prompt": "y", "daily_at": "09:00", "enabled": False}])
         from app.pgdata import _mutate_schedules
 
-        def blocked(rows):      # rule_state is written only by the scheduler (save_schedules keeps it out)
+        def blocked(rows):
             rows[0]["rule_state"] = {"status": "blocked", "reason": {"ru": "Ждёт: запущен dota2.exe",
                                                                      "en": "Waiting: dota2.exe is running"}}
             return True
@@ -82,7 +81,7 @@ class MiniAppPlanning(unittest.TestCase):
         self.assertEqual(rows["l"]["summary"], "Каждый день в 09:00", "a legacy task is shown as a summary too")
 
     def test_last_result_is_the_newest_one(self):
-        # Bug: results were compared by "created"/"at" which rows never had → the OLDEST result was shown.
+
         from app.pgdata import append_schedule_result, save_schedules
         save_schedules([{"id": "n", "name": "N", "prompt": "x", "daily_at": "09:00"}])
         append_schedule_result("n", False, "old")
@@ -160,10 +159,8 @@ class MiniAppPlanning(unittest.TestCase):
             self.assertIn(op, source)
         self.assertNotIn("kit.pages.schedules", (ROOT / "app/tgapp/extras.js").read_text(encoding="utf-8"))
 
-
 if __name__ == "__main__":
     unittest.main()
-
 
 class QuickAccessPlanning(unittest.TestCase):
     """Quick Access: «запланируй…» → schedule.plan → a confirm card (summary, next runs) → «Создать задачу» saves."""
@@ -198,7 +195,7 @@ class QuickAccessPlanning(unittest.TestCase):
             self.assertEqual((found or {}).get("action"), "schedule.plan", text)
             self.assertEqual(found["params"]["text"], text)
             self.assertTrue(found["fallback_on_miss"])
-        # one-off reminders stay local and model-free; questions go to the model
+
         self.assertEqual(intents.match("напомни в 15:00 позвонить", now=now)["action"], "reminder.create")
         self.assertEqual(intents.match("напомни в телеграме завтра в 9 купить хлеб", now=now)["action"], "reminder.create")
         self.assertIsNone(intents.match("каждый день пить кофе вредно?", now=now))
@@ -263,7 +260,6 @@ class QuickAccessPlanning(unittest.TestCase):
         self.assertEqual(sq.when_text(datetime(2026, 10, 16, 9, 30).timestamp(), "ru", now), "пт, 16 октября в 09:30 · через 4 дня")
         self.assertEqual(sq.when_text(datetime(2026, 10, 16, 9, 30).timestamp(), "en", now), "Fri, Oct 16 at 09:30 · in 4 days")
 
-
 def _js_function(source: str, name: str) -> str:
     start = source.index(f"function {name}(")
     depth, i = 0, source.index("{", start)
@@ -274,7 +270,6 @@ def _js_function(source: str, name: str) -> str:
         i += 1
         if depth == 0:
             return source[start:i]
-
 
 class VisualFixes(unittest.TestCase):
     """Planning panel/builder fixes found on the 1366×728 / 1920×1040 screenshots."""
@@ -287,7 +282,7 @@ class VisualFixes(unittest.TestCase):
         return subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True).stdout.strip()
 
     def test_relative_time_never_says_60_minutes(self):
-        # Bug: «через 2 ч 60 мин» in the builder (minutes rounded separately from the hours).
+
         for path, tname in (("app/pgstatic/plan.js", "T"), ("app/tgapp/plan.js", "tr")):
             src = (ROOT / path).read_text(encoding="utf-8")
             body = _js_function(src, "relIn") + "\n" + (_js_function(src, "ruPlural") if "function ruPlural(" in src else _js_function(src, "plural"))
@@ -302,19 +297,18 @@ class VisualFixes(unittest.TestCase):
     def test_builder_layout_fixes(self):
         js = (ROOT / "app/pgstatic/plan.js").read_text(encoding="utf-8")
         css = (ROOT / "app/pgstatic/plan.css").read_text(encoding="utf-8")
-        # the builder opened in the middle (the panel kept the list's scroll position)
+
         self.assertIn('if (el.scrollTop) el.scrollTop = 0', js)
-        # «← Планирование» stretched across the panel under the close button
+
         self.assertIn(".pln-root > .panel-return { align-self: flex-start", css)
-        # a wrapped label pushed its number field below the others; limits explain «empty = no limit» inline
+
         self.assertIn("grid-template-rows: subgrid", css)
         self.assertIn('T("без лимита", "no limit")', js)
         self.assertNotIn('T("0 — без лимита"', js)
-        # the «правило» chip on every card meant nothing to a user
-        self.assertNotIn('T("правило", "rule")', js)
-        # short windows: compact sticky summary
-        self.assertIn("@media (max-height: 820px)", css)
 
+        self.assertNotIn('T("правило", "rule")', js)
+
+        self.assertIn("@media (max-height: 820px)", css)
 
 class SummaryWording(unittest.TestCase):
     """RU/EN summaries a non-technical user reads under every task."""
@@ -323,7 +317,7 @@ class SummaryWording(unittest.TestCase):
         return rules.summary(rules.normalize_rule({"when": [trigger]}), lang)
 
     def test_event_delay_reads_naturally(self):
-        # was «При включении компьютера через 2 мин» / "When the computer starts + 2 min"
+
         t = {"type": "event", "event": "pc_start", "delay": 2}
         self.assertEqual(self.s(t), "Через 2 мин после включения компьютера")
         self.assertEqual(self.s(t, "en"), "2 min after the computer starts")

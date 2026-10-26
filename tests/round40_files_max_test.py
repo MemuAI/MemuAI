@@ -15,14 +15,12 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "memufiles" / "static"
 
-
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMUAI_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("MEMUFILES_TRASH_DIR", str(tmp_path / "trash"))
     monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
     yield
-
 
 def docx(path: Path, text: str, title: str = "") -> None:
     with zipfile.ZipFile(path, "w") as zf:
@@ -31,12 +29,10 @@ def docx(path: Path, text: str, title: str = "") -> None:
         zf.writestr("docProps/core.xml", f"<cp:coreProperties><dc:title>{title}</dc:title><dc:creator>Сидоров</dc:creator></cp:coreProperties>")
         zf.writestr("docProps/app.xml", "<Properties><Pages>3</Pages><Words>120</Words><Application>Microsoft Office Word</Application></Properties>")
 
-
 PDF = (b"%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n"
        b"3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 300 200]/Contents 4 0 R/Resources<</Font<</F1 5 0 R>>>>>>endobj\n"
        b"4 0 obj<</Length 60>>stream\nBT /F1 14 Tf 20 150 Td (Invoice 77 Globex Inc Total 500 USD) Tj ET\nendstream endobj\n"
        b"5 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF\n")
-
 
 def downloads(base: Path) -> Path:
     from PIL import Image
@@ -51,7 +47,6 @@ def downloads(base: Path) -> Path:
     (dl / ".hidden").write_text("x", encoding="utf-8")
     (dl / "partial.crdownload").write_bytes(b"x")
     return dl
-
 
 class FakeModel:
     """Answers like a fast model: invoices → Бухгалтерия/Счета, a resume → HR, the rest → Разное. Records calls."""
@@ -79,8 +74,6 @@ class FakeModel:
             return
         yield '<tool>{"name": "propose_plan", "args": {"title": "По смыслу", "actions": [{"op": "classify_and_organize", "root": "."}]}}</tool>'
 
-
-# ------------------------------------------------------------------ reading documents
 def test_describe_reads_documents_and_metadata(tmp_path):
     from app.memufiles import organize
     dl = downloads(tmp_path)
@@ -89,7 +82,7 @@ def test_describe_reads_documents_and_metadata(tmp_path):
     assert "ДОГОВОР АРЕНДЫ" in doc["text"] and doc["meta"]["title"] == "Договор аренды"
     assert "Globex" in organize.describe(str(dl / "scan0042.pdf"))["text"]
     assert organize.describe(str(dl / "photo.jpg"))["meta"]["size"] == "64x48"
-    # the crude PDF reader (no pypdf) still finds the text
+
     import sys
     saved = sys.modules.get("pypdf")
     sys.modules["pypdf"] = None
@@ -101,7 +94,6 @@ def test_describe_reads_documents_and_metadata(tmp_path):
         else:
             sys.modules.pop("pypdf", None)
 
-
 def test_names_and_folders_are_sanitised():
     from app.memufiles import organize
     assert organize.clean_folder("../../Windows/System32") == os.path.join("Windows", "System32")
@@ -109,25 +101,23 @@ def test_names_and_folders_are_sanitised():
     assert organize.clean_folder("..") == ""
     assert organize.clean_folder("a/b/c/d/e") == os.path.join("a", "b", "c")
     assert organize.new_file_name("scan.pdf", "Счёт: 77 / Globex?") == "Счёт 77 Globex.pdf"
-    assert organize.new_file_name("scan.pdf", "report.docx") == "report.docx.pdf"     # the extension is never changed
+    assert organize.new_file_name("scan.pdf", "report.docx") == "report.docx.pdf"
     assert organize.new_file_name("scan.pdf", "Счёт.pdf") == "Счёт.pdf"
     assert organize.new_file_name("scan.pdf", "...") == "scan.pdf"
     assert organize._parse_answer('<think>[x]</think> [{"i": 1, "folder": "A", "name": "b",}]') == [{"i": 1, "folder": "A", "name": "b"}]
 
-
-# ------------------------------------------------------------------ plan → one operation → one undo
 def test_plan_execute_and_undo_as_one_operation(tmp_path):
     from app.memufiles import assistant, opqueue
-    assert "organize" in opqueue.KINDS                       # owned by r40-files-core: keep it there
+    assert "organize" in opqueue.KINDS
     dl = downloads(tmp_path)
     before = sorted(os.listdir(dl))
     model = FakeModel(names={"invoice_acme.txt": "2026-09-ACME", "Счёт №4521 ООО Ромашка.txt": "2026-09-ACME"})
     plan = assistant.build_plan(str(dl), {"title": "t", "actions": [{"op": "classify_and_organize", "root": "."}]}, None, model, "ru")
     by = {os.path.basename(i["path"]): i for i in plan["items"]}
-    assert ".hidden" not in by and "partial.crdownload" not in by           # hidden / unfinished downloads are left alone
+    assert ".hidden" not in by and "partial.crdownload" not in by
     assert by["resume_petrov.txt"]["category"] == "HR"
     inv = sorted([by["invoice_acme.txt"]["new_name"], by["Счёт №4521 ООО Ромашка.txt"]["new_name"]])
-    assert inv == ["2026-09-ACME (2).txt", "2026-09-ACME.txt"]                # two files never get one name
+    assert inv == ["2026-09-ACME (2).txt", "2026-09-ACME.txt"]
     assert all(i["op"] == "organize" and i["dest"].startswith(str(dl)) for i in plan["items"])
     queue = opqueue.OpQueue()
     res = assistant.execute_plan(plan, [i["i"] for i in plan["items"]], queue)
@@ -145,10 +135,9 @@ def test_plan_execute_and_undo_as_one_operation(tmp_path):
         if undo.status in ("done", "error", "cancelled"):
             break
         time.sleep(0.02)
-    assert sorted(os.listdir(dl)) == before                                  # every file back, the new folders gone
+    assert sorted(os.listdir(dl)) == before
     with pytest.raises(Exception):
-        assistant.execute_plan(plan, [0], queue)                             # a plan runs once
-
+        assistant.execute_plan(plan, [0], queue)
 
 def test_model_cannot_escape_the_scope(tmp_path):
     from app.memufiles import assistant
@@ -159,7 +148,6 @@ def test_model_cannot_escape_the_scope(tmp_path):
     assert not out["items"] and out["rejected"][0]["why"] == "dest_outside_scope"
     none = assistant.build_plan(str(dl), {"actions": [{"op": "classify_and_organize"}]}, None, None, "ru")
     assert none["rejected"][0]["why"] == "no_model"
-
 
 def test_run_chat_emits_reading_step_and_grouped_plan(tmp_path):
     import threading
@@ -176,7 +164,6 @@ def test_run_chat_emits_reading_step_and_grouped_plan(tmp_path):
     assert events[-1]["t"] == "final" and "Разложу" in events[-1]["text"]
     assert "classify_and_organize" in assistant.system_prompt(str(dl), "ru") and "classify_and_organize" in assistant.system_prompt(str(dl), "en")
 
-
 def test_batches_run_in_parallel_and_a_failed_batch_is_not_fatal(tmp_path, monkeypatch):
     from app.memufiles import organize
     docs = [{"i": i, "name": f"f{i}.txt", "modified": "2026-01-01", "text": "x"} for i in range(30)]
@@ -191,8 +178,6 @@ def test_batches_run_in_parallel_and_a_failed_batch_is_not_fatal(tmp_path, monke
     out = organize.classify(flaky, docs, "ru")
     assert len(out) == 30 - organize.BATCH and len(calls) == 3
 
-
-# ------------------------------------------------------------------ Properties → Details
 def test_meta_reader(tmp_path):
     from PIL import Image
     from app.memufiles import feat40
@@ -205,7 +190,7 @@ def test_meta_reader(tmp_path):
     docx(tmp_path / "d.docx", "текст", "Отчёт")
     meta = feat40.meta(str(tmp_path / "d.docx"))
     assert meta["title"] == "Отчёт" and meta["author"] == "Сидоров" and meta["pages"] == 3 and meta["words"] == 120
-    # MP4: ftyp + moov/mvhd (version 0, timescale 1000, duration 125 500 ms)
+
     mvhd = b"mvhd" + bytes([0, 0, 0, 0]) + b"\0" * 8 + struct.pack(">II", 1000, 125500) + b"\0" * 80
     moov = struct.pack(">I4s", 8 + 4 + len(mvhd), b"moov") + struct.pack(">I", 4 + len(mvhd)) + mvhd
     (tmp_path / "v.mp4").write_bytes(struct.pack(">I4s", 16, b"ftyp") + b"isom\0\0\0\0" + struct.pack(">I4s", 16, b"mdat") + b"\0" * 8 + moov)
@@ -218,7 +203,6 @@ def test_meta_reader(tmp_path):
     assert feat40.meta(str(tmp_path / "t.py"))["lines"] == 2
     (tmp_path / "broken.png").write_bytes(b"nope")
     assert feat40.meta(str(tmp_path / "broken.png")) == {}
-
 
 def test_meta_route(tmp_path):
     from app.memufiles import server as srv
@@ -233,8 +217,6 @@ def test_meta_route(tmp_path):
     finally:
         httpd.shutdown()
 
-
-# ------------------------------------------------------------------ front-end contract
 def test_frontend_contract():
     index = (STATIC / "index.html").read_text(encoding="utf-8")
     assert 'href="feat40.css"' in index and 'href="js/feat40.js"' in index
@@ -251,14 +233,11 @@ def test_frontend_contract():
     schema = __import__("app.memufiles.settings_schema", fromlist=["SCHEMA"]).SCHEMA
     assert any(e["key"] == "ai_fast_model" for e in schema)
 
-
-# ------------------------------------------------------------------ UI (headless Chromium)
 def _chromium():
     exe = os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
     if not Path(exe).exists():
         pytest.skip("no chromium")
     return exe
-
 
 def test_ui_filter_pins_props_menu_and_plan(tmp_path, monkeypatch):
     pw = pytest.importorskip("playwright.sync_api")
@@ -274,7 +253,7 @@ def test_ui_filter_pins_props_menu_and_plan(tmp_path, monkeypatch):
     try:
         with pw.sync_playwright() as p:
             browser = p.chromium.launch(executable_path=_chromium(), args=["--no-sandbox"])
-            page = browser.new_page(viewport={"width": 1280, "height": 800}, bypass_csp=True)   # r40-files-2: polling wait_for_function needs eval
+            page = browser.new_page(viewport={"width": 1280, "height": 800}, bypass_csp=True)
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
             page.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
@@ -282,20 +261,20 @@ def test_ui_filter_pins_props_menu_and_plan(tmp_path, monkeypatch):
             page.wait_for_selector(".tabbar .tab")
             page.evaluate("p => MemuFiles.pane().navigate(p)", str(dl))
             page.wait_for_function("MemuFiles.pane().shown.length > 5")
-            # Explorer order: digits, Latin, then Cyrillic
+
             names = page.evaluate("() => MemuFiles.pane().shown.map((r) => r.n)")
             assert names.index("CV-Anna.md") < names.index("Договор.docx")
-            # one-click type filter
+
             page.keyboard.press("Control+Shift+KeyF")
             page.click(".kchip[data-kind=image]")
             assert page.evaluate("() => MemuFiles.pane().shown.map((r) => r.n)") == ["photo.jpg"]
             page.click(".kchip[data-kind='']")
-            # Esc in a context menu closes the menu only — the selection stays
+
             page.locator(".row", has_text="photo.jpg").first.click(button="right", position={"x": 60, "y": 12})
             page.wait_for_selector(".menu")
             page.keyboard.press("Escape")
             assert page.locator(".menu").count() == 0 and page.evaluate("() => MemuFiles.pane().sel.size") == 1
-            # Properties: General · Details · Hashes (verify)
+
             page.keyboard.press("Alt+Enter")
             page.click(".ptab[data-t=details]")
             page.wait_for_selector(".ptab-page.details .kv")
@@ -306,12 +285,12 @@ def test_ui_filter_pins_props_menu_and_plan(tmp_path, monkeypatch):
             page.fill(".ptab-page.hashes input", page.inner_text(".hash-row code"))
             assert "MD5" in page.inner_text(".hash-verdict")
             page.keyboard.press("Escape")
-            # Settings: no stray «null» outside Windows
+
             page.evaluate("() => import('/js/dialogs.js').then((m) => m.settingsDialog(MemuFiles))")
             page.wait_for_selector(".modal-back")
             assert "null" not in page.inner_text(".modal-back")
             page.keyboard.press("Escape")
-            # pinned tab: Ctrl+W keeps it, the session remembers it
+
             page.evaluate("p => MemuFiles.newTab(p)", str(tmp_path))
             page.locator(".tab").nth(1).click(button="right")
             page.click(".menu >> text=Закрепить вкладку")
@@ -320,7 +299,7 @@ def test_ui_filter_pins_props_menu_and_plan(tmp_path, monkeypatch):
             page.keyboard.press("Control+KeyW")
             assert page.evaluate("() => MemuFiles.tabs.length") == 2
             assert page.evaluate("() => MemuFiles.serializeTab(MemuFiles.tabs[0]).pinned") is True
-            # AI: «sort by meaning» plan grouped by destination folder, one Ctrl+Z undoes it
+
             page.evaluate("() => MemuFiles.switchTab(1)")
             page.evaluate("() => MemuFiles.setRight('ai')")
             page.wait_for_selector(".ai-input textarea")
@@ -346,7 +325,6 @@ def test_ui_filter_pins_props_menu_and_plan(tmp_path, monkeypatch):
             browser.close()
     finally:
         httpd.shutdown()
-
 
 def test_design_auditor_detects_problems():
     """The auditor's page checks are not blind: a cut label, low contrast and a stray «null» are reported."""

@@ -31,12 +31,8 @@ log = logging.getLogger("memuai.quick.trash")
 
 IS_WINDOWS = sys.platform == "win32"
 
-
 def available() -> bool:
     return IS_WINDOWS or sys.platform.startswith("linux")
-
-
-# ---------------------------------------------------------------- Windows
 
 FO_DELETE = 0x0003
 FOF_SILENT = 0x0004
@@ -45,14 +41,13 @@ FOF_ALLOWUNDO = 0x0040
 FOF_NOERRORUI = 0x0400
 FOF_WANTNUKEWARNING = 0x4000
 
-
 def parse_index(data: bytes) -> Optional[Dict[str, Any]]:
     """An ``$I…`` file of the Recycle Bin → ``{"path", "size", "deleted"}`` (``None`` when it is not one)."""
     try:
         version, size, filetime = struct.unpack_from("<qqq", data, 0)
-        if version == 1:                               # Vista … 8.1: a fixed 260-character path
+        if version == 1:
             raw = data[24:24 + 520]
-        elif version == 2:                             # Windows 10+: length-prefixed path
+        elif version == 2:
             (chars,) = struct.unpack_from("<i", data, 24)
             if not 0 < chars <= 32768:
                 return None
@@ -67,7 +62,6 @@ def parse_index(data: bytes) -> Optional[Dict[str, Any]]:
     deleted = (filetime - 116444736000000000) / 10_000_000 if filetime > 0 else 0.0
     return {"path": path, "size": int(size), "deleted": deleted}
 
-
 def _bin_dirs(path: str) -> List[Path]:
     drive = os.path.splitdrive(os.path.abspath(path))[0]
     base = Path((drive or "C:") + "\\") / "$Recycle.Bin"
@@ -79,7 +73,6 @@ def _bin_dirs(path: str) -> List[Path]:
     except OSError:
         pass
     return out
-
 
 def find_recycled(path: str, since: float, dirs: Optional[List[Path]] = None) -> Optional[Dict[str, Any]]:
     """The ``$I`` / ``$R`` pair the bin wrote for ``path`` after ``since`` (newest first)."""
@@ -108,7 +101,6 @@ def find_recycled(path: str, since: float, dirs: Optional[List[Path]] = None) ->
                 best = {"kind": "recycle", "item": str(item), "index": entry.path, "t": mtime}
     return best
 
-
 def _shell_delete(path: str) -> bool:
     from ctypes import wintypes
 
@@ -121,18 +113,14 @@ def _shell_delete(path: str) -> bool:
     shell32.SHFileOperationW.restype = ctypes.c_int
     op = SHFILEOPSTRUCTW()
     op.wFunc = FO_DELETE
-    op.pFrom = os.path.abspath(path) + "\x00"          # double-NUL terminated list (ctypes adds the second NUL)
+    op.pFrom = os.path.abspath(path) + "\x00"
     op.fFlags = FOF_ALLOWUNDO | FOF_NOCONFIRMATION | FOF_SILENT | FOF_NOERRORUI | FOF_WANTNUKEWARNING
     result = shell32.SHFileOperationW(ctypes.byref(op))
     return result == 0 and not op.fAnyOperationsAborted and not os.path.lexists(path)
 
-
-# ---------------------------------------------------------------- freedesktop
-
 def _xdg_trash() -> Path:
     base = os.environ.get("XDG_DATA_HOME") or os.path.join(os.path.expanduser("~"), ".local", "share")
     return Path(base) / "Trash"
-
 
 def _xdg_send(path: Path) -> Optional[Dict[str, Any]]:
     trash = _xdg_trash()
@@ -158,13 +146,12 @@ def _xdg_send(path: Path) -> Optional[Dict[str, Any]]:
                 quote(str(path.absolute())), datetime.now().strftime("%Y-%m-%dT%H:%M:%S")))
         target = files / name
         try:
-            os.rename(path, target)        # EXDEV on another volume: its own $topdir/.Trash is not handled here
+            os.rename(path, target)
         except OSError:
             info_path.unlink(missing_ok=True)
             return None
         return {"kind": "xdg", "item": str(target), "index": str(info_path)}
     return None
-
 
 def original_path(record: Dict[str, Any]) -> str:
     """Where an item of the bin came from (read back from its index; "" when unknown)."""
@@ -179,9 +166,6 @@ def original_path(record: Dict[str, Any]) -> str:
     except (OSError, KeyError, TypeError):
         pass
     return ""
-
-
-# ---------------------------------------------------------------- the API
 
 def send(path: Any) -> Optional[Dict[str, Any]]:
     """Move ``path`` to the bin → a record for :func:`restore` (``{"kind": "recycle"|"xdg"|"bin"}``) or ``None``.
@@ -199,10 +183,9 @@ def send(path: Any) -> Optional[Dict[str, Any]]:
             return find_recycled(str(target), since) or {"kind": "bin"}
         if sys.platform.startswith("linux"):
             return _xdg_send(target)
-    except Exception as exc:                            # never lose a file over the bin: the caller stashes it
+    except Exception as exc:
         log.warning("recycle bin failed for %s: %s", target, exc)
     return None
-
 
 def restore(record: Dict[str, Any], dest: Any) -> None:
     """Put an item back from the bin to ``dest`` (raises ``OSError`` when it is no longer there)."""

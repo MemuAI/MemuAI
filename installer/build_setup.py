@@ -37,7 +37,6 @@ STUB_TARGETS = {
               "comments": "Installs the standalone MemuAI Proxy for the current Windows user."},
 }
 
-
 def _hash_inputs(extra: str) -> str:
     digest = hashlib.sha256(extra.encode("utf-8"))
     files = [p for p in (ROOT / "installer").rglob("*")
@@ -46,7 +45,6 @@ def _hash_inputs(extra: str) -> str:
         digest.update(path.relative_to(ROOT).as_posix().encode("utf-8"))
         digest.update(hashlib.sha256(path.read_bytes()).digest())
     return digest.hexdigest()
-
 
 def build_stub(build, product_id: str, version: str, clean: bool = False, force: bool = False,
                say: Callable[[str], None] = print) -> Path:
@@ -79,7 +77,6 @@ def build_stub(build, product_id: str, version: str, clean: bool = False, force:
     build.write_stamp(stamp_name, key)
     return exe
 
-
 def sign(path: Path, say: Callable[[str], None] = print) -> None:
     command = os.environ.get("MEMUAI_SIGN_COMMAND", "").strip()
     if not command:
@@ -91,9 +88,8 @@ def sign(path: Path, say: Callable[[str], None] = print) -> None:
     result = subprocess.run(parts, cwd=ROOT)
     if result.returncode:
         raise SystemExit(f"Подпись {path.name} не удалась ({result.returncode})")
-    with payload.Payload(path) as check:      # the payload must still be readable
+    with payload.Payload(path) as check:
         check.read_stub()
-
 
 def build_setup(build, product_id: str, version: str, *, fast: bool = False, clean: bool = False,
                 force: bool = False, out: str = "", say: Callable[[str], None] = print) -> Path:
@@ -119,14 +115,13 @@ def build_setup(build, product_id: str, version: str, *, fast: bool = False, cle
             "name": product.name}
     say(f"Упаковываю {product.name} {version} ({'быстрое' if fast else 'максимальное'} сжатие)…")
     started = time.time()
-    # Round 36: unchanged programs reuse their compressed blocks (build/payload-cache, dropped by --clean).
+
     cache = ROOT / "build" / "payload-cache" / product.id
     if clean and cache.exists():
         shutil.rmtree(cache, ignore_errors=True)
     index = payload.assemble(stub, sources, meta, staging, preset=preset, cache_dir=cache)
     sign(staging, say)
-    # Compile outside the release folder, then replace atomically: Windows may be scanning
-    # the previous Setup in that folder.
+
     temporary = final.with_name(final.name + ".partial")
     try:
         shutil.copy2(staging, temporary)

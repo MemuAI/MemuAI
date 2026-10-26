@@ -1,6 +1,3 @@
-/* Round 30 — panels built into the Quick Access window (canvas-embed.js). Tile looks: pgstatic/quick/panel-look.css. */
-
-/* tiles share the row evenly (a grid, not a ragged wrap): the minimum width per look is --qpe-min */
 .qpe { display: grid; grid-template-columns: repeat(auto-fill, minmax(var(--qpe-min, 150px), 1fr)); gap: 8px;
   padding: 2px var(--qa-pad, 14px) 8px; min-width: 0; }
 .qpe:has(> [data-pl-style="icon"]) { --qpe-min: 92px; }
@@ -11,7 +8,6 @@
 
 .qpe-tile { position: relative; min-width: 0; border-radius: var(--pl-radius, 14px); outline: none; flex: 0 1 auto; }
 .qpe-tile:focus-visible { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 75%, transparent); }
-/* sizes per look: a card is a small (S) card, the others size to their content */
 .qpe-tile[data-pl-style="card"] { height: 124px; }
 .qpe-tile[data-pl-style="card"] > .mp-card { width: 100%; height: 100%; min-height: 0; margin: 0; padding: 10px 11px 8px; gap: 5px; box-sizing: border-box; }
 .qpe-tile[data-pl-style="card"] > .mp-card .mp-foot { display: none; }
@@ -19,10 +15,8 @@
 .qpe-tile > .pl-face { height: auto; min-height: 100%; }
 .qpe-tile[data-pl-style="icon"] > .pl-face { height: 100%; }
 .qpe-tile[data-pl-style="text"] > .pl-text { padding: 2px 6px 2px 2px; }
-
-/* the side column: on the right of the window, as tall as the window (the window grows to show it) */
 :root[data-qpe="side"] .qa-inner { margin-right: 212px; min-height: var(--qpe-side-min, 0px); }
-:root[data-qpe="side"] .qa-inner > .qa-bar { margin-top: auto; }      /* the footer stays at the bottom of the taller window */
+:root[data-qpe="side"] .qa-inner > .qa-bar { margin-top: auto; }
 .qpe[data-place="side"] {
   position: absolute; z-index: 2; top: 0; right: 0; bottom: 0; width: 212px; box-sizing: border-box;
   display: flex; flex-direction: column; flex-wrap: nowrap; gap: 8px; padding: 12px 12px 12px 4px;

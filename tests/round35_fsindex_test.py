@@ -25,9 +25,6 @@ from app import fsindex, fsindex_query as fq, fsindex_win as fw  # noqa: E402
 
 NOW = time.mktime((2026, 10, 12, 12, 0, 0, 0, 0, -1))
 
-
-# ---------------------------------------------------------------- helpers
-
 def make_snap(rows=None):
     rows = rows or {
         "C:\\": [("Users", 0, NOW, True), ("Windows", 0, NOW, True), ("readme.md", 10, NOW - 86400 * 400, False)],
@@ -43,16 +40,13 @@ def make_snap(rows=None):
     }
     return fsindex.Snapshot.build(rows.items(), ["C:\\"])
 
-
 def names(index, query, limit=50, **kw):
     parsed = fq.parse(query, now=NOW, **kw)
     return [r["name"] for r in index.search(parsed, limit=limit, deadline=time.perf_counter() + 5)["results"]]
 
-
 @pytest.fixture()
 def idx():
     return fsindex.Index(make_snap())
-
 
 @pytest.fixture()
 def data_dir(tmp_path, monkeypatch):
@@ -63,27 +57,23 @@ def data_dir(tmp_path, monkeypatch):
         fsindex._SERVICE.stop()
     monkeypatch.setattr(fsindex, "_SERVICE", None)
 
-
-# ---------------------------------------------------------------- query language
-
 def test_parse_words_glob_ext_and_or_precedence():
     q = fq.parse("report *.pdf|*.docx", now=NOW)
     group = q.groups[0]
-    assert [t.kind for t in group] == ["text", "or"]          # glued «|» binds the neighbours (Everything)
+    assert [t.kind for t in group] == ["text", "or"]
     assert fq.match(group, "report.docx", "c:/x", 1, NOW, False)
     assert not fq.match(group, "report.txt", "c:/x", 1, NOW, False)
     assert not fq.match(group, "notes.pdf", "c:/x", 1, NOW, False)
-    # spaced «|» between word groups = alternatives of whole groups (what people and models mean)
+
     q = fq.parse("договор аренды | rental agreement", now=NOW)
     assert len(q.groups) == 2 and [t.value for t in q.groups[1]] == ["rental", "agreement"]
-    assert len(fq.parse("*.jpg | *.png").groups) == 1                   # single terms → one «or» term
+    assert len(fq.parse("*.jpg | *.png").groups) == 1
     assert fq.parse("*.jpg | *.png").groups[0][0].kind == "or"
     q = fq.parse("!tmp ext:log;txt", now=NOW)
     assert fq.match(q.groups[0], "a.log", "c:", 1, NOW, False)
     assert not fq.match(q.groups[0], "tmp.log", "c:", 1, NOW, False)
-    assert not fq.match(q.groups[0], "a.log", "c:", 0, NOW, True)      # ext: never matches folders
-    assert fq.parse("*.txt").groups[0][0].lits == (".txt\n",)          # «*.txt» → one fast suffix literal
-
+    assert not fq.match(q.groups[0], "a.log", "c:", 0, NOW, True)
+    assert fq.parse("*.txt").groups[0][0].lits == (".txt\n",)
 
 def test_parse_size_and_date_ranges():
     assert fq.size_range(">5mb") == (5 * 1024 ** 2 + 1, fq.INF)
@@ -104,14 +94,13 @@ def test_parse_size_and_date_ranges():
     with pytest.raises(fq.QueryError):
         fq.parse("regex:(unclosed")
 
-
 def test_parse_folder_terms_kinds_roots_sort():
     q = fq.parse("in:C:\\Users\\Yono main sort:date", now=NOW)
     assert q.sort == "date"
     inn = [t for t in q.groups[0] if t.kind == "in"][0]
     assert inn.folder == "c:/users/yono"
     assert inn.test("x", "c:/users/yono/projects", 0, 0, False) and not inn.test("x", "c:/users/yonox", 0, 0, False)
-    assert fq.parse("folder:C:\\Temp").groups[0][0].kind == "in"        # folder:<path> = inside it
+    assert fq.parse("folder:C:\\Temp").groups[0][0].kind == "in"
     assert fq.parse("folder:proj").groups[0][0].test("project", "c:", 0, 0, True)
     assert not fq.parse("folder:proj").groups[0][0].test("project", "c:", 0, 0, False)
     assert fq.parse("parent:D:\\A").groups[0][0].test("x", "d:/a", 0, 0, False)
@@ -120,9 +109,8 @@ def test_parse_folder_terms_kinds_roots_sort():
     assert "ext" in kinds and "inany" in kinds
     assert fq.parse("x", places=lambda w: "C:\\Users\\Yono\\Downloads" if w.lower() == "downloads" else "",
                     roots=["Downloads"]).groups[0][-1].folder == "c:/users/yono/downloads"
-    # regex values keep their «|»
-    assert fq.parse("regex:(foo|bar)\\d").groups[0][0].kind == "regex"
 
+    assert fq.parse("regex:(foo|bar)\\d").groups[0][0].kind == "regex"
 
 def test_to_everything_translation():
     ev = fq.to_everything("отчёт type:image dm:7d size:>5мб in:C:\\Docs !tmp sort:date", now=NOW)
@@ -132,27 +120,22 @@ def test_to_everything_translation():
     assert fq.to_everything("a", roots=["C:\\A", "D:\\B"]) == 'a <"C:\\A\\"|"D:\\B\\">'
     assert fq.to_everything("regex:(a|b)x") == 'regex:"(a|b)x"'
     assert fq.to_everything("договор аренды | rental agreement") == "<<договор аренды> | <rental agreement>>"
-    assert fq.to_everything("*.pdf|*.docx report") == "*.pdf | *.docx report"   # Everything binds «|» tightly anyway
-
+    assert fq.to_everything("*.pdf|*.docx report") == "*.pdf | *.docx report"
 
 def test_kind_of_and_low():
     assert fq.kind_of("a.JPG") == "image" and fq.kind_of("x", True) == "folder" and fq.kind_of("a.py") == "code"
     assert fq.kind_of("a.pdf") == "doc" and fq.kind_of("a.txt") == "text" and fq.kind_of("noext") == "file"
     assert fq.low("Ёлка") == "елка"
     blob = "\nİstanbul\nKelvin\nЁж\n".encode()
-    assert len(fsindex.low_bytes(blob)) == len(blob)                   # one offsets array for both blobs
-
-
-# ---------------------------------------------------------------- own index
+    assert len(fsindex.low_bytes(blob)) == len(blob)
 
 def test_ranking_exact_first_user_folders_before_noise(idx):
     got = names(idx, "report")
-    assert got[0] in ("report", "report.docx")                           # exact name / stem first
+    assert got[0] in ("report", "report.docx")
     assert got.index("report.docx") < got.index("old_report_2020.txt")
     paths = [r["path"] for r in idx.search(fq.parse("report.docx"), 10)["results"]]
-    assert paths[0] == "C:\\Users\\Yono\\Desktop\\report.docx"           # AppData copy ranks after
-    assert names(idx, "отчет") == ["Отчёт за март.pdf"]                  # ё = е, case-insensitive Cyrillic
-
+    assert paths[0] == "C:\\Users\\Yono\\Desktop\\report.docx"
+    assert names(idx, "отчет") == ["Отчёт за март.pdf"]
 
 def test_filters(idx):
     assert names(idx, "*.txt") == ["notes.txt", "old_report_2020.txt"]
@@ -165,7 +148,7 @@ def test_filters(idx):
     assert names(idx, "parent:C:\\Users\\Yono\\Projects\\memu sort:name") == ["main.py", "notes.txt"]
     assert names(idx, "main !path:memu-old") == ["main.py"]
     assert names(idx, "main") == ["main.py", "main.py"]
-    # path terms: the folder path holds it, or it spans folder + name
+
     assert set(names(idx, "projects/memu")) == {"main.py", "notes.txt", "memu"}
     assert names(idx, "memu/not") == ["notes.txt"]
     assert set(names(idx, "path:windows")) == {"Windows", "notepad.exe"}
@@ -177,7 +160,6 @@ def test_filters(idx):
     assert names(idx, "x", kinds=["folder"]) == []
     assert set(names(idx, "*", kinds=["code"])) == {"main.py"}
 
-
 def test_find_delta_and_compaction(idx):
     snap = idx.snap
     i = snap.find("C:\\Users\\Yono\\Desktop\\REPORT.docx")
@@ -185,7 +167,7 @@ def test_find_delta_and_compaction(idx):
     assert snap.find("C:\\nope\\x") == -1
     idx.add("C:\\Users\\Yono\\Desktop\\new plan.xlsx", 10, NOW, False)
     assert names(idx, "plan") == ["new plan.xlsx"]
-    idx.remove("C:\\Users\\Yono\\Projects")                              # a folder: its whole subtree goes
+    idx.remove("C:\\Users\\Yono\\Projects")
     assert names(idx, "main") == [] and names(idx, "notes") == []
     assert sorted(names(idx, "report")) == ["old_report_2020.txt", "report.docx", "report.docx"]
     idx.update("C:\\Users\\Yono\\Desktop\\IMG_0001.jpg", 99 * 1024 ** 2, NOW)
@@ -193,7 +175,6 @@ def test_find_delta_and_compaction(idx):
     fresh = idx.compacted()
     assert len(fresh) == len(idx) and not fresh.added and not fresh.deleted
     assert names(fresh, "plan") == ["new plan.xlsx"] and names(fresh, "notes") == []
-
 
 def test_save_load_roundtrip(tmp_path):
     snap = make_snap()
@@ -205,7 +186,6 @@ def test_save_load_roundtrip(tmp_path):
     (tmp_path / "bad.bin").write_bytes(raw[:-7])
     with pytest.raises(Exception):
         fsindex.Snapshot.load(tmp_path / "bad.bin")
-
 
 def test_walker_exclusions_and_hidden(tmp_path):
     (tmp_path / "a" / "node_modules" / "x").mkdir(parents=True)
@@ -222,7 +202,6 @@ def test_walker_exclusions_and_hidden(tmp_path):
     batches = fsindex.walk([str(tmp_path / "a")], rules, hidden=False)
     assert ".hidden" not in {n for _f, kids in batches for n, *_ in kids}
 
-
 def test_service_build_events_and_search_ex(data_dir):
     root = data_dir / "root"
     (root / "docs").mkdir(parents=True)
@@ -231,7 +210,7 @@ def test_service_build_events_and_search_ex(data_dir):
     fsindex.rebuild(wait=True)
     got = fsindex.search_ex("report", limit=5)
     assert got["backend"] == "own" and [r["name"] for r in got["results"]] == ["Report 2026.pdf"]
-    assert set(fsindex.search("report")[0]) >= {"path", "name", "size", "mtime", "is_dir"}   # the contract
+    assert set(fsindex.search("report")[0]) >= {"path", "name", "size", "mtime", "is_dir"}
     new = root / "docs" / "fresh.txt"
     new.write_text("hi")
     fsindex.service().apply_events([("created", str(new), "")])
@@ -241,32 +220,27 @@ def test_service_build_events_and_search_ex(data_dir):
     fsindex.service().apply_events([("renamed", str(new), str(renamed))])
     assert fsindex.search("fresh") == [] and [r["name"] for r in fsindex.search("renamed")] == ["renamed.txt"]
     renamed.unlink()
-    assert fsindex.search("renamed") == []                             # vanished results are dropped on display
+    assert fsindex.search("renamed") == []
     st = fsindex.status()
     assert st["ready"] and st["own"]["state"] == "ready" and st["own"]["file_bytes"] > 0 and st["owner"]
     assert fsindex.search_ex("")["code"] == "empty"
     assert fsindex.search_ex("size:lots")["code"] == "query"
-    # a second process sees the owner and only reads the saved index
+
     assert fsindex.claim_owner() is True
     owner = json.loads((fsindex.data_dir() / "owner.json").read_text())
     assert owner["pid"] == os.getpid()
-
 
 def test_second_process_is_not_owner(data_dir, monkeypatch):
     path = fsindex.data_dir() / "owner.json"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps({"pid": os.getppid(), "at": time.time()}))
     assert fsindex.claim_owner() is False
-    path.write_text(json.dumps({"pid": os.getppid(), "at": time.time() - 1000}))    # stale heartbeat
+    path.write_text(json.dumps({"pid": os.getppid(), "at": time.time() - 1000}))
     assert fsindex.claim_owner() is True
-
 
 def test_settings_normalize():
     s = fsindex.normalize_settings({"backend": "weird", "roots": ["  ", "D:\\"], "rescan_minutes": "5000", "ai_tool": "false"})
     assert s["backend"] == "auto" and s["roots"] == ["D:\\"] and s["rescan_minutes"] == 1440 and s["ai_tool"] is False
-
-
-# ---------------------------------------------------------------- Windows parsers (synthetic buffers)
 
 def _list2(items, req):
     head = struct.pack("<IIIII", 1234, len(items), 0, req, 1)
@@ -283,7 +257,6 @@ def _list2(items, req):
                 data += struct.pack("<Q", value)
     return head + table + data
 
-
 def test_everything_ipc_reply_and_query_layout():
     ft = int((NOW + 11644473600) * 10_000_000)
     req = fw.REQ_NAME | fw.REQ_PATH | fw.REQ_SIZE | fw.REQ_DATE_MODIFIED
@@ -294,7 +267,6 @@ def test_everything_ipc_reply_and_query_layout():
     payload = fw.build_query2(0x1_0000_00AB, "*.txt", 50, req, 14)
     fields = struct.unpack_from("<IIIIIII", payload)
     assert fields == (0xAB, fw.REPLY_ID, 0, 0, 50, req, 14) and payload[28:].decode("utf-16-le") == "*.txt\0"
-
 
 def test_everything_search_with_mocks(monkeypatch):
     rows = [{"path": "C:\\a\\old_report.txt", "name": "old_report.txt", "dir": "C:\\a", "size": 1, "mtime": NOW, "is_dir": False},
@@ -311,7 +283,6 @@ def test_everything_search_with_mocks(monkeypatch):
     assert got["via"] == "es" and got["results"][0]["kind"] == "doc"
     with pytest.raises(RuntimeError):
         fw.everything_search("x", info={"running": False, "dll": "", "es": ""})
-
 
 def test_search_ex_prefers_everything_and_falls_back(data_dir, monkeypatch):
     calls = []
@@ -334,7 +305,6 @@ def test_search_ex_prefers_everything_and_falls_back(data_dir, monkeypatch):
     got = fsindex.search_ex("notes", validate=False)
     assert got["backend"] == "own" and [r["name"] for r in got["results"]] == ["notes.txt"]
 
-
 def _usn(frn, parent, name, attrs=0, reason=0, major=2):
     enc = name.encode("utf-16-le")
     if major == 2:
@@ -346,9 +316,7 @@ def _usn(frn, parent, name, attrs=0, reason=0, major=2):
     rec = rec + b"\0" * pad
     return struct.pack("<I", len(rec)) + rec[4:]
 
-
 ROOT_FRN = (1 << 48) | 5
-
 
 def test_usn_records_and_mft_batches():
     D = fw.FILE_ATTRIBUTE_DIRECTORY
@@ -363,12 +331,11 @@ def test_usn_records_and_mft_batches():
     batches, dirs = fw.batches_from_records([r[:4] for r in recs], "C:\\", rules)
     got = {folder: sorted(n for n, *_ in kids) for folder, kids in batches}
     assert got == {"C:\\": ["Users", "boot.ini"], "C:\\Users": ["Yono"], "C:\\Users\\Yono": ["a.txt"]}
-    assert dict(batches)["C:\\Users\\Yono"][0][1] == -1                 # size unknown → stat'ed lazily
+    assert dict(batches)["C:\\Users\\Yono"][0][1] == -1
     batches, _ = fw.batches_from_records([r[:4] for r in recs], "C:\\", rules, hidden=False)
     assert "boot.ini" not in {n for _f, kids in batches for n, *_ in kids}
     snap = fsindex.Snapshot.build(batches, ["C:\\"], "mft")
     assert snap.path(snap.find("C:\\Users\\Yono\\a.txt")) == "C:\\Users\\Yono\\a.txt"
-
 
 def test_usn_journal_events():
     D = fw.FILE_ATTRIBUTE_DIRECTORY
@@ -390,7 +357,6 @@ def test_usn_journal_events():
                       ("deleted", "C:\\Docs\\gone.txt", ""), ("created", "C:\\Docs\\sub", ""),
                       ("created", "C:\\Docs\\sub\\in-sub.txt", ""), ("modified", "C:\\Docs\\data.bin", "")]
 
-
 def test_notify_buffer_and_es_output():
     def fni(action, name, last=False):
         enc = name.encode("utf-16-le")
@@ -406,7 +372,6 @@ def test_notify_buffer_and_es_output():
     assert fw.parse_es_output("C:\\x.txt\r\nC:\\y\r\n") == [{"path": "C:\\x.txt"}, {"path": "C:\\y"}]
     assert fw.filetime_to_epoch(0) is None and abs(fw.filetime_to_epoch(116444736000000000)) < 1e-6
 
-
 def test_windows_functions_are_safe_off_windows():
     if sys.platform == "win32":
         pytest.skip("Linux-only guard check")
@@ -415,9 +380,6 @@ def test_windows_functions_are_safe_off_windows():
     info = fw.everything_info()
     assert info["running"] is False and info["installed"] is False
 
-
-# ---------------------------------------------------------------- API / tool
-
 def _client():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -425,7 +387,6 @@ def _client():
     app = FastAPI()
     app.include_router(fsindex_api.router)
     return TestClient(app), fsindex_api
-
 
 def test_tool_and_routes(data_dir):
     root = data_dir / "root"
@@ -441,7 +402,7 @@ def test_tool_and_routes(data_dir):
     assert api.run_tool({}, "en")["error"]
     r = client.get("/api/fsindex/search", params={"q": "*.xlsx"}).json()
     assert [x["name"] for x in r["results"]] == ["Budget 2026.xlsx"] and r["drag_key"]
-    # open / drag accept only shown results, drag needs the key
+
     assert client.post("/api/fsindex/open", json={"path": "/etc/passwd"}).status_code == 400
     path = r["results"][0]["path"]
     assert client.get("/api/fsindex/drag", params={"path": path, "k": "nope"}).status_code == 403
@@ -456,7 +417,6 @@ def test_tool_and_routes(data_dir):
     res = asyncio.run(api.chat_tool({"query": "budget"}, {"lang": "en"}))
     assert res["tool"] == "search_files" and res["count"] == 1
 
-
 def test_quick_tool_registered_and_prompts():
     from app import quick_ask_api, fsindex_api  # noqa: F401
     assert "search_files" in quick_ask_api.EXTRA_TOOLS
@@ -469,7 +429,6 @@ def test_quick_tool_registered_and_prompts():
     from app import answer_guard
     assert answer_guard.TOOL_TAG.match("search_files")
 
-
 def test_plugin_manifest_and_files():
     manifest = json.loads((ROOT / "app" / "pgstatic" / "quick" / "plugins" / "index.json").read_text(encoding="utf-8"))
     row = [p for p in manifest["plugins"] if isinstance(p, dict) and p.get("id") == "fsearch"][0]
@@ -479,7 +438,7 @@ def test_plugin_manifest_and_files():
     import re
     for name in ("fsearch.js", "fsearch-settings.js"):
         js = (ROOT / "app" / "pgstatic" / "quick" / "plugins" / name).read_text(encoding="utf-8")
-        # every English half of t("ru", "en") / tr("ru", "en") is free of Cyrillic
+
         for m in re.finditer(r'\b(?:t|tr)\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)', js):
             assert not re.search("[а-яА-ЯёЁ]", m.group(2)), (name, m.group(2))
         for m in re.finditer(r'\b(?:t|tr)\(`([^`]*)`,\s*`([^`]*)`\)', js):
@@ -487,9 +446,6 @@ def test_plugin_manifest_and_files():
     import build
     assert {"app.fsindex", "app.fsindex_query", "app.fsindex_win", "app.fsindex_api"} <= set(
         x for x in build.TARGETS["memuai"]["hidden"] if x.startswith("app.fsindex"))
-
-
-# ---------------------------------------------------------------- speed (synthetic)
 
 def test_speed_200k():
     import random

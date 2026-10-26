@@ -27,44 +27,44 @@ SMART = {
     "smart:liked": ("Любимые", "Liked"),
 }
 DEFAULT_SETTINGS: Dict[str, Any] = {
-    "download_dir": "",          # empty -> MEMUAI_DATA_DIR/music/tracks
-    "quality": "best",           # best | normal | small
-    "prefer_m4a": True,          # m4a plays everywhere (iPhone Mini App too); False -> any bestaudio
-    "embed_metadata": True,      # only when ffmpeg is available
-    "cookies_from_browser": "",  # "" | edge | chrome | firefox | brave | opera | vivaldi — when YouTube asks to sign in
+    "download_dir": "",
+    "quality": "best",
+    "prefer_m4a": True,
+    "embed_metadata": True,
+    "cookies_from_browser": "",
     "volume": 1.0,
-    "parallel_downloads": 2,     # r37 wave 2: yt-dlp processes at once (1..4), across jobs and album/playlist items
-    "embed_cover": True,         # write tags + cover into the file with mutagen (if installed; ffmpeg not needed)
-    "auto_lyrics": True,         # search lyrics automatically (new tracks in the background + on open); off -> only on «Find»
-    # r39-music-lyrics: enabled lyrics sources in the order of preference (lyrics.SOURCES), plain text when nothing synced
+    "parallel_downloads": 2,
+    "embed_cover": True,
+    "auto_lyrics": True,
+
     "lyrics_sources": ["lrclib", "musixmatch", "netease", "qq", "genius", "lyricsovh"],
     "lyrics_plain_fallback": True,
-    "lyrics_offset_ms": 0,       # r41-ui: general lyrics offset for every track, ms (+ = lyrics later; Bluetooth latency)
-    "lyrics_sync": "smart",      # r41b: karaoke «smart» (word / estimated sung part), «line» (whole line lit), «off»
-    "youtube_fallback": True,    # a failed YouTube download tries YouTube Music / YouTube / SoundCloud matches
-    # r38 — every user preference lives here (synced with the Mini App), the module window only caches it.
-    "smart_hidden": [],          # smart / rule playlist ids hidden from the lists (smart:recent, smart:top, smart:liked, pl-…)
-    "smart_order": [],           # order of smart + rule playlists (ids); unknown ones keep their place after these
-    "recent_days": 30,           # «Recently added»: tracks added within N days (0 = no limit), max 50/500 tracks
-    "smart_limit": 50,           # how many tracks «Recently added» / «Most played» hold (10..500)
-    "normalize": True,           # volume levelling with the measured loudness (gain dB per track)
-    "normalize_target": -14,     # LUFS target (-23..-8)
-    "auto_analyze": True,        # measure loudness of new tracks in the background (ffmpeg ebur128)
-    "gapless": True,             # preload the next track and start it without a gap
-    "crossfade": 0,              # seconds 0..12 (0 = gapless/cut)
-    "resume_long": True,         # remember the position of long tracks/podcasts
-    "resume_min": 20,            # minutes — what counts as long
-    "seek_step": 10,             # seconds — arrow keys / mouse wheel over the progress bar
-    "play_click": "double",      # double | single — which click starts a track in lists
-    "auto_radio": False,         # when the queue ends, continue with similar tracks from the library
-    "confirm_delete": True,      # ask before deleting from the library
-    "write_tags": True,          # track edits go into the file tags too (tagger.py)
-    "show_genres": True, "show_folders": True, "show_history": True,   # library tabs
-    "hotkeys": {},               # action -> key combo overrides («Space», «Ctrl+ArrowRight», «Shift+N»…)
-    # r39 (r39-music-lib): sorting per list and manual order, artist photos
-    "sort_views": {},            # view -> "field:asc|desc" («library», «liked», «folder», «genre», «playlist», «albums»…)
-    "playlist_order": [],        # manual order of plain playlists (sidebar / grid); new ones come first
-    "artist_photos": True,       # artist without a photo → take it from Deezer (once per artist)
+    "lyrics_offset_ms": 0,
+    "lyrics_sync": "smart",
+    "youtube_fallback": True,
+
+    "smart_hidden": [],
+    "smart_order": [],
+    "recent_days": 30,
+    "smart_limit": 50,
+    "normalize": True,
+    "normalize_target": -14,
+    "auto_analyze": True,
+    "gapless": True,
+    "crossfade": 0,
+    "resume_long": True,
+    "resume_min": 20,
+    "seek_step": 10,
+    "play_click": "double",
+    "auto_radio": False,
+    "confirm_delete": True,
+    "write_tags": True,
+    "show_genres": True, "show_folders": True, "show_history": True,
+    "hotkeys": {},
+
+    "sort_views": {},
+    "playlist_order": [],
+    "artist_photos": True,
 }
 SETTING_CHOICES = {"play_click": ("double", "single"), "lyrics_sync": ("smart", "line", "off")}
 SETTING_RANGES = {"recent_days": (0, 3650), "smart_limit": (10, 500), "normalize_target": (-23, -8), "crossfade": (0, 12),
@@ -93,7 +93,6 @@ CREATE TABLE IF NOT EXISTS lyrics (track_id TEXT PRIMARY KEY, synced TEXT, plain
 """
 _EDITABLE = ("title", "artist", "album", "album_artist", "year", "track_no", "genre")
 
-
 def data_root() -> Path:
     env = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if env:
@@ -101,17 +100,14 @@ def data_root() -> Path:
     from ..config import DATA_DIR
     return Path(DATA_DIR) / "music"
 
-
 def norm_text(value: Any) -> str:
     """Lower-case, no punctuation, no «(Official Video)» noise: the dedup/search key."""
     text = str(value or "").lower()
     text = re.sub(r"[\(\[][^\)\]]*(official|video|audio|lyrics?|clip|клип|remaster|hd|hq|4k|visualizer)[^\)\]]*[\)\]]", " ", text)
     return re.sub(r"[^\w]+", " ", text, flags=re.UNICODE).strip()
 
-
 def album_key(album: str, artist: str) -> str:
     return norm_text(artist) + "|" + norm_text(album)
-
 
 def accent_of(path: Path) -> str:
     """Dominant, slightly saturated colour of a cover as ``#rrggbb`` (empty without Pillow)."""
@@ -133,7 +129,7 @@ def accent_of(path: Path) -> str:
         hi, lo = max(r, g, b), min(r, g, b)
         sat = (hi - lo) / hi if hi else 0
         light = (hi + lo) / 510
-        # Prefer vivid colours that are neither black nor white; area still matters.
+
         score = count * (0.25 + sat) * (1.0 - abs(light - 0.5))
         if score > best_score:
             best, best_score = (r, g, b), score
@@ -141,12 +137,10 @@ def accent_of(path: Path) -> str:
         return ""
     return "#%02x%02x%02x" % best
 
-
 SORT_FIELDS = {"added": ("added_at", "desc"), "title": ("title COLLATE NOCASE", "asc"), "artist": ("artist COLLATE NOCASE", "asc"),
                "album": ("album COLLATE NOCASE", "asc"), "plays": ("plays", "desc"), "recent": ("last_played", "desc"),
                "duration": ("duration", "desc"), "liked": ("liked_at", "desc"), "year": ("year", "desc")}
 _SORT_TAIL = {"artist": ", album COLLATE NOCASE, track_no", "album": ", track_no", "plays": ", last_played DESC"}
-
 
 def sort_sql(sort: str = "added", direction: str = "") -> str:
     """ORDER BY of library.list (r39: any field with ``asc``/``desc``; default direction per field, newest first)."""
@@ -157,7 +151,6 @@ def sort_sql(sort: str = "added", direction: str = "") -> str:
     way = str(direction or tail_dir or default).lower()
     way = "ASC" if way == "asc" else "DESC"
     return f"{col} {way}{_SORT_TAIL.get(field, '')}, added_at DESC"
-
 
 def save_cover(data: bytes, dest: Path) -> Optional[Path]:
     """Store cover bytes as a square JPEG (YouTube 16:9 thumbnails are centre-cropped)."""
@@ -181,7 +174,6 @@ def save_cover(data: bytes, dest: Path) -> Optional[Path]:
     except Exception:
         return None
 
-
 class Library:
     def __init__(self, root: Optional[Path] = None):
         self.root = Path(root) if root else data_root()
@@ -192,8 +184,7 @@ class Library:
         self._lock = threading.RLock()
         self._db = sqlite3.connect(str(self.root / "library.sqlite"), check_same_thread=False)
         self._db.row_factory = sqlite3.Row
-        # SQLite's built-in lower/LIKE only fold ASCII. Russian titles and
-        # artists must remain searchable regardless of the letter case.
+
         self._db.create_function("lower", 1, lambda value: str(value).casefold() if value is not None else None,
                                  deterministic=True)
         self._db.create_function("memu_norm", 1, norm_text, deterministic=True)
@@ -201,20 +192,19 @@ class Library:
             self._db.executescript(_SCHEMA)
             self._db.execute("PRAGMA journal_mode=WAL")
             cols = {r[1] for r in self._db.execute("PRAGMA table_info(plays)").fetchall()}
-            if "device" not in cols:   # r37 wave 2: where the listen happened (pc / phone)
+            if "device" not in cols:
                 self._db.execute("ALTER TABLE plays ADD COLUMN device TEXT NOT NULL DEFAULT ''")
             self._db.execute("CREATE INDEX IF NOT EXISTS plays_at ON plays(at)")
             cols = {r[1] for r in self._db.execute("PRAGMA table_info(tracks)").fetchall()}
             for col, decl in (("gain", "REAL"), ("lufs", "REAL"), ("resume_at", "REAL NOT NULL DEFAULT 0")):
-                if col not in cols:   # r38: loudness (dB to the target, measured LUFS), resume position
+                if col not in cols:
                     self._db.execute(f"ALTER TABLE tracks ADD COLUMN {col} {decl}")
             cols = {r[1] for r in self._db.execute("PRAGMA table_info(playlists)").fetchall()}
-            if "rules" not in cols:   # r38: rule-based («smart») user playlists — JSON, empty for a plain one
+            if "rules" not in cols:
                 self._db.execute("ALTER TABLE playlists ADD COLUMN rules TEXT NOT NULL DEFAULT ''")
             self._db.commit()
         self._secret = self._load_secret()
 
-    # ------------------------------------------------------------------ infra
     def close(self) -> None:
         with self._lock:
             self._db.close()
@@ -250,7 +240,6 @@ class Library:
         import hmac
         return bool(token) and hmac.compare_digest(self.token(kind, item_id), str(token))
 
-    # ------------------------------------------------------------------ settings
     def settings(self) -> Dict[str, Any]:
         try:
             saved = json.loads((self.root / "settings.json").read_text(encoding="utf-8"))
@@ -314,7 +303,6 @@ class Library:
         folder.mkdir(parents=True, exist_ok=True)
         return folder
 
-    # ------------------------------------------------------------------ tracks
     def file_path(self, row: Dict[str, Any]) -> Path:
         path = Path(row.get("file") or "")
         return path if path.is_absolute() else self.tracks_dir / path
@@ -436,7 +424,7 @@ class Library:
                 values.append(int(changes[key] or 0) if key == "track_no" else str(changes[key])[:300])
         accent = str(changes.get("accent") or "") if "accent" in changes else None
         if accent is not None and (accent == "" or re.fullmatch(r"#[0-9a-fA-F]{6}", accent)):
-            # r38 (mod-integ): the colour of the track (cards, panels, the Quick Access ring); not a file tag.
+
             self._x("UPDATE tracks SET accent=? WHERE id=?", (accent.lower(), track_id))
         if sets:
             self._x(f"UPDATE tracks SET {', '.join(sets)} WHERE id=?", [*values, track_id])
@@ -462,11 +450,10 @@ class Library:
             raise KeyError("Трек не найден / Track not found")
         removed_file = False
         path = self.file_path(row)
-        # Only our own downloads are deleted from disk; an imported folder stays untouched.
+
         resolved = path.resolve()
         own = self.tracks_dir.resolve() in resolved.parents or self.download_dir().resolve() in resolved.parents
-        # Two entries can reference one physical file (different sources,
-        # metadata or a repeated import). Removing one must keep the other playable.
+
         shared = any(r["id"] != track_id and self.file_path(dict(r)).resolve() == resolved
                      for r in self._q("SELECT id, file FROM tracks"))
         if delete_file and own and not shared and path.is_file():
@@ -531,10 +518,10 @@ class Library:
         elif flt.startswith("source:"):
             where.append("source=?")
             params.append(flt[7:])
-        elif flt.startswith("genre:"):   # r38: «Жанры» — one genre of the tag (case-insensitive, «Rock; Pop» counts for both)
+        elif flt.startswith("genre:"):
             where.append("(';' || lower(replace(replace(replace(replace(genre, ' / ', ';'), '; ', ';'), ', ', ';'), '/', ';')) || ';') LIKE ?")
             params.append(f"%;{flt[6:].strip().lower()};%")
-        elif flt.startswith("folder:"):  # r38: «Папки» — files of an imported/download folder (and its subfolders)
+        elif flt.startswith("folder:"):
             from .extras import folder_ids
             ids = folder_ids(self, flt[7:])
             where.append(f"id IN ({','.join('?' * len(ids))})" if ids else "0")
@@ -555,7 +542,6 @@ class Library:
         rows = {r["id"]: r for r in self._q(f"SELECT * FROM tracks WHERE id IN ({','.join('?' * len(ids))})", ids)}
         return [self._public(rows[i], base) for i in ids if i in rows]
 
-    # ------------------------------------------------------------------ stats / artists / albums
     def stats(self, base: str = "", days: int = 30) -> Dict[str, Any]:
         agg = self._q("SELECT COUNT(*) AS n, COALESCE(SUM(duration),0) AS d, COUNT(DISTINCT lower(artist)) AS a FROM tracks")[0]
         listened = self._q("SELECT COALESCE(SUM(seconds),0) AS s, COUNT(*) AS n FROM plays")[0]
@@ -633,7 +619,7 @@ class Library:
         rows = self._q("SELECT artist, COUNT(*) AS n, SUM(plays) AS p, SUM(duration) AS d, MAX(added_at) AS a, "
                        "(SELECT id FROM tracks t2 WHERE lower(t2.artist)=lower(tracks.artist) AND t2.cover<>'' LIMIT 1) AS cid "
                        "FROM tracks WHERE artist<>'' GROUP BY lower(artist) ORDER BY artist COLLATE NOCASE")
-        from .artists import all_meta   # r39: own photo / bio
+        from .artists import all_meta
         meta = all_meta(self)
         return [{"name": r["artist"], "tracks": r["n"], "plays": r["p"] or 0, "duration": r["d"] or 0, "added_at": r["a"] or 0,
                  "image": (meta.get(r["artist"].lower()) or {}).get("image"),
@@ -647,7 +633,7 @@ class Library:
             raise KeyError("Исполнитель не найден / Artist not found")
         tracks = [self._public(r, base) for r in rows]
         albums = [a for a in self.albums(base) if norm_text(a["artist"]) == norm_text(name)]
-        from .artists import meta   # r39: own photo / bio
+        from .artists import meta
         return {"name": rows[0]["artist"], "tracks": tracks, "albums": albums, **meta(self, rows[0]["artist"]),
                 "plays": sum(t["plays"] for t in tracks), "duration": sum(t["duration"] for t in tracks),
                 "cover": next((t["cover"] for t in tracks if t["cover"]), None),
@@ -675,7 +661,6 @@ class Library:
                 if album_key(r["album"], r["album_artist"] or r["artist"]) == key]
         return {**info, "items": [self._public(r, base) for r in rows]}
 
-    # ------------------------------------------------------------------ playlists
     def _smart_ids(self, pid: str) -> List[str]:
         cfg = self.settings()
         limit = int(cfg.get("smart_limit") or 50)
@@ -729,7 +714,7 @@ class Library:
         auto = [self._summary(pid, names[1] if en else names[0], True, en, base,
                               {"name_ru": names[0], "name_en": names[1], "rules": None}) for pid, names in SMART.items()]
         plain = []
-        manual = {pid: i for i, pid in enumerate(cfg.get("playlist_order") or [])}   # r39: user order, new ones first
+        manual = {pid: i for i, pid in enumerate(cfg.get("playlist_order") or [])}
         rows = sorted(self._q("SELECT * FROM playlists ORDER BY updated_at DESC"), key=lambda r: (r["id"] in manual, manual.get(r["id"], 0)))
         for r in rows:
             rules = json.loads(r["rules"]) if r["rules"] else None
@@ -813,7 +798,7 @@ class Library:
             stored = json.dumps(clean_rules(args["rules"]), ensure_ascii=False) if args["rules"] else ""
             self._x("UPDATE playlists SET rules=?, updated_at=? WHERE id=?", (stored, time.time(), pid))
         if self._q("SELECT rules FROM playlists WHERE id=? AND rules<>''", (pid,)):
-            return self.playlist(pid, base)   # a rule playlist has no stored track list
+            return self.playlist(pid, base)
         ids = self._playlist_ids(pid)
         if isinstance(args.get("track_ids"), list):
             ids = [str(t) for t in args["track_ids"]]
@@ -843,7 +828,6 @@ class Library:
             raise KeyError("Плейлист не найден / Playlist not found")
         return {"ok": True, "id": pid}
 
-    # ------------------------------------------------------------------ lyrics cache
     def cached_lyrics(self, track_id: str) -> Optional[Dict[str, Any]]:
         rows = self._q("SELECT * FROM lyrics WHERE track_id=?", (track_id,))
         if not rows:
@@ -859,10 +843,8 @@ class Library:
         self._x("INSERT OR REPLACE INTO lyrics (track_id, synced, plain, source, fetched_at) VALUES (?,?,?,?,?)",
                 (track_id, json.dumps(synced, ensure_ascii=False) if synced else None, plain, source, time.time()))
 
-
 _LIBS: Dict[str, Library] = {}
 _LIBS_LOCK = threading.Lock()
-
 
 def get_library() -> Library:
     root = str(data_root())
@@ -872,15 +854,12 @@ def get_library() -> Library:
             lib = _LIBS[root] = Library(Path(root))
         return lib
 
-
-# ---------------------------------------------------------------------- local import helpers
-
 def read_tags(path: Path) -> Dict[str, Any]:
     """Tags through mutagen when installed; otherwise «Artist - Title» from the file name."""
     info: Dict[str, Any] = {}
     cover: Optional[bytes] = None
     try:
-        import mutagen  # optional
+        import mutagen
         audio = mutagen.File(str(path), easy=True)
         if audio is not None:
             def first(key: str) -> str:
@@ -908,7 +887,6 @@ def read_tags(path: Path) -> Dict[str, Any]:
             info["title"] = stem
     return {"fields": info, "cover": cover}
 
-
 def _embedded_cover(path: Path) -> Optional[bytes]:
     import mutagen
     raw = mutagen.File(str(path))
@@ -927,7 +905,6 @@ def _embedded_cover(path: Path) -> Optional[bytes]:
     if covr:
         return bytes(covr[0])
     return None
-
 
 def folder_cover(folder: Path) -> Optional[bytes]:
     for name in ("cover.jpg", "folder.jpg", "cover.png", "front.jpg", "album.jpg", "Cover.jpg", "Folder.jpg"):

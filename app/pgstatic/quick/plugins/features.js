@@ -1,12 +1,5 @@
-/* Round 27 — new Quick Ask features (plugin "features", backend app/quick_features.py):
-   screen region → ask / OCR, clipboard history, ;snippets, answer stickers, PDF/DOCX documents.
 
-   Everything goes through the MemuQuick contract: one panel in the top slot (registerPanel) with three
-   modes — a full view (clipboard / snippets / stickers / snippet editor), the inline ;snippet list under the
-   input, the action strip of a captured region — plus Ctrl+K rows (addAction), the «Sticker» button under an
-   answer (addAnswerAction), the "file" event for documents and addContext/addImage. While a view is open,
-   :root[data-qx-view] hides the core list/answer (features.css). AI results go through MemuQuick.send, so
-   they are saved in the Quick Ask chat like any answer. */
+
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -37,17 +30,16 @@
     open: svg('<path d="M14 4h6v6M20 4l-9 9M10 6H5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-5"/>'),
     lock: svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
   };
-  const DOC_EXT = /\.(pdf|docx|doc|rtf|odt|epub|fb2)$/i;   // r35 (bigdocs): + EPUB / FB2 books
+  const DOC_EXT = /\.(pdf|docx|doc|rtf|odt|epub|fb2)$/i;
   const S = {
     settings: {}, snippets: [], native: !!Q.native, stickers: [], loaded: false,
     view: "", query: "", items: [], index: 0, total: 0, clip: { settings: {}, status: {} }, busy: false,
-    edit: null,                         // the snippet being edited (view "snippet-edit")
-    inline: [], inlineIndex: 0,         // ;snippet matches under the input
-    strip: null,                        // {kind: "region", label} — actions of a captured region
-    copyNext: false,                    // «Copy text»: copy the next answer when it is done
+    edit: null,
+    inline: [], inlineIndex: 0,
+    strip: null,
+    copyNext: false,
   };
 
-  // api(path) — GET, api(path, body) — POST with the window language
   async function api(path, body) {
     return Q.api(path, body === undefined ? {} : { body: { lang: Q.lang(), ...body } });
   }
@@ -60,7 +52,6 @@
   }
   const on = (key) => S.settings[key] !== false;
 
-  /* ------------------------------------------------------------ panel */
   let panelEl = null;
   Q.registerPanel("features", (el) => { panelEl = el; el.classList.add("qx"); return {}; }, { slot: "top", hidden: true, order: -5 });
   function mode() { return S.view ? "view" : (S.inline.length ? "inline" : (S.strip ? "strip" : "")); }
@@ -71,8 +62,7 @@
     if (m === "inline") root.dataset.qxInline = "1"; else delete root.dataset.qxInline;
     if (!m) { Q.hidePanel("features"); panelEl.innerHTML = ""; Q.resize(); return; }
     panelEl.dataset.mode = m;
-    // A redraw replaces the view's search field: keep its focus and caret (results arrive while the user types),
-    // and take the focus back from <body> after a click on a row button, so the keys keep working.
+
     const active = document.activeElement;
     const searching = !!(active && active.id === "qx-q");
     const caret = searching ? active.selectionStart : null;
@@ -88,7 +78,6 @@
     Q.resize();
   }
 
-  /* ------------------------------------------------------------ full views */
   function viewTitle() {
     return { clipboard: t("История буфера обмена", "Clipboard history"), snippets: t("Сниппеты", "Snippets"),
       stickers: t("Стикеры", "Stickers"), "snippet-edit": S.edit && S.edit.created ? t("Сниппет", "Snippet") : t("Новый сниппет", "New snippet") }[S.view] || "";
@@ -126,7 +115,6 @@
     return "";
   }
 
-  // clipboard
   function clipboardHtml() {
     const cs = S.clip.settings || {}, st = S.clip.status || {};
     const paused = !!cs.clipboard_paused;
@@ -145,7 +133,7 @@
     } else {
       body = `<div class="qx-list" role="listbox">${S.items.map((item, i) => {
         const text = item.text.replace(/\s+/g, " ").trim();
-        // a long copy is kept by its beginning: said here, before the paste (the window hides on paste — no toast then)
+
         const kept = item.text.length, size = item.chars > kept ? t(`начало: ${num(kept)} из ${num(item.chars)} зн.`, `start: ${num(kept)} of ${num(item.chars)} chars`) : t(`${item.chars} зн.`, `${item.chars} chars`);
         const meta = [item.app ? esc(item.app.replace(/\.exe$/i, "")) : "", esc(ago(item.t)), esc(size)].filter(Boolean).join(" · ");
         return rowHtml(i, item.pinned ? IC.pin : IC.text, esc(text.slice(0, 220)), meta,
@@ -180,7 +168,7 @@
     try { await api("/api/quick/features/clipboard", { action, id: item.id }); } catch (e) { Q.toast(e.message, "err"); }
     loadClipboard();
   }
-  // A long copy is kept in the history by its beginning: the paste / copy says it is not the whole text.
+
   function cutNote(data, item) {
     if (!data || !data.truncated) return;
     Q.toast(t(`Только начало: ${num(item.text.length)} из ${num(item.chars)} знаков — длинные копирования хранятся в истории не целиком`,
@@ -190,13 +178,12 @@
   async function copyText(text) {
     try { await navigator.clipboard.writeText(text); Q.toast(t("Скопировано", "Copied")); return true; }
     catch (e) {
-      try { const r = await Q.api("/api/quick/window", { body: { action: "copy", text } }); if (r.ok) { Q.toast(t("Скопировано", "Copied")); return true; } } catch (_) { /* below */ }
+      try { const r = await Q.api("/api/quick/window", { body: { action: "copy", text } }); if (r.ok) { Q.toast(t("Скопировано", "Copied")); return true; } } catch (_) {  }
     }
     Q.toast(t("Не удалось скопировать", "Copy failed"), "err");
     return false;
   }
 
-  // snippets
   function snippetMeta(s) {
     const preview = s.text.replace(/\s+/g, " ").trim().slice(0, 90);
     return (s.kind === "ai" ? `<em class="qx-tag">${esc(t("ИИ", "AI"))}</em> ` : "") + esc(preview);
@@ -259,7 +246,6 @@
     openView("snippets");
   }
 
-  // stickers
   function stickersHtml() {
     let body;
     if (!S.items.length) {
@@ -434,7 +420,6 @@
     } catch (e) { Q.toast(e.message, "err"); return null; }
   }
 
-  /* ------------------------------------------------------------ ;snippets in the input */
   function inlineHtml() {
     return `<div class="qx-inline" role="listbox" aria-label="${esc(t("Сниппеты", "Snippets"))}"><div class="qa-section">${esc(t("Сниппеты", "Snippets"))}</div>${S.inline.map((s, i) => `
       <button type="button" role="option" class="qa-row ${i === S.inlineIndex ? "active" : ""}" data-qx="inline" data-n="${i}" aria-selected="${i === S.inlineIndex}">
@@ -446,7 +431,7 @@
     if (!on("snippets") || !text.startsWith(";") || text.includes("\n")) return [];
     const word = text.slice(1).split(/\s+/)[0].toLowerCase();
     const rest = text.slice(1 + word.length);
-    // «;отказ some text» — only the exact keyword keeps matching once the user typed past it
+
     const rows = S.snippets.filter((s) => {
       if (rest) return s.keyword === word;
       if (!word) return true;
@@ -481,7 +466,7 @@
     catch (e) { Q.toast(e.message, "err"); return; }
     S.inline = []; S.view = ""; render();
     Q.setInput("", { focus: false });
-    if (data.inserted) return;                    // pasted into the program; the window hid itself
+    if (data.inserted) return;
     if (data.error) { Q.toast(data.error, "err", 3200); return; }
     await copyText(data.text);
   }
@@ -507,16 +492,15 @@
     }
     S.inline = []; S.view = ""; render();
     if (source) Q.addContext(source, { focus: false });
-    Q.send(s.name || ";" + s.keyword, { page: false, prompt: s.text });    // the chat shows the snippet's name
+    Q.send(s.name || ";" + s.keyword, { page: false, prompt: s.text });
   }
 
-  /* ------------------------------------------------------------ screen region */
   const STRIP = () => [
     [IC.text, t("Распознать", "Extract text"), t("Распознай весь текст на изображении и верни только его — строки и порядок как на картинке, без пояснений.", "Extract all the text in the image and return only it — lines and order as in the picture, no comments.")],
     [IC.copy, t("Копировать текст", "Copy text"), t("Распознай весь текст на изображении и верни только его — строки и порядок как на картинке, без пояснений.", "Extract all the text in the image and return only it — lines and order as in the picture, no comments."), "copy"],
     [IC.translate, t("Перевести", "Translate"), t("Переведи текст на изображении на русский (если он уже на русском — на английский). Верни только перевод.", "Translate the text in the image into English (if it is already English — into Russian). Return only the translation.")],
     [IC.eye, t("Объяснить", "Explain"), t("Объясни, что на этом фрагменте экрана: кратко и по делу.", "Explain what is in this part of the screen: briefly and to the point.")],
-  ];   // a free question about the region is simply typed into the field
+  ];
   function stripHtml() {
     return `<div class="qx-strip"><span class="qx-strip-title" title="${esc(S.strip.label || "")}">${IC.region}${esc(t("Область", "Region"))}</span>
       ${STRIP().map(([icon, label], i) => `<button type="button" class="qa-act qx-chip" data-qx="strip" data-n="${i}" title="${esc(label)} (Alt+${i + 1})">${icon}<span>${esc(label)}</span></button>`).join("")}
@@ -527,7 +511,7 @@
     if (!row) return false;
     S.strip = null; render();
     S.copyNext = row[3] === "copy";
-    // Round 30: the chat shows the short action («Объяснить · область экрана»), the model gets the full instruction
+
     Q.send(row[1] + " · " + t("область экрана", "screen region"), { page: false, prompt: row[2] });
     return true;
   }
@@ -553,9 +537,8 @@
     return true;
   }
 
-  /* ------------------------------------------------------------ documents */
   async function addDocument(file) {
-    // Round 35 (bigdocs): a document that does not fit is kept whole (plugins/bigdocs.js) — questions get fragments with pages
+
     if (window.MemuQuickBigDocs && await window.MemuQuickBigDocs.take(file)) return;
     if (file.size > 15 * 1024 * 1024) { Q.toast(t("Файл больше 15 МБ — слишком большой", "The file is over 15 MB — too large"), "err", 3600); return; }
     Q.toast(t("Читаю «", "Reading “") + file.name + t("»…", "”…"), "", 6000);
@@ -570,7 +553,6 @@
       : t(`Документ добавлен к вопросу: ${doc.name}`, `Document attached: ${doc.name}`), "", 3600);
   }
 
-  /* ------------------------------------------------------------ wiring */
   const isDocument = (file) => !!file && !/^image\//.test(file.type || "")
     && (DOC_EXT.test(file.name || "") || /pdf|wordprocessingml/.test(file.type || "") || file.size > 400 * 1024);
   Q.on("file", (e) => {
@@ -582,9 +564,7 @@
     if (S.view) { e.preventDefault(); S.view === "snippet-edit" ? openView("snippets") : closeView(); return; }
     if (S.inline.length) { e.preventDefault(); S.inline = []; render(); return; }
   });
-  // Round 27 (review): an answer started from elsewhere (the wake word, a command, the companion) while a list is
-  // open was streaming under it — :root[data-qx-view] hides the core answer. The list gives way (an unsaved snippet
-  // editor stays: its text is the user's work).
+
   Q.on("answer-start", () => {
     if (S.view && S.view !== "snippet-edit") { S.view = ""; S.items = []; }
     if (S.strip) S.strip = null;
@@ -602,7 +582,7 @@
   const input = document.getElementById("qa-input");
   if (input) {
     input.addEventListener("input", updateInline);
-    // Capture phase on the document: the ;snippet list owns ↑ ↓ ↵ Tab before the core input handlers.
+
     document.addEventListener("keydown", (e) => {
       if (e.target !== input || !S.inline.length || S.view || e.isComposing) return;
       const s = S.inline[S.inlineIndex];
@@ -612,7 +592,7 @@
       else return;
       e.preventDefault(); e.stopImmediatePropagation();
     }, true);
-    // A PDF / DOCX copied in Explorer and pasted with Ctrl+V (the core paste handler takes only images).
+
     input.addEventListener("paste", (e) => {
       const docs = Array.from((e.clipboardData && e.clipboardData.files) || []).filter(isDocument);
       if (!docs.length || !on("documents")) return;
@@ -633,13 +613,13 @@
     }
     if (S.strip && e.altKey && !mod && /^Digit[1-4]$/.test(e.code)) { if (runStrip(+e.code.slice(5) - 1)) e.preventDefault(); }
   });
-  // The region strip goes away with the region thumbnail (its × in the attachments row).
+
   const attach = document.getElementById("qa-attach");
   if (attach && window.MutationObserver) new MutationObserver(() => { if (S.strip && !Q.state().images) { S.strip = null; render(); } }).observe(attach, { childList: true });
   const shot = document.getElementById("qa-shot");
   if (shot) shot.addEventListener("contextmenu", (e) => { e.preventDefault(); pickRegion(); });
 
-  const SEC = () => t("Буфер, сниппеты и стикеры", "Clipboard, snippets and stickers");   // Round 34: was «Новые возможности»
+  const SEC = () => t("Буфер, сниппеты и стикеры", "Clipboard, snippets and stickers");
   Q.addAction({ id: "region", section: SEC, icon: IC.region, label: () => t("Спросить про область экрана", "Ask about a screen region"), keys: ["Ctrl", "Shift", "X"], sub: () => t("или правый щелчок по камере", "or right-click the camera"), hidden: () => !on("region"), run: pickRegion });
   Q.addAction({ id: "clipboard", section: SEC, icon: IC.clip, label: () => t("История буфера обмена", "Clipboard history"), keys: ["Alt", "V"], run: () => openView("clipboard") });
   Q.addAction({ id: "snippets", section: SEC, icon: IC.snip, label: () => t("Сниппеты", "Snippets"), keys: [";"], sub: () => t("заготовки и ИИ-шаблоны", "texts and AI templates"), hidden: () => !on("snippets"), run: () => openView("snippets") });
@@ -655,7 +635,7 @@
     open: (view) => { if (["clipboard", "snippets", "stickers"].includes(view)) openView(view); return true; },
     close: () => { closeView(); S.inline = []; S.strip = null; render(); return true; },
     pickRegion, attachRegion,
-    regionReady: async () => { try { attachRegion(await api("/api/quick/features/region/result")); } catch (e) { /* nothing picked */ } return true; },
+    regionReady: async () => { try { attachRegion(await api("/api/quick/features/region/result")); } catch (e) {  } return true; },
     state: () => S, reload: loadConfig,
   };
   loadConfig().then(() => Q.resize());

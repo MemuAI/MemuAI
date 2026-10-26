@@ -60,14 +60,14 @@ HOUR = 3600.0
 DAY = 86400.0
 WEEK = 7 * DAY
 MAX_POINTS = 3000
-DENSE_SECONDS = 6 * HOUR             # последние 6 часов — каждый замер (≥ 60 с), старше — не чаще раза в 10 мин
+DENSE_SECONDS = 6 * HOUR
 SPARSE_STEP = 600.0
 KEEP_SECONDS = 15 * DAY
 MERGE_SECONDS = 60.0
-MIN_HEADER_WINDOW = 15 * 60          # окна «в минуту» — не квота
+MIN_HEADER_WINDOW = 15 * 60
 REQ_KEEP_HOURS = 15 * 24
-MARGIN = 0.10                        # «впритык», если к сбросу остаётся меньше 10 %
-KEEP_RESERVE = 0.03                  # темп оставляет 3 % на непредвиденное
+MARGIN = 0.10
+KEEP_RESERVE = 0.03
 STATUS_RANK = {"ok": 0, "idle": 0, "insufficient": 0, "no_reset": 0, "tight": 1, "runs_out": 2, "exhausted": 3}
 STATUSES = ("ok", "tight", "runs_out", "exhausted", "insufficient", "no_reset")
 DEFAULT_SETTINGS: Dict[str, Any] = {"enabled": True, "poll_minutes": 10, "save_quota": False, "notify": True}
@@ -75,18 +75,13 @@ POLL_PROVIDERS = ("antigravity", "kiro")
 
 _clock: Callable[[], float] = time.time
 
-
 def set_clock(fn: Optional[Callable[[], float]]) -> None:
     """Тесты и демо-данные: детерминированные часы (None — вернуть настоящие)."""
     global _clock
     _clock = fn or time.time
 
-
 def _now() -> float:
     return float(_clock())
-
-
-# ====================================================================== разбор источников
 
 def _num(value: Any) -> Optional[float]:
     try:
@@ -96,7 +91,6 @@ def _num(value: Any) -> Optional[float]:
         return out if math.isfinite(out) else None
     except (TypeError, ValueError):
         return None
-
 
 def parse_ts(value: Any) -> float:
     """epoch (с, мс) или ISO-8601 → epoch-секунды; 0 — нет."""
@@ -112,7 +106,6 @@ def parse_ts(value: Any) -> float:
         return datetime.fromisoformat(text.replace("Z", "+00:00")).timestamp()
     except ValueError:
         return 0.0
-
 
 def parse_duration(value: Any) -> Optional[float]:
     """«6m0s», «1h2m3.5s», «20ms», «59» (секунды) → секунды."""
@@ -131,7 +124,6 @@ def parse_duration(value: Any) -> Optional[float]:
         total += amt * {"ms": 0.001, "s": 1, "m": 60, "h": 3600, "d": 86400}[unit]
     return total if found else None
 
-
 def period_from_title(text: str) -> Optional[float]:
     low = (text or "").lower()
     if re.search(r"\b5\s*(ч|h|час|hour)|5-hour|5-час", low):
@@ -144,7 +136,6 @@ def period_from_title(text: str) -> Optional[float]:
         return 30 * DAY
     return None
 
-
 def guess_period(seconds_to_reset: float) -> Optional[float]:
     """Срок до сброса при первом взгляде → вероятная длина окна (грубо, помечается как оценка)."""
     if seconds_to_reset <= 0:
@@ -154,11 +145,9 @@ def guess_period(seconds_to_reset: float) -> Optional[float]:
             return period
     return 31 * DAY
 
-
 def slug(text: str) -> str:
     value = re.sub(r"[^a-z0-9а-яё]+", "-", str(text or "").lower()).strip("-")
     return value[:60] or "quota"
-
 
 def rows_from_usage(usage: Any, now: float) -> List[Dict[str, Any]]:
     """Ответ ``provider.usage`` → окна ``{key,title,title_en,remaining,reset,limit,unit,period}``.
@@ -186,7 +175,6 @@ def rows_from_usage(usage: Any, now: float) -> List[Dict[str, Any]]:
                     "reset": reset if reset > now - 60 else 0.0, "limit": limit, "unit": unit,
                     "unit_en": str(row.get("unit_en") or unit), "period": period})
     return out
-
 
 def rows_from_headers(headers: Any, now: float, tag: str = "") -> List[Dict[str, Any]]:
     """Заголовки ответа API → окна квоты (только окна ≥ 15 минут)."""
@@ -220,7 +208,7 @@ def rows_from_headers(headers: Any, now: float, tag: str = "") -> List[Dict[str,
         else:
             number = _num(raw_reset)
             if number is not None and number > 1e8:
-                reset = parse_ts(number)          # OpenRouter: epoch в мс
+                reset = parse_ts(number)
             else:
                 span = parse_duration(raw_reset)
                 reset = now + span if span is not None else 0.0
@@ -246,14 +234,10 @@ def rows_from_headers(headers: Any, now: float, tag: str = "") -> List[Dict[str,
                     "period": DAY if what.endswith("-day") else (HOUR if what.endswith("-hour") else None)})
     return out
 
-
-# ====================================================================== ряд и сбросы
-
 def new_series(acc: str, row: Dict[str, Any]) -> Dict[str, Any]:
     return {"acc": acc, "key": row["key"], "title": row.get("title", ""), "title_en": row.get("title_en", ""),
             "unit": row.get("unit", ""), "unit_en": row.get("unit_en", ""), "limit": row.get("limit"),
             "period": row.get("period"), "period_guess": False, "points": [], "resets": [], "cycle_start": 0.0}
-
 
 def add_point(series: Dict[str, Any], ts: float, remaining: float, reset: float = 0.0) -> bool:
     """Добавить замер; True — обнаружен сброс. Ряд остаётся отсортированным и компактным."""
@@ -261,7 +245,7 @@ def add_point(series: Dict[str, Any], ts: float, remaining: float, reset: float 
     reset = float(reset or 0.0)
     pts: List[List[float]] = series.setdefault("points", [])
     if pts and ts < pts[-1][0]:
-        return False                                  # замер из прошлого (гонка) — пропускаем
+        return False
     if not series.get("period") and reset:
         series["period"] = guess_period(reset - ts)
         series["period_guess"] = True
@@ -294,14 +278,13 @@ def add_point(series: Dict[str, Any], ts: float, remaining: float, reset: float 
         _thin(pts, ts - DENSE_SECONDS)
     if len(pts) > MAX_POINTS:
         del pts[: len(pts) - MAX_POINTS]
-    # длина окна по фактическим сбросам точнее любой догадки
+
     resets = series.get("resets") or []
     if len(resets) >= 3 and (series.get("period_guess") or not series.get("period")):
         gaps = sorted(b - a for a, b in zip(resets, resets[1:]) if b - a > 10 * 60)
         if gaps:
             series["period"] = gaps[len(gaps) // 2]
     return is_reset
-
 
 def _thin(pts: List[List[float]], dense_from: float) -> None:
     """Старые замеры прореживаются до одного в 10 минут; сбросы (рост остатка) и последний старый — остаются."""
@@ -318,12 +301,8 @@ def _thin(pts: List[List[float]], dense_from: float) -> None:
             out.append(p)
     pts[:] = out
 
-
-# ====================================================================== прогноз
-
 def _local_hour(ts: float) -> int:
     return time.localtime(ts).tm_hour
-
 
 def _pairs(points: List[List[float]], since: float) -> List[Tuple[float, float, float]]:
     """(начало, конец, расход) по соседним замерам; рост остатка — не расход; разрывы > 12 ч — неизвестно."""
@@ -333,7 +312,6 @@ def _pairs(points: List[List[float]], since: float) -> List[Tuple[float, float, 
             continue
         out.append((a[0], b[0], max(0.0, a[1] - b[1])))
     return out
-
 
 def _hourly(pairs: List[Tuple[float, float, float]]) -> Tuple[Dict[int, float], Dict[int, float]]:
     """Расход и покрытие (секунды) по часовым корзинам — расход пары делится по часам пропорционально."""
@@ -350,7 +328,6 @@ def _hourly(pairs: List[Tuple[float, float, float]]) -> Tuple[Dict[int, float], 
             cover[hour] = cover.get(hour, 0.0) + (edge - t)
             t = edge
     return spent, cover
-
 
 def _request_rate(requests: Dict[str, int], pairs: List[Tuple[float, float, float]]) -> Optional[float]:
     """Доля квоты на один запрос по интервалам, где были и замеры, и запросы."""
@@ -374,7 +351,6 @@ def _request_rate(requests: Dict[str, int], pairs: List[Tuple[float, float, floa
         return total_used / total_req
     return None
 
-
 def forecast(series: Dict[str, Any], now: Optional[float] = None, requests: Optional[Dict[str, int]] = None,
              with_curves: bool = True) -> Dict[str, Any]:
     """Прогноз одного окна. Возвращает словарь для UI и для :func:`score` (см. описание модуля)."""
@@ -397,7 +373,6 @@ def forecast(series: Dict[str, Any], now: Optional[float] = None, requests: Opti
     stale_after = max(2 * HOUR, (period or 0) * 0.25)
     out["stale"] = now - last_ts > stale_after
 
-    # --- срок сброса: заявленный, иначе предсказанный по длине окна
     reset = last_reset if last_reset and last_reset > now else 0.0
     if not reset and period:
         anchor = (series.get("resets") or [0])[-1] or 0.0
@@ -409,7 +384,6 @@ def forecast(series: Dict[str, Any], now: Optional[float] = None, requests: Opti
             out["reset_estimated"] = True
     out["reset"] = reset or None
 
-    # --- история для графика: текущий цикл, но не меньше окна
     cycle = float(series.get("cycle_start") or pts[0][0])
     view_from = max(now - 7 * DAY, min(cycle, now - min(period or 5 * HOUR, DAY)))
     out["view_from"] = view_from
@@ -420,7 +394,6 @@ def forecast(series: Dict[str, Any], now: Optional[float] = None, requests: Opti
             hist = [hist[int(i * step)] for i in range(240)] + [hist[-1]]
         out["history"] = hist
 
-    # --- скорость: EWMA + профиль по часам суток
     pairs_all = _pairs(pts, now - 7 * DAY)
     half_life = min(12 * HOUR, max(20 * 60, (period or 5 * HOUR) / 8))
     recent = [p for p in pairs_all if p[1] > now - max(3 * half_life, 6 * HOUR)]
@@ -430,7 +403,7 @@ def forecast(series: Dict[str, Any], now: Optional[float] = None, requests: Opti
         alpha = 1 - math.exp(-(end - start) / half_life)
         ewma = inst if ewma is None else ewma + alpha * (inst - ewma)
     if ewma is not None and now - last_ts > half_life:
-        # давно без замеров: EWMA не знает, что было потом; гасим её к среднему
+
         ewma *= math.exp(-(now - last_ts - half_life) / (4 * half_life))
     spent, cover = _hourly(pairs_all)
     covered_hours = sum(cover.values()) / HOUR
@@ -469,7 +442,6 @@ def forecast(series: Dict[str, Any], now: Optional[float] = None, requests: Opti
     if not enough:
         return _finish(out, reset, now)
 
-    # --- проекция до сброса (или на сутки, если сброс неизвестен)
     start = max(last_ts, now - 1)
     horizon_end = reset if reset else start + (period or DAY)
     if horizon_end <= start:
@@ -479,8 +451,7 @@ def forecast(series: Dict[str, Any], now: Optional[float] = None, requests: Opti
     tau = min(12 * HOUR, max(30 * 60, (period or 8 * HOUR) * 0.25))
     rel = 0.15 if profile is not None or covered_hours >= 6 else 0.35
     base_rate = long_mean if long_mean is not None else ewma
-    # С профилем EWMA — не уровень, а «насколько сегодня активнее обычного для этих часов»: множитель
-    # к профилю, который затухает к 1. Так тихая ночь остаётся тихой, даже если вечер был бурным.
+
     ratio = None
     if profile is not None and long_mean:
         look = max(3 * half_life, HOUR)
@@ -503,7 +474,7 @@ def forecast(series: Dict[str, Any], now: Optional[float] = None, requests: Opti
         used += rate * dt / HOUR
         shape = 1.0
         if profile is not None and long_mean:
-            shape = max(0.1, min(3.0, profile[_local_hour(mid)] / long_mean))   # тихие часы — меньше разброс
+            shape = max(0.1, min(3.0, profile[_local_hour(mid)] / long_mean))
         var += ((sigma * shape) ** 2) * dt / HOUR
         t += dt
         band = 1.2816 * math.sqrt(var) + rel * used
@@ -535,14 +506,12 @@ def forecast(series: Dict[str, Any], now: Optional[float] = None, requests: Opti
         out["status"] = "no_reset"
     return _finish(out, reset, now)
 
-
 def _finish(out: Dict[str, Any], reset: float, now: float) -> Dict[str, Any]:
     """Рекомендуемый темп: остаток (минус 3 % запаса) поровну на время до сброса."""
     rem = out.get("remaining")
     if rem is None or not reset or reset <= now:
         return out
-    # Round 36: less than an hour before the reset the whole remainder is the hour's budget — dividing by minutes
-    # recommended «up to 11 160 requests/hour» with 9 532 left of a 10 000/hour limit.
+
     hours = max((reset - now) / HOUR, 1.0)
     budget = max(0.0, rem - KEEP_RESERVE)
     pace = budget / hours
@@ -557,7 +526,6 @@ def _finish(out: Dict[str, Any], reset: float, now: float) -> Dict[str, Any]:
         if per_req > 0:
             out["pace_req"] = max(0, int(pace / per_req))
     return out
-
 
 def window_score(fc: Dict[str, Any], now: float) -> Optional[float]:
     """0..1 для одного окна (1 — большой запас); None — судить не по чему."""
@@ -575,10 +543,7 @@ def window_score(fc: Dict[str, Any], now: float) -> Optional[float]:
         return round(0.3 + 0.2 * max(0.0, min(1.0, (fc.get("rem_at_reset") or 0) / MARGIN)), 4)
     if status == "ok":
         return round(0.5 + 0.5 * max(0.0, min(1.0, fc.get("rem_at_reset") or 0)), 4)
-    return round(0.25 + 0.5 * float(rem), 4)          # мало данных / сброс неизвестен: по остатку
-
-
-# ====================================================================== хранилище и сервис
+    return round(0.25 + 0.5 * float(rem), 4)
 
 def _path() -> str:
     env = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
@@ -586,7 +551,6 @@ def _path() -> str:
         return os.path.join(env, "quota_planner.json")
     from .config import DATA_DIR
     return os.path.join(DATA_DIR, "quota_planner.json")
-
 
 class Planner:
     def __init__(self, path: Optional[str] = None) -> None:
@@ -603,7 +567,6 @@ class Planner:
         self._dirty = False
         self._last_save = 0.0
 
-    # ---------------------------------------------------------------- диск
     @property
     def path(self) -> str:
         return self._path_override or _path()
@@ -631,7 +594,7 @@ class Planner:
     def save(self, force: bool = False) -> None:
         with self._lock:
             if not self._loaded:
-                return                        # never overwrite the file with an empty, not-yet-loaded state
+                return
             if not force and (not self._dirty or _now() - self._last_save < 60):
                 return
             data = {"version": 1, "settings": self.settings, "series": self.series,
@@ -648,7 +611,6 @@ class Planner:
             except OSError as exc:
                 log.warning("quota planner: save failed: %s", exc)
 
-    # ---------------------------------------------------------------- замеры
     def observe_rows(self, account_id: str, rows: Iterable[Dict[str, Any]], ts: Optional[float] = None) -> int:
         self.load()
         ts = _now() if ts is None else ts
@@ -713,7 +675,6 @@ class Planner:
             self.notified.pop(key, None)
             _inbox_resolve(key)
 
-    # ---------------------------------------------------------------- прогноз
     def _recompute(self, account_id: str, now: float) -> Dict[str, Any]:
         windows = []
         for sid, series in self.series.items():
@@ -764,7 +725,7 @@ class Planner:
                     "body_en": f"At the current pace the limit runs out {before_en} before the reset. "
                                "Slow down or switch accounts — see the Quota planner in the Proxy.",
                     "account_id": account_id, "provider": provider, "window": w.get("key")}
-            if _ui_lang() == "en":           # the Inbox shows one language: the user's MemuAI language
+            if _ui_lang() == "en":
                 title, body = meta["title_en"], meta["body_en"]
             if _inbox_post(key, title, body, meta):
                 self.notified[key] = stamp
@@ -830,9 +791,7 @@ class Planner:
                                "remaining": first.get("remaining")}
         return out
 
-
 planner = Planner()
-
 
 def human_span(seconds: float, lang: str = "ru") -> str:
     seconds = max(0, int(seconds))
@@ -851,9 +810,6 @@ def human_span(seconds: float, lang: str = "ru") -> str:
         return f"{hours} ч {minutes} мин" if minutes else f"{hours} ч"
     return f"{max(1, minutes)} мин"
 
-
-# ====================================================================== связи с Proxy
-
 def _all_accounts() -> List[Any]:
     try:
         from .state import state
@@ -861,13 +817,11 @@ def _all_accounts() -> List[Any]:
     except Exception:  # noqa: BLE001
         return []
 
-
 def _account_label(account_id: str) -> Tuple[str, str]:
     for acc in _all_accounts():
         if acc.id == account_id:
             return (acc.label or acc.provider), acc.provider
     return account_id, ""
-
 
 def _ui_lang() -> str:
     try:
@@ -876,14 +830,13 @@ def _ui_lang() -> str:
     except Exception:  # noqa: BLE001
         return "ru"
 
-
 def _inbox_post(key: str, title: str, body: str, meta: Dict[str, Any]) -> bool:
     try:
         from . import inbox
     except ImportError:
         return False
     try:
-        # source="proxy": the Inbox shows it as «Proxy» and its «kind: ui» button opens the Proxy window.
+
         inbox.post("quota", title, body=body, source="proxy", ref={"tab": "quota", "account_id": meta.get("account_id")},
                    actions=[{"id": "open", "label": "Open Proxy" if _ui_lang() == "en" else "Открыть Proxy", "kind": "ui"}],
                    dedupe_key=key, severity="warn", group="notify", meta=meta)
@@ -892,14 +845,12 @@ def _inbox_post(key: str, title: str, body: str, meta: Dict[str, Any]) -> bool:
         log.debug("quota planner: inbox post failed: %s", exc)
         return False
 
-
 def _inbox_resolve(key: str) -> None:
     try:
         from . import inbox
         inbox.resolve(key, result="recovered")
     except Exception:  # noqa: BLE001
         pass
-
 
 def observe_usage(account: Any, usage: Any, ts: Optional[float] = None) -> int:
     """Ответ ``provider.usage(account)`` (карточка аккаунта или фоновый опрос) → замеры. Не бросает."""
@@ -916,7 +867,6 @@ def observe_usage(account: Any, usage: Any, ts: Optional[float] = None) -> int:
         log.debug("quota planner: observe_usage failed: %s", exc)
         return 0
 
-
 def observe_headers(account_id: str, headers: Any, key: str = "", ts: Optional[float] = None) -> int:
     """Заголовки ответа API (Custom) → замеры. ``key`` хэшируется: в данных только метка #abcd."""
     try:
@@ -931,24 +881,20 @@ def observe_headers(account_id: str, headers: Any, key: str = "", ts: Optional[f
         log.debug("quota planner: observe_headers failed: %s", exc)
         return 0
 
-
 def note_request(account_id: str) -> None:
     try:
         planner.note_request(account_id)
     except Exception:  # noqa: BLE001
         pass
 
-
 def score(account_id: str) -> Optional[float]:
     """Контракт для composite: 0..1 (1 — большой запас до сброса), None — нет данных о квоте."""
     summary = planner.summary(account_id)
     return None if summary is None else summary.get("score")
 
-
 def status(account_id: str) -> Optional[str]:
     summary = planner.summary(account_id)
     return None if summary is None else summary.get("status")
-
 
 def rank(account_ids: Iterable[str]) -> List[str]:
     """От «лучше брать» к «лучше беречь»; без данных — посередине, порядок внутри групп сохраняется."""
@@ -959,7 +905,6 @@ def rank(account_ids: Iterable[str]) -> List[str]:
         return (-(value if value is not None else 0.5), item[0])
 
     return [acc for _, acc in sorted(enumerate(ids), key=key)]
-
 
 def reorder(accounts: List[Any]) -> List[Any]:
     """Пул аккаунтов: при «Экономить квоту» отодвигает тех, кому по прогнозу не хватит лимита.
@@ -979,9 +924,6 @@ def reorder(accounts: List[Any]) -> List[Any]:
         return sorted(primary, key=risk) + sorted(reserve, key=risk)
     except Exception:  # noqa: BLE001
         return accounts
-
-
-# ====================================================================== фоновый опрос
 
 async def poll_once(force: bool = False) -> int:
     """Опросить аккаунты с известными лимитами (Antigravity, Kiro …). Возвращает число замеров."""
@@ -1013,10 +955,9 @@ async def poll_once(force: bool = False) -> int:
     known = {a.id for a in _all_accounts()}
     if known:
         for acc_id in {s.get("acc") for s in list(planner.series.values())} - known:
-            planner.forget_account(str(acc_id))          # аккаунт удалён — его ряды больше не нужны
+            planner.forget_account(str(acc_id))
     planner.save()
     return total
-
 
 async def poll_loop() -> None:
     try:
@@ -1029,23 +970,19 @@ async def poll_loop() -> None:
             except Exception:  # noqa: BLE001
                 log.exception("quota planner: poll failed")
             await asyncio.sleep(60)
-            planner.save()                    # замеры из заголовков ответов копятся между опросами
+            planner.save()
     finally:
         try:
-            planner.save(force=True)          # выход Proxy: дописать хвост замеров
+            planner.save(force=True)
         except Exception:  # noqa: BLE001
             pass
 
-
-# ====================================================================== маршруты
-
-try:  # module level: with «from __future__ import annotations» FastAPI resolves annotations here
+try:
     from fastapi import Request
     from fastapi.responses import JSONResponse
 except ImportError:  # pragma: no cover — the planner core works without FastAPI (tests, tools)
     Request = Any  # type: ignore
     JSONResponse = None  # type: ignore
-
 
 def register(app: Any) -> None:
 

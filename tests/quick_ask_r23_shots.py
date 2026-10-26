@@ -34,18 +34,15 @@ DESIGNS = (("dark", "classic", "violet"), ("light", "classic", "terracotta"), ("
            ("dark", "glass", "blue"), ("light", "glass", "violet"))
 SHOW = "{fresh:true, maxHeight:640, rounded:true, corner:'dwm', radius:8%s}"
 
-
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):  # noqa: D401
         pass
-
 
 def serve():
     handler = functools.partial(Quiet, directory=str(STATIC))
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, f"http://127.0.0.1:{server.server_address[1]}"
-
 
 async def main(out: Path, scenes: set) -> int:
     from playwright.async_api import async_playwright
@@ -258,7 +255,6 @@ async def main(out: Path, scenes: set) -> int:
         print(line)
     print(f"shots → {out}")
     return 1 if any(line.startswith(("pageerror", "footer", "content")) for line in errors) else 0
-
 
 if __name__ == "__main__":
     target = Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r23-quick")

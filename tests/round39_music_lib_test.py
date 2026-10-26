@@ -17,11 +17,9 @@ from round37_music_core_test import Base, FakeClient, FakeResponse, png_bytes  #
 
 MODULE = ROOT / "app" / "module_builtins" / "music"
 
-
 def call(op, args=None):
     from app.music import api
     return api.call(op, args or {})
-
 
 class SortAndOrderTest(Base):
     def add(self, name, **fields):
@@ -52,7 +50,7 @@ class SortAndOrderTest(Base):
         self.assertEqual([x["title"] for x in got["tracks"]], ["Four", "One", "Two", "Three"])
         got = call("playlist.reorder", {"id": pl["id"], "ids": [t[3]["id"]], "to": -1})
         self.assertEqual([x["title"] for x in got["tracks"]], ["One", "Two", "Three", "Four"])
-        got = call("playlist.reorder", {"id": pl["id"], "order": [t[2]["id"], t[0]["id"]]})   # stale client: rest kept
+        got = call("playlist.reorder", {"id": pl["id"], "order": [t[2]["id"], t[0]["id"]]})
         self.assertEqual([x["title"] for x in got["tracks"]], ["Three", "One", "Two", "Four"])
         with self.assertRaises(ValueError):
             call("playlist.reorder", {"id": "smart:recent", "order": []})
@@ -67,7 +65,6 @@ class SortAndOrderTest(Base):
         p4 = call("playlist.create", {"name": "D"})
         plain = [p["id"] for p in call("playlists.list") if not p["smart"]]
         self.assertEqual(plain, [p4["id"], p1["id"], p3["id"], p2["id"]])
-
 
 class ArtistAlbumTest(Base):
     def add(self, name, **fields):
@@ -116,7 +113,7 @@ class ArtistAlbumTest(Base):
         self.assertEqual([x["name"] for x in found], ["Daft Punk"])
         got = artists.image_auto(self.lib, "Daft Punk", client_factory=fake)
         self.assertTrue(got["found"] and got["image"])
-        # once per artist: a cleared photo is not fetched again
+
         artists.set_image(self.lib, "Daft Punk", {"clear": True})
         spy = FakeClient([])
         again = artists.image_auto(self.lib, "Daft Punk", client_factory=lambda: spy)
@@ -132,7 +129,6 @@ class ArtistAlbumTest(Base):
         self.assertTrue(all(x["cover"] for x in res["tracks"]))
         with self.assertRaises(ValueError):
             call("album.update", {"ids": [t[0]["id"]], "title": ""})
-
 
 class FrontTest(unittest.TestCase):
     def read(self, name):
@@ -157,7 +153,6 @@ class FrontTest(unittest.TestCase):
         joined = " ".join(map(str, ru.values())) + " ".join(map(str, en.values()))
         for phrase in ("Тон голоса не меняется", "pitch is kept", "работает через"):
             self.assertNotIn(phrase, joined)
-
 
 if __name__ == "__main__":
     unittest.main()

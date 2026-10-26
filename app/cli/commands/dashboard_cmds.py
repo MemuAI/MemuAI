@@ -25,7 +25,6 @@ from .foreign_cmds import continue_from, order_rows, session_option
 
 OWN = "memucode"
 
-
 def _own_option(row: Dict[str, Any], here: str) -> dlg.Option:
     title = row.get("name") or row.get("title") or row.get("first") or row["id"]
     bits = [ago(row.get("updated", 0)), plural(int(row.get("prompts") or 0), "запрос", "запроса", "запросов", "prompt"),
@@ -37,7 +36,6 @@ def _own_option(row: Dict[str, Any], here: str) -> dlg.Option:
     mark = "●" if row.get("root") and foreign.same_folder(row["root"], here) else ""
     last = f"\n{row['last'][:120]}" if row.get("last") else ""
     return dlg.Option(str(title)[:90], (OWN, row), " · ".join(bit for bit in bits if bit) + last, hint=mark)
-
 
 def _summary_line(rows: List[Dict[str, Any]]) -> str:
     if not rows:
@@ -52,7 +50,6 @@ def _summary_line(rows: List[Dict[str, Any]]) -> str:
               f"{plural(len(rows), '', '', '', 'conversation')} in {plural(folders, '', '', '', 'project')} · "
               f"{plural(prompts, '', '', '', 'prompt')} · this week: {week}")
 
-
 async def load(ctx: Context) -> Dict[str, Any]:
     """``{"own": [...], "<tool>": [SessionInfo…]}`` — every list, read in parallel."""
     ctx.ui.status_text = tr("читаю сессии", "reading the sessions")
@@ -66,7 +63,6 @@ async def load(ctx: Context) -> Dict[str, Any]:
     for source, rows in zip(sources, results[1:]):
         data[source.key] = rows
     return data
-
 
 async def dashboard(ctx: Context, *, tab: str = OWN) -> None:
     here = str(ctx.runtime.root)
@@ -117,7 +113,6 @@ async def dashboard(ctx: Context, *, tab: str = OWN) -> None:
         elif await foreign_actions(ctx, payload):
             return
         tab = tab_key
-
 
 async def own_actions(ctx: Context, row: Dict[str, Any]) -> bool:
     """The menu of one of MemuCode's own conversations. True when the dashboard should close."""
@@ -171,7 +166,6 @@ async def own_actions(ctx: Context, row: Dict[str, Any]) -> bool:
                 ctx.say(str(exc), "error")
     return False
 
-
 async def foreign_actions(ctx: Context, info: SessionInfo) -> bool:
     """The menu of another tool's session. True when the dashboard should close."""
     source = foreign.SOURCES[info.tool]
@@ -196,7 +190,6 @@ async def foreign_actions(ctx: Context, info: SessionInfo) -> bool:
             lines = [f"{index}. {' '.join(turn.text.split())[:240]}" for index, turn in enumerate(session.prompts()[:30], 1)]
             ctx.md("\n".join([f"**{info.title or info.id}** — {source.title}", ""] + (lines or [tr("(запросов нет)", "(no requests)")])))
     return False
-
 
 @command("dashboard", "Все прошлые сессии: MemuCode по всем проектам и других инструментов (Claude, Codex, Grok…)",
          "Every earlier session: MemuCode's in all projects, and other tools' (Claude, Codex, Grok…)",

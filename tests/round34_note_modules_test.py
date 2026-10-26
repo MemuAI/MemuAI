@@ -24,7 +24,6 @@ JS = NOTE / "static" / "js"
 CHROME = next((p for p in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome")
                if p and os.path.exists(p)), "")
 
-
 class _Server(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory(prefix="r34mn-")
@@ -64,8 +63,6 @@ class _Server(unittest.TestCase):
         params = {"path": str(path), "encoding": "utf-8", "eol": "lf", "bom": "0", "mtime": "0", "force": "1", **q}
         return self.call("POST", "/api/save_text?" + urllib.parse.urlencode(params), text.encode("utf-8"))
 
-
-# ===================================================================================== line endings
 class MajorityEolTest(_Server):
     def test_majority_eol_function(self) -> None:
         from app.memunote.formats import textio
@@ -89,17 +86,15 @@ class MajorityEolTest(_Server):
     def test_the_page_saves_with_the_majority(self) -> None:
         src = (JS / "app.js").read_text(encoding="utf-8")
         self.assertIn('info.eol === "mixed" ? info.eol_major || MN.settings.default_eol', src)
-        self.assertIn("tab.mixedEol && !tab.dirty", src)        # untouched mixed file: Ctrl+S writes nothing
+        self.assertIn("tab.mixedEol && !tab.dirty", src)
 
-
-# ===================================================================================== binary + save queue
 class BinaryAndQueueTest(_Server):
     def test_binary_is_not_a_text_kind(self) -> None:
         src = (JS / "app.js").read_text(encoding="utf-8")
         kinds = re.search(r"const TEXT_KINDS = new Set\(\[([^\]]*)\]\)", src).group(1)
         self.assertNotIn('"binary"', kinds)
         self.assertIn('"text"', kinds)
-        self.assertIn("if (!snapshot && tab.initialText == null) return true;", src)   # guard in saveTabNow
+        self.assertIn("if (!snapshot && tab.initialText == null) return true;", src)
 
     def test_save_queue(self) -> None:
         src = (JS / "app.js").read_text(encoding="utf-8")
@@ -117,8 +112,6 @@ class BinaryAndQueueTest(_Server):
         self.assertNotIn("text", info)
         self.assertEqual(p.read_bytes(), data)
 
-
-# ===================================================================================== damaged UTF-8
 class DamagedUtf8Test(_Server):
     GOOD = "Привет, мир! Это обычный текст — «кавычки» и ёжики.\n".encode("utf-8") * 6
 
@@ -127,7 +120,7 @@ class DamagedUtf8Test(_Server):
         damaged = self.GOOD[:20] + b"\xff" + self.GOOD[20:]
         info = textio.detect_bytes(damaged)
         self.assertEqual((info.encoding, info.damaged), ("utf-8", 1))
-        # real single-byte files are not mistaken for damaged UTF-8
+
         self.assertEqual(textio.detect_bytes(("Привет мир это текст на русском\n" * 8).encode("cp1251")).encoding, "cp1251")
         self.assertEqual(textio.detect_bytes(("Привет мир это текст на русском\n" * 8).encode("koi8-r")).encoding, "koi8-r")
         self.assertEqual(textio.detect_bytes("Café crème brûlée, naïve façade".encode("cp1252")).encoding, "cp1252")
@@ -139,13 +132,13 @@ class DamagedUtf8Test(_Server):
         st, info = self.call("POST", "/api/open", {"path": str(p)})
         self.assertEqual((info["encoding"], info["web_encoding"]), ("utf-8", "utf-8"))
         self.assertEqual(info["damaged"], 3)
-        shown = damaged.decode("utf-8", errors="replace")      # what TextDecoder shows on the page
+        shown = damaged.decode("utf-8", errors="replace")
         st, r = self.save(p, shown)
         self.assertTrue(r["ok"], r)
-        self.assertEqual(p.read_bytes(), damaged)                # untouched: byte for byte
+        self.assertEqual(p.read_bytes(), damaged)
         st, r = self.save(p, "Ж" + shown.replace("end", "конец"))
         self.assertEqual(p.read_bytes(), "Ж".encode() + damaged.replace(b"end", "конец".encode()))
-        st, r = self.save(p, shown.replace("\ufffd", "", 1))     # a mark deleted: no safe mapping, written as shown
+        st, r = self.save(p, shown.replace("\ufffd", "", 1))
         self.assertNotIn(b"\xc3(", p.read_bytes())
 
     def test_page_shows_a_notice(self) -> None:
@@ -153,8 +146,6 @@ class DamagedUtf8Test(_Server):
         i18n = (JS / "i18n.js").read_text(encoding="utf-8")
         self.assertEqual(i18n.count("utf8_damaged:"), 2)
 
-
-# ===================================================================================== static checks
 class StaticTest(unittest.TestCase):
     def test_runpanel_flood_guards(self) -> None:
         src = (JS / "runpanel.js").read_text(encoding="utf-8")
@@ -181,15 +172,12 @@ class StaticTest(unittest.TestCase):
         src = (APP / "module_builtins" / "characters" / "ai-create.js").read_text(encoding="utf-8")
         self.assertIn("if (failed.length && failed.length === queries.length) throw failed[0];", src)
 
-
-# ===================================================================================== browser
 def _browser_ok() -> bool:
     try:
         import playwright.sync_api  # noqa: F401
         return bool(CHROME)
     except Exception:  # noqa: BLE001
         return False
-
 
 @unittest.skipUnless(_browser_ok(), "Playwright + Chromium not available")
 class BrowserTest(_Server):
@@ -223,7 +211,7 @@ class BrowserTest(_Server):
                 time.sleep(0.2)
                 doc = "MN.panes[0].view.state.doc.toString()"
                 self.assertEqual(pg.evaluate(doc), "**hello world**\n**second line**\n")
-                pg.keyboard.press("Control+b")                     # again: unwrapped line by line
+                pg.keyboard.press("Control+b")
                 time.sleep(0.2)
                 self.assertEqual(pg.evaluate(doc), "hello world\nsecond line\n")
                 pg.keyboard.press("Control+End")
@@ -248,19 +236,18 @@ class BrowserTest(_Server):
                 pg.click(".modal .btn.primary")
                 pg.wait_for_selector(".mn-run-state.ok", timeout=60000)
                 t0 = time.time()
-                self.assertTrue(pg.evaluate("1 + 1 === 2"))            # the page answers right away
+                self.assertTrue(pg.evaluate("1 + 1 === 2"))
                 self.assertLess(time.time() - t0, 5)
                 pg.wait_for_function("document.querySelector('.mn-run-out').textContent.includes('END')", timeout=20000)
                 lines = pg.evaluate("document.querySelectorAll('.mn-run-out .ln').length")
                 self.assertLessEqual(lines, 20000)
                 self.assertTrue(pg.evaluate("document.querySelector('.mn-run-out').textContent.includes('line 59999')"))
                 cut = pg.evaluate("[...document.querySelectorAll('.mn-run-out .ln')].map(l => l.textContent.length).reduce((a, b) => Math.max(a, b), 0)")
-                self.assertLess(cut, 100200)                            # the 300 000-char line is cut in the panel
+                self.assertLess(cut, 100200)
                 self.assertIn("слишком длинная", pg.inner_text(".mn-run-out"))
                 self.assertEqual(self.errors, [])
             finally:
                 b.close()
-
 
 if __name__ == "__main__":
     unittest.main()

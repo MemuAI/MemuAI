@@ -1,20 +1,11 @@
-/* Round 32 — the editor of a panel's text template (the «text» look as real text; renderer: panel-text.js).
 
-   window.MemuPanelTextEditor.mount(host, opts) → { destroy(), refresh(panel) }
-     opts: { panel, look (the effective look: font, theme, accent), text (the panel's own template or null = automatic),
-             lang "ru"|"en", width (the preview width px, the tile's), widths [[px, label]…] (a width switch, settings),
-             backdrop "window" | "wallpaper", place, onSave(text | null) → Promise, onCancel() }
-   What the user gets: a live preview at the tile's real size where every block of text can be dragged anywhere inside
-   the panel (the first drag switches «by lines» to «free»; snapping to the edges and the centre; a handle sets the
-   width of a block, another the height of the box), the template of the selected block with a placeholder picker
-   (every value of the panel with its live value; lists insert a loop) and the formatting filters, size / weight /
-   colour / alignment / font per block, the halo for readability, «automatic» (back to the panel's own template). */
+
 (function () {
   "use strict";
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const r1 = (v) => Math.round(v * 10) / 10;
-  const SNAP = 2;           // % — snap to the edges / the centre
+  const SNAP = 2;
   const FILTER_LIST = [
     ["round:0", "Округлить", "Round"], ["fixed:2", "Два знака после запятой", "Two decimals"], ["signed", "Знак: +2,4 / −1,1", "Sign: +2.4 / −1.1"],
     ["tone", "Цвет: зелёный рост, красное падение", "Colour: green up, red down"], ["pct", "Проценты", "Percent"], ["short", "Коротко: 1,2 млн", "Short: 1.2M"],
@@ -115,7 +106,6 @@
       bind();
     }
 
-    /* ---------- drawing */
     const stageHost = () => el.querySelector(".pte-stage-host");
     const stage = () => el.querySelector(".pte-stage-host > .pt-face");
     function paintStage() {
@@ -193,7 +183,6 @@
     function paintAll() { paintStage(); paintBlocks(); paintProps(); }
     const changed = () => { st.dirty = true; st.auto = false; };
 
-    /* ---------- editing the template */
     const ta = () => el.querySelector(".pte-tpl");
     function insert(str, { filter = false } = {}) {
       const area = ta();
@@ -201,7 +190,7 @@
       if (!area || !b) return;
       let start = area.selectionStart ?? area.value.length, end = area.selectionEnd ?? start;
       if (document.activeElement !== area && area.dataset.caret) { start = end = +area.dataset.caret; }
-      if (filter) {           // a filter goes before the «}» of the placeholder the caret is in (or of the one just before it)
+      if (filter) {
         const before = area.value.slice(0, start);
         const open = before.lastIndexOf("{"), shut = before.lastIndexOf("}");
         const close = area.value.indexOf("}", start);
@@ -222,7 +211,6 @@
       return `{#${path}|limit:3}{${field}}${extra}\n{/${path}}`;
     }
 
-    /* ---------- free layout: dragging */
     function toFree() {
       if (st.text.mode === "free") return;
       const face = stage();
@@ -230,11 +218,10 @@
       const font = Math.max(.8, Math.min(1.4, (+look.font || 100) / 100));
       const h = Math.max(40, Math.round(box.height / font) + 4);
       face.querySelectorAll(".pt-b").forEach((n) => {
-        // a line of the flow is as wide as the panel: the free block takes the width of its text (so it can move
-        // sideways), from where the text actually starts (a centred / right-aligned line keeps its place)
+
         const r = n.getBoundingClientRect();
         let t = r;
-        try { const range = document.createRange(); range.selectNodeContents(n); const rr = range.getBoundingClientRect(); if (rr.width) t = rr; } catch (e) { /* the box */ }
+        try { const range = document.createRange(); range.selectNodeContents(n); const rr = range.getBoundingClientRect(); if (rr.width) t = rr; } catch (e) {  }
         const b = st.text.blocks[+n.dataset.i];
         if (!b) return;
         const w = clamp((t.width + 6) / box.width * 100, 5, 100);
@@ -307,7 +294,7 @@
         const n = stage() && stage().querySelector(`.pt-b[data-i="${st.sel}"]`);
         if (n) n.focus({ preventScroll: true });
       };
-      // on window: the stage is re-drawn on the first move (by lines → free), a captured element would be gone
+
       window.addEventListener("pointermove", move);
       window.addEventListener("pointerup", up);
       window.addEventListener("pointercancel", up);
@@ -331,7 +318,7 @@
       e.preventDefault();
       st.sel = i;
       const b = st.text.blocks[i];
-      if (st.text.mode !== "free") {     // by lines: ↑ / ↓ reorder
+      if (st.text.mode !== "free") {
         const j = i + (e.key === "ArrowUp" || e.key === "ArrowLeft" ? -1 : 1);
         if (!st.text.blocks[j]) return;
         [st.text.blocks[i], st.text.blocks[j]] = [st.text.blocks[j], st.text.blocks[i]];
@@ -352,7 +339,6 @@
       if (n) n.focus({ preventScroll: true });
     }
 
-    /* ---------- wiring */
     function bind() {
       el.querySelector(".pte-stage-host").addEventListener("pointerdown", onStageDown);
       el.querySelector(".pte-stage-host").addEventListener("keydown", onStageKey);

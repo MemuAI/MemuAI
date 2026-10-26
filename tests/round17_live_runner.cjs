@@ -1,5 +1,5 @@
-/* Production turn accumulator + production personality builders. Deterministic
- * real PCM samples, no account keys, provider calls or user data. */
+
+
 const fs=require("fs"), vm=require("vm"), assert=require("assert"), path=require("path");
 const root=path.resolve(__dirname,".."), app=fs.readFileSync(path.join(root,"app/pgstatic/app.js"),"utf8");
 function fn(name) {
@@ -22,14 +22,11 @@ function sample(seconds,amplitude=.004){const count=Math.round(seconds*24000),by
 const bot=sample(.1,.1), bot64=Buffer.from(bot).toString("base64");
 function verifyWav(clip,expected,description){assert(clip,description);const bytes=Buffer.from(clip.data.split(",")[1],"base64");assert.equal(bytes.toString("ascii",0,4),"RIFF");assert.equal(bytes.readUInt32LE(24),24000);assert.equal(bytes.readUInt32LE(40),expected.length);assert.deepEqual(bytes.subarray(44),Buffer.from(expected),description);}
 
-// Quiet 220ms "Hi": server VAD is authoritative even below local RMSgate.
 reset("openai-realtime"); live.onEvent({type:"speech_started",turn_id:"tiny"});const tiny=sample(.22);
 live.recordInput(tiny.buffer,.004);live.onEvent({type:"speech_stopped",turn_id:"tiny"});
 live.onEvent({type:"audio",data:bot64,turn_id:"reply"});live.onEvent({type:"user_transcript",text:"Hi",final:true,turn_id:"tiny"});live.onEvent({type:"turn_complete"});
 assert.equal(rows.size,2);verifyWav([...rows.values()].find(x=>x.role==="user").audio,tiny,"all 220ms preserved after late transcript");
 
-// Gemini's transcript can arrive AFTER its answer begins. Keep microphone
-// candidate before answer playback, but never publish background silence.
 reset();live.recordInput(tiny.buffer,.004);live.onEvent({type:"audio",data:bot64});assert.equal([...rows.values()].filter(x=>x.role==="user").length,0);
 live.onEvent({type:"user_transcript",text:"Hi",final:true});live.onEvent({type:"turn_complete"});
 verifyWav([...rows.values()].find(x=>x.role==="user").audio,tiny,"quiet input recovered from frozen pre-answer PCM");
@@ -39,8 +36,6 @@ const users=[...rows.values()].filter(x=>x.role==="user");assert.equal(users.len
 
 reset();live.recordInput(sample(10).buffer,.001);assert(live.session.inputPrerollBytes<=24000*2*8,"fallback microphone memory bounded even for oversized worklet fixture");live.onEvent({type:"audio",data:bot64});live.onEvent({type:"turn_complete"});assert.equal([...rows.values()].filter(x=>x.role==="user").length,0,"silence/noise never becomes a blank voice message");
 
-// Shared personality has concrete behavior in all twelve presets, not just
-// a label. Native and classic prompt requests receive the same selected block.
 let prefs={voice_live_primary_personality:"romantic",voice_live_secondary_personalities:["witty","calm","coach"],voice_live_custom_personality:"Use dry affectionate humour, no pet names.",voice_live_name:"Astra",voice_live_gender:"female",ai_personality:"pragmatic"};
 const pc=vm.createContext({PG_LANG:"ru",pref:(key,fallback)=>key in prefs?prefs[key]:fallback,promptData:s=>String(s),S:{messages:[],chatSystem:"Answer accurately."},Date,
   internalPromptText:()=>"Speak naturally, warmly and concisely.",activeMeme:()=>null,profileReferenceContext:()=>"",systemPromptContext:s=>({...s}),isCodeMode:()=>false,isWorkMode:()=>false,
@@ -51,7 +46,6 @@ for(const id of ["warm","therapist","storyteller","challenger","charismatic","wi
 prefs.voice_live_primary_personality="romantic";pc.PG_LANG="en";assert(pc.buildLivePersonalityInstructions().includes("Romantic (18+)"));assert(pc.buildLivePersonalityInstructions().includes("TONE EXAMPLE in English"));
 const classic=fn("buildSystemPrompt");assert(classic.includes("${buildLivePersonalityInstructions()}"),"classic STT/chat/TTS uses same behavior builder");
 
-// Audio-capable chat remains selectable; a declared music-only model does not.
 const models=vm.createContext({S:{models:[{id:"speech-chat",caps:{audio:true,text:true}},{id:"song",caps:{music:true,text:false}},{id:"multimodal-music-chat",caps:{music:true,text:true}}]},pref:()=>[]});
 vm.runInContext(fn("modelCaps")+"\n"+fn("isMusicOnlyModel")+"\n"+fn("visibleModels"),models);assert.deepEqual(Array.from(models.visibleModels(),x=>x.id),["speech-chat","multimodal-music-chat"]);
 console.log("Round17 Live PASS: quiet short WAV, late transcript, quiet next turn, bounded fallback, no blank audio, 12 behavioral personas, shared classic/native instructions, music-only filtering");

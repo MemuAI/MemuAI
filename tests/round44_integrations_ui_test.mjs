@@ -1,4 +1,4 @@
-// Execute the actual settings UI against DOM/API doubles, without a browser.
+
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import path from "node:path";

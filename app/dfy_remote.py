@@ -38,11 +38,10 @@ from .dfy_agent import AGENT_VERSION, Agent, Guard, NeedsConfirm, Refused, parse
 
 MACHINES_FILE = "dfy_machines.json"
 LOCAL_ID = "local"
-BROWSER_SUFFIX = "/browser"   # «<id машины>/browser» — цель «браузер DFY на этой машине» (dfy_remote_browser.py)
+BROWSER_SUFFIX = "/browser"
 OS_LABELS = {"linux": "Linux", "windows": "Windows", "darwin": "macOS", "": ""}
-ONLINE_TTL = 90.0          # сколько секунд «онлайн» считается свежим
+ONLINE_TTL = 90.0
 AGENT_FILE = "memuai_remote_agent.py"
-
 
 class RemoteError(RuntimeError):
     """Ошибка связи/настройки машины: текст на обоих языках."""
@@ -55,11 +54,9 @@ class RemoteError(RuntimeError):
     def text(self, lang: str = "ru") -> str:
         return self.en if lang == "en" else self.ru
 
-
 def agent_source() -> str:
     """Исходник агента — его отдают пользователю на скачивание и шлют по SSH."""
     return (Path(__file__).with_name("dfy_agent.py")).read_text("utf-8")
-
 
 def install_command() -> Dict[str, str]:
     """Команды установки агента на сервер (Linux/macOS).
@@ -91,7 +88,6 @@ def install_command() -> Dict[str, str]:
         "size": str(len(packed)),
     }
 
-
 def proxy_env(upstream: Any) -> Dict[str, str]:
     """Переменные окружения прокси DFY для команд на удалённой машине (curl, pip, git, wget…).
 
@@ -110,11 +106,9 @@ def proxy_env(upstream: Any) -> Dict[str, str]:
     env.update(NO_PROXY="localhost,127.0.0.1,::1", no_proxy="localhost,127.0.0.1,::1")
     return env
 
-
 def _clean_name(value: Any, fallback: str = "") -> str:
     name = re.sub(r"\s+", " ", str(value or "").strip())[:60]
     return name or fallback
-
 
 class MachineStore:
     """Список машин: метаданные открытым текстом, токены — в зашифрованном хранилище."""
@@ -124,7 +118,6 @@ class MachineStore:
         self.path = self.root / MACHINES_FILE
         self.vault = vault
 
-    # -- файл ---------------------------------------------------------------
     def _read(self) -> Dict[str, Any]:
         try:
             data = json.loads(self.path.read_text("utf-8"))
@@ -142,7 +135,6 @@ class MachineStore:
         except OSError:
             pass
 
-    # -- чтение -------------------------------------------------------------
     def list(self) -> List[Dict[str, Any]]:
         rows = []
         for row in self._read()["machines"]:
@@ -168,7 +160,6 @@ class MachineStore:
                 "error": row.get("error", ""), "created": row.get("created", 0),
                 "default_cwd": row.get("default_cwd", "")}
 
-    # -- запись -------------------------------------------------------------
     def add(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         kind = str(payload.get("kind") or "").strip()
         code = str(payload.get("code") or "").strip()
@@ -257,9 +248,6 @@ class MachineStore:
         self._write(data)
         return True
 
-    # -- токены ----------------------------------------------------------------
-    # Шифр — тот же, что у хранилища секретов DFY (DPAPI на Windows, иначе ключ-файл 600), но
-    # записи не попадают в список «Личные данные и секреты» и в <vault> модели.
     def _put_token(self, row: Dict[str, Any], token: str, *, label: str = "agent") -> None:
         row["secret"] = self.vault._encrypt(token.encode("utf-8"))
         row["secret_kind"] = label
@@ -273,8 +261,6 @@ class MachineStore:
         except Exception:
             return ""
 
-
-# ------------------------------------------------------------ транспорты ---
 class Transport:
     """Общий интерфейс: одна операция агента → результат."""
 
@@ -288,12 +274,11 @@ class Transport:
     async def close(self) -> None:
         return None
 
-
 class LocalTransport(Transport):
     """«Этот компьютер»: тот же ``Agent`` в процессе MemuAI."""
 
     kind = "local"
-    supports_browser = False      # локальным браузером DFY управляет DFYBrowser, а не агент
+    supports_browser = False
 
     def __init__(self, *, protect: Optional[List[str]] = None, roots: Optional[List[str]] = None) -> None:
         self.agent = Agent(Guard(protect=protect, roots=roots))
@@ -303,12 +288,12 @@ class LocalTransport(Transport):
         loop = asyncio.get_running_loop()
 
         def chunk(_job: str, text: str) -> None:
-            # агент читает вывод в рабочем потоке, а подписчик живёт в цикле событий
+
             loop.call_soon_threadsafe(on_chunk, text)
 
         home = str(Path.home())
         if op == "exec" and not params.get("cwd"):
-            # рабочий каталог процесса MemuAI — папка приложения; команды пользователя начинаем в домашней
+
             params = {**params, "cwd": home}
 
         def run() -> Dict[str, Any]:
@@ -317,7 +302,6 @@ class LocalTransport(Transport):
                 result = {**result, "cwd": home}
             return result
         return await asyncio.to_thread(run)
-
 
 class HttpTransport(Transport):
     """Машина с запущенным агентом: HTTP + подпись HMAC, стрим NDJSON."""
@@ -358,7 +342,6 @@ class HttpTransport(Transport):
                     return _unwrap(final, response.status_code)
         except httpx.HTTPError as exc:
             raise RemoteError(f"Нет связи с машиной: {exc}", f"No connection to the machine: {exc}") from None
-
 
 class SshTransport(Transport):
     """Без установки агента: исходник уходит по SSH в stdin, на сервере он запускается
@@ -462,7 +445,7 @@ class SshTransport(Transport):
             pass
         finally:
             try:
-                process.stdin.close()      # EOF: агент на сервере завершает работу (или отменяет команду)
+                process.stdin.close()
             except Exception:
                 pass
             try:
@@ -480,7 +463,6 @@ class SshTransport(Transport):
             raise RemoteError(f"SSH: {text}", f"SSH: {text}")
         return _unwrap(final, 409 if final.get("needs_confirm") else 200)
 
-
 def _unwrap(payload: Dict[str, Any], status: int) -> Dict[str, Any]:
     if not isinstance(payload, dict):
         raise RemoteError("Агент вернул не JSON", "The agent returned no JSON")
@@ -493,8 +475,6 @@ def _unwrap(payload: Dict[str, Any], status: int) -> Dict[str, Any]:
         raise NeedsConfirm(message, message_en)
     raise Refused(message, message_en)
 
-
-# -------------------------------------------------------------- менеджер ---
 class RemoteMachines:
     """Фасад: машины + транспорты + вызовы операций для DFY."""
 
@@ -507,8 +487,8 @@ class RemoteMachines:
     def _protected_paths(self) -> List[str]:
         """MemuAI и его данные: ни локальный режим, ни агент на этой же машине их не трогают."""
         paths = list(self.protect)
-        paths.append(str(Path(__file__).resolve().parents[1]))     # каталог приложения
-        paths.append(str(self.store.root))                          # DATA_DIR/memuai
+        paths.append(str(Path(__file__).resolve().parents[1]))
+        paths.append(str(self.store.root))
         try:
             from .config import DATA_DIR
             paths.append(str(Path(DATA_DIR).resolve()))
@@ -516,14 +496,13 @@ class RemoteMachines:
             pass
         return paths
 
-    # -- список -------------------------------------------------------------
     def targets(self, lang: str = "ru") -> List[Dict[str, Any]]:
         """Цели для выбора в чате: «Этот компьютер» + машины."""
         rows = [{"id": LOCAL_ID, "name": "Этот компьютер" if lang != "en" else "This computer",
                  "kind": "local", "os": "windows" if os.name == "nt" else "linux", "online": True}]
         machines = self.store.list()
         rows.extend(machines)
-        # Браузер DFY на машине: только у машин с агентом по коду (у HTTP-агента есть туннель CDP).
+
         rows.extend({**row, "id": row["id"] + BROWSER_SUFFIX, "machine": row["id"], "browser": True,
                      "name": f"{row['name']} — " + ("browser" if lang == "en" else "браузер")}
                     for row in machines if row.get("kind") == "http")
@@ -555,14 +534,12 @@ class RemoteMachines:
     def forget_transport(self, machine_id: str) -> None:
         self._transports.pop(str(machine_id or ""), None)
 
-    # -- вызовы -------------------------------------------------------------
     async def call(self, machine_id: str, op: str, params: Dict[str, Any], *,
                    on_chunk: Optional[Callable[[str], None]] = None, timeout: float = 180.0) -> Dict[str, Any]:
         transport = self.transport(machine_id)
         row = self.store.get(machine_id) if transport is not self.local else None
         if row is not None:
-            # Агент может оказаться на этой же машине (или делить с ней диск): пути MemuAI
-            # защищены в каждом вызове. Агент только добавляет их к своим, сузить защиту нельзя.
+
             params = {**params, "protect": self._protected_paths()}
         if row is not None and row.get("default_cwd") and op == "exec" and not params.get("cwd"):
             params = {**params, "cwd": row["default_cwd"]}
@@ -594,10 +571,6 @@ class RemoteMachines:
             await transport.close()
         self._transports.clear()
 
-
-# ------------------------------------------------- инструменты для модели ---
-# Действия, которые DFY выполняет на машине. Форматы — как у браузерных
-# действий: один JSON-объект за шаг.
 MACHINE_ACTIONS = """Machine actions (the target machine is in <target>; they work the same on this computer and on a remote server):
 {"action":"shell","command":"ls -la /srv","cwd":"/srv","timeout":120,"reason":"..."}   (one shell command; its output comes back)
 {"action":"file_read","path":"/etc/nginx/nginx.conf","reason":"..."}
@@ -618,14 +591,12 @@ Machine rules:
 - Read before you write: look at a file or a directory before changing it, and say in "reason" what you expect.
 - Prefer one clear command over a chain; check the exit code and the output before the next step."""
 
-
 ACTION_OPS = {
     "shell": "exec", "file_read": "fs_read", "file_write": "fs_write", "file_list": "fs_list",
     "file_delete": "fs_delete", "file_move": "fs_move", "file_find": "fs_find", "file_stat": "fs_stat",
     "file_mkdir": "fs_mkdir", "download": "fetch", "package": "pkg", "process_list": "proc_list",
     "process_kill": "proc_kill", "sysinfo": "sysinfo",
 }
-
 
 def action_params(kind: str, action: Dict[str, Any]) -> Dict[str, Any]:
     """Параметры операции агента из действия модели (чужие ключи не проходят)."""
@@ -649,7 +620,6 @@ def action_params(kind: str, action: Dict[str, Any]) -> Dict[str, Any]:
     if kind == "package":
         params["action"] = str(action.get("pkg_action") or action.get("operation") or "install")
     return params
-
 
 def summarize(kind: str, result: Dict[str, Any], lang: str = "ru") -> tuple:
     """``(строка для карточки шага, строка для модели)`` по ответу агента."""
@@ -703,7 +673,6 @@ def summarize(kind: str, result: Dict[str, Any], lang: str = "ru") -> tuple:
         label = f"{result.get('distro') or result.get('os')} · {result.get('arch')}"
         return label, json.dumps(result, ensure_ascii=False)[:4000]
     return json.dumps(result, ensure_ascii=False)[:300], json.dumps(result, ensure_ascii=False)[:4000]
-
 
 def confirm_prompt(kind: str, action: Dict[str, Any], machine: str, lang: str = "ru") -> str:
     """Текст подтверждения опасного машинного действия."""

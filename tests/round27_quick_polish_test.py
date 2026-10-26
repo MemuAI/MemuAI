@@ -23,7 +23,6 @@ sys.path.insert(0, str(ROOT))
 from app import quick_selection as qs  # noqa: E402
 from tests.round27_selection_test import PREFS, FakeBackend  # noqa: E402
 
-
 class SlowCopyBackend(FakeBackend):
     """An Electron-like program: Ctrl+C puts the text on the clipboard ``delay`` seconds later, in its own thread."""
 
@@ -65,7 +64,6 @@ class SlowCopyBackend(FakeBackend):
         self.note("restore")
         snapshot.restored = True
         return super().restore(snapshot)
-
 
 class StartTests(unittest.TestCase):
     def tearDown(self):
@@ -110,13 +108,13 @@ class StartTests(unittest.TestCase):
     def test_second_press_waits_for_the_copy_in_flight(self):
         api = SlowCopyBackend(delay=0.12, clipboard="user clip", copies="first")
         first = qs.start(123, PREFS, api=api)
-        second = qs.start(123, PREFS, api=api)          # blocks until the first one restored the clipboard
+        second = qs.start(123, PREFS, api=api)
         self.assertTrue(first.done)
         self.assertEqual(first.result["text"], "first")
         snaps = [i for i, e in enumerate(api.events) if e == "snapshot"]
         self.assertGreater(snaps[1], api.events.index("restore"),
                            "the second snapshot is taken only after the first copy put the user's clipboard back")
-        self.assertEqual(second.wait(2)["text"], "first")    # still selected in the program
+        self.assertEqual(second.wait(2)["text"], "first")
         self.assertEqual(api.clipboard, "user clip")
 
     def test_a_copy_that_never_finishes_is_not_snapshotted_over(self):
@@ -168,7 +166,6 @@ class StartTests(unittest.TestCase):
         self.assertLessEqual(qs.MODIFIER_WAIT, 0.05)
         self.assertLessEqual(qs.INPUT_FLUSH, 0.05)
 
-
 class FakeWinApi:
     def __init__(self, events, foreground=555):
         self.events = events
@@ -191,7 +188,6 @@ class FakeWinApi:
     def SetWindowPos(self, *args):
         return True
 
-
 class FakeForm:
     def __init__(self, events):
         self.events = events
@@ -201,7 +197,6 @@ class FakeForm:
 
     def Hide(self):
         self.events.append("hide")
-
 
 def make_manager(events):
     from app.quick_ask import QuickAskManager
@@ -229,14 +224,12 @@ def make_manager(events):
     manager.raise_to_top = lambda: True
     return manager
 
-
 def late_pushes(manager):
     out = []
     for script in manager.pushes:
         if "QuickAsk.onSelection(" in script:
             out.append(json.loads(script.split("QuickAsk.onSelection(", 1)[1][:-1]))
     return out
-
 
 class WindowTests(unittest.TestCase):
     def setUp(self):
@@ -299,9 +292,9 @@ class WindowTests(unittest.TestCase):
         manager = make_manager(self.events)
         manager.show("hotkey")
         manager.hide(restore_focus=False)
-        api.copies = None                           # nothing selected the second time
+        api.copies = None
         with mock.patch.object(qs, "COPY_TIMEOUT", 0.05):
-            manager.show("hotkey")                  # waits for the first copy (in flight), then its own
+            manager.show("hotkey")
             time.sleep(0.2)
         self.assertEqual(late_pushes(manager), [])
 
@@ -330,7 +323,6 @@ class WindowTests(unittest.TestCase):
         self.assertIn("S.turns.length !== wait.turns", body)
         self.assertNotIn("focusInput", body, "a late selection never moves the focus or the caret")
 
-
 class DefaultSnippetLanguageTests(unittest.TestCase):
     def setUp(self):
         import shutil
@@ -348,7 +340,7 @@ class DefaultSnippetLanguageTests(unittest.TestCase):
 
     def test_untouched_defaults_follow_the_interface_language(self):
         qf = self.qf
-        self.assertIn("Today's date", self.names("en"))       # the first load happened in English
+        self.assertIn("Today's date", self.names("en"))
         ru = qf.load_config("ru")["snippets"]
         self.assertEqual([r["name"] for r in ru], [r["name"] for r in qf.default_snippets("ru")])
         self.assertEqual([r["text"] for r in ru], [r["text"] for r in qf.default_snippets("ru")], "AI templates too")
@@ -358,7 +350,7 @@ class DefaultSnippetLanguageTests(unittest.TestCase):
     def test_an_edited_default_is_the_users(self):
         qf = self.qf
         rows = qf.load_config("en")["snippets"]
-        rows[1] = dict(rows[1], text="Thanks a lot! {cursor}")     # «Thank-you reply» edited
+        rows[1] = dict(rows[1], text="Thanks a lot! {cursor}")
         rows[5] = dict(rows[5], name="Fix my English")
         qf.save_config(snippets=rows)
         ru = qf.load_config("ru")["snippets"]
@@ -381,7 +373,7 @@ class DefaultSnippetLanguageTests(unittest.TestCase):
     def test_settings_save_keeps_defaults_language_neutral(self):
         qf = self.qf
         qf.load_config("en")
-        qf.save_config(settings={"clipboard": True})              # save_config loads without a language
+        qf.save_config(settings={"clipboard": True})
         self.assertIn("Today's date", self.names("en"))
         self.assertIn("Сегодняшняя дата", self.names("ru"))
 
@@ -389,7 +381,6 @@ class DefaultSnippetLanguageTests(unittest.TestCase):
         src = (ROOT / "app" / "pgstatic" / "quick" / "plugins" / "commands-settings.js").read_text("utf-8")
         self.assertIn('["2gis", t("2ГИС", "2GIS")]', src)
         self.assertIn('["yandex_go", t("Яндекс Go", "Yandex Go")]', src)
-
 
 if __name__ == "__main__":
     unittest.main()

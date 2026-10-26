@@ -16,10 +16,8 @@ from app.cli.agent import Agent
 READ_A = '```memuai-tool\n[{"tool":"Read","args":{"file_path":"a.txt"}}]\n```'
 LS = '```memuai-tool\n[{"tool":"LS","args":{}}]\n```'
 
-
 def _last_user(request) -> str:
     return str(request.messages[-1].get("content"))
-
 
 class EmptyReplyTests(unittest.TestCase):
     def test_empty_reply_mid_task_is_nudged_to_continue(self):
@@ -41,7 +39,6 @@ class EmptyReplyTests(unittest.TestCase):
         result = run(Agent(runtime).run_turn("hi"))
         self.assertEqual(result.text, "Hello!")
         self.assertEqual(len(backend.requests), 1)
-
 
 class DuplicateCallTests(unittest.TestCase):
     def test_identical_read_is_answered_not_run_again(self):
@@ -87,7 +84,6 @@ class DuplicateCallTests(unittest.TestCase):
         runtime, backend = make_runtime(turns=[one, two, one, "done"], settings={"permission_mode": "bypassPermissions"})
         run(Agent(runtime).run_turn("run them"))
         self.assertNotIn("Not run again", _last_user(backend.requests[3]))
-
 
 if __name__ == "__main__":
     unittest.main()

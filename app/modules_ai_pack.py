@@ -33,7 +33,7 @@ import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from fastapi import Request  # module level: route annotations are strings (from __future__ import annotations)
+from fastapi import Request
 
 from . import docs as docs_module
 from . import modules_host as host
@@ -42,25 +42,17 @@ from . import token_estimate
 
 PACK_FORMAT = 1
 
-
-# --------------------------------------------------------------------------
-# Paths
-# --------------------------------------------------------------------------
-
 def _app_dir() -> Path:
     base = getattr(sys, "_MEIPASS", "")
     if base and (Path(base) / "app").is_dir():
         return Path(base) / "app"
     return Path(__file__).resolve().parent
 
-
 def examples_dir() -> Path:
     return docs_module.docs_dir() / "module-examples"
 
-
 def harness_template_path() -> Path:
     return _app_dir() / "pgstatic" / "memu-module-test.js"
-
 
 def _version() -> str:
     try:
@@ -69,11 +61,6 @@ def _version() -> str:
     except Exception:  # pragma: no cover - version.py always ships
         return ""
 
-
-# --------------------------------------------------------------------------
-# Facts read from the code
-# --------------------------------------------------------------------------
-
 def bridge_timeouts() -> Dict[str, int]:
     match = re.search(r"var TIMEOUTS = \{(.*?)\};", host.BRIDGE_JS, re.S)
     rows: Dict[str, int] = {}
@@ -81,21 +68,17 @@ def bridge_timeouts() -> Dict[str, int]:
         rows[name] = int(value)
     return rows
 
-
 def i18n_attributes() -> List[str]:
     match = re.search(r"var I18N_ATTRS = \[(.*?)\]", host.BRIDGE_JS, re.S)
     return re.findall(r"\"([\w-]+)\"", match.group(1) if match else "")
-
 
 def csp() -> str:
     document = host.module_document({"id": "x", "html": "<div></div>", "js": ""}, {})
     match = re.search(r'Content-Security-Policy" content="([^"]+)"', document)
     return match.group(1) if match else ""
 
-
 def mu_classes() -> List[str]:
     return sorted(set(re.findall(r"\.(mu-[a-z0-9-]+)", host.BASE_CSS)))
-
 
 def bridge_reference() -> List[Tuple[str, str, str, Optional[int]]]:
     """(method, bridge action, permission, timeout ms) for every Memu.* function."""
@@ -105,10 +88,9 @@ def bridge_reference() -> List[Tuple[str, str, str, Optional[int]]]:
         if method in ("id", "version", "manifest", "saved", "env", "lang", "i18n", "record", "toolbar"):
             continue
         permission = host.ACTION_PERMISSION.get(action, "") if action else ""
-        # an action missing from TIMEOUTS waits the bridge default of 120 s (callWithId)
+
         rows.append((method, action, permission, timeouts.get(action, 120000) if action else None))
     return rows
-
 
 def rules() -> Dict[str, Any]:
     """What the test harness needs from this build (also serialised into it)."""
@@ -133,26 +115,18 @@ def rules() -> Dict[str, Any]:
         "icons": list(validate.ICON_NAMES),
     }
 
-
 def harness_source() -> str:
     """``memu-module-test.js`` with the real bridge and this build's rules inside."""
     template = harness_template_path().read_text(encoding="utf-8")
     bridge = json.dumps(host.BRIDGE_JS, ensure_ascii=False)
     data = json.dumps(rules(), ensure_ascii=False)
     out = template.replace("/*@bridge*/null/*@end*/", bridge, 1).replace("/*@rules*/null/*@end*/", data, 1)
-    # "</script>" never matters in Node, but a stray "*/" inside JSON strings would end a comment
-    # only if it were inside one — the values sit in expressions, so the file stays valid JS.
+
     return out
-
-
-# --------------------------------------------------------------------------
-# Documentation → plain text
-# --------------------------------------------------------------------------
 
 def _doc_titles(lang: str) -> Dict[str, str]:
     catalog = docs_module.catalog(lang)
     return {page["id"]: page["title"] for group in catalog["groups"] for page in group["pages"]}
-
 
 def _plain_markdown(body: str, titles: Dict[str, str], lang: str) -> str:
     see = "see" if lang == "en" else "см."
@@ -183,7 +157,6 @@ def _plain_markdown(body: str, titles: Dict[str, str], lang: str) -> str:
         out.append(line)
     return "\n".join(out).strip() + "\n"
 
-
 def module_doc_pages(lang: str) -> List[Dict[str, Any]]:
     """Every page of the «modules» group, in index order (new pages are picked up automatically)."""
     catalog = docs_module.catalog(lang)
@@ -193,19 +166,13 @@ def module_doc_pages(lang: str) -> List[Dict[str, Any]]:
             continue
         for row in group["pages"]:
             if row["id"] == "modules-ai-pack":
-                continue                       # the page about this very file
+                continue
             page = docs_module.page(lang, row["id"])
             if page:
                 pages.append(page)
     return pages
 
-
-# --------------------------------------------------------------------------
-# Examples
-# --------------------------------------------------------------------------
-
 EXAMPLE_ORDER = ("quick-notes", "model-chat", "doc-brief")
-
 
 def examples() -> List[Dict[str, Any]]:
     """Complete packages from app/docs/module-examples (folders), each as {id, files…}."""
@@ -221,7 +188,6 @@ def examples() -> List[Dict[str, Any]]:
         rows.append({"id": name, "manifest": source["manifest"], "files": source["files"]})
     return rows
 
-
 def template_packages() -> List[Dict[str, Any]]:
     rows = []
     for row in host.TEMPLATES:
@@ -232,11 +198,6 @@ def template_packages() -> List[Dict[str, Any]]:
                      "files": {"index.html": spec["html"], "style.css": spec["css"], "main.js": spec["js"],
                                "i18n.json": json.dumps(spec["i18n"], ensure_ascii=False, indent=2)}})
     return rows
-
-
-# --------------------------------------------------------------------------
-# The text
-# --------------------------------------------------------------------------
 
 TEXT: Dict[str, Dict[str, Any]] = {
     "ru": {
@@ -529,7 +490,6 @@ await t.idle(); t.expect(t.text("#log").includes("mock"), "the answer is shown")
     },
 }
 
-#: Short explanations of the shared mu-* classes (the list itself is parsed from BASE_CSS).
 MU_HINTS = {
     "ru": {"mu-page": "страница с отступами и прокруткой", "mu-col": "колонка на всю высоту", "mu-row": "строка элементов",
            "mu-grow": "растягивающийся промежуток", "mu-grid": "адаптивная сетка карточек", "mu-title": "заголовок",
@@ -570,14 +530,11 @@ EVENTS = {
     ],
 }
 
-
 def _rule(title: str) -> str:
     return "\n" + "=" * 100 + "\n" + title + "\n" + "=" * 100 + "\n"
 
-
 def _sub(title: str) -> str:
     return "\n" + title + "\n" + "-" * min(100, max(20, len(title))) + "\n"
-
 
 def _files_block(manifest: Dict[str, Any], files: Dict[str, Any]) -> str:
     parts = ["### FILE: manifest.json", "```json", json.dumps(manifest, ensure_ascii=False, indent=2), "```"]
@@ -587,7 +544,6 @@ def _files_block(manifest: Dict[str, Any], files: Dict[str, Any]) -> str:
             text = json.dumps(text, ensure_ascii=False, indent=2)
         parts += [f"### FILE: {name}", f"```{lang}", str(text).rstrip("\n"), "```"]
     return "\n".join(parts) + "\n"
-
 
 def _facts(lang: str) -> str:
     en = lang == "en"
@@ -607,11 +563,10 @@ def _facts(lang: str) -> str:
     width = max(len(r[0] if en else r[1]) for r in rows)
     return "\n".join(f"{(r[0] if en else r[1]).ljust(width)} : {r[2]}" for r in rows) + "\n"
 
-
 def _reference(lang: str) -> str:
     en = lang == "en"
     out: List[str] = []
-    # 2.1 manifest
+
     out.append(_sub("2.1 manifest.json — " + ("every field the host reads, with its default" if en else "все поля, которые читает хост, и значения по умолчанию")))
     defaults = host.normalize_manifest({}, module_id="my-module")
     for key in ("schema", "enabled"):
@@ -632,7 +587,7 @@ def _reference(lang: str) -> str:
         ("icon: one of " if en else "icon: одно из ") + ", ".join(validate.ICON_NAMES),
     ]
     out.extend("  • " + line for line in lines)
-    # 2.2 bridge
+
     out.append(_sub("2.2 " + ("The Memu bridge — every method (parsed from the bridge source)" if en else "Мост Memu — все методы (разобраны из исходника моста)")))
     header = ("method", "action", "permission", "timeout") if en else ("метод", "действие", "право", "таймаут")
     out.append(f"{header[0]:<22}{header[1]:<16}{header[2]:<13}{header[3]}")
@@ -648,21 +603,21 @@ def _reference(lang: str) -> str:
                 if en else "Ошибки: каждый promise отклоняется с Error(сообщение на языке интерфейса); error.detail — исходный ответ сервера, если был. Права хост проверяет при каждом вызове."))
     out.append(("Uncaught errors and rejections inside the module go to the MemuAI log automatically; Memu.log(text, \"error\") too."
                 if en else "Необработанные ошибки и отклонения внутри модуля сами уходят в журнал MemuAI; Memu.log(text, \"error\") тоже."))
-    # 2.3 events
+
     out.append(_sub("2.3 " + ("Host events — Memu.on(type, handler) returns an unsubscribe function" if en else "События хоста — Memu.on(type, handler) возвращает функцию отписки")))
     for name, data, text in EVENTS[lang]:
         out.append(f"  {name:<14}{data:<36}{text}")
     out.append(("Esc not handled by the module (no preventDefault, not in a field, no open <dialog>) is forwarded: it collapses an expanded module window."
                 if en else "Esc, который модуль не обработал (без preventDefault, не в поле, без открытого <dialog>), уходит хосту: он сворачивает развёрнутое окно."))
-    # 2.4 host commands
+
     out.append(_sub("2.4 Memu.call(\"host\", …)"))
     out.append("  {command: \"chat\", models: [id, …≤6]} → " + ("opens a new MemuAI chat with the first connected model; {ok:false, reason:\"not_connected\"}" if en else "новый чат MemuAI с первой подключённой моделью; {ok:false, reason:\"not_connected\"}"))
     out.append("  {command: \"module\", id, query, model} → " + ("opens another enabled module, it gets the navigate event; reason: missing | disabled" if en else "открывает другой включённый модуль, он получает событие navigate; reason: missing | disabled"))
-    # 2.5 routes
+
     out.append(_sub("2.5 " + ("Capabilities (Memu.routes())" if en else "Возможности (Memu.routes())")))
     for name, route in host.media_routes().items():
         out.append(f"  {name:<12}{route.get('note_en' if en else 'note_ru', '')}")
-    # 2.6 sandbox
+
     out.append(_sub("2.6 " + ("The sandbox and the security policy" if en else "Песочница и политика безопасности")))
     out.append("  iframe sandbox=\"allow-scripts\" allow=\"microphone; autoplay; clipboard-write\"")
     out.append("  Content-Security-Policy: " + csp())
@@ -670,7 +625,7 @@ def _reference(lang: str) -> str:
                 if en else "  Порядок документа: <style> токенов → общий <style> mu-* (+ accent) → style.css → index.html (в <body>) → <script> моста → main.js в обёртке window.__memuModuleMain=function(){…}; вызывается один раз."))
     out.append(("  Inline scripts in index.html would run BEFORE the bridge. The text \"</script>\" inside main.js ends the script — write <\\/script>."
                 if en else "  Скрипты в index.html выполнились бы РАНЬШЕ моста. Текст \"</script>\" в main.js обрывает скрипт — пишите <\\/script>."))
-    # 2.7 tokens
+
     out.append(_sub("2.7 " + ("Design tokens (CSS variables) — values of the default dark and light themes" if en else "Токены дизайна (CSS-переменные) — значения тёмной и светлой темы по умолчанию")))
     dark = host.design_tokens({"theme": "dark"})
     light = host.design_tokens({"theme": "light"})
@@ -681,19 +636,19 @@ def _reference(lang: str) -> str:
     out.append(("  Syntax colours --tok-kw, --tok-str, --tok-com, --tok-num, --tok-fn… exist for code views; fonts: var(--sans), var(--serif), var(--mono)."
                 if en else "  Цвета подсветки кода --tok-kw, --tok-str, --tok-com, --tok-num, --tok-fn…; шрифты: var(--sans), var(--serif), var(--mono)."))
     out.append("  html[data-theme=dark|light] [data-accent] [data-surface] [data-density=normal|compact|spacious]; base font 14.5px × var(--font-scale)/100")
-    # 2.8 classes
+
     out.append(_sub("2.8 " + ("Shared mu-* classes (from the host stylesheet)" if en else "Общие классы mu-* (из стилей хоста)")))
     hints = MU_HINTS[lang]
     for name in mu_classes():
         out.append(f"  .{name:<16}{hints.get(name, '')}")
-    # 2.9 i18n
+
     out.append(_sub("2.9 " + ("Translations" if en else "Переводы")))
     out.append("  data-i18n, data-i18n-html, " + ", ".join("data-i18n-" + a for a in i18n_attributes()))
     out.append(("  Plural: {\"one\": \"{count} item\", \"other\": \"{count} items\"} (+ zero, two, few, many) → Memu.t(key, {count: n}); {name} placeholders; Memu.t(key, {fallback: \"…\"})"
                 if en else "  Множественное число: {\"one\": \"{count} файл\", \"few\": \"{count} файла\", \"many\": \"{count} файлов\", \"other\": \"{count} файла\"} → Memu.t(key, {count: n}); подстановки {name}; Memu.t(key, {fallback: \"…\"})"))
     out.append(("  Lookup order: MemuAI language → its base language → manifest.default_locale → en → ru → any locale. A missing key shows the key itself."
                 if en else "  Порядок поиска: язык MemuAI → базовый язык → manifest.default_locale → en → ru → любой словарь. Нет ключа — на экране сам ключ."))
-    # 2.10 package formats
+
     out.append(_sub("2.10 " + ("Package formats" if en else "Форматы пакета")))
     sample = {"format": host.PACKAGE_FORMAT, "version": host.PACKAGE_VERSION, "manifest": {"id": "my-module", "title": "…", "permissions": ["storage"], "persist": ["text"]},
               "files": {"index.html": "<div class=\"mu-page\">…</div>", "style.css": "", "main.js": "…", "i18n.json": {"ru": {}, "en": {}}}}
@@ -705,7 +660,6 @@ def _reference(lang: str) -> str:
                 else "  3) Экспортный .memu-module.json (его пишет «Экспорт» и принимает «Импорт → вставка»):"))
     out.append("```json\n" + json.dumps(sample, ensure_ascii=False, indent=2) + "\n```")
     return "\n".join(out) + "\n"
-
 
 def _mistakes(lang: str) -> str:
     en = lang == "en"
@@ -732,7 +686,6 @@ def _mistakes(lang: str) -> str:
     ])
     return "\n".join(extra + out) + "\n"
 
-
 def _extras(lang: str) -> str:
     """Notes other workstreams leave for the pack: app/docs/<lang>/_ai-pack-*.txt (optional)."""
     folder = docs_module.docs_dir() / lang
@@ -743,7 +696,6 @@ def _extras(lang: str) -> str:
         except OSError:
             continue
     return "\n\n".join(parts)
-
 
 def build_pack(lang: str = "ru", *, include_harness: bool = True) -> str:
     lang = "en" if lang == "en" else "ru"
@@ -786,11 +738,9 @@ def build_pack(lang: str = "ru", *, include_harness: bool = True) -> str:
     text = "\n".join(out)
     return text.replace("\r\n", "\n")
 
-
 def pack_name(lang: str, include_harness: bool = True) -> str:
     version = _version().replace(".", "_")
     return f"MemuAI-{version}-modules-AI-pack-{'en' if lang == 'en' else 'ru'}{'' if include_harness else '-compact'}.txt"
-
 
 def pack_summary(text: str) -> Dict[str, Any]:
     """Size of the pack. Tokens are an estimate that depends on the language (Russian costs more than English) and
@@ -799,11 +749,6 @@ def pack_summary(text: str) -> Dict[str, Any]:
     return {"bytes": len(text.encode("utf-8")), "chars": len(text), "lines": text.count("\n") + 1,
             "tokens": tokens["tokens"], "tokens_low": tokens["low"], "tokens_high": tokens["high"],
             "tokens_families": tokens["families"], "tokens_mix": tokens["mix"], "tokens_estimated": True}
-
-
-# --------------------------------------------------------------------------
-# Routes
-# --------------------------------------------------------------------------
 
 def register(app: Any) -> None:
     import asyncio
@@ -821,7 +766,7 @@ def register(app: Any) -> None:
         try:
             text = await asyncio.to_thread(build_pack, lang, include_harness=include)
             summary = await asyncio.to_thread(pack_summary, text) if format == "json" else {}
-        except Exception as exc:  # the pack must never take the server down
+        except Exception as exc:
             return JSONResponse({"error": f"Пакет не собран: {exc}"}, 500)
         name = pack_name(lang, include)
         if format == "json":

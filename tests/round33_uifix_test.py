@@ -37,11 +37,9 @@ try:
 except Exception:   # pragma: no cover
     HAVE_PW = False
 
-
 def shot_bytes(n: int) -> str:
     """A distinct «screenshot» per snapshot (JPEG magic + the snapshot number)."""
     return base64.b64encode(b"\xff\xd8\xff\xe0" + f"page-{n}".encode()).decode()
-
 
 class CountingBrowser:
     """A fake DFY browser whose every snapshot carries a new screenshot (page-1, page-2, …)."""
@@ -76,7 +74,6 @@ class CountingBrowser:
     async def key(self, name): return name
     async def back(self): return None
 
-
 class Scripted:
     def __init__(self, script):
         self.script = list(script)
@@ -84,7 +81,6 @@ class Scripted:
     async def __call__(self, model, messages):
         item = self.script.pop(0) if self.script else {"action": "done", "result": "end"}
         return json.dumps(item)
-
 
 class Gate:
     """A model that thinks until released (so the test can take over / cancel mid-task)."""
@@ -100,13 +96,11 @@ class Gate:
         await self.release.wait()
         return json.dumps({"action": "wait", "seconds": 0.1})
 
-
 def manager(model, browser, data, **prefs):
     settings = {"dfy_enabled": True, "dfy_model": "vision/model", "dfy_max_steps": 20, "language": "ru"}
     settings.update(prefs)
     return DFYManager(model, lambda: dict(settings), data_root=data, vision_lookup=lambda _m: True,
                       browser_factory=lambda _v: browser)
-
 
 async def wait_for(cond, timeout=5.0):
     loop = asyncio.get_running_loop()
@@ -115,7 +109,6 @@ async def wait_for(cond, timeout=5.0):
         if loop.time() > end:
             raise AssertionError("condition never became true")
         await asyncio.sleep(0.01)
-
 
 class DFYLiveView(unittest.TestCase):
     """#4: the step of an action carries the screenshot taken right after it."""
@@ -134,7 +127,7 @@ class DFYLiveView(unittest.TestCase):
         self.assertEqual(task.status, "done")
         steps = {s["action"]: s for s in task.steps}
         nav, click = steps["navigate"], steps["click"]
-        # navigate was decided on snapshot 1 and its result is snapshot 2; click: decided on 2, result 3.
+
         self.assertEqual(Path(mgr.screenshot_path(task.id, nav["n"])).read_bytes()[4:], b"page-2")
         self.assertEqual(Path(mgr.screenshot_path(task.id, click["n"])).read_bytes()[4:], b"page-3")
         for step in (nav, click):
@@ -148,7 +141,7 @@ class DFYLiveView(unittest.TestCase):
             data = Path(tempfile.mkdtemp(prefix="r33-uifix-limit-"))
             browser = CountingBrowser()
             mgr = manager(Scripted([{"action": "navigate", "url": f"https://example.com/{i}"} for i in range(5)]),
-                          browser, data, dfy_max_steps=5)     # 5 is the minimum limit
+                          browser, data, dfy_max_steps=5)
             task = await mgr.create("five steps", [], "chat")
             await asyncio.wait_for(task.job, 10)
             return mgr, task, browser
@@ -174,7 +167,6 @@ class DFYLiveView(unittest.TestCase):
         self.assertFalse(act.get("shot_after"), "a later step carries its own picture; the action keeps its own")
         self.assertIsNone(task.shot_pending)
 
-
 class DFYTakeoverLifecycle(unittest.TestCase):
     """#5: cancelling a task under takeover leaves no takeover behind."""
 
@@ -192,10 +184,10 @@ class DFYTakeoverLifecycle(unittest.TestCase):
             await mgr.cancel(task.id)
             out = {"status": task.status, "takeover": task.takeover, "last": task.last_takeover,
                    "control": task.public()["control"], "active": session.active}
-            again = await mgr.takeover_end(task.id)      # «Return control» on the dead task: a harmless no-op
+            again = await mgr.takeover_end(task.id)
             out["end"] = again.status
             with self.assertRaises(RuntimeError):
-                await mgr.takeover_start(task.id)          # «Open» on the dead task is refused (UI drops the bar)
+                await mgr.takeover_start(task.id)
             await mgr.shutdown()
             return out
         out = asyncio.run(scenario())
@@ -212,7 +204,6 @@ class DFYTakeoverLifecycle(unittest.TestCase):
         self.assertIn("self._drop_takeover(task)", run[run.index("finally:"):], "the run's finally drops the takeover")
         cancel = src[src.index("    async def cancel("):src.index("    def _drop_takeover") if "    def _drop_takeover" in src else None]
         self.assertIn("self._drop_takeover(task)", cancel)
-
 
 class StaticWiring(unittest.TestCase):
     def test_takeover_sync_is_wired(self):
@@ -260,7 +251,6 @@ class StaticWiring(unittest.TestCase):
             res = subprocess.run(["node", "--check", str(path)], capture_output=True, text=True)
             self.assertEqual(res.returncode, 0, f"{path.name}: {res.stderr}")
 
-
 BASE = "http://memu.test"
 LIST_PAGE = """<!doctype html><html><head><meta charset=utf-8>
 <link rel=stylesheet href="/memu-dragsort.css"><style>
@@ -282,7 +272,6 @@ window.WebSocket = class { constructor() { this.readyState = 1; } close() {} sen
 window.watchers = {};
 window.MemuDFY = { watch(id, cb) { watchers[id] = cb; return () => { delete watchers[id]; }; } };
 </script><script src="/dfy-takeover.js"></script></body></html>"""
-
 
 @unittest.skipUnless(HAVE_PW, "no Playwright / Chromium")
 class Browser(unittest.TestCase):
@@ -321,14 +310,13 @@ class Browser(unittest.TestCase):
         self.addCleanup(ctx.close)
         return page, errors
 
-    # ---------------------------------------------------------------- #19
     def test_dragsort_wheel_edge_drop_escape_click(self):
         page, errors = self.page(LIST_PAGE)
         top = lambda: page.evaluate("box.scrollTop")
         it = page.locator('.it[data-i="2"]').bounding_box()
         page.mouse.move(it["x"] + 40, it["y"] + 18)
         page.mouse.down()
-        page.mouse.move(it["x"] + 44, it["y"] + 40, steps=4)       # past the 5 px threshold
+        page.mouse.move(it["x"] + 44, it["y"] + 40, steps=4)
         page.wait_for_timeout(100)
         self.assertTrue(page.evaluate("MemuDragSort.active"))
         self.assertTrue(page.evaluate("!!document.querySelector('.memu-drag-ghost')"))
@@ -337,10 +325,10 @@ class Browser(unittest.TestCase):
         page.wait_for_timeout(300)
         after_wheel = top()
         self.assertGreater(after_wheel, 100, "the wheel scrolls the list while dragging")
-        # below the box: the list scrolls by itself to the end
+
         page.mouse.move(it["x"] + 40, 40 + 300 + 30, steps=3)
         page.wait_for_function("box.scrollTop + box.clientHeight >= box.scrollHeight - 1", timeout=8000)
-        # onto the last item: the target follows the scroll; drop
+
         last = page.locator('.it[data-i="39"]').bounding_box()
         page.mouse.move(last["x"] + 50, last["y"] + 18, steps=3)
         page.wait_for_timeout(100)
@@ -350,7 +338,7 @@ class Browser(unittest.TestCase):
         self.assertEqual(page.evaluate("log.drops"), [[2, 39]])
         self.assertEqual(page.evaluate("log.clicks"), [], "a drop is not a click")
         self.assertFalse(page.evaluate("MemuDragSort.active || !!document.querySelector('.memu-drag-ghost, .drop')"))
-        # Esc cancels
+
         page.evaluate("box.scrollTop = 0")
         it = page.locator('.it[data-i="1"]').bounding_box()
         page.mouse.move(it["x"] + 40, it["y"] + 18); page.mouse.down()
@@ -359,7 +347,7 @@ class Browser(unittest.TestCase):
         page.wait_for_timeout(100)
         self.assertEqual(page.evaluate("log.drops.length"), 1)
         self.assertFalse(page.evaluate("MemuDragSort.active || !!document.querySelector('.memu-drag-ghost, .drop')"))
-        # a plain click still clicks
+
         page.wait_for_timeout(450)
         page.locator('.it[data-i="3"]').click()
         self.assertEqual(page.evaluate("log.clicks"), [3])
@@ -370,16 +358,15 @@ class Browser(unittest.TestCase):
         page.evaluate("box.scrollTop = 200")
         it = page.evaluate("(() => { const r = box.getBoundingClientRect(); return [r.left, r.top]; })()")
         page.mouse.move(it[0] + 40, it[1] + 10); page.mouse.down()
-        page.mouse.move(it[0] + 48, it[1] + 12, steps=3)              # a tiny move inside the top edge strip
+        page.mouse.move(it[0] + 48, it[1] + 12, steps=3)
         page.wait_for_timeout(400)
         self.assertTrue(page.evaluate("MemuDragSort.active"))
         self.assertEqual(page.evaluate("box.scrollTop"), 200, "auto-scroll arms only after leaving the edge / 24 px")
-        page.mouse.move(it[0] + 48, it[1] - 30, steps=3)               # now clearly past the edge
+        page.mouse.move(it[0] + 48, it[1] - 30, steps=3)
         page.wait_for_function("box.scrollTop < 200", timeout=4000)
         page.keyboard.press("Escape"); page.mouse.up()
         self.assertEqual(errors, [])
 
-    # ---------------------------------------------------------------- #5
     def test_takeover_bar_follows_the_task(self):
         calls = []
 
@@ -396,17 +383,17 @@ class Browser(unittest.TestCase):
         self.assertFalse(page.evaluate(pill), "no card of the task in this chat: the bar is hidden")
         page.evaluate("document.getElementById('chat').innerHTML = '<div data-dfy-card=\"t1\"></div>'")
         page.wait_for_function(pill, timeout=3000)
-        page.evaluate("document.getElementById('chat').innerHTML = ''")      # another chat
+        page.evaluate("document.getElementById('chat').innerHTML = ''")
         page.wait_for_function("!" + pill, timeout=3000)
         page.evaluate("document.getElementById('chat').innerHTML = '<div data-dfy-card=\"t1\"></div>'")
         page.wait_for_function(pill, timeout=3000)
         self.assertTrue(page.evaluate("typeof watchers.t1 === 'function'"), "the minimized bar watches its task")
-        page.evaluate("watchers.t1({ id: 't1', status: 'cancelled', control: 'ai' })")   # stopped elsewhere
+        page.evaluate("watchers.t1({ id: 't1', status: 'cancelled', control: 'ai' })")
         self.assertFalse(page.evaluate(pill))
         self.assertEqual(page.evaluate("MemuDFYTakeover.taskId"), "")
         self.assertIn("The DFY task was stopped", page.evaluate("toasts"))
         self.assertFalse(page.evaluate("'t1' in watchers"))
-        # control back with the AI (idle timeout) while minimized closes the bar too
+
         self.assertTrue(page.evaluate("MemuDFYTakeover.open('t1')"))
         page.evaluate("MemuDFYTakeover.minimize()")
         page.evaluate("MemuDFYTakeover.sync({ id: 't1', status: 'running', control: 'ai' })")
@@ -414,7 +401,7 @@ class Browser(unittest.TestCase):
         page.wait_for_timeout(1600)
         page.evaluate("MemuDFYTakeover.sync({ id: 't1', status: 'running', control: 'ai' })")
         self.assertEqual(page.evaluate("MemuDFYTakeover.taskId"), "")
-        # «Open» on a task that is no longer running removes a stale bar
+
         page.evaluate("MemuDFYTakeover.open('t1').then(() => MemuDFYTakeover.minimize())")
         page.wait_for_timeout(100)
         page.evaluate("document.getElementById('chat').innerHTML = '<div data-dfy-card=\"t2\"></div>'")
@@ -422,7 +409,6 @@ class Browser(unittest.TestCase):
         self.assertFalse(page.evaluate(pill))
         self.assertFalse(page.evaluate("MemuDFYTakeover.minimized"))
         self.assertEqual(errors, [])
-
 
 if __name__ == "__main__":
     unittest.main()

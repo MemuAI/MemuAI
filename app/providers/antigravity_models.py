@@ -20,20 +20,13 @@ from typing import Any, Dict, Iterable, List, NamedTuple, Optional, Tuple
 
 LEVELS = ("high", "medium", "low")
 
-
 class Model(NamedTuple):
-    public: str      # id в каталоге MemuAI (после префикса «antigravity-»)
-    upstream: str    # id, который понимает Google
-    note: str        # подпись, как в самом Antigravity
-    seed: bool       # входит в стартовый набор нового аккаунта
-    level: str = ""  # уровень размышлений, который уходит в запрос отдельным полем («tiered»-модели)
+    public: str
+    upstream: str
+    note: str
+    seed: bool
+    level: str = ""
 
-
-# Порядок — порядок в каталоге. Подписи взяты из displayName сервера; у «tiered»-моделей
-# названия нет (IDE их не показывает), подпись дали мы. У них один id Google на все уровни:
-# уровень передаётся в запросе (``thinkingConfig.thinkingLevel``), а без него глубину
-# выбирает сам Google. Проверено на живых аккаунтах: low / medium / high принимаются и
-# меняют объём размышлений, «minimal» сервер отвергает.
 CURATED: Tuple[Model, ...] = (
     Model("gemini-3.6-flash-high", "gemini-3.6-flash-high", "Gemini 3.6 Flash (High)", True),
     Model("gemini-3.6-flash-medium", "gemini-3.6-flash-medium", "Gemini 3.6 Flash (Medium)", True),
@@ -57,38 +50,27 @@ CURATED: Tuple[Model, ...] = (
     Model("gpt-oss-120b-medium", "gpt-oss-120b-medium", "GPT-OSS 120B (Medium)", True),
 )
 
-#: Id, которые сервер отдаёт, но которым нечего делать в каталоге: старые имена
-#: одной и той же «3.5 Flash Lite», «tiered» 3.6 (у неё есть три явных уровня) и
-#: генерация картинок (чат получает от неё не текст).
 HIDDEN_UPSTREAM = frozenset({
     "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash-thinking",
     "gemini-3.6-flash-tiered", "gemini-3.1-flash-image",
 })
 
-#: Снятые с обслуживания модели. Сервер по-прежнему перечисляет их, а на запрос
-#: отвечает готовой фразой «… is no longer available. Please switch to …» —
-#: обычным текстом, который без проверки выглядел бы ответом модели. Проверено
-#: на живых аккаунтах: Gemini 3.5 Flash (High / Medium / Low).
 RETIRED_UPSTREAM = frozenset({"gemini-3-flash-agent", "gemini-3.5-flash-low", "gemini-3.5-flash-extra-low"})
 
-#: Модели, которые думают только по явному бюджету размышлений (Claude).
 THINKING_UPSTREAM = frozenset({"claude-opus-4-6-thinking", "claude-sonnet-4-6"})
 
-# Этими id Google называл модели раньше; сервер публикует переименования в
-# fetchAvailableModels.deprecatedModelIds, таблица — запас до первого ответа.
 DEPRECATED: Dict[str, str] = {"gemini-3.1-pro-high": "gemini-pro-agent"}
 
 _UP_TO_PUBLIC: Dict[str, str] = {m.upstream: m.public for m in CURATED if m.upstream != m.public and not m.level}
 _PUBLIC_TO_UP: Dict[str, str] = {m.public: m.upstream for m in CURATED if m.upstream != m.public}
 _NOTES: Dict[str, str] = {m.public: m.note for m in CURATED}
-#: Публичное имя → уровень, который надо передать в запросе (только «tiered»-модели).
+
 _REQUEST_LEVEL: Dict[str, str] = {m.public: m.level for m in CURATED if m.level}
-#: id Google, у которых уровень задаётся запросом, а не именем.
+
 TIERED_UPSTREAM = frozenset(m.upstream for m in CURATED if m.level)
-#: «Глубина рассуждений» клиента → уровень Google («minimal» сервер не принимает).
+
 EFFORT_LEVELS: Dict[str, str] = {"minimal": "low", "low": "low", "medium": "medium", "high": "high", "max": "high"}
 
-# Выученное у сервера во время работы (в память, не на диск).
 _learned_public_to_up: Dict[str, str] = {}
 _learned_up_to_public: Dict[str, str] = {}
 _learned_deprecated: Dict[str, str] = {}
@@ -97,9 +79,8 @@ _learned_retired: set = set()
 _learned_current: set = set()
 
 _LEVEL_TAIL = re.compile(r"\s*\((high|medium|low|thinking)\)\s*$", re.I)
-#: Готовая фраза снятой модели. Обе части обязательны: обычный ответ так не начинается.
-_RETIRED_TEXT = re.compile(r"\bis no longer available\b.*\b(switch|update|upgrade|use)\b", re.I | re.S)
 
+_RETIRED_TEXT = re.compile(r"\bis no longer available\b.*\b(switch|update|upgrade|use)\b", re.I | re.S)
 
 def reset_learned() -> None:
     """Для тестов: забыть всё, что было выучено у сервера."""
@@ -110,27 +91,22 @@ def reset_learned() -> None:
     _learned_retired.clear()
     _learned_current.clear()
 
-
 def is_retired_text(text: str) -> bool:
     """Это готовая фраза «модель снята», а не ответ модели (короткий первый кусок потока)."""
     value = str(text or "")
     return len(value) < 600 and bool(_RETIRED_TEXT.search(value))
-
 
 def mark_retired(upstream: str) -> None:
     """Запомнить: сервер сказал, что эта модель снята — список моделей больше её не предложит."""
     if upstream:
         _learned_retired.add(str(upstream))
 
-
 def is_retired(upstream: str) -> bool:
     return str(upstream) in RETIRED_UPSTREAM or str(upstream) in _learned_retired
-
 
 def is_internal(name: str) -> bool:
     """chat_*, tab_* и подобные — служебные модели IDE, не для чата."""
     return str(name or "").lower().startswith(("chat_", "tab_", "default", "ghost"))
-
 
 def slug(text: str) -> str:
     """«Gemini 3.5 Flash Lite» → ``gemini-3.5-flash-lite`` (у Claude версия через дефис)."""
@@ -139,14 +115,13 @@ def slug(text: str) -> str:
         value = value.replace(".", "-")
     return re.sub(r"-{2,}", "-", value)
 
-
 def renamed(upstream: str) -> str:
     """Актуальный id Google вместо устаревшего (цепочка переименований без циклов)."""
     seen = set()
     name = str(upstream or "")
     while name not in seen:
         seen.add(name)
-        # A current server picker id wins over a historical fallback rename.
+
         if name in _learned_current and name not in _learned_deprecated:
             break
         nxt = _learned_deprecated.get(name) or DEPRECATED.get(name)
@@ -155,13 +130,11 @@ def renamed(upstream: str) -> str:
         name = nxt
     return name
 
-
 def upstream_id(model: str) -> str:
     """Любое имя (публичное, id Google, устаревшее) → id, который принимает Google."""
     name = str(model or "")
     mapped = _learned_public_to_up.get(name) or _PUBLIC_TO_UP.get(name)
     return renamed(mapped or name)
-
 
 def public_id(upstream: str, display: str = "") -> str:
     """id Google → имя в каталоге. Без названия от сервера — по таблице, иначе как есть."""
@@ -174,14 +147,12 @@ def public_id(upstream: str, display: str = "") -> str:
         return name
     level = match.group(1).lower()
     if name.lower().endswith("-" + level):
-        return name            # id уже честно называет уровень
+        return name
     base = slug(display[:match.start()])
     return f"{base}-{level}" if base else name
 
-
 def note_for(public: str) -> str:
     return _NOTES.get(public, "")
-
 
 def remember_model(public: str, upstream: str, display: str = "") -> None:
     """Restore an exact server mapping, including from a persisted account snapshot."""
@@ -190,7 +161,6 @@ def remember_model(public: str, upstream: str, display: str = "") -> None:
     _learned_up_to_public[upstream] = public
     if display.lower().endswith("(thinking)"):
         _learned_thinking.add(upstream)
-
 
 def request_level(model: str, effort: str = "") -> str:
     """Уровень размышлений для ``thinkingConfig.thinkingLevel`` или «» — выбирает Google.
@@ -206,34 +176,28 @@ def request_level(model: str, effort: str = "") -> str:
         return EFFORT_LEVELS.get(str(effort or "").lower(), "")
     return ""
 
-
 def seed_rows() -> List[Tuple[str, str]]:
     """[(публичный id, подпись)] — стартовый набор каталога."""
     return [(m.public, m.note) for m in CURATED if m.seed]
-
 
 def level_variants() -> List[str]:
     """Имена с уровнем у «tiered»-моделей (добавлены во второй версии каталога)."""
     return [m.public for m in CURATED if m.level]
 
-
 def is_thinking(upstream: str) -> bool:
     name = str(upstream or "")
     return name in THINKING_UPSTREAM or name in _learned_thinking or name.lower().endswith("-thinking")
-
 
 def family_level(model: str) -> str:
     """«high» / «medium» / «low» / «thinking» / «» — что сказано в публичном имени."""
     tail = str(model or "").lower().rsplit("-", 1)[-1]
     return tail if tail in (*LEVELS, "thinking") else ""
 
-
 class Discovered(NamedTuple):
     public: str
     upstream: str
     display: str
     available: bool = True
-
 
 def picker_ids(data: Dict[str, Any]) -> Optional[set[str]]:
     """The server's agent picker, rather than its larger internal model registry.
@@ -250,7 +214,6 @@ def picker_ids(data: Dict[str, Any]) -> Optional[set[str]]:
     ids = {name for group in groups for name in group.get("modelIds", [])
            if isinstance(name, str) and name}
     return ids or None
-
 
 def from_server(data: Dict[str, Any]) -> List[Discovered]:
     """Модели из ответа ``fetchAvailableModels``, пригодные для каталога.
@@ -273,18 +236,15 @@ def from_server(data: Dict[str, Any]) -> List[Discovered]:
     picker = picker_ids(data)
     rows: List[Tuple[str, str, bool, bool]] = []
     for upstream, info in models.items():
-        # The IDE picker can lag behind the account registry for the current
-        # tiered Flash model. Google documents 3.8 Flash on every plan; its
-        # request id must still be present in this account's server response.
-        # Do not restore historical seeds or infer ids from a display name.
+
         registry_flash = upstream == "gemini-3.8-flash-tiered"
         if (not isinstance(info, dict) or is_internal(upstream) or info.get("isInternal") is True
                 or (picker is not None and upstream not in picker and not registry_flash)):
             continue
-        # У «tiered»-моделей названия нет (IDE их не показывает): берём наше.
+
         display = str(info.get("displayName") or "").strip() or titles.get(str(upstream), "")
         if not display and picker is not None:
-            display = str(upstream)  # New picker entries must not wait for a MemuAI release.
+            display = str(upstream)
         if (not display or upstream in deprecated or upstream in images
                 or upstream in HIDDEN_UPSTREAM or is_retired(upstream)):
             continue
@@ -297,7 +257,7 @@ def from_server(data: Dict[str, Any]) -> List[Discovered]:
     taken: set = set()
     for items in groups.values():
         display = items[0][1]
-        # Один id на название: тот, что совпадает с именем, затем рекомендованный, затем первый.
+
         wanted = slug(_LEVEL_TAIL.sub("", display))
         items.sort(key=lambda r: (not r[3], r[0] != wanted, not r[2], r[0]))
         upstream = items[0][0]
@@ -307,34 +267,29 @@ def from_server(data: Dict[str, Any]) -> List[Discovered]:
         taken.add(public)
         remember_model(public, upstream, display)
         found.append(Discovered(public, upstream, display, items[0][3]))
-    # У «tiered»-модели один id на все уровни: варианты с уровнем идут в каталог рядом с ней.
+
     listed = {item.upstream for item in found}
     for model in CURATED:
         if model.level and model.upstream in listed and model.public not in taken:
             taken.add(model.public)
             available = next(item.available for item in found if item.upstream == model.upstream)
             found.append(Discovered(model.public, model.upstream, model.note, available))
-    # Порядок как в каталоге: сначала то, что мы знаем, потом остальное по имени.
+
     order = {m.public: index for index, m in enumerate(CURATED)}
     found.sort(key=lambda item: (order.get(item.public, len(order)), item.public))
     return found
-
 
 class CatalogChange(NamedTuple):
     renamed: int
     removed: int
     added: int
-    noted: int = 0        # записи, которым вместо «получено с сервера 08.09» дано название модели
+    noted: int = 0
 
-
-#: Подписи, которые приложение ставило само при поиске моделей: они ничего не говорят о модели.
 _AUTO_NOTES = ("discovered", "найдено", "получено", "кастом", "импорт", "imported")
-
 
 def _auto_note(note: Any) -> bool:
     text = str(note or "").strip().lower()
     return not text or text.startswith(_AUTO_NOTES)
-
 
 def upgrade_catalog(entries: Dict[str, Any], make_entry, *, add_seeds: bool = True,
                     only_new: Optional[Iterable[str]] = None) -> CatalogChange:
@@ -363,16 +318,14 @@ def upgrade_catalog(entries: Dict[str, Any], make_entry, *, add_seeds: bool = Tr
             continue
         target = public_id(str(entry.model))
         if target != entry.model:
-            # Сначала все переименуемые убираются из каталога, и только потом
-            # встают под новыми именами: новое имя одной записи может совпасть
-            # со старым id другой.
+
             entries.pop(entry.id, None)
             moves.append((entry, target))
     for entry, target in moves:
         existing = entries.get(f"{prefix}-{target}")
         if existing is not None:
             if not entry.enabled:
-                existing.enabled = False       # выбор пользователя важнее нового имени
+                existing.enabled = False
             removed += 1
             continue
         note = str(entry.note or "")
@@ -393,7 +346,6 @@ def upgrade_catalog(entries: Dict[str, Any], make_entry, *, add_seeds: bool = Tr
                 entry.note = title
                 noted += 1
     return CatalogChange(renamed_count, removed, added, noted)
-
 
 def learn_limits(data: Dict[str, Any], record) -> None:
     """Контекст и лимит ответа каждой модели — под обоими именами (id Google и публичным)."""

@@ -38,10 +38,9 @@ from typing import Any, Dict, List, Optional, Tuple
 from . import modules_host as host
 
 PACKAGE_FILES = ("manifest.json", "index.html", "style.css", "main.js", "i18n.json")
-MAX_ARCHIVE = 8 * 1024 * 1024          # a module is text: 4 × 400 000 characters fit easily
+MAX_ARCHIVE = 8 * 1024 * 1024
 MAX_ENTRY = 2 * 1024 * 1024
 
-#: Manifest keys the host reads (normalize_manifest / normalize_window); anything else is ignored.
 MANIFEST_KEYS = ("id", "title", "title_en", "summary", "summary_en", "version", "author", "icon", "accent",
                  "icon_bg", "default_locale", "launcher", "window", "persist", "permissions", "bridge", "schema",
                  "enabled", "created", "builtin", "html", "css", "js", "i18n", "net_import", "contributes")
@@ -49,11 +48,6 @@ WINDOW_KEYS = ("default_width", "default_height", "width", "height", "min_width"
                "max_height", "fixed", "resizable", "draggable", "size_mode", "center", "fullscreen_allowed")
 BRIDGE_KEYS = ("model", "instructions", "keep_in_chat", "thinking", "web_search")
 LAUNCHER_KEYS = ("hidden", "slot", "order")
-
-
-# --------------------------------------------------------------------------
-# The bridge, read from its own source
-# --------------------------------------------------------------------------
 
 def bridge_methods() -> Dict[str, str]:
     """``Memu.<method>`` → bridge action, parsed from ``modules_host.BRIDGE_JS``.
@@ -69,42 +63,48 @@ def bridge_methods() -> Dict[str, str]:
         methods["record." + name if name in ("start", "stop", "cancel") else name] = action
     if "stream: function" in body:
         methods["stream"] = "stream"
-    # Round 29: streams opened with openStream("complete", …) and the Memu.store.* namespace.
+
     for match in re.finditer(r"(\w+): function \([^)]*\) \{\s*return openStream\(\"(\w+)\"", body):
         methods[match.group(1)] = match.group(2)
     at = body.find("store: {")
     store = body[at:body.find("\n    },", at)] if at >= 0 else ""
     for name in re.findall(r"\n      (\w+): function", store):
         methods["store." + name] = "store"
-        if methods.get(name) == "store":   # the nested `list:`/`usage:` matched the generic pattern above
+        if methods.get(name) == "store":
             del methods[name]
     for name in re.findall(r"\n    (\w+): function", body):
         methods.setdefault(name, "")
-    # Round 30: Memu.toolbar.* — the window's single header (no permission needed).
+
     at = source.find("var toolbar = {")
     toolbar = source[at:source.find("\n  };", at)] if at >= 0 else ""
     for name in re.findall(r"\n    (\w+): (?:function|toolbarSupported)", toolbar):
         methods["toolbar." + name] = "toolbar" if name not in ("supported", "items", "on") else ""
-    for name in ("id", "version", "manifest", "saved", "env", "lang", "i18n", "record", "call", "t", "toolbar"):
+    methods.update({
+        "music": "music",
+        "music.call": "music_call",
+        "music.streamUrl": "music_call",
+        "music.coverUrl": "music_call",
+        "learn.call": "learn_call",
+        "database.call": "database_call",
+        "integration.list": "integration",
+        "integration.set": "integration",
+        "appbar.set": "appbar",
+        "appbar.state": "",
+        "appbar.on": "",
+    })
+    for name in ("id", "version", "manifest", "saved", "env", "lang", "i18n", "record", "call", "t", "toolbar", "appbar", "integration", "learn", "database"):
         methods.setdefault(name, "")
     return methods
-
 
 def method_permissions() -> Dict[str, str]:
     """``Memu.<method>`` → the permission it needs ("" when it is free)."""
     return {name: host.ACTION_PERMISSION.get(action, "") for name, action in bridge_methods().items()}
-
-
-# --------------------------------------------------------------------------
-# Loading
-# --------------------------------------------------------------------------
 
 def _decode(raw: bytes, name: str) -> str:
     try:
         return raw.decode("utf-8-sig")
     except UnicodeDecodeError as exc:
         raise ValueError(f"{name}: not UTF-8 text ({exc.reason})") from exc
-
 
 def _from_files(files: Dict[str, str], origin: str) -> Dict[str, Any]:
     """{file name: text} of a folder → a spec like an exported package."""
@@ -129,14 +129,12 @@ def _from_files(files: Dict[str, str], origin: str) -> Dict[str, Any]:
             "extra_files": sorted(name for name in files if PurePosixPath(name).name.lower() not in PACKAGE_FILES
                                   and not PurePosixPath(name).name.startswith(".") and not name.endswith(".lock"))}
 
-
 def _from_json_text(text: str, origin: str) -> Dict[str, Any]:
     try:
         payload = json.loads(text)
     except json.JSONDecodeError as exc:
         raise ValueError(f"invalid JSON at line {exc.lineno}, column {exc.colno}: {exc.msg}") from exc
     return from_payload(payload, origin)
-
 
 def from_payload(payload: Any, origin: str = "package") -> Dict[str, Any]:
     """An exported package object (or a bare manifest with html/css/js inside)."""
@@ -155,9 +153,7 @@ def from_payload(payload: Any, origin: str = "package") -> Dict[str, Any]:
     return {"origin": origin, "manifest": manifest, "files": out_files, "format": fmt,
             "extra_files": [], "package_version": payload.get("version")}
 
-
 _ANSWER_FILE = re.compile(r"(?<![\w.-])(manifest\.json|index\.html|style\.css|main\.js|i18n\.json)(?![\w.-])", re.I)
-
 
 def from_answer_text(text: str, origin: str = "answer") -> Dict[str, Any]:
     """An AI answer: "### FILE: manifest.json" + a fenced block per file — or a JSON package.
@@ -206,7 +202,6 @@ def from_answer_text(text: str, origin: str = "answer") -> Dict[str, Any]:
                          " (### FILE: manifest.json)")
     return _from_files(files, origin)
 
-
 def from_zip_bytes(raw: bytes, origin: str = "module.zip") -> Dict[str, Any]:
     if len(raw) > MAX_ARCHIVE:
         raise ValueError(f"the archive is larger than {MAX_ARCHIVE // (1024 * 1024)} MB")
@@ -251,7 +246,6 @@ def from_zip_bytes(raw: bytes, origin: str = "module.zip") -> Dict[str, Any]:
                 files[relative] = ""
         return _from_files(files, origin)
 
-
 def load_source(path: Any) -> Dict[str, Any]:
     """A folder, a ZIP archive or a JSON package on disk."""
     target = Path(path)
@@ -274,11 +268,6 @@ def load_source(path: Any) -> Dict[str, Any]:
         return load_source(target.parent)
     return _from_json_text(_decode(raw, target.name), target.name)
 
-
-# --------------------------------------------------------------------------
-# Rules
-# --------------------------------------------------------------------------
-
 def _regex_allowed(out: List[str]) -> bool:
     """Whether a "/" here starts a regular expression literal (not a division)."""
     text = "".join(out[-40:]).rstrip()
@@ -287,7 +276,6 @@ def _regex_allowed(out: List[str]) -> bool:
     if text[-1] in "(,=:[!&|?{};+-*%<>~^":
         return True
     return bool(re.search(r"(?:^|[^\w$])(?:return|typeof|case|do|else|in|of|new|delete|void|throw|yield|await)$", text))
-
 
 def _strip_js_comments_and_strings(js: str) -> str:
     """Code with comments removed and string/regex bodies blanked, for the pattern checks."""
@@ -303,11 +291,11 @@ def _strip_js_comments_and_strings(js: str) -> str:
         if ch == "/" and nxt == "*":
             end = js.find("*/", i + 2)
             stop = n if end < 0 else end + 2
-            out.append("\n" * js.count("\n", i, stop))      # keep line numbers right
+            out.append("\n" * js.count("\n", i, stop))
             i = stop
             continue
         if ch == "/" and _regex_allowed(out):
-            # a regex literal: skip to the closing "/" outside a [...] class
+
             j, in_class = i + 1, False
             while j < n and js[j] != "\n":
                 if js[j] == "\\":
@@ -347,7 +335,7 @@ def _strip_js_comments_and_strings(js: str) -> str:
                     out.append("${" + _strip_js_comments_and_strings(js[start:i - 1]) + "}")
                     continue
                 if quote != "`" and js[i] == "\n":
-                    break                        # an unterminated string never swallows the file
+                    break
                 out.append(" " if js[i] != "\n" else "\n")
                 i += 1
             out.append(quote)
@@ -357,8 +345,6 @@ def _strip_js_comments_and_strings(js: str) -> str:
         i += 1
     return "".join(out)
 
-
-#: (regex over code without comments/strings, level, ru, en)
 _JS_SANDBOX_RULES: Tuple[Tuple[str, str, str, str], ...] = (
     (r"\b(?:window\.)?(?:localStorage|sessionStorage)\b", "error",
      "localStorage/sessionStorage в окне модуля бросают SecurityError (песочница без своего origin). Храните данные через Memu.save и поле persist.",
@@ -404,19 +390,16 @@ _JS_SANDBOX_RULES: Tuple[Tuple[str, str, str, str], ...] = (
      "The MemuAI window is out of reach of the module page (another origin). Use the Memu bridge."),
 )
 
-#: Rules that look INSIDE string literals (the code above has its strings blanked): mistakes real models make
-#: on the first try (Round 29 phase 2 live runs). Same tuple shape; scanned over main.js as written.
 _JS_RAW_RULES: Tuple[Tuple[str, str, str, str], ...] = (
     (r"\b(?:fillStyle|strokeStyle|shadowColor)\s*=\s*[\"'`]\s*var\(\s*--", "error",
      "Canvas не понимает CSS-переменные: ctx.fillStyle = \"var(--accent)\" молча оставляет прежний цвет (чёрный). Берите цвет так: getComputedStyle(document.documentElement).getPropertyValue(\"--accent\").trim() — и перерисовывайте в Memu.onTheme.",
      "Canvas does not understand CSS variables: ctx.fillStyle = \"var(--accent)\" silently keeps the old colour (black). Read the colour with getComputedStyle(document.documentElement).getPropertyValue(\"--accent\").trim() and redraw in Memu.onTheme."),
-    # The literal part of the key (up to the closing quote or a ${…}) against app/characters_api.py check_key:
-    # a bad first character, a character outside [A-Za-z0-9._-/], an empty or «.»/«_»/«-»-led part, a part ending in «.».
+
     (r"\bMemu\.store\.(?:get|set|remove)\(\s*[\"'`](?:[\"'`]|[._/-]|[^\"'`$]*?(?:[^A-Za-z0-9._/\-\"'`$]|/[._/\-\"'`]|\.(?=[/\"'`])))"
      r"|\bMemu\.store\.list\(\s*[\"'`](?:[._/-]|[^\"'`$]*?(?:[^A-Za-z0-9._/\-\"'`$]|/[._/-]|\.(?=/)))", "error",
      "Ключ Memu.store — только латиница, цифры, «.», «_», «-» и до трёх частей через «/», каждая с буквы или цифры: \"days/2026-10-10\", а не \"pomodoro:2026-10-10\" (двоеточие, пробел, кириллица — «Недопустимый ключ хранилища»).",
      "A Memu.store key is Latin letters, digits, \".\", \"_\", \"-\" and up to three \"/\" parts, each starting with a letter or digit: \"days/2026-10-10\", not \"pomodoro:2026-10-10\" (a colon, a space or a non-Latin letter fails with “Invalid store key”)."),
-    # e.key of the space bar is " ", never "Space" (that is e.code): a pause/jump on Space silently never fires.
+
     (r"\.key\s*[!=]==?\s*[\"'`](?:Space|Spacebar)[\"'`]"
      r"|^\s*[\"']?Space[\"']?\s*:(?=[\s\S]*\[\s*(?:e|ev|evt|event|k)\.key\s*\])"
      r"|\[\s*(?:e|ev|evt|event|k)\.key\s*\](?=[\s\S]*^\s*[\"']?Space[\"']?\s*:)", "warn",
@@ -463,17 +446,14 @@ _CSS_RULES: Tuple[Tuple[str, str, str, str], ...] = (
      "Hard-coded #fff/#000 become unreadable in the other theme. Use the var(--bg), var(--panel), var(--text) tokens."),
 )
 
-
 def _problem(level: str, field: str, ru: str, en: str, line: int = 0) -> Dict[str, Any]:
     row = {"level": level, "field": field, "ru": ru, "en": en}
     if line:
         row["line"] = line
     return row
 
-
 def _line_of(text: str, index: int) -> int:
     return text.count("\n", 0, index) + 1
-
 
 def _scan(text: str, rules, field: str, flags=re.I | re.M) -> List[Dict[str, Any]]:
     found = []
@@ -483,10 +463,9 @@ def _scan(text: str, rules, field: str, flags=re.I | re.M) -> List[Dict[str, Any
             found.append(_problem(level, field, ru, en, _line_of(text, match.start())))
     return found
 
-
 def _top_level_await(js: str) -> int:
     """Line of an ``await`` outside any function, 0 when there is none (heuristic)."""
-    depth_stack: List[bool] = []         # True when the brace opened a function body
+    depth_stack: List[bool] = []
     pending_function = False
     tokens = re.finditer(r"\bfunction\b|=>|\basync\b|[{}()]|\bawait\b", js)
     paren = 0
@@ -509,10 +488,8 @@ def _top_level_await(js: str) -> int:
                 return _line_of(js, token.start())
     return 0
 
-
 def _node() -> str:
     return shutil.which("node") or ""
-
 
 def js_syntax(js: str) -> Optional[str]:
     """The syntax error node reports for main.js wrapped like the host wraps it, None when fine
@@ -536,7 +513,6 @@ def js_syntax(js: str) -> Optional[str]:
     error = next((row for row in message.splitlines() if "Error" in row), message.splitlines()[-1] if message else "")
     return f"line {line}: {error}" if line else error
 
-
 def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
                      existing_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     """Every check on a loaded package; ``source`` comes from :func:`load_source` / :func:`from_payload`."""
@@ -546,7 +522,6 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
     html, css, js = (str(files.get("index.html") or ""), str(files.get("style.css") or ""), str(files.get("main.js") or ""))
     i18n_raw = files.get("i18n.json") or ""
 
-    # identity -----------------------------------------------------------
     module_id = str(manifest.get("id") or "").strip()
     if not module_id:
         problems.append(_problem("error", "manifest", "В manifest.json нет id.", "manifest.json has no id."))
@@ -567,7 +542,6 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
         problems.append(_problem("warn", "package", f"Поле format должно быть «{host.PACKAGE_FORMAT}».",
                                  f"The format field should be “{host.PACKAGE_FORMAT}”."))
 
-    # manifest shape -----------------------------------------------------
     unknown = sorted(key for key in manifest if key not in MANIFEST_KEYS)
     if unknown:
         problems.append(_problem("info", "manifest", "Хост не читает эти поля manifest.json: " + ", ".join(unknown),
@@ -594,7 +568,7 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
     if manifest.get("title") and not manifest.get("title_en"):
         problems.append(_problem("info", "manifest", "Нет title_en: в английском интерфейсе останется title.",
                                  "No title_en: the English UI keeps title."))
-    # Round 38: contributes — panels, commands, skill, widgets (app/module_integration.py)
+
     if manifest.get("contributes") is not None:
         from .module_integration import validate_contributes
         for message in validate_contributes(manifest.get("contributes"), builtin=module_id in host.BUILTIN_ORDER):
@@ -610,9 +584,9 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
     if accent and not re.fullmatch(r"#[0-9a-fA-F]{3,8}", accent):
         problems.append(_problem("warn", "manifest", "accent — цвет вида #rrggbb, иначе он не применится.",
                                  "accent must be a #rrggbb colour, otherwise it is ignored."))
-    # Round 39: icon — a glyph name, a package file, inline SVG or a data URL; icon_bg (app/module_icons.py)
+
     from .module_icons import icon_kind, validate as validate_icon
-    listed = files if files and any(name not in PACKAGE_FILES for name in files) else None  # a full file listing
+    listed = files if files and any(name not in PACKAGE_FILES for name in files) else None
     for level, ru, en in validate_icon(manifest, listed):
         problems.append(_problem(level, "manifest", ru, en))
     icon = str(manifest.get("icon") or "") if isinstance(manifest.get("icon"), str) else ""
@@ -638,7 +612,6 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
     except ValueError as exc:
         problems.append(_problem("error", "manifest", str(exc), "permissions must be a list"))
 
-    # permissions --------------------------------------------------------
     permissions = manifest.get("permissions")
     if isinstance(permissions, list):
         bad = [str(name) for name in permissions if name not in host.PERMISSIONS]
@@ -648,7 +621,7 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
     elif permissions is None:
         problems.append(_problem("warn", "manifest", "Нет списка permissions — модуль получит ВСЕ права (кроме net-import). Перечислите только нужные.",
                                  "No permissions list — the module gets EVERY permission (except net-import). List only the ones it needs."))
-    # net_import (Round 29): sources and the allow list of direct-link hosts ------------------------
+
     block = manifest.get("net_import")
     if block is not None:
         from .character_import import SOURCES as _SOURCES, clean_host as _clean_host
@@ -673,7 +646,7 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
     granted = set(normalized.get("permissions") or []) if normalized else set()
     code = _strip_js_comments_and_strings(js)
     needs = method_permissions()
-    used_methods = sorted(set(re.findall(r"\bMemu(?:AI)?\.(record\.\w+|store\.\w+|toolbar\.\w+|\w+)\s*\(", code)) |
+    used_methods = sorted(set(re.findall(r"\bMemu(?:AI)?\.(record\.\w+|store\.\w+|toolbar\.\w+|appbar\.\w+|integration\.\w+|music\.\w+|learn\.\w+|database\.\w+|\w+)\s*\(", code)) |
                           set("call:" + m for m in re.findall(r"\bMemu\.call\(\s*[\"'](\w+)", js)))
     missing: Dict[str, List[str]] = {}
     for method in used_methods:
@@ -704,7 +677,6 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
             problems.append(_problem("info", "manifest", "Права не используются кодом (лишние права — лишний риск): " + ", ".join(unused),
                                      "Permissions the code never uses (extra rights, extra risk): " + ", ".join(unused)))
 
-    # the host's own checks (persist vs Memu.save, i18n keys, </script>…) --
     try:
         i18n_value: Any = json.loads(i18n_raw) if isinstance(i18n_raw, str) and i18n_raw.strip() else (i18n_raw or {})
     except json.JSONDecodeError as exc:
@@ -715,7 +687,7 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
                                                "persist": normalized.get("persist") if normalized else manifest.get("persist") or []})
     for row in host_report["problems"]:
         if row["en"].startswith("External script and link"):
-            continue                       # the stricter html rules below say it
+            continue
         problems.append(dict(row, level="error" if row["field"] == "persist" else row["level"]))
     if isinstance(i18n_value, dict) and i18n_value:
         locales = set(i18n_value)
@@ -726,7 +698,6 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
         problems.append(_problem("warn", "i18n", "Тексты зашиты в разметку и код без i18n.json: модуль не переключит язык вместе с MemuAI.",
                                  "Texts are hard-coded without i18n.json: the module will not follow the MemuAI language."))
 
-    # sizes ----------------------------------------------------------------
     for name, text in (("index.html", html), ("style.css", css), ("main.js", js)):
         if len(text) > host._CODE_LIMIT:
             problems.append(_problem("error", name, f"{name} длиннее {host._CODE_LIMIT} символов.",
@@ -735,7 +706,6 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
         problems.append(_problem("error", "package", "В пакете нет кода: index.html и main.js пустые.",
                                  "The package has no code: index.html and main.js are empty."))
 
-    # sandbox ----------------------------------------------------------------
     problems.extend(_scan(code, _JS_SANDBOX_RULES, "js"))
     problems.extend(_scan(js, _JS_RAW_RULES, "js"))
     problems.extend(_scan(html, _HTML_RULES, "html"))
@@ -754,7 +724,7 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
     if lost:
         problems.append(_problem("warn", "js", "Код ищет элементы, которых нет в index.html: #" + ", #".join(lost[:10]),
                                  "The code looks for elements index.html does not have: #" + ", #".join(lost[:10])))
-    # Round 30: one header. A module that paints its own top bar gets two rows of buttons under the window's row.
+
     if re.search(r"<header\b", html, re.I) and not re.search(r"\bMemu(?:AI)?\.toolbar\b", js):
         problems.append(_problem("info", "html", "Модуль рисует свою верхнюю панель (<header>). В окне MemuAI имя модуля и кнопки окна уже есть "
                                  "в строке заголовка: передайте свои действия в Memu.toolbar.set([...]) (или Memu.toolbar.adopt({...}) для "
@@ -772,7 +742,6 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
                                  "These files are not part of the module (only the 5 package files are read): " +
                                  ", ".join(source["extra_files"][:12])))
 
-    # dedupe ---------------------------------------------------------------
     seen = set()
     unique = []
     for row in problems:
@@ -800,10 +769,8 @@ def validate_package(source: Dict[str, Any], *, check_syntax: bool = True,
         "origin": source.get("origin", ""), "package": package,
     }
 
-
 def validate_path(path: Any, **options: Any) -> Dict[str, Any]:
     return validate_package(load_source(path), **options)
-
 
 def validate_zip_base64(data: str, name: str = "module.zip", **options: Any) -> Dict[str, Any]:
     payload = str(data or "")
@@ -814,11 +781,6 @@ def validate_zip_base64(data: str, name: str = "module.zip", **options: Any) -> 
     except (ValueError, TypeError) as exc:
         raise ValueError("the archive is not valid base64") from exc
     return validate_package(from_zip_bytes(raw, name), **options)
-
-
-# --------------------------------------------------------------------------
-# Report
-# --------------------------------------------------------------------------
 
 def format_report(report: Dict[str, Any], lang: str = "ru") -> str:
     en = lang == "en"
@@ -843,14 +805,12 @@ def format_report(report: Dict[str, Any], lang: str = "ru") -> str:
                  else ("RESULT: fix the errors above" if en else "ИТОГ: исправьте ошибки выше"))
     return "\n".join(lines)
 
-
 ICON_NAMES = ("text", "chat", "sparkle", "zap", "image", "work", "bot", "settings", "palette", "search", "globe", "list",
               "clock", "bell", "keyboard", "user", "users", "monitor", "terminal", "target", "mic", "headphones",
               "volume", "download", "folder", "info", "play", "undo", "redo", "scissors", "clipboard", "branch", "pin",
               "edit", "trash", "copy", "retry", "attach", "send", "stop", "temp", "focus", "brain", "export", "check",
               "unread", "moon", "sun", "menu", "back", "forward", "sidebar", "plus", "more", "close", "book", "link",
               "camera", "chart", "research", "wave", "minus", "external", "fit", "updown")
-
 
 def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m app.modules_validate",
@@ -873,7 +833,6 @@ def main(argv: Optional[List[str]] = None) -> int:
     else:
         print(format_report(report, args.lang))
     return 0 if report["ok"] else 1
-
 
 if __name__ == "__main__":
     sys.exit(main())

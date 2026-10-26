@@ -50,7 +50,7 @@ from . import quick_panel_look as look_mod
 log = logging.getLogger("memuai.quick.canvas")
 
 FILE_NAME = "quick_canvas.json"
-SCHEMA_VERSION = 2          # Round 28: + "layer" (screen positions) and settings.screen
+SCHEMA_VERSION = 2
 COLS = 8
 MAX_ITEMS = 80
 MAX_ROWS = 200
@@ -58,27 +58,23 @@ ITEM_ID_RE = re.compile(r"^i_[a-z0-9]{4,24}$")
 PANEL_ID_RE = re.compile(r"^p_[A-Za-z0-9_-]{1,40}$")
 PANEL_SIZES = {"s": (2, 2), "m": (4, 2), "l": (4, 4), "w": (8, 2)}
 OPEN_MODES = ("input", "canvas", "last")
-SCREEN_MODES = ("show", "hidden", "last")     # Round 28: the screen layer when Quick Ask opens
+SCREEN_MODES = ("show", "hidden", "last")
 DENSITIES = ("compact", "normal", "large")
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
-    "enabled": True,              # the whole feature
-    "panels": True,               # MemuAI panels on the canvas
-    "actions": True,              # the user's buttons
-    "open_mode": "input",         # input — the window opens as usual; canvas — with the panels; last — as it was left
-    "strip": True,                # pinned buttons / panel chips in a thin row under the input
-    "collapse_on_answer": True,   # an answer folds the canvas away
-    "density": "normal",          # the grid cell: compact | normal | large
-    "labels": True,               # captions under the buttons
-    "screen": "show",             # Round 28: show — the layer comes with Quick Ask; hidden — only on Ctrl+B; last
+    "enabled": True,
+    "panels": True,
+    "actions": True,
+    "open_mode": "input",
+    "strip": True,
+    "collapse_on_answer": True,
+    "density": "normal",
+    "labels": True,
+    "screen": "show",
 }
-
 
 def tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
-
-# ------------------------------------------------------------------ layout
 
 def _int(value: Any, lo: int, hi: int, default: int) -> int:
     try:
@@ -86,7 +82,6 @@ def _int(value: Any, lo: int, hi: int, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return max(lo, min(hi, number))
-
 
 def clean_item(raw: Any, cols: int = COLS) -> Optional[Dict[str, Any]]:
     if not isinstance(raw, dict):
@@ -114,10 +109,8 @@ def clean_item(raw: Any, cols: int = COLS) -> Optional[Dict[str, Any]]:
         out["pinned"] = True
     return out
 
-
 def _overlaps(a: Dict[str, Any], b: Dict[str, Any]) -> bool:
     return a["x"] < b["x"] + b["w"] and b["x"] < a["x"] + a["w"] and a["y"] < b["y"] + b["h"] and b["y"] < a["y"] + a["h"]
-
 
 def resolve_layout(items: Any, cols: int = COLS) -> List[Dict[str, Any]]:
     """Clean items and remove every overlap: in reading order (y, then x) an item that collides with one
@@ -144,7 +137,6 @@ def resolve_layout(items: Any, cols: int = COLS) -> List[Dict[str, Any]]:
         placed.append(item)
     return placed
 
-
 def first_free(items: List[Dict[str, Any]], w: int, h: int, cols: int = COLS) -> Tuple[int, int]:
     """The first spot (reading order) where a w×h item fits."""
     for y in range(0, MAX_ROWS + 1):
@@ -153,7 +145,6 @@ def first_free(items: List[Dict[str, Any]], w: int, h: int, cols: int = COLS) ->
             if not any(_overlaps(probe, other) for other in items):
                 return x, y
     return 0, MAX_ROWS
-
 
 def add_item(items: List[Dict[str, Any]], kind: str, ref: str, size: str = "", place: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     if kind == "panel":
@@ -169,9 +160,6 @@ def add_item(items: List[Dict[str, Any]], kind: str, ref: str, size: str = "", p
     items[:] = resolve_layout(items)
     return next(i for i in items if i["ref"] == ref and i["type"] == kind)
 
-
-# ------------------------------------------------------------------ settings & document
-
 def normalize_settings(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     out = dict(DEFAULT_SETTINGS)
@@ -185,11 +173,9 @@ def normalize_settings(raw: Any) -> Dict[str, Any]:
     if raw.get("screen") in SCREEN_MODES:
         out["screen"] = raw["screen"]
     elif raw.get("open_mode") == "last":
-        # Round 27 → 28: «as last time» keeps its meaning; «usual input» / «the canvas» were about the WINDOW
-        # (the grid covered the question) — the screen layer is around the window, so it simply shows.
+
         out["screen"] = "last"
     return out
-
 
 def normalize_document(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
@@ -216,8 +202,7 @@ def normalize_document(raw: Any) -> Dict[str, Any]:
     layer = lc.normalize_layer(raw.get("layer"), items, settings["density"])
     return {"version": SCHEMA_VERSION, "settings": settings, "ui": out_ui,
             "layout": {"cols": COLS, "items": items}, "layer": layer, "actions": actions,
-            **look_mod.normalize(raw)}         # Round 30: look / looks / embed (app/quick_panel_look.py)
-
+            **look_mod.normalize(raw)}
 
 def _path() -> Path:
     from .pgdata import MEMU_DIR, _profile_data_name
@@ -227,7 +212,6 @@ def _path() -> Path:
         name = FILE_NAME
     return Path(MEMU_DIR) / name
 
-
 def load() -> Dict[str, Any]:
     from .storage import load_json_with_recovery
     try:
@@ -235,7 +219,6 @@ def load() -> Dict[str, Any]:
     except (OSError, ValueError):
         raw = {}
     return normalize_document(raw)
-
 
 def mutate(fn) -> Tuple[Dict[str, Any], Any]:
     """One atomic read-modify-write of ``quick_canvas.json``: ``fn(doc)`` edits the normalized document."""
@@ -252,28 +235,17 @@ def mutate(fn) -> Tuple[Dict[str, Any], Any]:
     doc = mutate_json(path, {}, update, backup=True)
     return doc, box.get("result")
 
-
-# ------------------------------------------------------------------ size
-
-#: All buttons together (r27-hunt-canvas): 64 buttons × 30 steps × 20 000 characters made a 77 MB file (plus a backup
-#: of it on every save) that every window open read and validated for a second.
 MAX_ACTIONS_BYTES = 2 * 1024 * 1024
-
 
 def action_bytes(action: Dict[str, Any]) -> int:
     return len(json.dumps(action, ensure_ascii=False, separators=(",", ":")).encode("utf-8"))
-
 
 def check_size(doc: Dict[str, Any]) -> None:
     if sum(action_bytes(a) for a in doc["actions"]) > MAX_ACTIONS_BYTES:
         raise qa.ActionInvalid("Кнопки занимают слишком много места (до 2 МБ на все) — уменьшите тексты или картинки",
                                "The buttons take too much space (2 MB for all) — shorten the texts or pictures")
 
-
-# ------------------------------------------------------------------ import / export
-
 EXPORT_FORMAT = "memuai-quick-actions"
-
 
 def export_doc(doc: Dict[str, Any], with_layout: bool = True) -> Dict[str, Any]:
     actions = []
@@ -284,7 +256,6 @@ def export_doc(doc: Dict[str, Any], with_layout: bool = True) -> Dict[str, Any]:
     if with_layout:
         out["layout"] = [dict(i) for i in doc["layout"]["items"] if i["type"] == "action"]
     return out
-
 
 def import_into(doc: Dict[str, Any], data: Any, mode: str = "merge") -> Dict[str, int]:
     """Add (or replace with) buttons from an export. Imported buttons are never pre-approved: their first run
@@ -301,7 +272,7 @@ def import_into(doc: Dict[str, Any], data: Any, mode: str = "merge") -> Dict[str
     total = sum(action_bytes(a) for a in doc["actions"])
     for row in rows:
         try:
-            # an imported file never takes global hotkeys of its own accord (they would fire in every program)
+
             action = qa.validate_action({**row, "approved": "", "global": False} if isinstance(row, dict) else row, keep_meta=False)
         except qa.ActionInvalid:
             skipped += 1
@@ -323,9 +294,6 @@ def import_into(doc: Dict[str, Any], data: Any, mode: str = "merge") -> Dict[str
         added += 1
     return {"added": added, "skipped": skipped}
 
-
-# ------------------------------------------------------------------ hotkeys (r27-hunt-canvas)
-
 def hotkey_conflict(doc: Dict[str, Any], action: Dict[str, Any], lang: str) -> None:
     """One combo — one button; a global one must not be taken by Quick Ask, its features or a custom command."""
     hotkey = action.get("hotkey") or ""
@@ -344,7 +312,6 @@ def hotkey_conflict(doc: Dict[str, Any], action: Dict[str, Any], lang: str) -> N
         if owner:
             raise qa.ActionInvalid(f"{hotkey} уже занято в MemuAI: {owner}", f"{hotkey} is already used in MemuAI: {owner}")
 
-
 def global_hotkeys(doc: Dict[str, Any]) -> Dict[str, str]:
     """{action id: hotkey} of the buttons whose hotkey works in every program (feature on, buttons on)."""
     st = doc["settings"]
@@ -352,17 +319,13 @@ def global_hotkeys(doc: Dict[str, Any]) -> Dict[str, str]:
         return {}
     return {a["id"]: a["hotkey"] for a in doc["actions"] if a.get("global") and a.get("hotkey")}
 
-
-#: Steps that need the Quick Ask window (an answer streamed there, the input field, DFY / Computer Use cards).
 WINDOW_STEPS = (("ask", "window"), ("text", "input"))
-
 
 def needs_window(action: Dict[str, Any], settings: Optional[Dict[str, Any]] = None) -> bool:
     for step in action["steps"]:
         if (step["type"], step.get("mode")) in WINDOW_STEPS or step["type"] in ("dfy", "computer"):
             return True
     return bool(qa.risks(action, "ru", settings)) and action.get("approved") != qa.signature(action)
-
 
 class GlobalHotkeys:
     """Global hotkeys of buttons: one ``win_hotkey.HotkeyListener`` per button (like the custom commands').
@@ -418,7 +381,7 @@ class GlobalHotkeys:
         loop = self.loop
         if loop is None or not loop.is_running():
             return
-        foreground = _foreground()                     # read on the hotkey thread, before anything moves the focus
+        foreground = _foreground()
         asyncio.run_coroutine_threadsafe(hotkey_run(action_id, foreground), loop)
 
     def suspend(self, on: bool) -> None:
@@ -438,14 +401,12 @@ class GlobalHotkeys:
                 _stop(listener)
             self.listeners.clear()
 
-
 def _stop(listener: Any) -> None:
     try:
         listener.clear()
         listener.stop()
     except Exception:
         pass
-
 
 def _foreground() -> int:
     if sys.platform != "win32":
@@ -455,7 +416,6 @@ def _foreground() -> int:
         return int(ctypes.windll.user32.GetForegroundWindow() or 0)
     except Exception:
         return 0
-
 
 async def hotkey_run(action_id: str, foreground: int = 0) -> Optional[qa.Run]:
     """A button's global hotkey was pressed in another program."""
@@ -467,7 +427,7 @@ async def hotkey_run(action_id: str, foreground: int = 0) -> Optional[qa.Run]:
         return None
     lang = _ui_lang()
     manager = RUNNER._manager()
-    # the window is on screen (the hotkey reached Windows first): the page runs it with its own selection/context
+
     if needs_window(action, RUNNER.engine_settings()) or (manager is not None and getattr(manager, "visible", False)):
         if manager is not None:
             await asyncio.to_thread(_show_and_run, manager, action_id)
@@ -478,11 +438,10 @@ async def hotkey_run(action_id: str, foreground: int = 0) -> Optional[qa.Run]:
     if uses_text and foreground:
         context["selection"] = await asyncio.to_thread(_selection_of, foreground)
     if manager is not None and foreground and foreground != getattr(manager, "hwnd", 0) and not getattr(manager, "visible", False):
-        manager.previous_hwnd = foreground             # a «paste» step goes back to the program in front
+        manager.previous_hwnd = foreground
     run = RUNNER.start(action, lang=lang, context=context)
     asyncio.ensure_future(_watch(run, manager))
     return run
-
 
 def _strings(value: Any):
     if isinstance(value, str):
@@ -490,7 +449,6 @@ def _strings(value: Any):
     elif isinstance(value, dict):
         for item in value.values():
             yield from _strings(item)
-
 
 def _selection_of(foreground: int) -> str:
     try:
@@ -500,7 +458,6 @@ def _selection_of(foreground: int) -> str:
     except Exception:
         return ""
 
-
 def _ui_lang() -> str:
     try:
         from .pgdata import load_preferences
@@ -508,13 +465,11 @@ def _ui_lang() -> str:
     except Exception:
         return "ru"
 
-
 def _show_and_run(manager: Any, action_id: str) -> None:
     """Open Quick Ask over the program in front and start the button there (approval sheet, answer in the window)."""
     if getattr(manager, "visible", False) or manager.show("hotkey"):
         manager._push("setTimeout(function () { window.MemuQuickCanvas && MemuQuickCanvas.runAction(%s, true); }, 350)"
                       % json.dumps(action_id))
-
 
 async def _watch(run: qa.Run, manager: Any) -> None:
     """A run started without the window: show the window when it waits for the user or fails."""
@@ -530,9 +485,7 @@ async def _watch(run: qa.Run, manager: Any) -> None:
             return
         await asyncio.sleep(0.15)
 
-
 HOTKEYS = GlobalHotkeys()
-
 
 async def _sync_hotkeys(doc: Optional[Dict[str, Any]] = None) -> None:
     HOTKEYS.loop = asyncio.get_running_loop()
@@ -540,16 +493,11 @@ async def _sync_hotkeys(doc: Optional[Dict[str, Any]] = None) -> None:
         doc = await asyncio.to_thread(load)
     await asyncio.to_thread(HOTKEYS.sync, global_hotkeys(doc), _ui_lang())
 
-
-# ------------------------------------------------------------------ routes
-
 router = APIRouter()
 RUNNER = qa.Runner()
 
-
 def _lang(value: Any) -> str:
     return "en" if value == "en" else "ru"
-
 
 async def _body(request: Request) -> Dict[str, Any]:
     try:
@@ -558,10 +506,8 @@ async def _body(request: Request) -> Dict[str, Any]:
         data = {}
     return data if isinstance(data, dict) else {}
 
-
 def _bad(exc: qa.ActionInvalid, lang: str, status: int = 400) -> JSONResponse:
     return JSONResponse({"error": exc.text(lang)}, status)
-
 
 def _public_action(action: Dict[str, Any], settings: Optional[Dict[str, Any]], lang: str) -> Dict[str, Any]:
     out = dict(action)
@@ -569,12 +515,11 @@ def _public_action(action: Dict[str, Any], settings: Optional[Dict[str, Any]], l
     out["risks"] = qa.risks(action, lang, settings)
     return out
 
-
 def state(lang: str = "ru") -> Dict[str, Any]:
     doc = load()
     settings = RUNNER.engine_settings()
     runs = [r.public() for r in RUNNER.active()]
-    for run in list(RUNNER.runs.values()):        # a hotkey run that failed without the window: shown once
+    for run in list(RUNNER.runs.values()):
         if getattr(run, "surface", False) and run.status not in ("running", "confirm"):
             run.surface = False
             runs.append(run.public())
@@ -585,13 +530,11 @@ def state(lang: str = "ru") -> Dict[str, Any]:
             "limits": {"cols": COLS, "max_items": MAX_ITEMS, "max_actions": qa.MAX_ACTIONS, "max_steps": qa.MAX_STEPS,
                        "panel_sizes": PANEL_SIZES}}
 
-
 @router.get("/api/quick/canvas")
 async def canvas_state(lang: str = "ru"):
-    # the warm Quick Ask page asks for this at startup: the global hotkeys of buttons come up with it
+
     await _sync_hotkeys()
     return await asyncio.to_thread(state, _lang(lang))
-
 
 @router.get("/api/quick/canvas/catalog")
 async def canvas_catalog(lang: str = "ru"):
@@ -599,7 +542,6 @@ async def canvas_catalog(lang: str = "ru"):
     data = await asyncio.to_thread(qa.step_catalog, lang)
     data["templates"] = await asyncio.to_thread(qa.templates, lang)
     return data
-
 
 @router.post("/api/quick/canvas/settings")
 async def canvas_settings(request: Request):
@@ -611,7 +553,6 @@ async def canvas_settings(request: Request):
     doc, _ = await asyncio.to_thread(mutate, apply)
     await _sync_hotkeys(doc)
     return {"ok": True, "settings": doc["settings"]}
-
 
 @router.post("/api/quick/canvas/look")
 async def canvas_look(request: Request):
@@ -631,7 +572,6 @@ async def canvas_look(request: Request):
         return JSONResponse({"error": box["error"]}, 400)
     return {"ok": True, **box["out"]}
 
-
 @router.post("/api/quick/canvas/ui")
 async def canvas_ui(request: Request):
     body = await _body(request)
@@ -645,7 +585,6 @@ async def canvas_ui(request: Request):
     await asyncio.to_thread(mutate, apply)
     return {"ok": True}
 
-
 @router.post("/api/quick/canvas/layout")
 async def canvas_layout(request: Request):
     """The whole layout from the page (after a drag/resize/remove). Panels that no longer exist in MemuAI are
@@ -658,7 +597,6 @@ async def canvas_layout(request: Request):
         doc["layout"]["items"] = items
     doc, _ = await asyncio.to_thread(mutate, apply)
     return {"ok": True, "layout": doc["layout"]}
-
 
 @router.post("/api/quick/canvas/panels")
 async def canvas_add_panel(request: Request):
@@ -674,7 +612,6 @@ async def canvas_add_panel(request: Request):
     doc, item = await asyncio.to_thread(mutate, apply)
     return {"ok": True, "item": item, "layout": doc["layout"]}
 
-
 @router.post("/api/quick/canvas/actions/validate")
 async def canvas_validate(request: Request):
     body = await _body(request)
@@ -685,7 +622,6 @@ async def canvas_validate(request: Request):
         return {"ok": False, "error": exc.text(lang)}
     return {"ok": True, "risks": qa.risks(action, lang, RUNNER.engine_settings()),
             "steps": [qa.describe_step(s, lang) for s in action["steps"]]}
-
 
 @router.post("/api/quick/canvas/actions")
 async def canvas_save_action(request: Request):
@@ -703,7 +639,7 @@ async def canvas_save_action(request: Request):
         old = next((a for a in doc["actions"] if a["id"] == action["id"]), None)
         if old:
             action["created"] = old.get("created", action["created"])
-            # the approval survives only while the steps stay the same (signature); «Забыть разрешение» drops it
+
             action["approved"] = "" if body.get("forget_approval") is True else old.get("approved", "")
             doc["actions"][doc["actions"].index(old)] = action
             check_size(doc)
@@ -724,7 +660,6 @@ async def canvas_save_action(request: Request):
     return {"ok": True, "result": result, "action": _public_action(saved, RUNNER.engine_settings(), lang), "layout": doc["layout"],
             "hotkey": HOTKEYS.status.get(saved["id"])}
 
-
 @router.post("/api/quick/canvas/actions/{action_id}/duplicate")
 async def canvas_duplicate(action_id: str, request: Request):
     body = await _body(request)
@@ -740,7 +675,7 @@ async def canvas_duplicate(action_id: str, request: Request):
         copy_["id"] = qa.new_id()
         copy_["created"] = copy_["updated"] = time.time()
         copy_["approved"] = ""
-        copy_["hotkey"] = ""                 # one combo — one button
+        copy_["hotkey"] = ""
         copy_["global"] = False
         if copy_["label"]:
             copy_["label"] = (copy_["label"] + tr(lang, " (копия)", " (copy)"))[:qa.MAX_LABEL]
@@ -758,7 +693,6 @@ async def canvas_duplicate(action_id: str, request: Request):
     saved = next(a for a in doc["actions"] if a["id"] == new_id)
     return {"ok": True, "action": _public_action(saved, RUNNER.engine_settings(), lang), "layout": doc["layout"]}
 
-
 @router.delete("/api/quick/canvas/actions/{action_id}")
 async def canvas_delete(action_id: str, lang: str = "ru"):
     """Delete a button; the answer carries what is needed to undo it (``/actions/restore``)."""
@@ -769,7 +703,7 @@ async def canvas_delete(action_id: str, lang: str = "ru"):
         doc["actions"].remove(src)
         items = [i for i in doc["layout"]["items"] if i["type"] == "action" and i["ref"] == action_id]
         doc["layout"]["items"] = [i for i in doc["layout"]["items"] if i not in items]
-        # Round 28: where it was on the screen, so «Undo» puts it back there
+
         spots = (doc["layer"].get("default") or {}).get("items") or {}
         return {"action": src, "items": items, "screen": {i["id"]: spots[i["id"]] for i in items if i["id"] in spots}}
     doc, removed = await asyncio.to_thread(mutate, apply)
@@ -777,7 +711,6 @@ async def canvas_delete(action_id: str, lang: str = "ru"):
     if not removed:
         return JSONResponse({"error": tr(_lang(lang), "Кнопка не найдена", "Button not found")}, 404)
     return {"ok": True, "removed": removed, "layout": doc["layout"]}
-
 
 @router.post("/api/quick/canvas/actions/restore")
 async def canvas_restore(request: Request):
@@ -793,7 +726,7 @@ async def canvas_restore(request: Request):
     def apply(doc):
         if any(a["id"] == action["id"] for a in doc["actions"]):
             return False
-        # an undo restores the button as it was, approval included only if the steps are unchanged
+
         action["approved"] = str(raw.get("approved") or "") if raw.get("approved") == qa.signature(action) else ""
         doc["actions"].append(action)
         place = next((i for i in removed.get("items") or [] if isinstance(i, dict)), None)
@@ -807,7 +740,6 @@ async def canvas_restore(request: Request):
     await _sync_hotkeys(doc)
     return {"ok": bool(ok), "layout": doc["layout"], "actions": [_public_action(a, RUNNER.engine_settings(), lang) for a in doc["actions"]]}
 
-
 @router.post("/api/quick/canvas/app-icon")
 async def canvas_app_icon(request: Request):
     """The icon of a program (a name the assistant resolves or a path to .exe/.lnk/.ico) as a PNG data URL."""
@@ -815,19 +747,16 @@ async def canvas_app_icon(request: Request):
     from .quick_app_icon import app_icon
     return await asyncio.to_thread(app_icon, body.get("app"), _lang(body.get("lang")))
 
-
 @router.post("/api/quick/canvas/hotkeys")
 async def canvas_hotkeys(request: Request):
     body = await _body(request)
     await asyncio.to_thread(HOTKEYS.suspend, body.get("suspend") is True)
     return {"ok": True}
 
-
 @router.get("/api/quick/canvas/export")
 async def canvas_export():
     doc = await asyncio.to_thread(load)
     return export_doc(doc)
-
 
 @router.post("/api/quick/canvas/import")
 async def canvas_import(request: Request):
@@ -846,7 +775,6 @@ async def canvas_import(request: Request):
     return {"ok": True, **counts, "layout": doc["layout"],
             "actions": [_public_action(a, RUNNER.engine_settings(), lang) for a in doc["actions"]]}
 
-
 @router.post("/api/quick/canvas/run")
 async def canvas_run(request: Request):
     """Run a button. ``approve: true`` = the user accepted the list of its risky steps (stored as the steps'
@@ -860,7 +788,7 @@ async def canvas_run(request: Request):
     action = next((a for a in doc["actions"] if a["id"] == action_id), None)
     if not action:
         return JSONResponse({"error": tr(lang, "Кнопка не найдена", "Button not found")}, 404)
-    # a double click / Enter + hotkey while the button runs: the same run, not a second copy of the macro
+
     running = next((r for r in RUNNER.active() if r.action.get("id") == action_id), None)
     if running is not None:
         return {"ok": True, "run": running.public(), "already": True}
@@ -878,22 +806,19 @@ async def canvas_run(request: Request):
         await asyncio.to_thread(mutate, approve)
         action = {**action, "approved": sig}
     running = next((r for r in RUNNER.active() if r.action.get("id") == action_id), None)
-    if running is not None:                      # started by a request that overtook this one during the awaits above
+    if running is not None:
         return {"ok": True, "run": running.public(), "already": True}
     run = RUNNER.start(action, lang=lang, context=body.get("context"))
     return {"ok": True, "run": run.public()}
-
 
 @router.get("/api/quick/canvas/runs")
 async def canvas_runs():
     return {"runs": [r.public() for r in RUNNER.active()]}
 
-
 def _run_gone(lang: str) -> JSONResponse:
-    # Round 34: was the raw English «run not found» in a toast of the Russian window
+
     return JSONResponse({"error": tr(lang, "Запуск уже завершён или не найден", "The run has already finished or was not found"),
                          "code": "run_not_found"}, 404)
-
 
 @router.get("/api/quick/canvas/runs/{run_id}")
 async def canvas_run_state(run_id: str, lang: str = ""):
@@ -901,7 +826,6 @@ async def canvas_run_state(run_id: str, lang: str = ""):
     if not run:
         return _run_gone(_lang(lang) if lang else _ui_lang())
     return {"run": run.public()}
-
 
 @router.post("/api/quick/canvas/runs/{run_id}/{op}")
 async def canvas_run_op(run_id: str, op: str, request: Request):
@@ -921,14 +845,9 @@ async def canvas_run_op(run_id: str, op: str, request: Request):
     run = RUNNER.get(run_id)
     return {"ok": ok, "run": run.public() if run else None}
 
-
-# ------------------------------------------------------------------ Round 28: the screen layer
-
-#: What one page may tell the other through ``/api/quick/layer/relay`` (layer ⇄ Quick Ask window).
 RELAY_EVENTS = {"run", "edit-button", "new-button", "add", "changed", "ask", "layer-state", "edit", "reload",
                 "toast", "focus-quick"}
 MONITOR_KEY_RE = re.compile(r"^[0-9]{2,5}x[0-9]{2,5}@[0-9]{2,3}$|^default$")
-
 
 def _layer_of():
     manager = RUNNER._manager()
@@ -939,7 +858,6 @@ def _layer_of():
     except Exception:                                  # noqa: BLE001 - no layer = the in-window fallback
         return manager, None
 
-
 def layer_public(doc: Dict[str, Any]) -> Dict[str, Any]:
     _manager, layer = _layer_of()
     out = {"available": bool(layer is not None and layer.available()), "visible": False, "edit": False,
@@ -947,7 +865,6 @@ def layer_public(doc: Dict[str, Any]) -> Dict[str, Any]:
     if layer is not None:
         out.update({"visible": bool(layer.visible), "edit": bool(layer.edit)})
     return out
-
 
 def screen_items(doc: Dict[str, Any], panels: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     """The items the layer shows: switched-on kinds only, buttons that exist, panels MemuAI still has (when known)."""
@@ -964,7 +881,6 @@ def screen_items(doc: Dict[str, Any], panels: Optional[List[str]] = None) -> Lis
             out.append(item)
     return out
 
-
 def _monitor_arg(body: Dict[str, Any]) -> Tuple[str, int, int]:
     raw = body.get("monitor") if isinstance(body.get("monitor"), dict) else {}
     key = str(raw.get("key") or "default")
@@ -972,13 +888,11 @@ def _monitor_arg(body: Dict[str, Any]) -> Tuple[str, int, int]:
         key = "default"
     return key, _int(raw.get("w"), 200, 20000, 1536), _int(raw.get("h"), 200, 20000, 816)
 
-
 def _panels_arg(body: Dict[str, Any]) -> Optional[List[str]]:
     panels = body.get("panels")
     if not isinstance(panels, list):
         return None
     return [str(p) for p in panels[:400] if isinstance(p, str) and PANEL_ID_RE.match(p)]
-
 
 def resolve_for(doc: Dict[str, Any], body: Dict[str, Any]) -> Dict[str, Any]:
     key, w, h = _monitor_arg(body)
@@ -989,7 +903,6 @@ def resolve_for(doc: Dict[str, Any], body: Dict[str, Any]) -> Dict[str, Any]:
             "hidden": sum(1 for p in placed if p["hidden"]), "density": doc["settings"]["density"],
             "cell": lc.cell(doc["settings"]["density"]), "gap": lc.GAP, "margin": lc.MARGIN, "spacing": lc.SPACING,
             "keepout_pad": lc.KEEPOUT_PAD, "migrated": doc["layer"].get("migrated") or ""}
-
 
 def move_items(doc: Dict[str, Any], body: Dict[str, Any]) -> bool:
     """The user arranged the layer: the new sizes go to ``layout.items``, the positions to ``layer`` (this monitor
@@ -1020,7 +933,6 @@ def move_items(doc: Dict[str, Any], body: Dict[str, Any]) -> bool:
     lc.remember(doc["layer"], key, w, h, rects)
     return True
 
-
 @router.post("/api/quick/layer/resolve")
 async def layer_resolve(request: Request):
     """Where every panel/button goes on the monitor the layer covers (``monitor {key, w, h}`` CSS px of its work
@@ -1028,7 +940,6 @@ async def layer_resolve(request: Request):
     body = await _body(request)
     doc = await asyncio.to_thread(load)
     return resolve_for(doc, body)
-
 
 @router.post("/api/quick/layer/move")
 async def layer_move(request: Request):
@@ -1039,7 +950,6 @@ async def layer_move(request: Request):
     out["layout"] = doc["layout"]
     return out
 
-
 @router.post("/api/quick/layer/region")
 async def layer_region(request: Request):
     """The page's items (``rects [[x, y, w, h, radius]]`` CSS px) → the window's click-through shape."""
@@ -1048,11 +958,10 @@ async def layer_region(request: Request):
     if layer is None or not layer.available():
         return {"ok": False, "native": False}
     rects = body.get("rects") if isinstance(body.get("rects"), list) else []
-    view = body.get("view") if isinstance(body.get("view"), dict) else None     # Round 29: the page's real viewport
+    view = body.get("view") if isinstance(body.get("view"), dict) else None
     if view is not None:
         return await asyncio.to_thread(layer.set_region, rects, body.get("full") is True, view=view)
     return await asyncio.to_thread(layer.set_region, rects, body.get("full") is True)
-
 
 @router.post("/api/quick/layer")
 async def layer_command(request: Request):
@@ -1063,7 +972,6 @@ async def layer_command(request: Request):
         return {"ok": False, "available": False}
     action = str(body.get("action") or "state")
     return await asyncio.to_thread(manager.layer_command, action, body.get("on") is True)
-
 
 @router.post("/api/quick/layer/relay")
 async def layer_relay(request: Request):
@@ -1082,7 +990,7 @@ async def layer_relay(request: Request):
     if manager is None or layer is None or not layer.available():
         return {"ok": True, "relayed": False}
     if event == "run" and to == "quick" and not layer.accept_click():
-        return {"ok": False, "relayed": True, "guarded": True}      # the click that only finished opening
+        return {"ok": False, "relayed": True, "guarded": True}
     if to == "layer":
         return {"ok": True, "relayed": await asyncio.to_thread(layer.relay, message)}
     if not getattr(manager, "visible", False):
@@ -1090,10 +998,9 @@ async def layer_relay(request: Request):
     script = "window.MemuQuickBus && MemuQuickBus.receive(%s)" % json.dumps(message, ensure_ascii=False)
     await asyncio.to_thread(manager._push, script)
     if event in ("run", "edit-button", "new-button", "add", "focus-quick"):
-        # the answer / approval sheet / editor is in the Quick Ask window: bring it forward (above the layer)
+
         await asyncio.to_thread(_focus_quick, manager)
     return {"ok": True, "relayed": True}
-
 
 def _focus_quick(manager: Any) -> None:
     try:
@@ -1104,10 +1011,8 @@ def _focus_quick(manager: Any) -> None:
     except Exception:
         pass
 
-
 def register() -> None:
     from .quick_ask_api import register_router
     register_router(router)
-
 
 register()

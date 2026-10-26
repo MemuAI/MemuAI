@@ -19,10 +19,8 @@ SAMPLES = json.loads((ROOT / "tests" / "data" / "round33_leak_samples.json").rea
 LEAK = re.compile(r"</?tool_call|<\|[^|\n]{0,40}\|>|<｜|DSML|<function|<invoke|<arg_key|\[TOOL_|<tool_response|_report>|"
                   r"<web_search>|<docs_read>|</think>|</?tool|</?web_|</?docs_|<\|")
 
-
 def _prose(text):
     return "".join(chunk for code, chunk in answer_guard.segments(text) if not code)
-
 
 def _expect_calls(sample, calls):
     want = sample.get("calls")
@@ -36,7 +34,6 @@ def _expect_calls(sample, calls):
             assert key in args, (sample["name"], key, args)
             if value is not None:
                 assert args[key] == value, (sample["name"], key, args)
-
 
 class AnswerGuardPython(unittest.TestCase):
     def test_samples_final(self):
@@ -79,7 +76,7 @@ class AnswerGuardPython(unittest.TestCase):
     def test_plain_text_untouched(self):
         for text in ("x < y and y > z", "Use [brackets] and <b>bold</b>", "Ответ: 2 < 3, a <kbd>Esc</kbd>",
                      "Список:\n- a\n- b", "```html\n<div>|x|</div>\n```", "Стрелка <- и <= тоже",
-                     # Prose that MENTIONS the tags (live: a model explaining why it will not use <tool_call>).
+
                      "Формат <tool_call> я использовать не могу\n\nДальше текст.",
                      "Модели пишут <tool_call> и </tool_call> вокруг JSON.", "Ответ <tool_response> тут",
                      "Тег <web_fetch> ничего не вызовет — он останется текстом."):
@@ -102,7 +99,6 @@ class AnswerGuardPython(unittest.TestCase):
         self.assertEqual(_clean_internal_protocols("Думаю… </think> Ответ"), "Ответ")
         self.assertEqual(_clean_internal_protocols("Ищу <tool_c", partial=True), "Ищу")
 
-
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
 class AnswerGuardJs(unittest.TestCase):
     def test_same_rules_in_js(self):
@@ -115,20 +111,17 @@ class AnswerGuardJs(unittest.TestCase):
             if "visible" in sample:
                 self.assertEqual(row["visible"], sample["visible"], sample["name"])
             _expect_calls(sample, row["calls"])
-            # Python and JS agree on the visible text.
+
             full = "".join(sample.get("chunks") or [sample["text"]])
             self.assertEqual(row["visible"], answer_guard.clean(full).strip(), sample["name"])
-
 
 CYR = re.compile(r"[А-Яа-яЁё]")
 USER_DATA_CYR = ("погода Москва", "Гидрометцентр", "Прогноз", "Яндекс Погода", "Быстрый доступ (Alt+Space)",
                  "Помощник поверх всех программ", "Как пользоваться", "Сочетание клавиш", "Чат", "Орфография",
                  "Пьёт кофе без сахара", "Живёт в Москве")
 
-
 def _text(html):
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html)).strip()
-
 
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
 class ToolDetailsJs(unittest.TestCase):
@@ -211,11 +204,10 @@ class ToolDetailsJs(unittest.TestCase):
         self.assertIn("quick-ask", _text(self.data["legacy"]))
 
     def test_doc_chip_has_one_icon(self):
-        # .doc-chip draws its book icon with ::before; a second inline icon doubled it.
+
         docs = self.data["en"]["docs_read"]["html"]
         chip = re.search(r'<button type="button" class="doc-chip[^>]*>(.*?)</button>', docs, re.S).group(1)
         self.assertNotIn("<svg", chip)
-
 
 class PhantomSpellcheckStatic(unittest.TestCase):
     """#21: the composer's value setter hooks must chain, not replace each other."""
@@ -228,7 +220,6 @@ class PhantomSpellcheckStatic(unittest.TestCase):
         src = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
         self.assertIn('const nativeValue = Object.getOwnPropertyDescriptor(input, "value") || Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");', src)
 
-
 def _browser_ready():
     try:
         import playwright  # noqa: F401
@@ -236,7 +227,6 @@ def _browser_ready():
     except ImportError:
         return False
     return Path("/usr/bin/chromium").exists() or bool(shutil.which("chromium"))
-
 
 @unittest.skipUnless(_browser_ready(), "playwright/chromium not available")
 class PhantomSpellcheckBrowser(unittest.TestCase):
@@ -309,7 +299,7 @@ class PhantomSpellcheckBrowser(unittest.TestCase):
                 page.wait_for_function("typeof S !== 'undefined' && !!document.querySelector('#input') && !!document.querySelector('#input').__memuCmd", timeout=90000)
 
                 def misspell():
-                    # A fresh profile opens the welcome panel over the page; the composer is reached by focus.
+
                     page.evaluate("() => { if (typeof closePanel === 'function') closePanel(); document.getElementById('input').focus(); }")
                     page.fill("#input", "превет как дила helo")
                     try:
@@ -317,23 +307,22 @@ class PhantomSpellcheckBrowser(unittest.TestCase):
                     except Exception:
                         raise AssertionError(page.evaluate("() => ({value: document.getElementById('input').value, active: document.activeElement && document.activeElement.id, enabled: spellcheckEnabled(), st: JSON.stringify(spellState).slice(0, 300)})"))
 
-                # 1. send clears the field by code (no input event)
                 misspell()
                 page.evaluate("() => { document.getElementById('input').value = ''; }")
                 page.wait_for_timeout(600)
                 st = page.evaluate(state)
                 self.assertEqual(st["marks"], 0, st)
-                # 2. … then «New chat» moves the composer to the home screen: still nothing
+
                 page.evaluate("() => newChat()")
                 page.wait_for_timeout(600)
                 self.assertEqual(page.evaluate(state)["marks"], 0)
-                # 3. a draft replaced by code (command, history) — old marks never sit over other text
+
                 misspell()
                 page.evaluate("() => { document.getElementById('input').value = 'другой текст'; }")
                 page.wait_for_timeout(700)
                 st = page.evaluate(state)
                 self.assertTrue(st["marks"] == 0 or st["text"] == st["value"], st)
-                # 4. the /image chip (cmd-highlight.js) still follows code-set values through the chained setter
+
                 page.evaluate("() => { document.getElementById('input').value = '/image кот'; }")
                 self.assertEqual(page.evaluate(state)["kind"], "image")
                 page.evaluate("() => { document.getElementById('input').value = ''; }")
@@ -341,7 +330,6 @@ class PhantomSpellcheckBrowser(unittest.TestCase):
                 self.assertEqual(errors, [])
             finally:
                 browser.close()
-
 
 if __name__ == "__main__":
     unittest.main()

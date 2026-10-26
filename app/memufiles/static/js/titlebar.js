@@ -1,17 +1,5 @@
-/* MemuFiles custom title bar (Round 36) — the tab strip IS the window caption, like Explorer on Windows 11 / Chrome.
- *
- * The native side is MemuAI's own app/win_titlebar.py (TitlebarController + TitlebarBridge, exposed by
- * app/memufiles/desktop.py as window.pywebview.api.titlebar_*): the window keeps its normal sizable frame (Windows
- * owns resize borders, Aero Snap, shadow, rounded corners), only the caption is removed through WM_NCCALCSIZE.
- * Here:
- *   - minimize / maximize-restore / close drawn at the right end of the tab bar;
- *   - pressing an empty part of the tab bar starts the native move loop (Snap, drag-down-to-restore),
- *     a double press toggles maximize, right click there / Alt+Space opens the real system menu;
- *   - a thin strip along the top edge starts the native top / corner resize.
- * Nothing is shown unless Python reports the hook installed, so the browser fallback never gets dead buttons.
- * html[data-titlebar="custom"] marks the active state for CSS (memufiles.css). No timers, no observers on the
- * file list: state is re-read only on window resize / focus changes.
- */
+
+
 import { t } from "./i18n.js";
 
 const root = document.documentElement;
@@ -62,7 +50,6 @@ function build() {
   document.body.append(edges);
 }
 
-/** The tab bar is rebuilt on language change: keep the buttons as its last child. */
 export function mountControls(tabbar) {
   bar = tabbar;
   if (enabled && controls && bar && controls.parentElement !== bar) bar.append(controls);
@@ -76,7 +63,6 @@ function labels() {
   controls.querySelectorAll("[data-wc]").forEach((b) => { b.title = text[b.dataset.wc]; b.setAttribute("aria-label", text[b.dataset.wc]); });
 }
 
-/** An empty part of the caption (tab bar background, the logo, gaps between buttons)? */
 export function isDragTarget(target) {
   if (!enabled || !bar || !(target instanceof Element) || !bar.contains(target)) return false;
   return !target.closest(NO_DRAG);
@@ -162,7 +148,7 @@ export async function sync() {
   if (next && next.pending && tries < 60) { tries += 1; setTimeout(sync, 250); }
   return next;
 }
-/** Settings → "Tabs in the window title bar": switch live (the controller re-installs / removes the hook). */
+
 export async function setMode(custom) {
   const next = await call("titlebar_set_mode", custom ? "custom" : "native");
   if (next) apply(next);

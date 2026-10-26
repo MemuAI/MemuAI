@@ -28,19 +28,17 @@ if not os.environ.get("MEMUAI_DATA_DIR"):
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "app" / "module_builtins" / "characters"
 
-
-# ------------------------------------------------------------------------------------------- fake MemuAI Proxy
 ADMIN_MODELS = [
     {"id": "reform-qwen3.8-flash", "provider": "custom", "prefix": "reform", "model": "qwen3.8-flash", "enabled": True,
      "caps": {"thinking": False}},
     {"id": "reform-glm-5.3", "provider": "custom", "prefix": "reform", "model": "glm-5.3", "enabled": False,
-     "caps": {}},                                                          # switched off in Proxy
+     "caps": {}},
     {"id": "dead-gpt-4o", "provider": "custom", "prefix": "dead", "model": "gpt-4o", "enabled": True,
-     "caps": {}},                                                          # provider without a usable account
+     "caps": {}},
     {"id": "reform-kimi-k3", "provider": "custom", "prefix": "reform", "model": "kimi-k3", "enabled": True,
-     "caps": {}},                                                          # hidden in MemuAI
+     "caps": {}},
     {"id": "xkiro-qwen/qwen3.8-max:free", "provider": "custom", "prefix": "xkiro", "model": "qwen/qwen3.8-max:free",
-     "enabled": True, "caps": {}},                                         # not in pg/state names → model_names
+     "enabled": True, "caps": {}},
 ]
 PG_STATE = {
     "default_model": "reform-qwen3.8-flash",
@@ -55,11 +53,10 @@ PG_STATE = {
     ],
 }
 
-
 class _Proxy(BaseHTTPRequestHandler):
     state_ok = True
 
-    def log_message(self, *args):  # quiet
+    def log_message(self, *args):
         pass
 
     def do_GET(self):  # noqa: N802
@@ -75,7 +72,6 @@ class _Proxy(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
-
 
 class ModulesModelsEndpointTest(unittest.TestCase):
     @classmethod
@@ -139,8 +135,6 @@ class ModulesModelsEndpointTest(unittest.TestCase):
         self.assertIn("reform-qwen3.8-flash", rows)
         self.assertEqual(rows["reform-qwen3.8-flash"]["name"], "Qwen3.8 Flash")
 
-
-# ------------------------------------------------------------------------------------------- package / backend
 class PackageTest(unittest.TestCase):
     def test_ai_create_part_is_inlined(self):
         from app.modules_host import load_package, module_document
@@ -191,8 +185,6 @@ class PackageTest(unittest.TestCase):
         body = build_completion({"model": "m", "messages": [{"role": "user", "content": "hi"}], "params": {"effort": "turbo"}})
         self.assertNotIn("effort", body)
 
-
-# ------------------------------------------------------------------------------------------- browser flow
 try:
     from playwright.sync_api import sync_playwright
 except Exception:  # pragma: no cover
@@ -218,7 +210,6 @@ CARD_JSON = json.dumps({
     "tags": ["Fantasy", "Original"], "system_prompt": "", "creator_notes": "made by AI",
 })
 
-# The harness parent with a richer model list and a per-call reply (parallel variants get distinct texts).
 PARENT = harness.PARENT.replace(
     'case "models": return reply(d.id, [{ id: "test/model-a", name: "Model A", context: 128000 }, { id: "img/x", name: "Img", image: true }]);',
     'case "models": return reply(d.id, __MODELS__);',
@@ -226,7 +217,6 @@ PARENT = harness.PARENT.replace(
     "const text = window.__reply;",
     "window.__n = (window.__n || 0) + 1; const text = window.__replyFor ? window.__replyFor(p, window.__n) : window.__reply;",
 ).replace("__MODELS__", MODELS_JS)
-
 
 def open_page(pw, lang="en", theme="dark", size=(1360, 860)):
     browser = pw.chromium.launch(executable_path=harness.chromium(), args=["--no-sandbox"])
@@ -240,7 +230,6 @@ def open_page(pw, lang="en", theme="dark", size=(1360, 860)):
     page.route("http://harness.local/module", lambda route: route.fulfill(status=200, content_type="text/html", body=doc))
     page.goto("http://harness.local/")
     return browser, page, errors
-
 
 @unittest.skipUnless(sync_playwright and harness.chromium(), "playwright + chromium required")
 class CharactersR33BrowserTest(unittest.TestCase):
@@ -286,7 +275,7 @@ class CharactersR33BrowserTest(unittest.TestCase):
         self.wait("() => M.S.view === 'chat' && M.S.char && M.S.char.data.name === 'Alice'")
         self.frame.wait_for_selector("#model-chip")
         self.assertEqual(self.ev("() => document.querySelector('#model-chip').textContent.trim()"), "Qwen3.8 Flash")
-        # The reasoning chip lists only this model's levels.
+
         self.assertTrue(self.ev("() => !!document.querySelector('#effort-chip')"))
         self.frame.click("#effort-chip")
         labels = self.ev("() => [...document.querySelectorAll('.ch-menu .ch-menu-item')].map(b => b.textContent.trim())")
@@ -295,7 +284,7 @@ class CharactersR33BrowserTest(unittest.TestCase):
             self.assertIn(name, joined)
         self.assertNotIn("Maximum", joined)
         self.assertNotIn("Minimal", joined)
-        self.assertIn("model default", joined)        # reasoning_default «medium»
+        self.assertIn("model default", joined)
         self.frame.click(".ch-menu .ch-menu-item >> text=No reasoning")
         self.assertEqual(self.ev("() => M.S.settings.gen.thinking"), "off")
         self.frame.fill("#composer-text", "Hi Alice")
@@ -319,13 +308,13 @@ class CharactersR33BrowserTest(unittest.TestCase):
         self.frame.press(".ch-mp-search", "Enter")
         self.wait("() => M.S.settings.model === 'aws9-gpt-6.1-sol' && !document.querySelector('.ch-mp')")
         self.assertEqual(self.ev("() => document.querySelector('#model-chip').textContent.trim()"), "GPT-6.1 Sol")
-        # «No reasoning» is not offered by this model: the chip shows what the Proxy will ask for (the lightest level).
+
         self.assertEqual(self.ev("() => M.effortValue()"), "low")
         self.ev("() => M.setEffort('xhigh')")
         self.assertEqual(self.ev("() => M.S.preset.reasoning_effort"), "xhigh")
         self.assertEqual(self.ev("() => M.S.settings.gen.thinking"), "auto")
         self.assertIn("Extra high", self.ev("() => document.querySelector('#effort-chip').textContent"))
-        # A model without reasoning control: no chip.
+
         self.ev("() => M.setChatModel('xkiro-qwen/qwen3.8-max:free', true)")
         self.assertFalse(self.ev("() => !!document.querySelector('#effort-chip')"))
         self.ev("() => M.setChatModel('aws9-gpt-6.1-sol', true)")
@@ -401,7 +390,6 @@ class CharactersR33BrowserTest(unittest.TestCase):
     def test_9_no_console_errors(self):
         noise = [e for e in self.errors if "favicon" not in e]
         self.assertEqual(noise, [])
-
 
 if __name__ == "__main__":
     unittest.main()

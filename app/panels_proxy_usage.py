@@ -7,11 +7,9 @@ import re
 
 _proxy = None
 
-
 def configure(proxy):
     global _proxy
     _proxy = proxy
-
 
 async def read(path):
     from .panels_usage import UsageWall
@@ -22,7 +20,6 @@ async def read(path):
         raise UsageWall("blocked:source-down", "Не удалось прочитать источник MemuAI Proxy / Cannot read the MemuAI Proxy source")
     return body
 
-
 def number(value):
     if isinstance(value, bool):
         return None
@@ -31,7 +28,6 @@ def number(value):
         return value if math.isfinite(value) else None
     except (TypeError, ValueError):
         return None
-
 
 async def discover():
     async def safe(path):
@@ -47,7 +43,6 @@ async def discover():
              "enabled": row.get("enabled") is not False,
              "api_budget": row["id"] in budget_ids, "quota_planner": row["id"] in tracked_ids}
             for row in state.get("accounts", []) if isinstance(row, dict) and row.get("id")]
-
 
 async def fetch(account, secret, lang, now):
     from .panels_usage import UsageWall, make_limit, _ts
@@ -67,8 +62,7 @@ async def fetch(account, secret, lang, now):
             balance, spent = number(row.get("balance_usd")), number(row.get("spent_usd"))
             if balance is None or balance <= 0 or spent is None:
                 raise UsageWall("blocked:not-found", "Set a positive API balance in the quota planner" if en else "Укажите положительный API-баланс в планировщике квот")
-            # `until` is a spending-plan deadline, never an automatic balance
-            # refill. Showing it as a reset would promise money returning.
+
             limit = make_limit("api_balance", "API balance" if en else "Баланс API", spent / balance * 100,
                                None, None, now)
             limit["detail"] = f"${spent:.4f} / ${balance:.4f} · " + ("remaining " if en else "осталось ") + f"${balance - spent:.4f}"
@@ -82,7 +76,7 @@ async def fetch(account, secret, lang, now):
             remaining = number(window.get("remaining"))
             if remaining is None or not 0 <= remaining <= 1:
                 continue
-            # Planner windows expose fractional remaining, not percentage-used.
+
             value = make_limit(str(window.get("key") or "quota"), str(window.get("label_en" if en else "label")
                                or window.get("title_en" if en else "title") or window.get("title") or window.get("key") or "Quota"),
                                (1 - remaining) * 100, _ts(window.get("reset")), None, now)

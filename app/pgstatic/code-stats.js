@@ -1,12 +1,5 @@
-/* MemuCode — статистика использования (только режим MemuCode).
- *
- * Карточка на главной MemuCode и панель по команде /stats: сессии,
- * сообщения, токены, активные дни, пиковый час, любимая модель, тепловая
- * карта по дням за полгода и сравнение объёма с известными книгами.
- * Данные собирает сервер (app/code_stats.py) по каждому раунду модели в
- * MemuCode; прошлые сессии из истории один раз импортируются с оценкой
- * токенов.
- */
+
+
 "use strict";
 const MemuCodeStats = (() => {
   const WEEKS = 26;
@@ -14,10 +7,6 @@ const MemuCodeStats = (() => {
   const en = () => PG_LANG === "en";
   const t = (ru, eng) => (en() ? eng : ru);
 
-  /* Объём известных текстов в токенах (≈ 1,3 токена на английское слово;
-     для русской классики — по английскому переводу). Сравнение выбирается
-     случайно из подходящих по масштабу, как в Claude Code, и меняется при
-     каждом обновлении статистики или по щелчку. */
   const REFERENCES = [
     { tokens: 6_000, en: "the U.S. Constitution", ruIn: "в Конституции США", ruOf: "Конституции США" },
     { tokens: 22_000, en: "The Little Prince", ruIn: "в «Маленьком принце»", ruOf: "«Маленького принца»" },
@@ -48,8 +37,6 @@ const MemuCodeStats = (() => {
     { tokens: 6_000_000_000, en: "all of English Wikipedia", ruIn: "во всей английской Википедии", ruOf: "всей английской Википедии" },
   ];
 
-  /* Сравнения не с книгами: страницы, стопка бумаги, чтение вслух и т.д.
-     Каждое возвращает текст или "", если на таком масштабе оно бессмысленно. */
   const WORDS = (tokens) => tokens / 1.3;
   const MEASURES = [
     (tokens) => {
@@ -84,7 +71,7 @@ const MemuCodeStats = (() => {
       return t(`Одной строкой обычным шрифтом этот текст растянулся бы на ${text}.`, `Written on a single line in a normal font, it would stretch ${text}.`);
     },
     (tokens) => {
-      const years = WORDS(tokens) / 250 / 60 / 2 / 365;   // по 2 часа чтения в день
+      const years = WORDS(tokens) / 250 / 60 / 2 / 365;
       if (years < 1) return "";
       const n = Math.round(years), tail = n % 100, last = n % 10;
       const word = tail >= 11 && tail <= 14 ? "лет" : last === 1 ? "год" : last >= 2 && last <= 4 ? "года" : "лет";
@@ -107,7 +94,6 @@ const MemuCodeStats = (() => {
 
   function number(value) { return (Number(value) || 0).toLocaleString(en() ? "en-US" : "ru-RU"); }
 
-  /** Как app.pricing.format_usd: $0 · <$0.0001 · $0.0042 · $0.315 · $12.40 · $1,204. */
   function usd(value) {
     const n = Number(value) || 0;
     if (!n) return "$0";
@@ -144,7 +130,6 @@ const MemuCodeStats = (() => {
     return en() ? `That's about ${pct}% of ${ref.en}.` : `Это примерно ${pct}% от объёма ${ref.ruOf}.`;
   }
 
-  /** Все сравнения, подходящие по масштабу: книги от 15% до ×5000 и прочие меры. */
   function comparisons(tokens) {
     if (!tokens) return [];
     const books = REFERENCES.filter((ref) => tokens / ref.tokens >= 0.15 && tokens / ref.tokens <= 5000).map((ref) => bookLine(tokens, ref));
@@ -160,7 +145,7 @@ const MemuCodeStats = (() => {
 
   async function load() {
     state.loading = true;
-    state.pick = Math.random();   // новое сравнение при каждом обновлении
+    state.pick = Math.random();
     state.error = "";
     try {
       const params = new URLSearchParams({ range: state.range, today: localDay() });
@@ -186,7 +171,6 @@ const MemuCodeStats = (() => {
       <span>${esc(label)}</span><b>${esc(value)}</b></div>`).join("")}</div>`;
   }
 
-  /** Стоимость по ценам API: каталог моделей → прайс OpenRouter → встроенная таблица (app/pricing.py). */
   function costLine(d) {
     const cost = d.cost || {};
     const unknown = (cost.unknown || []).length;
@@ -204,7 +188,7 @@ const MemuCodeStats = (() => {
   function heatmap(d) {
     const byDay = new Map((d.days || []).map((row) => [row.day, row]));
     const today = new Date(`${d.today || localDay()}T12:00:00`);
-    const weekday = (today.getDay() + 6) % 7;                 // понедельник = 0
+    const weekday = (today.getDay() + 6) % 7;
     const start = new Date(today);
     start.setDate(start.getDate() - weekday - (WEEKS - 1) * 7);
     const rangeStart = state.range === "all" ? null : new Date(today.getTime() - ((state.range === "7d" ? 7 : 30) - 1) * 86400000);
@@ -261,7 +245,7 @@ const MemuCodeStats = (() => {
   function bind(root) {
     const fact = root.querySelector("[data-cs-fact]");
     if (fact) fact.onclick = () => {
-      // Следующее сравнение — любое, кроме текущего.
+
       const count = Math.max(1, comparisons(state.data?.tokens?.total || 0).length);
       const current = Math.floor(state.pick * count) % count;
       const next = count > 1 ? (current + 1 + Math.floor(Math.random() * (count - 1))) % count : 0;
@@ -283,7 +267,6 @@ const MemuCodeStats = (() => {
     bind(root);
   }
 
-  /** Карточка на главной MemuCode. Вызывается часто — сеть не чаще раза в 20 с. */
   async function refresh(force = false) {
     const root = document.getElementById("code-stats");
     if (!root || S.mode !== "code") return;
@@ -295,7 +278,6 @@ const MemuCodeStats = (() => {
     paint(root);
   }
 
-  /** Панель по команде /stats. */
   async function openPanel() {
     panel(`<h2>${esc(t("Статистика MemuCode", "MemuCode statistics"))}</h2><div class="code-stats in-panel" id="code-stats-panel"></div>`, "code-stats-panel");
     const root = document.getElementById("code-stats-panel");
@@ -304,13 +286,12 @@ const MemuCodeStats = (() => {
     paint(root);
   }
 
-  /** Раунд модели в MemuCode — для статистики (ошибки записи не мешают работе). */
   function record(event) {
     try {
       const now = new Date();
       api("/api/code/stats/record", { method: "POST", body: { ...event, day: localDay(now), hour: now.getHours() } })
         .then(() => { state.loadedAt = 0; }).catch(() => {});
-    } catch (error) { /* статистика не должна ломать ответ */ }
+    } catch (error) {  }
   }
 
   return { refresh, openPanel, record, comparison, comparisons, _compact: compact, _usd: usd };

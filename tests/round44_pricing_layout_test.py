@@ -18,13 +18,11 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "static"
 SHOTS = ROOT / "build" / "round44-ui"
 
-
 def chromium():
     candidates = [os.environ.get("MEMU_TEST_CHROMIUM", ""),
                   r"C:\Program Files\Google\Chrome\Application\chrome.exe",
                   r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", "/usr/bin/chromium"]
     return next((value for value in candidates if value and Path(value).is_file()), "")
-
 
 def fixture():
     models = [{"model": "claude-opus-5.5", "id": "api-claude-opus-5.5", "canonical": "claude-opus-5.5",
@@ -43,7 +41,6 @@ def fixture():
     return {"now": now, "settings": {"poll_minutes": 10, "save_quota": True, "notify": True}, "accounts": [],
             "api_budgets": {"accounts": [account, second], "available": [], "catalog_age": 600}}
 
-
 @pytest.fixture(scope="module")
 def browser():
     pytest.importorskip("playwright")
@@ -57,15 +54,13 @@ def browser():
         yield instance
         instance.close()
 
-
 def offline_page(browser, width, height, theme):
     context = browser.new_context(viewport={"width": width, "height": height}, color_scheme=theme)
     page = context.new_page()
     errors = []
     page.on("pageerror", lambda error: errors.append(str(error)))
     doc = (STATIC / "index.html").read_text(encoding="utf-8")
-    # Keep the complete real document and stylesheet order. Only JS unrelated to
-    # this isolated feature is replaced by its documented DOM/API dependencies.
+
     doc = re.sub(r"<script\b[^>]*>.*?</script>", "", doc, flags=re.S | re.I)
     data = json.dumps(fixture(), ensure_ascii=False).replace("</", "<\\/")
     setup = """<script>
@@ -79,7 +74,7 @@ def offline_page(browser, width, height, theme):
     document.querySelector('#crumb-page').textContent='Планировщик квот';
     document.querySelector('#app').hidden=false;
     </script><script src='/quota-planner.js'></script><script>MemuQuota.load();</script>""".replace("DATA", data).replace("THEME", theme)
-    # id=app is present in the released Proxy shell; hiding overlay is independent.
+
     setup = setup.replace("document.querySelector('#app').hidden=false;", "document.querySelector('#app')?.classList.add('visible');document.querySelector('#login-overlay')?.setAttribute('hidden','');")
     doc = doc.replace("</body>", setup + "</body>")
 
@@ -100,7 +95,6 @@ def offline_page(browser, width, height, theme):
     page.goto("http://quota.local/")
     page.locator(".qp-budget").first.wait_for(state="visible")
     return context, page, errors
-
 
 @pytest.mark.parametrize("theme", ["dark", "light"])
 @pytest.mark.parametrize("width,height,label", [(1440, 1000, "desktop"), (390, 844, "narrow")])

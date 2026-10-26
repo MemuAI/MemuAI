@@ -12,7 +12,6 @@ from fastapi.testclient import TestClient
 from app import pgdata
 from app.playground_api import create_app
 
-
 class ModuleRouteTest(unittest.TestCase):
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
@@ -23,7 +22,7 @@ class ModuleRouteTest(unittest.TestCase):
         self._patches = [
             patch.object(pgdata, "MEMU_DIR", self.data),
             patch("app.modules_host.default_root", return_value=self.modules),
-            # «download» saves into ~/Downloads/MemuAI: keep it inside the temp folder, never the real one.
+
             patch("pathlib.Path.home", return_value=self.root / "home"),
         ]
         for item in self._patches:
@@ -44,7 +43,7 @@ class ModuleRouteTest(unittest.TestCase):
 
     def test_document_is_frameable_and_a_disabled_module_is_refused(self) -> None:
         with self.client() as client:
-            # A disabled module has no page: it is not a hidden, still-running app.
+
             refused = client.get("/api/pg/modules/translator/document")
             self.assertEqual(refused.status_code, 403)
             self.assertIn("выключен", refused.json()["error"])
@@ -60,7 +59,7 @@ class ModuleRouteTest(unittest.TestCase):
             self.assertIn("frame-ancestors 'self'", policy)
             self.assertNotIn("frame-ancestors 'none'", policy)
             self.assertIn("script-src 'unsafe-inline'", policy)
-            # The page must not be able to reach the network on its own.
+
             self.assertIn("connect-src 'none'", policy)
 
             missing = client.get("/api/pg/modules/nope-nope/document")
@@ -90,8 +89,7 @@ class ModuleRouteTest(unittest.TestCase):
         with self.client() as client:
             templates = client.get("/api/pg/modules/templates").json()
             self.assertGreaterEqual(len(templates["templates"]), 4)
-            # 11 + «net-import» (Round 29: import by link, app/character_import.py) + «music» (Round 37: app/music/)
-            # + «learn» (Round 40: app/learn/)
+
             self.assertEqual(len(templates["permissions"]), 14)
             self.assertIn("background", templates["permissions"])
             self.assertEqual(templates["slots"],
@@ -103,7 +101,7 @@ class ModuleRouteTest(unittest.TestCase):
             routes = client.get("/api/pg/modules/routes").json()
             for key in ("chat", "image", "video", "audio", "transcribe", "download"):
                 self.assertTrue(routes["routes"][key]["available"])
-            # The module wiki moved to Settings → Documentation (tests/docs_test.py).
+
             self.assertEqual(client.get("/api/pg/modules/wiki").status_code, 404)
 
     def test_create_edit_export_import_delete_round_trip(self) -> None:
@@ -158,7 +156,7 @@ class ModuleRouteTest(unittest.TestCase):
             for module_id in ("route-calc", "route-calc-2", "route-calc-3"):
                 deleted = client.post("/api/pg/modules/delete", json={"id": module_id})
                 self.assertEqual(deleted.status_code, 200, deleted.text)
-            # A built-in can be removed for this person and brought back.
+
             self.assertEqual(client.post("/api/pg/modules/delete",
                                          json={"id": "translator"}).status_code, 200)
             listing = client.get("/api/pg/modules").json()
@@ -193,7 +191,7 @@ class ModuleRouteTest(unittest.TestCase):
                 "id": "store-less", "fields": {"draft": "WRITTEN"}})
             self.assertEqual(refused.status_code, 403, refused.text)
             self.assertIn("не разрешено", refused.json()["error"])
-            # Чтение разрешено: оно ничего не меняет.
+
             self.assertEqual(client.post("/api/pg/modules/persist",
                                          json={"id": "store-less"}).status_code, 200)
 
@@ -208,8 +206,7 @@ class ModuleRouteTest(unittest.TestCase):
             for bad in ("../../config", "../state", "..", "with space"):
                 response = client.post("/api/pg/modules/persist",
                                        json={"id": bad, "fields": {"draft": "x"}})
-                # `..` не проходит ни валидацию идентификатора, ни проверку прав:
-                # главное — запрос отклонён и ничего не записано.
+
                 self.assertIn(response.status_code, (400, 403), (bad, response.text))
                 self.assertNotEqual(response.status_code, 200, bad)
 
@@ -233,11 +230,11 @@ class ModuleRouteTest(unittest.TestCase):
             for path, extra in probes:
                 response = client.post(path, json={"module_id": "no-media", **extra})
                 self.assertEqual(response.status_code, 403, (path, response.text))
-            # Загрузка готового изображения в окно тоже под правом media.
+
             loaded = client.get("/api/pg/modules/media-file",
                                 params={"module_id": "no-media", "url": "https://x/y.png"})
             self.assertEqual(loaded.status_code, 403, loaded.text)
-            # Тот же модуль с правами проходит дальше проверки прав.
+
             client.post("/api/pg/modules/code", json={
                 "id": "no-media", "html": "<p>x</p>", "css": "", "js": "void 0",
                 "persist": [], "permissions": ["media", "files"]})
@@ -294,7 +291,6 @@ class ModuleRouteTest(unittest.TestCase):
             self.assertEqual(preview.status_code, 200)
             self.assertEqual(preview.json()["instructions"], "RULE")
 
-            # A module without the permission cannot reach a model at all.
             client.post("/api/pg/modules/code", json={
                 "id": "translator", "html": "<p>x</p>", "css": "", "js": "void 0",
                 "persist": [], "permissions": ["storage"],
@@ -341,7 +337,7 @@ class ModuleRouteTest(unittest.TestCase):
 
     def test_models_and_chat_routes_degrade_cleanly(self) -> None:
         with self.client() as client:
-            # No Proxy account in this test: the list must not crash the window.
+
             models = client.post("/api/pg/modules/models")
             self.assertIn(models.status_code, (200, 502))
             chat = client.get("/api/pg/modules/translator/chat").json()
@@ -363,7 +359,7 @@ class ModuleRouteTest(unittest.TestCase):
                 response = client.post("/api/pg/modules/configure",
                                        json={"id": "translator", "enabled": True})
                 self.assertEqual(response.status_code, 200)
-                # Действие с таким именем обязано отработать, а не упасть.
+
                 probe = client.post("/api/pg/modules/download",
                                     json={"module_id": "translator", "name": "x.txt",
                                           "text": "x"})
@@ -386,7 +382,6 @@ class ModuleRouteTest(unittest.TestCase):
             self.assertEqual(client.post("/api/pg/modules/reset",
                                          json={"id": "route-none"}).status_code, 400)
             self.assertEqual(client.post("/api/pg/modules", json={"id": "BAD ID"}).status_code, 400)
-
 
 if __name__ == "__main__":
     unittest.main()

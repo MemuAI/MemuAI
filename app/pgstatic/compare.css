@@ -1,4 +1,3 @@
-/* Round 37 (r37-extras-2): «Сравнение ответов» — versions of one answer side by side (compare.js). */
 .br-switch .br-cmpbtn { margin-left: 1px; border-left: 1px solid var(--border); border-radius: 0; width: 24px; }
 .br-switch .br-cmpbtn .ui-icon svg, .cmp-panel h2 .ui-icon svg, .msg-more-pop [data-cmp-model] .ui-icon svg {
   fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round;

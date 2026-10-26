@@ -1,17 +1,8 @@
-/* Round 29 — more Quick Access helpers (plugin "extras", backend app/quick_extras.py; settings in explorer-settings.js).
 
-   · Currency under the input without a model: «100 usd в rub», «€50 to $», «курс доллара» (rates cached 6 h).
-   · Eyedropper: the colour under the pointer at Alt+Space + a live pipette (Space takes the colour), HEX/RGB/HSL/CMYK.
-   · Text from the screen WITHOUT a model: the Round 27 region overlay + Windows OCR.
-   · «Explain the error on screen»: a screenshot + a focused prompt; a pill when the selection looks like an error.
-   · Note to MemuNote: Ctrl+K → a Markdown file opened in MemuNote; «To note» under an answer («заметка: …» stays the
-     assistant command that writes into the «Заметки» chat).
-   · Latest downloads: attach a fresh download as a folder context (the explorer plugin's agent works with it).
-   window.QuickExtras = {parseCurrency, openView}. parseCurrency also runs in Node (tests). */
+
 (function (root) {
   "use strict";
 
-  /* ---------------------------------------------------------- currency parsing (no DOM) */
   const CUR = [
     ["USD", /^(?:usd|\$|us\$|долл?ар[а-яёa-z]*|бакс[а-яёa-z]*|dollars?|bucks?)$/i],
     ["EUR", /^(?:eur|€|евро|euros?)$/i],
@@ -64,7 +55,7 @@
     const v = parseFloat(s);
     return isFinite(v) ? v * mult : NaN;
   }
-  /* «100 usd в rub» → {amount:100, from:"USD", to:"RUB"}; «100$» → {…, to: null}; «курс евро» → {amount:1, from:"EUR", to:null} */
+
   function parseCurrency(text) {
     const s = String(text || "").trim().toLowerCase().replace(/\s+/g, " ")
       .replace(/^(?:сколько(?: будет| стоит| это)?|how much is|how much are|what is|what's)\s+/, "");
@@ -77,7 +68,7 @@
       return null;
     }
     const sym = "(\\$|€|£|¥|₽|₸|₴|₺|₹|₾|₪|₩|฿|₫)";
-    // Round 34: «5 KRW», «100 kzt», «5 mdl» lost their code to the «k»/«m» multiplier («5 k» + «rw») → the suffix must end a word
+
     const num = "(\\d[\\d\\s.,'’]*(?:\\s?(?:k|к|тыс\\.?|thousand|m|млн\\.?|mln|million|bn|млрд\\.?|billion)(?![a-zа-яё]))?)";
     const tail = "(?:\\s*(?:в|во|к|на|to|in|into|->|→|=|>)\\s*(.+?))?\\??$";
     m = s.match(new RegExp("^" + sym + "\\s?" + num + tail));
@@ -90,7 +81,7 @@
     }
     const amount = parseAmount(amountText);
     const from = currencyCode(fromText);
-    // Round 34: «1 try», «10 sum», «5 вон там» are words, not lira / som / won — only with a target («1 try в rub»)
+
     if (!toText && /^(?:try|sums?|soms?|won|dong|drams?|бат|вон|сом|сум|донг)$/i.test(String(fromText || "").trim())) return null;
     if (!from || !isFinite(amount) || amount <= 0) return null;
     let to = null;
@@ -126,10 +117,9 @@
   const on = (key) => S.settings[key] !== false;
 
   async function loadSettings() {
-    try { const d = await api("/api/quick/apps/settings?lang=" + Q.lang()); S.settings = d.settings || {}; S.native = !!d.native; } catch (e) { /* defaults */ }
+    try { const d = await api("/api/quick/apps/settings?lang=" + Q.lang()); S.settings = d.settings || {}; S.native = !!d.native; } catch (e) {  }
   }
 
-  /* ---------------------------------------------------------- currency */
   const defaultTarget = () => S.settings.currency_to || (Q.lang() === "en" ? "USD" : "RUB");
   const fmt = (v, code) => {
     const digits = v >= 100 ? 2 : (v >= 1 ? 3 : 5);
@@ -165,7 +155,6 @@
     render();
   }
 
-  /* ---------------------------------------------------------- colours */
   function hsl(r, g, b) {
     r /= 255; g /= 255; b /= 255;
     const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
@@ -194,7 +183,7 @@
     S.live = true; render();
     const tick = async () => {
       if (!S.live) return;
-      try { const d = await api("/api/quick/extras/color/now"); if (d.color && S.live) { S.color = d.color; renderView(); } } catch (e) { /* keep last */ }
+      try { const d = await api("/api/quick/extras/color/now"); if (d.color && S.live) { S.color = d.color; renderView(); } } catch (e) {  }
       if (S.live) liveTimer = setTimeout(tick, 120);
     };
     tick();
@@ -205,7 +194,6 @@
     catch (e) { Q.toast(t("Не удалось скопировать", "Could not copy"), "err"); }
   }
 
-  /* ---------------------------------------------------------- OCR, error, notes, downloads */
   async function ocr() {
     if (!on("ocr")) return;
     openView("ocr");
@@ -250,7 +238,7 @@
     try {
       const r = await api("/api/quick/extras/downloads/use", { name });
       closeView(false);
-      // r29e: a picture is attached as an image (vision models see it, as when it is pasted), not as a folder context
+
       if (r.image && Q.addImage && Q.addImage({ data: r.image, name, label: name })) {
         Q.setInput("", { focus: true });
         Q.toast(t(`«${name}» прикреплена — спросите о ней`, `“${name}” attached — ask about it`), "", 2600);
@@ -263,7 +251,6 @@
     } catch (e) { Q.toast(e.message, "err"); }
   }
 
-  /* ---------------------------------------------------------- views */
   function openView(view) {
     S.view = view; S.index = 0;
     html.dataset.qxxView = view;
@@ -322,7 +309,7 @@
       const o = S.ocr || {};
       body = head(t("Текст с экрана (без ИИ)", "Text from the screen (no AI)")) + (o.busy ? `<div class="qxx-empty"><span class="qxx-spin"></span><span>${esc(o.image ? t("Распознаю текст средствами Windows…", "Recognising the text with Windows…") : t("Выделите область экрана…", "Select a screen region…"))}</span></div>`
         : (o.error ? `<div class="qxx-empty err">${esc(o.error)}</div>`
-          // r29d: nothing recognised — no empty text box with «Copy / To note»; offer a retry and the model instead.
+
           : !o.text ? `<div class="qxx-empty">${esc(t("Текст не найден — выделите область крупнее или распознайте моделью (если она понимает картинки).", "No text found — select a larger area or let a model read it (if it understands images)."))}</div>
             <div class="qxx-foot"><span></span><span class="qxx-btns"><button type="button" class="qa-btn" data-x="ocr-retry">${esc(t("Выделить ещё раз", "Select again"))}</button>
             ${o.image ? `<button type="button" class="qa-btn accent" data-x="ocr-model" data-autofocus>${IC.spark}${esc(t("Распознать моделью", "Read with a model"))}</button>` : ""}</span></div>`
@@ -391,7 +378,6 @@
     panel.querySelectorAll(".qxx-row").forEach((r) => { r.onclick = () => useDownload(S.downloads[+r.dataset.i].name); });
   }
 
-  /* ---------------------------------------------------------- wiring */
   Q.registerPanel("extras", (el) => { panel = el; el.classList.add("qxx"); el.hidden = true; return {}; }, { slot: "top", order: -6 });
   const input = document.getElementById("qa-input");
   if (input) input.addEventListener("input", () => updateCurrency(input.value));
@@ -400,7 +386,7 @@
   Q.on("selection", () => { if (!S.view) render(); });
   Q.on("answer-start", () => { S.conv = null; if (S.view) closeView(false); else render(); });
   Q.on("chat-new", () => render());
-  Q.on("escape", (e) => { if (S.view) { e.preventDefault(); closeView(); } else if (S.conv) { /* the core clears the input */ } });
+  Q.on("escape", (e) => { if (S.view) { e.preventDefault(); closeView(); } else if (S.conv) {  } });
   document.addEventListener("keydown", (e) => {
     if (S.view === "color" && S.live && (e.key === " " || e.key === "Enter")) { e.preventDefault(); e.stopPropagation(); stopLive(); renderView(); if (S.color) copy(S.color.hex); }
     else if (S.view === "downloads" && Array.isArray(S.downloads) && S.downloads.length) {

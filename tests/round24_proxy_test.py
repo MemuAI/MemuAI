@@ -26,7 +26,6 @@ sys.path.insert(0, str(ROOT))
 from app import model_capabilities as mc, openai_api, public_api, public_tunnel  # noqa: E402
 from tests.model_capabilities_test import _Entry, fake_fetch, reset_state  # noqa: E402
 
-
 class KeysCase(unittest.TestCase):
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
@@ -62,7 +61,6 @@ class KeysCase(unittest.TestCase):
     def ask(client, key, model="alpha", headers=None, **extra):
         return client.post("/v1/chat/completions", headers={"Authorization": f"Bearer {key}", **(headers or {})},
                            json={"model": model, "messages": [{"role": "user", "content": "hi"}], **extra})
-
 
 class StorageTest(KeysCase):
     def test_only_the_hash_is_stored_and_the_key_is_returned_once(self) -> None:
@@ -106,7 +104,7 @@ class StorageTest(KeysCase):
         self.assertEqual(len(public_api.store.data()["keys"]), 2, "migration is idempotent")
 
     def test_normalisation_of_new_limits(self) -> None:
-        # Round 25: a bad entry is refused by add_key/edit_key (round25_proxy_test); a stored file is still cleaned.
+
         self.assertEqual(public_api.normalize_ips(["10.0.0.0/8", "bad", "192.168.1.5"]), ["10.0.0.0/8", "192.168.1.5/32"])
         row = public_api.store.add_key({"ips": ["10.0.0.0/8", "192.168.1.5"], "cost_budget": "1.5",
                                         "tpmonth": -1, "max_tokens": "abc", "concurrency": 3})
@@ -116,7 +114,6 @@ class StorageTest(KeysCase):
         self.assertFalse(public_api.ip_allowed(["10.0.0.0/8"], "11.2.3.4"))
         self.assertTrue(public_api.ip_allowed([], "anything"))
         self.assertFalse(public_api.ip_allowed(["10.0.0.0/8"], "not-an-ip"))
-
 
 class EndpointTest(KeysCase):
     def test_401_and_openai_error_shape(self) -> None:
@@ -144,7 +141,7 @@ class EndpointTest(KeysCase):
 
     def test_403_disabled_expired_and_ip(self) -> None:
         client = self.client()
-        # Round 25: CF-Connecting-IP counts only while our own cloudflared runs.
+
         running = patch.object(public_tunnel.tunnel, "running", lambda: True)
         running.start()
         self.addCleanup(running.stop)
@@ -170,7 +167,7 @@ class EndpointTest(KeysCase):
         usage = public_api.store.find(month["key"])["usage"]
         self.assertEqual((usage["month"], usage["month_tokens"], usage["input_tokens"], usage["output_tokens"]),
                          (datetime.date.today().isoformat()[:7], 84, 60, 24))
-        # A new month clears the monthly counter.
+
         public_api.store.find(month["key"])["usage"]["month"] = "2000-01"
         self.assertEqual(self.ask(client, month["key"]).status_code, 200)
 
@@ -217,7 +214,6 @@ class EndpointTest(KeysCase):
         public_api.store.flush(force=True)
         public_api.store.reload()
         self.assertEqual(public_api.store.find(key["key"])["usage"]["requests"], 1600)
-
 
 class CapabilitySplitTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -277,7 +273,6 @@ class CapabilitySplitTest(unittest.TestCase):
         self.assertEqual(mc.describe(entry.id, entry=entry)["effective"]["vision"]["kind"], "api-probe")
         mc.forget_probe(entry.id)
 
-
 class TunnelTest(unittest.TestCase):
     SAMPLE = """2026-10-08T10:00:00Z INF Requesting new quick Tunnel on trycloudflare.com...
 2026-10-08T10:00:01Z INF +--------------------------------------------------------------------------------------------+
@@ -318,7 +313,7 @@ class TunnelTest(unittest.TestCase):
                 stopped = tunnel.stop()
             self.assertEqual(stopped["state"], "stopped")
             self.assertEqual(stopped["url"], "")
-            # The token is stored but never returned.
+
             tunnel.save_config({"mode": "named", "token": "A" * 40, "hostname": "https://api.example.com/"})
             status = tunnel.status()
             self.assertEqual((status["config"]["mode"], status["config"]["hostname"], status["config"]["has_token"]),
@@ -331,7 +326,6 @@ class TunnelTest(unittest.TestCase):
         tunnel = public_tunnel.Tunnel()
         with patch.object(public_tunnel, "find_binary", lambda: ""):
             self.assertIn("cloudflared", tunnel.start(8320)["error"])
-
 
 class StaticTest(unittest.TestCase):
     def test_ui_files_parse_and_are_wired(self) -> None:
@@ -348,7 +342,6 @@ class StaticTest(unittest.TestCase):
             for line in text.splitlines():
                 if "MemuAI" in line:
                     self.assertIn("MemuAI Proxy", line, "Proxy-only build forbids a bare product name")
-
 
 class TunnelReviewTest(unittest.TestCase):
     def test_download_host_check_is_exact(self) -> None:
@@ -388,7 +381,6 @@ class TunnelReviewTest(unittest.TestCase):
         self.assertIn("ENV:" + token, seen)
         self.assertIsNotNone(proc.returncode, "the stopped process is reaped (no zombie)")
 
-
 class ConcurrencyReleaseReviewTest(KeysCase):
     def test_slot_is_released_when_the_handler_fails(self) -> None:
         key = public_api.store.add_key({"rpm": 0, "concurrency": 1})
@@ -411,7 +403,6 @@ class ConcurrencyReleaseReviewTest(KeysCase):
         request.client.host = "127.0.0.1"
         with patch.object(public_tunnel.tunnel, "running", lambda: True):
             self.assertEqual(public_api.client_ip(request), "203.0.113.7")
-
 
 if __name__ == "__main__":
     unittest.main()

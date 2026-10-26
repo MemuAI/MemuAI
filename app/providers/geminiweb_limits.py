@@ -33,7 +33,6 @@ ACTIONS: Dict[int, Tuple[str, str]] = {4: ("Pro", "Pro"), 11: ("Flash", "Flash")
                                        15: ("Flash Thinking / расширенное мышление", "Flash Thinking / extended thinking"),
                                        6: ("Pro: расширенное мышление", "Pro: extended thinking")}
 
-# Текст, которым Gemini сообщает об исчерпании лимита вместо ответа (чат, картинки, видео, Deep Research).
 LIMIT_RE = re.compile(
     r"(you'?ve (?:reached|hit|used up) (?:your|the) (?:daily |current |usage )?(?:\w+ ){0,3}limit"
     r"|you have reached (?:your|the) (?:\w+ ){0,3}limit|(?:usage|daily|image|video) limit (?:reached|exceeded)"
@@ -43,12 +42,10 @@ LIMIT_RE = re.compile(
     re.I)
 LIMIT_MAX_LEN = 600
 
-
 def is_limit_reply(text: str) -> bool:
     """Короткий ответ Gemini «вы достигли лимита …» вместо настоящего ответа."""
     text = " ".join((text or "").split()).replace("’", "'")
     return bool(text) and len(text) <= LIMIT_MAX_LEN and bool(LIMIT_RE.search(text))
-
 
 def _get(data: Any, path: List[int], default: Any = None) -> Any:
     for key in path:
@@ -57,7 +54,6 @@ def _get(data: Any, path: List[int], default: Any = None) -> Any:
         else:
             return default
     return default if data is None else data
-
 
 def rpc_bodies(text: str, rpcid: str) -> List[Any]:
     """Тела ответа batchexecute для rpcid (JSON-строка в part[2] уже разобрана)."""
@@ -77,14 +73,12 @@ def rpc_bodies(text: str, rpcid: str) -> List[Any]:
                 out.append(body)
     return out
 
-
 def _ts(value: Any) -> Optional[float]:
     if isinstance(value, (int, float)) and value > 0:
-        return float(value) / 1000 if value > 1e11 else float(value)       # бывает в миллисекундах
+        return float(value) / 1000 if value > 1e11 else float(value)
     if isinstance(value, str) and value.isdigit():
         return _ts(int(value))
     return None
-
 
 def parse_usage_info(text: str) -> Dict[str, Any]:
     """jSf9Qc → {"tier": id, "plan": "Google AI Pro", "windows": [...], "ai_credits": n | None}."""
@@ -110,7 +104,6 @@ def parse_usage_info(text: str) -> Dict[str, Any]:
         return out
     return {}
 
-
 def parse_gemini_quota(text: str) -> List[Dict[str, Any]]:
     """qpEbW → [{"action": 4, "label_ru": "Pro", "used_pct": 40, "total": 100, "remaining": 60, "reset": ts}]."""
     rows: List[Dict[str, Any]] = []
@@ -129,7 +122,6 @@ def parse_gemini_quota(text: str) -> List[Dict[str, Any]]:
                          "unlimited": total == 0 and remaining == 0, "reset": _ts(_get(item, [3, 0]))})
     return rows
 
-
 def parse_extra_quota(text: str) -> Dict[str, Any]:
     """aPya6c → {"blocked": bool, "used_pct": n | None, "reset": ts | None}."""
     for body in rpc_bodies(text, RPC_EXTRA_QUOTA):
@@ -140,7 +132,6 @@ def parse_extra_quota(text: str) -> Dict[str, Any]:
                 "used_pct": round(level * 100) if isinstance(level, (int, float)) else None,
                 "reset": _ts(_get(body, [2, 0]))}
     return {}
-
 
 def summary(usage: Dict[str, Any], quotas: List[Dict[str, Any]], extra: Dict[str, Any],
             *, paid: Optional[bool] = None, now: Optional[float] = None) -> Dict[str, Any]:
@@ -201,7 +192,6 @@ def summary(usage: Dict[str, Any], quotas: List[Dict[str, Any]], extra: Dict[str
                             "time when Google gives it.")
     return out
 
-
 def reset_from_text(text: str, now: Optional[float] = None) -> Optional[float]:
     """«…resets at 5:30 PM» / «…in 3 hours» / «сбросится через 2 часа» → время сброса (секунды epoch) или None."""
     now = now or time.time()
@@ -221,7 +211,6 @@ def reset_from_text(text: str, now: Optional[float] = None) -> Optional[float]:
         target = time.mktime((local.tm_year, local.tm_mon, local.tm_mday, hour, minute, 0, 0, 0, -1))
         return target if target > now else target + 86400
     return None
-
 
 def soonest_reset(limits: Optional[Dict[str, Any]], now: Optional[float] = None) -> Optional[float]:
     """Ближайший сброс среди исчерпанных строк (или вообще ближайший), из последнего прочитанного состояния."""

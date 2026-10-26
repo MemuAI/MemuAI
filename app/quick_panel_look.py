@@ -40,7 +40,6 @@ DEFAULT_LOOK: Dict[str, Any] = {
 DEFAULT_EMBED: Dict[str, Any] = {"place": "off", "items": [], "style": "", "max": 6}
 _RANGES = {"opacity": (0, 100), "font": (80, 140), "radius": (0, 24), "dim": (0, 90), "lines": (1, 5)}
 
-# Round 32: the «text» look as a template (one panel's own look only)
 TEXT_MODES = ("flow", "free")
 TEXT_HALOS = ("auto", "off", "soft", "strong")
 TEXT_ALIGNS = ("left", "center", "right")
@@ -50,7 +49,6 @@ MAX_TEXT_BLOCKS = 12
 MAX_TEXT_LEN = 1000
 _CTRL_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 
-
 def _num(value: Any, lo: int, hi: int) -> Optional[int]:
     if isinstance(value, bool):
         return None
@@ -58,10 +56,9 @@ def _num(value: Any, lo: int, hi: int) -> Optional[int]:
         number = float(value)
     except (TypeError, ValueError):
         return None
-    if number != number:             # NaN
+    if number != number:
         return None
     return int(max(lo, min(hi, round(number))))
-
 
 def _float(value: Any, lo: float, hi: float, default: float) -> float:
     if isinstance(value, bool):
@@ -73,7 +70,6 @@ def _float(value: Any, lo: float, hi: float, default: float) -> float:
     if number != number or number in (float("inf"), float("-inf")):
         return default
     return round(max(lo, min(hi, number)), 1)
-
 
 def clean_text_block(raw: Any) -> Optional[Dict[str, Any]]:
     """One block of a text template: the template string and where / how it is drawn."""
@@ -104,7 +100,6 @@ def clean_text_block(raw: Any) -> Optional[Dict[str, Any]]:
         out["w"] = max(5.0, round(100 - out["x"], 1))
     return out
 
-
 def clean_text(raw: Any) -> Optional[Dict[str, Any]]:
     """A panel's text template (``None`` = none: the panel's automatic template is used)."""
     if not isinstance(raw, dict):
@@ -116,7 +111,6 @@ def clean_text(raw: Any) -> Optional[Dict[str, Any]]:
             "h": _num(raw.get("h"), 24, 480) or 96,
             "halo": raw.get("halo") if raw.get("halo") in TEXT_HALOS else "auto",
             "blocks": blocks[:MAX_TEXT_BLOCKS]}
-
 
 def clean_look(raw: Any, *, partial: bool = False) -> Dict[str, Any]:
     """A valid look; ``partial`` keeps only the keys present (a panel's own overrides; only these may carry
@@ -143,7 +137,6 @@ def clean_look(raw: Any, *, partial: bool = False) -> Dict[str, Any]:
             out["text"] = text
     return out
 
-
 def clean_looks(raw: Any, known: Optional[set] = None) -> Dict[str, Dict[str, Any]]:
     out: Dict[str, Dict[str, Any]] = {}
     for key, value in (raw.items() if isinstance(raw, dict) else []):
@@ -155,7 +148,6 @@ def clean_looks(raw: Any, known: Optional[set] = None) -> Dict[str, Dict[str, An
         if len(out) >= MAX_LOOKS:
             break
     return out
-
 
 def clean_embed(raw: Any) -> Dict[str, Any]:
     src = raw if isinstance(raw, dict) else {}
@@ -184,7 +176,6 @@ def clean_embed(raw: Any) -> Dict[str, Any]:
     out["items"] = items
     return out
 
-
 def effective(look: Dict[str, Any], looks: Dict[str, Dict[str, Any]], panel_id: str, *,
               embed_style: str = "") -> Dict[str, Any]:
     """The look one panel is drawn with (global → the section's style → the panel's own)."""
@@ -194,13 +185,11 @@ def effective(look: Dict[str, Any], looks: Dict[str, Dict[str, Any]], panel_id: 
     out.update(looks.get(panel_id) or {})
     return out
 
-
 def normalize(doc_raw: Dict[str, Any]) -> Dict[str, Any]:
     """``look`` / ``looks`` / ``embed`` of a stored document (missing → defaults)."""
     raw = doc_raw if isinstance(doc_raw, dict) else {}
     return {"look": clean_look(raw.get("look")), "looks": clean_looks(raw.get("looks")),
             "embed": clean_embed(raw.get("embed"))}
-
 
 def apply_patch(doc: Dict[str, Any], body: Dict[str, Any]) -> Dict[str, Any]:
     """``POST /api/quick/canvas/look``: ``{look}`` (global, merged), ``{panel, look}`` (a panel's own, merged;

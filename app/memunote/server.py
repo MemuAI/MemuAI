@@ -45,22 +45,21 @@ KINDS = {
     "odt": {".odt", ".ott"},
     "rtf": {".rtf"},
     "pdf": {".pdf"},
-    "image": IMAGE_EXT | {".tif", ".tiff", ".psd", ".psb", ".heic", ".heif", ".memuimg", ".jfif", ".tga", ".pcx", ".ppm", ".pgm", ".pbm", ".pnm", ".dds", ".apng", ".cur", ".icns"},   # Round 32: photo editor
+    "image": IMAGE_EXT | {".tif", ".tiff", ".psd", ".psb", ".heic", ".heif", ".memuimg", ".jfif", ".tga", ".pcx", ".ppm", ".pgm", ".pbm", ".pnm", ".dds", ".apng", ".cur", ".icns"},
     "csv": {".csv", ".tsv", ".tab"},
     "json": {".json", ".jsonc", ".json5", ".geojson", ".jsonl", ".ndjson", ".webmanifest"},
     "log": {".log", ".out", ".err"},
     "html": {".html", ".htm", ".xhtml"},
-    # Round 31: spreadsheets (read-only table), e-books (reader), Jupyter notebooks (rendered view + JSON text)
+
     "sheet": {".xlsx", ".xlsm", ".ods"},
     "book": {".epub", ".fb2"},
     "notebook": {".ipynb"},
-    # Round 32 (slides): presentations — a full editor (static/js/slides/*); .odp is import-only (saved as .pptx)
+
     "slides": {".pptx", ".pptm", ".ppsx", ".potx", ".odp"},
     "legacy": {".doc", ".xls", ".ppt", ".pages"},
 }
 RICH_KINDS = ("docx", "odt", "rtf")
 RICH_WRITERS = ("docx", "odt", "rtf", "html", "md", "txt")
-
 
 def kind_of(path: str) -> str:
     ext = os.path.splitext(path)[1].lower()
@@ -69,7 +68,6 @@ def kind_of(path: str) -> str:
             return kind
     return "text"
 
-
 def _stat(path: str) -> Dict[str, Any]:
     try:
         st = os.stat(path)
@@ -77,7 +75,6 @@ def _stat(path: str) -> Dict[str, Any]:
                 "readonly": not os.access(path, os.W_OK)}
     except OSError:
         return {"exists": False, "size": 0, "mtime": 0, "readonly": False}
-
 
 def _clean_path(value: Any) -> str:
     text = str(value or "").strip().strip('"')
@@ -88,14 +85,13 @@ def _clean_path(value: Any) -> str:
         raise ValueError("path must be absolute")
     return os.path.normpath(text)
 
-
 class Events:
     """Long-poll event queue (second instance opened files, shutdown, drag & drop)."""
 
     def __init__(self) -> None:
         self.items: List[Tuple[int, Dict[str, Any]]] = []
         self.seq = 0
-        self.delivered = 0      # last seq some page received: a reloaded page must not replay old "open"s
+        self.delivered = 0
         self.cond = threading.Condition()
 
     def push(self, event: Dict[str, Any]) -> None:
@@ -116,7 +112,6 @@ class Events:
                     return self.seq, fresh
                 self.cond.wait(max(0.05, deadline - time.monotonic()))
 
-
 class NoteApp:
     """State shared by request handlers; ``desktop`` is the window glue (None in tests/dev)."""
 
@@ -127,14 +122,26 @@ class NoteApp:
         self.initial_files = [f for f in (files or []) if f]
         self.desktop: Any = None
         self.streams: Dict[str, Dict[str, Any]] = {}
+        self.stream_lock = threading.RLock()
         self.port = 0
         self.started = time.time()
-        # "starting" → "window" (pywebview shown) | "browser" (no WebView2) | "headless" (--no-window).
-        self.ui = "starting"
-        self.last_seen = 0.0                 # monotonic time of the page's last /api/events poll
-        self.stopping = threading.Event()    # set by a remote shutdown when there is no window to close
 
-    # ---------------------------------------------------------------- helpers
+        self.ui = "starting"
+        self.last_seen = 0.0
+        self.stopping = threading.Event()
+
+    def reserve_stream(self, request_id: str, state: Dict[str, Any]) -> bool:
+        with self.stream_lock:
+            if request_id in self.streams:
+                return False
+            self.streams[request_id] = state
+            return True
+
+    def release_stream(self, request_id: str, state: Dict[str, Any]) -> None:
+        with self.stream_lock:
+            if self.streams.get(request_id) is state:
+                self.streams.pop(request_id, None)
+
     def take_initial_files(self) -> List[str]:
         """The command-line files, once: a reloaded page must not reopen tabs the user has closed since."""
         files, self.initial_files = self.initial_files, []
@@ -159,7 +166,7 @@ class NoteApp:
             mode = "light" if prefs.get("theme") == "light" else "dark"
         tokens: Dict[str, str] = {}
         try:
-            from .. import themes                     # MemuAI palettes: same colours as the main app
+            from .. import themes
             tokens = themes.resolve_tokens(mode, str(prefs.get(f"surface_{mode}") or ""),
                                            str(prefs.get("accent_color") or ""))
         except Exception as exc:  # noqa: BLE001 - standalone/dev: the page has its own defaults
@@ -170,7 +177,6 @@ class NoteApp:
         return {"mode": mode, "tokens": safe, "design": str(prefs.get("ui_design") or ""),
                 "font_scale": prefs.get("font_scale", 100)}
 
-    # ---------------------------------------------------------------- documents
     def open_document(self, raw_path: str, encoding: str = "") -> Dict[str, Any]:
         path = _clean_path(raw_path)
         info = _stat(path)
@@ -225,10 +231,10 @@ class NoteApp:
                        "web_encoding": detected.web_encoding})
         if detected.damaged:
             result["damaged"] = detected.damaged
-        if detected.eol == "mixed":       # Round 34: saved with the most common ending, not the default one
+        if detected.eol == "mixed":
             with open(path, "rb") as handle:
                 sample = handle.read(textio.SAMPLE)
-            wide = detected.encoding.startswith(("utf-16", "utf-32"))   # every other encoding keeps \r \n as bytes
+            wide = detected.encoding.startswith(("utf-16", "utf-32"))
             result["eol_major"] = textio.majority_eol(sample.decode(detected.encoding, errors="ignore") if wide else sample)
         if detected.binary and kind == "text":
             result["kind"] = "binary"
@@ -248,7 +254,7 @@ class NoteApp:
         data, lost = None, 0
         if isinstance(text, (bytes, bytearray)):
             if not opts.get("trim") and not opts.get("final_newline"):
-                data = textio.encode_utf8_bytes(bytes(text), encoding, eol, bom)   # Round 31: no str round trip
+                data = textio.encode_utf8_bytes(bytes(text), encoding, eol, bom)
             if data is None:
                 text = bytes(text).decode("utf-8", errors="surrogatepass")
         if data is None:
@@ -259,7 +265,7 @@ class NoteApp:
             data, lost = textio.encode(text, encoding, eol, bom)
         if (current["exists"] and textio.normalize_encoding(encoding) in ("utf-8", "utf-8-sig") and textio._REPLACED in data
                 and current.get("size", 0) <= 256 * 1048576):
-            # Round 34: damaged UTF-8 — the broken bytes go back as they were (were: written as U+FFFD)
+
             data = textio.restore_damaged_utf8(data, Path(path).read_bytes())
         textio.atomic_write(path, data, keep_backup=bool(opts.get("backup")))
         self.allow(path)
@@ -296,7 +302,6 @@ class NoteApp:
         self.allow(path)
         return {"ok": True, **_stat(path)}
 
-
 _HTML_CSS = """
 body{font:16px/1.65 "Segoe UI",system-ui,-apple-system,Arial,sans-serif;max-width:820px;margin:40px auto;padding:0 24px;color:#1d1d1f;background:#fff}
 h1,h2,h3,h4{line-height:1.25;margin:1.4em 0 .5em}h1{font-size:2em}h2{font-size:1.5em;border-bottom:1px solid #e5e5e5;padding-bottom:.25em}
@@ -309,16 +314,12 @@ ul.mn-tasks,ul.contains-task-list{list-style:none;padding-left:1.2em}li[data-che
 @media print{body{margin:0;max-width:none}}
 """
 
-
 def standalone_html(body: str, title: str) -> str:
     import html as _html
     return ("<!doctype html>\n<html><head><meta charset=\"utf-8\">"
             f"<meta name=\"generator\" content=\"{APP_NAME}\"><title>{_html.escape(title)}</title>"
             f"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>{_HTML_CSS}</style>"
             f"</head><body>\n{body}\n</body></html>\n")
-
-
-# ===================================================================================== HTTP
 
 class Handler(BaseHTTPRequestHandler):
     server_version = "MemuNote"
@@ -328,7 +329,6 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # noqa: D401 - quiet
         log.debug("%s - " + fmt, self.address_string(), *args)
 
-    # ---------------------------------------------------------------- plumbing
     def _host_ok(self) -> bool:
         host = (self.headers.get("Host") or "").lower()
         return host in (f"127.0.0.1:{self.app.port}", f"localhost:{self.app.port}")
@@ -373,7 +373,6 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("JSON object expected")
         return value
 
-    # ---------------------------------------------------------------- verbs
     def do_GET(self):  # noqa: N802
         self._dispatch("GET")
 
@@ -419,7 +418,7 @@ class Handler(BaseHTTPRequestHandler):
             self._error("permission_denied", 403, detail=str(exc))
         except (ValueError, json.JSONDecodeError) as exc:
             self._error(str(exc)[:500], 400)
-        except (BrokenPipeError, ConnectionResetError):
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError):
             pass
         except Exception as exc:  # noqa: BLE001
             log.exception("request %s failed", route)
@@ -462,7 +461,6 @@ class Handler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(data)
 
-    # ================================================================ API: app
     def api_boot(self, method: str) -> None:
         app = self.app
         settings = settings_store.load()
@@ -521,7 +519,6 @@ class Handler(BaseHTTPRequestHandler):
         self.app.last_seen = time.monotonic()
         self._json({"ok": True, "seq": seq, "events": items})
 
-    # ================================================================ API: files
     def api_open(self, method: str) -> None:
         body = self._json_body()
         result = self.app.open_document(body.get("path", ""), str(body.get("encoding") or ""))
@@ -533,7 +530,7 @@ class Handler(BaseHTTPRequestHandler):
             self._error("not opened", 403)
             return
         total = os.path.getsize(path)
-        try:   # Round 31: ?offset=N — only the bytes appended since N (log tail / follow mode)
+        try:
             offset = max(0, min(total, int(self._query().get("offset") or 0)))
         except ValueError:
             offset = 0
@@ -547,12 +544,12 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-MN-Size", str(total))
-        if ctype == "image/svg+xml":       # an SVG opened directly must not run scripts
+        if ctype == "image/svg+xml":
             self.send_header("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'")
         self.end_headers()
         if self.command == "HEAD":
             return
-        # Exactly Content-Length bytes even if the file grows meanwhile (a growing log broke the response).
+
         with open(path, "rb") as handle:
             handle.seek(offset)
             left = size
@@ -571,7 +568,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         data = Path(path).read_bytes()
         ctype = mimetypes.guess_type(path)[0] or "application/octet-stream"
-        extra = {"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"} if path.endswith(".svg") else {}
+        extra = {"Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"} if path.lower().endswith(".svg") else {}
         self._send(200, data, ctype, extra)
 
     def api_save_text(self, method: str) -> None:
@@ -593,7 +590,7 @@ class Handler(BaseHTTPRequestHandler):
         if kind_of(path) == "pdf" and not raw.lstrip()[:5] == b"%PDF-":
             self._error("not a PDF", 400)
             return
-        if kind_of(path) == "slides" and raw[:4] != b"PK\x03\x04":      # Round 32: a presentation is a ZIP package
+        if kind_of(path) == "slides" and raw[:4] != b"PK\x03\x04":
             self._error("not a presentation", 400)
             return
         current = _stat(path)
@@ -747,7 +744,6 @@ class Handler(BaseHTTPRequestHandler):
         write_json(meta_file, meta)
         self._json({"ok": True})
 
-    # ================================================================ API: desktop glue
     def api_dialog(self, method: str) -> None:
         body = self._json_body()
         desktop = self.app.desktop
@@ -792,7 +788,6 @@ class Handler(BaseHTTPRequestHandler):
         result = winsys.register_open_with(bool(body.get("enable")))
         self._json({"ok": True, **result})
 
-    # ================================================================ API: AI
     def api_ai_status(self, method: str) -> None:
         from . import ai
         settings = settings_store.load()
@@ -821,7 +816,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def api_ai_stop(self, method: str) -> None:
         body = self._json_body()
-        stream = self.app.streams.get(str(body.get("id") or ""))
+        stream = self.app.streams.get(str(body.get("id") or "")[:64])
         if stream:
             stream["cancel"].set()
             conn = stream.get("conn")
@@ -852,12 +847,18 @@ class Handler(BaseHTTPRequestHandler):
         request_id = str(body.get("id") or uuid.uuid4().hex)[:64]
         cancel = threading.Event()
         stream_state: Dict[str, Any] = {"cancel": cancel, "conn": None}
-        self.app.streams[request_id] = stream_state
-        self.send_response(200)
-        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
-        self.send_header("Cache-Control", "no-store")
-        self.send_header("X-Accel-Buffering", "no")
-        self.end_headers()
+        if not self.app.reserve_stream(request_id, stream_state):
+            self._error("Запрос с этим ID уже выполняется / This request ID is already running", 409)
+            return
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Accel-Buffering", "no")
+            self.end_headers()
+        except OSError:
+            cancel.set();self.app.release_stream(request_id,stream_state)
+            return
 
         def emit(event: Dict[str, Any]) -> bool:
             try:
@@ -871,7 +872,7 @@ class Handler(BaseHTTPRequestHandler):
         raw_parts: List[str] = []
         flt = ai.memory_filter() if built["memory_write"] else None
         edit_stream = None
-        if body.get("action") == "agent":            # Round 31: edit blocks → "edit*" events (app/memunote/edits.py)
+        if body.get("action") == "agent":
             from .edits import EditStream
             edit_stream = EditStream()
 
@@ -889,7 +890,7 @@ class Handler(BaseHTTPRequestHandler):
             payload = {"model": model, "messages": built["messages"],
                        "web_search": bool(body.get("web_search")), "thinking": bool(body.get("thinking")),
                        "max_tokens": int(body.get("max_tokens") or 0) or None,
-                       "temperature": body.get("temperature"), "effort": str(body.get("effort") or "")[:16]}   # r33: effort
+                       "temperature": body.get("temperature"), "effort": str(body.get("effort") or "")[:16]}
             for event in ai.stream_chat(base, payload, cancel, lambda c: stream_state.__setitem__("conn", c)):
                 if event["t"] == "delta":
                     raw_parts.append(event["text"])
@@ -904,7 +905,7 @@ class Handler(BaseHTTPRequestHandler):
                 if tail:
                     emit_visible(tail)
             if edit_stream is not None:
-                # also after Stop: a half-written edit is offered as "incomplete" (the user decides)
+
                 for kind, value in edit_stream.finish():
                     emit({"t": "delta", "text": value} if kind == "delta" else {"t": kind, **value})
             if built["memory_write"] and raw_parts and not cancel.is_set():
@@ -919,10 +920,9 @@ class Handler(BaseHTTPRequestHandler):
                 log.exception("ai chat failed")
                 emit({"t": "error", "message": f"{type(exc).__name__}: {exc}"[:400], "kind": "internal"})
         finally:
-            self.app.streams.pop(request_id, None)
+            self.app.release_stream(request_id, stream_state)
             self.close_connection = True
 
-    # ================================================================ remote control (second instance)
     def api_remote(self, method: str) -> None:
         body = self._json_body()
         action = body.get("action")
@@ -935,17 +935,16 @@ class Handler(BaseHTTPRequestHandler):
             self.app.events.push({"type": "shutdown"})
             if self.app.desktop is not None and self.app.ui == "window":
                 threading.Timer(4.0, self.app.desktop.force_close).start()
-            elif self.app.desktop is not None:          # a ghost: the window never appeared
+            elif self.app.desktop is not None:
                 threading.Timer(0.5, self.app.desktop.force_close).start()
-            else:                                       # browser / headless: the main loop returns
+            else:
                 threading.Timer(1.0, self.app.stopping.set).start()
         elif action == "activate" and self.app.desktop is not None:
             self.app.desktop.window_command("activate", {})
-        elif action == "settings":                      # Round 38: changed in MemuAI → the page re-reads and applies
+        elif action == "settings":
             self.app.events.push({"type": "settings"})
         self._json({"ok": True, "pid": os.getpid(), "ui": self.app.ui,
                     "age": round(time.time() - self.app.started, 1)})
-
 
 def _version() -> str:
     try:
@@ -954,46 +953,41 @@ def _version() -> str:
     except Exception:  # noqa: BLE001
         return ""
 
-
-try:   # Round 32 (photo): the photo editor's routes /api/photo/* (app/memunote/photo.py)
+try:
     from . import photo as _photo
     _photo.register(Handler)
 except Exception:  # noqa: BLE001 - the notepad works without the photo editor backend
     log.exception("photo routes unavailable")
 
-
-try:   # Round 32 (slides): AI for presentations /api/slides_ai (app/memunote/slides_api.py)
+try:
     from . import slides_api as _slides_api
     _slides_api.register(Handler)
 except Exception:  # noqa: BLE001 - the notepad works without it
     log.exception("slides routes unavailable")
 
-
-try:   # Round 40 (r40-note): save edited .xlsx cells /api/sheet_save (app/memunote/sheets_api.py)
+try:
     from . import sheets_api as _sheets_api
     _sheets_api.register(Handler)
 except Exception:  # noqa: BLE001 - the notepad works without it (spreadsheets stay read-only)
     log.exception("sheet routes unavailable")
 
-
-try:   # Round 33: run the open file /api/run/* (app/memunote/runner.py)
+try:
     from . import runner as _runner
     _runner.register(Handler)
 except Exception:  # noqa: BLE001 - the notepad works without it
     log.exception("run routes unavailable")
 
-
-try:   # Round 33: spell checking /api/spell/* (app/memunote/spell.py) and code completion data
+try:
     from . import spell as _spell
     _spell.register(Handler)
 except Exception:  # noqa: BLE001 - the notepad works without it
     log.exception("spell routes unavailable")
 
-
 class Server(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
 
+    request_queue_size = 128
 
 def start(app: NoteApp, port: int = 0) -> Tuple[Server, threading.Thread]:
     handler = type("BoundHandler", (Handler,), {"app": app})

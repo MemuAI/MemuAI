@@ -22,14 +22,12 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "memufiles" / "static"
 SHOTS = os.environ.get("MEMU_SHOTS_DIR", "")
 
-
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMUAI_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("MEMUFILES_TRASH_DIR", str(tmp_path / "trash"))
     monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
     yield
-
 
 @pytest.fixture()
 def server(tmp_path):
@@ -38,7 +36,6 @@ def server(tmp_path):
     httpd, _ = srv.start(app)
     yield app
     httpd.shutdown()
-
 
 def call(app, path, body=None, raw=None, headers=None):
     data = raw if raw is not None else (None if body is None else json.dumps(body).encode())
@@ -54,12 +51,10 @@ def call(app, path, body=None, raw=None, headers=None):
     except urllib.error.HTTPError as exc:
         return exc.code, json.loads(exc.read() or b"{}")
 
-
 def queue_with_events():
     from app.memufiles.opqueue import OpQueue
     snaps = []
     return OpQueue(notify=snaps.append), snaps
-
 
 def wait(cond, timeout=10.0):
     deadline = time.time() + timeout
@@ -69,11 +64,9 @@ def wait(cond, timeout=10.0):
         time.sleep(0.01)
     raise AssertionError("timed out")
 
-
 def wait_op(op, timeout=10.0):
     wait(lambda: op.status in ("done", "error", "cancelled"), timeout)
     return op
-
 
 def slow_bytes(monkeypatch, delay=0.004, chunk=64 * 1024):
     """Small chunks + a sleep per chunk: progress becomes observable (and pausable) on a fast disk."""
@@ -86,8 +79,6 @@ def slow_bytes(monkeypatch, delay=0.004, chunk=64 * 1024):
         original(self, count)
     monkeypatch.setattr(opqueue.Operation, "add_bytes", add_bytes)
 
-
-# ------------------------------------------------------------------ backend: progress
 def test_copy_byte_progress_speed_history_eta_and_current_file(tmp_path, monkeypatch):
     slow_bytes(monkeypatch, delay=0.012)
     src, dst = tmp_path / "src", tmp_path / "dst"
@@ -101,14 +92,13 @@ def test_copy_byte_progress_speed_history_eta_and_current_file(tmp_path, monkeyp
     running = [s for s in snaps if s["status"] == "running" and s["done_bytes"]]
     assert running, "no progress snapshots"
     assert all(s["unit"] == "bytes" for s in running)
-    assert running[0]["total_bytes"] == 6 * 1024 * 1024 + 100          # counted up front
+    assert running[0]["total_bytes"] == 6 * 1024 * 1024 + 100
     assert any(s["speed_hist"] for s in running) and any(s["eta"] for s in running)
     assert any(s["current"].endswith("big.bin") and s["cur_size"] == 6 * 1024 * 1024 and 0 < s["cur_done"] for s in running)
     revs = [s["rev"] for s in snaps if s["id"] == op.id]
-    assert revs == sorted(revs) and len(set(revs)) == len(revs)          # the page can drop stale replies
+    assert revs == sorted(revs) and len(set(revs)) == len(revs)
     final = op.snapshot()
     assert final["done_bytes"] == final["total_bytes"] and final["elapsed"] > 0 and final["eta"] is None
-
 
 def test_delete_and_same_volume_move_count_items_not_bytes(tmp_path):
     base = tmp_path / "b"
@@ -120,12 +110,11 @@ def test_delete_and_same_volume_move_count_items_not_bytes(tmp_path):
     op = wait_op(queue.submit("move", [str(base / "tree")], str(base / "dst")))
     assert op.status == "done" and (base / "dst" / "tree" / "sub" / "f3.txt").exists()
     snap = op.snapshot()
-    assert snap["unit"] == "items" and snap["total_items"] == 1 and snap["done_items"] == 1   # a rename, not a walk
+    assert snap["unit"] == "items" and snap["total_items"] == 1 and snap["done_items"] == 1
     op = wait_op(queue.submit("delete", [str(base / "dst" / "tree")]))
     snap = op.snapshot()
     assert op.status == "done" and snap["unit"] == "items" and not (base / "dst" / "tree").exists()
     assert snap["done_items"] >= 31 and snap["done_items"] == snap["total_items"]
-
 
 def _fake_cross_volume(monkeypatch, src_root):
     from app.memufiles import opqueue
@@ -137,7 +126,6 @@ def _fake_cross_volume(monkeypatch, src_root):
             raise OSError(errno.EXDEV, "Invalid cross-device link")
         return real_rename(a, b, *args, **kw)
     monkeypatch.setattr(opqueue.os, "rename", rename)
-
 
 def test_cross_volume_move_bytes_and_cancel_removes_half_copy(tmp_path, monkeypatch):
     slow_bytes(monkeypatch, delay=0.01)
@@ -155,11 +143,10 @@ def test_cross_volume_move_bytes_and_cancel_removes_half_copy(tmp_path, monkeypa
     assert op.status == "cancelled"
     assert not (dst / "folder").exists(), "half copy left behind"
     assert len(list((src / "folder").iterdir())) == 4, "source must stay intact"
-    # and a full cross-volume move: copy + delete with byte progress
+
     op = wait_op(queue.submit("move", [str(src / "folder")], str(dst)), 30)
     assert op.status == "done" and not (src / "folder").exists() and len(list((dst / "folder").iterdir())) == 4
     assert op.snapshot()["done_bytes"] == 4 * 1024 * 1024
-
 
 def test_skip_current_file_removes_partial_and_continues(tmp_path, monkeypatch):
     slow_bytes(monkeypatch, delay=0.01)
@@ -176,7 +163,6 @@ def test_skip_current_file_removes_partial_and_continues(tmp_path, monkeypatch):
     assert not (dst / "a_big.bin").exists() and (dst / "b.txt").read_text() == "next"
     snap = op.snapshot()
     assert snap["skipped"] == 1 and snap["done_bytes"] == snap["total_bytes"] == 4
-
 
 @pytest.mark.skipif(os.name == "nt" or os.getuid() == 0, reason="needs POSIX permissions as a normal user")
 def test_failed_files_are_listed_and_retried(tmp_path):
@@ -199,8 +185,6 @@ def test_failed_files_are_listed_and_retried(tmp_path):
     finally:
         locked.chmod(0o644)
 
-
-# ------------------------------------------------------------------ backend: uploads (path-less drops) and downloads
 def test_upload_stream_conflict_unsafe_and_undo(server, tmp_path):
     dest = tmp_path / "Цель"
     (dest / "Архив").mkdir(parents=True)
@@ -211,7 +195,7 @@ def test_upload_stream_conflict_unsafe_and_undo(server, tmp_path):
     assert status == 200 and res["op"]["kind"] == "upload"
     op_id = res["op"]["id"]
     op = server.queue.get(op_id)
-    # file 1 conflicts with the existing readme.txt: prepare waits for the answer
+
     result = {}
     worker = threading.Thread(target=lambda: result.update(call(server, "/api/upload/prepare", {"op": op_id, "i": 1})[1]))
     worker.start()
@@ -223,7 +207,7 @@ def test_upload_stream_conflict_unsafe_and_undo(server, tmp_path):
     status, put = call(server, f"/api/upload/put?op={op_id}&i=1", raw=b"new", headers={"Content-Type": "application/octet-stream"})
     assert put["state"] == "done" and put["path"].endswith("readme (2).txt")
     assert os.path.getmtime(put["path"]) == pytest.approx(1_700_000_000, abs=2)
-    status, put = call(server, f"/api/upload/put?op={op_id}&i=2", raw=b"a;b;c")      # prepare happens implicitly
+    status, put = call(server, f"/api/upload/put?op={op_id}&i=2", raw=b"a;b;c")
     assert put["state"] == "done" and (dest / "Архив" / "sub" / "данные.csv").read_bytes() == b"a;b;c"
     status, put = call(server, f"/api/upload/put?op={op_id}&i=4", raw=b"\xff\xd8\xff\xe0")
     assert put["state"] == "done"
@@ -237,8 +221,7 @@ def test_upload_stream_conflict_unsafe_and_undo(server, tmp_path):
     status, undo = call(server, "/api/ops/undo", {"id": op_id})
     wait_op(server.queue.get(undo["op"]["id"]))
     assert not (dest / "фото.jpg").exists() and not (dest / "Архив" / "readme (2).txt").exists()
-    assert (dest / "Архив" / "readme.txt").exists()                   # the merged folder itself stays
-
+    assert (dest / "Архив" / "readme.txt").exists()
 
 def test_upload_cancel_skip_and_failed_read(server, tmp_path, monkeypatch):
     from app.memufiles import opqueue
@@ -257,13 +240,12 @@ def test_upload_cancel_skip_and_failed_read(server, tmp_path, monkeypatch):
     assert prep["state"] == "cancelled"
     wait_op(op)
     assert op.status == "cancelled" and (dest / "a.bin").read_bytes() == b"abc" and not (dest / "c.bin").exists()
-    # a body shorter than announced never leaves a partial file
+
     _, res = call(server, "/api/upload/start", {"dest": str(dest), "items": [{"rel": "short.bin", "size": 100}]})
     op2 = server.queue.get(res["op"]["id"])
     reader = type("R", (), {"read": lambda self, n: b""})()
     out = server.queue.upload_put(op2.id, 0, reader, 100)
     assert out["state"] == "error" and not (dest / "short.bin").exists()
-
 
 def _descriptor(name, size=None, mtime=None, is_dir=False):
     import struct
@@ -272,7 +254,6 @@ def _descriptor(name, size=None, mtime=None, is_dir=False):
     raw = name.encode("utf-16-le")[:518].ljust(520, b"\0")
     return struct.pack("<I16s8s8sIQQQII", flags, b"", b"", b"", 0x10 if is_dir else 0, 0, 0, ft,
                        (size or 0) >> 32, (size or 0) & 0xFFFFFFFF) + raw
-
 
 def test_clipboard_virtual_files_parse_and_vpaste(tmp_path):
     import io
@@ -299,7 +280,6 @@ def test_clipboard_virtual_files_parse_and_vpaste(tmp_path):
     assert snap["unit"] == "bytes" and snap["total_bytes"] == 10 and snap["done_items"] == 3
     assert clip.read_files()["virtual"] == 0 or os.name == "nt"
 
-
 class _Files(http.server.BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         body = b"PNGDATA" * 1000
@@ -313,7 +293,6 @@ class _Files(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, *a):
         pass
-
 
 def test_download_of_a_dropped_link(server, tmp_path):
     httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Files)
@@ -333,7 +312,6 @@ def test_download_of_a_dropped_link(server, tmp_path):
     finally:
         httpd.shutdown()
 
-
 def test_taskbar_summary_and_desktop_drop_rows(tmp_path):
     from app.memufiles import taskbar
     assert taskbar.summarize([])["state"] == taskbar.TBPF_NOPROGRESS
@@ -342,7 +320,7 @@ def test_taskbar_summary_and_desktop_drop_rows(tmp_path):
     assert s == {"state": taskbar.TBPF_NORMAL, "done": 750, "total": 1000}
     assert taskbar.summarize([{"status": "conflict", "total_items": 1}])["state"] == taskbar.TBPF_PAUSED
     assert taskbar.summarize([{"status": "scanning"}])["state"] == taskbar.TBPF_INDETERMINATE
-    # desktop.py: the pywebview drop handler lists every file, path "" for virtual ones
+
     import sys
     import types
     from app.memufiles import desktop
@@ -383,7 +361,6 @@ def test_taskbar_summary_and_desktop_drop_rows(tmp_path):
             else:
                 sys.modules[name] = mod
 
-
 def test_frontend_wiring():
     app_js = (STATIC / "js" / "app.js").read_text(encoding="utf-8")
     drop = app_js[app_js.index("  drop(e, target) {"):app_js.index("  waitBackendDrop(ms)")]
@@ -399,21 +376,17 @@ def test_frontend_wiring():
     en = ops[ops.index("addStrings({"):ops.index("}, {")]
     assert not re.search(r"[А-Яа-яЁё]", en), "Cyrillic in the English strings"
 
-
-# ------------------------------------------------------------------ UI (headless Chromium)
 def _chromium():
     exe = os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
     if not Path(exe).exists():
         pytest.skip("no chromium")
     return exe
 
-
 def _shot(page, name):
     if SHOTS:
         time.sleep(0.3)
         os.makedirs(SHOTS, exist_ok=True)
         page.screenshot(path=os.path.join(SHOTS, name))
-
 
 DROP_JS = """([files, selector, shift]) => {
   const dt = new DataTransfer();
@@ -437,7 +410,6 @@ OVER_ONLY_JS = """(selector) => {
   return !!document.querySelector(".drop-hint");
 }"""
 
-
 def test_ui_pathless_drop_hint_flyout_conflict(server, tmp_path, monkeypatch):
     pw = pytest.importorskip("playwright.sync_api")
     slow_bytes(monkeypatch, delay=0.02, chunk=128 * 1024)
@@ -460,13 +432,12 @@ def test_ui_pathless_drop_hint_flyout_conflict(server, tmp_path, monkeypatch):
             page.evaluate("p => window.MemuFiles.pane().navigate(p)", str(target))
             page.wait_for_selector(".row >> text=уже есть.txt")
             assert page.inner_text(".ops-ind") == "Нет операций"
-            # 1) files WITHOUT paths (like a zip open in Explorer): read through the File API and uploaded
+
             res = page.evaluate(DROP_JS, [[["из архива.txt", "Привет из zip"], ["отчёт.csv", "a;b"]], ".pane.active .fv", False])
             assert res["hint"] and not res["after"], res
             page.wait_for_selector(".row >> text=из архива.txt", timeout=10000)
             wait(lambda: (target / "отчёт.csv").exists() and (target / "из архива.txt").read_text(encoding="utf-8") == "Привет из zip")
-            # 1b) desktop (pywebview): Explorer files come with paths in the backend "drop" event — copied by path;
-            #     a virtual file in the same drop (no path) is still uploaded
+
             (src / "с путём.txt").write_text("by path", encoding="utf-8")
             page.evaluate("""async ([real, target]) => {
               const core = await import('/js/core.js');
@@ -482,7 +453,7 @@ def test_ui_pathless_drop_hint_flyout_conflict(server, tmp_path, monkeypatch):
             assert (target / "с путём.txt").read_text(encoding="utf-8") == "by path"
             kinds = {o.kind for o in server.queue.ops.values()}
             assert {"copy", "upload"} <= kinds
-            # 2) the hint never sticks: dragover without a drop → watchdog; Esc
+
             assert page.evaluate(OVER_ONLY_JS, ".pane.active .fv")
             if SHOTS:
                 page.screenshot(path=os.path.join(SHOTS, "drop-hint.png"), clip={"x": 300, "y": 120, "width": 520, "height": 200})
@@ -490,7 +461,7 @@ def test_ui_pathless_drop_hint_flyout_conflict(server, tmp_path, monkeypatch):
             assert page.evaluate(OVER_ONLY_JS, ".pane.active .fv")
             page.keyboard.press("Escape")
             assert page.evaluate("!document.querySelector('.drop-hint')")
-            # 3) a big copy: status-bar indicator, flyout card with %, speed graph, pause / resume
+
             page.evaluate("([s, d]) => window.MemuFiles.transfer([s], d, 'copy')", [str(src / "Фильм 4K.mkv"), str(target)])
             page.wait_for_function("document.querySelector('.ops-ind') && document.querySelector('.ops-ind').textContent.includes('Копирование')", timeout=8000)
             page.click(".ops-ind")
@@ -505,7 +476,7 @@ def test_ui_pathless_drop_hint_flyout_conflict(server, tmp_path, monkeypatch):
             assert "Пауза" in page.inner_text(".ops-ind")
             page.click(".ops-fly .opc [data-act=pause]")
             page.wait_for_selector(".ops-fly .opc.running", timeout=5000)
-            # light theme (applied in place, like MemuAI → Settings does) — the same running card
+
             page.evaluate("async () => window.MemuFiles.applySettings(await (await fetch('/api/settings', {method: 'POST', headers: {'X-MF-Token': sessionStorage.getItem('mf.token'), 'Content-Type': 'application/json'}, body: JSON.stringify({theme: 'light'})})).json())")
             page.wait_for_function("document.documentElement.dataset.theme === 'light'")
             time.sleep(0.8)
@@ -513,7 +484,7 @@ def test_ui_pathless_drop_hint_flyout_conflict(server, tmp_path, monkeypatch):
             page.click(".ops-fly .opc.running [data-act=cancel]")
             page.wait_for_selector(".ops-fly .opc.cancelled", timeout=8000)
             assert not (target / "Фильм 4K.mkv").exists(), "cancelled copy left a partial file"
-            # 4) conflict dialog → keep both
+
             page.evaluate("([s, d]) => window.MemuFiles.transfer([s], d, 'copy')", [str(src / "уже есть.txt"), str(target)])
             page.wait_for_selector(".cfx-modal .cfx-card", timeout=8000)
             assert page.locator(".cfx-card").count() == 2

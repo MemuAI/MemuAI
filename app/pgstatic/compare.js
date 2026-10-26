@@ -1,16 +1,5 @@
-/* MemuAI — «Сравнить ответы»: версии одного ответа бок о бок (Round 37, r37-extras-2).
 
-   Built on the answer versions of Round 35 (branches.js): every «Повторить» keeps the old answer as a version, and
-   «Ответ другой моделью» (here, and in a message's «Ещё» menu) is the same regenerate with a model you pick
-   (retryAnswerAt(index, model) in app.js). The «⇆» button of the version switcher «‹ 2/3 ›» opens the versions of that
-   answer in columns (2–3 on screen, more scroll sideways): model, time, length, the rendered answer, synchronized
-   scrolling. «Выбрать этот» makes a version the answer in the chat — the others stay versions (‹ › still switches).
 
-   Cost: nothing until opened — the button is a few bytes of the switcher's HTML, the dialog is built on demand, its only
-   scroll listeners live inside the dialog (passive, rAF) and go away with it.
-
-   window.MemuCompare: open(index) menuItem(i) versions(index) askModel(index, anchor?)
-*/
 (function () {
   "use strict";
   if (window.MemuCompare) return;
@@ -23,7 +12,6 @@
   const busy = () => { try { return generationJobs.has(S.currentId); } catch (e) { return false; } };
   const chatRec = () => { try { return currentChat(); } catch (e) { return null; } };
 
-  /* The versions of the answer at S.messages[index]: [{j, m, active}] (empty when it has none). */
   function versions(index) {
     const m = S.messages[index];
     if (!m || m.role !== "assistant" || typeof MemuBranches === "undefined") return { key: "", sel: 0, rows: m ? [{ j: 0, m, active: true }] : [] };
@@ -57,7 +45,7 @@
 
   function menuItem(i) {
     const m = S.messages[i];
-    if (!m || m.role !== "assistant" || m.media || (typeof isProjectMode === "function" && isProjectMode())) return "";
+    if (!m || m.role !== "assistant" || m.media || m.teamRun || S.chatCaps?.team_id || (typeof isProjectMode === "function" && isProjectMode())) return "";
     return `<button data-cmp-model="${i}">${ICON} ${h(L("Ответ другой моделью…", "Answer with another model…"))}</button>`;
   }
   function switchButton(i) {
@@ -118,7 +106,7 @@
     root.querySelector("[data-cmp-another]")?.addEventListener("click", (e) => askModel(index, e.currentTarget));
     const syncBox = root.querySelector("[data-cmp-sync]");
     syncBox?.addEventListener("change", () => localStorage.setItem(SYNC_KEY, syncBox.checked ? "1" : "0"));
-    // synchronized scrolling: proportional, one frame at a time, ignoring the echo of our own writes
+
     const bodies = [...root.querySelectorAll(".cmp-body")];
     let lead = null, frame = 0;
     bodies.forEach((el) => el.addEventListener("scroll", () => {

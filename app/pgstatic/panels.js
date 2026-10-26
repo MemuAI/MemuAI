@@ -1,31 +1,11 @@
-/* MemuAI · Панели (Round 21).
- *
- * Small glanceable cards built from a declarative spec (blocks + {{bindings}}
- * into a data object), refreshed by the backend (app/panels.py) on a time-based
- * cadence. A panel can be pinned in three places at once:
- *   home    — a grid under the composer on the empty start screen;
- *   sidebar — a compact stack in the left sidebar («Панели» group);
- *   appbar  — a mini chip in the top bar; a click opens the full card.
- * Cards are dragged between and within places, have a context menu (refresh,
- * edit, move, resize, remove), a «+ Панель» gallery of templates and a
- * Settings → «Панели» section. The chat model gets the panel_* tools through a
- * built-in skill (registered below, togglable in «Скиллы ИИ»), and a panel it
- * creates is previewed inside the answer with pin buttons.
- *
- * Loaded BEFORE app.js (the skill must be in the catalogue when app.js reads
- * it); everything that needs app.js (api, S, PG_LANG, toast…) runs later.
- * app.js calls only MemuPanels.systemBlock(), .inlineHtml(), .summary() and
- * .mountSettings(); everything else is self-contained here.
- */
+
+
 "use strict";
 const MemuPanels = (() => {
-  /* Round 33 (r33-panels): eight places (zones) — app/panels_layout.py; the zone UI, «Edit layout» mode, the zone map
-     and the soft scrollbars are pgstatic/panels-layout.js (window.MemuPanelsLayout). */
+
   const PLACES = ["appbar", "top", "composer", "home", "left", "right", "sidebar", "sidebar_bottom"];
   const LAY = () => (window.MemuPanelsLayout && window.MemuPanelsLayout.ready ? window.MemuPanelsLayout : null);
-  /* Round 27 (r27-quick-canvas): the Quick Ask window loads this file with window.MEMU_PANELS_EMBED = true — the
-     same cards, data and To-Do/notes/timers handlers, but no MemuAI mounts, skill, settings or panel menu
-     (quick/plugins/canvas.js draws its own grid and calls MemuPanels.subscribe/cardHtml). */
+
   const EMBED = !!window.MEMU_PANELS_EMBED;
   const subscribers = new Set();
   const state = {
@@ -33,12 +13,11 @@ const MemuPanels = (() => {
     timer: 0, fastUntil: 0, menu: null, pop: null, modal: null, drag: null, lastJson: "",
     seen: new Set(), langSynced: "", geoTimer: 0,
     live: null, cpuHist: [], liveTimer: 0, floors: {}, presets: [1, 5, 15, 30, 60, 180, 360, 720, 1440], detected: null,
-    // Round 23
+
     liveHist: {}, liveMs: 2000, liveProcs: null, liveBusy: false, timers: null, timersTimer: 0, todoUi: {}, noteEdit: {},
     schema: {}, floorReasons: {}, gridRO: null, gridObserved: null,
   };
 
-  /* ---------------------------------------------------------- helpers */
   const en = () => (typeof PG_LANG !== "undefined" ? PG_LANG === "en" : localStorage.getItem("memu_lang") === "en");
   const t = (ru, english) => (en() ? english : ru);
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -58,11 +37,10 @@ const MemuPanels = (() => {
   }
   const notify = (text, kind = "ok") => {
     if (typeof toast === "function") toast(text, kind);
-    else if (EMBED && window.MEMU_PANELS_HOST && window.MEMU_PANELS_HOST.toast) window.MEMU_PANELS_HOST.toast(text, kind === "err" ? "error" : kind);   // Round 28: the screen layer
+    else if (EMBED && window.MEMU_PANELS_HOST && window.MEMU_PANELS_HOST.toast) window.MEMU_PANELS_HOST.toast(text, kind === "err" ? "error" : kind);
     else if (EMBED && window.MemuQuick) window.MemuQuick.toast(text, kind === "err" ? "error" : kind);
   };
 
-  /* ------------------------------------------------------------ icons */
   const SUN = '<circle class="sun-fill" cx="12" cy="12" r="4.2"/><path class="sun" d="M12 2.6v2.2M12 19.2v2.2M2.6 12h2.2M19.2 12h2.2M5.4 5.4l1.5 1.5M17.1 17.1l1.5 1.5M5.4 18.6l1.5-1.5M17.1 6.9l1.5-1.5"/>';
   const CLOUD = (y = 0) => `<path class="cloud" transform="translate(0 ${y})" d="M7.2 19h9.6a4.1 4.1 0 0 0 .5-8.2 5.6 5.6 0 0 0-10.6 1.4A3.4 3.4 0 0 0 7.2 19z"/>`;
   const ICONS = {
@@ -157,7 +135,7 @@ const MemuPanels = (() => {
     chevron: '<path d="m9 6 6 6-6 6"/>',
     drag: '<circle cx="9" cy="6.5" r="1"/><circle cx="15" cy="6.5" r="1"/><circle cx="9" cy="12" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="9" cy="17.5" r="1"/><circle cx="15" cy="17.5" r="1"/>',
     sliders: '<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>',
-    // Round 33: zones, «Edit layout»
+
     ztop: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><rect x="6.5" y="7" width="11" height="3" rx="1"/>',
     zcomposer: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><path d="M8 9h8"/><rect x="6.5" y="12" width="11" height="4" rx="1.6"/>',
     zhome: '<rect x="3.5" y="4.5" width="17" height="15" rx="2.5"/><rect x="6.5" y="7" width="11" height="3.2" rx="1.4"/><path d="M6.5 13.5h4.5M13 13.5h4.5M6.5 16.5h4.5M13 16.5h4.5"/>',
@@ -178,7 +156,7 @@ const MemuPanels = (() => {
   const KIND_ICON = { weather: "partly", currency: "coin", crypto: "btc", stock: "chart", rss: "news", countdown: "calendar",
     sports: "trophy", web: "globe", custom: "sparkle", news: "news", system: "cpu", usage: "gauge",
     todo: "todo", notes: "note", clock: "clock", timers: "timer", proxy: "server", calendar: "calendar", github: "github", module: "sparkle" };
-  /** Свои данные и то, что считается в самом окне: ни источника, ни «обновлено N мин назад». */
+
   const LOCAL_KINDS = ["todo", "notes", "clock", "timers", "module"];
   const AI_KINDS = ["custom", "sports", "web", "news"];
   const PROVIDERS = {
@@ -202,7 +180,6 @@ const MemuPanels = (() => {
     ["crypto", t("Крипто", "Crypto")], ["security", t("Кибербезопасность", "Security")], ["space", t("Космос", "Space")],
     ["gaming", t("Игры", "Gaming")], ["", t("Своя тема…", "Custom topic…")]];
 
-  /* ------------------------------------------------------- templates */
   const TPLS = () => ({
     weather: { ru: ["Погода", "Сейчас и на 5 дней · Open-Meteo, без ключа"], en: ["Weather", "Now and 5 days · Open-Meteo, no key"],
       fields: [{ key: "city", ru: "Город", en: "City", hint_ru: "Пусто — местоположение из «Настройки → Панели»", hint_en: "Empty — the location from Settings → Panels", geo: true }] },
@@ -247,7 +224,7 @@ const MemuPanels = (() => {
     calendar: { ru: ["Календарь", "Ближайшие события Google Calendar"], en: ["Calendar", "Upcoming Google Calendar events"], fields: [] },
     github: { ru: ["GitHub", "Уведомления, ревью и назначенное вам"], en: ["GitHub", "Notifications, reviews and what is assigned to you"], fields: [] },
   });
-  /** Галерея по разделам: простые и частые виды сверху, остальное — ниже (прогрессивное раскрытие). */
+
   const GALLERY_GROUPS = () => [
     [t("Главное", "Essentials"), ["weather", "news", "todo", "system"]],
     [t("Время и дела", "Time and tasks"), ["clock", "timers", "countdown", "notes", "calendar"]],
@@ -263,7 +240,6 @@ const MemuPanels = (() => {
     right: t("Колонка справа", "Right column"), sidebar_bottom: t("Низ боковой панели", "Sidebar bottom") }[place] || place);
   const placeIcon = (place) => ({ home: "zhome", sidebar: "zside", appbar: "zbar", top: "ztop", composer: "zcomposer", left: "zleft", right: "zright", sidebar_bottom: "zsbottom" }[place]);
 
-  /* ---------------------------------------------------------- binding */
   const BIND = /\{\{\s*([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-z0-9_]+)*)\s*\}\}/g;
   const WHOLE = /^\{\{\s*([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-z0-9_]+)*)\s*\}\}$/;
   function lookup(root, rest, data) {
@@ -281,8 +257,7 @@ const MemuPanels = (() => {
     if (typeof value === "object") return "";
     return isoShown(String(value));
   }
-  /* Round 32: a value that is a bare ISO date / date-time («2027-01-01», «2027-01-01T00:00+03:00») is shown in the
-     window's language («1 Jan 2027» / «1 янв. 2027 г.»); words the model wrote («1 января») stay as written. */
+
   const ISO_VALUE = /^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::\d{2}(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?)?$/;
   function isoShown(value) {
     const m = ISO_VALUE.exec(value.trim());
@@ -299,9 +274,9 @@ const MemuPanels = (() => {
       return d.toLocaleString(loc, { day: "numeric", month: "short", ...year, hour: "2-digit", minute: "2-digit" });
     } catch (e) { return value; }
   }
-  /** A field as its raw string, never localized (machine values: countdown target/since). */
+
   const plain = (field, data) => { const v = raw(field, data); return v == null || typeof v === "object" ? "" : String(v); };
-  /** A field: a whole binding returns the raw value (list, number); text is interpolated. */
+
   function raw(field, data) {
     if (typeof field !== "string") return field;
     const whole = field.trim().match(WHOLE);
@@ -309,9 +284,7 @@ const MemuPanels = (() => {
     return field.replace(BIND, (_, root, rest) => show(lookup(root, rest, data)));
   }
   const text = (field, data) => show(raw(field, data));
-  /* A metric whose delta is bound ("{{delta_24h}}") but whose trend the model wrote as a fixed word
-     kept the first build's colour and arrow forever ("down" over a later "+2.1%"): a signed bound delta
-     decides the trend. */
+
   const trendOf = (b, data) => {
     const delta = text(b.delta, data);
     const sign = /\{\{/.test(String(b.delta || "")) && !/\{\{/.test(String(b.trend || "")) ? /^\s*([+\-−–])\s*\d/.exec(delta) : null;
@@ -319,7 +292,6 @@ const MemuPanels = (() => {
     return text(b.trend, data);
   };
 
-  /* ------------------------------------------------------------ time */
   function ago(ts) {
     if (!ts) return "";
     const s = Math.max(0, Date.now() / 1000 - ts);
@@ -349,7 +321,7 @@ const MemuPanels = (() => {
     const hours = c.from && c.to ? t(` с ${c.from} до ${c.to}`, ` ${c.from}–${c.to}`) : "";
     return [base + hours, daysLabel(c.days)].filter(Boolean).join(" ");
   }
-  /** «через 2 ч 14 мин» до момента ts (секунды). */
+
   function untilText(ts) {
     const left = Math.max(0, Math.round(+ts - Date.now() / 1000));
     if (!Number.isFinite(left) || !ts) return "";
@@ -382,11 +354,10 @@ const MemuPanels = (() => {
     })[progress.stage] || t("Обновляю…", "Refreshing…");
   }
 
-  /* ------------------------------------------------------------ walls */
   function wallText(wall, panel = null) {
     if (!wall) return "";
     const [kind, reason = ""] = String(wall.status || "").split(":");
-    // Панель «только вручную» сама не повторяет — обещать «попробую позже» нельзя.
+
     const later = panel?.cadence?.kind === "manual"
       ? t(" — нажмите «Повторить».", " — press Retry.") : t(" — попробую позже.", " — will retry later.");
     const map = {
@@ -404,7 +375,7 @@ const MemuPanels = (() => {
       "source-down": t("Источник не ответил", "The source did not answer") + later,
       "model-error": t("Модель вернула ошибку.", "The model returned an error."),
       "model-timeout": t("Модель не успела ответить", "The model timed out") + later,
-      // Round 31: model failures are told apart — rate limit, missing model, rejected key, provider down, bad format.
+
       "model-rate-limit": t("Модель ограничила запросы (лимит провайдера)", "The model is rate-limited by its provider") + later,
       "model-missing": t("Модель панели не найдена — выберите другую в настройках панели.", "The panel's model was not found — pick another one in the panel settings."),
       "model-auth": t("Провайдер модели отклонил ключ API — проверьте аккаунт в MemuAI Proxy.", "The model's provider rejected the API key — check the account in MemuAI Proxy."),
@@ -418,32 +389,25 @@ const MemuPanels = (() => {
     if (kind === "blocked" && reason.startsWith("forbidden")) return blocked.forbidden;
     let base = kind === "blocked" ? (blocked[reason] || "") : (map[kind] || "");
     let detail = String(wall.message || "").trim();
-    // r29d: a message saved in Russian is not shown in the English UI (it was written at refresh time).
+
     if (detail && en() && /[А-Яа-яЁё]/.test(detail)) detail = "";
     if (!base) base = detail || t("Не удалось обновить.", "Could not refresh.");
-    // r29d: the source's own words are specific and self-contained («Город «X» не найден», «Подключите GitHub в
-    // «Настройки → Интеграции»») — shown instead of the generic line; the two together overflowed S tiles (zoom .68).
-    // Round 31: …in the UI's language only (a wall written while the panels were English stayed English in the RU window).
+
     else if (detail && (kind === "source_gone" || kind === "needs_connector") && (en() || /[А-Яа-яЁё]/.test(detail))) base = detail;
-    // Round 31: «The model returned an error.» alone hid the reason (unknown model, quota, provider down): the
-    // backend now writes a human sentence naming the model — show it instead of the generic line.
-    // …but only in the UI's language: the sentence is written once, at the refresh, in the panels' language then
-    // (an English «The model … was not found» stayed on the card after switching the window to Russian).
+
     else if (detail && kind === "blocked" && /^model-(error|rate-limit|down|missing|auth)$/.test(reason)
       && (en() ? !/[А-Яа-яЁё]/.test(detail) : /[А-Яа-яЁё]/.test(detail))) base = detail;
     return base;
   }
 
-  // r29e: a «needs a connection» wall (GitHub, Google Calendar) is fixed in Settings → Integrations — «Retry» there
-  // only failed again the same way. «usage» (no Claude/Codex/Antigravity account) keeps its own «Add an account».
   function wallButton(wall) {
     const [kind, reason = ""] = String(wall?.status || "").split(":");
     if (kind === "needs_connector" && reason && reason !== "usage") return `<button type="button" data-mp-act="connect" data-mp-connector="${esc(reason)}">${t("Подключить", "Connect")}</button>`;
     return `<button type="button" data-mp-act="refresh">${t("Повторить", "Retry")}</button>`;
   }
   async function openIntegrations(service = "") {
-    const sub = /^[a-z_]{2,40}$/.test(service) ? "int-" + service : "";   // Settings → Integrations → GitHub / Google Calendar
-    if (EMBED) {   // the Quick Ask canvas / screen layer: bring up MemuAI on that settings page
+    const sub = /^[a-z_]{2,40}$/.test(service) ? "int-" + service : "";
+    if (EMBED) {
       fetch("/api/quick/window", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "handoff", handoff: { settings: "apps" } }) }).catch(() => {});
       return;
@@ -452,16 +416,15 @@ const MemuPanels = (() => {
     if (typeof openSettingsPage === "function") openSettingsPage("apps", sub ? { sub } : {});
   }
 
-  /* ------------------------------------------------------------ blocks */
   const SIZE_RANK = { s: 0, m: 1, l: 2 };
   const DEFAULT_MIN = { stats: "m", strip: "m", image: "m", link: "m", action: "m" };
-  /** Размер содержимого: «w» (широкая) рисуется как «l», шире только место в сетке. */
+
   function effectiveSize(panel, mode) {
     if (mode === "home") return panel.size === "w" ? "l" : (panel.size || "m");
     if (mode === "sidebar") return "s";
     return "l";
   }
-  /** Сколько колонок сетки главного экрана: S — 1, M и L — 2, W — все. */
+
   const spanOf = (panel) => ({ s: 1, m: 2, l: 2, w: 4 }[panel.size] || 2);
   const SIZE_NAMES = () => ({ s: t("Малая", "Small"), m: t("Средняя", "Medium"), l: t("Большая", "Large"), w: t("Широкая", "Wide") });
   const SIZE_HINTS = () => ({ s: t("¼ ширины, главное значение", "¼ width, the key value"), m: t("½ ширины", "½ width"),
@@ -551,7 +514,7 @@ const MemuPanels = (() => {
         const items = raw(b.items, data);
         if (!Array.isArray(items) || !items.length) return "";
         const shown = items.filter((it) => !(it.optional && !text(it.value, data))).slice(0, 8);
-        // Round 26: a tile is never narrower than its longest value («81,630 $» was cut to «81,6…» in a medium card).
+
         const widest = Math.max(0, ...shown.map((it) => (text(it.value, data) || "—").length + (it.unit ? text(it.unit, data).length + 1 : 0)));
         return `<div class="mp-stats" style="--mp-stat-ch:${Math.min(widest, 16)}">${shown.map((it) => `<div class="mp-stat"><small>${esc(text(it.label, data))}</small><b>${esc(text(it.value, data) || "—")}${it.unit ? `<span>${esc(text(it.unit, data))}</span>` : ""}</b></div>`).join("")}</div>`;
       }
@@ -609,13 +572,12 @@ const MemuPanels = (() => {
       case "todo": return todoHtml(b, size, ctx);
       case "note": return noteHtml(b, size, ctx);
       case "timers": return timersHtml(b, size, ctx);
-      // Round 38: a module panel — its sandbox iframe is placed by module-integration.js (kept alive across re-renders).
+
       case "module": return window.MemuModInt ? MemuModInt.slotHtml(b, size, ctx) : "";
       default: return "";
     }
   }
 
-  /* ------------------------------------------- Round 23: bars, meters */
   function barsHtml(b, data, size, ctx) {
     const items = raw(b.items, data);
     if (!Array.isArray(items) || !items.length) return "";
@@ -640,14 +602,13 @@ const MemuPanels = (() => {
         <div class="mp-bar"><i style="width:${known ? Math.max(0, Math.min(100, pct)).toFixed(1) : 0}%"></i></div>${r.caption && size !== "s" ? `<span class="mp-caption">${esc(r.caption)}</span>` : ""}</div>`;
     }).join("")}</div>`;
   }
-  /** «C:, D:» / «Ethernet, Wi-Fi» → только эти строки (без учёта регистра, по вхождению). */
+
   function filterRows(rows, filter, name) {
     const words = String(filter || "").split(/[,;]+/).map((w) => w.trim().toLowerCase().replace(/[\\/:]+$/, "")).filter(Boolean);
     if (!words.length) return rows;
     return rows.filter((r) => { const n = String(name(r) || "").toLowerCase(); return words.some((w) => n.includes(w)); });
   }
 
-  /* ----------------------------------------------------- Round 23: clock */
   function zoneParts(zone) {
     const [tz, label] = String(zone || "").split("|");
     return { tz: tz.trim(), label: (label || "").trim() };
@@ -707,7 +668,6 @@ const MemuPanels = (() => {
     return `<div class="mp-clock" data-mp-clock='${esc(JSON.stringify(b))}' data-size="${size}" data-mode="${esc(ctx.mode)}">${clockInner(b, size, ctx.mode)}</div>`;
   }
 
-  /* ------------------------------------------------------ Round 23: note */
   function noteRender(textValue, checklist) {
     const lines = String(textValue || "").split("\n");
     return lines.map((line, i) => {
@@ -729,7 +689,6 @@ const MemuPanels = (() => {
       ${note.updated ? `<small class="mp-note-saved" data-mp-ago="${note.updated}">${esc(ago(note.updated))}</small>` : ""}</div>`;
   }
 
-  /* ------------------------------------------------------ Round 23: To-Do */
   const PRIO = () => ({ 1: t("Высокий", "High"), 2: t("Средний", "Medium"), 3: t("Низкий", "Low") });
   const REPEAT_NAMES = () => ({ "": t("Не повторять", "Does not repeat"), day: t("Каждый день", "Every day"), weekdays: t("По будням", "On weekdays"),
     week: t("Каждую неделю", "Every week"), month: t("Каждый месяц", "Every month"), year: t("Каждый год", "Every year") });
@@ -863,7 +822,7 @@ const MemuPanels = (() => {
     }
     return null;
   }
-  /** Одна правка — во всех панелях, где показан этот список (без ожидания сети). */
+
   function todoLocal(lid, fn) {
     for (const p of state.panels) for (const l of p.todo?.lists || []) if (l.id === lid) fn(l);
     rerender((p) => p.kind === "todo");
@@ -874,7 +833,7 @@ const MemuPanels = (() => {
       const by = new Map((out.lists || []).map((l) => [l.id, l]));
       state.panels.forEach((p) => { if (p.kind === "todo" && p.todo) p.todo.lists = (p.options?.lists || []).map((id) => by.get(id)).filter(Boolean); if (p.todo) p.todo.all = (out.lists || []).map(({ id, name, color }) => ({ id, name, color })); });
       rerender((p) => p.kind === "todo");
-    } catch (error) { /* оставим локальное состояние; следующий опрос сверит */ }
+    } catch (error) {  }
   }
   async function todoCall(path, opts) {
     try { return await call(path, opts); }
@@ -906,7 +865,7 @@ const MemuPanels = (() => {
     const next = !found.item.done;
     const row = $$q(`[data-todo-item="${CSS.escape(iid)}"] .mp-todo-check`);
     row.forEach((b) => { b.setAttribute("aria-checked", String(next)); b.closest(".mp-todo-item")?.setAttribute("data-done", String(next)); });
-    if (!motionOff() && next) await new Promise((r) => setTimeout(r, 380));        // успеть увидеть отметку
+    if (!motionOff() && next) await new Promise((r) => setTimeout(r, 380));
     const out = await todoCall(`/api/pg/panels-todo/${lid}/items/${iid}`, { method: "PATCH", body: { done: next, lang: en() ? "en" : "ru" } });
     if (!out?.item) return;
     todoLocal(lid, (l) => { const i = l.items.findIndex((x) => x.id === iid); if (i >= 0) l.items[i] = out.item; });
@@ -1101,7 +1060,6 @@ const MemuPanels = (() => {
     });
   }
 
-  /* ---------------------------------------------- Round 23: Pomodoro, timers */
   const PHASES = () => ({ work: t("Работа", "Focus"), short_break: t("Короткий перерыв", "Short break"), long_break: t("Длинный перерыв", "Long break") });
   function serverNow() {
     const d = state.timers;
@@ -1190,7 +1148,7 @@ const MemuPanels = (() => {
     } catch (error) { notify(error.message || String(error), "err"); }
     rerender((p) => p.kind === "timers");
   }
-  /** Тиканье без перерисовки: оставшееся время таймеров, помодоро и секундомера. */
+
   function tickTimers() {
     const d = state.timers;
     if (!d?.snap) return;
@@ -1203,7 +1161,6 @@ const MemuPanels = (() => {
     if (refresh && !state.timersRefreshing) { state.timersRefreshing = true; loadTimers().then(() => { state.timersRefreshing = false; rerender((x) => x.kind === "timers"); }); }
   }
 
-  /* --------------------------------------------- lists (adaptive + «ещё N») */
   const LIST_CAP = { s: 2, m: 4, l: 8 };
   const FEED_CAP = { s: 2, m: 4, l: 6 };
   function listCap(b, size) {
@@ -1231,7 +1188,7 @@ const MemuPanels = (() => {
     if (!Array.isArray(items) || !items.length) return `${label}<p class="mp-text muted mp-empty-list">${esc(text(b.empty, data) || t("Пока пусто", "Nothing yet"))}</p>`;
     const feed = b.style === "feed";
     let cap = listCap(b, size);
-    // «Ещё 1» бессмысленно: если не хватает одной строки и размер это позволяет — показываем всё.
+
     if (items.length === cap + 1 && ctx.mode !== "sidebar" && !(b.max && b.max <= cap)) cap += 1;
     const wantSummary = b.summary === "always" ? size !== "s" : b.summary === "never" ? false : size === "l";
     const rows = items.slice(0, cap).map((it) => rowHtml(it, data, { feed, summary: (feed || b.desc) && wantSummary, meta: b.meta !== false })).join("");
@@ -1242,7 +1199,6 @@ const MemuPanels = (() => {
     return `<div class="mp-list${feed ? " mp-feed" : ""}${b.style === "compact" ? " mp-compact" : ""}">${label}${rows}${more}</div>`;
   }
 
-  /* ------------------------------------------------------------ gauge */
   function gaugeHtml(b, data, size) {
     const rawValue = raw(b.value, data);
     const num = Number(String(rawValue ?? "").replace(",", "."));
@@ -1261,13 +1217,12 @@ const MemuPanels = (() => {
       <span class="mp-gauge-label">${esc(label)}</span>${caption ? `<span class="mp-gauge-cap" title="${esc(caption)}">${esc(caption)}</span>` : ""}</div>`;
   }
 
-  /* ------------------------------------------------------------ usage */
   function limitHtml(l, compact) {
     const used = Math.max(0, Math.min(100, +l.used || 0));
     const now = Date.now() / 1000;
     let elapsed = null;
     if (l.start && l.resets_at && l.resets_at > l.start) elapsed = Math.max(0, Math.min(1, (now - l.start) / (l.resets_at - l.start)));
-    const marker = elapsed == null ? 0 : elapsed;           // окно без начала — метка в начале (траты = опережение)
+    const marker = elapsed == null ? 0 : elapsed;
     const pace = used >= 99.5 ? "full" : used / 100 > marker + 0.02 ? "ahead" : "ok";
     const reset = l.resets_at ? `<small class="mp-lim-reset" data-mp-reset="${+l.resets_at}">${esc(t("сброс через ", "resets in ") + untilText(l.resets_at))}<span class="sep">·</span>${esc(clockText(l.resets_at))}</small>`
       : `<small class="mp-lim-reset">${t("время сброса не указано", "reset time unavailable")}</small>`;
@@ -1308,7 +1263,6 @@ const MemuPanels = (() => {
     return `<div class="mp-building-note"><span class="mp-spin"></span>${esc(p ? stageText(p) : panel.source?.type === "ai" ? t("ИИ собирает данные…", "AI is gathering data…") : t("Загружаю…", "Loading…"))}</div>`;
   }
 
-  /** Значения, которые окно считает само: счётчики задач, время, оставшееся у таймера… */
   function localData(panel) {
     const out = { panel_title: panel.title };
     const o = panel.options || {};
@@ -1365,7 +1319,7 @@ const MemuPanels = (() => {
     const data = panel.data || {};
     const ctx = { title: panel.title, trend: "", pulse: false, mode, panel, created: panel.created, wide: mode === "home" && panel.size === "w" };
     const hasData = Object.keys(data).length > 0 || (panel.kind === "system" && !!state.live) || LOCAL_KINDS.includes(panel.kind);
-    // Подпись, совпадающая с названием («Погода / Погода» у встроенной панели), не нужна.
+
     const head = (sub) => `<div class="mp-title">${ico(KIND_ICON[panel.kind] || "dot")}<div class="mp-title-text"><b>${esc(panel.title)}</b>${sub && sub !== panel.title ? `<small>${esc(sub)}</small>` : ""}</div></div>`;
     if (panel.status === "setup" && panel.kind === "usage") {
       return { html: `${head(t("Нужен аккаунт", "Account needed"))}<div class="mp-setup"><p>${esc(wallText(panel.wall))}</p><div class="mp-setup-row">
@@ -1419,7 +1373,7 @@ const MemuPanels = (() => {
     const busy = (panel.refreshing || panel.status === "building") && Object.keys(panel.data || {}).length > 0;
     const menu = opts.static ? "" : `<button type="button" class="mp-menu-btn" data-mp-menu aria-haspopup="menu" aria-expanded="false" aria-label="${t("Действия панели", "Panel actions")}" title="${t("Действия", "Actions")}">${ico("more")}</button>`;
     const span = mode === "home" && !opts.static ? ` data-span="${spanOf(panel)}"` : "";
-    const zsize = opts.zsize ? ` data-zsize="${esc(opts.zsize)}"` : "";   // Round 33: the panel's own size in a strip / column
+    const zsize = opts.zsize ? ` data-zsize="${esc(opts.zsize)}"` : "";
     return `<article class="mp-card${opts.enter ? " mp-enter" : ""}${busy ? " mp-busy" : ""}" data-panel-id="${esc(panel.id)}" data-place="${esc(opts.place || mode)}" data-mode="${mode}" data-size="${size}"${span}${zsize} data-kind="${esc(panel.kind)}" data-status="${esc(panel.status)}"${wx ? ` data-wx="${esc(wx)}"` : ""}${trend ? ` data-trend="${trend}"` : ""}${draggable} tabindex="0" aria-label="${esc(panel.title)}" aria-busy="${panel.refreshing || panel.status === "building" ? "true" : "false"}"${opts.index != null ? ` style="--mp-i:${opts.index}"` : ""}>
       ${busy ? '<i class="mp-busy-bar" aria-hidden="true"></i>' : ""}${menu}${html}${footHtml(panel, mode)}</article>`;
   }
@@ -1441,8 +1395,6 @@ const MemuPanels = (() => {
     };
   }
 
-  /** Round 30 (Quick Access «text» / «compact» looks): the panel as up to `max` plain value lines
-   *  [{label, value, unit, trend}] — the main metric first, then stats tiles, then the first list rows. */
   function linesOf(panel, max = 3) {
     const data = { ...(panel.kind === "system" ? systemData(panel, panel.data || {}) : (panel.data || {})), ...localData(panel) };
     const out = [];
@@ -1483,10 +1435,10 @@ const MemuPanels = (() => {
   function chipHtml(panel, opts = {}) {
     const m = miniOf(panel);
     const hasData = Object.keys(panel.data || {}).length > 0;
-    // Сборка без данных, упавшая в стену (погода на HTTP 429), — не «…»: такой чип выглядел вечной загрузкой.
+
     const failed = !hasData && panel.status === "failed" && !!panel.wall;
     const stateName = panel.status === "setup" ? "setup" : failed ? "wall" : !hasData ? "building" : panel.wall ? "wall" : "live";
-    // Round 33: a panel without a number (a note, a text panel) shows its first line instead of «—»
+
     const value = stateName === "setup" ? t("Где вы?", "Where?") : stateName === "building" ? "…"
       : (hasData && (m.value || (opts.place && opts.place !== "appbar" ? linesOf(panel, 1)[0]?.value : ""))) || "—";
     const tip = `${panel.title}${hasData && m.value ? ` — ${m.value}${m.unit || ""}` : ""}${m.delta ? ` (${m.delta})` : ""}${panel.wall && panel.status !== "setup" ? ` · ${wallText(panel.wall, panel)}` : ""}`;
@@ -1494,7 +1446,6 @@ const MemuPanels = (() => {
       ${ico(stateName === "setup" ? "locate" : (m.icon || KIND_ICON[panel.kind] || "dot"))}<b class="mp-chip-value">${esc(value)}</b>${m.unit && hasData && (stateName === "live" || stateName === "wall") ? `<span class="mp-chip-unit">${esc(m.unit)}</span>` : ""}${m.label ? `<span class="mp-chip-label">${esc(m.label)}</span>` : ""}</button>`;
   }
 
-  /* ------------------------------------------------------------ mount */
   function ensureMounts() {
     const wrap = $q("#chat-view-wrap");
     if (wrap && !$q("#panels-home")) {
@@ -1526,7 +1477,7 @@ const MemuPanels = (() => {
       bar.setAttribute("aria-label", t("Мини-панели", "Mini panels"));
       focusBtn.before(bar);
     }
-    LAY()?.ensureMounts();       // Round 33: top strip, above the composer, side columns, sidebar bottom
+    LAY()?.ensureMounts();
   }
 
   const placed = (place) => state.panels.filter((p) => (p.placements || []).includes(place))
@@ -1552,7 +1503,6 @@ const MemuPanels = (() => {
     });
   }
 
-  /** Перерисовка не должна выбивать курсор из поля задачи или заметки и сбрасывать фокус строки. */
   function keepFocus(fn) {
     const a = document.activeElement;
     let restore = null;
@@ -1573,15 +1523,15 @@ const MemuPanels = (() => {
     if (!el || el === document.activeElement) return;
     if (restore.value != null && "value" in el && el.value !== restore.value) el.value = restore.value;
     el.focus({ preventScroll: true });
-    if (restore.range && restore.range[0] != null && el.setSelectionRange) { try { el.setSelectionRange(restore.range[0], restore.range[1]); } catch (e) { /* ok */ } }
+    if (restore.range && restore.range[0] != null && el.setSelectionRange) { try { el.setSelectionRange(restore.range[0], restore.range[1]); } catch (e) {  } }
   }
-  /** Перерисовать только подходящие карточки (живые значения, задачи, таймеры) — место, меню и фокус остаются. */
+
   function rerender(pred) {
     keepFocus(() => {
       $$q(".mp-card[data-panel-id]").forEach((el) => {
         if (el.closest(".mp-modal") && !el.closest(".mp-preview-live")) return;
         const panel = byId(el.dataset.panelId);
-        if (!panel || panel.kind === "module" || (pred && !pred(panel))) return;   // Round 38: a module panel draws itself (its iframe stays)
+        if (!panel || panel.kind === "module" || (pred && !pred(panel))) return;
         const opts = { size: el.dataset.size, place: el.dataset.place, static: !el.hasAttribute("draggable") };
         const fresh = document.createElement("div");
         fresh.innerHTML = cardHtml(panel, el.dataset.mode, opts);
@@ -1605,15 +1555,11 @@ const MemuPanels = (() => {
     layoutGrid();
   }
 
-  /* ------------------------------------------------- masonry (Round 23) */
-  /** Плотная раскладка главного экрана: строки сетки по 2 px, каждая карточка занимает столько строк, какой
-   * она высоты (замер), а `grid-auto-flow: dense` дозаполняет дыры — короткая погода больше не оставляет
-   * пустоту рядом с высокой лентой. Колонки (S — 1, M/L — 2, W — все) задаёт CSS по data-span. */
   const ROW_UNIT = 2;
   function layoutGrid() {
     const grid = $q("#panels-home .mp-grid");
     if (!grid) return;
-    if (grid.offsetParent === null) { observeGrid(grid); return; }   // стартовый экран ещё скрыт: замер, когда появится
+    if (grid.offsetParent === null) { observeGrid(grid); return; }
     const gap = parseFloat(getComputedStyle(grid).columnGap) || 10;
     grid.style.setProperty("--mp-row-gap", gap + "px");
     $$q(":scope > *", grid).forEach((el) => {
@@ -1623,7 +1569,7 @@ const MemuPanels = (() => {
     });
     grid.dataset.masonry = "on";
     observeGrid(grid);
-    if (!state.liveTimer || !state.timersTimer) syncLive();   // карточки стали видны — запустить живой режим
+    if (!state.liveTimer || !state.timersTimer) syncLive();
   }
   let gridRaf = 0;
   function queueLayout() { cancelAnimationFrame(gridRaf); gridRaf = requestAnimationFrame(layoutGrid); }
@@ -1637,7 +1583,7 @@ const MemuPanels = (() => {
   function render() {
     ensureMounts();
     const before = captureRects();
-    window.MemuModInt?.park();   // Round 38: module panel iframes survive the innerHTML re-render (moveBefore)
+    window.MemuModInt?.park();
     keepFocus(() => { renderHome(); renderSidebar(); renderAppbar(); LAY()?.renderZones(); });
     window.MemuModInt?.mount();
     layoutGrid();
@@ -1675,7 +1621,7 @@ const MemuPanels = (() => {
     const list = placed("sidebar");
     group.hidden = !list.length;
     const box = $q(".mp-side-list", group);
-    const chips = LAY()?.viewOf("sidebar") === "chips";   // Round 33: the sidebar can show one-line chips
+    const chips = LAY()?.viewOf("sidebar") === "chips";
     box.dataset.view = chips ? "chips" : "cards";
     box.innerHTML = list.map((p, i) => chips ? chipHtml(p, { enter: isNew("sidebar", p.id), index: i, place: "sidebar" })
       : cardHtml(p, "sidebar", { enter: isNew("sidebar", p.id), index: i })).join("")
@@ -1694,7 +1640,6 @@ const MemuPanels = (() => {
     fitAppbar();
   }
 
-  /** Chips that do not fit (or exceed the cap) fold into «+N». Measured, never guessed. */
   function fitAppbar() {
     const bar = $q("#panels-appbar");
     if (!bar) return;
@@ -1704,8 +1649,7 @@ const MemuPanels = (() => {
     bar.classList.remove("mp-narrow");
     if (!chips.length) return;
     const cap = +bar.dataset.cap || 4;
-    // The bar has flex-basis 0 and takes the free space of the top bar: whatever overflows it does not fit.
-    // (Overflow at the start side of a flex-end row is not scrollable, so widths are summed, not scrollWidth.)
+
     const fits = () => {
       const shown = Array.from(bar.children).filter((c) => !c.hidden);
       const gap = parseFloat(getComputedStyle(bar).columnGap) || 0;
@@ -1729,7 +1673,6 @@ const MemuPanels = (() => {
     }
   }
 
-  /* ---------------------------------------------------------- loading */
   async function load(force = false) {
     if (state.loading && !force) return state.loading;
     state.loading = (async () => {
@@ -1764,18 +1707,15 @@ const MemuPanels = (() => {
     clearTimeout(state.timer);
     const building = busy();
     const fast = building || Date.now() < state.fastUntil;
-    // Пока идёт сборка, карточка показывает её этапы — опрашиваем чаще (1,5 с), иначе раз в 3 с / 30 с.
+
     const shortest = Math.min(...state.panels.filter((p) => p.cadence?.kind === "interval").map((p) => +p.cadence.minutes || 60), 60);
     const idle = shortest <= 5 ? 20000 : 45000;
-    // Round 28: an embedding page that is hidden (the Quick Ask screen layer) pauses the polling entirely
+
     if (state.paused) { clearInterval(state.liveTimer); state.liveTimer = 0; clearInterval(state.timersTimer); state.timersTimer = 0; return; }
     state.timer = setTimeout(() => { if (!document.hidden || fast) load(); else schedule(); }, building ? 1500 : fast ? 3000 : idle);
     syncLive();
   }
 
-  /* -------------------------------------------- live mode (system, timers) */
-  // r29d: getClientRects, not offsetParent — the screen layer places cards in a position:fixed root, where
-  // offsetParent is always null: its Pomodoro/timers card stayed «Загружаю таймеры…» and PC load never went live.
   const visibleCards = (kind) => $$q(`[data-panel-id][data-kind="${kind}"]`).filter((el) => el.getClientRects().length > 0 && !(el.closest(".mp-modal") && !el.closest(".mp-preview-live")))
     .map((el) => byId(el.dataset.panelId)).filter(Boolean);
   const visibleChips = (kind) => $$q(".mp-chip[data-panel-id][data-place]:not([hidden])").filter((el) => el.getClientRects().length > 0).map((el) => byId(el.dataset.panelId)).filter((p) => p?.kind === kind);
@@ -1783,7 +1723,7 @@ const MemuPanels = (() => {
     if (document.hidden) return false;
     return visibleCards("system").length > 0 || visibleChips("system").length > 0;
   }
-  /** Самый частый живой режим среди видимых карточек ПК (выключенный — 0: карточка живёт по ритму). */
+
   function liveWanted() {
     if (document.hidden) return 0;
     const shown = [...visibleCards("system"), ...visibleChips("system")];
@@ -1822,7 +1762,7 @@ const MemuPanels = (() => {
         state.liveProcs = want ? { procs: state.live.procs || [], procs_note: state.live.procs_note || "" } : null;
       }
       rerender((p) => p.kind === "system");
-    } catch (error) { /* окно без сервера — оставляем последние значения */ }
+    } catch (error) {  }
     finally { state.liveBusy = false; }
     if (!liveVisible()) syncLive();
   }
@@ -1838,7 +1778,6 @@ const MemuPanels = (() => {
     }
   }
 
-  /* ---------------------------------------------------------- actions */
   async function act(promise, okText = "") {
     try {
       const out = await promise;
@@ -1889,7 +1828,7 @@ const MemuPanels = (() => {
   }
   function askInChat(prompt) {
     if (!prompt) return;
-    if (EMBED && window.MEMU_PANELS_HOST && window.MEMU_PANELS_HOST.ask) { window.MEMU_PANELS_HOST.ask(prompt); return; }   // Round 28
+    if (EMBED && window.MEMU_PANELS_HOST && window.MEMU_PANELS_HOST.ask) { window.MEMU_PANELS_HOST.ask(prompt); return; }
     if (EMBED && window.MemuQuick) { window.MemuQuick.send(prompt); return; }
     try {
       if (typeof newChat === "function") newChat();
@@ -1901,7 +1840,6 @@ const MemuPanels = (() => {
     } catch (error) { notify(error.message, "err"); }
   }
 
-  /* ------------------------------------------------------------- menu */
   function closeMenu() {
     if (state.menu?.handle) { const m = state.menu; state.menu = null; m.handle.close("api"); return; }
     if (state.menu) {
@@ -1921,9 +1859,7 @@ const MemuPanels = (() => {
     el.style.left = left + "px"; el.style.top = top + "px";
     el.style.setProperty("--mp-origin", origin);
   }
-  /** Round 29: the panel menu is pgstatic/memu-ctxmenu.js — the same menu as on the Quick Ask screen layer. It
-   *  closes on a press anywhere else, Esc, the window losing the focus, scrolling and resizing (the old one only on
-   *  a left click inside this page), keeps itself inside the window and stays open while sizes / places change. */
+
   function ctxItems(panel, card) {
     const places = new Set(panel.placements || []);
     const sel = String(window.getSelection?.() || "").trim();
@@ -1935,7 +1871,7 @@ const MemuPanels = (() => {
       { id: "edit", label: t("Настроить…", "Customize…"), icon: "sliders" },
       panel.source?.type === "feed" ? { id: "feed-reset", label: t("Собрать заново, с нуля", "Rebuild from scratch"), icon: "reset", title: t("Лента забудет, что уже показывала, и соберётся заново", "The feed forgets what it showed and rebuilds") } : null,
       { type: "sep" }, { type: "label", label: t("Показывать", "Show in") },
-      // Round 33: eight places — the menu keeps the classic three and the panel's own; the rest is on the zone map
+
       ...PLACES.filter((p) => places.has(p) || ["home", "sidebar", "appbar"].includes(p))
         .map((p) => ({ id: "place:" + p, label: placeName(p), icon: placeIcon(p), checked: places.has(p), keep: true })),
       LAY() ? { id: "places", label: t("Другие места…", "More places…"), icon: "layout", title: t("Карта мест окна: над приветствием, над полем ввода, колонки, низ боковой панели", "A map of the window: above the greeting, above the message box, columns, sidebar bottom") } : null,
@@ -1979,7 +1915,7 @@ const MemuPanels = (() => {
       },
       onClose: (reason) => {
         if (state.menu && state.menu.handle === handle) state.menu = null;
-        state.menuClosed = { id, reason, at: performance.now() };      // the press on ⋯ that closed it is not a reopen
+        state.menuClosed = { id, reason, at: performance.now() };
       },
     };
     if (point) { opts.x = point.x; opts.y = point.y; } else opts.anchor = anchor;
@@ -2034,7 +1970,6 @@ const MemuPanels = (() => {
     requestAnimationFrame(() => $q("button", el)?.focus({ preventScroll: true }));
   }
 
-  /* ----------------------------------------------------- appbar popover */
   function closePop() {
     if (state.pop) {
       state.pop.el.remove();
@@ -2068,7 +2003,7 @@ const MemuPanels = (() => {
     position(el, anchor.getBoundingClientRect());
     state.pop = { el, anchor, id: "__more" };
   }
-  /** «Ещё N» / «Подробнее»: весь список записей со ссылками, кратким пересказом и «почему здесь». */
+
   function listPopHtml(panel, index) {
     const b = (panel.spec?.blocks || [])[index] || (panel.spec?.blocks || []).find((x) => x.type === "list");
     const items = b ? raw(b.items, panel.data || {}) : [];
@@ -2114,7 +2049,6 @@ const MemuPanels = (() => {
     state.pop.el.innerHTML = cardHtml(panel, "popover", { size: "l", place: "popover" });
   }
 
-  /* ------------------------------------------------------------ modal */
   function closeModal() {
     if (!state.modal) return;
     state.modal.remove();
@@ -2156,10 +2090,7 @@ const MemuPanels = (() => {
     }
     return `<label class="mp-field"><span>${esc(label)}${f.required ? " *" : ""}</span>${control}${hint ? `<small>${esc(hint)}</small>` : ""}${f.geo ? '<div class="mp-geo-results"></div>' : ""}</label>`;
   }
-  /* Round 31: the app's own date/time pickers (plan-ui.js: 24-hour time list, a month calendar in the UI language)
-     instead of the system <input type=time|date|datetime-local>, whose look and AM/PM clock depended on Windows.
-     Markup keeps the native types (fallback where plan-ui.js is not loaded, e.g. the Telegram Mini App);
-     a datetime-local field stays as a hidden carrier of the value, so readers (readForm, the To-Do editor) are unchanged. */
+
   function pickers(root) {
     const UI = window.MemuPlanUI;
     if (!UI || !root) return;
@@ -2181,22 +2112,21 @@ const MemuPanels = (() => {
         const next = iso ? `${iso}T${time.dataset.lastCommitted || time.value || "09:00"}` : "";
         if (next !== carrier.value) { carrier.value = next; carrier.dispatchEvent(new Event("input", { bubbles: true })); carrier.dispatchEvent(new Event("change", { bubbles: true })); }
       });
-      wrap.addEventListener("input", (event) => event.stopPropagation());   // typing is not a value yet
+      wrap.addEventListener("input", (event) => event.stopPropagation());
     });
     $$q('input[type="time"]', root).forEach((input) => { input.type = "text"; input.dataset.time = ""; input.classList.add("mp-time"); });
     $$q('input[type="date"]', root).forEach((input) => { input.dataset.date = ""; input.dataset.optional = "1"; input.classList.add("mp-date"); });
     UI.enhanceTimes(root);
     UI.enhanceDates(root);
   }
-  /** The value of a field that pickers() may have enhanced: ISO date / committed HH:MM, not the typed text. */
+
   function pickedValue(input) {
     if (!input) return "";
     if (input.dataset.dateReady) return input.dataset.iso || "";
     if (input.dataset.timeReady) return input.dataset.lastCommitted || "";
     return input.value;
   }
-  /** Round 32: a datetime-local value («2027-01-01T00:00») as the same wall time with the user's own UTC offset
-     («2027-01-01T00:00+03:00»). toISOString() sent «…Z», and the panel stored/labelled it in UTC. */
+
   function localIso(value) {
     const d = new Date(value);
     if (Number.isNaN(+d)) return value;
@@ -2214,7 +2144,7 @@ const MemuPanels = (() => {
     return out;
   }
   function placeChecks(selected) {
-    if (LAY()) return LAY().placesField(selected);    // Round 33: the zone map instead of eight checkboxes
+    if (LAY()) return LAY().placesField(selected);
     return `<div class="mp-field"><span>${t("Где показывать", "Where to show")}</span><div class="mp-checks">${PLACES.map((p) => `<label class="mp-check"><input type="checkbox" data-mp-place="${p}"${selected.includes(p) ? " checked" : ""}>${ico(placeIcon(p))}${placeName(p)}</label>`).join("")}</div></div>`;
   }
   const readPlaces = (root) => $$q("[data-mp-place]", root).filter((c) => c.checked).map((c) => c.dataset.mpPlace);
@@ -2251,7 +2181,6 @@ const MemuPanels = (() => {
     });
   }
 
-  /* --------------------------------------------------- usage accounts */
   const newAccountId = () => "a_" + Array.from(crypto.getRandomValues(new Uint8Array(5))).map((b) => b.toString(16).padStart(2, "0")).join("");
   function proxyAccountOptions(provider, selected) {
     const rows = (state.detected?.proxy_accounts || []).filter((a) => provider === "api_budget" ? a.api_budget : provider === "quota_planner" ? a.quota_planner : provider === "proxy" || a.provider === provider);
@@ -2307,7 +2236,7 @@ const MemuPanels = (() => {
         "For Kiro and other Proxy sources, select an existing account. Set up an API balance in the quota planner first. Local Claude/Codex/Antigravity sources remain available and their files are never modified. A pasted token is stored separately and protected with Windows DPAPI. Estimated API balances exclude requests bypassing Proxy.")}</small></div>`;
   }
   function readAccounts(root) {
-    // root может быть самой строкой аккаунта («Проверить», смена сервиса): querySelectorAll её не включает.
+
     const rows = root.matches?.(".mp-acc-row") ? [root] : $$q(".mp-acc-row", root);
     return rows.map((row) => ({
       id: row.dataset.accId, provider: $q("[data-acc-provider]", row).value, name: $q("[data-acc-name]", row).value.trim(),
@@ -2335,8 +2264,7 @@ const MemuPanels = (() => {
         event.target.dataset.saved = event.target.value;
       } else if (event.target.matches("[data-acc-provider]")) {
         const a = readAccounts(row)[0] || {};
-        // A provider change creates a different account identity. Reusing its
-        // id could apply a saved Claude token to Codex, or reuse old limits.
+
         row.outerHTML = accountRow({ ...a, id: newAccountId(), provider: event.target.value, mode: "auto", token: "", proxy_account_id: "" });
       } else if (event.target.matches("[data-acc-mode]")) {
         $q("[data-acc-dir]", row).hidden = event.target.value !== "dir";
@@ -2395,7 +2323,6 @@ const MemuPanels = (() => {
     topic.addEventListener("change", update); update();
   }
 
-  /* ------------------------------------------------- create + progress */
   function progressModal(id) {
     const back = state.modal;
     if (!back) return;
@@ -2427,10 +2354,6 @@ const MemuPanels = (() => {
     }
   }
 
-  /* ----------------------------------------------------------- editor */
-  /* Round 23: one form for creating and editing. Simple by default — what to show, how often, where;
-   * everything else sits under «Дополнительно». Controls are generated from the option schema the
-   * backend sends (app/panels_options.py), so the window and the backend never disagree. */
   const L = (pair) => (Array.isArray(pair) ? (en() ? pair[1] : pair[0]) : String(pair || ""));
   const choiceLabel = (c) => (en() ? c[2] : c[1]);
   const TPL_CADENCE = { weather: { kind: "interval", minutes: 60 }, currency: { kind: "interval", minutes: 180 }, crypto: { kind: "interval", minutes: 60 },
@@ -2497,7 +2420,7 @@ const MemuPanels = (() => {
     if (!rows.length) return "";
     const ctx = { ...(panel || {}), __metrics: values.metrics || [] };
     const groupTitle = t("Что показывать", "What to show");
-    // Подпись, совпадающая с заголовком группы, не повторяется.
+
     return rows.map((o) => { const html = optRow(o, values[o.key], kind, ctx); return group === "main" && L(o.label) === groupTitle ? html.replace(`<span>${esc(groupTitle)}</span>`, "") : html; }).join("");
   }
   function readOptions(root, kind) {
@@ -2536,7 +2459,7 @@ const MemuPanels = (() => {
     });
     root.addEventListener("change", (event) => { if (event.target.closest("[data-opt]")) changed(); });
     root.addEventListener("input", (event) => { if (event.target.closest('[data-opt][data-type="text"], [data-opt][data-type="list"], [data-opt][data-type="int"]')) { clearTimeout(root._optT); root._optT = setTimeout(changed, 400); } });
-    // Порядок метрик ПК: перетаскивание строк и Alt+↑/↓.
+
     let dragRow = null;
     root.addEventListener("dragstart", (event) => { const row = event.target.closest?.(".mp-multi.sortable .mp-multi-row"); if (!row) return; dragRow = row; event.stopPropagation(); event.dataTransfer.effectAllowed = "move"; row.classList.add("dragging"); });
     root.addEventListener("dragover", (event) => {
@@ -2556,7 +2479,7 @@ const MemuPanels = (() => {
       const sib = event.key === "ArrowUp" ? row.previousElementSibling : row.nextElementSibling;
       if (sib) { row.parentElement.insertBefore(row, event.key === "ArrowUp" ? sib : sib.nextSibling); event.target.focus(); changed(); }
     });
-    // Списки задач: новый список прямо из настройки панели.
+
     root.addEventListener("click", async (event) => {
       const rename = event.target.closest("[data-list-rename]");
       if (rename) {
@@ -2586,7 +2509,6 @@ const MemuPanels = (() => {
     applyWhen(root);
   }
 
-  /* -------------------------------------------- cadence (presets + custom) */
   function floorOf(kind) { return +(state.floors?.[kind] ?? (["sports", "web", "custom", "news"].includes(kind) ? 15 : 1)) || 1; }
   function floorReason(kind) { const r = state.floorReasons?.[kind]; return r ? (en() ? r[1] : r[0]) : ""; }
   function cadenceSelect(c, kind) {
@@ -2705,13 +2627,12 @@ const MemuPanels = (() => {
     sync();
   }
 
-  /* --------------------------------------------------------------- model */
   function chatModels() {
     return (typeof S !== "undefined" && Array.isArray(S.models) ? S.models : [])
       .filter((m) => !(typeof isImageModel === "function" && isImageModel(m.id)) && !(typeof isMusicOnlyModel === "function" && isMusicOnlyModel(m.id)));
   }
   const modelName = (id) => (typeof modelDisplayName === "function" ? modelDisplayName(id) : id);
-  /** Выбор модели; список — модели MemuAI Proxy. Нет списка — честно говорим почему, выбор сохраняется. */
+
   function modelPicker(current, { inheritLabel, attr, label, hint }) {
     const models = chatModels();
     const has = models.some((m) => m.id === current);
@@ -2729,7 +2650,6 @@ const MemuPanels = (() => {
     return `<div class="mp-field"><span>${LAY() ? t("Размер карточки", "Card size") : t("Размер на главном экране", "Size on the home screen")}</span><div class="mp-seg mp-seg-size" data-mp-size>${sizes.map((s) => `<button type="button" data-size="${s}" aria-pressed="${size === s}" title="${esc(SIZE_HINTS()[s])}">${esc(SIZE_NAMES()[s])}</button>`).join("")}</div><small data-size-hint>${esc(SIZE_HINTS()[size] || "")}</small></div>`;
   }
 
-  /* --------------------------------------- ideas + Tab autocomplete (Round 23) */
   const IDEAS = () => (en() ? {
     custom: ["The gold price and its daily change", "Bitcoin dominance and the Fear & Greed index", "Brent oil price in dollars",
       "Gas price at stations in my city", "The latest version of Python and its release date", "Number of GitHub stars of the MemuAI repository",
@@ -2771,7 +2691,7 @@ const MemuPanels = (() => {
       "Экосистема Rust и Go: релизы и заметные библиотеки", "Кибербезопасность: уязвимости, которые уже эксплуатируют", "Космические запуски и миссии",
       "Инди-игры и крупные игровые релизы", "Российский IT-рынок: Яндекс, Сбер, VK", "Новые продукты Apple, Microsoft и Google"]);
   function ideasFor(kind) { return kind === "news" ? NEWS_IDEAS() : IDEAS().custom; }
-  /** Подсказка дописывается серым после курсора; Tab (или → в конце) вставляет её. */
+
   function ghostMatch(value, ideas) {
     const q = String(value || "");
     if (!q.trim()) return ideas[0] || "";
@@ -2842,7 +2762,6 @@ const MemuPanels = (() => {
     });
   }
 
-  /* ---------------------------------------------------------- gallery */
   function openGallery(prefPlace = "") {
     const recent = state.dismissed.slice(0, 6);
     const T = TPLS();
@@ -2852,7 +2771,7 @@ const MemuPanels = (() => {
       ${recent.length ? `<div class="mp-section-title">${t("Недавно убранные", "Recently removed")}</div><div class="mp-dismissed">${recent.map((p) => `<div class="mp-dismissed-row">${ico(KIND_ICON[p.kind] || "dot")}<span>${esc(p.title)}</span><button type="button" class="mp-btn" data-revive="${esc(p.id)}">${t("Вернуть", "Restore")}</button></div>`).join("")}</div>` : ""}</div>`, "wide");
     back.addEventListener("click", (event) => {
       if (event.target.closest("[data-mp-close]")) return closeModal();
-      const modPanel = event.target.closest("[data-modpanel-add]");   // Round 38: a panel of a module
+      const modPanel = event.target.closest("[data-modpanel-add]");
       if (modPanel) { closeModal(); return MemuModInt.addPanel(modPanel.dataset.modpanelAdd, prefPlace); }
       const tpl = event.target.closest(".mp-tpl");
       if (tpl) return openTemplateForm(tpl.dataset.kind, prefPlace);
@@ -2861,7 +2780,6 @@ const MemuPanels = (() => {
     });
   }
 
-  /* ------------------------------------------- shared body of both forms */
   function kindNote(kind) {
     return ["sports", "web", "custom"].includes(kind)
       ? t("Эту панель собирает и обновляет модель с веб-поиском: нужен запущенный MemuAI Proxy. Значения берутся только из найденных источников — ссылки видны на карточке.", "A model with web search builds and refreshes this panel, so MemuAI Proxy must be running. Values come only from the sources found — they are linked on the card.")
@@ -2918,7 +2836,7 @@ const MemuPanels = (() => {
       const b = event.target.closest("[data-mp-size] button");
       if (b) { const hint = $q("[data-size-hint]", back); if (hint) hint.textContent = SIZE_HINTS()[b.dataset.size] || ""; onChange?.(); }
     });
-    // «Вид каждой метрики» перерисовывается под выбранные метрики.
+
     form.addEventListener("change", (event) => {
       if (!event.target.closest('[data-opt="metrics"]')) return;
       const wrap = $q('[data-opt-wrap="views"]', form);
@@ -2932,7 +2850,6 @@ const MemuPanels = (() => {
     });
   }
 
-  /* ------------------------------------------------------------ create */
   function openTemplateForm(kind, prefPlace = "") {
     const tpl = TPLS()[kind];
     const back = openModal(`${head(tplName(kind), tplDesc(kind), true)}
@@ -2973,7 +2890,6 @@ const MemuPanels = (() => {
     });
   }
 
-  /* -------------------------------------------------------------- edit */
   function openEditor(id) {
     const panel = byId(id);
     if (!panel) return;
@@ -3003,7 +2919,7 @@ const MemuPanels = (() => {
           const out = await call("/api/pg/panels-preview", { method: "POST", body: { kind, params, options, before: panel.options || {} } });
           if (seq !== previewSeq) return;
           spec = out.spec || spec; refetch = !!out.refetch;
-        } catch (error) { /* нет сервера — превью по старой схеме */ }
+        } catch (error) {  }
       }
       const fake = { ...panel, spec, options: { ...(panel.options || {}), ...options }, size };
       const box = $q("[data-mp-preview]", back);
@@ -3058,8 +2974,6 @@ const MemuPanels = (() => {
     });
   }
 
-
-  /* Round 38: a module panel — name, place, size and the module's own panel settings (module-integration.js). */
   async function openModuleEditor(panel) {
     const params = panel.source?.params || {};
     const info = window.MemuModInt ? await MemuModInt.panelInfo(params.module, params.panel) : null;
@@ -3083,7 +2997,6 @@ const MemuPanels = (() => {
     });
   }
 
-  /* ------------------------------------------------- location (weather) */
   async function locate() {
     const ok = typeof askConfirm === "function" ? await askConfirm(
       t("Определить местоположение?", "Detect your location?"),
@@ -3108,15 +3021,13 @@ const MemuPanels = (() => {
     back.addEventListener("click", (event) => { if (event.target.closest("[data-mp-close]")) closeModal(); });
   }
 
-  /* ------------------------------------------------------------- drag */
-  // Round 33: a zone's frame (its label / «+» in «Edit layout») counts as the zone too
   const zoneOf = (el) => el?.closest?.("[data-mp-zone]") || el?.closest?.("[data-zone-wrap]")?.querySelector("[data-mp-zone]") || null;
   function dropIndex(zone, x, y) {
     const items = $$q(":scope > [data-panel-id]:not(.mp-drag-source):not([hidden])", zone);
-    // Round 33: strips scroll sideways (data-axis="x"); wrapping chip rows / the grid pick the nearest item
+
     const horizontal = zone.dataset.mpZone === "appbar" || zone.dataset.axis === "x";
     if ((zone.dataset.mpZone === "home" || zone.dataset.flow === "wrap") && items.length) {
-      // Плотная сетка: порядок в DOM не равен рядам на экране — берём ближайшую карточку под курсором.
+
       let best = 0, bestD = Infinity;
       items.forEach((el, i) => {
         const r = el.getBoundingClientRect();
@@ -3152,7 +3063,7 @@ const MemuPanels = (() => {
       delete ph.dataset.span;
       ph.style.gridRowEnd = "";
       ph.style.minHeight = zone.dataset.mpZone === "sidebar" && zone.dataset.view !== "chips" ? "64px" : "";
-      // Round 33: the placeholder of a strip / column / chip row has the shape of what will land there
+
       ph.dataset.ph = zone.dataset.ph || "";
       ph.dataset.zsize = panel?.size || "m";
     }
@@ -3170,32 +3081,26 @@ const MemuPanels = (() => {
     closeMenu(); closePop();
     state.drag = { id: el.dataset.panelId, from: zoneOf(el).dataset.mpZone, el, zone: null, index: -1, placeholder: null };
     event.dataTransfer.effectAllowed = "copyMove";
-    try { event.dataTransfer.setData("text/x-memu-panel", el.dataset.panelId); event.dataTransfer.setData("text/plain", byId(el.dataset.panelId)?.title || ""); } catch (e) { /* ok */ }
-    // Hotfix: the class is added a frame later (so the drag image is the untouched card) — but only if this very drag
-    // is still running. A quick press-and-release ended the drag BEFORE that frame, cleanupDrag() ran first and the
-    // late frame then switched «drop here» zones on for good (the «panel in superposition» bug).
+    try { event.dataTransfer.setData("text/x-memu-panel", el.dataset.panelId); event.dataTransfer.setData("text/plain", byId(el.dataset.panelId)?.title || ""); } catch (e) {  }
+
     const drag = state.drag;
     requestAnimationFrame(() => { if (state.drag !== drag) return; document.body.classList.add("mp-dragging"); el.classList.add("mp-drag-source"); });
     armDragWatchdog();
   }
-  /* Hotfix: a drag can end without a dragend reaching the document — the source card is re-rendered during the drag
-     (a panel refresh, the layout pass) and its dragend fires on a detached node; Escape over another window; the
-     mouse released outside MemuAI. While dragging, dragover fires every ~50 ms even when the pointer rests, so a
-     silence of more than a second (or any sign the button is up) means the drag is over. */
+
   let dragSeen = 0, dragTimer = 0, dragOutside = false;
   function armDragWatchdog() {
     dragSeen = Date.now(); dragOutside = false;
     clearInterval(dragTimer);
     dragTimer = setInterval(() => {
       if (!state.drag) { clearInterval(dragTimer); dragTimer = 0; if (document.body.classList.contains("mp-dragging")) document.body.classList.remove("mp-dragging"); return; }
-      // outside the window (dragging over another app) there is no dragover: wait — dragend or the pointer coming back
-      // with no button ends it; give up only after half a minute of silence
+
       if (Date.now() - dragSeen > (dragOutside ? 30000 : 1200)) cleanupDrag();
     }, 400);
   }
   function endStaleDrag(event) {
     if (!state.drag) { if (document.body.classList.contains("mp-dragging")) { document.body.classList.remove("mp-dragging"); queueLayout(); } return; }
-    if (event && event.type === "pointermove" && event.buttons) return;     // still pressed: a real drag goes on
+    if (event && event.type === "pointermove" && event.buttons) return;
     cleanupDrag();
   }
   function onDragOver(event) {
@@ -3203,7 +3108,7 @@ const MemuPanels = (() => {
     dragSeen = Date.now(); dragOutside = false;
     const zone = zoneOf(event.target);
     $$q(".mp-drop-zone.mp-over").forEach((z) => { if (z !== zone) z.classList.remove("mp-over"); });
-    LAY()?.autoScroll(event);    // Round 33: scroll the zone / sidebar / home while dragging near their edges
+    LAY()?.autoScroll(event);
     if (!zone) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = event.ctrlKey && zone.dataset.mpZone !== state.drag.from ? "copy" : "move";
@@ -3222,7 +3127,7 @@ const MemuPanels = (() => {
     cleanupDrag();
     const panel = byId(id);
     if (!panel) return;
-    LAY()?.remember();          // Round 33: Ctrl+Z / «Undo» brings the previous layout back
+    LAY()?.remember();
     if (from === to) {
       const ids = placed(to).map((p) => p.id).filter((x) => x !== id);
       ids.splice(Math.max(0, Math.min(index, ids.length)), 0, id);
@@ -3240,7 +3145,7 @@ const MemuPanels = (() => {
       render();
       await act(call("/api/pg/panels-order", { method: "POST", body: { id, from: copy ? "" : from, to, index } }));
       const moved = t(`«${panel.title}» — ${placeName(to).toLowerCase()}`, `“${panel.title}” → ${placeName(to).toLowerCase()}`);
-      // Round 33: one click (or Ctrl+Z) puts it back
+
       if (typeof toast === "function" && LAY()) toast(moved, "info", { label: t("Отменить", "Undo"), run: () => LAY().undo() });
       else notify(moved, "info");
     }
@@ -3252,14 +3157,13 @@ const MemuPanels = (() => {
     state.drag.el?.classList.remove("mp-drag-source");
     $$q(".mp-drop-zone.mp-over").forEach((z) => z.classList.remove("mp-over"));
     document.body.classList.remove("mp-dragging");
-    $$q(".mp-drag-source").forEach((x) => x.classList.remove("mp-drag-source"));   // a re-rendered copy of the source
+    $$q(".mp-drag-source").forEach((x) => x.classList.remove("mp-drag-source"));
     $$q(".mp-placeholder").forEach((x) => x.remove());
     state.drag = null;
     clearInterval(dragTimer); dragTimer = 0;
     queueLayout();
   }
 
-  /* ------------------------------------------------------------ notes */
   function noteSave(pid, textValue, now = false) {
     const panel = byId(pid);
     if (panel) panel.note = { text: textValue, updated: Date.now() / 1000 };
@@ -3305,7 +3209,7 @@ const MemuPanels = (() => {
       if (!area) return;
       const pid = area.closest("[data-panel-id]")?.dataset.panelId;
       if (!pid) return;
-      setTimeout(() => {                                   // фокус ушёл из заметки (не перерисовка) — показать текст
+      setTimeout(() => {
         if (document.activeElement?.closest?.("[data-note-input]")) return;
         if (state.noteEdit[pid]) { noteSave(pid, area.value, true); noteEdit(pid, false); }
       }, 120);
@@ -3324,7 +3228,6 @@ const MemuPanels = (() => {
     });
   }
 
-  /* ------------------------------------------------------------ events */
   function bindEvents() {
     document.addEventListener("click", (event) => {
       const target = event.target;
@@ -3373,18 +3276,14 @@ const MemuPanels = (() => {
         }
         return;
       }
-      const chip = target.closest(".mp-chip[data-panel-id][data-place], .mp-pop-list .mp-chip[data-panel-id]");   // Round 33: chips live in any zone
+      const chip = target.closest(".mp-chip[data-panel-id][data-place], .mp-pop-list .mp-chip[data-panel-id]");
       if (chip) {
         const anchor = chip.closest(".mp-pop-list") ? (state.pop?.anchor || chip) : chip;
         if (chip.closest(".mp-pop-list")) closePop();
         openPop(chip.dataset.panelId, anchor);
       }
     });
-    // Round 29: the card under a right click. A live card (PC load, timers, clocks) re-renders its inside every
-    // second or two; when that happened between the press and the release the event's target was a node already
-    // gone from the page and the menu did not open — «right click works every other time». Fall back to the card of
-    // the press, then to whatever is under the pointer now. Capture phase + stopPropagation: the chat's own context
-    // menu (app.js) never opens on top of the panel menu.
+
     let lastDown = null;
     document.addEventListener("pointerdown", (event) => {
       const el = event.target.closest?.("[data-panel-id][data-place]");
@@ -3397,10 +3296,10 @@ const MemuPanels = (() => {
       return el;
     };
     document.addEventListener("contextmenu", (event) => {
-      if (EMBED) return;                     // the Quick Ask canvas / screen layer have their own menu
+      if (EMBED) return;
       const el = cardAt(event);
       if (!el || el.closest(".mp-modal") || el.closest(".mp-pop") || el.closest("#messages")) return;
-      if (event.target.isConnected && event.target.closest?.("a[href], input, textarea, [contenteditable]")) return;   // links and fields keep their menus
+      if (event.target.isConnected && event.target.closest?.("a[href], input, textarea, [contenteditable]")) return;
       event.preventDefault();
       event.stopPropagation();
       openMenu(el.dataset.panelId, el, { x: event.clientX, y: event.clientY });
@@ -3409,12 +3308,12 @@ const MemuPanels = (() => {
       const el = document.activeElement?.closest?.("[data-panel-id][data-place]");
       if (event.key === "Escape") { closeMenu(); closePop(); }
       if (!el) return;
-      // Внутри задач, заметки и полей ввода клавиши принадлежат им: Delete не удаляет панель.
+
       if (document.activeElement !== el && document.activeElement?.closest?.("input, textarea, select, [contenteditable], .mp-todo, .mp-note, .mp-timers")) return;
       if ((event.key === "F10" && event.shiftKey) || event.key === "ContextMenu") { event.preventDefault(); openMenu(el.dataset.panelId, el, null, true); }
       if (event.key === "Delete" && !EMBED && !el.closest(".mp-pop")) { event.preventDefault(); remove(el.dataset.panelId); }
     });
-    // Поля и кнопки внутри карточки: нажатие не должно начинать перетаскивание всей панели.
+
     document.addEventListener("mousedown", (event) => {
       const card = event.target.closest?.(".mp-card[draggable=true]");
       if (!card || !event.target.closest("input, textarea, select, button, label, .mp-note-view, .mp-todo-item")) return;
@@ -3431,11 +3330,11 @@ const MemuPanels = (() => {
     document.addEventListener("dragover", onDragOver);
     document.addEventListener("drop", onDrop);
     document.addEventListener("dragend", cleanupDrag);
-    // Hotfix: every other way a drag can be over (see armDragWatchdog)
+
     document.addEventListener("drop", () => setTimeout(() => { if (state.drag) cleanupDrag(); }, 0));
     document.addEventListener("dragleave", (e) => { if (state.drag && !e.relatedTarget) { dragOutside = true; dragSeen = Date.now(); } });
     document.addEventListener("pointerup", endStaleDrag, true);
-    document.addEventListener("pointermove", endStaleDrag, true);   // pointer events only resume after a drag ended
+    document.addEventListener("pointermove", endStaleDrag, true);
     document.addEventListener("mouseup", endStaleDrag, true);
     window.addEventListener("blur", () => { if (state.drag) setTimeout(() => { if (state.drag && !dragOutside && Date.now() - dragSeen > 1200) cleanupDrag(); }, 1300); });
     document.addEventListener("keydown", (e) => { if (e.key === "Escape" && (state.drag || document.body.classList.contains("mp-dragging"))) endStaleDrag(null); }, true);
@@ -3445,14 +3344,11 @@ const MemuPanels = (() => {
     if (typeof ResizeObserver === "function") {
       let raf = 0;
       const ro = new ResizeObserver(() => { cancelAnimationFrame(raf); raf = requestAnimationFrame(fitAppbar); });
-      // The minis' own box: it changes whenever the window or a neighbour in the top bar changes.
+
       const attach = () => { const bar = $q("#panels-appbar"); if (bar) ro.observe(bar); else setTimeout(attach, 500); };
       attach();
     }
-    // Live countdowns and «N min ago»; nothing runs while the window is hidden.
-    // Round 36 (perf): live class collections instead of three document-wide querySelectorAll a second — in a long
-    // chat (25k+ nodes) each one walked the whole page; a live collection is only re-walked after the DOM changed,
-    // and with no countdown / clock / chip / running timer on screen the tick does nothing at all.
+
     const liveCd = document.getElementsByClassName("mp-countdown"), liveClock = document.getElementsByClassName("mp-clock"),
       liveChip = document.getElementsByClassName("mp-chip");
     setInterval(() => {
@@ -3464,8 +3360,7 @@ const MemuPanels = (() => {
         const html = countdownCells(el.dataset.mpCountdown, el.dataset.size, opts);
         if (el.innerHTML !== html) el.innerHTML = html;
       });
-      // Без секунд — раз в минуту. Сверяемся с номером минуты, а не ждём «:00»: интервал плывёт и
-      // может перескочить нулевую секунду, а после скрытого окна часы стояли бы до следующей минуты.
+
       const minute = String(Math.floor(Date.now() / 60000));
       Array.prototype.filter.call(liveClock, (el) => el.hasAttribute("data-mp-clock")).forEach((el) => {
         let b = {};
@@ -3488,8 +3383,7 @@ const MemuPanels = (() => {
         el.innerHTML = `${esc(t("сброс через ", "resets in ") + untilText(ts))}<span class="sep">·</span>${esc(clockText(ts))}`;
       });
     }, 15000);
-    // app.js may rebuild the top bar / sidebar markup (language switch); re-mount quietly.
-    // r29d-chat4: and react to the language change at once (the 2 s check below is only a fallback).
+
     if (!EMBED) document.addEventListener("memu:lang", () => { if (state.loaded) { render(); syncLang(); } });
     if (!EMBED) setInterval(() => {
       if (!state.loaded) return;
@@ -3499,8 +3393,6 @@ const MemuPanels = (() => {
     }, 2000);
   }
 
-  /* ------------------------------------------------------ chat preview */
-  /** Short tool-row summary; the id after «#» lets inlineHtml find the panel again after a reload. */
   function summary(tool, result) {
     soon();
     setTimeout(() => load(true), 300);
@@ -3548,7 +3440,6 @@ const MemuPanels = (() => {
     refreshPop();
   }
 
-  /* ------------------------------------------------------------ skill */
   const SKILL_ID = "memuai_panels";
   const SKILL_PROMPT = [
     "PURPOSE: create and manage MemuAI panels — small glanceable cards the user keeps on the start screen (home), in the left sidebar (sidebar) or as a mini chip in the top bar (appbar). A panel is a spec of blocks bound to data with {{key}}, plus how to re-gather the values (a built-in source or a runbook for a model with web search) and a time-based cadence.",
@@ -3599,7 +3490,7 @@ const MemuPanels = (() => {
   function enabled() {
     try { return typeof getSkills === "function" && getSkills().some((s) => s.id === SKILL_ID && s.enabled); } catch (e) { return false; }
   }
-  /** The skill text + the current panels, appended to the system prompt of ordinary chats. */
+
   function systemBlock(mode = "") {
     if (mode === "work" || mode === "code" || !enabled()) return "";
     const skill = getSkills().find((s) => s.id === SKILL_ID);
@@ -3607,7 +3498,6 @@ const MemuPanels = (() => {
     return `<panels_skill>\n${String(skill?.prompt || SKILL_PROMPT).trim()}\n\n<current_panels>\n${rows || "(none)"}\n</current_panels>\n</panels_skill>`;
   }
 
-  /* --------------------------------------------------------- settings */
   function mountSettings() {
     const pane = $q("#pane-panels");
     if (!pane) return;
@@ -3626,8 +3516,7 @@ const MemuPanels = (() => {
       .filter((m) => !(typeof isImageModel === "function" && isImageModel(m.id)) && !(typeof isMusicOnlyModel === "function" && isMusicOnlyModel(m.id)));
     const name = (id) => (typeof modelDisplayName === "function" ? modelDisplayName(id) : id);
     const scroll = box.closest(".settings-body")?.scrollTop;
-    // r30: the page uses the settings kit (sections + rows) like every other page: short texts, one main button,
-    // quiet placement labels, row tools on hover; the long explanations moved into the rows' hints
+
     const K = window.MemuSettingsKit;
     const section = (o) => (K ? K.section(o) : `<section class="sx-section"><h3>${o.title || ""}</h3><div class="sx-card">${o.body}</div></section>`);
     const row = (o) => (K ? K.row(o) : `<div class="sx-row"><div class="sx-row-text"><div class="sx-label">${o.label}</div>${o.desc ? `<div class="sx-desc">${o.desc}</div>` : ""}</div><div class="sx-control">${o.control || ""}</div></div>`);
@@ -3680,8 +3569,6 @@ const MemuPanels = (() => {
     });
   }
 
-  /* Round 26: the panels page is drawn only when it is opened, so the settings search (built from the
-     DOM) never found «Единицы», «Местоположение для погоды» or «Модель для панелей с ИИ». */
   function registerSettingsSearch() {
     const K = window.MemuSettingsKit;
     if (!K?.registerSearch) return;
@@ -3696,7 +3583,6 @@ const MemuPanels = (() => {
     ]);
   }
 
-  /* ------------------------------------------------------------- boot */
   if (!EMBED) registerSkill();
   function boot() {
     if (EMBED) { bindEvents(); load(); return; }
@@ -3715,19 +3601,19 @@ const MemuPanels = (() => {
 
   return {
     load, render, systemBlock, inlineHtml, summary, mountSettings, openGallery, openEditor, enabled,
-    // exposed for tests and the renderer smoke check
+
     _cardHtml: cardHtml, _chipHtml: chipHtml, _state: state, _raw: raw, SKILL_ID,
-    // Round 27: the Quick Ask canvas (embed mode)
+
     cardHtml, chipHtml, miniOf, linesOf, ico, iconFor: (panel) => KIND_ICON[panel.kind] || "dot", refreshNow, rerender, state, subscribe: (fn) => { subscribers.add(fn); return () => subscribers.delete(fn); },
-    // r29d: an embedding page calls it after it has put cards into the DOM (starts timers / live PC load)
+
     syncLive,
-    // Round 33: what pgstatic/panels-layout.js (zones, «Edit layout») builds on
+
     _lay: { state, byId, placed, cardHtml, chipHtml, render, call, act, notify, t, en, esc, ico, placeName, placeIcon, PLACES,
       sizeNames: SIZE_NAMES, sizeHints: SIZE_HINTS, openEditor, openGallery, openMenu, closeMenu, closePop, refreshNow, remove,
       layoutGrid, queueLayout, flash, isNew, syncLive, load, motionOff, EMBED },
-    // Round 32: the values a panel's text template can name (live PC load, local kinds) — quick/panel-text.js
+
     dataOf: (panel) => ({ ...(panel.kind === "system" ? systemData(panel, panel.data || {}) : (panel.data || {})), ...localData(panel) }),
-    // Round 28: the screen layer pauses all polling (data, live PC load, timers) while it is hidden
+
     setPaused: (on) => {
       state.paused = !!on;
       if (state.paused) { clearTimeout(state.timer); clearInterval(state.liveTimer); state.liveTimer = 0; clearInterval(state.timersTimer); state.timersTimer = 0; }

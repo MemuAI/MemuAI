@@ -42,7 +42,6 @@ CHECK_JS = r"""() => {
     const v = t.nodeValue.trim(); if (/^Русский/.test(v)) continue; out.cyr.push(v.slice(0, 50)); }
   out.wide = [...new Set(out.wide)].slice(0, 6); out.cyr = [...new Set(out.cyr)].slice(0, 8); return out; }"""
 
-
 def extra_shots(page, out: Path, tag: str, problems: list) -> None:
     """A chat with an answer, the «New session» sheet, the shortcut help on computers."""
     page.evaluate("window.MemuTgApp.switchTab('chats')")
@@ -67,7 +66,6 @@ def extra_shots(page, out: Path, tag: str, problems: list) -> None:
         page.wait_for_timeout(500)
         page.screenshot(path=str(out / f"tg-{tag}-keys.png"))
         page.keyboard.press("Escape")
-
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -133,7 +131,6 @@ def main() -> int:
         print("FAIL:", line)
     print(f"done: {len(problems)} problems")
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

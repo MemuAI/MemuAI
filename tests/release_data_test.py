@@ -13,7 +13,6 @@ from unittest.mock import patch
 from app import code_checkpoints as cp, work_tools
 from app.cli.foreign import agy, cursor, opencode
 
-
 class ForeignDatabasePathRegressionTest(unittest.TestCase):
     def test_special_characters_preserve_readonly_database_identity(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -38,7 +37,6 @@ class ForeignDatabasePathRegressionTest(unittest.TestCase):
                     finally:
                         con.close()
             self.assertEqual(list(base.iterdir()), [profile])
-
 
 class DirectoryUndoRegressionTest(unittest.TestCase):
     def test_move_undo_restores_nested_files_and_empty_folders(self):
@@ -122,8 +120,7 @@ class DirectoryUndoRegressionTest(unittest.TestCase):
                                check=True, capture_output=True)
             else:
                 link.symlink_to(unrelated, target_is_directory=True)
-            # Python 3.10/3.11 lack Path.is_junction. Native reparse tags must
-            # still stop undo from following the substituted directory.
+
             with patch.object(Path, "is_junction", None, create=True):
                 result = cp.restore("link", root)
             self.assertEqual(user_file.read_text(encoding="utf-8"), "unrelated")
@@ -133,7 +130,6 @@ class DirectoryUndoRegressionTest(unittest.TestCase):
             link.rmdir() if os.name == "nt" else link.unlink()
             (root / "moved").rename(root / "dest")
             self.assertEqual(cp.restore("link", root)["remaining"], 0)
-
 
 if __name__ == "__main__":
     unittest.main()

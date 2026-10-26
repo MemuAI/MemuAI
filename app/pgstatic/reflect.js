@@ -1,17 +1,5 @@
-/* MemuAI · «Рефлексия» (Reflect) and «Время и фокус» — Round 27.
 
-   window.MemuReflect — two settings pages:
-     html(ctx)       → the Reflect page body (toolbar, report host, report settings, «Что входит в отчёт»)
-     focusHtml(ctx)  → the «Время и фокус» page body (quiet hours, break reminder)
-     bind(ctx)       → handlers of both pages (ids are rf-* / fx-*)
-     mount(ctx)      → loads the report when the Reflect page is shown (the only moment a report is generated)
-   ctx (from app.js): { en, pref, esc, api, toast, savePreferences, kit, models, modelName, defaultModel,
-                        openPage(id), discuss(text), openWork(), openSkills(), openAgents() }
 
-   window.MemuFocus — the main-window side of «Время и фокус»: beforeSend() (quiet hours reminder before a
-   message goes out; resolves false when the user chose «Позже») and activity pings that bring the break
-   reminder. Quick Ask has its own plugin (quick/plugins/focus.js). Statistics and the report are made by
-   app/reflect.py; this file only draws them. */
 (function () {
   "use strict";
 
@@ -48,8 +36,8 @@
   };
 
   let ctx = null;
-  let period = "this_month";     // Round 34: the first chip, the month in progress (was «Прошлый месяц» while «Этот месяц» stood first)
-  const views = new Map();        // period:lang -> last /api/reflect answer (instant when switching back)
+  let period = "this_month";
+  const views = new Map();
   let pollTimer = 0;
   let loadToken = 0;
   let tipBound = false;
@@ -78,7 +66,7 @@
     return h ? `${h} ч${r ? " " + r + " мин" : ""}` : `${r} мин`;
   }
   function weekdayName(index) {
-    const monday = new Date(2024, 0, 1 + index);   // 1 Jan 2024 was a Monday
+    const monday = new Date(2024, 0, 1 + index);
     const name = monday.toLocaleDateString(lang(), { weekday: "long" });
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
@@ -111,8 +99,6 @@
     if (chosen && (ctx.models || []).some((m) => m.id === chosen)) return chosen;
     return (typeof ctx.defaultModel === "function" ? ctx.defaultModel() : ctx.defaultModel) || "";
   }
-
-  /* ============================================================ page markup */
 
   function html(c) {
     ctx = c;
@@ -183,8 +169,6 @@
       + K.note(L("Это ваши собственные границы, а не лимит: напоминания всегда можно отклонить. Они работают независимо от Рефлексии.", "These are boundaries you choose, not limits: reminders can always be dismissed. They work independently of Reflect."));
   }
 
-  /* ============================================================ binding */
-
   function bind(c) {
     ctx = c;
     const save = (patch) => c.savePreferences(patch);
@@ -205,7 +189,7 @@
     on("rf-model", "onchange", (e) => save({ reflect_model: e.target.value }));
     on("rf-quick", "onchange", (e) => { save({ reflect_include_quick: e.target.checked }).then(() => { views.clear(); load(); }); });
     on("rf-telegram", "onchange", (e) => { save({ reflect_include_telegram: e.target.checked }).then(() => { views.clear(); load(); }); });
-    // «Время и фокус»
+
     on("fx-quiet-on", "onchange", (e) => { save({ focus_quiet_enabled: e.target.checked }).then(focusStatus); });
     document.querySelectorAll("[data-fx-day]").forEach((btn) => btn.onclick = () => {
       btn.setAttribute("aria-pressed", String(btn.getAttribute("aria-pressed") !== "true"));
@@ -246,8 +230,6 @@
     if (report) report.hidden = !value;
   }
 
-  /* ============================================================ data flow */
-
   function key() { return period + ":" + lang(); }
   function stopPolling() { clearTimeout(pollTimer); pollTimer = 0; }
 
@@ -280,7 +262,7 @@
   async function generate(force) {
     if (!ctx) return;
     const data = views.get(key());
-    if (data && data.state !== "ready") return;     // nothing to write about: the empty state says so
+    if (data && data.state !== "ready") return;
     const model = reportModel();
     if (!model) { renderError(L("Выберите модель для отчёта в настройках ниже или модель по умолчанию в разделе «Модели».", "Pick a model for the report below, or a default model in Models."), false); return; }
     stopPolling();
@@ -304,7 +286,7 @@
       const q = `period=${encodeURIComponent(period)}&lang=${lang()}`;
       let data;
       try {
-        // While the model writes only the job is polled: the full answer re-reads every chat (seconds on a big history).
+
         const status = await ctx.api(`/api/reflect/status?${q}`);
         if (token !== loadToken) return;
         if (status.job && status.job.status === "running") { renderBusy(status.job); poll(token); return; }
@@ -315,8 +297,6 @@
       render(data);
     }, 900);
   }
-
-  /* ============================================================ rendering */
 
   function setMeta(text) { const el = document.getElementById("rf-meta"); if (el) el.textContent = text || ""; }
   function setBusy(on) {
@@ -334,7 +314,6 @@
       <div class="rf-stats">${"<i class='rf-sk tile'></i>".repeat(3)}</div><i class="rf-sk chart"></i></div>`;
   }
 
-  /* Statistics are already known while the model writes: they stay, the narrative parts show a skeleton. */
   function renderBusy(job, force) {
     const el = host(); if (!el) return;
     const data = views.get(key());
@@ -352,7 +331,6 @@
     wire(data);
   }
 
-  /* retry: true → write the report again, a function → run it (reload), false → no button. */
   function renderError(message, retry) {
     const el = host(); if (!el) return;
     setBusy(false);
@@ -423,7 +401,6 @@
     </section>`;
   }
 
-  /* Daily bars (weekly beyond ~6 months). SVG scales to the width; labels are HTML so text never stretches. */
   function chart(series) {
     if (!series.length) return "";
     let buckets = series.map((d) => ({ from: d.date, to: d.date, conversations: d.conversations, messages: d.messages, minutes: d.minutes }));
@@ -439,7 +416,7 @@
       buckets = out;
     }
     const max = Math.max(1, ...buckets.map((b) => b.conversations));
-    // A short period must not turn into a few wide blocks: a bar is at most 1/36 of the width, centred in its slot.
+
     const n = buckets.length, W = 1000, H = 160, slot = W / n, gap = n > 120 ? 1 : n > 60 ? 2 : 4;
     const bw = Math.max(1, Math.min(slot - gap, W / 36));
     const bars = buckets.map((b, i) => {
@@ -454,7 +431,7 @@
       <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" role="img" aria-label="${esc(sumText)}">${bars}</svg>
       <div class="rf-tip" hidden></div></div>
       <div class="rf-axis">${[...new Set(ticks)].map((i) => {
-        // Under its bar when bars are wide; pinned to the edges on long periods (a centred label would stick out).
+
         const edge = n > 12 && (i === 0 || i === n - 1);
         const style = edge ? (i === 0 ? "left:0;transform:none" : "left:100%;transform:translateX(-100%)") : `left:${((i + 0.5) / n) * 100}%`;
         return `<span style="${style}">${label(i)}</span>`;
@@ -567,7 +544,7 @@
       show(i, e.clientX - r.left);
     });
     plot.addEventListener("pointerleave", () => { tip.hidden = true; svg.querySelectorAll(".rf-bar.hover").forEach((r) => r.classList.remove("hover")); });
-    // Keyboard: the plot is focusable, ←/→ walk through the days.
+
     plot.tabIndex = 0;
     let cur = buckets.length - 1;
     plot.addEventListener("keydown", (e) => {
@@ -593,10 +570,8 @@
   };
   window.MemuReflect = { html, focusHtml, bind, mount, periods: PERIODS, icons: ICONS };
 
-  /* ============================================================ MemuFocus (main window) */
-
   const minutesOf = (hhmm) => { const m = /^(\d{1,2}):(\d{2})$/.exec(String(hhmm || "")); return m ? (+m[1]) * 60 + (+m[2]) : -1; };
-  /* Same rule as app/reflect.py quiet_now: a window across midnight belongs to the day it starts on (Monday = 0). */
+
   function quietNow(prefs, now) {
     if (!prefs || !prefs.focus_quiet_enabled) return null;
     const days = new Set((prefs.focus_quiet_days || []).map(Number));
@@ -649,7 +624,6 @@
   }
   function closeCard() { if (nudge) { nudge.remove(); nudge = null; } }
 
-  /* Before a message is sent: during unacknowledged quiet hours ask once; «Продолжить» covers the rest of the window. */
   function beforeSend() {
     const q = quietNow(currentPrefs(), new Date());
     ping();
@@ -663,7 +637,6 @@
     });
   }
 
-  /* Opening MemuAI during quiet hours: a calm reminder (no blocking). */
   function remindOnOpen() {
     const q = quietNow(currentPrefs(), new Date());
     if (!q || acknowledged(q) || nudge) return;
@@ -686,7 +659,6 @@
   }
   function post(action) { fetch("/api/focus/break", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action }) }).catch(() => {}); }
 
-  /* Interaction pings (at most one a minute) feed the shared daily counter (app/reflect.py FocusTracker). */
   function ping(force) {
     if (!globalPref("focus_break_enabled", false)) return;
     const now = Date.now();
@@ -699,9 +671,9 @@
   }
 
   function start() {
-    if (!document.getElementById("app") && !document.getElementById("chat")) return;   // only the main window
+    if (!document.getElementById("app") && !document.getElementById("chat")) return;
     ["keydown", "pointerdown", "wheel"].forEach((type) => document.addEventListener(type, () => ping(false), { passive: true, capture: true }));
-    // Preferences arrive from the server shortly after start: look once they are surely there.
+
     [2000, 8000].forEach((ms) => setTimeout(remindOnOpen, ms));
     document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") setTimeout(remindOnOpen, 400); });
   }

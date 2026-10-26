@@ -21,7 +21,6 @@ if os.environ.get("MEMUAI_AUDIT_BASELINE_ROOT"):
     host = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(host)
 
-
 class ModulePackageTransactions(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="memuai-package-fixture-")
@@ -189,7 +188,7 @@ host.update_code(Path(sys.argv[1]), "proof", {"html":"interrupted new html"})
                 self.assertTrue(entered.wait(3))
                 other = workers.submit(other_create)
                 self.assertTrue(attempted.wait(3))
-                # The losing create may be blocked on the package transaction.
+
             finally:
                 release.set()
             first.result(timeout=3)
@@ -257,7 +256,6 @@ host.update_code(Path(sys.argv[1]), "proof", {"html":"interrupted new html"})
             self.assertEqual((self.folder / "index.html").read_bytes(), self.original["index.html"])
         finally:
             junction.rmdir()
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -15,16 +15,14 @@ os.environ["MEMUAI_FSINDEX_NOSTART"] = "1"
 from app import fsindex, fsindex_query as fq, webview_flags  # noqa: E402
 from installer import payload  # noqa: E402
 
-
 def legacy_rows():
     return [
         ("C:\\Users\\Ann\\Docs", [("Zeta.txt", 10, 1.5, False), ("alpha.PDF", 20, 2.5, False), ("Ёлка", 0, 3.0, True),
                                   ("bad\nname", 1, 1.0, False)]),
         ("C:\\Users\\Ann", [("Docs", 0, 1.0, True), ("notes.md", 5, 4.0, False)]),
-        ("C:\\Users\\Ann\\Docs", [("beta.txt", 7, 5.0, False)]),      # the same folder twice (merged)
+        ("C:\\Users\\Ann\\Docs", [("beta.txt", 7, 5.0, False)]),
         ("C:\\Empty", []),
     ]
-
 
 class PackedTest(unittest.TestCase):
     def test_packed_iterates_like_the_rows_it_was_made_of_sorted(self):
@@ -58,7 +56,6 @@ class PackedTest(unittest.TestCase):
             self.assertEqual({r["name"] for r in got["results"]}, {"Report.docx", "report-2.txt"})
             self.assertEqual(fsindex.Snapshot.build(idx.live_batches(), [tmp]).blob, idx.snap.blob)
 
-
 class LazyStartTest(unittest.TestCase):
     def test_preload_is_off_by_default_and_normalized(self):
         self.assertIs(fsindex.DEFAULT_SETTINGS["preload"], False)
@@ -71,7 +68,6 @@ class LazyStartTest(unittest.TestCase):
         self.assertIn('"/api/fsindex/warm"', src)
         js = (ROOT / "app" / "pgstatic" / "quick" / "plugins" / "fsearch.js").read_text(encoding="utf-8")
         self.assertIn("/api/fsindex/warm", js)
-
 
 class PayloadCacheTest(unittest.TestCase):
     def test_unchanged_blocks_are_reused_and_the_payload_is_identical(self):
@@ -112,7 +108,6 @@ class PayloadCacheTest(unittest.TestCase):
             self.assertLess(reused, n_blocks)
             self.assertEqual(len(list(cache.glob("*.xz"))), n_blocks, "stale blocks are pruned")
 
-
 class WebViewFlagsTest(unittest.TestCase):
     def test_arguments_keep_pywebview_switch(self):
         args = webview_flags.arguments()
@@ -134,7 +129,6 @@ class WebViewFlagsTest(unittest.TestCase):
             os.environ.pop(webview_flags.ENV, None)
             if saved is not None:
                 os.environ[webview_flags.ENV] = saved
-
 
 if __name__ == "__main__":
     unittest.main()

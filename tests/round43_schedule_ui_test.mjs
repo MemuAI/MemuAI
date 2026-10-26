@@ -1,4 +1,4 @@
-/* Programmatic DOM regressions; no browser/Computer Use and no external services. */
+
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";

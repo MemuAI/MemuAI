@@ -1,18 +1,13 @@
-/* «Нарисовать»: холст для быстрого наброска, который прикрепляется к сообщению как картинка.
- *
- * Намеренно простой: одна строка инструментов, холст и две кнопки. Рисунок хранится списком
- * действий (штрих, фигура, текст, картинка), а не пикселями — поэтому отмена и повтор точные,
- * предметы можно двигать, а при изменении размера окна ничего не размывается.
- * Пока набросок не прикреплён, он не теряется: закройте окно и откройте снова — он на месте.
- */
+
+
 "use strict";
 const MemuSketch = (() => {
   const en = () => PG_LANG === "en";
   const t = (ru, eng) => (en() ? eng : ru);
-  const W = 1600, H = 1000;                       // размер рисунка в его собственных точках
+  const W = 1600, H = 1000;
   const COLORS = ["#1f2328", "#e5484d", "#f5a524", "#30a46c", "#3b82f6", "#8e4ec6", "#ffffff"];
   const SIZES = [3, 7, 14, 28];
-  const MAX_PNG = 4.5 * 1024 * 1024;                // запас до лимита вложения в 5 МБ
+  const MAX_PNG = 4.5 * 1024 * 1024;
   const ICON = {
     pen: '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L8 18l-4 1 1-4z"/>',
     marker: '<path d="m4 20 3-1 11-11-2-2L5 17z"/><path d="M14 6l4 4"/><path d="M3 21h7"/>',
@@ -36,19 +31,15 @@ const MemuSketch = (() => {
     ["move", () => t("Двигать и менять размер", "Move and resize"), "V"],
   ];
 
-  /* История — список состояний рисунка; каждое состояние — массив действий, которые никогда не
-     меняются на месте (сдвиг предмета создаёт его копию). Отмена и повтор — шаг по этому списку,
-     поэтому одинаково отменяются и штрих, и перемещение, и удаление, и «Очистить». */
   const state = { history: [[]], at: 0, tool: "pen", color: COLORS[0], size: SIZES[1], draft: null, picked: -1, drag: null,
     root: null, canvas: null, ctx: null,
     get ops() { return this.history[this.at]; } };
 
-  /* ------------------------------------------------------------ рисование */
   function strokePath(ctx, points) {
     ctx.beginPath();
     ctx.moveTo(points[0][0], points[0][1]);
     if (points.length === 1) ctx.lineTo(points[0][0] + 0.01, points[0][1]);
-    // Сглаживание: кривая идёт через середины отрезков, а сами точки служат направляющими.
+
     for (let i = 1; i < points.length - 1; i++) {
       const mx = (points[i][0] + points[i + 1][0]) / 2, my = (points[i][1] + points[i + 1][1]) / 2;
       ctx.quadraticCurveTo(points[i][0], points[i][1], mx, my);
@@ -126,15 +117,14 @@ const MemuSketch = (() => {
       ctx.setLineDash([8, 6]); ctx.lineWidth = 2; ctx.strokeStyle = "#3b82f6";
       ctx.strokeRect(x0, y0, x1 - x0, y1 - y0);
       ctx.setLineDash([]); ctx.fillStyle = "#3b82f6";
-      if (picked.kind !== "stroke") ctx.fillRect(x1 - 9, y1 - 9, 18, 18);       // уголок для размера
+      if (picked.kind !== "stroke") ctx.fillRect(x1 - 9, y1 - 9, 18, 18);
       ctx.restore();
     }
     syncButtons();
   }
 
-  /* ------------------------------------------------------------ действия */
   function apply(ops) {
-    state.history.length = state.at + 1;          // после нового действия «вернуть» уже нечего
+    state.history.length = state.at + 1;
     state.history.push(ops);
     if (state.history.length > 200) state.history.shift();
     state.at = state.history.length - 1;
@@ -214,20 +204,17 @@ const MemuSketch = (() => {
     input.addEventListener("blur", () => finish(true));
   }
 
-  /* Текст ставится по завершённому щелчку, а не по нажатию: иначе браузер, заканчивая
-     обработку нажатия, сам забирал бы фокус у только что появившегося поля. */
   function onClick(event) {
     if (state.tool !== "text" || event.button !== 0) return;
     const [x, y] = point(event);
     askText(x, y);
   }
 
-  /* ------------------------------------------------------------ мышь */
   function onDown(event) {
     if (event.button !== 0) return;
     const [x, y] = point(event);
     const tool = state.tool;
-    if (tool === "text") return;                 // поле появляется по щелчку: см. onClick
+    if (tool === "text") return;
     state.canvas.setPointerCapture(event.pointerId);
     if (tool === "move") {
       const picked = state.ops[state.picked];
@@ -239,7 +226,7 @@ const MemuSketch = (() => {
           if (state.ops[i].tool !== "eraser" && x >= x0 && x <= x1 && y >= y0 && y <= y1) { state.picked = i; break; }
         }
       }
-      // Двигается копия: исходный предмет остаётся в прежнем состоянии истории.
+
       const source = state.ops[state.picked];
       state.drag = source ? { x, y, resize: !!corner, moved: false,
         op: { ...source, points: source.points ? source.points.map((p) => p.slice()) : undefined } } : null;
@@ -275,7 +262,7 @@ const MemuSketch = (() => {
     } else {
       state.draft.x1 = x; state.draft.y1 = y;
       if (event.shiftKey && state.draft.shape !== "line" && state.draft.shape !== "arrow") {
-        const side = Math.max(Math.abs(x - state.draft.x0), Math.abs(y - state.draft.y0));   // Shift — квадрат и круг
+        const side = Math.max(Math.abs(x - state.draft.x0), Math.abs(y - state.draft.y0));
         state.draft.x1 = state.draft.x0 + Math.sign(x - state.draft.x0 || 1) * side;
         state.draft.y1 = state.draft.y0 + Math.sign(y - state.draft.y0 || 1) * side;
       }
@@ -296,7 +283,6 @@ const MemuSketch = (() => {
     if (tiny) { state.draft = null; redraw(); } else commit(draft);
   }
 
-  /* ------------------------------------------------------------ окно */
   function build() {
     const root = document.createElement("div");
     root.className = "sketch";
@@ -343,7 +329,7 @@ const MemuSketch = (() => {
       else if (button.dataset.sk === "close") close();
       else if (button.dataset.sk === "attach") attach();
     });
-    // Картинку можно бросить на холст или вставить из буфера.
+
     root.addEventListener("dragover", (event) => event.preventDefault());
     root.addEventListener("drop", (event) => { event.preventDefault(); event.stopPropagation(); loadImage(event.dataTransfer?.files?.[0]); });
     return root;
@@ -367,7 +353,7 @@ const MemuSketch = (() => {
       apply(state.ops.filter((_, index) => index !== gone));
       return;
     }
-    // Буквы-ускорители работают и в русской раскладке: сверяется физическая клавиша.
+
     const tool = TOOLS.find(([, , letter]) => event.code === `Key${letter}`);
     if (tool) { event.preventDefault(); state.root.querySelector(`[data-sk-tool="${tool[0]}"]`).click(); }
   }
@@ -396,9 +382,6 @@ const MemuSketch = (() => {
     $("#input")?.focus();
   }
 
-  /** PNG рисунка на белом фоне: прозрачный холст в чате и у модели выглядел бы чёрным.
-      Набросок со вставленной фотографией в PNG легко превышает лимит вложения (5 МБ) —
-      тогда тот же рисунок уходит JPEG'ом. */
   async function toBlob() {
     const out = document.createElement("canvas");
     out.width = W; out.height = H;
@@ -421,8 +404,7 @@ const MemuSketch = (() => {
     if (!blob) return toast(t("Не удалось сохранить рисунок", "Could not save the sketch"), "err");
     const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
     const ext = blob.type === "image/jpeg" ? "jpg" : "png";
-    // Не прикрепилось (уже 10 вложений, общий лимит) — addAttachmentFiles показал причину,
-    // а рисунок остаётся в окне: раньше он стирался безвозвратно.
+
     if (!(await addAttachmentFiles([new File([blob], `sketch-${stamp}.${ext}`, { type: blob.type || "image/png" })]))) return;
     reset();
     close();

@@ -1,21 +1,16 @@
-// MemuNote — find / replace panel for CodeMirror (replaces CM's default search panel).
-// Notepad++-style: one row "find" with toggles (Aa, whole word, .*) and a live "3 of 120" counter,
-// an optional "replace" row, Enter / Shift+Enter, Alt+C/W/R toggles, Ctrl+Alt+Enter = replace all.
-// Big documents (> FAST_LIMIT chars): CodeMirror's SearchCursor walks the rope character by character
-// (≈8 MB/s: 6–10 s per Enter in a 100 MB log), so next/previous/count/replace-all run on our own
-// chunked RegExp scan instead (≈ 1 GB/s), and the counter is time-boxed.
+
+
 import * as CM from "../vendor/cm/cm.js";
 import { esc, icon, t } from "./core.js";
 
-const FAST_LIMIT = 4 * 1048576;     // chars: below this CodeMirror's own commands are fast enough
-const CHUNK = 1 << 22;              // 4M chars per slice
-const OVERLAP = 4096;               // a match may straddle two slices
+const FAST_LIMIT = 4 * 1048576;
+const CHUNK = 1 << 22;
+const OVERLAP = 4096;
 const COUNT_CAP = 100000;
 const COUNT_BUDGET_MS = 600;
 
 function unquote(s) { return s.replace(/\\([nrt\\])/g, (_, c) => (c === "n" ? "\n" : c === "r" ? "\r" : c === "t" ? "\t" : "\\")); }
 
-/** A JS RegExp equivalent of a CodeMirror SearchQuery (null when the regexp is invalid/empty). */
 export function queryRegExp(q) {
   if (!q || !q.search) return null;
   let src = q.regexp ? q.search : (q.literal ? q.search : unquote(q.search)).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -23,7 +18,6 @@ export function queryRegExp(q) {
   try { return new RegExp(src, "gmu" + (q.caseSensitive ? "" : "i")); } catch { try { return new RegExp(src, "gm" + (q.caseSensitive ? "" : "i")); } catch { return null; } }
 }
 
-/** All matches in [from, to) as {from, to, m}; stops after `limit` matches or `budget` ms. */
 export function scan(doc, re, from = 0, to = doc.length, limit = Infinity, budget = Infinity, onMatch = null) {
   const out = []; const started = performance.now(); let pos = from; let truncated = false; let found = 0;
   while (pos < to) {
@@ -31,8 +25,8 @@ export function scan(doc, re, from = 0, to = doc.length, limit = Infinity, budge
     const slice = doc.sliceString(pos, Math.min(doc.length, end + OVERLAP));
     re.lastIndex = 0; let m;
     while ((m = re.exec(slice))) {
-      if (m.index >= end - pos) break;                     // belongs to the next slice
-      if (m[0].length === 0) { re.lastIndex++; if (m.index + pos >= to) break; continue; }   // empty matches are not "found"
+      if (m.index >= end - pos) break;
+      if (m[0].length === 0) { re.lastIndex++; if (m.index + pos >= to) break; continue; }
       const hit = { from: pos + m.index, to: pos + m.index + m[0].length, m };
       if (hit.to > to && to < doc.length) break;
       if (onMatch) onMatch(hit); else out.push(hit);
@@ -47,7 +41,7 @@ export function scan(doc, re, from = 0, to = doc.length, limit = Infinity, budge
 function fastNext(state, re, from) {
   const doc = state.doc;
   let r = scan(doc, re, from, doc.length, 1).hits[0];
-  if (!r && from > 0) r = scan(doc, re, 0, Math.min(doc.length, from + OVERLAP), 1).hits[0];   // wrap around
+  if (!r && from > 0) r = scan(doc, re, 0, Math.min(doc.length, from + OVERLAP), 1).hits[0];
   return r || null;
 }
 function fastPrev(state, re, before) {
@@ -56,7 +50,7 @@ function fastPrev(state, re, before) {
   for (let end = before; end > 0; end -= CHUNK) {
     const hit = lastIn(Math.max(0, end - CHUNK), end); if (hit) return hit;
   }
-  for (let end = doc.length; end > before; end -= CHUNK) {     // wrap around from the end
+  for (let end = doc.length; end > before; end -= CHUNK) {
     const hit = lastIn(Math.max(before, end - CHUNK), end); if (hit) return hit;
   }
   return null;
@@ -237,12 +231,10 @@ class FindPanel {
   }
 }
 
-/** Extension: CodeMirror search state with our panel. */
 export function findExtension() {
   return CM.search({ top: true, createPanel: (view) => new FindPanel(view) });
 }
 
-/** Big-document aware F3 / Shift+F3 / Ctrl+G (the default commands are slow on 100 MB). */
 export const findKeymap = [
   { key: "F3", run: (v) => step(v, true), shift: (v) => step(v, false), preventDefault: true },
   { key: "Mod-g", run: (v) => step(v, true), shift: (v) => step(v, false), preventDefault: true },

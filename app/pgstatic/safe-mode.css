@@ -1,6 +1,3 @@
-/* MemuAI · Safe mode (Round 29): banner, «what is disabled» dialog, restart cover.
-   Colours come from the theme tokens only (safe mode always uses the built-in look). */
-
 .memu-safe-banner {
   position: fixed; z-index: 2147482000; left: 50%; bottom: 18px; transform: translateX(-50%);
   display: flex; align-items: center; gap: 10px; max-width: min(860px, calc(100vw - 24px));
@@ -18,9 +15,8 @@
 .memu-safe-mark .ui-icon { width: 18px; height: 18px; }
 .memu-safe-text { display: flex; flex-direction: column; min-width: 0; margin-right: 4px; }
 .memu-safe-text b { font-weight: 650; }
-/* r29c: one nowrap line cut «… Data is unchanged.» — the reassurance that matters most; two lines max now. */
 .memu-safe-text small { color: var(--muted, #aaa); overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3; line-clamp: 3; max-width: 390px; }   /* r29f: 3 — wide mono fonts (Terminal) still cut «Your data is…» at 2 */
+  -webkit-line-clamp: 3; line-clamp: 3; max-width: 390px; }
 .memu-safe-btn {
   display: inline-flex; align-items: center; gap: 6px; flex: none; min-height: 32px; padding: 0 12px;
   border-radius: 9px; border: 1px solid var(--control-border, var(--border, #444)); background: transparent;
@@ -32,8 +28,6 @@
 .memu-safe-btn.primary:hover { filter: brightness(1.06); background: var(--accent, #efa58b); }
 .memu-safe-btn.icon { width: 32px; padding: 0; justify-content: center; border-color: transparent; color: var(--muted, #aaa); }
 .memu-safe-btn .ui-icon { width: 15px; height: 15px; }
-
-/* Folded: a small pill in the corner, one click unfolds it. */
 .memu-safe-banner.is-folded {
   left: auto; right: 16px; transform: none; padding: 5px; gap: 0; cursor: pointer; border-radius: 12px; animation: none;
 }
@@ -49,8 +43,6 @@
   .memu-safe-btn.primary span { display: none; }
   .memu-safe-btn.primary { width: 32px; padding: 0; justify-content: center; }
 }
-
-/* ---------------------------------------------------------------- dialog */
 .memu-safe-dialog {
   position: fixed; inset: 0; z-index: 2147482500; display: grid; place-items: center; padding: 16px;
   background: rgba(0, 0, 0, .42); animation: memu-safe-fade .16s ease both;
@@ -78,8 +70,6 @@
 .memu-safe-count[data-zero="1"] { background: var(--hover, rgba(128, 128, 128, .16)); color: var(--muted, #aaa); }
 .memu-safe-dialog-card footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; flex-wrap: wrap; }
 .memu-safe-dialog-card footer .pbtn { display: inline-flex; align-items: center; gap: 6px; }
-
-/* --------------------------------------------------------------- restart */
 .memu-safe-cover {
   position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center;
   background: color-mix(in srgb, var(--bg, #1a1a1c) 86%, transparent); animation: memu-safe-fade .2s ease both;

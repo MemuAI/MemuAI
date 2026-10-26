@@ -31,7 +31,6 @@ STATIC = ROOT / "app" / "memunote" / "static"
 ICO_SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
 SMALL_MAX = 40
 
-
 def star(cx: float, cy: float, r: float, inner: float = 0.22) -> str:
     """The MemuAI four-point star with concave sides (quadratic curves)."""
     k = r * inner
@@ -42,7 +41,6 @@ def star(cx: float, cy: float, r: float, inner: float = 0.22) -> str:
         nx, ny = points[(i + 1) % 4]
         path += f"Q{controls[i][0]:.1f},{controls[i][1]:.1f} {nx:g},{ny:g} "
     return path + "Z"
-
 
 def svg(small: bool = False) -> str:
     inset, radius = (16, 124) if small else (28, 118)
@@ -81,7 +79,6 @@ def svg(small: bool = False) -> str:
     parts.append("</svg>")
     return "".join(parts)
 
-
 def render(markup: str, size: int = 512) -> bytes:
     from playwright.sync_api import sync_playwright
     executable = os.environ.get("MEMU_TEST_CHROMIUM") or None
@@ -95,7 +92,6 @@ def render(markup: str, size: int = 512) -> bytes:
         finally:
             browser.close()
 
-
 def build() -> None:
     from PIL import Image
     full_svg, small_svg = svg(False), svg(True)
@@ -108,10 +104,9 @@ def build() -> None:
     full.resize((256, 256), Image.LANCZOS).save(STATIC / "memunote-icon.png", "PNG", optimize=True)
     frames = {size: (small if size <= SMALL_MAX else full).resize((size, size), Image.LANCZOS)
               for size in ICO_SIZES}
-    # Round 33: BMP entries below 256 px (see build_memuai_icon.write_ico).
+
     from build_memuai_icon import write_ico
     write_ico(frames, ROOT / "memunote-icon.ico")
-
 
 if __name__ == "__main__":
     build()

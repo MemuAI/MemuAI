@@ -37,14 +37,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 OPS = ("replace", "replace_all", "delete", "insert", "replace_selection", "rewrite_section", "append",
        "new_document", "set_cells", "add_sheet", "add_column")
-SHEET_OPS = ("set_cells", "add_sheet", "add_column")       # Round 40 (r40-note): spreadsheet documents
+SHEET_OPS = ("set_cells", "add_sheet", "add_column")
 _RANGE_RE = re.compile(r"^\$?[A-Za-z]{1,3}\$?\d{1,7}(?::\$?[A-Za-z]{1,3}\$?\d{1,7})?$")
 AT_VALUES = ("cursor", "start", "end", "after", "before")
 _OPEN_RE = re.compile(r"<edit\b([^>]*)>", re.I)
 _ATTR_RE = re.compile(r'([a-zA-Z_][\w-]*)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))')
 _CHILD_TAGS = ("find", "anchor", "text", "heading", "formula")
 _MAX_FIELD = 2_000_000
-# Markers the page puts into the excerpt; a model sometimes copies them into <find>.
+
 _MARKERS_RE = re.compile(r"⟦(?:cursor|/?selection)⟧")
 
 PROTOCOL = """\
@@ -76,8 +76,6 @@ line. The user previews every change and accepts or rejects it. If the user only
 normally without edit blocks. The markers ⟦cursor⟧ and ⟦selection⟧…⟦/selection⟧ show where the user's \
 cursor/selection is; they are not part of the document — never copy them into <find> or <anchor>."""
 
-
-# Round 40 (r40-note): several documents in one request and spreadsheet edits.
 MULTI_PROTOCOL = """\
 SEVERAL DOCUMENTS. The user gave you several documents, each as <document id="dN" …>. id="d0" is the active one \
 (the tab the user is looking at). An edit block changes d0 unless it has a doc attribute: add doc="d2" (the id) to \
@@ -103,13 +101,11 @@ adds a column after the last used one (formulas written for their own row, e.g. 
 Use the exact sheet names; prefer formulas over computed numbers when the user asks to calculate something, so the \
 workbook stays live. Keep the existing layout (headers, columns) unless asked to change it."""
 
-
 def _attrs(raw: str) -> Dict[str, str]:
     out: Dict[str, str] = {}
     for m in _ATTR_RE.finditer(raw or ""):
         out[m.group(1).lower()] = next(g for g in (m.group(2), m.group(3), m.group(4), "") if g is not None)
     return out
-
 
 def _child(body: str, tag: str) -> Optional[str]:
     """Content of ``<tag>…</tag>``; for ``text`` up to the LAST closing tag (the text may mention the tag)."""
@@ -127,7 +123,6 @@ def _child(body: str, tag: str) -> Optional[str]:
         value = body[start:start + (closes[-1] if tag == "text" else closes[0])]
     return _trim_block(value)
 
-
 def _trim_block(value: str) -> str:
     """One leading/trailing newline is layout of the tag, not content."""
     if value.startswith("\r\n"):
@@ -140,12 +135,10 @@ def _trim_block(value: str) -> str:
         value = value[:-1]
     return value[:_MAX_FIELD]
 
-
 def _clean_ref(value: Optional[str]) -> Optional[str]:
     if value is None:
         return None
     return _MARKERS_RE.sub("", value)
-
 
 def normalize(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """Validate one edit (from tags or JSON) → ``{op, find?, anchor?, text, at?, heading?, regex?, title?, kind?}``."""
@@ -197,13 +190,11 @@ def normalize(raw: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     _target(raw, edit)
     return edit
 
-
 def _target(raw: Dict[str, Any], edit: Dict[str, Any]) -> None:
     """Round 40: ``doc="d2"`` — the document (of several given to the model) the edit is for."""
     doc = str(raw.get("doc") or raw.get("document") or raw.get("tab") or "").strip()[:40]
     if doc:
         edit["doc"] = doc
-
 
 def _normalize_sheet(op: str, raw: Dict[str, Any], edit: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """``set_cells`` sheet= range="B2" | "B2:D9" + TSV <text> (a cell starting with "=" is a formula; <formula>
@@ -239,7 +230,6 @@ def _normalize_sheet(op: str, raw: Dict[str, Any], edit: Dict[str, Any]) -> Opti
     _target(raw, edit)
     return edit
 
-
 def parse_block(open_tag_attrs: str, body: str, complete: bool = True) -> Optional[Dict[str, Any]]:
     attrs = _attrs(open_tag_attrs)
     raw: Dict[str, Any] = dict(attrs)
@@ -248,11 +238,10 @@ def parse_block(open_tag_attrs: str, body: str, complete: bool = True) -> Option
         if value is not None:
             raw[tag] = value
     if "text" not in raw and not any(f"<{t}" in body.lower() for t in _CHILD_TAGS):
-        raw["text"] = _trim_block(body)          # <edit op="insert">plain text</edit>
+        raw["text"] = _trim_block(body)
     if not complete:
         raw["incomplete"] = True
     return normalize(raw)
-
 
 def parse_json_edits(text: str) -> List[Dict[str, Any]]:
     """``{"edits": [...]}`` / ``[...]`` / one edit object."""
@@ -266,9 +255,7 @@ def parse_json_edits(text: str) -> List[Dict[str, Any]]:
         return []
     return [e for e in (normalize(x) for x in data) if e]
 
-
 _JSON_FENCE_RE = re.compile(r"```(?:memunote-edit|memunote_edit|mn-edit|json)\s*\n(.*?)\n?```", re.S | re.I)
-
 
 def parse_all(answer: str) -> Tuple[str, List[Dict[str, Any]]]:
     """Whole-answer parse (tests, non-streaming callers): ``(prose, edits)``."""
@@ -282,7 +269,6 @@ def parse_all(answer: str) -> Tuple[str, List[Dict[str, Any]]]:
             edits.append(value)
     return "".join(prose), edits
 
-
 class EditStream:
     """Incremental splitter: ``feed(text)`` → ``[(kind, value)]`` with kind ``delta`` (prose),
     ``edit_start`` ``{op, index}``, ``edit_progress`` ``{index, chars, preview}`` or ``edit`` (the parsed edit).
@@ -292,15 +278,14 @@ class EditStream:
 
     def __init__(self) -> None:
         self.buf = ""
-        self.inside: Optional[Dict[str, Any]] = None   # {"attrs", "body", "index"}
+        self.inside: Optional[Dict[str, Any]] = None
         self.count = 0
-        self.json_fence: Optional[str] = None          # body of a ```json fence being collected
+        self.json_fence: Optional[str] = None
         self.json_open = ""
         self.last_progress = 0
         self.eat_nl = False
-        self.fenced = False                            # edit blocks wrapped in ```xml … ``` by the model
+        self.fenced = False
 
-    # -- helpers
     @staticmethod
     def _hold_len(data: str) -> int:
         """Length of a tail that may grow into ``<edit`` or a JSON edit fence."""
@@ -334,7 +319,7 @@ class EditStream:
                         out.append(("edit_start", {"op": e["op"], "index": self.count}))
                         out.append(("edit", dict(e, index=self.count)))
                         self.count += 1
-                else:                                   # an ordinary ```json code block: give it back
+                else:
                     out.append(("delta", self.json_open + body + "```"))
                 continue
             if self.inside is None:
@@ -346,7 +331,7 @@ class EditStream:
                 if self.fenced:
                     stripped = self.buf.lstrip()
                     if not stripped or "```".startswith(stripped[:3]) and len(stripped) < 3:
-                        break                           # wait: whitespace / a partial closing fence
+                        break
                     if stripped.startswith("```"):
                         self.buf = stripped[3:]
                         self.fenced = False
@@ -355,12 +340,12 @@ class EditStream:
                     if not stripped.lower().startswith("<edit") and not "<edit".startswith(stripped.lower()[:5]):
                         self.fenced = False
                     else:
-                        self.buf = stripped                 # whitespace between fenced edit blocks
+                        self.buf = stripped
                 low = self.buf.lower()
                 idx = low.find("<edit")
                 fence = re.search(r"```(?:memunote-edit|memunote_edit|mn-edit|json)[ \t]*\n", self.buf, re.I)
                 if fence and (idx < 0 or fence.start() < idx):
-                    # JSON fence: only an edit list if it parses as one (decided at the closing fence).
+
                     if fence.start():
                         out.append(("delta", self.buf[:fence.start()]))
                     self.json_open = fence.group(0)
@@ -377,14 +362,14 @@ class EditStream:
                 m = _OPEN_RE.match(self.buf, idx)
                 if not m:
                     if ">" in self.buf[idx:] or len(self.buf) - idx > 400:
-                        # "<editor>" or prose mentioning "<edit": not ours
+
                         out.append(("delta", self.buf[:idx + 1]))
                         self.buf = self.buf[idx + 1:]
                         continue
                     cut = idx
                     fm = re.search(r"```[\w-]*[ \t]*\r?\n[ \t]*$", self.buf[:idx])
                     if fm:
-                        cut = fm.start()                # keep a fence opener until the tag is decided
+                        cut = fm.start()
                     if cut:
                         out.append(("delta", self.buf[:cut]))
                         self.buf = self.buf[cut:]
@@ -405,7 +390,7 @@ class EditStream:
                 out.append(("edit_start", {"op": op, "index": self.inside["index"]}))
                 self.buf = self.buf[m.end():]
                 continue
-            # inside an edit block
+
             low = self.buf.lower()
             end = low.find("</edit>")
             if end < 0:

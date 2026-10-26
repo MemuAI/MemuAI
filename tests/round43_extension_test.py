@@ -20,10 +20,8 @@ from starlette.requests import Request
 
 from app import browser_extension as ext
 
-
 EXTENSION = "a" * 32
 OTHER = "b" * 32
-
 
 class BridgeTests(unittest.TestCase):
     def setUp(self):
@@ -297,7 +295,6 @@ class BridgeTests(unittest.TestCase):
         self.assertIn("Chrome side panel", messages[0]["content"])
         self.assertNotIn("<untrusted_page>", json.dumps(messages))
 
-
 class DFYLifetime(unittest.TestCase):
     def test_owned_tab_initializes_secret_masks_and_close_only_its_tab(self):
         from app import browser_extension_dfy as module
@@ -317,7 +314,6 @@ class DFYLifetime(unittest.TestCase):
         self.assertTrue(any(a[0] == "cdp" and a[1]["method"] == "Runtime.evaluate" for a in commands))
         self.assertEqual(commands[-1], ("dfy_stop", {"tab_id": 55}))
 
-
 class QuickAccessPreference(unittest.TestCase):
     def manager(self):
         from app.quick_ask import QuickAskManager
@@ -325,7 +321,7 @@ class QuickAccessPreference(unittest.TestCase):
         manager._page_token = 0
         manager.page = None
         manager.native_ok = True
-        manager.api = object()      # no native methods exist or can be called
+        manager.api = object()
         manager.hwnd = 999
         manager._push = Mock()
         return manager
@@ -414,7 +410,6 @@ class QuickAccessPreference(unittest.TestCase):
         self.assertEqual(fallback["source"], "screen")
         self.assertIn("fallback", fallback["text"])
         generic.assert_not_awaited()
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -64,19 +64,15 @@ SHEETS_HINT = ("Google Sheets: ranges use A1 notation with the sheet name ('Shee
 TASKS_HINT = "Google Tasks: list_id defaults to the main list; due is a date (2026-10-16)."
 CONTACTS_HINT = "Google Contacts: resource_name looks like people/c123…; gcontacts_search finds by name, email or phone."
 
-
 def _ig():
     from . import integrations
     return integrations
 
-
 def _arg(text: str):
     return _ig().IntegrationArgumentError(text)
 
-
 def _call(service: str, method: str, url: str, **kwargs: Any) -> Any:
     return _ig()._google(service, method, url, **kwargs)
-
 
 def _doc_id(value: Any, what: str) -> str:
     raw = str(value or "").strip()
@@ -86,7 +82,6 @@ def _doc_id(value: Any, what: str) -> str:
     if not re.fullmatch(r"[A-Za-z0-9_-]{10,}", raw or ""):
         raise _arg("Укажите %s — id из ссылки или из drive_list_files" % what)
     return raw
-
 
 def _values(value: Any) -> List[List[Any]]:
     if isinstance(value, str):
@@ -102,8 +97,6 @@ def _values(value: Any) -> List[List[Any]]:
     return [[cell if isinstance(cell, (int, float, bool)) or cell is None else str(cell) for cell in row]
             for row in value if isinstance(row, list)][:10000]
 
-
-# --------------------------------------------------------------------------- Docs
 def _doc_text(doc: Dict[str, Any]) -> str:
     lines: List[str] = []
 
@@ -132,7 +125,6 @@ def _doc_text(doc: Dict[str, Any]) -> str:
     walk((doc.get("body") or {}).get("content") or [])
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
 
-
 def _docs(tool: str, args: Dict[str, Any]) -> Any:
     S = "google_docs"
     if tool == "gdocs_read":
@@ -157,7 +149,7 @@ def _docs(tool: str, args: Dict[str, Any]) -> Any:
                 _call("google_drive", "PATCH", ig.DRIVE_API + "/files/" + quote(doc_id, safe=""),
                       params={"addParents": folder, "removeParents": "root", "supportsAllDrives": "true"}, json_body={})
                 out["folder_id"] = folder
-            except Exception as exc:  # the document exists either way
+            except Exception as exc:
                 out["note"] = "Документ создан в «Мой диск»: переместить в папку не удалось (%s)" % exc
         return out
     if tool == "gdocs_append":
@@ -180,8 +172,6 @@ def _docs(tool: str, args: Dict[str, Any]) -> Any:
         return {"id": doc_id, "replaced": changed}
     raise _arg("Неизвестный инструмент Google Docs: %s" % tool)
 
-
-# --------------------------------------------------------------------------- Sheets
 def _sheets(tool: str, args: Dict[str, Any]) -> Any:
     S = "google_sheets"
     if tool == "gsheets_create":
@@ -249,11 +239,8 @@ def _sheets(tool: str, args: Dict[str, Any]) -> Any:
         return {"deleted": True, "sheet": match.get("title")}
     raise _arg("Неизвестный инструмент Google Sheets: %s" % tool)
 
-
-# --------------------------------------------------------------------------- Tasks
 def _list_id(args: Dict[str, Any]) -> str:
     return quote(str(args.get("list_id") or "@default").strip() or "@default", safe="@")
-
 
 def _due(value: Any) -> Optional[str]:
     text = str(value or "").strip()
@@ -261,15 +248,13 @@ def _due(value: Any) -> Optional[str]:
         return None
     from datetime import date
     try:
-        return date.fromisoformat(text[:10]).isoformat() + "T00:00:00.000Z"   # Tasks keeps only the date
+        return date.fromisoformat(text[:10]).isoformat() + "T00:00:00.000Z"
     except ValueError as exc:
         raise _arg("due — дата ГГГГ-ММ-ДД") from exc
-
 
 def _task_row(row: Dict[str, Any]) -> Dict[str, Any]:
     return {"id": row.get("id"), "title": row.get("title"), "notes": row.get("notes"), "status": row.get("status"),
             "due": str(row.get("due") or "")[:10] or None, "parent": row.get("parent"), "completed": row.get("completed")}
-
 
 def _tasks(tool: str, args: Dict[str, Any]) -> Any:
     S = "google_tasks"
@@ -323,8 +308,6 @@ def _tasks(tool: str, args: Dict[str, Any]) -> Any:
         return {"deleted": True, "task_id": task}
     raise _arg("Неизвестный инструмент Google Tasks: %s" % tool)
 
-
-# --------------------------------------------------------------------------- Contacts (People API)
 def _person(row: Dict[str, Any]) -> Dict[str, Any]:
     def first(key: str, field: str) -> Any:
         items = row.get(key) or []
@@ -334,7 +317,6 @@ def _person(row: Dict[str, Any]) -> Dict[str, Any]:
             "phones": [p.get("value") for p in row.get("phoneNumbers") or [] if isinstance(p, dict)],
             "organization": first("organizations", "name"), "title": first("organizations", "title"),
             "notes": first("biographies", "value")}
-
 
 def _person_body(args: Dict[str, Any]) -> Dict[str, Any]:
     body: Dict[str, Any] = {}
@@ -353,13 +335,11 @@ def _person_body(args: Dict[str, Any]) -> Dict[str, Any]:
         body["biographies"] = [{"value": str(args["notes"]), "contentType": "TEXT_PLAIN"}]
     return body
 
-
 def _resource(args: Dict[str, Any]) -> str:
     text = str(args.get("resource_name") or args.get("id") or "").strip()
     if not re.fullmatch(r"people/[A-Za-z0-9_-]+", text):
         raise _arg("Укажите resource_name вида people/c123… (его даёт gcontacts_search)")
     return text
-
 
 def _contacts(tool: str, args: Dict[str, Any]) -> Any:
     S = "google_contacts"
@@ -371,7 +351,7 @@ def _contacts(tool: str, args: Dict[str, Any]) -> Any:
         params = {"query": query, "readMask": PERSON_FIELDS, "pageSize": ig._int(args.get("limit"), 10, 1, 30)}
         rows = _call(S, "GET", PEOPLE_API + "/people:searchContacts", params=params)
         if not rows.get("results"):
-            # People API: the search cache warms up on the first (empty) request — Google's documented workaround.
+
             _call(S, "GET", PEOPLE_API + "/people:searchContacts", params={"query": "", "readMask": "names"})
             rows = _call(S, "GET", PEOPLE_API + "/people:searchContacts", params=params)
         return {"contacts": [_person(r.get("person") or {}) for r in rows.get("results") or []]}
@@ -405,7 +385,6 @@ def _contacts(tool: str, args: Dict[str, Any]) -> Any:
         _call(S, "DELETE", PEOPLE_API + "/%s:deleteContact" % name)
         return {"deleted": True, "resource_name": name}
     raise _arg("Неизвестный инструмент Google Contacts: %s" % tool)
-
 
 def run(service: str, tool: str, args: Dict[str, Any]) -> Any:
     if service == "google_docs":

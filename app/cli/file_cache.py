@@ -6,10 +6,8 @@ from dataclasses import dataclass
 import sys
 import threading
 
-
 def stamp(stat):
     return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
-
 
 @dataclass(frozen=True)
 class Snapshot:
@@ -17,7 +15,6 @@ class Snapshot:
     lines: tuple[str, ...]
     truncated: bool
     bytes: int
-
 
 class TextFiles:
     def __init__(self, *, max_bytes=16 * 1024 * 1024, max_files=4):

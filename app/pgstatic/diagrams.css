@@ -1,5 +1,3 @@
-/* MemuAI 3.1 · Round 29 · diagrams (diagrams.js): charts (memuai-chart) and schemes (mermaid).
-   Dialogs, menus and buttons reuse the kit of tables.css (.mt-modal, .mt-menu, .mt-tb, .mt-btn). */
 .memu-diagram { position: relative; margin: 14px 0; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
 .memu-diagram.failed { padding: 12px 14px; color: var(--muted); font-size: 13px; }
 .memu-diagram .md-stage { padding: 10px 12px 8px; overflow-x: auto; display: flex; justify-content: center; }
@@ -20,8 +18,6 @@
   font: 12.5px/1.5 var(--mono, Consolas, monospace); color: var(--text); background: color-mix(in srgb, var(--text) 3%, transparent); border-radius: 0 0 14px 14px; white-space: pre; }
 .md-code[hidden] { display: none; }
 .md-code-copy { position: sticky; float: right; top: 0; }
-
-/* streaming / loading placeholder */
 .memu-diagram-pending { display: flex; align-items: center; gap: 14px; margin: 14px 0; padding: 16px 18px; border: 1px dashed var(--border);
   border-radius: 14px; background: color-mix(in srgb, var(--panel) 70%, transparent); color: var(--muted); font-size: 13px; }
 .memu-diagram .memu-diagram-pending { margin: 0; border: 0; height: 100%; min-height: 120px; justify-content: center; }
@@ -33,16 +29,12 @@
 @keyframes md-grow { 0%, 100% { transform: scaleY(.45); opacity: .55; } 50% { transform: scaleY(1); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .mdp-art i { animation: none; } }
 :root[data-motion="off"] .mdp-art i { animation: none; }
-
-/* friendly error */
 .md-error { padding: 14px 16px; }
 .md-error-head { display: flex; align-items: center; gap: 8px; color: var(--text); font-size: 14px; }
 .md-error-head .mt-ic { color: #e5534b; }
 .md-error-msg { margin: 6px 0 10px; color: var(--muted); font-size: 13px; line-height: 1.45; word-break: break-word; }
 .md-error-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .memu-diagram.md-failed { border-color: color-mix(in srgb, #e5534b 40%, var(--border)); }
-
-/* Round 30: schemes are a viewport — readable size, pan and zoom inside the card (diagram-zoom.js) */
 .memu-diagram .md-stage.mdz { position: relative; display: block; padding: 0; overflow: hidden; border-radius: inherit; }
 .mdz-scroll { overflow: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text) 22%, transparent) transparent;
   border-radius: inherit; outline: none; }
@@ -59,7 +51,6 @@
   border: 1px solid var(--border); border-radius: 9px; background: color-mix(in srgb, var(--panel) 92%, transparent);
   box-shadow: 0 4px 14px rgba(0,0,0,.10); backdrop-filter: blur(6px);
   opacity: 0; transform: translateY(2px); pointer-events: none; transition: opacity .14s ease, transform .14s ease; }
-/* A scheme larger than its card shows the zoom (it says "there is more here"); a small one only on hover. */
 .memu-diagram:hover .mdz-ctl, .md-stage.mdz:focus-within .mdz-ctl, .md-full-stage .mdz-ctl, .mdz-pannable .mdz-ctl { opacity: 1; transform: none; pointer-events: auto; }
 @media (hover: none) { .mdz-ctl { opacity: 1; transform: none; pointer-events: auto; } }
 .mdz-ctl button { display: inline-grid; place-items: center; min-width: 26px; height: 26px; padding: 0 6px; border: 0; border-radius: 7px;
@@ -72,8 +63,6 @@
 .mdz-ctl .mdz-pct { min-width: 44px; color: var(--text); }
 .mdz-ctl i { width: 1px; height: 14px; margin: 0 3px; background: var(--border); }
 @media (prefers-reduced-motion: reduce) { .mdz-ctl { transition: none; } }
-
-/* fullscreen */
 .md-full .mt-modal { height: calc(100vh - 48px); }
 .md-full .mt-modal-body { padding: 0; overflow: hidden; }
 .md-full-stage { overflow: auto; flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -83,15 +72,11 @@
 .md-full-stage .mdz-ctl { right: 14px; bottom: 14px; }
 .md-full-stage .md-scheme svg { max-height: none; }
 .md-full-stage .md-bar { display: none; }
-
-/* studio */
 .md-pal-preview { display: flex; gap: 4px; }
 .md-pal-preview i { flex: 1; height: 10px; border-radius: 3px; }
 .md-studio .md-types { width: 100%; }
 .md-studio .md-types button { flex: 1 1 30%; }
 .mt-dg-side input[type=number] { width: 100%; }
-
-/* Quick Access window: compact */
 .qa-md .memu-diagram { margin: .4em 0 .9em; border-radius: 10px; }
 .qa-md .memu-diagram .md-stage { padding: 8px; }
 .qa-md .memu-diagram-pending { padding: 12px 14px; }

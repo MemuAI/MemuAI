@@ -22,7 +22,6 @@ sys.path.insert(0, str(ROOT))
 PGSTATIC = ROOT / "app" / "pgstatic"
 DESIGNS = ("classic", "aurora", "focus", "grid", "glass", "soft", "terminal", "brutal")
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or ""):
@@ -30,14 +29,12 @@ def _chromium() -> str:
             return candidate
     return ""
 
-
 def _playwright() -> bool:
     try:
         import playwright.sync_api  # noqa: F401
     except Exception:
         return False
     return True
-
 
 class Sources(unittest.TestCase):
     def test_cards_carry_name_and_full_description(self) -> None:
@@ -76,8 +73,6 @@ class Sources(unittest.TestCase):
         self.assertNotIn(".theme-studio label:has(input:focus-visible)", css)
         self.assertIn('.theme-studio label:has(input[type="radio"]:focus-visible)', css)
 
-
-# Contrast of the tooltip text on its own (opaque-composited) background, WCAG formula.
 CONTRAST_JS = """() => {
   const tip = document.getElementById('memu-tooltip');
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
@@ -96,7 +91,6 @@ CONTRAST_JS = """() => {
   return (hi + 0.05) / (lo + 0.05);
 }"""
 
-# Contrast of an element's text on the background composited from its ancestors (gradients ignored).
 ELEMENT_CONTRAST_JS = """(selector) => {
   const el = Array.from(document.querySelectorAll(selector)).find((node) => node.offsetParent);
   const canvas = document.createElement('canvas'); canvas.width = canvas.height = 1;
@@ -119,7 +113,6 @@ TIP_JS = """() => { const t = document.getElementById('memu-tooltip'); if (!t ||
   const r = t.getBoundingClientRect();
   return {text: t.querySelector('.memu-tooltip-text').innerText, left: r.left, right: r.right, top: r.top, bottom: r.bottom,
           width: r.width, vw: innerWidth, vh: innerHeight}; }"""
-
 
 @unittest.skipUnless(_chromium() and _playwright(), "Chromium / Playwright is not available")
 class SettingsTooltips(unittest.TestCase):
@@ -176,7 +169,7 @@ class SettingsTooltips(unittest.TestCase):
                 with self.subTest(lang=lang, design=design):
                     card = page.locator(f".design-option[data-design-card='{design}']")
                     card.evaluate("(el) => el.scrollIntoView({block: 'center'})")
-                    card.click()  # switching designs from the card itself, as the user does
+                    card.click()
                     page.wait_for_function(f"document.documentElement.dataset.design === '{design}'", timeout=5000)
                     page.mouse.move(0, 0)
                     time.sleep(0.15)
@@ -246,7 +239,7 @@ class SettingsTooltips(unittest.TestCase):
     def test_clipped_select_value_in_settings(self) -> None:
         page, _ = self.open_appearance("ru", width=860)
         page.evaluate("document.querySelector(\"[data-set-tab='search']\").click()")
-        # Round 29: the service name now fits at 860 px; a narrow select makes the clipping deterministic.
+
         page.add_style_tag(content=".sx-shell .settings-tab-pane.active .pretty-select-button { width: 150px !important;"
                                    " max-width: 150px !important; }")
         full = page.wait_for_function("""() => {
@@ -258,7 +251,6 @@ class SettingsTooltips(unittest.TestCase):
         tip = self.wait_tip(page)
         self.assertIsNotNone(tip, "the clipped search service name in its select shows in full")
         self.assertIn(full, tip["text"])
-
 
 if __name__ == "__main__":
     unittest.main()

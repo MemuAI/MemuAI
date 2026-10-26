@@ -30,7 +30,6 @@ STATIC = ROOT / "app" / "pgstatic"
 
 from app import module_appbar, module_apps, modules_host  # noqa: E402
 
-
 class _Events:
     def __init__(self):
         self.handlers = []
@@ -38,7 +37,6 @@ class _Events:
     def __iadd__(self, fn):
         self.handlers.append(fn)
         return self
-
 
 class FakeWindow:
     def __init__(self, title, url, **options):
@@ -56,7 +54,6 @@ class FakeWindow:
     def evaluate_js(self, script):
         self.scripts.append(script)
 
-
 class FakeWebview:
     def __init__(self):
         self.created = []
@@ -66,11 +63,9 @@ class FakeWebview:
         self.created.append(window)
         return window
 
-
 class FakeWin:
     def __getattr__(self, name):
         return lambda *a, **k: True
-
 
 class FakeController:
     def __init__(self, **kwargs):
@@ -97,7 +92,6 @@ class FakeController:
         self.mode = mode
         return self.state()
 
-
 class AppbarUnitTest(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp(prefix="r38host-"))
@@ -115,7 +109,7 @@ class AppbarUnitTest(unittest.TestCase):
         self.assertEqual(module_appbar.for_module("music", {"appbar": {"style": "custom", "color": "#101010"}})["color"], "#101010")
         for module_id in ("music", "characters", "translator", "studio", "design", "api-models", "benchmarks", "catalog"):
             self.assertIn(module_id, module_appbar.BUILTIN)
-        # Authored manifests keep a normalized appbar in window.
+
         self.assertEqual(modules_host.normalize_window({"appbar": {"style": "none"}})["appbar"]["style"], "none")
         self.assertNotIn("appbar", modules_host.normalize_window({}))
 
@@ -152,7 +146,7 @@ class AppbarUnitTest(unittest.TestCase):
         self.assertTrue(bridge.appbar_command("toggle"))
         self.assertTrue(bridge.appbar_system_menu("keyboard"))
         self.assertEqual(mgr.appbars["music"].calls, [("drag", "caption"), ("command", "toggle"), ("menu", "keyboard")])
-        # No titlebar_* names: the page's titlebar.js must stay off in a module window.
+
         self.assertFalse([name for name in dir(bridge) if name.startswith("titlebar_")])
         mgr._on_closed("music")
         self.assertNotIn("music", mgr.appbars)
@@ -209,13 +203,11 @@ class AppbarUnitTest(unittest.TestCase):
         client.post("/api/pg/module-apps/appbar", json={"id": "translator", "enabled": True})
         self.assertEqual(client.post("/api/pg/module-apps/appbar", json={"id": "../x", "enabled": True}).status_code, 400)
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", shutil.which("chromium") or ""):
         if candidate and Path(candidate).exists():
             return candidate
     return ""
-
 
 @unittest.skipUnless(_chromium(), "Chromium is not installed")
 class BrowserTest(unittest.TestCase):
@@ -300,7 +292,7 @@ class BrowserTest(unittest.TestCase):
         self._full_module(page)
         self.assertTrue(page.evaluate("() => document.getElementById('main-content').inert"))
         self.shot(page, "focus_on")
-        # Settings (opened by anything — here the app function) → the module steps aside.
+
         page.evaluate("() => { currentSettingsTab = 'modules'; showSettings(); }")
         self.wait(page, "MemuModules.windowState('translator').minimized")
         self.wait(page, "document.querySelector('[data-task=\"translator\"].is-focus-parked')")
@@ -308,7 +300,7 @@ class BrowserTest(unittest.TestCase):
         self.assertFalse(page.evaluate("() => document.getElementById('main-content').inert"))
         page.wait_for_timeout(400)
         self.shot(page, "focus_settings_parked")
-        # Closing the window brings the module back, still full screen.
+
         page.keyboard.press("Escape")
         self.wait(page, "!MemuModules.windowState('translator').minimized")
         self.wait(page, "MemuModules.windowState('translator').state === 'expanded'")
@@ -319,7 +311,7 @@ class BrowserTest(unittest.TestCase):
     def test_shortcut_inside_module_opens_search(self):
         page = self.page(lang="en", theme="dark")
         self._full_module(page)
-        # The bridge forwards an unhandled Ctrl+K from the module frame (memu-module-key → replayKey).
+
         page.evaluate("() => MemuModuleFocus.replayKey('translator', {key: 'k', code: 'KeyK', ctrlKey: true})")
         self.wait(page, "window.MemuSearch && MemuSearch.isOpen()")
         self.wait(page, "MemuModules.windowState('translator').minimized")
@@ -332,7 +324,7 @@ class BrowserTest(unittest.TestCase):
     def test_click_on_sidebar_parks_without_auto_return(self):
         page = self.page()
         self._full_module(page)
-        # An empty part of the sidebar (a module launcher would just bring its module back).
+
         box = page.evaluate("() => { const l = document.querySelector('#group-chats .side-label'); l.scrollIntoView({block: 'center'}); const r = l.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; }")
         page.mouse.click(box[0], box[1])
         self.wait(page, "MemuModules.windowState('translator').minimized")
@@ -371,7 +363,7 @@ class BrowserTest(unittest.TestCase):
             self.assertEqual(info["wcRight"], info["width"], "window buttons flush with the right edge")
             self.assertEqual(info["style"], "transparent" if module_id == "music" else "auto")
             self.shot(page, f"appbar_{module_id}_{lang}")
-            # Empty bar → native move; double press → maximize; buttons → commands.
+
             page.mouse.move(420, 14)
             page.mouse.down(); page.mouse.up()
             page.evaluate("() => document.querySelector('.mab-maximize').click()")
@@ -380,7 +372,7 @@ class BrowserTest(unittest.TestCase):
             self.assertIn("appbar_drag:caption", calls)
             self.assertIn("appbar_command:toggle", calls)
             self.assertTrue(page.evaluate("() => document.querySelector('.mab-maximize').classList.contains('is-maximized')"))
-            # A double press on the empty bar toggles maximize (and never toggles the in-MemuAI sheet).
+
             sheet = page.evaluate("() => document.querySelector('.module-window').dataset.full || ''")
             page.mouse.dblclick(420, 14)
             page.wait_for_timeout(250)
@@ -389,7 +381,6 @@ class BrowserTest(unittest.TestCase):
             self.assertEqual(page.evaluate("() => document.querySelector('.module-window').dataset.full || ''"), sheet)
             if lang == "en":
                 self.assertEqual(page.evaluate("() => document.querySelector('.mab-close').title"), "Close")
-
 
 if __name__ == "__main__":
     unittest.main()

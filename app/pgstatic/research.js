@@ -1,13 +1,5 @@
-/* MemuAI Deep Research — клиентская часть.
- *
- * Сервер (/api/pg/research, app/deep_research.py) планирует исследование,
- * ищет, читает источники и присылает поток событий. Здесь они собираются в
- * состояние сообщения ассистента (m.research), которое app.js рисует
- * одним шагом дорожки активности, а готовое досье уходит основной модели,
- * и доклад пишется обычным потоковым ответом.
- *
- * Ссылки вида [3] в докладе превращаются в кликабельные сноски на источники.
- */
+
+
 "use strict";
 const MemuResearch = (() => {
   const en = () => PG_LANG === "en";
@@ -80,9 +72,6 @@ const MemuResearch = (() => {
     }
   }
 
-  /* Исследование, которое уже никто не ведёт (окно перезагрузили, MemuAI перезапустили посреди
-   * работы): карточка оставалась «выполняется» с вечным счётчиком времени. Теперь — «остановлено»,
-   * время — до последнего события. Возвращает true, если состояние изменилось. */
   function settle(r) {
     if (!r || r.status !== "running") return false;
     r.status = "cancelled";
@@ -90,7 +79,6 @@ const MemuResearch = (() => {
     return true;
   }
 
-  /* Контекст беседы для планировщика: последние реплики без служебных. */
   function conversationContext(messages, assistant) {
     const rows = [];
     for (const m of messages || []) {
@@ -128,7 +116,7 @@ const MemuResearch = (() => {
       }
       if (event.type === "done") { result = event; continue; }
       apply(r, event);
-      // Сотни событий за раунд: перерисовываем не чаще 6 раз в секунду.
+
       const now = performance.now();
       if (now - lastPaint > 160 || event.type === "phase" || event.type === "plan") { lastPaint = now; onUpdate?.(); }
     }
@@ -140,13 +128,12 @@ const MemuResearch = (() => {
     r.stats = result.stats || r.stats;
     r.review = result.review && Object.keys(result.review).length ? { ...(r.review || {}), ...result.review } : r.review;
     r.cited = (result.sources || []).map((s) => ({ n: s.n, title: s.title, url: s.url, domain: s.domain, date: s.date }));
-    // Рабочие номера источников больше не нужны: оставляем компактную сводку.
+
     r.sources = r.sources.map(({ n, domain, status, relevance }) => ({ n, domain, status, relevance }));
     onUpdate?.();
     return result;
   }
 
-  /* ------------------------------------------------------------ рендер */
   function favicon(domain) {
     const letter = String(domain || "?").replace(/^www\./, "").charAt(0).toUpperCase() || "?";
     let hash = 0;
@@ -156,8 +143,7 @@ const MemuResearch = (() => {
 
   function progress(r) {
     if (r.status !== "running") return 100;
-    // Сколько раундов понадобится, заранее неизвестно: каждый следующий
-    // раунд немного продвигает полосу, но не доводит её до конца.
+
     const rounds = Math.max(1, r.round || 1);
     const base = { planning: 4, searching: 12, reading: 30, analyzing: 52, reviewing: 72, writing: 92 }[r.phase] || 4;
     return Math.min(96, base + Math.min(16, (rounds - 1) * 5));
@@ -231,7 +217,6 @@ const MemuResearch = (() => {
     });
   }
 
-  /* [3] и [2][5] в докладе → сноски-ссылки на источники исследования. */
   function linkCitations(html, m) {
     const cited = m?.research?.cited;
     if (!cited?.length) return html;

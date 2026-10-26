@@ -1,13 +1,5 @@
-/* MemuAI · Settings → «Синхронизация» / «Sync» (Round 29).
 
-   Backups of all MemuAI data to Google Drive (Drive API, OAuth loopback + PKCE) or to any
-   local folder (e.g. the «Google Drive for desktop» folder): schedule, categories, versions,
-   encryption, restore with a safety copy. Backend: app/gdrive_sync*.py, routes /api/pg/sync/*.
 
-   app.js mounts it like Reflect: settingsPages() has the page «sync» when window.MemuSync
-   exists; the pane calls MemuSync.html(ctx) when the settings render and MemuSync.mount(ctx)
-   when the page is shown. Everything is drawn with the settings kit (window.MemuSettingsKit);
-   one delegated listener on #sync-root handles every control, so re-rendering is cheap. */
 (function () {
   "use strict";
 
@@ -38,15 +30,15 @@
   };
   const ico = (name) => `<span class="ui-icon" aria-hidden="true">${SVG[name] || ""}</span>`;
 
-  let ctx = null;            // { en, api, toast, kit, openPage }
-  let st = null;             // last /api/pg/sync/status
-  let stats = null;          // /api/pg/sync/stats
-  let snaps = null;          // /api/pg/sync/snapshots
+  let ctx = null;
+  let st = null;
+  let stats = null;
+  let snaps = null;
   let snapsError = "";
   let safety = [];
   let folders = null;
   let pollTimer = 0;
-  let restoreSel = null;     // { kind: "snapshot"|"file", id|token, header, categories, chosen:Set, mirror, passphrase, needPass }
+  let restoreSel = null;
   let busyAction = "";
 
   const kit = () => (ctx && ctx.kit) || window.MemuSettingsKit;
@@ -69,7 +61,6 @@
     try { if (ctx && ctx.toast) ctx.toast(text, type); else if (typeof toast === "function") toast(text, type); } catch (e) {}
   };
 
-  /* ------------------------------------------------------------ format */
   function bytes(n) {
     const v = Number(n) || 0;
     const units = isEn() ? ["B", "KB", "MB", "GB", "TB"] : ["Б", "КБ", "МБ", "ГБ", "ТБ"];
@@ -100,13 +91,13 @@
     const d = Math.round(h / 24);
     return d === 1 ? L("завтра", "tomorrow") : L(`через ${d} ${ruPlural(d, "день", "дня", "дней")}`, `in ${d} days`);
   }
-  // r29c: «33 файлов» → «33 файла» (Russian plural forms).
+
   const ruPlural = (n, one, few, many) => { const t = n % 100, u = n % 10; return t > 10 && t < 20 ? many : u === 1 ? one : u >= 2 && u <= 4 ? few : many; };
   function nFiles(n) {
     n = Number(n) || 0;
     return isEn() ? (n === 1 ? "1 file" : `${n} files`) : `${n} ${ruPlural(n, "файл", "файла", "файлов")}`;
   }
-  // A long folder path in the hero broke mid-word over three lines: show the folder's last two parts.
+
   const shortTarget = (t) => { const parts = String(t || "").split(/[\\/]+/).filter(Boolean); return parts.length > 2 ? "…" + (String(t).includes("\\") ? "\\" : "/") + parts.slice(-2).join(String(t).includes("\\") ? "\\" : "/") : String(t || ""); };
   function when(ts, seconds) {
     if (!ts) return "";
@@ -135,15 +126,13 @@
   const settings = () => (st && st.settings) || {};
   const catName = (id) => { const c = ((st && st.categories) || []).find((row) => row.id === id); return c ? (isEn() ? c.en : c.ru) : id; };
 
-  /* ------------------------------------------------------------ render */
   function hero() {
     const s = settings();
     const running = st && st.running;
     const err = st && st.last_error;
     const ready = s.target === "folder" ? !!s.folder_path : !!(st && st.connected);
     let tone = "idle", title, text = "", iconName = "cloud";
-    // r29c: access revoked in the Google account — the token is forgotten, say why and offer to reconnect
-    // instead of the neutral «Nowhere to store backups yet».
+
     const lostAccess = !running && !ready && s.target !== "folder" && err && ["invalid_grant", "scope"].includes(err.code);
     if (running) {
       tone = "busy"; iconName = "upload";
@@ -347,7 +336,6 @@
     </div>`;
   }
 
-  // Two backups within one minute looked identical in the list: show seconds then.
   const sameMinute = (row) => ((snaps && snaps.snapshots) || []).some((o) => o !== row && Math.floor((o.created_ts || 0) / 60) === Math.floor((row.created_ts || 0) / 60));
   function snapRow(row) {
     const st_ = row.stats || {};
@@ -418,7 +406,6 @@
       ${safetyRows ? `<h4 class="sync-subhead">${esc(L("Страховочные копии", "Safety copies"))}</h4><p class="sync-muted">${esc(L("Данные, какими они были перед каждым восстановлением (последние 5).", "Your data as it was before each restore (last 5)."))}</p>${safetyRows}` : ""}`;
   }
 
-  /* ------------------------------------------------------------- data */
   async function loadStatus() {
     try { st = await call("/api/pg/sync/status"); } catch (e) { st = st || null; }
     return st;
@@ -453,7 +440,7 @@
     const fresh = tmp.firstElementChild;
     node.replaceWith(fresh);
     if (openSub) {
-      // Keep the open sub-page open (the kit's openSub() would fire sx:sub and reload the list).
+
       const sub = fresh.querySelector(`.sx-sub[data-sx-sub="${openSub}"]`);
       if (sub) {
         sub.hidden = false;
@@ -521,7 +508,6 @@
     }
   }
 
-  /* ------------------------------------------------------------- events */
   function bind(node) {
     if (!node || node.dataset.bound) return;
     node.dataset.bound = "1";
@@ -571,7 +557,6 @@
     try { await fn(); } catch (error) { say(error.message || String(error), "error"); } finally { busyAction = ""; }
   }
 
-  /* A small confirm dialog of its own: the app's askConfirm() stacks panels over Settings. */
   function confirmBox(text, okText, danger) {
     return new Promise((resolve) => {
       const opener = document.activeElement;
@@ -754,7 +739,6 @@
     }
   }
 
-  /* -------------------------------------------------------------- api */
   function html(context) {
     ctx = context || ctx || {};
     return render();

@@ -17,19 +17,15 @@ from typing import List, Optional, Tuple
 from .i18n import tr
 from .tools.shell import split_commands
 
-#: Folders that a build makes again: routine to delete.
 DISPOSABLE = {"node_modules", "dist", "build", "out", "target", "coverage", ".next", ".nuxt", ".svelte-kit", ".turbo",
               ".cache", ".parcel-cache", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".tox",
               ".gradle", "bin", "obj", "tmp", "temp", ".venv", "venv", ".eggs", "htmlcov", ".angular"}
 
-#: Every ``[^…]{0,N}`` below is bounded on purpose: an open-ended ``[^|;&]*`` after a word that occurs thousands of times
-#: (``curl curl curl …``) made the check take seconds — the person would have seen a frozen screen.
 _QUOTED = re.compile(r"\"[^\"]*\"|'[^']*'")
 _Rule = Tuple["re.Pattern[str]", Tuple[str, str]]
-#: Options that may stand between ``git`` and its command: ``-C repo``, ``-c key=value``, ``--no-pager``.
+
 _GIT_OPTIONS = r"(?:(?:-[cC]|--git-dir|--work-tree|--namespace)(?:=|\s+)\S+\s+|-\S+\s+)*"
 
-#: Tools whose flags are case-sensitive (git, curl): matched against the command as written.
 _EXACT: List[_Rule] = [
     (re.compile(r"\bgit\s+" + _GIT_OPTIONS + r"push\b"), ("отправляет коммиты на удалённый сервер", "pushes commits to a remote")),
     (re.compile(r"\bgit\s+" + _GIT_OPTIONS + r"(?:reset\s+--hard|clean\s+-\w*[fx]|checkout\s+(?:--\s+)?\.(?:\s|$)|"
@@ -41,7 +37,6 @@ _EXACT: List[_Rule] = [
      ("отправляет данные в интернет", "sends data to a web service")),
 ]
 
-#: Everything else is matched on the lower-cased command (PowerShell and cmd do not care about case).
 _LOOSE: List[_Rule] = [
     (re.compile(r"\b(?:npm|pnpm|yarn|bun)\s+publish\b|\bcargo\s+publish\b|\btwine\s+upload\b|\bdocker\s+push\b|"
                 r"\bnuget\s+push\b|\b(?:vsce|ovsx)\s+publish\b|\bgem\s+push\b|\bgh\s+(?:release\s+(?:create|delete)|"
@@ -67,7 +62,6 @@ _LOOSE: List[_Rule] = [
      ("читает или копирует секреты", "reads or copies secrets")),
 ]
 
-#: Rules that cross a pipe, so they look at the whole command line rather than at one part of it.
 _WHOLE: List[_Rule] = [
     (re.compile(r"\b(?:curl|wget|iwr|irm|invoke-webrequest|invoke-restmethod)\b[^;&]{0,600}\|\s*(?:sudo\s+)?"
                 r"(?:sh|bash|zsh|dash|python3?|node|perl|ruby|pwsh|powershell|iex|invoke-expression)\b"),
@@ -78,7 +72,6 @@ _DELETE = re.compile(r"^(?:rm|del|erase|rd|rmdir|remove-item|ri)\b", re.I)
 _RECURSIVE = re.compile(r"(?:^|\s)(?:-[a-z]*r[a-z]*|--recursive|/s|-recurse)(?=\s|$)", re.I)
 _WINDOWS_FLAGS = {"/s", "/q", "/f", "/a"}
 
-#: Files whose change reaches beyond the code: secrets, the repository's own data, what runs code later.
 _PATHS: List[_Rule] = [
     (re.compile(r"(?:^|/)\.git/"), ("внутренности репозитория git", "the git repository's own data")),
     (re.compile(r"(?:^|/)\.env(?:\.(?!example$|sample$|template$|dist$)[\w.-]+)?$"),
@@ -95,7 +88,6 @@ _PATHS: List[_Rule] = [
      ("CI и хуки: выполняют код с секретами", "CI and hooks: they run code with secrets")),
 ]
 
-
 def _disposable(target: str) -> bool:
     """A delete target that is plainly a build leftover inside the project: ``node_modules``, ``./dist/``, ``build/x``."""
     text = target.strip().strip("\"'").replace("\\", "/")
@@ -106,20 +98,18 @@ def _disposable(target: str) -> bool:
     parts = [piece for piece in text.split("/") if piece and piece != "."]
     return bool(parts) and parts[0].lower() in DISPOSABLE
 
-
 def _recursive_delete(part: str) -> Optional[str]:
     """Why a recursive delete is not routine, or None when it only removes build leftovers."""
     if not _DELETE.match(part.strip()) or not _RECURSIVE.search(part):
         return None
     try:
-        words = shlex.split(part, posix=False)            # keeps Windows backslashes in paths
+        words = shlex.split(part, posix=False)
     except ValueError:
         words = part.split()
     targets = [word for word in words[1:] if not word.startswith("-") and word.lower() not in _WINDOWS_FLAGS]
     if targets and all(_disposable(target) for target in targets):
         return None
     return tr("удаляет папки целиком", "deletes whole folders")
-
 
 def risky_command(command: str) -> str:
     """Why a shell command always needs the person's word in Auto mode — "" when it is not on the list."""
@@ -143,7 +133,6 @@ def risky_command(command: str) -> str:
                 return tr(ru, en)
     return ""
 
-
 def risky_path(path: str) -> str:
     """Why a change to this file always needs the person's word in Auto mode — "" when it is not on the list."""
     target = str(path or "").replace("\\", "/")
@@ -151,7 +140,6 @@ def risky_path(path: str) -> str:
         if pattern.search(target):
             return tr(ru, en)
     return ""
-
 
 def risky_reason(tool_name: str, kind: str, key: str) -> str:
     """The reason (in the current language) a call is never cleared by the judge, or "" when the judge may decide."""

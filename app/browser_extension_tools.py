@@ -1,14 +1,12 @@
 """Readable browser actions and one confirmation for a set of tab closures."""
 from __future__ import annotations
 
-
 def tab_ids(values):
     if not isinstance(values, list) or not values or len(values) > 250:
         raise ValueError("Укажите от 1 до 250 вкладок")
     if any(isinstance(value, bool) or not isinstance(value, int) or value <= 0 for value in values):
         raise ValueError("Нужны корректные идентификаторы вкладок")
     return list(dict.fromkeys(values))
-
 
 def group_closures(calls):
     result, pending = [], []
@@ -32,7 +30,6 @@ def group_closures(calls):
     flush()
     return result
 
-
 async def prepare_close(args):
     from .browser_extension import bridge
     ids = tab_ids(args.get("tab_ids") if "tab_ids" in args else [args.get("tab_id")])
@@ -50,7 +47,6 @@ async def prepare_close(args):
         if any(old.get(row["tab_id"]) != row["url"] for row in tabs):
             raise ValueError("Вкладка перешла на другую страницу. Требуется новое подтверждение")
     return {**args, "tab_ids": ids, "_expected_tabs": tabs}, tabs
-
 
 def presentation(name, args, tabs=None):
     titles = {"chrome_tabs": "Список вкладок", "chrome_read": "Читаю страницу", "chrome_screenshot": "Снимок страницы",

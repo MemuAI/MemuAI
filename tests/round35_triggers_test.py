@@ -29,7 +29,6 @@ os.environ.setdefault("NO_PROXY", "127.0.0.1,localhost")
 from app import schedule_rules as rules  # noqa: E402
 from app import schedule_triggers_ext as ext  # noqa: E402
 
-
 @pytest.fixture(autouse=True)
 def fresh(tmp_path, monkeypatch):
     from app import pgdata
@@ -42,12 +41,8 @@ def fresh(tmp_path, monkeypatch):
     yield tmp_path
     ext._INFLIGHT.clear()
 
-
 def N(**raw):
     return ext.normalize({"type": "watch", **raw})
-
-
-# --------------------------------------------------------------------------- normalization & text
 
 ALL_VALID = [
     dict(source="gmail", query="from:bank.ru"),
@@ -72,10 +67,9 @@ ALL_VALID = [
     dict(source="proxy_model", match="claude"),
     dict(source="folder_file", path="%USERPROFILE%\\Downloads", pattern="*.pdf"),
     dict(source="system", metric="ram_pct", op="gt", value=90),
-    dict(source="weather", metric="temp", op="lt", value=0, lat=55.75, lon=37.62, place="Moscow"),   # r37 plan-2
+    dict(source="weather", metric="temp", op="lt", value=0, lat=55.75, lon=37.62, place="Moscow"),
     dict(source="all", within=30, items=[dict(source="gmail", query="a"), dict(source="github_pr", repo="a/b")]),
 ]
-
 
 def test_every_source_normalizes_and_reads_well():
     seen = set()
@@ -88,7 +82,6 @@ def test_every_source_normalizes_and_reads_well():
         assert not re.search(r"[А-Яа-яЁё]", en.replace("счёт", "").replace("созвон", "").replace("Заявки", "")
                              .replace("В наличии", "")), en
     assert seen == set(ext.SOURCES), set(ext.SOURCES) - seen
-
 
 def test_normalize_cleans_and_rejects():
     assert N(source="github_pr", repo="https://github.com/octo/hello.git")["repo"] == "octo/hello"
@@ -112,25 +105,20 @@ def test_normalize_cleans_and_rejects():
         with pytest.raises(rules.RuleError):
             N(**raw)
 
-
 def test_rule_with_watch_is_event_only_and_keys_are_stable():
     rule = rules.normalize_rule({"when": [{"type": "watch", "source": "gmail", "query": "from:bank"}]})
     assert not rules.has_time_triggers(rule) and rules.has_event_triggers(rule)
     assert rules.preview(rule, time.time(), 3) == []
     assert rules.summary(rule, "ru").startswith("Когда придёт письмо")
     t = rule["when"][0]
-    assert ext.watch_key("a", t) == ext.watch_key("a", dict(t, every=10, delay=3))   # poll options keep the cursor
+    assert ext.watch_key("a", t) == ext.watch_key("a", dict(t, every=10, delay=3))
     assert ext.watch_key("a", t) != ext.watch_key("a", dict(t, query="from:other"))
-
 
 def test_parse_number():
     cases = {"1 234,5 ₽": 1234.5, "-3.2%": -3.2, "92,15": 92.15, "1,234.5": 1234.5, "1.234,5": 1234.5, 42: 42.0,
              "−7": -7.0, "abc": None, "": None, None: None}
     for raw, want in cases.items():
         assert ext.parse_number(raw) == want, raw
-
-
-# --------------------------------------------------------------------------- comparison & hysteresis
 
 def test_threshold_hysteresis_fires_once_per_crossing():
     cfg = {"op": "gt", "value": 100.0, "hysteresis": 5.0, "initial": True}
@@ -139,7 +127,7 @@ def test_threshold_hysteresis_fires_once_per_crossing():
         fire, cur = ext.threshold_step(cfg, v, cur)
         fires.append(fire)
     assert fires == [False, True, False, False, False, False, True, False]
-    # initial = true: already above → fires on the first look; false → waits for a fresh crossing
+
     assert ext.threshold_step(cfg, 150, None)[0] is True
     cfg2 = dict(cfg, initial=False)
     fire, cur = ext.threshold_step(cfg2, 150, None)
@@ -149,14 +137,14 @@ def test_threshold_hysteresis_fires_once_per_crossing():
     fire, cur = ext.threshold_step(cfg2, 90, cur)
     fire, cur = ext.threshold_step(cfg2, 120, cur)
     assert fire is True
-    # «below» with hysteresis
+
     low = {"op": "lt", "value": 10.0, "hysteresis": 2.0, "initial": True}
     cur, out = None, []
     for v in [15, 9, 8, 11, 13, 9]:
         f, cur = ext.threshold_step(low, v, cur)
         out.append(f)
     assert out == [False, True, False, False, False, True]
-    # «changed» never fires on the baseline; a hysteresis ignores tiny moves
+
     ch = {"op": "changed", "hysteresis": 1.0}
     f, cur = ext.threshold_step(ch, "10", None)
     assert f is False
@@ -164,7 +152,7 @@ def test_threshold_hysteresis_fires_once_per_crossing():
     assert f is False
     f, cur = ext.threshold_step(ch, "11.2", cur)
     assert f is True
-    # text operators
+
     t = {"op": "contains", "value": "в наличии", "initial": True}
     f, cur = ext.threshold_step(t, "Нет в продаже", None)
     assert f is False
@@ -173,12 +161,9 @@ def test_threshold_hysteresis_fires_once_per_crossing():
     f, cur = ext.threshold_step(t, "Товар В наличии!", cur)
     assert f is False
 
-
-# --------------------------------------------------------------------------- fake integrations
-
 class FakeGoogle:
     def __init__(self):
-        self.messages = []          # [(id, subject, from)]
+        self.messages = []
         self.events = []
         self.sheet = [["Имя", "Email"], ["Аня", "a@x.ru"]]
         self.cell = "5"
@@ -204,7 +189,6 @@ class FakeGoogle:
             return {"files": list(self.files)}
         raise AssertionError(url)
 
-
 def test_gmail_baseline_then_only_new(monkeypatch):
     g = FakeGoogle()
     monkeypatch.setattr(ext, "google", g)
@@ -220,19 +204,17 @@ def test_gmail_baseline_then_only_new(monkeypatch):
     assert len(r3.events) == 1 and r3.events[0]["count"] == 2
     assert r3.events[0]["title"].startswith("Выписка") and "ещё 1" in r3.events[0]["title"]
     assert r3.events[0]["from"] == "Банк <bank@x.ru>" and r3.events[0]["url"].endswith("m2")
-    assert ext.poll_source(cfg, r3.cursor, "ru").events == []        # no duplicates
+    assert ext.poll_source(cfg, r3.cursor, "ru").events == []
     each = N(source="gmail", query="from:bank", each=True)
     g.messages += [("m4", "A", "b"), ("m5", "B", "b")]
     r4 = ext.poll_source(each, r3.cursor, "en")
     assert [e["title"] for e in r4.events] == ["A", "B"]
-
 
 def _ev(eid, start_ts, title="Встреча", **extra):
     iso = time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(start_ts))
     return {"id": eid, "summary": title, "start": {"dateTime": iso}, "end": {"dateTime": iso},
             "htmlLink": "https://cal/" + eid, "updated": extra.pop("updated", "2026-01-01T00:00:00Z"),
             "created": extra.pop("created", "2026-01-01T00:00:00Z"), **extra}
-
 
 def test_calendar_minutes_before_fires_once_with_hint(monkeypatch):
     g = FakeGoogle()
@@ -244,14 +226,13 @@ def test_calendar_minutes_before_fires_once_with_hint(monkeypatch):
     r = ext.poll_source(cfg, None, "ru", now)
     assert [e["title"] for e in r.events] == ["Скоро"]
     assert r.events[0]["minutes_left"] == 9 and r.events[0]["source"] == "calendar_before"
-    assert r.next_check and r.next_check <= now + 10 * 60 + 1          # the list refresh (every 10 min) or the next mark
+    assert r.next_check and r.next_check <= now + 10 * 60 + 1
     r2 = ext.poll_source(cfg, r.cursor, "ru", now + 60)
-    assert r2.events == []                               # cached list, no refetch, no duplicate
+    assert r2.events == []
     calls = len(g.calls)
     r3 = ext.poll_source(cfg, r2.cursor, "ru", now + 20 * 60 + 5)
     assert [e["title"] for e in r3.events] == ["Созвон"] and r3.events[0]["meet"] == "https://meet/x"
     assert len(g.calls) >= calls
-
 
 def test_calendar_created_and_changed(monkeypatch):
     g = FakeGoogle()
@@ -271,7 +252,6 @@ def test_calendar_created_and_changed(monkeypatch):
     assert [e["title"] for e in rc2.events] == ["Новая"]
     assert [e["title"] for e in rh2.events] == ["Перенесли"]
     assert ext.poll_source(changed, rh2.cursor, "ru", later + 60).events == []
-
 
 class FakeGitHub:
     def __init__(self):
@@ -294,7 +274,6 @@ class FakeGitHub:
             return {"items": list(self.reviews)}
         raise AssertionError(path)
 
-
 def test_github_sources(monkeypatch):
     gh = FakeGitHub()
     monkeypatch.setattr(ext, "github", gh)
@@ -307,7 +286,7 @@ def test_github_sources(monkeypatch):
     r2 = ext.poll_source(cfg, r.cursor)
     assert r2.events[0]["number"] == 7 and r2.events[0]["author"] == "bob" and r2.events[0]["labels"] == ["bug"]
     assert ext.poll_source(cfg, r2.cursor).events == []
-    # Actions: only failures newer than the baseline
+
     run = lambda i, c, name="CI": {"id": i, "name": name, "head_branch": "main", "conclusion": c, "html_url": f"https://gh/run/{i}",  # noqa: E731
                                    "head_commit": {"message": f"commit {i}"}, "actor": {"login": "bob"}, "head_sha": "abc"}
     gh.runs = [run(10, "failure")]
@@ -317,7 +296,7 @@ def test_github_sources(monkeypatch):
     gh.runs = [run(12, "failure"), run(11, "success"), run(13, "failure", "Deploy"), run(10, "failure")]
     ra2 = ext.poll_source(acfg, ra.cursor)
     assert [e["id"] for e in ra2.events] == ["12"] and ra2.events[0]["commit"] == "commit 12"
-    # releases, PR, review
+
     gh.releases = [{"id": 1, "tag_name": "v1"}]
     rr = ext.poll_source(N(source="github_release", repo="o/r"), None)
     gh.releases = [{"id": 2, "tag_name": "v2", "name": "Версия 2", "body": "notes"}, {"id": 3, "tag_name": "v3", "draft": True}, {"id": 1, "tag_name": "v1"}]
@@ -327,7 +306,6 @@ def test_github_sources(monkeypatch):
     gh.reviews.insert(0, {"id": 101, "number": 2, "title": "Посмотри", "repository_url": "https://api/repos/o/r", "html_url": "u"})
     ev = ext.poll_source(N(source="github_review"), rv.cursor).events
     assert ev[0]["title"] == "Посмотри" and ev[0]["repo"] == "o/r"
-
 
 def test_sheets_rows_cells_and_drive(monkeypatch):
     g = FakeGoogle()
@@ -347,7 +325,7 @@ def test_sheets_rows_cells_and_drive(monkeypatch):
     g.cell = "12,5"
     rc2 = ext.poll_source(cell, rc.cursor)
     assert rc2.events and rc2.events[0]["value"] == "12,5" and rc2.events[0]["previous"] == "5"
-    # Drive
+
     drive = N(source="drive_file", folder="1FolderIdXYZ123")
     rd = ext.poll_source(drive, None, now=time.time())
     g.files = [{"id": "f1", "name": "Счёт.pdf", "createdTime": "2030-01-01T00:00:00Z", "webViewLink": "https://d/f1"}]
@@ -356,7 +334,6 @@ def test_sheets_rows_cells_and_drive(monkeypatch):
     q = g.calls[-1][2]["q"]
     assert "'1FolderIdXYZ123' in parents" in q and "createdTime >" in q
     assert ext.poll_source(drive, rd2.cursor, now=time.time() + 120).events == []
-
 
 def test_notion_page_and_database(monkeypatch):
     state = {"edited": "2026-10-01T10:00:00.000Z", "rows": []}
@@ -384,13 +361,11 @@ def test_notion_page_and_database(monkeypatch):
     assert [e["title"] for e in rd2.events] == ["Задача"]
     assert ext.poll_source(db, rd2.cursor, now=now + 120).events == []
 
-
 RSS = """<?xml version="1.0"?><rss><channel><title>T</title>
 <item><title>Первая</title><link>https://x/1</link><guid>1</guid><description>&lt;b&gt;о python&lt;/b&gt;</description></item>
 {extra}</channel></rss>"""
 PAGE = """<html><body><div id="price"><span class="v">1 000 ₽</span></div><ul class="stock"><li>Нет в наличии</li></ul>
 <script>var x = 1;</script></body></html>"""
-
 
 def test_rss_and_web_page(monkeypatch):
     pages = {"https://x/feed": RSS.format(extra=""), "https://shop/p": PAGE}
@@ -402,7 +377,7 @@ def test_rss_and_web_page(monkeypatch):
                                          "<item><title>Без слова</title><guid>3</guid></item>")
     r2 = ext.poll_source(feed, r.cursor)
     assert [e["title"] for e in r2.events] == ["Вторая про Python"]
-    # selector diff
+
     web = N(source="web_page", url="https://shop/p", selector="#price .v")
     w = ext.poll_source(web, None)
     assert w.events == []
@@ -410,7 +385,7 @@ def test_rss_and_web_page(monkeypatch):
     w2 = ext.poll_source(web, w.cursor)
     assert w2.events and "900 ₽" in w2.events[0]["added"] and "1 000 ₽" in w2.events[0]["removed"]
     assert ext.poll_source(web, w2.cursor).events == []
-    # text appears
+
     stock = N(source="web_page", url="https://shop/p", selector="ul.stock > li", mode="contains", text="Есть в наличии")
     s1 = ext.poll_source(stock, None)
     assert s1.events == []
@@ -418,10 +393,9 @@ def test_rss_and_web_page(monkeypatch):
     s2 = ext.poll_source(stock, s1.cursor)
     assert s2.events and s2.events[0]["source"] == "web_page" and "Есть в наличии" in s2.events[0]["title"]
     assert ext.poll_source(stock, s2.cursor).events == []
-    # a selector that matches nothing is a config error the UI shows
+
     with pytest.raises(ext.SourceError):
         ext.poll_source(N(source="web_page", url="https://shop/p", selector="#missing"), None)
-
 
 def test_css_select_subset():
     html = '<div class="a b" id="x"><p>one</p><section><p data-k="1">two</p></section></div><p>three</p>'
@@ -430,13 +404,11 @@ def test_css_select_subset():
     assert ext.select(html, "p[data-k=1]") == ["two"]
     assert ext.select(html, "p") == ["one", "two", "three"]
 
-
 def test_public_host_guard():
     with pytest.raises(ext.SourceError):
         ext._public_host("127.0.0.1")
     with pytest.raises(ext.SourceError):
         ext._public_host("192.168.1.1")
-
 
 def test_panel_quota_models_system(monkeypatch):
     panels = {"p_abcdef12": {"id": "p_abcdef12", "title": "Курс USD", "data": {"rate": "92,5 ₽", "trend": "up"},
@@ -451,11 +423,11 @@ def test_panel_quota_models_system(monkeypatch):
     panels["p_abcdef12"]["data"]["rate"] = "94,5"
     r3 = ext.poll_source(cfg, r2.cursor)
     panels["p_abcdef12"]["data"]["rate"] = "96"
-    assert ext.poll_source(cfg, r3.cursor).events == []          # 94.5 > 95 - 1 → not re-armed
+    assert ext.poll_source(cfg, r3.cursor).events == []
     assert ext.panel_fields(panels["p_abcdef12"])[0]["key"] == "rate"
     with pytest.raises(ext.SourceError):
         ext.poll_source(N(source="panel", panel="p_gone0000", key="rate", op="changed"), None)
-    # quota: fires per account once until it is ok again
+
     accounts = [{"id": "a1", "name": "Claude", "status": "ok", "score": 0.9}]
     monkeypatch.setattr(ext, "_quota_accounts", lambda: accounts)
     q = N(source="quota_low", level="runs_out")
@@ -465,7 +437,7 @@ def test_panel_quota_models_system(monkeypatch):
     rq2 = ext.poll_source(q, rq.cursor)
     assert rq2.events and rq2.events[0]["account"] == "a1"
     assert ext.poll_source(q, rq2.cursor).events == []
-    # models
+
     models = ["a", "claude-4"]
     monkeypatch.setattr(ext, "proxy_models", lambda: list(models))
     m = N(source="proxy_model", match="claude")
@@ -474,7 +446,7 @@ def test_panel_quota_models_system(monkeypatch):
     rm2 = ext.poll_source(m, rm.cursor)
     assert rm2.events[0]["models"] == ["claude-5"]
     assert ext.poll_source(m, rm2.cursor).events == []
-    # system metric
+
     values = iter([50.0, 95.0, 96.0])
     monkeypatch.setattr(ext, "system_metric", lambda metric, drive="": next(values))
     s = N(source="system", metric="ram_pct", op="gt", value=90)
@@ -482,7 +454,6 @@ def test_panel_quota_models_system(monkeypatch):
     b = ext.poll_source(s, a.cursor)
     c = ext.poll_source(s, b.cursor)
     assert (a.events, bool(b.events), c.events) == ([], True, [])
-
 
 def test_folder_new_file_waits_until_written(tmp_path):
     folder = tmp_path / "in"
@@ -497,13 +468,12 @@ def test_folder_new_file_waits_until_written(tmp_path):
     os.utime(new, (now - 10, now - 10))
     (folder / "skip.txt").write_text("x")
     r2 = ext.poll_source(cfg, r.cursor, now=now + 60)
-    assert r2.events == [] and r2.next_check          # seen once — wait for a stable size
+    assert r2.events == [] and r2.next_check
     r3 = ext.poll_source(cfg, r2.cursor, now=now + 65)
     assert [e["title"] for e in r3.events] == ["new.pdf"] and r3.events[0]["path"].endswith("new.pdf")
     assert ext.poll_source(cfg, r3.cursor, now=now + 70).events == []
     with pytest.raises(ext.SourceError):
         ext.poll_source(N(source="folder_file", path=str(tmp_path / "missing")), None)
-
 
 def test_compound_all_within_window(monkeypatch):
     feed = {"https://a/feed": RSS.format(extra=""), "https://b/feed": RSS.format(extra="")}
@@ -518,24 +488,19 @@ def test_compound_all_within_window(monkeypatch):
     feed["https://b/feed"] = RSS.format(extra="<item><title>B2</title><guid>b2</guid></item>")
     r3 = ext.poll_source(cfg, r2.cursor, now=now + 602)
     assert r3.events and r3.events[0]["title"] == "A2 + B2" and len(r3.events[0]["parts"]) == 2
-    # outside the window the first hit expires
+
     feed["https://a/feed"] = RSS.format(extra="<item><title>A3</title><guid>a3</guid></item>")
     r4 = ext.poll_source(cfg, r3.cursor, now=now + 903)
     feed["https://b/feed"] = RSS.format(extra="<item><title>B3</title><guid>b3</guid></item>")
     r5 = ext.poll_source(cfg, r4.cursor, now=now + 903 + 20 * 60)
     assert r5.events == []
 
-
-# --------------------------------------------------------------------------- tick → decide → run (real engine)
-
 def _save_tasks(tasks):
     from app import pgdata
     pgdata._mutate_schedules(lambda rows: rows.extend(tasks) or True)
 
-
 def _tick(tasks, now):
     return asyncio.run(ext.tick(tasks, now, "ru"))
-
 
 def test_tick_pending_take_decide_and_no_duplicates_after_restart(monkeypatch):
     g = FakeGoogle()
@@ -544,11 +509,11 @@ def test_tick_pending_take_decide_and_no_duplicates_after_restart(monkeypatch):
     task = {"id": "t1", "name": "Банк", "kind": "chat", "prompt": "Перескажи письмо", "enabled": True,
             "rule": rules.normalize_rule({"when": [{"type": "watch", "source": "gmail", "query": "from:bank"}]})}
     now = time.time()
-    assert _tick([task], now) == {}                                   # baseline
+    assert _tick([task], now) == {}
     state = ext.load_state()["watches"]
     key = ext.watch_key("t1", task["rule"]["when"][0])
     assert state[key]["cursor"]["seen"] == ["m1"] and state[key]["next_check"] > now
-    assert _tick([task], now + 10) == {}                              # not due yet: no poll
+    assert _tick([task], now + 10) == {}
     assert len([c for c in g.calls if c[1].endswith("/messages")]) == 1
     g.messages.append(("m2", "Выписка за октябрь", "bank"))
     pending = _tick([task], now + 200)
@@ -556,17 +521,16 @@ def test_tick_pending_take_decide_and_no_duplicates_after_restart(monkeypatch):
     d = rules.decide(task, now + 200, {"watch": pending}, None)
     assert d["run"] and d["trigger"] == "event" and d["payload"]["title"] == "Выписка за октябрь"
     assert task["rule_state"]["watch_seq"][key] == 1
-    # the same pending event is not taken twice
+
     assert not rules.decide(task, now + 201, {"watch": pending}, None)["run"]
-    # restart: in-memory state gone, the file keeps cursor and consumed events are pruned
+
     ext._INFLIGHT.clear()
     pending2 = _tick([task], now + 400)
     assert pending2 == {}
     assert ext.load_state()["watches"][key]["pending"] == []
-    # disabling the task forgets the cursor → a re-enabled task starts with a fresh baseline
+
     _tick([dict(task, enabled=False)], now + 500)
     assert key not in ext.load_state()["watches"]
-
 
 def test_tick_errors_backoff_and_inbox(monkeypatch):
     posted, resolved = [], []
@@ -609,11 +573,10 @@ def test_tick_errors_backoff_and_inbox(monkeypatch):
     _tick([task], now)
     entry = ext.load_state()["watches"][key]
     assert entry["fails"] == 0 and "error" not in entry and resolved == ["trigger:" + key]
-    # health for the UI
+
     _save_tasks([task])
     h = ext.health("ru")["t2"][0]
     assert h["source"] == "github_actions" and h["fails"] == 0 and h["last_check"]
-
 
 def test_connect_error_is_reported_at_once(monkeypatch):
     posted = []
@@ -638,7 +601,6 @@ def test_connect_error_is_reported_at_once(monkeypatch):
     assert entry["error_kind"] == "connect" and entry["next_check"] - now >= 15 * 60
     assert posted and "Gmail" in posted[0]
 
-
 def test_hours_window_skips_events(monkeypatch):
     feed = {"u": RSS.format(extra="")}
     monkeypatch.setattr(ext, "http_get", lambda url, **kw: (feed["u"], url))
@@ -652,7 +614,6 @@ def test_hours_window_skips_events(monkeypatch):
     pending = _tick([task], noon + 3600)
     assert pending == {}
     assert next(iter(ext.load_state()["watches"].values()))["skipped"] == 1
-
 
 def test_scheduler_claims_with_payload_and_prompt_gets_context(monkeypatch):
     from app import scheduler, schedule_runtime
@@ -673,7 +634,7 @@ def test_scheduler_claims_with_payload_and_prompt_gets_context(monkeypatch):
     key = next(iter(ext.load_state()["watches"]))
     ext.mutate_state(lambda w: w[key].update(next_check=0))
     asyncio.run(scheduler._scheduler_tick(now=now + 5))
-    if not started:      # the event is taken on the tick after the poll
+    if not started:
         asyncio.run(scheduler._scheduler_tick(now=now + 10))
     assert len(started) == 1
     meta = started[0]["_run_meta"]
@@ -682,19 +643,17 @@ def test_scheduler_claims_with_payload_and_prompt_gets_context(monkeypatch):
     assert applied["trigger"]["from"] == "Банк" and "Выписка" in applied["prompt"] and applied["prompt"].startswith("Кратко перескажи")
     stored = next(t for t in pgdata.load_schedules() if t["id"] == "t5")
     assert stored["rule_state"]["last_trigger"]["title"] == "Выписка"
-    # placeholders instead of the context block; a manual test run gets nothing
+
     t = dict(started[0], kind="notify", prompt="Письмо: {{trigger.title}} от {{trigger.from}}")
     assert ext.apply_trigger(t)["prompt"] == "Письмо: Выписка от Банк"
     manual = dict(started[0], _run_meta={"trigger": "manual", "test": True})
     assert ext.apply_trigger(manual)["prompt"] == "Кратко перескажи"
-
 
 def test_edit_keeps_consumed_marks(monkeypatch):
     task = {"id": "t6", "rule": rules.normalize_rule({"when": [{"type": "watch", "source": "gmail", "query": "x"}]}),
             "rule_state": {"watch_seq": {"k": 3}, "status": "waiting", "anchor": 1}}
     rules.reset_plan(task)
     assert task["rule_state"] == {"watch_seq": {"k": 3}}
-
 
 def test_payload_clip_and_context_text():
     big = {"source": "gmail", "title": "T", "text": "x" * 20000, "items": [{"title": str(i)} for i in range(200)]}
@@ -705,9 +664,6 @@ def test_payload_clip_and_context_text():
     en = ext.context_text({"kind": "New email", "title": "Hi", "from": "Bank"}, "en")
     assert "From: Bank" in en and not re.search(r"[А-Яа-я]", en)
     assert ext.render("{{trigger.data.n}} / {{ trigger.items }}", {"data": {"n": 7}, "items": [{"title": "a"}, {"title": "b"}]}) == "7 / a, b"
-
-
-# --------------------------------------------------------------------------- webhook
 
 def test_webhook_call(monkeypatch):
     tok = "abcdefghijklmnop1234"
@@ -725,7 +681,6 @@ def test_webhook_call(monkeypatch):
         last = ext.hook_call(tok, {})
     assert last[0] == 429
 
-
 def test_webhook_route_on_proxy_app():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -734,9 +689,6 @@ def test_webhook_route_on_proxy_app():
     client = TestClient(app)
     assert client.post("/hook/plan/nonexistenttoken000", json={}).status_code == 404
     assert client.post("/hook/plan/nonexistenttoken000", content=b"x" * (70 * 1024)).status_code == 413
-
-
-# --------------------------------------------------------------------------- window routes
 
 def test_window_routes(monkeypatch):
     from fastapi import FastAPI
@@ -767,7 +719,6 @@ def test_window_routes(monkeypatch):
     assert hook["url"].endswith("/hook/plan/abcdefghijklmnop1234")
     assert client.get("/api/plan/triggers/health").json()["tasks"] == {}
 
-
 def test_plan_tasks_carries_watch_health_and_preview_warns(monkeypatch):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -787,9 +738,6 @@ def test_plan_tasks_carries_watch_health_and_preview_warns(monkeypatch):
     assert row["event_only"] and row["watch_health"][0]["source"] == "github_pr"
     assert row["summary"].startswith("Когда в o/r новый pull request")
 
-
-# --------------------------------------------------------------------------- natural language (mocked model)
-
 def test_nl_parse_with_watch(monkeypatch):
     from app import schedule_rules_api
     seen = {}
@@ -807,9 +755,6 @@ def test_nl_parse_with_watch(monkeypatch):
     ctx = json.loads(seen["user"].split("\n\nREQUEST:")[0])
     assert ctx["panels"][0]["id"] == "p_abcdef12" and "gmail" in ctx["connected_integrations"]
 
-
-# --------------------------------------------------------------------------- UI wiring
-
 def test_ui_wiring_and_strings():
     js = (ROOT / "app/pgstatic/plan-triggers.js").read_text(encoding="utf-8")
     plan = (ROOT / "app/pgstatic/plan.js").read_text(encoding="utf-8")
@@ -818,10 +763,10 @@ def test_ui_wiring_and_strings():
     assert html.index("plan-triggers.js") < html.index("/plan.js")
     for hook in ("MemuPlanTriggers.row(", "MemuPlanTriggers.menuItems(", "MemuPlanTriggers.bind(", "MemuPlanTriggers.cardHealth("):
         assert hook in plan
-    # every source of the backend has a form and a title in the UI
+
     for sid in ext.SOURCES:
         assert re.search(r"\b%s: \{ cat:" % sid, js), sid
-    # EN halves of T("ru", "en") never contain Cyrillic
+
     for ru, en_text in re.findall(r'T\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)', js):
         assert not re.search(r"[А-Яа-яЁё]", en_text), en_text
     node = shutil.which("node")
@@ -830,15 +775,11 @@ def test_ui_wiring_and_strings():
     css = (ROOT / "app/pgstatic/plan-triggers.css").read_text(encoding="utf-8")
     assert "var(--accent)" in css and "ptx-picker" in css
 
-
 def test_build_and_spec_include_module():
     build = (ROOT / "build.py").read_text(encoding="utf-8")
     assert build.count('"app.schedule_triggers_ext"') >= 3
     for spec in ("MemuAI.spec", "MemuAIProxy.spec"):
         assert "'app.schedule_triggers_ext'" in (ROOT / spec).read_text(encoding="utf-8")
-
-
-# --------------------------------------------------------------------------- live (real model, skipped without keys)
 
 LIVE_CASES = [
     ("Когда придёт письмо от банка Тинькофф — кратко перескажи его", "gmail"),
@@ -848,7 +789,6 @@ LIVE_CASES = [
     ("Если курс доллара на панели станет больше 100 — напомни купить", "panel"),
     ("Когда на странице https://example.com/item появится текст «В наличии» — уведоми", "web_page"),
 ]
-
 
 def _live_completion(base: str, key: str, model: str):
     import httpx
@@ -861,7 +801,6 @@ def _live_completion(base: str, key: str, model: str):
             return r.json()["choices"][0]["message"]["content"]
 
     return completion
-
 
 @pytest.mark.parametrize("env_base,env_key,model", [("LIVE_PROXY_BASE", "LIVE_PROXY_KEY", "LIVE_PROXY_MODEL")])
 def test_live_nl_parse_through_proxy(monkeypatch, env_base, env_key, model):
@@ -876,7 +815,6 @@ def test_live_nl_parse_through_proxy(monkeypatch, env_base, env_key, model):
         draft = asyncio.run(schedule_rules_api.parse_text(text, name, completion, lang="ru", tasks=[], commands=[]))
         sources = [t.get("source") for t in draft["rule"]["when"]]
         assert source in sources, (text, draft)
-
 
 def test_nl_working_hours_wait(monkeypatch):
     from app import schedule_rules_api

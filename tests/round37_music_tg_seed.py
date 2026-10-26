@@ -27,7 +27,6 @@ TRACKS = [
 LYRICS = [[0.0, "Над городом тихо гаснут огни"], [3.0, "Северное сияние зовёт"], [6.0, "Мы снова идём по льду"],
           [9.0, "И небо поёт для нас"], [12.0, "♪"], [14.0, "Северное сияние"]]
 
-
 def cover_png(c1, c2, seed: int) -> bytes:
     from PIL import Image, ImageDraw, ImageFilter
     size = 480
@@ -48,7 +47,6 @@ def cover_png(c1, c2, seed: int) -> bytes:
     img.save(out, "JPEG", quality=86)
     return out.getvalue()
 
-
 def wav_bytes(seconds: float = 16.0, freq: float = 330.0) -> bytes:
     rate = 8000
     frames = bytearray()
@@ -63,14 +61,13 @@ def wav_bytes(seconds: float = 16.0, freq: float = 330.0) -> bytes:
         handle.writeframes(bytes(frames))
     return out.getvalue()
 
-
 def seed(count: int = len(TRACKS)):
     """Adds the tracks once; returns (library, [track ids], playlist id)."""
     from app.music.library import get_library
     lib = get_library()
     existing = lib.list("", "added", "", 500, 0, "")
     if existing.get("total"):
-        # the same order as a fresh seed (TRACKS first — the tests rely on ids[0] having lyrics), then anything added later
+
         by_title = {t["title"]: t["id"] for t in existing["tracks"]}
         ids = [by_title[row[0]] for row in TRACKS[:count] if row[0] in by_title]
         ids += [t["id"] for t in existing["tracks"] if t["id"] not in ids]
@@ -94,7 +91,6 @@ def seed(count: int = len(TRACKS)):
         lib.store_lyrics(tid, LYRICS, None, "lrclib")
     return lib, ids, pl["id"]
 
-
 def fake_window():
     """This process plays the role of the MemuAI window for app.music.tgapp_ops (patches; call .start())."""
     from app.music import api, tgapp_ops
@@ -104,7 +100,6 @@ def fake_window():
     return [mock.patch.object(tgapp_ops, "window_url", return_value="http://127.0.0.1:1"),
             mock.patch.object(tgapp_ops, "_window_call", side_effect=window_call)]
 
-
 def pc_playing(track_id: str, queue, position: float = 42.0, playing: bool = True):
     from app.music.library import get_library
     from app.music.player import hub
@@ -112,9 +107,7 @@ def pc_playing(track_id: str, queue, position: float = 42.0, playing: bool = Tru
                                            "position": position, "playing": playing, "duration": 180, "volume": .7,
                                            "device": "pc", "device_name": "MemuAI"})
 
-
 ALBUM = [("Afterglow", 1, "Neon Lights"), ("Afterglow", 3, "City Pulse"), ("Afterglow", 4, "Last Exit")]
-
 
 def seed_artist():
     """Three more tracks of «Neon Harbor» on the album «Afterglow» (track numbers) for the artist / album screens."""

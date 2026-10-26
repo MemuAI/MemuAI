@@ -27,25 +27,20 @@ DEFAULT_BUDGET = 30_000
 _TAGS = re.compile(r"<(/?)(handoff|system-reminder|conversation_summary|session_start_context|skill|"
                    r"command-name|local-command-stdout|ide_opened_file|user-prompt-submit-hook)", re.I)
 
-
 def defang(text: str) -> str:
     """Tags that could pass for MemuCode's own (or end the note early) are turned into harmless look-alikes."""
     return _TAGS.sub(lambda match: "‹" + match.group(1) + match.group(2), str(text or ""))
-
 
 def _attr(text: str) -> str:
     """A value for an attribute of the note's tag: nothing in it can close the quote or the tag."""
     return " ".join(defang(str(text or "")).replace('"', "'").replace("<", "‹").replace(">", "›").split())[:200]
 
-
 def _when(stamp: float) -> str:
     return time.strftime("%Y-%m-%d %H:%M", time.localtime(stamp)) if stamp else "?"
-
 
 def _line(text: str, limit: int) -> str:
     text = " ".join(defang(text).split())
     return text if len(text) <= limit else text[:limit - 1] + "…"
-
 
 def _numbered(prompts: List[Turn], room: int) -> List[str]:
     """The person's requests in order. Long sessions keep the first few and the last ones."""
@@ -55,7 +50,6 @@ def _numbered(prompts: List[Turn], room: int) -> List[str]:
     head, tail = rows[:4], rows[-8:]
     skipped = len(rows) - len(head) - len(tail)
     return [*head, f"… ({skipped} requests in between left out)", *tail] if skipped > 0 else rows
-
 
 def _label(turn: Turn) -> str:
     if turn.role == "user":
@@ -67,7 +61,6 @@ def _label(turn: Turn) -> str:
     if turn.role == "tool":
         return f"RESULT of {turn.tool or 'a tool'}" + ("" if turn.ok else " (failed)")
     return "NOTE"
-
 
 def _exchange(turns: List[Turn], room: int) -> List[str]:
     """The last turns, word for word but trimmed, newest kept first until the room is used up."""
@@ -87,7 +80,6 @@ def _exchange(turns: List[Turn], room: int) -> List[str]:
         rows.append(body)
         used += len(body) + 1
     return list(reversed(rows))
-
 
 def build(session: ForeignSession, *, budget: int = DEFAULT_BUDGET, source_title: str = "") -> str:
     """The note, as text for the model."""
@@ -153,13 +145,11 @@ def build(session: ForeignSession, *, budget: int = DEFAULT_BUDGET, source_title
     out += ["", "</handoff>"]
     return "\n".join(out)
 
-
 def instruction(session: ForeignSession) -> str:
     """What MemuCode says after the note when it is asked to continue."""
     return ("Continue this work. First check the real state — `git status` and a quick look at the files named above — "
             "because the record may be out of date or wrong. Then tell me in two or three lines where things stand "
             "and carry on with what was left unfinished. If the next step is unclear, ask me.")
-
 
 def display(session: ForeignSession, source_title: str = "") -> str:
     """One line for the transcript."""

@@ -1,7 +1,3 @@
-/* Round 29 — documentation extras: «Кратко от ИИ» card and screenshots (docs-ai.js).
- * Theme tokens only, so every design / dark / light variant colours it. */
-
-/* ------------------------------- AI summary ------------------------------- */
 .docs-ai {
   --ai: var(--accent);
   position: relative; margin: -4px 0 24px; border-radius: 14px;
@@ -126,8 +122,6 @@
 .docs-ai-send .ui-icon { width: 15px; height: 15px; }
 .docs-ai-send:disabled { opacity: .45; cursor: default; }
 .docs-ai-note { margin-top: 6px; color: var(--muted); font: 11.5px/1.4 var(--sans); }
-
-/* -------------------------------- screenshots ------------------------------ */
 .docs-figure { margin: 8px 0 20px; display: flex; flex-direction: column; align-items: center; }
 .docs-figure-zoom {
   position: relative; display: block; max-width: 100%; padding: 0; border: 1px solid var(--border);

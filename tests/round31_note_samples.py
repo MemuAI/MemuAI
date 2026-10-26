@@ -9,7 +9,6 @@ from pathlib import Path
 
 PNG_1PX = base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
 
-
 def xlsx(path: Path) -> Path:
     shared = ["Имя", "Город", "Сумма", "Дата", "Анна", "Рига", "Борис", "Вильнюс"]
     sst = "".join(f"<si><t>{s}</t></si>" for s in shared)
@@ -30,7 +29,6 @@ def xlsx(path: Path) -> Path:
         z.writestr("xl/worksheets/sheet2.xml", sheet2)
     return path
 
-
 def ods(path: Path) -> Path:
     content = """<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><office:body><office:spreadsheet>
 <table:table table:name="Лист1"><table:table-row><table:table-cell office:value-type="string"><text:p>a</text:p></table:table-cell><table:table-cell table:number-columns-repeated="2" office:value-type="float" office:value="7"><text:p>7</text:p></table:table-cell></table:table-row>
@@ -43,7 +41,6 @@ def ods(path: Path) -> Path:
         z.writestr("content.xml", content)
     return path
 
-
 def epub(path: Path) -> Path:
     with zipfile.ZipFile(path, "w") as z:
         z.writestr("mimetype", "application/epub+zip")
@@ -55,7 +52,6 @@ def epub(path: Path) -> Path:
         z.writestr("OEBPS/img/dot.png", PNG_1PX)
     return path
 
-
 def fb2(path: Path) -> Path:
     path.write_text("""<?xml version="1.0" encoding="utf-8"?>
 <FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
@@ -65,7 +61,6 @@ def fb2(path: Path) -> Path:
 <section><title><p>Часть 2</p></title><p>Конец.</p></section></body>
 <binary id="pic" content-type="image/png">""" + base64.b64encode(PNG_1PX).decode() + """</binary></FictionBook>""", encoding="utf-8")
     return path
-
 
 def ipynb(path: Path) -> Path:
     nb = {"nbformat": 4, "nbformat_minor": 5, "metadata": {"kernelspec": {"display_name": "Python 3", "language": "python", "name": "python3"}},
@@ -78,7 +73,6 @@ def ipynb(path: Path) -> Path:
                      "outputs": [{"output_type": "display_data", "data": {"image/png": base64.b64encode(PNG_1PX).decode(), "text/plain": ["<Figure>"]}, "metadata": {}}]}]}
     path.write_text(json.dumps(nb, ensure_ascii=False, indent=1), encoding="utf-8")
     return path
-
 
 def all_samples(folder: Path) -> dict:
     folder.mkdir(parents=True, exist_ok=True)

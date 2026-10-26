@@ -1,11 +1,5 @@
-// MemuNote — PDF view and editor (Round 31).
-// View: pdf.js renders pages lazily (IntersectionObserver), with a selectable text layer.
-// Edit ("Редактировать"): annotations drawn into the page (text boxes, highlight, freehand ink, rectangles,
-// ellipses, lines/arrows, white-out), form fields, page operations (rotate, delete, move, blank page).
-// Nothing is written until Save: pdf-lib (vendor/pdflib) loads the original bytes, draws every object into
-// its page (a Unicode TTF from /api/font keeps Cyrillic), applies form values, re-orders the pages and the
-// bytes go to /api/save_binary (atomic write, conflict check). Objects are kept in PDF user space of the
-// unrotated page, so zoom and rotation never move them; pdf.js only renders.
+
+
 import { api, rawUrl, esc, icon, ICONS, t, toast, debounce, showMenu, modal, API } from "./core.js";
 
 const P = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
@@ -34,12 +28,10 @@ const TOOLS = [["select", "cursor"], ["text", "textT"], ["highlight", "marker"],
 const ASCENT = 0.86, LINE_H = 1.22;
 const A4 = [595.28, 841.89];
 
-// ------------------------------------------------------------------ libraries (lazy)
 let _pdfjs = null, _pdflib = null;
 export async function pdfjs() {
   if (_pdfjs) return _pdfjs;
-  // Round 34: pdf.js 6 needs APIs newer than Chromium 128 / older WebView2 ("a.toHex is not a function") — the
-  // polyfills load before it here, and the worker entry imports them before the vendored worker.
+
   await import("../vendor/pdfjs/polyfills.mjs?v=r34");
   const mod = await import("../vendor/pdfjs/pdf.min.mjs?v=6.4.299");
   mod.GlobalWorkerOptions.workerSrc = new URL("../vendor/pdfjs/pdf.worker.compat.mjs?v=r34", import.meta.url).href;
@@ -48,7 +40,6 @@ export async function pdfjs() {
 }
 export async function pdflib() { return (_pdflib ||= await import("../vendor/pdflib/pdflib.js")); }
 
-// ------------------------------------------------------------------ geometry (same transform as pdf.js PageViewport)
 export function viewport(viewBox, scale, rotation) {
   const [x0, y0, x1, y1] = viewBox;
   const cx = (x1 + x0) / 2, cy = (y1 + y0) / 2;
@@ -75,7 +66,6 @@ const clone = (o) => JSON.parse(JSON.stringify(o));
 const uid = () => Math.random().toString(36).slice(2, 9);
 function rectOf(a, b) { return { x: Math.min(a[0], b[0]), y: Math.min(a[1], b[1]), w: Math.abs(a[0] - b[0]), h: Math.abs(a[1] - b[1]) }; }
 
-/** Draw one object into a pdf-lib page (exported for tests). */
 export function drawObject(L, page, o, font) {
   const col = (c) => L.rgb(...hexRgb(c));
   const w = Math.max(0.3, o.width || 2);
@@ -123,10 +113,6 @@ export function drawObject(L, page, o, font) {
   }
 }
 
-/**
- * Apply an edit model to PDF bytes with pdf-lib → new bytes (exported for tests).
- * model: {pages:[{src, rot, objs, size?}], fields:{name: value}}; src = 1-based original page, 0 = new blank page.
- */
 export async function applyEdits(bytes, model, fontBytes) {
   const L = await pdflib();
   const doc = await L.PDFDocument.load(bytes, { updateMetadata: false });
@@ -138,7 +124,7 @@ export async function applyEdits(bytes, model, fontBytes) {
     if (!font) font = await doc.embedFont(L.StandardFonts.Helvetica);
   }
   const orig = doc.getPages();
-  // form values first (widgets live on the original pages)
+
   const names = Object.keys(model.fields || {});
   if (names.length) {
     const form = doc.getForm();
@@ -175,7 +161,6 @@ export async function applyEdits(bytes, model, fontBytes) {
   return doc.save();
 }
 
-/** Form fields of PDF bytes: [{name, type, value, options}] (exported for tests). */
 export async function readFields(bytes) {
   const L = await pdflib();
   const doc = await L.PDFDocument.load(bytes, { updateMetadata: false });
@@ -189,7 +174,7 @@ export async function readFields(bytes) {
       else if (f instanceof L.PDFDropdown) out.push({ name, type: "select", value: f.getSelected()[0] || "", options: f.getOptions(), readOnly: f.isReadOnly() });
       else if (f instanceof L.PDFOptionList) out.push({ name, type: "select", value: f.getSelected()[0] || "", options: f.getOptions(), readOnly: f.isReadOnly() });
       else if (f instanceof L.PDFRadioGroup) out.push({ name, type: "radio", value: f.getSelected() || "", options: f.getOptions(), readOnly: f.isReadOnly() });
-    } catch { /* an exotic field: skipped */ }
+    } catch {  }
   }
   return out;
 }
@@ -202,7 +187,6 @@ async function fontBytes() {
   return _font;
 }
 
-// ================================================================== the view
 export class PdfView {
   constructor(host, tab) {
     this.host = host; this.tab = tab; this.scale = 1.2; this.rendered = new Map();
@@ -232,9 +216,8 @@ export class PdfView {
     this.el.addEventListener("keydown", (e) => this.keys(e));
     this.load();
   }
-  get dirty() { return this.undoStack.length > 0 && this.changed; }
+  get dirty() { return this.savedSnapshot != null ? JSON.stringify(this.snapshot()) !== this.savedSnapshot : this.undoStack.length > 0 && this.changed; }
 
-  // ---------------------------------------------------------------- loading
   async load(data) {
     try {
       const lib = await pdfjs();
@@ -264,21 +247,20 @@ export class PdfView {
   }
   resetModel() {
     this.model = { pages: Array.from({ length: this.doc.numPages }, (_, i) => ({ id: uid(), src: i + 1, rot: 0, objs: [] })) };
-    this.undoStack = []; this.redoStack = []; this.changed = false; this.fieldValues = {};
+    this.undoStack = []; this.redoStack = []; this.changed = false; this.fieldValues = {}; this.savedSnapshot = null;
   }
   async pageInfo(src) {
     if (!src) return null;
     if (!this.info[src - 1]) { const p = await this.doc.getPage(src); this.info[src - 1] = { view: p.view, rotate: p.rotate }; }
     return this.info[src - 1];
   }
-  /** Viewport of model page *mp* at the current scale (rotation = the page's own + the edit). */
+
   vpOf(mp, info) {
     if (!mp.src) { const s = mp.size || A4; return viewport([0, 0, s[0], s[1]], this.scale, mp.rot || 0); }
     info = info || this.info[mp.src - 1] || this.info[0];
     return viewport(info.view, this.scale, ((info.rotate || 0) + (mp.rot || 0)) % 360);
   }
 
-  // ---------------------------------------------------------------- layout & rendering
   layout() {
     const keep = this.scroll.scrollTop;
     this.wrap.innerHTML = ""; this.rendered.clear();
@@ -330,7 +312,7 @@ export class PdfView {
         layer.style.setProperty("--scale-factor", this.scale);
         const tl = new lib.TextLayer({ textContentSource: page.streamTextContent(), container: layer, viewport: vp });
         await tl.render();
-      } catch (e) { /* text layer is optional */ }
+      } catch (e) {  }
     }
     this.drawOverlay(i, box);
     if (tools) box.append(tools);
@@ -346,7 +328,6 @@ export class PdfView {
     this.rendered.delete(i); this.renderPage(i, box);
   }
 
-  // ---------------------------------------------------------------- overlay (objects as SVG)
   drawOverlay(i, box) {
     box.querySelector(".pdf-ann")?.remove();
     const mp = this.model.pages[i]; if (!mp) return;
@@ -458,7 +439,7 @@ export class PdfView {
       const o = mp.objs.find((x) => x.id === objEl.dataset.id);
       if (o?.type === "text") { const [x, y] = this.vpOf(mp).toView(o.x, o.y); this.textEditor(i, box, [x, y], o); }
     });
-    // highlight tool: select text in the text layer, the selection becomes highlights
+
     box.onpointerup = this.tool === "highlight" ? () => setTimeout(() => this.highlightSelection(i, box), 0) : null;
   }
   highlightSelection(i, box) {
@@ -505,7 +486,6 @@ export class PdfView {
     ta.addEventListener("blur", () => finish(true));
   }
 
-  // ---------------------------------------------------------------- model changes & history
   snapshot() { return { pages: clone(this.model.pages), fields: clone(this.fieldValues) }; }
   commit(before) {
     this.undoStack.push(before); if (this.undoStack.length > 200) this.undoStack.shift();
@@ -545,7 +525,6 @@ export class PdfView {
     if (op === "up" || op === "down" || op === "add") requestAnimationFrame(() => this.goto(op === "up" ? i : i + 2));
   }
 
-  // ---------------------------------------------------------------- edit mode UI
   async setEditing(on) {
     if (on === this.editing) return;
     if (on) {
@@ -591,7 +570,7 @@ export class PdfView {
       <span class="tb-sep"></span>
       <button class="tb-btn wide ${this.el.querySelector(".pdf-fields").hidden ? "" : "on"}" data-e="fields" ${nf ? "" : "disabled"} title="${esc(nf ? t("pdf_fields_hint") : t("pdf_no_fields"))}">${icon("form")}<span>${esc(t("pdf_fields", { n: nf }))}</span></button>
       <span class="small muted pdf-hint" title="${esc(t("pdf_hint_" + this.tool))}">${esc(t("pdf_hint_" + this.tool))}</span>
-      <button class="btn sm primary" data-e="save" ${this.changed ? "" : "disabled"}>${icon("save")}${esc(t("save"))}</button>`;
+      <button class="btn sm primary" data-e="save" ${this.dirty ? "" : "disabled"}>${icon("save")}${esc(t("save"))}</button>`;
     bar.onclick = (e) => {
       const b = e.target.closest("[data-tool],[data-e]"); if (!b || b.disabled) return;
       if (b.dataset.tool) { this.tool = b.dataset.tool; this.select(null); this.paintEditBar(); this.redrawAll(); this.el.classList.toggle("tool-highlight", this.tool === "highlight"); return; }
@@ -648,14 +627,19 @@ export class PdfView {
     else if (e.key === "Escape") { if (this.selected) this.select(null); else if (this.tool !== "select") { this.tool = "select"; this.paintEditBar(); this.redrawAll(); } }
   }
 
-  /** Build the edited PDF and write it to *path*: {ok, mtime, size} | {conflict}. */
   async save(path, opts = {}) {
     const bytes = await this.ensureBytes();
-    const model = { pages: this.model.pages, fields: this.fieldValues };
+    const model = this.snapshot();
+    const savedSnapshot = JSON.stringify(model);
     const out = await applyEdits(bytes.slice(), model, await fontBytes() || null);
     const q = new URLSearchParams({ path, mtime: String(opts.mtime || 0), force: opts.force ? "1" : "0" });
     const r = await api("save_binary?" + q, new Blob([out], { type: "application/pdf" }), { raw: true, type: "application/pdf" });
     if (r.ok) {
+      if (JSON.stringify(this.snapshot()) !== savedSnapshot) {
+        this.savedSnapshot = savedSnapshot;
+        this.onChange?.(); this.paintEditBar();
+        return r;
+      }
       this.bytes = null; this.fields = null; this.model = null; this.selected = null;
       const keepEdit = this.editing;
       await this.load();
@@ -664,7 +648,6 @@ export class PdfView {
     return r;
   }
 
-  // ---------------------------------------------------------------- navigation
   current() { return +(this.el.querySelector(".pdf-page")?.value || 1); }
   updatePage() {
     const boxes = this.wrap.children; const mid = this.scroll.scrollTop + this.scroll.clientHeight / 3;
@@ -687,7 +670,6 @@ export class PdfView {
     else if (a === "edit") this.setEditing(!this.editing);
   }
 
-  // ---------------------------------------------------------------- text (AI context / export)
   async text(maxChars = 400000) {
     const parts = [];
     let total = 0;
@@ -715,7 +697,7 @@ function translate(o, dx, dy) {
   if (o.points) o.points = o.points.map(([x, y]) => [x + dx, y + dy]);
 }
 function mergeRects(rects) {
-  // client rects of a selection: one per text run; merge runs on the same line
+
   const out = [];
   for (const r of [...rects].sort((a, b) => a.top - b.top || a.left - b.left)) {
     const last = out[out.length - 1];

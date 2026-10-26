@@ -1,27 +1,5 @@
-/* MemuAI — Round 33 (r33c-models-vision): pictures and a model that may not see them (user item #13).
- *
- * Before: whether a model saw images was a guess, the «How should MemuAI send the images?» dialog asked every
- * time (even for vision models) and offered only «send directly» / «describe privately»; a model without vision
- * silently ignored the picture or failed with a provider error.
- *
- * Now (one answer per model — caps.vision_state yes|no|unknown from app/model_catalog.py, shown as the eye badge):
- *   • a small note above the composer as soon as a picture is attached to a model that does not (or may not) see
- *     it, with «Switch to …» and «Test» buttons;
- *   • on send (Settings → «Sending images» = «Ask every time»): a model that sees images gets the picture at once;
- *     otherwise one dialog: switch to a vision model (best suggestion, any other via the picker) / describe the
- *     picture with a helper vision model / test the model now (one real request) / send anyway;
- *   • «Vision: automatic / sees / does not see» per model (the model's ⋯ menu and this dialog) — the same override
- *     as on the model card in MemuAI Proxy (POST /api/pg/model-catalog/vision).
- *
- * API (window.MemuVisionGate):
- *   state(id)                 → {state, src, text, hint, firm}   (MemuModelPicker.vision)
- *   suggest(id)               → id of the best vision chat model ("" when none)
- *   helper()                  → the model that describes pictures (Settings → Recognition model, else suggest)
- *   choose(id) → Promise<"direct"|"fallback"|"switch:<id>"|"">   app.js chooseImageDelivery()
- *   note()                    redraw the composer note (attachments / model changed)
- *   overridePanel(id)         the «Vision of this model» dialog
- *   probe(id) → Promise<{ok, vision, error}>
- */
+
+
 (function () {
   "use strict";
   if (window.MemuVisionGate) return;
@@ -40,7 +18,6 @@
     return P().vision(id);
   }
 
-  /* The best model that sees images: verified answers, the same account, pinned, recent, the default model. */
   function ranked(exclude = "") {
     const hidden = new Set(prefGet("hidden_models", []) || []);
     const pinned = prefGet("pinned_models", []) || [];
@@ -70,7 +47,7 @@
     if (row && isChat(row) && state(row).state !== "no") return configured;
     return (ranked(exclude)[0] || {}).id || "";
   }
-  /* The model row as a small card (name, full id, badges). */
+
   function modelCard(id) {
     const row = (P() && P().find(id)) || { id, caps: {} };
     return `${P() ? P().monogram(row) : ""}<span class="mmp-text"><span class="mmp-name">${esc(nameOf(id))}</span><span class="mmp-id">${esc(id)}</span></span>${P() ? P().badgesHtml(row, { noFree: true }) : ""}`;
@@ -78,7 +55,7 @@
   function pickBtn(id, attr) {
     return `<button type="button" class="mmp-trigger" ${attr} aria-haspopup="dialog">${modelCard(id)}${P() ? P().svg("chev", "mmp-caret") : ""}</button>`;
   }
-  /* Update one row everywhere after a probe / a manual answer (the next state refresh confirms it). */
+
   function applyAnswer(id, vision, src) {
     const row = P() && P().find(id);
     if (row) {
@@ -118,7 +95,6 @@
     return P().open(anchor, { value, kind: "text", title, filter: (r) => state(r).state === "yes", emptyText: t("Нет моделей со зрением — добавьте такую модель в MemuAI Proxy", "No vision models — add one in MemuAI Proxy") });
   }
 
-  /* ------------------------------------------------------------- the composer note */
   function hasImages() {
     try { return Array.isArray(attachments) && attachments.some((a) => a && !a.isVideo && (a.isImg || String(a.data || "").startsWith("data:image/"))); }
     catch (e) { return false; }
@@ -138,7 +114,7 @@
       box = document.createElement("div");
       box.id = "vision-note";
       box.setAttribute("role", "status");
-      // Inside the composer (above the attachments): it always has the composer's width, whatever the layout.
+
       composer.insertBefore(box, composer.querySelector("#attach-row") || composer.firstChild);
     }
     const better = suggest(model);
@@ -166,7 +142,6 @@
     };
   }
 
-  /* ------------------------------------------------------------- the send dialog */
   function choose(model) {
     const mode = prefGet("image_send_mode", "ask");
     if (mode === "direct" || mode === "fallback") return Promise.resolve(mode);
@@ -273,7 +248,6 @@
     });
   }
 
-  /* ------------------------------------------------------------- «Vision of this model» */
   function overridePanel(id) {
     const panelFn = g("panel"), closeFn = g("closePanel");
     if (!panelFn || !P()) return;

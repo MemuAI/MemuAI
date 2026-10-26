@@ -1,5 +1,5 @@
-// MemuNote — CodeMirror 6 integration: extensions from settings, languages, Markdown commands,
-// text tools, AI ghost-text (inline autocomplete) and split-view synchronisation.
+
+
 import * as CM from "../vendor/cm/cm.js";
 import { t } from "./core.js";
 import { findExtension, findKeymap } from "./findpanel.js";
@@ -11,7 +11,6 @@ export const configComp = new Compartment();
 export const langComp = new Compartment();
 export const readOnlyComp = new Compartment();
 
-// ------------------------------------------------------------------ theme (MemuAI tokens via CSS variables)
 const baseTheme = EditorView.theme({
   "&": { height: "100%", color: "var(--text)", backgroundColor: "var(--ed-bg)" },
   ".cm-scroller": { fontFamily: "var(--ed-font)", fontSize: "var(--ed-size)", lineHeight: "var(--ed-lh)" },
@@ -32,7 +31,7 @@ const baseTheme = EditorView.theme({
   ".cm-panels": { backgroundColor: "var(--panel)", color: "var(--text)", borderColor: "var(--border)" },
   ".cm-panels.cm-panels-top": { borderBottom: "1px solid var(--border)" },
   ".cm-tooltip": { backgroundColor: "var(--panel-2)", color: "var(--text)", border: "1px solid var(--border)", borderRadius: "8px", boxShadow: "var(--shadow-sm)" },
-  ".cm-tooltip-autocomplete > ul > li[aria-selected]": { backgroundColor: "var(--accent-soft)", color: "var(--text)" },
+  ".cm-tooltip-autocomplete > ul > li[aria-selected=true]": { backgroundColor: "var(--accent-soft)", color: "var(--text)" },
   ".cm-highlightSpace": { backgroundImage: "radial-gradient(circle at 50% 55%, var(--gutter) 11%, transparent 5%)" },
   ".cm-highlightTab": { backgroundImage: "none", position: "relative" },
   ".cm-trailingSpace": { backgroundColor: "color-mix(in srgb, var(--danger) 18%, transparent)" },
@@ -88,7 +87,6 @@ export function phrases() {
   return EditorState.phrases.of(out);
 }
 
-// ------------------------------------------------------------------ AI ghost text (inline autocomplete)
 export const setGhost = StateEffect.define();
 class GhostWidget extends WidgetType {
   constructor(text) { super(); this.text = text; }
@@ -110,9 +108,13 @@ export const ghostField = StateField.define({
   provide: (f) => EditorView.decorations.from(f, (v) => v ? Decoration.set([Decoration.widget({ widget: new GhostWidget(v.text), side: 1 }).range(v.pos)]) : Decoration.none),
 });
 const ghostKeys = Prec.highest(keymap.of([
-  { key: "Tab", run: (view) => { const g = view.state.field(ghostField, false); if (!g) return false;
+
+  { key: "Tab", run: (view) => { if (view.state.readOnly) return false;
+    if (CM.acceptCompletion(view)) return true;
+    const g = view.state.field(ghostField, false); if (!g) return false;
     view.dispatch({ changes: { from: g.pos, insert: g.text }, selection: { anchor: g.pos + g.text.length }, effects: setGhost.of(null), userEvent: "input.complete" }); return true; } },
-  { key: "Escape", run: (view) => { if (!view.state.field(ghostField, false)) return false; view.dispatch({ effects: setGhost.of(null) }); return true; } },
+  { key: "Escape", run: (view) => { const closed = CM.completionKeymap.find((k) => k.key === "Escape")?.run(view) || false;
+    if (!view.state.field(ghostField, false)) return closed; view.dispatch({ effects: setGhost.of(null) }); return true; } },
 ]));
 export function ghostTrigger(onIdle) {
   return CM.ViewPlugin.fromClass(class {
@@ -128,47 +130,66 @@ export function ghostTrigger(onIdle) {
   });
 }
 
-// ------------------------------------------------------------------ extensions
-/** opts: {settings, large, kind, readOnly, onUpdate(update), ghost: fn|null, keys: keymap entries} */
+export function detectIndentation(doc, settings = {}) {
+  const fallback = { tab_size: Math.max(1, Math.min(8, Math.trunc(Number(settings.tab_size)) || 4)), indent_with_tabs: !!settings.indent_with_tabs };
+  const end = Math.min(doc.length, 128 * 1024);
+  const sample = typeof doc === "string" ? doc.slice(0, end) : doc.sliceString(0, end);
+  const widths = [];
+  let tabs = 0;
+  for (const line of sample.split("\n").slice(0, 1000)) {
+    const m = /^([ \t]+)\S/.exec(line);
+    if (!m) continue;
+    if (m[1][0] === "\t") tabs++;
+    else if (!m[1].includes("\t") && m[1].length <= 64) widths.push(m[1].length);
+  }
+  if (tabs > widths.length) return { ...fallback, indent_with_tabs: true, detected: true };
+  if (!widths.length) return fallback;
+  for (let size = 8; size >= 2; size--) {
+    if (widths.filter((n) => n % size === 0).length / widths.length >= .8) {
+      return { tab_size: size, indent_with_tabs: false, detected: true };
+    }
+  }
+  return fallback;
+}
+
 export function buildConfig(opts) {
   const s = opts.settings;
   const large = !!opts.large;
   const ext = [phrases()];
-  // Its MatchDecorator re-scans the rest of a changed line with a RegExp on every keystroke: 135 ms per key
-  // in a 20 M-char line. Lines that long get no control-character markers (Round 31).
+
   if (!opts.noWrap) ext.push(CM.highlightSpecialChars());
   if (s.line_numbers) ext.push(CM.lineNumbers());
   if (s.fold_gutter && !large) ext.push(CM.foldGutter({ markerDOM: (open) => { const e = document.createElement("span"); e.className = "mn-fold " + (open ? "open" : ""); e.textContent = open ? "⌄" : "›"; return e; } }));
   if (s.highlight_active_line) ext.push(CM.highlightActiveLine(), CM.highlightActiveLineGutter());
-  // Round 31: never wrap a line of 100k+ chars (a 20 M-char single line took 22 s to open wrapped, 1 s unwrapped:
-  // CodeMirror renders only the visible part of an unwrapped long line).
+
   if (s.word_wrap && !opts.noWrap && !(large && opts.size > 64 * 1048576)) ext.push(EditorView.lineWrapping);
   if (s.bracket_matching && !large) ext.push(CM.bracketMatching());
-  if (s.auto_close_brackets && !large && opts.kind !== "text") ext.push(CM.closeBrackets());
+  if (s.auto_close_brackets && !large) ext.push(CM.closeBrackets());
   if (s.highlight_selection_matches && !large) ext.push(CM.highlightSelectionMatches());
   if (s.show_whitespace) ext.push(CM.highlightWhitespace(), CM.highlightTrailingWhitespace());
   if (s.scroll_past_end) ext.push(CM.scrollPastEnd());
   if (!large) ext.push(hl());
-  ext.push(EditorState.tabSize.of(s.tab_size || 4), CM.indentUnit.of(s.indent_with_tabs ? "\t" : " ".repeat(s.tab_size || 4)));
-  // Round 33: the built-in checker (spell.js, via opts.extraConfig) replaces the browser's native one — its
-  // suggestions were unreachable behind MemuNote's own context menu, and two underlines would overlap.
+  const indent = opts.indent || s;
+  ext.push(EditorState.tabSize.of(indent.tab_size || 4), CM.indentUnit.of(indent.indent_with_tabs ? "\t" : " ".repeat(indent.tab_size || 4)));
+
   ext.push(EditorView.contentAttributes.of({ spellcheck: "false", autocorrect: "off", autocapitalize: "off" }));
   if (s.minimap && !large) {
     ext.push(CM.showMinimap.compute(["doc"], () => ({ create: () => { const dom = document.createElement("div"); return { dom }; }, displayText: "blocks", showOverlay: "mouse-over" })));
   }
   if (opts.ghost && !large) ext.push(ghostTrigger(opts.ghost));
-  if (opts.extraConfig) ext.push(opts.extraConfig(opts));   // Round 33: live Markdown, spell checking, code completion (app.js r33Extensions)
+  if (opts.extraConfig) ext.push(opts.extraConfig(opts));
   return ext;
 }
 
 export function createState(doc, opts) {
+  opts = { ...opts, indent: opts.indent || detectIndentation(doc, opts.settings) };
   const ext = [
     CM.history(), CM.drawSelection(), CM.dropCursor(), CM.rectangularSelection(), CM.crosshairCursor(),
     CM.indentOnInput(), EditorState.allowMultipleSelections.of(true),
     findExtension(),
     ghostField, ghostKeys,
     keymap.of([...(opts.keys || []), ...CM.closeBracketsKeymap, ...CM.defaultKeymap, ...findKeymap, ...CM.searchKeymap, ...CM.historyKeymap,
-      ...CM.foldKeymap, ...CM.completionKeymap, CM.indentWithTab]),
+      ...CM.foldKeymap, CM.indentWithTab]),
     baseTheme,
     configComp.of(buildConfig(opts)),
     langComp.of([]),
@@ -180,7 +201,6 @@ export function createState(doc, opts) {
   return EditorState.create({ doc, extensions: ext, selection: opts.selection });
 }
 
-// ------------------------------------------------------------------ languages
 export const LANGS = () => CM.languages;
 export function languageFor(filename, kind) {
   if (kind === "markdown") return { name: "Markdown", markdown: true };
@@ -200,20 +220,19 @@ export function languageByName(name) {
   return d ? { name: d.name, desc: d } : null;
 }
 
-// ------------------------------------------------------------------ Markdown commands
 function selRange(view) { return view.state.selection.main; }
 export function mdWrap(view, mark, endMark = mark, placeholder = "") {
   const { state } = view;
   const changes = state.changeByRange((r) => {
     const text = state.sliceDoc(r.from, r.to);
     const before = state.sliceDoc(r.from - mark.length, r.from), after = state.sliceDoc(r.to, r.to + endMark.length);
-    if (before === mark && after === endMark) {   // toggle off
+    if (before === mark && after === endMark) {
       return { changes: [{ from: r.from - mark.length, to: r.from }, { from: r.to, to: r.to + endMark.length }],
         range: CM.EditorSelection.range(r.from - mark.length, r.to - mark.length) };
     }
     const lines = text.includes("\n") ? text.split("\n").filter((l) => l.trim()) : null;
     const marked = (l) => { const c = l.trim(); return c.length >= mark.length + endMark.length && c.startsWith(mark) && c.endsWith(endMark); };
-    if (lines?.length > 1 && lines.every(marked)) {   // Round 34: undo the line-by-line wrap below
+    if (lines?.length > 1 && lines.every(marked)) {
       const insert = text.split("\n").map((l) => (l.trim() ? l.replace(/^(\s*)(.*?)(\s*)$/, (m, a, c, z) => a + c.slice(mark.length, c.length - endMark.length) + z) : l)).join("\n");
       return { changes: { from: r.from, to: r.to, insert }, range: CM.EditorSelection.range(r.from, r.from + insert.length) };
     }
@@ -221,8 +240,7 @@ export function mdWrap(view, mark, endMark = mark, placeholder = "") {
       return { changes: { from: r.from, to: r.to, insert: text.slice(mark.length, text.length - endMark.length) },
         range: CM.EditorSelection.range(r.from, r.to - mark.length - endMark.length) };
     }
-    // Round 34: marks hug the text — Ctrl+A → Ctrl+B gave "**hello\n**" (the newline inside, not bold at all), and a
-    // selection over several lines is wrapped line by line (inline Markdown cannot span lines/paragraphs).
+
     if (text.trim()) {
       const lead = text.length - text.trimStart().length, core = text.trim();
       const from = r.from + lead, to = from + core.length;
@@ -286,7 +304,7 @@ export function mdTable(rows, cols, header = true) {
   for (let r = 0; r < Math.max(1, rows - (header ? 1 : 0)); r++) lines.push("|" + head.map(() => "     ").join("|") + "|");
   return "\n" + lines.join("\n") + "\n";
 }
-/** Re-align the Markdown table under the cursor (pipes in columns). */
+
 export function mdFormatTable(view) {
   const { state } = view;
   const at = state.doc.lineAt(selRange(view).head);
@@ -316,7 +334,6 @@ function splitRow(text) {
   return cells.map((c) => c.trim());
 }
 
-// ------------------------------------------------------------------ text tools (Notepad++-style)
 function transformLines(view, fn, wholeDocIfEmpty = true) {
   const { state } = view;
   const r = selRange(view);
@@ -362,7 +379,6 @@ export function insertDateTime(view) {
   mdInsert(view, s);
 }
 
-// ------------------------------------------------------------------ JSON helpers
 export function jsonFormat(text, indent = 2) { return JSON.stringify(JSON.parse(text), null, indent); }
 export function jsonError(text) {
   try { JSON.parse(text); return null; }
@@ -372,7 +388,6 @@ export function jsonError(text) {
   }
 }
 
-// ------------------------------------------------------------------ split view sync (one document in two panes)
 export const syncAnnotation = CM.Transaction ? CM.StateEffect.define() : null;
 export function syncDispatch(views, from, to) {
   return (tr) => {

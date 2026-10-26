@@ -23,18 +23,14 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
 def read(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8")
-
 
 def _chromium() -> str | None:
     return os.environ.get("MEMU_TEST_CHROMIUM") or None
 
-
 def _css_without_comments(text: str) -> str:
     return re.sub(r"/\*.*?\*/", "", text, flags=re.S)
-
 
 class StaticTest(unittest.TestCase):
     CHAT_CSS = ("panels.css", "panels-layout.css", "style.css", "memucode.css", "appearance.css", "design.css",
@@ -50,7 +46,7 @@ class StaticTest(unittest.TestCase):
                 self.assertNotRegex(css, r":has\([^)]*\.msg-more")
                 self.assertNotRegex(css, r":has\(> \.chat-view-wrap")
                 self.assertNotRegex(css, r":has\(> #chat\.(work|code)-mode")
-                # `X:has(input…) span` — a tag subject after :has() made every insertion expensive
+
                 self.assertNotRegex(css, r":has\(input[^)]*\)\)?\s*>?\s*span")
 
     def test_js_sets_the_classes(self):
@@ -101,7 +97,6 @@ class StaticTest(unittest.TestCase):
                     "/memucode.css?v=2.4-r36", "/settings.css?v=1.4-r36", "designs/glass.css?v=3.2-r36", "designs/grid.css?v=1.2-r36",
                     "/app.js?v=1.30-r41", "/memucode.js?v=2.6-r36"):
             self.assertIn(ref, index)
-
 
 @unittest.skipUnless(_chromium(), "MEMU_TEST_CHROMIUM is not set")
 class BrowserTest(unittest.TestCase):
@@ -179,13 +174,12 @@ class BrowserTest(unittest.TestCase):
           for(let k=0;k<n;k++){const p=document.createElement('p'); p.textContent='probe'; const t=performance.now(); body.appendChild(p); void document.body.offsetHeight; ts.push(performance.now()-t); p.remove(); void document.body.offsetHeight}
           ts.sort((a,b)=>a-b); return ts[ts.length>>1]}"""
         with_has = self.js(probe, 15)
-        # the same page with every :has() rule removed — the floor
+
         self.js("""()=>{const walk=(list)=>{for(let i=list.length-1;i>=0;i--){const r=list[i]; if(r.cssRules&&!r.selectorText) walk(r.cssRules);
             else if(r.selectorText&&r.selectorText.includes(':has(')) (r.parentRule||r.parentStyleSheet).deleteRule(i);}};
             for(const sh of document.styleSheets){try{walk(sh.cssRules)}catch(e){}}}""")
         floor = self.js(probe, 15)
         self.assertLess(with_has, floor * 2.5 + 1.0, f"insert {with_has:.2f} ms vs floor {floor:.2f} ms")
-
 
 if __name__ == "__main__":
     unittest.main()

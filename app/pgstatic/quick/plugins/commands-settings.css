@@ -1,4 +1,3 @@
-/* Settings of the Quick Ask «Команды» plugin — scoped under .mcs-root; theme tokens only. */
 .mcs-root { --mcs-line: color-mix(in srgb, var(--border, #444) 70%, transparent); color: var(--text); font-size: 14px; accent-color: var(--accent); }
 .mcs { display: flex; flex-direction: column; gap: 14px; }
 .mcs-sec { border: 1px solid var(--mcs-line); border-radius: 14px; padding: 14px 16px;
@@ -94,14 +93,8 @@
 @media (max-width: 640px) { .mcs-grid { grid-template-columns: 1fr; } .mcs-audit-row { grid-template-columns: 1fr 1fr; } }
 @media (prefers-reduced-motion: reduce) { .mcs-switch i, .mcs-switch i::after { transition: none; } }
 :root[data-motion="off"] .mcs-switch i, :root[data-motion="off"] .mcs-switch i::after { transition: none; }
-/* inside the main window's Settings → Quick Ask card: no nested card frames */
 .qs-plugin-card .mcs-root .mcs-sec { background: transparent; border-width: 1px 0 0; border-radius: 0; padding: 14px 0 6px; }
 .qs-plugin-card .mcs-root .mcs-sec:first-child { border-top: 0; padding-top: 4px; }
-
-/* ------------------------------------------------------------------ Round 23: calmer, in the language of the settings kit
-   Inside Settings → Быстрый доступ → «Команды» / «Голос» each group is a quiet card with a small title; rows are
-   separated by hairlines; buttons and fields look like the rest of the settings. The 69 actions, the services,
-   the timers and the safety limits sit behind «Дополнительно» (details.mcs-more). */
 .mcs { gap: 18px; }
 .mcs-sec { padding: 4px 16px 8px; border-radius: 12px; background: color-mix(in srgb, var(--panel, #1e1e1e) 82%, transparent);
   border: 1px solid color-mix(in srgb, var(--border, #444) 55%, transparent); }
@@ -114,7 +107,7 @@
 .mcs-root select, .mcs-root input[type="text"], .mcs-root input[type="number"], .mcs-root input[type="time"] { height: 32px; border-radius: 8px; }
 .mcs-note { border-radius: 9px; }
 .mcs-cmd { border-radius: 10px; }
-.mcs-part-voice .mcs-sec > h3, .mcs-part-commands .mcs-sec[data-mcs="main"] > h3 { display: none; }   /* the sub-page title says it */
+.mcs-part-voice .mcs-sec > h3, .mcs-part-commands .mcs-sec[data-mcs="main"] > h3 { display: none; }
 .mcs-part-voice .mcs-sec > .mcs-desc:first-of-type, .mcs-part-commands .mcs-sec[data-mcs="main"] > .mcs-desc { margin-top: 12px; }
 details.mcs-more { border-radius: 12px; border: 1px solid color-mix(in srgb, var(--border, #444) 55%, transparent); padding: 0 6px; }
 details.mcs-more > summary { list-style: none; cursor: pointer; display: flex; align-items: baseline; gap: 10px; padding: 12px 10px; font-weight: 600; font-size: 13.5px; }
@@ -124,9 +117,6 @@ details.mcs-more[open] > summary::after { transform: rotate(90deg); }
 details.mcs-more > summary small { color: var(--muted); font-weight: 500; font-size: 12px; }
 details.mcs-more > .mcs-sec { margin: 0 4px 10px; background: transparent; }
 @media (prefers-reduced-motion: reduce) { details.mcs-more > summary::after { transition: none; } }
-
-/* ---- Round 23: calm sub-pages in Settings → Быстрый доступ → Команды / Голос (ctx.part). They follow the settings
-   kit look (cards, 14px labels, soft dividers) through its tokens, with fallbacks outside the settings shell. */
 :is(.mcs-part-commands, .mcs-part-voice) { gap: 22px;
   --mcs-r: var(--sx-r, 14px); --mcs-card: var(--sx-card, color-mix(in srgb, var(--text) 2.2%, var(--panel)));
   --mcs-cardline: var(--sx-line, color-mix(in srgb, var(--text) 9%, transparent)); --mcs-soft: var(--sx-line-soft, color-mix(in srgb, var(--text) 6%, transparent)); }
@@ -154,7 +144,6 @@ details.mcs-more > .mcs-sec { margin: 0 4px 10px; background: transparent; }
 :is(.mcs-part-commands, .mcs-part-voice) .mcs-btn { border-radius: var(--sx-r-sm, 9px); padding: 6px 12px; font-weight: 550; }
 :is(.mcs-part-commands, .mcs-part-voice) .mcs-primary { color: var(--on-accent, #fff); }
 :is(.mcs-part-commands, .mcs-part-voice) select { min-height: 34px; border-radius: var(--sx-r-sm, 9px); padding: 6px 10px; max-width: 280px; }
-/* «Дополнительно» of the Commands page: same disclosure as the kit's */
 .mcs-part-commands > .mcs-more { border: 1px solid var(--mcs-cardline); border-radius: var(--mcs-r); background: var(--mcs-card); }
 .mcs-part-commands > .mcs-more > summary { display: flex; align-items: center; gap: 10px; padding: 14px 18px; cursor: pointer; list-style: none; font-weight: 600; font-size: 13.5px; color: var(--muted); }
 .mcs-part-commands > .mcs-more > summary::-webkit-details-marker { display: none; }
@@ -166,11 +155,8 @@ details.mcs-more > .mcs-sec { margin: 0 4px 10px; background: transparent; }
 .mcs-part-commands > .mcs-more[open] > .mcs-sec h3 { font-size: 14px; }
 @media (prefers-reduced-motion: reduce) { .mcs-part-commands > .mcs-more > summary::after { transition: none; } }
 :is(.mcs-part-commands, .mcs-part-voice) .mcs-quiet .mcs-link { border: 0; background: none; padding: 2px 0; }
-/* notes on the calm pages: information, not alarm */
 :is(.mcs-part-commands, .mcs-part-voice) .mcs-note { border: 0; background: color-mix(in srgb, var(--text) 4.5%, transparent); color: var(--muted); font-size: 12.5px; line-height: 1.5; padding: 9px 12px; }
 :is(.mcs-part-commands, .mcs-part-voice) .mcs-note.ok { background: color-mix(in srgb, var(--ok, #2fb67c) 9%, transparent); color: var(--text); }
-
-/* Round 24: голос быстрого доступа — источник, готовность, локальные модели */
 .mcs-vs { display: grid; gap: 6px; margin: 0 0 10px; }
 .mcs-vs-row { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--border, #444) 55%, transparent); background: color-mix(in srgb, var(--panel, transparent) 70%, transparent); }

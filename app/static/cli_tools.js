@@ -1,6 +1,5 @@
-/* MemuAI Proxy — «Настройки → CLI-инструменты»: устанавливает выбранные модели
-   прокси в Claude Code (~/.claude/settings.json) и Codex CLI (~/.codex/config.toml)
-   без ручного редактирования файлов/переменных окружения. */
+
+
 "use strict";
 
 window.MemuCliTools = (() => {
@@ -23,7 +22,7 @@ window.MemuCliTools = (() => {
     if (!root) return;
     try {
       const [models, status] = await Promise.all([api("/api/admin/models"), api("/api/admin/cli/status")]);
-      const enabled = (models.models || []).filter((m) => m.enabled !== false);
+      const enabled = (models.models || []).filter((m) => m.enabled !== false && (m.kind || m.caps?.kind || "chat") === "chat");
       S.models = enabled.map((m) => m.id).sort();
       S.providers = new Map(enabled.map((m) => [m.id, m.provider]));
       S.status = status;

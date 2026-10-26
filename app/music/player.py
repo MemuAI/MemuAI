@@ -21,22 +21,18 @@ COMMANDS = ("play", "pause", "toggle", "next", "prev", "seek", "play_track", "se
             "repeat", "stop", "handoff")
 _STATE_KEYS = {"track_id": str, "position": float, "playing": bool, "queue": list, "index": int, "volume": float,
                "shuffle": bool, "repeat": str, "device": str, "device_name": str, "duration": float, "context": dict,
-               "speed": float}   # r39: playback rate — the extrapolated position runs at this speed
+               "speed": float}
 
-
-STALE_SECONDS = 120.0   # the playing side reports every ~15 s; silence this long means the window/phone is gone
-PENDING_SECONDS = 2.5   # r40: a remote play / pause not confirmed by the player's report within this time is rolled back
+STALE_SECONDS = 120.0
+PENDING_SECONDS = 2.5
 _PC_TARGETS = ("pc", "desktop", "memuai", "dock")
-
 
 def _as_bool(value: Any) -> bool:
     if isinstance(value, str):
         return value.strip().lower() not in ("", "0", "false", "no", "off", "null", "none")
     return bool(value)
 
-
 _CAST = {bool: _as_bool}
-
 
 class PlayerHub:
     def __init__(self, path: Optional[Path] = None):
@@ -45,9 +41,7 @@ class PlayerHub:
         self.version = 0
         self.cmd_seq = 0
         self.commands: "collections.deque[Dict[str, Any]]" = collections.deque(maxlen=50)
-        # Round 39 (r39-integ): async listeners (SSE, long-poll) wait on an asyncio.Event, not in a worker thread —
-        # each to_thread(wait) held a default-executor thread for 15–25 s (and 15 s more after the client left), so a few
-        # open players starved the pool and every command / state read queued behind them for seconds.
+
         self._waiters: set = set()
         self.state: Dict[str, Any] = {"track_id": "", "position": 0.0, "position_at": 0.0, "playing": False,
                                       "queue": [], "index": -1, "volume": 1.0, "shuffle": False, "repeat": "off",
@@ -68,7 +62,7 @@ class PlayerHub:
                     self.state[key] = _CAST.get(kind, kind)(saved[key])
                 except (TypeError, ValueError):
                     pass
-        self.state["playing"] = False   # after a restart nothing plays
+        self.state["playing"] = False
 
     def _save(self) -> None:
         if not self.path:
@@ -98,7 +92,7 @@ class PlayerHub:
             self.state["stale"] = True
 
     def snapshot(self) -> Dict[str, Any]:
-        with self.cond:   # an RLock underneath: update()/wait() call this while holding it
+        with self.cond:
             now = time.time()
             self._expire(now)
             self._rollback(now)
@@ -116,8 +110,7 @@ class PlayerHub:
         with self.cond:
             now = time.time()
             self._expire(now)
-            # Out-of-order reports (two bridge calls racing): a report stamped older than the last applied one from the
-            # same device is ignored. ``at`` — the client's clock, seconds or milliseconds since the epoch.
+
             try:
                 at = float(fields.get("at") or 0)
             except (TypeError, ValueError):
@@ -130,13 +123,12 @@ class PlayerHub:
             if at:
                 self.state["client_at"] = at
             if fields.get("position") is None:
-                # Play/pause or a track change without a position: freeze the extrapolated position first, otherwise
-                # resuming after a long pause would jump forward by the whole pause.
+
                 same_track = fields.get("track_id") in (None, self.state["track_id"])
                 self.state["position"] = self._position_now(now) if same_track else 0.0
                 self.state["position_at"] = now
             self.state["stale"] = False
-            self.state["pending"] = None   # the playing side reported: its word is the truth
+            self.state["pending"] = None
             for key, kind in _STATE_KEYS.items():
                 if key in fields and fields[key] is not None:
                     try:
@@ -174,12 +166,6 @@ class PlayerHub:
             self._wake()
             return {"ok": True, "seq": self.cmd_seq}
 
-    # Round 40 (r40-music-fix): one player state, instantly everywhere. A remote play / pause / toggle / stop used to
-    # bump the version with the OLD state — every widget (the dock, Quick Access, the chat) got «still playing» back,
-    # the one that switched its button optimistically flipped back, and only the player's own report (0.5–1 s later)
-    # set it right: «the song stopped, the button changes a second later». Now the command itself moves the shared
-    # state (``pending``) when it is addressed to the device that plays and that device is online; its report confirms
-    # it, and without a report within PENDING_SECONDS the state rolls back to what the player last said.
     def _optimistic(self, cmd: str, item: Dict[str, Any]) -> None:
         if cmd not in ("play", "pause", "toggle", "stop") or not self.state.get("track_id"):
             return
@@ -228,12 +214,11 @@ class PlayerHub:
             cmds = self.pending(since_cmd if since_cmd >= 0 else self.cmd_seq)
             return {"state": self.snapshot(), "commands": cmds, "changed": self.version > since}
 
-
     def _wake(self) -> None:
         for loop, event in list(self._waiters):
             try:
                 loop.call_soon_threadsafe(event.set)
-            except RuntimeError:   # the loop is closed
+            except RuntimeError:
                 self._waiters.discard((loop, event))
 
     async def wait_async(self, since: int, since_cmd: int = -1, timeout: float = 25.0) -> Dict[str, Any]:
@@ -257,10 +242,8 @@ class PlayerHub:
             cmds = self.pending(since_cmd if since_cmd >= 0 else self.cmd_seq)
             return {"state": self.snapshot(), "commands": cmds, "changed": self.version > since}
 
-
 _HUBS: Dict[str, PlayerHub] = {}
 _LOCK = threading.Lock()
-
 
 def hub(root: Path) -> PlayerHub:
     key = str(root)

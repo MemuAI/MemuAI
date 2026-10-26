@@ -28,12 +28,9 @@ from app import quick_models  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 
-
 def read(name: str) -> str:
     return (QUICK / name).read_text(encoding="utf-8")
 
-
-# ---------------------------------------------------------------- B1 / B6: vision of the model
 class VisionTable(unittest.TestCase):
     def test_hosted_qwen_tiers(self):
         for model in ("qwen/qwen3.8-max:free", "qwen3.8-max", "qwen/qwen3.7-flash:free", "qwen3.5-plus", "qwen3.6-omni",
@@ -52,14 +49,12 @@ class VisionTable(unittest.TestCase):
         for caps in rows.values():
             if caps.get("vision") is False:
                 self.assertTrue(caps.get("vision_guess"), "a «no» from the name is marked as a guess")
-        # an explicit «does not see» in the window's settings is not a guess
-        # (Round 34: rows also carry caps.reasoning_profile — the window's «Размышления» row)
+
         vision_only = lambda caps: {k: v for k, v in caps.items() if k != "reasoning_profile"}  # noqa: E731
         for caps in (r["caps"] for r in endpoint.model_rows(["gpt-4o", "x"], "no")):
             self.assertEqual(vision_only(caps), {"vision": False})
         for caps in (r["caps"] for r in endpoint.model_rows(["x"], "yes")):
             self.assertEqual(vision_only(caps), {"vision": True})
-
 
 class VisionProbeRoute(unittest.TestCase):
     def client(self, prefs, proxy_reply):
@@ -110,13 +105,10 @@ class VisionProbeRoute(unittest.TestCase):
         r = asyncio.run(quick_models.endpoint_probe("http://x/v1", "k", "m", complete=rejecting))
         self.assertEqual((r["ok"], r["vision"]), (True, False))
 
-
-# ---------------------------------------------------------------- B3: no silent empty answer
 def _sse(*pieces):
     for piece in pieces:
         yield "data: " + json.dumps({"choices": [{"delta": {"content": piece}}]}, ensure_ascii=False)
     yield "data: [DONE]"
-
 
 class NoSilentAnswer(unittest.TestCase):
     def run_loop(self, rounds, settings=None):
@@ -178,7 +170,7 @@ class NoSilentAnswer(unittest.TestCase):
         self.assertEqual(got["args"], {"action": "computer.use", "params": {"task": "открой блокнот"}})
         got = quick_ask_api._alias_tool_call({"tool": "volume_set", "args": {"params": {"level": 30}}}, allowed)
         self.assertEqual(got["args"], {"action": "volume.set", "params": {"level": 30}})
-        # a real tool, an unknown name and a request without the assistant tool are left alone
+
         self.assertEqual(quick_ask_api._alias_tool_call({"tool": "web_search", "args": {}}, allowed)["tool"], "web_search")
         self.assertEqual(quick_ask_api._alias_tool_call({"tool": "frobnicate", "args": {}}, allowed)["tool"], "frobnicate")
         self.assertEqual(quick_ask_api._alias_tool_call({"tool": "computer.use", "args": {}}, {"web_search"})["tool"], "computer.use")
@@ -235,8 +227,6 @@ class NoSilentAnswer(unittest.TestCase):
         self.assertIn('code: "empty"', js)
         self.assertIn("turn.cardShown = true", js)
 
-
-# ---------------------------------------------------------------- B2 / B4: Computer Use on the window's model
 class ComputerModel(unittest.TestCase):
     def test_order(self):
         self.assertEqual(core.computer_model({"computer_model": "vl", "quick_ask_model": "q"}), "vl")
@@ -307,8 +297,6 @@ class ComputerModel(unittest.TestCase):
                        "model_source === \"work\""):
             self.assertIn(needle, js)
 
-
-# ---------------------------------------------------------------- B8 / B9: the command and its confirmation
 class ComputerCommand(unittest.TestCase):
     def test_phrasings(self):
         for text, task in (("возьми управление компьютером и открой блокнот", "открой блокнот"),
@@ -331,8 +319,6 @@ class ComputerCommand(unittest.TestCase):
         long = ac.describe("computer.use", {"task": "x" * 400}, "ru")
         self.assertLess(len(long), 300)
 
-
-# ---------------------------------------------------------------- B5 / A1–A5: picker and copying (static checks)
 class PickerAndCopy(unittest.TestCase):
     def test_picker_shows_all_models_with_vision_badges(self):
         js = read("quick.js")
@@ -363,7 +349,6 @@ class PickerAndCopy(unittest.TestCase):
             for m in re.finditer(r't\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)|tr\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)', src):
                 en = m.group(2) or m.group(4) or ""
                 self.assertIsNone(re.search(r"[А-Яа-яЁё]", en), (name, en))
-
 
 if __name__ == "__main__":
     unittest.main()

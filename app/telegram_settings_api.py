@@ -20,10 +20,8 @@ from .telegram_api import BotApi, TelegramError, redact, valid_token
 
 _bot_cache: Dict[str, Any] = {"fp": "", "at": 0.0, "bot": {}, "error": ""}
 
-
 def _err(message: str, status: int = 400, code: str = "") -> JSONResponse:
     return JSONResponse({"error": message, "code": code}, status)
-
 
 async def _bot_info(client: httpx.AsyncClient, token: str, *, fresh: bool = False) -> Dict[str, Any]:
     """getMe with a 5-minute cache; raises TelegramError on a bad token."""
@@ -35,11 +33,9 @@ async def _bot_info(client: httpx.AsyncClient, token: str, *, fresh: bool = Fals
     _bot_cache.update(fp=fingerprint, at=time.time(), bot=bot, error="")
     return dict(bot)
 
-
 def _lang(request: Request, body: Dict[str, Any] | None = None) -> str:
     value = str((body or {}).get("lang") or request.query_params.get("lang") or "")
     return "en" if value == "en" else "ru"
-
 
 def _token_error(error: TelegramError, en: bool) -> JSONResponse:
     if error.unauthorized or error.error_code == 404:
@@ -47,7 +43,6 @@ def _token_error(error: TelegramError, en: bool) -> JSONResponse:
                     if en else "Telegram отклонил токен — скопируйте его заново у @BotFather", 400, "bad_token")
     return _err(("Telegram is unreachable: " if en else "Telegram недоступен: ") + redact(error.description)[:200],
                 502, "network")
-
 
 @contextlib.asynccontextmanager
 async def _telegram_http(shared: Optional[httpx.AsyncClient]):
@@ -61,9 +56,7 @@ async def _telegram_http(shared: Optional[httpx.AsyncClient]):
     async with httpx.AsyncClient(timeout=httpx.Timeout(20, connect=10)) as client:
         yield client
 
-
 _proxy_cache: Dict[str, Any] = {"at": 0.0, "online": False}
-
 
 async def _proxy_online(client: httpx.AsyncClient, proxy_url: Optional[Callable[[], str]]) -> Optional[bool]:
     """Is MemuAI Proxy (the bot's process) reachable? ``None`` when unknown."""
@@ -82,7 +75,6 @@ async def _proxy_online(client: httpx.AsyncClient, proxy_url: Optional[Callable[
     _proxy_cache.update(at=time.time(), online=online)
     return online
 
-
 def register_telegram_routes(app: FastAPI, client: httpx.AsyncClient,
                              proxy_url: Optional[Callable[[], str]] = None,
                              telegram_client: Optional[httpx.AsyncClient] = None) -> None:
@@ -95,9 +87,7 @@ def register_telegram_routes(app: FastAPI, client: httpx.AsyncClient,
         prefs = await asyncio.to_thread(load_preferences)
         result = await asyncio.to_thread(telegram_pairing.status, prefs)
         if result["phase"] == "offline":
-            # No heartbeat. Say "start Proxy" only when Proxy really is not
-            # running; otherwise the bot itself is stuck (or runs from another
-            # data folder) and «Restart bot» is the fix.
+
             proxy = await _proxy_online(client, proxy_url)
             result["proxy_online"] = proxy
             if proxy:

@@ -1,6 +1,5 @@
-// MemuNote Slides — OpenDocument presentation (.odp) import: pages, text frames (paragraphs, lists,
-// bold/italic/underline/size/colour), shapes (rect/ellipse/custom shapes/lines), pictures, tables
-// (as text), page backgrounds and speaker notes. The result is a regular deck saved as .pptx.
+
+
 import { ZipArchive } from "./zip.js";
 import { newDeck, uid } from "./pptx.js";
 import { THEMES } from "./templates.js";

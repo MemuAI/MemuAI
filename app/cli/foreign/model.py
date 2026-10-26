@@ -14,51 +14,47 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterator, List, Optional
 
-#: Never read more than this from one file when only a title is needed.
 HEAD_BYTES = 96_000
-#: A tool result or a long text is cut to this many characters in a turn.
+
 RESULT_CHARS = 1_800
 TEXT_CHARS = 12_000
-
 
 @dataclass
 class Turn:
     """One step of a session. ``role`` is ``user``, ``assistant``, ``tool`` (a result) or ``note``."""
     role: str
     text: str = ""
-    tool: str = ""                # the tool of an assistant tool call or of a tool result
-    detail: str = ""              # what the call was about: a command, a path, a query
-    ok: bool = True               # False for a failed tool call
+    tool: str = ""
+    detail: str = ""
+    ok: bool = True
     at: float = 0.0
 
     def to_dict(self) -> Dict[str, Any]:
         return {key: value for key, value in self.__dict__.items() if value not in ("", 0.0) or key in ("role", "ok")}
 
-
 @dataclass
 class SessionInfo:
     """What a list of sessions shows — cheap to produce, no full read."""
-    tool: str                     # the key of the source: claude, codex, grok, gemini, agy, opencode, cursor…
+    tool: str
     id: str
     title: str = ""
     cwd: str = ""
     started: float = 0.0
     updated: float = 0.0
-    messages: int = 0             # how many messages (approximate for big files)
+    messages: int = 0
     model: str = ""
-    path: str = ""                # the file or database it lives in
+    path: str = ""
     extra: Dict[str, Any] = field(default_factory=dict)
 
     @property
     def key(self) -> str:
         return f"{self.tool}:{self.id}"
 
-
 @dataclass
 class ForeignSession:
     info: SessionInfo
     turns: List[Turn] = field(default_factory=list)
-    summary: str = ""             # a summary the other tool wrote itself (a compaction), if any
+    summary: str = ""
     todos: List[str] = field(default_factory=list)
     models: List[str] = field(default_factory=list)
 
@@ -73,12 +69,8 @@ class ForeignSession:
                 seen.setdefault(turn.detail, None)
         return list(seen)[:limit]
 
-
 class ReadError(Exception):
     """A session that cannot be read (missing, damaged, an unknown newer format)."""
-
-
-# ---------------------------------------------------------------- shared helpers
 
 def clip(text: Any, limit: int = RESULT_CHARS) -> str:
     """Text cut to ``limit`` characters, keeping the start and the end (where errors and results usually are)."""
@@ -87,7 +79,6 @@ def clip(text: Any, limit: int = RESULT_CHARS) -> str:
         return text
     keep = max(40, limit // 2)
     return text[:keep].rstrip() + f"\n… [{len(text) - 2 * keep} characters left out] …\n" + text[-keep:].lstrip()
-
 
 def iso_to_ts(value: Any) -> float:
     """An ISO-8601 time (``2026-09-28T20:01:09.123Z``) or a number of seconds/milliseconds → seconds."""
@@ -109,7 +100,6 @@ def iso_to_ts(value: Any) -> float:
     except ValueError:
         return 0.0
 
-
 def read_lines(path: Path, *, limit_bytes: int = 0) -> Iterator[Dict[str, Any]]:
     """The JSON objects of a JSONL file, skipping damaged lines. ``limit_bytes`` stops after about that much."""
     read = 0
@@ -130,7 +120,6 @@ def read_lines(path: Path, *, limit_bytes: int = 0) -> Iterator[Dict[str, Any]]:
     except OSError as exc:
         raise ReadError(str(exc)) from exc
 
-
 def tail_lines(path: Path, size: int = 48_000) -> List[Dict[str, Any]]:
     """The last JSON objects of a big JSONL file (to learn when a session was last used) without reading it all."""
     try:
@@ -142,7 +131,7 @@ def tail_lines(path: Path, size: int = 48_000) -> List[Dict[str, Any]]:
     except OSError:
         return []
     rows = []
-    for raw in chunk.splitlines()[1:]:                 # the first line may be cut in half
+    for raw in chunk.splitlines()[1:]:
         try:
             data = json.loads(raw)
         except ValueError:
@@ -150,7 +139,6 @@ def tail_lines(path: Path, size: int = 48_000) -> List[Dict[str, Any]]:
         if isinstance(data, dict):
             rows.append(data)
     return rows
-
 
 def text_of(content: Any) -> str:
     """The text in a message ``content``: a string, or a list of blocks with ``text`` (and nothing else of value)."""
@@ -172,13 +160,10 @@ def text_of(content: Any) -> str:
         return str(content.get("text") or "")
     return ""
 
-
 _PATHY = re.compile(r"^(?:[A-Za-z]:[\\/]|/|\.{0,2}[\\/]|~)|[\\/][\w.\-]+\.\w{1,8}$|^[\w.\-]+\.\w{1,8}$")
-
 
 def _looks_like_path(text: str) -> bool:
     return bool(_PATHY.search(text)) and " " not in text.strip() and len(text) < 300
-
 
 def short_args(tool: str, args: Any) -> str:
     """What a tool call was about, in a few words: the command, the path or the query."""
@@ -202,12 +187,10 @@ def short_args(tool: str, args: Any) -> str:
             return clip(" ".join(value.split()), 160)
     return ""
 
-
 _WRAPPER_TAGS = ("system-reminder", "ide_opened_file", "ide_selection", "local-command-caveat", "local-command-stdout",
                  "local-command-stderr", "environment_context", "user_instructions", "recommended_plugins",
                  "permissions instructions", "user-prompt-submit-hook")
 _OPENERS = re.compile(r"<(" + "|".join(re.escape(tag) for tag in _WRAPPER_TAGS) + r")[^>\n]{0,200}>", re.I)
-
 
 def _strip_wrappers(text: str) -> str:
     """Remove ``<tag …>…</tag>`` for the tags a tool puts around what a person typed.
@@ -226,7 +209,7 @@ def _strip_wrappers(text: str) -> str:
             break
         tag = found.group(1).lower()
         if tag in no_closer:
-            out.append(text[position:found.end()])             # an opener nobody closed: it stays as it is
+            out.append(text[position:found.end()])
             position = found.end()
             continue
         closer = "</" + tag + ">"
@@ -241,7 +224,6 @@ def _strip_wrappers(text: str) -> str:
     out.append(text[position:])
     return "".join(out)
 
-
 def _between(text: str, tag: str) -> Optional[str]:
     opening, closing = f"<{tag}>", f"</{tag}>"
     start = text.find(opening)
@@ -249,7 +231,6 @@ def _between(text: str, tag: str) -> Optional[str]:
         return None
     end = text.find(closing, start + len(opening))
     return None if end < 0 else text[start + len(opening):end].strip()
-
 
 def clean_user_text(text: str) -> str:
     """The words a person typed, without the wrappers a tool adds around them (reminders, IDE context…)."""
@@ -260,11 +241,9 @@ def clean_user_text(text: str) -> str:
         text = (command + " " + (args or "")).strip()
     return text.strip()
 
-
 def title_from(text: str, limit: int = 90) -> str:
     line = " ".join(clean_user_text(text).split())
     return line[:limit] + ("…" if len(line) > limit else "")
-
 
 def now() -> float:
     return time.time()

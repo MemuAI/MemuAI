@@ -34,14 +34,12 @@ ENVELOPES = ("local-tool_report|terminal-command_report|browser_report|computer-
              "generated_images|tool_response|tool_result|tool_results|tool_output|function_results|function_result|"
              "ds_safety")
 
-
 class _Rule:
     def __init__(self, open_: str, close: Any = None, *, call: bool = False, line: bool = False, flags=re.I):
         self.open = re.compile(open_, flags)
         self.close = close if callable(close) or close is None else re.compile(close, flags)
         self.call, self.line, self.tag = call, line, ""
         self.first = open_[1] if open_.startswith("\\") else open_[0]
-
 
 RULES: List[_Rule] = [
     _Rule(r"<tool_call\b[^>]*>", r"</tool_call>", call=True),
@@ -75,14 +73,12 @@ _TOOL_TAG_PREFIX = re.compile(
     r"^(?:w(?:e(?:b(?:_\w*)?)?)?|d(?:o(?:c(?:s(?:_\w*)?)?)?)?|t(?:o(?:o(?:l\w*)?)?)?|f(?:u(?:n\w*)?)?|i(?:n(?:v\w*)?)?|"
     r"th\w*|c(?:o(?:d(?:e(?:_\w*)?)?)?)?|p(?:a(?:n(?:e(?:l(?:_\w*)?)?)?)?)?|m(?:c(?:p\w*)?)?)$", re.I)
 
-
 class _Block:
     __slots__ = ("start", "end", "inner", "rule", "open", "closed", "tag")
 
     def __init__(self, start, end, inner, rule, open_, closed, tag=""):
         self.start, self.end, self.inner, self.rule, self.open, self.closed, self.tag = \
             start, end, inner, rule, open_, closed, tag
-
 
 def segments(text: str) -> List[Tuple[bool, str]]:
     """``(is_code, text)`` parts: fences (an unclosed one runs to the end) and inline code are code."""
@@ -118,7 +114,6 @@ def segments(text: str) -> List[Tuple[bool, str]]:
         out.append((False, source[last:]))
     return out
 
-
 def _scan_json(text: str, start: int) -> Optional[Tuple[int, int]]:
     i = start
     while i < len(text) and text[i].isspace():
@@ -146,10 +141,8 @@ def _scan_json(text: str, start: int) -> Optional[Tuple[int, int]]:
                 return begin, i + 1
     return None
 
-
 _ANY_OPEN = re.compile("|".join("(?:" + rule.open.pattern + ")" for rule in RULES).replace("(" + ENVELOPES + ")",
                                                                                          "(?:" + ENVELOPES + ")"), re.I)
-
 
 CALL_BODY = re.compile(r"\s*(?:[\[{]|<(?:invoke|function|arg_key|parameter|tool_call|[｜|])|[A-Za-z][\w.:-]*\s*"
                        r"(?:\(|<arg_key>|\n\s*<arg_key>|\n\s*[\[{]|<\|tool_call_argument_begin))", re.I)
@@ -159,7 +152,6 @@ PROSE_RULE = re.compile(r"(?:<tool_call|<tool_calls?>|<function_calls>|<invoke|<
                         r"<(?:supplemental_context|session_summary|context_safety|attached_files|image_description|"
                         r"video_analysis|generated_images|tool_response|tool_result|tool_results|tool_output|"
                         r"function_results|function_result|ds_safety)\b)", re.I)
-
 
 def _next_block(text: str, start_at: int, partial: bool = False) -> Optional[_Block]:
     best: Optional[_Block] = None
@@ -222,7 +214,6 @@ def _next_block(text: str, start_at: int, partial: bool = False) -> Optional[_Bl
         break
     return best
 
-
 def _hold_back(text: str) -> str:
     tail_start = max(text.rfind("<"), text.rfind("["), text.rfind("◁"))
     if tail_start < 0 or len(text) - tail_start > 40:
@@ -237,7 +228,6 @@ def _hold_back(text: str) -> str:
         or (re.fullmatch(r"<[A-Za-z][\w.-]*", tail) is not None
             and (_TOOL_TAG_PREFIX.match(tail[1:]) is not None or TOOL_TAG.match(tail[1:]) is not None))
     return text[:tail_start] if possible else text
-
 
 def _clean_prose(text: str, partial: bool, is_last: bool) -> str:
     out, pos = [], 0
@@ -255,10 +245,8 @@ def _clean_prose(text: str, partial: bool, is_last: bool) -> str:
         value = _hold_back(value)
     return value
 
-
 def _has_tool_tag(text: str) -> bool:
     return any(TOOL_TAG.match(t.group(1)) for t in _TAG.finditer(text))
-
 
 def split_think(text: str) -> Tuple[str, str]:
     """``(content, reasoning)`` for an orphan closing think tag (reasoning came before it)."""
@@ -272,7 +260,6 @@ def split_think(text: str) -> Tuple[str, str]:
     if re.search(r"<(?:think|thinking|reasoning)\b[^>]*>|◁think▷", before, re.I):
         return source, ""
     return source[last.end():].lstrip(), before.strip()
-
 
 def _token_blocks(text: str, on_block: Optional[Callable[[_Block], None]] = None) -> str:
     out, pos = [], 0
@@ -292,7 +279,6 @@ def _token_blocks(text: str, on_block: Optional[Callable[[_Block], None]] = None
     out.append(text[pos:])
     return "".join(out)
 
-
 def clean(text: Any, *, partial: bool = False) -> str:
     source = str(text or "")
     if not source:
@@ -300,14 +286,11 @@ def clean(text: Any, *, partial: bool = False) -> str:
     source = _token_blocks(split_think(source)[0])
     if not _ANY_OPEN.search(source) and not TOKENS.search(source) and not _has_tool_tag(source) \
             and (not partial or _hold_back(source) == source):
-        return source       # the usual answer: one scan, nothing to cut
+        return source
     parts = segments(source)
     value = "".join(chunk if code else _clean_prose(chunk, partial, index == len(parts) - 1)
                     for index, (code, chunk) in enumerate(parts))
     return re.sub(r"\n{3,}", "\n\n", re.sub(r"[ \t]+\n", "\n", value))
-
-
-# ------------------------------------------------------------------ calls
 
 def _norm_name(raw: Any) -> str:
     name = re.sub(r"^functions[.:]", "", str(raw or "").strip(), flags=re.I)
@@ -315,7 +298,6 @@ def _norm_name(raw: Any) -> str:
     if not NAME_RE.match(name):
         return ""
     return "mcp_" + name[4:] if name.lower().startswith("mcp_") else name.lower()
-
 
 def _json_loose(raw: Any) -> Any:
     value = re.sub(r"^```(?:json)?\s*|\s*```$", "", str(raw or "").strip())
@@ -326,13 +308,11 @@ def _json_loose(raw: Any) -> Any:
             continue
     return None
 
-
 def _args(value: Any) -> Dict[str, Any]:
     if isinstance(value, str):
         parsed = _json_loose(value)
         value = {"value": value} if parsed is None else parsed
     return value if isinstance(value, dict) else {}
-
 
 def _from_object(row: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(row, dict):
@@ -347,7 +327,6 @@ def _from_object(row: Any) -> Optional[Dict[str, Any]]:
             return {"tool": name, "args": _args(row[key])}
     return {"tool": name, "args": _args(fn.get("arguments") or {})}
 
-
 def _json_objects(text: str) -> List[Any]:
     rows, pos = [], 0
     while True:
@@ -358,7 +337,6 @@ def _json_objects(text: str) -> List[Any]:
         if data is not None:
             rows.extend(data if isinstance(data, list) else [data])
         pos = span[1]
-
 
 def _scalar(raw: Any) -> Any:
     value = str(raw if raw is not None else "").strip()
@@ -371,7 +349,6 @@ def _scalar(raw: Any) -> Any:
         if parsed is not None:
             return parsed
     return value.strip("\"'")
-
 
 def _call_expr(body: str) -> Optional[Dict[str, Any]]:
     m = re.match(r"^\s*([A-Za-z][\w.-]*)\s*\(([\s\S]*)\)\s*$", str(body or ""))
@@ -396,13 +373,11 @@ def _call_expr(body: str) -> Optional[Dict[str, Any]]:
             args[a.group(1)] = _scalar(raw)
     return {"tool": name, "args": args}
 
-
 _PARAMS = re.compile(
     r"""<parameter\s*(?:=\s*|name\s*=\s*["'])([\w.-]+)["']?[^>]*>([\s\S]*?)</parameter>"""
     r"""|<arg_key>([\s\S]*?)</arg_key>\s*<arg_value>([\s\S]*?)</arg_value>"""
     r"""|<[｜|]\s*DSML\s*[｜|]\s*parameter\s+name\s*=\s*"([^"]+)"[^>]*>([\s\S]*?)</[｜|]\s*DSML\s*[｜|]\s*parameter>""",
     re.I)
-
 
 def _xml_params(body: str) -> Optional[Dict[str, Any]]:
     args: Dict[str, Any] = {}
@@ -418,7 +393,6 @@ def _xml_params(body: str) -> Optional[Dict[str, Any]]:
         if key and key.strip():
             args[key.strip()] = _scalar(value)
     return args if found else None
-
 
 def _calls_from_block(block: _Block) -> List[Dict[str, Any]]:
     inner, open_ = block.inner or "", block.open or ""
@@ -472,7 +446,6 @@ def _calls_from_block(block: _Block) -> List[Dict[str, Any]]:
             out.append(call)
     return out
 
-
 def extract_calls(text: Any, allowed: Optional[set] = None) -> Tuple[str, List[Dict[str, Any]]]:
     """Foreign calls → MemuAI calls. ``allowed`` (names) drops calls of tools this surface does not have."""
     source = str(text or "")
@@ -508,7 +481,6 @@ def extract_calls(text: Any, allowed: Optional[set] = None) -> Tuple[str, List[D
         parts.append("".join(out))
     return (clean("".join(parts)).strip() if calls else source), calls
 
-
 class StreamGuard:
     """Incremental filter for deltas that cannot be taken back once sent (Quick Access popup).
 
@@ -533,7 +505,7 @@ class StreamGuard:
         if self.diverged:
             return ""
         if not visible.startswith(self.sent):
-            # Trailing whitespace may be trimmed later; anything else means the shown text changed meaning.
+
             if self.sent.rstrip() and visible.startswith(self.sent.rstrip()):
                 self.sent = self.sent.rstrip()
             else:

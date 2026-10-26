@@ -17,14 +17,11 @@ from .model import (HEAD_BYTES, ForeignSession, ReadError, SessionInfo, Turn, cl
 KEY = "claude"
 TITLE = "Claude Code"
 
-
 def home() -> Path:
     return Path(os.environ.get("CLAUDE_CONFIG_DIR") or (Path.home() / ".claude"))
 
-
 def present() -> bool:
     return (home() / "projects").is_dir()
-
 
 def _user_text(event: Dict[str, Any]) -> str:
     message = event.get("message") if isinstance(event.get("message"), dict) else {}
@@ -32,7 +29,6 @@ def _user_text(event: Dict[str, Any]) -> str:
     if isinstance(content, list) and any(isinstance(block, dict) and block.get("type") == "tool_result" for block in content):
         return ""
     return clean_user_text(text_of(content))
-
 
 def discover(limit: int = 400) -> List[SessionInfo]:
     base = home() / "projects"
@@ -44,13 +40,12 @@ def discover(limit: int = 400) -> List[SessionInfo]:
             continue
         for file in folder.glob("*.jsonl"):
             if file.name.startswith("agent-"):
-                continue                                  # a sub-agent's own transcript (older versions)
+                continue
             info = _info(file)
             if info is not None:
                 rows.append(info)
     rows.sort(key=lambda row: -row.updated)
     return rows[:limit]
-
 
 def _info(file: Path) -> Optional[SessionInfo]:
     try:
@@ -74,24 +69,23 @@ def _info(file: Path) -> Optional[SessionInfo]:
             started = started or iso_to_ts(event.get("timestamp"))
             if kind == "user" and not first and not event.get("isMeta") and not event.get("isCompactSummary"):
                 candidate = _user_text(event)
-                if candidate and not (candidate.startswith("/") and " " not in candidate):   # "/clear" is no title
+                if candidate and not (candidate.startswith("/") and " " not in candidate):
                     first = candidate
             if kind == "assistant" and not model:
                 model = str((event.get("message") or {}).get("model") or "")
     if not first and not title:
-        return None                                       # nothing was ever said: not worth listing
+        return None
     last = 0.0
     for event in tail_lines(file):
         if event.get("type") == "summary" and event.get("summary") and not title:
             title = str(event["summary"])
         last = iso_to_ts(event.get("timestamp")) or last
-    updated = last or stat.st_mtime                       # the last line says when it was really used
+    updated = last or stat.st_mtime
     estimate = events
     if stat.st_size > HEAD_BYTES and events:
-        estimate = int(events * stat.st_size / HEAD_BYTES)   # a head is a fair sample of the whole
+        estimate = int(events * stat.st_size / HEAD_BYTES)
     return SessionInfo(tool=KEY, id=file.stem, title=title_from(title or first), cwd=cwd, started=started or stat.st_ctime,
                        updated=updated, messages=estimate, model=model, path=str(file))
-
 
 def read(info: SessionInfo) -> ForeignSession:
     path = Path(info.path)

@@ -23,10 +23,8 @@ SPEC = {"id": "openrouter", "title": "OpenRouter", "url": "https://openrouter.ai
         "format": "json", "items_path": "data", "id_keys": ["id"], "label_keys": ["name", "id"],
         "families": [], "api_key": ""}
 
-
 def record(model_id):
     return {"id": model_id, "name": model_id.upper(), "values": {}, "family": model_id.split("/")[0]}
-
 
 class SeenStateTest(unittest.TestCase):
     def setUp(self):
@@ -41,8 +39,6 @@ class SeenStateTest(unittest.TestCase):
         async def fake_read(_source):
             return dict(self.records)
 
-        # Real notify() (it writes the durable event); only the OS toast and
-        # Telegram are switched off.
         patcher = patch.object(module_monitor, "read_source", fake_read)
         patcher.start()
         self.addCleanup(patcher.stop)
@@ -63,23 +59,23 @@ class SeenStateTest(unittest.TestCase):
 
     def test_shown_notifications_are_not_replayed_after_restart(self):
         self.configure()
-        self.scan()                                   # baseline, silent
+        self.scan()
         self.assertEqual(module_monitor.pending_events()["events"], [])
         self.records["b/new"] = record("b/new")
-        self.scan()                                   # one real notification
+        self.scan()
         pending = module_monitor.pending_events()
         self.assertEqual(len(pending["events"]), 1)
         self.assertIn("b/new", pending["events"][0]["text"])
-        module_monitor.acknowledge(pending["cursor"])  # MemuAI showed the toast
+        module_monitor.acknowledge(pending["cursor"])
 
         stored = self.restart()
         self.assertEqual(stored["ack"], pending["cursor"])
         self.assertEqual(module_monitor.pending_events()["events"], [], "replayed after restart")
-        # Re-saving the settings and scanning again (what happens on start) is quiet too.
+
         self.configure()
         self.scan()
         self.assertEqual(module_monitor.pending_events()["events"], [])
-        self.assertEqual(len(module_monitor.events(0, "api-models")["events"]), 1)  # history is kept
+        self.assertEqual(len(module_monitor.events(0, "api-models")["events"]), 1)
 
     def test_upgrade_from_a_store_without_ack_does_not_replay_old_events(self):
         path = module_monitor._path()
@@ -92,14 +88,14 @@ class SeenStateTest(unittest.TestCase):
     def test_unacknowledged_events_from_the_background_are_shown_once(self):
         self.configure()
         self.scan()
-        module_monitor.pending_events()  # migration: ack = 0 events so far
+        module_monitor.pending_events()
         self.records["c/z"] = record("c/z")
-        self.scan()  # the Proxy found a model while MemuAI was closed
+        self.scan()
         first = module_monitor.pending_events()
         self.assertEqual(len(first["events"]), 1)
         module_monitor.acknowledge(first["cursor"])
         self.assertEqual(module_monitor.pending_events()["events"], [])
-        module_monitor.acknowledge(0)  # never moves backwards
+        module_monitor.acknowledge(0)
         self.assertEqual(module_monitor.pending_events()["events"], [])
 
     def test_module_seen_mark_persists_and_acknowledges(self):
@@ -114,14 +110,14 @@ class SeenStateTest(unittest.TestCase):
         self.assertEqual(stored["seen_events"]["api-models"], cursor)
         self.assertEqual(module_monitor.events(0, "api-models")["seen"], cursor)
         self.assertEqual(module_monitor.pending_events()["events"], [])
-        module_monitor.mark_seen("api-models", cursor + 50)  # clamped to the sequence
+        module_monitor.mark_seen("api-models", cursor + 50)
         self.assertEqual(module_monitor.events(0, "api-models")["seen"], cursor)
 
     def test_seen_set_keeps_every_current_id_on_large_sources(self):
         with patch.object(module_monitor, "_SEEN_LIMIT", 5):
             current = {f"z/{n}": record(f"z/{n}") for n in range(4)} | {"a/first": record("a/first")}
             seen = module_monitor._remember_seen({"0/old-a", "0/old-b", "y/gone"}, current)
-            self.assertTrue(set(current) <= set(seen))  # "a/first" used to be trimmed as alphabetically early
+            self.assertTrue(set(current) <= set(seen))
             self.assertLessEqual(len(seen), 5)
 
     def test_http_routes_store_the_cursor_server_side(self):
@@ -139,9 +135,9 @@ class SeenStateTest(unittest.TestCase):
         self.assertEqual(len(first["events"]), 1)
         self.assertEqual(client.post("/api/pg/modules/events/ack", json={"cursor": first["cursor"]}).json()["acknowledged"],
                          first["cursor"])
-        # A new client (restarted app, wiped localStorage) asks again: nothing.
+
         self.assertEqual(TestClient(app).get("/api/pg/modules/events?pending=1").json()["events"], [])
-        # The legacy ?after= form still returns the full history.
+
         self.assertEqual(len(client.get("/api/pg/modules/events?after=0").json()["events"]), 1)
 
     def test_page_no_longer_keeps_the_cursor_in_local_storage(self):
@@ -149,7 +145,6 @@ class SeenStateTest(unittest.TestCase):
         self.assertNotIn("memu_module_events_cursor", source)
         self.assertIn("/api/pg/modules/events?pending=1", source)
         self.assertIn("/api/pg/modules/events/ack", source)
-
 
 if __name__ == "__main__":
     unittest.main()

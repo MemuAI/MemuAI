@@ -22,11 +22,7 @@ from app.cli import ratelimit, selfdoc
 from app.cli.agent import Agent, TurnResult
 from app.cli.llm import LLMError, StreamEvent, Usage
 
-
 NOW = datetime(2026, 10, 11, 16, 0).timestamp()
-
-
-# ---------------------------------------------------------------- rate-limit reset times
 
 class ResetTimes(unittest.TestCase):
     def test_headers(self):
@@ -40,7 +36,7 @@ class ResetTimes(unittest.TestCase):
         date = format_datetime(datetime.fromtimestamp(NOW + 3600, timezone.utc), usegmt=True)
         self.assertEqual(ratelimit.from_headers({"retry-after": date}, NOW), NOW + 3600)
         self.assertEqual(ratelimit.from_headers({}, NOW), 0.0)
-        self.assertEqual(ratelimit.from_headers({"retry-after": str(30 * 86400)}, NOW), 0.0)   # absurd: ignored
+        self.assertEqual(ratelimit.from_headers({"retry-after": str(30 * 86400)}, NOW), 0.0)
 
     def test_texts(self):
         cases = {
@@ -60,7 +56,7 @@ class ResetTimes(unittest.TestCase):
         stamp = datetime.fromtimestamp(NOW + 600, timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
         self.assertEqual(ratelimit.from_text(f"Available again at {stamp}", NOW), NOW + 600)
         for text in ("429 Too Many Requests", "try again later", "reset at 18:30", ""):
-            self.assertEqual(ratelimit.from_text(text, NOW), 0.0, text)   # no zone, no number: nobody said
+            self.assertEqual(ratelimit.from_text(text, NOW), 0.0, text)
 
     def test_an_exception_counts_by_its_retry_at_then_its_text(self):
         exc = LLMError("rate limit: please try again in 90s", status=429)
@@ -91,9 +87,6 @@ class ResetTimes(unittest.TestCase):
         self.assertEqual(result.stopped, "error")
         self.assertEqual(result.error_category, "rate_limit")
         self.assertGreater(result.retry_at, time.time() + 500)
-
-
-# ---------------------------------------------------------------- times and arguments
 
 class Times(unittest.TestCase):
     def at(self, text):
@@ -146,16 +139,13 @@ class Times(unittest.TestCase):
         at, why = ac.next_try(1, NOW + 3600, NOW)
         self.assertEqual((at, why), (NOW + 3600 + ac.RESET_MARGIN, "reset"))
         at, why = ac.next_try(2, NOW + 2, NOW)
-        self.assertEqual((at, why), (NOW + ac.MIN_DELAY, "reset"))       # never a hair after arming
+        self.assertEqual((at, why), (NOW + ac.MIN_DELAY, "reset"))
         at, why = ac.next_try(2, 0, NOW)
         self.assertEqual((at - NOW, why), (600, "backoff"))
         self.assertEqual(ac.countdown(42), "0:42")
         self.assertEqual(ac.countdown(14 * 60 + 5), "14:05")
         self.assertEqual(ac.countdown(2 * 3600 + 3 * 60 + 7), "2:03:07")
         self.assertEqual(ac.countdown(27 * 3600), "1d 3h")
-
-
-# ---------------------------------------------------------------- the manager
 
 class FakeUI:
     interactive = True
@@ -183,29 +173,27 @@ class FakeUI:
     def _notify(self, title, text, **kwargs):
         self.notified.append(text)
 
-
 def result(stopped="done", category="", retry_at=0.0, error=""):
     return TurnResult(stopped=stopped, error_category=category, retry_at=retry_at,
                       error=error or ("The provider is rate limiting requests (HTTP 429)" if category else ""))
-
 
 class Manager(unittest.TestCase):
     def setUp(self):
         self.runtime, _ = make_runtime()
         self.ui = FakeUI(self.runtime)
         self.auto = ac.AutoContinue(self.ui)
-        self.auto.tick(NOW)                                # the first look at the conversation
+        self.auto.tick(NOW)
 
     def test_arm_persists_counts_down_and_fires_when_free(self):
         plan = self.auto.arm(NOW + 90, message="")
         self.assertEqual(plan.message, "continue")
         self.assertEqual(self.runtime.session.meta["auto_continue"]["at"], NOW + 90)
         self.assertEqual(self.auto.footer(NOW), "◷ continue in 1:30")
-        self.assertTrue(self.auto.tick(NOW + 1))          # a new second: redraw
+        self.assertTrue(self.auto.tick(NOW + 1))
         self.assertEqual(self.ui.sent, [])
         self.ui.busy = True
         self.auto.tick(NOW + 100)
-        self.assertEqual(self.ui.sent, [])                # waits while the agent works
+        self.assertEqual(self.ui.sent, [])
         self.ui.busy = False
         self.auto.tick(NOW + 101)
         self.assertEqual(self.ui.sent, ["continue"])
@@ -230,7 +218,7 @@ class Manager(unittest.TestCase):
         self.assertEqual(self.runtime.model, "other-model")
         self.assertEqual(len(self.ui.sent), 2)
         self.ui.busy = False
-        self.auto.turn_finished(result("error", "quota"), NOW + 1820)          # no reset named: backoff
+        self.auto.turn_finished(result("error", "quota"), NOW + 1820)
         self.assertEqual(self.auto.plan.at, NOW + 1820 + ac.backoff(2))
         self.auto.tick(NOW + 1820 + ac.backoff(2) + 1)
         self.ui.busy = False
@@ -260,7 +248,7 @@ class Manager(unittest.TestCase):
         self.assertEqual((plan.at, plan.source), (NOW + 3600 + ac.RESET_MARGIN, "auto"))
         self.ui.said.clear()
         self.auto.turn_finished(result("error", "server", error="HTTP 500"), NOW + 20)
-        self.assertEqual(self.ui.said, [])                # not a limit: no offer
+        self.assertEqual(self.ui.said, [])
         self.auto.cancel()
         self.auto.last_limit = {}
         plan, known = self.auto.arm_auto(now=NOW)
@@ -277,11 +265,11 @@ class Manager(unittest.TestCase):
         self.auto.tick(NOW + 1)
         self.assertIsNone(self.auto.plan)
         self.assertTrue(any("paused" in text for _l, text in self.ui.said))
-        # back to the first conversation (as /resume does), the countdown comes back
+
         self.runtime.session = first
         self.auto.tick(NOW + 2)
         self.assertEqual((self.auto.plan.at, self.auto.plan.message), (NOW + 600, "go on"))
-        # a fresh terminal opening it after the time passed: sent after a grace period, with a warning
+
         from app.cli.session import Session
         reopened = Session.load(self.runtime.root, first.id)
         self.assertEqual(reopened.meta["auto_continue"]["message"], "go on")
@@ -304,9 +292,6 @@ class Manager(unittest.TestCase):
         self.assertIn("try 1 of 2", text)
         self.assertIn("fallback model: m2", text)
         self.assertTrue(self.auto.cancel())
-
-
-# ---------------------------------------------------------------- the terminal
 
 class Terminal(unittest.TestCase):
     def test_limit_error_offer_command_countdown_and_send(self):
@@ -341,7 +326,7 @@ class Terminal(unittest.TestCase):
             keys.send_text("/auto-continue auto\r")
             await need(lambda: ui.auto_continue.plan is not None, 4)
             footer = "".join(fragment[1] for fragment in ui._footer_left())
-            await need(lambda: backend.calls >= 2, 8)          # (a third call may be the automatic title)
+            await need(lambda: backend.calls >= 2, 8)
             await need(lambda: "Auto-continue worked" in screen(), 8)
             return offered, footer, screen()
 
@@ -382,9 +367,6 @@ class Terminal(unittest.TestCase):
         self.assertEqual(ac.setting_retries(runtime.settings), ac.MAX_RETRIES)
         self.assertEqual(ac.default_message(runtime.settings), "дальше")
 
-
-# ---------------------------------------------------------------- the MemuCode guide
-
 class GuideCoverage(unittest.TestCase):
     """The reference never drifts: whatever the program has, the guide names, and it names nothing else."""
 
@@ -407,7 +389,7 @@ class GuideCoverage(unittest.TestCase):
         from app.cli.commands import REGISTRY
         selfdoc._registry()
         names = set(REGISTRY) | {alias for command in REGISTRY.values() for alias in command.aliases}
-        allowed = {"skill-name", "name", "command"}           # placeholders written as such
+        allowed = {"skill-name", "name", "command"}
         texts = [answer for _q, answer in selfdoc.FAQ] + [question for question, _a in selfdoc.FAQ] \
             + list(selfdoc.NOTES.values()) + [selfdoc.POINTER, selfdoc.DESCRIPTION]
         for text in texts:
@@ -448,7 +430,6 @@ class GuideCoverage(unittest.TestCase):
         self.assertIn("/plan", first)
         self.assertIn("Shift+Tab", first)
 
-
 class GuideDelivery(unittest.TestCase):
     def test_skill_catalogue_and_skill_tool(self):
         runtime, _ = make_runtime()
@@ -475,17 +456,17 @@ class GuideDelivery(unittest.TestCase):
         system = runtime.system_prompt(runtime.tools.available(runtime), native=False)
         self.assertIn("# About MemuCode itself", system)
         self.assertIn("/plan or Shift+Tab", system)
-        self.assertNotIn("## Slash commands", system)           # the reference is not in every request
+        self.assertNotIn("## Slash commands", system)
         asyncio.run(Agent(runtime).run_turn("Как включить в MemuCode CLI планирование?"))
         last = backend.requests[-1].messages[-1]["content"]
         last = last if isinstance(last, str) else str(last)
         self.assertIn('<skill name="memucode-guide">', last)
         self.assertIn("## Slash commands", last)
-        asyncio.run(Agent(runtime).run_turn("а как его выключить?"))     # a short follow-up keeps it
+        asyncio.run(Agent(runtime).run_turn("а как его выключить?"))
         self.assertIn('<skill name="memucode-guide">', str(backend.requests[-1].messages[-1]["content"]))
         asyncio.run(Agent(runtime).run_turn("fix the failing test in tests/test_api.py"))
         self.assertNotIn("memucode-guide", str(backend.requests[-1].messages[-1]["content"]))
-        # switched off in /skills: neither the pointer nor the attachment
+
         runtime, backend = make_runtime(turns=["ok"], settings={"skills": {"disabled": [selfdoc.GUIDE_ID]}})
         asyncio.run(Agent(runtime).run_turn("как в MemuCode сменить модель?"))
         self.assertNotIn('<skill name="memucode-guide">', str(backend.requests[-1].messages[-1]["content"]))
@@ -523,7 +504,6 @@ class GuideDelivery(unittest.TestCase):
         self.assertFalse(own_output(docs_dir().parent / "main.py"))
         self.assertIn(str(docs_dir() / "en" / "memucode-cli.md"), selfdoc.build_guide())
 
-
 class Docs(unittest.TestCase):
     def test_user_docs_describe_both_features(self):
         root = Path(__file__).resolve().parents[1] / "app" / "docs"
@@ -532,9 +512,6 @@ class Docs(unittest.TestCase):
             self.assertIn("/auto-continue", text, lang)
             self.assertIn("/help-ask", text, lang)
 
-
-# ---------------------------------------------------------------- live (real models)
-
 LIVE_QUESTIONS = (
     ("Как включить в MemuCode CLI планирование?", [r"/plan|shift\s*\+\s*tab"], [r"--plan\b"]),
     ("Как в MemuCode сменить модель?", [r"/model|alt\s*\+\s*p"], []),
@@ -542,7 +519,6 @@ LIVE_QUESTIONS = (
     ("Лимиты закончились — как сделать, чтобы MemuCode сам продолжил в 18:30?", [r"/auto-continue 18:30"], []),
     ("Какие горячие клавиши у MemuCode для режима разрешений и отката?", [r"shift\s*\+\s*tab", r"esc"], []),
 )
-
 
 @unittest.skipUnless(os.environ.get("MEMUCODE_LIVE_SELFDOC") == "1", "live check: MEMUCODE_LIVE_SELFDOC=1 + keys")
 class LiveSelfQuestions(unittest.TestCase):
@@ -584,7 +560,6 @@ class LiveSelfQuestions(unittest.TestCase):
         if not os.environ.get("REFORM_KEY"):
             self.skipTest("REFORM keys absent")
         self.ask(os.environ["REFORM_BASE"], os.environ["REFORM_KEY"], os.environ.get("REFORM_MODEL", "qwen3.8-flash"))
-
 
 if __name__ == "__main__":
     unittest.main()

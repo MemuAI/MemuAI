@@ -1,13 +1,5 @@
-/* MemuAI Proxy — what every model can do (Round 22).
 
-   Settings → Model catalog shows capability badges for each row, filter chips, and a card with
-   every field the Proxy knows about the model (app/model_capabilities.py): value, source and
-   confidence of each, the raw JSON of each source, a copy button for the model id and a vision
-   probe that runs only on an explicit click (it spends one real request).
 
-   API: GET /api/admin/models/capabilities, GET /api/admin/models/{id}/info,
-        POST /api/admin/models/{id}/probe, POST /api/admin/models/catalog/refresh.
-   app.js calls window.MemuModelCaps.load() / badges(id) / passes(id) / renderFilters() / open(id). */
 "use strict";
 (function () {
   Object.assign(I18N.ru, {
@@ -71,7 +63,7 @@
     "mcap.k.projector": "Проектор (mmproj)", "mcap.k.moderated": "Модерация провайдера",
     "mcap.kind.chat": "чат", "mcap.kind.image": "генерация изображений", "mcap.kind.video": "генерация видео",
     "mcap.kind.embedding": "эмбеддинги", "mcap.kind.stt": "распознавание речи", "mcap.kind.tts": "синтез речи",
-    "mcap.kind.music": "музыка", "mcap.kind.audio": "аудио",
+    "mcap.kind.rerank": "реранкинг", "mcap.kind.decisions": "решения", "mcap.kind.music": "музыка", "mcap.kind.audio": "аудио",
     "mcap.bill.subscription": "веб-аккаунт или подписка — цены ниже лишь эквивалент API", "mcap.bill.api": "оплата по API",
     "mcap.bill.local": "локально — бесплатно",
     "mcap.src.user": "Вручную", "mcap.src.probe": "Проверка", "mcap.src.local": "Файл GGUF", "mcap.src.provider": "Провайдер", "mcap.src.openrouter": "OpenRouter",
@@ -142,7 +134,7 @@
     "mcap.k.projector": "Projector (mmproj)", "mcap.k.moderated": "Provider moderation",
     "mcap.kind.chat": "chat", "mcap.kind.image": "image generation", "mcap.kind.video": "video generation",
     "mcap.kind.embedding": "embeddings", "mcap.kind.stt": "speech recognition", "mcap.kind.tts": "speech synthesis",
-    "mcap.kind.music": "music", "mcap.kind.audio": "audio",
+    "mcap.kind.rerank": "reranking", "mcap.kind.decisions": "decisions", "mcap.kind.music": "music", "mcap.kind.audio": "audio",
     "mcap.bill.subscription": "web account or subscription — prices below are only the API equivalent", "mcap.bill.api": "billed per API use",
     "mcap.bill.local": "local — free",
     "mcap.src.user": "Manual", "mcap.src.probe": "Probe", "mcap.src.local": "GGUF file", "mcap.src.provider": "Provider", "mcap.src.openrouter": "OpenRouter",
@@ -165,7 +157,7 @@
     { k: "web", i: "globe" }, { k: "audio", i: "mic" }, { k: "image_out", i: "image" }, { k: "free", i: "tag" },
     { k: "open", i: "unlock" }, { k: "deprecated", i: "warn" },
   ];
-  const KIND_ICON = { image: "image", video: "video", embedding: "grid", stt: "mic", tts: "speaker", music: "music", audio: "speaker" };
+  const KIND_ICON = {rerank:"grid",decisions:"bulb", image: "image", video: "video", embedding: "grid", stt: "mic", tts: "speaker", music: "music", audio: "speaker" };
   const TILES = [
     { k: "vision", i: "eye" }, { k: "tools", i: "tools" }, { k: "reasoning", i: "bulb" }, { k: "structured_output", i: "braces" },
     { k: "web_search", i: "globe" }, { k: "audio_input", i: "mic" }, { k: "video_input", i: "video" }, { k: "file_input", i: "file" },
@@ -190,7 +182,7 @@
       S.at = Date.now();
       if (before !== JSON.stringify(S.map) && typeof renderModelsTable === "function") renderModelsTable();
       else renderFilters();
-    }).catch(() => { /* the list still works without badges */ }).finally(() => { S.loading = null; });
+    }).catch(() => {  }).finally(() => { S.loading = null; });
     return S.loading;
   }
 
@@ -207,7 +199,7 @@
     if (!cap) return S.at ? `<span class="mcap-unknown">—</span>` : "";
     const out = [];
     if (cap.kind && cap.kind !== "chat") {
-      out.push(`<span class="mcap-b" data-k="kind" title="${esc(t("mcap.k.kind"))}: ${esc(t("mcap.kind." + cap.kind))}">${ic(KIND_ICON[cap.kind] || "dots")}</span>`);
+      out.push(`<span class="mcap-b" data-k="kind" title="${esc(t("mcap.k.kind"))}: ${esc(t("mcap.kind." + cap.kind))}">${ic(KIND_ICON[cap.kind] || "dots")}<span>${esc(t("mcap.kind." + cap.kind))}</span></span>`);
     }
     for (const badge of BADGES) {
       if (cap[badge.k] !== true) continue;
@@ -298,8 +290,6 @@
     if (S.openId) open(S.openId, true);
   }
 
-  /* ----------------------------------------------------------------- formatting */
-
   function fmtNum(n) { return Number(n).toLocaleString(LANG === "en" ? "en-US" : "ru-RU"); }
   function fmtTokens(n) { return `<span class="num">${esc(fmtNum(n))}</span> <span class="sub">${esc(t("mcap.tokens"))} · ${esc(typeof compactTokens === "function" ? compactTokens(n) : n)}</span>`; }
   function fmtMoney(n) {
@@ -352,8 +342,6 @@
       .concat(alts.length ? [`${t("mcap.alts")}:`, ...alts] : []).join("\n");
     return `<span class="mcap-src" data-conf="${esc(item.confidence || "low")}" title="${esc(title)}">${esc(t("mcap.src." + item.source))}${alts.length ? `<span class="alt">+${alts.length}</span>` : ""}</span>`;
   }
-
-  /* ----------------------------------------------------------------- drawer */
 
   function close() {
     const drawer = document.getElementById("mcap-drawer");
@@ -438,7 +426,6 @@
     return `<div class="mcap-probe-res ${cls}"><b>${esc(head)}</b>${detail ? ` — <span class="sub">${esc(detail)}</span>` : ""}</div>`;
   }
 
-  /* Round 24: "through this API" (routing) vs "according to OpenRouter / Models.dev" (reference). */
   const SPLIT_KEYS = ["vision", "tools", "reasoning", "context", "max_output"];
   const L2 = (ru, en) => (LANG === "en" ? en : ru);
   function splitVal(key, item) {
@@ -481,8 +468,7 @@
 
   function renderCard(drawer, card) {
     const f = card.fields || {};
-    // Round 33 (r33d-shots): the title is the same readable name as the catalog row ("Claude Opus 4.6 Thinking"),
-    // not the model_info family label ("Claude Opus 4.6–4.8"), which describes a range, not this model.
+
     let pretty = "";
     try {
       if (typeof proxyModelName === "function") {
@@ -493,8 +479,7 @@
     const name = (pretty && pretty !== card.id && pretty) || (f.name && f.name.value) || card.model || card.id;
     const provider = typeof providerMeta === "function" ? (providerMeta(card.provider).title || card.provider) : card.provider;
     const tiles = TILES.map((tile) => {
-      // Round 24: capability tiles follow this API; the catalogue value is only in the comparison below.
-      // (unknown through this API → the best other evidence, labelled with its source: OpenRouter, name…)
+
       const item = (card.effective && card.effective[tile.k]) || f[tile.k];
       const state = !item ? "unknown" : item.value === true ? "yes" : item.value === false ? "no" : "unknown";
       const label = t("mcap.t." + tile.k);
@@ -513,7 +498,7 @@
       if (!rows && !missing.length) return "";
       return `<section class="mcap-sec"><h4>${ic(GROUP_ICON[group.id] || "dots")}${esc(t("mcap.g." + group.id))}</h4>${rows ? `<dl class="mcap-rows" style="margin:0">${rows}</dl>` : ""}${missing.length ? `<p class="mcap-missing">${esc(t("mcap.missing"))}: ${esc(missing.join(", "))}</p>` : ""}</section>`;
     }).join("");
-    // Groups with no known field at all still say what is unknown.
+
     const shown = new Set((card.groups || []).map((g) => g.id));
     const empty = Object.keys(KEY_FIELDS).filter((g) => !shown.has(g) && g !== "weights").map((g) =>
       `<section class="mcap-sec"><h4>${ic(GROUP_ICON[g])}${esc(t("mcap.g." + g))}</h4><p class="mcap-missing">${esc(t("mcap.missing"))}: ${esc(KEY_FIELDS[g].map((k) => t("mcap.k." + k)).join(", "))}</p></section>`).join("");

@@ -21,7 +21,6 @@ from app import detector, model_call, tokenizer_probe  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def measured(base: int, counts, base2: int = 0, estimated: bool = False) -> dict:
     """Probe results as a provider that reports its own token counts would give them."""
     usage = lambda tokens: {"usage": {"prompt_tokens": tokens, "estimated": estimated}, "kind": "tokenizer", "text": "OK"}
@@ -32,11 +31,9 @@ def measured(base: int, counts, base2: int = 0, estimated: bool = False) -> dict
         out["tokenizer_base2"] = usage(base2)
     return out
 
-
 class TokenizerFingerprintTest(unittest.TestCase):
     def test_the_probe_texts_are_frozen(self) -> None:
-        # Every reference was measured for exactly these bytes: changing a text silently
-        # invalidates all of them. Re-measure the references before updating this hash.
+
         blob = (tokenizer_probe.PREFIX + "|" + "|".join(tokenizer_probe.SEGMENTS[name] for name in tokenizer_probe.ORDER)
                 + "|" + tokenizer_probe.SUFFIX).encode("utf-8")
         self.assertEqual(hashlib.sha256(blob).hexdigest(), FROZEN)
@@ -88,25 +85,23 @@ class TokenizerFingerprintTest(unittest.TestCase):
         self.assertEqual(tokenizer_probe.assess(measured(20, [120, 330, 90]), "claude")["verdict"], "unlike_claimed")
 
     def test_a_moving_hidden_prompt_does_not_hide_the_fingerprint(self) -> None:
-        # The gateway's hidden prompt grew by 29 tokens after the baseline: every text is off by 29.
+
         shifted = tokenizer_probe.assess(measured(4147, [217, 253, 257]), "claude")
         self.assertEqual((shifted["verdict"], shifted["shift"], shifted["strong"]), ("match", 29, False))
-        # It flips between two sizes from request to request: one text is off, the baselines differ.
+
         flipping = tokenizer_probe.assess(measured(4147, [188, 225, 199], 4176), "claude")
         self.assertEqual((flipping["verdict"], flipping["stable"], flipping["strong"]), ("match", False, False))
-        # The closing baseline is the one that counts when the opening one was a cache write.
+
         warmed = tokenizer_probe.assess(measured(4118, [188, 223, 228], 4147), "claude")
         self.assertEqual((warmed["verdict"], warmed["shift"], warmed["base"]), ("match", 0, 4147))
-        # The shape alone still tells DeepSeek from its near twin Llama 3.
+
         self.assertEqual(tokenizer_probe.assess(measured(20, [200, 242, 199]), "deepseek")["families"], ["deepseek"])
-        # A shift too large to be "the hidden prompt moved a little" is not explained away.
+
         self.assertEqual(tokenizer_probe.assess(measured(20, [588, 624, 628]), "claude")["verdict"], "unlike_claimed")
-        # An unsteady measurement never accuses the claimed family.
+
         self.assertEqual(tokenizer_probe.assess(measured(20, [120, 330, 90], 400), "claude")["verdict"], "unknown")
 
-
 FROZEN = "911c633e1cbb5a808bf85b8a4380e044bad72df2c6eb8d501ec93ba3bd6f3d41"
-
 
 def answers(family_line: str) -> dict:
     return {
@@ -118,7 +113,6 @@ def answers(family_line: str) -> dict:
         "quiz": {"kind": "quiz", "text": "[]"},
         "specs": {"kind": "specs", "text": "context: unknown, output: unknown"},
     }
-
 
 class DetectorUsesTheTokenizerTest(unittest.TestCase):
     def test_the_plan_dropped_weak_probes_and_gained_the_tokenizer(self) -> None:
@@ -133,9 +127,7 @@ class DetectorUsesTheTokenizerTest(unittest.TestCase):
         self.assertFalse(hasattr(detector, "score_style"))
 
     def test_a_foreign_tokenizer_overrules_a_convincing_self_report(self) -> None:
-        # Round 35: a foreign model calls itself Claude only when told to, and that persona prompt is part
-        # of what the provider counts (base 60, not a bare 20): without it the same counts mean a gateway
-        # recounting with tiktoken (round35_detector_test.py).
+
         results = {**answers("I am Claude, made by Anthropic."), **measured(60, [159, 192, 147], 60)}
         report = detector.analyse("reseller-claude-opus-5", results)
         self.assertEqual(report["verdict"], "substituted")
@@ -215,7 +207,6 @@ class DetectorUsesTheTokenizerTest(unittest.TestCase):
                        "счёт провайдера", "tokens_per_s"):
             self.assertIn(needle, js)
         self.assertNotIn("Полная проверка добавляет поиск фразы", js)
-
 
 if __name__ == "__main__":
     unittest.main()

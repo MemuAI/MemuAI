@@ -39,10 +39,10 @@ TOOLS: List[str] = [
 ]
 WRITE = {"drive_create_folder", "drive_rename", "drive_move", "drive_copy", "drive_trash", "drive_untrash",
          "drive_delete_file", "drive_share", "drive_unshare", "drive_download"}
-#: Permanent (skips the Drive trash) — asked every time, even with «Full access».
+
 ALWAYS = {"drive_delete_file"}
 DANGER = {"drive_delete_file", "drive_trash", "drive_unshare"}
-#: Tools that need the full ``drive`` scope (or read access) — checked before the request.
+
 SCOPES: Dict[str, set] = {
     **{name: FULL for name in ("drive_rename", "drive_move", "drive_copy", "drive_trash", "drive_untrash",
                                "drive_delete_file", "drive_share", "drive_unshare", "drive_list_permissions")},
@@ -56,7 +56,6 @@ HINT = ("Google Drive: ids come from drive_list_files. Rename with drive_rename,
         "when the user explicitly asks to delete forever. drive_download saves a file (Google Docs/Sheets/Slides are "
         "exported: format pdf|docx|xlsx|pptx|txt|csv|md|html|odt|epub) to a folder on this computer.")
 
-#: Export formats of Google files (Drive files.export).
 EXPORT = {
     "pdf": "application/pdf", "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -71,24 +70,20 @@ FOLDER = "application/vnd.google-apps.folder"
 MAX_SAVE = 512 * 1024 * 1024
 FIELDS = "id,name,mimeType,size,modifiedTime,createdTime,parents,webViewLink,trashed,shared,starred,owners(displayName,emailAddress),description"
 
-
 def _ig():
     from . import integrations
     return integrations
-
 
 def _drive(method: str, path: str, **kwargs: Any) -> Any:
     ig = _ig()
     return ig._google("google_drive", method, ig.DRIVE_API + path, **kwargs)
 
-
 def _arg(text: str):
     return _ig().IntegrationArgumentError(text)
 
-
 def _file_id(args: Dict[str, Any], key: str = "file_id") -> str:
     raw = str(args.get(key) or args.get("id") or "").strip()
-    # A pasted link: …/d/<id>/…, …?id=<id>, …/folders/<id>
+
     found = re.search(r"/(?:d|folders)/([A-Za-z0-9_-]{10,})", raw) or re.search(r"[?&]id=([A-Za-z0-9_-]{10,})", raw)
     if found:
         raw = found.group(1)
@@ -96,10 +91,8 @@ def _file_id(args: Dict[str, Any], key: str = "file_id") -> str:
         raise _arg("Укажите %s (его даёт drive_list_files)" % key)
     return raw
 
-
 def _ref(file_id: str) -> str:
     return quote(file_id, safe="")
-
 
 def _row(row: Dict[str, Any]) -> Dict[str, Any]:
     return {"id": row.get("id"), "name": row.get("name"), "mime": row.get("mimeType"), "size": row.get("size"),
@@ -107,10 +100,8 @@ def _row(row: Dict[str, Any]) -> Dict[str, Any]:
             "modified": row.get("modifiedTime"), "trashed": row.get("trashed"), "shared": row.get("shared"),
             "owners": [o.get("emailAddress") or o.get("displayName") for o in row.get("owners") or [] if isinstance(o, dict)]}
 
-
 def _common() -> Dict[str, str]:
     return {"supportsAllDrives": "true"}
-
 
 def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one flat dispatch table
     if tool == "drive_get_file":
@@ -230,7 +221,6 @@ def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one flat dispat
                 "used_gb": gb(quota.get("usage")), "drive_gb": gb(quota.get("usageInDrive")),
                 "trash_gb": gb(quota.get("usageInDriveTrash"))}
     raise _arg("Неизвестный инструмент Google Drive: %s" % tool)
-
 
 def _download(args: Dict[str, Any]) -> Dict[str, Any]:
     """A Drive file → a folder on this computer (Google formats exported to ``format``)."""

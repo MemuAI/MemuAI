@@ -1,35 +1,10 @@
-/* MemuAI — Round 33 (r33-models): ONE model picker for every place that chooses a model.
- *
- * Before: the chat menu, Settings → Models, «Images, video and decisions», Do For You, Work agents, research, Live,
- * schedules, panels… each drew its own list (raw ids, no capabilities, different filters). Now:
- *
- *   • rows come from one catalogue — Proxy's /pg/state rows enriched by app/model_catalog.py (only models enabled in
- *     MemuAI Proxy): readable name (MemuModelNames), full id, account, kind, vision yes/no/unknown, reasoning, tools, free;
- *   • one row look everywhere: name first, the full id under it (muted, smaller), capability badges on the right;
- *   • one popover: search (name, id, account), filter chips (sees images / reasons / free / generators), pinned and
- *     recent first, then a collapsible group per account; keyboard ↑↓ Enter Esc;
- *   • every <select> whose options are model ids becomes this picker automatically (enhanceSelects() in app.js asks
- *     MemuModelPicker.claim(select) first) — the <select> stays the source of truth, so every existing handler works.
- *
- * Public API (window.MemuModelPicker) — for app.js, modules and other windows (r33-characters):
- *   rows()                         catalogue rows (S.models in the main window, else the last load())
- *   load({kind, need}) → Promise   fetch GET /api/pg/model-catalog (windows without S.models)
- *   setRows(rows, prefs)           give rows directly (a module that fetched them itself)
- *   find(id) / name(id) / label(id)  row, display name (alias > automatic), "Name · id"
- *   vision(id) → {state: yes|no|unknown, src, text, hint}
- *   badgesHtml(row) / rowHtml(row, opts) / listHtml(rows, opts)   the shared markup
- *   open(anchor, {value, kind, need, filter, special:[{value,label}], title}) → Promise<id|null>
- *   claim(select) / enhanceSelect(select, opts)   upgrade a model <select>
- *   noteRecent(id)                  remember a pick for the «Recent» section
- * Kinds: "text" (chat models, no generators), "chat", "image", "video". need: "vision" marks models that cannot see
- * images (shown disabled with the reason) — the place still decides what to do with the choice.
- */
+
+
 (function () {
   "use strict";
   if (window.MemuModelPicker) return;
   const VERSION = "1.0-r33";
 
-  /* ------------------------------------------------------------------ helpers */
   const lang = () => {
     try { if (typeof PG_LANG !== "undefined") return PG_LANG; } catch (e) {}
     try { return localStorage.getItem("memu_lang") === "en" ? "en" : (document.documentElement.lang === "en" ? "en" : "ru"); } catch (e) { return "ru"; }
@@ -38,6 +13,7 @@
   const t = (ru, eng) => (en() ? eng : ru);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const SVG = {
+    code: '<svg viewBox="0 0 24 24"><path d="m8 6-6 6 6 6m8-12 6 6-6 6m-3-14-2 16"/></svg>',
     eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
     eyeOff: '<svg viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6C3.8 8.4 2 12 2 12s3.6 7 10 7a10.6 10.6 0 0 0 5.4-1.5"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg>',
     eyeQ: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7c2.2 0 4 .8 5.5 1.8M22 12s-1 2-3 3.9"/><path d="M2 12s3.6 7 10 7"/><circle cx="12" cy="12" r="3"/><path d="M17.5 13.6a2.2 2.2 0 1 1 3 2.1c-.5.2-.8.6-.8 1.1v.3"/><path d="M19.7 20h.01"/></svg>',
@@ -58,7 +34,6 @@
   const tokens = (q) => String(q || "").toLowerCase().split(/[\s,/_\-:]+/).filter(Boolean);
   const matches = (hay, toks) => !toks.length || toks.every((tk) => hay.includes(tk));
 
-  /* ------------------------------------------------------------------ data */
   let extRows = null, extPrefs = null;
   function rows() {
     try { if (typeof S !== "undefined" && Array.isArray(S.models) && S.models.length) return S.models; } catch (e) {}
@@ -113,12 +88,57 @@
   function label(id) { const n = name(id); return n && n !== id ? `${n} · ${id}` : String(id || ""); }
   function kindOf(row) {
     if (!row) return "chat";
-    if (row.kind) return row.kind;
+    const ids=[row.raw_model,row.id].filter(Boolean);
+    if(ids.some(id=>/(?:^|[-_\/])jev(?:[-_.]?(?:v?\d|latest)|$)|(?:^|[-\/])(?:jaredpalmer\/kev-4b|respan\/span-01(?:-lite)?|upstage\/solar-decide|inception\/mercury-decide|togethercomputer\/tev1-4b-experimental)(?::free)?$/i.test(id)))return "decisions";
     const c = row.caps || {};
-    if (c.video) return "video";
-    if (c.image) return "image";
-    if (c.music && c.text !== true) return "music";
+    const fields = c.fields || {};
+    const rawOutputs=row.architecture?.output_modalities || row.output_modalities || c.out || c.output_modalities || fields.output?.value || [];
+    const outputs=(Array.isArray(rawOutputs)?rawOutputs:String(rawOutputs).split(/[,+\s]+/)).map(v=>String(v).toLowerCase()).filter(Boolean);
+    if(outputs.includes('decisions'))return 'decisions';
+    if(outputs.includes('embeddings') || outputs.includes('embedding'))return 'embedding';
+    if(outputs.includes('scores'))return 'rerank';
+    const aliases={text:'chat',decision:'decisions',embeddings:'embedding',reranker:'rerank',reranking:'rerank',transcription:'stt','speech-to-text':'stt','text-to-speech':'tts'};
+    const declared=String(row.kind || c.kind || fields.kind?.value || '').toLowerCase(), kind=aliases[declared] || declared;
+    if(['image','video','music','audio','stt','tts','embedding','rerank','decisions'].includes(kind))return kind;
+    if(outputs.length && !outputs.includes('text'))for(const value of ['image','video','audio','music'])if(outputs.includes(value))return value;
+    if(outputs.includes('text') && !outputs.includes('video') && !outputs.includes('image')) {
+      if(ids.some(id=>/(?<![a-z0-9])(?:whisper|transcribe|stt|asr|parakeet)(?![a-z])/i.test(id)))return 'stt';
+      return 'chat';
+    }
+    const isSummaryCaps = ('effective' in c || 'reference' in c || 'video_input' in c || 'audio_input' in c || 'fields' in c);
+    if (!isSummaryCaps && kind !== "chat") {
+      const chatLike = !!(c.vision || c.tools || c.reasoning || c.thinking || c.structured || c.json || c.web || c.code || c.caching);
+      if (!chatLike) {
+        if (c.video) return "video";
+        if (c.image) return "image";
+        if (c.music && c.text !== true) return "music";
+      }
+    }
     return "chat";
+  }
+  const KIND_WARN_LABELS = {
+    image: ["генерации изображений", "image generation"],
+    video: ["генерации видео", "video generation"],
+    music: ["генерации музыки", "music generation"],
+    audio: ["работы со звуком", "audio processing"],
+    tts: ["озвучки текста (TTS)", "speech synthesis (TTS)"],
+    stt: ["распознавания речи (STT)", "speech recognition (STT)"],
+    embedding: ["создания эмбеддингов", "embeddings"],
+    rerank: ["реранкинга", "reranking"],
+    decisions: ["принятия решений (да/нет)", "yes/no decisions"],
+  };
+  function warnIfSpecialized(idOrRow, expectedKind = "chat") {
+    const row = typeof idOrRow === "object" && idOrRow ? idOrRow : find(idOrRow);
+    if (!row) return false;
+    const k = kindOf(row);
+    if (!expectedKind || k === expectedKind) return false;
+    const meta = KIND_WARN_LABELS[k] || [k, k];
+    const msg = t(
+      `Внимание: «${name(row.id)}» — модель другого типа (${meta[0]}). В текстовом чате она может работать некорректно.`,
+      `Warning: “${name(row.id)}” is a model of another type (${meta[1]}). It may not work in a regular text chat.`
+    );
+    try { if (typeof toast === "function") toast(msg, "warn"); } catch (e) {}
+    return true;
   }
   const SRC_TEXT = {
     probe: ["проверено настоящим запросом", "checked with a real request"],
@@ -146,7 +166,6 @@
     return { state, src, text, hint: `${text} · ${why}`, firm: ["probe", "user", "provider", "local", "adapter", "kind"].includes(src) };
   }
 
-  /* ------------------------------------------------------------------ markup */
   const HUES = { claude: 22, opus: 22, sonnet: 22, haiku: 22, gpt: 158, chatgpt: 158, o1: 158, o3: 158, o4: 158, gemini: 214, gemma: 214,
     qwen: 262, qwq: 262, deepseek: 228, glm: 196, kimi: 330, grok: 0, llama: 205, mistral: 32, mixtral: 32, minimax: 345,
     flux: 285, sora: 158, veo: 214, wanx: 262, wan: 262, apodex: 120, yandexgpt: 48, gigachat: 140, auto: 40 };
@@ -167,10 +186,8 @@
     const caps = row.caps || {};
     const kind = kindOf(row);
     const out = [];
-    if (opts.noKind && kind !== "chat") { /* a list of one kind (image models only): the badge says nothing */ }
-    else if (kind === "image") out.push(`<span class="mmp-b mmp-kind" title="${esc(t("Создаёт изображения", "Creates images"))}">${svg("image")}<em>${esc(t("Картинки", "Images"))}</em></span>`);
-    else if (kind === "video") out.push(`<span class="mmp-b mmp-kind" title="${esc(t("Создаёт видео", "Creates video"))}">${svg("video")}<em>${esc(t("Видео", "Video"))}</em></span>`);
-    else if (kind === "music") out.push(`<span class="mmp-b mmp-kind" title="${esc(t("Создаёт музыку", "Creates music"))}">${svg("music")}</span>`);
+    const taskKinds={image:["image","Картинки","Images"],video:["video","Видео","Video"],music:["music","Музыка","Music"],audio:["music","Аудио","Audio"],tts:["music","Озвучка","Speech synthesis"],stt:["music","Транскрипция","Transcription"],embedding:["code","Эмбеддинги","Embeddings"],rerank:["more","Реранкинг","Reranking"],decisions:["brain","Решения","Decisions"]};
+    if (kind !== "chat") {const meta=taskKinds[kind] || ["code",kind,kind];const caption=t(meta[1],meta[2]);out.push(`<span class="mmp-b mmp-kind" title="${esc(caption)}" aria-label="${esc(caption)}">${svg(meta[0])}<em>${esc(caption)}</em></span>`);}
     else {
       const v = vision(row);
       const cls = v.state === "yes" ? "v-yes" : v.state === "no" ? "v-no" : "v-unk";
@@ -201,7 +218,7 @@
       ${opts.options ? `<button type="button" class="model-options" data-model-options="${esc(id)}" title="${esc(t("Настроить модель", "Model options"))}" aria-label="${esc(t("Настроить модель", "Model options"))}">${svg("more")}</button>` : ""}
     </div>`;
   }
-  /* «Recent» — the last picks (main chat model and every picker). */
+
   function recent() { try { return JSON.parse(localStorage.getItem("memu_model_recent") || "[]").filter((x) => typeof x === "string"); } catch (e) { return []; } }
   function noteRecent(id) {
     if (!id) return;
@@ -221,12 +238,12 @@
     vision: { label: () => t("Со зрением", "Vision"), icon: "eye", test: (r) => kindOf(r) === "chat" && vision(r).state === "yes" },
     reasoning: { label: () => t("Рассуждают", "Reason"), icon: "brain", test: (r) => (r.caps || {}).reasoning === true || (r.caps || {}).thinking === true },
     free: { label: () => t("Бесплатные", "Free"), icon: "gift", test: (r) => (r.caps || {}).free === true || (r.badges || []).includes("free") },
-    media: { label: () => t("Генерация", "Generation"), icon: "image", test: (r) => ["image", "video"].includes(kindOf(r)) },
+    media: { label: () => t("Специальные", "Specialized"), icon: "image", test: (r) => kindOf(r) !== "chat" },
   };
   function filterChips(active, available) {
     return `<div class="mmp-chips" role="toolbar">${available.map((key) => `<button type="button" class="mmp-chip${active.has(key) ? " on" : ""}" data-mmp-filter="${key}" aria-pressed="${active.has(key)}">${svg(FILTERS[key].icon)}<span>${esc(FILTERS[key].label())}</span></button>`).join("")}</div>`;
   }
-  /* The list: pinned, recent, then one collapsible section per account (chat models first, generators after). */
+
   function listHtml(list, opts = {}) {
     const toks = tokens(opts.query || "");
     const active = opts.filters || new Set();
@@ -250,7 +267,7 @@
       if (rec.length && shown.length > 10) { sections.push({ ...head("recent", t("Недавние", "Recent"), "clock", rec.length, false), rows: rec }); rec.forEach((r) => used.add(r.id)); }
     }
     const groups = new Map();
-    const order = { chat: 0, image: 1, video: 2, music: 3 };
+    const order = {chat:0,image:1,video:2,music:3,audio:4,tts:5,stt:6,embedding:7,rerank:8,decisions:9};
     for (const r of shown) {
       if (used.has(r.id)) continue;
       const acc = String(r.account || r.provider_label || r.provider || "—");
@@ -259,7 +276,7 @@
     }
     const many = groups.size > 1 || sections.length > 0;
     for (const [acc, items] of groups) {
-      items.sort((a, b) => (order[kindOf(a)] || 0) - (order[kindOf(b)] || 0));
+      items.sort((a, b) => (order[kindOf(a)] ?? 10) - (order[kindOf(b)] ?? 10));
       sections.push({ ...head("acc:" + acc, acc, "", items.length, many && opts.collapsible !== false), rows: items });
     }
     const showHeads = opts.sections !== false && (many || sections.length > 1);
@@ -268,7 +285,7 @@
         : `<div class="mmp-sec-h static">${s.icon ? svg(s.icon) : ""}<span>${esc(s.title)}</span><small>${s.count}</small></div>`) : ""}
       <div class="mmp-sec-body">${s.rows.map((r) => rowHtml(r, rowOpts)).join("")}</div></div>`).join("");
   }
-  /* Collapse toggles inside a rendered list (the main menu and the popover share this). */
+
   function bindSections(box, onToggle) {
     box.querySelectorAll("[data-mmp-toggle]").forEach((btn) => btn.onclick = (e) => {
       e.preventDefault(); e.stopPropagation();
@@ -281,7 +298,6 @@
     });
   }
 
-  /* ------------------------------------------------------------------ popover */
   let openState = null;
   function close(result = null, reason = "api") {
     const st = openState;
@@ -296,7 +312,7 @@
   function rowsFor(opts) {
     const hidden = new Set(opts.includeHidden ? [] : prefsView().hidden);
     let list = rows().filter((r) => r && r.id && (opts.ids ? opts.ids.includes(r.id) : !hidden.has(r.id)));
-    if (opts.ids) {   // a <select>: its own order of models, rows we do not know yet become plain rows
+    if (opts.ids) {
       list = opts.ids.map((id) => find(id) || { id, caps: {}, account: opts.groupOf?.(id) || "" });
     }
     const kind = opts.kind || "";
@@ -395,8 +411,7 @@
       if (window.MemuLayers && anchorEl) {
         const register = () => window.MemuLayers.open({ el: pop, anchor: anchorEl, kind: "model-picker", close: (reason) => {
           if (!(openState && openState.pop === pop)) return;
-          // Another part of the page re-rendering itself (a settings section that finished loading) closes «all
-          // menus»; the picker's own anchor is still there, so it stays open instead of vanishing under the cursor.
+
           if (reason === "rerender" && anchorEl.isConnected) { setTimeout(() => { if (openState && openState.pop === pop) register(); }, 0); return; }
           close(null, reason);
         } });
@@ -410,9 +425,8 @@
     });
   }
 
-  /* ------------------------------------------------------------------ <select> → picker */
   const SPECIAL_VALUES = new Set(["", "off", "auto", "none", "default", "inherit", "current", "chat", "same"]);
-  /** A <select> is a model select when most of its valued options are known model ids. */
+
   function isModelSelect(select) {
     if (!select || select.multiple || select.tagName !== "SELECT") return false;
     if (select.dataset.modelPicker === "off" || select.hasAttribute("data-no-model-picker")) return false;
@@ -448,7 +462,7 @@
     const wrap = document.createElement("div");
     wrap.className = "mmp-select";
     const width = select.style.maxWidth || select.style.width || "";
-    if (width && !/^1?\d{2}px$/.test(width)) wrap.style.maxWidth = width;     // narrow fixed widths would cut the name
+    if (width && !/^1?\d{2}px$/.test(width)) wrap.style.maxWidth = width;
     const btn = document.createElement("button");
     btn.type = "button"; btn.className = "mmp-trigger";
     btn.setAttribute("aria-haspopup", "dialog"); btn.setAttribute("aria-expanded", "false");
@@ -465,7 +479,7 @@
     };
     sync();
     select.addEventListener("change", sync);
-    try {   // code that sets select.value later (or refills it) keeps the button current
+    try {
       const proto = HTMLSelectElement.prototype;
       ["value", "selectedIndex"].forEach((key) => {
         const native = Object.getOwnPropertyDescriptor(proto, key);
@@ -487,6 +501,7 @@
         need: extra.need || select.dataset.modelNeed || "", title: extra.title || "", sections: ids.length > 6 ? undefined : false });
       if (picked === null || picked === undefined) return;
       if (picked === select.value) return;
+      if (!extra.kind && !select.dataset.modelKind) warnIfSpecialized(picked, "chat");
       select.value = picked;
       select.dispatchEvent(new Event("input", { bubbles: true }));
       select.dispatchEvent(new Event("change", { bubbles: true }));
@@ -510,11 +525,10 @@
     document.querySelectorAll(".mmp-select").forEach((w) => { try { w._mmpSync && w._mmpSync(); } catch (e) {} });
   }
 
-  /* ------------------------------------------------------------------ the chat model menu (#model-dd-pop, app.js) */
   const Main = {
     filters: (() => { try { return new Set(JSON.parse(localStorage.getItem("memu_mmp_main_filters") || "[]")); } catch (e) { return new Set(); } })(),
     saveFilters() { try { localStorage.setItem("memu_mmp_main_filters", JSON.stringify([...this.filters])); } catch (e) {} },
-    /** app.js renderModelDD(): the rows of #model-list (its own handlers bind [data-model], pins and options after this). */
+
     render(pool, value, query) {
       const pop = document.getElementById("model-dd-pop");
       const list = document.getElementById("model-list");
@@ -548,7 +562,7 @@
         emptyText: pool.length ? (this.filters.size ? t("Нет моделей с такими фильтрами", "No models match these filters") : "") : t("Нет моделей — добавьте аккаунт в MemuAI Proxy", "No models — add an account in MemuAI Proxy") });
       bindSections(list);
     },
-    /** The eye next to the chosen model's name in the top bar. */
+
     indicator(row) {
       const btn = document.getElementById("model-dd-btn");
       if (!btn) return;
@@ -566,13 +580,13 @@
       ind.setAttribute("aria-label", v.text);
       const cur = btn.querySelector("#model-current");
       if (cur) cur.title = `${label(row.id)}\n${v.hint}`;
-      try { window.MemuVisionGate && window.MemuVisionGate.note(); } catch (e) {}   // r33c: the composer note follows the model
+      try { window.MemuVisionGate && window.MemuVisionGate.note(); } catch (e) {}
     },
   };
   window.MemuModelPickerMain = Main;
 
   window.MemuModelPicker = Object.freeze({
-    VERSION, rows, load, setRows, find, name, label, vision, kindOf, badgesHtml, rowHtml, listHtml, bindSections,
+    VERSION, rows, load, setRows, find, name, label, vision, kindOf, warnIfSpecialized, badgesHtml, rowHtml, listHtml, bindSections,
     filterChips, FILTERS, open, close: () => close(null, "api"), isOpen: () => !!openState, claim, enhanceSelect,
     enhanceAll, refreshAll, noteRecent, recent, monogram, svg,
   });

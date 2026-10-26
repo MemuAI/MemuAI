@@ -1,8 +1,5 @@
-/* MemuMusic · integration/settings-widgets.js — вкладка Настроек «Виджеты и интеграция» (раунд 38, r38-mod-integ).
- * Что MemuMusic показывает за пределами своего окна: мини-плеер над полем ввода чата, кольцо-эквалайзер вокруг
- * Быстрого доступа (стиль, цвет из обложки) и карточку «Сейчас играет» там же. Значения хранит MemuAI
- * (contributes.widgets → /api/pg/modint/settings), модуль читает и пишет их через Memu.integration.list/set.
- * Подключается одной строкой-маркером в main.js; оформление — токены темы MemuMusic (--mm-*, --tint). */
+
+
 (function () {
   if (typeof SETTINGS_TABS === "undefined") return;
   const L = (ru, en) => (String(Memu.lang || "ru").indexOf("en") === 0 ? en : ru);
@@ -60,7 +57,7 @@
     const cur = String(val("eq-ring", "style", "bars"));
     host.innerHTML = `<div class="mm-ap" style="--int-c:${swatch()}">
       ${setGroup(L("Главное окно MemuAI", "MemuAI main window"), L("Хватит одного плеера: по умолчанию — док в боковой панели. Изменения применяются сразу.", "One player is enough: the dock in the sidebar by default. Changes apply at once."), [
-        // r39-integ: the dock (music-dock.js) and the chat mini player are both switchable now
+
         setLine(L("Док-плеер", "Dock player"), L("Внизу боковой панели: обложка, пауза, перемотка", "At the bottom of the sidebar: cover, pause, seek"),
           seg("dock", "mode", [["always", L("Всегда", "Always")], ["playing", L("Когда играет", "While playing")], ["off", L("Выкл.", "Off")]])),
         setLine(L("Мини-плеер над полем чата", "Mini player above the chat box"), L("Обложка, название и кнопки: назад, пауза, дальше", "Cover, title and buttons: previous, pause, next"), sw("chat-mini", "enabled")),

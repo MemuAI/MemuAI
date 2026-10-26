@@ -30,14 +30,11 @@ SCRIPT_EXT = (".js", ".mjs")
 DEFAULT_NAME = {"html": "index.html", "document": "README.md", "table": "data.csv", "email": "email.txt",
                 "diagram": "diagram.mmd", "slides": "slides.md"}
 
-
 def mark(path: str) -> str:
     return f"{MARK_OPEN}{path}{MARK_CLOSE}"
 
-
 def is_bundle(text: Any) -> bool:
     return isinstance(text, str) and text.startswith(MARK_OPEN) and bool(MARK_RE.match(text))
-
 
 def clean_path(value: Any) -> str:
     """``./src\\app.js`` → ``src/app.js``; raises ValueError for ``..``, absolute/drive paths and bad characters."""
@@ -54,7 +51,6 @@ def clean_path(value: Any) -> str:
     if len(path) > 160:
         raise ValueError(f"file path is too long: {raw[:60]!r}…")
     return path
-
 
 def pack(files: Sequence[Tuple[str, str]]) -> str:
     if not files:
@@ -74,7 +70,6 @@ def pack(files: Sequence[Tuple[str, str]]) -> str:
         parts.append(mark(path) + "\n" + content)
     return "\n".join(parts)
 
-
 def unpack(text: Any) -> Optional[List[Tuple[str, str]]]:
     """Bundle → [(path, content)], or None for an ordinary single-text artifact."""
     if not is_bundle(text):
@@ -86,7 +81,6 @@ def unpack(text: Any) -> Optional[List[Tuple[str, str]]]:
         end = marks[n + 1].start() - 1 if n + 1 < len(marks) else len(text)
         out.append((m.group(1), text[start:max(start, end)]))
     return out
-
 
 def normalize_files(value: Any) -> List[Tuple[str, str]]:
     """What models send: ``[{path, content}]``, ``[{name, code}]``, ``{"index.html": "…"}`` → [(path, content)]."""
@@ -107,11 +101,9 @@ def normalize_files(value: Any) -> List[Tuple[str, str]]:
         out.append((clean_path(path), _strip_fence(content)))
     return out
 
-
 def _strip_fence(content: str) -> str:
     m = re.match(r"^\s*```[\w+#.-]*[ \t]*\n(.*?)\n```\s*$", content, flags=re.S)
     return m.group(1) if m else content
-
 
 def find_file(files: Sequence[Tuple[str, str]], ref: Any) -> int:
     """Index of a file by exact path, then case-insensitive, then by its base name when unique. -1 if none."""
@@ -126,7 +118,6 @@ def find_file(files: Sequence[Tuple[str, str]], ref: Any) -> int:
     base = [n for n, (path, _c) in enumerate(files) if path.rsplit("/", 1)[-1].lower() == low.rsplit("/", 1)[-1]]
     return base[0] if len(base) == 1 else -1
 
-
 def file_of_line(bundle: str, line_index: int) -> Tuple[str, int]:
     """0-based line of a bundle → (path, 1-based line inside that file); ("", 0) on a marker line / outside."""
     path, start = "", 0
@@ -140,10 +131,8 @@ def file_of_line(bundle: str, line_index: int) -> Tuple[str, int]:
             return path, n - start + 1
     return path, max(0, line_index - start + 1) if path else 0
 
-
 def ext_of(path: str) -> str:
     return path.rsplit(".", 1)[-1].lower() if "." in path.rsplit("/", 1)[-1] else ""
-
 
 def entry_of(files: Sequence[Tuple[str, str]]) -> str:
     paths = [p for p, _c in files]
@@ -152,16 +141,13 @@ def entry_of(files: Sequence[Tuple[str, str]]) -> str:
     html = [p for p in paths if p.lower().endswith(WEB_EXT)]
     return sorted(html, key=lambda p: (p.count("/"), p))[0] if html else ""
 
-
 def is_web(files: Sequence[Tuple[str, str]]) -> bool:
     return bool(entry_of(files)) or any(p.lower().endswith(SCRIPT_EXT) for p, _c in files)
-
 
 _LINK_RE = re.compile(r"<link\b[^>]*>", re.I)
 _SCRIPT_RE = re.compile(r"<script\b([^>]*)>\s*</script\s*>", re.I)
 _ATTR_RE = re.compile(r"""\b(href|src)\s*=\s*(?:(["'])([^"']*)\2|([^\s>"']+))""", re.I)
 _IMG_RE = re.compile(r"""(<img\b[^>]*?\bsrc\s*=\s*)(["'])([^"']+)\2""", re.I)
-
 
 def _ref(value: str, base: str) -> str:
     """A page's href/src → a project path (relative to the page's folder), '' for URLs."""
@@ -180,7 +166,6 @@ def _ref(value: str, base: str) -> str:
         parts.append(seg)
     return "/".join(parts)
 
-
 def assemble(files: Sequence[Tuple[str, str]]) -> Dict[str, Any]:
     """A web project → ``{html, map:[{from, to, path, line}], files:{path: text}, entry}`` for the sandboxed preview.
 
@@ -190,7 +175,7 @@ def assemble(files: Sequence[Tuple[str, str]]) -> Dict[str, Any]:
     lower = {p.lower(): p for p in fmap}
     entry = entry_of(files)
     used = {entry} if entry else set()
-    segs: List[Tuple[str, str, int]] = []   # (text, path or "", first line of that file)
+    segs: List[Tuple[str, str, int]] = []
 
     def style_block(path: str) -> List[Tuple[str, str, int]]:
         body = fmap[path].replace("</style", "<\\/style")
@@ -284,7 +269,7 @@ def assemble(files: Sequence[Tuple[str, str]]) -> Dict[str, Any]:
         html_parts.append(text)
         cur += lines
     html = "".join(html_parts)
-    # <img src="logo.svg"> of a project file → an inline data: URL (the sandbox blocks everything else)
+
     def img(m):
         path = lower.get(_ref(m.group(3), entry or "").lower(), "")
         if path and path.lower().endswith(".svg"):
@@ -295,7 +280,6 @@ def assemble(files: Sequence[Tuple[str, str]]) -> Dict[str, Any]:
     vfs = {p: c for p, c in files if p != entry and len(c) <= 400_000}
     return {"html": html, "map": rows, "files": vfs, "entry": entry or ""}
 
-
 def to_zip(files: Iterable[Tuple[str, str]], folder: str = "") -> bytes:
     buf = io.BytesIO()
     prefix = (folder.strip("/") + "/") if folder else ""
@@ -303,7 +287,6 @@ def to_zip(files: Iterable[Tuple[str, str]], folder: str = "") -> bytes:
         for path, content in files:
             zf.writestr(prefix + path, content.encode("utf-8"))
     return buf.getvalue()
-
 
 def listing(files: Sequence[Tuple[str, str]]) -> List[Dict[str, Any]]:
     return [{"path": p, "lines": c.count("\n") + 1, "chars": len(c)} for p, c in files]

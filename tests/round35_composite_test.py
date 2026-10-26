@@ -34,8 +34,6 @@ from app.chat import CompletionError  # noqa: E402
 
 STATIC = ROOT / "app" / "static"
 
-# --------------------------------------------------------------------------------------------------------- fixtures
-
 FAKE = {
     "fast-text": dict(provider="custom", vision="no", tools=True, context=32000, price=(0.1, 0.2)),
     "big-ctx": dict(provider="custom", vision="no", tools=True, context=1000000, price=(1.0, 4.0)),
@@ -43,7 +41,6 @@ FAKE = {
     "free-one": dict(provider="custom", vision="unknown", tools=True, context=64000, price=(0.0, 0.0), free=True),
     "kiro-x": dict(provider="kiro", vision="yes", tools=False, context=200000, price=None),
 }
-
 
 def _caps(model_id, concrete=None):
     key = str(model_id).lower()
@@ -54,7 +51,6 @@ def _caps(model_id, concrete=None):
     if row is None:
         return {"available": False, "vision": "unknown", "tools": False, "context": None, "price": None, "free": False}
     return {"available": True, "free": row.get("free", False), "json": True, "name": key, **row}
-
 
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
@@ -71,25 +67,21 @@ def isolated(tmp_path, monkeypatch):
     cm._sticky.clear()
     yield
 
-
 def model(**kw):
     base = {"prefix": "memu", "name": "smart", "default": {"candidates": ["fast-text", "big-ctx"]}}
     base.update(kw)
     return cm.normalize(base)
-
 
 def facts(messages=None, params=None, **override):
     f = cm.facts_from_request(messages or [{"role": "user", "content": "hello"}], params or {})
     f.update(override)
     return f
 
-
 def chunk(text="", **delta):
     d = dict(delta)
     if text:
         d["content"] = text
     return {"object": "chat.completion.chunk", "choices": [{"index": 0, "delta": d, "finish_reason": None}]}
-
 
 class FakeService:
     """Stands in for ChatService: each candidate id maps to a behaviour."""
@@ -126,7 +118,6 @@ class FakeService:
             raise CompletionError(message, status=status, err_type=err_type, message_en=message)
         return gen()
 
-
 def run_composite(svc, model_id="memu/smart", messages=None, params=None):
     async def go():
         out = []
@@ -136,12 +127,8 @@ def run_composite(svc, model_id="memu/smart", messages=None, params=None):
         return out
     return asyncio.run(go())
 
-
 def text_of(chunks):
     return "".join((c["choices"][0]["delta"].get("content") or "") for c in chunks if c.get("choices"))
-
-
-# --------------------------------------------------------------------------------------------------------- model + validation
 
 def test_normalize_clamps_and_drops_unknown():
     m = cm.normalize({"id": "Memu/Smart", "junk": 1, "rules": [{"kind": "nope", "conditions": [{"type": "x"}]}],
@@ -151,7 +138,6 @@ def test_normalize_clamps_and_drops_unknown():
     assert m["rules"][0]["kind"] == "route" and m["rules"][0]["conditions"][0]["type"] == "has_image"
     assert m["fallback"]["retries"] == 5 and m["fallback"]["max_attempts"] == 1
     assert m["fallback"]["on"] == ["429"] and m["fallback"]["first_token_timeout"] == 0
-
 
 def test_validate_reports_errors_and_warnings():
     bad = cm.normalize({"prefix": "Мой", "name": "x y", "default": {"candidates": []}})
@@ -163,9 +149,8 @@ def test_validate_reports_errors_and_warnings():
     issues = cm.validate(m, others=[])
     assert any(i["path"] == "default.candidates[1]" and i["level"] == "warning" for i in issues)
     assert any(i["path"] == "rules[0].conditions[0]" and i["level"] == "error" for i in issues)
-    for issue in issues:   # every message exists in both languages, English without Cyrillic
+    for issue in issues:
         assert issue["message"] and issue["message_en"] and not re.search("[А-Яа-яЁё]", issue["message_en"])
-
 
 def test_validate_rejects_regular_model_name_and_self_reference():
     m = model(prefix="fast", name="text")
@@ -174,7 +159,6 @@ def test_validate_rejects_regular_model_name_and_self_reference():
     selfref = model(default={"candidates": ["memu/smart"]})
     assert any("itself" in i["message_en"] for i in cm.validate(selfref, others=[]))
 
-
 def test_cycle_detection_between_composites():
     a = model(name="a", default={"candidates": ["memu/b"]})
     b = model(name="b", default={"candidates": ["memu/a"]})
@@ -182,13 +166,9 @@ def test_cycle_detection_between_composites():
     assert any("loop" in i["message_en"] and i["level"] == "error" for i in issues)
     assert cm.find_cycle([a, b], "memu/a") == ["memu/a", "memu/b", "memu/a"]
 
-
 def test_rule_ids_are_unique_after_normalize():
     m = model(rules=[{"id": "r1", "kind": "filter"}, {"id": "r1", "kind": "filter"}])
     assert len({r["id"] for r in m["rules"]}) == 2
-
-
-# --------------------------------------------------------------------------------------------------------- facts + conditions
 
 def test_facts_from_request():
     messages = [{"role": "system", "content": "You are a coder"},
@@ -206,7 +186,6 @@ def test_facts_from_request():
     assert f["client"] == "internal" and f["endpoint"] == "internal"
     assert cm.facts_from_request([{"role": "user", "content": "Explain the theory of relativity"}], {})["language"] == "en"
 
-
 def test_client_from_asgi_scope():
     scope = {"path": "/v1/messages", "headers": [(b"user-agent", b"claude-cli/2.0"), (b"x-api-key", b"sk-secret")],
              "state": {}}
@@ -216,7 +195,6 @@ def test_client_from_asgi_scope():
     scope["state"] = {"public_key": "k123"}
     assert cm._client_from_ctx({"scope": scope})["client"] == "public"
     assert cm._client_from_ctx({"scope": {"path": "/api/admin/playground/chat", "headers": []}})["client"] == "memuai"
-
 
 @pytest.mark.parametrize("cond,f,expected", [
     ({"type": "tokens", "op": "gt", "value": 1000}, {"tokens": 5000}, True),
@@ -238,15 +216,11 @@ def test_conditions(cond, f, expected):
     c = cm._condition(cond)
     assert cm.check_condition(c, f)[0] is expected
 
-
 def test_random_condition_is_seedable():
     c = cm._condition({"type": "random", "op": "chance", "value": 50})
     hits = sum(cm.check_condition(c, {}, random.Random(i))[0] for i in range(200))
     assert 60 < hits < 140
     assert not cm.check_condition(cm._condition({"type": "random", "value": 0}), {}, random.Random(1))[0]
-
-
-# --------------------------------------------------------------------------------------------------------- plan
 
 def test_plan_first_matching_route_and_fallthrough():
     m = model(rules=[
@@ -260,15 +234,14 @@ def test_plan_first_matching_route_and_fallthrough():
     assert p["rules"][1]["skipped"] == "after_route"
     p = cm.plan(m, facts(tokens=150000))
     assert p["route"]["id"] == "long" and p["order"][0] == "big-ctx"
-    assert "fast-text" not in p["order"]          # auto filter: 150k tokens do not fit 32k
+    assert "fast-text" not in p["order"]
     p = cm.plan(m, facts())
     assert p["route"]["id"] == "default" and p["order"] == ["fast-text", "big-ctx"]
-
 
 def test_auto_filter_and_capability_filters():
     m = model(default={"candidates": ["fast-text", "eyes", "kiro-x", "free-one"]})
     p = cm.plan(m, facts(has_image=True, needs_tools=True))
-    assert p["order"] == ["eyes", "free-one"]       # fast-text: no vision, kiro-x: no native tools
+    assert p["order"] == ["eyes", "free-one"]
     reasons = {c["model"]: c["excluded"]["en"] for c in p["candidates"] if c["excluded"]}
     assert "vision" in reasons["fast-text"] and "tool" in reasons["kiro-x"]
     m = model(default={"candidates": ["fast-text", "eyes", "free-one"], "filters": {"vision": True, "vision_strict": True}})
@@ -278,8 +251,7 @@ def test_auto_filter_and_capability_filters():
     m = model(default={"candidates": ["fast-text", "big-ctx"], "filters": {"min_context": 100000}})
     assert cm.plan(m, facts())["order"] == ["big-ctx"]
     m = model(auto_filter=False, default={"candidates": ["fast-text", "eyes", "ghost"]})
-    assert cm.plan(m, facts(has_image=True))["order"] == ["fast-text", "eyes"]   # unknown model still skipped
-
+    assert cm.plan(m, facts(has_image=True))["order"] == ["fast-text", "eyes"]
 
 def test_modifier_cards_prefer_exclude_filter_settings():
     m = model(default={"candidates": ["fast-text", "big-ctx", "eyes"]}, rules=[
@@ -296,16 +268,15 @@ def test_modifier_cards_prefer_exclude_filter_settings():
     assert p["fallback"]["first_token_timeout"] == 15 and p["fallback"]["max_attempts"] == 6
     assert [x["id"] for x in p["modifiers"]] == ["night", "nobig", "quick"]
 
-
 def test_strategies_cheapest_fastest_success():
     m = model(default={"candidates": ["big-ctx", "eyes", "fast-text", "kiro-x"], "strategy": {"type": "cheapest"}})
-    assert cm.plan(m, facts())["order"] == ["fast-text", "eyes", "big-ctx", "kiro-x"]   # unknown price last
+    assert cm.plan(m, facts())["order"] == ["fast-text", "eyes", "big-ctx", "kiro-x"]
     m["default"]["strategy"] = {"type": "cheapest", "unknown": "skip"}
     assert "kiro-x" not in cm.plan(m, facts())["order"]
     now = time.time()
     cm.observations.add("big-ctx", True, 300, 900, now)
     cm.observations.add("eyes", True, 1200, 2000, now)
-    cm.observations.add("fast-text", True, 50, 4000, now - 7200)        # outside the 60-minute window
+    cm.observations.add("fast-text", True, 50, 4000, now - 7200)
     m = model(default={"candidates": ["fast-text", "eyes", "big-ctx"], "strategy": {"type": "fastest", "metric": "ttft", "explore": 0}})
     order = cm.plan(m, facts())["order"]
     assert order[:2] == ["big-ctx", "eyes"] and order[2] == "fast-text"
@@ -314,7 +285,6 @@ def test_strategies_cheapest_fastest_success():
     m = model(default={"candidates": ["eyes", "big-ctx"], "strategy": {"type": "success", "explore": 0}})
     assert cm.plan(m, facts())["order"][0] == "big-ctx"
 
-
 def test_exploration_tries_unmeasured_models_sometimes():
     cm.observations.add("big-ctx", True, 300, 900)
     m = model(default={"candidates": ["big-ctx", "eyes"], "strategy": {"type": "fastest", "explore": 20}})
@@ -322,7 +292,6 @@ def test_exploration_tries_unmeasured_models_sometimes():
     assert 15 < firsts.count("eyes") < 70
     assert all(cm.plan(m, facts(), rng=random.Random(i), peek=True)["order"][0] == "big-ctx" for i in range(30))
     assert cm.normalize({"default": {"strategy": {"type": "fastest"}}})["default"]["strategy"]["explore"] == 10
-
 
 def test_strategies_round_robin_weighted_sticky_least_used(monkeypatch):
     m = model(default={"candidates": ["fast-text", "eyes", "big-ctx"], "strategy": {"type": "round_robin"}})
@@ -342,7 +311,6 @@ def test_strategies_round_robin_weighted_sticky_least_used(monkeypatch):
     m = model(default={"candidates": ["fast-text", "eyes", "big-ctx"], "strategy": {"type": "least_used"}})
     assert cm.plan(m, facts())["order"] == ["eyes", "big-ctx", "fast-text"]
 
-
 def test_simulate_from_sample():
     m = model(rules=[{"id": "img", "kind": "route", "conditions": [{"type": "has_image", "value": True}],
                       "candidates": ["eyes"], "fallthrough": False},
@@ -355,10 +323,7 @@ def test_simulate_from_sample():
     assert r["route"]["id"] == "night" and r["facts"]["time"] == "23:30"
     r = cm.simulate(m, {"text": "hi", "tokens": 50000, "client": "public", "weekday": 6})
     assert r["facts"]["tokens"] == 50000 and r["facts"]["client"] == "public" and r["facts"]["weekday"] == 6
-    assert "fast-text" not in r["order"]            # 50k tokens exceed 32k
-
-
-# --------------------------------------------------------------------------------------------------------- runtime
+    assert "fast-text" not in r["order"]
 
 def test_run_falls_back_on_error_and_records_stats():
     cm.store.upsert(model(default={"candidates": ["fast-text", "eyes"]}))
@@ -367,9 +332,8 @@ def test_run_falls_back_on_error_and_records_stats():
     assert text_of(out) == "Hi from eyes" and svc.calls == ["memu/smart", "fast-text", "eyes"]
     st = cm.stats.get("memu/smart")
     assert st["requests"] == 1 and st["ok"] == 1 and st["fallbacks"] == 1
-    # Round 36: an unknown / rejected model is «unavailable» (always skipped), not a request «error»
-    assert st["recent"][0]["chosen"] == "eyes" and st["recent"][0]["attempts"][0]["trigger"] == "unavailable"
 
+    assert st["recent"][0]["chosen"] == "eyes" and st["recent"][0]["attempts"][0]["trigger"] == "unavailable"
 
 def test_run_trigger_not_selected_surfaces_error():
     cm.store.upsert(model(default={"candidates": ["fast-text", "eyes"]}, fallback={"on": ["429"]}))
@@ -378,14 +342,12 @@ def test_run_trigger_not_selected_surfaces_error():
         run_composite(svc)
     assert err.value.status == 502 and svc.calls == ["memu/smart", "fast-text"]
 
-
 def test_run_retries_429_with_backoff_then_next():
     cm.store.upsert(model(default={"candidates": ["fast-text", "eyes"]},
                           fallback={"retries": 2, "backoff_ms": 0, "on": ["429"]}))
     svc = FakeService({"fast-text": (429, "rate_limit_error", "slow down")})
     out = run_composite(svc)
     assert svc.calls.count("fast-text") == 3 and text_of(out) == "Hi from eyes"
-
 
 def test_run_max_attempts_and_exhausted_message():
     cm.store.upsert(model(default={"candidates": ["fast-text", "eyes", "big-ctx"]}, fallback={"max_attempts": 2}))
@@ -395,7 +357,6 @@ def test_run_max_attempts_and_exhausted_message():
     assert "big-ctx" not in svc.calls
     assert "every model failed" in err.value.message_en and "fast-text" in err.value.message_en
 
-
 def test_run_first_token_timeout_moves_on():
     cm.store.upsert(model(default={"candidates": ["fast-text", "eyes"]}, fallback={"first_token_timeout": 1}))
     svc = FakeService({"fast-text": "slow"})
@@ -404,12 +365,10 @@ def test_run_first_token_timeout_moves_on():
     assert text_of(out) == "Hi from eyes" and time.time() - started < 4
     assert cm.stats.get("memu/smart")["recent"][0]["attempts"][0]["trigger"] == "timeout"
 
-
 def test_run_empty_answer_moves_on_and_after_commit_error_surfaces():
     cm.store.upsert(model(default={"candidates": ["fast-text", "eyes"]}))
     assert text_of(run_composite(FakeService({"fast-text": "empty"}), params={"_stream": False})) == "Hi from eyes"
-    # Round 40: with Smart Stream Recovery switched off a break after the first token surfaces as before
-    # (recovery itself — tests/round40_proxy_test.py).
+
     cm.store.upsert(model(default={"candidates": ["fast-text", "eyes"]}, fallback={"stream_recovery": False}))
     svc = FakeService({"fast-text": "midstream"})
     got = []
@@ -419,30 +378,27 @@ def test_run_empty_answer_moves_on_and_after_commit_error_surfaces():
             got.append(item)
     with pytest.raises(CompletionError):
         asyncio.run(go())
-    assert text_of(got) == "partial" and "eyes" not in svc.calls      # no switching after the first token
-    # A non-streaming request holds the whole answer back, so even a mid-stream break may switch.
+    assert text_of(got) == "partial" and "eyes" not in svc.calls
+
     svc = FakeService({"fast-text": "midstream"})
     assert text_of(run_composite(svc, params={"_stream": False})) == "Hi from eyes"
-
 
 def test_run_context_length_goes_to_bigger_window():
     cm.store.upsert(model(default={"candidates": ["fast-text", "eyes", "free-one", "big-ctx"]}, auto_filter=False))
     svc = FakeService({"fast-text": (400, "upstream_error", "This model's maximum context length is 32000 tokens")})
     run_composite(svc)
-    assert svc.calls[:3] == ["memu/smart", "fast-text", "free-one"]   # 64k is the smallest window above 32k
-
+    assert svc.calls[:3] == ["memu/smart", "fast-text", "free-one"]
 
 def test_nested_composite_and_runtime_loop_guard():
     cm.store.upsert(model(name="inner", default={"candidates": ["fast-text", "eyes"]}))
     cm.store.upsert(model(name="outer", default={"candidates": ["memu/inner", "big-ctx"]}))
     svc = FakeService({"fast-text": (500, "upstream_error", "x")})
     assert text_of(run_composite(svc, "memu/outer")) == "Hi from eyes"
-    # A loop saved by hand (the file edited outside the UI) is cut at run time instead of recursing forever.
+
     cm.store.save_all([model(name="a", default={"candidates": ["memu/b"]}), model(name="b", default={"candidates": ["memu/a"]})])
     with pytest.raises(CompletionError) as err:
         run_composite(FakeService({}), "memu/a")
     assert "loop" in err.value.message_en
-
 
 def test_classify():
     assert cm.classify(CompletionError("x", status=429, err_type="rate_limit_error")) == "429"
@@ -453,7 +409,6 @@ def test_classify():
     assert cm.classify(cm._Timeout("connect", 5)) == "timeout"
     assert cm.classify(CompletionError("bad request", status=400, err_type="invalid_request_error")) == "error"
 
-
 def test_header_value_ascii_and_nested_chain():
     sink = {"routes": {0: {"composite": "memu/smart", "rule": "Картинка", "chosen": "memu/inner",
                            "attempts": [{"model": "a", "ok": False, "trigger": "429"}, {"model": "memu/inner", "ok": True}]},
@@ -461,9 +416,6 @@ def test_header_value_ascii_and_nested_chain():
     value = cm._header_value(sink)
     value.encode("latin-1")
     assert "chosen=memu/inner>eyes" in value and "tried=a:429,memu/inner:ok" in value
-
-
-# --------------------------------------------------------------------------------------------------------- listing hooks
 
 def test_listing_hooks_and_tools_support():
     cm.store.upsert(model(title="Умная", description="d", default={"candidates": ["eyes", "kiro-x"]}))
@@ -483,7 +435,6 @@ def test_listing_hooks_and_tools_support():
     from app import openai_api
     assert "memu/smart" in [r["id"] for r in openai_api.listed_models()]
 
-
 def test_presets_are_valid_models():
     available = [{"id": k, "name": k, "account": "x", **{kk: vv for kk, vv in v.items() if kk != "price"},
                   "price": list(v["price"]) if v.get("price") else None} for k, v in FAKE.items()]
@@ -496,7 +447,6 @@ def test_presets_are_valid_models():
         assert not [i for i in cm.validate(p["model"], others=[]) if i["level"] == "error"], p["key"]
         assert p["title"] and p["title_en"] and not re.search("[А-Яа-яЁё]", p["title_en"] + p["description_en"])
 
-
 def test_import_export_roundtrip():
     cm.store.upsert(model(title="A"))
     data = cm.export_json()
@@ -506,9 +456,6 @@ def test_import_export_roundtrip():
     res = cm.import_json({"models": [{"prefix": "memu", "name": "bad", "default": {"candidates": ["memu/bad"]}}]})
     assert res["errors"] and cm.get("memu/bad") is None
     assert cm.import_json("nonsense")["errors"]
-
-
-# --------------------------------------------------------------------------------------------------------- HTTP: admin API + /v1
 
 @pytest.fixture()
 def bare_client(monkeypatch):
@@ -530,7 +477,6 @@ def bare_client(monkeypatch):
     monkeypatch.setattr(admin_api, "_auth", lambda request: None)
     return TestClient(create_app())
 
-
 def test_admin_api_save_validate_simulate_delete(bare_client):
     c = bare_client
     r = c.post("/api/admin/composite/save", json={"model": {"prefix": "memu", "name": "x", "default": {"candidates": []}}})
@@ -545,7 +491,7 @@ def test_admin_api_save_validate_simulate_delete(bare_client):
     assert r.json()["order"] == ["fast-text", "eyes"]
     r = c.post("/api/admin/composite/delete", json={"id": "memu/inner"})
     assert r.status_code == 409 and r.json()["used_by"] == ["memu/outer"]
-    # rename keeps the statistics
+
     cm.stats.record("memu/outer", {"ok": True, "attempts": []})
     r = c.post("/api/admin/composite/save", json={"model": dict(cm.get("memu/outer"), name="renamed"), "original_id": "memu/outer"})
     assert r.status_code == 200 and cm.get("memu/outer") is None and cm.stats.get("memu/renamed")["requests"] == 1
@@ -556,7 +502,6 @@ def test_admin_api_save_validate_simulate_delete(bare_client):
     r = c.get("/api/admin/composite/export?id=memu/inner")
     assert r.json()["models"][0]["id"] == "memu/inner" and "attachment" in r.headers["content-disposition"]
     assert c.post("/api/admin/composite/toggle", json={"id": "memu/inner", "enabled": False}).json()["model"]["enabled"] is False
-
 
 def test_v1_endpoints_with_route_header(bare_client):
     c = bare_client
@@ -580,18 +525,14 @@ def test_v1_endpoints_with_route_header(bare_client):
                                                 "messages": [{"role": "user", "content": "hi"}]}) as s:
         body = "".join(s.iter_text())
     assert "Hi from eyes" in body and "event: error" not in body
-    # tools pass the «provider supports tools» gate because a candidate does
+
     r = c.post("/v1/chat/completions", json={"model": "memu/smart", "messages": [{"role": "user", "content": "hi"}],
                                              "tools": [{"type": "function", "function": {"name": "f", "parameters": {}}}]})
     assert r.status_code == 200, r.text
 
-
 def test_v1_regular_requests_have_no_route_header(bare_client):
     r = bare_client.get("/v1/models")
     assert "x-memu-route" not in r.headers
-
-
-# --------------------------------------------------------------------------------------------------------- provider fix
 
 def test_custom_403_for_one_model_is_not_a_rejected_key():
     from app.providers.custom import CustomProvider
@@ -607,9 +548,6 @@ def test_custom_403_for_one_model_is_not_a_rejected_key():
     with pytest.raises(ProviderAuthError):
         asyncio.run(provider._raise_for_status(401, head))
 
-
-# --------------------------------------------------------------------------------------------------------- UI
-
 def test_ui_files_hooked_and_parse():
     html = (STATIC / "index.html").read_text(encoding="utf-8")
     assert 'data-tab="composite"' in html and 'id="tab-composite"' in html and 'id="composite-root"' in html
@@ -620,10 +558,9 @@ def test_ui_files_hooked_and_parse():
         for name in ("composite.js", "composite-i18n.js"):
             assert subprocess.run([node, "--check", str(STATIC / name)], capture_output=True).returncode == 0, name
 
-
 def test_ui_english_strings_have_no_cyrillic():
     src = (STATIC / "composite.js").read_text(encoding="utf-8")
-    # L("ru", "en") pairs and ["ru", "en"] vocabulary pairs: the second string must be English.
+
     pairs = re.findall(r'L\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)', src)
     pairs += re.findall(r'\[\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\]', src)
     pairs += re.findall(r'L\(\s*`((?:[^`\\]|\\.)*)`\s*,\s*`((?:[^`\\]|\\.)*)`\s*\)', src)
@@ -634,15 +571,11 @@ def test_ui_english_strings_have_no_cyrillic():
     en_part = i18n[i18n.index("I18N.en"):]
     assert not re.search("[А-Яа-яЁё]", en_part)
 
-
 def test_build_and_specs_list_the_modules():
     build = (ROOT / "build.py").read_text(encoding="utf-8")
     assert build.count('"app.composite_models"') >= 3
     for spec in ("MemuAI.spec", "MemuAIProxy.spec"):
         assert "'app.composite_models'" in (ROOT / spec).read_text(encoding="utf-8")
-
-
-# --------------------------------------------------------------------------------------------------------- live
 
 @pytest.mark.skipif(not (os.environ.get("MEMU_LIVE_COMPOSITE") and os.environ.get("REFORM_KEY")),
                     reason="live: MEMU_LIVE_COMPOSITE=1 and REFORM_BASE/REFORM_KEY")
@@ -653,7 +586,7 @@ def test_live_reform_failover_and_vision(monkeypatch, tmp_path):
     from app.main import create_app
     from app.config import config_store
     from app.model_capabilities import solid_png
-    monkeypatch.undo()   # the real catalogue and capabilities
+    monkeypatch.undo()
     monkeypatch.setattr(config_store, "authorize_api_request", lambda *a, **k: True)
     from app import admin_api
     monkeypatch.setattr(admin_api, "_auth", lambda request: None)

@@ -31,12 +31,10 @@ from . import assistant_intents as intents
 log = logging.getLogger("memuai.assistant.router")
 
 MODES = ("auto", "always", "off")
-DEFAULT_TIMEOUT = 4.0          # seconds; the router gives up and the chat answers
+DEFAULT_TIMEOUT = 4.0
 MAX_TOKENS = 120
 MAX_TEXT = 200
 
-# actions the router never proposes: internal, routines' plumbing, and things that need a long free text the
-# user did not type in a short phrase (the chat model with its tools handles them better)
 SKIP = {"assistant.help", "assistant.undo", "shell.run", "layout.capture", "layout.restore", "reminder.cancel"}
 
 _VERBS_RU = (r"открой|откр|закрой|закрыть|закрывай|запусти|запустить|включи|включить|вруби|выключи|выключить|выруби|"
@@ -56,7 +54,6 @@ _WORDS = re.compile(r"\b(?:громкост\w*|звук\w*|яркост\w*|ок�
                     r"wi-?fi|вайфай|блютуз|bluetooth|volume|brightness|window|timer|alarm|track|screenshot|"
                     r"на минимум|на максимум|на полную|потише|погромче)\b", re.I)
 
-
 def looks_like_command(text: str) -> bool:
     """A cheap guess that a phrase is a command and not a question/chat — keeps the router off ordinary chat."""
     clean = intents.normalize(text)
@@ -67,14 +64,11 @@ def looks_like_command(text: str) -> bool:
         return False
     if clean.endswith("?") or intents._QUESTION.match(clean):
         return False
-    # Round 34: «покажи код функции», «show me the code» — a request for an answer, not a command (no 1–2 s router wait)
+
     show = re.match(r"(?:покажи|show)(?:\s+(?:мне|me))?\s+(.+)$", clean, re.I)
     if show and not _WORDS.search(clean) and not intents._known_app(show.group(1)):
         return False
     return bool(_HEAD.match(clean)) or (len(words) <= 6 and bool(_WORDS.search(clean)))
-
-
-# ------------------------------------------------------------------ prompt
 
 def action_lines(settings: Dict[str, Any]) -> List[str]:
     """``id(param, param?=a|b)`` per enabled action — the router's whole vocabulary (no descriptions: ~2 KB)."""
@@ -94,7 +88,6 @@ def action_lines(settings: Dict[str, Any]) -> List[str]:
         lines.append(f"{aid}({', '.join(parts)})")
     return lines
 
-
 SYSTEM = (
     "You turn a user's short request to their Windows PC into ONE action. Answer with one JSON object only, "
     "no prose: {\"a\":\"<action id>\",\"p\":{<params>}}. "
@@ -105,7 +98,6 @@ SYSTEM = (
     "Numbers are numbers; durations in seconds. "
     "Only this PC is controlled: lights, a router, a TV, other people, games' characters or a figure of speech are "
     "not actions — {\"a\":\"chat\"}; never pick a similar-sounding action as a guess.\nActions:\n")
-
 
 def build_messages(text: str, settings: Dict[str, Any], context: Dict[str, Any]) -> List[Dict[str, str]]:
     system = SYSTEM + "\n".join(action_lines(settings))
@@ -118,7 +110,6 @@ def build_messages(text: str, settings: Dict[str, Any], context: Dict[str, Any])
         user.append("User commands (command.run name): " + "; ".join(commands))
     user.append("Request: " + text)
     return [{"role": "system", "content": system}, {"role": "user", "content": "\n".join(user)}]
-
 
 def running_apps(windows: List[Dict[str, Any]], procs: List[Dict[str, Any]], limit: int = 24) -> List[str]:
     """«Telegram (Telegram)», «INCY (tray)» — de-duplicated, trimmed, MemuAI's own windows left out."""
@@ -144,7 +135,6 @@ def running_apps(windows: List[Dict[str, Any]], procs: List[Dict[str, Any]], lim
         if name and key not in out:
             out[key] = name + " (tray/background)"
     return list(out.values())[:limit]
-
 
 def parse_answer(raw: str) -> Optional[Tuple[str, Dict[str, Any]]]:
     """``("app.close", {"name": "INCY"})`` / ``("chat", {})`` / ``None`` (unparsable)."""
@@ -187,19 +177,14 @@ def parse_answer(raw: str) -> Optional[Tuple[str, Dict[str, Any]]]:
         return None
     return action, (params if isinstance(params, dict) else {})
 
-
 def intents_strip_reasoning(raw: str) -> str:
     text = str(raw or "")
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.S | re.I)
     text = re.sub(r"^```(?:json)?|```$", "", text.strip(), flags=re.M)
     return text.strip()
 
-
 def json_closed(text: str) -> bool:
     return parse_answer(text) is not None
-
-
-# ------------------------------------------------------------------ the model call
 
 async def _call_proxy(engine, model: str, messages: List[Dict[str, str]], timeout: float) -> str:
     if engine.proxy_sse is None:
@@ -234,7 +219,7 @@ async def _call_proxy(engine, model: str, messages: List[Dict[str, str]], timeou
                     if delta.get("content"):
                         chunks.append(str(delta["content"]))
                         if json_closed("".join(chunks)):
-                            return          # the decision is in — do not wait for the end of the stream
+                            return
         finally:
             try:
                 await gen.aclose()
@@ -244,13 +229,11 @@ async def _call_proxy(engine, model: str, messages: List[Dict[str, str]], timeou
     await asyncio.wait_for(run(), timeout)
     return "".join(chunks)
 
-
 async def _call_endpoint(prefs: Dict[str, Any], model: str, messages: List[Dict[str, str]], timeout: float, lang: str) -> str:
     from . import quick_ask_endpoint as endpoint
     return await asyncio.wait_for(endpoint.complete(endpoint.normalize_url(prefs.get("quick_ask_endpoint_url")),
                                                     endpoint.get_key(), model, messages, max_tokens=MAX_TOKENS, lang=lang),
                                   timeout)
-
 
 def pick_model(settings: Dict[str, Any], prefs: Dict[str, Any]) -> Tuple[str, bool]:
     """(model, via_custom_endpoint). ``router_model`` wins; else the Quick Ask model; else the app's default."""
@@ -263,7 +246,6 @@ def pick_model(settings: Dict[str, Any], prefs: Dict[str, Any]) -> Tuple[str, bo
         return str(prefs.get("quick_ask_endpoint_model") or ""), True
     return str(prefs.get("quick_ask_model") or prefs.get("default_model") or ""), False
 
-
 def should_route(settings: Dict[str, Any], text: str, *, soft_miss: bool = False) -> bool:
     mode = settings.get("ai_router", "auto")
     if mode == "off" or not settings.get("enabled", True):
@@ -271,19 +253,18 @@ def should_route(settings: Dict[str, Any], text: str, *, soft_miss: bool = False
     clean = intents.normalize(text)
     if not clean or len(clean) > MAX_TEXT or "\n" in str(text or "").strip():
         return False
-    if soft_miss:                     # «закрой инси» found locally, but nothing by that name runs
+    if soft_miss:
         return True
     if mode == "always":
         return not (clean.endswith("?") or intents._QUESTION.match(clean))
     return looks_like_command(clean)
-
 
 async def route(engine, text: str, lang: str = "ru", *, soft_miss: bool = False,
                 prefs: Optional[Dict[str, Any]] = None, call=None) -> Optional[Dict[str, Any]]:
     """One routing decision: ``{"action", "params", "model", "ms"}``, ``{"action": "chat", …}`` or ``None``
     (router off / not a command / no model / failure — the caller answers as before)."""
     settings = engine.settings()
-    call = call or getattr(engine, "router_call", None)        # tests / an embedding host may supply the model call
+    call = call or getattr(engine, "router_call", None)
     if not should_route(settings, text, soft_miss=soft_miss):
         return None
     if prefs is None:
@@ -324,7 +305,6 @@ async def route(engine, text: str, lang: str = "ru", *, soft_miss: bool = False,
             or (row.get("advanced") and not settings.get("advanced_shell")):
         return {"action": "chat", "params": {}, "model": model, "ms": ms, "reason": "chat" if action == "chat" else "unknown"}
     return {"action": action, "params": params, "model": model, "ms": ms}
-
 
 def live_context(engine) -> Dict[str, Any]:
     """Running apps (windows + tray) and the user's command names — best effort, never raises."""

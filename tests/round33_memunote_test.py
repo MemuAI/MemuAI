@@ -24,12 +24,9 @@ NOTE = APP / "memunote"
 JS = NOTE / "static" / "js"
 CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
 
-
 def _node():
     return shutil.which("node")
 
-
-# ===================================================================================== #8 shortcuts
 class KeysHelperTest(unittest.TestCase):
     COPIES = [APP / "static" / "memu-keys.js", NOTE / "static" / "js" / "memu-keys.js"]
 
@@ -39,8 +36,7 @@ class KeysHelperTest(unittest.TestCase):
             self.assertEqual(p.read_bytes(), canon, f"{p} differs from pgstatic/memu-keys.js — copy it again")
 
     def test_proxy_copy_is_proxy_only_safe(self) -> None:
-        # build.prepare_proxy_only_assets() rejects any app/static asset naming the chat app ("MemuAI" not followed by
-        # "Proxy"); the shared helper is shipped there too, so its text must stay product-neutral.
+
         import re
         text = (APP / "static" / "memu-keys.js").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"\bMemuAI\b(?!\s+Proxy)", text))
@@ -117,8 +113,6 @@ console.log(JSON.stringify(out));
         for cyr in "мзке":
             self.assertIn(f'@kb.add("escape", "{cyr}", filter=no_dialog)', src)
 
-
-# ===================================================================================== #9 backend
 class _Server(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory(prefix="r33mn-")
@@ -148,7 +142,6 @@ class _Server(unittest.TestCase):
         resp = conn.getresponse()
         return resp.status, json.loads(resp.read() or b"{}")
 
-
 class RunnerTest(_Server):
     def script(self, name, text):
         p = self.dir / name
@@ -171,7 +164,7 @@ class RunnerTest(_Server):
         p = self.dir / "x.py"
         p.write_text("print(1)", encoding="utf-8")
         st, r = self.call("POST", "/api/run/start", {"path": str(p)})
-        self.assertEqual(st, 403, r)                       # never opened by the page
+        self.assertEqual(st, 403, r)
         self.app.allow(str(p))
         st, r = self.call("POST", "/api/run/start", {"path": str(p)})
         self.assertEqual((st, r["error"]), (409, "confirm_required"))
@@ -183,7 +176,7 @@ class RunnerTest(_Server):
         self.poll_all(r["id"])
         st, info = self.call("GET", "/api/run/info?path=" + str(p))
         self.assertTrue(info["trusted"])
-        st, r = self.call("POST", "/api/run/start", {"path": str(p)})   # remembered: no question
+        st, r = self.call("POST", "/api/run/start", {"path": str(p)})
         self.assertEqual(st, 200, r)
 
     def test_python_stdout_stderr_stdin_exit_code_and_cwd(self) -> None:
@@ -243,7 +236,7 @@ class RunnerTest(_Server):
         self.assertEqual(text, "ok Привет")
         d = runner._Decoder()
         b = "Ёж".encode("utf-8")
-        self.assertEqual(d.feed(b[:1]) + d.feed(b[1:], True), "Ёж")      # a split UTF-8 sequence is not a fallback
+        self.assertEqual(d.feed(b[:1]) + d.feed(b[1:], True), "Ёж")
 
     @unittest.skipUnless(shutil.which("node"), "node not installed")
     def test_node_exit_code(self) -> None:
@@ -252,7 +245,6 @@ class RunnerTest(_Server):
         chunks, code = self.poll_all(r["id"])
         self.assertEqual(code, 3)
         self.assertIn("hi", "".join(c["t"] for c in chunks))
-
 
 class SpellTest(_Server):
     def test_check_suggest_and_user_dictionary(self) -> None:
@@ -279,13 +271,12 @@ class SpellTest(_Server):
         self.assertEqual(rerank("вообщем", ["во общем", "вообще"])[0], "вообще")
         self.assertEqual(rerank("карова", ["Сарова", "крова", "корова"])[0], "корова")
 
-
 class SettingsAndWiringTest(unittest.TestCase):
     def test_settings(self) -> None:
         from app.memunote import settings
         n = settings.normalize({})
         self.assertEqual((n["markdown_preview"], n["spell_check"], n["code_autocomplete"]), ("live", True, True))
-        self.assertEqual(settings.normalize({"markdown_preview": "split"})["markdown_preview"], "live")      # old default → live once
+        self.assertEqual(settings.normalize({"markdown_preview": "split"})["markdown_preview"], "live")
         self.assertEqual(settings.normalize({"markdown_preview": "split", "md_live_migrated": True})["markdown_preview"], "split")
         self.assertEqual(settings.normalize({"markdown_preview": "bogus"})["markdown_preview"], "live")
 
@@ -323,8 +314,6 @@ class SettingsAndWiringTest(unittest.TestCase):
             r = subprocess.run([_node(), "--check", str(JS / f)], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, f + r.stderr)
 
-
-# ===================================================================================== AI ghost suggestion (r33c)
 class GhostSuggestionTest(unittest.TestCase):
     """The ghost request asks the model to repeat the last words before the caret ("echo") so the page knows whether
     a space follows ("in" → "in the") or the word goes on ("rele" → "release"); reasoning is switched off ("effort")."""
@@ -358,7 +347,7 @@ process.stdout.write(JSON.stringify(out));
         system = " ".join(m["content"] for m in msgs if m["role"] == "system")
         self.assertIn('"several bugs in"', system)
         self.assertIn("repeating exactly", system)
-        for echo in ("other words", "x\ny", "z" * 61):       # not the real tail / several lines / too long → ignored
+        for echo in ("other words", "x\ny", "z" * 61):
             msgs = prompts.build_messages({**body, "echo": echo}, {}, "en", False)["messages"]
             self.assertNotIn("repeating exactly", " ".join(m["content"] for m in msgs if m["role"] == "system"))
 
@@ -408,15 +397,12 @@ process.stdout.write(JSON.stringify(out));
         self.assertEqual(seen[0]["effort"], "off")
         self.assertIn('effort: "off"', (JS / "ai.js").read_text(encoding="utf-8"))
 
-
-# ===================================================================================== browser
 def _playwright():
     try:
         import playwright.sync_api  # noqa: F401
         return os.path.exists(CHROME)
     except Exception:  # noqa: BLE001
         return False
-
 
 @unittest.skipUnless(_playwright(), "Playwright + Chromium not available")
 class BrowserTest(_Server):
@@ -448,14 +434,14 @@ class BrowserTest(_Server):
                 self.assertEqual(pg.evaluate("document.querySelectorAll('.mn-lm-table table').length"), 1)
                 pg.click("text=bold")
                 time.sleep(0.3)
-                self.assertEqual(pg.evaluate(line), "Some **bold** and link text.")        # only the clicked element
+                self.assertEqual(pg.evaluate(line), "Some **bold** and link text.")
                 pg.click(".mn-lm-check")
                 time.sleep(0.2)
                 self.assertIn("- [x] task", pg.evaluate("MN.panes[0].view.state.doc.toString()"))
                 pg.keyboard.press("Control+z")
                 pg.keyboard.press("Control+s")
                 time.sleep(0.7)
-                self.assertEqual(md.read_text(encoding="utf-8"), text)                     # saved exactly
+                self.assertEqual(md.read_text(encoding="utf-8"), text)
                 pg.click(".seg-btn[data-a='mdmode:off']")
                 time.sleep(0.3)
                 self.assertFalse(pg.evaluate("document.querySelector('.cm-editor').classList.contains('mn-live')"))
@@ -512,7 +498,7 @@ class BrowserTest(_Server):
                     pg.keyboard.type(ch)
                     time.sleep(0.25)
                 pg.wait_for_selector(".cm-tooltip-autocomplete")
-                pg.keyboard.press("Enter")
+                pg.keyboard.press("Tab")
                 time.sleep(0.2)
                 self.assertIn('if __name__ == "__main__":', pg.evaluate("MN.panes[0].view.state.doc.toString()"))
                 self.assertEqual(self.errors, [])
@@ -563,7 +549,6 @@ class BrowserTest(_Server):
                 self.assertEqual(self.errors, [])
             finally:
                 b.close()
-
 
 if __name__ == "__main__":
     unittest.main()

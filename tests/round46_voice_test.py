@@ -19,7 +19,6 @@ import httpx
 from app import pgdata, stt_providers as sp, voice_downloads as vd
 from app.voice_runtime import VoiceRuntime
 
-
 class NativeSpeech(unittest.IsolatedAsyncioTestCase):
     async def invoke(self, kind, handler, **extra):
         row = sp.PROVIDERS[kind]
@@ -148,7 +147,6 @@ class NativeSpeech(unittest.IsolatedAsyncioTestCase):
         with self.assertRaisesRegex(ValueError, "API"):
             await sp.transcribe(b"audio", "audio/wav", base_url=sp.PROVIDERS["elevenlabs"]["base_url"],api_key="",model="scribe_v2")
 
-
 class DownloadContracts(unittest.IsolatedAsyncioTestCase):
     async def test_real_transfer_reports_bytes_percent_and_cancel_closes_connection(self):
         total = 2 * 1024 * 1024
@@ -183,7 +181,7 @@ class DownloadContracts(unittest.IsolatedAsyncioTestCase):
                     self.assertGreater(state["progress"],first_progress,"Progress advances during the file, never sticks at 5%")
                     self.assertGreaterEqual(state["progress"],25)
                     self.assertEqual(state["total_bytes"],total+2)
-                    # Repeating a request returns JSON-safe status, never Task.
+
                     json.dumps(await runtime.start_download("tiny"))
                     self.assertTrue(runtime.cancel_download("tiny"))
                     await asyncio.wait_for(state["task"],timeout=3)
@@ -249,7 +247,6 @@ class DownloadContracts(unittest.IsolatedAsyncioTestCase):
                 self.assertTrue(await asyncio.to_thread(stopped.wait,1))
             self.assertEqual(runtime.downloads["stt:tiny"]["status"],"cancelled")
 
-
 class SettingsCompatibility(unittest.TestCase):
     def test_english_distil_models_are_not_advertised_as_multilingual(self):
         with tempfile.TemporaryDirectory() as folder:
@@ -267,6 +264,5 @@ class SettingsCompatibility(unittest.TestCase):
         self.assertEqual(prefs["voice_stt_api_model"],"scribe_v1")
         self.assertEqual(prefs["voice_stt_api_key"],"old-key")
         self.assertEqual(set(prefs["voice_stt_api_profiles"]),{"elevenlabs"})
-
 
 if __name__ == "__main__": unittest.main()

@@ -26,10 +26,8 @@ from . import composite_models as cm
 
 MAX_BODY = 4 * 1024 * 1024
 
-
 def _err(message: str, message_en: str, status: int = 400, **extra: Any) -> JSONResponse:
     return JSONResponse({"error": message, "error_en": message_en, **extra}, status_code=status)
-
 
 async def _body(request: Request) -> Any:
     raw = await request.body()
@@ -42,17 +40,14 @@ async def _body(request: Request) -> Any:
         return None
     return data if isinstance(data, dict) else None
 
-
 def _auth(request: Request):
     from .admin_api import _auth as admin_auth
     return admin_auth(request)
-
 
 def _tiny_png() -> str:
     """A small solid red PNG for «try with a picture» (the model is asked about its colour)."""
     from .model_capabilities import solid_png
     return base64.b64encode(solid_png((220, 30, 30), 64)).decode()
-
 
 def register(app: FastAPI) -> None:
     app.add_middleware(cm.RouteContextMiddleware, expose=True)

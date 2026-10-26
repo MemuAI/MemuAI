@@ -26,7 +26,6 @@ os.environ.setdefault("NO_PROXY", "127.0.0.1,localhost")
 
 from app import inbox, inbox_hooks  # noqa: E402
 
-
 @pytest.fixture(autouse=True)
 def fresh(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMUAI_DATA_DIR", str(tmp_path))
@@ -41,8 +40,6 @@ def fresh(tmp_path, monkeypatch):
     yield tmp_path
     inbox._reset_for_tests()
 
-
-# --------------------------------------------------------------------------- store
 def test_post_dedupe_resolve_and_groups(fresh):
     a = inbox.post("approval", "Разрешить оплату?", "1 290 ₽", source="dfy", ref={"task_id": "t"},
                    actions=[{"id": "approve", "label": "Да"}, "deny"], dedupe_key="dfy:t:q", severity="ask")
@@ -57,10 +54,9 @@ def test_post_dedupe_resolve_and_groups(fresh):
     assert inbox.resolve("dfy:t:q", result="approve") is True
     assert inbox.resolve("dfy:t:q") is False, "resolving twice is a no-op"
     assert inbox.get(a)["status"] == "resolved" and inbox.get(a)["group"] == "done"
-    # a new post after it was resolved creates a new item
+
     assert inbox.post("approval", "again", source="dfy", dedupe_key="dfy:t:q") != a
     assert inbox.counts()["done"] == 1
-
 
 def test_list_filters_search_read_snooze(fresh):
     inbox.post("notice", "Новые модели API", "qwen3.8-coder", source="models")
@@ -78,25 +74,23 @@ def test_list_filters_search_read_snooze(fresh):
     assert x not in [i["id"] for i in inbox.list(include_snoozed=False)]
     assert inbox.snooze(x, 0) and not inbox.get(x)["snoozed"]
 
-
 def test_persistence_cross_process_and_atomic_file(fresh):
     x = inbox.post("notice", "persist me", source="ui")
     path = fresh / "inbox" / "inbox.json"
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["items"][0]["id"] == x
-    # another process (the Proxy) writes the same file: this process sees it
+
     code = ("import os,sys; sys.path.insert(0, %r); os.environ['MEMUAI_DATA_DIR']=%r;"
             "from app import inbox; inbox.post('error','from proxy',source='proxy',dedupe_key='proxy:quota:a');"
             "inbox.resolve(%r, result='seen')") % (str(ROOT), str(fresh), x)
     subprocess.run([sys.executable, "-c", code], check=True, timeout=60)
     assert inbox.get("proxy:quota:a")["title"] == "from proxy"
     assert inbox.get(x)["status"] == "resolved"
-    # a broken file does not break the hub
+
     path.write_text("{broken", encoding="utf-8")
     inbox._reset_for_tests()
     assert isinstance(inbox.list(), list)
     assert inbox.post("notice", "after corruption", source="ui")
-
 
 def test_thread_safety(fresh):
     def worker(n):
@@ -109,7 +103,6 @@ def test_thread_safety(fresh):
     keys = [i["dedupe_key"] for i in inbox.list(limit=600)]
     assert len(set(keys)) == 90
 
-
 def test_retention_caps_and_ephemeral(fresh, monkeypatch):
     monkeypatch.setattr(inbox, "MAX_ITEMS", 20)
     monkeypatch.setattr(inbox, "MAX_OPEN_PER_SOURCE", 1000)
@@ -120,7 +113,7 @@ def test_retention_caps_and_ephemeral(fresh, monkeypatch):
     rows = inbox.list(limit=600)
     assert len(rows) == 20
     assert all(r["status"] == "open" for r in rows), "closed items go first when the cap is reached"
-    # resolved items older than RESOLVED_TTL_DAYS are pruned on the next write
+
     inbox._reset_for_tests()
     y = inbox.post("notice", "ancient", source="ui")
     inbox.resolve(y)
@@ -133,11 +126,10 @@ def test_retention_caps_and_ephemeral(fresh, monkeypatch):
     titles = [r["title"] for r in inbox.list(limit=600)]
     assert "ancient" not in titles and "fresh" in titles
     assert "q24" in titles, "open questions are never pruned by age"
-    # ephemeral items (computer-control steps) vanish when resolved
+
     e = inbox.post("approval", "step", source="computer", dedupe_key="computer:t:1", ephemeral=True)
     inbox.resolve(e)
     assert inbox.get(e) is None
-
 
 def test_subscribe_and_version(fresh):
     seen = []
@@ -151,8 +143,6 @@ def test_subscribe_and_version(fresh):
     assert seen == ["post", "read", "resolve"]
     assert inbox.version() != v0
 
-
-# --------------------------------------------------------------------------- actions
 def test_run_action_routes_to_handler(fresh):
     calls = []
 
@@ -176,12 +166,11 @@ def test_run_action_routes_to_handler(fresh):
     y = inbox.post("question", "q", source="demo2", actions=["go"])
     res = asyncio.run(inbox.arun_action(y, "go"))
     assert res == {"ok": False, "error": "boom"} and inbox.get(y)["status"] == "open"
-    # no handler → the button just closes the item; «dismiss» / «ack» are built in
+
     z = inbox.post("notice", "n", source="nobody", actions=["ok"])
     assert inbox.run_action(z, "ok")["resolved"]
     w = inbox.post("notice", "n2", source="demo")
     assert inbox.run_action(w, "dismiss")["resolved"] and inbox.get(w)["status"] == "dismissed"
-
 
 def test_api_routes(fresh):
     from fastapi import FastAPI
@@ -215,8 +204,6 @@ def test_api_routes(fresh):
     assert c.post("/api/pg/inbox/clear-done").json()["removed"] == 1
     assert c.get("/api/pg/inbox/item/" + iid).status_code == 404
 
-
-# --------------------------------------------------------------------------- producers
 class FakeManager:
     def __init__(self, task):
         self.task, self.answers = task, []
@@ -228,10 +215,9 @@ class FakeManager:
         if str(payload.get("question_id")) != str(self.task.question.get("id")):
             raise RuntimeError("stale")
         self.answers.append(payload)
-        inbox_hooks.dfy_question_closed(self.task, self.task.question)   # DFYManager._ask finally
+        inbox_hooks.dfy_question_closed(self.task, self.task.question)
         self.task.question = None
         return self.task
-
 
 def test_dfy_question_roundtrip(fresh):
     q = {"id": "q1", "kind": "confirm", "prompt": "DFY хочет нажать «Оплатить». Разрешить?", "amount": "1 290 ₽"}
@@ -245,7 +231,7 @@ def test_dfy_question_roundtrip(fresh):
     res = asyncio.run(inbox.arun_action(it["id"], "approve"))
     assert res["ok"] and res["resolved"]
     assert mgr.answers == [{"question_id": "q1", "approve": True}]
-    # choice question: the button sends the option text; answering elsewhere closes the item here too
+
     q2 = {"id": "q2", "kind": "choice", "prompt": "Какое время?", "choices": ["Вт 10:00", "Ср 15:30"]}
     task.question = q2
     inbox_hooks.dfy_question(task, q2)
@@ -253,19 +239,18 @@ def test_dfy_question_roundtrip(fresh):
     assert it2["group"] == "ask" and it2["actions"][1]["label"] == "Ср 15:30"
     assert asyncio.run(inbox.arun_action(it2["id"], "choice:1"))["resolved"]
     assert mgr.answers[-1] == {"question_id": "q2", "answer": "Ср 15:30"}
-    # a stale item (the task moved on) is closed with an explanation instead of answering the next question
+
     q3 = {"id": "q3", "kind": "text", "prompt": "Как зовут?"}
     task.question = q3
     inbox_hooks.dfy_question(task, q3)
     task.question = {"id": "q4", "kind": "confirm", "prompt": "next"}
     res = asyncio.run(inbox.arun_action("dfy:t1:q3", "reply", {"text": "Юра"}))
     assert res["ok"] is False and res["resolved"] and mgr.answers[-1]["question_id"] == "q2"
-    # secrets are never answered from the inbox: only «open the form» / «decline»
+
     q5 = {"id": "q5", "kind": "secret", "label": "карта", "prompt": "Нужна карта"}
     inbox_hooks.dfy_question(task, q5)
     acts = inbox.get("dfy:t1:q5")["actions"]
     assert acts[0]["kind"] == "ui" and not any(a.get("form") for a in acts)
-
 
 def test_real_dfy_manager_ask_roundtrip(fresh):
     """The real DFYManager._ask posts the question; the inbox button answers it through DFYManager.answer;
@@ -286,7 +271,7 @@ def test_real_dfy_manager_ask_roundtrip(fresh):
         assert res["ok"] and res["resolved"]
         assert await ask == {"approve": False}
         assert inbox.get(it["id"])["result"] == "deny"
-        # answered in the chat card instead: the inbox item closes by itself
+
         ask2 = asyncio.create_task(mgr._ask(task, {"kind": "text", "prompt": "Какой адрес?"}, timeout=10))
         await asyncio.sleep(0.05)
         key = f"dfy:{task.id}:{task.question['id']}"
@@ -296,19 +281,17 @@ def test_real_dfy_manager_ask_roundtrip(fresh):
         assert inbox.get(key)["status"] == "resolved" and inbox.get(key)["result"] == "answered"
     asyncio.run(scenario())
 
-
 def test_dfy_ask_hook_in_manager_source():
     src = (ROOT / "app" / "dfy.py").read_text(encoding="utf-8")
     assert '_inbox_hook("dfy_question", task, asked)' in src
     assert '_inbox_hook("dfy_question_closed", task, asked)' in src
-
 
 def test_memory_review_sync_both_ways(fresh):
     from app import memory_v2 as mem
     mem.propose([{"op": "add", "fact": "Пользователь живёт в Шяуляе", "confidence": 0.5},
                  {"op": "add", "fact": "Любит тёмную тему", "confidence": 0.5}], service="chat")
     pend = [i for i in mem.load()["items"] if i["status"] == "pending"]
-    if not pend:   # «auto» mode saved them at once: switch to «ask» and propose again
+    if not pend:
         mem.mutate(lambda doc: doc.setdefault("settings", {}).update({"mode": "ask"}))
         mem.propose([{"op": "add", "fact": "Пользователь живёт в Шяуляе"}, {"op": "add", "fact": "Любит тёмную тему"}], service="chat")
         pend = [i for i in mem.load()["items"] if i["status"] == "pending"]
@@ -320,12 +303,11 @@ def test_memory_review_sync_both_ways(fresh):
     res = inbox.run_action(a["id"], "edit", {"text": "Живёт в Шяуляе, Литва"})
     assert res["resolved"] and inbox.get(a["id"])["result"] == "edit"
     assert any(i["text"] == "Живёт в Шяуляе, Литва" and i["status"] == "active" for i in mem.load()["items"])
-    # rejecting in the Memory window closes the inbox item too
+
     b = next(r for r in rows if "тёмную" in r["title"])
     mem.reject(b["ref"]["item_id"])
     assert inbox.get(b["id"])["status"] == "resolved"
     assert inbox.counts()["open"] == 0
-
 
 def test_schedule_results(fresh):
     from app import pgdata, scheduler
@@ -346,10 +328,9 @@ def test_schedule_results(fresh):
     assert work and work["group"] == "confirm" and "a.txt" in work["body"]
     assert pgdata.mark_schedule_result_applied(rid)
     assert inbox.get(f"schedule:work:{rid}")["status"] == "resolved"
-    # test runs never reach the inbox
+
     scheduler._record_result("s1", False, "test", meta={"test": True})
     assert inbox.get("schedule:fail:s1")["status"] == "resolved"
-
 
 def test_module_event_and_models(fresh):
     inbox_hooks.module_event("api-models", "Новые модели API", "OpenRouter: +3")
@@ -360,13 +341,12 @@ def test_module_event_and_models(fresh):
     src = (ROOT / "app" / "module_monitor.py").read_text(encoding="utf-8")
     assert "module_event(module_id, title, text)" in src
 
-
 def test_proxy_account_hooks(fresh):
     from app.providers.base import ProviderAuthError, ProviderQuotaError, ProviderNetworkError
     acc = NS(id="acc1", label="Tooken", provider="custom")
     inbox_hooks.proxy_account_failed(acc, ProviderNetworkError("net"), "network")
     inbox_hooks.proxy_account_failed(acc, ProviderQuotaError("quota"), "429 quota exceeded")
-    inbox_hooks.proxy_account_failed(acc, ProviderQuotaError("quota"), "429 again")   # throttled
+    inbox_hooks.proxy_account_failed(acc, ProviderQuotaError("quota"), "429 again")
     for _ in range(100):
         if inbox.get("proxy:quota:acc1"):
             break
@@ -386,7 +366,6 @@ def test_proxy_account_hooks(fresh):
             break
         time.sleep(0.05)
     assert inbox.get("proxy:auth:acc1")
-
 
 def test_memucode_terminal_questions(fresh):
     from app.cli import remote
@@ -411,12 +390,11 @@ def test_memucode_terminal_questions(fresh):
     assert res["resolved"]
     cmds = [json.loads(p.read_text()) for p in (d / f"{rc}.inbox").glob("*.json")]
     assert cmds and cmds[0]["type"] == "answer" and cmds[0]["choice"] == 2 and cmds[0]["text"] == "сначала линтер"
-    # the dialog closes in the terminal → the next scan does not re-post it
+
     state["dialog"] = None
     (d / f"{rc}.json").write_text(json.dumps(state), encoding="utf-8")
     inbox_hooks.memucode_scan()
     assert inbox.counts()["open"] == 0
-
 
 def test_computer_approval_hook(fresh):
     class RT:
@@ -439,7 +417,6 @@ def test_computer_approval_hook(fresh):
     src = (ROOT / "app" / "automation_runtime.py").read_text(encoding="utf-8")
     assert "inbox_hooks.computer_approval(self, action)" in src
 
-
 def test_install_playground_registers_routes_and_handlers(fresh):
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -452,8 +429,6 @@ def test_install_playground_registers_routes_and_handlers(fresh):
         assert c.get("/api/pg/inbox/counts").status_code == 200
     assert inbox.get(stale)["result"] == "expired", "questions of a previous run are closed on start"
 
-
-# --------------------------------------------------------------------------- UI / packaging
 def test_ui_wiring_and_language():
     html = (ROOT / "app" / "pgstatic" / "index.html").read_text(encoding="utf-8")
     assert '/inbox.js?v=' in html and '/inbox.css?v=' in html
@@ -476,7 +451,6 @@ def test_ui_wiring_and_language():
     hooks = (ROOT / "app" / "inbox_hooks.py").read_text(encoding="utf-8")
     pairs = re.findall(r'_t\(\s*"((?:[^"\\]|\\.)*)"\s*,\s*"((?:[^"\\]|\\.)*)"\s*\)', hooks)
     assert len(pairs) > 40 and not [e for _r, e in pairs if cyr.search(e)]
-
 
 def test_build_targets_and_specs():
     import build

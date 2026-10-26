@@ -1,9 +1,3 @@
-/* MemuAI product cards (Round 21) — row of cards under an answer and the
-   right side sheet. Colours, radii, lines and shadows come from the design
-   tokens (themes.css + design.css + designs/*.css), so every design and both
-   modes style it; only glass adds its blur. Motion follows motion.css:
-   translate/opacity only, off under reduce-motion. */
-
 .memu-products { margin: 14px 0 8px; max-width: 100%; }
 .memu-products .prd-ico { display: inline-grid; place-items: center; width: 16px; height: 16px; flex: none; }
 .memu-products .prd-ico svg, .prd-sheet .prd-ico svg { width: 100%; height: 100%; fill: none; stroke: currentColor;
@@ -37,8 +31,6 @@
 .prd-card.best { border-color: color-mix(in srgb, var(--accent) 60%, transparent);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 30%, transparent), var(--d-lift, none); }
 .prd-card.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
-
-/* Card cell: the card itself and its copy button side by side (no nested buttons). */
 .prd-cell { position: relative; flex: 0 0 204px; min-width: 0; display: flex; scroll-snap-align: start; }
 .prd-cell > .prd-card { flex: 1 1 auto; }
 .prd-copy { position: absolute; top: 8px; right: 8px; z-index: 2; width: 28px; height: 28px; padding: 0; display: grid;
@@ -50,8 +42,6 @@
 .prd-copy:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 @media (hover: none) { .prd-copy { opacity: .9; } }
 .prd-cell .prd-badge { max-width: calc(100% - 52px); }
-
-/* Budget / availability flags (verified on the server). */
 .prd-flag { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; max-width: 100%; padding: 2px 7px;
   border-radius: 999px; font: 650 11px/1.35 var(--d-small, inherit); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .prd-flag.within { color: var(--ok); background: color-mix(in srgb, var(--ok) 14%, transparent); }
@@ -62,8 +52,6 @@
 .prd-flag.wide span { font-weight: 500; color: var(--muted); }
 .prd-card.flag-over .prd-price:not(.none), .prd-card.flag-unavailable .prd-price:not(.none) { color: var(--muted); }
 .prd-card.flag-unavailable .prd-img img { opacity: .55; filter: grayscale(.6); }
-
-/* Copy menu (rendered into body so the scrolling row does not clip it). */
 .prd-menu { position: fixed; z-index: 260; min-width: 220px; padding: 5px; display: grid; gap: 1px; color: var(--text);
   background: var(--panel); border: 1px solid var(--d-line, var(--border)); border-radius: var(--r-md, 12px);
   box-shadow: var(--d-pop-shadow, var(--shadow)); animation: m-rise-in var(--m-dur-2, .18s) var(--m-ease-out, ease) both; }
@@ -73,8 +61,6 @@
 .prd-menu button:disabled { opacity: .4; cursor: default; }
 .prd-menu .prd-ico { width: 15px; height: 15px; color: var(--muted); display: inline-grid; place-items: center; flex: none; }
 .prd-menu .prd-ico svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-
-/* Research progress (instead of draft text between tool rounds). */
 .prd-progress .prd-title { color: var(--text); }
 .prd-progress .prd-title .prd-ico { color: var(--accent); animation: prd-pulse 1.4s ease-in-out infinite; }
 @keyframes prd-pulse { 50% { opacity: .35; } }
@@ -93,8 +79,6 @@
 .prd-progress-names { display: flex; flex-wrap: wrap; gap: 5px; margin: -2px 0 10px 24px; }
 .prd-progress-names span { padding: 2px 8px; border-radius: 999px; font: 11.5px/1.4 var(--d-small, var(--font-ui, system-ui, sans-serif)); color: var(--muted);
   border: 1px solid var(--d-line, var(--border)); background: var(--panel); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* Product photos are shot on white: a light tile reads as a product card in both modes. */
 .prd-img { position: relative; display: block; aspect-ratio: 4 / 3; background: #fff; overflow: hidden;
   border-bottom: 1px solid var(--d-line-soft, transparent); }
 :where([data-theme="dark"]) .prd-img { background: #f3f3f4; }
@@ -129,8 +113,6 @@
 .prd-store.more { width: auto; padding: 0 6px; font-weight: 650; color: var(--muted); background: var(--d-hover); box-shadow: none; }
 .prd-store.lg { width: 34px; height: 34px; border-radius: 10px; font-size: 15px; }
 .prd-nostore { font-size: 11.5px; color: var(--muted); }
-
-/* skeleton while the block streams in or is being verified */
 .prd-skel { cursor: default; pointer-events: none; }
 .prd-skel .prd-img, .prd-skel .prd-body i { background: linear-gradient(100deg, var(--d-hover) 20%, color-mix(in srgb, var(--text) 11%, transparent) 40%, var(--d-hover) 60%);
   background-size: 220% 100%; animation: prd-shimmer 1.3s linear infinite; }
@@ -145,8 +127,6 @@
   animation-delay: calc(var(--prd-i, 0) * var(--m-stagger, 24ms)); }
 .memu-products.prd-enter .prd-card.prd-skel { animation: m-rise-in var(--m-dur-3, .24s) var(--m-ease-out, ease) both;
   animation-delay: calc(var(--prd-i, 0) * var(--m-stagger, 24ms)); }
-
-/* ------------------------------------------------------------ side sheet */
 .prd-scrim { position: fixed; inset: 0; z-index: 239; background: rgba(0, 0, 0, .3); opacity: 0; pointer-events: none;
   transition: opacity var(--m-dur-3, .24s) var(--m-ease-std, ease); }
 .prd-sheet { position: fixed; z-index: 240; top: 10px; right: 10px; bottom: 10px; width: min(452px, calc(100vw - 20px));
@@ -269,8 +249,6 @@
 .prd-review figcaption b { color: var(--text); font-weight: 600; }
 .prd-foot { display: flex; gap: 7px; align-items: flex-start; margin: 20px 0 0; font-size: 11.5px; line-height: 1.45; color: var(--muted); }
 .prd-foot .prd-ico { width: 14px; height: 14px; margin-top: 1px; }
-
-/* ------------------------------------------------------------ designs */
 :root[data-design="glass"] .prd-sheet { background: var(--d-glass, var(--panel));
   -webkit-backdrop-filter: blur(28px) saturate(1.5); backdrop-filter: blur(28px) saturate(1.5); }
 :root[data-design="glass"] .prd-card { background: color-mix(in srgb, var(--panel) 78%, transparent);
@@ -279,8 +257,6 @@
 :root[data-design="grid"] .prd-badge, :root[data-design="grid"] .prd-open,
 :root[data-design="grid"] .prd-specs li, :root[data-design="grid"] .prd-count { border-radius: var(--r-sm, 3px); }
 :root[data-design="focus"] .prd-card { box-shadow: none; }
-
-/* ------------------------------------------------------------ motion */
 :root[data-motion="reduced"] .prd-sheet { translate: 0 0; }
 :root[data-motion="reduced"] .prd-gallery-track { transition-duration: .12s; }
 :root[data-motion="off"] .prd-sheet, :root[data-motion="off"] .prd-scrim, :root[data-motion="off"] .prd-card,
@@ -298,9 +274,6 @@ body.reduce-motion .prd-copy { animation: none !important; transition: none !imp
   .prd-sheet, .prd-scrim, .prd-card, .prd-cell, .prd-gallery-track, .prd-skel .prd-img, .prd-skel .prd-body i { transition: none !important; animation: none !important; }
   .prd-sheet { translate: 0 0; }
 }
-
-/* Wide window: the chat column makes room for the sheet instead of hiding
-   the answer under it (narrow windows keep the overlay + scrim). */
 @media (min-width: 1280px) {
   html.prd-sheet-open #main-content { padding-right: min(472px, calc(100vw - 20px)); box-sizing: border-box; }
 }

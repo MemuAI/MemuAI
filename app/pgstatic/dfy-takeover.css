@@ -1,5 +1,3 @@
-/* DFY takeover window (Round 30) — dfy-takeover.js. Theme tokens only (themes.css), one accent element:
-   the «Return control to AI» button. The page itself is the hero: dark neutral stage, no frames around it. */
 .dfyt-layer { position: fixed; inset: 0; z-index: 2147483000; display: grid; place-items: center; padding: 20px;
   background: color-mix(in srgb, #000 52%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
   font: 13px/1.4 var(--sans, "Segoe UI", system-ui, sans-serif); color: var(--text, #eee);
@@ -10,8 +8,6 @@
   border-radius: 14px; background: var(--panel, #1c1c20); border: 1px solid var(--border, rgba(127,127,127,.22));
   box-shadow: var(--shadow, 0 24px 80px rgba(0,0,0,.45)); }
 .dfyt-layer.compact .dfyt-win { border-radius: 0; border: 0; box-shadow: none; }
-
-/* toolbar: navigation · address · state · actions */
 .dfyt-bar { grid-row: 1; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 8px 10px; border-bottom: 1px solid var(--border, rgba(127,127,127,.18)); }
 .dfyt-ico { width: 30px; height: 30px; flex: none; display: grid; place-items: center; border: 0; border-radius: 8px; padding: 0;
   background: transparent; color: var(--muted, #999); cursor: pointer; }
@@ -34,8 +30,6 @@
 .dfyt-btn .n { min-width: 16px; padding: 0 5px; border-radius: 999px; font-size: 11px; line-height: 16px; text-align: center;
   background: color-mix(in srgb, var(--text, #eee) 12%, transparent); }
 .dfyt-btn:focus-visible, .dfyt-ico:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent, #7c6cf0) 70%, transparent); outline-offset: 1px; }
-
-/* one quiet line under the bar: the agent's request or the idle countdown */
 .dfyt-note { grid-row: 2; display: flex; align-items: center; gap: 10px; padding: 7px 14px; font-size: 12.5px; color: var(--muted, #aaa);
   border-bottom: 1px solid var(--border, rgba(127,127,127,.18)); }
 .dfyt-note:empty, .dfyt-note[hidden] { display: none; }
@@ -55,8 +49,6 @@
 .dfyt-wait[hidden] { display: none; }
 .dfyt-spin { width: 22px; height: 22px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--text, #eee) 18%, transparent);
   border-top-color: var(--accent, #7c6cf0); animation: dfyt-spin .8s linear infinite; }
-
-/* journal: what the AI will get */
 .dfyt-log { width: 300px; display: flex; flex-direction: column; min-height: 0; border-left: 1px solid var(--border, rgba(127,127,127,.18));
   background: var(--panel, #1c1c20); }
 .dfyt-log[hidden] { display: none; }
@@ -66,8 +58,6 @@
 .dfyt-log li { padding: 3px 0; overflow-wrap: anywhere; }
 .dfyt-log li:last-child { color: var(--text, #eee); }
 .dfyt-log .empty { padding: 4px 14px; font-size: 12px; color: var(--muted, #999); list-style: none; margin-left: -20px; }
-
-/* minimized: a pill that keeps the state visible */
 .dfyt-pill { position: fixed; z-index: 2147483000; left: 50%; bottom: 18px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px;
   padding: 6px 6px 6px 14px; border-radius: 999px; font: 12.5px/1.3 var(--sans, "Segoe UI", system-ui, sans-serif); color: var(--text, #eee);
   background: var(--panel, #1c1c20); border: 1px solid var(--border, rgba(127,127,127,.22)); box-shadow: var(--shadow, 0 12px 40px rgba(0,0,0,.35)); }

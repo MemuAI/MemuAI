@@ -14,7 +14,6 @@ from app.cli.tools.base import ToolCall, ToolContext
 from app.cli.tools.files import EditTool, ReadTool
 from tests.memucode_cli_test import make_runtime, run, setUpModule, tearDownModule  # noqa: F401  (module fixtures)
 
-
 class RuleBackend(Backend):
     """Answers from a function of the request, so concurrent agents may call it in any order."""
 
@@ -32,19 +31,15 @@ class RuleBackend(Backend):
         yield StreamEvent("usage", usage=Usage(input=100, output=10, estimated=False, requests=1))
         yield StreamEvent("done", finish="stop")
 
-
 def last_text(request) -> str:
     content = request.messages[-1]["content"]
     return content if isinstance(content, str) else json.dumps(content, ensure_ascii=False)
 
-
 def block(*calls) -> str:
     return "Working.\n```memuai-tool\n" + json.dumps([{"tool": name, "args": args} for name, args in calls]) + "\n```"
 
-
 def is_worker(request) -> bool:
     return "Your role:" in request.system
-
 
 class ParallelAgents(unittest.TestCase):
     def test_two_agents_in_one_round_really_run_at_the_same_time(self):
@@ -61,7 +56,7 @@ class ParallelAgents(unittest.TestCase):
                     started.append(tag)
                     if len(started) == 2:
                         both.set()
-                    await asyncio.wait_for(both.wait(), 5)    # deadlocks unless the other agent runs too
+                    await asyncio.wait_for(both.wait(), 5)
                     return f"report {tag}"
                 if "<tool_results" not in last_text(request):
                     return block(("Task", {"description": "one", "prompt": "WORKER-1"}),
@@ -114,7 +109,7 @@ class ParallelAgents(unittest.TestCase):
                     return block(("Task", {"description": "docs", "prompt": "write the docs",
                                            "run_in_background": True}))
                 if "Task #1 is running" in text:
-                    release.set()                             # the main agent keeps working meanwhile …
+                    release.set()
                     return block(("Bash", {"command": "python -c \"import time; time.sleep(0.5)\""}))
                 return "all done"
 
@@ -127,7 +122,7 @@ class ParallelAgents(unittest.TestCase):
         runtime, backend, result, seconds = run(scenario())
         self.assertEqual(result.text, "all done")
         joined = "\n".join(last_text(request) for request in backend.requests if not is_worker(request))
-        self.assertIn("[Background task #1 finished]", joined)         # … and the report reached it before it finished
+        self.assertIn("[Background task #1 finished]", joined)
         self.assertIn("the documentation is written", joined)
         self.assertEqual(runtime.notes, [])
 
@@ -144,7 +139,7 @@ class ParallelAgents(unittest.TestCase):
                 if "<tool_results" not in text:
                     return block(("Task", {"description": "x", "prompt": "do x", "run_in_background": True}))
                 if "running in the background" in text:
-                    release.set()                                # the agent finishes while we wait for it
+                    release.set()
                     return block(("TaskOutput", {"task_id": 1, "wait_seconds": 5}))
                 return "used the report"
 
@@ -177,7 +172,6 @@ class ParallelAgents(unittest.TestCase):
         self.assertTrue(runtime.wake_requested())
         self.assertEqual(len(runtime.drain_notes()), 2)
         self.assertFalse(runtime.wake_requested())
-
 
 class AgentsOnlyOnRequest(unittest.TestCase):
     """Round 13: a sub-agent starts only when the user asked for one."""
@@ -238,13 +232,12 @@ class AgentsOnlyOnRequest(unittest.TestCase):
         self.assertIn("Sub-agents are switched off", system)
         self.assertNotIn("# Sub-agents (Task tool)", system)
 
-
 class BackgroundCommands(unittest.TestCase):
     def test_a_finished_background_command_is_announced_once_with_its_output(self):
         async def scenario():
             runtime, _ = make_runtime()
             row = runtime.shells.start(runtime, "python -c \"print('built ok')\"", runtime.root, "build")
-            await asyncio.to_thread(row["output_done"].wait, 10)      # ended, but nobody has looked yet
+            await asyncio.to_thread(row["output_done"].wait, 10)
             first = runtime.poll_background()
             second = runtime.poll_background()
             return runtime, first, second
@@ -262,13 +255,12 @@ class BackgroundCommands(unittest.TestCase):
             runtime, _ = make_runtime()
             row = runtime.shells.start(runtime, "python -c \"print('x')\"", runtime.root, "")
             await runtime.shells.wait(row["id"], 10)
-            runtime.shells.read(row["id"])                      # BashOutput did exactly this
+            runtime.shells.read(row["id"])
             return runtime, runtime.poll_background()
 
         runtime, lines = run(scenario())
         self.assertEqual(lines, [])
         self.assertFalse(runtime.notes)
-
 
 class ConcurrentEdits(unittest.TestCase):
     def test_edits_of_one_file_from_two_agents_are_both_kept(self):
@@ -290,7 +282,7 @@ class ConcurrentEdits(unittest.TestCase):
             first_args = {"file_path": "f.txt", "old_string": "alpha", "new_string": "ALPHA"}
             second_args = {"file_path": "f.txt", "old_string": "gamma", "new_string": "GAMMA"}
             first = await editor.prepare(ctx, first_args)
-            second = await editor.prepare(ctx, second_args)          # both computed from the same old text
+            second = await editor.prepare(ctx, second_args)
             await asyncio.gather(editor.run(ctx, first_args, first), editor.run(ctx, second_args, second))
             return path.read_text(encoding="utf-8")
 
@@ -304,7 +296,7 @@ class ConcurrentEdits(unittest.TestCase):
             await reader.run(ctx, {"file_path": "f.txt"}, await reader.prepare(ctx, {"file_path": "f.txt"}))
             args = {"file_path": "f.txt", "old_string": "two", "new_string": "TWO"}
             prepared = await editor.prepare(ctx, args)
-            (runtime.root / "f.txt").write_text("one\nsomething else\n", encoding="utf-8")   # another agent
+            (runtime.root / "f.txt").write_text("one\nsomething else\n", encoding="utf-8")
             with self.assertRaises(Exception) as caught:
                 await editor.run(ctx, args, prepared)
             return str(caught.exception), (runtime.root / "f.txt").read_text(encoding="utf-8")
@@ -312,7 +304,6 @@ class ConcurrentEdits(unittest.TestCase):
         message, text = run(scenario())
         self.assertIn("changed while this edit was waiting", message)
         self.assertEqual(text, "one\nsomething else\n")
-
 
 if __name__ == "__main__":
     unittest.main()

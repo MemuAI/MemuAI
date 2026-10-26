@@ -1,17 +1,5 @@
-// MemuFiles · drag & drop (Round 40, r40-files-core).
-//
-// Sources and how each one is handled:
-//   • our own rows (another pane, a tab, the tree, the breadcrumbs) — paths in "application/x-memufiles";
-//   • files and folders from Explorer — WebView2 hides their paths from the page; pywebview's document-level drop
-//     listener (desktop.py) reports them in a backend "drop" event, so the page waits for it briefly and copies /
-//     moves by path (fast, no bytes through HTTP, Shift = move);
-//   • VIRTUAL files with no path at all — a zip folder open in Explorer, Outlook attachments, images dragged out of a
-//     browser — are read with the File API (folders via webkitGetAsEntry) and streamed into the target folder as an
-//     "upload" operation (same progress card, conflicts and cancel as a copy);
-//   • links dropped from a browser — downloaded by the backend ("download" operation); data: URLs are uploaded.
-// The "Copy to …" hint is removed on drop, dragleave out of the window, dragend, Esc, window blur, the first mouse
-// move after a drag (no mouse events fire during one) and by a watchdog when dragover events stop arriving —
-// Chromium does not always deliver drop / dragleave for virtual files, which is what left the hint stuck.
+
+
 import { S, api, h, esc, icon, baseName, isWin, toast, showError, rawUrl } from "./core.js";
 import { t, addStrings } from "./i18n.js";
 
@@ -27,18 +15,17 @@ addStrings({
   "dnd2.reading": "Читаю перетащенные файлы…",
 });
 
-const WATCHDOG_MS = 900;          // no dragover for this long = the drag is over (whatever the browser reported)
-const BACKEND_WAIT_MS = 1500;     // how long a desktop drop waits for pywebview's paths before reading via File API
+const WATCHDOG_MS = 900;
+const BACKEND_WAIT_MS = 1500;
 const INTERNAL = "application/x-memufiles";
 
-// ------------------------------------------------------------------ the hint
 let hintEl = null, lastOver = 0, watch = 0, cleanupBound = false;
 export function showHint(app, e, effect, target) {
   if (!hintEl) {
     hintEl = h("div", { class: "drop-hint", role: "status" });
     document.body.append(hintEl);
     bindCleanup(app);
-    // no mouse events fire during a drag — the first one means it is over (a drop the browser never delivered)
+
     window.addEventListener("pointermove", hideOnPointer, { passive: true });
     window.addEventListener("pointerdown", hideOnPointer, true);
   }
@@ -53,7 +40,7 @@ export function showHint(app, e, effect, target) {
     hintEl.className = "drop-hint " + effect;
     hintEl.innerHTML = `<span class="dh-ico">${icon(effect === "move" ? "cut" : links ? "link" : "plus", "sm")}</span><span>${esc(verb)}</span><b>${esc(baseName(target) || target)}</b>`;
   }
-  // keep the pill inside the window
+
   const x = Math.min(e.clientX + 16, window.innerWidth - (hintEl.offsetWidth || 160) - 6);
   const y = Math.min(e.clientY + 20, window.innerHeight - 34);
   hintEl.style.transform = `translate(${Math.max(4, x)}px, ${Math.max(4, y)}px)`;
@@ -80,10 +67,10 @@ function bindCleanup(app) {
   cleanupBound = true;
   const hide = () => { if (hintEl) hideHint(); };
   hideOnPointer = hide;
-  window.addEventListener("drop", hide, true);                 // capture: runs even if a handler stops propagation
+  window.addEventListener("drop", hide, true);
   window.addEventListener("dragend", hide, true);
   window.addEventListener("dragleave", (e) => {
-    // leaving the window itself (relatedTarget is null and the pointer is at / outside the edge)
+
     if (!e.relatedTarget && (e.clientX <= 0 || e.clientY <= 0 || e.clientX >= window.innerWidth || e.clientY >= window.innerHeight)) hide();
   }, true);
   window.addEventListener("blur", hide);
@@ -91,13 +78,11 @@ function bindCleanup(app) {
   document.addEventListener("visibilitychange", () => { if (document.hidden) hide(); });
 }
 
-// ------------------------------------------------------------------ drag over / drop
 export function canAccept(dt) {
   const types = dt.types;
   return types.includes(INTERNAL) || types.includes("Files") || types.includes("text/uri-list");
 }
 
-/** Synchronous part of a drop of things from outside MemuFiles: everything readable must be taken now. */
 export function captureExternal(e) {
   const dt = e.dataTransfer;
   const files = Array.from(dt.files || []);
@@ -153,7 +138,6 @@ function stamp() {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
-// ------------------------------------------------------------------ File API → upload
 async function readTree(entry, prefix, out) {
   if (entry.isFile) {
     const file = await new Promise((resolve, reject) => entry.file(resolve, reject));
@@ -165,7 +149,7 @@ async function readTree(entry, prefix, out) {
   out.push({ rel, dir: true });
   const reader = entry.createReader();
   for (;;) {
-    const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));   // ≤100 per call
+    const batch = await new Promise((resolve, reject) => reader.readEntries(resolve, reject));
     if (!batch.length) break;
     for (const child of batch) await readTree(child, rel + "/", out);
   }
@@ -183,7 +167,6 @@ async function uploadVirtual(app, virtual, target) {
   if (list.length) await upload(app, list, target, t("dnd2.dropped"));
 }
 
-/** Stream File/Blob objects into *dest* as one "upload" operation (progress, pause, skip, conflicts, cancel). */
 export async function upload(app, list, dest, label) {
   let res;
   try { res = await api("upload/start", { dest, label: label || "", items: list.map((x) => ({ rel: x.rel, size: x.size || 0, mtime: x.mtime || 0, dir: !!x.dir })) }); }
@@ -203,19 +186,16 @@ export async function upload(app, list, dest, label) {
       if (data.state === "cancelled") break;
       if (!resp.ok && data.error === "no_operation") break;
     } catch (err) {
-      // the body could not be read (a virtual file its source app no longer serves) or the backend dropped the
-      // connection after "skip file" / cancel — the backend knows which; a still-pending item becomes an error
-      try { await api("upload/fail", { op: id, i, error: t("dnd2.read_failed") }); } catch (e) { /* ignore */ }
+
+      try { await api("upload/fail", { op: id, i, error: t("dnd2.read_failed") }); } catch (e) {  }
     }
   }
   return id;
 }
 
-// ------------------------------------------------------------------ dragging out of MemuFiles
-/** Explorer / the desktop / a messenger accept one file through Chromium's DownloadURL: drag a single file out. */
 export function exportDownloadUrl(e, paths, rows) {
   if (paths.length !== 1) return;
   const row = rows && rows.find((r) => r.path === paths[0]);
   if (!row || row.d) return;
-  try { e.dataTransfer.setData("DownloadURL", `application/octet-stream:${baseName(paths[0]).replace(/:/g, "_")}:${location.origin}${rawUrl(paths[0])}`); } catch (err) { /* ignore */ }
+  try { e.dataTransfer.setData("DownloadURL", `application/octet-stream:${baseName(paths[0]).replace(/:/g, "_")}:${location.origin}${rawUrl(paths[0])}`); } catch (err) {  }
 }

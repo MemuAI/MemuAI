@@ -42,7 +42,6 @@ SAMPLER = """() => { window.__frames = []; let n = 0; const tick = () => {
     shell: !!document.querySelector('#panel .sx-shell'), pretty: document.querySelectorAll('#panel .pretty-select .mpick-native, #panel .mpick .pretty-native').length });
   if (++n < 40) requestAnimationFrame(tick); }; requestAnimationFrame(tick); }"""
 
-
 class SelectFlashContracts(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -66,7 +65,6 @@ class SelectFlashContracts(unittest.TestCase):
         self.assertIn("if (!option || option.disabled) return;", self.js)
         self.assertIn("'disabled aria-disabled=\"true\"'", self.js)
         self.assertIn("if (changed) select.dispatchEvent(new Event(\"change\", { bubbles: true }));", self.js)
-
 
 @unittest.skipUnless(sync_playwright is not None and _chromium(), "Playwright/Chromium is not installed")
 class SelectFlashBrowser(unittest.TestCase):
@@ -187,14 +185,14 @@ class SelectFlashBrowser(unittest.TestCase):
         page = self.page
         scroll = self.open_control(control_id)
         page.screenshot(path=str(SHOTS / f"{tag}-before.png"))
-        # Round 33: model <select>s are upgraded to the unified MemuModelPicker (.mmp-select + body > .mmp-pop).
+
         kind = page.evaluate(f"(() => {{ const el = document.getElementById('{control_id}'); return el.closest('.mmp-select') ? 'mmp' : el.closest('.mpick') ? 'mpick' : 'pretty'; }})()")
         host = f"#panel :is(.mpick, .pretty-select, .mmp-select):has(#{control_id})"
         cdp, shots = self.screencast()
         time.sleep(0.2)
         self.tap(f"{host} > :is(.mpick-btn, .pretty-select-button, .mmp-trigger)")
         time.sleep(0.3)
-        # Opening the picker may scroll its list into view (smoothly); the change itself must not move the page.
+
         scroll = self.steady_scroll()
         page.evaluate(SAMPLER)
         if kind == "mmp":
@@ -206,8 +204,7 @@ class SelectFlashBrowser(unittest.TestCase):
         else:
             index = page.evaluate(f"[...document.getElementById('{control_id}').options].findIndex((o) => o.value === '{option_value}')")
             item = f"body > .pretty-select-menu.visible [data-pretty-option='{index}']"
-        # A user clicks an item that is already on screen; Playwright's click would first scroll every
-        # ancestor (the settings page too), which closes the picker like any outside scroll does.
+
         page.evaluate(f"""() => {{ const item = document.querySelector("{item}"); const list = item.parentElement;
           list.scrollTop = item.offsetTop - list.clientHeight / 2; item.click(); }}""")
         time.sleep(1.0)
@@ -216,7 +213,7 @@ class SelectFlashBrowser(unittest.TestCase):
         self.assert_no_blank_frames(tag, scroll)
         self.assert_screencast_steady(tag, shots)
         self.assertEqual(page.evaluate(f"document.getElementById('{control_id}').value"), option_value)
-        # Focus stays on the picker that was used (it used to jump to the close button).
+
         focus = page.evaluate("(() => { const a = document.activeElement; const host = a && a.closest('.mpick, .pretty-select, .mmp-select'); return host ? host.querySelector('select').id : (a && (a.id || a.className)); })()")
         self.assertEqual(focus, control_id)
         return kind
@@ -225,7 +222,7 @@ class SelectFlashBrowser(unittest.TestCase):
         kind = self.change_through_picker("st-dfy-model", "m4", "dfy-model")
         self.assertEqual(kind, "mmp")
         self.wait("S.preferences.dfy_model === 'm4'")
-        # Sandboxed module frames of the fixture cannot read localStorage — unrelated to the settings.
+
         errors = [e for e in self.errors if "sandboxed" not in e]
         self.assertFalse(errors, errors)
 
@@ -260,7 +257,7 @@ class SelectFlashBrowser(unittest.TestCase):
     def test_disabled_options_cannot_be_picked(self):
         page = self.page
         self.open_control("st-chat-titles")
-        # A long list with disabled entries (as model pickers show models a feature cannot use).
+
         page.evaluate("""() => { const row = document.getElementById('st-chat-titles').closest('.sx-row');
           const box = document.createElement('div'); box.id = 'r25-box';
           box.innerHTML = '<select id="r25-pick">' + Array.from({length: 10}, (_, i) =>
@@ -273,7 +270,7 @@ class SelectFlashBrowser(unittest.TestCase):
         self.assertEqual(page.evaluate(f"document.querySelectorAll('{host} .mpick-item[disabled]').length"), 5)
         page.evaluate(f"document.querySelector('{host} .mpick-item[disabled]').click()")
         self.assertEqual(page.evaluate("document.getElementById('r25-pick').value"), "v0")
-        # The keyboard cursor never rests on a disabled item and Enter picks the next enabled one.
+
         for _ in range(3):
             page.keyboard.press("ArrowDown")
             self.assertFalse(page.evaluate(f"!!document.querySelector('{host} .mpick-item.cur[disabled]')"))
@@ -310,7 +307,6 @@ class SelectFlashBrowser(unittest.TestCase):
         page.wait_for_timeout(400)
         posts = page.evaluate("window.__qa_requests.filter((r) => r.post && r.path === '/api/pg/preferences').length")
         self.assertEqual(posts, 0)
-
 
 if __name__ == "__main__":
     unittest.main()

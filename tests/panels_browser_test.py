@@ -50,7 +50,6 @@ FIXTURE = """<!DOCTYPE html><html lang="ru" data-theme="dark" data-design="class
 
 NOW = time.time()
 
-
 def panel(pid, kind, title, blocks, data, places, size="m", **extra):
     out = {"id": pid, "kind": kind, "title": title, "status": "live", "spec": {"blocks": blocks}, "data": data,
            "sources": [{"name": "Source", "url": "https://source.example/"}], "placements": places,
@@ -59,7 +58,6 @@ def panel(pid, kind, title, blocks, data, places, size="m", **extra):
            "source": {"type": "ai" if kind in ("custom", "sports", "web") else "fx", "params": {}}, "refreshing": False}
     out.update(extra)
     return out
-
 
 ALL_BLOCKS = [
     {"type": "title", "text": "{{name}}", "subtitle": "sub", "icon": "chart"},
@@ -98,7 +96,6 @@ SNAPSHOT = {
     "templates": [],
 }
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or "",
@@ -106,7 +103,6 @@ def _chromium() -> str:
         if candidate and Path(candidate).exists():
             return candidate
     return ""
-
 
 @unittest.skipUnless(_chromium(), "Chromium is not installed")
 class PanelsBrowserTest(unittest.TestCase):
@@ -130,8 +126,6 @@ class PanelsBrowserTest(unittest.TestCase):
         self.page.on("pageerror", lambda exc: self.errors.append(str(exc)))
         self.page.on("console", lambda m: self.errors.append(m.text) if m.type == "error" else None)
 
-        # Round 33: captured once — a subclass swaps the module SNAPSHOT only for setUp, and a building panel
-        # re-polls /api/pg/panels every 1.5 s, which must keep getting the same snapshot.
         snap = SNAPSHOT
 
         def route(r):
@@ -164,17 +158,17 @@ class PanelsBrowserTest(unittest.TestCase):
                     ".mp-badge", ".mp-text", ".mp-link", ".mp-action", ".mp-countdown", ".mp-rowbox", ".mp-foot"):
             self.assertEqual(card.locator(cls).count() >= 1, True, cls)
         self.assertEqual(card.get_attribute("data-trend"), "up")
-        # Untrusted data is text, never markup; javascript: links are not links.
+
         self.assertIsNone(page.evaluate("window.__xss || null"))
         self.assertIn("<img", card.locator(".mp-title b").inner_text())
         self.assertEqual(card.locator('a.mp-row[href^="javascript"]').count(), 0)
-        self.assertEqual(card.locator(".mp-row").count(), 3)              # max 3
-        self.assertEqual(card.locator(".mp-cd-cell").count(), 4)          # d h m s on L
-        # The sidebar copy is compact: S hides the stats/strip blocks (min size M).
+        self.assertEqual(card.locator(".mp-row").count(), 3)
+        self.assertEqual(card.locator(".mp-cd-cell").count(), 4)
+
         side = page.locator('#group-panels .mp-card[data-panel-id="p_alltypes01"]')
         self.assertEqual(side.locator(".mp-stats").count(), 0)
         self.assertEqual(side.locator(".mp-row").count(), 2)
-        # States: building skeleton, failed wall with retry, location setup.
+
         self.assertEqual(page.locator('[data-panel-id="p_build00001"] .mp-skel').count(), 1)
         self.assertIn("Proxy", page.locator('[data-panel-id="p_failed0001"] .mp-wall').inner_text())
         self.assertEqual(page.locator('#group-panels [data-panel-id="p_setup00001"] [data-mp-act=locate]').count(), 1)
@@ -184,9 +178,9 @@ class PanelsBrowserTest(unittest.TestCase):
         bar = page.locator("#panels-appbar")
         self.assertEqual(bar.locator(".mp-chip[data-panel-id]").count(), 8)
         visible = page.evaluate("[...document.querySelectorAll('#panels-appbar .mp-chip[data-panel-id]')].filter(c => !c.hidden).length")
-        self.assertEqual(visible, 4)                                     # appbar_max
+        self.assertEqual(visible, 4)
         self.assertEqual(bar.locator(".mp-more").inner_text(), "+4")
-        # A narrow window folds more, and the top bar never wraps because of the minis.
+
         page.set_viewport_size({"width": 700, "height": 700})
         page.wait_for_timeout(250)
         top = page.evaluate("(() => { const b = document.querySelector('#topbar').getBoundingClientRect(); return b.height; })()")
@@ -215,20 +209,20 @@ class PanelsBrowserTest(unittest.TestCase):
         page.wait_for_timeout(200)
         patches = [r for r in page.evaluate("window.__requests") if r[0] == "PATCH"]
         self.assertEqual(patches[-1][1], "/api/pg/panels/p_weather001")
-        self.assertEqual(sorted(patches[-1][2]["placements"]), ["appbar", "home", "sidebar"])   # Round 33: zone-map order
-        # Right click opens the same menu.
+        self.assertEqual(sorted(patches[-1][2]["placements"]), ["appbar", "home", "sidebar"])
+
         card.click(button="right")
         self.assertEqual(page.locator(".mp-menu").count(), 1)
 
     def test_gallery_and_template_form(self):
         page = self.page
         page.click("#panels-home .panels-home-head [data-mp-act=gallery]")
-        self.assertEqual(page.locator(".mp-modal .mp-tpl").count(), 19)              # Round 23: + todo, notes, clock, timers, proxy, calendar, github
+        self.assertEqual(page.locator(".mp-modal .mp-tpl").count(), 19)
         self.assertEqual(page.locator(".mp-modal .mp-gal-group").count(), 5)
         self.assertEqual(page.locator(".mp-modal .mp-tpl").nth(1).get_attribute("data-kind"), "news")
         self.assertEqual(page.locator(".mp-modal [data-revive]").count(), 1)
         page.click(".mp-tpl[data-kind=rss]")
-        page.click("[data-mp-create]")                                   # empty URL: refused locally
+        page.click("[data-mp-create]")
         self.assertFalse([r for r in page.evaluate("window.__requests") if r[0] == "POST" and r[1] == "/api/pg/panels"])
         page.fill("[name=url]", "https://example.org/rss")
         page.click("[data-mp-create]")
@@ -255,12 +249,9 @@ class PanelsBrowserTest(unittest.TestCase):
         summary = page.evaluate("MemuPanels.summary('panel_create', { panel: { id: 'p_abc123456', title: 'X', status: 'building' } })")
         self.assertRegex(summary, r"#p_abc123456$")
 
-
 if __name__ == "__main__":
     unittest.main()
 
-
-# ---------------------------------------------------------------- Round 22 layouts
 FEED_ITEMS = [{"title": f"Story {i} about a model release", "url": f"https://news{i}.example/a", "source": f"Src{i}",
                "ts": NOW - i * 3600, "summary": f"Summary {i}.", "why": f"why {i}", "badge": "официально" if i == 0 else "",
                "tone": "ok", "links": [{"name": "HN", "url": f"https://news.ycombinator.com/item?id={i}"}]} for i in range(7)]
@@ -294,7 +285,6 @@ R22_SNAPSHOT = {
     "limits": {"floors": {"news": 15, "system": 1}, "presets": [1, 5, 15, 30, 60, 180, 360, 720, 1440]},
 }
 
-
 @unittest.skipUnless(_chromium(), "Chromium is not installed")
 class PanelsR22BrowserTest(PanelsBrowserTest):
     def setUp(self):
@@ -305,14 +295,13 @@ class PanelsR22BrowserTest(PanelsBrowserTest):
         finally:
             SNAPSHOT = self._saved
 
-    # the inherited Round 21 checks belong to the other snapshot
     test_mounts_and_renders_every_block = test_appbar_minis_fold_into_more = None
     test_chip_popover_menu_and_place_toggle = test_gallery_and_template_form = test_chat_preview_and_skill = None
 
     def test_feed_overflow_is_clickable_and_lists_everything(self):
         page = self.page
         card = page.locator('#panels-home [data-panel-id="p_news000001"]')
-        self.assertEqual(card.locator(".mp-row").count(), 4)              # M → 4 rows
+        self.assertEqual(card.locator(".mp-row").count(), 4)
         more = card.locator(".mp-list-more")
         self.assertEqual(more.inner_text().strip(), "Ещё 3")
         more.click()
@@ -323,25 +312,25 @@ class PanelsR22BrowserTest(PanelsBrowserTest):
         self.assertIn("Просмотрено источников: 18", pop.locator(".mp-detail-foot").inner_text())
         page.keyboard.press("Escape")
         self.assertEqual(page.locator(".mp-pop").count(), 0)
-        # 5 items on M: no useless «ещё 1» — all five are shown.
+
         five = page.locator('#panels-home [data-panel-id="p_news000002"]')
         self.assertEqual(five.locator(".mp-row").count(), 5)
         self.assertEqual(five.locator(".mp-list-more:not(.ghost)").count(), 0)
-        # Resizing to L shows more rows (the list adapts to the size).
+
         page.evaluate("MemuPanels._state.panels.find(p => p.id === 'p_news000001').size = 'l'; MemuPanels.render()")
-        self.assertEqual(page.locator('#panels-home [data-panel-id="p_news000001"] .mp-row').count(), 7)   # L: 6 (+1 → all)
+        self.assertEqual(page.locator('#panels-home [data-panel-id="p_news000001"] .mp-row').count(), 7)
 
     def test_gauges_usage_and_progress(self):
         page = self.page
         sys_card = page.locator('#panels-home [data-panel-id="p_sys0000001"]')
         self.assertEqual(sys_card.locator(".mp-gauge").count(), 3)
-        self.assertEqual(sys_card.locator('.mp-gauge[data-tone="danger"]').count(), 1)   # 93 %
+        self.assertEqual(sys_card.locator('.mp-gauge[data-tone="danger"]').count(), 1)
         self.assertEqual(sys_card.locator('.mp-gauge[data-tone="none"] b').first.inner_text(), "—")
         self.assertEqual(sys_card.locator('.mp-gauge[data-tone="none"] circle.val').count(), 0, "no stray round-cap dot on an empty ring")
         usage = page.locator('#panels-home [data-panel-id="p_usage00001"]')
         self.assertEqual(usage.locator(".mp-acc").count(), 3)
         self.assertEqual(usage.locator(".mp-lim").count(), 3)
-        self.assertEqual(usage.locator('.mp-lim[data-pace="ahead"]').count(), 1)          # 70 % at 60 % of the window
+        self.assertEqual(usage.locator('.mp-lim[data-pace="ahead"]').count(), 1)
         self.assertEqual(usage.locator('.mp-lim[data-pace="full"]').count(), 1)
         self.assertEqual(usage.locator(".mp-lim-bar em").count(), 3)
         self.assertRegex(usage.locator(".mp-lim-reset").first.inner_text(), r"сброс через [12] ч")
@@ -372,7 +361,7 @@ class PanelsR22BrowserTest(PanelsBrowserTest):
         self.assertEqual(sent[0]["provider"], "codex")
         self.assertEqual(sent[0]["name"], "Личный")
         self.assertRegex(sent[0]["id"], r"^a_[0-9a-f]{10}$")
-        # Смена сервиса сохраняет введённое название.
+
         row.locator("[data-acc-provider]").select_option("antigravity")
         self.assertEqual(page.locator(".mp-acc-row").nth(1).locator("[data-acc-name]").input_value(), "Личный")
 

@@ -21,18 +21,14 @@ from .model import (ForeignSession, ReadError, SessionInfo, Turn, clean_user_tex
 KEY = "gemini"
 TITLE = "Gemini CLI"
 
-
 def home() -> Path:
     return Path(os.environ.get("GEMINI_HOME") or (Path.home() / ".gemini"))
-
 
 def present() -> bool:
     return (home() / "tmp").is_dir()
 
-
 def project_hash(folder: str) -> str:
     return hashlib.sha256(str(folder).encode("utf-8")).hexdigest()
-
 
 def _load(path: Path) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """(header, messages) of a chat file in either format."""
@@ -79,7 +75,6 @@ def _load(path: Path) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
             order[str(data["id"])] = data
     return header, list(order.values())
 
-
 def discover(limit: int = 400) -> List[SessionInfo]:
     base = home() / "tmp"
     rows: List[SessionInfo] = []
@@ -101,7 +96,6 @@ def discover(limit: int = 400) -> List[SessionInfo]:
     rows.sort(key=lambda row: -row.updated)
     return rows[:limit]
 
-
 def _info(file: Path, root: str) -> Optional[SessionInfo]:
     try:
         stat = file.stat()
@@ -121,7 +115,6 @@ def _info(file: Path, root: str) -> Optional[SessionInfo]:
                        started=iso_to_ts(header.get("startTime")) or stat.st_ctime,
                        updated=iso_to_ts(header.get("lastUpdated")) or stat.st_mtime, messages=len(messages),
                        model=model, path=str(file), extra={"project_hash": str(header.get("projectHash") or "")})
-
 
 def read(info: SessionInfo) -> ForeignSession:
     path = Path(info.path)
@@ -160,7 +153,6 @@ def read(info: SessionInfo) -> ForeignSession:
     session.models = list(models)
     session.info.messages = len(session.turns)
     return session
-
 
 def _call_result(call: Dict[str, Any]) -> str:
     """The text a tool call returned (Gemini keeps it as ``functionResponse`` parts, or as ``resultDisplay``)."""

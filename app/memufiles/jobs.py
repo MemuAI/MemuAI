@@ -19,7 +19,6 @@ from .fsops import FsError, file_hash
 log = logging.getLogger("memufiles.jobs")
 SKIP_DIRS = {"$Recycle.Bin", "System Volume Information"}
 
-
 class Job:
     def __init__(self, kind: str, args: Dict[str, Any]) -> None:
         self.id = uuid.uuid4().hex[:12]
@@ -40,10 +39,7 @@ class Job:
             data["result"] = self.result
         return data
 
-
-# Round 39 (r39-files-feat): job kinds of other modules (extras.compare / extras.imgconvert)
 EXTRA_RUNNERS: Dict[str, Any] = {}
-
 
 class Jobs:
     def __init__(self) -> None:
@@ -89,7 +85,6 @@ class Jobs:
             raise FsError("no_job", job_id)
         return job
 
-    # ---------------------------------------------------------------- kinds
     @staticmethod
     def _walk_size(job: Job, path: str) -> Dict[str, int]:
         total = files = folders = 0
@@ -124,7 +119,7 @@ class Jobs:
             if os.path.isdir(path) and not os.path.islink(path):
                 info = self._walk_size(job, path)
                 if len(job.args.get("paths") or []) > 1:
-                    out["folders"] += 1      # a lone folder is not part of its own "contains"
+                    out["folders"] += 1
             else:
                 try:
                     info = {"size": os.lstat(path).st_size, "files": 1, "folders": 0}

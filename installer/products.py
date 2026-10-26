@@ -19,39 +19,35 @@ from typing import Dict, List, Optional, Tuple
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
 UNINSTALL_ROOT = r"Software\Microsoft\Windows\CurrentVersion\Uninstall"
 
-
 @dataclass(frozen=True)
 class Component:
     id: str
     required: bool = False
     default: bool = True
-    #: Path relative to the install dir of the main executable of the component.
+
     exe: str = ""
-    #: The build folder (relative to the project root) and where it lands in the install dir.
+
     source: str = ""
     dest: str = ""
-
 
 @dataclass(frozen=True)
 class Task:
     id: str
     default: bool
-    #: Components that must be selected for the task to apply.
-    needs: Tuple[str, ...] = ()
 
+    needs: Tuple[str, ...] = ()
 
 @dataclass(frozen=True)
 class Shortcut:
-    #: "programs" (Start menu group) or "desktop".
+
     where: str
-    name: str            # file name without .lnk; may be an i18n key prefixed with "@"
-    target: str          # relative to the install dir
+    name: str
+    target: str
     component: str
     args: str = ""
-    task: str = ""       # empty = always created with the component
-    workdir: str = ""    # "%USERPROFILE%" or empty (= target folder)
-    app_id: str = ""     # AppUserModelID (taskbar grouping with the running window)
-
+    task: str = ""
+    workdir: str = ""
+    app_id: str = ""
 
 @dataclass(frozen=True)
 class RunValue:
@@ -60,7 +56,6 @@ class RunValue:
     args: str
     task: str
     component: str
-
 
 @dataclass(frozen=True)
 class Product:
@@ -76,35 +71,31 @@ class Product:
     tasks: Tuple[Task, ...]
     shortcuts: Tuple[Shortcut, ...]
     run_values: Tuple[RunValue, ...]
-    #: Command started by “Launch” on the last page: (component, exe, args).
+
     launch: Tuple[Tuple[str, str, str], ...]
-    #: Personal data folders (relative to an environment folder) removed only on request.
+
     data_dirs: Tuple[Tuple[str, str], ...]
-    #: Executables to ask for a graceful ``--shutdown`` before files are replaced.
+
     shutdown: Tuple[str, ...]
-    #: Display icon candidates (first existing wins).
+
     icons: Tuple[str, ...]
-    #: Files and folders of historical layouts removed after a successful upgrade.
+
     legacy_files: Tuple[str, ...] = ()
-    #: Historical shortcuts (relative to Start-menu group / desktop) always retired.
+
     legacy_shortcuts: Tuple[Tuple[str, str], ...] = ()
-    #: PATH entries (relative to install dir) added for a component: (component, folder).
+
     path_entries: Tuple[Tuple[str, str], ...] = ()
-    #: HKLM key of an old all-users Inno installation (detected, never touched).
+
     legacy_machine_key: str = ""
     icon_file: str = "memuai-icon.ico"
     comments: Dict[str, str] = field(default_factory=dict)
-    #: Round 29: optional components shipped as a zip when not selected, so the app can
-    #: install them later without the Setup (``(component, zip path relative to the install dir)``).
+
     packages: Tuple[Tuple[str, str], ...] = ()
-    #: Round 29: commands run before a component's files are removed on uninstall
-    #: (``(component, exe relative to the install dir, args)``), e.g. undo "Open with" entries.
+
     pre_uninstall: Tuple[Tuple[str, str, str], ...] = ()
-    #: Round 35 (protocol): URL schemes registered per user (HKCU\Software\Classes\<scheme>) for a component:
-    #: ``(component, scheme, exe relative to the install dir, description)``; removed on uninstall.
+
     url_protocols: Tuple[Tuple[str, str, str, str], ...] = ()
 
-    # ------------------------------------------------------------------ helpers
     def component(self, component_id: str) -> Component:
         for item in self.components:
             if item.id == component_id:
@@ -130,7 +121,7 @@ class Product:
         """Required components added, unknown ids dropped, tasks of absent components removed."""
         chosen = [c.id for c in self.components if c.required or c.id in set(components)]
         if self.id == "memuai" and "memuai" not in chosen:
-            # CLI and MemuNote ship with the full edition only (MemuNote is installed later from MemuAI settings).
+
             chosen = [c for c in chosen if c not in ("memucode", "memunote", "memufiles")]
         valid_tasks = []
         for task_id in tasks:
@@ -138,7 +129,6 @@ class Product:
             if task and all(need in chosen for need in task.needs) and task_id not in valid_tasks:
                 valid_tasks.append(task_id)
         return chosen, valid_tasks
-
 
 SUITE = Product(
     id="memuai",
@@ -154,11 +144,9 @@ SUITE = Product(
                   source="dist/MemuAIProxy", dest="MemuAIProxy"),
         Component("memuai", default=True, exe=r"MemuAI\MemuAI.exe", source="dist/MemuAI", dest="MemuAI"),
         Component("memucode", default=True, exe=r"MemuCode\MemuCode.exe", source="dist/MemuCode", dest="MemuCode"),
-        # Round 29: MemuNote — the light AI notepad. Optional: when it is not selected the Setup leaves it
-        # as Packages\MemuNote.zip and MemuAI → Settings → MemuNote installs it in one click.
+
         Component("memunote", default=False, exe=r"MemuNote\MemuNote.exe", source="dist/MemuNote", dest="MemuNote"),
-        # Round 35: MemuFiles — the fast file manager. Optional like MemuNote: Packages\MemuFiles.zip
-        # otherwise, installed later from MemuAI → Settings → MemuFiles (app/memufiles_manager.py).
+
         Component("memufiles", default=False, exe=r"MemuFiles\MemuFiles.exe", source="dist/MemuFiles", dest="MemuFiles"),
     ),
     tasks=(
@@ -169,7 +157,7 @@ SUITE = Product(
     ),
     shortcuts=(
         Shortcut("programs", "MemuAI", r"MemuAI\MemuAI.exe", "memuai", app_id="MemuAI.Desktop"),
-        # Round 29: «MemuAI (безопасный режим)» — starts without extensions (app/safe_mode.py).
+
         Shortcut("programs", "@safe_mode_shortcut", r"MemuAI\MemuAI.exe", "memuai", args="--safe-mode",
                  app_id="MemuAI.Desktop"),
         Shortcut("programs", "MemuCode CLI", r"MemuCode\MemuCode.exe", "memucode", workdir="%USERPROFILE%"),
@@ -197,7 +185,7 @@ SUITE = Product(
         ("programs", "Modify or remove MemuAI components"),
         ("programs", "Удалить MemuAI"), ("programs", "Uninstall MemuAI"),
     ),
-    # Round 35 (protocol): MemuAI\MemuCLI holds memu.exe (the MemuAI command line; build.py place_memu_cli).
+
     path_entries=(("memucode", "MemuCode"), ("memuai", r"MemuAI\MemuCLI")),
     url_protocols=(("memuai", "memuai", r"MemuAI\MemuAI.exe", "URL:MemuAI"),),
     legacy_machine_key="{7C2A93E1-5B44-4E0D-9F61-8A2B43E9A122}_is1",
@@ -206,7 +194,7 @@ SUITE = Product(
               "ru": "Персональный AI-чат, Work, агенты и локальный OpenAI-совместимый API"},
     packages=(("memunote", r"Packages\MemuNote.zip"), ("memufiles", r"Packages\MemuFiles.zip")),
     pre_uninstall=(("memunote", r"MemuNote\MemuNote.exe", "--unregister-open-with"),
-                   # Round 38: «MemuFiles по умолчанию» — put Explorer back (exact registry backup) before removal.
+
                    ("memufiles", r"MemuFiles\MemuFiles.exe", "--restore-explorer")),
 )
 
@@ -246,7 +234,6 @@ PROXY = Product(
 )
 
 PRODUCTS: Dict[str, Product] = {SUITE.id: SUITE, PROXY.id: PROXY}
-
 
 def get(product_id: str) -> Product:
     try:

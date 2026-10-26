@@ -43,31 +43,28 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-try:  # the route handlers' annotations are resolved from module globals (``from __future__ import annotations``)
+try:
     from fastapi import Request
 except ImportError:  # pragma: no cover - the parser/catalog functions work without FastAPI
     Request = Any  # type: ignore
 
-# ----------------------------------------------------------------------------- limits
-
-MAX_SKILL_MD = 512 * 1024          # a SKILL.md larger than this is not fetched / parsed
-MAX_BODY = 200_000                 # characters of instructions kept (the chat library limit)
-MAX_FILE_VIEW = 64 * 1024          # bytes of a script / resource shown in the preview
-MAX_ZIP = 20 * 1024 * 1024         # upload size and total uncompressed size of an imported .zip
+MAX_SKILL_MD = 512 * 1024
+MAX_BODY = 200_000
+MAX_FILE_VIEW = 64 * 1024
+MAX_ZIP = 20 * 1024 * 1024
 MAX_ZIP_ENTRIES = 600
 MAX_SKILLS_PER_REPO = 80
 MAX_CODE_INSTALL = 2 * 1024 * 1024
-TTL_LIST = 6 * 3600                # trees and searches
-TTL_META = 24 * 3600               # repo metadata (stars, branch): a background refresh then costs one call per repo
-TTL_RAW = 24 * 3600                # raw SKILL.md files (keyed by blob sha, so they never go stale)
+TTL_LIST = 6 * 3600
+TTL_META = 24 * 3600
+TTL_RAW = 24 * 3600
 HTTP_TIMEOUT = 15.0
-NET_SLOTS = 12                     # concurrent GitHub requests (a bounded pool shared by every repository)
-HEAD_BYTES = 8192                  # the list only needs the SKILL.md front matter: a Range request reads this much
+NET_SLOTS = 12
+HEAD_BYTES = 8192
 
 API = "https://api.github.com"
 RAW = "https://raw.githubusercontent.com"
 
-#: Curated sources shown first. Each one was checked to hold real ``SKILL.md`` folders.
 SOURCES: List[Dict[str, Any]] = [
     {"repo": "anthropics/skills", "official": True,
      "ru": "Официальные скиллы Anthropic", "en": "Official Anthropic skills"},
@@ -91,7 +88,6 @@ _CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 _DANGEROUS_HTML = re.compile(r"<\s*(script|style|iframe|object|embed|form|meta|link)\b[^>]*>[\s\S]*?(?:<\s*/\s*\1\s*>|$)"
                              r"|<\s*(script|iframe|object|embed|meta|link)\b[^>]*/?>", re.I)
 
-
 class CatalogError(Exception):
     """A user-facing catalog error with a machine state (offline, rate_limited, not_found, invalid)."""
 
@@ -99,9 +95,6 @@ class CatalogError(Exception):
         super().__init__(message or state)
         self.state = state
         self.reset = reset
-
-
-# ----------------------------------------------------------------------------- Agent Skills format
 
 def _unquote(value: str) -> str:
     value = value.strip()
@@ -112,10 +105,9 @@ def _unquote(value: str) -> str:
         else:
             inner = inner.replace("''", "'")
         return inner
-    if " #" in value:                      # a YAML comment after a plain scalar
+    if " #" in value:
         value = value.split(" #", 1)[0].rstrip()
     return value
-
 
 def parse_front_matter(text: str) -> Tuple[Dict[str, Any], str]:
     """``(meta, body)`` of a markdown file with an optional ``---`` YAML header.
@@ -161,7 +153,7 @@ def parse_front_matter(text: str) -> Tuple[Dict[str, Any], str]:
             meta[key] = text_value
             continue
         if value == "":
-            # A nested mapping or a list on the following indented lines.
+
             items: List[str] = []
             nested: Dict[str, str] = {}
             while i < len(lines) and (not lines[i].strip() or indent_of(lines[i]) > 0):
@@ -183,13 +175,11 @@ def parse_front_matter(text: str) -> Tuple[Dict[str, Any], str]:
         meta[key] = _unquote(value)
     return meta, body
 
-
 def slugify(name: str, limit: int = 64) -> str:
     """Agent Skills name: lowercase letters, digits and hyphens (other alphabets are kept for MemuAI ids)."""
     text = re.sub(r"[^\w-]+", "-", str(name or "").strip().lower(), flags=re.UNICODE).replace("_", "-")
     text = re.sub(r"-{2,}", "-", text).strip("-")
     return text[:limit].strip("-")
-
 
 def sanitize_markdown(text: str) -> Tuple[str, List[str]]:
     """Strip what must never reach the preview or the model unannounced; returns ``(text, warnings)``.
@@ -208,17 +198,14 @@ def sanitize_markdown(text: str) -> Tuple[str, List[str]]:
         value = _DANGEROUS_HTML.sub("", value)
     return value, warnings
 
-
 _RISKY_PATTERNS = [
     ("pipe_to_shell", re.compile(r"(curl|wget|iwr|Invoke-WebRequest)[^\n|]{0,200}\|\s*(sudo\s+)?(ba|z)?sh\b|iex\s*\(", re.I)),
     ("destructive_command", re.compile(r"\brm\s+-rf\s+[/~]|\bformat\s+[a-z]:|Remove-Item\s+[^\n]*-Recurse[^\n]*-Force", re.I)),
     ("long_base64", re.compile(r"[A-Za-z0-9+/]{400,}={0,2}")),
 ]
 
-
 def content_warnings(body: str) -> List[str]:
     return [name for name, pattern in _RISKY_PATTERNS if pattern.search(body or "")]
-
 
 def file_kind(path: str) -> str:
     ext = os.path.splitext(str(path).lower())[1]
@@ -229,7 +216,6 @@ def file_kind(path: str) -> str:
     if os.path.basename(str(path)).upper() == "SKILL.MD":
         return "skill"
     return "doc" if ext in TEXT_EXT or not ext else "other"
-
 
 def parse_skill_md(text: str, fallback_name: str = "") -> Dict[str, Any]:
     """One skill from a SKILL.md text (or plain markdown). Raises ``ValueError`` when nothing usable is there."""
@@ -270,7 +256,6 @@ def parse_skill_md(text: str, fallback_name: str = "") -> Dict[str, Any]:
         "warnings": warnings + content_warnings(body),
     }
 
-
 def parse_zip(data: bytes) -> List[Dict[str, Any]]:
     """Every skill folder inside a .zip (any depth). Nothing is extracted to disk."""
     if len(data) > MAX_ZIP:
@@ -307,14 +292,14 @@ def parse_zip(data: bytes) -> List[Dict[str, Any]]:
             if not rel or rel.upper() == "SKILL.MD":
                 continue
             if any(name.startswith(n) and len(n) > len(folder) for n in nested):
-                continue                    # belongs to a nested skill folder
+                continue
             info = archive.getinfo(name) if name in archive.namelist() else None
             files.append({"path": rel, "size": info.file_size if info else 0, "kind": file_kind(rel)})
         skill["files"] = files[:200]
         skill["has_scripts"] = any(f["kind"] in ("script", "binary") for f in files)
         skills.append(skill)
     if not skills:
-        # A zip of loose markdown files (no SKILL.md): every .md becomes a skill.
+
         for name in names:
             if name.lower().endswith(".md") and archive.getinfo(name).file_size <= MAX_SKILL_MD:
                 try:
@@ -326,7 +311,6 @@ def parse_zip(data: bytes) -> List[Dict[str, Any]]:
                 skills.append(skill)
     return skills[:100]
 
-
 def _yaml_scalar(value: str) -> str:
     value = str(value or "").replace("\r", "").strip()
     if "\n" in value:
@@ -334,7 +318,6 @@ def _yaml_scalar(value: str) -> str:
     if value == "" or re.search(r"[:#\[\]{}&*!|>'\"%@`,]|^[-?\s]|\s$", value) or value.lower() in ("yes", "no", "true", "false", "null"):
         return json.dumps(value, ensure_ascii=False)
     return value
-
 
 def skill_to_md(skill: Dict[str, Any]) -> Tuple[str, str]:
     """``(slug, SKILL.md text)`` for one library skill (``name/desc/when/category/prompt``)."""
@@ -357,7 +340,6 @@ def skill_to_md(skill: Dict[str, Any]) -> Tuple[str, str]:
     body = str(skill.get("prompt") or skill.get("body") or "").strip()
     return slug, "\n".join(lines) + "\n\n" + body + "\n"
 
-
 def build_zip(skills: List[Dict[str, Any]]) -> bytes:
     buffer = io.BytesIO()
     used: Dict[str, int] = {}
@@ -369,23 +351,17 @@ def build_zip(skills: List[Dict[str, Any]]) -> bytes:
             archive.writestr(f"{folder}/SKILL.md", text)
     return buffer.getvalue()
 
-
-# ----------------------------------------------------------------------------- HTTP + disk cache
-
 def _data_dir() -> Path:
     from . import config
     return Path(config.DATA_DIR)
-
 
 def cache_dir() -> Path:
     path = _data_dir() / "memuai" / "skills_catalog_cache"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-
 _client_lock = threading.Lock()
 _client: Any = None
-
 
 def _shared_client():
     """One pooled HTTP client (keep-alive): a new TLS handshake per SKILL.md made a cold catalog take minutes."""
@@ -396,7 +372,6 @@ def _shared_client():
             _client = httpx.Client(timeout=HTTP_TIMEOUT, follow_redirects=True,
                                    limits=httpx.Limits(max_connections=NET_SLOTS, max_keepalive_connections=NET_SLOTS))
         return _client
-
 
 def _default_http_get(url: str, headers: Dict[str, str]) -> Tuple[int, Dict[str, str], bytes]:
     with _shared_client().stream("GET", url, headers=headers) as response:
@@ -409,17 +384,13 @@ def _default_http_get(url: str, headers: Dict[str, str]) -> Tuple[int, Dict[str,
             chunks.append(chunk)
         return response.status_code, {k.lower(): v for k, v in response.headers.items()}, b"".join(chunks)
 
-
-#: Replaced in tests: ``(url, headers) -> (status, headers, body)``; raise ``OSError`` for «offline».
 _http_get: Callable[[str, Dict[str, str]], Tuple[int, Dict[str, str], bytes]] = _default_http_get
 _rate = {"remaining": None, "reset": 0, "limited_until": 0, "search_until": 0}
 _lock = threading.Lock()
 _net = threading.BoundedSemaphore(NET_SLOTS)
 
-
 def _cache_file(url: str) -> Path:
     return cache_dir() / (hashlib.sha1(url.encode("utf-8")).hexdigest() + ".json")
-
 
 def _read_cache(url: str) -> Optional[Dict[str, Any]]:
     try:
@@ -427,16 +398,14 @@ def _read_cache(url: str) -> Optional[Dict[str, Any]]:
     except (OSError, ValueError):
         return None
 
-
 def _write_cache(url: str, entry: Dict[str, Any]) -> None:
     path = _cache_file(url)
-    tmp = path.with_suffix(f".{threading.get_ident()}.tmp")   # parallel writers never share a temp file
+    tmp = path.with_suffix(f".{threading.get_ident()}.tmp")
     try:
         tmp.write_text(json.dumps(entry, ensure_ascii=False), encoding="utf-8")
         os.replace(tmp, path)
     except OSError:
         pass
-
 
 def fetch(url: str, *, ttl: int, kind: str = "json", refresh: bool = False, cache_key: str = "",
           extra_headers: Optional[Dict[str, str]] = None) -> Tuple[Any, Dict[str, Any]]:
@@ -451,7 +420,7 @@ def fetch(url: str, *, ttl: int, kind: str = "json", refresh: bool = False, cach
     if cached and not refresh and now - float(cached.get("ts", 0)) < ttl:
         return cached.get("data"), {"cached": True, "stale": False, "ts": cached.get("ts")}
     is_api = url.startswith(API)
-    # The search API has its own small limit (10/min): hitting it must not block the core API (trees, repos).
+
     bucket = "search_until" if is_api and "/search/" in url else "limited_until"
     if is_api and _rate[bucket] > now:
         if cached:
@@ -467,7 +436,7 @@ def fetch(url: str, *, ttl: int, kind: str = "json", refresh: bool = False, cach
     try:
         with _net:
             status, response_headers, body = _http_get(url, headers)
-    except Exception as exc:  # network down, proxy 407, DNS, TLS …
+    except Exception as exc:
         if cached:
             return cached.get("data"), {"cached": True, "stale": True, "ts": cached.get("ts"), "state": "offline"}
         raise CatalogError("offline", f"{type(exc).__name__}: {exc}"[:300]) from exc
@@ -516,15 +485,11 @@ def fetch(url: str, *, ttl: int, kind: str = "json", refresh: bool = False, cach
     _write_cache(key, {"ts": now, "etag": response_headers.get("etag", ""), "data": data})
     return data, {"cached": False, "stale": False, "ts": now, "status": status}
 
-
-# ----------------------------------------------------------------------------- GitHub catalog
-
 def check_repo(repo: str) -> str:
     repo = str(repo or "").strip().strip("/")
     if not _REPO_RE.match(repo) or ".." in repo:
         raise CatalogError("invalid", "repository must look like owner/name")
     return repo
-
 
 def check_path(path: str) -> str:
     path = str(path or "").strip().strip("/")
@@ -532,17 +497,14 @@ def check_path(path: str) -> str:
         raise CatalogError("invalid", "bad path")
     return path
 
-
 def _repo_meta(repo: str, refresh: bool = False) -> Dict[str, Any]:
     data, _ = fetch(f"{API}/repos/{repo}", ttl=TTL_META, refresh=refresh)
     return _repo_row(data or {})
-
 
 def _date_of(value: Any) -> str:
     """``YYYY-MM-DD`` from a GitHub timestamp (tolerates proxies that rewrite ISO stamps into local text)."""
     match = re.search(r"(\d{4})-(\d{2})-(\d{2})", str(value or ""))
     return "-".join(match.groups()) if match else ""
-
 
 def _repo_row(data: Dict[str, Any]) -> Dict[str, Any]:
     owner = data.get("owner") or {}
@@ -559,11 +521,9 @@ def _repo_row(data: Dict[str, Any]) -> Dict[str, Any]:
         "archived": bool(data.get("archived")),
     }
 
-
 def _tree(repo: str, branch: str, refresh: bool = False) -> List[Dict[str, Any]]:
     data, _ = fetch(f"{API}/repos/{repo}/git/trees/{urllib.parse.quote(branch)}?recursive=1", ttl=TTL_LIST, refresh=refresh)
     return [item for item in (data or {}).get("tree", []) if isinstance(item, dict)]
-
 
 def _skill_folders(tree: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """``SKILL.md`` blobs of a tree with the files of their folders (nested skill folders excluded)."""
@@ -585,18 +545,17 @@ def _skill_folders(tree: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             if any(path.startswith(n) for n in nested):
                 continue
             if not folder and "/" in path and not path.split("/", 1)[0] in ("scripts", "references", "assets", "resources", "reference", "docs"):
-                continue                       # a root SKILL.md: only its own helper folders count
+                continue
             files.append({"path": path[len(prefix):], "size": int(blob.get("size") or 0), "kind": file_kind(path)})
         result.append({"path": folder, "skill_md": item["path"], "sha": item.get("sha") or "",
                        "size": int(item.get("size") or 0), "files": files[:200]})
     return result
 
-
 def _raw_by_sha(url: str, sha: str) -> str:
     """A raw file through the cache; a new blob sha (the file changed upstream) forces a fresh download."""
     cached = _read_cache(url) or {}
     if sha and cached.get("sha") == sha and isinstance(cached.get("data"), str):
-        return cached["data"]              # the blob is content-addressed: the same sha is the same text, forever
+        return cached["data"]
     stale = bool(sha) and bool(cached) and cached.get("sha") != sha
     text, _ = fetch(url, ttl=TTL_RAW, kind="text", refresh=stale)
     if sha:
@@ -605,7 +564,6 @@ def _raw_by_sha(url: str, sha: str) -> str:
             entry["sha"] = sha
             _write_cache(url, entry)
     return text
-
 
 def _skill_head(url: str, sha: str) -> str:
     """Enough of a SKILL.md for the list (its front matter): a full copy if cached, else a Range request."""
@@ -620,13 +578,12 @@ def _skill_head(url: str, sha: str) -> str:
                        extra_headers={"Range": f"bytes=0-{HEAD_BYTES - 1}"})
     partial = info.get("status") == 206 or len(text.encode("utf-8", "ignore")) >= HEAD_BYTES
     if partial and text.lstrip("\ufeff").startswith("---") and not re.search(r"\n(?:---|\.\.\.)[ \t]*(?:\n|$)", text[3:]):
-        return _raw_by_sha(url, sha)       # a front matter longer than the head: read the whole file
+        return _raw_by_sha(url, sha)
     entry = _read_cache(key)
     if entry is not None and sha and entry.get("sha") != sha:
         entry["sha"] = sha
         _write_cache(key, entry)
     return text
-
 
 def _skill_meta(repo: str, branch: str, folder: Dict[str, Any], repo_row: Dict[str, Any]) -> Dict[str, Any]:
     url = f"{RAW}/{repo}/{urllib.parse.quote(branch)}/{urllib.parse.quote(folder['skill_md'])}"
@@ -653,7 +610,6 @@ def _skill_meta(repo: str, branch: str, folder: Dict[str, Any], repo_row: Dict[s
             "license": license_[:120], "category": skill.get("category", ""), "warnings": skill["warnings"],
             "size": folder["size"]}
 
-
 def repo_skills(repo: str, *, refresh: bool = False, row: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     repo = check_repo(repo)
     meta = row or _repo_meta(repo, refresh=refresh)
@@ -664,7 +620,6 @@ def repo_skills(repo: str, *, refresh: bool = False, row: Optional[Dict[str, Any
     with ThreadPoolExecutor(max_workers=8) as pool:
         skills = list(pool.map(lambda folder: _skill_meta(repo, branch, folder, meta), folders))
     return {"source": {**meta, "repo": repo, "count": len(skills), "truncated": truncated}, "skills": skills}
-
 
 def discover(refresh: bool = False) -> Tuple[List[Dict[str, Any]], Optional[str]]:
     """Repositories tagged with skill topics, by stars (GitHub search; 10 req/min without a token)."""
@@ -687,7 +642,6 @@ def discover(refresh: bool = False) -> Tuple[List[Dict[str, Any]], Optional[str]
     rows = sorted(seen.values(), key=lambda r: -r["stars"])
     return rows[:60], state
 
-
 def _source_result(spec: Dict[str, Any], refresh: bool) -> Tuple[Dict[str, Any], List[Dict[str, Any]], Optional[Dict[str, Any]]]:
     try:
         result = repo_skills(spec["repo"], refresh=refresh)
@@ -697,7 +651,6 @@ def _source_result(spec: Dict[str, Any], refresh: bool) -> Tuple[Dict[str, Any],
                 {"repo": spec["repo"], "state": exc.state, "message": str(exc)[:200]})
     source = {**result["source"], "official": bool(spec.get("official")), "label_ru": spec["ru"], "label_en": spec["en"]}
     return source, [{**s, "official": bool(spec.get("official"))} for s in result["skills"]], None
-
 
 def _assemble(done: Dict[int, Any], repos: List[Dict[str, Any]], discover_state: Optional[str], started: float,
               complete: bool) -> Dict[str, Any]:
@@ -721,7 +674,6 @@ def _assemble(done: Dict[int, Any], repos: List[Dict[str, Any]], discover_state:
             "rate": {"remaining": _rate["remaining"], "reset": _rate["reset"], "limited_until": _rate["limited_until"]},
             "fetched_at": int(time.time()), "took_ms": int((time.time() - started) * 1000), "complete": complete}
 
-
 def catalog(refresh: bool = False, on_progress: Optional[Callable[[Dict[str, Any]], None]] = None) -> Dict[str, Any]:
     """Every curated source and the discovered repositories, fetched in parallel (a bounded pool).
 
@@ -740,16 +692,11 @@ def catalog(refresh: bool = False, on_progress: Optional[Callable[[Dict[str, Any
         found["repos"], found["state"] = searching.result()
     return _assemble(done, found["repos"], found["state"], started, True)
 
-
-# ----------------------------------------------------------------------------- stale-while-revalidate snapshot
-
 _snap_cond = threading.Condition()
 _snap: Dict[str, Any] = {"data": None, "partial": None, "version": 0, "running": False, "loaded": False}
 
-
 def _snapshot_file() -> Path:
     return cache_dir() / "catalog_snapshot.json"
-
 
 def _snapshot_view() -> Dict[str, Any]:
     """The catalog to show right now: the last complete one, else what a first load has fetched so far."""
@@ -758,7 +705,6 @@ def _snapshot_view() -> Dict[str, Any]:
     age = time.time() - float(data.get("fetched_at") or 0)
     return {**data, "refreshing": _snap["running"], "version": _snap["version"],
             "stale": bool(_snap["data"]) and age > TTL_LIST, "cached": bool(_snap["data"]) and _snap["running"]}
-
 
 def _refresh_worker(refresh: bool) -> None:
     def progress(partial: Dict[str, Any]) -> None:
@@ -781,7 +727,7 @@ def _refresh_worker(refresh: bool) -> None:
             except OSError:
                 pass
         elif result is not None and _snap["data"]:
-            # Offline / rate-limited now: keep showing the last good catalog, with the reason.
+
             _snap["data"] = {**_snap["data"], "state": result["state"] if result["state"] != "ok" else _snap["data"]["state"],
                              "rate": result["rate"]}
         elif result is None and not _snap["data"]:
@@ -790,7 +736,6 @@ def _refresh_worker(refresh: bool) -> None:
         _snap["running"] = False
         _snap["version"] += 1
         _snap_cond.notify_all()
-
 
 def catalog_swr(refresh: bool = False, since: Optional[int] = None, wait: float = 20.0) -> Dict[str, Any]:
     """Stale-while-revalidate: answer at once from the last catalog (memory, then disk) and refresh in the background.
@@ -819,7 +764,6 @@ def catalog_swr(refresh: bool = False, since: Optional[int] = None, wait: float 
                 _snap_cond.wait(timeout=max(0.05, deadline - time.time()))
         return _snapshot_view()
 
-
 def skill_detail(repo: str, path: str) -> Dict[str, Any]:
     repo, path = check_repo(repo), check_path(path)
     meta = _repo_meta(repo)
@@ -843,7 +787,6 @@ def skill_detail(repo: str, path: str) -> Dict[str, Any]:
             "raw_url": url, **skill, "files": files, "warnings": sorted(set(warnings)),
             "has_scripts": any(f["kind"] in ("script", "binary") for f in files)}
 
-
 def file_text(repo: str, path: str) -> Dict[str, Any]:
     repo, path = check_repo(repo), check_path(path)
     if not path:
@@ -858,10 +801,8 @@ def file_text(repo: str, path: str) -> Dict[str, Any]:
     return {"repo": repo, "path": path, "kind": file_kind(path), "text": clean[:MAX_FILE_VIEW], "truncated": truncated,
             "warnings": warnings}
 
-
 _GH_URL = re.compile(r"^https?://(?:www\.)?github\.com/([^/]+)/([^/#?]+)(?:/(tree|blob)/([^/]+)(?:/(.*))?)?/?(?:[#?].*)?$", re.I)
 _RAW_URL = re.compile(r"^https?://raw\.githubusercontent\.com/([^/]+)/([^/]+)/([^/]+)/(.+)$", re.I)
-
 
 def resolve_url(url: str) -> Dict[str, Any]:
     """Skills behind a GitHub link: a repository, a folder (``/tree/…``) or a SKILL.md (``/blob/…`` or raw)."""
@@ -886,15 +827,11 @@ def resolve_url(url: str) -> Dict[str, Any]:
         result["skills"] = [s for s in result["skills"] if s["path"] == sub or s["path"].startswith(sub + "/")]
     return result
 
-
-# ----------------------------------------------------------------------------- MemuCode install
-
 def code_skills_root() -> Path:
     """The personal MemuCode skills folder shared by the MemuCode window and MemuCode CLI."""
     override = os.environ.get("MEMUCODE_CONFIG_DIR", "").strip()
     base = Path(override) if override else _data_dir() / "memucode"
     return base / "skills"
-
 
 def install_code(repo: str, path: str, include_scripts: bool = False) -> Dict[str, Any]:
     detail = skill_detail(repo, path)
@@ -939,7 +876,6 @@ def install_code(repo: str, path: str, include_scripts: bool = False) -> Dict[st
         "scripts_included": bool(include_scripts)}, ensure_ascii=False, indent=1), encoding="utf-8")
     return {"slug": slug, "folder": str(target), "written": written, "skipped": skipped}
 
-
 def installed_code() -> List[Dict[str, Any]]:
     root = code_skills_root()
     rows = []
@@ -954,7 +890,6 @@ def installed_code() -> List[Dict[str, Any]]:
                 rows.append({"slug": folder.name, **{k: info.get(k) for k in ("repo", "path", "sha", "installed_at")}})
     return rows
 
-
 def uninstall_code(slug: str) -> Dict[str, Any]:
     slug = slugify(slug)
     target = code_skills_root() / slug
@@ -965,19 +900,14 @@ def uninstall_code(slug: str) -> Dict[str, Any]:
     import shutil
     import uuid
     dest = trash / f"{slug}-{int(time.time())}-{uuid.uuid4().hex[:8]}"
-    # User-configured skills and application data can live on different drives.
-    # shutil.move falls back to copy + remove when a rename returns EXDEV.
+
     shutil.move(str(target), str(dest))
     return {"slug": slug, "trash": str(dest)}
-
-
-# ----------------------------------------------------------------------------- library backup
 
 def library_file() -> Path:
     path = _data_dir() / "memuai"
     path.mkdir(parents=True, exist_ok=True)
     return path / "skills_library.json"
-
 
 def load_library() -> Dict[str, Any]:
     try:
@@ -985,7 +915,6 @@ def load_library() -> Dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
-
 
 def save_library(data: Dict[str, Any]) -> Dict[str, Any]:
     skills = data.get("skills")
@@ -1002,9 +931,6 @@ def save_library(data: Dict[str, Any]) -> Dict[str, Any]:
     tmp.write_text(text, encoding="utf-8")
     os.replace(tmp, path)
     return {"ok": True, "count": len(payload["skills"]), "saved_at": payload["saved_at"]}
-
-
-# ----------------------------------------------------------------------------- routes
 
 def register(app) -> None:
     import asyncio

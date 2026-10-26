@@ -1,13 +1,5 @@
-/* Development-only stand-in for installer/bridge.py, loaded by app.js when the
- * page is opened with ?mock=1 (headless screenshots, designing in a browser).
- * The shipped Setup never loads it: there window.pywebview.api is the bridge.
- *
- * URL parameters: lang=ru|en, mode=install|uninstall, product=memuai|proxy,
- * kind=fresh|upgrade|reinstall|downgrade, legacy=1, screen=<id> (welcome, edition, location,
- * options, review, express, progress, done, error, apps, confirm, keepoff, un-done), pct=<0-100>
- * (freeze progress there), apps=1 (simulate running apps), error=<code>,
- * speed=<seconds for a full install>, version=<this Setup, default 3.1>,
- * from=<installed version; empty = unreadable>, data=none (no data folders existed at uninstall). */
+
+
 (function () {
   "use strict";
   var q = {};
@@ -56,7 +48,7 @@
         product: product, version: q.version || "3.6",
         kind: q.mode === "uninstall" ? "uninstall" : kind,
         existing: { found: kind !== "fresh" || q.mode === "uninstall", version: q.from != null ? q.from : kind === "upgrade" ? "2.0" : kind === "downgrade" ? "3.7" : (q.version || "3.6"), dir: dir, source: "memuai", components: [], legacy_machine: q.legacy === "1" },
-        defaults: { dir: dir, components: comps.filter(function (c) { return c.id !== "memunote" && c.id !== "memufiles"; }).map(function (c) { return c.id; }), tasks: ["autostart"] },  // like products.py: MemuNote and MemuFiles are off by default
+        defaults: { dir: dir, components: comps.filter(function (c) { return c.id !== "memunote" && c.id !== "memufiles"; }).map(function (c) { return c.id; }), tasks: ["autostart"] },
         components: comps,
         tasks: product.id === "proxy" ? [{ id: "desktopicon", needs: [] }, { id: "autostart", needs: [] }]
           : [{ id: "desktopicon", needs: ["memuai"] }, { id: "proxyicon", needs: [] }, { id: "autostart", needs: [] }, { id: "memuaiautostart", needs: ["memuai"] }],
@@ -86,14 +78,13 @@
     launch: function () { (window.__memuCalls = window.__memuCalls || []).push(["launch"]); return true; },
     open_folder: function (p) { (window.__memuCalls = window.__memuCalls || []).push(["open_folder", p]); return true; }, open_log: function () { return true; },
     minimize: function () {}, close: function () { (window.__memuCalls = window.__memuCalls || []).push(["close"]); },
-    // No native caption drag in a browser: the page falls back to move_window (recorded for tests).
+
     drag_window: function () { (window.__memuDrag = window.__memuDrag || []).push(["drag"]); return false; },
     move_window: function (x, y) { (window.__memuDrag = window.__memuDrag || []).push(["move", x, y]); return true; }
   };
 
-  // Screenshot helpers: jump to a screen once the interface has started.
   window.__memuSetupReady = function (S, ui) {
-    window.__memuUi = ui;     // tests (installer_drag_test.py) call ui.isDragZone
+    window.__memuUi = ui;
     var target = q.screen;
     if (!target) return;
     setTimeout(function () {

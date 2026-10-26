@@ -1,13 +1,5 @@
-/* Round 35 — documents of any size in Quick Access (zone bigdocs; server: app/bigdocs.py, /api/pg/bigdocs/*).
 
-   Before: a dropped PDF/DOCX became its head + tail (60 000 characters) — the middle of a long document was lost.
-   Now a document that does not fit is kept whole on this computer and shown as a strip over the input:
-   «📄 name · 600 стр.  [Спросить | Весь документ]  ×».
-   • «Спросить» — every question carries {type:"bigdoc", id, mode:"ask"} (MemuQuick.addRequestContext); the server
-     (quick_ask_api → bigdocs.quick_context) adds the fragments a local search found, the answer cites [стр. N].
-   • «Весь документ» — on send the plugin takes the question over, shows the cost and the progress «глава 7 из 20»,
-     runs the map-reduce, then sends the question again with {mode:"whole", prompt}: the server adds the cached result.
-   features.js hands documents over through window.MemuQuickBigDocs.take(file) (small ones stay inline as before). */
+
 (() => {
   "use strict";
   const Q = window.MemuQuick;
@@ -15,7 +7,7 @@
   const t = (ru, en) => Q.t(ru, en);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const BASE = "/api/pg/bigdocs";
-  const INLINE_TOKENS = 15000;      // below this the old inline path (features.js) is just as good
+  const INLINE_TOKENS = 15000;
   const S = { doc: null, mode: "ask", busy: false, run: null, el: null, pendingWhole: null };
 
   async function json(path, options = {}) {
@@ -48,7 +40,6 @@
   }
   const pagesText = (d) => `${d.approx_pages ? "≈" : ""}${Number(d.pages || 0).toLocaleString(Q.lang() === "en" ? "en-US" : "ru-RU")} ${t("стр.", "pages")}`;
 
-  /* features.js: a dropped document. true — taken (a big one), false — let the inline path read it. */
   async function take(file) {
     if (file.size > 200 * 1024 * 1024) { Q.toast(t("Файл больше 200 МБ", "The file is over 200 MB"), "err", 3600); return true; }
     S.doc = { name: file.name, pages: 0, reading: t("Читаю…", "Reading…") };
@@ -62,7 +53,7 @@
       });
     } catch (e) {
       S.doc = null; render();
-      // integrator (r35): a file the inline path can still read (≤15 MB) falls back to it instead of being dropped
+
       if (file.size <= 15 * 1024 * 1024) return false;
       Q.toast(`${file.name}: ${e.message}`, "err", 5000);
       return true;
@@ -107,7 +98,6 @@
   Q.addRequestContext("bigdoc", () => (S.doc?.id && !S.doc.reading
     ? { type: "bigdoc", id: S.doc.id, mode: S.sendWhole ? "whole" : "ask", prompt: S.sendWhole || "" } : null));
 
-  /* «Весь документ»: take the question over, run the map-reduce with progress, then send it with the result. */
   Q.on("submit", (e) => {
     if (!S.doc?.id || S.mode !== "whole" || S.sendWhole || !String(e.text || "").trim()) return;
     e.preventDefault();
@@ -136,8 +126,8 @@
         return;
       }
       S.run = null; render();
-      S.sendWhole = question;          // the request context now carries mode:"whole" (the server adds the cached result)
-      Q.send(question);                 // reset on answer-done (the request body is built after a few awaits)
+      S.sendWhole = question;
+      Q.send(question);
     } catch (error) {
       S.run = null; render();
       Q.toast(error.message || String(error), "err", 5000);
@@ -161,10 +151,8 @@
   Q.on("chat-new", () => { S.doc = null; S.run = null; S.sendWhole = ""; render(); });
   Q.on("answer-done", () => { S.sendWhole = ""; });
 
-  /* [стр. N] in an answer about the strip's document → a mark with the quote of that page on hover/click
-     (the answer is re-rendered by quick.js, so a debounced observer decorates finished answers again). */
   const CITE = /\[(≈)?\s*(стр\.?|p\.|page)\s*(\d{1,5}(?:\s*[,–-]\s*\d{1,5})*)(?:[,;]\s*(?:§|п\.|пп\.|para\.?|section|раздел|разд\.)[^\]\[]{0,40})?\]/gi;
-  const CITE_ONE = new RegExp(CITE.source, "i");      // .test() on the global one would move its lastIndex
+  const CITE_ONE = new RegExp(CITE.source, "i");
   const quotes = new Map();
   function decorate() {
     const d = S.doc;

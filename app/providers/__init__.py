@@ -14,25 +14,21 @@ from .local import LocalProvider
 
 _providers: Dict[str, Provider] = {}
 
-# Порядок важен: он же определяет порядок плиток в панели.
 BUILTIN_CLASSES = (
     GensparkProvider, KiroProvider, AntigravityProvider,
     GeminiWebProvider, GrokProvider, LocalProvider,
 )
 
-# Имена, которые нельзя занять кастомным подключением.
 RESERVED_PREFIXES = ("genspark", "kiro", "antigravity", "geminiweb",
                      "notion", "grok", "zcode", "opencode", "custom", "local")
-
 
 def init_registry() -> Dict[str, Provider]:
     """Создаёт экземпляры провайдеров (один на процесс)."""
     for cls in BUILTIN_CLASSES:
         _providers[cls.id] = cls()
-    # custom — один экземпляр обслуживает все кастомные подключения
+
     _providers["custom"] = CustomProvider()
     return _providers
-
 
 async def reset_registry() -> None:
     """Закрывает сетевые ресурсы провайдеров и пересоздаёт их.
@@ -48,18 +44,14 @@ async def reset_registry() -> None:
     _providers.clear()
     init_registry()
 
-
 def get(provider_id: str) -> Optional[Provider]:
     return _providers.get(provider_id)
-
 
 def all_providers() -> Dict[str, Provider]:
     return _providers
 
-
 def builtin_ids() -> List[str]:
     return [cls.id for cls in BUILTIN_CLASSES] + ["custom"]
-
 
 def meta_list() -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
@@ -78,7 +70,6 @@ def meta_list() -> List[Dict[str, Any]]:
             "settings": [f.public_dict() for f in settings_schema(p)],
         })
     return out
-
 
 def settings_schema(provider) -> List[Any]:
     """Настройки провайдера: общие для всех плюс его собственные."""

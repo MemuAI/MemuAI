@@ -39,7 +39,6 @@ STATIC = ROOT / "app" / "pgstatic"
 SAMPLE = STATIC / "companion" / "models" / "sample" / "sample.vrm"
 NODE = shutil.which("node")
 
-
 def glb(doc: dict, binary: bytes = b"\0\0\0\0") -> bytes:
     js = json.dumps(doc).encode()
     js += b" " * ((4 - len(js) % 4) % 4)
@@ -48,14 +47,12 @@ def glb(doc: dict, binary: bytes = b"\0\0\0\0") -> bytes:
     return (b"glTF" + struct.pack("<II", 2, total) + struct.pack("<I", len(js)) + b"JSON" + js
             + struct.pack("<I", len(binary)) + b"BIN\0" + binary)
 
-
 VRM1 = {"asset": {"version": "2.0"}, "buffers": [{"byteLength": 4}], "bufferViews": [{"buffer": 0, "byteLength": 4}],
         "extensions": {"VRMC_vrm": {"specVersion": "1.0", "meta": {"name": "Test", "authors": ["A", "B"],
                                                                   "licenseUrl": "https://vrm.dev/licenses/1.0/",
                                                                   "allowRedistribution": True},
                                     "humanoid": {"humanBones": {"hips": {"node": 0}}},
                                     "expressions": {"preset": {"happy": {}, "aa": {}}}}}}
-
 
 def live2d_zip(files: dict, symlink: str = "") -> bytes:
     buf = io.BytesIO()
@@ -68,7 +65,6 @@ def live2d_zip(files: dict, symlink: str = "") -> bytes:
             z.writestr(info, "/etc/passwd")
     return buf.getvalue()
 
-
 MODEL3 = json.dumps({"Version": 3, "FileReferences": {
     "Moc": "hiyori.moc3", "Textures": ["hiyori.2048/texture_00.png"],
     "Expressions": [{"Name": "Smile", "File": "exp/smile.exp3.json"}],
@@ -76,7 +72,6 @@ MODEL3 = json.dumps({"Version": 3, "FileReferences": {
 GOOD_L2D = {"hiyori/hiyori.model3.json": MODEL3, "hiyori/hiyori.moc3": b"MOC3" + b"\0" * 60,
             "hiyori/hiyori.2048/texture_00.png": b"\x89PNG....", "hiyori/exp/smile.exp3.json": "{}",
             "hiyori/m/idle.motion3.json": "{}", "hiyori/m/tap.motion3.json": "{}"}
-
 
 class PrefsTests(unittest.TestCase):
     def test_defaults(self) -> None:
@@ -128,7 +123,6 @@ class PrefsTests(unittest.TestCase):
         self.assertEqual(loaded["companion_size"], 150)
         pgdata.save_preferences({"companion_quick_enabled": False, "companion_size": 100, "companion_model_id": "sample"})
 
-
 class VrmValidationTests(unittest.TestCase):
     def test_shipped_sample_is_valid_and_cc0(self) -> None:
         meta = core.validate_vrm(SAMPLE.read_bytes())
@@ -164,7 +158,6 @@ class VrmValidationTests(unittest.TestCase):
         bad_version[4:8] = struct.pack("<I", 1)
         with self.assertRaises(core.ModelError):
             core.validate_vrm(bytes(bad_version))
-
 
 class Live2DValidationTests(unittest.TestCase):
     def test_valid_zip(self) -> None:
@@ -218,7 +211,6 @@ class Live2DValidationTests(unittest.TestCase):
             core.validate_live2d_zip(live2d_zip(files))
         self.assertEqual(ctx.exception.code, "missing_file")
 
-
 class LibraryTests(unittest.TestCase):
     def setUp(self) -> None:
         self.root = Path(tempfile.mkdtemp())
@@ -258,7 +250,6 @@ class LibraryTests(unittest.TestCase):
         for bad in ("", "..", "M-UP", "a/b", "x" * 60, None):
             self.assertEqual(core.normalize_model_id(bad), "sample")
 
-
 class RuntimeTests(unittest.TestCase):
     def test_runtime_files_are_pinned(self) -> None:
         for name, (url, digest, _marker) in core.RUNTIME_FILES.items():
@@ -280,11 +271,10 @@ class RuntimeTests(unittest.TestCase):
         core.check_runtime_file("live2dcubismcore.min.js", b"var Live2DCubismCore;")
         self.assertFalse(core.runtime_status(Path(tempfile.mkdtemp()))["installed"])
 
-
 class WindowGeometryTests(unittest.TestCase):
     def test_default_rect_scales_with_dpi(self) -> None:
         self.assertEqual(cw.default_rect((0, 0, 1920, 1040), 96), (1920 - 300 - 24, 1040 - 440 - 24, 300, 440))
-        x, y, w, h = cw.default_rect((-2560, 0, 0, 1400), 192)      # a 200 % monitor left of the primary
+        x, y, w, h = cw.default_rect((-2560, 0, 0, 1400), 192)
         self.assertEqual((w, h), (600, 880))
         self.assertEqual((x + w, y + h), (0 - 48, 1400 - 48))
 
@@ -306,10 +296,9 @@ class WindowGeometryTests(unittest.TestCase):
         manager = cw.CompanionWindowManager("http://127.0.0.1:1", state_root=lambda: Path(tempfile.mkdtemp()))
         if manager.supported:  # pragma: no cover - only on Windows
             self.skipTest("Windows")
-        self.assertEqual(manager.handle("status", {}), {"visible": False, "transparency": "", "place": "", "pinned": False})  # Round 23: + place/pinned
+        self.assertEqual(manager.handle("status", {}), {"visible": False, "transparency": "", "place": "", "pinned": False})
         self.assertEqual(manager.hide(), {"visible": False})
         manager.destroy()
-
 
 class RoutesTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -360,7 +349,6 @@ class RoutesTests(unittest.TestCase):
         self.assertEqual(state["live_window"], {"x": 1.0, "y": 0.25})
         self.assertNotIn("junk", state)
 
-
 class StaticWiringTests(unittest.TestCase):
     def test_files_and_licences(self) -> None:
         companion = STATIC / "companion"
@@ -371,7 +359,7 @@ class StaticWiringTests(unittest.TestCase):
         notice = (companion / "third_party" / "NOTICE.md").read_text(encoding="utf-8")
         for word in ("three.js", "three-vrm", "Live2D", "CC0"):
             self.assertIn(word, notice)
-        # Nothing from Live2D is shipped.
+
         for path in companion.rglob("*"):
             if path.is_file() and path.suffix in (".js", ".wasm"):
                 self.assertNotIn(b"Live2D Cubism Core\n * (C)", path.read_bytes()[:400], path)
@@ -386,16 +374,14 @@ class StaticWiringTests(unittest.TestCase):
                      'MemuCompanionLive?.emit("state"', 'MemuCompanionLive?.emit("audio"',
                      "MemuCompanionCore.stripTags(message.content)", "MemuCompanionLive?.promptHint"):
             self.assertIn(hook, app_js)
-        # Hooks inside functions that node fixtures run in a bare vm context (speakMessage,
-        # buildRealtimeInstructions, …) must not touch `window` (round16_live_test).
+
         self.assertNotIn("window.MemuCompanionCore", app_js)
         self.assertNotIn('window.MemuCompanionLive?.emit("audio"', app_js)
         self.assertNotIn("window.MemuCompanionLive?.promptHint", app_js)
         self.assertIn("get analyser()", (STATIC / "realtime.js").read_text(encoding="utf-8"))
-        # The desktop window keeps a strip free for its speech bubble.
+
         stage = (companion / "stage.js").read_text(encoding="utf-8")
         self.assertIn("const HEADROOM = DESKTOP ?", stage)
-
 
 @unittest.skipUnless(NODE, "node is not installed")
 class JsCoreTests(unittest.TestCase):
@@ -484,7 +470,6 @@ S.buildZip(files).arrayBuffer().then((buf) => { process.stdout.write('ZIP:' + Bu
                                                                  STATIC / "quick" / "plugins" / "companion-settings.js"]:
             result = subprocess.run([NODE, "--check", str(path)], capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, f"{path.name}: {result.stderr}")
-
 
 if __name__ == "__main__":
     unittest.main()

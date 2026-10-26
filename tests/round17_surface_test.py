@@ -5,7 +5,6 @@ import subprocess
 import sys
 import unittest
 
-
 class SurfaceTest(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "Windows Edge UI acceptance")
     def test_short_voice_menu_tool_state_and_responsive_settings(self):

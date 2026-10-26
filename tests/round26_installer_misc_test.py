@@ -32,7 +32,6 @@ TOOL_DELTAS = [
     {"id": "t", "choices": [{"delta": {}, "finish_reason": "tool_calls"}]},
 ]
 
-
 def _request(body, headers=None):
     payload = json.dumps(body).encode()
 
@@ -43,20 +42,18 @@ def _request(body, headers=None):
     return Request({"type": "http", "method": "POST", "path": "/", "headers": raw,
                     "query_string": b""}, receive)
 
-
 def _chunks(items):
     async def gen(*_a, **_k):
         for item in items:
             yield item
     return gen
 
-
 class BilingualAuthErrors(unittest.TestCase):
     def test_openai_and_anthropic_hub_key_errors_have_english(self):
         with patch.object(config_store, "authorize_api_request", return_value=False):
             body = json.loads(openai_api._check_auth(_request({})).body)
             self.assertIn("Settings → API", body["error"]["message_en"])
-            # Round 27: API clients read ``message`` in English; the Russian text rides along.
+
             self.assertEqual(body["error"]["message_en"], body["error"]["message"])
             self.assertIn("Настройки → API", body["error"]["message_ru"])
             body = json.loads(anthropic_api._check_auth(_request({})).body)
@@ -78,7 +75,6 @@ class BilingualAuthErrors(unittest.TestCase):
             response = asyncio.run(passthrough.passthrough("mysite", "v1/models", _request({})))
         self.assertEqual(response.status_code, 404)
         self.assertEqual(json.loads(response.body)["error_en"], "Connection “mysite” not found")
-
 
 class ProviderAwareHints(unittest.TestCase):
     def test_custom_auth_hint_talks_about_the_api_key(self):
@@ -124,7 +120,6 @@ class ProviderAwareHints(unittest.TestCase):
         self.assertIn("“Custom API”", exc.message_en)
         self.assertIn("Собственный API", exc.hint)
 
-
 class WhitespaceBeforeToolCall(unittest.TestCase):
     def setUp(self):
         self.patches = [patch.object(state, "commit_trace"), patch.object(state, "discard_trace"),
@@ -160,7 +155,7 @@ class WhitespaceBeforeToolCall(unittest.TestCase):
                              for row in rows if row.get("choices"))
 
     def test_openai_stream_drops_whitespace_before_the_call(self):
-        rows, text = self._openai_stream()        # live Yandex streams exactly this
+        rows, text = self._openai_stream()
         self.assertEqual(text, "")
         self.assertEqual(rows[0]["choices"][0]["delta"].get("role"), "assistant")
         self.assertTrue(any(row["choices"][0]["delta"].get("tool_calls") for row in rows if row.get("choices")))
@@ -236,7 +231,6 @@ class WhitespaceBeforeToolCall(unittest.TestCase):
         self.assertLess(kinds.index("response.output_item.added"), kinds.index("response.output_text.done"))
         self.assertEqual(events[-1]["response"]["output"][0]["type"], "message")
 
-
 class InstallerRetry(unittest.TestCase):
     """A failed attempt must not leak into the retry: exit code and warnings."""
 
@@ -284,13 +278,11 @@ class InstallerRetry(unittest.TestCase):
         second = self.engine.install(Options(self.dir, ["proxy", "memuai"], [], "en"))
         self.assertEqual(second["warnings"], [])
 
-
 def _chrome() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/workspace/work/chromium/chrome"):
         if candidate and os.path.exists(candidate):
             return candidate
     return ""
-
 
 def _playwright_ok() -> bool:
     try:
@@ -298,7 +290,6 @@ def _playwright_ok() -> bool:
     except Exception:  # noqa: BLE001
         return False
     return bool(_chrome())
-
 
 @unittest.skipUnless(_playwright_ok(), "needs Playwright + Chromium")
 class UninstallDoneText(unittest.TestCase):
@@ -332,9 +323,8 @@ class UninstallDoneText(unittest.TestCase):
     def test_texts_follow_the_choice(self):
         self.assertIn("Личные данные тоже удалены", self._text("&remove"))
         self.assertIn("сохранены", self._text(""))
-        # Nothing to delete is not «your data is kept in …».
-        self.assertIn("Личные данные тоже удалены", self._text("&remove&data=none"))
 
+        self.assertIn("Личные данные тоже удалены", self._text("&remove&data=none"))
 
 if __name__ == "__main__":
     unittest.main()

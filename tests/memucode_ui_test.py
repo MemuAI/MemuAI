@@ -18,11 +18,9 @@ from prompt_toolkit.output.vt100 import Vt100_Output
 from tests.memucode_cli_test import make_runtime, setUpModule, tearDownModule  # noqa: F401  (module fixtures)
 from tests.memucode_transcript_test import texts
 
-
 class Sink(io.StringIO):
     def isatty(self):
         return True
-
 
 def drive_ui(runtime, drive, *, rows=40, columns=110):
     """Run the interface with a pipe as the keyboard; ``drive(ui, keys)`` plays the user."""
@@ -53,10 +51,8 @@ def drive_ui(runtime, drive, *, rows=40, columns=110):
 
     return asyncio.run(main())
 
-
 async def settle(seconds=0.25):
     await asyncio.sleep(seconds)
-
 
 class Pasting(unittest.TestCase):
     def test_a_big_paste_is_one_chip_and_the_model_receives_all_of_it(self):
@@ -79,8 +75,7 @@ class Pasting(unittest.TestCase):
         sent = json.dumps(backend.requests[0].messages, ensure_ascii=False)
         self.assertIn("line 0: some text to paste", sent)
         self.assertIn("line 39: some text to paste", sent)
-        # The chip belongs to the input box only: the conversation shows what was pasted
-        # (a long message folds; unfolded it is all there).
+
         ui.verbose = True
         shown = "\n".join(texts(ui.transcript.viewport(200, 110)))
         self.assertNotIn("[Pasted text", shown)
@@ -110,14 +105,13 @@ class Pasting(unittest.TestCase):
             await settle()
             editing = bool(ui.dialogs and ui.dialogs[0].tag == "paste")
             ui.dialog_text.insert_text("EDITED\n")
-            keys.send_text("\x13")                           # Ctrl+S
+            keys.send_text("\x13")
             await settle()
             return editing, ui.attachments.pastes[1][:7], ui.input_buffer.text
 
         _ui, (editing, start, chip) = drive_ui(runtime, drive)
         self.assertTrue(editing)
         self.assertRegex(chip, r"\[Pasted text #1 \+\d+ lines\]")
-
 
 class Completion(unittest.TestCase):
     def test_suggestions_survive_erasing_a_typo_with_backspace(self):
@@ -126,7 +120,7 @@ class Completion(unittest.TestCase):
         async def drive(ui, keys):
             keys.send_text("/lu")
             await settle(0.4)
-            keys.send_text("\x7f")                           # back to "/l"
+            keys.send_text("\x7f")
             await settle(0.4)
             names = [completion.text for completion in ui.menu.items] if ui.menu else []
             keys.send_text("o")
@@ -138,7 +132,6 @@ class Completion(unittest.TestCase):
         self.assertIn("/loop", after_backspace)
         self.assertIn("/loop", after_o)
         self.assertNotIn("/lang", after_o)
-
 
 class Folding(unittest.TestCase):
     def test_tool_work_is_one_gray_line_that_unfolds_on_click_and_with_ctrl_o(self):
@@ -157,7 +150,7 @@ class Folding(unittest.TestCase):
             ui.transcript._click(row)
             unfolded = texts(ui.transcript.viewport(40, 110))
             ui.transcript._click(next(index for index, line in enumerate(unfolded) if "▾" in line))
-            keys.send_text("\x0f")                           # Ctrl+O
+            keys.send_text("\x0f")
             await settle()
             everything = texts(ui.transcript.viewport(40, 110))
             return folded, unfolded, everything
@@ -171,21 +164,20 @@ class Folding(unittest.TestCase):
         self.assertTrue(any(line.strip().startswith("Search") for line in unfolded))
         self.assertTrue(any(line.strip().startswith("Read") for line in everything))
 
-
 class StatusLine(unittest.TestCase):
     def test_the_status_line_number_can_be_switched_to_tokens_and_more(self):
         runtime, backend = make_runtime(turns=["hi there"])
 
         async def drive(ui, keys):
             keys.send_text("hello\r")
-            # The turn, then the session title (its tokens count too): the numbers are read once both are done.
+
             await until(lambda: not ui.busy and len(backend.requests) >= 2 and bool(runtime.session.meta.get("title")), 10)
             seen = {}
             for key, _label in ui.METRICS:
                 seen[key] = ui.metric_text(key)
             task = asyncio.ensure_future(ui.choose_metric())
             await settle(0.3)
-            keys.send_text("\x1b[B\r")                       # one down = "Tokens: input / output"
+            keys.send_text("\x1b[B\r")
             await task
             return seen, ui.settings.get("footer_metric"), ui.metric_text()
 
@@ -197,7 +189,6 @@ class StatusLine(unittest.TestCase):
         self.assertEqual(chosen, "tokens")
         self.assertEqual(shown, seen["tokens"])
 
-
 class ClipboardKeys(unittest.TestCase):
     def test_ctrl_v_attaches_a_screenshot_and_alt_v_too(self):
         runtime, _ = make_runtime()
@@ -208,9 +199,9 @@ class ClipboardKeys(unittest.TestCase):
                     patch("app.cli.clipboard.has_image", return_value=True), \
                     patch("app.cli.clipboard.has_files", return_value=False), \
                     patch("app.cli.clipboard.sequence_number", return_value=7):
-                keys.send_text("\x16")                       # Ctrl+V
+                keys.send_text("\x16")
                 await settle(0.4)
-                keys.send_text("\x1bv")                      # Alt+V
+                keys.send_text("\x1bv")
                 await settle(0.4)
             return ui.input_buffer.text
 
@@ -247,7 +238,6 @@ class ClipboardKeys(unittest.TestCase):
         self.assertTrue(seen)
         self.assertIn("Alt+V", footer)
 
-
 class Connecting(unittest.TestCase):
     def test_typing_works_while_models_load_and_the_message_waits_for_them(self):
         runtime, backend = make_runtime(turns=["Hello."])
@@ -272,7 +262,6 @@ class Connecting(unittest.TestCase):
         self.assertTrue(waiting)
         self.assertGreaterEqual(after, 1)
 
-
 class DialogGuard(unittest.TestCase):
     def test_keys_typed_a_moment_before_an_agent_dialog_cannot_answer_it(self):
         from app.cli.tui import dialogs as dlg
@@ -294,14 +283,12 @@ class DialogGuard(unittest.TestCase):
         self.assertFalse(early)
         self.assertEqual(answer, "yes")
 
-
 def press_escape(ui):
     """What the Windows console reader delivers for Esc: one ready key press (no VT parser in between)."""
     from prompt_toolkit.key_binding.key_processor import KeyPress
     from prompt_toolkit.keys import Keys
     ui.app.key_processor.feed(KeyPress(Keys.Escape, "\x1b"))
     ui.app.key_processor.process_keys()
-
 
 async def until(condition, timeout=3.0):
     started = time.perf_counter()
@@ -310,7 +297,6 @@ async def until(condition, timeout=3.0):
             return time.perf_counter() - started
         await asyncio.sleep(0.002)
     return None
-
 
 class Responsiveness(unittest.TestCase):
     """Round 13: nothing in the interface waits before it reacts."""
@@ -327,23 +313,22 @@ class Responsiveness(unittest.TestCase):
             focused_a_text_field = ui.app.layout.current_buffer is ui.dialog_filter
             press_escape(ui)
             closing = await until(lambda: not ui.dialogs)
-            # Alt+T is "Escape, t" in one batch: it must stay a chord, not an Escape followed by a letter.
+
             before = bool(ui.settings.get("thinking"))
             keys.send_text("\x1bt")
             await settle(0.3)
             return focused_a_text_field, closing, before, bool(ui.settings.get("thinking")), ui.input_buffer.text
 
         _ui, (text_field, closing, before, after, typed) = drive_ui(runtime, drive)
-        self.assertTrue(text_field)                       # the case that used to wait for a second key
+        self.assertTrue(text_field)
         self.assertIsNotNone(closing)
-        self.assertLess(closing, 0.08)                    # it was 0.12 s of waiting plus a frame
+        self.assertLess(closing, 0.08)
         self.assertNotEqual(before, after)
         self.assertEqual(typed, "")
 
     def test_usage_opens_before_the_account_limits_arrive(self):
         runtime, _ = make_runtime()
-        # The limits answer only after the test has seen the window: the order is checked, not a race
-        # against a fixed delay (a loaded machine used to need more than the old 0.3 s for the first render).
+
         release = asyncio.Event()
 
         async def slow_limits(ctx):
@@ -388,7 +373,7 @@ class Responsiveness(unittest.TestCase):
             await settle(0.2)
             keys.send_text("\r")
             opened = await until(lambda: bool(ui.dialogs))
-            # r33c-models-lists: rows show the readable name (label) — the model id is the value.
+
             first = [option.value for option in ui.dialogs[0].options] if ui.dialogs else []
             await until(lambda: bool(ui.dialogs) and len(ui.dialogs[0].options) > 1, 3)
             later = [option.value for option in ui.dialogs[0].options] if ui.dialogs else []
@@ -401,7 +386,6 @@ class Responsiveness(unittest.TestCase):
         self.assertEqual(first, ["test-model"])
         self.assertIn("brand-new-model", later)
 
-
 class Suggestions(unittest.TestCase):
     def test_arrows_move_through_the_list_without_rewriting_what_was_typed(self):
         runtime, _ = make_runtime()
@@ -411,21 +395,21 @@ class Suggestions(unittest.TestCase):
             await settle(0.2)
             listed = [item.text for item in ui.menu.items]
             nothing_picked = ui.menu.index
-            keys.send_text("\x1b[B\x1b[B")                   # Down, Down
+            keys.send_text("\x1b[B\x1b[B")
             await settle(0.2)
             typed, index = ui.input_buffer.text, ui.menu.index
             picked = ui.menu.items[index].text
             press_escape(ui)
             await settle(0.1)
             hidden = ui.menu is None
-            keys.send_text("\t")                             # Tab brings the list back
+            keys.send_text("\t")
             await settle(0.1)
             return listed, nothing_picked, typed, index, picked, hidden, bool(ui.menu and ui.menu.items)
 
         _ui, (listed, nothing_picked, typed, index, picked, hidden, back) = drive_ui(runtime, drive)
         self.assertGreater(len(listed), 2)
         self.assertIsNone(nothing_picked)
-        self.assertEqual(typed, "/co")                       # the text is the person's own until Enter or Tab
+        self.assertEqual(typed, "/co")
         self.assertEqual(index, 1)
         self.assertEqual(picked, listed[1])
         self.assertTrue(hidden)
@@ -435,7 +419,7 @@ class Suggestions(unittest.TestCase):
         runtime, _ = make_runtime()
 
         async def drive(ui, keys):
-            keys.send_text("/version")                       # hidden from the list, so look-alikes are suggested
+            keys.send_text("/version")
             await settle(0.2)
             suggested = [item.text for item in ui.menu.items] if ui.menu else []
             keys.send_text("\r")
@@ -455,13 +439,13 @@ class Suggestions(unittest.TestCase):
             keys.send_text("look at @module_39")
             await until(lambda: bool(ui.menu and ui.menu.text.endswith("@module_39") and ui.menu.items), 3)
             names = [item.text for item in ui.menu.items]
-            keys.send_text("\r")                             # takes the first row and keeps typing possible
+            keys.send_text("\r")
             await settle(0.2)
             return names, ui.input_buffer.text
 
         _ui, (names, text) = drive_ui(runtime, drive)
         self.assertIn("@src/pkg0/module_39.py", names[:1])
-        self.assertTrue(all("module_39" in name for name in names[:11]))     # exact hits first, look-alikes after
+        self.assertTrue(all("module_39" in name for name in names[:11]))
         self.assertEqual(text, "look at @src/pkg0/module_39.py ")
 
     def test_a_folder_is_completed_without_a_trailing_separator_and_enter_sends_the_path(self):
@@ -474,10 +458,10 @@ class Suggestions(unittest.TestCase):
         typed = "/cd " + str(runtime.root / "do")
         found = list(completer.get_completions(Document(typed, len(typed))))
         self.assertEqual([item.text for item in found], [str(runtime.root / "docs")])
-        self.assertTrue(found[0].display_text.endswith(os.sep))          # shown as a folder, inserted bare
+        self.assertTrue(found[0].display_text.endswith(os.sep))
         self.assertEqual(completer.kind(typed), "path")
         self.assertEqual(completer.span(typed), len(str(runtime.root / "do")))
-        # A backslash + Enter is "new line" in a message, never inside a path or a slash command.
+
         self.assertTrue(_continues_line("first line\\"))
         self.assertTrue(_continues_line("explain this \\"))
         self.assertFalse(_continues_line("/cd C:\\Users\\me\\"))
@@ -494,7 +478,7 @@ class Suggestions(unittest.TestCase):
             keys.send_text("/cd " + str(root / "docs") + os.sep)
             await until(lambda: bool(ui.menu and ui.menu.kind == "path" and ui.menu.items), 3)
             listed = [item.text for item in ui.menu.items]
-            keys.send_text("\r")                             # Enter goes there; it neither breaks the line nor dives deeper
+            keys.send_text("\r")
             await settle(0.5)
             return listed, ui.input_buffer.text, str(runtime.session.cwd or runtime.root)
 
@@ -502,7 +486,6 @@ class Suggestions(unittest.TestCase):
         self.assertEqual(listed, [str(root / "docs" / "guide")])
         self.assertEqual(left, "")
         self.assertEqual(os.path.normcase(cwd.rstrip("\\/")), os.path.normcase(str(root / "docs")))
-
 
 class InputFixes(unittest.TestCase):
     def test_a_pasted_path_that_cannot_be_a_chip_is_put_in_as_a_path_without_an_error(self):
@@ -535,7 +518,7 @@ class InputFixes(unittest.TestCase):
             return ui.input_buffer.text
 
         _ui, left = drive_ui(runtime, drive)
-        self.assertEqual(left, "")                             # sent, not bounced back into the input box
+        self.assertEqual(left, "")
         self.assertIn("big.txt", json.dumps(backend.requests[0].messages))
 
     def test_ctrl_a_selects_the_whole_message_and_typing_replaces_it(self):
@@ -543,15 +526,15 @@ class InputFixes(unittest.TestCase):
 
         async def drive(ui, keys):
             keys.send_text("first line")
-            keys.send_text("\x1b\r")                         # Alt+Enter: a second line
+            keys.send_text("\x1b\r")
             keys.send_text("second line")
             await settle(0.2)
-            keys.send_text("\x01")                           # Ctrl+A
+            keys.send_text("\x01")
             await settle(0.1)
             start, end = ui.input_buffer.document.selection_range()
             selected = ui.input_buffer.text[start:end]
             with patch("app.cli.tui.app.copy_text", return_value=True) as copied:
-                keys.send_text("\x03")                       # Ctrl+C copies the selection instead of clearing the box
+                keys.send_text("\x03")
                 await settle(0.1)
             kept = ui.input_buffer.text
             keys.send_text("x")
@@ -586,7 +569,7 @@ class InputFixes(unittest.TestCase):
             return default, asked, (len(rings), toast.call_count)
 
         _ui, (default, asked, off) = drive_ui(runtime, drive)
-        self.assertEqual(default, (0, 1))                    # a silent toast, no terminal bell (the Windows "ding")
+        self.assertEqual(default, (0, 1))
         self.assertEqual(asked, (1, 1))
         self.assertEqual(off, (1, 1))
 
@@ -594,7 +577,7 @@ class InputFixes(unittest.TestCase):
         from app.cli.llm import ModelInfo
         runtime, _ = make_runtime()
         router = runtime.router
-        del router.resolve                                    # the real resolver (the fixture pins a scripted backend)
+        del router.resolve
         router._models = [
             ModelInfo(id="antigravity-claude-opus-4-6-thinking", provider="antigravity", raw="claude-opus-4-6-thinking"),
             ModelInfo(id="antigravity-gemini-3.8-flash", provider="antigravity", raw="gemini-3.8-flash"),
@@ -627,7 +610,6 @@ class InputFixes(unittest.TestCase):
         _ui, (body, shown) = drive_ui(runtime, drive)
         self.assertIn("does not support a reasoning level", body)
         self.assertIn("saved, but it has no effect on the current model", " ".join(shown.split()))
-
 
 if __name__ == "__main__":
     unittest.main()

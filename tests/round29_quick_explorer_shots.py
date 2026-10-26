@@ -37,7 +37,6 @@ EDIT = {"id": "cs2", "ctx": "a1x", "folder_name": "Загрузки", "summary":
                 {"n": 1, "op": "write", "path": "README.md", "status": "pending", "existed": False, "preview": "# Загрузки\n\nЗдесь лежат документы и фото."},
                 {"n": 2, "op": "delete", "path": "old/tmp.log", "status": "pending", "risky": "delete"}]}
 
-
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
     from app import themes
@@ -141,7 +140,6 @@ async def main(out: Path) -> int:
     for p in problems:
         print("PROBLEM:", p)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/r29-quick-explorer-shots"))))

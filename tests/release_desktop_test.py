@@ -12,7 +12,6 @@ import memuai
 import uvicorn
 from app import desktop, playground_api, storage
 
-
 class ShortcutStartupRegressionTest(unittest.TestCase):
     def test_chat_shortcuts_keep_ui_query_out_of_health_and_runtime_urls(self):
         for flag, action in (("--new-chat", "new"), ("--temporary-chat", "temp")):
@@ -35,7 +34,6 @@ class ShortcutStartupRegressionTest(unittest.TestCase):
                 self.assertEqual(probe.call_args.args[:2], ("http://127.0.0.1:18680", "/api/pg/ping"))
                 self.assertEqual(saved.call_args.args[1]["url"], "http://127.0.0.1:18680")
                 self.assertEqual(shell.call_args.args[0], "http://127.0.0.1:18680/?start=" + action)
-
 
 if __name__ == "__main__":
     unittest.main()

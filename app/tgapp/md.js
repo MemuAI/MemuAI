@@ -1,7 +1,5 @@
-/* MemuAI Mini App — a small, safe Markdown renderer.
- * Everything is escaped first; only a fixed set of constructs becomes HTML.
- * Links are limited to http(s) and mailto; images to https and data:image.
- */
+
+
 (function () {
   "use strict";
   const ESC = { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" };
@@ -53,7 +51,6 @@
     return /^(https?:\/\/|mailto:)/i.test(value) ? value : "";
   }
 
-  // Math without KaTeX (the Mini App stays light): LaTeX symbols → Unicode, ^/_ → sup/sub, \frac → a⁄b, \sqrt → √.
   const TEX = { alpha: "α", beta: "β", gamma: "γ", delta: "δ", epsilon: "ε", varepsilon: "ε", zeta: "ζ", eta: "η", theta: "θ",
     iota: "ι", kappa: "κ", lambda: "λ", mu: "μ", nu: "ν", xi: "ξ", pi: "π", rho: "ρ", sigma: "σ", tau: "τ", phi: "φ", varphi: "φ",
     chi: "χ", psi: "ψ", omega: "ω", Gamma: "Γ", Delta: "Δ", Theta: "Θ", Lambda: "Λ", Pi: "Π", Sigma: "Σ", Phi: "Φ", Psi: "Ψ",
@@ -120,11 +117,11 @@
   }
 
   function inline(text) {
-    // Code spans first, protected from every other rule.
+
     const slots = [];
     const keep = (html) => "\u0000" + (slots.push(html) - 1) + "\u0000";
     let s = String(text).replace(/(`+)([^`]|[^`][\s\S]*?[^`])\1(?!`)/g, (_, ticks, code) => keep(`<code>${esc(code.trim())}</code>`));
-    // Math before emphasis: «x_1» or «a*b» inside $…$ must not turn into <em>.
+
     s = s.replace(/\$\$([^$\n]+)\$\$|\\\((.+?)\\\)|\\\[(.+?)\\\]/g, (_, a, b, c) => keep(`<span class="md-math">${mathHtml((a || b || c).trim())}</span>`));
     s = s.replace(/(^|[^\\$\w])\$([^$\s][^$\n]*?[^$\s]|[^$\s])\$(?![\w$])/g, (_, lead, body) => lead + keep(`<span class="md-math">${mathHtml(body)}</span>`));
     s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (_, alt, url) => {

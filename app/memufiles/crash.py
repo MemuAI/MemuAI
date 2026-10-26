@@ -15,7 +15,6 @@ from typing import Optional
 LOG_NAME = "memufiles-crash.log"
 _SHOWN = threading.Event()
 
-
 def log_dir() -> Path:
     env = os.environ.get("MEMUAI_DATA_DIR")
     if env:
@@ -23,10 +22,8 @@ def log_dir() -> Path:
     base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or os.path.expanduser("~")
     return Path(base) / "MemuAI" / "logs"
 
-
 def log_path() -> Path:
     return log_dir() / LOG_NAME
-
 
 def write_log(title: str, detail: str) -> Optional[Path]:
     try:
@@ -41,7 +38,6 @@ def write_log(title: str, detail: str) -> Optional[Path]:
     except OSError:
         return None
 
-
 def message_box(title: str, text: str) -> None:
     if os.name != "nt" or _SHOWN.is_set():
         return
@@ -52,9 +48,8 @@ def message_box(title: str, text: str) -> None:
     except Exception:  # noqa: BLE001
         pass
 
-
 def report(exc_type, exc, tb, where: str = "") -> None:
-    import traceback                     # Round 39: only when something crashed — not on every start
+    import traceback
     detail = "".join(traceback.format_exception(exc_type, exc, tb))
     path = write_log(f"crash {where}", detail)
     en = False
@@ -67,7 +62,6 @@ def report(exc_type, exc, tb, where: str = "") -> None:
         message_box("MemuFiles — error", f"MemuFiles could not start.\n\n{exc}\n\nLog: {path}")
     else:
         message_box("MemuFiles — ошибка", f"MemuFiles не смог запуститься.\n\n{exc}\n\nЖурнал: {path}")
-
 
 def install() -> None:
     previous = sys.excepthook

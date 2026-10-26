@@ -1,20 +1,5 @@
-/* Quick Ask × Do For You (Round 24, quick-window).
 
-   «Сделать за меня» right inside the Alt+Space window:
-   * Ctrl+Enter, the «Сделать за меня» row in Ctrl+K, or the offer that appears under the input when the
-     request looks like an action («забронируй…», «закажи…», «book…»);
-   * a progress card in the window (bottom slot): steps, a question from the agent (text / choice / confirm with
-     the total / secret: login, card, phone, e-mail, personal data, address, document, company / one-time code
-     with a countdown and «send again»), Cancel; field labels, validation and phone formatting come from
-     MemuDFY.forms (dfy-client.js) when it is served; the task runs on the SERVER, so hiding the window never stops it — on the next open the
-     card re-attaches (ids in localStorage), and a finished task is announced (toast + system notification);
-   * secrets typed into the card go straight to POST /api/dfy/tasks/{id}/answer (type=password, never into the
-     chat history, the input is cleared right after sending; the server keeps them in its encrypted vault).
 
-   Contract (TEAM_BRIEF): GET /api/dfy/status, POST /api/dfy/tasks, GET /api/dfy/tasks/{id}[/events],
-   POST …/answer, POST …/cancel. When /dfy-client.js (window.MemuDFY) is served it is used for the network
-   calls; otherwise this file speaks the same contract itself. The card is drawn here (compact, Quick Ask
-   style) — MemuDFY.renderCard is meant for the chat. */
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -24,8 +9,6 @@
   const STORE = "memu_quick_dfy_tasks";
   const FINAL = new Set(["done", "failed", "cancelled"]);
 
-  /* ------------------------------------------------------------ action-like requests */
-  // Imperative verbs of «do something in the world» (ru/en). Questions («как забронировать…?») are not actions.
   const ACTION_RE = new RegExp([
     "^(пожалуйста\\s+)?(забронируй|закажи|купи|оплати|оформи|запиши\\s+меня|зарегистрируй|отправь|отмени|продли|подпишись|отпишись|найди\\s+и\\s+(купи|закажи|забронируй)|заполни|скачай|войди|авторизуйся|сделай\\s+заказ|вызови\\s+такси|арендуй|сними)",
     "^(please\\s+)?(book|order|buy|purchase|pay|reserve|sign\\s+(me\\s+)?up|register|subscribe|unsubscribe|cancel\\s+my|renew|fill\\s+(in|out)|log\\s+in|check\\s+me\\s+in|rent|schedule\\s+an?)\\b",
@@ -38,7 +21,6 @@
     return ACTION_RE.test(s);
   }
 
-  /* ------------------------------------------------------------ network (MemuDFY or the contract) */
   async function json(path, options) {
     const response = await fetch(path, Object.assign({ cache: "no-store" }, options || {}));
     let data = {};
@@ -69,7 +51,7 @@
     cancel: (id) => (M() && M().cancel ? M().cancel(id) : post("/api/dfy/tasks/" + encodeURIComponent(id) + "/cancel", {})),
     watch(id, onUpdate) {
       if (M() && M().watch) return M().watch(id, onUpdate);
-      // SSE first; polling when EventSource is missing or the stream breaks.
+
       let stopped = false, source = null, timer = 0;
       const poll = async () => {
         if (stopped) return;
@@ -91,9 +73,8 @@
     },
   };
 
-  /* ------------------------------------------------------------ state */
   const D = { status: null, statusAt: 0, tasks: new Map(), el: null, panel: null, offer: "", notice: null, visible: true };
-  // tasks: id → {task, stop, notified}
+
   function saved() { try { return JSON.parse(localStorage.getItem(STORE) || "[]").filter((x) => typeof x === "string").slice(-6); } catch (_) { return []; } }
   function remember() { try { localStorage.setItem(STORE, JSON.stringify(Array.from(D.tasks.keys()).slice(-6))); } catch (_) {} }
 
@@ -113,7 +94,6 @@
     return st.reason ? String(st.reason) : t("DFY не готов.", "DFY is not ready.");
   }
 
-  /* ------------------------------------------------------------ panel */
   function mount(el) {
     D.el = el;
     el.classList.add("qdfy");
@@ -138,16 +118,16 @@
     queued: () => t("В очереди", "Queued"), running: () => t("Выполняю", "Working"), waiting_user: () => t("Нужен ваш ответ", "Needs you"),
     done: () => t("Готово", "Done"), failed: () => t("Не получилось", "Failed"), cancelled: () => t("Отменено", "Cancelled"),
   };
-  // Field descriptions, validation and phone formatting are shared with the chat card (dfy-client.js).
+
   const forms = () => (window.MemuDFY && window.MemuDFY.forms) || null;
   const CHANNEL = { sms: ["SMS", "SMS"], email: ["письмо", "email"], app: ["приложение", "app"], call: ["звонок", "call"] };
-  // The countdown of a code question survives re-renders (the card is redrawn on every update).
+
   const deadlines = new Map();
   function deadline(q) {
     if (!deadlines.has(q.id)) { deadlines.set(q.id, Date.now() + (q.expires_in || 600) * 1000); if (deadlines.size > 20) deadlines.delete(deadlines.keys().next().value); }
     return deadlines.get(q.id);
   }
-  /* Round 30: the user takes over the DFY browser (/dfy-takeover.js fills this window, which grows to its maximum). */
+
   function takeover() {
     if (window.MemuDFY && window.MemuDFY.takeover) return Promise.resolve(window.MemuDFY.takeover);
     if (window.MemuDFYTakeover) return Promise.resolve(window.MemuDFYTakeover);
@@ -182,11 +162,11 @@
     const q = task.question;
     if (!q || task.status !== "waiting_user" || q.kind === "takeover" || task.control === "user") return "";
     const id = esc(task.id);
-    // Round 29: the stuck detector paused the task — the shared pause card (/stuck.js).
+
     if (q.kind === "stuck" && window.MemuStuck) return window.MemuStuck.dfyQuestionHtml(task, q, { compact: true, lang: Q.lang() });
     const prompt = `<div class="qdfy-q-prompt">${esc(q.prompt || t("Агенту нужен ответ", "The agent needs an answer"))}</div>`;
     if (q.kind === "confirm") {
-      // Round 30: a step on a machine shows the command and the machine (dfy-remote.js)
+
       const body = q.machine && window.MemuDFYRemote ? `<div class="qdfy-machine-q">${window.MemuDFYRemote.confirmBody(q)}</div>` : prompt;
       return `<div class="qdfy-q">${body}${q.amount ? `<div class="qdfy-amount">${esc(t("Сумма: ", "Total: ") + q.amount)}</div>` : ""}
         <div class="qdfy-q-actions"><button type="button" class="qdfy-btn primary" data-qdfy="approve" data-id="${id}">${esc(t("Подтвердить", "Approve"))}</button>
@@ -213,7 +193,7 @@
     let inputs;
     if (secret && F) inputs = `<div class="qdfy-fields">${names.map((f) => F.inputHtml(f, { kind: q.secret_kind, cls: "qdfy-input" })).join("")}</div>`;
     else {
-      // Without dfy-client.js (old server) or for a text question: plain inputs.
+
       inputs = (secret ? names : ["answer"]).map((name) => {
         const pw = secret && !/^(username|email|phone|first_name|last_name|middle_name|city|country)$/i.test(name);
         return `<input class="qdfy-input" data-field="${esc(name)}" type="${pw ? "password" : "text"}" autocomplete="off" spellcheck="false"
@@ -233,8 +213,7 @@
       ${secret ? `<span class="qdfy-lock"><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg> ${esc(t("ИИ увидит только маску", "the AI sees only a mask"))}</span>` : ""}</div>
       ${secret ? `<label class="qdfy-save"><input type="checkbox" data-qdfy-save checked> ${esc(t("Запомнить в зашифрованном хранилище", "Remember in the encrypted vault"))}</label>` : ""}</form>`;
   }
-  /* Round 34: steps in words — the server's line («Открыт …», «Введено …») and, for a step without one, a word
-     («Открыл страницу»), never the agent's verbs («navigate», «click_xy»). */
+
   const ACTIONS = { navigate: ["Открыл страницу", "Opened a page"], click: ["Нажал", "Clicked"], click_xy: ["Нажал", "Clicked"],
     type: ["Ввёл", "Typed"], select: ["Выбрал", "Selected"], key: ["Клавиша", "Key"], scroll: ["Прокрутил", "Scrolled"],
     back: ["Назад", "Back"], wait: ["Подождал", "Waited"], done: ["Готово", "Done"], fail: ["Не вышло", "Failed"],
@@ -250,8 +229,7 @@
     if (!lastShot) return "";
     return `<button type="button" class="qdfy-shot${D.bigShot === task.id ? " big" : ""}" data-qdfy="shot" data-id="${esc(task.id)}" title="${esc(t("Что сейчас видит ИИ — нажмите, чтобы увеличить", "What the AI sees now — click to enlarge"))}"><img alt="" src="${esc(lastShot.screenshot_url)}"></button>`;
   }
-  /* r34-quick-agentic-2: in a narrow window (≤ 520 px) the head buttons become icons, so the head stays one line
-     (the goal kept two letters, or the buttons wrapped to a second row) — quick-dfy.css */
+
   const HEAD_IC = {
     takeover: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m4 3 7 17 2.5-7.5L21 10z"/></svg>',
     cancel: '<svg viewBox="0 0 24 24"><rect x="6.5" y="6.5" width="11" height="11" rx="2.2" fill="currentColor"/></svg>',
@@ -280,7 +258,7 @@
   function render() {
     const el = D.el;
     if (!el) return;
-    // keep what the user is typing into a question across re-renders
+
     const typing = {};
     const keyOf = (i) => i.closest("form").dataset.id + ":" + (i.dataset.field || (i.hasAttribute("data-code") ? "code" : ""));
     const FIELDS_SEL = "input[data-field],select[data-field],input[data-code]";
@@ -299,8 +277,7 @@
         <button type="button" class="qdfy-x" data-qdfy="notice-no" title="${esc(t("Закрыть", "Close"))}" aria-label="${esc(t("Закрыть", "Close"))}">×</button></div>`);
     }
     for (const entry of D.tasks.values()) parts.push(taskHtml(entry));
-    // Round 34: the live screenshot is not re-downloaded (no-store) on every redraw — the old <img> stays until the
-    // next picture has loaded (no blank flash, no jump)
+
     const oldShots = new Map(Array.from(el.querySelectorAll(".qdfy-shot")).map((b) => [b.dataset.id, b.querySelector("img")]));
     el.innerHTML = parts.join("");
     el.querySelectorAll(".qdfy-shot").forEach((b) => {
@@ -320,7 +297,7 @@
       if (typing[key]) i.value = typing[key];
       if (focused && key === focused) i.focus();
     });
-    // A question that just appeared gets the keyboard (unless the user is typing in the main input).
+
     for (const entry of D.tasks.values()) {
       const q = entry.task && entry.task.status === "waiting_user" && entry.task.question;
       if (!q || entry.focusedQuestion === q.id) continue;
@@ -340,7 +317,6 @@
     Q.resize();
   }
 
-  /* ------------------------------------------------------------ actions */
   function contextFromChat() {
     const snap = Q.state ? Q.state() : {};
     const turns = Array.isArray(snap.turns) ? snap.turns : [];
@@ -360,8 +336,7 @@
     const aimed = window.MemuDFYRemote ? window.MemuDFYRemote.parseCommand(goal) : { goal, target: "" };
     goal = aimed.goal;
     const st = await status(true);
-    // Round 30: «not ready» stays on screen with the way out (it was a 4-second toast, cut mid-sentence)
-    // A machine task needs the DFY model, not the browser.
+
     if (!st || !st.enabled || (st.ready === false && !(aimed.target && st.model))) { D.offer = ""; D.notice = { text: notReadyText(st), settings: !!st && st.reason !== "missing" }; sync(); return null; }
     D.offer = ""; D.notice = null;
     let created;
@@ -369,7 +344,7 @@
     if (!created || !created.id) { Q.toast(t("Сервер DFY не вернул задачу", "The DFY server returned no task"), "error"); return null; }
     if (goalText == null) Q.setInput("");
     attach(created.id, Object.assign({ id: created.id, goal, status: created.status || "queued", steps: [] }, created));
-    // Round 26 (review): the outcome becomes a turn of the chat the task was started from (Chats / Recent showed it empty)
+
     const entry = D.tasks.get(created.id);
     if (entry && Q.state) entry.chat = { id: Q.state().chatId, q: goal };
     Q.toast(t("Агент DFY начал работу", "The DFY agent started"));
@@ -387,15 +362,14 @@
     const entry = D.tasks.get(id);
     if (!entry || !task) return;
     if (task.gone || task.status === "gone") {
-      // Round 34: the server no longer knows the task (MemuAI restarted — tasks live in memory): the remembered card
-      // used to stay forever as «В очереди · Запускаю агента…» with live «Отменить»/«Перехватить» buttons
+
       if (entry.stop) { try { entry.stop(); } catch (_) {} }
       D.tasks.delete(id); remember(); sync();
       return;
     }
     const was = entry.task && entry.task.status;
     entry.task = Object.assign({}, entry.task, task, { id });
-    // Round 33: a stopped task closes its takeover window (the stream may be gone already).
+
     try { if (window.MemuDFYTakeover && window.MemuDFYTakeover.sync) window.MemuDFYTakeover.sync(entry.task); } catch (_) {}
     if (task.status === "waiting_user" && was !== "waiting_user") announce(entry, "question");
     if (FINAL.has(task.status) && !entry.notified) { entry.notified = true; announce(entry, task.status); record(entry); if (entry.stop) { try { entry.stop(); } catch (_) {} entry.stop = null; } }
@@ -403,7 +377,7 @@
   }
   function record(entry) {
     const chat = entry.chat, task = entry.task || {};
-    if (!chat || !Q.recordTurn || !Q.state || Q.state().chatId !== chat.id) return;   // only into the chat it came from
+    if (!chat || !Q.recordTurn || !Q.state || Q.state().chatId !== chat.id) return;
     const a = task.status === "done" ? String(task.result || t("Готово", "Done"))
       : task.status === "failed" ? t("Не получилось: ", "Failed: ") + String(task.error || "") : t("Отменено.", "Cancelled.");
     Q.recordTurn({ q: chat.q, a: t("Сделать за меня — ", "Do it for me — ") + a.trim() });
@@ -413,10 +387,9 @@
     const text = kind === "question" ? t("DFY ждёт вашего ответа: ", "DFY needs your answer: ") + goal
       : kind === "done" ? t("Готово: ", "Done: ") + goal
       : kind === "failed" ? t("DFY не справился: ", "DFY failed: ") + goal : t("Отменено: ", "Cancelled: ") + goal;
-    // Round 34: in the open window the question is right there on the card — a toast on top of the window's footer only
-    // repeated it (and covered the model picker)
+
     if (D.visible) { if (kind !== "question") Q.toast(text, kind === "failed" ? "error" : "", 3600); return; }
-    // the window is hidden: a system notification when allowed (WebView2 may refuse — then the card waits for the next open)
+
     try {
       if (window.Notification && Notification.permission === "granted") new Notification("MemuAI", { body: text });
       else if (window.Notification && Notification.permission === "default") Notification.requestPermission().then((p) => { if (p === "granted") new Notification("MemuAI", { body: text }); }).catch(() => {});
@@ -444,8 +417,7 @@
     const entry = D.tasks.get(id);
     const asked = entry && entry.task && entry.task.question ? entry.task.question.id : "";
     if (act !== "cancel") {
-      // Round 34: one answer per question — the card is redrawn on every update and a re-enabled button let a
-      // double click answer twice (the second click could approve the NEXT confirmation)
+
       if (!asked || (entry && entry.answering === asked)) { btn.disabled = false; return; }
       entry.answering = asked;
       render();
@@ -480,7 +452,7 @@
       if (!code) { input.focus(); return; }
       payload = { code };
     } else if (kind === "secret") {
-      // The contract's {secret:{fields}} shape → straight into the encrypted vault, never the chat.
+
       let values = {};
       if (F) values = F.collect(form, q.secret_kind);
       else inputs.forEach((i) => { if (i.value) values[i.dataset.field] = i.value; });
@@ -495,12 +467,11 @@
     }
     if (entry && q.id && entry.answering === q.id) return;
     if (entry) entry.answering = q.id || "";
-    // never keep a typed secret in the page longer than needed
+
     inputs.forEach((i) => { if (i.tagName === "INPUT") i.value = ""; i.disabled = true; });
     try { await net.answer(id, Object.assign({ question_id: q.id || undefined }, payload)); } catch (e) { if (entry) entry.answering = ""; Q.toast(t("Не удалось отправить ответ: ", "Could not send the answer: ") + (e.message || e), "error"); inputs.forEach((i) => { i.disabled = false; }); }
   }
 
-  /* ------------------------------------------------------------ wiring */
   let offerTimer = 0;
   function watchInput() {
     const input = document.getElementById("qa-input");
@@ -526,9 +497,9 @@
     sync();
   });
   Q.on("close", () => { D.visible = false; });
-  // the window language / preferences arrive after the remembered tasks were drawn (they were Russian in an English UI)
+
   Q.on("config", () => { if (D.tasks.size || D.offer || D.notice) render(); });
-  // Escape, level by level: an open question's field → leave it; a pending offer → drop it.
+
   Q.on("escape", (e) => {
     const a = document.activeElement;
     if (D.el && a && D.el.contains(a)) { a.blur(); const input = document.getElementById("qa-input"); if (input) input.focus(); e.preventDefault(); return; }

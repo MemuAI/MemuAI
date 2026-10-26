@@ -1,12 +1,8 @@
-/* MemuAI · Settings → Sync (Round 29). Uses the settings-kit tokens (--sx-*) and theme tokens only. */
-
 .sync-root { display: flex; flex-direction: column; gap: 0; }
 .sync-muted { color: var(--muted); font-size: 12.5px; margin: 2px 0 0; }
 .sync-mono { font-family: var(--mono, ui-monospace, "Cascadia Code", Consolas, monospace); font-size: 12px; word-break: break-all; }
 .sync-root .ui-icon { width: 16px; height: 16px; }
 .sync-root .sx-label .ui-icon { width: 15px; height: 15px; vertical-align: -2px; margin-right: 4px; color: var(--muted); }
-
-/* ------------------------------------------------------------------ hero */
 .sync-hero {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 16px;
   padding: 18px 20px; margin: 0 0 22px; border-radius: var(--sx-r, 14px);
@@ -47,8 +43,6 @@
   .sync-hero { grid-template-columns: auto minmax(0, 1fr); }
   .sync-hero-actions { grid-column: 1 / -1; justify-content: flex-start; }
 }
-
-/* --------------------------------------------------------------- connect */
 .sync-connect {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 14px; align-items: center;
   padding: 16px 18px; border-top: 1px solid var(--sx-line-soft);
@@ -62,8 +56,6 @@
 .sync-root .sx-actions .pbtn, .sync-root .sx-control .pbtn { display: inline-flex; align-items: center; gap: 6px; }
 .sync-quota { height: 5px; width: min(260px, 100%); margin-top: 6px; border-radius: 99px; background: var(--sx-press); overflow: hidden; }
 .sync-quota i { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
-
-/* ----------------------------------------------------------- folder list */
 .sync-folders { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; padding: 14px 18px 4px; }
 .sync-folder {
   display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 10px 12px; border-radius: 11px;
@@ -75,8 +67,6 @@
 .sync-folder span { display: flex; flex-direction: column; min-width: 0; }
 .sync-folder b { font-size: 13px; font-weight: 600; }
 .sync-folder small { color: var(--muted); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* -------------------------------------------------------------- misc rows */
 .sync-size { margin-left: 8px; font: 550 11.5px/1 var(--sx-font); color: var(--muted); padding: 3px 7px; border-radius: 99px; background: var(--sx-press); white-space: nowrap; vertical-align: 1px; }
 .sync-pass { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; width: 100%; }
 .sync-pass .sx-secret { flex: 1 1 180px; min-width: 0; }
@@ -89,8 +79,6 @@
 .sync-log-row[data-ok="0"] .sync-log-dot { background: var(--danger); }
 .sync-log-time { color: var(--muted); font-variant-numeric: tabular-nums; }
 @media (max-width: 640px) { .sync-log-row { grid-template-columns: 10px minmax(0, 1fr); } .sync-log-row > span:nth-child(n+3) { grid-column: 2; } }
-
-/* --------------------------------------------------------------- restore */
 .sync-snaps { display: grid; gap: 8px; margin-top: 12px; }
 .sync-snap {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center;
@@ -141,8 +129,6 @@
 .sync-pick span { display: flex; flex-direction: column; min-width: 0; }
 .sync-pick b { font-size: 13px; font-weight: 600; }
 .sync-pick small { color: var(--muted); font-size: 11.5px; }
-
-/* --------------------------------------------------------------- confirm */
 .sync-confirm { position: fixed; inset: 0; z-index: 2147482600; display: grid; place-items: center; padding: 16px; background: rgba(0, 0, 0, .4); animation: sync-fade .15s ease both; }
 .sync-confirm-card { width: min(440px, 100%); padding: 20px 22px 16px; border-radius: 16px; background: var(--panel); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow, 0 18px 60px rgba(0, 0, 0, .4)); }
 .sync-confirm-card p { margin: 0 0 16px; font-size: 14px; line-height: 1.5; }

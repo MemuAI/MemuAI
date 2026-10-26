@@ -1,5 +1,5 @@
-/* Settings and credentials belong to the persistent Proxy monitor. The iframe
- * stores only the history search; pending keys remain in memory until Save. */
+
+
 (() => {
   "use strict";
   const $ = (selector) => document.querySelector(selector);
@@ -22,7 +22,7 @@
     query: String(Memu.saved?.query || ""),
     familyCounts: new Map(), familyNames: new Map(), familiesLoaded: false, familiesBusy: false, familiesError: "", familyQueries: new Map(),
     expanded: new Set(["openrouter"]),
-    // Раунд 21: лента.
+
     tab: "", seen: 0, unreadFrom: -1, period: "all", sourceFilter: "all", onlyUnread: false,
     specs: new Map(), specsByTail: new Map(),
   };
@@ -47,8 +47,7 @@
     if (replaceDraft || !state.loaded) {
       const configured = new Map(rows.map((source) => [source.id, source]));
       const firstConfiguration = !rows.length && !data?.revision && !data?.interval;
-      // A fresh install used to start "paused": the user picked sources, pressed Save
-      // and never got a single alert. Monitoring is on by default until switched off.
+
       state.enabled = firstConfiguration ? true : !!data?.enabled;
       state.interval = +data?.interval || 3600; state.telegram = data?.telegram !== false;
       state.sources = PRESETS.map((preset) => makeSource({ ...preset, ...(configured.get(preset.id) || {}) }, configured.has(preset.id) || (firstConfiguration && preset.id === "openrouter")));
@@ -144,10 +143,7 @@
       <div class="am-status ${source.runtime.error ? "error" : ""}" data-source-status="${index}" role="status">${esc(statusText(source))}</div>
     </section>`;
   }
-  /* ---------------------------- лента (Раунд 21) ----------------------------
-   * Уведомления монитора — это события вида «+ Название · id». Лента разбирает
-   * их в модели, группирует по дням и поставщикам и дополняет характеристиками
-   * из публичного каталога OpenRouter (контекст, цены, модальности). */
+
   const DAY = 86400000;
   function eventTime(event) { const at = +event.at || 0; return at < 1e12 ? at * 1000 : at; }
   function sourceOf(event) { const title = String(event.title || ""); return title.includes(" · ") ? title.split(" · ").slice(1).join(" · ") : title; }
@@ -199,7 +195,7 @@
       if (state.period !== "all" && now - item.at > +state.period * DAY) continue;
       if (state.sourceFilter !== "all" && item.source !== state.sourceFilter) continue;
       for (const model of item.models) {
-        // Одна модель — одна строка: повтор (переименование, повторная проверка) берётся самый свежий.
+
         const id = `${item.source}|${model.key}`;
         if (keys.has(id)) continue;
         keys.add(id);
@@ -258,7 +254,7 @@
     if (chips) chips.innerHTML = ["all", ...sources].map((name) => `<button type="button" class="am-chip ${state.sourceFilter === name ? "on" : ""}" data-feed-source="${esc(name)}" aria-pressed="${state.sourceFilter === name}">${esc(name === "all" ? tr("Все источники", "All sources") : name)}</button>`).join("");
     const mark = $("#am-mark-seen"); if (mark) mark.disabled = !unreadCount;
     if (!models.length && !notes.length) { list.innerHTML = emptyHtml(); bindFeed(); return; }
-    // День → поставщик → модели.
+
     const days = new Map();
     for (const model of models) {
       const dayKey = new Date(model.at).toDateString();
@@ -315,8 +311,7 @@
     $("#am-settings-pane").hidden = state.tab !== "settings";
     if (state.tab === "feed") autoSeen();
   }
-  /** Открытая лента = просмотрено: отметка сохраняется сразу (в профиле, через Proxy),
-   *  а подсветка «новая» остаётся до конца этого просмотра. */
+
   function autoSeen() {
     clearTimeout(autoSeen.timer);
     autoSeen.timer = setTimeout(() => { if (state.tab === "feed" && !document.hidden && state.cursor > state.seen) markSeen(); }, 1500);
@@ -371,7 +366,7 @@
     $("#app").setAttribute("aria-busy", String(state.busy));
     setTab(state.tab);
     renderHistory(); updateControls(); bind(); updateFamilyLists();
-    // Round 30: one header — the window's title row names the module and shows its status and «Check now».
+
     if(Memu.toolbar&&Memu.toolbar.adopt)Memu.toolbar.adopt({hide:".am-brand",status:".am-sub",buttons:[{id:"scan",el:"#am-scan-top",icon:"refresh",showLabel:true}]});
   }
   function updateControls() {
@@ -380,7 +375,7 @@
     $("#am-scan").disabled = scanDisabled; $("#am-scan-top").disabled = scanDisabled;
     $("#am-scan-top").classList.toggle("busy", state.busy);
     $("#am-dirty").textContent = state.dirty ? tr("Есть несохранённые изменения", "Unsaved changes") : "";
-    // Round 31: MemuAI asks before closing the window with unsaved settings.
+
     if (state.reportedDirty !== state.dirty && typeof Memu.unsaved === "function") {
       state.reportedDirty = state.dirty;
       Memu.unsaved(state.dirty, tr("Настройки наблюдения не сохранены.", "The monitoring settings are not saved.")).catch(() => {});
@@ -414,7 +409,7 @@
       const byId = new Map(state.events.map((event)=>[event.id,event]));
       for (const event of data?.events || []) if (event.module_id === "api-models") byId.set(event.id,event);
       state.events = [...byId.values()].slice(-200);state.cursor = Math.max(state.cursor,+data?.cursor || 0);state.historyLoaded = true;state.historyError = "";
-      // «Просмотрено» хранится в профиле (Proxy, background.json), а не в странице.
+
       if (Number.isFinite(+data?.seen)) { state.seen = Math.max(state.seen, +data.seen); if (state.unreadFrom < 0) state.unreadFrom = state.seen; }
       if (state.tab === "feed") autoSeen();
     } catch (error) { state.historyError = tr("Не удалось загрузить историю: ", "Could not load history: ")+String(error?.message || error); }
@@ -518,14 +513,14 @@
     } catch(error){state.error=String(error?.message || error);updateControls();}
   }
   Memu.onLanguage?.(()=>render());
-  // Новое уведомление монитора — сразу в ленту, без ожидания 30-секундного опроса.
+
   Memu.on?.("notification", ()=>history());
   window.addEventListener("pagehide",()=>{clearTimeout(queryTimer);for(const source of state.sources)source.apiKey="";});
   (async()=>{
     try{
       const status = await Memu.monitor({action:"status"});
       applyStatus(status,true);
-      // Ещё не настроено — сразу настройки; иначе — лента.
+
       state.tab = (status?.sources || []).length ? "feed" : "settings";
       render();await history();
     }
@@ -534,6 +529,6 @@
     discoverFamilies();
   })();
   setInterval(refreshBackground,30000);
-  // The family list changes rarely; re-downloading ~1 MB every 5 minutes was wasteful.
+
   setInterval(()=>{if(!document.hidden)discoverFamilies();},1800000);
 })();

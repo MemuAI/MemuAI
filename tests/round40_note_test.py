@@ -38,7 +38,6 @@ from app.memunote.formats import sheets, xlsx_edit  # noqa: E402
 
 NS = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
 
-
 def make_xlsx() -> bytes:
     """A small styled workbook written by hand (no openpyxl): header style, number format, widths, a merge,
     a shared formula, a second sheet, sharedStrings and a calcChain."""
@@ -63,24 +62,22 @@ def make_xlsx() -> bytes:
             z.writestr(name, text.encode("utf-8"))
     return out.getvalue()
 
-
 def entries(data: bytes):
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         return {n: z.read(n) for n in z.namelist()}
-
 
 class PatcherTest(unittest.TestCase):
     def test_reader_gives_formulas_looks_styles_widths_merges(self) -> None:
         r = sheets.read_xlsx(make_xlsx())
         s = r["sheets"][0]
         self.assertTrue(r["editable"])
-        self.assertEqual(s["formulas"], {"1,3": "B2*C2", "2,3": "B3*C3"})        # the shared formula written out
+        self.assertEqual(s["formulas"], {"1,3": "B2*C2", "2,3": "B3*C3"})
         self.assertEqual(s["widths"], {"0": 173})
         self.assertEqual(s["merges"], ["F1:G2"])
         look = r["looks"][s["styles"]["0,0"]]
         self.assertEqual((look["b"], look["color"], look["fill"], look["align"]), ("1", "#FFFFFF", "#336699", "center"))
         self.assertEqual(r["looks"][s["styles"]["1,1"]]["fmt"], '#,##0.00 "₽"')
-        self.assertNotIn("fmt", r["looks"][3])          # date formats are shown as dates by the reader
+        self.assertNotIn("fmt", r["looks"][3])
 
     def test_only_touched_cells_change_and_styles_stay(self) -> None:
         data = make_xlsx()
@@ -89,13 +86,13 @@ class PatcherTest(unittest.TestCase):
         before, after = entries(data), entries(out)
         for name in ("xl/styles.xml", "xl/sharedStrings.xml", "xl/worksheets/sheet2.xml", "_rels/.rels"):
             self.assertEqual(before[name], after[name], name)
-        self.assertNotIn("xl/calcChain.xml", after)                        # formulas changed → stale chain dropped
+        self.assertNotIn("xl/calcChain.xml", after)
         self.assertNotIn("calcChain", after["xl/_rels/workbook.xml.rels"].decode())
         self.assertNotIn("calcChain", after["[Content_Types].xml"].decode())
         self.assertIn('fullCalcOnLoad="1"', after["xl/workbook.xml"].decode())
         sheet = after["xl/worksheets/sheet1.xml"].decode()
         self.assertIn('<c r="B2" s="2"><v>130</v></c>', sheet)
-        self.assertIn('<row r="1"><c r="A1" s="1" t="s"><v>0</v></c>', sheet.replace(' spans="1:4"', ""))   # header untouched
+        self.assertIn('<row r="1"><c r="A1" s="1" t="s"><v>0</v></c>', sheet.replace(' spans="1:4"', ""))
         self.assertIn('<c r="E1" t="inlineStr"><is><t xml:space="preserve"> с пробелом</t></is></c>', sheet)
         self.assertIn('<row r="4"><c r="A4" t="inlineStr"><is><t>Итого</t></is></c><c r="D4"><f>SUM(D2:D3)</f><v>690</v></c></row>', sheet)
         self.assertIn('<dimension ref="A1:E4"/>', sheet)
@@ -145,7 +142,6 @@ class PatcherTest(unittest.TestCase):
         with self.assertRaises(xlsx_edit.SheetEditError):
             xlsx_edit.patch_xlsx(make_xlsx(), {"sheets": [{"name": "Продажи", "cells": {"1A": {"v": "1"}}}]})
 
-
 class ProtocolTest(unittest.TestCase):
     def test_sheet_ops_doc_attribute_and_csv_documents(self) -> None:
         _, found = edits.parse_all('Ок.\n<edit op="set_cells" doc="d1" sheet="Продажи" range="$D$5"><text>=SUM(D2:D4)</text></edit>\n'
@@ -158,7 +154,7 @@ class ProtocolTest(unittest.TestCase):
         self.assertEqual((found[1]["sheet"], found[1]["range"], found[1]["formula"]), ("Лист 2", "E2:E4", "=D2*1.2"))
         self.assertEqual((found[2]["op"], found[2]["header"]), ("add_column", "НДС"))
         self.assertEqual((found[3]["op"], found[3]["name"]), ("add_sheet", "Итоги"))
-        self.assertEqual(found[4]["kind"], "csv")                      # the bad range was dropped
+        self.assertEqual(found[4]["kind"], "csv")
         self.assertEqual(found[5]["doc"], "d2")
 
     def test_prompt_has_every_document_with_ids_budget_and_protocols(self) -> None:
@@ -179,7 +175,6 @@ class ProtocolTest(unittest.TestCase):
         single = prompts.build_messages({**body, "docs": []}, {}, "ru", False)
         self.assertNotIn("SEVERAL DOCUMENTS", single["messages"][0]["content"])
         self.assertNotIn('id="d0"', "\n".join(m["content"] for m in single["messages"]))
-
 
 class ApiTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -233,7 +228,6 @@ class ApiTest(unittest.TestCase):
         status, data = self.call("/api/sheet_save", {"path": str(other), "changes": changes})
         self.assertEqual(status, 403)
 
-
 @unittest.skipUnless(NODE, "node is not installed")
 class FormulaEngineTest(unittest.TestCase):
     def test_functions_errors_cycles_and_fill_rules(self) -> None:
@@ -250,11 +244,10 @@ console.log(JSON.stringify({ out, shift: shiftFormula("SUM(D2:D4)+$A$1+'X'!B3&\\
         data = json.loads(res.stdout)
         texts = [x[0] for x in data["out"]]
         self.assertEqual(texts[:2], ["300", "много"])
-        self.assertEqual(data["out"][2], ["", True])        # unknown function → cached value + marker
+        self.assertEqual(data["out"][2], ["", True])
         self.assertEqual(texts[3:9], ["2 шт", "err", "120", "300", "#CYCLE!", "#DIV/0!"])
         self.assertEqual(texts[9:13], ["90", "25.6%", "TRUE", "#VALUE!"])
         self.assertEqual(data["shift"], "SUM(E3:E5)+$A$1+'X'!C4&\"A1\"")
-
 
 class WiringTest(unittest.TestCase):
     def test_i18n_wiring_and_build(self) -> None:
@@ -284,8 +277,6 @@ class WiringTest(unittest.TestCase):
             res = subprocess.run([NODE, "--check", str(JS / name)], capture_output=True, text=True)
             self.assertEqual(res.returncode, 0, name + res.stderr)
 
-
-# ===================================================================================== browser
 class FakeProxy(http.server.BaseHTTPRequestHandler):
     answer = ""
     seen: list = []
@@ -324,14 +315,12 @@ class FakeProxy(http.server.BaseHTTPRequestHandler):
             self.wfile.write(b"data: " + json.dumps({"choices": [{"delta": {"content": text[i:i + 40]}}]}).encode() + b"\n\n")
         self.wfile.write(b"data: [DONE]\n\n")
 
-
 def _playwright():
     try:
         import playwright.sync_api  # noqa: F401
         return os.path.exists(CHROME)
     except Exception:  # noqa: BLE001
         return False
-
 
 @unittest.skipUnless(_playwright(), "Playwright + Chromium not available")
 class BrowserTest(ApiTest):
@@ -379,7 +368,7 @@ class BrowserTest(ApiTest):
             b, pg = self.open(p, [f])
             try:
                 pg.wait_for_selector(".sg-c")
-                self.assertIn("120,00", pg.inner_text(".sg-cells"))                 # number format of the file
+                self.assertIn("120,00", pg.inner_text(".sg-cells"))
                 self.assertIn("font-weight:650", pg.eval_on_selector(".sg-c", "e => e.getAttribute('style')"))
                 self.goto_cell(pg, "B2")
                 pg.keyboard.type("130")
@@ -415,7 +404,7 @@ class BrowserTest(ApiTest):
         r = sheets.read_xlsx(f.read_bytes())["sheets"][0]
         self.assertEqual(r["rows"][1][1], "130")
         self.assertEqual((r["formulas"]["1,4"], r["formulas"]["2,4"]), ("D2*0.2", "D3*0.2"))
-        self.assertEqual((r["rows"][1][4], r["rows"][2][4]), ("78", "60"))              # computed values cached in the file
+        self.assertEqual((r["rows"][1][4], r["rows"][2][4]), ("78", "60"))
         self.assertIn('<c r="B2" s="2"><v>130</v></c>', after["xl/worksheets/sheet1.xml"].decode())
 
     def test_three_tabs_edits_go_to_their_tabs_and_a_sheet_preview_applies_and_undoes(self) -> None:
@@ -476,7 +465,6 @@ class BrowserTest(ApiTest):
                 self.assertEqual(self.errors, [])
             finally:
                 b.close()
-
 
 if __name__ == "__main__":
     unittest.main()

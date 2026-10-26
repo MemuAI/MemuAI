@@ -27,7 +27,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['faster_whisper', 'ctranslate2', 'av', 'onnxruntime', 'tokenizers', 'huggingface_hub', 'hf_xet', 'numpy', 'piper', 'clr', 'pythonnet', 'clr_loader', 'prompt_toolkit.contrib.ssh'],
+    excludes=['faster_whisper', 'ctranslate2', 'av', 'onnxruntime', 'tokenizers', 'huggingface_hub', 'hf_xet', 'numpy', 'piper', 'clr', 'pythonnet', 'clr_loader', 'prompt_toolkit.contrib.ssh', 'duckdb', '_duckdb'],
     noarchive=False,
     optimize=0,
 )

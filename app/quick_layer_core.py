@@ -38,42 +38,33 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 LAYER_VERSION = 1
 MAX_MONITORS = 12
-#: The size classes of Round 27 stay: an item's ``w``/``h`` are grid UNITS (a panel S 2×2, M 4×2, L 4×4, W 8×2;
-#: a button 1×1 or 2×2). One unit is ``DENSITY[density]`` CSS px, units are separated by ``GAP``.
+
 DENSITY = {"compact": 58, "normal": 72, "large": 88}
 GAP = 8
-MARGIN = 12            # CSS px kept free along the work-area edges
-SPACING = GAP          # CSS px between two items (= the Round 27 grid gap: a migrated grid keeps its exact shape)
-KEEPOUT_PAD = 14       # CSS px around the Quick Ask window
+MARGIN = 12
+SPACING = GAP
+KEEPOUT_PAD = 14
 ANCHORS_X = ("l", "c", "r")
 ANCHORS_Y = ("t", "m", "b")
-#: Round 27 grid → screen: the window's grid becomes a block glued to the top-right corner of the work area
-#: (the window itself opens in the middle), measured on a typical 1920×1080 work area at 100 %.
+
 MIGRATION_AREA = (1920, 1032)
 MIGRATION_OFFSET = 24
 
-Rect = Tuple[float, float, float, float]          # x, y, w, h (CSS px)
-
-
-# ------------------------------------------------------------------ sizes & monitors
+Rect = Tuple[float, float, float, float]
 
 def cell(density: str) -> int:
     return DENSITY.get(density or "normal", DENSITY["normal"])
-
 
 def unit_px(units: int, density: str = "normal") -> int:
     units = max(1, int(units))
     return units * cell(density) + (units - 1) * GAP
 
-
 def units_fitting(px: float, density: str = "normal") -> int:
     """How many units fit into ``px`` CSS px."""
     return max(1, int((float(px) + GAP) // (cell(density) + GAP)))
 
-
 def item_px(item: Dict[str, Any], density: str = "normal") -> Tuple[int, int]:
     return unit_px(int(item.get("w") or 1), density), unit_px(int(item.get("h") or 1), density)
-
 
 def monitor_key(monitor: Dict[str, Any]) -> str:
     """Id of a monitor for its own layout: physical size + DPI (two identical screens share one — on purpose)."""
@@ -82,11 +73,9 @@ def monitor_key(monitor: Dict[str, Any]) -> str:
     dpi = dpi if 48 <= dpi <= 960 else 96
     return "%dx%d@%d" % (right - left, bottom - top, dpi)
 
-
 def monitor_scale(monitor: Dict[str, Any]) -> float:
     dpi = int(monitor.get("dpi") or 96)
     return (dpi if 48 <= dpi <= 960 else 96) / 96.0
-
 
 def work_rect(monitor: Dict[str, Any]) -> Tuple[int, int, int, int]:
     work = monitor.get("work") or monitor["rect"]
@@ -94,7 +83,6 @@ def work_rect(monitor: Dict[str, Any]) -> Tuple[int, int, int, int]:
     if right <= left or bottom <= top:
         left, top, right, bottom = (int(v) for v in monitor["rect"])
     return left, top, right, bottom
-
 
 def area_of(monitor: Dict[str, Any]) -> Dict[str, Any]:
     """The work area of ``monitor`` in CSS px + what is needed to go back to physical pixels."""
@@ -104,14 +92,12 @@ def area_of(monitor: Dict[str, Any]) -> Dict[str, Any]:
             "h": int(math.floor((bottom - top) / scale)), "scale": scale, "origin": [left, top],
             "physical": [left, top, right, bottom]}
 
-
 def to_css_rect(physical: Sequence[float], area: Dict[str, Any]) -> Rect:
     """A physical-pixel rectangle (l, t, r, b — virtual-desktop coordinates, may be negative) → CSS px in the area."""
     left, top, right, bottom = (float(v) for v in physical)
     ox, oy = area["origin"]
     scale = float(area["scale"]) or 1.0
     return ((left - ox) / scale, (top - oy) / scale, (right - left) / scale, (bottom - top) / scale)
-
 
 def to_physical_rect(rect: Rect, area: Dict[str, Any]) -> Tuple[int, int, int, int]:
     """CSS px in the area → physical (l, t, r, b) in virtual-desktop coordinates."""
@@ -120,7 +106,6 @@ def to_physical_rect(rect: Rect, area: Dict[str, Any]) -> Tuple[int, int, int, i
     scale = float(area["scale"]) or 1.0
     return (int(round(ox + x * scale)), int(round(oy + y * scale)), int(round(ox + (x + w) * scale)),
             int(round(oy + (y + h) * scale)))
-
 
 def keepout_for(geometry: Dict[str, Any], area: Dict[str, Any]) -> Dict[str, Optional[List[float]]]:
     """The Quick Ask window as keep-out rectangles in the layer (CSS px).
@@ -139,16 +124,12 @@ def keepout_for(geometry: Dict[str, Any], area: Dict[str, Any]) -> Dict[str, Opt
     clip = lambda r: _clip(r, area["w"], area["h"])  # noqa: E731
     return {"hard": clip(hard), "soft": clip(soft)}
 
-
 def _clip(rect: Rect, area_w: float, area_h: float) -> Optional[List[float]]:
     x, y, w, h = rect
     l, t, r, b = max(0.0, x), max(0.0, y), min(float(area_w), x + w), min(float(area_h), y + h)
     if r <= l or b <= t:
         return None
     return [round(l, 2), round(t, 2), round(r - l, 2), round(b - t, 2)]
-
-
-# ------------------------------------------------------------------ positions
 
 def rect_to_pos(rect: Rect, area_w: float, area_h: float) -> Dict[str, Any]:
     """Where an item was dropped, independently of the monitor: anchor per axis + offset + normalized centre."""
@@ -166,7 +147,6 @@ def rect_to_pos(rect: Rect, area_w: float, area_h: float) -> Dict[str, Any]:
     ay, dy = axis(y, h, cy, area_h, ANCHORS_Y)
     return {"ax": ax, "ay": ay, "dx": round(dx, 2), "dy": round(dy, 2),
             "fx": round(min(max(cx / area_w, 0.0), 1.0), 5), "fy": round(min(max(cy / area_h, 0.0), 1.0), 5)}
-
 
 def pos_to_xy(pos: Dict[str, Any], w: float, h: float, area_w: float, area_h: float,
               src: Optional[Sequence[float]] = None) -> Tuple[float, float]:
@@ -201,7 +181,6 @@ def pos_to_xy(pos: Dict[str, Any], w: float, h: float, area_w: float, area_h: fl
         y = float(pos.get("fy", 0.2)) * area_h - h / 2
     return x, y
 
-
 def clamp_xy(x: float, y: float, w: float, h: float, area_w: float, area_h: float, margin: float = MARGIN) -> Tuple[float, float]:
     """The whole item inside the work area (with the edge margin when there is room for it)."""
     mx = margin if area_w >= w + 2 * margin else max(0.0, (area_w - w) / 2)
@@ -210,19 +189,14 @@ def clamp_xy(x: float, y: float, w: float, h: float, area_w: float, area_h: floa
     y = min(max(float(y), my), max(my, area_h - my - h))
     return x, y
 
-
-# ------------------------------------------------------------------ free space
-
 def _inflate(rect: Sequence[float], pad: float) -> Rect:
     x, y, w, h = (float(v) for v in rect)
     return x - pad, y - pad, w + 2 * pad, h + 2 * pad
-
 
 def _hits(x: float, y: float, w: float, h: float, other: Rect) -> bool:
     ox, oy, ow, oh = other
     eps = 0.01
     return x < ox + ow - eps and ox < x + w - eps and y < oy + oh - eps and oy < y + h - eps
-
 
 def nearest_free(x: float, y: float, w: float, h: float, obstacles: Sequence[Rect], area_w: float, area_h: float,
                  margin: float = MARGIN) -> Optional[Tuple[float, float]]:
@@ -256,9 +230,6 @@ def nearest_free(x: float, y: float, w: float, h: float, obstacles: Sequence[Rec
                 break
     return best
 
-
-# ------------------------------------------------------------------ resolve
-
 def _fit_units(item: Dict[str, Any], area_w: float, area_h: float, density: str) -> Tuple[int, int]:
     """A panel too big for a small work area shrinks (whole units, at least 2×2); a button never does."""
     w_u, h_u = int(item.get("w") or 1), int(item.get("h") or 1)
@@ -267,7 +238,6 @@ def _fit_units(item: Dict[str, Any], area_w: float, area_h: float, density: str)
     max_w = units_fitting(max(0.0, area_w - 2 * MARGIN), density)
     max_h = units_fitting(max(0.0, area_h - 2 * MARGIN), density)
     return max(2, min(w_u, max_w)), max(2, min(h_u, max_h))
-
 
 def resolve(items: Sequence[Dict[str, Any]], layer: Dict[str, Any], key: str, area_w: float, area_h: float, *,
             keepout: Optional[Dict[str, Any]] = None, density: str = "normal") -> List[Dict[str, Any]]:
@@ -323,7 +293,6 @@ def resolve(items: Sequence[Dict[str, Any]], layer: Dict[str, Any], key: str, ar
         placed.append(row)
     return placed
 
-
 def _rects(value: Any) -> List[Rect]:
     if not value:
         return []
@@ -337,9 +306,6 @@ def _rects(value: Any) -> List[Rect]:
         if w > 0 and h > 0 and all(math.isfinite(v) for v in (x, y, w, h)):
             out.append((x, y, w, h))
     return out
-
-
-# ------------------------------------------------------------------ remember
 
 def remember(layer: Dict[str, Any], key: str, area_w: float, area_h: float, rects: Iterable[Dict[str, Any]],
              now: Optional[float] = None) -> Dict[str, Any]:
@@ -363,7 +329,7 @@ def remember(layer: Dict[str, Any], key: str, area_w: float, area_h: float, rect
             monitors.pop(old, None)
     default = layer.setdefault("default", {"area": [int(area_w), int(area_h)], "items": {}})
     merged = dict(default.get("items") or {})
-    # positions of the default made on another area are re-expressed on this one first, so one area describes all
+
     old_area = default.get("area") or list(MIGRATION_AREA)
     if [int(v) for v in old_area] != [int(area_w), int(area_h)]:
         for item_id, pos in list(merged.items()):
@@ -374,11 +340,8 @@ def remember(layer: Dict[str, Any], key: str, area_w: float, area_h: float, rect
     merged.update(positions)
     layer["default"] = {"area": [int(area_w), int(area_h)], "items": merged}
     if positions:
-        layer.pop("migrated", None)        # the user has arranged things on the screen: no longer a migrated grid
+        layer.pop("migrated", None)
     return layer
-
-
-# ------------------------------------------------------------------ normalize & migrate
 
 def _clean_pos(raw: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(raw, dict):
@@ -395,7 +358,6 @@ def _clean_pos(raw: Any) -> Optional[Dict[str, Any]]:
             "dx": round(max(-20000.0, min(20000.0, dx)), 2), "dy": round(max(-20000.0, min(20000.0, dy)), 2),
             "fx": round(min(max(fx, 0.0), 1.0), 5), "fy": round(min(max(fy, 0.0), 1.0), 5)}
 
-
 def _clean_area(raw: Any, fallback: Sequence[int]) -> List[int]:
     try:
         w, h = (int(float(v)) for v in raw)
@@ -404,7 +366,6 @@ def _clean_area(raw: Any, fallback: Sequence[int]) -> List[int]:
     except (TypeError, ValueError):
         pass
     return [int(v) for v in fallback]
-
 
 def _clean_items(raw: Any, ids: set) -> Dict[str, Any]:
     out = {}
@@ -415,7 +376,6 @@ def _clean_items(raw: Any, ids: set) -> Dict[str, Any]:
                 if clean:
                     out[str(item_id)] = clean
     return out
-
 
 def normalize_layer(raw: Any, items: Sequence[Dict[str, Any]], density: str = "normal") -> Dict[str, Any]:
     """Validated ``layer`` for the current ``layout.items``. No ``layer`` yet (a Round 27 file) = migration from the
@@ -439,7 +399,6 @@ def normalize_layer(raw: Any, items: Sequence[Dict[str, Any]], density: str = "n
     if raw.get("migrated") == "r27-grid":
         out["migrated"] = "r27-grid"
     return out
-
 
 def migrate_grid(items: Sequence[Dict[str, Any]], density: str = "normal") -> Dict[str, Any]:
     """Round 27 → 28: the window grid (8 columns of ``cell`` px) becomes screen positions.

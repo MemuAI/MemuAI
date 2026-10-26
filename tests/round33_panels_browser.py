@@ -42,7 +42,6 @@ except ImportError:
 NOW = time.time()
 problems: list = []
 
-
 def check(ok, what):
     if not ok:
         problems.append(what)
@@ -50,14 +49,12 @@ def check(ok, what):
     else:
         print("ok  ", what)
 
-
 def free_port():
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
     s.close()
     return port
-
 
 def seed():
     from app import panels
@@ -87,7 +84,6 @@ def seed():
         doc["seeded"] = True
         doc["settings"]["location"] = {"mode": "declined"}
     panels.mutate(mut)
-
 
 def main() -> int:
     import httpx
@@ -130,7 +126,7 @@ def main() -> int:
         with sync_playwright() as pw:
             chrome = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else None
             browser = pw.chromium.launch(executable_path=chrome, args=["--no-sandbox"])
-            # ---------------------------------------------------------------- zones + soft scrollbars
+
             if "1" in PARTS:
                 page = open_page(browser, 1366, 768)
                 page.screenshot(path=str(OUT / "r33p-zones-1366.png"))
@@ -149,7 +145,7 @@ def main() -> int:
                 check(info["sbottom"] == 1, "sidebar bottom chip")
                 z = info["zones"]
                 check(z["left"][1] and z["right"][1] and z["left"][2] == "" and z["right"][2] == "", f"1366: both columns as columns {z['left']} {z['right']}")
-                # hover the grid → thumb shows; wheel scrolls; fade on
+
                 home = page.locator("#panels-home")
                 hb = home.bounding_box()
                 page.mouse.move(hb["x"] + hb["width"] / 2, hb["y"] + min(hb["height"] - 5, 60))
@@ -161,7 +157,6 @@ def main() -> int:
                     check(state["top"] > 0 and state["fade"] == "1" and state["on"], f"wheel scrolls the grid, top fade + thumb show {state}")
                 page.context.close()
 
-            # ---------------------------------------------------------------- narrow: rails
                 page = open_page(browser, 1000, 700)
                 z = {x["id"]: x["fold"] for x in page.evaluate("MemuPanelsLayout.zones()")}
                 check(z["left"] == "rail" and z["right"] == "rail", f"1000 px: columns fold into rails {z}")
@@ -169,7 +164,6 @@ def main() -> int:
                 page.screenshot(path=str(OUT / "r33p-rails-1000.png"))
                 page.context.close()
 
-            # ---------------------------------------------------------------- edit mode
             if "2" in PARTS:
                 page = open_page(browser, 1700, 1000, theme="light")
                 page.locator('#panels-home .mp-card[data-panel-id="p_a00000001"]').click(button="right")
@@ -182,7 +176,7 @@ def main() -> int:
                 heads = page.locator("[data-zone-wrap] .mp-zone-head .mp-zone-name").all_inner_texts()
                 check(len(heads) >= 6, f"zone heads drawn {heads}")
                 page.screenshot(path=str(OUT / "r33p-edit.png"))
-                # drag left column → top strip
+
                 page.locator('#panels-z-left .mp-card[data-panel-id="p_c00000001"]').drag_to(page.locator("#panels-z-top .mp-zone-body"))
                 page.wait_for_timeout(800)
                 pl = panel("p_c00000001")["placements"]
@@ -192,7 +186,7 @@ def main() -> int:
                 page.wait_for_timeout(800)
                 pl = panel("p_c00000001")["placements"]
                 check("left" in pl and "top" not in pl, f"Ctrl+Z puts it back {pl}")
-                # corner grip → W
+
                 card = page.locator('#panels-home .mp-card[data-panel-id="p_a00000001"]')
                 card.evaluate("el => el.scrollIntoView({block: 'center'})")
                 page.wait_for_timeout(150)
@@ -210,14 +204,14 @@ def main() -> int:
                 page.mouse.up()
                 page.wait_for_timeout(800)
                 check(panel("p_a00000001")["size"] == ("w" if cols > 2 else "m"), f"corner grip resizes by grid columns ({cols} cols → {panel('p_a00000001')['size']})")
-                # size buttons
+
                 card = page.locator('#panels-home .mp-card[data-panel-id="p_a00000001"]')
                 card.hover()
                 page.wait_for_timeout(150)
                 page.locator('.mp-edchrome [data-edc-size="s"]').click()
                 page.wait_for_timeout(700)
                 check(panel("p_a00000001")["size"] == "s", "S button in the card chrome")
-                # ⚙ popover with the zone map
+
                 card = page.locator('#panels-home .mp-card[data-panel-id="p_a00000001"]')
                 card.hover()
                 page.wait_for_timeout(150)
@@ -230,7 +224,7 @@ def main() -> int:
                 page.keyboard.press("Escape")
                 page.wait_for_timeout(200)
                 check(page.locator(".mp-laypop").count() == 0 and page.evaluate("MemuPanelsLayout.editing()"), "Esc closes the popover first, the mode stays")
-                # keyboard: arrows reorder, Delete unpins
+
                 order0 = [e for e in page.locator("#panels-home .mp-card[data-panel-id]").evaluate_all("els => els.map(e => e.dataset.panelId)")]
                 first = page.locator(f'#panels-home .mp-card[data-panel-id="{order0[0]}"]')
                 first.focus()
@@ -244,7 +238,7 @@ def main() -> int:
                 page.keyboard.press("Control+z")
                 page.wait_for_timeout(700)
                 check("home" in panel(order0[0])["placements"], "Ctrl+Z brings it back")
-                # zone look: chips in the top strip, «in chats too»
+
                 page.locator('#panels-z-top [data-zone-view="chips"]').click()
                 page.wait_for_timeout(600)
                 check(page.locator("#panels-z-top .mp-chip[data-panel-id]").count() >= 2, "top strip switched to chips")
@@ -255,14 +249,13 @@ def main() -> int:
                 page.keyboard.press("Escape")
                 page.wait_for_timeout(300)
                 check(not page.evaluate("MemuPanelsLayout.editing()") and page.locator(".mp-editbar").count() == 0, "Esc leaves the mode")
-                # in a chat: the composer strip stays, the top strip hides
+
                 page.evaluate("""() => { const w = document.querySelector('#chat-view-wrap'); w.classList.remove('empty-chat'); }""")
                 page.wait_for_timeout(300)
                 vis = {x["id"]: x["visible"] for x in page.evaluate("MemuPanelsLayout.zones()")}
                 check(vis["composer"] and not vis["top"] and not vis["home"], f"inside a chat only «in chats too» zones stay {vis}")
                 page.context.close()
 
-            # ---------------------------------------------------------------- English
             if "3" in PARTS:
                 page = open_page(browser, 1440, 900, lang="en", theme="dark", design="glass")
                 page.evaluate("MemuPanelsLayout.enter()")
@@ -282,7 +275,6 @@ def main() -> int:
     check(not errors, f"no page errors {errors[:3]}")
     print(json.dumps({"problems": problems, "out": str(OUT)}, ensure_ascii=False))
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

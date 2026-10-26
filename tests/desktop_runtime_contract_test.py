@@ -22,7 +22,6 @@ import app.storage as storage_module
 from app.config import ConfigStore, Settings, hash_password
 from app.storage import load_json_with_recovery, mutate_json, save_json
 
-
 def _increment_json_worker(path: str, start, iterations: int) -> None:
     start.wait()
     for _ in range(iterations):
@@ -30,7 +29,6 @@ def _increment_json_worker(path: str, start, iterations: int) -> None:
             value["count"] += 1
             return True
         mutate_json(path, {"count": 0}, increment, backup=False)
-
 
 def _nested_json_worker(path: str) -> None:
     def nested(value):
@@ -40,14 +38,12 @@ def _nested_json_worker(path: str) -> None:
         return True
     mutate_json(path, {}, nested, backup=False)
 
-
 def _preference_worker(data_dir: str, start, update: dict) -> None:
     os.environ["MEMUAI_DATA_DIR"] = data_dir
     from app import pgdata
     start.wait()
     for _ in range(20):
         pgdata.save_preferences(update)
-
 
 class _BindSocket:
     def __init__(self, family: int, calls: list[tuple[int, tuple]], *, busy: bool = False) -> None:
@@ -65,7 +61,6 @@ class _BindSocket:
         self.calls.append((self.family, address))
         if self.busy:
             raise OSError("busy")
-
 
 class PortSelectionContractTest(unittest.TestCase):
     def test_proxy_port_probe_uses_ipv6_for_ipv6_bind(self) -> None:
@@ -89,7 +84,6 @@ class PortSelectionContractTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 desktop_entry.pick_port(65535)
         self.assertEqual([address[1] for _, address in calls], [65535])
-
 
 class RuntimeDiscoveryContractTest(unittest.TestCase):
     def test_runtime_files_follow_custom_data_directory(self) -> None:
@@ -173,7 +167,6 @@ class RuntimeDiscoveryContractTest(unittest.TestCase):
                              side_effect=[Response(b'{"service":"memuai-proxy"}'), Response()]):
             self.assertTrue(proxy_entry.activate_running_proxy())
 
-
 class ServerLifecycleContractTest(unittest.TestCase):
     def test_readiness_wait_stops_when_server_thread_has_exited(self) -> None:
         dead_thread = SimpleNamespace(is_alive=lambda: False)
@@ -236,7 +229,6 @@ class ServerLifecycleContractTest(unittest.TestCase):
         provider_close, close_all = asyncio.run(self._exercise_failed_lifespan())
         provider_close.assert_awaited_once()
         close_all.assert_awaited_once()
-
 
 class ConfigRecoveryContractTest(unittest.TestCase):
     @staticmethod
@@ -319,7 +311,6 @@ class ConfigRecoveryContractTest(unittest.TestCase):
         self.assertEqual(store.settings.host, "127.0.0.1")
         self.assertEqual(store.settings.port, 8317)
 
-
 class CrossProcessStorageContractTest(unittest.TestCase):
     def test_multiprocess_mutation_preserves_every_increment(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -388,7 +379,6 @@ class CrossProcessStorageContractTest(unittest.TestCase):
             finally:
                 os.chdir(original)
 
-
 class TrayFallbackContractTest(unittest.TestCase):
     class EventHook:
         def __iadd__(self, _callback):
@@ -427,7 +417,6 @@ class TrayFallbackContractTest(unittest.TestCase):
                 patch.object(shell, "_start_tray", return_value=False):
             shell.run()
         self.assertFalse(created["hidden"])
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -15,14 +15,11 @@ from app.cli.tui.activity import Step, summary_parts
 from app.cli.tui.input import is_paste_burst, keys_to_paste
 from app.cli.tui.transcript import Transcript, TranscriptControl, ansi_to_rows, row_text
 
-
 def texts(rows):
     return [row_text(row) for row in rows]
 
-
 def mouse(kind, column, row=0, button=MouseButton.LEFT):
     return MouseEvent(Point(column, row), kind, button, frozenset())
-
 
 class TranscriptBlocks(unittest.TestCase):
     def test_resize_reflows_and_uses_current_viewport(self):
@@ -116,7 +113,7 @@ class TranscriptBlocks(unittest.TestCase):
         transcript.add(lambda width, expanded: f"\x1b[31m{colour['value']}\x1b[0m\n")
         transcript.viewport(2, 20)
         colour["value"] = "blue"
-        self.assertEqual(texts(transcript.viewport(2, 20))[-1], "red")            # cached until the theme changes
+        self.assertEqual(texts(transcript.viewport(2, 20))[-1], "red")
         transcript.restyle()
         self.assertEqual(texts(transcript.viewport(2, 20))[-1], "blue")
 
@@ -135,13 +132,11 @@ class TranscriptBlocks(unittest.TestCase):
         transcript.scroll_to_end()
         self.assertEqual(texts(transcript.viewport(3, 40))[-1], "new")
 
-
 def step(name, args=None, ok=True, summary="", diff="", display="", status="done", detail="", meta=None):
     call = ToolCall(name=name, args=args or {}, display=display)
     call.status = status
     return Step(call, ToolResult(ok=ok, summary=summary, diff=diff, detail=detail, meta=meta or {},
                                  error="" if ok else summary))
-
 
 class ActivitySummary(unittest.TestCase):
     def line(self, *steps, width=100):
@@ -175,7 +170,6 @@ class ActivitySummary(unittest.TestCase):
         text = self.line(step("Read", {"file_path": "a.py"}), step("TodoWrite"), step("AskUserQuestion"))
         self.assertEqual(text, "Read a.py")
 
-
 class PasteDetection(unittest.TestCase):
     @staticmethod
     def keys(text):
@@ -203,7 +197,6 @@ class PasteDetection(unittest.TestCase):
     def test_other_keys_stay_in_order(self):
         events = keys_to_paste(self.keys("abc") + [KeyPress(Keys.Up, "")] + self.keys("def"))
         self.assertEqual([event.key for event in events], [Keys.BracketedPaste, Keys.Up, Keys.BracketedPaste])
-
 
 if __name__ == "__main__":
     unittest.main()

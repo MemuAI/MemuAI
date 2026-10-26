@@ -1,23 +1,12 @@
-/* Round 40 (r40-lag): long-lived streams of MemuAI over a WebSocket (server: app/live_ws.py).
- *
- * All MemuAI windows share one WebView2 profile, and Chromium gives that profile only 6 HTTP connections per host.
- * Every EventSource and long-poll held one of them; with six held, every other request of every window waited —
- * the «random» freezes of Quick Access and of MemuAI. A WebSocket does not count against that pool.
- *
- *   MemuLive.stream(url)      — an EventSource look-alike: onmessage / onerror / onopen, addEventListener(type, fn)
- *                               for named «event:» blocks, readyState, close(); reconnects by itself (like EventSource).
- *                               If the socket cannot be opened at all, a real EventSource is used instead.
- *   MemuLive.post(url, body)  — one POST answered over a socket (long-polls: MemuMusic «player.wait»); resolves to
- *                               the parsed JSON answer, rejects with Error(message) on a 4xx/5xx; falls back to fetch.
- * Nothing runs until a page asks for a stream.
- */
+
+
 (function () {
   "use strict";
   if (window.MemuLive) return;
   const wsUrl = (path, method) => (location.protocol === "https:" ? "wss://" : "ws://") + location.host + "/api/pg/live?path="
     + encodeURIComponent(path) + (method ? "&method=" + method : "");
   const usable = () => typeof WebSocket !== "undefined" && /^https?:$/.test(location.protocol);
-  let broken = false;   // the server has no /api/pg/live (an older build): plain HTTP from then on
+  let broken = false;
 
   function stream(url) {
     if (!usable() || broken) return new EventSource(url);
@@ -29,7 +18,7 @@
         target.addEventListener(type, fn, opts);
       },
       removeEventListener: (type, fn, opts) => target.removeEventListener(type, fn, opts),
-      close() { es.readyState = 2; clearTimeout(retry); if (ws) { try { ws.close(); } catch (_) { /* gone */ } ws = null; } if (fallback) fallback.close(); },
+      close() { es.readyState = 2; clearTimeout(retry); if (ws) { try { ws.close(); } catch (_) {  } ws = null; } if (fallback) fallback.close(); },
     };
     let ws = null, buf = "", retry = 0, everOpen = false, fallback = null;
     const named = new Set(["message", "open", "error"]);
@@ -74,7 +63,7 @@
         if (!everOpen) { broken = true; return useFallback(); }
         es.readyState = 0;
         fail();
-        if (es.readyState !== 2) retry = setTimeout(connect, 3000);   // the server restarts with MemuAI
+        if (es.readyState !== 2) retry = setTimeout(connect, 3000);
       };
     }
     function useFallback() {
@@ -83,7 +72,7 @@
       fallback.onopen = (e) => { es.readyState = 1; if (typeof es.onopen === "function") es.onopen(e); target.dispatchEvent(new Event("open")); };
       fallback.onmessage = (e) => fire("message", e.data, e.lastEventId);
       fallback.onerror = () => { es.readyState = fallback.readyState; fail(); };
-      for (const type of named) if (!["message", "open", "error"].includes(type)) forward(type);   // named «event:» blocks
+      for (const type of named) if (!["message", "open", "error"].includes(type)) forward(type);
     }
     connect();
     return es;
@@ -104,9 +93,9 @@
       ws.onmessage = (e) => {
         answered = true;
         let out = {}, data = {};
-        try { out = JSON.parse(e.data); } catch (_) { /* broken frame */ }
+        try { out = JSON.parse(e.data); } catch (_) {  }
         try { data = JSON.parse(out.body || "{}"); } catch (_) { data = {}; }
-        try { ws.close(); } catch (_) { /* closed */ }
+        try { ws.close(); } catch (_) {  }
         if (out.status >= 200 && out.status < 300) resolve(data);
         else reject(new Error(data.error || data.detail || "HTTP " + (out.status || 0)));
       };

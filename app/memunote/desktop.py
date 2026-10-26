@@ -26,12 +26,8 @@ log = logging.getLogger("memunote")
 
 INSTANCE_FILE = "instance.json"
 
-
-# ------------------------------------------------------------------------- single instance
-
 def _instance_path() -> Path:
     return note_dir() / INSTANCE_FILE
-
 
 def _remote(action: str, payload: Dict[str, Any], timeout: float = 3.0) -> Optional[Dict[str, Any]]:
     """POST ``/api/remote`` of the running instance; its JSON reply, or None (no instance / stale file)."""
@@ -52,9 +48,7 @@ def _remote(action: str, payload: Dict[str, Any], timeout: float = 3.0) -> Optio
     except Exception:  # noqa: BLE001 - a stale file: we become the instance
         return None
 
-
-STARTING_GRACE = 45.0      # seconds a starting instance may take to show its window before it counts as a ghost
-
+STARTING_GRACE = 45.0
 
 def instance_alive(reply: Optional[Dict[str, Any]]) -> bool:
     """Does the running instance have a UI that can take the files?
@@ -75,7 +69,6 @@ def instance_alive(reply: Optional[Dict[str, Any]]) -> bool:
         age = 0.0
     return ui == "starting" and age < STARTING_GRACE
 
-
 def hand_off(files: List[str]) -> bool:
     """Send *files* to an already running MemuNote. True when it took them; a ghost is shut down instead."""
     reply = _remote("ping", {})
@@ -87,10 +80,8 @@ def hand_off(files: List[str]) -> bool:
         return False
     return _remote("open", {"paths": files}) is not None
 
-
 def publish_instance(port: int, token: str) -> None:
     write_json(_instance_path(), {"port": port, "token": token, "pid": os.getpid(), "started": int(time.time())})
-
 
 def clear_instance(port: int) -> None:
     data = read_json(_instance_path(), {})
@@ -99,9 +90,6 @@ def clear_instance(port: int) -> None:
             _instance_path().unlink()
         except OSError:
             pass
-
-
-# ------------------------------------------------------------------------- window glue
 
 class Desktop:
     """Bridge between the HTTP backend and the pywebview window (dialogs, PDF, window commands)."""
@@ -112,7 +100,6 @@ class Desktop:
         self.theme_mode = theme_mode
         self.closing_ok = False
 
-    # ---- native handles
     def _native(self):
         try:
             from webview.platforms.winforms import BrowserView   # type: ignore
@@ -155,7 +142,6 @@ class Desktop:
             from .. import win_window_theme
             self._invoke(lambda: win_window_theme.apply(self._native(), hwnd, mode == "dark", _theme_background(mode)))
 
-    # ---- dialogs
     def file_dialog(self, mode: str, directory: str, filename: str, filters: List[str], multiple: bool) -> List[str]:
         wv = self.webview
         dialog = getattr(wv, "FileDialog", None)
@@ -183,7 +169,6 @@ class Desktop:
             return [result]
         return [str(item) for item in result]
 
-    # ---- window
     def window_command(self, cmd: str, body: Dict[str, Any]) -> None:
         win = self.window
         try:
@@ -212,7 +197,7 @@ class Desktop:
 
     def force_close(self) -> None:
         self.closing_ok = True
-        # A window that never finished starting may ignore destroy(): never leave a process behind.
+
         timer = threading.Timer(6.0, os._exit, args=(0,))
         timer.daemon = True
         timer.start()
@@ -221,7 +206,6 @@ class Desktop:
         except Exception:  # noqa: BLE001
             os._exit(0)
 
-    # ---- PDF
     def print_to_pdf(self, path: str):
         """WebView2 ``PrintToPdfAsync`` of the current page (print CSS applies). (ok, error)."""
         native = self._native()
@@ -251,7 +235,7 @@ class Desktop:
                 except Exception as exc:  # noqa: BLE001
                     box["error"] = str(exc)
                 done.set()
-            def poll() -> None:          # the .NET Task is polled: no delegate marshalling needed
+            def poll() -> None:
                 for _ in range(1200):
                     if task.IsCompleted:
                         finished(task)
@@ -270,12 +254,8 @@ class Desktop:
             return False, box["error"]
         return bool(box.get("ok")), "" if box.get("ok") else "print_failed"
 
-
-# ------------------------------------------------------------------------- main
-
 def _theme_background(mode: str) -> str:
     return "#1a1a1c" if mode != "light" else "#fbfaf8"
-
 
 def _parse_args(argv: List[str]) -> Dict[str, Any]:
     files, flags = [], set()
@@ -285,7 +265,6 @@ def _parse_args(argv: List[str]) -> Dict[str, Any]:
         elif item:
             files.append(os.path.abspath(item))
     return {"files": files, "flags": flags}
-
 
 def _say(text: str) -> None:
     """print() that survives a windowed build, where ``sys.stdout`` is None."""
@@ -298,20 +277,18 @@ def _say(text: str) -> None:
     except Exception:  # noqa: BLE001
         pass
 
-
 def _setup_logging(debug: bool) -> None:
     level = logging.INFO if debug else logging.WARNING
     fmt = "%(asctime)s %(name)s %(levelname)s %(message)s"
     if sys.stderr is not None:
         logging.basicConfig(level=level, format=fmt)
         return
-    from .crash import log_dir         # windowed build: warnings go to %LOCALAPPDATA%\MemuAI\logs\memunote.log
+    from .crash import log_dir
     try:
         log_dir().mkdir(parents=True, exist_ok=True)
         logging.basicConfig(level=level, format=fmt, filename=str(log_dir() / "memunote.log"), encoding="utf-8")
     except OSError:
         logging.basicConfig(level=level, format=fmt, handlers=[logging.NullHandler()])
-
 
 def _load_webview() -> Tuple[Any, str]:
     """``(webview module, "")`` or ``(None, reason)``: ``webview2`` (runtime missing) or ``pywebview: …``."""
@@ -326,10 +303,8 @@ def _load_webview() -> Tuple[Any, str]:
         return None, f"pywebview: {type(exc).__name__}: {exc}"
     return webview, ""
 
-
-BROWSER_IDLE_EXIT = 180.0       # the page long-polls every ≤25 s; background tabs may be throttled to 1/min
+BROWSER_IDLE_EXIT = 180.0
 BROWSER_FIRST_VISIT = 300.0
-
 
 def _serve_in_browser(app: Any, url: str, reason: str, detail: str = "") -> int:
     """No window possible: open MemuNote in the default browser and live while the page is open."""
@@ -356,7 +331,6 @@ def _serve_in_browser(app: Any, url: str, reason: str, detail: str = "") -> int:
             break
     return 0
 
-
 def _serve_headless(app: Any) -> int:
     app.ui = "headless"
     try:
@@ -366,14 +340,13 @@ def _serve_headless(app: Any) -> int:
         pass
     return 0
 
-
 def main(argv: Optional[List[str]] = None) -> int:
     args = _parse_args(list(sys.argv[1:] if argv is None else argv))
     flags = args["flags"]
     if "--unregister-open-with" in flags:
         from . import winsys
         winsys.unregister()
-        winsys.clean_script_choices()   # Round 31: a 3.5 that never started has not migrated yet
+        winsys.clean_script_choices()
         winsys.forget_state()
         return 0
     if "--migrate-open-with" in flags:
@@ -391,7 +364,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         return 0
 
     _setup_logging("--debug" in flags)
-    if os.name == "nt":       # Round 31: clean up the Round 29–30 "Open with" registration once (no-op afterwards)
+    if os.name == "nt":
         threading.Thread(target=_migrate_assoc, name="memunote-assoc", daemon=True).start()
     from . import crash, server
     app = server.NoteApp(args["files"])
@@ -401,13 +374,13 @@ def main(argv: Optional[List[str]] = None) -> int:
     if "--print-url" in flags:
         _say(url)
     try:
-        if "--no-window" in flags:      # development / tests: open the URL in a browser yourself
+        if "--no-window" in flags:
             return _serve_headless(app)
         webview, reason = _load_webview()
         if webview is None:
             return _serve_in_browser(app, url, reason)
         error, detail = _run_window(webview, app, flags, url)
-        if error and app.ui == "starting":   # the window never appeared: the browser still works
+        if error and app.ui == "starting":
             return _serve_in_browser(app, url, error, detail)
         if error:
             crash.write_log("window failed", detail)
@@ -419,7 +392,6 @@ def main(argv: Optional[List[str]] = None) -> int:
         except Exception:  # noqa: BLE001
             pass
 
-
 def _migrate_assoc() -> None:
     try:
         from . import winsys
@@ -428,7 +400,6 @@ def _migrate_assoc() -> None:
             log.warning("file associations cleaned up: %s", result)
     except Exception as exc:  # noqa: BLE001 - never block the start
         log.warning("association clean-up failed: %s", exc)
-
 
 def _run_window(webview: Any, app: Any, flags: set, url: str) -> Tuple[str, str]:
     """Create the pywebview window and run its loop: ``("", "")`` on a normal close, else (error, traceback)."""
@@ -441,7 +412,6 @@ def _run_window(webview: Any, app: Any, flags: set, url: str) -> Tuple[str, str]
         app.desktop = None
         return f"{type(exc).__name__}: {exc}", traceback.format_exc()
     return "", ""
-
 
 def _open_window(webview: Any, app: Any, flags: set, url: str) -> None:
     if os.name == "nt":
@@ -467,13 +437,12 @@ def _open_window(webview: Any, app: Any, flags: set, url: str) -> None:
     def on_shown() -> None:
         app.ui = "window"
         desktop.apply_theme(mode)
-        if os.name == "nt":            # last line of defence: never stay parked off every monitor
+        if os.name == "nt":
             from . import winsys
             winsys.ensure_on_screen(desktop.hwnd())
 
     def on_closing() -> bool:
-        # Unsaved buffers are already in recovery/; the page saves the session on every change,
-        # so closing never loses text. Remember the window geometry.
+
         try:
             native = desktop._native()
             state = str(native.WindowState) if native is not None else ""
@@ -504,23 +473,19 @@ def _open_window(webview: Any, app: Any, flags: set, url: str) -> None:
         options = {"debug": options["debug"]}
     webview.start(**options)
 
-
 def _normal_rect(desktop: "Desktop") -> Optional[tuple]:
     if os.name != "nt":
         return None
     from . import winsys
     return winsys.normal_rect(desktop.hwnd())
 
-
-PARKED = -30000     # Windows reports a minimised window at (-32000, -32000)
-
+PARKED = -30000
 
 def _int(value: Any) -> Optional[int]:
     try:
         return None if value is None or isinstance(value, bool) else int(value)
     except (TypeError, ValueError):
         return None
-
 
 def sane_geometry(saved: Any, areas: Optional[List[tuple]] = None) -> Dict[str, Any]:
     """window.json → create_window arguments that always put the window on a real screen.
@@ -539,11 +504,10 @@ def sane_geometry(saved: Any, areas: Optional[List[tuple]] = None) -> Dict[str, 
         from .winsys import rect_visible
         if not rect_visible(x, y, width, areas):
             x = y = None
-    if areas and x is None:          # a saved size bigger than every screen would hang off it
+    if areas and x is None:
         width = min(width, max(560, max(a[2] - a[0] for a in areas)))
         height = min(height, max(400, max(a[3] - a[1] for a in areas)))
     return {"width": width, "height": height, "x": x, "y": y, "maximized": bool(saved.get("maximized"))}
-
 
 def closing_geometry(state: str, current: tuple, normal: Optional[tuple], previous: Any) -> Dict[str, Any]:
     """What to remember on close. Minimised/maximised windows store their *restored* rectangle."""
@@ -559,13 +523,12 @@ def closing_geometry(state: str, current: tuple, normal: Optional[tuple], previo
             rect = (x, y, w, h)
     if rect:
         data.update(x=rect[0], y=rect[1], width=rect[2], height=rect[3])
-    else:                             # keep the last good placement rather than a parked one
+    else:
         for key in ("x", "y", "width", "height"):
             v = _int(previous.get(key))
             if v is not None and not (key in ("x", "y") and v <= PARKED):
                 data[key] = v
     return data
-
 
 def _icon_path(system: str = os.name, frozen: Optional[bool] = None) -> Optional[str]:
     """The window icon handed to pywebview.
@@ -586,7 +549,6 @@ def _icon_path(system: str = os.name, frozen: Optional[bool] = None) -> Optional
             if (folder / name).is_file():
                 return str(folder / name)
     return None
-
 
 def _attach_drop(window: Any, app: Any) -> None:
     """Files dropped from Explorer: pywebview gives full paths (``pywebviewFullPath``) on the drop event."""

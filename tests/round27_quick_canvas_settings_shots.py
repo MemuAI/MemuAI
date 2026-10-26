@@ -25,12 +25,10 @@ sys.path.insert(0, str(ROOT))
 CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or (
     "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome")
 
-
 def free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
-
 
 def call(base: str, path: str, body=None, method=None):
     data = json.dumps(body).encode() if body is not None else None
@@ -38,7 +36,6 @@ def call(base: str, path: str, body=None, method=None):
                                      method=method or ("POST" if body is not None else "GET"))
     with urllib.request.urlopen(request, timeout=20) as response:
         return json.loads(response.read() or b"{}")
-
 
 async def main(out: Path) -> int:
     os.environ["MEMUAI_DATA_DIR"] = tempfile.mkdtemp(prefix="r27qcv-settings-")
@@ -86,7 +83,7 @@ async def main(out: Path) -> int:
             await page.wait_for_timeout(900)
             await page.evaluate("openSettingsPage('quick')")
             link = page.locator('[data-sx-open="quick-plugin-canvas"]')
-            try:      # the plugins' settings scripts load one by one after the page opens (Round 30: more of them)
+            try:
                 await link.wait_for(state="attached", timeout=20000)
             except Exception:
                 pass
@@ -119,7 +116,7 @@ async def main(out: Path) -> int:
         await page.click("#qcs-labels + *, #qcs-labels", force=True)
         await page.wait_for_timeout(500)
         check(call(base, "/api/quick/canvas")["settings"]["labels"] is False, "a switch is saved")
-        # Round 28: «Показывать при открытии» (the in-window canvas) became «На экране при открытии» (the screen layer)
+
         await page.select_option("#qcs-screen", "last")
         await page.wait_for_timeout(500)
         check(call(base, "/api/quick/canvas")["settings"]["screen"] == "last", "the screen mode is saved")
@@ -139,7 +136,6 @@ async def main(out: Path) -> int:
     for p in problems:
         print(" -", p)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r27/r27-quick-canvas"))))

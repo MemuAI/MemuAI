@@ -26,7 +26,6 @@ _POOL: Optional[ThreadPoolExecutor] = None
 _POOL_LOCK = threading.RLock()
 _INFLIGHT: Dict[str, Any] = {}
 
-
 def _pool() -> ThreadPoolExecutor:
     global _POOL
     with _POOL_LOCK:
@@ -35,12 +34,10 @@ def _pool() -> ThreadPoolExecutor:
                                        thread_name_prefix="memufiles-thumb")
         return _POOL
 
-
 def thumb_key(path: str, px: int) -> Tuple[str, os.stat_result]:
     st = os.stat(path)
     raw = f"{os.path.normcase(path)}|{st.st_size}|{st.st_mtime_ns}|{px}".encode("utf-8", "surrogatepass")
     return hashlib.sha1(raw).hexdigest(), st
-
 
 def _render(path: str, px: int, out_path: str) -> bytes:
     from PIL import Image, ImageOps  # type: ignore
@@ -50,7 +47,7 @@ def _render(path: str, px: int, out_path: str) -> bytes:
         pass
     with Image.open(path) as image:
         try:
-            image.draft("RGB", (px * 2, px * 2))       # JPEG: decode at a reduced scale (much faster)
+            image.draft("RGB", (px * 2, px * 2))
         except Exception:  # noqa: BLE001
             pass
         try:
@@ -75,7 +72,6 @@ def _render(path: str, px: int, out_path: str) -> bytes:
     os.replace(tmp, out_path)
     return data
 
-
 def thumbnail(path: str, px: int = 256) -> Tuple[bytes, str]:
     """``(bytes, content type)`` of a cached thumbnail; raises on unsupported/broken images."""
     px = max(32, min(int(px or 256), 1024))
@@ -98,7 +94,6 @@ def thumbnail(path: str, px: int = 256) -> Tuple[bytes, str]:
     _maybe_prune()
     return data, _ctype(data)
 
-
 def _ctype(data: bytes) -> str:
     if data[:4] == b"RIFF":
         return "image/webp"
@@ -106,9 +101,7 @@ def _ctype(data: bytes) -> str:
         return "image/png"
     return "image/jpeg"
 
-
 _PRUNE_COUNTER = [0]
-
 
 def _maybe_prune() -> None:
     _PRUNE_COUNTER[0] += 1
@@ -128,7 +121,6 @@ def _maybe_prune() -> None:
     except OSError:
         pass
 
-
 def cache_size() -> Dict[str, int]:
     total = count = 0
     try:
@@ -140,7 +132,6 @@ def cache_size() -> Dict[str, int]:
         pass
     return {"size": total, "count": count}
 
-
 def clear_cache() -> int:
     count = 0
     for entry in os.scandir(str(thumbs_dir())):
@@ -150,9 +141,6 @@ def clear_cache() -> int:
         except OSError:
             pass
     return count
-
-
-# ------------------------------------------------------------------ text
 
 def read_text(path: str, max_bytes: int = 512 * 1024) -> Dict[str, Any]:
     """The head of a text file, decoded (UTF-8 / UTF-16 BOM / cp1251), with a binary guess."""
@@ -178,7 +166,7 @@ def read_text(path: str, max_bytes: int = 512 * 1024) -> Dict[str, Any]:
         try:
             text = data.decode("utf-8")
         except UnicodeDecodeError as exc:
-            if truncated and exc.start > len(data) - 4:          # a multi-byte char cut at the end
+            if truncated and exc.start > len(data) - 4:
                 text = data[:exc.start].decode("utf-8", "replace")
             else:
                 try:
@@ -187,7 +175,6 @@ def read_text(path: str, max_bytes: int = 512 * 1024) -> Dict[str, Any]:
                     text, encoding = data.decode("latin-1"), "latin-1"
     return {"binary": False, "size": size, "text": text, "encoding": encoding, "truncated": truncated,
             "lines": text.count("\n") + 1}
-
 
 def text_length(path: str, limit: int = 4 * 1024 * 1024) -> Optional[int]:
     """Number of characters of a text file (None for binaries / too big / unreadable)."""
@@ -200,9 +187,6 @@ def text_length(path: str, limit: int = 4 * 1024 * 1024) -> Optional[int]:
     if info.get("binary"):
         return None
     return len(info["text"])
-
-
-# ------------------------------------------------------------------ archives
 
 def archive_list(path: str, limit: int = 3000) -> Dict[str, Any]:
     rows: List[Dict[str, Any]] = []

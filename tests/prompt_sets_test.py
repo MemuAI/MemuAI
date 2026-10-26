@@ -3,7 +3,6 @@ import unittest
 
 from app import pgdata
 
-
 class PromptSetsTest(unittest.TestCase):
     def test_builtin_set_is_locked_and_complete(self):
         builtin = pgdata.builtin_prompt_set()
@@ -45,14 +44,13 @@ class PromptSetsTest(unittest.TestCase):
         self.assertEqual(len(mine["internal_prompts"]), len(pgdata.INTERNAL_PROMPTS))
         edited = next(x for x in doc["internal_prompts"] if x["id"] == internal_id)
         self.assertEqual(edited["text"], "my internal prompt")
-        # the original set is still there, untouched
+
         original = next(x for x in doc["prompt_sets"] if x["id"] == pgdata.BUILTIN_PROMPT_SET_ID)
         self.assertEqual(original["prompts"][0]["text"], pgdata.DEFAULT_PROMPT)
 
     def test_unknown_active_set_falls_back_to_original(self):
         doc = pgdata._prompt_document([], "ghost")
         self.assertEqual(doc["active_set_id"], pgdata.BUILTIN_PROMPT_SET_ID)
-
 
 if __name__ == "__main__":
     unittest.main()

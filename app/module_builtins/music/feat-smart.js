@@ -1,5 +1,4 @@
-/* MemuMusic · feat-smart.js — умные плейлисты: показать/скрыть и порядок встроенных («Любимые»,
- * «Недавно добавленные», «Самые слушаемые») и своих по правилам; конструктор правил с живым предпросмотром. */
+
 
 const RULE_FIELDS = {
   artist: "text", album: "text", album_artist: "text", title: "text", genre: "text", source: "text", file_ext: "text",
@@ -8,7 +7,6 @@ const RULE_FIELDS = {
 const RULE_OPS = { text: ["contains", "not_contains", "is", "is_not", "starts"], number: ["gt", "lt", "eq", "between"], bool: ["is"], days: ["within", "older"] };
 const RULE_SORTS = ["added", "title", "artist", "album", "plays", "recent", "duration", "year", "random"];
 
-/** Скрытые умные плейлисты — серверная настройка smart_hidden (её же видит Mini App). */
 async function setPlaylistHidden(id, hidden) {
   const cur = new Set(Cfg.get("smart_hidden", []) || []);
   hidden ? cur.add(id) : cur.delete(id);
@@ -17,7 +15,6 @@ async function setPlaylistHidden(id, hidden) {
   if (["playlists", "home"].includes(S.view)) rerender();
 }
 
-/* ------------------------------------------------------------ управление умными плейлистами */
 async function smartManager() {
   const all = (await API.soft("playlists.list", { all: true }, [])) || [];
   const smart = all.filter((p) => p.smart || p.rules);
@@ -51,7 +48,6 @@ async function smartManager() {
   });
 }
 
-/* ------------------------------------------------------------ конструктор правил */
 function smartBuilder(pl) {
   const rules = (pl && pl.rules) || { match: "all", conditions: [{ field: "added_days", op: "within", value: 30 }], sort: "added", limit: 0 };
   const conds = rules.conditions.map((c) => Object.assign({}, c));
@@ -131,7 +127,6 @@ function smartBuilder(pl) {
   });
 }
 
-/* ------------------------------------------------------------ экран «Плейлисты» и шапка плейлиста */
 function featPlaylistActions() {
   return `<span class="mm-pl-actions"><button type="button" class="mm-btn ghost" id="pl-smart-new">${icon("rule")}${esc(t("smart.new"))}</button>
     <button type="button" class="mm-icon lg" id="pl-smart-manage" title="${esc(t("smart.manage"))}" aria-label="${esc(t("smart.manage"))}">${icon("eye")}</button>

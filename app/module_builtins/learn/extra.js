@@ -1,5 +1,5 @@
-/* MemuLearn · extra.js — статистика (повторения за 30 дней, прогноз на 14 дней, удержание, состояния карточек),
- * настройки (желаемое удержание FSRS, новые/повторения в день, модель, облегчённые эффекты) и экспорт .apkg/.csv. */
+
+
 function barChart(values, opts) {
   const max = Math.max(1, ...values);
   return `<div class="ml-chart${opts && opts.future ? " future" : ""}">${values.map((v, i) => `<span title="${esc(opts.label(i))}: ${num(v)}"><i style="height:${Math.max(v ? 4 : 2, Math.round(v / max * 100))}%"></i></span>`).join("")}</div>`;

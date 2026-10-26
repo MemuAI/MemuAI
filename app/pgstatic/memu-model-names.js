@@ -1,12 +1,5 @@
-/* Round 33 (r33-models): readable model names — the same rules as app/model_names.py.
- *
- *   MemuModelNames.parse("reform-claude-opus-4-6-thinking", { prefix: "reform" })
- *     → { name: "Claude Opus 4.6 Thinking", base: "claude-opus-4.6-thinking", badges: [], date: "" }
- *   MemuModelNames.pretty(id, { prefix, aliases })  → the name (a user alias wins)
- *
- * Both implementations are checked against tests/round33_model_names_vectors.json — change them together.
- * This exact file is also served by the Proxy window as app/static/model-names.js (the test compares the bytes).
- */
+
+
 (function (root, factory) {
   const api = factory();
   if (typeof module === "object" && module.exports) module.exports = api;

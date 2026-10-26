@@ -14,7 +14,6 @@ from tests import memucode_cli_test as fixtures
 setUpModule = fixtures.setUpModule
 tearDownModule = fixtures.tearDownModule
 
-
 class MemoryBoundaryRegressionTest(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
@@ -108,7 +107,6 @@ class MemoryBoundaryRegressionTest(unittest.TestCase):
         self.assertIn("FIRST_RULE", rows[0].text)
         self.assertLessEqual(sum(len(row.text) for row in rows), project.MAX_MEMORY_TOTAL)
         self.assertLessEqual(len(rows[0].imports), 3)
-
 
 if __name__ == "__main__":
     unittest.main()

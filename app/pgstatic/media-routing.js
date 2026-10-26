@@ -1,18 +1,5 @@
-/* MemuAI — Round 29 (r29b-media-routing): text / image / video right in the chat.
- *
- * Before: to get a picture you switched the chat model to an image model. Now every message is routed:
- *   • /image and /video (also inserted by the «+» menu) generate directly — no decision step;
- *   • with a «Decisions model» (Settings → Models) a heuristic + one tiny model call (/api/pg/media/decide) picks
- *     text / image / video before the answer;
- *   • without it the main chat model decides itself through hidden ```memuai-image / ```memuai-video blocks
- *     (promptBlock() below) — the same protocol also works as a safety net when the Decisions model said «text».
- * «Autoprompt» lets the main model write a fuller prompt first (optionally after a web search) — the final prompt
- * is shown in a collapsible card with «Edit and regenerate». Images use the chat's image viewer (zoom, download),
- * videos play inline; results are saved with the chat; Retry / Variation / Stop work; errors are honest.
- *
- * app.js calls: MemuMedia.route, direct, command, insertCommand, toastMissing, retry, extract, runForAssistant, promptBlock, historyNote,
- * inlineHtml, hydrate, kindOf, settingsHtml, bindSettings. Backend: app/media_routing.py, Proxy: app/media_gen.py.
- */
+
+
 "use strict";
 const MemuMedia = (() => {
   const VERSION = "1.0-r29";
@@ -20,7 +7,7 @@ const MemuMedia = (() => {
   const t = (ru, eng) => (en() ? eng : ru);
   const VIDEO_SVG = '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="13" height="12" rx="2.5"/><path d="m16 10.5 5-3v9l-5-3z"/></svg>';
   const WAND_SVG = '<svg viewBox="0 0 24 24"><path d="m4 20 11-11"/><path d="m14 4 .7 2.3L17 7l-2.3.7L14 10l-.7-2.3L11 7l2.3-.7z"/><path d="M19 12l.5 1.5L21 14l-1.5.5L19 16l-.5-1.5L17 14l1.5-.5z"/></svg>';
-  // app.js (ICONS) loads after this file: the two extra glyphs are added on first use and on DOMContentLoaded.
+
   function ensureIcons() {
     if (typeof ICONS === "undefined") return;
     if (!ICONS.video) ICONS.video = VIDEO_SVG;
@@ -28,9 +15,6 @@ const MemuMedia = (() => {
   }
   document.addEventListener("DOMContentLoaded", ensureIcons);
 
-  /* ================================================================ PROMPT (r29b-media-routing) ===
-   * The in-chat protocol for the main model. Kept short; the backend prompts (decision, autoprompt, generator
-   * system prompt) are in app/media_routing.py → PROMPTS block. No quality boilerplate (8k, masterpiece…). */
   function promptBlock(context = {}) {
     const image = available("image"), video = available("video");
     if (!image && !video) {
@@ -55,9 +39,7 @@ const MemuMedia = (() => {
     if (context && (context.mode === "work" || context.mode === "code")) text += " In Work, generate only assets the project really needs.";
     return text + "</media_generation>";
   }
-  /* =============================================================== /PROMPT (r29b-media-routing) === */
 
-  /* ---------------------------------------------------------------- models */
   const imageList = () => (S.imageModels || []).slice();
   const videoList = () => (S.videoModels || []).slice();
   const listOf = (kind) => (kind === "video" ? videoList() : imageList());
@@ -68,7 +50,7 @@ const MemuMedia = (() => {
     return "";
   }
   function prefKey(kind) { return kind === "video" ? "media_video_model" : "media_image_model"; }
-  /* "" = automatic (pinned first, then the first one), "off" = never automatically, else the chosen id. */
+
   function pickModel(kind, { explicit = false } = {}) {
     const list = listOf(kind);
     const chosen = String(pref(prefKey(kind), "") || "");
@@ -100,7 +82,7 @@ const MemuMedia = (() => {
     const id = String(pref("decision_model", "") || "");
     return id && textModels().some((m) => m.id === id) ? id : "";
   }
-  /* The model that thinks about prompts: the chat's own model when it is a text model. */
+
   function thinkingModel() {
     const current = typeof currentModel === "function" ? currentModel() : "";
     if (current && !isImageModel(current)) return current;
@@ -110,7 +92,6 @@ const MemuMedia = (() => {
   }
   const FAST = /flash|mini|nano|lite|haiku|small|air|turbo|instant|tiny|8b|7b|3b|1\.5b|fast|speed|highspeed/i;
 
-  /* ---------------------------------------------------------------- helpers */
   function plain(text) {
     const value = typeof visibleAnswer === "function" ? visibleAnswer(String(text || "")) : String(text || "");
     return value.replace(/```[\s\S]*?```/g, " ").replace(/\s+/g, " ").trim();
@@ -134,7 +115,7 @@ const MemuMedia = (() => {
     }
     return "";
   }
-  /* «вертикальное видео», «16:9», «квадратная аватарка» → an aspect for the generator. */
+
   function detectAspect(text, kind) {
     const value = String(text || "").toLowerCase();
     const ratio = value.match(/\b(16:9|9:16|1:1|4:3|3:4|3:2|2:3|21:9)\b/);
@@ -165,7 +146,6 @@ const MemuMedia = (() => {
     toast(missingText(kind), "warn", { label: t("Настроить", "Set up"), run: openModelsSettings });
   }
 
-  /* ---------------------------------------------------------------- generation core */
   async function readJson(resp) { return resp.json().catch(() => ({})); }
 
   async function autoprompt(assistant, { kind, request, rows, previous, signal }) {
@@ -185,7 +165,6 @@ const MemuMedia = (() => {
     return String(data.prompt || "").trim();
   }
 
-  /* Runs one generation into ``assistant`` (which already sits in ``messages``). Throws AbortError on Stop. */
   async function produce(assistant, opts, signal, messages) {
     const media = assistant.media;
     const kind = media.kind;
@@ -240,7 +219,6 @@ const MemuMedia = (() => {
       media: { kind, model, request, source, status: "starting", startedAt: Date.now(), aspect: detectAspect(request, kind) } };
   }
 
-  /* A generation with its own job (slash command, Decisions model, retry, variation). */
   async function runJob(chatId, messages, assistant, opts) {
     const job = { controller: new AbortController(), image: true, media: true };
     generationJobs.set(chatId, job);
@@ -286,13 +264,12 @@ const MemuMedia = (() => {
     return true;
   }
 
-  /* ---------------------------------------------------------------- entry points (app.js) */
   function takeAttachments() {
     const refs = (typeof attachments !== "undefined" ? attachments : []).filter((a) => !a.isVideo).map((a) => ({ name: a.name, data: a.data }));
     if (typeof clearAttachments === "function") clearAttachments();
     return refs;
   }
-  /* /image, /video — no decision step. The «+» menu only inserts the command. */
+
   async function command(kind, text) {
     if (busy()) {
       const input = document.getElementById("input");
@@ -306,11 +283,11 @@ const MemuMedia = (() => {
     }
     return start(kind, text, { refs: takeAttachments(), source: "command" });
   }
-  /* The picked chat model is itself a generator (old behaviour), or the image mode toggle. */
+
   async function direct(kind, text, refs = [], { model = "" } = {}) {
     return start(kind, text, { refs, model: model && kindOf(model) === kind ? model : "", source: "command" });
   }
-  /* «+» → «Create an image / video»: put the slash command at the start of the composer (the text stays). */
+
   function insertCommand(kind) {
     const input = document.getElementById("input");
     if (!input) return;
@@ -324,12 +301,12 @@ const MemuMedia = (() => {
     input.focus();
     input.setSelectionRange(input.value.length, input.value.length);
   }
-  /* Before a normal answer: the Decisions model (if configured) may route the message to image / video. */
+
   async function route(text, model) {
     try {
       const deciding = decisionModel();
       if (!deciding || !text) return false;
-      if (typeof isProjectMode === "function" && isProjectMode()) return false;   // Work: the main model decides
+      if (typeof isProjectMode === "function" && isProjectMode()) return false;
       if (S.chatCaps?.deep_research) return false;
       const atts = typeof attachments !== "undefined" ? attachments : [];
       if (atts.some((a) => a.isVideo || a.pending)) return false;
@@ -359,16 +336,14 @@ const MemuMedia = (() => {
     const old = S.messages[index], user = S.messages[userIndex];
     const current = typeof currentModel === "function" ? currentModel() : "";
     const kind = old?.media?.kind || kindOf(current) || "image";
-    // Round 33 (r33-models): the model picked in the error card (or passed in) wins; then an image model picked in the
-    // top menu; only then the Settings choice. Before, a text model in the top menu sent the retry back to the very
-    // model that had just failed — «I pick another model, press Retry, and nothing changes».
+
     const wanted = chosen || old?.media?.retryModel || "";
     const model = wanted && listOf(kind).includes(wanted) ? wanted
       : kindOf(current) === kind ? current : pickModel(kind, { explicit: true });
     if (!model) return toastMissing(kind);
     const request = old?.media?.request || user?.content || "";
     const fromModel = old?.media?.source === "model";
-    if (typeof MemuBranches !== "undefined") MemuBranches.keepVersion(userIndex + 1);   // Round 35: the old result stays a version
+    if (typeof MemuBranches !== "undefined") MemuBranches.keepVersion(userIndex + 1);
     S.messages = S.messages.slice(0, userIndex + 1);
     const chat = (S.chats || []).find((item) => item.id === S.currentId);
     if (chat) chat.messages = S.messages;
@@ -379,7 +354,7 @@ const MemuMedia = (() => {
     const usable = (refs || user?.attachments || []).map((a) => ({ name: a.name, data: a.data }));
     await runJob(S.currentId, S.messages, assistant, { request, refs: usable, fromModel });
   }
-  /* Variation / edit-and-regenerate: one more result in the same answer. */
+
   async function again(index, prompt) {
     if (busy()) return toast(t("Дождитесь текущего ответа или нажмите «Стоп»", "Wait for the current answer or press Stop"), "warn");
     const assistant = S.messages[index];
@@ -398,7 +373,6 @@ const MemuMedia = (() => {
       refs: (user?.attachments || []).map((a) => ({ name: a.name, data: a.data })) });
   }
 
-  /* Main-model protocol: ```memuai-image / ```memuai-video {"prompt": "..."} */
   function extract(text) {
     let media = null;
     const cleaned = String(text || "").replace(/```memuai-(image|video)\s*([\s\S]*?)```/gi, (_, kind, raw) => {
@@ -430,7 +404,7 @@ const MemuMedia = (() => {
       if (el) el.textContent = String(Math.floor((performance.now() - t0) / 1000));
     }, 1000);
     try {
-      // The main model already wrote a self-contained prompt; autoprompt may still enrich it (web search).
+
       await produce(assistant, { request: action.prompt, fromModel: true, prompt: pref("media_autoprompt", false) ? "" : action.prompt,
         refs: (user?.attachments || []).map((a) => ({ name: a.name, data: a.data })) }, signal, messages);
     } catch (error) {
@@ -447,7 +421,6 @@ const MemuMedia = (() => {
     return `\n[Generated ${kind}${count > 1 ? ` ×${count}` : ""} with prompt: ${String(m.media.prompt || m.media.request || "").slice(0, 600)}]`;
   }
 
-  /* ---------------------------------------------------------------- rendering */
   function sourceLabel(media) {
     return media.source === "decision" ? t("выбрано моделью решений", "picked by the Decisions model")
       : media.source === "heuristic" ? t("распознано по запросу", "recognised from the request")
@@ -505,13 +478,12 @@ const MemuMedia = (() => {
       </details>`;
     }
     if (media.status === "error" && !m.streaming && /Settings → Models|Настройки → Модели|MemuAI Proxy/.test(m.error || "")
-      && !listOf(media.kind === "video" ? "video" : "image").length) {   // r33: otherwise the button sits in the retry row under the error
+      && !listOf(media.kind === "video" ? "video" : "image").length) {
       html += `<div class="mm-actions"><button type="button" class="mm-btn" data-media-settings>${icon("settings")}<span>${t("Открыть настройки моделей", "Open model settings")}</span></button></div>`;
     }
     return `<div class="mm-block" data-media-block="${i}">${html}</div>`;
   }
-  /* Round 33 (r33-models): under the error of a failed generation — pick any model of this kind and try again with it.
-     app.js puts it right after the error text. */
+
   function retryHtml(m, i) {
     const media = m?.media;
     if (!media || m.role !== "assistant" || media.status !== "error" || m.streaming) return "";
@@ -536,9 +508,9 @@ const MemuMedia = (() => {
   }
   function hydrate(box, roots) {
     const at = (el, name) => S.messages[+el.dataset[name]];
-    // Round 34: renderMessages passes only the re-rendered messages (kept ones keep their handlers); handlers still use the whole box.
+
     const scope = roots ? { querySelectorAll: (sel) => roots.flatMap((node) => [...node.querySelectorAll(sel)]) } : box;
-    // Round 33 (r33-models): the error card's own model choice + «Try again» with it.
+
     scope.querySelectorAll("[data-media-retry-pick]").forEach((b) => b.onclick = async (e) => {
       e.stopPropagation();
       const index = +b.dataset.mediaRetryPick, m = S.messages[index];
@@ -611,7 +583,6 @@ const MemuMedia = (() => {
     }
   }
 
-  /* ---------------------------------------------------------------- settings (Models page) */
   function modelOptions(list, value) {
     const groups = new Map();
     for (const id of list) {

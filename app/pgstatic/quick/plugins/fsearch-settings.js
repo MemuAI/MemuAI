@@ -1,8 +1,5 @@
-/* Round 35 — Settings → Quick Access → «Поиск файлов на ПК» (plugin "fsearch", backend app/fsindex_api.py).
-   Status of the engine (Everything detected / own index: entries, drives, live changes, build progress),
-   backend choice, indexed drives, exclusions, rebuild, the AI tool and the input shortcuts.
-   Data: GET /api/fsindex/status, POST /api/fsindex/settings | rebuild | everything/start
-   (memuai/fsindex/settings.json — not preferences.json). */
+
+
 (function () {
   "use strict";
   if (!window.MemuQuick || typeof MemuQuick.settingsSection !== "function") return;

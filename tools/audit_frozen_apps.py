@@ -17,7 +17,6 @@ import time
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 class Proxy(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -46,7 +45,6 @@ class Proxy(BaseHTTPRequestHandler):
         item = {"choices": [{"delta": {"content": text}}]}
         self.wfile.write(("data: " + json.dumps(item) + "\n\ndata: [DONE]\n\n").encode())
 
-
 def call(instance, prefix, path, body=None, raw=False):
     conn = http.client.HTTPConnection("127.0.0.1", instance["port"], timeout=20)
     try:
@@ -59,7 +57,6 @@ def call(instance, prefix, path, body=None, raw=False):
         return data if raw else json.loads(data)
     finally:
         conn.close()
-
 
 def check(name, service, header, proxy_url):
     with tempfile.TemporaryDirectory(prefix="memu-frozen-audit-") as tmp:
@@ -128,7 +125,6 @@ def check(name, service, header, proxy_url):
                 process.kill()
                 process.wait(timeout=5)
 
-
 def main():
     server = ThreadingHTTPServer(("127.0.0.1", 0), Proxy)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -139,7 +135,6 @@ def main():
     finally:
         server.shutdown()
         server.server_close()
-
 
 if __name__ == "__main__":
     main()

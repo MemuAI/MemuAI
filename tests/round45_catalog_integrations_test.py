@@ -15,7 +15,6 @@ from app.providers import antigravity
 from app.providers import antigravity_models as names
 from app.state import Account, ModelEntry
 
-
 def catalogue(*, disabled=True):
     return {"models": {
         "gemini-3.7-flash-tiered": {"displayName": "Gemini 3.7 Flash"},
@@ -25,7 +24,6 @@ def catalogue(*, disabled=True):
         "internal-future": {"displayName": "Internal", "isInternal": True},
     }, "agentModelSorts": [{"displayName": "Recommended", "groups": [
         {"displayName": "Gemini", "modelIds": ["gemini-3.8-flash-tiered", "argon-future-request-id", "internal-future"]}]}]}
-
 
 class PickerTest(unittest.TestCase):
     def setUp(self):
@@ -80,7 +78,6 @@ class PickerTest(unittest.TestCase):
                 "agentModelSorts": [{"groups": [{"modelIds": ["gemini-3.1-pro-high"]}]}]}
         row, = names.from_server(data)
         self.assertEqual(names.upstream_id(row.public), "gemini-3.1-pro-high")
-
 
 class DiscoveryTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -163,7 +160,6 @@ class DiscoveryTest(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(entry.availability["available"])
         self.assertFalse(entry.public_dict()["availability"]["available"])
 
-
 class RoutingTest(unittest.IsolatedAsyncioTestCase):
     async def test_explicit_model_id_cannot_bypass_account_entitlements(self):
         account = Account("antigravity", {}, id="ag-blocked", extra={"antigravity_model_catalog": {
@@ -199,7 +195,6 @@ class RoutingTest(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(restored.enabled)
         self.assertFalse(restored.availability["available"])
 
-
 class LifecycleTest(unittest.IsolatedAsyncioTestCase):
     async def test_antigravity_refreshes_within_fifteen_minutes_of_a_long_global_interval(self):
         clock, sleeps = [0.0], [0]
@@ -226,7 +221,6 @@ class LifecycleTest(unittest.IsolatedAsyncioTestCase):
                 await service.run_loop()
         self.assertEqual(service.refresh.await_count, 2)
         service.refresh.assert_awaited_with(providers=["antigravity"], reason="provider-interval")
-
 
 if __name__ == "__main__":
     unittest.main()

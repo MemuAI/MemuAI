@@ -24,7 +24,6 @@ from fastapi import Request
 
 log = logging.getLogger("memuai")
 
-
 async def endpoint_probe(url: str, key: str, model: str, *, lang: str = "ru",
                          complete: Optional[Callable[..., Awaitable[str]]] = None) -> Dict[str, Any]:
     """The same picture test as Proxy's probe (``model_capabilities.probe_vision``), sent to the user's own endpoint."""
@@ -44,7 +43,6 @@ async def endpoint_probe(url: str, key: str, model: str, *, lang: str = "ru",
         return {"ok": False, "vision": None, "model": model, "error": text[:600]}
     vision, verdict = judge_probe(str(answer or ""), color)
     return {"ok": True, "vision": vision, "verdict": verdict, "model": model, "answer": str(answer or "")[:200]}
-
 
 def register(app, *, proxy_json: Callable[..., Awaitable[Tuple[int, Any]]]) -> None:
     from fastapi.responses import JSONResponse

@@ -21,11 +21,9 @@ from round37_music_core_test import Base, FakeClient, FakeResponse, png_bytes  #
 
 MODULE = ROOT / "app" / "module_builtins" / "music"
 
-
 def call(op, args=None):
     from app.music import api
     return api.call(op, args or {})
-
 
 class SmartPlaylistsTest(Base):
     def add(self, name, **fields):
@@ -103,7 +101,6 @@ class SmartPlaylistsTest(Base):
         with self.assertRaises(ValueError):
             call("playlist.cover", {"id": "smart:liked", "clear": True})
 
-
 class TrackEditTest(Base):
     def test_cover_from_data_url_and_clear(self):
         row = self.lib.add({"file": str(self.make_file("x.m4a")), "title": "X"})
@@ -127,7 +124,7 @@ class TrackEditTest(Base):
             t = extras.set_cover(self.lib, row["id"], {"video": 12, "write_tags": False}, lambda: client)
         from PIL import Image
         with Image.open(self.lib.cover_path(row["id"])) as img:
-            self.assertEqual(img.size[0], img.size[1])   # 16:9 frame → square
+            self.assertEqual(img.size[0], img.size[1])
         with self.assertRaises(ValueError):
             extras.set_cover(self.lib, row["id"], {"url": "file:///etc/passwd"}, lambda: client)
 
@@ -158,7 +155,6 @@ class TrackEditTest(Base):
         with self.assertRaises(ValueError):
             call("library.update_many", {"ids": [], "changes": {"artist": "z"}})
 
-
 class LibraryToolsTest(Base):
     def add(self, name, **fields):
         return self.lib.add({"file": str(self.make_file(name + ".m4a", 3000)), "title": name, **fields})
@@ -187,7 +183,7 @@ class LibraryToolsTest(Base):
     def test_duplicates_and_radio(self):
         self.add("Song", artist="A", duration=200, bitrate=128)
         self.add("Song (Official Video)", artist="A", duration=201, bitrate=256)
-        self.add("Song", artist="A", duration=400)   # a different (long) version — not a duplicate
+        self.add("Song", artist="A", duration=400)
         groups = call("library.duplicates")
         self.assertEqual(len(groups), 1)
         self.assertEqual(groups[0]["tracks"][0]["bitrate"], 256)
@@ -286,8 +282,7 @@ class LibraryToolsTest(Base):
         self.assertIsNone(self.lib.row(old["id"]))
         self.assertEqual(self.lib.row(new["id"])["title"], "old")
         with self.assertRaises(ValueError):
-            call("library.redownload", {"id": new["id"]})   # «fresh» has no source link
-
+            call("library.redownload", {"id": new["id"]})
 
 class ThumbProxyTest(Base):
     def test_cover_search_previews_go_through_our_server(self):
@@ -307,7 +302,6 @@ class ThumbProxyTest(Base):
             ok = api.thumb_image("https://img.example/300x300bb.jpg", token)
             self.assertEqual((ok.status_code, ok.media_type), (200, "image/png"))
             self.assertEqual(api.thumb_image("https://evil.example/x.png", token).status_code, 403)
-
 
 class FrontTest(unittest.TestCase):
     """The feature files are wired in and syntactically valid; every i18n key used exists in ru and en."""
@@ -333,7 +327,7 @@ class FrontTest(unittest.TestCase):
         used = set()
         for name in self.FILES:
             used |= set(re.findall(r"\bt\(\"([a-z0-9_.]+)\"", (MODULE / name).read_text(encoding="utf-8")))
-        used = {k for k in used if not k.endswith(".")}   # t("rule.op." + op) — prefixes of dynamic keys
+        used = {k for k in used if not k.endswith(".")}
         for prefix, names in (("rule.op.", ["contains", "between", "within", "older"]), ("keys.a.", ["toggle", "ab", "history"]),
                               ("rule.f.", ["added_days", "liked"]), ("ed.tab.", ["tags", "cover", "lyrics", "file"])):
             used |= {prefix + n for n in names}
@@ -347,7 +341,6 @@ class FrontTest(unittest.TestCase):
         for name in self.FILES:
             out = subprocess.run([node, "--check", str(MODULE / name)], capture_output=True, text=True)
             self.assertEqual(out.returncode, 0, name + out.stderr)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -42,15 +42,13 @@ SEED = [
 
 _RENDER_RE = re.compile(r"<grok:render>.*?</grok:render>", re.S)
 
-
 def _unseen(shape_text: str, emitted: str, delta: str) -> str:
     """Часть ``shape_text``, которой ещё нет в уже отданном тексте."""
     if shape_text.startswith(emitted):
         return shape_text[len(emitted):]
     if emitted.startswith(shape_text):
-        return ""  # эта форма отстаёт от другой
-    return delta  # формы разошлись: это единственный источник, отдаём дельту
-
+        return ""
+    return delta
 
 class GrokProvider(Provider):
     id = "grok"
@@ -81,15 +79,13 @@ class GrokProvider(Provider):
     def seed_models(self) -> List[Tuple[str, str]]:
         return SEED
 
-    # ------------------------------ служебные ------------------------------
-
     @staticmethod
     def _cookie(account) -> str:
         raw = str(account.fields.get("cookies", "")).strip()
         if not raw:
             return ""
         if "sso=" in raw:
-            # уже строка cookie
+
             parts = [p.strip() for p in raw.replace("\n", "; ").split(";") if "=" in p]
             return "; ".join(parts)
         return f"sso={raw}"
@@ -107,8 +103,7 @@ class GrokProvider(Provider):
             raise ProviderNetworkError(f"auth/session: {e}")
         if resp.status_code in (401, 403):
             raise ProviderAuthError("The sso cookie was rejected")
-        # 429/5xx are grok.com's own trouble: marking the account invalid for
-        # them (as before) took a working cookie out of the pool until re-checked.
+
         if resp.status_code == 429:
             raise ProviderRateLimitError("grok.com is rate limiting auth/session (HTTP 429)")
         if resp.status_code >= 500:
@@ -142,8 +137,6 @@ class GrokProvider(Provider):
                     return found
         return ""
 
-    # ------------------------------ чат ------------------------------
-
     async def chat_stream(self, account, model: str, messages: List[Dict[str, Any]],
                           params: Dict[str, Any]) -> AsyncIterator[Dict[str, Any]]:
         from .base import messages_have_images
@@ -163,9 +156,7 @@ class GrokProvider(Provider):
             mode = "fast"
 
         system_text, history, final_user = normalize_messages(messages)
-        # Every request uses a temporary session with keep_context=False, so
-        # omitting history here silently turned multi-turn chats into isolated
-        # prompts.  Carry the transcript in the current user message.
+
         prompt = transcript_prompt(system_text, history, final_user)
         input_chunks: List[Dict[str, Any]] = [{"text": {"text": prompt}}]
 
@@ -180,7 +171,7 @@ class GrokProvider(Provider):
             "ssl": ssl.create_default_context(),
         }
         if proxy and proxy.startswith(("socks", "http")):
-            # websockets поддерживает прокси через python-socks; без него — напрямую
+
             try:
                 connect_kwargs["proxy"] = proxy
             except TypeError:
@@ -188,8 +179,7 @@ class GrokProvider(Provider):
 
         session_id = ""
         acc_text = ""
-        # Grok шлёт один и тот же ответ двумя формами событий параллельно.
-        # Каждая копится отдельно, наружу уходит только ещё не отданный хвост.
+
         shape_acc = {"chunk": "", "delta": ""}
         got_result = False
 
@@ -244,7 +234,7 @@ class GrokProvider(Provider):
                         sent_item = True
                         continue
                     if not sent_item:
-                        # ack может прийти в другом формате — ищем session_id в любом кадре
+
                         session_id = self._find_session_id(frame)
                         if session_id:
                             item_event["session_id"] = session_id
@@ -311,10 +301,7 @@ class GrokProvider(Provider):
         except ProviderError:
             raise
         except Exception as e:
-            # A refused WebSocket handshake carries the HTTP status (websockets
-            # ≥ 14: e.response.status_code, older: e.status_code). 401 is a dead
-            # cookie and 429 a rate limit — not a retryable network error. 403 is
-            # left alone: in front of grok.com it is usually Cloudflare, not the cookie.
+
             response = getattr(e, "response", None)
             status = getattr(response, "status_code", None) or getattr(e, "status_code", None)
             if status == 401:
@@ -322,8 +309,6 @@ class GrokProvider(Provider):
             if status == 429:
                 raise ProviderRateLimitError("Grok rate limit (WebSocket HTTP 429)")
             raise ProviderNetworkError(f"WebSocket: {type(e).__name__}: {e}")
-
-    # ------------------------------ аккаунт ------------------------------
 
     async def check(self, account) -> Tuple[Optional[bool], str]:
         try:
@@ -335,4 +320,4 @@ class GrokProvider(Provider):
         return True, f"подключено · uid {uid[:12]}…"
 
     async def usage(self, account) -> Optional[Dict[str, Any]]:
-        return None  # публичного эндпоинта остатков у grok.com нет
+        return None

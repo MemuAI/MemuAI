@@ -1,20 +1,12 @@
 /* @memu-shared:benchmarks */
-/* Каталог моделей из публичных списков OpenRouter и Models.dev
- * с ценами, контекстом, модальностями и
- * поддерживаемыми параметрами, фильтры, сортировка, карточка модели,
- * сравнение до трёх моделей и отметка тех, что уже подключены в MemuAI.
- *
- * Модуль не ходит в сеть сам: JSON читает мост (Memu.fetch с raw: true —
- * проверка адреса и лимит размера). В кэш (6 часов) кладётся сжатая выжимка,
- * а не исходные ответы с лишними полями.
- */
+
 const t = (key, vars) => Memu.t(key, vars);
 const saved = Memu.saved || {};
 const $ = (selector) => document.querySelector(selector);
 const TTL = 6 * 60 * 60 * 1000;
 const SOURCE = "https://openrouter.ai/api/v1/models";
 const MODELS_DEV = "https://models.dev/api.json?type=all";
-const CACHE_SCHEMA = 3; // 3: Models.dev deduplicated by canonical model (was ~2400 reseller aliases)
+const CACHE_SCHEMA = 3;
 const MAX_COMPARE = 3;
 const PAGE = 60;
 
@@ -29,7 +21,6 @@ const SOURCES = ["openrouter", "models.dev"];
 const DEFAULT_FILTERS = { inputs: [], outputs: [], features: [], context: 0, price: "any", orgs: [], sources: [], hideExpiring: false };
 const freshFilters = () => ({ ...DEFAULT_FILTERS, inputs: [], outputs: [], features: [], orgs: [], sources: [] });
 
-/** Saved filters come from module storage and may be from an older version — never trust their shape. */
 function sanitizeFilters(raw) {
   const f = freshFilters();
   if (!raw || typeof raw !== "object") return f;
@@ -41,8 +32,6 @@ function sanitizeFilters(raw) {
   f.hideExpiring = raw.hideExpiring === true;
   return f;
 }
-
-/* ------------------------------------------------------------ состояние */
 
 const state = {
   filters: sanitizeFilters(saved.filters),
@@ -74,15 +63,13 @@ function remember(withCache = false, now = false) {
     fields.benchmark_boards = benchmarkBoards;
     cacheDirty = false;
     benchmarkDirty = false;
-    // Кэш — не главное: если он не поместился, модуль просто загрузит список заново.
+
     Memu.save(fields).catch(() => Memu.save({ filters: state.filters, sort: state.sort, compare: state.compare, layout: state.layout, benchmark_boards: benchmarkBoards }).catch(() => {}));
   };
   if (now) flush(); else saveTimer = setTimeout(flush, 400);
 }
-// Отложенную запись сбрасываем и на pagehide — иначе фильтры и свежий кэш теряются.
-window.addEventListener("pagehide", () => remember(false, true));
 
-/* ------------------------------------------------------------ утилиты */
+window.addEventListener("pagehide", () => remember(false, true));
 
 const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const num = (value, digits = 0) => Memu.i18n.number(+value, { maximumFractionDigits: digits, minimumFractionDigits: 0 });
@@ -94,7 +81,6 @@ function compact(value) {
   return String(n);
 }
 
-/** Per-token price string → dollars per million tokens; null when the price varies (routers). */
 function perMillion(value) {
   if (value === undefined || value === null || value === "") return undefined;
   const n = Number(value);
@@ -114,14 +100,12 @@ function dateText(seconds) {
   return formatter("date", { day: "numeric", month: "short", year: "numeric" }).format(new Date(seconds * 1000));
 }
 
-/** Canonical names are shared with the Benchmarks module. */
 function canon(name) { return benchmarks.canon(name); }
 
 function isMine(row) {
   return !!state.mySet && state.mySet.has(canon(row.id));
 }
 
-/* ------------------------------------------------------------ бенчмарки */
 const benchmarkState = {
   hideDeprecated: true, loading: new Set(), errors: {},
   cache: {arena_nav:null, arena:{}, aa:null, livebench:null, simple:null, eq:null,
@@ -140,8 +124,7 @@ const benchmarkMemu = {
 };
 const benchmarks = window.MemuBenchmarkData.create(benchmarkMemu, {
   state: benchmarkState,
-  // Загрузчик сообщает о каждом шаге (старт/конец каждой доски): перерисовка
-  // панели собирается в одну за кадр.
+
   onChange: () => { scheduleBenchmarkPanels(); },
   onDirty: () => { benchmarkDirty = true; remember(); },
 });
@@ -155,14 +138,7 @@ function benchmarkMatches(model, candidate) {
   const org=benchmarkOrg(candidate.org);
   return !org || org===benchmarkOrg(model.org) || org===benchmarkOrg(model.slug);
 }
-/* ---- быстрые результаты бенчмарков (Раунд 21) ----
- * Раньше каждая карточка списка (60 штук) пересчитывала MemuAI Index целиком:
- * boardData("memu:index") → percentiles по семи доскам за O(n²) каждая, плюс
- * сортировка и canon() всех строк. «Подробнее» перерисовывал список ещё раз
- * после loadBenchmarks — около секунды на обычном ПК и десятки секунд при
- * 6-кратном замедлении процессора. Теперь доска считается один раз, пока не
- * поменялись её исходные данные (сравнение ссылок на записи кэша), а для неё
- * строятся ранжированный список, индекс canon → строки и места. */
+
 const boardMemo = new Map();
 function boardRefs(id) {
   const [source, rest] = String(id).split(/:(.*)/s);
@@ -207,7 +183,7 @@ function benchmarkResults(model,id) {
   const cached=entry.results.get(memoKey);
   if(cached)return cached;
   const ranked=entry.ranked;
-  // Те же правила, что и раньше (benchmarkMatches), но без прохода по всей доске.
+
   const keys=[...new Set([canonCached(model.id),canonCached(model.name)])];
   const candidates=keys.flatMap(key=>entry.byCanon.get(key)||[]);
   const variants=[...new Set(candidates)].filter(row=>benchmarkMatches(model,row)).sort((a,b)=>entry.order.get(a)-entry.order.get(b));
@@ -221,8 +197,7 @@ function benchmarkResults(model,id) {
   entry.results.set(memoKey,result);
   return result;
 }
-/* Intl-форматтеры и заголовки досок кэшируются: toLocaleString создавал новый
- * форматтер на каждый вызов, а boardTitle строил весь каталог досок заново. */
+
 const formatters = new Map();
 function formatter(kind, options) {
   const key = kind + "|" + Memu.lang;
@@ -297,7 +272,7 @@ function scheduleBenchmarkPanels() {
   const run = () => { panelsQueued = false; renderBenchmarkPanels(); refreshSummaries(); };
   if (typeof requestAnimationFrame === "function") requestAnimationFrame(run); else setTimeout(run, 0);
 }
-/** Сводки MemuAI Index на уже нарисованных карточках — без перерисовки списка. */
+
 let summaryData = null;
 function refreshSummaries() {
   const entry = boardEntry("memu:index");
@@ -344,14 +319,10 @@ async function loadBenchmarks(force=false) {
   let next=0;
   await Promise.all([0,1,2].map(async()=>{while(next<jobs.length){const id=jobs[next++];await benchmarks.ensure(id,force);}}));
   renderBenchmarkPanels();
-  // Раньше здесь перерисовывался весь список (60 карточек × MemuAI Index):
-  // это и была секундная задержка «Подробнее». Теперь — только сводки.
+
   if(state.view==="list")refreshSummaries();
 }
 
-/* ------------------------------------------------------------ загрузка */
-
-/** Compact row from one OpenRouter entry; unknown fields are simply absent. */
 function slim(model) {
   const arch = model.architecture || {};
   const pricing = model.pricing || {};
@@ -388,7 +359,6 @@ function slim(model) {
   };
 }
 
-/** Prices on Models.dev are already USD per million tokens, for the named provider. */
 function slimModelsDev(provider, model) {
   const id = String(model.canonical_model_id || model.id || "");
   const slug = id.includes("/") ? id.split("/")[0] : provider.id;
@@ -408,32 +378,23 @@ function slimModelsDev(provider, model) {
     site: "https://models.dev/" };
 }
 
-/** Lab ("first party") Models.dev provider ids for a canonical org slug. */
 const MD_ORG_ALIASES = { mistral: ["mistral", "mistralai"], alibaba: ["alibaba", "alibaba-cn", "qwen"], zhipuai: ["zhipuai", "zai", "z-ai"],
   meta: ["meta", "meta-llama", "llama"], xai: ["xai", "x-ai"], google: ["google", "google-vertex"], moonshotai: ["moonshotai", "moonshotai-cn"] };
 
-/** Version-insensitive key used only to detect that two sources describe the same model.
- * "anthropic/claude-sonnet-4.5", "claude-sonnet-4-5-20250929" and "Claude Sonnet 4.5" collapse together;
- * different sizes or generations ("-mini", "4.1" vs "4") never do. */
 function modelKey(value) {
   let id = String(value || "").toLowerCase().split("/").pop();
-  id = id.replace(/:[a-z0-9-]+$/, "")                      // :free, :thinking, :beta
-    .replace(/@.*$/, "")                                    // vertex "@20250514"
-    .replace(/[-_](20\d{2}-?\d{2}-?\d{2}|\d{4}|\d{6,8})$/, "") // trailing release dates
+  id = id.replace(/:[a-z0-9-]+$/, "")
+    .replace(/@.*$/, "")
+    .replace(/[-_](20\d{2}-?\d{2}-?\d{2}|\d{4}|\d{6,8})$/, "")
     .replace(/[-_](latest|preview|instruct|it|chat)$/, "");
   return id.replace(/[^a-z0-9]+/g, "");
 }
 
-/**
- * Models.dev lists every model once per *reseller* (226 providers, ~8400 entries; nano-gpt alone has 600).
- * Taking each provider's own id produced ~2400 "models" — the same Claude under Bedrock, Vertex, Vercel, Poe…
- * Only entries tied to a canonical lab model are kept, one row per canonical id, preferring the lab's own listing.
- */
 function modelsDevRows(data) {
   const unique = new Map();
   const rank = (row, providerId) => {
     const org = row.slug.toLowerCase();
-    if (providerId === org || (MD_ORG_ALIASES[org] || []).includes(providerId)) return 0; // the lab itself
+    if (providerId === org || (MD_ORG_ALIASES[org] || []).includes(providerId)) return 0;
     return 1;
   };
   for (const [providerId, info] of Object.entries(data || {})) {
@@ -442,7 +403,7 @@ function modelsDevRows(data) {
     for (const model of Object.values(info.models || {})) {
       if (!model || typeof model !== "object" || !model.id) continue;
       const canonical = String(model.canonical_model_id || "");
-      // Without a canonical id the entry is a reseller alias (or a reseller's own product) — skip it.
+
       if (!canonical.includes("/")) continue;
       if (model.status === "deprecated") continue;
       const row = slimModelsDev(provider, model), key = canonical.toLowerCase();
@@ -454,8 +415,6 @@ function modelsDevRows(data) {
   return [...unique.values()].map(({rank, ...row}) => row);
 }
 
-/** OpenRouter is the primary list; Models.dev only fills the gaps (lab models OpenRouter does not resell)
- * and missing metadata (knowledge cutoff, release date) of rows OpenRouter already has. */
 function mergeCatalogs(primary, secondary) {
   const merged = new Map(), byKey = new Map();
   for (const row of primary) {
@@ -499,8 +458,7 @@ async function load(force = false) {
     results.forEach((result,index)=>{
       const source = sources[index];
       if (result.status === "rejected") errors.push(`${source.name}: ${result.reason?.message || result.reason}`);
-      // A failed source keeps its previous rows — but only from a cache of the current schema,
-      // otherwise the old un-deduplicated Models.dev dump would come back.
+
       const previous = state.cache?.schema === CACHE_SCHEMA ? state.cache.rows || [] : [];
       parts.push(result.status === "fulfilled" ? result.value : previous.filter(row=>(row.source || "openrouter") === source.key));
     });
@@ -535,12 +493,10 @@ async function loadMyModels() {
   }
 }
 
-/* ------------------------------------------------------------ фильтры */
-
 function priceKey(row) {
   const { input, output } = row.price;
   if (input === null || output === null || input === undefined) return null;
-  return (3 * input + (output || 0)) / 4;   // смешанная цена 3:1, как у Artificial Analysis
+  return (3 * input + (output || 0)) / 4;
 }
 
 function matches(row, skip = "") {
@@ -562,7 +518,6 @@ function matches(row, skip = "") {
   return true;
 }
 
-/** Строка поиска строится один раз на модель, а не на каждое нажатие клавиши. */
 const hayMemo = new WeakMap();
 function haystack(row) {
   let value = hayMemo.get(row);
@@ -584,7 +539,7 @@ function sorted(rows) {
 let visibleMemo = { key: "", rows: [] };
 function visible() {
   if (!state.cache) return [];
-  // Один и тот же отбор не пересчитывается между отрисовкой и подгрузкой.
+
   const key = JSON.stringify([state.filters, state.sort, state.query, state.mine, state.mySet ? state.mySet.size : -1, state.cache.at, state.cache.rows.length]);
   if (visibleMemo.key === key && visibleMemo.source === state.cache.rows) return visibleMemo.rows;
   const rows = sorted(state.cache.rows.filter((row) => matches(row)));
@@ -592,7 +547,6 @@ function visible() {
   return rows;
 }
 
-/** Следующая порция карточек дописывается в конец, без перерисовки списка. */
 function appendMore() {
   const rows = visible();
   const main = $("#main");
@@ -620,8 +574,6 @@ function watchMore() {
   moreObserver.disconnect();
   if (more) moreObserver.observe(more);
 }
-
-/* ------------------------------------------------------------ отрисовка */
 
 function chip(kind, text, title = "") {
   return `<span class="mc-chip ${kind}"${title ? ` title="${esc(title)}"` : ""}>${esc(text)}</span>`;
@@ -685,7 +637,6 @@ function renderStatus() {
   else status.textContent = state.error ? t("error.title") : "";
 }
 
-/** Постоянный оттенок аватара разработчика: одна и та же буква не сливается. */
 function orgHue(slug) {
   let hash = 0;
   for (const ch of String(slug || "")) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
@@ -769,7 +720,7 @@ function renderCompare(main) {
   const rows = state.compare.map(byId).filter(Boolean);
   if (rows.length < 2) { state.view = "list"; return renderList(main); }
   const line = (label, fn, best) => {
-    // Array.map's index is not the formatter's `html` flag.
+
     const values = rows.map((row) => fn(row, false));
     const numeric = values.map((value) => (typeof value === "number" && Number.isFinite(value) ? value : null));
     const cells = rows.map((row) => fn(row, true));
@@ -868,8 +819,7 @@ function openCard(id) {
   $("#scrim").hidden = false;
   renderBenchmarkPanels();
   loadBenchmarks();
-  // Фокус переносится после первого кадра: синхронный focus() заставлял
-  // браузер пересчитать раскладку всего списка до показа листа.
+
   const focusClose = () => { const button = card.querySelector("[data-close]"); if (button && !card.hidden) button.focus({ preventScroll: true }); };
   if (typeof requestAnimationFrame === "function") requestAnimationFrame(() => setTimeout(focusClose, 0)); else focusClose();
 }
@@ -882,13 +832,11 @@ function closeCard() {
   const finish = () => { closeTimer = 0; card.hidden = true; scrim.hidden = true; delete card.dataset.closing; delete scrim.dataset.closing; };
   clearTimeout(closeTimer);
   if (quiet || typeof card.animate !== "function") { finish(); return; }
-  // Лист уезжает вправо, затемнение гаснет — затем элементы скрываются.
+
   card.dataset.closing = "1";
   scrim.dataset.closing = "1";
   closeTimer = setTimeout(finish, 170);
 }
-
-/* ------------------------------------------------------------ события */
 
 document.addEventListener("click", async (event) => {
   const model=event.target.closest(".mc-model");
@@ -987,7 +935,7 @@ document.addEventListener("input", (event) => {
 
 $("#scrim").addEventListener("click", closeCard);
 document.addEventListener("keydown", (event) => {
-  // preventDefault: Esc уже обработан — развёрнутое окно модуля не сворачивается.
+
   if (event.key === "Escape" && !$("#card").hidden && !$("#card").dataset.closing) { event.preventDefault(); closeCard(); }
 });
 
@@ -1002,8 +950,6 @@ $("#refresh").addEventListener("click", () => { load(true); loadMyModels().then(
 
 Memu.onLanguage(() => { renderSort(); render(); renderBenchmarkPanels(); });
 
-/* Переход из другого модуля («Новые модели API» → «В каталоге»): поиск по
- * названию и, если модель нашлась по ID, сразу её карточка. */
 if (typeof Memu.on === "function") Memu.on("navigate", (data) => {
   const query = String((data && data.query) || "").trim();
   const wanted = String((data && data.model) || "").toLowerCase();
@@ -1017,12 +963,10 @@ if (typeof Memu.on === "function") Memu.on("navigate", (data) => {
   if (hit) openCard(hit.id);
 });
 
-/* ------------------------------------------------------------ старт */
-
 renderSort();
 render();
 loadMyModels().then(render);
 load();
-// Round 30: one header — in the MemuAI window the name, status and buttons of this bar live in the window's title row.
+
 if (Memu.toolbar && Memu.toolbar.adopt) Memu.toolbar.adopt({ hide: ".mc-brand", status: "#status", buttons: [{ id: "refresh", el: "#refresh", icon: "refresh" }] });
 if (typeof Memu.ready === "function") Memu.ready();

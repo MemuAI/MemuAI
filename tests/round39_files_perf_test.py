@@ -22,14 +22,12 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "memufiles" / "static"
 PY = sys.executable
 
-
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMUAI_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("MEMUFILES_TRASH_DIR", str(tmp_path / "trash"))
     monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
     yield
-
 
 @pytest.fixture()
 def server(tmp_path):
@@ -39,7 +37,6 @@ def server(tmp_path):
     yield app
     app.stopping.set()
     httpd.shutdown()
-
 
 def call(app, path, body=None, headers=None, raw=False):
     data = None if body is None else json.dumps(body).encode()
@@ -57,16 +54,11 @@ def call(app, path, body=None, headers=None, raw=False):
             return exc.code, dict(exc.headers), exc.read()
         raise
 
-
 def _env(tmp_path):
     return dict(os.environ, MEMUAI_DATA_DIR=str(tmp_path / "data"), PYTHONPATH=str(ROOT))
 
-
 def _chromium():
     return os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
-
-
-# ------------------------------------------------------------------ start-up path (Python)
 
 def test_startup_imports_stay_light(tmp_path):
     """The hand-off path (memufiles.py → crash → desktop) must not pull urllib/http.client/traceback/tempfile, and
@@ -80,45 +72,40 @@ def test_startup_imports_stay_light(tmp_path):
     assert out.returncode == 0, out.stderr
     assert out.stdout.strip() == "[] []", out.stdout
 
-
 def test_lazy_members_and_deferred_warm(server, monkeypatch):
     from app.memufiles import server as srv
     assert server._queue is None and server._jobs is None
-    assert server.queue is server.queue and server._queue is not None     # built once, on first use
+    assert server.queue is server.queue and server._queue is not None
     calls = []
     monkeypatch.setattr(srv, "_deferred_warm", lambda app, delay=2.5: calls.append(app))
     boot = call(server, "/api/boot")
     assert calls == [server] and boot["path_info"] == {} and "known_folders" in boot
-
 
 def test_boot_path_info_and_handoff_before_boot(server, tmp_path):
     folder = tmp_path / "Папка"
     folder.mkdir()
     file = folder / "отчёт.txt"
     file.write_text("x", encoding="utf-8")
-    # a hand-off that arrives while the page is still loading is NOT lost (it used to go to the event queue the
-    # page had not subscribed to yet)
+
     reply = call(server, "/api/remote", {"action": "open", "paths": [str(folder), str(file)], "require_ui": True})
     assert reply["taken"] is True
     boot = call(server, "/api/boot")
     assert boot["paths"] == [str(folder), str(file)]
     assert boot["path_info"][str(folder)] == {"exists": True, "is_dir": True}
     assert boot["path_info"][str(file)] == {"exists": True, "is_dir": False}
-    # after the boot: an event with the same info (the page opens the tab without /api/stat)
+
     call(server, "/api/remote", {"action": "open", "paths": [str(folder)]})
     seq, events = server.events.wait(boot["events_seq"], timeout=1)
     opened = [e for e in events if e["type"] == "open"]
     assert opened and opened[-1]["info"][str(folder)]["is_dir"] is True
 
-
 def test_ghost_instance_refuses_handoff(server):
     server.ui = "starting"
-    server.started = time.time() - 600                  # a window that never showed
+    server.started = time.time() - 600
     reply = call(server, "/api/remote", {"action": "open", "paths": ["/"], "require_ui": True})
     assert reply["taken"] is False and server.initial_paths == []
-    server.ui = "warm"                                  # hidden in the background = alive
+    server.ui = "warm"
     assert call(server, "/api/remote", {"action": "open", "paths": ["/"], "require_ui": True})["taken"] is True
-
 
 def test_desktop_handoff_over_socket(server, tmp_path, monkeypatch):
     from app.memufiles import desktop
@@ -134,7 +121,6 @@ def test_desktop_handoff_over_socket(server, tmp_path, monkeypatch):
                         if a != "shutdown" else stopped.append(a))
     assert desktop.hand_off(["/"]) is False and stopped == ["open", "shutdown"]
 
-
 def test_handoff_process_is_fast(server, tmp_path):
     """A second MemuFiles start hands its folder over and exits — measured as a whole process."""
     from app.memufiles import desktop
@@ -144,10 +130,7 @@ def test_handoff_process_is_fast(server, tmp_path):
     out = subprocess.run([PY, "memufiles.py", str(tmp_path)], cwd=ROOT, env=_env(tmp_path), capture_output=True, timeout=30)
     took = time.perf_counter() - started
     assert out.returncode == 0 and server.initial_paths == [str(tmp_path)]
-    assert took < 3.0, took                              # generous for a loaded CI box (≈0.1 s on an idle one)
-
-
-# ------------------------------------------------------------------ static files
+    assert took < 3.0, took
 
 def test_static_etag_and_themed_index(server, monkeypatch):
     status, headers, body = call(server, "/js/core.js", raw=True)
@@ -165,7 +148,6 @@ def test_static_etag_and_themed_index(server, monkeypatch):
     else:
         assert 'class="fallback-tokens"' in text
 
-
 def test_index_has_modulepreload_and_skeleton():
     html = (STATIC / "index.html").read_text(encoding="utf-8")
     js = {p.name for p in (STATIC / "js").glob("*.js")}
@@ -176,9 +158,6 @@ def test_index_has_modulepreload_and_skeleton():
     assert imported <= preloaded | {"app.js"}, imported - preloaded
     assert preloaded <= js
     assert 'class="boot-splash boot-skel"' in html and ".boot-splash.boot-skel" in (STATIC / "memufiles.css").read_text(encoding="utf-8")
-
-
-# ------------------------------------------------------------------ registry launcher (Windows code path)
 
 def test_launcher_hands_off_directly(tmp_path):
     from app.memufiles import default_shell
@@ -191,12 +170,11 @@ def test_launcher_hands_off_directly(tmp_path):
         path = tmp_path / "launcher.js"
         path.write_text(src, encoding="utf-8")
         assert subprocess.run([node, "--check", str(path)], capture_output=True).returncode == 0
-        # the hand-off body escaping (ES3, no JSON object in WSH) round-trips a path with \ and "
-        line = next(l for l in src.splitlines() if "var body =" in l).strip()   # r41: «var shell» = the «Show in folder» mark
+
+        line = next(l for l in src.splitlines() if "var body =" in l).strip()
         probe = 'var shell = ""; var path = "C:\\\\Пап\\"ка\\\\"; ' + line + ' console.log(JSON.parse(body).paths[0] === path && JSON.parse(body).require_ui);'
         out = subprocess.run([node, "-e", probe], capture_output=True, text=True)
         assert out.stdout.strip() == "true", out.stderr
-
 
 def test_heal_upgrades_an_old_launcher(monkeypatch, tmp_path):
     from app.memufiles import default_shell
@@ -214,10 +192,7 @@ def test_heal_upgrades_an_old_launcher(monkeypatch, tmp_path):
     assert default_shell._launcher_outdated(str(exe)) is True
     assert default_shell.heal() is True
     assert default_shell._launcher_outdated(str(exe)) is False
-    assert default_shell.heal() is False                 # up to date: nothing to do
-
-
-# ------------------------------------------------------------------ settings
+    assert default_shell.heal() is False
 
 def test_keep_running_setting(server):
     from app.memufiles import settings_schema, settings as st
@@ -235,16 +210,13 @@ def test_keep_running_setting(server):
     server.desktop = FakeDesktop()
     server.ui = "warm"
     call(server, "/api/remote", {"action": "open", "paths": ["/"]})
-    assert server.ui == "window" and closed == ["activate"]     # a hidden warm window comes back
+    assert server.ui == "window" and closed == ["activate"]
     server.ui = "warm"
     call(server, "/api/settings", {"keep_running": False})
     time.sleep(0.6)
-    assert closed[-1] == "force_close"                          # switched off while hidden: quit for real
+    assert closed[-1] == "force_close"
     keys = {k for k, _r, _e in settings_schema.SHORTCUTS}
     assert {"Ctrl+N", "Ctrl+D"} <= keys
-
-
-# ------------------------------------------------------------------ UI (headless Chromium)
 
 def test_ui_downloads_newest_first_one_tab_and_ru_layout(server, tmp_path, monkeypatch):
     pw = pytest.importorskip("playwright.sync_api")
@@ -255,12 +227,12 @@ def test_ui_downloads_newest_first_one_tab_and_ru_layout(server, tmp_path, monke
     for i, name in enumerate(["яблоко.zip", "альфа.pdf", "бета.exe", "гамма.png"]):
         path = downloads / name
         path.write_bytes(b"x" * (i + 1))
-        os.utime(path, (now - (4 - i) * 3600 * 30, now - (4 - i) * 3600 * 30))   # гамма newest, яблоко oldest
+        os.utime(path, (now - (4 - i) * 3600 * 30, now - (4 - i) * 3600 * 30))
     other = tmp_path / "Обычная"
     other.mkdir()
     for name in ("б.txt", "а.txt"):
         (other / name).write_text("x", encoding="utf-8")
-    monkeypatch.setattr(srv, "_KNOWN", {"downloads": str(downloads) + os.sep})   # trailing slash: keys are normalised
+    monkeypatch.setattr(srv, "_KNOWN", {"downloads": str(downloads) + os.sep})
     server.initial_paths = [str(downloads)]
     url = f"http://127.0.0.1:{server.port}/index.html#t={server.token}"
     with pw.sync_playwright() as p:
@@ -271,22 +243,22 @@ def test_ui_downloads_newest_first_one_tab_and_ru_layout(server, tmp_path, monke
             page.on("pageerror", lambda e: errors.append(str(e)))
             page.goto(url)
             page.wait_for_selector(".fv .row")
-            assert page.locator(".tabbar .tab").count() == 1           # no extra «Home» tab any more
+            assert page.locator(".tabbar .tab").count() == 1
             assert page.locator(".boot-skel").count() == 0
             names = page.eval_on_selector_all(".fv .row .nm-text", "els => els.map(e => e.textContent)")
             assert names[0].startswith("гамма") and names[-1].startswith("яблоко"), names
             assert page.locator(".fv-head .col.sorted[data-col=m]").count() == 1
-            assert page.locator(".fv .group, .fv [class*=group]").count() >= 1      # grouped by date like Explorer
-            # an ordinary folder keeps sorting by name
+            assert page.locator(".fv .group, .fv [class*=group]").count() >= 1
+
             page.evaluate("p => window.MemuFiles.pane().navigate(p)", str(other))
             page.wait_for_selector(".fv .row .nm-text >> text=а.txt")
             names = page.eval_on_selector_all(".fv .row .nm-text", "els => els.map(e => e.textContent)")
             assert names[:2] == ["а.txt", "б.txt"], names
-            # Ctrl+A with the Russian layout (e.key = «ф», e.code = KeyA) selects everything
+
             page.locator(".fv").focus()
             page.evaluate("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'ф', code: 'KeyA', ctrlKey: true, bubbles: true}))")
             assert page.locator(".fv .row.sel").count() == 2
-            # folder keys: Windows paths are case/trailing-slash insensitive
+
             same = page.evaluate("""async () => { const core = await import('/js/core.js'); const pane = await import('/js/pane.js');
                 const old = core.S.platform; core.S.platform = 'nt';
                 const r = [pane.folderKey('C:\\\\Users\\\\Me\\\\Downloads\\\\'), pane.folderKey('c:/users/me/downloads'), pane.folderKey('C:\\\\')];
@@ -295,7 +267,6 @@ def test_ui_downloads_newest_first_one_tab_and_ru_layout(server, tmp_path, monke
             assert not errors, errors
         finally:
             browser.close()
-
 
 def test_dir_stamp_sees_content_changes(tmp_path):
     """Auto-refresh: a file whose size changed (folder mtime unchanged — and FAT/exFAT never updates it) is noticed."""
@@ -308,9 +279,8 @@ def test_dir_stamp_sees_content_changes(tmp_path):
     before = fsops.dir_stamp(str(folder))
     assert before == fsops.dir_stamp(str(folder))
     file.write_text("abc", encoding="utf-8")
-    os.utime(folder, ns=(st.st_atime_ns, st.st_mtime_ns))       # folder mtime as it was
+    os.utime(folder, ns=(st.st_atime_ns, st.st_mtime_ns))
     assert fsops.dir_stamp(str(folder)) != before
-
 
 def _lnk(target, unicode=True, idlist=True):
     """A minimal MS-SHLLINK file: header + (optional) IDList + LinkInfo with a local base path."""
@@ -336,7 +306,6 @@ def _lnk(target, unicode=True, idlist=True):
     info = struct.pack("<7I", size, hsize, 1, vol_off, local_off, 0, suffix_off) + extra + body
     return head + ids + info
 
-
 def test_folder_shortcut_opens_in_place(server, tmp_path, monkeypatch):
     from app.memufiles import fsops
     target = tmp_path / "Документы проекта"
@@ -352,5 +321,5 @@ def test_folder_shortcut_opens_in_place(server, tmp_path, monkeypatch):
     opened = []
     monkeypatch.setattr(fsops, "open_default", lambda p: opened.append(p))
     assert call(server, "/api/open", {"path": str(lnk)}) == {"ok": True, "navigate": str(target)} and not opened
-    call(server, "/api/open", {"path": str(plain)})            # target missing: launched as before
+    call(server, "/api/open", {"path": str(plain)})
     assert opened == [str(plain)]

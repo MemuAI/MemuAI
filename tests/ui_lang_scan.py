@@ -35,10 +35,9 @@ sys.path.insert(0, str(ROOT))
 CHROME_CANDIDATES = [os.environ.get("MEMU_TEST_CHROMIUM", ""), os.environ.get("MEMUAI_CHROMIUM", ""),
                      "/workspace/work/chromium/chrome", "/usr/bin/chromium", "/usr/bin/chromium-browser"]
 CYRILLIC = re.compile(r"[А-Яа-яЁё]")
-#: Cyrillic that belongs in an English UI: the language picker names Russian in Russian.
+
 ALLOW_CYRILLIC = {"Русский", "Русский (RU)", "RU · Русский"}
 
-#: Collects every user-facing string under ``root``: [text, where].
 COLLECT_JS = r"""(sel) => {
   const roots = sel ? [...document.querySelectorAll(sel)] : [document.documentElement];
   const out = [], seen = new Set();
@@ -65,11 +64,6 @@ COLLECT_JS = r"""(sel) => {
   return out;
 }"""
 
-# --------------------------------------------------------------------------- English in Russian
-
-#: Words that are fine untranslated in the Russian UI: product, service and model names, technical
-#: terms and file formats. Lower-case; a phrase is suspicious only when it has two or more words
-#: outside this set.
 RU_ALLOWED_WORDS = set("""
 memuai memu vision proxy memucode memes mini app apps telegram github google drive calendar gmail api apis
 key keys token tokens url urls http https localhost json yaml csv pdf png jpg jpeg webp gif svg mp3 mp4
@@ -91,22 +85,20 @@ jetbrains roboto segoe ui ux tg pin otp 2fa totp e-mail email nvidia amd intel a
 iphone ipad web vk discord slack notion obsidian trello jira figma youtube twitter x reddit
 spotify steam twitch microsoft office word excel powerpoint outlook onedrive dropbox icloud
 """.split())
-#: Names and terms of more than one word that stay English in Russian (services, protocols, benchmarks).
+
 RU_ALLOWED_PHRASES = ("Hugging Face", "function calling", "Programmable Search", "Anthropic Messages", "OpenAI Responses",
                       "Artificial Analysis", "MemuAI Index", "AWS Kiro IDE", "Moonshot AI", "Zhipu AI", "Seed · ByteDance",
                       "EQ-Bench", "LiveBench", "SimpleBench", "Computer Use",
                       "Personal Access Token", "Client secret", "pull request", "Catppuccin Mocha",
                       "Live2D Cubism Core", "Live2D Inc", "Expandable Applications", "AI Fluency", "Open WebUI", "Retry-After")
-#: Places whose text is content, not interface: code samples, prompt titles of the visual benchmark, model
-#: names, a command line, the step-by-step guides of GitHub / Google consoles (they quote the English menus).
+
 RU_SKIP_WHERE = ("code-block", "det-visual-pick", "det-claimed", "voice-model-title", "companion-model", "mcs-vs-head",
                  "mcp-command", "github-guide", "google-guide", "#lm-q")
 WORD = re.compile(r"[A-Za-z][A-Za-z0-9'’.+-]*")
 
-
 def english_suspects(text: str) -> list[str]:
     """Runs of 2+ English words (not product names/terms) inside a Russian UI string."""
-    # Addresses, e-mails, paths and file names are not words of the interface.
+
     for phrase in RU_ALLOWED_PHRASES:
         text = text.replace(phrase, " ")
     text = re.sub(r"\S*_\S*|\S+://\S+|\S+@\S+\.\S+|[A-Za-z]:\\[^,;«»\n]*|%\w+%\S*|\S*[\\/]\S+|\S+\.(?:exe|json|log|md|py|txt|gguf|zip|png)\b", " ", text)
@@ -124,18 +116,13 @@ def english_suspects(text: str) -> list[str]:
         run = []
     return found
 
-
-# --------------------------------------------------------------------------- servers
-
 def free_port() -> int:
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         return probe.getsockname()[1]
 
-
 def chromium() -> str | None:
     return next((c for c in CHROME_CANDIDATES if c and os.path.exists(c)), None)
-
 
 class Servers:
     """MemuAI Proxy + playground + Mini App + an offline model mock, in this process."""
@@ -149,7 +136,7 @@ class Servers:
         for key in ("NO_PROXY", "no_proxy"):
             os.environ[key] = "127.0.0.1,localhost"
         self.servers = []
-        # Exports save into ~/Downloads/MemuAI: keep them inside the scan's data folder, never the real Downloads.
+
         from unittest.mock import patch
         home = Path(self.data) / "home"
         home.mkdir(parents=True, exist_ok=True)
@@ -209,20 +196,17 @@ class Servers:
             self._home.stop()
             self._home = None
 
-
-# --------------------------------------------------------------------------- scanners
-
 class Scan:
     def __init__(self, page, product: str, lang: str):
         self.page, self.product, self.lang = page, product, lang
-        self.items: list[tuple[str, str, str]] = []  # (state, where, text)
+        self.items: list[tuple[str, str, str]] = []
         self.errors: list[str] = []
         page.on("pageerror", lambda e: self.errors.append(f"{product}/{lang}: {e}"))
 
     def grab(self, state: str, selector: str | None = None) -> None:
         try:
             rows = self.page.evaluate(COLLECT_JS, selector)
-        except Exception as exc:  # a navigation in flight: try once more
+        except Exception as exc:
             self.settle()
             try:
                 rows = self.page.evaluate(COLLECT_JS, selector)
@@ -234,8 +218,6 @@ class Scan:
     def wait(self, ms: int = 400) -> None:
         self.page.wait_for_timeout(ms)
 
-    #: A page that reloads itself (a language or profile switch) destroys the context mid-call: wait for it
-    #: to come back and run the step again instead of losing every later state.
     READY_JS = ""
 
     def settle(self) -> None:
@@ -283,14 +265,12 @@ class Scan:
                             "text": text[:300], "hit": hit[:120]})
         return out
 
-
 SEED_CHATS_EN = [{"id": "c_scan1", "title": "Database migration", "created": 1, "updated": 2, "mode": "chat",
                   "messages": [{"role": "user", "content": "How do I move PostgreSQL?", "ts": 1},
                                {"role": "assistant", "content": "Step by step.", "model": "demo-gpt-test", "ts": 2}]}]
 
 MEMUAI_SETTINGS_SUBS_JS = r"""() => [...document.querySelectorAll('#panel .sx-shell .settings-tab-pane.active [data-sx-open]')]
   .map((b) => b.dataset.sxOpen)"""
-
 
 def scan_memuai(browser, servers: Servers, lang: str, *, width: int = 1360, height: int = 860, shots: Path | None = None) -> Scan:
     import httpx
@@ -314,14 +294,14 @@ def scan_memuai(browser, servers: Servers, lang: str, *, width: int = 1360, heig
     scan.grab("home")
     shot = (lambda name: page.screenshot(path=str(shots / f"memuai-{lang}-{name}.png"))) if shots else (lambda name: None)
     shot("home")
-    # Main views of the sidebar.
+
     for nav in ("nav-chat", "nav-code", "nav-work", "nav-sched", "nav-skills"):
         scan.js(f"document.getElementById('{nav}')?.click()", nav, 900)
         shot(nav)
         scan.js("document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))", None, 200)
         scan.js("typeof closePanel === 'function' && closePanel()", None, 200)
     scan.js("document.getElementById('nav-chat')?.click()", None, 500)
-    # Menus and modals of the chat screen.
+
     for state, code in (
         ("model-menu", "document.getElementById('model-dd-btn')?.click()"),
         ("memory", "showMemory()"),
@@ -342,7 +322,7 @@ def scan_memuai(browser, servers: Servers, lang: str, *, width: int = 1360, heig
         ("pin", "promptPinUnlock({name: 'Alex'}, () => {}); setTimeout(() => document.getElementById('pin-cancel')?.click(), 600)"),
         ("live", "openLiveCall(); setTimeout(() => document.getElementById('live-close')?.click(), 600)"),
         ("code-palette", "document.getElementById('nav-code')?.click(); setTimeout(() => document.getElementById('code-palette-btn')?.click(), 300)"),
-        # Round 29 surfaces: global search, «Send later», memory v2 tabs, the table editor and studio.
+
         ("search", "document.getElementById('nav-chat')?.click(); window.MemuSearch && MemuSearch.open('memu')"),
         ("search-empty", "window.MemuSearch && MemuSearch.open('')"),
         ("schedsend-menu", "window.MemuSchedSend && MemuSchedSend.open()"),
@@ -356,13 +336,13 @@ def scan_memuai(browser, servers: Servers, lang: str, *, width: int = 1360, heig
     ):
         scan.js(code, state, 700)
         scan.js("typeof closePanel === 'function' && closePanel()", None, 150)
-        page.keyboard.press("Escape")    # a real key: the palettes listen on their own input
+        page.keyboard.press("Escape")
         scan.js("document.body.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true}))", None, 150)
-    # Settings: every page and every sub-page.
+
     scan.js("showSettings()", None, 1200)
     try:
         pages = page.evaluate("settingsPages().map((p) => p.id)")
-    except Exception:            # the window reloaded itself under the call: once more on the fresh page
+    except Exception:
         scan.settle()
         scan.js("showSettings()", None, 1200)
         pages = page.evaluate("settingsPages().map((p) => p.id)")
@@ -378,9 +358,7 @@ def scan_memuai(browser, servers: Servers, lang: str, *, width: int = 1360, heig
     ctx.close()
     return scan
 
-
 PROXY_TABS = ("home", "accounts", "local", "public", "chat", "detector", "settings", "logs")
-
 
 def scan_proxy(browser, servers: Servers, lang: str, *, theme: str = "dark", shots: Path | None = None) -> Scan:
     ctx = browser.new_context(viewport={"width": 1440, "height": 900}, bypass_csp=True)
@@ -399,20 +377,19 @@ def scan_proxy(browser, servers: Servers, lang: str, *, theme: str = "dark", sho
                 scan.js(f"document.querySelector('[data-sg-nav=\"{sec}\"]')?.click()", f"settings:{sec}", 600)
                 if shots:
                     page.screenshot(path=str(shots / f"proxy-{lang}-{theme}-settings-{sec}.png"), full_page=False)
-    # The add-account dialog for every provider and the companion.
+
     scan.js("document.querySelector('[data-tab=\"accounts\"]')?.click()", None, 600)
     scan.js("document.querySelector('#add-account-btn, [data-action=\"add-account\"], #acc-add')?.click()", "add-account", 800)
     scan.js("document.getElementById('companion-open')?.click()", "companion", 900)
     ctx.close()
     return scan
 
-
 def scan_tgapp(browser, servers: Servers, lang: str) -> Scan:
     from app import pgdata, tg_webapp
     from app import panels
     pgdata.save_preferences({"telegram_bot_token": servers.TG_TOKEN, "telegram_chat_id": str(servers.TG_USER),
                              "language": lang})
-    panels.update_settings({"lang": lang})   # what the desktop window or the Mini App's own switch posts
+    panels.update_settings({"lang": lang})
     tg_webapp.save_config({"enabled": True, "mode": "cloudflare"})
     init = tg_webapp.sign_init_data({"auth_date": int(time.time()), "query_id": "AAH-scan",
                                      "user": {"id": servers.TG_USER, "first_name": "Yono", "language_code": lang}},
@@ -433,13 +410,11 @@ def scan_tgapp(browser, servers: Servers, lang: str) -> Scan:
     ctx.close()
     return scan
 
-
 INSTALLER_CASES = ("screen=welcome", "screen=edition", "screen=location", "screen=options", "screen=review",
                    "screen=express", "screen=progress&pct=47", "screen=done&speed=0.2", "screen=notes&speed=0.2",
                    "screen=error", "screen=apps", "kind=upgrade&screen=welcome", "kind=reinstall&screen=welcome",
                    "kind=downgrade&screen=welcome", "product=proxy&screen=welcome", "product=proxy&screen=options",
                    "mode=uninstall", "mode=uninstall&screen=keepoff", "mode=uninstall&screen=un-done&speed=0.2")
-
 
 def scan_installer(browser, lang: str) -> Scan:
     ctx = browser.new_context(viewport={"width": 960, "height": 620}, bypass_csp=True)
@@ -452,7 +427,6 @@ def scan_installer(browser, lang: str) -> Scan:
         scan.grab(case)
     ctx.close()
     return scan
-
 
 def run(only=("memuai", "proxy", "tgapp", "installer"), langs=("en", "ru"), shots: Path | None = None):
     from playwright.sync_api import sync_playwright
@@ -481,7 +455,6 @@ def run(only=("memuai", "proxy", "tgapp", "installer"), langs=("en", "ru"), shot
             servers.stop()
     return findings, errors
 
-
 def main(argv: list[str]) -> int:
     only, langs, out, shots = ["memuai", "proxy", "tgapp", "installer"], ["en", "ru"], None, None
     args = iter(argv)
@@ -504,7 +477,6 @@ def main(argv: list[str]) -> int:
     if out:
         out.write_text(json.dumps({"findings": findings, "errors": errors}, ensure_ascii=False, indent=1), encoding="utf-8")
     return 1 if findings else 0
-
 
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

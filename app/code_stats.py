@@ -25,19 +25,15 @@ LEDGER = "memucode-stats.json"
 _DAY_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _MAX_SESSIONS_PER_DAY = 400
 
-
 def _path(profile_id: Optional[str] = None):
     from .pgdata import MEMU_DIR, _profile_data_name
     return MEMU_DIR / _profile_data_name(LEDGER, profile_id)
 
-
 def _empty() -> Dict[str, Any]:
     return {"version": 1, "days": {}, "backfilled": False}
 
-
 def _valid(value: Any) -> bool:
     return isinstance(value, dict) and isinstance(value.get("days"), dict)
-
 
 def _day_row(days: Dict[str, Any], day: str) -> Dict[str, Any]:
     row = days.get(day)
@@ -47,7 +43,6 @@ def _day_row(days: Dict[str, Any], day: str) -> Dict[str, Any]:
     if not isinstance(row.get("hours"), list) or len(row["hours"]) != 24:
         row["hours"] = [0] * 24
     return row
-
 
 def _add(row: Dict[str, Any], *, session: str, model: str, hour: int, messages: int,
          tokens_in: int, tokens_out: int, estimated: bool) -> None:
@@ -59,20 +54,18 @@ def _add(row: Dict[str, Any], *, session: str, model: str, hour: int, messages: 
         stat = row["models"].setdefault(model[:200], {"messages": 0, "tokens": 0})
         stat["messages"] = int(stat.get("messages") or 0) + messages
         stat["tokens"] = int(stat.get("tokens") or 0) + tokens_in + tokens_out
-        # Input and output are priced differently, so the split is kept per model.
+
         stat["tokens_in"] = int(stat.get("tokens_in") or 0) + tokens_in
         stat["tokens_out"] = int(stat.get("tokens_out") or 0) + tokens_out
     if session and session not in row["sessions"] and len(row["sessions"]) < _MAX_SESSIONS_PER_DAY:
         row["sessions"].append(session[:80])
     row["estimated"] = bool(row.get("estimated")) or estimated
 
-
 def _int(value: Any, high: int = 50_000_000) -> int:
     try:
         return max(0, min(high, int(value)))
     except (TypeError, ValueError):
         return 0
-
 
 def record(event: Dict[str, Any], profile_id: Optional[str] = None) -> None:
     """One model round of a MemuCode session (plus the user message that started it)."""
@@ -91,14 +84,12 @@ def record(event: Dict[str, Any], profile_id: Optional[str] = None) -> None:
 
     mutate_json(_path(profile_id), _empty(), change, backup=False, validator=_valid, repair_invalid=True)
 
-
 def _tokens(value: Any) -> int:
     if isinstance(value, str):
         return token_estimate.estimate(value)
     if isinstance(value, list):
         return sum(_tokens(item.get("text") if isinstance(item, dict) else item) for item in value)
     return 0
-
 
 def backfill(chats: List[Dict[str, Any]], profile_id: Optional[str] = None) -> None:
     """Import MemuCode sessions still in the history, once, with estimated tokens."""
@@ -135,7 +126,6 @@ def backfill(chats: List[Dict[str, Any]], profile_id: Optional[str] = None) -> N
         return True, data
 
     mutate_json(_path(profile_id), _empty(), change, backup=False, validator=_valid, repair_invalid=True)
-
 
 def summary(range_days: Optional[int], today: str = "", profile_id: Optional[str] = None) -> Dict[str, Any]:
     data = load_json_with_recovery(_path(profile_id), _empty(), validator=_valid)
@@ -175,7 +165,7 @@ def summary(range_days: Optional[int], today: str = "", profile_id: Optional[str
                 current["tokens_in"] += int(stat.get("tokens_in") or 0)
                 current["tokens_out"] += int(stat.get("tokens_out") or 0)
             else:
-                # Ledgers written before the split: use the day's input/output ratio.
+
                 current["tokens_in"] += int(tokens * day_share)
                 current["tokens_out"] += tokens - int(tokens * day_share)
         sessions.update(row.get("sessions") or [])
@@ -206,7 +196,6 @@ def summary(range_days: Optional[int], today: str = "", profile_id: Optional[str
         "estimated": estimated,
         "first_day": min((row["day"] for row in days), default=""),
     }
-
 
 def _model_costs(models: Dict[str, Dict[str, int]]) -> Dict[str, Dict[str, Any]]:
     """What the counted tokens would cost at public API prices (app.pricing)."""

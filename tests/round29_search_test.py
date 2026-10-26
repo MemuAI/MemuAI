@@ -22,7 +22,6 @@ STATIC = ROOT / "app" / "pgstatic"
 NOW = time.time() * 1000
 DAY = 86_400_000
 
-
 def chat(chat_id, title, messages, **extra):
     rows = []
     for i, (role, text, *rest) in enumerate(messages):
@@ -31,7 +30,6 @@ def chat(chat_id, title, messages, **extra):
             row["model"] = rest[0]
         rows.append(row)
     return {"id": chat_id, "title": title, "messages": rows, "updated": extra.pop("updated", NOW), **extra}
-
 
 CHATS = [
     chat("c1", "Привет и настройка Python", [("user", "Привет! Как установить пакеты в Python?"),
@@ -45,7 +43,6 @@ CHATS = [
     chat("c4", "Планы на отпуск", [("user", "Хочу поехать в горы"), ("assistant", "Возьмите тёплую куртку и термос", "gpt-5")],
          mode="work"),
 ]
-
 
 class _Fresh(unittest.TestCase):
     """Every test gets a fresh index and a clean data folder."""
@@ -74,7 +71,6 @@ class _Fresh(unittest.TestCase):
     def titles(self, query, **kw):
         return [item["title"] for item in si.search(query, **kw)["items"]]
 
-
 class TextTests(unittest.TestCase):
     def test_folding_tokens_and_layout(self) -> None:
         self.assertEqual(si.fold("ЁЛКА Ёж"), "елка еж")
@@ -91,7 +87,7 @@ class TextTests(unittest.TestCase):
 
     def test_edit_distance(self) -> None:
         self.assertTrue(si.edit_distance_le("seach", "search", 1))
-        self.assertTrue(si.edit_distance_le("serach", "search", 1))       # transposition
+        self.assertTrue(si.edit_distance_le("serach", "search", 1))
         self.assertTrue(si.edit_distance_le("documantetion", "documentation", 2))
         self.assertFalse(si.edit_distance_le("python", "pascal", 2))
 
@@ -110,7 +106,7 @@ class TextTests(unittest.TestCase):
         q = si.parse_query("after:2026-01-01 before:2026-01-31 in:telegram unknown:op")
         self.assertTrue(q.flags["telegram"])
         self.assertLess(q.date_from, q.date_to)
-        self.assertEqual(q.words, ["unknown", "op"])     # an unknown operator is plain text
+        self.assertEqual(q.words, ["unknown", "op"])
 
     def test_snippet_window_and_ranges(self) -> None:
         rx = si._word_regex({"needle"}, {"needl"})
@@ -121,14 +117,13 @@ class TextTests(unittest.TestCase):
         start, length = ranges[0]
         self.assertEqual(snip[start:start + length], "needle")
 
-
 class SearchTests(_Fresh):
     def test_chats_messages_and_grouping(self) -> None:
         self.with_chats()
         result = si.search("python ошибка")
         self.assertEqual(result["items"][0]["title"], "Привет и настройка Python")
         item = result["items"][0]
-        # words in different messages of one chat still match (AND per chat) and both messages are hits
+
         self.assertEqual(item["type"], "chat")
         self.assertGreaterEqual(item["hit_count"], 2)
         self.assertTrue(all(hit["open"]["action"] == "chat" and "index" in hit["open"] for hit in item["hits"]))
@@ -138,14 +133,14 @@ class SearchTests(_Fresh):
 
     def test_morphology_typos_layout_prefix(self) -> None:
         self.with_chats()
-        self.assertIn("Рецепт борща", self.titles("свекла"))           # ё/е and word forms
+        self.assertIn("Рецепт борща", self.titles("свекла"))
         self.assertIn("Привет и настройка Python", self.titles("установки"))
-        self.assertIn("Refactor search", self.titles("seach"))          # a typo
-        result = si.search("ghbdtn")                                    # wrong keyboard layout
+        self.assertIn("Refactor search", self.titles("seach"))
+        result = si.search("ghbdtn")
         self.assertEqual(result["layout_switched"], "привет")
         self.assertIn("Привет и настройка Python", [i["title"] for i in result["items"]])
-        self.assertIn("Привет и настройка Python", self.titles("pyt"))  # as-you-type prefix
-        self.assertIn("Refactor search", self.titles("run"))            # running → run
+        self.assertIn("Привет и настройка Python", self.titles("pyt"))
+        self.assertIn("Refactor search", self.titles("run"))
 
     def test_operators_filter_results(self) -> None:
         self.with_chats()
@@ -171,7 +166,7 @@ class SearchTests(_Fresh):
         self.assertEqual([i["title"] for i in si.search("как", filters={"telegram": True})["items"]], ["Рецепт борща"])
         old = NOW - 30 * DAY
         self.assertEqual([i["title"] for i in si.search("как", filters={"date_to": old})["items"]], ["Рецепт борща"])
-        self.assertEqual(si.search("", filters={})["items"], [])     # nothing to show without words or filters
+        self.assertEqual(si.search("", filters={})["items"], [])
 
     def test_incremental_updates(self) -> None:
         self.with_chats()
@@ -183,10 +178,10 @@ class SearchTests(_Fresh):
         time.sleep(0.01)
         self.write("chats.json", chats)
         changed = si.INDEX.refresh()
-        self.assertEqual(changed, 1)                            # only the edited chat was re-indexed
+        self.assertEqual(changed, 1)
         self.assertEqual(self.titles("уникальноеслово"), ["Рецепт борща"])
         self.assertEqual(len(units_before), len(si.INDEX.unit_sig))
-        # a deleted chat leaves the index
+
         self.write("chats.json", [c for c in chats if c["id"] != "c2"])
         si.INDEX.refresh()
         self.assertEqual(self.titles("уникальноеслово"), [])
@@ -258,7 +253,6 @@ class SearchTests(_Fresh):
         self.assertTrue(any(i["open"].get("page") == "shortcuts" for i in en["items"]))
         self.assertTrue(any(i["open"].get("page") == "search" for i in si.search("ghbdtn search everything", lang="en")["items"]) or True)
 
-
 class WorkFilesTests(_Fresh):
     def setUp(self) -> None:
         super().setUp()
@@ -268,7 +262,7 @@ class WorkFilesTests(_Fresh):
         (self.root / "README.md").write_text("# Проект счетов\nСчитает итоговую сумму.\n", encoding="utf-8")
         (self.root / "node_modules").mkdir()
         (self.root / "node_modules" / "junk.js").write_text("compute_invoice_total", encoding="utf-8")
-        (self.root / "big.txt").write_text("invoice " * 80_000, encoding="utf-8")    # > the size cap: name only
+        (self.root / "big.txt").write_text("invoice " * 80_000, encoding="utf-8")
         (self.root / "image.png").write_bytes(b"\x89PNG\x00\x00invoice")
         self.outside = Path(tempfile.mkdtemp(prefix="memuai-r29-outside-"))
         (self.outside / "secret.txt").write_text("compute_invoice_total secret", encoding="utf-8")
@@ -303,21 +297,20 @@ class WorkFilesTests(_Fresh):
         local = search_api.run_search({"q": "billing"})
         self.assertTrue(local["items"])
         remote = search_api.remote_search("billing")
-        # The Mini App sees the other sources (docs, chats…) but never Work files, projects or modules.
+
         self.assertFalse({i["type"] for i in remote["items"]} & {"file", "project", "module"})
         self.assertFalse(any("path" in i["meta"] for i in remote["items"]))
         self.assertIsNone(search_api.remote_preview("file:p1:src/billing.py"))
 
     def test_remote_search_works_in_a_process_without_routes(self) -> None:
-        # MemuAI Proxy (the Mini App) never calls search_api.register(): remote_search installs the
-        # built-in providers itself and does not walk Work folders.
+
         from app import search_api
         si.INDEX = si.SearchIndex()
         self.write("chats.json", CHATS)
         found = search_api.remote_search("борщ", lang="ru")
         self.assertIn("chat", {i["type"] for i in found["items"]})
         self.assertIn("chats", si.INDEX.providers)
-        self.assertNotIn("files", si.INDEX.prov_rev)            # never indexed for the phone
+        self.assertNotIn("files", si.INDEX.prov_rev)
 
     def test_switching_file_indexing_off(self) -> None:
         from app import search_api
@@ -327,7 +320,6 @@ class WorkFilesTests(_Fresh):
         self.assertEqual([i for i in si.search("compute_invoice_total")["items"] if i["type"] == "file"], [])
         search_api.save_state({"index_files": True})
         search_api._apply_settings(search_api.load_state())
-
 
 class ApiTests(_Fresh):
     def setUp(self) -> None:
@@ -365,7 +357,7 @@ class ApiTests(_Fresh):
         post({"q": "первый"})
         post({"q": "второй"})
         items = post({"q": "Первый"})["items"]
-        self.assertEqual([r["q"] for r in items], ["Первый", "второй"])     # de-duplicated, newest first
+        self.assertEqual([r["q"] for r in items], ["Первый", "второй"])
         self.assertEqual([r["q"] for r in post({"remove": "второй"})["items"]], ["Первый"])
         self.assertEqual(post({"clear": True})["items"], [])
         settings = self.client.post("/api/search/settings", json={"remember_recent": False}).json()
@@ -374,7 +366,6 @@ class ApiTests(_Fresh):
         self.client.post("/api/search/settings", json={"remember_recent": True})
         self.assertEqual(self.client.post("/api/search/reveal", json={"id": "file:nope:x"}).status_code, 404)
         self.assertEqual(self.client.post("/api/search/reveal", json={"id": "msg:c1:0"}).status_code, 404)
-
 
 class ScaleTests(_Fresh):
     def test_thousands_of_chats_stay_fast(self) -> None:
@@ -400,7 +391,6 @@ class ScaleTests(_Fresh):
             self.assertLess(took, 1.5, f"{query}: {took:.3f}s")
         self.assertEqual(si.search("token777x3", refresh=False)["items"][0]["title"], "Чат номер 777")
 
-
 class FrontendHookTests(unittest.TestCase):
     def test_files_are_wired_into_the_window(self) -> None:
         html = (STATIC / "index.html").read_text(encoding="utf-8")
@@ -425,15 +415,15 @@ class FrontendHookTests(unittest.TestCase):
         for design in designs:
             self.assertIn(f':root[data-design="{design}"]', css, design)
         self.assertIn('[data-theme="light"]', css)
-        # colours only from tokens: no hard-coded hex outside color-mix() tints
+
         for line in css.splitlines():
-            line = re.sub(r"var\(--[\w-]+,\s*#[0-9a-fA-F]{3,6}\)", "var()", line)   # a token with a fallback is fine
+            line = re.sub(r"var\(--[\w-]+,\s*#[0-9a-fA-F]{3,6}\)", "var()", line)
             for color in re.findall(r"#[0-9a-fA-F]{3,6}\b", line):
                 self.assertIn("color-mix", line, line)
 
     def test_english_strings_have_no_cyrillic(self) -> None:
         js = (STATIC / "search.js").read_text(encoding="utf-8")
-        # every L("ru", "en") pair: the English half is Latin
+
         for ru, en in re.findall(r'L\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)', js):
             self.assertIsNone(re.search(r"[А-Яа-яЁё]", en), en)
         for ru, en in re.findall(r'L\(`((?:[^`\\]|\\.)*)`,\s*`((?:[^`\\]|\\.)*)`\)', js):
@@ -444,7 +434,6 @@ class FrontendHookTests(unittest.TestCase):
         for name in ("search.js", "app.js", "memucode.js"):
             proc = subprocess.run(["node", "--check", str(STATIC / name)], capture_output=True, text=True)
             self.assertEqual(proc.returncode, 0, proc.stderr)
-
 
 if __name__ == "__main__":
     unittest.main()

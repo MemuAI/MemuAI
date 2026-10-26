@@ -1,6 +1,5 @@
-/* MemuAI Setup — interface strings (ru / en). Keys are referenced by
- * data-i18n / data-i18n-html attributes in index.html and by app.js.
- * {name}, {version}, {from}, {size} … are filled in by app.js. */
+
+
 window.MEMU_I18N = {
   en: {
     "title.setup": "{name} Setup",

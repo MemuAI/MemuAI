@@ -40,11 +40,10 @@ def _bundled_path() -> Path:
         return Path(base) / "app" / "local_catalog" / "models.json"
     return Path(__file__).resolve().parent / "local_catalog" / "models.json"
 
-
 BUNDLED = _bundled_path()
 
 USES = ("chat", "coding", "ru", "vision", "reasoning", "agent", "docs")
-#: How much a quant keeps of the original quality (relative, for ranking).
+
 QUANT_QUALITY = {"Q2_K": 0.86, "Q3_K_M": 0.93, "Q3_K_XL": 0.94, "Q4_0": 0.955, "Q4_K_S": 0.96, "Q4_K_M": 0.97,
                  "Q4_K_XL": 0.975, "Q5_K_M": 0.985, "Q5_K_XL": 0.987, "Q6_K": 0.995, "Q6_K_XL": 0.996,
                  "Q8_0": 1.0, "Q8_K_XL": 1.0, "MXFP4": 1.0, "BF16": 1.0, "F16": 1.0}
@@ -70,19 +69,12 @@ OPEN_LICENSES = {"apache-2.0", "mit"}
 LICENSE_LABEL = {"apache-2.0": "Apache 2.0", "mit": "MIT", "llama3.1": "Llama 3.1 Community", "llama3.2": "Llama 3.2 Community",
                  "nvidia-open-model": "NVIDIA Open Model", "yandexgpt-5-lite": "YandexGPT 5 Lite", "other": "—"}
 
-
-# --------------------------------------------------------------------------
-# Catalogue
-# --------------------------------------------------------------------------
-
 _catalog_lock = threading.Lock()
 _refresh: Dict[str, Any] = {"state": "idle", "done": 0, "total": 0, "error": "", "error_en": "", "finished": 0}
-
 
 def override_path() -> Path:
     from .local_models import root_dir
     return root_dir() / "recommendations.json"
-
 
 def _read(path: Path) -> Optional[Dict[str, Any]]:
     try:
@@ -93,7 +85,6 @@ def _read(path: Path) -> Optional[Dict[str, Any]]:
         return None
     return data
 
-
 def load_catalog() -> Dict[str, Any]:
     """The bundled catalogue, or the user's refreshed copy while it is newer."""
     bundled = _read(BUNDLED) or {"schema": 1, "version": "", "models": []}
@@ -103,14 +94,13 @@ def load_catalog() -> Dict[str, Any]:
         refreshed = None
     if refreshed and str(refreshed.get("version") or "") >= str(bundled.get("version") or "") \
             and int(refreshed.get("schema") or 0) == int(bundled.get("schema") or 0):
-        # A newer app version may add models: keep bundled entries the refreshed file lacks.
+
         ids = {row.get("id") for row in refreshed["models"]}
         refreshed["models"] += [row for row in bundled["models"] if row.get("id") not in ids]
         refreshed["origin"] = "refreshed"
         return refreshed
     bundled["origin"] = "bundled"
     return bundled
-
 
 def kv_from_config(config: Dict[str, Any]) -> Dict[str, int]:
     """KV cache size (f16) from a transformers config.json: bytes per context token + a fixed part.
@@ -151,12 +141,10 @@ def kv_from_config(config: Dict[str, Any]) -> Dict[str, int]:
     fixed = sliding * kv_heads * head_dim * 2 * 2 * window if window else sliding * kv_heads * head_dim * 2 * 2 * 4096
     return {"per_token": int(per_token), "fixed": int(fixed)}
 
-
 _SHARD_RE = re.compile(r"-(\d{5})-of-(\d{5})\.gguf$", re.I)
 _DRAFT_RE = re.compile(r"(?i)(?:^|[-_./])(?:draft|mtp|nextn|eagle3?|dflash)(?:[-_.]|$)")
 _FALLBACK_QUANT = {"Q3_K_M": ("Q3_K_XL",), "Q4_K_M": ("Q4_K_XL",), "Q5_K_M": ("Q5_K_XL",), "Q6_K": ("Q6_K_XL",),
                    "Q8_0": ("Q8_K_XL",), "MXFP4": ("F16",)}
-
 
 def pick_files(tree: List[Dict[str, Any]], quants: List[str]) -> Dict[str, Any]:
     """From a repository listing: one file group per wanted quant, the best projector and MTP draft."""
@@ -175,7 +163,7 @@ def pick_files(tree: List[Dict[str, Any]], quants: List[str]) -> Dict[str, Any]:
         if re.search(r"(?i)imatrix", name):
             continue
         if _DRAFT_RE.search(Path(path).stem) or path.lower().startswith("mtp/"):
-            # Only MTP heads are offered as a speed-up: EAGLE/DFlash drafts need other engine options.
+
             if "mtp" in path.lower():
                 drafts.append({"path": path, "size": size, "quant": quant_from_name(name)})
             continue
@@ -198,7 +186,7 @@ def pick_files(tree: List[Dict[str, Any]], quants: List[str]) -> Dict[str, Any]:
         out[quant] = {"files": sorted(best["files"]), "size": best["size"], "quant": best["quant"]}
     def projector_rank(row: Dict[str, Any]) -> Tuple[int, int]:
         name = row["path"].upper()
-        # F16 first: BF16 projectors are not supported by every backend (older Vulkan drivers).
+
         order = 1 if "BF16" in name else 0 if "F16" in name else 2 if "Q8_0" in name else 3 if "F32" in name else 9
         return order, row["size"]
     mmproj = sorted(projectors, key=projector_rank)[0] if projectors else None
@@ -206,7 +194,6 @@ def pick_files(tree: List[Dict[str, Any]], quants: List[str]) -> Dict[str, Any]:
     if drafts:
         draft = sorted(drafts, key=lambda row: (row["quant"] not in ("Q8_0", "Q4_0"), row["quant"] != "Q8_0", row["size"]))[0]
     return {"files": out, "mmproj": mmproj, "draft": draft}
-
 
 def refresh_entry(entry: Dict[str, Any], get_json: Callable[[str], Any]) -> Dict[str, Any]:
     """Re-read one model from Hugging Face: files and sizes, projector, MTP draft, KV size, params, context."""
@@ -250,7 +237,6 @@ def refresh_entry(entry: Dict[str, Any], get_json: Callable[[str], Any]) -> Dict
     updated["checked"] = time.strftime("%Y-%m-%d")
     return updated
 
-
 def refresh_catalog(catalog: Dict[str, Any], get_json: Callable[[str], Any],
                     progress: Optional[Callable[[int, int], None]] = None) -> Tuple[Dict[str, Any], List[str]]:
     """Refresh every entry; an entry that fails keeps its previous data. Returns (catalog, errors)."""
@@ -259,7 +245,7 @@ def refresh_catalog(catalog: Dict[str, Any], get_json: Callable[[str], Any],
     for index, entry in enumerate(catalog.get("models") or []):
         try:
             models.append(refresh_entry(entry, get_json))
-        except Exception as exc:  # one broken repository must not stop the rest
+        except Exception as exc:
             errors.append(f"{entry.get('id')}: {type(exc).__name__}: {exc}")
             models.append(entry)
         if progress:
@@ -270,7 +256,6 @@ def refresh_catalog(catalog: Dict[str, Any], get_json: Callable[[str], Any],
     out.pop("origin", None)
     return out, errors
 
-
 def start_refresh() -> Dict[str, Any]:
     """Refresh the catalogue inside the Proxy (background thread); progress in ``refresh_status``."""
     with _catalog_lock:
@@ -280,10 +265,8 @@ def start_refresh() -> Dict[str, Any]:
     threading.Thread(target=_run_refresh, name="local-catalog-refresh", daemon=True).start()
     return dict(_refresh)
 
-
 def refresh_status() -> Dict[str, Any]:
     return dict(_refresh)
-
 
 def _run_refresh() -> None:
     from . import local_models
@@ -315,14 +298,8 @@ def _run_refresh() -> None:
         _refresh.update({"state": "error", "error": "Не удалось обновить данные каталога: " + text,
                          "error_en": "Could not refresh the catalogue data: " + text})
 
-
-# --------------------------------------------------------------------------
-# Estimates
-# --------------------------------------------------------------------------
-
 def _params(entry: Dict[str, Any]) -> float:
     return float(entry.get("params") or 0) / 1e9 or float(entry.get("params_b") or 0)
-
 
 def active_fraction(entry: Dict[str, Any]) -> float:
     """Share of the weights read per token: 1 for dense models, active/total for MoE."""
@@ -335,32 +312,28 @@ def active_fraction(entry: Dict[str, Any]) -> float:
         return max(0.04, active / total)
     return 1.0
 
-
 def kv_bytes(entry: Dict[str, Any], context: int) -> int:
     kv = entry.get("kv") or {}
     per_token = int(kv.get("per_token") or 0)
     fixed = int(kv.get("fixed") or 0)
     if not per_token and not fixed:
-        # Unknown layout: a typical dense model of this size with grouped-query attention.
+
         per_token = int(64 * 1024 * max(0.5, math.sqrt(max(1.0, _params(entry)) / 8)))
     return per_token * context + fixed
-
 
 def budgets(profile: Dict[str, Any], keep_free_gb: float = 0) -> Dict[str, Any]:
     """Memory the model may use: VRAM of the main GPU and RAM, both with honest reserves."""
     ram_total = int((profile.get("ram") or {}).get("total") or 0)
     gpu = profile.get("main_gpu")
     vram = int(gpu.get("vram") or 0) if gpu else 0
-    # Windows and the desktop keep ~0.4 GB of the main GPU; llama.cpp leaves its own 1 GB margin
-    # only with --fit, so plan with 8 % + 0.4 GB.
+
     vram_budget = max(0, int(vram * 0.92 - 0.4 * GB)) if vram >= GB else 0
-    # Windows, the browser and the Proxy itself keep a good part of RAM busy.
+
     reserve = max(3.5 * GB, ram_total * 0.2) + max(0.0, float(keep_free_gb or 0)) * GB
     ram_budget = max(0, int(ram_total - reserve))
     return {"vram": vram_budget, "ram": ram_budget, "vram_total": vram, "ram_total": ram_total,
             "gpu_bw": int(gpu.get("bandwidth") or 0) if gpu else 0,
             "ram_bw": int((profile.get("ram") or {}).get("bandwidth") or 50)}
-
 
 def place(need: int, budget: Dict[str, Any]) -> Tuple[str, float]:
     """(placement, share of the model on the GPU): gpu | partial | cpu | none."""
@@ -372,7 +345,6 @@ def place(need: int, budget: Dict[str, Any]) -> Tuple[str, float]:
         return "cpu", 0.0
     return "none", 0.0
 
-
 def speed(entry: Dict[str, Any], size: int, context: int, placement: str, share: float,
           profile: Dict[str, Any], budget: Dict[str, Any]) -> float:
     """Estimated generation speed (tokens/s) — memory bandwidth bound, CPU compute capped."""
@@ -380,13 +352,12 @@ def speed(entry: Dict[str, Any], size: int, context: int, placement: str, share:
         return 0.0
     fraction = active_fraction(entry)
     read = size * fraction + kv_bytes(entry, context // 2) * 0.5
-    # Measured llama.cpp throughput is ~75-80 % of the memory bandwidth for dense models; MoE
-    # routing (scattered expert reads, more kernels) roughly halves that.
+
     efficiency = 0.78 if fraction >= 1 else 0.45
     gpu_bw = budget["gpu_bw"] * 1e9 * efficiency
     cpu_bw = budget["ram_bw"] * 1e9 * (0.9 if fraction >= 1 else 0.6)
     if placement == "gpu" and gpu_bw:
-        seconds = read / gpu_bw + 0.0025          # + per-token kernel/sampling overhead
+        seconds = read / gpu_bw + 0.0025
     elif placement == "partial" and gpu_bw:
         seconds = share * read / gpu_bw + (1 - share) * read / cpu_bw + 0.004
     else:
@@ -402,23 +373,16 @@ def speed(entry: Dict[str, Any], size: int, context: int, placement: str, share:
         tps = min(tps, flops / (2 * active_params * max(0.2, cpu_share)))
     return round(min(tps, 400.0), 1)
 
-
 def speed_score(tps: float) -> float:
     """0 at 2 tokens/s or less, 100 at 50 or more, logarithmic in between."""
     if tps <= 2:
         return 0.0
     return max(0.0, min(100.0, 100 * math.log(tps / 2) / math.log(25)))
 
-
-# --------------------------------------------------------------------------
-# Goals and scoring
-# --------------------------------------------------------------------------
-
 DEFAULT_GOALS: Dict[str, Any] = {
     "uses": ["chat"], "language": "ru", "priority": 40, "context": 0, "license": "any",
     "keep_free_gb": 0, "limit": 8,
 }
-
 
 def normalize_goals(goals: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     goals = goals if isinstance(goals, dict) else {}
@@ -449,7 +413,6 @@ def normalize_goals(goals: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     out["mtp"] = bool(goals.get("mtp"))
     return out
 
-
 def _weights(goals: Dict[str, Any]) -> Dict[str, float]:
     uses = set(goals["uses"])
     weights = {"chat": 1.0 if "chat" in uses or not uses - {"ru", "docs"} else 0.35}
@@ -467,16 +430,14 @@ def _weights(goals: Dict[str, Any]) -> Dict[str, float]:
         weights["ru"] = ru
     return weights
 
-
 def quality(entry: Dict[str, Any], goals: Dict[str, Any]) -> float:
     scores = entry.get("scores") or {}
     weights = _weights(goals)
     total = sum(weights.values()) or 1.0
     value = sum(weight * float(scores.get(use) or 0) for use, weight in weights.items()) / total
     if (goals["language"] == "ru" or "ru" in goals["uses"]) and float(scores.get("ru") or 0) < 40:
-        value -= 8      # answers in broken Russian are not worth the size
+        value -= 8
     return max(0.0, value)
-
 
 def _license_ok(entry: Dict[str, Any], rule: str) -> bool:
     if rule == "open":
@@ -485,22 +446,18 @@ def _license_ok(entry: Dict[str, Any], rule: str) -> bool:
         return bool(entry.get("commercial"))
     return True
 
-
 def _gb(value: float, english: bool) -> str:
     text = f"{value / GB:.1f}"
     return (text if english else text.replace(".", ",")) + (" GB" if english else " ГБ")
-
 
 def _num(value: float, english: bool, digits: int = 0) -> str:
     text = f"{value:.{digits}f}"
     return text if english else text.replace(".", ",")
 
-
 def _ctx_label(tokens: int) -> str:
     if tokens >= 1024 * 1024:
         return f"{tokens // (1024 * 1024)}M"
     return f"{tokens // 1024}K" if tokens >= 1024 else str(tokens)
-
 
 def evaluate(entry: Dict[str, Any], goals: Dict[str, Any], profile: Dict[str, Any],
              budget: Dict[str, Any]) -> Dict[str, Any]:
@@ -535,7 +492,7 @@ def evaluate(entry: Dict[str, Any], goals: Dict[str, Any], profile: Dict[str, An
         q = q_base * QUANT_QUALITY.get(str(info.get("quant") or quant), 0.95)
         s = speed_score(tps)
         score = q * (1 - 0.6 * p) + s * 0.6 * p
-        minimum = 3 + 12 * p             # tokens/s below which an answer feels broken
+        minimum = 3 + 12 * p
         if tps < minimum:
             score *= 0.55 + 0.45 * (tps / minimum)
         if placement == "gpu":
@@ -550,7 +507,6 @@ def evaluate(entry: Dict[str, Any], goals: Dict[str, Any], profile: Dict[str, An
     best = max(fitting, key=lambda o: (o["score"], -o["size"])) if fitting else None
     return {"best": best, "options": sorted(options, key=lambda o: o["size"]), "desired": desired,
             "mmproj": mmproj, "draft": draft, "quality": q_base}
-
 
 def explain(entry: Dict[str, Any], result: Dict[str, Any], goals: Dict[str, Any], profile: Dict[str, Any],
             english: bool) -> Tuple[List[str], List[str]]:
@@ -635,7 +591,6 @@ def explain(entry: Dict[str, Any], result: Dict[str, Any], goals: Dict[str, Any]
                           "Gated repository: needs a Hugging Face token and an accepted licence."))
     return [reason for reason in reasons if reason], warnings
 
-
 def preset_for(entry: Dict[str, Any], best: Dict[str, Any], profile: Dict[str, Any]) -> Dict[str, Any]:
     """Model settings the wizard applies after installation."""
     sampling = entry.get("sampling") or {}
@@ -646,7 +601,6 @@ def preset_for(entry: Dict[str, Any], best: Dict[str, Any], profile: Dict[str, A
         if sampling.get(key) is not None:
             preset[key] = sampling[key]
     return preset
-
 
 def installed_index() -> Dict[str, Dict[str, Any]]:
     """Installed local models by repository (to mark recommendations already on the disk)."""
@@ -660,7 +614,6 @@ def installed_index() -> Dict[str, Dict[str, Any]]:
         if row.get("repo"):
             out.setdefault(str(row["repo"]).lower(), row)
     return out
-
 
 def recommend(goals: Optional[Dict[str, Any]] = None, profile: Optional[Dict[str, Any]] = None,
               catalog: Optional[Dict[str, Any]] = None, installed: Optional[Dict[str, Dict[str, Any]]] = None
@@ -736,7 +689,6 @@ def recommend(goals: Optional[Dict[str, Any]] = None, profile: Optional[Dict[str
                         "count": len(catalog.get("models") or [])},
             "summary": summary(profile, budget, top, english=False), "summary_en": summary(profile, budget, top, english=True)}
 
-
 def summary(profile: Dict[str, Any], budget: Dict[str, Any], top: List[Dict[str, Any]], english: bool) -> str:
     L = (lambda ru, en: en) if english else (lambda ru, en: ru)
     gpu = profile.get("main_gpu")
@@ -753,14 +705,8 @@ def summary(profile: Dict[str, Any], budget: Dict[str, Any], top: List[Dict[str,
     return L(f"Для этого компьютера ({hw}) лучший выбор — {first['name']} {first['file_quant']}: ≈ {_num(first['tps'], english)} токенов/с.",
              f"For this computer ({hw}) the best pick is {first['name']} {first['file_quant']}: ≈ {_num(first['tps'], english)} tokens/s.")
 
-
-# --------------------------------------------------------------------------
-# Installation
-# --------------------------------------------------------------------------
-
 def find_entry(model_id: str) -> Optional[Dict[str, Any]]:
     return next((row for row in load_catalog().get("models") or [] if row.get("id") == model_id), None)
-
 
 def install(model_id: str, quant: str, context: int = 0, vision: bool = True, mtp: bool = False,
             profile: Optional[Dict[str, Any]] = None, preset: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:

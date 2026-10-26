@@ -1,10 +1,5 @@
-// MemuFiles · operations: the progress flyout (one card per operation), the status-bar indicator, the name-conflict
-// dialog and completion notices (Round 40, r40-files-core).
-//
-// Cheap by design: the backend sends at most ~4 snapshots per second per operation (collapsed in the event queue);
-// here every snapshot only marks its card dirty and one requestAnimationFrame patches the text / widths of the dirty
-// cards (built once, never re-rendered as a whole list) plus the status-bar indicator. The speed graph is a canvas
-// drawn only for expanded cards while the flyout is open. Nothing runs while no operation is active.
+
+
 import { api, h, esc, icon, baseName, parentPath, samePath, fmtSize, fmtNum, fmtDate, itemsWord, toast, showError, modal, thumbUrl, IMAGE_EXT, extOf, fileIcon } from "./core.js";
 import { t, addStrings } from "./i18n.js";
 
@@ -122,7 +117,7 @@ const SVG = {
   dl: '<path d="M12 4v11M7 10l5 5 5-5"/><path d="M5 20h14"/>',
 };
 const svg = (name, cls = "") => `<span class="ic ${cls}" aria-hidden="true"><svg viewBox="0 0 24 24">${SVG[name]}</svg></span>`;
-const KIND_ICON = { copy: "copy", move: "cut", trash: "trash", delete: "trash", rename: "rename", extract: "extract", compress: "zip", undo: "undo", mkdir: "folderPlus", upload: "copy", download: null, vpaste: "paste", organize: "sparkle" };   // r40-files-2: organize had the download arrow
+const KIND_ICON = { copy: "copy", move: "cut", trash: "trash", delete: "trash", rename: "rename", extract: "extract", compress: "zip", undo: "undo", mkdir: "folderPlus", upload: "copy", download: null, vpaste: "paste", organize: "sparkle" };
 
 export function fmtDuration(sec) {
   sec = Math.max(0, Math.round(sec || 0));
@@ -153,24 +148,23 @@ function placeName(path) { return baseName(path) || path; }
 export class Ops {
   constructor(app) {
     this.app = app;
-    this.cards = new Map();          // op id → { el, refs, key }
+    this.cards = new Map();
     this.dirty = new Set();
     this.raf = 0;
     this.fly = null;
     this.expanded = new Set();
     this.collapsed = new Set();
     this.autoShown = new Set();
-    this.flash = null;                // { text, kind, until } — "Done" in the status bar for a few seconds
+    this.flash = null;
     this.flashTimer = 0;
     this.openConflicts = new Map();
   }
 
-  // ------------------------------------------------------------------ events
   onOp(op, before) {
     if (op.status === "conflict" && op.conflict && (!before || before.status !== "conflict" || JSON.stringify(before.conflict) !== JSON.stringify(op.conflict))) this.conflict(op);
     if (op.status !== "conflict" && this.openConflicts.has(op.id)) { this.openConflicts.get(op.id).close("gone"); this.openConflicts.delete(op.id); }
     if (before && !FINISHED.has(before.status) && FINISHED.has(op.status)) this.finished(op);
-    // a long operation opens the flyout once by itself (like Explorer's progress window); closed = stays closed
+
     if (!this.fly && !FINISHED.has(op.status) && op.status !== "queued" && !this.autoShown.has(op.id) && (op.elapsed || 0) >= 1.5
         && (op.unit === "bytes" ? op.total_bytes >= 64 * 1048576 : op.total_items >= 400) && !document.hidden) {
       this.autoShown.add(op.id);
@@ -203,8 +197,7 @@ export class Ops {
       const inHere = op.results.filter((p) => parentPath(p) && samePath(parentPath(p), pane.folder));
       if (inHere.length) pane.pendingSelect = inHere;
     }
-    // r40-files-2: moved / deleted items leave the selection at once — the preview and the status bar must not
-    // keep pointing at a file that is gone until the folder re-reads (an image preview 404-ed in between)
+
     if (["move", "trash", "delete", "organize", "rename"].includes(op.kind) && op.sources && op.sources.length) {
       const gone = new Set(op.sources);
       for (const tab of app.tabs) for (const p of tab.panes) {
@@ -226,9 +219,9 @@ export class Ops {
       else if (op.kind !== "undo" && op.kind !== "mkdir" && op.kind !== "rename") toast(title, "ok");
       this.setFlash(t("opx.ind.done"), "ok");
     }
-    // the window is in the background: a system notification (only if the user allowed them; never asks)
+
     if ((document.hidden || !document.hasFocus()) && (op.elapsed || 0) >= 3 && op.status !== "cancelled" && window.Notification && Notification.permission === "granted") {
-      try { new Notification("MemuFiles", { body: t(op.status === "done" && !op.error_count ? "opx.notify_done" : "opx.notify_err", { what: title }), silent: false }); } catch (e) { /* ignore */ }
+      try { new Notification("MemuFiles", { body: t(op.status === "done" && !op.error_count ? "opx.notify_done" : "opx.notify_err", { what: title }), silent: false }); } catch (e) {  }
     }
   }
   setFlash(text, kind) {
@@ -237,7 +230,6 @@ export class Ops {
     this.flashTimer = setTimeout(() => { this.flash = null; this.renderIndicator(); }, 4000);
   }
 
-  // ------------------------------------------------------------------ actions
   control(op, action) { return api("ops/control", { action, id: op.id }).catch(showError); }
   undo(op) { return api("ops/undo", { id: op.id }).then((r) => this.app.trackOp(r.op)).catch(showError); }
   retry(op) { return api("ops/control", { action: "retry", id: op.id }).then((r) => r.op && this.app.trackOp(r.op)).catch(showError); }
@@ -247,12 +239,11 @@ export class Ops {
     this.schedule();
   }
   async clearFinished() {
-    try { await api("ops/control", { action: "clear" }); } catch (e) { /* the list is local too */ }
+    try { await api("ops/control", { action: "clear" }); } catch (e) {  }
     for (const [id, op] of this.app.ops) if (FINISHED.has(op.status)) this.app.ops.delete(id);
     this.schedule();
   }
 
-  // ------------------------------------------------------------------ status-bar indicator
   renderIndicator() {
     const btn = this.app.opsBtn;
     if (!btn) return;
@@ -282,12 +273,11 @@ export class Ops {
     }
     if (btn.className !== cls) btn.className = cls;
     if (btn._html !== html) { btn._html = html; btn.innerHTML = html; }
-    const long = btn.querySelector(".oi-long");    // r40-files-2: a narrow status bar shows only «34 %»
+    const long = btn.querySelector(".oi-long");
     btn.setAttribute("aria-label", long ? long.textContent : btn.textContent);
     btn.title = long ? long.textContent : t("ops.title");
   }
 
-  // ------------------------------------------------------------------ flyout
   toggle(force) {
     const open = force === undefined ? !this.fly : force;
     if (!open) {
@@ -340,7 +330,7 @@ export class Ops {
       if (op.status === "queued") op._pos = ++queuePos;
       if (!FINISHED.has(op.status) && op.status !== "queued" && firstActive) {
         firstActive = false;
-        if (!this.collapsed.has(op.id)) this.expanded.add(op.id);    // the first running card shows its graph
+        if (!this.collapsed.has(op.id)) this.expanded.add(op.id);
       }
       let card = this.cards.get(op.id);
       if (!card) { card = this.build(op); this.cards.set(op.id, card); }
@@ -364,7 +354,7 @@ export class Ops {
     refs.canvas = refs.graph.querySelector("canvas");
     refs.fileName = refs.file.querySelector(".opc-file-name");
     refs.fileBar = refs.file.querySelector(".opc-file-bar i");
-    // event delegation: one listener per card
+
     el.addEventListener("click", (e) => {
       const b = e.target.closest("[data-act]");
       if (!b) return;
@@ -419,7 +409,7 @@ export class Ops {
       r.route.innerHTML = html;
       r.route.hidden = !html;
     });
-    // buttons
+
     const btnKey = `${op.status}|${op.undoable}|${op.retryable}|${expanded}|${op.kind}`;
     this.set(card, "btns", btnKey, () => {
       const b = (act, ico, label, cls = "icon-btn sm") => `<button class="${cls}" data-act="${act}" title="${esc(label)}" aria-label="${esc(label)}">${ico}${cls.includes("icon-btn") ? "" : `<span>${esc(label)}</span>`}</button>`;
@@ -434,7 +424,7 @@ export class Ops {
       }
       r.btns.innerHTML = html;
     });
-    // finished: one summary line instead of the body
+
     r.body.hidden = fin;
     r.sum.hidden = !fin;
     if (fin) {
@@ -451,9 +441,9 @@ export class Ops {
       this.patchErrors(op, card, r.sum);
       return;
     }
-    // progress
+
     const p100 = Math.round(pct * 100);
-    // one indivisible item (a folder to the Recycle Bin, a 7-Zip archive): no fake 0 %, a moving bar instead
+
     const indet = isIndet(op);
     this.set(card, "pct", op.status === "queued" || indet ? "" : p100 + "%", (v) => { r.pct.textContent = v; r.pct.hidden = !v; });
     r.bar.setAttribute("aria-valuenow", String(p100));
@@ -475,7 +465,7 @@ export class Ops {
       if (op.skipped) meta.push(t("opx.skipped", { n: fmtNum(op.skipped) }));
     }
     this.set(card, "meta", meta.join(" · "), (v) => { r.meta.textContent = v; r.meta.hidden = !v; });
-    // current file (+ its own bar for big files, + "skip file")
+
     const showFile = op.current && ["running", "paused"].includes(op.status) && op.kind !== "undo";
     r.file.hidden = !showFile;
     if (showFile) {
@@ -488,7 +478,7 @@ export class Ops {
       const big = op.cur_size >= 32 * 1048576;
       this.set(card, "fileBar", big ? (op.cur_done / op.cur_size).toFixed(3) : "-", (v) => { r.fileBar.parentElement.hidden = v === "-"; if (v !== "-") r.fileBar.style.transform = `scaleX(${v})`; });
     }
-    // conflict inline
+
     r.conf.hidden = op.status !== "conflict" || !op.conflict;
     if (op.status === "conflict" && op.conflict) {
       this.set(card, "conf", JSON.stringify(op.conflict.dst), () => {
@@ -497,7 +487,7 @@ export class Ops {
       });
     }
     this.patchErrors(op, card, r.errs);
-    // speed graph — only for expanded byte operations
+
     const graph = expanded && op.unit === "bytes" && op.status !== "queued" && op.status !== "scanning";
     r.graph.hidden = !graph;
     if (graph) this.drawGraph(op, card);
@@ -541,7 +531,7 @@ export class Ops {
     ctx.strokeStyle = grid; ctx.globalAlpha = 0.6; ctx.lineWidth = 1;
     for (let i = 1; i < 3; i++) { const y = Math.round((hgt * i) / 3) + 0.5; ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke(); }
     ctx.globalAlpha = 1;
-    // x = progress of the whole operation (‰), y = speed — the area grows left to right like Explorer's graph
+
     const pts = hist.filter((p) => Array.isArray(p));
     const max = Math.max(1, ...pts.map((p) => p[1]), op.speed || 0) * 1.15;
     const X = (p) => (p / 1000) * w, Y = (v) => hgt - (v / max) * (hgt - 6);
@@ -561,7 +551,7 @@ export class Ops {
       ctx.moveTo(0, Y(first[1]));
       for (const p of pts) ctx.lineTo(X(p[0]), Y(p[1]));
       ctx.strokeStyle = accent; ctx.lineWidth = 1.6; ctx.lineJoin = "round"; ctx.stroke();
-      // the current speed as a dashed line across the graph
+
       if (op.speed) {
         const y = Math.round(Math.max(6, Y(op.speed))) + 0.5;
         ctx.setLineDash([3, 3]); ctx.strokeStyle = colorAlpha(accent, 0.75); ctx.lineWidth = 1;
@@ -570,14 +560,13 @@ export class Ops {
     }
   }
 
-  // ------------------------------------------------------------------ conflict dialog
   conflict(op, fromUser) {
     if (this.openConflicts.has(op.id)) return;
     const c = op.conflict;
     if (!c) return;
     const src = c.src || {}, dst = c.dst || {};
     const left = Math.max(0, c.left ?? ((op.total_items || 0) - (op.done_items || 0)));
-    // FAT/exFAT and zip keep 2-second times: a smaller difference is "the same date"
+
     const newerSrc = (src.mtime || 0) - (dst.mtime || 0) > 2000, newerDst = (dst.mtime || 0) - (src.mtime || 0) > 2000;
     const body = h("div", { class: "cfx" });
     const dirName = placeName(parentPath(dst.path || "")) || dst.path || "";
@@ -604,7 +593,7 @@ export class Ops {
       card("skip", t("cfx.skip"), dst, true, newerDst, newerSrc, sizeKnown && dst.size > src.size, sizeKnown && dst.size < src.size),
     );
     body.append(cards);
-    // compare: exact numbers side by side
+
     const cmp = h("div", { class: "cfx-compare", hidden: true });
     const same = sizeKnown && src.size === dst.size && Math.abs((src.mtime || 0) - (dst.mtime || 0)) < 2000;
     cmp.innerHTML = `<table><tr><th></th><th>${esc(t("cfx.incoming"))}</th><th>${esc(t("cfx.existing"))}</th></tr>
@@ -635,7 +624,7 @@ export class Ops {
     renameGo.addEventListener("click", () => { const v = nameInput.value.trim(); if (v) answer("rename", v); });
     nameInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); renameGo.click(); } });
     cmpBtn.addEventListener("click", () => { cmp.hidden = !cmp.hidden; cmpBtn.querySelector("span:last-child").textContent = t(cmp.hidden ? "cfx.compare" : "cfx.compare_hide"); });
-    // R / S / B anywhere in the dialog (also after ticking «for all») — not while typing a new name
+
     const keys = (e) => {
       if (e.target.closest("input:not([type=checkbox])") || e.ctrlKey || e.altKey || e.metaKey) return false;
       const choice = { KeyR: "replace", KeyS: "skip", KeyB: "keep_both" }[e.code];
@@ -645,7 +634,7 @@ export class Ops {
     dlg = modal({ title: t("cfx.title"), icon: "warn", body, wide: true, left: leftEl, keys,
       buttons: [{ label: t("cfx.cancel_op"), cls: "ghost danger", run: () => { answer("cancel"); return false; } }],
       onClose: (v) => {
-        // closed with Esc / ×: the operation keeps waiting; the card in the flyout (and the status bar) still asks
+
         this.openConflicts.delete(op.id);
         if (v === null && !fromUser) this.toggle(true);
       } });

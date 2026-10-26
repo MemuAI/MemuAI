@@ -20,23 +20,18 @@ from .model import (ForeignSession, ReadError, SessionInfo, Turn, clean_user_tex
 KEY = "opencode"
 TITLE = "OpenCode"
 
-
 def data_home() -> Path:
     base = os.environ.get("XDG_DATA_HOME")
     return Path(base) / "opencode" if base else Path.home() / ".local" / "share" / "opencode"
 
-
 def database() -> Path:
     return data_home() / "opencode.db"
-
 
 def present() -> bool:
     return database().is_file() or (data_home() / "storage" / "session").is_dir()
 
-
 def _connect(path: Path) -> sqlite3.Connection:
     return sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=3)
-
 
 def _json(value: Any) -> Dict[str, Any]:
     try:
@@ -44,7 +39,6 @@ def _json(value: Any) -> Dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except ValueError:
         return {}
-
 
 def discover(limit: int = 400) -> List[SessionInfo]:
     rows: List[SessionInfo] = []
@@ -57,7 +51,7 @@ def discover(limit: int = 400) -> List[SessionInfo]:
                                        "order by time_updated desc limit ?", (limit,)):
                     session_id, title, directory, created, updated, model, parent = row
                     if parent:
-                        continue                                  # a sub-session of another one
+                        continue
                     count = con.execute("select count(*) from message where session_id = ?", (session_id,)).fetchone()[0]
                     if not count:
                         continue
@@ -71,7 +65,6 @@ def discover(limit: int = 400) -> List[SessionInfo]:
     rows.extend(_legacy_discover(limit))
     rows.sort(key=lambda row: -row.updated)
     return rows[:limit]
-
 
 def _legacy_discover(limit: int) -> List[SessionInfo]:
     base = data_home() / "storage" / "session"
@@ -87,7 +80,6 @@ def _legacy_discover(limit: int) -> List[SessionInfo]:
                                 cwd=str(data.get("directory") or ""), started=iso_to_ts(times.get("created")),
                                 updated=iso_to_ts(times.get("updated")), path=str(file), extra={"legacy": True}))
     return rows[:limit]
-
 
 def read(info: SessionInfo) -> ForeignSession:
     session = ForeignSession(info=SessionInfo(**{**info.__dict__}))
@@ -123,7 +115,6 @@ def read(info: SessionInfo) -> ForeignSession:
     session.info.messages = len(session.turns)
     return session
 
-
 def _turns(session: ForeignSession, role: str, parts: List[Dict[str, Any]], at: float) -> None:
     for part in parts:
         kind = str(part.get("type") or "")
@@ -144,7 +135,6 @@ def _turns(session: ForeignSession, role: str, parts: List[Dict[str, Any]], at: 
                                           ok=str(state.get("status") or "") != "error", at=at))
         elif kind == "file" and part.get("filename"):
             session.turns.append(Turn("note", f"[attached: {part['filename']}]", at=at))
-
 
 def _legacy_read(session: ForeignSession) -> ForeignSession:
     base = data_home() / "storage"

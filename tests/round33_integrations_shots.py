@@ -31,7 +31,6 @@ FULL = {"openid", G + "userinfo.email", "https://mail.google.com/", G + "gmail.s
         G + "documents", G + "spreadsheets", G + "tasks", G + "contacts"}
 OPEN = "showSettings(); openSettingsPage('apps'); setTimeout(() => MemuSettingsKit.openSub('%s'), 500)"
 
-
 def seed(data_dir: str, kind: str) -> None:
     from app import gdrive_sync_crypto as crypto
     folder = Path(data_dir) / "memuai" / "sync"
@@ -49,7 +48,6 @@ def seed(data_dir: str, kind: str) -> None:
                            else ["gmail", "calendar", "drive", "docs", "sheets", "tasks", "contacts"]}
     memu.mkdir(parents=True, exist_ok=True)
     (memu / "integrations.json").write_text(json.dumps(integ), encoding="utf-8")
-
 
 def states(seed_kind: str):
     google = OPEN % "int-google"
@@ -69,7 +67,6 @@ def states(seed_kind: str):
                 ("confirm-drive-share", "MemuIntegrations.confirm('drive_share', {file_id: 'f9', email: 'anna@example.com', role: 'writer', message: 'Посмотри, пожалуйста'})", 900),
                 ("confirm-commit", "MemuIntegrations.confirm('github_commit_files', {repo: 'me/notes', branch: 'main', message: 'docs: update', files: [{path: 'README.md', content: '# Notes'}, {path: 'docs/a.md', content: 'A'}], delete: ['old.txt']})", 900)]
     return out
-
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -149,7 +146,6 @@ def main() -> int:
         print(line)
     print("problems:", len(problems))
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

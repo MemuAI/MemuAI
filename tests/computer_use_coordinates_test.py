@@ -18,7 +18,6 @@ from app.automation_runtime import (
     resolve_click_point,
 )
 
-
 class FitScaleContracts(unittest.TestCase):
     def test_image_within_bounds_is_not_scaled(self) -> None:
         self.assertEqual(_fit_scale(1280, 720, MAX_SCREENSHOT_DIM), 1.0)
@@ -37,24 +36,20 @@ class FitScaleContracts(unittest.TestCase):
     def test_degenerate_dimensions_never_divide_by_zero(self) -> None:
         self.assertGreater(_fit_scale(0, 0, MAX_SCREENSHOT_DIM), 0)
 
-
 class ScalePointRoundTripContracts(unittest.TestCase):
     def test_unscaled_point_is_unchanged(self) -> None:
         self.assertEqual(_scale_point_up(500, 300, 1.0), (500, 300))
 
     def test_scaled_point_maps_back_to_native_pixels(self) -> None:
-        # A 3840-wide monitor downscaled to 1400 for the model: the model
-        # reports a coordinate in that smaller image, and it must scale back
-        # up to (roughly) where that pixel really is on the native screen.
+
         scale = _fit_scale(3840, 2160, MAX_SCREENSHOT_DIM)
-        x, y = _scale_point_up(700, 394, scale)  # dead-center of the shown image
+        x, y = _scale_point_up(700, 394, scale)
         self.assertAlmostEqual(x, 1920, delta=2)
         self.assertAlmostEqual(y, 1080, delta=2)
 
     def test_zero_or_invalid_scale_falls_back_to_identity(self) -> None:
         self.assertEqual(_scale_point_up(10, 20, 0), (10, 20))
         self.assertEqual(_scale_point_up(10, 20, -1), (10, 20))
-
 
 class ResolveClickPointContracts(unittest.TestCase):
     def _monitor(self, **overrides) -> dict:
@@ -72,18 +67,16 @@ class ResolveClickPointContracts(unittest.TestCase):
         shown_w, shown_h = round(3840 * scale), round(2160 * scale)
         screens = [self._monitor(width=shown_w, height=shown_h,
                                   real_width=3840, real_height=2160, scale=scale)]
-        # Click near the middle of the *shown* (downscaled) image.
+
         gx, gy = resolve_click_point({"monitor": 1, "x": shown_w // 2, "y": shown_h // 2}, screens)
         self.assertAlmostEqual(gx, 1920, delta=3)
         self.assertAlmostEqual(gy, 1080, delta=3)
 
     def test_secondary_monitor_with_negative_origin_offsets_correctly(self) -> None:
-        # A monitor placed to the left of the primary display has a negative
-        # virtual-desktop origin; forgetting to add it is a classic
-        # multi-monitor coordinate bug.
+
         screens = [
-            self._monitor(),  # primary at (0, 0)
-            self._monitor(left=-1920, top=-40, width=1920, height=1080),  # secondary, to the left and up
+            self._monitor(),
+            self._monitor(left=-1920, top=-40, width=1920, height=1080),
         ]
         gx, gy = resolve_click_point({"monitor": 2, "x": 10, "y": 10}, screens)
         self.assertEqual((gx, gy), (-1920 + 10, -40 + 10))
@@ -101,7 +94,6 @@ class ResolveClickPointContracts(unittest.TestCase):
     def test_empty_screen_list_raises_instead_of_crashing(self) -> None:
         with self.assertRaises(ValueError):
             resolve_click_point({"monitor": 1, "x": 0, "y": 0}, [])
-
 
 class KeyComboGuardContracts(unittest.TestCase):
     """These only exercise the validation that runs before any real input is
@@ -123,7 +115,6 @@ class KeyComboGuardContracts(unittest.TestCase):
     def test_empty_combo_is_rejected(self) -> None:
         with self.assertRaises(ValueError):
             ComputerAutomation._send_key_combo("")
-
 
 if __name__ == "__main__":
     unittest.main()

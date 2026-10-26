@@ -12,28 +12,22 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app import schedule_rules as R  # noqa: E402
 
-
 def ts(text):
     return datetime.fromisoformat(text).timestamp()
 
-
 def iso(value):
     return datetime.fromtimestamp(value).strftime("%Y-%m-%d %H:%M")
-
 
 class TZ(unittest.TestCase):
     zone = "Europe/Berlin"
 
     def setUp(self):
         if not hasattr(time, "tzset"):
-            # Windows' CRT cannot apply an IANA TZ via os.environ. Scope an
-            # equivalent local clock to these tests instead of changing the
-            # user's Windows timezone or skipping the actual DST assertions.
+
             try:
                 zone = ZoneInfo(self.zone)
             except ZoneInfoNotFoundError:
-                # Conda ships the standard IANA files outside the venv's
-                # TZPATH. Ordinary CPython can use the test-only tzdata wheel.
+
                 roots = [Path(sys.base_prefix) / "share" / "zoneinfo",
                          Path(sys.base_prefix) / "Library" / "share" / "zoneinfo"]
                 source = next((root / self.zone for root in roots if (root / self.zone).is_file()), None)
@@ -74,20 +68,19 @@ class TZ(unittest.TestCase):
 
     def tearDown(self):
         if not hasattr(time, "tzset"):
-            return  # addCleanup restores every scoped module clock
+            return
         if self._old is None:
             os.environ.pop("TZ", None)
         else:
             os.environ["TZ"] = self._old
         time.tzset()
 
-
 class Normalize(TZ):
     def test_daily_and_days(self):
         rule = R.normalize_rule({"when": {"type": "daily", "times": ["9:00", "16.30", "9:00"], "days": "пн,ср,fri"}})
         self.assertEqual(rule["when"][0], {"type": "daily", "times": ["09:00", "16:30"], "days": [1, 3, 5]})
         self.assertEqual(rule["options"]["catch_up"], "once")
-        # all seven days collapse to «every day»
+
         self.assertEqual(R.normalize_rule({"when": [{"type": "daily", "times": ["10:00"], "days": [1, 2, 3, 4, 5, 6, 7]}]})["when"][0]["days"], [])
 
     def test_errors_are_bilingual(self):
@@ -125,11 +118,10 @@ class Normalize(TZ):
         legacy = {"id": "c", "daily_at": "09:00"}
         self.assertEqual(R.sanitize_task(dict(legacy)), legacy)
 
-
 class Slots(TZ):
     def test_daily_weekdays(self):
         rule = R.normalize_rule({"when": [{"type": "daily", "times": ["16:00"], "days": [1, 2, 3, 4, 5]}]})
-        # Friday 2026-10-09 17:00 → Monday 16:00
+
         slot = R.next_slot(rule, ts("2026-10-09T17:00"))
         self.assertEqual(iso(slot["start"]), "2026-10-12 16:00")
         self.assertEqual(iso(R.next_slot(rule, ts("2026-10-12T15:59"))["start"]), "2026-10-12 16:00")
@@ -141,7 +133,7 @@ class Slots(TZ):
                                "2026-10-11 01:00", "2026-10-11 22:00", "2026-10-11 23:00"])
 
     def test_interval_window_weekday_belongs_to_start_day(self):
-        # Friday night window 23:00–01:00 only: Saturday 00:30 still belongs to Friday's window.
+
         rule = R.normalize_rule({"when": [{"type": "interval", "every": 30, "from": "23:00", "to": "01:00", "days": [5]}]})
         got = [iso(x) for x in R.preview(rule, ts("2026-10-09T22:00"), 5)]
         self.assertEqual(got, ["2026-10-09 23:00", "2026-10-09 23:30", "2026-10-10 00:00",
@@ -157,24 +149,24 @@ class Slots(TZ):
         self.assertIn("открыт MemuAI", R.summary(rule, "ru"))
 
     def test_dst_spring_and_autumn(self):
-        # Europe/Berlin: 2026-03-29 02:00 → 03:00; 2026-10-25 03:00 → 02:00
+
         daily = R.normalize_rule({"when": [{"type": "daily", "times": ["09:00"]}]})
         a = R.next_slot(daily, ts("2026-03-28T10:00"))["start"]
         b = R.next_slot(daily, a)["start"]
         self.assertEqual(iso(a), "2026-03-29 09:00")
         self.assertEqual(iso(b), "2026-03-30 09:00")
         spring_before = R.next_slot(daily, ts("2026-03-27T10:00"))["start"]
-        self.assertEqual(a - spring_before, 23 * 3600)  # the spring day is genuinely 23 hours long
+        self.assertEqual(a - spring_before, 23 * 3600)
         self.assertEqual(b - a, 86400)
         c = R.next_slot(daily, ts("2026-10-23T10:00"))["start"]
         d = R.next_slot(daily, c)["start"]
         self.assertEqual(iso(d), "2026-10-25 09:00")
-        self.assertEqual(d - c, 25 * 3600)  # the autumn day is 25 hours long
-        # a non-existent wall time (02:30 on the spring day) still yields a slot that day, not a skipped day
+        self.assertEqual(d - c, 25 * 3600)
+
         night = R.normalize_rule({"when": [{"type": "daily", "times": ["02:30"]}]})
         slot = R.next_slot(night, ts("2026-03-28T12:00"))["start"]
         self.assertEqual(datetime.fromtimestamp(slot).date().isoformat(), "2026-03-29")
-        # windowed grid keeps wall-clock times on the DST day
+
         grid = R.normalize_rule({"when": [{"type": "interval", "every": 60, "from": "01:00", "to": "05:00"}]})
         got = [iso(x) for x in R.preview(grid, ts("2026-10-25T00:00"), 4)]
         self.assertEqual(got[0], "2026-10-25 01:00")
@@ -182,7 +174,7 @@ class Slots(TZ):
 
     def test_interval_without_window_anchor_and_days(self):
         rule = R.normalize_rule({"when": [{"type": "interval", "every": 90, "days": [6, 7]}]})
-        anchor = ts("2026-10-09T10:00")  # Friday
+        anchor = ts("2026-10-09T10:00")
         slot = R.next_slot(rule, ts("2026-10-09T10:00"), anchor=anchor)
         self.assertEqual(datetime.fromtimestamp(slot["start"]).isoweekday(), 6)
         self.assertEqual((slot["start"] - anchor) % (90 * 60), 0)
@@ -212,7 +204,6 @@ class Slots(TZ):
                                           {"type": "once", "at": "2026-10-10T15:00"}]})
         self.assertEqual([iso(x) for x in R.preview(rule, ts("2026-10-10T12:00"), 2)],
                          ["2026-10-10 15:00", "2026-10-10 18:00"])
-
 
 class SampleConditions(TZ):
     def test_conditions(self):
@@ -260,12 +251,10 @@ class SampleConditions(TZ):
         self.assertTrue(R.event_fired(files, {"folders": {key: "a"}}, {"folders": {key: "b"}}))
         self.assertFalse(R.event_fired(files, {"folders": {}}, {"folders": {key: "b"}}))
 
-
 def task_of(rule, **extra):
     task = {"id": "t1", "name": "T", "enabled": True, "rule": R.normalize_rule(rule)}
     task.update(extra)
     return task
-
 
 class Decide(TZ):
     def tick(self, task, now, sample=None, prev=None, **kw):
@@ -280,7 +269,7 @@ class Decide(TZ):
         self.assertFalse(out["run"])
         self.assertEqual(task["rule_state"]["status"], "blocked")
         self.assertIn("dota2.exe", task["rule_state"]["reason"]["ru"])
-        # still not running when the tolerance passes → skipped, tomorrow planned
+
         self.tick(task, "2026-10-10T16:03", {"processes": set()})
         self.assertEqual(iso(task["next_run"]), "2026-10-11 16:00")
         out = self.tick(task, "2026-10-11T16:00:20", {"processes": {"dota2"}})
@@ -312,7 +301,7 @@ class Decide(TZ):
     def test_catch_up_once_after_downtime(self):
         task = task_of({"when": [{"type": "daily", "times": ["09:00"]}]})
         self.tick(task, "2026-10-10T08:00")
-        # the computer was off 08:00 → 13:00
+
         out = self.tick(task, "2026-10-10T13:00")
         self.assertTrue(out["run"])
         self.assertTrue(out["late"])
@@ -329,7 +318,7 @@ class Decide(TZ):
         task = task_of({"when": [{"type": "interval", "every": 5}]})
         self.tick(task, "2026-10-10T08:00")
         runs = sum(self.tick(task, ts("2026-10-10T12:00") + i * 30)["run"] for i in range(4))
-        self.assertEqual(runs, 0)  # catch_up skip for intervals: missed slots are dropped
+        self.assertEqual(runs, 0)
         self.assertTrue(self.tick(task, task["next_run"] + 1)["run"])
 
     def test_max_runs_and_until(self):
@@ -356,7 +345,7 @@ class Decide(TZ):
         self.assertFalse(self.tick(task, base, {"processes": set()}, None)["run"])
         self.assertFalse(self.tick(task, base + 20, {"processes": {"dota2"}}, {"processes": set()})["run"])
         self.assertTrue(self.tick(task, base + 85, {"processes": {"dota2"}}, {"processes": {"dota2"}})["run"])
-        # restarted within the gap: the event is held back, then dropped
+
         self.tick(task, base + 200, {"processes": set()}, {"processes": {"dota2"}})
         self.tick(task, base + 230, {"processes": {"dota2"}}, {"processes": set()})
         out = self.tick(task, base + 300, {"processes": {"dota2"}}, {"processes": {"dota2"}})
@@ -406,7 +395,6 @@ class Decide(TZ):
         self.assertFalse(R.decide(task, 0, {}, None)["run"])
         self.assertEqual(task["rule_state"]["status"], "invalid")
 
-
 class Texts(TZ):
     def test_summaries(self):
         rule = {"when": [{"type": "daily", "times": ["16:00"]}], "only_if": [{"type": "process", "name": "dota2.exe"}]}
@@ -435,7 +423,6 @@ class Texts(TZ):
         self.assertTrue(any("Alpha" in w for w in warns))
         self.assertTrue(any("Old" in w for w in warns))
         self.assertTrue(any("MemuAI window" in w for w in warns))
-
 
 if __name__ == "__main__":
     unittest.main()

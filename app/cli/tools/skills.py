@@ -14,7 +14,6 @@ from .. import skillkit
 from ..i18n import tr
 from .base import Prepared, Tool, ToolError, ToolResult, arg
 
-
 class SkillManageTool(Tool):
     name = "SkillManage"
     aliases = ("skill_manage", "manage_skill", "manage_skills", "skills")
@@ -45,7 +44,6 @@ class SkillManageTool(Tool):
     def permission_key(self, runtime, args):
         return "skill:" + str(args.get("name") or args.get("action") or "")
 
-    # ------------------------------------------------------------ prepare
     async def prepare(self, ctx, args):
         runtime = ctx.runtime
         action = str(arg(args, "action", default="list")).strip().lower()
@@ -116,7 +114,6 @@ class SkillManageTool(Tool):
                 header.append(f"{key}: {value}")
         return "\n".join(header) + "\n---\n\n" + body + "\n"
 
-    # ------------------------------------------------------------ run
     async def run(self, ctx, args, prepared):
         runtime = ctx.runtime
         data = prepared.data
@@ -156,7 +153,6 @@ class SkillManageTool(Tool):
     def _reload(runtime) -> None:
         runtime.invalidate_prompt(memory=True)
         runtime.skills.catalogue(refresh=True, include_disabled=True)
-
 
 def register(registry) -> None:
     registry.add(SkillManageTool())

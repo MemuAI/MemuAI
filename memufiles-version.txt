@@ -1,17 +1,17 @@
 VSVersionInfo(
-  ffi=FixedFileInfo(filevers=(3, 8, 2, 0), prodvers=(3, 8, 2, 0),
+  ffi=FixedFileInfo(filevers=(4, 0, 0, 0), prodvers=(4, 0, 0, 0),
     mask=0x3f, flags=0x0, OS=0x40004, fileType=0x1, subtype=0x0, date=(0, 0)),
   kids=[
     StringFileInfo([StringTable('040904B0', [
       StringStruct('Comments', 'Fast file manager with tabs, two panes, instant search, previews and an AI assistant through MemuAI Proxy.'),
       StringStruct('CompanyName', 'MemuAI Project'),
       StringStruct('FileDescription', 'MemuFiles - the fast file manager of MemuAI'),
-      StringStruct('FileVersion', '3.8.2.0'),
+      StringStruct('FileVersion', '4.0.0.0'),
       StringStruct('InternalName', 'MemuFiles'),
       StringStruct('LegalCopyright', '(c) 2026 MemuAI Project. All rights reserved.'),
       StringStruct('OriginalFilename', 'MemuFiles.exe'),
       StringStruct('ProductName', 'MemuFiles'),
-      StringStruct('ProductVersion', '3.8.2.0')
+      StringStruct('ProductVersion', '4.0.0.0')
     ])]),
     VarFileInfo([VarStruct('Translation', [1033, 1200])])
   ]

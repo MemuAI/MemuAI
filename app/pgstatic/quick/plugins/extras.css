@@ -1,5 +1,3 @@
-/* Round 29 — Quick Access helpers (extras.js): currency under the input, eyedropper, OCR, notes, downloads. */
-
 :root[data-qxx-view] #qa-suggest, :root[data-qxx-view] #qa-answer, :root[data-qxx-view] #qa-actions,
 :root[data-qxx-view] #qa-chats, :root[data-qxx-view] #qa-menu, :root[data-qxx-view] #qa-picker,
 :root[data-qxx-view] .qa-plugin.qe { display: none !important; }
@@ -27,7 +25,6 @@
 .qxx-head .qxx-title { flex: 1; min-width: 0; font-weight: 640; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qxx-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 4px 0; margin-top: 6px; border-top: 1px solid var(--qa-line); color: var(--qa-faint); font-size: 12px; }
 .qxx-foot > span { flex: 1 1 140px; min-width: 0; }
-/* r29d: the buttons stay one group (a lone «Copy» used to wrap under the hint) and go right when they wrap. */
 .qxx-foot > .qxx-btns { flex: 0 0 auto; display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-left: auto; }
 .qxx-foot .err, .qxx-empty.err { color: var(--danger); }
 .qxx-foot .qa-btn svg { width: 14px; height: 14px; margin-right: 4px; vertical-align: -2px; }
@@ -56,6 +53,4 @@
 
 @keyframes qxx-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .qxx-spin { animation: none; } .qa-plugin.qxx[data-mode="view"] { animation: none; } }
-
-/* r29d: «Ctrl ↵» inside the accent «Save» button was a faint grey key on the accent fill (as in explorer.css). */
 .qxx-foot .qa-btn.accent kbd { color: inherit; opacity: .72; background: rgba(0, 0, 0, .1); border-color: rgba(0, 0, 0, .14); }

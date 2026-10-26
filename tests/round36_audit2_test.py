@@ -22,10 +22,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
 def read(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8")
-
 
 class FlowValidationTest(unittest.TestCase):
     def test_field_labels_ru_en_and_ask_question_required(self):
@@ -40,7 +38,6 @@ class FlowValidationTest(unittest.TestCase):
         self.assertIn("Шаг 4: заполните поле «Задание»", ru)
         self.assertIn("Step 1: fill in “Search for”", en)
         self.assertFalse([t for t in ru + en if "«query»" in t or "«prompt»" in t])
-
 
 class TelegramVersionsTest(unittest.TestCase):
     def test_switching_a_version_drops_the_other_branchs_summary(self):
@@ -57,9 +54,8 @@ class TelegramVersionsTest(unittest.TestCase):
             saved = telegram_bot._switch_version("default", "c-v", -1)
             self.assertIsNotNone(saved)
             self.assertEqual([m["id"] for m in chat_tree.active_path(saved)], ["u1", "a1"])
-            self.assertEqual(saved.get("contextSummary"), "")   # same length, other branch — the old summary must go
+            self.assertEqual(saved.get("contextSummary"), "")
             self.assertEqual(saved.get("contextSummaryThrough"), 0)
-
 
 class BigDocsStallTest(unittest.TestCase):
     def test_a_stalled_request_is_retried_not_waited_forever(self):
@@ -72,7 +68,7 @@ class BigDocsStallTest(unittest.TestCase):
         async def complete(model, messages):
             calls.append(1)
             if len(calls) == 1:
-                await asyncio.sleep(30)          # a stream that never ends
+                await asyncio.sleep(30)
             return "part summary"
 
         async def go():
@@ -84,7 +80,6 @@ class BigDocsStallTest(unittest.TestCase):
         self.assertEqual(text, "part summary")
         self.assertEqual(len(calls), 2)
         self.assertEqual(job.retries, 1)
-
 
 class StaticTest(unittest.TestCase):
     def test_builder_esc_in_field_keeps_the_draft(self):
@@ -126,7 +121,6 @@ console.log(JSON.stringify({
         self.assertLess(out["early"].index("Content-Security-Policy"), out["early"].index("fetch('x')"))
         self.assertLess(out["comment"].index("Content-Security-Policy"), out["comment"].index("<!-- <head>"))
         self.assertTrue(out["doctype"].startswith("<!DOCTYPE html><meta charset"))
-
 
 @unittest.skipUnless(os.environ.get("MEMU_TEST_CHROMIUM"), "MEMU_TEST_CHROMIUM is not set")
 class BrowserTest(unittest.TestCase):
@@ -210,7 +204,6 @@ class BrowserTest(unittest.TestCase):
         self.wait("!!document.querySelector('#flw-root')")
         self.assertEqual(page.input_value("#pln-builder .pln-name"), "R36 черновик")
         self.assertEqual(self.errors, [])
-
 
 if __name__ == "__main__":
     unittest.main()

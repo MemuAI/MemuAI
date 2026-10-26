@@ -7,26 +7,21 @@ from __future__ import annotations
 
 _LANG = "en"
 
-
 def detect_language() -> str:
     """The CLI interface is English on every host."""
     return "en"
 
-
 def set_language(value: str) -> str:
     global _LANG
-    # MemuCode CLI has one interface language, independent of MemuAI desktop.
+
     _LANG = "en"
     return _LANG
-
 
 def language() -> str:
     return _LANG
 
-
 def tr(ru: str, en: str) -> str:
     return en
-
 
 def plural(count: int, one: str, few: str, many: str, en_one: str = "", en_many: str = "") -> str:
     """Russian plural forms; English falls back to one/many."""

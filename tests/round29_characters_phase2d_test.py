@@ -73,7 +73,6 @@ assert.strictEqual(c1.params.temperature, 2);  // the file is faithful; the UI a
 console.log('ok');
 """
 
-
 @unittest.skipUnless(shutil.which("node"), "node is required")
 class CharactersPhase2DEngineTest(unittest.TestCase):
     def test_engine(self):
@@ -85,7 +84,6 @@ class CharactersPhase2DEngineTest(unittest.TestCase):
             done = subprocess.run(["node", str(Path(temp) / "run.js"), str(Path(temp) / "engine.js"),
                                    str(MODULE / "assets" / "presets")], capture_output=True, text=True, timeout=120)
         self.assertEqual(done.returncode, 0, done.stderr + done.stdout)
-
 
 class CharactersPresetFaithfulTest(unittest.TestCase):
     def test_universal_is_faithful_with_recommended_override(self):
@@ -104,10 +102,9 @@ class CharactersPresetFaithfulTest(unittest.TestCase):
 
     def test_layout_rules(self):
         css = (MODULE / "style.css").read_text(encoding="utf-8")
-        self.assertIn(".ch-main{grid-column:2;grid-row:1;", css)        # ≤760px: the chat no longer lands in the 0px column
-        self.assertIn("@media (max-width:1199px)", css)                  # drawer overlays the chat when it would squeeze it
+        self.assertIn(".ch-main{grid-column:2;grid-row:1;", css)
+        self.assertIn("@media (max-width:1199px)", css)
         self.assertIn(".ch-persona-chip img{width:26px;height:26px;flex-shrink:0", css)
-
 
 if __name__ == "__main__":
     unittest.main()

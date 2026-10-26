@@ -57,7 +57,6 @@ Language: ru
 """
 OEMBED = json.dumps({"title": "Тестовое видео", "author_name": "Автор", "thumbnail_url": "https://i.ytimg.com/vi/x/hq.jpg"})
 
-
 def fake_fetch(fail_json3: bool = False, no_captions: bool = False, status: str = "OK"):
     calls = []
 
@@ -81,10 +80,8 @@ def fake_fetch(fail_json3: bool = False, no_captions: bool = False, status: str 
     fetch.calls = calls  # type: ignore[attr-defined]
     return fetch
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 class YouTubeTests(unittest.TestCase):
     def setUp(self):
@@ -109,7 +106,7 @@ class YouTubeTests(unittest.TestCase):
         self.assertEqual(tracks[1]["name"], "Русский")
         self.assertEqual(yt.pick_track(tracks, "ru")[0]["lang"], "ru")
         self.assertEqual(yt.pick_track(tracks, "en")[0]["lang"], "en")
-        self.assertEqual(yt.pick_track(tracks, "de")[0]["lang"], "ru")   # ручная лучше авто
+        self.assertEqual(yt.pick_track(tracks, "de")[0]["lang"], "ru")
         self.assertEqual(yt.pick_track([], "ru"), (None, ""))
 
     def test_transcript_json3_and_vtt_fallback(self):
@@ -161,15 +158,15 @@ class YouTubeTests(unittest.TestCase):
         self.assertIn("оглавление", prompts[0].lower())
         n_calls = len(fetch.calls)
         run(yt.analyze(f"https://youtu.be/{VID}", complete, mode="timestamps", fetch=fetch, use_ytdlp=False))
-        self.assertEqual(len(fetch.calls), n_calls)      # кэш транскрипта
-        self.assertEqual(len(prompts), 1)                # кэш ответа
+        self.assertEqual(len(fetch.calls), n_calls)
+        self.assertEqual(len(prompts), 1)
         run(yt.analyze(f"https://youtu.be/{VID}", complete, mode="question", question="что в конце?", fetch=fetch, use_ytdlp=False))
         self.assertIn("что в конце?", prompts[-1])
-        # длинное видео → map/reduce
+
         prompts.clear()
         segs = [{"start": i * 5.0, "text": "текст " * 40} for i in range(400)]
         run(yt.summarize({"id": VID, "title": "t"}, segs, complete, mode="brief", chunk_chars=5000, max_chunks=4))
-        self.assertEqual(len(prompts), 5)                # 4 части + сведение
+        self.assertEqual(len(prompts), 5)
         self.assertIn("заметки по частям", prompts[-1])
 
     def test_routes(self):
@@ -189,7 +186,6 @@ class YouTubeTests(unittest.TestCase):
         self.assertEqual(r.json()["code"], "bad_url")
         r = client.post("/api/youtube/transcript", json={"url": f"https://youtu.be/{VID}"})
         self.assertIn("[2:05] Вывод", r.json()["text"])
-
 
 class CommandTests(unittest.TestCase):
     def test_catalog_installed_once(self):
@@ -223,11 +219,11 @@ class CommandTests(unittest.TestCase):
             self.assertEqual((m["action"], m["params"]), (action, params), text)
         q = intents.match(f"https://youtu.be/{VID} что автор говорит про деньги")
         self.assertEqual(q["params"]["mode"], "question")
-        # старые команды не перехвачены
+
         self.assertEqual(intents.match(f"открой https://youtu.be/{VID}")["action"], "open.url")
         self.assertEqual(intents.match("громкость 30")["action"], "volume.set")
         self.assertEqual(intents.match("таймер 10 минут")["action"], "timer.start")
-        self.assertIsNone(intents.match("10 км в килограммы"))    # разные величины → модели
+        self.assertIsNone(intents.match("10 км в килограммы"))
 
     def test_convert_and_password(self):
         self.assertAlmostEqual(r24.convert(10, "km", "mi"), 6.2137, places=3)
@@ -264,15 +260,14 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(card["status"], "done", card)
         self.assertEqual(len(card["copy"]), 16)
         card = run(eng.run("dfy.start", {"goal": "забронируй отель"}))
-        self.assertEqual(card["status"], "confirm")          # агенту — только после подтверждения
+        self.assertEqual(card["status"], "confirm")
         card = run(eng.run("dfy.start", {"goal": "забронируй отель"}, confirmed=True))
         self.assertEqual(card["client"], {"type": "dfy", "goal": "забронируй отель", "source": "quick"})
         card = run(eng.run("computer.use", {"task": "открой блокнот"}))
-        self.assertEqual(card["status"], "confirm")          # передача мыши — только после подтверждения
+        self.assertEqual(card["status"], "confirm")
         card = run(eng.run("computer.use", {"task": "открой блокнот"}, confirmed=True))
         if os.sys.platform != "win32":
             self.assertEqual(card["status"], "unsupported")
-
 
 class VoiceStatusTests(unittest.TestCase):
     STT = [{"id": "small", "name": "Whisper small", "downloaded": False, "download_status": "idle", "progress": 0},
@@ -284,7 +279,7 @@ class VoiceStatusTests(unittest.TestCase):
         self.assertEqual(st["stt"]["source"], "voice")
         self.assertFalse(st["stt"]["ready"])
         self.assertEqual((st["stt"]["fix"], st["stt"]["fix_id"], st["stt"]["fix_kind"]), ("download", "small", "stt"))
-        self.assertFalse(st["tts"]["ready"])                 # голоса Windows вне Windows
+        self.assertFalse(st["tts"]["ready"])
         self.assertIn("Proxy", st["proxy_note"])
 
     def test_quick_overrides_and_api_needs_voice_url(self):
@@ -294,7 +289,7 @@ class VoiceStatusTests(unittest.TestCase):
         self.assertFalse(st["tts"]["ready"])
         self.assertEqual(st["tts"]["fix"], "open_voice")
         st = r24.voice_status({"voice_tts_api_url": "https://api.openai.com/v1", "voice_tts_api_model": "gpt-4o-mini-tts",
-                               "voice_tts_api_key": "sk-test"},     # Round 25: a cloud service needs its key to be ready
+                               "voice_tts_api_key": "sk-test"},
                               {"tts_provider": "api", "tts_api_voice": "nova"}, self.STT, self.TTS, [], "win32")
         self.assertTrue(st["tts"]["ready"])
         self.assertIn("api.openai.com", st["tts"]["label"])
@@ -307,7 +302,6 @@ class VoiceStatusTests(unittest.TestCase):
         tts = [dict(self.TTS[0], downloaded=True)]
         st = r24.voice_status({}, {"tts_provider": "downloaded"}, self.STT, tts, [], "win32")
         self.assertTrue(st["tts"]["ready"])
-
 
 class StaticContracts(unittest.TestCase):
     def test_js_syntax(self):
@@ -330,7 +324,6 @@ class StaticContracts(unittest.TestCase):
         self.assertIn('$$("body > .pretty-select-menu")', app)
         self.assertIn("menu._layerOwner = wrap", app)
 
-
 def _chromium() -> str:
     for c in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", shutil.which("chromium") or "",
               "/workspace/work/chromium/chrome"):
@@ -338,19 +331,16 @@ def _chromium() -> str:
             return c
     return ""
 
-
 try:
     from playwright.sync_api import sync_playwright
 except Exception:  # pragma: no cover
     sync_playwright = None
-
 
 def _pretty_select_source() -> str:
     app = (PG / "app.js").read_text(encoding="utf-8")
     start = app.index("function closePrettySelects(")
     end = app.index("/* ------------------------------ верхняя панель окна")
     return app[start:end]
-
 
 @unittest.skipUnless(sync_playwright is not None and _chromium(), "Playwright/Chromium is not installed")
 class LayersBrowserTests(unittest.TestCase):
@@ -404,7 +394,7 @@ class LayersBrowserTests(unittest.TestCase):
         self.assertEqual(self.visible_menus(page), 0)
         self.assertEqual(page.evaluate("document.querySelectorAll('body > .pretty-select-menu').length"), 0)
         self.assertEqual(page.evaluate("document.querySelector('#tts').value"), "api")
-        # повтор много раз — по-прежнему одно меню максимум
+
         for i in range(5):
             page.click(".pretty-select-button"); page.click(f"[data-pretty-option='{i % 5}']")
         self.assertEqual(self.visible_menus(page), 0)
@@ -420,7 +410,7 @@ class LayersBrowserTests(unittest.TestCase):
         self.assertEqual(self.visible_menus(page), 0)
         page.click(".pretty-select-button"); page.evaluate("window.dispatchEvent(new Event('blur'))")
         self.assertEqual(self.visible_menus(page), 0)
-        # клавиатура: Enter открывает, стрелки двигают, Enter выбирает
+
         page.focus(".pretty-select-button"); page.keyboard.press("Enter")
         self.assertEqual(self.visible_menus(page), 1)
         page.keyboard.press("ArrowDown"); page.keyboard.press("ArrowDown"); page.keyboard.press("Enter")
@@ -438,11 +428,10 @@ class LayersBrowserTests(unittest.TestCase):
     def test_detached_owner_menu_is_swept(self):
         page = self.page()
         page.click(".pretty-select-button")
-        page.evaluate("document.getElementById('host').innerHTML = ''")   # чужая перерисовка без closeAll
+        page.evaluate("document.getElementById('host').innerHTML = ''")
         page.wait_for_timeout(120)
         self.assertEqual(page.evaluate("document.querySelectorAll('body > .pretty-select-menu').length"), 0)
         self.assertFalse(page.evaluate("MemuLayers.isOpen()"))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -16,18 +16,15 @@ from app import connected_services, flow_engine as fe, pgdata
 from app import schedule_integrations as si, schedule_rules as rules, schedule_rules_api as api
 from app import schedule_runtime as runtime
 
-
 ROWS = [{"service": "telegram_use", "connected": False, "tools": [
     "telegram_use_history{chat,limit}", "telegram_use_send{chat,text}"]},
     {"service": "chrome_extension", "connected": False, "tools": [
         "chrome_tabs{}", "chrome_close{tab_id}"]}]
 
-
 def task(**fields):
     return {"id": "integration-test", "name": "Read Telegram", "kind": "integration",
             "tool": "telegram_use_history", "args": {"chat": "123", "limit": 50},
             "rule": {"when": [{"type": "daily", "times": ["09:00"]}]}, **fields}
-
 
 class Isolated(unittest.TestCase):
     def setUp(self):
@@ -39,7 +36,6 @@ class Isolated(unittest.TestCase):
         self.rows_patch = patch.object(connected_services, "status_rows", return_value=ROWS)
         self.rows_patch.start()
         self.addCleanup(self.rows_patch.stop)
-
 
 class ValidationTests(Isolated):
     def test_catalog_is_available_even_when_disconnected(self):
@@ -108,7 +104,6 @@ class ValidationTests(Isolated):
             self.assertEqual(len(metadata["integrations"]), 4)
             self.assertEqual(len(flows["integrations"]), 4)
             self.assertIsNone(executor.task)
-
 
 class ExecutionTests(Isolated):
     def test_scheduler_sets_scheduled_flag_and_preserves_structured_output(self):
@@ -186,7 +181,6 @@ class ExecutionTests(Isolated):
             self.assertNotIn("handoff", executor.dfy_ids)
         asyncio.run(run())
 
-
 class FlowTests(Isolated):
     def test_read_summarize_send_pipeline_uses_structured_history_and_model_result(self):
         async def run():
@@ -247,7 +241,6 @@ class FlowTests(Isolated):
         context = fe.Ctx()
         context.vars["ids"] = [1, 2]
         self.assertEqual(context.render(step["args"])["ids"], [1, 2])
-
 
 if __name__ == "__main__":
     unittest.main()

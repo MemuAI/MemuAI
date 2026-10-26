@@ -22,9 +22,6 @@ from app import deep_research, pgdata, realtime_live, themes
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
-# ---------------------------------------------------------------- research engine
-
 class FakeWeb:
     """Search, page and model stand-ins that record what the engine asked for."""
 
@@ -89,7 +86,6 @@ class FakeWeb:
             raise ValueError("blocked by bot protection")
         return {"url": url, "title": "Page " + url, "text": ("Solar panel data. " * 40)[:limit]}
 
-
 def run_engine(web: FakeWeb, **limits):
     events: list[dict] = []
     engine = deep_research.ResearchEngine(
@@ -98,7 +94,6 @@ def run_engine(web: FakeWeb, **limits):
         prompts={"planner": "PLANNER", "reader": "READER", "reviewer": "REVIEWER"}, today="2026-09-26")
     result = asyncio.run(engine.run("How efficient and how cheap are solar panels now?", "User: hi"))
     return engine, result, events
-
 
 class DeepResearchEngineTest(unittest.TestCase):
     def test_full_run_produces_a_numbered_dossier(self) -> None:
@@ -113,13 +108,13 @@ class DeepResearchEngineTest(unittest.TestCase):
         self.assertIn(result["sources"][0]["url"], result["dossier"])
         self.assertEqual(result["plan"]["title"], "Solar panels")
         self.assertEqual(result["stats"]["rounds"], 1, "the reviewer said the evidence was enough")
-        # utm parameters and www./trailing slash do not create duplicate sources
+
         self.assertEqual(len([u for u in engine.sources]), len(set(engine.sources)))
         self.assertFalse(any("pinterest" in url for url in web.fetched), "login-walled hosts are skipped")
         self.assertIn("contradictions", result["review"])
 
     def test_the_model_decides_but_the_budget_is_a_hard_ceiling(self) -> None:
-        many = [[f"query {i}-{j}" for j in range(8)] for i in range(4)]  # 32 planned queries
+        many = [[f"query {i}-{j}" for j in range(8)] for i in range(4)]
         web = FakeWeb(planner_queries=many, follow_ups=[f"follow {k}" for k in range(20)], done_after=5)
         engine, result, _events = run_engine(web, max_queries=10, max_rounds=3, max_sources=30)
         self.assertLessEqual(len(web.searches), 10)
@@ -160,14 +155,10 @@ class DeepResearchEngineTest(unittest.TestCase):
             {"research_max_queries": 9999, "research_max_rounds": "x", "research_max_sources": 1})
         self.assertEqual((limits.max_queries, limits.max_rounds, limits.max_sources), (150, 4, 4))
 
-
-# ---------------------------------------------------------------- live adapters
-
 def live_config(provider: str, **extra) -> realtime_live.LiveConfig:
     prefs = {"voice_realtime_provider": provider,
              "voice_realtime_api_keys": {provider: "sk-secret-123"}, **extra}
     return realtime_live.LiveConfig.from_preferences(prefs, "Be brief.")
-
 
 class RealtimeAdapterTest(unittest.TestCase):
     def test_configuration_is_validated_before_any_connection(self) -> None:
@@ -268,9 +259,6 @@ class RealtimeAdapterTest(unittest.TestCase):
         self.assertEqual(realtime_live.decode_frame(b'{"setupComplete": {}}'), {"setupComplete": {}})
         self.assertNotIn("sk-secret-123", realtime_live.redact("failed wss://x?key=sk-secret-123", adapter.config))
 
-
-# ---------------------------------------------------------------- preferences & prompts
-
 class Round9PreferencesTest(unittest.TestCase):
     def test_new_preferences_are_normalised(self) -> None:
         prefs = pgdata._normalize_preferences({
@@ -304,9 +292,6 @@ class Round9PreferencesTest(unittest.TestCase):
         report = pgdata.internal_prompt("deep-research-report")
         self.assertIn("[3]", report)
         self.assertIn("Never invent sources", report)
-
-
-# ---------------------------------------------------------------- routes
 
 class Round9RouteTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -349,8 +334,7 @@ class Round9RouteTest(unittest.TestCase):
             self.assertTrue(response.text.rstrip().endswith("data: [DONE]"))
 
     def test_live_relay_rejects_foreign_pages_and_explains_missing_setup(self) -> None:
-        # TestClient defaults WebSockets to ws://testserver; the desktop app
-        # only ever serves 127.0.0.1, so the URL is explicit here.
+
         url = "ws://127.0.0.1/api/voice/realtime"
         with self.client() as client:
             with self.assertRaises(WebSocketDisconnect):
@@ -447,9 +431,6 @@ class Round9RouteTest(unittest.TestCase):
             thread.join(timeout=10)
             loop.close()
 
-
-# ---------------------------------------------------------------- interface contracts
-
 class Round9InterfaceTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -463,7 +444,7 @@ class Round9InterfaceTest(unittest.TestCase):
     def test_design_layer_loads_last_and_parses(self) -> None:
         self.assertLess(self.html.index("/appearance.css?"), self.html.index("/design.css?"))
         self.assertLess(self.html.index("/docs.css?"), self.html.index("/design.css?"))
-        # A stray "*/" inside a comment once swallowed the whole token block.
+
         self.assertEqual(self.css.count("/*"), self.css.count("*/"))
         for token in ("--chrome:", "--canvas:", "--canvas-line:", "--brand:"):
             self.assertIn(token, self.css)
@@ -480,11 +461,10 @@ class Round9InterfaceTest(unittest.TestCase):
         for tool in ("files", "paste", "screenshot", "image", "search", "research",
                      "live", "dictate", "skills", "instructions", "schedule", "temp"):
             self.assertIn(f'id: "{tool}"', self.tools, tool)
-        # Round 10: reasoning and visualization work automatically and are no
-        # longer offered as manual switches in the "+" menu.
+
         for tool in ("think", "visualize"):
             self.assertNotIn(f'id: "{tool}"', self.tools, tool)
-        # Round 13: "Agents" is back as a switch, but only in Work and MemuCode.
+
         agents_row = self.tools[self.tools.index('id: "agents"'):]
         self.assertIn("hidden: !project", agents_row[:500])
         for script in ("tools.js", "research.js", "agents.js", "realtime.js"):
@@ -498,7 +478,7 @@ class Round9InterfaceTest(unittest.TestCase):
         self.assertIn("<deep_research_report>", generate)
         self.assertIn("web_search: searchEnabled && searchRequested && !usedResearch", generate)
         self.assertIn('internalPromptText("visualization-mode")', generate)
-        # Round 13: no specialist-agent pass before a chat answer; agents are a tool of Work and MemuCode.
+
         self.assertNotIn("agents/run", generate)
         self.assertIn("MemuAgents.allowed(sourceMessages, sourceCaps, sourceMode)", generate)
         self.assertIn("readSSE(response.body", self.research)
@@ -525,7 +505,6 @@ class Round9InterfaceTest(unittest.TestCase):
             self.assertIn(row["dark2"], css)
         self.assertIn("--accent-2: var(--accent2-dark)", css)
 
-
 class GensparkSnapshotDeltaTest(unittest.TestCase):
     """The smoke gate found a repeated answer: a cumulative snapshot sent as a delta."""
 
@@ -546,7 +525,6 @@ class GensparkSnapshotDeltaTest(unittest.TestCase):
         self.assertEqual(self.run_parser(["- a\n", "- ", "b\n", "**x**", " and ", "**", "y", "**"]),
                          "- a\n- b\n**x** and **y**")
 
-
 class Round9InstallerTest(unittest.TestCase):
     """Round 9 redesigned the Inno wizard (artwork, steps, no "folder exists" prompt,
     one surface colour). Round 20 replaced Inno with the custom installer in
@@ -557,7 +535,6 @@ class Round9InstallerTest(unittest.TestCase):
     def test_redesigned_wizard_ships_its_artwork_and_skips_the_folder_prompt(self) -> None:
         from installer import engine, products
 
-        # Artwork and fonts ship inside the Setup exe (everything in ui/ except the dev mock).
         for name in ("assets/logo.png", "assets/logo-proxy.png", "fonts/inter-latin-wght.woff2",
                      "fonts/inter-cyrillic-wght.woff2", "fonts/Inter-OFL.txt", "scene.js", "style.css"):
             self.assertTrue((self.UI / name).is_file(), name)
@@ -568,14 +545,12 @@ class Round9InstallerTest(unittest.TestCase):
         self.assertIn('src="assets/logo.png"', html)
         self.assertNotIn("http://", html.replace("http://www.w3.org", ""))
         self.assertNotIn("https://", html, "the interface works offline")
-        # Step indicator (Round 23 wizard): five steps, captions in both languages.
+
         self.assertEqual(html.count('class="step" data-step='), 5)
         i18n = (self.UI / "i18n.js").read_text(encoding="utf-8")
         for key in ("step.edition", "step.location", "step.options", "step.review", "step.install"):
             self.assertEqual(i18n.count(f'"{key}":'), 2, key)
 
-        # No "folder already exists" prompt: our own folder is an upgrade target,
-        # a foreign non-empty folder silently gets a MemuAI subfolder.
         class Quiet(engine.Platform):
             def __init__(self, base: Path) -> None:
                 self.base = base
@@ -603,7 +578,7 @@ class Round9InstallerTest(unittest.TestCase):
             self.assertEqual(Path(result["path"]), foreign / "MemuAI")
 
     def test_window_and_page_share_one_surface_colour(self) -> None:
-        # The frameless window is painted before the page loads: same colour = no flash.
+
         from installer import main as setup_main
         import inspect
 
@@ -612,7 +587,6 @@ class Round9InstallerTest(unittest.TestCase):
         self.assertIn(f'background_color="{bg.upper()}"', inspect.getsource(setup_main.run_window))
         self.assertIn("html, body {", css)
         self.assertIn("background: var(--bg)", css)
-
 
 if __name__ == "__main__":
     unittest.main()

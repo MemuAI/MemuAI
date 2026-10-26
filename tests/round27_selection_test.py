@@ -25,21 +25,20 @@ from app import quick_selection as qs  # noqa: E402
 from app import quick_ask_api  # noqa: E402
 from app import quick_ask_core as core  # noqa: E402
 
-
 class FakeBackend(qs.Backend):
     supported = True
 
     def __init__(self, *, uia=None, clipboard="old", copies=None, window=None, snapshot="ok", pid=4242):
-        self.uia = uia                    # None | {"text", "editable"} | Exception
-        self.clipboard = clipboard        # current CF_UNICODETEXT
-        self.copies = copies              # what Ctrl+C puts on the clipboard (None = the program copies nothing)
+        self.uia = uia
+        self.clipboard = clipboard
+        self.copies = copies
         self.win = window or {"pid": 777, "class": "Chrome_WidgetWin_1", "exe": r"C:\\Program Files\\App\\chrome.exe", "title": "Mail"}
         self.snap = snapshot
         self.pid = pid
         self.seq = 10
         self.log = []
         self.windows = {123}
-        self.after_read = None            # a callable run after read_text (someone else copies meanwhile)
+        self.after_read = None
 
     def own_pid(self):
         return self.pid
@@ -97,9 +96,7 @@ class FakeBackend(qs.Backend):
     def is_window(self, hwnd):
         return hwnd in self.windows
 
-
 PREFS = {"quick_ask_selection": True, "quick_ask_selection_clipboard": True}
-
 
 class CaptureTests(unittest.TestCase):
     def tearDown(self):
@@ -183,7 +180,7 @@ class CaptureTests(unittest.TestCase):
             result = qs.capture(123, dict(PREFS, **prefs), api=api)
             self.assertEqual((result["text"], result["reason"]), ("", reason), window)
             self.assertNotIn("copy", api.log, window)
-        # a terminal that exposes its selection through UI Automation still works (no Ctrl+C needed)
+
         api = FakeBackend(uia={"text": "ls -la"}, window={"pid": 1, "class": "ConsoleWindowClass", "exe": "conhost.exe"})
         self.assertEqual(qs.capture(123, PREFS, api=api)["text"], "ls -la")
 
@@ -215,7 +212,6 @@ class CaptureTests(unittest.TestCase):
         self.assertEqual(qs.plan_snapshot([0x80, 0x205, 0x305])[1], [0x80, 0x205, 0x305])
         self.assertEqual(qs.plan_snapshot([1]), ([1], []), "ANSI-only text is kept as is")
 
-
 class ReplaceTests(unittest.TestCase):
     def setUp(self):
         self.api = FakeBackend(uia={"text": "teh text", "editable": True}, clipboard="user clip")
@@ -245,7 +241,6 @@ class ReplaceTests(unittest.TestCase):
         self.assertEqual(qs.replace(self.manager, "x", self.result["id"], api=self.api)["code"], "gone")
         self.assertEqual(qs.replace(self.manager, "x", self.result["id"], api=qs.Backend())["code"], "unsupported")
         self.assertNotIn("paste", self.api.log)
-
 
 class ActionTests(unittest.TestCase):
     def test_language_guess_and_direction(self):
@@ -320,7 +315,6 @@ class ActionTests(unittest.TestCase):
         self.assertEqual(out["selection"], "привет")
         self.assertIn("больше нет", qs.resolve_action({"id": "c_gone0000"}, prefs, lang="ru", selection="x")["error"])
 
-
 class PreferenceTests(unittest.TestCase):
     def test_defaults_registered_and_migration(self):
         from app.pgdata import DEFAULT_PREFERENCES, _normalize_preferences
@@ -330,9 +324,9 @@ class PreferenceTests(unittest.TestCase):
         prefs = _normalize_preferences({})
         self.assertTrue(prefs["quick_ask_selection"])
         self.assertEqual(prefs["quick_ask_selection_actions"], qs.DEFAULT_ACTIONS)
-        # before Round 27 the switch was an opt-in nobody saw: switched on once
+
         self.assertTrue(_normalize_preferences({"quick_ask_selection": False})["quick_ask_selection"])
-        # after that the user's «off» stays off
+
         self.assertFalse(_normalize_preferences({"quick_ask_selection": False, "quick_ask_selection_v": 2})["quick_ask_selection"])
 
     def test_normalization(self):
@@ -352,7 +346,6 @@ class PreferenceTests(unittest.TestCase):
         self.assertEqual(out["quick_ask_selection_second_lang"], "")
         self.assertFalse(out["quick_ask_selection_clipboard"])
         self.assertEqual(qs.normalize_prefs({"quick_ask_selection_actions": "x"})["quick_ask_selection_actions"], qs.DEFAULT_ACTIONS)
-
 
 class AskRouteTests(unittest.TestCase):
     """/api/quick/ask with selection_action: the instruction replaces the label, overrides apply, the page is not read."""
@@ -413,7 +406,6 @@ class AskRouteTests(unittest.TestCase):
         data = TestClient(app, base_url="http://127.0.0.1").post("/api/quick/window", json={"action": "replace_selection", "text": "x"}).json()
         self.assertEqual(data, {"ok": False, "native": False})
 
-
 class NativeWiringTests(unittest.TestCase):
     """QuickAskManager hands the hotkey's foreground window to quick_selection and passes the result to the page."""
 
@@ -438,7 +430,6 @@ class NativeWiringTests(unittest.TestCase):
             for name in ("quick.js", "quick-selection.js"):
                 result = subprocess.run([node, "--check", str(ROOT / "app" / "pgstatic" / "quick" / name)], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, result.stderr)
-
 
 class WindowShots(unittest.TestCase):
     """tests/round27_selection_shots.py (the window) and round27_selection_settings_shots.py (Settings) in headless
@@ -468,7 +459,6 @@ class WindowShots(unittest.TestCase):
 
     def test_headless_settings(self):
         self.run_script("round27_selection_settings_shots.py")
-
 
 if __name__ == "__main__":
     unittest.main()

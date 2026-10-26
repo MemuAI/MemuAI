@@ -1,13 +1,13 @@
-// MemuNote — UI strings (RU / EN). English contains no Cyrillic (tests/round29_memunote_static_test.py).
-// Keys with the "cm:" prefix translate CodeMirror's own phrases (search panel, folding, go to line).
+
+
 export const DICT = {
   ru: {
-    // ---- find panel (findpanel.js)
+
     find_toggle_replace: "Показать замену", find_placeholder: "Найти", find_case: "Учитывать регистр", find_word: "Слово целиком", find_regexp: "Регулярное выражение",
     find_prev: "Предыдущее", find_next: "Следующее", find_select_all: "Выделить все", find_select_all_hint: "Выделить все совпадения (мультикурсор)",
     replace_placeholder: "Заменить на", replace_one: "Заменить", replace_all: "Заменить все", find_replaced: "Заменено: {n}", find_none: "Нет совпадений",
     find_bad_regexp: "Ошибка в выражении", ai_sources: "Источники", find_n_of: "{i} из {n}", find_n: "Найдено: {n}",
-    // ---- common
+
     ok: "ОК", cancel: "Отмена", close: "Закрыть", done: "Готово", retry: "Повторить", open: "Открыть", copy: "Копировать",
     cut: "Вырезать", paste: "Вставить", paste_blocked: "Буфер обмена недоступен — нажмите Ctrl+V", copied: "Скопировано", dismiss: "Скрыть", loading: "Загрузка…", overwrite: "Перезаписать",
     nothing_found: "Ничего не найдено", not_found: "Не найдено", menu: "Меню", settings: "Настройки", about: "О программе",
@@ -16,7 +16,7 @@ export const DICT = {
     follow_memuai: "Как в MemuAI", untitled: "Без имени {n}", plain_text: "Обычный текст", read_only: "Только чтение",
     about_text: "Лёгкий ИИ-блокнот MemuAI: вкладки, огромные файлы, Markdown, документы Word/ODT/RTF, PDF, таблицы CSV и ИИ через MemuAI Proxy. Работает и без Proxy.",
     about_libs: "CodeMirror 6, markdown-it, pdf.js — лицензии MIT / Apache-2.0.",
-    // ---- tabs & files
+
     new_tab: "Новая вкладка", new_markdown: "Новый Markdown", all_tabs: "Все вкладки", open_tab: "открытая вкладка", close_tab: "Закрыть вкладку",
     close_others: "Закрыть остальные", close_right: "Закрыть справа", close_saved: "Закрыть сохранённые", pin: "Закрепить", unpin: "Открепить",
     open_in_split: "Открыть справа", copy_path: "Копировать путь", reveal: "Показать в проводнике", rename: "Переименовать", new_name: "Новое имя",
@@ -39,7 +39,7 @@ export const DICT = {
     open_as_text: "Открыть как текст", image_failed: "Не удалось загрузить изображение", image_too_big: "Изображение больше 15 МБ",
     rich_save_title: "Сохранение документа", rich_save_text: "MemuNote сохраняет текст, стили, списки, таблицы и картинки, но сложное оформление (колонтитулы, сноски, поля, макросы) может упроститься. Перезаписать исходный файл или сохранить копию?",
     save_copy: "Сохранить копию", save_over: "Перезаписать", dont_ask_again: "Больше не спрашивать",
-    // ---- menus
+
     menu_edit: "Правка", menu_view: "Вид", menu_tools: "Инструменты", undo: "Отменить", redo: "Повторить", find: "Найти", find_text: "Что найти",
     replace: "Заменить", goto_line: "Перейти к строке", goto_line_label: "Номер строки (1–{n}), можно «строка:столбец»", select_all: "Выделить всё",
     toggle_comment: "Закомментировать", duplicate_line: "Дублировать строку", move_line_up: "Строку вверх", move_line_down: "Строку вниз",
@@ -49,14 +49,14 @@ export const DICT = {
     export: "Экспорт", export_as: "Экспортировать как", exported: "Экспортировано: {name}", export_failed: "Не удалось экспортировать",
     pdf_fallback: "Встроенный экспорт PDF недоступен — выберите «Сохранить как PDF» в окне печати",
     command_palette: "Палитра команд", palette_placeholder: "Введите команду…",
-    // ---- tools
+
     tools_lines: "Строки", tools_case: "Регистр", tools_encode: "Кодирование", tool_failed: "Не удалось преобразовать выделение",
     tool_sort_asc: "Сортировать А→Я", tool_sort_desc: "Сортировать Я→А", tool_sort_len: "Сортировать по длине", tool_reverse: "Обратный порядок",
     tool_shuffle: "Перемешать", tool_unique: "Удалить повторы", tool_remove_empty: "Удалить пустые строки", tool_trim: "Убрать пробелы в конце",
     tool_trim_lead: "Убрать пробелы в начале", tool_join: "Склеить строки", tool_number: "Пронумеровать строки", tool_upper: "ВЕРХНИЙ РЕГИСТР",
     tool_lower: "нижний регистр", tool_title: "Каждое Слово С Заглавной", tool_sentence: "Как в предложении", tool_invert: "иНВЕРСИЯ рЕГИСТРА",
     tool_b64e: "Base64: закодировать", tool_b64d: "Base64: раскодировать", tool_urle: "URL: закодировать", tool_urld: "URL: раскодировать",
-    // ---- formatting
+
     fmt_bold: "Жирный", fmt_italic: "Курсив", fmt_underline: "Подчёркнутый", fmt_strike: "Зачёркнутый", fmt_code: "Код", fmt_heading: "Заголовок",
     fmt_h: "Заголовок {n}", fmt_ul: "Маркированный список", fmt_ol: "Нумерованный список", fmt_tasks: "Список задач", fmt_quote: "Цитата", fmt_link: "Ссылка",
     fmt_table: "Таблица", fmt_hr: "Разделитель", fmt_sup: "Надстрочный", fmt_sub: "Подстрочный", fmt_color: "Цвет текста", fmt_highlight: "Выделение цветом",
@@ -66,7 +66,7 @@ export const DICT = {
     doc_style: "Стиль", doc_font: "Шрифт", doc_size: "Размер шрифта", doc_size_short: "Кегль", doc_paper: "Белая бумага / как тема",
     doc_style_normal: "Обычный", doc_style_h1: "Заголовок 1", doc_style_h2: "Заголовок 2", doc_style_h3: "Заголовок 3", doc_style_h4: "Заголовок 4",
     doc_style_quote: "Цитата", doc_style_code: "Код", doc_mode: "Документ {fmt}", doc_to_md: "В Markdown",
-    // ---- markdown
+
     md_group_hint_txt: "Форматирование Markdown: при первом использовании предложим превратить файл в .md",
     md_mode_source: "Только текст", md_mode_split: "Текст и просмотр", md_mode_preview: "Только просмотр", md_toggle_preview: "Переключить просмотр Markdown",
     md_bold_text: "жирный текст", md_italic_text: "курсив", md_strike_text: "зачёркнуто", md_link_text: "текст ссылки", md_col: "Столбец",
@@ -75,24 +75,24 @@ export const DICT = {
     md_convert_ai: "В .md и оформить с ИИ", md_target_exists: "Файл {name} уже существует. Перезаписать его?", md_converted: "Создан {name} (исходный {old} не изменён)",
     md_format_table: "Выровнять таблицу Markdown", md_no_table: "Курсор не в таблице Markdown", md_convert_cmd: "Превратить в Markdown (.md)",
     preview_too_big: "Файл слишком большой для просмотра Markdown — используйте режим «Только текст».",
-    // ---- views
+
     csv_filter: "Фильтр по строкам…", csv_delim: "Разделитель", csv_rows: "{n} строк", csv_table_view: "Таблица", csv_text_view: "Как текст",
     pdf_prev: "Предыдущая страница", pdf_next: "Следующая страница", pdf_page: "Страница", pdf_fit: "По ширине", pdf_extract: "Извлечь текст",
     pdf_ask: "Спросить ИИ", pdf_failed: "Не удалось открыть PDF", json_format: "Форматировать", json_minify: "Сжать в строку", json_validate: "Проверить",
     json_valid: "JSON корректен", json_invalid: "Ошибка JSON", log_follow: "Следить за концом", html_preview: "Просмотр",
     side_files: "Файлы", side_outline: "Структура", outline_empty: "Заголовков пока нет",
-    // ---- status bar
+
     st_pos: "Стр {l}, стлб {c}", st_sel: "Выделено {n} ({l} стр.)", st_words: "Слов: {n}", st_words_sel: "Слов: {n} из {all}", st_chars: "Символов: {n}", st_lines: "Строк: {n}",
     st_spaces: "Пробелы: {n}", st_tabs: "Табуляция: {n}", indent_spaces: "Отступ пробелами", indent_tabs: "Отступ табуляцией", tab_size_n: "Ширина {n}",
     convert_tabs_spaces: "Табуляцию → пробелы", convert_spaces_tabs: "Пробелы → табуляцию", eol_mixed: "Смешанные", eol_mixed_hint: "В файле разные окончания строк — при сохранении они станут одинаковыми",
     enc_reopen: "Переоткрыть в кодировке", enc_reopen_with: "Переоткрыть", enc_reopen_dirty: "Несохранённые изменения будут потеряны. Продолжить?",
     enc_reopened: "Открыто в кодировке {enc}", enc_save: "Сохранить в кодировке", enc_save_with: "Сохранять как", enc_will_save: "При сохранении: {enc}",
     lang_pick: "Язык подсветки…",
-    // ---- shortcuts dialog
+
     next_tab: "Следующая вкладка", find_next_prev: "Следующее / предыдущее совпадение", select_next: "Выделить следующее вхождение",
     multi_cursor: "Несколько курсоров", move_line: "Переместить строку", fmt_bold_or_sidebar: "Жирный (в тексте) / боковая панель",
     quick_open: "Быстрое открытие", ai_accept_ghost: "Принять подсказку ИИ",
-    // ---- settings
+
     set_general: "Общие", set_editor: "Редактор", set_files: "Файлы", set_ai: "ИИ", set_language: "Язык интерфейса",
     set_restore: "Восстанавливать вкладки", set_restore_hint: "При запуске открывать файлы прошлого сеанса",
     set_recovery: "Не терять несохранённое", set_recovery_hint: "Черновики сохраняются в фоне и вернутся после сбоя или выключения",
@@ -114,7 +114,7 @@ export const DICT = {
     set_ai_autocomplete: "ИИ-подсказки при наборе", set_ai_autocomplete_hint: "Серый текст в конце строки, Tab — принять",
     set_ai_autocomplete_delay: "Задержка подсказки, мс", set_ai_context: "Контекст файла для ИИ, символов", set_ai_context_hint: "Сколько текста отправлять вместе с вопросом",
     set_proxy_url: "Адрес MemuAI Proxy", set_proxy_url_hint: "Пусто — взять из настроек MemuAI",
-    // ---- AI
+
     ai_button: "ИИ", ai_panel: "Панель ИИ", ai_command: "Команда ИИ", ai_model: "Модель", ai_model_default: "Как в MemuAI", ai_model_search: "Найти модель…",
     ai_online: "MemuAI Proxy подключён", ai_offline: "MemuAI Proxy недоступен", ai_offline_short: "ИИ офлайн", ai_no_model_short: "Нет модели",
     ai_offline_title: "ИИ сейчас недоступен", ai_offline_text: "Запустите MemuAI Proxy (или MemuAI) — редактор продолжает работать и без него.",
@@ -137,14 +137,14 @@ export const DICT = {
     tone_simple: "Простой", tone_academic: "Научный", tone_persuasive: "Убедительный", tone_empathetic: "С сочувствием",
     lang_en: "Английский", lang_ru: "Русский", lang_de: "Немецкий", lang_fr: "Французский", lang_es: "Испанский", lang_it: "Итальянский", lang_pt: "Португальский",
     lang_uk: "Украинский", lang_pl: "Польский", lang_tr: "Турецкий", lang_zh: "Китайский", lang_ja: "Японский", lang_ko: "Корейский", lang_ar: "Арабский",
-    // ---- CodeMirror phrases
+
     "cm:Find": "Найти", "cm:Replace": "Заменить на", "cm:next": "далее", "cm:previous": "назад", "cm:all": "все", "cm:match case": "регистр",
     "cm:regexp": "рег. выражение", "cm:by word": "слово целиком", "cm:replace": "заменить", "cm:replace all": "заменить все", "cm:close": "закрыть",
     "cm:current match": "текущее совпадение", "cm:replaced $ matches": "заменено совпадений: $", "cm:replaced match on line $": "заменено в строке $",
     "cm:on line": "в строке", "cm:Go to line": "Перейти к строке", "cm:go": "перейти", "cm:Folded lines": "Свёрнутые строки", "cm:Unfolded lines": "Развёрнутые строки",
     "cm:to": "до", "cm:folded code": "свёрнутый код", "cm:unfold": "развернуть", "cm:Fold line": "Свернуть", "cm:Unfold line": "Развернуть",
     "cm:Control character": "Управляющий символ",
-    // ---- AI panel, agent mode (Round 31: ai.js, ai-edit.js)
+
     ai_more: "Ещё", ai_collapse: "Свернуть панель", ai_scope: "Контекст", ai_mode_chat: "Чат", ai_mode_edit: "Правка",
     ai_mode_chat_hint: "Ответы в панели — документ не меняется", ai_mode_edit_hint: "ИИ сам предлагает правки в документе — вы принимаете или отклоняете каждую",
     ai_auto_apply: "Сразу", ai_auto_apply_hint: "Применять правки ИИ сразу (их всё равно можно отменить)", ai_auto_on: "Правки применяются сразу", ai_auto_off: "Правки — только после проверки",
@@ -174,7 +174,7 @@ export const DICT = {
     ai_wrote: "Дописано: {n} сл.", ai_wrote_partial: "Остановлено, дописано: {n} сл.",
   },
   en: {
-    // ---- find panel (findpanel.js)
+
     find_toggle_replace: "Toggle replace", find_placeholder: "Find", find_case: "Match case", find_word: "Whole word", find_regexp: "Regular expression",
     find_prev: "Previous match", find_next: "Next match", find_select_all: "Select all", find_select_all_hint: "Select all matches (multi-cursor)",
     replace_placeholder: "Replace with", replace_one: "Replace", replace_all: "Replace all", find_replaced: "Replaced: {n}", find_none: "No results",
@@ -298,7 +298,7 @@ export const DICT = {
     tone_simple: "Simple", tone_academic: "Academic", tone_persuasive: "Persuasive", tone_empathetic: "Empathetic",
     lang_en: "English", lang_ru: "Russian", lang_de: "German", lang_fr: "French", lang_es: "Spanish", lang_it: "Italian", lang_pt: "Portuguese",
     lang_uk: "Ukrainian", lang_pl: "Polish", lang_tr: "Turkish", lang_zh: "Chinese", lang_ja: "Japanese", lang_ko: "Korean", lang_ar: "Arabic",
-    // ---- AI panel, agent mode (Round 31: ai.js, ai-edit.js)
+
     ai_more: "More", ai_collapse: "Collapse panel", ai_scope: "Context", ai_mode_chat: "Chat", ai_mode_edit: "Edit",
     ai_mode_chat_hint: "Answers in the panel; the document is not changed", ai_mode_edit_hint: "The AI proposes edits to the document; you accept or reject each one",
     ai_auto_apply: "Auto", ai_auto_apply_hint: "Apply AI edits right away (you can still undo them)", ai_auto_on: "Edits are applied right away", ai_auto_off: "Edits are applied after review",
@@ -329,14 +329,13 @@ export const DICT = {
   },
 };
 
-// Round 31 (note-core): strings of PDF editing, new formats and huge files live in i18n-core.js.
 import { CORE } from "./i18n-core.js";
 for (const L of ["ru", "en"]) Object.assign(DICT[L], CORE[L]);
-import { SLIDES_I18N } from "./slides/i18n-slides.js";   // Round 32: presentation editor
+import { SLIDES_I18N } from "./slides/i18n-slides.js";
 for (const L of ["ru", "en"]) Object.assign(DICT[L], SLIDES_I18N[L]);
-import { PHOTO } from "./photo/i18n.js";   // Round 32: photo editor
+import { PHOTO } from "./photo/i18n.js";
 for (const L of ["ru", "en"]) Object.assign(DICT[L], PHOTO[L]);
-import { R33 } from "./i18n-r33.js";   // Round 33: run files, autocomplete, spell checking, live Markdown
+import { R33 } from "./i18n-r33.js";
 for (const L of ["ru", "en"]) Object.assign(DICT[L], R33[L]);
-import { R40 } from "./i18n-r40.js";   // Round 40 (r40-note): spreadsheet grid, multi-tab AI context
+import { R40 } from "./i18n-r40.js";
 for (const L of ["ru", "en"]) Object.assign(DICT[L], R40[L]);

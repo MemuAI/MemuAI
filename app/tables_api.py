@@ -28,20 +28,19 @@ from fastapi.responses import JSONResponse
 
 log = logging.getLogger("memuai.tables")
 
-MAX_UPLOAD = 15 * 1024 * 1024          # bytes of the .xlsx file itself
-MAX_PART = 80 * 1024 * 1024            # unpacked size of one XML part
-MAX_TOTAL = 200 * 1024 * 1024          # unpacked size of all read parts
+MAX_UPLOAD = 15 * 1024 * 1024
+MAX_PART = 80 * 1024 * 1024
+MAX_TOTAL = 200 * 1024 * 1024
 MAX_SHEETS = 20
 MAX_ROWS = 2000
 MAX_COLS = 60
-MAX_CELL = 4000                        # characters per cell
+MAX_CELL = 4000
 
 NS = {"m": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
       "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
       "rel": "http://schemas.openxmlformats.org/package/2006/relationships"}
 _DATE_FORMAT_IDS = set(range(14, 23)) | set(range(45, 48)) | {27, 30, 36, 50, 57}
 _REF = re.compile(r"^([A-Z]+)(\d+)$")
-
 
 RU = {
     "The workbook is too large to import": "Книга слишком большая для импорта",
@@ -55,21 +54,17 @@ RU = {
     "Bad request": "Неверный запрос",
 }
 
-
 class XlsxError(ValueError):
     """A user-facing reason the workbook cannot be read (English; ``RU`` has the Russian twin)."""
 
-
 def _error(message: str, status: int = 400) -> JSONResponse:
     return JSONResponse({"error": message, "error_ru": RU.get(message, message)}, status)
-
 
 def _col_index(letters: str) -> int:
     n = 0
     for ch in letters:
         n = n * 26 + (ord(ch) - 64)
     return n - 1
-
 
 def _read(zf: zipfile.ZipFile, name: str, budget: List[int]) -> Optional[bytes]:
     try:
@@ -85,7 +80,6 @@ def _read(zf: zipfile.ZipFile, name: str, budget: List[int]) -> Optional[bytes]:
         raise XlsxError("The workbook is too large to import")
     return data
 
-
 def _xml(data: Optional[bytes]) -> Optional[ET.Element]:
     if data is None:
         return None
@@ -96,11 +90,10 @@ def _xml(data: Optional[bytes]) -> Optional[ET.Element]:
     except ET.ParseError as exc:
         raise XlsxError("The workbook is damaged") from exc
 
-
 def _text(node: Optional[ET.Element]) -> str:
     if node is None:
         return ""
-    # <si>/<is> hold either <t> or rich-text runs <r><t>…</t></r>; phonetic <rPh> is skipped
+
     parts = []
     for child in node:
         tag = child.tag.rsplit("}", 1)[-1]
@@ -110,7 +103,6 @@ def _text(node: Optional[ET.Element]) -> str:
             for t in child.iter("{%s}t" % NS["m"]):
                 parts.append(t.text or "")
     return "".join(parts)
-
 
 def _date_styles(styles: Optional[ET.Element]) -> set:
     """Indexes of cellXfs that format a number as a date/time."""
@@ -138,7 +130,6 @@ def _date_styles(styles: Optional[ET.Element]) -> set:
             out.add(index)
     return out
 
-
 def _excel_date(serial: float, date1904: bool) -> str:
     base = _dt.datetime(1904, 1, 1) if date1904 else _dt.datetime(1899, 12, 30)
     try:
@@ -151,7 +142,6 @@ def _excel_date(serial: float, date1904: bool) -> str:
         return value.strftime("%H:%M:%S" if value.second else "%H:%M")
     return value.strftime("%Y-%m-%d %H:%M")
 
-
 def _number(raw: str) -> str:
     try:
         value = float(raw)
@@ -160,7 +150,6 @@ def _number(raw: str) -> str:
     if value.is_integer() and abs(value) < 1e15:
         return str(int(value))
     return repr(round(value, 10)).rstrip("0").rstrip(".") if "e" not in repr(value) else raw
-
 
 def parse_xlsx(data: bytes) -> Dict[str, Any]:
     if len(data) > MAX_UPLOAD:
@@ -208,7 +197,6 @@ def parse_xlsx(data: bytes) -> Dict[str, Any]:
             if rows:
                 sheets_out.append({"name": str(sheet.get("name") or f"Sheet{index + 1}")[:64], "rows": rows})
     return {"sheets": sheets_out, "truncated": truncated}
-
 
 def _sheet_rows(root: ET.Element, shared: List[str], date_styles: set, date1904: bool) -> Tuple[List[List[str]], bool]:
     data = root.find("m:sheetData", NS)
@@ -269,13 +257,12 @@ def _sheet_rows(root: ET.Element, shared: List[str], date_styles: set, date1904:
     width = max(max(cols) for cols in grid.values()) + 1
     last = max(grid)
     rows = [[grid.get(r, {}).get(c, "") for c in range(width)] for r in range(last + 1)]
-    # leading empty rows/columns are dropped (a table often starts at B2)
+
     while rows and not any(rows[0]):
         rows.pop(0)
     first_col = min((next((i for i, v in enumerate(r) if v), width) for r in rows), default=0)
     rows = [r[first_col:] for r in rows]
     return rows, truncated
-
 
 def _decode(payload: Any) -> bytes:
     text = str(payload or "")
@@ -287,7 +274,6 @@ def _decode(payload: Any) -> bytes:
         return base64.b64decode(text, validate=False)
     except (binascii.Error, ValueError) as exc:
         raise XlsxError("The file could not be decoded") from exc
-
 
 def register(app: FastAPI) -> None:
     @app.post("/api/tables/xlsx")

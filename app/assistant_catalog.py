@@ -33,13 +33,11 @@ CATEGORIES = {
     "time": ("Таймеры и напоминания", "Timers and reminders"),
     "memuai": ("MemuAI", "MemuAI"),
     "assistant": ("Ассистент", "Assistant"),
-    "tools": ("Инструменты", "Tools"),          # Round 25: assistant_r25 (цвет, Base64, JSON, хеш, даты, пояса…)
+    "tools": ("Инструменты", "Tools"),
 }
-
 
 def _s(desc: str = "", **extra: Any) -> Dict[str, Any]:
     return {"type": "string", "description": desc, **extra}
-
 
 def _n(desc: str = "", minimum: Optional[float] = None, maximum: Optional[float] = None,
        integer: bool = False) -> Dict[str, Any]:
@@ -50,18 +48,15 @@ def _n(desc: str = "", minimum: Optional[float] = None, maximum: Optional[float]
         out["maximum"] = maximum
     return out
 
-
 def _b(desc: str = "") -> Dict[str, Any]:
     return {"type": "boolean", "description": desc}
-
 
 def _e(values: Tuple[str, ...], desc: str = "") -> Dict[str, Any]:
     return {"type": "string", "enum": list(values), "description": desc}
 
-
 TARGET = _s("Window to act on: \"foreground\" (the window the user was working in, default) or an app name.")
 SETTINGS_PAGES = {
-    # spoken key → ms-settings URI (only documented pages)
+
     "": "ms-settings:",
     "display": "ms-settings:display", "sound": "ms-settings:sound", "bluetooth": "ms-settings:bluetooth",
     "wifi": "ms-settings:network-wifi", "network": "ms-settings:network-status",
@@ -93,7 +88,6 @@ SHOP_SERVICES = ("ozon", "wildberries", "yandex_market", "amazon", "aliexpress",
 TAXI_SERVICES = ("yandex_go", "uber", "bolt")
 MAP_SERVICES = ("yandex_maps", "google_maps", "2gis")
 
-
 def A(id: str, cat: str, tier: str, ru: str, en: str, desc: str, params: Optional[Dict[str, Any]] = None,
       required: Tuple[str, ...] = (), *, undo: bool = False, foreground: bool = False, windows: bool = True,
       advanced: bool = False, slow: bool = False) -> Dict[str, Any]:
@@ -101,9 +95,8 @@ def A(id: str, cat: str, tier: str, ru: str, en: str, desc: str, params: Optiona
             "params": params or {}, "required": list(required), "undo": undo, "foreground": foreground,
             "windows": windows, "advanced": advanced, "slow": slow}
 
-
 ACTIONS: List[Dict[str, Any]] = [
-    # ---------------------------------------------------------------- apps & files
+
     A("app.open", "apps", "safe", "Открыть приложение", "Open an app",
       "Launch an installed program/app by its name (Start menu, App Paths, Store apps; ru/en names, fuzzy). "
       "Falls back to a known website when no app matches.",
@@ -151,7 +144,7 @@ ACTIONS: List[Dict[str, Any]] = [
       {"amount": _n("Amount", 0), "from": _s("Currency code or name"), "to": _s("Currency code or name")},
       ("from",), windows=False),
     A("time.now", "assistant", "safe", "Текущее время", "Current time", "Local date and time.", windows=False),
-    # ---------------------------------------------------------------- sound & media
+
     A("volume.get", "sound", "safe", "Громкость", "Volume", "Current master volume and mute state."),
     A("volume.set", "sound", "safe", "Изменить громкость", "Change volume",
       "Set the master volume to a level or change it by a delta (percent).",
@@ -160,7 +153,7 @@ ACTIONS: List[Dict[str, Any]] = [
       "Mute/unmute the master volume.", {"mute": _b("true = mute, false = unmute; omit = toggle")}, undo=True),
     A("media.key", "sound", "safe", "Управление воспроизведением", "Media control",
       "Press a media key for the current player.", {"key": _e(("play_pause", "next", "prev", "stop"))}, ("key",)),
-    # ---------------------------------------------------------------- display
+
     A("brightness.get", "display", "safe", "Яркость", "Brightness", "Current screen brightness."),
     A("brightness.set", "display", "safe", "Изменить яркость", "Change brightness",
       "Set screen brightness (laptop panel via WMI, external monitors via DDC/CI).",
@@ -169,7 +162,7 @@ ACTIONS: List[Dict[str, Any]] = [
       "Switch the Windows app/system color mode.", {"mode": _e(("dark", "light", "toggle"))}, ("mode",), undo=True),
     A("nightlight.open", "display", "safe", "Ночной свет", "Night light",
       "Windows has no public API for Night light: opens its settings page."),
-    # ---------------------------------------------------------------- system
+
     A("wifi.set", "system", "confirm", "Wi‑Fi вкл/выкл", "Wi‑Fi on/off", "Turn the Wi‑Fi radio on or off.",
       {"on": _b("true = on, false = off")}, ("on",), undo=True),
     A("bluetooth.set", "system", "safe", "Bluetooth вкл/выкл", "Bluetooth on/off",
@@ -209,7 +202,7 @@ ACTIONS: List[Dict[str, Any]] = [
     A("shell.run", "system", "dangerous", "Команда PowerShell", "PowerShell command",
       "Run a PowerShell command (only when the user enabled the advanced mode). Output is returned.",
       {"command": _s("PowerShell command")}, ("command",), advanced=True, slow=True),
-    # ---------------------------------------------------------------- windows
+
     A("window.action", "windows", "safe", "Действие с окном", "Window action",
       "Maximize, minimize, restore, snap or center a window.",
       {"action": _e(("maximize", "minimize", "restore", "snap_left", "snap_right", "snap_top", "snap_bottom",
@@ -235,7 +228,7 @@ ACTIONS: List[Dict[str, Any]] = [
     A("layout.restore", "windows", "safe", "Восстановить раскладку окон", "Restore a window layout",
       "Restore a saved layout: launch missing apps, wait for windows and place them.",
       {"name": _s("Layout name")}, ("name",), slow=True),
-    # ---------------------------------------------------------------- time
+
     A("timer.start", "time", "safe", "Таймер", "Timer", "Start a named countdown timer.",
       {"seconds": _n("Duration in seconds", 1, 86400 * 7, integer=True), "label": _s("Name, e.g. \"чай\"")},
       ("seconds",), windows=False, undo=True),
@@ -267,7 +260,7 @@ ACTIONS: List[Dict[str, Any]] = [
     A("schedule.plan", "time", "safe", "Задача по расписанию", "Scheduled task",
       "Plan a repeating/conditional task from the user's words. Shows a preview card the user confirms.",
       {"text": _s("The phrase")}, ("text",), windows=False, slow=True),
-    # ---------------------------------------------------------------- MemuAI
+
     A("image.generate", "memuai", "safe", "Сгенерировать изображение", "Generate an image",
       "Generate an image with the image model chosen for MemuAI (same pipeline as chat/Studio).",
       {"prompt": _s("Image description"), "model": _s("Image model id (optional)"),
@@ -279,7 +272,7 @@ ACTIONS: List[Dict[str, Any]] = [
       "Open a new MemuAI chat with this text in the composer.", {"text": _s("Text")}, ("text",), windows=False),
     A("memuai.open", "memuai", "safe", "Открыть раздел MemuAI", "Open a MemuAI section",
       "Open the main MemuAI window at a section/settings tab.", {"target": _e(MEMUAI_TARGETS)}, windows=False),
-    # ---------------------------------------------------------------- assistant
+
     A("assistant.undo", "assistant", "safe", "Отменить последнее действие", "Undo the last action",
       "Undo the most recent undoable action.", windows=False),
     A("assistant.help", "assistant", "safe", "Что я умею", "What I can do", "Show the command list.", windows=False),
@@ -290,10 +283,8 @@ ACTIONS: List[Dict[str, Any]] = [
 
 BY_ID: Dict[str, Dict[str, Any]] = {row["id"]: row for row in ACTIONS}
 
-
 def get(action_id: str) -> Optional[Dict[str, Any]]:
     return BY_ID.get(str(action_id or ""))
-
 
 def title(action_id: str, lang: str = "ru") -> str:
     row = get(action_id)
@@ -301,12 +292,8 @@ def title(action_id: str, lang: str = "ru") -> str:
         return str(action_id)
     return row["title"]["en" if lang == "en" else "ru"]
 
-
-# ------------------------------------------------------------------ validation
-
 class ParamError(ValueError):
     pass
-
 
 def validate_params(action_id: str, params: Any) -> Dict[str, Any]:
     """Clean ``params`` against the action schema; unknown keys are dropped. Raises ParamError."""
@@ -366,9 +353,6 @@ def validate_params(action_id: str, params: Any) -> Dict[str, Any]:
         raise ParamError("missing: " + ", ".join(missing))
     return out
 
-
-# ------------------------------------------------------------------ model tools
-
 def openai_tools(actions: Optional[List[str]] = None) -> List[Dict[str, Any]]:
     """Portable per-action function schemas (OpenAI ``tools`` format)."""
     rows = [BY_ID[a] for a in actions if a in BY_ID] if actions else ACTIONS
@@ -384,7 +368,6 @@ def openai_tools(actions: Optional[List[str]] = None) -> List[Dict[str, Any]]:
                            "additionalProperties": False}}})
     return out
 
-
 def tool_name_to_action(name: str) -> str:
     """``volume_set`` → ``volume.set`` (inverse of :func:`openai_tools` naming)."""
     text = str(name or "")
@@ -394,7 +377,6 @@ def tool_name_to_action(name: str) -> str:
         if action_id.replace(".", "_") == text:
             return action_id
     return ""
-
 
 def compact_catalog(enabled: Optional[List[str]] = None) -> str:
     """One line per action for the Quick Ask system prompt: ``id(param, param?) [tier] — description``."""
@@ -414,7 +396,6 @@ def compact_catalog(enabled: Optional[List[str]] = None) -> str:
         lines.append(f"  {row['id']}({', '.join(parts)}){tier} — {desc}")
     return "\n".join(lines)
 
-
 def public(lang: str = "ru") -> List[Dict[str, Any]]:
     """The catalog for the settings UI."""
     key = "en" if lang == "en" else "ru"
@@ -422,10 +403,8 @@ def public(lang: str = "ru") -> List[Dict[str, Any]]:
              "desc": row["desc"], "params": row["params"], "required": row["required"],
              "undo": row["undo"], "windows": row["windows"], "advanced": row["advanced"]} for row in ACTIONS]
 
-
 def categories(lang: str = "ru") -> Dict[str, str]:
     return {key: value[1 if lang == "en" else 0] for key, value in CATEGORIES.items()}
-
 
 _SAFE_ID = re.compile(r"^[a-z_]+\.[a-z_]+$")
 assert all(_SAFE_ID.match(row["id"]) for row in ACTIONS)

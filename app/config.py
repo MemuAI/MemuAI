@@ -20,10 +20,9 @@ def _default_data_dir() -> str:
     appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
     return os.path.join(appdata, "MemuAI")
 
-
 DATA_DIR = _default_data_dir()
 CONFIG_PATH = os.path.join(DATA_DIR, "config.json")
-# Keep obsolete records readable without exposing or activating the removed backend.
+
 RETIRED_PROVIDER_IDS = frozenset({"opencode"})
 
 BALANCING_MODES = ("round-robin", "order", "first-available", "least-used")
@@ -32,84 +31,70 @@ CONTEXT_MODES = ("auto", "server", "stateless")
 REASONING_OUTPUTS = ("reasoning_content", "think_tags", "hidden")
 CHAT_BACKENDS = ("agent", "copilot", "auto")
 
-
 def hash_password(password: str, salt: str | None = None) -> tuple[str, str]:
     salt = salt or secrets.token_hex(8)
     digest = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt.encode("utf-8"), 60_000).hex()
     return digest, salt
 
-
 @dataclass
 class Settings:
-    # --- сервер ---
+
     host: str = "127.0.0.1"
     port: int = 8317
-    open_ui_on_start: bool = True       # открывать окно приложения при старте
-    close_to_tray: bool = True          # закрытие окна = свернуть в трей
+    open_ui_on_start: bool = True
+    close_to_tray: bool = True
 
-    # --- админка ---
     admin_password_hash: str = ""
     admin_password_salt: str = ""
 
-    # --- API ---
     api_keys: List[str] = field(default_factory=list)
     cors_enabled: bool = True
 
-    # --- прокси-движок ---
-    proxy_enabled: bool = True          # главный выключатель /v1
+    proxy_enabled: bool = True
 
-    # --- маршрутизация ---
-    use_prefixes: bool = True           # публичные id вида «genspark-claude-opus-5»
-    default_provider: str = ""          # для неоднозначных моделей без префикса
+    use_prefixes: bool = True
+    default_provider: str = ""
     strict_models: bool = False
     balancing: str = "round-robin"
     model_refresh_on_start: bool = True
-    model_refresh_interval: int = 360   # minutes; 0 disables periodic discovery
+    model_refresh_interval: int = 360
 
-    # --- сеть (по умолчанию для провайдеров; у аккаунта может быть свой прокси) ---
     default_proxy: str = ""
     verify_ssl: bool = True
     request_timeout: int = 180
     stream_idle_timeout: int = 300
-    # Сколько секунд ждать ПЕРВЫЙ байт ответа провайдера. Отдельный лимит
-    # позволяет быстро уйти на следующий аккаунт, не дожидаясь общего таймаута.
+
     first_byte_timeout: int = 90
-    # Сколько полных проходов по всем аккаунтам делать при временных ошибках.
+
     max_retry_passes: int = 2
     retry_delay_ms: int = 1500
-    # Пустые SSE-комментарии, чтобы клиент не рвал долгое соединение.
+
     sse_keepalive: bool = True
     sse_keepalive_interval: int = 15
 
-    # --- настройки провайдеров: {"genspark": {...}, "grok": {...}, ...} ---
     provider_settings: Dict[str, Dict[str, Any]] = field(default_factory=dict)
 
-    # --- веб-поиск на стороне прокси (для провайдеров без своего поиска) ---
-    search_engine: str = "auto"          # см. app/search_engines.py
-    search_api_key: str = ""             # старое общее поле; ключи теперь в search_keys
-    search_base_url: str = ""            # старое общее поле; адреса теперь в search_urls
+    search_engine: str = "auto"
+    search_api_key: str = ""
+    search_base_url: str = ""
     search_results: int = 5
-    # Ключ и адрес (или cx Google) хранятся по источникам: при смене источника
-    # ничего не теряется.
+
     search_keys: Dict[str, str] = field(default_factory=dict)
     search_urls: Dict[str, str] = field(default_factory=dict)
-    # 2 — «duckduckgo» означает именно DuckDuckGo; раньше под этим именем был
-    # режим «Kiro, иначе DuckDuckGo», теперь это отдельный источник «auto».
+
     search_schema: int = 0
 
-    # --- служебное ---
     log_requests: bool = True
-    log_persist: bool = True            # хранить журнал запросов между запусками
-    log_payloads: bool = True           # сохранять payload'ы стадий
+    log_persist: bool = True
+    log_payloads: bool = True
     metrics_enabled: bool = True
-    # Модели, чьи имена содержат эти слова, автоматически выключаются.
-    model_hidden_keywords: List[str] = field(default_factory=list)
-    cookie_check_interval: int = 30     # мин, фоновая проверка аккаунтов (0 — выкл)
-    model_seed_version: int = 0
-    imported_from: str = ""             # путь, из которого импортированы данные
-    # Модель встроенного помощника Proxy ("" — выбрать автоматически).
-    companion_model: str = ""
 
+    model_hidden_keywords: List[str] = field(default_factory=list)
+    cookie_check_interval: int = 30
+    model_seed_version: int = 0
+    imported_from: str = ""
+
+    companion_model: str = ""
 
 def _as_bool(value: Any, default: bool) -> bool:
     if isinstance(value, str):
@@ -121,7 +106,6 @@ def _as_bool(value: Any, default: bool) -> bool:
         return default
     return value if isinstance(value, bool) else default
 
-
 def _bounded_int(value: Any, default: int, minimum: int, maximum: int) -> int:
     try:
         parsed = int(value)
@@ -129,12 +113,10 @@ def _bounded_int(value: Any, default: int, minimum: int, maximum: int) -> int:
         parsed = default
     return max(minimum, min(maximum, parsed))
 
-
 _HOSTNAME_RE = re.compile(
     r"(?=.{1,253}\Z)(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)*"
     r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\Z"
 )
-
 
 def _normalized_bind_host(value: Any, default: str | None = "127.0.0.1") -> str | None:
     if not isinstance(value, str):
@@ -149,7 +131,6 @@ def _normalized_bind_host(value: Any, default: str | None = "127.0.0.1") -> str 
             return host
     return default
 
-
 def _is_loopback_host(value: str) -> bool:
     host = str(value or "").strip().strip("[]")
     if host.lower() == "localhost":
@@ -158,7 +139,6 @@ def _is_loopback_host(value: str) -> bool:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
         return False
-
 
 def _valid_settings_document(value: Any) -> bool:
     """Reject shapes that would silently remove authentication/network state."""
@@ -181,11 +161,9 @@ def _valid_settings_document(value: Any) -> bool:
         return False
     return True
 
-
 def _valid_password_material(digest: Any, salt: Any) -> bool:
     return (isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest) is not None
             and isinstance(salt, str) and 1 <= len(salt) <= 256)
-
 
 def _normalized_settings(raw: Any) -> Dict[str, Any]:
     defaults = asdict(Settings())
@@ -223,7 +201,7 @@ def _normalized_settings(raw: Any) -> Dict[str, Any]:
         result[field_name] = {str(name): str(value).strip()[:limit] for name, value in raw_map.items()
                               if str(name) in SEARCH_ENGINES and str(value).strip()}
     if legacy:
-        # Раньше ключ и адрес были общими: ключ — Tavily, адрес — SearXNG.
+
         if result["search_api_key"].strip():
             result["search_keys"].setdefault("tavily", result["search_api_key"].strip()[:512])
         if result["search_base_url"].strip():
@@ -247,7 +225,6 @@ def _normalized_settings(raw: Any) -> Dict[str, Any]:
         result["default_provider"] = ""
     return result
 
-
 class ConfigStore:
     """Потокобезопасное чтение/запись config.json."""
 
@@ -266,8 +243,7 @@ class ConfigStore:
             raw = load_json_with_recovery(
                 CONFIG_PATH, missing, validator=_valid_settings_document)
             if raw is missing:
-                # No valid backup exists. Salvage individually normalizable
-                # fields from a malformed dict instead of discarding all of it.
+
                 malformed = load_json_with_recovery(CONFIG_PATH, missing)
                 if isinstance(malformed, dict):
                     raw = malformed
@@ -289,8 +265,6 @@ class ConfigStore:
         from .storage import save_json
         with self._lock:
             save_json(CONFIG_PATH, asdict(self.settings))
-
-    # ---------- помощники ----------
 
     @property
     def effective_host(self) -> str:
@@ -329,14 +303,11 @@ class ConfigStore:
 
     def check_api_key(self, key: str | None) -> bool:
         if not self.settings.api_keys:
-            # A keyless API is convenient for the default desktop-only bind,
-            # but must never become an unauthenticated LAN service when the
-            # user changes the listen address.
+
             return _is_loopback_host(self.effective_host)
         if not key:
             return False
-        # compare_digest принимает str только из ASCII: ключ с кириллицей или
-        # эмодзи в заголовке давал TypeError и 500 вместо 401. Сравниваем байты.
+
         given = str(key).encode("utf-8")
         return any(secrets.compare_digest(given, str(candidate).encode("utf-8"))
                    for candidate in self.settings.api_keys)
@@ -355,13 +326,10 @@ class ConfigStore:
         except ValueError:
             return False
         if fetch_site.strip() and host_name not in ("127.0.0.1", "localhost", "::1"):
-            # DNS rebinding: страница evil.example, перепривязанная на
-            # 127.0.0.1, шлёт same-origin GET без Origin и с Host evil.example.
-            # Браузер всегда помечает запрос Sec-Fetch-Site; нативные клиенты —
-            # нет, поэтому без ключа браузеру разрешён только loopback-Host.
+
             return False
         if not origin:
-            return True  # native/CLI loopback client
+            return True
         try:
             parsed_origin = urllib.parse.urlsplit(origin)
             same_authority = parsed_origin.netloc.lower() == host.lower()
@@ -406,7 +374,7 @@ class ConfigStore:
                             merged.setdefault(pid, {}).update(cfg)
                         candidate[key] = merged
                     elif key in ("search_keys", "search_urls"):
-                        # Приходит только изменённый источник; пустое значение стирает запись.
+
                         if not isinstance(value, dict) or any(
                                 not isinstance(name, str) or not isinstance(item, str)
                                 for name, item in value.items()):
@@ -477,6 +445,5 @@ class ConfigStore:
                 self.settings = Settings(**_normalized_settings(candidate))
                 self.save()
         return rejected
-
 
 config_store = ConfigStore()

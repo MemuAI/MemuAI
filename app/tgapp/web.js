@@ -1,19 +1,12 @@
-/* MemuAI Mini App — in a normal browser, outside Telegram (Round 29).
- *
- * Telegram signs every launch of the Mini App (initData); a browser has nothing like it, so the browser asks
- * the computer for a sign-in request and shows a QR code + code. The user confirms it in the Mini App on
- * the phone (Settings → «Sign in on another device»: scan or type the code, check which browser asks,
- * approve). Then this page receives a normal 12-hour session. A one-time link from the bot (/web) works
- * too: …/tgapp/#login=<nonce>. The session lives in sessionStorage (this tab only) unless «Keep me signed
- * in on this device» is ticked. «Reset sessions» on the computer signs every browser out.
- */
+
+
 (function () {
   "use strict";
   const KEY = "memu_web_session";
   let kitRef = null;
 
   function lang() {
-    try { const saved = localStorage.getItem("memu_web_lang"); if (saved === "ru" || saved === "en") return saved; } catch (e) { /* private */ }
+    try { const saved = localStorage.getItem("memu_web_lang"); if (saved === "ru" || saved === "en") return saved; } catch (e) {  }
     return /^(ru|uk|be|kk)/i.test(navigator.language || "") ? "ru" : "en";
   }
   let LANG = lang();
@@ -26,17 +19,17 @@
         const data = JSON.parse(store.getItem(KEY) || "null");
         if (data && data.token && data.expires * 1000 > Date.now() + 60000) return data;
         if (data) store.removeItem(KEY);
-      } catch (e) { /* private mode */ }
+      } catch (e) {  }
     }
     return null;
   }
   function remember(session, keep) {
     const text = JSON.stringify({ token: session.token, expires: session.expires });
-    try { (keep ? localStorage : sessionStorage).setItem(KEY, text); } catch (e) { /* private mode */ }
+    try { (keep ? localStorage : sessionStorage).setItem(KEY, text); } catch (e) {  }
   }
   function forget() {
-    try { sessionStorage.removeItem(KEY); } catch (e) { /* ignore */ }
-    try { localStorage.removeItem(KEY); } catch (e) { /* ignore */ }
+    try { sessionStorage.removeItem(KEY); } catch (e) {  }
+    try { localStorage.removeItem(KEY); } catch (e) {  }
   }
   async function post(name, body) {
     const response = await fetch("api/" + name, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body || {}) });
@@ -88,8 +81,8 @@
           <div class="row"><button class="btn small secondary" id="wl-new">${esc(tr("Новый код", "New code"))}</button>
             <button class="btn small secondary" id="wl-lang">${LANG === "en" ? "Русский" : "English"}</button></div></div>`;
         document.getElementById("wl-new").onclick = () => begin();
-        document.getElementById("wl-lang").onclick = () => { LANG = LANG === "en" ? "ru" : "en"; try { localStorage.setItem("memu_web_lang", LANG); } catch (e) { /* ignore */ } draw(state, error); };
-        document.getElementById("wl-keep").onchange = (event) => { try { localStorage.setItem("memu_web_keep", event.target.checked ? "1" : "0"); } catch (e) { /* ignore */ } };
+        document.getElementById("wl-lang").onclick = () => { LANG = LANG === "en" ? "ru" : "en"; try { localStorage.setItem("memu_web_lang", LANG); } catch (e) {  } draw(state, error); };
+        document.getElementById("wl-keep").onchange = (event) => { try { localStorage.setItem("memu_web_keep", event.target.checked ? "1" : "0"); } catch (e) {  } };
       };
       async function begin() {
         clearTimeout(timer); clearInterval(ticking);
@@ -97,9 +90,9 @@
         try {
           request = await post("weblogin.start", {});
           let chosen = "";
-          try { chosen = localStorage.getItem("memu_web_lang") || ""; } catch (e) { /* private */ }
+          try { chosen = localStorage.getItem("memu_web_lang") || ""; } catch (e) {  }
           if (request.lang && !chosen) LANG = request.lang;
-          // A used / stale #login link: say so above the fresh code instead of silently showing the QR.
+
           draw(tr("Ждём подтверждения в Telegram…", "Waiting for the confirmation in Telegram…"), notice);
           notice = "";
           ticking = setInterval(() => {
@@ -153,7 +146,7 @@
       forget();
       if (window.MemuTgWeb._reloading) return;
       window.MemuTgWeb._reloading = true;
-      try { if (kitRef) kitRef.toast(tr("Сессия закончилась — войдите снова", "The session has ended — sign in again"), "err"); } catch (e) { /* ignore */ }
+      try { if (kitRef) kitRef.toast(tr("Сессия закончилась — войдите снова", "The session has ended — sign in again"), "err"); } catch (e) {  }
       setTimeout(() => location.reload(), 1200);
     },
     signOut() { forget(); location.reload(); },

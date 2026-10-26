@@ -11,12 +11,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-# Round 20 split the bot: attachments/voice live in telegram_media.py.
 TELEGRAM = "\n".join((ROOT / "app" / name).read_text(encoding="utf-8")
                      for name in ("telegram_bot.py", "telegram_media.py"))
 APP_JS = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
 API = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
-
 
 class Round5Preferences(unittest.TestCase):
     """Agents used to live only in localStorage and vanished on restart (item 11)."""
@@ -52,7 +50,6 @@ class Round5Preferences(unittest.TestCase):
         self.pgdata.save_preferences({"telegram_notify_mode": "sound"})
         self.assertEqual(self.pgdata.load_preferences()["telegram_notify_mode"], "sound")
 
-
 class Round5Telegram(unittest.TestCase):
     """Items 9 and 10."""
 
@@ -80,7 +77,6 @@ class Round5Telegram(unittest.TestCase):
 
     def test_notify_endpoint_forwards_silence(self):
         self.assertIn('silent=bool(body.get("silent"))', API)
-
 
 class Round5Interface(unittest.TestCase):
     """Items 1-8 and 12-14 as front-end contracts."""
@@ -131,7 +127,6 @@ class Round5Interface(unittest.TestCase):
                        "\u0418\u043c\u043f\u043e\u0440\u0442\u0438\u0440\u043e\u0432\u0430\u043d\u043e \u0438\u0437",
                        "\u0414\u0435\u043c\u043e\u0433\u0440\u0430\u0444\u0438\u0447\u0435\u0441\u043a\u0430\u044f \u0438\u043d\u0444\u043e\u0440\u043c\u0430\u0446\u0438\u044f"):
             self.assertIn(phrase, APP_JS)
-
 
 if __name__ == "__main__":
     unittest.main()

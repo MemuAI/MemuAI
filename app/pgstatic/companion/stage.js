@@ -1,42 +1,14 @@
-/* MemuAI companion stage — the renderer page (/companion/stage).
 
-   Embedded in an <iframe> by companion.js (MemuAI Live, Quick Ask) or opened
-   directly as the transparent desktop window (?surface=desktop). It only
-   draws; the host owns audio, text and settings and drives it with messages:
 
-   host → stage  {source:"memu-companion", type, ...}
-     init     {prefs, model:{id,kind,url,file}, personality, lang, reducedMotion}
-     prefs    {prefs}                 model   {model}
-     mouth    {w:{aa,ih,ou,ee,oh}}    speak   {on, text}   (text-driven lip sync when no audio)
-     emotion  {name, intensity, hold} state   {name: idle|listening|thinking|speaking}
-     gesture  {name: wave|nod|think|shake|bounce|surprise}
-     look     {x, y, active}  (-1…1, y down; a direction, legacy)   visible {on}
-     cursor   {x, y, ox?, oy?}  the host's pointer in THIS stage's CSS px (may be outside it); ox/oy = the stage
-              viewport's offset from window.screenX/Y (calibrated from the host's pointer events)
-     bubble   {text, final}   (desktop window only; embedded hosts draw their own)
-   stage → host  {source:"memu-stage", type, ...}
-     ready · loaded {meta} · error {code, message} · bbox {x,y,w,h} · click
-     drag {phase:start|move|end, dx, dy} · wheel {delta} · contextlost
-   In the desktop window the same messages arrive over BroadcastChannel
-   "memu-companion" from the Quick Ask window, and the stage reports its hit
-   box to Python (/api/companion/window {action:"hit"}) for click-through.
-   Round 25 — gaze: she looks at the cursor measured from her FACE (Core.lookVector), always, also when the
-   cursor is over other programs: while visible the stage reads /api/companion/cursor/stream (Windows, physical
-   px of GetPhysicalCursorPos) and maps it into its own CSS px; elsewhere the pointer events of the pages.
-   The host measures the point from the client area of the window that shows the stage (?host=, see cursorHost),
-   so mixed-DPI monitors need no window.screenX math. */
 (function () {
   "use strict";
   const Core = window.MemuCompanionCore;
   const params = new URLSearchParams(location.search);
   const SURFACE = params.get("surface") || "embed";
   const DESKTOP = SURFACE === "desktop";
-  // The desktop window draws its own speech bubble at the top: keep that strip free
-  // so the bubble (and a raised waving hand) never cover the face.
+
   const HEADROOM = DESKTOP ? 0.2 : 0;
-  // Compatibility mode: skin the model on the CPU. Some software/broken GL
-  // drivers (SwiftShader among them) crash the GPU process on GPU skinning;
-  // the stage switches to it after repeated context losses, or on ?compat=cpu-skin.
+
   let CPU_SKIN = params.get("compat") === "cpu-skin";
   try { if (sessionStorage.getItem("memu-stage-cpu-skin") === "1") CPU_SKIN = true; } catch (_) {}
   const canvas = document.getElementById("stage-canvas");
@@ -51,15 +23,13 @@
     speakText: null, speakStart: 0, speaking: false,
     emotion: { name: "neutral", intensity: 0, until: 0 }, state: "idle",
     gesture: null, look: { x: 0, y: 0, active: false, at: 0 }, bbox: null, bboxAt: 0,
-    // Round 25: the cursor in stage CSS px, when the page (host or stage) last saw it, the stage viewport's
-    // offset from window.screenX/Y, and the global cursor feed (EventSource) while the stage is shown.
+
     cursor: null, domAt: 0, offset: null, feed: null, feedRetry: 0, feedDown: false,
   };
   document.body.dataset.surface = SURFACE;
   document.body.classList.add("loading");
   if (DESKTOP) document.documentElement.style.background = "transparent";
 
-  /* ------------------------------------------------------------ messaging */
   function post(type, data) {
     const message = Object.assign({ source: "memu-stage", type: type, surface: SURFACE }, data || {});
     if (window.parent && window.parent !== window) {
@@ -86,13 +56,12 @@
       if (data && data.source === "memu-companion" && (data.target === "desktop" || data.target === "all")) receive(data);
     };
   }
-  // Python can also push messages into the desktop window (evaluate_js).
+
   window.MemuStage = {
     receive: (msg) => receive(Object.assign({ source: "memu-companion" }, msg || {})),
-    // The server relay (companion_window.py): a copy of what BroadcastChannel
-    // already delivered while it works, so it is used only when the channel is silent.
+
     relay: (msg) => { if (!S.channelAt || Date.now() - S.channelAt > 10000) receive(Object.assign({ source: "memu-companion" }, msg || {})); },
-    // Diagnostics for tests and support: what is loaded and how it is framed.
+
     info: () => ({ surface: SURFACE, cpuSkin: CPU_SKIN, kind: S.driver && S.driver.meta && S.driver.meta.kind,
       loaded: !!S.driver, bbox: S.bbox, state: S.state, emotion: S.emotion.name, gesture: S.gesture && S.gesture.name,
       frame: S.driver && S.driver.debug ? S.driver.debug() : null }),
@@ -119,7 +88,7 @@
         restartLoop();
         break;
       case "model":
-        // A fresh page gives the new model a clean WebGL context (VRM ↔ Live2D); the host re-sends "init".
+
         if (S.driver) location.reload(); else loadModel(msg.model);
         break;
       case "mouth":
@@ -166,8 +135,7 @@
     const durations = { wave: 2.4, nod: 1.1, think: 600, shake: 1.2, bounce: 0.9, surprise: 0.9 };
     if (!durations[name]) return;
     S.gesture = { name: name, start: S.time, dur: durations[name], end: false, endAt: 0 };
-    // Round 26: the hit box (= the desktop window's region) makes room for the gesture on the next frame,
-    // before the hand gets there — not up to 300 ms later with the hand already cut off.
+
     S.bboxAt = 0;
   }
 
@@ -178,16 +146,14 @@
     const clean = Core.stripTags(text, !final).replace(/\s+/g, " ").trim();
     node.textContent = clean.length > 220 ? "…" + clean.slice(-220) : clean;
     node.hidden = !clean;
-    // Round 34: a long answer is trimmed at the top — the height is whole lines, so the window edge never shows
-    // half a line (19 % of the window, as before, rounded down to lines; padding 8 + 8)
+
     const lh = parseFloat(getComputedStyle(node).lineHeight) || 18;
     node.style.maxHeight = (Math.max(2, Math.floor((innerHeight * 0.19 - 16) / lh)) * lh + 16) + "px";
     clearTimeout(bubbleTimer);
     if (final) bubbleTimer = setTimeout(() => { node.hidden = true; reportHit(); }, 6000);
     reportHit();
   }
-  // Round 24: the click-through region of the desktop window = model ∪ tools ∪ BUBBLE. Without the bubble's box
-  // the region started at the model's left edge and cut the bubble off (R24 screenshot №2).
+
   function bubbleBox() {
     const node = document.getElementById("stage-bubble");
     if (!node || node.hidden) return null;
@@ -205,7 +171,6 @@
     }, 30);
   }
 
-  /* ---------------------------------------------------------------- loop */
   function restartLoop() {
     cancelAnimationFrame(S.raf); S.raf = 0;
     const shown = S.visible && S.driver && document.visibilityState !== "hidden";
@@ -216,11 +181,6 @@
     syncCursorFeed(!!shown && S.prefs.companion_look_at);
   }
 
-  /* --------------------------------------------------- gaze: global cursor */
-  // The stage viewport's top-left corner in CSS screen px = window.screenX/Y + the top window's border/title
-  // (S.offset, calibrated from pointer events: screenX - clientX) + where the host page shows our <iframe> NOW
-  // (read live, so dragging the companion or scrolling the host never leaves a stale origin). Before the first
-  // pointer event: a frameless window's estimate (pywebview windows have no borders).
   function frameOffset() {
     try {
       const el = window.frameElement;
@@ -243,9 +203,7 @@
     const f = frameOffset();
     return { x: window.screenX + o.x + f.x, y: window.screenY + o.y + f.y };
   }
-  // The window that shows this stage, for the host to measure the cursor from its client area (physical px):
-  // "desktop" (own window), "quick" (Quick Access), "main" (MemuAI: Live, settings); "" outside pywebview
-  // (a browser tab) — the host then sends screen coordinates and viewportOrigin() places them.
+
   function cursorHost() {
     if (SURFACE === "desktop") return "desktop";
     try {
@@ -269,15 +227,14 @@
     let opened = false;
     feed.onopen = () => { opened = true; };
     feed.onmessage = (event) => {
-      // The page's own pointer events are exact; the feed only fills in when the cursor is elsewhere.
+
       if (performance.now() - S.domAt < 250) return;
       const parts = String(event.data || "").split(",");
       const point = { x: +parts[0], y: +parts[1] };
       if (!isFinite(point.x) || !isFinite(point.y)) return;
       const dpr = window.devicePixelRatio || 1;
       if (parts[2] === "c") {
-        // Relative to the hosting window's client area (= the top page's viewport): only the dpr and where
-        // the host page shows our <iframe> remain. Exact on monitors with different scales.
+
         const f = frameOffset();
         S.cursor = Core.screenToClient(point, { x: f.x, y: f.y }, dpr);
       } else {
@@ -287,12 +244,12 @@
     feed.onerror = () => {
       feed.close();
       if (S.feed === feed) S.feed = null;
-      // 404 (not Windows / no user32): never ask again on this page. A dropped stream: retry in a while.
+
       if (!opened) { S.feedDown = true; return; }
       S.feedRetry = setTimeout(() => { S.feedRetry = 0; restartLoop(); }, 5000);
     };
   }
-  // Where she looks: from her face to the cursor (Core.lookVector), refreshed every frame because the face moves.
+
   function updateGaze() {
     if (!S.prefs.companion_look_at || !S.cursor || !S.driver || !S.driver.face) return;
     const face = S.driver.face();
@@ -311,7 +268,7 @@
     const dt = S.lastFrame ? Math.min(0.1, (now - S.lastFrame) / 1000) : 1 / fps;
     S.lastFrame = now;
     S.time += dt;
-    // Mouth: audio-driven weights go stale after 250 ms; text track when speaking without audio.
+
     let target = S.mouthTarget;
     if (now - S.mouthAt > 250) {
       target = S.speaking && S.speakText && S.prefs.companion_lipsync
@@ -352,7 +309,6 @@
     post("error", { code: code, message: message });
   }
 
-  /* ------------------------------------------------------------- loading */
   const scripts = {};
   function loadScript(src) {
     if (!scripts[src]) scripts[src] = new Promise((resolve, reject) => {
@@ -365,9 +321,6 @@
     return scripts[src];
   }
 
-  // No probe context here: an extra context is a real cost (and Chromium
-  // drops the oldest one when a page holds too many). The renderer itself
-  // reports a missing WebGL by throwing, which fail("webgl") handles.
   function webglAvailable() {
     return typeof WebGLRenderingContext !== "undefined" || typeof WebGL2RenderingContext !== "undefined";
   }
@@ -393,7 +346,7 @@
       gesture(DESKTOP || params.get("greet") === "1" ? "wave" : "");
       restartLoop();
     } catch (error) {
-      // A half-built driver still holds the canvas' GL context (PIXI / three): free it, also for the next model.
+
       if (driver && driver !== S.driver) driver.dispose();
       if (token !== S.loadToken) return;
       console.error(error);
@@ -409,14 +362,13 @@
     post("contextlost");
     status(t("Видеокарта сбросила контекст — восстанавливаю…", "The GPU reset the context — restoring…"));
   });
-  // Rebuilding every GPU resource by hand is error-prone; a fresh page is
-  // reliable and the host re-sends "init" on "ready".
+
   canvas.addEventListener("webglcontextrestored", () => {
-    // Guard against a reload loop on a GPU that keeps resetting.
+
     let recent = [];
     try { recent = JSON.parse(sessionStorage.getItem("memu-stage-reloads") || "[]").filter((t) => Date.now() - t < 60000); } catch (_) {}
     if (recent.length >= 2) {
-      // Third strike: last resort is CPU skinning; if that crashed too, give up.
+
       if (CPU_SKIN) { fail("webgl", ""); return; }
       try { sessionStorage.setItem("memu-stage-cpu-skin", "1"); sessionStorage.removeItem("memu-stage-reloads"); } catch (_) {}
       location.reload();
@@ -427,7 +379,6 @@
     location.reload();
   });
 
-  /* -------------------------------------------------------- pointer input */
   let dragging = null;
   function insideBox(x, y) {
     const b = S.bbox;
@@ -439,7 +390,7 @@
     dragging = { id: event.pointerId, x: event.screenX, y: event.screenY, moved: false };
     post("drag", { phase: "start", dx: 0, dy: 0 });
   });
-  // Inside its own frame the stage knows the cursor exactly; it also calibrates the viewport origin.
+
   window.addEventListener("pointermove", (event) => {
     S.cursor = { x: event.clientX, y: event.clientY };
     S.domAt = performance.now();
@@ -501,8 +452,7 @@
       pin.title = on ? t("Закреплён: остаётся, когда быстрый доступ скрыт", "Pinned: stays when Quick Ask hides") : t("Закрепить на рабочем столе", "Pin to the desktop");
       pin.setAttribute("aria-label", pin.title);
     }
-    // Round 26: the labels follow the language of the settings, which arrive with "init" — before, the buttons
-    // kept the Russian labels of stage.html (and the titles set before "init") in an English interface.
+
     function labelTools() {
       const labels = {
         dock: t("Вернуть в окно быстрого доступа", "Back into the Quick Ask window"),
@@ -519,7 +469,7 @@
     window.MemuStage.labelTools = labelTools;
     labelTools();
     win({ action: "status" }).then((r) => setPinned(!!r.pinned));
-    // Round 23: native drag (the window follows the mouse until release); dropped onto Quick Ask → docks back.
+
     const dragHandle = document.getElementById("stage-drag");
     dragHandle.addEventListener("pointerdown", async (event) => {
       if (event.button !== 0) return;
@@ -529,7 +479,7 @@
       dragHandle.classList.remove("dragging");
       if (r.docked) announceDock();
       else if (r.moved === false) {
-        // Round 24: a click (no movement) on the desktop companion opens Quick Ask.
+
         gesture("bounce");
         fetch("/api/quick/window", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "show" }) }).catch(() => {});
       }
@@ -538,7 +488,7 @@
       event.preventDefault();
       win({ action: "scale", step: event.deltaY < 0 ? 1 : -1 });
     }, { passive: false });
-    // The desktop window has no host page: fetch the settings and the model itself.
+
     (async () => {
       try {
         const [prefs, library] = await Promise.all([
@@ -554,8 +504,6 @@
     })();
   }
 
-  /* ================================================================= VRM */
-  // The last bone of the fingers (optional in VRM): with them the frame knows where a waving hand really ends.
   const FINGER_TIPS = ["leftMiddleDistal", "rightMiddleDistal", "leftIndexDistal", "rightIndexDistal", "leftLittleDistal", "rightLittleDistal"];
   class VrmDriver {
     async load(model) {
@@ -582,7 +530,7 @@
       const fill = new T.AmbientLight(0xffffff, 0.55);
       this.scene.add(key, fill);
       this.lookTarget = new T.Object3D();
-      // The bundle exports no Quaternion (third_party/NOTICE.md); every Object3D carries one.
+
       this.Quat = this.lookTarget.quaternion.constructor;
       this.scene.add(this.lookTarget);
       this.applyPrefs();
@@ -602,7 +550,7 @@
       this.scene.add(vrm.scene);
       this.vrm = vrm;
       if (vrm.lookAt) vrm.lookAt.target = this.lookTarget;
-      // Round 26: every local bone angle below is written in VRM 0.x axes; rot() converts it for 1.0 models.
+
       this.version = vrm.meta && vrm.meta.metaVersion;
       const em = vrm.expressionManager;
       this.has = (name) => !!(em && em.getExpression(name));
@@ -629,7 +577,7 @@
       this.measure();
       this.resize();
     }
-    // Round 25: the T-pose rest data the "think" pose aims from (world directions work for VRM 0.x and 1.0 alike).
+
     captureRest() {
       const T = this.V.THREE, b = this.bones, rest = {};
       for (const [name, child] of [["rightUpperArm", "rightLowerArm"], ["rightLowerArm", "rightHand"]]) {
@@ -639,7 +587,7 @@
       }
       return rest;
     }
-    // Point `bone` along a WORLD direction, blended over the pose already set this frame by `weight`.
+
     aim(name, dir, weight) {
       const T = this.V.THREE, bone = this.bones[name], rest = this.rest && this.rest[name];
       if (!bone || !rest || weight <= 0) return;
@@ -649,8 +597,7 @@
       const local = parent.invert().multiply(world);
       bone.quaternion.slerp(local, Math.max(0, Math.min(1, weight)));
     }
-    // "think": the right hand comes up to the chin. Before Round 25 the forearm was twisted around its own axis
-    // (rotation.y −1.6) and the hand ended up in the twin-tail behind the head — the "what is wrong with her arm" report.
+
     thinkPose(w) {
       if (!this.rest || !this.raw.head || w <= 0) return;
       const T = this.V.THREE, b = this.bones;
@@ -660,24 +607,19 @@
       const elbow = b.rightUpperArm.getWorldPosition(new T.Vector3())
         .add(new T.Vector3(side * 0.18, -0.82, 0.55).normalize().multiplyScalar(this.rest.rightUpperArm.len));
       const chin = this.raw.head.getWorldPosition(new T.Vector3()).add(new T.Vector3(side * 0.02, -0.075, 0.13));
-      // The forearm points at the chin but stops a hand's length short of it.
+
       this.aim("rightLowerArm", chin.sub(elbow), w);
       if (b.rightHand) b.rightHand.rotation.z += Core.vrmEuler(this.version, 0, 0, -0.35 * side * w)[2];
     }
     wavePose(up, time) {
       const b = this.bones;
-      // Round 25: the elbow stays low and the forearm comes up beside the head — a compact "hi" that needs far
-      // less room at the side than the old arm-straight-out wave (which the frame cut off).
+
       const keep = (bone) => bone.rotation.x * Core.vrmAxisSign(this.version);
       if (b.rightUpperArm) this.rot(b.rightUpperArm, keep(b.rightUpperArm), 0.1 + 0.25 * up, -1.18 + 0.42 * up);
       if (b.rightLowerArm) this.rot(b.rightLowerArm, keep(b.rightLowerArm), -0.35 * (1 - up), 2.05 * up + Math.sin(time * 10) * 0.28 * up);
       if (b.rightHand) this.rot(b.rightHand, keep(b.rightHand), b.rightHand.rotation.y, -Math.sin(time * 11 + 0.6) * 0.15 * up);
     }
-    // Round 25: how far our own gestures move the hands (world units, from the body's centre line): the frame
-    // makes room for them up front, so a waving hand is never cut by the edge (R25 screenshot).
-    // Round 26: also the finger tips (a hand bone is the wrist: the fingers reach ~10 cm past it) and every point's
-    // depth — a waving hand is closer to the camera and looks wider in perspective. `points` (world, with the
-    // margin for sleeves/fingers in `m`) frame the stage in resize() and widen the hit box while a gesture plays.
+
     measureGestures() {
       const T = this.V.THREE, v = new T.Vector3();
       const reach = { top: -Infinity, points: [] };
@@ -695,8 +637,7 @@
       };
       this.basePose(0, 1);
       sample();
-      // The arm on its way up and down too (Round 26): half-raised, the forearm points out sideways — farther than
-      // at the top, where alone it was measured before (the hand went past the edge for a moment).
+
       for (const up of [0.2, 0.4, 0.6, 0.8, 1]) {
         for (const time of [0, 0.157, 0.314, 0.471]) { this.basePose(time, 1); this.wavePose(up, time); sample(); }
       }
@@ -717,7 +658,7 @@
       this.raw.head.getWorldPosition(head);
       const box = new T.Box3().setFromObject(this.vrm.scene);
       this.headY = head.y;
-      // Hair, ears and hats rise above the head bone; never cut them off (nor a raised hand).
+
       this.topY = Math.max(head.y + 0.2, Math.min(head.y + 0.6, box.max.y + 0.04));
       if (this.reach && S.prefs.companion_gestures && !S.reduced) this.topY = Math.max(this.topY, Math.min(head.y + 0.6, this.reach.top));
       this.height = Math.max(0.5, box.max.y - Math.min(0, box.min.y));
@@ -729,21 +670,17 @@
       cam.aspect = w / h;
       if (!this.vrm) { cam.updateProjectionMatrix(); return; }
       const full = S.prefs.companion_framing === "full";
-      // Bust: from a little above the head to the waist; full: the whole body.
+
       const top = this.topY;
       const bottom = full ? 0 : this.headY - 0.56;
       const inner = (top - bottom) * 1.04;
       const span = inner / (1 - HEADROOM);
       const fov = cam.fov * Math.PI / 180;
       const tanV = Math.tan(fov / 2), tanH = tanV * cam.aspect;
-      // Where the camera aims at distance d: the inner frame's top stays just under the headroom strip, so a
-      // frame widened for the hands (Round 26) shows more of her body below instead of empty space above her head.
-      // Full body: centred, as before.
+
       const innerTop = bottom + inner;
       const aim = (d) => (full ? (top + bottom) / 2 - inner / 2 + span / 2 : innerTop - d * tanV * (1 - 2 * HEADROOM));
-      // Narrow frames must still fit the shoulders (~0.55 m wide with arms down) and — Round 25 — the hands of
-      // our own gestures (a wave, the hand to the chin), measured on this very model in measureGestures();
-      // Round 26: in perspective (Core.reachDistance), re-checked after the aim moves.
+
       const gestures = S.prefs.companion_gestures && !S.reduced && this.reach;
       const distH = (span / 2) / tanV, distW = (full ? 0.75 : 0.62) / 2 / tanH;
       let dist = Math.max(distH, distW);
@@ -754,7 +691,7 @@
       cam.lookAt(0, centerY, 0);
       cam.updateProjectionMatrix();
     }
-    // The point between the eyes in stage CSS px (gaze origin).
+
     face() {
       if (!this.raw.head) return null;
       const T = this.V.THREE, p = this.raw.head.getWorldPosition(new T.Vector3());
@@ -766,7 +703,7 @@
       const cam = this.camera.position;
       return { headY: this.headY, height: this.height, camera: [cam.x, cam.y, cam.z].map((n) => +n.toFixed(3)), fitBy: this.fitBy };
     }
-    // Base pose: arms relaxed down, breathing, sway (absolute every frame: no drift).
+
     basePose(time, energy) {
       const b = this.bones;
       const breathe = Math.sin(time * 1.55);
@@ -786,7 +723,7 @@
       set(b.leftHand, 0, 0, 0.08);
       set(b.rightHand, 0, 0, -0.08);
     }
-    // A local rotation written in VRM 0.x axes (see Core.vrmEuler).
+
     rot(bone, x, y, z) { const e = Core.vrmEuler(this.version, x, y, z); bone.rotation.set(e[0], e[1], e[2]); }
     setExpression(name, value) { if (this.has(name)) this.vrm.expressionManager.setValue(name, Math.max(0, Math.min(1, value))); }
     update(dt, st) {
@@ -799,7 +736,6 @@
 
       this.basePose(time, energy);
 
-      // --- head: idle drift + follow the cursor + a little bob while talking
       let lookX = 0, lookY = 0;
       if (S.prefs.companion_look_at && st.look.active) { lookX = st.look.x; lookY = st.look.y; }
       const k = 1 - Math.exp(-dt * 4);
@@ -809,7 +745,7 @@
       let hx = Core.vrmHeadPitch(this.headLook.y) + Math.sin(time * 0.9) * 0.015 * drift + speakingLevel * Math.sin(time * 9) * 0.02 * drift;
       let hy = this.headLook.x * 0.38 + Math.sin(time * 0.43) * 0.04 * drift * energy;
       let hz = Math.sin(time * 0.71) * 0.025 * drift * energy - this.headLook.x * 0.04;
-      // --- gestures layered on top
+
       const g = st.gesture;
       let emotionBoost = null, bounce = 0;
       if (g) {
@@ -847,7 +783,6 @@
       if (b.neck) this.rot(b.neck, hx * 0.35, hy * 0.35, hz * 0.3);
       if (b.head) this.rot(b.head, hx * 0.65, hy * 0.65, hz * 0.7);
 
-      // --- eyes: follow the cursor with small saccades
       this.saccade.next -= dt;
       if (this.saccade.next <= 0) {
         this.saccade = { x: (Math.random() - 0.5) * 0.12, y: (Math.random() - 0.5) * 0.08, next: 0.6 + Math.random() * 2.2 };
@@ -857,7 +792,6 @@
       this.lookTarget.position.set(cam.x + (lookX * 0.9 + this.saccade.x) * cam.z * 0.5,
         cam.y - (lookY * 0.6 - thinkUp + this.saccade.y) * cam.z * 0.4, cam.z);
 
-      // --- expressions: emotion, base smile from personality, mouth, blink
       const target = {};
       const em = st.emotion;
       if (em.name !== "neutral" && em.name !== "thinking") {
@@ -871,7 +805,7 @@
         const n = this.has(emotionBoost.name) ? emotionBoost.name : "happy";
         target[n] = Math.max(target[n] || 0, emotionBoost.v);
       }
-      // A closed-eye smile hides the lips: tone emotions down while talking.
+
       const talking = speakingLevel > 0.05;
       for (const name of ["happy", "sad", "angry", "relaxed", "surprised"]) {
         let v = target[name] || 0;
@@ -882,7 +816,7 @@
       }
       for (const v of Core.VISEMES) this.setExpression(v, st.mouth[v] * 0.95);
       if (!this.has("surprised") && emotionBoost && emotionBoost.name === "surprised") this.setExpression("oh", Math.max(st.mouth.oh, 0.35 * emotionBoost.v));
-      // Blink: random interval, sometimes double; skipped while eyes smile shut.
+
       const bl = this.blink;
       bl.next -= dt;
       let blinkValue = 0;
@@ -909,7 +843,7 @@
         const position = geometry.attributes.position;
         list.push({ mesh: node, position: position, base: Float32Array.from(position.array), skinned: !!node.isSkinnedMesh,
           skeleton: node.skeleton, morphs: morphs.map((a) => a.array), relative: geometry.morphTargetsRelative !== false });
-        // Rendered as a plain mesh: the shader samples neither the bone nor the morph texture.
+
         node.isSkinnedMesh = false;
         if (morphs.length) geometry.morphAttributes = {};
       });
@@ -940,10 +874,7 @@
       }
     }
     render() { this.renderer.render(this.scene, this.camera); }
-    // The character's box in stage CSS px — the hit box and, on the desktop, the window region (SetWindowRgn
-    // clips the drawing too). Round 26: read from the pixels just drawn (called right after render()), not guessed
-    // from a few bones: twin-tails, sleeves, fingers and feet reached past the old guess and the region cut them
-    // off. While a gesture plays, the places its hands will reach (measureGestures) are added up front.
+
     bbox() {
       const w = canvas.clientWidth, h = canvas.clientHeight;
       const box = this.paintedBox(w, h) || { x0: Infinity, y0: Infinity, x1: -Infinity, y1: -Infinity };
@@ -962,7 +893,7 @@
       if (!(x1 - x0 >= 2 && y1 - y0 >= 2)) return null;
       return { x: Math.floor(x0), y: Math.floor(y0), w: Math.ceil(x1 - x0), h: Math.ceil(y1 - y0) };
     }
-    // Bounds of the non-transparent pixels of the last frame, in CSS px.
+
     paintedBox(w, h) {
       const gl = this.renderer.getContext();
       const W = gl.drawingBufferWidth, H = gl.drawingBufferHeight;
@@ -980,17 +911,8 @@
     }
   }
 
-  /* ============================================================== Live2D */
-  // Live2D runtime files are downloaded by the user (with consent) into the
-  // data folder; MemuAI does not ship them — see companion_avatar.py.
-  //
-  // Round 25 framing: the model's own canvas (originalWidth × originalHeight) says little about where the
-  // character is — a waving sleeve or a wand often reaches past it, and the old "bust" scale let the canvas
-  // overflow the stage by up to 60 % sideways (cut sleeves in the R25 screenshot). Now the stage measures the
-  // VISIBLE drawables (rest pose + an envelope that only grows while motions play) and fits that box with room
-  // for raised arms; a growing envelope re-fits smoothly instead of cutting a hand.
-  const L2D_PAD = { x: 0.04, top: 0.035, bottom: 0.02 };   // share of the character's height
-  const L2D_BUST = 0.58;                                     // bust: the upper 58 % of the character
+  const L2D_PAD = { x: 0.04, top: 0.035, bottom: 0.02 };
+  const L2D_BUST = 0.58;
   class Live2DDriver {
     async load(model) {
       const base = "/api/companion/runtime/files/";
@@ -1005,7 +927,7 @@
       }
       const PIXI = window.PIXI;
       if (!PIXI || !PIXI.live2d) throw Object.assign(new Error("pixi-live2d-display missing"), { code: "live2d_runtime" });
-      // Read model3.json first: its motion groups decide the idle group, and a Cubism 2 file gets a clear message.
+
       let settings;
       try {
         const response = await fetch(model.url, { credentials: "same-origin" });
@@ -1020,8 +942,7 @@
           userMessage: t("Это модель Cubism 2 — поддерживаются Cubism 3, 4 и 5 (*.model3.json)", "This is a Cubism 2 model — Cubism 3, 4 and 5 (*.model3.json) are supported") });
       }
       const groups = Object.keys(settings.FileReferences.Motions || {});
-      // pixi-live2d-display only knows "Idle" (case-sensitive). Many models say "idle" or "Idle_1"; without an
-      // idle group a body motion never ends and the pose sticks (an arm left in the air).
+
       this.idleGroup = groups.find((g) => g === "Idle") || groups.find((g) => /^idle/i.test(g)) || "";
       this.tapGroup = groups.find((g) => /^tap.?body$/i.test(g)) || groups.find((g) => /tap|flick/i.test(g)) || "";
       const lowPower = S.prefs.companion_low_power;
@@ -1032,8 +953,7 @@
       if (this.idleGroup) options.idleMotionGroup = this.idleGroup;
       const m = await PIXI.live2d.Live2DModel.from(model.url, options);
       this.model = m;
-      // pose3.json (which of the alternative arm parts is shown) arrives a moment after the model; measuring
-      // before it counted every hidden arm variant as part of the character.
+
       if (settings.FileReferences.Pose && !m.internalModel.pose) {
         await new Promise((resolve) => {
           const done = () => { clearTimeout(timer); m.off("poseLoaded", done); m.off("poseLoadError", done); resolve(); };
@@ -1050,7 +970,7 @@
       const defs = m.internalModel.settings;
       this.expressions = (defs.expressions || []).map((e) => e.Name || e.name).filter(Boolean);
       this.motions = groups;
-      // Hit areas are transparent helper meshes: never part of the measured character.
+
       this.skip = new Set();
       for (const area of defs.hitAreas || []) {
         try { const i = core.getDrawableIndex(area.Id || area.id); if (i >= 0) this.skip.add(i); } catch (_) {}
@@ -1059,7 +979,7 @@
       this.meta = { kind: "live2d", expressions: this.expressions, motions: this.motions, idle: this.idleGroup };
       this.state = { mouth: 0, form: 0, emotion: "" };
       m.internalModel.on("beforeModelUpdate", () => this.applyParams());
-      // One update so pose3.json (alternative arm parts) and the idle motion are applied before measuring.
+
       for (let i = 0; i < 3; i++) { m.update(16); m.internalModel.update(16, performance.now()); }
       this.rest = this.measure();
       this.env = this.rest && Object.assign({}, this.rest);
@@ -1070,9 +990,7 @@
       await this.measureMotions(PIXI);
       this.resize();
     }
-    // Round 26: play the motions she can play here (the idle group; the tap group a click starts) once, silently
-    // and before she is shown, so the envelope — and the frame — already have room for every reach. Before, the
-    // frame grew only after a hand had crossed the edge (cut off for up to a second the first time).
+
     async measureMotions(PIXI) {
       const m = this.model, mm = m.internalModel.motionManager;
       const defs = (mm && mm.definitions) || {};
@@ -1096,14 +1014,13 @@
         try { mm.stopAllMotions(); } catch (_) {}
       }
     }
-    // Bust framing: only what is inside the frame counts (model y of the stage's lower edge); full: everything.
+
     frameCut() {
       const f = this.fit;
       return S.prefs.companion_framing !== "full" && f ? (Math.max(1, canvas.clientHeight) - f.y) / f.scale : null;
     }
     applyPrefs() { this.resize(); }
-    // Bounds of the visible drawables in the model's local px (y down); `cut` limits the horizontal extent to
-    // drawables' vertices above that y (bust framing ignores a wide skirt below the frame).
+
     measure(cut) {
       const core = this.core, im = this.model && this.model.internalModel;
       if (!core || !im) return null;
@@ -1124,22 +1041,21 @@
         }
       } catch (_) { return null; }
       if (!isFinite(x0) || x1 - x0 < 1 || y1 - y0 < 1) return null;
-      // model px → the Live2DModel's local space (layout scale/offset of model3.json)
+
       return { x0: x0 * lt.a + lt.tx, x1: x1 * lt.a + lt.tx, y0: y0 * lt.d + lt.ty, y1: y1 * lt.d + lt.ty };
     }
     target() {
       const w = Math.max(1, canvas.clientWidth), h = Math.max(1, canvas.clientHeight);
       const m = this.model, rest = this.rest, env = this.env;
       if (!rest || !env) {
-        // Nothing measurable (all drawables hidden at start): fit the model canvas.
+
         return Core.fitBox({ x0: 0, y0: 0, x1: m.internalModel.width, y1: m.internalModel.height }, w, h, { headroom: HEADROOM });
       }
       const H = rest.y1 - rest.y0;
       const k = S.prefs.companion_gestures && !S.reduced ? 1 : 0.5;
       const pad = { x: L2D_PAD.x * H * k, top: L2D_PAD.top * H * k, bottom: L2D_PAD.bottom * H };
       if (S.prefs.companion_framing === "full") return Core.fitBox(env, w, h, { headroom: HEADROOM, pad: pad });
-      // Bust: the largest scale at which everything inside the visible height also fits the width. The lower
-      // edge may cut the body (that is the framing); the sides never cut a sleeve or a hand.
+
       const grow = { l: Math.max(0, rest.x0 - env.x0), r: Math.max(0, env.x1 - rest.x1) };
       const top = env.y0 - pad.top, room = h * (1 - HEADROOM);
       const span = (scale) => {
@@ -1169,9 +1085,7 @@
       this.fit = this.target();
       this.place(this.fit);
     }
-    // Grow the envelope when a motion reaches past it (checked twice a second). In bust framing only what is
-    // inside the frame counts (a wand swinging at the hips must not shrink her), and one reach is capped at a
-    // fifth of her height so a stray effect mesh cannot make her tiny.
+
     track(now) {
       if (!this.rest || now - this.measureAt < 500) return;
       this.measureAt = now;
@@ -1233,7 +1147,7 @@
       const focus = m.internalModel.focusController;
       const aim = S.prefs.companion_look_at && st.look.active ? Core.live2dFocus(st.look) : { x: 0, y: 0 };
       focus.focus(aim.x, aim.y);
-      // Emotion → the model's own expression file when one matches.
+
       const want = st.emotion.name !== "neutral" ? st.emotion.name : "";
       if (want !== this.state.emotion) {
         this.state.emotion = want;
@@ -1242,10 +1156,7 @@
         const match = this.expressions.find((name) => words.some((w) => name.toLowerCase().includes(w)));
         try { if (match) m.expression(match); else if (!want) m.internalModel.motionManager.expressionManager?.resetExpression(); } catch (_) {}
       }
-      // Round 25: only a click on her (the author's "tap body") plays a body motion, and only when the model has
-      // an idle group to return to. Nods, shakes, waves and "think" are procedural head/body moves: before, every
-      // answer's nod started a random TapBody motion (often a hand to the hair), and on models without "Idle"
-      // the arm stayed up for good.
+
       const g = st.gesture;
       if (g && g !== this.lastGesture) {
         this.lastGesture = g;
@@ -1263,8 +1174,7 @@
       }
     }
     render() { this.app.render(); }
-    // The point between the eyes in stage CSS px: the "Head" hit area when the model has one, else the upper
-    // eighth of the character.
+
     face() {
       const m = this.model, p = this.faceLocal;
       return m && p ? { x: m.x + p.x * m.scale.x, y: m.y + p.y * m.scale.y } : null;
@@ -1290,8 +1200,7 @@
       if (!m) return null;
       const w = canvas.clientWidth, h = canvas.clientHeight;
       let box = this.measure() || { x0: 0, y0: 0, x1: m.internalModel.width, y1: m.internalModel.height };
-      // Round 26: plus everything her motions have reached so far (the envelope), so the desktop region is not
-      // a step behind a swinging arm between two reports.
+
       const env = this.env;
       if (env) box = { x0: Math.min(box.x0, env.x0), y0: Math.min(box.y0, env.y0), x1: Math.max(box.x1, env.x1), y1: Math.max(box.y1, env.y1) };
       const s = m.scale.x;

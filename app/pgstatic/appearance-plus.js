@@ -1,18 +1,5 @@
-/* MemuAI — Round 30 (r30-design): more «Внешний вид» settings.
 
-   Settings → Appearance → «Форма и текст», «Прозрачность», «Движение» (rendered by appearance.js through
-   MemuAppearancePlus.html / bind; applied on every appearance change through MemuAppearancePlus.apply):
-     ui_radius        "" | sharp | round              → html[data-radius]
-     ui_msg_size      "" | sm | lg | xl                → html[data-msg-size]
-     ui_contrast      "" | more                        → html[data-contrast]
-     ui_glass         "" | light | strong              → html[data-glass]   (frosted menus, dialogs, sidebar)
-     ui_backdrop      none | mica | acrylic | tabbed   → Windows 11 material (pywebview bridge → app/win_backdrop.py);
-                                                         html[data-backdrop] only while the window really has it
-     ui_motion_speed  "" | slow | fast                 → html[data-motion-speed]
-     ui_motion_feel   "" | smooth | springy            → html[data-motion-feel]
-     ui_msg_anim      "" | fade | pop | slide | none   → html[data-msg-anim]
-   The values are cached in localStorage («memu_ui_plus») and put on <html> as soon as this file runs, so the
-   first frame already has the right corners and motion. Server side: app/appearance_extra.py. */
+
 (function () {
   "use strict";
   if (window.MemuAppearancePlus) return;
@@ -38,19 +25,18 @@
       if (v) r.dataset[attr] = v; else delete r.dataset[attr];
     }
   }
-  // first paint: the cached values
-  try { setAttrs(JSON.parse(localStorage.getItem(CACHE) || "{}")); } catch (e) { /* no cache yet */ }
+
+  try { setAttrs(JSON.parse(localStorage.getItem(CACHE) || "{}")); } catch (e) {  }
 
   function apply(pref) {
     prefRef = pref;
     const values = {};
     for (const key of Object.keys(KEYS)) values[key] = String(pref(key, "") || "");
     setAttrs(values);
-    try { localStorage.setItem(CACHE, JSON.stringify(values)); } catch (e) { /* private mode */ }
+    try { localStorage.setItem(CACHE, JSON.stringify(values)); } catch (e) {  }
     applyBackdrop(String(pref("ui_backdrop", "none") || "none"));
   }
 
-  /* -------------------------------------------------------------- window material */
   const bridge = () => (window.pywebview && window.pywebview.api && typeof window.pywebview.api.window_backdrop === "function") ? window.pywebview.api : null;
   async function loadBackdropState() {
     const api = bridge();
@@ -73,12 +59,10 @@
     refreshBackdropNote();
   }
   window.addEventListener("pywebviewready", () => { if (prefRef) { lastBackdrop = ""; applyBackdrop(String(prefRef("ui_backdrop", "none") || "none")); } });
-  // A normal opaque window also needs its native frame and WebView backing
-  // colours updated. CSS alone cannot change those when the theme switches.
+
   new MutationObserver(() => { if (prefRef && lastBackdrop) applyBackdrop(String(prefRef("ui_backdrop", "none"))); })
     .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
 
-  /* ------------------------------------------------------------------ settings UI */
   function html({ L, row, segment, sxSection, pref }) {
     const v = (key) => String(pref(key, "") || "");
     const backdrop = BACKDROPS.includes(v("ui_backdrop")) ? v("ui_backdrop") : "none";

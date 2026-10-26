@@ -9,16 +9,13 @@ import threading
 from typing import Any, Dict, List
 
 from .paths import files_dir, read_json, write_json
-from .settings_schema import CHOICES, DEFAULTS, RANGES  # Round 38: one schema, also read by MemuAI
-
+from .settings_schema import CHOICES, DEFAULTS, RANGES
 
 _LOCK = threading.Lock()
 TAG_COLORS = ("red", "orange", "yellow", "green", "blue", "purple", "gray")
 
-
 def _path():
     return files_dir() / "settings.json"
-
 
 def load() -> Dict[str, Any]:
     data = read_json(_path(), {})
@@ -40,7 +37,6 @@ def load() -> Dict[str, Any]:
         if ok:
             value[key] = got
     return value
-
 
 def save(changes: Dict[str, Any]) -> Dict[str, Any]:
     with _LOCK:
@@ -70,22 +66,16 @@ def save(changes: Dict[str, Any]) -> Dict[str, Any]:
         write_json(_path(), current)
         return current
 
-
-# ------------------------------------------------------------------ tags
-
 def _tags_path():
     return files_dir() / "tags.json"
 
-
 def _key(path: str) -> str:
     return os.path.normcase(os.path.normpath(path))
-
 
 def tags_all() -> Dict[str, Dict[str, Any]]:
     """``{normcase path: {"path", "colors": [..], "favorite": bool, "note": str}}``."""
     data = read_json(_tags_path(), {})
     return {k: v for k, v in data.items() if isinstance(v, dict)}
-
 
 def tags_set(path: str, colors: List[str] = None, favorite: Any = None, note: Any = None) -> Dict[str, Any]:
     with _LOCK:
@@ -105,7 +95,6 @@ def tags_set(path: str, colors: List[str] = None, favorite: Any = None, note: An
             data[key] = row
         write_json(_tags_path(), data)
         return row
-
 
 def tags_moved(old: str, new: str) -> None:
     """Keep tags when a file/folder is renamed or moved inside MemuFiles."""

@@ -44,31 +44,25 @@ EXTRA_TOOLS = ("read_url", "current_time", "calculator")
 MODES = ("auto", "agent", "presearch")
 PROGRESS = ("off", "thinking", "text")
 DEFAULTS: Dict[str, Any] = {
-    "engine": "",            # "" — the engine of the Proxy web-search settings
-    "results": 5,            # results per search, 1..10
-    "max_steps": 3,          # tool rounds before the final answer, 1..8
-    "read_pages": True,      # read the best pages of every search
-    "pages": 2,              # pages per search, 1..4
-    "lang": "",              # answer / query language hint: "", ru, en, de, …
-    "region": "",            # preferred region of sources: "", ru, us, eu, …
-    "citations": True,       # [n] in the text + a «Sources» list at the end
-    "progress": "off",       # show the search: off | thinking (reasoning) | text
-    "mode": "auto",          # auto: agent when the base model has native tools, else pre-search
-    "tools": ["read_url"],   # extra MemuAI tools for the model
+    "engine": "",
+    "results": 5,
+    "max_steps": 3,
+    "read_pages": True,
+    "pages": 2,
+    "lang": "",
+    "region": "",
+    "citations": True,
+    "progress": "off",
+    "mode": "auto",
+    "tools": ["read_url"],
 }
 _lock = threading.RLock()
-
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Storage
-# ---------------------------------------------------------------------------------------------------------------------
 
 def _int(value: Any, default: int, lo: int, hi: int) -> int:
     try:
         return max(lo, min(hi, int(value)))
     except (TypeError, ValueError):
         return default
-
 
 def normalize_settings(value: Any) -> Dict[str, Any]:
     value = value if isinstance(value, dict) else {}
@@ -90,10 +84,8 @@ def normalize_settings(value: Any) -> Dict[str, Any]:
         "tools": [t for t in EXTRA_TOOLS if isinstance(tools, list) and t in tools],
     }
 
-
 def web_id(base: str) -> str:
     return f"{str(base).strip()}{SUFFIX}"
-
 
 class _Store:
     def __init__(self, path: str = STORE_PATH) -> None:
@@ -157,19 +149,15 @@ class _Store:
             self._save(kept)
             return True
 
-
 store = _Store()
-
 
 def is_web(model_id: Any) -> bool:
     return isinstance(model_id, str) and model_id.endswith(SUFFIX) and store.get(model_id) is not None
-
 
 def listed() -> List[Dict[str, Any]]:
     """Rows for ``/v1/models``."""
     return [{"id": row["id"], "object": "model", "created": row["created"] or 1735689600,
              "owned_by": "memuai-web", "web": True, "base_model": row["base"]} for row in store.all()]
-
 
 def base_exists(base: str) -> bool:
     from . import composite_models
@@ -179,7 +167,6 @@ def base_exists(base: str) -> bool:
     resolved = resolve(base)
     return resolved is not None and (resolved.entry is None or resolved.entry.enabled)
 
-
 def native_tools(base: str) -> bool:
     from .tool_protocol import tool_provider_supported
     try:
@@ -187,16 +174,10 @@ def native_tools(base: str) -> bool:
     except Exception:
         return False
 
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Tools
-# ---------------------------------------------------------------------------------------------------------------------
-
 def _fn(name: str, description: str, properties: Dict[str, Any], required: List[str]) -> Dict[str, Any]:
     return {"type": "function", "function": {"name": name, "description": description,
                                              "parameters": {"type": "object", "properties": properties,
                                                             "required": required}}}
-
 
 def tool_specs(settings: Dict[str, Any]) -> List[Dict[str, Any]]:
     specs = [_fn("web_search", "Search the web for fresh or factual information. Returns numbered sources [n] with "
@@ -215,7 +196,6 @@ def tool_specs(settings: Dict[str, Any]) -> List[Dict[str, Any]]:
                                        "log, pi, e …).", {"expression": {"type": "string"}}, ["expression"]))
     return specs
 
-
 OUR_TOOLS = ("web_search",) + EXTRA_TOOLS
 
 _OPS = {ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul, ast.Div: operator.truediv,
@@ -225,7 +205,6 @@ _NAMES = {"pi": math.pi, "e": math.e, "tau": math.tau}
 _FUNCS = {name: getattr(math, name) for name in ("sqrt", "sin", "cos", "tan", "asin", "acos", "atan", "log", "log10",
                                                  "log2", "exp", "floor", "ceil", "factorial", "radians", "degrees")}
 _FUNCS.update(abs=abs, round=round, min=min, max=max)
-
 
 def calculate(expression: str) -> str:
     """A safe calculator: numbers, operators and the math functions above — nothing else is evaluated."""
@@ -258,7 +237,6 @@ def calculate(expression: str) -> str:
         value = int(value)
     return str(value)
 
-
 class Sources:
     """Numbered sources of one request: the same URL keeps its number across searches."""
 
@@ -273,7 +251,6 @@ class Sources:
                 return index + 1
         self.rows.append({"url": url, "title": title})
         return len(self.rows)
-
 
 def format_search(found: Dict[str, Any], sources: Sources) -> str:
     lines = [f"Search: {', '.join(found.get('queries') or [found.get('query') or ''])}"]
@@ -290,13 +267,12 @@ def format_search(found: Dict[str, Any], sources: Sources) -> str:
         page = excerpts.pop(url, None)
         if page and page.get("excerpt"):
             lines.append(f"Excerpt: {str(page['excerpt'])[:2400]}")
-    for url, page in excerpts.items():   # a page read after a redirect
+    for url, page in excerpts.items():
         n = sources.number(url, str(page.get("title") or "")[:200])
         lines.append(f"\n[{n}] {page.get('title') or url}\n{url}\nExcerpt: {str(page.get('excerpt') or '')[:2400]}")
     if len(lines) == 1:
         lines.append("Nothing found. Try other keywords.")
     return "\n".join(lines)[:16000]
-
 
 async def _search(settings: Dict[str, Any], query: str, queries: List[str]) -> Dict[str, Any]:
     from . import websearch
@@ -314,7 +290,6 @@ async def _search(settings: Dict[str, Any], query: str, queries: List[str]) -> D
     return await websearch.rich_search(query, queries=queries[:2], limit=settings["results"],
                                        read=settings["pages"] if settings["read_pages"] else 0,
                                        lang=settings["lang"], proxy=proxy, search_fn=search_fn, budget=8.0)
-
 
 async def run_tool(name: str, args: Dict[str, Any], settings: Dict[str, Any], sources: Sources) -> str:
     """Execute one of our tools; errors become text for the model, never exceptions."""
@@ -344,11 +319,6 @@ async def run_tool(name: str, args: Dict[str, Any], settings: Dict[str, Any], so
         return f"error: {type(exc).__name__}: {str(exc)[:300]}"
     return f"error: unknown tool {name}"
 
-
-# ---------------------------------------------------------------------------------------------------------------------
-# The loop
-# ---------------------------------------------------------------------------------------------------------------------
-
 def _text_of(content: Any) -> str:
     if isinstance(content, str):
         return content
@@ -356,12 +326,10 @@ def _text_of(content: Any) -> str:
         return "\n".join(str(p.get("text") or "") for p in content if isinstance(p, dict))
     return ""
 
-
 def _is_ru(messages: List[Dict[str, Any]]) -> bool:
     last = next((_text_of(m.get("content")) for m in reversed(messages or [])
                  if isinstance(m, dict) and m.get("role") == "user"), "")
     return bool(re.search("[а-яё]", last[:2000], re.I))
-
 
 def instructions(settings: Dict[str, Any], agent: bool) -> str:
     parts = [f"Current date: {time.strftime('%Y-%m-%d')}."]
@@ -382,14 +350,12 @@ def instructions(settings: Dict[str, Any], agent: bool) -> str:
                      "Do not write a list of sources at the end — it is added automatically.")
     return " ".join(parts)
 
-
 def _with_instructions(messages: List[Dict[str, Any]], text: str) -> List[Dict[str, Any]]:
     out = [dict(m) for m in messages if isinstance(m, dict)]
     if out and out[0].get("role") in ("system", "developer") and isinstance(out[0].get("content"), str):
         out[0]["content"] = f"{out[0]['content']}\n\n{text}"
         return out
     return [{"role": "system", "content": text}] + out
-
 
 def sources_footer(text: str, sources: Sources, ru: bool) -> Tuple[str, List[Dict[str, str]]]:
     if not sources.rows:
@@ -399,7 +365,6 @@ def sources_footer(text: str, sources: Sources, ru: bool) -> Tuple[str, List[Dic
     lines = [f"{n}. [{(row['title'] or row['url']).replace(']', ')')[:140]}]({row['url']})" for n, row in picked]
     head = "**Источники:**" if ru else "**Sources:**"
     return "\n\n" + head + "\n" + "\n".join(lines), [row for _, row in picked]
-
 
 class _Out:
     """Chunks to the client: one id and the web model's name; usage summed over the rounds."""
@@ -436,11 +401,9 @@ class _Out:
             usage["prompt_tokens_details"] = {"cached_tokens": u["cached"]}
         return self.chunk({}, finish, usage=usage, **extra)
 
-
 def _error(message: str, message_en: str, status: int = 404, err_type: str = "model_not_found"):
     from .chat import CompletionError
     return CompletionError(message, status=status, err_type=err_type, message_en=message_en, provider="web")
-
 
 async def run(service: Any, model_id: str, messages: List[Dict[str, Any]], params: Dict[str, Any],
               trace: Any = None) -> AsyncIterator[Dict[str, Any]]:
@@ -452,7 +415,7 @@ async def run(service: Any, model_id: str, messages: List[Dict[str, Any]], param
         raise _error(f"Базовой модели «{base}» веб-версии «{model_id}» больше нет в каталоге Proxy.",
                      f"The base model “{base}” of the web model “{model_id}” is gone from the Proxy catalogue.")
     params = dict(params or {})
-    params.pop("web_search", None)          # the provider-level pre-search would search twice
+    params.pop("web_search", None)
     client_tools = [t for t in params.get("tools") or [] if isinstance(t, dict)]
     client_names = {str((t.get("function") or {}).get("name") or t.get("name") or "") for t in client_tools}
     native = native_tools(base)
@@ -537,7 +500,7 @@ async def run(service: Any, model_id: str, messages: List[Dict[str, Any]], param
         ours = [c for c in ordered if c["function"]["name"] in OUR_TOOLS and c["function"]["name"] not in client_names]
         theirs = [c for c in ordered if c not in ours]
         if theirs or not ours or final_round:
-            # The client's own tools: hand the calls over exactly as the model made them; the turn ends here.
+
             for index, call in enumerate(theirs):
                 yield out.chunk({"tool_calls": [{"index": index, "id": call.get("id") or f"call_{uuid.uuid4().hex[:12]}",
                                                  "type": "function", "function": dict(call["function"])}]})

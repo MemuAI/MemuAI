@@ -16,7 +16,6 @@ from rich.text import Text
 from .. import VERSION, paths
 from ..session import list_sessions
 
-
 def user_name(runtime: Any) -> str:
     prefs = runtime.memuai_prefs()
     name = str(prefs.get("profile_name") or "").strip()
@@ -36,7 +35,6 @@ def user_name(runtime: Any) -> str:
             name = ""
     return name.split()[0] if name else ""
 
-
 TIPS = [
     "/init to study the project and write MEMUCODE.md",
     "/help for commands · ? for shortcuts",
@@ -48,7 +46,6 @@ TIPS = [
     "/subtask runs a task in parallel while you keep talking",
     "Alt+V pastes a screenshot from the clipboard",
 ]
-
 
 class Banner:
     """Gathered once (recent conversations, tips); drawn for whatever width the window has now."""
@@ -66,7 +63,7 @@ class Banner:
         self.tips = random.sample(TIPS, 3)
         rows: List[Any] = []
         try:
-            # Round 34: a conversation that was opened and closed without a message showed as an empty «just now» row.
+
             recent = [row for row in list_sessions(runtime.root, limit=8)
                       if row["id"] != runtime.session.id and str(row.get("title") or row.get("first") or "").strip()][:3]
         except Exception:
@@ -114,7 +111,6 @@ class Banner:
                       width=min(width, 110))
         return renderer.render(panel, width=width)
 
-
 def short_path(path: str, limit: int) -> str:
     """Keep the END of a long path — the project folder is the part that matters.
 
@@ -131,7 +127,6 @@ def short_path(path: str, limit: int) -> str:
             tail = tail[cut:]
             break
     return "…" + tail
-
 
 def welcome(renderer: Any, runtime: Any) -> Banner:
     return Banner(renderer, runtime)

@@ -11,9 +11,7 @@ import threading
 import time
 from typing import Callable, Optional
 
-
 _active_shell: "DesktopShell | None" = None
-
 
 def wait_for_service(probe: Callable[[], bool], server_thread: threading.Thread,
                      *, attempts: int, interval: float) -> bool:
@@ -21,8 +19,7 @@ def wait_for_service(probe: Callable[[], bool], server_thread: threading.Thread,
     for _ in range(max(1, attempts)):
         try:
             if probe():
-                # A different process may win the bind race and answer on the
-                # selected port; only our still-running server counts as ready.
+
                 return server_thread.is_alive()
         except Exception:
             pass
@@ -31,7 +28,6 @@ def wait_for_service(probe: Callable[[], bool], server_thread: threading.Thread,
         time.sleep(max(0.0, interval))
     return False
 
-
 def stop_server(server, server_thread: threading.Thread, *, timeout: float = 8.0) -> None:
     """Give uvicorn and its lifespan handlers time to shut down cleanly."""
     server.should_exit = True
@@ -39,16 +35,13 @@ def stop_server(server, server_thread: threading.Thread, *, timeout: float = 8.0
         return
     server_thread.join(max(0.0, timeout))
     if server_thread.is_alive():
-        # Uvicorn checks force_exit while leaving the serving loop.  This is a
-        # last resort after the normal lifespan shutdown had a fair chance.
+
         server.force_exit = True
         server_thread.join(1.0)
-
 
 def resource_path(name: str) -> str:
     base = getattr(sys, "_MEIPASS", os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return os.path.join(base, name)
-
 
 def message_box(title: str, text: str, error: bool = False) -> None:
     try:
@@ -56,7 +49,6 @@ def message_box(title: str, text: str, error: bool = False) -> None:
         ctypes.windll.user32.MessageBoxW(0, text, title, 0x10 if error else 0x40)
     except Exception:
         print(f"[{title}] {text}")
-
 
 class InstanceLock:
     """Именованный lock текущей Windows-сессии.
@@ -84,14 +76,12 @@ class InstanceLock:
                 pass
             self.fallback = None
 
-
 def acquire_instance_lock(name: str = "MemuAIProxy") -> Optional[InstanceLock]:
     """Возвращает lock либо ``None``, если приложение уже запущено."""
     if sys.platform == "win32":
         try:
             import ctypes
-            # use_last_error: иначе код ошибки CreateMutexW может затереть
-            # любой другой вызов между ним и GetLastError.
+
             kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
             kernel32.CreateMutexW.restype = ctypes.c_void_p
             kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_wchar_p]
@@ -99,14 +89,13 @@ def acquire_instance_lock(name: str = "MemuAIProxy") -> Optional[InstanceLock]:
             handle = kernel32.CreateMutexW(None, False, f"Local\\{name}.SingleInstance")
             if not handle:
                 return None
-            if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+            if ctypes.get_last_error() == 183:
                 kernel32.CloseHandle(handle)
                 return None
             return InstanceLock(handle=handle)
         except Exception:
             pass
 
-    # Неблокирующий fallback для разработки не на Windows.
     import socket
     port = 48731 if name == "MemuAIProxy" else 48732
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -118,7 +107,6 @@ def acquire_instance_lock(name: str = "MemuAIProxy") -> Optional[InstanceLock]:
         sock.close()
         return None
 
-
 def show_active_window() -> bool:
     shell = _active_shell
     if not shell:
@@ -126,14 +114,12 @@ def show_active_window() -> bool:
     shell.show_window()
     return True
 
-
 def quit_active_shell() -> bool:
     shell = _active_shell
     if not shell:
         return False
     shell.request_quit()
     return True
-
 
 def check_webview2() -> bool:
     if sys.platform != "win32":
@@ -152,7 +138,6 @@ def check_webview2() -> bool:
     except Exception:
         return True
     return False
-
 
 def try_install_webview2() -> bool:
     import subprocess
@@ -175,7 +160,6 @@ def try_install_webview2() -> bool:
                 os.remove(dst)
             except OSError:
                 pass
-
 
 def _is_trusted_windows_binary(path: str) -> bool:
     """Validate Authenticode with WinVerifyTrust without launching a shell."""
@@ -207,22 +191,21 @@ def _is_trusted_windows_binary(path: str) -> bool:
         file_info = WINTRUST_FILE_INFO(ctypes.sizeof(WINTRUST_FILE_INFO), str(path), None, None)
         trust_data = WINTRUST_DATA(
             ctypes.sizeof(WINTRUST_DATA), None, None,
-            2,  # WTD_UI_NONE
-            0,  # WTD_REVOKE_NONE
-            1,  # WTD_CHOICE_FILE
+            2,
+            0,
+            1,
             ctypes.pointer(file_info),
-            1, None, None, 0, 0, None,  # WTD_STATEACTION_VERIFY
+            1, None, None, 0, 0, None,
         )
         verify = ctypes.windll.wintrust.WinVerifyTrust
         verify.argtypes = [wintypes.HWND, ctypes.POINTER(GUID), ctypes.POINTER(WINTRUST_DATA)]
         verify.restype = ctypes.c_long
         trusted = verify(None, ctypes.byref(action), ctypes.byref(trust_data)) == 0
-        trust_data.dwStateAction = 2  # WTD_STATEACTION_CLOSE
+        trust_data.dwStateAction = 2
         verify(None, ctypes.byref(action), ctypes.byref(trust_data))
         return trusted
     except Exception:
         return False
-
 
 class DesktopShell:
     """Окно + трей. Окно можно закрывать — приложение продолжает жить в трее."""
@@ -231,8 +214,7 @@ class DesktopShell:
                  show_on_start: bool = True, title: str = "MemuAI Proxy",
                  app_ref=None, on_ready=None, width: int = 1240, height: int = 860,
                  min_size: tuple[int, int] = (760, 520),
-                 # The Proxy panel's default dark --bg (app/static/style.css), so
-                 # the window does not flash another shade before the page paints.
+
                  background_color: str = "#09090b",
                  tray_icon: str = "icon.png",
                  app_user_model_id: str = "", js_api=None,
@@ -247,32 +229,24 @@ class DesktopShell:
         self._native_theme_initialized = False
         self.close_to_tray = close_to_tray
         self.show_tray = show_tray
-        # MemuAI and MemuAI Proxy must never share a tray image or a taskbar
-        # identity, otherwise Windows reuses one icon for both applications.
+
         self.tray_icon = tray_icon
-        # Round 33: multi-size .ico files — the tray loads the frame drawn for
-        # its exact size, the window gets crisp small/big icons (and never a
-        # destroyed handle, see app/win_app_identity.py).
+
         self.tray_ico = tray_ico
         self.window_ico = window_ico
         self.app_user_model_id = app_user_model_id
         self.show_on_start = show_on_start
-        # Optional object exposed to the page as window.pywebview.api (MemuAI
-        # uses it for the custom title bar; the Proxy window passes nothing).
+
         self.js_api = js_api
         self.quit_event = threading.Event()
-        # Callables run once before the shell quits (Round 21: the Quick Ask
-        # popup is a second pywebview window and must be destroyed too, or
-        # WinForms keeps the process alive after the main window is gone).
+
         self.quit_hooks: list = []
         self.tray = None
         self.window = None
         self._quitting = False
-        # Round 33 (#6): ``close_guard()`` → True cancels a user close of the
-        # window (modules are open: the page asks first, app/module_apps.py).
+
         self.close_guard = None
-        # Round 33 (#26): a window started hidden (module-only launch) still
-        # runs ``on_ready`` once its page has loaded (Quick Access, hwnd, ...).
+
         self.ready_on_load = False
 
     def run(self) -> None:
@@ -280,10 +254,7 @@ class DesktopShell:
         global _active_shell
         _active_shell = self
         if sys.platform == "win32" and self.app_user_model_id:
-            # An explicit AppUserModelID makes the shell treat this process as
-            # its own application, so the taskbar shows our icon instead of
-            # inheriting the host executable's one. Set once, before any
-            # window (repeating it later regroups the taskbar button).
+
             try:
                 from . import win_app_identity
                 win_app_identity.set_process_app_id(self.app_user_model_id)
@@ -297,13 +268,9 @@ class DesktopShell:
         self.window = webview.create_window(
             self.title, self.url, width=self.width, height=self.height,
             min_size=self.min_size, background_color=self.background_color,
-            # Keep the real Windows frame. A borderless window plus a manual
-            # WndProc breaks DWM corners, Snap Layouts and the taskbar edge.
-            # MemuAI's custom title bar (app/win_titlebar.py) only removes the
-            # caption of this normal sizable window via WM_NCCALCSIZE.
+
             frameless=False, easy_drag=False, resizable=True,
-            # A hidden window is only safe when the user has a working tray
-            # icon with which to restore it.
+
             hidden=not self.show_on_start and tray_started,
             **extra,
         )
@@ -319,7 +286,7 @@ class DesktopShell:
                     event += self._apply_native_theme
         if sys.platform == "win32" and self.window_ico:
             self.window.events.shown += self._apply_window_icon
-            # A window started hidden is not "shown" yet but already has a taskbar identity.
+
             self.window.events.loaded += self._apply_window_icon
         if self.on_ready:
             self.window.events.shown += lambda: self.on_ready(self.window)
@@ -393,7 +360,7 @@ class DesktopShell:
                 self.window.hide()
             except Exception:
                 pass
-            # pywebview: False отменяет уничтожение окна.
+
             return False
         self.quit_event.set()
         self._run_quit_hooks()
@@ -464,7 +431,7 @@ class DesktopShell:
             return False
         try:
             from PIL import Image
-            # The .ico (when given) is what Windows actually loads, see _crisp_tray_class.
+
             self.tray._memu_ico = self._resolve(ico) if ico else ""
             self.tray.icon = Image.open(path)
             return True
@@ -478,9 +445,7 @@ class DesktopShell:
             return False
         try:
             image = self._tray_image()
-            # pystray keeps a process-level icon identifier.  Give the two
-            # desktop shells distinct identifiers so Windows never reuses the
-            # Proxy tooltip/icon for the MemuAI application.
+
             icon_id = "".join(ch.lower() if ch.isalnum() else "_" for ch in self.title).strip("_") or "memuai"
             self.tray = _crisp_tray_class(pystray)(
                 icon_id, image, self.title,
@@ -495,7 +460,6 @@ class DesktopShell:
             self.tray = None
             return False
 
-
 def refresh_tray_icon(path: str, ico: str = "") -> bool:
     """Update the running shell's tray (and window) icon, if a shell is active."""
     shell = _active_shell
@@ -504,7 +468,6 @@ def refresh_tray_icon(path: str, ico: str = "") -> bool:
     if ico:
         shell.set_window_icon(ico)
     return bool(shell.set_tray_icon(path, ico))
-
 
 def _crisp_tray_class(pystray):
     """pystray's Icon that, on Windows, loads the tray icon from our .ico at the tray size.
@@ -540,14 +503,7 @@ def _crisp_tray_class(pystray):
 
     return CrispIcon
 
-
-#: WebView2 permission kinds granted without a browser prompt, and only to
-#: the app's own local page: the microphone (dictation, Live), the camera
-#: (the camera button of MemuAI Live — it is only requested after that click)
-#: and reading the clipboard (the "Paste from clipboard" tool). Location,
-#: notifications and everything else keep WebView2's default behaviour.
 _LOCAL_PERMISSIONS = {"Microphone", "Camera", "ClipboardRead"}
-
 
 def grant_local_permissions(native, origin: str) -> bool:
     """Stop WebView2 asking "Allow microphone / clipboard?" for our own page.
@@ -576,7 +532,7 @@ def grant_local_permissions(native, origin: str) -> bool:
                 number = int(kind)
             except Exception:
                 number = -1
-            # 1 = Microphone, 2 = Camera, 6 = ClipboardRead in CoreWebView2PermissionKind.
+
             if same_origin and (str(kind).split(".")[-1] in _LOCAL_PERMISSIONS or number in (1, 2, 6)):
                 args.State = CoreWebView2PermissionState.Allow
         except Exception:
@@ -603,11 +559,10 @@ def grant_local_permissions(native, origin: str) -> bool:
             native.Invoke(Func[Type](lambda: attach()))
         else:
             attach()
-        native._memuai_permission_handler = on_permission   # keep the delegate alive
+        native._memuai_permission_handler = on_permission
         return True
     except Exception:
         return False
-
 
 def ensure_per_monitor_dpi_awareness() -> None:
     """Ask Windows for per-monitor-v2 DPI awareness before any window exists.
@@ -626,18 +581,17 @@ def ensure_per_monitor_dpi_awareness() -> None:
         return
     try:
         import ctypes
-        # DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 (Windows 10 1703+).
+
         if ctypes.windll.user32.SetProcessDpiAwarenessContext(ctypes.c_void_p(-4)):
             return
     except Exception:
         pass
     try:
         import ctypes
-        # PROCESS_PER_MONITOR_DPI_AWARE, older Windows 8.1+ fallback.
+
         ctypes.windll.shcore.SetProcessDpiAwareness(2)
     except Exception:
         pass
-
 
 def run_desktop(url: str, port: int, close_to_tray: bool = True,
                 show_tray: bool = True, show_on_start: bool = True) -> int:

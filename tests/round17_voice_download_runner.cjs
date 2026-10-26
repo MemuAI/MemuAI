@@ -1,4 +1,4 @@
-/* Exercise the shipped download workflow with real Blob bytes, no user files. */
+
 const assert = require('assert'), fs = require('fs'), path = require('path'), vm = require('vm');
 const source = fs.readFileSync(path.join(__dirname,'../app/pgstatic/voice-player.js'),'utf8')
   .replace('return { html, stash, hydrate, closeMenu };','return { html, stash, hydrate, closeMenu, downloadAudio };');

@@ -1,5 +1,3 @@
-/* Round 33 (r33c-models-lists): Quick Access model rows look like the unified MemuAI picker —
-   the readable name first, the full id beside it (muted, smaller), capability tags on the right. */
 .qa-pick .qa-mname { display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; }
 .qa-pick .qa-mname .nm { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qa-pick .qa-mname .mid { flex: 1 1 0; min-width: 40px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -8,9 +6,6 @@
 :root[data-theme="light"] .qa-pick .tag.free { color: #15803d; }
 .qa-pick .tag.guess { display: inline-flex; align-items: center; gap: 4px; }
 .qa-pick .tag.guess svg { width: 13px; height: 13px; opacity: .7; }
-
-/* Round 34 (r34-quick-core): «Размышления» in the model picker — the levels the current model takes; a short badge on
-   the model chip when a level other than «Авто» is picked. */
 .qa-effort-row { flex-wrap: wrap; row-gap: 6px; }
 .qa-effort-label { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 560; white-space: nowrap; }
 .qa-effort-label svg { width: 13px; height: 13px; opacity: .8; }

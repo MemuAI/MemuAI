@@ -23,12 +23,10 @@ from pathlib import Path
 CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
 SECTIONS = ("quick-basics", "quick-behaviour", "quick-extensions", "quick-advanced")
 
-
 def set_prefs(base: str, patch: dict) -> None:
     request = urllib.request.Request(base + "/api/pg/preferences", data=json.dumps(patch).encode(),
                                      headers={"Content-Type": "application/json"}, method="POST")
     urllib.request.urlopen(request, timeout=10).read()
-
 
 async def open_quick(browser, base: str, problems: list, viewport=(1280, 900)):
     page = await browser.new_page(viewport={"width": viewport[0], "height": viewport[1]}, device_scale_factor=1)
@@ -41,7 +39,6 @@ async def open_quick(browser, base: str, problems: list, viewport=(1280, 900)):
     await page.wait_for_timeout(1300)
     return page
 
-
 async def overflow_check(page, problems: list, label: str) -> None:
     wide = await page.evaluate("""() => {
         const pane = document.querySelector('#pane-quick'); if (!pane) return [];
@@ -51,7 +48,6 @@ async def overflow_check(page, problems: list, label: str) -> None:
     }""")
     if wide:
         problems.append(f"{label}: elements stick out of the pane: {wide}")
-
 
 async def snap(page, path: Path, problems: list) -> None:
     """Viewport screenshot; headless WebGL (the companion preview) sometimes fails a capture — retry once."""
@@ -64,7 +60,6 @@ async def snap(page, path: Path, problems: list) -> None:
                 print(f"note: could not capture {path.name}: {exc}".splitlines()[0])
             await page.wait_for_timeout(700)
 
-
 async def section_shots(page, out: Path, suffix: str) -> None:
     for sid in SECTIONS:
         loc = page.locator(f"#{sid}")
@@ -72,7 +67,6 @@ async def section_shots(page, out: Path, suffix: str) -> None:
             await loc.scroll_into_view_if_needed()
             await page.wait_for_timeout(150)
             await loc.screenshot(path=str(out / f"sec-{sid}-{suffix}.png"))
-
 
 async def main(base: str, out: Path, quick: bool) -> int:
     from playwright.async_api import async_playwright
@@ -164,7 +158,6 @@ async def main(base: str, out: Path, quick: bool) -> int:
     for line in problems:
         print(line)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]

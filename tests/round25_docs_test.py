@@ -21,10 +21,8 @@ QUICK = (ROOT / "app" / "pgstatic" / "quick" / "quick.js").read_text(encoding="u
 VOICE_SETTINGS = (ROOT / "app" / "pgstatic" / "voice-settings.js").read_text(encoding="utf-8")
 DFY_CLIENT = (ROOT / "app" / "pgstatic" / "dfy-client.js").read_text(encoding="utf-8")
 
-
 def text(lang: str, page_id: str) -> str:
     return (ROOT / "app" / "docs" / lang / f"{page_id}.md").read_text(encoding="utf-8")
-
 
 class Live2DGuideTests(unittest.TestCase):
     def test_page_is_registered_next_to_companion_and_linked(self) -> None:
@@ -68,9 +66,8 @@ class Live2DGuideTests(unittest.TestCase):
             page = text(lang, "live2d-models")
             for word in quoted:
                 self.assertIn(f"`{word}`", page, f"{lang}: expression word {word}")
-        self.assertIn("/tap|flick/i", STAGE)          # the click motion group the page names
-        self.assertIn("/^idle/i", STAGE)              # «idle», «Idle_1» count as the idle group
-
+        self.assertIn("/tap|flick/i", STAGE)
+        self.assertIn("/^idle/i", STAGE)
 
 class Round24FeaturePagesTests(unittest.TestCase):
     def test_dfy_page_and_command(self) -> None:
@@ -80,7 +77,7 @@ class Round24FeaturePagesTests(unittest.TestCase):
             self.assertIn("`/dfy", text(lang, "commands"))
 
     def test_quick_ask_shortcuts_match_the_window(self) -> None:
-        # Round 24: Ctrl+Enter hands the request to DFY, Ctrl+Shift+Enter opens it in MemuAI.
+
         self.assertIn('if (mod && e.shiftKey && e.key === "Enter") { e.preventDefault(); openInMemuAI(); return; }', QUICK)
         self.assertIn("window.QuickDFY.run()", QUICK)
         for lang in docs.LANGUAGES:
@@ -88,10 +85,8 @@ class Round24FeaturePagesTests(unittest.TestCase):
             self.assertRegex(page, r"\| \+\+Ctrl\+Enter\+\+ \| \[[^]]+\]\(doc:dfy\)")
             self.assertIn("| ++Ctrl+Shift+Enter++ |", page)
 
-
 TOOL_ACTIONS = {"color.convert", "text.encode", "json.format", "hash.text", "text.case", "text.stats",
                 "date.calc", "time.zone", "random.pick", "lorem.generate"}
-
 
 class Round25SyncTests(unittest.TestCase):
     """«a5-docs-2»: the pages describe the final Round 25 code."""
@@ -122,9 +117,9 @@ class Round25SyncTests(unittest.TestCase):
         request = SimpleNamespace(client=SimpleNamespace(host="127.0.0.1"),
                                   headers={"cf-connecting-ip": "9.9.9.9", "x-forwarded-for": "1.1.1.1, 2.2.2.2"})
         with mock.patch.object(public_api, "_own_tunnel_running", return_value=False):
-            self.assertEqual(public_api.client_ip(request), "2.2.2.2")          # the last XFF entry
+            self.assertEqual(public_api.client_ip(request), "2.2.2.2")
         with mock.patch.object(public_api, "_own_tunnel_running", return_value=True):
-            self.assertEqual(public_api.client_ip(request), "9.9.9.9")          # only with our own tunnel
+            self.assertEqual(public_api.client_ip(request), "9.9.9.9")
         self.assertTrue(public_api.invalid_ips("1.2.3.4/40"))
         for lang in docs.LANGUAGES:
             page = text(lang, "proxy-public")
@@ -140,7 +135,7 @@ class Round25SyncTests(unittest.TestCase):
             body = page[page.index(section[lang]):]
             body = body[:body.index("\n## ", 3)]
             rows = [line for line in body.splitlines() if line.startswith("| ") and not line.startswith("| ---")][1:]
-            self.assertEqual(len(rows), 10, lang)                      # the ten Round 25 tools
+            self.assertEqual(len(rows), 10, lang)
             quote = r"«([^»]+)»" if lang == "ru" else r'"([^"]+)"'
             phrases = [p for row in rows for p in re.findall(quote, row.rsplit(" | ", 1)[1])]
             self.assertGreater(len(phrases), 25, lang)
@@ -148,11 +143,11 @@ class Round25SyncTests(unittest.TestCase):
                 found = intents.match(phrase)
                 self.assertIsNotNone(found, f"{lang}: {phrase}")
                 self.assertIn(found["action"], TOOL_ACTIONS, f"{lang}: {phrase}")
-            self.assertIn(f"{len(assistant_r25.ZONES) // 10 * 10}", body)   # «около 70 городов»
+            self.assertIn(f"{len(assistant_r25.ZONES) // 10 * 10}", body)
 
     def test_pin_and_step_back_are_described(self) -> None:
-        self.assertIn('$("qa-pin").hidden = !NATIVE;', QUICK)            # the pin is always in the footer
-        self.assertIn('windowAction("inactive")', QUICK)                  # an unpinned window steps back
+        self.assertIn('$("qa-pin").hidden = !NATIVE;', QUICK)
+        self.assertIn('windowAction("inactive")', QUICK)
         self.assertIn("Дождитесь ответа", QUICK)
         for lang, words in (("ru", ("уходит назад", "после перезапуска вернётся", "всегда видна")),
                             ("en", ("steps back", "comes back after a restart", "always visible"))):
@@ -181,7 +176,6 @@ class Round25SyncTests(unittest.TestCase):
             self.assertIn(panel_word, text(lang, "panels"))
             self.assertIn(gaze_word, text(lang, "live2d-models"))
             self.assertIn(gaze_word, text(lang, "companion"))
-
 
 if __name__ == "__main__":
     unittest.main()

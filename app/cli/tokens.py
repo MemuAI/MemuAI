@@ -13,16 +13,13 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from ..token_estimate import _MEMO, _MEMO_LIMIT, estimate, estimate_float  # noqa: F401  (the memo is shared)
 
-
 def estimate_text(text: str) -> int:
     return estimate(text) if text else 0
-
 
 def chunk_tokens(text: str) -> float:
     """Tokens of a piece of streamed text: like :func:`estimate_text`, but fractional (a three-character piece is
     not "one token") and without the memo — pieces are short and never repeat."""
     return estimate_float(text) if text else 0.0
-
 
 class RateMeter:
     """How fast a model writes, in tokens per second — and silence when that cannot be known.
@@ -53,7 +50,7 @@ class RateMeter:
         self.reset()
 
     def reset(self) -> None:
-        self._events: List[Tuple[float, float]] = []     # (time, tokens of that piece); the first one is the anchor
+        self._events: List[Tuple[float, float]] = []
         self._shown = 0.0
         self.bursts = 0
 
@@ -62,16 +59,16 @@ class RateMeter:
             return
         if tokens > self.BURST:
             self.bursts += 1
-            self._events = [(now, 0.0)]                    # start measuring again after the dump
+            self._events = [(now, 0.0)]
             self._shown = 0.0
             return
         if not self._events:
-            self._events.append((now, 0.0))                # the first piece only says when the stream began
+            self._events.append((now, 0.0))
             return
         self._events.append((now, tokens))
         edge = now - self.WINDOW
         while len(self._events) > 2 and self._events[1][0] < edge:
-            self._events.pop(0)                            # the next piece becomes the anchor: its tokens are not counted
+            self._events.pop(0)
 
     def rate(self, now: float) -> Optional[float]:
         events = self._events
@@ -89,7 +86,6 @@ class RateMeter:
         self._shown = raw if not self._shown else self._shown * 0.7 + raw * 0.3
         return self._shown
 
-
 def estimate_image(width: int = 0, height: int = 0) -> int:
     """Vision cost of one image: tokens ≈ pixels / 750, capped like the APIs do."""
     if width <= 0 or height <= 0:
@@ -97,7 +93,6 @@ def estimate_image(width: int = 0, height: int = 0) -> int:
     scale = min(1.0, 1568 / max(width, height))
     w, h = width * scale, height * scale
     return int(min(1600, max(85, (w * h) / 750)))
-
 
 def estimate_content(content: Any) -> int:
     if content is None:
@@ -120,16 +115,11 @@ def estimate_content(content: Any) -> int:
         return estimate_text(json.dumps(content, ensure_ascii=False))
     return estimate_text(str(content))
 
-
-#: What an elided tool result costs: convert.py sends a one-line stub instead of its body.
 _ELIDED_TOKENS = 24
-
 
 def estimate_message(message: Dict[str, Any]) -> int:
     if message.get("elided") and message.get("role") == "tool":
-        # The body is not sent any more. Counting it in full kept the usage at
-        # the same level after elision, so compaction fired anyway and /context
-        # showed tokens the request did not carry.
+
         return 4 + _ELIDED_TOKENS
     total = 4 + estimate_content(message.get("content"))
     for image in message.get("images") or []:
@@ -143,10 +133,8 @@ def estimate_message(message: Dict[str, Any]) -> int:
                 arguments if isinstance(arguments, str) else json.dumps(arguments, ensure_ascii=False))
     return total
 
-
 def estimate_messages(messages: Iterable[Dict[str, Any]]) -> int:
     return sum(estimate_message(message) for message in messages)
-
 
 def compact_number(value: float) -> str:
     """1234 → 1.2k, 1_500_000 → 1.5M."""
@@ -158,7 +146,6 @@ def compact_number(value: float) -> str:
         text = f"{value / 1000:.1f}".rstrip("0").rstrip(".")
         return text + "k"
     return str(int(value))
-
 
 def split_budget(texts: List[str], budget: int) -> List[str]:
     """Share ``budget`` characters between texts so one huge result cannot

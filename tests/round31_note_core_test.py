@@ -22,9 +22,6 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "memunote" / "static"
 JS = STATIC / "js"
 
-
-# ===================================================================================== winreg mock
-
 class FakeKey:
     def __init__(self, reg, hive, path):
         self.reg, self.hive, self.path = reg, hive, path
@@ -34,7 +31,6 @@ class FakeKey:
 
     def __exit__(self, *exc):
         return False
-
 
 class FakeWinreg:
     """A tiny in-memory registry: enough of ``winreg`` for app/memunote/winsys.py.
@@ -46,10 +42,9 @@ class FakeWinreg:
     REG_SZ, REG_NONE, REG_DWORD = 1, 0, 4
 
     def __init__(self):
-        self.keys = {}          # (hive, lower path) -> {"name": path, "values": {lname: (name, value, kind)}}
-        self.log = []           # every write: (op, hive, path, name, value)
+        self.keys = {}
+        self.log = []
 
-    # -- helpers
     def _k(self, hive, path):
         return (hive, path.lower().strip("\\"))
 
@@ -80,7 +75,6 @@ class FakeWinreg:
             raise FileNotFoundError(path)
         return hive, path
 
-    # -- winreg API
     def CreateKeyEx(self, hive, path, reserved=0, access=0):
         assert hive != "HKCR", "MemuNote must only write HKCU"
         assert hive == "HKCU", f"MemuNote must only write HKCU, not {hive}"
@@ -159,17 +153,15 @@ class FakeWinreg:
         data = self.keys[self._k(key.hive, key.path)]
         return len(self._children(key.hive, key.path)), len(data["values"]), 0
 
-
 DANGEROUS = [".bat", ".cmd", ".ps1", ".vbs", ".js", ".exe", ".reg", ".sh", ".py", ".com", ".scr", ".msi", ".lnk", ".hta"]
 EXE = r"C:\Users\u\AppData\Local\Programs\MemuAI\MemuNote\MemuNote.exe"
-
 
 class AssociationTest(unittest.TestCase):
     def setUp(self) -> None:
         from app.memunote import winsys
         self.winsys = winsys
         self.reg = FakeWinreg()
-        # System programs that already own some types (HKLM), like on a real Windows.
+
         for ext, progid in ((".txt", "txtfile"), (".bat", "batfile"), (".cmd", "cmdfile"), (".ps1", "Microsoft.PowerShellScript.1"),
                             (".js", "JSFile"), (".vbs", "VBSFile"), (".reg", "regfile"), (".exe", "exefile"), (".log", "txtfile"),
                             (".pdf", "MSEdgePDF"), (".docx", "Word.Document.12")):
@@ -211,13 +203,13 @@ class AssociationTest(unittest.TestCase):
                 self.fail(f"a .ext key itself was written: {path} {name}")
             if op == "set" and re.search(r"software\\classes\\\.[^\\]+$", low) and name == "":
                 self.fail("default program changed")
-        # .txt has a system program -> in the "Open with" submenu; .md has none -> only a candidate (no .md key created).
+
         self.assertEqual(self.reg.value("HKCU", r"Software\Classes\.txt\OpenWithProgids", "MemuNote.Document"), b"")
         self.assertFalse(self.reg.has("HKCU", r"Software\Classes\.md"))
         self.assertIn(".md", [n for n, *_ in self.reg.keys[("HKCU", (self.winsys.APP_KEY + r"\SupportedTypes").lower())]["values"].values()])
         for ext in DANGEROUS:
             self.assertFalse(self.reg.has("HKCU", "Software\\Classes\\" + ext), ext)
-        # the defaults Windows resolves stay the system programs
+
         self.assertEqual(self.reg.value("HKLM", r"Software\Classes\.bat"), "batfile")
         self.assertIsNone(self.reg.value("HKCU", r"Software\Classes\.txt"))
         self.assertTrue(self.winsys.open_with_state(EXE)["enabled"])
@@ -228,8 +220,8 @@ class AssociationTest(unittest.TestCase):
         self.winsys.register_open_with(False, exe=EXE)
         left = [data["name"] for (hive, p), data in self.reg.keys.items() if "memunote" in p or any(
             "memunote" in str(v[0]).lower() for v in data["values"].values())]
-        self.assertEqual(left, ["Software\\MemuAI\\MemuNote"])          # only the migration marker
-        self.winsys.forget_state()                                          # the uninstaller drops it too
+        self.assertEqual(left, ["Software\\MemuAI\\MemuNote"])
+        self.winsys.forget_state()
         self.assertFalse(self.reg.has("HKCU", r"Software\MemuAI"))
         self.assertEqual(self.reg.value("HKCU", r"Software\Classes\.txt\OpenWithProgids", "Notepad++_file"), b"")
         self.assertFalse(self.winsys.open_with_state(EXE)["enabled"])
@@ -249,7 +241,7 @@ class AssociationTest(unittest.TestCase):
             reg.preset("HKCU", w.FILE_EXTS + r"\.ps1\OpenWithList", "a", "MemuNote.exe")
             reg.preset("HKCU", w.FILE_EXTS + r"\.ps1\OpenWithList", "b", "notepad.exe")
             reg.preset("HKCU", w.FILE_EXTS + r"\.ps1\OpenWithList", "MRUList", "ab")
-            reg.preset("HKCU", w.FILE_EXTS + r"\.md\UserChoice", "ProgId", w.PROGID)   # a document: the user's choice stays
+            reg.preset("HKCU", w.FILE_EXTS + r"\.md\UserChoice", "ProgId", w.PROGID)
 
     def test_migration_cleans_round30_and_reregisters_safe_list_once(self) -> None:
         self._legacy_round30()
@@ -270,7 +262,7 @@ class AssociationTest(unittest.TestCase):
         self.assertTrue(w.open_with_state(EXE)["enabled"])
         self.assertEqual(reg.value("HKCU", w.STATE_KEY, "AssocVersion"), str(w.ASSOC_VERSION))
         reg.log.clear()
-        self.assertFalse(w.migrate()["migrated"])          # marker: nothing is written on later starts
+        self.assertFalse(w.migrate()["migrated"])
         self.assertEqual([x for x in reg.log if x[0] != "create"], [])
 
     def test_uninstall_without_migration_cleans_script_choices(self) -> None:
@@ -282,7 +274,7 @@ class AssociationTest(unittest.TestCase):
         self.assertEqual(w.clean_script_choices(), [".bat", ".ps1"])
         w.forget_state()
         self.assertFalse(reg.has("HKCU", w.FILE_EXTS + r"\.bat\UserChoice"))
-        self.assertEqual(reg.value("HKCU", w.FILE_EXTS + r"\.md\UserChoice", "ProgId"), w.PROGID)   # document: kept
+        self.assertEqual(reg.value("HKCU", w.FILE_EXTS + r"\.md\UserChoice", "ProgId"), w.PROGID)
         self.assertFalse(reg.has("HKCU", w.STATE_KEY))
         result = w.migrate()
         self.assertTrue(result["migrated"])
@@ -303,21 +295,17 @@ class AssociationTest(unittest.TestCase):
         src = (ROOT / "app" / "memunote" / "desktop.py").read_text(encoding="utf-8")
         self.assertIn("--migrate-open-with", src)
         self.assertIn("winsys.migrate()", src)
-        # nothing registers itself on start: only the explicit flag / the settings switch
+
         self.assertEqual(len(re.findall(r"register_open_with\(True", src)), 1)
         js = (JS / "app.js").read_text(encoding="utf-8")
         self.assertNotRegex(js, r"(?i)make.{0,20}default|по умолчанию\?")
         ui = (ROOT / "app" / "pgstatic" / "memunote-settings.js").read_text(encoding="utf-8")
         self.assertIn(".bat, .cmd, .ps1", ui)
 
-
-# ===================================================================================== formats
-
 import sys  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import round31_note_samples as samples  # noqa: E402
-
 
 class FormatsTest(unittest.TestCase):
     @classmethod
@@ -335,11 +323,11 @@ class FormatsTest(unittest.TestCase):
         self.assertEqual([s["name"] for s in result["sheets"]], ["Продажи", "Second"])
         rows = result["sheets"][0]["rows"]
         self.assertEqual(rows[0], ["Имя", "Город", "Сумма", "Дата"])
-        self.assertEqual(rows[1], ["Анна", "Рига", "1250.5", "2025-10-11"])          # numFmt 14 -> a date
-        self.assertEqual(rows[2], ["Борис", "Вильнюс", "300", "2025-10-12 12:00", "", "TRUE"])   # gap column E + bool
-        self.assertEqual(rows[3], [])                                                  # row 4 is absent
-        self.assertEqual(rows[4], ["Итого", "", "1550.5"])                             # inlineStr + cached formula value
-        self.assertEqual(result["sheets"][1]["rows"], [["42"]])                        # absolute rels target
+        self.assertEqual(rows[1], ["Анна", "Рига", "1250.5", "2025-10-11"])
+        self.assertEqual(rows[2], ["Борис", "Вильнюс", "300", "2025-10-12 12:00", "", "TRUE"])
+        self.assertEqual(rows[3], [])
+        self.assertEqual(rows[4], ["Итого", "", "1550.5"])
+        self.assertEqual(result["sheets"][1]["rows"], [["42"]])
         csv_text = sheets.to_csv([["a,b", 'q"'], ["1"]])
         self.assertIn('"a,b"', csv_text)
         self.assertIn('"q"""', csv_text)
@@ -349,9 +337,9 @@ class FormatsTest(unittest.TestCase):
         result = sheets.read_sheet(str(self.files["ods"]))
         sheet = result["sheets"][0]
         self.assertEqual(sheet["name"], "Лист1")
-        self.assertEqual(sheet["rows"][0], ["a", "7", "7"])                             # number-columns-repeated
+        self.assertEqual(sheet["rows"][0], ["a", "7", "7"])
         self.assertEqual(sheet["rows"][4], ["2026-10-11", "TRUE"])
-        self.assertLess(len(sheet["rows"]), 100)          # 1 048 000 trailing empty repeated rows are not expanded
+        self.assertLess(len(sheet["rows"]), 100)
 
     def test_damaged_spreadsheet_raises(self) -> None:
         from app.memunote.formats import sheets
@@ -430,7 +418,6 @@ class FormatsTest(unittest.TestCase):
         self.assertIn("print(sum(x))", data["py"])
         self.assertEqual(second, "ERR")
 
-
 def _tiny_pdf(lines) -> bytes:
     """A valid one-page PDF (Helvetica) with the given ASCII lines, xref offsets computed."""
     content = "BT /F1 14 Tf 72 720 Td " + " ".join(f"({s}) Tj 0 -20 Td" for s in lines) + " ET"
@@ -450,7 +437,6 @@ def _tiny_pdf(lines) -> bytes:
     out.write(f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode())
     return out.getvalue()
 
-
 class PdfToolsTest(unittest.TestCase):
     def test_extract_text_in_reading_order(self) -> None:
         try:
@@ -467,9 +453,6 @@ class PdfToolsTest(unittest.TestCase):
             md = pdftools.extract(str(path), "markdown")
             self.assertIn("Third line", md)
             self.assertLessEqual(len(pdftools.extract(str(path), "text", max_chars=5)), 200)
-
-
-# ===================================================================================== HTTP API
 
 class _ServerCase(unittest.TestCase):
     def setUp(self) -> None:
@@ -513,18 +496,18 @@ class ApiTest(_ServerCase):
         resp, opened = self.call("POST", "/api/open", {"path": str(target)})
         self.assertEqual(resp.status, 200, opened)
         mtime = opened.get("mtime") or self.server._stat(str(target))["mtime"]
-        # not a PDF -> refused, file intact
+
         resp, data = self.call("POST", f"/api/save_binary?path={self.q(target)}&mtime={mtime}", b"<html>nope</html>")
         self.assertEqual(resp.status, 400)
         self.assertEqual(target.read_bytes(), pdf)
-        # a good save
+
         new = _tiny_pdf(["v2"])
         resp, data = self.call("POST", f"/api/save_binary?path={self.q(target)}&mtime={mtime}", new)
         self.assertEqual(resp.status, 200, data)
         self.assertTrue(data["ok"])
         self.assertEqual(target.read_bytes(), new)
-        self.assertEqual([p.name for p in self.dir.iterdir() if p.name.startswith("doc")], ["doc.pdf"])   # no temp left
-        # someone else changed it -> conflict, nothing written; force overrides
+        self.assertEqual([p.name for p in self.dir.iterdir() if p.name.startswith("doc")], ["doc.pdf"])
+
         os.utime(target, (1_000_000, 1_000_000))
         resp, data = self.call("POST", f"/api/save_binary?path={self.q(target)}&mtime={data['mtime']}", _tiny_pdf(["v3"]))
         self.assertTrue(data.get("conflict"), data)
@@ -532,7 +515,7 @@ class ApiTest(_ServerCase):
         resp, data = self.call("POST", f"/api/save_binary?path={self.q(target)}&force=1", _tiny_pdf(["v3"]))
         self.assertTrue(data["ok"])
         self.assertIn(b"(v3)", target.read_bytes())
-        # backup on request
+
         resp, data = self.call("POST", f"/api/save_binary?path={self.q(target)}&force=1&backup=1", _tiny_pdf(["v4"]))
         self.assertTrue(data["ok"])
 
@@ -562,11 +545,11 @@ class ApiTest(_ServerCase):
         self.assertEqual(body.decode(), "строка 3\n")
         self.assertEqual(resp.getheader("X-MN-Size"), str(log.stat().st_size))
         self.assertEqual(resp.getheader("Content-Length"), str(len(body)))
-        resp, body = self.call("GET", f"/api/raw?path={self.q(log)}&offset=999999", raw=True)   # clamped
+        resp, body = self.call("GET", f"/api/raw?path={self.q(log)}&offset=999999", raw=True)
         self.assertEqual(body, b"")
-        resp, body = self.call("GET", f"/api/raw?path={self.q(log)}&offset=abc", raw=True)      # ignored
+        resp, body = self.call("GET", f"/api/raw?path={self.q(log)}&offset=abc", raw=True)
         self.assertTrue(body.startswith(b"line 1"))
-        # the token may come as ?t= (img / pdf.js), but never missing
+
         conn = http.client.HTTPConnection("127.0.0.1", self.app.port, timeout=10)
         conn.request("GET", f"/api/raw?path={self.q(log)}", headers={"Host": f"127.0.0.1:{self.app.port}"})
         self.assertEqual(conn.getresponse().status, 401)
@@ -586,10 +569,10 @@ class ApiTest(_ServerCase):
     def test_events_are_not_replayed_after_a_reload(self) -> None:
         self.app.events.push({"type": "open", "paths": ["/tmp/a.txt"]})
         _, boot = self.call("GET", "/api/boot")
-        self.assertEqual(boot["events_seq"], 0)               # nothing delivered yet: a fresh page gets it
+        self.assertEqual(boot["events_seq"], 0)
         _, ev = self.call("GET", "/api/events?since=0")
         self.assertEqual(ev["events"], [{"type": "open", "paths": ["/tmp/a.txt"]}])
-        _, boot = self.call("GET", "/api/boot")                # the page reloads
+        _, boot = self.call("GET", "/api/boot")
         self.assertEqual(boot["events_seq"], ev["seq"])
         js = (JS / "app.js").read_text(encoding="utf-8")
         self.assertIn("MN.boot?.events_seq", js)
@@ -608,9 +591,6 @@ class ApiTest(_ServerCase):
         resp, data = self.call("POST", "/api/open", {"path": str(bad)})
         self.assertEqual(resp.status, 400)
 
-
-# ===================================================================================== dialogs
-
 class DialogStaticTest(unittest.TestCase):
     def test_markdown_dialog_has_no_cancel_and_uses_real_extension(self) -> None:
         js = (JS / "app.js").read_text(encoding="utf-8")
@@ -623,9 +603,8 @@ class DialogStaticTest(unittest.TestCase):
         for m in re.finditer(r'md_keep_txt:\s*"([^"]+)"', from_i18n):
             self.assertIn("{ext}", m.group(1))
         core = (JS / "core.js").read_text(encoding="utf-8")
-        self.assertIn('e.key === "Escape"', core)          # Esc and × cancel every modal
+        self.assertIn('e.key === "Escape"', core)
         self.assertIn('querySelector(".modal-x").onclick = () => done(null)', core)
-
 
 class EncodingRoundTripTest(_ServerCase):
     """Deep check (finisher): legacy encodings open and save back byte-identically; recent files dedupe."""
@@ -636,9 +615,9 @@ class EncodingRoundTripTest(_ServerCase):
         resp, info = self.call("POST", "/api/open", {"path": str(path)})
         self.assertEqual(resp.status, 200, info)
         text = info.get("text")
-        if text is None:                                   # decoded by the page (web_encoding)
+        if text is None:
             _, body = self.call("GET", f"/api/raw?path={self.q(path)}", raw=True)
-            text = body.decode(info["web_encoding"]).lstrip("\ufeff")   # TextDecoder drops the BOM
+            text = body.decode(info["web_encoding"]).lstrip("\ufeff")
         self.assertEqual(text.replace("\r\n", "\n"), expect_text)
         eol = info.get("eol") if info.get("eol") in ("lf", "crlf", "cr") else "lf"
         bom = "1" if info.get("bom") else "0"
@@ -662,15 +641,11 @@ class EncodingRoundTripTest(_ServerCase):
         self.assertEqual(len(data["recent"]), len(set(data["recent"])))
         self.assertLessEqual(len(data["recent"]), 30)
 
-
-# ===================================================================================== browser
-
 def _chromium():
     for path in ("/usr/bin/chromium", "/workspace/work/chromium/chrome", shutil.which("chromium") or "", shutil.which("google-chrome") or ""):
         if path and os.path.exists(path):
             return path
     return None
-
 
 class BrowserViewsTest(_ServerCase):
     """Real page in headless Chromium: spreadsheet, book TOC, notebook, JSON tree, XML format/validate,
@@ -708,7 +683,7 @@ class BrowserViewsTest(_ServerCase):
                 toasts = "() => [...document.querySelectorAll('.toast')].map(t => t.textContent.trim()).join(' | ')"
                 active_doc = "() => { const v = MN.panes.find(p => p.view && !p.editorHost.hidden)?.view; return v ? v.state.doc.toString() : null }"
 
-                opn(files["xlsx"])          # Round 40 (r40-note): the editable grid (sheetgrid.js) replaced the read-only table
+                opn(files["xlsx"])
                 self.assertIn("Анна", pg.inner_text(".sg-cells"))
                 pg.click(".sg-tab >> text=Second")
                 _t.sleep(0.3)
@@ -733,7 +708,7 @@ class BrowserViewsTest(_ServerCase):
                 pg.click("[data-a='xml:format']")
                 _t.sleep(0.5)
                 self.assertIn('\n  <item key="a">1</item>', pg.evaluate(active_doc).replace("    ", "  "))
-                self.assertIsNone(pg.query_selector("[data-a='md:bold']"))          # no Markdown buttons for XML
+                self.assertIsNone(pg.query_selector("[data-a='md:bold']"))
                 opn(bad)
                 pg.click("[data-a='xml:validate']")
                 _t.sleep(0.4)
@@ -759,7 +734,6 @@ class BrowserViewsTest(_ServerCase):
                 self.assertEqual(errors, [])
             finally:
                 browser.close()
-
 
 class AIPanelFinisherStaticTest(unittest.TestCase):
     """Fixes of the finisher pass in the AI panel (verified with screenshots; see changelog)."""

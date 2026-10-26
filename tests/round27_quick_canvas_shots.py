@@ -36,12 +36,10 @@ CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or (
 MODELS = [{"id": "deepseek-v4.1-flash", "caps": {"vision": False, "search": False}}]
 CALLS: list = []
 
-
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
-
 
 def seed_panels():
     from app import panels
@@ -65,7 +63,6 @@ def seed_panels():
                 p["sources"] = [{"name": "Open-Meteo", "url": "https://open-meteo.com"}]
     panels.mutate(fill)
     return {"todo": todo["id"], "clock": clock["id"], "notes": notes["id"], "weather": weather["id"]}
-
 
 def make_app():
     from fastapi import FastAPI
@@ -96,7 +93,6 @@ def make_app():
     panels_api.register_panel_routes(app)
     app.mount("/", StaticFiles(directory=str(STATIC), html=True))
     return app
-
 
 async def main(out: Path) -> int:
     import uvicorn
@@ -184,7 +180,6 @@ async def main(out: Path) -> int:
         api = lambda page, path, body=None: page.evaluate(  # noqa: E731
             "([p, b]) => fetch(p, b ? {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(b)} : {}).then(r => r.json())", [path, body])
 
-        # 1. opens folded, input focused, panels.js lazy; empty canvas
         page = await open_page()
         check(await page.evaluate("document.activeElement && document.activeElement.id === 'qa-input'"), "the input has the focus on open")
         check(await page.evaluate("!document.querySelector('.qcv-body') || document.querySelector('.qcv-body').hidden"), "the canvas is folded by default")
@@ -195,7 +190,7 @@ async def main(out: Path) -> int:
         check(await page.evaluate("!document.querySelector('.qcv-body').hidden"), "Ctrl+B opens the canvas")
         check(await page.evaluate("!!window.MemuPanels"), "opening the canvas loads panels.js")
         await shot(page, "qcv-empty-dark-ru")
-        # Esc inside the canvas → back to the input, the window does not close
+
         await page.focus('[data-qcv="add"]')
         await page.keyboard.press("Escape")
         await page.wait_for_timeout(200)
@@ -205,7 +200,6 @@ async def main(out: Path) -> int:
         await shot(page, "qcv-templates-dark-ru")
         await page.close()
 
-        # 2. fill: panels of every size + buttons from the API
         for key, size in (("weather", "m"), ("todo", "l"), ("clock", "s"), ("notes", "w")):
             r = await asyncio.to_thread(lambda: __import__("httpx").post(base + "/api/quick/canvas/panels", json={"panel": seeded[key], "size": size}, timeout=10).json())
             check(r.get("ok"), f"add panel {key}")
@@ -231,7 +225,6 @@ async def main(out: Path) -> int:
             await shot(page, f"qcv-grid-{theme}-{lang}-{width}", width)
             await page.close()
 
-        # 3. sync: toggle a To-Do in the window → backend; a backend change → window
         page = await open_page()
         await page.keyboard.press("Control+b")
         await page.wait_for_timeout(1300)
@@ -253,7 +246,6 @@ async def main(out: Path) -> int:
             check(False, "a To-Do checkbox in the window")
         await shot(page, "qcv-todo-synced-dark-ru")
 
-        # 4. edit mode + drag a button
         await page.keyboard.press("Control+e")
         await page.wait_for_timeout(400)
         check(await page.evaluate("document.querySelector('.qcv').dataset.edit === '1'"), "Ctrl+E enters edit mode")
@@ -274,9 +266,8 @@ async def main(out: Path) -> int:
         await page.keyboard.press("Escape")
         await page.wait_for_timeout(400)
         check(await page.evaluate("document.querySelector('.qcv').dataset.edit === '0'"), "Esc leaves edit mode")
-        await layout_ok(page, "after drag")      # (not while wiggling: a rotated item's box is a little larger)
+        await layout_ok(page, "after drag")
 
-        # 5. first run of a risky button → approval; then the in-run confirmation of the dangerous-free path
         CALLS.clear()
         await page.evaluate(f"MemuQuickCanvas.runAction('{closer['action']['id']}', true)")
         await page.wait_for_timeout(500)
@@ -289,7 +280,6 @@ async def main(out: Path) -> int:
         await shot(page, "qcv-run-done-dark-ru")
         await page.close()
 
-        # 6. editor (new macro) en/light and ru/dark
         for theme, lang in (("light", "en"), ("dark", "ru")):
             page = await open_page(theme=theme, lang=lang)
             await page.keyboard.press("Control+b")
@@ -298,7 +288,7 @@ async def main(out: Path) -> int:
             await page.evaluate("(t) => MemuQuickCanvas.openEditor(null, t)", tpl)
             await page.wait_for_timeout(900)
             await shot(page, f"qcv-editor-{theme}-{lang}")
-            # the steps part: add a PowerShell step (warning) and a keys step (asks on the first run)
+
             await page.click('[data-add-step="keys"]')
             await page.click('[data-add-step="shell"]')
             await page.fill('[data-f="s3.keys"]', "Ctrl+Shift+Esc")
@@ -311,7 +301,6 @@ async def main(out: Path) -> int:
             await shot(page, f"qcv-editor-steps-{theme}-{lang}")
             await page.close()
 
-        # 7. pinned strip with the canvas folded + an in-run confirmation notice
         layout = httpx.get(base + "/api/quick/canvas", timeout=10).json()
         items = layout["layout"]["items"]
         for i in items[:6]:
@@ -332,7 +321,6 @@ async def main(out: Path) -> int:
         check(not any(c[0] == "keys.press" for c in CALLS), "a rejected step never ran")
         await page.close()
 
-        # 8. reduced motion: no wiggle animation in edit mode
         page = await open_page(theme="light", reduced=True)
         await page.keyboard.press("Control+b")
         await page.wait_for_timeout(1000)
@@ -349,8 +337,7 @@ async def main(out: Path) -> int:
         print(" -", p)
     return 1 if problems else 0
 
-
 if __name__ == "__main__":
     out_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r27/r27-quick-canvas")
-    os.environ["MEMUAI_DATA_DIR"] = tempfile.mkdtemp(prefix="qcv-shots-")   # never the caller's profile: panels are seeded
+    os.environ["MEMUAI_DATA_DIR"] = tempfile.mkdtemp(prefix="qcv-shots-")
     sys.exit(asyncio.run(main(out_dir)))

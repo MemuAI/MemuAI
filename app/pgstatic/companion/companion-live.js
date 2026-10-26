@@ -1,9 +1,5 @@
-/* MemuAI companion in MemuAI Live (main window).
 
-   app.js calls MemuCompanionLive.emit(type, data) at a few points of the Live
-   flow (open/close/minimize, state, captions, TTS audio); everything else —
-   which placement, lip sync source, emotions — is decided here. When the
-   companion is off or fails (no WebGL, broken model) the Live orb stays. */
+
 (function () {
   "use strict";
   const Core = window.MemuCompanionCore;
@@ -39,7 +35,7 @@
           host.classList.toggle("has-companion", !floating);
           if (greet) { greet = false; inst && inst.gesture("wave"); }
         } else if (type === "error") {
-          // Fall back to the orb rather than leave an empty area.
+
           host.classList.remove("has-companion");
           if (!floating && inst) inst.el.hidden = true;
         } else if (type === "click") {
@@ -104,15 +100,14 @@
         if (inst && data.role === "assistant") inst.text(data.text, true);
         break;
       case "audio": {
-        // Classic Live / read-aloud: the reply's <audio> element and its text.
+
         if (!inst || !data.audio) return;
         const audio = data.audio;
         speakingAudio = audio;
         inst.attachAudio(audio);
         inst.text(data.text || "", true);
         inst.speak(true, data.text || "");
-        // Round 26: only the reply that is still playing may stop the mouth — the previous <audio>, paused when
-        // the next reply starts, used to detach the NEW one (the lips froze for the rest of that reply).
+
         const done = () => {
           if (speakingAudio !== audio) return;
           speakingAudio = null;
@@ -131,7 +126,6 @@
       ? "\n" + Core.promptHint(lang() === "en") : "";
   }
 
-  /** Settings changed: re-place or re-skin the live companion. */
   function refresh() {
     if (!live) return;
     if (!enabled()) { destroy(); return; }

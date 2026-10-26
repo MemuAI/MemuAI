@@ -24,7 +24,6 @@ MAX_AUDIO = 24 * 1024 * 1024
 MIMES = {"audio/wav": "wav", "audio/x-wav": "wav", "audio/mpeg": "mp3", "audio/mp3": "mp3",
          "audio/ogg": "ogg", "audio/webm": "webm", "audio/mp4": "m4a", "audio/flac": "flac"}
 
-
 class MusicStartError(ValueError):
     """Explicit HTTP rejection before the provider accepted a music job."""
     def __init__(self, message, status, body=""):
@@ -32,12 +31,10 @@ class MusicStartError(ValueError):
         self.status = status
         self.body = body
 
-
 def _audio_mime(raw):
     return ("audio/wav" if raw[:4] == b"RIFF" else "audio/ogg" if raw[:4] == b"OggS"
             else "audio/flac" if raw[:4] == b"fLaC" else "audio/webm" if raw[:4] == b"\x1aE\xdf\xa3"
             else "audio/mp4" if raw[4:8] == b"ftyp" else "audio/mpeg")
-
 
 def decode_audio(data):
     match = re.fullmatch(r"data:(audio/[\w.+-]+)(?:;[^,]*)?;base64,([A-Za-z0-9+/=\s]+)", str(data))
@@ -54,10 +51,8 @@ def decode_audio(data):
         raise ValueError("Формат аудиофайла не совпадает / Audio file format mismatch")
     return raw, mime
 
-
 def clip_folder(profile_id=None):
     return pgdata.MEMU_DIR / pgdata._profile_data_name("voice_clips", profile_id)
-
 
 def save_clip(data, *, profile_id=None, duration=0, truncated=False):
     raw, mime = decode_audio(data)
@@ -78,7 +73,6 @@ def save_clip(data, *, profile_id=None, duration=0, truncated=False):
     active = profile_id or pgdata.load_profiles().get("active_id", "default")
     return {"url": f"/api/voice/clips/{name}?profile_id={active}", "mime": mime,
             "duration": max(0, min(3600, float(duration or 0))), "size": len(raw), "truncated": bool(truncated)}
-
 
 def music_config(module_id, payload=None):
     require(module_id, "media")
@@ -101,7 +95,6 @@ def music_config(module_id, payload=None):
     config = load_json_with_recovery(str(path), {}).get(module_id, {})
     return {**{key: value for key, value in config.items() if key != "api_key"}, "key_saved": bool(config.get("api_key"))}
 
-
 def _substitute(obj, values):
     if isinstance(obj, dict):
         return {key: _substitute(value, values) for key, value in obj.items()}
@@ -114,7 +107,6 @@ def _substitute(obj, values):
         return re.sub(r"\{\{(\w+)\}\}", lambda match: str(values.get(match[1], "")), obj)
     return obj
 
-
 async def generate_music(module_id, payload):
     require(module_id, "media", enabled=True)
     path = modules_host.default_root() / "media-connections.json"
@@ -122,7 +114,6 @@ async def generate_music(module_id, payload):
     if not config.get("endpoint"):
         raise ValueError("Сначала подключите музыкальный API / Connect a music API first")
     return await generate_config(config, payload, guard=lambda: require(module_id, "media", enabled=True))
-
 
 async def generate_config(config, payload, *, guard=lambda: None, headers=None):
     """Shared bounded transport for Proxy adapters and retained legacy connections."""
@@ -137,7 +128,7 @@ async def generate_config(config, payload, *, guard=lambda: None, headers=None):
     if headers is None:
         headers = _headers(config) if config.get("api_key") else None
     try:
-        # ElevenLabs answers with the finished track: a long one is composed before the first byte arrives.
+
         raw, mime, final_url = await public_request(config["endpoint"], method="POST", headers=headers, payload=request, limit=MAX_AUDIO,
                                                     timeout=600 if config.get("preset") == "elevenlabs" else 180)
     except ValueError as exc:
@@ -197,7 +188,7 @@ async def generate_config(config, payload, *, guard=lambda: None, headers=None):
             finally:
                 guard()
             if mime.split(";")[0] not in MIMES:
-                # Signed CDN downloads sometimes use application/octet-stream.
+
                 mime = _audio_mime(raw)
             data = f"data:{mime.split(';')[0]};base64," + base64.b64encode(raw).decode("ascii")
             decode_audio(data)

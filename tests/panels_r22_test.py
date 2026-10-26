@@ -13,7 +13,6 @@ from unittest.mock import patch
 
 from app import panels, panels_system, pgdata
 
-
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -30,7 +29,6 @@ class Base(unittest.TestCase):
 
     def find(self, pid):
         return next(p for p in panels.load()["panels"] if p["id"] == pid)
-
 
 class CadenceTest(Base):
     def test_presets_and_floors(self):
@@ -75,7 +73,6 @@ class CadenceTest(Base):
         out = panels._finish(p["id"], wall=panels.Wall("blocked:source-down", "x"), now=now)
         self.assertLessEqual(out["next_refresh"] - now, 24 * 3600)
 
-
 class SystemTest(Base):
     def test_build_from_two_samples(self):
         prev = {"t": 0.0, "cpu": (100.0, 400.0), "net": (1000.0, 500.0), "disk_io": (0.0, 0.0)}
@@ -83,7 +80,7 @@ class SystemTest(Base):
                "net": (3048.0, 1524.0), "disk_io": (2 * 2 ** 20, 0.0),
                "disks": [{"mount": "C:", "total": 500e9, "used": 125e9}], "battery": None, "temp": 54.0, "uptime": 99.0}
         out = panels_system.build(prev, cur, 2.0, lang="ru")
-        self.assertEqual(out["cpu"], 70.0)          # 1 - 30/100
+        self.assertEqual(out["cpu"], 70.0)
         self.assertEqual(out["ram"], 25.0)
         self.assertEqual(out["ram_caption"], "4 ГБ / 16 ГБ")
         self.assertEqual(out["net_down"], "1 КБ/с")
@@ -115,14 +112,12 @@ class SystemTest(Base):
         self.assertIn("row", types)
         self.assertEqual([c["type"] for c in panel["spec"]["blocks"][1]["blocks"]], ["gauge"] * 4)
 
-
 async def fake_search(query, limit=5):
     return {"results": [
         {"title": "250 лучших фильмов", "url": "https://kino.example/top250", "snippet": "Рейтинг фильмов 9.1"},
         {"title": "Интернет-магазин электроники", "url": "https://shop.example/", "snippet": "Скидки до 50%"},
         {"title": "Курс золота сегодня", "url": "https://gold.example/price", "snippet": "Золото: 8 712,40 ₽ за грамм"},
     ], "answer": None, "pages": []}
-
 
 class FakeModel:
     def __init__(self, answer):
@@ -131,10 +126,8 @@ class FakeModel:
     async def complete(self, model, messages):
         return json.dumps(self.answer, ensure_ascii=False)
 
-
 async def failing_fetch(url, limit=12000):
     raise ValueError("HTTP 403 Forbidden")
-
 
 class SourcesTest(Base):
     def test_only_evidenced_sources_reach_the_card(self):
@@ -179,7 +172,6 @@ class SourcesTest(Base):
         self.assertTrue(seen and seen[0] and seen[0]["stage"] in ("search", "fetch"))
         self.assertNotIn(panel["id"], panels._PROGRESS, "progress is cleared when the refresh ends")
 
-
 class RoutesTest(Base):
     def test_new_routes(self):
         from fastapi import FastAPI
@@ -200,7 +192,7 @@ class RoutesTest(Base):
             self.assertIn("claude", det["detected"])
             bad = client.post("/api/pg/panels-usage/secret", json={"id": "a_123456", "token": "x"})
             self.assertEqual(bad.status_code, 400)
-            # This offline test must not discover a real running Antigravity IDE.
+
             with patch("app.panels_usage.antigravity_endpoints", return_value=[]):
                 test = client.post("/api/pg/panels-usage/test", json={"provider": "antigravity", "mode": "dir",
                                                                       "dir": self.tmp.name}).json()
@@ -212,7 +204,6 @@ class RoutesTest(Base):
             self.assertEqual(reset["panel"]["id"], news["id"])
             no = client.post(f"/api/pg/panels/{made['id']}/feed-reset")
             self.assertEqual(no.status_code, 400)
-
 
 class PackagingTest(unittest.TestCase):
     """Модули панелей импортируются лениво (внутри функций) — сборка должна назвать их явно,
@@ -227,7 +218,6 @@ class PackagingTest(unittest.TestCase):
             self.assertIn(f"'{mod}'", spec, mod)
         reqs = (root / "requirements.txt").read_text(encoding="utf-8").splitlines()
         self.assertTrue(any(line.startswith("psutil") for line in reqs))
-
 
 if __name__ == "__main__":
     unittest.main()

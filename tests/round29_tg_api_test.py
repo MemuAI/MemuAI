@@ -20,11 +20,9 @@ from app import tg_webapp, tgapp_weblogin, telegram_voice  # noqa: E402
 TOKEN = "123456:TEST-token_for-mini-app"
 USER = 4242
 
-
 def init_data(user_id: int = USER) -> str:
     return tg_webapp.sign_init_data({"auth_date": int(time.time()), "query_id": "AAH",
                                      "user": {"id": user_id, "first_name": "Yono"}}, TOKEN)
-
 
 class WebLoginUnit(unittest.TestCase):
     def setUp(self):
@@ -35,7 +33,7 @@ class WebLoginUnit(unittest.TestCase):
         self.assertEqual(len(started["code"]), 8)
         self.assertTrue(started["qr"].startswith("memuai-login:"))
         self.assertEqual(tgapp_weblogin.poll(started["request_id"], lambda u: ("t", 1))["status"], "pending")
-        info = tgapp_weblogin.inspect(started["qr"])            # scanned QR text works as the code
+        info = tgapp_weblogin.inspect(started["qr"])
         self.assertEqual(info["ip"], "1.2.3.4")
         self.assertTrue(tgapp_weblogin.decide(started["display"].lower(), "4242", True))
         issued = []
@@ -66,7 +64,6 @@ class WebLoginUnit(unittest.TestCase):
             tgapp_weblogin.start("ip", "ua")
         with self.assertRaises(OverflowError):
             tgapp_weblogin.start("ip", "ua")
-
 
 class VoiceUnit(unittest.TestCase):
     def test_mime_normalization(self):
@@ -134,7 +131,6 @@ class VoiceUnit(unittest.TestCase):
         with self.assertRaises(ValueError):
             telegram_voice.decode_upload("data:text/html;base64,PGI+")
 
-
 class FakeApi:
     def __init__(self):
         self.calls = []
@@ -149,7 +145,6 @@ class FakeApi:
 
     async def download(self, path, max_bytes):
         return b"o" * 3000
-
 
 class BotVoiceFlow(unittest.TestCase):
     def test_unavailable_sends_the_hint_and_nothing_reaches_the_model(self):
@@ -188,7 +183,6 @@ class BotVoiceFlow(unittest.TestCase):
             routed = asyncio.run(telegram_voice.route_message(api, "5", {"voice": {"file_id": "f", "duration": 3600}}, {}, "en"))
         self.assertIsNone(routed)
         self.assertIn("15 minutes", api.calls[-1][1]["text"])
-
 
 class ApiTest(unittest.TestCase):
     @classmethod
@@ -229,7 +223,7 @@ class ApiTest(unittest.TestCase):
         start = self.post("weblogin.start").json()
         self.assertIn("request_id", start)
         self.assertEqual(self.post("weblogin.poll", {"request_id": start["request_id"]}).json()["status"], "pending")
-        # Approving needs a Telegram session.
+
         self.assertEqual(self.post("weblogin.approve", {"code": start["code"]}).status_code, 401)
         headers = self.headers()
         info = self.post("weblogin.inspect", {"code": start["qr"]}, headers).json()
@@ -242,11 +236,11 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(boot.status_code, 200, boot.text)
         self.assertIn("voice", boot.json()["features"])
         self.assertTrue(boot.json()["features"]["web_login"])
-        # One-time link of the bot.
+
         nonce = tgapp_weblogin.issue_link(str(USER))
         self.assertEqual(self.post("weblogin.redeem", {"nonce": nonce}).status_code, 200)
         self.assertEqual(self.post("weblogin.redeem", {"nonce": nonce}).status_code, 401)
-        # Switched off on the computer: nothing works.
+
         tg_webapp.save_config({"web_login": False})
         try:
             self.assertEqual(self.post("weblogin.start").status_code, 403)
@@ -290,13 +284,13 @@ class ApiTest(unittest.TestCase):
         save_schedules([{"id": "t-borsch", "name": "Рецепты борщей", "prompt": "найди рецепт", "daily_at": "09:00",
                          "enabled": True}])
         data = self.post("chats.search", {"query": "борщи"}, headers).json()
-        # «борщи» is not a substring of «борщ»: the index (stemming) finds the chat anyway.
+
         self.assertIn("c-borsch", [hit["id"] for hit in data["hits"]])
         fuzzy = next(hit for hit in data["hits"] if hit["id"] == "c-borsch")
         self.assertTrue(fuzzy["matches"][0]["highlights"])
         types = {group["type"] for group in data["global"]}
         self.assertIn("schedule", types)
-        self.assertNotIn("chat", types)                       # chats are the «hits» above
+        self.assertNotIn("chat", types)
         for group in data["global"]:
             self.assertNotIn(group["type"], ("file", "project", "module"))
             for item in group["items"]:
@@ -307,7 +301,7 @@ class ApiTest(unittest.TestCase):
         self.assertTrue(preview.json()["blocks"])
         self.assertEqual(self.post("search.preview", {"id": "file:x"}, headers).status_code, 404)
         self.assertEqual(self.post("search.preview", {"id": item["id"]}).status_code, 401)
-        # Off when asked (the plain substring search only).
+
         self.assertNotIn("global", self.post("chats.search", {"query": "борщи", "global": False}, headers).json())
 
     def test_memory_v2_items_from_the_phone(self):
@@ -325,7 +319,7 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(tea["source"]["service"], "telegram")
         pending = [item for item in data["items"] if item["status"] == "pending"]
         self.assertTrue(pending, "«ask» mode keeps the second fact for approval")
-        if pending:      # the phone approves
+        if pending:
             data = self.post("memory.item", {"id": pending[0]["id"], "action": "approve"}, headers).json()
             self.assertEqual({i["status"] for i in data["items"] if i["id"] == pending[0]["id"]}, {"active"})
         data = self.post("memory.item", {"id": tea["id"], "action": "pin"}, headers).json()
@@ -369,7 +363,6 @@ class ApiTest(unittest.TestCase):
         self.assertEqual(response.json()["code"], "voice_unavailable")
         self.assertEqual(self.post("voice.transcribe", {"audio": "data:text/plain;base64,eA=="}, headers).status_code, 400)
 
-
 class CodeFilesTest(unittest.TestCase):
     def setUp(self):
         self.folder = tempfile.mkdtemp()
@@ -399,7 +392,7 @@ class CodeFilesTest(unittest.TestCase):
         names = [row["name"] for row in listing["entries"]]
         self.assertEqual(names[0], "src")
         self.assertNotIn(".git", names)
-        # write_text uses CRLF on Windows; the API preserves the actual source.
+
         self.assertEqual(tcode.read_file(root, "src/main.py")["text"],
                          (self.project / "src/main.py").read_bytes().decode("utf-8"))
         self.assertEqual(tcode.read_file(root, "logo.png")["kind"], "image")
@@ -485,7 +478,6 @@ class CodeFilesTest(unittest.TestCase):
         with self.assertRaises(LookupError):
             tcode.start_host("4242", root="relative", popen=popen)
         tcode.stop_hosts()
-
 
 if __name__ == "__main__":
     unittest.main()

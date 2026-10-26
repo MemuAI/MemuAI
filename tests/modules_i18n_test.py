@@ -17,11 +17,9 @@ from app.modules_host import (create_module, export_package, i18n_keys_used, imp
 ROOT = Path(__file__).resolve().parents[1]
 BUILTINS = ROOT / "app" / "module_builtins"
 
-
 def _literal_keys(js: str):
     """Keys passed as plain literals to t()/Memu.t() in a module script."""
     return set(re.findall(r'\b(?:Memu\.)?t\(\s*"([A-Za-z0-9_.]+)"\s*[,)]', js))
-
 
 class NormalisationTests(unittest.TestCase):
     def test_shapes_are_kept_and_junk_is_dropped(self) -> None:
@@ -49,7 +47,6 @@ class NormalisationTests(unittest.TestCase):
                               'Memu.t("c"); Memu.i18n.t(\'d\'); el.innerHTML = `<i data-i18n="e"></i>`;')
         self.assertEqual(keys, ["a", "b", "c", "d", "e"])
 
-
 class StorageTests(unittest.TestCase):
     def setUp(self) -> None:
         self.root = Path(tempfile.mkdtemp(prefix="memu-i18n-"))
@@ -69,10 +66,10 @@ class StorageTests(unittest.TestCase):
         self.assertEqual(package["locales"], ["en", "ru"])
         self.assertEqual(package["default_locale"], "en")
         self.assertTrue((self.root / "custom" / "hello" / "i18n.json").is_file())
-        # A save that does not send translations keeps the stored ones.
+
         update_code(self.root, "hello", {"html": '<b data-i18n="title"></b>!'})
         self.assertEqual(load_package(self.root, "hello")["i18n"]["ru"]["title"], "Привет")
-        # An explicit empty set removes the file.
+
         update_code(self.root, "hello", {"i18n": ""})
         self.assertEqual(load_package(self.root, "hello")["i18n"], {})
         self.assertFalse((self.root / "custom" / "hello" / "i18n.json").exists())
@@ -97,7 +94,6 @@ class StorageTests(unittest.TestCase):
         self.assertIn("en", package["i18n"])
         self.assertEqual(package["i18n"]["en"]["translate"], "Translate")
 
-
 class ValidationTests(unittest.TestCase):
     def test_missing_keys_are_reported_per_locale(self) -> None:
         result = validate_module_source({
@@ -117,7 +113,6 @@ class ValidationTests(unittest.TestCase):
     def test_broken_translation_json_is_a_warning_not_a_crash(self) -> None:
         result = validate_module_source({"html": "", "js": "", "i18n": "{nope"})
         self.assertTrue(any(row["field"] == "i18n" and row["level"] == "warn" for row in result["problems"]))
-
 
 class ShippedModulesTests(unittest.TestCase):
     """Every shipped module and template must be complete in both languages."""
@@ -151,7 +146,6 @@ class ShippedModulesTests(unittest.TestCase):
             for locale, table in template["i18n"].items():
                 self.assertEqual(sorted(key for key in used if key not in table), [], f"{template['id']}/{locale}")
 
-
 @unittest.skipUnless(shutil.which("node"), "node is required for the bridge runner")
 class BridgeTests(unittest.TestCase):
     def test_the_real_bridge_translates_and_switches_language(self) -> None:
@@ -165,8 +159,7 @@ class BridgeTests(unittest.TestCase):
                        "files": {"one": "{count} file", "other": "{count} files"}},
             },
         }, env={"lang": "ru"})
-        # The page also inlines the shared keyboard helper (memu-keys.js, Round 33) before the bridge; pick the bridge
-        # by its content instead of its position.
+
         scripts = re.findall(r"<script>(.*?)</script>", page, re.S)
         bridge = next(s for s in scripts if "var MODULE_ID" in s)
         self.assertIn("MemuKeys", scripts[0], "the keyboard helper must run before the bridge and the module")
@@ -188,12 +181,12 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(report["missing"], "nope")
         self.assertEqual(report["missingFallback"], "Запасной 1")
         self.assertIn(report["numberRu"], ("1 234,5", "1 234,5", "1 234,5"))
-        # Switching the host language re-translates the page at once.
+
         self.assertEqual(report["english"]["title"], "Hello")
         self.assertEqual(report["english"]["placeholder"], "Hint")
         self.assertEqual(report["english"]["lang"], "en")
         self.assertEqual(report["english"]["htmlLang"], "en")
-        # A key missing in English falls back to the default locale, not the key.
+
         self.assertEqual(report["english"]["onlyRu"], "Только русский")
         self.assertEqual(report["pluralEn"], ["1 file", "3 files"])
         self.assertEqual(report["numberEn"], "1,234.5")
@@ -206,7 +199,6 @@ class BridgeTests(unittest.TestCase):
         self.assertEqual(sorted(report["locales"]), ["en", "ru"])
         self.assertEqual(report["has"], [True, False])
         self.assertEqual(report["version"], 4)
-
 
 if __name__ == "__main__":
     unittest.main()

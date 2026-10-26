@@ -10,10 +10,9 @@ import re
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[1] / "app" / "cli"
-# Characters with an emoji presentation that are drawn as coloured tiles or wide glyphs.
+
 BANNED = set("✳✴❇✅✔✨❌❎☑⭐➕➖➗✖❗❓❔❕⚡⏩⏪⏫⏬⏭⏮⏯⏰⏱⏲⏳")
 SPINNER_FRAMES = "·✢*✶✻✽"
-
 
 class GlyphSafety(unittest.TestCase):
     def test_no_emoji_tiles_in_the_interface_sources(self):
@@ -31,7 +30,6 @@ class GlyphSafety(unittest.TestCase):
         for frame in SPINNER:
             self.assertIn(frame, SPINNER_FRAMES)
             self.assertNotIn(frame, BANNED)
-
 
 if __name__ == "__main__":
     unittest.main()

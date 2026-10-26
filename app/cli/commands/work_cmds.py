@@ -18,7 +18,6 @@ from ..session import new_id
 from ..tui import dialogs as dlg
 from . import Context, command
 
-
 @command("attach", "Приложить файл", "Attach an image or text file", hint="<path>", category="code", while_busy=True)
 async def attach(ctx: Context) -> None:
     name = ctx.args.strip()
@@ -68,12 +67,10 @@ PR_PROMPT = """Prepare a pull request for the current branch.
 2. If there are uncommitted changes, ask whether to commit them first.
 3. Push the branch (ask before pushing) and create the PR with `gh pr create` (title ≤ 70 chars; body: summary, changes, how it was tested). If `gh` is not installed or not authenticated, output the title and body for the user to paste instead.{extra}"""
 
-
 def _coauthor(ctx: Context) -> str:
     if ctx.settings.get("include_co_authored_by", True):
         return "\n   End the message with the line: Co-Authored-By: MemuCode <noreply@memuai.dev>"
     return ""
-
 
 @command("init", "Изучить проект и создать MEMUCODE.md с инструкциями для агента", "Study the project and write MEMUCODE.md for agents",
          category="code", while_busy=False)
@@ -82,22 +79,18 @@ async def init(ctx: Context) -> None:
     await ctx.prompt(INIT_PROMPT + extra)
     ctx.runtime.invalidate_prompt(memory=True)
 
-
 @command("review", "Ревью текущих изменений (без правок)", "Review the current changes (no edits)", hint="[target]", category="code", while_busy=False)
 async def review(ctx: Context) -> None:
     target = f" — focus: {ctx.args}" if ctx.args else ""
     await ctx.prompt(REVIEW_PROMPT.format(target=target))
 
-
 @command("security-review", "Проверка изменений на уязвимости", "Security review of the pending changes", category="code", while_busy=False)
 async def security_review(ctx: Context) -> None:
     await ctx.prompt(SECURITY_PROMPT + (f"\n\nFocus: {ctx.args}" if ctx.args else ""))
 
-
 @command("test", "Запустить тесты и разобрать падения", "Run the tests and triage failures", hint="[target]", category="code", while_busy=False)
 async def test(ctx: Context) -> None:
     await ctx.prompt(TEST_PROMPT.format(target=f" ({ctx.args})" if ctx.args else ""))
-
 
 @command("fix", "Воспроизвести ошибку, найти причину и исправить", "Reproduce a bug, find the cause, fix it", hint="<description>",
          category="code", while_busy=False)
@@ -109,7 +102,6 @@ async def fix(ctx: Context) -> None:
                      "short paragraph; then make the smallest correct change and verify it (run the relevant tests "
                      "or a reproduction).")
 
-
 @command("explain", "Объяснить код, файл или механизм", "Explain code, a file or a mechanism", hint="<target>", category="code", while_busy=False)
 async def explain(ctx: Context) -> None:
     target = ctx.args or await ctx.ask(tr("Что объяснить? (файл, функция, @путь)", "What should I explain? (file, function, @path)"))
@@ -119,7 +111,6 @@ async def explain(ctx: Context) -> None:
                      "how it connects to the rest of the project, and any non-obvious details. Refer to code as "
                      "path:line. Do not change anything.")
 
-
 @command("refactor", "Улучшить код, сохранив поведение", "Refactor while preserving behaviour", hint="<target>", category="code", while_busy=False)
 async def refactor(ctx: Context) -> None:
     target = ctx.args or await ctx.ask(tr("Что отрефакторить?", "What should be refactored?"))
@@ -128,20 +119,17 @@ async def refactor(ctx: Context) -> None:
     await ctx.prompt(f"Refactor {target} without changing its observable behaviour. Read the code and its callers first, "
                      "keep the project's style, make the change in small reviewable steps, and run the tests after.")
 
-
 @command("commit", "Составить сообщение и сделать git-коммит", "Write the message and make a git commit", hint="[instructions]",
          category="code", while_busy=False)
 async def commit(ctx: Context) -> None:
     extra = f"\n\nThe user added: {ctx.args}" if ctx.args else ""
     await ctx.prompt(COMMIT_PROMPT.format(coauthor=_coauthor(ctx), extra=extra))
 
-
 @command("pr", "Подготовить и открыть pull request", "Prepare and open a pull request", hint="[instructions]",
          aliases=("pull-request",), category="code", while_busy=False)
 async def pr(ctx: Context) -> None:
     extra = f"\n\nThe user added: {ctx.args}" if ctx.args else ""
     await ctx.prompt(PR_PROMPT.format(extra=extra))
-
 
 @command("diff", "Показать незакоммиченные изменения и правки этой сессии", "Show uncommitted changes and this session's edits",
          hint="[path]", category="code", while_busy=True)
@@ -170,9 +158,8 @@ async def diff(ctx: Context) -> None:
         ctx.print(Text(tr("Файлы, изменённые в этой сессии (откат: /undo, /rewind):", "Files changed in this session (undo: /undo, /rewind):"),
                        style="bold"), *[Text(f"  {'M' if row['existed'] else 'A'} {row['path']}", style="dim") for row in entries[:40]])
     elif not data.get("repository") and not data.get("error"):
-        # code_tools' note is Russian (it is written for the model); the CLI speaks English.
-        ctx.say(tr("Это не git-репозиторий, и в сессии ещё нет правок", "Not a git repository and no edits yet"))
 
+        ctx.say(tr("Это не git-репозиторий, и в сессии ещё нет правок", "Not a git repository and no edits yet"))
 
 @command("plan", "Режим плана: сначала исследовать и согласовать план", "Plan mode: research and agree on a plan first",
          hint="[task]", category="code", while_busy=False)
@@ -188,7 +175,6 @@ async def plan(ctx: Context) -> None:
     else:
         ctx.say(tr("Режим плана: агент будет только исследовать и предложит план. Опишите задачу.",
                    "Plan mode: the agent only researches and proposes a plan. Describe the task."), "success")
-
 
 @command("goal", "Цель: агент работает шаг за шагом, пока не достигнет её", "Goal: the agent keeps working until it is met",
          hint="<goal>|status|pause|continue|clear", category="code", while_busy=False)
@@ -231,7 +217,6 @@ async def goal(ctx: Context) -> None:
     await ctx.prompt(f"New persistent goal: {args}\n\nPlan the work, then execute it in verified increments. "
                      "Report `GOAL COMPLETE: <evidence>` only when the goal is fully met and verified.", display=ctx.raw)
 
-
 @command("btw", "Спросить по ходу дела, не прерывая работу агента", "Ask a side question without interrupting the agent",
          hint="<question>", category="general", while_busy=True)
 async def btw(ctx: Context) -> None:
@@ -251,7 +236,6 @@ async def btw(ctx: Context) -> None:
         return
     ctx.print(Panel(ctx.r.md(answer), title=f"btw · {question[:60]}", title_align="left", border_style="dim"))
 
-
 @command("background", "Запустить задачу параллельно (или &задача)", "Run a task in the background (or &task)", hint="<task>",
          aliases=("bg", "subtask"), category="agents", while_busy=True)
 async def background(ctx: Context) -> None:
@@ -262,7 +246,6 @@ async def background(ctx: Context) -> None:
     ctx.say(tr(f"Фоновая задача #{job['id']} запущена. Ход: /tasks {job['id']}",
                f"Background task #{job['id']} started. Progress: /tasks {job['id']}"), "success")
 
-
 async def _direct_tool(ctx: Context, name: str, args: Dict[str, Any]) -> None:
     """Run one tool now, with the usual permissions and display, and record it in the conversation."""
     from ..agent import Agent
@@ -272,7 +255,6 @@ async def _direct_tool(ctx: Context, name: str, args: Dict[str, Any]) -> None:
                                 f"{json.dumps(args, ensure_ascii=False)[:600]}]", "display": ctx.raw, "turn": turn})
     await agent.execute([{"id": new_id("t"), "name": name, "args": args}], turn)
 
-
 @command("browser", "Поручить задачу браузерному агенту (изолированный Edge)", "Give a task to the browser agent (isolated Edge)",
          hint="<task>", category="agents", while_busy=False)
 async def browser(ctx: Context) -> None:
@@ -281,7 +263,6 @@ async def browser(ctx: Context) -> None:
         url = re.search(r"https?://\S+", task)
         await _direct_tool(ctx, "Browser", {"task": task, **({"url": url.group(0)} if url else {})})
 
-
 @command("computer", "Computer Use: управлять рабочим столом Windows (Esc — стоп)", "Computer Use: operate the Windows desktop (Esc stops)",
          hint="<task>", category="agents", while_busy=False)
 async def computer(ctx: Context) -> None:
@@ -289,13 +270,11 @@ async def computer(ctx: Context) -> None:
     if task:
         await _direct_tool(ctx, "Computer", {"task": task})
 
-
 @command("search", "Поиск в интернете", "Search the web", hint="<query>", category="agents", while_busy=False)
 async def search(ctx: Context) -> None:
     query = ctx.args.strip() or await ctx.ask(tr("Что найти?", "Search for?"))
     if query:
         await _direct_tool(ctx, "WebSearch", {"query": query, "limit": 8})
-
 
 @command("fetch", "Прочитать веб-страницу", "Read a web page", hint="<url> [what to find]", category="agents", while_busy=False)
 async def fetch(ctx: Context) -> None:
@@ -307,7 +286,6 @@ async def fetch(ctx: Context) -> None:
     if len(words) > 1:
         args["prompt"] = words[1]
     await _direct_tool(ctx, "WebFetch", args)
-
 
 @command("image", "Приложить картинку из файла", "Attach an image file", hint="<path>", category="context", while_busy=True)
 async def image(ctx: Context) -> None:
@@ -324,12 +302,10 @@ async def image(ctx: Context) -> None:
         return
     ctx.ui.input_buffer.insert_text(ctx.ui.attachments.image_token(found) + " ")
 
-
 @command("paste", "Вставить картинку из буфера обмена (Alt+V)", "Paste an image from the clipboard (Alt+V)", category="context",
          while_busy=True)
 async def paste(ctx: Context) -> None:
     await ctx.ui.paste_image()
-
 
 @command("voice", "Надиктовать сообщение голосом", "Dictate a message", category="general", while_busy=True)
 async def voice(ctx: Context) -> None:
@@ -376,7 +352,6 @@ async def voice(ctx: Context) -> None:
     else:
         ctx.say(tr("Речь не распознана", "No speech recognised"), "warn")
 
-
 @command("decide", "Спросить модель решений Jev: /decide «текст» ? вопрос [| вариант | вариант]",
          "Ask the Jev decision model: /decide \"text\" ? question [| option | option]", hint="<text> ? <question>",
          category="agents", while_busy=True)
@@ -419,7 +394,6 @@ async def decide(ctx: Context) -> None:
         line.append(f" {float(answer.noul or 0):.0%}", style="bold")
         ctx.print(line, Text(f"  {decision.latency_ms} ms · {decision.model}", style="subtle"))
 
-
 @command("loop", "Повторять запрос по расписанию: /loop 10m проверь CI · /loop stop", "Repeat a prompt: /loop 10m check CI · /loop stop",
          hint="<interval> <query>|stop", category="agents", while_busy=True)
 async def loop(ctx: Context) -> None:
@@ -456,13 +430,11 @@ async def loop(ctx: Context) -> None:
     ctx.say(tr(f"Каждые {number}{unit}: «{prompt[:60]}» · /loop stop — остановить",
                f"Every {number}{unit}: “{prompt[:60]}” · /loop stop to end"), "success")
 
-
 @command("run", "Выполнить команду в терминале (как !команда)", "Run a shell command (like !command)", hint="<command>",
          category="code", while_busy=False)
 async def run(ctx: Context) -> None:
     if ctx.args.strip():
         await ctx.ui.run_bash(ctx.args.strip())
-
 
 @command("add", "Приложить файлы к следующему сообщению", "Attach files to the next message", hint="<files>",
          category="context", while_busy=True)

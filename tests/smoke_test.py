@@ -27,7 +27,6 @@ MOCK_CUSTOM = f"http://127.0.0.1:{MOCK_CUSTOM_PORT}"
 
 PASSED, FAILED = 0, 0
 
-
 def check(name: str, cond: bool, detail: str = "") -> None:
     global PASSED, FAILED
     if cond:
@@ -37,12 +36,10 @@ def check(name: str, cond: bool, detail: str = "") -> None:
         FAILED += 1
         print(f"  ✗ {name}  {detail}")
 
-
 def run_server(app, port: int, http: str = "auto") -> uvicorn.Server:
     server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error", http=http))
     threading.Thread(target=server.run, daemon=True).start()
     return server
-
 
 def wait_ready(client: httpx.Client, path: str, timeout: float = 25) -> None:
     deadline = time.time() + timeout
@@ -54,7 +51,6 @@ def wait_ready(client: httpx.Client, path: str, timeout: float = 25) -> None:
             pass
         time.sleep(0.2)
     raise RuntimeError(f"сервер на {path} не поднялся")
-
 
 def main() -> None:
     data_dir = tempfile.mkdtemp(prefix="omnihub-test-")
@@ -72,18 +68,14 @@ def main() -> None:
         def create_file_dialog(self, *_args, **_kwargs):
             return [data_dir]
 
-    # Work accepts folders only through the desktop's native picker.  The
-    # integration test supplies that boundary without weakening the API.
     playground_app.state.window = FakeFolderPicker()
-    # pywebview exists only in the Windows build; the picker needs just its FOLDER_DIALOG constant.
+
     try:
         import webview  # noqa: F401
     except ImportError:
         import types
         sys.modules["webview"] = types.SimpleNamespace(FOLDER_DIALOG=20)
 
-    # curl_cffi (chrome impersonation) sends plain-http requests with "Upgrade: h2c"; uvicorn's httptools
-    # parser then drops the request body (the mock saw {} and 0 uploaded bytes). Real Genspark is HTTPS.
     srv1 = run_server(mock_genspark.app, MOCK_GS_PORT, http="h11")
     srv2 = run_server(mock_custom.app, MOCK_CUSTOM_PORT)
     srv3 = run_server(create_app(), APP_PORT)
@@ -193,7 +185,7 @@ def main() -> None:
               r.status_code == 200 and gs_payloads.get("uploaded", 0) > 0
               and any(x.get("type") == "private_file" for x in rich if isinstance(x, dict)),
               r.text[:160])
-        # регресс дублей: дельты + кумулятивный снимок + чужое поле
+
         for a in client.get(f"{BASE}/api/admin/accounts", headers=H).json()["accounts"]:
             if a["provider"] == "genspark":
                 client.delete(f"{BASE}/api/admin/accounts/{a['id']}", headers=H)
@@ -268,7 +260,7 @@ def main() -> None:
         check("планировщик возвращает задачи и результаты",
               schedules.status_code == 200 and isinstance(schedules.json().get("results"), list),
               schedules.text[:160])
-        # Агенты: в обычном чате их нет вовсе, в Work и MemuCode — только по просьбе пользователя.
+
         removed = client.post(f"{PG_BASE}/api/pg/agents/run", json={"query": "x", "primary_model": "my-site-gpt-test"})
         check("прохода агентов перед ответом чата больше нет", removed.status_code in (404, 405), str(removed.status_code))
 
@@ -356,7 +348,6 @@ def main() -> None:
     print(f"\n{'=' * 40}\nИТОГО: пройдено {PASSED}, провалено {FAILED}")
     srv1.should_exit = srv2.should_exit = srv3.should_exit = srv4.should_exit = True
     sys.exit(1 if FAILED else 0)
-
 
 if __name__ == "__main__":
     main()

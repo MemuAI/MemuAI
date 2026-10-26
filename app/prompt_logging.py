@@ -19,14 +19,12 @@ _MEDIA_KEYS = frozenset({"imageurl", "audiourl", "videourl", "imagedata", "audio
 _MEDIA_TYPES = frozenset({"image", "image_url", "audio", "video", "input_image", "input_audio",
                           "input_video", "document", "file", "base64"})
 
-
 @lru_cache(maxsize=1)
 def _secret_pattern(secrets):
     if not secrets:
         return None
     return re.compile("|".join(re.escape(value) if len(value) >= 8 else
                                r"(?<!\w)" + re.escape(value) + r"(?!\w)" for value in secrets))
-
 
 class _Builder:
     def __init__(self, secrets, is_secret: Callable[[str], bool]):
@@ -75,8 +73,7 @@ class _Builder:
         return None
 
     def clean(self, value: Any):
-        # Iterative traversal preserves complete deep/large JSON without a
-        # node/depth quota. Reject only cycles, which cannot arrive in JSON.
+
         result = [None]
         work = [(value, result, 0)]
         active = set()
@@ -168,13 +165,12 @@ class _Builder:
                 text = block.get("text")
                 output.append({"type": "text", "text": self.text(text) if isinstance(text, str) else ""})
             else:
-                # Do not even serialize base64, local paths or signed media URLs.
+
                 self.omitted_media = True
                 kind = str(block.get("type") or "attachment")[:40] if isinstance(block, dict) else "attachment"
                 output.append({"type": "text", "text": self.text(f"[{kind} omitted]")})
         self.truncated |= len(value) > len(output)
         return output
-
 
 def snapshot_prompt(messages, *, tools=None, secrets=(), is_secret=lambda key: False):
     if not isinstance(messages, list):

@@ -43,7 +43,7 @@ EFFORT = (
     ("low", "Коротко", "Short"), ("medium", "Обычно", "Normal"), ("high", "Глубоко", "Deep"),
     ("max", "Максимально глубоко", "As deep as possible"),
 )
-#: Fixed words after a command (mirrors ``MemuCompleter.CHOICES`` of the terminal).
+
 CHOICES: Dict[str, Tuple[str, ...]] = {
     "goal": ("status", "pause", "continue", "clear"),
     "theme": ("dark", "light", "dark-daltonized", "light-daltonized"),
@@ -56,13 +56,13 @@ CHOICES: Dict[str, Tuple[str, ...]] = {
     "dashboard": ("claude", "codex", "cursor", "agy", "grok", "gemini", "opencode"),
     "think": ("on", "off"), "web": ("on", "off"),
     "proxy": ("status", "add", "remove"),
-    # Round 33: MemuCode /auto-continue (mirrors app/cli/tui/input.py)
+
     "auto-continue": ("auto", "status", "cancel", "now", "+15m", "+30m", "+1h", "+2h", "+5h", "tomorrow 09:00"),
 }
 MODEL_COMMANDS = {"model": ("auto", "notes"), "small-model": (), "advisor": ("off",), "vision": ("auto", "on", "off", "test")}
 FOLDER_COMMANDS = {"cd", "add-dir"}
 FILE_COMMANDS = {"attach", "image", "add", "diff", "export", "explain", "refactor", "review", "test"}
-#: Words of a hint that name what to type, not a value (``[model|auto]`` → only ``auto`` is a choice).
+
 PLACEHOLDERS = {"name", "model", "color", "#hex", "id", "words", "task", "tool", "number", "n", "file", "path", "target",
                 "query", "question", "instructions", "command", "style", "mode", "search", "text", "url", "interval",
                 "fact", "goal", "description", "files", "next", "request", "when", "prompt", "builtin"}
@@ -71,12 +71,8 @@ MENTION = re.compile(r"(?:^|[\s(])@(\"[^\"]*|[^\s@\"]*)$")
 _index_lock = threading.Lock()
 _index: Dict[str, Tuple[float, List[str]]] = {}
 
-
 def _t(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
-
-# --------------------------------------------------------------------------- matching
 
 def _score(query: str, value: str, extra: str = "") -> Optional[float]:
     """Every word of ``query`` must match ``value`` (prefix > word start > inside) or, weaker, ``extra``."""
@@ -101,7 +97,6 @@ def _score(query: str, value: str, extra: str = "") -> Optional[float]:
             return None
     return total - len(low) * 0.01
 
-
 def _ranked(query: str, rows: Iterable[Dict[str, Any]], *, words_only: bool = False) -> List[Dict[str, Any]]:
     """Best matches first; with nothing typed — in the given order. ``words_only``: fixed words are matched by
     themselves, not by their explanation (``/permissions a`` → acceptEdits, auto — not «default»)."""
@@ -116,9 +111,6 @@ def _ranked(query: str, rows: Iterable[Dict[str, Any]], *, words_only: bool = Fa
         scored.sort(key=lambda item: (-item[0], item[1]))
     return [row for _s, _i, row in scored[:MAX_ITEMS]]
 
-
-# --------------------------------------------------------------------------- data
-
 def hint_choices(hint: str) -> List[str]:
     """``[auto|minimal|low]`` → the words; placeholders (``model``, ``path``) and free text are left out."""
     hint = str(hint or "").strip()
@@ -129,7 +121,6 @@ def hint_choices(hint: str) -> List[str]:
     out = [w for w in words if w and re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*", w) and w.lower() not in PLACEHOLDERS]
     return out[:20]
 
-
 def _resolve(name: str, commands: Sequence[Dict[str, Any]]) -> Tuple[str, Dict[str, Any]]:
     low = name.lower()
     for row in commands:
@@ -139,7 +130,6 @@ def _resolve(name: str, commands: Sequence[Dict[str, Any]]) -> Tuple[str, Dict[s
         if low in [str(a).lower() for a in row.get("aliases") or []]:
             return str(row.get("name") or low).lower(), row
     return low, {}
-
 
 def project_files(root: str) -> List[str]:
     """Relative paths (``/`` separators, folders end with ``/``) of the project, cached for a little while."""
@@ -181,12 +171,10 @@ def project_files(root: str) -> List[str]:
         _index[root] = (now, out)
     return out
 
-
 def _quote(value: str, folder: bool) -> str:
     if " " not in value:
         return value
     return '"' + value if folder else '"' + value + '"'
-
 
 def _mentions(raw: str, root: str, lang: str) -> List[Dict[str, Any]]:
     query = raw.lstrip('"').replace("\\", "/")
@@ -210,7 +198,6 @@ def _mentions(raw: str, root: str, lang: str) -> List[Dict[str, Any]]:
     return [{"value": "@" + _quote(rel, rel.endswith("/")), "label": rel, "kind": "folder" if rel.endswith("/") else "file",
              "meta": _t(lang, "папка", "folder") if rel.endswith("/") else _t(lang, "файл", "file"),
              "final": not rel.endswith("/")} for rel in picked]
-
 
 def _paths(raw: str, root: str, *, folders_only: bool, lang: str) -> List[Dict[str, Any]]:
     """Entries of the folder the typed path points into. Folders anywhere (like the «new session» picker);
@@ -268,7 +255,6 @@ def _paths(raw: str, root: str, *, folders_only: bool, lang: str) -> List[Dict[s
                     "final": not_dir or folders_only})
     return out
 
-
 def _sessions(root: str, lang: str) -> List[Dict[str, Any]]:
     try:
         from .cli.session import list_sessions
@@ -284,7 +270,6 @@ def _sessions(root: str, lang: str) -> List[Dict[str, Any]]:
         out.append({"value": session_id, "label": title[:80] or session_id, "meta": session_id if title else "",
                     "kind": "session", "final": True})
     return out
-
 
 def _models(query: str, names: Sequence[str], extra_words: Sequence[str], current: str, lang: str,
             labels: Optional[Dict[str, str]] = None) -> List[Dict[str, Any]]:
@@ -302,7 +287,6 @@ def _models(query: str, names: Sequence[str], extra_words: Sequence[str], curren
         rows.append({"value": model_id, "label": model_id, "meta": "" if meta == model_id else meta, "kind": "model",
                      "final": True})
     return rows
-
 
 def _commands(query: str, commands: Sequence[Dict[str, Any]], lang: str) -> List[Dict[str, Any]]:
     rows = []
@@ -336,9 +320,6 @@ def _commands(query: str, commands: Sequence[Dict[str, Any]], lang: str) -> List
         scored.append((score, index, row))
     scored.sort(key=lambda item: (-item[0], item[2]["value"]))
     return [row for _s, _i, row in scored[:MAX_ITEMS]]
-
-
-# --------------------------------------------------------------------------- entry point
 
 def complete(text: str, *, root: str = "", catalog: Optional[Dict[str, Any]] = None, models: Sequence[str] = (),
              model_labels: Optional[Dict[str, str]] = None, lang: str = "ru") -> Dict[str, Any]:

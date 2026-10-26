@@ -37,7 +37,6 @@ ENV = {
     "antigravity": ("MEMUAI_ANTIGRAVITY_CLIENT_ID", "MEMUAI_ANTIGRAVITY_CLIENT_SECRET"),
 }
 
-
 def _built(provider: str) -> Tuple[str, str]:
     try:
         from . import oauth_build  # type: ignore[attr-defined]  # written by build.py, absent in a source checkout
@@ -46,7 +45,6 @@ def _built(provider: str) -> Tuple[str, str]:
     prefix = provider.upper()
     return (str(getattr(oauth_build, prefix + "_CLIENT_ID", "") or "").strip(),
             str(getattr(oauth_build, prefix + "_CLIENT_SECRET", "") or "").strip())
-
 
 def client(provider: str) -> Tuple[str, str, str]:
     """``(client_id, client_secret, source)`` with source ``env`` | ``build`` | ``""`` (none configured)."""

@@ -26,21 +26,17 @@ _PATH_LOCKS: dict[str, threading.RLock] = {}
 _TX_LOCAL = threading.local()
 log = logging.getLogger("memuai.storage")
 
-
 def _path_key(path: PathValue) -> str:
     return os.path.normcase(os.path.realpath(os.path.abspath(os.fspath(path))))
-
 
 def _path_lock(path: PathValue) -> threading.RLock:
     key = _path_key(path)
     with _LOCKS_GUARD:
         return _PATH_LOCKS.setdefault(key, threading.RLock())
 
-
 def _backups_dir(path: PathValue) -> str:
     path = os.fspath(path)
     return os.path.join(os.path.dirname(path), "backups")
-
 
 @contextmanager
 def _windows_mutex(key: str) -> Iterator[None]:
@@ -68,7 +64,7 @@ def _windows_mutex(key: str) -> Iterator[None]:
     acquired = False
     try:
         result = wait(handle, 0xFFFFFFFF)
-        if result not in (0x00000000, 0x00000080):  # WAIT_OBJECT_0 / WAIT_ABANDONED
+        if result not in (0x00000000, 0x00000080):
             raise ctypes.WinError(ctypes.get_last_error())
         acquired = True
         yield
@@ -76,7 +72,6 @@ def _windows_mutex(key: str) -> Iterator[None]:
         if acquired:
             release(handle)
         close(handle)
-
 
 @contextmanager
 def _posix_file_lock(key: str) -> Iterator[None]:
@@ -91,7 +86,6 @@ def _posix_file_lock(key: str) -> Iterator[None]:
         fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
         handle.close()
 
-
 @contextmanager
 def _interprocess_lock(key: str) -> Iterator[None]:
     """Serialize one JSON transaction across Proxy and MemuAI processes."""
@@ -101,7 +95,6 @@ def _interprocess_lock(key: str) -> Iterator[None]:
     else:
         with _posix_file_lock(key):
             yield
-
 
 @contextmanager
 def _json_transaction(path: PathValue) -> Iterator[None]:
@@ -120,22 +113,18 @@ def _json_transaction(path: PathValue) -> Iterator[None]:
             finally:
                 held.remove(key)
 
-
 def _after_fork() -> None:
     global _LOCKS_GUARD, _PATH_LOCKS, _TX_LOCAL
     _LOCKS_GUARD = threading.Lock()
     _PATH_LOCKS = {}
     _TX_LOCAL = threading.local()
 
-
 if hasattr(os, "register_at_fork"):
     os.register_at_fork(after_in_child=_after_fork)
-
 
 def _stem(path: PathValue) -> str:
     path = os.fspath(path)
     return os.path.splitext(os.path.basename(path))[0]
-
 
 def _oldest_first(bdir: str, files: List[str]) -> List[str]:
     """Backups from oldest to newest.
@@ -153,7 +142,6 @@ def _oldest_first(bdir: str, files: List[str]) -> List[str]:
             return (0, name)
     return sorted(files, key=key)
 
-
 def _backup_candidates(path: PathValue) -> List[str]:
     path = os.fspath(path)
     bdir = _backups_dir(path)
@@ -165,7 +153,6 @@ def _backup_candidates(path: PathValue) -> List[str]:
     except OSError:
         return []
     return [os.path.join(bdir, f) for f in reversed(_oldest_first(bdir, files))]
-
 
 def _prune_backups(path: PathValue) -> None:
     path = os.fspath(path)
@@ -181,19 +168,14 @@ def _prune_backups(path: PathValue) -> None:
         except OSError:
             pass
 
-
 _PRETTY_JSON_LIMIT = 256 * 1024
-
 
 def _write_unlocked(path: PathValue, data: Any) -> None:
     path = os.fspath(path)
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
     tmp = f"{path}.tmp-{os.getpid()}-{threading.get_ident()}-{time.time_ns()}"
     try:
-        # ``indent`` forces json's pure-Python encoder, which holds the GIL
-        # for ~0.3 s on a multi-megabyte chats.json and stalls the Proxy's
-        # event loop (Telegram bot included). Encode compactly with the C
-        # encoder; only small files are re-encoded pretty for readability.
+
         text = json.dumps(data, ensure_ascii=False)
         if len(text) <= _PRETTY_JSON_LIMIT:
             text = json.dumps(data, ensure_ascii=False, indent=2)
@@ -208,16 +190,13 @@ def _write_unlocked(path: PathValue, data: Any) -> None:
             except PermissionError:
                 if os.name != "nt" or attempt == 7:
                     raise
-                # Virus scanners and indexers can briefly open a just-written
-                # JSON file without delete sharing. Keep atomic replacement,
-                # but tolerate that short external sharing window.
+
                 time.sleep(min(0.01 * (2 ** attempt), 0.1))
     finally:
         try:
             os.remove(tmp)
         except OSError:
             pass
-
 
 def _quarantine_corrupt(path: str) -> None:
     """Keep an unreadable main file aside before anything overwrites it.
@@ -242,7 +221,6 @@ def _quarantine_corrupt(path: str) -> None:
     except OSError:
         pass
 
-
 def _load_primary(path: str) -> Any:
     """json.load of the main file, tolerating a short antivirus sharing lock."""
     for attempt in range(8):
@@ -253,7 +231,6 @@ def _load_primary(path: str) -> Any:
             if os.name != "nt" or attempt == 7:
                 raise
             time.sleep(min(0.01 * (2 ** attempt), 0.1))
-
 
 def _read_unlocked(path: PathValue, default: Any,
                    validator: Callable[[Any], bool] | None = None, *,
@@ -288,12 +265,10 @@ def _read_unlocked(path: PathValue, default: Any,
             try:
                 _write_unlocked(path, data)
             except OSError as exc:
-                # A readable backup remains useful even when antivirus or a
-                # read-only directory prevents immediately repairing main.
+
                 log.warning("JSON recovered from %s but main was not repaired: %s", candidate, exc)
         return data
     return default
-
 
 def _backup_unlocked(path: PathValue) -> None:
     path = os.fspath(path)
@@ -305,7 +280,6 @@ def _backup_unlocked(path: PathValue) -> None:
         _prune_backups(path)
     except OSError:
         pass
-
 
 def save_json(path: PathValue, data: Any, *, backup: bool = True) -> None:
     """Атомарно пишет JSON и копирует результат в data/backups/.
@@ -320,7 +294,6 @@ def save_json(path: PathValue, data: Any, *, backup: bool = True) -> None:
         if backup:
             _backup_unlocked(path)
 
-
 def load_json_with_recovery(path: PathValue, default: Any, *,
                             validator: Callable[[Any], bool] | None = None) -> Any:
     """Читает JSON; при повреждении основного файла пробует свежие бэкапы
@@ -329,9 +302,7 @@ def load_json_with_recovery(path: PathValue, default: Any, *,
     with _json_transaction(path):
         return _read_unlocked(path, default, validator)
 
-
 _UNSET = object()
-
 
 def mutate_json(path: PathValue, default: Any,
                 mutator: Callable[[Any], bool | tuple[bool, Any]], *,
@@ -352,11 +323,11 @@ def mutate_json(path: PathValue, default: Any,
                 primary = _load_primary(path)
                 needs_repair = validator is not None and not validator(primary)
                 if not needs_repair:
-                    data = primary  # already parsed: don't read the file twice
+                    data = primary
             except FileNotFoundError:
                 needs_repair = True
             except OSError:
-                pass  # locked/unreadable: the strict read below raises instead of overwriting
+                pass
             except Exception:
                 needs_repair = True
         if data is _UNSET:

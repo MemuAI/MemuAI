@@ -19,14 +19,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PG = ROOT / "app" / "pgstatic"
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or ""):
         if candidate and Path(candidate).exists():
             return candidate
     return ""
-
 
 HARNESS = """<!doctype html><html lang="ru" data-theme="light"><head><meta charset="utf-8">
 <link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/design.css"><link rel="stylesheet" href="/motion.css"><link rel="stylesheet" href="/products.css">
@@ -65,7 +63,6 @@ UNVERIFIED = {"id": "p4", "name": "Kingston NV3 1 ТБ", "budget_status": "unver
               "price": {"amount": 6500, "currency": "RUB", "approx": True}}
 DATA = {"v": 1, "locale": "ru", "currency": "RUB", "budget": {"amount": 15000, "currency": "RUB"},
         "items": [ITEM, UNVERIFIED, OVER, GONE]}
-
 
 @unittest.skipUnless(_chromium(), "Chromium is not installed")
 class ProductCardsUi(unittest.TestCase):
@@ -126,7 +123,6 @@ class ProductCardsUi(unittest.TestCase):
           return key;
         }""", [raw, data])
 
-    # ------------------------------------------------------------ intent + progress
     def test_intent_detection(self):
         page = self.page()
         cases = page.evaluate("""() => [
@@ -165,7 +161,7 @@ class ProductCardsUi(unittest.TestCase):
         self.assertEqual(result["second"]["count"], 2)
         self.assertEqual(result["second"]["names"], ["WD Blue SN5000 1TB", "Kingston NV3 1TB"])
         self.assertEqual(result["third"]["step"], "cards")
-        self.assertIsNone(result["final"])           # the final answer with its block streams normally
+        self.assertIsNone(result["final"])
         self.assertIsNone(result["done"])
         self.assertIsNone(result["noIntent"])
         self.assertIsNone(result["longAnswer"])
@@ -189,14 +185,13 @@ class ProductCardsUi(unittest.TestCase):
             if n != 1:
                 self.assertIn(f"{n} {word},", text)
         self.assertIn("Проверяю цены", state["label"])
-        self.assertIn("<b>x</b>", state["names"])     # escaped, shown as text
+        self.assertIn("<b>x</b>", state["names"])
         self.assertEqual(state["skeletons"], 3)
         self.assertTrue(state["live"])
         shots = os.environ.get("R22_SHOT_DIR")
         if shots:
             page.screenshot(path=str(Path(shots) / "ui-progress-harness.png"), clip={"x": 0, "y": 0, "width": 960, "height": 420})
 
-    # ------------------------------------------------------------ flags + copy
     def test_flags_on_cards(self):
         page = self.page()
         self.render(page)
@@ -204,7 +199,7 @@ class ProductCardsUi(unittest.TestCase):
                               "[c.querySelector('.prd-name').textContent, (c.querySelector('.prd-flag') || {}).textContent || ''])")
         self.assertEqual(flags, [["WD Blue SN5000 1 ТБ", "В бюджете"], ["Kingston NV3 1 ТБ", "Цена не подтверждена"],
                                  ["ADATA Legend 850 1TB", "Выше бюджета"], ["Crucial P3 1TB", "Снят с продажи"]])
-        # No nested interactive elements: the copy button is a sibling of the card button.
+
         nested = page.evaluate("() => document.querySelectorAll('.prd-card button, .prd-card a').length")
         self.assertEqual(nested, 0)
         self.assertEqual(page.evaluate("() => document.querySelectorAll('.prd-row > [role=listitem]').length"), 4)
@@ -220,19 +215,19 @@ class ProductCardsUi(unittest.TestCase):
         page.keyboard.press("ArrowDown")
         page.keyboard.press("Enter")
         page.wait_for_timeout(100)
-        self.assertEqual(page.evaluate("() => window.copied.pop()"), "https://www.dns-shop.ru/product/a1/")  # cheapest verified
+        self.assertEqual(page.evaluate("() => window.copied.pop()"), "https://www.dns-shop.ru/product/a1/")
         self.assertFalse(page.evaluate("() => !!document.querySelector('.prd-menu')"))
         page.click(".prd-cell >> nth=0 >> .prd-copy")
         page.click(".prd-menu [data-prd-menu=name]")
         self.assertEqual(page.evaluate("() => window.copied.pop()"), "WD Blue SN5000 1 ТБ (WDS100T4B0E)")
         self.assertEqual(page.evaluate("() => window.toasts.pop()"), ["Название скопировано", "ok"])
-        # Opening the menu never opens the side sheet.
+
         self.assertFalse(page.evaluate("() => !!document.querySelector('.prd-sheet.open')"))
-        # Esc closes the menu and returns focus to the button.
+
         page.click(".prd-cell >> nth=1 >> .prd-copy")
         page.keyboard.press("Escape")
         self.assertTrue(page.evaluate("() => !document.querySelector('.prd-menu') && document.activeElement.classList.contains('prd-copy')"))
-        # An item with no offer link: the link entry is disabled.
+
         page.click(".prd-cell >> nth=3 >> .prd-copy")
         self.assertTrue(page.evaluate("() => document.querySelector('.prd-menu [data-prd-menu=link]').disabled"))
 
@@ -276,7 +271,7 @@ class ProductCardsUi(unittest.TestCase):
         self.assertEqual(rows[2][3], "https://www.wildberries.ru/catalog/0/search.aspx?search=WD+Blue")
         self.assertEqual(rows[3][1], "Найден, цена не подтверждена")
         self.assertEqual(rows[3][3], "https://www.citilink.ru/product/wd-77/")
-        self.assertEqual(rows[4][3], "")                                  # nothing to open
+        self.assertEqual(rows[4][3], "")
         self.assertIn("В бюджете", page.evaluate("() => document.querySelector('.prd-price-block .prd-flag').textContent"))
         page.click(".prd-offer >> nth=1 >> [data-prd-copy=link]")
         self.assertEqual(page.evaluate("() => window.copied.pop()"), "https://www.ozon.ru/product/x-55/")
@@ -286,7 +281,7 @@ class ProductCardsUi(unittest.TestCase):
         page.click(".prd-menu [data-prd-menu=card]")
         self.assertTrue(page.evaluate("() => window.copied.pop().startsWith('WD Blue SN5000 1 ТБ (WDS100T4B0E)\\nЛучший выбор')"))
         self.assertTrue(page.evaluate("() => document.querySelector('.prd-sheet').classList.contains('open')"))
-        # The sheet's Esc still closes the sheet when no menu is open.
+
         page.keyboard.press("Escape")
         page.wait_for_timeout(400)
         self.assertFalse(page.evaluate("() => document.querySelector('.prd-sheet').classList.contains('open')"))
@@ -304,7 +299,6 @@ class ProductCardsUi(unittest.TestCase):
         self.assertEqual(page.evaluate("() => document.activeElement.dataset.pi"), "1")
         page.keyboard.press("End")
         self.assertEqual(page.evaluate("() => document.activeElement.dataset.pi"), "3")
-
 
 if __name__ == "__main__":
     unittest.main()

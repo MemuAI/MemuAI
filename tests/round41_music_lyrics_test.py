@@ -35,12 +35,10 @@ CHROMIUM = next((c for c in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/workspa
 SHOTS = os.environ.get("R41_SHOTS", "")
 GOAL_MS = float(os.environ.get("R41_SYNC_GOAL_MS", "50"))
 
-
 def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
-
 
 class ServerLyricsTest(unittest.TestCase):
     def lib(self, tmp, duration=200):
@@ -71,11 +69,11 @@ class ServerLyricsTest(unittest.TestCase):
             finally:
                 lyrics.PROVIDERS.clear()
                 lyrics.PROVIDERS.update(old)
-            self.assertEqual(cands[0]["source"], "netease")          # the same length wins over the preferred source
+            self.assertEqual(cands[0]["source"], "netease")
             lyrics._save_meta(lib, tid, alts=cands, choice=1)
             lyrics._apply(lib, tid, cands[1])
             ans = lyrics._answer(lib, tid, True)
-            self.assertEqual(ans["duration_diff"], 12.0)             # → «Other version · ±12 s» in the window
+            self.assertEqual(ans["duration_diff"], 12.0)
             lyrics._save_meta(lib, tid, choice=0)
             lyrics._apply(lib, tid, cands[0])
             self.assertEqual(lyrics._answer(lib, tid, True)["duration_diff"], 1.0)
@@ -97,7 +95,7 @@ class ServerLyricsTest(unittest.TestCase):
 
     def test_static(self):
         np_js = (ROOT / "app/module_builtins/music/np.js").read_text(encoding="utf-8")
-        self.assertNotIn("+ .08", np_js)                               # no fixed lead
+        self.assertNotIn("+ .08", np_js)
         self.assertIn('data-ly="edit"', np_js)
         self.assertIn('data-ly="tap"', np_js)
         self.assertIn("Player.heard()", np_js)
@@ -106,7 +104,6 @@ class ServerLyricsTest(unittest.TestCase):
         tg = (ROOT / "app/tgapp/music.js").read_text(encoding="utf-8")
         self.assertIn("function lyricLoop()", tg)
         self.assertNotIn("+ 0.1;   // r39", tg)
-
 
 @unittest.skipUnless(sync_playwright and CHROMIUM and shutil.which("ffmpeg"), "needs playwright, Chromium and ffmpeg")
 class LiveLyricsTest(unittest.TestCase):
@@ -211,7 +208,7 @@ class LiveLyricsTest(unittest.TestCase):
         f.click('#ly-bar [data-ly="edit"]')
         area = f.wait_for_selector(".mm-lyrics-paste textarea", timeout=5000)
         value = area.input_value()
-        self.assertIn("[00:03.00]Second line", value)                  # the current text, with its stamps
+        self.assertIn("[00:03.00]Second line", value)
         self.assertTrue(f.evaluate("() => document.getElementById('ly-bar').hidden"))
         f.fill(".mm-lyrics-paste textarea", value.replace("Second line", "Second line (fixed)"))
         self.shot(app, "lyrics-edit.png")
@@ -220,9 +217,9 @@ class LiveLyricsTest(unittest.TestCase):
         got = self.call("lyrics.get", {"id": tid})
         self.assertEqual(got["source"], "manual")
         self.assertEqual(got["synced"][1][1], "Second line (fixed)")
-        self.assertAlmostEqual(got["offset"], 0.3)                    # the offset survived the edit
+        self.assertAlmostEqual(got["offset"], 0.3)
         self.assertIn("0.3", f.inner_text("#ly-bar").replace(",", "."))
-        # a plain text is editable too
+
         self.call("lyrics.set", {"id": self.ids["Bravo"], "text": "Just words\nmore words"})
         self.play_with_lyrics(f, self.ids["Bravo"], False)
         f.wait_for_selector('#ly-bar [data-ly="edit"]', timeout=10000)
@@ -231,7 +228,7 @@ class LiveLyricsTest(unittest.TestCase):
         f.fill(".mm-lyrics-paste textarea", "Just words\nedited")
         f.press(".mm-lyrics-paste textarea", "Control+Enter")
         self.poll(f, "() => /edited/.test(document.querySelector('#lyrics-inner').textContent)", 5000)
-        # after a reload of the window
+
         app.close()
         app, f = self.open_module()
         self.play_with_lyrics(f, tid, False)
@@ -245,8 +242,7 @@ class LiveLyricsTest(unittest.TestCase):
         self.call("lyrics.offset", {"id": tid, "offset": 0})
         app, f = self.open_module()
         f.evaluate("(m) => MemuMusic.Theme.set('motion', m)", motion)
-        # a headless Chromium rasterizes in software: the tiny «playing» bars (CSS animation mm-eq) repaint the whole frame
-        # and drop it to 6–15 fps — that measures the sandbox, not the lyrics; paused for the measurement
+
         f.evaluate("() => { const st = document.createElement('style'); st.textContent = '*, *::before, *::after { animation-play-state: paused !important; }'; document.head.appendChild(st); }")
         self.play_with_lyrics(f, tid, False)
         f.wait_for_selector("#lyrics-inner .mm-lyric", timeout=10000)
@@ -277,7 +273,7 @@ class LiveLyricsTest(unittest.TestCase):
         for t, i in data["switches"]:
             if 0 <= i < len(stamps) and t >= samples[0][0]:
                 errors.append(round((clock(t) - data["lat"] - stamps[i]) * 1000, 1))
-        # the engine itself: what Player.heard() says on each frame vs the fitted audible clock
+
         engine = [abs(s[2] - (clock(s[0]) - data["lat"])) * 1000 for s in samples[3:]]
         span = (samples[-1][0] - samples[0][0]) / 1000
         fps = n / span if span else 0
@@ -293,10 +289,9 @@ class LiveLyricsTest(unittest.TestCase):
         Chromium; the full effects are checked only when the sandbox renders them at ≥ 30 fps."""
         for motion in ("lite", "full"):
             errors, fps, engine, frame = self.measure_sync(motion)
-            self.assertLess(engine, GOAL_MS)                                 # the clock the lines follow: < 50 ms
-            self.assertGreater(min(errors), -20, errors)                     # never ahead of the sound (the old lead: −80 ms)
-            # painted in the first frame after the moment: within one frame (a headless software renderer runs at
-            # 6–60 fps; a real WebView2 window at 60 → < 17 ms + the 50 ms goal)
+            self.assertLess(engine, GOAL_MS)
+            self.assertGreater(min(errors), -20, errors)
+
             self.assertLess(max(errors), GOAL_MS + frame + 5, errors)
 
     def test_3_offset_controls(self):
@@ -312,14 +307,14 @@ class LiveLyricsTest(unittest.TestCase):
         f.evaluate("() => document.activeElement && document.activeElement.blur()")
         f.press("body", "BracketLeft")
         f.press("body", "Shift+BracketRight")
-        self.poll(f, "() => /\\+1[.,]0/.test(document.getElementById('ly-bar').textContent)", 3000)   # .1 + .5 − .1 + .5
+        self.poll(f, "() => /\\+1[.,]0/.test(document.getElementById('ly-bar').textContent)", 3000)
         time.sleep(0.9)
         self.assertAlmostEqual(self.call("lyrics.get", {"id": tid})["offset"], 1.0)
-        # «By line»: play, wait until 3.0 s are heard, tap line B (stamp 4.0) → offset ≈ 3.0 − 4.0 = −1.0
+
         f.evaluate("() => { MemuMusic.Player.seek(0); MemuMusic.Player.play(); }")
         self.poll(f, "() => MemuMusic.Player.heard() > 3.0", 10000)
         f.click('#ly-bar [data-ly="tap"]')
-        # the tap itself in one go (a pointer click waits for the moving line to be «stable» — hundreds of ms)
+
         heard = f.evaluate("() => { const h = MemuMusic.Player.heard(); document.querySelector('#lyrics-inner .mm-lyric[data-l=\"1\"]').click(); return h; }")
         time.sleep(0.9)
         off = self.call("lyrics.get", {"id": tid})["offset"]
@@ -328,7 +323,6 @@ class LiveLyricsTest(unittest.TestCase):
         f.evaluate("() => MemuMusic.Player.pause()")
         self.shot(app, "lyrics-offset.png")
         app.close()
-
 
 if __name__ == "__main__":
     unittest.main()

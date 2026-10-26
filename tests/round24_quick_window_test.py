@@ -17,10 +17,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 
-
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
 
 class GlobalEscape(unittest.TestCase):
     def test_decision(self) -> None:
@@ -52,7 +50,6 @@ class GlobalEscape(unittest.TestCase):
         self.assertIn("self._arm_escape()", qa)
         self.assertIn("self._disarm_escape()", qa)
 
-
 class NoHideOnBlur(unittest.TestCase):
     def test_manager_blur_never_hides(self) -> None:
         from app.quick_ask import QuickAskManager
@@ -71,12 +68,11 @@ class NoHideOnBlur(unittest.TestCase):
         self.assertFalse(core.PREF_DEFAULTS["quick_ask_hide_on_blur"])
         js = read(QUICK / "quick.js")
         self.assertNotIn('windowAction("blur")', js, "the page no longer asks to hide on focus loss")
-        # Escape is layered: plugins (DFY) first, then a running answer, then the window
+
         block = js[js.index('if (e.key === "Escape") {\n        // Round 24'):]
         block = block[:block.index("closeWindow();")]
         self.assertIn('emit("escape"', block)
         self.assertIn("if (S.busy) { stop(); return; }", block)
-
 
 class CompanionNeverLost(unittest.TestCase):
     def test_contain_rect(self) -> None:
@@ -175,7 +171,6 @@ class CompanionNeverLost(unittest.TestCase):
         m = self._manager([(150, 150), (600, 500), (600, 500)], quick_rect=(500, 400, 300, 300))
         self.assertTrue(m.follow((50, 50))["docked"])
 
-
 class Frontend(unittest.TestCase):
     def test_wiring(self) -> None:
         html = read(QUICK / "index.html")
@@ -237,7 +232,6 @@ if (bad.length) { console.log(JSON.stringify(bad)); process.exit(1); }
                                 capture_output=True, text=True, timeout=150, env=env, cwd=str(ROOT))
         self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])
 
-
 class ReviewFixes(unittest.TestCase):
     """Independent review of Round 24 (quick access)."""
 
@@ -254,14 +248,14 @@ class ReviewFixes(unittest.TestCase):
         sys.path.insert(0, str(ROOT))
         from app import win_hotkey
         w = win_hotkey.EscapeWatcher(lambda: None, lambda *a: True)
-        w.disarm()                          # disarm before arm is harmless
+        w.disarm()
         if sys.platform != "win32":
             self.assertFalse(w.arm())
         w.disarm()
         self.assertFalse(w.armed)
         src = (ROOT / "app" / "win_hotkey.py").read_text(encoding="utf-8")
         hook = src[src.index("class EscapeWatcher"):]
-        # 64-bit safe signatures, GC-held callback, queue created before WM_QUIT can be posted, always unhook.
+
         self.assertIn("ctypes.WINFUNCTYPE(ctypes.c_ssize_t, ctypes.c_int, ctypes.c_size_t, ctypes.c_ssize_t)", hook)
         self.assertIn("CallNextHookEx.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_size_t, ctypes.c_ssize_t]", hook)
         self.assertIn("self._callback = callback", hook)
@@ -277,7 +271,6 @@ class ReviewFixes(unittest.TestCase):
         self.assertFalse(d(0x1B, 0x100, 0x10, visible=True, foreground=5, own_windows=(7,)))
         self.assertFalse(d(0x1B, 0x101, 0, visible=True, foreground=5, own_windows=(7,)))
         self.assertFalse(d(0x1B, 0x100, 0, visible=False, foreground=5, own_windows=(7,)))
-
 
 if __name__ == "__main__":
     unittest.main()

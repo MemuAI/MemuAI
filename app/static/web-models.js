@@ -1,10 +1,5 @@
-/* MemuAI Proxy — Round 40 (r40-proxy): web versions of models («<model>:web»).
 
-   A web model is an ordinary model id for any program (OpenAI / Anthropic API) that searches the web on the Proxy side
-   (app/web_models.py). It is optional, so the UI stays out of the way: a folded «Веб-версия» section at the bottom
-   of the model card (model_caps.js calls MemuWebModels.cardBlock(card)) and a list in «Каталог моделей → Дополнительно».
-   API: GET /api/admin/web-models, POST …/save | …/delete | …/try (app/web_models_api.py).
-   Uses app.js globals: LANG, esc, api, toast, openModal, closeModal, confirmDialog, copyText. */
+
 "use strict";
 
 window.MemuWebModels = (() => {
@@ -29,7 +24,6 @@ window.MemuWebModels = (() => {
   const findByBase = (base) => ((S.data && S.data.models) || []).find((m) => m.base === base);
   const findById = (id) => ((S.data && S.data.models) || []).find((m) => m.id === id);
 
-  /* ------------------------------------------------------------ model card */
   function cardBlock(card) {
     if (!card || !card.id || String(card.id).endsWith(":web")) return "";
     setTimeout(() => fillCard(card.id), 0);
@@ -66,7 +60,6 @@ window.MemuWebModels = (() => {
       s.read_pages ? L("читает страницы", "reads pages") : "", s.citations ? L("с источниками", "with sources") : "", mode].filter(Boolean).join(" · ");
   }
 
-  /* ------------------------------------------------------------ settings dialog */
   function opt(list, value) {
     return list.map(([v, ru, en]) => `<option value="${esc(v)}" ${String(value || "") === v ? "selected" : ""}>${esc(L(ru, en))}</option>`).join("");
   }
@@ -155,7 +148,6 @@ window.MemuWebModels = (() => {
     };
   }
 
-  /* ------------------------------------------------------------ «Каталог моделей → Дополнительно» list */
   async function renderList() {
     const box = document.getElementById("wm-list");
     if (!box) return;
@@ -185,7 +177,7 @@ window.MemuWebModels = (() => {
     else if (act === "try") test(el.dataset.wmId);
     else if (act === "copy" && typeof copyText === "function") copyText(el.dataset.wmId);
   });
-  /* The list loads only when «Дополнительно» is opened — nothing runs on start. */
+
   const more = document.getElementById("models-more");
   if (more) more.addEventListener("toggle", () => { if (more.open) renderList(); });
 

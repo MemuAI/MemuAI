@@ -1,16 +1,13 @@
-/* MemuAI Studio: изображения, видео, музыка, озвучка и расшифровка — через мост Memu.
- * Тексты интерфейса — в i18n.json. Всё, что модуль рисует сам (галерея,
- * заглушки, подписи, счётчики), хранится как состояние и перерисовывается
- * в relabel() при смене языка MemuAI.
- */
+
+
 const t = (key, vars) => Memu.t(key, vars);
 const saved = Memu.saved || {};
 const $ = (selector) => document.querySelector(selector);
 const $$ = (selector) => Array.from(document.querySelectorAll(selector));
 
 const MAX_REFS = 4;
-const MAX_HISTORY = 24;           // картинки сеанса держатся в памяти окна, не на диске
-const REF_SHRINK_BYTES = 1500000; // большие референсы уменьшаются до 1600 px
+const MAX_HISTORY = 24;
+const REF_SHRINK_BYTES = 1500000;
 const REF_MAX_SIDE = 1600;
 const MAX_AUDIO_BYTES = 35 * 1024 * 1024;
 const PARALLEL_IMAGES = 2;
@@ -121,30 +118,26 @@ let lastText = "";
 let lastVideos = [];
 let audioParts = [];
 let chatModel = "";
-let audioSource = null;       // { file, size } или { data, ms, bytes }
+let audioSource = null;
 let recorder = null;
 let recordTimer = null;
 let recordStarted = 0;
 let lightboxIndex = 0;
-let lightboxList = [];        // [{ url, prompt, model }] — что листает просмотр
-let imageHistory = [];        // все картинки сеанса: { url, prompt, model, aspect, at }
-// Номер запуска: остановка (или новый запуск) увеличивает его, и поздние
-// ответы старого запуска игнорируются. Отменить уже принятую провайдером
-// генерацию мост не может — это честно сказано в статусе.
+let lightboxList = [];
+let imageHistory = [];
+
 const runs = { image: 0, video: 0, transcribe: 0 };
 const enhanceUndo = { image: null, video: null };
 const busy = { image: false, video: false, audio: false, transcribe: false, music: false };
 let stopSpeaking = false;
-let modelList = null;         // null — ещё грузится; [] — моделей нет
+let modelList = null;
 let modelError = "";
-// Что сейчас на сцене: заглушка, прогресс, галерея или ролик.
+
 let imageView = { kind: "empty" };
 let videoView = { kind: "empty" };
-let imageMetaState = null;    // { done, count, ms }
-let videoMetaState = null;    // { model, ms }
+let imageMetaState = null;
+let videoMetaState = null;
 let transcribeMetaState = null;
-
-/* --------------------------------- помощники -------------------------------- */
 
 function esc(value) {
   return String(value == null ? "" : value).replace(/[&<>"']/g,
@@ -230,7 +223,6 @@ const ICON = {
   video: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="13" height="14" rx="2"/><path d="m16 10 5-3v10l-5-3z"/></svg>',
 };
 
-/* view: { kind: "empty"|"error", title, text } — title/text are keys unless raw. */
 function drawPlaceholder(stage, view, emptyIcon) {
   stage.className = "st-stage";
   const title = view.rawTitle !== undefined ? view.rawTitle : t(view.title);
@@ -247,7 +239,7 @@ function drawProgress(stage, title, note) {
 }
 
 function setGo(button, running, key) {
-  // Кнопка запуска во время работы становится кнопкой «Остановить».
+
   button.disabled = false;
   button.classList.toggle("stop", !!running);
   const span = button.querySelector("span");
@@ -259,14 +251,6 @@ function autosize(area) {
   area.style.height = Math.min(160, Math.max(40, area.scrollHeight)) + "px";
 }
 
-/* ------------------------------ перетаскивание ------------------------------ */
-
-// Оверлей «отпустите файл» виден ТОЛЬКО во время настоящего перетаскивания файлов
-// над зоной. Счётчик dragenter/dragleave сам по себе ненадёжен (файл бросили мимо,
-// окно потеряло фокус, перетаскивание отменили за пределами модуля, событие
-// dragleave не дошло) — поэтому оверлей ещё и снимается, когда dragover перестаёт
-// приходить, на drop/dragend в любом месте, на Esc, на потерю фокуса и на любое
-// обычное движение мыши (во время перетаскивания мышиных событий не бывает).
 const DROP_IDLE_MS = 1200;
 const dropWatchers = [];
 function hasDraggedFiles(event) {
@@ -297,14 +281,14 @@ function watchFileDrop({ zone, overlay, highlight = null, onFiles }) {
   zone.addEventListener("dragover", (event) => {
     if (!hasDraggedFiles(event) || !active()) return;
     event.preventDefault();
-    try { event.dataTransfer.dropEffect = "copy"; } catch (error) { /* только чтение */ }
+    try { event.dataTransfer.dropEffect = "copy"; } catch (error) {  }
     if (!visible()) show(true);
     arm();
   });
   zone.addEventListener("dragleave", (event) => {
     if (!visible()) return;
     const to = event.relatedTarget;
-    if (to && zone.contains(to)) return;          // переход между дочерними элементами
+    if (to && zone.contains(to)) return;
     depth = Math.max(0, depth - 1);
     if (!to || !depth) show(false);
   });
@@ -327,12 +311,11 @@ function hideDropOverlays() {
   dropWatchers.forEach((watcher) => { if (watcher.visible()) { watcher.hide(); hidden = true; } });
   return hidden;
 }
-// Файл, брошенный мимо зоны, браузер открыл бы вместо модуля — здесь он просто
-// не принимается (курсор «нельзя»).
+
 document.addEventListener("dragover", (event) => {
   if (!hasDraggedFiles(event) || event.defaultPrevented) return;
   event.preventDefault();
-  try { event.dataTransfer.dropEffect = "none"; } catch (error) { /* только чтение */ }
+  try { event.dataTransfer.dropEffect = "none"; } catch (error) {  }
 });
 document.addEventListener("drop", (event) => {
   if (hasDraggedFiles(event)) event.preventDefault();
@@ -343,8 +326,6 @@ document.addEventListener("dragleave", (event) => { if (!event.relatedTarget) hi
 window.addEventListener("blur", hideDropOverlays);
 document.addEventListener("visibilitychange", () => { if (document.hidden) hideDropOverlays(); });
 ["mousemove", "pointerdown", "wheel"].forEach((name) => document.addEventListener(name, hideDropOverlays, { passive: true }));
-
-/* ---------------------------------- вкладки --------------------------------- */
 
 function currentTab() {
   const active = $('[data-tab][aria-selected="true"]');
@@ -365,8 +346,6 @@ function setSide(open) {
 }
 $$("[data-open-side]").forEach((button) => { button.onclick = () => setSide(true); });
 $$("[data-close-side]").forEach((node) => { node.addEventListener("click", () => setSide(false)); });
-
-/* -------------------------------- сохранение -------------------------------- */
 
 let saveTimer = null;
 function snapshot() {
@@ -407,14 +386,11 @@ function remember(immediate) {
 }
 document.body.addEventListener("input", () => remember(false));
 document.body.addEventListener("change", () => remember(false));
-// Страница в iframe сносится без beforeunload, поэтому отложенную запись
-// сбрасываем ещё и на pagehide — иначе последние правки теряются.
+
 window.addEventListener("pagehide", () => remember(true));
 window.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") remember(true);
 });
-
-/* ---------------------------- начальное состояние --------------------------- */
 
 el.imagePrompt.value = saved.prompt || "";
 el.videoPrompt.value = saved.video_prompt || "";
@@ -438,15 +414,11 @@ selectTab(saved.tab || "image", false);
   autosize(area);
 });
 
-/* ---------------------------------- модели ---------------------------------- */
-
-// Подходящие модели — наверху, остальные — ниже: не у всех моделей в имени
-// есть «image» или «video», и отметки в MemuAI тоже бывают не у всех.
 const IMAGE_HINT = /image|img|dall|flux|diffusion|stable|sdxl|sd-?[123]|midjourney|imagen|kandinsky|recraft|ideogram|seedream|playground|photo|paint|draw|pixart|hidream|qwen-image/i;
 const VIDEO_HINT = /video|sora|veo|kling|runway|hailuo|wan[-_ ]?\d|luma|pika|seedance|minimax|gen-?[34]|cogvideo|hunyuan/i;
 const isImage = (item) => !!item.image || !!item.caps?.image || IMAGE_HINT.test(`${item.id} ${item.name || ""}`);
 const isVideo = (item) => !!item.video || !!item.caps?.video || VIDEO_HINT.test(`${item.id} ${item.name || ""}`);
-const isChatModel = (item) => !item.image && !item.video && !item.audio && !item.caps?.image && !item.caps?.video && !item.caps?.audio
+const isChatModel = (item) => (item.kind || "chat") === "chat" && !item.image && !item.video && !item.audio && !item.caps?.image && !item.caps?.video && !item.caps?.audio
   && item.caps?.text !== false && (item.caps?.text === true || (!isImage(item) && !isVideo(item)));
 
 function modelOptions(list, match, current, emptyFirst) {
@@ -485,7 +457,7 @@ function drawModels(first) {
 Memu.models().then((rows) => {
   modelList = Array.isArray(rows) ? rows.filter((item) => !item.music && !item.caps?.music) : [];
   const chat = modelList.filter(isChatModel);
-  chatModel = (chat.find((item) => item.default) || chat[0])?.id || "";   // Round 34: MemuAI's default first
+  chatModel = (chat.find((item) => item.default) || chat[0])?.id || "";
   drawModels(true);
   drawMusicProducerModels(true);
   if (!modelList.length) setStatus(t("model.connect"), "error");
@@ -495,8 +467,6 @@ Memu.models().then((rows) => {
   drawModels(true);
   setStatus(error.message, "error");
 });
-
-/* --------------------------------- референсы -------------------------------- */
 
 function renderRefs() {
   el.refs.innerHTML = references.map((url, index) => `
@@ -534,7 +504,7 @@ $("#image-file").onchange = async (event) => {
   event.target.value = "";
   await addReferenceFiles(files);
 };
-// Референс можно бросить на вкладку изображений или вставить из буфера.
+
 {
   watchFileDrop({
     zone: $("#panel-image"),
@@ -562,8 +532,6 @@ function addReference(url) {
   setStatus(t("refs.added"), "ok");
 }
 renderRefs();
-
-/* -------------------------------- изображения ------------------------------- */
 
 function composePrompt() {
   const parts = [];
@@ -641,9 +609,6 @@ async function generateImages(variation) {
     el.imageStage.querySelectorAll("[data-elapsed]").forEach((item) => { item.textContent = value; });
   }, 1000);
 
-  // Каждое изображение — отдельный запрос: провайдер отдаёт одно за раз.
-  // Если ответ всё же принёс несколько, лишние занимают свободные места,
-  // а не выбрасываются. Параллельно идут не больше двух запросов.
   let attempts = 0;
   let inFlight = 0;
   const fill = (url) => {
@@ -713,7 +678,6 @@ async function generateImages(variation) {
   }
 }
 
-/* Остановка: дальше ответа не ждём, готовые картинки остаются на месте. */
 function stopImages() {
   if (!busy.image) return;
   runs.image += 1;
@@ -742,8 +706,7 @@ function drawHistory() {
   box.hidden = !imageHistory.length;
   $("#image-history-count").textContent = imageHistory.length ? String(imageHistory.length) : "";
   const row = $("#image-history-row");
-  // Уже нарисованные миниатюры не пересоздаются: data-URL на мегабайты
-  // иначе декодировался бы заново при каждой новой картинке.
+
   const known = new Map(Array.from(row.querySelectorAll("[data-key]")).map((node) => [node.dataset.key, node]));
   const nodes = imageHistory.map((item, index) => {
     const key = item.at + ":" + item.url.length + ":" + item.url.slice(-24);
@@ -825,8 +788,6 @@ $("#image-to-chat").onclick = async () => {
   finally { button.disabled = false; }
 };
 
-/* ---------------------------------- просмотр -------------------------------- */
-
 function openLightbox(index, list) {
   if (list) lightboxList = list;
   const item = lightboxList[index];
@@ -873,8 +834,6 @@ $("#image-history-clear").onclick = () => {
 };
 el.lightbox.addEventListener("click", (event) => { if (event.target === el.lightbox || event.target === el.lightboxImg) closeLightbox(); });
 
-/* ----------------------------------- видео ---------------------------------- */
-
 function drawVideoView() {
   if (videoView.kind === "progress") {
     drawProgress(el.videoStage, t("video.progress"), t("video.progress_note"));
@@ -916,7 +875,7 @@ async function generateVideo() {
   const ticker = setInterval(tickVideo, 1000);
   setStatus(t("video.progress"), "busy");
   try {
-    // Никакой замены готового ролика видеозаглушкой: пусто — значит ошибка.
+
     const response = await Memu.video({ prompt: parts.join(". "), model, aspect: radio("video-aspect") || "16:9", images: references });
     if (run !== runs.video) return;
     const urls = ((response && response.urls) || []).filter(Boolean);
@@ -969,8 +928,6 @@ $("#video-save").onclick = async () => {
   } catch (error) { setStatus(error.message, "error"); }
 };
 
-/* ---------------------------------- озвучка --------------------------------- */
-
 function updateSpeechMeta() {
   const text = el.speech.value.trim();
   const size = Number(el.audioChunk.value) || 0;
@@ -988,7 +945,7 @@ function splitText(text, size) {
   let current = "";
   const push = (value) => { if (value.trim()) chunks.push(value.trim()); };
   for (const sentence of sentences) {
-    // Предложение длиннее части режется по пробелам, а не оставляется целиком.
+
     if (sentence.length > size) {
       push(current);
       current = "";
@@ -1018,8 +975,7 @@ $$('input[name="audio-rate"]').forEach((input) => input.addEventListener("change
 
 function renderParts() {
   el.audioOut.hidden = !audioParts.length;
-  // Уже созданные плееры не пересоздаются: иначе перевод интерфейса
-  // обрывал бы воспроизведение.
+
   const players = new Map(Array.from(el.audioOut.querySelectorAll("audio[data-part]"))
     .map((node) => [node.getAttribute("src"), node]));
   el.audioOut.innerHTML = audioParts.map((part, index) => part.url
@@ -1116,7 +1072,7 @@ $("#audio-download").onclick = async () => {
 
 $("#audio-paste").onclick = async () => {
   try {
-    // Буфер обмена читает MemuAI: у окна модуля к нему нет доступа.
+
     const text = await Memu.paste();
     if (!text) throw new Error("empty");
     el.speech.value = text;
@@ -1136,8 +1092,6 @@ $("#audio-clear").onclick = () => {
   remember(true);
   el.speech.focus();
 };
-
-/* -------------------------------- расшифровка ------------------------------- */
 
 function sourceLabel(source) {
   if (!source) return "";
@@ -1167,7 +1121,7 @@ function takeFile(file) {
 }
 
 el.audioFile.onchange = () => takeFile(el.audioFile.files && el.audioFile.files[0]);
-// Файл можно бросить на всю вкладку «Расшифровка» (поле выбора подсвечивается).
+
 watchFileDrop({
   zone: $("#panel-transcribe"),
   overlay: $("#audio-drop"),
@@ -1189,8 +1143,6 @@ function stopRecordingUi() {
   drawRecordLabel();
 }
 
-// Запись ведёт окно MemuAI (Memu.record): странице модуля в песочнице браузер
-// микрофон не даёт ни при каких правах.
 el.record.onclick = async () => {
   el.record.disabled = true;
   try {
@@ -1299,8 +1251,6 @@ $("#transcribe-send").onclick = async () => {
   } catch (error) { setStatus(error.message, "error"); }
   finally { button.disabled = false; }
 };
-
-/* ----------------------------------- музыка --------------------------------- */
 
 const MUSIC_PRESETS = [
   ["", "Свой стиль", "Custom style", "", 100],
@@ -1589,7 +1539,7 @@ async function askMusicProducer(event) {
   } finally { if (sequence === producerSequence) { producerBusy = false; renderProducerChat(); } }
 }
 $("#music-producer-form").onsubmit = askMusicProducer;
-// r40 (r40-music-fix): the module frame is sandboxed without allow-forms — the browser drops the submit, so «Send» did nothing
+
 $("#music-producer-send").onclick = askMusicProducer;
 musicEl["producer-input"].addEventListener("keydown", (event) => {
   if (event.key === "Enter" && !event.shiftKey && !event.ctrlKey && !event.metaKey && !event.isComposing) askMusicProducer(event);
@@ -1630,8 +1580,6 @@ if (typeof Memu.music === "function") {
 }
 window.addEventListener("pagehide", () => { stopMusic(); for (const track of musicTracks) releaseMusicTrack(track); });
 
-/* -------------------------- улучшение описания с ИИ ------------------------- */
-
 const enhanceBusy = { image: false, video: false };
 function enhanceArea(kind) { return kind === "video" ? el.videoPrompt : el.imagePrompt; }
 function drawEnhance() {
@@ -1669,7 +1617,7 @@ async function enhancePrompt(kind) {
     let better = String((reply && reply.text) || "").trim().replace(/^```[a-z]*\s*|```$/gi, "").replace(/^["«“]|["»”]$/g, "").trim();
     if (!better) throw new Error(t("enhance.empty"));
     if (better.length > 4000) better = better.slice(0, 4000);
-    if (area.value.trim() !== text) return; // человек успел поправить сам — не затираем
+    if (area.value.trim() !== text) return;
     enhanceUndo[kind] = area.value;
     area.value = better;
     autosize(area);
@@ -1686,8 +1634,6 @@ $$("[data-enhance]").forEach((button) => { button.onclick = () => enhancePrompt(
 [["image", el.imagePrompt], ["video", el.videoPrompt]].forEach(([kind, area]) => area.addEventListener("input", () => {
   if (enhanceUndo[kind] !== null) { enhanceUndo[kind] = null; drawEnhance(); }
 }));
-
-/* ------------------------------------ язык ---------------------------------- */
 
 function relabel() {
   drawModels(false);
@@ -1710,8 +1656,6 @@ function relabel() {
 }
 Memu.onLanguage(relabel);
 
-/* ---------------------------------- клавиши --------------------------------- */
-
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && hideDropOverlays()) { event.preventDefault(); return; }
   if (!el.lightbox.hidden) {
@@ -1723,7 +1667,7 @@ document.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
     event.preventDefault();
     const tab = currentTab();
-    // Ctrl+Enter только запускает: остановка — явной кнопкой, а не повторным нажатием.
+
     if (tab === "image") { if (!busy.image) generateImages(false); }
     else if (tab === "video") { if (!busy.video) generateVideo(); }
     else if (tab === "transcribe") { if (!busy.transcribe) transcribe(); }
@@ -1736,8 +1680,7 @@ document.addEventListener("keydown", (event) => {
     selectTab(["image", "video", "audio", "transcribe", "music"][Number(event.code.slice(-1)) - 1]);
     return;
   }
-  // Обработанный модулем Esc помечается preventDefault, чтобы окно MemuAI
-  // не свернуло развёрнутый лист тем же нажатием.
+
   if (event.key === "Escape" && el.app.dataset.side === "open") { event.preventDefault(); setSide(false); }
 });
 
@@ -1747,6 +1690,6 @@ drawHistory();
 drawEnhance();
 updateSpeechMeta();
 drawRecordLabel();
-// Round 30: one header — in the MemuAI window the name, status and buttons of this bar live in the window's title row.
+
 if (Memu.toolbar && Memu.toolbar.adopt) Memu.toolbar.adopt({ hide: [".st-mark", ".st-brand"], status: "#studio-status" });
 if (typeof Memu.ready === "function") Memu.ready();

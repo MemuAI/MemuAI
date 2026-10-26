@@ -33,7 +33,7 @@ import urllib.parse
 from pathlib import Path
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Optional, Tuple
 
-from fastapi import Request   # module level: the route annotation is resolved from these globals
+from fastapi import Request
 
 MAX_IMAGE_BYTES = 30 * 1024 * 1024
 TIMEOUT = 45.0
@@ -43,39 +43,28 @@ MIMES = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp", "gif": "
          "mp4": "video/mp4", "webm": "video/webm", "mov": "video/quicktime"}
 EXPIRED_STATUSES = {400, 401, 403, 404, 410}
 
-#: ``async (url) -> (status, bytes, content_type)`` for Genspark result links; set by the window process.
 _genspark_fetch: Optional[Callable[[str], Awaitable[Tuple[int, bytes, str]]]] = None
-
 
 class Expired(Exception):
     """The link answers but no longer gives the picture (signature expired, deleted, not an image)."""
 
-
 class Unreachable(Exception):
     """Temporary trouble (network, 5xx, too large, blocked address): keep the link, try again later."""
-
 
 def configure(*, genspark_fetch: Optional[Callable[[str], Awaitable[Tuple[int, bytes, str]]]] = None) -> None:
     global _genspark_fetch
     _genspark_fetch = genspark_fetch
 
-
-# --------------------------------------------------------------------------- local files
-
-
 def _active_profile() -> str:
     from . import media_routing
     return media_routing._active_profile()
-
 
 def _folder(profile_id: Optional[str] = None) -> Path:
     from . import media_routing
     return media_routing.media_folder(profile_id)
 
-
 def is_local(url: Any) -> bool:
     return bool(LOCAL_RE.fullmatch(str(url or "").split("#", 1)[0]))
-
 
 def local_path(url: Any) -> Optional[Path]:
     """The file behind ``/api/pg/media/file/…`` of the ACTIVE profile (the only one the window may read)."""
@@ -90,13 +79,11 @@ def local_path(url: Any) -> Optional[Path]:
         return None
     return path
 
-
 def read_local(url: Any) -> Optional[Tuple[bytes, str]]:
     path = local_path(url)
     if path is None:
         return None
     return path.read_bytes(), MIMES.get(path.suffix.lstrip(".").lower(), "application/octet-stream")
-
 
 def local_data_url(url: Any) -> Optional[str]:
     """``data:`` form of a local file — for routes that already handle data URLs (Save dialog, Open, Downloads)."""
@@ -106,7 +93,6 @@ def local_data_url(url: Any) -> Optional[str]:
     import base64
     raw, mime = found
     return f"data:{mime};base64," + base64.b64encode(raw).decode("ascii")
-
 
 def sniff_image(raw: bytes) -> Optional[str]:
     """The real format by magic bytes; ``None`` for anything that is not a picture (HTML error pages, XML…)."""
@@ -120,7 +106,6 @@ def sniff_image(raw: bytes) -> Optional[str]:
     if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
         return "image/webp"
     return None
-
 
 def store_image(raw: bytes, profile_id: Optional[str] = None) -> Dict[str, Any]:
     """Write a picture (validated) into ``generated_media`` atomically; same naming as generated videos."""
@@ -147,10 +132,6 @@ def store_image(raw: bytes, profile_id: Optional[str] = None) -> Dict[str, Any]:
             Path(temporary).unlink(missing_ok=True)
     return {"url": f"/api/pg/media/file/{name}?profile_id={active}", "mime": mime, "size": len(raw)}
 
-
-# --------------------------------------------------------------------------- remote download (SSRF-guarded)
-
-
 def _ip_is_public(address: Any) -> bool:
     ip = address if isinstance(address, (ipaddress.IPv4Address, ipaddress.IPv6Address)) \
         else ipaddress.ip_address(str(address).split("%", 1)[0])
@@ -159,10 +140,8 @@ def _ip_is_public(address: Any) -> bool:
         ip = mapped
     return bool(ip.is_global and not ip.is_multicast and not ip.is_reserved and not ip.is_unspecified)
 
-
-def _resolve(host: str, port: int) -> List[str]:   # separate for tests
+def _resolve(host: str, port: int) -> List[str]:
     return [item[4][0] for item in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)]
-
 
 def safe_url(raw: str) -> str:
     url = str(raw or "").strip()
@@ -180,7 +159,6 @@ def safe_url(raw: str) -> str:
         raise Unreachable("local and private addresses are not allowed")
     return url
 
-
 def _check_peer(response: Any) -> None:
     """Closes the DNS-rebinding gap: the address actually connected to must be public too."""
     stream = response.extensions.get("network_stream")
@@ -193,22 +171,18 @@ def _check_peer(response: Any) -> None:
     if not ok:
         raise Unreachable("the server redirected to a local address")
 
-
 def is_genspark(url: str) -> bool:
     parsed = urllib.parse.urlparse(str(url))
     return parsed.scheme == "https" and parsed.hostname in ("genspark.ai", "www.genspark.ai") \
         and parsed.path.startswith("/api/files/s/")
 
-
 def is_remote(url: Any) -> bool:
     return bool(re.match(r"^https?://", str(url or ""), re.I))
 
-
-def _client():   # replaced in tests by an httpx.MockTransport client
+def _client():
     import httpx
     return httpx.AsyncClient(timeout=httpx.Timeout(TIMEOUT, connect=10), trust_env=False, follow_redirects=False,
                              headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) MemuAI"})
-
 
 async def _download_public(url: str) -> bytes:
     import httpx
@@ -242,11 +216,10 @@ async def _download_public(url: str) -> bytes:
                 raise Unreachable(type(exc).__name__) from exc
     raise Unreachable("too many redirects")
 
-
 async def download_image(url: str, *, genspark_fetch=None) -> bytes:
     """Bytes of a picture, or ``Expired`` / ``Unreachable``. Whole operation limited to ``TIMEOUT`` seconds."""
     fetch = genspark_fetch or _genspark_fetch
-    from .providers import geminiweb_media    # r41b-gemini: картинка Gemini Web, уже скачанная Proxy куками аккаунта
+    from .providers import geminiweb_media
     if geminiweb_media.MEDIA_URL_RE.search(str(url)):
         local = geminiweb_media.local_path(str(url))
         if local is None:
@@ -266,13 +239,11 @@ async def download_image(url: str, *, genspark_fetch=None) -> bytes:
     except asyncio.TimeoutError as exc:
         raise Unreachable("timeout") from exc
 
-
 async def cache_url(url: str, profile_id: Optional[str] = None, *, genspark_fetch=None) -> Dict[str, Any]:
     raw = await download_image(url, genspark_fetch=genspark_fetch)
     if not raw:
         raise Expired("empty answer")
     return await asyncio.to_thread(store_image, raw, profile_id)
-
 
 async def localize_urls(urls: List[Any], profile_id: Optional[str] = None, *, genspark_fetch=None) -> List[str]:
     """Remote results → local files; a result that could not be downloaded keeps its URL (the window retries)."""
@@ -287,7 +258,6 @@ async def localize_urls(urls: List[Any], profile_id: Optional[str] = None, *, ge
         out.append(url)
     return out
 
-
 async def localize_sse(chunks: AsyncIterator[Any], profile_id: Optional[str] = None) -> AsyncIterator[bytes]:
     """Relays an image SSE stream unchanged except the ``done`` event, whose remote ``urls`` become local files."""
     buffer = b""
@@ -298,7 +268,6 @@ async def localize_sse(chunks: AsyncIterator[Any], profile_id: Optional[str] = N
             yield await _localize_event(event, profile_id) + b"\n\n"
     if buffer:
         yield await _localize_event(buffer, profile_id)
-
 
 async def _localize_event(event: bytes, profile_id: Optional[str]) -> bytes:
     text = event.decode("utf-8", "replace").strip("\r\n")
@@ -312,10 +281,6 @@ async def _localize_event(event: bytes, profile_id: Optional[str]) -> bytes:
         return event
     item["urls"] = await localize_urls(item["urls"], profile_id)
     return ("data: " + json.dumps(item, ensure_ascii=False)).encode("utf-8")
-
-
-# --------------------------------------------------------------------------- route
-
 
 def register(app: Any) -> None:
     from fastapi.responses import JSONResponse

@@ -1,6 +1,4 @@
-// MemuNote Photo (Round 32) — pure pixel algorithms. No DOM: runs in the page, in the worker (pixel-worker.js)
-// and in Node (tests/round32_photo_test.py). An "image" is {width, height, data: Uint8ClampedArray RGBA}.
-// A "mask" is a Uint8Array(width*height) 0..255 (255 = fully selected).
+
 
 export const clamp = (v, a = 0, b = 255) => (v < a ? a : v > b ? b : v);
 const lumOf = (r, g, b) => 0.299 * r + 0.587 * g + 0.114 * b;
@@ -12,7 +10,6 @@ export function makeImage(w, h, rgba = [0, 0, 0, 0]) {
   return { width: w, height: h, data };
 }
 
-// ------------------------------------------------------------------ colour conversions
 export function rgbToHsl(r, g, b) {
   r /= 255; g /= 255; b /= 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2;
@@ -54,8 +51,6 @@ export function parseHex(hex) {
 }
 export const toHex = (r, g, b) => "#" + [r, g, b].map((v) => clamp(Math.round(v)).toString(16).padStart(2, "0")).join("");
 
-// ------------------------------------------------------------------ helpers
-/** Mix the result back by the selection mask (and keep alpha of the original). */
 function applyMask(src, out, mask) {
   if (!mask) return out;
   const s = src.data, o = out.data;
@@ -84,7 +79,6 @@ function perPixel(img, fn, mask) {
   return applyMask(img, out, mask);
 }
 
-// ------------------------------------------------------------------ adjustments
 export const ADJUST = {
   brightnessContrast(img, { brightness = 0, contrast = 0 }, mask) {
     const b = brightness * 1.5, c = contrast >= 0 ? 1 + contrast / 50 * (contrast / 100 + 1) : 1 + contrast / 100;
@@ -117,7 +111,7 @@ export const ADJUST = {
     const vb = vibrance / 100, st = saturation / 100;
     return perPixel(img, (px) => {
       const [r, g, b] = px, max = Math.max(r, g, b), avg = (r + g + b) / 3;
-      const amt = (((Math.abs(max - avg) * 2) / 255) * -vb) * (vb > 0 ? 1 : 0) + vb;    // less boost for already saturated pixels
+      const amt = (((Math.abs(max - avg) * 2) / 255) * -vb) * (vb > 0 ? 1 : 0) + vb;
       const k = 1 + st + amt * (vb > 0 ? 1 : 1);
       const l = lumOf(r, g, b);
       px[0] = clamp(l + (r - l) * k); px[1] = clamp(l + (g - l) * k); px[2] = clamp(l + (b - l) * k);
@@ -126,13 +120,13 @@ export const ADJUST = {
   colorBalance(img, { cyanRed = 0, magentaGreen = 0, yellowBlue = 0, preserve = true }, mask) {
     return perPixel(img, (px) => {
       const l0 = lumOf(px[0], px[1], px[2]);
-      const mid = 1 - Math.abs(l0 / 127.5 - 1) * 0.6;           // strongest in the midtones
+      const mid = 1 - Math.abs(l0 / 127.5 - 1) * 0.6;
       let r = px[0] + cyanRed * mid, g = px[1] + magentaGreen * mid, b = px[2] + yellowBlue * mid;
       if (preserve) { const d = l0 - lumOf(r, g, b); r += d; g += d; b += d; }
       px[0] = clamp(r); px[1] = clamp(g); px[2] = clamp(b);
     }, mask);
   },
-  temperature(img, { temperature = 0, tint = 0 }, mask) {    // "warmer / cooler": + = warm (orange), - = cool (blue)
+  temperature(img, { temperature = 0, tint = 0 }, mask) {
     const t = temperature / 100, n = tint / 100;
     return perPixel(img, (px) => {
       px[0] = clamp(px[0] + 40 * t); px[2] = clamp(px[2] - 40 * t); px[1] = clamp(px[1] + 6 * t - 30 * n);
@@ -144,7 +138,7 @@ export const ADJUST = {
     const t = tint ? parseHex(tint) : null;
     return perPixel(img, (px) => {
       const [r, g, b] = px, mn = Math.min(r, g, b), sum = r + g + b;
-      // Photoshop-like: grey + weighted colour components
+
       let gray = mn;
       const rr = r - mn, gg = g - mn, bb = b - mn;
       if (rr >= gg && gg >= bb) gray += (rr - gg) * w.red / 100 + gg * w.yellow / 100;
@@ -174,7 +168,7 @@ export const ADJUST = {
     const n = Math.max(2, Math.min(255, Math.round(levels)));
     return lutOp(img, makeLut((v) => Math.round(Math.round((v / 255) * (n - 1)) * (255 / (n - 1)))), undefined, undefined, mask);
   },
-  autoLevels(img, { clip = 0.5 } = {}, mask) {      // "Auto contrast / auto tone": stretch each channel, clip 0.5 %
+  autoLevels(img, { clip = 0.5 } = {}, mask) {
     const h = histogram(img), total = Math.max(1, h.count), cut = (total * clip) / 100, luts = [];
     for (const ch of [h.r, h.g, h.b]) {
       let lo = 0, hi = 255, acc = 0;
@@ -199,7 +193,6 @@ export const ADJUST = {
   },
 };
 
-/** Monotone cubic (Fritsch–Carlson) interpolation through the curve points → 256-entry LUT. */
 export function curveLut(points) {
   const pts = points.map(([x, y]) => [clamp(x), clamp(y)]).sort((a, b) => a[0] - b[0]).filter((p, i, a) => i === 0 || p[0] !== a[i - 1][0]);
   if (pts.length === 1) return makeLut(() => pts[0][1]);
@@ -229,7 +222,6 @@ export function histogram(img, mask) {
   return { r, g, b, l, count };
 }
 
-// ------------------------------------------------------------------ filters
 function premultiply(d) { for (let i = 0; i < d.length; i += 4) { const a = d[i + 3] / 255; d[i] *= a; d[i + 1] *= a; d[i + 2] *= a; } }
 function unpremultiply(d) { for (let i = 0; i < d.length; i += 4) { const a = d[i + 3]; if (a && a < 255) { const k = 255 / a; d[i] = Math.min(255, d[i] * k); d[i + 1] = Math.min(255, d[i + 1] * k); d[i + 2] = Math.min(255, d[i + 2] * k); } } }
 function boxBlurH(src, dst, w, h, r) {
@@ -261,7 +253,7 @@ function boxBlurV(src, dst, w, h, r) {
     }
   }
 }
-/** Gaussian blur approximated by three box blurs (premultiplied alpha, so transparent edges do not darken). */
+
 export function gaussianBlurData(d, w, h, radius) {
   if (radius < 0.5) return d;
   const sigma = radius / 2 + 0.01, n = 3;
@@ -353,7 +345,7 @@ export const FILTER = {
     }
     return applyMask(img, out, mask);
   },
-  denoise(img, { radius = 1 } = {}, mask) {     // median filter
+  denoise(img, { radius = 1 } = {}, mask) {
     const { width: w, height: h, data: s } = img, out = cloneImage(img), o = out.data, r = Math.max(1, Math.min(3, Math.round(radius)));
     const buf = [[], [], []];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -406,7 +398,6 @@ export const FILTER = {
   },
 };
 
-/** Run an adjustment or a filter by name (the worker and the page use the same entry). */
 export function runOp(name, img, params = {}, mask = null) {
   const fn = ADJUST[name] || FILTER[name];
   if (!fn) throw new Error("unknown operation " + name);
@@ -414,7 +405,6 @@ export function runOp(name, img, params = {}, mask = null) {
 }
 export const OPS = [...Object.keys(ADJUST), ...Object.keys(FILTER)];
 
-// ------------------------------------------------------------------ blend modes (W3C compositing, for tests and the PSD bridge)
 const B = {
   normal: (b, s) => s, multiply: (b, s) => b * s, screen: (b, s) => b + s - b * s,
   overlay: (b, s) => B["hard-light"](s, b), darken: (b, s) => Math.min(b, s), lighten: (b, s) => Math.max(b, s),
@@ -434,7 +424,7 @@ function setSat(c, s) {
   if (c[mx] > c[mn]) { out[md] = ((c[md] - c[mn]) * s) / (c[mx] - c[mn]); out[mx] = s; } else { out[md] = out[mx] = 0; }
   out[mn] = 0; return out;
 }
-/** Composite one RGBA source pixel over one backdrop pixel (0..255 arrays) with a blend mode and opacity 0..1. */
+
 export function blendPixel(mode, back, src, opacity = 1) {
   const as = (src[3] / 255) * opacity, ab = back[3] / 255, ao = as + ab * (1 - as);
   if (ao <= 0) return [0, 0, 0, 0];
@@ -453,7 +443,6 @@ export function blendPixel(mode, back, src, opacity = 1) {
   return [out[0], out[1], out[2], Math.round(ao * 255)];
 }
 
-// ------------------------------------------------------------------ selection masks
 export function magicWand(img, sx, sy, { tolerance = 32, contiguous = true, antialias = false } = {}) {
   const { width: w, height: h, data: d } = img, mask = new Uint8Array(w * h);
   sx = Math.floor(sx); sy = Math.floor(sy);
@@ -500,7 +489,7 @@ export function featherMask(mask, w, h, radius) {
   for (let p = 0; p < m.length; p++) m[p] = out[p * 4];
   return m;
 }
-/** Grow (r > 0) or shrink (r < 0) a mask by |r| pixels (separable max/min filter on the binarised mask). */
+
 export function growMask(mask, w, h, r) {
   if (!r) return mask;
   const grow = r > 0, n = Math.abs(Math.round(r)), tmp = new Uint8Array(mask.length), out = new Uint8Array(mask.length);
@@ -524,9 +513,8 @@ export function maskBounds(mask, w, h, min = 1) {
 }
 export function maskArea(mask) { let n = 0; for (let i = 0; i < mask.length; i++) n += mask[i]; return n / 255; }
 
-// ------------------------------------------------------------------ segmentation ("GrabCut-lite") and inpainting
 function kmeans(samples, k, iters = 8) {
-  // samples: Float32Array of rgb triples
+
   const n = samples.length / 3; if (!n) return [];
   const centers = [];
   for (let c = 0; c < k; c++) { const i = Math.floor(((c + 0.5) / k) * n) * 3; centers.push([samples[i], samples[i + 1], samples[i + 2]]); }
@@ -570,7 +558,7 @@ function largestComponent(bin, w, h, prefer) {
   return out;
 }
 function fillHoles(bin, w, h) {
-  // background = zeros reachable from the border
+
   const outside = new Uint8Array(w * h), stack = new Int32Array(w * h); let top = 0;
   const push = (p) => { if (!bin[p] && !outside[p]) { outside[p] = 1; stack[top++] = p; } };
   for (let x = 0; x < w; x++) { push(x); push((h - 1) * w + x); }
@@ -578,11 +566,7 @@ function fillHoles(bin, w, h) {
   while (top) { const p = stack[--top], x = p % w, y = (p / w) | 0; if (x > 0) push(p - 1); if (x < w - 1) push(p + 1); if (y > 0) push(p - w); if (y < h - 1) push(p + w); }
   const out = new Uint8Array(w * h); for (let p = 0; p < w * h; p++) out[p] = outside[p] ? 0 : 1; return out;
 }
-/**
- * Foreground segmentation inside a box (pixels outside are background): colour models by k-means for the
- * background (outside / border band) and the foreground (box centre), iterated a few times, smoothed,
- * largest component, holes filled, soft edge. Returns a mask 0..255. Works on any size: callers downscale.
- */
+
 export function segment(img, box, { iterations = 4, k = 6, feather = 1.2, seedMask = null } = {}) {
   const { width: w, height: h, data: d } = img;
   const bx = Math.max(0, Math.floor(box.x)), by = Math.max(0, Math.floor(box.y)), bw = Math.min(w - bx, Math.ceil(box.w)), bh = Math.min(h - by, Math.ceil(box.h));
@@ -595,13 +579,13 @@ export function segment(img, box, { iterations = 4, k = 6, feather = 1.2, seedMa
   let fg = new Uint8Array(w * h);
   for (let it = 0; it < iterations; it++) {
     const bgC = kmeans(bgS, k + 4);
-    // foreground colours that the background also has (grass inside the box…) are not evidence of the object
+
     let fgC = kmeans(fgS, k); const own = fgC.filter((c) => nearestDist(bgC, c[0], c[1], c[2]) > 28); if (own.length) fgC = own;
     const prob = new Float32Array(w * h * 4);
     for (let y = by; y < by + bh; y++) for (let x = bx; x < bx + bw; x++) {
       const p = y * w + x, i = p * 4;
       const db = nearestDist(bgC, d[i], d[i + 1], d[i + 2]), df = nearestDist(fgC, d[i], d[i + 1], d[i + 2]);
-      let v = (db + 1) / (db + df + 2);                       // 1 = foreground-like
+      let v = (db + 1) / (db + df + 2);
       if (d[i + 3] < 16) v = 0;
       if (seedMask) v = v * 0.6 + (seedMask[p] / 255) * 0.4;
       prob[i] = v * 255; prob[i + 3] = 255;
@@ -610,7 +594,7 @@ export function segment(img, box, { iterations = 4, k = 6, feather = 1.2, seedMa
     for (let p = 0; p < w * h; p++) { const x = p % w, y = (p / w) | 0; fg[p] = inBox(x, y) && sm[p * 4] > 132 ? 1 : 0; }
     fg = largestComponent(fg, w, h, null);
     fg = fillHoles(fg, w, h);
-    // re-estimate the models from the current labelling
+
     fgS = sampleRegion(img, (x, y, p) => fg[p] === 1);
     const bgNew = sampleRegion(img, (x, y, p) => inBox(x, y) && fg[p] === 0);
     if (bgNew.length > 30) { const merged = new Float32Array(bgS.length + bgNew.length); merged.set(bgS); merged.set(bgNew, bgS.length); bgS = merged; }
@@ -619,7 +603,7 @@ export function segment(img, box, { iterations = 4, k = 6, feather = 1.2, seedMa
   const mask = new Uint8Array(w * h); for (let p = 0; p < w * h; p++) mask[p] = fg[p] ? 255 : 0;
   return feather ? featherMask(mask, w, h, feather) : mask;
 }
-/** Fill the masked pixels from their surroundings (onion-peel diffusion) — spot healing and "remove object". */
+
 export function inpaint(img, mask, { noise = 0 } = {}) {
   const { width: w, height: h } = img, out = cloneImage(img), o = out.data;
   const known = new Uint8Array(w * h); let todo = 0;
@@ -644,7 +628,6 @@ export function inpaint(img, mask, { noise = 0 } = {}) {
   return out;
 }
 
-// ------------------------------------------------------------------ resampling helpers (used by tests and the worker)
 export function resizeNearest(img, nw, nh) {
   const out = makeImage(nw, nh), o = out.data, s = img.data;
   for (let y = 0; y < nh; y++) { const sy = Math.min(img.height - 1, Math.floor((y + 0.5) * img.height / nh)); for (let x = 0; x < nw; x++) { const sx = Math.min(img.width - 1, Math.floor((x + 0.5) * img.width / nw)); const i = (y * nw + x) * 4, j = (sy * img.width + sx) * 4; o[i] = s[j]; o[i + 1] = s[j + 1]; o[i + 2] = s[j + 2]; o[i + 3] = s[j + 3]; } }
@@ -655,7 +638,7 @@ export function resizeMask(mask, w, h, nw, nh) {
   for (let y = 0; y < nh; y++) { const sy = Math.min(h - 1, Math.floor((y + 0.5) * h / nh)); for (let x = 0; x < nw; x++) out[y * nw + x] = mask[sy * w + Math.min(w - 1, Math.floor((x + 0.5) * w / nw))]; }
   return out;
 }
-/** Dominant colours (palette) — for the AI panel and the swatches. */
+
 export function palette(img, n = 6) {
   const s = sampleRegion(img, (x, y, p) => img.data[p * 4 + 3] > 64, 8000), centers = kmeans(s, n, 10);
   return centers.map((c) => toHex(c[0], c[1], c[2]));

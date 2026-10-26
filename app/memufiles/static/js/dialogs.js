@@ -1,10 +1,9 @@
-// MemuFiles · dialogs: properties, batch rename, settings (Round 35; conflicts and the operations flyout moved to ops.js in Round 40).
+
 import { t } from "./i18n.js";
 import { api, $, $$, h, esc, icon, fileIcon, fmtSize, fmtNum, fmtDate, itemsWord, baseName, parentPath, extOf,
   toast, showError, modal, debounce, isWin } from "./core.js";
 import { typeLabel } from "./pane.js";
 
-// ------------------------------------------------------------------ properties
 export async function properties(app, paths) {
   paths = (paths || []).filter(Boolean);
   if (!paths.length) return;
@@ -42,7 +41,7 @@ export async function properties(app, paths) {
   const hid = h("input", { type: "checkbox" }); hid.checked = !!info.hidden;
   attrs.append(h("span", { class: "muted", text: t("props.attributes") }), h("label", { class: "check" }, ro, t("props.readonly")), h("label", { class: "check" }, hid, t("props.hidden")));
   if (info.protected) attrs.append(h("span", { class: "pill", html: icon("lock", "sm") + esc(t("props.protected")) }));
-  body.append(attrs);   // r40-files-max: hashes moved to their own tab (feat40.propertiesTabs) with «verify»
+  body.append(attrs);
   const winBtn = isWin() ? h("button", { class: "btn ghost sm", html: icon("windows") + esc(t("ctx.win_props")) }) : null;
   if (winBtn) winBtn.addEventListener("click", () => api("shellverb", { path: info.path, verb: "properties" }).catch(showError));
   const { propertiesTabs } = await import("./feat40.js");
@@ -82,7 +81,6 @@ async function multiProperties(app, paths) {
   if (res) { sizeEl.textContent = fmtSize(res.size, true); contentsEl.textContent = t("props.contents", { files: fmtNum(res.files), folders: fmtNum(res.folders) }); }
 }
 
-/** Start a backend job and poll it; resolves with its result (null on error/cancel). */
 export async function runJob(kind, args, onProgress, holder) {
   let job;
   try { job = (await api("jobs/start", { kind, args })).job; } catch (err) { showError(err); return null; }
@@ -97,13 +95,12 @@ export async function runJob(kind, args, onProgress, holder) {
   }
 }
 
-// ------------------------------------------------------------------ batch rename
 export function batchRename(app, paths) {
   const rule = { pattern: "{name}", start: 1, step: 1, find: "", replace: "", regex: false, match_case: false, case: "", ext_case: "" };
   const body = h("div", {});
   const pattern = h("input", { class: "input mono", value: rule.pattern, spellcheck: "false" });
   const tokens = h("div", { class: "br-tokens" });
-  for (const tok of ["{name}", "{n}", "{n:3}", "{ext}", "{date}", "{time}", "{parent}", "{created}", "{exif}", "{width}x{height}"]) {   // r39: +created/exif/size
+  for (const tok of ["{name}", "{n}", "{n:3}", "{ext}", "{date}", "{time}", "{parent}", "{created}", "{exif}", "{width}x{height}"]) {
     const b = h("button", { text: tok, title: t("br.tok." + tok.replace(/[{}:]/g, "")) });
     b.addEventListener("click", () => { const p = pattern.selectionStart ?? pattern.value.length; pattern.value = pattern.value.slice(0, p) + tok + pattern.value.slice(pattern.selectionEnd ?? p); pattern.focus(); update(); });
     tokens.append(b);
@@ -155,6 +152,4 @@ export function batchRename(app, paths) {
   setTimeout(() => { pattern.focus(); pattern.select(); }, 30);
 }
 
-// ------------------------------------------------------------------ settings
-/** r41-files: the settings window lives in feat41.js now (built from the schema, every change applied at once). */
 export function settingsDialog(app, group) { return import("./feat41.js").then((m) => m.settingsDialog(app, group)); }

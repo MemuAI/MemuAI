@@ -24,8 +24,7 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 PSID = "__Secure-1PSID"
 PSIDTS = "__Secure-1PSIDTS"
-# Куки google.com, которые браузер шлёт на gemini.google.com (порядок — для красивой строки Cookie;
-# из окна входа берём только их). Чужие домены (youtube.com, accounts.google.com, google.ru) отбрасываются.
+
 KNOWN = (
     PSID, PSIDTS, "__Secure-1PSIDCC", "__Secure-3PSID", "__Secure-3PSIDTS", "__Secure-3PSIDCC",
     "SID", "HSID", "SSID", "APISID", "SAPISID", "__Secure-1PAPISID", "__Secure-3PAPISID",
@@ -33,7 +32,6 @@ KNOWN = (
 )
 _NAME_RE = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
 _ROW_SPLIT_RE = re.compile(r"\t|\s{2,}")
-
 
 @dataclass
 class CookieImport:
@@ -62,11 +60,9 @@ class CookieImport:
             "cookie": self.header if self.ok else "",
         }
 
-
 def cookie_header(cookies: Dict[str, str]) -> str:
     order = {name: i for i, name in enumerate(KNOWN)}
     return "; ".join(f"{k}={v}" for k, v in sorted(cookies.items(), key=lambda kv: (order.get(kv[0], 99), kv[0])))
-
 
 def parse_header(text: str) -> Dict[str, str]:
     out: Dict[str, str] = {}
@@ -79,16 +75,11 @@ def parse_header(text: str) -> Dict[str, str]:
             out[name] = value
     return out
 
-
 def set_cookie_value(header: str, name: str, value: str) -> str:
     """Подменяет одно значение в строке Cookie (для ротации __Secure-1PSIDTS)."""
     cookies = parse_header(header)
     cookies[name] = value
     return cookie_header(cookies)
-
-
-# ------------------------------------------------------------------ разбор форматов
-
 
 def _strip_wrappers(text: str) -> str:
     text = text.strip().replace("\r\n", "\n")
@@ -104,9 +95,7 @@ def _strip_wrappers(text: str) -> str:
         return line[1].strip()
     return text
 
-
-Row = Tuple[str, str, str, Optional[float]]   # name, value, domain, expires (unix) | None
-
+Row = Tuple[str, str, str, Optional[float]]
 
 def _expiry(value: Any) -> Optional[float]:
     try:
@@ -116,7 +105,6 @@ def _expiry(value: Any) -> Optional[float]:
     if number <= 0:
         return None
     return number / 1000 if number > 1e11 else number
-
 
 def _json_rows(data: Any) -> Optional[List[Row]]:
     if isinstance(data, dict) and isinstance(data.get("cookies"), list):
@@ -140,7 +128,6 @@ def _json_rows(data: Any) -> Optional[List[Row]]:
                      _expiry(expires)))
     return rows
 
-
 def _netscape_rows(lines: List[str]) -> Optional[List[Row]]:
     rows: List[Row] = []
     for raw in lines:
@@ -154,7 +141,6 @@ def _netscape_rows(lines: List[str]) -> Optional[List[Row]]:
             return None
         rows.append((parts[5].strip(), parts[6].strip(), parts[0].strip(), _expiry(parts[4])))
     return rows or None
-
 
 def _devtools_rows(lines: List[str]) -> Optional[List[Row]]:
     """Application → Cookies: Name, Value, Domain, Path, Expires, Size, HttpOnly, … (через Tab)."""
@@ -179,7 +165,6 @@ def _devtools_rows(lines: List[str]) -> Optional[List[Row]]:
         rows.append((name, value, domain if ("." in domain or domain.startswith("/")) else "", expires))
     return rows or None
 
-
 def _pair_rows(lines: List[str]) -> Optional[List[Row]]:
     """«имя значение» построчно (Tab, «:», «=», пробелы) или голые значения g.a0… / sidts-…."""
     rows: List[Row] = []
@@ -198,11 +183,9 @@ def _pair_rows(lines: List[str]) -> Optional[List[Row]]:
             return None
     return rows or None
 
-
 def _domain_ok(domain: str) -> bool:
     d = domain.lower().lstrip(".")
     return not d or d == "google.com" or d == "gemini.google.com"
-
 
 def parse_cookie_import(raw: Any) -> CookieImport:
     result = CookieImport()
@@ -245,7 +228,6 @@ def parse_cookie_import(raw: Any) -> CookieImport:
     _validate(result)
     return result
 
-
 def _collect(result: CookieImport, rows: Iterable[Row]) -> None:
     now = time.time()
     priority: Dict[str, int] = {}
@@ -280,7 +262,6 @@ def _collect(result: CookieImport, rows: Iterable[Row]) -> None:
                        f"Кука {name} уже просрочена (по дате в экспорте). Обновите страницу Gemini и скопируйте заново.",
                        f"{name} has already expired (by the export date). Reload Gemini and copy it again.")
 
-
 def _validate(result: CookieImport) -> None:
     for name, value in list(result.cookies.items()):
         if "…" in value or value.endswith("..."):
@@ -309,12 +290,10 @@ def _validate(result: CookieImport) -> None:
                    "__Secure-1PSIDTS is missing. Sign-in is more reliable with it: add it (in Application → Cookies "
                    "it sits next to __Secure-1PSID).")
 
-
 def normalize_cookie_field(raw: Any) -> str:
     """Для хранения: нормализованная строка, если импорт удался, иначе исходный текст как есть."""
     parsed = parse_cookie_import(raw)
     return parsed.header if parsed.cookies and not parsed.errors else str(raw or "").strip()
-
 
 def cookies_from_webview(items: Iterable[Any]) -> Dict[str, str]:
     """Куки из pywebview ``window.get_cookies()`` (список SimpleCookie) → {name: value} для .google.com."""

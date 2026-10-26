@@ -37,41 +37,36 @@ log = logging.getLogger("memuai.quick.apps")
 
 IS_WINDOWS = sys.platform == "win32"
 
-# ---------------------------------------------------------------- settings
-
 ACCESS_MODES = ("ask", "full")
 PRESETS_LIMIT = 40
 DEFAULT_SETTINGS: Dict[str, Any] = {
-    "explorer": True,          # folder context over File Explorer / the desktop
-    "apps": True,              # editors, Office, terminals
-    "office": True,            # Word / Excel / PowerPoint through COM (read only, on demand)
-    "access": "ask",           # ask — every change is shown first; full — safe changes are applied at once
-    "hidden": False,           # list hidden / system files in the folder agent
-    "trash": True,             # Round 30: deletes go to the Recycle Bin / Trash (else MemuAI's undo stash, ≤ 512 MB)
-    "files": True,             # Round 30: file tools in every question about files (Desktop, Downloads… — app/quick_files.py)
-    # Round 29 Quick Access extras (app/quick_extras.py)
-    "currency": True,          # «100 usd в rub» right under the input, without a model
-    "color": True,             # the colour under the cursor at Alt+Space + an eyedropper
-    "ocr": True,               # text from a screen region with Windows OCR (no model)
-    "error": True,             # «Explain the error on screen»
-    "notes": True,             # quick note → a Markdown file (opens in MemuNote)
-    "downloads": True,         # the latest downloads as question context
-    "presets": True,           # per-app prompts
-    "notes_dir": "",           # "" → Documents\MemuAI Notes
-    "currency_to": "",         # "" → RUB (ru) / USD (en)
-}
+    "explorer": True,
+    "apps": True,
+    "office": True,
+    "access": "ask",
+    "hidden": False,
+    "trash": True,
+    "files": True,
 
+    "currency": True,
+    "color": True,
+    "ocr": True,
+    "error": True,
+    "notes": True,
+    "downloads": True,
+    "presets": True,
+    "notes_dir": "",
+    "currency_to": "",
+}
 
 def tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 def flag(value: Any) -> bool:
     """Round 34: a tool flag from a model — ``"false"`` (a string) was read as ``True`` by ``bool()``."""
     if isinstance(value, str):
         return value.strip().lower() in ("1", "true", "yes", "on", "да")
     return value is True or (isinstance(value, (int, float)) and value == 1)
-
 
 def _bool(value: Any, default: bool) -> bool:
     if isinstance(value, bool):
@@ -85,7 +80,6 @@ def _bool(value: Any, default: bool) -> bool:
         if low in ("false", "0", "off", "no"):
             return False
     return default
-
 
 def normalize_settings(raw: Any) -> Dict[str, Any]:
     src = raw if isinstance(raw, dict) else {}
@@ -106,14 +100,12 @@ def normalize_settings(raw: Any) -> Dict[str, Any]:
             out[key] = value
     return out
 
-
 def _app_key(value: Any) -> str:
     text = str(value or "").strip().lower().replace("\\", "/").rsplit("/", 1)[-1]
     text = re.sub(r"[^\w .+-]", "", text)[:60].strip()
     if text and "." not in text:
         text += ".exe"
     return text
-
 
 def normalize_presets(raw: Any) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
@@ -139,7 +131,6 @@ def normalize_presets(raw: Any) -> List[Dict[str, Any]]:
             break
     return out
 
-
 def default_presets(lang: str = "ru") -> List[Dict[str, Any]]:
     rows = [
         (["outlook.exe", "olk.exe", "thunderbird.exe"], tr(lang, "Ответ на письмо", "Reply to the email"),
@@ -157,20 +148,14 @@ def default_presets(lang: str = "ru") -> List[Dict[str, Any]]:
     ]
     return normalize_presets([{"apps": apps, "name": name, "prompt": prompt} for apps, name, prompt in rows])
 
-
-# ---------------------------------------------------------------- storage
-
 _LOCK = threading.RLock()
-
 
 def _memu_dir() -> Path:
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR)
 
-
 def _config_file() -> Path:
     return _memu_dir() / "quick_apps.json"
-
 
 def load_config(lang: str = "ru") -> Dict[str, Any]:
     with _LOCK:
@@ -185,7 +170,6 @@ def load_config(lang: str = "ru") -> Dict[str, Any]:
             _save(data)
         return {"settings": normalize_settings(data.get("settings")),
                 "presets": _localize_default_presets(normalize_presets(data.get("presets")), lang)}
-
 
 def _localize_default_presets(rows: List[Dict[str, Any]], lang: str) -> List[Dict[str, Any]]:
     """Built-in presets the user never edited follow the interface language (they were stored in the
@@ -203,13 +187,11 @@ def _localize_default_presets(rows: List[Dict[str, Any]], lang: str) -> List[Dic
         out.append(row)
     return out
 
-
 def _save(data: Dict[str, Any]) -> None:
     from .storage import save_json
     path = _config_file()
     path.parent.mkdir(parents=True, exist_ok=True)
     save_json(path, data, backup=False)
-
 
 def save_settings(patch: Any, lang: str = "ru") -> Dict[str, Any]:
     with _LOCK:
@@ -221,7 +203,6 @@ def save_settings(patch: Any, lang: str = "ru") -> Dict[str, Any]:
         _save(config)
         return config
 
-
 def save_presets(rows: Any, lang: str = "ru") -> Dict[str, Any]:
     with _LOCK:
         config = load_config(lang)
@@ -229,15 +210,11 @@ def save_presets(rows: Any, lang: str = "ru") -> Dict[str, Any]:
         _save(config)
         return config
 
-
 def settings() -> Dict[str, Any]:
     try:
         return load_config()["settings"]
     except Exception:
         return dict(DEFAULT_SETTINGS)
-
-
-# ---------------------------------------------------------------- classification
 
 EXPLORER_CLASSES = {"cabinetwclass", "explorewclass"}
 DESKTOP_CLASSES = {"progman", "workerw"}
@@ -261,10 +238,8 @@ SHELL_EXES = {"cmd.exe", "powershell.exe", "pwsh.exe", "bash.exe", "zsh.exe", "f
 OWN_EXES = {"memuai.exe", "memuaiproxy.exe", "memucode.exe"}
 MEMUFILES_EXE = "memufiles.exe"
 
-
 def _exe_name(exe: Any) -> str:
     return str(exe or "").replace("\\", "/").rsplit("/", 1)[-1].lower()
-
 
 def classify(window_class: str, exe: str, title: str = "") -> Dict[str, str]:
     """``{"kind": explorer|desktop|vscode|editor|jetbrains|office|terminal|app|own|none, "app": display name}``."""
@@ -272,7 +247,7 @@ def classify(window_class: str, exe: str, title: str = "") -> Dict[str, str]:
     name = _exe_name(exe)
     if name in OWN_EXES:
         return {"kind": "own", "app": "MemuAI"}
-    if name == MEMUFILES_EXE:                     # r41-files: MemuFiles is a file manager — same folder actions as Explorer
+    if name == MEMUFILES_EXE:
         return {"kind": "explorer", "app": "MemuFiles"}
     if cls in EXPLORER_CLASSES:
         return {"kind": "explorer", "app": "Explorer"}
@@ -293,9 +268,7 @@ def classify(window_class: str, exe: str, title: str = "") -> Dict[str, str]:
     pretty = re.sub(r"\.exe$", "", name) if name else (title or "")[:40]
     return {"kind": "app", "app": pretty[:1].upper() + pretty[1:] if pretty else ""}
 
-
 _DIRTY = re.compile(r"^\s*(?:[●•*]\s*)+")
-
 
 def parse_title(kind: str, exe: str, title: str) -> Dict[str, str]:
     """What the title tells about the open file: ``{"file", "path", "folder"}`` (empty strings when unknown)."""
@@ -334,13 +307,10 @@ def parse_title(kind: str, exe: str, title: str) -> Dict[str, str]:
         return out
     if kind == "office":
         head = re.split(r"\s+[-—]\s+(?=[^-—]*$)", text, maxsplit=1)[0].strip()
-        head = re.sub(r"\s*\[[^\]]*\]$", "", head).strip()      # [Compatibility Mode], [Только для чтения]
+        head = re.sub(r"\s*\[[^\]]*\]$", "", head).strip()
         out["file"] = head
         return out
     return out
-
-
-# ---------------------------------------------------------------- folders
 
 def _known_roots() -> List[Path]:
     rows: List[Path] = []
@@ -352,17 +322,16 @@ def _known_roots() -> List[Path]:
         rows += [Path(p) for p in ("/bin", "/boot", "/dev", "/etc", "/lib", "/proc", "/sbin", "/sys", "/usr", "/var")]
     return rows
 
-
 def is_protected(path: Path) -> bool:
     """System folders and drive roots are read-only for the folder agent (never written, renamed or deleted)."""
     try:
         resolved = Path(path).resolve()
     except (OSError, RuntimeError):
         return True
-    if resolved.parent == resolved:             # C:\ or /
+    if resolved.parent == resolved:
         return True
     home = Path(os.path.expanduser("~")).resolve()
-    if resolved == home.parent:                  # C:\Users
+    if resolved == home.parent:
         return True
     for root in _known_roots():
         try:
@@ -372,7 +341,6 @@ def is_protected(path: Path) -> bool:
         if resolved == root or root in resolved.parents:
             return True
     return False
-
 
 def desktop_folder() -> str:
     """The Desktop folder (OneDrive-redirected one on Windows when that is where it lives)."""
@@ -389,7 +357,6 @@ def desktop_folder() -> str:
         if candidate.is_dir():
             return str(candidate)
     return ""
-
 
 def xdg_user_dir(key: str, home: Optional[Path] = None) -> str:
     """``XDG_<KEY>_DIR`` from the environment or ``~/.config/user-dirs.dirs`` (Linux desktops put a localised
@@ -410,11 +377,10 @@ def xdg_user_dir(key: str, home: Optional[Path] = None) -> str:
         return ""
     value = value.replace("$HOME", str(home)).replace("${HOME}", str(home))
     path = Path(value)
-    # user-dirs.dirs points XDG_DOWNLOAD_DIR at $HOME itself when the folder is "disabled": not a Downloads folder.
+
     if not path.is_absolute() or path == home or not path.is_dir():
         return ""
     return str(path)
-
 
 def downloads_folder() -> str:
     """The user's Downloads folder, "" when there is none (callers must not turn "" into the working folder)."""
@@ -440,7 +406,6 @@ def downloads_folder() -> str:
                 return str(candidate)
     return ""
 
-
 def documents_folder() -> str:
     if IS_WINDOWS:
         try:
@@ -454,7 +419,6 @@ def documents_folder() -> str:
         if candidate.is_dir():
             return str(candidate)
     return str(Path.home())
-
 
 def vscode_folders(app: str = "Code", appdata: Optional[str] = None) -> List[str]:
     """Folders VS Code (or a fork) remembers as opened (``User/globalStorage/storage.json``), newest first."""
@@ -483,7 +447,7 @@ def vscode_folders(app: str = "Code", appdata: Optional[str] = None) -> List[str
             for item in value:
                 walk(item, depth + 1)
     windows = data.get("windowsState") if isinstance(data, dict) else None
-    walk(windows)                         # the opened windows first: they are the likeliest
+    walk(windows)
     walk(data)
     out: List[str] = []
     for uri in found:
@@ -497,7 +461,6 @@ def vscode_folders(app: str = "Code", appdata: Optional[str] = None) -> List[str
         if local and local not in out:
             out.append(local)
     return out
-
 
 def find_named_file(root: Path, name: str, *, limit: int = 20000) -> str:
     """The shortest relative path of a file called ``name`` under ``root`` ("" when none / ambiguous at depth)."""
@@ -518,7 +481,6 @@ def find_named_file(root: Path, name: str, *, limit: int = 20000) -> str:
         if seen > limit:
             break
     return best
-
 
 def resolve_editor_file(kind: str, app: str, parsed: Dict[str, str], cmdline: List[str],
                         appdata: Optional[str] = None) -> Dict[str, str]:
@@ -551,17 +513,12 @@ def resolve_editor_file(kind: str, app: str, parsed: Dict[str, str], cmdline: Li
                 out["path"] = os.path.join(out["folder"], rel)
     return out
 
-
-# ---------------------------------------------------------------- the context registry
-
 CONTEXTS_KEPT = 24
 _STATE: Dict[str, Any] = {"seq": 0, "current": None, "contexts": {}, "event": threading.Event(), "order": []}
 _STATE["event"].set()
 
-
 def _new_id(seq: int) -> str:
     return "a%d%s" % (seq, uuid.uuid4().hex[:6])
-
 
 def register_context(ctx: Dict[str, Any], *, current: bool = True) -> Dict[str, Any]:
     """Store a captured context (also the entry point of the tests) and make it the current one
@@ -591,11 +548,9 @@ def register_context(ctx: Dict[str, Any], *, current: bool = True) -> Dict[str, 
             _STATE["current"] = ctx["id"]
         return ctx
 
-
 def get_context(ctx_id: str) -> Optional[Dict[str, Any]]:
     with _LOCK:
         return _STATE["contexts"].get(str(ctx_id or ""))
-
 
 def update_context(ctx_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     with _LOCK:
@@ -604,7 +559,6 @@ def update_context(ctx_id: str, patch: Dict[str, Any]) -> Optional[Dict[str, Any
             ctx.update(patch)
         return ctx
 
-
 def current_context(wait: float = 0.0) -> Optional[Dict[str, Any]]:
     if wait > 0:
         _STATE["event"].wait(min(wait, 6.0))
@@ -612,11 +566,9 @@ def current_context(wait: float = 0.0) -> Optional[Dict[str, Any]]:
         current = _STATE["current"]
         return _STATE["contexts"].get(current) if current else None
 
-
 def clear_current() -> None:
     with _LOCK:
         _STATE["current"] = None
-
 
 def public_context(ctx: Optional[Dict[str, Any]], lang: str = "ru") -> Optional[Dict[str, Any]]:
     """What the page may see (no hwnd/pid; paths are the user's own — they are shown in the chip tooltip)."""
@@ -642,7 +594,6 @@ def public_context(ctx: Optional[Dict[str, Any]], lang: str = "ru") -> Optional[
         "color": ctx.get("color") if isinstance(ctx.get("color"), dict) else None,
     }
     return out
-
 
 def capture(hwnd: int, *, source: str = "hotkey", prefs: Optional[Dict[str, Any]] = None,
             describe: Optional[Callable[[int], Dict[str, Any]]] = None) -> Optional[Dict[str, Any]]:
@@ -708,11 +659,10 @@ def capture(hwnd: int, *, source: str = "hotkey", prefs: Optional[Dict[str, Any]
             cwd = win.terminal_cwd(ctx["pid"], ctx["exe"], ctx["title"])
             ctx.update({"folder": cwd.get("path") or "", "approx": bool(cwd.get("approx")),
                         "shell": cwd.get("shell") or ""})
-    except Exception as exc:                      # never break the window over a context
+    except Exception as exc:
         log.debug("quick apps: capture failed: %s", exc)
         ctx["reason"] = ctx.get("reason") or "error"
     return ctx
-
 
 def memufiles_folder(pid: int = 0) -> Dict[str, Any]:
     """r41-files: the folder and selection of the MemuFiles window in front — asked from the running MemuFiles over its
@@ -736,7 +686,6 @@ def memufiles_folder(pid: int = 0) -> Dict[str, Any]:
     if not folder or not os.path.isdir(folder):
         return {"path": "", "selected": [], "reason": "no_folder"}
     return {"path": folder, "selected": [p for p in selected if os.path.exists(p)][:200], "reason": ""}
-
 
 def note_foreground(hwnd: int, source: str = "hotkey", *, own_pids: Any = ()) -> None:
     """The hotkey: remember the program in front and read its context in the background (never blocks)."""
@@ -764,7 +713,6 @@ def note_foreground(hwnd: int, source: str = "hotkey", *, own_pids: Any = ()) ->
                 if _STATE["seq"] in (token, token + 1):
                     _STATE["event"].set()
     threading.Thread(target=run, name="memuai-quick-apps", daemon=True).start()
-
 
 def presets_for(ctx: Optional[Dict[str, Any]], presets: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     exe = _exe_name((ctx or {}).get("exe"))

@@ -1,8 +1,4 @@
-// MemuNote Photo — document model: layer tree, compositing (canvas 2D, GPU), selection mask, undo history.
-// Layers are plain objects: {id, name, type: raster|text|shape|svg|group, canvas, x, y, opacity, blend, visible,
-// locked, mask (canvas, same size/offset as the layer), maskOn, children (group), open, text {...}, shape {...}, svg {...}}.
-// History entries hold structure snapshots (layer objects copied, canvases by reference) + pixel patches
-// (ImageData before/after of the changed rectangles), so undo of a brush stroke on a 6000×4000 layer costs only its box.
+
 
 export const uidL = () => "l" + Math.random().toString(36).slice(2, 9);
 export function newCanvas(w, h) { const c = document.createElement("canvas"); c.width = Math.max(1, Math.round(w)); c.height = Math.max(1, Math.round(h)); return c; }
@@ -26,7 +22,7 @@ function copyLayer(l) {
 export class PhotoDoc {
   constructor(width, height) {
     this.width = width; this.height = height;
-    this.layers = []; this.activeId = null; this.target = "layer";   // "layer" | "mask" (paint on the layer mask)
+    this.layers = []; this.activeId = null; this.target = "layer";
     this.selection = null; this.lastSelection = null; this._selCanvas = null;
     this.history = []; this.future = []; this.savedIndex = 0; this.listeners = new Set();
     this.comp = newCanvas(width, height); this.compDirty = true; this.live = null; this.pool = [];
@@ -35,7 +31,6 @@ export class PhotoDoc {
   on(fn) { this.listeners.add(fn); return () => this.listeners.delete(fn); }
   emit(kind) { this.version++; this.compDirty = true; for (const fn of this.listeners) fn(kind); }
 
-  // ---------------------------------------------------------------- tree
   walk(fn, list = this.layers, parent = null, depth = 0) { for (let i = 0; i < list.length; i++) { const l = list[i]; if (fn(l, list, i, parent, depth) === false) return false; if (l.children && this.walk(fn, l.children, l, depth + 1) === false) return false; } return true; }
   find(id) { let r = null; this.walk((l, list, i, parent) => { if (l.id === id) { r = { layer: l, list, index: i, parent }; return false; } }); return r; }
   get active() { return this.find(this.activeId)?.layer || null; }
@@ -57,18 +52,17 @@ export class PhotoDoc {
     return layer;
   }
   removeLayer(id) { const f = this.find(id); if (!f) return; f.list.splice(f.index, 1); if (this.activeId === id) { const next = f.list[Math.min(f.index, f.list.length - 1)] || f.parent || this.flat().pop(); this.activeId = next?.id || null; } }
-  layerBounds(l) {   // content bounds in document coordinates (raster: canvas box)
+  layerBounds(l) {
     if (l.type === "group") { let r = null; for (const c of l.children) r = rectUnion(r, this.layerBounds(c)); return r || { x: 0, y: 0, w: 0, h: 0 }; }
     return { x: l.x, y: l.y, w: l.canvas.width, h: l.canvas.height };
   }
 
-  // ---------------------------------------------------------------- selection
   setSelection(mask) {
     if (mask && !mask.some((v) => v)) mask = null;
     if (this.selection) this.lastSelection = this.selection;
     this.selection = mask; this._selCanvas = null; this.selVersion = (this.selVersion || 0) + 1;
   }
-  selCanvas() {   // alpha = selection, for clipping canvas operations
+  selCanvas() {
     if (!this.selection) return null;
     if (this._selCanvas) return this._selCanvas;
     const c = newCanvas(this.width, this.height), x = ctx2d(c), img = x.createImageData(this.width, this.height), m = this.selection, d = img.data;
@@ -82,7 +76,6 @@ export class PhotoDoc {
     return x1 < 0 ? null : { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
   }
 
-  // ---------------------------------------------------------------- compositing
   tmp(depth) { let c = this.pool[depth]; if (!c || c.width !== this.width || c.height !== this.height) { c = this.pool[depth] = newCanvas(this.width, this.height); } const x = ctx2d(c); x.setTransform(1, 0, 0, 1, 0, 0); x.globalAlpha = 1; x.globalCompositeOperation = "source-over"; x.clearRect(0, 0, c.width, c.height); return c; }
   sourceOf(l) { return this.live && this.live.layerId === l.id && this.live.canvas ? this.live : { canvas: l.canvas, x: l.x, y: l.y }; }
   drawList(ctx, list, depth, opts = {}) {
@@ -109,12 +102,12 @@ export class PhotoDoc {
     }
   }
   containsId(l, id) { if (l.id === id) return true; return !!l.children?.some((c) => this.containsId(c, id)); }
-  /** A brush changed only `r` (document coordinates): the next composite() redraws just that rectangle. */
+
   markDirtyRect(r) { if (!this.compDirty && r) this.compRect = rectUnion(this.compRect, r); else this.compDirty = true; }
   composite() {
     if (!this.compDirty && this.comp.width === this.width && this.comp.height === this.height) {
       const r = this.compRect && rectClip(this.compRect, this.width, this.height); this.compRect = null;
-      if (r) {   // partial redraw (a brush dab on a 6000×4000 image must not recomposite all of it)
+      if (r) {
         const x = ctx2d(this.comp); x.save(); x.beginPath(); x.rect(r.x, r.y, r.w, r.h); x.clip(); x.clearRect(r.x, r.y, r.w, r.h);
         this.drawList(x, this.layers, 0); x.restore(); this.compStamp = (this.compStamp || 0) + 1;
       }
@@ -127,7 +120,7 @@ export class PhotoDoc {
     this.compDirty = false; this.compStamp = (this.compStamp || 0) + 1;
     return this.comp;
   }
-  /** A fresh flattened canvas (optionally on a background colour) — export, AI, clipboard. */
+
   flatten(bg = null, opts = {}) {
     const c = newCanvas(this.width, this.height), x = ctx2d(c);
     if (bg) { x.fillStyle = bg; x.fillRect(0, 0, c.width, c.height); }
@@ -137,7 +130,6 @@ export class PhotoDoc {
     return c;
   }
 
-  // ---------------------------------------------------------------- history
   snapshot() {
     return { width: this.width, height: this.height, layers: this.layers.map(copyLayer), activeId: this.activeId, target: this.target,
       selection: this.selection, guides: this.guides.map((g) => ({ ...g })) };
@@ -146,9 +138,9 @@ export class PhotoDoc {
     this.width = s.width; this.height = s.height; this.layers = s.layers.map(copyLayer); this.activeId = s.activeId; this.target = s.target || "layer";
     this.selection = s.selection; this._selCanvas = null; this.selVersion = (this.selVersion || 0) + 1; this.guides = s.guides.map((g) => ({ ...g }));
     this.pool = [];
-    this.walk((l) => { if (isVector(l)) renderVector(this, l); });   // vector canvases are re-drawn from their props
+    this.walk((l) => { if (isVector(l)) renderVector(this, l); });
   }
-  /** Start a change. Pixel changes must call touch(canvas, rect) BEFORE modifying the canvas. */
+
   begin(label) {
     if (this.tx) this.tx.depth++;
     else this.tx = { label, before: this.snapshot(), patches: [], depth: 1 };
@@ -161,12 +153,12 @@ export class PhotoDoc {
     for (const p of this.tx.patches) if (p.canvas === canvas && p.r.x <= r.x && p.r.y <= r.y && p.r.x + p.r.w >= r.x + r.w && p.r.y + p.r.h >= r.y + r.h) return;
     this.tx.patches.push({ canvas, r, before: ctx2d(canvas).getImageData(r.x, r.y, r.w, r.h) });
   }
-  /** Record a patch whose "before" pixels come from a backup copy (strokes: the box is known only at the end). */
+
   touchFrom(canvas, backup, rect) {
     const r = rectClip(rect, canvas.width, canvas.height); if (!r || !this.tx) return;
     this.tx.patches.push({ canvas, r, before: ctx2d(backup).getImageData(r.x, r.y, r.w, r.h) });
   }
-  /** Replace a layer's canvas (or mask) inside a transaction: undo restores the old one by reference. */
+
   swap(layer, canvas, key = "canvas") {
     if (!this.tx) throw new Error("swap outside a transaction");
     this.tx.extra = (this.tx.extra || 0) + canvas.width * canvas.height * 4;
@@ -184,7 +176,7 @@ export class PhotoDoc {
     this.emit("commit");
     return entry;
   }
-  cancel() {   // abandon an open transaction: put the pixels back
+  cancel() {
     const tx = this.tx; if (!tx) return; this.tx = null;
     for (let i = tx.patches.length - 1; i >= 0; i--) { const p = tx.patches[i]; ctx2d(p.canvas).putImageData(p.before, p.r.x, p.r.y); }
     this.restore(tx.before); this.emit("cancel");
@@ -197,7 +189,7 @@ export class PhotoDoc {
       const old = this.history.shift(); bytes -= old.bytes; this.savedIndex--;
     }
   }
-  /** Several commits as one history step ("AI: make it warmer" = 3 operations, one undo). */
+
   beginGroup(label) { if (!this.group) this.group = { label, entries: [], depth: 0 }; this.group.depth++; }
   endGroup() {
     const g = this.group; if (!g || --g.depth > 0) return;
@@ -218,14 +210,13 @@ export class PhotoDoc {
   }
   undo() { if (this.tx || !this.history.length) return false; const e = this.history.pop(); this.undoEntry(e); this.future.push(e); this.live = null; this.emit("undo"); return true; }
   redo() { if (this.tx || !this.future.length) return false; const e = this.future.pop(); this.redoEntry(e); this.history.push(e); this.live = null; this.emit("redo"); return true; }
-  /** Jump to a history position (0 = as opened). */
+
   goto(index) { while (this.history.length > index && this.undo()); while (this.history.length < index && this.future.length && this.redo()); }
   get dirty() { return this.savedIndex !== this.history.length; }
   markSaved() { this.savedIndex = this.history.length; }
   editsSummary() { return this.history.map((e) => e.label); }
 }
 
-// ---------------------------------------------------------------- text / shape / svg rendering (vector layers)
 export const DEFAULT_TEXT = { text: "", font: "Segoe UI", size: 48, color: "#ffffff", bold: false, italic: false, underline: false, align: "left", lineHeight: 1.25, x: 40, y: 40, width: 0, stroke: 0, strokeColor: "#000000", shadow: false, rotate: 0, letter: 0 };
 export function fontString(t) { return `${t.italic ? "italic " : ""}${t.bold ? "700 " : "400 "}${Math.max(1, t.size)}px "${String(t.font || "Segoe UI").replace(/"/g, "")}", "Segoe UI", Arial, sans-serif`; }
 export function wrapText(ctx, t) {

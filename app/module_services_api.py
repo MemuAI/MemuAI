@@ -13,7 +13,6 @@ from . import module_media, module_monitor, music_runtime, pgdata
 router = APIRouter()
 _MUSIC_JOBS = {}
 
-
 @router.post("/api/pg/modules/monitor")
 async def monitor(request: Request):
     try:
@@ -30,7 +29,7 @@ async def monitor(request: Request):
         if action == "events":
             return await asyncio.to_thread(module_monitor.events, max(0, int(body.get("after", 0))), module_id)
         if action == "seen":
-            # The module marked its notifications as seen (persisted in the profile store).
+
             return await asyncio.to_thread(module_monitor.mark_seen, module_id, int(body.get("cursor", 0)))
         raise ValueError("Неизвестное действие / Unknown action")
     except PermissionError as exc:
@@ -38,15 +37,12 @@ async def monitor(request: Request):
     except Exception as exc:
         return JSONResponse({"error": str(exc) if isinstance(exc, ValueError) else type(exc).__name__}, 400)
 
-
 @router.get("/api/pg/modules/events")
 async def events(after: int = 0, pending: int = 0):
-    # pending=1: only events MemuAI has not shown yet; the acknowledgement is
-    # stored server-side (the desktop WebView's localStorage does not survive a restart).
+
     if pending:
         return await asyncio.to_thread(module_monitor.pending_events)
     return await asyncio.to_thread(module_monitor.events, max(0, after))
-
 
 @router.post("/api/pg/modules/events/ack")
 async def events_ack(request: Request):
@@ -56,13 +52,11 @@ async def events_ack(request: Request):
     except Exception as exc:
         return JSONResponse({"error": str(exc) if isinstance(exc, ValueError) else type(exc).__name__}, 400)
 
-
 @router.get("/api/pg/modules/ui-hints")
 async def ui_hints():
-    # Round 31: one-time hints of the module windows (how to close / minimize).
+
     from . import modules_host
     return await asyncio.to_thread(modules_host.load_ui_hints, modules_host.default_root())
-
 
 @router.post("/api/pg/modules/ui-hints")
 async def ui_hints_mark(request: Request):
@@ -75,7 +69,6 @@ async def ui_hints_mark(request: Request):
                                        str(body.get("name", "")), body.get("seen", True) is not False)
     except Exception as exc:
         return JSONResponse({"error": str(exc) if isinstance(exc, ValueError) else type(exc).__name__}, 400)
-
 
 @router.post("/api/pg/modules/music")
 async def music(request: Request):
@@ -112,14 +105,13 @@ async def music(request: Request):
         message = str(exc) if isinstance(exc, ValueError) else type(exc).__name__
         return JSONResponse({"error": message}, 400)
 
-
 @router.post("/api/voice/clips")
 async def save_voice_clip(request: Request):
     try:
         limit = module_media.MAX_AUDIO * 4 // 3 + 10000
         if int(request.headers.get("content-length", 0)) > limit:
             return JSONResponse({"error": "Recording exceeds 24 MB"}, 413)
-        # A chunked upload has no Content-Length: enforce the limit while reading.
+
         raw = bytearray()
         async for chunk in request.stream():
             raw.extend(chunk)
@@ -135,7 +127,6 @@ async def save_voice_clip(request: Request):
                 profile_id=profile_id, duration=body.get("duration", 0), truncated=body.get("truncated", False))
     except Exception as exc:
         return JSONResponse({"error": str(exc) if isinstance(exc, ValueError) else type(exc).__name__}, 400)
-
 
 @router.get("/api/voice/clips/{name}")
 async def voice_clip(name: str, profile_id: str = ""):

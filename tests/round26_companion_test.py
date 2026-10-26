@@ -24,9 +24,6 @@ ROOT = Path(__file__).resolve().parents[1]
 COMPANION = ROOT / "app" / "pgstatic" / "companion"
 NODE = shutil.which("node")
 
-# A head (or an arm) bone under a VRM scene, posed with the stage's own helpers (Core.vrmEuler/vrmHeadPitch), measured
-# with the bundle's real three.js: returns where the bone's forward (or arm) direction points in WORLD space
-# (camera at +Z looking at the model: +x = the viewer's right, +y = up).
 VRM_SCRIPT = r"""
 globalThis.window = globalThis; globalThis.self = globalThis;
 const C = require(process.argv[1]);
@@ -59,7 +56,6 @@ for (const version of ["0", "1"]) {
 process.stdout.write(JSON.stringify(out));
 """
 
-
 @unittest.skipUnless(NODE, "node is not installed")
 class VrmGazeAxesTests(unittest.TestCase):
     @classmethod
@@ -90,14 +86,12 @@ class VrmGazeAxesTests(unittest.TestCase):
         src = (COMPANION / "stage.js").read_text(encoding="utf-8")
         self.assertIn("Core.vrmHeadPitch(this.headLook.y)", src)
         self.assertIn("this.version = vrm.meta && vrm.meta.metaVersion", src)
-        # The only direct Euler write of the VRM driver is inside rot(); everything else goes through it.
+
         self.assertEqual(len(re.findall(r"\.rotation\.set\(", src)), 1, "bone angles must go through rot()")
         self.assertNotRegex(src, r"\.rotation\.z\s*=", "bone angles must go through rot()")
 
-
 if __name__ == "__main__":
     unittest.main()
-
 
 class DesktopWindowStateTests(unittest.TestCase):
     """The desktop window's own state reaches the stage even while BroadcastChannel is busy, and a resize never
@@ -161,7 +155,6 @@ class DesktopWindowStateTests(unittest.TestCase):
         self.assertIsNone(m._region, "a region cut for 300×440 would crop the model in the new 520×340 window")
         self.assertIsNone(m.api.regions[-1])
 
-
 @unittest.skipUnless(NODE, "node is not installed")
 class FramingMathTests(unittest.TestCase):
     def node(self, expr: str):
@@ -172,7 +165,7 @@ class FramingMathTests(unittest.TestCase):
         return json.loads(result.stdout)
 
     def test_alpha_bounds_of_a_readback(self) -> None:
-        # 4×3 buffer (rows bottom-up), one opaque pixel at column 2 of buffer row 1; dpr 2 = 0.5 CSS px per buffer px.
+
         box = self.node("(() => { const p = new Uint8Array(4 * 3 * 4); p[(1 * 4 + 2) * 4 + 3] = 255;"
                         " p[(0 * 4 + 0) * 4 + 3] = 5; return C.alphaBounds(p, 4, 3, 0.5, 0.5); })()")
         self.assertEqual(box, {"x0": 1, "x1": 1.5, "y0": 0.5, "y1": 1}, "alpha ≤ 8 (haze) is empty; rows flip")
@@ -182,13 +175,12 @@ class FramingMathTests(unittest.TestCase):
         tan_h, tan_v, center_y = 0.21, 0.32, 1.2
         point = {"x": -0.45, "y": 1.3, "z": 0.25, "m": 0.07}
         dist = self.node(f"C.reachDistance([{json.dumps(point)}], {tan_h}, {tan_v}, {center_y})")
-        # Project the margin-widened point from a camera at (0, centerY, dist): it must land inside the frame.
+
         depth = dist - point["z"]
         self.assertLessEqual((abs(point["x"]) + point["m"]) / depth, tan_h + 1e-9)
         self.assertLessEqual((point["y"] + point["m"] - center_y) / depth, tan_v + 1e-9)
         flat = (abs(point["x"]) + point["m"]) / tan_h
         self.assertGreater(dist, flat, "the old z = 0 maths stood too close: the near hand was cut")
-
 
 class StageClippingSourceTests(unittest.TestCase):
     def test_hit_box_follows_the_pixels_and_the_gestures(self) -> None:
@@ -197,20 +189,19 @@ class StageClippingSourceTests(unittest.TestCase):
         self.assertIn("Core.alphaBounds(", src)
         self.assertIn("S.bboxAt = 0;", src, "a gesture re-reports the box on the next frame")
         self.assertIn("Core.reachDistance(this.reach.points", src)
-        # Live2D: the hit box includes the motion envelope.
+
         live2d = src[src.index("class Live2DDriver"):]
         self.assertIn("const env = this.env;", live2d[live2d.index("    bbox() {"):])
-        # Live2D: every playable motion is measured silently before she is shown (the frame never chases a hand).
+
         load = live2d[live2d.index("    async load(model) {"):live2d.index("    async measureMotions(PIXI) {")]
         self.assertIn("await this.measureMotions(PIXI);", load)
         motions = live2d[live2d.index("    async measureMotions(PIXI) {"):live2d.index("    frameCut() {")]
         self.assertIn("config.sound = false;", motions, "measuring must not play the motions' voice lines")
         self.assertIn("config.sound = sound;", motions)
         self.assertIn("mm.stopAllMotions()", motions)
-        # The box is reported right after the frame is drawn (the readback needs the fresh drawing buffer).
+
         frame = src[src.index("  function frame(now) {"):src.index("  function reportBox()")]
         self.assertLess(frame.index("S.driver.render();"), frame.index("reportBox();"))
-
 
 LIVE_SCRIPT = r"""
 const vm = require("vm"), fs = require("fs");
@@ -242,7 +233,6 @@ calls.push("|");
 second.fire("ended");
 process.stdout.write(JSON.stringify(calls));
 """
-
 
 @unittest.skipUnless(NODE, "node is not installed")
 class LiveAudioRaceTests(unittest.TestCase):

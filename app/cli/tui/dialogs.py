@@ -21,9 +21,7 @@ from prompt_toolkit.mouse_events import MouseEventType
 from ..i18n import tr
 from .input import fuzzy_score
 
-
 _UNSET: Any = object()
-
 
 @dataclass
 class Option:
@@ -32,23 +30,21 @@ class Option:
     label: str
     value: Any = _UNSET
     description: str = ""
-    style: str = ""                  # extra style class for the label (e.g. "dialog.danger")
-    text_input: bool = False         # choosing it asks for free text
-    hint: str = ""                   # right-aligned note ("current", "✓")
-    #: Round 33 (r33c-models-lists): a muted note right after the label on every row (the full model id next to
-    #: its readable name: «Claude Opus 4.6  aws9-claude-opus-4.6»).
+    style: str = ""
+    text_input: bool = False
+    hint: str = ""
+
     detail: str = ""
 
     def __post_init__(self) -> None:
         if self.value is _UNSET:
             self.value = self.label
 
-
 @dataclass
 class Dialog:
     title: str
     options: List[Option]
-    body: str = ""                   # ANSI text above the options (diff, command, plan)
+    body: str = ""
     multi: bool = False
     filterable: bool = False
     index: int = 0
@@ -65,11 +61,11 @@ class Dialog:
     tabs: List[str] = field(default_factory=list)
     tab_index: int = 0
     on_tab: Optional[Callable[[int], None]] = None
-    inline: bool = False             # description on the same line as the label (command lists)
-    guard: bool = False              # a question the agent opened on its own: ignore the first keystrokes
-    allow_empty: bool = False        # a multi-select may be confirmed with nothing ticked (it answers [])
-    initial_filter: str = ""         # what the search box holds when the picker opens (``/model glm``)
-    matcher: Optional[Callable[[str, "Option"], Optional[float]]] = None   # custom search: score or None
+    inline: bool = False
+    guard: bool = False
+    allow_empty: bool = False
+    initial_filter: str = ""
+    matcher: Optional[Callable[[str, "Option"], Optional[float]]] = None
 
     def __post_init__(self) -> None:
         self.opened = time.monotonic()
@@ -95,7 +91,6 @@ class Dialog:
             self._initial_applied = True
             filter_buffer.document = Document(self.initial_filter, len(self.initial_filter))
 
-    # ------------------------------------------------------------ state
     def switch_tab(self, index: int) -> None:
         if self.tabs:
             self.tab_index = index % len(self.tabs)
@@ -164,7 +159,7 @@ class Dialog:
                 self.on_change(self.options[self.view[row]].value)
         if event.event_type == MouseEventType.MOUSE_UP:
             if self.multi:
-                self.toggle()            # a click ticks the row; Enter confirms the whole list
+                self.toggle()
             else:
                 self.choose()
 
@@ -177,7 +172,7 @@ class Dialog:
         if self.multi:
             picked = [self.options[i].value for i in sorted(self.selected)]
             if not picked and option is not None and not self.allow_empty:
-                picked = [option.value]          # nothing ticked: Enter takes the row the pointer is on
+                picked = [option.value]
             self.resolve(picked)
             return
         if option is None:
@@ -214,7 +209,6 @@ class Dialog:
             return
         self.resolve({"value": option.value if option else None, "text": text})
 
-    # ------------------------------------------------------------ drawing
     def render_head(self, width: int) -> StyleAndTextTuples:
         """A rule with the title in it — the same language as the input box's rules, no half-drawn frame."""
         style = "class:dialog.danger" if self.danger else "class:dialog.border"
@@ -233,7 +227,7 @@ class Dialog:
                 out.append(("", " "))
             out.append(("", "\n\n"))
         if self.body:
-            # Parsing the ANSI text is the costly part of a frame: do it once per body and scroll position.
+
             key = (self.body, self.body_offset, self.body_height) if self.tag == "document" else (self.body,)
             if self._body_cache[0] != key:
                 body = self.body.rstrip("\n")
@@ -247,7 +241,7 @@ class Dialog:
     def render_options(self, width: int) -> StyleAndTextTuples:
         out: StyleAndTextTuples = []
         if not self.options or (self.text_mode and len(self.options) == 1):
-            return []                                       # a plain text field has nothing to choose from
+            return []
         if not self.view:
             return [("class:dialog.hint", "  nothing matches\n")]
         start = max(0, min(self.index - self.max_visible // 2, len(self.view) - self.max_visible))
@@ -307,11 +301,9 @@ class Dialog:
         text = self.footer or " · ".join(hints)
         return [("class:dialog.hint", "  " + _fit(text, max(10, width - 4)))]
 
-
 def _fit(text: str, width: int) -> str:
     text = " ".join(str(text).split())
     return text if len(text) <= width else text[:max(1, width - 1)] + "…"
-
 
 def permission_options(request: Any) -> List[Option]:
     rows = [Option(tr("Да", "Yes"), "yes")]
@@ -322,10 +314,8 @@ def permission_options(request: Any) -> List[Option]:
     rows.append(Option(tr("Нет (esc)", "No (esc)"), "no"))
     return rows
 
-
 def yes_no(yes: str = "", no: str = "") -> List[Option]:
     return [Option(yes or tr("Да", "Yes"), True), Option(no or tr("Нет", "No"), False)]
-
 
 def options_from(values: Sequence[Any]) -> List[Option]:
     return [value if isinstance(value, Option) else Option(str(value), value) for value in values]

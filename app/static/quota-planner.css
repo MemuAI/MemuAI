@@ -1,5 +1,3 @@
-/* MemuAI Proxy — Round 35 (quota): «Планировщик квот». Only theme variables from style.css, so dark/light
-   and accent themes apply by themselves. */
 #quota-root { display: grid; gap: 14px; }
 .qp-summary { display: grid; gap: 12px; }
 .qp-sum-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
@@ -54,8 +52,6 @@
 .qp-muted { color: var(--muted); }
 .qp-accent { color: var(--accent-text); }
 .qp-err.qp-chip, .qp-err.qp-sum, .qp-err.qp-badge { color: var(--err); }
-
-/* chart */
 .qp-chart { width: 100%; height: auto; display: block; overflow: visible; }
 .qp-chart-empty { display: grid; place-items: center; color: var(--muted); font-size: 12.5px; height: 70px; }
 .qp-chart .qp-gl { stroke: var(--border); stroke-width: 1; vector-effect: non-scaling-stroke; }
@@ -75,8 +71,6 @@
 .qp-empty p { margin: 0; color: var(--text-2); line-height: 1.5; max-width: 760px; }
 .qp-wait { margin: 10px 0 0; padding-left: 18px; color: var(--text-2); font-size: 13px; }
 .qp-note { font-size: 12px; margin: 0; }
-
-/* small badge in «Аккаунты» cards */
 .qp-badge { display: inline-flex; align-items: center; gap: 3px; margin-left: 4px; padding: 1px 8px; border-radius: 999px; font: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
   border: 1px solid color-mix(in srgb, currentColor 32%, transparent); background: color-mix(in srgb, currentColor 10%, transparent); vertical-align: middle; }
 .qp-badge:hover { background: color-mix(in srgb, currentColor 18%, transparent); }
@@ -87,10 +81,6 @@
   .qp-settings { gap: 12px; }
   .qp-poll { width: 100%; justify-content: space-between; }
 }
-
-/* Round 44: a balance ledger next to provider windows. The existing Proxy palette
-   (#09090b/#121215/#ededf1/#9b9ba7/#6c5cf5) and Segoe Variable stay authoritative;
-   tabular amounts and fine dividers carry the financial hierarchy, not extra cards. */
 #quota-root { gap: 24px; padding-bottom: 18px; }
 .qp-section-title { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
 .qp-section-title h3 { margin: 0; font-size: 17px; font-weight: 620; letter-spacing: -.01em; }

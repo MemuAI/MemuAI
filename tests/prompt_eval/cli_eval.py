@@ -33,12 +33,10 @@ import work_eval as we  # noqa: E402
 
 GIT = ["git", "-c", "user.email=eval@example.com", "-c", "user.name=eval"]
 
-
 def init_repo(root: Path) -> None:
     subprocess.run(["git", "init", "-q"], cwd=root, check=True)
     subprocess.run(GIT + ["add", "-A"], cwd=root, check=True)
     subprocess.run(GIT + ["commit", "-qm", "init"], cwd=root, check=True)
-
 
 def check_answer(pattern: str, *, min_tools: int = 0, max_tools: int = 99):
     def check(root: Path, result: Dict[str, Any]) -> Tuple[bool, str]:
@@ -49,16 +47,13 @@ def check_answer(pattern: str, *, min_tools: int = 0, max_tools: int = 99):
         return ok, f"answer_ok={found} tools={n}"
     return check
 
-
 def check_loop(root: Path, result: Dict[str, Any]) -> Tuple[bool, str]:
     told = bool(re.search(r"(?i)npm|package\.json|node|не (?:найден|установлен)|not (?:found|installed)|нет", result["final"]))
     ok = told and result["tool_calls"] <= 6
     return ok, f"tools={result['tool_calls']} repeats={result['repeats']} told={told}"
 
-
 def wrap(check):
     return lambda root, result: check(root)
-
 
 CLI_TASKS: Dict[str, Dict[str, Any]] = {
     "c-shop-tests": {"setup": we.project_shop, "check": wrap(we.check_shop),
@@ -73,7 +68,6 @@ CLI_TASKS: Dict[str, Dict[str, Any]] = {
                    "prompt": "Запусти npm test и скажи, проходят ли тесты."},
 }
 
-
 def write_settings(cfg: Path, model: str) -> str:
     prefix, model_id = llm._endpoint(llm.MODELS[model][0])
     settings = {"backend": "direct", "connections": [{"name": "ev", "format": "openai", "base_url":
@@ -82,7 +76,6 @@ def write_settings(cfg: Path, model: str) -> str:
     path.write_text(json.dumps(settings))
     path.chmod(0o600)
     return "@ev:" + model_id
-
 
 def episode(task_id: str, tree: Path, model: str) -> Dict[str, Any]:
     task = CLI_TASKS[task_id]
@@ -130,7 +123,6 @@ def episode(task_id: str, tree: Path, model: str) -> Dict[str, Any]:
     finally:
         shutil.rmtree(work, ignore_errors=True)
 
-
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--trees", default=f"base=/tmp/memu_base,new={ROOT}")
@@ -169,7 +161,6 @@ def main() -> None:
               f" repeats={sum(r['repeats'] for r in rows)} sec≈{sum(r['seconds'] for r in rows)/n:.0f}"
               f" in≈{sum(int(r['input_tokens'] or 0) for r in rows)//n}")
     print("saved", path)
-
 
 if __name__ == "__main__":
     main()

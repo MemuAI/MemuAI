@@ -15,7 +15,6 @@ from unittest.mock import patch
 from app.cli.tools.base import ToolError
 from app.cli.tools.shell import BackgroundShells, BashOutputTool, BashTool
 
-
 class BackgroundShellWaitTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="memucode-shell-wait-")
@@ -108,7 +107,6 @@ class BackgroundShellWaitTests(unittest.IsolatedAsyncioTestCase):
                 BashTool()._background(self.ctx, "test worker", self.root, {}), .5)
         self.assertEqual(result.meta["background_id"], row["id"])
         self.assertIsNone(row["process"].poll())
-
 
 if __name__ == "__main__":
     unittest.main()

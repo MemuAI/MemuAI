@@ -25,7 +25,6 @@ from .tokens import split_budget
 ELIDED = "[output elided to save context — call the tool again if you still need it]"
 ROUND_BUDGET = 100_000
 
-
 def _parts(content: Any, vision: bool = True, notes: Optional[Dict[str, Dict[str, Any]]] = None) -> Any:
     """Session parts → OpenAI content (string when there is only text).
 
@@ -53,14 +52,12 @@ def _parts(content: Any, vision: bool = True, notes: Optional[Dict[str, Dict[str
         return "\n\n".join(part["text"] for part in out)
     return out
 
-
 def _tool_image_notes(item: Dict[str, Any], notes: Optional[Dict[str, Dict[str, Any]]]) -> str:
     """The descriptions of the pictures a tool returned, for a model that cannot see them."""
     question = str(item.get("image_question") or "")
     rows = [pictures.note_text(pictures.note_key(image, question), notes or {}, number)
             for number, image in enumerate(item.get("images") or [], 1) if isinstance(image, dict)]
     return ("\n" + "\n".join(rows)) if rows else ""
-
 
 def _image_parts(images: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     rows = []
@@ -71,12 +68,10 @@ def _image_parts(images: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             rows.append({"type": "image_url", "image_url": {"url": f"data:{media};base64,{data}"}})
     return rows
 
-
 def _tool_text(message: Dict[str, Any]) -> str:
     if message.get("elided"):
         return ELIDED
     return str(message.get("content") or "")
-
 
 def to_text_protocol(messages: List[Dict[str, Any]], *, vision: bool = True,
                      notes: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
@@ -96,8 +91,7 @@ def to_text_protocol(messages: List[Dict[str, Any]], *, vision: bool = True,
                 out.append({"role": "assistant", "content": text})
             index += 1
             if calls and (index >= len(messages) or messages[index].get("role") != "tool"):
-                # The session ended between these calls and their results (a crash, a closed window): say so,
-                # or the model reads the next message as if its calls had run.
+
                 rows = [f'<result tool="{call.get("name")}" id="{call.get("id")}" ok="false">\n{MISSING_RESULT}\n'
                         "</result>" for call in calls]
                 out.append({"role": "user", "content": "<tool_results>\n" + "\n".join(rows) + "\n</tool_results>"})
@@ -137,7 +131,6 @@ def to_text_protocol(messages: List[Dict[str, Any]], *, vision: bool = True,
             out.append({"role": "user" if role != "system" else "system", "content": content})
         index += 1
     return out
-
 
 def to_native(messages: List[Dict[str, Any]], *, vision: bool = True,
               notes: Optional[Dict[str, Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
@@ -184,8 +177,7 @@ def to_native(messages: List[Dict[str, Any]], *, vision: bool = True,
         out.append({"role": "user", "content": [{"type": "text", "text": "Images returned by the tools above:"},
                                                 *pending_images]})
     paired = pair_tool_results(out)
-    # Parallel native calls used to bypass ROUND_BUDGET entirely: eight large
-    # reads could add almost half a million characters to a single request.
+
     group: List[Dict[str, Any]] = []
     for row in [*paired, {"role": "boundary"}]:
         if row.get("role") == "tool":
@@ -197,10 +189,8 @@ def to_native(messages: List[Dict[str, Any]], *, vision: bool = True,
             group = []
     return paired
 
-
 MISSING_RESULT = ("Error: no result was recorded for this call (the session was interrupted or closed before it "
                   "finished). Check the current state before relying on it.")
-
 
 def pair_tool_results(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Every native tool call answered exactly once, right after the assistant message that made it.

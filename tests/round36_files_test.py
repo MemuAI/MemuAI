@@ -19,7 +19,6 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMUAI_DATA_DIR", str(tmp_path / "data"))
@@ -27,12 +26,11 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
     yield
 
-
 class FakeShell:
     """Fake shell32/ole32/user32/shlwapi + a COM vtable dispatcher for ``openwith._vcall``."""
 
     def __init__(self, handlers):
-        self.handlers = handlers                 # [(exe, ui, icon_path, icon_index)]
+        self.handlers = handlers
         self.pos = 0
         self.invoked = []
         self.released = []
@@ -90,14 +88,14 @@ class FakeShell:
         if index == 2:
             self.released.append(ptr)
             return 0
-        if ptr == 100 and index == 3:                       # IEnumAssocHandlers::Next
+        if ptr == 100 and index == 3:
             if self.pos >= len(self.handlers):
-                return 1                                    # S_FALSE
+                return 1
             args[1]._obj.value = 200 + self.pos
             args[2]._obj.value = 1
             self.pos += 1
             return 0
-        if ptr == 300 and index == 3:                       # IShellItem::BindToHandler
+        if ptr == 300 and index == 3:
             args[3]._obj.value = 400
             return 0
         if 200 <= ptr < 300:
@@ -119,7 +117,6 @@ class FakeShell:
                 return 0
         raise AssertionError(f"unexpected vcall {ptr} {index}")
 
-
 @pytest.fixture()
 def fake(monkeypatch):
     from app.memufiles import openwith
@@ -127,7 +124,7 @@ def fake(monkeypatch):
         (r"C:\Program Files\Notepad++\notepad++.exe", "Notepad++", r"C:\Program Files\Notepad++\notepad++.exe", 0),
         (r"C:\Windows\system32\notepad.exe", "Блокнот", r"%SystemRoot%\system32\notepad.exe", 0),
         ("Microsoft.WindowsNotepad_8wekyb3d8bbwe!App", "Notepad (Store)", "@{Microsoft.WindowsNotepad?ms-resource://x}", 0),
-        (r"C:\Windows\system32\notepad.exe", "Блокнот", "", 0),        # duplicate registration
+        (r"C:\Windows\system32\notepad.exe", "Блокнот", "", 0),
     ])
     shell.default_exe = r"C:\Windows\system32\notepad.exe"
     monkeypatch.setattr(openwith, "IS_WIN", True)
@@ -139,7 +136,6 @@ def fake(monkeypatch):
     openwith._ICON_PNG.clear()
     return shell
 
-
 def test_handlers_list_default_first_deduped_and_released(fake, tmp_path):
     from app.memufiles import openwith
     target = tmp_path / "Мои документы с пробелами" / "отчёт.TXT"
@@ -149,10 +145,9 @@ def test_handlers_list_default_first_deduped_and_released(fake, tmp_path):
     assert [i["name"] for i in items] == ["Блокнот", "Notepad (Store)", "Notepad++"]
     assert items[0]["default"] is True and not items[1]["default"]
     assert all(i["id"].startswith("shell:") for i in items)
-    assert items[0]["icon"] is True and items[1]["icon"] is True       # Store icon via the resource string
-    assert set(fake.released) >= {100, 200, 201, 202, 203}               # every COM pointer released
-    assert fake.co_thread == "memufiles-shell"                           # COM on the STA worker, not the caller
-
+    assert items[0]["icon"] is True and items[1]["icon"] is True
+    assert set(fake.released) >= {100, 200, 201, 202, 203}
+    assert fake.co_thread == "memufiles-shell"
 
 def test_handlers_empty_for_folder_and_no_extension(fake, tmp_path):
     from app.memufiles import openwith
@@ -160,16 +155,14 @@ def test_handlers_empty_for_folder_and_no_extension(fake, tmp_path):
     assert openwith.handlers(str(tmp_path)) == []
     assert openwith.handlers(str(tmp_path / "Makefile")) == []
 
-
 def test_launch_invokes_handler_with_data_object(fake, tmp_path):
     from app.memufiles import openwith
     target = tmp_path / "файл с пробелами.txt"
     target.write_text("x", encoding="utf-8")
     openwith.launch(str(target), "shell:Microsoft.WindowsNotepad_8wekyb3d8bbwe!App")
     assert fake.invoked == [("Microsoft.WindowsNotepad_8wekyb3d8bbwe!App", 400)]
-    assert fake.parsed == str(target)                                    # the path itself, never a command line
+    assert fake.parsed == str(target)
     assert 400 in fake.released and fake.allowed == -1
-
 
 def test_launch_gone_handler_falls_back_to_exe_with_quoted_argument(fake, tmp_path, monkeypatch):
     from app.memufiles import openwith
@@ -178,12 +171,11 @@ def test_launch_gone_handler_falls_back_to_exe_with_quoted_argument(fake, tmp_pa
     exe = tmp_path / "Tool Dir" / "tool.exe"
     exe.parent.mkdir()
     exe.write_bytes(b"MZ")
-    openwith.launch(str(target), f"shell:{exe}")                         # not in the recommended list any more
+    openwith.launch(str(target), f"shell:{exe}")
     assert fake.exec_infos[-1]["file"] == str(exe) and fake.exec_infos[-1]["params"] == f'"{target}"'
     with pytest.raises(openwith.OpenWithError) as err:
         openwith.launch(str(target), r"shell:C:\nope\missing.exe")
     assert err.value.code == "handler_gone"
-
 
 def test_launch_registry_class_uses_classname_mask(fake, tmp_path):
     from app.memufiles import openwith
@@ -197,7 +189,6 @@ def test_launch_registry_class_uses_classname_mask(fake, tmp_path):
         openwith.launch(str(target), "bogus")
     with pytest.raises(FileNotFoundError):
         openwith.launch(str(tmp_path / "missing.txt"), "class:x")
-
 
 def test_registry_fallback_when_shell_enumeration_fails(fake, tmp_path, monkeypatch):
     from app.memufiles import openwith
@@ -260,8 +251,7 @@ def test_registry_fallback_when_shell_enumeration_fails(fake, tmp_path, monkeypa
     assert [(i["name"], i["id"], i["default"]) for i in items] == [
         ("Visual Studio Code", "class:Applications\\code.exe", True),
         ("Блокнот", "class:txtfile", False),
-    ]                                                     # stale.exe / Dead.ProgId (nothing registered) are hidden
-
+    ]
 
 def test_chooser_dialog_cancel_and_fallbacks(fake, tmp_path, monkeypatch):
     from app.memufiles import openwith
@@ -271,18 +261,17 @@ def test_chooser_dialog_cancel_and_fallbacks(fake, tmp_path, monkeypatch):
     assert openwith.chooser(str(target), hwnd=4242) == "dialog"
     hwnd, file, flags = fake.chooser_args
     assert getattr(hwnd, "value", hwnd) == 4242 and file == str(target) and flags == 0x7
-    fake.chooser_hr = openwith.ERROR_CANCELLED_HR - (1 << 32)               # signed HRESULT
+    fake.chooser_hr = openwith.ERROR_CANCELLED_HR - (1 << 32)
     assert openwith.chooser(str(target)) == "cancelled"
-    fake.chooser_hr = -2147467259                                            # E_FAIL → the openas verb
+    fake.chooser_hr = -2147467259
     assert openwith.chooser(str(target)) == "openas"
     assert fake.exec_infos[-1]["verb"] == "openas" and fake.exec_infos[-1]["mask"] & openwith.SEE_MASK_INVOKEIDLIST
-    fake.shell_execute_ok = False                                            # … → OpenAs_RunDLL, path NOT quoted
+    fake.shell_execute_ok = False
     started = []
     import subprocess
     monkeypatch.setattr(subprocess, "Popen", lambda cmd, **kw: started.append(cmd))
     assert openwith.chooser(str(target)) == "rundll"
     assert isinstance(started[0], str) and started[0].endswith("shell32.dll,OpenAs_RunDLL " + str(target))
-
 
 def test_worker_serialises_and_reraises(monkeypatch):
     from app.memufiles import openwith
@@ -298,8 +287,7 @@ def test_worker_serialises_and_reraises(monkeypatch):
         raise openwith.OpenWithError("x")
     with pytest.raises(openwith.OpenWithError):
         worker.call(boom)
-    assert worker.call(lambda: 5) == 5                                       # the thread survives an error
-
+    assert worker.call(lambda: 5) == 5
 
 def test_fsops_off_windows_reports_unsupported(tmp_path, monkeypatch):
     from app.memufiles import fsops
@@ -308,9 +296,6 @@ def test_fsops_off_windows_reports_unsupported(tmp_path, monkeypatch):
         fsops.open_with_dialog(str(tmp_path))
     assert err.value.code == "unsupported"
 
-
-# ------------------------------------------------------------------ server
-
 @pytest.fixture()
 def server(tmp_path):
     from app.memufiles import server as srv
@@ -318,7 +303,6 @@ def server(tmp_path):
     httpd, _ = srv.start(app)
     yield app
     httpd.shutdown()
-
 
 def call(app, path, body=None, token=True):
     data = None if body is None else json.dumps(body).encode()
@@ -333,7 +317,6 @@ def call(app, path, body=None, token=True):
             return resp.status, (json.loads(content) if ctype.startswith("application/json") else content)
     except urllib.error.HTTPError as exc:
         return exc.code, json.loads(exc.read() or b"{}")
-
 
 def test_server_openwith_routes(server, tmp_path, monkeypatch):
     from app.memufiles import openwith, fsops
@@ -357,14 +340,13 @@ def test_server_openwith_routes(server, tmp_path, monkeypatch):
     status, _ = call(server, "/api/appicon?id=shell%3Ax.exe", token=False)
     assert status == 401
 
-
 def test_custom_titlebar_setting_and_controller(monkeypatch):
     import os as real_os
     from app import win_titlebar
     from app.memufiles import desktop, settings
     assert settings.load()["custom_titlebar"] is True
     monkeypatch.setattr(desktop, "os", types.SimpleNamespace(name="posix", environ={}, path=real_os.path))
-    assert desktop._create_titlebar(set()) is None                       # never off Windows
+    assert desktop._create_titlebar(set()) is None
     monkeypatch.setattr(desktop, "os", types.SimpleNamespace(name="nt", environ={}, path=real_os.path))
     made = []
 
@@ -379,9 +361,8 @@ def test_custom_titlebar_setting_and_controller(monkeypatch):
     settings.save({"custom_titlebar": True})
     assert desktop._create_titlebar({"--native-titlebar"}).mode == "native"
     assert desktop._attach_titlebar(None, object()) is False
-    # the real controller on a non-Windows platform stays native (no hook, the page shows no buttons)
-    assert win_titlebar.TitlebarController.__name__ == "Fake"
 
+    assert win_titlebar.TitlebarController.__name__ == "Fake"
 
 def test_spec_and_build_know_new_modules():
     import build
@@ -390,7 +371,6 @@ def test_spec_and_build_know_new_modules():
     spec = (ROOT / "MemuFiles.spec").read_text(encoding="utf-8")
     assert "app.memufiles.openwith" in spec and "app.win_titlebar" in spec
 
-
 def test_i18n_new_keys_both_languages():
     text = (ROOT / "app/memufiles/static/js/i18n.js").read_text(encoding="utf-8")
     for key in ("ctx.open_with_menu", "ctx.choose_app", "ctx.default_app", "ctx.no_apps", "ctx.loading", "wc.minimize",
@@ -398,16 +378,12 @@ def test_i18n_new_keys_both_languages():
                 "err.invoke_failed", "err.timeout"):
         assert text.count(f'"{key}":') == 2, key
 
-
-# ------------------------------------------------------------------ UI (headless Chromium)
-
 def _chromium():
     import os
     exe = os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
     if not Path(exe).exists():
         pytest.skip("no chromium")
     return exe
-
 
 BRIDGE = """
 window.__tb = [];
@@ -421,7 +397,6 @@ window.pywebview = { api: {
 setTimeout(() => window.dispatchEvent(new Event("pywebviewready")), 30);
 """
 
-
 def test_ui_titlebar_and_open_with_submenu(server, tmp_path):
     pw = pytest.importorskip("playwright.sync_api")
     folder = tmp_path / "Папка"
@@ -432,13 +407,13 @@ def test_ui_titlebar_and_open_with_submenu(server, tmp_path):
     with pw.sync_playwright() as p:
         browser = p.chromium.launch(executable_path=_chromium(), args=["--no-sandbox"])
         try:
-            # 1) plain browser (no bridge): no window buttons, the strip double click still opens a tab
+
             page = browser.new_page(viewport={"width": 1100, "height": 700})
             page.goto(url)
             page.wait_for_selector(".tabbar .tab")
             assert page.locator(".memu-wc").count() == 0
             page.close()
-            # 2) desktop window with the bridge: buttons in the tab bar, drag / double press / close / menu
+
             page = browser.new_page(viewport={"width": 1100, "height": 700})
             page.add_init_script(BRIDGE)
             page.goto(url)
@@ -447,14 +422,14 @@ def test_ui_titlebar_and_open_with_submenu(server, tmp_path):
             assert page.evaluate("document.querySelector('.memu-wc').parentElement.classList.contains('tabbar')")
             tabs_before = page.locator(".tabbar .tab").count()
             box = page.locator(".tabbar .tab-add").bounding_box()
-            x, y = box["x"] + box["width"] + 60, box["y"] + 10            # empty strip right of «+»
+            x, y = box["x"] + box["width"] + 60, box["y"] + 10
             page.mouse.click(x, y)
             time.sleep(0.6)
             page.mouse.click(x, y, click_count=2)
             time.sleep(0.2)
             calls = page.evaluate("window.__tb")
             assert calls[0] == "drag:caption" and "cmd:toggle" in calls
-            assert page.locator(".tabbar .tab").count() == tabs_before     # caption double click ≠ new tab
+            assert page.locator(".tabbar .tab").count() == tabs_before
             page.click(".memu-wc-close")
             page.click(".memu-wc-minimize")
             page.mouse.click(x, y, button="right")
@@ -465,7 +440,6 @@ def test_ui_titlebar_and_open_with_submenu(server, tmp_path):
             page.close()
         finally:
             browser.close()
-
 
 def test_ui_open_with_submenu_lists_apps(server, tmp_path, monkeypatch):
     pw = pytest.importorskip("playwright.sync_api")

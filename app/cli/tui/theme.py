@@ -16,7 +16,6 @@ ACCENTS = {
     "indigo": "#7c83f7", "gray": "#9aa0a6",
 }
 
-
 @dataclass
 class Palette:
     name: str
@@ -47,7 +46,6 @@ class Palette:
     ansi: bool = False
     extra: Dict[str, str] = field(default_factory=dict)
 
-
 DARK = Palette(
     name="dark", dark=True, text="#e6e6e6", dim="#8b8b8b", subtle="#5c5c5c", border="#6b6b6b",
     brand="#d97757", brand2="#a87fe8", success="#4eba65", error="#ff6b80", warning="#ffc107", info="#7ab4e8",
@@ -73,7 +71,6 @@ LIGHT_ANSI = replace(DARK_ANSI, name="light-ansi", dark=False, text="ansiblack",
 
 THEMES = {palette.name: palette for palette in (DARK, LIGHT, DARK_DALTONIZED, LIGHT_DALTONIZED, DARK_ANSI, LIGHT_ANSI)}
 
-
 def palette_for(name: str, accent: str = "") -> Palette:
     palette = THEMES.get(str(name or "dark"), DARK)
     color = ACCENTS.get(accent, accent if str(accent).startswith("#") and len(accent) == 7 else "")
@@ -81,17 +78,12 @@ def palette_for(name: str, accent: str = "") -> Palette:
         palette = replace(palette, brand=color)
     return palette
 
-
-# ---------------------------------------------------------------- colour maths
-
 def _rgb(color: str) -> Tuple[int, int, int]:
     color = color.lstrip("#")
     return int(color[0:2], 16), int(color[2:4], 16), int(color[4:6], 16)
 
-
 def _hex(rgb: Tuple[float, float, float]) -> str:
     return "#%02x%02x%02x" % tuple(max(0, min(255, round(value))) for value in rgb)
-
 
 def mix(a: str, b: str, t: float) -> str:
     if not a.startswith("#") or not b.startswith("#"):
@@ -99,12 +91,10 @@ def mix(a: str, b: str, t: float) -> str:
     ra, rb = _rgb(a), _rgb(b)
     return _hex(tuple(ra[i] + (rb[i] - ra[i]) * t for i in range(3)))
 
-
 def gradient(start: str, end: str, steps: int) -> List[str]:
     if steps <= 1:
         return [start]
     return [mix(start, end, index / (steps - 1)) for index in range(steps)]
-
 
 def rich_theme(palette: Palette):
     from rich.theme import Theme
@@ -129,7 +119,6 @@ def rich_theme(palette: Palette):
         styles = {key: value.replace("ansibright", "bright_").replace("ansi", "") for key, value in styles.items()}
     return Theme(styles)
 
-
 def pt_style(palette: Palette):
     from prompt_toolkit.styles import Style
     p = palette
@@ -151,7 +140,7 @@ def pt_style(palette: Palette):
         "mode.bash": c(p.bash), "mode.memory": c(p.memory),
         "completion": c(p.dim), "completion.selected": f"bold {c(p.brand)}", "completion.meta": c(p.subtle),
         "completion.meta.selected": c(p.text), "completion.match": "bold",
-        # Override prompt_toolkit's default blue dialog background explicitly.
+
         "dialog": f"{c(p.text)} bg:default",
         "dialog.border": c(p.brand), "dialog.title": f"bold {c(p.text)}", "dialog.body": c(p.text),
         "dialog.tab.selected": f"bold {c(p.brand)} reverse",
@@ -165,7 +154,6 @@ def pt_style(palette: Palette):
         "search": f"bold {c(p.info)}",
     }
     return Style.from_dict(rules)
-
 
 def color_depth() -> str:
     """truecolor | 256 | 16 — Windows Terminal and modern consoles support truecolor."""

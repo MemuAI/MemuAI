@@ -15,7 +15,6 @@ from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 class FakeResponse:
     def __init__(self, status=200, data=None, text="", content=b"", url=""):
         self.status_code = status
@@ -30,7 +29,6 @@ class FakeResponse:
     def raise_for_status(self):
         if self.status_code >= 400:
             raise RuntimeError(f"HTTP {self.status_code}")
-
 
 class FakeClient:
     def __init__(self, routes):
@@ -53,13 +51,11 @@ class FakeClient:
     def __exit__(self, *a):
         return False
 
-
 def png_bytes(color=(200, 40, 60), size=(64, 36)):
     from PIL import Image
     buf = io.BytesIO()
     Image.new("RGB", size, color).save(buf, "PNG")
     return buf.getvalue()
-
 
 class Base(unittest.TestCase):
     def setUp(self):
@@ -81,7 +77,6 @@ class Base(unittest.TestCase):
         path = self.lib.tracks_dir / name
         path.write_bytes(bytes(range(256)) * (size // 256) + b"x" * (size % 256))
         return path
-
 
 class DetectTest(unittest.TestCase):
     def test_sources(self):
@@ -125,7 +120,6 @@ class DetectTest(unittest.TestCase):
         self.assertFalse(detect("https://open.spotify.com/track/x1")["direct"])
         self.assertTrue(detect("https://spotify.link/abc")["short"])
 
-
 class LibraryTest(Base):
     def test_tracks_playlists_stats(self):
         lib = self.lib
@@ -136,12 +130,12 @@ class LibraryTest(Base):
         c = lib.add({"file": str(self.make_file("c.opus")), "title": "Other", "artist": "Solo", "duration": 50})
         listed = lib.list()
         self.assertEqual(listed["total"], 3)
-        self.assertEqual(listed["tracks"][0]["id"], c["id"])          # newest first
+        self.assertEqual(listed["tracks"][0]["id"], c["id"])
         track = lib.get(a["id"])
         self.assertTrue(track["cover"].startswith(f"/api/pg/music/cover/{a['id']}?t="))
         self.assertTrue(track["stream"].startswith(f"/api/pg/music/stream/{a['id']}?t="))
         self.assertRegex(track["accent"], r"^#[0-9a-f]{6}$")
-        self.assertGreater(int(track["accent"][1:3], 16), 150)       # the red cover → a red accent
+        self.assertGreater(int(track["accent"][1:3], 16), 150)
         self.assertNotIn("file", track)
         self.assertEqual(lib.list(q="other")["total"], 1)
         self.assertEqual(lib.list(q="song band")["total"], 2)
@@ -158,14 +152,14 @@ class LibraryTest(Base):
         self.assertEqual(stats["top_tracks"][0]["id"], a["id"])
         self.assertEqual(stats["top_artists"][0]["name"], "Band")
         self.assertEqual(len(lib.history()), 4)
-        # artists / albums
+
         self.assertEqual([x["name"] for x in lib.artists()], ["Band", "Solo"])
         albums = lib.albums()
         self.assertEqual(len(albums), 1)
         album = lib.album(albums[0]["key"])
-        self.assertEqual([t["title"] for t in album["items"]], ["Song B", "Song A"])   # by track number
+        self.assertEqual([t["title"] for t in album["items"]], ["Song B", "Song A"])
         self.assertEqual(len(lib.artist("band")["tracks"]), 2)
-        # playlists
+
         smart = {p["id"]: p for p in lib.playlists()}
         self.assertEqual(smart["smart:liked"]["count"], 1)
         self.assertEqual(smart["smart:top"]["count"], 2)
@@ -177,7 +171,7 @@ class LibraryTest(Base):
         self.assertEqual([t["id"] for t in pl["tracks"]], [c["id"], b["id"]])
         with self.assertRaises(ValueError):
             lib.update_playlist("smart:liked", {"name": "x"})
-        # edit / delete
+
         self.assertEqual(lib.update(c["id"], {"title": "Renamed", "file": "/etc/passwd"})["title"], "Renamed")
         self.assertEqual(lib.row(c["id"])["file"], "c.opus")
         result = lib.delete(a["id"])
@@ -209,7 +203,6 @@ class LibraryTest(Base):
         self.assertTrue(self.lib.check_token("stream", "abcdefabcdef", token))
         self.assertFalse(self.lib.check_token("cover", "abcdefabcdef", token))
         self.assertFalse(self.lib.check_token("stream", "abcdefabcdef", ""))
-
 
 class FakeRunner:
     """Pretends to be yt-dlp: writes a file and returns the after_move JSON."""
@@ -247,7 +240,6 @@ class FakeRunner:
         return {"id": vid, "title": "Rick Astley - Never Gonna Give You Up (Official Video)", "uploader": "Rick Astley",
                 "duration": 213, "thumbnail": "https://i.ytimg.com/vi/x/maxres.jpg", "webpage_url": url, "abr": 129.5,
                 "ext": "m4a", "filepath": str(path)}
-
 
 class DownloaderTest(Base):
     def manager(self, runner, routes=None):
@@ -313,7 +305,7 @@ class DownloaderTest(Base):
         self.assertEqual([u for u, _ in runner.downloads], ["https://music.youtube.com/watch?v=matchedID01",
                                                              "https://soundcloud.com/x/song"])
         track = self.lib.get(job.track_ids[0])
-        # The original Spotify metadata and cover win over what YouTube/SoundCloud said.
+
         self.assertEqual((track["title"], track["artist"], track["album"], track["source"]), ("Song", "Band", "LP", "spotify"))
         self.assertEqual(track["source_url"], "https://open.spotify.com/track/abc")
         self.assertGreater(int(track["accent"][3:5], 16), 150)
@@ -368,7 +360,6 @@ class DownloaderTest(Base):
         self.assertIn("VPN", friendly_error("ERROR: [youtube] x: Sign in to confirm you’re not a bot."))
         self.assertEqual(format_for("best", False), "bestaudio/best")
 
-
 class SourcesMetaTest(unittest.TestCase):
     def test_spotify_album_embed(self):
         from app.music import sources
@@ -409,7 +400,6 @@ class SourcesMetaTest(unittest.TestCase):
         tidal = sources.resolve_meta(sources.detect("https://tidal.com/browse/track/77"), client)
         self.assertEqual((tidal["title"], tidal["artist"], tidal["cover_url"]), ("Song Name - Single", "Some Artist", "https://t/img.jpg"))
 
-
 class LyricsTest(Base):
     def test_lrc_and_fetch(self):
         from app.music import lyrics
@@ -420,7 +410,7 @@ class LyricsTest(Base):
         junk = {"plainLyrics": "probe", "syncedLyrics": "[00:00.00]probe", "duration": 214}
         good = [{"plainLyrics": "a\nb\nc\nd", "syncedLyrics": "[00:19.67]We're no strangers\n[00:23.5]You know",
                  "duration": 213}]
-        self.lib.set_settings({"lyrics_sources": ["lrclib"]})   # r39: only LRCLIB here (round39_music_lyrics_test — all sources)
+        self.lib.set_settings({"lyrics_sources": ["lrclib"]})
         client = FakeClient([("https://lrclib.net/api/get", FakeResponse(200, junk)),
                              ("https://lrclib.net/api/search", FakeResponse(200, good))])
         result = lyrics.fetch(self.lib, row["id"], client_factory=lambda: client)
@@ -429,7 +419,6 @@ class LyricsTest(Base):
         again = lyrics.fetch(self.lib, row["id"], client_factory=lambda: FakeClient([]))
         self.assertTrue(again["cached"])
         self.assertEqual(again["plain"], "a\nb\nc\nd")
-
 
 class PlayerTest(unittest.TestCase):
     def test_state_commands_wait(self):
@@ -455,7 +444,6 @@ class PlayerTest(unittest.TestCase):
             again = PlayerHub(Path(tmp) / "player.json")
             self.assertEqual((again.state["track_id"], again.state["playing"]), ("abc", False))
             self.assertFalse(hub.wait(hub.version, -1, 0.05)["changed"])
-
 
 class ToolsTest(Base):
     def test_update_downloads_release(self):
@@ -496,7 +484,6 @@ class ToolsTest(Base):
         with patch("sys.platform", "win32"):
             self.assertIn("creationflags", tools.popen_kwargs())
 
-
 class RoutesTest(Base):
     def setUp(self):
         super().setUp()
@@ -533,14 +520,14 @@ class RoutesTest(Base):
         self.assertEqual(tail.content, whole.content[-10:])
         self.assertEqual(c.get(stream, headers={"Range": "bytes=20000-"}).status_code, 416)
         self.assertEqual(c.get(stream.split("?")[0] + "?t=bad").status_code, 403)
-        # The sandboxed module iframe is cross-site: media GETs pass, the JSON API does not.
+
         cross = {"Sec-Fetch-Site": "cross-site"}
         self.assertEqual(c.get(stream, headers=cross).status_code, 200)
         self.assertEqual(c.get(track["cover"].replace("http://127.0.0.1", ""), headers=cross).headers["content-type"], "image/jpeg")
         self.assertEqual(c.post("/api/pg/music/call", json={"op": "library.stats"}, headers=cross).status_code, 403)
         self.assertEqual(c.post("/api/pg/music/call", json={"op": "nope"}).status_code, 400)
         self.assertEqual(c.post("/api/pg/music/call", json={"op": "library.get", "args": {"id": "x"}}).status_code, 404)
-        # A module without the «music» permission is refused.
+
         r = c.post("/api/pg/music/call", json={"op": "library.stats", "module_id": "translator"})
         self.assertEqual(r.status_code, 403)
         r = c.post("/api/pg/music/call", json={"op": "playlists.list", "module_id": "music", "lang": "en"})
@@ -559,7 +546,6 @@ class RoutesTest(Base):
         other = c.get("/api/pg/modules/translator/document")
         self.assertNotIn("/api/pg/music/", other.headers["content-security-policy"])
 
-
 class BridgeTablesTest(unittest.TestCase):
     def test_permission_tables(self):
         from app.modules_host import ACTION_PERMISSION, IMPLICIT_PERMISSIONS, PERMISSIONS
@@ -573,7 +559,6 @@ class BridgeTablesTest(unittest.TestCase):
         self.assertTrue(api.is_public_media_path("/api/pg/music/stream/abcdef012345"))
         self.assertFalse(api.is_public_media_path("/api/pg/music/call"))
         self.assertFalse(api.is_public_media_path("/api/pg/music/stream/../x"))
-
 
 if __name__ == "__main__":
     unittest.main()

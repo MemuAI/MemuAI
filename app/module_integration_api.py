@@ -17,9 +17,7 @@ from fastapi.responses import JSONResponse, Response
 
 from . import module_integration as mi
 
-
 _APP: Dict[str, Any] = {}
-
 
 def nudge_main(client: Any) -> bool:
     """Hand a command's ``client`` part to the MemuAI main window (Quick Access is another window): start the host
@@ -41,10 +39,8 @@ def nudge_main(client: Any) -> bool:
     threading.Thread(target=run, name="MemuAI module command", daemon=True).start()
     return True
 
-
 def _lang(value: Any) -> str:
     return "en" if str(value or "") == "en" else "ru"
-
 
 def register(app, *, env: Callable[[], Dict[str, Any]] = dict) -> None:
     _APP["app"] = app
@@ -62,7 +58,7 @@ def register(app, *, env: Callable[[], Dict[str, Any]] = dict) -> None:
         except (KeyError, ValueError):
             return JSONResponse({"error": "Панель модуля недоступна / The module panel is unavailable"}, 404)
         response = Response(page, media_type="text/html; charset=utf-8")
-        # Same rules as the module window document (playground_api: /api/pg/modules/{id}/document).
+
         from .modules_host import load_package, default_root
         from .music.api import csp_sources as music_csp
         try:
@@ -154,8 +150,7 @@ def register(app, *, env: Callable[[], Dict[str, Any]] = dict) -> None:
             return JSONResponse({"error": "Не найдено / Not found"}, 404)
         except (ValueError, AttributeError):
             return JSONResponse({"error": "Некорректный запрос / Bad request"}, 400)
-        # Round 39 (r39-integ): a widget switched in a separate module window (native app window) applies in the MemuAI
-        # window at once — no restart; Quick Access re-reads the settings every time it opens.
+
         nudge_main({"modint_reload": True})
         return {"values": values}
 

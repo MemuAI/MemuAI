@@ -1,81 +1,31 @@
-/* MemuAI Quick Ask — Round 34 (r34-quick-design): visual / UX fixes found by the screenshot matrix
-   (every state × 8 designs × dark/light × RU/EN × 720/420 px). Linked LAST in quick/index.html, so it wins over
-   quick.css, the design files, quick-appearance.css and the plugin styles without touching them. Tokens only. */
-
-/* ------------------------------------------------------------------ tall cards never push the footer out
-   A Computer Use approval (screenshot + lens + steps) or several command / DFY cards are taller than the window
-   (--qa-max-h): the bottom slot did not shrink (min-height:auto of a flex item), so the footer with the model chip
-   and «Действия» slid below the window edge and the steps were cut. The bottom slot (DFY, Computer Use) now shrinks
-   and scrolls like the answer. The top slot keeps overflow visible: the panels' item menus open below their buttons. */
 #qa-slot-bottom:not(:empty) { min-height: 0; flex-shrink: 1; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain;
   scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 45%, transparent) transparent; }
 #qa-slot-bottom > .qa-plugin { flex: none; }
 .qa-bar, .qa-input-row { flex: none; }
-
-/* ------------------------------------------------------------------ a waiting task comes first
-   While a DFY / Computer Use card waits in the bottom slot, the idle lists («Недавние», «Попробуйте», the hint line)
-   stood between the field and the card — two things asking for attention. With an empty field they step aside;
-   typing (or «/») brings the suggestions back. */
 .qa-inner:has(.qa-input:placeholder-shown):has(#qa-slot-bottom > .qa-plugin:is([data-plugin="dfy"], [data-plugin="computer"]):not([hidden]) :is(.qdfy-card, .qcu)) #qa-suggest { display: none; }
-
-/* ------------------------------------------------------------------ DFY card in a narrow window
-   At 420 px the goal got two letters («за…») because the state and both buttons kept their width; the offer line
-   («Похоже на действие — могу сделать это за вас») was cut to one word. The head wraps, the offer takes two lines. */
 .qdfy-head { flex-wrap: wrap; row-gap: 4px; }
-.qdfy-goal { flex: 1 1 180px; }   /* basis 180 px: at 720 px the head stays one line, at 420 px the buttons wrap */
+.qdfy-goal { flex: 1 1 180px; }
 .qdfy-offer > span:nth-child(2) { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.35; }
-/* r34-quick-design-2: below 520 px the «Ctrl ↵» cap of «Сделать за меня» goes (Ctrl+Enter still works) — the offer was cut to «могу…» */
 @media (max-width: 520px) { .qdfy-offer > .qdfy-btn kbd { display: none; } }
-
-/* ------------------------------------------------------------------ the answer shows that it scrolls
-   A long answer opens at its end; the thin scrollbar thumb (muted at 28–30 %) was nearly invisible, so nothing said
-   the table and code were above. A clearer thumb; it darkens under the pointer. */
 .qa-answer { scrollbar-color: color-mix(in srgb, var(--muted) 48%, transparent) transparent; }
 .qa-answer::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 48%, transparent); background-clip: content-box; }
 .qa-answer:hover { scrollbar-color: color-mix(in srgb, var(--muted) 70%, transparent) transparent; }
-
-/* ------------------------------------------------------------------ small grey labels readable
-   Key caps («Ctrl», «N») in Ctrl+K / «Ещё», the model tags («по умолчанию») and the «подтвердите» chip of a command
-   card measured 3.5:1 in the dark themes — a touch more text colour (WCAG AA for 10–11 px). */
 kbd, .qa-pick .tag:not(.adv):not(.eye) { color: color-mix(in srgb, var(--muted) 72%, var(--text)); }
 :root[data-theme="dark"] .mqc-tier-confirm { color: #e0a43a; }
-:root[data-theme="light"] .mqc-tier-confirm { color: #8a5a00; }   /* r34-quick-design-2: #c98a10 on the light chip was 2.2:1 */
-/* r34-quick-design-2: Brutal (dark) has the darkest --muted of the designs — model ids in the picker, the chat times and
-   previews in «Чаты быстрого доступа» measured 3.3:1; the accent «видит» tag and the «вкл» state of Ctrl+K 3.2–3.5:1 (both themes). */
+:root[data-theme="light"] .mqc-tier-confirm { color: #8a5a00; }
 :root[data-design="brutal"][data-theme="dark"] :is(.qa-chat .meta, .qa-chat .tx > :not(:first-child), .qa-pick .qa-mname .mid) {
   color: color-mix(in srgb, var(--muted) 62%, var(--text)); opacity: 1; }
 :root[data-design="brutal"] :is(.qa-pick .tag.eye, .qa-row .state.on) { color: color-mix(in srgb, var(--accent) 72%, var(--text)); }
-/* Glass (light): the step label and the lens hint of a Computer Use approval sat on the tinted glass at 3.6:1. */
 :root[data-design="glass"][data-theme="light"] :is(.qcu-label, .qcu-hint) { color: color-mix(in srgb, var(--muted) 66%, var(--text)); }
-
-/* ------------------------------------------------------------------ the first-open tip in a narrow window
-   At 420 px «Понятно» kept its column and squeezed the tip into five lines. Below 520 px the button goes under the text. */
 @media (max-width: 520px) {
   .qa-tip { flex-wrap: wrap; }
   .qa-tip .tx { flex-basis: calc(100% - 31px); }
   .qa-tip button { margin-left: 31px; align-self: flex-start; }
 }
-
-/* ------------------------------------------------------------------ no flash while a phrase is checked for a command
-   Every short question first goes to /api/assistant/run (commands.js). The cleared field brought «Недавние» /
-   «Попробуйте» back for that moment, then the answer replaced them — the window jumped 101 → 476 → 173 px on every
-   question. During the check (html[data-qa-cmd-check], set by commands.js) the idle lists stay hidden. */
 :root[data-qa-cmd-check] #qa-suggest { display: none !important; }
-
-/* ------------------------------------------------------------------ one keyboard focus ring
-   Tab through the window: most buttons (footer, answer actions, model chip, «Действия») showed the browser's
-   black-and-white «auto» ring, a few had their own accent ring — two different looks in one row. Every control without
-   its own :focus-visible style now gets the accent ring; :where() keeps it weaker than the components' own rules
-   (those set outline:none + box-shadow), so nothing gets a double ring. */
 :where(.qa-card, .qc-menu, .qc-selbar) :where(button, a[href], summary, [role="button"], [role="menuitem"], [tabindex]:not([tabindex="-1"])):focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 78%, transparent); outline-offset: 1px; }
-
-/* ------------------------------------------------------------------ tables in a narrow window
-   A table wider than the 420 px window scrolls sideways, and every column got only the width of its longest word: a
-   comment column («хороша для коротких ответов и черновиков») wrapped into four lines, each row 100 px of mostly empty
-   space. Below 520 px sentence-long cells (td.long, quick-md.js) keep a readable measure; short headers («Цена за 1M») stay on one line instead of three. */
-@media (max-width: 520px) { .qa-md td.long { min-width: 16em; } .qa-md th.short { white-space: nowrap; } }   /* wider windows: the table fits and shares the space */
-/* Soft and Terminal: small grey labels (Computer Use card, chat history meta, model id, «видит» tag) sat at 3.2–3.6:1. */
+@media (max-width: 520px) { .qa-md td.long { min-width: 16em; } .qa-md th.short { white-space: nowrap; } }
 :root:is([data-design="soft"], [data-design="terminal"]) :is(.qcu-count, .qcu-label, .qcu-hint, .qcu-step-body > :not(:first-child), .qa-chat .meta, .qa-chat .tx > :not(:first-child), .qa-pick .qa-mname .mid) {
   color: color-mix(in srgb, var(--muted) 62%, var(--text));
 }

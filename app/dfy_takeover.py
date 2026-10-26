@@ -28,20 +28,19 @@ import urllib.parse
 import uuid
 from typing import Any, Callable, Dict, List, Optional
 
-IDLE_TIMEOUT = 10 * 60          # no input for this long → control returns to the agent
-MAX_SESSION = 60 * 60           # hard cap of one takeover
+IDLE_TIMEOUT = 10 * 60
+MAX_SESSION = 60 * 60
 MAX_EVENTS = 300
 MAX_SHOTS = 6
-FRAME_INTERVAL = 1 / 15         # screencast: at most ~15 frames per second
-HEADLESS_SIZE = (1280, 820)     # DFYBrowser's emulated viewport (restored after a takeover)
+FRAME_INTERVAL = 1 / 15
+HEADLESS_SIZE = (1280, 820)
 REASONS = ("captcha", "login", "2fa", "verification", "other")
 
-# Keys that are sent as keys (no text): DOM key name → Windows virtual key code.
 _VK = {"Enter": 13, "Tab": 9, "Escape": 27, "Backspace": 8, "Delete": 46, "ArrowLeft": 37, "ArrowUp": 38,
        "ArrowRight": 39, "ArrowDown": 40, "Home": 36, "End": 35, "PageUp": 33, "PageDown": 34, "Insert": 45,
        "F1": 112, "F2": 113, "F3": 114, "F4": 115, "F5": 116, "F6": 117, "F7": 118, "F8": 119, "F9": 120,
        "F10": 121, "F11": 122, "F12": 123, "Shift": 16, "Control": 17, "Alt": 18, "Meta": 91, " ": 32}
-# Editing shortcuts: Chromium runs them only when the command is named (macOS-style) — harmless elsewhere.
+
 _COMMANDS = {"a": "selectAll", "z": "undo", "y": "redo", "x": "cut", "c": "copy", "v": "paste"}
 _MOD_ALT, _MOD_CTRL, _MOD_META, _MOD_SHIFT = 1, 2, 4, 8
 
@@ -103,7 +102,6 @@ const __memuFocused = () => {
 };
 """
 
-
 class Control:
     """What a takeover session needs from a browser (see the module docstring)."""
 
@@ -125,7 +123,6 @@ class Control:
     async def fit(self, width: int, height: int) -> None: ...
     async def restore(self) -> None: ...
     def on_navigation(self, callback: Callable[[str], None]) -> Callable[[], None]: ...
-
 
 class CDPControl(Control):
     def __init__(self, browser: Any) -> None:
@@ -157,7 +154,7 @@ class CDPControl(Control):
                 self._frame_cb(params["data"], params.get("metadata") or {})
             except Exception:
                 pass
-        # Ack paces the stream: Chromium sends the next frame only after it.
+
         delay = max(0.0, self._last_ack + FRAME_INTERVAL - time.monotonic())
         self._last_ack = time.monotonic() + delay
 
@@ -252,7 +249,7 @@ class CDPControl(Control):
                                 " return {value: String(v || '').slice(0, 300)}; })()" % re.sub(r"[^0-9a-f]", "", marker))
 
     async def screenshot(self) -> str:
-        # Sensitive fields are drawn as discs for the shot only (the user keeps seeing them as typed).
+
         mask = "(() => {" + _SENSITIVE_JS + "const walk = (doc) => { doc.querySelectorAll('input,textarea').forEach(e => {" \
             " if (!e.hasAttribute('data-memu-secret') && __memuSensitive(e)) e.setAttribute('data-memu-secret', 'tmp'); });" \
             " for (const f of doc.querySelectorAll('iframe,frame')) { let d = null; try { d = f.contentDocument; } catch (_) {} if (d) walk(d); } }; walk(document); })()"
@@ -290,8 +287,7 @@ class CDPControl(Control):
         self._fitted = True
 
     async def _size(self, width: int, height: int) -> None:
-        # The screencast follows the (headless) window, screenshots and layout follow the emulated
-        # viewport: both are set, or the stream shows a cropped page and clicks land off target.
+
         try:
             window = await self.browser.command("Browser.getWindowForTarget", timeout=5)
             await self.browser.command("Browser.setWindowBounds", {"windowId": window["windowId"],
@@ -310,7 +306,6 @@ class CDPControl(Control):
         except Exception:
             pass
 
-
 def control_for(browser: Any) -> Optional[Control]:
     if browser is None:
         return None
@@ -320,11 +315,7 @@ def control_for(browser: Any) -> Optional[Control]:
         return CDPControl(browser)
     return None
 
-
-# ----------------------------------------------------------------- journal ---
-
 _SECRET_PARAM = re.compile(r"(?i)token|code|key|secret|session|sid|auth|pass|pw|pin|sig|otp|ticket|state|nonce|cvc|cvv|card")
-
 
 def safe_url(url: str) -> str:
     """URL for the journal: query values that look like tokens become ``•••``."""
@@ -338,7 +329,6 @@ def safe_url(url: str) -> str:
     pairs = urllib.parse.parse_qsl(parts.query, keep_blank_values=True)
     query = "&".join(f"{k}={'•••' if _SECRET_PARAM.search(k) else v[:60]}" for k, v in pairs[:12])
     return urllib.parse.urlunsplit((parts.scheme, parts.netloc, parts.path, query, ""))[:300]
-
 
 def _target(info: Optional[Dict[str, Any]], lang: str) -> str:
     if not info:
@@ -364,7 +354,6 @@ def _target(info: Optional[Dict[str, Any]], lang: str) -> str:
         noun = ("element", "элемент")
     word = noun[0] if lang == "en" else noun[1]
     return f"{word} «{name}»" if name else word
-
 
 def describe(event: Dict[str, Any], lang: str = "ru") -> str:
     """One journal line in the given language."""
@@ -416,7 +405,6 @@ def describe(event: Dict[str, Any], lang: str = "ru") -> str:
         return "Copied the selection" if en else "Скопировано выделение"
     return str(kind)
 
-
 class TakeoverSession:
     """One takeover: state, the input replay and the journal. Owned by ``DFYManager``."""
 
@@ -428,14 +416,14 @@ class TakeoverSession:
         self.by = by if by in ("user", "agent") else "user"
         self.reason = reason
         self._redact = redact
-        self._typed_secrets: List[str] = []      # what the user typed into password/code fields: memory only
+        self._typed_secrets: List[str] = []
         self.idle_timeout = float(idle_timeout)
         self.started = time.time()
         self.last_input = time.time()
         self.ended = 0.0
         self.end_reason = ""
         self.events: List[Dict[str, Any]] = []
-        self.shots: List[Dict[str, str]] = []     # {label, data}
+        self.shots: List[Dict[str, str]] = []
         self.url = ""
         self.frame: Optional[bytes] = None
         self.frame_meta: Dict[str, Any] = {}
@@ -452,7 +440,6 @@ class TakeoverSession:
         self._stream_lock = asyncio.Lock()
         self.done = asyncio.Event()
 
-    # -------------------------------------------------------------- public ---
     def redact(self, text: Any) -> str:
         """The vault redactor + every value the user typed into a sensitive field in this session
         (a GET form puts the password into the next URL: «…?login=ivan&pw=…»)."""
@@ -487,7 +474,6 @@ class TakeoverSession:
         self.last_input = time.time()
         self._state_changed.set()
 
-    # -------------------------------------------------------------- frames ---
     def _on_frame(self, data_b64: str, meta: Dict[str, Any]) -> None:
         import base64
         try:
@@ -505,10 +491,10 @@ class TakeoverSession:
             if self._streaming:
                 return
             self._streaming = True
-            # A static page may not repaint for a while: send one screenshot as the first frame.
+
             view = await self.control.viewport()
             if view.get("width") and view.get("height"):
-                await self.control.fit(int(view["width"]), int(view["height"]))   # stream = what the page lays out
+                await self.control.fit(int(view["width"]), int(view["height"]))
             shot = await _plain_shot(self.control)
             if shot:
                 self._on_frame(shot, {"deviceWidth": view.get("width") or 0, "deviceHeight": view.get("height") or 0})
@@ -540,7 +526,6 @@ class TakeoverSession:
             return False
         return True
 
-    # --------------------------------------------------------------- start ---
     async def begin(self) -> None:
         view = await self.control.viewport()
         self.url = str(view.get("url") or "")
@@ -556,7 +541,7 @@ class TakeoverSession:
         self._add({"kind": "url", "url": url})
         if self._nav_shot is not None:
             self._nav_shot.cancel()
-        # A key screenshot ~1.5 s after the last navigation of a burst (redirect chains).
+
         loop = asyncio.get_running_loop()
         self._nav_shot = loop.call_later(1.5, lambda: asyncio.ensure_future(self._shot("page")))
 
@@ -567,7 +552,7 @@ class TakeoverSession:
         if not data:
             return
         if len(self.shots) >= MAX_SHOTS:
-            del self.shots[1]          # keep the first one, drop the oldest middle shot
+            del self.shots[1]
         self.shots.append({"label": label, "data": data, "url": safe_url(self.url)})
 
     def _add(self, event: Dict[str, Any]) -> None:
@@ -588,7 +573,6 @@ class TakeoverSession:
         del self.events[:-MAX_EVENTS]
         self._state_changed.set()
 
-    # --------------------------------------------------------------- input ---
     async def handle(self, message: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Replay one client event. Returns a reply for the client (``clipboard``) or ``None``."""
         if not self.active:
@@ -724,9 +708,9 @@ class TakeoverSession:
             self._typing["buffer"] = self._typing["buffer"][:-1]
             return
         if key in ("ArrowLeft", "ArrowRight", "Delete", "Home", "End") and self._typing is not None and not mods & _MOD_CTRL:
-            return     # editing inside the field: the value is read at the end anyway
+            return
         if mods & (_MOD_CTRL | _MOD_META) and key.lower() in ("a", "z", "y", "x"):
-            return     # editing shortcuts are part of typing
+            return
         await self._flush_typing()
         names = {" ": "Space"}
         label = "+".join([n for bit, n in ((_MOD_CTRL, "Ctrl"), (_MOD_ALT, "Alt"), (_MOD_META, "Meta"), (_MOD_SHIFT, "Shift"))
@@ -788,7 +772,6 @@ class TakeoverSession:
         self._add({"kind": "type", "target": target, "sensitive": sensitive,
                    "text": "" if sensitive else self.redact(value)[:200]})
 
-    # ----------------------------------------------------------------- end ---
     async def finish(self, reason: str) -> None:
         if self.ended:
             return
@@ -830,7 +813,6 @@ class TakeoverSession:
         return {"text": head + ("\n" + "\n".join(f"{n}. {line}" for n, line in enumerate(lines, 1)) if lines else
                                 "\nThe user did nothing in the browser."), "lines": lines, "shots": shots}
 
-
 async def _plain_shot(control: Control) -> str:
     """The first frame: a screenshot without the sensitive-field mask flicker when the control allows it."""
     if isinstance(control, CDPControl):
@@ -840,7 +822,6 @@ async def _plain_shot(control: Control) -> str:
         except Exception:
             return ""
     return await control.screenshot()
-
 
 def local_websocket(websocket: Any) -> bool:
     """The same boundary as the HTTP middleware of the desktop API: a local Host and our own Origin."""
@@ -859,7 +840,6 @@ def local_websocket(websocket: Any) -> bool:
     except ValueError:
         return False
     return parsed.netloc.lower() == host_header.lower() and (parsed.hostname or "").lower() in ("127.0.0.1", "localhost", "::1")
-
 
 async def serve_websocket(websocket: Any, session: TakeoverSession, lang: Callable[[], str]) -> None:
     """Frames out (binary JPEG + ``meta``), input in, ``state`` on every journal/control change."""
@@ -897,7 +877,7 @@ async def serve_websocket(websocket: Any, session: TakeoverSession, lang: Callab
         while not closed.is_set():
             changed = await session.next_state(5)
             if changed:
-                await asyncio.sleep(0.25)       # coalesce bursts (typing, scrolling)
+                await asyncio.sleep(0.25)
             await send_state()
             if not session.active:
                 closed.set()

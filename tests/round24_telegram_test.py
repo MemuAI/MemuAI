@@ -15,11 +15,9 @@ from app import pgdata, telegram_bot, telegram_media, telegram_panels, telegram_
 from app import panels as P
 from tests.telegram_r20_test import OWNER, TOKEN, BotTestCase, FakeTelegram, message
 
-
 def cb(data, cid, chat_id=OWNER, message_id=50):
     return {"id": cid, "data": data, "from": {"id": chat_id},
             "message": {"message_id": message_id, "chat": {"id": chat_id, "type": "private"}}}
-
 
 class TimedTelegram(FakeTelegram):
     """Fake Bot API that remembers *when* each method was called."""
@@ -39,7 +37,6 @@ class TimedTelegram(FakeTelegram):
                 return stamp
         return None
 
-
 async def until(predicate, timeout=5.0):
     end = time.monotonic() + timeout
     while time.monotonic() < end:
@@ -47,10 +44,6 @@ async def until(predicate, timeout=5.0):
             return True
         await asyncio.sleep(0.01)
     return predicate()
-
-
-# ===================================================================== buttons
-
 
 class CallbackLatencyTest(BotTestCase):
     """Reproduction of «кнопки нажимаются с большой задержкой»."""
@@ -76,7 +69,7 @@ class CallbackLatencyTest(BotTestCase):
         release = asyncio.Event()
 
         async def slow_collect(*_a, **_k):
-            await release.wait()          # e.g. a 20 MB attachment over a slow link
+            await release.wait()
             return types.SimpleNamespace(images=[], files=[], voice=False, transcript="", errors=[], text="")
 
         prefs = pgdata.load_preferences()
@@ -87,7 +80,7 @@ class CallbackLatencyTest(BotTestCase):
             self.runner.dispatch({"update_id": 2, "callback_query": cb("home", "cb-latency-1")}, prefs)
             self.assertTrue(await until(lambda: self.fake.first("answerCallbackQuery", pressed) is not None, 1.0))
             ack = self.fake.first("answerCallbackQuery", pressed) - pressed
-            # The menu itself is drawn too, although the photo is still downloading.
+
             self.assertTrue(await until(lambda: self.fake.first("sendMessage", pressed) is not None
                                         or self.fake.first("editMessageText", pressed) is not None, 2.0))
             self.assertLess(ack, 0.5, f"callback answered after {ack:.2f}s")
@@ -120,7 +113,7 @@ class CallbackLatencyTest(BotTestCase):
     async def test_toast_callbacks_keep_their_text_and_get_a_fallback(self):
         prefs = pgdata.load_preferences()
         with patch.object(telegram_bot, "TOAST_FALLBACK", 0.2):
-            # Unknown chat → handler answers via _toast(text) quickly → no fallback duplicate.
+
             self.runner.dispatch({"update_id": 20, "callback_query": cb("pin:zzz", "toast-1")}, prefs)
             await asyncio.sleep(0.5)
         answers = [p for m, p in self.fake.calls if m == "answerCallbackQuery" and p.get("callback_query_id") == "toast-1"]
@@ -151,7 +144,6 @@ class CallbackLatencyTest(BotTestCase):
             await self.runner.ensure_setup(prefs)
         self.assertEqual(reads, [])
 
-
 class RuntimeLaneTest(unittest.IsolatedAsyncioTestCase):
     async def test_control_lane_is_not_starved_by_handler_io(self):
         block = []
@@ -175,10 +167,6 @@ class RuntimeLaneTest(unittest.IsolatedAsyncioTestCase):
                 await runner.shutdown()
         asyncio.run(run())
 
-
-# ===================================================================== panels
-
-
 def make_panel(kind, data, spec=None, pid=None):
     title, typed = P.typed_spec(kind, {}, P.default_settings(), None) if spec is None else ("Custom", spec)
 
@@ -193,10 +181,8 @@ def make_panel(kind, data, spec=None, pid=None):
     _doc, made = P.mutate(apply)
     return made
 
-
 WEATHER = {"place": "Шяуляй", "cond": "Ясно", "temp": 12, "t_unit": "°C", "feels": 10, "hi": 14, "lo": 6,
            "wind": 3, "w_unit": "м/с", "humidity": 70, "icon": "sun"}
-
 
 class PanelsTelegramTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -239,16 +225,16 @@ class PanelsTelegramTest(unittest.IsolatedAsyncioTestCase):
 
     async def test_subscribe_baseline_then_significant_change_only(self):
         telegram_panels.subscribe(self.weather, on=True)
-        self.assertEqual(await self.check(1000), 0)          # subscribing does not re-send the current state
-        self.set_data(self.weather, temp=13, feels=11)         # +1° — not significant
+        self.assertEqual(await self.check(1000), 0)
+        self.set_data(self.weather, temp=13, feels=11)
         self.assertEqual(await self.check(5000), 0)
-        self.set_data(self.weather, temp=17)                   # +5° from the delivered state
+        self.set_data(self.weather, temp=17)
         self.assertEqual(await self.check(9000), 1)
         self.assertIn("температура", self.sent[-1]["text"])
-        self.assertEqual(await self.check(9100), 0)            # dedupe
-        self.set_data(self.weather, cond="Гроза")              # change inside the gap → coalesced
+        self.assertEqual(await self.check(9100), 0)
+        self.set_data(self.weather, cond="Гроза")
         self.assertEqual(await self.check(9200), 0)
-        self.assertEqual(await self.check(9000 + 31 * 60), 1)  # … and sent when the gap ends
+        self.assertEqual(await self.check(9000 + 31 * 60), 1)
         self.assertIn("Гроза", self.sent[-1]["text"])
         buttons = [b.get("callback_data") for row in self.sent[-1]["markup"]["inline_keyboard"] for b in row]
         self.assertIn(f"pnlsub:{self.weather}", buttons)
@@ -264,7 +250,7 @@ class PanelsTelegramTest(unittest.IsolatedAsyncioTestCase):
             self.set_data(self.weather, temp=20 + index)
             await self.check(10_000 + index)
         self.assertEqual(len(self.sent), 2)
-        # quiet hours + defer → nothing; silent → disable_notification
+
         telegram_panels.subscribe(self.weather, quiet="defer")
         with patch.object(telegram_panels, "_quiet", return_value=True):
             self.set_data(self.weather, temp=40)
@@ -283,7 +269,7 @@ class PanelsTelegramTest(unittest.IsolatedAsyncioTestCase):
             doc["settings"]["min_gap_minutes"] = 0
         telegram_panels.mutate(gap0)
         self.set_data(count, days_left=8)
-        self.assertEqual(await self.check(1), 0)               # 8 days — not a milestone
+        self.assertEqual(await self.check(1), 0)
         self.set_data(count, days_left=7)
         self.set_data(news, items=[{"title": "B", "url": "https://a.example/2"}, {"title": "A", "url": "https://a.example/1"}])
         self.assertEqual(await self.check(2), 2)
@@ -294,10 +280,10 @@ class PanelsTelegramTest(unittest.IsolatedAsyncioTestCase):
     async def test_digest_once_a_day(self):
         telegram_panels.subscribe(self.weather, on=True, mode="digest", at="08:00")
         morning = time.mktime(time.strptime("2026-10-08 08:30", "%Y-%m-%d %H:%M"))
-        self.assertEqual(await self.check(morning - 3600), 0)  # 07:30 — not yet
+        self.assertEqual(await self.check(morning - 3600), 0)
         self.assertEqual(await self.check(morning), 1)
         self.assertIn("Сводка панелей", self.sent[-1]["text"])
-        self.assertEqual(await self.check(morning + 600), 0)    # once a day
+        self.assertEqual(await self.check(morning + 600), 0)
 
     async def test_disabled_bot_sends_nothing(self):
         telegram_panels.subscribe(self.weather, on=True, mode="every")
@@ -346,8 +332,7 @@ class PanelsTelegramTest(unittest.IsolatedAsyncioTestCase):
         from fastapi.testclient import TestClient  # noqa: F401 — FastAPI is available in the sandbox
         from app import tgapp_api
         app = tgapp_api.create_tgapp()
-        self.assertTrue(app)   # registration did not raise
-
+        self.assertTrue(app)
 
     async def test_window_routes(self):
         from fastapi import FastAPI
@@ -366,7 +351,6 @@ class PanelsTelegramTest(unittest.IsolatedAsyncioTestCase):
         r = await asyncio.to_thread(lambda: client.put("/api/pg/panels-telegram-settings", json={"min_gap_minutes": 5, "max_per_hour": 999, "x": 1}))
         self.assertEqual(r.json()["settings"]["min_gap_minutes"], 5)
         self.assertEqual(r.json()["settings"]["max_per_hour"], 60)
-
 
 class PanelsBotTest(BotTestCase):
     async def test_panels_command_and_buttons(self):
@@ -390,7 +374,6 @@ class PanelsBotTest(BotTestCase):
 
     def test_commands_include_panels(self):
         self.assertIn("panels", [c["command"] for c in telegram_bot._commands("ru")])
-
 
 class Round24ReviewFixesTest(BotTestCase):
     """Independent review of Round 24 (Telegram part)."""
@@ -421,7 +404,6 @@ class Round24ReviewFixesTest(BotTestCase):
                 task.cancel()
             await asyncio.gather(*runner.handlers, return_exceptions=True)
 
-
 class PanelsRenderingReviewTest(unittest.TestCase):
     def test_clip_never_cuts_a_tag(self):
         lines = ["<b>Title</b>"] + [f'• <a href="https://e.com/{i}">item {i} &amp; more</a>' for i in range(500)]
@@ -450,7 +432,6 @@ class PanelsRenderingReviewTest(unittest.TestCase):
         self.assertEqual(telegram_panels._normalize({"settings": {"digest_at": "7:00"}})["settings"]["digest_at"], "07:00")
         self.assertEqual(telegram_panels._clean_sub({"at": "25:00"})["at"], "")
 
-
 class PanelsTickReviewTest(unittest.IsolatedAsyncioTestCase):
     async def test_background_check_failure_is_logged_not_lost(self):
         async def boom(**_kwargs):
@@ -464,7 +445,6 @@ class PanelsTickReviewTest(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0)
         self.assertTrue(any("telegram check exploded" in line for line in logs.output))
         P._TG_TASK["task"] = None
-
 
 if __name__ == "__main__":
     unittest.main()

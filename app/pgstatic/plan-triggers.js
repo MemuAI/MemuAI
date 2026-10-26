@@ -1,9 +1,5 @@
-/* MemuAI — Round 35: data & integration triggers of «Планирование» (window.MemuPlanTriggers).
-   A rule trigger {"type":"watch","source":…} (app/schedule_triggers_ext.py): Gmail, Calendar, GitHub, Sheets, Drive,
-   Notion, RSS / web pages / webhooks, panel values, Proxy quota and models, folders, computer state, «all of».
-   plan.js calls: menuItems(add) — the «Когда» menu entries (a category opens the picker); row(t, i, p, ctx) — the
-   builder row of a watch; bind(root, ctx) — once per builder; cardHealth(task) — the health line of a task card.
-   Routes: /api/plan/triggers/catalog | check | health | pick. Field changes go through plan.js (data-path). */
+
+
 (function () {
   "use strict";
   if (window.MemuPlanTriggers) return;
@@ -12,7 +8,6 @@
   const H = (value) => (typeof esc === "function" ? esc(value) : String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])));
   const $q = (sel, root = document) => root.querySelector(sel);
 
-  /* ------------------------------------------------------------------ icons (added to the global set) */
   const SVG = {
     "tr-mail": '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg>',
     "tr-calendar": '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M8 14h3"/></svg>',
@@ -32,13 +27,12 @@
     "tr-logic": '<svg viewBox="0 0 24 24"><circle cx="9" cy="12" r="5"/><circle cx="15" cy="12" r="5"/></svg>',
     "tr-plug": '<svg viewBox="0 0 24 24"><path d="M9 7V3M15 7V3M7 7h10v4a5 5 0 0 1-10 0zM12 16v5"/></svg>',
   };
-  try { if (typeof ICONS === "object" && ICONS) for (const [k, v] of Object.entries(SVG)) if (!ICONS[k]) ICONS[k] = v; } catch (e) { /* no global icon set */ }
+  try { if (typeof ICONS === "object" && ICONS) for (const [k, v] of Object.entries(SVG)) if (!ICONS[k]) ICONS[k] = v; } catch (e) {  }
   const I = (name) => (typeof icon === "function" && (typeof ICONS !== "object" || ICONS[name]) ? icon(name) : `<span class="ui-icon">${SVG[name] || ""}</span>`);
   const ICON = { mail: "tr-mail", calendar: "tr-calendar", github: "tr-github", sheet: "tr-sheet", drive: "tr-drive", notion: "tr-notion",
     rss: "tr-rss", web: "tr-web", webhook: "tr-webhook", panel: "tr-panel", quota: "tr-quota", model: "tr-model", folder: "tr-folder",
     system: "tr-system", weather: "tr-weather", logic: "tr-logic" };
 
-  /* ------------------------------------------------------------------ catalog (titles stay here: RU/EN in one place) */
   const CATS = () => [
     { id: "mail", icon: "tr-mail", title: T("Почта и календарь", "Mail and calendar"), desc: T("Новое письмо, скоро встреча", "A new email, a meeting soon") },
     { id: "github", icon: "tr-github", title: "GitHub", desc: T("Issue, PR, ревью, упавший Actions, релиз", "Issue, PR, review, failed Actions, release") },
@@ -101,18 +95,17 @@
     return { type: "watch", source, ...(m.make ? m.make(st.cat) : {}) };
   }
   function openIntegrations() {
-    try { if (typeof openSettingsPage === "function") { openSettingsPage("integrations"); return; } } catch (e) { /* fall through */ }
+    try { if (typeof openSettingsPage === "function") { openSettingsPage("integrations"); return; } } catch (e) {  }
     if (typeof toast === "function") toast(T("Откройте Настройки → Интеграции", "Open Settings → Integrations"));
   }
 
-  /* ------------------------------------------------------------------ «Когда» menu + the categorized picker */
   function menuItems(add) {
     const items = [{ sep: T("Интеграции и данные", "Integrations and data") }];
     for (const c of CATS()) items.push({ icon: c.icon, title: c.title, desc: c.desc, run: () => openPicker(c.id, add) });
     return items;
   }
   async function openPicker(catId, add) {
-    // Round 35 (finish-c): on <body> — inside the scrolling #panel the overlay scrolled away and left the footer undimmed
+
     const host = document.body;
     const ov = document.createElement("div");
     ov.className = "pln-picker ptx-picker";
@@ -154,7 +147,6 @@
     ($q(".ptx-src", ov) || $q("[data-x]", ov))?.focus();
   }
 
-  /* ------------------------------------------------------------------ builder row */
   function opsList(numericOnly) {
     const all = [["gt", T("больше", "greater than")], ["ge", T("не меньше", "at least")], ["lt", T("меньше", "less than")], ["le", T("не больше", "at most")],
       ["eq", T("равно", "equals")], ["ne", T("не равно", "is not")], ["contains", T("содержит", "contains")], ["not_contains", T("не содержит", "does not contain")], ["changed", T("изменилось", "changed")]];
@@ -250,7 +242,7 @@
     const metric = t.metric || "rain";
     const starts = ["rain", "snow", "clear"].includes(metric);
     const units = { temp: "°C", feels: "°C", wind: T("км/ч", "km/h"), precip: T("мм", "mm"), precip_prob: "%", cloud: "%", humidity: "%" };
-    if (!starts) {   // a numeric metric needs a threshold — fill a sensible one so the row is valid at once
+    if (!starts) {
       t.op = t.op || (metric === "temp" || metric === "feels" ? "lt" : "gt");
       if (t.value === undefined || t.value === "") t.value = { temp: 0, feels: 0, wind: 40, precip: 1, precip_prob: 70, cloud: 80, humidity: 85 }[metric];
     }
@@ -320,7 +312,6 @@
     return c.rowWrap("when", i, ICON[m.icon] || "tr-logic", m.title, inner, `<span class="pln-chip ptx-cat">${H((CATS().find((x) => x.id === m.cat) || {}).title || "")}</span>`);
   }
 
-  /* ------------------------------------------------------------------ integration picker popup */
   async function pickFrom(anchor, what, target, parentPath, c) {
     const draft = c.draft();
     const parent = parentPath ? c.get(parentPath) : "";
@@ -328,7 +319,7 @@
     pop.className = "pln-picker ptx-picker";
     pop.innerHTML = `<div class="pln-picker-box" role="dialog" aria-modal="true"><div class="pln-picker-head"><b>${T("Выберите", "Choose")}</b><button class="mini-action" data-x aria-label="${T("Закрыть", "Close")}">${I("close")}</button></div>
       <input class="pinput" data-q placeholder="${T("Поиск…", "Search…")}"><div class="pln-picker-list"><div class="pln-nl-wait"><span class="pln-spin"></span>${T("Загружаю…", "Loading…")}</div></div></div>`;
-    document.body.appendChild(pop);   // Round 35 (finish-c): see openPicker
+    document.body.appendChild(pop);
     const close = () => pop.remove();
     let timer = 0;
     const load = async () => {
@@ -359,12 +350,11 @@
     await load();
   }
 
-  /* ------------------------------------------------------------------ builder events */
   function bind(root, c) {
     st.ctx = c;
     st.checks = {};
     if (c.taskId) refreshHealth(c);
-    // a service connected since the last visit: fresh connection badges for the watches of this task
+
     if ((c.draft().rule?.when || []).some((t) => t.type === "watch")) loadCatalog(true).then(() => { if (root.isConnected) c.rerender(); });
     root.addEventListener("change", (e) => {
       const el = e.target;
@@ -400,7 +390,7 @@
       if (!el || !root.contains(el) || el.tagName === "INPUT") return;
       const act = el.dataset.ptxAct;
       if (act === "connect") return openIntegrations();
-      if (act === "copy") { try { await navigator.clipboard.writeText(el.dataset.value); if (typeof toast === "function") toast(T("Скопировано", "Copied")); } catch (err) { /* clipboard denied */ } return; }
+      if (act === "copy") { try { await navigator.clipboard.writeText(el.dataset.value); if (typeof toast === "function") toast(T("Скопировано", "Copied")); } catch (err) {  } return; }
       if (act === "pick") return pickFrom(el, el.dataset.what, el.dataset.target, el.dataset.parentPath || "", c);
       if (act === "q-add") { const cur = String(c.get(el.dataset.target) || "").trim(); c.set(el.dataset.target, (cur ? cur + " " : "") + el.dataset.value); c.rerender(); const inp = root.querySelector(`[data-path="${el.dataset.target}"]`); if (inp) { inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); } return; }
       if (act === "new-token") { const r = el.closest(".pln-row"); const t = c.draft().rule.when[+r.dataset.idx]; t.token = token(); c.rerender(); return; }
@@ -429,10 +419,9 @@
         box.querySelector(".ptx-health")?.remove();
         if (h) box.insertAdjacentHTML("beforeend", healthLine(h));
       });
-    } catch (e) { /* older server */ }
+    } catch (e) {  }
   }
 
-  /* ------------------------------------------------------------------ task card */
   function cardHealth(task) {
     const rows = task.watch_health || [];
     if (!rows.length || task.enabled === false) return "";

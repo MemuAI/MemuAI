@@ -1,5 +1,5 @@
-// MemuNote — UI strings of the Round 31 "note-core" features (PDF editing, new formats, huge files).
-// Merged into DICT by i18n.js; English contains no Cyrillic (tests/round31_note_core_test.py).
+
+
 export const CORE = {
   ru: {
     csv_edit_hint: "Двойной щелчок — изменить ячейку; правый щелчок по № строки или заголовку — строки и столбцы", csv_add_row: "Строка", csv_rows_forms: "строка|строки|строк",

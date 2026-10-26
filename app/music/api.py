@@ -16,8 +16,6 @@ import re
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
-# Module level on purpose: with postponed annotations FastAPI resolves ``request: Request`` from the
-# module globals (a local import turns it into a required query parameter → 422).
 from fastapi import Request
 
 from . import downloader, extras, lyrics, online, sources, tools
@@ -26,12 +24,10 @@ from .player import hub
 
 _ID = re.compile(r"^[a-f0-9]{12}$")
 
-
 def _base_from(request) -> str:
     if request is None:
         return ""
     return str(request.base_url).rstrip("/")
-
 
 def call(op: str, args: Optional[Dict[str, Any]] = None, *, base: str = "", lang: str = "ru", sender: str = "") -> Any:
     """Run one operation synchronously (callers put it in a thread). Errors: ValueError/KeyError/RuntimeError."""
@@ -97,17 +93,17 @@ def call(op: str, args: Optional[Dict[str, Any]] = None, *, base: str = "", lang
         return downloader.manager().start_import(str(args.get("path", "")))
     if op == "search.online":
         found = downloader.search_online(str(args.get("q", "")), args.get("limit", 12), bool(args.get("music")))
-        if args.get("proxy_thumbs"):   # r38: the module CSP allows only our own images — previews go through /thumb
+        if args.get("proxy_thumbs"):
             for item in found:
                 if item.get("thumb"):
                     item["thumb"] = thumb_url(lib, item["thumb"], base)
         return found
     if op == "lyrics.get":
         return lyrics.fetch(lib, str(args.get("id", "")), force=bool(args.get("force")))
-    if op == "lyrics.choose":   # r39: another found variant (index) or the next one («Wrong lyrics»)
+    if op == "lyrics.choose":
         return lyrics.choose(lib, str(args.get("id", "")), None if args.get("index") is None else int(args["index"]),
                              1 if args.get("next") else 0)
-    if op == "lyrics.offset":   # r39: per-track sync shift, seconds
+    if op == "lyrics.offset":
         return lyrics.set_offset(lib, str(args.get("id", "")), float(args.get("offset") or 0))
     if op == "lyrics.set":
         text = args.get("text")
@@ -120,7 +116,7 @@ def call(op: str, args: Optional[Dict[str, Any]] = None, *, base: str = "", lang
     if op == "settings.set":
         before = lib.settings().get("normalize_target")
         result = lib.set_settings(args)
-        if result.get("normalize_target") != before:   # gains follow the new target (measured LUFS stay)
+        if result.get("normalize_target") != before:
             target = float(result["normalize_target"])
             lib._x("UPDATE tracks SET gain=MAX(-18, MIN(12, ROUND(? - lufs, 2))) WHERE lufs IS NOT NULL", (target,))
         return result
@@ -167,17 +163,14 @@ def call(op: str, args: Optional[Dict[str, Any]] = None, *, base: str = "", lang
                            float(args.get("timeout", 25) or 25))
     raise ValueError(f"Неизвестная операция MemuMusic: {op} / Unknown MemuMusic operation: {op}")
 
-
 _NO_OP = object()
-_THUMBS: "Dict[str, tuple]" = {}   # url -> (bytes, content type); small in-memory cache of proxied previews
-
+_THUMBS: "Dict[str, tuple]" = {}
 
 def thumb_url(lib, url: str, base: str = "") -> str:
     """A web image (cover search / online search preview) through our server: the module window may only load
     images from /api/pg/music/ (its CSP). The HMAC of the URL keeps the route from being an open proxy."""
     import urllib.parse
     return f"{base}/api/pg/music/thumb?u={urllib.parse.quote(str(url), safe='')}&t={lib.token('thumb', str(url))}"
-
 
 def thumb_image(url: str, token: str):
     from fastapi.responses import JSONResponse, Response
@@ -204,7 +197,6 @@ def thumb_image(url: str, token: str):
             _THUMBS.clear()
         hit = _THUMBS[url] = (data, kind)
     return Response(hit[0], media_type=hit[1], headers={"Cache-Control": "private, max-age=86400", **cors_headers()})
-
 
 def _extra_op(lib, op: str, args: Dict[str, Any], base: str) -> Any:
     """Round 38 operations (app/music/extras.py)."""
@@ -249,7 +241,7 @@ def _extra_op(lib, op: str, args: Dict[str, Any], base: str) -> Any:
         return extras.export_m3u(lib, tid, str(args.get("path") or ""), str(args.get("format") or "m3u8"))
     if op == "playlist.import":
         return extras.import_m3u(lib, str(args.get("text") or ""), str(args.get("path") or ""), str(args.get("name") or ""))
-    if op in R39_OPS:   # r39 (r39-music-lib): artists/albums, manual order
+    if op in R39_OPS:
         from . import artists
         name = str(args.get("name", ""))
         if op == "artist.rename":
@@ -271,15 +263,14 @@ def _extra_op(lib, op: str, args: Dict[str, Any], base: str) -> Any:
             return artists.reorder_playlist(lib, tid, args, base)
         if op == "playlists.reorder":
             return artists.reorder_playlists(lib, args.get("ids") or [])
-    if op == "playlist.save_online":   # an online search result → download → into the playlist when done
+    if op == "playlist.save_online":
         return downloader.manager().start(str(args.get("url", "")), str(args.get("quality") or ""), str(args.get("playlist_id") or ""))
-    if op.startswith("online."):   # r41b-online: sources, «Track info», similar tracks (app/music/online.py)
+    if op.startswith("online."):
         return _online_op(lib, op, args, base)
     return _NO_OP
 
-
 def _online_op(lib, op: str, args: Dict[str, Any], base: str) -> Any:
-    def thumbs(item: Dict[str, Any]) -> Dict[str, Any]:   # the module CSP allows only our own images
+    def thumbs(item: Dict[str, Any]) -> Dict[str, Any]:
         if args.get("proxy_thumbs", True):
             for key in ("thumb", "cover"):
                 if item.get(key):
@@ -290,7 +281,7 @@ def _online_op(lib, op: str, args: Dict[str, Any], base: str) -> Any:
         found["results"] = [thumbs(x) for x in found["results"]]
         return found
     if op == "online.details":
-        hint = {k: v for k, v in (args.get("hint") or {}).items() if k != "thumb"}   # the window already shows its (proxied) preview
+        hint = {k: v for k, v in (args.get("hint") or {}).items() if k != "thumb"}
         return thumbs(online.details(lib, str(args.get("url", "")), hint))
     if op == "online.related":
         return [thumbs(x) for x in online.related(lib, str(args.get("url", "")), args.get("limit", 20))]
@@ -298,31 +289,28 @@ def _online_op(lib, op: str, args: Dict[str, Any], base: str) -> Any:
         return online.lyrics_lookup(lib, str(args.get("title", "")), str(args.get("artist", "")), float(args.get("duration") or 0))
     return _NO_OP
 
-
 OPS = ("library.list", "library.get", "library.update", "library.delete", "library.like", "library.played",
        "library.stats", "library.history", "artists.list", "albums.list", "artist.get", "album.get", "playlists.list",
        "playlist.get", "playlist.create", "playlist.update", "playlist.delete", "detect", "download.start",
        "download.jobs", "download.cancel", "download.retry", "download.clear", "import.folder", "search.online",
        "lyrics.get", "lyrics.set", "lyrics.choose", "lyrics.offset", "settings.get", "settings.set", "tools.status", "tools.update", "stream_url", "cover_url",
        "player.state", "player.update", "player.command", "player.wait",
-       # r38
+
        "library.update_many", "library.genres", "library.folders", "library.duplicates", "library.radio", "library.reveal",
        "library.resume", "library.upload", "library.analyze", "library.redownload", "track.cover", "cover.search",
        "playlist.cover", "playlist.preview", "playlist.export", "playlist.import", "playlist.save_online")
 R39_OPS = ("artist.rename", "artist.image", "artist.image_search", "artist.image_auto", "artist.bio", "album.update",
            "playlist.reorder", "playlists.reorder")
-R41_OPS = ("online.search", "online.details", "online.related", "online.lyrics")   # r41b-online
+R41_OPS = ("online.search", "online.details", "online.related", "online.lyrics")
 OPS = OPS + R39_OPS + R41_OPS
 
-
 async def call_async(op: str, args: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
-    if op == "player.wait":   # Round 39: the long-poll waits on the event loop, not in a worker thread (player.wait_async)
+    if op == "player.wait":
         a = args if isinstance(args, dict) else {}
         root = (await asyncio.to_thread(get_library)).root
         return await hub(root).wait_async(int(a.get("since", 0) or 0), int(a.get("since_cmd", -1) if a.get("since_cmd") is not None else -1),
                                           float(a.get("timeout", 25) or 25))
     return await asyncio.to_thread(call, op, args, **kwargs)
-
 
 def error_payload(exc: Exception) -> tuple:
     if isinstance(exc, KeyError):
@@ -330,7 +318,6 @@ def error_payload(exc: Exception) -> tuple:
     if isinstance(exc, (ValueError, TypeError)):
         return {"error": str(exc)}, 400
     return {"error": f"{exc}"[:600] or type(exc).__name__}, 502
-
 
 def file_response(path: Path, range_header: str, media_type: str, extra_headers: Optional[Dict[str, str]] = None):
     """A StreamingResponse honouring ``Range: bytes=a-b`` (206), with Accept-Ranges and Content-Length."""
@@ -367,7 +354,6 @@ def file_response(path: Path, range_header: str, media_type: str, extra_headers:
         headers["Content-Range"] = f"bytes {start}-{end}/{size}"
     return StreamingResponse(chunks(), status_code=status, media_type=media_type, headers=headers)
 
-
 def stream_track(track_id: str, token: str, range_header: str = ""):
     """Shared by the playground route and the Mini App server (app/music/tgapp_ops.py)."""
     from fastapi.responses import JSONResponse
@@ -380,7 +366,6 @@ def stream_track(track_id: str, token: str, range_header: str = ""):
         return JSONResponse({"error": "not found"}, 404, headers=cors_headers())
     return file_response(path, range_header, MIME.get(path.suffix.lower(), "application/octet-stream"), cors_headers())
 
-
 def cover_image(track_id: str, token: str):
     from fastapi.responses import JSONResponse
     lib = get_library()
@@ -391,9 +376,7 @@ def cover_image(track_id: str, token: str):
         return JSONResponse({"error": "not found"}, 404, headers=cors_headers())
     return file_response(path, "", "image/jpeg", {"Cache-Control": "private, max-age=604800", **cors_headers()})
 
-
 CORS_EXPOSE = "Content-Range, Accept-Ranges, Content-Length"
-
 
 def cors_headers(preflight: bool = False) -> Dict[str, str]:
     """CORS for stream/cover: the module window is a sandboxed iframe (Origin: null) and reads the media with
@@ -406,25 +389,19 @@ def cors_headers(preflight: bool = False) -> Dict[str, str]:
                         "Access-Control-Max-Age": "86400", "Content-Length": "0"})
     return headers
 
-
 def is_public_media_path(path: str) -> bool:
     """Paths the playground boundary lets through cross-site: they check their own HMAC token."""
     return bool(re.match(r"^/api/pg/music/(stream|cover)/[a-f0-9]{12}$", path or "")) or path == "/api/pg/music/thumb"
-
 
 def csp_sources() -> str:
     """Extra CSP sources for a module with the ``music`` permission (stream + cover URLs)."""
     return "http://127.0.0.1:*/api/pg/music/ http://localhost:*/api/pg/music/"
 
-
-_ALLOWED: Dict[tuple, tuple] = {}   # (modules root, module, action) -> (allowed, checked at)
+_ALLOWED: Dict[tuple, tuple] = {}
 _ALLOWED_TTL = 5.0
 
-
 def module_allowed(module_id: str, action: str = "music_call") -> bool:
-    # r40 (r40-music-fix): load_package reads and checks the whole module (12–40 ms) — on the event loop, for EVERY call of
-    # the MemuMusic window (each player.update / player.wait / library call), so the server stalled and the state reached
-    # the widgets late. The answer is kept for a few seconds (a permission change applies within that time).
+
     import time
     from ..modules_host import ACTION_PERMISSION, default_root, load_package
     root = default_root()
@@ -439,7 +416,6 @@ def module_allowed(module_id: str, action: str = "music_call") -> bool:
         ok = False
     _ALLOWED[key] = (ok, time.monotonic())
     return ok
-
 
 def register(app, *, allowed: Optional[Callable[[str, str], bool]] = module_allowed) -> None:
     from fastapi.responses import JSONResponse, StreamingResponse
@@ -489,10 +465,10 @@ def register(app, *, allowed: Optional[Callable[[str, str], bool]] = module_allo
         async def events():
             since = player.version
             since_cmd = player.cmd_seq
-            # r40: «retry» — a dropped stream reconnects after 1 s (the EventSource default is ~3 s of a frozen widget)
+
             yield "retry: 1000\ndata: " + json.dumps({"event": "state", "state": player.snapshot()}, ensure_ascii=False) + "\n\n"
             while not await request.is_disconnected():
-                result = await player.wait_async(since, since_cmd, 15)   # Round 39: no worker thread per listener
+                result = await player.wait_async(since, since_cmd, 15)
                 if not result["changed"]:
                     yield ": ping\n\n"
                     continue
@@ -502,6 +478,5 @@ def register(app, *, allowed: Optional[Callable[[str, str], bool]] = module_allo
                     yield "data: " + json.dumps({"event": "command", "command": cmd}, ensure_ascii=False) + "\n\n"
                 yield "data: " + json.dumps({"event": "state", "state": result["state"]}, ensure_ascii=False) + "\n\n"
 
-        # r40: nothing between the player and a widget may buffer the stream (a proxy, a compressing middleware)
         return StreamingResponse(events(), media_type="text/event-stream",
                                  headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"})

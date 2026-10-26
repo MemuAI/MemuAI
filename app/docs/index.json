@@ -25,6 +25,7 @@
         "scheduled-messages",
         "chat-export",
         "tables-diagrams",
+        "rich-visualizations",
         "commands",
         "web-search",
         "research",
@@ -33,6 +34,7 @@
         "memory",
         "reflect",
         "agents",
+        "teams",
         "voice",
         "context"
       ]
@@ -87,6 +89,8 @@
       "icon": "work",
       "pages": [
         "modules",
+        "memudb",
+        "module-catalog",
         "modules-quickstart",
         "modules-ai-pack",
         "modules-manifest",

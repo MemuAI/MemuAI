@@ -1,7 +1,5 @@
-/* Runs the REAL Memu bridge from a generated module document against a tiny
- * DOM stub and reports what the translation layer did.
- * Usage: node modules_i18n_runner.cjs <bridge.js> <report.json>
- */
+
+
 const fs = require("fs");
 const vm = require("vm");
 

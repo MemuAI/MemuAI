@@ -29,9 +29,7 @@ from build_memuai_icon import LIGHT, build_set, crystal_star, f, star_path, svg_
 
 ROOT = Path(__file__).resolve().parent
 
-#: The brackets' white and the warm star — also used by the Proxy panel's logo mark.
 STAR_WARM = ("#ffd3a6", "#ff8a6e")
-
 
 def _defs(grid: float) -> str:
     return ('<linearGradient id="gate" gradientUnits="userSpaceOnUse" '
@@ -43,7 +41,6 @@ def _defs(grid: float) -> str:
             '<filter id="soft" x="-40%" y="-40%" width="180%" height="190%">'
             '<feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#1c0f5a" flood-opacity=".32"/></filter>')
 
-
 def _brackets(cx: float, cy: float, half_h: float, inner_x: float, outer_x: float, width: float,
               extra: str = "") -> str:
     """‹ › as two round-capped polylines (inner_x: distance of the arms' ends from the centre)."""
@@ -52,7 +49,6 @@ def _brackets(cx: float, cy: float, half_h: float, inner_x: float, outer_x: floa
     left = f"M{f(cx - inner_x)},{f(cy - half_h)} L{f(cx - outer_x)},{f(cy)} L{f(cx - inner_x)},{f(cy + half_h)}"
     right = f"M{f(cx + inner_x)},{f(cy - half_h)} L{f(cx + outer_x)},{f(cy)} L{f(cx + inner_x)},{f(cy + half_h)}"
     return f'<path d="{left}" {style}/><path d="{right}" {style}/>'
-
 
 def proxy_svg(variant: str = "full") -> str:
     """MemuAI Proxy icon drawing for a variant (``tiny`` / ``small`` / ``full``)."""
@@ -76,14 +72,12 @@ def proxy_svg(variant: str = "full") -> str:
             f'{crystal_star(256, 256, 84, STAR_WARM[0], STAR_WARM[1], 0.22)}</g>')
     return svg_doc(grid, _defs(grid), body)
 
-
 def build() -> None:
     (ROOT / "app" / "static" / "proxy-icon.svg").write_text(proxy_svg("full") + "\n", encoding="utf-8")
     build_set(proxy_svg,
               png_out=[(ROOT / "icon.png", 512), (ROOT / "app" / "static" / "icon.png", 256),
                        (ROOT / "installer" / "ui" / "assets" / "logo-proxy.png", 128)],
               ico_out=ROOT / "icon.ico")
-
 
 if __name__ == "__main__":
     build()

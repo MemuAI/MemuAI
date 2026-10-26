@@ -1,9 +1,5 @@
-/* MemuAI Proxy — line icons.
-   Buttons keep their old text glyphs in i18n and markup (✦ ⟳ ＋ ✓ ⧉ …): they are the
-   fallback and some strings are shared with other code. This script swaps a leading
-   or trailing glyph of a button for a crisp inline SVG, and watches the DOM so labels
-   that i18n or a re-render writes later get the same treatment. Nothing here changes
-   ids, classes or handlers. */
+
+
 "use strict";
 (function () {
   const P = {
@@ -34,7 +30,7 @@
     grip: '<circle cx="9" cy="6" r="1.2"/><circle cx="15" cy="6" r="1.2"/><circle cx="9" cy="12" r="1.2"/><circle cx="15" cy="12" r="1.2"/><circle cx="9" cy="18" r="1.2"/><circle cx="15" cy="18" r="1.2"/>',
     diamond: '<path d="M12 3.5 20.5 12 12 20.5 3.5 12z"/>',
     gauge: '<path d="M3.5 16a8.5 8.5 0 1 1 17 0"/><path d="m12 16 3.5-4.5"/><circle cx="12" cy="16" r="1.2"/>',
-    /* navigation */
+
     home: '<rect x="3.5" y="3.5" width="7" height="8" rx="1.8"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.8"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.8"/><rect x="3.5" y="14.5" width="7" height="6" rx="1.8"/>',
     users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.2A6.5 6.5 0 0 1 21.5 20"/>',
     cpu: '<rect x="5" y="5" width="14" height="14" rx="2.5"/><rect x="9" y="9" width="6" height="6" rx="1"/><path d="M9.5 2v3M14.5 2v3M9.5 19v3M14.5 19v3M2 9.5h3M2 14.5h3M19 9.5h3M19 14.5h3"/>',
@@ -57,7 +53,7 @@
   function svg(name, cls) {
     return `<svg class="i ${cls || ""}" data-i="${name}" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${P[name]}</svg>`;
   }
-  /* ✦ means "AI companion" everywhere except the account usage/limits action */
+
   function iconFor(el, glyph) {
     if (glyph === "✦" && (el.matches("[data-usage]") || el.closest('[data-ctx="usage"]'))) return "gauge";
     return GLYPH[glyph];
@@ -71,8 +67,7 @@
 
   const BTN = "button, .btn";
   const WHOLE = ".ctx-ico, .drag-handle, .companion-mark, .pc-empty-mark, .comp-hello, .lm-caret, .p-icon, .pick-tile .t-ico, .chip-ico";
-  /* Round 31: provider marks keep their own glyphs (✦ Genspark, ▲ Antigravity…); only «⚿» (Custom API),
-     missing from many Windows fonts as a tofu box, becomes the key icon. */
+
   const PROVIDER_MARK = { "⚿": "key" };
 
   function decorateButton(el) {
@@ -135,7 +130,7 @@
     queued.add(owner || node);
     if (!scheduled) { scheduled = true; queueMicrotask(flush); }
   }
-  /* topbar breadcrumb follows the active tab (the label keeps its i18n key) */
+
   function syncCrumb() {
     const page = document.getElementById("crumb-page");
     const label = document.querySelector(".nav-item.active[data-tab] .txt");

@@ -10,7 +10,6 @@ from typing import Any, Dict, List
 
 from .base import ProviderServerError
 
-
 def _content(raw: Any, role: str) -> Any:
     if isinstance(raw, str):
         return raw
@@ -44,7 +43,6 @@ def _content(raw: Any, role: str) -> Any:
         else:
             raise ProviderServerError(f"Unsupported Responses content type: {kind}", 400)
     return parts
-
 
 def request_body(chat: Dict[str, Any]) -> Dict[str, Any]:
     """Convert an internally built Chat Completions body without mutating it.
@@ -103,7 +101,6 @@ def request_body(chat: Dict[str, Any]) -> Dict[str, Any]:
             body["text"] = {"format": dict(fmt)}
     return body
 
-
 def _chunk(delta: Dict[str, Any] | None = None, *, finish: str | None = None,
            usage: Dict[str, Any] | None = None) -> Dict[str, Any]:
     obj: Dict[str, Any] = {"choices": [{"delta": delta or {}, "finish_reason": finish}]}
@@ -115,7 +112,6 @@ def _chunk(delta: Dict[str, Any] | None = None, *, finish: str | None = None,
         if isinstance(usage.get("cost"), (int, float)):
             obj["usage"]["cost"] = usage["cost"]
     return obj
-
 
 class StreamAdapter:
     """Convert Responses SSE/JSON into the existing provider's chunk parser.
@@ -134,7 +130,7 @@ class StreamAdapter:
         value = str(value or "")
         old = self.texts.get(key, "")
         if final:
-            # A conflicting snapshot must not duplicate already emitted data.
+
             delta = value[len(old):] if value.startswith(old) else (value if not old else "")
             self.texts[key] = value
         else:
@@ -191,7 +187,7 @@ class StreamAdapter:
         if kind == "error":
             self.terminal = True
             error = {key: obj[key] for key in ("message", "code", "status") if key in obj}
-            # Here `type` names the SSE event, not the error classification.
+
             error["type"] = obj.get("code") or "server_error"
             return [{"error": error}]
         if kind in ("response.output_text.delta", "response.refusal.delta",

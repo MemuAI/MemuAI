@@ -7,7 +7,6 @@ import unittest
 from app import panels_usage as usage
 from app import panels_proxy_usage as source
 
-
 class ProxyUsage(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.requests = []
@@ -147,7 +146,6 @@ class ProxyUsage(unittest.IsolatedAsyncioTestCase):
         result = await usage.refresh_accounts([self.account()], previous, lang="en", now=1900000001)
         self.assertEqual(result["accounts"][0]["limits"][0]["used"], 25)
         self.assertNotIn("Old account", json.dumps(result))
-
 
 if __name__ == "__main__":
     unittest.main()

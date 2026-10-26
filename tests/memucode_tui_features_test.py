@@ -12,7 +12,6 @@ from prompt_toolkit.document import Document
 from app.cli.i18n import set_language, tr
 from app.cli.tui.input import Attachments, CommandItem, MemuCompleter, pasted_paths
 
-
 class InputFeatures(unittest.TestCase):
     def test_delete_selection_and_attachment_are_atomic(self):
         from prompt_toolkit.buffer import Buffer
@@ -37,7 +36,7 @@ class InputFeatures(unittest.TestCase):
                          ['set', 'refresh', 'prices'])
         for command in ('usage', 'sandbox', 'mcp'):
             self.assertEqual(list(completer.get_completions(Document('/' + command + ' '), None)), [])
-        # /permissions takes a mode name: the permission modes are suggested.
+
         modes = [c.text for c in completer.get_completions(Document('/permissions '), None)]
         self.assertEqual(modes, ['default', 'acceptEdits', 'plan', 'auto', 'bypassPermissions'])
 
@@ -81,7 +80,6 @@ class InputFeatures(unittest.TestCase):
         self.assertEqual(set_language("ru"), "en")
         self.assertEqual(tr("Привет", "Hello"), "Hello")
 
-
 class SessionFeatures(unittest.TestCase):
     def test_empty_session_uid_can_be_resumed_after_exit(self):
         from app.cli.session import Session
@@ -101,7 +99,6 @@ class SessionFeatures(unittest.TestCase):
             self.assertEqual(selected.root, root)
             with self.assertRaises(SessionNotFound):
                 _session_for(other, build_parser().parse_args(["--resume", "missing-id"]))
-
 
 if __name__ == "__main__":
     unittest.main()

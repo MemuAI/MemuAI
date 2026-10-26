@@ -35,7 +35,7 @@ import time
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-try:  # route annotations are resolved from module globals (from __future__ import annotations)
+try:
     from fastapi import Request
 except Exception:  # pragma: no cover — the bot itself does not need FastAPI
     Request = Any  # type: ignore[misc,assignment]
@@ -48,7 +48,7 @@ NOTIFY_KINDS = ("weather", "news", "rss", "countdown", "todo", "currency", "cryp
 MODES = ("changes", "every", "digest")
 QUIET = ("silent", "defer")
 DEFAULT_SETTINGS = {"min_gap_minutes": 30, "max_per_hour": 6, "digest_at": "09:00"}
-# Relative change of the main number that counts as "significant".
+
 THRESHOLDS = {"currency": 0.01, "crypto": 0.05, "stock": 0.03}
 COUNTDOWN_MILESTONES = (30, 14, 7, 3, 1, 0)
 CHECK_EVERY = 60.0
@@ -58,9 +58,6 @@ _BIND = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-z0-9_]+)*)\s*\}\
 _FULL_BIND = re.compile(r"^\s*\{\{\s*([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-z0-9_]+)*)\s*\}\}\s*$")
 _state: Dict[str, Any] = {"last_check": 0.0, "sender": None}
 
-
-# ================================================================ storage
-
 def _path():
     from .pgdata import MEMU_DIR, _profile_data_name
     try:
@@ -69,19 +66,16 @@ def _path():
         name = FILE_NAME
     return MEMU_DIR / name
 
-
 def _hhmm(value: Any) -> str:
     """"9:00" → "09:00" (digest times are compared as strings)."""
     match = _HHMM.match(str(value or "").strip())
     return f"{int(match.group(1)):02d}:{match.group(2)}" if match else ""
-
 
 def _int(value: Any, default: int = 0) -> int:
     try:
         return int(float(value))
     except (TypeError, ValueError, OverflowError):
         return default
-
 
 def _clip_html(lines: List[str], limit: int) -> str:
     """Join balanced HTML lines without cutting a tag/entity in half."""
@@ -98,14 +92,12 @@ def _clip_html(lines: List[str], limit: int) -> str:
         size += len(line) + 1
     return "\n".join(out).strip()
 
-
 def _clean_sub(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     mode = raw.get("mode") if raw.get("mode") in MODES else "changes"
     return {"on": bool(raw.get("on")), "mode": mode,
             "at": _hhmm(raw.get("at")),
             "quiet": raw.get("quiet") if raw.get("quiet") in QUIET else "silent"}
-
 
 def _normalize(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
@@ -129,11 +121,9 @@ def _normalize(raw: Any) -> Dict[str, Any]:
     return {"version": 1, "settings": settings, "subs": subs, "sent": sent, "log": log_,
             "digest": {"day": str(digest.get("day") or "")}}
 
-
 def load() -> Dict[str, Any]:
     from .storage import load_json_with_recovery
     return _normalize(load_json_with_recovery(_path(), {}))
-
 
 def mutate(mutator) -> Tuple[Dict[str, Any], Any]:
     from .storage import mutate_json
@@ -147,10 +137,8 @@ def mutate(mutator) -> Tuple[Dict[str, Any], Any]:
     doc = mutate_json(_path(), {}, update, backup=False)
     return (doc if isinstance(doc, dict) else load()), box.get("result")
 
-
 def eligible(panel: Dict[str, Any]) -> bool:
     return str(panel.get("kind") or "") in NOTIFY_KINDS
-
 
 def subscribe(pid: str, *, on: Optional[bool] = None, mode: Optional[str] = None,
               at: Optional[str] = None, quiet: Optional[str] = None) -> Dict[str, Any]:
@@ -179,19 +167,16 @@ def subscribe(pid: str, *, on: Optional[bool] = None, mode: Optional[str] = None
         sub = _clean_sub(sub)
         data["subs"][pid] = sub
         if sub["on"] and not was_on:
-            # Baseline: the current state is "already seen" — subscribing must
-            # not immediately re-send what the user is looking at.
+
             data["sent"][pid] = _baseline(panel)
         return sub
 
     _doc, sub = mutate(apply)
     return sub
 
-
 def subscription(pid: str, doc: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     doc = doc or load()
     return dict(doc["subs"].get(pid) or _clean_sub({}))
-
 
 def forget_missing(active_ids: List[str]) -> None:
     keep = set(active_ids)
@@ -204,9 +189,6 @@ def forget_missing(active_ids: List[str]) -> None:
 
     mutate(apply)
 
-
-# ================================================================ rendering
-
 def _lookup(data: Dict[str, Any], key: str, path: str) -> Any:
     value: Any = data.get(key)
     for part in [p for p in path.split(".") if p]:
@@ -217,7 +199,6 @@ def _lookup(data: Dict[str, Any], key: str, path: str) -> Any:
         else:
             return None
     return value
-
 
 def _fmt(value: Any) -> str:
     if value is None:
@@ -231,7 +212,6 @@ def _fmt(value: Any) -> str:
         return ""
     return str(value)
 
-
 def _resolve(value: Any, data: Dict[str, Any]) -> Any:
     if isinstance(value, str):
         full = _FULL_BIND.match(value)
@@ -243,7 +223,6 @@ def _resolve(value: Any, data: Dict[str, Any]) -> Any:
     if isinstance(value, dict):
         return {k: _resolve(v, data) for k, v in value.items()}
     return value
-
 
 def resolve_blocks(panel: Dict[str, Any]) -> List[Dict[str, Any]]:
     """The panel's spec blocks with its data substituted (``row`` flattened)."""
@@ -262,7 +241,6 @@ def resolve_blocks(panel: Dict[str, Any]) -> List[Dict[str, Any]]:
     walk(((panel.get("spec") or {}).get("blocks")))
     return out
 
-
 def _todo_lists(panel: Dict[str, Any]) -> List[Dict[str, Any]]:
     todo = panel.get("todo")
     if isinstance(todo, dict):
@@ -277,7 +255,6 @@ def _todo_lists(panel: Dict[str, Any]) -> List[Dict[str, Any]]:
     rows = [by_id[lid] for lid in wanted if lid in by_id]
     return rows or list(by_id.values())[:1]
 
-
 def _open_tasks(panel: Dict[str, Any]) -> List[Dict[str, Any]]:
     tasks = []
     for lst in _todo_lists(panel):
@@ -286,19 +263,15 @@ def _open_tasks(panel: Dict[str, Any]) -> List[Dict[str, Any]]:
                 tasks.append(item)
     return tasks
 
-
 def _today() -> str:
     return datetime.now().date().isoformat()
-
 
 def _due_tasks(panel: Dict[str, Any]) -> List[Dict[str, Any]]:
     today = _today()
     return [t for t in _open_tasks(panel) if str(t.get("due") or "")[:10] and str(t.get("due"))[:10] <= today]
 
-
 def _items(value: Any) -> List[Dict[str, Any]]:
     return [row for row in value if isinstance(row, dict)] if isinstance(value, list) else []
-
 
 def _title_and_error(panel: Dict[str, Any], lang: str = "") -> Tuple[str, str]:
     """Round 26: the built-in «Погода» panel and its «Укажите город…» wall follow the panels' language (the PC
@@ -313,8 +286,7 @@ def _title_and_error(panel: Dict[str, Any], lang: str = "") -> Tuple[str, str]:
         if wall.get("status") == "needs_location:weather":
             error = panels._location_wall({"lang": lang})["message"]
     if error and lang in ("ru", "en") and bool(re.search("[А-Яа-яЁё]", error)) != (lang == "ru"):
-        # Round 31: the wall sentence is written once, in the window's panels language at that refresh — an English
-        # «Connect GitHub in Settings → Integrations.» showed in a Russian Mini App / bot. A short line in its language.
+
         kind = str(wall.get("status") or "").split(":")[0]
         ru = lang == "ru"
         error = {"needs_connector": "Нужно подключение к сервису — откройте настройки панели в MemuAI." if ru
@@ -326,7 +298,6 @@ def _title_and_error(panel: Dict[str, Any], lang: str = "") -> Tuple[str, str]:
                  else "The source is gone or has no such data."}.get(
             kind, "Не удалось обновить — попробую позже." if ru else "Could not refresh — will retry later.")
     return title, error
-
 
 def _in_language(panel: Dict[str, Any], lang: str, settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Round 27: a built-in panel's spec holds the labels of the window's panels language («Макс / мин»,
@@ -342,11 +313,10 @@ def _in_language(panel: Dict[str, Any], lang: str, settings: Optional[Dict[str, 
             return panel
         _title, spec = panels.typed_spec(panel["kind"], source.get("params") or {}, {**settings, "lang": lang},
                                          panel.get("options"))
-    except Exception as exc:      # a broken document or an unknown kind: the stored spec is still a fine card
+    except Exception as exc:
         log.debug("panel spec in %s failed: %s", lang, exc)
         return panel
     return {**panel, "spec": spec}
-
 
 def card(panel: Dict[str, Any], lang: str = "", settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """A compact, renderer-neutral view of a panel (Mini App cards, Telegram) in the bot's ``lang``."""
@@ -376,7 +346,7 @@ def card(panel: Dict[str, Any], lang: str = "", settings: Optional[Dict[str, Any
             for row in _items(block.get("items"))[: max(0, _int(block.get("max"), 8) or 8)]:
                 label = _fmt(row.get("label"))
                 value = _fmt(row.get("value"))
-                if re.search(r"\w", value):      # "° / °" of a panel without data is not a value
+                if re.search(r"\w", value):
                     view["stats"].append({"label": label, "value": (value + (" " + _fmt(row.get("unit")) if row.get("unit") else "")).strip(),
                                           "sub": _fmt(row.get("sub"))})
         elif kind == "list":
@@ -395,8 +365,7 @@ def card(panel: Dict[str, Any], lang: str = "", settings: Optional[Dict[str, Any
             view["countdown"] = {"target": _fmt(block.get("target")), "days_left": data.get("days_left"),
                                  "label": _fmt(data.get("target_label"))}
             if view["countdown"]["days_left"] is None and view["countdown"]["target"]:
-                # Round 31: a countdown block of an AI/custom panel has only its target (days_left is computed for
-                # the «countdown» kind only): the Mini App card showed nothing. Count the days here for both.
+
                 from . import panels as _panels
                 iso = _panels._lenient_target(view["countdown"]["target"])
                 if iso:
@@ -410,7 +379,7 @@ def card(panel: Dict[str, Any], lang: str = "", settings: Optional[Dict[str, Any
                     except (TypeError, ValueError, OverflowError):
                         pass
         elif kind == "image" and view["image"] is None and re.match(r"^https?://", _fmt(block.get("src"))):
-            # Round 31: image panels (photo of the day, a webcam) were an empty «No data yet» card in the Mini App
+
             view["image"] = {"src": _fmt(block.get("src")), "caption": _fmt(block.get("caption") or block.get("alt")),
                              "url": _fmt(block.get("url"))}
             if view["image"]["caption"]:
@@ -428,10 +397,8 @@ def card(panel: Dict[str, Any], lang: str = "", settings: Optional[Dict[str, Any
                        for s in (panel.get("sources") or []) if isinstance(s, dict) and s.get("url")][:4]
     return view
 
-
 def _e(text: Any) -> str:
     return html.escape(str(text or ""), quote=False)
-
 
 def render_html(panel: Dict[str, Any], lang: str = "ru", *, limit_items: int = 8,
                 settings: Optional[Dict[str, Any]] = None) -> str:
@@ -444,7 +411,7 @@ def render_html(panel: Dict[str, Any], lang: str = "ru", *, limit_items: int = 8
     metric = view["metric"]
     if metric and metric["value"]:
         unit = metric["unit"] or ""
-        # Round 31: «<b>83 002</b>$», «<b>3.15.0</b>версия» — the unit stuck to the number (the window draws it apart).
+
         gap = "" if not unit or unit[:1] in "°′″" else " "
         line = f"<b>{_e(metric['value'])}</b>{gap}{_e(unit)}"
         if metric["delta"]:
@@ -455,8 +422,7 @@ def render_html(panel: Dict[str, Any], lang: str = "ru", *, limit_items: int = 8
             lines.append(_e(metric["caption"]))
     countdown = view["countdown"] or {}
     if countdown and countdown.get("days_left") is None and countdown.get("target"):
-        # Round 31: a countdown block of an AI/custom panel has only its target (days_left is computed for the
-        # «countdown» kind only) — it was silently missing from Telegram.
+
         try:
             moment = datetime.fromisoformat(str(countdown["target"]).replace("Z", "+00:00"))
             if moment.tzinfo is None:
@@ -470,7 +436,7 @@ def render_html(panel: Dict[str, Any], lang: str = "ru", *, limit_items: int = 8
         days = _int(countdown["days_left"])
         label = countdown.get("label") or ""
         if label and label in (view["subtitle"] or ""):
-            label = ""                         # the subtitle already names the date
+            label = ""
         lines.append(("⏳ Осталось дней: " if ru else "⏳ Days left: ") + f"<b>{days}</b>" + (f" · {_e(label)}" if label else ""))
     if view["stats"]:
         lines.append("")
@@ -511,9 +477,6 @@ def render_html(panel: Dict[str, Any], lang: str = "ru", *, limit_items: int = 8
             pass
     return _clip_html(lines, 3800)
 
-
-# ================================================================ change detection
-
 def _number(text: Any) -> Optional[float]:
     if isinstance(text, (int, float)) and not isinstance(text, bool):
         return float(text)
@@ -525,16 +488,13 @@ def _number(text: Any) -> Optional[float]:
     except ValueError:
         return None
 
-
 def _digest(value: Any) -> str:
     return hashlib.sha1(json.dumps(value, ensure_ascii=False, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
-
 
 def _visible_signature(panel: Dict[str, Any]) -> str:
     view = card(panel)
     view = {k: v for k, v in view.items() if k not in ("updated", "status", "sources")}
     return _digest(view)
-
 
 def _baseline(panel: Dict[str, Any]) -> Dict[str, Any]:
     """What a panel looks like "now", for comparisons later."""
@@ -553,12 +513,11 @@ def _baseline(panel: Dict[str, Any]) -> Dict[str, Any]:
         base["due"] = sorted(_digest(t.get("id") or t.get("title")) for t in _due_tasks(panel))
     return base
 
-
 def significant(panel: Dict[str, Any], before: Dict[str, Any], mode: str = "changes") -> Tuple[bool, str, Dict[str, Any]]:
     """(notify?, headline, new baseline). ``before`` is the last delivered baseline."""
     now = _baseline(panel)
     if not before or not before.get("sig"):
-        return False, "", now          # first sight = baseline only
+        return False, "", now
     if now["sig"] == before.get("sig"):
         return False, "", now
     if mode == "every":
@@ -575,7 +534,7 @@ def significant(panel: Dict[str, Any], before: Dict[str, Any], mode: str = "chan
         old, new = before.get("num"), now.get("num")
         if old and new is not None and abs(new - old) / abs(old) >= THRESHOLDS[kind]:
             return True, "move", now
-        # keep the old reference: slow drifts add up to one notification
+
         return False, "", {**now, "sig": before["sig"], "num": old}
     if kind in ("news", "rss"):
         fresh = [h for h in now.get("items") or [] if h not in set(before.get("items") or [])]
@@ -592,10 +551,7 @@ def significant(panel: Dict[str, Any], before: Dict[str, Any], mode: str = "chan
         if added:
             return True, f"due:{len(added)}", now
         return False, "", now
-    return True, "", now   # web/custom/sports/calendar/github/notes: any visible change
-
-
-# ================================================================ delivery
+    return True, "", now
 
 def _quiet(prefs: Dict[str, Any], now: Optional[float] = None) -> bool:
     try:
@@ -603,7 +559,6 @@ def _quiet(prefs: Dict[str, Any], now: Optional[float] = None) -> bool:
         return bool(_in_quiet_hours(prefs, None if now is None else datetime.fromtimestamp(now)))
     except Exception:
         return False
-
 
 def _headline(panel: Dict[str, Any], reason: str, lang: str) -> str:
     ru = lang != "en"
@@ -625,13 +580,11 @@ def _headline(panel: Dict[str, Any], reason: str, lang: str) -> str:
         return "✅ Задачи на сегодня" if ru else "✅ Tasks due today"
     return "🔔 Панель обновилась" if ru else "🔔 Panel updated"
 
-
 def _tab_url(url: str) -> str:
     """Mini App address that opens the «Панели» tab. A query parameter, not a
     hash: Telegram puts the launch data (tgWebAppData) into the hash."""
     base = str(url or "").split("#", 1)[0]
     return base + ("&" if "?" in base else "?") + "tab=panels"
-
 
 def keyboard(pid: str, lang: str, *, subscribed: bool = True, webapp_url: Optional[str] = None) -> Dict[str, Any]:
     ru = lang != "en"
@@ -642,7 +595,6 @@ def keyboard(pid: str, lang: str, *, subscribed: bool = True, webapp_url: Option
     if webapp_url:
         rows[1].append({"text": "📱 Mini App", "web_app": {"url": _tab_url(webapp_url)}})
     return {"inline_keyboard": rows}
-
 
 async def _default_sender(prefs: Dict[str, Any], text: str, markup: Optional[Dict[str, Any]], silent: bool) -> bool:
     import httpx
@@ -659,17 +611,14 @@ async def _default_sender(prefs: Dict[str, Any], text: str, markup: Optional[Dic
         await BotApi(client, token).call("sendMessage", essential=True, **payload)
     return True
 
-
 def set_sender(sender) -> None:
     """Tests replace the delivery function: ``sender(prefs, html, markup, silent)``."""
     _state["sender"] = sender
-
 
 def _can_send(prefs: Dict[str, Any]) -> bool:
     return bool(prefs.get("telegram_enabled") and str(prefs.get("telegram_bot_token") or "").strip()
                 and str(prefs.get("telegram_chat_id") or "").strip()
                 and prefs.get("telegram_notify_panels", True))
-
 
 def _webapp_url() -> Optional[str]:
     try:
@@ -677,7 +626,6 @@ def _webapp_url() -> Optional[str]:
         return webapp_url()
     except Exception:
         return None
-
 
 async def check_all(*, now: Optional[float] = None, force: bool = False,
                     prefs: Optional[Dict[str, Any]] = None) -> int:
@@ -723,7 +671,7 @@ async def check_all(*, now: Optional[float] = None, force: bool = False,
             at = _hhmm(sub.get("at")) or _hhmm(settings["digest_at"]) or "09:00"
             if doc["digest"].get("day") != today and clock >= at:
                 if quiet and sub.get("quiet") == "defer":
-                    digest_wait = True      # the whole digest waits for the end of quiet hours
+                    digest_wait = True
                     continue
                 digest_due = True
                 digest_rows.append(render_html(panel, lang, limit_items=5, settings=pdoc["settings"]))
@@ -736,7 +684,7 @@ async def check_all(*, now: Optional[float] = None, force: bool = False,
                 updates[pid] = {**after, "at": before.get("at", 0.0)}
             continue
         if now - float(before.get("at") or 0) < gap:
-            continue        # coalesce: send the newest state when the gap ends
+            continue
         if quiet and sub.get("quiet") == "defer":
             continue
         if budget <= 0:
@@ -763,7 +711,7 @@ async def check_all(*, now: Optional[float] = None, force: bool = False,
         except Exception as exc:  # noqa: BLE001 — one failed send must not stop the rest
             log.info("telegram panel notification failed: %s", type(exc).__name__)
             if pid:
-                updates.pop(pid, None)   # retry on the next check
+                updates.pop(pid, None)
 
     def apply(data: Dict[str, Any]) -> None:
         for pid, row in updates.items():
@@ -776,9 +724,6 @@ async def check_all(*, now: Optional[float] = None, force: bool = False,
     if updates or sent or digest_due:
         await asyncio.to_thread(mutate, apply)
     return sent
-
-
-# ================================================================ public data (bot, Mini App)
 
 def listing(lang: str = "ru") -> Dict[str, Any]:
     from . import panels
@@ -793,7 +738,6 @@ def listing(lang: str = "ru") -> Dict[str, Any]:
                      "local": panel["kind"] in panels.LOCAL_KINDS,
                      "sub": subscription(panel["id"], subs), "card": card(public, lang, pdoc["settings"])})
     return {"panels": rows, "settings": subs["settings"], "modes": list(MODES)}
-
 
 def request_refresh(pid: str) -> str:
     """Ask the window's scheduler to refresh soon (works from any process).
@@ -814,25 +758,20 @@ def request_refresh(pid: str) -> str:
             panel["next_refresh"] = time.time()
             if panel.get("wall") and str(panel["wall"].get("status", "")).split(":")[0] in panels.USER_WALLS \
                     and panel["wall"]["status"].split(":")[0] != "needs_location":
-                panel["wall"] = None    # the user asked explicitly: try again
+                panel["wall"] = None
             box["result"] = "queued"
 
     panels.mutate(apply)
     return box["result"]
 
-
-# ================================================================ bot screens (Proxy process)
-
 def _lang_of(prefs: Dict[str, Any]) -> str:
     return "en" if str(prefs.get("telegram_language") or "ru") == "en" else "ru"
-
 
 _KIND_ICONS = {"weather": "🌤", "news": "📰", "rss": "📰", "countdown": "⏳", "todo": "✅", "currency": "💱",
                "crypto": "🪙", "stock": "📈", "sports": "🏆", "calendar": "📅", "github": "🐙", "notes": "📝",
                "system": "🖥", "usage": "📊", "clock": "🕑", "timers": "⏱", "proxy": "🛰"}
 _MODE_LABELS = {"changes": ("только важное", "important only"), "every": ("любые изменения", "every change"),
                 "digest": ("сводка раз в день", "daily digest")}
-
 
 async def show_list(client: Any, token: str, chat_id: str, prefs: Dict[str, Any], edit_id: int = 0) -> None:
     from .telegram_bot import _io, _nav_row, _screen, _webapp_url as cached_webapp_url
@@ -851,7 +790,7 @@ async def show_list(client: Any, token: str, chat_id: str, prefs: Dict[str, Any]
         if row["eligible"]:
             line.append({"text": "🔔" if row["sub"]["on"] else "🔕", "callback_data": f"pnlsub:{row['id']}"})
         rows.append(line)
-    url = cached_webapp_url()     # the bot's cache: no Mini App file read on the event loop
+    url = cached_webapp_url()
     if url:
         rows.append([{"text": "📱 " + ("Открыть в Mini App" if ru else "Open in Mini App"),
                       "web_app": {"url": _tab_url(url)}}])
@@ -865,7 +804,6 @@ async def show_list(client: Any, token: str, chat_id: str, prefs: Dict[str, Any]
                 ("Панелей пока нет — добавьте их в MemuAI на компьютере (главный экран → «＋ Панель»)."
                  if ru else "No panels yet — add them in MemuAI on the computer (home screen → “+ Panel”)."))
     await _screen(client, token, chat_id, text, {"inline_keyboard": rows}, edit_id, kind="panels")
-
 
 async def show_panel(client: Any, token: str, chat_id: str, prefs: Dict[str, Any], pid: str, edit_id: int = 0) -> None:
     from .telegram_bot import _io, _screen
@@ -892,7 +830,6 @@ async def show_panel(client: Any, token: str, chat_id: str, prefs: Dict[str, Any
                           "callback_data": f"pnlq:{pid}"}])
     rows.append([{"text": "← " + ("Панели" if ru else "Panels"), "callback_data": "panels"}])
     await _screen(client, token, chat_id, text, {"inline_keyboard": rows}, edit_id, kind="panel")
-
 
 async def handle_callback(client: Any, token: str, chat_id: str, prefs: Dict[str, Any], data: str,
                           callback_id: str, message_id: int) -> None:
@@ -928,7 +865,7 @@ async def handle_callback(client: Any, token: str, chat_id: str, prefs: Dict[str
                 await _io(subscribe, pid, quiet="defer" if sub["quiet"] == "silent" else "silent")
         except ValueError:
             await _toast(client, token, callback_id, "Для этой панели уведомлений нет" if ru else "No updates for this panel")
-        # From the list screen keep the list; from a panel screen re-render it.
+
         from .pgdata import load_telegram_state
         try:
             state = await _io(load_telegram_state)
@@ -942,26 +879,20 @@ async def handle_callback(client: Any, token: str, chat_id: str, prefs: Dict[str
     else:
         await _toast(client, token, callback_id)
 
-
-# ================================================================ Mini App ops
-
 def _miniapp_lang(prefs: Dict[str, Any]) -> str:
     return "en" if prefs.get("language") == "en" else "ru"
-
 
 _SUBSCRIBE_ERRORS = {"bad panel id": ("Некорректный id панели", "Invalid panel id"),
                      "panel not found": ("Панель не найдена", "Panel not found"),
                      "this panel kind has no Telegram updates": ("У панели этого вида нет обновлений в Telegram",
                                                                  "This kind of panel has no Telegram updates")}
 
-
 def register_tgapp_ops(op, ApiError) -> None:  # noqa: N803 — mirrors tgapp_api names
     """Adds ``panels.*`` to the Mini App's whitelist of operations (same auth)."""
 
     @op("panels.list")
     async def panels_list(ctx, body):
-        # Round 27: the Mini App speaks its own language (``language``), not the chat bot's
-        # (``telegram_language``, «ru» by default): «Погода» and «Укажите город…» stayed in an English Mini App.
+
         data = await asyncio.to_thread(listing, _miniapp_lang(ctx["prefs"]))
         data["telegram_ready"] = _can_send(ctx["prefs"])
         return data
@@ -995,9 +926,6 @@ def register_tgapp_ops(op, ApiError) -> None:  # noqa: N803 — mirrors tgapp_ap
             raise ApiError(400, "bad_request", *reason) from None
         return {"sub": sub}
 
-
-# ================================================================ window routes (MemuAI desktop)
-
 def update_settings(values: Dict[str, Any]) -> Dict[str, Any]:
     def apply(data):
         merged = {**data["settings"], **{k: v for k, v in (values or {}).items() if k in DEFAULT_SETTINGS}}
@@ -1006,7 +934,6 @@ def update_settings(values: Dict[str, Any]) -> Dict[str, Any]:
 
     _doc, settings = mutate(apply)
     return settings
-
 
 def window_state() -> Dict[str, Any]:
     from .pgdata import load_preferences
@@ -1017,7 +944,6 @@ def window_state() -> Dict[str, Any]:
     return {"eligible": eligible_ids, "subs": doc["subs"], "settings": doc["settings"], "kinds": list(NOTIFY_KINDS),
             "modes": list(MODES), "ready": _can_send(prefs),
             "paired": bool(str(prefs.get("telegram_chat_id") or "").strip())}
-
 
 def register_window_routes(app) -> None:
     """``/api/pg/panels-telegram`` for the panels settings in the MemuAI window."""

@@ -8,7 +8,6 @@ from unittest.mock import patch
 from app.pool import AccountPool
 from app.state import Account, state
 
-
 class AccountPoolConcurrencyTests(unittest.TestCase):
     def test_success_updates_are_serialized(self) -> None:
         account = Account("custom", fields={"name": "test"})
@@ -36,7 +35,6 @@ class AccountPoolConcurrencyTests(unittest.TestCase):
         self.assertEqual(peak, 1)
         self.assertEqual(account.stats["requests"], 20)
         self.assertEqual(account.stats["success"], 20)
-
 
 if __name__ == "__main__":
     unittest.main()

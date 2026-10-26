@@ -29,12 +29,10 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-
 def _chat(index: int, *, pinned: bool = False, updated: float | None = None) -> dict:
     return {"id": f"chat-{index}", "title": f"Chat {index}", "pinned": pinned,
             "updated": float(updated if updated is not None else 1_000 + index),
             "messages": [{"role": "user", "content": "hi"}]}
-
 
 class ChatsCapKeepsPinned(unittest.TestCase):
     def setUp(self):
@@ -58,7 +56,7 @@ class ChatsCapKeepsPinned(unittest.TestCase):
         self.assertEqual(len(ids), self.pgdata.CHATS_LIMIT)
         self.assertIn("chat-0", ids)
         self.assertIn("chat-259", ids)
-        self.assertNotIn("chat-1", ids)  # the oldest unpinned chat is the one dropped
+        self.assertNotIn("chat-1", ids)
 
     def test_save_upsert_and_full_merge_keep_pinned(self):
         rows = [_chat(0, pinned=True, updated=1)] + [_chat(i) for i in range(1, 230)]
@@ -75,7 +73,6 @@ class ChatsCapKeepsPinned(unittest.TestCase):
         capped = self.pgdata._cap_chats(rows)
         times = [row["updated"] for row in capped]
         self.assertEqual(times, sorted(times, reverse=True))
-
 
 class _BrokenStream(http.server.BaseHTTPRequestHandler):
     """Sends one SSE chunk of a chunked answer, then drops the connection."""
@@ -100,7 +97,6 @@ class _BrokenStream(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
-
 class _HtmlError(_BrokenStream):
     def do_POST(self):  # noqa: N802
         self.rfile.read(int(self.headers.get("Content-Length") or 0))
@@ -110,7 +106,6 @@ class _HtmlError(_BrokenStream):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
-
 
 class ChatRelay(unittest.TestCase):
     def serve(self, handler):
@@ -155,7 +150,6 @@ class ChatRelay(unittest.TestCase):
         self.assertEqual(_plain_error_body(b"<html><body>no title</body></html>"), "")
         self.assertEqual(len(_plain_error_body(b"x" * 5000)), 600)
 
-
 class MarkdownRunner(unittest.TestCase):
     """The real mdRender/cappedChats from app.js in node (tests/round25_chat_runner.cjs): fences
     opened mid-line or left unclosed, italic inside bold, task lists, <url> autolinks, XSS."""
@@ -168,7 +162,6 @@ class MarkdownRunner(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("PASS:", result.stdout)
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or "",
@@ -177,12 +170,10 @@ def _chromium() -> str:
             return candidate
     return ""
 
-
 try:
     from playwright.sync_api import sync_playwright
 except Exception:  # pragma: no cover - optional dependency
     sync_playwright = None
-
 
 @unittest.skipUnless(sync_playwright is not None and _chromium(), "Playwright/Chromium is not installed")
 class ChatUi(unittest.TestCase):
@@ -372,7 +363,6 @@ class ChatUi(unittest.TestCase):
           return [kept.length, kept.includes('c204'), kept.includes('c198'), kept.includes('c199')];
         })()""")
         self.assertEqual(result, [200, True, True, False])
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -31,15 +31,12 @@ _PROG = "MEMUPROG"
 _JSON = "MEMUJSON"
 MAX_JOBS_KEPT = 60
 
-
 class Cancelled(Exception):
     pass
-
 
 def format_for(quality: str, prefer_m4a: bool = True) -> str:
     pair = FORMATS.get(quality or "best", FORMATS["best"])
     return pair[0] if prefer_m4a else pair[1]
-
 
 def source_key(url: str, info: Optional[Dict[str, Any]] = None) -> str:
     """A stable id of the ORIGINAL item for dedup («yt:<id>», «sc:<path>», else the clean URL)."""
@@ -50,7 +47,6 @@ def source_key(url: str, info: Optional[Dict[str, Any]] = None) -> str:
     clean = re.sub(r"^https?://(www\.|m\.)?", "", clean)
     return f"{info.get('source') or 'web'}:{clean}"
 
-
 def split_title(title: str, uploader: str) -> Dict[str, str]:
     """«Artist - Title (Official Video)» → artist/title; «Name - Topic» channels are the artist."""
     artist = re.sub(r"\s*-\s*Topic$", "", uploader or "").strip()
@@ -60,9 +56,6 @@ def split_title(title: str, uploader: str) -> Dict[str, str]:
     if not m or re.search(r"-\s*Topic$", uploader or ""):
         return {"artist": artist, "title": clean or title}
     return {"artist": m.group(1).strip(), "title": m.group(2).strip()}
-
-
-# ---------------------------------------------------------------------- yt-dlp runners
 
 class Runner:
     """Thin wrapper over the yt-dlp binary or python module (same results either way)."""
@@ -169,7 +162,6 @@ class Runner:
         info["filepath"] = downloads[0].get("filepath") or info.get("filepath")
         return {k: info.get(k) for k in _FIELDS.split(",")}
 
-
 def _kill(proc: subprocess.Popen) -> None:
     try:
         proc.kill()
@@ -177,12 +169,10 @@ def _kill(proc: subprocess.Popen) -> None:
     except Exception:
         pass
 
-
 def _last_error(stderr: str) -> str:
     lines = [l.strip() for l in (stderr or "").splitlines() if l.strip()]
     errs = [l for l in lines if l.startswith("ERROR")]
     return (errs or lines or [""])[-1][:400]
-
 
 def friendly_error(text: str) -> str:
     """yt-dlp's most common failures in plain words (ru / en), the original line kept at the end."""
@@ -202,14 +192,10 @@ def friendly_error(text: str) -> str:
         return text
     return f"{hint} — {text[:160]}"
 
-
-# ---------------------------------------------------------------------- jobs
-
 _ITEM_PUBLIC = ("title", "artist", "status", "error", "error_code", "track_id", "progress", "duration", "via")
 _ITEM_SAVED = ("title", "artist", "album", "duration", "url", "query", "status", "error", "error_code", "track_id",
                "meta_source", "source_key", "source_url", "cover_url", "track_no", "year", "path", "via", "orig_url")
 INTERRUPTED = "Прервано перезапуском — нажмите «Повторить» / Interrupted by a restart — press Retry"
-
 
 class Job:
     def __init__(self, url: str, kind: str = "download", quality: str = "", info: Optional[Dict[str, Any]] = None):
@@ -226,13 +212,13 @@ class Job:
         self.error_code = ""
         self.interrupted = False
         self.track_ids: List[str] = []
-        self.items: List[Dict[str, Any]] = []   # {title, artist, status, error, track_id, progress, ...}
+        self.items: List[Dict[str, Any]] = []
         self.current = ""
         self.created_at = time.time()
         self.finished_at = 0.0
         self.cancel = threading.Event()
         self.holder: Dict[str, Any] = {}
-        self.holders: List[Dict[str, Any]] = []   # one per running item (parallel items) — cancel kills them all
+        self.holders: List[Dict[str, Any]] = []
         self.fracs: Dict[int, float] = {}
         self.lock = threading.Lock()
 
@@ -277,14 +263,13 @@ class Job:
         job.finished_at = float(data.get("finished_at") or 0)
         job.items = [dict(i) for i in data.get("items") or [] if isinstance(i, dict)]
         if job.status in ("queued", "running"):
-            # The app was closed mid-download: keep the job, mark it so «Retry» resumes the unfinished items.
+
             job.status, job.error, job.error_code, job.interrupted = "error", INTERRUPTED, "interrupted", True
             job.finished_at = job.finished_at or time.time()
             for item in job.items:
                 if item.get("status") in ("running", "queued"):
                     item["status"] = "pending"
         return job
-
 
 def error_code(text: str) -> str:
     low = (text or "").lower()
@@ -300,9 +285,8 @@ def error_code(text: str) -> str:
         return "not_found"
     return ""
 
-
 class Manager:
-    SAVE_EVERY = 1.5   # seconds between progress snapshots on disk
+    SAVE_EVERY = 1.5
 
     def __init__(self, library_factory: Callable[[], Library] = get_library,
                  runner_factory: Callable[[], Runner] = Runner, client_factory: Optional[Callable[[], Any]] = None,
@@ -313,7 +297,7 @@ class Manager:
         self.jobs: "collections.OrderedDict[str, Job]" = collections.OrderedDict()
         self.queue: "collections.deque[Job]" = collections.deque()
         self.lock = threading.RLock()
-        self.qcond = threading.Condition(self.lock)   # queue wake-ups (no lost notifications)
+        self.qcond = threading.Condition(self.lock)
         self.wake = threading.Event()
         self.worker: Optional[threading.Thread] = None
         self.workers: List[threading.Thread] = []
@@ -325,16 +309,15 @@ class Manager:
         self._saved_at = 0.0
         self._save_lock = threading.Lock()
         if on_track_added is None and library_factory is get_library:
-            # Real app only (tests pass their own factories): new tracks get lyrics in the background.
+
             from . import lyrics as _lyrics
             from . import extras as _extras
 
-            def on_track_added(tid: str) -> None:   # lyrics + loudness (r38), each in its own background thread
+            def on_track_added(tid: str) -> None:
                 _lyrics.prefetcher().add(tid)
                 _extras.analyzer().add(tid)
         self.on_track_added = on_track_added
 
-    # -- persistence
     def _path(self) -> Optional[Path]:
         if self.state_path:
             return Path(self.state_path)
@@ -380,14 +363,12 @@ class Manager:
             except OSError:
                 pass
 
-    # -- settings
     def parallel(self) -> int:
         try:
             return max(1, min(4, int(self.library_factory().settings().get("parallel_downloads", 2))))
         except Exception:
             return 2
 
-    # -- public
     def start(self, url: str, quality: str = "", playlist_id: str = "", replace_id: str = "") -> Dict[str, Any]:
         """``playlist_id`` — add the result to that playlist when done (r38 «save from search to a playlist»);
         ``replace_id`` — re-download that track (no dedup) and swap it in place (r38 «re-download in best quality»)."""
@@ -453,7 +434,7 @@ class Manager:
         for item in job.items:
             if (item.get("status") in ("done", "exists") and lib is not None and item.get("track_id")
                     and job.kind != "import" and not lib.row(item["track_id"])):
-                item["status"] = "pending"   # the track was deleted from the library since — fetch it again
+                item["status"] = "pending"
                 item.pop("track_id", None)
             if item.get("status") in ("error", "cancelled", "pending", "running", "queued"):
                 item.update(status="pending", error="", error_code="", progress=0)
@@ -476,7 +457,6 @@ class Manager:
         with self.lock:
             return [job.public() for job in reversed(self.jobs.values())]
 
-    # -- internals
     def _touch(self, force: bool = False) -> None:
         self.version += 1
         self.save(force)
@@ -496,9 +476,8 @@ class Manager:
     def _kick(self) -> None:
         self._touch(True)
         with self.qcond:
-            # Workers leave self.workers themselves (under this lock) before exiting, so the count is exact:
-            # no job can be left in the queue with every worker already on its way out.
-            want = self.parallel()   # idle workers exit after 60 s
+
+            want = self.parallel()
             while len(self.workers) < want:
                 worker = threading.Thread(target=self._loop, name=f"memumusic-jobs-{len(self.workers) + 1}", daemon=True)
                 self.workers.append(worker)
@@ -524,7 +503,6 @@ class Manager:
                         self.workers.remove(me)
                 raise
 
-    # -- download slots: at most parallel() yt-dlp processes at once, across all jobs and items
     def _acquire(self, job: Job) -> None:
         with self.slots:
             while self.active >= self.parallel():
@@ -590,7 +568,6 @@ class Manager:
         except (KeyError, ValueError):
             pass
 
-    # -- download
     def _set_progress(self, job: Job, index: int, fraction: float) -> None:
         total = max(1, len(job.items))
         fraction = max(0.0, min(1.0, fraction))
@@ -645,7 +622,7 @@ class Manager:
                 thread.join()
         if job.cancel.is_set():
             raise Cancelled()
-        # Keep the playlist order in track_ids (parallel items finish in any order).
+
         job.track_ids = list(dict.fromkeys([i["track_id"] for i in job.items if i.get("track_id")] + job.track_ids))
 
     def _runner(self, shared: Dict[str, Any]) -> "Runner":
@@ -757,7 +734,7 @@ class Manager:
             if job.cancel.is_set():
                 raise Cancelled()
             if bot_blocked and sources.detect(url).get("source") in ("youtube", "ytmusic"):
-                continue   # the same IP is blocked on YouTube Music too — go straight to SoundCloud
+                continue
             tried += 1
             try:
                 row = self._download_item(lib, runner, job, {**item, "url": url}, index, fmt, settings, holder)
@@ -923,7 +900,7 @@ class Manager:
             fields["duration"] = tools.probe_duration(path)
         cover = self._fetch_cover(cover_url)
         if settings.get("embed_cover", True):
-            # Tags + cover inside the file (mutagen; ffmpeg optional). Never fails the download.
+
             from . import tagger
             tagger.embed(path, fields, cover)
         return lib.add(fields, cover)
@@ -943,7 +920,6 @@ class Manager:
             pass
         return None
 
-    # -- import
     def _run_import(self, job: Job) -> None:
         lib = self.library_factory()
         folder = Path(job.url)
@@ -982,15 +958,12 @@ class Manager:
             if index % 10 == 0 or index == len(job.items) - 1:
                 self._set_progress(job, index, 1)
 
-
 def _quote(text: str) -> str:
     import urllib.parse
     return urllib.parse.quote_plus(text)
 
-
 _MANAGER: Optional[Manager] = None
 _MANAGER_LOCK = threading.Lock()
-
 
 def manager() -> Manager:
     global _MANAGER
@@ -998,7 +971,6 @@ def manager() -> Manager:
         if _MANAGER is None:
             _MANAGER = Manager()
         return _MANAGER
-
 
 def search_online(q: str, limit: int = 12, music: bool = False, runner_factory: Callable[[], Runner] = Runner) -> List[Dict[str, Any]]:
     q = str(q or "").strip()

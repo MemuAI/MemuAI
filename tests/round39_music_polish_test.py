@@ -23,11 +23,9 @@ from round37_music_harness import chromium, frame_of, open_page, wait  # noqa: E
 CSS = (ROOT / "app" / "module_builtins" / "music" / "style.css").read_text(encoding="utf-8")
 TG_CSS = (ROOT / "app" / "tgapp" / "music.css").read_text(encoding="utf-8")
 
-
 def rule(css: str, selector: str) -> str:
     m = re.search(re.escape(selector) + r"\s*\{([^}]*)\}", css)
     return m.group(1) if m else ""
-
 
 class StaticTest(unittest.TestCase):
     def test_progress_by_width(self):
@@ -44,7 +42,6 @@ class StaticTest(unittest.TestCase):
         self.assertIn(':is(input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"], [type="button"]), textarea, select):focus-visible { outline: none; }', CSS)
         self.assertIn(".mm-select:focus-visible", CSS)
         self.assertNotIn(".mm-row:focus-within", CSS)
-
 
 @unittest.skipUnless(chromium(), "Chromium is not installed")
 class BrowserTest(unittest.TestCase):
@@ -83,7 +80,6 @@ class BrowserTest(unittest.TestCase):
                 self.assertFalse([e for e in errors if "favicon" not in e], errors)
             finally:
                 browser.close()
-
 
 if __name__ == "__main__":
     unittest.main()

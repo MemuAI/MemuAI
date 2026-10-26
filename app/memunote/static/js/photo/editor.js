@@ -1,6 +1,5 @@
-// MemuNote Photo (Round 32) — the photo editor tab: viewport (zoom / pan / rulers / grid / guides), tools,
-// layers / history / adjustments / AI panels, colour picker, keyboard shortcuts like Photoshop.
-// The document model is doc.js, pixel maths pixels.js (+ pixel-worker.js), files io.js, commands commands.js, AI ai.js.
+
+
 import { esc, t, I18N, toast, showMenu, kbd, api } from "../core.js";
 import { PhotoDoc, newCanvas, ctx2d, cloneCanvas, isVector, renderVector, vectorBounds, textBox, fontString } from "./doc.js";
 import { TOOLS, TOOL_GROUPS, DEFAULT_OPTS } from "./tools.js";
@@ -33,9 +32,8 @@ export class PhotoEditor {
   }
   get dirty() { return !!this.doc && (this.doc.dirty || !this.tab.path); }
 
-  // ================================================================ boot
   async init() {
-    if (!this.tab.path && this.tab.photoCanvas) {   // "AI image → new file": a document from a canvas
+    if (!this.tab.path && this.tab.photoCanvas) {
       const c = this.tab.photoCanvas; delete this.tab.photoCanvas;
       const doc = new PhotoDoc(c.width, c.height), l = doc.makeLayer({ name: t("ph_layer_background"), canvas: c });
       doc.layers.push(l); doc.activeId = l.id; this.setDoc(doc); this.hooks.onDirty?.(true); return;
@@ -87,7 +85,6 @@ export class PhotoEditor {
     setTimeout(() => f.querySelector("button[type=submit]")?.focus(), 30);
   }
 
-  // ================================================================ shell
   buildShell() {
     const menus = [["file", "ph_menu_file"], ["edit", "ph_menu_edit"], ["image", "ph_menu_image"], ["layer", "ph_menu_layer"], ["select", "ph_menu_select"], ["filter", "ph_menu_filter"], ["view", "ph_menu_view"], ["ai", "ph_menu_ai"]];
     this.el.innerHTML = `
@@ -106,7 +103,7 @@ export class PhotoEditor {
     this.stage = this.el.querySelector(".ph-stage"); this.canvas = this.el.querySelector(".ph-view"); this.ctx = this.canvas.getContext("2d");
     this.rx = this.el.querySelector(".ph-ruler.x"); this.ry = this.el.querySelector(".ph-ruler.y");
     this.el.querySelectorAll("[data-menu]").forEach((b) => (b.onclick = () => this.openMenu(b.dataset.menu, b)));
-    // narrow window: the menu bar scrolls sideways with the mouse wheel; a fade on the right shows there is more
+
     const bar = this.el.querySelector(".ph-bar"); this.barMore = () => bar.classList.toggle("more", bar.scrollLeft + bar.clientWidth < bar.scrollWidth - 2);
     bar.addEventListener("wheel", (e) => { if (bar.scrollWidth <= bar.clientWidth + 1 || e.ctrlKey) return; e.preventDefault(); bar.scrollLeft += e.deltaY || e.deltaX; }, { passive: false });
     bar.addEventListener("scroll", this.barMore, { passive: true });
@@ -122,7 +119,7 @@ export class PhotoEditor {
   onResize() {
     const r = this.stage.getBoundingClientRect(); if (!r.width) return;
     const narrow = this.el.getBoundingClientRect().width < 860; this.el.classList.toggle("narrow", narrow); this.barMore?.();
-    if (narrow && !this.narrowSeen) { this.narrowSeen = true; this.sideOpen = false; this.el.classList.add("side-closed"); }   // panels float over the canvas on narrow windows
+    if (narrow && !this.narrowSeen) { this.narrowSeen = true; this.sideOpen = false; this.el.classList.add("side-closed"); }
     this.dpr = window.devicePixelRatio || 1;
     this.canvas.width = Math.round(r.width * this.dpr); this.canvas.height = Math.round(r.height * this.dpr);
     this.canvas.style.width = r.width + "px"; this.canvas.style.height = r.height + "px";
@@ -136,9 +133,8 @@ export class PhotoEditor {
   toast(m, o) { toast(m, o); }
   hint(text) { this._hint = text; this.renderStatus(); }
 
-  // ================================================================ view math
   toDoc(e) { const r = this.canvas.getBoundingClientRect(); return { x: (e.clientX - r.left - this.view.panX) / this.view.zoom, y: (e.clientY - r.top - this.view.panY) / this.view.zoom }; }
-  /** Keep at least 80 px of the image on screen after a user pan (wheel / hand / Space / middle button). */
+
   clampPan() { const d = this.doc; if (!d) return; const r = this.canvas.getBoundingClientRect(), m = 80, W = d.width * this.view.zoom, H = d.height * this.view.zoom; this.view.panX = Math.min(r.width - Math.min(m, W), Math.max(Math.min(m, W) - W, this.view.panX)); this.view.panY = Math.min(r.height - Math.min(m, H), Math.max(Math.min(m, H) - H, this.view.panY)); }
   toScreen(p) { return { x: p.x * this.view.zoom + this.view.panX, y: p.y * this.view.zoom + this.view.panY }; }
   fit(fill = false) {
@@ -161,7 +157,6 @@ export class PhotoEditor {
   zoomStep(d) { const steps = [0.02, 0.05, 0.0833, 0.125, 0.1667, 0.25, 0.333, 0.5, 0.667, 1, 1.5, 2, 3, 4, 6, 8, 12, 16, 24, 32, 64], z = this.view.zoom; const next = d > 0 ? steps.find((s) => s > z * 1.01) || 64 : [...steps].reverse().find((s) => s < z / 1.01) || 0.02; const r = this.canvas.getBoundingClientRect(); this.zoomAt(next / z, r.left + r.width / 2, r.top + r.height / 2); }
   renderZoom() { const b = this.el.querySelector(".ph-zoom-v"); if (b) b.textContent = (this.view.zoom * 100 >= 10 ? Math.round(this.view.zoom * 100) : (this.view.zoom * 100).toFixed(1)) + "%"; this.renderStatus(); }
 
-  // ================================================================ rendering
   requestRender() { if (this.raf) return; this.raf = requestAnimationFrame(() => { this.raf = 0; this.render(); }); }
   layerChanged(rect) { if (this.doc) { if (rect) this.doc.markDirtyRect(rect); else this.doc.compDirty = true; } this.requestRender(); this.thumbsSoon(); }
   render() {
@@ -171,8 +166,7 @@ export class PhotoEditor {
     if (this.pendingFrames && this.visible()) this.offerFrames(this.pendingFrames);
     const z = this.view.zoom, X = this.view.panX, Y = this.view.panY, W = d.width * z, H = d.height * z;
     const comp = d.composite();
-    // The scaled document is cached at screen size: hover / overlays / brush cursor redraw only blit it. While a stroke is
-    // being painted on a zoomed-out image the downscale uses "low" smoothing (≈5× cheaper on 6000×4000); pointer-up redraws in high quality.
+
     const fast = this.down && z < 1, key = `${d.compStamp}|${z}|${X}|${Y}|${c.width}|${c.height}|${dpr}|${fast}`;
     if (this.viewKey !== key || this.viewDoc !== d) {
       const vc = this.viewCache && this.viewCache.width === c.width && this.viewCache.height === c.height ? this.viewCache : (this.viewCache = newCanvas(c.width, c.height));
@@ -201,7 +195,7 @@ export class PhotoEditor {
     for (let gy = step; gy < this.doc.height; gy += step) { const sy = Math.round(Y + gy * z) + 0.5; x.moveTo(X, sy); x.lineTo(X + W, sy); }
     x.stroke(); x.restore();
   }
-  // marching ants: edges of the selection computed at screen resolution (cached by view + selection version)
+
   drawAnts(x) {
     const d = this.doc; if (!d.selection) { clearInterval(this.antsTimer); this.antsTimer = 0; return; }
     const key = `${d.selVersion}|${this.view.zoom}|${this.view.panX}|${this.view.panY}|${this.canvas.width}|${this.canvas.height}`;
@@ -248,7 +242,6 @@ export class PhotoEditor {
     this.el.classList.toggle("no-rulers", !this.showRulers);
   }
 
-  // ================================================================ input
   bindInput() {
     const cv = this.canvas;
     cv.addEventListener("pointerdown", (e) => this.onDown(e));
@@ -263,7 +256,7 @@ export class PhotoEditor {
       else { this.view.panX -= e.shiftKey ? e.deltaY : e.deltaX; this.view.panY -= e.shiftKey ? 0 : e.deltaY; this.clampPan(); this.requestRender(); this.renderRulers(); }
     }, { passive: false });
     cv.addEventListener("contextmenu", (e) => { e.preventDefault(); if (this.doc) this.contextMenu(e); });
-    // rulers → guides
+
     for (const [c, axis] of [[this.rx, "y"], [this.ry, "x"]]) c.addEventListener("pointerdown", (e) => { if (!this.doc) return; e.preventDefault(); this.guideDrag = { axis, guide: null }; c.setPointerCapture(e.pointerId); });
     for (const c of [this.rx, this.ry]) {
       c.addEventListener("pointermove", (e) => { const g = this.guideDrag; if (!g) return; const p = this.toDoc(e); if (!g.guide) { this.doc.begin(t("ph_guide")); g.guide = { axis: g.axis, pos: 0 }; this.doc.guides.push(g.guide); } g.guide.pos = Math.round(g.axis === "x" ? p.x : p.y); this.requestRender(); });
@@ -315,11 +308,10 @@ export class PhotoEditor {
   setCursor(c) { const tl = TOOLS[this.toolId]; const want = c || (this.spaceDown ? "grab" : tl?.cursor === "brush" ? "none" : tl?.cursor || "default"); this.canvas.style.cursor = want; }
   error(err) { console.error(err); toast(t("ph_error") + ": " + (err?.message || err), { kind: "error" }); this.doc?.tx && this.doc.cancel(); }
 
-  /** Keys from app.js (capture phase, before the notepad's own shortcuts). Returns true when handled. */
   handleKey(e) {
     if (!this.visible()) return false;
     const tag = e.target?.tagName, inField = /^(INPUT|TEXTAREA|SELECT)$/.test(tag || "") || e.target?.isContentEditable;
-    const mod = e.ctrlKey || e.metaKey, lk = globalThis.MemuKeys ? MemuKeys.latin(e) : e.key, k = lk.length === 1 ? lk.toLowerCase() : lk;   // r33: any layout
+    const mod = e.ctrlKey || e.metaKey, lk = globalThis.MemuKeys ? MemuKeys.latin(e) : e.key, k = lk.length === 1 ? lk.toLowerCase() : lk;
     if (e.type === "keyup") { if (e.key === " ") { this.spaceDown = false; this.setCursor(); } return false; }
     if (inField) {
       if (this.textEdit && e.key === "Escape") { e.preventDefault(); this.finishText(); return true; }
@@ -327,7 +319,7 @@ export class PhotoEditor {
       return false;
     }
     if (!this.doc) return false;
-    if (document.querySelector(".ph-dlg, .ph-picker, .menu") && (e.key === "Escape" || e.key === "Enter")) return false;   // dialogs own Esc / Enter
+    if (document.querySelector(".ph-dlg, .ph-picker, .menu") && (e.key === "Escape" || e.key === "Enter")) return false;
     const run = (fn) => { e.preventDefault(); e.stopPropagation(); try { const r = fn(); if (r?.catch) r.catch((err) => this.error(err)); } catch (err) { this.error(err); } return true; };
     if (this.xf) { if (e.key === "Enter") return run(() => this.xfApply()); if (e.key === "Escape") return run(() => this.xfCancel()); }
     if (!mod && TOOLS[this.toolId]?.keyHandler?.(this, e)) { e.preventDefault(); e.stopPropagation(); return true; }
@@ -349,7 +341,6 @@ export class PhotoEditor {
     return false;
   }
 
-  // ================================================================ tools & options
   setTool(id) {
     if (!TOOLS[id] || id === this.toolId && !this.xf) { this.renderTools(); return; }
     if (this.textEdit) this.finishText();
@@ -436,8 +427,6 @@ export class PhotoEditor {
   brushSize(d) { const o = this.opts[this.toolId]; if (!o?.size) return; const s = o.size; o.size = Math.max(1, Math.min(1000, Math.round(d > 0 ? (s < 10 ? s + 1 : s * 1.15) : (s <= 10 ? s - 1 : s / 1.15)))); saveOpts(this.opts); this.renderOptions(); this.requestRender(); this.hint(`${t("ph_size")}: ${o.size}px`); }
   brushHardness(d) { const o = this.opts[this.toolId]; if (o?.hardness === undefined) return; o.hardness = Math.max(0, Math.min(100, o.hardness + d)); saveOpts(this.opts); this.renderOptions(); this.hint(`${t("ph_hardness")}: ${o.hardness}%`); }
 
-  // ================================================================ layer targets
-  /** The pixels a paint tool works on: the active raster layer (expanded to the document) or its mask. */
   rasterTarget(forPaint = false) {
     const doc = this.doc, l = doc.active;
     if (!l) { toast(t("ph_no_layer")); return null; }
@@ -449,7 +438,7 @@ export class PhotoEditor {
     if (forPaint && (l.x !== 0 || l.y !== 0 || l.canvas.width !== doc.width || l.canvas.height !== doc.height)) this.expandLayer(l);
     return { canvas: l.canvas, x: l.x, y: l.y, isMask: false, layer: l, layerId: l.id };
   }
-  expandLayer(l) {   // a PSD / pasted layer smaller than the document: give it the document's box (keeps what is inside)
+  expandLayer(l) {
     const doc = this.doc, c = newCanvas(doc.width, doc.height); ctx2d(c).drawImage(l.canvas, l.x, l.y);
     let m = null; if (l.mask) { m = newCanvas(doc.width, doc.height); const mx = ctx2d(m); mx.fillStyle = "#fff"; mx.fillRect(0, 0, doc.width, doc.height); mx.clearRect(l.x, l.y, l.mask.width, l.mask.height); mx.drawImage(l.mask, l.x, l.y); }
     doc.begin(t("ph_layer")); doc.swap(l, c); if (m) doc.swap(l, m, "mask"); l.x = 0; l.y = 0; doc.commit(t("ph_expand_layer"));
@@ -470,8 +459,6 @@ export class PhotoEditor {
     return null;
   }
 
-  // ================================================================ selection
-  /** Combine a new mask with the current selection and record it. */
   select(mask, mode = "new", label = t("ph_selection")) {
     const doc = this.doc; let m = mask;
     if (mode !== "new" && doc.selection && mask) m = combineMasks(doc.selection, mask, mode);
@@ -492,7 +479,7 @@ export class PhotoEditor {
     else x.clearRect(0, 0, t0.canvas.width, t0.canvas.height);
     doc.commit();
   }
-  /** Segment an object inside a document box (downscaled for speed, mask scaled back). */
+
   async segmentBox(box, { seed = null } = {}) {
     const doc = this.doc, src = this.opts.wand.sampleAll === false && this.toolId !== "objsel" ? this.layerImageCanvas() : doc.flatten();
     const k = Math.min(1, 700 / Math.max(doc.width, doc.height)), w = Math.max(10, Math.round(doc.width * k)), h = Math.max(10, Math.round(doc.height * k));
@@ -513,7 +500,6 @@ export class PhotoEditor {
     return out;
   }
 
-  // ================================================================ worker
   worker(job, transfer = []) {
     if (!this.worker_) {
       try { this.worker_ = new Worker(new URL("./pixel-worker.js", import.meta.url), { type: "module" }); this.jobs = new Map(); this.jobId = 0;
@@ -526,7 +512,6 @@ export class PhotoEditor {
     return new Promise((res, rej) => { this.jobs.set(id, { res, rej }); this.worker_.postMessage({ ...job, id }, transfer); });
   }
 
-  // ================================================================ colours
   setColor(which, hex) {
     if (!parseHex(hex)) return; hex = toHex(...parseHex(hex));
     this[which] = hex; localStorage.setItem(LS + which, hex);
@@ -581,7 +566,6 @@ export class PhotoEditor {
     setTimeout(() => document.addEventListener("pointerdown", close, true), 0);
   }
 
-  // ================================================================ text editing (inline textarea over the canvas)
   editText(l, isNew = false) {
     if (this.textEdit) this.finishText();
     const doc = this.doc;
@@ -597,7 +581,7 @@ export class PhotoEditor {
       Object.assign(ta.style, { left: s.x - 4 + "px", top: s.y - 4 + "px", width: Math.max(60, b.w * z + 24) + "px", height: Math.max(l.text.size * l.text.lineHeight * z, b.h * z) + 12 + "px", font: fontString({ ...l.text, size: l.text.size * z }), lineHeight: l.text.lineHeight, textAlign: l.text.align });
     };
     ta.addEventListener("input", sync); sync();
-    // inline options follow the layer
+
     Object.assign(this.opts.text, { font: l.text.font, size: l.text.size, bold: l.text.bold, italic: l.text.italic, underline: l.text.underline, align: l.text.align, stroke: l.text.stroke, shadow: l.text.shadow });
     if (this.toolId !== "text") this.setTool("text"); else this.renderOptions();
     this.refreshPanels();
@@ -620,7 +604,6 @@ export class PhotoEditor {
     this.refreshPanels(); this.el.focus({ preventScroll: true });
   }
 
-  // ================================================================ status bar
   renderStatus() {
     const host = this.el.querySelector(".ph-status"); if (!host) return;
     if (!this.doc) { host.innerHTML = ""; return; }
@@ -634,7 +617,6 @@ export class PhotoEditor {
     host.innerHTML = `<span>${d.width} × ${d.height} px</span><span class="sep"></span><span>${esc(this.info?.format || "")}</span><span class="sep"></span><span>${p ? `X ${Math.floor(p.x)}  Y ${Math.floor(p.y)}` : "&nbsp;"}</span>${color ? `<span class="ph-st-color"><i style="background:${color}"></i>${color}</span>` : ""}${sb ? `<span class="sep"></span><span>${esc(t("ph_selection"))}: ${sb.w} × ${sb.h}</span>` : ""}<span class="ph-sp"></span>${this._hint ? `<span class="ph-st-hint">${esc(this._hint)}</span>` : ""}<span>${Math.round(this.view.zoom * 1000) / 10}%</span>`;
   }
 
-  // ================================================================ side panels
   renderTabs() {
     const tabs = [["layers", "layers", "ph_tab_layers"], ["props", "sliders", "ph_tab_adjust"], ["history", "history", "ph_tab_history"], ["ai", "sparkle", "ph_tab_ai"]];
     const host = this.el.querySelector(".ph-tabs");
@@ -709,7 +691,7 @@ export class PhotoEditor {
       const l = d.find(c.dataset.thumb || c.dataset.mthumb)?.layer; if (!l) return;
       const x = c.getContext("2d"), k = Math.min(c.width / d.width, c.height / d.height), w = d.width * k, h = d.height * k, ox = (c.width - w) / 2, oy = (c.height - h) / 2;
       x.clearRect(0, 0, c.width, c.height);
-      if (c.dataset.mthumb) {   // a mask is its alpha (its RGB may be black, e.g. made from a selection): white = shown, black = hidden
+      if (c.dataset.mthumb) {
         const mx = l.type === "group" ? 0 : l.x, my = l.type === "group" ? 0 : l.y, tc = newCanvas(c.width, c.height), tx = ctx2d(tc);
         tx.drawImage(l.mask, ox + mx * k, oy + my * k, l.mask.width * k, l.mask.height * k); tx.globalCompositeOperation = "source-in"; tx.fillStyle = "#fff"; tx.fillRect(0, 0, tc.width, tc.height);
         x.fillStyle = "#000"; x.fillRect(ox, oy, w, h); x.drawImage(tc, 0, 0); return;
@@ -783,19 +765,15 @@ export class PhotoEditor {
     x.globalCompositeOperation = "source-over";
   }
 
-  // ================================================================ menus
   openMenu(id, anchor) { const items = COMMANDS.menu(this, id); if (items) showMenu(items, anchor); }
   contextMenu(e) {
     const p = this.toDoc(e);
     showMenu(COMMANDS.context(this, p), { x: e.clientX, y: e.clientY });
   }
 
-  // ================================================================ undo / redo
   undo() { if (this.textEdit) this.finishText(); if (this.xf) { this.xfCancel(); return; } this.doc?.undo(); }
   redo() { if (this.textEdit) this.finishText(); this.doc?.redo(); }
 
-  // ================================================================ files (called by app.js)
-  /** Ctrl+S: write to the tab's path in its own format (layered formats keep layers, flat ones are flattened). */
   async save(path, o = {}) {
     if (this.textEdit) this.finishText();
     if (this.xf) this.xfApply();
@@ -811,14 +789,13 @@ export class PhotoEditor {
       return r;
     } finally { this.busy(false); }
   }
-  /** Save as / export with a format chooser (quality, background); used by app.js "Save as" and File → Export. */
+
   async saveAs(exportOnly = false) {
     if (!this.doc) return false;
     const r = await COMMANDS.exportDialog(this, exportOnly);
     return !!r;
   }
 
-  // ================================================================ place / paste
   async placeFile(file, name) {
     try {
       let canvas;
@@ -849,20 +826,18 @@ export class PhotoEditor {
   }
   pasteInternal() { if (this.clip) this.placeCanvas(cloneCanvas(this.clip), t("ph_pasted")); }
   async offerFrames(info) {
-    if (!this.visible()) { this.pendingFrames = info; return; }   // shown when the tab is first looked at
+    if (!this.visible()) { this.pendingFrames = info; return; }
     this.pendingFrames = null;
     toast(t("ph_frames_found", { n: info.frames }), { ms: 10000, action: { label: t("ph_frames_import"), run: () => this.cmd("importFrames") } });
   }
 }
 
-// ---------------------------------------------------------------- free transform (Ctrl+T), mixed into the class
 Object.assign(PhotoEditor.prototype, TRANSFORM);
 
-// ---------------------------------------------------------------- helpers
 function checkerTile(n = 8) { const c = newCanvas(n * 2, n * 2), x = ctx2d(c); x.fillStyle = "#ffffff"; x.fillRect(0, 0, n * 2, n * 2); x.fillStyle = "#d6d6d6"; x.fillRect(0, 0, n, n); x.fillRect(n, n, n, n); return c; }
 function clampInt(v, a, b, d) { const n = Math.round(+v); return Number.isFinite(n) ? Math.max(a, Math.min(b, n)) : d; }
-function loadOpts() { const base = DEFAULT_OPTS(); try { const saved = JSON.parse(localStorage.getItem(LS + "opts") || "{}"); for (const k of Object.keys(base)) if (saved[k] && typeof saved[k] === "object") Object.assign(base[k], saved[k]); base.export = saved.export || { quality: 92 }; } catch { /* defaults */ } return base; }
-function saveOpts(o) { try { localStorage.setItem(LS + "opts", JSON.stringify(o)); } catch { /* quota */ } }
+function loadOpts() { const base = DEFAULT_OPTS(); try { const saved = JSON.parse(localStorage.getItem(LS + "opts") || "{}"); for (const k of Object.keys(base)) if (saved[k] && typeof saved[k] === "object") Object.assign(base[k], saved[k]); base.export = saved.export || { quality: 92 }; } catch {  } return base; }
+function saveOpts(o) { try { localStorage.setItem(LS + "opts", JSON.stringify(o)); } catch {  } }
 async function inlineJob(job) {
   const P = await import("./pixels.js");
   const img = { width: job.width, height: job.height, data: new Uint8ClampedArray(job.buffer) };

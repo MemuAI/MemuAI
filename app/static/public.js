@@ -1,7 +1,5 @@
-/* Proxy — вкладка «Публичный доступ» (Round 24: пошаговый вид).
-   1) включить отдельный сервер, 2) получить адрес (локальная сеть, свой домен или бесплатный
-   Cloudflare Tunnel), 3) модели и собственные ключи с лимитами, 4) готовые примеры подключения.
-   Ключ показывается один раз при создании/ротации: на диске хранится только его хэш. */
+
+
 "use strict";
 
 window.MemuPublic = (() => {
@@ -38,8 +36,6 @@ window.MemuPublic = (() => {
     } catch (error) { toast(errorOf(error), "err", 6000); }
     render();
   }
-
-  /* ------------------------------------------------------------ pieces */
 
   function statusLine() {
     const { settings, status } = S.view;
@@ -168,16 +164,13 @@ window.MemuPublic = (() => {
     };
   }
 
-  /* ------------------------------------------------------------ render */
-
   function render() {
     const root = $("#public-root");
     if (!root || !S.view) return;
     const { settings, keys, catalogue, today, status } = S.view;
     const chosen = new Set(settings.models);
     const needle = S.filter.trim().toLowerCase();
-    // Round 34: the list showed bare ids only — rows now carry the readable name (as the model catalogue does),
-    // and the search finds either.
+
     const modelName = (id) => (typeof proxyModelName === "function" ? proxyModelName({ id }) : id);
     const shown = catalogue.filter((id) => !needle || id.toLowerCase().includes(needle) || modelName(id).toLowerCase().includes(needle));
     const hosts = [["0.0.0.0", L("Все сети этого компьютера (0.0.0.0)", "Every network of this computer (0.0.0.0)")],
@@ -264,13 +257,12 @@ window.MemuPublic = (() => {
     schedulePoll();
   }
 
-  /* Poll while the tunnel is starting or cloudflared is downloading, so the address appears by itself. */
   function schedulePoll() {
     clearTimeout(S.poll);
     const tn = (S.view && S.view.tunnel) || {};
     if (!$("#tab-public")?.classList.contains("active")) return;
     if (tn.state === "starting" || tn.downloading) S.poll = setTimeout(async () => {
-      try { S.view = await api("/api/admin/public"); render(); } catch (e) { /* next click retries */ }
+      try { S.view = await api("/api/admin/public"); render(); } catch (e) {  }
     }, 2000);
   }
 
@@ -292,7 +284,7 @@ window.MemuPublic = (() => {
     const port = $("#pub-port");
     port.onchange = () => {
       const value = Number(port.value);
-      // An emptied or out-of-range field used to be saved as 0, which the server turned into port 1.
+
       if (!Number.isInteger(value) || value < 1 || value > 65535) { port.value = settings.port; toast(L("Порт — число от 1 до 65535", "The port is a number from 1 to 65535"), "err"); return; }
       save({ port: value });
     };
@@ -327,7 +319,7 @@ window.MemuPublic = (() => {
       try { S.check = await api("/api/admin/public/check", { method: "POST", body: {} }); } catch (error) { toast(errorOf(error), "err"); }
       S.checking = false; render();
     };
-    // tunnel
+
     $$("[data-pub-tnmode]").forEach((button) => button.onclick = () => tunnel({ action: "config", mode: button.dataset.pubTnmode }));
     const start = $("#pub-tn-start"); if (start) start.onclick = () => tunnel({ action: "start" }, true);
     const stop = $("#pub-tn-stop"); if (stop) stop.onclick = () => tunnel({ action: "stop" }, true);
@@ -339,11 +331,11 @@ window.MemuPublic = (() => {
       L(`Будет скачан официальный файл ${S.view.tunnel.asset} (~40–55 МБ) с github.com/cloudflare/cloudflared/releases и сохранён в папку данных Proxy.`,
         `The official ${S.view.tunnel.asset} (~40–55 MB) is downloaded from github.com/cloudflare/cloudflared/releases into the Proxy data folder.`),
       () => tunnel({ action: "download", confirm: true }, true), L("Скачать", "Download"));
-    // examples
+
     $$("[data-pub-sample]").forEach((button) => button.onclick = () => { S.sample = button.dataset.pubSample; render(); });
     $("#pub-code-copy").onclick = () => copyText($("#pub-code").textContent, L("Скопировано", "Copied"));
     const hide = $("#pub-fresh-hide"); if (hide) hide.onclick = () => { S.fresh = null; render(); };
-    // keys
+
     $("#pub-key-new").onclick = () => keyForm(null);
     $$("[data-pub-edit]").forEach((button) => button.onclick = () => keyForm(S.view.keys.find((key) => key.id === button.dataset.pubEdit)));
     $$("[data-pub-toggle]").forEach((box) => box.onchange = () => keyCall(box.dataset.pubToggle, { enabled: box.checked }));
@@ -351,7 +343,7 @@ window.MemuPublic = (() => {
       const key = S.view.keys.find((row) => row.id === button.dataset.pubRotate);
       confirmDialog(L("Ротация ключа?", "Rotate the key?"), `${key.name || hintOf(key)} — ${L("старый ключ перестанет работать сразу, новый покажется один раз", "the old key stops working at once, the new one is shown once")}`,
         async () => {
-          // A failed rotation must not show the key of an earlier creation as "the new key".
+
           S.fresh = null;
           if (await keyCall(key.id, { regenerate: true })) showFresh();
         }, L("Выпустить новый", "Issue a new one"));

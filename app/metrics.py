@@ -22,22 +22,20 @@ log = logging.getLogger("memuai.metrics")
 _WINDOW = 3600.0
 HOUR = 3600
 DAY = 86400
-# Сколько часов истории храним на диске (35 суток).
+
 KEEP_HOURS = 35 * 24
-# Верхние границы бинов гистограммы задержек, мс. Последний бин — «и больше».
+
 LAT_EDGES = (100, 250, 500, 1000, 2000, 4000, 8000, 15000, 30000, 60000)
 METRICS_PATH = os.path.join(DATA_DIR, "metrics.json")
 _FLUSH_SECONDS = 20.0
 
-# Готовые периоды панели: ключ → (длина окна в секундах или None, шаг графика).
 PERIODS: Dict[str, Tuple[Optional[int], int]] = {
-    "today": (None, HOUR),      # с начала местных суток
+    "today": (None, HOUR),
     "day": (DAY, HOUR),
     "week": (7 * DAY, DAY),
     "month": (30 * DAY, DAY),
     "all": (None, DAY),
 }
-
 
 def _new_bucket() -> Dict[str, Any]:
     return {
@@ -47,19 +45,14 @@ def _new_bucket() -> Dict[str, Any]:
         "lat": [0] * (len(LAT_EDGES) + 1),
     }
 
-
 _SLOT_FIELDS = ("total", "ok", "failed", "ms", "prompt_tokens", "completion_tokens",
-                # v3: cached input, hidden reasoning (inside completion), requests whose token
-                # counts were the Proxy's length estimate, and the upstream's own charge.
-                "cache_tokens", "reasoning_tokens", "estimated", "billed_n", "billed_micro")
-#: A model slot remembers which provider served it: without a prefix (``use_prefixes``
-#: off) the model id alone cannot tell a Kiro subscription from a paid API key.
-_PROVIDER_KEY = "provider"
 
+                "cache_tokens", "reasoning_tokens", "estimated", "billed_n", "billed_micro")
+
+_PROVIDER_KEY = "provider"
 
 def _new_slot() -> Dict[str, int]:
     return {field: 0 for field in _SLOT_FIELDS}
-
 
 def _coerce_slot(value: Any) -> Dict[str, Any]:
     """A provider/model counter; version-1 files stored a bare request count for models."""
@@ -80,25 +73,21 @@ def _coerce_slot(value: Any) -> Dict[str, Any]:
             pass
     return slot
 
-
 def _local_day(stamp: float) -> int:
     """Local midnight (epoch seconds) of ``stamp``: daily bars follow the user's clock, not UTC."""
     local = time.localtime(stamp)
     return int(time.mktime((local.tm_year, local.tm_mon, local.tm_mday, 0, 0, 0, 0, 0, -1)))
-
 
 def _pct_change(now: float, before: float) -> Optional[float]:
     if not before:
         return None
     return round((now - before) / before * 100, 1)
 
-
 def _lat_bin(ms: int) -> int:
     for index, edge in enumerate(LAT_EDGES):
         if ms <= edge:
             return index
     return len(LAT_EDGES)
-
 
 def _percentile_from_hist(hist: List[int], share: float) -> int:
     """Приблизительный перцентиль по гистограмме задержек."""
@@ -113,25 +102,20 @@ def _percentile_from_hist(hist: List[int], share: float) -> int:
             low = 0 if index == 0 else LAT_EDGES[index - 1]
             high = LAT_EDGES[index] if index < len(LAT_EDGES) else LAT_EDGES[-1] * 2
             inside = count or 1
-            # Линейная интерполяция внутри бина даёт более ровные значения,
-            # чем возврат его верхней границы.
+
             position = (target - (seen - count)) / inside
             return int(low + (high - low) * min(1.0, max(0.0, position)))
     return LAT_EDGES[-1]
 
-
 def json_copy(value: Any) -> Any:
     return copy.deepcopy(value)
-
 
 def _merge_counter(into: Dict[str, int], source: Dict[str, Any]) -> None:
     for key, value in (source or {}).items():
         into[key] = into.get(key, 0) + int(value or 0)
 
-
 def _new_point(stamp: int) -> Dict[str, Any]:
     return {"ts": stamp, "total": 0, "ok": 0, "failed": 0, "tokens": 0, "ms": 0, "cost": 0.0}
-
 
 def pricing_billing(provider: str) -> str:
     try:
@@ -139,7 +123,6 @@ def pricing_billing(provider: str) -> str:
         return pricing.billing_kind("", provider) if provider and provider != "—" else "unknown"
     except Exception:
         return "unknown"
-
 
 def _legacy_share(bucket: Dict[str, Any]) -> Dict[str, Tuple[int, int]]:
     """Tokens an hour counted in total but no model slot carries.
@@ -175,7 +158,6 @@ def _legacy_share(bucket: Dict[str, Any]) -> Dict[str, Tuple[int, int]]:
     prompt, completion = split(free_p), split(free_c)
     return {name: (prompt[name], completion[name]) for name in bare}
 
-
 class _Coster:
     """Prices model slots of hourly buckets; one price lookup per model and provider."""
 
@@ -183,7 +165,7 @@ class _Coster:
         try:
             from . import pricing
             self.pricing = pricing
-        except Exception as exc:  # pricing is an estimate; it never breaks the dashboard
+        except Exception as exc:
             log.debug("pricing unavailable: %s", exc)
             self.pricing = None
 
@@ -236,7 +218,7 @@ class _Coster:
                 item["billing"] = self.pricing.billing_kind(name, provider)
                 item["cache_saved"] = self.cache_saving(name, provider, cache_tokens)
                 if slot.get("billed_n") and slot["billed_n"] >= slot["ok"]:
-                    # The upstream reported its own charge for every request (OpenRouter).
+
                     item.update(cost=slot.get("billed_micro", 0) / 1_000_000, state="billed", billing="api")
                 elif prompt or completion:
                     estimate = self.pricing.estimate(
@@ -257,7 +239,6 @@ class _Coster:
             out.append(item)
         return out
 
-
 class Metrics:
     def __init__(self, path: str = METRICS_PATH) -> None:
         self._lock = threading.Lock()
@@ -268,8 +249,6 @@ class Metrics:
         self._dirty = False
         self._last_flush = time.time()
         self._load()
-
-    # ---------- хранение ----------
 
     def _load(self) -> None:
         data = load_json_with_recovery(self._path, {},
@@ -319,10 +298,8 @@ class Metrics:
             self._last_flush = time.time()
         try:
             save_json(self._path, payload, backup=False)
-        except Exception as exc:  # статистика не должна ронять запрос
+        except Exception as exc:
             log.debug("metrics flush failed: %s", exc)
-
-    # ---------- запись ----------
 
     def _bucket_for(self, now: float) -> Dict[str, Any]:
         stamp = int(now // HOUR) * HOUR
@@ -396,8 +373,6 @@ class Metrics:
             self._dirty = True
         self.flush()
 
-    # ---------- чтение ----------
-
     def _window_start(self, period: str, now: float) -> float:
         span, _ = PERIODS.get(period, PERIODS["day"])
         if period == "today":
@@ -420,9 +395,7 @@ class Metrics:
         start = self._window_start(period, now)
         _, step = PERIODS[period]
         with self._lock:
-            # A bucket belongs to the window when its hour *starts* inside it;
-            # the old "ends inside" rule counted an extra hour before midnight
-            # into «Сегодня» and 25 hours into «24 часа».
+
             first_hour = int(start // HOUR) * HOUR if start else 0
             selected = [(stamp, bucket) for stamp, bucket in self._buckets.items() if stamp >= first_hour]
             span = (now - start) if start else 0
@@ -430,9 +403,7 @@ class Metrics:
             previous = [(stamp, json_copy(bucket)) for stamp, bucket in self._buckets.items()
                         if prev_from is not None and prev_from <= stamp < first_hour]
             recent = [row for row in self._recent if now - row[0] <= _WINDOW]
-            # Запросы до перезапуска есть только в почасовой корзине: без них
-            # «За последний час» после перезапуска показывал 0, хотя запросы были.
-            # Корзина текущего часа целиком лежит внутри последнего часа.
+
             hour_bucket = self._buckets.get(int(now // HOUR) * HOUR) or {}
             in_hour = [row for row in self._recent if row[0] >= int(now // HOUR) * HOUR]
             before_ok = max(0, int(hour_bucket.get("ok", 0) or 0) - sum(1 for row in in_hour if row[1]))
@@ -453,7 +424,7 @@ class Metrics:
         coster = _Coster()
         model_cost: Dict[str, Dict[str, Any]] = {}
         provider_cost: Dict[str, Dict[str, Any]] = {}
-        # Round 40 (r40-proxy): «Сэкономлено кэшем» — cached input tokens and what they saved at API prices.
+
         cache = {"tokens": 0, "saved_usd": 0.0, "unpriced_tokens": 0}
 
         for stamp, bucket in selected:
@@ -504,8 +475,6 @@ class Metrics:
             row["ms"] += bucket["ms"]
             hours_of_day[time.localtime(stamp).tm_hour] += bucket["total"]
 
-        # Empty hours/days are real zeros, not gaps: without them a quiet night
-        # disappeared and the bars of two distant hours stood side by side.
         if selected or start:
             first = first_hour if start else min(series) if series else int(now // HOUR) * HOUR
             cursor = first if step == HOUR else _local_day(first)
@@ -532,7 +501,7 @@ class Metrics:
                     "success_rate": round(slot["ok"] / divisor * 100, 1),
                     "prompt_tokens": slot["prompt_tokens"], "completion_tokens": slot["completion_tokens"],
                     "cache_tokens": slot.get("cache_tokens", 0), "reasoning_tokens": slot.get("reasoning_tokens", 0),
-                    # Requests whose token counts are the Proxy's estimate by text length.
+
                     "estimated_requests": slot.get("estimated", 0),
                     "share": round(slot["total"] / total * 100, 1) if total else 0.0,
                 })
@@ -550,8 +519,7 @@ class Metrics:
             states = info["states"] - {"none"}
             legacy_tokens = info["legacy_prompt"] + info["legacy_completion"]
             if legacy_tokens:
-                # History written before per-model token counts existed: the hour's tokens are
-                # shared between its models by request count — an estimate, flagged as such.
+
                 row["prompt_tokens"] += info["legacy_prompt"]
                 row["completion_tokens"] += info["legacy_completion"]
                 row["tokens_estimated"] = legacy_tokens
@@ -618,7 +586,7 @@ class Metrics:
             "keep_days": KEEP_HOURS // 24,
             "uptime_s": int(now - self.started),
             "total": total, "ok": ok, "failed": failed,
-            # No requests is "no data", not a perfect 100 % success rate.
+
             "success_rate": success_rate if success_rate is not None else 100.0,
             "has_data": bool(total),
             "avg_ms": avg_ms,
@@ -632,17 +600,16 @@ class Metrics:
             "latency_hist": [{"le": edge, "count": hist[index]} for index, edge in enumerate(LAT_EDGES)]
             + [{"le": None, "count": hist[-1]}],
             "busiest_hour": busiest,
-            # Every model of the period is priced, not only the 25 rows the table shows.
+
             "cost_usd": round(totals["known"], 6),
             "cost_complete": not totals["unknown"],
             "cost": {
                 "total": round(totals["known"], 6),
-                # Subscriptions (Genspark, Kiro, Antigravity…): what the same tokens would cost at
-                # API prices — nothing is charged per token.
+
                 "api_equivalent": round(totals["subscription"], 6),
-                # Paid connections (custom API keys): the estimate of the real bill.
+
                 "api_billed": round(totals["api"], 6),
-                # Part of api_billed that the upstream reported itself (OpenRouter ``usage.cost``).
+
                 "reported": round(totals["billed"], 6),
                 "unknown_models": totals["unknown"][:20],
                 "unknown_tokens": totals["unknown_tokens"],
@@ -671,6 +638,5 @@ class Metrics:
             self._recent.clear()
             self._dirty = True
         self.flush(force=True)
-
 
 metrics = Metrics()

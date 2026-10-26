@@ -23,7 +23,6 @@ from fastapi.responses import StreamingResponse
 from app import pgdata
 from app.playground_api import create_app
 
-
 ROOT = Path(__file__).resolve().parents[1]
 EMPTY_PROMPT = "Пустой промпт"
 NO_ACCOUNT = "Нет доступного аккаунта"
@@ -34,7 +33,6 @@ def _free_port() -> int:
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         return probe.getsockname()[1]
-
 
 class MediaAndHandoffContractTest(unittest.TestCase):
     """The upstream double stands in for the Proxy; everything else is real."""
@@ -60,7 +58,7 @@ class MediaAndHandoffContractTest(unittest.TestCase):
             body = json.loads(await request.body() or b"{}")
             async def events():
                 if not str(body.get("prompt") or "").strip():
-                    # The real admin route answers 200 with an error frame.
+
                     yield "data: " + json.dumps({"error": {"message": EMPTY_PROMPT}},
                                                 ensure_ascii=False) + "\n\n"
                     yield "data: [DONE]\n\n"
@@ -148,23 +146,22 @@ class MediaAndHandoffContractTest(unittest.TestCase):
                         host_thread.join(6)
 
                 self.assertNotIn("fatal", report, report)
-                # The SSE reader never fakes a result.
+
                 self.assertTrue(report["hasMediaConsumer"])
                 self.assertEqual(report["okUrls"], 1)
                 self.assertIn(INCOMPLETE, report["truncatedError"])
                 self.assertIn(PROVIDER, report["providerError"])
                 self.assertIn("provider blew up", report["statusErrorError"])
                 self.assertEqual(report["emptyUrls"], 0)
-                # The real host turns provider failures into errors, not empty successes.
+
                 self.assertIn(EMPTY_PROMPT, report["imageError"])
                 self.assertIn(NO_ACCOUNT, report["videoError"])
                 self.assertIsNone(report["imageResult"])
                 self.assertIsNone(report["videoResult"])
-                # Round 29 phase 2: no model from the module → MemuAI's default/first text model
-                # (module_fallback_model), not a bare «Выберите модель» 400.
+
                 self.assertEqual(report["requestError"], "", report)
                 self.assertTrue(report["requestModel"], report)
-                # The bundle is only ready when files really landed.
+
                 self.assertEqual(report["handoffError"], "")
                 self.assertTrue(report["handoffPaths"], report)
                 for path in report["handoffPaths"]:
@@ -187,7 +184,7 @@ class MediaAndHandoffContractTest(unittest.TestCase):
                                      completed.stderr + completed.stdout)
                     report = json.loads(report_path.read_text(encoding="utf-8"))
                     self.assertNotIn("fatal", report, report)
-                    # Ветка пакета обязана выполниться: иначе тест ничего не проверяет.
+
                     self.assertTrue(report.get("handoffCalled"),
                                     f"{mode}: до Memu.handoff дело не дошло — {report}")
                     self.assertGreater(report.get("status") or "", "")
@@ -208,7 +205,6 @@ class MediaAndHandoffContractTest(unittest.TestCase):
             self.assertNotIn("fatal", report, report)
             self.assertTrue(report.get("handoffCalled"), report)
             self.assertIn("Пакет готов", report["status"] + report["result"])
-
 
 if __name__ == "__main__":
     unittest.main()

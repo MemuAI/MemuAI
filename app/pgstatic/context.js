@@ -1,37 +1,16 @@
-/* MemuAI — сколько токенов занимает запрос.
- *
- * Счётчик контекста должен показывать то, что действительно уходит модели, а
- * не «длину чата, делённую на четыре». Здесь собраны правила подсчёта:
- *
- *  • текст — с учётом языка и семейства модели (tokens.js = app/token_estimate.py,
- *    одна оценка для всего MemuAI: русский дороже английского, код и CJK — свои
- *    коэффициенты, откалиброванные по настоящим токенизаторам);
- *  • изображение и кадр видео — по настоящему размеру в пикселях и по правилам
- *    семейства модели (Claude, GPT, Gemini считают картинки по-разному), а не
- *    по весу файла: сильно сжатый JPEG и PNG того же размера стоят одинаково;
- *  • весь запрос — системный промпт, служебный контекст и история вместе.
- *
- * Когда провайдер сам сообщает число токенов запроса, счётчик берёт его
- * (app.js), а эти оценки нужны для нового чата, для сообщений, добавленных
- * после последнего ответа, и для провайдеров, которые ничего не сообщают.
- *
- * Модуль без состояния приложения: только чистые функции (их же запускает
- * тест в Node).
- */
+
+
 "use strict";
 const MemuContext = (() => {
-  // Модель, под которую считать по умолчанию (счётчик контекста ставит текущую): у Claude русский
-  // текст заметно дороже, чем у GPT. Неизвестная модель — типичное число (медиана семейств).
+
   let preferred = "";
   function useModel(name) { preferred = String(name || ""); }
 
-  // tokens.js подключается раньше (index.html), но счётчик не должен ронять окно, если его нет
-  // (старый кэш страницы, обрезанная сборка): тогда грубая страховка по буквам и одно предупреждение.
   let warned = false;
   function tokenizer() {
     if (typeof MemuTokens !== "undefined") return MemuTokens;
-    if (typeof require !== "undefined") { try { return require("./tokens.js"); } catch (error) { /* не Node */ } }
-    if (!warned) { warned = true; try { console.warn("MemuAI: tokens.js is not loaded — rough token estimate"); } catch (error) { /* */ } }
+    if (typeof require !== "undefined") { try { return require("./tokens.js"); } catch (error) {  } }
+    if (!warned) { warned = true; try { console.warn("MemuAI: tokens.js is not loaded — rough token estimate"); } catch (error) {  } }
     return null;
   }
   function estimateText(text, forModel) {
@@ -42,13 +21,10 @@ const MemuContext = (() => {
     return Math.max(1, Math.ceil(cyrillic / 2.6 + (value.length - cyrillic) / 3.8));
   }
 
-  /* ------------------------------------------------- файлы (не картинки) */
-  const FILE_SAMPLE = 65536;          // байт: по образцу считаем, остальное — в той же пропорции
-  const FILE_LIMIT = 100000;          // больше провайдер всё равно не примет одним файлом
-  const BINARY_PER_BYTE = 0.25;       // двоичный контейнер (PDF, DOCX) до разбора: язык неизвестен
+  const FILE_SAMPLE = 65536;
+  const FILE_LIMIT = 100000;
+  const BINARY_PER_BYTE = 0.25;
 
-  /** Токены файла-вложения (data-URL) для модели: текстовый — по тексту той же оценкой, что и
-   *  сообщения (русский дороже английского), двоичный — грубо по размеру, пока текст не извлечён. */
   function fileTokens(dataUrl, model) {
     const raw = String(dataUrl || "");
     const comma = raw.indexOf(",");
@@ -61,7 +37,7 @@ const MemuContext = (() => {
       const bytes = bytesOf(body, FILE_SAMPLE);
       const binary = !bytes || bytes.subarray(0, 4096).some((b) => b === 0) || /^(application\/(pdf|zip|octet|vnd\.|msword|x-(7z|rar|tar|gzip))|audio|video|font)/.test(head);
       if (!binary) {
-        // Образец мог оборваться посреди буквы: несколько «�» в конце — не повод считать файл двоичным.
+
         sample = new TextDecoder("utf-8").decode(bytes);
         if ((sample.match(/\uFFFD/g) || []).length > 4 + sample.length / 100) sample = "";
       }
@@ -73,7 +49,6 @@ const MemuContext = (() => {
     return Math.min(FILE_LIMIT, Math.ceil(estimateText(sample, model) * Math.max(1, total / Math.max(1, sampled))));
   }
 
-  /* ---------------------------------------------------------- изображения */
   const sizes = new Map();
 
   function bytesOf(base64, limit) {
@@ -100,7 +75,7 @@ const MemuContext = (() => {
       return null;
     }
     if (bytes[0] === 0xff && bytes[1] === 0xd8) {
-      // JPEG: идём по сегментам до SOF — перед ним бывают большие блоки EXIF и профиля.
+
       let at = 2;
       while (at + 9 < bytes.length) {
         if (bytes[at] !== 0xff) { at += 1; continue; }
@@ -116,7 +91,6 @@ const MemuContext = (() => {
     return null;
   }
 
-  /** {width, height} картинки из data-URL или null, если заголовок не разобран. */
   function imageSize(dataUrl) {
     const raw = String(dataUrl || "");
     if (!raw.startsWith("data:")) return null;
@@ -141,21 +115,20 @@ const MemuContext = (() => {
     return "other";
   }
 
-  /** Токены одной картинки width×height для семейства модели. */
   function imageTokensFor(width, height, kind) {
     if (!(width > 0 && height > 0)) return { claude: 1100, gemini: 1032, openai: 765, other: 765 }[kind] || 765;
     if (kind === "claude") {
-      // Длинная сторона до 1568 px, токены ≈ пиксели / 750, не больше 1600.
+
       const scale = Math.min(1, 1568 / Math.max(width, height));
       return Math.max(50, Math.min(1600, Math.ceil((width * scale) * (height * scale) / 750)));
     }
     if (kind === "gemini") {
-      // До 384 px — 258 токенов; крупнее — плитки, по 258 за каждую.
+
       if (width <= 384 && height <= 384) return 258;
       const unit = Math.max(256, Math.min(768, Math.floor(Math.min(width, height) / 1.5)));
       return 258 * Math.ceil(width / unit) * Math.ceil(height / unit);
     }
-    // OpenAI: вписать в 2048, короткую сторону — до 768, затем плитки 512 px: 85 + 170 за плитку.
+
     let w = width, h = height;
     const fit = Math.min(1, 2048 / Math.max(w, h));
     w *= fit; h *= fit;
@@ -169,10 +142,8 @@ const MemuContext = (() => {
     return imageTokensFor(size ? size.width : 0, size ? size.height : 0, family(model));
   }
 
-  /* ------------------------------------------------------------- запрос */
-  const PER_MESSAGE = 4;          // служебные токены роли и границ сообщения
+  const PER_MESSAGE = 4;
 
-  /** {text, images, imageCount} для content сообщения API (строка или части). */
   function contentTokens(content, model) {
     if (typeof content === "string") return { text: estimateText(content, model), images: 0, imageCount: 0 };
     let text = 0, images = 0, imageCount = 0;
@@ -189,7 +160,6 @@ const MemuContext = (() => {
     return { text, images, imageCount };
   }
 
-  /** Оценка всего запроса: то, что уйдёт провайдеру в messages. */
   function payload(apiMessages, model) {
     const out = { system: 0, text: 0, images: 0, imageCount: 0, total: 0 };
     for (const message of apiMessages || []) {

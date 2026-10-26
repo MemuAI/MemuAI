@@ -23,7 +23,6 @@ PG = ROOT / "app" / "pgstatic"
 PROXY = ROOT / "app" / "static"
 NODE = shutil.which("node")
 
-
 def run_node(script: str) -> dict:
     done = subprocess.run([NODE, str(ROOT / "tests" / script)], capture_output=True, text=True, encoding="utf-8", timeout=90)
     lines = [line for line in done.stdout.splitlines() if line.strip().startswith("{")]
@@ -33,7 +32,6 @@ def run_node(script: str) -> dict:
     if "error" in out:
         raise AssertionError(out["error"])
     return out
-
 
 @unittest.skipUnless(NODE, "Node.js is required for module runners")
 class BenchmarksTest(unittest.TestCase):
@@ -68,13 +66,11 @@ class BenchmarksTest(unittest.TestCase):
         self.assertEqual(self.out["nav"], ["text", "agent"], "the pareto view is not an arena")
 
     def test_the_header_tells_the_age_of_what_is_on_screen(self) -> None:
-        # A board opened a week ago stays in the cache; it used to make the header say
-        # "updated 8 days ago" for ever, although everything shown was four hours old.
+
         self.assertIn("4 часа назад", self.out["statusOverview"])
         self.assertIn("только что", self.out["statusBoard"])
         self.assertIn("8 дня назад", self.out["statusOldBoard"], "the stale board itself is still dated honestly")
         self.assertIn("30 часа назад", self.out["statusIndex"], "the index is as old as its oldest source")
-
 
 class SketchTest(unittest.TestCase):
     def test_the_sketch_tool_is_in_the_plus_menu_and_attaches_a_png(self) -> None:
@@ -91,7 +87,6 @@ class SketchTest(unittest.TestCase):
             self.assertIn(needle, sketch)
         css = (PG / "design.css").read_text(encoding="utf-8")
         self.assertIn(".sketch-card", css)
-
 
 class SelfKnowledgeTest(unittest.TestCase):
     def test_the_base_prompt_describes_memuai_in_both_copies(self) -> None:
@@ -144,7 +139,6 @@ class SelfKnowledgeTest(unittest.TestCase):
             self.assertTrue(all(docs.page("ru", row["id"]) for row in found["results"]))
             self.assertIn("error", call({"tool": "docs_search", "args": {"query": "a"}, "docs_skill": True}))
 
-
 class ProxyModelListTest(unittest.TestCase):
     def test_a_big_catalogue_is_offered_for_choice_after_adding_an_account(self) -> None:
         js = (PROXY / "app.js").read_text(encoding="utf-8")
@@ -167,7 +161,6 @@ class ProxyModelListTest(unittest.TestCase):
         self.assertIn("marquee.scroll0 = list.scrollTop", js)
         self.assertIn('window.addEventListener("scroll", marqueeScrolled, true)', js)
 
-
 class QuietTerminalTest(unittest.TestCase):
     def test_memucode_rings_only_when_asked(self) -> None:
         source = (ROOT / "app" / "cli" / "tui" / "app.py").read_text(encoding="utf-8")
@@ -178,10 +171,8 @@ class QuietTerminalTest(unittest.TestCase):
         self.assertIn('if mode == "bell":', notify)
         self.assertNotIn("output.bell()", source, "the toolkit's bell is never used")
 
-
 if __name__ == "__main__":
     unittest.main()
-
 
 class CancelAndCatalogueTest(unittest.TestCase):
     def test_a_close_survives_the_cancellation_of_the_request(self) -> None:
@@ -191,7 +182,7 @@ class CancelAndCatalogueTest(unittest.TestCase):
         state = {"closed": False}
 
         async def closer():
-            await asyncio.sleep(0.05)       # a real close awaits the network
+            await asyncio.sleep(0.05)
             state["closed"] = True
 
         async def request():

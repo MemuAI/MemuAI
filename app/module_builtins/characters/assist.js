@@ -26,7 +26,6 @@ function assistModelName(id) { var m = modelRow(id); return (m && m.name) || sho
 function assistLang() { return (S.settings.assist || {}).lang || "auto"; }
 function assistEnabled() { return (S.settings.assist || {}).buttons !== false; }
 
-// Model answer → field text: drop <think>, a code fence around the whole answer, a «Here is …:» preface, wrapping quotes.
 function assistClean(text, partial) {
   var s = String(text || "");
   var cut = E.findLeakedToken ? E.findLeakedToken(s) : -1;
@@ -45,15 +44,13 @@ function assistClean(text, partial) {
   return s;
 }
 
-// One streamed, cancellable completion → {promise, cancel}.
 function assistRun(messages, opts) {
   opts = opts || {};
   var model = assistModel();
   if (!model) return { promise: Promise.reject(new Error(t("models_unavailable"))), cancel: function () {} };
   var raw = "", cancelled = false, frame = 0;
   var params = { temperature: opts.temperature === undefined ? 0.8 : opts.temperature, max_tokens: opts.max_tokens || 2500, prompt_caching: true };
-  // Editing help should feel instant: a reasoning model thinks as little as it allows (live: qwen3.8-flash took
-  // ~50 s on «Improve» with its default reasoning). The review asks for a little more.
+
   var levels = (modelRow(model) || {}).reasoning_levels || [];
   var want = opts.effort || "off";
   if (levels.indexOf(want) >= 0) { params.effort = want; if (want === "off") params.thinking = false; }
@@ -70,18 +67,16 @@ function assistRun(messages, opts) {
     if (!String(text).trim()) throw new Error(t("empty_answer"));
     return text;
   }, function (error) { throw cancelled ? new Error(t("ai_stopped")) : error; });
-  return { promise: promise, cancel: function () { cancelled = true; try { job.cancel(); } catch (e) { /* finished */ } } };
+  return { promise: promise, cancel: function () { cancelled = true; try { job.cancel(); } catch (e) {  } } };
 }
 
-// A JSON answer → the list under `key`. Models sometimes drop the wrapper object and answer with a bare array
-// (or a single item), so all three shapes are accepted.
 function assistJsonList(raw, key) {
   var s = String(raw || "").replace(/<think>[\s\S]*?<\/think>/gi, "");
   var fence = /```(?:json)?\s*([\s\S]*?)```/i.exec(s);
   if (fence) s = fence[1];
   var a = s.indexOf("["), o = s.indexOf("{");
   if (a >= 0 && (o < 0 || a < o)) {
-    try { var arr = JSON.parse(s.slice(a, s.lastIndexOf("]") + 1).replace(/,\s*([}\]])/g, "$1")); if (Array.isArray(arr)) return arr; } catch (e) { /* object below */ }
+    try { var arr = JSON.parse(s.slice(a, s.lastIndexOf("]") + 1).replace(/,\s*([}\]])/g, "$1")); if (Array.isArray(arr)) return arr; } catch (e) {  }
   }
   var obj = aiParseJson(raw);
   if (Array.isArray(obj[key])) return obj[key];
@@ -89,9 +84,8 @@ function assistJsonList(raw, key) {
   return obj.title || obj.content ? [obj] : [];
 }
 
-/* ---------------------------------------------------------------- word diff */
 function assistTokens(s) { return String(s || "").match(/\s+|[^\s]+/g) || []; }
-// → [[op, text]] with op "=", "+", "-"; null when the texts are too long for a quick diff.
+
 function assistDiff(a, b) {
   var x = assistTokens(a), y = assistTokens(b);
   var pre = 0;
@@ -127,10 +121,9 @@ function assistDiffNode(a, b) {
   return box;
 }
 
-/* ---------------------------------------------------------------- applying text to a field (undoable) */
 function assistInsert(el, start, end, text) {
   el.focus();
-  try { el.setSelectionRange(start, end); } catch (e) { /* number inputs */ }
+  try { el.setSelectionRange(start, end); } catch (e) {  }
   var ok = false;
   try { ok = document.execCommand("insertText", false, text); } catch (e) { ok = false; }
   if (!ok || el.value.slice(start, start + text.length) !== text) {
@@ -141,8 +134,6 @@ function assistInsert(el, start, end, text) {
   el.classList.remove("ch-as-flash"); void el.offsetWidth; el.classList.add("ch-as-flash");
 }
 
-/* ---------------------------------------------------------------- ✨ button next to a field */
-// spec = {field, label, ctx() → {card, world, entry}, host?}
 function assistButton(el, spec) {
   if (!assistEnabled() || !el) return null;
   el.setAttribute("data-assist", spec.field);
@@ -151,7 +142,7 @@ function assistButton(el, spec) {
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.code === "KeyJ") { e.preventDefault(); assistMenu(btn, el, spec); }
   });
   var btn = h("button", { class: "ch-as-btn", type: "button", title: t("as_btn_title"), "aria-label": t("as_btn_title"), html: icon("sparkle", 14) });
-  // The field keeps its selection while the button is pressed.
+
   btn.addEventListener("mousedown", function (e) { e.preventDefault(); });
   btn.addEventListener("click", function (e) { e.stopPropagation(); assistMenu(btn, el, spec); });
   return btn;
@@ -197,8 +188,6 @@ function assistToneMenu(anchor, run) {
   } }]));
 }
 
-/* ---------------------------------------------------------------- the preview card under a field */
-// a = {action, selection, instruction, given?: ready text (from the panel), title?}
 function assistPreview(el, spec, a) {
   assistClosePreview();
   var ctx = spec.ctx ? spec.ctx() : {};
@@ -329,7 +318,7 @@ function assistPreview(el, spec, a) {
   return active;
 }
 function assistClosePreview() { if (ASSIST.active) ASSIST.active.close(); }
-// Esc: stop a running answer, or close the preview — before the editor's own Esc (which would close the modal).
+
 function assistBindKeys() {
   if (ASSIST.keyBound) return;
   ASSIST.keyBound = true;
@@ -342,7 +331,6 @@ function assistBindKeys() {
   }, true);
 }
 
-/* ---------------------------------------------------------------- lorebook: entries */
 function assistAddEntry(world, prop) {
   var uids = Object.keys(world.entries).map(Number).filter(Number.isFinite);
   var uid = uids.length ? Math.max.apply(null, uids) + 1 : 0;
@@ -350,7 +338,7 @@ function assistAddEntry(world, prop) {
   saveWorld(world);
   return world.entries[uid];
 }
-// A proposed entry as a card: title / keys / content editable, «Add» puts it into the lorebook.
+
 function assistEntryProposal(prop, opts) {
   opts = opts || {};
   var titleIn = h("input", { class: "mu-input ch-as-ent-title", value: aiStr(prop.title) });
@@ -380,7 +368,7 @@ function assistEntryProposal(prop, opts) {
   box.appendChild(actions);
   return box;
 }
-// The card's lorebook, or a choice: one of the lorebooks / a new one (linked to the card being edited).
+
 function assistPickWorld(anchor, spec) {
   var ctx = spec.ctx ? spec.ctx() : {};
   if (ctx.world) return Promise.resolve(ctx.world);
@@ -416,7 +404,6 @@ function assistEntryFromSelection(text, spec) {
   }).catch(function (err) { listBox.innerHTML = ""; listBox.appendChild(h("div", { class: "ch-as-err", text: err.message })); });
 }
 
-// Keyword chips under a lorebook entry's keys field.
 function assistSuggestKeys(input, entry, world, mount) {
   var old = mount.querySelector(".ch-as-keys");
   if (old) { old.remove(); return; }
@@ -449,7 +436,6 @@ function assistSuggestKeys(input, entry, world, mount) {
   }).catch(function (err) { box.innerHTML = ""; box.appendChild(h("span", { class: "ch-as-err", text: err.message })); });
 }
 
-/* ---------------------------------------------------------------- local card checks (no model) */
 var ASSIST_MAJOR = ["description", "personality", "scenario", "first_mes"];
 function assistLocalChecks(card) {
   var out = [];
@@ -478,9 +464,6 @@ function assistLocalChecks(card) {
   return out;
 }
 
-/* ---------------------------------------------------------------- the «Co-writer» side panel */
-// host = {kind: "card"|"lorebook", box (modal .ch-modal), card() → data|null, world() → world|null, fieldKeys: [...],
-//         label(key), reveal(key) → field element (switches the tab), addEntry?(prop) → Promise<entry>, revealEntry?(title) → element}
 function assistPanel(host) {
   if (host.panel && document.body.contains(host.panel.node)) { host.panel.node.classList.toggle("open"); host.box.classList.toggle("ch-as-docked", host.panel.node.classList.contains("open")); return host.panel; }
   var P = { host: host, job: null, chat: host.chatLog || (host.chatLog = []), tab: "chat" };
@@ -522,7 +505,7 @@ function assistFieldLabel(host, key) {
   if (m) return t("alt_greeting_n", { n: Number(m[1]) + 1 });
   return host.label(key) || key;
 }
-// Opens the field's preview with a ready text (or a fix request) — the one path every proposal takes.
+
 function assistToField(host, key, a) {
   var el = host.reveal(key);
   if (!el) { toast(t("as_no_field", { field: key }), "warn"); return; }
@@ -579,7 +562,7 @@ function assistChatPane(P, pane) {
   drawLog();
   setTimeout(function () { input.focus(); }, 50);
 }
-// An assistant message → text with the <field> / <entry> blocks rendered as cards with an «Apply» button.
+
 function assistChatBubble(P, m) {
   var host = P.host;
   var wrap = h("div", { class: "ch-as-msg " + m.role });
@@ -668,7 +651,7 @@ function assistReviewPane(P, pane) {
   if (P.review) { draw(P.review, false); runBtn.innerHTML = icon("refresh", 14) + esc(t("as_review_again")); }
   else list.appendChild(h("div", { class: "ch-as-hello" }, [h("div", { class: "ch-as-hello-ic", html: icon("check", 22) }), h("div", { class: "ch-as-hello-t", text: t("as_review_hello") })]));
 }
-// Lorebook tools: gaps, contradictions, an entry from pasted text.
+
 function assistToolsPane(P, pane) {
   var host = P.host;
   var out = h("div", { class: "ch-as-issues" });
@@ -724,7 +707,6 @@ function assistToolsPane(P, pane) {
   pane.appendChild(out);
 }
 
-/* ---------------------------------------------------------------- settings section (Connection panel) */
 function assistSettingsSection() {
   var a = S.settings.assist;
   function set(k, v) { a[k] = v; saveSettings(); }

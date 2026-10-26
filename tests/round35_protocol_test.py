@@ -32,7 +32,6 @@ from app import deeplinks as dl  # noqa: E402
 from app import deeplinks_win  # noqa: E402
 from app import memu_cli  # noqa: E402
 
-
 @pytest.fixture(autouse=True)
 def _clean():
     dl.reset_for_tests()
@@ -40,12 +39,8 @@ def _clean():
     yield
     dl.reset_for_tests()
 
-
 def _b64(obj) -> str:
     return base64.urlsafe_b64encode(json.dumps(obj, ensure_ascii=False).encode()).decode().rstrip("=")
-
-
-# ============================================================================ parser
 
 @pytest.mark.parametrize("url,route,expect", [
     ("memuai://chat/new?q=%D0%9F%D1%80%D0%B8%D0%B2%D0%B5%D1%82", "chat/new", {"q": "Привет", "send": False}),
@@ -78,7 +73,6 @@ def test_parse_valid(url, route, expect):
     assert link.route == route
     for key, value in expect.items():
         assert link.params[key] == value
-
 
 @pytest.mark.parametrize("url,code", [
     ("file:///C:/Windows/System32/calc.exe", "bad_scheme"),
@@ -138,7 +132,6 @@ def test_parse_rejects(url, code):
     assert info.value.ru and info.value.en
     assert not re.search("[А-Яа-яЁё]", info.value.en), info.value.en
 
-
 def test_parser_fuzz_never_crashes():
     rng = random.Random(35)
     seeds = ["memuai://chat/new?q=hi&send=1", "memuai://note?path=C:%5Ca.md", "memuai://open/plan",
@@ -173,8 +166,7 @@ def test_parser_fuzz_never_crashes():
             assert key in route.params
             if isinstance(value, str):
                 assert not re.search("[\x00-\x08\x0b\x0c\x0e-\x1f\u202a-\u202e\u2066-\u2069]", value)
-    assert accepted > 20       # mutations of valid links still often parse — the fuzz exercised both paths
-
+    assert accepted > 20
 
 def test_build_roundtrip():
     for route, params in [("chat/new", {"q": "Привет & пока = 100%", "send": True}), ("chat", {"id": "chat-1"}),
@@ -187,9 +179,6 @@ def test_build_roundtrip():
         for key, value in params.items():
             assert parsed.params[key] == value
     assert dl.build("chat", {"id": "chat-1"}) == "memuai://chat/chat-1"
-
-
-# ============================================================================ registry (contract for other zones)
 
 def test_other_zone_route_contract():
     calls = []
@@ -209,13 +198,9 @@ def test_other_zone_route_contract():
     finally:
         dl.unregister_route("testzone/open")
 
-
-# ============================================================================ queue
-
 def _run(item_id, confirmed=False, inputs=None, services=None):
     import asyncio
     return asyncio.run(dl.run(item_id, dl.Ctx(inputs=inputs or {}, services=services or {}), confirmed=confirmed))
-
 
 def test_safe_link_runs_once():
     res = dl.dispatch("memuai://open/plan", "os")
@@ -223,26 +208,23 @@ def test_safe_link_runs_once():
     assert dl.pending()[0]["route"] == "open"
     out = _run(res["id"])
     assert out["ok"] and out["ui"] == {"do": "tab.open", "tab": "plan"}
-    assert _run(res["id"])["error"] == "expired"          # once only
-
+    assert _run(res["id"])["error"] == "expired"
 
 def test_confirm_requires_window_and_time():
     res = dl.dispatch("memuai://chat/new?q=hi&send=1", "os")
     assert res["danger"] == "confirm"
     assert _run(res["id"])["error"] == "needs_confirm"
-    assert _run(res["id"], confirmed=True)["error"] == "too_fast"      # never shown by the window
+    assert _run(res["id"], confirmed=True)["error"] == "too_fast"
     items = dl.pending(mark_shown=True)
     assert items[0]["lines"] and any("СРАЗУ" in line for line in items[0]["lines"])
-    assert _run(res["id"], confirmed=True)["error"] == "too_fast"      # shown a moment ago
+    assert _run(res["id"], confirmed=True)["error"] == "too_fast"
     time.sleep(dl.CONFIRM_MIN_SHOWN + .05)
     out = _run(res["id"], confirmed=True)
     assert out["ok"] and out["ui"]["send"] is True
 
-
 def test_module_with_text_asks_first():
     assert dl.dispatch("memuai://module/studio", "os")["danger"] == "safe"
     assert dl.dispatch("memuai://module/studio?q=draw", "os")["danger"] == "confirm"
-
 
 def test_cancel_and_ttl(monkeypatch):
     res = dl.dispatch("memuai://open/plan", "os")
@@ -252,13 +234,11 @@ def test_cancel_and_ttl(monkeypatch):
     assert not dl.pending()
     assert _run(res["id"])["error"] == "expired"
 
-
 def test_queue_is_bounded():
     for _ in range(dl.PENDING_MAX + 3):
         dl.BURST_LIMIT.reset()
         dl.dispatch("memuai://open/plan", "os")
     assert len(dl.pending()) == dl.PENDING_MAX
-
 
 def test_settings_disable_and_always_ask():
     dl.save_settings({"enabled": False})
@@ -270,12 +250,10 @@ def test_settings_disable_and_always_ask():
     assert dl.dispatch("memuai://open/plan", "chat")["error"] == "chat_disabled"
     assert dl.dispatch("memuai://open/plan", "os")["ok"]
 
-
 def test_burst_limit():
     results = [dl.dispatch("memuai://open/plan", "os") for _ in range(8)]
     assert [r["ok"] for r in results].count(True) == 6
     assert results[-1]["error"] == "rate_limited"
-
 
 def test_journal_and_notifier():
     seen = []
@@ -288,9 +266,6 @@ def test_journal_and_notifier():
     assert seen == ["open"]
     events = [(r["event"], r["source"]) for r in dl.journal()]
     assert ("rejected", "os") in events and ("queued", "cli") in events
-
-
-# ============================================================================ HTTP API (TestClient)
 
 class FakeProxy:
     def __init__(self):
@@ -308,7 +283,6 @@ class FakeProxy:
         if path == "/api/admin/show_window":
             return 200, {"ok": True}
         return 404, {}
-
 
 @pytest.fixture()
 def api():
@@ -330,12 +304,10 @@ def api():
     yield client
     dl.set_notifier(None)
 
-
 def _confirm(client, item_id, **body):
     client.get("/api/pg/deeplink/pending?mark=1")
     time.sleep(dl.CONFIRM_MIN_SHOWN + .05)
     return client.post(f"/api/pg/deeplink/item/{item_id}/run", json={"confirm": True, **body})
-
 
 def test_api_dispatch_pending_run(api):
     r = api.post("/api/pg/deeplink/dispatch", json={"url": "memuai://settings/links", "source": "os"})
@@ -347,7 +319,6 @@ def test_api_dispatch_pending_run(api):
     bad = api.post("/api/pg/deeplink/dispatch", json={"url": "memuai://exec?c=calc"})
     assert bad.status_code == 400 and bad.json()["error"] == "blocked"
     assert api.post("/api/pg/deeplink/dispatch", content=b"x" * 70000).status_code == 400
-
 
 def test_api_provider_key_only_from_dialog(api):
     r = api.post("/api/pg/deeplink/dispatch", json={"url": "memuai://provider/add?name=myapi&base_url=https://api.example.com/v1&models=a,b"}).json()
@@ -361,7 +332,6 @@ def test_api_provider_key_only_from_dialog(api):
     journal = (Path(_TMP) / "memuai" / "deeplinks_log.json").read_text(encoding="utf-8")
     assert secret not in journal
 
-
 def test_api_composite_full_preview_then_import(api):
     model = {"id": "memu/smart", "name": "Smart", "candidates": [{"model": "a"}, {"model": "b"}]}
     r = api.post("/api/pg/deeplink/dispatch", json={"url": "memuai://composite/import?data=" + _b64(model)}).json()
@@ -372,21 +342,19 @@ def test_api_composite_full_preview_then_import(api):
     out = _confirm(api, r["id"]).json()
     assert out["ok"] and api.proxy.calls[-1][1] == "/api/admin/composite/import"
 
-
 def test_api_skill_installs_what_was_previewed(api, monkeypatch):
     from app import skills_catalog
     monkeypatch.setattr(skills_catalog, "resolve_url", lambda url: {"repo": "owner/repo", "skills": [{"path": "s1", "name": "s1"}]})
     monkeypatch.setattr(skills_catalog, "skill_detail", lambda repo, path: {"name": "Skill One", "description": "Does one thing", "body": "# Steps\nDo it."})
     r = api.post("/api/pg/deeplink/dispatch", json={"url": "memuai://skill/install?url=https://github.com/owner/repo"}).json()
     early = _confirm(api, r["id"]).json()
-    assert early["error"] == "no_preview"            # nothing is installed that was not shown
+    assert early["error"] == "no_preview"
     r = api.post("/api/pg/deeplink/dispatch", json={"url": "memuai://skill/install?url=https://github.com/owner/repo"}).json()
     prev = api.post(f"/api/pg/deeplink/item/{r['id']}/preview", json={}).json()
     assert "Skill One" in prev["code"] and "Do it." in prev["code"]
     monkeypatch.setattr(skills_catalog, "skill_detail", lambda repo, path: {"name": "Evil", "body": "changed"})
     out = _confirm(api, r["id"]).json()
     assert out["ui"]["do"] == "skills.add" and out["ui"]["items"][0]["name"] == "Skill One"
-
 
 def test_api_task_run(api, monkeypatch):
     from app import pgdata
@@ -398,7 +366,6 @@ def test_api_task_run(api, monkeypatch):
     assert out["ok"] and api.ran == [{"id": "t1", "lang": "ru"}]
     r = api.post("/api/pg/deeplink/dispatch", json={"url": "memuai://task/run?id=nope"}).json()
     assert _confirm(api, r["id"]).json()["error"] == "not_found"
-
 
 def test_api_proxy_page_and_note(api, monkeypatch, tmp_path):
     r = api.post("/api/pg/deeplink/dispatch", json={"url": "memuai://proxy/composite"}).json()
@@ -413,7 +380,6 @@ def test_api_proxy_page_and_note(api, monkeypatch, tmp_path):
     assert r["danger"] == "confirm"
     assert _confirm(api, r["id"]).json()["ok"] and opened == [[str(f)]]
 
-
 def test_api_settings_build_journal(api):
     s = api.get("/api/pg/deeplink/settings").json()
     assert s["settings"]["enabled"] and any(r["name"] == "chat/new" for r in s["routes"])
@@ -424,9 +390,6 @@ def test_api_settings_build_journal(api):
     assert b["link"] == "memuai://chat/chat-9"
     assert api.post("/api/pg/deeplink/build", json={"route": "chat/new", "params": {"q": "sk-proj-abcdefghijklmnopqrstuvwxyz1"}}).status_code == 400
     assert api.post("/api/pg/deeplink/journal/clear", json={}).json()["ok"] and dl.journal() == []
-
-
-# ============================================================================ Windows registry & single instance (mocks)
 
 class FakeWinreg:
     HKEY_CURRENT_USER = "HKCU"
@@ -468,11 +431,10 @@ class FakeWinreg:
 
     def DeleteKey(self, hive, path):
         if any(k.startswith(path + "\\") for k in self.keys):
-            raise OSError("has subkeys")       # like the real DeleteKey
+            raise OSError("has subkeys")
         if path not in self.keys:
             raise FileNotFoundError(path)
         del self.keys[path]
-
 
 def test_registry_register_status_unregister(monkeypatch):
     fake = FakeWinreg()
@@ -488,7 +450,6 @@ def test_registry_register_status_unregister(monkeypatch):
     deeplinks_win.unregister()
     assert not any(k.startswith(r"Software\Classes\memuai") for k in fake.keys)
 
-
 def test_registry_self_heal(monkeypatch):
     fake = FakeWinreg()
     monkeypatch.setattr(deeplinks_win, "_reg", fake)
@@ -503,10 +464,9 @@ def test_registry_self_heal(monkeypatch):
     dl.save_settings({"enabled": False})
     deeplinks_win.unregister()
     assert deeplinks_win.self_heal().get("skipped") and not deeplinks_win.status()["registered"]
-    monkeypatch.setattr(deeplinks_win, "exe_path", lambda: None)   # source checkout never registers
+    monkeypatch.setattr(deeplinks_win, "exe_path", lambda: None)
     dl.save_settings({"enabled": True})
     assert deeplinks_win.self_heal().get("skipped")
-
 
 def test_link_from_argv():
     f = deeplinks_win.link_from_argv
@@ -514,7 +474,6 @@ def test_link_from_argv():
     assert f(["--deeplink=memuai://x"]) == "memuai://x"
     assert f(["MEMUAI://chat/new"]) == "MEMUAI://chat/new"
     assert f(["--new-chat"]) == ""
-
 
 class FakeServer:
     """MemuAI (/api/pg/*) + Proxy (/health, /v1/*) on one loopback port for the CLI and forwarding tests."""
@@ -583,7 +542,6 @@ class FakeServer:
     def close(self):
         self.httpd.shutdown()
 
-
 @pytest.fixture()
 def server(monkeypatch):
     srv = FakeServer()
@@ -599,21 +557,16 @@ def server(monkeypatch):
     for name in ("memuai.json", "proxy.json"):
         (memu_dir / name).unlink(missing_ok=True)
 
-
 def test_forward_to_running_instance(server):
     import memuai
     assert memuai._forward_deeplink("memuai://open/plan", attempts=2) is True
     method, path, body, _ = server.requests[-1]
     assert path == "/api/pg/deeplink/dispatch" and body == {"url": "memuai://open/plan", "source": "os"}
 
-
 def test_forward_gives_up_when_nothing_runs(monkeypatch):
     import memuai
     monkeypatch.setattr(memuai.time, "sleep", lambda s: None)
     assert memuai._forward_deeplink("memuai://open/plan", attempts=3) is False
-
-
-# ============================================================================ memu CLI against the test server
 
 class Stdin(io.StringIO):
     def __init__(self, text="", tty=False):
@@ -623,13 +576,11 @@ class Stdin(io.StringIO):
     def isatty(self):
         return self._tty
 
-
 def cli(monkeypatch, capsys, *args, stdin="", tty=True):
     monkeypatch.setattr(sys, "stdin", Stdin(stdin, tty))
     code = memu_cli.main(list(args))
     out = capsys.readouterr()
     return code, out.out, out.err
-
 
 def test_cli_ask_plain_json_stream_and_pipe(server, monkeypatch, capsys):
     code, out, _ = cli(monkeypatch, capsys, "ask", "-m", "test-model", "Сколько?")
@@ -642,16 +593,14 @@ def test_cli_ask_plain_json_stream_and_pipe(server, monkeypatch, capsys):
     assert out.strip() == "echo:Опиши\n\ndiff --git a b"
     code, out, _ = cli(monkeypatch, capsys, "ask", "default?")
     sent = [r for r in server.requests if r[1] == "/v1/chat/completions"][-1][2]
-    assert sent["model"] == "test-model"           # no -m, no preference → the first Proxy model
+    assert sent["model"] == "test-model"
     code, _, err = cli(monkeypatch, capsys, "ask")
     assert code == 2 and "memu:" in err
-
 
 def test_cli_token_header(server, monkeypatch, capsys):
     cli(monkeypatch, capsys, "--token", "secret-token-1", "models")
     headers = [r for r in server.requests if r[1] == "/v1/models"][-1][3]
     assert headers.get("Authorization") == "Bearer secret-token-1"
-
 
 def test_cli_models_status_inbox_search_tasks(server, monkeypatch, capsys):
     code, out, _ = cli(monkeypatch, capsys, "models")
@@ -664,7 +613,6 @@ def test_cli_models_status_inbox_search_tasks(server, monkeypatch, capsys):
     assert out.strip() == "C:\\a.pdf"
     code, out, _ = cli(monkeypatch, capsys, "task", "list")
     assert "t1" in out and "Новости" in out
-
 
 def test_cli_links_go_through_the_window(server, monkeypatch, capsys):
     code, out, _ = cli(monkeypatch, capsys, "--lang", "ru", "chat", "new", "Идея", "--send")
@@ -680,7 +628,6 @@ def test_cli_links_go_through_the_window(server, monkeypatch, capsys):
     before = len([r for r in server.requests if r[1] == "/api/plan/run"])
     code, out, _ = cli(monkeypatch, capsys, "task", "run", "t1", "--yes")
     assert code == 0 and len([r for r in server.requests if r[1] == "/api/plan/run"]) == before + 1
-
 
 def test_cli_link_help_completion_errors(monkeypatch, capsys):
     code, out, _ = cli(monkeypatch, capsys, "link", "chat/new", "q=Привет")
@@ -701,7 +648,6 @@ def test_cli_link_help_completion_errors(monkeypatch, capsys):
     code, out, _ = cli(monkeypatch, capsys, "--json", "link", "--list")
     assert any(r["name"] == "chat/new" for r in json.loads(out)["routes"])
 
-
 def test_cli_unreachable(monkeypatch, capsys):
     monkeypatch.setenv("MEMUAI_PROXY_URL", "http://127.0.0.1:9")
     monkeypatch.setattr(memu_cli, "launch_memuai", lambda link="": False)
@@ -714,12 +660,10 @@ def test_cli_unreachable(monkeypatch, capsys):
     code, _, _ = cli(monkeypatch, capsys, "open", "memuai://open/plan")
     assert code == 3
 
-
 def test_memu_entry_point_runs():
     env = dict(os.environ, MEMU_LANG="en")
     res = subprocess.run([sys.executable, str(ROOT / "memu.py"), "--help"], capture_output=True, text=True, env=env, timeout=60)
     assert res.returncode == 0 and "memu" in res.stdout
-
 
 def test_cli_stays_light():
     """memu.exe must not pull the server stack in (small, fast)."""
@@ -728,9 +672,6 @@ def test_cli_stays_light():
     res = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, cwd=str(ROOT), timeout=60,
                          env=dict(os.environ, MEMUAI_DATA_DIR=_TMP))
     assert res.stdout.strip() == "[]", res.stdout + res.stderr
-
-
-# ============================================================================ installer, build, UI wiring
 
 def test_installer_registers_and_removes_protocol(tmp_path):
     from installer import engine, products
@@ -757,15 +698,14 @@ def test_installer_registers_and_removes_protocol(tmp_path):
     cmd = plat.registry[("HKCU", r"Software\Classes\memuai\shell\open\command")][""]
     assert "--deeplink" in cmd and str(app_dir) in cmd and cmd.endswith('"%1"')
     other = engine.Engine(products.SUITE, plat)
-    other._apply_protocols(tmp_path / "Elsewhere", [], removing=True)        # another copy: not ours, kept
+    other._apply_protocols(tmp_path / "Elsewhere", [], removing=True)
     assert ("HKCU", r"Software\Classes\memuai\shell\open\command") in plat.registry
     eng._apply_protocols(app_dir, [], removing=True)
     assert not any(k[1].startswith(r"Software\Classes\memuai") for k in plat.registry)
     assert ("memuai", r"MemuAI\MemuCLI") in products.SUITE.path_entries
-    assert ("memucode", "MemuCode") in products.SUITE.path_entries       # no conflict with memucode
+    assert ("memucode", "MemuCode") in products.SUITE.path_entries
     src = Path(engine.__file__).read_text(encoding="utf-8")
     assert "self._apply_protocols(app_dir, components)" in src and "self._apply_protocols(app_dir, [], removing=True)" in src
-
 
 def test_build_targets_and_specs():
     import ast
@@ -777,8 +717,7 @@ def test_build_targets_and_specs():
     for spec, names in (("memu.spec", {"app.memu_cli", "app.deeplinks", "app.deeplinks_routes"}),
                         ("MemuAI.spec", {"app.deeplinks", "app.deeplinks_api", "app.deeplinks_win", "app.deeplinks_routes"})):
         tree = ast.parse((ROOT / spec).read_text(encoding="utf-8"))
-        # PyInstaller-generated specs pass hiddenimports directly to Analysis;
-        # older hand-written specs used a top-level variable.
+
         values = [n.value for n in ast.walk(tree) if isinstance(n, ast.Assign)
                   and any(getattr(t, "id", "") == "hiddenimports" for t in n.targets)]
         if not values:
@@ -789,7 +728,6 @@ def test_build_targets_and_specs():
         hidden = ast.literal_eval(values[0])
         assert names <= set(hidden), spec
     assert "place_memu_cli()" in (ROOT / "build.py").read_text(encoding="utf-8")
-
 
 def test_ui_wiring_and_languages():
     pg = ROOT / "app" / "pgstatic"
@@ -808,7 +746,6 @@ def test_ui_wiring_and_languages():
     for route in dl.routes():
         for lang in ("en",):
             assert not re.search("[А-Яа-яЁё]", route.title[1]), route.name
-
 
 def test_describe_lines_bilingual():
     samples = {"chat/new": {"q": "hi", "send": True, "model": "m", "temp": True}, "note": {"path": "C:\\a.md"},

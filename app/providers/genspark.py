@@ -84,24 +84,17 @@ GS_SEED_MODELS = [
     ("mixture-of-agents", "гибрид: Genspark смешивает ответы"),
 ]
 
-
 def is_chat_model(model_id: str) -> bool:
     """Reject UI-only Genspark modes that cannot be selected in AI Chat."""
     normalized = str(model_id or "").strip().lower().replace("_", "-")
     return bool(normalized) and "fable-5" not in normalized
 
-# Genspark's current AI Image UI expands ``auto`` into real upstream model
-# identifiers.  Sending a literal ``auto`` model creates only the empty
-# ``moa_image_result`` message shell and never starts an image task.
 GS_IMAGE_AUTO_MODELS = [
     "fal-ai/nano-banana",
     "gpt-image-1",
     "fal-ai/flux-2",
     "fal-ai/bytedance/seedream/v5/lite",
 ]
-
-
-# ------------------------------ контекст ------------------------------
 
 @dataclass
 class Conv:
@@ -111,7 +104,6 @@ class Conv:
     tail_len: int
     tail_hash: str
     last_used: float
-
 
 class ConversationStore:
     MAX_PER_KEY = 24
@@ -199,16 +191,10 @@ class ConversationStore:
             while len(lst) > self.MAX_PER_KEY:
                 lst.pop(0)
 
-
 conversations = ConversationStore()
-
 
 def _history_needed(messages: List[Dict[str, Any]]) -> bool:
     return len([m for m in messages if m.get("role") == "user"]) > 1
-
-
-# ------------------------------ провайдер ------------------------------
-
 
 def _int_cfg(cfg: Dict[str, Any], key: str, default: int, low: int, high: int) -> int:
     """Числовая настройка из панели. Пустое поле или 0 — значение по умолчанию.
@@ -259,8 +245,6 @@ class GensparkProvider(Provider):
         )
         self._prefer_backend = ""
 
-    # ---- служебное ----
-
     def _cfg(self) -> Dict[str, Any]:
         return config_store.provider_cfg("genspark")
 
@@ -280,8 +264,6 @@ class GensparkProvider(Provider):
 
     async def close(self) -> None:
         await self.client.close()
-
-    # ---- интерфейс провайдера ----
 
     def account_fields(self) -> List[Field]:
         return [
@@ -318,8 +300,6 @@ class GensparkProvider(Provider):
         except GensparkError:
             return None
 
-    # ---- чат ----
-
     async def chat_stream(self, account, model: str, messages: List[Dict[str, Any]],
                           params: Dict[str, Any]) -> AsyncIterator[Dict[str, Any]]:
         cfg = self._cfg()
@@ -331,25 +311,20 @@ class GensparkProvider(Provider):
         if backend not in ("agent", "copilot"):
             backend = self._prefer_backend or "agent"
         has_rich_content = any(isinstance(m.get("content"), list) for m in messages)
-        # Старый COPILOT_MOA_CHAT теперь отвечает "feature has been retired".
-        # Актуальный AI Chat (/api/agent/ask_proxy) принимает content parts сам.
+
         if has_rich_content:
             backend = "agent"
         context_mode = cfg.get("context_mode", "auto")
         reasoning_out = cfg.get("reasoning_output", "reasoning_content")
         auto_delete = self._bool(cfg.get("auto_delete_chats", True))
-        # A slow reasoning/search run can legitimately take several minutes.
-        # Provider-specific values still override this generous chat default.
+
         idle_timeout = _int_cfg(cfg, "stream_idle_timeout",
                                 max(config_store.settings.stream_idle_timeout, 900), 30, 7200)
         timeout = _int_cfg(cfg, "request_timeout",
                            max(config_store.settings.request_timeout, 900), 30, 7200)
 
         system_text, history, final_user = normalize_messages(messages)
-        # The conversation store is keyed by the client's own messages. Documents are
-        # re-uploaded on every request and get a fresh private_storage_url each time, so
-        # hashing the prepared copy never matched the next turn: every chat with a
-        # document fell back to a full transcript in a new Genspark project.
+
         client_messages = messages
         try:
             if has_rich_content:
@@ -397,10 +372,7 @@ class GensparkProvider(Provider):
                         yield {"type": "text", "text": ev.text}
                     break
         except (asyncio.CancelledError, GeneratorExit):
-            # Остановка в MemuAI закрывает SSE и удаляет созданный проект Genspark,
-            # чтобы генерация не продолжалась в аккаунте в фоне.
-            # The delete runs shielded: under the ASGI cancel scope a plain await
-            # here was cancelled at once and the project kept generating.
+
             if new_project_id:
                 cookie, proxy = self._cookie(account), self.proxy_for(account)
                 await http.close_quietly(
@@ -414,12 +386,10 @@ class GensparkProvider(Provider):
         except GensparkNetworkError as e:
             raise ProviderNetworkError(str(e))
         except GensparkServerError as e:
-            # Не переключаемся на COPILOT после одного 404: этот бэкенд
-            # выведен из работы и отвечает «feature has been retired».
+
             raise ProviderServerError(str(e), e.status or 502)
         finally:
-            # Abort, not drain: after a final result or a Stop the rest of the
-            # upstream stream must not be awaited (see http.close_response).
+
             await http.close_response(resp)
 
         full_text = "".join(text_parts)
@@ -428,8 +398,6 @@ class GensparkProvider(Provider):
 
         await self._after_success(account, model, mode, project_id, new_project_id,
                                   client_messages, full_text, auto_delete)
-
-    # ---- внутренние ----
 
     async def _prepare_files(self, account, messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Преобразует вложенные документы в private_file; изображения остаются data URL."""
@@ -547,8 +515,7 @@ class GensparkProvider(Provider):
                 send_messages = [last_user] if last_user else rich[-1:]
             else:
                 send_messages = rich
-                # AI Chat не имеет отдельной system-роли: добавляем инструкцию
-                # к текстовой части первого актуального запроса, не трогая image_url.
+
                 if system_text and send_messages:
                     target = next((m for m in send_messages if m["role"] == "user"), send_messages[0])
                     content = target.get("content")
@@ -581,8 +548,6 @@ class GensparkProvider(Provider):
                                      tail_len=len(tail),
                                      tail_hash=ConversationStore.hash_messages(tail),
                                      last_used=time.time()))
-
-    # ---- изображения ----
 
     async def generate_images(self, account, prompt: str, model: str = "auto",
                               aspect: str = "auto",
@@ -671,14 +636,11 @@ class GensparkProvider(Provider):
                 raise ProviderRateLimitError("Image generation rate limit")
             if "free usage limit" in body.lower():
                 raise ProviderQuotaError("The daily generation limit is used up")
-            # Для устаревшего/временно выключенного id пробуем официальный
-            # набор Auto. Он раскрывается в конкретные модели выше, а не
-            # отправляется как несуществующий upstream-id ``auto``.
+
             if (not video and model.lower() != "auto" and not reference_images
                     and "moa_image_result" in body):
                 return await self.generate_images(account, prompt, "auto", aspect, reference_images)
-            # Не выводим пользователю сырой хвост SSE: там были UUID и
-            # внутренние message_field, но не было полезной причины ошибки.
+
             raise ProviderServerError(
                 "Genspark AI Image did not create a task. Refresh the account cookie; "
                 "если ошибка повторится, откройте AI Image на genspark.ai один раз "
@@ -710,17 +672,14 @@ class GensparkProvider(Provider):
             await http.close_response(poll)
         if not urls:
             raise ProviderServerError("Generation did not reach the success state in time")
-        # AI Image projects are intentionally kept: users expect a completed
-        # generation to remain visible in Genspark's own history.
-        return urls
 
-    # ---- каталог моделей ----
+        return urls
 
     async def refresh_models_config(self) -> Dict[str, Any]:
         """Image/audio/video модели из /api/models_config (для справки)."""
         from ..state import state as app_state
         accounts = app_state.usable_accounts("genspark")
-        # The same normalisation as chat: a bare session id needs its «session_id=» name.
+
         cookie = self._cookie(accounts[0]) if accounts else ""
         data = await self.client.models_config(cookie=cookie, proxy=self.proxy_for(accounts[0]) if accounts else "")
         sections = gs_catalog.parse_models_config(data)

@@ -17,7 +17,6 @@ sys.path.insert(0, str(ROOT))
 from app.memufiles import default_shell as ds  # noqa: E402
 from app.memufiles import winkey  # noqa: E402
 
-
 class FakeReg:
     """HKCU in a dict: {lower key: {lower name: (name, type, data)}}; keys exist only when created."""
 
@@ -64,23 +63,20 @@ class FakeReg:
     def snapshot(self):
         return json.dumps(self.keys, sort_keys=True)
 
-
 BASE = ["software", "software\\classes", "software\\classes\\clsid"]
-
 
 def clean_reg():
     reg = FakeReg()
-    for key in BASE:                        # a real HKCU always has these
+    for key in BASE:
         reg.keys[key] = {}
     return reg
-
 
 class DefaultShellTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="r38-files-")
         self.env = mock.patch.dict(os.environ, {"MEMUAI_DATA_DIR": os.path.join(self.tmp, "data")})
         self.env.start()
-        self.exe = os.path.join(self.tmp, "Программы", "MemuFiles", "MemuFiles.exe")     # Cyrillic install path
+        self.exe = os.path.join(self.tmp, "Программы", "MemuFiles", "MemuFiles.exe")
         os.makedirs(os.path.dirname(self.exe))
         Path(self.exe).write_bytes(b"MZ")
         self.reg = clean_reg()
@@ -94,7 +90,6 @@ class DefaultShellTest(unittest.TestCase):
         self.env.stop()
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    # -------------------------------------------------------------- the main promise
     def test_clean_registry_enable_both_then_restore_is_exact(self):
         before = self.reg.snapshot()
         ds.enable("folders")
@@ -130,7 +125,7 @@ class DefaultShellTest(unittest.TestCase):
         self.reg.set(r"Software\Classes\Folder\shell\open\command", "Extra", ds.REG_DWORD, 7)
         before = self.reg.snapshot()
         ds.enable("folders")
-        # another program adds its verb while MemuFiles is the default: it must stay after the rollback
+
         self.reg.set(r"Software\Classes\Directory\shell\VSCode\command", "", ds.REG_SZ, "code.exe %1")
         ds.disable("folders")
         self.reg.delete_tree(r"Software\Classes\Directory\shell\VSCode")
@@ -149,7 +144,7 @@ class DefaultShellTest(unittest.TestCase):
         self.reg.set(r"Software\Classes\Directory\shell", "", ds.REG_SZ, "OtherVerb")
         before = self.reg.snapshot()
         ds.enable("folders")
-        ds.enable("folders")                       # must not back up our own values
+        ds.enable("folders")
         state = ds.load_state()
         row = [v for v in state["features"]["folders"]["backup"]["values"]
                if v["key"].endswith("Directory\\shell") and v["name"] == ""][0]
@@ -187,7 +182,7 @@ class DefaultShellTest(unittest.TestCase):
     def test_lost_backup_restore_removes_only_ours(self):
         ds.enable("folders")
         ds.enable("win_e")
-        (ds.shell_dir() / "state.json").unlink()       # data folder wiped
+        (ds.shell_dir() / "state.json").unlink()
         self.reg.set(r"Software\Classes\Drive\shell\Foreign", "", ds.REG_SZ, "x")
         ds.restore_all()
         self.assertEqual(ds.status()["state"], "off")
@@ -207,10 +202,9 @@ class DefaultShellTest(unittest.TestCase):
         self.reg.set(r"Software\Classes\Folder\shell\open\command", "", ds.REG_SZ, "files.exe %1")
         self.reg.set(r"Software\Classes\Folder\shell\open\command", "DelegateExecute", ds.REG_SZ, "")
         before = self.reg.snapshot()
-        ds.restore_all()                         # nothing of ours: nothing changes
+        ds.restore_all()
         self.assertEqual(self.reg.snapshot(), before)
 
-    # -------------------------------------------------------------- MemuFiles gone / moved
     def test_removed_exe_still_restorable_and_launcher_falls_back(self):
         before = self.reg.snapshot()
         ds.enable("folders")
@@ -223,7 +217,7 @@ class DefaultShellTest(unittest.TestCase):
         text = source[2:].decode("utf-16-le")
         self.assertIn("FileExists(EXE)", text)
         self.assertIn('"explore"', text)
-        self.assertIn("Программы", text)                # Cyrillic exe path survives (UTF-16 + BOM)
+        self.assertIn("Программы", text)
         self.assertEqual(ds.restore_all()["problems"], [])
         self.assertEqual(self.reg.snapshot(), before)
 
@@ -252,7 +246,6 @@ class DefaultShellTest(unittest.TestCase):
         self.assertNotIn("wscript", cmd)
         self.assertFalse(ds.launcher_path().exists())
 
-    # -------------------------------------------------------------- emergency .reg / API
     def test_emergency_reg_file(self):
         self.reg.set(r"Software\Classes\Directory\shell", "", ds.REG_SZ, 'Other "verb"')
         ds.enable("folders")
@@ -277,7 +270,6 @@ class DefaultShellTest(unittest.TestCase):
         self.assertTrue(ds.handle({"action": "hook", "on": True})["hook"])
         self.assertEqual(ds.handle({"action": "restore"})["state"], "off")
         self.assertFalse(ds.status()["hook"], "restore also turns the Win+E fallback off")
-
 
 class RouteTest(unittest.TestCase):
     def test_special_paths_go_to_explorer(self):
@@ -314,7 +306,6 @@ class RouteTest(unittest.TestCase):
             explore.assert_called_once()
         self.assertEqual(desktop._shell_open([]), [os.path.expanduser("~")])
 
-
 class LauncherSyntaxTest(unittest.TestCase):
     def test_launcher_is_valid_javascript(self):
         node = shutil.which("node")
@@ -325,7 +316,6 @@ class LauncherSyntaxTest(unittest.TestCase):
             path = os.path.join(tmp, "l.js")
             Path(path).write_text(ds.launcher_source("C:\\Users\\Анна\\MemuFiles.exe"), encoding="utf-8")
             self.assertEqual(subprocess.run([node, "--check", path], capture_output=True).returncode, 0)
-
 
 class UnavailableTest(unittest.TestCase):
     def test_linux_is_unavailable_and_never_raises(self):
@@ -353,7 +343,6 @@ class UnavailableTest(unittest.TestCase):
         self.assertEqual(client.post("/api/pg/memufiles/default-shell", json={"action": "enable", "feature": "folders",
                                                                                "confirmed": True}).json()["error"], "unavailable")
 
-
 class WinKeyTest(unittest.TestCase):
     def test_chord(self):
         held = set()
@@ -367,7 +356,6 @@ class WinKeyTest(unittest.TestCase):
         held.clear()
         self.assertFalse(winkey.is_chord(winkey.VK_E, winkey.WM_KEYDOWN, down))
 
-
 class WiringTest(unittest.TestCase):
     def test_uninstall_paths_restore_explorer(self):
         from installer.products import PRODUCTS
@@ -378,8 +366,7 @@ class WiringTest(unittest.TestCase):
         body = src[src.index("def uninstall("):src.index("def _restore_explorer")]
         self.assertLess(body.index("_restore_explorer()"), body.index("_remove_tree(folder)"))
         desk = (ROOT / "app" / "memufiles" / "desktop.py").read_text(encoding="utf-8")
-        self.assertLess(desk.index('"--restore-explorer" in flags'), desk.index("hand_off(args[\"paths\"]"))   # r41: + reveal/shell/browse
-
+        self.assertLess(desk.index('"--restore-explorer" in flags'), desk.index("hand_off(args[\"paths\"]"))
 
 if __name__ == "__main__":
     unittest.main()

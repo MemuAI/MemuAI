@@ -88,7 +88,6 @@ CODE_ANSWER = [
     {"event": "done", "text": "", "model": "gpt-5-mini", "ms": 1840, "rounds": 1},
 ]
 
-
 def demo_image(width: int = 960, height: int = 540) -> str:
     """A fake "screen" for the screenshot mock: an editor with an error dialog."""
     from PIL import Image, ImageDraw
@@ -105,18 +104,15 @@ def demo_image(width: int = 960, height: int = 540) -> str:
     img.save(buf, format="JPEG", quality=85)
     return "data:image/jpeg;base64," + base64.b64encode(buf.getvalue()).decode()
 
-
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):  # noqa: D401
         pass
-
 
 def serve() -> tuple:
     handler = functools.partial(Quiet, directory=str(STATIC))
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, f"http://127.0.0.1:{server.server_address[1]}"
-
 
 async def main(out_dir: Path) -> int:
     from playwright.async_api import async_playwright
@@ -193,7 +189,6 @@ async def main(out_dir: Path) -> int:
         def want(name: str) -> bool:
             return not only or any(name.startswith(prefix) for prefix in only)
 
-        # ---------------------------------------------------------------- Round 22
         if want("r22"):
             r22 = dict(PREFS, quick_ask_advanced_model="claude-sonnet-4.5", quick_ask_model="gemini-2.5-flash", quick_ask_routing="auto")
             native_payload = "{fresh:true, maxHeight:700, rounded:true, corner:'dwm', radius:8, page:%s}"
@@ -210,7 +205,7 @@ async def main(out_dir: Path) -> int:
                 await page.click("#qa-sel-actions .qa-btn")
                 await native_shot(page, f"r22-page-summary-{design}-{theme}", 900)
             PREFS.clear(); PREFS.update(r22, theme="dark", ui_design="classic", accent_color="violet")
-            # pending page (URL still being read) + empty state ideas
+
             page = await page_for(True)
             await page.evaluate("QuickAsk.onShow(" + native_payload % json.dumps(dict(PAGE, url="", pending=True, source="title")) + ")")
             await native_shot(page, "r22-page-pending", 500)
@@ -218,7 +213,7 @@ async def main(out_dir: Path) -> int:
             await page.route("**/api/quick/history", lambda r, q: r.fulfill(json={"items": [], "enabled": True}))
             await page.evaluate("QuickAsk.onShow({fresh:true, maxHeight:700, rounded:true, corner:'dwm', radius:8})")
             await native_shot(page, "r22-empty-ideas", 600)
-            # chats list
+
             page = await page_for(True)
             await page.evaluate("QuickAsk.onShow({fresh:true, maxHeight:700, rounded:true, corner:'dwm', radius:8})")
             await page.click("#qa-history")
@@ -229,7 +224,7 @@ async def main(out_dir: Path) -> int:
             await page.click("#qa-history")
             await native_shot(page, "r22-chats-light", 700)
             PREFS.update(theme="dark")
-            # routing in the picker, escalated answer, ask-advanced button
+
             page = await page_for(True)
             await page.click("#qa-model")
             await native_shot(page, "r22-picker-routing", 500)
@@ -244,7 +239,7 @@ async def main(out_dir: Path) -> int:
             await page.fill("#qa-input", "Как создать ветку и сразу запушить её?")
             await page.click("#qa-send")
             await native_shot(page, "r22-fast-answer-advance-button", 900)
-            # dock hint while dragging, plugin contract (panel + composer button)
+
             page = await page_for(True)
             await page.evaluate("QuickAsk.onShow({fresh:true, maxHeight:700, rounded:true, corner:'dwm', radius:8}); QuickAsk.onDrag({dock:'top-right'})")
             await native_shot(page, "r22-dock-hint", 500)
@@ -254,8 +249,7 @@ async def main(out_dir: Path) -> int:
               MemuQuick.addComposerButton({id: 'mic', title: 'Голос (плагин)', icon: MemuQuick.icons.spark, onClick() {}});
               QuickAsk.onShow({fresh:true, maxHeight:700, rounded:true, corner:'dwm', radius:8}); }""")
             await native_shot(page, "r22-plugin-contract", 600)
-            # footer fit: voice plugin buttons + tier + an answered chat (new-chat visible) in the narrowest
-            # (520 px) and a mid window; the pin must stay inside, the hint is whole or hidden
+
             for width, theme, lang, design in ((520, "dark", "ru", "classic"), (520, "light", "en", "glass"), (600, "light", "ru", "grid"),
                                                (640, "dark", "en", "aurora"), (720, "light", "ru", "focus")):
                 page = await page_for(True, theme=theme, design=design, lang=lang)
@@ -279,7 +273,7 @@ async def main(out_dir: Path) -> int:
                 await page.screenshot(path=str(out_dir / f"r22-footer-{width}-{design}-{theme}.png"))
                 await page.close()
             PREFS.update(theme="dark", ui_design="classic", accent_color="violet", language="ru")
-            # corners: the card must fill the window with the native radius (zoomed top-left corner)
+
             for theme in ("dark", "light"):
                 PREFS.update(theme=theme)
                 page = await page_for(True, theme=theme)
@@ -303,14 +297,12 @@ async def main(out_dir: Path) -> int:
             print(f"shots → {out_dir}")
             return 1 if any(line.startswith(("pageerror", "footer")) for line in errors) else 0
 
-        # 1. idle: recent questions, desktop backdrop (browser rendering of the card)
         page = await page_for(False)
         await demo_shot(page, "01-idle-demo")
         page = await page_for(True)
         await page.evaluate("QuickAsk.onShow({fresh:true, maxHeight: 700, rounded: true})")
         await native_shot(page, "02-idle-native", 700)
 
-        # 2. typing: the instant calculator
         page = await page_for(True)
         await page.fill("#qa-input", "2^10 + 15%")
         await page.dispatch_event("#qa-input", "input")
@@ -321,7 +313,6 @@ async def main(out_dir: Path) -> int:
         await page.dispatch_event("#qa-input", "input")
         await native_shot(page, "04-typing-question")
 
-        # 3. streaming: a turn in progress
         page = await page_for(True)
         await page.evaluate("""() => { const S = QuickAsk.state(); S.busy = true;
           S.turns = [{q: 'Как создать ветку и сразу запушить её?', images: [], selection: '', a: 'Создайте ветку и сразу переключитесь на неё:\\n\\n```bash\\ngit switch -c feature/quick-ask\\ngit pu',
@@ -335,20 +326,17 @@ async def main(out_dir: Path) -> int:
             instant: {text: 'Москва: +7 °C, облачно, ветер 4 м/с', source: 'Open-Meteo', note: 'сейчас'}}]; }""")
         await native_shot(page, "06-searching-instant")
 
-        # 4. a finished answer with code, sources and the action bar
         page = await page_for(True)
         await page.fill("#qa-input", "Как создать ветку и сразу запушить её?")
         await page.click("#qa-send")
         await native_shot(page, "07-answer-code", 900)
 
-        # 5. a screenshot attached
         page = await page_for(True)
         await page.click("#qa-shot")
         await page.fill("#qa-input", "Что означает эта ошибка и как её исправить?")
         await page.dispatch_event("#qa-input", "input")
         await native_shot(page, "08-screenshot-attached", 700)
 
-        # 6. a text-only model with an image: the explicit message
         page = await page_for(True)
         await page.evaluate("() => { QuickAsk.state().sessionModel = 'deepseek-v3.2'; }")
         await page.click("#qa-shot")
@@ -356,17 +344,14 @@ async def main(out_dir: Path) -> int:
         await page.click("#qa-send")
         await native_shot(page, "09-vision-error", 600)
 
-        # 7. the model picker
         page = await page_for(True)
         await page.click("#qa-model")
         await native_shot(page, "10-model-picker")
 
-        # 8. selected text grabbed from another program
         page = await page_for(True)
         await page.evaluate("QuickAsk.onShow({fresh:true, maxHeight:700, selection: 'The quarterly deadline is tight, so we will ship the hotfix first and refactor the hotkey module next sprint.'})")
         await native_shot(page, "11-selection-actions", 600)
 
-        # 9. designs and the light theme
         for theme, design, accent in (("light", "classic", "terracotta"), ("dark", "aurora", "rose"), ("dark", "grid", "teal"),
                                       ("light", "glass", "blue"), ("dark", "focus", "graphite")):
             page = await page_for(False, theme=theme, design=design, accent=accent)
@@ -374,13 +359,11 @@ async def main(out_dir: Path) -> int:
             await page.click("#qa-send")
             await demo_shot(page, f"12-{design}-{theme}", 900)
 
-        # 10. English UI
         page = await page_for(True, lang="en")
         await page.evaluate("QuickAsk.onShow({fresh:true, maxHeight:700})")
         await native_shot(page, "13-english-idle", 600)
         PREFS.update(language="ru", theme="dark", ui_design="classic", accent_color="violet")
 
-        # 11. reduced motion still renders the same layout
         page = await page_for(True)
         await page.emulate_media(reduced_motion="reduce")
         await page.fill("#qa-input", "Как создать ветку и сразу запушить её?")
@@ -392,7 +375,6 @@ async def main(out_dir: Path) -> int:
         print(line)
     print(f"shots → {out_dir}")
     return 1 if any(line.startswith(("pageerror", "footer")) for line in errors) else 0
-
 
 if __name__ == "__main__":
     target = Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r21-quickask")

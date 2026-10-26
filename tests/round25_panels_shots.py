@@ -14,7 +14,6 @@ sys.path.insert(0, str(ROOT))
 OUT = Path("/workspace/work/shots/r25/b5-panels")
 LONG = "Очень длинное название панели, которое никак не помещается в одну строку карточки"
 
-
 def snapshot():
     from tests.round24_designs_shots import panels_snapshot
     from tests.panels_browser_test import panel
@@ -33,7 +32,6 @@ def snapshot():
               ["home"], size="s", source={"type": "rss", "params": {}}),
     ]
     return snap
-
 
 def main(designs):
     from playwright.sync_api import sync_playwright
@@ -73,7 +71,6 @@ def main(designs):
                 page.close()
         browser.close()
     print(json.dumps(report, ensure_ascii=False, indent=1))
-
 
 if __name__ == "__main__":
     main(sys.argv[1:] or ["classic", "glass", "soft", "terminal", "brutal"])

@@ -27,7 +27,6 @@ LLKHF_INJECTED = 0x10
 _thread: Optional[threading.Thread] = None
 _thread_id = 0
 
-
 def is_chord(vk: int, message: int, down: Callable[[int], bool], injected: bool = False) -> bool:
     """Pure decision (tested): plain Win+E key-down, no Ctrl/Alt/Shift, not our own injected input."""
     if injected or vk != VK_E or message not in (WM_KEYDOWN, WM_SYSKEYDOWN):
@@ -35,7 +34,6 @@ def is_chord(vk: int, message: int, down: Callable[[int], bool], injected: bool 
     if not (down(VK_LWIN) or down(VK_RWIN)):
         return False
     return not (down(VK_CONTROL) or down(VK_MENU) or down(VK_SHIFT))
-
 
 def start(on_win_e: Callable[[], None]) -> bool:
     """Install the hook on its own thread (Windows only; idempotent). False when it could not start."""
@@ -49,14 +47,12 @@ def start(on_win_e: Callable[[], None]) -> bool:
     ready.wait(3.0)
     return result["ok"]
 
-
 def stop() -> None:
     global _thread
     if os.name == "nt" and _thread is not None and _thread.is_alive() and _thread_id:
         import ctypes
-        ctypes.windll.user32.PostThreadMessageW(_thread_id, 0x0012, 0, 0)        # WM_QUIT
+        ctypes.windll.user32.PostThreadMessageW(_thread_id, 0x0012, 0, 0)
     _thread = None
-
 
 def _loop(on_win_e: Callable[[], None], ready: threading.Event, result: dict) -> None:
     global _thread_id
@@ -91,7 +87,7 @@ def _loop(on_win_e: Callable[[], None], ready: threading.Event, result: dict) ->
         if code == 0:
             info = ctypes.cast(lparam, ctypes.POINTER(KBDLLHOOKSTRUCT)).contents
             if is_chord(info.vkCode, wparam, down, bool(info.flags & LLKHF_INJECTED)):
-                user32.keybd_event(VK_DUMMY, 0, 0, 0)          # keeps Start closed when Win is released
+                user32.keybd_event(VK_DUMMY, 0, 0, 0)
                 user32.keybd_event(VK_DUMMY, 0, 2, 0)
                 threading.Thread(target=fire, name="memufiles-win-e-open", daemon=True).start()
                 return 1

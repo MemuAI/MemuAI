@@ -1,44 +1,33 @@
-/* MemuAI Proxy — панель управления
-   Design "Control room" (Oct 2026): calm layered neutrals, one confident accent,
-   1px hairlines, a real type scale. Every colour goes through the tokens below, so a
-   light palette (:root[data-theme="light"]) or another accent only has to swap them. */
-
 :root {
   color-scheme: dark;
-  /* surfaces, from the canvas up */
   --bg: #09090b;
   --bg-deep: #070709;
-  --bg-soft: #0e0e11;          /* inset wells: inputs, code, charts */
+  --bg-soft: #0e0e11;
   --sidebar: #0c0c0e;
   --panel: #121215;
   --card: #121215;
-  --card-2: #18181c;           /* raised / hover */
-  --card-3: #202026;           /* pressed / selected */
+  --card-2: #18181c;
+  --card-3: #202026;
   --code-bg: #0b0b0d;
-  /* lines */
   --border: rgba(255, 255, 255, 0.085);
   --border-soft: rgba(255, 255, 255, 0.055);
   --border-strong: rgba(255, 255, 255, 0.15);
   --control-border: rgba(255, 255, 255, 0.1);
-  /* text */
   --text: #ededf1;
   --text-2: #c8c8d0;
   --muted: #9b9ba7;
   --muted-2: #85858f;
-  /* accent: one colour, used sparingly */
   --accent: #6c5cf5;
   --accent-2: #8678ff;
   --accent-text: #ada4ff;
   --on-accent: #ffffff;
   --accent-soft: color-mix(in srgb, var(--accent) 15%, transparent);
   --accent-line: color-mix(in srgb, var(--accent) 50%, transparent);
-  /* status */
   --ok: #3ecf8e;
   --warn: #f0b04a;
   --err: #f26a6e;
   --danger: var(--err);
   --info: #5db9f5;
-  /* depth */
   --hairline-top: inset 0 1px 0 rgba(255, 255, 255, 0.035);
   --shadow: 0 24px 60px -16px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05);
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.45);
@@ -53,8 +42,6 @@
   --side-w: 236px;
   --top-h: 56px;
 }
-
-/* Light palette: ready for a theme switch; nothing in the panel sets it yet. */
 :root[data-theme="light"] {
   color-scheme: light;
   --bg: #f7f7f9; --bg-deep: #efeff3; --bg-soft: #f1f1f5; --sidebar: #f2f2f5;
@@ -99,8 +86,6 @@ a:hover { text-decoration-color: currentColor; }
 ::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--text) 13%, transparent); border-radius: 8px; border: 3px solid transparent; background-clip: padding-box; }
 ::-webkit-scrollbar-thumb:hover { background-color: color-mix(in srgb, var(--text) 22%, transparent); }
 ::-webkit-scrollbar-track, ::-webkit-scrollbar-corner { background: transparent; }
-
-/* Disclosure triangles: one chevron everywhere instead of the native marker. */
 details > summary { list-style: none; }
 details > summary::-webkit-details-marker { display: none; }
 details:not(.adv) > summary::before {
@@ -113,11 +98,7 @@ details:not(.adv) > summary::before {
 details:not(.adv)[open] > summary::before { transform: rotate(90deg); }
 details:not(.adv) > summary { cursor: pointer; }
 details:not(.adv) > summary:hover { color: var(--text); }
-
-/* Inline line icons (icons.js and the sidebar). */
 svg.i { width: 16px; height: 16px; flex: none; display: inline-block; vertical-align: -3px; }
-
-/* ----------------------------- вход ----------------------------- */
 
 #login-overlay {
   position: fixed; inset: 0; z-index: 100;
@@ -161,13 +142,11 @@ svg.i { width: 16px; height: 16px; flex: none; display: inline-block; vertical-a
   background: linear-gradient(150deg, color-mix(in srgb, var(--accent) 70%, white 30%), var(--accent) 55%, color-mix(in srgb, var(--accent) 70%, black));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 4px 14px -4px color-mix(in srgb, var(--accent) 70%, transparent);
 }
-.logo .mark.round { border-radius: 50%; } /* Round 33: the Proxy badge is round, like its icon */
+.logo .mark.round { border-radius: 50%; }
 .logo .mark.round svg { width: 19px; height: 19px; }
 .logo .mark svg { width: 16px; height: 16px; }
 .logo b { font-weight: 600; color: var(--accent-text); }
 .logo em { font-style: normal; font-weight: 500; color: var(--muted); }
-
-/* ----------------------------- каркас ----------------------------- */
 
 #app { display: none; min-height: 100vh; }
 #app.visible { display: flex; }
@@ -266,8 +245,6 @@ h2.tab-title { margin: 0 0 6px; font: 600 24px/1.2 var(--font-display); letter-s
 p.tab-sub { color: var(--muted); margin: 0 0 24px; font-size: 13.5px; max-width: 760px; line-height: 1.55; }
 h3.section-title { margin: 30px 0 12px; font: 600 15px/1.3 var(--font-display); letter-spacing: -.005em; }
 
-/* ----------------------------- карточки ----------------------------- */
-
 .card {
   background: var(--card); border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -278,8 +255,6 @@ h3.section-title { margin: 30px 0 12px; font: 600 15px/1.3 var(--font-display); 
 .card h3 { margin: 0 0 4px; font: 600 15px/1.35 var(--font-display); letter-spacing: -.005em; }
 .card .sub { color: var(--muted); font-size: 13px; margin: 0 0 16px; line-height: 1.55; }
 .connect-card { margin-top: 16px; }
-
-/* «Дополнительно»: редкие настройки свёрнуты, чтобы не пугать список. */
 h3.section-head {
   margin: 34px 0 6px; font-size: 11.5px; font-weight: 600;
   color: var(--muted-2); text-transform: uppercase; letter-spacing: .09em;
@@ -322,8 +297,6 @@ h3.section-head {
 .stat-card .num.err { color: var(--err); }
 .stat-card .num.warn { color: var(--warn); }
 
-/* ----------------------------- элементы ----------------------------- */
-
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   min-height: 34px; padding: 6px 13px;
@@ -358,8 +331,6 @@ h3.section-head {
 .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
 .btn .spin { display: inline-block; animation: rot 1s linear infinite; }
 @keyframes rot { to { transform: rotate(360deg); } }
-
-/* ◌ spinners in markup become a thin ring */
 .spin, .spin-big {
   display: inline-block; width: 14px; height: 14px; vertical-align: -2px;
   border: 2px solid color-mix(in srgb, currentColor 25%, transparent); border-top-color: currentColor;
@@ -383,11 +354,9 @@ input[type="text"]:hover, input[type="password"]:hover, input[type="number"]:hov
 input[type="search"]:hover, input[type="email"]:hover, input:not([type]):hover, select:hover, textarea:hover { border-color: var(--border-strong); }
 input::placeholder, textarea::placeholder { color: var(--muted-2); opacity: 1; }
 input[type="number"] { font-variant-numeric: tabular-nums; }
-/* Ключ или кука видны только по кнопке-глазу, но правятся всегда. */
 .secret-field:not(.revealed) { -webkit-text-security: disc; text-security: disc; font-family: var(--mono); }
 .secret-field.revealed { font-family: var(--mono); font-size: 12.5px; }
 .reveal-btn { margin-left: 8px; min-height: 22px !important; padding: 1px 8px !important; font-size: 11px !important; vertical-align: middle; }
-/* Поля поиска: тот же тёмный стиль плюс значок лупы вместо «белой коробки». */
 input[type="search"] {
   appearance: none; -webkit-appearance: none;
   padding-left: 34px;
@@ -416,7 +385,6 @@ select {
 }
 select option { background: var(--card-2); color: var(--text); }
 input[type="checkbox"], input[type="radio"] { accent-color: var(--accent); }
-/* custom checkbox (switch inputs are invisible overlays and stay untouched) */
 input[type="checkbox"]:not(.switch input) {
   appearance: none; -webkit-appearance: none; flex: none;
   width: 16px; height: 16px; margin: 0; border-radius: 5px; cursor: pointer; vertical-align: -3px;
@@ -435,10 +403,7 @@ input[type="checkbox"]:not(.switch input):disabled { opacity: .45; cursor: not-a
 .row > .grow { flex: 1; }
 .grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 20px; }
 .grid-3 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr); gap: 0 20px; }
-/* Колонка не шире своей доли: длинная строка внутри обрезается или переносится, а не наезжает на соседнюю. */
 .grid-2 > *, .grid-3 > * { min-width: 0; }
-
-/* переключатель */
 .switch { position: relative; display: inline-block; width: 34px; height: 20px; flex: none; }
 .switch input {
   position: absolute; inset: 0; z-index: 1; opacity: 0;
@@ -460,8 +425,6 @@ input[type="checkbox"]:not(.switch input):disabled { opacity: .45; cursor: not-a
 .switch input:checked + .slider::before { transform: translateX(14px); background: #fff; }
 .switch input:focus-visible + .slider { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 .switch input:disabled + .slider { opacity: .45; cursor: not-allowed; }
-
-/* ----------------------------- таблицы ----------------------------- */
 
 .table-wrap { overflow-x: auto; }
 table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -513,8 +476,6 @@ td.actions .btn.danger.is-icon:hover { background: color-mix(in srgb, var(--err)
 .chip.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 11%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ok) 20%, transparent); }
 .chip.dim { color: var(--muted); }
 
-/* ----------------------------- тосты / модалки ----------------------------- */
-
 #toasts { position: fixed; top: calc(var(--top-h) + 12px); right: 18px; z-index: 200; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
 .toast {
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
@@ -559,8 +520,6 @@ body.modal-open { overflow: hidden; }
   border-radius: 0 0 14px 14px;
 }
 
-/* ----------------------------- прочее ----------------------------- */
-
 .code-block {
   background: var(--code-bg); border: 1px solid var(--border-soft);
   border-radius: var(--radius-sm); padding: 14px 16px;
@@ -584,8 +543,6 @@ body.modal-open { overflow: hidden; }
   background: var(--bg-soft); border: 1px solid var(--border);
   border-bottom-width: 2px; border-radius: 5px; padding: 1px 6px;
 }
-
-/* ==================== главная: статус-герой ==================== */
 
 .hero {
   position: relative; overflow: hidden; isolation: isolate;
@@ -650,8 +607,6 @@ body.modal-open { overflow: hidden; }
 .hero .copy-line .val { grid-area: val; font-family: var(--mono); font-size: 13px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hero .copy-line .btn { grid-area: btn; }
 
-/* ==================== провайдеры и аккаунты ==================== */
-
 .provider-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
 .provider-card {
   display: flex; flex-direction: column;
@@ -679,8 +634,6 @@ body.modal-open { overflow: hidden; }
 #providers-grid .provider-card .p-head { margin-bottom: 14px; }
 #providers-grid .provider-card .p-nums { border-top: 1px solid var(--border-soft); }
 .provider-card .p-nums b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
-
-/* выбор провайдера при добавлении аккаунта */
 .pick-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin: 14px 0 4px; }
 .pick-tile {
   background: var(--card-2); border: 1px solid var(--border); border-radius: 11px;
@@ -710,7 +663,6 @@ body.modal-open { overflow: hidden; }
 .chip-btn.active .dim { color: var(--accent-text); }
 
 .usage-row { display: flex; align-items: center; gap: 12px; padding: 7px 0; font-size: 13px; min-width: 0; }
-/* Имя уступает место значению (а не наоборот): «255 · 92.9% · 27 127мс» шире 110px и раньше вылезало за колонку. */
 .usage-row .u-name { flex: 0 1 38%; min-width: 0; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar { flex: 1 1 40px; min-width: 40px; height: 6px; border-radius: 4px; background: color-mix(in srgb, var(--text) 7%, transparent); overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent); transition: width .5s var(--ease); }
@@ -730,16 +682,10 @@ body.modal-open { overflow: hidden; }
 .field-action { display: flex; align-items: flex-end; }
 .field-action .btn { width: 100%; justify-content: center; min-height: 36px; }
 .nav-backdrop { display: none; }
-
-/* карточки аккаунтов */
 .acc-card { cursor: default; }
 .acc-card.acc-off { opacity: .55; }
 .acc-card.acc-off:hover { opacity: .8; }
 .mono.dim, .p-sub.mono { font-family: var(--mono); font-size: 11.5px; color: var(--muted-2); }
-
-/* ==================== round 6: аккаунты, модели, логи, статистика ==================== */
-
-/* --- общие мелочи --- */
 .inline-field {
   display: inline-flex; align-items: center; gap: 8px;
   color: var(--muted); font-size: 12.5px; white-space: nowrap;
@@ -763,20 +709,15 @@ body.modal-open { overflow: hidden; }
   display: grid; place-items: center; font: italic 700 10px/1 Georgia, serif;
   color: var(--muted); border: 1px solid var(--border-strong);
 }
-/* Частые ошибки и популярные модели: число слева, имя справа; длинное имя переносится внутри колонки. */
 #metrics-errors .row-line { display: flex; align-items: baseline; gap: 10px; min-width: 0; padding: 6px 0; border-bottom: 1px solid var(--border-soft); }
 #metrics-errors .row-line:last-child { border-bottom: 0; }
 #metrics-errors .row-line .chip { flex: 0 0 auto; min-width: 2.4em; justify-content: center; }
 #metrics-errors .row-line .mono { min-width: 0; overflow-wrap: anywhere; }
 #metrics-errors .row-line .mono { color: var(--text-2); font-size: 12px; }
-
-/* Текст логов и payload'ов должен свободно выделяться и копироваться. */
 .selectable, .selectable * {
   -webkit-user-select: text; user-select: text; cursor: text;
 }
 .selectable button, .selectable .btn { cursor: pointer; }
-
-/* --- панель массовых действий --- */
 .bulk-bar {
   position: sticky; top: calc(var(--top-h) + 8px); z-index: 4;
   display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
@@ -788,12 +729,9 @@ body.modal-open { overflow: hidden; }
 }
 .bulk-bar > span:first-child { font-weight: 600; margin-right: 6px; font-variant-numeric: tabular-nums; }
 .bulk-bar .grow { flex: 1; }
-/* ничего не выделено: панель остаётся на месте (список не прыгает), но выглядит спокойно */
 .bulk-bar.idle { border-color: var(--border-soft); box-shadow: none; color: var(--muted-2); background: transparent; backdrop-filter: none; }
 .bulk-bar.idle > span:first-child { font-weight: 400; }
 .bulk-bar.idle .btn { opacity: .4; pointer-events: none; }
-
-/* --- статистика --- */
 .stat-grid {
   display: grid; gap: 10px;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -810,7 +748,6 @@ body.modal-open { overflow: hidden; }
 #metrics-card { padding: 20px 22px 18px; }
 #metrics-card > .row:first-child h3 { font-size: 16px; }
 #metrics-period { margin-bottom: 16px; }
-/* KPI strip: one bordered block split by hairlines, Linear/Vercel style. */
 .metrics-kpis {
   grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 0;
   border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
@@ -820,18 +757,13 @@ body.modal-open { overflow: hidden; }
   background: transparent; border: 0; border-radius: 0; padding: 15px 16px 14px;
   box-shadow: -1px 0 0 var(--border-soft), 0 -1px 0 var(--border-soft);
   transition: background-color .15s var(--ease);
-  /* A label that wraps («СТОИМОСТЬ ПО API-ЦЕНАМ») took its value a line lower than its neighbours':
-     the label grows instead, so every value of the row sits on one line. */
   display: flex; flex-direction: column;
 }
 .metrics-kpis .stat > .stat-lbl { flex: 0 0 auto; }
-/* Round 31: the label grew to fill the tile, so a two-line sub («p95 27.7 с · среднее 11.4 с») pushed
-   ITS value higher than the neighbours'. Labels now reserve two lines and values sit right under them. */
 .metrics-kpis .stat-lbl { min-height: 2.7em; line-height: 1.35; display: flex; align-items: flex-end; }
 .metrics-kpis .stat:hover { background: color-mix(in srgb, var(--text) 2.5%, transparent); }
 .metrics-kpis .stat-lbl { margin: 0 0 8px; text-transform: uppercase; letter-spacing: .07em; font-size: 10.5px; font-weight: 600; }
 .metrics-kpis .stat-row { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
-/* Число не рвётся посередине («$0,0002|8»): перенос только по пробелу, шрифт ужимается по ширине. */
 .metrics-kpis .stat-val { font-size: clamp(18px, 1.75vw, 24px); overflow-wrap: normal; word-break: keep-all; }
 .stat .stat-val.warn, .metrics-table .warn, .usage-row .warn { color: var(--warn); }
 .metrics-table .ok, .usage-row .ok { color: var(--ok); }
@@ -851,8 +783,6 @@ body.modal-open { overflow: hidden; }
 @media (max-width: 560px) { .metrics-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .metrics-chart-head { align-items: center; margin-bottom: 12px; gap: 8px; flex-wrap: wrap; }
 .metrics-chart-head .mini-title { margin: 0; }
-
-/* столбики «запросы по периодам» */
 .spark {
   position: relative;
   display: flex; align-items: flex-end; gap: 4px;
@@ -911,8 +841,6 @@ body.modal-open { overflow: hidden; }
 .metrics-foot { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--border-soft); font-size: 11.5px; color: var(--muted-2); }
 #metrics-chart-note { font-size: 11px; font-weight: 500; color: var(--muted-2); text-transform: none; letter-spacing: 0; margin-left: 4px; }
 #metrics-card .metrics-split > .metrics-panel { border-top: 1px solid var(--border-soft); }
-
-/* --- аккаунты: перетаскивание и подробности --- */
 .acc-card { transition: box-shadow .18s var(--ease), transform .12s var(--ease), opacity .12s var(--ease), border-color .18s var(--ease); }
 .acc-card[data-reorder="true"] { cursor: grab; }
 .acc-card.dragging { opacity: .45; transform: scale(.98); }
@@ -921,8 +849,6 @@ body.modal-open { overflow: hidden; }
   box-shadow: 0 0 0 1px var(--accent-line) inset, 0 8px 24px -12px color-mix(in srgb, var(--accent) 50%, transparent);
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 60%), var(--card);
 }
-
-/* контекстное меню аккаунта (правая кнопка мыши) */
 .ctx-menu {
   position: fixed; z-index: 300; min-width: 224px; padding: 5px;
   background: color-mix(in srgb, var(--card-2) 96%, transparent); border: 1px solid var(--border-strong);
@@ -959,8 +885,6 @@ body.modal-open { overflow: hidden; }
   border: 1px solid var(--border-soft); border-left: 2px solid var(--accent); border-radius: 0 7px 7px 0;
   white-space: pre-wrap; word-break: break-word;
 }
-
-/* Заголовок карточки аккаунта: метка сверху, провайдер мелким текстом снизу. */
 .acc-card .p-head { align-items: flex-start; gap: 10px; }
 .acc-ident { min-width: 0; flex: 1 1 auto; }
 .acc-card .p-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
@@ -978,13 +902,9 @@ body.modal-open { overflow: hidden; }
 .acc-card .row .btn.small.danger:hover { background: color-mix(in srgb, var(--err) 12%, transparent); }
 .acc-card .row .grow { flex: 1 1 0; min-width: 0; }
 .acc-card .switch { margin-top: 2px; }
-
-/* Карточкам аккаунта нужно больше места: в них теперь счётчики и заметки. */
 #accounts-grid { grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); }
 @media (max-width: 700px) { #accounts-grid { grid-template-columns: minmax(0, 1fr); } }
 .acc-toolbar { margin-bottom: 12px; }
-
-/* --- переключатель видов --- */
 .segmented { display: inline-flex; gap: 2px; padding: 3px; margin-bottom: 16px;
   background: var(--bg-soft); border: 1px solid var(--border); border-radius: 10px; max-width: 100%; flex-wrap: wrap; }
 .segmented .seg {
@@ -997,8 +917,6 @@ body.modal-open { overflow: hidden; }
   color: var(--text); background: var(--card-3);
   box-shadow: var(--hairline-top), 0 0 0 1px var(--border-strong), 0 1px 3px rgba(0, 0, 0, .35);
 }
-
-/* --- логи --- */
 .log-toolbar { padding: 14px 16px; margin-bottom: 14px; }
 #logs-view-requests .log-toolbar > .row:first-child {
   display: grid; grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(110px, 1fr)); gap: 10px 12px; align-items: end;
@@ -1039,8 +957,6 @@ body.modal-open { overflow: hidden; }
 #logs-list .log-card + .log-card { margin-top: 8px; }
 #logs-summary { font-size: 12.5px; }
 #logs-page { font-variant-numeric: tabular-nums; min-width: 24px; text-align: center; }
-
-/* --- журнал сервера --- */
 pre.applog {
   max-height: 64vh; overflow: auto; margin: 0;
   background: var(--code-bg); border: 1px solid var(--border);
@@ -1052,8 +968,6 @@ pre.applog:empty::before { content: "—"; color: var(--muted-2); }
 pre.applog .lvl-warning { color: var(--warn); }
 pre.applog .lvl-error, pre.applog .lvl-critical { color: color-mix(in srgb, var(--err) 75%, var(--text)); }
 pre.applog .lvl-debug { color: var(--muted-2); }
-
-/* ------------------------- общие мелочи новых вкладок ------------------------- */
 #local-root .muted, #detector-root .muted, .companion .muted { color: var(--muted); }
 .ask-companion { color: var(--accent-text) !important; border-color: var(--accent-line) !important; background: color-mix(in srgb, var(--accent) 7%, transparent) !important; }
 .ask-companion svg.i { color: currentColor !important; }
@@ -1066,13 +980,8 @@ pre.applog .lvl-debug { color: var(--muted-2); }
 }
 .toast-ask svg.i { width: 13px; height: 13px; }
 .toast-ask:hover { color: var(--text); background: color-mix(in srgb, var(--accent) 30%, transparent); }
-
-/* ==================== модули (локальные модели, детектор, чат, публичный доступ…) ==================== */
-/* the topbar endpoint pill follows the proxy state shown in the hero */
 body:has(.hero.is-off) .endpoint-pill:not(:empty)::before { background: var(--err); box-shadow: 0 0 0 3px color-mix(in srgb, var(--err) 18%, transparent); }
-/* the last row of fields does not add its own bottom gap to the card padding */
 .card:not(.adv) > .grid-3:last-child, .card:not(.adv) > .grid-2:last-child { margin-bottom: -14px; }
-/* публичный доступ */
 .pub-status { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
 .pub-status i { width: 9px; height: 9px; border-radius: 50%; background: var(--muted-2); }
 .pub-status.on i { background: var(--ok); box-shadow: 0 0 0 4px color-mix(in srgb, var(--ok) 22%, transparent); }
@@ -1093,8 +1002,6 @@ body:has(.hero.is-off) .endpoint-pill:not(:empty)::before { background: var(--er
 .pub-note b { color: var(--text); }
 .pub-check { margin-top: 8px; font-size: 12.5px; }
 .pub-check .ok { color: var(--ok); } .pub-check .err { color: var(--err); }
-
-/* визуальный тест в детекторе */
 .det-visual-main { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin: 10px 0; }
 .det-visual-tile { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: center; padding: 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--card-2); }
 .det-visual-tile > .btn:first-child { grid-column: 1; justify-content: center; min-height: 40px; font-weight: 650; }
@@ -1107,8 +1014,6 @@ body:has(.hero.is-off) .endpoint-pill:not(:empty)::before { background: var(--er
 .det-visual-table .err { color: var(--err); }
 .det-visual a.btn { text-decoration: none; }
 .det-visual-pre { max-height: 60vh; overflow: auto; white-space: pre-wrap; }
-
-/* выбор моделей после добавления аккаунта с большим каталогом */
 .model-pick-bar { display: flex; gap: 8px; align-items: center; margin: 12px 0 8px; }
 .model-pick-bar input { flex: 1; min-width: 0; }
 .model-pick-list { max-height: min(52vh, 460px); overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--card-2); margin-bottom: 12px; }
@@ -1119,8 +1024,6 @@ body:has(.hero.is-off) .endpoint-pill:not(:empty)::before { background: var(--er
 .model-pick-row .mono { flex: none; max-width: 62%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .model-pick-row .dim { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .model-pick-list .empty { padding: 22px; }
-
-/* список с галочками в модалке (выбор провайдеров) */
 .pick-list { display: flex; flex-direction: column; gap: 6px; margin: 12px 0 4px; }
 .pick-row {
   display: flex; align-items: center; gap: 10px;
@@ -1133,8 +1036,6 @@ body:has(.hero.is-off) .endpoint-pill:not(:empty)::before { background: var(--er
 .pick-row .p-icon { width: 26px; height: 26px; font-size: 13px; border-radius: 8px; }
 .pick-row .grow { flex: 1; min-width: 0; font-size: 13.5px; }
 .pick-row .dim { color: var(--muted-2); font-size: 11.5px; margin-left: 6px; }
-
-/* playground */
 .pg-wrap { display: flex; gap: 14px; height: calc(100vh - 130px); min-height: 420px; }
 .pg-side { width: 220px; flex: none; display: flex; flex-direction: column; gap: 10px; }
 .pg-chats { overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
@@ -1170,18 +1071,12 @@ body:has(.hero.is-off) .endpoint-pill:not(:empty)::before { background: var(--er
 .pg-inputrow { display: flex; align-items: flex-end; gap: 8px; padding: 12px 14px; border-top: 1px solid var(--border-soft); }
 .pg-inputrow textarea { flex: 1; resize: none; max-height: 160px; }
 .pg-attachments { display: flex; gap: 6px; flex-wrap: wrap; padding: 0 14px 10px; }
-
-
-
-/* --- каталог моделей --- */
 table.tbl tr.row-off td { opacity: .5; }
 table.tbl td input[type="checkbox"] { width: 15px; height: 15px; accent-color: var(--accent); }
-/* выделение строк мышью — как в Windows: полупрозрачный акцентный фон */
 table.tbl tr[data-mid].selected td { background: var(--accent-soft); }
 table.tbl tr[data-mid].selected:hover td { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 table.tbl tr[data-mid].selected td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
 table.tbl tr[data-mid] td { cursor: default; }
-/* рамка выделения, как на рабочем столе Windows */
 .marquee-box {
   position: fixed; z-index: 60; pointer-events: none;
   background: color-mix(in srgb, var(--accent) 18%, transparent); border: 1px solid var(--accent); border-radius: 2px;
@@ -1194,9 +1089,6 @@ body.marquee-on { user-select: none; -webkit-user-select: none; cursor: default;
 }
 .model-group-head .grow { flex: 1; }
 
-
-/* ------------------------- общие мелочи новых вкладок ------------------------- */
-
 #local-root .muted, #detector-root .muted, .companion .muted { color: var(--muted); }
 .ask-companion { color: var(--accent-text); border-color: color-mix(in srgb, var(--accent) 35%, transparent); }
 .ask-companion:hover { color: var(--on-accent); background: color-mix(in srgb, var(--accent) 18%, transparent); border-color: var(--accent); }
@@ -1208,8 +1100,6 @@ body.marquee-on { user-select: none; -webkit-user-select: none; cursor: default;
 }
 .toast-ask:hover { color: var(--on-accent); background: color-mix(in srgb, var(--accent) 30%, transparent); }
 .spin { display: inline-block; animation: rot 1s linear infinite; }
-
-/* ------------------------- локальные модели ------------------------- */
 
 .lm-grid { display: grid; gap: 16px; }
 .lm-grid > .card, .lm-grid > div > .card { margin: 0; }
@@ -1287,8 +1177,6 @@ body.marquee-on { user-select: none; -webkit-user-select: none; cursor: default;
 .lm-log { max-height: 58vh; min-height: 200px; overflow: auto; margin: 0; padding: 12px; font: 12px/1.5 var(--mono);
   background: var(--code-bg); border: 1px solid var(--border-soft); border-radius: var(--radius-sm); white-space: pre-wrap; overflow-wrap: anywhere; }
 .lm-menu { min-width: 230px; }
-
-/* ------------------------- детектор ------------------------- */
 
 .det-layout { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
 .det-main { display: grid; gap: 16px; min-width: 0; }
@@ -1389,8 +1277,6 @@ body.marquee-on { user-select: none; -webkit-user-select: none; cursor: default;
   .det-verdict { flex-wrap: wrap; }
 }
 
-/* ------------------------- ИИ-помощник ------------------------- */
-
 .companion-nav { margin-top: 6px; color: var(--accent-text); }
 .companion-nav .ico { color: var(--accent-text); }
 .companion {
@@ -1467,12 +1353,8 @@ body.companion-open #toasts { right: calc(min(440px, 100vw) + 18px); }
 .companion-fab:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 3px; }
 @media (max-width: 560px) { .companion { width: 100vw; } body.companion-open #toasts { right: 12px; } }
 @media (prefers-reduced-motion: reduce) { .companion, .companion-fab { transition: none; } .det-dot, .comp-typing i { animation: none !important; } }
-
-/* Каталог моделей: таблица прокручивается внутри карточки, а не растягивает страницу. */
 .models-card #models-table { max-height: min(62vh, 640px); overflow: auto; }
 .models-card #models-table thead th { position: sticky; top: 0; z-index: 1; background: var(--card, var(--bg)); }
-
-/* Claude Code / Codex CLI install card */
 .cli-status { margin-bottom: 10px; font-size: 13px; }
 .cli-tool-note { margin: 10px 0 14px; padding: 10px 12px; border: 1px solid var(--border-soft); border-left: 3px solid var(--info);
   border-radius: var(--radius-sm); background: var(--bg-soft); color: var(--muted); font-size: 12px; line-height: 1.5; }
@@ -1483,8 +1365,6 @@ body.companion-open #toasts { right: calc(min(440px, 100vw) + 18px); }
 .chip.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
 .cli-model-list { max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 6px; margin: 8px 0; }
 @media (max-width: 900px) { #cli-claude-card.card, #cli-codex-card.card { grid-column: 1 / -1; } }
-
-/* ---------------- вкладка «Чат» ---------------- */
 .pc-layout { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
 .pc-bar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px 14px; align-items: end; }
 .pc-bar .field { margin: 0; }
@@ -1519,8 +1399,6 @@ body.companion-open #toasts { right: calc(min(440px, 100vw) + 18px); }
   .pc-bar { grid-template-columns: 1fr; }
   .pc-chat { height: calc(100vh - 340px); }
 }
-
-/* Детектор: вердикт по версии и объяснения */
 .det-version { padding: 14px 16px; margin-bottom: 16px; border-radius: var(--radius-sm); background: var(--bg-soft);
   border: 1px solid var(--border-soft); border-left: 3px solid var(--c, var(--muted)); }
 .det-version.ok { --c: var(--ok); }
@@ -1557,7 +1435,6 @@ body.companion-open #toasts { right: calc(min(440px, 100vw) + 18px); }
 .proxy-music-advanced summary { cursor: pointer; font-size: .9em; }
 .proxy-music-advanced textarea { font-family: var(--mono); font-size: .82em; line-height: 1.5; min-height: 220px; }
 .music-import { margin-top: 14px; }
-/* ==================== ИИ-помощник: оформление панели ==================== */
 .companion { background: var(--card); border-left: 1px solid var(--border-strong); box-shadow: -24px 0 60px -20px rgba(0, 0, 0, .7); transition: transform .26s var(--ease), opacity .2s ease; }
 .companion-head { height: var(--top-h); padding: 0 14px 0 16px; }
 .companion-mark { width: 30px; height: 30px; border-radius: 9px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .25), 0 4px 14px -4px color-mix(in srgb, var(--accent) 70%, transparent); }
@@ -1586,16 +1463,12 @@ body.companion-open #toasts { right: calc(min(440px, 100vw) + 18px); }
 .companion-nav:hover { border-color: var(--accent-line) !important; color: var(--text) !important; }
 .pc-empty-mark { background: var(--accent-soft); color: var(--accent-text); border: 1px solid var(--accent-line); }
 .pc-empty-mark svg.i { width: 22px; height: 22px; }
-
-/* чат: окно сообщений под новый заголовок вкладки; кнопка помощника не закрывает «Отправить» */
 .pc-chat { height: calc(100vh - 318px); }
 .pc-bar-actions .btn { min-height: 36px; }
 .pc-input-row textarea { font-family: var(--font); font-size: 13.5px; }
 .pc-composer { background: color-mix(in srgb, var(--bg-soft) 70%, var(--card)); }
 .pc-input-row .icon-btn { width: 36px; height: 36px; padding: 0; }
 body:has(#tab-chat.active) .companion-fab { bottom: 96px; }
-
-/* инструкции подключения в диалоге аккаунта */
 .provider-guide { padding: 12px 16px; background: var(--bg-soft); border-color: var(--border-soft); }
 .provider-guide summary { display: flex; align-items: center; font-size: 13.5px; }
 .provider-guide-steps { gap: 12px; margin: 14px 0 6px; padding-left: 22px; }
@@ -1608,15 +1481,12 @@ body:has(#tab-chat.active) .companion-fab { bottom: 96px; }
 .provider-guide-example > code { font-size: 12.5px; color: var(--text); overflow-wrap: anywhere; }
 .modal h3 > .chip:only-child { font-size: 13px; padding: 3px 10px; min-height: 26px; }
 
-/* ==================== адаптивность ==================== */
-
 @media (max-width: 1240px) {
   main.content { padding: 26px 28px 90px; }
   .hero-fields { grid-template-columns: minmax(0, 1fr); }
   .hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "eyebrow" "title" "sub" "actions" "fields"; }
   .hero-actions { justify-content: flex-start; margin-top: 16px; }
 }
-/* узкое окно: боковая панель сворачивается в рейку из иконок */
 @media (max-width: 1100px) {
   :root { --side-w: 64px; }
   nav.sidebar { padding: 0 10px 12px; align-items: stretch; }
@@ -1691,8 +1561,6 @@ body:has(#tab-chat.active) .companion-fab { bottom: 96px; }
 :root[data-reduce-motion] *, :root[data-reduce-motion] *::before, :root[data-reduce-motion] *::after {
   scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important;
 }
-
-/* ---- Round 20: статистика — стоимость по моделям ---- */
 .spark .spark-ok.cost { background: linear-gradient(180deg, var(--accent-2), color-mix(in srgb, var(--accent) 45%, transparent)); border-radius: 3px 3px 0 0; }
 .metrics-table td.m-cost-cell { white-space: nowrap; }
 .metrics-table .m-cost { cursor: help; color: var(--text); }
@@ -1700,8 +1568,6 @@ body:has(#tab-chat.active) .companion-fab { bottom: 96px; }
   border-bottom: 1px dotted color-mix(in srgb, var(--muted-2) 60%, transparent); }
 .metrics-table .m-cost-cell .chip { font-family: var(--font); font-size: 10.5px; padding: 1px 6px; vertical-align: 1px; }
 .metrics-table tfoot td { font-family: var(--font); font-size: 11.5px; border-bottom: 0; }
-/* стоимость в строке провайдера не должна переносить строку под полосу; общая сетка
-   выравнивает полосы всех провайдеров по одной ширине */
 #metrics-providers { display: grid; grid-template-columns: minmax(64px, max-content) minmax(28px, 1fr) max-content;
   column-gap: 12px; align-items: center; }
 #metrics-providers > .usage-row { display: contents; }
@@ -1710,8 +1576,6 @@ body:has(#tab-chat.active) .companion-fab { bottom: 96px; }
 #metrics-providers > .usage-row .u-name { max-width: 180px; }
 #metrics-providers > .usage-row .u-val { min-width: 0; font-size: 11.5px; }
 #metrics-providers > .empty { grid-column: 1 / -1; }
-
-/* ---- Round 20: детектор — копирование промптов, качество проб, уверенность ---- */
 .det-visual-tile { grid-template-columns: minmax(0, 1fr) auto; }
 .det-visual-acts { grid-column: 2; grid-row: 1; display: flex; align-items: center; gap: 6px; }
 .det-visual-acts .icon-btn { width: 34px; height: 34px; padding: 0; }

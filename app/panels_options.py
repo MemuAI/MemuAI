@@ -40,7 +40,7 @@ SYSTEM_METRICS = [
     C("procs", "Самые активные процессы", "Top processes"),
 ]
 SYSTEM_DEFAULT = ["cpu", "ram", "gpu", "disks", "net", "disk_io", "temps", "battery"]
-#: Какие виды допустимы у метрики (первый — вид «авто»).
+
 SYSTEM_VIEWS = {
     "cpu": ["ring", "bar", "number", "chart"], "ram": ["ring", "bar", "number", "chart"],
     "swap": ["ring", "bar", "number"], "gpu": ["ring", "bar", "number", "chart"],
@@ -288,20 +288,17 @@ SCHEMA: Dict[str, List[Dict[str, Any]]] = {
          "label": ["Только где я участвую", "Only where I participate"], "when": {"view": ["notifications"]}},
     ],
 }
-#: ИИ-панели: структуру собирает модель, настраивается только модель (отдельное поле панели).
+
 for _kind in ("custom", "sports", "web"):
     SCHEMA.setdefault(_kind, [])
-
 
 def defaults(kind: str) -> Dict[str, Any]:
     return {opt["key"]: (list(opt["default"]) if isinstance(opt["default"], list) else
                          dict(opt["default"]) if isinstance(opt["default"], dict) else opt["default"])
             for opt in SCHEMA.get(kind, [])}
 
-
 def _choice_values(opt: Dict[str, Any]) -> List[str]:
     return [str(c[0]) for c in opt.get("choices") or []]
-
 
 def clean_option(opt: Dict[str, Any], value: Any) -> Any:
     kind = opt["type"]
@@ -349,7 +346,6 @@ def clean_option(opt: Dict[str, Any], value: Any) -> Any:
         return out
     return default
 
-
 def clean_options(kind: str, raw: Any, *, base: Any = None) -> Dict[str, Any]:
     """Полный набор опций вида: значения из ``raw`` поверх ``base`` поверх умолчаний."""
     out = defaults(kind)
@@ -361,15 +357,12 @@ def clean_options(kind: str, raw: Any, *, base: Any = None) -> Dict[str, Any]:
                 out[opt["key"]] = clean_option(opt, source[opt["key"]])
     return out
 
-
 def needs_refetch(kind: str, before: Dict[str, Any], after: Dict[str, Any]) -> bool:
     return any(opt.get("refetch") and before.get(opt["key"]) != after.get(opt["key"]) for opt in SCHEMA.get(kind, []))
-
 
 def public_schema() -> Dict[str, List[Dict[str, Any]]]:
     """Схема для окна (то же, что здесь: окно само выберет язык подписей)."""
     return SCHEMA
-
 
 def system_view(options: Dict[str, Any], metric: str) -> str:
     """Каким видом рисовать метрику ПК: своя настройка метрики → общий «Вид» → первый допустимый."""

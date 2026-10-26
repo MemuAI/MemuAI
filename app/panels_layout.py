@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Optional
 
 LAYOUT_VERSION = 1
 
-#: id → (kind, allowed views, can be shown in chats, has width). The order is the order of the zone map.
 ZONES: Dict[str, Dict[str, Any]] = {
     "appbar":         {"kind": "bar",    "views": ("chips",),          "chats": False, "width": False, "area": "window"},
     "top":            {"kind": "strip",  "views": ("cards", "chips"),  "chats": True,  "width": False, "area": "start"},
@@ -35,7 +34,7 @@ ZONES: Dict[str, Dict[str, Any]] = {
     "sidebar_bottom": {"kind": "stack",  "views": ("chips", "cards"),  "chats": False, "width": False, "area": "window"},
 }
 ZONE_IDS = tuple(ZONES)
-#: The three places of Rounds 21–32 — documents written before Round 33 only contain these.
+
 LEGACY_ZONES = ("home", "sidebar", "appbar")
 WIDTH_MIN, WIDTH_MAX = 200, 480
 DEFAULT_WIDTH = {"left": 280, "right": 300}
@@ -52,7 +51,6 @@ NAMES = {
     "sidebar_bottom": ("Низ боковой панели", "Sidebar bottom"),
 }
 
-
 def default_zone(zone: str) -> Dict[str, Any]:
     meta = ZONES[zone]
     out: Dict[str, Any] = {"view": meta["views"][0]}
@@ -62,10 +60,8 @@ def default_zone(zone: str) -> Dict[str, Any]:
         out["width"] = DEFAULT_WIDTH.get(zone, 280)
     return out
 
-
 def default_layout() -> Dict[str, Any]:
     return {"v": LAYOUT_VERSION, "zones": {zone: default_zone(zone) for zone in ZONE_IDS}}
-
 
 def clean_zone(zone: str, raw: Any, base: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     meta = ZONES[zone]
@@ -94,7 +90,6 @@ def clean_zone(zone: str, raw: Any, base: Optional[Dict[str, Any]] = None) -> Di
         out.pop("width", None)
     return out
 
-
 def clean_layout(raw: Any, base: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Any stored / posted layout → the current form. ``base`` (the stored layout) is kept for zones the patch
     does not name, so ``{"zones": {"left": {"width": 320}}}`` changes only that one value."""
@@ -103,7 +98,6 @@ def clean_layout(raw: Any, base: Optional[Dict[str, Any]] = None) -> Dict[str, A
     zones = raw.get("zones") if isinstance(raw, dict) and isinstance(raw.get("zones"), dict) else {}
     return {"v": LAYOUT_VERSION,
             "zones": {zone: clean_zone(zone, zones.get(zone), base_zones.get(zone)) for zone in ZONE_IDS}}
-
 
 def clean_items(raw: Any, known_ids: List[str], limit: int = 200) -> List[Dict[str, Any]]:
     """The panels part of a bulk layout save: ``[{id, placements, order: {zone: n}, size}]`` for known panels only.
@@ -133,7 +127,6 @@ def clean_items(raw: Any, known_ids: List[str], limit: int = 200) -> List[Dict[s
         if len(out) >= limit:
             break
     return out
-
 
 def public_zones(lang: str = "ru") -> List[Dict[str, Any]]:
     """The zone list for the window (and the Round 33 layout editor): id, kind, views, flags, names."""

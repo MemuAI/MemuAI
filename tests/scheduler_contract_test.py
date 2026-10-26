@@ -11,7 +11,6 @@ from unittest.mock import AsyncMock, patch
 
 from app import pgdata, scheduler
 
-
 class SchedulerContracts(unittest.TestCase):
     def tearDown(self) -> None:
         scheduler._RUNNING_TASK_IDS.clear()
@@ -184,7 +183,6 @@ class SchedulerContracts(unittest.TestCase):
 
         asyncio.run(scenario())
         self.assertEqual(records, [("notify", True, "done")])
-
 
 if __name__ == "__main__":
     unittest.main()

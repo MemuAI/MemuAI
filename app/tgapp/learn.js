@@ -1,9 +1,5 @@
-/* MemuAI Mini App — MemuLearn «Тренажёр» (Round 40, r40-learn).
- *
- * A review session on the phone: today's due cards (FSRS, the same SQLite as the computer — app/learn/tgapp_ops.py),
- * the card turns over on tap, four grades with the interval of each, haptics, undo. The tab shows only while the
- * MemuLearn module is on (learn.state at boot). No polling: the queue is read when the tab opens and after a session.
- */
+
+
 (function () {
   "use strict";
   (window.MemuTgPlugins = window.MemuTgPlugins || []).push(function (kit) {
@@ -19,7 +15,6 @@
     const cardsWord = (n) => S.lang === "en" ? `${n} ${n === 1 ? "card" : "cards"}` : `${n} ${plural(n, "карточка", "карточки", "карточек")}`;
     const NAMES = [["again", "Снова", "Again"], ["hard", "Трудно", "Hard"], ["good", "Хорошо", "Good"], ["easy", "Легко", "Easy"]];
 
-    /* Card text: cloze {{cN::answer::hint}} for the card's own number, $math$ shown as code (no KaTeX on the phone), Markdown. */
     function cardHtml(text, card, reveal) {
       let src = String(text || "");
       if (card.kind === "cloze") {
@@ -159,7 +154,7 @@
         L.on = !!(st && st.enabled);
         L.digest = (st && st.digest) || null;
         if (L.on) kit.renderTabbar();
-      }).catch(() => { /* MemuLearn unavailable: no tab */ });
+      }).catch(() => {  });
     });
   });
 })();

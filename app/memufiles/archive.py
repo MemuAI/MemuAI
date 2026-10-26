@@ -33,24 +33,21 @@ from typing import Any, Dict, List, Optional, Tuple
 from . import fsops
 from .fsops import FsError
 
-# extensions browsed like folders (compound ones first: «.tar.gz» before «.gz»)
 COMPOUND = (".tar.gz", ".tar.bz2", ".tar.xz", ".tar.zst")
 ZIP_EXT = (".zip", ".jar", ".apk", ".xpi", ".nupkg", ".whl", ".cbz", ".epub")
 TAR_EXT = (".tar", ".tgz", ".tbz", ".tbz2", ".txz") + COMPOUND[:3]
 SINGLE_EXT = (".gz", ".bz2", ".xz")
 SEVEN_EXT = (".7z", ".rar", ".cab", ".iso", ".arj", ".lzh", ".wim", ".cbr", ".cb7", ".zst", ".tar.zst", ".z", ".lz", ".lzma")
 ALL_EXT = tuple(sorted(set(ZIP_EXT + TAR_EXT + SINGLE_EXT + SEVEN_EXT), key=len, reverse=True))
-# what «Open archives in MemuFiles» registers (the everyday formats; .jar/.apk/.epub keep their own apps)
+
 ASSOC_EXT = (".zip", ".7z", ".rar", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".txz", ".tbz2", ".zst", ".cab", ".lzh", ".arj")
 
 _CACHE: Dict[str, Tuple[Tuple[float, int], Dict[str, Any]]] = {}
 _LOCK = threading.Lock()
 CREATE_NO_WINDOW = 0x08000000 if os.name == "nt" else 0
 
-
 def is_archive_name(name: str) -> bool:
     return str(name or "").lower().endswith(ALL_EXT)
-
 
 def kind_of(path: str) -> str:
     low = path.lower()
@@ -63,7 +60,6 @@ def kind_of(path: str) -> str:
     if low.endswith(SINGLE_EXT):
         return "single"
     return "7z"
-
 
 def split(path: str) -> Optional[Tuple[str, str]]:
     """``(archive file, inner "a/b")`` when *path* is an archive or goes through one; ``None`` otherwise.
@@ -84,11 +80,9 @@ def split(path: str) -> Optional[Tuple[str, str]]:
             return None
     return None
 
-
 def seven_zip() -> str:
     from .opqueue import OpQueue
     return OpQueue.seven_zip()
-
 
 def _zip_name(info: zipfile.ZipInfo) -> str:
     name = info.filename
@@ -102,17 +96,14 @@ def _zip_name(info: zipfile.ZipInfo) -> str:
         except (UnicodeEncodeError, UnicodeDecodeError):
             return name
 
-
 def _clean(name: str) -> str:
     parts = [p for p in str(name).replace("\\", "/").split("/") if p not in ("", ".")]
     return "/".join(p for p in parts if p != "..")
-
 
 def _single_name(path: str) -> str:
     base = os.path.basename(path)
     stem = base[: base.rfind(".")] if "." in base else base
     return stem or "data"
-
 
 def _scan(path: str) -> Dict[str, Any]:
     """Index of the whole archive: ``{"kind", "encrypted", "entries": {inner: row}, "dirs": {inner: [child names]}}``."""
@@ -125,7 +116,7 @@ def _scan(path: str) -> Dict[str, Any]:
         if not name:
             return
         parts = name.split("/")
-        for i in range(1, len(parts)):              # implicit parent folders (zips often leave them out)
+        for i in range(1, len(parts)):
             parent = "/".join(parts[:i])
             entries.setdefault(parent, {"d": 1, "s": 0, "m": int(mtime * 1000)})
         row = {"d": 1 if is_dir else 0, "s": 0 if is_dir else int(size or 0), "m": int((mtime or 0) * 1000)}
@@ -191,17 +182,15 @@ def _scan(path: str) -> Dict[str, Any]:
             dirs.setdefault(name, [])
     return {"kind": kind, "encrypted": encrypted, "entries": entries, "dirs": dirs}
 
-
 def _single_size(path: str) -> int:
     if path.lower().endswith(".gz"):
         try:
-            with open(path, "rb") as handle:       # ISIZE: the last 4 bytes (mod 2^32) — good enough for a listing
+            with open(path, "rb") as handle:
                 handle.seek(-4, 2)
                 return int.from_bytes(handle.read(4), "little")
         except OSError:
             return 0
     return 0
-
 
 def index(path: str) -> Dict[str, Any]:
     st = os.stat(path)
@@ -218,7 +207,6 @@ def index(path: str) -> Dict[str, Any]:
             _CACHE.pop(next(iter(_CACHE)))
     return data
 
-
 def info(path: str) -> Dict[str, Any]:
     """Summary for the page: kind, encrypted, files/folders count, unpacked size, the single root folder (if any)."""
     data = index(path)
@@ -228,7 +216,6 @@ def info(path: str) -> Dict[str, Any]:
     return {"kind": data["kind"], "encrypted": data["encrypted"], "files": len(files),
             "folders": sum(1 for r in data["entries"].values() if r["d"]), "unpacked": sum(r["s"] for r in files),
             "single_root": single, "writable": can_add(path), "seven_zip": bool(seven_zip())}
-
 
 def listing(path: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
     """``(head, rows)`` of the folder *path* inside an archive (raises FileNotFoundError for a missing inner folder)."""
@@ -251,7 +238,6 @@ def listing(path: str) -> Tuple[Dict[str, Any], List[Dict[str, Any]]]:
                         "writable": can_add(archive)}}
     return head, rows
 
-
 def can_add(path: str) -> bool:
     kind = kind_of(path)
     if kind == "zip":
@@ -260,14 +246,10 @@ def can_add(path: str) -> bool:
         return False
     return bool(seven_zip()) and os.access(path, os.W_OK) and not path.lower().endswith((".rar", ".iso", ".cab"))
 
-
-# ------------------------------------------------------------------ one member as a real file
-
 def _cache_root() -> str:
     root = os.path.join(tempfile.gettempdir(), "memufiles-archive")
     os.makedirs(root, exist_ok=True)
     return root
-
 
 def materialize(path: str, password: str = "") -> str:
     """A real file with the content of the archive member *path* (cached per archive state); folders are refused."""
@@ -299,7 +281,7 @@ def materialize(path: str, password: str = "") -> str:
                     try:
                         with zf.open(member, pwd=password.encode("utf-8") if password else None) as reader:
                             shutil.copyfileobj(reader, out, 1024 * 1024)
-                    except RuntimeError as exc:           # «File … is encrypted, password required…»
+                    except RuntimeError as exc:
                         raise FsError("password_required" if not password else "wrong_password", path) from exc
             elif kind == "tar":
                 with tarfile.open(archive) as tf:
@@ -336,16 +318,12 @@ def materialize(path: str, password: str = "") -> str:
         pass
     return target
 
-
 def resolve_read(path: str) -> str:
     """For read-only handlers (raw, thumb, text, open): a path inside an archive → its cached real file."""
     if os.path.exists(path):
         return path
     found = split(path)
     return materialize(path) if found and found[1] else path
-
-
-# ------------------------------------------------------------------ operations (run by opqueue in its worker thread)
 
 def _pick(name: str, members: List[str], strip: str) -> Optional[str]:
     """The member's new relative name, or None when it is not chosen."""
@@ -357,7 +335,6 @@ def _pick(name: str, members: List[str], strip: str) -> Optional[str]:
             return None
         name = name[len(strip) + 1:]
     return name or None
-
 
 def extract(queue: Any, op: Any) -> None:
     """``extract`` with ``args.members`` (inner paths), ``args.strip`` (inner folder removed from the names) and
@@ -469,7 +446,6 @@ def extract(queue: Any, op: Any) -> None:
         return
     _extract_7z(queue, op, archive, dest, members, strip, password, fresh)
 
-
 def _extract_7z(queue: Any, op: Any, archive: str, dest: str, members: List[str], strip: str, password: str,
                 fresh: bool) -> None:
     """7-Zip formats: into a temp folder next to the destination, then moved in (conflicts asked as usual)."""
@@ -531,11 +507,9 @@ def _extract_7z(queue: Any, op: Any, archive: str, dest: str, members: List[str]
     finally:
         shutil.rmtree(temp, ignore_errors=True)
 
-
 LEVELS = {"store": (zipfile.ZIP_STORED, 0, 0), "fast": (zipfile.ZIP_DEFLATED, 1, 1), "normal": (zipfile.ZIP_DEFLATED, 6, 5),
           "max": (zipfile.ZIP_DEFLATED, 9, 9)}
 FORMATS = ("zip", "7z", "tar", "tar.gz", "tar.xz", "tar.bz2")
-
 
 def _files_of(sources: List[str]) -> Tuple[str, List[Tuple[str, str]], List[str]]:
     parent = os.path.commonpath([os.path.dirname(s.rstrip("\\/")) for s in sources]) if sources else ""
@@ -553,7 +527,6 @@ def _files_of(sources: List[str]) -> Tuple[str, List[Tuple[str, str]], List[str]
             files.append((src, os.path.relpath(src, parent).replace(os.sep, "/")))
     return parent, files, empty_dirs
 
-
 class _Counting:
     """A reader that reports progress (tar streaming) and honours cancel."""
 
@@ -567,7 +540,6 @@ class _Counting:
             self.op.add_bytes(len(block))
             self.queue._notify(self.op)
         return block
-
 
 def compress(queue: Any, op: Any) -> None:
     """``compress`` with ``args.format`` (zip | 7z | tar | tar.gz | tar.xz | tar.bz2), ``args.level``
@@ -637,7 +609,6 @@ def compress(queue: Any, op: Any) -> None:
     op.undo.append(("trash_created", dest))
     op.created_paths.append(dest)
 
-
 def _run_7z(queue: Any, op: Any, cmd: List[str], cwd: str) -> None:
     proc = subprocess.Popen(cmd, cwd=cwd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL,  # noqa: S603
                             creationflags=CREATE_NO_WINDOW)
@@ -665,7 +636,6 @@ def _run_7z(queue: Any, op: Any, cmd: List[str], cwd: str) -> None:
         err = (proc.stderr.read() if proc.stderr else b"").decode("utf-8", "replace")
         raise FsError("compress_failed", err[:300])
 
-
 def _compress_7z(queue: Any, op: Any, partial: str, fmt: str, level: str, password: str) -> None:
     tool = seven_zip()
     if not tool:
@@ -678,7 +648,6 @@ def _compress_7z(queue: Any, op: Any, partial: str, fmt: str, level: str, passwo
     op.status = "running"
     _run_7z(queue, op, cmd + [partial, "--"] + names, parent)
     op.done_items = op.total_items
-
 
 def add(queue: Any, op: Any) -> None:
     """``arcadd``: put ``sources`` into the archive ``dest`` under ``args.inner`` (zip natively, others via 7-Zip).
@@ -714,7 +683,7 @@ def add(queue: Any, op: Any) -> None:
                 op.done_items += 1
     else:
         tool = seven_zip()
-        if inner:          # 7-Zip keeps relative paths: stage the files under the inner folder first
+        if inner:
             stage = tempfile.mkdtemp(prefix=".memufiles-add-")
             try:
                 target = os.path.join(stage, *inner.split("/"))

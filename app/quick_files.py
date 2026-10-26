@@ -50,12 +50,9 @@ LIST_LIMIT = 400
 TOOL_ROUNDS = 8
 EXECUTABLE_SUFFIXES = (".exe", ".bat", ".cmd", ".ps1", ".vbs", ".js", ".msi", ".scr", ".com", ".lnk", ".reg", ".hta",
                        ".wsf", ".jar", ".sh", ".appimage", ".desktop",
-                       # Round 34: other things Windows runs on a double click (shortcuts to a program, control panel
-                       # items, script hosts, ClickOnce, Python)
+
                        ".url", ".pif", ".cpl", ".msc", ".msp", ".jse", ".vbe", ".wsh", ".psm1", ".scf", ".inf",
                        ".application", ".appref-ms", ".gadget", ".settingcontent-ms", ".py", ".pyw", ".pyz", ".psd1")
-
-# ---------------------------------------------------------------- places
 
 PLACES: Dict[str, Dict[str, Any]] = {
     "desktop": {"ru": "Рабочий стол", "en": "Desktop",
@@ -75,7 +72,6 @@ _FALLBACK_NAMES = {"desktop": ("Desktop", "Рабочий стол"), "downloads
                    "documents": ("Documents", "Документы"), "pictures": ("Pictures", "Изображения"),
                    "music": ("Music", "Музыка"), "videos": ("Videos", "Видео")}
 
-
 class FilesError(Exception):
     def __init__(self, ru: str, en: str, code: str = "") -> None:
         super().__init__(ru)
@@ -84,10 +80,8 @@ class FilesError(Exception):
     def text(self, lang: str) -> str:
         return self.en if lang == "en" else self.ru
 
-
 def _home() -> Path:
     return Path(os.path.expanduser("~"))
-
 
 def place_folder(key: str) -> str:
     """The real folder of a place ("" when this computer has none)."""
@@ -118,7 +112,6 @@ def place_folder(key: str) -> str:
             return str(candidate)
     return ""
 
-
 def places(lang: str = "ru") -> List[Dict[str, str]]:
     out = []
     for key, meta in PLACES.items():
@@ -127,14 +120,12 @@ def places(lang: str = "ru") -> List[Dict[str, str]]:
             out.append({"key": key, "name": meta["en"], "label": meta["en" if lang == "en" else "ru"], "path": folder})
     return out
 
-
 def _place_of(word: str) -> str:
     low = re.sub(r"\s+", " ", word.strip().lower().replace("ё", "е"))
     for key, meta in PLACES.items():
         if low in meta["names"] or low == meta["en"].lower() or low == meta["ru"].lower():
             return key
     return ""
-
 
 def label_for(path: Path, lang: str = "ru") -> str:
     """«Рабочий стол», «Загрузки/Отчёты», or the folder's own name."""
@@ -155,9 +146,6 @@ def label_for(path: Path, lang: str = "ru") -> str:
         return PLACES["home"]["en" if lang == "en" else "ru"]
     return best[0] or path.name or str(path)
 
-
-# ---------------------------------------------------------------- what is off limits
-
 def _forbidden_roots() -> List[Path]:
     rows: List[Path] = []
     try:
@@ -170,7 +158,7 @@ def _forbidden_roots() -> List[Path]:
         rows.append(Path(MEMU_DIR))
     except Exception:
         pass
-    rows.append(Path(__file__).resolve().parent.parent)            # the program (source tree or the bundle)
+    rows.append(Path(__file__).resolve().parent.parent)
     if getattr(sys, "frozen", False):
         rows.append(Path(sys.executable).resolve().parent)
     for env in ("APPDATA", "LOCALAPPDATA"):
@@ -179,7 +167,6 @@ def _forbidden_roots() -> List[Path]:
     home = _home()
     rows += [home / ".ssh", home / ".gnupg", home / "AppData"]
     return rows
-
 
 def check_allowed(path: Path) -> None:
     """Refuse MemuAI's own folders, AppData, keys, the Recycle Bin (reading included)."""
@@ -198,7 +185,6 @@ def check_allowed(path: Path) -> None:
         if resolved == real or real in resolved.parents:
             raise FilesError(f"«{path}» — служебная папка (MemuAI, AppData, ключи): её не трогаю",
                              f"“{path}” is a service folder (MemuAI, AppData, keys): off limits", "forbidden")
-
 
 def resolve(raw: Any, app_ctx: Optional[Dict[str, Any]] = None) -> Path:
     """A path the model named → an absolute, normalised path (not checked for existence)."""
@@ -246,18 +232,13 @@ def resolve(raw: Any, app_ctx: Optional[Dict[str, Any]] = None) -> Path:
     check_allowed(path)
     return path
 
-
-# ---------------------------------------------------------------- tools
-
 def _ctx(tool_ctx: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     settings = (tool_ctx or {}).get("settings") or {}
     return quick_apps.get_context(settings.get("_quick_app_ctx") or "")
 
-
 def _explorer():
     from . import quick_explorer
     return quick_explorer
-
 
 def tool_list(app_ctx: Optional[Dict[str, Any]], args: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
     qe = _explorer()
@@ -282,7 +263,6 @@ def tool_list(app_ctx: Optional[Dict[str, Any]], args: Dict[str, Any], lang: str
     return {"folder": str(folder), "where": label_for(folder, lang), "entries": rows, "count": len(rows),
             "truncated": truncated}
 
-
 def tool_find(app_ctx: Optional[Dict[str, Any]], args: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
     from .work_tools import read_text, WorkError
     qe = _explorer()
@@ -303,7 +283,7 @@ def tool_find(app_ctx: Optional[Dict[str, Any]], args: Dict[str, Any], lang: str
                 roots.append(Path(folder))
     seen_roots: List[Path] = []
     for root in sorted({r for r in roots if r.is_dir()}, key=lambda r: len(str(r))):
-        if not any(root == r or r in root.parents for r in seen_roots):   # a place inside another one: walked once
+        if not any(root == r or r in root.parents for r in seen_roots):
             seen_roots.append(root)
     words = [w for w in re.split(r"\s+", query.lower()) if w]
     content = flag(args.get("content"))
@@ -340,9 +320,7 @@ def tool_find(app_ctx: Optional[Dict[str, Any]], args: Dict[str, Any], lang: str
     return {"query": query, "searched": [str(r) for r in seen_roots], "found": found[:FIND_LIMIT],
             "content_matches": matches[:FIND_LIMIT], "truncated": timed_out or len(found) >= FIND_LIMIT}
 
-
 _PATH_KEYS = ("path", "to")
-
 
 def plan_paths(app_ctx: Optional[Dict[str, Any]], ops: Any) -> Tuple[Path, List[Dict[str, Any]]]:
     """Absolute / place paths of the operations → (the base folder, the operations relative to it)."""
@@ -367,7 +345,7 @@ def plan_paths(app_ctx: Optional[Dict[str, Any]], ops: Any) -> Tuple[Path, List[
     except ValueError:
         raise FilesError("Пути на разных дисках — переносите между дисками по одному в Проводнике",
                          "The paths are on different drives — move between drives in Explorer", "drives") from None
-    while not base.is_dir() and base.parent != base:      # a folder the set creates itself
+    while not base.is_dir() and base.parent != base:
         base = base.parent
     check_allowed(base)
     if quick_apps.is_protected(base):
@@ -385,9 +363,7 @@ def plan_paths(app_ctx: Optional[Dict[str, Any]], ops: Any) -> Tuple[Path, List[
         out.append(row)
     return base, out
 
-
 NEW_FOLDER_RE = re.compile(r"^(?:новая папка|new folder)(?: \(\d+\))?$", re.I)
-
 
 def _number_new_folders(base: Path, ops: List[Dict[str, Any]]) -> None:
     """«Создай папку» without a name: «Новая папка» that already exists becomes «Новая папка (2)», like Explorer."""
@@ -407,7 +383,6 @@ def _number_new_folders(base: Path, ops: List[Dict[str, Any]]) -> None:
         taken.add((head, candidate.lower()))
         row["path"] = (head + "/" if head else "") + candidate
 
-
 def tool_change(app_ctx: Optional[Dict[str, Any]], args: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
     qe = _explorer()
     base, ops = plan_paths(app_ctx, args.get("ops"))
@@ -418,7 +393,6 @@ def tool_change(app_ctx: Optional[Dict[str, Any]], args: Dict[str, Any], lang: s
         return qe._change_tool(ctx, {"ops": ops, "summary": args.get("summary") or ""}, lang)
     except qe.FolderError as exc:
         raise FilesError(exc.ru, exc.en, exc.code) from None
-
 
 def open_path(path: str, reveal: bool = False) -> bool:
     if IS_WINDOWS:
@@ -437,7 +411,6 @@ def open_path(path: str, reveal: bool = False) -> bool:
     except OSError:
         return False
 
-
 def tool_open(app_ctx: Optional[Dict[str, Any]], args: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
     path = resolve(args.get("path"), app_ctx)
     if not os.path.lexists(path):
@@ -452,7 +425,6 @@ def tool_open(app_ctx: Optional[Dict[str, Any]], args: Dict[str, Any], lang: str
         raise FilesError("Не получилось открыть", "Could not open it", "failed")
     return {"ok": True, "opened": str(path), "revealed": reveal,
             "note": "Done: it is open now. Say so in a few words."}
-
 
 TOOL_DESCRIPTIONS = {
     "files_list": "{path, depth? 1-3, glob?} — list a folder anywhere in the user's folders (see <files>)",
@@ -475,10 +447,8 @@ FILE_WORDS = re.compile(
     r"\bmusic\b|\bvideos\b|recycle bin|\btrash\b|\brename|organi[sz]e|\bmkdir\b|[A-Za-z]:\\|~/|"
     r"\.(?:txt|docx?|xlsx?|pptx?|pdf|png|jpe?g|gif|zip|rar|7z|mp[34]|csv|md)\b)", re.I)
 
-
 def wants_files(text: str) -> bool:
     return bool(FILE_WORDS.search(str(text or "")))
-
 
 def files_block(app_ctx: Optional[Dict[str, Any]], lang: str = "ru") -> str:
     access = quick_apps.settings().get("access", "ask")
@@ -495,14 +465,13 @@ def files_block(app_ctx: Optional[Dict[str, Any]], lang: str = "ru") -> str:
              + " Deleted items go to the Recycle Bin. After the tool: one short sentence about what was done or "
                "what waits for the click — the result card with «Undo» is under the answer.",
              "Off limits: system folders, drive roots, MemuAI's own and AppData folders.",
-             # Round 35: the PC-wide index (app/fsindex_api.py) — files_find only walks the usual places
+
              "A file whose folder is unknown or outside the places (other drives, any folder): search_files finds it "
              "by name on the whole PC instantly — then files_open / files_change with the path it returned."]
     if app_ctx and app_ctx.get("folder"):
         lines.append('"this folder", "here", "these files" = the Explorer folder in <folder_context> (./… in files_* '
                      "paths, or the folder_* tools).")
     return "<files>\n" + "\n".join(lines) + "\n</files>"
-
 
 def request_settings(text: str, app_ctx: Optional[Dict[str, Any]], lang: str = "ru") -> Dict[str, Any]:
     """The ``/api/quick/ask`` hook: turn the file tools on for a question about files (or over a folder)."""
@@ -516,10 +485,8 @@ def request_settings(text: str, app_ctx: Optional[Dict[str, Any]], lang: str = "
         return {}
     return {"_quick_files": True, "_quick_files_block": files_block(app_ctx, lang), "_quick_tool_rounds": TOOL_ROUNDS}
 
-
 def _enabled(settings: Dict[str, Any]) -> bool:
     return bool((settings or {}).get("_quick_files"))
-
 
 def _tool(fn):
     async def handler(args: Dict[str, Any], tool_ctx: Dict[str, Any]) -> Dict[str, Any]:
@@ -535,13 +502,11 @@ def _tool(fn):
             raise
     return handler
 
-
 def _label(name: str):
     def label(args: Any, lang: str) -> str:
         ru, en = _LABELS[name]
         return en if lang == "en" else ru
     return label
-
 
 def register_tools() -> None:
     from .quick_ask_api import register_tool
@@ -552,17 +517,12 @@ def register_tools() -> None:
         except ValueError:
             pass
 
-
-# ---------------------------------------------------------------- routes
-
 router = APIRouter()
-
 
 @router.get("/api/quick/files/places")
 async def files_places(request: Request):
     lang = "en" if request.query_params.get("lang") == "en" else "ru"
     return {"places": await asyncio.to_thread(places, lang)}
-
 
 @router.post("/api/quick/files/reveal")
 async def files_reveal(request: Request):
@@ -587,7 +547,6 @@ async def files_reveal(request: Request):
                 break
     ok = await asyncio.to_thread(open_path, str(target), target != root)
     return {"ok": ok, "path": str(target)}
-
 
 def register() -> None:
     register_tools()

@@ -1,11 +1,11 @@
 ---
 title: Built-in modules
-summary: Translator, Studio, Design, Benchmarks, Model catalog, Characters, MemuMusic and MemuLearn: what they do and how they work inside.
+summary: Translator, Studio, Design, Benchmarks, Model catalog, Characters, MemuMusic, MemuLearn and MemuDB: what they do and how they work inside.
 ---
 
 # Built-in modules
 
-Nine modules ship with MemuAI and are **disabled by default**. They use the same bridge as your code and hide no capabilities.
+Ten modules ship with MemuAI and are **disabled by default**. They use the same bridge as your code and hide no capabilities.
 
 ## Translator
 
@@ -176,3 +176,7 @@ Round 40. An AI academy: a course from any source plus smart flashcards. Enable 
 - **Import and export** — `.apkg` and `.csv` both ways.
 
 The module needs `learn`, `chat`, `models`, `storage`, `download`, `notify`. MemuAI stores the courses (`app/learn/`); the module works through `Memu.learn.call(op, args)` — see [Module permissions](doc:modules-permissions).
+
+## MemuDB
+
+A local database workbench for SQLite databases and DuckDB analytical files with a schema explorer, SQL editor and AI assistant. See [MemuDB](doc:memudb). The module needs `database`, `models` and `storage` — see [Module permissions](doc:modules-permissions).

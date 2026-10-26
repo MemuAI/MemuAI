@@ -1,5 +1,4 @@
-// MemuNote Photo (Round 32) — UI strings RU / EN, merged into the app dictionary on import.
-// English contains no Cyrillic (tests/round32_photo_test.py). Merged by i18n.js (one import line), no imports here.
+
 
 export const PHOTO = {
   ru: {
@@ -9,7 +8,7 @@ export const PHOTO = {
     ph_menu_file: "Файл", ph_menu_edit: "Правка", ph_menu_image: "Изображение", ph_menu_layer: "Слой", ph_menu_select: "Выделение", ph_menu_filter: "Фильтр", ph_menu_view: "Вид", ph_menu_ai: "ИИ",
     ph_undo: "Отменить", ph_redo: "Повторить", ph_zoom: "Масштаб", ph_zoom_in: "Увеличить", ph_zoom_out: "Уменьшить", ph_zoom_100: "Реальный размер (100%)", ph_fit: "Показать целиком", ph_fill_window: "Заполнить окно", ph_panels: "Панели",
     ph_tab_layers: "Слои", ph_tab_adjust: "Коррекция", ph_tab_history: "История", ph_tab_ai: "ИИ",
-    // tools
+
     ph_tool_move: "Перемещение", ph_tool_marquee: "Прямоугольная область", ph_tool_ellipse: "Овальная область", ph_tool_rect_select: "Прямоугольная область", ph_tool_ellipse_select: "Овальная область", ph_tool_lasso: "Лассо", ph_tool_polylasso: "Прямолинейное лассо",
     ph_tool_wand: "Волшебная палочка", ph_tool_quicksel: "Быстрое выделение", ph_tool_objsel: "Выделение объекта", ph_tool_crop: "Рамка (кадрирование)", ph_tool_eyedropper: "Пипетка", ph_tool_heal: "Точечная восстанавливающая кисть",
     ph_tool_brush: "Кисть", ph_tool_pencil: "Карандаш", ph_tool_clone: "Штамп", ph_tool_eraser: "Ластик", ph_tool_gradient: "Градиент", ph_tool_bucket: "Заливка", ph_tool_blur: "Размытие", ph_tool_sharpen: "Резкость", ph_tool_smudge: "Палец",
@@ -27,7 +26,7 @@ export const PHOTO = {
     ph_clone_source_set: "Источник штампа выбран", ph_clone_need_source: "Сначала Alt+щелчок — выберите, откуда копировать",
     ph_select_subject: "Предмет", ph_ai_select: "Найти ИИ…", ph_free_transform: "Свободное трансформирование",
     ph_alignLeft: "Выровнять по левому краю", ph_alignHCenter: "Выровнять по центру", ph_alignRight: "Выровнять по правому краю", ph_alignTop: "Выровнять по верху", ph_alignVCenter: "Выровнять по середине", ph_alignBottom: "Выровнять по низу",
-    // layers
+
     ph_layer: "Слой", ph_layer_background: "Фон", ph_layer_text: "Текст", ph_layer_vector: "Вектор (SVG)", ph_group: "Группа", ph_merged: "Объединённый", ph_copy_suffix: "копия", ph_frames: "Кадры", ph_frame: "Кадр",
     ph_blend: "Режим наложения", ph_lock: "Закрепить слой", ph_visibility: "Видимость", ph_mask_thumb: "Маска слоя (Shift+щелчок — вкл/выкл)",
     ph_blend_normal: "Обычный", ph_blend_multiply: "Умножение", ph_blend_screen: "Экран", ph_blend_overlay: "Перекрытие", ph_blend_darken: "Затемнение", ph_blend_lighten: "Замена светлым", ph_blend_color_dodge: "Осветление основы",
@@ -42,7 +41,7 @@ export const PHOTO = {
     ph_layer_empty: "Слой пустой", ph_last_layer: "Нельзя удалить последний слой", ph_nothing_below: "Ниже нет слоя", ph_mask_tip: "Рисуйте на маске: чёрным — скрыть, белым — показать",
     ph_rasterize_title: "Растрировать слой?", ph_rasterize_text: "«{name}» — текст или фигура. Чтобы рисовать или применять фильтры, слой нужно превратить в пиксели (редактировать текст после этого нельзя).", ph_rasterized_for_transform: "Слой растрирован для трансформирования", ph_vectors_rasterized: "Текстовые и векторные слои растрированы",
     ph_place: "Поместить изображение…", ph_place_failed: "Не удалось вставить изображение", ph_pasted: "Вставленный слой", ph_clipboard_empty: "В буфере обмена нет изображения", ph_clipboard_denied: "Нет доступа к буферу — нажмите Ctrl+V", ph_copied: "Скопировано в буфер обмена", ph_copied_internal: "Скопировано (внутри редактора)",
-    // edit / image
+
     ph_cut: "Вырезать", ph_copy: "Копировать", ph_copy_merged: "Копировать совмещённые данные", ph_paste: "Вставить", ph_paste_in_place: "Вставить на место", ph_clear: "Очистить", ph_fill: "Выполнить заливку…", ph_contents: "Содержимое", ph_gray50: "50% серого", ph_content_aware: "С учётом содержимого",
     ph_stroke_sel: "Выполнить обводку…", ph_stroke_width: "Толщина", ph_need_selection: "Сначала выделите область", ph_transform: "Трансформирование", ph_xf_h: "Отразить по горизонтали", ph_xf_v: "Отразить по вертикали", ph_xf_cw: "Повернуть на 90° по часовой", ph_xf_ccw: "Повернуть на 90° против часовой", ph_xf_180: "Повернуть на 180°",
     ph_xf_tip: "Shift — пропорции, Alt — от центра, Ctrl+угол — перспектива, за рамкой — поворот; Enter — применить", ph_angle: "Угол", ph_flip_h: "Отразить по горизонтали", ph_flip_v: "Отразить по вертикали", ph_rotate_90: "Повернуть на 90°", ph_cancel: "Отмена", ph_ok: "ОК", ph_close: "Закрыть", ph_continue: "Продолжить",
@@ -58,19 +57,19 @@ export const PHOTO = {
     ph_p_cyanRed: "Голубой — Красный", ph_p_magentaGreen: "Пурпурный — Зелёный", ph_p_yellowBlue: "Жёлтый — Синий", ph_p_preserve: "Сохранить яркость", ph_p_temperature: "Температура", ph_p_tint: "Оттенок", ph_p_red: "Красные", ph_p_yellow: "Жёлтые", ph_p_green: "Зелёные", ph_p_cyan: "Голубые",
     ph_p_blue: "Синие", ph_p_magenta: "Пурпурные", ph_p_amount: "Эффект", ph_p_level: "Порог", ph_p_levels: "Уровни", ph_p_from: "Цвет", ph_p_to: "Заменить на", ph_p_fuzz: "Разброс", ph_p_radius: "Радиус", ph_p_angle: "Угол", ph_p_distance: "Смещение", ph_p_threshold: "Порог",
     ph_p_mono: "Монохромный", ph_p_size: "Размер", ph_p_strength: "Сила", ph_p_inBlack: "Чёрная точка", ph_p_inWhite: "Белая точка", ph_p_outBlack: "Выход: чёрный", ph_p_outWhite: "Выход: белый", ph_p_width: "Ширина", ph_p_height: "Высота", ph_p_degrees: "Угол",
-    // select / view
+
     ph_selection: "Выделение", ph_select_all: "Выделить всё", ph_deselect: "Отменить выделение", ph_reselect: "Выделить снова", ph_inverse: "Инверсия выделения", ph_color_range: "Цветовой диапазон", ph_fuzziness: "Разброс (по основному цвету)", ph_color_range_note: "Выделяются пиксели, похожие на основной цвет",
     ph_sel_grow: "Расширить", ph_sel_shrink: "Сжать", ph_sel_feather: "Растушевать", ph_sel_border: "Граница", ph_move_pixels: "Перемещение пикселей", ph_nudge: "Сдвиг слоя",
     ph_rulers: "Линейки", ph_grid: "Сетка", ph_grid_size: "Шаг сетки…", ph_guides: "Направляющие", ph_guide: "Направляющая", ph_new_guide: "Новая направляющая…", ph_new_guide_hint: "«v 100» — вертикальная на x=100, «h 50» — горизонтальная", ph_clear_guides: "Удалить направляющие",
     ph_shortcuts: "Горячие клавиши редактора", ph_sc_cycle: "Следующий инструмент группы", ph_sc_size: "Размер кисти", ph_sc_hardness: "Жёсткость кисти", ph_sc_opacity: "Непрозрачность 10…100%", ph_sc_default_colors: "Цвета по умолчанию", ph_sc_alt: "Пипетка в кисти / источник штампа", ph_sc_shift: "Прямая линия, пропорции, добавить к выделению",
     ph_sc_undo: "Отменить / повторить", ph_sc_select: "Выделить всё / снять", ph_sc_adjust: "Уровни, кривые, тон, баланс, инверсия", ph_sc_sizes: "Размер изображения / холста", ph_sc_zoom: "Целиком / 100%", ph_sc_commit: "Применить / отменить",
     ph_hist_open: "Открыто", ph_hist_hint: "Щелчок по шагу — вернуться к нему", ph_text_props: "Текст", ph_shape_props: "Фигура", ph_line_height: "Межстрочный", ph_box_width: "Ширина блока", ph_rotate: "Поворот", ph_edit_text: "Правка текста", ph_select_layer: "Выбрать «{name}»",
-    // files
+
     ph_open: "Открыть…", ph_save: "Сохранить", ph_save_as: "Сохранить как…", ph_export: "Экспортировать как…", ph_format: "Формат", ph_quality: "Качество", ph_saved: "Сохранено: {name}", ph_exported: "Экспортировано: {name}", ph_save_failed: "Не удалось сохранить",
     ph_fmt_svg: "SVG (векторные слои + картинки)", ph_fmt_psd: "Photoshop PSD (со слоями)", ph_fmt_memuimg: "MemuNote (.memuimg, со слоями)", ph_fmt_layers_note: "Слои, маски, режимы наложения сохраняются.", ph_fmt_flat_note: "Формат без слоёв — изображение будет сведено (в редакторе слои останутся).",
     ph_svg_note: "Текст и фигуры — векторные, растровые слои вложены картинками.", ph_ico_note: "Иконка с размерами 16–256 px.", ph_flatten_notice: "В файл {fmt} слои сведены. Чтобы сохранить слои — «Сохранить как» .psd или .memuimg.", ph_dont_show: "Больше не показывать", ph_filter_images: "Изображения",
     ph_frames_found: "В файле {n} кадров/размеров — открыт первый.", ph_frames_import: "Импортировать кадры как слои", ph_frames_capped: "Импортировано {n} кадров из {total}",
-    // AI
+
     ph_ai: "ИИ", ph_ai_mode_ask: "Вопрос", ph_ai_mode_edit: "Правка", ph_ai_mode_gen: "Генерация", ph_ai_send: "Отправить (Enter)", ph_ai_ph_ask: "Спросите о картинке…", ph_ai_ph_edit: "Что сделать? «теплее», «обрежь по лицу», «размой фон»…", ph_ai_ph_gen: "Опишите картинку для генерации…",
     ph_ai_checking: "Проверяю MemuAI Proxy…", ph_ai_offline: "ИИ недоступен: MemuAI Proxy не запущен. Откройте MemuAI или запустите Proxy.", ph_ai_disabled: "ИИ выключен в настройках MemuNote", ph_ai_model: "Модель для анализа картинок",
     ph_ai_imagegen_on: "Генерация: {n}", ph_ai_imagegen_off: "Модель генерации картинок не подключена", ph_ai_imagegen_how: "Подключите её в MemuAI → Proxy: у Custom-аккаунта заполните «Модели генерации изображений» (например gpt-image-1, flux, nano-banana) или подключите Genspark. Описание, вопросы, выделение и удаление фона работают и без неё.",

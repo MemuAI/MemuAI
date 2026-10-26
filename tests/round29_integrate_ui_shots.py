@@ -39,7 +39,6 @@ CHART = ('```memuai-chart\n{"type":"bar","title":"Revenue by quarter","labels":[
          '"y":{"title":"Revenue","unit":"M$"},"x":{"title":"Quarter"}}\n```')
 MERMAID = '```mermaid\nflowchart LR\n  A["Request"] --> B{"Valid?"}\n  B -->|yes| C["Process"]\n  B -->|no| D["Reject"]\n```'
 
-
 def seed_chats(lang: str) -> list[dict]:
     en = lang == "en"
     now = int(time.time() * 1000)
@@ -57,14 +56,12 @@ def seed_chats(lang: str) -> list[dict]:
                       {"role": "assistant", "content": "Week 1: easy runs." if en else "Неделя 1: лёгкий бег.", "model": "demo-gpt-test", "ts": now - 8990}]},
     ]
 
-
 STUCK_CARD = {"id": "stk-demo", "kind": "stuck", "reason": "repeat", "area": "browser",
               "title": "Повторяется одно и то же действие без результата", "title_en": "The same action keeps repeating with no effect",
               "detail": "Клик по «Войти» 4 раза подряд, страница не меняется.", "detail_en": "Clicked “Sign in” 4 times in a row; the page does not change.",
               "steps": [{"label": "click #login", "count": 4}, {"label": "screenshot", "count": 1, "error": "timeout 30s"}],
               "count": 4, "step": 9, "options": ["continue", "hint", "replan", "stop"], "created": 0}
 
-#: Checks of whatever is open now. ``sel`` = the root of the opened UI (or null for the whole page).
 CHECK_JS = r"""(sel) => {
   const vw = innerWidth, vh = innerHeight, out = { off: [], clip: [], cyr: [] };
   const roots = sel ? [...document.querySelectorAll(sel)] : [document.body];
@@ -111,7 +108,6 @@ CLOSE_JS = """() => { try { MemuSearch.close(); } catch (e) {} try { typeof clos
   document.querySelectorAll('.mt-modal-back, .memu-ctx, .mx-back').forEach((n) => { try { n.querySelector('[data-close], .mt-close, .mx-close')?.click(); } catch (e) {} });
   document.dispatchEvent(new KeyboardEvent('keydown', {key: 'Escape', bubbles: true})); }"""
 
-
 def states(lang: str) -> list[tuple[str, str, int, str | None]]:
     """(name, js, wait ms, check selector). JS strings run as a function body; real key presses are tagged KEY:."""
     S = []
@@ -155,7 +151,6 @@ def states(lang: str) -> list[tuple[str, str, int, str | None]]:
     S.append(("characters-chat", "FRAME:characters:M.importFiles([new File([" + json.dumps(json.dumps(card)) + "], 'alice.json', {type: 'application/json'})])"
               ".then(() => new Promise((r) => setTimeout(r, 700))).then(() => M.openCharacter(M.S.index[0].id))", 2000, None))
     return S
-
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -268,7 +263,6 @@ def main() -> int:
         Path(a.json).write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"done {tag}: {problems} check findings, {len(report['errors'])} errors")
     return 1 if problems or report["errors"] else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

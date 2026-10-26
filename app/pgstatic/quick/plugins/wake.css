@@ -1,5 +1,3 @@
-/* Quick Ask plugin «Слово-активатор» (Round 27): the listening strip and the mic button while the wake word records.
-   Colours only from the theme tokens (themes.css), like the rest of the window. */
 .mqw-host { padding: 6px var(--qa-pad, 16px) 0; }
 .mqw { --lvl: var(--mqw-level, 0); display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 4px 6px 4px 10px;
   border-radius: 12px; border: 1px solid color-mix(in srgb, var(--danger, #e5484d) 34%, var(--border));
@@ -24,12 +22,8 @@
 :root[data-mqw-state="transcribing"] .mqw-bars i:nth-child(3) { animation-delay: .24s; }
 :root[data-mqw-state="transcribing"] .mqw-bars i:nth-child(4) { animation-delay: .36s; }
 :root[data-mqw-state="transcribing"] .mqw-bars i:nth-child(5) { animation-delay: .48s; }
-
-/* the mic button of the «commands» plugin looks pressed while the wake word records (its own state is not touched) */
 :root[data-mqw-state="listening"] .qa-plugin-btn[data-plugin="voice"] { color: var(--on-accent, #fff); background: var(--danger, #e5484d);
   box-shadow: 0 0 0 calc(2px + var(--mic, 0) * 8px) color-mix(in srgb, var(--danger, #e5484d) 28%, transparent); }
-
-/* «Анимация отклика»: a soft glow around the card while listening */
 :root[data-mqw-glow][data-mqw-state] .qa-card { animation: mqw-glow 1.8s ease-in-out infinite; }
 
 @keyframes mqw-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }

@@ -1,15 +1,9 @@
-/* Round 38 (п.4): режим фокуса развёрнутого модуля — см. module-focus.js. */
-
-/* Фон за развёрнутым модулем приглушён: видно, что он «на паузе»,
-   а при наведении оживает — щелчок по нему уводит модуль в пилюлю. */
 html[data-module-focus="1"] #app > .side {
   opacity: .58;
   transition: opacity .18s ease;
 }
 html[data-module-focus="1"] #app > .side:hover,
 html[data-module-focus="1"] #app > .side:focus-within { opacity: 1; }
-
-/* «Полёт» окна в пилюлю панели модулей (только transform/opacity). */
 .module-focus-ghost {
   position: absolute;
   z-index: 99999;
@@ -22,8 +16,6 @@ html[data-module-focus="1"] #app > .side:focus-within { opacity: 1; }
   transform-origin: center;
   will-change: transform, opacity;
 }
-
-/* Пилюля модуля, ушедшего с полного экрана: метка ⤢ и мягкое кольцо акцента. */
 
 [data-task].is-focus-parked {
   position: relative;

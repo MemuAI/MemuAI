@@ -1,4 +1,4 @@
-// Form behavior in a DOM, without browser/computer control or a real account.
+
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";

@@ -27,10 +27,8 @@ IMG_URL = "https://lh3.googleusercontent.com/gg-dl/AJfQ9KfixtureImage=s1024-rj"
 VID_URL = "https://contribution.usercontent.google.com/download?c=fixtureVideo"
 THUMB_URL = "https://lh3.googleusercontent.com/fixtureThumb"
 
-
 def b64(data):
     return base64.b64encode(data).decode()
-
 
 def media_candidate(text, *, images=(), video=None, sparse=False):
     """Candidate with c[12] rich content: field 7 = generated images, field 59 = Veo video (positional or sparse)."""
@@ -49,12 +47,10 @@ def media_candidate(text, *, images=(), video=None, sparse=False):
     cand[12] = rich
     return cand
 
-
 def stream_of(cand, cid="c_media", rid="r_media"):
     inner = [None, [cid, rid], None, None, [cand]]
     body = json.dumps([["wrb.fr", None, json.dumps(inner)]])
     return f")]}}'\n\n{len(body) + 1}\n{body}\n"
-
 
 class Resp:
     def __init__(self, status=200, text="", content=b"", headers=None):
@@ -69,7 +65,6 @@ class Resp:
 
     async def aclose(self):
         pass
-
 
 class MediaSession:
     """/app page, batchexecute per rpcid, upload, StreamGenerate answers, media downloads by URL."""
@@ -108,7 +103,6 @@ class MediaSession:
     def generate_calls(self):
         return [c for c in self.calls if c[0] == "POST" and "StreamGenerate" in c[1]]
 
-
 async def chat(provider, acc, model, messages, params=None):
     events = []
     with patch("app.providers.geminiweb.GeminiWebProvider._seed_catalog", staticmethod(lambda status: None)), \
@@ -117,10 +111,8 @@ async def chat(provider, acc, model, messages, params=None):
             events.append(event)
     return events
 
-
 def text_of(events):
     return "".join(e["text"] for e in events if e["type"] == "text")
-
 
 class TempMediaDir(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -131,10 +123,6 @@ class TempMediaDir(unittest.IsolatedAsyncioTestCase):
     def tearDown(self):
         self.patch_dir.stop()
         self.tmp.cleanup()
-
-
-# ------------------------------------------------------------------ input
-
 
 class AttachmentTest(TempMediaDir):
     async def test_every_attachment_shape(self):
@@ -162,7 +150,7 @@ class AttachmentTest(TempMediaDir):
     async def test_bad_base64_and_unsafe_url_are_clear_errors(self):
         with self.assertRaises(media.AttachmentError):
             media.decode_source("data:image/png;base64,")
-        with self.assertRaises(media.AttachmentError):   # SSRF guard of media_cache: private addresses refused
+        with self.assertRaises(media.AttachmentError):
             await media.load_attachments([{"role": "user", "content": [
                 {"type": "image_url", "image_url": {"url": "http://127.0.0.1:8317/secret.png"}}]}], media.fetch_public)
 
@@ -206,10 +194,6 @@ class AttachmentTest(TempMediaDir):
         self.assertIn("HTTP 413", str(ctx.exception))
         self.assertIn("не принял загрузку", ctx.exception.message_ru)
 
-
-# ------------------------------------------------------------------ output
-
-
 class GeneratedMediaTest(TempMediaDir):
     def test_rich_media_positional_and_sparse(self):
         for sparse in (False, True):
@@ -219,7 +203,7 @@ class GeneratedMediaTest(TempMediaDir):
             self.assertEqual(snap.media[0].alt, "alt 0")
             self.assertEqual(snap.media[1].thumb, THUMB_URL)
             self.assertEqual((snap.cid, snap.rid), ("c_media", "r_media"))
-            self.assertEqual(snap.images, [])          # generated ≠ web images
+            self.assertEqual(snap.images, [])
 
     def test_full_size_suffix(self):
         self.assertTrue(media.full_size(IMG_URL).endswith("=s2048-rj"))
@@ -249,7 +233,7 @@ class GeneratedMediaTest(TempMediaDir):
                                           IMG_URL: Resp(status=403)})
         events = await chat(make_provider(session), account(delete_chats="false"), "gemini-3.8-flash",
                             [{"role": "user", "content": "draw"}])
-        self.assertEqual(text_of(events), f"![Gemini image 1]({IMG_URL})")    # HTML instead of a picture → Google link kept
+        self.assertEqual(text_of(events), f"![Gemini image 1]({IMG_URL})")
         self.assertEqual(media.public_base({"media_base_url": "https://my.tunnel.example/"}), "https://my.tunnel.example")
 
     async def test_veo_video_polls_206_then_serves_mp4_and_thumbnail(self):
@@ -277,7 +261,7 @@ class GeneratedMediaTest(TempMediaDir):
         self.assertEqual((got.status_code, got.headers["content-type"], got.content), (200, "image/png", PNG))
         self.assertEqual(client.get("/v1/geminiweb/media/../../config.json").status_code, 404)
         self.assertEqual(client.get("/v1/geminiweb/media/" + "0" * 64 + ".png").status_code, 404)
-        # the MemuAI chat keeps a copy in the profile: media_cache reads the stored file directly
+
         self.assertEqual(await media_cache.download_image(f"http://127.0.0.1:8317/v1/geminiweb/media/{name}"), PNG)
 
         url = f"http://127.0.0.1:8317/v1/geminiweb/media/{name}"
@@ -309,28 +293,21 @@ class GeneratedMediaTest(TempMediaDir):
             self.assertEqual(none.status_code, 422)
             self.assertIn("can't create images", none.json()["error"]["message_en"])
 
-
-# ------------------------------------------------------------------ limits
-
-NOW = 1_792_000_000            # fixed «now» (2026-10) for reset maths
-
+NOW = 1_792_000_000
 
 def usage_body():
-    # [tier, [[remaining credits, used fraction, type, [[reset]]], …], overage]
+
     return [2, [[120, 0.37, 1, [[NOW + 3 * 3600]]], [900, 0.81, 2, [[NOW + 4 * 86400]]], [50, None, 3]], False]
 
-
 def quota_body(pro_left=0):
-    # [[[[ids…, action], _, used %, [reset], total, remaining], …]]
+
     return [[[[1, 4], None, 100.0 if not pro_left else 40.0, [NOW + 2 * 3600], 100, pro_left],
              [[1, 15], None, 0, None, 0, 0]]]
-
 
 def limits_batch(pro_left=0):
     return {limits.RPC_USAGE_INFO: batch_response(limits.RPC_USAGE_INFO, usage_body()),
             limits.RPC_GEMINI_QUOTA: batch_response(limits.RPC_GEMINI_QUOTA, quota_body(pro_left)),
             limits.RPC_EXTRA_QUOTA: batch_response(limits.RPC_EXTRA_QUOTA, [False, 0.25, [NOW + 86400]])}
-
 
 class LimitsTest(unittest.IsolatedAsyncioTestCase):
     def test_parsers(self):
@@ -420,15 +397,11 @@ class LimitsTest(unittest.IsolatedAsyncioTestCase):
         with patch("app.providers.geminiweb.GeminiWebProvider._seed_catalog", staticmethod(lambda status: None)):
             result = await provider.diagnose(account(delete_chats="false"))
         step = next(s for s in result["steps"] if s["id"] == "limits")
-        self.assertEqual(step["status"], "warn")                  # Pro is used up
+        self.assertEqual(step["status"], "warn")
         self.assertIn("Google AI Pro", step["detail_ru"])
         self.assertIn("Исчерпано: Pro", step["detail_ru"])
         self.assertTrue(result["ok"])
         self.assertEqual(result["limits"]["subscription"], "Google AI Pro")
-
-
-# ------------------------------------------------------------------ thinking level on the wire
-
 
 class EffortWireTest(unittest.IsolatedAsyncioTestCase):
     async def test_level_reaches_freq_and_model_header(self):
@@ -441,8 +414,7 @@ class EffortWireTest(unittest.IsolatedAsyncioTestCase):
             inner = inner_of(call)
             header = json.loads(call[2]["headers"][proto.MODEL_HEADER])
             self.assertEqual((inner[17], inner[80], header[15]), (think, ext, ext), level)
-            self.assertEqual(inner[79], header[14])                  # model number in both places
-
+            self.assertEqual(inner[79], header[14])
 
 if __name__ == "__main__":
     unittest.main()

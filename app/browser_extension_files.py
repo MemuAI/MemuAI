@@ -19,7 +19,6 @@ TEXT_EXTENSIONS = {".txt", ".md", ".csv", ".tsv", ".json", ".jsonl", ".xml", ".h
                    ".jsx", ".tsx", ".css", ".sql", ".sh", ".ps1", ".c", ".cpp", ".h",
                    ".rs", ".go", ".java", ".rb", ".php", ".tex", ".srt", ".vtt", ".pdf", ".docx"}
 
-
 async def limited_json(request: Request, limit: int):
     raw = bytearray()
     async for chunk in request.stream():
@@ -33,7 +32,6 @@ async def limited_json(request: Request, limit: int):
     if not isinstance(value, dict):
         raise HTTPException(400, "Ожидается объект")
     return value
-
 
 def prepare(name, data, extract_file):
     name = str(name or "file").replace("\\", "/").rsplit("/", 1)[-1][:200]
@@ -77,7 +75,6 @@ def prepare(name, data, extract_file):
         item.update(data=data, text=text[:100000], truncated=bool(result.get("truncated") or len(text) > 100000))
     return item
 
-
 class Attachments:
     def __init__(self, extract_file):
         self.extract_file = extract_file
@@ -86,7 +83,7 @@ class Attachments:
     def prune(self):
         now = time.monotonic()
         self.staged = {key: row for key, row in self.staged.items() if row[0] > now}
-        # Bound both count and actual retained binary/base64 data.
+
         while self.staged and (len(self.staged) >= 32 or sum(len(row[2]["data"]) for row in self.staged.values()) > 48 * 1024 * 1024):
             self.staged.pop(next(iter(self.staged)))
 
@@ -124,7 +121,6 @@ class Attachments:
             raise ValueError("Можно прикрепить до 4 изображений за сообщение")
         return result
 
-
 def context(item):
     """Desktop chats use the same attachment dictionaries as this workspace."""
     text = str(item.get("text") or "")
@@ -132,7 +128,6 @@ def context(item):
         return ""
     return "\n\n<untrusted_file name=" + json.dumps(item.get("name"), ensure_ascii=False) + ">\n" + text[:100000] + (
         "\n[File excerpt truncated]" if item.get("truncated") or len(text) > 100000 else "") + "\n</untrusted_file>"
-
 
 def history_image(value, profile_id):
     """Restore only bounded inline or active-profile cached desktop pictures."""

@@ -81,49 +81,12 @@ PROVIDERS: Dict[str, Dict[str, Any]] = {
     },
 }
 
-# ---------------------------------------------------------------- the catalogue of decision models
-
-#: OpenRouter lists decision models under the ``decisions`` output modality — no key is needed to read it.
-#: Anything a vendor adds there (a ChatGPT, Claude or Gemini decision model, say) shows up on its own.
 CATALOG_URL = "https://openrouter.ai/api/v1/models?output_modalities=decisions"
 CATALOG_TTL = 24 * 3600.0
 
-#: What is known about the decision models today. The live list says nothing about what each is *for*, so a
-#: remark is kept here; ``kinds`` names the question types a model is built for (empty: all of them).
-#: Used offline too, when the live list cannot be fetched.
-KNOWN_MODELS: Dict[str, Dict[str, Any]] = {
-    "~typesafe/jev-latest": {
-        "name": "Jev Latest", "maker": "TypeSafe", "price_input": 0.042, "context": 32000, "recommended": True,
-        "note": "Always the newest Jev (today 1.13): upgrades without changing settings. The best all-round pick."},
-    "typesafe/jev-1.13": {
-        "name": "Jev 1.13", "maker": "TypeSafe", "price_input": 0.042, "context": 32000,
-        "note": "The reference System One model: typed choice, score and yes/no with calibrated odds. Pinned version."},
-    "jaredpalmer/kev-4b": {
-        "name": "Kev 4B", "maker": "Jared Palmer", "price_input": 0.042, "context": 8192,
-        "note": "Small open-weight model (Qwen3.5-4B based) on the same contract. Short states only — 8k context."},
-    "respan/span-01": {
-        "name": "Span-01", "maker": "Respan", "price_input": 0.02, "context": 0, "kinds": ["noul"],
-        "note": "Scores how likely a described behaviour is present in a conversation — suits yes/no risk and intent checks."},
-    "respan/span-01-lite": {
-        "name": "Span-01 Lite", "maker": "Respan", "price_input": 0.0, "context": 0, "kinds": ["noul"], "free": True,
-        "note": "The free, lighter Span-01: the same behaviour scoring for light use."},
-    "respan/span-01-lite:free": {
-        "name": "Span-01 Lite (free)", "maker": "Respan", "price_input": 0.0, "context": 0, "kinds": ["noul"], "free": True,
-        "note": "The free, lighter Span-01: the same behaviour scoring for light use."},
-    "upstage/solar-decide": {
-        "name": "Solar Decide", "maker": "Upstage", "price_input": 0.05, "context": 524288,
-        "note": "Built on Solar Mini 4 with a 512k context — for long states (big diffs, long reports)."},
-    "inception/mercury-decide:free": {
-        "name": "Mercury Decide (free)", "maker": "Inception", "price_input": 0.0, "context": 32768, "free": True,
-        "note": "Free. Returns a choice, a score or a yes/no; 32k context."},
-    "togethercomputer/tev1-4b-experimental": {
-        "name": "Tev1 4B Experimental", "maker": "Together", "price_input": 0.042, "context": 32768, "kinds": ["choice"],
-        "note": "Experimental: picks ONE option out of 2–24, no scores — good for routing and skill choice only."},
-}
+from .model_contract import DECISION_MODELS as KNOWN_MODELS
 
-#: Which kind of check fits which model best, for the picker's hints.
 KIND_LABELS = {"noul": "yes/no odds", "choice": "pick one option", "score": "score on a scale"}
-
 
 def _catalog_row(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """One OpenRouter model entry → the fields the pickers show."""
@@ -149,12 +112,10 @@ def _catalog_row(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
             "kinds": list(known.get("kinds") or []), "recommended": bool(known.get("recommended")),
             "decisions": "decisions" in outputs or not outputs}
 
-
 def sort_catalog(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Recommended first, then the free ones, then by price and name."""
     return sorted(rows, key=lambda row: (not row.get("recommended"), not row.get("free"), row.get("price_input", 0.0),
                                          str(row.get("name") or "").lower()))
-
 
 def builtin_catalog() -> List[Dict[str, Any]]:
     rows = []
@@ -166,12 +127,10 @@ def builtin_catalog() -> List[Dict[str, Any]]:
             rows.append(row)
     return sort_catalog(rows)
 
-
 def _trusts_env(url: str) -> bool:
     """A custom decision server on this computer is reached directly, not through the system/VPN proxy."""
     from .tts_providers import trusts_env
     return trusts_env(url)
-
 
 async def fetch_catalog(*, timeout: float = 8.0, transport: Any = None) -> List[Dict[str, Any]]:
     """The live list of decision models from OpenRouter. Raises :class:`DecisionsError` when it cannot be read."""
@@ -194,7 +153,6 @@ async def fetch_catalog(*, timeout: float = 8.0, transport: Any = None) -> List[
         raise DecisionsError("the catalogue is empty")
     return sort_catalog(found)
 
-
 def read_catalog_cache(cache_path: Any) -> "tuple[List[Dict[str, Any]], float]":
     """``(models, when it was saved)`` from the catalogue cache; empty when there is none or it is damaged."""
     from pathlib import Path
@@ -206,7 +164,6 @@ def read_catalog_cache(cache_path: Any) -> "tuple[List[Dict[str, Any]], float]":
         return rows, float(data.get("at") or 0)
     except (OSError, ValueError, TypeError, AttributeError):
         return [], 0.0
-
 
 async def load_catalog(cache_path: Any = None, *, refresh: bool = False, transport: Any = None
                        ) -> "tuple[List[Dict[str, Any]], str]":
@@ -228,18 +185,15 @@ async def load_catalog(cache_path: Any = None, *, refresh: bool = False, transpo
             pass
     return rows, "live"
 
-
 def describe_price(row: Dict[str, Any]) -> str:
     if row.get("free"):
         return "free"
     price = float(row.get("price_input") or 0.0)
     return f"${price:g} / 1M input" if price else "price unknown"
 
-
 def model_kinds(model: str) -> List[str]:
     """The question types a model is built for; empty means all of them (also for a model nobody knows yet)."""
     return list(KNOWN_MODELS.get(str(model or ""), {}).get("kinds") or [])
-
 
 def supports(model: str, questions: Any) -> bool:
     """Can ``model`` answer every one of ``questions`` (a dict of :class:`Question`, or their types)?"""
@@ -249,24 +203,21 @@ def supports(model: str, questions: Any) -> bool:
     types = {getattr(item, "type", item) for item in (questions.values() if isinstance(questions, dict) else questions)}
     return types <= set(kinds)
 
-
 MAX_CHOICE_OPTIONS = 255
 MAX_SCORE_LEVELS = 10
-MAX_STATE_CHARS = 90_000        # ≈ 32k tokens, the documented state budget
+MAX_STATE_CHARS = 90_000
 CACHE_TTL = 600.0
 
 LLM = Callable[[str, str], Awaitable[str]]
-
 
 class DecisionsError(Exception):
     def __init__(self, message: str, status: int = 0) -> None:
         super().__init__(message)
         self.status = status
 
-
 @dataclass
 class Question:
-    type: str                                   # noul | choice | score
+    type: str
     instructions: Union[str, Dict[str, Any], List[Any]]
     criteria: Any = None
 
@@ -301,7 +252,6 @@ class Question:
         if self.criteria is not None:
             row["criteria"] = self.criteria
         return row
-
 
 @dataclass
 class Answer:
@@ -355,7 +305,6 @@ class Answer:
             row["legend"] = self.legend
         return row
 
-
 @dataclass
 class Decision:
     answers: Dict[str, Answer]
@@ -374,14 +323,12 @@ class Decision:
                 "model": self.model, "provider": self.provider, "input_tokens": self.input_tokens,
                 "cost": self.cost, "latency_ms": self.latency_ms, "cached": self.cached}
 
-
 def _as_float(value: Any) -> Optional[float]:
     try:
         number = float(value)
     except (TypeError, ValueError):
         return None
     return number if math.isfinite(number) else None
-
 
 def parse_answer(raw: Any, question: Optional[Question] = None) -> Answer:
     raw = raw if isinstance(raw, dict) else {}
@@ -407,7 +354,6 @@ def parse_answer(raw: Any, question: Optional[Question] = None) -> Answer:
             answer.legend = {str(index + 1): text for index, text in enumerate(question.criteria)}
     return answer
 
-
 def _truncate_state(state: Any) -> Any:
     if isinstance(state, str):
         return state if len(state) <= MAX_STATE_CHARS else state[:MAX_STATE_CHARS // 2] + \
@@ -417,12 +363,10 @@ def _truncate_state(state: Any) -> Any:
         return state
     return _truncate_state(text)
 
-
 def _cache_key(state: Any, questions: Dict[str, Question], model: str) -> str:
     body = json.dumps({"s": state, "q": {k: q.payload() for k, q in questions.items()}, "m": model},
                       ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(body.encode("utf-8")).hexdigest()
-
 
 EMULATION_SYSTEM = (
     "You are a decision function, not a chat assistant. Read the STATE and answer every QUESTION "
@@ -435,7 +379,6 @@ EMULATION_SYSTEM = (
     "{\"type\": \"choice\", \"probabilities\": {\"<option>\": 0.7, ...}} | "
     "{\"type\": \"score\", \"probabilities\": {\"1\": 0.1, \"2\": 0.9}}}}. No prose, no code fences."
 )
-
 
 class DecisionClient:
     """Async client. ``config`` is MemuCode's ``decisions`` settings block."""
@@ -458,17 +401,15 @@ class DecisionClient:
         self.calls = 0
         self.total_cost = 0.0
         self.total_ms = 0
-        #: A model per kind of check (``auto_mode``, ``routing``, ``skills``, ``goal``, ``agents``) and models
-        #: to fall back to when the chosen one fails.
+
         use_models = config.get("use_models")
         self.use_models: Dict[str, str] = {str(key): str(value) for key, value in use_models.items() if value} \
             if isinstance(use_models, dict) else {}
         fallbacks = config.get("fallbacks")
         self.fallbacks: List[str] = [str(item) for item in fallbacks if str(item).strip()] \
             if isinstance(fallbacks, list) else []
-        self._broken: Dict[str, float] = {}         # model → when it last failed (skipped for a while)
+        self._broken: Dict[str, float] = {}
 
-    # ------------------------------------------------------------ state
     @property
     def enabled(self) -> bool:
         if self.provider == "model":
@@ -508,7 +449,6 @@ class DecisionClient:
     def _price_input(self) -> float:
         return float(PROVIDERS.get(self.provider, {}).get("price_input") or 0.0)
 
-    # ------------------------------------------------------------ requests
     async def ask(self, state: Any, questions: Dict[str, Question], *, use_cache: bool = True) -> Decision:
         if not questions:
             raise DecisionsError("no questions")
@@ -538,14 +478,13 @@ class DecisionClient:
         self._cache[key] = (now, decision)
         return decision
 
-    BROKEN_FOR = 300.0                                   # seconds a failing model is left alone
+    BROKEN_FOR = 300.0
 
     async def _http_with_fallbacks(self, state: Any, questions: Dict[str, Question]) -> Decision:
         """The chosen model first; when it fails (not for a bad key or no credits — that is the same for every
         model), the fallback models in order. A model that failed is skipped for a few minutes."""
         order = [self.model, *[model for model in self.fallbacks if model != self.model]]
-        # A model built for one kind of question (Span: yes/no, Tev1: pick one) is not asked another kind; the
-        # next one answers instead. None can: the caller falls back to its own rules.
+
         order = [model for model in order if supports(model, questions)]
         if not order:
             raise DecisionsError("none of the chosen decision models can answer this kind of question")
@@ -631,9 +570,7 @@ class DecisionClient:
             raise DecisionsError("the chat model did not return decision JSON")
         answers: Dict[str, Answer] = {}
         for key, question in questions.items():
-            # A chat model may answer a bare number or "high" instead of the
-            # schema: such values are dropped instead of raising TypeError /
-            # ValueError past the caller's DecisionsError fallback.
+
             value = raw_answers.get(key)
             raw = dict(value) if isinstance(value, dict) else {}
             raw.setdefault("type", question.type)
@@ -664,7 +601,6 @@ class DecisionClient:
             answers[key] = parse_answer(raw, question)
         return Decision(answers=answers, model="emulated")
 
-    # ------------------------------------------------------------ helpers
     async def noul(self, state: Any, statement: str) -> float:
         decision = await self.ask(state, {"q": Question.noul(statement)})
         return float(decision["q"].noul or 0.0)
@@ -684,7 +620,7 @@ class DecisionClient:
         questions = {"refund": Question.noul("The message asks for a refund"),
                      "tone": Question.choice("The tone of the message",
                                              {"polite": "polite", "rude": "rude", "neutral": "neutral"})}
-        # A model built for one kind of question is tested with the questions it can answer.
+
         kinds = model_kinds(self.model)
         if kinds:
             questions = {key: question for key, question in questions.items() if question.type in kinds}
@@ -711,7 +647,6 @@ class DecisionClient:
         rows = data.get("data") if isinstance(data, dict) else data
         return [row for row in rows or [] if isinstance(row, dict)]
 
-
 def _error_text(response: Any) -> str:
     status = getattr(response, "status_code", 0)
     try:
@@ -730,7 +665,6 @@ def _error_text(response: Any) -> str:
     hint = hints.get(status, "")
     return f"HTTP {status}{' (' + hint + ')' if hint else ''}: {str(detail)[:300]}"
 
-
 def _extract_json(text: str) -> Any:
     text = str(text or "").strip()
     fence = re.search(r"```(?:json)?\s*(\{.*\})\s*```", text, re.S)
@@ -743,8 +677,7 @@ def _extract_json(text: str) -> Any:
         return json.loads(text[start:end + 1])
     except ValueError:
         pass
-    # Text with braces around the object (a reasoning model's «<ds_safety>{…}</ds_safety>» tail or a
-    # «{x}» before it) used to fail as a whole: take the first object that parses on its own.
+
     decoder = json.JSONDecoder()
     position = text.find("{")
     while 0 <= position:
@@ -758,14 +691,6 @@ def _extract_json(text: str) -> Any:
         position = text.find("{", position + 1)
     return None
 
-
-# ---------------------------------------------------------------- agent judgements
-# Ready-made question sets for a coding agent. Each returns plain numbers so the caller decides the
-# thresholds. A decision model reads only what it is given, so every question carries the context a person
-# would need to answer it: who asked for what, where the action happens, what was just done.
-
-#: Levels of the ``risk`` score, from harmless to dangerous. The wording matters: the model places the
-#: action on this scale, so each level names concrete examples.
 RISK_LEVELS = [
     "Safe: reads or inspects something, or a change inside the project that is easy to undo "
     "(editing a source file, running tests, a build, a linter, git status or diff)",
@@ -778,7 +703,6 @@ RISK_LEVELS = [
     "force-pushing, publishing a package, sending messages or payments, reading or uploading credentials "
     "and secrets, disabling security features",
 ]
-
 
 async def assess_action(client: DecisionClient, *, request: str, action: str,
                         context: Optional[Dict[str, Any]] = None) -> Dict[str, float]:
@@ -798,7 +722,7 @@ async def assess_action(client: DecisionClient, *, request: str, action: str,
         "destructive": Question.noul("The proposed action permanently destroys or overwrites data that cannot be "
                                      "restored from git or from the per-write checkpoints the agent keeps"),
     })
-    # A judgement with a missing number is no judgement: the caller must not read the gap as "safe".
+
     risk = decision["risk"].normalized
     odds = {name: decision[name].noul for name in ("aligned", "exfiltration", "destructive")}
     if risk is None or any(value is None for value in odds.values()):
@@ -807,7 +731,6 @@ async def assess_action(client: DecisionClient, *, request: str, action: str,
             "aligned": float(odds["aligned"]), "exfiltration": float(odds["exfiltration"]),
             "destructive": float(odds["destructive"]),
             "latency_ms": decision.latency_ms, "cost": decision.cost, "model": decision.model}
-
 
 COMPLEXITY_LEVELS = [
     "Trivial: a question, an explanation, a lookup, or a change of a line or two",
@@ -823,13 +746,11 @@ INTENTS = {
     "chat": "Small talk or feedback on the previous answer",
 }
 
-
 def _request_state(prompt: str, context: str = "", extra: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     state: Dict[str, Any] = {"prompt": prompt[-6000:], "recent_context": context[-3000:]}
     if extra:
         state.update(extra)
     return state
-
 
 async def classify_prompt(client: DecisionClient, prompt: str, *, context: str = "") -> Dict[str, Any]:
     """Difficulty and kind of a request: what ``/model auto`` needs."""
@@ -843,9 +764,7 @@ async def classify_prompt(client: DecisionClient, prompt: str, *, context: str =
             "intent": intent.choice, "intent_confidence": intent.certainty,
             "latency_ms": decision.latency_ms}
 
-
 ANALYSIS_PARTS = ("complexity", "intent", "needs_plan", "skill")
-
 
 async def analyze_request(client: DecisionClient, prompt: str, *, context: str = "",
                           skills: Optional[Dict[str, str]] = None,
@@ -889,7 +808,6 @@ async def analyze_request(client: DecisionClient, prompt: str, *, context: str =
                                "probability": answer.probabilities.get(answer.choice, 0.0)}
     return result
 
-
 async def pick_skill(client: DecisionClient, prompt: str, skills: Dict[str, str]) -> Optional[Dict[str, Any]]:
     """Best skill for the prompt, or None when "none" wins."""
     if not skills:
@@ -903,7 +821,6 @@ async def pick_skill(client: DecisionClient, prompt: str, skills: Dict[str, str]
     return {"skill": answer.choice, "confidence": answer.certainty,
             "probability": answer.probabilities.get(answer.choice, 0.0)}
 
-
 async def pick_model_for(client: DecisionClient, task: str, models: Dict[str, str]) -> str:
     """Which model (a key of ``models``) should do the task. Each option is a model with what its owner
     wrote about it, so the answer follows the owner's remarks: "fast, good at CSS", "careful with algorithms"."""
@@ -914,7 +831,6 @@ async def pick_model_for(client: DecisionClient, task: str, models: Dict[str, st
         "Which model should do this task? Every option is a model; its text is what the user says it is good at. "
         "Choose the one whose strengths match the task best.", models)
     return str(answer.choice or "")
-
 
 async def goal_reached(client: DecisionClient, *, goal: str, report: str,
                        evidence: Optional[Dict[str, Any]] = None) -> Dict[str, float]:

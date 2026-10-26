@@ -1,10 +1,3 @@
-/* ==========================================================================
-   MemuCode — рабочее место с репозиторием.
-   Сетка: слева дерево проекта (в боковой колонке MemuAI), в центре разговор,
-   справа панель: файл, изменения, артефакты, терминал, задачи, откат, скиллы.
-   Все цвета — токены MemuAI, поэтому режим следует теме и акценту.
-   ========================================================================== */
-
 :root {
   --mc-line: color-mix(in srgb, var(--border) 78%, transparent);
   --mc-soft: color-mix(in srgb, var(--panel-2) 55%, var(--panel));
@@ -43,8 +36,6 @@ body.code-mode #workbar { display: none !important; }
   width: 15px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.8;
   stroke-linecap: round; stroke-linejoin: round; flex: none;
 }
-
-/* --------------------------------- верхняя полоса -------------------------- */
 
 .codebar {
   display: flex; align-items: center; gap: 10px;
@@ -116,8 +107,6 @@ body.code-mode #workbar { display: none !important; }
 .code-path { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; direction: rtl; text-align: left; }
 @keyframes mc-pulse { 50% { opacity: .45; } }
 
-/* ------------------------------------ сетка --------------------------------- */
-
 body.code-mode #main-content {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 7px var(--code-dock-w, 400px);
@@ -132,8 +121,6 @@ body.code-mode.code-dock-hidden #main-content { grid-template-columns: minmax(0,
 body.code-mode.code-dock-hidden #code-dock,
 body.code-mode.code-dock-hidden #code-dock-resizer { display: none !important; }
 
-/* ------------------------------------ дерево -------------------------------- */
-
 body.code-mode #code-explorer {
   display: flex; flex-direction: column; flex: 0 0 auto;
   height: var(--code-tree-h, 260px); min-height: 150px; max-height: 70%;
@@ -142,8 +129,6 @@ body.code-mode #code-explorer {
   background: var(--panel);
   overflow: hidden;
 }
-/* Свёрнутое дерево остаётся строкой заголовка: его всегда видно и всегда
-   можно развернуть обратно — щелчком, кнопкой на полосе или Ctrl+Shift+E. */
 body.code-mode.code-tree-hidden #code-explorer { height: auto; min-height: 0; }
 body.code-mode.code-tree-hidden #code-explorer-body,
 body.code-mode.code-tree-hidden #code-tree-split { display: none !important; }
@@ -243,8 +228,6 @@ body.code-mode.code-tree-hidden .cx-chevron { transform: rotate(-90deg); }
 }
 .code-tree-split:hover::after, .code-tree-split:focus-visible::after { background: var(--accent); }
 .code-tree-split:focus-visible { outline: none; }
-
-/* --------------------------------- правая панель ---------------------------- */
 
 .code-dock {
   flex-direction: column; min-width: 0; min-height: 0;
@@ -348,8 +331,6 @@ body.code-mode.code-tree-hidden .cx-chevron { transform: rotate(-90deg); }
   color: var(--muted); font: 600 11px/1 var(--sans); cursor: pointer;
 }
 .cd-seg button[aria-pressed="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.14); }
-
-/* Пустые, загрузка и ошибки */
 .cd-empty {
   display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center;
   margin: auto; padding: 28px 22px; max-width: 320px; color: var(--muted);
@@ -374,8 +355,6 @@ body.code-mode.code-tree-hidden .cx-chevron { transform: rotate(-90deg); }
 @keyframes mc-shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
 .code-empty, .code-note { margin: 0; padding: 10px 12px; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
 .code-note { border-bottom: 1px solid var(--mc-line); background: var(--mc-soft); }
-
-/* Файл */
 .code-lines {
   flex: 1; min-height: 0; overflow: auto;
   font: 12.5px/1.6 var(--mono);
@@ -394,8 +373,6 @@ body.code-mode.code-tree-hidden .cx-chevron { transform: rotate(-90deg); }
 }
 .code-line code, .diff-row code, .diff-split code { white-space: pre; color: var(--text); font-family: var(--mono); }
 .code-more { margin: 10px auto 0; }
-
-/* Изменения */
 .diff-summary { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 12px; border-bottom: 1px solid var(--mc-line); font: 12px var(--sans); color: var(--muted); }
 .diff-plus { color: var(--mc-add); font: 700 11.5px var(--mono); }
 .diff-minus { color: var(--mc-del); font: 700 11.5px var(--mono); }
@@ -432,8 +409,6 @@ body.code-mode.code-tree-hidden .cx-chevron { transform: rotate(-90deg); }
 .diff-split .add { background: color-mix(in srgb, var(--mc-add) 13%, transparent); }
 .diff-split.hunk { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .diff-split.hunk code { color: var(--accent); }
-
-/* Артефакты */
 .cd-list { display: flex; flex-direction: column; gap: 6px; padding: 10px; }
 .cd-card {
   display: flex; align-items: center; gap: 10px; width: 100%;
@@ -453,8 +428,6 @@ body.code-mode.code-tree-hidden .cx-chevron { transform: rotate(-90deg); }
 }
 .code-preview { flex: 1; width: 100%; min-height: 200px; border: 0; background: #fff; }
 .code-source { flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 12px 14px; background: var(--mc-code-bg); font: 12px/1.6 var(--mono); white-space: pre-wrap; }
-
-/* Терминал */
 .code-terminal {
   flex: 1; min-height: 0; overflow: auto; margin: 0; padding: 12px 14px;
   background: var(--terminal-bg, #0f1115); color: var(--terminal-text, #d7dae0);
@@ -476,8 +449,6 @@ body.code-mode.code-tree-hidden .cx-chevron { transform: rotate(-90deg); }
 }
 .code-term-form input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .code-term-hint { font: 11px var(--sans); color: var(--muted); padding: 0 10px 8px; background: var(--panel); }
-
-/* Задачи */
 .code-task { border: 1px solid var(--mc-line); border-radius: var(--mc-radius); background: var(--panel); overflow: hidden; }
 .code-task header { display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
 .code-task header b { flex: 1; min-width: 0; font: 600 12px/1.3 var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -487,8 +458,6 @@ body.code-mode.code-tree-hidden .cx-chevron { transform: rotate(-90deg); }
 .cd-dot.ok { background: var(--mc-add); }
 .cd-dot.fail { background: var(--mc-del); }
 .cd-state { font: 600 11px var(--mono); color: var(--muted); }
-
-/* Откат */
 .code-change {
   display: flex; align-items: center; gap: 10px;
   padding: 8px 12px; border-bottom: 1px solid var(--mc-line); cursor: pointer;
@@ -500,8 +469,6 @@ body.code-mode.code-tree-hidden .cx-chevron { transform: rotate(-90deg); }
 .code-change small.created { background: color-mix(in srgb, var(--mc-add) 14%, transparent); color: var(--mc-add); }
 .code-change small.modified { background: color-mix(in srgb, var(--mc-warn) 16%, transparent); color: var(--mc-warn); }
 .cd-foot { display: flex; gap: 6px; flex-wrap: wrap; padding: 10px 12px; border-top: 1px solid var(--mc-line); background: var(--panel); flex: none; }
-
-/* Скиллы */
 .code-skill {
   display: flex; align-items: flex-start; gap: 10px;
   padding: 10px 12px; border-bottom: 1px solid var(--mc-line); cursor: pointer;
@@ -520,8 +487,6 @@ body.code-mode.code-tree-hidden .cx-chevron { transform: rotate(-90deg); }
 .cd-switch input:focus-visible + i { outline: 2px solid var(--accent); outline-offset: 2px; }
 .cd-filter { flex: 1 1 120px; min-width: 0; height: 28px; padding: 0 9px; border: 1px solid var(--mc-line); border-radius: 7px; background: var(--mc-soft); color: var(--text); font: 12px var(--sans); outline: none; }
 .cd-filter:focus { border-color: var(--accent); }
-
-/* ------------------------------------ палитра ------------------------------- */
 
 .code-palette {
   position: fixed; inset: 0; z-index: 250;
@@ -562,8 +527,6 @@ body.code-mode.code-tree-hidden .cx-chevron { transform: rotate(-90deg); }
 .cp-foot { display: flex; gap: 14px; flex-wrap: wrap; padding: 8px 14px; border-top: 1px solid var(--mc-line); color: var(--muted); font: 11.5px var(--sans); }
 .cp-foot span { display: inline-flex; align-items: center; gap: 4px; }
 
-/* ------------------------------------- гид ---------------------------------- */
-
 .code-guide { max-width: 640px; margin: 8px auto 0; padding: 14px 16px; text-align: left; }
 .code-guide b { display: block; margin-bottom: 4px; font-weight: 650; }
 .code-guide > span { color: var(--muted); font-size: 13px; line-height: 1.55; }
@@ -583,8 +546,6 @@ body.code-mode #code-welcome {
 }
 body.code-mode #code-welcome .code-guide { border: 0; margin: 0; max-width: none; background: transparent; }
 body.code-mode #code-welcome .chips { margin: 0; padding: 12px 12px 6px; border-top: 1px solid var(--mc-line); }
-
-/* -------------------------------- узкое окно -------------------------------- */
 
 @media (max-width: 1280px) {
   .code-savings, .code-path { display: none; }
@@ -622,8 +583,6 @@ body.code-mode #code-welcome .chips { margin: 0; padding: 12px 12px 6px; border-
   .code-palette-card, body.code-mode #code-dock { animation: none; }
 }
 
-/* ------------------------------- переключатель режима ----------------------- */
-
 .side { container-type: inline-size; }
 .mode-switch { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .mode-switch #nav-code { grid-column: 1 / -1; min-width: 0; }
@@ -634,23 +593,14 @@ body.code-mode #code-welcome .chips { margin: 0; padding: 12px 12px 6px; border-
 }
 
 .code-lines, .diff-body, .code-source, .code-terminal { font-variant-ligatures: none; }
-
-/* File mentions: "@" menu rows and chips in messages. */
 .slash-menu button.slash-file > b { width: 22px; flex: none; text-align: center; }
 .slash-menu button.slash-file strong { font: 500 13px var(--mono); }
 .slash-menu button.slash-file small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mention-chip.file { font: 500 .86em var(--mono); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
-
-/* ------------------------------ панель во всю ширину ----------------------- */
-/* r36 (perf): класс body.code-dock-expanded ставит memucode.js — :has() с потомком на body пересчитывался при каждой вставке в чат */
 body.code-mode.code-dock-expanded:not(.code-dock-hidden) #main-content {
   grid-template-columns: minmax(340px, 1fr) 7px minmax(0, 64%);
 }
 #code-dock-expand[aria-pressed="true"] { color: var(--accent); }
-
-/* ------------------------------ встроенный редактор ------------------------ */
-/* The textarea (on top, transparent text) and the highlighted <pre> behind it
-   must share every metric, or the caret drifts away from the letters. */
 .ce-toolbar .cd-btn.primary:disabled { opacity: .45; filter: none; cursor: default; }
 .ce-state { color: var(--muted); }
 .ce-state.dirty { color: var(--accent); font-weight: 600; }
@@ -698,8 +648,6 @@ body.code-mode.code-dock-expanded:not(.code-dock-hidden) #main-content {
 .ce-conflict b { color: var(--danger); }
 .ce-conflict span { color: var(--muted); }
 .ce-conflict div { display: flex; flex-wrap: wrap; gap: 6px; }
-
-/* ------------------------- статистика MemuCode ------------------------- */
 body:not(.code-mode) #code-stats { display: none !important; }
 #code-stats[hidden] { display: none !important; }
 .code-stats { padding: 12px 14px 8px; border-top: 1px solid var(--mc-line); }
@@ -736,10 +684,6 @@ body:not(.code-mode) #code-stats { display: none !important; }
 .cs-bar { height: 7px; border-radius: 4px; background: var(--mc-soft); overflow: hidden; }
 .cs-bar i { display: block; height: 100%; border-radius: 4px; background: var(--accent); }
 @media (max-width: 640px) { .cs-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-
-/* Узкая основная панель (сайдбар открыт в окне ~900 px): панель MemuCode
-   помещается целиком — вторичные кнопки прячутся раньше, чем что-то обрежется.
-   Контейнер — .main (container-type задан в appearance.css). */
 @container (max-width: 700px) {
   .codebar { gap: 6px; margin-inline: 10px; }
   .cb-divider { display: none; }

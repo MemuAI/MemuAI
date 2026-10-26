@@ -10,7 +10,6 @@ from unittest.mock import patch
 
 from installer import cli, relaunch
 
-
 class WorkingDirectoryTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -124,7 +123,6 @@ class WorkingDirectoryTests(unittest.TestCase):
             self.assertTrue(bridge.open_log())
         self.assertEqual(launch.call_args.kwargs["cwd"], tempfile.gettempdir())
         self.assertEqual(launch.call_args.kwargs["env"]["PYINSTALLER_RESET_ENVIRONMENT"], "1")
-
 
 if __name__ == "__main__":
     unittest.main()

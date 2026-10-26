@@ -1,5 +1,5 @@
-/* Quick Ask → Settings (main window): the companion block. Loaded by quick-settings.js
-   from the "settings" entry of index.json; the renderer is companion/settings.js. */
+
+
 (function () {
   "use strict";
   if (!window.MemuQuick || typeof MemuQuick.settingsSection !== "function") return;

@@ -28,7 +28,6 @@ from app import quick_features_win as qw
 ROOT = Path(__file__).resolve().parents[1]
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 
-
 class TmpDir(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="r27qf-"))
@@ -40,7 +39,6 @@ class TmpDir(unittest.TestCase):
         self.dir.stop()
         qf.CLIPBOARD._rows = None
         shutil.rmtree(self.tmp, ignore_errors=True)
-
 
 class SettingsTests(TmpDir):
     def test_defaults_and_junk(self) -> None:
@@ -65,13 +63,12 @@ class SettingsTests(TmpDir):
         data = qf.load_config("en")
         self.assertEqual(len(data["snippets"]), 6)
         self.assertIn("date", [s["keyword"] for s in data["snippets"]])
-        again = qf.load_config("ru")            # r27-quick-polish: untouched defaults follow the language
+        again = qf.load_config("ru")
         self.assertEqual([s["id"] for s in again["snippets"]], [s["id"] for s in data["snippets"]])
         self.assertEqual(again["snippets"][0]["name"], "Сегодняшняя дата")
         saved = qf.save_config(snippets=[])
         self.assertEqual(saved["snippets"], [])
         self.assertEqual(qf.load_config("ru")["snippets"], [], "deleting every snippet is kept (no re-seed)")
-
 
 class SnippetTests(unittest.TestCase):
     NOW = datetime(2026, 10, 9, 14, 5)
@@ -106,7 +103,6 @@ class SnippetTests(unittest.TestCase):
         self.assertEqual(qf.match_snippets(rows, ";дуб")[0]["name"], "Дубль")
         self.assertEqual(len(qf.match_snippets(rows, ";")), 3)
 
-
 class SecretTests(unittest.TestCase):
     def test_secrets_are_recognised(self) -> None:
         for text in ("sk-proj-" + "a" * 30, "ghp_" + "b" * 36, "AKIA" + "C" * 16, "-----BEGIN RSA PRIVATE KEY-----\nabc",
@@ -125,7 +121,6 @@ class SecretTests(unittest.TestCase):
             self.assertTrue(qf.ignored_process(name, settings), name)
         self.assertFalse(qf.ignored_process("notepad.exe", settings))
         self.assertFalse(qf.ignored_process("", settings))
-
 
 class ClipboardStoreTests(TmpDir):
     def test_dedupe_limit_pins_and_persistence(self) -> None:
@@ -150,14 +145,13 @@ class ClipboardStoreTests(TmpDir):
         found = store.search("ITEM 8")
         self.assertEqual([r["text"] for r in found["items"]], ["item 8"])
         self.assertEqual(store.search("")["items"][0]["text"], "item 2", "pinned first")
-        qf.CLIPBOARD._rows = None                        # reload from disk
+        qf.CLIPBOARD._rows = None
         self.assertEqual(len(store.rows()), 5)
         self.assertTrue(store.update("", "clear"))
         self.assertEqual([r["text"] for r in store.rows()], ["item 2"], "«Clear» keeps pinned items")
         self.assertTrue(store.update("", "clear_all"))
         self.assertEqual(store.rows(), [])
         self.assertFalse(store.update("nope", "delete"))
-
 
 class RegionTests(unittest.TestCase):
     def test_crop_box(self) -> None:
@@ -183,7 +177,6 @@ class RegionTests(unittest.TestCase):
         self.assertTrue(session.preview().startswith(b"\xff\xd8"))
         cancelled = qf.RegionSession(image, {"rect": (0, 0, 1, 1)}, "en")
         self.assertEqual(cancelled.finish(None), {"cancelled": True})
-
 
 class DocumentTests(unittest.TestCase):
     @staticmethod
@@ -217,7 +210,6 @@ class DocumentTests(unittest.TestCase):
         out = qf.document_text("scan.pdf", self.data_url(scan, "application/pdf"), "en")
         self.assertIn(out.get("code"), ("scan", "parse"), out)
 
-
 class StickerTests(TmpDir):
     def test_normalize_and_title(self) -> None:
         row = qf.normalize_sticker({"text": "## **Итог**\n- пункт", "color": "neon", "geometry": {"x": "10", "w": 5, "h": "1e9"}})
@@ -227,7 +219,6 @@ class StickerTests(TmpDir):
         self.assertEqual(qf.sticker_title("```py\ncode\n```"), "code")
         self.assertEqual(qf.sticker_title("## **Итог** дня"), "Итог дня")
         self.assertEqual(qf.sticker_title("", "en"), "Sticker")
-
 
 class ApiTests(TmpDir):
     def client(self, manager=None):
@@ -281,9 +272,6 @@ class ApiTests(TmpDir):
         self.assertEqual(sum(1 for r in rows if r["open"]), qf.STICKERS_OPEN)
         self.assertTrue(rows[0]["open"], "the newest one is on screen")
 
-
-# ---------------------------------------------------------------- Windows side with fakes
-
 class FakeApi:
     """Just enough of quick_ask.Win32 for quick_features_win."""
 
@@ -307,7 +295,6 @@ class FakeApi:
     def chord(self, *vks):
         self.keys.append(vks)
 
-
 class FakeFormats:
     def __init__(self, private=False, pid=42) -> None:
         self._private, self.pid = private, pid
@@ -317,7 +304,6 @@ class FakeFormats:
 
     def owner_pid(self):
         return self.pid
-
 
 class WatcherTests(TmpDir):
     def watcher(self, *, private=False, pid=42, app="notepad.exe", text="hello", settings=None):
@@ -349,7 +335,7 @@ class WatcherTests(TmpDir):
 
     def test_images_and_files_are_not_read(self) -> None:
         watcher, api = self.watcher()
-        api.formats = {2, 8}          # CF_BITMAP, CF_DIB
+        api.formats = {2, 8}
         self.assertIsNone(watcher.capture(own_pid=1))
 
     def test_selection_capture_is_not_recorded(self) -> None:
@@ -371,7 +357,6 @@ class WatcherTests(TmpDir):
         self.assertFalse(watcher._stop.is_set(), "a quick off → on does not leave the watcher stopped")
         watcher._thread.join()
 
-
 class FakeManager:
     def __init__(self) -> None:
         self.api = FakeApi()
@@ -389,7 +374,6 @@ class FakeManager:
     def load_prefs(self):
         return {"language": "en"}
 
-
 class RuntimeTests(unittest.TestCase):
     def test_insert_restores_the_clipboard_and_places_the_caret(self) -> None:
         manager = FakeManager()
@@ -401,7 +385,7 @@ class RuntimeTests(unittest.TestCase):
 
     def test_insert_leaves_images_alone(self) -> None:
         manager = FakeManager()
-        manager.api.formats = {13, 8}             # text + an image: we cannot restore the image → leave it
+        manager.api.formats = {13, 8}
         rt = qw.Runtime(manager)
         rt.insert("x", 0)
         self.assertEqual(manager.api.sets, [])
@@ -416,7 +400,6 @@ class RuntimeTests(unittest.TestCase):
         rt = qw.Runtime(manager)
         status = rt._set_hotkey("region", "Alt+Space", lambda: None, "en")
         self.assertEqual(status["code"], "quick_ask")
-
 
 class RegionRuntimeTests(unittest.TestCase):
     """pick_region with a fake Windows: the open window is excluded from the capture, not hidden (it keeps the question)."""
@@ -478,7 +461,6 @@ class RegionRuntimeTests(unittest.TestCase):
         manager.extra_windows = (555,)
         self.assertFalse(manager._escape_decide(0x1B, 0x100, 0), "Esc in the region overlay must not close Quick Ask")
 
-
 class BuildAndWiringTests(unittest.TestCase):
     def test_manifest_spec_and_hooks(self) -> None:
         manifest = json.loads((QUICK / "plugins" / "index.json").read_text("utf-8"))
@@ -512,7 +494,6 @@ class BuildAndWiringTests(unittest.TestCase):
         self.assertIn("TAIL", content, "a long attached file keeps its end (was cut at 8000 characters)")
         self.assertLess(len(content), quick_ask_api.MAX_SELECTION + 400)
 
-
 class HeadlessPageTests(unittest.TestCase):
     def test_window_views_and_pages(self) -> None:
         chrome = os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
@@ -528,7 +509,6 @@ class HeadlessPageTests(unittest.TestCase):
                               cwd=str(ROOT), env=env, capture_output=True, text=True, timeout=600)
         shutil.rmtree(out, ignore_errors=True)
         self.assertEqual(proc.returncode, 0, proc.stdout[-3000:] + proc.stderr[-3000:])
-
 
 if __name__ == "__main__":
     unittest.main()

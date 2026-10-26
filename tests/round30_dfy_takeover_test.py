@@ -37,7 +37,6 @@ PAGE = """<!doctype html><html><head><meta charset=utf-8><title>Login</title></h
 <a id=next href="/two" style="position:absolute;left:40px;top:260px">Дальше</a><p id=o style="position:absolute;left:40px;top:320px">-</p>
 </body></html>"""
 
-
 class _Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         body = (PAGE if self.path == "/" else "<!doctype html><title>Two</title><h1>Second page</h1>").encode()
@@ -50,12 +49,10 @@ class _Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
-
 def serve_pages():
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _Handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server
-
 
 class FakeControl(tk.Control):
     def __init__(self):
@@ -84,7 +81,6 @@ class FakeControl(tk.Control):
     def on_navigation(self, cb):
         self.nav_cb = cb
         return lambda: None
-
 
 class Journal(unittest.TestCase):
     def run_async(self, coro):
@@ -115,14 +111,14 @@ class Journal(unittest.TestCase):
         ru = session.journal("ru")
         en = session.journal("en")
         self.assertEqual(ru[0], "Клик: кнопку «Войти»")
-        self.assertIn("Ввод в поле «Email»: «ivan@example.com»", ru)       # the value read from the field
+        self.assertIn("Ввод в поле «Email»: «ivan@example.com»", ru)
         self.assertIn("Typed into field «Пароль»: ••• (hidden)", en)
         self.assertFalse(any("hunter2" in line for line in ru + en))
         self.assertIn("Клавиша Enter", ru)
         self.assertTrue(any(line.startswith("Открыта страница https://shop.example/account?session=•••&tab=orders") for line in ru))
-        self.assertIn("Прокрутка вниз ~800 px", ru)                         # two wheel events merged
+        self.assertIn("Прокрутка вниз ~800 px", ru)
         self.assertEqual(reply, {"type": "clipboard", "text": "copied text"})
-        # A printable key goes as keyDown with text: the character of the user's layout («ф»).
+
         texts = [p.get("text") for kind, p in control.sent if kind == "key" and p.get("type") == "keyDown"]
         self.assertIn("ф", texts)
         report = session.model_report()
@@ -147,7 +143,6 @@ class Journal(unittest.TestCase):
         session = self.run_async(scenario())
         self.assertFalse(any("4242" in line for line in session.journal("ru")))
         self.assertTrue(any("скрыто" in line for line in session.journal("ru")))
-
 
 class FakeBrowser:
     """Enough of DFYBrowser for the manager loop + a CDP command log."""
@@ -176,7 +171,6 @@ class FakeBrowser:
 
     async def current_url(self): return "https://shop.example/"
 
-
 class ManagerLoop(unittest.TestCase):
     def test_agent_waits_while_the_user_controls_and_gets_the_journal(self):
         async def scenario():
@@ -186,7 +180,7 @@ class ManagerLoop(unittest.TestCase):
             async def completion(model, messages):
                 prompts.append(messages)
                 if len(prompts) == 1:
-                    await gate.wait()       # the model is "thinking" while the user takes over
+                    await gate.wait()
                     return json.dumps({"action": "click", "element": 3, "reason": "planned before takeover"})
                 if len(prompts) == 2:
                     return json.dumps({"action": "request_takeover", "why": "captcha", "message": "Решите капчу"})
@@ -207,7 +201,7 @@ class ManagerLoop(unittest.TestCase):
             self.assertEqual(len(prompts), 1, "the agent must not plan while the user holds the browser")
             self.assertEqual(task.browser_steps, 0, "the click planned before the takeover is dropped")
             await manager.takeover_end(task.id)
-            # Second turn: the journal reached the model; it asks the user to take over (captcha).
+
             for _ in range(200):
                 if task.status == "waiting_user":
                     break
@@ -219,7 +213,7 @@ class ManagerLoop(unittest.TestCase):
             self.assertEqual(task.question["why"], "captcha")
             session = await manager.takeover_start(task.id)
             self.assertEqual(session.by, "agent")
-            await manager.takeover_end(task.id)       # ending the takeover answers the agent's request
+            await manager.takeover_end(task.id)
             await asyncio.wait_for(task.job, 5)
             self.assertEqual(task.status, "done")
             kinds = [s["action"] for s in task.steps]
@@ -262,7 +256,6 @@ class ManagerLoop(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 await manager.takeover_start(task.id)
         asyncio.run(scenario())
-
 
 @unittest.skipUnless(CHROMIUM and os.path.exists(CHROMIUM), "no Chromium")
 class LiveTakeover(unittest.TestCase):
@@ -321,12 +314,10 @@ class LiveTakeover(unittest.TestCase):
         self.assertTrue(any(line.startswith("Открыта страница http://127.0.0.1") and "/two" in line for line in journal), journal)
         self.assertGreaterEqual(len(session.shots), 2)
 
-
 def _free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
-
 
 @unittest.skipUnless(CHROMIUM and os.path.exists(CHROMIUM), "no Chromium")
 class TakeoverUI(unittest.TestCase):
@@ -420,14 +411,14 @@ class TakeoverUI(unittest.TestCase):
                 box = page.locator(".dfyt-screen").bounding_box()
                 meta = page.evaluate("fetch('/task/' + %r).then(r => r.json())" % task_id)
                 self.assertEqual(meta["task"]["control"], "user")
-                page.wait_for_timeout(500)      # the remote viewport is fitted to the stage
-                # The email field sits at CSS (40..340, 40..70) of the remote page; its size follows the fit.
+                page.wait_for_timeout(500)
+
                 ratio = page.evaluate("(() => { const i = document.querySelector('.dfyt-screen'); return i.naturalWidth / i.getBoundingClientRect().width; })()")
                 self.assertGreater(ratio, 0)
                 to_screen = lambda x, y: (box["x"] + x / ratio, box["y"] + y / ratio)  # noqa: E731
                 page.mouse.click(*to_screen(150, 55))
                 page.keyboard.type("Ёжик@test.ru")
-                page.keyboard.press("Escape")       # goes to the page, the window stays
+                page.keyboard.press("Escape")
                 self.assertTrue(page.is_visible(".dfyt-layer"))
                 page.mouse.click(*to_screen(100, 200))
                 page.wait_for_timeout(700)
@@ -460,7 +451,6 @@ class TakeoverUI(unittest.TestCase):
             thread.join(5)
             pages.shutdown()
             shutil.rmtree(data, ignore_errors=True)
-
 
 if __name__ == "__main__":
     unittest.main()

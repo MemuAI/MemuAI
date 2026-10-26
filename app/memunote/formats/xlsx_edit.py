@@ -27,22 +27,19 @@ from .sheets import _DATE_IDS, _NS_MAIN, _NS_PKG_REL, _NS_REL, safe_fromstring
 _REF_RE = re.compile(r"^([A-Za-z]{1,3})(\d{1,7})$")
 _NUM_RE = re.compile(r"^[-+]?(?:\d+\.?\d*|\.\d+)(?:[eE][-+]?\d+)?$")
 _DATE_RE = re.compile(r"^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?$")
-# a cell reference inside a formula: not part of a name / function call / sheet name, not inside "strings"
+
 _FREF_RE = re.compile(r"(?<![A-Za-z0-9_.'$])(\$?)([A-Z]{1,3})(\$?)(\d{1,7})(?![A-Za-z0-9_(])")
 MAX_SHEET_NAME = 31
 _BAD_SHEET_CHARS = re.compile(r"[\[\]:*?/\\]")
 
-
 class SheetEditError(ValueError):
     pass
-
 
 def col_index(letters: str) -> int:
     n = 0
     for ch in letters.upper():
         n = n * 26 + ord(ch) - 64
     return n - 1
-
 
 def col_name(index: int) -> str:
     s, c = "", index + 1
@@ -52,24 +49,21 @@ def col_name(index: int) -> str:
         c = (c - 1) // 26
     return s
 
-
 def parse_ref(ref: str) -> Tuple[int, int]:
     m = _REF_RE.match(ref.strip())
     if not m:
         raise SheetEditError(f"bad cell reference: {ref!r}")
     return int(m.group(2)) - 1, col_index(m.group(1))
 
-
 def shift_formula(formula: str, drow: int, dcol: int) -> str:
     """Move the relative references of a formula by (drow, dcol) — the rule of a copied / shared formula."""
     out, pos = [], 0
-    for m in re.finditer(r'"(?:[^"]|"")*"', formula):   # string literals are left alone
+    for m in re.finditer(r'"(?:[^"]|"")*"', formula):
         out.append(_shift_part(formula[pos:m.start()], drow, dcol))
         out.append(m.group(0))
         pos = m.end()
     out.append(_shift_part(formula[pos:], drow, dcol))
     return "".join(out)
-
 
 def _shift_part(part: str, drow: int, dcol: int) -> str:
     def repl(m):
@@ -81,7 +75,6 @@ def _shift_part(part: str, drow: int, dcol: int) -> str:
         return f"{c_abs}{col_name(col)}{r_abs}{row}"
     return _FREF_RE.sub(repl, part)
 
-
 def clean_sheet_name(name: str, taken: List[str]) -> str:
     base = _BAD_SHEET_CHARS.sub(" ", str(name or "")).strip().strip("'")[:MAX_SHEET_NAME] or "Sheet"
     lower = {t.lower() for t in taken}
@@ -92,11 +85,9 @@ def clean_sheet_name(name: str, taken: List[str]) -> str:
         n += 1
     return candidate
 
-
 def _attr(tag: str, name: str) -> Optional[str]:
     m = re.search(rf'\s{name}\s*=\s*"([^"]*)"', tag) or re.search(rf"\s{name}\s*=\s*'([^']*)'", tag)
     return m.group(1) if m else None
-
 
 def _set_attr(tag: str, name: str, value: Optional[str]) -> str:
     """``tag`` is an opening tag (``<x a="1">`` or ``<x/>``); value None removes the attribute."""
@@ -105,7 +96,6 @@ def _set_attr(tag: str, name: str, value: Optional[str]) -> str:
         return tag
     end = len(tag) - (2 if tag.endswith("/>") else 1)
     return tag[:end] + f' {name}="{escape(value, {chr(34): "&quot;"})}"' + tag[end:]
-
 
 class _Styles:
     """Which style indexes are date formats (a typed ``2026-03-01`` there becomes a date serial)."""
@@ -131,7 +121,6 @@ class _Styles:
             return False
         return 0 <= i < len(self.dates) and self.dates[i]
 
-
 def _date_serial(text: str, system1904: bool) -> Optional[str]:
     m = _DATE_RE.match(text.strip())
     if not m:
@@ -143,7 +132,6 @@ def _date_serial(text: str, system1904: bool) -> Optional[str]:
     base = _dt.datetime(1904, 1, 1) if system1904 else _dt.datetime(1899, 12, 30)
     days = (moment - base).total_seconds() / 86400
     return str(int(days)) if days == int(days) else ("%.10f" % days).rstrip("0")
-
 
 def _cell_xml(p: str, old_open: str, ref: str, spec: Dict[str, Any], styles: _Styles, system1904: bool) -> Tuple[str, bool]:
     """New XML of one cell (keeps the old cell's attributes, style first of all) + whether it holds a formula."""
@@ -179,7 +167,6 @@ def _cell_xml(p: str, old_open: str, ref: str, spec: Dict[str, Any], styles: _St
     space = ' xml:space="preserve"' if value != value.strip() or "\n" in value else ""
     return (_set_attr(open_tag, "t", "inlineStr") + f"<{p}is><{p}t{space}>{escape(value)}</{p}t></{p}is>" + close), False
 
-
 def _iter_elems(text: str, p: str, tag: str):
     """(start, end, open_tag, ref_or_None) of each ``<tag …/>`` / ``<tag …>…</tag>`` at this level."""
     pattern = re.compile(rf"<{re.escape(p)}{tag}(?=[\s/>])[^>]*?(/>|>)", re.S)
@@ -199,7 +186,6 @@ def _iter_elems(text: str, p: str, tag: str):
         yield m.start(), end, m.group(0)
         pos = end
 
-
 def patch_sheet_xml(xml: str, cells: Dict[str, Dict[str, Any]], styles: _Styles, system1904: bool) -> Tuple[str, bool]:
     """Apply ``cells`` to one worksheet XML; returns (new xml, formulas touched)."""
     m = re.search(r"<(\w+:)?worksheet\b", xml)
@@ -217,7 +203,7 @@ def patch_sheet_xml(xml: str, cells: Dict[str, Dict[str, Any]], styles: _Styles,
         body, body_start, body_end = "", None, None
     else:
         body, body_start, body_end = sd.group(1), sd.start(1), sd.end(1)
-    rows: List[Tuple[int, int, int, str]] = []     # (rnum, start, end, open_tag)
+    rows: List[Tuple[int, int, int, str]] = []
     last = 0
     for start, end, open_tag in _iter_elems(body, p, "row"):
         try:
@@ -228,7 +214,7 @@ def patch_sheet_xml(xml: str, cells: Dict[str, Dict[str, Any]], styles: _Styles,
         last = rnum
         rows.append((rnum, start, end, open_tag))
     formulas = False
-    # shared formula masters about to be replaced: their dependents get the formula written out
+
     masters: Dict[str, Tuple[str, int, int]] = {}
     for rnum, start, end, _open in rows:
         if rnum not in wanted:
@@ -283,7 +269,6 @@ def patch_sheet_xml(xml: str, cells: Dict[str, Dict[str, Any]], styles: _Styles,
         new_xml = xml[:body_start] + new_body + xml[body_end:]
     return _update_dimension(new_xml, p, wanted), formulas
 
-
 def _expand_dependents(row_text: str, p: str, masters: Dict[str, Tuple[str, int, int]], rnum: int,
                        replaced: Dict[int, Any]) -> str:
     def repl(m):
@@ -305,10 +290,8 @@ def _expand_dependents(row_text: str, p: str, masters: Dict[str, Tuple[str, int,
         return cell[:fm.start()] + f"<{p}f>{shift_formula(_unescape(text), rr - mr, cc - mc).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')}</{p}f>" + cell[fm.end():]
     return re.sub(rf"<{re.escape(p)}c(?=[\s/>])[^>]*?(?:/>|>.*?</{re.escape(p)}c>)", repl, row_text, flags=re.S)
 
-
 def _unescape(text: str) -> str:
     return text.replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"').replace("&apos;", "'").replace("&amp;", "&")
-
 
 def _patch_row(row_text: str, p: str, open_tag: str, cells: Dict[int, Tuple[str, Dict[str, Any]]],
                styles: _Styles, system1904: bool) -> Tuple[str, bool]:
@@ -319,7 +302,7 @@ def _patch_row(row_text: str, p: str, open_tag: str, cells: Dict[int, Tuple[str,
     else:
         close = f"</{p}row>"
         inner = row_text[inner_start:len(row_text) - len(close)]
-    # rows without a style keep their own; "spans" is only a hint and would be wrong after new cells
+
     open_tag = _set_attr(open_tag, "spans", None)
     todo = dict(cells)
     out: List[str] = []
@@ -356,7 +339,6 @@ def _patch_row(row_text: str, p: str, open_tag: str, cells: Dict[int, Tuple[str,
         tail = tail + "".join(rest)
     return open_tag + "".join(out) + tail + close, formulas
 
-
 def _update_dimension(xml: str, p: str, wanted: Dict[int, Dict[int, Any]]) -> str:
     m = re.search(rf'<{re.escape(p)}dimension\b[^>]*\bref="([^"]*)"[^>]*/>', xml)
     if not m or not wanted:
@@ -376,14 +358,12 @@ def _update_dimension(xml: str, p: str, wanted: Dict[int, Dict[int, Any]]) -> st
     new_ref = f"{col_name(c1)}{r1 + 1}:{col_name(nc)}{nr + 1}"
     return xml[:m.start(1)] + new_ref + xml[m.end(1):]
 
-
 _EMPTY_SHEET = ('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n'
                 '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
                 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
                 '<dimension ref="A1"/><sheetViews><sheetView workbookViewId="0"/></sheetViews>'
                 '<sheetFormatPr defaultRowHeight="15"/><sheetData/>'
                 '<pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>')
-
 
 def patch_xlsx(data: bytes, changes: Dict[str, Any]) -> bytes:
     """The edited package (see the module docstring); parts that do not change are copied as they were."""
@@ -463,7 +443,7 @@ def patch_xlsx(data: bytes, changes: Dict[str, Any]) -> bytes:
             workbook = workbook[:calc.start()] + _set_attr(calc.group(0), "fullCalcOnLoad", "1") + workbook[calc.end():]
         else:
             pfx = re.search(r"<(\w+:)?workbook\b", workbook).group(1) or ""
-            # CT_Workbook order: sheets, functionGroups, externalReferences, definedNames, calcPr, …
+
             at = -1
             for tag in ("sheets", "functionGroups", "externalReferences", "definedNames"):
                 end = workbook.find(f"</{pfx}{tag}>")

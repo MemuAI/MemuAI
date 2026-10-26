@@ -8,27 +8,22 @@ from __future__ import annotations
 
 import asyncio
 
-
 def status_rows() -> list[dict]:
     from . import browser_extension, telegram_use
     return [telegram_use.integration_status(), browser_extension.bridge.public()]
 
-
 def write_tools() -> set[str]:
     from . import browser_extension, telegram_use
     return set(telegram_use.WRITE) | browser_extension.WRITE
-
 
 def always_confirm() -> set[str]:
     from . import browser_extension, telegram_use
     cfg = browser_extension.settings()
     return set(telegram_use.WRITE) | (browser_extension.WRITE if cfg["control"] != "allow" else set())
 
-
 def danger_tools() -> set[str]:
     from . import telegram_use
     return set(telegram_use.DANGER) | {"chrome_close"}
-
 
 async def run(tool: str, args: dict | None = None, *, confirmed: bool = False, scheduled: bool = False):
     from . import browser_extension, telegram_use

@@ -1,5 +1,5 @@
-// MemuNote Photo — opening and saving: browser codecs, the Pillow backend (/api/photo/*), PSD layers, the own
-// layered format .memuimg (ZIP: document.json + PNG per layer/mask + preview.png), SVG export with vector layers.
+
+
 import { api, rawUrl, API } from "../core.js";
 import { PhotoDoc, newCanvas, ctx2d, renderVector, loadSvgImage, DEFAULT_TEXT, fontString, wrapText, textBox, shapePath } from "./doc.js";
 
@@ -18,7 +18,6 @@ export function formatOfPath(path) {
 }
 export const extOf = (p) => (String(p).match(/\.[^.\\/]+$/) || [""])[0].toLowerCase();
 
-// ------------------------------------------------------------------ helpers
 export function canvasFromImage(img, w = img.width, h = img.height) { const c = newCanvas(w, h); ctx2d(c).drawImage(img, 0, 0, w, h); return c; }
 export function loadImage(src) { return new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error("image decode failed")); i.src = src; }); }
 export async function canvasFromB64(b64, mime = "image/png") { const img = await loadImage(`data:${mime};base64,${b64}`); return canvasFromImage(img); }
@@ -28,10 +27,9 @@ export function blobToB64(b) { return new Promise((res) => { const r = new FileR
 export function blobToDataURL(b) { return new Promise((res) => { const r = new FileReader(); r.onload = () => res(String(r.result)); r.readAsDataURL(b); }); }
 const enc = new TextEncoder(), dec = new TextDecoder();
 
-// ------------------------------------------------------------------ ZIP (store; reading also inflates)
 const CRC = (() => { const t = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
 export function crc32(u8) { let c = 0xffffffff; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xffffffff) >>> 0; }
-export function zipStore(files) {   // files: [{name, data: Uint8Array}]
+export function zipStore(files) {
   const parts = [], central = []; let offset = 0;
   for (const f of files) {
     const name = enc.encode(f.name), crc = crc32(f.data), n = f.data.length;
@@ -72,7 +70,6 @@ export async function zipRead(buf) {
   return { names: Object.keys(out), get };
 }
 
-// ------------------------------------------------------------------ opening
 async function fetchRaw(path) { const r = await fetch(rawUrl(path)); if (!r.ok) throw Object.assign(new Error("HTTP " + r.status), { status: r.status }); return r.blob(); }
 async function decodeBrowser(path, ext) {
   const blob = await fetchRaw(path);
@@ -92,14 +89,13 @@ export async function svgSize(source) {
   const vb = (el.getAttribute("viewBox") || "").split(/[\s,]+/).map(Number);
   if ((!w || !h) && vb.length === 4 && vb[2] > 0 && vb[3] > 0) { if (!w && !h) { w = vb[2]; h = vb[3]; } else if (!w) w = (h * vb[2]) / vb[3]; else h = (w * vb[3]) / vb[2]; }
   w = w || 1024; h = h || 1024;
-  if (Math.max(w, h) < 512) { const k = 1024 / Math.max(w, h); w *= k; h *= k; }   // small icons: open at a useful size (vector)
-  // make the rasterised size explicit (an SVG without width/height draws at 300×150 in <img>)
+  if (Math.max(w, h) < 512) { const k = 1024 / Math.max(w, h); w *= k; h *= k; }
+
   el.setAttribute("width", String(Math.round(w))); el.setAttribute("height", String(Math.round(h)));
   if (!el.getAttribute("viewBox") && vb.length !== 4) {}
   return { width: Math.round(w), height: Math.round(h), svgFixed: new XMLSerializer().serializeToString(el) };
 }
 
-/** Open a file into a PhotoDoc. Returns {doc, info: {format, frames, warning}}. */
 export async function openDocument(path, t) {
   const ext = extOf(path);
   if (ext === ".memuimg") return { doc: await readMemuimg(await (await fetchRaw(path)).arrayBuffer()), info: { format: "memuimg" } };
@@ -108,7 +104,7 @@ export async function openDocument(path, t) {
     try { decoded = await decodeBrowser(path, ext); } catch (e) { decoded = null; }
   }
   if (!decoded || ext === ".gif" || ext === ".ico" || ext === ".apng") {
-    // the server also reports frame counts (GIF / ICO sizes); for ICO it gives the largest size
+
     try {
       const r = await api("photo/decode", { path });
       info = { format: r.format, frames: r.frames || 1, warning: r.warning || "" };
@@ -148,7 +144,7 @@ async function docFromPsd(r, t) {
   doc.activeId = doc.rasterLayers().pop()?.id || doc.layers[0].id;
   return doc;
 }
-/** PSD masks are grey images with their own box; ours have the layer's box and the value in alpha. */
+
 async function maskFromPsd(m, l) {
   const grey = await canvasFromB64(m.png), w = l.canvas.width, h = l.canvas.height;
   const c = newCanvas(w, h), x = ctx2d(c);
@@ -168,7 +164,6 @@ function maskToGrey(mask) {
 
 export async function framesOf(path) { return api("photo/frames", { path }); }
 
-// ------------------------------------------------------------------ .memuimg
 function layerMeta(l) {
   const m = { id: l.id, name: l.name, type: l.type, x: l.x, y: l.y, opacity: l.opacity, blend: l.blend, visible: l.visible, locked: !!l.locked, maskOn: l.maskOn !== false };
   if (l.text) m.text = { ...l.text };
@@ -214,7 +209,7 @@ export async function readMemuimg(buf) {
       delete l.src;
       if (m.type === "group") { l.children = await build(m.children); l.open = m.open !== false; }
       if (m.mask) l.mask = await img(m.mask);
-      if (l.type === "svg" && l.svg?.source) { try { l.svg.img = await loadSvgImage(l.svg.source); } catch { /* broken svg: empty layer */ } }
+      if (l.type === "svg" && l.svg?.source) { try { l.svg.img = await loadSvgImage(l.svg.source); } catch {  } }
       if (l.type !== "raster" && l.type !== "group") renderVector(doc, l);
       out.push(l);
     }
@@ -226,12 +221,11 @@ export async function readMemuimg(buf) {
   return doc;
 }
 
-// ------------------------------------------------------------------ SVG export
 const xmlEsc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 export async function writeSvg(doc) {
   let defs = "", n = 0;
   const parts = [];
-  const pathD = (s) => {   // a Path2D cannot be serialised: rebuild the geometry as SVG elements
+  const pathD = (s) => {
     const st = `${s.fill && !["line", "arrow"].includes(s.kind) && !(s.kind === "path" && !s.closed) ? `fill="${xmlEsc(s.fill)}"` : 'fill="none"'}${(s.stroke && s.strokeWidth) || ["line", "arrow"].includes(s.kind) ? ` stroke="${xmlEsc(s.stroke || s.fill || "#000")}" stroke-width="${Math.max(1, s.strokeWidth || 4)}" stroke-linecap="round" stroke-linejoin="round"` : ""}`;
     const x = Math.min(s.x, s.x + s.w), y = Math.min(s.y, s.y + s.h), w = Math.abs(s.w), h = Math.abs(s.h);
     if (s.kind === "rect") return `<rect x="${x}" y="${y}" width="${w}" height="${h}"${s.radius ? ` rx="${s.radius}"` : ""} ${st}/>`;
@@ -278,7 +272,6 @@ export async function writeSvg(doc) {
   return new Blob([svg], { type: "image/svg+xml" });
 }
 
-// ------------------------------------------------------------------ PSD export payload
 async function psdLayers(doc, list) {
   const out = [];
   for (const l of list) {
@@ -291,8 +284,6 @@ async function psdLayers(doc, list) {
   return out;
 }
 
-// ------------------------------------------------------------------ saving
-/** Write the document to *path* in *fmt*. Returns the server answer ({ok, mtime, size} | {conflict}). */
 export async function saveDocument(doc, path, fmt, opts = {}) {
   const q = (o) => new URLSearchParams({ path, mtime: String(opts.mtime || 0), force: opts.force ? "1" : "0", ...o }).toString();
   if (fmt === "memuimg" || fmt === "svg") {

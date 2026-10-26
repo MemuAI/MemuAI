@@ -1,23 +1,5 @@
-/* Quick Ask plugin: the animated companion (Round 22, r22-companion).
 
-   Uses only the MemuQuick contract: events open/close/submit/answer-start/
-   answer-delta/answer-done/speak-start/speak-end, registerPanel (inline
-   avatar above the answer) and settingsSection. The renderer itself is the
-   shared stage (/companion/*). The separate desktop window
-   (app/companion_window.py) is driven over BroadcastChannel "memu-companion"
-   (same WebView2 profile) with a server relay as the fallback.
 
-   speak-start may carry any of: {audio: HTMLAudioElement} | {analyser: AnalyserNode}
-   | {level: () => number 0…1} — plus {text}. Without one the mouth follows the text.
-
-   Round 23 (r23-quick) — a companion you can carry:
-   * drag it inside the window: it settles left / centre / right of its strip (remembered);
-   * drag it past the window edge: the transparent desktop window takes over under the cursor
-     (/api/companion/window {action:"detach"} runs a native drag until the mouse is released);
-     dropping it back onto Quick Ask docks it inline again (also the stage's «в окно» button);
-   * resize: the corner grip or Ctrl+wheel (companion_size, 60–200 %);
-   * pin: it moves to the desktop at the same spot and stays when Quick Ask hides;
-   * where it lives is in companion/state.json["quick"] = {place: inline|desktop, pinned, align}. */
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -58,14 +40,14 @@
     try {
       const response = await fetch("/api/pg/preferences", { cache: "no-store" });
       if (response.ok) P.prefs = await response.json();
-    } catch (_) { /* keep the last */ }
+    } catch (_) {  }
     return P.prefs;
   }
   const C = () => window.MemuCompanionCore.normalizePrefs(P.prefs);
-  // mode (Settings) × place (where the user carried it): "inline" + carried out = on the desktop.
+
   const inlineOn = () => { const c = C(); return c.companion_quick_enabled && (c.companion_quick_mode === "both" || (c.companion_quick_mode === "inline" && P.place !== "desktop")); };
   const desktopOn = () => { const c = C(); return c.companion_quick_enabled && (c.companion_quick_mode !== "inline" || P.place === "desktop"); };
-  // the desktop companion hides together with Quick Ask unless pinned (or the setting says «on the desktop»)
+
   const staysOnDesktop = () => P.pinned || C().companion_quick_mode === "desktop";
 
   async function loadPlace() {
@@ -76,7 +58,7 @@
       P.place = quick.place === "desktop" ? "desktop" : "inline";
       P.pinned = !!quick.pinned;
       P.align = ["left", "center", "right"].includes(quick.align) ? quick.align : "center";
-    } catch (_) { /* defaults */ }
+    } catch (_) {  }
   }
   function savePlace(patch) {
     Object.assign(P, patch);
@@ -84,7 +66,6 @@
       body: JSON.stringify({ quick: { place: P.place, pinned: P.pinned, align: P.align } }) }).catch(() => {});
   }
 
-  /* ------------------------------------------------------------ inline */
   function mount(el) {
     P.panelEl = el;
     el.classList.add("qa-companion");
@@ -117,7 +98,7 @@
       if (kind === "pin") (P.pinned ? unpinFromDesktop() : pinToDesktop());
       else if (kind === "out") popOut(false);
     });
-    // resize by the corner grip: the height follows the mouse (60–200 %)
+
     grip.addEventListener("pointerdown", (event) => {
       event.preventDefault();
       grip.setPointerCapture(event.pointerId);
@@ -148,7 +129,6 @@
       : t("Перетащите влево или вправо · Ctrl+колесо — размер", "Drag left or right · Ctrl+wheel — size");
   }
 
-  /* ---- drag: inside the window → left/centre/right; past the edge → the desktop window */
   function onStageMessage(event) {
     const inst = P.inst;
     if (!inst || event.source !== inst.frame.contentWindow || event.origin !== location.origin) return;
@@ -177,7 +157,7 @@
       wrap.classList.remove("qac-dragging");
       wrap.style.transform = "";
       if (drag.out || !msg.moved) return;
-      // dropped inside the window: settle left / centre / right of the strip
+
       const cx = drag.rect.left + drag.rect.width / 2 + drag.dx;
       const align = cx < innerWidth / 3 ? "left" : (cx > innerWidth * 2 / 3 ? "right" : "center");
       if (align !== P.align) { savePlace({ align }); if (P.panelEl) P.panelEl.dataset.align = align; }
@@ -196,8 +176,7 @@
       body.dpr = window.devicePixelRatio || 1;
     } else body.gx = 0.5, body.gy = 0.4;
     P.place = "desktop";
-    // Round 24: the inline strip is only dimmed while the native window takes over — hiding it mid-drag shrank
-    // Quick Ask under the cursor and, together with the old hide-on-blur, made «everything disappear».
+
     if (P.panelEl) P.panelEl.classList.add("qac-leaving");
     let result = {};
     try {
@@ -208,7 +187,7 @@
     if (P.panelEl) P.panelEl.classList.remove("qac-leaving");
     if (result.ok && !result.docked && result.visible !== false) { if (P.panel) P.panel.hide(); Q.resize(); }
     if (!result.ok || result.docked || result.visible === false) {
-      // dropped back onto the window, or the desktop window is not available: stay inline
+
       if (result.supported === false) { P.supported = false; labelTools(); Q.toast(t("Отдельное окно компаньона есть только в приложении для Windows", "The desktop companion exists only in the Windows app"), "", 3200); }
       savePlace({ place: "inline" });
       P.desktopShown = false;
@@ -254,8 +233,7 @@
         onEvent: (type) => {
           if (type === "loaded") { P.lostAt = 0; Q.resize(); if (P.greet) { P.greet = false; P.inst.gesture("wave"); } }
           if (type === "contextlost") {
-            // Round 24: the stage reloads itself on webglcontextrestored; if the GPU never gives the context
-            // back, rebuild the stage so the model is never lost for good.
+
             P.lostAt = Date.now();
             setTimeout(() => {
               if (!P.lostAt || Date.now() - P.lostAt < 5500 || !P.inst) return;
@@ -285,11 +263,10 @@
     desktop({ type: "prefs", prefs: P.prefs });
   }
 
-  /* ----------------------------------------------------------- desktop */
   function channel() {
     if (!P.channel && typeof BroadcastChannel !== "undefined") {
       P.channel = new BroadcastChannel("memu-companion");
-      // the desktop stage tells us when it was docked back into this window or pinned/unpinned
+
       P.channel.addEventListener("message", (event) => {
         const data = event.data || {};
         if (data.source !== "memu-companion" || data.target !== "quick") return;
@@ -304,8 +281,7 @@
     const message = Object.assign({ source: "memu-companion", target: "desktop" }, msg);
     const ch = channel();
     if (ch) { try { ch.postMessage(message); } catch (_) {} }
-    // Low-rate events also go through Python, in case the windows do not share
-    // a browser profile; the stage ignores relayed copies while BroadcastChannel works.
+
     if (relay !== false && msg.type !== "mouth") {
       fetch("/api/companion/window", { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "event", event: msg }) }).catch(() => {});
@@ -325,7 +301,6 @@
     fetch("/api/companion/window", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "hide" }) }).catch(() => {});
   }
 
-  /* ------------------------------------------------------------ actions */
   function both(fn, msg) {
     if (P.inst) fn(P.inst);
     if (msg) desktop(msg);
@@ -334,7 +309,7 @@
   function gesture(name) { both((i) => i.gesture(name), { type: "gesture", name: name }); }
 
   function stopLevel() { cancelAnimationFrame(P.levelRaf); P.levelRaf = 0; }
-  // Desktop lip sync: the audio plays here, so the weights are computed here and broadcast.
+
   function startLevel(source) {
     stopLevel();
     const Core = window.MemuCompanionCore;
@@ -375,10 +350,10 @@
       else if (audio && typeof audio.play === "function") P.inst.attachAudio(audio);
       P.inst.speak(true, source.level ? "" : text);
     }
-    // The desktop window gets weights from here when we can measure, else the text.
+
     if (P.desktopShown) {
       if (!source.analyser && audio && P.inst && P.inst.audio === audio) {
-        // attachAudio builds its analyser on "playing"; pick it up a moment later.
+
         setTimeout(() => { if (P.speaking && P.inst && P.inst.analyser) startLevel({ analyser: P.inst.analyser }); }, 400);
       }
       if (source.analyser || source.level) startLevel(source);
@@ -403,7 +378,7 @@
       try { const r = await fetch("/api/companion/window", { cache: "no-store" }); P.supported = !!(await r.json()).supported; } catch (_) { P.supported = false; }
       labelTools();
     }
-    if (P.supported === false && P.place === "desktop") P.place = "inline";   // no desktop window here (browser/Linux)
+    if (P.supported === false && P.place === "desktop") P.place = "inline";
     if (!(await libs())) return;
     const fresh = Date.now() - P.greetedAt > 10 * 60 * 1000;
     if (inlineOn()) {
@@ -422,10 +397,10 @@
   Q.on("close", () => {
     if (P.inst) P.inst.setVisible(false);
     if (P.speaking) onSpeakEnd();
-    // never hide the desktop window in the middle of carrying it out
+
     if (P.desktopShown && !staysOnDesktop() && !P.detaching) hideDesktop();
   });
-  // Round 24: «Закрепить на рабочем столе / Открепить» in the actions view (Ctrl+K) — no new footer buttons.
+
   if (typeof Q.addComposerButton === "function") {
     try {
       Q.addComposerButton({ id: "companion-pin", placement: "menu", order: 40, icon: ICON.pin,
@@ -458,13 +433,11 @@
   Q.on("speak-start", onSpeakStart);
   Q.on("speak-end", onSpeakEnd);
 
-  // Settings live in companion-settings.js (loaded by the main window's Quick Ask pane).
-
   window.MemuQuickCompanion = {
     get instance() { return P.inst; },
     place: () => ({ place: P.place, pinned: P.pinned, align: P.align, desktop: P.desktopShown }),
     popOut: () => popOut(false), pin: () => pinToDesktop(), unpin: () => unpinFromDesktop(),
-    // For screenshots/tests: show the companion with a sample answer.
+
     async demo() {
       await libs();
       await loadPrefs();
@@ -477,6 +450,6 @@
       setTimeout(() => P.inst && P.inst.speak(false), 6000);
     },
   };
-  // The window may already be open when the plugin loads.
+
   if (document.visibilityState === "visible") onOpen().catch((e) => console.warn("[companion] open failed", e));
 })();

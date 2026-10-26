@@ -13,7 +13,6 @@ INDEX = json.loads((ROOT / "app" / "docs" / "index.json").read_text(encoding="ut
 PAGE_IDS = [page for group in INDEX["groups"] for page in group["pages"]]
 LINK = re.compile(r"\]\((doc:[^)]+|#[^)]+)\)")
 
-
 class DocsTests(unittest.TestCase):
     def test_every_indexed_page_exists_in_both_languages(self) -> None:
         self.assertEqual(len(PAGE_IDS), len(set(PAGE_IDS)), "a page is listed twice in index.json")
@@ -31,10 +30,10 @@ class DocsTests(unittest.TestCase):
             self.assertEqual(files - set(PAGE_IDS), set(), f"{lang}: pages not listed in index.json")
 
     def test_translations_have_the_same_shape(self) -> None:
-        # The same number of sections keeps the two languages from drifting apart.
+
         for page_id in PAGE_IDS:
             if page_id == "glossary":
-                continue  # sorted alphabetically: Russian has Cyrillic and Latin sections, English one list
+                continue
             ru = docs.page("ru", page_id)["headings"]
             en = docs.page("en", page_id)["headings"]
             self.assertEqual([row["level"] for row in ru], [row["level"] for row in en],
@@ -70,12 +69,12 @@ class DocsTests(unittest.TestCase):
         self.assertEqual(hits[0]["id"], "themes-reference")
 
     def test_key_markup_allows_plus_inside(self) -> None:
-        # "++Ctrl+Shift+T++" once broke and swallowed the text up to the next "++".
+
         self.assertEqual(docs.plain("press ++/++ then ++Ctrl+Shift+T++ or ++Alt++ + click"),
                          "press / then Ctrl+Shift+T or Alt + click")
 
     def test_ai_summaries_and_screenshots(self) -> None:
-        # Round 29: every page has a shipped «AI summary» in both languages (details: round29_docs_ai_test).
+
         from app import docs_ai
         image = re.compile(r"^\s*!\[[^\]]+\]\((docs-img/(ru|en)/[^)\s]+)", re.M)
         for lang in docs.LANGUAGES:
@@ -93,7 +92,6 @@ class DocsTests(unittest.TestCase):
                 text = (ROOT / "app" / "docs" / lang / f"{page_id}.md").read_text(encoding="utf-8")
                 fences = sum(1 for line in text.splitlines() if line.lstrip().startswith("```"))
                 self.assertEqual(fences % 2, 0, f"{lang}/{page_id}: an unclosed code block")
-
 
 if __name__ == "__main__":
     unittest.main()

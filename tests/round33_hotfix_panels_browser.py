@@ -35,12 +35,10 @@ import round33_panels_browser as base  # noqa: E402  (reuses its seed + helpers;
 
 problems: list = []
 
-
 def check(ok, what):
     print("ok  " if ok else "FAIL:", what)
     if not ok:
         problems.append(what)
-
 
 def main() -> int:
     import uvicorn
@@ -71,7 +69,6 @@ def main() -> int:
         page.wait_for_timeout(700)
         dragging = "document.body.classList.contains('mp-dragging')"
 
-        # 1. dragstart + dragend before the next animation frame
         page.evaluate("""() => { const el = document.querySelector('#panels-home [data-panel-id][draggable=true]');
           const dt = new DataTransfer();
           el.dispatchEvent(new DragEvent('dragstart', {bubbles: true, dataTransfer: dt}));
@@ -80,7 +77,6 @@ def main() -> int:
         check(not page.evaluate(dragging), "press-and-release: no zones left on")
         check(page.locator(".mp-drag-source").count() == 0, "press-and-release: no faded source card")
 
-        # 2. the source is re-rendered during the drag: no dragend ever reaches the document
         page.evaluate("""() => { const el = document.querySelector('#panels-home [data-panel-id][draggable=true]');
           el.dispatchEvent(new DragEvent('dragstart', {bubbles: true, dataTransfer: new DataTransfer()}));
           window.__copy = el.cloneNode(true); }""")
@@ -91,7 +87,6 @@ def main() -> int:
         check(not page.evaluate(dragging), "orphaned drag (source re-rendered): the watchdog switched the zones off")
         check(page.locator(".mp-placeholder").count() == 0, "orphaned drag: no placeholder left")
 
-        # 3. a pointer move with no button after a drag also ends it at once
         page.evaluate("""() => { const el = document.querySelector('#panels-home [data-panel-id][draggable=true]');
           el.dispatchEvent(new DragEvent('dragstart', {bubbles: true, dataTransfer: new DataTransfer()})); }""")
         page.wait_for_timeout(120)
@@ -100,7 +95,6 @@ def main() -> int:
         page.wait_for_timeout(150)
         check(not page.evaluate(dragging), "pointer back with no button: drag over")
 
-        # 4. a real drag still works
         src = page.locator('#panels-z-left .mp-card[data-panel-id="p_c00000001"]')
         if src.count():
             src.drag_to(page.locator("#panels-home"))
@@ -111,7 +105,6 @@ def main() -> int:
     server.should_exit = True
     print("problems:", len(problems))
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

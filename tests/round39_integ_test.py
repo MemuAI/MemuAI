@@ -33,12 +33,10 @@ CHROMIUM = next((c for c in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/workspa
                  if c and Path(c).exists()), "")
 SHOTS = os.environ.get("R39_SHOTS", "")
 
-
 def _free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
-
 
 class ServerSideTest(unittest.TestCase):
     @classmethod
@@ -100,7 +98,7 @@ class ServerSideTest(unittest.TestCase):
                   "device": "pc", "device_name": "MemuAI", "duration": 180})
         out = self.run_cmd("next")
         self.assertTrue(out["ok"], out)
-        self.assertNotEqual(out["card"]["id"], self.ids[1])          # a one-track queue no longer restarts the song
+        self.assertNotEqual(out["card"]["id"], self.ids[1])
         self.assertEqual(h.commands[-1]["cmd"], "play_track")
         self.assertEqual(h.commands[-1]["args"]["track_id"], out["card"]["id"])
         h.update({"track_id": self.ids[1], "queue": [self.ids[1]], "index": 0, "playing": True, "position": 12, "device": "pc", "device_name": "MemuAI"})
@@ -121,7 +119,7 @@ class ServerSideTest(unittest.TestCase):
         widgets = {w["id"]: w for w in mi.public(self.root)["modules"][0]["widgets"]}
         self.assertEqual(widgets["dock"]["slot"], "main.dock")
         self.assertEqual(widgets["dock"]["values"], {"mode": "always"})
-        self.assertFalse(widgets["chat-mini"]["values"]["enabled"])  # one player in the main window by default
+        self.assertFalse(widgets["chat-mini"]["values"]["enabled"])
         self.assertTrue(widgets["chat-cards"]["values"]["enabled"])
         self.assertEqual(mi.save_item_settings("music", "widget", "dock", {"mode": "off"}, root=self.root), {"mode": "off"})
 
@@ -136,7 +134,6 @@ class ServerSideTest(unittest.TestCase):
         self.assertIn('"/api/pg/modint/settings"', (ROOT / "app/pgstatic/module-integration.js").read_text(encoding="utf-8"))
         self.assertIn("aliasCall", (ROOT / "app/pgstatic/app.js").read_text(encoding="utf-8"))
         self.assertIn("alias_tool", (ROOT / "app/quick_ask_api.py").read_text(encoding="utf-8"))
-
 
 @unittest.skipUnless(sync_playwright and CHROMIUM and shutil.which("ffmpeg"), "needs playwright, Chromium and ffmpeg")
 class LiveQuickTest(unittest.TestCase):
@@ -222,7 +219,7 @@ class LiveQuickTest(unittest.TestCase):
         quick.on("pageerror", lambda exc: errors.append(str(exc)))
         quick.goto(self.base + "/quick/")
         self.poll(quick, "() => window.MemuQuickModules && MemuQuickModules.state().ready && MemuQuickModules.state().phrases > 5", 30000)
-        # the browser has no desktop shell: the main window starts the player through the same client() the server nudges
+
         quick.fill("#qa-input", "включи трек golden hour")
         quick.press("#qa-input", "Enter")
         quick.wait_for_selector(".qmod-card-player [data-np-root]", timeout=15000)
@@ -233,8 +230,7 @@ class LiveQuickTest(unittest.TestCase):
         self.assertIn("Golden Hour", quick.inner_text(".qmod-card-player"))
         time.sleep(1.2)
         self.shot(quick, "01-quick-player.png")
-        # pause: visual at once, the sound (the dock in the main window) stops quickly
-        # measured in the page: click → the widget repainted (optimistic); then until the dock in the main window paused
+
         t0 = time.perf_counter()
         t_visual, visual = quick.evaluate("""() => { const t = performance.now(); document.querySelector('.qmod-card-player [data-np="toggle"]').click();
             const ok = !MemuQuickModules.state().playing && !document.querySelector('[data-np-root]').classList.contains('is-playing');
@@ -244,31 +240,31 @@ class LiveQuickTest(unittest.TestCase):
         t_sound = time.perf_counter() - t0
         print(f"\n[r39-integ] Quick Access pause: visual {t_visual * 1000:.1f} ms, dock paused after {t_sound * 1000:.0f} ms")
         self.assertLess(t_visual, 0.15, t_visual)
-        self.assertLess(t_sound, 0.6, t_sound)   # <400 ms target; headless polling adds ~50 ms
+        self.assertLess(t_sound, 0.6, t_sound)
         self.assertTrue(quick.evaluate("() => MemuQuickModules.state().fading || !MemuQuickModules.state().ring"))
-        self.poll(quick, "() => !MemuQuickModules.state().ring", 2000)    # the ring faded out without reopening
+        self.poll(quick, "() => !MemuQuickModules.state().ring", 2000)
         self.shot(quick, "02-quick-paused.png")
-        # resume + next: a two-track library, next goes to the other track (not a restart)
+
         quick.click('.qmod-card-player [data-np="toggle"]')
         self.poll(main, "() => !MemuMusicDock.state().paused", 8000)
         before = main.evaluate("() => MemuMusicDock.state().trackId")
         quick.click('.qmod-card-player [data-np="next"]')
         self.poll(main, "(id) => MemuMusicDock.state().trackId !== '%s' && !MemuMusicDock.state().paused" % before, 8000)
         self.poll(quick, "() => document.querySelector('.qmod-card-player .qmod-np-title').textContent === 'Night Drive'", 8000)
-        # prev at > 3 s goes back to the start of the same track
+
         time.sleep(3.5)
         quick.click('.qmod-card-player [data-np="prev"]')
         self.poll(main, "() => MemuMusicDock.state().position < 2", 5000)
         self.assertEqual(main.evaluate("() => MemuMusicDock.state().track.title"), "Night Drive")
-        # seek from Quick Access
+
         quick.evaluate("() => { const s = document.querySelector('[data-np-seek]'); const r = s.getBoundingClientRect(); "
                        "s.dispatchEvent(new PointerEvent('pointerdown', { clientX: r.left + r.width * 0.5, bubbles: true })); }")
         self.poll(main, "() => MemuMusicDock.state().position > 30", 5000)
-        # settings: the dock follows «Док-плеер» at once; the chat mini player is off by default
+
         self.poll(main, "() => !document.getElementById('memu-music-dock').hidden", 5000)
         self.assertFalse(main.evaluate("() => !!document.querySelector('.mmi-chat-np:not([hidden])')"))
         self.http.post(self.base + "/api/pg/modint/settings", json={"module": "music", "kind": "widget", "id": "dock", "values": {"mode": "off"}})
-        main.evaluate("() => MemuModInt.client({ modint_reload: true })")   # what nudge_main does in the desktop shell
+        main.evaluate("() => MemuModInt.client({ modint_reload: true })")
         self.poll(main, "() => document.getElementById('memu-music-dock').hidden", 5000)
         self.http.post(self.base + "/api/pg/modint/settings", json={"module": "music", "kind": "widget", "id": "chat-mini", "values": {"enabled": True}})
         main.evaluate("() => MemuModInt.client({ modint_reload: true })")
@@ -294,8 +290,6 @@ class LiveQuickTest(unittest.TestCase):
         main.click("#r39-wset .mmi-wset-row[data-mmi-row=dock] button[data-v=always]")
         self.poll(main, "() => (MemuModInt.widgetValues('main.dock') || {}).mode === 'always'", 5000)
         main.evaluate("() => document.getElementById('r39-wset').remove()")
-
-
 
 @unittest.skipUnless(sync_playwright and CHROMIUM and shutil.which("ffmpeg"), "needs playwright, Chromium and ffmpeg")
 class MusicQueueLiveTest(LiveQuickTest):
@@ -339,7 +333,7 @@ class MusicQueueLiveTest(LiveQuickTest):
         f = self.frame
         self.assertIsNotNone(f)
         ids = f.evaluate("() => MemuMusic.S.tracks.map((x) => x.id)")
-        # a whole list: the bar buttons
+
         f.evaluate("() => { const S = MemuMusic.S; MemuMusic.Player.playList(S.tracks.filter((x) => x.duration > 10), null, 'T'); }")
         self.poll(f, "() => MemuMusic.Player.st.playing", 15000)
         first = self.cur()["id"]
@@ -347,28 +341,27 @@ class MusicQueueLiveTest(LiveQuickTest):
         self.poll(f, "(id) => MemuMusic.Player.current().id !== '%s' && MemuMusic.Player.st.playing" % first, 8000)
         f.click("#prev")
         self.poll(f, "() => MemuMusic.Player.current().id === '%s'" % first, 8000)
-        # a one-track queue: «next» continues with the library (it used to restart the same song)
+
         long_id = [i for i in ids if f.evaluate("(id) => MemuMusic.S.byId.get(id).duration > 10", i)][0]
         f.evaluate("(id) => MemuMusic.Player.playList([MemuMusic.S.byId.get(id)], id, 'One')", long_id)
         self.poll(f, "() => MemuMusic.Player.st.playing", 8000)
         f.evaluate("() => MemuMusic.Player.next()")
         self.poll(f, "(id) => MemuMusic.Player.current().id !== '%s' && MemuMusic.Player.st.order.length > 1" % long_id, 8000)
-        # prev within 3 s → the previous track again
+
         f.evaluate("() => MemuMusic.Player.prev()")
         self.poll(f, "() => MemuMusic.Player.current().id === '%s'" % long_id, 8000)
-        # the end of a track: the next one starts by itself (also from a one-track queue)
+
         short_id = [i for i in ids if f.evaluate("(id) => MemuMusic.S.byId.get(id).duration < 10", i)][0]
         f.evaluate("(id) => MemuMusic.Player.playList([MemuMusic.S.byId.get(id)], id, 'Short')", short_id)
         self.poll(f, "() => MemuMusic.Player.st.playing", 8000)
         self.poll(f, "(id) => MemuMusic.Player.current().id !== '%s' && MemuMusic.Player.st.playing" % short_id, 15000)
-        # past 3 s «prev» goes to the start of the same track
+
         self.poll(f, "() => MemuMusic.Player.times().cur > 3.3", 8000)
         now = self.cur()["id"]
         f.evaluate("() => MemuMusic.Player.prev()")
         self.poll(f, "() => MemuMusic.Player.times().cur < 2", 5000)
         self.assertEqual(self.cur()["id"], now)
         f.evaluate("() => MemuMusic.Player.pause()")
-
 
 if __name__ == "__main__":
     unittest.main()

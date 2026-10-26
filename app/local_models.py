@@ -46,24 +46,21 @@ _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9.-]{0,79}$")
 _REPO_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,95}/[A-Za-z0-9][A-Za-z0-9_.-]{0,95}$")
 _SHARD_RE = re.compile(r"-(\d{5})-of-(\d{5})\.gguf$", re.I)
 _QUANT_RE = re.compile(r"(?i)(?<![A-Za-z0-9])(IQ\d_[A-Z]+|Q\d_K_[SMLX]L?|Q\d_K|Q\d_\d|Q\d|BF16|F16|F32|MXFP4|TQ\d_\d)(?![A-Za-z0-9])")
-#: Names of speculative-decoding helpers (MTP/NextN heads, EAGLE, DFlash…).
-#: They sit next to the real weights in many repositories, look like a small
-#: model, and crash llama-server when started on their own. "noMTP" is a full
-#: model, so a separator is required right before the marker.
+
 _DRAFT_RE = re.compile(r"(?i)(?:^|[-_.])(?:draft|mtp|nextn|eagle3?|dflash|dspark)(?:[-_.]|$)")
 
 DEFAULT_SETTINGS: Dict[str, Any] = {
-    "backend": "auto",        # auto | cpu | vulkan | cuda
-    "server_path": "",        # a llama-server.exe the user already has
-    "hf_token": "",           # for gated repositories; never sent back to the UI
-    "max_loaded": 1,          # models kept in memory at once
-    "threads": 0,             # 0 = llama.cpp decides
+    "backend": "auto",
+    "server_path": "",
+    "hf_token": "",
+    "max_loaded": 1,
+    "threads": 0,
 }
 MODEL_DEFAULTS: Dict[str, Any] = {
     "enabled": True,
     "name": "",
     "context": 8192,
-    "gpu_layers": -1,         # -1 = all layers on the GPU when the runtime has one
+    "gpu_layers": -1,
     "threads": 0,
     "batch": 0,
     "temperature": None,
@@ -73,17 +70,16 @@ MODEL_DEFAULTS: Dict[str, Any] = {
     "repeat_penalty": None,
     "max_tokens": None,
     "system_prompt": "",
-    "idle_minutes": 10,       # 0 = keep loaded until the Proxy stops
+    "idle_minutes": 10,
     "extra_args": "",
     "mmproj": "",
-    "draft": "",              # a draft/MTP .gguf that speeds up generation (--model-draft)
+    "draft": "",
 }
-#: Settings a download may apply after registration (``start_download(preset=)``, the wizard).
+
 PRESET_KEYS = frozenset({"name", "context", "gpu_layers", "threads", "batch", "temperature", "top_p", "top_k",
                          "min_p", "repeat_penalty", "max_tokens", "system_prompt", "idle_minutes"})
-#: Settings passed on the llama-server command line: changing one restarts the server.
-LAUNCH_KEYS = frozenset({"enabled", "context", "gpu_layers", "threads", "batch", "extra_args", "mmproj", "draft"})
 
+LAUNCH_KEYS = frozenset({"enabled", "context", "gpu_layers", "threads", "batch", "extra_args", "mmproj", "draft"})
 
 class LocalModelError(Exception):
     """A problem the user can act on: ``str(exc)`` is the Russian text, ``message_en`` the English one.
@@ -97,7 +93,6 @@ class LocalModelError(Exception):
         self.message = message
         self.message_en = message_en or message
 
-
 def error_texts(exc: BaseException) -> Tuple[str, str]:
     """(Russian, English) text of an error for the panel: both from a LocalModelError, else the raw text."""
     if isinstance(exc, LocalModelError):
@@ -105,29 +100,19 @@ def error_texts(exc: BaseException) -> Tuple[str, str]:
     text = f"{type(exc).__name__}: {exc}"
     return text, text
 
-
-# --------------------------------------------------------------------------
-# Paths and catalogue
-# --------------------------------------------------------------------------
-
 def root_dir() -> Path:
     return Path(DATA_DIR) / "local-models"
-
 
 def models_dir() -> Path:
     return root_dir() / "models"
 
-
 def runtime_dir() -> Path:
     return root_dir() / "runtime"
 
-
 _catalog_lock = threading.RLock()
-
 
 def _catalog_path() -> Path:
     return root_dir() / "catalog.json"
-
 
 def _load_catalog() -> Dict[str, Any]:
     from .storage import load_json_with_recovery
@@ -140,12 +125,10 @@ def _load_catalog() -> Dict[str, Any]:
     runtime = data.get("runtime") if isinstance(data.get("runtime"), dict) else {}
     return {"models": models, "settings": settings, "runtime": runtime}
 
-
 def _save_catalog(data: Dict[str, Any]) -> None:
     from .storage import save_json
     root_dir().mkdir(parents=True, exist_ok=True)
     save_json(str(_catalog_path()), data, backup=True)
-
 
 def _mutate(change) -> Dict[str, Any]:
     with _catalog_lock:
@@ -154,13 +137,11 @@ def _mutate(change) -> Dict[str, Any]:
         _save_catalog(data)
         return data
 
-
 def slugify(name: str) -> str:
     base = re.sub(r"\.gguf$", "", str(name or ""), flags=re.I)
     base = re.sub(r"-\d{5}-of-\d{5}$", "", base)
     slug = re.sub(r"[^a-z0-9.]+", "-", base.lower()).strip("-.")
     return slug[:72].strip("-.") or "model"
-
 
 def _unique_slug(base: str, taken: Dict[str, Any]) -> str:
     slug = base
@@ -169,11 +150,6 @@ def _unique_slug(base: str, taken: Dict[str, Any]) -> str:
         slug = f"{base}-{counter}"[:80]
         counter += 1
     return slug
-
-
-# --------------------------------------------------------------------------
-# GGUF metadata
-# --------------------------------------------------------------------------
 
 FILE_TYPES = {
     0: "F32", 1: "F16", 2: "Q4_0", 3: "Q4_1", 7: "Q8_0", 8: "Q5_0", 9: "Q5_1", 10: "Q2_K",
@@ -184,14 +160,12 @@ FILE_TYPES = {
 }
 _SCALAR = {0: "<B", 1: "<b", 2: "<H", 3: "<h", 4: "<I", 5: "<i", 6: "<f", 7: "<?", 10: "<Q", 11: "<q", 12: "<d"}
 
-
 def _read(stream: BinaryIO, size: int) -> bytes:
     data = stream.read(size)
     if len(data) != size:
         raise LocalModelError("Файл GGUF обрывается на середине заголовка",
                               "The GGUF file ends in the middle of its header")
     return data
-
 
 def _read_string(stream: BinaryIO, keep: int = 4096) -> str:
     (length,) = struct.unpack("<Q", _read(stream, 8))
@@ -202,7 +176,6 @@ def _read_string(stream: BinaryIO, keep: int = 4096) -> str:
     head = _read(stream, keep)
     stream.seek(length - keep, io.SEEK_CUR)
     return head.decode("utf-8", errors="replace")
-
 
 def _read_value(stream: BinaryIO, kind: int, keep_arrays: bool) -> Any:
     if kind in _SCALAR:
@@ -223,7 +196,6 @@ def _read_value(stream: BinaryIO, kind: int, keep_arrays: bool) -> Any:
                 items.append(value)
         return items if keep_arrays else {"array": inner, "count": count}
     raise LocalModelError(f"Неизвестный тип значения GGUF: {kind}", f"Unknown GGUF value type: {kind}")
-
 
 def read_gguf(path: Path) -> Dict[str, Any]:
     """Useful metadata of a GGUF file; tokenizer tables are skipped, not loaded."""
@@ -263,8 +235,7 @@ def read_gguf(path: Path) -> Dict[str, Any]:
         "license": str(meta.get("general.license") or ""),
         "nextn_layers": int(meta.get(f"{arch}.nextn_predict_layers") or 0),
     }
-    # Round 33: what the KV cache estimate needs (``kv_bytes_per_token``). Per-layer arrays
-    # (some hybrid architectures) are skipped by the reader and simply leave the field empty.
+
     heads = _int_meta(meta.get(f"{arch}.attention.head_count"))
     info["head_count_kv"] = _int_meta(meta.get(f"{arch}.attention.head_count_kv")) or heads
     info["key_length"] = _int_meta(meta.get(f"{arch}.attention.key_length")) or (
@@ -277,13 +248,11 @@ def read_gguf(path: Path) -> Dict[str, Any]:
     info["draft"] = is_draft_meta(info, path.name if isinstance(path, Path) else str(path))
     return info
 
-
 def _int_meta(value: Any) -> int:
     try:
         return int(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else 0
     except (TypeError, ValueError, OverflowError):
         return 0
-
 
 def is_draft_meta(meta: Dict[str, Any], file_name: str = "") -> bool:
     """A speculative-decoding head rather than a model that can run alone.
@@ -305,7 +274,6 @@ def is_draft_meta(meta: Dict[str, Any], file_name: str = "") -> bool:
     return bool(file_name and _DRAFT_RE.search(Path(str(file_name)).stem) and tensors and layers
                 and tensors < layers * 4)
 
-
 def draft_problem(file_name: str, english: bool = False) -> str:
     """The explanation shown whenever a draft head is used as a model."""
     if english:
@@ -320,22 +288,14 @@ def draft_problem(file_name: str, english: bool = False) -> str:
             "«draft», например …-Q4_K_M.gguf), а этот файл при желании укажите в настройках модели "
             "в поле «Draft-модель для ускорения».")
 
-
 def _draft_error(file_name: str) -> "LocalModelError":
     return LocalModelError(draft_problem(file_name), draft_problem(file_name, english=True))
-
 
 def quant_from_name(name: str) -> str:
     match = _QUANT_RE.search(str(name or ""))
     return match.group(1).upper() if match else ""
 
-
-# --------------------------------------------------------------------------
-# Hardware
-# --------------------------------------------------------------------------
-
 _hardware_cache: Dict[str, Any] = {}
-
 
 def hardware() -> Dict[str, Any]:
     """RAM, GPUs and CPU for the "will it fit" estimate (``app/local_hw.py``; cached there).
@@ -353,7 +313,6 @@ def hardware() -> Dict[str, Any]:
         info = {"ram": 0, "gpus": [], "cpu_threads": os.cpu_count() or 0}
     _hardware_cache.update(info)
     return dict(info)
-
 
 def kv_bytes_per_token(meta: Optional[Dict[str, Any]]) -> int:
     """KV cache bytes per token of context (f16 cache) from GGUF metadata; 0 when unknown.
@@ -378,7 +337,6 @@ def kv_bytes_per_token(meta: Optional[Dict[str, Any]]) -> int:
     attention_layers = max(1, layers // interval) if interval > 1 else layers
     return attention_layers * heads * (key + value) * 2
 
-
 def fit(size_bytes: int, context: int = 8192, meta: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Will a model of this size run here? A rough, honest estimate.
 
@@ -389,7 +347,7 @@ def fit(size_bytes: int, context: int = 8192, meta: Optional[Dict[str, Any]] = N
     hw = hardware()
     per_token = kv_bytes_per_token(meta)
     kv = context * (per_token or 128 * 1024)
-    # weights + compute buffers/runtime + KV cache
+
     need = int(size_bytes * 1.03 + 600 * 1024 * 1024 + kv)
     vram = max((gpu.get("vram") or 0 for gpu in hw.get("gpus") or [] if not gpu.get("integrated")), default=0)
     ram = hw.get("ram") or 0
@@ -409,13 +367,7 @@ def fit(size_bytes: int, context: int = 8192, meta: Optional[Dict[str, Any]] = N
     gpu_share = 1.0 if level == "gpu" else (min(1.0, usable_vram / need) if usable_vram and need else 0.0)
     return {"level": level, "need": need, "ram": ram, "vram": vram, "kv": int(kv), "gpu_share": round(gpu_share, 2)}
 
-
 _NO_WINDOW = 0x08000000 if sys.platform == "win32" else 0
-
-
-# --------------------------------------------------------------------------
-# HTTP helpers (sync; routes call them through asyncio.to_thread)
-# --------------------------------------------------------------------------
 
 def _client(timeout: float = 30.0):
     import httpx
@@ -428,11 +380,9 @@ def _client(timeout: float = 30.0):
         kwargs["proxy"] = settings.default_proxy
     return httpx.Client(**kwargs)
 
-
 def _hf_headers() -> Dict[str, str]:
     token = str(_load_catalog()["settings"].get("hf_token") or "").strip()
     return {"Authorization": f"Bearer {token}"} if token else {}
-
 
 def hf_search(query: str, sort: str = "downloads", limit: int = 30) -> List[Dict[str, Any]]:
     sort = sort if sort in ("downloads", "likes", "lastModified", "trendingScore") else "downloads"
@@ -465,7 +415,6 @@ def hf_search(query: str, sort: str = "downloads", limit: int = 30) -> List[Dict
         })
     return out
 
-
 def hf_files(repo: str) -> Dict[str, Any]:
     """GGUF files of a repository, split shards grouped into one entry."""
     if not _REPO_RE.match(str(repo or "")):
@@ -493,10 +442,10 @@ def hf_files(repo: str) -> Dict[str, Any]:
             projectors.append({"path": path, "size": size})
             continue
         if re.search(r"(?i)(^|[-_/])imatrix", path):
-            # An importance matrix (imatrix_unsloth.gguf) is quantisation data, not a model.
+
             continue
         if _DRAFT_RE.search(Path(path).stem):
-            # A draft/MTP head is an optional speed-up, never the model itself.
+
             drafts.append({"path": path, "size": size, "quant": quant_from_name(path.split("/")[-1])})
             continue
         shard = _SHARD_RE.search(path)
@@ -514,17 +463,11 @@ def hf_files(repo: str) -> Dict[str, Any]:
     return {"repo": repo, "files": items, "projectors": sorted(projectors, key=lambda row: row["size"]),
             "drafts": sorted(drafts, key=lambda row: row["size"])}
 
-
-# --------------------------------------------------------------------------
-# Downloads
-# --------------------------------------------------------------------------
-
 class Download:
     def __init__(self, repo: str, files: List[str], projector: str = "", draft: str = "",
                  preset: Optional[Dict[str, Any]] = None) -> None:
         self.id = uuid.uuid4().hex[:10]
-        #: Round 33: model settings applied right after the file is registered (the wizard's choice).
-        #: Paths and raw command-line arguments never come from a preset.
+
         self.preset = {key: value for key, value in (preset or {}).items() if key in PRESET_KEYS}
         self.repo = repo
         self.files = files
@@ -533,7 +476,7 @@ class Download:
         self.total = 0
         self.done = 0
         self.speed = 0.0
-        self.state = "queued"       # queued | downloading | done | error | cancelled
+        self.state = "queued"
         self.error = ""
         self.error_en = ""
         self.model = ""
@@ -549,16 +492,13 @@ class Download:
                 "model": self.model, "eta": int(remaining / self.speed) if self.speed > 1 else None,
                 "name": _SHARD_RE.sub(".gguf", self.files[0]).split("/")[-1] if self.files else ""}
 
-
 _downloads: Dict[str, Download] = {}
 _downloads_lock = threading.Lock()
-
 
 def downloads() -> List[Dict[str, Any]]:
     with _downloads_lock:
         rows = [item.public() for item in _downloads.values()]
     return sorted(rows, key=lambda row: row["state"] != "downloading")
-
 
 def start_download(repo: str, files: List[str], projector: str = "", draft: str = "",
                    preset: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -573,7 +513,7 @@ def start_download(repo: str, files: List[str], projector: str = "", draft: str 
         raise LocalModelError("Выбранные файлы имеют одинаковые имена; загрузите их отдельно",
                               "The selected files have the same names; download them separately")
     if _DRAFT_RE.search(Path(clean[0]).stem):
-        # Refuse before gigabytes are downloaded for nothing.
+
         raise _draft_error(Path(clean[0]).name)
     if projector and (".." in projector or not projector.lower().endswith(".gguf")):
         raise LocalModelError("Некорректный файл проектора", "Invalid projector file")
@@ -588,7 +528,6 @@ def start_download(repo: str, files: List[str], projector: str = "", draft: str 
     threading.Thread(target=_run_download, args=(job,), name=f"hf-download-{job.id}", daemon=True).start()
     return job.public()
 
-
 def cancel_download(download_id: str) -> bool:
     with _downloads_lock:
         job = _downloads.get(str(download_id))
@@ -597,21 +536,17 @@ def cancel_download(download_id: str) -> bool:
     job.cancel.set()
     return True
 
-
 def forget_download(download_id: str) -> None:
     with _downloads_lock:
         job = _downloads.get(str(download_id))
         if job and job.state not in ("queued", "downloading"):
             _downloads.pop(job.id, None)
 
-
 def _repo_folder(repo: str) -> Path:
-    # a/b__c and a__b/c previously shared one directory and overwrote models.
-    # Existing registered paths remain valid; new downloads get distinct roots.
+
     name = re.sub(r"[^A-Za-z0-9_.-]+", "__", repo)[:100]
     identity = hashlib.sha256(repo.encode("utf-8")).hexdigest()[:16]
     return models_dir() / f"hf-{name}-{identity}"
-
 
 def _linked_sha256(response) -> str:
     """SHA-256 файла LFS из HEAD Hugging Face (x-linked-etag стоит на редиректе)."""
@@ -621,7 +556,6 @@ def _linked_sha256(response) -> str:
             return value
     return ""
 
-
 def _sha256(path: Path, job: Download) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as stream:
@@ -630,7 +564,6 @@ def _sha256(path: Path, job: Download) -> str:
                 raise InterruptedError()
             digest.update(chunk)
     return digest.hexdigest()
-
 
 def _fetch(client, url: str, target: Path, job: Download, headers: Dict[str, str],
            expected_size: int = 0, expected_sha256: str = "", check=None) -> None:
@@ -642,8 +575,7 @@ def _fetch(client, url: str, target: Path, job: Download, headers: Dict[str, str
     part = target.with_name(target.name + ".part")
 
     def discard(message: str, message_en: str) -> None:
-        # Испорченный .part нельзя оставлять: следующая попытка «докачивала» бы его
-        # и падала с той же ошибкой, пока пользователь не найдёт и не удалит файл сам.
+
         part.unlink(missing_ok=True)
         raise LocalModelError(message, message_en)
 
@@ -677,7 +609,7 @@ def _fetch(client, url: str, target: Path, job: Download, headers: Dict[str, str
                                  response.headers.get("content-range", "").strip(), re.IGNORECASE)
             total = int(match.group(1)) if match else 0
             if not total:
-                # No size from the server: a glitch, not proof the (maybe many-GB) part is bad.
+
                 raise LocalModelError("Hugging Face не сообщил размер файла; повторите загрузку — "
                                       "уже скачанная часть сохранена",
                                       "Hugging Face did not report the file size; retry the download — "
@@ -718,7 +650,7 @@ def _fetch(client, url: str, target: Path, job: Download, headers: Dict[str, str
             discard("Размер модели на сервере изменился; повторите загрузку",
                     "The model size on the server changed; retry the download")
         if response.status_code == 200 and have:
-            job.done -= have            # the server ignored Range: start over
+            job.done -= have
             have = 0
         mode = "ab" if response.status_code == 206 else "wb"
         last_tick, last_done = time.time(), job.done
@@ -744,11 +676,10 @@ def _fetch(client, url: str, target: Path, job: Download, headers: Dict[str, str
                         "The downloaded file size does not match the model on the server; it was deleted — "
                         "retry the download")
             if size < total:
-                # A cut-off transfer: keep the part so «Повторить» resumes from here.
+
                 raise LocalModelError("Загрузка оборвалась; нажмите «Повторить» — она продолжится с того же места",
                                       "The download broke off; press “Retry” and it continues from the same place")
     verify()
-
 
 def _run_download(job: Download) -> None:
     import httpx
@@ -762,8 +693,7 @@ def _run_download(job: Download) -> None:
             sizes, hashes = {}, {}
             for path in wanted:
                 head = client.head(f"{HF_BASE}/{job.repo}/resolve/main/{path}", headers=headers)
-                # The size of a 401/404 error page used to become the
-                # "expected size", ending in a misleading size-mismatch error.
+
                 if head.status_code in (401, 403):
                     raise LocalModelError("Hugging Face не отдал файл: репозиторий не найден, закрыт или нужен токен",
                                           "Hugging Face did not serve the file: the repository is missing, gated or needs a token")
@@ -773,7 +703,7 @@ def _run_download(job: Download) -> None:
                 sizes[path] = int(head.headers.get("x-linked-size") or head.headers.get("content-length") or 0)
                 hashes[path] = _linked_sha256(head)
             job.total = sum(sizes.values())
-            # Нехватку места видно до загрузки, а не через гигабайты на «No space left on device».
+
             needed = 0
             for path in wanted:
                 target = folder / Path(path).name
@@ -805,7 +735,7 @@ def _run_download(job: Download) -> None:
             try:
                 update_model(job.model, {key: value for key, value in job.preset.items() if key in MODEL_DEFAULTS})
             except LocalModelError:
-                pass        # the model is installed; a bad preset value must not turn that into an error
+                pass
         job.state = "done"
     except InterruptedError:
         job.state = "cancelled"
@@ -822,14 +752,9 @@ def _run_download(job: Download) -> None:
     except httpx.HTTPError as exc:
         job.state, job.error = "error", f"Загрузка прервалась: {type(exc).__name__}: {exc}"
         job.error_en = f"The download broke off: {type(exc).__name__}: {exc}"
-    except Exception as exc:  # the thread must never die silently
+    except Exception as exc:
         job.state = "error"
         job.error, job.error_en = error_texts(exc)
-
-
-# --------------------------------------------------------------------------
-# Catalogue operations
-# --------------------------------------------------------------------------
 
 def _describe(slug: str, row: Dict[str, Any], running: Dict[str, Any]) -> Dict[str, Any]:
     path = Path(str(row.get("path") or ""))
@@ -854,10 +779,9 @@ def _describe(slug: str, row: Dict[str, Any], running: Dict[str, Any]) -> Dict[s
         "error": server.get("error", ""),
         "error_en": server.get("error_en", "") or server.get("error", ""),
         "copied": bool(row.get("copied")),
-        # Catalogues made before draft detection keep such files: flag them.
+
         "draft_head": is_draft_meta(row.get("meta") or {}, path.name),
     }
-
 
 def list_models() -> List[Dict[str, Any]]:
     data = _load_catalog()
@@ -865,11 +789,9 @@ def list_models() -> List[Dict[str, Any]]:
     rows = [_describe(slug, row, running) for slug, row in data["models"].items() if isinstance(row, dict)]
     return sorted(rows, key=lambda row: (-(row["added"] or 0)))
 
-
 def get_model(slug: str) -> Optional[Dict[str, Any]]:
     row = _load_catalog()["models"].get(str(slug or ""))
     return _describe(slug, row, pool.states()) if isinstance(row, dict) else None
-
 
 def register_file(path: Path, *, repo: str = "", copy: bool = False, mmproj: str = "",
                   name: str = "", draft: str = "") -> Dict[str, Any]:
@@ -936,7 +858,6 @@ def register_file(path: Path, *, repo: str = "", copy: bool = False, mmproj: str
     sync_catalog()
     return get_model(result["id"]) or {"id": result["id"]}
 
-
 def default_context(size: int, meta: Dict[str, Any]) -> int:
     """Context of a newly added model: 16K when it still fits in video memory, else 8K (never above training)."""
     trained = int(meta.get("context_length") or 0) or 8192
@@ -945,7 +866,6 @@ def default_context(size: int, meta: Dict[str, Any]) -> int:
     except Exception:
         roomy = False
     return 16384 if roomy else min(8192, trained)
-
 
 def update_model(slug: str, values: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(values, dict):
@@ -967,13 +887,11 @@ def update_model(slug: str, values: Dict[str, Any]) -> Dict[str, Any]:
         data["models"][slug] = row
 
     _mutate(change)
-    # Sampling defaults, the name and the system prompt apply per request; only
-    # what goes on the llama-server command line needs a restart.
+
     if relaunch:
         pool.stop(slug)
     sync_catalog()
     return get_model(slug) or {}
-
 
 def _clean_setting(key: str, value: Any) -> Any:
     if key == "enabled":
@@ -1017,7 +935,6 @@ def _clean_setting(key: str, value: Any) -> Any:
             raise LocalModelError(f"«{key}» должно быть числом", f"“{key}” must be a number") from exc
     return value
 
-
 def remove_model(slug: str, delete_file: bool = False) -> None:
     pool.stop(slug)
     removed: Dict[str, Any] = {}
@@ -1032,8 +949,7 @@ def remove_model(slug: str, delete_file: bool = False) -> None:
     if delete_file:
         path = Path(str(removed.get("path") or ""))
         inside = models_dir().resolve()
-        # A file linked in place belongs to the user: it is deleted only when
-        # it lives in our own folder, never elsewhere on the disk.
+
         try:
             path.resolve().relative_to(inside)
             owned = True
@@ -1046,13 +962,11 @@ def remove_model(slug: str, delete_file: bool = False) -> None:
                 item.unlink()
     sync_catalog()
 
-
 def settings_public() -> Dict[str, Any]:
     settings = dict(_load_catalog()["settings"])
     token = str(settings.pop("hf_token", "") or "")
     settings["hf_token_set"] = bool(token)
     return settings
-
 
 def update_settings(values: Dict[str, Any]) -> Dict[str, Any]:
     def change(data: Dict[str, Any]) -> None:
@@ -1076,7 +990,6 @@ def update_settings(values: Dict[str, Any]) -> Dict[str, Any]:
     _mutate(change)
     return settings_public()
 
-
 def sync_catalog() -> None:
     """Mirror installed models into the Proxy model catalogue and the account list."""
     try:
@@ -1099,16 +1012,9 @@ def sync_catalog() -> None:
         if current is None or current.note != entry.note:
             state.upsert_model(entry)
 
-
-# --------------------------------------------------------------------------
-# Runtime (llama.cpp)
-# --------------------------------------------------------------------------
-
 _install: Dict[str, Any] = {"state": "idle", "done": 0, "total": 0, "error": "", "error_en": "", "backend": ""}
 
-
 _JOB_HANDLE: Optional[int] = None
-
 
 def _kill_with_proxy(process: "subprocess.Popen[bytes]") -> None:
     """Привязывает llama-server к Job Object с KILL_ON_JOB_CLOSE.
@@ -1156,7 +1062,7 @@ def _kill_with_proxy(process: "subprocess.Popen[bytes]") -> None:
                             ("PeakJobMemoryUsed", ctypes.c_size_t)]
 
             info = EXTENDED_LIMIT()
-            info.BasicLimitInformation.LimitFlags = 0x2000  # KILL_ON_JOB_CLOSE
+            info.BasicLimitInformation.LimitFlags = 0x2000
             kernel32.SetInformationJobObject.argtypes = [wintypes.HANDLE, ctypes.c_int,
                                                          ctypes.c_void_p, wintypes.DWORD]
             if not kernel32.SetInformationJobObject(job, 9, ctypes.byref(info), ctypes.sizeof(info)):
@@ -1168,7 +1074,6 @@ def _kill_with_proxy(process: "subprocess.Popen[bytes]") -> None:
     except Exception:
         pass
 
-
 def _extract_runtime_zip(archive_path: Path, staging: Path) -> None:
     with zipfile.ZipFile(archive_path) as archive:
         for member in archive.infolist():
@@ -1177,7 +1082,6 @@ def _extract_runtime_zip(archive_path: Path, staging: Path) -> None:
                 raise LocalModelError("Архив llama.cpp содержит недопустимый путь",
                                       "The llama.cpp archive contains an unsafe path")
         archive.extractall(staging)
-
 
 def server_binary() -> Optional[Path]:
     data = _load_catalog()
@@ -1190,7 +1094,6 @@ def server_binary() -> Optional[Path]:
         for candidate in Path(folder).rglob(name):
             return candidate
     return None
-
 
 def runtime_status() -> Dict[str, Any]:
     data = _load_catalog()
@@ -1205,7 +1108,6 @@ def runtime_status() -> Dict[str, Any]:
         "platform": sys.platform,
     }
 
-
 def _pick_backend(requested: str) -> str:
     if requested in ("cpu", "vulkan", "cuda"):
         return requested
@@ -1215,7 +1117,6 @@ def _pick_backend(requested: str) -> str:
     if any(word in gpus for word in ("amd", "radeon", "intel arc", "geforce")):
         return "vulkan"
     return "cpu"
-
 
 def _release_assets() -> Tuple[str, List[Tuple[str, str]]]:
     """(tag, [(asset name, download url)]) of the newest numbered build.
@@ -1249,7 +1150,6 @@ def _release_assets() -> Tuple[str, List[Tuple[str, str]]]:
                                   "GitHub did not return the file list of the llama.cpp build")
         return tag, [(name, f"https://github.com/{GITHUB_REPO}/releases/download/{tag}/{name}") for name in names]
 
-
 def _choose_assets(assets: List[Tuple[str, str]], backend: str) -> List[Tuple[str, str]]:
     def version(name: str) -> Tuple[int, ...]:
         match = re.search(r"cuda-(\d+)\.(\d+)", name)
@@ -1259,7 +1159,7 @@ def _choose_assets(assets: List[Tuple[str, str]], backend: str) -> List[Tuple[st
     if backend == "cuda":
         builds = sorted((row for row in wins if re.search(r"^llama-.*-bin-win-cuda-[\d.]+-x64\.zip$", row[0])),
                         key=lambda row: version(row[0]))
-        # CUDA 12 runs on far more drivers than 13: prefer the newest 12.x.
+
         preferred = [row for row in builds if version(row[0])[0] == 12] or builds
         if not preferred:
             raise LocalModelError("В сборке нет варианта для CUDA", "The build has no CUDA variant")
@@ -1273,7 +1173,6 @@ def _choose_assets(assets: List[Tuple[str, str]], backend: str) -> List[Tuple[st
                           f"The build has no “{backend}” variant for Windows x64")
     return [build]
 
-
 def install_runtime(backend: str = "auto") -> Dict[str, Any]:
     """Start downloading llama.cpp in the background; progress is in runtime_status()."""
     if sys.platform != "win32":
@@ -1285,7 +1184,6 @@ def install_runtime(backend: str = "auto") -> Dict[str, Any]:
     _install.update({"state": "running", "done": 0, "total": 0, "error": "", "error_en": "", "backend": chosen})
     threading.Thread(target=_run_install, args=(chosen,), name="llama-install", daemon=True).start()
     return runtime_status()
-
 
 def _run_install(backend: str) -> None:
     try:
@@ -1301,7 +1199,7 @@ def _run_install(backend: str) -> None:
                         raise LocalModelError(f"GitHub ответил HTTP {response.status_code} на {name}",
                                               f"GitHub answered HTTP {response.status_code} for {name}")
                     _install["total"] += int(response.headers.get("content-length") or 0)
-                    # Архивы CUDA весят сотни мегабайт: пишем на диск, а не в память.
+
                     archive_path = staging.parent / f".download-{uuid.uuid4().hex[:8]}.zip"
                     with archive_path.open("wb") as handle:
                         for chunk in response.iter_bytes(512 * 1024):
@@ -1335,7 +1233,6 @@ def _run_install(backend: str) -> None:
         for leftover in runtime_dir().glob(".staging-*"):
             shutil.rmtree(leftover, ignore_errors=True)
 
-
 def _owned_runtime_folder(folder: str) -> Optional[Path]:
     """Only an installed build directly under our runtime directory may be removed."""
     candidate = Path(folder) if folder else Path()
@@ -1351,7 +1248,6 @@ def _owned_runtime_folder(folder: str) -> Optional[Path]:
         pass
     return None
 
-
 def remove_runtime() -> None:
     pool.stop_all()
     folder = str(_load_catalog()["runtime"].get("folder") or "")
@@ -1364,13 +1260,6 @@ def remove_runtime() -> None:
     if owned_folder:
         shutil.rmtree(owned_folder, ignore_errors=True)
 
-
-# --------------------------------------------------------------------------
-# Server pool
-# --------------------------------------------------------------------------
-
-#: Windows NTSTATUS codes a crashed llama-server exits with, and what they
-#: usually mean for a person running a local model.
 _EXIT_CODES: Dict[int, Tuple[str, str, str, str]] = {
     0xC0000005: ("нарушение доступа к памяти",
                  "файл не является полной моделью (например, draft/MTP-голова), повреждён, архитектура ещё "
@@ -1410,7 +1299,6 @@ _EXIT_CODES: Dict[int, Tuple[str, str, str, str]] = {
                  "stack overflow", "try another engine version or another model file."),
 }
 
-
 def describe_exit(code: Optional[int], log: List[str], english: bool = False) -> str:
     """A readable reason for a llama-server process that exited on start (Russian, or English)."""
     unsigned = (int(code) & 0xFFFFFFFF) if code is not None else None
@@ -1423,13 +1311,12 @@ def describe_exit(code: Optional[int], log: List[str], english: bool = False) ->
                 f"Частые причины: {known[1]}")
     else:
         head = f"llama-server exited with code {code}." if english else f"llama-server завершился с кодом {code}."
-    # The first lines are the banner; the cause is at the end or on an error line.
+
     lines = [line for line in log if line.strip()]
     errors = [line for line in lines if re.search(r"(?i)(^|\s)E\s|error|failed|unable|cannot|not supported|out of memory", line)]
     picked = (errors[-6:] + [line for line in lines[-6:] if line not in errors[-6:]])[-10:]
     caption = "Last log lines" if english else "Последние строки журнала"
     return (head + (f"\n\n{caption}:\n" + "\n".join(picked) if picked else "")).strip()
-
 
 class Server:
     def __init__(self, slug: str) -> None:
@@ -1437,7 +1324,7 @@ class Server:
         self.process: Optional[subprocess.Popen] = None
         self.generation = 0
         self.port = 0
-        self.state = "stopped"      # stopped | starting | ready | error
+        self.state = "stopped"
         self.error = ""
         self.error_en = ""
         self.last_used = 0.0
@@ -1448,9 +1335,7 @@ class Server:
         return {"state": self.state, "port": self.port, "error": self.error, "error_en": self.error_en,
                 "last_used": int(self.last_used) if self.last_used else None}
 
-
 _fit_support: Dict[str, bool] = {}
-
 
 def supports_fit(binary: str) -> bool:
     """Does this llama-server fit unset parameters to free memory itself (``--fit``, llama.cpp ≥ b7400)?
@@ -1480,13 +1365,12 @@ def supports_fit(binary: str) -> bool:
     _fit_support[key] = result
     return result
 
-
 def auto_gpu_layers(row: Dict[str, Any]) -> int:
     """Layers to offload when the engine cannot fit them itself: all that fit in ~90 % of VRAM."""
     hw = hardware()
     vram = max((gpu.get("vram") or 0 for gpu in hw.get("gpus") or [] if not gpu.get("integrated")), default=0)
     if vram < 1024 ** 3:
-        return 999          # no discrete GPU: the engine keeps everything on the CPU anyway
+        return 999
     meta = row.get("meta") or {}
     layers = int(meta.get("layers") or 0)
     size = int(row.get("size") or 0)
@@ -1502,12 +1386,10 @@ def auto_gpu_layers(row: Dict[str, Any]) -> int:
         return 999
     return max(0, int(layers * budget / size))
 
-
 def _free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
-
 
 class Pool:
     """The llama-server processes. Thread-safe; blocking calls go to threads."""
@@ -1516,7 +1398,7 @@ class Pool:
         self._servers: Dict[str, Server] = {}
         self._lock = threading.RLock()
         self._reaper: Optional[threading.Thread] = None
-        #: Test hook: a command prefix that replaces the llama-server binary.
+
         self.command_override: Optional[List[str]] = None
 
     def _server(self, slug: str) -> Server:
@@ -1560,9 +1442,7 @@ class Pool:
             layer_args = ["-ngl", "0"]
             gpu_layers = 0
         elif self.command_override is None and supports_fit(prefix[0]):
-            # Round 33: "auto" leaves -ngl unset. Current llama.cpp then fits the layers (and MoE
-            # experts) into the free video memory itself (--fit, on by default). The old fixed
-            # "-ngl 999" disabled that and crashed with out-of-memory on any model bigger than VRAM.
+
             gpu_layers = -1
         else:
             gpu_layers = auto_gpu_layers(row)
@@ -1578,11 +1458,10 @@ class Pool:
         if row.get("mmproj"):
             args += ["--mmproj", str(row["mmproj"])]
         if row.get("draft") and Path(str(row["draft"])).is_file():
-            # Speculative decoding: the draft proposes tokens, the model checks them.
+
             args += ["--model-draft", str(row["draft"])] + (["-ngld", str(gpu_layers)] if gpu_layers >= 0 else [])
         if str(row.get("extra_args") or "").strip():
-            # posix=False сохраняет обратные слэши путей Windows, но оставляет кавычки
-            # в токене: «"C:\My Models\t.jinja"» уходил в llama-server вместе с ними.
+
             args += [token[1:-1] if len(token) >= 2 and token[0] == token[-1] and token[0] in "\"'" else token
                      for token in shlex.split(str(row["extra_args"]), posix=False)]
         return args
@@ -1604,8 +1483,7 @@ class Pool:
                 if server.state == "ready" and server.process and server.process.poll() is None:
                     server.last_used = time.time()
                     return server.port
-                # Reserve capacity together with the lifecycle state. A second
-                # model may evict this load, but cannot miss its reservation.
+
                 self._make_room(slug)
                 server.generation += 1
                 generation = server.generation
@@ -1634,8 +1512,7 @@ class Pool:
                     server.process = process
             if cancelled:
                 self._terminate(process)
-                # No pump thread owns this pipe yet: close it here, or the
-                # handle leaks with every cancelled start.
+
                 try:
                     process.stdout.close()
                 except OSError:
@@ -1645,8 +1522,7 @@ class Pool:
             threading.Thread(target=self._pump, args=(server, process), daemon=True).start()
 
             def check_current() -> None:
-                # Called under the pool lock. stop(), eviction and shutdown may
-                # detach the captured process while its health request waits.
+
                 if server.generation != generation or server.process is not process:
                     raise LocalModelError("Загрузка модели отменена", "Loading the model was cancelled")
 
@@ -1656,7 +1532,7 @@ class Pool:
                 with self._lock:
                     check_current()
                 if process.poll() is not None:
-                    time.sleep(0.2)     # let the pump thread read the last lines
+                    time.sleep(0.2)
                     with self._lock:
                         check_current()
                         server.state = "error"
@@ -1665,9 +1541,7 @@ class Pool:
                         error, error_en = server.error, server.error_en
                     raise LocalModelError(error, error_en)
                 try:
-                    # trust_env=False: a system/corporate proxy (Windows registry
-                    # or HTTP_PROXY) must never see loopback health checks, or
-                    # the model "never loads" until the 10-minute timeout.
+
                     response = httpx.get(f"http://127.0.0.1:{port}/health", timeout=2.0,
                                          trust_env=False)
                     if response.status_code == 200:
@@ -1765,32 +1639,24 @@ class Pool:
             if not active:
                 return
 
-
 pool = Pool()
-# A hard exit must not leave llama-server processes holding gigabytes of RAM.
-atexit.register(pool.stop_all)
 
+atexit.register(pool.stop_all)
 
 def status() -> Dict[str, Any]:
     return {"runtime": runtime_status(), "hardware": hardware(), "settings": settings_public(),
             "models": list_models(), "downloads": downloads()}
-
-
-# --------------------------------------------------------------------------
-# Other local servers (Ollama, LM Studio)
-# --------------------------------------------------------------------------
 
 KNOWN_SERVERS = (
     ("ollama", "Ollama", "http://127.0.0.1:11434/v1"),
     ("lmstudio", "LM Studio", "http://127.0.0.1:1234/v1"),
     ("llamafile", "llamafile", "http://127.0.0.1:8080/v1"),
     ("jan", "Jan", "http://127.0.0.1:1337/v1"),
-    # Round 33: more servers people run next to the Proxy.
+
     ("koboldcpp", "KoboldCpp", "http://127.0.0.1:5001/v1"),
     ("tgwui", "text-generation-webui", "http://127.0.0.1:5000/v1"),
     ("vllm", "vLLM", "http://127.0.0.1:8000/v1"),
 )
-
 
 def scan_servers() -> List[Dict[str, Any]]:
     """OpenAI-compatible model servers already running on this computer (probed in parallel)."""
@@ -1802,9 +1668,9 @@ def scan_servers() -> List[Dict[str, Any]]:
     def probe(entry: Tuple[str, str, str]) -> Optional[Dict[str, Any]]:
         key, title, base = entry
         if int(base.rsplit(":", 1)[1].split("/")[0]) in own_ports:
-            return None         # one of our own llama-server processes
+            return None
         try:
-            response = httpx.get(f"{base}/models", timeout=1.5, trust_env=False)  # loopback only
+            response = httpx.get(f"{base}/models", timeout=1.5, trust_env=False)
             if response.status_code != 200:
                 return None
             data = response.json()

@@ -1,13 +1,5 @@
-/* MemuAI · Settings → Быстрый доступ → «Выделенный текст» (Round 27, the selection actions of quick/quick-selection.js).
 
-   window.MemuQuickSelectionSettings.mount(el, ctx) — quick-settings.js mounts it into its sub-page «quick-selection»
-   with ctx = { en, pref, esc, api, toast, savePreferences, syncPreference, kit } (kit = window.MemuSettingsKit).
-   Edits the quick_ask_selection* preferences (normalised by app/quick_selection.normalize_prefs):
-     quick_ask_selection              the feature on/off
-     quick_ask_selection_clipboard    the Ctrl+C fallback for programs that do not expose their selection
-     quick_ask_selection_second_lang  where text already in the interface language is translated to
-     quick_ask_selection_actions      the buttons of the row, in order (built-in ids + «c_…» ids)
-     quick_ask_selection_custom       the user's own actions [{id, name, prompt with {text}, replace}] */
+
 (function () {
   "use strict";
   const BUILTIN = [
@@ -45,7 +37,7 @@
       second: String(pref("quick_ask_selection_second_lang", "") || ""),
       order: (list0("quick_ask_selection_actions") || DEFAULT_ORDER).slice(),
       custom: (list0("quick_ask_selection_custom") || []).map((c) => ({ ...c })),
-      editing: "",            // id of the own action in the form ("" = a new one)
+      editing: "",
       status: null,
     };
     if (!K) { el.textContent = t("Набор настроек не загружен.", "The settings kit is not loaded."); return { unmount() { el.innerHTML = ""; } }; }
@@ -65,7 +57,7 @@
       const c = S.custom.find((x) => x.id === id);
       return c ? c.name : id;
     };
-    /* every action once: the shown ones in their order, then the rest */
+
     function rows() {
       const all = [...DEFAULT_ORDER, ...S.custom.map((c) => c.id)];
       const on = S.order.filter((id) => all.includes(id));

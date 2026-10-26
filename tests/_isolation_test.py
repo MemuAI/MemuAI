@@ -23,7 +23,6 @@ if not os.environ.get("MEMUAI_DATA_DIR"):
 
 from app import config  # noqa: E402
 
-
 class DataIsolationTest(unittest.TestCase):
     def test_the_run_uses_a_temporary_data_folder(self) -> None:
         folder = os.path.normcase(os.path.abspath(config.DATA_DIR))
@@ -32,7 +31,6 @@ class DataIsolationTest(unittest.TestCase):
             if os.environ.get(name):
                 real = os.path.normcase(os.path.abspath(os.path.join(os.environ[name], "MemuAI")))
                 self.assertNotEqual(folder, real, "tests must never run against the real MemuAI data")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,7 +1,5 @@
-/* MemuLearn · md.js — текст карточек и конспектов: Markdown (заголовки, списки, таблицы, код), формулы KaTeX
- * ($…$, $$…$$, \(…\), \[…\]), подсветка кода по токенам темы MemuAI (--tok-*), пропуски cloze {{c1::…::подсказка}}
- * и безопасный HTML из колод Anki (белый список тегов, картинки только data:). KaTeX берётся у MemuAI офлайн
- * (Memu.learn.call("katex")) один раз и только когда на экране есть формула. */
+
+
 const MD = (() => {
   let katexReady = null;
   function loadKatex() {
@@ -48,7 +46,6 @@ const MD = (() => {
     return out + esc(code.slice(last));
   }
 
-  /* Anki HTML → a safe subset. */
   const ALLOWED = new Set(["B", "I", "U", "S", "EM", "STRONG", "BR", "DIV", "P", "SPAN", "UL", "OL", "LI", "CODE", "PRE", "SUB", "SUP",
     "TABLE", "THEAD", "TBODY", "TR", "TD", "TH", "IMG", "HR", "BLOCKQUOTE", "H1", "H2", "H3", "H4", "SMALL", "MARK", "FONT"]);
   function sanitize(html) {
@@ -65,12 +62,11 @@ const MD = (() => {
       });
     };
     const root = doc.body.firstElementChild;
-    for (let pass = 0; pass < 4; pass++) walk(root);   // unwrapped children of a dropped tag are checked on the next pass
+    for (let pass = 0; pass < 4; pass++) walk(root);
     return root.innerHTML;
   }
   const HTML_RE = /<(br|div|p|b|i|u|img|span|ul|ol|li|table|sub|sup|strong|em|code|pre|font|hr)\b[^>]*>/i;
 
-  /* Math and code are cut out first so Markdown never touches them. */
   function protect(text, store) {
     let s = String(text || "");
     s = s.replace(/```([\w+#-]*)[ \t]*\n?([\s\S]*?)```/g, (_, lang, code) => { store.push({ code: code.replace(/\n$/, ""), lang }); return `\u0000B${store.length - 1}\u0000`; });
@@ -128,7 +124,6 @@ const MD = (() => {
     return out;
   }
 
-  /** Markdown (or Anki HTML) → HTML. ``cloze``: {ord, reveal} renders {{cN::…}}. */
   function render(text, opts) {
     const o = opts || {};
     let src = String(text || "");
@@ -145,16 +140,16 @@ const MD = (() => {
     return html.replace(/\u0001([\s\S]*?)\u0002/g, '<mark class="ml-cloze on">$1</mark>')
       .replace(/\u0003([\s\S]*?)\u0004/g, '<mark class="ml-cloze">[$1]</mark>');
   }
-  /** Typeset formulas inside ``root`` (KaTeX loads on first need). */
+
   function typeset(root) {
     const nodes = $$(".ml-math:not([data-done])", root);
     if (!nodes.length) return;
     loadKatex().then((katex) => {
       nodes.forEach((el) => {
         el.dataset.done = "1";
-        try { katex.render(el.dataset.tex || "", el, { displayMode: el.classList.contains("display"), throwOnError: false, output: "html" }); } catch (e) { /* keep the source */ }
+        try { katex.render(el.dataset.tex || "", el, { displayMode: el.classList.contains("display"), throwOnError: false, output: "html" }); } catch (e) {  }
       });
-    }).catch(() => { /* formulas stay as source text */ });
+    }).catch(() => {  });
   }
   function into(el, text, opts) { el.innerHTML = render(text, opts); typeset(el); return el; }
   function plain(text) { return String(text || "").replace(/<[^>]+>/g, " ").replace(/\{\{c\d+::([\s\S]*?)(?:::[\s\S]*?)?\}\}/g, "$1").replace(/[`*#>$]/g, "").replace(/\s+/g, " ").trim(); }

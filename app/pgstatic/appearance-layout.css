@@ -1,18 +1,3 @@
-/* MemuAI — Round 33 (r33-theme): layout options saved by the theme editor («ui_look.layout», theme-editor.js).
-
-   Every option is an attribute on <html> (set by MemuLook.apply), so these rules work in every design:
-     data-te-side="right"                   the sidebar on the right
-     data-te-sidemode="compact"             an icon rail that opens over the chat on hover / focus
-     data-te-topbar="slim|bare|card"        the app bar: thinner · no background · a floating card
-     data-te-composer="float|docked|minimal" the message box: floating · full width · minimal
-     data-te-bubbles="plain|outline|filled|compact"   how messages are drawn
-     data-te-ualign="left"                  your messages on the left too
-     data-te-cw / data-te-chatw             custom message box / conversation width (--te-composer-w / --te-chat-w)
-   Colours only through tokens and color-mix(). Specificity: html:root[data-te-…] (0,2,1) + the target, after the
-   designs, so a design block never undoes a layout the user chose. Element styles, colours, the toolbar order and the
-   background come from the generated <style id="memu-look"> (theme-editor.js), not from here. */
-
-/* ------------------------------------------------------------------ sidebar on the right */
 html:root[data-te-side="right"] #app { flex-direction: row-reverse; }
 html:root[data-te-side="right"] .side { border-right: 0; border-left: 1px solid var(--border); }
 html:root[data-te-side="right"] .main { margin: 8px 0 8px 8px; }
@@ -29,8 +14,6 @@ html:root[data-te-side="right"] .side.hidden { transform: translateX(18px); bord
   html:root[data-te-side="right"] .side.hidden.open { transform: translateX(0); }
   html:root[data-te-side="right"] .main { margin: 0; }
 }
-
-/* ------------------------------------------------------------------ compact sidebar: an icon rail */
 @media (min-width: 801px) {
   html:root[data-te-sidemode="compact"] .side:not(.hidden) {
     --te-rail: 66px; --te-peek: 272px;
@@ -41,7 +24,6 @@ html:root[data-te-side="right"] .side.hidden { transform: translateX(18px); bord
     transition-delay: 120ms;
   }
   html:root[data-te-sidemode="compact"] .side:not(.hidden) + .sidebar-resizer { display: none; }
-  /* rail: only the marks */
   html:root[data-te-sidemode="compact"] .side:not(.hidden) :is(.brand, .btn-new, .side-btn, .profile-card) { overflow: hidden; white-space: nowrap; }
   html:root[data-te-sidemode="compact"] .side:not(.hidden) .brand { font-size: 0; gap: 0; padding-left: 8px; }
   html:root[data-te-sidemode="compact"] .side:not(.hidden) .brand-dot { flex: none; }
@@ -59,7 +41,6 @@ html:root[data-te-side="right"] .side.hidden { transform: translateX(18px); bord
   html:root[data-te-sidemode="compact"] .side:not(.hidden) :is(#group-pinned, #group-folders, #group-memes, #group-chats, #group-panels, .side-label) { opacity: 0; pointer-events: none; transition: opacity var(--m-dur-1, 120ms) ease; }
   html:root[data-te-sidemode="compact"] .side:not(.hidden) .side-scroll { overflow: hidden; }
   html:root[data-te-sidemode="compact"] .side:not(.hidden) .profile-card { padding-left: 6px; }
-  /* peek: the whole sidebar opens over the conversation without moving it */
   html:root[data-te-sidemode="compact"] .side:not(.hidden):is(:hover, :focus-within, .te-peek) {
     width: var(--te-peek) !important; margin-right: calc(var(--te-rail) - var(--te-peek));
     background: var(--side-bg, var(--bg-deep)); transition-delay: 260ms;
@@ -82,8 +63,6 @@ html:root[data-te-side="right"] .side.hidden { transform: translateX(18px); bord
   }
   html:root[data-te-sidemode="compact"]:is([data-design="brutal"], [data-design="terminal"], [data-design="grid"]) .side:not(.hidden):is(:hover, :focus-within, .te-peek) { border-radius: 0; }
 }
-
-/* ------------------------------------------------------------------ app bar styles */
 html:root[data-te-topbar="slim"] .topbar.appbar { min-height: 42px; padding-top: 3px; padding-bottom: 3px; gap: 4px; }
 html:root[data-te-topbar="slim"] .topbar.appbar :is(.iconbtn, .bar-icon) { width: 30px; height: 30px; }
 html:root[data-te-topbar="slim"] .topbar.appbar .dd-btn { min-height: 30px; padding-top: 3px; padding-bottom: 3px; font-size: 14px; }
@@ -98,8 +77,6 @@ html:root[data-te-topbar="card"] .topbar.appbar {
 }
 html:root[data-te-topbar="card"]:is([data-design="brutal"], [data-design="terminal"], [data-design="grid"]) .topbar.appbar { border-radius: 0; }
 html:root[data-te-topbar="card"][data-design="glass"] .topbar.appbar { background: color-mix(in srgb, var(--panel) 62%, transparent) !important; backdrop-filter: blur(20px) saturate(1.3) !important; }
-
-/* ------------------------------------------------------------------ message box */
 html:root[data-te-cw] .main .composer { max-width: var(--te-composer-w) !important; }
 html:root[data-te-chatw] { --conversation-width: var(--te-chat-w) !important; --f-col: var(--te-chat-w) !important; }
 html:root[data-te-composer="float"] .composer-wrap { padding-bottom: 22px; }
@@ -116,8 +93,6 @@ html:root[data-te-composer="docked"] .composer-hint { padding-bottom: 6px; }
 html:root[data-te-composer="minimal"] .composer { background: transparent !important; border-color: transparent !important; box-shadow: none !important; border-bottom: 1px solid var(--control-border) !important; border-radius: 0 !important; }
 html:root[data-te-composer="minimal"] .composer:focus-within { border-bottom-color: var(--accent) !important; box-shadow: 0 1px 0 var(--accent) !important; }
 html:root[data-te-composer="minimal"] .composer-wrap::before { display: none; }
-
-/* ------------------------------------------------------------------ messages */
 html:root[data-te-bubbles="plain"] .msg-user .bubble {
   background: transparent !important; border: 0 !important; box-shadow: none !important; border-radius: 0 !important;
   padding: 2px 0 2px 14px !important; border-left: 3px solid var(--accent) !important; color: var(--text) !important;

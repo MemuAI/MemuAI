@@ -1,5 +1,5 @@
-/* MemuAI Proxy — встроенный ИИ-помощник: выдвижная панель, которая разбирает ошибки
-   с учётом базы знаний о провайдерах и текущего состояния этого Proxy. */
+
+
 "use strict";
 
 window.MemuCompanion = (() => {
@@ -14,13 +14,11 @@ window.MemuCompanion = (() => {
     } catch (error) { return []; }
   }
   function save() {
-    try { localStorage.setItem(STORE, JSON.stringify(S.history.slice(-40))); } catch (error) { /* хранилище недоступно */ }
+    try { localStorage.setItem(STORE, JSON.stringify(S.history.slice(-40))); } catch (error) {  }
   }
 
   const panel = () => $("#companion");
   const isOpen = () => panel() && !panel().hidden;
-
-  /* ---------------- разметка ответа ---------------- */
 
   function inline(text) {
     return esc(text)
@@ -30,7 +28,6 @@ window.MemuCompanion = (() => {
       .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
   }
 
-  /** A small, safe Markdown subset: code blocks, headings, lists, quotes, paragraphs. */
   function markdown(source) {
     const out = [];
     const lines = String(source || "").replace(/\r/g, "").split("\n");
@@ -66,8 +63,6 @@ window.MemuCompanion = (() => {
     flushPara(); flushList();
     return out.join("");
   }
-
-  /* ---------------- отрисовка ---------------- */
 
   const SUGGEST = [
     () => L("Почему аккаунт в статусе «Недействителен»?", "Why is an account marked “Invalid”?"),
@@ -118,26 +113,22 @@ window.MemuCompanion = (() => {
     }
   }
 
-  /* ---------------- модели ---------------- */
-
   async function loadInfo() {
     try {
       const [info, models] = await Promise.all([api("/api/admin/companion"), api("/api/admin/models")]);
       S.info = info;
-      S.models = (models.models || []).filter((m) => m.enabled !== false
+      S.models = (models.models || []).filter((m) => m.enabled !== false && (m.kind || m.caps?.kind || "chat") === "chat"
         && !(m.caps?.music && m.caps?.text !== true) && !(m.capabilities?.music && m.capabilities?.text !== true)).map((m) => m.id).sort();
     } catch (error) { S.models = []; }
     const select = $("#companion-model");
     const auto = S.info && S.info.model;
     const saved = (S.info && S.info.saved) || "";
-    // "Auto" follows the Proxy's own choice; an explicit pick is remembered in the settings.
+
     select.innerHTML = `<option value="">${esc(auto ? `${L("Авто", "Auto")} · ${auto}` : L("Нет включённых моделей", "No enabled models"))}</option>`
       + S.models.map((id) => `<option value="${esc(id)}">${esc(id)}</option>`).join("");
     select.value = S.models.includes(saved) ? saved : "";
     $("#companion-model-label").textContent = select.value || auto || "";
   }
-
-  /* ---------------- диалог ---------------- */
 
   function open(focus = true) {
     const el = panel();
@@ -190,7 +181,7 @@ window.MemuCompanion = (() => {
       if (resp.status === 401) { showLogin(""); throw new Error(L("Требуется вход", "Sign-in required")); }
       if (!resp.ok || !resp.body) {
         let data = null;
-        try { data = await resp.json(); } catch (error) { /* не JSON */ }
+        try { data = await resp.json(); } catch (error) {  }
         throw new Error((data && (LANG === "en" ? data.error_en || data.error : data.error)) || `HTTP ${resp.status}`);
       }
       const reader = resp.body.getReader();
@@ -201,8 +192,7 @@ window.MemuCompanion = (() => {
       for (;;) {
         const { value, done } = await reader.read();
         if (done) break;
-        // SSE допускает CRLF: без нормализации кадры «\r\n\r\n» не делились бы
-        // по «\n\n», и ответ появлялся бы только целиком (или не появлялся).
+
         buffer = (buffer + decoder.decode(value, { stream: true })).replace(/\r\n/g, "\n");
         let cut;
         while ((cut = buffer.indexOf("\n\n")) >= 0) {
@@ -236,7 +226,6 @@ window.MemuCompanion = (() => {
     }
   }
 
-  /** Repaint only the streaming bubble, keeping the scroll pinned if the user is at the bottom. */
   function updateLast() {
     const log = $("#companion-log");
     const last = log && log.lastElementChild;
@@ -261,7 +250,6 @@ window.MemuCompanion = (() => {
     input.style.height = `${Math.min(180, input.scrollHeight)}px`;
   }
 
-  /** Prepare an editable question; the error context is sent only on submit. */
   function ask(text, context) {
     S.context = context ? clean(context) : null;
     open(false);
@@ -280,8 +268,6 @@ window.MemuCompanion = (() => {
     Object.entries(ctx).forEach(([k, v]) => { if (v !== undefined && v !== null && v !== "") out[k] = typeof v === "string" ? v.slice(0, 3000) : v; });
     return out;
   }
-
-  /* ---------------- события ---------------- */
 
   function bind() {
     $("#companion-open").onclick = () => (isOpen() ? close() : open());
@@ -331,7 +317,7 @@ window.MemuCompanion = (() => {
         close();
       }
     });
-    // Buttons next to failed log rows and broken accounts.
+
     document.addEventListener("click", (event) => {
       const logBtn = event.target.closest("[data-ask-log]");
       if (logBtn && typeof logsCache !== "undefined") {
@@ -353,11 +339,10 @@ window.MemuCompanion = (() => {
     }, true);
   }
 
-  /** Called after sign-in: the floating button appears only inside the panel. */
   function ready() { document.body.classList.add("app-ready"); if (!isOpen()) $("#companion-fab").hidden = false; S.info = null; }
 
   bind();
-  // app.js may have shown the panel before this script loaded.
+
   if ($("#app").classList.contains("visible") && $("#login-overlay").hidden) ready();
 
   return {

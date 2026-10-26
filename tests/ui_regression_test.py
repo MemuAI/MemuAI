@@ -12,9 +12,7 @@ from unittest.mock import patch
 from app import pgdata
 from app.playground_api import _parse_duckduckgo_results, _render_notification_wav
 
-
 ROOT = Path(__file__).resolve().parents[1]
-
 
 class DesktopLayoutContractTest(unittest.TestCase):
     def test_native_frame_keeps_resize_with_styled_internal_appbar(self) -> None:
@@ -91,7 +89,7 @@ class DesktopLayoutContractTest(unittest.TestCase):
     def test_all_streams_share_crlf_and_eof_safe_sse_parser(self) -> None:
         js = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
         self.assertIn("async function* readSSE(body", js)
-        # A silent-but-open socket must end as an error, not as endless "typing".
+
         self.assertIn("SSE_STALL_MS", js)
         self.assertIn("buffer.split(/\\r?\\n\\r?\\n/)", js)
         self.assertIn("buffer += decoder.decode();", js)
@@ -102,8 +100,7 @@ class DesktopLayoutContractTest(unittest.TestCase):
     def test_assistant_activity_shares_one_trail_component(self) -> None:
         js = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
         css = (ROOT / "app" / "pgstatic" / "style.css").read_text(encoding="utf-8")
-        # Every side activity renders through the same step component, so the
-        # answer never gets lost between differently shaped cards.
+
         self.assertIn("function assistantTrail(", js)
         self.assertIn('return `<div class="trail">', js)
         for hook in ('data-work-preview', 'data-work-apply', 'data-work-delete-apply',
@@ -116,13 +113,13 @@ class DesktopLayoutContractTest(unittest.TestCase):
         self.assertIn('<div class="answer">', js)
         self.assertIn(".trail::before", css)
         self.assertIn(".step-dot", css)
-        # Streaming patches the answer body in place; the selector must survive.
+
         self.assertIn('root?.querySelector(".body")', js)
 
     def test_work_reads_files_through_tools_not_through_the_prompt(self) -> None:
         js = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
         api = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
-        # Work starts from the structure only; contents arrive through tools.
+
         self.assertIn("<project_structure", js)
         self.assertNotIn("<relevant_project_files>", js)
         self.assertIn("WORK_TOOLS_PROMPT", js)
@@ -130,7 +127,7 @@ class DesktopLayoutContractTest(unittest.TestCase):
             self.assertIn(tool, js, tool)
         self.assertIn('tool.startswith("work_")', api)
         self.assertIn("work_tools.WRITE_TOOLS", api)
-        # The tool loop must survive more than a single round.
+
         self.assertIn("TOOL_ROUND_LIMIT", js)
         self.assertNotIn("_toolsResumed", js)
 
@@ -138,8 +135,7 @@ class DesktopLayoutContractTest(unittest.TestCase):
         js = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
         api = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
         chat = (ROOT / "app" / "chat.py").read_text(encoding="utf-8")
-        # Saying "привет" must not trigger a search, and the model writes its
-        # own query instead of sending the whole prompt to a search engine.
+
         self.assertNotIn("найди в сети", js)
         self.assertIn("<web_tools>", js)
         self.assertIn("web_search {query, queries?, limit?, read?}", js)
@@ -156,7 +152,7 @@ class DesktopLayoutContractTest(unittest.TestCase):
         self.assertIn('id="nav-code"', html)
         self.assertIn("CODE_MODE_PROMPT", js)
         self.assertIn("function isProjectMode(", js)
-        # Work and MemuCode share the project plumbing but look different.
+
         self.assertIn("body.code-mode", css)
         self.assertIn("grid-column: 1 / -1", css)
         self.assertIn('id="codebar"', html)
@@ -169,23 +165,23 @@ class DesktopLayoutContractTest(unittest.TestCase):
         self.assertIn('tool.startswith("code_")', api)
         self.assertIn("/api/work/auto-project", api)
         self.assertIn("ensureAutoProject", js)
-        # Sessions belong to a project, not to a flat chat list.
+
         self.assertIn("(c.project_id || \"\") === activeProject", js)
 
     def test_memucode_edits_are_reversible_and_tools_are_extensible(self) -> None:
         js = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
         api = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
-        # Every write carries the session id, so the snapshot can be taken.
+
         self.assertIn("session: codeSessionId()", js)
         self.assertIn("code_checkpoints.require_snapshot", api)
         self.assertIn("/api/code/rollback", api)
         self.assertIn("function showCodeChanges(", js)
-        # MCP servers are configurable and exposed to the model by name.
+
         self.assertIn('tool.startswith("mcp_")', api)
         self.assertIn("/api/code/mcp", api)
         self.assertIn("function mcpPromptBlock(", js)
         self.assertIn("function showMcpPanel(", js)
-        # Commands are prepared requests, not a separate execution path.
+
         self.assertIn("CODE_SLASH_COMMANDS", js)
         for command in ("/review", "/test", "/fix", "/explain", "/refactor",
                         "/commit", "/diff", "/undo", "/mcp"):
@@ -225,9 +221,9 @@ class DesktopLayoutContractTest(unittest.TestCase):
         genspark = (ROOT / "app" / "providers" / "genspark.py").read_text(encoding="utf-8")
         proxy_ui = (ROOT / "app" / "static" / "app.js").read_text(encoding="utf-8")
         proxy_css = (ROOT / "app" / "static" / "style.css").read_text(encoding="utf-8")
-        self.assertIn('id="st-agent-model"', js)                  # one model for the agents of Work and MemuCode
-        self.assertNotIn('id="st-agents-mode"', js)               # no Auto / Always for chat agents any more
-        self.assertIn('P("search"', js)                         # Round 23: generated settings navigation
+        self.assertIn('id="st-agent-model"', js)
+        self.assertNotIn('id="st-agents-mode"', js)
+        self.assertIn('P("search"', js)
         self.assertIn('data-set-tab="${p.id}"', js)
         self.assertIn('"/api/pg/search/run"', api)
         self.assertIn("web_search {query, queries?, limit?, read?}", js)
@@ -236,10 +232,10 @@ class DesktopLayoutContractTest(unittest.TestCase):
         render_caps = js[js.index("function renderCaps()") : js.index("/* ------------------------------ чаты")]
         self.assertIn("ts.oncontextmenu = openSearchModeMenu", render_caps)
         self.assertIn('button.closest(".settings-body, .panel")', js)
-        # Every external source is queried by app/websearch.py (round 13), not by the window server.
+
         self.assertIn("websearch.run_engine(provider", api)
         self.assertNotIn("api.tavily.com", api)
-        # The chat no longer runs a specialist-agent pass before the answer (round 13).
+
         self.assertNotIn("/api/pg/agents/run", js)
         self.assertNotIn("/api/pg/agents/run", api)
         self.assertNotIn("agent_synthesis", js)
@@ -258,7 +254,6 @@ class DesktopLayoutContractTest(unittest.TestCase):
         self.assertIn('id="se-notify-telegram"', js)
         self.assertIn('id="se-notify-email"', js)
 
-
 class NotificationSoundContractTest(unittest.TestCase):
     def test_pcm_sound_has_valid_header_and_faded_silence(self) -> None:
         payload = _render_notification_wav("gentle", 55)
@@ -275,7 +270,6 @@ class NotificationSoundContractTest(unittest.TestCase):
         payload = _render_notification_wav("warm", 0)
         with wave.open(io.BytesIO(payload), "rb") as sound:
             self.assertEqual(set(sound.readframes(sound.getnframes())), {0})
-
 
 class ProfileLifecycleContractTest(unittest.TestCase):
     def test_profile_pin_is_protected_at_rest_and_never_returned_to_the_ui(self) -> None:
@@ -298,7 +292,6 @@ class ProfileLifecycleContractTest(unittest.TestCase):
                 self.assertNotIn("_pin_cipher", raw["items"][0])
                 self.assertTrue(pgdata.verify_profile_pin("locked", "2468"))
 
-                # Normal metadata autosave preserves the lock; removal is explicit.
                 pgdata.save_profiles({"active_id": "locked", "items": [
                     {"id": "locked", "name": "Renamed", "has_pin": True}
                 ]})
@@ -390,7 +383,6 @@ class ProfileLifecycleContractTest(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "единственный"):
                     pgdata.delete_profile("default")
 
-
 class PreferenceNormalizationContractTest(unittest.TestCase):
     def test_corrupted_preferences_are_safely_normalized_on_load_and_save(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -478,7 +470,6 @@ class PreferenceNormalizationContractTest(unittest.TestCase):
                 self.assertEqual(pgdata.load_profiles()["items"][0]["memory"]["facts"], [])
                 pgdata.save_chats(17)  # type: ignore[arg-type]
                 self.assertEqual(pgdata.load_chats(), [])
-
 
 if __name__ == "__main__":
     unittest.main()

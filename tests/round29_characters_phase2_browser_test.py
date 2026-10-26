@@ -18,7 +18,6 @@ try:
 except Exception:  # pragma: no cover
     sync_playwright = None
 
-
 @unittest.skipUnless(sync_playwright and chromium(), "playwright + chromium required")
 class CharactersPhase2BrowserTest(unittest.TestCase):
     def setUp(self):
@@ -30,7 +29,7 @@ class CharactersPhase2BrowserTest(unittest.TestCase):
 
     def boot(self, store=None):
         original = harness.PARENT
-        if store:  # the module must see this store on its very first load
+        if store:
             harness.PARENT = original.replace("window.__store = {};", "window.__store = " + json.dumps(store, ensure_ascii=False) + ";", 1)
         try:
             self.browser, self.page, self.errors = open_page(self.pw)
@@ -42,7 +41,7 @@ class CharactersPhase2BrowserTest(unittest.TestCase):
 
     def test_long_stream_is_rendered_in_batches(self):
         frame = self.boot()
-        self.page.evaluate("() => { window.__reply = 'word '.repeat(1400); }")  # 7000 chars → 1000 deltas
+        self.page.evaluate("() => { window.__reply = 'word '.repeat(1400); }")
         frame.click("text=New character")
         frame.wait_for_selector(".ch-editor")
         frame.query_selector_all(".ch-editor .mu-input, .ch-editor .mu-textarea")[0].fill("Bob")
@@ -75,10 +74,8 @@ class CharactersPhase2BrowserTest(unittest.TestCase):
                            "settings": {"personaId": "p1"}})
         self.assertEqual(frame.evaluate("() => window.MemuCharacters.S.personas[0].name"), "You")
 
-
 if __name__ == "__main__":
     unittest.main()
-
 
 @unittest.skipUnless(sync_playwright and chromium(), "playwright + chromium required")
 class CharactersPhase2HelpersTest(unittest.TestCase):

@@ -19,7 +19,6 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 SHOTS = ROOT / "build" / "round44-ui"
 
-
 @pytest.fixture(scope="module")
 def browser():
     pytest.importorskip("playwright")
@@ -37,7 +36,6 @@ def browser():
                                      args=["--no-sandbox", "--disable-background-networking"])
         yield instance
         instance.close()
-
 
 def offline_page(browser, feature, theme):
     from app.themes import theme_css
@@ -121,7 +119,6 @@ def offline_page(browser, feature, theme):
     page.locator(".bext-steps" if feature == "chrome" else ".tgu-setup-step").first.wait_for(state="attached")
     return context, page, errors
 
-
 @pytest.mark.parametrize("theme", ["dark", "light"])
 @pytest.mark.parametrize("feature", ["chrome", "telegram"])
 def test_integration_spacing_and_controls_in_actual_settings_shell(browser, feature, theme):
@@ -178,8 +175,6 @@ def test_integration_spacing_and_controls_in_actual_settings_shell(browser, feat
                 page.screenshot(path=str(SHOTS / f"integrations-{feature}-signin-{width}-{theme}.png"))
                 page.locator('[data-tgu="save"]').scroll_into_view_if_needed()
 
-            # Controls remain completely within the scrollport horizontally;
-            # the end of the long page remains reachable by real scrolling.
             control = page.locator('[data-bext-key="control"]' if feature == "chrome" else '[data-tgu="save"]')
             bounds = control.evaluate("""el=>({control:el.getBoundingClientRect().toJSON(),body:el.closest('.settings-body').getBoundingClientRect().toJSON(),width:el.clientWidth,scroll:el.scrollWidth})""")
             assert bounds["control"]["left"] >= bounds["body"]["left"], bounds

@@ -22,14 +22,12 @@ from . import flow_engine as fe
 
 log = logging.getLogger("memuai.flows.api")
 
-
 async def _json(request: Request) -> Dict[str, Any]:
     try:
         data = await request.json()
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
-
 
 def _lang(body: Dict[str, Any]) -> str:
     if body.get("lang") in ("ru", "en"):
@@ -40,11 +38,9 @@ def _lang(body: Dict[str, Any]) -> str:
     except Exception:
         return "ru"
 
-
 def _err(exc: Exception, lang: str, status: int = 400) -> JSONResponse:
     text = exc.text(lang) if isinstance(exc, fe.FlowError) else str(exc)
     return JSONResponse({"error": text[:600]}, status)
-
 
 def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = None) -> None:
 
@@ -70,7 +66,7 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
                                "tier": a.get("tier")} for a in catalog.ACTIONS if not str(a.get("id", "")).startswith("_")][:200]
         except Exception:
             out["actions"] = []
-        try:   # r40-mcp: servers and their known tools for the «MCP tool» step (no server is started here)
+        try:
             from . import mcp_hub
             out["mcp"] = [{"name": r["name"], "tools": r["tools"]} for r in mcp_hub.scoped("flow")]
         except Exception:
@@ -80,6 +76,12 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
             out["integrations"] = await asyncio.to_thread(catalog)
         except Exception:
             out["integrations"] = []
+        try:
+            from . import teams
+            out["teams"] = [{"id": t["id"], "name": t["name"], "count": len(t.get("members") or [])}
+                            for t in teams.list_teams() if isinstance(t, dict) and t.get("id")]
+        except Exception:
+            out["teams"] = []
         try:
             from .pgdata import load_preferences
             prefs = await asyncio.to_thread(load_preferences)
@@ -156,7 +158,7 @@ def register(app: Any, *, completion: Optional[Callable[..., Awaitable[str]]] = 
         if not run:
             return JSONResponse({"error": "not found"}, 404)
         run = dict(run)
-        run.pop("done", None)          # replay data: large and internal
+        run.pop("done", None)
         run.pop("seen_marks", None)
         run["numbers"] = fe.numbering(run.get("steps") or [])
         return run

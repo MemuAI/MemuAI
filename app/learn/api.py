@@ -31,7 +31,6 @@ OPS = ("overview", "settings.get", "settings.set",
 MAX_UPLOAD = 60 * 1024 * 1024
 _KATEX: Dict[str, str] = {}
 
-
 def _data_url_bytes(value: Any) -> bytes:
     text = str(value or "")
     if text.startswith("data:"):
@@ -46,17 +45,14 @@ def _data_url_bytes(value: Any) -> bytes:
         raise LearnError("Файл больше 60 МБ", "The file is larger than 60 MB", "too_large")
     return raw
 
-
 def _course_view(store, cid: str) -> Dict[str, Any]:
     course = store.course(cid)
     course.update(store.course_counts(cid))
     return {"course": course, "tree": store.tree(cid), "exams": store.exams(cid)}
 
-
 def _doc_summary(doc: Dict[str, Any]) -> Dict[str, Any]:
     return {"doc_id": doc["id"], "name": doc.get("name") or "", "title": doc.get("title") or "", "pages": doc.get("approx_pages"),
             "chars": doc.get("chars"), "sections": [s.get("title") for s in (doc.get("sections") or [])[:60]]}
-
 
 def _memunote_recent() -> list:
     from ..memunote.paths import note_dir, read_json
@@ -68,7 +64,6 @@ def _memunote_recent() -> list:
         if p.suffix.lower() in (".md", ".txt", ".markdown", ".docx", ".pdf", ".html", ".htm", ".rtf", ".odt", ".epub") and p.is_file():
             out.append({"path": str(p), "name": p.name, "modified": p.stat().st_mtime, "size": p.stat().st_size})
     return out[:30]
-
 
 def katex_bundle() -> Dict[str, str]:
     """KaTeX for the sandboxed module window (no network, ``font-src data:``): the script and the CSS with woff2 fonts inlined."""
@@ -88,7 +83,6 @@ def katex_bundle() -> Dict[str, str]:
         css = re.sub(r",\s*(?=[;}])", "", css)
         _KATEX.update(js=(folder / "katex.min.js").read_text(encoding="utf-8"), css=css)
     return dict(_KATEX)
-
 
 def call(op: str, args: Optional[Dict[str, Any]] = None, *, lang: str = "ru") -> Any:
     args = args if isinstance(args, dict) else {}
@@ -174,7 +168,7 @@ def call(op: str, args: Optional[Dict[str, Any]] = None, *, lang: str = "ru") ->
     if op == "source.note":
         from .. import bigdocs
         wanted = s("path")
-        if wanted not in {f["path"] for f in _memunote_recent()}:   # only files MemuNote itself lists as recent
+        if wanted not in {f["path"] for f in _memunote_recent()}:
             raise LearnError("Этого файла нет среди недавних в MemuNote", "This file is not among MemuNote's recent files", "forbidden")
         try:
             return _doc_summary(bigdocs.ingest_path(wanted))
@@ -194,7 +188,6 @@ def call(op: str, args: Optional[Dict[str, Any]] = None, *, lang: str = "ru") ->
         return katex_bundle()
     raise LearnError(f"Неизвестная операция: {op}", f"Unknown operation: {op}", "not_found")
 
-
 def panel_digest(lang: str = "ru") -> Dict[str, Any]:
     """«Повторить сегодня (N карточек · M мин)» — the home panel, the Mini App header and the AI command."""
     store = get_store()
@@ -208,7 +201,6 @@ def panel_digest(lang: str = "ru") -> Dict[str, Any]:
     return {"due": q["counts"]["total"], "counts": q["counts"], "minutes": q["minutes"], "streak": stats["streak"],
             "week": stats["by_day"], "courses": courses, "retention": stats["retention"], "at": time.time()}
 
-
 def error_payload(exc: Exception, lang: str = "ru") -> tuple:
     if isinstance(exc, LearnError):
         return {"error": exc.text(lang), "code": exc.code}, 404 if exc.code == "not_found" else 403 if exc.code == "forbidden" else 400
@@ -216,14 +208,11 @@ def error_payload(exc: Exception, lang: str = "ru") -> tuple:
         return {"error": str(exc)[:400] or type(exc).__name__}, 400
     return {"error": f"{exc}"[:600] or type(exc).__name__}, 500
 
-
 async def call_async(op: str, args: Optional[Dict[str, Any]] = None, **kwargs: Any) -> Any:
     return await asyncio.to_thread(call, op, args, **kwargs)
 
-
 _ALLOWED: Dict[tuple, tuple] = {}
 _ALLOWED_TTL = 5.0
-
 
 def module_allowed(module_id: str, action: str = "learn_call") -> bool:
     """The module must declare the ``learn`` permission (answer cached for a few seconds, as MemuMusic)."""
@@ -240,7 +229,6 @@ def module_allowed(module_id: str, action: str = "learn_call") -> bool:
         ok = False
     _ALLOWED[key] = (ok, time.monotonic())
     return ok
-
 
 def register(app, *, allowed: Optional[Callable[[str, str], bool]] = module_allowed) -> None:
     from fastapi.responses import JSONResponse

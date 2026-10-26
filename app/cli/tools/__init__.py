@@ -4,7 +4,6 @@ from __future__ import annotations
 from .base import (KINDS, Prepared, Tool, ToolCall, ToolContext, ToolError, ToolRegistry, ToolResult, arg,
                    display_path, resolve_path, workspace_of)
 
-
 def build_registry() -> ToolRegistry:
     from . import automation, connected, files, meta, shell, skills, web
     registry = ToolRegistry()
@@ -16,7 +15,6 @@ def build_registry() -> ToolRegistry:
     automation.register(registry)
     connected.register(registry)
     return registry
-
 
 __all__ = ["KINDS", "Prepared", "Tool", "ToolCall", "ToolContext", "ToolError", "ToolRegistry", "ToolResult",
            "arg", "build_registry", "display_path", "resolve_path", "workspace_of"]

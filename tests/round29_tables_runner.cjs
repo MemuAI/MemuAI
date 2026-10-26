@@ -1,6 +1,5 @@
-/* Round 29 (r29-tables-diagrams): runs pgstatic/tables.js and pgstatic/diagrams.js in node with a tiny DOM shim
-   and prints JSON results for tests/round29_tables_test.py and tests/round29_diagrams_test.py (SVG validity is
-   checked there with ElementTree). Usage: node tests/round29_tables_runner.cjs */
+
+
 "use strict";
 const fs = require("fs");
 const path = require("path");
@@ -35,7 +34,7 @@ const T = ctx.MemuTables, D = ctx.MemuDiagrams;
 
 (async () => {
   const out = { tables: {}, diagrams: {} };
-  // ---------------- tables
+
   const md = "## Prices\n\n| Name | Price | Note |\n|:-----|------:|:----:|\n| Apple | 1,20 | `a|b` |\n| Pear \\| x | 3.5 | |\n";
   out.tables.parsed = T.parseMarkdown(md);
   out.tables.markdown = T.toMarkdown(out.tables.parsed);
@@ -51,7 +50,7 @@ const T = ctx.MemuTables, D = ctx.MemuDiagrams;
   out.tables.kinds = [T.columnKind([["1"], ["2"], ["x"]], 0), T.columnKind([["1"], ["2"], ["3"], ["4"], ["x"]], 0), T.columnKind([["01.02.2024"], ["2024-05-01"]], 0)];
   const sorted = [["10"], ["9"], ["100"], [""]].sort((a, b) => T.compareValues(a[0], b[0], "number")).map((r) => r[0]);
   out.tables.sorted = sorted;
-  // streaming masks
+
   out.tables.mask = {
     partialRow: T.maskPending("Intro\n\n| A | B |\n|---|---|\n| 1 | 2 |\n| 3 |"),
     headerOnly: T.maskPending("Intro\n\n| A | B"),
@@ -68,7 +67,7 @@ const T = ctx.MemuTables, D = ctx.MemuDiagrams;
   const xlsx = T.toXLSX({ headers: ["Name", "Qty", "Price"], rows: [["Apple", "3", "1.5"], ["Pear <&>", "10", "2"]], title: "Fruit" });
   out.tables.xlsxB64 = Buffer.from(await xlsx.arrayBuffer()).toString("base64");
   out.tables.presets = T.PRESETS.length;
-  // ---------------- diagrams
+
   const specs = {
     bar: { type: "bar", title: "Revenue", labels: ["Q1", "Q2", "Q3", "Q4"], series: [{ name: "2024", data: [12, 15, 11, 19] }, { name: "2025", data: [14, 18, 16, 22] }], y: { title: "M$", unit: "$" } },
     stacked: { type: "stacked-bar", labels: ["A", "B"], series: [{ name: "x", data: [1, -2] }, { name: "y", data: [3, 4] }] },

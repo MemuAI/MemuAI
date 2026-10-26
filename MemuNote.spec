@@ -17,7 +17,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['app.websearch', 'app.config', 'app.pgdata', 'app.providers', 'app.inbox_hooks', 'httpx._main', 'curl_cffi', 'fastapi', 'uvicorn', 'starlette', 'pydantic', 'faster_whisper', 'ctranslate2', 'av', 'onnxruntime', 'tokenizers', 'huggingface_hub', 'hf_xet', 'numpy', 'piper', 'vosk', 'tkinter', 'pystray'],
+    excludes=['app.websearch', 'app.config', 'app.pgdata', 'app.providers', 'app.inbox_hooks', 'httpx._main', 'curl_cffi', 'fastapi', 'uvicorn', 'starlette', 'pydantic', 'faster_whisper', 'ctranslate2', 'av', 'onnxruntime', 'tokenizers', 'huggingface_hub', 'hf_xet', 'numpy', 'piper', 'vosk', 'tkinter', 'pystray', 'duckdb', '_duckdb'],
     noarchive=False,
     optimize=0,
 )

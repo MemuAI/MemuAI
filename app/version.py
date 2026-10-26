@@ -22,9 +22,8 @@ from __future__ import annotations
 
 from typing import Dict, Tuple
 
-APP_VERSION = "3.8.2"
-RELEASE_DATE = "2026-10-24"
-
+APP_VERSION = "4.0"
+RELEASE_DATE = "2026-10-25"
 
 def version_tuple(version: str = APP_VERSION) -> Tuple[int, int, int, int]:
     """``"3.0"`` -> ``(3, 0, 0, 0)`` — the Windows four-part form."""
@@ -33,10 +32,8 @@ def version_tuple(version: str = APP_VERSION) -> Tuple[int, int, int, int]:
         parts.append(0)
     return tuple(parts)  # type: ignore[return-value]
 
-
 def windows_version(version: str = APP_VERSION) -> str:
     return ".".join(str(part) for part in version_tuple(version))
-
 
 def about() -> Dict[str, str]:
     return {"version": APP_VERSION, "release_date": RELEASE_DATE, "windows_version": windows_version()}

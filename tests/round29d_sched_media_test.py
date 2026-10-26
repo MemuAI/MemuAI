@@ -18,7 +18,6 @@ if not os.environ.get("MEMUAI_DATA_DIR"):
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 class ConflictWarningTextTest(unittest.TestCase):
     def test_conflict_names_a_task(self) -> None:
         from app import schedule_rules as rules
@@ -28,7 +27,6 @@ class ConflictWarningTextTest(unittest.TestCase):
         en = rules.warnings({"id": "n", "kind": "chat", "rule": rule}, [other], "en")
         self.assertIn("Запускается одновременно с задачей «Сводка».", ru)
         self.assertIn("Runs at the same time as the task “Сводка”.", en)
-
 
 class RelativeTimeWordsTest(unittest.TestCase):
     def _rel(self, path: str) -> str:
@@ -58,13 +56,11 @@ class RelativeTimeWordsTest(unittest.TestCase):
         self.assertEqual(out[0], "только что|сейчас|10 мин назад")
         self.assertEqual(out[1], "just now|now")
 
-
 class MiniAppPreviewButtonTest(unittest.TestCase):
     def test_confirm_label_is_short(self) -> None:
         source = (ROOT / "app/tgapp/plan.js").read_text(encoding="utf-8")
         self.assertIn('label: tr("Создать", "Create"), run:', source)
         self.assertNotIn('label: tr("Создать задачу", "Create the task")', source)
-
 
 class TelegramLastMediaTest(unittest.TestCase):
     def test_session_keeps_last_media(self) -> None:
@@ -87,7 +83,6 @@ class TelegramLastMediaTest(unittest.TestCase):
             return data
         pgdata.update_telegram_state(put)
         self.assertEqual(pgdata.load_telegram_state()["sessions"]["77"]["last_media"]["request"], "кот")
-
 
 if __name__ == "__main__":
     unittest.main()

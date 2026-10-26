@@ -1,4 +1,4 @@
-// Execute the actual update controller without a browser or desktop access.
+
 const {readFileSync} = require('node:fs');
 const vm = require('node:vm');
 const assert = require('node:assert/strict');

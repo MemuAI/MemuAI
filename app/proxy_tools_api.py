@@ -17,8 +17,6 @@ from .admin_api import _auth, _json_object
 
 router = APIRouter(prefix="/api/admin")
 
-#: English variants of messages raised by the tool modules (the local models' errors carry their own
-#: English text: ``LocalModelError.message_en``).
 _EN = {
     "Выберите модель для проверки": "Pick a model to check",
     "Выберите модель для теста": "Pick a model for the test",
@@ -48,17 +46,14 @@ _EN = {
     "Не удалось прочитать файл": "Could not read the file",
 }
 
-
 def _error(message: str, status: int = 400, english: str = "") -> JSONResponse:
     english = english or _EN.get(message) or next(
         (en + message[len(ru):] for ru, en in _EN.items() if message.startswith(ru)), message)
     return JSONResponse({"error": message, "error_en": english}, status_code=status)
 
-
 def _local_error(exc: Exception, status: int = 400) -> JSONResponse:
     """A local models error in both languages (a ValueError/TypeError has only its own text)."""
     return _error(str(exc), status, getattr(exc, "message_en", "") or str(exc))
-
 
 async def _body(request: Request, max_bytes: int = 262_144):
     deny = _auth(request)
@@ -67,11 +62,6 @@ async def _body(request: Request, max_bytes: int = 262_144):
     body, error = await _json_object(request, max_bytes=max_bytes)
     return body, error
 
-
-# --------------------------------------------------------------------------
-# Local models
-# --------------------------------------------------------------------------
-
 @router.get("/local/status")
 async def local_status(request: Request):
     deny = _auth(request)
@@ -79,7 +69,6 @@ async def local_status(request: Request):
         return deny
     from . import local_models
     return await asyncio.to_thread(local_models.status)
-
 
 @router.post("/local/runtime/install")
 async def local_runtime_install(request: Request):
@@ -92,7 +81,6 @@ async def local_runtime_install(request: Request):
     except local_models.LocalModelError as exc:
         return _local_error(exc)
 
-
 @router.post("/local/runtime/remove")
 async def local_runtime_remove(request: Request):
     deny = _auth(request)
@@ -101,7 +89,6 @@ async def local_runtime_remove(request: Request):
     from . import local_models
     await asyncio.to_thread(local_models.remove_runtime)
     return {"ok": True}
-
 
 @router.post("/local/settings")
 async def local_settings(request: Request):
@@ -113,7 +100,6 @@ async def local_settings(request: Request):
         return await asyncio.to_thread(local_models.update_settings, body)
     except (local_models.LocalModelError, ValueError, TypeError) as exc:
         return _local_error(exc)
-
 
 @router.get("/local/hf/search")
 async def local_hf_search(request: Request, q: str = "", sort: str = "downloads"):
@@ -129,7 +115,6 @@ async def local_hf_search(request: Request, q: str = "", sort: str = "downloads"
         return _error(f"Hugging Face недоступен: {type(exc).__name__}", 502,
                       f"Hugging Face is unreachable: {type(exc).__name__}")
 
-
 @router.get("/local/hf/files")
 async def local_hf_files(request: Request, repo: str = ""):
     deny = _auth(request)
@@ -144,7 +129,6 @@ async def local_hf_files(request: Request, repo: str = ""):
         return _error(f"Hugging Face недоступен: {type(exc).__name__}", 502,
                       f"Hugging Face is unreachable: {type(exc).__name__}")
 
-
 @router.post("/local/download")
 async def local_download(request: Request):
     body, error = await _body(request)
@@ -153,14 +137,13 @@ async def local_download(request: Request):
     from . import local_models
     files = body.get("files") if isinstance(body.get("files"), list) else []
     try:
-        # Round 33: «Повторить» resends the wizard's settings (preset) of the first attempt.
+
         preset = body.get("preset") if isinstance(body.get("preset"), dict) else None
         return local_models.start_download(str(body.get("repo") or ""), [str(item) for item in files],
                                            str(body.get("projector") or ""), str(body.get("draft") or ""),
                                            preset=preset)
     except local_models.LocalModelError as exc:
         return _local_error(exc)
-
 
 @router.post("/local/download/cancel")
 async def local_download_cancel(request: Request):
@@ -172,7 +155,6 @@ async def local_download_cancel(request: Request):
     if body.get("forget"):
         local_models.forget_download(str(body.get("id") or ""))
     return {"ok": ok}
-
 
 @router.post("/local/pick")
 async def local_pick(request: Request):
@@ -191,7 +173,6 @@ async def local_pick(request: Request):
         return {"ok": False}
     return {"ok": True, "path": str(result[0] if isinstance(result, (list, tuple)) else result)}
 
-
 @router.post("/local/import")
 async def local_import(request: Request):
     body, error = await _body(request)
@@ -208,7 +189,6 @@ async def local_import(request: Request):
     except OSError as exc:
         return _error(f"Файл не прочитан: {exc}", english=f"Could not read the file: {exc}")
 
-
 @router.post("/local/models/{slug}")
 async def local_model_update(slug: str, request: Request):
     body, error = await _body(request)
@@ -219,7 +199,6 @@ async def local_model_update(slug: str, request: Request):
         return {"ok": True, "model": await asyncio.to_thread(local_models.update_model, slug, body)}
     except local_models.LocalModelError as exc:
         return _local_error(exc)
-
 
 @router.post("/local/models/{slug}/delete")
 async def local_model_delete(slug: str, request: Request):
@@ -233,7 +212,6 @@ async def local_model_delete(slug: str, request: Request):
     except local_models.LocalModelError as exc:
         return _local_error(exc)
 
-
 @router.post("/local/models/{slug}/load")
 async def local_model_load(slug: str, request: Request):
     deny = _auth(request)
@@ -246,7 +224,6 @@ async def local_model_load(slug: str, request: Request):
     except local_models.LocalModelError as exc:
         return _local_error(exc)
 
-
 @router.post("/local/models/{slug}/unload")
 async def local_model_unload(slug: str, request: Request):
     deny = _auth(request)
@@ -255,7 +232,6 @@ async def local_model_unload(slug: str, request: Request):
     from . import local_models
     await asyncio.to_thread(local_models.pool.stop, slug)
     return {"ok": True}
-
 
 @router.post("/local/models/{slug}/test")
 async def local_model_test(slug: str, request: Request):
@@ -271,7 +247,6 @@ async def local_model_test(slug: str, request: Request):
     except Exception as exc:
         return _error(str(getattr(exc, "message", "") or exc), 502, str(getattr(exc, "message_en", "") or ""))
 
-
 @router.get("/local/models/{slug}/log")
 async def local_model_log(slug: str, request: Request):
     deny = _auth(request)
@@ -279,7 +254,6 @@ async def local_model_log(slug: str, request: Request):
         return deny
     from . import local_models
     return {"lines": local_models.pool.log(slug)}
-
 
 @router.post("/local/scan")
 async def local_scan(request: Request):
@@ -289,11 +263,6 @@ async def local_scan(request: Request):
     from . import local_models
     return {"servers": await asyncio.to_thread(local_models.scan_servers)}
 
-
-# --------------------------------------------------------------------------
-# Detector
-# --------------------------------------------------------------------------
-
 @router.get("/detector/families")
 async def detector_families(request: Request):
     deny = _auth(request)
@@ -301,7 +270,6 @@ async def detector_families(request: Request):
         return deny
     from . import detector
     return {"families": [{"id": row["id"], "label": row["label"], "vendor": row["vendor"]} for row in detector.FAMILIES]}
-
 
 @router.post("/detector/run")
 async def detector_run(request: Request):
@@ -316,7 +284,6 @@ async def detector_run(request: Request):
     except ValueError as exc:
         return _error(str(exc))
 
-
 @router.get("/detector/runs/{run_id}")
 async def detector_get(run_id: str, request: Request):
     deny = _auth(request)
@@ -326,7 +293,6 @@ async def detector_get(run_id: str, request: Request):
     run = detector.get_run(run_id)
     return run if run else _error("Проверка не найдена", 404)
 
-
 @router.post("/detector/runs/{run_id}/cancel")
 async def detector_cancel(run_id: str, request: Request):
     deny = _auth(request)
@@ -334,7 +300,6 @@ async def detector_cancel(run_id: str, request: Request):
         return deny
     from . import detector
     return {"ok": detector.cancel(run_id)}
-
 
 @router.get("/detector/history")
 async def detector_history(request: Request):
@@ -346,7 +311,6 @@ async def detector_history(request: Request):
     return {"runs": [{key: row.get(key) for key in ("id", "model", "depth", "judge", "state", "started", "finished",
                                                      "error", "report")} for row in rows]}
 
-
 @router.post("/detector/history/{run_id}/delete")
 async def detector_history_delete(run_id: str, request: Request):
     deny = _auth(request)
@@ -356,11 +320,6 @@ async def detector_history_delete(run_id: str, request: Request):
     await asyncio.to_thread(detector.delete_history, run_id)
     return {"ok": True}
 
-
-# --------------------------------------------------------------------------
-# Public endpoint: a separate listener with its own keys and limits
-# --------------------------------------------------------------------------
-
 @router.get("/public")
 async def public_get(request: Request):
     deny = _auth(request)
@@ -368,7 +327,6 @@ async def public_get(request: Request):
         return deny
     from . import public_api
     return await asyncio.to_thread(public_api.public_view)
-
 
 @router.post("/public")
 async def public_save(request: Request):
@@ -388,7 +346,6 @@ async def public_save(request: Request):
     await public_api.listener.apply()
     return public_api.public_view()
 
-
 @router.post("/public/keys")
 async def public_key_add(request: Request):
     body, error = await _body(request)
@@ -399,9 +356,8 @@ async def public_key_add(request: Request):
         created = public_api.store.add_key(body)
     except ValueError as exc:
         return _error(str(exc))
-    # Round 24: only the hash is stored — the plaintext key is shown this one time.
-    return {**public_api.public_view(), "created": {"id": created["id"], "key": created["key"]}}
 
+    return {**public_api.public_view(), "created": {"id": created["id"], "key": created["key"]}}
 
 @router.post("/public/keys/{key_id}")
 async def public_key_edit(key_id: str, request: Request):
@@ -421,7 +377,6 @@ async def public_key_edit(key_id: str, request: Request):
     if changed and changed.get("key"):
         view["created"] = {"id": changed["id"], "key": changed["key"]}
     return view
-
 
 @router.post("/public/tunnel")
 async def public_tunnel_action(request: Request):
@@ -454,7 +409,6 @@ async def public_tunnel_action(request: Request):
         return _error(f"{type(exc).__name__}: {exc}"[:300], 500)
     return public_api.public_view()
 
-
 @router.post("/public/check")
 async def public_check(request: Request):
     """Is the listener answering — locally and, as far as it can be seen from here, from outside?"""
@@ -481,19 +435,13 @@ async def public_check(request: Request):
     except Exception:
         pass
     if out["outside_ip"] and out["local"]:
-        # Many routers do not let a computer reach its own outside address ("hairpin"), so a
-        # failure here proves nothing; a success does prove the port is forwarded.
+
         try:
             resp = await session.get(f"{scheme}://{out['outside_ip']}:{settings['port']}/health", timeout=6, verify=False)
             out["outside"] = resp.status_code == 200
         except Exception:
             out["outside"] = False
     return out
-
-
-# --------------------------------------------------------------------------
-# Visual test (no AI grading): the model writes a page, a person looks at it
-# --------------------------------------------------------------------------
 
 @router.get("/detector/visual/prompts")
 async def visual_prompts(request: Request):
@@ -503,7 +451,6 @@ async def visual_prompts(request: Request):
     from . import visual_test
     return {"prompts": await asyncio.to_thread(visual_test.prompt_list)}
 
-
 @router.get("/detector/visual/prompts/{prompt_id}")
 async def visual_prompt_text(prompt_id: str, request: Request):
     deny = _auth(request)
@@ -512,7 +459,6 @@ async def visual_prompt_text(prompt_id: str, request: Request):
     from . import visual_test
     row = visual_test.find_prompt(prompt_id)
     return {"id": row["id"], "prompt": row["prompt"]} if row else _error("Задание не найдено", 404)
-
 
 @router.post("/detector/visual/run")
 async def visual_run(request: Request):
@@ -526,7 +472,6 @@ async def visual_run(request: Request):
     except ValueError as exc:
         return _error(str(exc))
 
-
 @router.get("/detector/visual/runs")
 async def visual_runs(request: Request):
     deny = _auth(request)
@@ -535,7 +480,6 @@ async def visual_runs(request: Request):
     from . import visual_test
     return {"runs": await asyncio.to_thread(visual_test.runs)}
 
-
 @router.post("/detector/visual/runs/{run_id}/cancel")
 async def visual_cancel(run_id: str, request: Request):
     deny = _auth(request)
@@ -543,7 +487,6 @@ async def visual_cancel(run_id: str, request: Request):
         return deny
     from . import visual_test
     return {"ok": visual_test.cancel(run_id)}
-
 
 @router.post("/detector/visual/runs/{run_id}/delete")
 async def visual_delete(run_id: str, request: Request):
@@ -554,7 +497,6 @@ async def visual_delete(run_id: str, request: Request):
     await asyncio.to_thread(visual_test.delete, run_id)
     return {"ok": True}
 
-
 @router.get("/detector/visual/runs/{run_id}/answer")
 async def visual_answer(run_id: str, request: Request):
     deny = _auth(request)
@@ -563,7 +505,6 @@ async def visual_answer(run_id: str, request: Request):
     from . import visual_test
     text = await asyncio.to_thread(visual_test.answer, run_id)
     return {"text": text} if text is not None else _error("Тест не найден", 404)
-
 
 @router.get("/detector/visual/runs/{run_id}/page")
 async def visual_page(run_id: str, key: str = "", download: str = ""):
@@ -579,7 +520,6 @@ async def visual_page(run_id: str, key: str = "", download: str = ""):
         return Response("Not found", status_code=404, media_type="text/plain")
     return _sandboxed_page(html, f"visual-test-{run_id}.html" if download else "")
 
-
 def _sandboxed_page(html: str, download_name: str = "") -> Response:
     """Model output as a page with an origin of its own (``sandbox`` never grants the panel's origin).
 
@@ -592,7 +532,6 @@ def _sandboxed_page(html: str, download_name: str = "") -> Response:
     if download_name:
         headers["Content-Disposition"] = f'attachment; filename="{download_name}"'
     return Response(html, media_type="text/html; charset=utf-8", headers=headers)
-
 
 @router.post("/detector/provenance")
 async def detector_provenance(request: Request):
@@ -624,11 +563,6 @@ async def detector_provenance(request: Request):
     result = await asyncio.to_thread(provenance.scan, image_bytes, filename, language)
     return result
 
-
-# --------------------------------------------------------------------------
-# Companion
-# --------------------------------------------------------------------------
-
 @router.get("/companion")
 async def companion_info(request: Request):
     deny = _auth(request)
@@ -639,7 +573,6 @@ async def companion_info(request: Request):
     return {"model": companion.default_model(), "saved": config_store.settings.companion_model,
             "kb": sorted(companion.kb_files())}
 
-
 @router.post("/companion/model")
 async def companion_model(request: Request):
     body, error = await _body(request)
@@ -648,7 +581,6 @@ async def companion_model(request: Request):
     from .config import config_store
     config_store.apply_updates({"companion_model": str(body.get("model") or "")[:300]})
     return {"ok": True}
-
 
 @router.post("/companion/chat")
 async def companion_chat(request: Request):
@@ -667,7 +599,7 @@ async def companion_chat(request: Request):
                                                 language=language, error=context):
                 yield "data: " + json.dumps(event, ensure_ascii=False) + "\n\n"
             yield "data: " + json.dumps({"type": "done"}) + "\n\n"
-        except Exception as exc:  # the real reason reaches the chat, never an empty answer
+        except Exception as exc:
             message = str(getattr(exc, "message", "") or exc)
             hint = str(getattr(exc, "hint", "") or "")
             yield "data: " + json.dumps({"type": "error", "error": message, "hint": hint}, ensure_ascii=False) + "\n\n"
@@ -675,15 +607,9 @@ async def companion_chat(request: Request):
     return StreamingResponse(events(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-
-# --------------------------------------------------------------------------
-# Claude Code / Codex CLI install
-# --------------------------------------------------------------------------
-
 def _cli_error(exc: Exception, status: int = 400) -> JSONResponse:
     return JSONResponse({"error": str(getattr(exc, "message", "") or exc),
                          "error_en": str(getattr(exc, "message_en", "") or exc)}, status_code=status)
-
 
 def _cli_connection(body: Dict[str, Any]) -> Dict[str, str]:
     from .cli_integrations import IntegrationError
@@ -701,7 +627,7 @@ def _cli_connection(body: Dict[str, Any]) -> Dict[str, str]:
                      and not parsed.username and not parsed.password and not parsed.query
                      and not parsed.fragment and len(base_url) <= 2048
                      and not any(char.isspace() for char in base_url))
-        _port = parsed.port  # an invalid port must not reach a CLI config file
+        _port = parsed.port
     except ValueError:
         valid_url = False
     if not valid_url:
@@ -712,7 +638,6 @@ def _cli_connection(body: Dict[str, Any]) -> Dict[str, str]:
         raise IntegrationError("Некорректный API-ключ", "Invalid API key")
     return {"connection": "direct", "base_url": base_url, "api_key": api_key}
 
-
 @router.get("/cli/status")
 async def cli_status(request: Request):
     deny = _auth(request)
@@ -720,7 +645,6 @@ async def cli_status(request: Request):
         return deny
     from . import cli_integrations as cli
     return {"claude": cli.claude_status(), "codex": cli.codex_status()}
-
 
 @router.post("/cli/claude/apply")
 async def cli_claude_apply(request: Request):
@@ -735,7 +659,6 @@ async def cli_claude_apply(request: Request):
     except cli.IntegrationError as exc:
         return _cli_error(exc)
 
-
 @router.post("/cli/claude/reset")
 async def cli_claude_reset(request: Request):
     deny = _auth(request)
@@ -746,7 +669,6 @@ async def cli_claude_reset(request: Request):
         return await asyncio.to_thread(cli.reset_claude)
     except cli.IntegrationError as exc:
         return _cli_error(exc)
-
 
 @router.post("/cli/codex/apply")
 async def cli_codex_apply(request: Request):
@@ -761,7 +683,6 @@ async def cli_codex_apply(request: Request):
         return await asyncio.to_thread(cli.apply_codex, profiles, default=default, **connection)
     except cli.IntegrationError as exc:
         return _cli_error(exc)
-
 
 @router.post("/cli/codex/reset")
 async def cli_codex_reset(request: Request):

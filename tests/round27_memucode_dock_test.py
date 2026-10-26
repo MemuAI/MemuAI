@@ -28,7 +28,6 @@ STATE_JS = """() => ({
   saved: localStorage.getItem('memu_code_dock_hidden'),
   pressed: document.getElementById('code-dock-toggle').getAttribute('aria-pressed') })"""
 
-
 @unittest.skipUnless(_chromium() and _has_playwright(), "headless Chromium / playwright is not available")
 class NarrowDockTest(unittest.TestCase):
     def test_narrow_drawer_starts_closed_and_keeps_wide_choice(self) -> None:
@@ -50,17 +49,17 @@ class NarrowDockTest(unittest.TestCase):
                 page.wait_for_selector("body.boot-ready", timeout=90000)
                 page.click("#nav-code")
                 page.wait_for_timeout(900)
-                page.keyboard.press("Escape")          # the first-run intro
+                page.keyboard.press("Escape")
                 page.wait_for_timeout(300)
 
                 wide = page.evaluate(STATE_JS)
-                self.assertTrue(wide["dock"], wide)     # wide window: the saved «shown» column
+                self.assertTrue(wide["dock"], wide)
                 self.assertEqual(wide["saved"], "0")
 
                 page.set_viewport_size({"width": 900, "height": 820})
                 page.wait_for_timeout(300)
                 narrow = page.evaluate(STATE_JS)
-                self.assertFalse(narrow["dock"], narrow)   # the drawer comes in closed
+                self.assertFalse(narrow["dock"], narrow)
                 self.assertFalse(narrow["backdrop"], narrow)
                 self.assertTrue(narrow["cls"], narrow)
                 self.assertEqual(narrow["pressed"], "false")
@@ -77,9 +76,8 @@ class NarrowDockTest(unittest.TestCase):
 
                 page.set_viewport_size({"width": 1360, "height": 820})
                 page.wait_for_timeout(300)
-                self.assertTrue(page.evaluate(STATE_JS)["dock"])   # the wide column is back
+                self.assertTrue(page.evaluate(STATE_JS)["dock"])
 
-                # a fresh narrow window (reload) starts with the drawer closed despite the saved «shown»
                 page.set_viewport_size({"width": 900, "height": 820})
                 page.reload()
                 page.wait_for_selector("body.boot-ready", timeout=90000)
@@ -99,7 +97,6 @@ class NarrowDockTest(unittest.TestCase):
                 browser.close()
         finally:
             servers.stop()
-
 
 @unittest.skipUnless(_chromium() and _has_playwright(), "headless Chromium / playwright is not available")
 class GreetingScrollTest(unittest.TestCase):
@@ -129,7 +126,7 @@ class GreetingScrollTest(unittest.TestCase):
                     self.assertGreater(page.evaluate("document.getElementById('chat').scrollTop"), 0)
                     page.evaluate(leave)
                     page.wait_for_timeout(900)
-                    page.keyboard.press("Escape")       # the first-run intro
+                    page.keyboard.press("Escape")
                     page.wait_for_timeout(300)
                     state = page.evaluate("""() => { const chat = document.getElementById('chat');
                       const head = document.querySelector('#greeting .greet-head');
@@ -140,7 +137,6 @@ class GreetingScrollTest(unittest.TestCase):
                 browser.close()
         finally:
             servers.stop()
-
 
 if __name__ == "__main__":
     unittest.main()

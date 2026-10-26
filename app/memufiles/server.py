@@ -38,7 +38,6 @@ log = logging.getLogger("memufiles.server")
 STATIC = Path(__file__).resolve().parent / "static"
 MAX_JSON = 32 * 1024 * 1024
 
-
 class Events:
     """Long-poll event queue: operation progress, folder changes, second-instance paths, drops."""
 
@@ -50,7 +49,7 @@ class Events:
     def push(self, event: Dict[str, Any]) -> None:
         with self.cond:
             self.seq += 1
-            # collapse progress of the same operation: only the newest snapshot matters
+
             if event.get("type") == "op":
                 op_id = event.get("op", {}).get("id")
                 self.items = [(s, e) for s, e in self.items
@@ -62,14 +61,13 @@ class Events:
     def wait(self, since: int, timeout: float = 25.0) -> Tuple[int, List[Dict[str, Any]]]:
         deadline = time.monotonic() + timeout
         with self.cond:
-            if since > self.seq:          # the server restarted: start over
+            if since > self.seq:
                 since = 0
             while True:
                 fresh = [e for s, e in self.items if s > since]
                 if fresh or time.monotonic() >= deadline:
                     return self.seq, fresh
                 self.cond.wait(max(0.05, deadline - time.monotonic()))
-
 
 class FilesApp:
     """State shared by the request handlers; ``desktop`` is the window glue (None in tests/dev)."""
@@ -79,17 +77,17 @@ class FilesApp:
         self.token = secrets.token_urlsafe(24)
         self.events = Events()
         self.initial_paths = [p for p in (paths or []) if p]
-        self.initial_reveal: List[str] = list(reveal or [])     # r41-files: «explorer /select,» — parent + selection
-        self.initial_shell: List[str] = list(shell or [])       # r41-files: from the folder handler (browser «Show in folder»)
-        self.initial_browse: List[str] = list(browse or [])     # r41-files: archives opened like folders (association)
-        self.ui_state: Dict[str, Any] = {}                       # r41-files: current folder + selection (Quick Access)
+        self.initial_reveal: List[str] = list(reveal or [])
+        self.initial_shell: List[str] = list(shell or [])
+        self.initial_browse: List[str] = list(browse or [])
+        self.ui_state: Dict[str, Any] = {}
         self.desktop: Any = None
         self.port = 0
         self.started = time.time()
         self.ui = "starting"
         self.last_seen = 0.0
         self.stopping = threading.Event()
-        self.booted = False            # Round 39: a page has taken the start-up paths (until then hand-offs queue up)
+        self.booted = False
         self._lazy_lock = threading.Lock()
         self._queue: Any = None
         self._jobs: Any = None
@@ -97,8 +95,6 @@ class FilesApp:
         self.streams: Dict[str, Dict[str, Any]] = {}
         self.searches: Dict[str, threading.Event] = {}
 
-    # Round 39 (r39-files-perf): the operation queue, jobs and AI plans are built on first use (or by the deferred
-    # warm-up after the first page boot) — their imports (zipfile, hashlib, the AI client…) stay off the start-up path.
     @property
     def queue(self) -> Any:
         if self._queue is None:
@@ -111,7 +107,7 @@ class FilesApp:
 
     def _op_event(self, snap: Dict[str, Any]) -> None:
         self.events.push({"type": "op", "op": snap})
-        taskbar = getattr(self.desktop, "taskbar", None)       # r40-files-core: progress on the taskbar button
+        taskbar = getattr(self.desktop, "taskbar", None)
         if taskbar is not None:
             taskbar.op_changed(snap)
 
@@ -156,7 +152,7 @@ class FilesApp:
             mode = "light" if prefs.get("theme") == "light" else "dark"
         tokens: Dict[str, str] = {}
         try:
-            from .. import themes                    # MemuAI palettes: same colours as the main app
+            from .. import themes
             tokens = themes.resolve_tokens(mode, str(prefs.get(f"surface_{mode}") or ""),
                                            str(prefs.get("accent_color") or ""))
         except Exception as exc:  # noqa: BLE001
@@ -166,7 +162,6 @@ class FilesApp:
                 and ";" not in v and "}" not in v}
         return {"mode": mode, "tokens": safe, "font_scale": prefs.get("font_scale", 100)}
 
-
 def _version() -> str:
     try:
         from ..version import APP_VERSION
@@ -174,9 +169,7 @@ def _version() -> str:
     except Exception:  # noqa: BLE001
         return ""
 
-
 _STATIC_CACHE: Dict[str, Tuple[int, int, bytes, str]] = {}
-
 
 def _static_bytes(target: Path) -> Tuple[bytes, str]:
     """Round 39: static files from memory, re-read only when size/mtime change; a weak ETag from both."""
@@ -189,7 +182,6 @@ def _static_bytes(target: Path) -> Tuple[bytes, str]:
     etag = f'W/"{st.st_mtime_ns:x}-{st.st_size:x}"'
     _STATIC_CACHE[key] = (st.st_mtime_ns, st.st_size, data, etag)
     return data, etag
-
 
 def _themed_html(data: bytes, app: "FilesApp") -> bytes:
     """The user's theme mode, palette (``theme()`` tokens are already sanitised) and language in the HTML itself,
@@ -208,9 +200,6 @@ def _themed_html(data: bytes, app: "FilesApp") -> bytes:
         out = out.replace(b"</head>", f'<style id="mf-theme">:root{{{css}}}</style>\n</head>'.encode("utf-8"), 1)
     return out
 
-
-# ===================================================================================== HTTP
-
 class Handler(BaseHTTPRequestHandler):
     server_version = "MemuFiles"
     sys_version = ""
@@ -219,7 +208,6 @@ class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):  # noqa: D401
         log.debug("%s - " + fmt, self.address_string(), *args)
 
-    # ---------------------------------------------------------------- plumbing
     def _host_ok(self) -> bool:
         host = (self.headers.get("Host") or "").lower()
         return host in (f"127.0.0.1:{self.app.port}", f"localhost:{self.app.port}")
@@ -282,7 +270,6 @@ class Handler(BaseHTTPRequestHandler):
         except OSError:
             return False
 
-    # ---------------------------------------------------------------- verbs
     def do_GET(self):  # noqa: N802
         self._dispatch("GET")
 
@@ -306,9 +293,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             name = route[5:].replace("/", "_")
             handler = getattr(self, f"api_{name}", None)
-            if handler is None and name.startswith("x_"):        # Round 39 (r39-files-feat): extras.py features
+            if handler is None and name.startswith("x_"):
                 handler = lambda m, op=name[2:]: self._extras(op, m)   # noqa: E731
-            if handler is None and name.startswith("x40_"):      # r40-files-max: feat40.py (Properties → Details)
+            if handler is None and name.startswith("x40_"):
                 handler = lambda m, op=name[4:]: self._feat40(op, m)   # noqa: E731
             if handler is None:
                 self._error("not found", 404)
@@ -362,11 +349,11 @@ class Handler(BaseHTTPRequestHandler):
         if ctype.startswith("text/") or ctype.endswith("javascript"):
             ctype += "; charset=utf-8"
         data, etag = _static_bytes(target)
-        if target.suffix == ".html":         # Round 39: the right theme/language from the first frame (no dark↔light flash)
+        if target.suffix == ".html":
             data = _themed_html(data, self.app)
             etag = ""
         if etag and self.headers.get("If-None-Match") == etag:
-            self.send_response(304)          # Round 39: WebView2 revalidates (no-cache) — unchanged files cost no body
+            self.send_response(304)
             self.send_header("ETag", etag)
             self.send_header("Cache-Control", "no-cache")
             self.end_headers()
@@ -387,12 +374,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.command != "HEAD":
             self.wfile.write(data)
 
-    # ================================================================ app
     def api_boot(self, method: str) -> None:
         app = self.app
         settings = _migrate_views(settings_store.load())
         session = read_json(files_dir() / "session.json", {}) if settings.get("restore_session") else {}
-        seq = app.events.seq                 # Round 39: read before the paths, so a hand-off in between is not lost
+        seq = app.events.seq
         paths = app.take_initial_paths()
         reveal, shell, browse = app.take_initial_marks()
         _deferred_warm(app)
@@ -402,7 +388,7 @@ class Handler(BaseHTTPRequestHandler):
                     "reveal": reveal, "shell": shell, "browse": browse,
                     "events_seq": seq, "platform": os.name,
                     "desktop": app.desktop is not None, "home": os.path.expanduser("~"), "sep": os.sep,
-                    "dnd_paths": bool(getattr(app.desktop, "dnd_paths", False)),     # r40-files-core
+                    "dnd_paths": bool(getattr(app.desktop, "dnd_paths", False)),
                     "tags": list(settings_store.tags_all().values()), "tag_colors": settings_store.TAG_COLORS})
 
     def api_settings(self, method: str) -> None:
@@ -413,14 +399,14 @@ class Handler(BaseHTTPRequestHandler):
         value = settings_store.save(body)
         _warm_settings_changed(self.app)
         if "open_archives" in body:
-            _sync_archive_assoc()                        # r41-files
+            _sync_archive_assoc()
         self._json({"ok": True, "settings": value, "lang": self.app.lang(), "theme": self.app.theme()})
 
-    def api_settings_schema(self, method: str) -> None:   # r41-files: the settings window is built from the schema
+    def api_settings_schema(self, method: str) -> None:
         from . import settings_schema
         self._json({"ok": True, **settings_schema.public()})
 
-    def api_uistate(self, method: str) -> None:           # r41-files: the page reports its folder + selection
+    def api_uistate(self, method: str) -> None:
         body = self._json_body() if method == "POST" else {}
         if method == "POST":
             sel = [str(p) for p in (body.get("selected") or []) if isinstance(p, str)][:200]
@@ -438,7 +424,7 @@ class Handler(BaseHTTPRequestHandler):
         body = self._json_body()
         result = default_shell.handle(body)
         if body.get("action") in ("hook", "restore") and os.name == "nt" and self.app.desktop is not None:
-            from . import winkey                   # the Win+E fallback lives in this process: apply it now
+            from . import winkey
             if result.get("hook"):
                 home = os.path.expanduser("~")
                 winkey.start(lambda: (self.app.events.push({"type": "open", "paths": [home]}),
@@ -467,20 +453,19 @@ class Handler(BaseHTTPRequestHandler):
         self.app.last_seen = time.monotonic()
         self._json({"ok": True, "seq": seq, "events": items})
 
-    # ================================================================ listing
     def api_ls(self, method: str) -> None:
         query = self._query()
         path = clean_path(query.get("path"))
-        if not os.path.isdir(path) and _archive_part(path):   # r41-files: an archive (or a folder in one) like a folder
+        if not os.path.isdir(path) and _archive_part(path):
             self._ls_archive(path)
             return
         if not os.path.exists(path):
             raise FileNotFoundError(path)
         if not os.path.isdir(path):
             raise NotADirectoryError(path)
-        stamp = fsops.dir_stamp(path)          # Round 39: taken BEFORE the listing — a change during it shows next poll
+        stamp = fsops.dir_stamp(path)
         handle_iter = fsops.iter_dir(path, chunk=int(query.get("chunk") or 3000))
-        first = next(handle_iter, None)        # raises PermissionError before the 200 is sent
+        first = next(handle_iter, None)
         self._stream_start()
         parent = os.path.dirname(path)
         head = {"ok": True, "path": path, "parent": parent if parent != path else "",
@@ -501,7 +486,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def _ls_archive(self, path: str) -> None:
         from . import archive
-        head, rows = archive.listing(path)          # raises before the 200 (missing inner folder, no 7-Zip…)
+        head, rows = archive.listing(path)
         found = archive.split(path) or (path, "")
         parent = os.path.dirname(path)
         self._stream_start()
@@ -513,7 +498,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._line({"done": True, "count": len(rows)})
 
-    def api_arc_info(self, method: str) -> None:     # r41-files: what the extract / add dialogs need to know
+    def api_arc_info(self, method: str) -> None:
         from . import archive
         path = clean_path(self._query().get("path") if method == "GET" else self._json_body().get("path"))
         self._json({"ok": True, **archive.info(path)})
@@ -535,7 +520,7 @@ class Handler(BaseHTTPRequestHandler):
         pinned = []
         for path in settings.get("pinned") or []:
             pinned.append({"path": path, "exists": os.path.isdir(path)})
-        # r40-files-2: saved searches as «smart folders» in the sidebar (the file extras.saved_searches keeps)
+
         saved = [s for s in read_json(files_dir() / "saved_searches.json", []) if isinstance(s, dict) and s.get("query")]
         self._json({"ok": True, "drives": fsops.drives(), "places": fsops.places(), "pinned": pinned,
                     "tags": list(settings_store.tags_all().values()), "saved": saved[:30]})
@@ -568,7 +553,6 @@ class Handler(BaseHTTPRequestHandler):
                                     body.get("readonly") if "readonly" in body else None)
         self._json({"ok": True, **info})
 
-    # ================================================================ create / rename
     def api_mkdir(self, method: str) -> None:
         body = self._json_body()
         parent = clean_path(body.get("parent"))
@@ -592,7 +576,7 @@ class Handler(BaseHTTPRequestHandler):
         ext = os.path.splitext(name)[1].lower()
         content = self.TEMPLATES.get(ext, b"")
         if ext == ".docx" or ext == ".xlsx" or ext == ".pptx":
-            content = b""          # an empty Office file is invalid; Explorer's templates come from Office itself
+            content = b""
         path = fsops.make_file(parent, name, content)
         self.app.queue.record("mkdir", [path], [("trash_created", path)], [path], label=name)
         self.app.events.push({"type": "changed", "paths": [parent]})
@@ -633,7 +617,6 @@ class Handler(BaseHTTPRequestHandler):
         op = self.app.queue.submit("rename", [p for p, _ in pairs], "", pairs=pairs, label="rename")
         self._json({"ok": True, "op": op.snapshot()})
 
-    # ================================================================ operations
     def api_ops(self, method: str) -> None:
         self._json({"ok": True, "ops": self.app.queue.list(), "undo": bool(self._undo_candidate())})
 
@@ -650,14 +633,14 @@ class Handler(BaseHTTPRequestHandler):
         kind = str(body.get("kind") or "")
         if kind not in ("copy", "move", "trash", "delete", "extract", "compress", "download", "vpaste", "arcadd"):
             raise FsError("bad_kind", kind)
-        if kind == "vpaste":                        # r40-files-core: virtual files on the Windows clipboard
+        if kind == "vpaste":
             dest = clean_path(body.get("dest"))
             fsops.ensure_mutable(dest)
             op = self.app.queue.submit("vpaste", [], dest, count=int(body.get("count") or 0),
                                        label=str((body.get("args") or {}).get("label") or ""))
             self._json({"ok": True, "op": op.snapshot()})
             return
-        if kind == "download":                      # r40-files-core: a link dropped from a browser
+        if kind == "download":
             url = str(body.get("url") or "")
             if urllib.parse.urlsplit(url).scheme not in ("http", "https"):
                 raise FsError("bad_url", url[:200])
@@ -674,7 +657,7 @@ class Handler(BaseHTTPRequestHandler):
             for path in sources:
                 fsops.ensure_mutable(path)
         args = {k: v for k, v in (body.get("args") or {}).items()
-                if k in ("copy_suffix", "on_conflict", "label", "members", "strip", "password", "format", "level", "inner")}   # r41-files: archives
+                if k in ("copy_suffix", "on_conflict", "label", "members", "strip", "password", "format", "level", "inner")}
         op = self.app.queue.submit(kind, sources, dest, **args)
         self._json({"ok": True, "op": op.snapshot()})
 
@@ -693,16 +676,15 @@ class Handler(BaseHTTPRequestHandler):
             queue.resolve(op_id, str(body.get("choice") or ""), bool(body.get("all")), str(body.get("name") or ""))
         elif action == "clear":
             queue.clear_finished()
-        elif action == "skip":                      # r40-files-core: skip the current file
+        elif action == "skip":
             queue.skip(op_id)
-        elif action == "retry":                     # r40-files-core: run what failed again
+        elif action == "retry":
             self._json({"ok": True, "op": queue.retry(op_id).snapshot()})
             return
         else:
             raise FsError("bad_action", action)
         self._json({"ok": True})
 
-    # r40-files-core: files dropped without a path (Explorer zip folders, Outlook, browsers) are streamed in
     def api_upload_start(self, method: str) -> None:
         body = json.loads(self._body(64 * 1024 * 1024) or b"{}")
         dest = clean_path(body.get("dest"))
@@ -725,7 +707,7 @@ class Handler(BaseHTTPRequestHandler):
 
     def api_upload_put(self, method: str) -> None:
         query = self._query()
-        self.close_connection = True               # a skipped / cancelled file leaves its body unread
+        self.close_connection = True
         length = int(self.headers.get("Content-Length") or 0)
         result = self.app.queue.upload_put(str(query.get("op") or ""), int(query.get("i") or 0), self.rfile, length)
         self._json({"ok": True, **result})
@@ -740,7 +722,7 @@ class Handler(BaseHTTPRequestHandler):
         op = self.app.queue.undo(str(body.get("id") or ""))
         self._json({"ok": True, "op": op.snapshot()})
 
-    def api_ops_redo(self, method: str) -> None:      # r40-files-2: Ctrl+Y
+    def api_ops_redo(self, method: str) -> None:
         op = self.app.queue.redo()
         self._json({"ok": True, "op": op.snapshot()})
 
@@ -756,20 +738,19 @@ class Handler(BaseHTTPRequestHandler):
                 out[raw] = reason
         self._json({"ok": True, "protected": out})
 
-    # ================================================================ shell
     def api_open(self, method: str) -> None:
         body = self._json_body()
         path = clean_path(body.get("path"))
-        if not os.path.exists(path) and _archive_part(path):   # r41-files: a file inside an archive opens from a cache copy
+        if not os.path.exists(path) and _archive_part(path):
             path = _readable(path, body.get("password") or "")
-        if path.lower().endswith(".lnk"):                  # Round 39: a folder shortcut opens in place, like Explorer
+        if path.lower().endswith(".lnk"):
             target = fsops.lnk_target(path)
             if target and os.path.isdir(target):
                 self._json({"ok": True, "navigate": target})
                 return
         fsops.open_default(path)
         if os.path.isfile(path):
-            from . import extras                   # Round 39: «Недавние»
+            from . import extras
             extras.note_recent(path)
         self._json({"ok": True})
 
@@ -778,7 +759,7 @@ class Handler(BaseHTTPRequestHandler):
         body = self._json_body() if method == "POST" else {}
         self._json(extras.handle(op, method, body, self._query()))
 
-    def _feat40(self, op: str, method: str) -> None:   # r40-files-max
+    def _feat40(self, op: str, method: str) -> None:
         from . import feat40
         body = self._json_body() if method == "POST" else {}
         self._json(feat40.handle(op, method, body, self._query()))
@@ -853,19 +834,18 @@ class Handler(BaseHTTPRequestHandler):
         ok = clip.write_files(paths, cut=bool(body.get("cut")), owner=self._hwnd())
         self._json({"ok": True, "written": ok})
 
-    # ================================================================ search
     def api_search(self, method: str) -> None:
         from . import search
         query_args = self._query()
         text = query_args.get("q", "")
         root = clean_path(query_args.get("root")) if query_args.get("root") else ""
-        scope = query_args.get("scope", "folder")           # folder | everywhere
+        scope = query_args.get("scope", "folder")
         show_hidden = query_args.get("hidden") == "1"
         limit = max(1, min(int(query_args.get("limit") or 5000), 50000))
         search_id = str(query_args.get("id") or uuid.uuid4().hex)[:40]
         query = search.Query(text)
         cancel = threading.Event()
-        for old_id, old in list(self.app.searches.items()):      # one search at a time per page
+        for old_id, old in list(self.app.searches.items()):
             old.set()
             self.app.searches.pop(old_id, None)
         self.app.searches[search_id] = cancel
@@ -878,8 +858,7 @@ class Handler(BaseHTTPRequestHandler):
             roots = None if scope == "everywhere" or not root else [root]
             source = "walk"
             rows = None
-            # Only a READY index answers (Everything running / own index loaded): an idle or still-building
-            # index returns [] instantly, which used to show "nothing found" for every «везде» search.
+
             if (scope == "everywhere" or root) and search.index_ready():
                 rows = search.index_search(query, roots, limit)
                 if rows is not None:
@@ -928,7 +907,6 @@ class Handler(BaseHTTPRequestHandler):
         from . import search
         self._json({"ok": True, "index": search.index_status()})
 
-    # ================================================================ previews
     def api_thumb(self, method: str) -> None:
         from . import preview
         query = self._query()
@@ -1008,7 +986,6 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._json({"ok": True, **preview.cache_size()})
 
-    # ================================================================ jobs
     def api_jobs_start(self, method: str) -> None:
         body = self._json_body()
         kind = str(body.get("kind") or "")
@@ -1028,7 +1005,6 @@ class Handler(BaseHTTPRequestHandler):
         self.app.jobs.get(str(body.get("id") or "")).cancel.set()
         self._json({"ok": True})
 
-    # ================================================================ recycle bin
     def api_trash(self, method: str) -> None:
         from . import trash
         rows = trash.items()
@@ -1059,7 +1035,6 @@ class Handler(BaseHTTPRequestHandler):
         self.app.events.push({"type": "changed", "paths": ["::trash"]})
         self._json({"ok": True, "removed": count})
 
-    # ================================================================ tags
     def api_tags(self, method: str) -> None:
         if method == "POST":
             body = self._json_body()
@@ -1078,7 +1053,6 @@ class Handler(BaseHTTPRequestHandler):
             return
         self._json({"ok": True, "tags": list(settings_store.tags_all().values())})
 
-    # ================================================================ AI
     def api_ai_status(self, method: str) -> None:
         settings = settings_store.load()
         try:
@@ -1124,7 +1098,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._error("no_model", 503)
                 return
             llm = assistant.proxy_llm(model, settings, cancel, holder)
-        # r40-files-max: documents for «sort by meaning» are read by the fast model (Settings → AI), else the chat model
+
         fast = str(settings.get("ai_fast_model") or "")
         classifier = assistant.proxy_llm(fast, settings, cancel, holder) if fast and getattr(self.app, "llm_override", None) is None else None
         request_id = str(body.get("id") or uuid.uuid4().hex)[:64]
@@ -1165,7 +1139,6 @@ class Handler(BaseHTTPRequestHandler):
                                         permanent=bool(body.get("permanent")))
         self._json({"ok": True, **result})
 
-    # ================================================================ window / remote
     def api_window(self, method: str) -> None:
         body = self._json_body()
         desktop = self.app.desktop
@@ -1178,15 +1151,15 @@ class Handler(BaseHTTPRequestHandler):
         action = body.get("action")
         if action == "open":
             paths = [str(p) for p in body.get("paths") or [] if isinstance(p, str)][:50]
-            reveal = [p for p in (body.get("reveal") or []) if p in paths]           # r41-files
+            reveal = [p for p in (body.get("reveal") or []) if p in paths]
             shell = list(paths) if body.get("shell") is True else []
             browse = list(paths) if body.get("browse") is True else []
             if body.get("require_ui") and not _ui_alive(self.app):
-                # Round 39: one-request hand-off (desktop.hand_off / the registry launcher) — a ghost instance says no
+
                 self._json({"ok": True, "taken": False, "pid": os.getpid(), "ui": self.app.ui,
                             "age": round(time.time() - self.app.started, 1)})
                 return
-            if not self.app.booted:          # Round 39: the page has not booted yet — it takes them with the start-up paths
+            if not self.app.booted:
                 self.app.initial_paths.extend(p for p in paths if p not in self.app.initial_paths)
                 self.app.initial_reveal.extend(reveal)
                 self.app.initial_shell.extend(shell)
@@ -1203,16 +1176,15 @@ class Handler(BaseHTTPRequestHandler):
                 threading.Timer(0.5, self.app.stopping.set).start()
         elif action == "activate":
             _activate(self.app)
-        elif action == "settings":                      # Round 38: changed in MemuAI → the page re-reads and applies
+        elif action == "settings":
             self.app.events.push({"type": "settings"})
             _warm_settings_changed(self.app)
-            _sync_archive_assoc()                        # r41-files: «Open archives in MemuFiles» switched in MemuAI
-        elif action == "state":                         # r41-files: Quick Access (MemuAI) asks what this window shows
+            _sync_archive_assoc()
+        elif action == "state":
             self._json({"ok": True, "taken": False, "pid": os.getpid(), "ui": self.app.ui, "state": _public_state(self.app)})
             return
         self._json({"ok": True, "taken": action == "open", "pid": os.getpid(), "ui": self.app.ui,
                     "age": round(time.time() - self.app.started, 1)})
-
 
 def _activate(app: FilesApp) -> None:
     """Show/raise the window; a window kept warm in the background (Round 39 ``keep_running``) comes back."""
@@ -1222,21 +1194,17 @@ def _activate(app: FilesApp) -> None:
     if app.ui == "warm":
         app.ui = "window"
 
-
 def _warm_settings_changed(app: FilesApp) -> None:
     """``keep_running`` switched off while the window is hidden in the background: quit for real."""
     if app.ui == "warm" and app.desktop is not None and not settings_store.load().get("keep_running"):
         app.stopping.set()
         threading.Timer(0.3, app.desktop.force_close).start()
 
-
-STARTING_GRACE = 45.0       # = app.memunote.desktop.STARTING_GRACE: a window that never showed in time is a ghost
-
+STARTING_GRACE = 45.0
 
 def _ui_alive(app: FilesApp) -> bool:
     return app.ui in ("window", "browser", "headless", "warm") or (
         app.ui == "starting" and time.time() - app.started < STARTING_GRACE)
-
 
 def _public_state(app: FilesApp) -> Dict[str, Any]:
     state = dict(app.ui_state or {})
@@ -1248,7 +1216,6 @@ def _public_state(app: FilesApp) -> Dict[str, Any]:
         except Exception:  # noqa: BLE001
             pass
     return state
-
 
 def _migrate_views(settings: Dict[str, Any]) -> Dict[str, Any]:
     """r41-files, once: Downloads remembered by an older version with name order / no groups gets Explorer's look
@@ -1266,7 +1233,6 @@ def _migrate_views(settings: Dict[str, Any]) -> Dict[str, Any]:
                 views[key] = {k2: v for k2, v in memo.items() if k2 not in ("sort", "group")}
     return settings_store.save({"view_by_folder": views, "views_rev": 41})
 
-
 def _sync_archive_assoc() -> None:
     """r41-files: «Open archives in MemuFiles» → the per-user file association (Windows; no-op elsewhere)."""
     if os.name != "nt":
@@ -1276,7 +1242,6 @@ def _sync_archive_assoc() -> None:
         archive_assoc.sync(bool(settings_store.load().get("open_archives")))
     except Exception:  # noqa: BLE001
         log.exception("archive association failed")
-
 
 def _archive_part(path: str) -> Optional[Tuple[str, str]]:
     """r41-files: ``(archive, inner)`` for a path that is an archive or goes through one (cheap name check first)."""
@@ -1288,7 +1253,6 @@ def _archive_part(path: str) -> Optional[Tuple[str, str]]:
         return None
     return archive.split(path)
 
-
 def _archive_stamp(path: str) -> str:
     try:
         st = os.stat(path)
@@ -1296,14 +1260,12 @@ def _archive_stamp(path: str) -> str:
     except OSError:
         return ""
 
-
 def _readable(path: str, password: str = "") -> str:
     """r41-files: read-only handlers (raw, thumb, text, open) accept files inside archives — a cached real copy."""
     if os.path.exists(path) or not _archive_part(path):
         return path
     from . import archive
     return archive.materialize(path, password)
-
 
 def path_info(paths: List[str]) -> Dict[str, Dict[str, bool]]:
     """Round 39: ``{path: {exists, is_dir}}`` for the folders/files a start or a hand-off brings, so the page opens the
@@ -1316,9 +1278,7 @@ def path_info(paths: List[str]) -> Dict[str, Dict[str, bool]]:
             out[path] = {"exists": False, "is_dir": False}
     return out
 
-
 _KNOWN: Dict[str, str] = {}
-
 
 def known_folders() -> Dict[str, str]:
     """Round 39: ``{id: path}`` of the known folders (Downloads, Documents…, Windows «Recent») — the page gives them
@@ -1331,7 +1291,6 @@ def known_folders() -> Dict[str, str]:
         if os.name == "nt" and os.environ.get("APPDATA"):
             _KNOWN["recent"] = os.path.join(os.environ["APPDATA"], "Microsoft", "Windows", "Recent")
     return dict(_KNOWN)
-
 
 def _deferred_warm(app: FilesApp, delay: float = 2.5) -> None:
     """Round 39: after the first page boot (not at process start, where it fought the first paint for the CPU/GIL):
@@ -1354,12 +1313,10 @@ def _deferred_warm(app: FilesApp, delay: float = 2.5) -> None:
             pass
     threading.Thread(target=_run, name="memufiles-warm", daemon=True).start()
 
-
 class Server(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = False
     request_queue_size = 64
-
 
 def start(app: FilesApp, port: int = 0) -> Tuple[Server, threading.Thread]:
     handler = type("BoundHandler", (Handler,), {"app": app})

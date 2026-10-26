@@ -14,15 +14,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 APP_JS = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
 
-
 class EffortCommandTest(unittest.TestCase):
     def test_bare_effort_is_not_aliased_to_auto(self) -> None:
         source = (ROOT / "app" / "cli" / "commands" / "model_cmds.py").read_text(encoding="utf-8")
         body = source.split("async def effort(", 1)[1].split("\n@command(", 1)[0]
         self.assertIn('if typed else ""', body)
         from app import reasoning_levels
-        self.assertEqual(reasoning_levels.ALIASES.get(""), "auto")   # the reason the guard exists
-
+        self.assertEqual(reasoning_levels.ALIASES.get(""), "auto")
 
 class WorkOnlyToolsTest(unittest.TestCase):
     def test_default_prompts_do_not_list_work_only_tools(self) -> None:
@@ -48,7 +46,6 @@ class WorkOnlyToolsTest(unittest.TestCase):
         self.assertIn("Этот инструмент работает только в Work и MemuCode (откройте Work-проект).", source)
         self.assertIn("A Work project id is required", source)
 
-
 class ToolsBlockStatusTest(unittest.TestCase):
     def test_partial_status_instead_of_failed(self) -> None:
         self.assertIn("statusLabel = \"\" }) {", APP_JS)
@@ -58,7 +55,6 @@ class ToolsBlockStatusTest(unittest.TestCase):
         css = (ROOT / "app" / "pgstatic" / "style.css").read_text(encoding="utf-8")
         self.assertIn(".step.is-partial .step-status", css)
 
-
 class ProxyOnlyStaticTest(unittest.TestCase):
     def test_guide_video_comments_do_not_name_the_chat_app(self) -> None:
         for name in ("guide-video.js", "guide-video.css"):
@@ -66,13 +62,11 @@ class ProxyOnlyStaticTest(unittest.TestCase):
             self.assertIsNone(re.search(r"\bMemuAI\b(?!\s+Proxy)", text), name)
             self.assertEqual(text, (ROOT / "app" / "pgstatic" / name).read_text(encoding="utf-8"), name)
 
-
 class NotionDocstringTest(unittest.TestCase):
     def test_points_to_the_developer_portal(self) -> None:
         import app.integrations_notion as notion
         self.assertNotIn("notion.so/profile/integrations", notion.__doc__)
         self.assertIn("app.notion.com/developers", notion.__doc__)
-
 
 if __name__ == "__main__":
     unittest.main()

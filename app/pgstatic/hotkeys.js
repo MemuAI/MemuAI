@@ -1,29 +1,7 @@
-/* MemuAI keyboard shortcuts: the single registry (Round 29).
- *
- * Every hotkey MemuAI knows lives in REGISTRY below: the main window, the composer, settings,
- * documentation, MemuCode, the file editor, module windows, Sketch, panels, media viewers, the
- * Quick Ask window and its tools, and the global Windows hotkeys. Each entry has
- *   id      — stable identifier; for customizable entries it is also the key in the
- *             `shortcuts` preference ({id: "Ctrl+Shift+T" | ""}), so old saved values keep working;
- *   group   — the area it belongs to (GROUPS);
- *   keys    — the default combination(s). Custom entries have exactly one (or "" — unassigned);
- *             fixed entries may list several and use "…" ranges for display;
- *   ru / en — what the key does;
- *   custom  — true when the person can rebind it in Settings → Keyboard shortcuts;
- *   scope   — where it fires; two combos conflict only when their scopes overlap (SCOPES).
- *
- * Handlers read their combo through MemuHotkeys.match(id, event) / shortcutActive() in app.js,
- * so a rebinding takes effect immediately. The Quick Ask window is a separate page: its keys are
- * listed (fixed); the global Windows hotkeys are read live from their own settings.
- *
- * docs: app/docs/{ru,en}/shortcuts.md is generated from this file by
- * tests/round29_hotkeys_docs.cjs (and tests/round29_hotkeys_test.py checks they are in sync).
- * The file also loads in Node (module.exports) — keep the registry part free of DOM access.
- */
+
+
 (function (root) {
   "use strict";
-
-  /* ------------------------------------------------------------------ registry */
 
   const GROUPS = [
     { id: "main", icon: "keyboard", ru: "Главное окно", en: "Main window",
@@ -52,10 +30,8 @@
       desc_ru: "Работают во всех программах Windows, пока запущен MemuAI.", desc_en: "Work in every Windows program while MemuAI runs." },
   ];
 
-  /* Where a combo fires. Two bindings conflict when their scopes are equal or overlap. */
   const SCOPES = {
-    // The file editor handles its keys first and marks them handled (preventDefault), so its
-    // combos win over main-window ones while it has focus: editor only clashes with itself.
+
     main: ["main", "code", "modules", "global"],
     code: ["main", "code", "global"],
     editor: ["editor", "global"],
@@ -71,13 +47,12 @@
     global: ["main", "code", "editor", "modules", "chat", "settings", "docs", "sketch", "panels", "media", "quick", "quick_tools", "global"],
   };
 
-  // Shorthand: E(id, group, keys, ru, en, extra)
   const E = (id, group, keys, ru, en, extra = {}) => ({ id, group, keys: Array.isArray(keys) ? keys : [keys], ru, en,
     custom: false, scope: group, ...extra });
   const C = (id, group, key, ru, en, extra = {}) => E(id, group, [key], ru, en, { custom: true, ...extra });
 
   const REGISTRY = [
-    /* main window — customizable (ids are the historical `shortcuts` preference keys) */
+
     C("new_chat", "main", "Ctrl+N", "Новый чат", "New chat", { action: "new_chat" }),
     C("temporary", "main", "Ctrl+Shift+T", "Временный чат (или сделать текущий постоянным)", "Temporary chat (or make the current one permanent)"),
     C("search", "main", "Ctrl+K", "Поиск везде: чаты, память, файлы, настройки", "Search everywhere: chats, memory, files, settings"),
@@ -109,7 +84,7 @@
     C("zoom_reset", "main", "Ctrl+0", "Обычный размер интерфейса (100 %)", "Default interface size (100%)", { added: 29 }),
     C("theme", "main", "", "Сменить тему: светлая / тёмная", "Switch theme: light / dark", { added: 29 }),
     C("find_in_chat", "main", "Ctrl+F", "Найти в этом чате (Enter / F3 — дальше, ★ — закладки)", "Find in this chat (Enter / F3 — next, ★ — bookmarks)", { added: 37 }),
-    /* main window — fixed */
+
     E("help_f1", "main", "F1", "Шпаргалка горячих клавиш", "Keyboard shortcut cheat sheet"),
     E("escape", "main", "Escape", "Остановить ответ; закрыть меню, диалог, просмотр картинки", "Stop the answer; close a menu, dialog or image viewer"),
     E("copy_selection", "main", "Ctrl+C", "Скопировать выделенный текст сообщения", "Copy the selected message text"),
@@ -117,7 +92,6 @@
     E("system_menu", "main", "Alt+Space", "Меню окна Windows (когда быстрый доступ на другом сочетании)", "The Windows window menu (when Quick Ask uses another combination)"),
     E("close_app", "main", "Alt+F4", "Закрыть MemuAI", "Close MemuAI"),
 
-    /* chat and composer */
     E("send", "chat", "Enter", "Отправить (или Ctrl+Enter — смотря по настройке «Отправка сообщений»)", "Send (or Ctrl+Enter, depending on the “Sending messages” setting)"),
     E("newline", "chat", "Shift+Enter", "Новая строка", "New line"),
     E("recall_last", "chat", "ArrowUp", "В пустом поле: вернуть своё последнее сообщение для правки", "In an empty composer: bring back your last message to edit", { added: 37 }),
@@ -135,7 +109,6 @@
     E("dialog_enter", "chat", "Enter", "В диалогах с одним полем (переименование, память): подтвердить", "In one-field dialogs (rename, memory): confirm"),
     E("schedule_ai", "chat", "Enter", "Планирование: «опишите задачу» — создать задачу ИИ", "Scheduling: “describe the task” — create the AI task"),
 
-    /* settings and docs */
     E("settings_search", "settings", ["Ctrl+F", "/"], "Поиск по настройкам", "Search settings"),
     E("settings_results", "settings", ["ArrowUp", "ArrowDown", "Enter"], "Выбор найденной настройки", "Pick a found setting"),
     E("settings_escape", "settings", "Escape", "Очистить поиск, закрыть подраздел, затем окно", "Clear the search, close a sub-page, then the window"),
@@ -149,13 +122,12 @@
     E("docs_find_next", "settings", ["Enter", "Shift+Enter", "F3", "Shift+F3"], "Документация: следующее / предыдущее совпадение", "Documentation: next / previous match", { scope: "docs" }),
     E("docs_history", "settings", ["Alt+ArrowLeft", "Alt+ArrowRight"], "Документация: назад / вперёд", "Documentation: back / forward", { scope: "docs" }),
 
-    /* MemuCode — customizable */
     C("code_palette", "code", "Ctrl+P", "Палитра: найти файл, команду или скилл", "Palette: find a file, command or skill"),
     C("code_commands", "code", "Ctrl+Shift+P", "Палитра сразу в режиме команд «/»", "The palette straight in “/” command mode"),
     C("code_explorer", "code", "Ctrl+Shift+E", "Показать или скрыть дерево проекта", "Show or hide the project tree"),
     C("code_dock", "code", "Ctrl+Shift+D", "Показать или скрыть правую панель", "Show or hide the right panel"),
     C("code_terminal", "code", "Ctrl+Backquote", "Перейти в терминал", "Go to the terminal"),
-    /* MemuCode — fixed */
+
     E("code_tabs", "code", ["Alt+1…Alt+7"], "Разделы правой панели", "Right-panel sections"),
     E("code_escape", "code", "Escape", "В узком окне: закрыть правую панель", "In a narrow window: close the right panel"),
     E("code_tree", "code", ["ArrowUp", "ArrowDown", "Home", "End", "ArrowLeft", "ArrowRight"], "Дерево: перемещение, раскрыть и свернуть папку", "Tree: move, expand and collapse a folder"),
@@ -167,7 +139,6 @@
     E("code_palette_keys", "code", ["ArrowUp", "ArrowDown", "Enter", "Escape"], "Палитра: выбор и закрытие", "Palette: pick and close"),
     E("code_resize", "code", ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"], "Разделители панелей (в фокусе): изменить размер", "Panel splitters (focused): resize"),
 
-    /* file editor */
     E("ed_save", "editor", "Ctrl+S", "Сохранить", "Save"),
     E("ed_undo", "editor", ["Ctrl+Z", "Ctrl+Y"], "Отменить / повторить", "Undo / redo"),
     E("ed_find", "editor", ["Ctrl+F", "Ctrl+H"], "Найти / найти и заменить", "Find / find and replace"),
@@ -181,20 +152,18 @@
     E("ed_indent", "editor", ["Tab", "Shift+Tab"], "Отступ / убрать отступ", "Indent / outdent"),
     E("ed_escape", "editor", "Escape", "Закрыть поиск", "Close find"),
 
-    /* module windows — customizable */
     C("mod_snap_left", "modules", "Alt+Shift+ArrowLeft", "Прижать активное окно модуля влево", "Snap the active module window left"),
     C("mod_snap_right", "modules", "Alt+Shift+ArrowRight", "Прижать окно модуля вправо", "Snap the module window right"),
     C("mod_maximize", "modules", "Alt+Shift+ArrowUp", "Развернуть окно модуля", "Maximize the module window"),
     C("mod_snap_bottom", "modules", "Alt+Shift+ArrowDown", "Прижать окно модуля вниз", "Snap the module window to the bottom"),
     C("mod_minimize", "modules", "Alt+Shift+M", "Свернуть окно модуля", "Minimize the module window"),
     C("mod_close", "modules", "Ctrl+W", "Закрыть активный модуль", "Close the active module", { added: 31 }),
-    /* module windows — fixed */
+
     E("mod_escape", "modules", "Escape", "Развёрнутый модуль — вернуть обычное окно; окно модуля — свернуть на панель модулей", "Expanded module — back to a normal window; module window — minimize to the module bar"),
     E("mod_save", "modules", "Ctrl+S", "Мастерская модуля: сохранить код", "Module workbench: save the code"),
     E("mod_tab", "modules", "Tab", "Мастерская: отступ в редакторе кода", "Workbench: indent in the code editor"),
     E("mod_layout", "modules", "Escape", "Меню раскладки окон: закрыть", "Window layout menu: close"),
 
-    /* sketch */
     E("sk_tools", "sketch", ["P", "M", "E", "L", "A", "R", "O", "T", "I", "V"], "Инструменты: карандаш, маркер, ластик, линия, стрелка, прямоугольник, овал, текст, картинка, перемещение", "Tools: pen, marker, eraser, line, arrow, rectangle, ellipse, text, image, move"),
     E("sk_undo", "sketch", ["Ctrl+Z", "Ctrl+Y", "Ctrl+Shift+Z"], "Отменить / повторить", "Undo / redo"),
     E("sk_attach", "sketch", "Ctrl+Enter", "Прикрепить рисунок к сообщению", "Attach the drawing to the message"),
@@ -203,7 +172,6 @@
     E("sk_escape", "sketch", "Escape", "Закрыть (рисунок сохранится)", "Close (the drawing is kept)"),
     E("sk_paste", "sketch", "Ctrl+V", "Вставить картинку из буфера", "Paste an image from the clipboard"),
 
-    /* panels */
     E("pn_menu", "panels", ["Shift+F10", "ContextMenu"], "Меню панели", "The panel menu"),
     E("pn_delete", "panels", "Delete", "Убрать панель (в фокусе)", "Remove the focused panel"),
     E("pn_todo_add", "panels", "Enter", "Задачи: добавить задачу из поля", "To-dos: add the typed task"),
@@ -216,7 +184,6 @@
     E("pn_ghost", "panels", ["Tab", "ArrowRight", "Escape"], "Подсказка ИИ в поле: принять / отклонить", "AI suggestion in a field: accept / dismiss"),
     E("pn_reorder", "panels", ["ArrowUp", "ArrowDown"], "Настройка панели: переставить пункт в фокусе", "Panel options: move the focused item"),
 
-    /* media */
     E("md_viewer", "media", "Escape", "Закрыть просмотр картинки (колесо — масштаб, двойной щелчок — по размеру / 100 %)", "Close the image viewer (wheel — zoom, double-click — fit / 100%)"),
     E("md_player_seek", "media", ["ArrowLeft", "ArrowRight", "Home", "End"], "Плеер озвучки: −5 / +5 секунд, в начало, в конец", "Voice player: −5 / +5 seconds, start, end"),
     E("md_player_menu", "media", ["ArrowDown", "ArrowUp", "Escape"], "Плеер озвучки: меню скорости и действий", "Voice player: speed and action menu"),
@@ -225,7 +192,6 @@
     E("md_chart", "media", ["ArrowLeft", "ArrowRight"], "График «Рефлексии»: соседний период", "Reflect chart: the neighbouring period"),
     E("md_computer_stop", "media", "Escape", "Computer Use и браузер агента: остановить сразу", "Computer Use and the agent browser: stop at once"),
 
-    /* Quick Ask window */
     E("qa_send", "quick", ["Enter", "Shift+Enter"], "Отправить / новая строка", "Send / new line"),
     E("qa_escape", "quick", "Escape", "Шаг назад: списки → вопрос DFY → остановить ответ → закрыть окно", "One step back: lists → DFY question → stop the answer → close the window"),
     E("qa_history", "quick", ["ArrowUp", "ArrowDown"], "В пустом поле: недавние вопросы", "In an empty field: recent questions"),
@@ -248,7 +214,6 @@
     E("qa_page_off", "quick", "Backspace", "В пустом поле: убрать прикреплённую страницу", "In an empty field: drop the attached page"),
     E("qa_lists", "quick", ["ArrowUp", "ArrowDown", "Enter", "Escape"], "Списки моделей, чатов и действий", "Model, chat and action lists"),
 
-    /* Quick Ask tools */
     E("qt_region", "quick_tools", "Ctrl+Shift+X", "Спросить про область экрана (Enter — весь экран, Esc — отмена)", "Ask about a screen region (Enter — whole screen, Esc — cancel)"),
     E("qt_clipboard", "quick_tools", "Alt+V", "История буфера обмена", "Clipboard history"),
     E("qt_sticker", "quick_tools", "Ctrl+Shift+P", "Закрепить ответ стикером", "Pin the answer as a sticker"),
@@ -263,7 +228,6 @@
     E("qt_item_menu", "quick_tools", ["Shift+F10", "ContextMenu"], "Меню панели или кнопки", "Panel or button menu"),
     E("qt_sticker_window", "quick_tools", ["Ctrl+C", "Ctrl+W", "Ctrl+Enter", "Escape"], "Окно стикера: копировать, закрыть, сохранить правку, отменить", "Sticker window: copy, close, save the edit, cancel"),
 
-    /* global (Windows-wide). Values come from their own settings (see globalRows) */
     E("g_quick", "global", "Alt+Space", "Открыть быстрый доступ", "Open Quick Ask", { external: "quick_ask_hotkey", page: "quick" }),
     E("g_quick_escape", "global", "Escape", "Закрыть открытое окно быстрого доступа из любой программы (кроме закреплённого)", "Close an open Quick Ask window from any program (unless pinned)"),
     E("g_region", "global", "", "Спросить про область экрана", "Ask about a screen region", { external: "region_hotkey", page: "quick" }),
@@ -271,8 +235,6 @@
     E("g_commands", "global", "", "Свои команды с глобальным сочетанием", "Custom commands with a global hotkey", { external: "commands", page: "quick" }),
     E("g_buttons", "global", "", "Кнопки быстрого доступа с глобальным сочетанием", "Quick buttons with a global hotkey", { external: "buttons", page: "quick" }),
   ];
-
-  /* ------------------------------------------------------------- combo model */
 
   const KEY_ALIASES = {
     esc: "Escape", escape: "Escape", del: "Delete", delete: "Delete", ins: "Insert", insert: "Insert",
@@ -307,12 +269,11 @@
     return trimmed ? trimmed[0].toUpperCase() + trimmed.slice(1) : "";
   }
 
-  /** "ctrl + shift + t" → "Ctrl+Shift+T"; "" stays "". Display-only combos ("Alt+1…Alt+9") pass through. */
   function normalize(combo) {
     const text = String(combo == null ? "" : combo).trim();
     if (!text) return "";
     if (text.includes("…")) return text;
-    // "Ctrl++" means Ctrl and the plus key; "Ctrl+-" Ctrl and minus.
+
     const parts = text.replace(/\s+/g, "").replace(/\+\+$/, "+Plus").split("+").filter((part, i, all) => part || i === all.length - 1);
     const mods = new Set();
     let key = "";
@@ -331,7 +292,6 @@
       win: parts.includes("Win"), key, combo: norm };
   }
 
-  /** The canonical key of a keyboard event: physical (e.code) first, so Russian layout works. */
   function eventKey(e) {
     const code = String(e && e.code || "");
     if (/^Key[A-Z]$/.test(code)) return code.slice(3);
@@ -356,16 +316,15 @@
   function matchesCombo(combo, e) {
     const spec = parse(combo);
     if (!spec.key || !e) return false;
-    // Win+… is never seen by a page (Windows takes it); Cmd on a Mac acts as Ctrl like the old handlers did.
+
     const ctrl = !!(e.ctrlKey || e.metaKey);
     if (ctrl !== spec.ctrl || !!e.altKey !== spec.alt || !!e.shiftKey !== spec.shift) return false;
     const actual = eventKey(e);
     if (actual === spec.key) return true;
-    // A layout-dependent symbol typed by its character ("?" etc.) — compare e.key as the old matcher did.
+
     return canonicalKey(e.key) === spec.key && !/^(Key|Digit)/.test(String(e.code || ""));
   }
 
-  /** "Ctrl+Shift+T" → ["Ctrl", "Shift", "T"] with display labels. */
   function caps(combo) {
     const text = String(combo || "");
     if (!text) return [];
@@ -374,11 +333,9 @@
   }
   function label(combo) { return caps(combo).join("+").replace(/\+…\+/g, "…"); }
 
-  /* -------------------------------------------------------------- bindings */
-
   const byId = new Map(REGISTRY.map((row) => [row.id, row]));
-  const extra = [];               // entries other scripts register at run time
-  const externals = {};           // live values of global hotkeys kept in their own settings: {external: combo}
+  const extra = [];
+  const externals = {};
 
   function prefs() {
     try { return (typeof pref === "function" ? pref("shortcuts", {}) : {}) || {}; } catch (_) { return {}; }
@@ -386,7 +343,7 @@
   function entry(id) { return byId.get(id) || extra.find((row) => row.id === id) || null; }
   function defaultOf(id) { const row = entry(id); return row ? normalize(row.keys[0] || "") : ""; }
   function isCustomized(id) { return Object.prototype.hasOwnProperty.call(prefs(), id) && normalize(prefs()[id]) !== defaultOf(id); }
-  /** The active combination for an id: the saved override, else the registry default, else `fallback`. */
+
   function value(id, fallback) {
     const saved = prefs();
     if (Object.prototype.hasOwnProperty.call(saved, id)) return normalize(saved[id]);
@@ -400,7 +357,6 @@
   }
   function all() { return REGISTRY.concat(extra); }
 
-  /** Let another script (MemuNote, Characters…) add its own documented shortcuts. */
   function register(rows) {
     for (const row of rows || []) {
       if (!row || !row.id || entry(row.id)) continue;
@@ -410,7 +366,6 @@
     if (root.document) rerender();
   }
 
-  /** Every pair of active bindings that fire in overlapping scopes. */
   function conflicts(overrides) {
     const saved = overrides || prefs();
     const live = [];
@@ -418,7 +373,7 @@
       const combos = row.custom
         ? [Object.prototype.hasOwnProperty.call(saved, row.id) ? normalize(saved[row.id]) : normalize(row.keys[0] || "")]
         : (row.external ? [].concat(externals[row.external] || []).map(normalize) : row.keys.map(normalize));
-      // Bare contextual keys (Enter, Esc, letters in Sketch) are by design shared between areas.
+
       for (const combo of combos) {
         if (combo && !combo.includes("…") && (combo.includes("+") || /^F([1-9]|1[0-9]|2[0-4])$/.test(combo))) live.push({ row, combo });
       }
@@ -428,7 +383,7 @@
       for (let j = i + 1; j < live.length; j += 1) {
         const a = live[i], b = live[j];
         if (a.combo !== b.combo || a.row.id === b.row.id) continue;
-        if (!(a.row.custom || b.row.custom)) continue;               // two fixed keys are by design
+        if (!(a.row.custom || b.row.custom)) continue;
         const scopesA = SCOPES[a.row.scope] || [a.row.scope];
         if (!scopesA.includes(b.row.scope)) continue;
         found.push({ combo: a.combo, a: a.row.id, b: b.row.id });
@@ -449,7 +404,7 @@
     "Ctrl+R": ["перезагрузка интерфейса", "reloading the interface"], "Escape": ["Esc закрывает окна и останавливает ответ", "Esc closes windows and stops the answer"],
     "Enter": ["отправка сообщения", "sending a message"], "Tab": ["переход по элементам", "moving between controls"],
   };
-  /** Why a combination is a poor choice, or "" when it is fine. */
+
   function problemOf(combo, lang) {
     const en = lang === "en";
     const spec = parse(combo);
@@ -470,8 +425,6 @@
   if (typeof module === "object" && module && module.exports) module.exports = api;
   if (!root || !root.document) return;
 
-  /* ===================================================================== UI === */
-
   const doc = root.document;
   const en = () => (typeof PG_LANG !== "undefined" && PG_LANG === "en");
   const L = (ru, english) => (en() ? english : ru);
@@ -480,7 +433,7 @@
   const escHtml = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const $ = (sel, node) => (node || doc).querySelector(sel);
   const $$ = (sel, node) => Array.from((node || doc).querySelectorAll(sel));
-  const say = (text, kind = "ok") => { try { toast(text, kind); } catch (_) { /* boot */ } };
+  const say = (text, kind = "ok") => { try { toast(text, kind); } catch (_) {  } };
 
   function kbd(combo, extraClass = "") {
     const list = caps(combo);
@@ -506,8 +459,6 @@
     if (typeof savePreferences === "function") savePreferences({ shortcuts: {} });
     rerender();
   }
-
-  /* ------------------------------------------------------------- actions */
 
   function visibleChats() {
     return $$("#chats-pinned [data-chat], #chat-folders .chat-folder:not(.collapsed) [data-chat], #chats-list [data-chat]").map((el) => el.dataset.chat);
@@ -558,7 +509,6 @@
     theme: () => { if (typeof setTheme === "function" && typeof S !== "undefined") setTheme(S.theme === "dark" ? "light" : "dark"); },
   };
 
-  /** Shortcuts added in Round 29, called from the main keydown handler in app.js. */
   function handleMain(e) {
     if (!e || e.defaultPrevented || state.recording) return false;
     const target = e.target && e.target.closest ? e.target : null;
@@ -566,7 +516,7 @@
       const combo = value(id);
       if (!combo || !matchesCombo(combo, e)) continue;
       const spec = parse(combo);
-      // Keys without Ctrl (Alt+arrows, F2) belong to the focused control when it has its own meaning.
+
       if (!spec.ctrl && target && target.closest("input, textarea, select, [contenteditable=''], [contenteditable='true'], [data-panel-id], .mp-pop, [role='listbox'], [role='menu'], [role='tree'], [role='slider'], .code-lines")) return false;
       e.preventDefault();
       try { ACTIONS[id](); } catch (error) { console.warn("hotkey", id, error); }
@@ -575,14 +525,12 @@
     return false;
   }
 
-  /* ------------------------------------------------------- recording a combo */
-
   const state = { recording: null, query: "", filter: "all", host: null };
 
   root.addEventListener("keydown", (e) => {
     const rec = state.recording;
     if (!rec) return;
-    // r30: Tab / Shift+Tab leave the field like in any form (it used to record «Tab», warn and drop the focus on <body>)
+
     if (e.key === "Tab" && !e.ctrlKey && !e.altKey) { stopRecording(true); return; }
     e.preventDefault();
     e.stopImmediatePropagation();
@@ -597,8 +545,7 @@
   }, true);
 
   function startRecording(id, button) {
-    // r30: switching from another row redraws only that row — the full re-render used to replace the button just clicked,
-    // so the second shortcut «did not react» while it was silently recording
+
     stopRecording(true);
     const row = entry(id);
     if (!row || !row.custom || !button.isConnected) return;
@@ -618,7 +565,7 @@
     if (!rec) return;
     if (rowOnly) refreshRow(rec.id); else rerender();
   }
-  /** Redraws one row in place, keeping the focus on its key button. */
+
   function refreshRow(id) {
     const old = state.host && $(`[data-hk-row="${CSS.escape(id)}"]`, state.host);
     const row = entry(id);
@@ -652,8 +599,6 @@
     if (!norm) say(L("Сочетание отключено", "Shortcut disabled"), "info");
   }
 
-  /* ------------------------------------------------------ global hotkey rows */
-
   let globalCache = null;
   async function loadGlobals() {
     const get = async (url) => { try { const r = await fetch(url); return r.ok ? await r.json() : null; } catch (_) { return null; } };
@@ -686,8 +631,6 @@
     if (row.external === "clipboard_hotkey") return g.clipboard_hotkey || "";
     return "";
   }
-
-  /* -------------------------------------------------------------- settings */
 
   function matchesQuery(row, combo, q) {
     if (!q) return true;
@@ -782,7 +725,6 @@
     $(".hk-groups", host).innerHTML = groups || `<div class="hk-empty">${ico("search")}<b>${L("Ничего не найдено", "Nothing found")}</b><span>${L("Попробуйте другое слово или клавишу.", "Try another word or key.")}</span></div>`;
   }
 
-  /** One delegated handler per host: rows can be redrawn one by one without re-binding. */
   function bindSettings(host) {
     const input = $("#hk-query", host);
     if (input) input.oninput = () => { state.query = input.value; render(); };
@@ -840,8 +782,6 @@
     if (sheetState.open) drawSheet();
   }
 
-  /* ----------------------------------------------------------- cheat sheet */
-
   const sheetState = { open: false, query: "" };
 
   function sheetRows(q) {
@@ -888,7 +828,7 @@
     drawSheet();
     const q = $("#hk-sheet-query");
     if (q) { q.oninput = () => { sheetState.query = q.value; drawSheet(); }; setTimeout(() => q.focus(), 30); }
-    // Opened from Settings the sheet is stacked above them: closing returns there.
+
     const inSettings = () => !!doc.querySelector("#panel .sx-shell");
     const back = $("#hk-sheet-back");
     if (back) back.onclick = () => { sheetState.open = false; if (typeof closePanel === "function") closePanel(); if (!inSettings()) openSettings(); };
@@ -906,18 +846,17 @@
   }
   function openSettings() {
     if (typeof showSettings !== "function") return;
-    try { currentSettingsTab = "hotkeys"; } catch (_) { /* not defined yet */ }
+    try { currentSettingsTab = "hotkeys"; } catch (_) {  }
     const result = showSettings(true);
     const go = () => { if (typeof openSettingsPage === "function") openSettingsPage("hotkeys"); };
     if (result && typeof result.then === "function") result.then(go); else go();
   }
 
-  /** Short list for Settings → About. */
   function summaryHtml() {
     const ids = ["new_chat", "search", "settings", "help", "sidebar", "focus", "composer", "models"];
     return `<div class="shortcuts-grid">${ids.map((id) => entry(id)).filter(Boolean).map((row) => `<div class="shortcut-item"><span>${escHtml(T(row))}</span>${kbd(value(row.id))}</div>`).join("")}</div>`;
   }
-  /** The combo label an app menu shows next to an action (app.js APP_MENUS). */
+
   const MENU_IDS = { new: "new_chat", temp: "temporary", export: "export", back: "back", forward: "forward", "copy-last": "copy_last",
     sidebar: "sidebar", focus: "focus", theme: "theme", search: "search", shortcuts: "help", settings: "settings" };
   function menuLabel(action, fallback) {
@@ -927,7 +866,7 @@
   }
 
   const ui = { mountSettings, openSheet, openSettings, handleMain, summaryHtml, menuLabel, rerender, loadGlobals };
-  // r30: Object.assign copied the getter's value once (always false) — define it on the frozen object itself
+
   const MemuHotkeys = Object.freeze(Object.defineProperty(Object.assign({}, api, ui), "recording", { get: () => !!state.recording, enumerable: true }));
   root.MemuHotkeys = MemuHotkeys;
   if (doc.readyState === "loading") doc.addEventListener("DOMContentLoaded", registerSearch, { once: true });

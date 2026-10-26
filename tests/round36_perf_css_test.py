@@ -17,16 +17,13 @@ ROOT = Path(__file__).resolve().parents[1]
 PG = ROOT / "app" / "pgstatic"
 DESIGNS = ("aurora", "focus", "grid", "glass", "soft", "terminal", "brutal")
 
-
 def read(name: str) -> str:
     return (PG / name).read_text(encoding="utf-8")
-
 
 def rule_block(css: str, selector: str) -> str:
     css = re.sub(r"/\*.*?\*/", "", css, flags=re.S)
     start = css.index(selector + " {")
     return css[start:css.index("}", start)]
-
 
 class Round36PerfCssStatic(unittest.TestCase):
     def test_design_sheets_inactive_by_default(self):
@@ -36,14 +33,14 @@ class Round36PerfCssStatic(unittest.TestCase):
             self.assertIsNotNone(tag, name)
             self.assertIn(f'data-design-css="{name}"', tag.group(0))
             self.assertIn('media="not all"', tag.group(0))
-        # the switcher follows data-design right after the links, before motion.css
+
         script = html.index('link[data-design-css]')
         self.assertLess(html.index("/designs/brutal.css"), script)
         self.assertLess(script, html.index("/motion.css"))
         self.assertIn('attributeFilter: ["data-design"]', html)
 
     def test_every_design_rule_is_scoped(self):
-        # a sheet that does not match must not hide unscoped rules other designs rely on
+
         for name in DESIGNS:
             css = re.sub(r"/\*.*?\*/", "", read(f"designs/{name}.css"), flags=re.S)
             for match in re.finditer(r"(?:^|[{};])\s*([^{};@\s][^{};]*)\{", css):
@@ -70,7 +67,6 @@ class Round36PerfCssStatic(unittest.TestCase):
         self.assertIn("au-drift 38s steps(", aurora)
         self.assertNotIn("au-breathe 6s 1s ease-in-out infinite", aurora)
 
-
 @unittest.skipUnless(os.environ.get("MEMU_TEST_CHROMIUM"), "needs MEMU_TEST_CHROMIUM")
 class Round36PerfCssBrowser(unittest.TestCase):
     def test_design_switch_without_reload(self):
@@ -93,15 +89,15 @@ class Round36PerfCssBrowser(unittest.TestCase):
                         time.sleep(0.5)
                 page.wait_for_function("!document.body.classList.contains('booting')", timeout=30000)
                 active = "()=>[...document.querySelectorAll('link[data-design-css]')].filter(l=>(l.sheet ? l.sheet.media.mediaText : l.media)==='all').map(l=>l.dataset.designCss)"
-                self.assertEqual(page.evaluate(active), [])          # classic: none of the seven
+                self.assertEqual(page.evaluate(active), [])
                 loads = page.evaluate("()=>performance.getEntriesByType('resource').filter(e=>e.name.includes('/designs/') && /\.css(\?|$)/.test(e.name)).length")
-                # what the theme editor / settings preview does: flip data-design
+
                 state = page.evaluate("""async () => { const r = document.documentElement; r.dataset.design = 'glass';
                     await Promise.resolve();   // the switcher runs as a microtask, i.e. before the next paint
                     const side = getComputedStyle(document.querySelector('#app'), '::before').animationName;
                     const sheet = document.querySelector('link[data-design-css="glass"]').sheet;
                     return { side, rules: sheet.cssRules.length, media: sheet.media.mediaText }; }""")
-                self.assertEqual(state["side"], "g-aurora")             # glass rules apply before the next paint
+                self.assertEqual(state["side"], "g-aurora")
                 self.assertGreater(state["rules"], 100)
                 self.assertEqual(state["media"], "all")
                 self.assertEqual(page.evaluate(active), ["glass"])
@@ -113,7 +109,6 @@ class Round36PerfCssBrowser(unittest.TestCase):
                 browser.close()
         finally:
             srv.terminate(); srv.wait(10)
-
 
 if __name__ == "__main__":
     unittest.main()

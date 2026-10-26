@@ -22,8 +22,7 @@ function aiLangRule(lang) {
   if (lang === "en") return "Write every text field in English.";
   return "Write every text field in the same language as the user's request (if the request is a bare name, use " + (Memu.lang === "ru" ? "Russian" : "English") + ").";
 }
-// Text of a model answer → the first JSON object in it (code fences, a «Here is the card:» preface, <think> blocks
-// and trailing commas are tolerated). Throws when there is no parsable object.
+
 function aiParseJson(text) {
   var s = String(text || "").replace(/<think>[\s\S]*?<\/think>/gi, "");
   var fence = /```(?:json)?\s*([\s\S]*?)```/i.exec(s);
@@ -40,11 +39,11 @@ function aiParseJson(text) {
   }
   var body = end > 0 ? s.slice(start, end + 1) : s.slice(start);
   var tries = [body, body.replace(/,\s*([}\]])/g, "$1"),
-    // A cut-off answer (max tokens): close what is open so the fields that arrived survive.
+
     end > 0 ? null : aiCloseJson(body)];
   for (var k = 0; k < tries.length; k++) {
     if (!tries[k]) continue;
-    try { var v = JSON.parse(tries[k]); if (v && typeof v === "object") return v; } catch (e) { /* next */ }
+    try { var v = JSON.parse(tries[k]); if (v && typeof v === "object") return v; } catch (e) {  }
   }
   throw new Error(t("ai_bad_json"));
 }
@@ -66,7 +65,6 @@ function aiList(v) {
   return aiStr(v).split(/[,\n]/).map(function (x) { return x.trim(); }).filter(Boolean);
 }
 
-/* ---------------------------------------------------------------- model calls (streamed, stoppable) */
 function aiCall(ctx, messages, opts) {
   opts = opts || {};
   var params = { temperature: opts.temperature === undefined ? 0.9 : opts.temperature, max_tokens: opts.max_tokens || 6000, prompt_caching: true };
@@ -87,9 +85,8 @@ function aiCall(ctx, messages, opts) {
     throw ctx.stopped ? new Error(t("ai_stopped")) : error;
   });
 }
-function aiStop(ctx) { ctx.stopped = true; ctx.jobs.slice().forEach(function (j) { try { j.cancel(); } catch (e) { /* closed */ } }); }
+function aiStop(ctx) { ctx.stopped = true; ctx.jobs.slice().forEach(function (j) { try { j.cancel(); } catch (e) {  } }); }
 
-/* ---------------------------------------------------------------- web research */
 function aiResearch(ctx, step) {
   var idea = ctx.idea;
   step("queries");
@@ -112,15 +109,14 @@ function aiResearch(ctx, step) {
     return Promise.all(queries.map(function (q) {
       return Memu.search({ query: q, limit: 5 }).then(function (r) { return (r && r.results) || []; }, function (e) { failed.push(e); return []; });
     })).then(function (groups) {
-      // Round 34: every search failed (HTTP 400, no search provider…) — say so («Search failed: …» toast) instead of
-      // silently writing the card without sources.
+
       if (failed.length && failed.length === queries.length) throw failed[0];
       return groups;
     });
   }).then(function (groups) {
     if (ctx.stopped) throw new Error(t("ai_stopped"));
     var seen = {}, rows = [];
-    // Interleave the queries' results: the best hit of each query first.
+
     for (var i = 0; i < 5; i++) groups.forEach(function (g) {
       var r = g[i];
       if (!r || !r.url || seen[r.url]) return;
@@ -142,7 +138,6 @@ function aiResearch(ctx, step) {
   });
 }
 
-/* ---------------------------------------------------------------- prompts */
 function aiCardSystem(ctx) {
   return [
     "You are an expert writer of SillyTavern character cards (Character Card V2/V3) for immersive roleplay.",
@@ -183,7 +178,6 @@ function aiUserMessage(ctx, notes) {
   return parts.join("\n\n");
 }
 
-/* ---------------------------------------------------------------- the dialog */
 function openAiCreator(kind, opts) {
   opts = opts || {};
   var targetWorld = opts.world || null;
@@ -199,7 +193,7 @@ function openAiCreator(kind, opts) {
   if (targetWorld) ctx.existing = Object.keys(targetWorld.entries || {}).map(function (k) { return targetWorld.entries[k].comment || (targetWorld.entries[k].key || [])[0] || ""; }).filter(Boolean).slice(0, 80);
   var title = kind === "lorebook" ? (targetWorld ? t("ai_book_add_title", { name: targetWorld.name }) : t("ai_book_title")) : t("ai_char_title");
   var modal = openModal({ title: title, icon: "wand", full: true, sticky: true, content: function (body) { body.classList.add("ch-ai-body"); } });
-  // Closing keeps the draft (or the idea): reopening «Create with AI» continues where the person left off.
+
   modal.beforeClose = function () {
     if (ctx.busy) { aiStop(ctx); ctx.busy = false; }
     if (ctx.card || ctx.book) AI.last = ctx; else if (!targetWorld) remember();
@@ -209,7 +203,6 @@ function openAiCreator(kind, opts) {
   modal.box.appendChild(foot);
   function remember() { AI.last = { kind: kind, idea: ctx.idea, web: ctx.web, lang: ctx.lang, greetings: ctx.greetings, withBook: ctx.withBook, bookEntries: ctx.bookEntries, avatar: ctx.avatar, imageModel: ctx.imageModel, model: ctx.model }; }
 
-  /* stage 1 — the idea */
   function drawIdea() {
     body.innerHTML = ""; foot.innerHTML = "";
     var area = h("textarea", { class: "mu-textarea ch-ai-idea", rows: "5", placeholder: t(kind === "lorebook" ? "ai_book_ph" : "ai_char_ph"), "aria-label": t("ai_idea") });
@@ -228,7 +221,7 @@ function openAiCreator(kind, opts) {
     body.appendChild(area);
     body.appendChild(examples);
     var grid = h("div", { class: "ch-ai-opts" });
-    // model
+
     var modelBtn = h("button", { class: "ch-cchip ch-ai-model", type: "button" });
     function drawModelBtn() {
       modelBtn.innerHTML = "";
@@ -267,7 +260,6 @@ function openAiCreator(kind, opts) {
     setTimeout(function () { area.focus(); }, 60);
   }
 
-  /* stage 2 — progress */
   var stepsBox = null, streamBox = null;
   var STEPS = ["queries", "search", "read", "write", "avatar"];
   function drawProgress() {
@@ -310,7 +302,7 @@ function openAiCreator(kind, opts) {
     ctx.busy = true; ctx.stopped = false; ctx.jobs = []; ctx.sources = [];
     drawProgress();
     var notes = "";
-    // «Retry» / «Start over» with the same idea reuse the sources already read (search + pages take the longest).
+
     var key = ctx.idea.trim() + "\u0000" + ctx.kind;
     var cached = ctx.web && ctx.research && ctx.research.key === key ? ctx.research : null;
     var research = cached ? Promise.resolve(cached.notes).then(function (n) { ctx.sources = cached.sources; return n; })
@@ -357,7 +349,6 @@ function openAiCreator(kind, opts) {
     foot.appendChild(h("button", { class: "mu-btn primary", type: "button", html: icon("refresh", 15) + "<span>" + esc(t("retry")) + "</span>", onclick: start }));
   }
 
-  /* stage 3 — the draft: edit, regenerate fields, save */
   function drawResult() {
     body.innerHTML = ""; foot.innerHTML = "";
     if (kind === "character") drawCard(); else drawBookOnly();
@@ -520,7 +511,6 @@ function openAiCreator(kind, opts) {
   return modal;
 }
 
-/* ---------------------------------------------------------------- small form pieces */
 function aiOpt(labelKey, control, hintKey) {
   return h("div", { class: "ch-ai-opt" }, [h("div", { class: "ch-ai-opt-label" }, [h("b", { text: t(labelKey) }), hintKey ? h("span", { class: "mu-muted ch-small", text: t(hintKey) }) : null]), h("div", { class: "ch-ai-opt-ctl" }, [control])]);
 }
@@ -530,7 +520,7 @@ function aiSwitch(value, onChange) {
   c.addEventListener("change", function () { onChange(c.checked); });
   return h("label", { class: "ch-pm-switch" }, [c, h("span", { class: "ch-switch" })]);
 }
-// An editable field of the draft with «regenerate» (optionally «what to change») next to its label.
+
 function aiField(ctx, name, label, holder, opts) {
   opts = opts || {};
   var key = opts.key || name;
@@ -578,7 +568,6 @@ function aiField(ctx, name, label, holder, opts) {
   return wrap;
 }
 
-/* ---------------------------------------------------------------- normalisation */
 function aiNormCard(json) {
   var c = json && json.data && typeof json.data === "object" && !json.description ? json.data : json || {};
   var card = { name: aiStr(c.name).trim(), tags: aiList(c.tags).slice(0, 12).map(function (x) { return x.toLowerCase(); }), avatar_prompt: aiStr(c.avatar_prompt) };
@@ -608,12 +597,11 @@ function aiBookToCharacterBook(book, charName) {
   }) };
 }
 
-/* ---------------------------------------------------------------- partial regeneration */
 function aiCardContext(ctx) {
   var c = ctx.card ? JSON.stringify(Object.assign({}, ctx.card), null, 1) : "";
   return c.length > 14000 ? c.slice(0, 14000) + "…" : c;
 }
-// field: a card key, «tags», «avatar_prompt», «alternate_greetings[i]» or «alternate_greetings[+]» (a new greeting).
+
 function aiRegenField(ctx, field, instruction, onPartial) {
   ctx.jobs = ctx.jobs || [];
   ctx.stopped = false;
@@ -627,7 +615,7 @@ function aiRegenField(ctx, field, instruction, onPartial) {
     "\n\nWrite " + what + " anew" + (instruction ? " following this instruction: " + instruction : " — a fresh, better version") + ".";
   return aiCall(ctx, [{ role: "system", content: sys }, { role: "user", content: user }], {
     temperature: 0.95, max_tokens: 2500,
-    onText: onPartial ? function (raw) { var mm = /"value"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(raw); if (mm) { try { onPartial(JSON.parse('"' + mm[1].replace(/\\$/, "") + '"')); } catch (e) { /* mid-escape */ } } } : null
+    onText: onPartial ? function (raw) { var mm = /"value"\s*:\s*"((?:[^"\\]|\\.)*)/.exec(raw); if (mm) { try { onPartial(JSON.parse('"' + mm[1].replace(/\\$/, "") + '"')); } catch (e) {  } } } : null
   }).then(function (text) {
     var v = aiParseJson(text).value;
     return field === "tags" ? aiList(v) : aiStr(v).trim();

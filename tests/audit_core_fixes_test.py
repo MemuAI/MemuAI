@@ -18,7 +18,6 @@ from app.state import ST_OK, ST_UNKNOWN, Account, state
 from app.tool_protocol import collect_tool_delta, ordered_tool_calls
 from tests.protocol_contract_test import make_request
 
-
 def _chunks(finish_reason="stop"):
     async def generate(*_args, **_kwargs):
         yield {"id": "c1", "object": "chat.completion.chunk", "created": 1, "model": "m",
@@ -28,11 +27,9 @@ def _chunks(finish_reason="stop"):
                "usage": {"prompt_tokens": 3, "completion_tokens": 2, "total_tokens": 5}}
     return generate
 
-
 async def _body(response) -> str:
     return b"".join([chunk if isinstance(chunk, bytes) else chunk.encode()
                      async for chunk in response.body_iterator]).decode()
-
 
 class ToolDeltaTests(unittest.TestCase):
     def test_repeated_full_name_is_not_duplicated(self):
@@ -59,7 +56,6 @@ class ToolDeltaTests(unittest.TestCase):
         self.assertTrue(first.startswith("call_"))
         self.assertEqual(ordered_tool_calls(calls)[0]["id"], first)
 
-
 class PoolTests(unittest.TestCase):
     def test_first_available_prefers_ok_status(self):
         bad = Account("custom", {"name": "a"}, id="bad", order=0, status=ST_UNKNOWN)
@@ -78,7 +74,6 @@ class PoolTests(unittest.TestCase):
                 patch.object(config_store.settings, "balancing", "round-robin"):
             firsts = [pool.ordered_candidates("custom", "m", prefix="a")[0].id for _ in range(4)]
         self.assertEqual(firsts, ["a1", "a2", "a1", "a2"])
-
 
 class ChatRetryTests(unittest.TestCase):
     def _run(self, provider, accounts):
@@ -125,7 +120,6 @@ class ChatRetryTests(unittest.TestCase):
         chunks = self._run(Provider(), [Account("test", {}, id="first"), Account("test", {}, id="second")])
         self.assertEqual(chunks[0]["choices"][0]["delta"]["content"], "ok")
 
-
 class OpenAIProtocolTests(unittest.TestCase):
     def test_n_greater_than_one_is_rejected(self):
         async def run():
@@ -152,7 +146,6 @@ class OpenAIProtocolTests(unittest.TestCase):
         self.assertIsNone(events[-2]["usage"])
         self.assertTrue(text.rstrip().endswith("data: [DONE]"))
 
-
 class ResponsesProtocolTests(unittest.TestCase):
     def test_length_finish_is_incomplete(self):
         async def run():
@@ -163,7 +156,6 @@ class ResponsesProtocolTests(unittest.TestCase):
         result = asyncio.run(run())
         self.assertEqual(result["status"], "incomplete")
         self.assertEqual(result["incomplete_details"], {"reason": "max_output_tokens"})
-
 
 class AuthTests(unittest.TestCase):
     def test_non_ascii_key_is_rejected_not_crashing(self):
@@ -186,7 +178,6 @@ class AuthTests(unittest.TestCase):
         store._data = {"keys": [{"key": "mpk-" + "a" * 30, "id": "x"}]}
         self.assertIsNone(store.find("ключ"))
         self.assertEqual(store.find("mpk-" + "a" * 30)["id"], "x")
-
 
 if __name__ == "__main__":
     unittest.main()

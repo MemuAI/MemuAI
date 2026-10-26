@@ -19,16 +19,13 @@ from curl_cffi.requests import AsyncSession
 
 _sessions: Dict[str, AsyncSession] = {}
 _last_used: Dict[str, float] = {}
-# Выведенные из пула сессии закрываются не сразу: ими могут ещё читать
-# чужие потоки (сессия общая для всех аккаунтов без своего прокси).
+
 _retired: list = []
 RETIRE_GRACE = 3600.0
 MAX_RETIRED = 16
-# Секции под замком короткие и без await, поэтому замок обычный, поточный: asyncio.Lock привязан к одному циклу,
-# а пулом пользуются несколько (поток Telegram, планировщик, окно).
+
 _lock = threading.Lock()
 _cfg = {"impersonate": "chrome124", "verify": True}
-
 
 def _harden_curl_callbacks() -> None:
     """Колбэки libcurl не должны падать на закрытом цикле.
@@ -57,7 +54,7 @@ def _harden_curl_callbacks() -> None:
                 return 0
             try:
                 return timer(curlm, timeout_ms, clientp)
-            except RuntimeError:                      # the loop closed between the check and the call
+            except RuntimeError:
                 return 0
 
         def socket_function(curl, sockfd, what, clientp, data):  # noqa: ANN001
@@ -74,9 +71,7 @@ def _harden_curl_callbacks() -> None:
     except Exception:
         return
 
-
 _harden_curl_callbacks()
-
 
 def configure(impersonate: Optional[str] = None, verify: Optional[bool] = None) -> None:
     if impersonate:
@@ -84,11 +79,9 @@ def configure(impersonate: Optional[str] = None, verify: Optional[bool] = None) 
     if verify is not None:
         _cfg["verify"] = verify
 
-
 def _loop_of(session: Any) -> Optional[asyncio.AbstractEventLoop]:
     """The loop a session works on (None until its first use)."""
     return getattr(session, "_loop", None)
-
 
 async def _close(session: Any) -> None:
     """Closes a session on the loop it belongs to. A session whose loop is gone cannot be closed by anyone: it is
@@ -104,7 +97,6 @@ async def _close(session: Any) -> None:
     except Exception:
         pass
 
-
 def _forget_closed_loops() -> None:
     """Under ``_lock``: sessions of loops that no longer exist leave the pool."""
     for key in [k for k, s in _sessions.items() if (_loop_of(s) is not None and _loop_of(s).is_closed())]:
@@ -112,10 +104,8 @@ def _forget_closed_loops() -> None:
         _last_used.pop(key, None)
     _retired[:] = [item for item in _retired if not (_loop_of(item[1]) is not None and _loop_of(item[1]).is_closed())]
 
-
 def _suffix() -> str:
     return f"|{id(asyncio.get_running_loop())}"
-
 
 def is_loopback(url: str) -> bool:
     """A server on this computer (llama.cpp, LM Studio, Ollama, a local gateway)."""
@@ -128,22 +118,17 @@ def is_loopback(url: str) -> bool:
         return True
     import ipaddress
     try:
-        # A literal address only: "127.0.0.1.nip.io" or "127.example.com" is a public name and must keep
-        # going through the user's proxy.
+
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
         return False
 
-
 async def get_session(proxy: str = "", *, impersonate: bool = True, url: str = "") -> AsyncSession:
-    # Browser impersonation adds an h2c Upgrade to plain HTTP requests with
-    # recent curl_cffi releases. ASGI servers can then see an empty POST body.
+
     profile = _cfg["impersonate"] if impersonate else ""
-    # Round 27: libcurl takes http(s)_proxy from the environment (on Windows HTTP_PROXY too — env names are
-    # case-insensitive there), so a Custom connection to http://127.0.0.1 went to a VPN/corporate proxy and got
-    # its 404/502. Without an explicit proxy a loopback address bypasses every proxy.
+
     direct = not proxy and is_loopback(url)
-    key = f"{proxy}|{profile}|{_cfg['verify']}{'|direct' if direct else ''}{_suffix()}"   # one pool per event loop
+    key = f"{proxy}|{profile}|{_cfg['verify']}{'|direct' if direct else ''}{_suffix()}"
     with _lock:
         _forget_closed_loops()
         s = _sessions.get(key)
@@ -161,7 +146,6 @@ async def get_session(proxy: str = "", *, impersonate: bool = True, url: str = "
         _last_used[key] = time.time()
         return s
 
-
 async def close_all() -> None:
     with _lock:
         old = list(_sessions.values()) + [session for _ts, session in _retired]
@@ -170,7 +154,6 @@ async def close_all() -> None:
         _retired.clear()
     for s in old:
         await _close(s)
-
 
 async def drop_session(proxy: str = "") -> int:
     """Close the cached session for `proxy` so the next call reconnects.
@@ -193,11 +176,10 @@ async def drop_session(proxy: str = "") -> int:
         _retired.extend((now, session) for session in victims)
         overflow = _retired[:-MAX_RETIRED] if len(_retired) > MAX_RETIRED else []
         del _retired[:len(overflow)]
-    # Долгий сбой с частыми повторами не должен копить открытые сессии.
+
     for _ts, session in overflow:
         await _close(session)
     return len(victims)
-
 
 async def _close_retired(now: float) -> None:
     with _lock:
@@ -206,7 +188,6 @@ async def _close_retired(now: float) -> None:
             _retired.remove(item)
     for _ts, session in due:
         await _close(session)
-
 
 async def recycle_idle(max_idle: float = 900.0) -> int:
     """Close sessions unused for `max_idle` seconds.
@@ -225,14 +206,12 @@ async def recycle_idle(max_idle: float = 900.0) -> int:
             _last_used.pop(key, None)
             if session is not None:
                 victims.append(session)
-        # Поток длиннее max_idle ещё читает эту сессию: закрываем позже.
+
         _retired.extend((now, session) for session in victims)
     await _close_retired(now)
     return len(victims)
 
-
 _CURL_TAIL = re.compile(r"\s*See https?://curl\.se/\S*.*$", re.S)
-
 
 def network_error_text(exc: BaseException) -> str:
     """A short, readable reason for a failed connection, for account cards and checks.
@@ -247,7 +226,6 @@ def network_error_text(exc: BaseException) -> str:
     text = re.sub(r"^curl: \(\d+\)\s*", "", text).rstrip(" .")
     return (text or type(exc).__name__)[:200]
 
-
 async def read_error_text(resp, limit: int = 600) -> str:
     """The head of a failed response, also for ``stream=True`` ones.
 
@@ -256,7 +234,7 @@ async def read_error_text(resp, limit: int = 600) -> str:
     not found» …) never reached the user. Reading is capped and never raises.
     """
     async def collect() -> bytes:
-        # curl_cffi reads a streamed body with ``acontent``; httpx calls it ``aread``.
+
         reader = getattr(resp, "acontent", None) or getattr(resp, "aread", None)
         if reader is not None:
             data = await reader()
@@ -279,7 +257,6 @@ async def read_error_text(resp, limit: int = 600) -> str:
     except Exception:
         return ""
 
-
 async def close_quietly(closer, timeout: float = 5.0) -> None:
     """Awaits ``closer()`` to completion even while the surrounding task is being cancelled.
 
@@ -295,7 +272,6 @@ async def close_quietly(closer, timeout: float = 5.0) -> None:
     except BaseException as exc:  # noqa: BLE001 — closing must never raise out of cleanup
         if isinstance(exc, (KeyboardInterrupt, SystemExit)):
             raise
-
 
 async def close_response(resp, timeout: float = 5.0) -> None:
     """Aborts a streamed curl_cffi response instead of draining it.
@@ -321,7 +297,6 @@ async def close_response(resp, timeout: float = 5.0) -> None:
     closer = getattr(resp, "aclose", None)
     if closer is not None:
         await close_quietly(closer, timeout)
-
 
 async def aiter_lines_str(resp, *, idle_timeout: Optional[float] = None):
     """Normalize curl lines to text and optionally bound inter-line silence."""

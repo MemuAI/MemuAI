@@ -20,7 +20,6 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-
 class PlaygroundIgnoresSystemProxy(unittest.TestCase):
     def test_local_proxy_client_does_not_trust_env(self):
         import httpx
@@ -40,7 +39,6 @@ class PlaygroundIgnoresSystemProxy(unittest.TestCase):
         bridge = [kw for kw in made if getattr(kw.get("timeout"), "read", None) == 600]
         self.assertTrue(bridge, made)
         self.assertIs(bridge[0].get("trust_env"), False)
-
 
 class ServiceTagScrubber(unittest.TestCase):
     CASES = [
@@ -83,7 +81,6 @@ class ServiceTagScrubber(unittest.TestCase):
         text = "".join((ch.get("delta") or {}).get("content") or ""
                        for c in chunks for ch in c.get("choices") or [])
         self.assertEqual(text, "Привет!\n\n")
-
 
 class ReadableProviderErrors(unittest.TestCase):
     """A wrong key or model gives one readable line, not raw JSON or «add accounts»."""
@@ -145,7 +142,6 @@ class ReadableProviderErrors(unittest.TestCase):
         self.assertIn("conn · host", exc.message)
         self.assertIn("HTTP 401", exc.message)
         self.assertNotIn("Добавьте их", exc.message)
-
 
 if __name__ == "__main__":
     unittest.main()

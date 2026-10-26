@@ -23,7 +23,6 @@ from app import telegram_use as telegram
 from app import telegram_use_api as telegram_api
 from app import telegram_use_config as config
 
-
 class ExtensionDownloadTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix="memuai-round44-download-")
@@ -113,7 +112,6 @@ class ExtensionDownloadTests(unittest.TestCase):
         self.assertIn("incomplete", response.json()["error"])
         self.assertFalse(list(self.folder.glob("*.zip")))
 
-
 class TelegramSetupTests(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix="memuai-round44-telegram-")
@@ -171,7 +169,6 @@ class TelegramSetupTests(unittest.IsolatedAsyncioTestCase):
         limited = telegram.friendly(type("PhoneNumberFloodError", (Exception,), {})("hidden"))
         self.assertIn("позже", limited)
 
-
 class TelegramRateLimitRouteTests(unittest.TestCase):
     def test_http_action_returns_machine_readable_retry_after_without_retrying(self):
         runtime = SimpleNamespace(submit=Mock(side_effect=telegram.TelegramUseError("Wait for Telegram", retry_after=120)))
@@ -183,7 +180,6 @@ class TelegramRateLimitRouteTests(unittest.TestCase):
         self.assertEqual(result.headers["retry-after"], "120")
         self.assertEqual(result.json()["retry_after"], 120)
         runtime.submit.assert_called_once()
-
 
 if __name__ == "__main__":
     unittest.main()

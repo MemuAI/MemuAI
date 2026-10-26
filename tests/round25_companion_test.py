@@ -28,10 +28,8 @@ ROOT = Path(__file__).resolve().parents[1]
 COMPANION = ROOT / "app" / "pgstatic" / "companion"
 NODE = shutil.which("node")
 
-
 def run(coro):
     return asyncio.new_event_loop().run_until_complete(coro)
-
 
 async def collect(gen, limit):
     out = []
@@ -40,7 +38,6 @@ async def collect(gen, limit):
         if len(out) >= limit:
             break
     return out
-
 
 @unittest.skipUnless(NODE, "node is not installed")
 class GazeMathTests(unittest.TestCase):
@@ -53,7 +50,7 @@ class GazeMathTests(unittest.TestCase):
 
     def test_cursor_below_the_face_looks_down(self) -> None:
         face = "{x: 150, y: 120}"
-        # Cursor below her face but above the middle of the frame: the old frame-centre origin made her look up.
+
         below = self.node(f"C.live2dFocus(C.lookVector({{x: 150, y: 170}}, {face}, 300))")
         self.assertEqual(below["x"], 0)
         self.assertLess(below["y"], 0, "Live2D +y is UP: a cursor below the face must give a negative focus y")
@@ -66,7 +63,7 @@ class GazeMathTests(unittest.TestCase):
         self.assertEqual(self.node(f"C.lookVector(null, {face}, 300)"), {"x": 0, "y": 0})
 
     def test_screen_to_client(self) -> None:
-        # Physical px at 150 % DPI → CSS px of a viewport whose top-left is at (100, 50) CSS screen px.
+
         self.assertEqual(self.node("C.screenToClient({x: 300, y: 150}, {x: 100, y: 50}, 1.5)"), {"x": 100, "y": 50})
 
     def test_fit_box_keeps_raised_arms_inside(self) -> None:
@@ -82,7 +79,6 @@ class GazeMathTests(unittest.TestCase):
         bust = self.node("C.fitBox({x0: 0, y0: 0, x1: 100, y1: 400}, 300, 390, {bust: true, bustCut: 200})")
         self.assertAlmostEqual(bust["y"], 0, places=6)
         self.assertAlmostEqual(bust["scale"], 390 / 200, places=6)
-
 
 class StageSourceTests(unittest.TestCase):
     """Guards for fixes that only show on a real GPU (checked visually with headless Chromium in Round 25)."""
@@ -105,7 +101,6 @@ class StageSourceTests(unittest.TestCase):
         self.assertIn('send("cursor"', self.host)
         self.assertNotIn('send("look"', self.host)
         self.assertIn("/api/companion/cursor/stream", self.stage)
-
 
 class CursorFeedTests(unittest.TestCase):
     def test_only_changes_and_heartbeat(self) -> None:
@@ -152,7 +147,6 @@ class CursorFeedTests(unittest.TestCase):
         client = TestClient(create_app(), base_url="http://127.0.0.1")
         self.assertEqual(client.get("/api/companion/cursor").json(), {"supported": False, "x": None, "y": None, "relative": False})
         self.assertEqual(client.get("/api/companion/cursor/stream").status_code, 404)
-
 
 class ErrorLanguageTests(unittest.TestCase):
     def test_model_errors_have_english(self) -> None:

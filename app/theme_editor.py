@@ -42,7 +42,7 @@ import zlib
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import Request  # module level: route annotations are strings (postponed evaluation)
+from fastapi import Request
 
 SCHEMA = 1
 LOOK_VERSION = 1
@@ -50,8 +50,6 @@ SHARE_PREFIX = "MEMU-THEME-1."
 EDITOR_BLOCK_RE = re.compile(r"/\*\s*@memu-editor\s+(\{.*?\})\s*\*/", re.S)
 ELEMENTS_START = "/* memu-editor:elements */"
 ELEMENTS_END = "/* /memu-editor:elements */"
-
-# ----------------------------------------------------------------------------- layout
 
 LAYOUT_CHOICES: Dict[str, tuple] = {
     "side_pos": ("left", "right"),
@@ -61,20 +59,17 @@ LAYOUT_CHOICES: Dict[str, tuple] = {
     "bubbles": ("", "plain", "outline", "filled", "compact"),
     "user_align": ("", "left"),
 }
-#: int settings: (min, max); 0 always means «default».
+
 LAYOUT_RANGES: Dict[str, tuple] = {
     "side_width": (200, 480),
     "composer_width": (420, 1400),
     "chat_px": (520, 1600),
 }
 
-#: top-bar items whose order / visibility the editor manages (ids used by theme-editor.js)
 TOOLBAR_ITEMS = ("nav", "model", "context", "modules", "spacer", "panels", "help", "focus", "theme")
-#: items that may be hidden (top bar, message box, sidebar)
+
 HIDEABLE = ("nav", "search", "model", "context", "modules", "panels", "help", "focus", "theme",
             "mic", "live", "hint", "brand", "modes", "sched", "skills", "status")
-
-# ----------------------------------------------------------------------------- elements
 
 PROP_KINDS: Dict[str, Any] = {
     "bg": "color", "fg": "color", "border": "color", "accent": "color",
@@ -90,15 +85,11 @@ TOKEN_RE = re.compile(r"^--[a-z][a-z0-9-]{0,47}$")
 MAX_ELEMENTS = 80
 MAX_TOKENS = 96
 
-# ----------------------------------------------------------------------------- background
-
 BG_KINDS = ("", "gradient", "image", "solid")
 BG_PRESETS = ("aurora", "sunset", "ocean", "forest", "dusk", "mono", "accent", "custom")
 ASSET_RE = re.compile(r"^[a-f0-9]{20}\.(png|jpg|webp)$")
 ASSET_URL_RE = re.compile(r"^/api/pg/theme-editor/asset/[a-f0-9]{20}\.(png|jpg|webp)$")
 MAX_ASSET_BYTES = 6 * 1024 * 1024
-
-# ----------------------------------------------------------------------------- values
 
 _COLOR_RE = re.compile(r"^#[0-9a-fA-F]{3,8}$")
 _FUNC_RE = re.compile(r"^[a-zA-Z0-9#%().,\-+*/ ]+$")
@@ -106,7 +97,6 @@ _ALLOWED_FUNCS = {"rgb", "rgba", "hsl", "hsla", "color-mix", "var", "in", "srgb"
                   "hwb", "transparent", "currentcolor", "white", "black", "calc", "linear-gradient",
                   "radial-gradient", "conic-gradient", "deg", "turn", "to", "left", "right", "top", "bottom",
                   "circle", "ellipse", "at", "center", "closest-side", "farthest-corner", "px", "em", "rem"}
-
 
 def safe_value(value: Any, *, max_len: int = 240) -> str:
     """A CSS value that cannot break out of its declaration: colours, var(), color-mix(), gradients, numbers.
@@ -126,20 +116,17 @@ def safe_value(value: Any, *, max_len: int = 240) -> str:
         low = word.lower()
         if low.startswith("--") or low in _ALLOWED_FUNCS:
             continue
-        # named colours and plain identifiers inside var(--x) are fine; refuse function-like words we don't know
+
         if re.search(re.escape(word) + r"\s*\(", text) and low not in _ALLOWED_FUNCS:
             return ""
     return text
-
 
 def safe_color(value: Any) -> str:
     text = safe_value(value, max_len=160)
     return "" if "gradient" in text else text
 
-
 def _choice(value: Any, choices: tuple) -> str:
     return value if isinstance(value, str) and value in choices else choices[0]
-
 
 def _ranged(value: Any, lo: int, hi: int, *, zero_ok: bool = True) -> int:
     try:
@@ -149,7 +136,6 @@ def _ranged(value: Any, lo: int, hi: int, *, zero_ok: bool = True) -> int:
     if number == 0 and zero_ok:
         return 0
     return max(lo, min(hi, number))
-
 
 def _props(raw: Any, *, colors: bool) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
@@ -174,7 +160,6 @@ def _props(raw: Any, *, colors: bool) -> Dict[str, Any]:
             out[key] = value
     return out
 
-
 def normalize_elements(raw: Any) -> Dict[str, Dict[str, Dict[str, Any]]]:
     out: Dict[str, Dict[str, Dict[str, Any]]] = {}
     if not isinstance(raw, dict):
@@ -192,7 +177,6 @@ def normalize_elements(raw: Any) -> Dict[str, Dict[str, Dict[str, Any]]]:
             break
     return out
 
-
 def normalize_tokens(raw: Any) -> Dict[str, Dict[str, str]]:
     out: Dict[str, Dict[str, str]] = {"dark": {}, "light": {}}
     if not isinstance(raw, dict):
@@ -207,7 +191,6 @@ def normalize_tokens(raw: Any) -> Dict[str, Dict[str, str]]:
                 out[mode][name] = clean
     return out
 
-
 def normalize_layout(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
     out: Dict[str, Any] = {key: _choice(raw.get(key), choices) for key, choices in LAYOUT_CHOICES.items()}
@@ -215,19 +198,17 @@ def normalize_layout(raw: Any) -> Dict[str, Any]:
         out[key] = _ranged(raw.get(key), lo, hi)
     return out
 
-
 def normalize_toolbar(raw: Any) -> Dict[str, List[str]]:
     raw = raw if isinstance(raw, dict) else {}
     order: List[str] = []
     for item in raw.get("order") or []:
         if isinstance(item, str) and item in TOOLBAR_ITEMS and item not in order:
             order.append(item)
-    if order:  # a partial order is completed in the default order, so a new item never vanishes
+    if order:
         order += [item for item in TOOLBAR_ITEMS if item not in order]
     hidden = sorted({item for item in raw.get("hidden") or [] if isinstance(item, str) and item in HIDEABLE},
                     key=HIDEABLE.index)
     return {"order": order, "hidden": hidden}
-
 
 def normalize_bg(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
@@ -248,10 +229,8 @@ def normalize_bg(raw: Any) -> Dict[str, Any]:
         out["kind"] = ""
     return out
 
-
 def default_look() -> Dict[str, Any]:
     return normalize_look({})
-
 
 def normalize_look(raw: Any) -> Dict[str, Any]:
     """The ``ui_look`` preference: always a complete, safe structure."""
@@ -265,22 +244,15 @@ def normalize_look(raw: Any) -> Dict[str, Any]:
         "bg": normalize_bg(raw.get("bg")),
     }
 
-
 DEFAULTS: Dict[str, Any] = {"ui_look": default_look()}
-
 
 def normalize_prefs(prefs: Dict[str, Any]) -> Dict[str, Any]:
     """In place, for ``pgdata._normalize_preferences`` (through ``appearance_extra.normalize``)."""
     prefs["ui_look"] = normalize_look(prefs.get("ui_look"))
     return prefs
 
-
-# ----------------------------------------------------------------------------- theme packages
-
-#: preferences a theme package may carry as its «look» (applied only from the editor, on request)
 LOOK_PREF_KEYS = ("ui_design", "accent_color", "app_font", "font_scale", "ui_density", "chat_width", "ui_radius",
                   "ui_glass", "ui_msg_size", "ui_contrast")
-
 
 def _clean_look_prefs(raw: Any) -> Dict[str, Any]:
     if not isinstance(raw, dict):
@@ -307,7 +279,6 @@ def _clean_look_prefs(raw: Any) -> Dict[str, Any]:
             out[key] = value if value in appearance_extra.CHOICES[key] else appearance_extra.CHOICES[key][0]
     return out
 
-
 def normalize_package(raw: Any) -> Dict[str, Any]:
     """A theme package of the current schema. Older shapes are migrated:
 
@@ -325,7 +296,7 @@ def normalize_package(raw: Any) -> Dict[str, Any]:
     tokens = raw.get("tokens") if isinstance(raw.get("tokens"), dict) else {}
     meta = themes.parse_meta(css) if css else {}
     if schema < 1:
-        # legacy studio theme: tokens live in :root, everything else is hand-written CSS
+
         if css and not tokens:
             tokens = themes.extract_tokens(css)
     base = themes.normalize_mode(raw.get("base") or meta.get("base") or "dark")
@@ -335,7 +306,7 @@ def normalize_package(raw: Any) -> Dict[str, Any]:
     clean_tokens = {name: safe_value(value) for name, value in list(tokens.items())[:MAX_TOKENS]
                     if isinstance(name, str) and TOKEN_RE.match(name) and safe_value(value)}
     elements_raw = raw.get("elements") if isinstance(raw.get("elements"), dict) else {}
-    # elements of a package belong to the theme's own mode: {"all":…, "<mode>":…}
+
     elements = {}
     for element_id, spec in normalize_elements(elements_raw).items():
         keep = {key: value for key, value in spec.items() if key in ("all", base)}
@@ -358,13 +329,12 @@ def normalize_package(raw: Any) -> Dict[str, Any]:
     }
     if isinstance(raw.get("look"), dict):
         look = normalize_look(raw["look"])
-        look["elements"], look["tokens"] = {}, {"dark": {}, "light": {}}  # colours travel in tokens/elements
+        look["elements"], look["tokens"] = {}, {"dark": {}, "light": {}}
         out["look"] = look
     image_data = raw.get("image_data")
     if isinstance(image_data, str) and image_data.startswith("data:image/"):
         out["image_data"] = image_data[: MAX_ASSET_BYTES * 2]
     return out
-
 
 def custom_css_of(css: str) -> str:
     """The hand-written part of a theme: no header, no :root token block, no generated element rules, no package."""
@@ -376,7 +346,6 @@ def custom_css_of(css: str) -> str:
         body = body[:start] + body[end + len(ELEMENTS_END):]
     body = re.sub(r"(^|\n)\s*:root\s*\{[^{}]*\}\s*", "\n", body, count=1)
     return body.strip()
-
 
 def package_from_css(css: str) -> Dict[str, Any]:
     """Read the editor package of a theme file; any theme without one is migrated from schema 0."""
@@ -398,12 +367,11 @@ def package_from_css(css: str) -> Dict[str, Any]:
         if meta.get(key) and not raw.get(key):
             raw[key] = meta[key]
     if raw["schema"] >= 1:
-        # tokens of the :root block win over a stale copy in the package (the file may be edited by hand)
+
         tokens = dict(raw.get("tokens") or {})
         tokens.update(themes.extract_tokens(css))
         raw["tokens"] = tokens
     return normalize_package(raw)
-
 
 def editor_block(package: Dict[str, Any]) -> str:
     """The trailing comment that makes a theme file re-editable; ``*/`` can never appear inside."""
@@ -411,9 +379,6 @@ def editor_block(package: Dict[str, Any]) -> str:
     data["schema"] = SCHEMA
     text = json.dumps(data, ensure_ascii=False, separators=(",", ":")).replace("/", "\\/")
     return f"/* @memu-editor {text} */\n"
-
-
-# ----------------------------------------------------------------------------- share codes
 
 def share_code(package: Dict[str, Any]) -> Dict[str, Any]:
     clean = normalize_package(package)
@@ -425,7 +390,6 @@ def share_code(package: Dict[str, Any]) -> Dict[str, Any]:
     raw = json.dumps(clean, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     code = SHARE_PREFIX + base64.urlsafe_b64encode(zlib.compress(raw, 9)).decode("ascii").rstrip("=")
     return {"code": code, "dropped_image": dropped}
-
 
 def parse_text(text: str) -> Dict[str, Any]:
     """Anything a user may paste or import: a share code, a JSON export (any schema) or a .css theme."""
@@ -459,9 +423,6 @@ def parse_text(text: str) -> Dict[str, Any]:
         return package_from_css(text)
     raise ValueError("Не похоже на тему MemuAI: ожидается код MEMU-THEME-1…, файл .json или .css")
 
-
-# ----------------------------------------------------------------------------- saving themes
-
 def save_theme(body: Dict[str, Any]) -> Dict[str, Any]:
     """Create or replace a custom theme from the editor. ``css`` is the CSS the page generated (tokens + element
     rules + hand-written CSS); the package is normalised and appended as the re-editable block."""
@@ -483,16 +444,11 @@ def save_theme(body: Dict[str, Any]) -> Dict[str, Any]:
         "version": body.get("version"),
     })
 
-
-# ----------------------------------------------------------------------------- background images
-
 _MAGIC = {"png": b"\x89PNG\r\n\x1a\n", "jpg": b"\xff\xd8\xff", "webp": b"RIFF"}
-
 
 def assets_dir() -> Path:
     from . import themes
     return themes.themes_dir() / "assets"
-
 
 def store_asset(data_url: str) -> str:
     match = re.match(r"^data:image/(png|jpeg|jpg|webp);base64,([A-Za-z0-9+/=\s]+)$", str(data_url or ""))
@@ -517,13 +473,11 @@ def store_asset(data_url: str) -> str:
         tmp.replace(path)
     return "/api/pg/theme-editor/asset/" + name
 
-
 def asset_path(name: str) -> Optional[Path]:
     if not isinstance(name, str) or not ASSET_RE.match(name):
         return None
     path = assets_dir() / name
     return path if path.is_file() else None
-
 
 def asset_data_url(url: str) -> str:
     """For the export file: the background image travels inside it."""
@@ -535,9 +489,6 @@ def asset_data_url(url: str) -> str:
         return ""
     mime = {"jpg": "jpeg"}.get(match.group(1), match.group(1))
     return f"data:image/{mime};base64," + base64.b64encode(path.read_bytes()).decode("ascii")
-
-
-# ----------------------------------------------------------------------------- errors (RU for the Russian UI, EN beside)
 
 ERRORS_EN = {
     "Пусто: вставьте код темы или выберите файл": "Empty: paste a theme code or choose a file",
@@ -557,7 +508,6 @@ ERRORS_EN = {
     "Тема не найдена": "Theme not found",
 }
 
-
 def error_body(message: str) -> Dict[str, str]:
     """``{"error": RU, "error_en": EN}`` — the editor shows the one matching the UI language."""
     message = str(message or "")
@@ -569,12 +519,9 @@ def error_body(message: str) -> Dict[str, str]:
                 english = prefix_en + message[len(prefix):]
                 break
     if english is None:
-        # messages of app.themes (save_custom) and anything unexpected: never show Cyrillic in the English UI
+
         english = message if not re.search(r"[А-Яа-яЁё]", message) else "The theme could not be processed"
     return {"error": message, "error_en": english}
-
-
-# ----------------------------------------------------------------------------- routes
 
 def register(app) -> None:
     import asyncio

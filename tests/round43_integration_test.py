@@ -21,9 +21,7 @@ from app import browser_extension as chrome
 from app import integrations, pgdata, telegram_use
 from app import telegram_use_config as tgconfig
 
-
 EXTENSION = "c" * 32
-
 
 class DesktopGlueTests(unittest.TestCase):
     def setUp(self):
@@ -199,7 +197,6 @@ class DesktopGlueTests(unittest.TestCase):
                 socket.send_json({"op": "ping"})
                 self.assertEqual(socket.receive_json()["op"], "pong")
 
-
 class QuickBridgeTests(unittest.IsolatedAsyncioTestCase):
     async def test_quick_access_prefers_extension_without_http_or_native_reads(self):
         from app.quick_ask_api import read_page_content
@@ -241,7 +238,6 @@ class QuickBridgeTests(unittest.IsolatedAsyncioTestCase):
             self.assertNotIn("extension_tab_id", edge_result)
             page_hint.assert_not_called()
 
-
 class FreezeContractTests(unittest.TestCase):
     def test_memuai_freeze_collects_dynamic_telegram_and_qr_dependencies(self):
         root = Path(__file__).resolve().parents[1]
@@ -261,6 +257,5 @@ class FreezeContractTests(unittest.TestCase):
                      "browser_extension.py", "browser_extension_chat.py", "connected_services.py"):
             with self.subTest(module=name): self.assertIn((root / "app" / name).resolve(), inputs)
         self.assertIn((root / "app/pgstatic/browser-extension/worker.js").resolve(), inputs)
-
 
 if __name__ == "__main__": unittest.main()

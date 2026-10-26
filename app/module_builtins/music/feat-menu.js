@@ -1,5 +1,4 @@
-/* MemuMusic · feat-menu.js — контекстное меню трека (ПКМ и «⋯»), меню выбранных треков,
- * выбор плейлиста с поиском и «Новый плейлист», удаление с подтверждением и «Отменить». */
+
 
 function trackMenu(x, anchor, opts) {
   opts = opts || {};
@@ -19,7 +18,7 @@ function trackMenu(x, anchor, opts) {
     x.source_url ? { icon: "copy", label: t("menu.copy_link"), run: () => copyText(x.source_url) } : null,
     x.source_url ? { icon: "download", label: t("menu.redownload"), run: () => redownload([x]) } : null,
     "-",
-    opts.moveTo ? { icon: "top", label: t("move.top"), run: () => opts.moveTo([x.id], "top") } : null,   // r39-music-lib
+    opts.moveTo ? { icon: "top", label: t("move.top"), run: () => opts.moveTo([x.id], "top") } : null,
     opts.moveTo ? { icon: "bottom", label: t("move.bottom"), run: () => opts.moveTo([x.id], "bottom") } : null,
     opts.playlistId ? { icon: "close", label: t("menu.remove_playlist"), run: () => removeFromPlaylist(opts.playlistId, [x]) } : null,
     { icon: "trash", label: t("menu.delete"), danger: true, run: () => deleteTracks([x]) },
@@ -41,7 +40,7 @@ function bulkMenu(list, anchor, opts) {
     { icon: "edit", label: t("sel.edit", { n }), run: () => editTracks(list) },
     list.some((x) => x.source_url) ? { icon: "download", label: t("menu.redownload"), run: () => redownload(list.filter((x) => x.source_url)) } : null,
     "-",
-    opts.moveTo ? { icon: "top", label: t("move.top"), run: () => opts.moveTo(list.map((x) => x.id), "top") } : null,   // r39-music-lib
+    opts.moveTo ? { icon: "top", label: t("move.top"), run: () => opts.moveTo(list.map((x) => x.id), "top") } : null,
     opts.moveTo ? { icon: "bottom", label: t("move.bottom"), run: () => opts.moveTo(list.map((x) => x.id), "bottom") } : null,
     opts.playlistId ? { icon: "close", label: t("menu.remove_playlist"), run: () => removeFromPlaylist(opts.playlistId, list) } : null,
     { icon: "trash", label: t("sel.delete", { n }), danger: true, run: () => deleteTracks(list) },
@@ -49,7 +48,6 @@ function bulkMenu(list, anchor, opts) {
   openMenu(items, anchor);
 }
 
-/** Выбор плейлиста: поиск по названию сверху, «Новый плейлист» с этими треками. */
 function playlistPicker(list, anchor) {
   list = [].concat(list);
   closeOverlays();
@@ -99,7 +97,6 @@ function placeMenu(menu, anchor) {
   menu.style.top = (r.bottom + mh + 8 > innerHeight ? Math.max(8, r.top - mh - 6) : r.bottom + 6) + "px";
 }
 
-/* ------------------------------------------------------------ действия */
 async function copyText(text) {
   try { await navigator.clipboard.writeText(text); toast(t("toast.copied")); }
   catch (e) {
@@ -121,7 +118,6 @@ async function redownload(list) {
   if (started) pollJobs();
 }
 
-/** Убрать из плейлиста — сразу, с «Отменить» (возвращает на прежние места). */
 async function removeFromPlaylist(pid, list) {
   const before = await API.soft("playlist.get", { id: pid }, null);
   const order = before ? before.tracks.map((x) => x.id) : null;
@@ -136,8 +132,6 @@ async function removeFromPlaylist(pid, list) {
   });
 }
 
-/** Удалить из библиотеки: подтверждение (если включено), затем трек исчезает сразу, а файл удаляется через 6 с —
- * до этого «Отменить» возвращает всё как было. */
 function deleteTracks(list) {
   list = list.filter(Boolean);
   if (!list.length) return;

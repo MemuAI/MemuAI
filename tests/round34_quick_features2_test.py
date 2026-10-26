@@ -24,11 +24,9 @@ from app import assistant_intents as intents  # noqa: E402
 
 NOW = datetime(2026, 10, 11, 22, 10)
 
-
 def m(text):
     found = intents.match(text, now=NOW)
     return (found["action"], found["params"]) if found else None
-
 
 class LayoutPhraseTest(unittest.TestCase):
     def test_wrong_layout_commands_are_read_and_marked(self):
@@ -55,7 +53,6 @@ class LayoutPhraseTest(unittest.TestCase):
         self.assertIn("data.card.layout = String(data.match.layout)", js)
         self.assertIn('t("Понял как: «" + esc(card.layout)', js)
         self.assertIn(".mqc-layout", (ROOT / "app" / "pgstatic" / "quick" / "plugins" / "commands.css").read_text(encoding="utf-8"))
-
 
 class NotAnAppTest(unittest.TestCase):
     def test_show_requests_are_questions(self):
@@ -90,7 +87,6 @@ class NotAnAppTest(unittest.TestCase):
             found = m(text)
             self.assertEqual(found and found[0], "app.open", text)
 
-
 class ClimateQuestionTest(unittest.TestCase):
     def test_climate_goes_to_the_model(self):
         for text in ("Какая погода обычно в Лондоне в октябре?", "погода в лондоне в октябре", "погода в мае",
@@ -102,7 +98,6 @@ class ClimateQuestionTest(unittest.TestCase):
         self.assertEqual(m("какая погода в марселе"), ("weather.get", {"when": "now", "city": "марселе"}))
         self.assertEqual(m("weather in london"), ("weather.get", {"when": "now", "city": "london"}))
         self.assertEqual(m("погода на неделю"), ("weather.get", {"when": "week"}))
-
 
 class CanvasRunErrorTest(unittest.TestCase):
     def test_missing_run_is_explained_in_both_languages(self):
@@ -120,7 +115,6 @@ class CanvasRunErrorTest(unittest.TestCase):
         self.assertEqual((r.status_code, r.json()["code"]), (404, "run_not_found"))
         self.assertEqual(client.post("/api/quick/canvas/runs/nope/zap", json={"lang": "ru"}).json()["error"], "Неизвестная операция")
 
-
 class ExplorerFlagsTest(unittest.TestCase):
     def setUp(self):
         from app import quick_explorer as qe
@@ -130,7 +124,7 @@ class ExplorerFlagsTest(unittest.TestCase):
         self.ctx = {"id": "r34qf2", "folder": str(self.base), "writable": True}
 
     def test_replace_all_false_as_a_string(self):
-        with self.assertRaises(self.qe.FolderError) as err:       # «x» occurs 3 times — not silently replaced everywhere
+        with self.assertRaises(self.qe.FolderError) as err:
             self.qe.plan_changes(self.ctx, [{"op": "edit", "path": "a.txt", "old_text": "x", "new_text": "y",
                                              "replace_all": "false"}])
         self.assertNotIn("Errno", str(err.exception.text("ru")))
@@ -148,7 +142,7 @@ class ExplorerFlagsTest(unittest.TestCase):
         with self.assertRaises(self.qe.FolderError) as err:
             self.qe.plan_changes(self.ctx, [{"op": "write", "path": "n" * 300 + ".txt", "text": "hi"}])
         self.assertIn("Слишком длинное имя", err.exception.text("ru"))
-        self.assertLess(len(err.exception.text("ru")), 220)        # the 300-character name is not echoed whole
+        self.assertLess(len(err.exception.text("ru")), 220)
         self.assertNotIn("Errno", err.exception.text("ru"))
 
 if __name__ == "__main__":

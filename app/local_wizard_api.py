@@ -14,11 +14,9 @@ from .admin_api import _auth, _json_object
 
 router = APIRouter(prefix="/api/admin/local/wizard")
 
-
 def _error(exc: Exception, status: int = 400) -> JSONResponse:
     text = str(getattr(exc, "message", "") or exc)
     return JSONResponse({"error": text, "error_en": str(getattr(exc, "message_en", "") or text)}, status_code=status)
-
 
 @router.get("/hardware")
 async def wizard_hardware(request: Request, refresh: int = 0):
@@ -31,7 +29,6 @@ async def wizard_hardware(request: Request, refresh: int = 0):
     return {"hardware": profile, "runtime": {"installed": runtime["installed"], "tag": runtime["tag"],
                                              "backend": runtime["backend"], "platform": runtime["platform"],
                                              "install": runtime["install"]}}
-
 
 @router.post("/recommend")
 async def wizard_recommend(request: Request):
@@ -48,7 +45,6 @@ async def wizard_recommend(request: Request):
         return await asyncio.to_thread(local_wizard.recommend, goals, hardware)
     except (ValueError, TypeError) as exc:
         return _error(exc)
-
 
 @router.post("/install")
 async def wizard_install(request: Request):
@@ -70,7 +66,6 @@ async def wizard_install(request: Request):
     except local_models.LocalModelError as exc:
         return _error(exc)
 
-
 @router.post("/catalog/refresh")
 async def wizard_catalog_refresh(request: Request):
     deny = _auth(request)
@@ -78,7 +73,6 @@ async def wizard_catalog_refresh(request: Request):
         return deny
     from . import local_wizard
     return local_wizard.start_refresh()
-
 
 @router.get("/catalog/status")
 async def wizard_catalog_status(request: Request):
@@ -89,7 +83,6 @@ async def wizard_catalog_status(request: Request):
     catalog = await asyncio.to_thread(local_wizard.load_catalog)
     return {"refresh": local_wizard.refresh_status(), "version": catalog.get("version", ""),
             "origin": catalog.get("origin", ""), "count": len(catalog.get("models") or [])}
-
 
 def register(app) -> None:
     app.include_router(router)

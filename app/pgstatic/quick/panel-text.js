@@ -23,8 +23,7 @@
   const docLang = () => (typeof document !== "undefined" && document.documentElement && document.documentElement.lang === "en" ? "en" : "ru");
   const PATH_RE = /^(?:\.|@(?:index|n|first|last|root)|[A-Za-z_\u0400-\u04FF][\w\u0400-\u04FF-]*)(?:\.[\w\u0400-\u04FF-]+|\[-?\d+\])*$/;
 
-  /* ------------------------------------------------------------------ parsing */
-  function splitTop(s, sep) {          // split by `sep` outside quotes (the quotes stay)
+  function splitTop(s, sep) {
     const out = []; let cur = "", q = "";
     for (let i = 0; i < s.length; i++) {
       const c = s[i];
@@ -36,7 +35,7 @@
     out.push(cur);
     return out;
   }
-  /** "price|round:0|signed" → {path, filters:[{name,args}]} or null when it is not a placeholder. */
+
   function parseExpr(src) {
     const parts = splitTop(src, "|");
     const path = parts[0].trim();
@@ -49,7 +48,7 @@
     }
     return { path, filters };
   }
-  /** Filter arguments: «2», «"a, b", x», «'—'» → ["2"], ["a, b", "x"], ["—"] (quotes keep spaces, «,» and «:»). */
+
   function splitArgs(a) {
     const out = []; let cur = "", q = "", quoted = false;
     for (let i = 0; i < a.length; i++) {
@@ -57,13 +56,13 @@
       if (q) { if (c === "\\" && i + 1 < a.length) { cur += a[++i]; continue; } if (c === q) { q = ""; continue; } cur += c; continue; }
       if ((c === '"' || c === "'" || c === "«") && !cur.trim()) { q = c === "«" ? "»" : c; quoted = true; cur = ""; continue; }
       if (c === ",") { out.push(quoted ? cur : cur.trim()); cur = ""; quoted = false; continue; }
-      if (quoted) continue;                        // text after a closing quote
+      if (quoted) continue;
       cur += c;
     }
     out.push(quoted ? cur : cur.trim());
     return out;
   }
-  /** "title ?? label ?? 'нет'" → [{path, filters}, …, {lit}] (the first one that is set wins). */
+
   function parseAlts(src) {
     const alts = [];
     let cur = "", q = "";
@@ -87,8 +86,6 @@
     return out;
   }
 
-  /** Template → {nodes, errors}. Nodes: {type:"text", v} | {type:"var", path, filters, src} |
-   *  {type:"section", inverted, path, filters, children, src}. Never throws. */
   function parse(tpl) {
     const src = String(tpl == null ? "" : tpl);
     const rootNodes = [];
@@ -140,7 +137,6 @@
     return { nodes: rootNodes, errors };
   }
 
-  /* ------------------------------------------------------------------ values */
   function pathParts(path) {
     const out = [];
     String(path).replace(/\[(-?\d+)\]|([^.[\]]+)/g, (_, idx, key) => { out.push(idx != null ? +idx : key); return ""; });
@@ -156,7 +152,7 @@
     }
     return value;
   }
-  /** Look a path up in the scope chain (innermost loop row first, then outward, then the panel's data). */
+
   function lookup(path, scopes) {
     const sc = scopes[scopes.length - 1];
     if (path === ".") return sc.item;
@@ -176,7 +172,6 @@
   const isEmpty = (v) => v == null || v === "" || v === false || (Array.isArray(v) && !v.length)
     || (typeof v === "number" && !Number.isFinite(v)) || (typeof v === "string" && /^\s*(—|-|n\/a|null|undefined)\s*$/i.test(v));
 
-  /** A number out of a value: 67432.1, "67 432,15", "$67,432.10", "+2,4 %", "−3.1%" → number | null. */
   function toNum(v, lang) {
     if (typeof v === "number") return Number.isFinite(v) ? v : null;
     if (typeof v === "boolean" || v == null || typeof v === "object") return null;
@@ -199,7 +194,7 @@
   function fmtNum(n, lang, opts = {}) {
     try { return n.toLocaleString(locale(lang), opts); } catch (e) { return String(n); }
   }
-  /** A moment out of a value: Date, unix seconds / ms, ISO / RFC strings, «19:30» (today). */
+
   function toDate(v) {
     if (v instanceof Date) return Number.isFinite(v.getTime()) ? v : null;
     if (typeof v === "number" && Number.isFinite(v)) return new Date(v < 1e11 ? v * 1000 : v);
@@ -211,7 +206,7 @@
     if (!/\d{4}-\d{2}-\d{2}|\d{1,2}[./]\d{1,2}[./]\d{4}|^\d{1,2}\s+[A-Za-z]{3,9}\s+\d{4}|^[A-Za-z]{3},\s+\d{1,2}\s+[A-Za-z]{3}\s+\d{4}|^[A-Za-z]{3,9}\s+\d{1,2},?\s+\d{4}/.test(s)) return null;
     const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? s + "T00:00:00" : s);
     if (Number.isFinite(d.getTime())) return d;
-    // the panels' own form «Fri 2027-01-01 3:00 AM MSK (UTC+03:00)», «01.01.2027», «2026-10-14 19:30 UTC+3»
+
     const ymd = /(\d{4})-(\d{2})-(\d{2})/.exec(s) || ((m) => (m ? [m[0], m[3], m[2].padStart(2, "0"), m[1].padStart(2, "0")] : null))(/(\d{1,2})[./](\d{1,2})[./](\d{4})/.exec(s));
     if (!ymd) return null;
     const tm = /(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([AP]M)?/i.exec(s.slice(s.indexOf(ymd[0]) + ymd[0].length)) || null;
@@ -234,7 +229,7 @@
     else { n = Math.round(a / 86400); u = en ? (n === 1 ? "day" : "days") : "дн."; }
     return diff >= 0 ? (en ? `in ${n} ${u}` : `через ${n} ${u}`) : (en ? `${n} ${u} ago` : `${n} ${u} назад`);
   }
-  /** A value as display text (no filters): numbers in the window's locale, lists joined, objects by their usual field. */
+
   function show(v, lang) {
     if (v == null) return "";
     if (typeof v === "number") return Number.isFinite(v) ? fmtNum(v, lang, { maximumFractionDigits: Math.abs(v) < 1 && v !== 0 ? 6 : 2 }) : "";
@@ -247,8 +242,6 @@
     return String(v);
   }
 
-  /* ------------------------------------------------------------------ filters
-     Each filter: (value, args, env) → the new value. `env.tone` may be set to "up" | "down" (the `tone` filter). */
   const pick = (v, f) => (v == null ? v : f(v));
   const FILTERS = {
     round: (v, a, e) => pick(toNum(v, e.lang), (n) => fmtNum(+n.toFixed(Math.max(0, Math.min(8, +a[0] || 0))), e.lang, { minimumFractionDigits: 0, maximumFractionDigits: Math.max(0, Math.min(8, +a[0] || 0)) })),
@@ -289,7 +282,7 @@
     datetime: (v, a, e) => { const d = toDate(v); if (!d) return v; return d.toLocaleString(e.lang === "en" ? "en-GB" : "ru-RU", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); },
     weekday: (v, a, e) => { const d = toDate(v); if (!d) return v; return d.toLocaleDateString(e.lang === "en" ? "en-GB" : "ru-RU", { weekday: a[0] === "long" ? "long" : "short" }); },
     rel: (v, a, e) => { const d = toDate(v); return d ? relText(d, e.lang, e.now) : v; },
-    days: (v, a, e) => { const d = toDate(v); if (!d) return v; const n = Math.ceil((d.getTime() - (e.now || Date.now())) / 86400000); return n || 0; },   // R34: «-0» for earlier today
+    days: (v, a, e) => { const d = toDate(v); if (!d) return v; const n = Math.ceil((d.getTime() - (e.now || Date.now())) / 86400000); return n || 0; },
     default: (v, a) => (isEmpty(v) ? (a[0] != null ? a[0] : "") : v),
     or: (v, a) => (isEmpty(v) ? (a[0] != null ? a[0] : "") : v),
     yesno: (v, a, e) => (isEmpty(v) || v === "0" || v === 0 ? (a[1] != null ? a[1] : (e.lang === "en" ? "no" : "нет")) : (a[0] != null ? a[0] : (e.lang === "en" ? "yes" : "да"))),
@@ -299,9 +292,6 @@
   FILTERS.ago = FILTERS.rel;
   FILTERS.or = FILTERS.default;
 
-  /* ------------------------------------------------------------------ rendering */
-  /** Render a parsed (or raw) template against a context. Returns HTML (escaped; newlines → <br>).
-   *  opts: {lang, now, missing ("—"), plain (text instead of HTML), mark (wrap values: <span class="pt-v">)} */
   function render(tpl, ctx, opts = {}) {
     const ast = typeof tpl === "string" || tpl == null ? parse(tpl) : tpl;
     const env = { lang: opts.lang || docLang(), now: opts.now || Date.now(), plain: !!opts.plain, missing: opts.missing == null ? "—" : opts.missing, budget: MAX_OUT };
@@ -324,8 +314,8 @@
     const fenv = { lang: env.lang, now: env.now, tone: "" };
     for (const f of alt.filters) {
       const fn = FILTERS[f.name];
-      if (!fn) continue;                         // an unknown filter is ignored (the editor names it)
-      try { v = fn(v, f.args, fenv); } catch (e) { /* keep the value */ }
+      if (!fn) continue;
+      try { v = fn(v, f.args, fenv); } catch (e) {  }
     }
     const fallback = alt.filters.some((f) => FALLBACK.includes(f.name));
     const missing = fallback ? (v == null || v === "") : (isEmpty(v) && v !== 0 && v !== false);
@@ -347,10 +337,10 @@
         out += piece(r.text, env, env.plain ? "" : ["pt-v", r.tone ? "pt-" + r.tone : ""].filter(Boolean).join(" "));
         continue;
       }
-      // section
+
       let v = lookup(n.path, scopes);
       const fenv = { lang: env.lang, now: env.now, tone: "" };
-      for (const f of n.filters) { const fn = FILTERS[f.name]; if (fn) { try { v = fn(v, f.args, fenv); } catch (e) { /* keep */ } } }
+      for (const f of n.filters) { const fn = FILTERS[f.name]; if (fn) { try { v = fn(v, f.args, fenv); } catch (e) {  } } }
       const empty = isEmpty(v);
       if (n.inverted) { if (empty) out += walk(n.children, scopes, env, depth + 1); continue; }
       if (empty || depth >= MAX_DEPTH) continue;
@@ -362,10 +352,8 @@
     return out;
   }
 
-  /* ------------------------------------------------------------------ a panel's values */
   const P = () => root.MemuPanels || null;
-  /** Everything a template of this panel can name: the panel's data (live: system, local kinds) + `panel.*`
-   *  (title, value, unit, label, trend, delta — the main value the card shows — lines[], updated, kind). */
+
   function contextOf(panel) {
     if (!panel) return {};
     const M = P();
@@ -382,7 +370,7 @@
     if (!("now" in ctx)) ctx.now = Date.now();
     return ctx;
   }
-  /** The placeholders the picker lists: [{path, kind: "value"|"list", preview, count}] — data first, then panel.*. */
+
   function placeholders(panel, opts = {}) {
     const ctx = contextOf(panel);
     const lang = opts.lang || docLang();
@@ -417,11 +405,10 @@
     return out;
   }
 
-  /* ------------------------------------------------------------------ automatic templates */
   const conv = (s) => String(s == null ? "" : s).replace(/\{\{\s*([^{}]+?)\s*\}\}/g, "{$1}");
   const bindOnly = (s) => { const m = /^\s*\{\{\s*([A-Za-z_][\w.]*)\s*\}\}\s*$/.exec(String(s || "")); return m ? m[1] : ""; };
   const B = (t, o = {}) => ({ t, x: 0, y: 0, w: 100, align: "left", size: 100, weight: 500, color: "", italic: false, font: "", ...o });
-  /** The template a panel gets until the user writes their own: the main value big, then the panel's other lines. */
+
   function defaultText(panel, opts = {}) {
     const lang = opts.lang || docLang();
     const tr = (ru, en) => (lang === "en" ? en : ru);
@@ -449,7 +436,7 @@
     if (k[kind] && kind !== "rss") blocks.push(...k[kind]());
     else if (kind === "rss") blocks.push(...k.rss());
     else {
-      // any other panel (AI panels — sports, web, custom; system, proxy, usage): from its spec
+
       const all = [];
       const flat = (list) => { for (const b of list || []) { if (b && b.type === "row") flat(b.blocks); else if (b) all.push(b); } };
       flat(spec.blocks);
@@ -470,7 +457,7 @@
         let t = conv(mainV) + (mainU ? (/^\s*\{\{/.test(mainU) || /^[%°]/.test(mainU) ? "" : " ") + conv(mainU) : "");
         blocks.push(B(t, { size: 170, weight: 650, font: "display" }));
         if (metric && bindOnly(metric.value) === bindOnly(mainV)) {
-          // the change goes under the number, coloured by its sign: «+49,17 · за унцию»
+
           const delta = metric.delta ? (bindOnly(metric.delta) ? `{${bindOnly(metric.delta)}|signed|tone}` : conv(metric.delta)) : "";
           const tail = [delta, metric.label ? conv(metric.label) : "", metric.caption ? conv(metric.caption) : ""].filter(Boolean).join(" · ");
           if (tail) rest.unshift(tail);
@@ -498,16 +485,15 @@
       }
       const lines = rest.filter((x) => x && x.trim());
       if (!mainV && lines.length && blocks.length < 3) blocks.push(B(lines.shift(), { size: 130, weight: 650 }));
-      // a line of the muted block shows only when its first value is there (no lone «—» lines)
+
       const optional = (l) => { const m = /^[^{]*\{([A-Za-z_][\w.]*)(?:\[[^\]]*\])?[|}\s]/.exec(l); return m && !/\{#/.test(l) ? `{#${m[1]}}${l}\n{/${m[1]}}` : l + "\n"; };
       if (lines.length) blocks.push(B(lines.map(optional).join("").replace(/\n$/, "").replace(/\n(\{\/[^}]+\})$/, "$1"), { size: 90, color: "muted" }));
       if (blocks.length === 1) blocks.push(B("{panel.value} {panel.unit}", { size: 170, weight: 650, font: "display" }));
     }
-    if (blocks[0] && blocks[0].size === 82 && blocks.length > 1) blocks[0].cap = true;     // the caption: hidden with «titles off»
+    if (blocks[0] && blocks[0].size === 82 && blocks.length > 1) blocks[0].cap = true;
     return { mode: "flow", h: 96, halo: "auto", blocks, auto: true };
   }
 
-  /* ------------------------------------------------------------------ the face */
   const r1p = (v) => Math.round(v * 10) / 10;
   const COLORS = { muted: "var(--mp-muted, var(--muted))", accent: "var(--accent)", up: "var(--mp-up, #3fb27f)", down: "var(--mp-down, #e5534b)" };
   function blockStyle(b, mode) {
@@ -515,11 +501,11 @@
     if (b.italic) css.push("font-style:italic");
     const color = COLORS[b.color] || (/^#[0-9a-f]{6}$/i.test(b.color || "") ? b.color : "");
     if (color) css.push(`color:${color}`);
-    // free: the block is at least w wide (its alignment box) and grows with a longer live value up to the panel's edge
+
     if (mode === "free") { const x = +b.x || 0; css.push(`left:${x}%`, `top:${+b.y || 0}%`, `min-width:${Math.min(+b.w || 100, 100 - x)}%`, `max-width:${r1p(100 - x)}%`); }
     return css.join(";");
   }
-  /** The text of one panel (the look's own template or the automatic one) as the HTML of a .pl-face. */
+
   function faceHtml(panel, look, opts = {}) {
     const text = (look && look.text && Array.isArray(look.text.blocks) && look.text.blocks.length) ? look.text : defaultText(panel, opts);
     const ctx = opts.ctx || contextOf(panel);
@@ -535,13 +521,13 @@
     const h = Math.max(24, Math.min(480, +text.h || 96));
     return `<div class="pl-face pl-text pt-face" data-mode="${mode}" data-halo="${esc(text.halo || "auto")}" data-state="${esc(st)}" data-panel-id="${esc(panel && panel.id)}"${text.auto ? ' data-auto="1"' : ""} style="--pt-h:${h}px" title="${esc(plain)}">${blocksHtml}</div>`;
   }
-  /** The rendered text (the «Копировать значение» menu item). */
+
   function plainText(panel, look, opts = {}) {
     const text = (look && look.text && Array.isArray(look.text.blocks) && look.text.blocks.length) ? look.text : defaultText(panel, opts);
     const ctx = contextOf(panel);
     return text.blocks.map((b) => renderPlain(b.t, ctx, { lang: opts.lang || docLang() }).trim()).filter(Boolean).join("\n");
   }
-  /** Problems of a template the editor names: unknown filters, unclosed sections, unknown values. */
+
   function lint(tpl, ctx) {
     const ast = parse(tpl);
     const out = ast.errors.map((e) => ({ code: e.code, name: e.name || "" }));
@@ -562,5 +548,5 @@
   const api = { parse, render, renderPlain, lookup, toNum, toDate, show, contextOf, placeholders, defaultText, faceHtml, plainText, lint, FILTERS, esc };
   root.MemuPanelText = api;
   if (typeof module !== "undefined" && module.exports) module.exports = api;
-  try { if (typeof window !== "undefined" && window.dispatchEvent) window.dispatchEvent(new Event("memu-panel-text")); } catch (e) { /* old engines */ }
+  try { if (typeof window !== "undefined" && window.dispatchEvent) window.dispatchEvent(new Event("memu-panel-text")); } catch (e) {  }
 })(typeof window !== "undefined" ? window : globalThis);

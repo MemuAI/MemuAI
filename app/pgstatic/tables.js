@@ -1,21 +1,5 @@
-/* MemuAI 3.1 · Round 29 · Rich tables (window.MemuTables).
- *
- * 1. Streaming: a Markdown table that is still being written is never shown half-done (raw pipes, broken
- *    rows). maskPending() swaps the unfinished table at the end of a streaming answer for a hidden
- *    ```memuai-table-pending block, rendered by pending() as a quiet placeholder with a row counter. The
- *    table appears whole once the block closes (a non-table line follows or the answer ends).
- * 2. Rendered tables (.table-wrap > table of app.js and of the Quick Access renderer) get a hover toolbar:
- *    sort by column (numbers, dates and text understood), filter, column resize, copy (Markdown, TSV for
- *    Excel, CSV, HTML), export (CSV, XLSX, Markdown, JSON, HTML, PNG, SVG), fullscreen, picture studio and
- *    «Edit and send back to the AI».
- * 3. Table editor (composer «+» menu): a grid, paste from Excel/Google Sheets/CSV, import .csv/.tsv/.md/
- *    .json/.xlsx (xlsx parsed by the backend: /api/tables/xlsx), attach as a Markdown table or insert.
- * 4. Picture studio: many presets, background (color / gradient / image), colors, fonts, padding, borders,
- *    zebra, header style, title and caption, scale 1x–4x, live preview. Rendered offline to SVG and PNG.
- *
- * Everything here is offline and self-contained; app.js calls only maskPending / block / hydrate /
- * openEditor (small hooks). The Quick Access window uses the same file.
- */
+
+
 "use strict";
 (function () {
   const VERSION = "1.0-r29";
@@ -29,7 +13,6 @@
   };
   const rowsWord = (n) => isEn() ? (n === 1 ? "row" : "rows") : plural(n, "строка", "строки", "строк");
 
-  /* ---------------------------------------------------------------- icons (own, stroke = currentColor) */
   const P = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
   const IC = {
     table: P('<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10"/>'),
@@ -58,13 +41,11 @@
     trash: P('<path d="M3 6h18M8 6V4h8v2m-9 0 1 14h8l1-14"/>'),
   };
   const ic = (name) => `<span class="mt-ic">${IC[name] || ""}</span>`;
-  // The composer menu uses app.js's icon(): give it a table icon too (app.js loads after this file).
+
   function registerIcons() {
-    try { if (typeof ICONS === "object" && ICONS && !ICONS.table) ICONS.table = IC.table; } catch (e) { /* not in the main window */ }
+    try { if (typeof ICONS === "object" && ICONS && !ICONS.table) ICONS.table = IC.table; } catch (e) {  }
   }
 
-  /* ---------------------------------------------------------------- data model
-     data = { headers: string[], rows: string[][], align: ("left"|"center"|"right"|"")[], title?, caption? } */
   function normalize(data) {
     const headers = (data && Array.isArray(data.headers) ? data.headers : []).map((v) => String(v ?? ""));
     const rows = (data && Array.isArray(data.rows) ? data.rows : []).filter(Array.isArray).map((r) => r.map((v) => String(v ?? "")));
@@ -109,7 +90,6 @@
     return null;
   }
 
-  // CSV / TSV / semicolon text (Excel, Google Sheets, LibreOffice clipboard): quotes, doubled quotes, newlines in cells.
   function detectDelimiter(text) {
     const sample = String(text || "").split(/\r?\n/).slice(0, 12).join("\n");
     const counts = { "\t": 0, ";": 0, ",": 0, "|": 0 };
@@ -145,7 +125,6 @@
     return normalize({ headers: clean[0], rows: clean.slice(1) });
   }
 
-  // A rendered <table> back to data (the visible text of each cell; current order and filter ignored).
   function fromTable(table, { visibleOnly = false } = {}) {
     if (!table) return normalize({});
     if (table.headers) return normalize(table);
@@ -161,7 +140,6 @@
     return normalize({ headers, rows, align, title: host?.dataset.mtTitle || "" });
   }
 
-  /* ---------------------------------------------------------------- formats */
   const mdCell = (v) => String(v).replace(/\|/g, "\\|").replace(/\n/g, " ");
   function toMarkdown(data, { pretty = true } = {}) {
     const d = normalize(data);
@@ -203,7 +181,6 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     return JSON.stringify(d.rows.map((r) => Object.fromEntries(keys.map((k, i) => [k, typedValue(r[i])]))), null, 2);
   }
 
-  /* numbers in cells: «1 234,5», «$1,234.50», «12%», «−3», «1.2k» */
   function parseNumber(value) {
     let s = String(value ?? "").trim().replace(/[\u00a0\u202f\u2009 ]/g, "").replace(/[−–]/g, "-");
     if (!s) return null;
@@ -213,7 +190,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     if (unit) { s = unit[1]; mult = { "%": 1, k: 1e3, K: 1e3, "тыс": 1e3, "тыс.": 1e3, "млн": 1e6, M: 1e6, "млрд": 1e9, B: 1e9 }[unit[2]] || 1; }
     s = s.replace(/^[$€£¥₽₸₴]|[$€£¥₽₸₴]$|(?:руб\.?|р\.|USD|EUR|RUB)$/gi, "");
     if (!/^-?[\d.,]+$/.test(s) || !/\d/.test(s)) return null;
-    if (/^\d{1,2}[./]\d{1,2}[./]\d{2,4}$/.test(s)) return null;           // a date, not a number
+    if (/^\d{1,2}[./]\d{1,2}[./]\d{2,4}$/.test(s)) return null;
     const lastComma = s.lastIndexOf(","), lastDot = s.lastIndexOf(".");
     if (lastComma > -1 && lastDot > -1) s = lastComma > lastDot ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, "");
     else if (lastComma > -1) s = /^-?\d{1,3}(,\d{3})+$/.test(s) && !/^-?0,/.test(s) ? s.replace(/,/g, "") : (s.match(/,/g).length > 1 ? "x" : s.replace(",", "."));
@@ -267,7 +244,6 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     return collator ? collator.compare(sa, sb) : sa.localeCompare(sb);
   }
 
-  /* ---------------------------------------------------------------- XLSX writer (stored zip, no library) */
   const CRC_TABLE = (() => {
     const table = new Uint32Array(256);
     for (let n = 0; n < 256; n += 1) { let c = n; for (let k = 0; k < 8; k += 1) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; table[n] = c >>> 0; }
@@ -341,10 +317,9 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     ]);
   }
 
-  /* ---------------------------------------------------------------- saving and clipboard */
   const blobToDataUrl = (blob) => new Promise((resolve, reject) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.onerror = reject; r.readAsDataURL(blob); });
   function notify(text, kind = "ok", action) {
-    if (typeof toast === "function") { try { toast(text, kind, action || undefined); return; } catch (e) { /* below */ } }
+    if (typeof toast === "function") { try { toast(text, kind, action || undefined); return; } catch (e) {  } }
     const box = document.createElement("div");
     box.className = "mt-toast " + kind;
     box.textContent = text;
@@ -367,7 +342,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
         else notify(t("Сохранено в «Загрузки/MemuAI»: ", "Saved to Downloads/MemuAI: ") + (saved.name || fileName));
         return saved;
       }
-    } catch (e) { /* browser mode below */ }
+    } catch (e) {  }
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob); link.download = fileName;
     document.body.appendChild(link); link.click(); link.remove();
@@ -395,7 +370,6 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
   }
 
-  /* ---------------------------------------------------------------- picture styles and presets */
   const FONTS = [
     ["sans", "Sans", '"Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif'],
     ["inter", "Modern", '"Segoe UI Variable Text", "Inter", "Helvetica Neue", Arial, sans-serif'],
@@ -449,14 +423,13 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
   }
   const STYLE_KEY = "memu_table_image_style";
   function loadStyle() {
-    try { const s = JSON.parse(localStorage.getItem(STYLE_KEY) || "null"); if (s && typeof s === "object") return { ...BASE_STYLE, ...s, bgImage: "" }; } catch (e) { /* default */ }
+    try { const s = JSON.parse(localStorage.getItem(STYLE_KEY) || "null"); if (s && typeof s === "object") return { ...BASE_STYLE, ...s, bgImage: "" }; } catch (e) {  }
     return presetStyle(autoPreset());
   }
   function saveStyle(style) {
-    try { const { bgImage, title, caption, ...rest } = style; localStorage.setItem(STYLE_KEY, JSON.stringify(rest)); } catch (e) { /* quota */ }
+    try { const { bgImage, title, caption, ...rest } = style; localStorage.setItem(STYLE_KEY, JSON.stringify(rest)); } catch (e) {  }
   }
 
-  /* ---------------------------------------------------------------- SVG renderer (offline, measured with canvas) */
   let measureCtx = null;
   function measurer(font) {
     if (!measureCtx) measureCtx = document.createElement("canvas").getContext("2d");
@@ -471,7 +444,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
       const next = line + word;
       if (measure(next.trimEnd()) <= maxWidth || !line.trim()) {
         if (measure(word) > maxWidth && !line.trim()) {
-          // one very long word: break by characters
+
           let chunk = "";
           for (const ch of word) { if (measure(chunk + ch) > maxWidth && chunk) { lines.push(chunk); chunk = ch; } else chunk += ch; }
           line = chunk;
@@ -547,7 +520,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     const line = (x1, y1, x2, y2, extra = "", width = bw) => `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${svgAttr(s.border)}" stroke-width="${width}"${extra}/>`;
     const mode = s.borderMode;
     const dash = mode === "dashed" ? ' stroke-dasharray="4 4"' : "";
-    // horizontal lines
+
     y = ty + headH;
     if (mode !== "none") g.push(line(tx, y, tx + tableW, y, dash, mode === "newspaper" ? bw * 1.5 : bw));
     if (["rows", "all", "dashed", "newspaper"].includes(mode)) {
@@ -563,7 +536,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     } else if (mode === "all" || mode === "outer" || mode === "dashed" || (s.card && mode !== "none" && mode !== "header")) {
       parts.push(`<rect x="${tx + bw / 2}" y="${ty + bw / 2}" width="${tableW - bw}" height="${tableH - bw}" rx="${Math.max(0, r - bw / 2)}" fill="none" stroke="${svgAttr(s.border)}" stroke-width="${bw}"${dash}/>`);
     }
-    // text
+
     const textEl = (lines, x, yTop, w, anchorAlign, fill, font, weight, extra = "") => {
       const anchor = anchorAlign === "right" ? "end" : anchorAlign === "center" ? "middle" : "start";
       const ax = anchorAlign === "right" ? x + w : anchorAlign === "center" ? x + w / 2 : x;
@@ -616,7 +589,6 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     return { src: await blobToDataUrl(blob), w: out.width, h: out.height, blob };
   }
 
-  /* ---------------------------------------------------------------- streaming placeholder */
   function fenceOpen(text) { return ((String(text).match(/^[ \t]*```/gm) || []).length % 2) === 1; }
   function maskPending(text) {
     const value = String(text || "");
@@ -628,7 +600,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     while (start > 0 && /^[ \t]*\|/.test(lines[start - 1])) start -= 1;
     if (start === lines.length) return value;
     const before = lines.slice(0, start).join("\n");
-    if (fenceOpen(before)) return value;          // the pipes are inside a code block
+    if (fenceOpen(before)) return value;
     const block = lines.slice(start);
     const sep = block.findIndex((l) => SEP_RE.test(l.trim()) && l.includes("-"));
     const rows = sep >= 0 ? block.slice(sep + 1).filter((l, k, all) => /\|[ \t]*$/.test(l) || k < all.length - 1).length : 0;
@@ -642,7 +614,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     const bars = Array.from({ length: Math.min(6, Math.max(2, n + 1)) }, (_, i) => `<i style="--w:${70 + ((i * 37) % 30)}%"></i>`).join("");
     return `<div class="mt-pending" role="status" aria-live="polite"><div class="mt-pending-head">${ic("table")}<span>${label}</span><b>${count}${c ? ` · ${c} ${en ? (c === 1 ? "column" : "columns") : plural(c, "столбец", "столбца", "столбцов")}` : ""}</b></div><div class="mt-pending-rows">${bars}</div></div>`;
   }
-  // app.js / quick-md.js code-fence hook: returns HTML for our own fences or "" for the rest.
+
   function block(lang, code, en) {
     if (lang === "memuai-table-pending") {
       const [rows, cols] = String(code || "").trim().split(/\s+/).map(Number);
@@ -651,7 +623,6 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     return "";
   }
 
-  /* ---------------------------------------------------------------- small popover menu */
   let openMenu = null;
   function closeMenu() {
     if (!openMenu) return;
@@ -694,11 +665,9 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     }, 0);
   }
 
-  /* ---------------------------------------------------------------- enhanced rendered tables */
-  const tableState = new Map();     // signature -> { sort, dir, filter, widths }
+  const tableState = new Map();
   function signature(table) {
-    // Round 34 (r34-quick-core): textContent only — the layout-aware text getter forces a layout per table, and
-    // hydrating an answer with 100+ tables took 14 s of layout thrashing (Quick Ask and the main chat froze).
+
     const text = (table.tHead?.textContent || "") + "|" + (table.tBodies?.[0]?.rows.length || 0) + "|" + (table.tBodies?.[0]?.rows?.[0]?.textContent || "");
     let h = 0;
     for (let i = 0; i < text.length; i += 1) h = (h * 31 + text.charCodeAt(i)) | 0;
@@ -751,7 +720,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     let shown = 0;
     const terms = q ? q.split(/\s+/) : [];
     rows.forEach((r) => {
-      if (!terms.length) { r.hidden = false; shown += 1; return; }   // Round 34: no innerText (a forced layout per row) without a filter
+      if (!terms.length) { r.hidden = false; shown += 1; return; }
       const text = r.innerText.toLowerCase();
       const ok = terms.every((term) => {
         const m = term.match(/^(.+?)([:=<>])(.+)$/);
@@ -815,7 +784,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     const input = filter.querySelector("input");
     input.oninput = () => { st.filter = input.value; applyState(host, table, st); };
     input.onkeydown = (e) => { if (e.key === "Escape") { st.filter = ""; input.value = ""; filter.hidden = true; applyState(host, table, st); } };
-    // header: sort + resize
+
     const ths = [...(table.tHead?.rows?.[0]?.cells || [])];
     ths.forEach((th, i) => {
       if (rowsCount > 1) {
@@ -878,7 +847,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
   }
   function hydrate(root, isLive, opts = {}) {
     const scope = root || document;
-    // Chat export (export.js) asks for «rich tables»: there the table must stay plain HTML.
+
     if (scope.querySelector?.(".mx-content") || scope.closest?.(".mx-content")) {
       scope.querySelectorAll(".mt-bar, .mt-filter, .mt-foot, .mt-sort, .mt-resize").forEach((n) => n.remove());
       return;
@@ -891,7 +860,6 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     });
   }
 
-  /* ---------------------------------------------------------------- modal shell */
   function modal(cls, title, bodyHtml, { wide = false, onClose } = {}) {
     const back = document.createElement("div");
     back.className = "mt-modal-back";
@@ -900,7 +868,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
       <div class="mt-modal-body">${bodyHtml}</div></div>`;
     document.body.appendChild(back);
     const prevFocus = document.activeElement;
-    const close = () => { back.remove(); document.removeEventListener("keydown", key, true); onClose?.(); try { prevFocus?.focus?.(); } catch (e) { /* gone */ } };
+    const close = () => { back.remove(); document.removeEventListener("keydown", key, true); onClose?.(); try { prevFocus?.focus?.(); } catch (e) {  } };
     const key = (e) => { if (e.key === "Escape" && !openMenu && document.body.lastElementChild === back) { e.preventDefault(); e.stopPropagation(); close(); } };
     document.addEventListener("keydown", key, true);
     back.addEventListener("pointerdown", (e) => { if (e.target === back) back._downOutside = true; });
@@ -921,7 +889,6 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     m.el.querySelector(".mt-full .mt-bar [data-mt='full']")?.remove();
   }
 
-  /* ---------------------------------------------------------------- table editor */
   function openEditor({ data, mode = "compose", onSendBack, onDone } = {}) {
     registerIcons();
     let d = normalize(data && (data.headers?.length || data.rows?.length) ? JSON.parse(JSON.stringify(data)) : { headers: ["", "", ""], rows: [["", "", ""], ["", "", ""], ["", "", ""]] });
@@ -985,7 +952,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
       const parsed = parseDelimited(text);
       if (!parsed) return false;
       const block = [parsed.headers, ...parsed.rows];
-      if (block.length === 1 && block[0].length === 1) return false;     // a single value: normal paste
+      if (block.length === 1 && block[0].length === 1) return false;
       pushHistory();
       const needCols = c0 + Math.max(...block.map((b) => b.length));
       while (d.headers.length < needCols) { d.headers.push(""); d.rows.forEach((row) => row.push("")); d.align.push(""); }
@@ -1081,7 +1048,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     el.querySelector("[data-ed='header']").onchange = (e) => { headerOn = e.target.checked; draw(); };
     const finalData = () => {
       const out = normalize({ ...d, title: el.querySelector(".mt-ed-title").value.trim() });
-      // empty trailing rows are dropped; no header row -> generic column names
+
       while (out.rows.length && out.rows[out.rows.length - 1].every((v) => !v.trim())) out.rows.pop();
       if (!headerOn) { out.rows.unshift(out.headers.slice()); out.headers = out.headers.map((_, i) => t("Столбец ", "Column ") + (i + 1)); }
       return out;
@@ -1153,7 +1120,6 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     return true;
   }
 
-  /* ---------------------------------------------------------------- picture studio */
   function openStudio(input) {
     const data = normalize(input && input.headers ? input : fromTable(input));
     let style = { ...loadStyle(), title: data.title || "", caption: "" };
@@ -1304,7 +1270,7 @@ tbody tr:nth-child(even) td{background:#fafbfc}</style></head><body>${table}${d.
     parseMarkdown, parseDelimited, fromTable, normalize, parseNumber, columnKind, compareValues,
     toMarkdown, toTSV, toCSV, toHTML, toJSON, toXLSX, renderSVG, toSVG, toPNG, presetStyle,
     openEditor, openStudio, openFullscreen, saveFile, copyText, registerIcons,
-    // shared UI kit for diagrams.js (same look for menus, dialogs and saving)
+
     ui: Object.freeze({ modal, showMenu, closeMenu, notify, saveFile, copyText, copyImageBlob, blobToDataUrl, svgToPngBlob, ic, IC, esc, t, safeName, toHex, isEn }),
   });
 })();

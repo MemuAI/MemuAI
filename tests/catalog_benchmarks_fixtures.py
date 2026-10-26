@@ -19,8 +19,8 @@ def catalog_models():
 def source_fixtures():
     out={'https://openrouter.ai/api/v1/models':json.dumps(catalog_models()),'https://arena.ai/leaderboard':'<a href="/leaderboard/text">Text</a><a href="/leaderboard/code/webdev">Code</a><a href="/leaderboard/vision">Vision</a>'}
     out['https://models.dev/api.json?type=all']=json.dumps({'extra':{'name':'Extra provider','models':{
-        'additional':{'id':'extra/additional','name':'Additional API model','cost':{'input':2,'output':5},'limit':{'context':128000,'output':32000},'modalities':{'input':['text'],'output':['text']}},
-        'overlap':{'id':'google/gemini-3.5-flash','name':'Duplicate Gemini','cost':{'input':99,'output':99}}}}})
+        'additional':{'id':'extra/additional','canonical_model_id':'extra/additional','name':'Additional API model','cost':{'input':2,'output':5},'limit':{'context':128000,'output':32000},'modalities':{'input':['text'],'output':['text']}},
+        'overlap':{'id':'google/gemini-3.5-flash','canonical_model_id':'google/gemini-3.5-flash','name':'Duplicate Gemini','cost':{'input':99,'output':99}}}}})
     arena=[{'modelDisplayName':name,'modelOrganization':org,'rating':rating,'rank':i+1,'votes':500} for i,(name,org,rating) in enumerate(zip(NAMES,ORGS,[1600,1400,1550,1300,1200,1100]))]
     for slug in ['text','code/webdev','vision']:
         out['https://arena.ai/leaderboard/'+slug]=rsc({'leaderboard':{'arenaSlug':slug,'entries':arena},'arena':{'slug':slug,'title':slug,'description':'Published fixture'}})

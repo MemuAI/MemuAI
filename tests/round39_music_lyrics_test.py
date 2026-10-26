@@ -13,7 +13,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MUSIC = ROOT / "app" / "module_builtins" / "music"
 
-
 class Resp:
     def __init__(self, status=200, data=None, text=""):
         self.status_code = status
@@ -22,7 +21,6 @@ class Resp:
 
     def json(self):
         return self._data if self._data is not None else json.loads(self.text)
-
 
 class Client:
     """Routes by URL prefix; shared by the provider threads (list.append is atomic)."""
@@ -42,17 +40,15 @@ class Client:
     def __exit__(self, *a):
         return False
 
-
 LRC = "\n".join(f"[00:{10 + i * 4:02d}.00]Line {i}" for i in range(8))
 GENIUS_PAGE = ('<html><div data-lyrics-container="true">First &amp; line<br/>Second <a href="#"><span>line</span></a><br>'
                '<div data-exclude-from-selection="true">ad</div>Third line<br/>Fourth line</div></html>')
-
 
 def routes(lrclib_hits=None, netease=True, qq=True, genius=True, ovh=True):
     out = [("https://lrclib.net/api/get", Resp(404, {})),
            ("https://lrclib.net/api/search", Resp(200, lrclib_hits or [])),
            ("https://apic-desktop.musixmatch.com/ws/1.1/token.get",
-            Resp(200, {"message": {"body": {"user_token": "0" * 20}}}))]   # captcha: an all-zero token
+            Resp(200, {"message": {"body": {"user_token": "0" * 20}}}))]
     if netease:
         out += [("https://music.163.com/api/cloudsearch/pc", Resp(200, {"result": {"songs": [
                     {"id": 7, "name": "Numb", "ar": [{"name": "Linkin Park"}], "dt": 187000},
@@ -73,7 +69,6 @@ def routes(lrclib_hits=None, netease=True, qq=True, genius=True, ovh=True):
         out += [("https://api.lyrics.ovh/v1/", Resp(200, {"lyrics": "Paroles de la chanson Numb\nA\nB\nC\nD\nE"}))]
     return out
 
-
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -89,7 +84,6 @@ class Base(unittest.TestCase):
         self.lib.close()
         self.tmp.cleanup()
 
-
 class ParseAndMatch(unittest.TestCase):
     def test_enhanced_lrc_and_offset_tag(self):
         from app.music import lyrics as L
@@ -101,7 +95,7 @@ class ParseAndMatch(unittest.TestCase):
     def test_richsync(self):
         from app.music import lyrics as L
         body = json.dumps([{"ts": 5.0, "te": 7.0, "x": "Hi you", "l": [{"c": "Hi", "o": 0}, {"c": " ", "o": 0.4}, {"c": "you", "o": 0.5}]}])
-        # r41b: the space stays with the word before (the window joins words as is), «te» = where the sung line ends
+
         self.assertEqual(L._richsync(body), [[5.0, "Hi you", [[5.0, "Hi "], [5.5, "you"]], 7.0]])
 
     def test_cleaning_and_translit(self):
@@ -124,14 +118,13 @@ class ParseAndMatch(unittest.TestCase):
         plain = L.score({"title": "Numb", "artist": "Linkin Park", "duration": 188, "synced": None}, q)
         self.assertGreater(exact, off)
         self.assertGreater(exact, plain)
-        self.assertEqual(L.score({"title": "Numb", "artist": "Linkin Park", "duration": 260}, q), 0)   # live version
+        self.assertEqual(L.score({"title": "Numb", "artist": "Linkin Park", "duration": 260}, q), 0)
         self.assertEqual(L.score({"title": "In the End", "artist": "Linkin Park", "duration": 187}, q), 0)
         self.assertEqual(L.score({"title": "Numb", "artist": "Somebody Else", "duration": 187}, q), 0)
 
     def test_genius_page(self):
         from app.music import lyrics as L
         self.assertEqual(L.genius_lyrics(GENIUS_PAGE), "First & line\nSecond line\nThird line\nFourth line")
-
 
 class FetchChain(Base):
     def test_parallel_sources_rank_and_variants(self):
@@ -141,16 +134,16 @@ class FetchChain(Base):
                  "plainLyrics": "p1\np2\np3\np4"}]
         client = Client(routes(hits))
         res = L.fetch(self.lib, self.row["id"], client_factory=lambda: client)
-        # the best: synced with the same length (NetEase 187 s / QQ 186 s), credits stripped
+
         self.assertIn(res["source"], ("netease", "qq"))
         self.assertTrue(res["synced"][0][1].startswith(("Line 0", "Q'line 0")))
-        self.assertEqual(res["status"]["musixmatch"][:10], "Musixmatch")    # captcha token → error, the rest still work
+        self.assertEqual(res["status"]["musixmatch"][:10], "Musixmatch")
         kinds = [(a["source"], a["synced"]) for a in res["alts"]]
-        self.assertIn(("genius", False), kinds)                              # plain variants stay after the synced ones
+        self.assertIn(("genius", False), kinds)
         self.assertLess(max(i for i, k in enumerate(kinds) if k[1]), min(i for i, k in enumerate(kinds) if not k[1]))
-        self.assertNotIn(("lrclib", True), kinds)                            # 230 s ≠ 187 s: not this recording
-        self.assertNotIn(250.0, [a["duration"] for a in res["alts"]])        # «Numb (Live)» rejected
-        # «Wrong lyrics» → the next variant; pick by index; cached answer keeps the choice
+        self.assertNotIn(("lrclib", True), kinds)
+        self.assertNotIn(250.0, [a["duration"] for a in res["alts"]])
+
         nxt = L.choose(self.lib, self.row["id"], step=1)
         self.assertEqual(nxt["choice"], 1)
         self.assertEqual(nxt["source"], res["alts"][1]["source"])
@@ -208,7 +201,6 @@ class FetchChain(Base):
         self.assertIn("lyrics.choose", api.OPS)
         self.assertIn("lyrics.offset", api.OPS)
 
-
 class RemoteSpeed(unittest.TestCase):
     def test_position_extrapolates_with_speed(self):
         from app.music.player import PlayerHub
@@ -218,7 +210,6 @@ class RemoteSpeed(unittest.TestCase):
         self.assertAlmostEqual(hub.snapshot()["position_now"], 20, delta=0.3)
         hub.update({"speed": 99})
         self.assertEqual(hub.state["speed"], 4.0)
-
 
 class FrontSource(unittest.TestCase):
     def test_np_uses_track_time_not_css_clock(self):
@@ -234,7 +225,6 @@ class FrontSource(unittest.TestCase):
             self.assertTrue(i18n["ru"].get(key) and i18n["en"].get(key), key)
         self.assertIn("pc.speed", (ROOT / "app" / "tgapp" / "music.js").read_text(encoding="utf-8"))
 
-
 @unittest.skipUnless(os.environ.get("MEMU_TEST_CHROMIUM") and Path(os.environ.get("MEMU_TEST_CHROMIUM", "")).exists(),
                      "needs MEMU_TEST_CHROMIUM")
 class KaraokeAtSpeed(unittest.TestCase):
@@ -244,7 +234,7 @@ class KaraokeAtSpeed(unittest.TestCase):
         from playwright.sync_api import sync_playwright
         src = (MUSIC / "np.js").read_text(encoding="utf-8")
         body = src[src.index("  function syncLyrics(cur, force) {"):src.index("  function positionLyrics() {")]
-        timing_js = (MUSIC / "lyrics-sync.js").read_text(encoding="utf-8")   # r41b: where each sung line ends
+        timing_js = (MUSIC / "lyrics-sync.js").read_text(encoding="utf-8")
         page_html = """<div id="np"><div id="lyrics"><div id="lyrics-inner">%s</div></div></div><script>
           const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
           const el = $("#np"); let tab = "lyrics", lyricIdx = -2, wordIdx = -1;
@@ -263,21 +253,20 @@ class KaraokeAtSpeed(unittest.TestCase):
             try:
                 page = browser.new_page()
                 page.set_content(page_html)
-                # a 2× playback: 1 s of wall time = 2 s of track time; whatever the clock, the line follows currentTime
+
                 active = page.evaluate("""() => { const out = [];
                     for (const cur of [0.5, 2.9, 4.2, 5.0, 7.3, 9]) { syncLyrics(cur); out.push([$$(".mm-lyric").findIndex((n) => n.classList.contains("on")),
                       +getComputedStyle($$(".mm-lyric.on")[0]).getPropertyValue("--lp") || 0]); }
                     return out; }""")
                 self.assertEqual([a for a, _ in active], [0, 1, 2, 2, 3, 4])
-                self.assertAlmostEqual(active[3][1], (5.0 - 4) / 2, delta=0.02)    # fill = track time, not wall time (r41: no 80 ms lead)
+                self.assertAlmostEqual(active[3][1], (5.0 - 4) / 2, delta=0.02)
                 words = page.evaluate("() => { syncLyrics(7.3); return $$('.mm-lyric.on .w').map((w) => w.className); }")
                 self.assertEqual(words, ["w sung", "w on"])
-                page.evaluate("() => { L.offset = 1; }")   # lyrics 1 s later: at 7.3 the line is still «d», word 1
+                page.evaluate("() => { L.offset = 1; }")
                 self.assertEqual(page.evaluate("() => { syncLyrics(7.3, true); return $$('.mm-lyric.on .w').map((w) => w.className); }"),
                                  ["w on", "w"])
             finally:
                 browser.close()
-
 
 if __name__ == "__main__":
     unittest.main()

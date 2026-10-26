@@ -52,7 +52,7 @@ MAX_VRM_BYTES = 200 * 1024 * 1024
 MAX_ZIP_BYTES = 200 * 1024 * 1024
 MAX_UNPACKED_BYTES = 400 * 1024 * 1024
 MAX_ZIP_FILES = 3000
-MAX_RATIO = 200          # a member compressed more than 200:1 is treated as a zip bomb
+MAX_RATIO = 200
 MAX_MODELS = 60
 
 EMOTIONS = ("neutral", "happy", "sad", "angry", "surprised", "relaxed", "thinking")
@@ -61,20 +61,18 @@ PLACEMENTS = ("panel", "window")
 FRAMINGS = ("bust", "full")
 
 PREF_DEFAULTS: Dict[str, Any] = {
-    # MemuAI Live: the companion replaces the orb inside the Live panel
-    # ("panel") or floats over the window ("window").
+
     "companion_live_enabled": False,
     "companion_live_placement": "panel",
-    # Quick Ask: beside the answer ("inline"), a separate transparent
-    # desktop window ("desktop", experimental) or both.
+
     "companion_quick_enabled": False,
     "companion_quick_mode": "inline",
     "companion_model_id": SAMPLE_ID,
-    "companion_size": 100,            # percent, 60…200
+    "companion_size": 100,
     "companion_framing": "bust",
     "companion_lipsync": True,
     "companion_emotions": True,
-    "companion_emotion_tags": True,   # ask the chat model for hidden [emotion:…] tags (classic Live)
+    "companion_emotion_tags": True,
     "companion_bubble": True,
     "companion_look_at": True,
     "companion_gestures": True,
@@ -84,7 +82,6 @@ PREF_DEFAULTS: Dict[str, Any] = {
     "companion_live2d_consent": False,
     "companion_v": 1,
 }
-
 
 def _bool(value: Any, default: bool) -> bool:
     if value is None:
@@ -98,7 +95,6 @@ def _bool(value: Any, default: bool) -> bool:
         return default
     return bool(value)
 
-
 def _int(value: Any, default: int, low: int, high: int) -> int:
     try:
         if isinstance(value, str):
@@ -108,11 +104,9 @@ def _int(value: Any, default: int, low: int, high: int) -> int:
         return default
     return max(low, min(high, number))
 
-
 def normalize_model_id(value: Any) -> str:
     text = str(value or "").strip()
     return text if re.fullmatch(r"[a-z0-9][a-z0-9-]{0,47}", text) else SAMPLE_ID
-
 
 def normalize_prefs(out: Dict[str, Any], raw: Any = None) -> Dict[str, Any]:
     """Validate the ``companion_*`` keys in place (called by pgdata).
@@ -158,9 +152,6 @@ def normalize_prefs(out: Dict[str, Any], raw: Any = None) -> Dict[str, Any]:
     out["companion_v"] = 1
     return out
 
-
-# ------------------------------------------------------------------ models
-
 class ModelError(ValueError):
     """A model file was rejected; ``code`` is stable for the UI."""
 
@@ -168,7 +159,6 @@ class ModelError(ValueError):
         super().__init__(message)
         self.code = code
         self.message_en = message_en or message
-
 
 def _glb_json(data: bytes) -> Tuple[Dict[str, Any], int]:
     if len(data) < 28 or data[:4] != b"glTF":
@@ -198,7 +188,6 @@ def _glb_json(data: bytes) -> Tuple[Dict[str, Any], int]:
         if bin_type != 0x004E4942 or offset + 8 + bin_len > len(data):
             raise ModelError("bad_bin", "Двоичный блок модели повреждён", "The binary chunk of the model is damaged")
     return doc, bin_len
-
 
 def validate_vrm(data: bytes) -> Dict[str, Any]:
     """Check a .vrm file and return its public metadata.
@@ -256,10 +245,8 @@ def validate_vrm(data: bytes) -> Dict[str, Any]:
         "expressions": sorted(set(e for e in expressions if e))[:60],
     }
 
-
 _WIN_RESERVED = re.compile(r"^(?:con|prn|aux|nul|com[0-9¹²³]|lpt[0-9¹²³]|conin\$|conout\$)(?:\..*)?$", re.I)
 _WIN_BAD_CHARS = re.compile(r'[<>:"|?*\x00-\x1f]')
-
 
 def _safe_member(name: str) -> Optional[str]:
     """Normalise a zip member path; ``None`` for anything that could escape.
@@ -277,7 +264,6 @@ def _safe_member(name: str) -> Optional[str]:
         if _WIN_BAD_CHARS.search(part) or part.endswith((".", " ")) or _WIN_RESERVED.match(part):
             return None
     return "/".join(parts)
-
 
 def validate_live2d_zip(data: bytes) -> Tuple[Dict[str, Any], List[Tuple[zipfile.ZipInfo, str]]]:
     """Check a Live2D Cubism 3/4/5 model zip; return (meta, safe members).
@@ -364,7 +350,6 @@ def validate_live2d_zip(data: bytes) -> Tuple[Dict[str, Any], List[Tuple[zipfile
     }
     return meta, members
 
-
 def _read_member(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes:
     """``archive.read`` with every low-level failure turned into a readable ModelError."""
     try:
@@ -374,7 +359,6 @@ def _read_member(archive: zipfile.ZipFile, info: zipfile.ZipInfo) -> bytes:
     except (zipfile.BadZipFile, zlib.error, EOFError, RuntimeError, NotImplementedError, OSError) as exc:
         raise ModelError("bad_zip", f"Архив повреждён: {info.filename[:120]} ({type(exc).__name__})",
                          f"The archive is damaged: {info.filename[:120]} ({type(exc).__name__})") from None
-
 
 class Library:
     """The user's imported models; the sample is listed but never stored here."""
@@ -450,7 +434,7 @@ class Library:
                             with archive.open(info) as src, open(target, "wb") as dst:
                                 shutil.copyfileobj(src, dst, 1024 * 1024)
                         except (zipfile.BadZipFile, zlib.error, EOFError, RuntimeError, NotImplementedError) as exc:
-                            # a bad CRC / truncated member used to surface as a raw 500
+
                             raise ModelError("bad_zip",
                                              f"Архив повреждён: {info.filename[:120]} ({type(exc).__name__})",
                                                          f"The archive is damaged: {info.filename[:120]} "
@@ -459,7 +443,7 @@ class Library:
                 display = (name or meta.get("title") or PurePosixPath(filename or "model").stem).strip()
                 meta.update({"id": model_id, "name": display[:80] or model_id,
                              "source_file": PurePosixPath((filename or "").replace("\\", "/")).name[:160],
-                             "size": len(data), "created": time.time_ns() // 1000})   # µs: keeps import order
+                             "size": len(data), "created": time.time_ns() // 1000})
                 (tmp / "meta.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
                 tmp.rename(folder)
             except Exception:
@@ -501,7 +485,6 @@ class Library:
             return None
         return target
 
-
 def public_model(meta: Dict[str, Any]) -> Dict[str, Any]:
     row = {k: meta.get(k) for k in ("id", "kind", "name", "title", "author", "license", "vrm_version",
                                     "allow_redistribution", "expressions", "motions", "size", "created",
@@ -510,16 +493,13 @@ def public_model(meta: Dict[str, Any]) -> Dict[str, Any]:
     row["url"] = f"/api/companion/models/{meta['id']}/files/{meta['file']}"
     return {k: v for k, v in row.items() if v is not None}
 
-
-# ---------------------------------------------------------- Live2D runtime
-
 LIVE2D_LICENSE_URL = "https://www.live2d.com/eula/live2d-proprietary-software-license-agreement_en.html"
 LIVE2D_EXPANDABLE_URL = "https://www.live2d.com/en/sdk/license/expandable/"
-#: name → (url, sha256 or None, marker that must occur in the file)
+
 RUNTIME_FILES: Dict[str, Tuple[str, Optional[str], bytes]] = {
     "live2dcubismcore.min.js": (
         "https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js",
-        None,  # Live2D updates it in place; validated by marker and size instead
+        None,
         b"Live2DCubismCore"),
     "pixi.min.js": (
         "https://cdn.jsdelivr.net/npm/pixi.js@6.5.10/dist/browser/pixi.min.js",
@@ -533,13 +513,11 @@ RUNTIME_FILES: Dict[str, Tuple[str, Optional[str], bytes]] = {
 }
 RUNTIME_MAX_BYTES = 8 * 1024 * 1024
 
-
 def runtime_status(root: Path) -> Dict[str, Any]:
     folder = Path(root) / "runtime"
     files = {name: (folder / name).is_file() for name in RUNTIME_FILES}
     return {"installed": all(files.values()), "files": files,
             "license_url": LIVE2D_LICENSE_URL, "expandable_url": LIVE2D_EXPANDABLE_URL}
-
 
 def check_runtime_file(name: str, data: bytes) -> None:
     url, digest, marker = RUNTIME_FILES[name]
@@ -552,15 +530,11 @@ def check_runtime_file(name: str, data: bytes) -> None:
         raise ModelError("runtime_marker", f"{name}: содержимое не похоже на ожидаемую библиотеку",
                          f"{name}: the content does not look like the expected library")
 
-
 def runtime_file(root: Path, name: str) -> Optional[Path]:
     if name not in RUNTIME_FILES:
         return None
     path = Path(root) / "runtime" / name
     return path if path.is_file() else None
-
-
-# ------------------------------------------------------------ desktop state
 
 def load_state(root: Path) -> Dict[str, Any]:
     try:
@@ -569,17 +543,12 @@ def load_state(root: Path) -> Dict[str, Any]:
     except (OSError, ValueError):
         return {}
 
-
 _STATE_LOCK = threading.Lock()
 
-
 def save_state(root: Path, patch: Dict[str, Any]) -> Dict[str, Any]:
-    # One writer at a time: the desktop window (its own thread) and the HTTP routes (Live window position,
-    # Quick Ask place) save together — a shared read-modify-write lost one patch, a shared .tmp name broke
-    # the other's replace.
+
     with _STATE_LOCK:
         return _save_state(root, patch)
-
 
 def _save_state(root: Path, patch: Dict[str, Any]) -> Dict[str, Any]:
     state = load_state(root)
@@ -595,7 +564,7 @@ def _save_state(root: Path, patch: Dict[str, Any]) -> Dict[str, Any]:
                 rect["h"] = max(200, min(2000, rect["h"]))
             state["desktop"] = {**(state.get("desktop") or {}), **rect}
         elif key == "quick" and isinstance(value, dict):
-            # Round 23 (r23-quick): where the Quick Ask companion lives right now and how.
+
             quick = dict(state.get("quick") or {})
             if value.get("place") in ("inline", "desktop"):
                 quick["place"] = value["place"]
@@ -605,7 +574,7 @@ def _save_state(root: Path, patch: Dict[str, Any]) -> Dict[str, Any]:
                 quick["align"] = value["align"]
             state["quick"] = quick
         elif key == "desktop_by_monitor" and isinstance(value, dict):
-            # Round 23: the desktop window's place per monitor (key = that monitor's work area "l,t,r,b").
+
             places = dict(state.get("desktop_by_monitor") or {})
             for mon, rect in list(value.items())[:16]:
                 if isinstance(mon, str) and len(mon) <= 64 and isinstance(rect, dict) and all(k in rect for k in ("x", "y", "w", "h")):

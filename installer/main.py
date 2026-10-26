@@ -27,13 +27,10 @@ from .payload import Payload, PayloadError
 
 log = logging.getLogger("memuai.setup")
 
-#: Designed CLIENT size of the window in CSS pixels (DIPs). The page is fluid and
-#: fits anything from about 860×540; smaller viewports are scaled to fit (ui/app.js).
 WINDOW_SIZE = (960, 620)
-#: Gap kept between the window and the edges of the monitor's work area (DIPs).
+
 WINDOW_MARGIN = 16
 EXIT_OK, EXIT_ERROR, EXIT_CANCELLED, EXIT_APPS = 0, 1, 2, 5
-
 
 def fit_window(logical: Tuple[int, int], scale: float, work: Tuple[int, int, int, int],
                nonclient: Tuple[int, int] = (0, 0), margin: int = WINDOW_MARGIN) -> dict:
@@ -64,11 +61,9 @@ def fit_window(logical: Tuple[int, int], scale: float, work: Tuple[int, int, int
             "client": (client_w, client_h), "scale": scale,
             "logical": (round(client_w / scale), round(client_h / scale))}
 
-
 def _hwnd(window) -> int:
     handle = window.native.Handle
     return int(handle.ToInt64() if hasattr(handle, "ToInt64") else handle)
-
 
 def native_drag(window) -> bool:
     """Run ``winplat.begin_window_drag`` on the GUI thread and wait for it (the bridge call
@@ -97,11 +92,9 @@ def native_drag(window) -> bool:
         return False
     return bool(result["ok"])
 
-
 def resource_dir() -> Path:
     base = getattr(sys, "_MEIPASS", None)
     return Path(base) / "installer_ui" if base else Path(__file__).resolve().parent / "ui"
-
 
 def setup_logging(path: Optional[str], kind: str) -> str:
     if path:
@@ -121,14 +114,12 @@ def setup_logging(path: Optional[str], kind: str) -> str:
                         format="%(asctime)s %(levelname)s %(message)s", force=True)
     return str(target) if str(target) not in ("", ".") else ""
 
-
 def make_platform():
     if os.name == "nt":
         from .winplat import WindowsPlatform
         return WindowsPlatform()
     from .engine import PortablePlatform
     return PortablePlatform()
-
 
 def detect_language(args: cli.Args) -> str:
     if args.language:
@@ -137,7 +128,6 @@ def detect_language(args: cli.Args) -> str:
         from .winplat import ui_language
         return ui_language()
     return i18n.pick_language(os.environ.get("LANG", ""))
-
 
 def notify(text: str, title: str, flags: int = 0x40, quiet: bool = False) -> int:
     if quiet:
@@ -148,9 +138,6 @@ def notify(text: str, title: str, flags: int = 0x40, quiet: bool = False) -> int
         return message_box(text, title, flags)
     print(f"{title}: {text}", file=sys.stderr)
     return 1
-
-
-# ---------------------------------------------------------------------- install
 
 def silent_install(engine: Engine, args: cli.Args, language: str, log_path: str) -> int:
     existing = engine.detect()
@@ -177,7 +164,6 @@ def silent_install(engine: Engine, args: cli.Args, language: str, log_path: str)
         engine.launch(Path(str(result["install_dir"])), components)
     return EXIT_OK
 
-
 def copy_log(log_path: str, app_dir: Path) -> None:
     if not log_path:
         return
@@ -187,7 +173,6 @@ def copy_log(log_path: str, app_dir: Path) -> None:
         shutil.copyfile(log_path, app_dir / "install.log")
     except OSError:
         pass
-
 
 def basic_install(engine: Engine, args: cli.Args, language: str, log_path: str) -> int:
     """Install with defaults and message boxes only (no WebView2 available)."""
@@ -201,10 +186,9 @@ def basic_install(engine: Engine, args: cli.Args, language: str, log_path: str) 
         notify(i18n.tr("basic_failed", language, error="", log=log_path), name, 0x10)
     return code
 
-
 def run_window(engine: Engine, mode: str, language: str, log_path: str, app_dir: str = "") -> int:
     import inspect
-    import webview  # pywebview (WinForms + Edge WebView2)
+    import webview
     from .bridge import Bridge
 
     exit_code = {"value": EXIT_OK}
@@ -222,9 +206,7 @@ def run_window(engine: Engine, mode: str, language: str, log_path: str, app_dir:
     placed: dict = {}
 
     def on_before_show() -> None:
-        # Runs on the GUI thread after the form is built (frame already removed) and
-        # before it is shown: size the CLIENT area for the current DPI and centre it
-        # on the monitor under the cursor. Any failure keeps pywebview's own placement.
+
         try:
             from .winplat import place_window
             form = window.native
@@ -247,7 +229,7 @@ def run_window(engine: Engine, mode: str, language: str, log_path: str, app_dir:
         try:
             from .winplat import ensure_client_size, place_window
             hwnd = _hwnd(window)
-            if not placed:          # before_show missing (older pywebview) or failed
+            if not placed:
                 placed.update(place_window(hwnd, WINDOW_SIZE, fit_window))
             corrected = ensure_client_size(hwnd, tuple(placed["client"]))
             if corrected:
@@ -273,19 +255,17 @@ def run_window(engine: Engine, mode: str, language: str, log_path: str, app_dir:
             copy_log(log_path, Path(str(result["install_dir"])))
     return exit_code["value"]
 
-
 def webview_available(platform) -> bool:
     try:
         return bool(platform.webview2_version())
     except OSError:
         return False
 
-
 def interactive_install(engine: Engine, args: cli.Args, language: str, log_path: str) -> int:
     name = engine.product.name
     if os.name == "nt" and not webview_available(engine.os):
         answer = notify(i18n.tr("webview_missing", language, name=name), i18n.tr("setup_title", language, name=name),
-                        0x23)  # MB_YESNOCANCEL | MB_ICONQUESTION
+                        0x23)
         if answer == 2:
             return EXIT_CANCELLED
         if answer == 7:
@@ -306,15 +286,12 @@ def interactive_install(engine: Engine, args: cli.Args, language: str, log_path:
             return basic_install(engine, args, language, log_path)
         return EXIT_ERROR
 
-
-# ---------------------------------------------------------------------- uninstall
-
 def relaunch_from_temp(exe: Path, app_dir: Path, argv: Sequence[str]) -> bool:
     """Copy the uninstaller out of the folder it deletes and start the copy."""
     try:
         temp_root = Path(tempfile.gettempdir())
         for old in temp_root.glob("MemuAI-Uninstall-*"):
-            shutil.rmtree(old, ignore_errors=True)   # copies left by earlier runs
+            shutil.rmtree(old, ignore_errors=True)
         folder = Path(tempfile.mkdtemp(prefix="MemuAI-Uninstall-"))
         copy = folder / exe.name
         shutil.copy2(exe, copy)
@@ -327,7 +304,6 @@ def relaunch_from_temp(exe: Path, app_dir: Path, argv: Sequence[str]) -> bool:
         log.error("relaunch from temp failed: %s", exc)
         return False
 
-
 def find_product(app_dir: Path, args: cli.Args, exe: Path):
     if args.product:
         return products.get(args.product)
@@ -338,7 +314,6 @@ def find_product(app_dir: Path, args: cli.Args, exe: Path):
         if exe.name.casefold() == product.uninstaller.casefold():
             return product
     return products.SUITE
-
 
 def run_uninstall(args: cli.Args, exe: Path, argv: Sequence[str]) -> int:
     app_dir = Path(args.app_dir) if args.app_dir else exe.parent
@@ -389,9 +364,6 @@ def run_uninstall(args: cli.Args, exe: Path, argv: Sequence[str]) -> int:
             except SetupError:
                 return EXIT_ERROR
         return EXIT_CANCELLED
-
-
-# ---------------------------------------------------------------------- main
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)

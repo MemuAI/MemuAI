@@ -1,5 +1,5 @@
-/* Round 27: «Ask about a screen region» — the overlay page (see region.html). Drag a rectangle; release
-   picks it, Enter picks the whole screen, Esc / right click cancels. */
+
+
 (function () {
   "use strict";
   const $ = (id) => document.getElementById(id);
@@ -51,7 +51,7 @@
     S.start = { x: e.clientX, y: e.clientY };
     S.rect = box(S.start, S.start);
     document.body.classList.add("selecting");
-    try { e.target.setPointerCapture(e.pointerId); } catch (_) { /* window-level listeners still get the moves */ }
+    try { e.target.setPointerCapture(e.pointerId); } catch (_) {  }
     draw();
   });
   addEventListener("pointermove", (e) => {
@@ -64,7 +64,7 @@
     if (!S.start || e.button !== 0) return;
     const r = box(S.start, { x: e.clientX, y: e.clientY });
     S.start = null;
-    if (r.width < 6 || r.height < 6) {          // a click, not a drag: keep waiting
+    if (r.width < 6 || r.height < 6) {
       S.rect = null; draw(); document.body.classList.remove("selecting"); return;
     }
     send({ x: r.left / innerWidth, y: r.top / innerHeight, w: r.width / innerWidth, h: r.height / innerHeight });
@@ -79,7 +79,7 @@
     start(opts = {}) { S.token = String(opts.token || ""); S.lang = opts.lang === "en" ? "en" : "ru"; S.sent = false; S.start = null; S.rect = null; draw(); hint(); load(); return true; },
     focus() { window.focus(); return true; },
     reset() { S.sent = true; S.start = null; S.rect = null; draw(); $("rg-shot").removeAttribute("src"); document.body.classList.remove("ready", "selecting", "pointer"); return true; },
-    onDone: null,                                // test hook
+    onDone: null,
   };
   hint();
   load();

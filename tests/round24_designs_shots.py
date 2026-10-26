@@ -55,7 +55,6 @@ CHATS = [
      "messages": [{"role": "user", "content": "перевод", "ts": NOW - 3e8}, {"role": "assistant", "content": "Готово.", "ts": NOW - 3e8}]},
 ]
 
-
 def panels_snapshot():
     try:
         from tests.panels_r23_browser_test import snapshot, todo_item
@@ -65,7 +64,6 @@ def panels_snapshot():
     except Exception as exc:  # pragma: no cover
         print("panels snapshot unavailable:", exc)
         return {"panels": [], "dismissed": [], "templates": [], "settings": {"enabled": True}}
-
 
 def build(tmp: Path) -> Path:
     from tests.appearance_fixture import build_fixture
@@ -78,7 +76,6 @@ def build(tmp: Path) -> Path:
     html = html.replace("else if (path === '/api/pg/themes')", extra, 1)
     fixture.write_text(html, encoding="utf-8")
     return fixture
-
 
 def main(designs):
     from playwright.sync_api import sync_playwright
@@ -110,7 +107,7 @@ def main(designs):
                 page.evaluate("document.querySelector('#input').dispatchEvent(new Event('input', {bubbles:true}))")
                 time.sleep(0.4)
                 page.screenshot(path=str(OUT / f"{tag}-chat.png"))
-                # an open menu: the chat row context menu or the model menu
+
                 try:
                     btn = page.locator("#model-dd-btn").first
                     btn.click(timeout=2000)
@@ -124,7 +121,7 @@ def main(designs):
                         page.wait_for_function("document.body.classList.contains('boot-ready') && typeof showSettings === 'function'", timeout=60000)
                         page.evaluate("showSettings()")
                         break
-                    except Exception as exc:  # the fixture page occasionally reloads itself once
+                    except Exception as exc:
                         print(f"{tag}: retry settings ({exc.__class__.__name__}) url={page.url[:60]}")
                         time.sleep(1.5)
                 try:
@@ -147,7 +144,6 @@ def main(designs):
                 ctx.close()
         browser.close()
     print("\n".join(problems) or "ok")
-
 
 if __name__ == "__main__":
     main(sys.argv[1:] or ["glass"])

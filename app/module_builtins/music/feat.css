@@ -1,7 +1,3 @@
-/* MemuMusic · feat.css — стили функций раунда 38 (редактор, меню, умные плейлисты, выбор, поиск, жанры, настройки).
- * Только токены оформления из style.css (--mm-*, --tint*), поэтому темы и дизайны перекрашивают и это. */
-
-/* ---------- выбор нескольких треков */
 .mm-row[aria-selected="true"] { background: color-mix(in srgb, var(--tint) 16%, transparent); }
 .mm-row[aria-selected="true"]:hover { background: color-mix(in srgb, var(--tint) 22%, transparent); }
 .mm-lasso { position: fixed; z-index: 60; pointer-events: none; border: 1px solid color-mix(in srgb, var(--tint) 70%, transparent);
@@ -12,13 +8,9 @@
 .mm-selbar[hidden] { display: none; }
 .mm-selbar b { font-weight: 650; margin-right: 8px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 @keyframes mm-feat-rise { from { opacity: 0; transform: translate(-50%, 12px); } }
-
-/* ---------- тост с действием */
 .mm-toast-act { display: flex; align-items: center; gap: 14px; }
 .mm-toast-act button { display: inline-flex; align-items: center; gap: 6px; font-weight: 700; color: inherit; text-decoration: underline; text-underline-offset: 3px; }
 .mm-toast-act button svg { width: 16px; height: 16px; }
-
-/* ---------- выбор плейлиста */
 .mm-pick-search { position: relative; padding: 4px 4px 6px; }
 .mm-pick-search svg { position: absolute; left: 14px; top: 50%; width: 16px; height: 16px; transform: translateY(-55%); color: var(--mm-muted); pointer-events: none; }
 .mm-pick-search .mm-input { width: 100%; height: 34px; padding-left: 34px; }
@@ -27,8 +19,6 @@
 .mm-pick-art { width: 28px; height: 28px; flex: 0 0 28px; border-radius: 6px; overflow: hidden; display: block; background: var(--mm-panel-2); }
 .mm-pick-art img, .mm-pick-art .mm-collage { width: 100%; height: 100%; object-fit: cover; display: block; }
 .mm-pick-empty { margin: 6px 12px 10px; color: var(--mm-muted); font-size: 13px; }
-
-/* ---------- редактор (трек, плейлист, правила) */
 .mm-modal-card:has(.mm-ed) { width: min(680px, calc(100% - 32px)); max-height: calc(100% - 48px); overflow-y: auto; scrollbar-width: thin; }
 .mm-ed { display: grid; gap: 16px; }
 .mm-ed-head { display: flex; align-items: center; gap: 16px; min-width: 0; }
@@ -53,7 +43,7 @@
 .mm-ed-check { display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--mm-muted); }
 .mm-ed-row { display: flex; align-items: center; gap: 8px; min-width: 0; flex-wrap: wrap; }
 .mm-ed-row .mm-input { flex: 1 1 220px; min-width: 0; }
-#ed-ly-state { flex: 1 1 100%; }   /* r41b: состояние текста — своей строкой, кнопки (метка, конец строки, найти) — одной группой справа */
+#ed-ly-state { flex: 1 1 100%; }
 .mm-ed-cover-acts { display: flex; flex-wrap: wrap; gap: 8px; }
 .mm-ed-cover-acts label.mm-btn { cursor: pointer; }
 .mm-ed-found-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 10px; }
@@ -72,8 +62,6 @@
 .mm-ed-info .mm-link svg { width: 16px; height: 16px; }
 .mm-ed-link { color: var(--mm-muted); font-size: 12.5px; }
 .mm-ed .acts { align-items: center; }
-
-/* ---------- умные плейлисты: список и конструктор */
 .mm-smart-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .mm-smart-list li { display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: calc(12px * var(--mm-rk, 1)); background: var(--mm-panel); border: 1px solid var(--mm-line); }
 .mm-smart-list li.dragging { opacity: .45; }
@@ -98,8 +86,6 @@
 .mm-pl-actions { display: inline-flex; align-items: center; gap: 6px; margin-left: 8px; }
 .mm-pl-actions label { cursor: pointer; }
 .mm-pl-desc { display: block; color: var(--mm-text); margin-bottom: 4px; max-width: 64ch; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-
-/* ---------- настройки: вкладки */
 .mm-set-tabs { display: flex; gap: 4px; flex-wrap: wrap; margin: 20px 0 8px; padding: 4px; border-radius: 999px; background: var(--mm-panel-2); width: max-content; max-width: 100%; }
 .mm-set-tabs button { display: inline-flex; align-items: center; gap: 8px; height: 34px; padding: 0 14px; border-radius: 999px; font-weight: 620; font-size: 13px; color: var(--mm-muted); transition: color .2s, background .25s; }
 .mm-set-tabs button svg { width: 16px; height: 16px; }
@@ -119,8 +105,6 @@
 .mm-key kbd { display: inline-grid; place-items: center; min-width: 24px; height: 24px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--mm-line);
   border-bottom-width: 2px; background: var(--mm-panel); font: 600 12px/1 var(--mm-font, inherit); color: var(--mm-text); }
 .mm-key .mm-faint { color: var(--mm-faint); font-size: 12.5px; }
-
-/* ---------- поиск */
 .mm-search-big { margin-top: 18px; }
 .mm-search-big .mm-input { width: min(640px, 100%); height: 46px; font-size: 16px; padding-left: 42px; }
 .mm-search-big svg { left: 14px; width: 20px; height: 20px; }
@@ -134,8 +118,6 @@
 .mm-search-hit b, .mm-search-hit span span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mm-search-hit span span { color: var(--mm-muted); font-size: 12.5px; }
 #gs-body mark { background: color-mix(in srgb, var(--tint) 32%, transparent); color: inherit; border-radius: 3px; padding: 0 1px; }
-
-/* ---------- жанры, папки, история, дубликаты */
 .mm-genres { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 14px; }
 .mm-genre { position: relative; overflow: hidden; aspect-ratio: 16 / 10; border-radius: calc(16px * var(--mm-rk, 1)); padding: 16px; text-align: left;
   display: flex; flex-direction: column; justify-content: flex-end; color: #fff; background: linear-gradient(135deg, var(--g1), var(--g2)); isolation: isolate;
@@ -172,8 +154,6 @@
 .mm-dupe-row .mm-art { width: 40px; height: 40px; flex: 0 0 40px; border-radius: 6px; overflow: hidden; }
 .mm-dupe-row > div { flex: 1; min-width: 0; display: grid; }
 .mm-dupe-row div span { color: var(--mm-muted); font-size: 12.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ---------- перетаскивание файлов */
 .mm-drop.files .mm-drop-card svg { color: var(--tint); }
 
 @media (max-width: 640px) {

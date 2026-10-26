@@ -1,14 +1,5 @@
-/* MemuAI · Settings → Integrations → MCP (Round 40, r40-mcp).
 
-   One hub for MCP servers of the whole MemuAI (backend: app/mcp_hub.py, app/mcp_hub_api.py, protocol and lazy pool:
-   app/mcp_client.py). Here: the list of servers (status, on/off, «Check the connection» → tools and resources,
-   logs), a catalogue of popular servers installed in one click, secrets typed into password fields (they go to the
-   protected store and never come back to the window), permissions (read-only, ask first, per-tool rules) and where
-   a server is available: the main chat, мемесы (agents), Quick Access. Work/MemuCode see every enabled server.
 
-   Chat hooks (app.js, surgical): MemuMcpHub.promptBlock(chatState) adds the <mcp_tools> of this chat's scope;
-   executeCall routes mcp_* calls through MemuMcpHub.run(call, ctx) — the backend decides allow/confirm/deny and
-   this file asks the user when needed. Nothing loads until the MCP page opens or a chat has MCP servers. */
 (function () {
   "use strict";
   const isEn = () => { try { return PG_LANG === "en"; } catch (e) { return (document.documentElement.lang || "ru").startsWith("en"); } };
@@ -30,7 +21,6 @@
   const ico = (n) => `<span class="mcph-ic" aria-hidden="true">${IC[n] || ""}</span>`;
   const st = { data: null, loading: false, open: {}, checking: {}, install: "", filter: "", busy: false, scope: { key: "", at: 0, rows: [] } };
 
-  /* ------------------------------------------------------------------ settings rows */
   function listHtml() {
     const K = kit();
     const n = st.data ? st.data.servers.length : null;
@@ -60,7 +50,6 @@
     render();
   }
 
-  /* ------------------------------------------------------------------ render */
   function chip(text, tone = "") { return `<span class="mcph-chip ${tone}">${H(text)}</span>`; }
   function sw(attr, on, label) { return `<label class="mcph-sw"><span>${H(label)}</span><span class="switch"><input type="checkbox" ${attr} ${on ? "checked" : ""}><span class="sl"></span></span></label>`; }
 
@@ -178,7 +167,6 @@
     bind(root);
   }
 
-  /* ------------------------------------------------------------------ actions */
   const server = (name) => (st.data.servers || []).find((s) => s.name === name);
   async function patch(name, body, reload = false) {
     try { await call("/api/mcp/server/" + encodeURIComponent(name), { method: "POST", body }); }
@@ -186,7 +174,7 @@
     st.scope.at = 0;
     if (reload) await load();
   }
-  function toastMsg(text, type = "ok") { try { toast(text, type); } catch (e) { /* settings without toast */ } }
+  function toastMsg(text, type = "ok") { try { toast(text, type); } catch (e) {  } }
 
   async function check(name) {
     st.checking[name] = true; render();
@@ -257,7 +245,6 @@
     if (f) f.oninput = () => { st.filter = f.value; const pos = f.selectionStart; render(); const n = document.getElementById("mcph-filter"); if (n) { n.focus(); n.setSelectionRange(pos, pos); } };
   }
 
-  /* ------------------------------------------------------------------ chat */
   async function scope(chatState) {
     const agent = chatState && chatState.meme ? String(chatState.meme.id || "") : "";
     const key = "chat|" + agent;
@@ -286,7 +273,7 @@
     const low = String(name).toLowerCase();
     return st.scope.rows.some((s) => low.startsWith("mcp_" + s.name.toLowerCase() + "_"));
   }
-  /* One mcp_* call: the backend decides; «needs_confirm» → the user's «Allow» → the same call with confirmed. */
+
   async function run(callRow, ctx = {}) {
     const name = String(callRow.tool || "");
     const body = { tool: name, args: callRow.args || {}, scope: ctx.scope || "chat", agent: ctx.agent || "", access: ctx.access || "", lang: isEn() ? "en" : "ru" };

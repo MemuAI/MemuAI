@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 ALWAYS = ("overview", "errors")
-#: Extra words that pull a knowledge-base file into the prompt.
+
 TOPIC_WORDS: Dict[str, str] = {
     "api": r"/v1|api|ключ|key|curl|openai|sdk|клиент|client|cors|passthrough|/p/",
     "settings": r"настро|setting|таймаут|timeout|порт|port|прокси|proxy|ssl|балансир|balanc|retry|повтор",
@@ -30,7 +30,6 @@ TOPIC_WORDS: Dict[str, str] = {
     "troubleshooting": r"не работ|ошибк|error|fail|сломал|broken|не отвеча|timeout|висит|hang",
 }
 
-
 def kb_dir() -> Path:
     base = getattr(sys, "_MEIPASS", "")
     if base:
@@ -38,7 +37,6 @@ def kb_dir() -> Path:
         if frozen.is_dir():
             return frozen
     return Path(__file__).resolve().parent / "companion_kb"
-
 
 def kb_files() -> Dict[str, str]:
     folder = kb_dir()
@@ -50,7 +48,6 @@ def kb_files() -> Dict[str, str]:
             except OSError:
                 continue
     return files
-
 
 def pick_kb(question: str, providers_in_use: List[str]) -> List[str]:
     files = kb_files()
@@ -65,11 +62,6 @@ def pick_kb(question: str, providers_in_use: List[str]) -> List[str]:
         if name in files and re.search(pattern, text):
             chosen.append(name)
     return list(dict.fromkeys(chosen))
-
-
-# --------------------------------------------------------------------------
-# Live snapshot (no secrets)
-# --------------------------------------------------------------------------
 
 def snapshot(limit_errors: int = 8) -> Dict[str, Any]:
     from .config import config_store
@@ -110,7 +102,6 @@ def snapshot(limit_errors: int = 8) -> Dict[str, Any]:
         "recent_errors": errors,
     }
 
-
 def _snapshot_text(data: Dict[str, Any]) -> str:
     lines = [f"MemuAI Proxy {data['version']}, listening on {data['listen']}, proxy "
              f"{'ON' if data['proxy_enabled'] else 'OFF'}, balancing={data['balancing']}, "
@@ -132,7 +123,6 @@ def _snapshot_text(data: Dict[str, Any]) -> str:
         lines.append("- none")
     return "\n".join(lines)
 
-
 PERSONA = """You are the built-in companion of MemuAI Proxy, a local Windows application that connects user
 accounts of AI services (Genspark, Kiro, Antigravity, Gemini Web, Grok, custom OpenAI-compatible APIs and
 local GGUF models) and serves them through one OpenAI-compatible API.
@@ -146,7 +136,6 @@ How you work:
 - If the knowledge base does not cover something, say you are not sure instead of inventing menu items.
 - Answer in the user's language ({language}). Be concise; use short lists and code blocks for commands.
 """
-
 
 def build_messages(history: List[Dict[str, str]], question: str, *, language: str = "ru",
                    error: Optional[Dict[str, Any]] = None) -> List[Dict[str, str]]:
@@ -170,7 +159,6 @@ def build_messages(history: List[Dict[str, str]], question: str, *, language: st
     messages.append({"role": "user", "content": text or "?"})
     return messages
 
-
 def default_model() -> str:
     """The model the companion uses: the saved choice, else a sensible first pick."""
     from .config import config_store
@@ -186,7 +174,6 @@ def default_model() -> str:
         if match:
             return match
     return enabled[0] if enabled else ""
-
 
 async def answer(history: List[Dict[str, str]], question: str, *, model: str = "", language: str = "ru",
                  error: Optional[Dict[str, Any]] = None) -> AsyncIterator[Dict[str, Any]]:

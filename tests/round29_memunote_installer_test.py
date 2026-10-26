@@ -16,7 +16,6 @@ from installer.engine import Engine, Options
 
 from tests.installer_engine_test import STUB, FakePlatform, write_tree
 
-
 def dist_with_memunote(base: Path, version: str) -> list:
     trees = {
         "proxy": {"MemuAIProxy.exe": b"proxy-" + version.encode() + os.urandom(500)},
@@ -33,7 +32,6 @@ def dist_with_memunote(base: Path, version: str) -> list:
         (folder / "_internal" / "empty-dir").mkdir(parents=True, exist_ok=True)
         sources.append((comp, folder, products.SUITE.component(comp).dest))
     return sources
-
 
 class MemuNoteSetupTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -82,7 +80,7 @@ class MemuNoteSetupTest(unittest.TestCase):
         self.assertFalse((start / "MemuNote.lnk").exists())
 
     def test_selected_installs_the_folder_and_shortcut(self) -> None:
-        self.install("3.1", ["proxy", "memuai"])           # zip first …
+        self.install("3.1", ["proxy", "memuai"])
         self.assertTrue(self.zip_path().is_file())
         result = self.install("3.1", ["proxy", "memuai", "memunote"])
         self.assertTrue(result["ok"], result)
@@ -99,7 +97,7 @@ class MemuNoteSetupTest(unittest.TestCase):
 
     def test_update_keeps_memunote_installed_from_memuai_settings(self) -> None:
         self.install("3.1", ["proxy", "memuai"])
-        # MemuAI → Settings → MemuNote unpacked the zip (app/memunote_manager.py).
+
         with zipfile.ZipFile(self.zip_path()) as archive:
             archive.extractall(self.app / "MemuNote")
         eng = self.engine("3.2")
@@ -123,7 +121,6 @@ class MemuNoteSetupTest(unittest.TestCase):
         self.assertIn(("run", "MemuNote.exe", ("--shutdown",)), self.os.calls)
         self.assertFalse((self.app / "MemuNote").exists())
         self.assertFalse((self.app / "Packages").exists())
-
 
 if __name__ == "__main__":
     unittest.main()

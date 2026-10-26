@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from typing import Any, Dict
 
-#: preference → allowed values (the first one is the default)
 CHOICES: Dict[str, tuple] = {
     "ui_radius": ("", "sharp", "round"),
     "ui_glass": ("", "light", "strong"),
@@ -21,10 +20,9 @@ CHOICES: Dict[str, tuple] = {
     "ui_contrast": ("", "more"),
 }
 DEFAULTS: Dict[str, Any] = {key: values[0] for key, values in CHOICES.items()}
-# Round 33 (r33-theme): «ui_look» — layout, element styles, colour overrides and background of the theme editor.
+
 from . import theme_editor as _theme_editor  # noqa: E402
 DEFAULTS.update(_theme_editor.DEFAULTS)
-
 
 def normalize(prefs: Dict[str, Any]) -> Dict[str, Any]:
     """In place: every extra key holds one of its allowed values."""

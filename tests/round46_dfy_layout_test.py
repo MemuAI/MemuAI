@@ -6,7 +6,6 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 @pytest.mark.parametrize("width,height", [(280,320),(360,640),(860,650)])
 def test_choice_is_visible_responsive_and_cancellable(width,height):
     with sync_playwright() as playwright:

@@ -16,10 +16,8 @@ from typing import Any, Dict, List, Tuple
 from . import code_artifacts, code_context, code_sandbox, code_sessions, code_skills, code_tools
 from .work_tools import WorkError, read_text, resolve_inside, tool_search
 
-
 def _session(session_id: str) -> str:
     return str(session_id or "").strip() or "default"
-
 
 def tree(root: Path, session_id: str) -> Dict[str, Any]:
     engine = code_context.engine_for(_session(session_id), root)
@@ -35,7 +33,6 @@ def tree(root: Path, session_id: str) -> Dict[str, Any]:
         git = {}
     return {"tree": engine.tree, "git": git, "branch": branch, **stats}
 
-
 def read_file(root: Path, rel: str, start_line: int = 1, end_line: int = 0) -> Dict[str, Any]:
     path = resolve_inside(root, rel)
     if path.is_dir():
@@ -46,7 +43,7 @@ def read_file(root: Path, rel: str, start_line: int = 1, end_line: int = 0) -> D
     end = int(end_line or 0)
     end = min(end if end > 0 else min(len(lines), start + 399), len(lines))
     if start > len(lines) and lines:
-        # Раньше листание за конец файла молча возвращало к строке 1.
+
         return {"path": path.relative_to(root).as_posix(), "text": "", "start_line": start,
                 "end_line": 0, "total_lines": len(lines), "truncated": truncated_file,
                 "past_end": True}
@@ -60,11 +57,8 @@ def read_file(root: Path, rel: str, start_line: int = 1, end_line: int = 0) -> D
         "truncated": truncated_file or end < len(lines),
     }
 
-
-#: The built-in editor is for quick fixes; bigger files open in a real editor.
 EDIT_LIMIT = 1_500_000
 _EDIT_ENCODINGS = ("utf-8", "cp1251")
-
 
 def _decode_for_edit(raw: bytes) -> Tuple[str, str]:
     """Text and the encoding to write it back with; BOMs are kept."""
@@ -78,7 +72,6 @@ def _decode_for_edit(raw: bytes) -> Tuple[str, str]:
         except UnicodeDecodeError:
             continue
     raise WorkError("Кодировку файла не удалось определить — откройте его во внешнем редакторе")
-
 
 def edit_source(root: Path, rel: str) -> Dict[str, Any]:
     """The whole file for the built-in editor, with what is needed to save it safely.
@@ -106,7 +99,6 @@ def edit_source(root: Path, rel: str) -> Dict[str, Any]:
         "hash": hashlib.sha256(raw).hexdigest(),
         "size": len(raw),
     }
-
 
 def save_source(root: Path, rel: str, text: str, *, expected_hash: str, eol: str = "lf",
                 encoding: str = "utf-8", session_id: str = "", force: bool = False) -> Dict[str, Any]:
@@ -137,7 +129,7 @@ def save_source(root: Path, rel: str, text: str, *, expected_hash: str, eol: str
     try:
         data = body.encode(encoding)
     except UnicodeEncodeError:
-        # A character cp1251 cannot hold: upgrade the file to UTF-8 rather than lose it.
+
         data = body.encode("utf-8")
         encoding = "utf-8"
     rel_path = path.relative_to(root).as_posix()
@@ -151,7 +143,7 @@ def save_source(root: Path, rel: str, text: str, *, expected_hash: str, eol: str
         with os.fdopen(handle, "wb") as stream:
             stream.write(data)
         if path.exists():
-            shutil.copymode(path, temp)  # mkstemp создаёт файл с правами 0600
+            shutil.copymode(path, temp)
         os.replace(temp, path)
     except BaseException:
         try:
@@ -162,10 +154,8 @@ def save_source(root: Path, rel: str, text: str, *, expected_hash: str, eol: str
     return {"ok": True, "path": rel_path, "hash": hashlib.sha256(data).hexdigest(),
             "size": len(data), "encoding": encoding}
 
-
 def search(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     return tool_search(root, args or {})
-
 
 def diff(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     path = str((args or {}).get("path") or "")
@@ -175,10 +165,8 @@ def diff(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     return {"stat": stat.get("diff") or "", "diff": full.get("diff") or "",
             "repository": full.get("repository", True)}
 
-
 def skills(root: Path, *, include_prompt: bool = False) -> Dict[str, Any]:
     return {"skills": code_skills.catalogue(root, include_prompt=include_prompt)}
-
 
 def context_stats(root: Path, session_id: str) -> Dict[str, Any]:
     engine = code_context.engine_for(_session(session_id), root)
@@ -186,25 +174,21 @@ def context_stats(root: Path, session_id: str) -> Dict[str, Any]:
         engine.refresh()
     return engine.stats()
 
-
 def sandbox_status(session_id: str) -> Dict[str, Any]:
     status = code_sandbox.manager.status(_session(session_id))
     status["tasks"] = code_sessions.manager.list(_session(session_id))
     return status
 
-
 def stop_sandbox(session_id: str) -> Dict[str, Any]:
     code_sessions.manager.close(_session(session_id))
     return {"ok": True, "stopped": True}
-
 
 def _guard_mutation(name: str, args: Dict[str, Any], access: str) -> str:
     action = str(args.get("action") or "").lower()
     if name in ("code_artifact", "code_task") and action in ("create", "update", "publish", "delete", "submit"):
         if access != "full":
             return "Изменение артефактов и фоновых задач требует полного доступа"
-    # code_terminal_run сам подставляет action=run: смотреть только на поле
-    # action нельзя — без него команда уходила в терминал и в режиме Ask.
+
     terminal_action = {"code_terminal_run": "run", "code_terminal_start": "start",
                        "code_terminal_stop": "stop"}.get(name, action or "read")
     if name.startswith("code_terminal") and terminal_action == "run":
@@ -217,7 +201,6 @@ def _guard_mutation(name: str, args: Dict[str, Any], access: str) -> str:
     elif name == "code_diagnostics" and access == "full":
         args["allow_write"] = True
     return ""
-
 
 def _one_sync(root: Path, name: str, args: Dict[str, Any], session: str, access: str) -> Dict[str, Any]:
     denied = _guard_mutation(name, args, access)
@@ -249,7 +232,6 @@ def _one_sync(root: Path, name: str, args: Dict[str, Any], session: str, access:
     except Exception as exc:
         return {"tool": name, "error": str(exc)}
 
-
 async def run_batch(root: Path, calls: List[Any], session_id: str, access: str,
                     project_id: str = "") -> Dict[str, Any]:
     """Up to four read-only code tools at once; writes stay in order."""
@@ -263,7 +245,7 @@ async def run_batch(root: Path, calls: List[Any], session_id: str, access: str,
         if name:
             args = dict(args)
             if project_id and not args.get("project_id"):
-                # Без project_id выключенный для проекта навык всё равно грузился.
+
                 args["project_id"] = project_id
             normalized.append((name, args))
     results: List[Dict[str, Any]] = []

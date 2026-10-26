@@ -61,7 +61,7 @@ from urllib.parse import urljoin, urlparse
 
 from .schedule_rules import RuleError, _days, _hhmm, _int
 
-try:   # route signatures are resolved from module globals (``from __future__ import annotations``)
+try:
     from fastapi import Request
 except ImportError:  # pragma: no cover - the engine itself does not need FastAPI
     Request = Any  # type: ignore[misc,assignment]
@@ -71,18 +71,15 @@ log = logging.getLogger("memuai.schedule_triggers")
 STATE_FILE = "schedule_triggers.json"
 MAX_PENDING = 20
 PENDING_TTL = 24 * 3600
-WAIT_TTL = 4 * 24 * 3600      # «ждать рабочего времени»: выходные + праздник
+WAIT_TTL = 4 * 24 * 3600
 MAX_PAYLOAD = 8000
 FAILS_TO_INBOX = 3
 MAX_BACKOFF = 6 * 3600
 TICK_WAIT = 6.0
 WORKERS = 4
-#: Set by the Proxy's scheduler (prepare_tick): in-process sources (Proxy models) read state directly.
+
 IN_PROXY = False
 
-# --------------------------------------------------------------------------- catalog
-
-#: id → category, icon, connector (integrations service id), default/min poll minutes, titles.
 SOURCES: Dict[str, Dict[str, Any]] = {
     "gmail": {"cat": "mail", "icon": "mail", "service": "gmail", "every": 2, "min": 1,
               "ru": "Новое письмо", "en": "New email"},
@@ -133,8 +130,7 @@ SOURCES: Dict[str, Dict[str, Any]] = {
     "all": {"cat": "logic", "icon": "logic", "service": "", "every": 5, "min": 1,
             "ru": "Все условия вместе", "en": "All of these together"},
 }
-#: Round 35 (finish-c): the stable event type of each source — ``{{trigger.type}}`` in flows and plain prompts
-#: (the run history badge keeps ``trigger: "event"``).
+
 TYPE_IDS: Dict[str, str] = {
     "gmail": "gmail.new_email", "calendar_before": "calendar.before_event", "calendar_created": "calendar.new_event",
     "calendar_changed": "calendar.event_changed", "github_issue": "github.new_issue", "github_pr": "github.new_pr",
@@ -146,11 +142,9 @@ TYPE_IDS: Dict[str, str] = {
     "system": "system.state", "weather": "weather.changed", "all": "all.together",
 }
 
-
 def type_id(source: Any) -> str:
     """``gmail`` → ``gmail.new_email`` (unknown sources pass through)."""
     return TYPE_IDS.get(str(source or ""), str(source or ""))
-
 
 CATEGORIES = [
     ("mail", "Почта и календарь", "Mail and calendar"),
@@ -177,18 +171,14 @@ _SHEET_ID = re.compile(r"/spreadsheets/d/([A-Za-z0-9_-]{20,})")
 _NOTION_ID = re.compile(r"([0-9a-fA-F]{8}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{4}-?[0-9a-fA-F]{12})")
 _DRIVE_FOLDER = re.compile(r"/folders/([A-Za-z0-9_-]{10,})")
 
-
 def _t(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 def _err(ru: str, en: str) -> RuleError:
     return RuleError(ru, en)
 
-
 def _text(value: Any, limit: int = 300) -> str:
     return re.sub(r"[\r\n\t]+", " ", str(value or "")).strip()[:limit]
-
 
 def _bool(value: Any, default: bool = False) -> bool:
     if value is None:
@@ -196,7 +186,6 @@ def _bool(value: Any, default: bool = False) -> bool:
     if isinstance(value, str):
         return value.strip().lower() not in ("", "0", "false", "no", "off", "нет")
     return bool(value)
-
 
 def parse_number(value: Any) -> Optional[float]:
     """«1 234,5 ₽» / «-3.2%» / 42 → float; None when there is no number."""
@@ -221,9 +210,6 @@ def parse_number(value: Any) -> Optional[float]:
         return None
     return number if math.isfinite(number) else None
 
-
-# --------------------------------------------------------------------------- normalization
-
 def _repo(value: Any, required: bool = True) -> str:
     text = str(value or "").strip()
     text = re.sub(r"^https?://github\.com/", "", text).strip("/")
@@ -239,7 +225,6 @@ def _repo(value: Any, required: bool = True) -> str:
                    f"Invalid repository “{text[:60]}” — use owner/name")
     return text
 
-
 def _sheet_id(value: Any) -> str:
     text = str(value or "").strip()
     match = _SHEET_ID.search(text)
@@ -248,7 +233,6 @@ def _sheet_id(value: Any) -> str:
     if re.fullmatch(r"[A-Za-z0-9_-]{20,}", text):
         return text
     raise _err("Вставьте ссылку на Google Таблицу или её id", "Paste the Google Sheet link or its id")
-
 
 def _notion_id(value: Any, what_ru: str, what_en: str) -> str:
     text = str(value or "").split("?")[0].split("#")[0]
@@ -260,7 +244,6 @@ def _notion_id(value: Any, what_ru: str, what_en: str) -> str:
     raw = found[-1].replace("-", "").lower()
     return f"{raw[:8]}-{raw[8:12]}-{raw[12:16]}-{raw[16:20]}-{raw[20:]}"
 
-
 def _url(value: Any) -> str:
     text = str(value or "").strip()
     if text and not re.match(r"^[a-z][a-z0-9+.-]*://", text, re.I):
@@ -269,7 +252,6 @@ def _url(value: Any) -> str:
     if parsed.scheme not in ("http", "https") or not parsed.hostname or len(text) > 1000:
         raise _err("Укажите адрес страницы, например https://example.com", "Enter the page address, e.g. https://example.com")
     return text
-
 
 def _compare_cfg(raw: Dict[str, Any], out: Dict[str, Any], *, default_op: str = "gt", numeric: bool = False) -> None:
     op = str(raw.get("op") or default_op).strip().lower()
@@ -294,7 +276,6 @@ def _compare_cfg(raw: Dict[str, Any], out: Dict[str, Any], *, default_op: str = 
     if hyst and hyst > 0:
         out["hysteresis"] = hyst
     out["initial"] = _bool(raw.get("initial"), True)
-
 
 def _normalize_one(raw: Dict[str, Any], *, nested: bool = False) -> Dict[str, Any]:  # noqa: C901 - one flat table
     source = str(raw.get("source") or "").strip().lower()
@@ -371,8 +352,7 @@ def _normalize_one(raw: Dict[str, Any], *, nested: bool = False) -> Dict[str, An
             if not text:
                 raise _err("Укажите текст, который нужно найти на странице", "Enter the text to look for on the page")
             out["text"] = text
-            # Round 35 (finish-c): «точное совпадение» (whole words, negation-aware) is the default and is stored
-            # only when turned off — the watch key of existing triggers stays the same.
+
             if raw.get("exact") is not None and not _bool(raw.get("exact"), True):
                 out["exact"] = False
     elif source == "webhook":
@@ -422,7 +402,7 @@ def _normalize_one(raw: Dict[str, Any], *, nested: bool = False) -> Dict[str, An
             raise _err("Добавьте хотя бы два условия в «Все вместе»", "Add at least two triggers to “All of these”")
         out["items"] = clean
         out["within"] = _int(raw.get("within"), 60, 1, 7 * 1440)
-    # common options
+
     every = raw.get("every")
     if every not in (None, ""):
         out["every"] = _int(every, meta["every"], meta["min"], 1440)
@@ -440,16 +420,12 @@ def _normalize_one(raw: Dict[str, Any], *, nested: bool = False) -> Dict[str, An
             if window["from"] == window["to"]:
                 raise _err("Начало и конец окна совпадают", "The window starts and ends at the same time")
             if _bool(hours.get("wait")):
-                window["wait"] = True     # Раунд 36: события вне окна ждут его начала, а не пропускаются
+                window["wait"] = True
             out["hours"] = window
     return out
 
-
-#: Round 37 (plan-2): a weather trigger fires when a metric CROSSES its threshold (or rain / snow starts), with a
-#: hysteresis so a temperature hovering at the threshold does not fire on every poll, and a cool-down between runs.
 WEATHER_HYSTERESIS = {"temp": 1.0, "feels": 1.0, "wind": 5.0, "precip": 0.2, "precip_prob": 10.0, "cloud": 10.0,
                       "humidity": 5.0}
-
 
 def _weather_cfg(raw: Dict[str, Any], out: Dict[str, Any]) -> None:
     from . import schedule_conds_ext as conds
@@ -473,20 +449,17 @@ def _weather_cfg(raw: Dict[str, Any], out: Dict[str, Any]) -> None:
     out["cooldown"] = _int(raw.get("cooldown"), 180, 0, 7 * 1440)
     out["initial"] = _bool(raw.get("initial"), False)
 
-
 def normalize(raw: Any) -> Dict[str, Any]:
     """Validate a ``{"type": "watch", …}`` trigger (raises :class:`RuleError`)."""
     if not isinstance(raw, dict):
         raise _err("Неверный триггер", "Invalid trigger")
     return _normalize_one(raw)
 
-
 def poll_every(trigger: Dict[str, Any]) -> int:
     meta = SOURCES.get(trigger.get("source"), {"every": 5, "min": 1})
     if trigger.get("source") == "all":
         return max(meta["min"], min(poll_every(item) for item in trigger.get("items") or [{}]))
     return _int(trigger.get("every"), meta["every"], meta["min"], 1440)
-
 
 def services_of(trigger: Dict[str, Any]) -> List[str]:
     if trigger.get("source") == "all":
@@ -497,15 +470,11 @@ def services_of(trigger: Dict[str, Any]) -> List[str]:
     service = SOURCES.get(str(trigger.get("source")), {}).get("service")
     return [service] if service else []
 
-
 def watch_key(task_id: Any, trigger: Dict[str, Any]) -> str:
     """Stable per task+trigger config: an edited trigger starts a new cursor (a new baseline)."""
     body = {k: v for k, v in trigger.items() if k not in ("delay", "hours", "every")}
     digest = hashlib.sha1(json.dumps(body, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:12]
     return f"{str(task_id)[:60]}:{digest}"
-
-
-# --------------------------------------------------------------------------- human text
 
 def _cmp_text(trigger: Dict[str, Any], lang: str) -> str:
     op = trigger.get("op") or "changed"
@@ -517,11 +486,9 @@ def _cmp_text(trigger: Dict[str, Any], lang: str) -> str:
         value = int(value)
     return f"{word} {value}"
 
-
 def _short(value: Any, size: int = 40) -> str:
     text = str(value or "")
     return text if len(text) <= size else text[: size - 1] + "…"
-
 
 def describe(trigger: Dict[str, Any], lang: str = "ru", *, panels: Optional[Dict[str, str]] = None) -> str:  # noqa: C901
     en = lang == "en"
@@ -635,16 +602,12 @@ def describe(trigger: Dict[str, Any], lang: str = "ru", *, panels: Optional[Dict
         text += f", {trigger['delay']} min later" if en else f", через {trigger['delay']} мин"
     return text
 
-
 def _panel_title(panel_id: str) -> str:
     try:
         panel = _panels_by_id().get(panel_id)
     except Exception:
         return ""
     return str((panel or {}).get("title") or "")
-
-
-# --------------------------------------------------------------------------- helpers: comparison & hysteresis
 
 def _compare(op: str, value: Any, target: Any) -> Optional[bool]:
     if op in ("gt", "ge", "lt", "le"):
@@ -662,14 +625,11 @@ def _compare(op: str, value: Any, target: Any) -> Optional[bool]:
         return hit if op == "contains" else not hit
     return None
 
-
 _NEGATIONS = {"нет", "не", "ни", "без", "no", "not", "never", "non", "without"}
 _WORD = re.compile(r"[\w]+(?:[-'’][\w]+)*", re.UNICODE)
 
-
 def _fold(text: Any) -> str:
     return re.sub(r"\s+", " ", str(text or "").lower().replace("ё", "е")).strip()
-
 
 def text_found(haystack: Any, needle: Any, exact: bool = True) -> bool:
     """Round 35 (finish-c): «появился текст» matching. ``exact`` (default): case-insensitive whole words/phrase
@@ -693,7 +653,6 @@ def text_found(haystack: Any, needle: Any, exact: bool = True) -> bool:
         return True
     return False
 
-
 def _rearmed(op: str, value: Any, target: Any, hyst: float) -> bool:
     """Has the value left the trigger zone far enough (hysteresis) to fire again?"""
     number = parse_number(value)
@@ -702,7 +661,6 @@ def _rearmed(op: str, value: Any, target: Any, hyst: float) -> bool:
     if op in ("lt", "le") and number is not None and target is not None:
         return number > target + hyst if hyst else not _compare(op, value, target)
     return _compare(op, value, target) is False
-
 
 def threshold_step(cfg: Dict[str, Any], value: Any, cursor: Optional[Dict[str, Any]]) -> Tuple[bool, Dict[str, Any]]:
     """Edge-triggered comparison with hysteresis. Returns (fire, new cursor)."""
@@ -742,7 +700,6 @@ def threshold_step(cfg: Dict[str, Any], value: Any, cursor: Optional[Dict[str, A
         cur["armed"] = not holds
     return False, cur
 
-
 def _seen_add(cursor: Dict[str, Any], ids: List[str], limit: int = 300) -> None:
     seen = list(cursor.get("seen") or [])
     for item in ids:
@@ -750,10 +707,8 @@ def _seen_add(cursor: Dict[str, Any], ids: List[str], limit: int = 300) -> None:
             seen.append(item)
     cursor["seen"] = seen[-limit:]
 
-
 def _iso(ts: float) -> str:
     return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
-
 
 def _ts(value: Any) -> Optional[float]:
     if not value:
@@ -761,16 +716,14 @@ def _ts(value: Any) -> Optional[float]:
     text = str(value).strip()
     try:
         if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
-            return datetime.fromisoformat(text).timestamp()   # all-day event: local midnight
+            return datetime.fromisoformat(text).timestamp()
         moment = datetime.fromisoformat(text.replace("Z", "+00:00"))
         return moment.timestamp() if moment.tzinfo else moment.timestamp()
     except ValueError:
         return None
 
-
 def _local_hm(ts: float) -> str:
     return datetime.fromtimestamp(ts).strftime("%H:%M")
-
 
 class PollResult:
     __slots__ = ("events", "cursor", "info", "next_check")
@@ -782,14 +735,12 @@ class PollResult:
         self.info = info or {}
         self.next_check = next_check
 
-
 class SourceError(RuntimeError):
     """A poll failure the user can act on. ``kind``: connect (integration off) | auth | config | network | other."""
 
     def __init__(self, text: str, kind: str = "other", service: str = "") -> None:
         super().__init__(text)
         self.kind, self.service = kind, service
-
 
 def _list_payload(source: str, items: List[Dict[str, Any]], each: bool, lang: str) -> List[Dict[str, Any]]:
     """New items → events: one per item (``each``) or one event that carries them all."""
@@ -805,13 +756,9 @@ def _list_payload(source: str, items: List[Dict[str, Any]], each: bool, lang: st
         title = (f"{title} (+{len(items) - 1} more)" if lang == "en" else f"{title} (и ещё {len(items) - 1})")
     return [{"source": source, "kind": label, **first, "title": title, "items": items[:20], "count": len(items)}]
 
-
-# --------------------------------------------------------------------------- integration access (patched in tests)
-
 def _ig():
     from . import integrations
     return integrations
-
 
 def _integration_call(service: str, fn: Callable[[], Any]) -> Any:
     ig = _ig()
@@ -825,14 +772,11 @@ def _integration_call(service: str, fn: Callable[[], Any]) -> Any:
             "auth" if re.search(r"401|403|token|токен|scope|доступ", text, re.I) else "other")
         raise SourceError(text, kind, service) from exc
 
-
 def google(service: str, method: str, url: str, **kwargs: Any) -> Any:
     return _integration_call(service, lambda: _ig()._google(service, method, url, **kwargs))
 
-
 def github(method: str, path: str, **kwargs: Any) -> Any:
     return _integration_call("github", lambda: _ig()._github(method, path, **kwargs))
-
 
 def notion(method: str, path: str, **kwargs: Any) -> Any:
     def call():
@@ -847,7 +791,6 @@ def notion(method: str, path: str, **kwargs: Any) -> Any:
     except Exception as exc:  # noqa: BLE001 - Notion raises its own errors
         raise SourceError(str(exc)[:300], "other", "notion") from exc
 
-
 def service_status() -> Dict[str, bool]:
     """Connector → connected (no network)."""
     out: Dict[str, bool] = {}
@@ -857,9 +800,6 @@ def service_status() -> Dict[str, bool]:
     except Exception:
         pass
     return out
-
-
-# --------------------------------------------------------------------------- web access (SSRF-safe, sync)
 
 def _public_host(host: str) -> None:
     try:
@@ -871,7 +811,6 @@ def _public_host(host: str) -> None:
         if address.is_private or address.is_loopback or address.is_link_local or address.is_reserved \
                 or address.is_multicast or address.is_unspecified:
             raise SourceError("Локальные и внутренние адреса не поддерживаются", "config")
-
 
 def http_get(url: str, *, limit: int = 3_000_000) -> Tuple[str, str]:
     """GET a public page → (text, final url); redirects re-checked; patched in tests."""
@@ -897,7 +836,6 @@ def http_get(url: str, *, limit: int = 3_000_000) -> Tuple[str, str]:
             return data.decode(response.encoding or "utf-8", errors="replace"), current
     raise SourceError("Слишком много перенаправлений", "network")
 
-
 class _Node:
     __slots__ = ("tag", "attrs", "parent", "children", "text")
 
@@ -906,10 +844,8 @@ class _Node:
         self.children: List[Any] = []
         self.text = ""
 
-
 _VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 _SKIP = {"script", "style", "noscript", "template", "svg"}
-
 
 class _Tree(HTMLParser):
     def __init__(self) -> None:
@@ -933,7 +869,6 @@ class _Tree(HTMLParser):
     def handle_data(self, data):
         self.cur.children.append(data)
 
-
 def _node_text(node: _Node) -> str:
     if node.tag in _SKIP:
         return ""
@@ -947,9 +882,7 @@ def _node_text(node: _Node) -> str:
                 parts.append("\n")
     return "".join(parts)
 
-
 _SIMPLE = re.compile(r"^([a-zA-Z][a-zA-Z0-9-]*|\*)?((?:[#.][A-Za-z0-9_-]+|\[[^\]]+\])*)$")
-
 
 def _match_simple(node: _Node, simple: str) -> bool:
     match = _SIMPLE.match(simple)
@@ -972,7 +905,6 @@ def _match_simple(node: _Node, simple: str) -> bool:
             elif body.strip().lower() not in node.attrs:
                 return False
     return True
-
 
 def select(html: str, selector: str) -> List[str]:
     """A small CSS subset (tag, #id, .class, [attr], [attr=v], descendant and «>») → texts of matches."""
@@ -1022,7 +954,6 @@ def select(html: str, selector: str) -> List[str]:
             break
     return results
 
-
 def page_text(html: str, selector: str = "") -> str:
     if selector:
         texts = select(html, selector)
@@ -1038,13 +969,11 @@ def page_text(html: str, selector: str = "") -> str:
     lines = [re.sub(r"[ \t\u00a0]+", " ", line).strip() for line in joined.splitlines()]
     return "\n".join(line for line in lines if line)[:200_000]
 
-
 def _walk(node: _Node):
     for child in node.children:
         if isinstance(child, _Node):
             yield child
             yield from _walk(child)
-
 
 def parse_feed(xml_text: str) -> List[Dict[str, str]]:
     """RSS 2.0 / Atom / RDF → [{id, title, url, text, date}] newest first as in the feed."""
@@ -1083,16 +1012,12 @@ def parse_feed(xml_text: str) -> List[Dict[str, str]]:
             items.append(row)
     return items[:100]
 
-
-# --------------------------------------------------------------------------- local data (panels, quota, models, system)
-
 def _panels_by_id() -> Dict[str, Dict[str, Any]]:
     from . import panels
     from .storage import load_json_with_recovery
     raw = load_json_with_recovery(panels._path(), {})
     doc = panels._normalize_document(raw)
     return {str(p.get("id")): p for p in doc.get("panels") or [] if isinstance(p, dict)}
-
 
 def panel_value(panel: Dict[str, Any], key: str) -> Any:
     value: Any = panel.get("data") or {}
@@ -1108,7 +1033,6 @@ def panel_value(panel: Dict[str, Any], key: str) -> Any:
             if name in value:
                 return value[name]
     return value
-
 
 def panel_fields(panel: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Scalar data keys of a panel (for the picker) with their current values."""
@@ -1127,7 +1051,6 @@ def panel_fields(panel: Dict[str, Any]) -> List[Dict[str, Any]]:
     visit("", panel.get("data") or {}, 0)
     return out
 
-
 def _quota_accounts() -> List[Dict[str, Any]]:
     try:
         from . import quota_planner
@@ -1145,7 +1068,6 @@ def _quota_accounts() -> List[Dict[str, Any]]:
     except Exception as exc:  # noqa: BLE001
         log.debug("quota accounts: %s", exc)
     return rows
-
 
 def proxy_models() -> List[str]:
     if IN_PROXY:
@@ -1176,7 +1098,6 @@ def proxy_models() -> List[str]:
     except Exception as exc:  # noqa: BLE001
         raise SourceError(f"MemuAI Proxy не отвечает ({type(exc).__name__})", "network") from exc
 
-
 def system_metric(metric: str, drive: str = "") -> Optional[float]:
     try:
         import psutil
@@ -1199,9 +1120,6 @@ def system_metric(metric: str, drive: str = "") -> Optional[float]:
         battery = psutil.sensors_battery()
         return None if battery is None else float(battery.percent)
     return None
-
-
-# --------------------------------------------------------------------------- polls
 
 def _p_gmail(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     from .integrations_gmail import GMAIL_API
@@ -1226,11 +1144,10 @@ def _p_gmail(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -
                 "thread_id": row.get("threadId", "")}
         (preview if first else items).append(item)
     _seen_add(cur, ids)
-    items.reverse()   # oldest first
+    items.reverse()
     info = {"summary": _t(lang, f"Писем по запросу: {len(ids)}", f"Matching emails: {len(ids)}"),
             "preview": [{"title": i["title"], "sub": i["from"]} for i in (items or preview)[:3]]}
     return PollResult(_list_payload("gmail", items, cfg.get("each", False), lang), cur, info)
-
 
 def _cal_events(cfg: Dict[str, Any], params: Dict[str, Any]) -> List[Dict[str, Any]]:
     from urllib.parse import quote
@@ -1244,7 +1161,6 @@ def _cal_events(cfg: Dict[str, Any], params: Dict[str, Any]) -> List[Dict[str, A
                 or needle in str(r.get("description") or "").lower()]
     return rows
 
-
 def _event_item(row: Dict[str, Any], lang: str) -> Dict[str, Any]:
     start = row.get("start") or {}
     end = row.get("end") or {}
@@ -1257,7 +1173,6 @@ def _event_item(row: Dict[str, Any], lang: str) -> Dict[str, Any]:
             "url": row.get("htmlLink", ""), "meet": link or "",
             "attendees": [a.get("email") for a in (row.get("attendees") or [])[:20] if a.get("email")],
             "all_day": bool(start.get("date") and not start.get("dateTime"))}
-
 
 def _p_calendar_before(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str, now: float) -> PollResult:
     lead = cfg.get("minutes", 10) * 60
@@ -1285,7 +1200,7 @@ def _p_calendar_before(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], la
         if mark in fired:
             continue
         if due <= now + 20:
-            if item["start_ts"] >= now - 60:     # not an event that already began long ago
+            if item["start_ts"] >= now - 60:
                 minutes = max(0, round((item["start_ts"] - now) / 60))
                 when = _local_hm(item["start_ts"])
                 payload = dict(item, minutes_left=minutes,
@@ -1304,7 +1219,6 @@ def _p_calendar_before(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], la
             "preview": [{"title": i["title"], "sub": _local_hm(i["start_ts"])} for i in (cur.get("upcoming") or [])[:3]]}
     hint = min(next_due, cur["fetched"] + poll_every(cfg) * 60) if next_due else None
     return PollResult(events, cur, info, next_check=hint)
-
 
 def _p_calendar_changes(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str, now: float,
                         created: bool) -> PollResult:
@@ -1340,10 +1254,8 @@ def _p_calendar_changes(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], l
             "preview": [{"title": i["title"], "sub": i["start"]} for i in items[:3]]}
     return PollResult(_list_payload(source, items, cfg.get("each", False), lang), cur, info)
 
-
 def _gh_user(row: Any) -> str:
     return str((row or {}).get("login") or "") if isinstance(row, dict) else ""
-
 
 def _p_github_numbers(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str, pulls: bool) -> PollResult:
     repo = cfg["repo"]
@@ -1370,7 +1282,6 @@ def _p_github_numbers(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lan
             "preview": [{"title": f"#{r.get('number')} {_text(r.get('title'), 80)}", "sub": _gh_user(r.get("user"))} for r in rows[:3]]}
     return PollResult(_list_payload(source, items, cfg.get("each", False), lang), cur, info)
 
-
 def _p_github_review(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     query = "is:pr is:open review-requested:@me" + (f" repo:{cfg['repo']}" if cfg.get("repo") else "")
     data = github("GET", "/search/issues", params={"q": query, "sort": "updated", "per_page": 20})
@@ -1390,7 +1301,6 @@ def _p_github_review(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang
     info = {"summary": _t(lang, f"Ждут вашего ревью: {len(rows)}", f"Waiting for your review: {len(rows)}"),
             "preview": [{"title": _text(r.get("title"), 80), "sub": _gh_user(r.get("user"))} for r in rows[:3]]}
     return PollResult(_list_payload("github_review", items, cfg.get("each", False), lang), cur, info)
-
 
 def _p_github_actions(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     params: Dict[str, Any] = {"status": "completed", "per_page": 20}
@@ -1421,7 +1331,6 @@ def _p_github_actions(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lan
             "preview": [{"title": f"{r.get('name')} · {r.get('head_branch')}", "sub": str(r.get("conclusion"))} for r in runs[:3]]}
     return PollResult(_list_payload("github_actions", items, True, lang), cur, info)
 
-
 def _p_github_release(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     rows = github("GET", f"/repos/{cfg['repo']}/releases", params={"per_page": 10})
     rows = [r for r in rows or [] if isinstance(r, dict) and not r.get("draft")]
@@ -1440,9 +1349,7 @@ def _p_github_release(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lan
             "preview": [{"title": _text(r.get("name") or r.get("tag_name"), 80), "sub": str(r.get("published_at") or "")[:10]} for r in rows[:3]]}
     return PollResult(_list_payload("github_release", items, True, lang), cur, info)
 
-
 SHEETS_API = "https://sheets.googleapis.com/v4"
-
 
 def _p_sheets_row(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     from urllib.parse import quote
@@ -1471,12 +1378,11 @@ def _p_sheets_row(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: s
                           "title": _text(" · ".join(str(c) for c in row if str(c).strip()), 200),
                           "url": f"https://docs.google.com/spreadsheets/d/{cfg['sheet']}/edit"})
     elif cursor is not None and last is not None and count < int(last):
-        cur["rows"] = count     # rows were deleted: new baseline
+        cur["rows"] = count
     info = {"summary": _t(lang, f"Строк: {count}", f"Rows: {count}"),
             "preview": [{"title": _text(" · ".join(str(c) for c in r), 80), "sub": f"#{i + 1}"}
                         for i, r in list(enumerate(values))[-3:]] if values else []}
     return PollResult(_list_payload("sheets_row", items, cfg.get("each", False), lang), cur, info)
-
 
 def _p_sheets_cell(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     from urllib.parse import quote
@@ -1492,7 +1398,6 @@ def _p_sheets_cell(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: 
                        "text": _t(lang, f"Было: {prev}", f"Was: {prev}") if prev not in (None, "") else "",
                        "url": f"https://docs.google.com/spreadsheets/d/{cfg['sheet']}/edit", "count": 1})
     return PollResult(events, cur, {"summary": f"{cfg['cell']} = {value}", "value": value})
-
 
 def _p_drive_file(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str, now: float) -> PollResult:
     cur = dict(cursor or {})
@@ -1524,14 +1429,12 @@ def _p_drive_file(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: s
             "preview": [{"title": _text(f.get("name"), 80), "sub": str(f.get("createdTime") or "")[:16]} for f in files[:3]]}
     return PollResult(_list_payload("drive_file", items, cfg.get("each", False), lang), cur, info)
 
-
 def _notion_title(obj: Dict[str, Any]) -> str:
     try:
         from .integrations_notion import _title
         return _title(obj)
     except Exception:
         return ""
-
 
 def _p_notion_page(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     page = notion("GET", f"/pages/{cfg['page']}")
@@ -1547,7 +1450,6 @@ def _p_notion_page(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: 
                        "by": ((page.get("last_edited_by") or {}).get("id") or ""), "count": 1})
     return PollResult(events, cur, {"summary": _t(lang, f"«{title}», изменена {edited[:16].replace('T', ' ')}",
                                                   f"“{title}”, edited {edited[:16].replace('T', ' ')}")})
-
 
 def _p_notion_db(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str, now: float) -> PollResult:
     cur = dict(cursor or {})
@@ -1581,7 +1483,6 @@ def _p_notion_db(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: st
             "preview": [{"title": _notion_title(r) or "—", "sub": str(r.get("last_edited_time") or "")[:16]} for r in rows[:3]]}
     return PollResult(_list_payload("notion_db", items, cfg.get("each", False), lang), cur, info)
 
-
 def _p_rss(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     text, _final = http_get(cfg["url"])
     entries = parse_feed(text)
@@ -1602,7 +1503,6 @@ def _p_rss(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> 
     info = {"summary": _t(lang, f"Записей в ленте: {len(entries)}", f"Feed items: {len(entries)}"),
             "preview": [{"title": e.get("title", ""), "sub": e.get("date", "")[:16]} for e in matching[:3]]}
     return PollResult(_list_payload("rss", items, cfg.get("each", False), lang), cur, info)
-
 
 def _p_web_page(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     html, final = http_get(cfg["url"])
@@ -1643,7 +1543,6 @@ def _p_web_page(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str
     return PollResult(events, cur, {"summary": _t(lang, f"Текста на странице: {len(text)} симв.", f"Page text: {len(text)} chars"),
                                     "preview": [{"title": _text(text, 120), "sub": cfg.get("selector", "")}] if text else []})
 
-
 def _p_panel(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     panel = _panels_by_id().get(cfg["panel"])
     if not panel:
@@ -1666,7 +1565,6 @@ def _p_panel(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -
         info["note"] = _t(lang, "Панель давно не обновлялась — значение может быть старым",
                           "The panel has not refreshed for a while — the value may be old")
     return PollResult(events, cur, info)
-
 
 def _p_quota(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     accounts = _quota_accounts()
@@ -1694,7 +1592,6 @@ def _p_quota(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -
             "preview": [{"title": a["name"], "sub": str(a.get("status") or "—")} for a in accounts[:3]]}
     return PollResult(events, cur, info)
 
-
 def _p_proxy_model(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     models = proxy_models()
     if cfg.get("match"):
@@ -1711,7 +1608,6 @@ def _p_proxy_model(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: 
                        "models": fresh[:50], "count": len(fresh)})
     return PollResult(events, cur, {"summary": _t(lang, f"Моделей: {len(models)}", f"Models: {len(models)}"),
                                     "preview": [{"title": m, "sub": ""} for m in models[-3:]]})
-
 
 def _p_folder(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str, now: float) -> PollResult:
     root = Path(os.path.expandvars(os.path.expanduser(cfg["path"])))
@@ -1740,7 +1636,7 @@ def _p_folder(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str, 
         for name, (size, mtime) in sorted(found.items(), key=lambda kv: kv[1][1]):
             if name in known:
                 continue
-            # a file still being written (size changes or modified seconds ago) is reported on a later poll
+
             if waiting.get(name) != size or now - mtime < 2:
                 waiting[name] = size
                 continue
@@ -1756,7 +1652,6 @@ def _p_folder(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str, 
     hint = now + 5 if cur["waiting"] else None
     return PollResult(_list_payload("folder_file", items, cfg.get("each", False), lang), cur, info, next_check=hint)
 
-
 def _p_system(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
     value = system_metric(cfg["metric"], cfg.get("drive", ""))
     if value is None:
@@ -1769,12 +1664,10 @@ def _p_system(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) 
                        "metric": cfg["metric"], "value": value, "count": 1})
     return PollResult(events, cur, {"summary": f"{cfg['metric']} = {value}", "value": value})
 
-
 _WEATHER_STARTS = {"rain": ("rain starts", "начнётся дождь"), "snow": ("snow starts", "пойдёт снег"),
                    "clear": ("the sky clears", "прояснится")}
 _WEATHER_STARTED = {"rain": ("Начался дождь", "Rain started"), "snow": ("Пошёл снег", "Snow started"),
                     "clear": ("Прояснилось", "The sky cleared")}
-
 
 def _weather_text(trigger: Dict[str, Any], en: bool) -> str:
     from . import schedule_conds_ext as conds
@@ -1791,11 +1684,9 @@ def _weather_text(trigger: Dict[str, Any], en: bool) -> str:
             f"{ru} станет {sign} {_fmt_weather(trigger.get('value'))}{unit}"
     return f"when {what} ({place})" if en else f"когда {what} ({place})"
 
-
 def _fmt_weather(value: Any) -> str:
     number = parse_number(value)
     return "?" if number is None else (str(int(number)) if float(number).is_integer() else str(number))
-
 
 def _p_weather(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str, now: float) -> PollResult:
     from . import schedule_conds_ext as conds
@@ -1810,7 +1701,7 @@ def _p_weather(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str,
     fire, cur = threshold_step(step_cfg, value, cursor)
     cooldown = int(cfg.get("cooldown") or 0) * 60
     if fire and cooldown and cur.get("fired_at") and now - float(cur["fired_at"]) < cooldown:
-        fire = False            # stays disarmed: the next run needs the weather to go back and cross again
+        fire = False
     events = []
     temp = data.get("temp")
     summary = (f"{_fmt_weather(temp)}°C" if temp is not None else "") + (
@@ -1831,11 +1722,9 @@ def _p_weather(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str,
     info = {"summary": _t(lang, "Сейчас: ", "Now: ") + (summary.lstrip(", ") or "—"), "value": raw, "holds": holds}
     return PollResult(events, cur, info)
 
-
 def _p_webhook(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str) -> PollResult:
-    # calls arrive through :func:`hook_call` straight into the pending queue; nothing to poll
-    return PollResult([], dict(cursor or {}), {"summary": _t(lang, "Ждёт вызова", "Waiting for a call")})
 
+    return PollResult([], dict(cursor or {}), {"summary": _t(lang, "Ждёт вызова", "Waiting for a call")})
 
 def _p_all(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str, now: float) -> PollResult:
     cur = dict(cursor or {})
@@ -1864,7 +1753,6 @@ def _p_all(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str, now
     done = sum(1 for h in hits if h)
     return PollResult(events, cur, {"summary": _t(lang, f"Сработало {done} из {len(hits)}", f"{done} of {len(hits)} fired")},
                       next_check=min(hints) if hints else None)
-
 
 def poll_source(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str = "ru",
                 now: Optional[float] = None) -> PollResult:
@@ -1917,7 +1805,6 @@ def poll_source(cfg: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str
         return _p_all(cfg, cursor, lang, now)
     raise SourceError(f"unknown source {s}", "config")
 
-
 def _clip(payload: Dict[str, Any], limit: int = MAX_PAYLOAD) -> Dict[str, Any]:
     """Keep payloads small: they are stored in schedules.json until the run starts."""
     data = json.loads(json.dumps(payload, ensure_ascii=False, default=str))
@@ -1937,7 +1824,6 @@ def _clip(payload: Dict[str, Any], limit: int = MAX_PAYLOAD) -> Dict[str, Any]:
             break
     return data
 
-
 def _in_hours(trigger: Dict[str, Any], now: float) -> bool:
     hours = trigger.get("hours")
     if not hours:
@@ -1945,17 +1831,12 @@ def _in_hours(trigger: Dict[str, Any], now: float) -> bool:
     from .schedule_rules import _in_time
     return _in_time({"from": hours["from"], "to": hours["to"], "days": hours.get("days") or []}, now)
 
-
-# --------------------------------------------------------------------------- persistent state
-
 def _memu_dir() -> Path:
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR)
 
-
 def state_path() -> Path:
     return _memu_dir() / STATE_FILE
-
 
 def load_state() -> Dict[str, Any]:
     from .storage import load_json_with_recovery
@@ -1966,7 +1847,6 @@ def load_state() -> Dict[str, Any]:
     if not isinstance(data.get("watches"), dict):
         data["watches"] = {}
     return data
-
 
 def mutate_state(fn: Callable[[Dict[str, Dict[str, Any]]], Any]) -> Any:
     from .storage import mutate_json
@@ -1980,7 +1860,7 @@ def mutate_state(fn: Callable[[Dict[str, Dict[str, Any]]], Any]) -> Any:
             data["watches"] = {}
         before = json.dumps(data["watches"], sort_keys=True, ensure_ascii=False, default=str)
         box["result"] = fn(data["watches"])
-        # the Proxy ticks every 15–30 s: write the file only when something really changed
+
         changed = fresh or json.dumps(data["watches"], sort_keys=True, ensure_ascii=False, default=str) != before
         return changed, data
 
@@ -1988,13 +1868,11 @@ def mutate_state(fn: Callable[[Dict[str, Dict[str, Any]]], Any]) -> Any:
                 validator=lambda v: isinstance(v, dict), repair_invalid=True)
     return box.get("result")
 
-
 def _task_enabled(task: Dict[str, Any]) -> bool:
     enabled = task.get("enabled", True)
     if isinstance(enabled, str):
         enabled = enabled.strip().lower() not in ("", "0", "false", "no", "off")
     return bool(enabled)
-
 
 def watches_of(tasks: List[Dict[str, Any]], *, enabled_only: bool = True) -> List[Tuple[Dict[str, Any], int, Dict[str, Any], str]]:
     out = []
@@ -2011,20 +1889,15 @@ def watches_of(tasks: List[Dict[str, Any]], *, enabled_only: bool = True) -> Lis
                 out.append((task, index, trigger, watch_key(task.get("id"), trigger)))
     return out
 
-
-# --------------------------------------------------------------------------- the Proxy tick
-
 _POOL: Optional[concurrent.futures.ThreadPoolExecutor] = None
 _INFLIGHT: Dict[str, concurrent.futures.Future] = {}
 _LOCK = threading.Lock()
-
 
 def _pool() -> concurrent.futures.ThreadPoolExecutor:
     global _POOL
     if _POOL is None:
         _POOL = concurrent.futures.ThreadPoolExecutor(max_workers=WORKERS, thread_name_prefix="memu-watch")
     return _POOL
-
 
 def _run_poll(trigger: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: str, now: float) -> Dict[str, Any]:
     try:
@@ -2036,7 +1909,6 @@ def _run_poll(trigger: Dict[str, Any], cursor: Optional[Dict[str, Any]], lang: s
     except Exception as exc:  # noqa: BLE001 - a broken source never stops the scheduler
         log.warning("trigger poll %s failed: %s", trigger.get("source"), exc)
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:400], "kind": "other", "service": "", "at": now}
-
 
 def _apply(entry: Dict[str, Any], result: Dict[str, Any], trigger: Dict[str, Any], task: Dict[str, Any],
            now: float, notes: List[Tuple[str, str, Dict[str, Any]]]) -> None:
@@ -2081,7 +1953,6 @@ def _apply(entry: Dict[str, Any], result: Dict[str, Any], trigger: Dict[str, Any
                                                           "error": entry["error"], "kind": entry["error_kind"],
                                                           "service": entry["service"], "trigger": trigger}))
 
-
 def _inbox_notes(notes: List[Tuple[str, str, Dict[str, Any]]], lang: str) -> None:
     if not notes:
         return
@@ -2105,7 +1976,6 @@ def _inbox_notes(notes: List[Tuple[str, str, Dict[str, Any]]], lang: str) -> Non
                        group="notify", meta={"title_en": title, "service": data.get("service") or ""})
         except Exception as exc:  # noqa: BLE001
             log.debug("inbox note failed: %s", exc)
-
 
 async def tick(tasks: List[Dict[str, Any]], now: float, lang: str = "ru") -> Dict[str, Any]:
     """Poll the due watches (non-blocking beyond TICK_WAIT) → ``{task_id: {key: [pending events]}}``."""
@@ -2162,29 +2032,27 @@ async def tick(tasks: List[Dict[str, Any]], now: float, lang: str = "ru") -> Dic
                 continue
             entry["index"] = idx
             waits = bool((trigger.get("hours") or {}).get("wait"))
-            ttl = WAIT_TTL if waits else PENDING_TTL      # пятница 19:00 → понедельник 09:00 не теряется
+            ttl = WAIT_TTL if waits else PENDING_TTL
             pending = [p for p in entry.get("pending") or []
                        if int(p.get("seq") or 0) > consumed.get(key, 0) and now - float(p.get("at") or now) < ttl]
             entry["pending"] = pending
             if pending and waits and not _in_hours(trigger, now):
-                continue                     # копятся до начала окна
+                continue
             if pending:
                 out.setdefault(str(task.get("id")), {})[key] = pending
         for key in [k for k in all_watches if k not in by_key and not k.startswith("_")]:
-            all_watches.pop(key, None)       # task deleted, disabled or the trigger edited → forget the cursor
+            all_watches.pop(key, None)
         return out
 
     pending = await asyncio.to_thread(mutate_state, update)
     await asyncio.to_thread(_inbox_notes, notes, lang)
     return pending or {}
 
-
 def _gc(keep: set, _unused: Dict[str, Any]) -> None:
     def update(all_watches: Dict[str, Dict[str, Any]]) -> None:
         for key in [k for k in all_watches if k not in keep]:
             all_watches.pop(key, None)
     mutate_state(update)
-
 
 def next_due() -> Optional[float]:
     """The earliest ``next_check`` of a watch (the scheduler may wake for it)."""
@@ -2194,9 +2062,6 @@ def next_due() -> Optional[float]:
         return None
     values = [v for v in values if v > 0]
     return min(values) if values else None
-
-
-# --------------------------------------------------------------------------- the engine side (pure)
 
 def take(task: Dict[str, Any], trigger: Dict[str, Any], sample: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     """The oldest unconsumed event of this watch (marks it consumed in ``rule_state.watch_seq``)."""
@@ -2210,10 +2075,9 @@ def take(task: Dict[str, Any], trigger: Dict[str, Any], sample: Dict[str, Any]) 
         if seq > done:
             seen[key] = seq
             payload = row.get("payload") if isinstance(row.get("payload"), dict) else {}
-            # Round 35 (finish-c): {{trigger.type}} = the actual source type (e.g. gmail.new_email)
+
             return dict(payload, fired_at=row.get("at"), type=type_id(payload.get("source") or trigger.get("source")))
     return None
-
 
 def _flat(payload: Dict[str, Any], prefix: str = "") -> Dict[str, str]:
     out: Dict[str, str] = {}
@@ -2227,9 +2091,7 @@ def _flat(payload: Dict[str, Any], prefix: str = "") -> Dict[str, str]:
             out[name] = str(value)
     return out
 
-
 _PLACEHOLDER = re.compile(r"\{\{\s*trigger(?:\.([A-Za-z0-9_.]+))?\s*\}\}")
-
 
 def render(text: str, payload: Dict[str, Any]) -> str:
     flat = _flat(payload)
@@ -2241,7 +2103,6 @@ def render(text: str, payload: Dict[str, Any]) -> str:
         return flat.get(name, "")
 
     return _PLACEHOLDER.sub(sub, text)
-
 
 def context_text(payload: Dict[str, Any], lang: str = "ru", *, compact: bool = False) -> str:
     """A short human-readable description of the trigger event for the model / notification."""
@@ -2270,7 +2131,6 @@ def context_text(payload: Dict[str, Any], lang: str = "ru", *, compact: bool = F
     head = "[The trigger that started this task]" if lang == "en" else "[Событие, которое запустило задачу]"
     return head + "\n" + "\n".join(lines)
 
-
 def apply_trigger(task: Dict[str, Any]) -> Dict[str, Any]:
     """Before a run: ``task["trigger"]`` = the event payload; the prompt gets it (placeholders or a context block)."""
     meta = task.get("_run_meta") if isinstance(task.get("_run_meta"), dict) else {}
@@ -2296,7 +2156,6 @@ def apply_trigger(task: Dict[str, Any]) -> Dict[str, Any]:
             out["reminder_text"] = (str(task["reminder_text"]) + "\n" + str(payload.get("title") or "")).strip()
     return out
 
-
 def warnings(rule: Dict[str, Any], lang: str = "ru") -> List[str]:
     out: List[str] = []
     watches = [t for t in rule.get("when") or [] if t.get("type") == "watch"]
@@ -2312,11 +2171,7 @@ def warnings(rule: Dict[str, Any], lang: str = "ru") -> List[str]:
                       "The webhook accepts calls while MemuAI Proxy is running."))
     return out
 
-
-# --------------------------------------------------------------------------- webhook (MemuAI Proxy)
-
 _HOOK_HITS: Dict[str, List[float]] = {}
-
 
 def hook_call(token: str, body: Any, now: Optional[float] = None) -> Tuple[int, Dict[str, Any]]:
     """A POST to ``/hook/plan/{token}`` → a pending event of every watch with this token."""
@@ -2357,7 +2212,6 @@ def hook_call(token: str, body: Any, now: Optional[float] = None) -> Tuple[int, 
         pass
     return 200, {"ok": True, "tasks": len(targets)}
 
-
 def register_proxy(app: Any) -> None:
     """MemuAI Proxy: ``POST /hook/plan/{token}`` (JSON ≤ 64 KB; the token is the secret)."""
     from fastapi.responses import JSONResponse
@@ -2374,7 +2228,6 @@ def register_proxy(app: Any) -> None:
         status, out = await asyncio.to_thread(hook_call, token, body)
         return JSONResponse(out, status)
 
-
 def hook_url(token: str) -> str:
     try:
         from .cli_integrations import proxy_base_url
@@ -2382,9 +2235,6 @@ def hook_url(token: str) -> str:
     except Exception:
         base = os.environ.get("MEMUAI_PROXY_URL", "http://127.0.0.1:8000").rstrip("/")
     return f"{base}/hook/plan/{token}"
-
-
-# --------------------------------------------------------------------------- window routes
 
 def catalog(lang: str = "ru") -> Dict[str, Any]:
     status = service_status()
@@ -2414,7 +2264,6 @@ def catalog(lang: str = "ru") -> Dict[str, Any]:
             "hook_base": hook_url("TOKEN")[:-5],
             "os": "windows" if os.name == "nt" else os.name, "ops": list(OPS)}
 
-
 def check(trigger_raw: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
     """«Проверить сейчас»: a dry-run poll from scratch (does not touch the real cursor)."""
     try:
@@ -2443,7 +2292,6 @@ def check(trigger_raw: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "error": f"{type(exc).__name__}: {exc}"[:400], "kind": "other"}
 
-
 def health(lang: str = "ru") -> Dict[str, List[Dict[str, Any]]]:
     from .pgdata import load_schedules
     tasks = load_schedules()
@@ -2462,7 +2310,6 @@ def health(lang: str = "ru") -> Dict[str, List[Dict[str, Any]]]:
         out.setdefault(str(task.get("id")), []).append(row)
     return out
 
-
 def force_check(task_id: str) -> int:
     def update(all_watches: Dict[str, Dict[str, Any]]) -> int:
         count = 0
@@ -2478,7 +2325,6 @@ def force_check(task_id: str) -> int:
     except Exception:
         pass
     return count
-
 
 def pick(what: str, query: str = "", parent: str = "") -> List[Dict[str, str]]:  # noqa: C901
     """Integration pickers for the config forms (raises SourceError)."""
@@ -2524,7 +2370,6 @@ def pick(what: str, query: str = "", parent: str = "") -> List[Dict[str, str]]: 
     if q:
         out = [r for r in out if q in str(r.get("title") or "").lower() or q in str(r.get("id") or "").lower()]
     return out[:60]
-
 
 def register_routes(app: Any) -> None:
     """MemuAI window: ``/api/plan/triggers/*``."""
@@ -2573,9 +2418,6 @@ def register_routes(app: Any) -> None:
         except RuleError as exc:
             return JSONResponse({"error": exc.text(lang_of(lang))}, 400)
 
-
-# --------------------------------------------------------------------------- natural language
-
 def parse_prompt(lang: str = "ru") -> str:
     """The extension of ``schedule_rules.PARSE_PROMPT`` (integration/data triggers)."""
     return """
@@ -2613,7 +2455,6 @@ Data and integration triggers (put them in "when"; they start the task when some
  "если упадёт Actions в репозитории X — разберись почему" → kind chat, when [{"type":"watch","source":"github_actions","repo":"owner/X"}].
 """
 
-
 def tune_draft(draft: Dict[str, Any]) -> Dict[str, Any]:
     """A parsed draft with watch triggers and a «time» condition («только в рабочее время»): events that arrive
     outside the hours wait for them (``if_blocked: wait``) instead of being dropped — models often omit it."""
@@ -2627,7 +2468,6 @@ def tune_draft(draft: Dict[str, Any]) -> Dict[str, Any]:
         options["if_blocked"] = "wait"
         options["wait_minutes"] = max(int(options.get("wait_minutes") or 0), 960)
     return draft
-
 
 def parse_context() -> Dict[str, Any]:
     """What the parser model needs to fill ids: connected integrations, panels with value keys, quota accounts."""

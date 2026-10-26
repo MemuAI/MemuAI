@@ -52,7 +52,6 @@ DIAGRAMS = """<!doctype html><html lang="ru" data-theme="light"><head><meta char
 <script>var PG_LANG = "ru";</script>
 <script src="/tables.js"></script><script src="/diagram-zoom.js"></script><script src="/diagrams.js"></script></body></html>"""
 
-
 async def serve(route):
     path = route.request.url[len(ORIGIN):].split("?")[0]
     if path in ("/composer.html", "/diagrams.html"):
@@ -63,7 +62,6 @@ async def serve(route):
         await route.fulfill(status=404, body="")
         return
     await route.fulfill(body=file.read_bytes(), content_type=mimetypes.guess_type(file.name)[0] or "application/octet-stream")
-
 
 async def composer_checks(browser, shots):
     page = await browser.new_page(viewport={"width": 900, "height": 400})
@@ -82,34 +80,34 @@ async def composer_checks(browser, shots):
         await page.screenshot(path=os.path.join(shots, "cmd_test_bare.png"))
     await page.keyboard.type("кот на луне")
     out["typed"] = await state()
-    # the caret moves inside the text as usual
+
     await page.keyboard.press("Home")
     await page.keyboard.press("ArrowRight")
     out["caret_home"] = await state()
     await page.keyboard.press("End")
-    # undo returns the text; the chip follows the text
+
     await page.keyboard.press("Control+a")
     await page.keyboard.press("Delete")
     out["cleared"] = await state()
     await page.keyboard.press("Control+z")
     out["undo"] = await state()
-    # paste (insertText is what a paste does to a textarea)
+
     await page.evaluate("() => { const f = document.getElementById('input'); f.value = ''; }")
     out["programmatic_clear"] = await state()
     await page.evaluate("() => document.execCommand('insertText', false, '/video волны на закате')")
     out["paste"] = await state()
-    # IME composition at the end of the text (Chrome DevTools protocol)
+
     cdp = await page.context.new_cdp_session(page)
     await page.keyboard.press("End")
     await cdp.send("Input.imeSetComposition", {"text": "ка", "selectionStart": 2, "selectionEnd": 2})
     out["ime_composing"] = await state()
     await cdp.send("Input.insertText", {"text": "камера"})
     out["ime_done"] = await state()
-    # a long text wraps and autosize sees the indent (height grows like without the chip)
+
     await page.keyboard.type(" " + "очень длинное описание сцены " * 8)
     out["long"] = await state()
     out["heights_grew"] = len(set(await page.evaluate("heights"))) > 1
-    # a normal message has no chip and no indent
+
     await page.evaluate("() => { const f = document.getElementById('input'); f.value = ''; f.dispatchEvent(new Event('input')); }")
     await page.keyboard.type("/imagine не команда")
     out["not_command"] = await state()
@@ -119,7 +117,6 @@ async def composer_checks(browser, shots):
         await page.screenshot(path=os.path.join(shots, "cmd_test_typed.png"))
     await page.close()
     return out
-
 
 async def zoom_checks(browser, shots):
     page = await browser.new_page(viewport={"width": 1366, "height": 800})
@@ -164,7 +161,6 @@ async def zoom_checks(browser, shots):
     await page.close()
     return out
 
-
 async def main(shots):
     from playwright.async_api import async_playwright
     exe = os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
@@ -175,7 +171,6 @@ async def main(shots):
         finally:
             await browser.close()
     print(json.dumps(result, ensure_ascii=False))
-
 
 if __name__ == "__main__":
     shots_dir = sys.argv[sys.argv.index("--shots") + 1] if "--shots" in sys.argv else ""

@@ -16,16 +16,12 @@ import time
 from datetime import datetime
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-#: Окно, которое кончается позже, — не «5 часов», а длинное (недельное).
-#: Запас над пятью часами — на разницу часов и округление сброса.
 LONG_AFTER = 6 * 3600
 WEEK = 7 * 24 * 3600
-#: Замеры ближе друг к другу сливаются: оценка берёт минимум доли в окне, а
-#: частые просмотры лимитов не раздувают accounts.json.
+
 MERGE_SECONDS = 300
 WINDOW_SECONDS = 5 * 3600
 MAX_POINTS = 2048
-
 
 def iso_ts(value: Any) -> float:
     """'2026-09-27T20:31:38Z' → секунды epoch (0 — нет срока или формат неизвестен)."""
@@ -34,12 +30,10 @@ def iso_ts(value: Any) -> float:
     except Exception:
         return 0.0
 
-
 def used_percent(remaining: float) -> float:
     """Доля остатка → процент расхода: 0,03 % расхода — это не «0 / 100»."""
     used = (1 - remaining) * 100
     return round(used, 2) if used < 10 else round(used, 1)
-
 
 def bucket_state(bucket: Any) -> Optional[Tuple[float, float]]:
     """(остаток 0..1, время сброса) одного бакета; None — данных нет.
@@ -58,7 +52,6 @@ def bucket_state(bucket: Any) -> Optional[Tuple[float, float]]:
     except (TypeError, ValueError):
         return None
 
-
 def windows(states: Iterable[Tuple[float, float]], now: float) -> Dict[str, Tuple[float, float]]:
     """{'5h': (остаток, сброс), 'week': (…)} — по самому потраченному бакету группы.
 
@@ -70,9 +63,6 @@ def windows(states: Iterable[Tuple[float, float]], now: float) -> Dict[str, Tupl
         if kind not in out or remaining < out[kind][0]:
             out[kind] = (remaining, reset)
     return out
-
-
-# ------------------------------------------------------------------ история замеров
 
 def _points(extra: Any, pool: str) -> List[List[float]]:
     data = extra.get("weekly_quota") if isinstance(extra, dict) else None
@@ -87,11 +77,9 @@ def _points(extra: Any, pool: str) -> List[List[float]]:
         out.append([ts, max(0.0, min(1.0, frac)), reset])
     return out
 
-
 def _window_id(ts: float, reset: float) -> int:
-    # Окно опознаётся по времени сброса; у замеров без него — по пятичасовой сетке.
-    return int(round(reset)) if reset else int(ts // WINDOW_SECONDS) * WINDOW_SECONDS
 
+    return int(round(reset)) if reset else int(ts // WINDOW_SECONDS) * WINDOW_SECONDS
 
 def record_point(extra: Any, pool: str, remaining: float, reset: Optional[float] = None,
                  now: Optional[float] = None) -> bool:
@@ -107,7 +95,7 @@ def record_point(extra: Any, pool: str, remaining: float, reset: Optional[float]
         frac = max(0.0, min(1.0, float(remaining)))
         fresh = [p for p in _points(extra, pool) if p[0] >= now - WEEK]
         if not reset and fresh and now - fresh[-1][0] < WINDOW_SECONDS:
-            reset = fresh[-1][2]           # «квота исчерпана» относится к текущему окну
+            reset = fresh[-1][2]
         reset = float(reset or 0.0)
         last = fresh[-1] if fresh else None
         if last and now - last[0] < MERGE_SECONDS and _window_id(last[0], last[2]) == _window_id(now, reset):
@@ -122,7 +110,6 @@ def record_point(extra: Any, pool: str, remaining: float, reset: Optional[float]
         return True
     except Exception:
         return False
-
 
 def history_windows(extra: Any, pool: str, now: Optional[float] = None) -> Optional[float]:
     """Сколько 5-часовых окон израсходовано за 7 дней (по замерам); None — замеров нет.

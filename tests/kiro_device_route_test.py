@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
-
 class DeviceRouteTests(unittest.TestCase):
     def test_device_start_route_exists_and_reports_the_code(self) -> None:
         from app.main import create_app
@@ -29,7 +28,6 @@ class DeviceRouteTests(unittest.TestCase):
         from pathlib import Path
         source = (Path(__file__).resolve().parents[1] / "app" / "static" / "app.js").read_text(encoding="utf-8")
         self.assertIn("/api/admin/oauth/kiro/device_start", source)
-
 
 if __name__ == "__main__":
     unittest.main()

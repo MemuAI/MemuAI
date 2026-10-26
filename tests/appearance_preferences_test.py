@@ -9,17 +9,14 @@ from app import pgdata, themes
 ROOT = Path(__file__).resolve().parents[1]
 PALETTES = tuple(themes.ACCENTS)
 
-
 def luminance(value: str) -> float:
     rgb = [int(value[i:i + 2], 16) / 255 for i in (1, 3, 5)]
     rgb = [v / 12.92 if v <= .04045 else ((v + .055) / 1.055) ** 2.4 for v in rgb]
     return sum(a * b for a, b in zip(rgb, (.2126, .7152, .0722)))
 
-
 def ratio(a: str, b: str) -> float:
     low, high = sorted((luminance(a), luminance(b)))
     return (high + .05) / (low + .05)
-
 
 class AppearancePreferencesTests(unittest.TestCase):
     def test_default_and_invalid_values_are_normalized(self):
@@ -97,14 +94,13 @@ class AppearancePreferencesTests(unittest.TestCase):
             self.assertIn(f':where([data-theme="{mode}"]) {{', css)
             for row in rows[1:]:
                 self.assertIn(f':where([data-theme="{mode}"][data-surface="{row["id"]}"])', css)
-        # Zero specificity: a user theme's plain :root must beat every built-in block.
+
         for line in css.splitlines():
             if line.endswith('{'):
                 self.assertTrue(line.startswith(':where('), line)
         for accent in PALETTES:
             self.assertIn(accent, css)
         self.assertIn('--tok-kw', css)
-
 
 if __name__ == '__main__':
     unittest.main()

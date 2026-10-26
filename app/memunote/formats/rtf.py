@@ -20,7 +20,6 @@ from .richhtml import Block, Cell, Para, Rule, Run, Table, safe_link
 
 _TOKEN = re.compile(rb"\\([a-zA-Z]{1,32})(-?\d{1,10})? ?|\\'([0-9a-fA-F]{2})|\\(.)|([{}])|([\r\n]+)|([^\\{}\r\n]+)", re.S)
 
-# Destinations whose text is never shown.
 _SKIP_DEST = {"fonttbl", "colortbl", "stylesheet", "info", "header", "footer", "headerl", "headerr", "headerf",
               "footerl", "footerr", "footerf", "footnote", "annotation", "xmlnstbl", "listtable",
               "listoverridetable", "rsidtbl", "generator", "themedata", "colorschememapping", "latentstyles",
@@ -28,14 +27,12 @@ _SKIP_DEST = {"fonttbl", "colortbl", "stylesheet", "info", "header", "footer", "
               "bkmkend", "nonshppict", "shp", "shpinst", "atnid", "atnauthor", "comment", "private", "pntext",
               "pntxta", "pntxtb", "template", "userprops", "docvar", "wgrffmtfilter", "xmlopen", "xmlclose"}
 
-# Destinations whose pictures are not body content either (page headers/footers, notes, comments).
 _HIDDEN_DEST = {"header", "footer", "headerl", "headerr", "headerf", "footerl", "footerr", "footerf", "footnote",
                 "annotation", "comment", "nonshppict"}
 
 _CHARSETS = {0: "cp1252", 1: "cp1252", 2: "cp1252", 77: "mac-roman", 128: "cp932", 129: "cp949", 134: "gb2312",
              136: "big5", 161: "cp1253", 162: "cp1254", 163: "cp1258", 177: "cp1255", 178: "cp1256",
              186: "cp1257", 204: "cp1251", 222: "cp874", 238: "cp1250", 255: "cp437"}
-
 
 class _State:
     __slots__ = ("run", "skip", "uc", "dest", "font_cp", "pict", "field_inst", "pict_sub")
@@ -48,7 +45,7 @@ class _State:
         self.font_cp = ""
         self.pict: Optional[dict] = None
         self.field_inst = False
-        self.pict_sub = False      # a group nested inside \pict ({\*\picprop …}): its text is not picture data
+        self.pict_sub = False
 
     def copy(self) -> "_State":
         new = _State()
@@ -58,7 +55,6 @@ class _State:
         new.pict_sub = self.pict is not None
         new.field_inst = self.field_inst
         return new
-
 
 class _Reader:
     def __init__(self, data: bytes) -> None:
@@ -82,7 +78,6 @@ class _Reader:
         self.list_id = 0
         self.ilvl = 0
 
-    # ------------------------------------------------------------ text plumbing
     def _flush_bytes(self, state: _State) -> None:
         if self.pending:
             try:
@@ -121,10 +116,9 @@ class _Reader:
             self.cell.append(para)
         else:
             self.blocks.append(para)
-        # Paragraph properties persist until \pard.
+
         self.para = Para(kind=para.kind if para.kind != "li" else "p", align=para.align)
 
-    # ------------------------------------------------------------ parsing
     def parse(self) -> List[Block]:
         stack: List[_State] = []
         state = _State()
@@ -145,7 +139,7 @@ class _Reader:
                 closing = state
                 if (closing.pict is not None and stack and stack[-1].pict is not closing.pict
                         and not any(item.dest in _HIDDEN_DEST for item in stack)):
-                    self._picture(closing.pict)   # (a logo in a page header is not body content)
+                    self._picture(closing.pict)
                 if closing.dest == "listtext_marker":
                     self.in_list_text = False
                 if closing.dest == "fldrslt":
@@ -271,7 +265,7 @@ class _Reader:
         run = state.run
         after_star = getattr(self, "_after_star", False)
         self._after_star = False
-        # destinations
+
         if (first and name in _SKIP_DEST) or after_star:
             state.skip = True
             state.dest = {"fonttbl": "fonttbl", "colortbl": "colortbl", "stylesheet": "stylesheet",
@@ -309,7 +303,7 @@ class _Reader:
             elif name == "bin" and value:
                 self.skip_chars = value
             return
-        # tables of the header
+
         if state.dest == "fonttbl" or state.dest == "fonttbl_entry":
             if name == "f":
                 self._font_index = value or 0
@@ -436,14 +430,12 @@ class _Reader:
     def in_table_row_open(self) -> bool:
         return bool(getattr(self, "_row_open", False))
 
-
 def read_rtf(data: bytes) -> Tuple[List[Block], dict]:
     if not data.lstrip().startswith(b"{\\rtf"):
         raise ValueError("not an RTF document")
     from .richhtml import tidy
     reader = _TableAwareReader(data)
     return tidy(reader.parse()), {}
-
 
 class _TableAwareReader(_Reader):
     """Places each table in the block flow at the paragraph where it ends."""
@@ -456,13 +448,10 @@ class _TableAwareReader(_Reader):
 
     def parse(self) -> List[Block]:
         blocks = super().parse()
-        # drop the empty trailing paragraph RTF writers add
+
         while blocks and isinstance(blocks[-1], Para) and not blocks[-1].runs:
             blocks.pop()
         return blocks
-
-
-# ======================================================================================= writer
 
 def _escape(text: str) -> str:
     out = []
@@ -484,7 +473,6 @@ def _escape(text: str) -> str:
             for unit in (0xD800 + (value >> 10), 0xDC00 + (value & 0x3FF)):
                 out.append(f"\\u{unit - 65536}?")
     return "".join(out)
-
 
 class _Writer:
     def __init__(self) -> None:
@@ -607,7 +595,7 @@ class _Writer:
     def document(self, blocks: List[Block]) -> str:
         body = []
         counters: Dict[int, int] = {}
-        overrides: List[str] = []          # list id per override (\\ls1 = bullets, then one per numbered list)
+        overrides: List[str] = []
         current = 0
         prev_li = False
         for block in blocks:
@@ -663,7 +651,6 @@ class _Writer:
             lists = table + "{\\*\\listoverridetable" + "".join(rows) + "}"
         return ("{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1{\\fonttbl" + fonts + "}{\\colortbl" + colors + "}"
                 + styles + lists + "{\\*\\generator MemuNote;}\\viewkind4\\fs22\n" + "".join(body) + "}")
-
 
 def write_rtf(blocks: List[Block]) -> bytes:
     return _Writer().document(blocks).encode("ascii")

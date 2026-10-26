@@ -4,10 +4,8 @@ from __future__ import annotations
 import re
 from typing import Any
 
-
 class ArgumentError(ValueError):
     pass
-
 
 SUMMARY_ARGUMENTS = [
     {"name": "count", "type": "integer", "required": True, "min": 1, "max": 1000,
@@ -15,7 +13,6 @@ SUMMARY_ARGUMENTS = [
     {"name": "chat", "type": "chat", "required": False, "default": "",
      "description": "Название, @username или ID чата / Chat title, @username or ID"},
 ]
-
 
 def schema(value: Any) -> list[dict]:
     if value is None:
@@ -55,7 +52,6 @@ def schema(value: Any) -> list[dict]:
         out.append(row)
     return out
 
-
 def convert(value: Any, spec: dict, *, allow_empty: bool = False) -> Any:
     text = str(value if value is not None else "").strip()
     if not text and allow_empty:
@@ -87,12 +83,10 @@ def convert(value: Any, spec: dict, *, allow_empty: bool = False) -> Any:
         detail = f" ({spec.get('min', '…')}–{spec.get('max', '…')})" if "min" in spec or "max" in spec else ""
         raise ArgumentError(f"Проверьте аргумент {name}{detail} / Check argument {name}{detail}") from None
 
-
 def usage(command: dict) -> str:
     return str(command["trigger"]) + "".join(
         " <" + s["name"] + ">" if s.get("required") else " [" + s["name"] + "]"
         for s in command.get("arguments") or [])
-
 
 def parse(command: dict, text: str) -> dict:
     specs = command.get("arguments") or []
@@ -124,7 +118,6 @@ def parse(command: dict, text: str) -> dict:
         raise ArgumentError("Слишком много аргументов / Too many arguments. " + usage(command))
     return out
 
-
 def render(prompt: str, values: dict) -> str:
-    # A single pass prevents argument contents from becoming template instructions.
+
     return re.sub(r"\{([A-Za-z][A-Za-z0-9_]*)\}", lambda m: str(values.get(m[1], m[0])), prompt)

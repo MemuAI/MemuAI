@@ -28,18 +28,12 @@ log = logging.getLogger("memufiles.trash")
 IS_WIN = os.name == "nt"
 _CREATE_NO_WINDOW = 0x08000000
 
-
 class TrashError(Exception):
     pass
 
-
 def _windows() -> bool:
-    # An explicit sandbox trash must work on Windows too: tests and previews
-    # must never touch, let alone empty, the person's real Recycle Bin.
+
     return IS_WIN and not os.environ.get("MEMUFILES_TRASH_DIR")
-
-
-# ------------------------------------------------------------------ freedesktop (posix)
 
 def trash_root() -> Path:
     env = os.environ.get("MEMUFILES_TRASH_DIR")
@@ -51,7 +45,6 @@ def trash_root() -> Path:
     (root / "files").mkdir(parents=True, exist_ok=True)
     (root / "info").mkdir(parents=True, exist_ok=True)
     return root
-
 
 def _posix_send(path: str) -> str:
     root = trash_root()
@@ -72,7 +65,6 @@ def _posix_send(path: str) -> str:
         info_path.unlink(missing_ok=True)
         raise
     return candidate
-
 
 def _posix_items() -> List[Dict[str, Any]]:
     root = trash_root()
@@ -104,7 +96,6 @@ def _posix_items() -> List[Dict[str, Any]]:
     rows.sort(key=lambda r: -r["deleted"])
     return rows
 
-
 def _posix_restore(token: str, target: Optional[str] = None) -> str:
     root = trash_root()
     if "/" in token or "\\" in token or ":" in token or token in ("", ".", ".."):
@@ -129,7 +120,6 @@ def _posix_restore(token: str, target: Optional[str] = None) -> str:
     info.unlink(missing_ok=True)
     return original
 
-
 def _posix_purge(token: str) -> None:
     root = trash_root()
     if "/" in token or "\\" in token or ":" in token or token in ("", ".", ".."):
@@ -140,9 +130,6 @@ def _posix_purge(token: str) -> None:
     elif os.path.lexists(stored):
         stored.unlink()
     (root / "info" / (token + ".trashinfo")).unlink(missing_ok=True)
-
-
-# ------------------------------------------------------------------ Windows
 
 def _win_send(paths: List[str]) -> None:
     import ctypes
@@ -164,7 +151,6 @@ def _win_send(paths: List[str]) -> None:
         raise TrashError(f"SHFileOperation error 0x{result:x}")
     if op.fAnyOperationsAborted:
         raise TrashError("aborted")
-
 
 _PS_LIST = r"""
 $ErrorActionPreference='SilentlyContinue'
@@ -194,7 +180,6 @@ foreach ($i in $bin.Items()) {
 if ($done) { 'ok' } else { 'missing' }
 """
 
-
 def _powershell(script: str, env_extra: Optional[Dict[str, str]] = None, timeout: float = 60) -> str:
     env = dict(os.environ)
     env.update(env_extra or {})
@@ -202,7 +187,6 @@ def _powershell(script: str, env_extra: Optional[Dict[str, str]] = None, timeout
                              "-Command", script], capture_output=True, timeout=timeout, env=env,
                             creationflags=_CREATE_NO_WINDOW)
     return result.stdout.decode("utf-8", "replace").strip()
-
 
 def _win_items() -> List[Dict[str, Any]]:
     raw = _powershell("[Console]::OutputEncoding=[Text.Encoding]::UTF8;" + _PS_LIST)
@@ -224,7 +208,6 @@ def _win_items() -> List[Dict[str, Any]]:
                      "is_dir": bool(item.get("is_dir")), "path": str(item.get("path") or "")})
     return rows
 
-
 def _win_find_token(original: str, after: float) -> str:
     """The Recycle Bin item ($R…) that came from *original* — newest one."""
     wanted = os.path.normcase(os.path.abspath(original))
@@ -233,21 +216,17 @@ def _win_find_token(original: str, after: float) -> str:
             return row["token"]
     return ""
 
-
-# ------------------------------------------------------------------ public API
-
 def send(paths: List[str]) -> List[Dict[str, str]]:
     """Move *paths* to the Recycle Bin / Trash. ``[{"path", "token"}]`` (token may be "" on Windows)."""
     out = []
     if _windows():
         _win_send(paths)
         for path in paths:
-            out.append({"path": path, "token": ""})       # resolved lazily by restore_original()
+            out.append({"path": path, "token": ""})
         return out
     for path in paths:
         out.append({"path": path, "token": _posix_send(path)})
     return out
-
 
 def items() -> List[Dict[str, Any]]:
     try:
@@ -256,7 +235,6 @@ def items() -> List[Dict[str, Any]]:
         log.warning("trash listing failed: %s", exc)
         return []
 
-
 def restore(token: str) -> str:
     if _windows():
         reply = _powershell(_PS_RESTORE, {"MF_TOKEN": token})
@@ -264,7 +242,6 @@ def restore(token: str) -> str:
             raise TrashError("restore failed")
         return token
     return _posix_restore(token)
-
 
 def restore_original(original: str, token: str = "") -> str:
     """Undo of a delete: put *original* back (by token on posix, by its old path on Windows)."""
@@ -275,7 +252,6 @@ def restore_original(original: str, token: str = "") -> str:
         restore(found)
         return original
     return _posix_restore(token)
-
 
 def purge(tokens: List[str]) -> int:
     count = 0
@@ -294,16 +270,14 @@ def purge(tokens: List[str]) -> int:
             log.warning("purge %s failed: %s", token, exc)
     return count
 
-
 def empty() -> int:
     if _windows():
         import ctypes
-        # SHERB_NOCONFIRMATION | SHERB_NOPROGRESSUI | SHERB_NOSOUND
+
         result = ctypes.windll.shell32.SHEmptyRecycleBinW(None, None, 0x1 | 0x2 | 0x4)
         return 0 if result in (0, -2147418113) else -1
     rows = _posix_items()
     return purge([r["token"] for r in rows])
-
 
 def stamp() -> float:
     return time.time()

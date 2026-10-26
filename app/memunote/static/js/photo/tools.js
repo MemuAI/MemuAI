@@ -1,12 +1,10 @@
-// MemuNote Photo — tools. Each tool: {id, icon, key, group, cursor, down(ed, p, e), move(ed, p, e), up(ed, p, e),
-// overlay(ed, ctx), activate(ed), deactivate(ed), key(ed, e) → handled}. p = document coordinates {x, y}.
+
+
 import { newCanvas, ctx2d, cloneCanvas, rectUnion, rectClip, isVector, renderVector, DEFAULT_TEXT, DEFAULT_SHAPE, vectorBounds, textBox } from "./doc.js";
 import { parseHex, clamp, rgbToHsl, hslToRgb } from "./pixels.js";
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
 
-// ------------------------------------------------------------------ brush engine (stroke buffer)
-/** Stroke on a raster target: dabs accumulate in a buffer (flow), the layer shows backup + buffer × opacity. */
 export class Stroke {
   constructor(ed, target, opts) {
     this.ed = ed; this.t = target; this.o = opts; this.doc = ed.doc;
@@ -50,7 +48,7 @@ export class Stroke {
     x.clearRect(r.x, r.y, r.w, r.h); x.drawImage(this.backup, 0, 0);
     let src = this.buf;
     const sel = this.doc.selCanvas();
-    if (sel && !this.t.isMask) {   // clip the stroke to the selection
+    if (sel && !this.t.isMask) {
       const c = this.clipC || (this.clipC = newCanvas(this.buf.width, this.buf.height)), cx = ctx2d(c);
       cx.clearRect(r.x, r.y, r.w, r.h); cx.save(); cx.beginPath(); cx.rect(r.x, r.y, r.w, r.h); cx.clip();
       cx.drawImage(this.buf, 0, 0); cx.globalCompositeOperation = "destination-in"; cx.drawImage(sel, -this.t.x, -this.t.y); cx.restore(); src = c;
@@ -77,7 +75,6 @@ export function makeTip(size, hardness = 1, color = "#000") {
   return c;
 }
 
-// ------------------------------------------------------------------ pixel brushes (blur / sharpen / smudge / dodge / burn / sponge)
 class PixelBrush {
   constructor(ed, target, opts) { this.ed = ed; this.t = target; this.o = opts; this.backup = cloneCanvas(target.canvas); this.box = null; this.last = null; this.carry = null; }
   to(pDoc) {
@@ -129,7 +126,6 @@ class PixelBrush {
   end(label) { const doc = this.ed.doc; doc.begin(label); if (this.box) doc.touchFrom(this.t.canvas, this.backup, this.box); doc.commit(label); }
 }
 
-// ------------------------------------------------------------------ selection helpers
 function selMode(ed, e) {
   if (e.shiftKey && e.altKey) return "intersect";
   if (e.shiftKey) return "add";
@@ -144,7 +140,6 @@ export function pathMask(ed, draw, feather = 0) {
   return feather ? ed.feather(m, feather) : Promise.resolve(m);
 }
 
-// ------------------------------------------------------------------ tool definitions
 const T = {};
 const def = (o) => (T[o.id] = o);
 
@@ -155,7 +150,7 @@ def({ id: "move", icon: "move", key: "v", group: "move", cursor: "move",
     if (!l || l.locked) { if (l?.locked) ed.toast(ed.t("ph_layer_locked")); return; }
     this.drag = { start: p, layer: l, items: [] };
     const collect = (x) => { if (x.type === "group") x.children.forEach(collect); else this.drag.items.push({ l: x, x: x.x, y: x.y, text: x.text && { ...x.text }, shape: x.shape && { ...x.shape, points: x.shape.points?.map((q) => [...q]) }, svg: x.svg && { ...x.svg } }); };
-    if (doc.selection && l.type === "raster") {   // move the selected pixels (a floating copy)
+    if (doc.selection && l.type === "raster") {
       const t = ed.rasterTarget(true); if (!t) { this.drag = null; return; }
       doc.begin(ed.t("ph_move_pixels"));
       const fl = newCanvas(l.canvas.width, l.canvas.height), fx = ctx2d(fl);
@@ -187,7 +182,7 @@ def({ id: "move", icon: "move", key: "v", group: "move", cursor: "move",
     if (!d.dx && !d.dy) { doc.tx = null; return; }
     doc.commit();
   },
-  keyHandler(ed, e) {   // arrows nudge the active layer (Shift ×10)
+  keyHandler(ed, e) {
     const k = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key];
     const l = ed.doc.active; if (!k || !l || l.locked) return false;
     const n = e.shiftKey ? 10 : 1, items = [];
@@ -293,7 +288,7 @@ def({ id: "quicksel", icon: "quickSel", key: "w", group: "wand", cursor: "brush"
     ed.busy(true);
     try {
       const m = await ed.segmentBox(box, { seed, wholeBox: false });
-      // the stroke itself always belongs to the result
+
       for (let i = 0; i < m.length; i++) if (seed[i] > 128) m[i] = 255;
       ed.select(m, this.mode, ed.t("ph_tool_quicksel"));
     } finally { ed.busy(false); }
@@ -325,7 +320,7 @@ def({ id: "crop", icon: "crop", key: "c", group: "crop", cursor: "crosshair",
   down(ed, p) {
     if (!this.box) this.activate(ed);
     let k = this.handleAt(ed, p); const b = this.box;
-    if (k === "move" && b.x <= 0 && b.y <= 0 && b.w >= ed.doc.width && b.h >= ed.doc.height) k = "new";   // untouched full-canvas box: drag draws a new one
+    if (k === "move" && b.x <= 0 && b.y <= 0 && b.w >= ed.doc.width && b.h >= ed.doc.height) k = "new";
     this.drag = { k, start: p, box: { ...b } }; if (k === "new") this.box = { x: p.x, y: p.y, w: 0, h: 0 };
   },
   move(ed, p, e) {
@@ -544,7 +539,7 @@ def({ id: "zoom", icon: "zoomIn", key: "z", group: "nav", cursor: "zoom-in",
   down(ed, p, e) { ed.zoomAt(e.altKey ? 1 / 1.5 : 1.5, e.clientX, e.clientY); } });
 
 export const TOOLS = T;
-// The toolbar: groups (one button each, right-click / long press opens the group like Photoshop's flyouts).
+
 export const TOOL_GROUPS = [
   ["move", ["move"]], ["marquee", ["marquee", "ellipse"]], ["lasso", ["lasso", "polylasso"]], ["wand", ["quicksel", "wand", "objsel"]],
   ["crop", ["crop"]], ["eyedropper", ["eyedropper"]], ["heal", ["heal"]], ["brush", ["brush", "pencil"]], ["clone", ["clone"]],

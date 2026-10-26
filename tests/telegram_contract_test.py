@@ -12,7 +12,6 @@ from app.telegram_bot import (_handle_pending_pin, _history_page, _model_badges,
                               _answer_ai, _profile_reference_context, _show_chats, _split_message,
                               _system_prompt, send_notification)
 
-
 class TelegramContracts(unittest.TestCase):
     def test_atomic_chat_upserts_preserve_parallel_writes(self):
         with tempfile.TemporaryDirectory() as tmp, \
@@ -165,7 +164,7 @@ class TelegramContracts(unittest.TestCase):
 
         async def failed_stream(*_args, **_kwargs):
             raise RuntimeError(f"request failed with {secret}")
-            yield  # Make this an async generator.
+            yield
 
         async def run():
             session = {"profile_id": "p", "chat_by_profile": {"p": "c"},
@@ -191,7 +190,6 @@ class TelegramContracts(unittest.TestCase):
         self.assertEqual(sent.await_args.args[3],
                          "⚠️ Could not get an answer.\nTry again or pick another model.")
         self.assertNotIn(secret, str(sent.await_args))
-
 
 if __name__ == "__main__":
     unittest.main()

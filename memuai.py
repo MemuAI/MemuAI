@@ -20,7 +20,6 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-
 def pick_port(preferred: int) -> int:
     if not 1 <= preferred <= 65535:
         raise ValueError("порт должен быть в диапазоне 1–65535")
@@ -33,14 +32,12 @@ def pick_port(preferred: int) -> int:
             return port
     raise RuntimeError("не удалось найти свободный порт")
 
-
 def _runtime_file(name: str) -> Path:
     data_dir = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if not data_dir:
         appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
         data_dir = os.path.join(appdata, "MemuAI")
     return Path(data_dir) / "memuai" / name
-
 
 def _read_runtime_url(name: str, fallback: str = "") -> str:
     try:
@@ -56,7 +53,6 @@ def _read_runtime_url(name: str, fallback: str = "") -> str:
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
         pass
     return fallback.rstrip("/")
-
 
 def _is_online(url: str, path: str = "/health", timeout: float = 1.5) -> bool:
     try:
@@ -74,7 +70,6 @@ def _is_online(url: str, path: str = "/health", timeout: float = 1.5) -> bool:
             return True
     except Exception:
         return False
-
 
 def _activate_memuai() -> bool:
     url = _read_runtime_url("memuai.json")
@@ -95,7 +90,6 @@ def _activate_memuai() -> bool:
     except Exception:
         return False
 
-
 def _launch_module_in_running(module_id: str) -> bool:
     """Round 33 (#26): ``MemuAI.exe --module <id>`` while MemuAI runs → that instance opens the module window."""
     url = _read_runtime_url("memuai.json")
@@ -110,7 +104,6 @@ def _launch_module_in_running(module_id: str) -> bool:
             return 200 <= response.status < 300 and payload.get("ok") is True
     except Exception:
         return False
-
 
 def _forward_deeplink(link: str, attempts: int = 40) -> bool:
     """Round 35 (protocol): hand a ``memuai://`` link to the running MemuAI (it shows/confirms it in its window).
@@ -128,18 +121,16 @@ def _forward_deeplink(link: str, attempts: int = 40) -> bool:
                     response.read()
                 return True
             except urllib.error.HTTPError:
-                return True      # rejected (bad link, links off): the running app logged it — nothing to retry
+                return True
             except Exception:
                 pass
         time.sleep(0.25)
     return False
 
-
 def _module_arg(value: str) -> str:
     """The ``--module`` value as a safe module id, or ''."""
     value = str(value or "").strip()
     return value if re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", value) else ""
-
 
 def _create_module_windows(app, base_url: str, module_only: bool):
     """Round 33: native module windows + the main window close guard (app/module_apps.py), or ``None``."""
@@ -152,7 +143,6 @@ def _create_module_windows(app, base_url: str, module_only: bool):
     except Exception as exc:
         print(f"[MemuAI] окна модулей недоступны: {exc}")
         return None
-
 
 def _shutdown_memuai() -> bool:
     """Ask a running instance to exit cleanly (installer/uninstaller helper)."""
@@ -175,9 +165,8 @@ def _shutdown_memuai() -> bool:
                 time.sleep(.1)
         return accepted
     except Exception:
-        # A stale runtime record means there is nothing left to close.
-        return True
 
+        return True
 
 def _should_start_proxy() -> bool:
     """Настройка MemuAI, доступная ещё до запуска локального интерфейса."""
@@ -187,7 +176,6 @@ def _should_start_proxy() -> bool:
     except Exception:
         return True
 
-
 def _startup_theme() -> str:
     """Match the native window background to the saved UI before WebView paints."""
     try:
@@ -195,7 +183,6 @@ def _startup_theme() -> str:
         return "light" if data.get("theme") == "light" else "dark"
     except Exception:
         return "dark"
-
 
 def _startup_background(theme: str) -> str:
     """The native window colour = the ``--bg`` the page paints first (Round 25).
@@ -214,7 +201,6 @@ def _startup_background(theme: str) -> str:
         return fallback
     value = str(value).strip()
     return value if re.fullmatch(r"#[0-9a-fA-F]{6}", value) else fallback
-
 
 def _configure_native_window(win, theme: str) -> None:
     """Apply only non-invasive Windows metadata to the normal system window.
@@ -246,16 +232,13 @@ def _configure_native_window(win, theme: str) -> None:
             return
 
         win_app = getattr(win, "app", None)
-        del win_app  # document that this hook never mutates pywebview internals
-        # Round 33 (#16): no SetCurrentProcessExplicitAppUserModelID here any more —
-        # calling it after the window exists (and again after each restore from the
-        # tray) regrouped the taskbar button; the process id is set in main().
+        del win_app
+
         _apply_window_identity(hwnd)
 
         dark = theme == "dark"
         dark_value = ctypes.c_int(1 if dark else 0)
-        # 20 is DWMWA_USE_IMMERSIVE_DARK_MODE on current Windows 10/11; 19 is
-        # retained as a compatibility fallback for older Windows 10 builds.
+
         for attribute in (20, 19):
             try:
                 result = ctypes.windll.dwmapi.DwmSetWindowAttribute(
@@ -267,7 +250,6 @@ def _configure_native_window(win, theme: str) -> None:
                 continue
     except Exception:
         pass
-
 
 def _create_titlebar(cli_native: bool = False):
     """Controller of the custom title bar, or ``None`` if it cannot load.
@@ -282,7 +264,6 @@ def _create_titlebar(cli_native: bool = False):
         print(f"[MemuAI] своя строка заголовка недоступна: {exc}")
         return None
 
-
 def _titlebar_bridge(controller):
     if controller is None:
         return None
@@ -292,7 +273,6 @@ def _titlebar_bridge(controller):
     except Exception:
         return None
 
-
 def _attach_titlebar(controller, native) -> bool:
     """Install the caption hook on the WinForms window (UI thread)."""
     if controller is None or native is None:
@@ -301,13 +281,13 @@ def _attach_titlebar(controller, native) -> bool:
         from app.win_titlebar import winforms_ui_invoker
 
         def hwnd_provider() -> int:
-            # Never let a background thread *create* a handle.
+
             if not bool(getattr(native, "IsHandleCreated", True)):
                 return 0
             return int(native.Handle.ToInt64())
         invoker = winforms_ui_invoker(native)
         try:
-            # Round 30: Mica / Acrylic behind the page (Settings → Appearance), applied on request from the page
+
             from app import win_backdrop
             controller.backdrop = win_backdrop.create(native, hwnd_provider, invoker)
         except Exception as exc:
@@ -316,7 +296,6 @@ def _attach_titlebar(controller, native) -> bool:
     except Exception as exc:
         print(f"[MemuAI] системная строка заголовка (ошибка: {exc})")
         return False
-
 
 def _create_quick_ask(app, base_url: str):
     """«Быстрый доступ» (Alt+Space): the popup manager, or ``None``.
@@ -345,7 +324,6 @@ def _create_quick_ask(app, base_url: str):
         print(f"[MemuAI] быстрый доступ недоступен: {exc}")
         return None
 
-
 def _create_companion_window(app, base_url: str):
     """Round 22: the desktop companion window manager (Quick Ask, experimental), or ``None``.
 
@@ -362,7 +340,6 @@ def _create_companion_window(app, base_url: str):
     except Exception as exc:
         print(f"[MemuAI] окно компаньона недоступно: {exc}")
         return None
-
 
 def _launch_proxy() -> str:
     """Запускает соседний Proxy и возвращает обнаруженный локальный URL."""
@@ -395,7 +372,6 @@ def _launch_proxy() -> str:
             return url
     return _read_runtime_url("proxy.json", "http://127.0.0.1:8317")
 
-
 def _memuai_tray_icon() -> str:
     """Prefer the user's own app icon, then the MemuAI mark, never Proxy's."""
     try:
@@ -408,7 +384,6 @@ def _memuai_tray_icon() -> str:
         pass
     return "memuai-icon.png"
 
-
 def _memuai_icon_ico() -> str:
     """Round 33: the .ico for the MemuAI window and tray (the assistant's look or the app icon)."""
     try:
@@ -420,7 +395,6 @@ def _memuai_icon_ico() -> str:
     except Exception:
         pass
     return "memuai-icon.ico"
-
 
 def _apply_window_identity(hwnd: int) -> None:
     """Round 33 (#16): the main window's own AppUserModelID + relaunch icon, and its icon.
@@ -439,29 +413,25 @@ def _apply_window_identity(hwnd: int) -> None:
     except Exception:
         pass
 
-
 def main() -> None:
     if sys.platform == "win32":
         try:
             sys.stdout.reconfigure(encoding="utf-8")
         except Exception:
             pass
-        # Computer Use живёт в этом процессе: без per-monitor DPI координаты
-        # скриншотов и кликов расходятся на мониторах с масштабом ≠ 100 %.
-        # Вызов должен произойти до создания любого окна pywebview.
+
         try:
             from app.desktop import ensure_per_monitor_dpi_awareness
             ensure_per_monitor_dpi_awareness()
         except Exception:
             pass
-        # Round 33 (#16): the taskbar identity, once and before any window.
+
         try:
             from app import win_app_identity
             win_app_identity.set_process_app_id(win_app_identity.APP_ID_MEMUAI)
         except Exception:
             pass
 
-    # адрес Proxy из %APPDATA%/MemuAI/memuai/proxy.json (пишет Proxy при старте)
     default_proxy = _read_runtime_url("proxy.json", "http://127.0.0.1:8317")
 
     parser = argparse.ArgumentParser(add_help=False)
@@ -471,21 +441,21 @@ def main() -> None:
     parser.add_argument("--headless", action="store_true")
     parser.add_argument("--no-start-proxy", action="store_true")
     parser.add_argument("--shutdown", action="store_true")
-    # Shortcut/jump-list style actions: MemuAI.exe --new-chat / --temporary-chat
+
     parser.add_argument("--new-chat", action="store_true",
                         help="открыть новый чат сразу после запуска")
     parser.add_argument("--temporary-chat", action="store_true",
                         help="открыть временный чат сразу после запуска")
-    # Recovery switch: always use the system window caption.
+
     parser.add_argument("--native-titlebar", action="store_true",
                         help="системная строка заголовка вместо своей")
-    # Round 29: safe mode (app/safe_mode.py) and restart (wait for the previous process to exit).
+
     parser.add_argument("--safe-mode", action="store_true",
                         help="безопасный режим: без модулей, плагинов, своих тем, MCP и компаньона")
     parser.add_argument("--wait-pid", type=int, default=0, help=argparse.SUPPRESS)
-    # Round 33 (#26): a module installed as its own app — only that module's window, no main window.
+
     parser.add_argument("--module", default="", help="открыть только окно модуля (модуль как приложение)")
-    # Round 35 (protocol): the memuai:// handler — MemuAI.exe --deeplink "memuai://…" (app/deeplinks*.py).
+
     parser.add_argument("--deeplink", default="", help=argparse.SUPPRESS)
     args, _ = parser.parse_known_args()
     deeplink = ""
@@ -527,7 +497,7 @@ def main() -> None:
             desktop.message_box("MemuAI", "MemuAI уже запущен, но окно не удалось активировать.")
         return
     try:
-        # Round 29: --safe-mode, the marker file, Shift at start, the offer after failed starts.
+
         from app import safe_mode
         safe_mode.decide_at_startup(args.safe_mode, interactive=not args.headless)
     except Exception as exc:
@@ -564,8 +534,7 @@ def main() -> None:
     def request_shutdown() -> None:
         shutdown_event.set()
         server.should_exit = True
-        # Ask the shared desktop shell to quit so its tray icon is removed
-        # and the native window is really destroyed (not merely hidden).
+
         desktop.quit_active_shell()
 
     app.state.shutdown_token = shutdown_token
@@ -604,7 +573,6 @@ def main() -> None:
         lock.close()
         return
 
-    # Round 35 (protocol): the link MemuAI was started with waits for the window; repair the handler.
     try:
         from app import deeplinks, deeplinks_win
         if deeplink:
@@ -630,7 +598,7 @@ def main() -> None:
         return
 
     try:
-        # Round 36 (perf-core): lighter WebView2 (no spare renderer, no Edge cloud services) — app/webview_flags.py
+
         from app import webview_flags
         webview_flags.apply()
     except Exception as exc:
@@ -678,22 +646,20 @@ def main() -> None:
                     native = BrowserView.instances.get(win.uid)
                     if native is not None:
                         app.state.native_hwnd = int(native.Handle.ToInt64())
-                        # Microphone and clipboard for our own page without
-                        # the browser's "Allow?" prompt every time.
+
                         desktop.grant_local_permissions(native, f"http://127.0.0.1:{port}")
                         _attach_titlebar(titlebar, native)
                 except Exception:
                     pass
             if quick_ask is not None and not getattr(quick_ask, "_started", False):
-                # The shown event fires again after every restore from the tray.
+
                 quick_ask._started = True
                 try:
                     quick_ask.start()
                 except Exception as exc:
                     print(f"[MemuAI] быстрый доступ не запущен: {exc}")
                 try:
-                    # Round 27: the wake word (off by default) opens this popup; see app/wake_word.py.
-                    # Round 29: not in safe mode.
+
                     if not is_safe_mode():
                         from app.wake_word import SERVICE as wake_word
                         wake_word.attach(app)
@@ -711,13 +677,13 @@ def main() -> None:
             js_api=_titlebar_bridge(titlebar),
         )
         if module_windows is not None:
-            # Round 33: modules outside the main window (app/module_apps.py).
+
             shell.ready_on_load = bool(module_only)
             shell.close_guard = module_windows.main_close_guard
             module_windows.main_window_ref = lambda: shell.window
 
             def _close_main_usual():
-                if shell._on_closing():  # no tray → the close really quits
+                if shell._on_closing():
                     shell.request_quit()
             module_windows.close_main_cb = _close_main_usual
             module_windows.quit_cb = shell.request_quit
@@ -726,12 +692,12 @@ def main() -> None:
             shell.quit_hooks.append(module_windows.destroy_all)
         if quick_ask is not None:
             shell.quit_hooks.append(quick_ask.destroy)
-            # Round 27: the region overlay, sticker windows, clipboard watcher and feature hotkeys.
+
             from app import quick_features_win
             shell.quit_hooks.append(quick_features_win.destroy_all)
         if companion_window is not None:
             shell.quit_hooks.append(companion_window.destroy)
-        # Round 29: a backup on exit (handed to the Proxy when it runs) and a clean-exit mark for safe mode.
+
         try:
             from app import gdrive_sync, safe_mode as _safe
             shell.quit_hooks.append(lambda: gdrive_sync.service().on_exit(quick=shutdown_event.is_set()))
@@ -743,7 +709,7 @@ def main() -> None:
         print(f"[MemuAI] окно недоступно ({e}), открываю браузер")
         webbrowser_open(url)
         try:
-            # --shutdown от установщика должен завершать и этот режим.
+
             while not shutdown_event.wait(1.0):
                 pass
         except KeyboardInterrupt:
@@ -752,16 +718,12 @@ def main() -> None:
         desktop.stop_server(server, server_thread)
         lock.close()
 
-
-
 def webbrowser_open(url: str) -> None:
     import webbrowser
     webbrowser.open(url)
 
-
 if __name__ == "__main__":
-    # Dispatch before the instance lock, Proxy startup, WebView or any native
-    # desktop imports. Also works in PyInstaller --windowed without stdio.
+
     if len(sys.argv) > 1 and sys.argv[1] == "--memuai-tts-worker":
         from app.tts_worker import main as tts_worker_main
         raise SystemExit(tts_worker_main(sys.argv[2:]))

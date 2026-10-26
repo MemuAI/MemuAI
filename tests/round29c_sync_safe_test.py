@@ -25,14 +25,12 @@ from tests import round29_sync_test as base  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def put(root: Path, rel: str, data) -> None:
     path = root / rel
     path.parent.mkdir(parents=True, exist_ok=True)
     if isinstance(data, (dict, list)):
         data = json.dumps(data, ensure_ascii=False)
     path.write_bytes(data.encode("utf-8") if isinstance(data, str) else data)
-
 
 def make_real(root: Path) -> None:
     m = "memuai/"
@@ -56,7 +54,6 @@ def make_real(root: Path) -> None:
     put(root, "memunote/instance.json", {"port": 1})
     put(root, "memunote/webview/EBWebView/Default/Network/Cookies", os.urandom(512))
     put(root, "config.json", {"port": 8317})
-
 
 class ClassificationOfRealLayoutTest(unittest.TestCase):
     def test_real_paths_land_in_the_right_category(self) -> None:
@@ -93,13 +90,12 @@ class ClassificationOfRealLayoutTest(unittest.TestCase):
         finally:
             shutil.rmtree(tmp, ignore_errors=True)
 
-
 class FolderCycleTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="r29c-cycle-"))
         self.a = self.tmp / "pcA"
         make_real(self.a)
-        self.cloud = self.tmp / "Google Drive"      # the «Google Drive for desktop» folder
+        self.cloud = self.tmp / "Google Drive"
         self.cloud.mkdir()
         self.svc = core.SyncService(self.a)
         self.svc.save_settings({"target": "folder", "folder_path": str(self.cloud), "enabled": True})
@@ -109,7 +105,7 @@ class FolderCycleTest(unittest.TestCase):
 
     def test_partial_restore_of_characters_from_an_old_style_snapshot(self) -> None:
         snap = self.svc.backup("manual")
-        # A snapshot written before r29c named character files «modules»: rewrite the manifest that way.
+
         name = next(p for p in (self.cloud / "MemuAI Backups").iterdir() if p.name.startswith("memuai-manifest-"))
         doc = json.loads(name.read_text(encoding="utf-8"))
         for rel, entry in doc["body"]["files"].items():
@@ -121,7 +117,7 @@ class FolderCycleTest(unittest.TestCase):
         report = self.svc.restore(snap["id"], ["modules"])
         self.assertTrue(report["ok"])
         self.assertIn("alice", (self.a / "memuai/modules/store/characters/index.json").read_text(encoding="utf-8"))
-        self.assertEqual((self.a / "memuai/chats.json").read_text(encoding="utf-8"), "[]")   # not chosen
+        self.assertEqual((self.a / "memuai/chats.json").read_text(encoding="utf-8"), "[]")
         put(self.a, "memuai/modules/store/characters/index.json", [])
         self.svc.restore(snap["id"], ["characters"])
         self.assertIn("alice", (self.a / "memuai/modules/store/characters/index.json").read_text(encoding="utf-8"))
@@ -143,9 +139,9 @@ class FolderCycleTest(unittest.TestCase):
         with mock.patch.object(core, "PACK_LIMIT", 256 * 1024), mock.patch.object(core.FolderTarget, "put_file", flaky):
             with self.assertRaises(core.SyncError):
                 self.svc.backup("auto")
-        self.assertGreaterEqual(calls["n"], 2)                  # the first pack of the run did upload…
-        self.assertEqual({p.name for p in folder.iterdir()}, before)   # …and was removed with the failure
-        result = self.svc.backup("auto")                         # the next run is complete and restorable
+        self.assertGreaterEqual(calls["n"], 2)
+        self.assertEqual({p.name for p in folder.iterdir()}, before)
+        result = self.svc.backup("auto")
         self.assertFalse(result["unchanged"])
         self.assertTrue(all(s["complete"] for s in self.svc.list_snapshots()["snapshots"]))
 
@@ -173,17 +169,15 @@ class FolderCycleTest(unittest.TestCase):
             with self.assertRaises(core.SyncError) as caught:
                 other.restore(snap["id"], passphrase=wrong)
             self.assertEqual(caught.exception.code, "need_passphrase")
-        self.assertFalse((b / "memuai").exists() and any((b / "memuai").glob("*.json")))   # nothing written
+        self.assertFalse((b / "memuai").exists() and any((b / "memuai").glob("*.json")))
         self.assertTrue(other.restore(new["id"], passphrase="second secret")["ok"])
         self.assertIn("кофе", (b / "memuai/memory.json").read_text(encoding="utf-8"))
         self.assertTrue(other.restore(old["id"], passphrase="first secret")["ok"])
         self.assertIn("чай", (b / "memuai/memory.json").read_text(encoding="utf-8"))
 
-
 class DriveFailuresTest(base.DriveTest):
     """Reuses the fake Google of round29_sync_test (OAuth, resumable uploads, 401/503)."""
 
-    # Only the new scenarios here; the inherited ones run in round29_sync_test.
     test_oauth_rejects_wrong_state = None
     test_full_cycle_with_retries = None
     test_visible_folder_and_revoked_access = None
@@ -197,9 +191,9 @@ class DriveFailuresTest(base.DriveTest):
         with self.assertRaises(drive.DriveAuthError):
             self.svc.backup("auto")
         status = self.svc.status()
-        self.assertFalse(status["connected"])           # «Connect» is offered again
+        self.assertFalse(status["connected"])
         self.assertEqual(status["last_error"]["code"], "invalid_grant")
-        self.assertIsNone(status["next_due"])           # the scheduler no longer hammers a dead token
+        self.assertIsNone(status["next_due"])
         self.assertIsNone(self.svc.tick())
 
     def test_quota_exceeded_cleans_up_uploaded_packs(self) -> None:
@@ -250,19 +244,18 @@ class DriveFailuresTest(base.DriveTest):
         (other_root / "memuai").mkdir()
         (other_root / "memuai" / "memory.json").write_text('{"items": ["B"]}', encoding="utf-8")
         other = core.SyncService(other_root, transport=self.transport, open_browser=lambda url: None)
-        # Same Google account on PC B: copy the grant (what a second «Connect» would give).
+
         other.save_settings({"client_id": "123-abc.apps.googleusercontent.com", "target": "drive", "keep_versions": 1})
         other.store.set("google_refresh_token", self.svc.store.get("google_refresh_token"))
         other.backup("manual")
         (other_root / "memuai" / "memory.json").write_text('{"items": ["B2"]}', encoding="utf-8")
-        other.backup("manual")                              # retention 1 on B never touches A's snapshots
+        other.backup("manual")
         rows = self.svc.list_snapshots()["snapshots"]
         self.assertEqual(sum(1 for r in rows if r["own"]), 1)
         self.assertEqual(sum(1 for r in rows if not r["own"]), 1)
         self.assertTrue(all(r["complete"] for r in rows))
         self.assertTrue(other.restore(mine["id"], ["memory"])["ok"])
         self.assertIn("likes tea", (other_root / "memuai" / "memory.json").read_text(encoding="utf-8"))
-
 
 class SafeModeDeepTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -285,7 +278,7 @@ class SafeModeDeepTest(unittest.TestCase):
             self.sm.decide_at_startup(False, interactive=False, ask=lambda *a: asked.append(a) or False, shift=lambda: False)
         self.assertEqual(int(self.sm._guard().get("pending") or 0), 0)
         self.sm.decide_at_startup(False, interactive=True, ask=lambda *a: asked.append(a) or False, shift=lambda: False)
-        self.assertEqual(asked, [])                 # a normal start after headless runs is not «crashed twice»
+        self.assertEqual(asked, [])
         self.assertFalse(self.sm.is_safe_mode())
 
     def test_two_unfinished_window_starts_offer_safe_mode_and_data_is_untouched(self) -> None:
@@ -297,7 +290,7 @@ class SafeModeDeepTest(unittest.TestCase):
             self.sm.decide_at_startup(False, interactive=True, ask=lambda *a: asked.append(a) or False, shift=lambda: False)
         self.sm.decide_at_startup(False, interactive=True, ask=lambda *a: asked.append(a) or True, shift=lambda: False)
         self.assertEqual(len(asked), 1)
-        self.assertIn("did not start correctly", asked[0][1])     # English profile → English question
+        self.assertIn("did not start correctly", asked[0][1])
         self.assertTrue(self.sm.is_safe_mode())
         self.assertEqual(self.sm.status()["source"], "crash")
         self.assertEqual(prefs.read_bytes(), before)
@@ -318,17 +311,15 @@ class SafeModeDeepTest(unittest.TestCase):
         self.assertIn('attributeFilter: ["lang"]', js)
         self.assertIn('document.querySelector(".composer")', js)
         css = (ROOT / "app" / "pgstatic" / "safe-mode.css").read_text(encoding="utf-8")
-        self.assertRegex(css, r"-webkit-line-clamp: [23];")   # r29f: 3 lines for wide mono fonts
+        self.assertRegex(css, r"-webkit-line-clamp: [23];")
         index = (ROOT / "app" / "pgstatic" / "index.html").read_text(encoding="utf-8")
         self.assertIn("/safe-mode.js?v=1.1-r29", index)
-
 
 class SyncUiContractTest(unittest.TestCase):
     def test_lost_access_hero_offers_reconnect(self) -> None:
         js = (ROOT / "app" / "pgstatic" / "sync-settings.js").read_text(encoding="utf-8")
         self.assertIn('["invalid_grant", "scope"].includes(err.code)', js)
         self.assertIn("Google Drive needs to be connected again", js)
-
 
 if __name__ == "__main__":
     unittest.main()

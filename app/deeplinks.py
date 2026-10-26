@@ -50,18 +50,17 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 log = logging.getLogger("memuai.deeplinks")
 
 SCHEME = "memuai"
-MAX_URL = 8192                 # the whole link (composite import carries a little JSON)
+MAX_URL = 8192
 MAX_PARAMS = 16
 MAX_SEGMENTS = 6
 DEFAULT_VALUE_MAX = 1000
-PENDING_TTL = 600.0            # seconds a pending link waits for the window
+PENDING_TTL = 600.0
 PENDING_MAX = 12
-CONFIRM_MIN_SHOWN = 0.6        # a confirm-level item can run only this long after the window showed it
-BURST = ((10.0, 6), (600.0, 60))   # (window seconds, max links) — a page or program spamming links is cut off
+CONFIRM_MIN_SHOWN = 0.6
+BURST = ((10.0, 6), (600.0, 60))
 SOURCES = ("os", "cli", "chat", "app", "test")
 DANGERS = ("safe", "confirm", "block")
 
-#: Parameter names that never travel in a link (keys must be typed by the user inside MemuAI).
 BLOCKED_PARAM_NAMES = frozenset({
     "key", "api_key", "apikey", "api-key", "token", "access_token", "refresh_token", "id_token", "secret",
     "client_secret", "password", "passwd", "pass", "pwd", "auth", "authorization", "bearer", "cookie",
@@ -81,7 +80,6 @@ _ROUTE_RE = re.compile(r"[a-z0-9][a-z0-9\-]{0,31}(?:/[a-z0-9][a-z0-9\-]{0,31}){0
 _WIN_DEVICE = re.compile(r"(?i)^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$")
 _FORBIDDEN_SCHEMES = ("javascript:", "vbscript:", "file:", "data:", "about:", "blob:", "ms-", "shell:", "search-ms:")
 
-
 class LinkError(ValueError):
     """A rejected link: ``code`` is stable (tests, CLI exit codes), ``ru``/``en`` are for people."""
 
@@ -94,9 +92,6 @@ class LinkError(ValueError):
     def as_dict(self, lang: str = "ru") -> Dict[str, Any]:
         return {"ok": False, "error": self.code, "message": self.en if lang == "en" else self.ru}
 
-
-# ---------------------------------------------------------------------------- params
-
 @dataclass(frozen=True)
 class P:
     """A parameter spec: kind ∈ text|line|id|slug|enum|bool|int|path|url|model|b64json."""
@@ -105,7 +100,7 @@ class P:
     max: int = 0
     choices: Tuple[str, ...] = ()
     default: Any = None
-    hosts: Tuple[str, ...] = ()      # url: allowed hosts (empty = any public https host)
+    hosts: Tuple[str, ...] = ()
 
     def limit(self) -> int:
         if self.max:
@@ -113,12 +108,11 @@ class P:
         return {"text": 4000, "line": 300, "id": 128, "slug": 64, "enum": 64, "bool": 5, "int": 12,
                 "path": 1024, "url": 2048, "model": 200, "b64json": 6000}.get(self.kind, DEFAULT_VALUE_MAX)
 
-
 def _looks_secret(value: str) -> bool:
     if _SECRET_VALUE.search(value):
         return True
     for token in _LONG_TOKEN.findall(value):
-        # A long unbroken mix of letters and digits is how keys look; words and paths do not.
+
         if "/" in token and token.count("/") > 2:
             continue
         has_digit = any(c.isdigit() for c in token)
@@ -128,7 +122,6 @@ def _looks_secret(value: str) -> bool:
             return True
     return False
 
-
 def _clean_text(value: str, multiline: bool) -> str:
     value = unicodedata.normalize("NFC", value)
     if _BIDI.search(value):
@@ -137,7 +130,6 @@ def _clean_text(value: str, multiline: bool) -> str:
     if _CTRL.search(value) or (not multiline and ("\n" in value or "\r" in value or "\t" in value)):
         raise LinkError("control_chars", "В ссылке есть управляющие символы.", "The link contains control characters.")
     return value.replace("\r\n", "\n").replace("\r", "\n")
-
 
 def check_local_path(value: str) -> str:
     """A local absolute path, or LinkError.  No UNC/network shares (they leak the Windows login hash),
@@ -166,7 +158,6 @@ def check_local_path(value: str) -> str:
             raise LinkError("bad_path", "Недопустимое имя в пути.", "Invalid name in the path.")
     return raw
 
-
 def check_public_url(value: str, hosts: Sequence[str] = ()) -> str:
     raw = str(value or "").strip()
     try:
@@ -182,7 +173,7 @@ def check_public_url(value: str, hosts: Sequence[str] = ()) -> str:
         raise LinkError("bad_url", "Локальные адреса по ссылкам не открываются.", "Local addresses are not opened from links.")
     try:
         ip = ipaddress.ip_address(host.strip("[]"))
-    except ValueError:      # a host name, not an IP literal
+    except ValueError:
         ip = None
     if ip is not None and not ip.is_global:
         raise LinkError("bad_url", "Локальные адреса по ссылкам не открываются.", "Local addresses are not opened from links.")
@@ -190,7 +181,6 @@ def check_public_url(value: str, hosts: Sequence[str] = ()) -> str:
         raise LinkError("bad_host", "Этот сайт не поддерживается: " + ", ".join(hosts) + ".",
                         "This site is not supported: " + ", ".join(hosts) + ".")
     return raw
-
 
 def _validate_value(name: str, spec: P, value: str) -> Any:
     if len(value) > spec.limit():
@@ -260,7 +250,6 @@ def _validate_value(name: str, spec: P, value: str) -> Any:
         return decoded
     raise LinkError("bad_spec", "Неизвестный тип параметра.", "Unknown parameter type.")
 
-
 def _has_secret_keys(value: Any, depth: int = 0) -> bool:
     if depth > 12:
         return True
@@ -273,9 +262,6 @@ def _has_secret_keys(value: Any, depth: int = 0) -> bool:
     elif isinstance(value, list):
         return any(_has_secret_keys(item, depth + 1) for item in value[:500])
     return False
-
-
-# ---------------------------------------------------------------------------- registry
 
 @dataclass
 class Route:
@@ -300,11 +286,9 @@ class Route:
                 "positional": list(self.positional), "example": self.example, "owner": self.owner,
                 "confirm_sometimes": bool(self.confirm_if)}
 
-
 _ROUTES: Dict[str, Route] = {}
 _ALIASES: Dict[str, str] = {}
 _LOCK = threading.RLock()
-
 
 def register_route(name: str, handler: Optional[Callable[..., Any]] = None, danger: str = "safe", *,
                    params: Optional[Dict[str, P]] = None, positional: Sequence[str] = (),
@@ -336,17 +320,14 @@ def register_route(name: str, handler: Optional[Callable[..., Any]] = None, dang
                 _ALIASES[alias] = name
     return route
 
-
 def unregister_route(name: str) -> None:
     with _LOCK:
         _ROUTES.pop(str(name).lower(), None)
-
 
 def routes() -> List[Route]:
     _ensure_builtins()
     with _LOCK:
         return sorted(_ROUTES.values(), key=lambda r: r.name)
-
 
 def get_route(name: str) -> Optional[Route]:
     _ensure_builtins()
@@ -354,9 +335,7 @@ def get_route(name: str) -> Optional[Route]:
         name = str(name or "").lower()
         return _ROUTES.get(_ALIASES.get(name, name))
 
-
 _BUILTINS_LOADED = False
-
 
 def _ensure_builtins() -> None:
     global _BUILTINS_LOADED
@@ -368,9 +347,6 @@ def _ensure_builtins() -> None:
     except Exception:  # pragma: no cover - a broken builtin must not break other zones' routes
         log.exception("built-in deeplink routes are unavailable")
 
-
-# ---------------------------------------------------------------------------- parser
-
 @dataclass
 class Link:
     route: str
@@ -381,7 +357,6 @@ class Link:
     def display(self, limit: int = 400) -> str:
         return self.raw if len(self.raw) <= limit else self.raw[:limit - 1] + "…"
 
-
 def split(url: str) -> Tuple[List[str], List[Tuple[str, str]]]:
     """Syntax only: ``memuai://a/b?x=1`` → (["a","b"], [("x","1")]).  Raises LinkError."""
     if not isinstance(url, str):
@@ -390,7 +365,7 @@ def split(url: str) -> Tuple[List[str], List[Tuple[str, str]]]:
         raise LinkError("too_long", f"Ссылка длиннее {MAX_URL} символов.", f"The link is longer than {MAX_URL} characters.")
     raw = url.strip()
     if _CTRL.search(raw) or any(c in raw for c in "\r\n\t\x00 "):
-        # A real link is percent-encoded: spaces and line breaks inside mean a pasted/forged string.
+
         raise LinkError("control_chars", "В ссылке пробелы или управляющие символы — она должна быть закодирована.",
                         "The link contains spaces or control characters — it must be percent-encoded.")
     if _BIDI.search(raw):
@@ -407,7 +382,7 @@ def split(url: str) -> Tuple[List[str], List[Tuple[str, str]]]:
         raise LinkError("bad_path", "Недопустимые символы в адресе ссылки.", "Invalid characters in the link path.")
     segments = [s for s in path.split("/")]
     while segments and segments[-1] == "":
-        segments.pop()             # memuai://chat/new/ (browsers add a slash)
+        segments.pop()
     if not segments or any(s == "" for s in segments):
         raise LinkError("no_route", "В ссылке не указано, что открыть.", "The link does not say what to open.")
     if len(segments) > MAX_SEGMENTS:
@@ -435,7 +410,6 @@ def split(url: str) -> Tuple[List[str], List[Tuple[str, str]]]:
                 raise LinkError("bad_encoding", "Неверная кодировка в ссылке.", "Invalid encoding in the link.") from exc
             pairs.append((key, value))
     return decoded, pairs
-
 
 def parse(url: str) -> Link:
     """Full validation against the registry: route, known params only, kinds, limits, no secrets."""
@@ -482,7 +456,6 @@ def parse(url: str) -> Link:
             params[name] = spec.default
     return Link(route=route.name, params=params, raw=url.strip(), segments=tuple(segments))
 
-
 def build(route: str, params: Optional[Dict[str, Any]] = None, *, positional: bool = True) -> str:
     """The canonical link for a route (used by «Копировать ссылку», ``memu link``)."""
     found = get_route(route)
@@ -506,9 +479,6 @@ def build(route: str, params: Optional[Dict[str, Any]] = None, *, positional: bo
         link += "?" + urllib.parse.urlencode(query, quote_via=urllib.parse.quote)
     return link
 
-
-# ---------------------------------------------------------------------------- settings & journal
-
 def _memu_dir() -> Path:
     base = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if not base:
@@ -517,9 +487,7 @@ def _memu_dir() -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-
 DEFAULT_SETTINGS = {"enabled": True, "always_ask": False, "cli": True, "chat_links": True}
-
 
 def load_settings() -> Dict[str, Any]:
     try:
@@ -529,7 +497,6 @@ def load_settings() -> Dict[str, Any]:
     except (OSError, ValueError):
         data = {}
     return {k: bool(data.get(k, v)) for k, v in DEFAULT_SETTINGS.items()}
-
 
 def save_settings(patch: Dict[str, Any]) -> Dict[str, Any]:
     current = load_settings()
@@ -543,10 +510,8 @@ def save_settings(patch: Dict[str, Any]) -> Dict[str, Any]:
     log.info("deeplink settings changed: %s", current)
     return current
 
-
 _JOURNAL_MAX = 60
 _journal_lock = threading.Lock()
-
 
 def journal(limit: int = 30) -> List[Dict[str, Any]]:
     try:
@@ -555,7 +520,6 @@ def journal(limit: int = 30) -> List[Dict[str, Any]]:
     except (OSError, ValueError):
         rows = []
     return rows[-limit:][::-1]
-
 
 def _record(event: str, *, url: str = "", route: str = "", source: str = "", detail: str = "") -> None:
     """Applog line + a small persistent journal (Settings → «Ссылки и командная строка» shows it)."""
@@ -578,16 +542,12 @@ def _record(event: str, *, url: str = "", route: str = "", source: str = "", det
         except OSError:
             pass
 
-
 def clear_journal() -> None:
     with _journal_lock:
         try:
             (_memu_dir() / "deeplinks_log.json").unlink()
         except OSError:
             pass
-
-
-# ---------------------------------------------------------------------------- burst limit
 
 class _Burst:
     def __init__(self) -> None:
@@ -610,11 +570,7 @@ class _Burst:
         with self.lock:
             self.times.clear()
 
-
 BURST_LIMIT = _Burst()
-
-
-# ---------------------------------------------------------------------------- pending queue
 
 @dataclass
 class Pending:
@@ -627,7 +583,7 @@ class Pending:
     shown_at: float = 0.0
     done: bool = False
     note: str = ""
-    cache: Dict[str, Any] = field(default_factory=dict)   # preview → run (what was shown is what runs)
+    cache: Dict[str, Any] = field(default_factory=dict)
 
     def public(self, lang: str = "ru") -> Dict[str, Any]:
         route = self.route
@@ -642,7 +598,6 @@ class Pending:
                 "has_preview": route.preview is not None,
                 "inputs": [_public_input(x, lang) for x in route.inputs], "note": self.note}
 
-
 def _public_params(params: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for key, value in params.items():
@@ -652,12 +607,10 @@ def _public_params(params: Dict[str, Any]) -> Dict[str, Any]:
             out[key] = value
     return out
 
-
 def _public_input(spec: Dict[str, Any], lang: str) -> Dict[str, Any]:
     return {"id": spec.get("id"), "type": spec.get("type", "text"), "optional": bool(spec.get("optional", True)),
             "label": spec.get("label_en" if lang == "en" else "label_ru") or spec.get("id"),
             "hint": spec.get("hint_en" if lang == "en" else "hint_ru") or ""}
-
 
 def source_label(source: str, lang: str = "ru") -> str:
     labels = {
@@ -670,21 +623,17 @@ def source_label(source: str, lang: str = "ru") -> str:
     pair = labels.get(source, labels["os"])
     return pair[1] if lang == "en" else pair[0]
 
-
 _PENDING: Dict[str, Pending] = {}
 _notifier: Optional[Callable[[Pending], None]] = None
-_QUEUE_VER = 0   # растёт при каждой новой ссылке — SSE «Входящих» шлёт окну событие links вместо опроса
-
+_QUEUE_VER = 0
 
 def queue_version() -> int:
     return _QUEUE_VER
-
 
 def set_notifier(fn: Optional[Callable[[Pending], None]]) -> None:
     """The window nudge (playground: evaluate_js + bring the window up)."""
     global _notifier
     _notifier = fn
-
 
 def _prune(now: float) -> None:
     for key in [k for k, p in _PENDING.items() if p.done or now - p.created > PENDING_TTL]:
@@ -692,7 +641,6 @@ def _prune(now: float) -> None:
     while len(_PENDING) > PENDING_MAX:
         oldest = min(_PENDING.values(), key=lambda p: p.created)
         _PENDING.pop(oldest.id, None)
-
 
 def dispatch(url: str, source: str = "os", *, lang: str = "ru", notify: bool = True) -> Dict[str, Any]:
     """Validate a link and queue it for the window.  Never runs the action."""
@@ -754,7 +702,6 @@ def dispatch(url: str, source: str = "os", *, lang: str = "ru", notify: bool = T
     return {"ok": True, "id": item.id, "route": route.name, "danger": danger,
             "title": route.title[1 if lang == "en" else 0] or route.name}
 
-
 def pending(lang: str = "ru", *, mark_shown: bool = False) -> List[Dict[str, Any]]:
     now = time.time()
     with _LOCK:
@@ -766,12 +713,10 @@ def pending(lang: str = "ru", *, mark_shown: bool = False) -> List[Dict[str, Any
                     item.shown_at = now
         return [p.public(lang) for p in items]
 
-
 def get_pending(item_id: str) -> Optional[Pending]:
     with _LOCK:
         _prune(time.time())
         return _PENDING.get(str(item_id or ""))
-
 
 def reject(item_id: str, reason: str = "cancelled") -> bool:
     with _LOCK:
@@ -780,7 +725,6 @@ def reject(item_id: str, reason: str = "cancelled") -> bool:
         _record("cancelled" if reason == "cancelled" else reason, url=item.link.display(300), route=item.route.name,
                 source=item.source)
     return item is not None
-
 
 @dataclass
 class Ctx:
@@ -792,13 +736,11 @@ class Ctx:
     services: Dict[str, Any] = field(default_factory=dict)
     cache: Dict[str, Any] = field(default_factory=dict)
 
-
 async def _call(fn: Callable[..., Any], *args: Any) -> Any:
     result = fn(*args)
     if inspect.isawaitable(result):
         result = await result
     return result
-
 
 async def preview(item_id: str, ctx: Ctx) -> Dict[str, Any]:
     item = get_pending(item_id)
@@ -820,7 +762,6 @@ async def preview(item_id: str, ctx: Ctx) -> Dict[str, Any]:
     result = dict(result or {})
     result.setdefault("ok", True)
     return result
-
 
 async def run(item_id: str, ctx: Ctx, *, confirmed: bool = False) -> Dict[str, Any]:
     """Execute a pending item (once).  A ``confirm`` item needs ``confirmed`` and to have been shown."""
@@ -861,7 +802,6 @@ async def run(item_id: str, ctx: Ctx, *, confirmed: bool = False) -> Dict[str, A
     with _LOCK:
         _PENDING.pop(item.id, None)
     return result
-
 
 def reset_for_tests() -> None:
     with _LOCK:

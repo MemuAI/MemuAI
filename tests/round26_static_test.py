@@ -21,11 +21,9 @@ import unittest
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="memuai-r26-static-"))
 
-
 def _read(rel):
     with open(os.path.join(ROOT, rel), encoding="utf-8") as handle:
         return handle.read()
-
 
 def _py_modules():
     files = {}
@@ -43,13 +41,10 @@ def _py_modules():
             trees[mod] = ast.parse(handle.read(), path)
     return files, trees
 
-
 FILES, TREES = _py_modules()
-
 
 def _is_pkg(mod):
     return FILES[mod].endswith("__init__.py")
-
 
 def _resolve(cur, level, module):
     if not level:
@@ -61,7 +56,6 @@ def _resolve(cur, level, module):
         parts = parts[: len(parts) - (level - 1)]
     base = ".".join(parts)
     return (base + "." + module if module else base) if base else (module or "")
-
 
 def _top_names(tree):
     """Names a module defines at import time (incl. under if/try), plus star/__getattr__ flags."""
@@ -103,7 +97,6 @@ def _top_names(tree):
             names.update(node.names)
     return names, dynamic or "__getattr__" in names
 
-
 class PythonModuleAttributesTest(unittest.TestCase):
     def test_project_module_attributes_exist(self):
         defs, dynamic = {}, set()
@@ -129,7 +122,7 @@ class PythonModuleAttributesTest(unittest.TestCase):
                     for alias in node.names:
                         if alias.name in TREES and alias.asname:
                             bind[alias.asname] = alias.name
-            # late binding: module.attr = … anywhere counts as a definition
+
             for node in ast.walk(tree):
                 if isinstance(node, ast.Assign):
                     for tg in node.targets:
@@ -176,9 +169,6 @@ class PythonModuleAttributesTest(unittest.TestCase):
                     problems.append(f"{FILES[mod]}:{node.lineno}: {ast.unparse(node.value)[:80]} without await")
         self.assertEqual(problems, [])
 
-
-# ----------------------------------------------------------------------------- UI ↔ API
-
 def _scan_to(s, i, stop):
     """Index of the first top-level character of ``stop`` (or the closing bracket) from ``i``."""
     depth, quote, j = 0, None, i
@@ -206,7 +196,6 @@ def _scan_to(s, i, stop):
         j += 1
     return j
 
-
 def _url_of(expr):
     """'/api/a/' + id + '/b' → '/api/a/x/b'; a trailing non-literal after a full path is a query."""
     pieces, start, j, e = [], 0, 0, expr.strip()
@@ -228,90 +217,80 @@ def _url_of(expr):
             parts.append("x")
     return "".join(parts).split("?")[0].split("#")[0]
 
-
-# How each request helper picks its method: "opts" — options.method or GET (a body without a
-# method is a GET with a body, which fetch rejects); "auto" — a body makes it POST;
-# "post" — always POST; "arg2post" — a second argument makes it POST; "get" — always GET.
 HELPERS = {
     ("app/pgstatic/quick/quick.js", "api"): "auto",
-    ("app/pgstatic/deeplinks.js", "call"): "arg2post",   # Round 35 (protocol): memuai:// links
+    ("app/pgstatic/deeplinks.js", "call"): "arg2post",
     ("app/pgstatic/memucode.js", "post"): "post",
     ("app/pgstatic/quick/quick-dfy.js", "post"): "post",
     ("app/pgstatic/quick/quick-dfy.js", "json"): "opts",
     ("app/pgstatic/quick/plugins/commands-settings.js", "call"): "arg2post",
     ("app/pgstatic/appearance.js", "api"): "arg2post",
-    # Round 33 (theme editor): api(path) — GET, api(path, body) — POST JSON
+
     ("app/pgstatic/theme-editor.js", "api"): "arg2post",
     ("app/pgstatic/docs.js", "getJson"): "get",
     ("app/pgstatic/panels.js", "call"): "opts",
     ("app/pgstatic/dfy-client.js", "call"): "opts",
     ("app/pgstatic/modules.js", "apiJson"): "opts",
-    # Round 29 (hotkeys.js): get(url) — a GET that answers null on failure
+
     ("app/pgstatic/hotkeys.js", "get"): "get",
-    # Round 29 (schedsend.js): navigator.sendBeacon(url, blob) — always a POST
+
     ("app/pgstatic/schedsend.js", "sendBeacon"): "post",
-    # Round 27 (quick features): api(path) — GET, api(path, body) — POST
+
     ("app/pgstatic/quick/plugins/features.js", "api"): "arg2post",
     ("app/pgstatic/quick/sticker.js", "api"): "arg2post",
     ("app/pgstatic/quick/plugins/features-settings.js", "post"): "post",
-    # Round 27 (wake word): call(path) — GET, call(path, body) — POST JSON
+
     ("app/pgstatic/quick/plugins/wake.js", "call"): "arg2post",
     ("app/pgstatic/quick/plugins/wake-settings.js", "call"): "arg2post",
-    # Round 27 (quick canvas settings): post(path, payload) — always POST
+
     ("app/pgstatic/quick/plugins/canvas-settings.js", "post"): "post",
-    # Round 28 (the screen layer): api(path) — GET, api(path, body) — POST JSON
+
     ("app/pgstatic/quick/layer.js", "api"): "arg2post",
-    # Round 29: memory v2 — call/act(path, {method, body}); global search — http(path, {method, body});
-    # safe mode — post(path, body); sync — call(path) GET, call(path, body) POST.
+
     ("app/pgstatic/memory.js", "call"): "opts",
     ("app/pgstatic/memory.js", "act"): "opts",
     ("app/pgstatic/search.js", "http"): "opts",
     ("app/pgstatic/safe-mode.js", "post"): "post",
     ("app/pgstatic/sync-settings.js", "call"): "arg2post",
-    # Round 29 (stuck.js): post(path, body) — always POST
+
     ("app/pgstatic/stuck.js", "post"): "post",
-    ("app/pgstatic/plan.js", "call"): "post",            # Round 29: Planning 2.0 (/api/plan/*)
-    # Round 29 (quick explorer / extras): api(path) — GET, api(path, body) — POST JSON; settings post() — POST
+    ("app/pgstatic/plan.js", "call"): "post",
+
     ("app/pgstatic/quick/plugins/explorer.js", "api"): "arg2post",
     ("app/pgstatic/quick/plugins/extras.js", "api"): "arg2post",
     ("app/pgstatic/quick/plugins/explorer-settings.js", "post"): "post",
-    # Round 29 (memunote-settings.js): call(path) — GET, call(path, body) — POST JSON
+
     ("app/pgstatic/memunote-settings.js", "call"): "arg2post",
-    # Round 30: integrations-ui.js call(path) — GET, call(path, body) — POST JSON;
-    # dfy-takeover.js call(path) — POST (call(path, "GET") is not used)
+
     ("app/pgstatic/integrations-ui.js", "call"): "arg2post",
     ("app/pgstatic/dfy-takeover.js", "call"): "post",
-    # Round 33: module-apps.js api(path) — GET, api(path, body) — POST JSON; panels-layout.js L.call = panels.js call
+
     ("app/pgstatic/module-apps.js", "api"): "arg2post",
-    # Round 39: module-icons.js api(path, body) — the same helper shape as module-apps.js
+
     ("app/pgstatic/module-icons.js", "api"): "arg2post",
     ("app/pgstatic/panels-layout.js", "call"): "opts",
-    # Round 33 (Proxy model card, reasoning levels): post(path, body, message) — always POST via api(path, {method})
+
     ("app/static/reasoning_card.js", "post"): "post",
-    # Round 35: ask_user form http(path) — GET, http(path, body) — POST; canvas req(path, {method, body});
-    # flows call(path, body) — always POST; inbox call(path, {method, body}); MemuFiles settings call(path[, body]);
-    # file search settings post(path, payload) — always POST via ctx.api
+
     ("app/pgstatic/askuser.js", "http"): "arg2post",
     ("app/pgstatic/canvas.js", "req"): "opts",
     ("app/pgstatic/flows.js", "call"): "post",
     ("app/pgstatic/inbox.js", "call"): "opts",
     ("app/pgstatic/memufiles-settings.js", "call"): "arg2post",
     ("app/pgstatic/quick/plugins/fsearch-settings.js", "post"): "post",
-    ("app/pgstatic/plan-conds.js", "call"): "post",       # Round 37: ctx.call = plan.js call(path, body), always POST
-    # Round 38: app settings form call(path) — GET, call(path, body) — POST JSON; module integration json(path[, body]) — same
+    ("app/pgstatic/plan-conds.js", "call"): "post",
+
     ("app/pgstatic/app-settings-form.js", "call"): "arg2post",
     ("app/pgstatic/module-integration.js", "json"): "arg2post",
-    ("app/pgstatic/mcp-hub.js", "call"): "opts",   # Round 40 (r40-mcp): call(path, {method, body}) — api() or fetch
+    ("app/pgstatic/mcp-hub.js", "call"): "opts",
 }
 GLOBAL_HELPERS = {"api": "opts", "ctx.api": "opts", "fetch": "opts", "todoCall": "opts",
                   "EventSource": "get", "downloadAuthed": "get",
-                  # Round 40 (r40-lag): pgstatic/memu-live.js — a stream (GET) / one POST over the /api/pg/live WebSocket
+
                   "MemuLive.stream": "get", "MemuLive.post": "post"}
 STRING_METHODS = {"startsWith", "includes", "indexOf", "replace", "test", "match", "endsWith"}
 
-
 _ROUTES = {}
-
 
 def _routes():
     if _ROUTES:
@@ -324,7 +303,7 @@ def _routes():
                 yield prefix + route.path, set(route.methods)
             elif isinstance(route, APIWebSocketRoute):
                 yield prefix + route.path, {"WS"}
-            elif hasattr(route, "original_router"):      # FastAPI ≥0.140 includes routers lazily
+            elif hasattr(route, "original_router"):
                 yield from flatten(route.original_router.routes,
                                    prefix + (getattr(route.include_context, "prefix", "") or ""))
             elif hasattr(route, "routes") and not hasattr(route, "app"):
@@ -341,7 +320,6 @@ def _routes():
         _ROUTES[name] = rows
     return _ROUTES
 
-
 def _segment_match(url, path):
     segs = url.split("/")
     if "x" not in segs:
@@ -350,7 +328,6 @@ def _segment_match(url, path):
     if len(segs) != len(route):
         return False
     return all(u == "x" or u == r or r.startswith("{") for u, r in zip(segs, route))
-
 
 class FrontendBackendRoutesTest(unittest.TestCase):
     def test_every_ui_api_call_has_a_route_with_its_method(self):
@@ -429,8 +406,8 @@ class FrontendBackendRoutesTest(unittest.TestCase):
         js = "".join(_read(f"app/tgapp/{n}") for n in os.listdir(os.path.join(ROOT, "app/tgapp")) if n.endswith(".js"))
         used = set(re.findall(r"""\bapi\(\s*["']([a-z_.]+)["']""", js))
         py = "".join(_read(f"app/{n}") for n in os.listdir(os.path.join(ROOT, "app")) if n.endswith(".py"))
-        py += _read("app/music/tgapp_ops.py")     # r37: MemuMusic operations of the Mini App
-        py += _read("app/learn/tgapp_ops.py")     # r40: MemuLearn «Тренажёр»
+        py += _read("app/music/tgapp_ops.py")
+        py += _read("app/learn/tgapp_ops.py")
         registered = set(re.findall(r"""@op\(\s*["']([a-z_.]+)["']""", py))
         self.assertTrue(used and registered)
         self.assertEqual(sorted(used - registered), [])
@@ -447,12 +424,11 @@ class FrontendBackendRoutesTest(unittest.TestCase):
         self.assertTrue(calls)
         self.assertEqual(sorted(calls - win), [])
 
-
 class FrontendDeadGuardsTest(unittest.TestCase):
     BROWSER = {"EventSource", "requestAnimationFrame", "ResizeObserver", "Highlight", "IntersectionObserver",
                "MutationObserver", "queueMicrotask", "structuredClone", "fetch", "AbortController",
                "OffscreenCanvas", "createImageBitmap", "BroadcastChannel", "Notification", "MediaRecorder",
-               "showSaveFilePicker", "showOpenFilePicker", "requestIdleCallback"}   # r36: diagram-zoom.js idle init
+               "showSaveFilePicker", "showOpenFilePicker", "requestIdleCallback"}
 
     def test_typeof_function_guards_name_real_functions(self):
         problems = []
@@ -480,9 +456,8 @@ class FrontendDeadGuardsTest(unittest.TestCase):
         block = block[:block.index("})();")]
         self.assertRegex(block, r'requested === "temp"\)\s*return newChat\(true\)')
         self.assertRegex(app_js, r"\nfunction newChat\(temp = false\)")
-        # memuai.py builds exactly this action for --temporary-chat
-        self.assertIn('"temp" if args.temporary_chat', _read("memuai.py"))
 
+        self.assertIn('"temp" if args.temporary_chat', _read("memuai.py"))
 
 if __name__ == "__main__":
     unittest.main()

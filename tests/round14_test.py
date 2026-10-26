@@ -30,10 +30,8 @@ from app.cli.llm import Backend, ModelInfo, StreamEvent, Usage
 from app.cli.tools.files import FileIndex, is_broad_root
 from app.cli.tui.input import MemuCompleter, match_models
 
-
 def models(*rows):
     return [ModelInfo(id=model_id, provider=provider, context=context) for model_id, provider, context in rows]
-
 
 SAMPLE = models(
     ("antigravity-gemini-3.7-flash-high", "antigravity", 1_000_000),
@@ -44,9 +42,6 @@ SAMPLE = models(
     ("custom-GLM-5", "custom", 128_000),
     ("@openrouter:z-ai/glm-4.6", "openrouter", 128_000),
 )
-
-
-# ---------------------------------------------------------------- 1. /model: provider, name, label
 
 class ModelSearch(unittest.TestCase):
     def ids(self, query):
@@ -59,7 +54,7 @@ class ModelSearch(unittest.TestCase):
 
     def test_a_model_name_is_found_whatever_the_provider(self):
         self.assertEqual(set(self.ids("glm")), {"kiro-glm-4.6", "custom-GLM-5", "@openrouter:z-ai/glm-4.6"})
-        self.assertEqual(set(self.ids("GLM")), set(self.ids("glm")))                 # case does not matter
+        self.assertEqual(set(self.ids("GLM")), set(self.ids("glm")))
         self.assertEqual(set(self.ids("sonnet")), {"kiro-claude-sonnet-4-5", "antigravity-claude-sonnet-4-6-thinking"})
 
     def test_several_words_must_all_match_and_letters_in_order_work_as_a_last_resort(self):
@@ -88,14 +83,14 @@ class ModelSearch(unittest.TestCase):
         async def drive(ui, keys):
             keys.send_text("/model glm")
             await until(lambda: bool(ui.menu and ui.menu.items), 3)
-            keys.send_text("\x1b")                          # close the suggestion list, then run the line as typed
+            keys.send_text("\x1b")
             await until(lambda: ui.menu is None, 2)
             keys.send_text("\r")
             await until(lambda: bool(ui.dialogs), 3)
             dialog = ui.dialogs[0]
             shown = [dialog.options[position].value for position in dialog.view]
             filter_text = ui.dialog_filter.text
-            keys.send_text("\x1b[B")                        # second row
+            keys.send_text("\x1b[B")
             await until(lambda: dialog.index == 1, 3)
             keys.send_text("\r")
             await until(lambda: not ui.dialogs, 3)
@@ -124,19 +119,15 @@ class ModelSearch(unittest.TestCase):
         self.assertFalse(dialog_open)
         self.assertEqual(chosen, "genspark-gpt-5")
 
-
 def _async_value(value):
     async def fetch(refresh=False):
         return value
     return fetch
 
-
-# ---------------------------------------------------------------- 2. /cd offers to create the folder
-
 class ChangeDirectory(unittest.TestCase):
     def make(self):
         runtime, _ = make_runtime()
-        runtime.settings.trust(runtime.root)             # a folder made inside it needs no "trust this folder?" step
+        runtime.settings.trust(runtime.root)
         return runtime
 
     def test_a_missing_folder_is_offered_and_the_default_answer_is_no(self):
@@ -151,7 +142,7 @@ class ChangeDirectory(unittest.TestCase):
             first = ui.dialogs[0].options[0].label
             default_index = ui.dialogs[0].index
             await until(ui.dialogs[0].armed, 2)
-            keys.send_text("\r")                                        # Enter on the default: No
+            keys.send_text("\r")
             await until(lambda: not ui.dialogs, 3)
             await settle(0.1)
             return title, first, default_index, target.exists(), runtime.root
@@ -171,8 +162,8 @@ class ChangeDirectory(unittest.TestCase):
             keys.send_text(f"/cd {target}\r")
             await until(lambda: bool(ui.dialogs), 3)
             dialog = ui.dialogs[0]
-            await until(dialog.armed, 2)                                # a question ignores keys for its first 0.7 s
-            keys.send_text("\x1b[B")                                    # down to "Yes, create it"
+            await until(dialog.armed, 2)
+            keys.send_text("\x1b[B")
             await until(lambda: dialog.index == 1, 3)
             keys.send_text("\r")
             await until(lambda: target.is_dir() and runtime.root == target.resolve(), 3)
@@ -215,12 +206,9 @@ class ChangeDirectory(unittest.TestCase):
             return bool(ui.dialogs), runtime.root, "\n".join(texts(ui.transcript.viewport(40, 110)))
 
         _ui, (asked, root, shown) = drive_ui(runtime, drive)
-        self.assertFalse(asked)                                         # a file is an error, not an offer
+        self.assertFalse(asked)
         self.assertEqual(root, runtime.root)
         self.assertIn("is a file", shown)
-
-
-# ---------------------------------------------------------------- 3. the @ index
 
 class Indexing(unittest.TestCase):
     def make_profile(self):
@@ -275,8 +263,7 @@ class Indexing(unittest.TestCase):
         index = FileIndex(root)
         ready = []
         index.on_ready = lambda: ready.append(1)
-        # The walk is held until the first answer is in hand: a 40-file folder is otherwise listed so fast that
-        # the background thread could finish before files() returns, and the test would depend on timing.
+
         release = threading.Event()
         collect = index._collect
         index._collect = lambda: (release.wait(5), collect())[1]
@@ -318,7 +305,6 @@ class Indexing(unittest.TestCase):
         index.invalidate()
         self.assertEqual(index.files(), ["a.txt", "b.txt"])
 
-
 class MentionPaths(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp(prefix="memucode-mention-"))
@@ -343,7 +329,7 @@ class MentionPaths(unittest.TestCase):
     def test_without_an_index_the_folders_own_entries_are_listed(self):
         rows = dict(self.listing("@"))
         self.assertIn("@src/", rows)
-        self.assertNotIn("@.secret", rows)                               # hidden files only when asked for
+        self.assertNotIn("@.secret", rows)
         self.assertIn("@.secret", dict(self.listing("@.")))
 
     def test_a_folder_with_a_space_keeps_its_quote_open_and_a_file_closes_it(self):
@@ -358,7 +344,7 @@ class MentionPaths(unittest.TestCase):
         found = [c.text for c in completer.get_completions(Document("@Butt"), None)]
         self.assertEqual(found[0], "@src/components/Button.tsx")
         folders = [c.text for c in completer.get_completions(Document("@comp"), None)]
-        self.assertIn("@src/components/", folders)                       # nested folders are offered too
+        self.assertIn("@src/components/", folders)
 
     def test_a_folder_completion_does_not_get_a_trailing_space(self):
         from app.cli.tui.app import _keeps_going
@@ -366,9 +352,6 @@ class MentionPaths(unittest.TestCase):
         self.assertTrue(_keeps_going('@"my docs/'))
         self.assertFalse(_keeps_going("@src/app.py"))
         self.assertFalse(_keeps_going('@"my docs/read me.md"'))
-
-
-# ---------------------------------------------------------------- 5. commands while the agent works
 
 class GatedModel(Backend):
     """Holds its answer until the test opens the gate, so the interface stays busy exactly as long as needed."""
@@ -388,7 +371,6 @@ class GatedModel(Backend):
         yield StreamEvent("usage", usage=Usage(input=100, output=10, estimated=False, requests=1))
         yield StreamEvent("done", finish="stop")
 
-
 class WhileTheAgentWorks(unittest.TestCase):
     def runtime(self, **kwargs):
         runtime, _ = make_runtime(settings={"auto_title": False}, **kwargs)
@@ -403,13 +385,13 @@ class WhileTheAgentWorks(unittest.TestCase):
             keys.send_text("first request\r")
             await until(lambda: ui.busy and backend.requests, 3)
             busy_then = ui.busy
-            keys.send_text("/skills\r")                                  # a safe command: runs right away, as a dialog
+            keys.send_text("/skills\r")
             await until(lambda: bool(ui.dialogs), 3)
             opened = bool(ui.dialogs)
-            keys.send_text("\x1b")                                       # Esc closes the dialog, not the run
+            keys.send_text("\x1b")
             await until(lambda: not ui.dialogs, 3)
             still_busy = ui.busy
-            keys.send_text("/compact\r")                                 # would touch the conversation: queued
+            keys.send_text("/compact\r")
             await until(lambda: bool(ui.queue), 3)
             queued = [item.get("command") for item in ui.queue]
             backend.gate.set()
@@ -433,9 +415,9 @@ class WhileTheAgentWorks(unittest.TestCase):
         async def drive(ui, keys):
             keys.send_text("work please\r")
             await until(lambda: ui.busy and backend.requests, 3)
-            keys.send_text("/rename Queued name\r")                      # runs now (safe)
+            keys.send_text("/rename Queued name\r")
             await until(lambda: runtime.session.meta.get("name") == "Queued name", 3)
-            keys.send_text("/clear\r")                                   # queued: it replaces the conversation
+            keys.send_text("/clear\r")
             await until(lambda: bool(ui.queue), 3)
             queued = [item.get("command") for item in ui.queue]
             backend.gate.set()
@@ -482,9 +464,6 @@ class WhileTheAgentWorks(unittest.TestCase):
         self.assertTrue(busy)
         self.assertEqual(queued, 1)
         self.assertLessEqual(requests, 1)
-
-
-# ---------------------------------------------------------------- 9. the tool-call parser
 
 class ForgivingParser(unittest.TestCase):
     def parse(self, body, tail=""):
@@ -576,7 +555,6 @@ class ForgivingParser(unittest.TestCase):
         self.assertIn("And then this text.", shown)
         self.assertNotIn("file_path", shown)
 
-
 class ParserInTheLoop(unittest.TestCase):
     def test_a_repaired_write_runs_and_the_model_is_told(self):
         source = 'const a = "one";\nconst b = "two";\n'
@@ -596,7 +574,7 @@ class ParserInTheLoop(unittest.TestCase):
         self.assertEqual(result.stopped, "done")
         self.assertFalse((runtime.root / "half.py").exists(), "half a file must never be written")
         feedback = str(backend.requests[1].messages[-1]["content"])
-        self.assertIn("alpha", feedback)                         # the readable call before it ran
+        self.assertIn("alpha", feedback)
         self.assertIn("was cut off", feedback)
         self.assertIn("NOT executed", feedback)
 
@@ -606,7 +584,7 @@ class ParserInTheLoop(unittest.TestCase):
         run(Agent(runtime).run_turn("go"))
         feedback = str(backend.requests[1].messages[-1]["content"])
         self.assertIn("alpha", feedback)
-        self.assertIn("a.txt", feedback)                         # the LS result
+        self.assertIn("a.txt", feedback)
         self.assertIn("could not be read", feedback)
         self.assertIn("Send only the failed call again", feedback)
 
@@ -623,9 +601,6 @@ class ParserInTheLoop(unittest.TestCase):
         system = runtime.system_prompt(list(runtime.tools.available(runtime)), native=False)
         self.assertIn("<memuai-content", system)
         self.assertIn("@content:1", system)
-
-
-# ---------------------------------------------------------------- 6. feedback: thinking and the request
 
 class ReasoningModel(Backend):
     name = "reasoning"
@@ -647,7 +622,6 @@ class ReasoningModel(Backend):
         yield StreamEvent("usage", usage=Usage(input=50, output=20, estimated=False, requests=1))
         yield StreamEvent("done", finish="stop")
 
-
 class Feedback(unittest.TestCase):
     def flat(self, fragments):
         return "".join(part[1] for part in fragments)
@@ -664,11 +638,11 @@ class Feedback(unittest.TestCase):
             await asyncio.sleep(0.4)
             thinking = self.flat(ui._live())
             hidden = "thought number" in thinking
-            ui._toggle_thinking()                                   # what a click on the spinner does
+            ui._toggle_thinking()
             opened = self.flat(ui._live())
             ui._toggle_thinking()
             closed = self.flat(ui._live())
-            keys.send_text("\x1br")                                 # alt+r does the same
+            keys.send_text("\x1br")
             await settle(0.1)
             via_key = ui.live_thinking
             for _ in range(60):
@@ -757,12 +731,12 @@ class Feedback(unittest.TestCase):
             from app.cli.tui import app as app_module
             slow = type("Agent", (), {"model": "slow-model", "depth": 0})()
             streaming = type("Agent", (), {"model": "fast-model", "depth": 0})()
-            # 8 s of silence, then 1000 characters in one go.
+
             ui.stream_started_at, ui.first_token_at, ui.stream = 100.0, 108.0, "word " * 200
             with patch.object(app_module.time, "monotonic", return_value=108.3):
                 ui._note_stream_style(slow)
-                ui._note_stream_style(slow)                              # said once, not on every answer
-            # A model that streams over several seconds earns no remark.
+                ui._note_stream_style(slow)
+
             ui.stream_started_at, ui.first_token_at = 200.0, 201.0
             with patch.object(app_module.time, "monotonic", return_value=206.0):
                 ui._note_stream_style(streaming)
@@ -773,9 +747,6 @@ class Feedback(unittest.TestCase):
         self.assertIn("slow-model", shown)
         self.assertNotIn("fast-model", shown)
         self.assertEqual(learned, {"slow-model": False, "fast-model": True})
-
-
-# ---------------------------------------------------------------- 7. permission modes: explicit and shared
 
 class PermissionModes(unittest.TestCase):
     def setUp(self):
@@ -789,7 +760,7 @@ class PermissionModes(unittest.TestCase):
         second, _ = make_runtime()
         self.assertEqual((first.permissions.mode, second.permissions.mode), ("default", "default"))
         first.permissions.set_mode("auto", source="keys", persist=True)
-        self.assertEqual(second.permissions.sync_from_disk(), "auto")        # the open window follows
+        self.assertEqual(second.permissions.sync_from_disk(), "auto")
         self.assertEqual(second.permissions.mode, "auto")
         self.assertEqual(second.permissions.change_source, "sync")
         third, _ = make_runtime()
@@ -804,7 +775,7 @@ class PermissionModes(unittest.TestCase):
         second, _ = make_runtime()
         first.permissions.set_mode("auto", source="keys", persist=True)
         second.permissions.sync_from_disk()
-        second.permissions.set_mode("plan", source="plan")                    # a task's state: not shared
+        second.permissions.set_mode("plan", source="plan")
         self.assertEqual(first.permissions.mode, "auto")
         first.permissions.set_mode("acceptEdits", source="keys", persist=True)
         self.assertIsNone(second.permissions.sync_from_disk(), "a window in plan mode keeps it")
@@ -820,7 +791,7 @@ class PermissionModes(unittest.TestCase):
         self.assertEqual(flagged.permissions.mode, "plan")
         shared.permissions.set_mode("acceptEdits", source="keys", persist=True)
         self.assertIsNone(flagged.permissions.sync_from_disk())
-        flagged.permissions.set_mode("default", source="keys", persist=True)  # an explicit choice here
+        flagged.permissions.set_mode("default", source="keys", persist=True)
         self.assertEqual(shared.permissions.sync_from_disk(), "default")
 
     def test_sharing_can_be_switched_off_and_only_deliberate_changes_are_saved(self):
@@ -829,7 +800,7 @@ class PermissionModes(unittest.TestCase):
         other, _ = make_runtime()
         self.assertEqual(other.permissions.mode, "default")
         quiet, _ = make_runtime()
-        quiet.permissions.set_mode("bypassPermissions")                       # programmatic: nothing is written
+        quiet.permissions.set_mode("bypassPermissions")
         again, _ = make_runtime()
         self.assertEqual(again.permissions.mode, "default")
 
@@ -839,7 +810,7 @@ class PermissionModes(unittest.TestCase):
         async def drive(ui, keys):
             await settle(0.3)
             default = "".join(part[1] for part in ui._footer_left())
-            keys.send_text("\x1b[Z")                                          # Shift+Tab
+            keys.send_text("\x1b[Z")
             await until(lambda: runtime.permissions.mode == "acceptEdits", 3)
             toast = "".join(part[1] for part in ui._footer_left())
             return default, toast
@@ -847,7 +818,7 @@ class PermissionModes(unittest.TestCase):
         _ui, (default, toast) = drive_ui(runtime, drive)
         self.assertIn("ask first", default)
         self.assertIn("accept edits", toast)
-        self.assertIn("edits inside the project", toast)                      # what the mode means, not just its name
+        self.assertIn("edits inside the project", toast)
         self.assertTrue(read_state_file(self.config)["mode"] == "acceptEdits")
 
     def test_the_mode_command_names_modes_in_any_spelling_and_asks_before_bypass(self):
@@ -864,7 +835,7 @@ class PermissionModes(unittest.TestCase):
             keys.send_text("/mode bypass\r")
             await until(lambda: bool(ui.dialogs), 3)
             asked = ui.dialogs[0].title
-            keys.send_text("\x1b")                                            # Esc: not now
+            keys.send_text("\x1b")
             await until(lambda: not ui.dialogs, 3)
             return asked, runtime.permissions.mode
 
@@ -890,12 +861,8 @@ class PermissionModes(unittest.TestCase):
         self.assertIn("approves routine actions", text)
         self.assertIn("this window only", text)
 
-
 def read_state_file(config):
     return json.loads((Path(config) / "permission_mode.json").read_text(encoding="utf-8"))
-
-
-# ---------------------------------------------------------------- 8. skills: made, changed and removed in the terminal
 
 class Skills(unittest.TestCase):
     def setUp(self):
@@ -904,7 +871,6 @@ class Skills(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    # -------- the toolkit
     def test_names_headers_and_problems(self):
         from app.cli import skillkit
         self.assertEqual(skillkit.slugify("Release Notes!"), "release-notes")
@@ -937,7 +903,7 @@ class Skills(unittest.TestCase):
         stray.parent.mkdir(parents=True)
         stray.write_text("---\nname: x\ndescription: y\n---\nbody body body body body", encoding="utf-8")
         with self.assertRaises(ValueError):
-            skillkit.delete_skill(root, stray)                           # not a skills folder: refused
+            skillkit.delete_skill(root, stray)
         self.assertTrue(stray.exists())
 
     def test_built_in_skills_are_disabled_not_deleted_and_a_disabled_skill_is_not_offered(self):
@@ -954,14 +920,13 @@ class Skills(unittest.TestCase):
         self.assertIsNone(runtime.skills.get("review"))
         system = runtime.system_prompt(list(runtime.tools.available(runtime)), native=False)
         self.assertNotIn("- review:", system)
-        self.assertIn("SkillManage", system)                             # the model is told how skills work
+        self.assertIn("SkillManage", system)
         self.assertIn("cannot be deleted", system)
         self.assertIn(".memucode", system)
         skillkit.set_disabled(runtime.settings, "review", False)
         runtime.invalidate_prompt(memory=True)
         self.assertIn("review", {row["id"] for row in runtime.skills.catalogue()})
 
-    # -------- the tool the model uses
     def test_the_model_can_create_change_list_and_delete_a_skill(self):
         runtime, backend = make_runtime(settings={"permission_mode": "acceptEdits"}, turns=[
             '```memuai-tool\n[{"tool":"SkillManage","args":{"action":"create","name":"Release Notes","scope":"project",'
@@ -972,7 +937,7 @@ class Skills(unittest.TestCase):
             '"description":"Writes release notes. Use for changelogs."}}]\n```',
             '```memuai-tool\n[{"tool":"SkillManage","args":{"action":"delete","name":"release-notes"}}]\n```',
             "Done."])
-        runtime.ui.answers = [{"choice": "yes"}]                         # the delete asks, whatever the mode
+        runtime.ui.answers = [{"choice": "yes"}]
         runtime.settings.trust(runtime.root)
         runtime.invalidate_prompt(memory=True)
         result = run(Agent(runtime).run_turn("make a skill, change it, then remove it"))
@@ -1003,7 +968,6 @@ class Skills(unittest.TestCase):
         self.assertEqual([event for event in runtime.ui.events if event[0] == "ask"], [])
         self.assertIn("review", str(backend.requests[1].messages[-1]["content"]))
 
-    # -------- the interface
     def test_a_skill_is_written_in_the_terminal_without_leaving_it(self):
         runtime, _ = make_runtime()
         runtime.settings.trust(runtime.root)
@@ -1012,17 +976,17 @@ class Skills(unittest.TestCase):
         async def drive(ui, keys):
             keys.send_text("/skills\r")
             await until(lambda: bool(ui.dialogs), 3)
-            keys.send_text("\r")                                         # "＋ Create a skill…"
+            keys.send_text("\r")
             await until(lambda: bool(ui.dialogs) and ui.dialogs[0].text_mode, 3)
-            keys.send_text("my-skill\r")                                 # the name
+            keys.send_text("my-skill\r")
             await until(lambda: bool(ui.dialogs) and "Where" in ui.dialogs[0].title, 3)
-            keys.send_text("\r")                                         # in this project
+            keys.send_text("\r")
             await until(lambda: bool(ui.dialogs) and "How" in ui.dialogs[0].title, 3)
-            keys.send_text("\x1b[B\r")                                   # write it myself
+            keys.send_text("\x1b[B\r")
             await until(lambda: bool(ui.dialogs) and ui.dialogs[0].tag == "paste", 3)
             editor_text = ui.dialog_text.text
             ui.dialog_text.insert_text("\nExtra line added in the terminal editor.")
-            keys.send_text("\x13")                                       # Ctrl+S
+            keys.send_text("\x13")
             await until(target.exists, 3)
             await until(lambda: not ui.dialogs, 3)
             return editor_text, ui.busy
@@ -1045,7 +1009,7 @@ class Skills(unittest.TestCase):
             await until(lambda: bool(ui.dialogs) and "Where" in ui.dialogs[0].title, 3)
             keys.send_text("\r")
             await until(lambda: bool(ui.dialogs) and "How" in ui.dialogs[0].title, 3)
-            keys.send_text("\r")                                         # describe it — MemuCode writes it
+            keys.send_text("\r")
             await until(lambda: bool(ui.dialogs) and ui.dialogs[0].text_mode, 3)
             keys.send_text("Check that the build and the tests pass before I release.\r")
             await until(lambda: bool(ui.dialogs) and ui.dialogs[0].tag == "paste", 5)
@@ -1067,7 +1031,7 @@ class Skills(unittest.TestCase):
         from app.cli import skillkit
         runtime, _ = make_runtime()
         runtime.settings.trust(runtime.root)
-        runtime.invalidate_prompt(memory=True)                           # project skills load only in a trusted folder
+        runtime.invalidate_prompt(memory=True)
         skillkit.write_skill(runtime.root, "project", "temp-skill", skillkit.template("temp-skill", "Temporary. Use never."))
         folder = runtime.root / ".memucode" / "skills" / "temp-skill"
 
@@ -1075,10 +1039,10 @@ class Skills(unittest.TestCase):
             keys.send_text("/skills delete temp-skill\r")
             await until(lambda: bool(ui.dialogs), 3)
             dialog = ui.dialogs[0]
-            started_on = dialog.options[dialog.index].label              # a dangerous question starts on No
+            started_on = dialog.options[dialog.index].label
             keys.send_text("\x1b[B")
             await until(lambda: dialog.index == 1, 3)
-            await until(dialog.armed, 2)                                 # questions the agent or a command raises ignore early keys
+            await until(dialog.armed, 2)
             keys.send_text("\r")
             await until(lambda: not folder.exists(), 3)
             return started_on, len(skillkit.list_trash())
@@ -1100,9 +1064,6 @@ class Skills(unittest.TestCase):
         self.assertFalse(asked)
         self.assertIn("built in", shown)
         self.assertIn("/skills disable review", shown)
-
-
-# ---------------------------------------------------------------- 10. decision models, /model auto, agents
 
 import httpx
 
@@ -1134,18 +1095,17 @@ CATALOG_ROWS = [
      "architecture": {"output_modalities": ["text"]}},
 ]
 
-
 class FakeOpenRouter:
     """The OpenRouter side of the decision models: the public catalogue and the decisions endpoint."""
 
     def __init__(self, *, down=(), choose=None, noul=None, score=None, catalog=None):
-        self.down = set(down)                   # models that answer 503
-        self.choose = dict(choose or {})        # question → the option it picks
-        self.noul = dict(noul or {})            # question → probability
-        self.score = dict(score or {})          # question → level (0-based)
+        self.down = set(down)
+        self.choose = dict(choose or {})
+        self.noul = dict(noul or {})
+        self.score = dict(score or {})
         self.catalog = CATALOG_ROWS if catalog is None else catalog
-        self.calls = []                         # (model, [questions])
-        self.bodies = []                        # the requests as they were sent
+        self.calls = []
+        self.bodies = []
         self.auth = []
         self.catalog_hits = 0
         self.offline = False
@@ -1186,13 +1146,10 @@ class FakeOpenRouter:
                                 "probabilities": {str(i): (0.8 if i == index else rest) for i in range(len(levels))}}
         return httpx.Response(200, json={"model": model, "usage": {"input_tokens": 500}, "answers": answers})
 
-
 _REAL_SLEEP = asyncio.sleep
-
 
 async def _instant(_delay=0):
     await _REAL_SLEEP(0)
-
 
 class DecisionCatalogue(unittest.TestCase):
     def setUp(self):
@@ -1220,7 +1177,7 @@ class DecisionCatalogue(unittest.TestCase):
         self.assertEqual(by_id["togethercomputer/tev1-4b-experimental"]["kinds"], ["choice"])
         self.assertEqual(by_id["respan/span-01"]["kinds"], ["noul"])
         self.assertIn("Always the newest", by_id["~typesafe/jev-latest"]["note"])
-        # A model nobody has heard of yet is listed too, with what its vendor wrote about it.
+
         self.assertIn("brand-new-decide", " ".join(ids))
         self.assertIn("did not exist yesterday", by_id["newvendor/brand-new-decide"]["note"])
         self.assertEqual(by_id["newvendor/brand-new-decide"]["maker"], "NewVendor")
@@ -1254,7 +1211,6 @@ class DecisionCatalogue(unittest.TestCase):
         self.assertEqual(source, "live")
         self.assertTrue(rows)
 
-
 class DecisionClientChoices(unittest.TestCase):
     def client(self, server, **config):
         base = {"provider": "openrouter", "api_key": "sk-or-test", "model": "typesafe/jev-1.13"}
@@ -1264,20 +1220,20 @@ class DecisionClientChoices(unittest.TestCase):
     def test_a_model_built_for_one_kind_of_question_is_not_asked_another(self):
         server = FakeOpenRouter()
         score_question = {"risk": Question.score("How risky?", ["a", "b", "c"])}
-        # Span answers yes/no only: a score goes to the backup, which can answer it.
+
         client = self.client(server, model="respan/span-01", fallbacks=["typesafe/jev-1.13"])
         decision = run(client.ask("state", score_question))
         self.assertEqual(decision.model, "typesafe/jev-1.13")
         self.assertEqual([model for model, _q in server.calls], ["typesafe/jev-1.13"])
-        # …while its own kind of question goes to it.
+
         run(client.ask("state", {"ok": Question.noul("Is it fine")}))
         self.assertEqual(server.calls[-1][0], "respan/span-01")
-        # With nothing that can answer, the caller is told so (and falls back to its own rules).
+
         alone = self.client(server, model="respan/span-01")
         with self.assertRaises(DecisionsError) as caught:
             run(alone.ask("state", score_question))
         self.assertIn("can answer", str(caught.exception))
-        # The test of a one-kind model asks what it can answer.
+
         server.calls.clear()
         result = run(alone.test())
         self.assertEqual(server.calls[0][1], ["refund"])
@@ -1336,10 +1292,7 @@ class DecisionClientChoices(unittest.TestCase):
         self.assertAlmostEqual(everything["complexity"], 1.0)
         self.assertAlmostEqual(everything["needs_plan"], 0.9)
         with self.assertRaises(DecisionsError):
-            run(dec.analyze_request(client, "x", want=("skill",)))         # no skills given: nothing to ask
-
-
-# ---------------------------------------------------------------- a look at the request, routing, agents
+            run(dec.analyze_request(client, "x", want=("skill",)))
 
 def decision_runtime(server, *, turns=(), decisions=None, settings=None, files=None):
     runtime, backend = make_runtime(files, turns=turns, settings={"auto_title": False, **(settings or {})})
@@ -1349,7 +1302,6 @@ def decision_runtime(server, *, turns=(), decisions=None, settings=None, files=N
     runtime.settings.set("decisions", config)
     runtime.reload_decisions()
     return runtime, backend
-
 
 class RequestTriage(unittest.TestCase):
     def setUp(self):
@@ -1432,7 +1384,6 @@ class RequestTriage(unittest.TestCase):
         run(runtime.decisions.noul("state", "is it fine again"))
         self.assertEqual(server.auth[-1], "Bearer own-key")
 
-
 class AutoModelAndAgents(unittest.TestCase):
     def setUp(self):
         self.config = tempfile.mkdtemp(prefix="memucode-auto-")
@@ -1475,8 +1426,8 @@ class AutoModelAndAgents(unittest.TestCase):
         self.assertEqual(model, "fast-sql", "the answer of the decision model, not the first model of the tier")
         self.assertIn("typesafe/jev-1.13", why)
         sent = [call for call in server.calls]
-        self.assertEqual(sent[0][1], ["complexity"])                            # the difficulty
-        self.assertEqual(sent[1][1], ["q"])                                     # the choice among the two fast models
+        self.assertEqual(sent[0][1], ["complexity"])
+        self.assertEqual(sent[1][1], ["q"])
         server.score["complexity"] = 3
         self.assertEqual(run(runtime.route_model("something huge"))[0], "big-one")
 
@@ -1527,12 +1478,11 @@ class AutoModelAndAgents(unittest.TestCase):
         runtime, backend = make_runtime(settings=settings, turns=[
             '```memuai-tool\n[{"tool":"Task","args":{"description":"look","prompt":"Say hi","subagent_type":"general-purpose",'
             '"model":"agent-b"}}]\n```',
-            "The agent said hi.",                       # the sub-agent
+            "The agent said hi.",
             "All done."])
         result = run(Agent(runtime).run_turn("start an agent"))
         self.assertEqual(result.stopped, "done")
         self.assertEqual([request.model for request in backend.requests], ["test-model", "agent-b", "test-model"])
-# ---------------------------------------------------------------- 10. the /decisions menus and the look at a request
 
 async def need(condition, timeout=3.0):
     """``until`` that fails the test, naming the condition, instead of carrying on after a timeout."""
@@ -1546,20 +1496,16 @@ async def need(condition, timeout=3.0):
         raise AssertionError(f"nothing happened within {timeout}s: {what}")
     return waited
 
-
 def _shown(ui):
     return "\n".join(texts(ui.transcript.viewport(60, 120)))
-
 
 def _rows(ui):
     """What the open dialog lists right now (after its search box), as option values."""
     dialog = ui.dialogs[0]
     return [dialog.options[position].value for position in dialog.view]
 
-
 def _on(ui, title):
     return bool(ui.dialogs) and ui.dialogs[0].title == title
-
 
 class DecisionsMenu(unittest.TestCase):
     def setUp(self):
@@ -1590,18 +1536,18 @@ class DecisionsMenu(unittest.TestCase):
             keys.send_text("/decisions\r")
             await need(lambda: _on(ui, "Decision model"), 4)
             first = _rows(ui)
-            keys.send_text("\r")                                         # Connect…
+            keys.send_text("\r")
             await need(lambda: _on(ui, "Where the decisions come from"), 4)
             providers = _rows(ui)
-            keys.send_text("\r")                                         # OpenRouter (the first and recommended)
+            keys.send_text("\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].text_mode, 4)
-            keys.send_text("sk-or-test\r")                               # the key
+            keys.send_text("sk-or-test\r")
             await need(lambda: _on(ui, "Which model decides"), 4)
             listed = _rows(ui)
-            keys.send_text("kev")                                        # search by name
+            keys.send_text("kev")
             await need(lambda: _rows(ui) == ["jaredpalmer/kev-4b"], 4)
             keys.send_text("\r")
-            await need(lambda: _on(ui, "Decision model"), 4)            # back at the menu
+            await need(lambda: _on(ui, "Decision model"), 4)
             menu = _rows(ui)
             keys.send_text("\x1b")
             await need(lambda: not ui.dialogs, 3)
@@ -1663,22 +1609,22 @@ class DecisionsMenu(unittest.TestCase):
         async def drive(ui, keys):
             keys.send_text("/decisions\r")
             await need(lambda: _on(ui, "Decision model"), 4)
-            keys.send_text("\x1b[B\r")                                   # Which model decides → A model for each check
+            keys.send_text("\x1b[B\r")
             await need(lambda: _on(ui, "A model for each check"), 4)
             uses = _rows(ui)
-            keys.send_text("\x1b[B\x1b[B\x1b[B\r")                       # Skill hint (4th)
+            keys.send_text("\x1b[B\x1b[B\x1b[B\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].title.startswith("Model for"), 4)
             title = ui.dialogs[0].title
             keys.send_text("mercury")
             await need(lambda: _rows(ui) == ["inception/mercury-decide:free"], 4)
             keys.send_text("\r")
             await need(lambda: _on(ui, "A model for each check"), 4)
-            # Auto mode needs a score and yes/no odds: Span answers yes/no only → asks before taking it.
+
             keys.send_text("\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].title.startswith("Model for"), 4)
             keys.send_text("span-01")
             await need(lambda: "respan/span-01" in _rows(ui), 4)
-            for _ in range(12):                                          # walk down to the row “Span-01”
+            for _ in range(12):
                 if _rows(ui)[ui.dialogs[0].index] == "respan/span-01":
                     break
                 keys.send_text("\x1b[B")
@@ -1686,8 +1632,8 @@ class DecisionsMenu(unittest.TestCase):
             keys.send_text("\r")
             await need(lambda: bool(ui.dialogs) and "only answers" in ui.dialogs[0].title, 4)
             warned = ui.dialogs[0].title
-            await need(lambda: ui.dialogs[0].armed(), 3)                 # a question ignores keys for a moment
-            keys.send_text("\r")                                         # it starts on “No”
+            await need(lambda: ui.dialogs[0].armed(), 3)
+            keys.send_text("\r")
             await need(lambda: _on(ui, "A model for each check"), 4)
             keys.send_text("\x1b")
             await need(lambda: _on(ui, "Decision model"), 3)
@@ -1710,7 +1656,7 @@ class DecisionsMenu(unittest.TestCase):
         async def open_backups(ui, keys):
             keys.send_text("/decisions\r")
             await need(lambda: _on(ui, "Decision model"), 4)
-            keys.send_text("\x1b[B\x1b[B\r")                             # Backup models…
+            keys.send_text("\x1b[B\x1b[B\r")
             await need(lambda: _on(ui, "Backup decision models"), 4)
 
         async def drive(ui, keys):
@@ -1718,9 +1664,9 @@ class DecisionsMenu(unittest.TestCase):
             listed = _rows(ui)
             keys.send_text("mercury")
             await need(lambda: _rows(ui) == ["inception/mercury-decide:free"], 4)
-            keys.send_text("\t")                                         # tick (Space is a letter of the search)
+            keys.send_text("\t")
             await settle(0.1)
-            keys.send_text("\x15")                                       # Ctrl+U clears the search box
+            keys.send_text("\x15")
             keys.send_text("span-01")
             await need(lambda: "respan/span-01" in _rows(ui), 4)
             keys.send_text("\t")
@@ -1741,7 +1687,7 @@ class DecisionsMenu(unittest.TestCase):
         async def clear(ui, keys):
             await open_backups(ui, keys)
             before = sorted(ui.dialogs[0].options[position].value for position in ui.dialogs[0].selected)
-            keys.send_text("mercury")                                    # untick the two ticked rows
+            keys.send_text("mercury")
             await need(lambda: _rows(ui) == ["inception/mercury-decide:free"], 4)
             keys.send_text("\t")
             keys.send_text("\x15")
@@ -1771,12 +1717,12 @@ class DecisionsMenu(unittest.TestCase):
         async def drive(ui, keys):
             keys.send_text("/decisions\r")
             await need(lambda: _on(ui, "Decision model"), 4)
-            keys.send_text("\x1b[B\x1b[B\x1b[B\r")                       # What to use it for…
+            keys.send_text("\x1b[B\x1b[B\x1b[B\r")
             await need(lambda: bool(ui.dialogs) and "What the decision model is used for" in ui.dialogs[0].title, 4)
             ticked = sorted(ui.dialogs[0].selected)
-            keys.send_text("\x1b[B\x1b[B\x1b[B")                         # to “Skill hint”
+            keys.send_text("\x1b[B\x1b[B\x1b[B")
             await settle(0.1)
-            keys.send_text(" ")                                          # untick
+            keys.send_text(" ")
             await settle(0.1)
             keys.send_text("\r")
             await need(lambda: _on(ui, "Decision model"), 4)
@@ -1840,9 +1786,9 @@ class DecisionsMenu(unittest.TestCase):
             keys.send_text("\r")
             await need(lambda: _on(ui, "API key"), 4)
             offered = [option.label for option in ui.dialogs[0].options]
-            keys.send_text("\r")                                         # use the one I already have
+            keys.send_text("\r")
             await need(lambda: _on(ui, "Which model decides"), 4)
-            keys.send_text("\r")                                         # the first row
+            keys.send_text("\r")
             await need(lambda: _on(ui, "Decision model"), 4)
             keys.send_text("\x1b")
             await need(lambda: not ui.dialogs, 3)
@@ -1863,11 +1809,11 @@ class DecisionsMenu(unittest.TestCase):
         async def drive(ui, keys):
             keys.send_text("/decisions\r")
             await need(lambda: _on(ui, "Decision model"), 4)
-            keys.send_text("\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\r")      # Change the connection and key…
+            keys.send_text("\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\r")
             await need(lambda: _on(ui, "Where the decisions come from"), 4)
-            keys.send_text("\x1b[B\r")                                   # TypeSafe directly
+            keys.send_text("\x1b[B\r")
             await need(lambda: _on(ui, "API key"), 4)
-            keys.send_text("\x1b")                                       # cancelled: nothing is changed
+            keys.send_text("\x1b")
             await need(lambda: _on(ui, "Decision model"), 4)
             keys.send_text("\x1b")
             await need(lambda: not ui.dialogs, 3)
@@ -1883,7 +1829,7 @@ class DecisionsMenu(unittest.TestCase):
             await need(lambda: _on(ui, "Decision model"), 4)
             keys.send_text("\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\r")
             await need(lambda: _on(ui, "Where the decisions come from"), 4)
-            keys.send_text("\x1b[B\r")                                   # TypeSafe directly
+            keys.send_text("\x1b[B\r")
             await need(lambda: _on(ui, "API key"), 4)
             keys.send_text("ts-secret\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].text_mode is False and ui.dialogs[0].title != "API key", 6)
@@ -1900,7 +1846,6 @@ class DecisionsMenu(unittest.TestCase):
         self.assertFalse(config.get("fallbacks"))
         self.assertFalse(config.get("model"))
         self.assertEqual(runtime.decisions.base_url, "https://api.typesafe.ai")
-
 
 class LookingAtTheRequest(unittest.TestCase):
     def setUp(self):
@@ -1937,11 +1882,11 @@ class LookingAtTheRequest(unittest.TestCase):
             keys.send_text("rewrite the whole authentication system and migrate every user\r")
             await need(lambda: _on(ui, "This looks like a big task — plan it first?"), 8)
             offered = _rows(ui)
-            keys.send_text("\r")                                         # too early: the question ignores it…
+            keys.send_text("\r")
             await settle(0.2)
             early = ui.dialogs[0].future.done() if ui.dialogs else True
             await need(lambda: ui.dialogs[0].armed(), 3)
-            keys.send_text("\r")                                         # …now Enter: “Yes, plan first”
+            keys.send_text("\r")
             await need(lambda: not ui.busy and bool(backend.requests), 8)
             return offered, early
 
@@ -1961,7 +1906,7 @@ class LookingAtTheRequest(unittest.TestCase):
             await need(lambda: ui.dialogs[0].armed(), 3)
             keys.send_text("\x1b[B\x1b[B")
             await need(lambda: ui.dialogs[0].index == 2, 3)
-            keys.send_text("\r")                                         # Don't suggest this again
+            keys.send_text("\r")
             await need(lambda: not ui.busy and len(backend.requests) == 1, 8)
             return runtime.permissions.mode
 
@@ -1969,7 +1914,7 @@ class LookingAtTheRequest(unittest.TestCase):
         self.assertEqual(mode, "default")
         runtime.settings.reload()
         self.assertFalse(runtime.settings.get("decisions.uses.intent"))
-        # In auto mode the plan is never offered: the person chose not to be interrupted.
+
         server2 = FakeOpenRouter(choose={"skill": "none", "intent": "large_change"}, noul={"needs_plan": 0.97})
         auto, backend2 = decision_runtime(server2, turns=["Working."], settings={"permission_mode": "auto"})
 
@@ -1992,7 +1937,6 @@ class LookingAtTheRequest(unittest.TestCase):
 
         drive_ui(runtime, drive)
         self.assertEqual(server.calls, [])
-# ---------------------------------------------------------------- 10. /model auto, /model notes and /agents in the terminal
 
 class DialogRows(unittest.TestCase):
     def test_a_row_without_a_value_gives_its_label_and_a_row_with_none_gives_none(self):
@@ -2019,7 +1963,6 @@ class DialogRows(unittest.TestCase):
         ticked.choose()
         self.assertEqual(ticked.future.result(), ["b"])
 
-
 class RoutingMenus(unittest.TestCase):
     def setUp(self):
         self.config = tempfile.mkdtemp(prefix="memucode-routing-")
@@ -2044,11 +1987,11 @@ class RoutingMenus(unittest.TestCase):
             keys.send_text("/model auto\r")
             await need(lambda: _on(ui, "Auto model selection"), 4)
             rows = _rows(ui)
-            keys.send_text("\r")                                         # Simple requests
+            keys.send_text("\r")
             await need(lambda: bool(ui.dialogs) and "Simple requests" in ui.dialogs[0].title, 4)
             keys.send_text("glm")
             await need(lambda: len(_rows(ui)) == 3, 4)
-            keys.send_text("\t\t")                                       # tick the first two
+            keys.send_text("\t\t")
             await settle(0.1)
             ticked = [ui.dialogs[0].options[position].value for position in sorted(ui.dialogs[0].selected)]
             keys.send_text("\r")
@@ -2058,8 +2001,8 @@ class RoutingMenus(unittest.TestCase):
                 asked.append(ui.dialogs[0].title)
                 keys.send_text(note + "\r")
                 await settle(0.15)
-            await need(lambda: _on(ui, "Auto model selection"), 4)       # back in the menu
-            keys.send_text("\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\r")           # the last row: Done
+            await need(lambda: _on(ui, "Auto model selection"), 4)
+            keys.send_text("\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\r")
             await need(lambda: not ui.dialogs, 3)
             return rows, ticked, asked, _shown(ui)
 
@@ -2087,7 +2030,7 @@ class RoutingMenus(unittest.TestCase):
             before = [ui.dialogs[0].options[position].value for position in sorted(ui.dialogs[0].selected)]
             keys.send_text("kiro-glm")
             await need(lambda: _rows(ui) == ["kiro-glm-4.6"], 4)
-            keys.send_text("\t")                                         # untick it
+            keys.send_text("\t")
             await settle(0.1)
             keys.send_text("\r")
             await need(lambda: _on(ui, "Auto model selection"), 4)
@@ -2108,7 +2051,7 @@ class RoutingMenus(unittest.TestCase):
             keys.send_text("/model notes\r")
             await need(lambda: _on(ui, "Remarks about models"), 4)
             rows = _rows(ui)
-            keys.send_text("\x1b[B\x1b[B\x1b[B\r")                       # the last row: Done
+            keys.send_text("\x1b[B\x1b[B\x1b[B\r")
             await need(lambda: not ui.dialogs, 3)
             return rows
 
@@ -2126,7 +2069,7 @@ class RoutingMenus(unittest.TestCase):
         async def drive(ui, keys):
             keys.send_text("/agents\r")
             await need(lambda: _on(ui, "Agents"), 4)
-            keys.send_text("\r")                                         # Choose the models for agents…
+            keys.send_text("\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].title == "Models for agents", 4)
             keys.send_text("genspark")
             await need(lambda: _rows(ui) == ["genspark-gpt-5"], 4)
@@ -2143,10 +2086,10 @@ class RoutingMenus(unittest.TestCase):
                 await settle(0.15)
             await need(lambda: _on(ui, "Agents"), 4)
             rows = _rows(ui)
-            keys.send_text("\x1b[B\r")                                   # How an agent's model is chosen…
+            keys.send_text("\x1b[B\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].title == "How to choose an agent's model", 4)
             modes = _rows(ui)
-            keys.send_text("\x1b[B\x1b[B\r")                             # Always the first in the list
+            keys.send_text("\x1b[B\x1b[B\r")
             await need(lambda: _on(ui, "Agents"), 4)
             keys.send_text("\x1b")
             await need(lambda: not ui.dialogs, 3)
@@ -2158,7 +2101,6 @@ class RoutingMenus(unittest.TestCase):
         self.assertEqual(sorted(self.saved(runtime, "worker_models")), ["genspark-gpt-5", "kiro-claude-sonnet-4-5"])
         self.assertEqual(self.saved(runtime, "worker_pick"), "first")
         self.assertEqual(sorted(self.saved(runtime, "model_notes").values()), ["reviews carefully", "writes tests well"])
-# ---------------------------------------------------------------- 10. Auto mode: a floor under the judge
 
 class AutoModeFloor(unittest.TestCase):
     def setUp(self):
@@ -2167,7 +2109,6 @@ class AutoModeFloor(unittest.TestCase):
         patcher.start()
         self.addCleanup(patcher.stop)
 
-    # -------- the list itself
     def test_commands_that_always_need_the_persons_word(self):
         from app.cli.risk import risky_command
         always = [
@@ -2216,7 +2157,6 @@ class AutoModeFloor(unittest.TestCase):
                      "tests/test_env.py", "package.json", ".gitignore", ".github/CODEOWNERS", "app/.memucode/skills/x/SKILL.md"):
             self.assertEqual(risky_path(path), "", f"should be left to the judge: {path}")
 
-    # -------- in the permission flow
     def auto_runtime(self, server, turns, **extra):
         settings = {"permission_mode": "auto"}
         settings.update(extra)
@@ -2269,7 +2209,7 @@ class AutoModeFloor(unittest.TestCase):
             body = json.loads(request.content)
             answers = {key: {"type": "noul", "noul": 0.0} for key in body["questions"]}
             answers["aligned"] = {"type": "noul", "noul": 0.99}
-            answers["risk"] = {"type": "score"}                                   # no score at all
+            answers["risk"] = {"type": "score"}
             return httpx.Response(200, json={"model": body["model"], "answers": answers})
 
         server = FakeOpenRouter()
@@ -2309,13 +2249,11 @@ class AutoModeFloor(unittest.TestCase):
         runtime.reload_decisions()
         run(Agent(runtime).run_turn("make a folder"))
         self.assertEqual(server.calls[-1][0], "upstage/solar-decide")
-# ---------------------------------------------------------------- 4. sessions of other tools
 
 import sqlite3
 
 from app.cli import foreign
 from app.cli.foreign import handoff, protobuf
-
 
 def pb_varint(value):
     out = bytearray()
@@ -2326,20 +2264,16 @@ def pb_varint(value):
         if not value:
             return bytes(out)
 
-
 def pb_text(number, text):
     raw = text.encode("utf-8")
     return pb_varint((number << 3) | 2) + pb_varint(len(raw)) + raw
-
 
 def pb_message(number, *inner):
     body = b"".join(inner)
     return pb_varint((number << 3) | 2) + pb_varint(len(body)) + body
 
-
 def pb_int(number, value):
     return pb_varint(number << 3) + pb_varint(value)
-
 
 class FakeProfiles(unittest.TestCase):
     """Fake profiles of the other tools in a temporary folder. Every location is overridden, so nothing here can
@@ -2360,7 +2294,6 @@ class FakeProfiles(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("\n".join(json.dumps(row) for row in rows) + "\n", encoding="utf-8")
 
-    # -------- Claude Code
     def claude_session(self, name="3f2a9c10-aaaa-bbbb-cccc-000000000001", tail="Done: the cart total is fixed."):
         rows = [
             {"type": "summary", "summary": "Fix the cart total", "leafUuid": "x"},
@@ -2386,7 +2319,6 @@ class FakeProfiles(unittest.TestCase):
         path = self.home / "claude" / "projects" / "C--work-shop" / (name + ".jsonl")
         self.write_lines(path, rows)
         return path
-
 
 class OtherTools(FakeProfiles):
     def test_claude_code_sessions_are_listed_and_read(self):
@@ -2420,13 +2352,12 @@ class OtherTools(FakeProfiles):
         self.assertEqual((path.read_bytes(), path.stat().st_mtime_ns), before)
         self.assertEqual(sorted(p.name for p in path.parent.iterdir()), [path.name])
 
-    # -------- Codex
     def test_codex_sessions_in_every_generation_of_the_format(self):
         sid = "01a0e8f6-9446-7780-9a76-6d7367cc6ec6"
 
         def meta(stamp):
             return {"timestamp": stamp, "type": "session_meta", "payload": {"id": sid, "cwd": self.project, "timestamp": stamp}}
-        # newest: items
+
         newest = [meta("2026-09-02T09:00:00.000Z"),
                   {"timestamp": "2026-09-02T09:00:01.000Z", "type": "turn_context", "payload": {"cwd": self.project, "model": "gpt-6-sol"}},
                   {"timestamp": "2026-09-02T09:00:02.000Z", "type": "response_item", "payload": {"type": "message", "role": "developer", "content": [{"type": "input_text", "text": "<permissions instructions>x"}]}},
@@ -2436,11 +2367,11 @@ class OtherTools(FakeProfiles):
                   {"timestamp": "2026-09-02T09:00:06.000Z", "type": "event_msg", "payload": {"type": "item_completed", "item": {"type": "AgentMessage", "content": [{"type": "text", "text": "Added the flag."}]}}},
                   {"timestamp": "2026-09-02T09:00:07.000Z", "type": "event_msg", "payload": {"type": "item_completed", "item": {"type": "Reasoning"}}}]
         self.write_lines(self.home / "codex" / "sessions" / "2026" / "09" / "02" / f"rollout-2026-09-02T09-00-00-{sid}.jsonl", newest)
-        # a sub-agent's session is not listed
+
         self.write_lines(self.home / "codex" / "sessions" / "2026" / "09" / "02" / "rollout-2026-09-02T09-10-00-aaaaaaaa-0000-0000-0000-000000000000.jsonl",
                          [{"type": "session_meta", "payload": {"id": "aaaaaaaa-0000-0000-0000-000000000000", "parent_thread_id": sid, "cwd": self.project}},
                           {"type": "event_msg", "payload": {"type": "item_completed", "item": {"type": "UserMessage", "content": [{"type": "text", "text": "sub task"}]}}}])
-        # older: response items, with the attached-files wrapper around the request
+
         old_id = "02b1f9a7-0000-1111-2222-333333333333"
         older = [{"type": "session_meta", "payload": {"id": old_id, "cwd": self.project, "timestamp": "2026-08-01T08:00:00Z"}},
                  {"type": "response_item", "payload": {"type": "message", "role": "user", "content": [{"type": "input_text", "text": "<environment_context>cwd</environment_context>"}]}},
@@ -2464,7 +2395,6 @@ class OtherTools(FakeProfiles):
         self.assertEqual([turn.role for turn in old.turns], ["user", "assistant", "tool", "assistant"])
         self.assertEqual(old.turns[2].text, "a.py")
 
-    # -------- Grok
     def test_grok_sessions(self):
         folder = self.home / "grok" / "sessions" / "C%3A%5Cwork%5Cshop" / "01a0c509-3a02-7692-972e-62de1fcf0fdb"
         folder.mkdir(parents=True)
@@ -2487,7 +2417,6 @@ class OtherTools(FakeProfiles):
                          [("user", ""), ("assistant", ""), ("assistant", "run_command"), ("tool", "run_command"), ("assistant", "")])
         self.assertEqual((session.turns[3].detail, session.turns[3].text), ("npm run build", "error TS2304"))
 
-    # -------- Gemini CLI
     def test_gemini_sessions_in_both_formats_and_the_set_records(self):
         chats = self.home / "gemini" / "tmp" / "shop" / "chats"
         chats.mkdir(parents=True)
@@ -2518,7 +2447,6 @@ class OtherTools(FakeProfiles):
         self.assertEqual([(t.role, t.text) for t in second.turns], [("user", "Add logging"), ("assistant", "Logging added."), ("note", "quota exceeded")])
         self.assertAlmostEqual(by_id[new_id].updated - by_id[new_id].started, 540, delta=1)
 
-    # -------- Antigravity
     def agy_database(self, conversation="7a6ae29e-9f3a-4e0c-8c6f-aaaaaaaaaaaa"):
         folder = self.home / "agy" / "conversations"
         folder.mkdir(parents=True)
@@ -2570,7 +2498,6 @@ class OtherTools(FakeProfiles):
         self.assertIsNone(protobuf.decode(b""))
         self.assertEqual(protobuf.longest(tree, "20"), "hello world")
 
-    # -------- OpenCode
     def test_opencode_database(self):
         folder = self.home / "share" / "opencode"
         folder.mkdir(parents=True)
@@ -2599,7 +2526,6 @@ class OtherTools(FakeProfiles):
                          [("user", "", "Why is the b"), ("assistant", "bash", ""), ("tool", "bash", "built in 41s"), ("assistant", "", "The bundler ")])
         self.assertEqual(session.turns[1].detail, "npm run build")
 
-    # -------- Cursor (documented formats only)
     def test_cursor_agent_store_and_the_editor_database(self):
         store = self.home / "cursor" / "chats" / foreign.SOURCES["cursor"].module.folder_hash(self.project) / "sess-1" / "store.db"
         store.parent.mkdir(parents=True)
@@ -2658,7 +2584,6 @@ class OtherTools(FakeProfiles):
         self.assertEqual(foreign.source_for("Claude-Code").key, "claude")
         self.assertEqual(foreign.source_for("antigravity").key, "agy")
         self.assertIsNone(foreign.source_for("vim"))
-
 
 class HandOff(unittest.TestCase):
     def session(self, turns, **info):
@@ -2803,7 +2728,7 @@ class ResumeFromOtherTools(FakeProfiles):
             await need(lambda: bool(ui.dialogs) and "Switch there" in ui.dialogs[0].title, 6)
             title = ui.dialogs[0].title
             await need(lambda: ui.dialogs[0].armed(), 3)
-            keys.send_text("\r")                                         # Yes
+            keys.send_text("\r")
             await need(lambda: bool(backend.requests) and not ui.busy, 8)
             return title
 
@@ -2885,7 +2810,6 @@ class ProfilesWithSettings(FakeProfiles):
         return configs.ApplyEnv(settings=_FakeSettings(), project=project, skills_dir=root / "skills", commands_dir=root / "commands",
                                 agents_dir=root / "agents", memory_file=root / "MEMUCODE.md",
                                 load_mcp=lambda: store, save_mcp=lambda config: store.update(config)), store
-
 
 class ImportingFromOtherTools(ProfilesWithSettings):
     """Settings and sessions copied into MemuCode — and the guarantee that nothing else is touched."""
@@ -3033,7 +2957,6 @@ class ImportingFromOtherTools(ProfilesWithSettings):
         self.assertFalse(saved.path.exists())
         self.assertEqual([row for row in session_module.list_sessions(root) if row["id"] == saved.id], [])
 
-
 class _FakeSettings:
     """Just enough of Settings for ``configs.apply``: a record of what was added to which list."""
 
@@ -3086,7 +3009,7 @@ class ImportAndDashboardInTheTerminal(ProfilesWithSettings):
                 await need(lambda: bool(ui.dialogs) and ui.dialogs[0].title == "Import this?", 6)
                 summary = re.sub(r"\x1b\[[0-9;]*m", "", ui.dialogs[0].body)
                 await need(lambda: ui.dialogs[0].armed(), 3)
-                keys.send_text("\r")                                         # Yes
+                keys.send_text("\r")
                 await need(lambda: "Settings added" in _shown(ui), 8)
                 return options, ticked, summary, _shown(ui)
 
@@ -3151,7 +3074,6 @@ class ImportAndDashboardInTheTerminal(ProfilesWithSettings):
         _ui, dialog = drive_ui(runtime, drive)
         self.assertFalse(dialog)
 
-    # -------- the dashboard
     def own_session(self, root, title, *, when=0.0):
         from app.cli.session import Session
         session = Session(Path(root))
@@ -3177,7 +3099,7 @@ class ImportAndDashboardInTheTerminal(ProfilesWithSettings):
             dialog = ui.dialogs[0]
             tabs = list(dialog.tabs)
             first = [option.value[1]["id"] for option in dialog.options]
-            keys.send_text("\t")                                          # next tab
+            keys.send_text("\t")
             await need(lambda: ui.dialogs[0].tab_index == 1, 3)
             second = [option.value[1].id for option in ui.dialogs[0].options]
             keys.send_text("\x1b")
@@ -3193,24 +3115,24 @@ class ImportAndDashboardInTheTerminal(ProfilesWithSettings):
     def test_a_conversation_is_renamed_and_deleted_from_the_dashboard(self):
         runtime, _backend = self.runtime_here()
         doomed = self.own_session(self.project, "Delete me")
-        keep = self.own_session(self.project, "Keep me")                # the newer one is the first row
+        keep = self.own_session(self.project, "Keep me")
         from app.cli.session import list_sessions
 
         async def drive(ui, keys):
             keys.send_text("/dashboard\r")
             await need(lambda: _on(ui, "All sessions"), 6)
-            keys.send_text("\r")                                          # the first row: Keep me
+            keys.send_text("\r")
             await need(lambda: bool(ui.dialogs) and "Keep me" in ui.dialogs[0].title, 4)
-            keys.send_text("\x1b[B\r")                                    # Rename…
+            keys.send_text("\x1b[B\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].text_mode, 4)
-            keys.send_text("\x15Kept and renamed\r")                      # Ctrl+U clears the name that is offered
+            keys.send_text("\x15Kept and renamed\r")
             await need(lambda: _on(ui, "All sessions"), 6)
-            keys.send_text("\x1b[B\r")                                    # the second row: Delete me
+            keys.send_text("\x1b[B\r")
             await need(lambda: bool(ui.dialogs) and "Delete me" in ui.dialogs[0].title, 4)
-            keys.send_text("\x1b[B\x1b[B\x1b[B\r")                        # Delete…
+            keys.send_text("\x1b[B\x1b[B\x1b[B\r")
             await need(lambda: bool(ui.dialogs) and "Delete" in ui.dialogs[0].title and ui.dialogs[0].danger, 4)
             await need(lambda: ui.dialogs[0].armed(), 3)
-            keys.send_text("\x1b[B\r")                                    # a danger question lists No first: move to Yes
+            keys.send_text("\x1b[B\r")
             await need(lambda: not doomed.path.exists(), 4)
             keys.send_text("\x1b")
             await need(lambda: not ui.dialogs, 4)
@@ -3231,7 +3153,7 @@ class ImportAndDashboardInTheTerminal(ProfilesWithSettings):
             keys.send_text("\r")
             await need(lambda: bool(ui.dialogs) and "Claude Code:" in ui.dialogs[0].title, 4)
             actions = [option.value for option in ui.dialogs[0].options]
-            keys.send_text("\x1b[B\r")                                    # Import as a MemuCode conversation
+            keys.send_text("\x1b[B\r")
             await need(lambda: "Imported conversations: 1" in _shown(ui), 8)
             await need(lambda: _on(ui, "All sessions"), 6)
             keys.send_text("\x1b")
@@ -3243,19 +3165,16 @@ class ImportAndDashboardInTheTerminal(ProfilesWithSettings):
         from app.cli.session import list_sessions
         self.assertEqual([row["imported_from"] for row in list_sessions(Path(self.project)) if row["id"].startswith("imp-")], ["claude"])
         self.assertEqual(backend.requests, [], "importing does not start the model")
-# ---------------------------------------------------------------- 4. /schedule
 
 from datetime import datetime
 
 from app.cli import schedule
 
-
 def at(year, month, day, hour=0, minute=0):
     return datetime(year, month, day, hour, minute).timestamp()
 
-
 class ScheduleTimes(unittest.TestCase):
-    NOW = at(2026, 10, 1, 8, 30)                 # a Thursday
+    NOW = at(2026, 10, 1, 8, 30)
 
     def test_what_people_write_becomes_a_schedule(self):
         parse = lambda text: schedule.parse_when(text, self.NOW)
@@ -3316,7 +3235,6 @@ class ScheduleTimes(unittest.TestCase):
         self.assertIn("mon, fri", schedule.describe_when({"kind": "daily", "time": "18:30", "days": [0, 4]}))
         self.assertIn("2h", schedule.describe_when({"kind": "every", "seconds": 7200}))
         self.assertIn("cron 0 9", schedule.describe_when({"kind": "cron", "expr": "0 9 * * *"}))
-
 
 class ScheduleStore(unittest.TestCase):
     def setUp(self):
@@ -3387,7 +3305,6 @@ class ScheduleStore(unittest.TestCase):
         self.assertEqual(schedule.get_task(task.id).last_status, "running")
         self.assertTrue(schedule.claim_run(task.id, now + 3 * 3600), "a claim that was never released expires")
         self.assertFalse(schedule.claim_run("no-such-task", now))
-
 
 class ScheduleRuns(unittest.TestCase):
     def setUp(self):
@@ -3502,7 +3419,6 @@ class ScheduleRuns(unittest.TestCase):
             self.assertEqual(cli_main.main(["schedule", "run", "nothing-like-it"]), 2)
             self.assertEqual(cli_main.main(["schedule", "bogus"]), 2)
 
-
 class WindowsScheduler(unittest.TestCase):
     """Nothing here touches the real Task Scheduler: ``schtasks`` is replaced by a recorder."""
 
@@ -3603,7 +3519,6 @@ class WindowsScheduler(unittest.TestCase):
         self.assertEqual(schedule.unregister(task.id, run=lambda *a, **k: Missing())[0], True, "removing what is not there is fine")
         self.assertFalse(schedule.registered(task.id, run=lambda *a, **k: Missing()))
 
-
 class ScheduleInTheTerminal(unittest.TestCase):
     def setUp(self):
         self.config = tempfile.mkdtemp(prefix="memucode-sched-")
@@ -3620,23 +3535,23 @@ class ScheduleInTheTerminal(unittest.TestCase):
         async def drive(ui, keys):
             keys.send_text("/schedule\r")
             await need(lambda: _on(ui, "Scheduled tasks"), 4)
-            keys.send_text("\r")                                          # ＋ New task…
+            keys.send_text("\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].text_mode, 4)
             keys.send_text("check that the tests pass\r")
             await need(lambda: _on(ui, "When to run"), 4)
-            keys.send_text("\x1b[B\x1b[B\r")                              # Every day at 09:00
+            keys.send_text("\x1b[B\x1b[B\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].title == "What the task may do", 4)
             modes = [option.value for option in ui.dialogs[0].options]
-            keys.send_text("\r")                                          # Edit the project's files (the default row)
+            keys.send_text("\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].title == "Create the task?", 4)
             await need(lambda: ui.dialogs[0].armed(), 3)
             keys.send_text("\r")
             await need(lambda: _on(ui, "Scheduled tasks") and len(ui.dialogs[0].options) == 3, 6)
             rows = [option.label for option in ui.dialogs[0].options]
-            keys.send_text("\x1b[B\r")                                    # the task
+            keys.send_text("\x1b[B\r")
             await need(lambda: bool(ui.dialogs) and "check that the tests pass" in ui.dialogs[0].title, 4)
             actions = [option.value for option in ui.dialogs[0].options]
-            keys.send_text("\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\r")            # Pause
+            keys.send_text("\x1b[B\x1b[B\x1b[B\x1b[B\x1b[B\r")
             await need(lambda: not schedule.load_tasks()[0].enabled, 4)
             keys.send_text("\x1b")
             await need(lambda: _on(ui, "Scheduled tasks"), 4)
@@ -3659,7 +3574,7 @@ class ScheduleInTheTerminal(unittest.TestCase):
         async def drive(ui, keys):
             keys.send_text("/schedule weekdays 09:00 -- summarise yesterday's commits\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].title == "What the task may do", 4)
-            keys.send_text("\x1b[B\r")                                    # the list opens on “Edit the project's files”: one down is Auto
+            keys.send_text("\x1b[B\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].title == "Create the task?", 4)
             await need(lambda: ui.dialogs[0].armed(), 3)
             keys.send_text("\r")
@@ -3674,7 +3589,7 @@ class ScheduleInTheTerminal(unittest.TestCase):
             keys.send_text(f"/schedule delete {task.id}\r")
             await need(lambda: bool(ui.dialogs) and ui.dialogs[0].danger, 4)
             await need(lambda: ui.dialogs[0].armed(), 3)
-            keys.send_text("\x1b[B\r")                                    # a danger question lists No first
+            keys.send_text("\x1b[B\r")
             await need(lambda: not schedule.load_tasks(), 4)
             return _shown(ui)
 
@@ -3725,7 +3640,7 @@ class ScheduleInTheTerminal(unittest.TestCase):
         schedule.save_task(task)
         code = ("from app.cli import schedule; schedule.update_task(%r, last_status='ok', last_summary='all quiet', runs=1)" % task.id)
         repo = str(Path(__file__).resolve().parents[1])
-        # (other tests leave the working folder elsewhere, so the child process is told where the code is)
+
         with patch.object(schedule, "command_line", lambda *args: [sys.executable, "-c", code]), \
                 patch.dict(os.environ, {"PYTHONPATH": repo}):
             async def drive(ui, keys):
@@ -3754,7 +3669,6 @@ class ScheduleInTheTerminal(unittest.TestCase):
         self.assertIn("boom: no module", shown)
         saved = schedule.get_task(task.id)
         self.assertEqual((saved.last_status, saved.running_since), ("error", 0.0))
-# ---------------------------------------------------------------- 9b. what the agent loop does at every request
 
 class LoopOverhead(unittest.TestCase):
     def test_counting_tokens_gives_the_same_numbers_when_remembered_and_stays_bounded(self):
@@ -3804,7 +3718,6 @@ class LoopOverhead(unittest.TestCase):
             agent.build_request()
         per_request = (time.perf_counter() - started) / 5
         self.assertLess(per_request, 0.25, f"{per_request * 1000:.0f} ms per request on 900 messages")
-# ---------------------------------------------------------------- the bug hunt: arguments the tools refused or misread
 
 class ToolArguments(unittest.TestCase):
     def setUp(self):
@@ -3830,7 +3743,6 @@ class ToolArguments(unittest.TestCase):
     def feedback(self, backend):
         return str(backend.requests[-1].messages[-1]["content"])
 
-    # -------- parser: valid JSON is never "repaired"
     def test_valid_json_is_read_as_json_whatever_the_keys_are_called(self):
         calls = [{"tool": "Edit", "args": {"file_path": "a.py", "old_text": "y = 2", "new_text": "y = 3", "something_new": True}}]
         text = self.block(*calls)
@@ -3851,7 +3763,6 @@ class ToolArguments(unittest.TestCase):
         self.assertEqual(result.calls[0].args["content"], 'she said "hello" to me')
         self.assertTrue(result.repairs)
 
-    # -------- arguments
     def test_an_empty_file_can_be_created(self):
         runtime, backend = self.go([{"tool": "Write", "args": {"file_path": "pkg/__init__.py", "content": ""}}])
         self.assertEqual((runtime.root / "pkg" / "__init__.py").read_text(encoding="utf-8"), "")
@@ -3939,7 +3850,7 @@ class WhatTheModelKnowsAboutTheSetup(unittest.TestCase):
                                            "use_models": {"skills": "inception/mercury-decide:free"}, "fallbacks": ["respan/span-01"],
                                            "uses": {"intent": False}})
         runtime.reload_decisions()
-        text = self.prompt(runtime)                                 # the cached prompt is rebuilt: the setup is part of its key
+        text = self.prompt(runtime)
         self.assertIn("fast-css: quick, good at CSS", text)
         self.assertIn("fast: fast-css; strong: big-one", text)
         self.assertIn("typesafe/jev-1.13", text)
@@ -4044,7 +3955,7 @@ class BigFolderSuggestions(unittest.TestCase):
 
             def spy(document, complete_event=None, cancelled=lambda: False):
                 import threading
-                if " " in document.text_before_cursor:          # the folder, not the name of the command being typed
+                if " " in document.text_before_cursor:
                     seen.append(threading.current_thread().name)
                 return original(document, complete_event, cancelled)
 

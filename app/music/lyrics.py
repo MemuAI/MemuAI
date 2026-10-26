@@ -24,36 +24,34 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 from .library import Library
 
 API = "https://lrclib.net/api"
-#: An empty answer is cached too, but retried after a week (new lyrics appear all the time).
+
 MISS_TTL = 7 * 86400
 SOURCES = ("lrclib", "musixmatch", "netease", "qq", "genius", "lyricsovh")
 SYNCED_SOURCES = ("lrclib", "musixmatch", "netease", "qq")
 SOURCE_NAMES = {"lrclib": "LRCLIB", "musixmatch": "Musixmatch", "netease": "NetEase", "qq": "QQ Music",
                 "genius": "Genius", "lyricsovh": "lyrics.ovh", "manual": "manual"}
-DEADLINE = 12.0          # seconds for the whole parallel search
+DEADLINE = 12.0
 MAX_ALTS = 12
 _UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36"
 _LINE = re.compile(r"^\s*((?:\[\d{1,3}:\d{1,2}(?:[.:]\d{1,3})?\])+)(.*)$")
 _STAMP = re.compile(r"\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]")
 _WORD = re.compile(r"<(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?>")
-_TAIL = re.compile(r"\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]\s*$")   # r41b: «[00:01.00]text[00:05.20]» — where the line ends
+_TAIL = re.compile(r"\[(\d{1,3}):(\d{1,2})(?:[.:](\d{1,3}))?\]\s*$")
 _OFFSET = re.compile(r"^\s*\[offset:\s*([+-]?\d+)\s*\]", re.I | re.M)
-#: credit lines Chinese sources put at the top («作词 : …», «Lyrics by：…»)
+
 _CREDIT = re.compile(r"^\s*(作词|作曲|编曲|制作人|制作|混音|母带|和声|吉他|贝斯|鼓|监制|出品|录音|词|曲|"
                      r"lyrics by|lyricist|composed by|composer|produced by|producer|arranged by|written by|mixed by|"
                      r"mastered by|recorded by)\s*[:：]", re.I)
 
-
 def _sec(mm: str, ss: str, frac: str) -> float:
     return int(mm) * 60 + int(ss) + (int(frac) / (10 ** len(frac)) if frac else 0)
-
 
 def parse_lrc(text: Optional[str]) -> Optional[List[list]]:
     """LRC → ``[[sec, line], …]``; enhanced LRC (``<mm:ss.xx>`` before words) adds ``[[sec, word], …]``."""
     if not text:
         return None
     m = _OFFSET.search(text)
-    shift = -int(m.group(1)) / 1000 if m else 0.0   # [offset:+500] = lyrics come 0.5 s earlier
+    shift = -int(m.group(1)) / 1000 if m else 0.0
     out: List[list] = []
     for raw in text.splitlines():
         m = _LINE.match(raw)
@@ -67,13 +65,13 @@ def parse_lrc(text: Optional[str]) -> Optional[List[list]]:
             end = round(max(0.0, _sec(*tail.groups(default="")) + shift), 2)
             body = body[:tail.start()]
         if _WORD.search(body):
-            parts = _WORD.split(body)       # [before, mm, ss, frac, text, mm, ss, frac, text, …]
+            parts = _WORD.split(body)
             for i in range(1, len(parts) - 3, 4):
                 word, at = parts[i + 3], round(max(0.0, _sec(parts[i], parts[i + 1], parts[i + 2]) + shift), 2)
                 if word.strip():
                     words.append([at, word])
                 elif words and i + 4 >= len(parts) - 3:
-                    end = at                 # r41b: a trailing «<mm:ss.xx>» after the last word = the end of the line
+                    end = at
             body = _WORD.sub("", body)
         line = re.sub(r"\s+", " ", body).strip()
         for mm, ss, frac in _STAMP.findall(m.group(1)):
@@ -88,10 +86,8 @@ def parse_lrc(text: Optional[str]) -> Optional[List[list]]:
     out.sort(key=lambda x: x[0])
     return out or None
 
-
 _YRC_LINE = re.compile(r"^\[(\d+),(\d+)\](.*)$")
 _YRC_WORD = re.compile(r"\((\d+),(\d+),\d+\)")
-
 
 def parse_yrc(text: Optional[str]) -> Optional[List[list]]:
     """NetEase «yrc»: ``[startMs,durMs](wordStartMs,wordDurMs,0)word(…)word`` → ``[sec, line, [[sec, word, end]…], end]``.
@@ -102,7 +98,7 @@ def parse_yrc(text: Optional[str]) -> Optional[List[list]]:
         if not m:
             continue
         start, dur = int(m.group(1)) / 1000, int(m.group(2)) / 1000
-        parts = _YRC_WORD.split(m.group(3))   # [before, ms, dur, word, ms, dur, word, …]
+        parts = _YRC_WORD.split(m.group(3))
         words = [[round(int(parts[i]) / 1000, 2), parts[i + 2], round((int(parts[i]) + int(parts[i + 1])) / 1000, 2)]
                  for i in range(1, len(parts) - 2, 3) if parts[i + 2].strip()]
         line = re.sub(r"\s+", " ", "".join(w[1] for w in words)).strip()
@@ -111,7 +107,6 @@ def parse_yrc(text: Optional[str]) -> Optional[List[list]]:
         out.append([round(start, 2), line, words, round(start + dur, 2)] if dur > 0 else [round(start, 2), line, words])
     out.sort(key=lambda x: x[0])
     return out or None
-
 
 def _strip_credits(synced: Optional[List[list]], title: str = "") -> Optional[List[list]]:
     """Drop credit lines and the «Title - Artist» header from the first seconds of NetEase / QQ lyrics."""
@@ -126,14 +121,10 @@ def _strip_credits(synced: Optional[List[list]], title: str = "") -> Optional[Li
         out.append(row)
     return out if len(out) >= 2 else None
 
-
-# ---------------------------------------------------------------------- matching
-
 _TRANSLIT = dict(zip("абвгдеёжзийклмнопрстуфхцчшщъыьэюя",
                      ["a", "b", "v", "g", "d", "e", "e", "zh", "z", "i", "i", "k", "l", "m", "n", "o", "p", "r", "s",
                       "t", "u", "f", "h", "ts", "ch", "sh", "sch", "", "y", "", "e", "yu", "ya"]))
 _NOISE = r"official|video|audio|lyrics?|lyric video|clip|клип|remaster(?:ed)?|hd|hq|4k|visualizer|mv|m/v|live|текст|премьера|explicit"
-
 
 def clean_title(title: str) -> str:
     """«Song (Official Video) [Lyrics] (feat. X)» → «Song»."""
@@ -143,29 +134,25 @@ def clean_title(title: str) -> str:
     text = re.sub(r"\s*[|｜].*$", "", text)
     return re.sub(r"\s+", " ", text).strip(" -–—") or str(title or "").strip()
 
-
 def clean_artist(artist: str) -> str:
     text = re.sub(r"\s*-\s*topic$", "", str(artist or ""), flags=re.I)
     text = re.split(r"\s*(?:,|&|\bfeat\.?|\bft\.?|\bx\b|;|/)\s*", text, flags=re.I)[0]
     return re.sub(r"\s*vevo$", "", text, flags=re.I).strip()
 
-
 def query_of(row: Dict[str, Any]) -> Dict[str, Any]:
     title, artist = clean_title(row.get("title") or ""), clean_artist(row.get("artist") or "")
-    # YouTube uploads: «Artist - Song» in the title, the channel as the artist
+
     if " - " in title:
         left, right = [x.strip() for x in title.split(" - ", 1)]
         if not artist or norm(artist) in norm(left) or norm(left) in norm(artist):
             artist, title = clean_artist(left) or artist, clean_title(right)
     return {"title": title, "artist": artist, "album": row.get("album") or "", "duration": float(row.get("duration") or 0)}
 
-
 def norm(value: str) -> str:
     text = str(value or "").lower().replace("ё", "е")
     text = "".join(_TRANSLIT.get(ch, ch) for ch in text)
     text = re.sub(r"[\(\[][^\)\]]*[\)\]]", " ", text)
     return re.sub(r"[^\w]+", " ", text, flags=re.UNICODE).replace("_", " ").strip()
-
 
 def similarity(a: str, b: str) -> float:
     x, y = norm(a), norm(b)
@@ -176,7 +163,6 @@ def similarity(a: str, b: str) -> float:
     if (len(x) >= 3 and x in y) or (len(y) >= 3 and y in x):
         return 0.9
     return difflib.SequenceMatcher(None, x, y).ratio()
-
 
 def score(cand: Dict[str, Any], q: Dict[str, Any]) -> float:
     """0..~1.4: how well a candidate fits the track. Below 0.55 it is not this song."""
@@ -199,11 +185,9 @@ def score(cand: Dict[str, Any], q: Dict[str, Any]) -> float:
             value += 0.03
     return round(value, 4)
 
-
 def _plausible(text: str, duration: float) -> bool:
     lines = [l for l in (text or "").splitlines() if l.strip()]
     return bool(text) and (len(lines) >= 4 or len(text) >= 80 or bool(duration and duration < 60))
-
 
 def _cand(source: str, title: str, artist: str, duration: float, synced: Optional[list], plain: Optional[str],
           instrumental: bool = False) -> Optional[Dict[str, Any]]:
@@ -214,9 +198,6 @@ def _cand(source: str, title: str, artist: str, duration: float, synced: Optiona
     return {"source": source, "title": title or "", "artist": artist or "", "duration": round(float(duration or 0), 1),
             "synced": synced if synced and len(synced) >= 2 else None, "plain": (plain or "").strip() or None,
             "instrumental": bool(instrumental)}
-
-
-# ---------------------------------------------------------------------- providers (each: client, query -> candidates)
 
 def _lrclib(client, q) -> List[Dict[str, Any]]:
     hits: List[Dict[str, Any]] = []
@@ -233,7 +214,7 @@ def _lrclib(client, q) -> List[Dict[str, Any]]:
     r = None if exact else client.get(f"{API}/search", params={"track_name": q["title"], "artist_name": q["artist"]} if q["artist"]
                    else {"q": q["title"]})
     if r is None:
-        pass   # /get gave the synced lyrics with the same length: no need for /search
+        pass
     elif r.status_code == 200 and isinstance(r.json(), list):
         hits += r.json()[:10]
     elif r.status_code >= 500 and not hits:
@@ -249,17 +230,14 @@ def _lrclib(client, q) -> List[Dict[str, Any]]:
             out.append(c)
     return out
 
-
 _MXM = "https://apic-desktop.musixmatch.com/ws/1.1/"
 _MXM_TOKEN: Dict[str, Any] = {"token": "", "at": 0.0}
-
 
 def _mxm_get(client, method: str, params: Dict[str, Any]) -> Dict[str, Any]:
     r = client.get(_MXM + method, params={**params, "app_id": "web-desktop-app-v1.0", "format": "json"},
                    headers={"Cookie": "AWSELBCORS=0; AWSELB=0", "authority": "apic-desktop.musixmatch.com"})
     data = r.json() if r.status_code == 200 else {}
     return ((data or {}).get("message") or {})
-
 
 def _musixmatch(client, q) -> List[Dict[str, Any]]:
     token = _MXM_TOKEN["token"] if time.time() - _MXM_TOKEN["at"] < 600 else ""
@@ -292,7 +270,6 @@ def _musixmatch(client, q) -> List[Dict[str, Any]]:
             break
     return out
 
-
 def _richsync(body: Optional[str]) -> Optional[List[list]]:
     """Musixmatch richsync JSON: ``[{ts, te, x, l: [{c, o}]}]`` → lines with word timing."""
     try:
@@ -309,16 +286,15 @@ def _richsync(body: Optional[str]) -> Optional[List[list]]:
                 if c.strip():
                     words.append([round(start + float(w.get("o") or 0), 2), c])
                 elif words:
-                    words[-1][1] += c        # r41b: the spaces stay with the word before (the window joins words as is)
+                    words[-1][1] += c
             line = [round(start, 2), re.sub(r"\s+", " ", str(row.get("x") or "")).strip(), words or None]
             end = float(row.get("te") or 0)
             if end > start:
-                line.append(round(end, 2))   # r41b: richsync knows where the sung line ends
+                line.append(round(end, 2))
             out.append(line if words or len(line) > 3 else line[:2])
         except (KeyError, TypeError, ValueError):
             continue
     return out or None
-
 
 def _netease(client, q) -> List[Dict[str, Any]]:
     head = {"Referer": "https://music.163.com", "Cookie": "appver=2.0.2; os=pc"}
@@ -337,14 +313,13 @@ def _netease(client, q) -> List[Dict[str, Any]]:
         data = (lr.json() if lr.status_code == 200 else {}) or {}
         text = (data.get("lrc") or {}).get("lyric") or ""
         instrumental = "纯音乐" in text
-        # r41b: «yrc» — NetEase word timing with the duration of every line and word (where the singing ends)
+
         synced = None if instrumental else (_strip_credits(parse_yrc((data.get("yrc") or {}).get("lyric")), cand["title"])
                                             or _strip_credits(parse_lrc(text), cand["title"]))
         c = _cand("netease", cand["title"], cand["artist"], cand["duration"], synced, None, instrumental)
         if c:
             out.append(c)
     return out
-
 
 def _qq(client, q) -> List[Dict[str, Any]]:
     head = {"Referer": "https://y.qq.com/portal/player.html"}
@@ -367,7 +342,6 @@ def _qq(client, q) -> List[Dict[str, Any]]:
             break
     return out
 
-
 def genius_lyrics(page: str) -> str:
     """Text of the ``data-lyrics-container`` blocks of a genius.com song page (``<br>`` → new line, no tags)."""
     out = []
@@ -383,7 +357,6 @@ def genius_lyrics(page: str) -> str:
     text = re.sub(r"<br\s*/?>", "\n", text)
     text = html.unescape(re.sub(r"<[^>]+>", "", text))
     return re.sub(r"\n{3,}", "\n\n", "\n".join(l.strip() for l in text.splitlines())).strip()
-
 
 def _genius(client, q) -> List[Dict[str, Any]]:
     r = client.get("https://genius.com/api/search/multi", params={"per_page": 5, "q": f"{q['artist']} {q['title']}".strip()},
@@ -403,7 +376,6 @@ def _genius(client, q) -> List[Dict[str, Any]]:
         return [c] if c else []
     return []
 
-
 def _lyricsovh(client, q) -> List[Dict[str, Any]]:
     if not q["artist"]:
         return []
@@ -414,16 +386,13 @@ def _lyricsovh(client, q) -> List[Dict[str, Any]]:
     c = _cand("lyricsovh", q["title"], q["artist"], 0, None, re.sub(r"\n{3,}", "\n\n", text))
     return [c] if c else []
 
-
 PROVIDERS: Dict[str, Callable[[Any, Dict[str, Any]], List[Dict[str, Any]]]] = {
     "lrclib": _lrclib, "musixmatch": _musixmatch, "netease": _netease, "qq": _qq, "genius": _genius, "lyricsovh": _lyricsovh}
-
 
 def _default_client():
     import httpx
     return httpx.Client(timeout=httpx.Timeout(6, read=8), follow_redirects=True,
                         headers={"User-Agent": "MemuAI MemuMusic (local music player)"})
-
 
 def search(q: Dict[str, Any], sources: List[str], client_factory: Optional[Callable[[], Any]] = None,
            plain_fallback: bool = True) -> Tuple[List[Dict[str, Any]], Dict[str, str]]:
@@ -450,7 +419,7 @@ def search(q: Dict[str, Any], sources: List[str], client_factory: Optional[Calla
             continue
         try:
             found = fut.result()
-        except Exception as error:   # one broken source never breaks the search
+        except Exception as error:
             status[name] = str(error)[:120] or type(error).__name__
             continue
         status[name] = "ok" if found else "empty"
@@ -459,19 +428,18 @@ def search(q: Dict[str, Any], sources: List[str], client_factory: Optional[Calla
     for c in cands:
         c["score"] = score(c, q)
         if c["source"] == "lyricsovh" and not c["score"]:
-            c["score"] = 0.55   # a direct «artist/title» lookup: the title is ours by construction
+            c["score"] = 0.55
     cands = [c for c in cands if c["score"] > 0.55 or c.get("instrumental")]
     has_synced = any(c["synced"] for c in cands)
     if has_synced or not plain_fallback:
         cands = [c for c in cands if c["synced"] or c.get("instrumental")] + \
                 ([c for c in cands if not c["synced"] and not c.get("instrumental")] if plain_fallback else [])
-    # r41-ui: timings are only right for a version of the same length — among the synced ones the duration match (±2 s)
-    # goes first, an unknown duration next, another version (a mismatch) last, whatever its score.
+
     def fit(c: Dict[str, Any]) -> int:
         dur, want = float(c.get("duration") or 0), q["duration"]
         return 1 if not (dur and want) else 0 if abs(dur - want) <= 2 else 2
     cands.sort(key=lambda c: (not c["synced"], fit(c) if c["synced"] else 0, -c["score"], order.get(c["source"], 99)))
-    # the same text uploaded many times (LRCLIB) is one variant; at most 3 variants per source
+
     out, seen, per = [], set(), {}
     for c in cands:
         key = (c["source"], bool(c["synced"]), norm(" ".join((c["plain"] or "").splitlines()[:4]))[:160])
@@ -482,9 +450,6 @@ def search(q: Dict[str, Any], sources: List[str], client_factory: Optional[Calla
         out.append(c)
     return out[:MAX_ALTS], status
 
-
-# ---------------------------------------------------------------------- storage (own table, next to «lyrics»)
-
 def _ensure(lib: Library) -> None:
     if getattr(lib, "_lyrics_alts_ready", False):
         return
@@ -492,7 +457,6 @@ def _ensure(lib: Library) -> None:
            "choice INTEGER NOT NULL DEFAULT 0, offset REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT '{}', "
            "fetched_at REAL NOT NULL DEFAULT 0)")
     lib._lyrics_alts_ready = True
-
 
 def _meta(lib: Library, track_id: str) -> Dict[str, Any]:
     _ensure(lib)
@@ -503,13 +467,11 @@ def _meta(lib: Library, track_id: str) -> Dict[str, Any]:
     return {"alts": json.loads(r["alts"] or "[]"), "choice": int(r["choice"]), "offset": float(r["offset"]),
             "status": json.loads(r["status"] or "{}")}
 
-
 def _save_meta(lib: Library, track_id: str, **fields: Any) -> None:
     cur = {**_meta(lib, track_id), **fields}
     lib._x("INSERT OR REPLACE INTO lyrics_alts (track_id, alts, choice, offset, status, fetched_at) VALUES (?,?,?,?,?,?)",
            (track_id, json.dumps(cur["alts"], ensure_ascii=False), int(cur["choice"]), float(cur["offset"]),
             json.dumps(cur["status"]), time.time()))
-
 
 def _summary(alts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [{"index": i, "source": a["source"], "name": SOURCE_NAMES.get(a["source"], a["source"]),
@@ -518,13 +480,12 @@ def _summary(alts: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
              "lines": len(a["synced"]) if a.get("synced") else len([l for l in (a.get("plain") or "").splitlines() if l.strip()]),
              "instrumental": bool(a.get("instrumental"))} for i, a in enumerate(alts)]
 
-
 def _answer(lib: Library, track_id: str, cached: bool) -> Dict[str, Any]:
     row = lib.cached_lyrics(track_id) or {"synced": None, "plain": None, "source": ""}
     meta = _meta(lib, track_id)
     chosen = meta["alts"][meta["choice"]] if 0 <= meta["choice"] < len(meta["alts"]) else {}
     synced = row["synced"]
-    # r41-ui: the shown timings were made for a version of another length → the window warns («Other version · ±N s»)
+
     track = lib.row(track_id)
     want, got = float((track["duration"] if track else 0) or 0), float(chosen.get("duration") or 0)
     diff = round(abs(got - want), 1) if synced and want and got and row["source"] == chosen.get("source") else 0.0
@@ -538,11 +499,9 @@ def _answer(lib: Library, track_id: str, cached: bool) -> Dict[str, Any]:
             "words": bool(synced and any(len(r) > 2 and r[2] for r in synced)), "offset": meta["offset"],
             "choice": meta["choice"], "alts": _summary(meta["alts"]), "status": meta["status"], "cached": cached}
 
-
 def _apply(lib: Library, track_id: str, cand: Optional[Dict[str, Any]]) -> None:
     lib.store_lyrics(track_id, cand["synced"] if cand else None, cand["plain"] if cand else None,
                      cand["source"] if cand else "")
-
 
 def fetch(lib: Library, track_id: str, client_factory: Optional[Callable[[], Any]] = None,
           force: bool = False) -> Dict[str, Any]:
@@ -563,13 +522,11 @@ def fetch(lib: Library, track_id: str, client_factory: Optional[Callable[[], Any
     if not cands and status and all(v not in ("ok", "empty") for v in status.values()):
         raise RuntimeError("Источники текста недоступны / Lyrics sources unavailable")
     _save_meta(lib, track_id, alts=cands, choice=0, status=status)
-    # r40 (r40-music-fix): the search takes seconds (the background prefetch, «Find»); lyrics the user saved meanwhile win —
-    # they used to be overwritten by the late search result («my text did not save»).
+
     mine = lib.cached_lyrics(track_id)
     if not (mine and mine["source"] == "manual" and mine["fetched_at"] >= started):
         _apply(lib, track_id, cands[0] if cands else None)
     return _answer(lib, track_id, False)
-
 
 def choose(lib: Library, track_id: str, index: Optional[int] = None, step: int = 0) -> Dict[str, Any]:
     """``lyrics.choose``: show another found variant (``index``) or the next one (``next``, wraps around)."""
@@ -584,7 +541,6 @@ def choose(lib: Library, track_id: str, index: Optional[int] = None, step: int =
     _apply(lib, track_id, meta["alts"][pick])
     return _answer(lib, track_id, True)
 
-
 def set_offset(lib: Library, track_id: str, offset: float) -> Dict[str, Any]:
     """``lyrics.offset``: per-track shift in seconds (+ = lyrics later), kept with the track."""
     if not lib.row(track_id):
@@ -592,7 +548,6 @@ def set_offset(lib: Library, track_id: str, offset: float) -> Dict[str, Any]:
     value = round(max(-30.0, min(30.0, float(offset or 0))), 2)
     _save_meta(lib, track_id, offset=value)
     return {"offset": value}
-
 
 def set_manual(lib: Library, track_id: str, text: str) -> Dict[str, Any]:
     """``lyrics.set``: lyrics the user pasted (plain text or LRC). Empty text forgets them (the next get searches again)."""
@@ -605,11 +560,8 @@ def set_manual(lib: Library, track_id: str, text: str) -> Dict[str, Any]:
     synced = parse_lrc(text)
     plain = "\n".join(row[1] for row in synced) if synced else text
     lib.store_lyrics(track_id, synced, plain, "manual")
-    # r41-ui: the whole answer (the track's offset and the found variants stay) — the window used to reset the offset to 0
+
     return _answer(lib, track_id, True)
-
-
-# ---------------------------------------------------------------------- background prefetch (r37 wave 2)
 
 class Prefetcher:
     """Fetches lyrics for newly added tracks in the background: one track at a time with a pause between
@@ -682,9 +634,7 @@ class Prefetcher:
             except Exception:
                 self.failed += 1
 
-
 _PREFETCHER: Optional[Prefetcher] = None
-
 
 def prefetcher() -> Prefetcher:
     global _PREFETCHER

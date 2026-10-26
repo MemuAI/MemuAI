@@ -22,7 +22,6 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 SVG = "{http://www.w3.org/2000/svg}"
 
-
 @unittest.skipUnless(shutil.which("node"), "node is not available")
 class ChartRendererTest(unittest.TestCase):
     def test_every_chart_type_renders_valid_svg(self) -> None:
@@ -89,7 +88,6 @@ class ChartRendererTest(unittest.TestCase):
         self.assertEqual(mask["none"], "just text")
         self.assertEqual(d["strip"], "a\n[chart]\nb\n[diagram]")
 
-
 @unittest.skipUnless(shutil.which("node"), "node is not available")
 class PromptTest(unittest.TestCase):
     def test_modes(self) -> None:
@@ -114,7 +112,6 @@ class PromptTest(unittest.TestCase):
         self.assertIn("memuai-chart", quick)
         self.assertLess(len(quick), 4200)
 
-
 class PreferenceTest(unittest.TestCase):
     def test_diagrams_mode_normalized(self) -> None:
         from app import pgdata
@@ -137,7 +134,6 @@ class PreferenceTest(unittest.TestCase):
         self.assertIn("/vendor/mermaid/mermaid.min.js", js)
         index = (STATIC / "index.html").read_text(encoding="utf-8")
         self.assertNotIn("mermaid.min.js", index, "Mermaid is loaded lazily, not with the page")
-
 
 if __name__ == "__main__":
     unittest.main()

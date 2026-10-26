@@ -1,16 +1,10 @@
-/* MemuAI · Settings → «MemuFiles» → «Интеграция с Windows» (Round 38, r38-files).
 
-   «MemuFiles по умолчанию»: open folders / Win+E in MemuFiles — only on an explicit, confirmed user action,
-   always reversible («Вернуть Проводник Windows» restores the exact registry backup).
-   Backend: app/memufiles/default_shell.py, routes GET|POST /api/pg/memufiles/default-shell.
 
-   Extension point used by memufiles-settings.js (r38-suite): MemuFilesDefaultShell.html() inside its section,
-   then MemuFilesDefaultShell.mount(el) once the markup is in the DOM. Status is fetched lazily on mount. */
 (function () {
   "use strict";
 
   const isEn = () => {
-    try { if (typeof PG_LANG !== "undefined") return PG_LANG === "en"; } catch (e) { /* ignore */ }
+    try { if (typeof PG_LANG !== "undefined") return PG_LANG === "en"; } catch (e) {  }
     return (document.documentElement.lang || "ru").startsWith("en");
   };
   const L = (ru, en) => (isEn() ? en : ru);

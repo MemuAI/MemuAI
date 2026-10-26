@@ -9,13 +9,11 @@ from fastapi.responses import JSONResponse, StreamingResponse
 app = FastAPI()
 state = {"last_auth": "", "last_body": None}
 
-
 def sse(events, delay: float = 0.0):
     async def gen():
         for ev in events:
             yield "data: " + json.dumps(ev, ensure_ascii=False) + "\n\n"
     return StreamingResponse(gen(), media_type="text/event-stream")
-
 
 @app.get("/v1/models")
 async def models(request: Request):
@@ -24,7 +22,6 @@ async def models(request: Request):
         {"id": "gpt-test", "object": "model"},
         {"id": "claude-test", "object": "model"},
     ]}
-
 
 @app.post("/v1/chat/completions")
 async def chat(request: Request):
@@ -47,12 +44,10 @@ async def chat(request: Request):
         {"id": "c1", "object": "chat.completion.chunk", "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]},
     ])
 
-
 @app.get("/v1/anything")
 async def anything(request: Request):
     return {"path": "/v1/anything", "auth": state["last_auth"],
             "custom_header": request.headers.get("x-custom", "")}
-
 
 @app.post("/mock/reset")
 async def reset():

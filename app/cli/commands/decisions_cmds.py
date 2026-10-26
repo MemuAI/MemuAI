@@ -30,13 +30,10 @@ from ..tui.input import fuzzy_score
 from . import Context, command
 from .routing_cmds import ask_remarks
 
-#: The kinds of check, in the order the menus list them.
 USES = ("auto_mode", "routing", "agents", "skills", "goal", "intent")
-#: The question types each check asks — a model built for one type only (Span: yes/no) cannot serve a check that
-#: needs another one.
+
 NEEDS: Dict[str, Set[str]] = {"auto_mode": {"score", "noul"}, "routing": {"score", "choice"}, "agents": {"choice"},
                               "skills": {"choice"}, "goal": {"noul"}, "intent": {"choice", "noul"}}
-
 
 def use_text(use: str) -> Tuple[str, str]:
     """(name, what it does) of a kind of check, in the current language."""
@@ -57,10 +54,8 @@ def use_text(use: str) -> Tuple[str, str]:
                       "is it a big task — offer to start with a plan")),
     }[use]
 
-
 def catalog_cache():
     return paths.home() / "decisions-catalog.json"
-
 
 def names() -> Dict[str, str]:
     """``{model id: readable name}`` from what is known about the decision models (the cached catalogue too)."""
@@ -70,23 +65,19 @@ def names() -> Dict[str, str]:
         found.setdefault(model_id, known["name"])
     return found
 
-
 def name_of(model: str, table: Optional[Dict[str, str]] = None) -> str:
     table = names() if table is None else table
     return table.get(model) or model or "—"
-
 
 def _context_label(value: int) -> str:
     if not value:
         return ""
     return f"{value / 1_000_000:g}M" if value >= 1_000_000 else f"{value // 1000}k"
 
-
 def _user_config(ctx: Context) -> Dict[str, Any]:
     """The ``decisions`` block of the user's own settings (not the merged one: defaults stay defaults)."""
     block = ctx.settings.layer("user").get("decisions")
     return dict(block) if isinstance(block, dict) else {}
-
 
 def _save(ctx: Context, **changes: Any) -> None:
     config = _user_config(ctx)
@@ -94,13 +85,9 @@ def _save(ctx: Context, **changes: Any) -> None:
     ctx.settings.set("decisions", config)
     ctx.runtime.reload_decisions()
 
-
-# ---------------------------------------------------------------- the picker over the catalogue
-
 def _suited(row: Dict[str, Any], needs: Optional[Set[str]]) -> bool:
     kinds = row.get("kinds") or []
     return not needs or not kinds or needs <= set(kinds)
-
 
 def _catalog_option(row: Dict[str, Any], *, current: str, remarks: Dict[str, str], needs: Optional[Set[str]]) -> dlg.Option:
     bits = [str(row["id"]), str(row.get("maker") or ""), dec.describe_price(row)]
@@ -126,7 +113,6 @@ def _catalog_option(row: Dict[str, Any], *, current: str, remarks: Dict[str, str
         hint = ""
     return dlg.Option(str(row.get("name") or row["id"]), str(row["id"]), text, hint=hint)
 
-
 def _catalog_matcher(by_id: Dict[str, Dict[str, Any]]):
     """Search by name, id, maker and the words "free"/"recommended": ``Kev``, ``respan``, ``free``, ``mercury``."""
     def score(query: str, option: dlg.Option) -> Optional[float]:
@@ -142,7 +128,6 @@ def _catalog_matcher(by_id: Dict[str, Dict[str, Any]]):
         found = [value for value in (fuzzy_score(query, text) for text in texts if text) if value is not None]
         return max(found) if found else None
     return score
-
 
 async def pick_from_catalog(ctx: Context, title: str, *, current: str = "", multi: bool = False,
                             selected: Optional[List[str]] = None, needs: Optional[Set[str]] = None,
@@ -225,7 +210,6 @@ async def pick_from_catalog(ctx: Context, title: str, *, current: str = "", mult
             return None
     return choice
 
-
 async def pick_model(ctx: Context, title: str, *, current: str = "", needs: Optional[Set[str]] = None,
                      none_label: str = "", query: str = "", body: Any = "") -> Optional[str]:
     """One decision model of the connected provider: from the live catalogue (OpenRouter), from the provider's
@@ -253,9 +237,6 @@ async def pick_model(ctx: Context, title: str, *, current: str = "", needs: Opti
         "Model name (the list could not be read). Empty — like the other checks."), style="dim")), default=current)
     return None if text is None else text.strip()
 
-
-# ---------------------------------------------------------------- the status
-
 def _provider_rows() -> List[dlg.Option]:
     return [
         dlg.Option(tr("OpenRouter — все модели решений (рекомендуется)", "OpenRouter — every decision model (recommended)"),
@@ -269,7 +250,6 @@ def _provider_rows() -> List[dlg.Option]:
                    "model", tr("медленнее и дороже, но работает везде; модель — /small-model",
                                "slower and pricier, but works anywhere; the model is /small-model")),
     ]
-
 
 def _status_body(ctx: Context) -> Any:
     runtime = ctx.runtime
@@ -318,9 +298,6 @@ def _status_body(ctx: Context) -> Any:
         "which skill fits, how hard a request is. MemuCode interrupts you less and picks models better. It costs cents "
         "per million tokens.")), *lines)
 
-
-# ---------------------------------------------------------------- the pieces of the menu
-
 def _key_on_hand(ctx: Context, provider: str, config: Dict[str, Any], same: bool) -> str:
     """Where a key for ``provider`` already is, in words for the menu — or "" when there is none."""
     import os
@@ -334,7 +311,6 @@ def _key_on_hand(ctx: Context, provider: str, config: Dict[str, Any], same: bool
     if env and os.environ.get(env, "").strip():
         return tr(f"переменная окружения {env}", f"the {env} environment variable")
     return ""
-
 
 async def connect(ctx: Context) -> bool:
     """Choose where the decisions come from and give the key. False when cancelled."""
@@ -350,8 +326,7 @@ async def connect(ctx: Context) -> bool:
     same = choice == previous
     changes: Dict[str, Any] = {"provider": choice, "last_provider": ""}
     if not same:
-        # Model ids, keys and addresses differ from one provider to another: what was set for the old one means
-        # nothing for this one (and a key must never travel to a service it was not made for).
+
         changes.update({"model": "", "use_models": {}, "fallbacks": [], "api_key": "", "base_url": "", "path": ""})
     if choice == "custom":
         base = await ctx.ask(tr("Адрес (base URL)", "Base URL"), default=str(config.get("base_url") or "") if same else "")
@@ -383,7 +358,6 @@ async def connect(ctx: Context) -> bool:
                 "warn")
     return True
 
-
 async def choose_default(ctx: Context, query: str = "") -> bool:
     client = ctx.runtime.decisions
     if client.provider == "model":
@@ -404,7 +378,6 @@ async def choose_default(ctx: Context, query: str = "") -> bool:
     _save(ctx, model=picked)
     ctx.say(tr(f"Решает {name_of(picked)}", f"{name_of(picked)} decides"), "success")
     return True
-
 
 async def per_use(ctx: Context) -> None:
     """A model of its own for each kind of check."""
@@ -442,7 +415,6 @@ async def per_use(ctx: Context) -> None:
             updated.pop(choice, None)
         _save(ctx, use_models=updated)
 
-
 async def backups(ctx: Context) -> None:
     """Models to try, in turn, when the chosen one fails (a network error, an overload, a missing model)."""
     client = ctx.runtime.decisions
@@ -465,7 +437,6 @@ async def backups(ctx: Context) -> None:
     ctx.say(tr("Запасные: " + (", ".join(name_of(item) for item in picked) or "нет"),
                "Backups: " + (", ".join(name_of(item) for item in picked) or "none")), "success")
 
-
 async def uses_menu(ctx: Context) -> None:
     """What the decision model is used for (space toggles)."""
     uses = ctx.settings.get("decisions.uses") or {}
@@ -479,7 +450,6 @@ async def uses_menu(ctx: Context) -> None:
     on = set(chosen)
     _save(ctx, uses={use: use in on for use in USES})
     ctx.say(tr("Сохранено", "Saved"), "success")
-
 
 async def remarks(ctx: Context) -> None:
     """What the user thinks of each decision model — kept for good and shown in every picker."""
@@ -497,7 +467,6 @@ async def remarks(ctx: Context) -> None:
         await ask_remarks(ctx, [model], why=tr(
             "Например: «быстрая, для оценки риска», «бесплатная, годится для подсказок скиллов». Пусто — убрать заметку.",
             "For example: “fast, good for the risk check”, “free, fine for skill hints”. Empty removes the remark."))
-
 
 async def test_connection(ctx: Context) -> None:
     """One tiny request to every model in use: the key, the endpoint and each model."""
@@ -529,7 +498,6 @@ async def test_connection(ctx: Context) -> None:
     finally:
         ctx.ui.status_text = ""
 
-
 def _switch(ctx: Context, on: bool) -> bool:
     config = ctx.settings.get("decisions") or {}
     if on:
@@ -542,9 +510,6 @@ def _switch(ctx: Context, on: bool) -> bool:
     if current != "off":
         _save(ctx, provider="off", last_provider=current)
     return True
-
-
-# ---------------------------------------------------------------- the command
 
 @command("decisions", "Модель решений: быстрые проверки — безопасность, выбор модели и скиллов, план, цель",
          "Decision model: fast checks — safety, model and skill choice, plans, goals", aliases=("jev",),

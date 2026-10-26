@@ -20,11 +20,10 @@ from typing import Any, Dict, Optional
 log = logging.getLogger("memuai.deeplinks")
 
 KEY = r"Software\Classes\memuai"
-SUBKEYS = (r"shell\open\command", r"shell\open", "shell", "DefaultIcon")   # deletion order (deepest first)
+SUBKEYS = (r"shell\open\command", r"shell\open", "shell", "DefaultIcon")
 ARG = "--deeplink"
 
 _reg: Any = None
-
 
 def _winreg():
     global _reg
@@ -33,16 +32,13 @@ def _winreg():
         _reg = winreg
     return _reg
 
-
 def exe_path() -> Optional[str]:
     if getattr(sys, "frozen", False) and Path(sys.executable).name.lower() == "memuai.exe":
         return str(Path(sys.executable).resolve())
     return None
 
-
 def command_for(exe: str) -> str:
     return f'"{exe}" {ARG} "%1"'
-
 
 def _read(subkey: str = "") -> Optional[str]:
     w = _winreg()
@@ -52,19 +48,16 @@ def _read(subkey: str = "") -> Optional[str]:
     except OSError:
         return None
 
-
 def _write(subkey: str, name: str, value: str) -> None:
     w = _winreg()
     with w.CreateKeyEx(w.HKEY_CURRENT_USER, KEY + ("\\" + subkey if subkey else ""), 0, w.KEY_WRITE) as handle:
         w.SetValueEx(handle, name, 0, w.REG_SZ, value)
-
 
 def status() -> Dict[str, Any]:
     command = _read(r"shell\open\command")
     exe = exe_path()
     return {"registered": bool(command), "command": command or "", "exe": exe or "",
             "current": bool(command and exe and command.strip() == command_for(exe)), "frozen": bool(exe)}
-
 
 def register(exe: Optional[str] = None) -> Dict[str, Any]:
     exe = exe or exe_path()
@@ -77,7 +70,6 @@ def register(exe: Optional[str] = None) -> Dict[str, Any]:
     log.info("memuai:// registered for %s", exe)
     return {"ok": True, **status()}
 
-
 def unregister() -> Dict[str, Any]:
     w = _winreg()
     for sub in SUBKEYS + ("",):
@@ -87,7 +79,6 @@ def unregister() -> Dict[str, Any]:
             pass
     log.info("memuai:// unregistered")
     return {"ok": True, **status()}
-
 
 def self_heal() -> Dict[str, Any]:
     """At MemuAI start: repair a missing / foreign handler.  Respects «links off» (then it does nothing)."""
@@ -108,7 +99,6 @@ def self_heal() -> Dict[str, Any]:
         log.warning("memuai:// self-heal failed: %s", exc)
         return {"ok": False, "error": str(exc)}
 
-
 def link_from_argv(argv) -> str:
     """``MemuAI.exe --deeplink "memuai://…"`` (or a bare ``memuai://…`` argument) → the link, else ''."""
     args = list(argv or [])
@@ -121,7 +111,6 @@ def link_from_argv(argv) -> str:
         if str(value).lower().startswith("memuai:"):
             return str(value)
     return ""
-
 
 if os.name != "nt":  # pragma: no cover - documentation for non-Windows imports
     __doc__ += "\n(This platform has no Windows registry: functions need an injected ``_reg``.)"

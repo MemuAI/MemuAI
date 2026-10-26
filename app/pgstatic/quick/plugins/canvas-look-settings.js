@@ -1,8 +1,5 @@
-/* Round 30 — Settings → Quick Ask → «Вид панелей и встраивание» (plugin "canvas-embed").
-   The look of every panel in Quick Access (window grid, screen layer, the built-in section), one panel's own look,
-   and the panels built into the Alt+Space window. Data: GET /api/quick/canvas (look / looks / embed), saved through
-   POST /api/quick/canvas/look (app/quick_panel_look.py → quick_canvas.json: the profile + Google Drive sync).
-   The preview draws the user's real MemuAI panels with pgstatic/quick/panel-look.js. */
+
+
 (function () {
   "use strict";
   if (!window.MemuQuick || typeof MemuQuick.settingsSection !== "function") return;
@@ -32,7 +29,7 @@
       css("/quick/panel-look.css?v=1.1-r32", "pl-css");
       css("/quick/panel-text.css?v=1.0-r32", "pt-css");
       css("/quick/panel-text-editor.css?v=1.1-r34", "pte-css");
-      // Round 32: the text templates first (panel-look.js would load them itself, but later than the first preview)
+
       if (!window.MemuPanelText && !document.querySelector("script[data-pt-js]")) await loadScript("/quick/panel-text.js?v=1.0-r32");
       if (!window.MemuPanelLook) await loadScript("/quick/panel-look.js?v=1.1-r32");
       if (!window.MemuPanelTextEditor) await loadScript("/quick/panel-text-editor.js?v=1.0-r32");
@@ -45,7 +42,6 @@
     const panelTitle = (id) => (state.panels.find((p) => p.id === id) || {}).title || id;
     const onCanvas = () => ((state.data.layout && state.data.layout.items) || []).filter((i) => i.type === "panel").map((i) => i.ref);
 
-    /* ---------- preview: up to three real panels on a desktop-like backdrop */
     function previewHtml() {
       const d = { ...state.data, look: look() };
       const ids = [...new Set([...onCanvas(), ...state.panels.map((p) => p.id)])].slice(0, 3);
@@ -143,7 +139,7 @@
         if (redraw) draw(); else paintPreview();
       } catch (e) { ctx.toast(e.message, "err"); }
     }
-    function lookSoon(patch) {           // sliders: the preview follows at once, the save after a short pause
+    function lookSoon(patch) {
       Object.assign(state.pending, patch);
       paintPreview();
       clearTimeout(state.saveTimer);
@@ -189,7 +185,7 @@
         const id = cb.dataset.qlsEmbedOn;
         const items = embedItems((rows) => { const r = rows.find((x) => x.ref === id); r.hidden = !cb.checked; });
         const patch = { items };
-        if (cb.checked && state.data.embed.place === "off") patch.place = "below";       // ticking a panel turns the section on
+        if (cb.checked && state.data.embed.place === "off") patch.place = "below";
         save({ embed: patch });
       }; });
       body.querySelectorAll("[data-qls-mv]").forEach((b) => { b.onclick = () => {
@@ -198,7 +194,7 @@
         save({ embed: { items } });
       }; });
     }
-    /* ---------- Round 32: a panel's text template (panel-text-editor.js) in a dialog */
+
     function openText(id, opener) {
       const panel = state.panels.find((p) => p.id === id);
       if (!panel || !window.MemuPanelTextEditor || !window.MemuPanelText) { ctx.toast(tr("Панель ещё не загрузилась", "The panel has not loaded yet"), "err"); return; }

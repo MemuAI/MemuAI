@@ -40,7 +40,6 @@ RULE = {
     "options": {"quiet_from": "23:00", "quiet_to": "07:00", "max_per_day": 3, "retry_count": 2, "retry_minutes": 5},
 }
 
-
 def main() -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -89,7 +88,6 @@ def main() -> None:
     finally:
         http.close()
         servers.stop()
-
 
 if __name__ == "__main__":
     main()

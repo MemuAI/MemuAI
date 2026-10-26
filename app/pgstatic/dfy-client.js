@@ -1,26 +1,5 @@
-/* Do For You (DFY) — frontend client and the reusable task card (Round 24).
 
-   Served at /dfy-client.js by the MemuAI server (app/pgstatic is mounted at "/"),
-   for the main window and for the Quick Ask window (/quick/index.html) alike.
 
-   window.MemuDFY = {
-     status(), start(goal, context, source, extra?), get(id), list(),
-     watch(id, onUpdate) -> stop(), answer(id, payload), cancel(id),
-     renderCard(container, id, opts?) -> { stop(), el },
-     takeover: { open(id, opts?), giveBack(id) } — Round 30: the user takes over the browser (lazy /dfy-takeover.js),
-     vault: { list(), add(item), update(id, item), remove(id) }, clearSessions(), hydrate(root?),
-     forms: shared personal-data/secret/code form helpers (also used by dfy-settings.js and quick-dfy.js)
-   }
-
-   Any element with data-dfy-task="<id>" anywhere in the document is turned into a
-   live card automatically (MutationObserver), so chat renderers only need to emit
-   <div data-dfy-task="..."></div>.
-
-   Question kinds: text, choice, confirm, secret (login, card, phone, email, identity, address,
-   document, company, text) and code (one-time SMS/e-mail/app code).
-   Secret forms: values go straight from the inputs to
-   POST /api/dfy/tasks/{id}/answer → encrypted vault. They are never put into the
-   chat, the card, the DOM after sending, or localStorage. */
 (function () {
   "use strict";
   if (window.MemuDFY) return;
@@ -75,7 +54,7 @@
       const state = await status();
       if (state.ready === false) throw new Error(state.reason || T("DFY не готов", "DFY is not ready"));
       if (state.browser_choice_required) {
-        // Never accept a model-supplied browser hint as the user's per-run choice.
+
         options.browser = await chooseBrowser(state.browser_choices || []);
         if (!options.browser) throw Object.assign(new Error(T("Задача отменена", "Task cancelled")), { code: "dfy_cancelled" });
       }
@@ -85,7 +64,6 @@
   const answer = (id, payload) => call(`/api/dfy/tasks/${encodeURIComponent(id)}/answer`, { method: "POST", body: payload || {} });
   const cancel = (id) => call(`/api/dfy/tasks/${encodeURIComponent(id)}/cancel`, { method: "POST", body: {} });
 
-  /* SSE with automatic fallback to polling; calls onUpdate(task) on every change. */
   function watch(id, onUpdate) {
     let stopped = false, source = null, timer = null, lastVersion = -1, failures = 0;
     const emit = (task) => {
@@ -110,7 +88,7 @@
         source && source.close(); source = null;
         if (stopped) return;
         failures++;
-        // The server closes the stream on a final status; a re-check decides.
+
         timer = setTimeout(() => get(id).then((t) => { emit(t); if (!FINAL.includes(t.status)) (failures > 3 ? poll() : open()); })
           .catch((e) => { if (e.status === 404) gone(); else poll(); }), Math.min(5000, 500 * failures));
       };
@@ -121,7 +99,6 @@
     return stop;
   }
 
-  /* ----------------------------------------------------------- styles --- */
   function injectStyle() {
     if (document.getElementById("memu-dfy-style")) return;
     const s = document.createElement("style");
@@ -157,10 +134,7 @@
     queued: ["В очереди", "Queued"], running: ["Выполняется", "Running"], waiting_user: ["Ждёт вас", "Needs you"], user: ["Управляете вы", "You're in control"],
     done: ["Готово", "Done"], failed: ["Ошибка", "Failed"], cancelled: ["Отменено", "Cancelled"],
   };
-  /* ------------------------------------------------- personal-data forms --- */
-  /* One description of every vault field, shared by the task card, Settings → Do For You
-     (dfy-settings.js) and the Quick Ask card (quick-dfy.js) through MemuDFY.forms.
-     The server (app/dfy_vault.py) validates again and normalizes (E.164 phone, ISO dates). */
+
   const FIELDS = {
     username: { l: ["Логин / e-mail", "Username / email"], ac: "username" },
     password: { l: ["Пароль", "Password"], type: "password", ac: "new-password" },
@@ -200,7 +174,7 @@
     code: { l: ["Код", "Code"], mode: "numeric", ac: "one-time-code" },
     value: { l: ["Значение", "Value"], type: "password" },
   };
-  // Field meaning differs by kind: a card number is hidden and numeric, a passport number hidden.
+
   const KIND_FIELD = {
     card: { number: { l: ["Номер карты", "Card number"], type: "password", mode: "numeric", ac: "cc-number", max: 23 } },
     document: { number: { l: ["Номер документа", "Document number"], type: "password" } },
@@ -219,7 +193,7 @@
     card: { l: ["Банковская карта", "Payment card"], group: "secret", fields: ["number", "exp_month", "exp_year", "cvc", "holder"] },
     text: { l: ["Другой секрет", "Other secret"], group: "secret", fields: ["value"] },
   };
-  // E.164 calling codes (longest prefix wins) — only to group the digits while typing.
+
   const CC = new Set(("1 7 20 27 30 31 32 33 34 36 39 40 41 43 44 45 46 47 48 49 51 52 53 54 55 56 57 58 60 61 62 63 64 65 66 81 82 84 86 90 91 92 93 94 95 98 " +
     "211 212 213 216 218 220 221 222 223 224 225 226 227 228 229 230 231 232 233 234 235 236 237 238 239 240 241 242 243 244 245 246 248 249 250 251 252 253 254 255 256 257 258 260 261 262 263 264 265 266 267 268 269 290 291 297 298 299 " +
     "350 351 352 353 354 355 356 357 358 359 370 371 372 373 374 375 376 377 378 380 381 382 383 385 386 387 389 420 421 423 500 501 502 503 504 505 506 507 508 509 590 591 592 593 594 595 596 597 598 599 " +
@@ -235,11 +209,11 @@
     const size = [3, 2, 1].find((n) => CC.has(digits.slice(0, n)) && digits.length > n) || 1;
     return { digits, plus: true, cc: digits.slice(0, size), national: digits.slice(size) };
   }
-  /* "+79161234567" → "+7 916 123 45 67" (display only). */
+
   function formatPhone(raw) {
     const p = phoneParts(raw);
     if (!p.plus) return String(raw || "");
-    // 3-3, then the rest as up to 3 digits or pairs: 916 123 45 67, 612 345 67, 151 123 456 78.
+
     const n = p.national, groups = [n.slice(0, 3), n.slice(3, 6)].filter(Boolean);
     const rest = n.slice(6);
     if (rest.length > 3) { const head = rest.length % 2 ? 3 : 0; if (head) groups.push(rest.slice(0, head)); groups.push(...rest.slice(head).match(/\d{2}/g)); }
@@ -255,7 +229,7 @@
   }
   const fieldMeta = (name, kind) => ({ ...(FIELDS[name] || { l: [name, name] }), ...((KIND_FIELD[kind] || {})[name] || {}) });
   const fieldLabel = (name, kind) => { const m = fieldMeta(name, kind); return en() ? m.l[1] : m.l[0]; };
-  /* An error text for one value ("" when fine); empty values are checked by the caller. */
+
   function validate(name, value, kind) {
     const v = String(value || "").trim();
     if (!v) return "";
@@ -272,7 +246,7 @@
     if (name === "inn" && !/^(\d{10}|\d{12})$/.test(v)) return T("ИНН — 10 или 12 цифр", "INN is 10 or 12 digits");
     return "";
   }
-  /* <label> + input for one field; data-field carries the name. opts: {kind, cls, placeholder, required} */
+
   function inputHtml(name, opts = {}) {
     const m = fieldMeta(name, opts.kind);
     const label = en() ? m.l[1] : m.l[0];
@@ -288,7 +262,7 @@
     }
     return `<label class="dfy-field" data-for="${esc(name)}"><span>${esc(label)}</span>${control}<small class="dfy-err" aria-live="polite"></small></label>`;
   }
-  /* Read + validate a form's [data-field] controls. Shows the errors inline; returns null when invalid. */
+
   function collect(form, kind) {
     const fields = {};
     let ok = true;
@@ -303,7 +277,7 @@
     });
     return ok ? fields : null;
   }
-  /* Live formatting while typing: phone groups, card number groups, digits-only numeric fields. */
+
   function onInput(ev) {
     const input = ev.target;
     const name = input && input.dataset && input.dataset.field;
@@ -320,8 +294,7 @@
     }
   }
   const CHANNEL = { sms: ["SMS", "SMS"], email: ["письмо", "email"], app: ["приложение", "app"], call: ["звонок", "call"] };
-  /* The one-time code form (question kind "code"): numeric keyboard, paste, auto-send on a full
-     code, a countdown and «send again». */
+
   function codeHtml(q, cls = "") {
     const len = q.length || 0;
     const via = CHANNEL[q.channel] ? (en() ? CHANNEL[q.channel][1] : CHANNEL[q.channel][0]) : "";
@@ -347,7 +320,7 @@
     if (slot) slot.textContent = bad ? (len ? T(`Нужно ${len} символов`, `${len} characters needed`) : T("Введите код", "Enter the code")) : "";
     return bad ? "" : value;
   }
-  /* Countdown text for every visible code form; returns true while any is running. */
+
   function tickTimers(root) {
     let any = false;
     root.querySelectorAll("[data-dfy-timer]").forEach((el) => {
@@ -358,7 +331,7 @@
     });
     return any;
   }
-  /* Code input behaviour: digits only, auto-send when a full code is typed or pasted. */
+
   function onCodeInput(ev, submit) {
     const input = ev.target;
     if (!input || !input.matches || !input.matches("[data-code]")) return;
@@ -367,7 +340,7 @@
     const len = +form.dataset.len || 0;
     if (len && input.value.replace(/[\s-]/g, "").length === len) submit(form);
   }
-  /* Focus the first field of a just-shown question unless the user is typing somewhere else. */
+
   function autofocus(box) {
     const active = document.activeElement;
     const busy = active && active !== document.body && !box.contains(active) && active.matches && active.matches("input,textarea,select,[contenteditable=true]");
@@ -383,7 +356,7 @@
     verification: ["Сайт просит пройти проверку. Перехватите управление и верните его ИИ после проверки.", "The site asks for a check. Take control and hand it back afterwards."],
     other: ["ИИ просит вас сделать шаг в браузере. Перехватите управление и верните его, когда закончите.", "The AI asks you to do a step in the browser. Take control and hand it back when done."],
   };
-  /* Round 30: the takeover window is loaded on first use (main window and Quick Ask alike). */
+
   let takeoverLoad = null;
   function loadTakeover() {
     if (window.MemuDFYTakeover) return Promise.resolve(window.MemuDFYTakeover);
@@ -396,13 +369,13 @@
     });
     return takeoverLoad;
   }
-  // Round 33: every card update tells the takeover window/pill the task's real state (a stopped task drops its bar).
+
   const syncTakeover = (task) => { try { if (window.MemuDFYTakeover && window.MemuDFYTakeover.sync) window.MemuDFYTakeover.sync(task); } catch (e) {} };
   const takeover = {
     open: (id, opts) => loadTakeover().then((m) => m.open(id, opts)),
     giveBack: (id) => loadTakeover().then((m) => m.giveBack(id)),
   };
-  // Round 30: a shell/files task on a machine has no browser; «<machine>/browser» tasks drive the browser there.
+
   const onMachine = (task) => !!(task.target && !task.target.browser);
   function takeoverHtml(task) {
     if (FINAL.includes(task.status) || onMachine(task) || (lastStatus && lastStatus.takeover === false)) return "";
@@ -416,7 +389,7 @@
 
   function questionHtml(q, task) {
     if (!q) return "";
-    // Round 29: the stuck detector paused the task — the shared pause card (stuck.js).
+
     if (q.kind === "stuck" && window.MemuStuck) return window.MemuStuck.dfyQuestionHtml(task || { id: "" }, q, { compact: true });
     if (q.kind === "takeover") {
       const why = TAKEOVER_WHY[q.why] || TAKEOVER_WHY.other;
@@ -449,7 +422,7 @@
         <div class="dfy-note">${T("Значения шифруются и не попадают в чат, в промпт модели и в журнал. ИИ видит только маску.", "Values are encrypted and never reach the chat, the model prompt or the log. The AI sees only a mask.")}${q.secret_kind === "login" && q.domain ? " " + esc(T("Логин будет вводиться только на ", "The login is entered only on ")) + esc(q.domain) + "." : ""}</div></div>`;
     }
     if (q.kind === "form" && q.form && window.MemuAskForm && task && task.id) {
-      // Round 35 (askuser): the shared ask_user form (chips, checkboxes, date, number) — askuser.js.
+
       const rec = { id: `dfy-${task.id}-${q.id || "q"}`, form: q.form, status: "pending" };
       window.MemuAskForm.mount(rec, { compact: true, onSubmit: async (answers, skipped) => {
         await answer(task.id, Object.assign({ question_id: q.id || undefined }, skipped ? { skip: true } : { answers }));
@@ -482,11 +455,11 @@
       const shown = showAll ? steps : steps.slice(-6);
       const lastShot = [...steps].reverse().find((s) => s.screenshot_url);
       const label = (task.control === "user" ? STATUS_LABEL.user : STATUS_LABEL[task.status]) || [task.status, task.status];
-      // Keep a half-typed answer when only the step list changed.
+
       const sameQuestion = task.question && task.question.id === questionId;
       const keep = sameQuestion ? el.querySelector(".dfy-q") : null;
       const oldShot = el.querySelector(".dfy-shot img");
-      const remote = task.target && window.MemuDFYRemote;   // Round 30: a task on a machine (dfy-remote.js)
+      const remote = task.target && window.MemuDFYRemote;
       el.classList.toggle("dfy-card--machine", onMachine(task));
       el.innerHTML = `<div class="dfy-head"><span class="dfy-badge">DFY</span><span class="dfy-goal">${esc(task.goal)}</span>
           ${remote ? remote.targetChip(task.target) : ""}<span class="dfy-chip ${esc(task.control === "user" ? "user" : task.status)}">${esc(en() ? label[1] : label[0])}</span></div>
@@ -511,9 +484,7 @@
       clearInterval(timer);
       if (tickTimers(el)) timer = setInterval(() => { if (!el.isConnected || !tickTimers(el)) clearInterval(timer); }, 1000);
     };
-    /* Round 33: the live view is the newest screenshot. Re-rendering used to recreate the <img> on every
-       update (blank flash, layout jump); now the shown picture stays until the next one has loaded, then
-       swaps in place. The same URL is never re-requested. */
+
     const keepShot = (old) => {
       const fresh = el.querySelector(".dfy-shot img");
       if (!old || !fresh) return;
@@ -531,14 +502,14 @@
       const value = codeValue(form);
       if (!value) return;
       const input = form.querySelector("[data-code]");
-      if (input) input.value = "";   // the code lives only in the request
+      if (input) input.value = "";
       send({ code: value });
     };
 
     const send = async (payload) => {
       if (busy) return;
       busy = true; paint();
-      // Round 34: the answer names its question — a stale click never answers the next one
+
       try { await answer(id, Object.assign({ question_id: (task && task.question && task.question.id) || undefined }, payload)); }
       catch (e) { (window.toast || alert)(e.message, "err"); }
       finally { busy = false; }
@@ -583,7 +554,7 @@
       if (!fields) { form.querySelector("[aria-invalid]")?.focus(); return; }
       if (!Object.keys(fields).length) { form.querySelector("[data-field]")?.focus(); return; }
       const save = !!form.querySelector("[data-dfy-save]")?.checked;
-      // Wipe the inputs before the request: the value lives only in this payload.
+
       form.querySelectorAll("input[data-field]").forEach((i) => { i.value = ""; });
       send({ secret: { kind: q.secret_kind, label: q.label, domain: q.domain, fields, save } });
     });
@@ -591,7 +562,7 @@
     paint();
     const stopWatch = watch(id, (t) => {
       if (t.gone) {
-        // The server restarted and forgot the task: show what the chat remembers.
+
         const f = opts.fallback || {};
         task = { id, goal: f.goal || "", status: FINAL.includes(f.status) ? f.status : "failed", steps: [],
           result: f.result || "", error: FINAL.includes(f.status) ? (f.error || "") : T("Задача прервана: MemuAI был перезапущен", "The task was interrupted: MemuAI restarted") };
@@ -606,8 +577,7 @@
     return { stop, el };
   }
 
-  /* Auto-hydrate <div data-dfy-task="id"> placeholders (chat re-renders replace DOM). */
-  const cards = new Map();   // task id -> { el, stop }: survives chat re-renders (keeps typed answers)
+  const cards = new Map();
   function hydrate(root = document) {
     (root.querySelectorAll ? root : document).querySelectorAll("[data-dfy-task]:not([data-dfy-bound])").forEach((host) => {
       host.setAttribute("data-dfy-bound", "1");
@@ -618,13 +588,12 @@
         fallback: { goal: host.dataset.dfyGoal, status: host.dataset.dfyStatus, result: host.dataset.dfyResult, error: host.dataset.dfyError },
         onFinish: (t) => document.dispatchEvent(new CustomEvent("dfy-finish", { detail: t })),
       });
-      host.__dfyStop = null;   // the card outlives this host element
+      host.__dfyStop = null;
       cards.set(id, card);
       if (cards.size > 40) { const [first] = cards.keys(); const old = cards.get(first); cards.delete(first); if (old && !old.el.isConnected) old.stop(); }
     });
   }
 
-  /* Status cache + chat helpers used by app.js. */
   let lastStatus = null;
   async function refreshStatus() { try { lastStatus = await status(); } catch (e) {} return lastStatus; }
   function promptBlock(lang) {
@@ -640,7 +609,7 @@
       "ask the user first instead of emitting the block. Never put passwords, card numbers, codes or passport data into the goal (DFY asks for them itself). Do not add choices the user did not make." +
       machinesBlock() + "</dfy_tool>";
   }
-  /* Round 30: DFY also works on whole machines (shell, files, packages, processes) — dfy-remote.js. */
+
   function machinesBlock() {
     const browsers = (lastStatus.machines || []).filter((m) => m.kind === "http").map((m) => `"${m.id}/browser"`);
     const rows = (lastStatus.machines || []).map((m) => `"${m.id}" = ${m.name}${m.os_label ? " (" + m.os_label + ")" : ""}`);

@@ -5,7 +5,6 @@ import unittest
 
 from app import modules_host
 
-
 class SharedBenchmarkPackageTest(unittest.TestCase):
     def test_builtin_export_import_and_edit_preserve_shared_code_once(self):
         with tempfile.TemporaryDirectory(prefix="memuai-shared-data-") as temporary:
@@ -35,7 +34,6 @@ class SharedBenchmarkPackageTest(unittest.TestCase):
             root = Path(temporary)
             modules_host.create_module(root, {"id": "plain", "title": "Plain", "js": "const example = 1;", "permissions": []})
             self.assertEqual(modules_host.load_package(root, "plain")["js"], "const example = 1;")
-
 
 if __name__ == "__main__":
     unittest.main()

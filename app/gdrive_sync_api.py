@@ -28,8 +28,7 @@ from . import gdrive_sync as core
 
 log = logging.getLogger("memuai.sync.api")
 
-_PICKED: Dict[str, Dict[str, Any]] = {}     # token → {"path", "ts"} of an archive picked for restore
-
+_PICKED: Dict[str, Dict[str, Any]] = {}
 
 def _lang() -> str:
     try:
@@ -38,13 +37,11 @@ def _lang() -> str:
     except Exception:
         return "ru"
 
-
 def _error(exc: BaseException, status: int = 400) -> JSONResponse:
     info = core._err(exc)
     lang = _lang()
     return JSONResponse({"error": info["en"] if lang == "en" else info["ru"], "error_ru": info["ru"],
                          "error_en": info["en"], "code": info["code"]}, status)
-
 
 async def _body(request: Request) -> Dict[str, Any]:
     try:
@@ -52,7 +49,6 @@ async def _body(request: Request) -> Dict[str, Any]:
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
-
 
 def _notify(error: Dict[str, str]) -> None:
     lang = _lang()
@@ -63,7 +59,6 @@ def _notify(error: Dict[str, str]) -> None:
     except Exception:
         pass
 
-
 def _paused() -> str:
     try:
         from . import safe_mode
@@ -71,14 +66,12 @@ def _paused() -> str:
     except Exception:
         return ""
 
-
 def register(app, *, service: core.SyncService | None = None) -> core.SyncService:
     svc = service or core.service("memuai")
     svc.notify = _notify
     svc.paused_reason = _paused
     app.state.sync_service = svc
 
-    # ---- scheduler lifetime = MemuAI server lifetime
     original = app.router.lifespan_context
 
     @asynccontextmanager
@@ -96,7 +89,6 @@ def register(app, *, service: core.SyncService | None = None) -> core.SyncServic
     def window():
         return getattr(app.state, "window", None)
 
-    # ------------------------------------------------------------- status
     @app.get("/api/pg/sync/status")
     async def sync_status():
         try:
@@ -119,7 +111,6 @@ def register(app, *, service: core.SyncService | None = None) -> core.SyncServic
         except Exception as exc:
             return _error(exc)
 
-    # ------------------------------------------------------------- backup
     @app.post("/api/pg/sync/backup")
     async def sync_backup(request: Request):
         body = await _body(request)
@@ -133,7 +124,7 @@ def register(app, *, service: core.SyncService | None = None) -> core.SyncServic
         def run() -> None:
             try:
                 svc.backup("manual", label=label, force=True)
-            except Exception as exc:  # recorded in state.json → shown by /status
+            except Exception as exc:
                 log.info("sync: manual backup failed: %s", core._err(exc)["en"])
         threading.Thread(target=run, name="memuai-sync-manual", daemon=True).start()
         await asyncio.sleep(0.05)
@@ -144,7 +135,6 @@ def register(app, *, service: core.SyncService | None = None) -> core.SyncServic
         svc.cancel_event.set()
         return {"ok": True}
 
-    # ----------------------------------------------------------- snapshots
     @app.get("/api/pg/sync/snapshots")
     async def sync_snapshots():
         try:
@@ -273,7 +263,6 @@ def register(app, *, service: core.SyncService | None = None) -> core.SyncServic
         except OSError as exc:
             return _error(exc)
 
-    # ------------------------------------------------------------ targets
     @app.get("/api/pg/sync/folders")
     async def sync_folders():
         return {"folders": await asyncio.to_thread(core.detect_folders)}
@@ -284,7 +273,7 @@ def register(app, *, service: core.SyncService | None = None) -> core.SyncServic
         detected = str(body.get("detected") or "")
         path = ""
         if detected:
-            # Only a folder from the detected list may be chosen without the dialog.
+
             known = {row["path"] for row in await asyncio.to_thread(core.detect_folders)}
             if detected not in known:
                 return _error(core.SyncError("Папка не найдена", "Folder not found"))
@@ -324,7 +313,6 @@ def register(app, *, service: core.SyncService | None = None) -> core.SyncServic
         except Exception as exc:
             return _error(exc)
 
-    # ---------------------------------------------------------------- auth
     @app.post("/api/pg/sync/auth/start")
     async def sync_auth_start():
         try:

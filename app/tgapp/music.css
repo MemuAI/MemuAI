@@ -1,12 +1,6 @@
-/* MemuAI Mini App — MemuMusic (Round 37). Tokens of the Mini App theme (--bg, --card, --text, --hint, --accent…);
-   the player has its own dark stage tinted by the cover (--mm-tint, --mm-c1..3). Only transform / opacity animate;
-   the live background stops when paused, in the light-effects mode and with prefers-reduced-motion. */
-
 .mm-root { --mm-r: 14px; padding-top: 2px; }
 #app.mm-has-mini .view.root, #app.mm-has-mini .view.mm-stack { padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 96px); }
 .view.mm-stack { overflow-y: auto; display: block; }
-
-/* ------------------------------------------------------------------ covers */
 .mm-art { position: relative; display: block; flex: none; overflow: hidden; border-radius: 10px; isolation: isolate;
   background: radial-gradient(120% 120% at 20% 10%, color-mix(in srgb, var(--mm-tint) 85%, #fff 15%), color-mix(in srgb, var(--mm-tint) 55%, #000 45%)); }
 .mm-art img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
@@ -15,8 +9,6 @@
 .mm-art-ph svg { width: 42%; height: 42%; }
 .mm-mosaic { display: grid; grid-template-columns: 1fr 1fr; }
 .mm-mosaic img { position: static; width: 100%; height: 100%; aspect-ratio: 1; }
-
-/* ------------------------------------------------------------------ segmented control */
 .mm-seg { position: relative; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 6px 16px 14px; padding: 3px; border-radius: 12px;
   background: color-mix(in srgb, var(--card) 90%, var(--text) 4%); --i: 0; }
 .mm-seg button { position: relative; z-index: 1; height: 32px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--hint);
@@ -28,8 +20,6 @@
 
 .mm-body.mm-in { animation: mm-in .3s var(--ease); }
 @keyframes mm-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
-
-/* ------------------------------------------------------------------ home */
 .mm-hello { padding: 2px 20px 12px; }
 .mm-hello h2 { margin: 0; font-size: 26px; font-weight: 750; letter-spacing: -.025em; }
 .mm-hello p { margin: 3px 0 0; color: var(--hint); font-size: 13.5px; }
@@ -68,8 +58,6 @@
 .mm-card > b, .mm-card > small { max-width: 100%; }
 .mm-card b { font-size: 13.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mm-card small { font-size: 12.5px; color: var(--hint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* what plays on the computer */
 .mm-pc { display: flex; align-items: center; gap: 12px; margin: 0 16px 12px; padding: 10px 10px 10px 10px; border-radius: 18px; cursor: pointer;
   background: color-mix(in srgb, var(--mm-tint) 16%, var(--card)); box-shadow: inset 0 0 0 .5px color-mix(in srgb, var(--mm-tint) 40%, transparent);
   transition: transform .18s var(--ease); }
@@ -87,11 +75,8 @@
 .mm-eq.on b { animation: mm-eq .9s ease-in-out infinite; }
 .mm-eq.on b:nth-child(2) { animation-delay: -.3s; } .mm-eq.on b:nth-child(3) { animation-delay: -.6s; }
 @keyframes mm-eq { 0%, 100% { height: 25%; } 50% { height: 100%; } }
-/* r41-finish: «light effects» — the playing bars stand still (static levels, no per-frame repaint) */
 html.mm-light .mm-eq.on b { animation: none; height: 60%; }
 html.mm-light .mm-eq.on b:nth-child(2) { height: 100%; } html.mm-light .mm-eq.on b:nth-child(3) { height: 40%; }
-
-/* ------------------------------------------------------------------ chips, buttons */
 .mm-ib { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 50%; flex: none; color: inherit; transition: transform .15s var(--ease), background .15s; }
 .mm-ib:active { transform: scale(.88); }
 .mm-ib svg { width: 22px; height: 22px; }
@@ -111,8 +96,6 @@ html.mm-light .mm-eq.on b:nth-child(2) { height: 100%; } html.mm-light .mm-eq.on
 .mm-chip.ghost.on { color: var(--accent); background: color-mix(in srgb, var(--accent) 13%, transparent); }
 .mm-chip-sep { flex: none; width: 1px; height: 18px; background: var(--sep); margin: 0 4px; }
 .mm-search { margin-top: 0; }
-
-/* ------------------------------------------------------------------ track rows */
 .mm-lib-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 2px 16px 8px 20px; color: var(--hint); font-size: 13px; min-height: 32px; }
 .mm-lib-acts { display: flex; gap: 6px; }
 .mm-list { padding: 0 8px; }
@@ -144,8 +127,6 @@ html.mm-playing .mm-row.now .mm-row-art::after { animation: mm-pulse 1.4s ease-i
   background: var(--card); color: var(--accent); font-weight: 600; font-size: 14.5px; text-align: left; }
 .mm-online-btn svg { width: 20px; height: 20px; flex: none; }
 .mm-web-dl { color: var(--accent); }
-
-/* ------------------------------------------------------------------ playlists */
 .mm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px 14px; padding: 2px 16px 8px; }
 .mm-tile { display: flex; flex-direction: column; gap: 2px; text-align: left; min-width: 0; transition: transform .18s var(--ease); }
 .mm-tile-art { width: 100%; aspect-ratio: 1; height: auto; border-radius: 16px; margin-bottom: 7px; box-shadow: 0 10px 26px -14px rgba(0,0,0,.55); }
@@ -171,8 +152,6 @@ html.mm-playing .mm-row.now .mm-row-art::after { animation: mm-pulse 1.4s ease-i
 .mm-round { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--card); color: var(--text); flex: none; }
 .mm-round svg { width: 20px; height: 20px; }
 .mm-round.on { color: var(--ok); }
-
-/* ------------------------------------------------------------------ on the phone */
 .mm-store { margin: 0 16px 14px; padding: 14px; border-radius: 18px; background: var(--card); }
 .mm-store-top { display: flex; align-items: center; gap: 12px; }
 .mm-store-top > span:nth-child(2) { flex: 1; display: flex; flex-direction: column; min-width: 0; }
@@ -184,8 +163,6 @@ html.mm-playing .mm-row.now .mm-row-art::after { animation: mm-pulse 1.4s ease-i
 .mm-store-bar { height: 6px; border-radius: 3px; background: var(--card2); margin: 12px 0 10px; overflow: hidden; }
 .mm-store-bar i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .5s var(--ease); }
 .mm-store p { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--hint); }
-
-/* ------------------------------------------------------------------ empty / skeleton */
 .mm-empty { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 34px 30px 20px; }
 .mm-empty-art { width: 76px; height: 76px; border-radius: 24px; display: grid; place-items: center; color: var(--accent); margin-bottom: 14px;
   background: radial-gradient(circle at 30% 20%, color-mix(in srgb, var(--accent) 30%, transparent), color-mix(in srgb, var(--accent2) 12%, var(--card))); }
@@ -197,8 +174,6 @@ html.mm-playing .mm-row.now .mm-row-art::after { animation: mm-pulse 1.4s ease-i
 .mm-skel.row { flex-direction: column; }
 .mm-skel.row i { width: 100%; height: 52px; }
 @keyframes mm-skel { 50% { opacity: .5; } }
-
-/* ------------------------------------------------------------------ mini player */
 .mm-mini { position: absolute; left: 8px; right: 8px; bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 6px); z-index: 5; height: 58px;
   display: flex; align-items: center; gap: 2px; padding: 0 6px 0 7px; border-radius: 16px; overflow: hidden; color: #fff;
   background: color-mix(in srgb, var(--mm-tint) 42%, #15151a);
@@ -220,8 +195,6 @@ html.mm-playing .mm-row.now .mm-row-art::after { animation: mm-pulse 1.4s ease-i
 html.mm-buffering .mm-mini-bar::after { opacity: .5; }
 html[data-layout="split"] .mm-mini { left: auto; right: 16px; width: min(420px, 46vw); bottom: calc(var(--safe-bottom) + 16px); }
 html[data-layout="split"][data-rail="1"] .mm-mini { bottom: calc(var(--safe-bottom) + 16px); }
-
-/* ------------------------------------------------------------------ full-screen player */
 .mm-full { position: fixed; inset: 0; z-index: 60; color: #fff; background: #0c0c10; overflow: hidden;
   --mm-c1: var(--mm-tint); --mm-c2: var(--mm-tint); --mm-c3: var(--mm-tint);
   transform: translateY(100%); transition: transform .42s cubic-bezier(.2, .9, .25, 1); will-change: transform; }
@@ -295,7 +268,6 @@ html.mm-playing .mm-cover { transform: scale(1); }
 
 .mm-scrub { margin: 18px 0 6px; padding: 8px 0; touch-action: none; cursor: pointer; }
 .mm-scrub-track { position: relative; height: 5px; border-radius: 3px; background: rgba(255,255,255,.2); transition: height .18s var(--ease); }
-/* polish r39: доля — шириной (scaleX сплющивал скругление конца и на дробном масштабе оставлял полоски над дорожкой) */
 .mm-scrub-track i { position: absolute; left: 0; top: 0; bottom: 0; width: calc(var(--p, 0) * 100%); border-radius: inherit; background: rgba(255,255,255,.9); }
 .mm-scrub.drag .mm-scrub-track { height: 9px; }
 .mm-times { display: flex; justify-content: space-between; margin-top: 8px; font-size: 12px; font-weight: 600; opacity: .6; font-variant-numeric: tabular-nums; }
@@ -324,11 +296,7 @@ html.mm-playing .mm-cover { transform: scale(1); }
 .mm-dev svg { width: 17px; height: 17px; }
 .mm-dev.pc { color: #0c0c10; background: #7ff0a8; }
 .mm-dev-btn.live:not(.mm-dev) { color: var(--ok); }
-
-/* light-effects mode: plain gradient, no blur under the cover */
 html.mm-light .mm-cover { transition: none; }
-
-/* ------------------------------------------------------------------ link sheet */
 .mm-sheet-note { margin: 0 20px 12px; font-size: 13.5px; line-height: 1.45; color: var(--hint); }
 .mm-link-field { position: relative; display: flex; align-items: center; gap: 8px; margin: 0 16px; }
 .mm-link-field > svg { position: absolute; left: 12px; width: 18px; height: 18px; color: var(--hint); pointer-events: none; }
@@ -357,15 +325,11 @@ html.mm-light .mm-cover { transition: none; }
 .mm-job.done em { color: var(--ok); } .mm-job.error em { color: var(--danger); }
 .mm-job-x { width: 32px; height: 32px; color: var(--hint); }
 .mm-job-x svg { width: 16px; height: 16px; }
-
-/* short phones: smaller cover and controls so nothing is cut */
 @media (max-height: 700px) {
   .mm-play { width: 64px; height: 64px; } .mm-big { width: 52px; height: 52px; } .mm-big svg { width: 32px; height: 32px; }
   .mm-scrub { margin-top: 10px; } .mm-meta h2 { font-size: 20px; }
 }
 html[data-layout="split"] .mm-full-in { max-width: 520px; margin: 0 auto; }
-
-/* ------------------------------------------------------------------ r37 wave 2: library views, artist, album, restore */
 .mm-views { display: flex; gap: 18px; margin: 0 20px 12px; }
 .mm-views button { position: relative; padding: 2px 0 6px; font-size: 17px; font-weight: 720; letter-spacing: -.015em; color: var(--hint); white-space: nowrap;
   transition: color .18s var(--ease); }
@@ -406,15 +370,10 @@ html.mm-light .mm-ah-bg img { display: none; }
 .mm-restore small { font-size: 13px; line-height: 1.4; color: var(--hint); }
 .mm-restore-acts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
 .mm-store-top small { overflow-wrap: normal; }
-
-/* offline mode (the Mini App opened without the computer) */
 html.mm-offline-boot .tabbar .tab:not([data-tab="music"]) { opacity: .35; pointer-events: none; }
 .mm-offline-bar { display: flex; align-items: center; gap: 8px; margin: 0 16px 12px; padding: 9px 12px; border-radius: 12px; font-size: 13px; font-weight: 600;
   color: var(--hint); background: var(--card); }
 .mm-offline-bar svg { width: 16px; height: 16px; flex: none; }
-
-/* Telegram Desktop / wide windows: «Музыка» is one wide page (like Panels) until an artist / album / playlist opens;
-   the content keeps a readable column, shelves get bigger cards, the player is a centred column */
 html[data-layout="split"] .app[data-tab="music"]:not(.has-detail) { grid-template-areas: "head head" "views views" "tabs tabs"; }
 html[data-layout="split"][data-rail="1"] .app[data-tab="music"]:not(.has-detail) { grid-template-areas: "rail head head" "rail views views"; }
 html[data-layout="split"] .app[data-tab="music"]:not(.has-detail) .topbar { display: none; }
@@ -430,16 +389,10 @@ html[data-layout="split"] .mm-ph-art { width: 210px; }
 html[data-layout="split"] .mm-ah-art { width: 180px; }
 html[data-layout="split"] .mm-full-in { max-width: 560px; }
 html[data-layout="split"] .mm-cover-wrap { width: min(100%, 50vh, 440px); }
-
-/* the «Музыка» tab makes seven: on 360–400 px phones the labels get a touch smaller so «MemuCode» / «Настройки» stay whole */
 @media (max-width: 400px) { #tabbar[style*="--tabs: 7"] .tab { font-size: 9px; letter-spacing: -.025em; } #tabbar[style*="--tabs: 7"] .tab span { padding: 0; } }
 .mm-pill svg, .mm-chip-btn svg { flex: none; }
 .mm-card b, .mm-tile b { white-space: normal; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; line-height: 1.25; }
 html[data-layout="split"] .mm-ah-bg, html[data-layout="split"] .mm-ph-bg { -webkit-mask: radial-gradient(70% 100% at 50% 0, #000 35%, transparent 80%); mask: radial-gradient(70% 100% at 50% 0, #000 35%, transparent 80%); }
-
-/* ------------------------------------------------------------------ Round 38: оформление MemuMusic
-   Акцент темы окна MemuMusic (свой цвет или цвет обложки) — в разделе «Музыка», мини-плеере и плеере. В светлой схеме
-   акцент чуть темнее, чтобы надписи-ссылки и активные строки читались на белом (контраст ≥ 4.5). */
 :root.mm-look .view.mm-root, :root.mm-look .mm-mini, :root.mm-look .mm-full { --accent: var(--mm-a1); --accent2: var(--mm-a2); --on-accent: var(--mm-on); }
 :root.mm-look[data-scheme="light"] .view.mm-root, :root.mm-look[data-scheme="light"] .mm-mini {
   --accent: color-mix(in srgb, var(--mm-a1) 72%, #000); --accent2: color-mix(in srgb, var(--mm-a2) 78%, #000); }

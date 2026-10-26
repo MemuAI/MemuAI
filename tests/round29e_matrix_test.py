@@ -10,7 +10,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-
 def _js_function(src: str, name: str) -> str:
     i = src.index(f"function {name}(")
     depth = 0
@@ -23,15 +22,12 @@ def _js_function(src: str, name: str) -> str:
                 return src[i:j + 1]
     raise AssertionError(name)
 
-
 def _node(script: str) -> str:
     return subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True, timeout=30).stdout.strip()
-
 
 CASES = (43 * 3600, 25 * 3600, int(47.9 * 3600), 24 * 3600 - 20, 60 * 3600, 5 * 86400 + 3600, 2 * 3600 + 15 * 60)
 RU = ["через 1 день 19 ч", "через 1 день 1 ч", "через 2 дня", "через 1 день", "через 2 дня 12 ч", "через 5 дней", "через 2 ч 15 мин"]
 EN = ["in 1 day 19 h", "in 1 day 1 h", "in 2 days", "in 1 day", "in 2 days 12 h", "in 5 days", "in 2 h 15 min"]
-
 
 class RelativeTimeUnified(unittest.TestCase):
     """Desktop said «через 43 ч», the Mini App «через 2 дня» for the same run: both now use days beyond 24 h."""
@@ -55,7 +51,6 @@ class RelativeTimeUnified(unittest.TestCase):
         self.assertEqual(got, RU)
         got = [sq.when_text(now + x, "en", now).split(" · ")[1] for x in CASES]
         self.assertEqual(got, EN)
-
 
 class MemuCodeCliStuckPause(unittest.TestCase):
     """Live (pty) run with a looping model: the old duplicate-call hard stop ended the turn one round before the stuck
@@ -94,9 +89,9 @@ class MemuCodeCliStuckPause(unittest.TestCase):
         self.assertEqual(len(ui.questions), 1, "the pause question must be asked")
         question, options = ui.questions[0]
         self.assertEqual(options, ["Continue", "Continue with a hint", "Change approach", "Stop"])
-        self.assertIn("\n\n", question)                     # readable paragraphs, not one run-on line
+        self.assertIn("\n\n", question)
         self.assertIn("- `LS", question)
-        self.assertNotIn("Continue / hint", question)       # the dialog lists the choices itself
+        self.assertNotIn("Continue / hint", question)
         self.assertEqual(result.stopped, "stuck")
         self.assertTrue(result.error)
         self.assertFalse(any("Loop guard" in str(r.messages[-1].get("content")) for r in backend.requests))
@@ -130,7 +125,6 @@ class MemuCodeCliStuckPause(unittest.TestCase):
         body = src[src.index("    async def ask_question("):src.index("    async def approve_plan(")]
         self.assertIn("if not options:\n            dialog.text_mode = True", body)
 
-
 class MemuCodeWindowStuckPause(unittest.TestCase):
     def test_label_badge_and_typed_verdict(self) -> None:
         if not shutil.which("node"):
@@ -138,23 +132,20 @@ class MemuCodeWindowStuckPause(unittest.TestCase):
         import json
         out = json.loads(_node_file(ROOT / "tests" / "round29e_matrix_runner.cjs", str(ROOT)))
         self.assertIn("pausedAt", out)
-        self.assertEqual(out["steps"], ["code_run cat status.txt"])   # was a bare «code_run»
-        self.assertTrue(out["badge"])                                  # was «Инструменты Work» in MemuCode
-        self.assertTrue(out["cleared"])                                # a typed message removes the stale card
-        self.assertEqual(out["status"], "cancelled")                   # …and its unrun calls never run
+        self.assertEqual(out["steps"], ["code_run cat status.txt"])
+        self.assertTrue(out["badge"])
+        self.assertTrue(out["cleared"])
+        self.assertEqual(out["status"], "cancelled")
 
     def test_composer_settles_on_pause(self) -> None:
         js = (ROOT / "app/pgstatic/stuck.js").read_text(encoding="utf-8")
         self.assertIn("settleWhenIdle(ctx.chatId", js)
 
-
 def _node_file(path: Path, *args: str) -> str:
     return subprocess.run(["node", str(path), *args], capture_output=True, text=True, check=True, timeout=30).stdout.strip()
 
-
 def _read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
-
 
 def _contrast(a: str, b: str) -> float:
     def lum(h: str) -> float:
@@ -164,7 +155,6 @@ def _contrast(a: str, b: str) -> float:
         return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2]
     x, y = lum(a), lum(b)
     return (max(x, y) + 0.05) / (min(x, y) + 0.05)
-
 
 class DesignMatrixWaveF(unittest.TestCase):
     """r29f: fixes found by the design × theme × language × size matrix."""
@@ -176,18 +166,18 @@ class DesignMatrixWaveF(unittest.TestCase):
         ink = re.search(r"\.b-if, \.b-do \{ --ci: (#[0-9a-f]{6}); \}", css)
         self.assertTrue(root and ink, "amber/green blocks must set dark ink")
         for bg in root.groups():
-            self.assertLess(_contrast("#ffffff", bg), 3.0)          # white was unreadable there
+            self.assertLess(_contrast("#ffffff", bg), 3.0)
             self.assertGreaterEqual(_contrast(ink.group(1), bg), 4.5)
         step = css[css.index(".pln-step {"):]
         self.assertIn("color: var(--ci, #fff)", step[:step.index("}")])
-        self.assertIn("color: var(--ci, #fff); background: var(--c); }", css)   # the help card steps too
+        self.assertIn("color: var(--ci, #fff); background: var(--c); }", css)
 
     def test_search_placeholders_fit(self) -> None:
         hk = _read("app/pgstatic/hotkeys.js")
         line = next(x for x in hk.splitlines() if 'id="hk-query"' in x)
         self.assertIn("Найти действие или клавишу…", line)
         self.assertIn("Find an action or key…", line)
-        self.assertIn('title="${escHtml(L("Найти действие или клавишу, например', line)   # full hint on hover
+        self.assertIn('title="${escHtml(L("Найти действие или клавишу, например', line)
         docs = _read("app/pgstatic/docs.js")
         line = docs[docs.index('id="docs-query"'):docs.index("</label>", docs.index('id="docs-query"'))]
         self.assertIn('placeholder="${L("Поиск статей", "Search docs")}"', line)
@@ -205,7 +195,7 @@ class DesignMatrixWaveF(unittest.TestCase):
         rule = rule[:rule.index("}")]
         self.assertIn("flex-wrap:wrap", rule)
         self.assertNotIn("mask-image", rule)
-        # Round 30: no scrolling box at all — the bar shows what fits in two rows and folds the rest into "+N".
+
         self.assertNotIn("overflow", rule)
         self.assertNotIn(".ch-tagbar::-webkit-scrollbar{display:none}", ch)
         js = _read("app/module_builtins/characters/main.js")
@@ -237,7 +227,6 @@ class DesignMatrixWaveF(unittest.TestCase):
         plan = _read("app/pgstatic/plan.css")
         self.assertIn(".pln-hint.warn { color: color-mix(in srgb, #e3a33b 60%, var(--text)); }", plan)
         self.assertIn('placeholder="${esc(t("Конфиденциально", "Confidential"))}"', _read("app/pgstatic/export.js"))
-
 
 if __name__ == "__main__":
     unittest.main()

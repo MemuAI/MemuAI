@@ -31,7 +31,6 @@ LAYOUT_CSS = (STATIC / "panels-layout.css").read_text(encoding="utf-8")
 INDEX = (STATIC / "index.html").read_text(encoding="utf-8")
 CYR = re.compile(r"[А-Яа-яЁё]")
 
-
 class Base(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -55,7 +54,6 @@ class Base(unittest.TestCase):
         out.update(extra)
         return out
 
-
 class LayoutModelTest(unittest.TestCase):
     def test_zone_ids(self):
         self.assertEqual(panels.PLACEMENTS, panels_layout.ZONE_IDS)
@@ -75,7 +73,7 @@ class LayoutModelTest(unittest.TestCase):
         lay = panels_layout.clean_layout({"zones": {"home": {"view": "chips", "chats": True, "width": 999},
                                                     "left": {"width": 9999, "view": "nope", "chats": "yes"},
                                                     "right": {"width": "abc"}, "bogus": {"view": "cards"}}})
-        self.assertEqual(lay["zones"]["home"], {"view": "cards"})          # the grid has cards only, no chats/width
+        self.assertEqual(lay["zones"]["home"], {"view": "cards"})
         self.assertEqual(lay["zones"]["left"], {"view": "cards", "chats": False, "width": panels_layout.WIDTH_MAX})
         self.assertEqual(lay["zones"]["right"]["width"], 300)
         self.assertNotIn("bogus", lay["zones"])
@@ -92,7 +90,7 @@ class LayoutModelTest(unittest.TestCase):
         items = panels_layout.clean_items([
             {"id": "p_a", "placements": ["left", "nowhere", "left", "top"], "order": {"left": 3, "x": 1, "top": True}, "size": "w"},
             {"id": "p_unknown", "placements": ["home"]},
-            {"id": "p_a", "placements": ["home"]},               # a duplicate is ignored
+            {"id": "p_a", "placements": ["home"]},
             {"id": "p_b", "size": "xl"},
             "junk",
         ], ["p_a", "p_b"])
@@ -106,7 +104,6 @@ class LayoutModelTest(unittest.TestCase):
         for z in en:
             self.assertFalse(CYR.search(z["name"]), z)
 
-
 class PanelsLayoutTest(Base):
     def test_old_document_migrates(self):
         """A Round 32 panels.json (three places, no layout) reads unchanged plus the default layout."""
@@ -118,7 +115,7 @@ class PanelsLayoutTest(Base):
         one = next(p for p in doc["panels"] if p["id"] == "p_old000001")
         self.assertEqual(one["placements"], ["home", "appbar"])
         self.assertEqual(next(p for p in doc["panels"] if p["id"] == "p_old000002")["size"], "l")
-        self.assertIn("left", one["order"])                     # every zone has an order slot
+        self.assertIn("left", one["order"])
 
     def test_new_places_survive(self):
         self.write_doc({"version": 2, "seeded": True, "settings": {},
@@ -141,9 +138,9 @@ class PanelsLayoutTest(Base):
         zones = snap["settings"]["layout"]["zones"]
         self.assertEqual(zones["right"], {"view": "cards", "chats": True, "width": 340})
         self.assertEqual(zones["composer"]["view"], "cards")
-        self.assertEqual(zones["left"]["width"], 280)              # untouched zones keep their values
+        self.assertEqual(zones["left"]["width"], 280)
         self.assertEqual([z["id"] for z in snap["zones"]], list(panels_layout.ZONE_IDS))
-        # the stored document agrees
+
         doc = panels.load()
         self.assertEqual(doc["settings"]["layout"]["zones"]["right"]["width"], 340)
 
@@ -181,7 +178,6 @@ class PanelsLayoutTest(Base):
             snap = client.get("/api/pg/panels").json()
             self.assertIn("zones", snap)
             self.assertEqual(snap["settings"]["layout"]["zones"]["sidebar_bottom"]["view"], "cards")
-
 
 class WiringTest(unittest.TestCase):
     def test_index_tags(self):
@@ -221,7 +217,7 @@ class WiringTest(unittest.TestCase):
         self.assertIn("scrollbar-width: none !important", LAYOUT_CSS)
         self.assertIn(".mp-softscroll::-webkit-scrollbar { display: none", LAYOUT_CSS)
         self.assertIn("scrollify(home", LAYOUT_JS)
-        # every design that styles scrollbars keeps a thumb style here
+
         for design in ("glass", "brutal", "grid"):
             self.assertIn(f'data-design="{design}"] .mp-sthumb', LAYOUT_CSS)
 
@@ -239,13 +235,11 @@ class WiringTest(unittest.TestCase):
                 self.skipTest("node is not installed")
             self.assertEqual(res.returncode, 0, res.stderr)
 
-
 def _chromium():
     for path in ("/usr/bin/chromium", "/usr/bin/chromium-browser"):
         if os.path.exists(path):
             return path
     return ""
-
 
 @unittest.skipUnless(_chromium() and os.environ.get("R33_PANELS_BROWSER", "1") != "0", "Chromium is not installed")
 class BrowserTest(unittest.TestCase):
@@ -261,7 +255,6 @@ class BrowserTest(unittest.TestCase):
                 res = subprocess.run([sys.executable, str(ROOT / "tests" / "round33_panels_browser.py"), str(out), part],
                                      capture_output=True, text=True, timeout=300, env=env, cwd=str(ROOT))
                 self.assertEqual(res.returncode, 0, res.stdout[-4000:] + res.stderr[-4000:])
-
 
 if __name__ == "__main__":
     unittest.main()

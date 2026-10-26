@@ -32,12 +32,10 @@ CHROMIUM = next((c for c in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/workspa
                  if c and Path(c).exists()), "")
 SHOTS = os.environ.get("R38_SHOTS", "")
 
-
 def _free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
-
 
 class ContributesSchemaTest(unittest.TestCase):
     def setUp(self):
@@ -51,8 +49,8 @@ class ContributesSchemaTest(unittest.TestCase):
         clean = self.mi.normalize_contributes(manifest["contributes"], builtin=True)
         self.assertEqual([p["id"] for p in clean["panels"]], ["now-playing", "playlist", "stats"])
         self.assertTrue({"play", "pause", "next", "playlist", "now", "download"} <= {c["id"] for c in clean["commands"]})
-        self.assertEqual({w["slot"] for w in clean["widgets"]}, {"quick.ring", "quick.card", "chat.composer", "main.dock", "chat.cards"})   # r39: + dock, command cards
-        # normalize_manifest keeps the block (custom modules are saved through it)
+        self.assertEqual({w["slot"] for w in clean["widgets"]}, {"quick.ring", "quick.card", "chat.composer", "main.dock", "chat.cards"})
+
         self.assertIn("contributes", mh.normalize_manifest(manifest, module_id="music"))
 
     def test_custom_module_cannot_use_server_handlers(self):
@@ -81,7 +79,6 @@ class ContributesSchemaTest(unittest.TestCase):
         self.assertEqual(compiled.match("Включи  трек Believer!").group(1), "Believer")
         self.assertIsNone(compiled.match("включи свет"))
 
-
 class EnabledMusicTest(unittest.TestCase):
     """Module catalogue in a temporary profile with MemuMusic switched on."""
 
@@ -108,7 +105,7 @@ class EnabledMusicTest(unittest.TestCase):
         prompt = mi.skill_prompt(self.root, lang="en")
         self.assertIn("module_command", prompt)
         self.assertIn("music.play", prompt)
-        self.assertIn("local music library", prompt)    # skill.md is included
+        self.assertIn("local music library", prompt)
 
     def test_disabled_module_contributes_nothing(self):
         from app import module_integration as mi, modules_host as mh
@@ -142,7 +139,7 @@ class EnabledMusicTest(unittest.TestCase):
         self.assertIn("level", bad["error"])
         unknown = asyncio.run(mi.run_command("music", "explode", {}, root=self.root))
         self.assertIn("play", unknown["error"])
-        # a «danger» command needs confirmed=True
+
         row = mi.find("music", root=self.root)
         cmd = dict(row["commands"][0], danger=True)
         orig = mi.find
@@ -152,7 +149,6 @@ class EnabledMusicTest(unittest.TestCase):
             self.assertTrue(out["needs_confirm"])
         finally:
             mi.find = orig
-
 
 class MusicHandlersTest(unittest.TestCase):
     """music.play / playlist / now against a real temporary library (no audio decoding needed)."""
@@ -221,7 +217,6 @@ class MusicHandlersTest(unittest.TestCase):
         out = self.run_cmd("download", {"url": "not a link"})
         self.assertFalse(out["ok"])
 
-
 class PanelKindTest(unittest.TestCase):
     def test_module_block_and_kind(self):
         from app import panels
@@ -231,7 +226,6 @@ class PanelKindTest(unittest.TestCase):
         self.assertTrue(errors)
         self.assertIn("module", panels.KINDS)
         self.assertIn("module", panels.LOCAL_KINDS)
-
 
 class StaticFrontTest(unittest.TestCase):
     def test_js_syntax_and_wiring(self):
@@ -245,7 +239,7 @@ class StaticFrontTest(unittest.TestCase):
         self.assertLess(index.index("/music-dock.js"), index.index("/module-integration.js"))
         plugins = json.loads((ROOT / "app/pgstatic/quick/plugins/index.json").read_text(encoding="utf-8"))["plugins"]
         order = [p.get("id") for p in plugins]
-        self.assertLess(order.index("modules"), order.index("commands"))   # its submit listener must run first
+        self.assertLess(order.index("modules"), order.index("commands"))
         for spec in ("MemuAI.spec", "MemuAIProxy.spec"):
             self.assertIn("app.module_integration_quick", (ROOT / spec).read_text(encoding="utf-8"))
         perf = (ROOT / "app/pgstatic/quick/plugins/modules.js").read_text(encoding="utf-8")
@@ -254,7 +248,6 @@ class StaticFrontTest(unittest.TestCase):
         main = (ROOT / "app/pgstatic/module-integration.js").read_text(encoding="utf-8")
         self.assertNotIn("setInterval", main)
         self.assertNotIn("MutationObserver", main)
-
 
 @unittest.skipUnless(sync_playwright and CHROMIUM and shutil.which("ffmpeg"), "needs playwright, Chromium and ffmpeg")
 class LiveIntegrationTest(unittest.TestCase):
@@ -270,7 +263,7 @@ class LiveIntegrationTest(unittest.TestCase):
                             "-c:a", "libopus", "-b:a", "48k", str(tones / f"tone{i}.opus")], check=True)
         cls.port = _free_port()
         env = dict(os.environ, MEMUAI_DATA_DIR=str(root / "data"), MEMUAI_PROXY_URL="http://127.0.0.1:9", NO_PROXY="127.0.0.1,localhost")
-        # a profile that finished onboarding — otherwise the name dialog covers the home screen in the shots
+
         subprocess.run([sys.executable, "-c", "import sys; sys.path.insert(0, %r); from app import pgdata; "
                         "pgdata.save_preferences({'profile_onboarded': True, 'profile_name': 'Test'})" % str(ROOT)], env=env, check=True)
         code = ("import sys, uvicorn; sys.path.insert(0, %r); from app.playground_api import create_app; "
@@ -347,7 +340,7 @@ class LiveIntegrationTest(unittest.TestCase):
         frame_el = page.query_selector('.mmi-slot[data-mmi="music:now-playing"] iframe')
         frame = frame_el.content_frame()
         frame.wait_for_selector(".mx-empty, .mx-np", timeout=10000)
-        # AI command from the chat: play → the main window starts the host player
+
         out = page.evaluate("""async () => {
             const r = await MemuModInt.runTool({ tool: "module_command", args: { module: "music", command: "play", args: { query: "golden hour" } } });
             return r; }""")
@@ -356,16 +349,16 @@ class LiveIntegrationTest(unittest.TestCase):
         self.poll(page, "() => MemuMusicDock.state().booted && !MemuMusicDock.state().paused", 20000)
         frame.wait_for_selector(".mx-np .mx-title", timeout=20000)
         self.poll(frame, "() => document.querySelector('.mx-title').textContent === 'Golden Hour'", 20000)
-        # the chat mini player appears while music plays (r39: off by default — one player in the main window — turned on here)
+
         self.http.post(self.base + "/api/pg/modint/settings", json={"module": "music", "kind": "widget", "id": "chat-mini", "values": {"enabled": True}})
         page.evaluate("() => MemuModInt.client({ modint_reload: true })")
         page.wait_for_selector(".mmi-chat-np:not([hidden])", timeout=20000)
-        # re-render keeps the same iframe document alive (moveBefore) or at least re-mounts it
+
         page.evaluate("() => { window.__mark = document.querySelector('.mmi-frame'); MemuPanels.render(); MemuPanels.rerender(() => true); }")
         self.assertTrue(page.evaluate("() => document.querySelector('.mmi-slot .mmi-frame') === window.__mark"))
         time.sleep(1.5)
         self.shot(page, "02-home-panel-and-miniplayer.png")
-        # second panel: playlist
+
         page.evaluate("() => MemuModInt.addPanel('music:playlist', 'home')")
         page.wait_for_selector('.mmi-slot[data-mmi="music:playlist"] iframe.mmi-frame.ready', timeout=20000)
         pl = page.query_selector('.mmi-slot[data-mmi="music:playlist"] iframe').content_frame()
@@ -387,9 +380,9 @@ class LiveIntegrationTest(unittest.TestCase):
                          {"module": "music", "command": "play", "danger": False, "args": {"query": "Night Drive"}})
         page.fill("#qa-input", "включи трек night drive")
         page.press("#qa-input", "Enter")
-        page.wait_for_selector(".qmod-card-player [data-np-root]", timeout=15000)   # r39: a track card is the live player
+        page.wait_for_selector(".qmod-card-player [data-np-root]", timeout=15000)
         self.poll(page, "() => document.querySelector('.qmod-card-player .qmod-np-title').textContent === 'Night Drive'", 10000)
-        # the main window is the one playing; here the SSE state drives the ring + «Сейчас играет»
+
         page.evaluate("""() => MemuQuickModules.setPlayer({ track_id: 'x', playing: true, stale: false,
              track: { id: 'x', title: 'Night Drive', artist: 'Neon Avenue', accent: '#8b6cf0' } })""")
         page.wait_for_selector("canvas.qmod-ring", timeout=5000)
@@ -397,10 +390,9 @@ class LiveIntegrationTest(unittest.TestCase):
         self.shot(page, "04-quick-card-ring.png")
         self.assertTrue(page.evaluate("() => MemuQuickModules.state().raf"))
         page.evaluate("() => MemuQuickModules.setPlayer({ track_id: 'x', playing: false })")
-        self.poll(page, "() => !MemuQuickModules.state().ring", 2000)   # r39: fades out (~0.4 s) instead of vanishing
+        self.poll(page, "() => !MemuQuickModules.state().ring", 2000)
         self.assertEqual(errors, [])
         page.close()
-
 
 if __name__ == "__main__":
     unittest.main()

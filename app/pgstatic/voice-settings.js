@@ -1,16 +1,5 @@
-/* MemuAI · Settings → Voice → «Озвучивание ответов» (Round 25).
 
-   One clear choice «Чем озвучивать» instead of four sources plus a raw Base URL:
-   Windows, downloaded Piper voices, cloud services (OpenAI, Google Gemini,
-   ElevenLabs, Azure) with their own models/voices/key links, any other
-   OpenAI-compatible API, or a local TTS server. Cloud services are stored in the
-   existing preferences (voice_tts_provider = "api", the service is the host of
-   voice_tts_api_url — the backend detects it the same way, app/tts_providers.py),
-   so older saved settings keep working. «Проверить» saves and plays a sample with
-   the real backend path and shows the short error the backend produced.
 
-   window.MemuVoiceSettings = { ttsHtml(ctx), bindTts(ctx), sttPresetHtml(ctx), bindStt(ctx), sourceLabel(ctx) }
-   ctx: { en, K, esc, pref, catalog, ttsModelCards, localEngines, savePreferences, api, toast, rerender } */
 (function () {
   "use strict";
 
@@ -37,7 +26,6 @@
     return provider === "api" ? "api:" + providerForUrl(pref("voice_tts_api_url", "")) : provider;
   }
 
-  // A key pasted from another service is the most common reason for 401: say so before the request.
   function keyMismatch(kind, key, en) {
     const k = String(key || "").trim();
     if (!k) return "";
@@ -48,7 +36,6 @@
       : `Похоже, это ключ ${names[owner]} — выбранному сервису нужен свой ключ.`;
   }
 
-  // A voice of another service (the reported «Alloy» with Gemini) is flagged right under the field.
   function voiceMismatch(ctx, kind, voice) {
     const v = String(voice || "").trim().toLowerCase();
     if (!v || kind === "custom" || kind === "azure") return "";
@@ -89,7 +76,6 @@
     return hints[source] || "";
   }
 
-  // <select> of known values + «Другое…» that reveals a free-text input (names change; any value is allowed).
   function pickControl(ctx, id, value, options, placeholder) {
     const { esc } = ctx;
     const t = (ru, en) => (ctx.en ? en : ru);
@@ -200,8 +186,7 @@
         const patch = { voice_tts_provider: "api" };
         const sameService = ctx.pref("voice_tts_provider", "") === "api" && providerForUrl(ctx.pref("voice_tts_api_url", "")) === id;
         if (!sameService) {
-          // A service switch resets model/voice to that service's defaults: an OpenAI voice
-          // sent to Gemini was exactly the reported «Alloy + gemini-…-tts» failure.
+
           const keepUrl = id === "custom" && providerForUrl(ctx.pref("voice_tts_api_url", "")) === "custom";
           patch.voice_tts_api_url = keepUrl ? ctx.pref("voice_tts_api_url", "") : (meta.base_url || "");
           patch.voice_tts_api_model = meta.default_model || "";
@@ -243,7 +228,7 @@
     if ($("#st-tts-key")) $("#st-tts-key").onchange = saveApi;
     if ($("#st-tts-url")) $("#st-tts-url").onchange = async () => {
       await saveApi();
-      // A typed address of a known service switches the form to that service's fields.
+
       if (providerForUrl($("#st-tts-url").value) !== kind) ctx.rerender();
     };
 
@@ -335,9 +320,7 @@
     const profilesFor = value => {
       const profiles = {...ctx.pref("voice_stt_api_profiles",{})};
       const saved = {url:ctx.pref("voice_stt_api_url",""),key:ctx.pref("voice_stt_api_key",""),model:ctx.pref("voice_stt_api_model","")};
-      // A manual URL edit may switch services before the dropdown changes.
-      // Preserve the last service's settings; pending fields belong to the
-      // URL that will actually receive them.
+
       if (saved.url) profiles[sttProviderForUrl(saved.url,ctx)] = saved;
       profiles[sttProviderForUrl(value.url,ctx)] = value;
       return profiles;

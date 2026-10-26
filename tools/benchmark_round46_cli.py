@@ -21,13 +21,11 @@ from app.cli.tools import files  # noqa: E402
 from app.cli.tools.base import Prepared, ToolCall, ToolContext  # noqa: E402
 from app.cli import convert, tokens  # noqa: E402
 
-
 def context(root):
     session = SimpleNamespace(read_cache={}, read_state={}, context_epoch=0)
     runtime = SimpleNamespace(root=root, add_dirs=[], session=session,
                               files=SimpleNamespace(files=lambda **kwargs: ["dense.py"]))
     return ToolContext(runtime, ToolCall("Read", {}))
-
 
 def timed(function, repetitions=7):
     samples = []
@@ -36,7 +34,6 @@ def timed(function, repetitions=7):
         function()
         samples.append((time.perf_counter() - start) * 1000)
     return round(statistics.median(samples), 3)
-
 
 def main():
     baseline = ROOT / "build/round46-baseline/cli-files-round45.py"
@@ -78,7 +75,6 @@ def main():
             "estimated_token_reduction_percent": round(100 * (1 - after["native_estimated_tokens"] / before["native_estimated_tokens"]), 2)}
     (ROOT / "build/round46-cli-benchmark.json").write_text(json.dumps(result, indent=2), "utf-8")
     print(json.dumps(result, indent=2))
-
 
 if __name__ == "__main__":
     main()

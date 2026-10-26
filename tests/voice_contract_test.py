@@ -11,9 +11,7 @@ from unittest.mock import patch
 from app import pgdata
 from app.voice_runtime import VoiceRuntime, decode_audio_data, prepare_tts_text, validate_api_base_url
 
-
 ROOT = Path(__file__).resolve().parents[1]
-
 
 class VoiceRuntimeContracts(unittest.TestCase):
     def test_audio_data_url_has_type_and_size_validation(self) -> None:
@@ -51,8 +49,7 @@ class VoiceRuntimeContracts(unittest.TestCase):
             def fake_transfer(_files, directory, _state, _cancel):
                 (directory / "model.bin").write_bytes(b"model")
                 (directory / "config.json").write_text("{}", encoding="utf-8")
-            # The downloader now owns streamed/cancellable transfer instead of
-            # faster-whisper's blocking helper. Keep this contract offline.
+
             with patch("app.voice_downloads.manifest", return_value=[]), patch("app.voice_downloads.transfer", side_effect=fake_transfer):
                 runtime._download_local_model("tiny")
             self.assertTrue(runtime._is_downloaded("tiny"))
@@ -81,7 +78,6 @@ class VoiceRuntimeContracts(unittest.TestCase):
         self.assertIn(prefs["voice_tts_provider"], ("windows", "local", "api"))
         self.assertEqual(prefs["work_access_mode"], "ask")
 
-
 class VoiceUiContracts(unittest.TestCase):
     def test_voice_controls_settings_and_endpoints_are_present(self) -> None:
         html = (ROOT / "app" / "pgstatic" / "index.html").read_text(encoding="utf-8")
@@ -95,7 +91,6 @@ class VoiceUiContracts(unittest.TestCase):
         self.assertIn("MediaRecorder", js)
         self.assertIn("voice-live", js)
         self.assertIn("speakMessage", js)
-
 
 if __name__ == "__main__":
     unittest.main()

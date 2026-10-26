@@ -25,13 +25,11 @@ _RANGES = (
 _NAMES = {"han": "Chinese", "kana": "Japanese", "hangul": "Korean", "arabic": "Arabic", "hebrew": "Hebrew",
           "greek": "Greek", "thai": "Thai", "devanagari": "Hindi"}
 
-
 def prose(text: str) -> str:
     """The natural-language part of a message: no code, attached files, paths or links."""
     text = _TAGGED.sub(" ", str(text or ""))
     text = _CODE.sub(" ", text)
     return _URL_PATH.sub(" ", text)
-
 
 def _script(char: str) -> Optional[str]:
     code = ord(char)
@@ -41,7 +39,6 @@ def _script(char: str) -> Optional[str]:
     if char.isalpha() and code < 0x0250:
         return "latin"
     return None
-
 
 def detect(text: str) -> str:
     """"Russian", "Chinese", … or "" when the text is Latin-script or has no letters."""
@@ -56,14 +53,13 @@ def detect(text: str) -> str:
     if not counts:
         return ""
     if counts.get("kana"):
-        return "Japanese"                                   # Japanese mixes kana with han
+        return "Japanese"
     letters = sum(counts.values())
     others = {name: number for name, number in counts.items() if name != "latin"}
     if not others:
         return ""
     script = max(others, key=lambda name: others[name])
-    # Technical English words inside a Russian sentence are common; the reverse (one foreign word in an
-    # English sentence) stays below the threshold.
+
     if counts[script] * 10 < letters * 3:
         return ""
     if script == "cyrillic":
@@ -76,16 +72,12 @@ def detect(text: str) -> str:
         return "Russian"
     return _NAMES.get(script, "")
 
-
-#: Round 32: frequent English function words. A Latin-script message made mostly of them is English — the
-#: general "(it may not be English)" fallback pushed models into Russian for a plain English request.
 _ENGLISH_WORDS = frozenset(
     "the a an and or but if then is are was were be been it this that these those to of in on at for with from by "
     "as into what which who how why when where do does did not no can could should would will please fix add make "
     "find run show explain tell me my you your we our all any each every some only also there here so than"
     .split())
 _WORD = re.compile(r"[A-Za-z']+")
-
 
 def english(text: str) -> bool:
     """Is this Latin-script prose English? (cheap: share of common English function words)"""
@@ -95,18 +87,17 @@ def english(text: str) -> bool:
     hits = sum(1 for word in words if word in _ENGLISH_WORDS)
     return hits >= 3 and hits * 100 >= len(words) * 22
 
-
 def reminder(texts: Iterable[str]) -> str:
     """The per-turn language rule, from the user's latest messages (newest first wins)."""
     language = ""
     for text in texts:
         letters = sum(1 for char in prose(text) if char.isalpha())
         if not letters:
-            continue                                 # "12345", "?!" — says nothing about the language
+            continue
         language = detect(text) or ("English" if english(text) else "")
         if language or letters >= 12:
-            break                                    # a real sentence decides; a short Latin word ("ok", "go on")
-                                                     # is ambiguous, so the earlier message still counts
+            break
+
     if language:
         return (f"The user is writing in {language}. Reply in {language} — your messages, plans, todo items, "
                 f"questions to the user and the final report — unless they ask for another language. Keep code, "

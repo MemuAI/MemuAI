@@ -22,10 +22,8 @@ from fastapi import FastAPI
 from app import api_budget as budget, pricing, quota_planner
 from app.state import Account, ModelEntry, state
 
-
 MODEL = "claude-opus-5.5"
 RATES = {"input": 2, "output": 10, "cache_read": .1, "cache_write": 2.5, "caching": True}
-
 
 class BudgetCase(unittest.TestCase):
     def setUp(self):
@@ -51,7 +49,6 @@ class BudgetCase(unittest.TestCase):
 
     def add(self, **extra):
         return budget.save_account(self.account, {"balance_usd": 10, "models": {MODEL: dict(RATES)}, **extra})
-
 
 class PriceTests(BudgetCase):
     def test_account_scope_and_cli_public_alias(self):
@@ -176,7 +173,6 @@ class PriceTests(BudgetCase):
         self.assertIsNone(row["price"]["input"])
         self.assertIsNone(row["price"]["output"])
 
-
 class LedgerTests(BudgetCase):
     def test_usage_override_preserves_provider_charge_and_charges_once(self):
         self.add()
@@ -267,7 +263,6 @@ class LedgerTests(BudgetCase):
         self.assertIn("a", state.accounts)
         self.assertIsNone(budget.price_for("api-" + MODEL))
 
-
 class HTTPTests(BudgetCase):
     def test_account_setup_models_save_delete_and_authentication(self):
         app = FastAPI()
@@ -295,7 +290,6 @@ class HTTPTests(BudgetCase):
                     self.assertEqual(response.status_code, 200)
                     self.assertEqual(response.json()["accounts"], [])
         asyncio.run(run())
-
 
 class SharedChatTests(BudgetCase):
     def test_real_chat_usage_to_cli_cost_and_ledger_with_fallback(self):
@@ -328,8 +322,7 @@ class SharedChatTests(BudgetCase):
                  patch.object(service, "_provider", return_value=Provider()), \
                  patch("app.chat.pool.ordered_candidates", return_value=[failed, self.account]), \
                  patch("app.chat.pool.report_success"), patch("app.chat.pool.report_failure"):
-                # A public alias can differ from the real upstream id. Billing
-                # follows routing's selected model, not user-facing spelling.
+
                 stream = service.stream_completion("api-friendly-alias", [{"role": "user", "content": "Hi"}], {"tools_available": True})
                 chunks = []
                 async for chunk in stream:
@@ -390,7 +383,6 @@ class SharedChatTests(BudgetCase):
             finally:
                 await backend.close()
         asyncio.run(run())
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -17,7 +17,6 @@ except ImportError:  # pragma: no cover
     Request = Any  # type: ignore[misc,assignment]
     JSONResponse = None  # type: ignore[assignment]
 
-
 def _lang(request: Any, body: Dict[str, Any] = None) -> str:
     raw = str((body or {}).get("lang") or request.query_params.get("lang") or "")
     if not raw:
@@ -28,14 +27,12 @@ def _lang(request: Any, body: Dict[str, Any] = None) -> str:
             raw = ""
     return "en" if raw == "en" else "ru"
 
-
 async def _body(request: Any) -> Dict[str, Any]:
     try:
         data = await request.json()
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
-
 
 def _agents() -> list:
     try:
@@ -46,11 +43,9 @@ def _agents() -> list:
     return [{"id": str(m.get("id")), "name": str(m.get("name") or "")[:80]} for m in memes
             if isinstance(m, dict) and m.get("id")][:100]
 
-
 def _err(exc: BaseException, lang: str, status: int = 400):
     text = exc.text(lang) if hasattr(exc, "text") else str(exc)
     return JSONResponse({"error": text[:400]}, status)
-
 
 def register(app: Any) -> None:
     mcp_hub.register_mentions()
@@ -98,7 +93,7 @@ def register(app: Any) -> None:
         except mcp_hub.HubError as exc:
             return _err(exc, lang, 404)
         if any(k in body for k in ("env", "enabled", "timeout")):
-            await mcp_client.registry.stop(name)    # the next call starts it with the new settings
+            await mcp_client.registry.stop(name)
         return {"ok": True}
 
     @app.delete("/api/mcp/server/{name}")

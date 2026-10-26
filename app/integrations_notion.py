@@ -35,7 +35,7 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 API = "https://api.notion.com/v1"
-VERSION = "2022-06-28"   # the last version with /databases/{id}/query (a data-source-less contract)
+VERSION = "2022-06-28"
 REDIRECT_PORT = 47652
 REDIRECT_PATH = "/notion/callback"
 REDIRECT_URI = "http://127.0.0.1:%d%s" % (REDIRECT_PORT, REDIRECT_PATH)
@@ -48,30 +48,24 @@ _flow: Dict[str, Any] = {"state": "idle"}
 _server: Dict[str, Optional[HTTPServer]] = {"server": None}
 _access: Dict[str, Any] = {"token": "", "expires": 0.0}
 _lock = threading.Lock()
-#: Replaced in tests; the default opens the system browser.
-open_browser: Optional[Callable[[str], Any]] = None
 
+open_browser: Optional[Callable[[str], Any]] = None
 
 def _ig():
     from . import integrations
     return integrations
 
-
 def _secrets():
     from . import google_account
     return google_account.sync_service().store
-
 
 def _err(text: str, argument: bool = False):
     ig = _ig()
     return (ig.IntegrationArgumentError if argument else ig.IntegrationError)(text)
 
-
-# --------------------------------------------------------------------------- state
 def _meta() -> Dict[str, Any]:
     data = _ig()._load_store().get("notion") or {}
     return data if isinstance(data, dict) else {}
-
 
 def _save_meta(**values: Any) -> Dict[str, Any]:
     ig = _ig()
@@ -87,7 +81,6 @@ def _save_meta(**values: Any) -> Dict[str, Any]:
         ig._save_store(store)
     return current
 
-
 def client() -> Tuple[str, str, str]:
     """``(client_id, client_secret, source)``: the user's public integration wins, then the build/env one."""
     cid = str(_meta().get("client_id") or "").strip()
@@ -97,10 +90,8 @@ def client() -> Tuple[str, str, str]:
     cid, secret, source = configured("notion")
     return (cid, secret, source) if cid else ("", "", "")
 
-
 def connected() -> bool:
     return bool(_secrets().get("notion_token"))
-
 
 def status() -> Dict[str, Any]:
     meta = _meta()
@@ -112,7 +103,6 @@ def status() -> Dict[str, Any]:
             "oauth": {"available": bool(cid), "source": source, "own_client_id": str(meta.get("client_id") or ""),
                       "own_has_secret": bool(_secrets().get("notion_client_secret")), "redirect_uri": REDIRECT_URI},
             "flow": {key: flow[key] for key in ("state", "error_ru", "error_en", "auth_url") if key in flow}}
-
 
 def save_token(token: str) -> Dict[str, Any]:
     """The simple path: an internal integration secret pasted by the user — checked at once (/users/me)."""
@@ -132,7 +122,6 @@ def save_token(token: str) -> Dict[str, Any]:
     _save_meta(mode="token", account=account[:200], checked=int(time.time()), last_error=None, workspace_icon=None)
     return status()
 
-
 def save_client(client_id: str, client_secret: str) -> Dict[str, Any]:
     cid = str(client_id or "").strip()
     secret = str(client_secret or "").strip()
@@ -145,7 +134,6 @@ def save_client(client_id: str, client_secret: str) -> Dict[str, Any]:
         _secrets().delete("notion_client_secret")
     return status()
 
-
 def disconnect() -> Dict[str, Any]:
     store = _secrets()
     token = store.get("notion_token")
@@ -157,26 +145,22 @@ def disconnect() -> Dict[str, Any]:
                 _ig()._send("Notion", "POST", API + "/oauth/revoke", json={"token": token},
                             headers=_basic(cid, secret))
             except Exception:
-                pass   # forgetting locally is what matters; Notion → Settings → Connections also removes it
+                pass
     store.delete("notion_token")
     store.delete("notion_refresh_token")
     _access.update(token="", expires=0.0)
     _save_meta(mode=None, account=None, checked=None, last_error=None, workspace_icon=None, workspace_id=None, bot_id=None)
     return status()
 
-
-# --------------------------------------------------------------------------- OAuth (public integration)
 def _basic(cid: str, secret: str) -> Dict[str, str]:
     raw = base64.b64encode(("%s:%s" % (cid, secret)).encode("utf-8")).decode("ascii")
     return {"Authorization": "Basic " + raw, "Notion-Version": VERSION, "Content-Type": "application/json"}
-
 
 _DONE = """<!doctype html><html><head><meta charset="utf-8"><title>MemuAI · Notion</title>
 <style>body{{font:16px/1.5 system-ui,sans-serif;background:#1a1a1c;color:#eee;display:grid;place-items:center;height:100vh;margin:0}}
 .card{{max-width:440px;padding:28px 32px;border-radius:16px;background:#26262a}}h1{{font-size:20px;margin:0 0 8px}}
 p{{margin:6px 0;color:#bbb}}.ok{{color:#7fd2be}}.bad{{color:#f4a09a}}</style></head><body><div class="card">
 <h1 class="{cls}">{ru}</h1><p>{text_ru}</p><h1 class="{cls}" style="font-size:17px">{en}</h1><p>{text_en}</p></div></body></html>"""
-
 
 def start_oauth() -> Dict[str, Any]:
     cid, secret, source = client()
@@ -186,7 +170,7 @@ def start_oauth() -> Dict[str, Any]:
     state = secrets.token_urlsafe(24)
 
     class Handler(BaseHTTPRequestHandler):
-        def log_message(self, *args: Any) -> None:  # never log codes
+        def log_message(self, *args: Any) -> None:
             return
 
         def do_GET(self) -> None:  # noqa: N802 - http.server API
@@ -236,9 +220,8 @@ def start_oauth() -> Dict[str, Any]:
     try:
         opener(url)
     except Exception:
-        pass   # the window shows the link as well
+        pass
     return {"state": "waiting", "auth_url": url}
-
 
 def _close(server: Optional[HTTPServer] = None) -> None:
     target = server or _server["server"]
@@ -251,13 +234,11 @@ def _close(server: Optional[HTTPServer] = None) -> None:
     except Exception:
         pass
 
-
 def cancel_oauth() -> None:
     if _flow.get("state") == "waiting":
         _flow.clear()
         _flow["state"] = "idle"
     _close()
-
 
 def _finish(query: Dict[str, List[str]], state: str):
     if not secrets.compare_digest((query.get("state") or [""])[0], state):
@@ -282,7 +263,6 @@ def _finish(query: Dict[str, List[str]], state: str):
     _flow["state"] = "done"
     return True, "Notion подключён", "Notion connected", "Вернитесь в MemuAI — окно можно закрыть.", "Return to MemuAI — you can close this tab."
 
-
 def _token_call(body: Dict[str, Any]) -> Dict[str, Any]:
     cid, secret, _source = client()
     response = _ig()._send("Notion", "POST", API + "/oauth/token", json=body, headers=_basic(cid, secret))
@@ -298,7 +278,6 @@ def _token_call(body: Dict[str, Any]) -> Dict[str, Any]:
         raise _err("Notion не вернул access_token")
     return data
 
-
 def exchange(code: str) -> None:
     data = _token_call({"grant_type": "authorization_code", "code": code, "redirect_uri": REDIRECT_URI})
     store = _secrets()
@@ -313,7 +292,6 @@ def exchange(code: str) -> None:
                workspace_id=str(data.get("workspace_id") or "") or None, bot_id=str(data.get("bot_id") or "") or None,
                checked=int(time.time()), last_error=None)
 
-
 def _refresh() -> str:
     store = _secrets()
     refresh = store.get("notion_refresh_token")
@@ -327,8 +305,6 @@ def _refresh() -> str:
         _access.update(token=str(data["access_token"]), expires=time.time() + float(data.get("expires_in") or 3000) - 60)
     return str(data["access_token"])
 
-
-# --------------------------------------------------------------------------- HTTP
 def _error(response) -> Exception:
     data = _ig()._error_payload(response)
     code = str(data.get("code") or "")
@@ -349,7 +325,6 @@ def _error(response) -> Exception:
     if status >= 500:
         return _err("Notion временно недоступен (%s). Попробуйте позже." % status)
     return _err("Notion %s: %s" % (status, message or code))
-
 
 def _request(method: str, path: str, *, json_body: Optional[Dict[str, Any]] = None,
              params: Optional[Dict[str, Any]] = None, token: str = "") -> Dict[str, Any]:
@@ -374,7 +349,6 @@ def _request(method: str, path: str, *, json_body: Optional[Dict[str, Any]] = No
         return {}
     return data if isinstance(data, dict) else {}
 
-
 def test() -> Dict[str, Any]:
     me = _request("GET", "/users/me")
     bot = me.get("bot") or {}
@@ -382,8 +356,6 @@ def test() -> Dict[str, Any]:
     _save_meta(account=account[:200], checked=int(time.time()), last_error=None)
     return {"account": account}
 
-
-# --------------------------------------------------------------------------- content helpers
 def _id(value: Any, what: str = "page_id") -> str:
     """An id from what people paste: a bare id, a dashed UUID or a notion.so URL (the last 32 hex chars)."""
     text = str(value or "").strip()
@@ -393,10 +365,8 @@ def _id(value: Any, what: str = "page_id") -> str:
     raw = found[-1].replace("-", "").lower()
     return "%s-%s-%s-%s-%s" % (raw[:8], raw[8:12], raw[12:16], raw[16:20], raw[20:])
 
-
 def _plain(rich: Any) -> str:
     return "".join(str((part or {}).get("plain_text") or "") for part in (rich or []) if isinstance(part, dict))
-
 
 def _title(obj: Dict[str, Any]) -> str:
     if obj.get("object") == "database":
@@ -405,7 +375,6 @@ def _title(obj: Dict[str, Any]) -> str:
         if isinstance(prop, dict) and prop.get("type") == "title":
             return _plain(prop.get("title")) or "Untitled"
     return "Untitled"
-
 
 def _prop_text(prop: Dict[str, Any]) -> Any:
     kind = prop.get("type")
@@ -431,7 +400,6 @@ def _prop_text(prop: Dict[str, Any]) -> Any:
         return [row.get("name") for row in value or [] if isinstance(row, dict)]
     return None
 
-
 def _block_text(block: Dict[str, Any]) -> str:
     kind = str(block.get("type") or "")
     data = block.get(kind) or {}
@@ -452,7 +420,6 @@ def _block_text(block: Dict[str, Any]) -> str:
         url = (data.get("external") or data.get("file") or {}).get("url") or data.get("url") or ""
         return "[%s] %s %s" % (kind, _plain(data.get("caption")), url if kind in ("bookmark", "embed") else "")
     return prefix + text if (text or prefix) else ""
-
 
 def _blocks(block_id: str, depth: int, counter: List[int], lines: List[str]) -> None:
     cursor = None
@@ -476,7 +443,6 @@ def _blocks(block_id: str, depth: int, counter: List[int], lines: List[str]) -> 
         if not data.get("has_more") or not cursor:
             break
 
-
 def _rich(text: str) -> List[Dict[str, Any]]:
     """Notion caps one text object at 2000 characters; **bold** and `code` survive as annotations."""
     out: List[Dict[str, Any]] = []
@@ -494,7 +460,6 @@ def _rich(text: str) -> List[Dict[str, Any]]:
                 row["annotations"] = annotations
             out.append(row)
     return out
-
 
 def markdown_blocks(text: str) -> List[Dict[str, Any]]:
     """Simple Markdown → Notion blocks: headings, lists, to-dos, quotes, code fences, dividers, paragraphs."""
@@ -554,23 +519,18 @@ def markdown_blocks(text: str) -> List[Dict[str, Any]]:
     flush()
     return blocks
 
-
 def _chunks(text: str) -> List[str]:
     return [text[start:start + 2000] for start in range(0, len(text), 2000)] if text else []
 
-
 def _append(page_id: str, blocks: List[Dict[str, Any]]) -> int:
-    for start in range(0, len(blocks), 100):   # Notion takes at most 100 blocks per request
+    for start in range(0, len(blocks), 100):
         _request("PATCH", "/blocks/%s/children" % page_id, json_body={"children": blocks[start:start + 100]})
     return len(blocks)
-
 
 def _row(obj: Dict[str, Any]) -> Dict[str, Any]:
     return {"id": obj.get("id"), "type": obj.get("object"), "title": _title(obj), "url": obj.get("url"),
             "last_edited": obj.get("last_edited_time")}
 
-
-# --------------------------------------------------------------------------- tools
 def run(tool: str, args: Dict[str, Any]) -> Any:
     ig = _ig()
     if tool == "notion_search":
@@ -635,7 +595,7 @@ def run(tool: str, args: Dict[str, Any]) -> Any:
                                if isinstance(prop, dict) and prop.get("type") == "title"), "Name")
             properties: Dict[str, Any] = {title_prop: {"title": _rich(title)}}
             if isinstance(args.get("properties"), dict):
-                # Round 33: plain values ({"Status": "Done"}) are shaped by the schema (raw Notion JSON still works).
+
                 from .integrations_notion_tools import simple_properties
                 shaped = simple_properties(schema, {k: v for k, v in args["properties"].items() if k != title_prop})
                 properties.update({k: v for k, v in shaped.items() if k != title_prop})
@@ -653,6 +613,6 @@ def run(tool: str, args: Dict[str, Any]) -> Any:
         if not blocks:
             raise _err("Нечего добавлять: content пуст", argument=True)
         return {"id": page_id, "appended_blocks": _append(page_id, blocks)}
-    # Round 33: schema, update / archive / restore pages, replace content, delete blocks, comments.
+
     from . import integrations_notion_tools
     return integrations_notion_tools.run(tool, args)

@@ -24,7 +24,6 @@ from typing import Any, Dict, List, Tuple
 log = logging.getLogger("memuai")
 APPS = ("memunote", "memufiles")
 
-
 def _modules(app_id: str):
     """(schema module, settings store, desktop module) of an app — imported lazily."""
     if app_id == "memunote":
@@ -33,7 +32,6 @@ def _modules(app_id: str):
         from .memufiles import desktop, settings, settings_schema
     return settings_schema, settings, desktop
 
-
 def _settings_path(app_id: str):
     if app_id == "memunote":
         from .memunote.settings import path
@@ -41,28 +39,23 @@ def _settings_path(app_id: str):
     from .memufiles.settings import _path
     return _path()
 
-
 def _mtime(app_id: str) -> float:
     try:
         return round(_settings_path(app_id).stat().st_mtime, 3)
     except OSError:
         return 0.0
 
-
 def _visible(schema, values: Dict[str, Any]) -> Dict[str, Any]:
     return {k: v for k, v in values.items() if k in schema.BY_KEY and not schema.BY_KEY[k].get("hidden")}
-
 
 def snapshot(app_id: str) -> Dict[str, Any]:
     schema, store, _ = _modules(app_id)
     return {"ok": True, "app": app_id, "values": _visible(schema, store.load()),
             "defaults": _visible(schema, schema.DEFAULTS), "mtime": _mtime(app_id), "exists": _mtime(app_id) > 0}
 
-
 def describe(app_id: str) -> Dict[str, Any]:
     schema, _, _ = _modules(app_id)
     return {**snapshot(app_id), "schema": schema.public()}
-
 
 def notify(app_id: str) -> bool:
     """Tell a running instance to re-read its settings (in the background: never delays the reply)."""
@@ -82,7 +75,6 @@ def notify(app_id: str) -> bool:
     threading.Thread(target=run, name=f"{app_id}-settings-notify", daemon=True).start()
     return True
 
-
 def write(app_id: str, changes: Any) -> Tuple[Dict[str, Any], int]:
     schema, store, _ = _modules(app_id)
     clean, errors = schema.validate(changes)
@@ -90,14 +82,13 @@ def write(app_id: str, changes: Any) -> Tuple[Dict[str, Any], int]:
         return {"ok": False, "error": "invalid", "errors": errors}, 400
     if clean:
         store.save(clean)
-        if app_id == "memufiles" and "open_archives" in clean and os.name == "nt":   # r41-files: works with MemuFiles closed too
+        if app_id == "memufiles" and "open_archives" in clean and os.name == "nt":
             try:
                 from .memufiles import archive_assoc
                 archive_assoc.sync(bool(clean["open_archives"]))
             except Exception:  # noqa: BLE001
                 log.exception("archive association failed")
     return {**snapshot(app_id), "notified": notify(app_id) if clean else False}, 200
-
 
 def reset(app_id: str, keys: Any) -> Dict[str, Any]:
     schema, store, _ = _modules(app_id)
@@ -106,7 +97,6 @@ def reset(app_id: str, keys: Any) -> Dict[str, Any]:
     if targets:
         store.save({k: schema.DEFAULTS[k] for k in targets})
     return {**snapshot(app_id), "notified": notify(app_id) if targets else False}
-
 
 def register(app) -> None:
     from fastapi import Request

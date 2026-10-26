@@ -1,15 +1,8 @@
-/* MemuAI — Telegram Mini App.
- *
- * Tabs: Chats · Agents (мемесы) · MemuCode · Modules · Settings.
- * Talks only to /tgapp/api/* of the computer (see app/tgapp_api.py) with a
- * session token obtained for Telegram initData. Long answers are server-side
- * jobs read in short streamed POST segments (Cloudflare quick tunnels buffer
- * GET streams) with polling as the fallback.
- */
+
+
 (function () {
   "use strict";
 
-  /* ================================================================ basics */
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
   const esc = (value) => window.MemuMD.esc(value);
@@ -27,7 +20,6 @@
 
   function tr(ru, en) { return S.lang === "en" ? en : ru; }
 
-  /* ================================================================ icons */
   const P = (d, extra = "") => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" ${extra}>${d}</svg>`;
   const ICONS = {
     chat: P('<path d="M21 12a8.5 8.5 0 0 1-12.4 7.5L3 21l1.6-5.2A8.5 8.5 0 1 1 21 12z"/>'),
@@ -95,7 +87,6 @@
     user: "user", monitor: "monitor", terminal: "terminal", target: "target", mic: "mic", headphones: "headphones",
     download: "download", folder: "folder", info: "info", play: "play" };
 
-  /* ================================================================ Telegram helpers */
   const tg = () => S.tg;
   function haptic(kind = "light") {
     try {
@@ -104,10 +95,10 @@
       if (kind === "select") h.selectionChanged();
       else if (["success", "error", "warning"].includes(kind)) h.notificationOccurred(kind);
       else h.impactOccurred(kind);
-    } catch (e) { /* not in Telegram */ }
+    } catch (e) {  }
   }
   function openLink(url) {
-    try { if (S.tg && S.tg.openLink) { S.tg.openLink(url); return; } } catch (e) { /* fall through */ }
+    try { if (S.tg && S.tg.openLink) { S.tg.openLink(url); return; } } catch (e) {  }
     window.open(url, "_blank", "noopener");
   }
   function confirmDialog(message, { title = "", ok = tr("Да", "Yes"), danger = false } = {}) {
@@ -119,7 +110,7 @@
             buttons: [{ id: "ok", type: danger ? "destructive" : "default", text: ok.slice(0, 64) }, { type: "cancel" }] },
           (id) => resolve(id === "ok"));
           return;
-        } catch (e) { /* fall back to the in-app sheet */ }
+        } catch (e) {  }
       }
       const sheet = openSheet({
         title: title || tr("Подтверждение", "Confirm"),
@@ -132,7 +123,6 @@
     });
   }
 
-  /* ================================================================ toast */
   function toast(text, kind = "") {
     const root = $("#toast-root");
     const el = document.createElement("div");
@@ -143,12 +133,11 @@
     setTimeout(() => { el.classList.add("out"); setTimeout(() => el.remove(), 260); }, kind === "err" ? 4200 : 2400);
   }
 
-  /* ================================================================ API */
   class ApiError extends Error { constructor(message, status, code) { super(message); this.status = status; this.code = code; } }
 
   async function authenticate() {
     if (S.web) {
-      // Round 29: a browser session has no Telegram data to sign in again with — back to the sign-in screen.
+
       if (window.MemuTgWeb) window.MemuTgWeb.expired();
       throw new ApiError(tr("Сессия в браузере закончилась — войдите снова", "The browser session has ended — sign in again"), 401, "unauthorized");
     }
@@ -180,8 +169,6 @@
     return data;
   }
 
-  /* Read a server-side job: streamed NDJSON segments, polling as the fallback. */
-  // A chat answer may finish before its title: «done» says title_pending and the job ends with «settled».
   function jobFinished(event) { return (event.type === "done" && !event.title_pending) || event.type === "settled"; }
   async function followJob(job, from, onEvent, control = {}) {
     let offset = from || 0;
@@ -210,7 +197,7 @@
               onEvent(event);
               if (jobFinished(event)) finished = true;
             }
-            if (control.cancelled) { try { reader.cancel(); } catch (e) { /* closed */ } return; }
+            if (control.cancelled) { try { reader.cancel(); } catch (e) {  } return; }
           }
           if (!gotData) streamFailures++;
         } catch (error) {
@@ -233,7 +220,6 @@
     }
   }
 
-  /* ================================================================ appearance */
   function hexOk(value) { return /^#[0-9a-f]{3,8}$/i.test(String(value || "").trim()); }
   function luminance(hex) {
     const m = /^#?([0-9a-f]{6})/i.exec(String(hex || "").trim());
@@ -303,7 +289,7 @@
         else { app.setHeaderColor("secondary_bg_color"); }
         if (app.setBottomBarColor && app.isVersionAtLeast("7.10")) app.setBottomBarColor(v.bg);
       }
-    } catch (e) { /* older client */ }
+    } catch (e) {  }
   }
   function applySafeArea() {
     const app = S.tg;
@@ -315,7 +301,6 @@
     root.style.setProperty("--tg-content-top", (app.isFullscreen ? (content.top || 0) : 0) + "px");
   }
 
-  /* UI-only preferences: Telegram CloudStorage when present, else localStorage. */
   const UI_KEY = "memu_ui_v1";
   function loadUiPrefs() {
     return new Promise((resolve) => {
@@ -332,11 +317,10 @@
   }
   function saveUiPrefs() {
     const text = JSON.stringify(S.ui);
-    try { localStorage.setItem(UI_KEY, text); } catch (e) { /* private */ }
-    try { if (S.official && S.tg && S.tg.CloudStorage && S.tg.isVersionAtLeast("6.9")) S.tg.CloudStorage.setItem(UI_KEY, text); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(UI_KEY, text); } catch (e) {  }
+    try { if (S.official && S.tg && S.tg.CloudStorage && S.tg.isVersionAtLeast("6.9")) S.tg.CloudStorage.setItem(UI_KEY, text); } catch (e) {  }
   }
 
-  /* ================================================================ time & text */
   function ago(ms) {
     const value = +ms || 0;
     if (!value) return "";
@@ -359,10 +343,10 @@
     const row = S.models.find((m) => m.id === id);
     let name = (row && row.name) || id || "";
     if (name === id) {
-      // URI-style ids ("ydx-gpt://folder/deepseek-v4.1-flash/latest") show the model, like the desktop's shortModelId().
+
       const uri = String(id).match(/^[a-z][a-z-]*:\/\/[^/]+\/([^/]+)(?:\/[^/]*)?$/i);
       if (uri) return uri[1];
-      // Account-prefixed ids ("genspark-claude-…") read better without the prefix — but "grok-4" must stay "grok-4".
+
       const bare = String(id).replace(/^(genspark|kiro|antigravity|geminiweb|grok|custom|local)[-/]/i, "");
       if (/^[a-z]/i.test(bare) && bare.length > 2) name = bare;
     }
@@ -378,12 +362,11 @@
     try { await navigator.clipboard.writeText(text); }
     catch (e) {
       const area = document.createElement("textarea"); area.value = text; area.style.position = "fixed"; area.style.opacity = "0";
-      document.body.appendChild(area); area.select(); try { document.execCommand("copy"); } catch (err) { /* ignore */ } area.remove();
+      document.body.appendChild(area); area.select(); try { document.execCommand("copy"); } catch (err) {  } area.remove();
     }
     haptic("success");
   }
 
-  /* ================================================================ meme avatars (same art as the desktop) */
   const MEME_KINDS = ["orbit", "bloom", "waves", "prism", "spark", "grid", "moon", "leaf", "bolt", "drops", "rings", "cross"];
   const MEME_PALETTES = [["#f97316", "#facc15"], ["#22d3ee", "#3b82f6"], ["#a855f7", "#ec4899"], ["#10b981", "#84cc16"], ["#ef4444", "#fb923c"], ["#6366f1", "#22d3ee"],
     ["#f43f5e", "#a855f7"], ["#0ea5e9", "#14b8a6"], ["#eab308", "#84cc16"], ["#8b5cf6", "#3b82f6"], ["#fb7185", "#fdba74"], ["#2dd4bf", "#a3e635"]];
@@ -428,7 +411,6 @@
   function memeGlow(meme) { const cfg = memeAvatarConfig(meme); return cfg.type === "art" ? MEME_PALETTES[Math.abs(cfg.palette || 0) % MEME_PALETTES.length][0] : "var(--accent)"; }
   const memeById = (id) => S.memes.find((m) => m.id === id) || null;
 
-  /* ================================================================ sheets */
   function openSheet({ title = "", body = "", actions = [], full = false, onClose = null, onMount = null, headerAction = "" } = {}) {
     const root = $("#sheet-root");
     const backdrop = document.createElement("div");
@@ -459,7 +441,7 @@
       }
       close(true);
     });
-    // Swipe the grab handle down to close.
+
     let startY = null;
     $(".sheet-grab", sheet).addEventListener("touchstart", (e) => { startY = e.touches[0].clientY; }, { passive: true });
     sheet.addEventListener("touchmove", (e) => { if (startY != null) { const dy = e.touches[0].clientY - startY; if (dy > 0) sheet.style.transform = `translateY(${dy}px)`; } }, { passive: true });
@@ -493,7 +475,6 @@
     });
   }
 
-  /* ================================================================ back stack (Telegram BackButton) */
   const backStack = [];
   function pushBack(handle) { backStack.push(handle); syncBackButton(); }
   function popBack(handle) { const i = backStack.lastIndexOf(handle); if (i >= 0) backStack.splice(i, 1); syncBackButton(); }
@@ -501,11 +482,10 @@
     const app = S.tg;
     const visible = backStack.length > 0;
     $("#top-back").hidden = !(visible && !(app && app.initData));
-    try { if (app && app.BackButton && app.isVersionAtLeast("6.1")) { if (visible) app.BackButton.show(); else app.BackButton.hide(); } } catch (e) { /* old */ }
+    try { if (app && app.BackButton && app.isVersionAtLeast("6.1")) { if (visible) app.BackButton.show(); else app.BackButton.hide(); } } catch (e) {  }
   }
   function goBack() { const top = backStack[backStack.length - 1]; if (top) top.back(); }
 
-  /* ================================================================ views */
   const TABS = [
     { id: "chats", icon: "chat", ru: "Чаты", en: "Chats" },
     { id: "memes", icon: "agents", ru: "Мемесы", en: "Agents" },
@@ -522,13 +502,9 @@
       ${icon(tab.icon)}<span>${esc(tr(tab.ru, tab.en))}</span>${tab.id === "code" && S.codeSessions.some((s) => s.live && (s.asking)) ? '<i class="dot"></i>' : tab.id === "code" && S.codeSessions.some((s) => s.live) ? '<i class="dot live"></i>' : ""}</button>`).join("");
     $$(".tab", bar).forEach((button) => button.onclick = () => switchTab(button.dataset.tab));
   }
-  /* Round 29: on tablets and computers (device.js → data-layout="split") the tab's list keeps its own header
-     (#list-head) on the left and the open chat / session / page fills the right pane under the top bar. */
+
   function isSplit() { return document.documentElement.dataset.layout === "split"; }
-  /* r30: header buttons are bound with `.onclick` right after setTop()/openStack(); every redraw of the headers
-     (a title update, a layout change, closing a stack) used to recreate them without their handlers — «+ New
-     session», «⋯» of a chat and the session's «Files» went dead. Each header (the root of the tab, every stack
-     entry) keeps the handlers of its buttons and gets them back after a redraw. */
+
   function keepHandlers(actionsEl) {
     const owner = actionsEl && actionsEl._owner;
     if (!owner) return;
@@ -558,7 +534,7 @@
     }
     return head;
   }
-  /* Draw the headers for the current layout (also called by device.js when the layout changes). */
+
   function refreshTops() {
     const root = S.rootTop || { title: "", actions: "", compact: false, sub: "" };
     const top = S.stack[S.stack.length - 1];
@@ -569,7 +545,7 @@
     $("#app").classList.toggle("has-detail", !!top);
     keepHandlers($("#top-actions")); keepHandlers($("#list-actions"));
     if (split) {
-      // The ids of the root actions must exist only once: clear the top bar first.
+
       $("#top-actions").innerHTML = ""; $("#top-actions")._owner = null;
       drawTop($("#list-title"), $("#list-actions"), root.title, root.actions, root.compact, root.sub, S.rootTop);
       if (top) drawTop($("#top-title"), $("#top-actions"), top.title, top.actions, top.compact, top.sub, top);
@@ -596,7 +572,7 @@
     box.hidden = !show || !hint;
     if (show && hint) box.innerHTML = `<div class="detail-art">${icon(hint[0])}</div><p>${esc(tr(hint[1], hint[2]))}</p>${window.MemuDevice && window.MemuDevice.device === "desktop" ? `<p class="kbd-hint">${esc(tr("Сочетания клавиш", "Keyboard shortcuts"))}: <kbd>?</kbd></p>` : ""}`;
   }
-  /* A chat, a session or a settings page opened from a list replaces the open one in the right pane. */
+
   function primaryStack() { if (isSplit()) while (S.stack.length) closeStack(S.stack[S.stack.length - 1], { instant: true }); }
   function rootView() {
     const views = $("#views");
@@ -621,7 +597,7 @@
     ({ chats: renderChatsTab, memes: renderMemesTab, code: renderCodeTab, modules: renderModulesTab, settings: renderSettingsTab, panels: renderPanelsTab }[tab] || kit.tabViews[tab] || renderChatsTab)(view);
     if (keepScroll) view.scrollTop = scrolled;
     refreshTops();
-    try { sessionStorage.setItem("memu_tab", tab); } catch (e) { /* ignore */ }
+    try { sessionStorage.setItem("memu_tab", tab); } catch (e) {  }
   }
   function openStack({ title = "", sub = "", actions = "", build, onClose, compact = true }) {
     const view = document.createElement("div");
@@ -648,7 +624,7 @@
     if (top) setTop(top.title, top.actions, { compact: top.compact, sub: top.sub });
     else {
       $("#tabbar").classList.remove("hidden");
-      // Split view: the list stayed visible — refresh it in place instead of jumping to its top.
+
       if (!instant) switchTab(S.tab, { force: true, keepScroll: isSplit() });
       else refreshTops();
     }
@@ -671,7 +647,6 @@
     el.addEventListener("click", (e) => { if (fired) { e.stopImmediatePropagation(); e.preventDefault(); fired = false; } }, true);
   }
 
-  /* ================================================================ CHATS TAB */
   async function loadChats(force = false) {
     try {
       const data = await api("chats.list", { rev: force ? "" : S.chatsRev });
@@ -725,9 +700,9 @@
   }
   function drawChatList() {
     const box = $("#chat-list"); if (!box) return;
-    // While searching the «new chat» button would sit on top of the results — hide it (as Telegram does).
+
     const rows = visibleChats();
-    // Round 34: …and over an empty list, whose own «New chat» button is the one action (no second button).
+
     const fab = $("#chat-new"); if (fab) fab.classList.toggle("fab-off", !!S.chatQuery.trim() || !rows.length);
     if (!rows.length) {
       box.innerHTML = `<div class="empty"><div class="empty-art">${icon("chat")}</div><h3>${esc(S.chatQuery ? tr("Ничего не найдено", "Nothing found") : tr("Пока пусто", "Nothing here yet"))}</h3>
@@ -749,7 +724,7 @@
     });
     const more = $("#chats-more"); if (more) more.onclick = () => { S.chatLimit += 60; drawChatList(); };
   }
-  /* Round 29: the search box also finds text inside messages (chats.search on the computer). */
+
   let searchTimer = null, searchSeq = 0;
   function searchMessagesSoon() {
     clearTimeout(searchTimer);
@@ -763,8 +738,7 @@
     try { data = await api("chats.search", { query }); } catch (error) { return; }
     const box = $("#chat-hits");
     if (!box || seq !== searchSeq || S.chatQuery.trim() !== query) return;
-    // A chat whose title matched only by a word form / typo ("фрукты" → «Три фрукта») is not in the substring-filtered
-    // list above, so it is shown here too; titles the list already shows are not repeated.
+
     const listed = new Set(visibleChats().map((c) => c.id));
     const hits = (data.hits || []).filter((hit) => (hit.matches || []).length || (hit.title_match && !listed.has(hit.id)));
     const global = (data.global || []).filter((g) => (g.items || []).length);
@@ -777,7 +751,7 @@
       return;
     }
     const needle = esc(query).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    /* Round 29: results of the global search carry exact [start, length] highlights (word forms, typos). */
+
     const mark = (text, spans) => {
       const raw = String(text || "");
       if (Array.isArray(spans) && spans.length) {
@@ -854,7 +828,6 @@
     ]);
   }
 
-  /* ================================================================ CONVERSATION */
   function openChat(chatId, { temp = false, memeId = "" } = {}) {
     primaryStack();
     const C = { id: chatId, temp, memeId, messages: [], model: "", web: null, think: null, effort: "", attachments: [], job: null, control: null,
@@ -884,10 +857,10 @@
             </div></div></div>
           <input type="file" id="file-input" multiple hidden accept="image/*,audio/*,.ogg,.oga,.opus,.m4a,.mp3,.wav,.flac,.pdf,.docx,.txt,.md,.json,.csv,.py,.js,.ts,.html,.css,.xml,.yaml,.yml,.log,.sql,.java,.c,.cpp,.cs,.go,.rs,.rb,.php">`;
         bindComposer(C, view, stackEntry);
-        // Round 29: feature modules add their composer buttons (voice.js — the microphone).
+
         kit.hooks.composerExtras.forEach((fn) => { try { fn(C, view, stackEntry); } catch (e) { console.error(e); } });
       },
-      onClose: () => { if (S.openChatId === C.id) S.openChatId = ""; if (C.control) C.control.cancelled = true; if (C.control && C.control.abort) try { C.control.abort.abort(); } catch (e) { /* closed */ } S.chatsRev = ""; },
+      onClose: () => { if (S.openChatId === C.id) S.openChatId = ""; if (C.control) C.control.cancelled = true; if (C.control && C.control.abort) try { C.control.abort.abort(); } catch (e) {  } S.chatsRev = ""; },
     });
     C.entry = entry;
     const more = $("#chat-more"); if (more) more.onclick = () => chatMenu(C.id, (what, chat) => { if (what === "deleted") closeStack(entry); else if (chat) { C.title = chat.title; updateStackTop(entry, { title: chat.title }); } });
@@ -912,7 +885,7 @@
     if (meme) return memeAvatar(meme, "").replace('class="avatar ', 'class="ava ').replace(/--av1:[^;]+;--av2:[^"]+/, "");
     return `<div class="ava">${'<svg viewBox="0 0 32 32"><path d="M9 22V11l7 6.5 7-6.5v11" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'}</div>`;
   }
-  /* Round 35 (branches): «‹ 2/3 ›» — the chat keeps other versions of this message (regenerate / edit). */
+
   function versionsHtml(C, m) {
     const v = m.versions;
     if (!v || !(v.n > 1) || C.temp) return "";
@@ -927,7 +900,7 @@
     if (m.role === "user") {
       const atts = (m.attachments || []).map((a) => a.isImg && a.data ? `<img src="${esc(a.data)}" alt="${esc(a.name)}">` : `<span class="file-pill">${icon(a.isImg ? "image" : "file")}${esc(a.name)}</span>`).join("");
       const long = (m.content || "").length > 900;
-      // Round 29: your messages can be copied and edited (the answer after it is written again).
+
       const editable = !C.temp && C.id && typeof m.i === "number" && !C.job && m.content;
       const userTools = m.content || m.versions ? `<div class="msg-tools user-tools">${versionsHtml(C, m)}<button data-copy-msg="${index}" aria-label="${esc(tr("Копировать", "Copy"))}">${icon("copy")}</button>${editable ? `<button data-edit-msg="${index}" aria-label="${esc(tr("Изменить", "Edit"))}">${icon("edit")}${esc(tr("Изменить", "Edit"))}</button>` : ""}</div>` : "";
       return `<div class="msg user">${atts ? `<div class="msg-atts">${atts}</div>` : ""}${m.content ? `<div class="bubble ${long ? "collapsed" : ""}" ${long ? 'data-expand="1"' : ""}>${esc(m.content)}</div>` : ""}${userTools}</div>`;
@@ -936,10 +909,10 @@
       return url ? `<a href="${esc(url)}" data-link="1">${esc((s.title || host).slice(0, 60))}<small>${esc(host)}</small></a>` : ""; }).join("")}</div>` : "";
     const thinking = m.reasoning ? `<details class="thinking"><summary>${icon("brain")}${esc(tr("Ход мыслей", "Thinking"))}</summary><div>${esc(m.reasoning)}</div></details>` : "";
     const tools = `<div class="msg-tools">${versionsHtml(C, m)}<button data-copy-msg="${index}">${icon("copy")}${esc(tr("Копировать", "Copy"))}</button>${isLast && !C.job ? `<button data-regen="1">${icon("retry")}${esc(tr("Повторить", "Regenerate"))}</button>` : ""}<span class="msg-meta">${esc(modelName(m.model))}${m.stopped ? " · " + esc(tr("остановлено", "stopped")) : ""}</span></div>`;
-    const asked = (m.askForms || []).length && window.MemuAskForm ? `<div class="au-stack">${m.askForms.map((r) => MemuAskForm.html(r, { compact: true })).join("")}</div>` : "";   // Round 35
+    const asked = (m.askForms || []).length && window.MemuAskForm ? `<div class="au-stack">${m.askForms.map((r) => MemuAskForm.html(r, { compact: true })).join("")}</div>` : "";
     return `<div class="msg assistant">${assistantAvatar(C)}<div class="answer-wrap" style="flex:1;min-width:0">${sources}${thinking}${asked}${m.content ? `<div class="answer">${md(m.content)}</div>` : ""}${mediaHtml(m)}${tools}</div></div>`;
   }
-  /* Round 29 (r29c-media): generated pictures and videos. Files of the computer (generated_media) load through media.file. */
+
   const genFiles = new Map();
   function mediaHtml(m) {
     const images = (m.images || []).filter(Boolean), videos = (m.videos || []).filter(Boolean);
@@ -951,7 +924,7 @@
       + `${m.mediaError ? `<div class="msg-error">${icon("warn")}<div>${esc(m.mediaError)}</div></div>` : ""}</div>`;
   }
   function bindGenMedia(box) {
-    // Round 33 (r33d-media): an old picture behind a temporary link (DashScope & co., ~24 h) — a clean note, no broken icon.
+
     $$("img.gen-img[src^='https:']", box).forEach((img) => img.addEventListener("error", () => img.replaceWith(Object.assign(document.createElement("div"),
       { className: "gen-missing", textContent: tr("Изображение истекло — попросите создать его заново", "The image expired — ask to create it again") })), { once: true }));
     $$("[data-gen-src]", box).forEach(async (el) => {
@@ -980,7 +953,7 @@
     if (C.total > C.messages.length) html += `<button class="btn secondary small load-older" id="load-older">${esc(tr("Ранние сообщения", "Earlier messages"))} · ${C.total - C.messages.length}</button>`;
     if (!C.messages.length && !C.streaming) html += heroHtml(C);
     html += C.messages.map((m, i) => messageHtml(C, m, i, i === lastAssistant && i === last)).join("");
-    // An answer that failed (rate limit, offline account…) can be asked again without retyping the message.
+
     const canRetry = C.error && !C.job && !C.temp && C.id && C.messages.length && C.messages[last].role === "user";
     if (C.error) html += `<div class="msg-error">${icon("warn")}<div>${esc(C.error)}</div>${canRetry ? `<button class="btn secondary small" data-regen="1">${icon("retry")}${esc(tr("Повторить", "Retry"))}</button>` : ""}</div>`;
     if (C.streaming) html += `<div class="msg assistant" id="streaming">${assistantAvatar(C)}<div style="flex:1;min-width:0"><div id="stream-sources"></div><div class="answer" id="stream-answer"><div class="typing"><i></i><i></i><i></i></div></div></div></div>`;
@@ -1027,12 +1000,12 @@
       renderPending = false;
       const box = $("#stream-answer", C.entry.view); if (!box || !C.streaming) return;
       const text = C.streaming.text.replace(/\[(?:TITLE|НАЗВАНИЕ|MEM|МЕМ):[^\]\n]*\]?$/i, "").replace(/\[(?:TITLE|НАЗВАНИЕ|MEM|МЕМ):[^\]\n]*\]/gi, "")
-        .replace(/```[ \t]*memuai[-_ ]?memory\b[\s\S]*?(?:\n[ \t]*```[ \t]*(?=\n|$)|$)/gi, "")   // Round 29: memory v2 block
-        .replace(/```[ \t]*memuai-(?:image|video)\b[\s\S]*?(?:```|$)/gi, "").trim();   // Round 29 (r29c-media)
+        .replace(/```[ \t]*memuai[-_ ]?memory\b[\s\S]*?(?:\n[ \t]*```[ \t]*(?=\n|$)|$)/gi, "")
+        .replace(/```[ \t]*memuai-(?:image|video)\b[\s\S]*?(?:```|$)/gi, "").trim();
       const media = C.streaming.media;
       const mediaLine = media ? `<div class="gen-progress">${icon("image")}<span>${esc(media.status === "prompting" ? tr("Продумываю промпт…", "Thinking the prompt through…")
         : media.media_kind === "video" ? tr("Создаю видео — обычно 1–5 минут", "Creating the video — usually 1–5 minutes") : tr("Создаю изображение…", "Creating the image…"))}</span><small>${esc(modelName(media.model || ""))}</small></div>` : "";
-      const forms = (C.streaming.askForms || []).length && window.MemuAskForm   // Round 35 (askuser)
+      const forms = (C.streaming.askForms || []).length && window.MemuAskForm
         ? `<div class="au-stack">${C.streaming.askForms.map((r) => MemuAskForm.html(r, { compact: true })).join("")}</div>` : "";
       if (forms && !text) { box.innerHTML = forms + ((C.streaming.askForms || []).some((r) => r.status === "pending") ? "" : '<div class="typing"><i></i><i></i><i></i></div>'); scrollConvo(C); return; }
       if (!text && !C.streaming.reasoning && !media) { box.innerHTML = '<div class="typing"><i></i><i></i><i></i></div>'; return; }
@@ -1068,14 +1041,13 @@
     if (memeBtn) memeBtn.onclick = () => actionSheet(tr("Начать с мемесом", "Start with an agent"), S.memes.map((m) => ({ label: m.name, sub: m.description, icon: "agents",
       run: () => { closeStack(C.entry, { instant: true }); openChat(null, { memeId: m.id }); } })).concat(S.memes.length ? [] : [{ label: tr("Создать мемеса", "Create an agent"), icon: "plus", run: () => { closeStack(C.entry, { instant: true }); switchTab("memes"); } }]));
   }
-  /* Round 33 (r33c-models-lists): reasoning levels of THIS model (app/reasoning_levels.py via chat_models rows) —
-     the chip opens only the levels the model accepts; a model without a control shows no chip. */
+
   const EFFORT_LABELS = { auto: ["Авто", "Auto"], off: ["Выкл", "Off"], on: ["Вкл", "On"], minimal: ["Минимум", "Minimal"],
     low: ["Низкая", "Low"], medium: ["Средняя", "Medium"], high: ["Высокая", "High"], xhigh: ["Очень высокая", "Extra high"], max: ["Максимум", "Max"] };
   function effortLabel(level) { const pair = EFFORT_LABELS[level] || [level, level]; return tr(pair[0], pair[1]); }
   function modelLevels(id) {
     const row = S.models.find((m) => m.id === id);
-    if (!row || !Array.isArray(row.reasoning_levels)) return null;           // an older server: the plain toggle
+    if (!row || !Array.isArray(row.reasoning_levels)) return null;
     return row.reasoning_levels.length ? row.reasoning_levels : [];
   }
   function chatEffort(C) {
@@ -1112,8 +1084,7 @@
       body: `<div class="search">${icon("search")}<input id="model-q" type="search" placeholder="${esc(tr("Найти модель", "Find a model"))}"></div><div class="group flat" id="model-list"></div>`,
       onMount: (el) => { draw(el); $("#model-q", el).oninput = (e) => { query = e.target.value.toLowerCase(); draw(el); }; } });
   }
-  /* Enter sends on a computer (a touch-screen laptop too — "ontouchstart" alone made Enter a new line there);
-     on a phone Enter is a new line and the button sends. */
+
   function enterSends() {
     const device = window.MemuDevice;
     return device ? device.device === "desktop" || document.documentElement.dataset.pointer === "fine" : !("ontouchstart" in window);
@@ -1126,7 +1097,7 @@
     input.addEventListener("keydown", (e) => {
       if (e.key === "Enter" && !e.shiftKey && !e.isComposing && (e.ctrlKey || e.metaKey || enterSends())) {
         e.preventDefault();
-        // While an answer is being written the button is «Stop»: Enter must not stop it by accident.
+
         if (C.job) { if (input.value.trim()) toast(tr("Дождитесь ответа или остановите его", "Wait for the answer or stop it")); return; }
         if (!send.disabled) send.click();
       }
@@ -1142,7 +1113,7 @@
     };
   }
   async function addAttachment(C, file) {
-    // Round 29: an audio file is transcribed on the computer (voice.js) instead of being attached.
+
     if (window.MemuTgVoice && window.MemuTgVoice.isAudioFile(file)) { await window.MemuTgVoice.transcribeFile(C, file); return; }
     if (C.attachments.length >= 8) { toast(tr("Не больше 8 вложений", "Up to 8 attachments"), "err"); return; }
     try {
@@ -1201,20 +1172,20 @@
       if (!regenerate) {
         const last = C.messages.pop(); input.value = last ? last.content : "";
         if (quiet && attachments.length) { C.attachments = attachments; drawAttachments(C); }
-      } else if (quiet) C.messages.push(...replaced);     // «Позже»: the old answer stays on screen
+      } else if (quiet) C.messages.push(...replaced);
       drawConversation(C, true); C.syncComposer && C.syncComposer();
-      // «Время и фокус»: quiet hours are a reminder, not a lock — «Продолжить» sends it after all.
+
       if (quiet && await confirmDialog(error.message, { title: tr("Тихие часы", "Quiet hours"), ok: tr("Продолжить", "Continue") }))
         sendMessage(C, { regenerate, quietAck: true });
     }
   }
-  /* Round 29: edit one of your messages; everything after it is answered again (chats.edit). */
+
   async function editUserMessage(C, index) {
     const m = C.messages[index];
     if (!m || C.job) return;
     const text = await promptSheet(tr("Изменить сообщение", "Edit message"), { value: m.content || "", multiline: true, max: 100000, ok: tr("Отправить", "Send") });
     if (!text || text === m.content) return;
-    // Round 35 (branches): nothing is lost any more — the old message and its answers stay as version «1/2».
+
     haptic("medium");
     try {
       const data = await api("chats.edit", { id: C.id, index: m.i, text, model: C.model, web_search: C.web, thinking: C.think });
@@ -1230,7 +1201,7 @@
       body: `<p class="section-note" style="margin:0 20px 8px;font-size:15px;color:var(--text)">${esc(text)}</p>`,
       actions: [{ label: tr("Скрыть", "Dismiss"), kind: "secondary", run: () => act("dismiss") },
                 { label: tr("Через 10 мин", "In 10 min"), kind: "secondary", run: () => act("snooze") },
-                { label: tr("Сделаю перерыв", "Take a break"), run: () => act("break") }] });   // closing = the server's 10-minute snooze
+                { label: tr("Сделаю перерыв", "Take a break"), run: () => act("break") }] });
   }
   function attachJob(C, job, from, resumed) {
     C.job = job; C.control = { cancelled: false, abort: new AbortController() };
@@ -1238,13 +1209,12 @@
     if (resumed) drawConversation(C, true);
     C.syncComposer && C.syncComposer();
     drawToolsRow(C);
-    if (S.tg && S.tg.enableClosingConfirmation) try { S.tg.enableClosingConfirmation(); } catch (e) { /* old */ }
+    if (S.tg && S.tg.enableClosingConfirmation) try { S.tg.enableClosingConfirmation(); } catch (e) {  }
     followJob(job, from, (event) => onChatEvent(C, event), C.control).finally(() => {
-      if (S.tg && S.tg.disableClosingConfirmation) try { S.tg.disableClosingConfirmation(); } catch (e) { /* old */ }
+      if (S.tg && S.tg.disableClosingConfirmation) try { S.tg.disableClosingConfirmation(); } catch (e) {  }
     });
   }
-  /* r30: a new chat (or a new answer) shows up in the list next to it at once — in two panes the list stayed
-     «Пока пусто» until the tab was reopened. */
+
   function syncChatList() {
     loadChats(true).then((changed) => { if (changed && S.tab === "chats" && $("#chat-list")) { drawChatChips(); drawChatList(); } });
   }
@@ -1269,8 +1239,8 @@
       case "delta": C.streaming.text += event.text || ""; renderStreaming(C); break;
       case "reasoning": C.streaming.reasoning += event.text || ""; renderStreaming(C); break;
       case "sources": C.streaming.sources = event.sources || null; renderStreaming(C); break;
-      case "media": C.streaming.media = event; renderStreaming(C); break;   // Round 29 (r29c-media)
-      // Round 35 (askuser): the model asks with a small form; the answer continues the same answer.
+      case "media": C.streaming.media = event; renderStreaming(C); break;
+
       case "ask_user": askUserForm(C, event); break;
       case "ask_user_done": {
         const rec = (C.streaming.askForms || []).find((r) => r.id === event.id);
@@ -1292,7 +1262,7 @@
         }
         if (!C.temp && C.id) syncChatList();
         if (event.type === "lost" && C.id) loadConversation(C);
-        // Round 29: the stored indexes make your new messages editable at once.
+
         else if (!C.temp && C.id && C.messages.some((m) => typeof m.i !== "number")) loadConversation(C);
         break;
       default: break;
@@ -1304,7 +1274,6 @@
     try { await api("jobs.stop", { job: C.job }); } catch (error) { toast(error.message, "err"); }
   }
 
-  /* ================================================================ MEMES TAB */
   function renderMemesTab(view) {
     setTop(tr("Мемесы", "Agents"), `<button class="icon-btn" id="meme-add" aria-label="${esc(tr("Новый мемес", "New agent"))}">${icon("plus")}</button>`);
     $("#meme-add").onclick = createMemeChoice;
@@ -1409,9 +1378,6 @@
     catch (error) { toast(error.message, "err"); }
   }
 
-  /* ================================================================ MEMUCODE TAB
-     Round 29: the whole MemuCode part lives in code.js (new sessions, slash commands with auto-complete,
-     phone-hosted sessions, files, approvals). These delegates keep the old entry points. */
   async function loadCodeSessions() {
     if (!window.MemuTgCode) return false;
     try { return await window.MemuTgCode.loadSessions(); } catch (error) { return false; }
@@ -1423,8 +1389,6 @@
   }
   function openCodeSession(sessionId, options) { if (window.MemuTgCode) return window.MemuTgCode.openSession(sessionId, options); return null; }
 
-  /* ================================================================ MODULES TAB */
-  /* Round 24: «Панели» — the same server data as the desktop cards (tgapp/panels.js). */
   function renderPanelsTab(view) {
     if (!window.MemuTgPanels) { view.innerHTML = `<div class="empty"><p>${esc(tr("Не удалось загрузить панели", "Panels failed to load"))}</p></div>`; return; }
     window.MemuTgPanels.render(view, { api, esc, tr, toast, haptic, setTop, icon, state: S, timers: S.timers });
@@ -1461,7 +1425,7 @@
       if (!frame || event.source !== frame.contentWindow) return;
       const data = event.data || {};
       if (data.type !== "memu-module") return;
-      const reply = (result, error) => { try { frame.contentWindow.postMessage({ type: "memu-module-result", id: data.id, result: result === undefined ? null : result, error: error ? String(error) : "" }, "*"); } catch (e) { /* closed */ } };
+      const reply = (result, error) => { try { frame.contentWindow.postMessage({ type: "memu-module-result", id: data.id, result: result === undefined ? null : result, error: error ? String(error) : "" }, "*"); } catch (e) {  } };
       const payload = data.payload || {};
       try {
         switch (data.action) {
@@ -1476,7 +1440,7 @@
             const started = await api("modules.stream", { id, payload });
             const control = { cancelled: false, job: started.job };
             streams.set(data.id, control);
-            const send = (message) => { try { frame.contentWindow.postMessage(Object.assign({ type: "memu-module-event", id: data.id }, message), "*"); } catch (e) { /* closed */ } };
+            const send = (message) => { try { frame.contentWindow.postMessage(Object.assign({ type: "memu-module-event", id: data.id }, message), "*"); } catch (e) {  } };
             send({ event: "status", status: "queued" });
             let result = null, error = "";
             await followJob(started.job, 0, (ev) => {
@@ -1507,7 +1471,6 @@
     });
   }
 
-  /* ================================================================ SETTINGS TAB */
   const SET = {
     toggle(key, title, sub = "") {
       return `<label class="cell flat"><div class="cell-body"><div class="cell-title">${esc(title)}</div>${sub ? `<div class="cell-sub">${esc(sub)}</div>` : ""}</div><span class="switch"><input type="checkbox" data-set-bool="${key}" ${S.settings[key] ? "checked" : ""}><span></span></span></label>`;
@@ -1530,7 +1493,7 @@
     language: [["ru", "Русский"], ["en", "English"]],
     theme: [["dark", tr("Тёмная", "Dark")], ["light", tr("Светлая", "Light")]],
     app_font: [["serif", tr("С засечками", "Serif")], ["sans", tr("Без засечек", "Sans")], ["mono", tr("Моноширинный", "Mono")], ["system", tr("Системный", "System")]],
-    // Round 33: the same scale as MemuAI (default for every model; each one gets its nearest supported level).
+
     default_effort: [["auto", tr("Авто", "Auto")], ["off", tr("Выкл", "Off")], ["minimal", tr("Минимум", "Minimal")], ["low", tr("Низкое", "Low")], ["medium", tr("Среднее", "Medium")], ["high", tr("Высокое", "High")], ["xhigh", tr("Очень высокое", "Extra high")], ["max", tr("Максимум", "Max")]],
     chat_titles: [["ai", tr("Придумывает ИИ", "AI writes them")], ["off", tr("Начало сообщения", "First words")]],
     ai_personality: [["friendly", tr("Дружелюбная", "Friendly")], ["pragmatic", tr("Прагматичная", "Pragmatic")]],
@@ -1558,8 +1521,7 @@
   function renderSettingsTab(view) {
     setTop(tr("Настройки", "Settings"));
     const profile = S.profiles.find((p) => p.id === S.profileId) || S.profiles[0] || { name: "" };
-    // Round 34: the card read «По умолчанию / Профиль: По умолчанию» — the person's own name comes before the
-    // profile's, and the profile line is not repeated when it is the same word.
+
     const own = S.settings.profile_name && S.settings.profile_name !== profile.name ? S.settings.profile_name : "";
     const name = own || (S.user && S.user.first_name) || profile.name || "MemuAI";
     const profileLine = profile.name && profile.name !== name ? `${tr("Профиль", "Profile")}: ${profile.name}` : tr("Профиль MemuAI", "MemuAI profile");
@@ -1588,8 +1550,7 @@
     const sw = $("#profile-switch", view); if (sw) sw.onclick = switchProfile;
     refreshSettings().then((changed) => { if (changed && S.tab === "settings" && !S.stack.length) renderSettingsTab(rootView()); });
   }
-  /* Round 26: values changed on the computer or in the bot while the Mini App stayed open
-     (Telegram keeps it alive in the background) were shown stale until a restart. */
+
   let settingsFetchedAt = 0;
   async function refreshSettings() {
     if (Date.now() - settingsFetchedAt < 3000) return false;
@@ -1604,9 +1565,9 @@
     if ((S.settings.language === "en" || S.settings.language === "ru") && S.settings.language !== S.lang) { S.lang = S.settings.language; await reloadLocalized(); renderTabbar(); }
     return true;
   }
-  /* Names the server localizes (the unnamed default profile, theme catalog) follow a language switch. */
+
   async function reloadLocalized() {
-    try { const boot = await api("bootstrap"); S.profiles = boot.profiles || S.profiles; S.themes = boot.themes || S.themes; } catch (error) { /* keep the old names */ }
+    try { const boot = await api("bootstrap"); S.profiles = boot.profiles || S.profiles; S.themes = boot.themes || S.themes; } catch (error) {  }
   }
   function settingsPage(title, html, after) {
     return openStack({ title, build: (view) => { view.style.overflowY = "auto"; view.innerHTML = `<div style="padding:8px 0 40px">${html}</div>`; const redraw = () => { const fresh = settingsPageHtml[view.dataset.page]; if (fresh) { view.firstElementChild.innerHTML = fresh(); bindSettingControls(view, redraw); } }; bindSettingControls(view, redraw); if (after) after(view); } });
@@ -1723,7 +1684,7 @@
     return entry;
   }
   function openMemoryPage() {
-    /* Round 29: memory v2 — facts with category, source, confidence, pin; pending facts approved or rejected here. */
+
     const SERVICE = { chat: ["Чат", "Chat"], work: ["Work", "Work"], code: ["MemuCode", "MemuCode"], quick: ["Быстрый доступ", "Quick Access"],
       telegram: ["Telegram", "Telegram"], dfy: ["Do For You", "Do For You"], note: ["MemuNote", "MemuNote"], manual: ["Вручную", "Added by you"], import: ["Импорт", "Import"] };
     let query = "";
@@ -1774,7 +1735,7 @@
           ${body}
           ${editable ? `<p class="section-note">${esc(tr("Правила, области действия и импорт — в MemuAI на компьютере: Настройки → Профиль и память.", "Rules, scopes and import live in MemuAI on the computer: Settings → Profile & memory."))}</p>` : `<p class="section-note">${esc(tr("Это не активный профиль на компьютере: его память меняется там.", "This is not the computer's active profile: its memory is edited there."))}</p>`}</div>`;
         const q = $("#mem-q", view);
-        if (q) q.oninput = () => { query = q.value; const pos = q.selectionStart; draw(); const again = $("#mem-q", view); if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch (e) { /* ignore */ } } };
+        if (q) q.oninput = () => { query = q.value; const pos = q.selectionStart; draw(); const again = $("#mem-q", view); if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch (e) {  } } };
         const on = $("#mem-on", view); if (on) on.onchange = async () => { try { data = Object.assign(data, await api("memory.save", { enabled: on.checked })); haptic("select"); draw(); } catch (e) { toast(e.message, "err"); } };
         $$("[data-forget]", view).forEach((b) => b.onclick = async () => {
           const fact = memory.facts[+b.dataset.forget];
@@ -1808,14 +1769,13 @@
         try {
           const data = await api("profiles.switch", { profile_id: p.id, pin });
           S.token = data.token; S.tokenExp = data.expires; S.profileId = data.profile_id; S.chatsRev = ""; S.chats = [];
-          try { sessionStorage.setItem("memu_profile", S.profileId); } catch (e) { /* ignore */ }
+          try { sessionStorage.setItem("memu_profile", S.profileId); } catch (e) {  }
           toast(tr("Профиль: ", "Profile: ") + (p.name || p.id), "ok");
           const boot = await api("bootstrap"); applyBoot(boot); switchTab("settings", { force: true });
         } catch (error) { toast(error.message, "err"); }
       } })));
   }
 
-  /* ================================================================ boot */
   function applyBoot(boot) {
     S.boot = boot; S.lang = boot.lang || S.lang; S.appearance = boot.appearance; S.themes = boot.themes; S.settings = boot.settings || {};
     S.models = boot.models || []; S.memes = boot.memes || []; S.folders = boot.folders || []; S.profiles = boot.profiles || [];
@@ -1829,25 +1789,25 @@
     S.initData = (S.tg && S.tg.initData) || "";
     const langCode = ((S.tg && S.tg.initDataUnsafe && S.tg.initDataUnsafe.user) || {}).language_code || navigator.language || "ru";
     S.lang = /^ru|^uk|^be|^kk/i.test(langCode) ? "ru" : "en";
-    try { S.tg.ready(); S.tg.expand(); } catch (e) { /* preview */ }
-    try { if (S.tg.disableVerticalSwipes && S.tg.isVersionAtLeast("7.7")) S.tg.disableVerticalSwipes(); } catch (e) { /* old */ }
+    try { S.tg.ready(); S.tg.expand(); } catch (e) {  }
+    try { if (S.tg.disableVerticalSwipes && S.tg.isVersionAtLeast("7.7")) S.tg.disableVerticalSwipes(); } catch (e) {  }
     S.ui = Object.assign(S.ui, await loadUiPrefs());
     applyAppearance(); applySafeArea();
     try {
       S.tg.onEvent("themeChanged", applyAppearance);
       S.tg.onEvent("safeAreaChanged", applySafeArea); S.tg.onEvent("contentSafeAreaChanged", applySafeArea); S.tg.onEvent("fullscreenChanged", applySafeArea);
       S.tg.BackButton.onClick(goBack);
-    } catch (e) { /* preview */ }
+    } catch (e) {  }
     $("#top-back").innerHTML = icon("back");
     $("#top-back").onclick = goBack;
     if (!S.initData && (bridge.params.tgWebAppPlatform || bridge.params.tgWebAppVersion || window.TelegramWebviewProxy)) {
-      // Launched from a reply-keyboard button: Telegram sends no signed initData there.
+
       bootMessage(esc(tr("Telegram не передал подпись входа: так бывает, если открыть приложение кнопкой клавиатуры. Откройте MemuAI кнопкой меню слева от поля ввода или кнопкой «Открыть MemuAI» в сообщении бота.",
         "Telegram sent no sign-in signature: this happens when the app is opened from a keyboard button. Open MemuAI with the menu button left of the input field or the “Open MemuAI” button in a bot message.")));
       return;
     }
     if (!S.initData) {
-      // Round 29: a normal browser — sign in with a QR code / code confirmed in the Mini App, or a one-time link (web.js).
+
       const session = window.MemuTgWeb ? await window.MemuTgWeb.signIn(kit) : null;
       if (!session) {
         if (!window.MemuTgWeb) bootMessage(esc(tr("Откройте MemuAI через кнопку в боте Telegram. Здесь, вне Telegram, приложение не может подтвердить, что это вы.",
@@ -1860,7 +1820,7 @@
     bootMessage(esc(tr("Подключение к компьютеру…", "Connecting to your computer…")));
     try {
       if (!S.web) await authenticate();
-      try { const saved = sessionStorage.getItem("memu_profile"); if (saved) S.profileId = saved; } catch (e) { /* ignore */ }
+      try { const saved = sessionStorage.getItem("memu_profile"); if (saved) S.profileId = saved; } catch (e) {  }
       let boot;
       try { boot = await api("bootstrap"); }
       catch (error) { if (error.code === "pin_required") { S.profileId = ""; boot = await api("bootstrap"); } else throw error; }
@@ -1872,7 +1832,7 @@
         offline: tr("Компьютер не отвечает. Проверьте, что он включён и MemuAI Proxy запущен.", "The computer does not answer. Make sure it is on and MemuAI Proxy is running."),
         disabled: tr("Mini App выключен в настройках MemuAI.", "The Mini App is switched off in MemuAI settings."),
       };
-      // r37: no computer (network error / tunnel 5xx) — a plugin may open without it (MemuMusic: tracks saved on the phone)
+
       const unreachable = error.code === "offline" || !error.status || error.status >= 500;
       const away = unreachable ? kit.hooks.offlineBoot.map((fn) => { try { return fn(); } catch (e) { return null; } }).find(Boolean) : null;
       bootMessage(`${esc(hints[unreachable ? "offline" : error.code] || error.message)}<br><button class="btn small secondary" id="boot-retry">${esc(tr("Повторить", "Retry"))}</button>${away ? ` <button class="btn small" id="boot-away">${esc(away.label)}</button>` : ""}`);
@@ -1885,12 +1845,12 @@
     $("#boot").classList.add("out");
     setTimeout(() => $("#boot").remove(), 400);
     let tab = "chats";
-    try { tab = sessionStorage.getItem("memu_tab") || "chats"; } catch (e) { /* ignore */ }
+    try { tab = sessionStorage.getItem("memu_tab") || "chats"; } catch (e) {  }
     const startParam = (S.tg.initDataUnsafe && S.tg.initDataUnsafe.start_param) || "";
-    const knownTab = (id) => TABS.some((t) => t.id === id);   // r37: plugins add tabs (kit.addTab — «Музыка»)
+    const knownTab = (id) => TABS.some((t) => t.id === id);
     if (!knownTab(tab)) tab = "chats";
     if (knownTab(startParam)) tab = startParam;
-    try { const wanted = new URLSearchParams(location.search).get("tab") || ""; if (knownTab(wanted)) tab = wanted; } catch (e) { /* ignore */ }
+    try { const wanted = new URLSearchParams(location.search).get("tab") || ""; if (knownTab(wanted)) tab = wanted; } catch (e) {  }
     if (tab === "code" && !S.features.code) tab = "chats";
     S.tab = tab;
     renderTabbar();
@@ -1904,8 +1864,7 @@
       if (S.tab === "settings" && !S.stack.length) refreshSettings().then((changed) => { if (changed) renderSettingsTab(rootView()); });
     });
   }
-  /* Round 29: the kit for the feature modules (code.js, voice.js, extras.js, web.js, device.js). They register
-     themselves with window.MemuTgPlugins.push(fn) — before or after this file — and get the kit. */
+
   const kit = {
     S, $, $$, esc, md, tr, icon, ICONS, sleep, clamp, haptic, toast, api, ApiError, followJob, openSheet, actionSheet,
     promptSheet, confirmDialog, openStack, closeStack, updateStackTop, setTop, rootView, switchTab, renderTabbar,
@@ -1914,7 +1873,7 @@
     sendMessage: (C, options) => sendMessage(C, options), attachJob: (C, job, from, resumed) => attachJob(C, job, from, resumed),
     drawConversation: (C, end) => drawConversation(C, end), openSettingsPage, saveUiPrefs, applyAppearance,
     hooks: { composerExtras: [], settingsRows: [], afterBoot: [], lookRows: [], offlineBoot: [] }, pages: {},
-    // r37: a plugin tab — {id, icon, ru, en, before?, when?} + its render(view); BackButton for own overlays
+
     tabViews: {}, pushBack, popBack,
     addTab(tab, render) { const at = TABS.findIndex((t) => t.id === tab.before); TABS.splice(at < 0 ? TABS.length : at, 0, tab); kit.tabViews[tab.id] = render; },
   };

@@ -1,4 +1,3 @@
-/* Round 38 (r38-mod-integ): module panels on the home screen, the gallery tag, the chat mini player. */
 .mmi-slot { position: relative; height: var(--mmi-h, 220px); margin: -4px -6px -6px; border-radius: 12px; overflow: hidden; contain: strict; }
 .mp-card[data-mode="sidebar"] .mmi-slot { height: min(var(--mmi-h, 220px), 200px); }
 .mmi-frame { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: transparent;
@@ -14,7 +13,6 @@
 .mmi-gal .mp-tpl { position: relative; }
 .mmi-tag { position: absolute; top: 8px; right: 8px; font-style: normal; font-size: 10.5px; padding: 1px 6px; border-radius: 999px;
   color: var(--muted); background: color-mix(in srgb, var(--text) 7%, transparent); max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-/* chat mini player (widget chat.composer) */
 .mmi-chat-np { --mmi-c: var(--accent); display: flex; align-items: center; gap: 10px; width: fit-content; max-width: min(520px, 100%); margin: 0 auto 8px;
   padding: 5px 6px 5px 5px; border-radius: 999px; cursor: pointer; border: 1px solid color-mix(in srgb, var(--mmi-c) 28%, var(--border));
   background: color-mix(in srgb, var(--mmi-c) 10%, var(--panel)); animation: mmi-in .25s cubic-bezier(.2, .8, .2, 1); }
@@ -36,7 +34,6 @@
 @keyframes mmi-eq { 0% { height: 25%; } 50% { height: 100%; } 100% { height: 40%; } }
 @media (prefers-reduced-motion: reduce) { .mmi-eq i, .mmi-chat-np { animation: none; } }
 :root[data-motion="reduced"] .mmi-eq i, :root[data-calm] .mmi-eq i { animation: none; }
-/* result cards of module commands in the chat (MemuModInt.cardsHtml): cover, title, buttons, list rows */
 .mmi-cards { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
 .mmi-card { --mmi-c: hsl(var(--mmi-h, 220) 60% 58%); position: relative; width: min(460px, 100%); border-radius: 14px; overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--mmi-c) 22%, var(--border)); background: var(--panel);
@@ -79,11 +76,9 @@
 .mmi-item b { font-weight: 550; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mmi-item small { color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mmi-item em { font-style: normal; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text); flex: none; }
-/* the module panel editor (panels.js openModuleEditor) */
 .mmi-ed { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; background: color-mix(in srgb, var(--text) 4%, transparent); }
 .mmi-ed small { color: var(--muted); }
 .mmi-ed-open { align-self: flex-start; }
-/* Round 39 (r39-integ): paused chat mini player — still bars; Settings → Modules → «Виджеты модулей» */
 .mmi-chat-np.is-paused .mmi-eq i { animation-play-state: paused; opacity: .55; }
 .mmi-wset { margin-top: 20px; padding: 16px; border: 1px solid var(--border); border-radius: 14px; background: var(--panel); }
 .mmi-wset[hidden] { display: none; }

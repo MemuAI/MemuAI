@@ -10,10 +10,8 @@ from .fsops import FsError
 
 MAX_BYTES = 2 * 1024 * 1024
 
-
 def digest(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
-
 
 def snapshot(path: str) -> tuple:
     from ..memunote.formats import textio
@@ -36,7 +34,6 @@ def snapshot(path: str) -> tuple:
         raise FsError("not_text", path) from exc
     return raw, textio.decode(raw, info.encoding), info
 
-
 def prepare(path: str, action: Dict[str, Any]) -> Dict[str, Any]:
     from ..memunote.formats import textio
 
@@ -49,7 +46,7 @@ def prepare(path: str, action: Dict[str, Any]) -> Dict[str, Any]:
         replacement = action.get("new_text", action.get("replace"))
         if not isinstance(find, str) or not find or not isinstance(replacement, str):
             raise FsError("bad_edit", path)
-        # Models normally use LF even when the original document uses CRLF.
+
         find = find.replace("\r\n", "\n").replace("\r", "\n")
         replacement = replacement.replace("\r\n", "\n").replace("\r", "\n")
         pattern = r"(?:\r\n|\r|\n)".join(re.escape(line) for line in find.split("\n"))
@@ -82,7 +79,6 @@ def prepare(path: str, action: Dict[str, Any]) -> Dict[str, Any]:
     return {"op": "write", "path": path, "content": after, "expected": digest(raw) if exists else None,
             "encoding": encoding, "eol": eol, "bom": bom, "diff": diff[:24000], "diff_truncated": len(diff) > 24000,
             "size": len(data), "is_dir": False, "creating": not exists}
-
 
 def encoded(item: Dict[str, Any]) -> bytes:
     from ..memunote.formats import textio

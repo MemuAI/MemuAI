@@ -14,7 +14,6 @@ from typing import Any
 from .path_safety import is_link
 from .work_tools import _decode
 
-
 SKIP_DIRS = {
     ".git", ".hg", ".svn", ".idea", ".vscode", ".cache", ".next",
     ".pytest_cache", ".mypy_cache", ".ruff_cache", "__pycache__",
@@ -33,15 +32,12 @@ IMPORTANT_NAMES = {
     "main.py", "app.py", "main.js", "app.js", "main.ts", "app.ts",
 }
 
-
 def _tokens(value: str) -> set[str]:
     return {part for part in re.findall(r"[\w.-]{2,}", value.lower(), re.UNICODE)
             if not part.isdigit()}
 
-
 def _is_probably_text(path: Path) -> bool:
     return path.suffix.lower() in TEXT_SUFFIXES or path.name.lower() in IMPORTANT_NAMES
-
 
 def _escapes(directory: Path, project: Path) -> bool:
     """A directory link (symlink/junction) or one resolving outside the root."""
@@ -52,7 +48,6 @@ def _escapes(directory: Path, project: Path) -> bool:
     except (OSError, ValueError, RuntimeError):
         return True
     return False
-
 
 def _safe_read(path: Path, query_tokens: set[str], limit: int) -> tuple[str, bool]:
     try:
@@ -65,16 +60,12 @@ def _safe_read(path: Path, query_tokens: set[str], limit: int) -> tuple[str, boo
     clipped = len(raw) > max(limit * 3, limit)
     truncated = clipped
     raw = raw[:max(limit * 3, limit)]
-    # Same decoder as the Work tools: a byte cut through a multi-byte UTF-8
-    # character used to fail utf-8 and fall through to BOM-less "utf-16",
-    # which accepts any even-length bytes and returned CJK garbage.
+
     text, _encoding = _decode(raw, clipped)
     text = text.replace("\x00", "")
     if len(text) <= limit:
         return text, truncated
 
-    # Keep the file header plus windows around matching lines.  This retains
-    # imports/configuration and the exact code that made the file relevant.
     lines = text.splitlines()
     chosen = set(range(min(70, len(lines))))
     if query_tokens:
@@ -95,7 +86,6 @@ def _safe_read(path: Path, query_tokens: set[str], limit: int) -> tuple[str, boo
             break
     return "\n".join(rendered)[:limit], True
 
-
 def build_work_context(root: str | Path, query: str, *, active_paths: list[str] | None = None,
                        max_files: int = 10, max_chars: int = 60_000,
                        max_entries: int = 4_000) -> dict[str, Any]:
@@ -114,9 +104,7 @@ def build_work_context(root: str | Path, query: str, *, active_paths: list[str] 
 
     for current, dirs, files in os.walk(project, followlinks=False):
         base = Path(current)
-        # followlinks=False does not stop a Windows junction on every Python
-        # version: a junction to C:\ was walked in full (outside files are
-        # skipped without counting toward max_entries), freezing the build.
+
         dirs[:] = [name for name in dirs
                    if name.lower() not in SKIP_DIRS and not _escapes(base / name, project)]
         for name in files:
@@ -145,8 +133,7 @@ def build_work_context(root: str | Path, query: str, *, active_paths: list[str] 
                 score += 18
             if re.search(r"(?:read|inspect|analy[sz]|fix|edit|project|прочит|изуч|анализ|исправ|измен|проект)", query, re.I):
                 score += 4
-            # Prefer shallower files when scores tie; huge generated-looking
-            # files naturally lose to smaller source modules.
+
             score -= rel.count("/") * 0.8
             score -= min(stat.st_size / 250_000, 5)
             candidates.append((score, rel, resolved, int(stat.st_size)))

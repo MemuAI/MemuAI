@@ -1,7 +1,5 @@
-/* Round 38: MemuMusic panels for the MemuAI home screen — «Сейчас играет», «Плейлист», «Статистика прослушиваний».
-   Runs in the panel sandbox (app/module_integration.py: the module's bridge + Memu.panel). Data only through
-   Memu.music.call; the player state is a long-poll (player.wait, 25 s) that runs ONLY while the card is on screen
-   and the window is visible (Memu.panel.visible / document.hidden). Progress is a CSS animation, no timers per frame. */
+
+
 (function () {
   "use strict";
   var M = window.Memu, P = M && M.panel;
@@ -42,7 +40,6 @@
       '<button type="button" class="mx-link" data-open title="' + esc(t("Открыть MemuMusic", "Open MemuMusic")) + '">' + esc(t("Открыть", "Open")) + "</button></div>";
   }
 
-  /* ------------------------------------------------------------------ Сейчас играет */
   function renderNow() {
     var s = S.state || {}, tr = s.track;
     if (!tr) return empty(t("Тишина", "Silence"), t("Включите музыку — здесь будет то, что играет", "Play something — it will show up here"), t("Открыть MemuMusic", "Open MemuMusic"));
@@ -80,7 +77,6 @@
     call("player.state").then(function (s) { S.state = s; S.version = s.version || 0; renderNow(); poll(); }, function () { empty(t("MemuMusic недоступен", "MemuMusic is unavailable"), t("Проверьте, что модуль включён", "Check that the module is on")); });
   }
 
-  /* ------------------------------------------------------------------------- Плейлист */
   function renderPlaylist(full) {
     var lists = S.playlists || [];
     if (!lists.length) return empty(t("Плейлистов пока нет", "No playlists yet"), t("Создайте плейлист в MemuMusic", "Create one in MemuMusic"), t("Открыть MemuMusic", "Open MemuMusic"));
@@ -121,7 +117,6 @@
     }, function () { empty(t("MemuMusic недоступен", "MemuMusic is unavailable"), ""); });
   }
 
-  /* --------------------------------------------------------------- Статистика */
   function renderStats() {
     var s = S.stats || {};
     if (!s.tracks) return empty(t("Статистики пока нет", "No stats yet"), t("Она появится, когда вы что-нибудь послушаете", "It appears once you listen to something"));

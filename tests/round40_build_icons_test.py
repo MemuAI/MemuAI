@@ -35,12 +35,10 @@ import import_graph  # noqa: E402
 HEAVY = ("anthropic", "pygments", "rich", "prompt_toolkit", "yt_dlp", "fastapi", "uvicorn", "curl_cffi",
          "websockets", "numpy", "onnxruntime")
 
-
 def _graph(key):
     target = build.TARGETS[key]
     return import_graph.analyse(target["entry"], list(target["hidden"]) + list(target.get("collect", [])),
                                 target.get("exclude", []))
-
 
 class LightTargetsTest(unittest.TestCase):
     def test_memunote_and_memufiles_stay_light(self):
@@ -93,12 +91,13 @@ class LightTargetsTest(unittest.TestCase):
             for node in ast.walk(tree):
                 if isinstance(node, ast.keyword) and node.arg == "excludes":
                     excludes = ast.literal_eval(node.value)
+                if isinstance(node, ast.keyword) and node.arg == "hiddenimports" and isinstance(node.value, ast.List):
+                    hidden = ast.literal_eval(node.value)
                 if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "hiddenimports":
                     hidden = ast.literal_eval(node.value)
             self.assertEqual(excludes, build.TARGETS[key]["exclude"], spec_name)
             self.assertEqual(sorted(hidden), sorted(build.TARGETS[key]["hidden"]), spec_name)
             self.assertIn("upx=False", (ROOT / spec_name).read_text(encoding="utf-8"))
-
 
 class BuildScriptTest(unittest.TestCase):
     def test_per_program_inputs(self):
@@ -145,9 +144,6 @@ class BuildScriptTest(unittest.TestCase):
         self.assertIn("--noupx", source)
         self.assertIn('["memuai", "proxy", "memucode", "memufiles", "memunote", "memu"]', source, "longest builds first")
 
-
-# ------------------------------------------------------------------------------------------------- icons
-
 class FakeShell(module_apps.Shell):
     def __init__(self, base: Path) -> None:
         self.base, self.calls, self.notified, self.retargeted = base, [], [], []
@@ -172,13 +168,11 @@ class FakeShell(module_apps.Shell):
     def notify(self, paths):
         self.notified.append(list(paths))
 
-
 def _png_url(color=(20, 160, 90, 255), size=256) -> str:
     from PIL import Image
     buffer = io.BytesIO()
     Image.new("RGBA", (size, size), color).save(buffer, "PNG")
     return "data:image/png;base64," + base64.b64encode(buffer.getvalue()).decode()
-
 
 class BuiltinIcoTest(unittest.TestCase):
     def test_every_builtin_ships_a_per_size_ico(self):
@@ -217,7 +211,6 @@ class BuiltinIcoTest(unittest.TestCase):
         with Image.open(io.BytesIO(module_icons.ico_bytes(frames))) as ico:
             self.assertIn((256, 256), ico.info["sizes"])
             self.assertIn((24, 24), ico.info["sizes"])
-
 
 class AppIconsTest(unittest.TestCase):
     def setUp(self):
@@ -283,7 +276,7 @@ class AppIconsTest(unittest.TestCase):
         module_apps.install("design", root=self.root, shell=self.shell)
         entry = module_apps.load_store(self.root)["apps"]["design"]
         self.assertFalse(module_apps.icon_outdated("design", entry, self.root))
-        entry["icon_sig"] = "file:0000000000000000:r39"   # MemuAI updated: the built-in's icon file changed
+        entry["icon_sig"] = "file:0000000000000000:r39"
         self.assertTrue(module_apps.icon_outdated("design", entry, self.root))
 
     def test_user_icon_change_refreshes_the_app(self):
@@ -339,17 +332,16 @@ class AppIconsTest(unittest.TestCase):
         self.assertIn("/api/pg/module-apps/icon-sync", js)
         self.assertIn('startsWith("file:")', js)
 
-
 class WindowsHelpersTest(unittest.TestCase):
     def test_retarget_only_our_old_icons(self):
         tmp = Path(tempfile.mkdtemp(prefix="r40lnk-"))
         self.addCleanup(shutil.rmtree, tmp, True)
         icons = tmp / "module-apps"
         new = icons / "shell" / "abc" / "music.ico"
-        links = {"pinned.lnk": (r"C:\MemuAI.exe", str(icons / "music.ico"), 0),             # pinned before r40
+        links = {"pinned.lnk": (r"C:\MemuAI.exe", str(icons / "music.ico"), 0),
                  "older.lnk": (r"C:\MemuAI.exe", str(icons / "shell" / "old" / "music.ico"), 0),
-                 "other.lnk": (r"C:\MemuAI.exe", str(icons / "studio.ico"), 0),              # another module
-                 "user.lnk": (r"C:\MemuAI.exe", str(tmp / "mine" / "music.ico"), 0),          # the person's icon
+                 "other.lnk": (r"C:\MemuAI.exe", str(icons / "studio.ico"), 0),
+                 "user.lnk": (r"C:\MemuAI.exe", str(tmp / "mine" / "music.ico"), 0),
                  "done.lnk": (r"C:\MemuAI.exe", str(new), 0)}
         for name in links:
             (tmp / name).write_text("x", encoding="utf-8")
@@ -371,10 +363,10 @@ class WindowsHelpersTest(unittest.TestCase):
         self.assertTrue(all(icon == str(new) for _n, icon in fake.written))
 
     def test_off_windows_noops(self):
-        self.assertEqual(module_apps_win.retarget_shortcut_icons("music", "x.ico", Path(".")), [])
-        self.assertEqual(module_apps_win.refresh_shell_icons(["x.ico"]), 0)
-        self.assertFalse(module_apps_win.set_window_icon(1, "x.ico"))
-
+        with mock.patch.object(module_apps_win, "available", return_value=False):
+            self.assertEqual(module_apps_win.retarget_shortcut_icons("music", "x.ico", Path(".")), [])
+            self.assertEqual(module_apps_win.refresh_shell_icons(["x.ico"]), 0)
+            self.assertFalse(module_apps_win.set_window_icon(1, "x.ico"))
 
 if __name__ == "__main__":
     unittest.main()

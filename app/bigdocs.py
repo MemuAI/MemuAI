@@ -22,7 +22,6 @@ Storage: ``<DATA_DIR>/memuai/bigdocs/<id>/doc.json.gz`` (pages, sections, chunks
 (map/reduce cache). ``id`` is the first 32 hex chars of the file's SHA-256. The store is pruned to
 ``STORE_LIMIT_BYTES`` by last use.
 """
-# (no «from __future__ import annotations»: FastAPI resolves the route parameter annotations at runtime)
 
 import asyncio
 import gzip
@@ -43,10 +42,10 @@ from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Tuple
 
 EXTRACTOR_VERSION = 3
-MAX_FILE_BYTES = 200 * 1024 * 1024          # what the chat / Quick Access / MemuNote may hand over
-MAX_UNPACKED_BYTES = 160 * 1024 * 1024      # DOCX/EPUB members (zip-bomb guard together with the ratio check)
+MAX_FILE_BYTES = 200 * 1024 * 1024
+MAX_UNPACKED_BYTES = 160 * 1024 * 1024
 MAX_PAGES = 5000
-APPROX_PAGE_CHARS = 1800                    # a «page» of a flowing text (DOCX without page breaks, EPUB, TXT)
+APPROX_PAGE_CHARS = 1800
 CHUNK_CHARS = 1100
 STORE_LIMIT_BYTES = 600 * 1024 * 1024
 MAP_CONCURRENCY = 3
@@ -60,7 +59,6 @@ DOC_EXTENSIONS = (".pdf", ".docx", ".epub", ".txt", ".md", ".markdown", ".html",
 
 Complete = Callable[[str, List[Dict[str, Any]]], Awaitable[str]]
 
-
 class BigDocError(Exception):
     """A user-facing problem; ``code`` lets callers pick an HTTP status / wording."""
 
@@ -71,40 +69,31 @@ class BigDocError(Exception):
     def text(self, lang: str = "ru") -> str:
         return self.en if lang == "en" else self.ru
 
-
 def _tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
 
-
-# ------------------------------------------------------------------ storage
 def store_dir() -> Path:
     from .config import DATA_DIR
     path = Path(DATA_DIR) / "memuai" / "bigdocs"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-
 def doc_id_for(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()[:32]
 
-
 _ID_RE = re.compile(r"^[a-f0-9]{32}$")
-
 
 def valid_id(value: Any) -> bool:
     return bool(_ID_RE.match(str(value or "")))
-
 
 def _doc_path(doc_id: str) -> Path:
     if not valid_id(doc_id):
         raise BigDocError("Неверный идентификатор документа", "Invalid document id", "bad_id")
     return store_dir() / doc_id
 
-
 _MEM: "OrderedDict[str, Dict[str, Any]]" = OrderedDict()
 _MEM_LOCK = threading.Lock()
 _MEM_SIZE = 4
-
 
 def _remember(doc: Dict[str, Any]) -> None:
     with _MEM_LOCK:
@@ -112,7 +101,6 @@ def _remember(doc: Dict[str, Any]) -> None:
         _MEM.move_to_end(doc["id"])
         while len(_MEM) > _MEM_SIZE:
             _MEM.popitem(last=False)
-
 
 def save_doc(doc: Dict[str, Any]) -> None:
     folder = _doc_path(doc["id"])
@@ -126,7 +114,6 @@ def save_doc(doc: Dict[str, Any]) -> None:
         prune()
     except Exception:
         pass
-
 
 def load_doc(doc_id: str) -> Optional[Dict[str, Any]]:
     with _MEM_LOCK:
@@ -146,12 +133,11 @@ def load_doc(doc_id: str) -> Optional[Dict[str, Any]]:
     if int(doc.get("v") or 0) != EXTRACTOR_VERSION:
         return None
     try:
-        os.utime(path, None)                 # last use, for pruning
+        os.utime(path, None)
     except OSError:
         pass
     _remember(doc)
     return doc
-
 
 def get_doc(doc_id: str) -> Dict[str, Any]:
     doc = load_doc(doc_id)
@@ -159,7 +145,6 @@ def get_doc(doc_id: str) -> Dict[str, Any]:
         raise BigDocError("Документ больше не в кэше — прикрепите файл заново",
                           "The document is no longer cached — attach the file again", "gone")
     return doc
-
 
 def prune(limit: int = STORE_LIMIT_BYTES) -> int:
     """Drop the least recently used documents beyond ``limit`` bytes; returns how many were removed."""
@@ -187,19 +172,15 @@ def prune(limit: int = STORE_LIMIT_BYTES) -> int:
         removed += 1
     return removed
 
-
-# ------------------------------------------------------------------ text helpers
 _WS = re.compile(r"[ \t\u00a0\u2007\u202f]+")
-
 
 def _clean(text: str) -> str:
     text = str(text or "").replace("\x00", "").replace("\r\n", "\n").replace("\r", "\n")
-    text = re.sub(r"(\w)-\n(\w)", r"\1\2", text)              # hyphenated line ends of PDFs
+    text = re.sub(r"(\w)-\n(\w)", r"\1\2", text)
     text = _WS.sub(" ", text)
     text = re.sub(r" *\n *", "\n", text)
     text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
-
 
 def _decode(raw: bytes) -> str:
     for encoding in ("utf-8-sig", "utf-16") if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else ("utf-8-sig",):
@@ -212,10 +193,9 @@ def _decode(raw: bytes) -> str:
     except UnicodeDecodeError:
         pass
     sample = raw[:20000]
-    # cp1251 when the bytes look like Cyrillic letters, latin-1 otherwise
+
     cyr = sum(1 for b in sample if 0xC0 <= b <= 0xFF)
     return raw.decode("cp1251" if cyr > len(sample) * 0.15 else "latin-1", "replace")
-
 
 class _HTMLText:
     """HTML → text with headings kept as ``#`` lines (no external parser)."""
@@ -239,14 +219,11 @@ class _HTMLText:
         text = _html.unescape(re.sub(r"<[^>]+>", "", markup))
         return text, titles
 
-
-# ------------------------------------------------------------------ structure detection
 _CHAPTER_RE = re.compile(
     r"^(?:глава|часть|раздел|книга|том|статья|приложение|chapter|part|section|book|appendix|article)\s+"
     r"(?:[0-9]{1,4}|[ivxlcdm]{1,8}|[а-яё]+|one|two|three|four|five|six|seven|eight|nine|ten)\b[.:\s\-—–]*.{0,90}$",
     re.I)
 _NUMBERED_RE = re.compile(r"^(?:\d{1,2})(?:\.\d{1,2}){0,2}\.?\s+[A-ZА-ЯЁ][^.!?]{2,80}$")
-
 
 def detect_headings(text: str) -> List[Tuple[int, str]]:
     """Lines that look like headings: ``(level, title)``; markdown ``#`` lines, «Глава 7», numbered «3.2 Title»."""
@@ -266,7 +243,6 @@ def detect_headings(text: str) -> List[Tuple[int, str]]:
             out.append((1, line.title() if len(line) > 3 else line))
     return out
 
-
 def _pages_from_flow(blocks: List[Tuple[str, Optional[Tuple[int, str]]]], page_chars: int = APPROX_PAGE_CHARS
                      ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Paragraph blocks (text, heading?) → approximate pages of ~``page_chars`` characters + sections."""
@@ -285,8 +261,8 @@ def _pages_from_flow(blocks: List[Tuple[str, Optional[Tuple[int, str]]]], page_c
         if not text:
             continue
         if heading and heading[0] == 1 and size > page_chars * 0.35:
-            flush()                         # a chapter starts on a new page, like in a printed book
-        while len(text) > page_chars * 1.6:  # a giant paragraph (a TXT without blank lines): split at a sentence
+            flush()
+        while len(text) > page_chars * 1.6:
             room = max(200, page_chars - size)
             cut = text.rfind(". ", 0, room)
             cut = cut + 1 if cut > room * 0.4 else room
@@ -302,10 +278,7 @@ def _pages_from_flow(blocks: List[Tuple[str, Optional[Tuple[int, str]]]], page_c
     flush()
     return pages, sections
 
-
-# ------------------------------------------------------------------ extraction
 Progress = Optional[Callable[[Dict[str, Any]], None]]
-
 
 def _report(progress: Progress, **data: Any) -> None:
     if progress:
@@ -313,7 +286,6 @@ def _report(progress: Progress, **data: Any) -> None:
             progress(data)
         except Exception:
             pass
-
 
 def _extract_pdf(raw: bytes, progress: Progress) -> Dict[str, Any]:
     try:
@@ -378,7 +350,6 @@ def _extract_pdf(raw: bytes, progress: Progress) -> Dict[str, Any]:
                 sections.append({"title": title[:160], "level": level, "page": page["n"]})
     return {"kind": "pdf", "pages": pages, "sections": sections, "approx_pages": False}
 
-
 def _zip_member(archive: zipfile.ZipFile, name: str) -> bytes:
     info = archive.getinfo(name)
     if info.file_size > MAX_UNPACKED_BYTES or (info.compress_size > 0 and info.file_size / info.compress_size > 200
@@ -387,9 +358,7 @@ def _zip_member(archive: zipfile.ZipFile, name: str) -> bytes:
                           "too_large")
     return archive.read(name)
 
-
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
-
 
 def _extract_docx(raw: bytes, progress: Progress) -> Dict[str, Any]:
     import xml.etree.ElementTree as ET
@@ -419,7 +388,7 @@ def _extract_docx(raw: bytes, progress: Progress) -> Dict[str, Any]:
     except ET.ParseError as exc:
         raise BigDocError(f"DOCX повреждён: {exc}", f"The DOCX is damaged: {exc}", "parse") from None
     body = root.find(_W + "body")
-    paragraphs: List[Tuple[str, Optional[int], int]] = []     # (text, heading level, page breaks BEFORE it)
+    paragraphs: List[Tuple[str, Optional[int], int]] = []
     breaks_total = 0
     pending_breaks = 0
     for el in (body if body is not None else []):
@@ -467,7 +436,7 @@ def _extract_docx(raw: bytes, progress: Progress) -> Dict[str, Any]:
             elif tag == _W + "br":
                 if node.get(_W + "type") == "page":
                     if "".join(parts).strip():
-                        # the break is inside the paragraph: text before it stays on the previous page
+
                         paragraphs.append(("".join(parts), level, before))
                         parts, before = [], 0
                     before += 1
@@ -485,7 +454,7 @@ def _extract_docx(raw: bytes, progress: Progress) -> Dict[str, Any]:
             paragraphs.append((text, level, before))
     total_chars = sum(len(p[0]) for p in paragraphs)
     _report(progress, stage="read", page=1, pages=1)
-    # Real page breaks (typed or Word's last rendering) → exact pages; too few of them → approximate pages.
+
     if breaks_total >= max(2, total_chars // 9000):
         pages: List[Dict[str, Any]] = [{"n": 1, "text": ""}]
         sections: List[Dict[str, Any]] = []
@@ -519,7 +488,6 @@ def _extract_docx(raw: bytes, progress: Progress) -> Dict[str, Any]:
         blocks.append((clean, heading))
     pages, sections = _pages_from_flow(blocks)
     return {"kind": "docx", "pages": pages, "sections": sections, "approx_pages": True}
-
 
 def _extract_epub(raw: bytes, progress: Progress) -> Dict[str, Any]:
     import posixpath
@@ -559,7 +527,7 @@ def _extract_epub(raw: bytes, progress: Progress) -> Dict[str, Any]:
             m = re.match(r"^(#{1,4})\s+(.+)$", para)
             if m:
                 level = len(m.group(1))
-                # the first heading of a spine item is a chapter, inner ones are its subsections
+
                 blocks.append((m.group(2), (1 if first else min(4, level + 1), m.group(2))))
                 first = False
             else:
@@ -570,7 +538,6 @@ def _extract_epub(raw: bytes, progress: Progress) -> Dict[str, Any]:
     if title_m:
         out["title"] = _clean(_html.unescape(re.sub(r"<[^>]+>", "", title_m.group(1))))[:200]
     return out
-
 
 def _extract_text(raw: bytes, name: str, progress: Progress) -> Dict[str, Any]:
     text = _decode(raw)
@@ -587,7 +554,7 @@ def _extract_text(raw: bytes, name: str, progress: Progress) -> Dict[str, Any]:
             continue
         lines = para.split("\n")
         heads = detect_headings(lines[0]) if len(lines[0]) < 110 else []
-        if heads and len(lines) > 1:            # «Глава 3\ntext…» in one paragraph: the heading is its own block
+        if heads and len(lines) > 1:
             blocks.append((lines[0], heads[0]))
             blocks.append(("\n".join(lines[1:]), None))
         else:
@@ -597,10 +564,8 @@ def _extract_text(raw: bytes, name: str, progress: Progress) -> Dict[str, Any]:
     kind = "md" if lower.endswith((".md", ".markdown")) else "html" if lower.endswith((".html", ".htm")) else "txt"
     return {"kind": kind, "pages": pages, "sections": sections, "approx_pages": True}
 
-
 def is_document(name: str) -> bool:
     return str(name or "").lower().endswith(DOC_EXTENSIONS)
-
 
 def extract(raw: bytes, name: str, progress: Progress = None) -> Dict[str, Any]:
     """Whole document → ``{kind, pages:[{n, text, label?}], sections:[{title, level, page}], approx_pages}``."""
@@ -624,7 +589,7 @@ def extract(raw: bytes, name: str, progress: Progress = None) -> Dict[str, Any]:
             raise BigDocError("В PDF нет текстового слоя (это скан) — распознайте его или пришлите текстовую версию",
                               "The PDF has no text layer (a scan) — OCR it or send a text version", "scan")
         raise BigDocError("Из файла не удалось извлечь текст", "No text could be extracted from the file", "empty")
-    # sections: sorted, deduplicated, clamped to existing pages
+
     seen = set()
     sections = []
     for s in sorted(result.get("sections") or [], key=lambda s: (s["page"], s.get("level", 1))):
@@ -636,8 +601,6 @@ def extract(raw: bytes, name: str, progress: Progress = None) -> Dict[str, Any]:
     result["sections"] = sections[:2000]
     return result
 
-
-# ------------------------------------------------------------------ tokenizer / stemmer
 _STOP = set("""и в во не что он на я с со как а то все она так его но да ты к у же вы за бы по только ее мне было вот от
 меня еще нет о из ему теперь когда даже ну вдруг ли если уже или ни быть был него до вас нибудь опять уж вам ведь там потом
 себя ничего ей может они тут где есть надо ней для мы тебя их чем была сам чтоб без будто чего раз тоже себе под будет ж
@@ -655,7 +618,6 @@ _EN_ENDINGS = ("ingly", "edly", "ments", "ment", "ness", "ings", "ing", "ies", "
                "s")
 _TOKEN_RE = re.compile(r"[0-9]+(?:[.,][0-9]+)*|[^\W\d_]+", re.U)
 
-
 def stem(word: str) -> str:
     word = word.lower().replace("ё", "е")
     if word.isdigit() or len(word) <= 3:
@@ -671,7 +633,6 @@ def stem(word: str) -> str:
                 return word[: len(word) - len(end)]
     return word
 
-
 def tokens(text: str, keep_stop: bool = False) -> List[str]:
     out = []
     for raw in _TOKEN_RE.findall(str(text or "")):
@@ -681,13 +642,10 @@ def tokens(text: str, keep_stop: bool = False) -> List[str]:
         out.append(stem(low))
     return out
 
-
 def _trigrams(text: str) -> Counter:
     text = " " + re.sub(r"[^\w]+", " ", str(text or "").lower().replace("ё", "е")) + " "
     return Counter(text[i:i + 3] for i in range(len(text) - 2) if text[i:i + 3].strip())
 
-
-# ------------------------------------------------------------------ chunking + index
 def chunk_pages(pages: List[Dict[str, Any]], sections: List[Dict[str, Any]], size: int = CHUNK_CHARS
                 ) -> List[Dict[str, Any]]:
     """Page-bound chunks (a chunk never crosses a page, so its page is exact) with the section they belong to."""
@@ -725,7 +683,6 @@ def chunk_pages(pages: List[Dict[str, Any]], sections: List[Dict[str, Any]], siz
         for piece in pieces:
             chunks.append({"i": len(chunks), "page": page["n"], "section": section, "text": piece})
     return chunks
-
 
 class Index:
     """BM25 over stemmed words + trigram cosine; built in memory from the chunks (≈ 100 ms for 600 pages)."""
@@ -773,9 +730,7 @@ class Index:
             out.append(dot / (qn * norm))
         return out
 
-
 _INDEX_CACHE: "OrderedDict[str, Index]" = OrderedDict()
-
 
 def index_for(doc: Dict[str, Any]) -> Index:
     hit = _INDEX_CACHE.get(doc["id"])
@@ -788,8 +743,6 @@ def index_for(doc: Dict[str, Any]) -> Index:
         _INDEX_CACHE.popitem(last=False)
     return idx
 
-
-# ------------------------------------------------------------------ ingest
 def summary(doc: Dict[str, Any]) -> Dict[str, Any]:
     """What the UI chip / API callers need about a document (no page texts)."""
     tops = [s for s in doc.get("sections") or [] if s.get("level", 1) == 1] or doc.get("sections") or []
@@ -798,14 +751,11 @@ def summary(doc: Dict[str, Any]) -> Dict[str, Any]:
             "bytes": doc.get("bytes", 0), "chapters": len(tops), "sections": len(doc.get("sections") or []),
             "title": doc.get("title", ""), "toc": [{"title": s["title"], "page": s["page"]} for s in tops[:60]]}
 
-
 def estimate_tokens(text_or_chars: Any, ratio: float = 1 / 3.3) -> int:
     chars = text_or_chars if isinstance(text_or_chars, int) else len(str(text_or_chars or ""))
     return int(chars * ratio) + 1
 
-
 _RATIO: "OrderedDict[Tuple[str, str], float]" = OrderedDict()
-
 
 def token_ratio(doc: Dict[str, Any], model: str = "") -> float:
     """Tokens per character of THIS document for this model's tokenizer family (app.token_estimate on a sample):
@@ -831,7 +781,6 @@ def token_ratio(doc: Dict[str, Any], model: str = "") -> float:
         _RATIO.popitem(last=False)
     return ratio
 
-
 def ingest(raw: bytes, name: str, progress: Progress = None) -> Dict[str, Any]:
     """Extract (or reuse the cached extraction of) a document; returns the full doc dict."""
     doc_id = doc_id_for(raw)
@@ -855,7 +804,6 @@ def ingest(raw: bytes, name: str, progress: Progress = None) -> Dict[str, Any]:
     save_doc(doc)
     return doc
 
-
 def ingest_path(path: str, progress: Progress = None) -> Dict[str, Any]:
     p = Path(path)
     if not p.is_file():
@@ -864,7 +812,6 @@ def ingest_path(path: str, progress: Progress = None) -> Dict[str, Any]:
         raise BigDocError("Файл больше 200 МБ", "The file is larger than 200 MB", "too_large")
     return ingest(p.read_bytes(), p.name, progress)
 
-
 def full_text(doc: Dict[str, Any], with_pages: bool = True, lang: str = "ru") -> str:
     """The whole document with page markers (when it fits the model's context the chat sends it as is)."""
     if not with_pages:
@@ -872,15 +819,12 @@ def full_text(doc: Dict[str, Any], with_pages: bool = True, lang: str = "ru") ->
     mark = _tr(lang, "стр.", "p.")
     return "\n\n".join(f"[{mark} {p['n']}]\n{p.get('text') or ''}" for p in doc["pages"] if p.get("text"))
 
-
-# ------------------------------------------------------------------ retrieval (Q&A)
 def _rrf(rankings: Iterable[List[int]], k: int = 60) -> Dict[int, float]:
     out: Dict[int, float] = {}
     for ranking in rankings:
         for rank, i in enumerate(ranking):
             out[i] = out.get(i, 0.0) + 1.0 / (k + rank + 1)
     return out
-
 
 def subqueries(query: str) -> List[str]:
     """«Какой гарантийный срок и срок поставки?» → the whole question plus its parts, so one aspect of a compound
@@ -889,13 +833,12 @@ def subqueries(query: str) -> List[str]:
     parts = [p for p in parts if len(tokens(p)) >= 1]
     if len(parts) < 2 or len(parts) > 5:
         return [query]
-    # a part of a single word borrows the head of the question («Какой срок поставки и оплаты» → «… оплаты» + «срок»)
+
     head = tokens(parts[0])[:1]
     out = [query]
     for p in parts:
         out.append(p if len(tokens(p)) >= 2 or not head else f"{p} {' '.join(head)}")
     return out
-
 
 def surface_phrases(query: str) -> List[str]:
     """Adjacent content-word pairs of the question as written (lowercase, ё→е): «Какой срок поставки?» → «срок поставки»."""
@@ -907,7 +850,6 @@ def surface_phrases(query: str) -> List[str]:
         if f"{a} {b}" not in out:
             out.append(f"{a} {b}")
     return out[:8]
-
 
 def search(doc: Dict[str, Any], query: str, k: int = 8, embed_scores: Optional[List[float]] = None,
            extra: Optional[List[str]] = None) -> List[Dict[str, Any]]:
@@ -923,13 +865,12 @@ def search(doc: Dict[str, Any], query: str, k: int = 8, embed_scores: Optional[L
     lists = [_search_one(doc, q, k, embed_scores if i == 0 else None) for i, q in enumerate(queries)]
     out: List[Dict[str, Any]] = []
     seen = set()
-    for rank in range(k):                 # round-robin: whole question, part 1, part 2, …
+    for rank in range(k):
         for hits in lists:
             if rank < len(hits) and hits[rank]["i"] not in seen and len(out) < k + len(queries) - 1:
                 seen.add(hits[rank]["i"])
                 out.append(hits[rank])
     return out
-
 
 def _search_one(doc: Dict[str, Any], query: str, k: int = 8, embed_scores: Optional[List[float]] = None
                 ) -> List[Dict[str, Any]]:
@@ -944,8 +885,7 @@ def _search_one(doc: Dict[str, Any], query: str, k: int = 8, embed_scores: Optio
     rankings = [sorted(range(idx.n), key=lambda i: -bm[i])[:top], sorted(range(idx.n), key=lambda i: -tri[i])[:top]]
     if embed_scores and len(embed_scores) == idx.n:
         rankings.append(sorted(range(idx.n), key=lambda i: -embed_scores[i])[:top])
-    # exact phrases of the question («срок поставки», «гарантийный срок»): when both words are everywhere in a
-    # contract, BM25 is flat and only the page that SAYS the phrase is the answer — a ranking of its own
+
     phrases = surface_phrases(query)
     phrase_hits: Dict[int, int] = {}
     if phrases:
@@ -957,7 +897,7 @@ def _search_one(doc: Dict[str, Any], query: str, k: int = 8, embed_scores: Optio
         if phrase_hits:
             rankings.append(sorted(phrase_hits, key=lambda i: (-phrase_hits[i], -bm[i]))[:top])
     fused = _rrf(rankings)
-    # rerank: coverage of distinct query terms, exact numbers, adjacent word pairs (phrases)
+
     q_set = set(q_tokens)
     numbers = set(re.findall(r"\d+(?:[.,]\d+)?", query))
     pairs = set(zip(q_tokens, q_tokens[1:]))
@@ -969,8 +909,7 @@ def _search_one(doc: Dict[str, Any], query: str, k: int = 8, embed_scores: Optio
         num_hit = sum(1 for n in numbers if n in text)
         chunk_tokens = tokens(text)
         pair_hit = sum(1 for p in zip(chunk_tokens, chunk_tokens[1:]) if p in pairs)
-        # adjacent query words in the same order («срок поставки») are strong evidence: a page that merely mentions
-        # both words somewhere loses to the one that says the phrase
+
         score = (base * (1 + 1.5 * cover) + 0.004 * num_hit + 0.011 * min(pair_hit, 3) + 0.0008 * bm[i]
                  + 0.02 * min(phrase_hits.get(i, 0), 2))
         scored.append((score, i))
@@ -989,14 +928,11 @@ def _search_one(doc: Dict[str, Any], query: str, k: int = 8, embed_scores: Optio
                     "text": chunk["text"], "score": round(score, 5)})
     return out
 
-
 def page_mark(page: int, lang: str = "ru", approx: bool = False) -> str:
     return f"[{'≈' if approx else ''}{_tr(lang, 'стр.', 'p.')} {page}]"
 
-
 _CYR = re.compile(r"[а-яё]", re.I)
 _LAT = re.compile(r"[a-z]", re.I)
-
 
 def script_of(text: str) -> str:
     """«cyr» / «lat» by the letters of ``text`` ('' when there are too few letters to tell)."""
@@ -1005,7 +941,6 @@ def script_of(text: str) -> str:
         return ""
     return "cyr" if cyr >= lat * 1.5 else "lat" if lat >= cyr * 1.5 else ""
 
-
 def doc_script(doc: Dict[str, Any]) -> str:
     if "_script" not in doc:
         chunks = doc.get("chunks") or []
@@ -1013,16 +948,13 @@ def doc_script(doc: Dict[str, Any]) -> str:
         doc["_script"] = script_of(" ".join(c.get("text", "")[:300] for c in chunks[::step][:60]))
     return doc["_script"]
 
-
 def needs_translation(doc: Dict[str, Any], query: str) -> bool:
     """No embeddings in the Proxy → the local search is lexical: a question in another script than the document
     (a Russian question over an English book) would find nothing. Then the query is translated first."""
     a, b = script_of(query), doc_script(doc)
     return bool(a and b and a != b)
 
-
 _TRANSLATIONS: "OrderedDict[Tuple[str, str], str]" = OrderedDict()
-
 
 async def translate_query(doc: Dict[str, Any], query: str, model: str, complete: Optional[Complete],
                           timeout: float = 25.0) -> str:
@@ -1050,7 +982,6 @@ async def translate_query(doc: Dict[str, Any], query: str, model: str, complete:
         _TRANSLATIONS.popitem(last=False)
     return text
 
-
 async def qa_context_async(doc: Dict[str, Any], question: str, k: int = 8, lang: str = "ru", model: str = "",
                            complete: Optional[Complete] = None) -> Dict[str, Any]:
     """:func:`qa_context` with the cross-language step (``translated`` says what was searched besides the question)."""
@@ -1058,7 +989,6 @@ async def qa_context_async(doc: Dict[str, Any], question: str, k: int = 8, lang:
     ctx = await asyncio.to_thread(qa_context, doc, question, k, lang, None, [alt] if alt else None)
     ctx["translated"] = alt
     return ctx
-
 
 def qa_context(doc: Dict[str, Any], question: str, k: int = 8, lang: str = "ru",
                fragments: Optional[List[Dict[str, Any]]] = None, extra: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -1090,14 +1020,11 @@ def qa_context(doc: Dict[str, Any], question: str, k: int = 8, lang: str = "ru",
                  else " Номера страниц приблизительные (в файле нет фиксированных страниц).")
     return {"fragments": frags, "block": block, "instruction": rule, "pages": sorted({f["page"] for f in frags})}
 
-
 def _attr(text: str) -> str:
     return str(text or "").replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;")
 
-
 _CITE_RE = re.compile(r"\[(≈)?\s*(?:стр\.?|страницы?|с\.|p\.|pp\.|page|pages)\s*([0-9][0-9,\s–\-—и and]*?)"
-                      r"(?:[,;]\s*(?:§|п\.|пп\.|para\.?|section|раздел|разд\.)[^\]\[]{0,40})?\]", re.I)   # «[p. 57, § 57.2]» too
-
+                      r"(?:[,;]\s*(?:§|п\.|пп\.|para\.?|section|раздел|разд\.)[^\]\[]{0,40})?\]", re.I)
 
 def cite_pages(mark_body: str) -> List[int]:
     pages: List[int] = []
@@ -1113,15 +1040,13 @@ def cite_pages(mark_body: str) -> List[int]:
             pages.append(int(part))
     return pages
 
-
 def _sentences(text: str) -> List[str]:
     out = []
     for s in re.split(r"(?<=[.!?…])\s+|\n+", text):
         s = s.strip()
-        if len(s) > 3 and len(re.findall(r"[^\W\d_]", s)) >= 4:     # not a bare «57.1.» clause number
+        if len(s) > 3 and len(re.findall(r"[^\W\d_]", s)) >= 4:
             out.append(s)
     return out
-
 
 def best_quote(doc: Dict[str, Any], page: int, claim: str, max_len: int = 260) -> Tuple[str, float]:
     """The sentence of ``page`` closest to ``claim`` (quoted words first, then stemmed overlap)."""
@@ -1150,7 +1075,6 @@ def best_quote(doc: Dict[str, Any], page: int, claim: str, max_len: int = 260) -
             best, best_score = s, score
     return best[:max_len], round(best_score, 3)
 
-
 def cite(doc: Dict[str, Any], answer: str, fragments: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """Every ``[стр. N]`` mark of an answer → ``{mark, pages:[{page, quote, score, verified, retrieved}]}``.
 
@@ -1171,7 +1095,6 @@ def cite(doc: Dict[str, Any], answer: str, fragments: Optional[List[Dict[str, An
             out.append({"mark": m.group(0), "start": m.start(), "end": m.end(), "pages": rows})
     return out
 
-
 def citations_text(cites: List[Dict[str, Any]], lang: str = "ru", limit: int = 6) -> str:
     """Plain-text footnotes for Telegram: «стр. 12 — «quote»»."""
     seen = set()
@@ -1186,7 +1109,6 @@ def citations_text(cites: List[Dict[str, Any]], lang: str = "ru", limit: int = 6
                 return "\n".join(lines)
     return "\n".join(lines)
 
-
 async def answer_question(doc: Dict[str, Any], question: str, model: str, complete: Complete, *, lang: str = "ru",
                           k: int = 8, history: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
     """Q&A in one call (Telegram, Quick Access, tests): retrieval → model → citations."""
@@ -1197,8 +1119,6 @@ async def answer_question(doc: Dict[str, Any], question: str, model: str, comple
     text = await complete(model, messages)
     return {"answer": text, "fragments": ctx["fragments"], "citations": cite(doc, text, ctx["fragments"])}
 
-
-# ------------------------------------------------------------------ whole document: plan, estimate, map-reduce
 def plan_parts(doc: Dict[str, Any], part_tokens: int = DEFAULT_PART_TOKENS) -> List[Dict[str, Any]]:
     """Parts along the document's structure: ``[{index, title, page_start, page_end, chars, chapter}]``.
 
@@ -1212,14 +1132,14 @@ def plan_parts(doc: Dict[str, Any], part_tokens: int = DEFAULT_PART_TOKENS) -> L
     tops = level1 if 2 <= len(level1) <= 400 else [s for s in doc.get("sections") or [] if s.get("level", 1) <= 2]
     if not (2 <= len(tops) <= 400):
         tops = []
-    # dedupe by page, keep the first title on a page
+
     starts: List[Tuple[int, str]] = []
     for s in tops:
         if not starts or s["page"] != starts[-1][0]:
             starts.append((s["page"], s["title"]))
     if starts and starts[0][0] > 1:
         starts.insert(0, (1, ""))
-    ranges: List[Tuple[int, int, str, bool]] = []    # (start, end, title, is_chapter)
+    ranges: List[Tuple[int, int, str, bool]] = []
     if starts:
         for j, (start, title) in enumerate(starts):
             end = (starts[j + 1][0] - 1) if j + 1 < len(starts) else n
@@ -1227,7 +1147,7 @@ def plan_parts(doc: Dict[str, Any], part_tokens: int = DEFAULT_PART_TOKENS) -> L
                 ranges.append((start, end, title, bool(title)))
     else:
         ranges.append((1, n, "", False))
-    # split big ranges by pages
+
     split: List[Tuple[int, int, str, bool]] = []
     for start, end, title, chapter in ranges:
         size = sum(lens[start - 1:end])
@@ -1243,7 +1163,7 @@ def plan_parts(doc: Dict[str, Any], part_tokens: int = DEFAULT_PART_TOKENS) -> L
                 split.append((cur_start, p, title + (f" ({piece})" if title else ""), chapter))
                 cur_start, acc, piece = p + 1, 0, piece + 1
         split.append((cur_start, end, title + (f" ({piece})" if title and piece > 1 else ""), chapter))
-    # merge small neighbours (front matter, short chapters) while they fit
+
     merged: List[List[Any]] = []
     for start, end, title, chapter in split:
         size = sum(lens[start - 1:end])
@@ -1267,12 +1187,10 @@ def plan_parts(doc: Dict[str, Any], part_tokens: int = DEFAULT_PART_TOKENS) -> L
                       "chars": size, "chapter": bool(chapter)})
     return parts
 
-
 def part_text(doc: Dict[str, Any], part: Dict[str, Any], lang: str = "ru") -> str:
     mark = _tr(lang, "стр.", "p.")
     return "\n\n".join(f"[{mark} {p['n']}]\n{p['text']}" for p in doc["pages"][part["page_start"] - 1:part["page_end"]]
                        if p.get("text"))
-
 
 def unit_word(parts: List[Dict[str, Any]], lang: str = "ru") -> str:
     """«глава» when the parts follow the document's chapters, «часть» otherwise."""
@@ -1281,10 +1199,8 @@ def unit_word(parts: List[Dict[str, Any]], lang: str = "ru") -> str:
         return _tr(lang, "глава", "chapter")
     return _tr(lang, "часть", "part")
 
-
 def progress_label(done: int, total: int, unit: str, lang: str = "ru") -> str:
     return f"{unit} {done} {_tr(lang, 'из', 'of')} {total}"
-
 
 def _reduce_levels(n_items: int, per_item_tokens: int, budget_tokens: int) -> List[int]:
     """How many reduce calls each level needs (hierarchical reduce), bottom-up."""
@@ -1299,7 +1215,6 @@ def _reduce_levels(n_items: int, per_item_tokens: int, budget_tokens: int) -> Li
         per_group = max(2, budget_tokens // per_item_tokens)
     levels.append(1)
     return levels
-
 
 def estimate(doc: Dict[str, Any], model: str, *, prompt: str = "", part_tokens: int = DEFAULT_PART_TOKENS,
              confirm_usd: float = DEFAULT_CONFIRM_USD, lang: str = "ru", provider: str = "") -> Dict[str, Any]:
@@ -1318,7 +1233,7 @@ def estimate(doc: Dict[str, Any], model: str, *, prompt: str = "", part_tokens: 
     map_state = _run_load(doc["id"], map_key(doc["id"], model, part_tokens)) or {}
     done_idx = {str(k) for k in (map_state.get("parts") or {}) if str(k).isdigit()}
     done_parts = sum(1 for p in parts if str(p["index"]) in done_idx)
-    if done_parts:      # finished parts are not paid for again
+    if done_parts:
         map_in -= sum(estimate_tokens(p["chars"], ratio) + overhead for p in parts if str(p["index"]) in done_idx)
         map_out -= done_parts * MAP_OUTPUT_TOKENS
         tokens_in, tokens_out = map_in + reduce_in, map_out + reduce_out
@@ -1350,20 +1265,16 @@ def estimate(doc: Dict[str, Any], model: str, *, prompt: str = "", part_tokens: 
             "confirm_usd": confirm_usd, "cached": cached, "resumable_parts": done_parts if not cached else 0,
             "plan": [{"index": p["index"], "title": p["title"], "pages": [p["page_start"], p["page_end"]]} for p in parts]}
 
-
 def map_key(doc_id: str, model: str, part_tokens: int) -> str:
     """Part summaries do not depend on the user's request: any later «Весь документ» question reuses them."""
     return run_key(doc_id, model, "map", f"pt{int(part_tokens)}")
-
 
 def run_key(doc_id: str, model: str, mode: str, prompt: str) -> str:
     raw = json.dumps([doc_id, model, mode, re.sub(r"\s+", " ", str(prompt or "").strip().lower()), EXTRACTOR_VERSION, 1])
     return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:24]
 
-
 def _run_path(doc_id: str, key: str) -> Path:
     return _doc_path(doc_id) / "runs" / (key + ".json")
-
 
 def _run_load(doc_id: str, key: str) -> Optional[Dict[str, Any]]:
     try:
@@ -1371,9 +1282,7 @@ def _run_load(doc_id: str, key: str) -> Optional[Dict[str, Any]]:
     except Exception:
         return None
 
-
 _RUN_LOCK = threading.Lock()
-
 
 def _run_save(doc_id: str, key: str, data: Dict[str, Any]) -> None:
     path = _run_path(doc_id, key)
@@ -1383,13 +1292,11 @@ def _run_save(doc_id: str, key: str, data: Dict[str, Any]) -> None:
         tmp.write_text(json.dumps(data, ensure_ascii=False), "utf-8")
         os.replace(tmp, path)
 
-
 def run_cache_get(doc_id: str, model: str, mode: str, prompt: str) -> Optional[Dict[str, Any]]:
     data = _run_load(doc_id, run_key(doc_id, model, mode, prompt))
     if data and data.get("final"):
         return data
     return None
-
 
 def _map_prompt(doc: Dict[str, Any], part: Dict[str, Any], total: int, unit: str, prompt: str, lang: str) -> str:
     title = f" «{part['title']}»" if part.get("title") else ""
@@ -1403,7 +1310,6 @@ def _map_prompt(doc: Dict[str, Any], part: Dict[str, Any], total: int, unit: str
             "Перескажи ЭТУ часть точно и плотно: ключевые события/аргументы, определения, имена, числа, даты, обязательства "
             "и условия. Для важных фактов сохраняй ссылки на страницы в виде [стр. N]. Без вступлений."
             + (f"\nИтоговая задача пользователя (отметь всё, что к ней относится): {prompt}" if prompt else ""))
-
 
 def _reduce_prompt(doc: Dict[str, Any], prompt: str, final: bool, lang: str, level: int) -> str:
     if lang == "en":
@@ -1424,7 +1330,6 @@ def _reduce_prompt(doc: Dict[str, Any], prompt: str, final: bool, lang: str, lev
                "факты/числа/термины, выводы.\n")
             + "Для важных фактов сохраняй ссылки [стр. N]. Не добавляй ничего, чего нет в пересказах.")
 
-
 class Job:
     """One whole-document run: events for the UI, cancel flag, the asyncio task."""
 
@@ -1437,7 +1342,7 @@ class Job:
         self.lang = lang
         self.part_tokens = part_tokens
         self.key = run_key(doc["id"], model, "whole", prompt)
-        self.status = "running"          # running | done | error | cancelled
+        self.status = "running"
         self.events: List[Dict[str, Any]] = []
         self.result = ""
         self.error = ""
@@ -1468,9 +1373,7 @@ class Job:
                 "stage": (self.events[-1].get("stage") if self.events else ""), "cached": self.cached,
                 "retries": self.retries}
 
-
 JOBS: "OrderedDict[str, Job]" = OrderedDict()
-
 
 def _gc_jobs() -> None:
     while len(JOBS) > 40:
@@ -1479,7 +1382,6 @@ def _gc_jobs() -> None:
             break
         JOBS.pop(oldest)
 
-
 def find_running(doc_id: str, model: str, prompt: str) -> Optional[Job]:
     key = run_key(doc_id, model, "whole", prompt)
     for job in JOBS.values():
@@ -1487,15 +1389,12 @@ def find_running(doc_id: str, model: str, prompt: str) -> Optional[Job]:
             return job
     return None
 
-
 CALL_ATTEMPTS = 4
 _RETRY_DELAYS = (2.0, 6.0, 15.0)
-#: r36: one map/reduce request that streams nothing for this long is abandoned and retried — live runs (ReformBoss,
-#: OpenRouter free) froze forever on a stalled stream: «Глава 3 из 6 · 5/6» for many minutes, no retry, no error
+
 CALL_TIMEOUT = 300.0
 _FATAL_RE = re.compile(r"HTTP 40[0134]\b|не наш[её]л модель|does not know model|ключ|API key|квот|quota|no completion bridge"
                        r"|модель не (?:найдена|поддерживается)|model_not_found|insufficient", re.I)
-
 
 def is_fatal(exc: BaseException) -> bool:
     """A refusal another attempt cannot fix (wrong model, rejected key, exhausted quota)."""
@@ -1503,7 +1402,6 @@ def is_fatal(exc: BaseException) -> bool:
     if isinstance(status, int) and 400 <= status < 500 and status not in (408, 409, 425, 429):
         return True
     return bool(_FATAL_RE.search(str(exc)))
-
 
 async def call_robust(job: "Job", complete: Complete, messages: List[Dict[str, Any]], *, index: Any = None,
                       serial: Optional[asyncio.Lock] = None, attempts: int = CALL_ATTEMPTS) -> str:
@@ -1547,7 +1445,6 @@ async def call_robust(job: "Job", complete: Complete, messages: List[Dict[str, A
             pass
     raise last if last is not None else RuntimeError("no answer")
 
-
 async def run_whole(job: Job, doc: Dict[str, Any], complete: Complete) -> str:
     """Map every part (cached ones are skipped → resume), then reduce hierarchically."""
     lang = job.lang
@@ -1569,9 +1466,9 @@ async def run_whole(job: Job, doc: Dict[str, Any], complete: Complete) -> str:
              plan=[{"index": p["index"], "title": p["title"], "pages": [p["page_start"], p["page_end"]]} for p in parts])
     gate = asyncio.Semaphore(MAP_CONCURRENCY)
     order_lock = asyncio.Lock()
-    serial = asyncio.Lock()          # after a dropped stream the rest of the run goes one request at a time
+    serial = asyncio.Lock()
 
-    failed: List[BaseException] = []    # the first failure stops parts still waiting for the gate
+    failed: List[BaseException] = []
 
     async def call(messages: List[Dict[str, Any]], index: Any) -> str:
         try:
@@ -1622,7 +1519,7 @@ async def run_whole(job: Job, doc: Dict[str, Any], complete: Complete) -> str:
                         other.cancel()
                     raise t.exception()  # type: ignore[misc]
     except BaseException:
-        # cancelled / failed: whatever finished is on disk before the job reports its end (a resume must see it)
+
         try:
             _run_save(doc["id"], mkey, state)
         except Exception:
@@ -1660,7 +1557,7 @@ async def run_whole(job: Job, doc: Dict[str, Any], complete: Complete) -> str:
             size += len(x)
         if cur:
             groups.append(cur)
-        if len(groups) == len(items):          # nothing merges (huge summaries): pair them up
+        if len(groups) == len(items):
             groups = [items[i:i + 2] for i in range(0, len(items), 2)]
         new_items = []
         for gi, group in enumerate(groups, 1):
@@ -1690,7 +1587,6 @@ async def run_whole(job: Job, doc: Dict[str, Any], complete: Complete) -> str:
     job.emit(stage="done", result=result)
     return result
 
-
 def start_job(doc: Dict[str, Any], model: str, complete: Complete, *, prompt: str = "", lang: str = "ru",
               part_tokens: int = DEFAULT_PART_TOKENS) -> Job:
     """Start (or join the running) whole-document job; must be called inside the event loop."""
@@ -1701,7 +1597,7 @@ def start_job(doc: Dict[str, Any], model: str, complete: Complete, *, prompt: st
     JOBS[job.id] = job
     _gc_jobs()
     cached = run_cache_get(doc["id"], model, "whole", prompt)
-    if cached:      # a cache hit answers at once: the route returns status «done» with the result, no task at all
+    if cached:
         job.status, job.result, job.finished = "done", cached["final"], time.time()
         job.total = job.done = int(cached.get("parts") or 0)
         job.unit = str(cached.get("unit") or "")
@@ -1721,14 +1617,12 @@ def start_job(doc: Dict[str, Any], model: str, complete: Complete, *, prompt: st
     job.task = asyncio.ensure_future(runner())
     return job
 
-
 def cancel_job(job_id: str) -> bool:
     job = JOBS.get(job_id)
     if job is None or job.status != "running":
         return False
     job.cancel.set()
     return True
-
 
 async def job_events(job: Job, since: int = 0):
     """Async iterator of job events from index ``since`` until the job ends."""
@@ -1745,11 +1639,8 @@ async def job_events(job: Job, since: int = 0):
         except asyncio.TimeoutError:
             yield index, {"stage": "ping"}
 
-
-# ------------------------------------------------------------------ a loop for threaded servers (MemuNote)
 _BG: Dict[str, Any] = {}
 _BG_LOCK = threading.Lock()
-
 
 def background_loop() -> asyncio.AbstractEventLoop:
     """One asyncio loop in a daemon thread, for callers without their own loop (MemuNote's http.server)."""
@@ -1761,12 +1652,9 @@ def background_loop() -> asyncio.AbstractEventLoop:
             _BG["loop"] = loop
         return loop
 
-
 def run_sync(coro: Any, timeout: Optional[float] = None) -> Any:
     return asyncio.run_coroutine_threadsafe(coro, background_loop()).result(timeout)
 
-
-# ------------------------------------------------------------------ Quick Access
 def quick_context(body: Dict[str, Any], question: str, lang: str = "ru") -> str:
     """Hook of ``/api/quick/ask``: ``contexts: [{type:"bigdoc", id, mode:"ask"|"whole", prompt}]`` → a context block."""
     rows = body.get("contexts") if isinstance(body, dict) else None
@@ -1789,9 +1677,7 @@ def quick_context(body: Dict[str, Any], question: str, lang: str = "ru") -> str:
         return ctx["block"] + "\n" + ctx["instruction"]
     return ""
 
-
-_BRIDGE: Dict[str, Any] = {"complete": None, "loop": None}     # the playground's completion + its event loop
-
+_BRIDGE: Dict[str, Any] = {"complete": None, "loop": None}
 
 def _translate_from_thread(doc: Dict[str, Any], question: str, model: str, timeout: float = 30.0) -> str:
     """Cross-language query translation for sync callers running in a worker thread (Quick Access): the coroutine
@@ -1800,7 +1686,7 @@ def _translate_from_thread(doc: Dict[str, Any], question: str, model: str, timeo
     if not model or complete is None or loop is None or loop.is_closed() or not needs_translation(doc, question):
         return ""
     try:
-        if asyncio.get_running_loop() is loop:      # called on the loop itself: never block it
+        if asyncio.get_running_loop() is loop:
             return ""
     except RuntimeError:
         pass
@@ -1809,8 +1695,6 @@ def _translate_from_thread(doc: Dict[str, Any], question: str, model: str, timeo
     except Exception:
         return ""
 
-
-# ------------------------------------------------------------------ settings
 def settings(prefs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     prefs = prefs or {}
     try:
@@ -1828,14 +1712,9 @@ def settings(prefs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     return {"confirm_usd": max(0.0, confirm), "part_tokens": min(60000, max(3000, part_tokens)), "k": min(20, max(3, k)),
             "auto": str(prefs.get("bigdocs_auto", "auto"))}
 
-
 def _prefs() -> Dict[str, Any]:
     try:
         from .pgdata import load_preferences
         return load_preferences() or {}
     except Exception:
         return {}
-
-
-
-# FastAPI routes (MemuAI playground) live in app/bigdocs_api.py: MemuNote.exe imports this core without FastAPI.

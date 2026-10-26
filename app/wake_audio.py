@@ -18,8 +18,7 @@ from typing import Any, Dict, List, Optional
 
 RATE = 16000
 CHUNK_MS = 100
-CHUNK_BYTES = RATE * 2 * CHUNK_MS // 1000      # 3200 bytes = 100 ms of 16-bit mono
-
+CHUNK_BYTES = RATE * 2 * CHUNK_MS // 1000
 
 class MicError(RuntimeError):
     """A microphone problem the settings page shows: ``code`` ∈ {unavailable, no_device, busy, denied, failed}."""
@@ -31,7 +30,6 @@ class MicError(RuntimeError):
     def text(self, lang: str) -> str:
         return self.en if lang == "en" else self.ru
 
-
 def rms(pcm: bytes) -> float:
     """RMS of 16-bit little-endian PCM, 0..1 (pure Python: ~50 µs per 100 ms chunk)."""
     if len(pcm) < 2:
@@ -42,7 +40,6 @@ def rms(pcm: bytes) -> float:
         samples.byteswap()
     total = sum(x * x for x in samples)
     return math.sqrt(total / len(samples)) / 32768.0
-
 
 def resample(pcm: bytes, rate: int, target: int = RATE) -> bytes:
     """Linear resampling of 16-bit mono PCM (only for a device that refuses 16 kHz)."""
@@ -63,8 +60,6 @@ def resample(pcm: bytes, rate: int, target: int = RATE) -> bytes:
         out[i] = int(a + (b - a) * frac)
     return out.tobytes()
 
-
-# ---------------------------------------------------------------- Windows: WinMM waveIn
 if sys.platform == "win32":
     import ctypes
     from ctypes import wintypes
@@ -83,7 +78,7 @@ if sys.platform == "win32":
     WAIT_OBJECT_0 = 0
 
     class WAVEFORMATEX(ctypes.Structure):
-        _pack_ = 1                       # mmsystem.h is byte-packed: 18 bytes, not 20
+        _pack_ = 1
         _fields_ = [("wFormatTag", wintypes.WORD), ("nChannels", wintypes.WORD), ("nSamplesPerSec", wintypes.DWORD),
                     ("nAvgBytesPerSec", wintypes.DWORD), ("nBlockAlign", wintypes.WORD),
                     ("wBitsPerSample", wintypes.WORD), ("cbSize", wintypes.WORD)]
@@ -197,7 +192,7 @@ if sys.platform == "win32":
         def close(self) -> None:
             if self.opened:
                 self.opened = False
-                _winmm.waveInReset(self.handle)       # returns every queued buffer (marks them done)
+                _winmm.waveInReset(self.handle)
                 for header in self.headers:
                     _winmm.waveInUnprepareHeader(self.handle, ctypes.byref(header), ctypes.sizeof(header))
                 _winmm.waveInClose(self.handle)
@@ -215,7 +210,7 @@ if sys.platform == "win32":
 
     def session_locked() -> bool:
         """The lock screen / UAC secure desktop is the input desktop (it is not ours to open, or not "Default")."""
-        desktop = _user32.OpenInputDesktop(0, False, 0x0001)        # DESKTOP_READOBJECTS
+        desktop = _user32.OpenInputDesktop(0, False, 0x0001)
         if not desktop:
             return True
         try:
@@ -230,8 +225,6 @@ else:
     def session_locked() -> bool:
         return False
 
-
-# ---------------------------------------------------------------- optional: sounddevice (other OSes)
 class SoundDeviceSource:
     def __init__(self, device: str = "") -> None:
         self.device = device
@@ -240,7 +233,7 @@ class SoundDeviceSource:
 
     def open(self) -> None:
         try:
-            import sounddevice as sd  # optional
+            import sounddevice as sd
         except Exception:
             raise MicError("unavailable", "Захват микрофона в этой системе требует пакета sounddevice "
                            "(pip install sounddevice).",
@@ -278,7 +271,6 @@ class SoundDeviceSource:
                 pass
             self.stream = None
 
-
 def list_devices() -> Dict[str, Any]:
     """``{"backend": "winmm"|"sounddevice"|"", "devices": [names]}`` for the settings' microphone list."""
     if sys.platform == "win32":
@@ -287,19 +279,17 @@ def list_devices() -> Dict[str, Any]:
         except Exception:
             return {"backend": "winmm", "devices": []}
     try:
-        import sounddevice as sd  # optional
+        import sounddevice as sd
         names = [d["name"] for d in sd.query_devices() if d.get("max_input_channels")]
         return {"backend": "sounddevice", "devices": names}
     except Exception:
         return {"backend": "", "devices": []}
-
 
 def open_source(device: str = ""):
     """An opened microphone source (raises :class:`MicError` with a ru/en message)."""
     source = WinMMSource(device) if sys.platform == "win32" else SoundDeviceSource(device)
     source.open()
     return source
-
 
 __all__ = ["RATE", "CHUNK_MS", "CHUNK_BYTES", "MicError", "rms", "resample", "list_devices", "open_source",
            "session_locked"]

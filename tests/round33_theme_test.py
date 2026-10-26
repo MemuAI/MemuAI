@@ -34,7 +34,6 @@ CYR = re.compile(r"[А-Яа-яЁё]")
 PNG = (b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89"
        b"\x00\x00\x00\rIDATx\x9cc\xf8\x0f\x00\x00\x01\x01\x00\x05\x18\xd8N\x00\x00\x00\x00IEND\xaeB`\x82")
 
-
 class Base(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -44,7 +43,6 @@ class Base(unittest.TestCase):
     def tearDown(self) -> None:
         self.patch.stop()
         self.tmp.cleanup()
-
 
 class LookNormalisationTest(unittest.TestCase):
     def test_default_is_complete(self):
@@ -67,7 +65,7 @@ class LookNormalisationTest(unittest.TestCase):
         self.assertEqual(lay["side_width"], 480)
         self.assertEqual(lay["composer_width"], 420)
         self.assertEqual(lay["chat_px"], 0)
-        self.assertEqual(te.normalize_layout({"side_width": 0})["side_width"], 0)  # 0 = default
+        self.assertEqual(te.normalize_layout({"side_width": 0})["side_width"], 0)
 
     def test_toolbar_partial_order_is_completed_and_hidden_filtered(self):
         tb = te.normalize_toolbar({"order": ["theme", "help", "theme", "evil", 3], "hidden": ["context", "x", "mic", "context"]})
@@ -83,8 +81,8 @@ class LookNormalisationTest(unittest.TestCase):
             "BAD ID": {"all": {"radius": 3}}, "empty": {"all": {"nope": 1}},
         })
         self.assertEqual(set(els), {"msg-user"})
-        self.assertEqual(els["msg-user"]["all"], {"radius": 48, "shadow": "glow"})   # colours never in "all"
-        self.assertEqual(els["msg-user"]["dark"], {"bg": "#123456"})                  # shapes never per mode
+        self.assertEqual(els["msg-user"]["all"], {"radius": 48, "shadow": "glow"})
+        self.assertEqual(els["msg-user"]["dark"], {"bg": "#123456"})
         self.assertNotIn("light", els["msg-user"])
 
     def test_limits(self):
@@ -96,7 +94,7 @@ class LookNormalisationTest(unittest.TestCase):
 
     def test_bg(self):
         bg = te.normalize_bg({"kind": "image", "image": "https://evil.example/x.png", "dim": 300, "angle": 720})
-        self.assertEqual(bg["kind"], "")          # an image background without a local asset falls back
+        self.assertEqual(bg["kind"], "")
         self.assertEqual(bg["image"], "")
         self.assertEqual(bg["dim"], 85)
         self.assertEqual(bg["angle"], 360)
@@ -110,7 +108,6 @@ class LookNormalisationTest(unittest.TestCase):
         self.assertEqual(prefs["ui_look"]["layout"]["side_pos"], "right")
         self.assertEqual(prefs["ui_look"]["toolbar"]["hidden"], ["help"])
         self.assertEqual(pgdata._normalize_preferences({"ui_look": "x"})["ui_look"], te.default_look())
-
 
 class UnsafeValuesTest(unittest.TestCase):
     def test_safe_values_pass(self):
@@ -131,7 +128,6 @@ class UnsafeValuesTest(unittest.TestCase):
         self.assertEqual(look["tokens"]["dark"], {"--ok": "#000"})
         self.assertEqual(look["elements"], {})
 
-
 class PackageTest(Base):
     PKG = {"name": "Night owl", "base": "dark", "tokens": {"--accent": "#ff8800", "--bg": "#101010", "--evil": "red;}"},
            "elements": {"msg-user": {"all": {"radius": 6}, "dark": {"bg": "var(--accent)"}, "light": {"bg": "#fff"}}},
@@ -143,9 +139,9 @@ class PackageTest(Base):
         self.assertEqual(pkg["format"], "memuai-theme")
         self.assertEqual(pkg["schema"], te.SCHEMA)
         self.assertNotIn("--evil", pkg["tokens"])
-        self.assertEqual(pkg["elements"]["msg-user"], {"all": {"radius": 6}, "dark": {"bg": "var(--accent)"}})  # own mode only
+        self.assertEqual(pkg["elements"]["msg-user"], {"all": {"radius": 6}, "dark": {"bg": "var(--accent)"}})
         self.assertEqual(pkg["look"]["layout"]["side_pos"], "right")
-        self.assertEqual(pkg["look"]["elements"], {})                         # colours travel in tokens/elements
+        self.assertEqual(pkg["look"]["elements"], {})
         self.assertEqual(pkg["prefs"]["ui_design"], "glass")
         self.assertNotIn("bogus", pkg["prefs"])
         self.assertEqual(pkg["prefs"]["font_scale"], 125)
@@ -156,7 +152,7 @@ class PackageTest(Base):
         self.assertFalse(out["dropped_image"])
         back = te.parse_text(out["code"])
         self.assertEqual(back, te.normalize_package(self.PKG))
-        # whitespace / line breaks pasted from a chat are fine
+
         spaced = out["code"][:20] + "\n  " + out["code"][20:]
         self.assertEqual(te.parse_text(spaced), back)
 
@@ -205,10 +201,10 @@ class PackageTest(Base):
         self.assertEqual(back["elements"]["msg-user"]["all"], {"radius": 6})
         self.assertEqual(back["css"], ".x { color: red; }")
         self.assertEqual(back["look"]["layout"]["side_pos"], "right")
-        # a hand edit of the :root block wins over the stale copy in the package
+
         edited = theme["css"].replace("--accent: #ff8800", "--accent: #00aa55")
         self.assertEqual(te.package_from_css(edited)["tokens"]["--accent"], "#00aa55")
-        # saving again (same id) replaces, never duplicates the package block
+
         again = te.save_theme({"id": saved["id"], "name": "Night owl", "base": "dark", "css": theme["css"], "package": back})
         self.assertEqual(again["id"], saved["id"])
         self.assertEqual(themes.get_custom(saved["id"])["css"].count("@memu-editor"), 1)
@@ -223,25 +219,23 @@ class PackageTest(Base):
         with self.assertRaises(ValueError):
             te.save_theme({"name": "x", "base": "dark", "css": ".a{}</style><script>alert(1)</script>"})
 
-
 class AssetTest(Base):
     def test_store_and_read(self):
         url = te.store_asset("data:image/png;base64," + base64.b64encode(PNG).decode())
         self.assertRegex(url, te.ASSET_URL_RE)
         name = url.rsplit("/", 1)[-1]
         self.assertTrue(te.asset_path(name).is_file())
-        self.assertEqual(te.store_asset("data:image/png;base64," + base64.b64encode(PNG).decode()), url)  # deduplicated
+        self.assertEqual(te.store_asset("data:image/png;base64," + base64.b64encode(PNG).decode()), url)
         self.assertTrue(te.asset_data_url(url).startswith("data:image/png;base64,"))
 
     def test_rejected(self):
-        for bad in ("data:image/png;base64," + base64.b64encode(b"GIF89a....").decode(),   # wrong magic
+        for bad in ("data:image/png;base64," + base64.b64encode(b"GIF89a....").decode(),
                     "data:image/svg+xml;base64,PHN2Zz4=", "https://x.example/a.png", "",
                     "data:image/webp;base64," + base64.b64encode(b"RIFF0000JUNK").decode()):
             with self.assertRaises(ValueError, msg=bad[:40]):
                 te.store_asset(bad)
         for name in ("../../etc/passwd", "a" * 20 + ".svg", "x.png", "A" * 20 + ".png"):
             self.assertIsNone(te.asset_path(name))
-
 
 class RoutesTest(Base):
     def client(self):
@@ -282,7 +276,7 @@ class RoutesTest(Base):
         bad = c.post("/api/pg/theme-editor/asset", json={"data": "data:text/html;base64,PGI+"})
         self.assertEqual(bad.status_code, 400)
         self.assertEqual(bad.json()["error_en"], "A PNG, JPEG or WebP image is needed")
-        # export inlines the image; importing that file stores it again
+
         exp = c.post("/api/pg/theme-editor/export", json={"package": {"name": "Pic", "look": {"bg": {"kind": "image", "image": url}}}}).json()["package"]
         self.assertTrue(exp["image_data"].startswith("data:image/png;base64,"))
         imp = c.post("/api/pg/theme-editor/parse", json={"text": json.dumps(exp)}).json()["package"]
@@ -295,7 +289,6 @@ class RoutesTest(Base):
             self.assertFalse(CYR.search(en), en)
         self.assertEqual(te.error_body("Не удалось сохранить тему: disk full")["error_en"], "Could not save the theme: disk full")
         self.assertFalse(CYR.search(te.error_body("Неизвестно что")["error_en"]))
-
 
 class FrontendStaticTest(unittest.TestCase):
     def test_wired(self):
@@ -314,18 +307,18 @@ class FrontendStaticTest(unittest.TestCase):
         self.assertEqual(res.returncode, 0, res.stderr)
 
     def test_fixed_bugs_stay_fixed(self):
-        # (b) the «other items» rule must not outrank the mobile menu (chained :not(#id) is very specific)
+
         self.assertIn(":not(#mobile-menu) { order:", JS)
-        # (a) dragging a row scrolls the inspector and indexes by row centres, not by the raw pointer delta
-        drag = JS[JS.index("function dragRow"):JS.index("/* ===================================================================== popovers")]
+
+        drag = JS[JS.index("function dragRow"):JS.index("function popover(")]
         self.assertIn("scroller.scrollTop", drag)
         self.assertIn("pointercancel", drag)
         self.assertIn("mids", drag)
-        # (c) a floating panel gets an explicit height that fits the window
+
         place = JS[JS.index("function placePanel"):JS.index("function setDock")]
         self.assertIn("panel.style.height", place)
         self.assertIn("innerHeight", place)
-        # errors in the English UI come from error_en and never contain Cyrillic
+
         self.assertIn("data.error_en", JS)
 
     def test_toolbar_ids_match_backend(self):
@@ -334,11 +327,9 @@ class FrontendStaticTest(unittest.TestCase):
         hide = JS[JS.index("const HIDE_SEL = {"):JS.index("};", JS.index("const HIDE_SEL = {"))]
         self.assertEqual(set(re.findall(r"\b([a-z]+):", hide)), set(te.HIDEABLE))
 
-
 def _chromium():
     path = os.environ.get("CHROMIUM", "/usr/bin/chromium")
     return path if os.path.exists(path) else ""
-
 
 @unittest.skipUnless(_chromium() and os.environ.get("R33_THEME_BROWSER", "1") != "0", "Chromium is not installed")
 class BrowserTest(unittest.TestCase):
@@ -352,7 +343,6 @@ class BrowserTest(unittest.TestCase):
         res = subprocess.run([sys.executable, str(ROOT / "tests" / "round33_theme_browser.py"), str(out)],
                              capture_output=True, text=True, timeout=300, env=env, cwd=str(ROOT))
         self.assertEqual(res.returncode, 0, res.stdout[-4000:] + res.stderr[-4000:])
-
 
 if __name__ == "__main__":
     unittest.main()

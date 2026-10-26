@@ -26,7 +26,6 @@ from typing import Optional, Tuple
 
 _NUMERIC = re.compile(r"^\s*[vV]?\s*(\d{1,6}(?:\.\d{1,6}){0,3})(?:[\s\-_+.]*([A-Za-z][0-9A-Za-z.\-]{0,31}))?\s*$")
 
-
 def normalize_version(value: object) -> str:
     """A display form of a version, or ``""`` when it is missing or unreadable.
 
@@ -52,7 +51,6 @@ def normalize_version(value: object) -> str:
     suffix = (match.group(2) or "").strip(".-").lower()
     return ".".join(str(n) for n in numbers) + (f"-{suffix}" if suffix else "")
 
-
 def version_key(value: object) -> Optional[Tuple[Tuple[int, int, int, int], int, str]]:
     """Sort key (pre-release before release) or ``None`` for an unknown version."""
     text = normalize_version(value)
@@ -62,7 +60,6 @@ def version_key(value: object) -> Optional[Tuple[Tuple[int, int, int, int], int,
     numbers = [int(part) for part in numeric.split(".")][:4]
     numbers += [0] * (4 - len(numbers))
     return (numbers[0], numbers[1], numbers[2], numbers[3]), (0 if suffix else 1), suffix
-
 
 def classify(setup_version: object, installed_version: object, found: bool = True) -> str:
     """``fresh`` | ``upgrade`` | ``reinstall`` | ``downgrade``.
@@ -81,7 +78,6 @@ def classify(setup_version: object, installed_version: object, found: bool = Tru
         return "reinstall"
     return "downgrade"
 
-
 def from_major_minor(major: object, minor: object) -> str:
     """Inno Setup's ``MajorVersion``/``MinorVersion`` DWORDs → ``"2.0"`` (or ``""``)."""
     try:
@@ -92,13 +88,9 @@ def from_major_minor(major: object, minor: object) -> str:
         return ""
     return normalize_version(f"{a}.{b}")
 
-
-# ---------------------------------------------------------------------- PE version resource
-
 _FIXED_SIGNATURE = 0xFEEF04BD
 _VS_KEY = "VS_VERSION_INFO".encode("utf-16-le")
 RT_VERSION = 16
-
 
 def _fixed_info(blob: bytes, start: int) -> str:
     """Parse ``VS_FIXEDFILEINFO`` at ``start`` (its signature) → ``"a.b.c.d"`` or ``""``."""
@@ -109,27 +101,24 @@ def _fixed_info(blob: bytes, start: int) -> str:
         return ""
     return f"{ms >> 16}.{ms & 0xFFFF}.{ls >> 16}.{ls & 0xFFFF}"
 
-
 def _from_version_block(blob: bytes) -> str:
     """``VS_VERSIONINFO`` block → file version, by its key and alignment."""
     key = blob.find(_VS_KEY)
     if key < 0:
         return ""
-    start = key + len(_VS_KEY) + 2               # key + UTF-16 NUL
-    start = (start + 3) & ~3                     # DWORD alignment relative to the block
+    start = key + len(_VS_KEY) + 2
+    start = (start + 3) & ~3
     found = _fixed_info(blob, start)
     if found:
         return found
     sig = blob.find(struct.pack("<I", _FIXED_SIGNATURE), key)
     return _fixed_info(blob, sig) if sig >= 0 else ""
 
-
 def _rva_to_offset(rva: int, sections) -> int:
     for va, vsize, raw, rawsize in sections:
         if va <= rva < va + max(vsize, rawsize):
             return raw + (rva - va)
     return -1
-
 
 def pe_file_version(path: object, max_bytes: int = 64 * 1024 * 1024) -> str:
     """File version of a Windows PE (exe/dll) as ``"a.b.c.d"``, or ``""``.
@@ -213,7 +202,6 @@ def pe_file_version(path: object, max_bytes: int = 64 * 1024 * 1024) -> str:
     except struct.error:
         pass
     return _from_version_block(rsrc)
-
 
 def installed_exe_version(path: Path) -> str:
     """Normalised file version of an installed exe (``""`` when there is none)."""

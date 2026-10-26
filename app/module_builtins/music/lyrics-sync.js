@@ -1,23 +1,12 @@
-/* MemuMusic · lyrics-sync.js — r41b: where a sung line ENDS (karaoke as in Apple Music / Spotify).
- * A synced row is [sec, text], [sec, text, words] or [sec, text, words|null, end]; a word is [sec, word] or [sec, word, end]
- * (app/music/lyrics.py). The fill of a line used to run until the NEXT stamp — a 7 s line before a 13 s instrumental
- * crawled for 20 s. Now, in order of trust:
- *   1) the source's end (enhanced LRC trailing <mm:ss.xx>, Musixmatch richsync «te», NetEase yrc durations);
- *   2) word timing: the last word's end, or its start + its estimated length;
- *   3) an empty stamp «[mm:ss.xx]» right after the line (a pause marker; the LRC editor writes one);
- *   4) an estimate: syllables ÷ the song's own singing rate. The rate is calibrated on the song itself — the lines that
- *      are followed by another line soon (syllables / gap; median), clamped to 1.8–7 syllables a second. A line whose
- *      gap is about its estimate is sung through to the next one (no early stop on dense verses).
- * A gap of ≥ GAP seconds after the end (and before the first line) gets the «•••» pause indicator.
- * Pure functions, no DOM: tests/round41b_music_lyrics_sync_test.py runs them in node. */
+
+
 const LyricTiming = (() => {
-  const GAP = 4.5;            // a pause this long (after the sung part) shows the three dots
-  const RATE = 3.6;           // syllables a second when the song has too few dense lines to measure
+  const GAP = 4.5;
+  const RATE = 3.6;
   const MIN_RATE = 1.8, MAX_RATE = 7;
   const VOWELS = /[aeiouyæøœåäöüáéíóúàèìòùâêîôûãõąęıаеёиоуыэюяіїєў]+/gi;
-  const DENSE = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff]/g;   // kana, CJK, hangul: a syllable each
+  const DENSE = /[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af\uf900-\ufaff]/g;
 
-  /** Sung syllables in a line: vowel groups in a word (English silent «-e» dropped), one per CJK / kana / hangul sign. */
   function syllables(text) {
     const s = String(text || "");
     let n = (s.match(DENSE) || []).length;
@@ -33,14 +22,13 @@ const LyricTiming = (() => {
   const median = (xs) => { const a = xs.slice().sort((x, y) => x - y); return a.length ? (a.length % 2 ? a[a.length >> 1] : (a[a.length / 2 - 1] + a[a.length / 2]) / 2) : 0; };
   const isText = (row) => !!String(row[1] || "").trim();
 
-  /** Singing rate of this song (syllables a second). */
   function rate(rows) {
     const samples = [];
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i], next = rows[i + 1];
       if (!isText(row)) continue;
       const words = Array.isArray(row[2]) && row[2].length > 1 ? row[2] : null;
-      if (words) {   // word timing: the span of the words is singing for sure
+      if (words) {
         const span = (words[words.length - 1][2] || words[words.length - 1][0]) - words[0][0];
         if (span > .4) samples.push(syllables(row[1]) * (words[words.length - 1][2] ? 1 : (words.length - 1) / words.length) / span);
         continue;
@@ -51,11 +39,9 @@ const LyricTiming = (() => {
     }
     return samples.length >= 3 ? Math.max(MIN_RATE, Math.min(MAX_RATE, median(samples))) : RATE;
   }
-  /** Seconds to sing so many syllables at this rate: a held last note included. */
+
   const estimate = (syl, r) => syl / r * 1.08 + .35;
 
-  /** Timeline of a synced text: lines[i] = { start, end, row: index in rows, words: [{ start, end }] | null } for the
-   * rows with text, gaps = [{ after: line index (−1 = before the first line), from, to }] for pauses ≥ GAP. */
   function build(rows, duration) {
     rows = Array.isArray(rows) ? rows : [];
     const r = rate(rows), lines = [], gaps = [];
@@ -78,10 +64,10 @@ const LyricTiming = (() => {
           return { start: s, end: Math.min(e, limit) };
         });
       }
-      if (Number(row[3]) > start) end = Number(row[3]);                       // 1) the source knows
-      else if (timed) end = timed[timed.length - 1].end;                      // 2) word timing
-      else if (rows[k] && !isText(rows[k])) end = next;                       // 3) «[mm:ss.xx]» pause marker
-      else {                                                                   // 4) syllables at the song's rate
+      if (Number(row[3]) > start) end = Number(row[3]);
+      else if (timed) end = timed[timed.length - 1].end;
+      else if (rows[k] && !isText(rows[k])) end = next;
+      else {
         const est = estimate(syllables(row[1]), r);
         end = next - start <= est + Math.max(1.5, est * .35) ? next : start + est;
       }
@@ -96,7 +82,6 @@ const LyricTiming = (() => {
     return { lines, gaps, rate: r };
   }
 
-  /** What is sung at `now`: { line (index in lines, −1 = none yet), progress 0..1 of that line, gap | null, gapProgress }. */
   function at(timing, now) {
     const list = timing.lines;
     let lo = 0, hi = list.length - 1, idx = -1;

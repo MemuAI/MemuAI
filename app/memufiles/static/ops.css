@@ -1,11 +1,7 @@
-/* MemuFiles · operations flyout, status-bar indicator, conflict dialog, drop hint (Round 40, r40-files-core).
- * Windows 11 Fluent: soft cards on the panel colour, one accent, 4/8 px grid; no blur on anything that scrolls. */
-
-/* ---------------------------------------------------------------- status bar indicator */
 .ops-ind { position: relative; display: inline-flex; align-items: center; gap: 7px; height: 22px; padding: 0 10px; border: 0; border-radius: 999px; background: var(--accent-soft); color: var(--accent); font-size: 12px; overflow: hidden; max-width: 340px; flex: 0 1 auto; min-width: 0; transition: background .15s, color .15s; }
 .ops-ind > span:not(.ic) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .ops-ind .oi-short { display: none; font-variant-numeric: tabular-nums; }
-@media (max-width: 640px) { .ops-ind .oi-long { display: none; } .ops-ind .oi-short { display: inline; } }   /* r40-files-2 */
+@media (max-width: 640px) { .ops-ind .oi-long { display: none; } .ops-ind .oi-short { display: inline; } }
 .ops-ind:hover { background: color-mix(in srgb, var(--accent) 20%, transparent); }
 .ops-ind.idle { background: transparent; color: var(--muted); }
 .ops-ind.idle:hover { background: var(--hover); color: var(--text); }
@@ -17,8 +13,6 @@
 .ops-ind .ring.spin { animation: ops-spin 1s linear infinite; }
 .ops-ind .ops-ind-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: currentColor; opacity: .55; transform-origin: left; transition: transform .3s ease; pointer-events: none; }
 @keyframes ops-spin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
-
-/* ---------------------------------------------------------------- flyout */
 .ops-fly { position: fixed; right: 10px; bottom: 34px; z-index: 90; width: min(440px, calc(100vw - 20px)); max-height: min(72vh, 640px); display: flex; flex-direction: column; border-radius: 12px; background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow); animation: pop .14s ease; overflow: hidden; }
 .ops-fly .of-head { display: flex; align-items: center; gap: 6px; padding: 12px 10px 10px 16px; border-bottom: 1px solid var(--border); }
 .ops-fly .of-titles { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
@@ -27,8 +21,6 @@
 .ops-fly .of-list { overflow: auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; overscroll-behavior: contain; }
 .ops-fly .of-empty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 24px 30px; color: var(--muted); text-align: center; font-size: 12.5px; line-height: 1.45; }
 .ops-fly .of-empty .ic { width: 26px; height: 26px; opacity: .6; }
-
-/* ---------------------------------------------------------------- operation card */
 .opc { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 12px 12px 10px; border-radius: 10px; background: var(--bg); border: 1px solid color-mix(in srgb, var(--border) 85%, transparent); contain: layout paint; }
 .opc.fin { padding: 9px 10px 9px 12px; gap: 4px; background: transparent; }
 .opc.conflict { border-color: color-mix(in srgb, var(--warn) 55%, var(--border)); }
@@ -98,9 +90,7 @@
 .opc-more .ic { width: 14px; height: 14px; transition: transform .15s; }
 .opc.expanded .opc-more .ic { transform: rotate(180deg); }
 .opc.fin .opc-more { display: none; }
-
-/* ---------------------------------------------------------------- conflict dialog */
-.modal.cfx-modal { width: min(640px, 100%); }   /* r40-files-2: .modal.wide (860 px) used to win */
+.modal.cfx-modal { width: min(640px, 100%); }
 .cfx-text { margin: 0 0 12px; line-height: 1.45; word-break: break-word; }
 .cfx-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .cfx-card { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg); color: var(--text); font: inherit; text-align: left; cursor: pointer; min-width: 0; transition: border-color .12s, background .12s, box-shadow .12s; }
@@ -121,7 +111,7 @@
 .cfx-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
 .cfx-actions .btn { height: 32px; flex: none; }
 .cfx-actions .btn small { color: var(--muted); font-weight: 400; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cfx-actions .btn[data-choice="keep_both"] { flex: 1 1 100%; min-width: 0; justify-content: flex-start; }   /* r40-files-2: a row of its own — the new name is readable */
+.cfx-actions .btn[data-choice="keep_both"] { flex: 1 1 100%; min-width: 0; justify-content: flex-start; }
 .cfx-rename { display: flex; gap: 6px; margin-top: 8px; }
 .cfx-rename .input { flex: 1; min-width: 0; }
 .cfx-compare { margin-top: 10px; padding: 10px 12px; border-radius: 9px; background: var(--bg); border: 1px solid var(--border); font-size: 12px; }
@@ -134,8 +124,6 @@
 .cfx-verdict:empty { display: none; }
 .cfx-keys { margin-top: 10px; }
 @media (max-width: 560px) { .cfx-cards { grid-template-columns: 1fr; } }
-
-/* ---------------------------------------------------------------- drop hint (a Fluent pill at the cursor) */
 .drop-hint { position: fixed; left: 0; top: 0; z-index: 150; display: inline-flex; align-items: center; gap: 6px; max-width: 360px; height: 28px; padding: 0 10px 0 4px; border-radius: 8px; background: var(--panel); color: var(--text); border: 1px solid var(--border); box-shadow: var(--shadow-sm); font-size: 12px; pointer-events: none; white-space: nowrap; will-change: transform; }
 .drop-hint .dh-ico { width: 20px; height: 20px; border-radius: 6px; display: grid; place-items: center; background: var(--accent); color: var(--on-accent); flex: none; }
 .drop-hint .dh-ico .ic { width: 13px; height: 13px; }

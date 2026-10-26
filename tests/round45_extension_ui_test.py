@@ -12,11 +12,9 @@ from tests.round44_extension_ui_test import (CHROME_MOCK, MODEL, PNG, browser, l
 
 SHOTS = Path(__file__).resolve().parents[1] / "build" / "round45-ui"
 
-
 def shot(page, name):
     SHOTS.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(SHOTS / name), full_page=page.url.endswith("options.html"))
-
 
 @pytest.mark.parametrize("width,height", [(280,320),(360,480),(520,800)])
 def test_textarea_shrinks_after_long_paste_resize_hide_and_clear(panel,width,height):
@@ -36,7 +34,6 @@ def test_textarea_shrinks_after_long_paste_resize_hide_and_clear(panel,width,hei
     page.locator("#page-context").wait_for(state="visible")
     layout(page)
     shot(page,f"composer-bounded-{width}x{height}.png")
-
 
 def test_models_take_desktop_pins_and_default_and_write_delta_back(panel):
     page,fixture=panel
@@ -66,7 +63,6 @@ def test_models_take_desktop_pins_and_default_and_write_delta_back(panel):
     assert fixture.default_model==MODEL
     shot(page,"desktop-model-sync.png")
 
-
 def test_unavailable_model_visible_but_cannot_be_selected(panel):
     page,fixture=panel
     row={"id":"ag-gemini-4-argon","name":"Gemini 4 Argon","provider":"antigravity",
@@ -82,7 +78,6 @@ def test_unavailable_model_visible_but_cannot_be_selected(panel):
         shot(page,"model-unavailable-visible.png")
     finally:
         fixture.models.remove(row)
-
 
 @pytest.mark.parametrize("browser_only",[True,False])
 def test_browser_history_separate_by_default_and_main_history_accessible(panel,browser_only):
@@ -106,7 +101,6 @@ def test_browser_history_separate_by_default_and_main_history_accessible(panel,b
     finally:
         fixture.chats.remove(browser_chat)
 
-
 def test_one_click_summary_reads_current_page_and_sends_without_manual_submit(panel):
     page,fixture=panel
     page.locator('[data-page-action="summary"]').first.click()
@@ -117,7 +111,6 @@ def test_one_click_summary_reads_current_page_and_sends_without_manual_submit(pa
     assert request["tab_id"]==7
     assert "перескажи" in request["text"].lower()
     assert page.locator("#page-context").is_visible()
-
 
 def test_privacy_hint_describes_existing_chat_storage_not_new_chat_default(panel):
     page,fixture=panel
@@ -130,7 +123,6 @@ def test_privacy_hint_describes_existing_chat_storage_not_new_chat_default(panel
     assert page.locator("#composer-hint").inner_text()=="Общий чат MemuAI"
     page.locator("#new").click()
     assert page.locator("#composer-hint").inner_text()=="Чат только в браузере"
-
 
 def test_tool_timeline_and_one_readable_approval_for_all_tabs(panel):
     page,fixture=panel
@@ -165,7 +157,6 @@ def test_tool_timeline_and_one_readable_approval_for_all_tabs(panel):
     assert page.locator(".tool-trace .tool-step").count()==2
     shot(page,"tool-timeline-complete.png")
 
-
 def options_page(browser,fixture):
     context=browser.new_context(viewport={"width":520,"height":800})
     context.add_init_script("("+CHROME_MOCK+")("+json.dumps({"base":fixture.base,"model":MODEL})+")")
@@ -175,7 +166,6 @@ def options_page(browser,fixture):
     page.goto(fixture.base+"/options.html")
     page.get_by_text("Подключено · Основной профиль",exact=False).wait_for()
     return context,page
-
 
 def test_options_autosave_sync_and_shared_model_preferences(browser,panel_server):
     fixture=panel_server
@@ -202,7 +192,6 @@ def test_options_autosave_sync_and_shared_model_preferences(browser,panel_server
         fixture.settings.update(save_to_main=False,dfy=False,control="ask")
         context.close()
 
-
 def test_deeplink_pairing_uses_random_nonce_and_never_puts_code_or_token_in_link(browser,panel_server):
     context,page=options_page(browser,panel_server)
     seen=[]
@@ -223,7 +212,6 @@ def test_deeplink_pairing_uses_random_nonce_and_never_puts_code_or_token_in_link
     finally:
         context.close()
 
-
 def test_cancelled_deeplink_does_not_install_a_late_pair_token(browser,panel_server):
     context,page=options_page(browser,panel_server)
     pending=[]
@@ -241,7 +229,6 @@ def test_cancelled_deeplink_does_not_install_a_late_pair_token(browser,panel_ser
     finally:
         context.close()
 
-
 def test_invalid_manual_address_does_not_open_deeplink_or_stick_connect_button(browser,panel_server):
     context,page=options_page(browser,panel_server)
     try:
@@ -253,7 +240,6 @@ def test_invalid_manual_address_does_not_open_deeplink_or_stick_connect_button(b
         assert "локальный" in page.locator("#status").inner_text()
     finally:
         context.close()
-
 
 def test_settings_failed_autosave_restores_previous_value_and_explains_error(browser,panel_server):
     context,page=options_page(browser,panel_server)
@@ -267,7 +253,6 @@ def test_settings_failed_autosave_restores_previous_value_and_explains_error(bro
         assert checkbox.is_enabled()
     finally:
         context.close()
-
 
 @pytest.mark.parametrize("status_code",[401,403])
 def test_disconnect_with_already_invalid_token_removes_local_connection_with_correct_reason(browser,panel_server,status_code):

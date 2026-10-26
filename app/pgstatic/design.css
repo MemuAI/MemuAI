@@ -1,21 +1,3 @@
-/* =====================================================================
-   MemuAI · Design 3 «Canvas»
-   ---------------------------------------------------------------------
-   The final visual layer of MemuAI (loaded after style.css, appearance.css,
-   memucode.css, modules.css and docs.css; only a user theme comes later).
-
-   Idea: the window is quiet chrome, the conversation is a raised sheet.
-   The sidebar melts into the chrome, the chat lives on a rounded canvas
-   with a hairline edge; tools gather in one generous composer with a «+»
-   menu; answers read like a well-set page.
-
-   Colours are NOT defined here. Every colour is a token from /themes.css
-   (app/themes.py) or a color-mix of tokens, so every built-in variant and
-   every user theme keeps working. Semantic tokens introduced by this layer
-   (--chrome-bg, --canvas-bg, --canvas-border, --brand-gradient) fall back
-   to base tokens and are documented in docs (ru|en)/themes-reference.md.
-   ===================================================================== */
-
 :root {
   --chrome: var(--chrome-bg, var(--bg-deep));
   --canvas: var(--canvas-bg, var(--bg));
@@ -42,14 +24,10 @@
   --d-lift: 0 1px 2px rgba(30, 26, 18, .08), 0 1px 1px rgba(30, 26, 18, .04);
   --d-glass: color-mix(in srgb, var(--panel) 94%, transparent);
 }
-
-/* ---------------------------------------------------------------- base */
 body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility; }
 #app { background: var(--chrome); }
 ::selection { background: var(--selection, color-mix(in srgb, var(--accent) 34%, transparent)); }
 :focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 80%, transparent); outline-offset: 2px; }
-
-/* --------------------------------------------------------- startup cover */
 #startup-cover { background: var(--canvas); gap: 14px; }
 .startup-halo {
   position: absolute; inset: 0; pointer-events: none; opacity: .9;
@@ -69,8 +47,6 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
 .startup-name { position: relative; font: 600 19px/1.2 var(--d-display); letter-spacing: -.02em; }
 .startup-progress { position: relative; width: 120px; height: 3px; background: var(--d-line); }
 .startup-progress i { background: var(--brand); }
-
-/* ------------------------------------------------------------- shell */
 .sidebar-resizer { width: 8px; background: transparent !important; }
 .sidebar-resizer::after { left: 1px; right: 1px; border-radius: 4px; transition: background .15s; }
 .sidebar-resizer:hover::after, .sidebar-resizer.resizing::after { background: color-mix(in srgb, var(--accent) 45%, transparent); inset: 30% 3px; }
@@ -81,8 +57,6 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
 }
 [data-theme="light"] .main { box-shadow: 0 1px 2px rgba(30, 26, 18, .05), 0 18px 50px -30px rgba(30, 26, 18, .22); }
 .side.hidden ~ .main, .focus-mode .main { margin-left: 8px; }
-
-/* ----------------------------------------------------------- sidebar */
 .side { background: transparent; border-right: 0; padding: 12px 6px 10px 12px; gap: 4px; }
 .brand { font: 650 16px/1 var(--d-display); letter-spacing: -.025em; padding: 6px 8px 16px; gap: 10px; color: var(--text); }
 .brand-dot {
@@ -128,6 +102,8 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
 .side-btn:hover { background: var(--d-hover); color: var(--text); }
 .side-btn .ico { color: var(--muted); }
 .side-btn:hover .ico { color: var(--text); }
+.side-nav .side-btn.active-section { background: var(--d-selected); color: var(--text); font-weight: 550; }
+.side-nav .side-btn.active-section .ico { color: var(--accent); }
 .side-label { font: 600 11.5px/1.3 var(--d-small); letter-spacing: .02em; color: var(--muted); padding: 10px 10px 5px; text-transform: none; opacity: .85; }
 .side-group { margin-bottom: 10px; }
 .chat-list-heading button { width: 26px; height: 26px; border-radius: 8px; opacity: .7; }
@@ -155,8 +131,6 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
 .profile-avatar { box-shadow: 0 0 0 2px var(--chrome), 0 0 0 3px var(--d-line); }
 .profile-name { font: 600 13.5px/1.2 var(--d-text); }
 .profile-sub { font: 450 11.5px/1.3 var(--d-small); color: var(--muted); }
-
-/* ------------------------------------------------------------ appbar */
 .topbar.appbar {
   min-height: 54px; padding: 8px 14px; gap: 6px; background: transparent;
   border-bottom: 1px solid transparent; box-shadow: none; backdrop-filter: none;
@@ -177,8 +151,6 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
 .context-meter { font: 500 11.5px/1 var(--d-small); color: var(--muted); padding: 5px 9px; border-radius: 999px; background: var(--d-line-soft); border: 0; opacity: 1; }
 .context-meter.warn { background: color-mix(in srgb, var(--accent) 16%, transparent); }
 .context-meter.critical { background: color-mix(in srgb, var(--danger) 16%, transparent); }
-
-/* ------------------------------------------------------- popovers (all) */
 .dd-pop, .app-menu-pop, .context-menu, .profile-menu-pop, .pretty-select-menu, .msg-more-pop, .slash-menu, .plus-menu {
   background: var(--d-glass); border: 1px solid var(--canvas-line); box-shadow: var(--d-pop-shadow);
   -webkit-backdrop-filter: blur(22px) saturate(1.5); backdrop-filter: blur(22px) saturate(1.5);
@@ -205,8 +177,6 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
 .slash-menu { border-radius: 18px; padding: 6px; bottom: calc(100% + 10px); }
 .slash-menu button { border-radius: 11px; }
 .slash-menu button:hover, .slash-menu button.active { background: var(--d-hover); }
-
-/* ------------------------------------------------------------ greeting */
 .main .greeting, .side.hidden ~ .main .greeting, .focus-mode .greeting { max-width: 820px; }
 .greet-head { display: flex; align-items: center; justify-content: center; gap: 14px; margin-bottom: 10px; flex-wrap: wrap; }
 .greet-mark {
@@ -235,8 +205,6 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
 .chip-sug .ui-icon { color: var(--accent); width: 16px; height: 16px; }
 .chip-sug.featured { border-color: color-mix(in srgb, var(--accent) 40%, transparent); background: var(--accent-soft); color: var(--text); }
 .chip-sug:nth-child(6) { animation-delay: .2s; }
-
-/* ------------------------------------------------------------ composer */
 .composer-wrap { padding: 6px 24px 10px; position: relative; }
 .composer-wrap::before {
   content: ""; position: absolute; left: 0; right: 0; bottom: 100%; height: 28px; pointer-events: none;
@@ -295,8 +263,6 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
 .send.image-mode { background: var(--brand); }
 .composer-hint { padding: 7px 0 0; text-align: center; font: 450 11.5px/1.35 var(--d-small); color: var(--muted); }
 .empty-chat .composer-hint { visibility: hidden; }
-
-/* Composer chips: the web search / reasoning toggles and tool chips. */
 .composer .toggles { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .composer .toggles:empty, .tool-chips[hidden] { display: none; }
 .composer .tog:not(.on) { display: none; }
@@ -319,12 +285,8 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
 .tool-chip:hover .tool-chip-x { opacity: 1; background: color-mix(in srgb, var(--accent) 20%, transparent); }
 .tool-chip.subtle { border-color: var(--d-line); background: transparent; color: var(--muted); }
 .tool-chip.subtle:hover { background: var(--d-hover); color: var(--text); border-color: var(--d-line); }
-
-/* Live button next to Send. */
 #btn-live .composer-live-orb { width: 22px; height: 22px; background: var(--brand); color: var(--on-accent); }
 #btn-live.realtime .composer-live-orb { box-shadow: 0 0 0 2px var(--accent-soft), 0 0 14px -2px color-mix(in srgb, var(--accent-2, var(--accent)) 70%, transparent); }
-
-/* -------------------------------------------------------------- «+» menu */
 .plus-menu {
   position: fixed; z-index: 480; display: flex; flex-direction: column; border-radius: 18px; padding: 6px;
   overflow: hidden; animation: d-pop-up .18s var(--ease-out);
@@ -354,7 +316,6 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
 .plus-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .plus-text b { display: flex; align-items: center; gap: 6px; font: 600 13.5px/1.25 var(--d-text); color: var(--text); }
 .plus-text b em { font: 700 9.5px/1 var(--d-small); letter-spacing: .05em; text-transform: uppercase; font-style: normal; padding: 3px 6px; border-radius: 999px; background: var(--brand); color: var(--on-accent); }
-/* Описание — до двух строк, у выделенной (наведение или стрелки) — целиком. */
 .plus-text small { font: 450 11.5px/1.35 var(--d-small); color: var(--muted); overflow: hidden; display: -webkit-box;
   -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow-wrap: anywhere; }
 .plus-row.is-active .plus-text small { -webkit-line-clamp: unset; line-clamp: unset; display: block; }
@@ -370,8 +331,6 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
 .plus-row.is-sub .plus-icon .ui-icon { width: 14px; height: 14px; }
 .plus-more.open { background: var(--d-press); color: var(--text); }
 .plus-empty { padding: 18px; text-align: center; color: var(--muted); font-size: 13px; }
-
-/* ------------------------------------------------------------ messages */
 .main .messages, .side.hidden ~ .main .messages, .focus-mode .messages { padding: 28px 24px 56px; }
 .msg { margin-bottom: 30px; }
 .msg-user .bubble {
@@ -436,16 +395,12 @@ body { background: var(--chrome); font-family: var(--d-text); -webkit-font-smoot
 .msg-error { border-radius: 12px; }
 .file-pill { border-radius: 10px; border-color: var(--d-line); background: var(--d-line-soft); }
 .continue-strip { border-radius: 12px; }
-
-/* Citation footnotes in research reports: [3] → a small pill link. */
 .msg-assistant .body a.cite {
   display: inline-flex; align-items: center; justify-content: center; min-width: 18px; height: 18px; padding: 0 5px; margin: 0 1px;
   border-radius: 6px; vertical-align: 2px; font: 700 10.5px/1 var(--d-small); text-decoration: none;
   background: var(--accent-soft); color: var(--accent); transition: background .15s, color .15s;
 }
 .msg-assistant .body a.cite:hover { background: var(--accent); color: var(--on-accent); }
-
-/* ---------------------------------------------------- activity trail */
 .trail { padding-left: 28px; margin: 4px 0 16px; }
 .trail::before { left: 11px; background: var(--d-line); }
 .step-dot { width: 22px; height: 22px; border: 1px solid var(--d-line); background: var(--canvas); }
@@ -454,8 +409,6 @@ details.step > .step-head:hover { background: var(--d-hover); }
 .step-title { font-weight: 600; }
 .step-status { border-radius: 999px; font: 600 10.5px/1 var(--d-small); padding: 4px 8px; }
 .step-body { border-radius: 12px; }
-
-/* Deep research card. */
 .step-research .step-dot { background: var(--brand); color: var(--on-accent); border-color: transparent; }
 .step-research.is-running .step-dot { animation: d-glow 1.8s ease-in-out infinite; }
 .rs-card { display: flex; flex-direction: column; gap: 14px; padding: 14px 16px 16px; margin: 4px 0 8px; border: 1px solid var(--d-line); border-radius: 16px; background: color-mix(in srgb, var(--panel) 60%, transparent); }
@@ -500,10 +453,6 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .rs-sources.compact .rs-source { padding: 6px 8px; }
 .rs-fav { flex: none; width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font: 700 12px/1 var(--d-display); color: #fff; background: hsl(var(--h) 45% 46%); }
 .rs-review ul { margin: 0; padding-left: 18px; font: 450 12.5px/1.5 var(--d-text); color: var(--text); }
-
-/* --------------------------------------------------------- panels/modals */
-/* Round 36 (perf): no backdrop blur under dialogs — a full-window blur(2px) was recomposited on every frame while the
-   dialog content scrolled (settings: ~60 ms per frame → 17 ms in headless); the barely visible blur is replaced by a slightly deeper tint. */
 .panel-back { background: color-mix(in srgb, var(--chrome) 35%, rgba(0, 0, 0, .36)); -webkit-backdrop-filter: none; backdrop-filter: none; }
 .panel { border-radius: 22px; border: 1px solid var(--canvas-line); box-shadow: var(--d-pop-shadow); background: var(--panel); }
 .panel h2 { font-family: var(--d-display); font-weight: 650; letter-spacing: -.02em; }
@@ -597,8 +546,6 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .tool-dialog-mark { width: 44px; height: 44px; margin-bottom: 12px; border-radius: 14px; display: grid; place-items: center; background: var(--brand); color: var(--on-accent); }
 .tool-dialog .ptexta { width: 100%; min-height: 160px; }
 .tool-dialog .row-end { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
-
-/* Realtime settings card. */
 .rt-card { display: grid; gap: 12px; }
 .rt-providers { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .rt-provider { position: relative; display: flex; flex-direction: column; gap: 3px; padding: 10px 12px; border: 1px solid var(--d-line); border-radius: 12px; cursor: pointer; background: var(--canvas); transition: border-color .15s, background .15s; }
@@ -613,14 +560,10 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .rt-status.ok { color: var(--ok); } .rt-status.err { color: var(--danger); }
 .rt-disabled { opacity: .55; pointer-events: none; }
 @media (max-width: 680px) { .rt-grid { grid-template-columns: minmax(0, 1fr); } }
-
-/* --------------------------------------------------------------- toasts */
 .toast-container { bottom: 28px; }
 .toast { border-radius: 14px; background: var(--d-glass); border: 1px solid var(--canvas-line); box-shadow: var(--d-pop-shadow); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); font: 500 13px/1.4 var(--d-text); padding: 10px 14px 10px 12px; }
 .toast.ok, .toast.err, .toast.warn { border-color: var(--canvas-line); }
 .toast.ok .toast-icon { color: var(--ok); } .toast.err .toast-icon { color: var(--danger); }
-
-/* ------------------------------------------------------------ MemuAI Live */
 .live-call {
   width: min(380px, calc(100vw - 32px)); border-radius: 28px; border: 1px solid var(--canvas-line);
   background: color-mix(in srgb, var(--panel) 88%, transparent); box-shadow: var(--d-pop-shadow);
@@ -637,11 +580,6 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .live-call-body { min-height: 380px; padding: 6px 24px 22px; background: radial-gradient(260px 200px at 50% 34%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%); }
 .live-orb { width: 180px; height: 180px; margin-bottom: 14px; cursor: pointer; }
 .live-orb canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
-/* Round 21 (производительность): раньше `.live-orb:has(canvas) > span` — тег
-   span в правиле с :has() попадал в общий набор инвалидации :has, и каждая
-   вставка узла в ответ (потоковая печать) пересчитывала стили ВСЕХ span в
-   окне. Холст всегда первый ребёнок .live-orb, так что «соседи после холста»
-   — то же самое множество элементов при той же специфичности. */
 .live-orb > canvas ~ i, .live-orb > canvas ~ span { display: none; }
 .live-wave { display: none; }
 .live-status { font: 650 17px/1.3 var(--d-display); letter-spacing: -.01em; }
@@ -651,13 +589,10 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .live-caption.user { color: var(--muted); }
 .live-caption.assistant { color: var(--text); font-weight: 500; }
 .live-caption:empty { display: none; }
-/* @!статья: кнопка, открывающая страницу документации */
 .doc-chip { display: inline-flex; align-items: center; gap: 5px; max-width: 100%; margin: 0 1px; padding: 1px 8px 1px 6px; border-radius: 7px; background: var(--accent-soft); color: var(--accent); font: inherit; font-weight: 550; line-height: 1.5; cursor: pointer; vertical-align: baseline; }
 .doc-chip::before { content: ""; width: 12px; height: 12px; flex: none; background: currentColor; -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z'/%3E%3Cpath d='M5 19.5A1.5 1.5 0 0 0 6.5 21H19'/%3E%3C/svg%3E") center/contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5z'/%3E%3Cpath d='M5 19.5A1.5 1.5 0 0 0 6.5 21H19'/%3E%3C/svg%3E") center/contain no-repeat; }
 .doc-chip:hover { filter: brightness(1.08); text-decoration: underline; }
 .link-btn { color: var(--accent); font: inherit; text-decoration: underline; cursor: pointer; }
-
-/* «Нарисовать»: холст и одна строка инструментов, ничего лишнего */
 .sketch { position: fixed; inset: 0; z-index: 400; display: grid; place-items: center; padding: 24px; background: rgba(0, 0, 0, .55); }
 .sketch-card { display: flex; flex-direction: column; width: min(1180px, 100%); max-height: 100%; border-radius: 16px; overflow: hidden; background: var(--panel); border: 1px solid var(--d-line); box-shadow: 0 30px 80px rgba(0, 0, 0, .45); }
 .sketch-bar { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 14px; padding: 8px 12px; border-bottom: 1px solid var(--d-line); }
@@ -716,13 +651,9 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .live-text input:focus { border-color: color-mix(in srgb, var(--accent) 55%, var(--border)); box-shadow: 0 0 0 3px var(--accent-soft); }
 .live-text .live-ctl { width: 42px; height: 42px; }
 .live-mini { border-radius: 999px; background: var(--d-glass); -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); border-color: var(--canvas-line); box-shadow: var(--d-pop-shadow); }
-
-/* ------------------------------------------------------ work & code bars */
 .workbar { margin: 0 16px 6px; border-radius: 14px; border-color: var(--d-line); background: var(--d-line-soft); }
 .work-action { border-radius: 9px; border-color: var(--d-line); background: var(--canvas); }
 .tempbar { margin: 0 16px 6px; border-radius: 14px; }
-
-/* ------------------------------------------------------------ motion */
 @keyframes d-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 @keyframes d-mark-in { from { opacity: 0; transform: scale(.8) rotate(-12deg); } to { opacity: 1; transform: none; } }
 @keyframes d-pop-up { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
@@ -732,8 +663,6 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 @keyframes d-shimmer { from { background-position: 200% 0; } to { background-position: 0 0; } }
 @keyframes d-spin { to { transform: rotate(360deg); } }
 .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
-
-/* --------------------------------------------------------- responsive */
 @media (max-width: 800px) {
   .main, .side.hidden ~ .main, .focus-mode .main { margin: 0; border-radius: 0; border: 0; box-shadow: none; }
   .side { background: var(--chrome); box-shadow: var(--d-pop-shadow); padding-right: 10px; }
@@ -752,8 +681,6 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
   .greet-mark { display: none; }
   .composer-hint { display: none; }
 }
-
-/* ---- Видео во вложениях (round 10) ---- */
 .attach-chip.video { padding-right: 6px; max-width: 320px; }
 .attach-chip.video img { width: 56px; height: 36px; object-fit: cover; border-radius: 7px; }
 .attach-video-meta { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
@@ -774,15 +701,6 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .about-versions b { color: var(--text); font-weight: 600; }
 .about-mismatch { flex-basis: 100%; margin-top: 4px; padding: 8px 10px; border-radius: 9px; color: var(--text);
   background: color-mix(in srgb, var(--danger) 12%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); }
-
-/* =====================================================================
-   Classic polish · shared UX (2026-10)
-   Additive refinements of the base layer. Everything here uses tokens and
-   plain class hooks, so the alternative designs (scoped to
-   :root[data-design="…"]) inherit the fixes and can still override them.
-   ===================================================================== */
-
-/* ---- icon-only glyph buttons (＋ → SVG icon, see upgradeGlyphButton) */
 .glyph-icon-btn { display: inline-grid; place-items: center; padding: 0; line-height: 1; }
 .glyph-icon-btn .ui-icon { width: 15px; height: 15px; }
 .glyph-icon-btn .ui-icon svg { stroke-width: 2.1; }
@@ -790,8 +708,6 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .glyph-text-btn .ui-icon { width: 15px; height: 15px; margin-left: -2px; }
 .glyph-text-btn .ui-icon svg { stroke-width: 2.1; }
 .pbtn.danger:not(.glyph-text-btn) .ui-icon { width: 14px; height: 14px; }
-
-/* Sidebar section headers: «Папки», «Мемесы» — a quiet row of two tools. */
 .chat-list-heading { gap: 2px; padding-right: 2px; }
 .chat-list-heading button { display: inline-grid; place-items: center; color: var(--muted); transition: opacity .15s, background .15s, color .15s; }
 .chat-list-heading button:hover { color: var(--text); background: var(--d-hover); }
@@ -805,8 +721,6 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .profile-dots { display: inline-grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; transition: background .15s, color .15s; }
 .profile-dots .ui-icon { width: 16px; height: 16px; }
 .profile-card:hover .profile-dots { color: var(--text); background: var(--d-press); }
-
-/* ---- top bar search: room for the full Russian placeholder */
 .chat-search { gap: 7px; padding: 0 10px; }
 .chat-search > span { display: inline-grid; place-items: center; flex: none; }
 .chat-search > span .ui-icon { width: 15px; height: 15px; }
@@ -814,14 +728,10 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 @media (min-width: 801px) { .chat-search { width: 172px; } }
 .chat-search:focus-within { width: 220px; }
 @media (prefers-reduced-motion: no-preference) { .chat-search { transition: width .2s var(--ease), background .15s, border-color .15s, box-shadow .15s; } }
-
-/* ---- conversation: content fades under the top bar instead of a hard cut */
 .chat-view-wrap:not(.empty-chat) .chat.is-scrolled {
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
   mask-image: linear-gradient(to bottom, transparent 0, #000 22px);
 }
-
-/* «К последнему сообщению» */
 .jump-latest {
   position: absolute; left: 50%; bottom: calc(100% + 8px); z-index: 5; width: 36px; height: 36px; margin-left: -18px;
   display: grid; place-items: center; border-radius: 50%; color: var(--text);
@@ -835,8 +745,6 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .jump-latest:active { transform: scale(.94); }
 .jump-latest .ui-icon { width: 17px; height: 17px; }
 .empty-chat .jump-latest { display: none; }
-
-/* ---- markdown reading quality */
 .msg-assistant .body li { margin: 3px 0; }
 .msg-assistant .body li > ul, .msg-assistant .body li > ol { margin: 2px 0 4px; }
 .msg-assistant .body h2 + p, .msg-assistant .body h3 + p { margin-top: 0; }
@@ -848,7 +756,6 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
   border: 1px solid var(--d-line); box-shadow: inset 0 -1px 0 var(--d-line);
 }
 .msg-assistant .body mark { padding: 0 .2em; border-radius: 4px; color: var(--text); background: color-mix(in srgb, var(--accent) 22%, transparent); }
-/* Tables: the wrapper owns frame and radius, the table inside is flush. */
 .table-wrap { overflow-x: auto; overscroll-behavior-x: contain; }
 .table-wrap > table, .msg-assistant .body .table-wrap > table { margin: 0; border: 0; border-radius: 0; font-size: .9em; line-height: 1.5; }
 .table-wrap th, .msg-assistant .body .table-wrap th {
@@ -856,11 +763,9 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
   text-align: left; vertical-align: bottom; background: var(--d-line-soft); border-bottom: 1px solid var(--d-line);
 }
 .table-wrap td { vertical-align: top; }
-/* Words stay whole in cells; a wide table scrolls inside its frame instead. */
 .table-wrap :is(th, td) { overflow-wrap: normal; word-break: normal; }
 .table-wrap td code { white-space: nowrap; }
 .table-wrap tr:last-child td { border-bottom: 0; }
-/* Code blocks: readable language label, a copy button that is easy to find. */
 .code-header { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; color: var(--muted); text-transform: none; }
 .code-header > span:first-child { display: inline-flex; align-items: center; gap: 7px; }
 .code-header > span:first-child::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 70%, var(--muted)); }
@@ -868,28 +773,18 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .code-copy-btn:hover { color: var(--text); }
 .code-copy-btn .ui-icon { width: 13px; height: 13px; }
 .code-block-wrap pre { overflow-x: auto; tab-size: 4; }
-
-/* Message action row: steady targets, clear keyboard focus. */
 .msg-tool { display: inline-grid; place-items: center; }
 .msg-tool .ui-icon { width: 16px; height: 16px; }
 .msg-tool:focus-visible, .code-copy-btn:focus-visible, .jump-latest:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-/* ---- empty states inside panels: a calm card instead of a lone line */
 .empty-note, .panel p.sub.empty-note {
   margin: 4px 0 12px; padding: 14px 16px; border-radius: 12px; border: 1px dashed var(--d-line);
   background: var(--d-line-soft); color: var(--muted); font-size: 13px; text-align: center;
 }
-
-/* ---- workbar: icon + label buttons line up */
 .work-action { display: inline-flex; align-items: center; gap: 6px; }
 .work-action .ui-icon { width: 14px; height: 14px; }
-
-/* ---- consistent hover/press for every small icon button */
 :is(.bar-icon, .iconbtn, .cbtn, .msg-tool, .ci-more, .panel-close, .preview-btn):active { transform: scale(.94); }
 :is(.bar-icon, .iconbtn, .cbtn, .msg-tool, .ci-more, .panel-close, .preview-btn) { transition: background .15s, color .15s, transform .12s var(--ease); }
 :is(.bar-icon, .iconbtn, .cbtn, .ci-more, .panel-close):focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-/* ---- reduced motion: honour both the OS setting and the in-app switch */
 @media (prefers-reduced-motion: reduce) {
   .jump-latest, .chip-sug, .greet-mark, .greeting h1, .greeting-subtitle, .settings-tab-pane, .plus-menu { animation: none !important; }
 }
@@ -897,7 +792,6 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .workbar select, #work-project-select { font: 600 12.5px/1.2 var(--d-text); min-height: 32px; color: var(--text); }
 .workbar { flex-wrap: nowrap; gap: 7px; }
 .work-path { flex: 1 1 0; min-width: 0; }
-/* The workbar follows the width of the conversation pane, not the window. */
 @container (max-width: 860px) {
   .work-path, .work-context { display: none; }
   .workbar select { min-width: 120px; max-width: 180px; }
@@ -908,25 +802,16 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
   .workbar > .work-action .glyph-label, #work-browser > span:not(.ui-icon) { display: none; }
   .workbar > .work-action:has(.ui-icon) { padding-inline: 8px; }
 }
-/* Image viewer toolbar: icon + label buttons, one height. */
 .image-viewer-toolbar .viewer-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; }
 .image-viewer-toolbar .viewer-btn .ui-icon { width: 16px; height: 16px; }
-/* Round 21 (производительность): класс вместо `:not(:has(span:not(.ui-icon)))` —
-   тег span в аргументе :has() делал «подозрительной» вставку любого span.
-   `button` держит прежнюю специфичность (0,3,1). */
 .image-viewer-toolbar button.viewer-btn.viewer-btn-icon { width: 32px; padding: 0; justify-content: center; }
 .image-viewer-toolbar button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-/* Empty chat list in the sidebar: a quiet two-line hint. */
 .side-empty { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 12px; margin: 2px 2px 0;
   border: 1px dashed var(--d-line); border-radius: var(--r-sm); font-weight: 600; color: var(--muted); opacity: 1; }
 .side-empty small { font: 450 11.5px/1.4 var(--d-small); color: var(--muted); opacity: .85; }
-/* Shortcut list: a read-only key combo takes only the room it needs, so
-   Russian labels («Временный чат», «Режим фокуса») stay on one line. */
 .shortcut-item:has(> kbd) { grid-template-columns: minmax(0, 1fr) auto; min-height: 44px; }
 .shortcut-item > kbd { justify-self: end; white-space: nowrap; border-color: var(--d-line); background: var(--canvas); box-shadow: inset 0 -1px 0 var(--d-line); }
 .shortcut-item > span { white-space: normal; line-height: 1.35; }
-/* Streaming caret: sits at the end of the last line of text, not on a line
-   of its own below the paragraph. */
 .streaming-caret::after,
 .streaming-caret > :is(p, h1, h2, h3, h4, blockquote):last-child::after,
 .streaming-caret > :is(ul, ol):last-child > li:last-child::after {
@@ -936,46 +821,25 @@ a.rs-source:hover { border-color: color-mix(in srgb, var(--accent) 40%, var(--d-
 .streaming-caret:has(> :is(p, h1, h2, h3, h4, blockquote, ul, ol):last-child)::after { content: none; display: none; }
 @keyframes d-caret { 50% { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .streaming-caret ::after, .streaming-caret::after { animation: none; } }
-/* Classic only: section headers in the sidebar stay visible while their
-   list scrolls (other designs may use a translucent sidebar, so this is
-   scoped to the classic surface whose background is the opaque chrome). */
 :where(:root:not([data-design]), :root[data-design="classic"]) .side-scroll .side-group > .side-label,
 :where(:root:not([data-design]), :root[data-design="classic"]) .side-scroll .side-group > .chat-list-heading {
   position: sticky; top: 0; z-index: 2; background: var(--chrome);
 }
-/* The chat list fades out above the profile card instead of a hard cut. */
 .side-scroll { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent); padding-bottom: 12px; }
-/* Contrast: small muted labels reach 4.5:1 in light mode too. */
 .side-label { opacity: 1; }
 .msg-time { opacity: 1; }
-
-/* ---------------------------------------------------------------------
-   Round20 polish — every design (each design file may still override).
-   --------------------------------------------------------------------- */
-/* The caret and native controls carry the accent instead of browser blue. */
 :where(input, textarea, [contenteditable="true"]) { caret-color: var(--accent); }
 :where(input[type="checkbox"], input[type="radio"], input[type="range"], progress) { accent-color: var(--accent); }
-/* Nicer line breaking in long answers; headings balance their lines. */
 :where(.msg-assistant .body, .msg-user .user-text) { text-wrap: pretty; }
 :where(.msg-assistant .body) :where(h1, h2, h3, h4) { text-wrap: balance; }
-/* Counters and meters do not jitter while their digits change. */
 :where(.context-meter, .msg-time, .chat-folder-title small, .meme-toggle small, .toast, .code-savings, .cs-cost) { font-variant-numeric: tabular-nums; }
-/* :active scale on sidebar rows used to snap: design.css dropped `transform`
-   from their transition list. */
 .side-btn, .chat-item, .btn-new, .btn-temp { transition: background .16s, color .16s, border-color .16s, box-shadow .16s, transform .16s var(--ease); }
-/* Disabled controls show the not-allowed cursor everywhere. */
 :where(button, .pbtn, .cbtn, .tog):disabled { cursor: not-allowed; }
-/* Long unbroken strings (URLs, hashes) never push a message wider than its column. */
 :where(.msg-assistant .body, .msg-user .user-text) :where(p, li, td) { overflow-wrap: anywhere; }
 :where(.msg-assistant .body) :where(pre, code) { overflow-wrap: normal; }
-/* Images in answers: rounded like the rest of the sheet, no hard edge in either theme. */
 :where(.msg-assistant .body) img:not(.emoji) { border-radius: var(--r-md); }
-/* Keyboard focus inside menus: a clear inset ring instead of the outline that
-   the menu's overflow clips. */
 :where(.dd-pop, .context-menu, .app-menu-pop, .profile-menu-pop, .slash-menu, .plus-menu, .pretty-select-menu) :focus-visible {
   outline: 2px solid color-mix(in srgb, var(--accent) 80%, transparent); outline-offset: -2px;
 }
-/* Empty folder / meme drop hints read as hints, not as disabled text. */
 .folder-drop-hint { font-style: normal; font-size: 11.5px; border-radius: var(--r-sm); }
-/* Selection inside code blocks keeps the code readable. */
 :where(.code-block-wrap, pre) ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }

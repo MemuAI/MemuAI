@@ -12,7 +12,6 @@ from starlette.requests import Request
 from app import anthropic_api, openai_api, public_api, responses_api
 from tests.round13_public_test import PublicCase
 
-
 class PublicUsageRegressionTest(PublicCase):
     def test_plain_dict_usage_enforces_budget_in_all_protocols(self):
         public_api.store.update({"models": ["alpha"], "rpm": 0})
@@ -148,7 +147,6 @@ class PublicUsageRegressionTest(PublicCase):
             self.assertEqual(public_api.store.find(key["key"])["usage"]["tokens"], 42)
 
         asyncio.run(run())
-
 
 if __name__ == "__main__":
     unittest.main()

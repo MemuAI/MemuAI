@@ -33,23 +33,19 @@ NOW = datetime(2026, 10, 8, 10, 30)
 
 _SAVED: dict = {}
 
-
-def setUpModule() -> None:  # Round 25: create_app() registers the assistant tool globally — leave no trace
+def setUpModule() -> None:
     from app import quick_ask_api
     _SAVED["tools"] = dict(quick_ask_api.EXTRA_TOOLS)
     _SAVED["routes"] = list(quick_ask_api.EXTRA_ROUTES)
 
-
-def tearDownModule() -> None:   # (quick_ask_test.test_disabled_tools_refuse failed when run after this module)
+def tearDownModule() -> None:
     from app import quick_ask_api
     quick_ask_api.EXTRA_TOOLS.clear()
     quick_ask_api.EXTRA_TOOLS.update(_SAVED.get("tools", {}))
     quick_ask_api.EXTRA_ROUTES[:] = _SAVED.get("routes", [])
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 class FakeBackend(Backend):
     name = "fake"
@@ -179,7 +175,6 @@ class FakeBackend(Backend):
     def sysinfo(self, what="all"):
         return {"battery": {"present": True, "percent": 81, "plugged": False, "seconds_left": 7200}}
 
-
 class EngineCase(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -196,9 +191,6 @@ class EngineCase(unittest.TestCase):
 
     def settings(self, **patch):
         self.engine.store.update(lambda d: d.__setitem__("settings", ac.normalize_settings({**d["settings"], **patch})))
-
-
-# ---------------------------------------------------------------------- intents
 
 class IntentTest(unittest.TestCase):
     def m(self, text):
@@ -301,7 +293,7 @@ class IntentTest(unittest.TestCase):
         found = self.m("напомни завтра в 9 утра и здесь и в телеграме про встречу")
         self.assertEqual(found["params"]["channel"], "both")
         self.assertEqual(found["params"]["text"], "встречу")
-        # no time → the model asks
+
         self.assertIsNone(self.m("напомни купить хлеб"))
 
     def test_alarm_prefers_next_occurrence(self):
@@ -327,9 +319,9 @@ class IntentTest(unittest.TestCase):
         hit = intents.match("Доброе утро!", now=NOW, commands=commands)
         self.assertEqual(hit["action"], "command.run")
         self.assertEqual(hit["params"]["id"], "gm")
-        self.assertEqual(intents.match("доброе утор", now=NOW, commands=commands)["params"]["id"], "gm")   # typo
+        self.assertEqual(intents.match("доброе утор", now=NOW, commands=commands)["params"]["id"], "gm")
         self.assertEqual(intents.match("good mornin", now=NOW, commands=commands)["params"]["id"], "gm")
-        # a disabled custom command never shadows the built-in rule
+
         self.assertEqual(intents.match("открой телеграм", now=NOW, commands=commands)["action"], "app.open")
 
     def test_disabled_actions_fall_through(self):
@@ -347,14 +339,11 @@ class IntentTest(unittest.TestCase):
         self.assertEqual(intents.duration_text(3725, "ru"), "1 ч 2 мин 5 с")
 
     def test_clock_times(self):
-        self.assertEqual(intents.find_clock("в 9", NOW)[0], datetime(2026, 10, 8, 21, 0))       # 9 said at 10:30 → 21:00
-        self.assertEqual(intents.find_clock("в 9:00", NOW)[0], datetime(2026, 10, 9, 9, 0))     # explicit minutes → tomorrow
+        self.assertEqual(intents.find_clock("в 9", NOW)[0], datetime(2026, 10, 8, 21, 0))
+        self.assertEqual(intents.find_clock("в 9:00", NOW)[0], datetime(2026, 10, 9, 9, 0))
         self.assertEqual(intents.find_clock("at 3pm", NOW)[0], datetime(2026, 10, 8, 15, 0))
         self.assertEqual(intents.find_clock("завтра в 10 вечера", NOW)[0], datetime(2026, 10, 9, 22, 0))
         self.assertIsNone(intents.find_clock("на 5 минут", NOW))
-
-
-# ---------------------------------------------------------------------- catalog
 
 class CatalogTest(unittest.TestCase):
     def test_every_action_is_wellformed(self):
@@ -385,14 +374,11 @@ class CatalogTest(unittest.TestCase):
         names = {t["function"]["name"] for t in tools}
         self.assertIn("volume_set", names)
         self.assertEqual(catalog.tool_name_to_action("volume_set"), "volume.set")
-        json.dumps(tools)          # serialisable
+        json.dumps(tools)
         prompt = ac.tool_prompt(ac.normalize_settings({}), "en")
         self.assertIn("volume.set(", prompt)
-        self.assertNotIn("shell.run(", prompt)        # advanced mode off
+        self.assertNotIn("shell.run(", prompt)
         self.assertLess(len(prompt), 9000)
-
-
-# ---------------------------------------------------------------------- engine
 
 class DispatchTest(EngineCase):
     def test_volume_with_undo(self):
@@ -403,7 +389,7 @@ class DispatchTest(EngineCase):
         undo = run(self.engine.undo(card["undo"]))
         self.assertEqual(undo["status"], "done")
         self.assertEqual(self.backend.volume["level"], 50)
-        # an undo id works once
+
         self.assertEqual(run(self.engine.undo(card["undo"]))["status"], "error")
 
     def test_undo_last_by_phrase(self):
@@ -421,7 +407,7 @@ class DispatchTest(EngineCase):
         done = run(self.engine.confirm(card["confirm"]["token"], True))
         self.assertEqual(done["status"], "done")
         self.assertIn(("close", 101), self.backend.calls)
-        # a token is single-use
+
         self.assertEqual(run(self.engine.confirm(card["confirm"]["token"], True))["code"], "expired")
 
     def test_dangerous_needs_countdown_and_can_be_cancelled(self):
@@ -436,7 +422,7 @@ class DispatchTest(EngineCase):
         done = run(self.engine.confirm(card["confirm"]["token"], True))
         self.assertEqual(done["status"], "done")
         self.assertIn(("shutdown", 5), self.backend.calls)
-        # undo of a shutdown = shutdown /a
+
         run(self.engine.undo(done["undo"]))
         self.assertIn(("cancel_shutdown",), self.backend.calls)
 
@@ -445,7 +431,7 @@ class DispatchTest(EngineCase):
         self.assertEqual(self.engine.settings()["trusted_actions"], ["app.close"])
         self.assertEqual(run(self.engine.run("power.shutdown", {}))["status"], "confirm")
         self.assertEqual(run(self.engine.run("app.close", {"name": "telegram"}))["status"], "done")
-        # the model cannot use the trust the user gave to local commands
+
         self.assertEqual(run(self.engine.run("app.close", {"name": "telegram"}, source="model"))["status"], "confirm")
 
     def test_always_confirm_and_disabled(self):
@@ -479,7 +465,7 @@ class DispatchTest(EngineCase):
     def test_bad_params_and_unknown(self):
         self.assertEqual(run(self.engine.run("volume.set", {"level": "loud"}))["code"], "bad_params")
         self.assertEqual(run(self.engine.run("nuke.everything", {}))["code"], "unknown")
-        self.assertEqual(run(self.engine.run("_window.place", {"hwnd": 1}))["code"], "unknown")   # internal: undo only
+        self.assertEqual(run(self.engine.run("_window.place", {"hwnd": 1}))["code"], "unknown")
 
     def test_unsupported_backend_is_a_card_not_a_crash(self):
         engine = ac.Engine(backend=Backend(), store=self.engine.store, audit=self.engine.audit, timers=self.timers)
@@ -503,7 +489,7 @@ class DispatchTest(EngineCase):
         self.assertIn(("launch", "Google Chrome"), self.backend.calls)
         run(self.engine.run("app.open", {"name": "блокнот"}))
         self.assertIn(("launch", "Блокнот"), self.backend.calls)
-        card = run(self.engine.run("app.open", {"name": "ютуб"}))     # no app → known site
+        card = run(self.engine.run("app.open", {"name": "ютуб"}))
         self.assertIn(("open", "https://www.youtube.com"), self.backend.calls)
         card = run(self.engine.run("app.open", {"name": "фотошопище"}))
         self.assertEqual(card["code"], "not_found")
@@ -525,7 +511,7 @@ class DispatchTest(EngineCase):
         self.assertIn(("place", 101, (100, 100, 900, 700), "normal"), self.backend.calls)
         run(self.engine.run("window.move", {"monitor": "next"}))
         moved = [c for c in self.backend.calls if c[0] == "place"][-1]
-        self.assertLess(moved[2][0], 0)         # on the left monitor (negative X)
+        self.assertLess(moved[2][0], 0)
         self.assertGreaterEqual(moved[2][0], -2560)
 
     def test_web_actions_build_urls(self):
@@ -544,7 +530,6 @@ class DispatchTest(EngineCase):
         self.assertIn("81%", card["message"])
         card = run(self.engine.run("time.now", {}))
         self.assertTrue(card["message"].startswith("10:30"))
-
 
 class TimerActionsTest(EngineCase):
     def test_timer_start_cancel_undo(self):
@@ -579,7 +564,6 @@ class TimerActionsTest(EngineCase):
         card = run(self.engine.run("reminder.create", {"text": "x", "at": "2020-01-01T10:00"}))
         self.assertEqual(card["code"], "past")
 
-
 class TelegramReminderTest(EngineCase):
     def setUp(self):
         super().setUp()
@@ -604,7 +588,7 @@ class TelegramReminderTest(EngineCase):
         self.assertEqual(task["run_at"], "2026-10-08T15:00:00")
         self.assertTrue(task["notify_telegram"])
         self.assertEqual(ac.list_reminder_tasks()[0]["text"], "купить хлеб")
-        # the scheduler delivers it without a model
+
         from app import scheduler
         sent = []
 
@@ -619,7 +603,7 @@ class TelegramReminderTest(EngineCase):
         self.assertEqual(len(sent), 1)
         self.assertEqual(sent[0][:2], ("1:tok", "42"))
         self.assertIn("купить хлеб", sent[0][2])
-        # undo removes the scheduled task
+
         run(self.engine.undo(card["undo"]))
         self.assertEqual(self.pgdata.load_schedules(), [])
 
@@ -634,16 +618,13 @@ class TelegramReminderTest(EngineCase):
             return True, "telegram"
         with mock.patch("app.assistant_commands.deliver_reminder", fake_deliver):
             async def tick():
-                await scheduler._scheduler_tick(now=when.timestamp() - 60)      # computes next_run
+                await scheduler._scheduler_tick(now=when.timestamp() - 60)
                 started = await scheduler._scheduler_tick(now=when.timestamp() + 1)
                 await asyncio.gather(*list(scheduler._ACTIVE_TASKS))
                 return started
             self.assertEqual(run(tick()), 1)
         self.assertEqual(len(delivered), 1)
-        self.assertFalse(self.pgdata.load_schedules()[0]["enabled"])     # one-shot
-
-
-# ---------------------------------------------------------------------- custom commands
+        self.assertFalse(self.pgdata.load_schedules()[0]["enabled"])
 
 class CustomCommandTest(EngineCase):
     def command(self, **extra):
@@ -655,7 +636,7 @@ class CustomCommandTest(EngineCase):
 
     def test_validation(self):
         clean = ac.validate_command(self.command(hotkey="ctrl + alt + w"))
-        self.assertEqual(clean["triggers"], ["рабочий режим", "work mode"])     # de-duplicated
+        self.assertEqual(clean["triggers"], ["рабочий режим", "work mode"])
         self.assertEqual(clean["hotkey"], "Ctrl+Alt+W")
         self.assertTrue(clean["id"].startswith("cmd-"))
         bad = [{"name": ""}, {"name": "x", "steps": []}, {"name": "x", "steps": [{"type": "action", "action": "rm.rf"}]},
@@ -687,7 +668,7 @@ class CustomCommandTest(EngineCase):
         card = run(self.engine.run(hit["action"], hit["params"]))
         self.assertEqual(card["status"], "done", card)
         statuses = [s["status"] for s in card["steps"]]
-        self.assertEqual(statuses, ["done", "done", "skipped", "done"])      # Thursday: weekend step skipped
+        self.assertEqual(statuses, ["done", "done", "skipped", "done"])
         self.assertEqual(self.backend.volume["level"], 20)
         self.assertFalse(self.backend.dark)
         self.assertEqual(card["speak"], "Готово")
@@ -722,13 +703,10 @@ class CustomCommandTest(EngineCase):
         self.assertEqual(s["confirm_countdown"], 30)
         self.assertEqual(s["timer_sound"], "chime")
         self.assertEqual(s["disabled_actions"], ["volume.set"])
-        self.assertEqual(s["voice"]["stt_provider"], "")       # no realtime provider can sneak in
+        self.assertEqual(s["voice"]["stt_provider"], "")
         self.assertEqual(s["voice"]["tts_provider"], "windows")
         self.assertTrue(s["voice"]["auto_speak"])
         self.assertEqual(s["pomodoro"]["work"], 1)
-
-
-# ---------------------------------------------------------------------- layout geometry
 
 class LayoutTest(unittest.TestCase):
     MONS = [{"device": "D1", "rect": [0, 0, 1920, 1080], "work": [0, 0, 1920, 1040], "primary": True},
@@ -744,7 +722,7 @@ class LayoutTest(unittest.TestCase):
     def test_capture(self):
         layout = geo.capture(self.windows(), self.MONS, name="работа", now=1)
         self.assertEqual([w["monitor"] for w in layout["windows"]], [1, 0, 0])
-        self.assertEqual(layout["windows"][1]["rect"], [100, 100, 1500, 1000])      # restore rect of a maximized window
+        self.assertEqual(layout["windows"][1]["rect"], [100, 100, 1500, 1000])
         self.assertEqual(layout["windows"][2]["state"], "minimized")
         rel = layout["windows"][0]["rel"]
         self.assertAlmostEqual(rel["x"], 60 / 2560, places=4)
@@ -759,7 +737,7 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual(by_exe["telegram.exe"]["window"], 1)
         self.assertEqual(by_exe["code.exe"]["state"], "maximized")
         self.assertTrue(by_exe["notepad.exe"]["launch"])
-        # bottom-most first so placing rebuilds the z-order
+
         self.assertEqual(steps[0]["row"]["app"]["exe"], "notepad.exe")
 
     def test_restore_on_different_monitors_scales_and_clamps(self):
@@ -773,7 +751,7 @@ class LayoutTest(unittest.TestCase):
             self.assertLessEqual(b - t, 728)
             self.assertGreater(r, geo.MIN_VISIBLE - 1)
             self.assertLess(l, 1366 - geo.MIN_VISIBLE + 1)
-        # the left 2560-wide monitor maps proportionally
+
         tg = [s for s in steps if s["row"]["app"]["exe"] == "telegram.exe"][0]
         self.assertAlmostEqual((tg["rect"][2] - tg["rect"][0]) / 1366, 1200 / 2560, delta=0.01)
 
@@ -798,7 +776,7 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual(tiles[-1][2], 1920)
         grid = geo.tile(5, (0, 0, 1200, 900), "grid")
         self.assertEqual(len(grid), 5)
-        self.assertEqual(grid[-1][2], 1200)          # last row stretched
+        self.assertEqual(grid[-1][2], 1200)
         self.assertEqual(geo.pick_monitor("next", 1, 2), 0)
         self.assertEqual(geo.pick_monitor("2", 0, 3), 1)
         moved = geo.move_to_monitor((100, 100, 1060, 620), (0, 0, 1920, 1040), (-2560, -200, 0, 1200))
@@ -808,7 +786,6 @@ class LayoutTest(unittest.TestCase):
         for junk in (None, {}, {"monitors": [{"rect": [0, 0, 10, 10]}], "windows": [{"rect": [5, 5, 1, 1], "app": {"exe": "a"}}]}):
             with self.subTest(junk=junk), self.assertRaises(ValueError):
                 geo.validate(junk)
-
 
 class LayoutEngineTest(EngineCase):
     def test_capture_and_restore_through_the_engine(self):
@@ -821,9 +798,6 @@ class LayoutEngineTest(EngineCase):
         places = [c for c in self.backend.calls if c[0] == "place"]
         self.assertEqual(len(places), 2)
         self.assertIn(("place", 102, (200, 150, 1400, 900), "maximized"), places)
-
-
-# ---------------------------------------------------------------------- timers
 
 class TimerManagerTest(unittest.TestCase):
     def setUp(self):
@@ -842,7 +816,7 @@ class TimerManagerTest(unittest.TestCase):
         self.assertEqual(self.tm.snapshot()["ringing"][0]["id"], timer["id"])
         self.tm.dismiss(timer["id"])
         self.assertEqual(self.tm.snapshot()["ringing"], [])
-        # persisted alarms come back after a restart and ring late
+
         self.tm.add_timer(0, "будильник", kind="alarm", ends_at=self.now[0] + 30)
         again = timers_mod.TimerManager(self.path, clock=lambda: self.now[0] + 600)
         events = again.tick()
@@ -874,13 +848,13 @@ class TimerManagerTest(unittest.TestCase):
         self.now[0] += 5 * 60 + 1
         event = self.tm.tick()[0]
         self.assertEqual(event["next"], "work")
-        self.assertTrue(self.tm.state["pomodoro"]["waiting"])        # auto_work off: waits for the user
+        self.assertTrue(self.tm.state["pomodoro"]["waiting"])
         self.now[0] += 3600
         self.assertEqual(self.tm.tick(), [])
         self.tm.pomodoro("resume")
         self.now[0] += 25 * 60 + 1
         event = self.tm.tick()[0]
-        self.assertEqual(event["next"], "long_break")               # cycle 2 of 2
+        self.assertEqual(event["next"], "long_break")
         stats = self.tm.pomodoro_stats()
         self.assertEqual(stats["today"]["sessions"], 2)
         self.assertEqual(stats["today"]["minutes"], 50)
@@ -900,9 +874,6 @@ class TimerManagerTest(unittest.TestCase):
         data = timers_mod.ring_wav("chime", 50)
         self.assertTrue(data.startswith(b"RIFF"))
         self.assertGreater(len(data), 20000)
-
-
-# ---------------------------------------------------------------------- apps, keys, voice
 
 class AppsTest(unittest.TestCase):
     def test_resolve(self):
@@ -934,7 +905,6 @@ class AppsTest(unittest.TestCase):
         rows = apps.merge_index(apps.startmenu_entries([str(root)]))
         self.assertEqual([r["name"] for r in rows], ["Obsidian"])
 
-
 class KeysAndVoiceTest(unittest.TestCase):
     def test_parse_keys(self):
         self.assertEqual(parse_keys("Ctrl+Shift+T"), [0x11, 0x10, ord("T")])
@@ -950,16 +920,13 @@ class KeysAndVoiceTest(unittest.TestCase):
         store.update(lambda d: d["settings"]["voice"].update(stt_provider="local", stt_local_model="large-v3", tts_voice="Irina"))
         prefs = {"voice_stt_provider": "api", "voice_stt_api_url": "https://x", "voice_postprocess_enabled": True,
                  "voice_tts_voice": ""}
-        self.assertIs(ac.voice_prefs(prefs, {"text": "x"}, store), prefs)            # not Quick Ask → untouched
+        self.assertIs(ac.voice_prefs(prefs, {"text": "x"}, store), prefs)
         out = ac.voice_prefs(prefs, {"quick": True, "voice_stt_api_url": "https://evil"}, store)
         self.assertEqual(out["voice_stt_provider"], "local")
         self.assertEqual(out["voice_stt_local_model"], "large-v3")
         self.assertEqual(out["voice_tts_voice"], "Irina")
-        self.assertEqual(out["voice_stt_api_url"], "https://x")                    # the page cannot inject preferences
+        self.assertEqual(out["voice_stt_api_url"], "https://x")
         self.assertFalse(out["voice_postprocess_enabled"])
-
-
-# ---------------------------------------------------------------------- HTTP + contract
 
 class RoutesTest(unittest.TestCase):
     def setUp(self):
@@ -988,7 +955,7 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(self.backend.volume["level"], 25)
         data = self.client.post("/api/assistant/run", json={"text": "как дела?"}).json()
         self.assertIsNone(data["card"])
-        data = self.client.post("/api/assistant/run", json={"text": "включи свет"}).json()   # not an app → back to the model
+        data = self.client.post("/api/assistant/run", json={"text": "включи свет"}).json()
         self.assertTrue(data["card"]["fallback"])
         card = self.client.post("/api/assistant/run", json={"text": "выключи компьютер"}).json()["card"]
         self.assertEqual(card["status"], "confirm")
@@ -1018,7 +985,7 @@ class RoutesTest(unittest.TestCase):
     def test_settings_config_timers_tools(self):
         data = self.client.post("/api/assistant/settings", json={"settings": {"voice": {"auto_speak": True}, "timer_volume": 30}}).json()
         self.assertTrue(data["settings"]["voice"]["auto_speak"])
-        self.assertTrue(data["settings"]["voice"]["send_on_release"])           # merged, not replaced
+        self.assertTrue(data["settings"]["voice"]["send_on_release"])
         config = self.client.get("/api/assistant/config?lang=en").json()
         self.assertEqual(len(config["catalog"]), len(catalog.ACTIONS))
         self.assertEqual(config["settings"]["timer_volume"], 30)
@@ -1036,7 +1003,7 @@ class RoutesTest(unittest.TestCase):
             self.skipTest("Quick Ask core without the extension contract")
         self.assertIn("assistant_action", quick_ask_api.EXTRA_TOOLS)
         tool = quick_ask_api.EXTRA_TOOLS["assistant_action"]
-        description = tool["description"]({}) if callable(tool["description"]) else tool["description"]   # r30: follows settings
+        description = tool["description"]({}) if callable(tool["description"]) else tool["description"]
         self.assertIn("volume.set(", description)
         result = run(tool["handler"]({"action": "volume.set", "params": {"level": 33}}, {"lang": "en"}))
         self.assertEqual(result["status"], "done")
@@ -1047,7 +1014,6 @@ class RoutesTest(unittest.TestCase):
         self.assertIn("do NOT say it is done", confirm["note"])
         events = self.client.get("/api/assistant/events?after=0").json()["events"]
         self.assertTrue(any(e["action"] == "power.restart" for e in events))
-
 
 if __name__ == "__main__":
     unittest.main()

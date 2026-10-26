@@ -1,6 +1,4 @@
-/* MemuMusic · feat-settings.js — раздел «Настройки»: вкладки из реестра SETTINGS_TABS
- * («Оформление» регистрирует theme.js), здесь — «Воспроизведение», «Библиотека», «Загрузки», «Горячие клавиши».
- * Всё хранится на сервере (settings.get/set) и общее с Mini App. */
+
 
 const setGroup = (title, hint, body) => `<section class="mm-ap-group"><header><h3>${esc(title)}</h3>${hint ? `<p>${esc(hint)}</p>` : ""}</header>${body}</section>`;
 const setLine = (title, hint, control) => `<div class="mm-ap-line"><div><b>${esc(title)}</b>${hint ? `<p>${esc(hint)}</p>` : ""}</div>${control}</div>`;
@@ -8,7 +6,6 @@ const setSwitch = (key) => `<label class="mm-switch"><input type="checkbox" data
 const setSeg = (key, values, labelOf) => `<div class="mm-seg2" role="radiogroup" data-cfg-seg="${key}">${values.map((v) => `<button type="button" role="radio" data-v="${v}" aria-checked="${String(Cfg.get(key)) === String(v)}">${esc(labelOf(v))}</button>`).join("")}</div>`;
 const setRange = (key, min, max, step, label) => `<span class="mm-set-range"><input type="range" class="mm-range" data-cfg-range="${key}" min="${min}" max="${max}" step="${step}" value="${Number(Cfg.get(key, min))}" style="--v:${(Number(Cfg.get(key, min)) - min) / (max - min) * 100}%"><em data-cfg-label="${key}">${esc(label(Number(Cfg.get(key, min))))}</em></span>`;
 
-/** Общая привязка контролов data-cfg-* к Cfg.set (и мгновенный отклик без перерисовки). */
 function bindCfgControls(host, labels) {
   host.addEventListener("change", (e) => {
     const el = e.target;
@@ -29,7 +26,6 @@ function bindCfgControls(host, labels) {
   });
 }
 
-/* ------------------------------------------------------------ Воспроизведение */
 function renderPlaybackSettings(host) {
   const secs = (v) => (v ? v + " " + t("sec") : t("off"));
   host.innerHTML = `<div class="mm-ap">
@@ -63,7 +59,6 @@ function renderPlaybackSettings(host) {
   status();
 }
 
-/* ------------------------------------------------------------ Библиотека */
 function renderLibrarySettings(host) {
   host.innerHTML = `<div class="mm-ap">
     ${setGroup(t("set.smart"), t("set.smart_hint"), `<div class="mm-set-smart" id="set-smart"></div>
@@ -76,7 +71,7 @@ function renderLibrarySettings(host) {
     ${setGroup(t("set.editing"), "", [
       setLine(t("ed.write_tags"), t("set.write_tags_hint"), setSwitch("write_tags")),
       setLine(t("set.confirm_delete"), t("set.confirm_delete_hint"), setSwitch("confirm_delete")),
-      setLine(t("set.artist_photos"), t("set.artist_photos_hint"), setSwitch("artist_photos")),   // r39-music-lib
+      setLine(t("set.artist_photos"), t("set.artist_photos_hint"), setSwitch("artist_photos")),
     ].join(""))}
     ${setGroup(t("set.import"), t("import.hint"), `<div class="mm-ed-row"><input class="mm-input" id="imp-dir" spellcheck="false" placeholder="D:\\Music"><button type="button" class="mm-btn ghost sm" id="imp-go">${icon("folder")}${esc(t("import.go"))}</button></div>
       <div class="mm-ed-row"><input class="mm-input" id="m3u-path" spellcheck="false" placeholder="D:\\Music\\list.m3u8"><button type="button" class="mm-btn ghost sm" id="m3u-go">${icon("playlist")}${esc(t("set.m3u_import"))}</button></div>
@@ -106,7 +101,6 @@ function renderLibrarySettings(host) {
   host.querySelector("#set-dupes").onclick = () => go("dupes");
 }
 
-/* r39-music-lyrics: источники текста — включённые сверху в порядке поиска, выключенные ниже; стрелки меняют порядок. */
 const LYRIC_SOURCES = [["lrclib", "LRCLIB", 1], ["musixmatch", "Musixmatch", 1], ["netease", "NetEase", 1], ["qq", "QQ Music", 1], ["genius", "Genius", 0], ["lyricsovh", "lyrics.ovh", 0]];
 function lyricSources(box) {
   const saved = Cfg.get("lyrics_sources", LYRIC_SOURCES.map((x) => x[0]));
@@ -138,7 +132,7 @@ function lyricSources(box) {
 }
 
 const lyOffsetLabel = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + (Math.abs(v) / 1000).toFixed(2).replace(".", t("lyrics.sec") === "с" ? "," : ".") + " " + t("lyrics.sec");
-/* ------------------------------------------------------------ Загрузки */
+
 function renderDownloadSettings(host) {
   host.innerHTML = `<div class="mm-ap">
     ${setGroup(t("set.where"), "", `${setLine(t("settings.folder"), t("settings.folder_hint"), "")}<div class="mm-ed-row"><input class="mm-input" id="set-dir" spellcheck="false" value="${esc(Cfg.get("download_dir", ""))}" placeholder="${esc(Cfg.get("default_download_dir", ""))}"><button type="button" class="mm-btn ghost sm" id="set-dir-save">${esc(t("save"))}</button></div>`)}
@@ -152,11 +146,11 @@ function renderDownloadSettings(host) {
       setLine(t("set.embed_metadata"), "", setSwitch("embed_metadata")),
       setLine(t("set.youtube_fallback"), t("set.youtube_fallback_hint"), setSwitch("youtube_fallback")),
     ].join(""))}
-    ${setGroup(t("lyrics.title"), "", [   // r39-music-lyrics: автопоиск, обычный текст, источники (вкл/выкл и порядок)
+    ${setGroup(t("lyrics.title"), "", [
       setLine(t("set.auto_lyrics"), t("set.auto_lyrics_hint"), setSwitch("auto_lyrics")),
       setLine(t("set.lyrics_plain"), t("set.lyrics_plain_hint"), setSwitch("lyrics_plain_fallback")),
-      setLine(t("set.lyrics_sync"), t("set.lyrics_sync_hint"), setSeg("lyrics_sync", ["smart", "line", "off"], (v) => t("set.lyrics_sync." + v))),   // r41b
-      setLine(t("set.lyrics_offset"), t("set.lyrics_offset_hint"), setRange("lyrics_offset_ms", -1000, 1000, 10, lyOffsetLabel)),   // r41-ui
+      setLine(t("set.lyrics_sync"), t("set.lyrics_sync_hint"), setSeg("lyrics_sync", ["smart", "line", "off"], (v) => t("set.lyrics_sync." + v))),
+      setLine(t("set.lyrics_offset"), t("set.lyrics_offset_hint"), setRange("lyrics_offset_ms", -1000, 1000, 10, lyOffsetLabel)),
       setLine(t("set.lyrics_sources"), t("set.lyrics_sources_hint"), ""),
       `<div class="mm-ly-sources" id="set-ly-src"></div>`,
     ].join(""))}
@@ -186,7 +180,6 @@ function renderDownloadSettings(host) {
   tools();
 }
 
-/* ------------------------------------------------------------ Горячие клавиши */
 function renderKeySettings(host) {
   const custom = Object.assign({}, Cfg.get("hotkeys", {}) || {});
   const comboFor = (action, def) => (custom[action] !== undefined ? custom[action] : def);

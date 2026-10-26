@@ -1,8 +1,5 @@
-/* Round 27 (r27-quick-canvas) — Settings → Quick Ask → «Панели и быстрые действия» (plugin "canvas").
-   Data: GET /api/quick/canvas; saved through POST /api/quick/canvas/settings (memuai/[profile]/quick_canvas.json —
-   not preferences.json: the main window saves whole snapshots of those). Buttons are created in the Quick Ask window
-   and (Round 28) arranged ANYWHERE on the screen around it; here — the switches, the list of buttons (delete, forget
-   an approval) and import/export. */
+
+
 (function () {
   "use strict";
   if (!window.MemuQuick || typeof MemuQuick.settingsSection !== "function") return;
@@ -132,7 +129,7 @@
         imp.onclick = () => file.click();
         file.onchange = async () => {
           const f = file.files && file.files[0];
-          file.value = "";                    // the same file chosen again must fire «change» again
+          file.value = "";
           if (!f) return;
           if (f.size > 4 * 1024 * 1024) { ctx.toast(tr("Файл больше 4 МБ", "The file is over 4 MB"), "err"); return; }
           let data = null;

@@ -22,14 +22,11 @@ from .version import APP_VERSION
 
 router = APIRouter()
 
-#: Sampling / format options an OpenAI client may send that the providers forward upstream as they are
-#: (``providers/custom.py::chat_stream``); anything of another type is ignored rather than passed on.
 _PASSTHROUGH_PARAMS = (
     ("stop", (str, list)), ("seed", int), ("frequency_penalty", (int, float)),
     ("presence_penalty", (int, float)), ("repetition_penalty", (int, float)), ("top_k", int),
     ("min_p", (int, float)), ("response_format", dict),
 )
-
 
 def _client_key(request: Request) -> Optional[str]:
     auth = request.headers.get("authorization", "")
@@ -37,10 +34,8 @@ def _client_key(request: Request) -> Optional[str]:
         return auth[7:].strip()
     return request.headers.get("x-api-key") or None
 
-
 def _check_auth(request: Request) -> Optional[JSONResponse]:
-    # The public endpoint (app/public_api.py) has already checked its own key and limits and
-    # marks the request; only its application can set this state, never a client.
+
     if getattr(request.state, "public_key", ""):
         return None
     if not config_store.authorize_api_request(
@@ -55,7 +50,6 @@ def _check_auth(request: Request) -> Optional[JSONResponse]:
                                "type": "invalid_request_error", "code": "invalid_api_key"}})
     return None
 
-
 def _openai_error(message: str, err_type: str = "internal_error", status: int = 500,
                   hint: str = "", hint_en: str = "", message_en: str = "") -> Dict[str, Any]:
     """OpenAI-совместимая ошибка + понятная подсказка «что делать» (RU/EN)."""
@@ -64,20 +58,18 @@ def _openai_error(message: str, err_type: str = "internal_error", status: int = 
         from .chat import ERROR_HINTS
         hint, hint_en = ERROR_HINTS.get(err_type, ("", ""))
     if hint or hint_en:
-        # The hint follows the language of ``message``; both variants ride along.
+
         hints = api_error_text(hint or hint_en, hint_en)
         payload["hint"], payload["hint_en"] = hints["message"], hints["message_en"]
         if "message_ru" in hints:
             payload["hint_ru"] = hints["message_ru"]
     return {"error": payload}
 
-
 def _completion_error_payload(exc) -> Dict[str, Any]:
     message = safe_provider_error(exc.message)
     return _openai_error(message, exc.err_type, exc.status,
                          getattr(exc, "hint", ""), getattr(exc, "hint_en", ""),
                          safe_provider_error(getattr(exc, "message_en", "") or exc.message))
-
 
 class _LeadingWhitespace:
     """Holds back whitespace-only content at the start of a stream.
@@ -132,11 +124,9 @@ class _LeadingWhitespace:
         choice["delta"] = delta
         return {**item, "choices": [choice, *item["choices"][1:]]}
 
-
 def _unexpected_error(exc: Exception) -> str:
     """Return diagnostic context that cannot contain exception payload secrets."""
     return f"Неожиданная внутренняя ошибка ({type(exc).__name__})"
-
 
 @router.get("/health")
 async def health() -> Dict[str, Any]:
@@ -149,7 +139,6 @@ async def health() -> Dict[str, Any]:
         "accounts_usable": by_provider, "time": int(time.time()),
     }
 
-
 def listed_models() -> List[Dict[str, Any]]:
     """The ids a client sees in /v1/models (also what the public endpoint may offer)."""
     data_by_id: Dict[str, Dict[str, Any]] = {}
@@ -159,10 +148,7 @@ def listed_models() -> List[Dict[str, Any]]:
         groups.setdefault(public_id(m.prefix, m.model), []).append(m)
     for model_id, entries in groups.items():
         if len(entries) > 1:
-            # Без префиксов одинаковые имена у разных провайдеров совпадают.
-            # routing.resolve выберет только провайдера по умолчанию, иначе
-            # откажет — поэтому неоднозначное имя без него не публикуем, а
-            # отдаём полные id с префиксом, которые маршрутизируются.
+
             preferred = [m for m in entries if default and default in (m.provider, m.prefix)]
             if preferred:
                 entries = preferred[:1]
@@ -181,20 +167,19 @@ def listed_models() -> List[Dict[str, Any]]:
         entry = data_by_id.setdefault(model_id, {"id": model_id, "object": "model", "created": 1735689600,
                                                   "owned_by": "custom", "prefix": prefix})
         entry["capabilities"] = {"music": True, "text": False}
-    try:   # Round 35: composite models (app/composite_models.py) — memu/smart and the like
+    try:
         from . import composite_models
         for row in composite_models.listed():
             data_by_id.setdefault(row["id"], row)
     except Exception:
         pass
-    try:   # Round 40: web versions of models (app/web_models.py) — «<model>:web»
+    try:
         from . import web_models
         for row in web_models.listed():
             data_by_id.setdefault(row["id"], row)
     except Exception:
         pass
     return list(data_by_id.values())
-
 
 @router.post("/v1/audio/music")
 async def audio_music(request: Request):
@@ -215,14 +200,12 @@ async def audio_music(request: Request):
     except Exception as exc:
         return JSONResponse(status_code=502, content=_openai_error(type(exc).__name__, "upstream_error", 502))
 
-
 @router.get("/v1/models")
 async def list_models(request: Request):
     deny = _check_auth(request)
     if deny:
         return deny
     return {"object": "list", "data": listed_models()}
-
 
 @router.get("/v1/models/{model_id:path}")
 async def get_model(model_id: str, request: Request):
@@ -245,11 +228,9 @@ async def get_model(model_id: str, request: Request):
     return {"id": public_id(m.prefix, m.model), "object": "model", "created": 1735689600,
             "owned_by": m.provider}
 
-
 @router.post("/v1/chat/completions")
 async def chat_completions(request: Request):
     return await until_client_disconnects(request, _chat_completions(request))
-
 
 async def _chat_completions(request: Request):
     started = time.time()
@@ -294,8 +275,7 @@ async def _chat_completions(request: Request):
             "Поле 'n' должно быть положительным целым", "invalid_request_error", 400,
             message_en="'n' must be a positive integer"))
     if isinstance(n_value, int) and n_value > 1:
-        # Proxy всегда возвращает один вариант. Молча отдать choices из одного
-        # элемента на n=2 значит сломать клиента, который читает choices[1].
+
         return JSONResponse(status_code=400, content=_openai_error(
             "n > 1 не поддерживается: Proxy возвращает один вариант ответа",
             "invalid_request_error", 400,
@@ -324,8 +304,7 @@ async def _chat_completions(request: Request):
     for key in ("temperature", "max_tokens", "top_p"):
         if body.get(key) is not None:
             params[key] = body[key]
-    # Round 34: stop / seed / penalties / response_format were silently dropped here although the
-    # Custom provider forwards them — «stop» was ignored and JSON mode never reached the upstream.
+
     for key, kinds in _PASSTHROUGH_PARAMS:
         if body.get(key) is not None and isinstance(body[key], kinds) and not isinstance(body[key], bool):
             params[key] = body[key]
@@ -341,12 +320,12 @@ async def _chat_completions(request: Request):
     requested_effort = body.get("effort") or body.get("reasoning_effort")
     if not requested_effort and isinstance(body.get("reasoning"), dict):
         requested_effort = body["reasoning"].get("effort")
-    # Round 33 (r33-thinking): none = off, xhigh too; the Proxy clamps the value to what the model supports.
+
     if isinstance(requested_effort, str) and requested_effort.lower() in (
             "auto", "none", "off", "minimal", "low", "medium", "high", "xhigh", "max"):
         params["effort"] = requested_effort.lower()
     if isinstance(body.get("reasoning"), dict) and body["reasoning"].get("enabled") is False:
-        params["effort"] = "off"     # OpenRouter-style switch
+        params["effort"] = "off"
     for key in ("enable_thinking",):
         if isinstance(body.get(key), bool):
             params["thinking"] = body[key]
@@ -420,7 +399,7 @@ async def _chat_completions(request: Request):
         if tool_calls:
             message["tool_calls"] = ordered_tool_calls(tool_calls)
             if not message["content"].strip():
-                # Upstreams send "\n\n" before a tool call; OpenAI returns null content there.
+
                 message["content"] = None
         trace.status, trace.ms = 200, int((time.time() - started) * 1000)
         trace.prompt_tokens = usage.get("prompt_tokens", 0)
@@ -437,8 +416,6 @@ async def _chat_completions(request: Request):
             "system_fingerprint": "memuai",
         }
 
-    # Служебные события MemuAI (веб-поиск и т. п.) не входят в схему OpenAI —
-    # сторонние клиенты получают только настоящие чанки.
     async def openai_only(source):
         try:
             async for item in source:
@@ -493,10 +470,7 @@ async def _chat_completions(request: Request):
         usage: Dict[str, int] = {}
         def encode(item: Dict[str, Any]) -> str:
             if include_usage and item.get("usage") and item.get("choices"):
-                # stream_options.include_usage по спецификации OpenAI: usage
-                # приходит отдельным последним чанком с пустым choices
-                # (SDK и LangChain/LiteLLM ждут именно его), а в остальных
-                # чанках usage равен null.
+
                 item = dict(item)
                 trailing = {key: item[key] for key in ("id", "object", "created", "model",
                                                         "system_fingerprint") if key in item}
@@ -514,8 +488,7 @@ async def _chat_completions(request: Request):
             if (first_choices and isinstance(first_choices[0], dict)
                     and isinstance(first_choices[0].get("delta"), dict)
                     and "role" not in first_choices[0]["delta"]):
-                # Первый чанк OpenAI несёт delta.role = "assistant"; часть
-                # клиентов (Java/.NET SDK, старые LangChain) берёт роль оттуда.
+
                 choice0 = dict(first_choices[0])
                 choice0["delta"] = {"role": "assistant", **choice0["delta"]}
                 first_chunk_out = {**first_chunk, "choices": [choice0, *first_choices[1:]]}
@@ -524,9 +497,7 @@ async def _chat_completions(request: Request):
             leading = _LeadingWhitespace()
             for out in leading.feed(first_chunk_out):
                 yield encode(out)
-            # Клиенты (и обратные прокси) рвут «молчащее» соединение. Пока
-            # провайдер думает, отправляем SSE-комментарии — они невидимы для
-            # OpenAI-совместимых SDK, но держат канал живым.
+
             keepalive = (float(config_store.settings.sse_keepalive_interval)
                          if config_store.settings.sse_keepalive else 0.0)
             queue: asyncio.Queue = asyncio.Queue(maxsize=256)
@@ -535,8 +506,7 @@ async def _chat_completions(request: Request):
             async def pump() -> None:
                 try:
                     async for item in stream:
-                        # The provider has spent these tokens even if the
-                        # client stops before this queued chunk is delivered.
+
                         if item.get("usage"):
                             request.state.completion_usage = item["usage"]
                         await queue.put(item)

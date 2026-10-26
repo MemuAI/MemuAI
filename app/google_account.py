@@ -28,16 +28,10 @@ BASE_SCOPES = ("openid", G + "userinfo.email")
 
 MAIL = "https://mail.google.com/"
 
-#: service → title, the scopes to request, ``need`` (groups: one scope of each must be granted for the service to
-#: work at all) and ``full`` (groups for every tool of the service — Round 33).  A token from an older MemuAI
-#: (Round 30: gmail.readonly + gmail.compose, drive.file, calendar.events) is still «ready»; the rest of the tools
-#: then ask to «Expand access», which re-runs the consent for ``request`` (incremental, nothing is lost).
-#: ``api`` / ``api_title`` — the Google Cloud API that must be enabled in the user's project for this service.
 SERVICES: Dict[str, Dict[str, Any]] = {
     "gmail": {
         "title": "Gmail",
-        # mail.google.com: permanent delete (messages.batchDelete / threads.delete) accepts only this scope;
-        # gmail.settings.basic: filters and the vacation responder (not covered by mail.google.com).
+
         "request": (MAIL, G + "gmail.settings.basic"),
         "need": ({G + "gmail.readonly", G + "gmail.modify", MAIL},
                  {G + "gmail.compose", G + "gmail.modify", MAIL}),
@@ -53,7 +47,7 @@ SERVICES: Dict[str, Dict[str, Any]] = {
     },
     "drive": {
         "title": "Google Drive",
-        # drive (not drive.file): rename / move / delete / share files the user made, not only MemuAI's own.
+
         "request": (G + "drive",),
         "need": ({G + "drive.readonly", G + "drive"}, {G + "drive.file", G + "drive"}),
         "full": ({G + "drive"},),
@@ -89,16 +83,15 @@ SERVICES: Dict[str, Dict[str, Any]] = {
     },
 }
 ORDER = ("gmail", "calendar", "drive", "docs", "sheets", "tasks", "contacts")
-#: The integration ids the rest of MemuAI already uses (panels, prompts, tool prefixes).
+
 INTEGRATION_ID = {"gmail": "gmail", "calendar": "google_calendar", "drive": "google_drive", "docs": "google_docs",
                   "sheets": "google_sheets", "tasks": "google_tasks", "contacts": "google_contacts"}
-#: Every API MemuAI uses (the «enable all» link of the setup wizard).
+
 ALL_APIS = tuple(SERVICES[name]["api"] for name in ORDER)
 CONSOLE = "https://console.cloud.google.com"
 
 _lock = threading.Lock()
 log = logging.getLogger("memuai.google")
-
 
 class GoogleAccountError(RuntimeError):
     """A human message (ru) + its English twin and a code for the interface."""
@@ -107,30 +100,24 @@ class GoogleAccountError(RuntimeError):
         super().__init__(ru)
         self.ru, self.en, self.code = ru, en or ru, code
 
-
-# --------------------------------------------------------------------------- account plumbing
 def sync_service():
     """The process-wide SyncService (MemuAI or Proxy): its ``auth`` is the shared Google account."""
     from . import gdrive_sync
     return gdrive_sync.service()
 
-
 def auth():
     return sync_service().auth
-
 
 def _prefs() -> Dict[str, Any]:
     from . import integrations
     data = integrations._load_store().get("google") or {}
     return data if isinstance(data, dict) else {}
 
-
 def chosen() -> List[str]:
     services = _prefs().get("services")
     if not isinstance(services, list):
         return []
     return [name for name in ORDER if name in services]
-
 
 def _save_chosen(names: List[str]) -> None:
     from . import integrations
@@ -141,17 +128,14 @@ def _save_chosen(names: List[str]) -> None:
         store["google"] = current
         integrations._save_store(store)
 
-
 def granted(name: str, scopes: Optional[set] = None) -> bool:
     scopes = auth().granted_scopes() if scopes is None else scopes
     return all(group & scopes for group in SERVICES[name]["need"])
-
 
 def full_access(name: str, scopes: Optional[set] = None) -> bool:
     """Round 33: the token covers every tool of the service (not only the Round 30 basics)."""
     scopes = auth().granted_scopes() if scopes is None else scopes
     return all(group & scopes for group in SERVICES[name].get("full", SERVICES[name]["need"]))
-
 
 def project_number(client_id: str = "") -> str:
     """The Google Cloud project of an OAuth client: a Client ID is «<project number>-<hash>.apps.googleusercontent.com»."""
@@ -164,25 +148,21 @@ def project_number(client_id: str = "") -> str:
     head = str(cid or "").split("-", 1)[0]
     return head if head.isdigit() else ""
 
-
 def enable_url(apis: Tuple[str, ...] = ALL_APIS, project: str = "") -> str:
     """Google Cloud Console's «Enable APIs» page for ``apis`` in the user's project (when it is known)."""
     project = project or project_number()
     url = CONSOLE + "/flows/enableapi?apiid=" + ",".join(apis)
     return url + ("&project=" + project if project else "")
 
-
 def api_url(api: str, project: str = "") -> str:
     """The page of one API (its «Enable» button) in the user's project."""
     project = project or project_number()
     return CONSOLE + "/apis/library/" + api + ("?project=" + project if project else "")
 
-
 def ready(name: str) -> bool:
     """Chosen by the user, signed in and the token carries the service's scopes."""
     _migrate_legacy()
     return name in chosen() and auth().connected() and granted(name)
-
 
 def account() -> Dict[str, str]:
     try:
@@ -190,7 +170,6 @@ def account() -> Dict[str, str]:
     except Exception:
         info = {}
     return {"email": str(info.get("email") or ""), "name": str(info.get("name") or "")}
-
 
 def client_info() -> Dict[str, Any]:
     svc = sync_service()
@@ -202,9 +181,8 @@ def client_info() -> Dict[str, Any]:
     return {"has_client": bool(cid), "source": source, "own_client_id": settings.get("client_id") or "",
             "own_has_secret": svc.store.has("client_secret"),
             "bundled": bool(gdrive_sync_drive.BUNDLED_CLIENT_ID or configured("google")[0]),
-            # Round 33: the user's project (from the Client ID) → links straight into *their* console.
-            "project": project if source == "user" or not source else "", "enable_all_url": enable_url(ALL_APIS, project if source == "user" else "")}
 
+            "project": project if source == "user" or not source else "", "enable_all_url": enable_url(ALL_APIS, project if source == "user" else "")}
 
 def status() -> Dict[str, Any]:
     _migrate_legacy()
@@ -225,8 +203,6 @@ def status() -> Dict[str, Any]:
             "services": services, "client": client_info(), "flow": a.flow_status(),
             "backups": connected and a.has_backup_scopes()}
 
-
-# --------------------------------------------------------------------------- actions
 def connect(names: List[str]) -> Dict[str, Any]:
     """Sign in (or add services): opens Google's consent page for the scopes of ``names`` only."""
     wanted = [name for name in ORDER if name in set(names or [])]
@@ -238,13 +214,12 @@ def connect(names: List[str]) -> Dict[str, Any]:
                                  "Add a Google OAuth client first — the wizard below shows where to get it", code="no_client")
     _save_chosen(sorted(set(chosen()) | set(wanted)))
     scopes = a.granted_scopes() if a.connected() else set()
-    # Round 33: «missing» = not every tool is covered (re-consent when the scopes of a service grew).
+
     missing = [name for name in wanted if not full_access(name, scopes)]
     if a.connected() and not missing:
         return {"state": "ready", "auth_url": ""}
     extra: Tuple[str, ...] = tuple(scope for name in (missing or wanted) for scope in SERVICES[name]["request"])
     return a.start_flow(extra_scopes=extra, purpose="integrations", base_scopes=BASE_SCOPES)
-
 
 def set_enabled(name: str, enabled: bool) -> Dict[str, Any]:
     if name not in SERVICES:
@@ -254,10 +229,8 @@ def set_enabled(name: str, enabled: bool) -> Dict[str, Any]:
     _save_chosen([n for n in chosen() if n != name])
     return {"state": "off", "auth_url": ""}
 
-
 def cancel_flow() -> None:
     auth().cancel_flow()
-
 
 def save_client(client_id: str, client_secret: str = "") -> Dict[str, Any]:
     """The user's own OAuth client — the same one Sync uses (one account, one client)."""
@@ -272,7 +245,6 @@ def save_client(client_id: str, client_secret: str = "") -> Dict[str, Any]:
     sync_service().save_settings(updates)
     return client_info()
 
-
 def disconnect() -> None:
     """Revoke the token at Google and forget it — every Google feature of MemuAI is disconnected."""
     svc = sync_service()
@@ -285,7 +257,6 @@ def disconnect() -> None:
     from . import integrations
     for service in INTEGRATION_ID.values():
         integrations._tokens.pop(service, None)
-
 
 def access_token(name: str, *, force: bool = False) -> str:
     """An access token for a ready service, or an error the model and the user both understand."""
@@ -307,7 +278,7 @@ def access_token(name: str, *, force: bool = False) -> str:
             code="need_consent")
     try:
         return a.access_token(force=force)
-    except Exception as exc:  # DriveAuthError / DriveError carry ru/en
+    except Exception as exc:
         ru = getattr(exc, "ru", "") or str(exc)
         en = getattr(exc, "en", "") or ru
         code = getattr(exc, "code", "") or "auth"
@@ -316,10 +287,7 @@ def access_token(name: str, *, force: bool = False) -> str:
             en = "Google access was revoked or expired — sign in again: Settings → Integrations → Google."
         raise GoogleAccountError(ru, en, code=code) from exc
 
-
-# --------------------------------------------------------------------------- legacy (≤ round 29)
 _migrated = {"done": False}
-
 
 def _migrate_legacy() -> None:
     """Old Integrations kept a Client ID / secret / refresh token per Drive and Calendar, typed by hand.
@@ -367,9 +335,8 @@ def _migrate_legacy() -> None:
                         google["calendar_id"] = calendar_id
                         store["google"] = google
                 integrations._save_store(store)
-        except Exception as exc:  # never break Settings or a tool call over an old file
+        except Exception as exc:
             log.warning("google account: legacy integration keys were not migrated: %s", type(exc).__name__)
-
 
 def default_calendar() -> str:
     return str(_prefs().get("calendar_id") or "").strip()

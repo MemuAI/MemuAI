@@ -37,7 +37,6 @@ UI = ROOT / "installer" / "ui" / "index.html"
 CHROME_CANDIDATES = [os.environ.get("MEMUAI_CHROMIUM", ""), "/usr/bin/chromium", "/usr/bin/chromium-browser",
                      "/usr/bin/google-chrome", "/workspace/work/chromium/chrome"]
 
-#: (name, query) — every screen and welcome variant of the mock interface.
 CASES = [
     ("welcome", "screen=welcome"),
     ("edition", "screen=edition"),
@@ -71,8 +70,7 @@ CASES = [
     ("uninstall-progress", "mode=uninstall&screen=progress&pct=40"),
     ("uninstall-done", "mode=uninstall&screen=un-done&speed=0.2"),
 ]
-#: The sizes from the bug report and the design, the fluid minimum, a big window,
-#: and one below the minimum (scaled to fit).
+
 SIZES = [(944, 581), (960, 620), (880, 540), (860, 540), (1280, 800), (760, 480)]
 FLUID_MIN = (860, 540)
 LANGS = ("ru", "en")
@@ -138,13 +136,11 @@ CHECK_JS = r"""
 }
 """
 
-
 def chromium_path() -> str:
     for candidate in CHROME_CANDIDATES:
         if candidate and os.path.exists(candidate):
             return candidate
     return ""
-
 
 async def run_matrix(shots: str = "", sizes=SIZES, langs=LANGS, cases=CASES, webgl: bool = False):
     from playwright.async_api import async_playwright
@@ -165,7 +161,7 @@ async def run_matrix(shots: str = "", sizes=SIZES, langs=LANGS, cases=CASES, web
             await page.goto(url, wait_until="load")
             await page.wait_for_timeout(1600 if name.endswith("done") else 700)
             for index, lang in enumerate(langs):
-                if index:   # switch language in place, as the user does with RU/EN
+                if index:
                     await page.evaluate(f"document.querySelector('.seg button[data-lang=\"{lang}\"]').click()")
                     await page.wait_for_timeout(120)
                 for w, h in sizes:
@@ -181,7 +177,6 @@ async def run_matrix(shots: str = "", sizes=SIZES, langs=LANGS, cases=CASES, web
         await browser.close()
     return results
 
-
 def failures(results):
     bad = []
     for r in results:
@@ -195,14 +190,12 @@ def failures(results):
             bad.append(f"{r['case']} [{r['lang']} {r['size']}]: " + "; ".join(problems[:6]))
     return bad
 
-
 def _playwright_ok() -> bool:
     try:
         import playwright.async_api  # noqa: F401
     except Exception:  # noqa: BLE001
         return False
     return bool(chromium_path())
-
 
 @unittest.skipUnless(_playwright_ok(), "Playwright/Chromium not available")
 class InstallerLayoutFitsEveryViewport(unittest.TestCase):
@@ -212,7 +205,6 @@ class InstallerLayoutFitsEveryViewport(unittest.TestCase):
         self.assertTrue(all(r["checked"] > 3 for r in results), "the checker found nothing to check")
         bad = failures(results)
         self.assertEqual(bad, [], "\n" + "\n".join(bad))
-
 
 if __name__ == "__main__":
     if "--shots" in sys.argv:

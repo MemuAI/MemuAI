@@ -42,15 +42,16 @@
    ]
   },
   "browser-computer": {
-   "hash": "ba0bf95055f5d7fb",
-   "generated": "2026-10-10",
-   "tldr": "**Browser** and **Computer Use** are AI skills in Work that let the model open sites in a hidden Edge or control your real Windows session when files alone cannot solve a task. Use them when a task requires interacting with web pages or desktop applications, noting that the main model decides when to activate them.",
+   "hash": "c334a9a8a1fad17f",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "Browser and Computer Use help the Work model interact with pages and applications. Browser uses an isolated Edge profile; a separately paired Chrome extension supplies different tools governed by your permissions.",
    "points": [
-    "Enable or disable the skills in **Settings → Work & agents → AI skills**; mentions like `@Browser` and `@Computer` only ask the model to consider using them, as there are no buttons to force a run.",
-    "Each skill requires a vision model to interpret screen captures, defaulting to the Vision model from image recognition settings if none is chosen specifically.",
-    "Browser runs in a **separate Edge profile** without your passwords or sign-ins, blocks file downloads and payment data entry, and limits actions to 16 steps by default.",
-    "Computer Use acts in your real Windows session, shows a frame around monitors while active, waits for confirmation before acting, and can be stopped immediately with ++Esc++.",
-    "Skill reports return to the main model as untrusted data so it can continue the task, with Computer Use limited to 12 actions by default."
+    "The main model decides when a skill is needed; mentioning a browser or computer only asks it to consider one. Disabled skills are unavailable.",
+    "A vision-capable model interprets screenshots. Default limits are 16 Browser actions and 12 Computer Use actions.",
+    "Isolated Edge has none of your normal sign-ins. Downloads and entering passwords or payment information are blocked; page text is untrusted data.",
+    "The Chrome extension is paired separately through Integrations. Page context, tab control, DFY and unattended schedules have independent permissions.",
+    "Computer Use acts in your real Windows session: it asks before control, shows a frame while active and stops immediately with Escape. Secrets, purchases, publishing and deleting data are forbidden."
    ]
   },
   "characters": {
@@ -165,16 +166,16 @@
    ]
   },
   "dfy": {
-   "hash": "f008ac7f8317dae3",
-   "generated": "2026-10-11",
-   "model": "gpt-6.1-sol",
-   "tldr": "Do For You (DFY) performs tasks on real websites and connected machines, showing each step instead of only giving advice. Use it to handle bookings, orders, forms or machine maintenance, with approval required before irreversible browser actions and dangerous machine steps.",
+   "hash": "a9b882c3a33a0890",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "Do For You performs tasks in a browser or on a connected machine, shows progress and asks for needed information. Ordinary interactive tasks confirm irreversible actions; unattended Chrome tasks require separate advance permission.",
    "points": [
-    "Start from a chat request, enter `/dfy <task>`, or choose **Do it for me** in Quick Ask.",
-    "Follow progress in the task card, answer **Needs you** questions and read approval details carefully; **Stop** ends the task at any time.",
-    "Press **Take control** for CAPTCHA checks, manual sign-ins or tricky pages, then **Return control to AI** to continue from the current page.",
-    "Configure the vision model, **Step limit** and **Confirmations** under **Settings → AI → Do For You**.",
-    "Connect machines under **Settings → Do For You → Remote machines → Add a machine**, then select the target with the **DFY:** picker."
+    "Start from chat, the /dfy command or Quick Ask. The task card shows steps, a screenshot after the action, questions and Stop.",
+    "The default DFY browser has its own persistent sessions. Paired Chrome is a separate per-run choice using its existing sign-ins; losing the connection stops the task.",
+    "Interactive runs ask before paying, booking, sending or signing up. Dialog-free schedules require specific permissions; missing sign-in information or codes end an unattended run with an error.",
+    "Take control pauses the AI so you can handle a difficult step yourself. Returning control provides a log and key screenshots while masking secret fields.",
+    "The vault encrypts personal data and secrets; the model sees masks. Separate proxies, agent or SSH machine connections, and an explicit opt-in for this computer are available."
    ]
   },
   "glossary": {
@@ -217,16 +218,16 @@
    ]
   },
   "integrations": {
-   "hash": "ab7e0476c35a0164",
-   "generated": "2026-10-11",
-   "model": "gpt-6.1-sol",
-   "tldr": "Integrations connect Google, Notion and GitHub so the assistant can work with your mail, schedule, documents and repositories in the chat, in Work and in Quick Ask. Use them when a task needs access to a connected service; Quick Ask only reads and suggests the main chat for writes.",
+   "hash": "b273cd28ed42391a",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "Integrations connect MemuAI to a personal Telegram account, the Chrome extension, Google, Notion and GitHub. Connect services in settings; reading, writing and unattended actions follow separate permissions.",
    "points": [
-    "Open **Settings → Integrations** to connect services; keys and tokens stay on this computer.",
-    "For Google, tick the services you want and press **Sign in with Google**; if an API is disabled, follow its Enable link, then press Check APIs.",
-    "Connect Notion with Integration token or Sign in with Notion, and share the pages the assistant needs.",
-    "For GitHub, paste a token into Personal Access Token and press Save; Default repository lets you omit the repository from most requests.",
-    "Review write confirmation cards before approving; irreversible actions always require confirmation, even with Full access, and Enter means Cancel for destructive actions."
+    "Telegram Use connects a personal account separately from the bot. Sign-in requires API ID and hash and supports QR, phone and cloud password. Secret chats are unavailable.",
+    "Automatic Telegram commands have their own instructions, arguments, models and limits. Voice transcription needs no text model when cleanup is off.",
+    "Download the Chrome extension ZIP, load it unpacked and pair it with MemuAI. Page reading, control, DFY and schedules have separate permissions; new chats use a separate browser history by default.",
+    "Google uses a sign-in with selected scopes, Notion uses a token or OAuth, and GitHub uses a personal token with needed permissions. One Google sign-in serves several services.",
+    "Writes follow the approval policy; irreversible actions still require confirmation with Full access. Quick Ask integrations only read, and unattended writes need permissions granted in advance."
    ]
   },
   "interface": {
@@ -330,16 +331,14 @@
    ]
   },
   "memunote": {
-   "hash": "375658fa4eea67b8",
-   "generated": "2026-10-11",
-   "model": "gpt-6.1-sol",
-   "tldr": "MemuNote is a separate editor in the MemuAI suite for working with text, code, Markdown and Word documents, plus viewing PDFs and CSV tables. Use it for everyday editing with built-in AI assistance through MemuAI Proxy; all editor features still work when the Proxy is not running.",
+   "hash": "e1f140e9b9c8da7c",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "The light editor of the MemuAI suite — tabs, huge files, Markdown with tables, Word documents, PDF and CSV, with AI through MemuAI Proxy. Without the Proxy it stays a fast notepad.",
    "points": [
-    "Install the optional component through the MemuAI Setup or open Settings → MemuNote and press Install MemuNote without needing internet.",
-    "Tabs reopen on the next start, and unsaved text is recovered even after a crash or shutdown.",
-    "Markdown opens in live mode by default, showing formatting while preserving the text you typed.",
-    "Use ++Ctrl+J++ for an AI command at the cursor or ++Ctrl+Shift+L++ to ask questions about the open file; MemuAI Proxy must be running.",
-    "Run supported scripts with ++F5++ or Run; before the first run, MemuNote asks for confirmation because the program runs with your permissions."
+    "Edit text, code, Markdown and documents with tabs, search, formatting and an assistant through MemuAI Proxy.",
+    "Tab accepts completion; Enter starts a new line using the existing document indentation.",
+    "Presentations include chart data grids, themes, export, fullscreen shows and selectively reviewed AI object edits."
    ]
   },
   "model-detector": {
@@ -356,16 +355,14 @@
    ]
   },
   "models": {
-   "hash": "b924ba2b9efc6250",
-   "generated": "2026-10-11",
-   "model": "gpt-6.1-sol",
-   "tldr": "Models brings together every enabled model from your accounts in MemuAI Proxy, letting you choose a model per chat and change it during a conversation. Use it to find suitable capabilities, adjust reasoning depth and manage your preferred models.",
+   "hash": "09d04bbfe772f64d",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "Choosing a model, pinning, the default model, custom names, thinking and image models.",
    "points": [
-    "Open the model list with the model-name button in the top bar or ++Ctrl+M++, then search by name, id or account and narrow results with the Vision, Reason, Free and Generation filters.",
-    "Right-click a model to use Pin / Unpin, Make default, Rename or Hide from the list; restore hidden models in Settings → Models.",
-    "Use the Thinking chip to choose a supported reasoning level; set defaults with Reasoning effort and Reasoning by model in Settings → Models, remembering that the chat setting always wins.",
-    "Check the eye badge for image support, and use Vision: … or Test now to set or verify it; Test now uses one request.",
-    "Choose the starting model in Settings → Models → Default model; a meme with its own fixed model locks the picker in its chats."
+    "The picker combines enabled models from Proxy connections, with search by name, ID and account, pins and recent models.",
+    "Separate badges identify image, video, music, audio, speech, transcription, embedding, reranking and decision models.",
+    "Settings provide a default model, custom names and reasoning controls; unknown vision can be checked with a dedicated request."
    ]
   },
   "modules": {
@@ -457,7 +454,7 @@
    ]
   },
   "modules-builtins": {
-   "hash": "4053b5d962de33b9",
+   "hash": "7bdcf0681e63eee9",
    "generated": "2026-10-14",
    "model": "qwen3.8-flash",
    "tldr": "Built-in modules give you nine optional tools—Translator, MemuAI Studio, MemuAI Design, Benchmarks, Model catalog, New API models, Characters, MemuMusic, and MemuLearn—that extend MemuAI through the same bridge as your code, and you use them when you need translation, media generation, design, benchmarking, model discovery, API monitoring, roleplay, music, or learning.",
@@ -557,16 +554,16 @@
    ]
   },
   "modules-permissions": {
-   "hash": "cedfc2360484c6eb",
-   "generated": "2026-10-14",
-   "model": "qwen3.8-flash",
-   "tldr": "Module permissions let a module declare the MemuAI capabilities it needs, such as `chat`, `storage` or `web`; use them when declaring what a module may call, while older packages without `permissions` keep working.",
+   "hash": "cf06a23b46bdee94",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "Module permissions determine which MemuAI bridge methods are available. The sandbox separates modules from chats, memory, profiles and direct network access; authors should request only needed capabilities and declare special access explicitly.",
    "points": [
-    "List the needed capabilities in `permissions`; when the list is absent, the module gets all of them except `net-import`, `music` and `learn`.",
-    "For importing by link, declare `net-import` explicitly and check allowed sites in Settings → Modules → ⋯ → **Import sources**.",
-    "For MemuMusic or MemuLearn, declare `music` or `learn` explicitly; `Memu.music(body)` still means music generation and needs `media`.",
-    "A missing permission makes the call reject with a clear error, and the sandbox keeps a module away from chats, memory, profile, settings and direct network access.",
-    "Ask for least privilege: a calculator needs `storage`, a module that lists models needs `models`, and a translator needs `chat`, `storage`, `models`, `files`, `download`."
+    "When permissions are absent, legacy packages receive ordinary permissions, but link imports, the music library, learning and databases require explicit declarations.",
+    "Calls without a required permission reject with a clear error. Environment methods such as resizing and closing need no separate permission.",
+    "Link imports go through the host with public HTTPS, address and redirect checks; the user grants source permission, not the module.",
+    "MemuMusic library and MemuLearn permissions unlock their specialized methods; model requests still require chat permission.",
+    "The host opens SQLite databases, normally read-only. Changes are previewed on a copy and require host confirmation; modules and AI cannot silently apply SQL."
    ]
   },
   "modules-quickstart": {
@@ -669,16 +666,16 @@
    ]
   },
   "panels": {
-   "hash": "0377d493830fb7de",
-   "generated": "2026-10-11",
-   "model": "gpt-6.1-sol",
-   "tldr": "Panels are small live cards for keeping useful information, subscription limits, PC metrics and local tools close at hand. Use them to monitor updates on a schedule or manage tasks, notes and timers without leaving MemuAI.",
+   "hash": "e2d479ea52105c60",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "Panels are refreshing cards for weather, news, AI limits, statistics, tasks and other data. Place them in eight window locations, change their sizes and choose cards or compact value chips.",
    "points": [
-    "Click **＋ Panel** to choose a template, or ask in a normal chat to create a panel.",
-    "Place a panel in several locations at once; use Layout to drag cards between places and adjust their size.",
-    "Open Customize… to choose What to show, preview the card and set its refresh cadence, including manual only.",
-    "Refresh frequency is limited by panel type; failures can leave the last values marked “stale” or stop automatic refreshes with instructions.",
-    "Tasks, notes, world clocks, Pomodoro and timers need no network; connect Google Calendar and GitHub in Settings → Integrations."
+    "Add a gallery template or ask the model for a panel. Layout mode supports moving, resizing, undo and keyboard control.",
+    "Tasks, notes, clocks and timers work locally. Calendar and GitHub notifications require connected integrations.",
+    "The AI limits panel uses local connections, tokens or Proxy accounts. API balances estimate recorded spending rather than reading the provider dashboard balance.",
+    "Topic news checks sources and freshness, labels rumours and avoids repeating shown stories. Custom AI panels must use gathered data and genuine source links.",
+    "Performance metrics update while the window is visible; unavailable sensors are shown as missing data. Panels follow the theme and reduced-motion settings."
    ]
   },
   "profiles": {
@@ -695,16 +692,17 @@
    ]
   },
   "proxy": {
-   "hash": "e088f006e79caa00",
-   "generated": "2026-10-11",
-   "model": "gpt-6.1-sol",
-   "tldr": "MemuAI Proxy stores provider accounts, builds a shared model catalogue and serves it through an OpenAI-compatible API, including for MemuAI chat. Usually you add accounts once, then leave it running in the system tray while using MemuAI.",
+   "hash": "bb75a79692d36fcc",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "MemuAI Proxy combines provider accounts and models behind one API and manages routing, reliability and logs. Its panel also shows statistics, spending estimates and an API-balance planner.",
    "points": [
-    "Double-click the tray icon to open the Proxy; closing its window keeps it running, but shutting it down stops MemuAI chat answers and scheduled tasks.",
-    "Add provider connections in Accounts through ＋ Add account → Ready-made connections, then arrange cards to set their priority.",
-    "Choose an account-selection mode under Settings → Routing → How to pick an account; the Proxy automatically tries another account after an error.",
-    "Use Model catalog to refresh provider model lists and disable models you do not want shown in MemuAI or the API.",
-    "Check Logs or use Ask AI to investigate failures; if answers stop coming, use Home → Restart services to rebuild connections."
+    "Add and check accounts, change their priority and select reserves. A failed request moves to the next suitable account.",
+    "The model catalogue disables unwanted models and refreshes provider lists; disabled models disappear from MemuAI and the API.",
+    "Statistics distinguish API-equivalent subscription value from provider-reported costs. Unknown prices are not treated as zero.",
+    "The planner accepts an account balance and account-specific rates, including cache prices. It uses the account that actually answered; remaining balances are estimates and omit spending outside Proxy.",
+    "Reliability settings control timeouts and retry passes. Restart services rebuilds connections without closing the application.",
+    "Logs show requests and errors; saving stage contents enables viewing and copying full prompts. An arbitrary secret inside message text can be saved with that prompt."
    ]
   },
   "proxy-api": {
@@ -831,16 +829,16 @@
    ]
   },
   "schedules": {
-   "hash": "9cce99c037e09eba",
-   "generated": "2026-10-13",
-   "model": "qwen3.8-max",
-   "tldr": "Planning lets MemuAI run scheduled jobs automatically at set times, events, or conditions, such as digests, reminders, checks, and browser chores.",
+   "hash": "9b8fa6b453f7a2d3",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "Planning runs jobs on a time or event, checks conditions and limits their lifetime. Build a rule manually or draft it in words; an AI suggestion is saved only after your confirmation.",
    "points": [
-    "Manage tasks in the **Planning** section, where every task is a rule made of **When**, **Only if**, **Do**, and **Until** blocks.",
-    "Create tasks from **Create from a sentence**, **New task**, chat, `/schedule Name | prompt | every N min`, Quick Access with ++Alt+Space++, or the Telegram Mini App, and confirm before anything is saved.",
-    "Use **Only if** to require conditions such as a program running, MemuAI being open, calendar, weather, Wi-Fi, or previous run results, and inspect them with **Check the conditions now**.",
-    "Choose the action in **Do**: **AI answer**, **Reminder**, **Do For You**, **Quick Access command**, or **MemuCode**, then deliver results through Windows notification, Telegram, or Email where configured.",
-    "Remember tasks are run by **MemuAI Proxy**, so the Proxy must be running; if the computer was off or asleep, catch-up depends on the task’s **Until** settings."
+    "A rule has four blocks: When, Only if, Do and Until. Actions include reminders, model answers, DFY, Quick Access commands, Work and MemuCode.",
+    "Conditions cover running programs, activity, power, calendars, weather and other events, and can be grouped. Run and retry limits prevent broken jobs from continuing indefinitely.",
+    "MemuAI Proxy normally runs schedules; DFY, commands and Telegram Use/Chrome actions also need the MemuAI window open. Sleep and catch-up behavior follow each rule.",
+    "Telegram Use and Chrome can participate in multi-step jobs that pass earlier results onward. Writing and changing tabs need separate scheduled permissions; runs do not wait for approval dialogs.",
+    "Integration test runs read available data but only preview sending, deleting messages and changing tabs. History, pause, Run now and Discuss in chat help inspect a rule."
    ]
   },
   "search": {
@@ -985,15 +983,17 @@
    ]
   },
   "voice": {
-   "hash": "c3f9f075c7ea02a3",
-   "generated": "2026-10-10",
-   "tldr": "**Voice and MemuAI Live** lets you dictate messages, have answers read aloud, and hold real-time voice conversations with AI models. Configure all speech recognition, text-to-speech engines, and Live model providers in **Settings → Voice & Live**.",
+   "hash": "55e51bc71444a924",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "Voice and MemuAI Live combine dictation, transcript cleanup, reading replies aloud and voice conversations. Voice & Live settings select local engines or cloud services and a separate real-time model mode.",
    "points": [
-    "Dictation uses either a local Whisper model for offline privacy or an **Audio API** service, with optional **Post-processing** to fix punctuation and filler words before sending.",
-    "Read any answer aloud via the message menu → **Read aloud**, choosing from system voices, downloaded Piper voices, or cloud TTS services; cached audio is not billed twice.",
-    "MemuAI Live opens a voice conversation saved to the current chat, supporting camera, screen sharing, web search, and custom instructions via **Live personality and presets**.",
-    "Real-time Live models like GPT-Live and Gemini Live listen and speak directly without transcription pauses, configured by enabling **Use a real-time model in MemuAI Live** and pasting a provider key.",
-    "API keys are stored locally in the MemuAI data folder, and the microphone and Live buttons can be hidden from the composer using the corresponding toggles."
+    "Dictation can use a downloaded local Whisper model or a transcription service. Each service keeps its own address, key and model; a selected audio file can test the setup.",
+    "Optional post-processing fixes punctuation and speech slips while preserving meaning. Dictated text remains editable before sending.",
+    "Replies can use Windows voices, downloaded Piper voices or speech APIs. Replay uses a cache, and a separate speech-process failure does not close MemuAI.",
+    "Classic Live chains transcription, chat and synthesis. Real-time models listen and speak directly; camera, screen sharing and search support depend on the provider.",
+    "Conversations are saved as voice messages with transcripts and players. Long turns retain the first three minutes of audio; temporary chats keep recordings until closed.",
+    "Live personality takes priority over ordinary tone; changing it during a call reconnects the session. Cloud services use their own keys, quotas and prices."
    ]
   },
   "web-search": {
@@ -1031,6 +1031,50 @@
     "Use **Plan** (`/plan` or `@Plan`) to make the model outline verifiable steps before working, or **Goal** (`/goal <goal>`) for autonomous step-by-step execution up to 12 turns.",
     "Keep **Confirm CLI commands** enabled in Settings → Work & agents so the model asks before running commands with your Windows account rights.",
     "Reference specific files directly with `@path`, and use the preview panel on the right when the model creates web pages."
+   ]
+  },
+  "teams": {
+   "tldr": "Team brings together models with separate roles and a communication manager in regular chats or Work. The manager curates personal context; the lead assigns work and reviews the outcome.",
+   "points": [
+    "Choose a manager and assign members or let the manager recruit them. Work starts after plan approval.",
+    "Workers hand results to a reviewer; repairs need lead approval and the manager presents the result. Individual tool failures do not abort the whole run.",
+    "Select members to inspect actions and reports. Budgets and concurrency are configurable; hidden reasoning stays private."
+   ],
+   "hash": "e58427ceb44e6d4c",
+   "generated": "2026-10-25",
+   "model": "editorial-review"
+  },
+  "rich-visualizations": {
+   "hash": "d339c9eebe56e3ed",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "Flows, rankings, entity cards, interactive tools and readable text copying.",
+   "points": [
+    "Answers support branching flows, sortable rankings, comparisons, cards, charts, tabs and calculators.",
+    "Click an entity name for its message-supplied summary, facts, illustrations and sources. Copying preserves readable text.",
+    "Chat settings separately control visualizations, custom interactive blocks and images. Custom HTML is isolated from application data and network access."
+   ]
+  },
+  "module-catalog": {
+   "hash": "93c88351b70a94fc",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "Install repository additions, update or roll back packages, contribute modules and choose another source.",
+   "points": [
+    "Open Settings → Modules → Catalogue to search, filter categories and review versions and permissions before installation.",
+    "Installed and updated modules remain disabled until explicitly enabled; backups and rollback are available.",
+    "Contribute through a pull request. Repository maintainers manually review official entries; the source can be changed in the interface."
+   ]
+  },
+  "memudb": {
+   "hash": "1dc16c5267f4f0b4",
+   "generated": "2026-10-25",
+   "model": "editorial-review",
+   "tldr": "Local SQLite and DuckDB databases with table browsing, SQL, schema and relationships, import and export, backups, and AI proposals with confirmed writes.",
+   "points": [
+    "SQLite and DuckDB: tables, SQL, import, export and backups. PostgreSQL and MySQL are not connected.",
+    "Changes use isolated previews and explicit confirmation. DuckDB requires checkpointing external WAL and limits CSV/JSON export to 100,000 rows and 32 MB.",
+    "The assistant stays beside the data, remembers recent exchanges and never runs proposed SQL automatically."
    ]
   }
  }

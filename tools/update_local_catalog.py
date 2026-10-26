@@ -27,7 +27,6 @@ sys.path.insert(0, str(ROOT))
 
 from app import local_wizard  # noqa: E402
 
-
 def get_json(url: str):
     headers = {"User-Agent": "MemuAI-catalog-tool/1.0"}
     token = os.environ.get("HF_TOKEN", "").strip()
@@ -36,7 +35,6 @@ def get_json(url: str):
     request = urllib.request.Request(url, headers=headers)
     with urllib.request.urlopen(request, timeout=60) as response:
         return json.load(response)
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
@@ -67,7 +65,6 @@ def main() -> int:
         path.write_text(json.dumps(fresh, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         print(f"written {path.relative_to(ROOT)} ({len(fresh['models'])} models, version {fresh['version']})")
     return 1 if errors else 0
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

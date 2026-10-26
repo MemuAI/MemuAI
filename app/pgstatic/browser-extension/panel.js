@@ -27,8 +27,7 @@ function controls(){
   $('composer-hint').textContent=currentChat&&currentBrowserOnly!==null?(currentBrowserOnly?'Чат только в браузере':'Общий чат MemuAI'):sharedSettings.save_to_main?'Новый чат также в MemuAI':'Чат только в браузере';
   sizeInput();
 }
-// Shrink before measuring: an old multiline height must not become the next
-// intrinsic height after a sidebar resize, a hidden composer or clearing text.
+
 function sizeInput(){
   const input=$('input'),composer=$('composer');if(composer.hidden)return;
   const oldScroll=input.scrollTop;input.style.height='0px';
@@ -123,6 +122,7 @@ async function refresh(preserve=false){
     cfg.model=chosen;if(chosen)selectModel(chosen,false);else $('model-label').textContent='Выберите модель';paintModels();paintChats();connection(true,'Подключено');
     if(!models.length)status('В MemuAI Proxy пока нет доступных моделей для чата.');else if(!preserve||!wasConnected)status();
     const current=chats.find(c=>c.id===currentChat);
+    if(current?.title&&$('chat-title').textContent==='Новый чат')$('chat-title').textContent=current.title;
     if(!busy&&current&&current.updated!==currentUpdated)await openChat(currentChat,true);
     if(currentChat&&!current&&!busy){clearConversation();status('Чат удалён в MemuAI. Можно начать новый.');}
   }catch(error){connection(false,'Нет связи');status(/Failed to fetch|fetch failed|NetworkError/i.test(error.message)?'MemuAI недоступен. Запустите приложение или проверьте локальный адрес в настройках.':error.message,true);}
@@ -213,7 +213,7 @@ setInterval(()=>{if(!document.hidden&&!busy)refresh(true);},30000);
 const lastChat=cfg.lastChat,lastProfile=cfg.lastProfile;await refresh();
 if(lastChat&&lastProfile===profile&&chats.some(c=>c.id===lastChat))await openChat(lastChat,true);
 chrome.runtime.sendMessage({op:'connect'}).catch(()=>{});
-try{const layout=await chrome.sidePanel?.getLayout?.();const{layoutHintDismissed}=await chrome.storage.local.get({layoutHintDismissed:false});if(layout?.side==='left'&&!layoutHintDismissed)$('layout-hint').hidden=false;}catch{/* Older Chromium has no layout query. */}
+try{const layout=await chrome.sidePanel?.getLayout?.();const{layoutHintDismissed}=await chrome.storage.local.get({layoutHintDismissed:false});if(layout?.side==='left'&&!layoutHintDismissed)$('layout-hint').hidden=false;}catch{ }
 controls();
 window.addEventListener('resize',queueResize);window.visualViewport?.addEventListener('resize',queueResize);
 if(typeof ResizeObserver!=='undefined')new ResizeObserver(queueResize).observe($('composer'));

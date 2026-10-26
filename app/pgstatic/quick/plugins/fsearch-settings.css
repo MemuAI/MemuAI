@@ -1,4 +1,3 @@
-/* Round 35 — Settings → Quick Access → «Поиск файлов на ПК» (fsearch-settings.js); rows/notes from the settings kit. */
 .fss { display: flex; flex-direction: column; gap: 4px; }
 .fss-drives { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 8px; }
 .fss-drive { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; cursor: pointer; }

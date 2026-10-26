@@ -28,7 +28,6 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from . import memory_v2 as mem
 from . import memory_worker
 
-
 def register(app, completion=None) -> None:
     memory_worker.configure(completion)
 
@@ -70,8 +69,6 @@ def register(app, completion=None) -> None:
         reply.update(extra)
         return reply
 
-    # ------------------------------------------------------------------ whole document
-
     @app.get("/api/memory")
     async def memory_doc(request: Request):
         doc, error = await run(mem.load, profile_of(request))
@@ -81,7 +78,7 @@ def register(app, completion=None) -> None:
         out["rule_matches"] = mem.matching_rule_count(doc)
         out["active_profile"] = mem.active_profile_id()
         out["worker"] = memory_worker.status()
-        memory_worker.kick()     # the window warms memory after start-up: older facts get concepts, missed diary entries
+        memory_worker.kick()
         return out
 
     @app.post("/api/memory/settings")
@@ -91,8 +88,6 @@ def register(app, completion=None) -> None:
             return err(body["__error__"])
         out, error = await run(mem.set_settings, body, profile_id=profile_of(request, body))
         return error or doc_reply(out)
-
-    # ------------------------------------------------------------------ items
 
     @app.post("/api/memory/items")
     async def memory_add(request: Request):
@@ -162,8 +157,6 @@ def register(app, completion=None) -> None:
         out, error = await run(mem.forget_chat, str(body.get("chat_id") or ""), profile_id=profile_of(request, body))
         return error or doc_reply(out, count=out["result"])
 
-    # ------------------------------------------------------------------ rules
-
     @app.post("/api/memory/rules")
     async def memory_rule_add(request: Request):
         body = await body_of(request)
@@ -198,8 +191,6 @@ def register(app, completion=None) -> None:
         out, error = await run(mem.apply_rules_to_existing, profile_of(request, body))
         return error or doc_reply(out, count=out["result"], rule_matches=0)
 
-    # ------------------------------------------------------------------ import / export
-
     @app.get("/api/memory/export")
     async def memory_export(request: Request):
         fmt = request.query_params.get("format") or "json"
@@ -218,8 +209,6 @@ def register(app, completion=None) -> None:
         out, error = await run(mem.import_data, body.get("data"), replace=bool(body.get("replace")),
                                profile_id=profile_of(request, body))
         return error or doc_reply(out, result=out["result"])
-
-    # ------------------------------------------------------------------ services (chat pipeline, MemuNote…)
 
     @app.get("/api/memory/search")
     async def memory_search(request: Request):
@@ -263,7 +252,7 @@ def register(app, completion=None) -> None:
                     "enabled": doc["enabled"], "notify": doc["settings"]["notify"],
                     "reads": mem.service_reads(doc, service), "writes": mem.service_writes(doc, service)}
         out, error = await run(build)
-        memory_worker.kick()     # concepts of new facts, summaries of chats that went quiet — in the background
+        memory_worker.kick()
         return error or out
 
     @app.post("/api/memory/propose")
@@ -311,8 +300,6 @@ def register(app, completion=None) -> None:
         result["text"] = clean
         return result
 
-    # ------------------------------------------------------------------ session diary (Round 40)
-
     @app.patch("/api/memory/diary/{entry_id}")
     async def memory_diary_edit(entry_id: str, request: Request):
         body = await body_of(request)
@@ -335,8 +322,6 @@ def register(app, completion=None) -> None:
     @app.get("/api/memory/worker")
     async def memory_worker_status(request: Request):
         return memory_worker.status()
-
-    # ------------------------------------------------------------------ profiles & legacy
 
     @app.post("/api/memory/switch-profile")
     async def memory_switch(request: Request):

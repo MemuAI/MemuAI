@@ -54,9 +54,8 @@ PREF_KEY = "stuck_sensitivity"
 SENSITIVITIES = ("off", "low", "normal", "high")
 DEFAULT_SENSITIVITY = "normal"
 DECISIONS = ("continue", "hint", "replan", "stop")
-PAUSE_TIMEOUT = 30 * 60          # nobody answered: the run stops (as before the detector existed)
+PAUSE_TIMEOUT = 30 * 60
 
-#: Thresholds per sensitivity.  "high" reacts sooner (more pauses), "low" later.
 PROFILES: Dict[str, Dict[str, int]] = {
     "low": {"same_action": 6, "hint_at": 3, "revisit_repeat": 9, "cycles": 4, "same_error": 5,
             "no_new_state": 14, "waiting": 24, "stalled": 7, "no_evidence": 7, "budget": 24, "window": 30},
@@ -65,13 +64,13 @@ PROFILES: Dict[str, Dict[str, int]] = {
     "high": {"same_action": 3, "hint_at": 2, "revisit_repeat": 4, "cycles": 2, "same_error": 2,
              "no_new_state": 7, "waiting": 10, "stalled": 3, "no_evidence": 3, "budget": 12, "window": 18},
 }
-#: Passive actions: waiting/polling, reading the state again. They are expected to repeat.
+
 PASSIVE_ACTIONS = {"wait", "sleep", "poll", "screenshot", "snapshot", "observe", "status", "read_state"}
-#: Keys that never make two actions different (free text explanations, call ids).
+
 _IGNORED_KEYS = {"reason", "report", "thought", "thoughts", "summary", "explanation", "id", "call_id", "tool_call_id",
                  "description", "rationale", "comment", "note"}
 _COORD_KEYS = {"x", "y", "x1", "y1", "x2", "y2"}
-_PERCEPTUAL_TOLERANCE = 1.0       # mean abs diff (0..255) of two image signatures that still counts as "same"
+_PERCEPTUAL_TOLERANCE = 1.0
 
 REASONS: Dict[str, tuple] = {
     "repeat": ("Повторяется одно и то же действие без результата",
@@ -106,33 +105,27 @@ _MODEL_HINTS = {
     "budget": "Many steps without new results. Re-evaluate the approach.",
     "model_signal": "",
 }
-#: Tool-calling agents (MemuCode CLI, Work tool rounds) have no elements, pages or scrolling: the browser wording of
-#: ``repeat`` confused them («another element, a keyboard shortcut, scroll»).
+
 _TOOL_MODEL_HINTS = {
     "repeat": "You are repeating the same tool call and nothing changes. Use the result you already have, try a "
               "different approach (other arguments, another tool) or finish and tell the user what blocks you.",
 }
 _TOOL_AREAS = ("cli", "work", "work_tools", "tools")
 
-
 def normalize_sensitivity(value: Any) -> str:
     text = str(value or "").strip().lower()
     return text if text in SENSITIVITIES else DEFAULT_SENSITIVITY
 
-
 def normalize_settings(prefs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     return {PREF_KEY: normalize_sensitivity((prefs or {}).get(PREF_KEY))}
 
-
-# ------------------------------------------------------------- normalizing ---
 def _norm_text(value: Any, limit: int = 300) -> str:
     return re.sub(r"\s+", " ", str(value)).strip().lower()[:limit]
-
 
 def _norm_value(key: str, value: Any) -> Any:
     if key in _COORD_KEYS:
         try:
-            return int(round(float(value) / 12.0))      # within ~12 px counts as "the same spot"
+            return int(round(float(value) / 12.0))
         except (TypeError, ValueError):
             return _norm_text(value)
     if isinstance(value, bool) or value is None:
@@ -146,7 +139,6 @@ def _norm_value(key: str, value: Any) -> Any:
         return [_norm_value("", v) for v in list(value)[:50]]
     return _norm_text(value)
 
-
 def action_signature(action: Any) -> str:
     """A short stable hash of an action with its arguments (free-text reasons ignored, coordinates bucketed,
     text whitespace/case-folded)."""
@@ -157,12 +149,10 @@ def action_signature(action: Any) -> str:
     raw = json.dumps(data, ensure_ascii=False, sort_keys=True, default=str)
     return hashlib.sha1(raw.encode("utf-8", "replace")).hexdigest()[:16]
 
-
 def action_kind(action: Any) -> str:
     if isinstance(action, dict):
         return _norm_text(action.get("action") or action.get("tool") or action.get("name") or action.get("kind") or "", 60)
     return _norm_text(action, 60).split(" ")[0] if action else ""
-
 
 def state_key(state: Any) -> Any:
     """``None`` (unknown), a list of ints (perceptual image signature, compared with a tolerance) or a hash."""
@@ -171,7 +161,7 @@ def state_key(state: Any) -> Any:
     if isinstance(state, (list, tuple)) and state and all(isinstance(v, int) for v in state):
         return [int(v) for v in state]
     if isinstance(state, (list, tuple)) and state and all(isinstance(v, (list, tuple)) for v in state):
-        # several monitors: keep a list of vectors
+
         flat: List[int] = []
         for item in state:
             flat.extend(int(v) for v in item if isinstance(v, (int, float)))
@@ -180,7 +170,6 @@ def state_key(state: Any) -> Any:
         return state
     raw = json.dumps(state, ensure_ascii=False, sort_keys=True, default=str)
     return hashlib.sha1(raw.encode("utf-8", "replace")).hexdigest()[:16]
-
 
 def same_state(a: Any, b: Any) -> bool:
     if a is None or b is None:
@@ -191,7 +180,6 @@ def same_state(a: Any, b: Any) -> bool:
         return sum(abs(x - y) for x, y in zip(a, b)) / float(len(a)) < _PERCEPTUAL_TOLERANCE
     return a == b
 
-
 def normalize_error(error: Any) -> str:
     if not error:
         return ""
@@ -200,8 +188,6 @@ def normalize_error(error: Any) -> str:
     text = re.sub(r"\d+", "#", text)
     return text[:160]
 
-
-# --------------------------------------------------------------- records ---
 @dataclass
 class Step:
     sig: str
@@ -210,18 +196,17 @@ class Step:
     state: Any = None
     passive: bool = False
     error: str = ""
-    progress: Any = None            # a progress marker (plan step + status …); None = not tracked
-    progressed: Optional[bool] = None   # explicit: True = verified progress, False = none
+    progress: Any = None
+    progressed: Optional[bool] = None
     claimed: bool = False
     files_changed: int = 0
-    novel: bool = False             # this state was never seen before in the run
-    key: str = ""                   # the key of a key action (navigation keys are "progressive")
+    novel: bool = False
+    key: str = ""
     ts: float = field(default_factory=time.time)
-
 
 @dataclass
 class Verdict:
-    level: str = "ok"               # ok | hint | pause
+    level: str = "ok"
     reason: str = ""
     model_hint: str = ""
     steps: List[Dict[str, Any]] = field(default_factory=list)
@@ -250,8 +235,6 @@ class Verdict:
             "options": list(DECISIONS),
         }
 
-
-# -------------------------------------------------------------- detector ---
 class StuckDetector:
     """One per run.  Not thread-safe; a loop owns it."""
 
@@ -259,14 +242,13 @@ class StuckDetector:
         self.sensitivity = normalize_sensitivity(sensitivity)
         self.area = area
         self.steps: List[Step] = []
-        self.baseline = 0               # rules only look at steps after the last user decision
-        self.scale = 1.0                # "Continue" makes the detector more patient
+        self.baseline = 0
+        self.scale = 1.0
         self.pauses = 0
         self.decisions: List[str] = []
-        self._seen: List[Any] = []      # states seen during the whole run (novelty)
+        self._seen: List[Any] = []
         self._last_progress: Any = None
 
-    # ---------------------------------------------------------------- api ---
     @property
     def enabled(self) -> bool:
         return self.sensitivity != "off"
@@ -334,7 +316,6 @@ class StuckDetector:
         self._seen.clear()
         self.baseline = 0
 
-    # -------------------------------------------------------------- rules ---
     def _window(self) -> List[Step]:
         recent = self.steps[self.baseline:]
         return recent[-self.limit("window") * 2:]
@@ -346,7 +327,6 @@ class StuckDetector:
         cur = steps[-1]
         hint: Optional[Verdict] = None
 
-        # 1. the same active action on an unchanged state
         if not cur.passive:
             run = 1
             for prev, nxt in zip(reversed(steps[:-1]), reversed(steps[1:])):
@@ -356,25 +336,22 @@ class StuckDetector:
                     else (prev.state is None and nxt.state is None and not nxt.files_changed and not prev.files_changed
                           and prev.progressed is not True and prev.progress is None and nxt.progress is None
                           and not prev.claimed and not nxt.claimed)
-                # (steps with a progress marker or a progress claim are judged by the plan / evidence rules)
+
                 if not unchanged:
                     break
                 run += 1
-            # Scrolling / arrow keys may move things the state hash does not see (an inner list, a highlighted
-            # option): they get twice the patience.
+
             factor = 2 if _progressive(cur) else 1
             if run >= self.limit("same_action") * factor:
                 return self._verdict("pause", "repeat", run, tail=run)
             if run >= max(2, self.limit("hint_at")) * factor:
                 hint = self._verdict("hint", "repeat", run, tail=run)
 
-            # 1b. the same action again and again on states that are not new (a scroll that bounces …)
             same = [s for s in steps[-self.limit("window"):] if s.sig == cur.sig and not s.novel and not s.passive
                     and not s.files_changed]
             if cur.state is not None and not cur.novel and len(same) >= self.limit("revisit_repeat") * factor:
                 return self._verdict("pause", "repeat", len(same), tail=min(len(steps), len(same) * 2))
 
-        # 2. oscillation A-B-A-B / A-B-C-A-B-C
         for period in (2, 3):
             cycles = self.limit("cycles")
             need = period * cycles
@@ -398,7 +375,6 @@ class StuckDetector:
             if ok:
                 return self._verdict("pause", "oscillation", cycles, tail=need, period=period)
 
-        # 3. the same error N times
         errors = [s.error for s in steps[-self.limit("window"):] if s.error]
         last_error = next((s.error for s in reversed(steps) if s.error), "")
         if last_error and steps[-2:] and any(s.error == last_error for s in steps[-2:]):
@@ -407,7 +383,6 @@ class StuckDetector:
                 return self._verdict("pause", "same_error", count, tail=min(len(steps), self.limit("window")),
                                      detail=last_error, detail_en=last_error)
 
-        # 4. long passive waiting on a frozen state
         if cur.passive and cur.state is not None:
             waited = 0
             for s in reversed(steps):
@@ -417,8 +392,6 @@ class StuckDetector:
             if waited >= self.limit("waiting"):
                 return self._verdict("pause", "waiting", waited, tail=waited)
 
-        # 5. nothing new for N active steps (states are tracked)
-        # (scrolling / arrow keys are not counted: an inner list can move without changing the state hash)
         active = [s for s in steps if not s.passive and not _progressive(s)]
         streak = 0
         for s in reversed(active):
@@ -428,7 +401,6 @@ class StuckDetector:
         if streak >= self.limit("no_new_state"):
             return self._verdict("pause", "no_new_state", streak, tail=streak)
 
-        # 6. a progress marker (plan step) that does not move
         if cur.progress is not None:
             stalled = 0
             for s in reversed(steps):
@@ -439,7 +411,6 @@ class StuckDetector:
             if stalled >= self.limit("stalled"):
                 return self._verdict("pause", "plan_stalled", stalled, tail=stalled)
 
-        # 7. claimed progress without evidence
         claims = 0
         for s in reversed(steps):
             evidence = s.files_changed or s.novel or s.progressed is True
@@ -449,7 +420,6 @@ class StuckDetector:
         if claims >= self.limit("no_evidence"):
             return self._verdict("pause", "no_evidence", claims, tail=claims)
 
-        # 8. budget: many steps without any evidence (only when evidence is observable at all)
         observable = any(s.state is not None or s.progress is not None or s.progressed is not None
                          for s in steps)
         if observable:
@@ -462,7 +432,6 @@ class StuckDetector:
                 return self._verdict("pause", "budget", since, tail=min(since, 10))
         return hint or Verdict(area=self.area)
 
-    # ------------------------------------------------------------ helpers ---
     def _verdict(self, level: str, reason: str, count: int, *, tail: int = 6, period: int = 0,
                  detail: str = "", detail_en: str = "") -> Verdict:
         steps = self.steps[self.baseline:][-max(1, min(tail, 12)):]
@@ -486,9 +455,7 @@ class StuckDetector:
             return f"{kind} {text}" if args else kind
         return str(action or "")
 
-
 _NAV_KEYS = re.compile(r"(?i)^(arrow\w*|up|down|left|right|tab|pagedown|pageup|pgdn|pgup|space|j|k)$")
-
 
 def _progressive(step: Step) -> bool:
     if step.kind in ("scroll", "scroll_down", "scroll_up", "wheel", "next", "next_page"):
@@ -497,16 +464,13 @@ def _progressive(step: Step) -> bool:
         return True
     return False
 
-
 def _same_progress(a: Any, b: Any) -> bool:
     return a == b
-
 
 def _ru_times(n: int) -> str:
     """«1 раз», «3 раза», «5 раз»."""
     n = abs(int(n))
     return "раза" if n % 10 in (2, 3, 4) and n % 100 not in (12, 13, 14) else "раз"
-
 
 def _detail(reason: str, count: int, period: int) -> tuple:
     if reason == "repeat":
@@ -531,7 +495,6 @@ def _detail(reason: str, count: int, period: int) -> tuple:
         return (f"{count} шагов без новых результатов.", f"{count} steps without new results.")
     return ("", "")
 
-
 def summarize_steps(steps: Iterable[Step]) -> List[Dict[str, Any]]:
     """Collapse runs of identical steps: [{label, count, error?}]."""
     out: List[Dict[str, Any]] = []
@@ -549,8 +512,6 @@ def summarize_steps(steps: Iterable[Step]) -> List[Dict[str, Any]]:
         last_sig = step.sig
     return out[-8:]
 
-
-# --------------------------------------------------------------- decisions ---
 _DECISION_WORDS = {
     "continue": ("continue", "продолжить", "продолжай", "продолжи", "да", "yes", "go on"),
     "hint": ("hint", "подсказка", "с подсказкой", "continue with a hint", "продолжить с подсказкой"),
@@ -559,12 +520,10 @@ _DECISION_WORDS = {
     "stop": ("stop", "стоп", "остановить", "остановись", "нет", "no", "cancel", "отмена"),
 }
 
-
 def choices(lang: str = "ru") -> List[str]:
     if lang == "en":
         return ["Continue", "Continue with a hint", "Change approach", "Stop"]
     return ["Продолжить", "Продолжить с подсказкой", "Сменить подход", "Остановить"]
-
 
 def parse_decision(payload: Any) -> Dict[str, str]:
     """``{"decision": ..., "hint": ...}`` from a UI payload, a choice label or free text.
@@ -590,7 +549,6 @@ def parse_decision(payload: Any) -> Dict[str, str]:
         return {"decision": "continue", "hint": ""}
     return {"decision": "hint", "hint": text[:2000]}
 
-
 def model_note(decision: str, hint: str = "", verdict: Optional[Verdict] = None) -> str:
     """The English line the model reads after the user's decision."""
     what = ""
@@ -609,17 +567,14 @@ def model_note(decision: str, hint: str = "", verdict: Optional[Verdict] = None)
     return (f"PAUSED as stuck{what}. The user chose to continue: take a fresh look and try again, "
             "but do not repeat an action that changed nothing.")
 
-
 def stop_message(verdict: Optional[Verdict], lang: str = "ru") -> str:
     title = verdict.title(lang) if verdict else ("Агент застрял" if lang != "en" else "The agent got stuck")
     return (f"Остановлено пользователем после паузы: {title.lower()}" if lang != "en"
             else f"Stopped by the user after a pause: {title[0].lower() + title[1:]}")
 
-
 def timeout_message(lang: str = "ru") -> str:
     return ("Агент зациклился и был на паузе, но ответа не было — работа остановлена" if lang != "en"
             else "The agent is stuck: it was paused and nobody answered, so the work stopped")
-
 
 def telegram_text(card: Dict[str, Any], lang: str = "ru") -> str:
     """A plain-text version of the card for Telegram / the CLI."""
@@ -634,7 +589,6 @@ def telegram_text(card: Dict[str, Any], lang: str = "ru") -> str:
     lines.append("Continue / hint / change approach / stop?" if en
                  else "Продолжить / подсказка / сменить подход / остановить?")
     return "\n".join(line for line in lines if line)
-
 
 def cli_text(card: Dict[str, Any], lang: str = "en") -> str:
     """The card as Markdown for the MemuCode TUI question dialog (the dialog lists the choices itself).
@@ -656,8 +610,6 @@ def cli_text(card: Dict[str, Any], lang: str = "en") -> str:
                  "Пока вы не решите, ничего не выполняется. Свой текст — подсказка для модели.")
     return "\n\n".join(part for part in parts if part)
 
-
-# ------------------------------------------------------------------- gate ---
 class StuckGate:
     """A pause point for loops that run inside the server (Work Browser, Computer Use).
 
@@ -702,7 +654,6 @@ class StuckGate:
         if self.waiting and self._future is not None:
             self._future.set_result({"decision": "stop", "hint": ""})
 
-
 def gate_of(runtime: Any) -> StuckGate:
     gate = getattr(runtime, "stuck_gate", None)
     if not isinstance(gate, StuckGate):
@@ -713,17 +664,12 @@ def gate_of(runtime: Any) -> StuckGate:
             pass
     return gate
 
-
 def public_pause(runtime: Any) -> Optional[Dict[str, Any]]:
     gate = getattr(runtime, "stuck_gate", None)
     return gate.public() if isinstance(gate, StuckGate) else None
 
-
-# ------------------------------------------------------------------- CLI ---
-#: MemuCode CLI tools that poll (repeating them is expected) and tools that change files.
 CLI_PASSIVE_TOOLS = {"BashOutput", "TaskOutput"}
 CLI_FILE_TOOLS = {"Write", "Edit", "MultiEdit", "NotebookEdit"}
-
 
 def cli_round(calls: List[Dict[str, Any]]) -> Dict[str, Any]:
     """One MemuCode tool round as a detector step: ``{"action", "label", "passive"}``."""
@@ -740,7 +686,6 @@ def cli_round(calls: List[Dict[str, Any]]) -> Dict[str, Any]:
         label_parts.append(f"{c.get('name')}" + (f" {str(what)[:70]}" if what else ""))
     return {"action": action, "label": "; ".join(label_parts) or "tools",
             "passive": bool(names) and all(name in CLI_PASSIVE_TOOLS for name in names)}
-
 
 def cli_outcome(pairs: Iterable[Any]) -> Dict[str, Any]:
     """Files changed and the first error of an executed round (``[(ToolCall, ToolResult)]``)."""

@@ -16,7 +16,6 @@ from app import telegram_use_config as config
 from app import telegram_use_voice as voice
 from tests.round43_telegram_use_test import Client, message
 
-
 class Arguments(unittest.TestCase):
     def summary(self):
         return config.command(config.DEFAULT_COMMANDS[2])
@@ -60,7 +59,6 @@ class Arguments(unittest.TestCase):
         self.assertEqual(arguments.parse(command, "2.5")["n"], 2.5)
         for text in ("nan", "inf", "0", "4", "2 extra"):
             with self.subTest(text=text), self.assertRaises(arguments.ArgumentError): arguments.parse(command,text)
-
 
 class Runtime(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -175,7 +173,6 @@ class Runtime(unittest.IsolatedAsyncioTestCase):
         self.assertIs(body["telegram_use"],True);self.assertIs(body["raw"],True)
         self.assertNotIn("api_key",body)
 
-
 class AI(unittest.IsolatedAsyncioTestCase):
     def tool(self,name="web_search",args=None):
         return "```memuai-tool\n"+json.dumps([{"tool":name,"args":args or {"query":"latest"}}])+"\n```"
@@ -208,6 +205,5 @@ class AI(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(RuntimeError,"did not finish"):
                 await ai.complete("model",[{"role":"user","content":"test"}])
         self.assertEqual(read.await_count,6)
-
 
 if __name__ == "__main__": unittest.main()

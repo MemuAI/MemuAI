@@ -22,7 +22,6 @@ from app.providers import antigravity_models as names
 from tests.round24_dfy_test import FakeBrowser
 from tests.round43_telegram_use_test import Client, message
 
-
 class BrowserSelection(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
         self.tmp = tempfile.TemporaryDirectory(prefix="memu-dfy46-")
@@ -139,7 +138,6 @@ class BrowserSelection(unittest.IsolatedAsyncioTestCase):
             await executor.run_dfy({"id":"handoff", "task":task})
         manager.create.assert_awaited_once_with("goal", [], "schedule", "", browser="chrome")
 
-
 class Catalogue(unittest.TestCase):
     def tearDown(self): names.reset_learned()
     def data(self):
@@ -166,7 +164,6 @@ class Catalogue(unittest.TestCase):
         rows = [row for row in names.from_server(data) if row.public.startswith("gemini-3.8")]
         self.assertEqual(len(rows), 4)
         self.assertFalse(any(row.available for row in rows))
-
 
 class TelegramIdentity(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -234,6 +231,5 @@ class TelegramIdentity(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(json.loads(line)["author_role"],"account_owner")
         self.assertLessEqual(len(line),config.load()["context_chars"])
         self.assertIn("excerpt truncated",content)
-
 
 if __name__ == "__main__": unittest.main()

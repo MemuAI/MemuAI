@@ -1,7 +1,3 @@
-/* MemuNote — Round 33: run panel, live Markdown editor, spell checking, status toggles.
- * Only MemuAI tokens (--accent, --panel, --border, --ok, --danger…) and color-mix: follows theme, accent and light/dark. */
-
-/* ------------------------------------------------------------------ toolbar: Run */
 .tb-btn.run-btn { color: var(--ok); background: color-mix(in srgb, var(--ok) 11%, transparent); margin-left: 4px; }
 .tb-btn.run-btn:hover { background: color-mix(in srgb, var(--ok) 19%, transparent); color: var(--ok); }
 .tb-btn.run-btn .ic { width: 15px; height: 15px; }
@@ -10,8 +6,6 @@
 .tb-btn.run-btn.stop .ic rect { fill: currentColor; }
 .tb-btn.run-more { min-width: 22px; width: 22px; padding: 0; margin-right: 6px; }
 .tb-btn.run-more .ic { width: 14px; height: 14px; }
-
-/* ------------------------------------------------------------------ run panel */
 .mn-run { position: relative; display: flex; flex-direction: column; flex: 0 0 auto; height: 240px; min-height: 110px;
   background: var(--bg-deep, var(--chrome)); border-top: 1px solid var(--border); }
 .mn-run-grip { position: absolute; left: 0; right: 0; top: -4px; height: 8px; cursor: ns-resize; z-index: 3; }
@@ -56,8 +50,6 @@ body.resizing-v, body.resizing-v * { cursor: ns-resize !important; user-select: 
 .mn-run-in .btn.sm { height: 28px; }
 :root[data-theme="light"] .mn-run { background: color-mix(in srgb, var(--panel-2) 55%, var(--bg)); }
 :root[data-theme="light"] .mn-run-in input { background: var(--panel); }
-
-/* run confirmation */
 .modal.run-confirm { width: min(560px, 94vw); }
 .mn-run-confirm { display: flex; gap: 14px; align-items: flex-start; }
 .mn-run-confirm p { margin: 0 0 10px; line-height: 1.5; }
@@ -69,19 +61,13 @@ body.resizing-v, body.resizing-v * { cursor: ns-resize !important; user-select: 
 .mn-run-dl dt { color: var(--muted); }
 .mn-run-dl dd { margin: 0; min-width: 0; }
 .mn-run-dl code { font: 12px var(--mono); padding: 2px 6px; border-radius: 5px; background: var(--code-bg); border: 1px solid var(--border); display: inline-block; max-width: 100%; overflow-wrap: anywhere; }
-
-/* ------------------------------------------------------------------ status bar toggles */
 .st.st-toggle .ic { width: 13px; height: 13px; }
 .st.st-toggle.on { color: var(--text); }
 .st.st-toggle.on .ic { color: var(--accent); }
 .st.st-toggle.off { opacity: .62; }
 .st.st-toggle.off span { text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--muted) 60%, transparent); }
-
-/* ------------------------------------------------------------------ spell checking */
 .mn-spell-err { text-decoration: underline wavy color-mix(in srgb, var(--danger) 85%, transparent); text-decoration-thickness: 1.3px; text-underline-offset: 3px; text-decoration-skip-ink: none; }
 .menu .mi.spell-sugg .mi-label { font-weight: 650; color: var(--text); }
-
-/* ------------------------------------------------------------------ live Markdown */
 .cm-editor.mn-live .cm-gutters { display: none; }
 .cm-editor.mn-live .cm-scroller { font-family: var(--sans); line-height: 1.7; }
 .cm-editor.mn-live .cm-content { max-width: 860px; margin: 0 auto; padding: 22px 0 60px; width: 100%; }
@@ -95,7 +81,6 @@ body.resizing-v, body.resizing-v * { cursor: ns-resize !important; user-select: 
 .cm-editor.mn-live .mn-lm-h4 { font-size: 1.08em; font-weight: 660; padding-top: .25em; }
 .cm-editor.mn-live .mn-lm-h5, .cm-editor.mn-live .mn-lm-h6 { font-size: .98em; font-weight: 650; color: var(--muted); }
 .cm-editor.mn-live .mn-lm-h1 *, .cm-editor.mn-live .mn-lm-h2 *, .cm-editor.mn-live .mn-lm-h3 * { font-size: inherit !important; }
-/* Round 34: the rule spans the text column only (an inset box-shadow also covered the 28px line padding → stuck out left). */
 .cm-editor.mn-live .mn-lm-h2:not(.cm-activeLine) { background: linear-gradient(color-mix(in srgb, var(--border) 80%, transparent), color-mix(in srgb, var(--border) 80%, transparent)) left bottom / 100% 1px no-repeat content-box; }
 .cm-editor.mn-live .mn-lm-setext { font-size: .7em; line-height: .9; color: var(--muted); }
 .cm-editor.mn-live .mn-lm-icode { font-family: var(--mono); font-size: .88em; padding: .1em .32em; border-radius: 5px; background: var(--code-bg); color: var(--code-text); border: 1px solid color-mix(in srgb, var(--border) 85%, transparent); }
@@ -139,9 +124,7 @@ body.resizing-v, body.resizing-v * { cursor: ns-resize !important; user-select: 
   .mn-run-cwd { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .mn-run-state.running i { animation: none; } }
-
-/* ------------------------------------------------------------------ toolbar: narrow window (toolbar-fit.js) */
 @media (max-width: 700px) {
-  .toolbar .ai-btn > span { display: none; }          /* sparkle + chevron is still the AI menu */
+  .toolbar .ai-btn > span { display: none; }
   .toolbar .ai-btn { padding-inline: 6px; }
 }

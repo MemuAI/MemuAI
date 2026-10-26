@@ -1,9 +1,5 @@
-/* MemuAI — settings of the Quick Ask «Слово-активатор» plugin (Round 27, r27-wakeword).
 
-   Rendered on its own sub-page of Settings → Quick Ask → «Возможности» through
-   MemuQuick.settingsSection("wake", …). Built from the settings kit (window.MemuSettingsKit).
-   Talks only to /api/wake/* (app/wake_word_api.py). Settings live in memuai/wake_word.json, not preferences.json:
-   the main window saves whole preference snapshots and would overwrite them. */
+
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -30,7 +26,6 @@
 
     if (!K) { el.textContent = t("Набор настроек не загружен.", "The settings kit is not loaded."); return; }
 
-    /* ---------------------------------------------------------- status */
     function statusInfo(st) {
       const s = (S.data && S.data.settings) || {};
       if (!st) return { tone: "muted", text: t("Загрузка…", "Loading…") };
@@ -57,7 +52,6 @@
       return { tone: "muted", text: s.enabled ? t("Запускается…", "Starting…") : t("Выключено", "Off") };
     }
 
-    /* ---------------------------------------------------------- render */
     function modelBlock(d) {
       const s = d.settings;
       const m = d.models.find((row) => row.lang === s.lang) || d.models[0];
@@ -177,7 +171,6 @@
       if (hero) hero.dataset.tone = info.tone;
     }
 
-    /* ---------------------------------------------------------- data */
     async function load() {
       try { S.data = await call("/api/wake/state"); }
       catch (e) { el.innerHTML = K.note(esc(t("Не удалось загрузить настройки слова-активатора: ", "Could not load the wake word settings: ") + (e.message || e)), "danger"); return; }
@@ -236,12 +229,11 @@
             S.data.status = await call("/api/wake/status");
           }
           patchStatus();
-        } catch (e) { /* server restarting */ }
+        } catch (e) {  }
       }
       schedule();
     }
 
-    /* ---------------------------------------------------------- test mode */
     function showMeter(on) {
       const wrap = el.querySelector("#wks-meter-wrap"), btn = el.querySelector("#wks-test-btn");
       if (wrap) wrap.hidden = !on;
@@ -274,7 +266,7 @@
           heard.textContent = t(`✓ Фраза услышана: «${st.last_hit.phrase}» · уверенность ${Math.round(st.last_hit.conf * 100)}%`,
             `✓ Heard the phrase “${st.last_hit.phrase}” · confidence ${Math.round(st.last_hit.conf * 100)}%`);
         } else if (heard && st.state === "error") { heard.dataset.tone = "err"; heard.textContent = statusInfo(st).text; }
-      } catch (e) { /* keep trying */ }
+      } catch (e) {  }
       S.testPoll = setTimeout(testLoop, 150);
     }
     function stopTest() {
@@ -285,7 +277,6 @@
       showMeter(false);
     }
 
-    /* ---------------------------------------------------------- events */
     el.addEventListener("click", async (e) => {
       const btn = e.target.closest("[data-wks]");
       if (!btn) return;
@@ -304,7 +295,7 @@
         render(); schedule();
       } catch (err) { btn.disabled = false; toast(en && err.en ? err.en : (err.message || String(err)), "error"); }
     });
-    // Turning it on (or switching the language while on) fetches the model it needs — one less step.
+
     async function ensureModel() {
       const d = S.data;
       if (!d || !d.settings.enabled || !d.engine.available) return;
@@ -323,7 +314,7 @@
       else if (id === "wks-sens") save({ sensitivity: +e.target.value });
       else if (e.target.name === "wks-lang" && e.target.checked) {
         const lang = e.target.value;
-        // a custom phrase in the other alphabet cannot work with the other model: back to that language's default
+
         const own = S.data.settings.phrase || "";
         const foreign = own && (lang === "en" ? /[а-яё]/i.test(own) : /[a-z]/i.test(own) && !/[а-яё]/i.test(own));
         save(foreign ? { lang, phrase: "" } : { lang }).then(() => { checkPhrase(S.data.settings.phrase || S.data.defaults[lang], lang); ensureModel(); });

@@ -21,7 +21,6 @@ from installer.engine import AppsRunning, Cancelled, Engine, Options, SetupError
 ROOT = Path(__file__).resolve().parents[1]
 STUB = b"MZ" + b"\0" * 58 + struct.pack("<I", 64) + b"PE\0\0" + b"\0" * 20 + struct.pack("<H", 0x20B) + b"\0" * 400 + b"STUB-END"
 
-
 class FakePlatform(engine.Platform):
     def __init__(self, root: Path) -> None:
         self.root = root
@@ -88,13 +87,11 @@ class FakePlatform(engine.Platform):
     def sleep(self, seconds):
         pass
 
-
 def write_tree(base: Path, files: dict) -> None:
     for rel, data in files.items():
         path = base / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(data if isinstance(data, bytes) else data.encode("utf-8"))
-
 
 def suite_dist(base: Path, version: str, extra: dict | None = None) -> list:
     """Fake PyInstaller output folders for the three suite programs."""
@@ -117,7 +114,6 @@ def suite_dist(base: Path, version: str, extra: dict | None = None) -> list:
         sources.append((comp, folder, dest))
     return sources
 
-
 def make_setup(base: Path, version: str, product=products.SUITE, sources=None, name="Setup.exe") -> Path:
     stub = base / f"stub-{version}.exe"
     stub.write_bytes(STUB)
@@ -127,7 +123,6 @@ def make_setup(base: Path, version: str, product=products.SUITE, sources=None, n
     payload.assemble(stub, sources, {"product": product.id, "version": version}, out, preset=1, workers=2,
                      block_target=16 * 1024)
     return out
-
 
 class PayloadTest(unittest.TestCase):
     def setUp(self):
@@ -169,7 +164,7 @@ class PayloadTest(unittest.TestCase):
     def test_trailer_is_found_behind_an_appended_signature(self):
         setup = make_setup(self.base, "2.1")
         with setup.open("ab") as handle:
-            handle.write(b"\x30\x82" + os.urandom(9000))      # an Authenticode table lands here
+            handle.write(b"\x30\x82" + os.urandom(9000))
         with payload.Payload(setup) as pak:
             self.assertEqual(pak.read_stub(), STUB)
             self.assertEqual(len(list(pak.iter_files(["memucode"]))), 2)
@@ -181,7 +176,7 @@ class PayloadTest(unittest.TestCase):
         setup = make_setup(self.base, "2.1")
         data = setup.read_bytes()
         cut = self.base / "cut.exe"
-        cut.write_bytes(data[:len(STUB)] + data[-40:])    # trailer survives, blocks are gone
+        cut.write_bytes(data[:len(STUB)] + data[-40:])
         with self.assertRaises(payload.PayloadError):
             payload.Payload(cut)
 
@@ -201,9 +196,8 @@ class PayloadTest(unittest.TestCase):
         struct.pack_into("<II", stub, security, len(stub) + 100, 4096)
         cleaned = payload.strip_signature_directory(bytes(stub))
         self.assertEqual(struct.unpack_from("<II", cleaned, security), (0, 0))
-        struct.pack_into("<II", stub, security, 10, 20)       # inside the stub: untouched
+        struct.pack_into("<II", stub, security, 10, 20)
         self.assertEqual(payload.strip_signature_directory(bytes(stub)), bytes(stub))
-
 
     def test_payload_goes_before_a_pyinstaller_archive(self):
         archive = b"CARCHIVE" + os.urandom(3000)
@@ -219,13 +213,12 @@ class PayloadTest(unittest.TestCase):
         self.assertTrue(data.startswith(STUB))
         self.assertTrue(data.endswith(archive + cookie), "the bootloader still finds its cookie at the very end")
         with out.open("ab") as handle:
-            handle.write(os.urandom(5000))                   # signature table
+            handle.write(os.urandom(5000))
         with payload.Payload(out) as pak:
             self.assertGreater(pak.loc.archive_end, 0)
             self.assertEqual(pak.read_stub(), stub, "uninstaller = stub without payload and signature")
             files = {e.path: b"".join(c) for e, c in pak.iter_files(["memucode"])}
             self.assertEqual(files["MemuCode/MemuCode.exe"], b"memucode-3.0")
-
 
 class VersionTest(unittest.TestCase):
     def test_compare(self):
@@ -248,7 +241,6 @@ class VersionTest(unittest.TestCase):
         self.assertEqual(engine.add_path_entry("", "C:\\x"), "C:\\x")
         self.assertEqual(engine.remove_path_entry("C:\\a;c:\\X\\;;C:\\b", "C:\\x"), "C:\\a;C:\\b")
 
-
 class InstallTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -257,7 +249,7 @@ class InstallTest(unittest.TestCase):
         self.app = Path(self.os.envs["LOCALAPPDATA"]) / "Programs" / "MemuAI"
 
     def tearDown(self):
-        self.doCleanups()  # close payload handles before Windows removes their setup exe
+        self.doCleanups()
         self.tmp.cleanup()
 
     def engine_for(self, setup: Path, product=products.SUITE) -> Engine:
@@ -303,7 +295,7 @@ class InstallTest(unittest.TestCase):
         start = self.base / "pc" / "StartMenu" / "MemuAI"
         self.assertEqual(sorted(p.name for p in start.iterdir()),
                          ["MemuAI (безопасный режим).lnk", "MemuAI Proxy.lnk", "MemuAI.lnk",
-                          "MemuCode CLI.lnk", "Удалить MemuAI.lnk"])  # Round 29: safe-mode shortcut
+                          "MemuCode CLI.lnk", "Удалить MemuAI.lnk"])
         safe = json.loads((start / "MemuAI (безопасный режим).lnk").read_text(encoding="utf-8"))
         self.assertIn("--safe-mode", safe.get("args", ""))
         link = json.loads((start / "MemuAI.lnk").read_text(encoding="utf-8"))
@@ -344,7 +336,7 @@ class InstallTest(unittest.TestCase):
         self.assertIn("2.1", (self.app / "MemuAI" / "_internal" / "app" / "pgstatic" / "index.html").read_text())
         self.assertEqual((self.app / "notes.txt").read_text(), "mine")
         self.assertEqual(data.read_text(), "{}")
-        # MemuCode deselected: folder, shortcut and PATH entry leave together.
+
         self.assertFalse((self.app / "MemuCode").exists())
         self.assertNotIn(str(self.app / "MemuCode"), self.os.registry[("HKCU", "Environment")].get("Path", ""))
         self.assertFalse((self.base / "pc" / "StartMenu" / "MemuAI" / "MemuCode CLI.lnk").exists())
@@ -526,7 +518,6 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(os.listdir(target), ["readme-by-user.txt"])
         self.assertNotIn(("HKCU", products.UNINSTALL_ROOT + "\\" + products.PROXY.reg_key), self.os.registry)
 
-
 class CliTest(unittest.TestCase):
     def test_inno_and_nsis_switches(self):
         args = cli.parse(["/VERYSILENT", "/SUPPRESSMSGBOXES", "/DIR=D:\\Apps\\MemuAI", "/COMPONENTS=memuai,memucode",
@@ -562,7 +553,6 @@ class CliTest(unittest.TestCase):
         self.assertEqual(cli.resolve_selection(args, suite, ["proxy", "memuai"], [])[0], ["proxy"],
                          "the CLI ships with the full edition only")
 
-
 class SilentMainTest(unittest.TestCase):
     def test_silent_install_and_uninstall_through_main(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -591,7 +581,6 @@ class SilentMainTest(unittest.TestCase):
             with patch.dict(os.environ, {"MEMUAI_SETUP_EXE": str(broken)}), \
                     patch.object(setup_main, "setup_logging", return_value=""):
                 self.assertEqual(setup_main.main(["/S"]), 1)
-
 
 class BridgeTest(unittest.TestCase):
     def test_install_runs_in_a_worker_and_reports_status(self):
@@ -634,7 +623,6 @@ class BridgeTest(unittest.TestCase):
                              "pywebview exposes public attributes to the page")
             pak.close()
 
-
 class I18nParityTest(unittest.TestCase):
     def test_native_strings_have_both_languages(self):
         for key, entry in i18n.STRINGS.items():
@@ -651,7 +639,6 @@ class I18nParityTest(unittest.TestCase):
         self.assertEqual(keys(en) ^ keys(ru), set())
         used = set(re.findall(r'data-i18n(?:-title)?="([\w.]+)"', (ROOT / "installer" / "ui" / "index.html").read_text(encoding="utf-8")))
         self.assertEqual(used - keys(en), set())
-
 
 if __name__ == "__main__":
     unittest.main()

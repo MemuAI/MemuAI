@@ -1,5 +1,5 @@
-// MemuNote Photo — commands: menus, shortcuts, image / layer / selection operations, adjustment & filter dialogs,
-// image size / canvas size / export dialogs.
+
+
 import { esc, t, toast, modal, prompt, confirm, kbd, api, assetUrl } from "../core.js";
 import { newCanvas, ctx2d, cloneCanvas, isVector, renderVector, vectorBounds, uidL } from "./doc.js";
 import { SAVE_FORMATS, saveDocument, formatOfPath, framesOf, canvasFromB64, canvasToBlob, extOf } from "./io.js";
@@ -8,7 +8,6 @@ import { picon } from "./icons.js";
 import { contentBounds } from "./transform.js";
 import { TOOLS } from "./tools.js";
 
-// ------------------------------------------------------------------ adjustment / filter specs
 const S = (k, min, max, v = 0, step = 1) => ({ k, min, max, v, step });
 export const SPECS = {
   brightnessContrast: [S("brightness", -150, 150), S("contrast", -100, 100)],
@@ -47,7 +46,6 @@ function selMaskFor(ed, l) {
 }
 const describeParams = (name, p) => { const spec = SPECS[name]; if (!Array.isArray(spec)) return ""; return spec.filter((s) => !s.color).map((s) => `${t("ph_p_" + s.k)} ${s.bool ? (p[s.k] ? "✓" : "✗") : Math.round(p[s.k] * 100) / 100}`).join(", "); };
 
-/** Run an op on a layer in the worker; returns a new canvas. */
 async function runOnLayer(ed, l, name, params, scale = 1) {
   const src = l.canvas, w = Math.max(1, Math.round(src.width * scale)), h = Math.max(1, Math.round(src.height * scale));
   let c = src;
@@ -133,7 +131,7 @@ function adjustDialog(ed, name) {
   dlg.querySelector("[data-x]").onclick = () => close(false); dlg.querySelector("[data-cancel]").onclick = () => close(false); dlg.querySelector("[data-ok]").onclick = () => close(true);
   dlg.querySelector("[data-preview]").onchange = preview;
   dlg.querySelector("[data-reset]").onclick = () => { close(false); adjustDialog(ed, name); };
-  // drag the dialog by its head
+
   const head = dlg.querySelector(".ph-dlg-head"); head.addEventListener("pointerdown", (e) => { if (e.target.closest("button")) return; head.setPointerCapture(e.pointerId); const r = dlg.getBoundingClientRect(), sr = ed.stage.getBoundingClientRect(), ox = e.clientX - r.left, oy = e.clientY - r.top; head.onpointermove = (ev) => { dlg.style.left = Math.max(0, ev.clientX - sr.left - ox) + "px"; dlg.style.top = Math.max(0, ev.clientY - sr.top - oy) + "px"; dlg.style.right = "auto"; }; head.onpointerup = () => (head.onpointermove = null); });
   preview();
 }
@@ -168,7 +166,6 @@ function curveEditor(c, params, hist, changed) {
   return { draw };
 }
 
-// ------------------------------------------------------------------ image operations
 function eachLayer(doc, fn) { doc.walk((l) => { if (l.type !== "group") fn(l); }); }
 function shiftVector(l, dx, dy, k = 1) {
   if (l.type === "text") { l.text.x = l.text.x * k + dx; l.text.y = l.text.y * k + dy; l.text.size *= k; l.text.stroke *= k; if (l.text.width) l.text.width *= k; }
@@ -177,7 +174,7 @@ function shiftVector(l, dx, dy, k = 1) {
 }
 function rasterizeLayer(doc, l) { if (!isVector(l)) return; const c = cloneCanvas(l.canvas); doc.swap(l, c); l.type = "raster"; delete l.text; delete l.shape; delete l.svg; }
 function scaleCanvas(src, w, h) {
-  // halving steps keep downscaled photos sharp without moiré
+
   let c = src, cw = src.width, ch = src.height;
   while (cw / 2 > w && ch / 2 > h) { const n = newCanvas(Math.round(cw / 2), Math.round(ch / 2)), x = ctx2d(n); x.imageSmoothingQuality = "high"; x.drawImage(c, 0, 0, n.width, n.height); c = n; cw = n.width; ch = n.height; }
   const out = newCanvas(w, h), x = ctx2d(out); x.imageSmoothingQuality = "high"; x.drawImage(c, 0, 0, w, h); return out;
@@ -213,7 +210,7 @@ export function canvasSize(ed, w, h, ax = 0.5, ay = 0.5, fill = null) {
 }
 export function cropTo(ed, r, angle = 0) {
   const doc = ed.doc;
-  if (angle) {   // straighten: rotate the whole image, then cut the (axis-aligned) box out of the rotated canvas
+  if (angle) {
     const pre = { w: doc.width, h: doc.height };
     rotateCanvas(ed, -angle, false);
     r = { x: Math.round(r.x + (doc.width - pre.w) / 2), y: Math.round(r.y + (doc.height - pre.h) / 2), w: r.w, h: r.h };
@@ -223,7 +220,7 @@ export function cropTo(ed, r, angle = 0) {
   doc.begin(t("ph_tool_crop"));
   eachLayer(doc, (l) => {
     if (isVector(l)) { shiftVector(l, -r.x, -r.y); return; }
-    // keep only what stays inside the new canvas (no hidden pixels piling up on huge photos)
+
     const c = newCanvas(r.w, r.h); ctx2d(c).drawImage(l.canvas, l.x - r.x, l.y - r.y);
     if (l.mask) { const m = newCanvas(r.w, r.h), mx = ctx2d(m); mx.fillStyle = "#fff"; mx.fillRect(0, 0, r.w, r.h); mx.clearRect(l.x - r.x, l.y - r.y, l.mask.width, l.mask.height); mx.drawImage(l.mask, l.x - r.x, l.y - r.y); doc.swap(l, m, "mask"); }
     doc.swap(l, c); l.x = 0; l.y = 0;
@@ -273,7 +270,7 @@ function transformLayer(ed, kind) {
   x.drawImage(l.canvas, 0, 0);
   doc.begin(t("ph_xf_" + kind));
   if (doc.selection && (kind === "h" || kind === "v") && l.x === 0 && l.y === 0 && w === doc.width && h === doc.height) {
-    // flip only the selected pixels
+
     const sel = doc.selCanvas(), b = doc.selectionBounds(), part = newCanvas(w, h), px = ctx2d(part);
     px.save(); if (kind === "h") { px.translate(2 * b.x + b.w, 0); px.scale(-1, 1); } else { px.translate(0, 2 * b.y + b.h); px.scale(1, -1); }
     const cut = newCanvas(w, h), cx = ctx2d(cut); cx.drawImage(l.canvas, 0, 0); cx.globalCompositeOperation = "destination-in"; cx.drawImage(sel, 0, 0);
@@ -300,10 +297,9 @@ function align(ed, how) {
   move(l); doc.commit();
 }
 
-// ------------------------------------------------------------------ layers
 function flatList(list, out = []) { for (const l of list) { out.push(l); if (l.children) flatList(l.children, out); } return out; }
 function mergeInto(doc, upper, lower) {
-  // lower becomes raster with upper composited in; both may be groups/vectors
+
   const c = newCanvas(doc.width, doc.height), x = ctx2d(c);
   const tmpDoc = { ...doc };
   x.drawImage(doc.flatten(null, { only: lower.id }), 0, 0);
@@ -312,7 +308,7 @@ function mergeInto(doc, upper, lower) {
   return c;
 }
 export const RUN = {
-  // view
+
   fit: (ed) => ed.fit(), zoom100: (ed) => ed.setZoom(1), fill: (ed) => ed.fit(true), zoomIn: (ed) => ed.zoomStep(1), zoomOut: (ed) => ed.zoomStep(-1),
   rulers: (ed) => { ed.showRulers = !ed.showRulers; localStorage.setItem("mn_photo_rulers", ed.showRulers ? "1" : "0"); ed.renderRulers(); ed.requestRender(); },
   grid: (ed) => { ed.showGrid = !ed.showGrid; ed.requestRender(); }, guides: (ed) => { ed.showGuides = !ed.showGuides; ed.requestRender(); },
@@ -320,7 +316,7 @@ export const RUN = {
   async newGuide(ed) { const v = await prompt(t("ph_new_guide"), t("ph_new_guide_hint"), "v 100"); if (!v) return; const m = /^\s*([hv])\s*(-?\d+)/i.exec(v); if (!m) return; ed.doc.begin(t("ph_guide")); ed.doc.guides.push({ axis: m[1].toLowerCase() === "v" ? "x" : "y", pos: +m[2] }); ed.doc.commit(); },
   async gridSize(ed) { const v = await prompt(t("ph_grid_size"), t("ph_px"), String(ed.gridSize)); if (v && +v > 1) { ed.gridSize = Math.round(+v); ed.showGrid = true; ed.requestRender(); } },
   togglePanels: (ed) => ed.toggleSide(),
-  // edit
+
   undo: (ed) => ed.undo(), redo: (ed) => ed.redo(), stepBack: (ed) => ed.undo(),
   freeTransform: (ed) => ed.xfStart(),
   flipLayerH: (ed) => transformLayer(ed, "h"), flipLayerV: (ed) => transformLayer(ed, "v"), rotateLayerCW: (ed) => transformLayer(ed, "cw"), rotateLayerCCW: (ed) => transformLayer(ed, "ccw"), rotateLayer180: (ed) => transformLayer(ed, "180"),
@@ -337,7 +333,7 @@ export const RUN = {
   async cut(ed) { await RUN.copy(ed); ed.clearSelection(); },
   async paste(ed) {
     try { const items = await navigator.clipboard.read(); for (const it of items) { const ty = it.types.find((x) => x.startsWith("image/")); if (ty) { ed.placeFile(new File([await it.getType(ty)], t("ph_pasted"), { type: ty }), t("ph_pasted")); return; } } }
-    catch { /* falls back to the internal clipboard */ }
+    catch {  }
     if (ed.clip) ed.pasteInternal(); else toast(t("ph_clipboard_empty"));
   },
   pasteInPlace(ed) { if (!ed.clip) return RUN.paste(ed); const d = ed.doc; d.begin(t("ph_pasted")); d.insertLayer(d.makeLayer({ name: t("ph_pasted"), canvas: cloneCanvas(ed.clip), x: ed.clipPos?.x || 0, y: ed.clipPos?.y || 0 })); d.commit(); },
@@ -375,7 +371,7 @@ export const RUN = {
       doc.begin(t("ph_content_aware")); doc.touch(t0.canvas, r); ctx2d(t0.canvas).putImageData(new ImageData(new Uint8ClampedArray(res.buffer), r.w, r.h), r.x, r.y); doc.commit();
     } finally { ed.busy(false); }
   },
-  // image
+
   adjust: (ed, name) => adjustDialog(ed, name),
   autoTone: (ed) => applyOp(ed, "autoLevels", {}), desaturate: (ed) => applyOp(ed, "grayscale", {}), invert: (ed) => applyOp(ed, "invert", {}),
   lastFilter: (ed) => { if (ed.lastFilter) applyOp(ed, ed.lastFilter.name, ed.lastFilter.params); else toast(t("ph_no_last_filter")); },
@@ -407,7 +403,7 @@ export const RUN = {
     const d = ed.doc; if (d.flat().length <= 1 && d.layers[0]?.type === "raster" && !d.layers[0].mask) return;
     d.begin(t("ph_flatten")); const c = d.flatten(); const l = d.makeLayer({ name: t("ph_layer_background"), canvas: c }); d.layers = [l]; d.activeId = l.id; d.target = "layer"; d.commit();
   },
-  // layers
+
   newLayer(ed) { const d = ed.doc; d.begin(t("ph_new_layer")); const n = d.flat().filter((l) => l.type !== "group").length + 1; d.insertLayer(d.makeLayer({ name: `${t("ph_layer")} ${n}` })); d.commit(); },
   newGroup(ed) { const d = ed.doc; d.begin(t("ph_new_group")); d.insertLayer(d.makeLayer({ type: "group", name: t("ph_group") })); d.commit(); },
   groupLayers(ed) {
@@ -486,7 +482,7 @@ export const RUN = {
   },
   layerProps(ed) { ed.renameLayer(ed.doc.activeId); },
   newFillLayer(ed) { const d = ed.doc; d.begin(t("ph_fill_layer")); const l = d.makeLayer({ name: t("ph_fill_layer") }); const x = ctx2d(l.canvas); x.fillStyle = ed.fg; x.fillRect(0, 0, d.width, d.height); if (d.selection) { x.globalCompositeOperation = "destination-in"; x.drawImage(d.selCanvas(), 0, 0); } d.insertLayer(l); d.commit(); },
-  // select
+
   selectAll: (ed) => { const m = new Uint8Array(ed.doc.width * ed.doc.height).fill(255); ed.select(m, "new", t("ph_select_all")); },
   deselect: (ed) => ed.select(null, "new", t("ph_deselect")),
   reselect: (ed) => { if (ed.doc.lastSelection) ed.select(ed.doc.lastSelection, "new", t("ph_reselect")); },
@@ -508,7 +504,7 @@ export const RUN = {
   },
   async selectSubject(ed) { ed.busy(true, t("ph_select_subject")); try { const d = ed.doc, m = await ed.segmentBox({ x: d.width * 0.02, y: d.height * 0.02, w: d.width * 0.96, h: d.height * 0.96 }); ed.select(m, "new", t("ph_select_subject")); } finally { ed.busy(false); } },
   aiSelect: (ed) => ed.ai.promptSelect(),
-  // files
+
   newImage: (ed) => ed.hooks.newImage?.(), open: (ed) => ed.hooks.open?.(), save: (ed) => ed.hooks.save?.(), saveAs: (ed) => ed.saveAs(false), exportAs: (ed) => ed.saveAs(true),
   async place(ed) {
     const paths = await ed.hooks.fileDialog?.("open", { filters: [t("ph_filter_images") + " (*.png;*.jpg;*.jpeg;*.webp;*.gif;*.bmp;*.svg;*.avif;*.ico)"], multiple: true });
@@ -537,7 +533,6 @@ function fillWith(ed, color, alpha = 1) {
   tx.drawImage(c, 0, 0); tx.globalAlpha = 1; tx.globalCompositeOperation = "source-over"; d.commit();
 }
 
-// ------------------------------------------------------------------ export dialog
 async function exportDialog(ed, exportOnly) {
   const tab = ed.tab, cur = formatOfPath(tab.path || "") || (ed.doc.flat().length > 1 ? "memuimg" : "png");
   const caps = await api("photo/caps").catch(() => ({ codecs: { encoders: [] } }));
@@ -571,7 +566,6 @@ async function exportDialog(ed, exportOnly) {
   finally { ed.busy(false); }
 }
 
-// ------------------------------------------------------------------ menus
 function item(ed, label, cmd, k, extra = {}) { return { label: t(label), kbd: k ? kbd(k) : "", run: typeof cmd === "function" ? cmd : () => ed.cmd(cmd), ...extra }; }
 const ADJ_MENU = ["brightnessContrast", "levels", "curves", "exposure", "-", "vibrance", "hueSaturation", "colorBalance", "temperature", "blackWhite", "sepia", "-", "invert", "posterize", "threshold", "replaceColor"];
 const ADJ_KEYS = { levels: "Ctrl+L", curves: "Ctrl+M", hueSaturation: "Ctrl+U", colorBalance: "Ctrl+B", invert: "Ctrl+I" };
@@ -625,9 +619,8 @@ function showShortcuts(ed) {
   modal({ title: t("ph_shortcuts"), wide: true, body: `<div class="shortcuts">${rows.map(([k, l]) => `<div><kbd>${esc(kbd(k))}</kbd><span>${esc(t(l))}</span></div>`).join("")}</div>`, buttons: [{ label: t("ph_close"), primary: true, value: true }] });
 }
 
-// ------------------------------------------------------------------ shortcuts
 function shortcut(ed, e) {
-  const mod = e.ctrlKey || e.metaKey, sh = e.shiftKey, alt = e.altKey, lk = globalThis.MemuKeys ? MemuKeys.latin(e) : e.key, k = lk.length === 1 ? lk.toLowerCase() : lk, code = e.code;   // r33: any layout
+  const mod = e.ctrlKey || e.metaKey, sh = e.shiftKey, alt = e.altKey, lk = globalThis.MemuKeys ? MemuKeys.latin(e) : e.key, k = lk.length === 1 ? lk.toLowerCase() : lk, code = e.code;
   if (e.key === "F1") return () => showShortcuts(ed);
   if (!mod) {
     if (sh && e.key === "F5") return () => ed.cmd("fillDialog");
@@ -650,7 +643,7 @@ function shortcut(ed, e) {
   if (k === "c") return C("copy");
   if (k === "x") return C("cut");
   if (k === "v" && sh) return C("pasteInPlace");
-  if (k === "v") return null;   // the native paste event brings images from the system clipboard (handled in editor.js)
+  if (k === "v") return null;
   if (k === "t") return C("freeTransform");
   if (k === "j" && sh) return C("layerViaCut");
   if (k === "j") return C("layerViaCopy");

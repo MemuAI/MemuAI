@@ -1,7 +1,5 @@
-/* MemuLearn · review.js — сессия повторения FSRS: карточка → «Показать ответ» (Пробел) → Снова/Трудно/Хорошо/Легко
- * (1–4) с интервалом на каждой кнопке (считает сервер тем же планировщиком). Ctrl+Z — отменить последнюю оценку.
- * Карточки «учу» (шаги 1 и 10 мин) возвращаются в ту же сессию, когда подойдёт их время. Без таймеров: время ответа —
- * разница Date.now(). */
+
+
 const RV = { queue: [], i: 0, card: null, shown: false, started: 0, done: 0, ratings: [0, 0, 0, 0, 0], courseId: "", lessonId: "", cram: false, at: 0 };
 
 async function startReview(opts) {
@@ -20,7 +18,7 @@ async function startReview(opts) {
 
 async function loadQueue() {
   if (RV.cram && RV.lessonId) {
-    // A lesson's own cards right after reading it: everything new or due in that lesson.
+
     const q = await API.call("review.queue", { course_id: RV.courseId, limit: 200 });
     RV.queue = q.cards.filter((c) => c.lesson_id === RV.lessonId);
     if (!RV.queue.length) {
@@ -42,7 +40,7 @@ function countQueue() {
 
 function nextCard() {
   const now = Date.now() / 1000;
-  // the first card that is not a learning card waiting for later; when only those are left — the soonest one
+
   let idx = RV.queue.findIndex((c) => !(c.state === 1 || c.state === 3) || c.due <= now + 1);
   if (idx < 0 && RV.queue.length) idx = 0;
   if (idx < 0) return finishReview();
@@ -112,7 +110,7 @@ async function answer(rating) {
     RV.done++;
     RV.ratings[rating]++;
     RV.last = card;
-    // still learning today → back into this session with fresh buttons
+
     if ((r.state === 1 || r.state === 3) && r.due - Date.now() / 1000 < 3600 * 4) {
       const again = await API.call("review.queue", { course_id: RV.courseId, limit: 200 });
       const fresh = again.cards.find((x) => x.id === card.id);

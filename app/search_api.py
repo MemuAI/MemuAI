@@ -26,7 +26,7 @@ from typing import Any, Dict, List, Optional
 
 from . import search_index as si
 
-try:  # route annotations are resolved against module globals (``from __future__ import annotations``)
+try:
     from fastapi import Request
 except ImportError:  # pragma: no cover - fastapi ships with both apps
     Request = Any  # type: ignore[misc,assignment]
@@ -39,15 +39,9 @@ _WATCHER: Dict[str, Any] = {"thread": None, "last_use": 0.0, "stop": False}
 REMOTE_TYPES_EXCLUDED = {"file", "project", "module"}
 FILTER_KEYS = ("date_from", "date_to", "model", "folder", "pinned", "role", "project", "telegram")
 
-
-# ---------------------------------------------------------------------------
-# Small persisted state: recent searches and two switches
-# ---------------------------------------------------------------------------
-
 def _state_file() -> Path:
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR) / "search_state.json"
-
 
 def load_state() -> Dict[str, Any]:
     try:
@@ -55,7 +49,6 @@ def load_state() -> Dict[str, Any]:
     except (OSError, ValueError):
         raw = {}
     return normalize_state(raw)
-
 
 def normalize_state(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else {}
@@ -79,14 +72,12 @@ def normalize_state(raw: Any) -> Dict[str, Any]:
             "remember_recent": raw.get("remember_recent", True) is not False,
             "index_files": raw.get("index_files", True) is not False}
 
-
 def save_state(state: Dict[str, Any]) -> Dict[str, Any]:
     from .storage import save_json
     clean = normalize_state(state)
     with _STATE_LOCK:
         save_json(str(_state_file()), clean, backup=False)
     return clean
-
 
 def add_recent(q: str) -> Dict[str, Any]:
     with _STATE_LOCK:
@@ -97,15 +88,9 @@ def add_recent(q: str) -> Dict[str, Any]:
         state["recent"] = [{"q": q, "t": int(time.time() * 1000)}] + [r for r in state["recent"] if r["q"].lower() != q.lower()]
         return save_state(state)
 
-
-# ---------------------------------------------------------------------------
-# Background freshness
-# ---------------------------------------------------------------------------
-
 def _files_provider() -> Optional[si.WorkFilesProvider]:
     provider = si.INDEX.providers.get("files")
     return provider if isinstance(provider, si.WorkFilesProvider) else None
-
 
 def _apply_settings(state: Dict[str, Any]) -> None:
     provider = _files_provider()
@@ -114,15 +99,13 @@ def _apply_settings(state: Dict[str, Any]) -> None:
         si.INDEX.prov_checked.pop("files", None)
         si.INDEX.prov_rev.pop("files", None)
 
-
 def touch() -> None:
     _WATCHER["last_use"] = time.monotonic()
-
 
 def _watch() -> None:
     """Keeps the index warm: cheap sources every few seconds (a stat each), the Work files only
     while search is in use (they are walked at most every 90 s, time-boxed)."""
-    time.sleep(6.0)   # let the window start first
+    time.sleep(6.0)
     try:
         _apply_settings(load_state())
         si.INDEX.refresh([n for n in si.INDEX.providers if n != "files"])
@@ -137,7 +120,6 @@ def _watch() -> None:
             log.debug("search: background refresh failed", exc_info=True)
         time.sleep(4.0)
 
-
 def start_watcher() -> None:
     thread = _WATCHER.get("thread")
     if thread is not None and thread.is_alive():
@@ -146,16 +128,10 @@ def start_watcher() -> None:
     _WATCHER["thread"] = thread
     thread.start()
 
-
 def notify(provider: str = "") -> None:
     """Something changed (a chat was saved…): re-check that source on the next refresh."""
     if provider:
         si.INDEX.prov_checked.pop(provider, None)
-
-
-# ---------------------------------------------------------------------------
-# Query helpers (shared by the desktop routes and the Mini App)
-# ---------------------------------------------------------------------------
 
 def _types(value: Any) -> List[str]:
     if isinstance(value, str):
@@ -163,7 +139,6 @@ def _types(value: Any) -> List[str]:
     if not isinstance(value, (list, tuple)):
         return []
     return [str(v).strip().lower()[:40] for v in value if str(v).strip()][:30]
-
 
 def _filters(source: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
@@ -187,7 +162,6 @@ def _filters(source: Dict[str, Any]) -> Dict[str, Any]:
             out[key] = str(value)[:120]
     return out
 
-
 def run_search(body: Dict[str, Any], *, remote: bool = False, refresh: bool = True) -> Dict[str, Any]:
     q = str(body.get("q") or body.get("query") or "")[:400]
     types = _types(body.get("types"))
@@ -209,7 +183,6 @@ def run_search(body: Dict[str, Any], *, remote: bool = False, refresh: bool = Tr
     _localize_prompts(result.get("items") or [], lang)
     return result
 
-
 def _localize_prompts(items: List[Dict[str, Any]], lang: str) -> None:
     """Built-in prompts and the built-in set carry Russian names: the Russian UI showed «Original MemuAI prompts»."""
     if lang == "en":
@@ -222,7 +195,6 @@ def _localize_prompts(items: List[Dict[str, Any]], lang: str) -> None:
             item["title"] = meta["name_ru"]
         if meta.get("set_ru") and item.get("subtitle") == meta.get("set"):
             item["subtitle"] = meta["set_ru"]
-
 
 def _localize_memory_kinds(items: List[Dict[str, Any]], lang: str) -> None:
     """Memory rows carry the raw category key in the subtitle («health · chat»): show its label instead."""
@@ -240,12 +212,8 @@ def _localize_memory_kinds(items: List[Dict[str, Any]], lang: str) -> None:
         if subtitle == kind or subtitle.startswith(kind + " · "):
             item["subtitle"] = CATEGORY_LABELS[kind][index] + subtitle[len(kind):]
 
-
-# Providers the Mini App never needs: their results are desktop-only (and walking Work folders in the Proxy
-# process would only cost disk time).
 REMOTE_PROVIDERS_SKIPPED = {"files", "projects", "modules"}
 _REMOTE_LOCK = threading.Lock()
-
 
 def _remote_refresh() -> None:
     """The Mini App lives in MemuAI Proxy, where :func:`register` never runs: install the built-in
@@ -253,7 +221,6 @@ def _remote_refresh() -> None:
     with _REMOTE_LOCK:
         si.install_default_providers()
     si.INDEX.refresh([n for n in si.INDEX.providers if n not in REMOTE_PROVIDERS_SKIPPED])
-
 
 def remote_search(q: str, *, types: Any = None, filters: Optional[Dict[str, Any]] = None, limit: int = 30,
                   lang: str = "", per_group: int = 3) -> Dict[str, Any]:
@@ -263,13 +230,11 @@ def remote_search(q: str, *, types: Any = None, filters: Optional[Dict[str, Any]
             "per_group": per_group}
     return run_search(body, remote=True, refresh=False)
 
-
 def remote_preview(result_id: str, q: str = "") -> Optional[Dict[str, Any]]:
     if str(result_id).startswith(("file:", "project:", "module:")):
         return None
     _remote_refresh()
     return si.preview(str(result_id), q)
-
 
 def meta(lang: str = "ru") -> Dict[str, Any]:
     """What the filter UI offers: types (with counts), models, folders, projects."""
@@ -300,7 +265,6 @@ def meta(lang: str = "ru") -> Dict[str, Any]:
     return {"types": types, "models": [m for m, _n in sorted(models.items(), key=lambda r: -r[1])][:60],
             "folders": folders, "projects": projects}
 
-
 def resolve_file(result_id: str) -> Optional[Path]:
     """The absolute path of a Work file result, only when it is still inside its saved project."""
     if not result_id.startswith("file:"):
@@ -322,7 +286,6 @@ def resolve_file(result_id: str) -> Optional[Path]:
         return None
     return target if target.exists() else None
 
-
 def reveal_path(target: Path) -> None:
     import os
     import subprocess
@@ -333,11 +296,6 @@ def reveal_path(target: Path) -> None:
         subprocess.Popen(["open", "-R", str(target)])
     else:
         subprocess.Popen(["xdg-open", str(target.parent)])
-
-
-# ---------------------------------------------------------------------------
-# Routes
-# ---------------------------------------------------------------------------
 
 def register(app, *, watch: bool = True) -> None:
     from fastapi import Request

@@ -1,14 +1,5 @@
-/* MemuAI · Settings → Integrations → Google and Notion (Round 30).
 
-   Google: ONE account for Gmail, Calendar, Drive, backups (Sync) and the Drive picker. «Sign in with Google» opens
-   the system browser (OAuth for installed apps: loopback 127.0.0.1 + PKCE); the user ticks which services MemuAI
-   may use — only their scopes are requested, a service switched on later asks Google again incrementally.
-   Notion: an integration token (the simple path) or «Sign in with Notion» (a public integration's OAuth).
-   Backend: app/google_account.py, app/integrations_notion.py, routes app/integrations_api.py.
 
-   app.js puts MemuIntegrations.listHtml(ctx) into the «Services» section and MemuIntegrations.subsHtml(ctx) into the
-   Integrations pane, and calls MemuIntegrations.mount() from initIntegrationsPane(). Tool confirmations of the chat
-   use MemuIntegrations.confirm(tool, args). */
 (function () {
   "use strict";
 
@@ -20,7 +11,6 @@
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const kit = () => window.MemuSettingsKit;
 
-  /* Brand marks (simplified, drawn here — no external images). */
   const BRAND = {
     telegram: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#229ED9"/><path fill="#fff" d="M5 11.5 18.5 6.2 15.7 18.5 11.2 15.2 8.8 17.4 9.1 13.4 15.7 8.8 7.8 12.8Z"/></svg>',
     google: '<svg viewBox="0 0 24 24"><path fill="#4285F4" d="M21.6 12.23c0-.68-.06-1.34-.17-1.97H12v3.73h5.4a4.6 4.6 0 0 1-2 3.03v2.5h3.23c1.9-1.74 2.97-4.3 2.97-7.29z"/><path fill="#34A853" d="M12 22c2.7 0 4.96-.9 6.62-2.43l-3.23-2.5c-.9.6-2.04.96-3.39.96-2.6 0-4.81-1.76-5.6-4.12H3.07v2.58A10 10 0 0 0 12 22z"/><path fill="#FBBC05" d="M6.4 13.91a6 6 0 0 1 0-3.82V7.51H3.07a10 10 0 0 0 0 8.98z"/><path fill="#EA4335" d="M12 5.97c1.47 0 2.79.5 3.83 1.5l2.86-2.87A9.6 9.6 0 0 0 12 2a10 10 0 0 0-8.93 5.51L6.4 10.1C7.19 7.73 9.4 5.97 12 5.97z"/></svg>',
@@ -56,8 +46,7 @@
     { id: "tasks", title: "Google Tasks", ru: "Списки задач: новые, сроки, отметка «выполнено»", en: "Task lists: new tasks, due dates, «done»" },
     { id: "contacts", title: "Google Contacts", ru: "Поиск, новые и изменённые контакты", en: "Search, create and edit contacts" },
   ];
-  /* Round 33: the integration writes (= app/integrations.py WRITE_TOOLS / ALWAYS_CONFIRM / DANGER_TOOLS — tested).
-     app.js asks the user before every WRITE (unless «Full access»), and before every ALWAYS one even then. */
+
   const WRITE_TOOLS = new Set(["calendar_create_calendar", "calendar_create_event", "calendar_delete_calendar", "calendar_delete_event",
     "calendar_move_event", "calendar_quick_add", "calendar_respond", "calendar_update_event", "drive_copy", "drive_create_file",
     "drive_create_folder", "drive_delete_file", "drive_download", "drive_move", "drive_rename", "drive_share", "drive_trash",
@@ -83,10 +72,10 @@
     "gmail_delete_filter", "gmail_delete_label", "gmail_trash", "gsheets_clear", "gsheets_delete_sheet", "gtasks_delete",
     "notion_delete_block", "notion_delete_page", "notion_replace_content"]);
 
-  let google = null;       // GET /api/pg/integrations/google
-  let notion = null;       // GET /api/pg/integrations/notion
-  let pick = new Set(["gmail", "calendar", "drive"]);   // ticks before the first sign-in (Docs/Sheets/Tasks/Contacts — opt-in)
-  let check = null;        // Round 33: the last «Check APIs» result (POST {action: "check"})
+  let google = null;
+  let notion = null;
+  let pick = new Set(["gmail", "calendar", "drive"]);
+  let check = null;
   let pollTimer = 0;
   let busy = "";
 
@@ -98,7 +87,6 @@
   }
   const say = (text, tone = "ok") => { try { if (typeof toast === "function") toast(text, tone); } catch (e) {} };
 
-  /* ------------------------------------------------------------ list rows (main Integrations page) */
   function stateChip(kind, text) {
     return `<span class="int-state ${kind}">${esc(text)}</span>`;
   }
@@ -133,7 +121,6 @@
         body: `<div class="gi-root" id="gi-notion-root">${notionBody()}</div>` });
   }
 
-  /* ------------------------------------------------------------ Google */
   function googleBody() {
     const K = kit();
     if (!google) return `<div class="gi-loading">${L("Проверяю подключение…", "Checking the connection…")}</div>`;
@@ -156,11 +143,11 @@
           <p>${esc(L("Отметьте, к чему у MemuAI будет доступ. Google спросит разрешение только на эти сервисы — остальные можно добавить позже.", "Tick what MemuAI may use. Google asks permission for these services only — you can add the rest later."))}</p></div>
       </div>`);
     }
-    // No OAuth client yet: the wizard is the next step, so it comes right after the greeting.
+
     if (!client.has_client) parts.push(clientWizard(client));
     if (waiting) parts.push(waitBlock(flow, "google"));
     else if (flow.state === "error" && flow.purpose === "integrations") parts.push(K.note(esc(isEn() ? flow.error_en : flow.error_ru), "danger"));
-    // services
+
     const rows = SERVICES.map((svc) => serviceRow(svc, waiting, client)).join("");
     parts.push(`<div class="sx-card gi-card">${rows}</div>`);
     if (google.connected) parts.push(checkBlock());
@@ -181,7 +168,6 @@
     return parts.join("");
   }
 
-  /* Round 33: one service row — toggle, state pill and the one action that fixes it (allow / expand / enable API). */
   function serviceRow(svc, waiting, client) {
     const K = kit();
     const row = (google.services || []).find((s) => s.id === svc.id) || {};
@@ -253,8 +239,6 @@
         <button type="button" class="pbtn ghost sx-btn-sm" data-gi="${kind}-cancel">${esc(L("Отмена", "Cancel"))}</button></div></div></div>`;
   }
 
-  /* Round 33: the setup guide — every API with its own link, the consent screen, test users, the Desktop client and an
-     honest note on Google's «Use this client for an AI-powered agent» checkbox (support.google.com/cloud/answer/15549257). */
   const APIS = [
     ["gmail.googleapis.com", "Gmail API"], ["calendar-json.googleapis.com", "Google Calendar API"],
     ["drive.googleapis.com", "Google Drive API"], ["docs.googleapis.com", "Google Docs API"],
@@ -298,7 +282,6 @@
       hint: needed ? L("5 минут, один раз", "5 minutes, once") : (client.source === "user" ? L("используется ваш", "yours is in use") : L("необязательно", "optional")), body: `<div class="gi-more-pad">${body}</div>` }) });
   }
 
-  /* ------------------------------------------------------------ Notion */
   function notionBody() {
     const K = kit();
     if (!notion) return `<div class="gi-loading">${L("Проверяю подключение…", "Checking the connection…")}</div>`;
@@ -343,7 +326,6 @@
     return parts.join("");
   }
 
-  /* ------------------------------------------------------------ paint / actions */
   function paint() {
     const g = document.getElementById("gi-google-root");
     if (g) { const open = !!document.getElementById("gi-client-more")?.open; g.innerHTML = googleBody(); if (open) { const d = document.getElementById("gi-client-more"); if (d) d.open = true; } }
@@ -364,7 +346,7 @@
     if (wasWaiting && !waiting) {
       if (google?.flow?.state === "done" || notion?.flow?.state === "done") say(L("Подключено", "Connected"));
       if (typeof refreshIntegrations === "function") refreshIntegrations();
-      // Round 33: right after signing in, check that the APIs are enabled in the user's project (the #1 surprise).
+
       if (google?.flow?.state === "done" && google.connected) act("google-check");
     }
   }
@@ -402,8 +384,8 @@
         const clear = name === "google-client-clear";
         let cid = clear ? "" : document.getElementById("gi-client-id")?.value.trim() || "";
         let secret = clear ? "" : document.getElementById("gi-client-secret")?.value.trim() || "";
-        if (cid.startsWith("{")) {   // the whole downloaded JSON pasted into the field
-          try { const d = JSON.parse(cid); const c = d.installed || d.web || d; cid = c.client_id || ""; secret = secret || c.client_secret || ""; } catch (e) { /* the server explains */ }
+        if (cid.startsWith("{")) {
+          try { const d = JSON.parse(cid); const c = d.installed || d.web || d; cid = c.client_id || ""; secret = secret || c.client_secret || ""; } catch (e) {  }
         }
         await call("/api/pg/integrations/google", { action: "client", client_id: cid, client_secret: secret });
         say(clear ? L("Свой клиент убран", "Your client was removed") : L("OAuth-клиент сохранён", "OAuth client saved"));
@@ -470,7 +452,7 @@
       document.addEventListener("keydown", (event) => {
         if (event.key === "Enter" && event.target.id === "gi-notion-token") { event.preventDefault(); act("notion-token", event.target); }
       });
-      // Round 33: «Load JSON» — the client_secret_….json Google offers right after creating the client.
+
       document.addEventListener("change", async (event) => {
         if (event.target.id !== "gi-client-json" || !event.target.files?.length) return;
         try {
@@ -494,8 +476,6 @@
     if (typeof openSettingsPage === "function") openSettingsPage("apps", { sub: sub || "" });
   }
 
-  /* ------------------------------------------------------------ confirmations of the chat's tool calls */
-  // tool: [ru title, en title, ru button, en button, group]
   const VERBS = {
     telegram_use_send: ["Отправить сообщение в Telegram?", "Send this Telegram message?", "Отправить", "Send", "telegram"],
     telegram_use_edit: ["Изменить сообщение в Telegram?", "Edit this Telegram message?", "Изменить", "Edit", "telegram"],
@@ -504,7 +484,7 @@
     telegram_use_delete: ["Удалить сообщения в Telegram?", "Delete Telegram messages?", "Удалить", "Delete", "telegram"],
     telegram_use_react: ["Добавить реакцию в Telegram?", "React in Telegram?", "Добавить", "React", "telegram"],
     telegram_use_mark_read: ["Отметить сообщения прочитанными?", "Mark Telegram messages as read?", "Отметить", "Mark read", "telegram"],
-    // Gmail
+
     gmail_send: ["Отправить письмо?", "Send this email?", "Отправить", "Send", "gmail"],
     gmail_reply: ["Отправить ответ?", "Send the reply?", "Отправить", "Send", "gmail"],
     gmail_forward: ["Переслать письмо?", "Forward the email?", "Переслать", "Forward", "gmail"],
@@ -526,7 +506,7 @@
     gmail_create_filter: ["Создать фильтр Gmail?", "Create a Gmail filter?", "Создать", "Create", "gmail"],
     gmail_delete_filter: ["Удалить фильтр Gmail?", "Delete the Gmail filter?", "Удалить", "Delete", "gmail"],
     gmail_vacation: ["Изменить автоответ?", "Change the auto-reply?", "Сохранить", "Save", "gmail"],
-    // Calendar
+
     calendar_create_event: ["Создать событие в календаре?", "Create a calendar event?", "Создать", "Create", "calendar"],
     calendar_update_event: ["Изменить событие?", "Change the event?", "Изменить", "Change", "calendar"],
     calendar_delete_event: ["Удалить событие?", "Delete the event?", "Удалить", "Delete", "calendar"],
@@ -535,7 +515,7 @@
     calendar_move_event: ["Перенести событие в другой календарь?", "Move the event to another calendar?", "Перенести", "Move", "calendar"],
     calendar_create_calendar: ["Создать календарь?", "Create a calendar?", "Создать", "Create", "calendar"],
     calendar_delete_calendar: ["Удалить календарь со всеми событиями?", "Delete the calendar with all its events?", "Удалить", "Delete", "calendar"],
-    // Drive
+
     drive_create_file: ["Создать файл на Google Диске?", "Create a file in Google Drive?", "Создать", "Create", "drive"],
     drive_upload_file: ["Загрузить файл на Google Диск?", "Upload the file to Google Drive?", "Загрузить", "Upload", "drive"],
     drive_update_file: ["Перезаписать файл на Google Диске?", "Overwrite the file in Google Drive?", "Перезаписать", "Overwrite", "drive"],
@@ -549,7 +529,7 @@
     drive_share: ["Открыть доступ к файлу?", "Share the file?", "Открыть доступ", "Share", "drive"],
     drive_unshare: ["Закрыть доступ к файлу?", "Remove access to the file?", "Закрыть доступ", "Remove access", "drive"],
     drive_download: ["Скачать файл на компьютер?", "Download the file to this computer?", "Скачать", "Download", "drive"],
-    // Docs / Sheets / Tasks / Contacts
+
     gdocs_create: ["Создать документ Google?", "Create a Google Doc?", "Создать", "Create", "docs"],
     gdocs_append: ["Дописать текст в документ?", "Append text to the document?", "Дописать", "Append", "docs"],
     gdocs_replace: ["Заменить текст в документе?", "Replace text in the document?", "Заменить", "Replace", "docs"],
@@ -567,7 +547,7 @@
     gcontacts_create: ["Создать контакт?", "Create a contact?", "Создать", "Create", "contacts"],
     gcontacts_update: ["Изменить контакт?", "Change the contact?", "Изменить", "Change", "contacts"],
     gcontacts_delete: ["Удалить контакт?", "Delete the contact?", "Удалить", "Delete", "contacts"],
-    // Notion
+
     notion_create_page: ["Создать страницу в Notion?", "Create a Notion page?", "Создать", "Create", "notion"],
     notion_append: ["Дополнить страницу Notion?", "Add to the Notion page?", "Дополнить", "Add", "notion"],
     notion_update_page: ["Изменить страницу Notion?", "Change the Notion page?", "Изменить", "Change", "notion"],
@@ -576,7 +556,7 @@
     notion_replace_content: ["Заменить всё содержимое страницы?", "Replace the whole page content?", "Заменить", "Replace", "notion"],
     notion_delete_block: ["Удалить блок Notion?", "Delete the Notion block?", "Удалить", "Delete", "notion"],
     notion_comment: ["Оставить комментарий в Notion?", "Comment in Notion?", "Отправить", "Comment", "notion"],
-    // GitHub
+
     github_write_file: ["Записать файл в GitHub?", "Write the file to GitHub?", "Записать", "Write", "github"],
     github_commit_files: ["Сделать коммит в GitHub?", "Commit to GitHub?", "Закоммитить", "Commit", "github"],
     github_delete_file: ["Удалить файл в GitHub?", "Delete the file in GitHub?", "Удалить", "Delete", "github"],
@@ -728,12 +708,11 @@
           .catch((error) => { if (!settled && status.isConnected) status.textContent = L("Не удалось подготовить предпросмотр: ", "Could not prepare preview: ") + error.message; });
       }
       document.getElementById("gi-confirm-yes").onclick = () => finish(true);
-      // A destructive action never gets the default focus: Enter must not delete by accident.
+
       queueMicrotask(() => document.getElementById(danger ? "gi-confirm-no" : "gi-confirm-yes")?.focus({ preventScroll: true }));
     });
   }
 
-  /* Round 33: GitHub token guide (Settings → Integrations → GitHub): classic vs fine-grained, exactly which rights. */
   function githubGuide() {
     const b = (t) => `<b>${esc(t)}</b>`;
     const code = (t) => `<code>${esc(t)}</code>`;

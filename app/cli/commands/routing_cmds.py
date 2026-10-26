@@ -30,13 +30,11 @@ def tier_text(tier: str) -> tuple:
                       "refactoring, debugging, architecture, long tasks — your strongest model")),
     }[tier]
 
-
 def _short(models: List[str], limit: int = 3) -> str:
     if not models:
         return tr("— не выбраны —", "— none —")
     shown = ", ".join(models[:limit])
     return shown + (f" +{len(models) - limit}" if len(models) > limit else "")
-
 
 def _how_it_decides(ctx: Context) -> str:
     decisions = ctx.runtime.decisions
@@ -46,9 +44,6 @@ def _how_it_decides(ctx: Context) -> str:
                   f"decided by the decision model {decisions.title} · {decisions.model}")
     return tr("решает эвристика и ваши заметки (подключите модель решений: /decisions)",
               "decided by a heuristic and your remarks (connect a decision model: /decisions)")
-
-
-# ---------------------------------------------------------------- remarks
 
 async def ask_remarks(ctx: Context, models: List[str], *, why: str = "") -> None:
     """One question per model: what is it good at? Esc skips a model; a kept remark is the default text."""
@@ -64,7 +59,9 @@ async def ask_remarks(ctx: Context, models: List[str], *, why: str = "") -> None
         if text is not None and text.strip():
             set_model_note(ctx.settings, model, text.strip())
             notes[model] = text.strip()
-
+        elif text is not None and not text.strip() and model in notes:
+            set_model_note(ctx.settings, model, "")
+            notes.pop(model, None)
 
 async def manage_notes(ctx: Context, args: str = "") -> None:
     """``/model notes`` — read, add, change and remove the remarks."""
@@ -117,9 +114,6 @@ async def manage_notes(ctx: Context, args: str = "") -> None:
         elif choice in notes:
             await ask_remarks(ctx, [choice])
 
-
-# ---------------------------------------------------------------- /model auto
-
 def _routing_body(ctx: Context, config: Dict[str, Any]) -> str:
     notes = model_notes(ctx.settings)
     lines: List[Any] = [Text("  " + (tr("Автовыбор: ВКЛ", "Auto selection: ON") if config["enabled"] else
@@ -133,7 +127,6 @@ def _routing_body(ctx: Context, config: Dict[str, Any]) -> str:
             if notes.get(model):
                 lines.append(Text(f"      {model} — “{notes[model]}”", style="dim"))
     return ctx.r.render(*lines)
-
 
 async def manage_auto(ctx: Context, args: str = "") -> None:
     """``/model auto`` — one or several models per kind of request, each with a remark."""
@@ -181,7 +174,6 @@ async def manage_auto(ctx: Context, args: str = "") -> None:
         ctx.say(tr("Автовыбор включён: " + "; ".join(parts) + f". {_how_it_decides(ctx).capitalize()}.",
                    "Auto selection is on: " + "; ".join(parts) + f". {_how_it_decides(ctx).capitalize()}."), "success")
 
-
 async def _edit_tier(ctx: Context, tier: str) -> None:
     settings = ctx.settings
     config = routing_config(settings)
@@ -196,8 +188,8 @@ async def _edit_tier(ctx: Context, tier: str) -> None:
         return
     tiers = dict(config["tiers"])
     tiers[tier] = picked
-    enabled = config["enabled"] or any(tiers.values())
-    settings.set("model_routing", {"enabled": enabled, "tiers": tiers})
+    enabled = (config["enabled"] or any(tiers.values())) and any(tiers.values())
+    settings.set("model_routing", {**config, "enabled": enabled, "tiers": tiers})
     ctx.runtime.invalidate_prompt()
     if len(picked) >= 2:
         missing = [model for model in picked if not note_for(settings, model)]
@@ -207,9 +199,6 @@ async def _edit_tier(ctx: Context, tier: str) -> None:
                 "выбираться модель для запроса. Esc — пропустить.",
                 f"Several models serve “{label}”. Say what each is good at — the choice for a request is made from these "
                 "remarks. Esc to skip."))
-
-
-# ---------------------------------------------------------------- /agents
 
 def pick_modes() -> dict:
     return {
@@ -222,7 +211,6 @@ def pick_modes() -> dict:
         "first": (tr("Всегда первая из списка", "Always the first in the list"),
                   tr("остальные — запасные", "the others are spares")),
     }
-
 
 @command("agents", "Модели для параллельных агентов: несколько моделей, ИИ выбирает подходящую для каждого агента",
          "Models for parallel agents: pick several, the AI chooses the right one for each agent", category="agents",

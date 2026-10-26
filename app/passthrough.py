@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-
 from fastapi import APIRouter, Request, Response
 from fastapi.responses import JSONResponse
 
@@ -22,7 +21,6 @@ CORS_HEADERS = {
     "Access-Control-Max-Age": "86400",
 }
 
-
 def _find_custom(name: str):
     name = name.strip().lower().replace(" ", "-")
     for acc in state.accounts.values():
@@ -32,11 +30,9 @@ def _find_custom(name: str):
             return acc
     return None
 
-
 @router.options("/p/{name}/{path:path}")
 async def passthrough_options(name: str, path: str) -> Response:
     return Response(status_code=204, headers=CORS_HEADERS)
-
 
 @router.api_route("/p/{name}/{path:path}", methods=["GET", "POST", "PUT", "PATCH", "DELETE"])
 async def passthrough(name: str, path: str, request: Request):
@@ -65,11 +61,9 @@ async def passthrough(name: str, path: str, request: Request):
     headers = cp._headers(acc, accept="*/*")
     incoming_content_type = request.headers.get("content-type")
     if incoming_content_type:
-        # The custom provider defaults to JSON for its native endpoints, but
-        # passthrough must preserve form, multipart and binary request bodies.
+
         headers["Content-Type"] = incoming_content_type
-    # Клиентские заголовки пробрасываем, но локальные cookies, proxy auth and
-    # hop-by-hop metadata must never leak to the configured upstream.
+
     blocked_headers = {
         "host", "content-length", "x-hub-key", "connection", "keep-alive",
         "te", "trailer", "upgrade", "origin", "referer", "authorization",
@@ -85,8 +79,7 @@ async def passthrough(name: str, path: str, request: Request):
 
     body = await request.body()
     try:
-        # Same transport as the Custom provider: no browser impersonation for plain http (its h2c Upgrade can
-        # empty the POST body) and a server on this computer bypasses the system proxy.
+
         session = await hub_http.get_session(cp.proxy_for(acc),
                                              impersonate=not base.startswith("http://"), url=base)
         resp = await session.request(
@@ -95,17 +88,15 @@ async def passthrough(name: str, path: str, request: Request):
             params=list(request.query_params.multi_items()),
             timeout=config_store.settings.request_timeout)
     except Exception:
-        # Transport exceptions can contain proxy userinfo or signed URLs.
-        # Keep those details out of this externally callable endpoint.
+
         return JSONResponse(status_code=502, content={"error": "Апстрим недоступен",
                                                       "error_en": "Upstream is unavailable"})
 
     out_headers = dict(CORS_HEADERS)
     for k, v in resp.headers.items():
-        # curl decodes content encodings, and Starlette owns transfer framing;
-        # forwarding either header could make clients decode/frame twice.
+
         lowered = k.lower()
-        # Rate-limit hints (Retry-After, x-ratelimit-*) tell the client when to come back.
+
         if lowered in ("content-type", "cache-control", "retry-after", "retry-after-ms") \
                 or lowered.startswith(("x-ratelimit-", "anthropic-ratelimit-")):
             out_headers[k] = v
@@ -120,17 +111,11 @@ async def passthrough(name: str, path: str, request: Request):
             except Exception:
                 pass
 
-    # Stream every response: large binary/JSON replies stay bounded in memory,
-    # cancellation closes the upstream promptly, and read failures are no
-    # longer hidden as a successful but truncated response.
     async def close_upstream() -> None:
         try:
             await resp.aclose()
         except Exception:
             pass
 
-    # ClosingStreamingResponse: если клиент отключился до первого байта тела,
-    # генератор relay() не стартует и его finally не закрыл бы апстрим —
-    # соединение curl висело до таймаута.
     return ClosingStreamingResponse(relay(), closer=close_upstream, status_code=resp.status_code,
                                     headers=out_headers, media_type=resp.headers.get("content-type"))

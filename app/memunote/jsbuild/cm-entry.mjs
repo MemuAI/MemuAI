@@ -1,5 +1,5 @@
-// MemuNote editor bundle: CodeMirror 6 + language data (lazy chunks) + minimap + markdown-it.
-// Built by build_vendor.mjs into app/memunote/static/vendor/cm/ (ESM, code-split, minified).
+
+
 export { EditorState, EditorSelection, Compartment, StateEffect, StateField, Transaction, Text, RangeSetBuilder, Prec } from "@codemirror/state";
 export { EditorView, keymap, lineNumbers, highlightActiveLine, highlightActiveLineGutter, drawSelection,
   dropCursor, rectangularSelection, crosshairCursor, highlightSpecialChars, Decoration, ViewPlugin, WidgetType,

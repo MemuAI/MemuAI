@@ -42,12 +42,10 @@ NOW = time.time()
 CYR = re.compile(r"[А-Яа-яЁё]")
 problems: list = []
 
-
 def check(ok, what):
     print(("ok   " if ok else "FAIL ") + what)
     if not ok:
         problems.append(what)
-
 
 def free_port():
     s = socket.socket()
@@ -55,7 +53,6 @@ def free_port():
     port = s.getsockname()[1]
     s.close()
     return port
-
 
 def seed():
     from app import pgdata
@@ -66,12 +63,10 @@ def seed():
         pgdata.upsert_chat({"id": f"c{i}", "title": f"Chat {i}", "messages": msgs, "mode": "chat",
                             "createdAt": int(NOW * 1000) - i * 1000, "updatedAt": int(NOW * 1000) - i * 1000})
 
-
 ORDER_JS = "() => [...document.querySelectorAll('.te-order-item')].map(n => n.dataset.item)"
 BAR_JS = """() => [...document.querySelector('.topbar').children].filter(n => n.offsetParent)
   .sort((a, b) => a.getBoundingClientRect().left - b.getBoundingClientRect().left).map(n => n.id || n.className.split(' ')[0])"""
 RADIUS_JS = "() => getComputedStyle(document.querySelector('.msg-user .bubble')).borderTopLeftRadius"
-
 
 def main():
     import httpx
@@ -151,7 +146,6 @@ def main():
             text = p.locator(".te-panel").inner_text()
             check(not CYR.search(text), "English editor (element tab) has no Cyrillic")
 
-            # layout tab: drag, Alt+arrows, hide
             p.click(".te-tabs [data-tab='layout']")
             p.wait_for_timeout(300)
             check(not CYR.search(p.locator(".te-panel").inner_text()), "English editor (layout tab) has no Cyrillic")
@@ -169,7 +163,7 @@ def main():
             p.keyboard.press("Alt+ArrowDown")
             p.wait_for_timeout(250)
             check(p.evaluate(ORDER_JS).index("help") == 2, "Alt+↓ moves the focused row")
-            # from the bottom of a short, scrolled list to the very top (auto-scroll)
+
             p.set_viewport_size({"width": 1366, "height": 470})
             p.wait_for_timeout(300)
             p.evaluate("""() => { const b = document.querySelector('.te-body'), r = document.querySelector(".te-order-item[data-item='theme']");
@@ -200,7 +194,6 @@ def main():
             check(p.evaluate("() => document.documentElement.dataset.teSide") == "right", "sidebar moves right")
             p.screenshot(path=str(OUT / "r33t-layout.png"))
 
-            # Escape: confirm, then discard
             n = p.evaluate("() => MemuThemeEditor.state.changes")
             p.mouse.move(600, 400)
             p.keyboard.press("Escape")
@@ -214,7 +207,6 @@ def main():
             check(p.evaluate("() => document.documentElement.dataset.teSide || 'left'") == "left", "Esc reverted the sidebar side")
             check(get("/api/pg/preferences").get("ui_look", {}).get("toolbar", {}).get("order") == [], "nothing saved after Esc")
 
-            # change + save + reload
             p.evaluate("() => MemuThemeEditor.open({tab: 'layout'})")
             p.wait_for_timeout(400)
             p.click("[data-seg='l:side_pos'] [data-v='right']")
@@ -234,7 +226,6 @@ def main():
             check(p.evaluate("() => document.documentElement.dataset.teSide") == "right", "the layout survives a reload")
             p.context.close()
 
-            # floating inspector in a small window
             p = page_for(browser, 900, 600)
             p.evaluate("() => MemuThemeEditor.open({tab: 'look'})")
             p.wait_for_timeout(500)
@@ -262,7 +253,6 @@ def main():
     check(not [e for e in errors if "pageerror" in e], "no page errors")
     print("screenshots:", OUT)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     OUT.mkdir(parents=True, exist_ok=True)

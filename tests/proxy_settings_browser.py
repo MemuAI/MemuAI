@@ -18,7 +18,6 @@ from playwright.async_api import async_playwright
 
 CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
 
-
 async def wait_for(page, expression: str, timeout: float = 15.0) -> None:
     for _ in range(int(timeout * 10)):
         if await page.evaluate(expression):
@@ -26,11 +25,9 @@ async def wait_for(page, expression: str, timeout: float = 15.0) -> None:
         await page.wait_for_timeout(100)
     raise TimeoutError(expression)
 
-
 def get_settings(base: str) -> dict:
     with urllib.request.urlopen(base + "/api/admin/settings", timeout=10) as response:
         return json.load(response)["settings"]
-
 
 async def main(base: str, out: str | None) -> int:
     failures: list[str] = []
@@ -57,7 +54,6 @@ async def main(base: str, out: str | None) -> int:
         visible = "Array.from(document.querySelectorAll('#sg-body .sg-sec')).filter(s => !s.hidden).map(s => s.dataset.sec)"
         check("opens_on_general", await page.evaluate(visible) == ["general"], await page.evaluate(visible))
 
-        # Navigation: one section at a time, the choice survives a reload.
         await page.click('[data-sg-nav="reliability"]')
         check("nav_switches", await page.evaluate(visible) == ["reliability"], await page.evaluate(visible))
         check("nav_aria_current", await page.evaluate(
@@ -68,7 +64,6 @@ async def main(base: str, out: str | None) -> int:
         check("nav_remembered", await page.evaluate(visible) == ["reliability"], await page.evaluate(visible))
         await wait_for(page, "!!document.querySelector('#provider-settings .sg-group')")
 
-        # The model catalog folds the rail and still renders 600+ rows fast.
         await page.click('[data-sg-nav="models"]')
         await wait_for(page, "document.querySelectorAll('#models-table tr[data-mid]').length > 100")
         check("models_rail_folds", await page.evaluate("document.getElementById('sg-shell').classList.contains('is-wide')"))
@@ -82,7 +77,6 @@ async def main(base: str, out: str | None) -> int:
         if out:
             await page.screenshot(path=f"{out}/browser-models.png")
 
-        # Search: "/" focuses, matches open «Дополнительно», the rail counts hits, Esc restores.
         await page.click('[data-sg-nav="general"]')
         await page.keyboard.press("/")
         check("slash_focuses_search", await page.evaluate("document.activeElement.id === 'sg-search'"))
@@ -104,12 +98,11 @@ async def main(base: str, out: str | None) -> int:
         check("advanced_closed_again", not await page.evaluate(
             "document.querySelector('#sg-sec-reliability details.sg-more').open"))
 
-        # Cross-language keywords and the "elsewhere" list.
         await page.fill("#sg-search", "tunnel")
         await page.wait_for_timeout(200)
         found = await page.evaluate("Array.from(document.querySelectorAll('#sg-found-list b')).map(b => b.textContent)")
         check("elsewhere_public", "Публичный доступ" in found, found)
-        # A model name leads to the catalog with the filter applied.
+
         await page.fill("#sg-search", "llama")
         await page.wait_for_timeout(200)
         has_models = await page.evaluate("!!document.querySelector('[data-sg-models]')")
@@ -129,7 +122,6 @@ async def main(base: str, out: str | None) -> int:
         await page.dispatch_event("#sg-search", "input")
         await page.wait_for_timeout(200)
 
-        # A switch saves a boolean, the row shows "changed", the restore button brings the default back.
         await page.click('[data-sg-nav="routing"]')
         await page.click("#sg-sec-routing details.sg-more summary")
         await page.click("#set-strict")
@@ -140,7 +132,6 @@ async def main(base: str, out: str | None) -> int:
         await page.wait_for_timeout(600)
         check("restore_default", get_settings(base)["strict_models"] is False)
 
-        # Segmented host control writes the real field and can be restored.
         await page.click('[data-sg-nav="network"]')
         await page.click('.sg-seg[data-for="set-host-mode"] [data-v="0.0.0.0"]')
         await wait_for(page, "!!document.querySelector('#modal-back.visible #m-yes')")
@@ -162,7 +153,6 @@ async def main(base: str, out: str | None) -> int:
         check("segment_back_to_local", await page.evaluate(
             "document.querySelector('.sg-seg[data-for=\\'set-host-mode\\'] .active').dataset.v === '127.0.0.1' && document.getElementById('sg-host-custom').hidden"))
 
-        # Theme (local only) and language.
         await page.click('[data-sg-nav="general"]')
         await page.click('.sg-seg[data-for="sg-theme"] [data-v="light"]')
         check("theme_light", await page.evaluate("document.documentElement.dataset.theme === 'light' && localStorage.getItem('oh_theme') === 'light'"))
@@ -181,7 +171,6 @@ async def main(base: str, out: str | None) -> int:
         await page.click('.sg-seg[data-for="lang-select-2"] [data-v="ru"]')
         await page.wait_for_timeout(300)
 
-        # Public access tab: same rows, the controls still save, «Дополнительно» stays open after a save.
         await page.click('[data-tab="public"]')
         await wait_for(page, "!!document.getElementById('pub-cors')")
         await page.click("#pub-https summary")
@@ -198,7 +187,6 @@ async def main(base: str, out: str | None) -> int:
             await page.screenshot(path=f"{out}/browser-public.png", full_page=True)
         await page.click('[data-tab="settings"]')
 
-        # Narrow window: the rail turns into a horizontal strip.
         await page.set_viewport_size({"width": 760, "height": 900})
         await page.wait_for_timeout(200)
         check("narrow_rail_row", await page.evaluate("getComputedStyle(document.getElementById('sg-nav')).flexDirection === 'row'"))
@@ -211,7 +199,6 @@ async def main(base: str, out: str | None) -> int:
         print("FAILED:\n" + "\n".join(failures))
         return 1
     return 0
-
 
 if __name__ == "__main__":
     target = sys.argv[1].rstrip("/")

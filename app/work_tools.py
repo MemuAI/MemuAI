@@ -34,7 +34,7 @@ BINARY_SUFFIXES = {
     ".mp3", ".mp4", ".avi", ".mov", ".wav", ".flac", ".ogg", ".webm",
     ".ttf", ".otf", ".woff", ".woff2", ".eot", ".psd", ".sqlite", ".db",
 }
-# Файлы, по которым видно, что это за проект: их полезно показать сразу.
+
 ENTRY_NAMES = (
     "readme.md", "readme", "package.json", "pyproject.toml", "requirements.txt",
     "cargo.toml", "go.mod", "composer.json", "gemfile", "pom.xml",
@@ -52,12 +52,8 @@ _SYMBOL_RE = re.compile(
     r"\s+(?P<name>[A-Za-z_$][\w$]*)",
 )
 
-
 class WorkError(Exception):
     """Ошибка инструмента, которую можно показать модели как результат."""
-
-
-# ------------------------------ общее ------------------------------
 
 def resolve_inside(root: Path, rel: str) -> Path:
     """Путь внутри проекта. Любая попытка выйти наружу — ошибка."""
@@ -71,7 +67,6 @@ def resolve_inside(root: Path, rel: str) -> Path:
         raise WorkError(f"Путь «{rel}» находится вне Work-проекта") from exc
     return target
 
-
 def entry_path(root: Path, rel: str) -> Path:
     """The entry itself, not what a link at it points to: the parent is resolved, the last name is kept.
 
@@ -82,16 +77,13 @@ def entry_path(root: Path, rel: str) -> Path:
         return resolve_inside(root, str(rel))
     return resolve_inside(root, str(text.parent)) / text.name
 
-
 def _remove_link(path: Path) -> None:
     try:
         path.unlink()
     except OSError:
-        os.rmdir(path)               # a directory symlink or junction on Windows; the target stays
-
+        os.rmdir(path)
 
 _REPEATS = {"MAX_REPEAT", "MIN_REPEAT", "POSSESSIVE_REPEAT"}
-
 
 def _nested_repeat(items: Any, maxrepeat: int) -> bool:
     """An unbounded repeat whose body is another unbounded repeat plus only optional parts —
@@ -123,17 +115,15 @@ def _nested_repeat(items: Any, maxrepeat: int) -> bool:
                 return True
     return False
 
-
 def _risky_regex(query: str, flags: int) -> bool:
     try:
         from re import _parser as sre
-    except ImportError:              # Python < 3.11
+    except ImportError:
         import sre_parse as sre      # type: ignore[no-redef]
     try:
         return _nested_repeat(sre.parse(query, flags), sre.MAXREPEAT)
     except Exception:
         return False
-
 
 def relative(root: Path, target: Path) -> str:
     try:
@@ -141,10 +131,8 @@ def relative(root: Path, target: Path) -> str:
     except ValueError:
         return str(target)
 
-
 def _is_text(path: Path) -> bool:
     return path.suffix.lower() not in BINARY_SUFFIXES
-
 
 def _decode(raw: bytes, clipped: bool) -> Tuple[str, str]:
     """Текст и его кодировка. UTF-16 — только с BOM: без него почти любые
@@ -156,7 +144,7 @@ def _decode(raw: bytes, clipped: bool) -> Tuple[str, str]:
     try:
         return raw.decode("utf-8"), "utf-8"
     except UnicodeDecodeError as exc:
-        # Обрезка на лимите могла разрезать многобайтный символ пополам.
+
         if clipped and exc.start >= len(raw) - 3:
             try:
                 return raw[:exc.start].decode("utf-8"), "utf-8"
@@ -166,7 +154,6 @@ def _decode(raw: bytes, clipped: bool) -> Tuple[str, str]:
         return raw.decode("cp1251"), "cp1251"
     except UnicodeDecodeError:
         return raw.decode("latin-1"), "latin-1"
-
 
 def read_text_meta(path: Path, limit: int = MAX_READ_BYTES) -> Tuple[str, bool, str]:
     """(текст, обрезан ли, кодировка) — для правок, сохраняющих кодировку файла."""
@@ -181,24 +168,19 @@ def read_text_meta(path: Path, limit: int = MAX_READ_BYTES) -> Tuple[str, bool, 
     text, encoding = _decode(raw[:limit], truncated)
     return text, truncated, encoding
 
-
 def read_text(path: Path, limit: int = MAX_READ_BYTES) -> Tuple[str, bool]:
     """Текст файла с обрезкой. Второе значение — был ли файл длиннее лимита."""
     text, truncated, _encoding = read_text_meta(path, limit)
     return text, truncated
 
-
 def _eol(text: str) -> str:
     return "\r\n" if text.count("\r\n") > text.count("\n") / 2 else "\n"
-
 
 def _lf(text: str) -> str:
     return text.replace("\r\n", "\n")
 
-
 def _with_eol(text: str, eol: str) -> str:
     return text.replace("\n", "\r\n") if eol == "\r\n" else text
-
 
 def iter_files(root: Path, *, limit: int = MAX_TREE_ENTRIES) -> Iterable[Path]:
     """Обход проекта без служебных каталогов, с жёстким пределом."""
@@ -228,9 +210,6 @@ def iter_files(root: Path, *, limit: int = MAX_TREE_ENTRIES) -> Iterable[Path]:
                 return
             yield entry
 
-
-# ------------------------------ инструменты ------------------------------
-
 def tool_tree(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Структура проекта: пути, размеры, счётчики. Содержимого здесь нет."""
     prefix = str(args.get("path") or "").strip().replace("\\", "/").strip("/")
@@ -259,7 +238,6 @@ def tool_tree(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
             "entry_points": [row["path"] for row in rows
                              if Path(row["path"]).name.lower() in ENTRY_NAMES][:12]}
 
-
 def tool_read(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Файл целиком или диапазон строк — `start_line` и `end_line` (1-based)."""
     target = resolve_inside(root, str(args.get("path") or ""))
@@ -280,7 +258,6 @@ def tool_read(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     return {"path": relative(root, target), "text": text,
             "total_lines": len(lines), "truncated": truncated}
 
-
 def tool_search(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Поиск по содержимому проекта. Основной способ «осмотреться»."""
     query = str(args.get("query") or "").strip()
@@ -295,7 +272,7 @@ def tool_search(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     except re.error as exc:
         raise WorkError(f"Некорректное регулярное выражение: {exc}") from exc
     if args.get("regex") and _risky_regex(query, flags):
-        # Python's re cannot be interrupted: one such pattern on a long line froze the Work tools.
+
         raise WorkError("Регулярное выражение с вложенными повторами вида (a+)+ может зависнуть; "
                         "упростите его (например, (a+)+ → a+). "
                         "Nested repeats like (a+)+ can hang; simplify the pattern.")
@@ -328,7 +305,6 @@ def tool_search(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
                         "truncated": True}
     return {"query": query, "matches": matches, "files_scanned": scanned, "truncated": False}
 
-
 def tool_outline(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Объявления файла без его содержимого — дешёвый способ понять структуру."""
     target = resolve_inside(root, str(args.get("path") or ""))
@@ -345,7 +321,6 @@ def tool_outline(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
             break
     return {"path": relative(root, target), "symbols": symbols,
             "total_lines": len(text.splitlines())}
-
 
 def attach_review(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Tell the model when a diff deletes more than it adds, before it stops."""
@@ -367,7 +342,6 @@ def attach_review(payload: Dict[str, Any]) -> Dict[str, Any]:
         )
     return payload
 
-
 def destructive_shrink(before: str, after: str) -> str:
     """A full rewrite that throws away most of an existing file is rejected."""
     if not str(before or "").strip():
@@ -383,7 +357,6 @@ def destructive_shrink(before: str, after: str) -> str:
             f"({len(old)} → {len(new)} строк). Измени только нужные строки через "
             "work_patch или work_replace_lines. "
             "Refused: a full rewrite would drop most of the file. Use a patch.")
-
 
 def tool_write(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Создаёт или заменяет файл целиком. Возвращает diff для показа человеку."""
@@ -406,12 +379,11 @@ def tool_write(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     reason = "" if args.get("allow_shrink") else destructive_shrink(before, _lf(text))
     if reason:
         raise WorkError(reason)
-    # Существующий файл сохраняет свою кодировку и окончания строк.
+
     _atomic_write(target, _with_eol(_lf(text), eol) if existed and "\r" not in text else text, encoding)
     return attach_review({"path": relative(root, target), "created": not existed,
             "bytes": len(text.encode("utf-8")),
             "diff": unified_diff(before, text, relative(root, target))})
-
 
 def tool_patch(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Точечная правка: заменяет найденный фрагмент, не переписывая весь файл.
@@ -431,19 +403,16 @@ def tool_patch(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     original, truncated, encoding = read_text_meta(target)
     if truncated:
         raise WorkError("Файл слишком велик для точечной правки; используйте work_write")
-    # Модель пишет old_text с \n, а файл Windows хранит \r\n: сравниваем
-    # без учёта окончаний строк и возвращаем файлу его собственные.
+
     eol = _eol(original)
     before, old, new = _lf(original), _lf(old), _lf(new)
-    # Раунд 21: то же сопоставление, что у Edit в MemuCode CLI — точный текст, затем (только если совпадение
-    # единственное) без префиксов номеров строк, с ASCII-кавычками, без хвостовых пробелов и без учёта отступа.
-    # replace_all: "false" строкой раньше читался как True.
+
     raw_all = args.get("replace_all")
     replace_all = raw_all is True or str(raw_all).strip().lower() in ("true", "1", "yes", "да")
     try:
         from .cli.tools.base import ToolError
         from .cli.tools.files import apply_edit
-    except Exception:                  # a build without the CLI package: the exact matcher as before
+    except Exception:
         occurrences = before.count(old)
         if occurrences == 0:
             raise WorkError("old_text не найден в файле — прочитайте файл заново")
@@ -463,7 +432,6 @@ def tool_patch(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     if fuzzy:
         result["note"] = "matched ignoring whitespace/quote differences"
     return attach_review(result)
-
 
 def tool_insert(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Вставляет текст перед указанной строкой (1-based).
@@ -489,7 +457,6 @@ def tool_insert(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     _atomic_write(target, _with_eol(after, eol), encoding)
     return {"path": relative(root, target), "line": index + 1,
             "diff": unified_diff(before, after, relative(root, target))}
-
 
 def tool_replace_lines(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Заменяет диапазон строк. Удобно, когда фрагмент повторяется в файле."""
@@ -517,7 +484,6 @@ def tool_replace_lines(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     return attach_review({"path": relative(root, target), "start_line": start, "end_line": end,
             "diff": unified_diff(before, after, relative(root, target))})
 
-
 def tool_append(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Дописывает текст в конец файла, создавая его при необходимости."""
     target = resolve_inside(root, str(args.get("path") or ""))
@@ -530,7 +496,7 @@ def tool_append(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         original, truncated, encoding = read_text_meta(target)
         eol, before = _eol(original), _lf(original)
         if truncated:
-            # Не читаем весь файл ради дописывания: открываем на добавление.
+
             with target.open("a", encoding="utf-8" if encoding == "utf-8-sig" else encoding,
                              newline="") as handle:
                 handle.write(_with_eol(text if text.endswith("\n") else text + "\n", eol))
@@ -540,7 +506,6 @@ def tool_append(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     _atomic_write(target, _with_eol(after, eol), encoding)
     return {"path": relative(root, target), "appended": len(text),
             "diff": unified_diff(before, after, relative(root, target))}
-
 
 def tool_diff(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     """Показывает, чем текст отличается от файла, ничего не записывая."""
@@ -553,7 +518,6 @@ def tool_diff(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         before, _ = read_text(target)
     return {"path": relative(root, target), "exists": target.is_file(),
             "diff": unified_diff(before, text, relative(root, target))}
-
 
 def tool_delete(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     entry = entry_path(root, str(args.get("path") or ""))
@@ -571,7 +535,6 @@ def tool_delete(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         target.unlink()
     return {"path": relative(root, target), "deleted": True}
 
-
 def tool_move(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     source = entry_path(root, str(args.get("path") or ""))
     if not is_link(source):
@@ -583,7 +546,7 @@ def tool_move(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         raise WorkError(f"«{args.get('path')}» не существует")
     if destination.exists() or is_link(destination):
         try:
-            same = os.path.samefile(source, destination)    # «readme.md» → «README.md» on Windows
+            same = os.path.samefile(source, destination)
         except OSError:
             same = False
         if not same:
@@ -600,14 +563,12 @@ def tool_move(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     os.replace(source, destination)
     return {"from": relative(root, source), "to": relative(root, destination)}
 
-
 def tool_mkdir(root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     target = resolve_inside(root, str(args.get("path") or ""))
     if target.exists() and not target.is_dir():
         raise WorkError(f"«{args.get('path')}» — уже файл, а не папка / already a file")
     target.mkdir(parents=True, exist_ok=True)
     return {"path": relative(root, target), "created": True}
-
 
 def _atomic_write(target: Path, text: str, encoding: str = "utf-8") -> None:
     """Пишет файл, не меняя переводы строк.
@@ -618,23 +579,21 @@ def _atomic_write(target: Path, text: str, encoding: str = "utf-8") -> None:
     """
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
-    # Кодировку файла сохраняем: cp1251 или UTF-16 не должны молча
-    # становиться UTF-8, иначе программа, читающая файл, увидит мусор.
+
     codec = encoding if encoding in ("utf-8", "utf-8-sig", "utf-16", "cp1251", "latin-1") else "utf-8"
     try:
         with temporary.open("w", encoding=codec, newline="", errors="strict") as handle:
             handle.write(text)
     except UnicodeEncodeError:
-        # Новый текст не помещается в старую кодировку (эмодзи в cp1251) — UTF-8.
+
         with temporary.open("w", encoding="utf-8", newline="") as handle:
             handle.write(text)
     try:
         if target.exists():
-            shutil.copymode(target, temporary)  # +x и прочие права файла
+            shutil.copymode(target, temporary)
         os.replace(temporary, target)
     finally:
         temporary.unlink(missing_ok=True)
-
 
 def unified_diff(before: str, after: str, path: str, *, limit: int = 400) -> str:
     lines = list(difflib.unified_diff(
@@ -643,9 +602,6 @@ def unified_diff(before: str, after: str, path: str, *, limit: int = 400) -> str
     if len(lines) > limit:
         lines = lines[:limit] + [f"… ещё {len(lines) - limit} строк"]
     return "\n".join(lines)
-
-
-# ------------------------------ реестр ------------------------------
 
 READ_TOOLS: Dict[str, Callable[[Path, Dict[str, Any]], Dict[str, Any]]] = {
     "work_tree": tool_tree,
@@ -666,12 +622,7 @@ WRITE_TOOLS: Dict[str, Callable[[Path, Dict[str, Any]], Dict[str, Any]]] = {
 }
 ALL_TOOLS = {**READ_TOOLS, **WRITE_TOOLS}
 
-
-#: Правки файлов идут по одной: основная модель и агенты Work работают одновременно, а
-#: правка — это «прочитать, заменить, записать». Без замка вторая из двух одновременных правок
-#: одного файла стирала первую.
 _WRITE_LOCK = threading.RLock()
-
 
 def run(name: str, root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
     handler = ALL_TOOLS.get(name)
@@ -685,13 +636,11 @@ def run(name: str, root: Path, args: Dict[str, Any]) -> Dict[str, Any]:
         else:
             result = handler(root, args or {})
     except (OSError, ValueError, TypeError) as exc:
-        # «limit: "abc"», a locked file, a full disk: a result the model reads and works around,
-        # like other tool errors, instead of an HTTP 400 for the whole call.
+
         raise WorkError(f"{type(exc).__name__}: {exc}") from exc
     result["tool"] = name
     result["ms"] = int((time.time() - started) * 1000)
     return result
-
 
 def project_overview(root: Path, *, max_files: int = 1200) -> Dict[str, Any]:
     """Стартовый контекст Work: только структура и короткая справка о проекте.

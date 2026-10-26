@@ -21,7 +21,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-# (message, expected): "maybe" = must not be decided confidently by the heuristic.
 CASES = [
     ("нарисуй кота в космосе", "image"), ("нарисуй таблицу расходов за месяц", "text"),
     ("покажи как выглядит Шрек", "image"), ("explain image generation", "text"),
@@ -49,7 +48,6 @@ CASES = [
     ("а как выглядит тессеракт?", "maybe"), ("could you visualize a futuristic car?", "maybe"),
     ("напиши эссе про импрессионизм", "text"), ("сделай иллюстрацию к сказке про колобка", "image"),
 ]
-
 
 class HeuristicTest(unittest.TestCase):
     def test_cases(self):
@@ -88,7 +86,6 @@ class HeuristicTest(unittest.TestCase):
         self.assertEqual(parse_decision("видео"), "video")
         self.assertEqual(parse_decision("hmm"), "text")
 
-
 class PromptTest(unittest.TestCase):
     def test_generation_prompt(self):
         from app.media_routing import generation_prompt
@@ -120,7 +117,6 @@ class PromptTest(unittest.TestCase):
         self.assertEqual(friendly_error(raw, "en"), "Upstream error (HTTP 400): Rejected by the safety system.")
         self.assertEqual(friendly_error(raw, "ru"), "Ошибка сервиса (HTTP 400): Rejected by the safety system.")
 
-
 class MediaGenNamesTest(unittest.TestCase):
     def test_names(self):
         from app import media_gen as g
@@ -149,7 +145,6 @@ class MediaGenNamesTest(unittest.TestCase):
         self.assertEqual(set(images), {"m-my-painter", "m-flux-pro", "m-gpt-image-1"})
         self.assertEqual(set(videos), {"m-clipper", "m-sora-2"})
 
-
 class PreferencesTest(unittest.TestCase):
     def test_normalization(self):
         from app import pgdata
@@ -167,7 +162,6 @@ class PreferencesTest(unittest.TestCase):
         defaults = pgdata.DEFAULT_PREFERENCES
         for key in ("media_image_model", "media_video_model", "decision_model", "media_autoprompt", "media_autoprompt_search"):
             self.assertIn(key, defaults)
-
 
 class EndToEndTest(unittest.TestCase):
     """MemuAI window server → Proxy → media mock, everything in this process."""
@@ -253,7 +247,7 @@ class EndToEndTest(unittest.TestCase):
         self.assertTrue(resp.content.startswith(b"\x1aE\xdf\xa3"))
         from tests import round29_media_mock as mock
         self.assertEqual(mock.state["video_bodies"][-1]["size"], "720x1280")
-        # foreign profile / bad names are refused
+
         self.assertEqual(self.client.get(self.servers.pg + url.split("?")[0] + "?profile_id=other").status_code, 403)
         self.assertEqual(self.client.get(self.servers.pg + "/api/pg/media/file/../../x.mp4").status_code, 404)
 
@@ -287,7 +281,7 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual(r.get("unavailable"), "video")
 
     def test_decide_with_model_falls_back_honestly(self):
-        # The mock chat model answers «text answer» → text; an unknown model → an error and the heuristic verdict.
+
         r = self.client.post(self.servers.pg + "/api/pg/media/decide",
                              json={"text": "можешь показать мне кота в шляпе?", "model": "media-chat-small"}).json()
         self.assertEqual((r["kind"], r["source"]), ("text", "model"))
@@ -313,7 +307,6 @@ class EndToEndTest(unittest.TestCase):
             if old is not None:
                 os.environ["HOME"] = old
 
-
 @unittest.skipUnless(os.environ.get("YANDEX_BASE") and os.environ.get("YANDEX_KEY"), "live: needs YANDEX_* keys")
 class LiveDecisionTest(unittest.TestCase):
     def test_yandex_decision_speed_and_accuracy(self):
@@ -337,7 +330,6 @@ class LiveDecisionTest(unittest.TestCase):
                 self.assertLess(statistics.median(times), 3000)
         finally:
             servers.stop()
-
 
 if __name__ == "__main__":
     unittest.main()

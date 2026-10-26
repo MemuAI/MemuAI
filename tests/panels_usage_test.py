@@ -19,16 +19,14 @@ from app import panels, panels_usage as pu, pgdata
 
 NOW = time.time()
 KEY = bytes.fromhex("00070e151c232a31383f464d545b626970777e858c939aa1a8afb6bdc4cbd2d9")
-# Encrypted with Node's crypto (aes-256-gcm), Chromium «v10» layout: b"v10" + nonce(12) + ciphertext + tag(16).
+
 CACHE = ("djEwAQIDBAUGBwgJCgsMvIMwk3t0ruwrNW676rrTrwNErjHgM3oyuP64ZHqkrN/msnbAgd6WRThnKFhMkPI3Qpz92bIyZEjLeRteXwzen"
          "yUsJ8lo6Jrsm81DGdN+Y4gIT5mjQVFUjBnlK5v6NBtxbvYFM9uL7194RKslaP0bcPXervV80JRLOkcj6kj3tkCNnYLHAbpdGFbWrMOsJFWSI"
          "JbXskNodSh+y8Foe2fklIw9Zda4Q1udSg==")
 
-
 def jwt(payload):
     enc = lambda d: base64.urlsafe_b64encode(json.dumps(d).encode()).decode().rstrip("=")  # noqa: E731
     return f"{enc({'alg': 'none'})}.{enc(payload)}.sig"
-
 
 class FakeHTTP:
     def __init__(self, routes):
@@ -47,7 +45,6 @@ class FakeHTTP:
                 return status, resp_headers, payload if isinstance(payload, str) else json.dumps(payload)
         return 404, {}, "{}"
 
-
 CLAUDE_USAGE = {"five_hour": {"utilization": 62.0, "resets_at": "2099-01-01T05:00:00+00:00"},
                 "seven_day": {"utilization": 31.5, "resets_at": "2099-01-05T00:00:00Z"},
                 "seven_day_opus": {"utilization": None, "resets_at": None}, "seven_day_oauth_apps": None,
@@ -62,7 +59,6 @@ AG_SUMMARY = {"response": {"groups": [
     {"displayName": "Claude and GPT models", "buckets": [
         {"window": "weekly", "resetTime": "2099-01-03T00:00:00Z"}]}]}}
 AG_STATUS = {"userStatus": {"userTier": {"name": "Pro"}}}
-
 
 class UsageBase(unittest.TestCase):
     def setUp(self):
@@ -97,10 +93,9 @@ class UsageBase(unittest.TestCase):
         with patch.object(pu, "HTTP", http or FakeHTTP({})):
             return asyncio.run(pu.refresh_accounts(accounts, previous or [], lang="ru", force=force, now=now))
 
-
 class CryptoTest(unittest.TestCase):
     def test_aes_256_known_answer(self):
-        # FIPS-197 C.3
+
         rk = pu._expand_key(bytes(range(32)))
         self.assertEqual(pu._aes_encrypt_block(rk, bytes.fromhex("00112233445566778899aabbccddeeff")).hex(),
                          "8ea2b7ca516745bfeafc49904b496089")
@@ -119,7 +114,6 @@ class CryptoTest(unittest.TestCase):
         self.assertNotIn("SECRET", text)
         self.assertNotIn("abc.def-123", text)
         self.assertNotIn("1234-5678", text)
-
 
 class ClaudeTest(UsageBase):
     def test_claude_code_credentials_and_windows(self):
@@ -202,7 +196,6 @@ class ClaudeTest(UsageBase):
         self.assertEqual(tokens[0]["token"], "sk-ant-oat01-TEST")
         self.assertEqual(pu.claude_plan(tokens[0]["plan"], tokens[0]["tier"]), "Max 20×")
 
-
 class CodexTest(UsageBase):
     def test_auth_json_usage_and_plan(self):
         token = jwt({"exp": NOW + 3600, "https://api.openai.com/auth": {"chatgpt_plan_type": "plus", "chatgpt_account_id": "acc-1"}})
@@ -251,7 +244,6 @@ class CodexTest(UsageBase):
         with self.assertRaises(ValueError):
             pu.put_secret("../x", token)
 
-
 class AntigravityTest(UsageBase):
     def test_daemon_file_and_quota_summary(self):
         self.write(".gemini/antigravity/daemon/ls_1.json", {"httpsPort": 51234, "csrfToken": "abcd-1234-efgh"})
@@ -281,7 +273,6 @@ class AntigravityTest(UsageBase):
         out = self.run_acc([{"id": "a_000004", "provider": "antigravity", "mode": "auto"}], http=http)
         self.assertEqual([l["used"] for l in out["accounts"][0]["limits"]], [50.0, 100.0])
 
-
 class AccountsTest(UsageBase):
     def test_clean_accounts(self):
         rows = pu.clean_accounts([{"provider": "claude", "name": "  Работа   основная ", "mode": "weird"},
@@ -299,7 +290,6 @@ class AccountsTest(UsageBase):
         self.assertEqual(found["claude"][0]["plan"], "Pro")
         self.assertFalse(found["codex"][0]["found"])
         self.assertNotIn("DETECT", json.dumps(found))
-
 
 class UsagePanelTest(UsageBase):
     def setUp(self):
@@ -324,7 +314,6 @@ class UsagePanelTest(UsageBase):
         panels.update_panel(panel["id"], {"params": {"accounts": [{"id": "a_00000a", "provider": "claude", "mode": "auto"}]}})
         self.assertFalse(pu.secret_info("a_00000b")["stored"], "a removed account's token is dropped")
         self.assertEqual(panels.floor_minutes("usage"), 1)
-
 
 if __name__ == "__main__":
     unittest.main()

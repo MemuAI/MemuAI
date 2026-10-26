@@ -32,7 +32,6 @@ PAGE_IDS = [page for group in INDEX["groups"] for page in group["pages"]]
 IMAGE = re.compile(r"^\s*!\[([^\]]*)\]\(([^)\s]+)(?:\s+\"([^\"]*)\")?\)\s*$", re.M)
 IMG_DIR = ROOT / "app" / "pgstatic" / "docs-img"
 
-
 class SummariesTest(unittest.TestCase):
     def test_every_page_has_a_summary_in_both_languages(self) -> None:
         for lang in docs.LANGUAGES:
@@ -102,7 +101,6 @@ class SummariesTest(unittest.TestCase):
         self.assertTrue(any("other.json" in p for p in problems))
         self.assertTrue(any("unbalanced" in p for p in problems))
 
-
 class RouteTest(unittest.TestCase):
     def setUp(self) -> None:
         from fastapi import FastAPI
@@ -149,7 +147,6 @@ class RouteTest(unittest.TestCase):
             if code:
                 self.assertEqual(response.json()["code"], code)
         self.assertIn("Proxy", self.client.post("/api/pg/docs/ai", json=cases[-1][0]).json()["error"])
-
 
 class ScreenshotsTest(unittest.TestCase):
     def refs(self, lang: str):
@@ -217,7 +214,6 @@ class ScreenshotsTest(unittest.TestCase):
         self.assertIn("<p>Text before.</p>", html, "the paragraph ends before the picture")
         self.assertNotIn('<img src="https://', html, "only local docs-img pictures are shown, remote ones stay links")
 
-
 class HooksTest(unittest.TestCase):
     def test_wiring(self) -> None:
         api = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
@@ -233,7 +229,6 @@ class HooksTest(unittest.TestCase):
         spec = (ROOT / "MemuAI.spec").read_text(encoding="utf-8")
         self.assertIn("('app/pgstatic', 'app/pgstatic')", spec, "docs-img ships inside pgstatic")
         self.assertIn("('app/docs', 'app/docs')", spec, "summaries ship inside app/docs")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,12 +18,10 @@ from app import modules_host, modules_validate as mv, pgdata
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def _report(js: str):
     files = {"manifest.json": json.dumps({"id": "t-mod", "title": "T", "permissions": ["chat", "storage"]}),
              "index.html": "<div></div>", "style.css": "", "main.js": js, "i18n.json": json.dumps({"ru": {}, "en": {}})}
     return mv.validate_package(mv._from_files(files, "t"), check_syntax=False)
-
 
 class ModuleWithoutModel(unittest.TestCase):
     """«Заметки» от gpt-oss: model = Memu.manifest.bridge.model || "" → раньше 400 «Выберите модель», «Суммировать» молчал."""
@@ -90,7 +88,7 @@ class ModuleWithoutModel(unittest.TestCase):
     def test_fallback_is_the_default_text_model_else_the_first_text_one(self):
         rows = [{"id": "img", "provider": "x"}, {"id": "b-text", "provider": "b"}, {"id": "a-text", "provider": "a"}]
         self.assertEqual(self._fallback(rows, "b-text"), "b-text")
-        # an image model as the default is never used for text; the first text model in the list order is
+
         self.assertEqual(self._fallback(rows, "img"), "a-text")
         self.assertEqual(self._fallback(rows, ""), "a-text")
         self.assertEqual(self._fallback([{"id": "img", "provider": "x"}], ""), "")
@@ -99,14 +97,12 @@ class ModuleWithoutModel(unittest.TestCase):
         src = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
         self.assertEqual(src.count('model=str(body.get("model") or "").strip() or await module_fallback_model(),'), 2)
 
-
 class SharedModuleCss(unittest.TestCase):
     def test_mu_split_is_two_panes_and_stacks_when_narrow(self):
         css = modules_host.BASE_CSS
         self.assertIn(".mu-split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);", css)
         narrow = css[css.index("@media (max-width:620px)"):][:200]
         self.assertIn(".mu-split{grid-template-columns:1fr}", narrow.replace(".mu-grid,", ""))
-
 
 class SpaceKeyRule(unittest.TestCase):
     """«Змейка» от gpt-oss: {Space: "pause"}[e.key] — у пробела e.key = " ", пауза не работала."""
@@ -131,7 +127,6 @@ class SpaceKeyRule(unittest.TestCase):
         self.assertIn('Пробел: e.key === " "', ru)
         self.assertIn("Сообщение об ошибке не стирай в finally", ru)
 
-
 def _js_function(source: str, name: str) -> str:
     start = source.index("function " + name + "(")
     depth, i, opened = 0, source.index("{", start), False
@@ -146,9 +141,7 @@ def _js_function(source: str, name: str) -> str:
                 return source[start:i + 1]
         i += 1
 
-
 NODE = __import__("shutil").which("node")
-
 
 class PanelConnectButton(unittest.TestCase):
     """r29d leftover: a «needs_connector:github» wall offered «Retry», which only failed again."""
@@ -171,15 +164,14 @@ class PanelConnectButton(unittest.TestCase):
 
     def test_both_walls_use_it_and_connect_opens_the_service_page(self):
         self.assertEqual(self.js.count("${wallButton(panel.wall)}"), 2)
-        self.assertEqual(self.js.count('<button type="button" data-mp-act="refresh">${t("Повторить", "Retry")}</button>'), 1)   # only in wallButton
+        self.assertEqual(self.js.count('<button type="button" data-mp-act="refresh">${t("Повторить", "Retry")}</button>'), 1)
         self.assertIn('else if (a === "connect") openIntegrations(actBtn.dataset.mpConnector || "");', self.js)
         body = _js_function(self.js, "openIntegrations")
         self.assertIn('openSettingsPage("apps", sub ? { sub } : {})', body)
         self.assertIn('"int-" + service', body)
-        self.assertIn('handoff: { settings: "apps" }', body)       # the Quick Ask canvas / screen layer
+        self.assertIn('handoff: { settings: "apps" }', body)
         index = (ROOT / "app" / "pgstatic" / "index.html").read_text(encoding="utf-8")
         self.assertIn("/panels.js?v=1.7-r30", index)
-
 
 if __name__ == "__main__":
     unittest.main()

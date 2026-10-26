@@ -34,7 +34,6 @@ from .i18n import tr
 
 SUBSCRIPTION_PROVIDERS = {"genspark", "kiro", "antigravity", "geminiweb", "grok"}
 
-
 class LazyModule:
     """Модуль, который импортируется при первом обращении к атрибуту.
 
@@ -53,12 +52,10 @@ class LazyModule:
         self._namespace[self._alias] = module
         return getattr(module, attribute)
 
-
 httpx = LazyModule("httpx", globals())
 
 _SSL_LOCK = threading.Lock()
 _SSL_CONTEXT: Any = None
-
 
 def shared_ssl_context() -> Any:
     """One TLS context for every https client: loading the CA bundle costs ~0.25 s, so it is built once
@@ -68,7 +65,6 @@ def shared_ssl_context() -> Any:
         if _SSL_CONTEXT is None:
             _SSL_CONTEXT = httpx.create_ssl_context()
         return _SSL_CONTEXT
-
 
 def _is_loopback_url(url: str) -> bool:
     from urllib.parse import urlsplit
@@ -80,12 +76,10 @@ def _is_loopback_url(url: str) -> bool:
         return True
     import ipaddress
     try:
-        # A literal address only: "127.0.0.1.nip.io" or "127.example.com" is a public name and must keep
-        # going through the user's proxy.
+
         return ipaddress.ip_address(host).is_loopback
     except ValueError:
         return False
-
 
 def http_client(timeout: Any, *, url: str = "", **kwargs: Any) -> httpx.AsyncClient:
     """An async client; plain-http (the local Proxy) needs no TLS context at all.
@@ -99,34 +93,31 @@ def http_client(timeout: Any, *, url: str = "", **kwargs: Any) -> httpx.AsyncCli
         return httpx.AsyncClient(timeout=timeout, verify=False, **kwargs)
     return httpx.AsyncClient(timeout=timeout, verify=shared_ssl_context(), **kwargs)
 
-
-# ---------------------------------------------------------------- data
-
 @dataclass
 class ModelInfo:
     id: str
     provider: str = ""
-    backend: str = "proxy"          # proxy | direct
+    backend: str = "proxy"
     connection: str = ""
-    raw: str = ""                   # id at the backend
+    raw: str = ""
     label: str = ""
     context: int = 0
     output: int = 0
     context_source: str = ""
     vision: bool = False
-    vision_source: str = ""         # provider = the model list itself says so; api = known API; empty = a guess
+    vision_source: str = ""
     thinking: bool = False
     search: bool = False
     image: bool = False
+    kind: str = "chat"
     native_tools: bool = False
-    #: Round 33 (r33-thinking): the reasoning levels the Proxy says this model has ("auto" first; [] — none).
+
     reasoning_options: Optional[List[str]] = None
-    #: Round 33 (r33c-models-lists): the readable name (Proxy's catalogue row ``name``, else app.model_names).
+
     name: str = ""
 
     def to_dict(self) -> Dict[str, Any]:
         return dict(self.__dict__)
-
 
 @dataclass
 class Usage:
@@ -153,16 +144,14 @@ class Usage:
     def to_dict(self) -> Dict[str, Any]:
         return dict(self.__dict__)
 
-
 @dataclass
 class StreamEvent:
-    kind: str                       # text | reasoning | tool_call | usage | search | status | done | accepted | alive
+    kind: str
     text: str = ""
     call: Optional[Dict[str, Any]] = None
     usage: Optional[Usage] = None
     finish: str = ""
     data: Dict[str, Any] = field(default_factory=dict)
-
 
 @dataclass
 class ChatRequest:
@@ -177,13 +166,9 @@ class ChatRequest:
     temperature: Optional[float] = None
     session: str = ""
     show_thinking: bool = False
-    tool_choice: str = ""            # "" = the provider decides; "none" = answer in text (tools stay declared)
+    tool_choice: str = ""
 
-
-#: The fields of a chat message every OpenAI-compatible API accepts. Session bookkeeping (``is_error``,
-#: ``_anthropic``) is not sent: strict servers answer an unknown field with HTTP 400.
 _OPENAI_MESSAGE_KEYS = ("role", "content", "tool_calls", "tool_call_id", "name")
-
 
 def openai_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
@@ -198,7 +183,6 @@ def openai_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 row["content"] = "(no output)"
         out.append(row)
     return out
-
 
 def tool_arguments(raw: str) -> Dict[str, Any]:
     """The arguments of a native tool call from the JSON text a provider streamed. Strict JSON first, then the
@@ -220,13 +204,12 @@ def tool_arguments(raw: str) -> Dict[str, Any]:
             value = None
         if value is None:
             return {"_invalid_json": text[:2000]}
-    if isinstance(value, str):                     # arguments double-encoded as a JSON string
+    if isinstance(value, str):
         try:
             value = json.loads(value)
         except ValueError:
             return {"_invalid_json": text[:2000]}
     return value if isinstance(value, dict) else {"_invalid_json": text[:2000]}
-
 
 class LLMError(Exception):
     def __init__(self, message: str, *, status: int = 0, kind: str = "", hint: str = "",
@@ -236,19 +219,15 @@ class LLMError(Exception):
         self.kind = kind
         self.hint = hint
         self.retryable = retryable
-        #: Round 32: the upstream's own text without the hint, and who answered — for an open error report
-        #: (app/cli/errors.py) instead of a guess from the status code.
+
         self.raw_message = str(message)
         self.provider = provider
-        #: Round 33: when the provider said its limit ends (``ratelimit.py``; ``time.time()`` seconds, 0 = unknown).
+
         self.retry_at = 0.0
 
     def __str__(self) -> str:
         base = super().__str__()
         return f"{base}\n{self.hint}" if self.hint else base
-
-
-# ---------------------------------------------------------------- stream filters
 
 class ThinkTagFilter:
     """Providers configured with ``reasoning_output = think_tags`` send the
@@ -279,7 +258,7 @@ class ThinkTagFilter:
                 if not self.inside:
                     data = data.lstrip("\n")
                 continue
-            # keep a possible partial tag for the next chunk
+
             keep = 0
             for size in range(min(len(tag) - 1, len(data)), 0, -1):
                 if tag.startswith(data[-size:]):
@@ -298,7 +277,6 @@ class ThinkTagFilter:
         if not rest:
             return []
         return [("reasoning" if self.inside else "text", rest)]
-
 
 class ServiceTagFilter:
     """Drops provider service markup from the content: some DeepSeek deployments (Yandex Cloud) append
@@ -354,7 +332,6 @@ class ServiceTagFilter:
         self.pending, self.inside = "", ""
         return rest
 
-
 def _sse_json(line: str) -> Optional[Any]:
     if not line.startswith("data:"):
         return None
@@ -365,9 +342,6 @@ def _sse_json(line: str) -> Optional[Any]:
         return json.loads(raw)
     except ValueError:
         return None
-
-
-# ---------------------------------------------------------------- base
 
 class Backend:
     name = "base"
@@ -397,9 +371,6 @@ class Backend:
     async def close(self) -> None:
         return None
 
-
-# ---------------------------------------------------------------- MemuAI Proxy
-
 def _runtime_url(name: str) -> str:
     try:
         data = json.loads((Path(DATA_DIR) / "memuai" / name).read_text(encoding="utf-8"))
@@ -411,7 +382,6 @@ def _runtime_url(name: str) -> str:
     except (OSError, ValueError, TypeError):
         pass
     return ""
-
 
 def _proxy_candidates() -> List[List[str]]:
     """How to start MemuAI Proxy from here: installed layout first, then source."""
@@ -438,7 +408,6 @@ def _proxy_candidates() -> List[List[str]]:
         rows.append([str(local), "--background"])
     return rows
 
-
 class ProxyBackend(Backend):
     name = "proxy"
     native_tools = False
@@ -450,7 +419,6 @@ class ProxyBackend(Backend):
         self.last_error = ""
         self.launched = False
 
-    # -------- discovery
     def base_url(self) -> str:
         configured = str(self.settings.get("proxy_url") or os.environ.get("MEMUAI_PROXY_URL") or "").rstrip("/")
         return configured or self._url or _runtime_url("proxy.json") or "http://127.0.0.1:8317"
@@ -515,7 +483,6 @@ class ProxyBackend(Backend):
                 return data
         return None
 
-    # -------- models
     async def list_models(self) -> List[ModelInfo]:
         if not await self.ensure(launch=True):
             raise LLMError(tr("MemuAI Proxy не запущен и не запускается",
@@ -534,6 +501,8 @@ class ProxyBackend(Backend):
         for row in data.get("models") or []:
             if not isinstance(row, dict) or not row.get("id"):
                 continue
+            from app.model_capabilities import kind_for_row
+            model_kind = kind_for_row(row)
             caps = row.get("caps") or {}
             context = row.get("context") if isinstance(row.get("context"), dict) else {}
             rows.append(ModelInfo(
@@ -542,13 +511,13 @@ class ProxyBackend(Backend):
                 context=int(context.get("context") or 0), output=int(context.get("output") or 0),
                 context_source=str(context.get("source") or ""),
                 vision=bool(caps.get("vision")), thinking=bool(caps.get("thinking")),
-                search=bool(caps.get("search")), image=bool(caps.get("image")),
+                search=bool(caps.get("search")), image=bool(caps.get("image")) or model_kind == "image",
+                kind=str(model_kind or "chat"),
                 reasoning_options=[str(x) for x in (caps["reasoning_profile"].get("options") or [])]
                 if isinstance(caps.get("reasoning_profile"), dict) else None,
                 name=str(row.get("name") or "")))
         return rows
 
-    # -------- chat
     def _body(self, request: ChatRequest) -> Dict[str, Any]:
         messages = list(request.messages)
         if request.system:
@@ -577,14 +546,14 @@ class ProxyBackend(Backend):
                     if response.status_code != 200:
                         raw = (await response.aread()).decode("utf-8", "replace")
                         error = _proxy_http_error(response.status_code, raw)
-                        error.retry_at = _limit_reset(response.headers, raw)       # Round 33: /auto-continue auto
+                        error.retry_at = _limit_reset(response.headers, raw)
                         raise error
-                    yield StreamEvent("accepted")             # the Proxy took the request and is on it
+                    yield StreamEvent("accepted")
                     async for line in response.aiter_lines():
                         if not line:
                             continue
                         if line.startswith(":"):
-                            yield StreamEvent("alive", text=line[1:].strip())      # a keep-alive ping while it works
+                            yield StreamEvent("alive", text=line[1:].strip())
                             continue
                         item = _sse_json(line)
                         if item is None:
@@ -605,9 +574,7 @@ class ProxyBackend(Backend):
                                 yield StreamEvent(kind, text=text)
                         if isinstance(item.get("usage"), dict):
                             usage = item["usage"]
-                            # Round 27: the Proxy forwards the provider's cache/reasoning counts and billed cost
-                            # (app/chat.py); they were dropped here, so /cost showed «Cached 0» and priced cached
-                            # input at the full rate.
+
                             details = usage.get("prompt_tokens_details") or {}
                             out_details = usage.get("completion_tokens_details") or {}
                             cost = usage.get("cost")
@@ -619,7 +586,7 @@ class ProxyBackend(Backend):
                                 reasoning=int(out_details.get("reasoning_tokens") or 0)
                                 if isinstance(out_details, dict) else 0,
                                 cost=float(cost) if isinstance(cost, (int, float)) and cost >= 0 else None,
-                                # The Proxy says whose numbers these are: the provider's or its own estimate.
+
                                 estimated=bool(usage.get("estimated", True)), requests=1))
                         if choice.get("finish_reason"):
                             for kind, text in think.flush():
@@ -665,14 +632,13 @@ class ProxyBackend(Backend):
             await self._client.aclose()
             self._client = None
 
-
 def _proxy_http_error(status: int, raw: str) -> LLMError:
     from .i18n import language
     try:
         data = json.loads(raw or "{}")
         message = data.get("error") if isinstance(data, dict) else data
         if isinstance(data, dict) and language() == "en" and isinstance(data.get("error_en"), str) and data["error_en"]:
-            message = data["error_en"]          # Round 32: the Proxy's English text for an English interface
+            message = data["error_en"]
         if isinstance(message, dict):
             message = message.get("message") or message.get("detail") or json.dumps(message, ensure_ascii=False)
     except ValueError:
@@ -685,7 +651,6 @@ def _proxy_http_error(status: int, raw: str) -> LLMError:
     return LLMError(str(message)[:1200], status=status, kind="http", retryable=status >= 500,
                     provider="MemuAI Proxy")
 
-
 def _proxy_stream_error(error: Any) -> LLMError:
     if isinstance(error, dict):
         from .i18n import language
@@ -697,7 +662,7 @@ def _proxy_stream_error(error: Any) -> LLMError:
         result = LLMError(message, status=status, kind=kind, hint=hint, provider=str(error.get("provider") or ""),
                           retryable=kind in ("network", "timeout", "network_error", "rate_limit_error")
                           or status in (502, 503, 504))
-        # Round 33: the Proxy passes the upstream's Retry-After (seconds) for /auto-continue auto.
+
         try:
             seconds = float(error.get("retry_after") or 0)
         except (TypeError, ValueError):
@@ -705,7 +670,6 @@ def _proxy_stream_error(error: Any) -> LLMError:
         result.retry_at = time.time() + seconds if seconds > 0 else _limit_reset(None, message)
         return result
     return LLMError(str(error))
-
 
 def _limit_reset(headers: Any, text: str) -> float:
     """Round 33: when a rate limit ends, from the response headers or the error text (0.0 = nobody said)."""
@@ -715,15 +679,11 @@ def _limit_reset(headers: Any, text: str) -> float:
     except Exception:
         return 0.0
 
-
-# ---------------------------------------------------------------- OpenAI-compatible
-
 def _data_url_parts(url: str) -> Tuple[str, str]:
     match = re.match(r"data:([^;,]+);base64,(.*)", url or "", re.S)
     if not match:
         return "", ""
     return match.group(1), match.group(2)
-
 
 class OpenAIBackend(Backend):
     name = "openai"
@@ -804,14 +764,13 @@ class OpenAIBackend(Backend):
             body["max_tokens"] = int(request.max_tokens)
         if request.temperature is not None:
             body["temperature"] = request.temperature
-        # Round 33 (r33-thinking): the level clamped to what this model supports, in this API's own fields
-        # (reasoning_effort / enable_thinking / thinking.type / OpenRouter reasoning) — app/reasoning_levels.py.
+
         from .. import reasoning_levels as levels
         profile = levels.profile(request.model, "custom", request.model, use_catalog=False)
         if self.openrouter:
             body["usage"] = {"include": True}
             if profile["kind"] == "none" and (request.effort not in (None, "", "auto") or request.thinking):
-                profile = levels.guess_profile(request.model, True)    # OpenRouter knows the model; we may not
+                profile = levels.guess_profile(request.model, True)
                 profile["options"] = levels.options(profile)
         level = levels.resolve(profile, request.thinking, request.effort)
         levels.apply_openai_compatible(body, profile, level, self.base)
@@ -822,7 +781,7 @@ class OpenAIBackend(Backend):
         delay = 1.0
         for attempt in range(4):
             calls: Dict[int, Dict[str, Any]] = {}
-            slots: Dict[int, int] = {}          # provider index → key in calls (see the tool_calls loop)
+            slots: Dict[int, int] = {}
             started = False
             think = ThinkTagFilter()
             try:
@@ -831,7 +790,7 @@ class OpenAIBackend(Backend):
                     if response.status_code != 200:
                         raw = (await response.aread()).decode("utf-8", "replace")
                         error = _openai_error(response.status_code, raw)
-                        error.retry_at = _limit_reset(response.headers, raw)       # Round 33: /auto-continue auto
+                        error.retry_at = _limit_reset(response.headers, raw)
                         if error.retryable and attempt < 3:
                             retry = response.headers.get("retry-after")
                             wait = float(retry) if retry and retry.replace(".", "", 1).isdigit() else delay
@@ -846,7 +805,7 @@ class OpenAIBackend(Backend):
                         if not line:
                             continue
                         if line.startswith(":"):
-                            yield StreamEvent("alive", text=line[1:].strip())     # e.g. OpenRouter's ": PROCESSING"
+                            yield StreamEvent("alive", text=line[1:].strip())
                             continue
                         item = _sse_json(line)
                         if item is None:
@@ -870,9 +829,7 @@ class OpenAIBackend(Backend):
                                 key = slots.get(index, index)
                                 slot = calls.get(key)
                                 if slot is not None and part.get("id") and slot["id"] and part["id"] != slot["id"]:
-                                    # Some OpenAI-compatible APIs (Gemini, several proxies) send every call
-                                    # with index 0. A new id means a new call: without this the arguments
-                                    # of parallel calls were glued into one unreadable JSON.
+
                                     key = max(calls) + 1 if calls else index
                                     while key in calls:
                                         key += 1
@@ -885,13 +842,12 @@ class OpenAIBackend(Backend):
                                 function = part.get("function") or {}
                                 name = function.get("name")
                                 if isinstance(name, str) and name:
-                                    # Several servers repeat the whole name in every delta: appending made
-                                    # "run_commandrun_command" (same fix as app/tool_protocol.collect_tool_delta).
+
                                     slot["name"] = name if slot["name"] and name.startswith(slot["name"]) \
                                         else slot["name"] + name
                                 arguments = function.get("arguments")
                                 if arguments not in (None, ""):
-                                    # A few servers send the arguments as an object instead of JSON text.
+
                                     slot["arguments"] += arguments if isinstance(arguments, str) \
                                         else json.dumps(arguments, ensure_ascii=False)
                             if choice.get("finish_reason"):
@@ -937,7 +893,6 @@ class OpenAIBackend(Backend):
             await self._client.aclose()
             self._client = None
 
-
 def _openai_error(status: int, raw: str) -> LLMError:
     try:
         data = json.loads(raw)
@@ -952,12 +907,8 @@ def _openai_error(status: int, raw: str) -> LLMError:
     return LLMError(f"HTTP {status}: {message}"[:1200], status=status, kind="http", hint=hints.get(status, ""),
                     retryable=status in (408, 409, 429) or status >= 500)
 
-
-# ---------------------------------------------------------------- Anthropic (official SDK)
-
 _ADAPTIVE_RE = re.compile(r"(opus|sonnet)-?(4[-.][6-9]|5)|fable|mythos")
 _NO_EFFORT_RE = re.compile(r"haiku|sonnet-?4[-.]5|claude-3|opus-?4(?:[-.]1)?(?![-.\d])|sonnet-?4(?![-.\d])")
-
 
 def _to_anthropic_content(content: Any) -> Any:
     if isinstance(content, str):
@@ -973,7 +924,6 @@ def _to_anthropic_content(content: Any) -> Any:
             if data:
                 blocks.append({"type": "image", "source": {"type": "base64", "media_type": media, "data": data}})
     return blocks or ""
-
 
 def to_anthropic_messages(messages: List[Dict[str, Any]], model: str) -> List[Dict[str, Any]]:
     """OpenAI chat format (as produced by the agent) → Anthropic Messages."""
@@ -1028,7 +978,6 @@ def to_anthropic_messages(messages: List[Dict[str, Any]], model: str) -> List[Di
     if out and out[0]["role"] != "user":
         out.insert(0, {"role": "user", "content": [{"type": "text", "text": "(continue)"}]})
     return out
-
 
 class AnthropicBackend(Backend):
     name = "anthropic"
@@ -1093,11 +1042,11 @@ class AnthropicBackend(Backend):
         params: Dict[str, Any] = {
             "model": model, "max_tokens": max_tokens,
             "messages": to_anthropic_messages(request.messages, model),
-            # Automatic caching of the growing conversation tail.
+
             "cache_control": {"type": "ephemeral"},
         }
         if request.system:
-            # One explicit breakpoint on the static system prefix.
+
             params["system"] = [{"type": "text", "text": request.system, "cache_control": {"type": "ephemeral"}}]
         if request.tools:
             params["tools"] = [{"name": tool["name"], "description": tool.get("description", ""),
@@ -1114,7 +1063,7 @@ class AnthropicBackend(Backend):
                 budget = max(1024, min(max_tokens - 1024, 16_000))
                 if budget >= 1024 and max_tokens > budget:
                     params["thinking"] = {"type": "enabled", "budget_tokens": budget}
-        # Round 33 (r33-thinking): only an effort this Claude model accepts (xhigh only on Opus 4.7+, max on 4.6+).
+
         from .. import reasoning_levels as levels
         clamped = levels.clamp(request.effort, levels.profile(model, "anthropic", model, use_catalog=False))
         effort = clamped if clamped in ("low", "medium", "high", "xhigh", "max") else ""
@@ -1191,9 +1140,6 @@ class AnthropicBackend(Backend):
                 pass
             self._client = None
 
-
-# ---------------------------------------------------------------- router
-
 class Router:
     """Picks the backend for a model id and caches the model list."""
 
@@ -1264,7 +1210,7 @@ class Router:
                 return []
         for found in await asyncio.gather(*(load(name, backend) for name, backend in sources)):
             rows.extend(found)
-        # A refresh that only failed (the Proxy is restarting) keeps the list that was known.
+
         if rows or (refresh and not self.errors):
             self._models = rows
             self._models_at = time.time()
@@ -1300,7 +1246,7 @@ class Router:
                              "this model has no reasoning level to choose — the value is not sent")
         info = self.info(model)
         if info is not None and info.reasoning_options is not None:
-            # Round 33 (r33-thinking): the Proxy knows the model's real levels and clamps the value to them.
+
             if info.reasoning_options:
                 return True, tr("уровни этой модели: ", "this model's levels: ") + ", ".join(info.reasoning_options[1:]) \
                     + tr(" (другое значение заменяется ближайшим)", " (another value becomes the nearest one)")

@@ -29,13 +29,11 @@ DISABLED_FEATURES = ("ElasticOverscroll", "SpareRendererForSitePerProcess", "Bac
                      "Translate", "MediaRouter", "msEdgeSidebarV2", "msWebOOUI")
 SWITCHES = ("--disable-background-networking",)
 
-
 def arguments(debug_port: Optional[int] = None) -> str:
     args = ["--disable-features=" + ",".join(DISABLED_FEATURES), *SWITCHES]
     if debug_port:
         args.append(f"--remote-debugging-port={int(debug_port)}")
     return " ".join(args)
-
 
 def apply(platform: str = sys.platform) -> bool:
     """Set the variable for this process (all WebView2 windows of MemuAI share one environment). True if set."""

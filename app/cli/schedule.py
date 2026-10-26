@@ -37,7 +37,7 @@ from . import paths
 from .i18n import tr
 
 DAY_NAMES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-#: One field of a cron line: digits, ``*``, ``/``, ``,``, ``-`` and the three-letter names of days and months.
+
 _CRON_FIELD = r"(?:[\d*/,\-]|mon|tue|wed|thu|fri|sat|sun|jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)+"
 DAY_WORDS = {"mon": 0, "monday": 0, "пн": 0, "пон": 0, "tue": 1, "tues": 1, "tuesday": 1, "вт": 1, "wed": 2, "wednesday": 2, "ср": 2,
              "thu": 3, "thur": 3, "thurs": 3, "thursday": 3, "чт": 3, "fri": 4, "friday": 4, "пт": 4, "sat": 5, "saturday": 5, "сб": 5,
@@ -51,17 +51,12 @@ MIN_INTERVAL = 60
 DEFAULT_TIMEOUT_MINUTES = 30
 MODES = ("plan", "acceptEdits", "auto", "bypassPermissions")
 
-
 class ScheduleError(ValueError):
     pass
-
-
-# ---------------------------------------------------------------- when
 
 _DAY_STEMS = [(0, r"понедельник|monday"), (1, r"вторник|tuesday"), (2, r"сред[аеуы]|wednesday"), (3, r"четверг|thursday"),
               (4, r"пятниц|friday"), (5, r"суббот|saturday"), (6, r"воскресень|sunday")]
 _FILLER = {"at", "on", "в", "во", "the", "по"}
-
 
 def _day_of(word: str) -> Optional[int]:
     """«пн», «mon», «понедельник», «понедельникам», «среду», «fridays» → 0…6 (None when it is not a day)."""
@@ -72,7 +67,6 @@ def _day_of(word: str) -> Optional[int]:
         if re.match(rf"^(?:{stem})", word):
             return number
     return None
-
 
 def _days_in(spec: str) -> List[int]:
     """«mon,fri», «пн-пт», «по понедельникам и средам» → sorted weekdays; ScheduleError when a word is not a day."""
@@ -92,10 +86,8 @@ def _days_in(spec: str) -> List[int]:
         chosen.append(day)
     return sorted(set(chosen))
 
-
 EXAMPLES_RU = "через 20 мин · в 15:30 · завтра в 9:00 · каждые 2 ч · каждый день в 9:00 · по будням 9:00 · пн,пт 18:30 · cron 0 9 * * 1-5"
 EXAMPLES_EN = "in 20m · at 15:30 · tomorrow 9am · every 2h · daily 09:00 · weekdays 09:00 · mon,fri 18:30 · cron 0 9 * * 1-5"
-
 
 def _clock(text: str) -> Tuple[int, int]:
     """«15:30», «9.05», «9h30», «6pm», «6:30pm», «9утра», «9вечера», «noon», «полночь» → (hour, minute).
@@ -125,11 +117,10 @@ def _clock(text: str) -> Tuple[int, int]:
         raise ScheduleError(tr(f"Нет такого времени: {text}", f"There is no such time: {text}"))
     return hour, minute
 
-
 def _normalize(raw: str) -> str:
     """The same schedule written the ways people write it → the forms :func:`parse_when` knows."""
     text = re.sub(r"(\d)\s+(am|pm|a\.m\.|p\.m\.|утра|вечера|дня|ночи)\b", r"\1\2", raw)
-    text = re.sub(r"\b(at|в|во)\s+(\d{1,2})(?=\s|$)", r"\1 \2:00", text)             # «в 9» → «в 9:00»
+    text = re.sub(r"\b(at|в|во)\s+(\d{1,2})(?=\s|$)", r"\1 \2:00", text)
     for pattern, value in ((r"(?:по|в)\s+будн(?:ям|ие|и)(?:\s+дни)?|будние\s+дни|по\s+рабочим(?:\s+дням)?", "weekdays"),
                            (r"(?:по|в)\s+выходн(?:ым|ые)(?:\s+дни)?|on\s+weekends", "weekends"),
                            (r"\b(?:mon-fri|пн-пт)\b", "weekdays"),
@@ -137,7 +128,6 @@ def _normalize(raw: str) -> str:
         text = re.sub(pattern, value, text)
     text = re.sub(r"^(in|через)\s+(?:an?\s+)?(hour|minute|day|week|час|минуту|день|неделю)$", r"\1 1\2", text)
     return text
-
 
 def _once_at(day: datetime, clock: str, now: float, *, roll: bool = False) -> Dict[str, Any]:
     hour, minute = _clock(clock) if clock else (9, 0)
@@ -148,13 +138,11 @@ def _once_at(day: datetime, clock: str, now: float, *, roll: bool = False) -> Di
         moment += timedelta(days=7)
     return {"kind": "once", "at": moment.timestamp()}
 
-
 def _seconds(text: str) -> int:
     match = re.fullmatch(r"(\d+(?:[.,]\d+)?)\s*([a-zа-я]+)", text.strip().lower())
     if not match or match.group(2) not in UNITS:
         raise ScheduleError(tr(f"Не понимаю интервал «{text}» (например 30m, 2h, 1d)", f"I do not understand the interval “{text}” (e.g. 30m, 2h, 1d)"))
     return int(float(match.group(1).replace(",", ".")) * UNITS[match.group(2)])
-
 
 def _parse_once(raw: str, now: float) -> Optional[Dict[str, Any]]:
     """One moment written as a day and a time: «завтра в 9», «tomorrow 6pm», «сегодня 22:00», «12.10.2026 9:00»,
@@ -168,7 +156,7 @@ def _parse_once(raw: str, now: float) -> Optional[Dict[str, Any]]:
     if match:
         year, month, day, clock, explicit = int(match.group(1)), int(match.group(2)), int(match.group(3)), match.group(4), True
     else:
-        # DD.MM needs a year or a time after it: a lone «9.30» is a time, not the 9th of a 30th month.
+
         match = re.fullmatch(r"(?:(?:at|в|on)\s+)?(\d{1,2})\.(\d{1,2})(?:\.(\d{2}|\d{4}))?(?:\s+(?:(?:at|в)\s+)?(.+))?", raw)
         if match and not (match.group(3) or match.group(4)):
             match = None
@@ -182,7 +170,7 @@ def _parse_once(raw: str, now: float) -> Optional[Dict[str, Any]]:
         except ValueError:
             raise ScheduleError(tr(f"Нет такой даты: {raw}", f"There is no such date: {raw}")) from None
         if not explicit and date.date() < base.date():
-            date = date.replace(year=date.year + 1)           # «12.01 9:00» written in December → next January
+            date = date.replace(year=date.year + 1)
         return _once_at(date, (clock or "").strip(), now)
     match = re.fullmatch(r"(?:at|в|во|on)\s+(\S+)(?:\s+(?:at|в|во))?\s*(.*)", raw)
     if match and _day_of(match.group(1)) is not None and not re.match(r"\d", match.group(1)):
@@ -190,7 +178,6 @@ def _parse_once(raw: str, now: float) -> Optional[Dict[str, Any]]:
         ahead = (target - base.weekday()) % 7
         return _once_at(base + timedelta(days=ahead), match.group(2).strip(), now, roll=True)
     return None
-
 
 def parse_when(text: str, now: Optional[float] = None) -> Dict[str, Any]:
     """``"in 20m"``, ``"at 15:30"``, ``"every 2h"``, ``"daily 09:00"``, ``"weekdays 09:00"``, ``"mon,fri 18:30"``,
@@ -204,7 +191,7 @@ def parse_when(text: str, now: Optional[float] = None) -> Dict[str, Any]:
         raise ScheduleError(tr("Не сказано, когда.", "No time was given."))
     raw = _normalize(raw)
     if re.fullmatch(r"\d{1,2}(?:[:.]\d{2})?(?:am|pm|a\.m\.|p\.m\.|утра|вечера|дня|ночи)|\d{1,2}:\d{2}|noon|midnight|полдень|полночь", raw):
-        raw = "at " + raw          # Round 34: a lone «6pm» / «18:30» is the next such time (a bare «9» stays a question)
+        raw = "at " + raw
     once = _parse_once(raw, now)
     if once is not None:
         return once
@@ -212,7 +199,7 @@ def parse_when(text: str, now: Optional[float] = None) -> Dict[str, Any]:
     head = words[0]
     if head == "cron" or len(words) == 5 and all(re.fullmatch(_CRON_FIELD, word) for word in words):
         expression = " ".join(words[1:] if head == "cron" else words)
-        parse_cron(expression)                                   # validates
+        parse_cron(expression)
         return {"kind": "cron", "expr": expression}
     if head in ("in", "через"):
         seconds = _seconds("".join(words[1:]))
@@ -235,7 +222,7 @@ def parse_when(text: str, now: Optional[float] = None) -> Dict[str, Any]:
             return parse_when("weekdays " + " ".join(rest[1:]).replace("at ", ""), now)
         if rest and re.match(r"^(day|день|дня)$", rest[0]):
             return parse_when("daily " + " ".join(rest[1:]).replace("at ", ""), now)
-        if len(rest) == 1 and rest[0] in UNITS:                  # "every hour", "every minute"
+        if len(rest) == 1 and rest[0] in UNITS:
             rest = ["1" + rest[0]]
         if rest and _day_of(rest[0]) is not None:
             return parse_when(" ".join(rest), now)
@@ -262,7 +249,6 @@ def parse_when(text: str, now: Optional[float] = None) -> Dict[str, Any]:
     hour, minute = _clock(clock) if clock else (9, 0)
     return {"kind": "daily", "time": f"{hour:02d}:{minute:02d}", "days": days}
 
-
 def describe_when(when: Dict[str, Any]) -> str:
     kind = when.get("kind")
     if kind == "once":
@@ -288,13 +274,9 @@ def describe_when(when: Dict[str, Any]) -> str:
         return "cron " + str(when["expr"])
     return str(kind)
 
-
-# ---------------------------------------------------------------- cron
-
 _CRON_RANGES = [(0, 59), (0, 23), (1, 31), (1, 12), (0, 6)]
 _MONTHS = {name: number for number, name in enumerate(["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
 _CRON_DAYS = {"sun": 0, "mon": 1, "tue": 2, "wed": 3, "thu": 4, "fri": 5, "sat": 6}
-
 
 def parse_cron(expression: str) -> List[set]:
     """The five fields of a cron line as sets of allowed values (day of week: 0 = Sunday, 7 also means Sunday)."""
@@ -331,7 +313,6 @@ def parse_cron(expression: str) -> List[set]:
         sets.append(values)
     return sets
 
-
 def _cron_value(text: str, index: int) -> int:
     if index == 3 and text in _MONTHS:
         return _MONTHS[text]
@@ -340,7 +321,6 @@ def _cron_value(text: str, index: int) -> int:
     if not text.isdigit():
         raise ScheduleError(tr(f"Не понимаю «{text}» в cron", f"I do not understand “{text}” in cron"))
     return int(text)
-
 
 def cron_next(expression: str, after: float) -> Optional[float]:
     minutes, hours, days, months, weekdays = parse_cron(expression)
@@ -366,7 +346,6 @@ def cron_next(expression: str, after: float) -> Optional[float]:
         moment = (moment + timedelta(days=1)).replace(hour=0, minute=0)
     return None
 
-
 def _later(moment: datetime, after: float) -> Optional[float]:
     """The wall-clock ``moment`` as a timestamp later than ``after``, or None.
 
@@ -375,7 +354,6 @@ def _later(moment: datetime, after: float) -> Optional[float]:
     first occurrence only (a daily 02:30 runs once on that night, as cron does) and a passed one is skipped."""
     at = moment.replace(fold=0).timestamp()
     return at if at > after else None
-
 
 def next_run(when: Dict[str, Any], after: float) -> Optional[float]:
     """The first moment after ``after`` at which the schedule fires; None when it never will again."""
@@ -403,9 +381,6 @@ def next_run(when: Dict[str, Any], after: float) -> Optional[float]:
         return cron_next(str(when.get("expr") or ""), after)
     return None
 
-
-# ---------------------------------------------------------------- the store
-
 @dataclass
 class Task:
     id: str
@@ -415,14 +390,14 @@ class Task:
     when: Dict[str, Any]
     mode: str = "acceptEdits"
     model: str = ""
-    runner: str = "session"                 # session | system
+    runner: str = "session"
     enabled: bool = True
     notify: bool = True
     timeout_minutes: int = DEFAULT_TIMEOUT_MINUTES
     created: float = field(default_factory=time.time)
     next_run: float = 0.0
     last_run: float = 0.0
-    last_status: str = ""                   # ok | error | timeout | running | missed
+    last_status: str = ""
     last_summary: str = ""
     last_session: str = ""
     last_result: str = ""
@@ -437,22 +412,18 @@ class Task:
         known = {name for name in Task.__dataclass_fields__}
         return Task(**{key: value for key, value in data.items() if key in known})
 
-
 def home() -> Path:
     path = paths.home() / "schedule"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-
 def store_path() -> Path:
     return home() / "tasks.json"
-
 
 def results_dir(task_id: str) -> Path:
     path = home() / "results" / task_id
     path.mkdir(parents=True, exist_ok=True)
     return path
-
 
 def _mutate(change: Callable[[Dict[str, Any]], bool]) -> None:
     from ..storage import mutate_json
@@ -463,7 +434,6 @@ def _mutate(change: Callable[[Dict[str, Any]], bool]) -> None:
         return change(data["tasks"]), data
 
     mutate_json(store_path(), {"tasks": {}}, apply, backup=False, validator=lambda x: isinstance(x, dict))
-
 
 def load_tasks() -> List[Task]:
     try:
@@ -480,7 +450,6 @@ def load_tasks() -> List[Task]:
                 continue
     return sorted(tasks, key=lambda task: (not task.enabled, task.next_run or 1e18, task.created))
 
-
 def get_task(task_id: str) -> Optional[Task]:
     wanted = str(task_id or "").strip().lower()
     rows = load_tasks()
@@ -490,13 +459,11 @@ def get_task(task_id: str) -> Optional[Task]:
     prefix = [task for task in rows if wanted and task.id.startswith(wanted)]
     return prefix[0] if len(prefix) == 1 else None
 
-
 def save_task(task: Task) -> None:
     def change(tasks: Dict[str, Any]) -> bool:
         tasks[task.id] = task.to_dict()
         return True
     _mutate(change)
-
 
 def update_task(task_id: str, **values: Any) -> Optional[Task]:
     holder: Dict[str, Any] = {}
@@ -511,7 +478,6 @@ def update_task(task_id: str, **values: Any) -> Optional[Task]:
     _mutate(change)
     return Task.from_dict(holder["row"]) if holder.get("row") else None
 
-
 def delete_task(task_id: str) -> bool:
     removed: Dict[str, bool] = {}
 
@@ -520,7 +486,6 @@ def delete_task(task_id: str) -> bool:
         return removed["done"]
     _mutate(change)
     return bool(removed.get("done"))
-
 
 def new_task(title: str, prompt: str, folder: str, when: Dict[str, Any], *, mode: str = "acceptEdits", model: str = "",
              runner: str = "session", notify: bool = True, timeout_minutes: float = DEFAULT_TIMEOUT_MINUTES) -> Task:
@@ -536,7 +501,6 @@ def new_task(title: str, prompt: str, folder: str, when: Dict[str, Any], *, mode
         raise ScheduleError(tr("Это время уже прошло.", "That time is already past."))
     return task
 
-
 def due(tasks: Sequence[Task], now: float) -> List[Task]:
     """Tasks of the ``session`` runner whose time has come and that are not running already."""
     out = []
@@ -548,7 +512,6 @@ def due(tasks: Sequence[Task], now: float) -> List[Task]:
         out.append(task)
     return out
 
-
 def advance(task: Task, now: float) -> Task:
     """Move a task on to its next time after a run (or a skipped one); a one-time task is switched off."""
     following = next_run(task.when, now)
@@ -557,16 +520,12 @@ def advance(task: Task, now: float) -> Task:
         values["enabled"] = False
     return update_task(task.id, **values) or task
 
-
-# ---------------------------------------------------------------- running a task
-
 def command_line(*args: str) -> List[str]:
     """The program and arguments that start ``memucode`` with ``args`` (also for the Task Scheduler)."""
     if getattr(sys, "frozen", False):
         return [sys.executable, *args]
     script = Path(__file__).resolve().parents[2] / "memucode.py"
     return [sys.executable, str(script), *args]
-
 
 def system_command(task_id: str) -> List[str]:
     """What the Windows Task Scheduler starts. MemuCode is a console program, and a console program started by the
@@ -577,9 +536,7 @@ def system_command(task_id: str) -> List[str]:
         return [str(conhost), "--headless", *command]
     return command
 
-
 _JSON_OBJECT = re.compile(r"\{.*\}", re.S)
-
 
 def _result_from(output: str) -> Dict[str, Any]:
     match = _JSON_OBJECT.search(output)
@@ -592,11 +549,9 @@ def _result_from(output: str) -> Dict[str, Any]:
             pass
     return {"result": output.strip(), "is_error": False}
 
-
 PREFACE = ("This is a SCHEDULED, UNATTENDED run: nobody is watching and nobody can answer a question. Do the task below "
            "with what you can do on your own; if something is refused or needs a decision, say so instead of waiting. Finish "
            "with a short report: what you did, what you found, and what needs the person.")
-
 
 async def execute(task_id: str, *, runtime_factory: Optional[Callable[..., Any]] = None, notifier: Optional[Callable[[str, str], None]] = None) -> int:
     """Run one task now (this is ``memucode schedule run <id>``). Returns a process exit code."""
@@ -630,8 +585,7 @@ async def execute(task_id: str, *, runtime_factory: Optional[Callable[..., Any]]
             job = asyncio.ensure_future(headless.run(runtime, task.prompt, fmt="json", system_append=PREFACE))
             finished, _pending = await asyncio.wait({job}, timeout=max(1.0, task.timeout_minutes * 60))
             if not finished:
-                # The agent treats a cancellation as "the user interrupted" and returns normally, so the time
-                # limit is recorded here instead of being read back from how the run ended.
+
                 job.cancel()
                 await asyncio.gather(job, return_exceptions=True)
                 raise asyncio.TimeoutError
@@ -646,12 +600,11 @@ async def execute(task_id: str, *, runtime_factory: Optional[Callable[..., Any]]
             await runtime.shutdown()
         except Exception:
             pass
-    except Exception as exc:                                  # a task must never leave the store saying "running"
+    except Exception as exc:
         status = "error"
         result = {"result": f"{type(exc).__name__}: {exc}", "is_error": True}
     _finish(task, started, result, status, session.id, notifier)
     return 0 if status == "ok" else 1
-
 
 def _finish(task: Task, started: float, result: Dict[str, Any], status: str, session_id: str,
             notifier: Optional[Callable[[str, str], None]]) -> None:
@@ -683,11 +636,9 @@ def _finish(task: Task, started: float, result: Dict[str, Any], status: str, ses
         except Exception:
             pass
 
-
 def _toast(title: str, text: str) -> None:
     from ..desktop_notifications import show_completion
     show_completion("MemuCode · " + title, text)
-
 
 def last_result_text(task: Task, limit: int = 20000) -> str:
     path = Path(task.last_result) if task.last_result else None
@@ -698,24 +649,17 @@ def last_result_text(task: Task, limit: int = 20000) -> str:
             return ""
     return ""
 
-
-# ---------------------------------------------------------------- the Windows Task Scheduler
-
 TASK_FOLDER = "MemuCode"
 Runner = Callable[..., Any]
-
 
 def system_available() -> bool:
     return os.name == "nt"
 
-
 def task_name(task_id: str) -> str:
     return f"\\{TASK_FOLDER}\\{task_id}"
 
-
 def _xml_escape(text: str) -> str:
     return (str(text).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;"))
-
 
 def build_xml(task: Task, command: Sequence[str], *, user: Optional[str] = None, now: Optional[float] = None) -> str:
     """The Task Scheduler definition of ``task``. Raises :class:`ScheduleError` for a schedule that Windows cannot
@@ -757,9 +701,7 @@ def build_xml(task: Task, command: Sequence[str], *, user: Optional[str] = None,
 </Task>
 """
 
-
 _WEEK = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
 
 def _calendar_trigger(when: Dict[str, Any], now: float) -> str:
     if when.get("kind") == "daily":
@@ -780,7 +722,6 @@ def _calendar_trigger(when: Dict[str, Any], now: float) -> str:
         schedule = "<ScheduleByWeek><DaysOfWeek>" + "".join(f"<{_WEEK[day]}/>" for day in days) + "</DaysOfWeek><WeeksInterval>1</WeeksInterval></ScheduleByWeek>"
     return f"<CalendarTrigger><StartBoundary>{boundary}</StartBoundary><Enabled>true</Enabled>{schedule}</CalendarTrigger>"
 
-
 def _run(run: Optional[Runner], *argv: str) -> Tuple[int, str]:
     runner = run or subprocess.run
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
@@ -788,7 +729,6 @@ def _run(run: Optional[Runner], *argv: str) -> Tuple[int, str]:
     output = (getattr(done, "stdout", b"") or b"") + (getattr(done, "stderr", b"") or b"")
     text = _console_text(output) if isinstance(output, (bytes, bytearray)) else str(output)
     return int(getattr(done, "returncode", 1)), text.strip()
-
 
 def _console_text(raw: bytes) -> str:
     """schtasks writes in the OEM code page (cp866 on a Russian Windows), not UTF-8. Decoded as UTF-8 the
@@ -804,7 +744,6 @@ def _console_text(raw: bytes) -> str:
         except Exception:
             pass
     return bytes(raw).decode("utf-8", errors="replace")
-
 
 def register(task: Task, *, run: Optional[Runner] = None, command: Optional[Sequence[str]] = None) -> Tuple[bool, str]:
     """Create or replace the Task Scheduler entry of ``task``. ``(ok, message)``."""
@@ -825,7 +764,6 @@ def register(task: Task, *, run: Optional[Runner] = None, command: Optional[Sequ
             pass
     return code == 0, text
 
-
 def unregister(task_id: str, *, run: Optional[Runner] = None) -> Tuple[bool, str]:
     if not system_available():
         return True, ""
@@ -833,15 +771,11 @@ def unregister(task_id: str, *, run: Optional[Runner] = None) -> Tuple[bool, str
     missing = "cannot find" in text.lower() or "не удается найти" in text.lower() or "не найден" in text.lower()
     return code == 0 or missing, text
 
-
 def registered(task_id: str, *, run: Optional[Runner] = None) -> bool:
     if not system_available():
         return False
     code, _text = _run(run, "schtasks", "/Query", "/TN", task_name(task_id))
     return code == 0
-
-
-# ---------------------------------------------------------------- claiming a run
 
 def claim_run(task_id: str, started: float) -> bool:
     """Mark a task as running — atomically, so that two windows (or a window and the Task Scheduler) that notice the

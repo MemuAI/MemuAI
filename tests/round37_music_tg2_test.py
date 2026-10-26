@@ -29,11 +29,9 @@ import round37_music_tg_seed as seed  # noqa: E402
 TOKEN = "123456:TEST-token_for-mini-app"
 USER = 4242
 
-
 def init_data() -> str:
     return tg_webapp.sign_init_data({"auth_date": int(time.time()), "query_id": "AAH",
                                      "user": {"id": USER, "first_name": "Yono"}}, TOKEN)
-
 
 class Static(unittest.TestCase):
     def read(self, name):
@@ -43,17 +41,17 @@ class Static(unittest.TestCase):
         js = self.read("music.js")
         self.assertIn('const OFF_BASE = "https://memu-music.offline/"', js)
         self.assertRegex(js, r"offKey = \(id, pc = pcOf\(id\)\) => `\$\{OFF_BASE\}\$\{pc\}/track/")
-        self.assertIn("DeviceStorage", js)                      # the list of saved tracks outlives the origin
+        self.assertIn("DeviceStorage", js)
         self.assertIn("CloudStorage", js)
-        self.assertIn('api("music.tracks"', js)                 # «Вернуть N треков»
-        self.assertIn("legacyKeys", js)                         # first-wave keys are moved, not lost
+        self.assertIn('api("music.tracks"', js)
+        self.assertIn("legacyKeys", js)
 
     def test_service_worker_shell(self):
         sw = self.read("sw.js")
         self.assertIn("networkFirst", sw)
-        self.assertRegex(sw, r"SKIP = /\^\(api\\/\|m\\/\|music\\/")   # API, module documents, streams: never cached
-        self.assertIn("status >= 500", sw)                       # the tunnel's error page → the saved shell
-        self.assertNotIn("telegram.org", sw.split("*/", 1)[1])   # the worker's CSP is connect-src 'self'
+        self.assertRegex(sw, r"SKIP = /\^\(api\\/\|m\\/\|music\\/")
+        self.assertIn("status >= 500", sw)
+        self.assertNotIn("telegram.org", sw.split("*/", 1)[1])
         js = self.read("music.js")
         self.assertIn('navigator.serviceWorker.register("sw.js", { scope: "./" })', js)
         app = self.read("app.js")
@@ -63,8 +61,8 @@ class Static(unittest.TestCase):
     def test_phone_reports_lightly(self):
         js = self.read("music.js")
         self.assertIn('api("music.report"', js)
-        self.assertIn("now - lastReport < 30000", js)            # every 30 s while playing, else only on events
-        self.assertIn("keepalive: true", js)                     # closing the app says «not playing any more»
+        self.assertIn("now - lastReport < 30000", js)
+        self.assertIn("keepalive: true", js)
 
     def test_artist_and_album_screens(self):
         js = self.read("music.js")
@@ -72,13 +70,12 @@ class Static(unittest.TestCase):
             self.assertIn(needle, js)
         css = self.read("music.css")
         self.assertIn(".mm-ah-art", css)
-        self.assertIn('.app[data-tab="music"]:not(.has-detail)', css)   # Telegram Desktop: one wide page
+        self.assertIn('.app[data-tab="music"]:not(.has-detail)', css)
 
     def test_bilingual_new_strings(self):
         js = self.read("music.js")
         for match in re.finditer(r'tr\("((?:[^"\\]|\\.)*)",\s*(`|")', js):
             self.assertRegex(match.group(1), r"[А-Яа-яЁё…·%$]|^\s*$|^[\w\s]+$", match.group(0))
-
 
 class Api(unittest.TestCase):
     @classmethod
@@ -146,7 +143,7 @@ class Api(unittest.TestCase):
         self.addCleanup(lambda: [p.stop() for p in patches])
         player = hub(self.lib.root)
         seed.pc_playing(self.ids[2], self.ids[:5], position=10, playing=True)
-        # the computer plays: the phone does not take over its state
+
         self.assertEqual(self.post("music.report", {"track_id": self.ids[0], "playing": True})["reason"], "pc_playing")
         self.assertEqual(player.snapshot()["device"], "pc")
         player.update({"playing": False})
@@ -156,7 +153,7 @@ class Api(unittest.TestCase):
         state = player.snapshot()
         self.assertEqual((state["track_id"], state["device"], state["playing"], state["queue"]), (self.ids[0], "phone", True, self.ids[:3]))
         self.assertEqual(state["device_name"], "Телефон")
-        # the phone does not show its own playback as «Играет на ПК»
+
         remote = self.post("music.remote")
         self.assertEqual((remote["online"], remote["device"]), (False, "phone"))
         self.post("music.report", {"track_id": self.ids[0], "playing": False, "position": 14})
@@ -167,7 +164,6 @@ class Api(unittest.TestCase):
         response = self.client.get("/tgapp/sw.js")
         self.assertEqual(response.status_code, 200)
         self.assertIn("javascript", response.headers["content-type"])
-
 
 class Bot(unittest.TestCase):
     def test_classify(self):
@@ -224,7 +220,7 @@ class Bot(unittest.TestCase):
                 mock.patch.object(telegram_music, "POLL_SECONDS", 0.01), mock.patch.object(telegram_music, "EDIT_EVERY", 0):
             asyncio.run(telegram_music.start(None, TOKEN, "42", {"language": "ru"}, "https://open.spotify.com/track/1"))
         self.assertEqual(calls[0], "download.start")
-        self.assertIn("mus:x:j1", str(sent[0][1]))                   # a cancel button while it runs
+        self.assertIn("mus:x:j1", str(sent[0][1]))
         self.assertTrue(edits and edits[-1]["message_id"] == 77)
         self.assertIn("Скачано в MemuMusic", edits[-1]["text"])
         self.assertEqual(edits[-1]["reply_markup"]["inline_keyboard"][0][0]["web_app"]["url"],
@@ -271,13 +267,11 @@ class Bot(unittest.TestCase):
         self.assertIn("/music", tb._help_text({"language": "en"}))
         self.assertIn("/music", tb._help_text({"language": "ru"}))
 
-
 def _chromium() -> str:
     for path in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/workspace/work/chromium/chrome", "/usr/bin/chromium"):
         if path and Path(path).exists():
             return path
     return ""
-
 
 @unittest.skipUnless(_chromium(), "headless Chromium is not available")
 class Browser(unittest.TestCase):
@@ -332,7 +326,7 @@ class Browser(unittest.TestCase):
             await st.saveOffline(rows[0]); })()""")
         keys = page.evaluate("(async () => (await (await caches.open('memu-music-v1')).keys()).map((r) => r.url))()")
         self.assertTrue(any(k.startswith(f"https://memu-music.offline/{pc}/track/") for k in keys), keys)
-        # the computer is gone: the start screen offers what is on the phone
+
         page.route("**/tgapp/api/**", lambda route: route.abort())
         page.reload()
         page.wait_for_selector("#boot-away", timeout=15000)
@@ -344,7 +338,6 @@ class Browser(unittest.TestCase):
         page.wait_for_timeout(700)
         self.assertTrue(page.evaluate("window.MemuMusicTg.state.audio.src.startsWith('blob:')"))
         self.assertEqual([e for e in errors if "Failed to fetch" not in e], [])
-
 
 if __name__ == "__main__":
     unittest.main()

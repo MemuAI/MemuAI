@@ -1,4 +1,3 @@
-/* Round 37 (r37-extras): Settings → Data → «Settings» export / import — settings-transfer.js */
 .sxt-confirm {
   display: grid; gap: 8px; margin-top: 12px; padding: 12px 14px; border-radius: 10px;
   background: color-mix(in srgb, var(--accent) 7%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 26%, transparent);

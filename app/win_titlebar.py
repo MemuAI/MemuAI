@@ -48,12 +48,10 @@ MODE_NATIVE = "native"
 PREF_KEY = "ui_titlebar"
 ENV_VAR = "MEMUAI_NATIVE_TITLEBAR"
 CLI_FLAG = "--native-titlebar"
-#: Windows 10 1809 (October 2018 Update): first build where the dark-mode
-#: frame attributes and the per-monitor DPI APIs used here are all present.
+
 MIN_WINDOWS_BUILD = 17763
 WINDOWS_11_BUILD = 22000
 
-# ---------------------------------------------------------------- Win32 ids
 WM_SIZE = 0x0005
 WM_NCDESTROY = 0x0082
 WM_NCCALCSIZE = 0x0083
@@ -62,12 +60,12 @@ WM_NCLBUTTONDOWN = 0x00A1
 WM_SYSCOMMAND = 0x0112
 WM_DWMCOMPOSITIONCHANGED = 0x031E
 WM_APP = 0x8000
-#: Private message posted by the JS bridge threads; handled on the UI thread.
+
 WM_APP_TITLEBAR = WM_APP + 0x4D31
 
-APP_DRAG = 1          # lParam = hit-test code (HTCAPTION / HTTOP…)
-APP_SYSMENU = 2       # lParam = 0 at the cursor, 1 under the title bar (keyboard)
-APP_UNINSTALL = 3     # remove the hook (fallback after repeated errors)
+APP_DRAG = 1
+APP_SYSMENU = 2
+APP_UNINSTALL = 3
 
 HTCLIENT = 1
 HTCAPTION = 2
@@ -125,31 +123,22 @@ ABS_AUTOHIDE = 0x01
 ABE_LEFT, ABE_TOP, ABE_RIGHT, ABE_BOTTOM = 0, 1, 2, 3
 MONITOR_DEFAULTTONEAREST = 2
 
-#: Pixels left free on a monitor edge that hosts an auto-hide taskbar, so a
-#: maximized window does not look "full screen" to the shell (Windows
-#: Terminal uses the same 2 px).
 AUTOHIDE_GAP = 2
-#: Height of the top resize band at 96 DPI (Windows uses ~ the frame size).
+
 TOP_RESIZE_BORDER_96 = 6
 TOP_RESIZE_CORNER_96 = 16
 CAPTION_HEIGHT_96 = 32
 
-#: After this many exceptions inside the window procedure the hook turns
-#: itself into a pure pass-through and asks to be removed.
 MAX_WNDPROC_ERRORS = 12
 
 Rect = Tuple[int, int, int, int]
 
-
-# ============================================================ pure helpers
 def normalize_mode(value: Any) -> str:
     """Stored preference → ``custom`` (default) or ``native``."""
     return MODE_NATIVE if str(value or "").strip().lower() == MODE_NATIVE else MODE_CUSTOM
 
-
 def env_forces_native(value: Optional[str]) -> bool:
     return str(value or "").strip().lower() in ("1", "true", "yes", "on", "native")
-
 
 def decide_mode(preference: Any, *, platform: str, build: Optional[int],
                 cli_native: bool = False, env_value: Optional[str] = None) -> Tuple[str, str]:
@@ -170,7 +159,6 @@ def decide_mode(preference: Any, *, platform: str, build: Optional[int],
     mode = normalize_mode(preference)
     return mode, "preference"
 
-
 def windows_build() -> Optional[int]:
     if sys.platform != "win32":
         return None
@@ -184,11 +172,9 @@ def windows_build() -> Optional[int]:
     except Exception:
         return None
 
-
 def frame_inset(frame: int, padded_border: int) -> int:
     """Thickness a maximized window hangs off the monitor on each side."""
     return max(0, int(frame)) + max(0, int(padded_border))
-
 
 def nccalcsize_rect(proposed: Rect, original_top: int, *, maximized: bool,
                     frame_thickness: int, autohide_edges: Iterable[str] = ()) -> Rect:
@@ -219,11 +205,9 @@ def nccalcsize_rect(proposed: Rect, original_top: int, *, maximized: bool,
         right = left
     return left, top, right, bottom
 
-
 def scale_for_dpi(value_96: int, dpi: int) -> int:
     dpi = int(dpi or 96)
     return max(1, int(round(value_96 * dpi / 96.0)))
-
 
 def top_hit_test(x: int, y: int, window_rect: Rect, *, maximized: bool,
                  border: int, corner: int) -> Optional[int]:
@@ -246,20 +230,16 @@ def top_hit_test(x: int, y: int, window_rect: Rect, *, maximized: bool,
         return HTTOPRIGHT
     return HTTOP
 
-
 _EDGE_HIT = {
     "caption": HTCAPTION, "top": HTTOP, "topleft": HTTOPLEFT, "topright": HTTOPRIGHT,
 }
 
-
 def edge_to_hit(edge: Any) -> Optional[int]:
     return _EDGE_HIT.get(str(edge or "caption").strip().lower())
-
 
 def pack_point(x: int, y: int) -> int:
     """MAKELPARAM for screen coordinates (negative on left/upper monitors)."""
     return ((int(y) & 0xFFFF) << 16) | (int(x) & 0xFFFF)
-
 
 def unpack_point(lparam: int) -> Tuple[int, int]:
     """GET_X_LPARAM / GET_Y_LPARAM with sign extension."""
@@ -272,7 +252,6 @@ def unpack_point(lparam: int) -> Tuple[int, int]:
         y -= 0x10000
     return x, y
 
-
 def system_menu_states(maximized: bool) -> dict:
     """Which system-menu items are enabled, like the standard caption menu."""
     return {
@@ -283,7 +262,6 @@ def system_menu_states(maximized: bool) -> dict:
         SC_MAXIMIZE: not maximized,
         SC_CLOSE: True,
     }
-
 
 def command_to_syscommand(command: Any, maximized: bool) -> Optional[int]:
     command = str(command or "").strip().lower()
@@ -299,7 +277,6 @@ def command_to_syscommand(command: Any, maximized: bool) -> Optional[int]:
         return SC_CLOSE
     return None
 
-
 def client_matches_hook(window_rect: Rect, client_origin: Tuple[int, int], *,
                         maximized: bool, frame_thickness: int, tolerance: int = 2) -> bool:
     """Post-install sanity check: the client must start at the window top.
@@ -311,8 +288,6 @@ def client_matches_hook(window_rect: Rect, client_origin: Tuple[int, int], *,
     expected = window_rect[1] + (frame_thickness if maximized else 0)
     return abs(client_origin[1] - expected) <= tolerance + (AUTOHIDE_GAP if maximized else 0)
 
-
-# ======================================================== Win32 boundary
 class Win32Api:
     """Thin ctypes layer with explicit 64-bit-safe signatures.
 
@@ -373,7 +348,7 @@ class Win32Api:
         if ctypes.sizeof(ctypes.c_void_p) == 8:
             self._get_long = sig(user32, "GetWindowLongPtrW", ctypes.c_ssize_t, HWND, ctypes.c_int)
             self._set_long = sig(user32, "SetWindowLongPtrW", ctypes.c_void_p, HWND, ctypes.c_int, ctypes.c_void_p)
-        else:  # 32-bit Python: the *Ptr names are macros there
+        else:
             self._get_long = sig(user32, "GetWindowLongW", ctypes.c_long, HWND, ctypes.c_int)
             self._set_long = sig(user32, "SetWindowLongW", ctypes.c_void_p, HWND, ctypes.c_int, ctypes.c_void_p)
         self._call_proc = sig(user32, "CallWindowProcW", LRESULT, ctypes.c_void_p, HWND, ctypes.c_uint, WPARAM, LPARAM)
@@ -422,7 +397,6 @@ class Win32Api:
         except OSError:
             self._appbar = None
 
-    # ---- window procedure plumbing
     def make_wndproc(self, fn):
         return self.WNDPROC(fn)
 
@@ -445,7 +419,6 @@ class Win32Api:
     def style(self, hwnd) -> int:  # noqa: D401 - GWL_STYLE as unsigned
         return int(self._get_long(hwnd, GWL_STYLE) or 0) & 0xFFFFFFFF
 
-    # ---- queries
     def is_window(self, hwnd) -> bool:
         return bool(hwnd) and bool(self._is_window(hwnd))
 
@@ -545,7 +518,6 @@ class Win32Api:
         except Exception:
             return 500
 
-    # ---- actions
     def refresh_frame(self, hwnd) -> bool:
         return bool(self._set_pos(hwnd, None, 0, 0, 0, 0, SWP_REFRESH_FRAME))
 
@@ -574,13 +546,7 @@ class Win32Api:
         return int(self._track_menu(menu, TPM_RETURNCMD | TPM_RIGHTBUTTON | TPM_NONOTIFY,
                                     int(x), int(y), 0, hwnd, None) or 0)
 
-
-# ======================================================= the controller
-#: Callbacks handed to Windows must outlive every possible call; the hook is
-#: never garbage-collected even after uninstall (another subclasser may still
-#: chain to it).
 _KEEPALIVE: list = []
-
 
 class TitlebarController:
     """Owns the subclass hook of one top-level window.
@@ -618,7 +584,6 @@ class TitlebarController:
         self._hwnd_provider: Optional[Callable[[], int]] = None
         self._lock = threading.RLock()
 
-    # ------------------------------------------------------------ attach
     def attach(self, hwnd_provider: Callable[[], int],
                invoke: Optional[Callable[[Callable[[], Any]], Any]] = None) -> bool:
         """Remember the window and apply the startup mode."""
@@ -654,11 +619,10 @@ class TitlebarController:
             self._invoke(self.uninstall)
         except Exception as exc:
             self.error = f"invoke: {exc}"
-            # Last resort: make the procedure inert so nothing custom happens.
+
             self._passthrough = True
             self.installed = False
 
-    # ----------------------------------------------------------- install
     def install(self, hwnd: int) -> bool:
         """Subclass ``hwnd`` and remove its caption. Call on the UI thread."""
         with self._lock:
@@ -684,9 +648,7 @@ class TitlebarController:
                     self._proc_address = api.proc_address(self._proc)
                 self._errors = 0
                 if hwnd == self._chained_hwnd or api.get_wndproc(hwnd) == self._proc_address:
-                    # Still linked into this window's chain (an earlier
-                    # uninstall could not unlink): re-enable, never re-link,
-                    # or the chain would loop through us twice.
+
                     self.hwnd = hwnd
                 else:
                     previous = api.set_wndproc(hwnd, self._proc_address)
@@ -699,15 +661,14 @@ class TitlebarController:
                 self._passthrough = False
                 self.installed = True
                 self._lost = False
-                # Keeps the DWM shadow on Windows 10 (harmless on 11).
+
                 try:
                     api.extend_frame(hwnd, 1)
                 except Exception:
                     pass
                 theme = getattr(self, "native_theme", None)
                 if theme is not None:
-                    # Changing native window style (fullscreen/restore) can
-                    # recreate the HWND; the new DWM frame has no old colours.
+
                     try:
                         from .win_window_theme import apply
                         apply(getattr(self, "native_surface", None), hwnd, *theme,
@@ -746,13 +707,11 @@ class TitlebarController:
             try:
                 if api.is_window(hwnd):
                     if api.get_wndproc(hwnd) == self._proc_address and self._orig:
-                        # ``_orig`` is kept: a stray call that still reaches
-                        # our procedure must keep chaining to WinForms.
+
                         api.set_wndproc(hwnd, self._orig)
                         self._chained_hwnd = 0
                     else:
-                        # Someone subclassed after us: we cannot unlink, so we
-                        # stay in the chain as a pure pass-through.
+
                         self._passthrough = True
                         self._chained_hwnd = hwnd
                     try:
@@ -765,7 +724,6 @@ class TitlebarController:
                 self.error = str(exc)
             log.info("custom title bar removed from hwnd=%s", hwnd)
 
-    # --------------------------------------------------- window procedure
     def _wndproc(self, hwnd, msg, wparam, lparam):
         original = self._orig
         api = self.api
@@ -779,7 +737,7 @@ class TitlebarController:
                     return self._on_app_message(hwnd, int(wparam or 0), int(lparam or 0))
                 if msg == WM_DWMCOMPOSITIONCHANGED:
                     try:
-                        # Round 30: a window material (win_backdrop) needs the frame over the whole client area
+
                         api.extend_frame(hwnd, -1 if getattr(self, "backdrop_active", False) else 1)
                     except Exception:
                         pass
@@ -810,7 +768,7 @@ class TitlebarController:
         original_top = int(rect.top)
         result = api.call_proc(self._orig, hwnd, msg, wparam, lparam)
         style = api.style(hwnd)
-        # pywebview's full screen drops WS_CAPTION/WS_THICKFRAME: leave it alone.
+
         if not (style & WS_CAPTION) or not (style & WS_THICKFRAME):
             return result
         maximized = api.is_zoomed(hwnd)
@@ -833,8 +791,7 @@ class TitlebarController:
                            corner=scale_for_dpi(TOP_RESIZE_CORNER_96, dpi))
         if hit is not None:
             return hit
-        # DefWindowProc still believes a caption exists and may answer
-        # HTCAPTION/HTCLOSE for points that are now our client area.
+
         if result in (HTCAPTION, HTSYSMENU, HTMINBUTTON, HTMAXBUTTON, HTCLOSE) \
                 and api.point_in_client(hwnd, x, y):
             return HTCLIENT
@@ -847,8 +804,7 @@ class TitlebarController:
             if hit != HTCAPTION and api.is_zoomed(hwnd):
                 return 0
             if not api.primary_button_down():
-                # The press already ended (a quick click): starting the
-                # modal loop now would wait for a button that never comes.
+
                 return 0
             api.release_capture()
             x, y = api.cursor_pos()
@@ -872,8 +828,7 @@ class TitlebarController:
         return 0
 
     def _on_destroy(self, hwnd) -> None:
-        # The HWND is going away (or WinForms recreates its handle): unlink
-        # first so the original procedure finishes the teardown alone.
+
         api = self.api
         try:
             if api.get_wndproc(hwnd) == self._proc_address and self._orig:
@@ -883,7 +838,6 @@ class TitlebarController:
         self.installed = False
         self._lost = True
 
-    # ------------------------------------------------------- JS bridge API
     def _maybe_reattach(self) -> None:
         """Re-install after WinForms recreated the window handle."""
         if not (self._lost and self.mode == MODE_CUSTOM and self._hwnd_provider):
@@ -920,7 +874,7 @@ class TitlebarController:
             "reason": self.reason,
             "forced": bool(self.forced),
             "installed": bool(self.installed and not self._passthrough),
-            # Startup: the page may ask before the window was attached.
+
             "pending": bool(self.mode == MODE_CUSTOM and self.supported and not self._attached),
             "maximized": bool(maximized),
             "fullscreen": bool(fullscreen),
@@ -971,13 +925,10 @@ class TitlebarController:
             syscommand = command_to_syscommand(command, maximized)
             if syscommand is None:
                 return False
-            # WM_SYSCOMMAND goes through the same path as the native caption
-            # buttons: animations, Snap state and pywebview's closing event
-            # (MemuAI hides to the tray) all behave exactly as before.
+
             return self.api.post(self.hwnd, WM_SYSCOMMAND, syscommand, 0)
         except Exception:
             return False
-
 
 class TitlebarBridge:
     """Methods exposed to the page as ``window.pywebview.api.*``.
@@ -1004,7 +955,6 @@ class TitlebarBridge:
     def titlebar_system_menu(self, source: str = "mouse") -> bool:
         return self._controller.system_menu(source)
 
-    # Round 30: the Windows 11 window material (app/win_backdrop.py; memuai.py sets controller.backdrop)
     def window_backdrop_state(self) -> dict:
         backdrop = getattr(self._controller, "backdrop", None)
         return backdrop.state() if backdrop is not None else {"available": False, "kinds": ["none"], "active": "none", "error": "unavailable"}
@@ -1019,8 +969,6 @@ class TitlebarBridge:
         self._controller.native_surface = getattr(backdrop, "_native", None)
         return state
 
-
-# ============================================================== startup
 def read_preference(preferences_file: Any) -> str:
     try:
         import json
@@ -1030,7 +978,6 @@ def read_preference(preferences_file: Any) -> str:
     except Exception:
         return MODE_CUSTOM
 
-
 def create_controller(preferences_file: Any, argv: Sequence[str] = (),
                       environ: Optional[dict] = None) -> TitlebarController:
     environ = os.environ if environ is None else environ
@@ -1039,7 +986,6 @@ def create_controller(preferences_file: Any, argv: Sequence[str] = (),
         cli_native=CLI_FLAG in list(argv or ()),
         env_value=environ.get(ENV_VAR),
     )
-
 
 def winforms_ui_invoker(native) -> Callable[[Callable[[], Any]], Any]:
     """Run a callable on the WinForms UI thread of ``native`` and wait."""

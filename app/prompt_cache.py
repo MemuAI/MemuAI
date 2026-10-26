@@ -27,10 +27,9 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 
 MAX_BREAKPOINTS = 4
-#: Below this size a history breakpoint is useless (Claude caches from 1024 tokens; ~3.5 chars per token).
+
 MIN_PREFIX_CHARS = 3500
 EPHEMERAL = {"type": "ephemeral"}
-
 
 def family(model: str, base: str = "") -> str:
     lowered = str(model or "").lower()
@@ -42,7 +41,6 @@ def family(model: str, base: str = "") -> str:
         return "openai"
     return "implicit"
 
-
 def _chars(message: Dict[str, Any]) -> int:
     content = message.get("content")
     if isinstance(content, str):
@@ -51,14 +49,12 @@ def _chars(message: Dict[str, Any]) -> int:
         return sum(len(str(p.get("text") or "")) for p in content if isinstance(p, dict))
     return 0
 
-
 def _has_markers(body: Dict[str, Any]) -> bool:
     for message in body.get("messages") or []:
         content = message.get("content") if isinstance(message, dict) else None
         if isinstance(content, list) and any(isinstance(p, dict) and p.get("cache_control") for p in content):
             return True
     return False
-
 
 def _markable(message: Any) -> bool:
     if not isinstance(message, dict) or message.get("role") not in ("system", "developer", "user", "assistant"):
@@ -69,7 +65,6 @@ def _markable(message: Any) -> bool:
     return isinstance(content, list) and any(isinstance(p, dict) and p.get("type") == "text" and p.get("text")
                                              for p in content)
 
-
 def _mark(message: Dict[str, Any]) -> None:
     content = message.get("content")
     if isinstance(content, str):
@@ -79,7 +74,6 @@ def _mark(message: Dict[str, Any]) -> None:
         if isinstance(part, dict) and part.get("type") == "text" and part.get("text"):
             part["cache_control"] = dict(EPHEMERAL)
             return
-
 
 def breakpoints(messages: List[Dict[str, Any]], limit: int) -> List[int]:
     """Indexes of the messages to mark, in order of value: system, end of old history, newest user turn."""
@@ -109,7 +103,6 @@ def breakpoints(messages: List[Dict[str, Any]], limit: int) -> List[int]:
             out.append(index)
     return out[:limit]
 
-
 def apply(body: Dict[str, Any], model: str, *, base: str = "", enabled: bool = True) -> Tuple[Dict[str, Any], bool]:
     """``(body, hinted)``; ``body`` is a copy when anything was added."""
     if not enabled:
@@ -131,7 +124,7 @@ def apply(body: Dict[str, Any], model: str, *, base: str = "", enabled: bool = T
         return body, False
     picks = breakpoints(messages, MAX_BREAKPOINTS)
     if kind == "gemini_openrouter":
-        # Only one breakpoint counts: the end of the stable prefix (old history, else the system prompt).
+
         users = [i for i, m in enumerate(messages) if isinstance(m, dict) and m.get("role") == "user"]
         stable = [i for i in picks if not users or i < users[-1]]
         picks = stable[-1:]

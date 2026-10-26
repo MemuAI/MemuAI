@@ -7,14 +7,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
 
-
 class ShotsFixesTest(unittest.TestCase):
     def test_guide_player_shows_one_caption_language(self):
-        # Chromium's automatic caption selection turned the second track on too: the pick is applied again later.
+
         for rel in ("app/pgstatic/guide-video.js", "app/static/guide-video.js"):
             src = read(rel)
             self.assertIn("const pick = () =>", src, rel)
@@ -47,7 +45,6 @@ class ShotsFixesTest(unittest.TestCase):
         self.assertNotIn('(level === current ? " ✓" : "")', js)
         css = read("app/tgapp/models.css")
         self.assertIn(".composer-tools .toggle-chip.model { flex: 0 1 auto;", css)
-
 
 if __name__ == "__main__":
     unittest.main()

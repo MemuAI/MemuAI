@@ -28,16 +28,13 @@ from app import quick_ask_endpoint as endpoint
 ROOT = Path(__file__).resolve().parents[1]
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 
-
 def sse(*items):
     for item in items:
         yield "data: " + json.dumps(item, ensure_ascii=False)
     yield "data: [DONE]"
 
-
 def delta(text):
     return {"choices": [{"delta": {"content": text}}]}
-
 
 def run_events(**kw):
     requests = []
@@ -59,9 +56,7 @@ def run_events(**kw):
         return out
     return asyncio.run(collect()), requests
 
-
 SUMMARIZE_CALL = '```memuai-tool\n[{"tool":"assistant_action","args":{"action":"text.summarize","params":{}}}]\n```'
-
 
 class PageQuestionTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -121,7 +116,6 @@ class PageQuestionTests(unittest.TestCase):
         self.assertFalse(quick_ask_api._clipboard_text_action(
             "assistant_action", {"action": "text.summarize", "params": {"text": "https://a.dev/x"}}))
 
-
 class RouteUsesTheCurrentTab(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.mkdtemp(prefix="r26qc-")
@@ -140,7 +134,7 @@ class RouteUsesTheCurrentTab(unittest.TestCase):
         async def fake_events(**kw):
             seen.update(kw)
             yield "data: {}\n\n"
-        # create_app() registers the assistant_action tool globally — restore it (tests.quick_ask_test expects none)
+
         with mock.patch.dict(quick_ask_api.EXTRA_TOOLS):
             app = create_app()
         app.state.quick_ask = manager
@@ -173,11 +167,10 @@ class RouteUsesTheCurrentTab(unittest.TestCase):
         seen = self.ask(Manager(), {"text": "сколько будет 2+2"})
         self.assertFalse(seen["no_page"], "an ordinary question does not mention pages")
 
-
 class CurrentPageTests(unittest.TestCase):
     def test_pick_top_browser(self) -> None:
         rows = [{"hwnd": 1, "exe": "memuai.exe", "title": "MemuAI", "visible": True},
-                {"hwnd": 2, "exe": "chrome.exe", "title": "", "visible": True},           # a helper window
+                {"hwnd": 2, "exe": "chrome.exe", "title": "", "visible": True},
                 {"hwnd": 3, "exe": "msedge.exe", "title": "Old", "visible": True, "iconic": True},
                 {"hwnd": 4, "exe": "firefox.exe", "title": "Other desktop", "visible": True, "cloaked": True},
                 {"hwnd": 5, "exe": "chrome.exe", "title": "Новости - Google Chrome", "visible": True},
@@ -219,7 +212,6 @@ class CurrentPageTests(unittest.TestCase):
         block = src[src.index("    def toggle(self)"):src.index("    def show(self")]
         self.assertIn("target=self.current_page", block)
 
-
 class LocalEndpointProxy(unittest.TestCase):
     def test_is_local(self) -> None:
         for url in ("http://localhost:11434/v1", "http://127.0.0.1:1234/v1", "http://192.168.1.5:8080/v1",
@@ -239,7 +231,6 @@ class LocalEndpointProxy(unittest.TestCase):
             finally:
                 asyncio.run(local.aclose())
                 asyncio.run(remote.aclose())
-
 
 class PageScripts(unittest.TestCase):
     def test_commands_plugin_leaves_page_questions_to_the_model(self) -> None:
@@ -264,7 +255,6 @@ class PageScripts(unittest.TestCase):
         self.assertIn("onPage(page, replace = false)", js)
         self.assertIn("if (event.url || event.title) turn.page", js)
 
-
 @unittest.skipUnless(Path("/workspace/work/chromium/chrome").exists() or Path("/usr/bin/chromium").exists(), "no Chromium")
 class Headless(unittest.TestCase):
     def test_window_checks(self) -> None:
@@ -279,7 +269,6 @@ class Headless(unittest.TestCase):
                                 capture_output=True, text=True, timeout=110, env=env)
         shutil.rmtree(out, ignore_errors=True)
         self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])
-
 
 if __name__ == "__main__":
     unittest.main()

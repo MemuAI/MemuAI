@@ -1,6 +1,5 @@
-/* Round 27 — Settings → Quick Ask → Features → «Clipboard, snippets and stickers» (plugin "features"; «New features» before round 34). Rendered by quick-settings.js on its
-   own sub-page; data: GET /api/quick/features, saved through POST /api/quick/features/settings|snippets|stickers
-   (memuai/quick_features.json — not preferences.json: the main window saves whole snapshots of those). */
+
+
 (function () {
   "use strict";
   if (!window.MemuQuick || typeof MemuQuick.settingsSection !== "function") return;
@@ -15,7 +14,6 @@
     const state = { data: null, editing: null };
     const post = (path, payload) => ctx.api(path, { method: "POST", body: { lang: en ? "en" : "ru", ...payload } });
 
-    // the kit when present (looks like every other settings page), a plain fallback otherwise
     const row = (o) => K ? K.row(o) : `<div class="qx-set-row"><div><b>${o.label}</b>${o.desc ? `<div class="td">${o.desc}</div>` : ""}</div><div>${o.control || ""}</div></div>`;
     const section = (o) => K ? K.section(o) : `<section><h3>${o.title}</h3>${o.desc ? `<p>${o.desc}</p>` : ""}${o.body}</section>`;
     const toggle = (id, on) => K ? K.toggle(id, on) : `<input type="checkbox" id="${id}" ${on ? "checked" : ""}>`;

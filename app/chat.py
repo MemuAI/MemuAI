@@ -36,33 +36,28 @@ from .state import state
 
 log = logging.getLogger("memuai.chat")
 
-#: Longest upstream Retry-After the Proxy waits out itself before retrying; a longer pause
-#: is passed to the client in Retry-After instead of holding the request open.
 _RATE_LIMIT_WAIT_CAP = 10.0
-
 
 class CompletionError(Exception):
     def __init__(self, message: str, status: int = 500, err_type: str = "internal_error",
                  *, hint: str = "", hint_en: str = "", message_en: str = "",
                  provider: str = "", retry_after: Optional[float] = None) -> None:
         readable = readable_provider_error(message)
-        # Провайдеры пишут ошибки по-английски: русский текст переводит их фразы,
-        # английский вариант без message_en — исходный текст.
+
         message = provider_error_ru(readable)
         super().__init__(message)
         self.message = message
-        # Английский вариант того же сообщения: панель и клиенты с en-локалью
-        # больше не получают русский текст.
+
         self.message_en = readable_provider_error(message_en) or readable
         self.status = status
         self.err_type = err_type
-        # Кто отвечал (провайдер Proxy) — клиенты (MemuCode) показывают это рядом с ошибкой.
+
         self.provider = provider
-        # Короткая подсказка «что делать» — панель показывает её рядом с ошибкой.
+
         default_hint = upstream_hint(readable) or error_hint(err_type, provider)
         self.hint = hint or default_hint[0]
         self.hint_en = hint_en or default_hint[1]
-        # Пауза, которую назвал апстрим при 429: клиент получает её в Retry-After.
+
         self.retry_after = retry_after
 
     @property
@@ -72,8 +67,6 @@ class CompletionError(Exception):
             return None
         return {"Retry-After": str(max(1, math.ceil(self.retry_after)))}
 
-
-# Человеческие подсказки для каждого класса ошибок (RU, EN).
 ERROR_HINTS = {
     "authentication_error": (
         "Кука или токен аккаунта больше не действуют — обновите их в разделе «Аккаунты».",
@@ -109,7 +102,6 @@ ERROR_HINTS = {
         "The proxy is off: press “Start proxy” on the Home tab."),
 }
 
-# У «Собственного API» нет куки и токена аккаунта — только API-ключ подключения.
 CUSTOM_ERROR_HINTS = {
     "authentication_error": (
         "API-ключ подключения больше не принимается — проверьте его в разделе «Аккаунты».",
@@ -120,10 +112,6 @@ CUSTOM_ERROR_HINTS = {
         "No enabled “Custom API” connection serves this model — add or enable it under “Accounts”."),
 }
 
-
-# Round 32: подсказки по собственным словам апстрима — точнее, чем по классу ошибки.
-# «No available accounts» шлют шлюзы-перепродажи (OpenAI-совместимые) при 503/429: у
-# них самих нет свободного аккаунта для модели. К размеру запроса это отношения не имеет.
 _UPSTREAM_HINTS = (
     (re.compile(r"no (?:available|active|healthy) (?:accounts?|channels?|keys?)|no channel available", re.I), (
         "У сервиса по этому ключу сейчас нет свободных аккаунтов для модели (это его сторона, не размер "
@@ -132,13 +120,11 @@ _UPSTREAM_HINTS = (
         "the request). Retry later or pick another model; if it always happens, the model is not available there.")),
 )
 
-
 def upstream_hint(message: str) -> Optional[tuple]:
     for pattern, hint in _UPSTREAM_HINTS:
         if pattern.search(str(message or "")):
             return hint
     return None
-
 
 def error_hint(err_type: str, provider: str = "") -> tuple:
     """Подсказка (RU, EN) для класса ошибки с учётом провайдера."""
@@ -146,11 +132,6 @@ def error_hint(err_type: str, provider: str = "") -> tuple:
         return CUSTOM_ERROR_HINTS[err_type]
     return ERROR_HINTS.get(err_type, ("", ""))
 
-
-# Классы исключений транспорта, которые разные HTTP-библиотеки называют
-# по-своему. Общего базового класса у них нет, поэтому сверяем имя: такая
-# ошибка всегда временная, её нужно повторить, а не показывать пользователю
-# как «неожиданную ошибку адаптера».
 _NETWORK_EXC_NAMES = frozenset({
     "ConnectionError", "ConnectError", "ConnectTimeout", "ConnectionResetError",
     "ConnectionAbortedError", "ConnectionRefusedError", "ConnectTimeoutError",
@@ -161,7 +142,6 @@ _NETWORK_EXC_NAMES = frozenset({
     "ClientConnectorError", "ServerDisconnectedError", "ClientPayloadError",
     "CurlError", "RequestsError", "SessionClosed", "DNSError",
 })
-
 
 def _classify_adapter_error(provider_id: str, exc: Exception) -> ProviderError:
     """Превращает «сырое» исключение адаптера в ошибку провайдера.
@@ -175,7 +155,6 @@ def _classify_adapter_error(provider_id: str, exc: Exception) -> ProviderError:
             f"{provider_id}: соединение с провайдером прервано ({name})")
     return ProviderServerError(f"Неожиданная ошибка адаптера ({name})")
 
-
 async def _reset_transport(provider, account) -> None:
     """Выбрасывает keep-alive сессию, чтобы повтор пошёл по новому соединению."""
     try:
@@ -184,11 +163,7 @@ async def _reset_transport(provider, account) -> None:
     except Exception:
         pass
 
-
-# 4xx-ответы, которые означают временное состояние апстрима, а не ошибку в
-# самом запросе: их нужно повторить на другом аккаунте, а не отдавать клиенту.
 _TRANSIENT_4XX = frozenset({408, 425, 429})
-
 
 class _ServiceTagScrubber:
     """Drops provider service markup such as ``<ds_safety>…</ds_safety>`` from a stream.
@@ -213,7 +188,7 @@ class _ServiceTagScrubber:
                 close = f"</{self._inside}>"
                 end = buf.find(close)
                 if end < 0:
-                    # Keep only what could still be the start of the closing tag.
+
                     self._pending = _partial_tail(buf, (close,))
                     return "".join(out)
                 buf = buf[end + len(close):]
@@ -251,22 +226,17 @@ class _ServiceTagScrubber:
         self._inside = ""
         return tail
 
-
 def _partial_tail(text: str, needles: tuple) -> str:
     for size in range(min(len(text), max(map(len, needles)) - 1), 0, -1):
         if any(n.startswith(text[-size:]) for n in needles):
             return text[-size:]
     return ""
 
-
 class _MidStreamAbort(Exception):
     def __init__(self, upstream: Exception) -> None:
-        # The wrapper may surface in framework diagnostics.  Keep the raw
-        # provider message only on ``upstream``, where the account-aware
-        # redactor can process it before logging or returning it.
+
         super().__init__("provider stream aborted")
         self.upstream = upstream
-
 
 def _missing_account_message(provider: Any, resolved: Any, req_model: str) -> tuple:
     """(RU, EN): какой аккаунт добавить, чтобы модель заработала."""
@@ -279,7 +249,6 @@ def _missing_account_message(provider: Any, resolved: Any, req_model: str) -> tu
                 f"“{resolved.prefix}”. Add it on the Accounts tab.")
     return (f"Для модели «{req_model}» нужен аккаунт {title}. Добавьте его в разделе «Аккаунты».",
             f"Model “{req_model}” needs a {title_en} account. Add one on the Accounts tab.")
-
 
 class ChatService:
     async def stream_completion(self, req_model: str, messages: List[Dict[str, Any]],
@@ -297,15 +266,12 @@ class ChatService:
                                   message_en="The proxy is switched off in the panel "
                                              "(Home → “Start proxy”).")
 
-        # Round 40: a web model («<model>:web») runs a server-side web-search tool loop over its base model
-        # (app/web_models.py); every endpoint (OpenAI, Anthropic, Responses, panel) gets it through here.
         from . import web_models
         if web_models.is_web(req_model):
             async for item in web_models.run(self, req_model, messages, params, trace=trace):
                 yield item
             return
 
-        # Round 35: a composite model (memu/smart …) runs its own rule pipeline over real models (app/composite_models.py).
         from . import composite_models
         if composite_models.is_composite(req_model):
             async for item in composite_models.run(self, req_model, messages, params, trace=trace):
@@ -330,8 +296,7 @@ class ChatService:
                            "unambiguous match. See /v1/models.")
 
         if trace is not None:
-            # Без этого в журнале у каждой записи пустой провайдер: фильтр
-            # «Провайдер» ничего не находит, и запрос выглядит непойманным.
+
             trace.provider = resolved.provider
             trace.add_stage("routed", {"provider": resolved.provider, "model": resolved.model,
                                        "prefix": resolved.prefix})
@@ -364,9 +329,6 @@ class ChatService:
                                   status=400, err_type="unsupported_modality",
                                   message_en="This model generates music. Use Studio → Music or /v1/audio/music.")
 
-        # Веб-поиск. Режим провайдера из панели важнее флага запроса: «always»
-        # включает поиск и для сторонних клиентов на /v1, которые про него не
-        # знают, «off» запрещает его даже по явному запросу.
         search_mode = str(config_store.provider_cfg(resolved.provider)
                           .get("web_search", "auto") or "auto").lower()
         wants_search = bool(params.get("web_search"))
@@ -376,17 +338,14 @@ class ChatService:
             wants_search = False
         params = dict(params)
         params["web_search"] = wants_search
-        # Round 33 (r33-thinking): the requested reasoning level → the nearest one this model really
-        # supports; providers read params["_reasoning_level"] / ["_reasoning"] (app/reasoning_levels.py).
+
         try:
             from . import reasoning_levels
             reasoning_levels.for_request(getattr(resolved.entry, "id", None) or req_model,
                                          resolved.provider, resolved.model, params)
-        except Exception as exc:   # never let a capability table break a chat
+        except Exception as exc:
             log.debug("reasoning levels: %s", exc)
-        # Клиент с инструментами (MemuAI) ищет сам: модель решает, нужен ли
-        # поиск, и формулирует собственный запрос. Подмешивать выдачу к каждому
-        # сообщению нельзя — «привет» не должен уходить в поисковик.
+
         if params.get("tools_available"):
             wants_search = False
         if wants_search and not getattr(provider, "native_search", False):
@@ -396,8 +355,7 @@ class ChatService:
                 messages, limit=int(settings.search_results),
                 proxy=settings.default_proxy, trace=trace, sink=found)
             if found.get("sources"):
-                # Отдельный чанк для клиента: чат показывает источники шагом
-                # дорожки, не подмешивая их в текст ответа.
+
                 yield {"object": "memuai.event", "event": "web_search", "web_search": found}
 
         candidates = pool.ordered_candidates(resolved.provider, resolved.model,
@@ -406,7 +364,7 @@ class ChatService:
             candidates = [candidate for candidate in candidates
                           if str(candidate.fields.get("name", "")).strip().lower().replace(" ", "-")
                           == resolved.prefix.lower()]
-        # приоритет аккаунту, к которому привязана запись каталога
+
         if resolved.entry and resolved.entry.account_id:
             pinned = state.get_account(resolved.entry.account_id)
             if pinned and pinned.usable():
@@ -423,8 +381,7 @@ class ChatService:
             blocked = [a for a in state.usable_accounts(resolved.provider)
                        if pool.model_blocked(a, resolved.model)]
             if blocked:
-                # Причина, которую назвал сам провайдер («проверьте аккаунт», «нет в
-                # тарифе»), полезнее общей фразы; блокировка сама снимется за час.
+
                 why = pool.block_reason(blocked, resolved.model)
                 raise CompletionError(
                     f"Модель «{resolved.model}» недоступна ни одному аккаунту «{resolved.provider}»: "
@@ -433,8 +390,7 @@ class ChatService:
                     message_en=f"Model “{resolved.model}” is not available to any "
                                f"“{resolved.provider}” account: "
                                + (why or "their plans do not include it."))
-            # Accounts exist but are switched off or were rejected (a wrong key): say which and
-            # why. «Добавьте аккаунты» hid the real cause after the first failed request.
+
             idle = [a for a in state.accounts_of(resolved.provider)
                     if not a.usable() and (resolved.provider != "custom" or not resolved.prefix
                                            or str(a.fields.get("name", "")).strip().lower()
@@ -446,7 +402,7 @@ class ChatService:
                 if not account.enabled:
                     ru, en = f"Аккаунт «{name}» выключен.", f"Account “{name}” is turned off."
                 else:
-                    # Round 31: say what to do next, and never leak Russian into message_en.
+
                     ru = (f"Аккаунт «{name}» отклонён провайдером" + (f": {why}." if why else ".")
                           + " Проверьте ключ или вход на вкладке «Аккаунты» MemuAI Proxy.")
                     why_en = why if why and not re.search(r"[А-Яа-яЁё]", why) else (
@@ -467,8 +423,7 @@ class ChatService:
         model_unavailable = 0
         passes = max(1, int(settings.max_retry_passes))
         if len(candidates) == 1:
-            # С единственным аккаунтом один проход означает «упал — и всё».
-            # Временная сетевая ошибка должна получить хотя бы один повтор.
+
             passes = max(passes, 2)
         delay = max(0.0, settings.retry_delay_ms / 1000.0)
         started_at = time.time()
@@ -477,8 +432,7 @@ class ChatService:
         last_usage: Dict[str, Any] = {}
 
         def finish(ok: bool, err_type: str = "") -> None:
-            # Токены считаются здесь, для всех путей (/v1/chat, /v1/messages,
-            # /v1/responses, панель), а не только для /v1/chat с журналом.
+
             if settings.metrics_enabled:
                 usage = last_usage if ok else {}
                 cached = (usage.get("prompt_tokens_details") or {}).get("cached_tokens") \
@@ -495,23 +449,18 @@ class ChatService:
                                estimated=bool(usage.get("estimated")) if ok else False,
                                error_code=err_type)
 
-        # Временный таймаут или пустой ответ не должны рвать длинный диалог:
-        # перебираем аккаунты и делаем несколько коротких проходов. Ошибки
-        # валидации, отказ модели и «нет такой модели у аккаунта» не повторяются
-        # вслепую и не портят репутацию аккаунта.
         dead: set = set()
-        # Когда аккаунт снова примет запрос, если апстрим назвал паузу (Retry-After).
+
         ready_at: Dict[str, float] = {}
         for retry_pass in range(passes):
             for account in candidates:
                 if time.time() > deadline:
                     break
                 if retry_pass and (account.id in dead or not account.usable()):
-                    # Аккаунт уже отказал по лимиту или авторизации в этом же
-                    # запросе: повтор ничего не даст, только исказит итог.
+
                     continue
                 if ready_at.get(account.id, 0.0) > time.time() + 0.05:
-                    # Апстрим просил подождать дольше: повтор раньше срока — снова 429.
+
                     continue
                 attempt_started = time.time()
                 attempt = self._attempt(provider, account, resolved.model, req_model,
@@ -528,9 +477,7 @@ class ChatService:
                             try:
                                 from . import api_budget
                                 api_budget.apply_usage_price(account, req_model, chunk["usage"], raw_model=resolved.model)
-                                # _attempt emits usage exactly once, after the upstream
-                                # completed. Persist before yielding: a client can close
-                                # the iterator immediately after reading its final usage.
+
                                 api_budget.record_usage(account, req_model, chunk["usage"], raw_model=resolved.model)
                             except Exception:
                                 log.exception("API budget accounting failed")
@@ -552,11 +499,7 @@ class ChatService:
                                           message_en=public_error) from e
                 except ProviderModelUnavailableError as e:
                     model_unavailable += 1
-                    # Детерминированный отказ для пары «аккаунт + модель»: на
-                    # следующем проходе его не повторяем. Иначе счётчик рос на
-                    # каждом проходе, и при 2 аккаунтах (один без модели, у
-                    # другого сбой сети) запрос ложно завершался «модель не
-                    # входит в тариф ни одного аккаунта».
+
                     dead.add(account.id)
                     pool.report_failure(account, e, model=resolved.model)
                     last_error = e
@@ -569,11 +512,10 @@ class ChatService:
                     public_error_ru, public_error = provider_error_texts(e, account)
                     if (isinstance(e, ProviderServerError) and 400 <= _status_of(e) < 500
                             and _status_of(e) not in _TRANSIENT_4XX):
-                        # Ошибка валидации запроса одинакова для всех аккаунтов.
+
                         finish(False, _err_type_of(e))
                         if _status_of(e) == 404:
-                            # Almost always a model id the provider does not know (or a wrong
-                            # API address): name the model instead of a bare «HTTP 404».
+
                             raise CompletionError(
                                 f"Провайдер не нашёл модель «{resolved.model}» (или неверный адрес API): "
                                 f"{public_error_ru}", status=404, err_type="model_not_found",
@@ -619,11 +561,10 @@ class ChatService:
                 pending = [ready_at.get(account.id) for account in candidates
                            if account.id not in dead and account.usable()]
                 if not pending:
-                    # Every account refused for good (key, quota): another pass would only wait.
+
                     break
                 if all(at is not None for at in pending):
-                    # Every remaining account named its pause: wait for the earliest one, but
-                    # never hang for long — a longer pause goes to the client as Retry-After.
+
                     until = min(pending) - time.time()
                     if until > _RATE_LIMIT_WAIT_CAP or time.time() + until > deadline:
                         break
@@ -644,8 +585,7 @@ class ChatService:
         detail_ru = f": {last_error_message_ru}" if last_error else ""
         status = _status_of(last_error) if last_error else 502
         if status in (401, 402, 403):
-            # Отказ ВЫШЕСТОЯЩЕГО аккаунта. 401 клиенту означал бы «неверный
-            # ключ Proxy», и SDK OpenAI/Anthropic советовали бы сменить ключ.
+
             status = 503
         if last_error:
             err_type = _err_type_of(last_error)
@@ -698,8 +638,7 @@ class ChatService:
             while True:
                 try:
                     if first_ev:
-                        # Отдельный лимит на первый байт: зависший апстрим
-                        # освобождает очередь заметно раньше общего таймаута.
+
                         ev = await asyncio.wait_for(stream_iter.__anext__(),
                                                     timeout=first_byte_timeout)
                     else:
@@ -708,7 +647,7 @@ class ChatService:
                     break
                 except asyncio.TimeoutError as exc:
                     from .providers.base import ProviderNetworkError
-                    # Round 34: the English text (API clients, error_en) was Russian too.
+
                     raise ProviderNetworkError(
                         f"{provider.id}: the provider did not start answering within {first_byte_timeout} s",
                         message_ru=f"{provider.id}: провайдер не начал отвечать за {first_byte_timeout} с") from exc
@@ -739,7 +678,7 @@ class ChatService:
                         got_output = True
                         yield chunk({"reasoning_content": text})
                     elif mode == "think_tags":
-                        # Рассуждение в тегах <think>, иначе оно смешивается с ответом.
+
                         prefix = "" if think_open else "<think>\n"
                         think_open = True
                         yield chunk({"content": prefix + text})
@@ -747,7 +686,7 @@ class ChatService:
                 elif ev.get("type") == "finish" and ev.get("reason"):
                     finish_reason = str(ev["reason"])
                 elif ev.get("type") == "usage":
-                    # Счёт токенов самого провайдера: он точнее оценки по длине текста.
+
                     counted = {key: int(ev.get(key) or 0) for key in ("prompt_tokens", "completion_tokens")}
                     if "reasoning_tokens" in ev:
                         counted["reasoning_tokens"] = max(0, int(ev["reasoning_tokens"] or 0))
@@ -779,11 +718,7 @@ class ChatService:
                 raise _MidStreamAbort(e)
             raise
         except Exception as e:
-            # Provider adapters are a protocol boundary.  Normalize parser and
-            # transport surprises so a failure before output can use the next
-            # account, while a failure after output remains a terminal stream
-            # abort.  asyncio cancellation is a BaseException and is therefore
-            # deliberately not swallowed here.
+
             unexpected = _classify_adapter_error(provider.id, e)
             if got_output:
                 raise _MidStreamAbort(unexpected) from e
@@ -819,7 +754,6 @@ class ChatService:
                 "account": account.label or account.id,
             })
 
-        # ``estimated`` говорит клиенту, чьи это числа: провайдера или оценка Proxy по длине текста.
         if real_usage is not None:
             pt = real_usage["prompt_tokens"]
             ct = real_usage["completion_tokens"] or _completion_tokens(full_text, tool_parts, public_model)
@@ -842,11 +776,9 @@ class ChatService:
                       **({"cost": real_usage["cost"]} if real_usage is not None and "cost" in real_usage else {})},
         }
 
-
 def _completion_tokens(text: str, tool_parts: List[str], model: str = "") -> int:
     """Оценка ответа: текст и аргументы вызовов инструментов (с учётом языка, app/token_estimate.py)."""
     return (approx_tokens(text, model) if text else 0) + (approx_tokens("".join(tool_parts), model) if tool_parts else 0)
-
 
 def _prompt_tokens(messages: List[Dict[str, Any]], model: str = "") -> int:
     """Оценка токенов запроса без base64: картинка в 1 МБ давала ~330k токенов."""
@@ -862,7 +794,6 @@ def _prompt_tokens(messages: List[Dict[str, Any]], model: str = "") -> int:
             if isinstance(call, dict):
                 total += approx_tokens(json.dumps(call.get("function") or {}, ensure_ascii=False), model)
     return total + images * 1000
-
 
 def _err_type_of(exc: Exception) -> str:
     from .providers.base import (
@@ -885,13 +816,11 @@ def _err_type_of(exc: Exception) -> str:
         return "upstream_error"
     return "internal_error"
 
-
 def _status_of(exc: Exception, default: int = 502) -> int:
     try:
         status = int(getattr(exc, "status", default))
     except (TypeError, ValueError):
         return default
     return status if 400 <= status <= 599 else default
-
 
 chat_service = ChatService()

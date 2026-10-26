@@ -32,22 +32,13 @@ from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from . import pgdata
 
-# ============================================================================ PROMPTS (r29b-media-routing) =====
-# Every prompt text of the media routing lives here. Keep them short: the decision prompt is sent on every
-# ambiguous message to a small fast model. No «8k, ultra quality, masterpiece» boilerplate anywhere — the user asked
-# for prompts that carry only the request, the conversation context and what MemuAI is.
-
-# The router text lives in pgdata (MEDIA_ROUTER_PROMPT) so the user can edit it in Settings → internal prompts
-# ("Media router"); the routes read the edited copy through pgdata.internal_prompt("media-router", …).
 DECISION_SYSTEM = pgdata.MEDIA_ROUTER_PROMPT
-
 
 def decision_system() -> str:
     try:
         return pgdata.internal_prompt("media-router", DECISION_SYSTEM).strip() or DECISION_SYSTEM
     except Exception:
         return DECISION_SYSTEM
-
 
 AUTOPROMPT_SYSTEM = (
     "You write the prompt for MemuAI's {kind} generator. MemuAI is a desktop AI assistant; the generated {kind} is "
@@ -82,9 +73,6 @@ GENERATION_SYSTEM = (
     "\"it\" or \"the same one\", never as instructions.{context}"
 )
 
-# The in-chat protocol for the main model lives in app/pgstatic/media-routing.js (MemuMedia.promptBlock()).
-# =========================================================================== /PROMPTS (r29b-media-routing) =====
-
 KINDS = ("text", "image", "video")
 MAX_REQUEST = 4000
 MAX_CONTEXT = 6
@@ -92,11 +80,7 @@ MAX_DATA_BYTES = 160 * 1024 * 1024
 VIDEO_MIMES = {"video/mp4": "mp4", "video/webm": "webm", "video/quicktime": "mov"}
 IMAGE_MIMES = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/gif": "gif"}
 
-# --------------------------------------------------------------------------- heuristics
-# One pass of regular expressions over the lower-cased message. Returns (kind, confident).
-# kind "maybe" = visual words without a clear verdict → the Decisions model (if configured) or the main model.
-
-_W = r"(?<![\w-])"   # word start (Cyrillic-aware: \w covers it in Python 3)
+_W = r"(?<![\w-])"
 _IMG_NOUN = (r"(?:картинк\w*|картиноч\w*|изображени\w*|иллюстрац\w*|рисун\w*|арт\w*|артворк\w*|фото\w*|фотк\w*|"
              r"портрет\w*|логотип\w*|лого|аватар\w*|аватарк\w*|обо(?:и|ев|ину)|постер\w*|плакат\w*|обложк\w*|"
              r"иконк\w*|значок|стикер\w*|эмблем\w*|баннер\w*|открытк\w*|комикс\w*|мем\w*|"
@@ -110,13 +94,13 @@ _CREATE_EN = r"(?:draw|paint|generate|create|make|render|design|produce|imagine|
 _SHOW_LOOK = (r"(?:покажи|покажите|показать)\s+(?:мне\s+)?(?:как\s+(?:бы\s+)?(?:мог\w*\s+)?(?:будет\s+)?выгляд\w*|"
               r"(?:картинк\w*|изображени\w*|фото\w*))|show\s+(?:me\s+)?(?:what\s+[\w\s'’-]{1,60}?\s+(?:looks?|would\s+look)\s+like|"
               r"(?:an?\s+)?(?:image|picture|photo)s?\s+of)|what\s+does\s+[\w\s'’-]{1,60}?\s+look\s+like")
-# Text-only outcomes that look visual: tables, charts, diagrams, code, formulas, ASCII.
+
 _TEXT_ARTIFACT = (r"(?:таблиц\w*|график\w*|диаграмм\w*|схем\w*|блок-?схем\w*|чарт\w*|гистограмм\w*|майнд-?карт\w*|"
                   r"интеллект-?карт\w*|формул\w*|код\w*|скрипт\w*|функци\w*|ascii|html|svg|css|latex|mermaid|"
                   r"table|tables|chart|charts|graph|graphs|plot|diagram|diagrams|flowchart|scheme|mind ?map|gantt|"
                   r"formula|code|script|function|spreadsheet|csv|json|markdown|ascii art|timeline|list|список\w*|план\w*|"
                   r"пример\w*|пис[ье]м\w*|(?:лог|логи|логов|логах)(?![\w-])|example|examples|logs?|email|letter|essay|эсс[еэ])")
-# Questions about images/video, how-to, analysis of an attachment — answered with text.
+
 _META = (r"(?:как\s+(?:мне\s+)?(?:нарисовать|рисовать|сделать|создать|сгенерировать|снять|смонтировать)|"
          r"как\s+работа\w*|что\s+так\w*|объясни|расскажи|почему|зачем|сравни|посоветуй|порекомендуй|"
          r"найди|поищи|где\s+(?:найти|посмотреть|скачать)|сколько|какой\s+(?:нейросет|модел|сервис|программ)|"
@@ -128,13 +112,11 @@ _META = (r"(?:как\s+(?:мне\s+)?(?:нарисовать|рисовать|с
          r"find|search|where\s+can|which\s+(?:model|tool|app|service)|describe|analy[sz]e|what'?s\s+in|"
          r"write\s+(?:a\s+)?(?:prompt|script|description|caption)|tell\s+me\s+about|summari[sz]e|transcribe)")
 
-
 _HOWTO = (r"(?:как\s+(?:мне\s+|бы\s+|можно\s+|правильно\s+)?(?:нарисовать|рисовать|сделать|создать|сгенерировать|снять|"
            r"смонтировать|анимировать|изобразить)|научи|урок\w*|how\s+(?:do|can|should|would)\s+(?:i|you|we|one)\b|"
            r"how\s+to\b|tutorial|step\s+by\s+step|пошагов\w*)")
 _ANIMATE = r"(?:анимируй\w*|анимировать|оживи\w*|animate|bring\s+[\w\s]{1,30}\s+to\s+life)"
 _WANT = r"(?:хочу|нужн\w*|надо|сделай\s+мне|i\s+(?:need|want|would\s+like)|i'?d\s+like|give\s+me|can\s+i\s+(?:get|have))"
-
 
 def heuristic(text: str, *, has_attachments: bool = False, after_media: bool = False) -> Tuple[str, bool]:
     """Fast first pass: ``(kind, confident)``. ``("text", True)`` for every message without visual words.
@@ -159,7 +141,7 @@ def heuristic(text: str, *, has_attachments: bool = False, after_media: bool = F
     show = re.search(_SHOW_LOOK, value) is not None
     draw_verb = re.search(_W + r"(?:нарису\w*|нарисова\w*|изобраз\w*|отрисуй|набросай)|\b(?:draw|paint|sketch|illustrate)\b",
                           value) is not None
-    # Softer signals: «покажи…», «как выглядит…», «visualize…» — a picture may help, the model decides.
+
     soft = re.search(_W + r"(?:покаж\w*|показать|как\s+(?:бы\s+)?выгляд\w*|визуализ\w*)|\b(?:show\s+me|visuali[sz]e|"
                      r"look\s+like|looks\s+like)\b", value) is not None
     if not (img or vid or show or draw_verb or soft or (create and re.search(r"\b(?:анимац|анимир|animat)", value))):
@@ -167,10 +149,10 @@ def heuristic(text: str, *, has_attachments: bool = False, after_media: bool = F
     artifact = re.search(_W + _TEXT_ARTIFACT, value) is not None
     meta = re.search(_W + _META, value) is not None
     if re.search(_W + _HOWTO, value):
-        return "text", True   # «как нарисовать лошадь», «how do I draw…» — instructions, not a picture
+        return "text", True
     if re.search(_W + _ANIMATE, value) and not meta and not artifact:
         return "video", True
-    # «нарисуй таблицу / схему / график» → a text answer (MemuAI renders tables and diagrams itself).
+
     if artifact and not re.search(_W + r"(?:картинк\w*|изображени\w*|фото(?:графи\w*)?|image|picture|photo)(?![\w-])", value):
         return "text", True
     if meta and not (create and (img or vid or draw_verb)):
@@ -184,15 +166,14 @@ def heuristic(text: str, *, has_attachments: bool = False, after_media: bool = F
     if img and re.search(_W + _WANT, value) and not meta and not vid:
         return "image", True
     if img and create and not meta:
-        # «сделай фото/скрин…» with an attachment is often an edit/analysis request → let the model decide.
+
         return "image", not has_attachments
     if vid:
         return "video", False
     if soft and not (img or show or draw_verb) and not create:
-        # «покажи мне …» / «как выглядит …?» without a picture word: usually a picture helps, but not always.
+
         return "maybe", False
     return "maybe", False
-
 
 def parse_decision(raw: str) -> str:
     """First of image/video/text in a small model's answer (reasoning stripped). Unknown → text."""
@@ -206,13 +187,8 @@ def parse_decision(raw: str) -> str:
     word = match.group(1)
     return {"изображение": "image", "картинка": "image", "видео": "video", "текст": "text"}.get(word, word)
 
-
-# --------------------------------------------------------------------------- helpers
-
-
 def _tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 def _lang(body: Dict[str, Any]) -> str:
     lang = str(body.get("lang") or "")
@@ -222,7 +198,6 @@ def _lang(body: Dict[str, Any]) -> str:
         return "en" if pgdata.load_preferences().get("language") == "en" else "ru"
     except Exception:
         return "ru"
-
 
 def _context_rows(value: Any) -> List[Dict[str, str]]:
     rows = []
@@ -235,7 +210,6 @@ def _context_rows(value: Any) -> List[Dict[str, str]]:
             rows.append({"role": role, "text": text[:700]})
     return rows
 
-
 def context_text(rows: List[Dict[str, str]], limit: int = 1800) -> str:
     out = []
     for row in rows:
@@ -243,11 +217,9 @@ def context_text(rows: List[Dict[str, str]], limit: int = 1800) -> str:
     text = "\n".join(out)
     return text[-limit:]
 
-
 _REFERENCE = re.compile(r"(?<![\w])(?:его|ее|её|их|это|этот|эту|этого|то|тот|ту|такой|такую|такое|такие|тоже|"
                         r"снова|ещ[её]|еще раз|другой|другую|теперь|вместо|выше|it|this|that|them|same|again|another|"
                         r"instead|now|above|one more)(?![\w])", re.I)
-
 
 def generation_prompt(kind: str, request: str, *, rows: List[Dict[str, str]], previous_prompt: str = "",
                       from_model: bool = False) -> str:
@@ -267,23 +239,19 @@ def generation_prompt(kind: str, request: str, *, rows: List[Dict[str, str]], pr
         return f"{request}\n\nContext from the conversation: {gist}"
     return request
 
-
 def generation_system(kind: str, rows: List[Dict[str, str]]) -> str:
     ctx = context_text(rows, 1500)
     return GENERATION_SYSTEM.format(kind="video" if kind == "video" else "image",
                                     context=("\n\nConversation:\n" + ctx) if ctx else "")
 
-
 def media_folder(profile_id: Optional[str] = None) -> Path:
     return pgdata.MEMU_DIR / pgdata._profile_data_name("generated_media", profile_id)
-
 
 def _active_profile() -> str:
     try:
         return str(pgdata.load_profiles().get("active_id", "default"))
     except Exception:
         return "default"
-
 
 def store_data_url(url: str, profile_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Save a ``data:video/…`` or ``data:image/…`` URL as a file; ``None`` when it is not a valid one."""
@@ -317,7 +285,6 @@ def store_data_url(url: str, profile_id: Optional[str] = None) -> Optional[Dict[
     active = profile_id or _active_profile()
     return {"url": f"/api/pg/media/file/{name}?profile_id={active}", "mime": mime, "size": len(raw)}
 
-
 _ERROR_RU = (
     (r"^The API key was rejected", "Ключ API отклонён сервисом"),
     (r"^Upstream rate limit", "Сервис ограничил частоту запросов (HTTP 429) — попробуйте чуть позже"),
@@ -330,7 +297,6 @@ _ERROR_RU = (
     (r"^Нет доступного", "Нет доступного"),
 )
 
-
 def friendly_error(text: Any, lang: str = "ru") -> str:
     """A provider error for people: the JSON ``error.message`` instead of the raw body, Russian prefixes in RU."""
     value = re.sub(r"\s+", " ", str(text or "")).strip()
@@ -338,7 +304,7 @@ def friendly_error(text: Any, lang: str = "ru") -> str:
     if match:
         head = value[:match.start()].split("{", 1)[0].rstrip(" :")
         try:
-            # Round 33 (r33-models): a body cut in the middle of «\u04…» is still readable.
+
             inner = json.loads('"' + re.sub(r"\\(?:u[0-9a-fA-F]{0,3})?$", "", match.group(1)) + '"')
         except Exception:
             inner = match.group(1)
@@ -350,7 +316,6 @@ def friendly_error(text: Any, lang: str = "ru") -> str:
                 break
     return value[:600]
 
-
 def _clean_prompt(text: str) -> str:
     value = str(text or "").strip()
     value = re.sub(r"^```[\w-]*\s*|\s*```$", "", value).strip()
@@ -358,10 +323,6 @@ def _clean_prompt(text: str) -> str:
     if len(value) > 2 and value[0] in "\"'«“" and value[-1] in "\"'»”":
         value = value[1:-1].strip()
     return value[:MAX_REQUEST]
-
-
-# --------------------------------------------------------------------------- routes
-
 
 def register(app: Any, *, stream_lines, web_search=None) -> None:
     """``stream_lines(path, payload_bytes)`` — SSE lines from MemuAI Proxy (playground_api._stream_proxy_lines)."""
@@ -395,7 +356,7 @@ def register(app: Any, *, stream_lines, web_search=None) -> None:
                 if delta.get("content"):
                     chunks.append(str(delta["content"]))
                     if fast and (len("".join(chunks)) > 40 or re.search(r"\b(?:image|video|text)\b", "".join(chunks), re.I)):
-                        return   # the decision word is in; do not pay for the rest
+                        return
 
         await asyncio.wait_for(run(), timeout)
         return "".join(chunks)
@@ -424,13 +385,12 @@ def register(app: Any, *, stream_lines, web_search=None) -> None:
             try:
                 raw = await complete(model, [{"role": "system", "content": decision_system()},
                                              {"role": "user", "content": user}],
-                                     # Reasoning models (DeepSeek flash…) think first even with thinking off: a tiny
-                                     # cap left them with no answer at all. The stream is cut at the first word anyway.
+
                                      max_tokens=int(body.get("max_tokens") or 256), fast=True,
                                      timeout=float(body.get("timeout") or 12))
                 result = {"kind": parse_decision(raw), "source": "model", "confident": True}
             except Exception as exc:
-                # Honest fallback: the main model still sees the hidden media protocol and can decide itself.
+
                 result = {"kind": "text" if kind == "maybe" else kind, "source": "heuristic",
                           "confident": False, "error": str(exc)[:300] or type(exc).__name__}
         if result["kind"] == "maybe":
@@ -509,7 +469,7 @@ def register(app: Any, *, stream_lines, web_search=None) -> None:
         rows = _context_rows(body.get("context"))
         prompt = str(body.get("prompt") or "").strip()[:6000]
         if not prompt:
-            # The user's own words (slash command, Decisions model): combine with the previous prompt / context.
+
             prompt = generation_prompt(kind, str(body.get("request") or ""), rows=rows,
                                        previous_prompt=str(body.get("previous_prompt") or ""))[:6000]
         if not model:
@@ -560,7 +520,7 @@ def register(app: Any, *, stream_lines, web_search=None) -> None:
                                 urls.append(stored["url"] if stored else url)
                             else:
                                 urls.append(url)
-                        # Round 33 (r33d-media): remote pictures (DashScope & co. links expire in ~24 h) → files.
+
                         from . import media_cache
                         urls = await media_cache.localize_urls(urls, profile_id)
                         item["urls"] = urls
@@ -569,7 +529,7 @@ def register(app: Any, *, stream_lines, web_search=None) -> None:
                                                                      "The model returned no result")}
                     yield "data: " + json.dumps(item, ensure_ascii=False) + "\n\n"
             except Exception as exc:
-                # Round 33 (r33c-models-vision): Proxy's refusal (no account, not an image model…) in the window's language.
+
                 text = (getattr(exc, "message_en", "") if lang == "en" else "") or str(exc)
                 yield "data: " + json.dumps({"status": "error", "error": friendly_error(text, lang)[:600] or type(exc).__name__},
                                             ensure_ascii=False) + "\n\n"

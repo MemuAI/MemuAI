@@ -35,7 +35,6 @@ from app import quick_canvas as qc  # noqa: E402
 from app import quick_app_icon  # noqa: E402
 from round27_quick_canvas_test import FakeEngine, action_of, make_runner, wait_status  # noqa: E402
 
-
 class Approval(unittest.TestCase):
     def test_risk_text_is_the_real_step_not_its_label(self):
         a = qa.validate_action({"label": "x", "steps": [{"type": "keys", "keys": "Ctrl+Alt+Del", "label": "Открыть калькулятор"}]})
@@ -67,7 +66,6 @@ class Approval(unittest.TestCase):
         self.assertFalse(qa.validate_action({"label": "f", "hotkey": "", "global": True, "steps": [{"type": "wait", "ms": 100}]})["global"])
         self.assertTrue(qa.validate_action({"label": "f", "hotkey": "Ctrl+Alt+7", "global": True, "steps": [{"type": "wait", "ms": 100}]})["global"])
 
-
 class ShellConfirmation(unittest.TestCase):
     def test_a_long_or_padded_command_cannot_hide_its_tail(self):
         from app.assistant_commands import describe
@@ -75,7 +73,6 @@ class ShellConfirmation(unittest.TestCase):
         self.assertIn("Remove-Item", padded, "whitespace padding is folded for display")
         long = describe("shell.run", {"command": "x" * 450}, "en")
         self.assertIn("150 more characters", long)
-
 
 class Runs(unittest.IsolatedAsyncioTestCase):
     async def test_stop_interrupts_a_silent_ai_step(self):
@@ -94,7 +91,6 @@ class Runs(unittest.IsolatedAsyncioTestCase):
         self.assertLess(time.monotonic() - t0, 1.0)
         self.assertEqual(run.status, "cancelled")
         self.assertEqual(run.steps[1]["status"], "skipped")
-
 
 class FakeListener:
     taken = set()
@@ -121,7 +117,6 @@ class FakeListener:
     def stop(self):
         self.stopped = True
 
-
 class FakeManager:
     def __init__(self, visible=False):
         self.visible, self.hwnd, self.previous_hwnd = visible, 1, 0
@@ -133,7 +128,6 @@ class FakeManager:
 
     def _push(self, script):
         self.pushed.append(script)
-
 
 class Routes(unittest.TestCase):
     def setUp(self):
@@ -248,11 +242,10 @@ class Routes(unittest.TestCase):
         self.assertIsNone(self.run_hotkey(a["id"]))
         self.assertIsNone(self.run_hotkey("a_missing00"))
 
-
 class AppIcon(unittest.TestCase):
     def test_png_and_alpha_from_the_mask(self):
         from PIL import Image
-        bgra = bytes([255, 0, 0, 0, 0, 0, 255, 0])                      # blue, red — no alpha at all (pre-XP icon)
+        bgra = bytes([255, 0, 0, 0, 0, 0, 255, 0])
         rgba = quick_app_icon.bgra_to_rgba(bgra, bytes([255, 255, 255, 0, 0, 0, 0, 0]))
         url = quick_app_icon.png_data_url(2, 1, rgba)
         self.assertTrue(qa.IMAGE_RE.match(url), "accepted as a button picture")
@@ -268,7 +261,6 @@ class AppIcon(unittest.TestCase):
         self.assertFalse(out["ok"])
         self.assertIn("Windows", out["error"])
         self.assertFalse(quick_app_icon.app_icon("", "ru")["ok"])
-
 
 class Window(unittest.TestCase):
     def test_headless_window(self):
@@ -289,10 +281,8 @@ class Window(unittest.TestCase):
         finally:
             shutil.rmtree(out, ignore_errors=True)
 
-
 if __name__ == "__main__":
     unittest.main()
-
 
 class SizeCap(unittest.TestCase):
     """r27-hunt-canvas #16: all buttons together are capped (a 77 MB import made every window open slow)."""

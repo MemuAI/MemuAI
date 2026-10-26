@@ -21,14 +21,11 @@ ROOT = Path(__file__).resolve().parents[1]
 PG = ROOT / "app" / "pgstatic"
 FIX = Path(__file__).resolve().parent / "fixtures" / "product_cards"
 
-
 def fixture(name: str) -> str:
     return (FIX / name).read_text(encoding="utf-8")
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 class NumbersAndText(unittest.TestCase):
     def test_amounts(self):
@@ -67,7 +64,6 @@ class NumbersAndText(unittest.TestCase):
         self.assertIsNone(pc._rating("abc"))
         self.assertEqual(pc._rating("4,8"), 4.8)
 
-
 class Stores(unittest.TestCase):
     def test_store_by_domain_not_by_name(self):
         self.assertEqual(pc.store_for_url("https://www.ozon.ru/product/x-123/"), "ozon")
@@ -103,7 +99,7 @@ class Stores(unittest.TestCase):
         self.assertIn("отзывы", ru["reviews"][0])
         self.assertTrue(any("buy" in q for q in en["shop"]))
         self.assertIn("review", en["reviews"][0])
-        # Round 22: every regional store gets its own search attempt where a search address is known.
+
         self.assertEqual([sid for sid, _ in pc.direct_search_pages("x", "ru", pc.LOCALE_STORES["ru"])],
                          list(pc.LOCALE_STORES["ru"]))
         self.assertIn("https://market.yandex.ru/search?text=x", [u for _, u in pc.direct_search_pages("x", "ru", ["yandex_market"])])
@@ -124,20 +120,19 @@ class Stores(unittest.TestCase):
         self.assertGreaterEqual(pc._relevance("WD Black SN770 1TB", "WD_BLACK SN770 NVMe 1 ТБ"), 0.75)
         self.assertGreaterEqual(pc._relevance("Samsung 990 EVO Plus 1TB", "Купить 1000 ГБ Samsung 990 EVO Plus"), 0.8)
 
-
 class Extraction(unittest.TestCase):
     def test_store_product_jsonld(self):
         data = pc.extract_product(fixture("store_product_jsonld.html"), "https://www.dns-shop.ru/product/abc/sn770/")["product"]
         self.assertEqual(data["title"], "1000 ГБ M.2 NVMe накопитель WD Black SN770 [WDS100T3X0E]")
         self.assertEqual(data["brand"], "WD")
         self.assertEqual(data["sku"], "WDS100T3X0E")
-        self.assertEqual(data["price"], {"amount": 9499, "currency": "RUB"})   # AggregateOffer → lowPrice
+        self.assertEqual(data["price"], {"amount": 9499, "currency": "RUB"})
         self.assertEqual(data["availability"], "in_stock")
         self.assertEqual(data["rating"], 4.8)
         self.assertEqual(data["review_count"], 1254)
-        self.assertIn("https://www.dns-shop.ru/thumb/sn770-3.jpg", data["images"])   # relative ImageObject
+        self.assertIn("https://www.dns-shop.ru/thumb/sn770-3.jpg", data["images"])
         self.assertEqual(data["images"][0], "https://c.dns-shop.ru/thumb/st4/fit/0/0/sn770-1.jpg")
-        self.assertEqual(len(data["reviews"]), 1)                                   # "ok" is too short
+        self.assertEqual(len(data["reviews"]), 1)
         self.assertEqual(data["reviews"][0]["author"], "Алексей")
         self.assertEqual(data["reviews"][0]["rating"], 5)
         self.assertEqual(data["description"], "Накопитель & радиатор не входит")
@@ -165,9 +160,9 @@ class Extraction(unittest.TestCase):
 
     def test_microdata_and_og(self):
         data = pc.extract_product(fixture("microdata_og.html"), "https://shop.example.com/t500")["product"]
-        self.assertEqual(data["price"], {"amount": 79.99, "currency": "USD"})        # microdata before og
+        self.assertEqual(data["price"], {"amount": 79.99, "currency": "USD"})
         self.assertEqual(data["availability"], "out_of_stock")
-        self.assertEqual(data["rating"], 4.6)                                         # 9.2 of 10
+        self.assertEqual(data["rating"], 4.6)
         self.assertEqual(data["review_count"], 312)
         self.assertIn("https://shop.example.com/media/t500-angle.jpg", data["images"])
         self.assertIn("https://images.example.com/t500-back.jpg", data["images"])
@@ -187,7 +182,6 @@ class Extraction(unittest.TestCase):
         self.assertTrue(pc._tiny_image("https://x/samsung_100px.jpg"))
         self.assertFalse(pc._tiny_image("https://m.media-amazon.com/images/I/61n._AC_SL1500_.jpg"))
 
-
 def _store_with_pages() -> pc.Provenance:
     store = pc.Provenance(None)
     now = int(time.time())
@@ -199,7 +193,6 @@ def _store_with_pages() -> pc.Provenance:
     store.remember("https://www.ixbt.com/data/ssd-a-review.html", {"snippets": [
         "Особенно если ограничиваться ходовым терабайтом — в этом случае SN770 укладывался в сотню долларов."]}, kind="snippet")
     return store
-
 
 BLOCK = {
     "query": "SSD до 20 000 ₽", "locale": "ru", "currency": "RUB",
@@ -221,7 +214,6 @@ BLOCK = {
     ],
 }
 
-
 class Normalize(unittest.TestCase):
     def setUp(self):
         self.store = _store_with_pages()
@@ -232,19 +224,19 @@ class Normalize(unittest.TestCase):
     def test_items_and_best(self):
         self.assertEqual([item["name"] for item in self.items], ["SSD A 1 ТБ", "SSD B"])
         self.assertTrue(self.items[0]["best"])
-        self.assertNotIn("best", self.items[1])            # only one best pick
+        self.assertNotIn("best", self.items[1])
         self.assertEqual(self.result["data"]["currency"], "RUB")
 
     def test_offers_store_from_domain_and_unknown_removed(self):
         offers = self.items[0]["offers"]
         self.assertEqual([o["store_id"] for o in offers], ["yandex_market", "dns"])
-        self.assertEqual(offers[0]["store"], "Яндекс Маркет")                  # not the claimed "Ozon"
+        self.assertEqual(offers[0]["store"], "Яндекс Маркет")
         self.assertTrue(any("unknown store" in w for w in self.result["warnings"]))
         self.assertTrue(all(o["url"].startswith("https://") for o in offers))
 
     def test_prices_verified_or_approx(self):
         market, dns = self.items[0]["offers"]
-        self.assertEqual(market["price"], {"amount": 18130, "currency": "RUB", "approx": False})   # page beats the claim
+        self.assertEqual(market["price"], {"amount": 18130, "currency": "RUB", "approx": False})
         self.assertTrue(market["verified"])
         self.assertIn("checked_at", market)
         self.assertEqual(dns["price"]["approx"], True)
@@ -256,10 +248,10 @@ class Normalize(unittest.TestCase):
         self.assertTrue(any("replaced with the store page price" in w for w in self.result["warnings"]))
 
     def test_rating_needs_source(self):
-        self.assertEqual(self.items[0]["rating"], 4.9)                 # page rating with more ratings wins
+        self.assertEqual(self.items[0]["rating"], 4.9)
         self.assertEqual(self.items[0]["review_count"], 954)
         self.assertTrue(self.items[0]["rating_verified"])
-        self.assertNotIn("rating", self.items[1])                      # no source → dropped
+        self.assertNotIn("rating", self.items[1])
         self.assertTrue(any("rating without a source" in w for w in self.result["warnings"]))
 
     def test_reviews_need_links_and_are_checked(self):
@@ -267,7 +259,7 @@ class Normalize(unittest.TestCase):
         self.assertEqual(len(reviews), 2)
         self.assertTrue(reviews[0]["verified"])
         self.assertEqual(reviews[0]["source"], "ixbt.com")
-        self.assertNotIn("verified", reviews[1])                       # invented quote is not marked verified
+        self.assertNotIn("verified", reviews[1])
         self.assertTrue(any("review without a link" in w for w in self.result["warnings"]))
 
     def test_images_and_text_sanitized(self):
@@ -310,7 +302,6 @@ class Normalize(unittest.TestCase):
         self.assertEqual((en["locale"], en["currency"]), ("en", "USD"))
         self.assertEqual(en["items"][0]["price"]["currency"], "USD")
 
-
 class ProvenanceStore(unittest.TestCase):
     def test_persist_ttl_and_limit(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -332,7 +323,6 @@ class ProvenanceStore(unittest.TestCase):
         row = store.get("https://ozon.ru/product/a/")
         self.assertEqual((row["kind"], row["title"], row["snippets"]), ("page", "Page", ["x"]))
 
-
 def _page_for(url: str) -> str:
     if "market.yandex.ru/search" in url:
         return fixture("market_search.html")
@@ -343,7 +333,6 @@ def _page_for(url: str) -> str:
     if "ixbt.com" in url:
         return '<html><head><meta property="og:image" content="https://www.ixbt.com/img/sn770-review.jpg"></head></html>'
     raise TimeoutError(url)
-
 
 class Lookup(unittest.TestCase):
     def setUp(self):
@@ -380,22 +369,22 @@ class Lookup(unittest.TestCase):
         self.assertEqual(by_store["dns"]["price"], {"amount": 9499, "currency": "RUB"})
         self.assertEqual(by_store["dns"]["price_from"], "page")
         self.assertEqual(by_store["dns"]["rating"], 4.8)
-        self.assertEqual(by_store["ozon"]["price_from"], "snippet")              # captcha page → snippet price
+        self.assertEqual(by_store["ozon"]["price_from"], "snippet")
         self.assertIn("anti-bot", by_store["ozon"]["page"])
-        self.assertEqual(by_store["citilink"]["price"]["amount"], 10490)          # timeout → snippet
-        self.assertEqual(data["offers"][0]["price_from"], "page")                 # verified first
+        self.assertEqual(by_store["citilink"]["price"]["amount"], 10490)
+        self.assertEqual(data["offers"][0]["price_from"], "page")
         self.assertEqual(data["currency"], "RUB")
         self.assertNotIn("http://127.0.0.1/admin", self.fetches)
         self.assertTrue(all("/category/" not in url for url in self.fetches))
         sources = [r["url"] for r in data["review_sources"]]
         self.assertIn("https://www.ixbt.com/data/wd-black-sn770-1tb-review.html", sources)
-        self.assertNotIn("https://www.westerndigital.com/", sources)               # no model token
+        self.assertNotIn("https://www.westerndigital.com/", sources)
         self.assertIn("https://www.ixbt.com/img/sn770-review.jpg", [img["url"] for img in data["images"]])
 
     def test_market_search_page_is_read_directly(self):
         data = self.lookup()
         self.assertTrue(any(u.startswith("https://market.yandex.ru/search?text=") for u in self.fetches))
-        # The fixture lists Samsung drives, which do not match this query.
+
         self.assertFalse(any(o["store_id"] == "yandex_market" for o in data["offers"]))
 
     def test_provenance_is_filled(self):
@@ -406,7 +395,7 @@ class Lookup(unittest.TestCase):
         self.assertEqual(row["kind"], "page")
         self.assertIn("checked_at", row)
         ozon = store.get("https://www.ozon.ru/product/wd-black-sn770-1tb-774420811/")
-        self.assertNotIn("price", ozon)                                            # snippet prices are not page facts
+        self.assertNotIn("price", ozon)
         self.assertEqual(ozon["kind"], "snippet")
 
     def test_cache_and_budget(self):
@@ -438,7 +427,7 @@ class Lookup(unittest.TestCase):
         data = run(pc.lookup("WD Black SN770 1TB", locale="ru", search=search, fetch=self._fetch,
                              store=pc.Provenance(None), use_cache=False))
         self.assertTrue(any(q.endswith(" site:ozon.ru") for q in self.searches))
-        # Round 22: a site-specific query for EVERY regional store without a product page.
+
         for sid in pc.LOCALE_STORES["ru"]:
             self.assertTrue(any(q.endswith("site:" + pc.STORES[sid]["domains"][0]) for q in self.searches), sid)
         self.assertEqual(data["offers"][0]["store_id"], "ozon")
@@ -450,7 +439,6 @@ class Lookup(unittest.TestCase):
                              use_cache=False, urls=["https://www.dns-shop.ru/product/x/y/", "file:///etc/passwd"]))
         self.assertEqual(data["offers"][0]["url"], "https://www.dns-shop.ru/product/x/y/")
         self.assertNotIn("file:///etc/passwd", self.fetches)
-
 
 class TextFallback(unittest.TestCase):
     def test_markdown_fallback(self):
@@ -473,7 +461,6 @@ class TextFallback(unittest.TestCase):
         self.assertEqual(pc.format_price({"amount": 366.5, "currency": "USD"}, "en"), "$366.50")
         self.assertEqual(pc.format_price({"amount": 24802, "currency": "RUB", "approx": True}, "ru"), "≈\u00a024\u00a0802\u00a0₽")
 
-
 class PromptAndWiring(unittest.TestCase):
     def test_internal_prompt(self):
         row = next(item for item in pgdata.INTERNAL_PROMPTS if item["id"] == "product-cards")
@@ -490,7 +477,7 @@ class PromptAndWiring(unittest.TestCase):
         self.assertTrue(pc.normalize(example.replace("…", "x"), store=pc.Provenance(None))["ok"])
         builtin = pgdata.builtin_prompt_set()
         self.assertIn("product-cards", [x["id"] for x in builtin["internal_prompts"]])
-        # A user copy of the prompt set keeps the contract and its own edits.
+
         user = pgdata._normalize_prompt_set({"id": "mine", "internal_prompts": [{"id": "product-cards", "text": "custom"}]})
         self.assertEqual(next(x for x in user["internal_prompts"] if x["id"] == "product-cards")["text"], "custom")
 
@@ -514,7 +501,7 @@ class PromptAndWiring(unittest.TestCase):
         self.assertIn('name === "product_lookup") && assistant.webAllowed === false', app)
         self.assertIn('MemuProducts.stripForText(plain, PG_LANG === "en", "speech")', app)
         self.assertIn('id="st-products"', app)
-        # Round 22: research progress instead of flickering drafts between tool rounds.
+
         self.assertIn("MemuProducts.holdStream(m, visibleAnswer(m.content", app)
         self.assertIn("MemuProducts.holdStream(current, answerText)", app)
         self.assertIn("MemuProducts.progress(cleanCode)", app)
@@ -523,7 +510,7 @@ class PromptAndWiring(unittest.TestCase):
         self.assertIn('internalPromptText("product-cards")', js)
         self.assertIn("/api/pg/products/normalize", js)
         self.assertIn('target="_blank" rel="noopener noreferrer"', js)
-        # Prefix of our own: panels.css (r21-panels) uses .mp-*.
+
         self.assertNotRegex(css, r"(?<![\w-])\.mp-")
         self.assertNotRegex(js, r'class="mp-')
         for design in ("glass", "grid", "focus"):
@@ -535,7 +522,6 @@ class PromptAndWiring(unittest.TestCase):
         js = (PG / "products.js").read_text(encoding="utf-8")
         self.assertIn('<product_cards_runtime locale="${ru ? "ru" : "en"}" region="${ru ? "Russia" : "USA"}" '
                       'currency="${ru ? "RUB" : "USD"}" product_lookup="${tool}"/>', js)
-
 
 class Endpoints(unittest.TestCase):
     @classmethod
@@ -559,9 +545,6 @@ class Endpoints(unittest.TestCase):
         short = self.client.post("/api/pg/tools", json={"tool": "product_lookup", "args": {"query": "x"}}).json()
         self.assertIn("error", short)
 
-
-
-
 class TelegramFallback(unittest.TestCase):
     def test_bot_and_miniapp_render_products_as_text(self):
         from app import telegram_bot, tgapp_chat
@@ -574,15 +557,11 @@ class TelegramFallback(unittest.TestCase):
         partial = telegram_bot._clean_internal_protocols("Вот:\n```memuai-products\n{\"items\": [", partial=True)
         self.assertEqual(partial, "Вот:")
 
-
-# =========================================================================== Round 22
-
 WB_JSON = json.dumps({"data": {"products": [
     {"id": 251234567, "brand": "WD", "name": "SSD Blue SN5000 1 ТБ M.2 NVMe", "salePriceU": 899000,
      "reviewRating": 4.8, "feedbacks": 312, "totalQuantity": 41},
     {"id": 999, "brand": "Noname", "name": "Чехол для SSD", "sizes": [{"price": {"product": 49900}}], "totalQuantity": 0},
 ]}}, ensure_ascii=False)
-
 
 def _budget_store() -> pc.Provenance:
     store = pc.Provenance(None)
@@ -598,7 +577,6 @@ def _budget_store() -> pc.Provenance:
                     "discontinued": True, "checked_at": now})
     return store
 
-
 BUDGET_BLOCK = {
     "query": "SSD до 15 000 ₽", "locale": "ru", "currency": "RUB", "budget": {"amount": 15000, "currency": "RUB"},
     "items": [
@@ -610,7 +588,6 @@ BUDGET_BLOCK = {
         {"name": "Old SSD 1TB", "offers": [{"url": "https://www.citilink.ru/product/old-ssd-1tb-1/", "price": 7000}]},
     ],
 }
-
 
 class Round22Budget(unittest.TestCase):
     """A budget is a hard ceiling on VERIFIED in-stock offer prices."""
@@ -627,17 +604,17 @@ class Round22Budget(unittest.TestCase):
 
     def test_over_budget_item_is_marked_and_loses_best_pick(self):
         adata = self.items["ADATA Legend 850 1TB"]
-        self.assertEqual(adata["budget_status"], "over")              # 16 357 ₽ on the page, not the claimed 14 500
+        self.assertEqual(adata["budget_status"], "over")
         self.assertEqual(adata["price"]["amount"], 16357)
         self.assertNotIn("best", adata)
-        self.assertNotIn("badge", adata)                               # «Лучший выбор» must not stay on it
+        self.assertNotIn("badge", adata)
         self.assertTrue(any("best pick moved" in w for w in self.warnings))
 
     def test_verified_in_budget_item_becomes_best(self):
         wd = self.items["WD Blue SN5000 1 ТБ"]
         self.assertEqual(wd["budget_status"], "within")
         self.assertTrue(wd["best"])
-        self.assertEqual(wd["badge"], "Лучший выбор")                  # promoted: the badge says so
+        self.assertEqual(wd["badge"], "Лучший выбор")
         self.assertEqual(self.data["items"][0]["name"], "WD Blue SN5000 1 ТБ")
 
     def test_estimate_only_item_is_unverified_not_within(self):
@@ -679,9 +656,8 @@ class Round22Budget(unittest.TestCase):
         data = pc.normalize(block, locale="ru", store=_budget_store())["data"]
         self.assertFalse(any("budget_status" in item for item in data["items"]))
         self.assertNotIn("budget", data)
-        # …but an unavailable item still cannot be the best pick
-        self.assertEqual(next(i for i in data["items"] if i.get("best"))["name"], "ADATA Legend 850 1TB")
 
+        self.assertEqual(next(i for i in data["items"] if i.get("best"))["name"], "ADATA Legend 850 1TB")
 
 class Round22Availability(unittest.TestCase):
     def test_discontinued_text(self):
@@ -703,7 +679,6 @@ class Round22Availability(unittest.TestCase):
         self.assertEqual(rows[1]["price"]["amount"], 499)
         self.assertEqual(rows[1]["availability"], "out_of_stock")
         self.assertEqual(pc._wb_products("<html>blocked</html>"), [])
-
 
 class Round22StoreCoverage(unittest.TestCase):
     """Every regional store is attempted and gets an honest status."""
@@ -746,8 +721,8 @@ class Round22StoreCoverage(unittest.TestCase):
         for sid in pc.LOCALE_STORES["ru"]:
             self.assertTrue(any(u.startswith(pc.STORE_SEARCH[sid].split("{q}")[0]) for u in self.fetches), sid)
         self.assertEqual(statuses["dns"], "found")
-        self.assertEqual(statuses["wildberries"], "found")             # public JSON of the store
-        self.assertEqual(statuses["ozon"], "approx")                   # captcha page, price only from the snippet
+        self.assertEqual(statuses["wildberries"], "found")
+        self.assertEqual(statuses["ozon"], "approx")
         for sid in ("mvideo", "citilink", "megamarket", "yandex_market"):
             self.assertIn(statuses[sid], ("error", "not_found", "blocked"), sid)
         wb = next(o for o in data["offers"] if o["store_id"] == "wildberries")
@@ -771,14 +746,13 @@ class Round22StoreCoverage(unittest.TestCase):
             {"name": "WD Blue SN5000 1 ТБ", "model": "WDS100T4B0E", "best": True,
              "offers": [{"url": "https://www.dns-shop.ru/product/a1/wd-blue-sn5000-1tb/", "price": 8999}]}]}
         item = pc.normalize(block, locale="ru", store=store)["data"]["items"][0]
-        # Wildberries was found by the lookup with the store's own price: added as a verified offer
-        # even though the model did not list it.
+
         wb = next(o for o in item["offers"] if o["store_id"] == "wildberries")
         self.assertEqual((wb["price"]["amount"], wb["verified"], wb["added"]), (8990, True, "lookup"))
         self.assertEqual(wb["url"], "https://www.wildberries.ru/catalog/251234567/detail.aspx")
         checks = {row["store_id"]: row for row in item["store_checks"]}
         self.assertEqual(set(checks), set(pc.LOCALE_STORES["ru"]) - {"dns", "wildberries"})
-        self.assertEqual(checks["ozon"]["status"], "unconfirmed")      # found in search, price not confirmed
+        self.assertEqual(checks["ozon"]["status"], "unconfirmed")
         self.assertEqual(checks["ozon"]["url"], "https://www.ozon.ru/product/wd-blue-sn5000-1tb-55/")
         self.assertEqual(checks["ozon"]["color"], "#005bff")
         for sid in ("mvideo", "citilink", "megamarket", "yandex_market"):
@@ -801,7 +775,6 @@ class Round22StoreCoverage(unittest.TestCase):
             self.assertEqual(row["stores"], [{"store_id": "ozon", "status": "blocked"}])
             self.assertIsNone(second.lookup_for("Samsung 990 Pro 2TB", "ru"))
             self.assertIsNone(second.lookup_for("WD Blue SN5000 1TB", "en"))
-
 
 if __name__ == "__main__":
     unittest.main()

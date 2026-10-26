@@ -29,14 +29,11 @@ if not os.environ.get("MEMUAI_DATA_DIR"):
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def _entry(model_id, provider="custom", model="", prefix=""):
     return SimpleNamespace(id=model_id, provider=provider, model=model or model_id, prefix=prefix, caps={},
                            enabled=True)
 
-
 QWEN_LEVELS = ["auto", "off", "low", "medium", "high"]
-
 
 class TelegramModelsTest(unittest.TestCase):
     def test_names_alias_first_then_readable(self):
@@ -103,12 +100,10 @@ class TelegramModelsTest(unittest.TestCase):
         self.assertEqual(fields["reasoning_levels"], [])
         self.assertEqual(fields["effort"], "high")
 
-
 class _FakeIo:
     @staticmethod
     async def run(function, *args, **kwargs):
         return function(*args, **kwargs)
-
 
 class TelegramBotModelsTest(unittest.TestCase):
     def setUp(self):
@@ -191,7 +186,6 @@ class TelegramBotModelsTest(unittest.TestCase):
             asyncio.run(self.tb._handle_callback(None, "t", callback, self.prefs))
         self.assertTrue(self.toasts, "the callback is answered")
 
-
 class MiniAppModelsTest(unittest.TestCase):
     def test_chat_models_rows_carry_names_badges_and_levels(self):
         from app import tgapp_chat
@@ -233,7 +227,6 @@ class MiniAppModelsTest(unittest.TestCase):
         api = (ROOT / "app/tgapp_api.py").read_text(encoding="utf-8")
         self.assertIn('effort=str(body.get("effort")', api)
         self.assertIn('"xhigh"', re.search(r'"default_effort": \{[^}]+\}', api).group(0))
-
 
 class MemuCodeModelListTest(unittest.TestCase):
     def test_option_has_readable_name_and_full_id(self):
@@ -282,7 +275,6 @@ class MemuCodeModelListTest(unittest.TestCase):
         self.assertEqual(_pretty_name(ModelInfo(id="a", name="Named"), "a"), "Named")
         self.assertEqual(_pretty_name("reform-qwen3.8-flash", "reform-qwen3.8-flash"), "Qwen3.8 Flash")
 
-
 ADMIN_MODELS = [
     {"id": "reform-qwen3.8-flash", "provider": "custom", "prefix": "reform", "model": "qwen3.8-flash", "enabled": True,
      "caps": {}},
@@ -297,7 +289,6 @@ PG_STATE = {
         {"id": "reform-glm-5.3", "name": "GLM-5.3", "account": "Reform", "caps": {}},
     ],
 }
-
 
 class _Proxy(BaseHTTPRequestHandler):
     def log_message(self, *args):
@@ -316,7 +307,6 @@ class _Proxy(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(raw)))
         self.end_headers()
         self.wfile.write(raw)
-
 
 class ModulesModelsFieldsTest(unittest.TestCase):
     @classmethod
@@ -347,7 +337,6 @@ class ModulesModelsFieldsTest(unittest.TestCase):
         self.assertEqual(rows["reform-qwen3.8-flash"]["account"], "Reform")
         self.assertEqual(rows["reform-qwen3.8-flash"]["vision_state"], "unknown", "the catalogue's tri-state wins")
         self.assertEqual(rows["reform-glm-5.3"]["vision_state"], "no")
-
 
 class OtherListsTest(unittest.TestCase):
     def test_memunote_models_are_readable(self):
@@ -402,7 +391,6 @@ class OtherListsTest(unittest.TestCase):
         self.assertIn("app.model_names", build_module.TARGETS["memucode"]["hidden"])
         self.assertIn("app.reasoning_levels", build_module.TARGETS["memucode"]["hidden"])
         self.assertIn("app.model_names", build_module.TARGETS["memunote"]["hidden"])
-
 
 if __name__ == "__main__":
     unittest.main()

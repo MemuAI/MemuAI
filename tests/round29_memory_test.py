@@ -20,7 +20,6 @@ from app import memory_v2 as mem, pgdata  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
 class MemoryCase(unittest.TestCase):
     def setUp(self) -> None:
         self.dir = Path(tempfile.mkdtemp(prefix="mem2-"))
@@ -41,7 +40,6 @@ class MemoryCase(unittest.TestCase):
     @staticmethod
     def block(*facts) -> str:
         return "Ответ.\n\n```memuai-memory\n" + json.dumps({"facts": list(facts)}, ensure_ascii=False) + "\n```"
-
 
 class StorageTest(MemoryCase):
     def test_v1_migrates_and_legacy_readers_keep_working(self) -> None:
@@ -69,7 +67,7 @@ class StorageTest(MemoryCase):
         mem.add_manual("Любит чай")
         mem.add_manual("Пишет на Rust", scope=["code"])
         raw = self.raw()
-        raw["facts"] = ["Любит кофе"]          # an older client replaced the list
+        raw["facts"] = ["Любит кофе"]
         self.write("memory.json", raw)
         doc = mem.load()
         active = {i["text"]: i for i in doc["items"] if i["status"] == "active"}
@@ -79,7 +77,6 @@ class StorageTest(MemoryCase):
         mem.save_legacy({"enabled": True, "facts": ["Любит кофе", "Любит чай"]})
         self.assertEqual(sorted(mem.load()["facts"]), ["Любит кофе", "Любит чай"])
         self.assertEqual(len([i for i in mem.load()["items"] if i["text"] == "Любит чай"]), 1, "restored, not duplicated")
-
 
 class ExtractionTest(MemoryCase):
     def test_block_and_legacy_marker_are_stored_with_their_source(self) -> None:
@@ -171,7 +168,6 @@ class ExtractionTest(MemoryCase):
         self.assertEqual(out["result"], 1)
         self.assertEqual(mem.load()["facts"], ["Любит горы"])
 
-
 class RankingTest(MemoryCase):
     def test_scope_pins_relevance_and_budget(self) -> None:
         for i in range(60):
@@ -190,7 +186,6 @@ class RankingTest(MemoryCase):
         block = mem.profile_context("chat", "python", name="Анна")
         self.assertIn("untrusted personalization data", block)
         self.assertRegex(block, r"\[m[0-9a-f]{6}\] Зовут Анна")
-
 
 class StreamingTest(unittest.TestCase):
     TEXT = ("Вот ответ с кодом:\n```python\nprint('```memu')\n```\nи всё. [MEM: любит чай] Дальше."
@@ -219,7 +214,6 @@ class StreamingTest(unittest.TestCase):
             shown += flt.finish()
             self.assertEqual(shown.rstrip(), expected)
 
-
 class ImportExportTest(MemoryCase):
     def test_round_trip_json_markdown_and_text(self) -> None:
         mem.add_manual("Любит чай", pinned=True, tags=["еда"])
@@ -243,7 +237,6 @@ class ImportExportTest(MemoryCase):
             self.assertEqual(len(out["result"]["added"]), 1)
         shutil.rmtree(other, ignore_errors=True)
 
-
 class ProfilesTest(MemoryCase):
     def profiles(self, active: str) -> None:
         self.write("profiles.json", {"active_id": active, "items": [
@@ -259,7 +252,7 @@ class ProfilesTest(MemoryCase):
         self.assertTrue((self.dir / "memory_profiles" / "default.json").exists())
         mem.add_manual("Факт B")
         self.assertEqual(sorted(mem.load("default")["facts"]), ["Факт A", "старый факт A"])
-        # the active profile changed elsewhere (no switch call): the next read swaps the files itself
+
         self.profiles("default")
         self.assertEqual(sorted(mem.load()["facts"]), ["Факт A", "старый факт A"])
         self.assertEqual(sorted(mem.load("p2")["facts"]), ["Факт B", "снимок B"])
@@ -280,7 +273,6 @@ class ProfilesTest(MemoryCase):
         self.assertEqual(mem.facts_for_profile({"memory": {"facts": ["x"]}}, "telegram"), ["x"])
         lines = mem.facts_for_profile({"id": "default"}, "telegram")
         self.assertTrue(any(line.endswith("Живой факт") for line in lines))
-
 
 class ApiTest(MemoryCase):
     def client(self):
@@ -332,7 +324,6 @@ class ApiTest(MemoryCase):
         self.assertEqual(md.status_code, 200)
         self.assertEqual(c.post("/api/memory/legacy", json={"facts": "x"}).status_code, 400)
 
-
 class IntegrationTest(MemoryCase):
     def test_clients_strip_the_block(self) -> None:
         from app import tgapp_chat, telegram_bot
@@ -380,7 +371,6 @@ class IntegrationTest(MemoryCase):
         for spec in ("MemuAI.spec", "MemuCode.spec", "MemuAIProxy.spec"):
             self.assertIn("app.memory_v2", (ROOT / spec).read_text(encoding="utf-8"), spec)
 
-
 class DocsAndUiTest(unittest.TestCase):
     """The help article describes memory v2 as the panel implements it (finisher r29-finish-memory)."""
 
@@ -405,14 +395,13 @@ class DocsAndUiTest(unittest.TestCase):
         self.assertIsNone(__import__("re").search(r"[А-Яа-яЁё]", self.page("en")))
 
     def test_panel_selects_never_become_the_searchable_picker(self) -> None:
-        # a long list turned into «mpick» while short ones stayed pretty-selects: two looks in one toolbar
+
         js = (STATIC / "memory.js").read_text(encoding="utf-8")
         import re
         selects = re.findall(r"<select\b[^>]*>", js)
         self.assertTrue(selects)
         for tag in selects:
             self.assertIn("data-no-search", tag, tag)
-
 
 if __name__ == "__main__":
     unittest.main()

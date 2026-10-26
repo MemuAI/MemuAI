@@ -23,8 +23,7 @@ for (const en of [false, true]) {
   function draw(){++renders;dom.window.document.body.innerHTML=settings.sttApiHtml(ctx);settings.bindStt(ctx);}
   const field = id => dom.window.document.getElementById('st-stt-'+id);
   draw();
-  // Pending fields belong to the new URL, while the old native credentials
-  // and model remain restorable through the service dropdown.
+
   field('url').value='https://own-gateway.example/v1';
   field('key').value='gateway-key';
   field('model').value='gateway-model';
@@ -43,7 +42,6 @@ for (const en of [false, true]) {
   assert.equal(field('key').value,'gateway-key');
   assert.equal(field('model').value,'gateway-model');
 
-  // A failed URL save retains pending controls rather than re-rendering them.
   fail=true;
   const before=renders;
   field('url').value='https://api.openai.com/v1';

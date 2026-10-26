@@ -1,5 +1,3 @@
-/* Round 38: the panel kit — every module panel gets it before its own styles (app/module_integration.py
-   panel_document). Calm card, one accent (--c), 4/8 px grid, theme tokens of the module document (light / dark). */
 html, body { margin: 0; height: 100%; background: transparent; color: var(--text); font: 13px/1.4 var(--sans); }
 * { box-sizing: border-box; }
 button { font: inherit; color: inherit; }

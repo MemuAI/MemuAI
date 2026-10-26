@@ -1,5 +1,5 @@
-/* MemuAI module «Characters» (SillyTavern-style roleplay). main.js is the source of truth.
-   Sections: engine (pure logic, tested in Node) -> core UI -> chat -> views -> editors -> panels -> boot. */
+
+
 "use strict";
 /* @memu-shared:tokens */
 /* @engine-start — pure logic, no DOM: macros, World Info, prompt builder (SillyTavern Chat Completion
@@ -8,7 +8,6 @@
 var CharEngine = (function () {
   "use strict";
 
-  /* ------------------------------------------------------------ helpers */
   function str(value) { return value === undefined || value === null ? "" : String(value); }
   function num(value, fallback) { var n = Number(value); return Number.isFinite(n) ? n : fallback; }
   function clone(value) { return value === undefined ? undefined : JSON.parse(JSON.stringify(value)); }
@@ -33,10 +32,8 @@ var CharEngine = (function () {
     };
   }
 
-  /* ------------------------------------------------------------ tokens (estimate + cache) */
-  // The same language-aware estimate MemuAI shows everywhere (pgstatic/tokens.js, inlined by the host at
   // the @memu-shared:tokens marker): Russian costs more tokens than English, and each model family counts
-  // differently. setTokenModel() picks the family of the chat's model; without it — the median family.
+
   var tokenCache = new Map();
   var tokenModel = "";
   function setTokenModel(model) {
@@ -61,11 +58,6 @@ var CharEngine = (function () {
     return estimateTokens(text) + 4 + (message.name ? 1 : 0) + images * 765;
   }
 
-  /* ------------------------------------------------------------ macros (SillyTavern legacy engine) */
-  /** ctx: { user, char, group, persona, description, personality, scenario, mesExamples, mesExamplesRaw,
-   *   charPrompt, charJailbreak, charDepthPrompt, creatorNotes, charVersion, model, original,
-   *   chat (array of {name,is_user,mes,date,swipes}), variables (object, mutated), globals (object, mutated),
-   *   input, maxContext, maxResponse, maxPrompt, chatId, now (Date), lang } */
   function rollDice(formula) {
     var f = str(formula).trim().replace(/\s+/g, "");
     if (/^\d+$/.test(f)) f = "1d" + f;
@@ -100,7 +92,7 @@ var CharEngine = (function () {
       if (format === "LT") return date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
       if (format === "LL") return date.toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" });
       if (format === "dddd") return date.toLocaleDateString(locale, { weekday: "long" });
-    } catch (e) { /* old engine */ }
+    } catch (e) {  }
     var pad = function (n) { return (n < 10 ? "0" : "") + n; };
     return str(format)
       .replace(/YYYY/g, String(date.getFullYear())).replace(/MM/g, pad(date.getMonth() + 1))
@@ -129,10 +121,7 @@ var CharEngine = (function () {
     return listString.indexOf("::") >= 0 ? listString.split("::")
       : listString.replace(/\\,/g, "##COMMA##").split(",").map(function (x) { return x.trim().replace(/##COMMA##/g, ","); });
   }
-  // Nested macros ({{setvar::X::… {{getvar::Lang}} …}}, used by big modern presets) are resolved inside-out, as in
-  // SillyTavern's macro engine: the flat regex pipeline below would end the outer macro at the inner «}}» —
-  // phase 2: «Engine» stored «…{{getvar::Language» in a variable and leaked the rest of the block into the prompt.
-  // Comments {{// … }} are left alone (their content is never evaluated).
+
   function resolveNested(content, ctx) {
     if (content.indexOf("{{") < 0) return content;
     for (var guard = 0; guard < 500; guard++) {
@@ -165,14 +154,14 @@ var CharEngine = (function () {
         store[name] = String(Number(current) + Number(value));
       } else store[name] = str(current) + str(value);
     }
-    // Card fields first: {{user}}/{{char}} must be substituted last, inside {{description}} too (as in ST).
+
     var env = {
       charPrompt: ctx.charPrompt || "", charInstruction: ctx.charJailbreak || "", charJailbreak: ctx.charJailbreak || "",
       description: ctx.description || "", personality: ctx.personality || "", scenario: ctx.scenario || "",
       persona: ctx.persona || "", mesExamples: ctx.mesExamples || "", mesExamplesRaw: ctx.mesExamplesRaw || "",
       charVersion: ctx.charVersion || "", char_version: ctx.charVersion || "",
       charDepthPrompt: ctx.charDepthPrompt || "", creatorNotes: ctx.creatorNotes || "",
-      summary: ctx.summary || ""  // ST «Summarize» extension; no summaries here → empty, as in ST without one
+      summary: ctx.summary || ""
     };
     env.user = ctx.user || "User"; env.char = ctx.char || "";
     env.group = env.charIfNotGroup = env.groupNotMuted = ctx.group || ctx.char || "";
@@ -255,12 +244,11 @@ var CharEngine = (function () {
       if (!content) break;
       var rx = all[i][0];
       if (rx.source.charAt(0) !== "<" && content.indexOf("{{") < 0) break;
-      try { content = content.replace(rx, all[i][1]); } catch (e) { /* bad macro */ }
+      try { content = content.replace(rx, all[i][1]); } catch (e) {  }
     }
     return content;
   }
 
-  /* ------------------------------------------------------------ regex helpers */
   function parseRegexFromString(input) {
     var m = /^\/([\w\W]+?)\/([gimsuy]*)$/.exec(str(input));
     if (!m) return null;
@@ -269,7 +257,6 @@ var CharEngine = (function () {
     try { return new RegExp(pattern.replace(/\\\//g, "/"), flags); } catch (e) { return null; }
   }
 
-  /* ------------------------------------------------------------ World Info */
   var WI_POS = { before: 0, after: 1, ANTop: 2, ANBottom: 3, atDepth: 4, EMTop: 5, EMBottom: 6, outlet: 7 };
   var WI_LOGIC = { AND_ANY: 0, NOT_ALL: 1, NOT_ANY: 2, AND_ALL: 3 };
   var ROLE_NAMES = ["system", "user", "assistant"];
@@ -295,19 +282,14 @@ var CharEngine = (function () {
       if (typeof e[k] === "string") e[k] = e[k].split(",").map(function (x) { return x.trim(); }).filter(Boolean);
       if (!Array.isArray(e[k])) e[k] = [];
     });
-    // SillyTavern writes `characterFilter` only when one is set (or `null`): keep it exactly as it came.
+
     if (e.characterFilter !== undefined && e.characterFilter !== null && typeof e.characterFilter !== "object") delete e.characterFilter;
     e.order = num(e.order, 100); e.position = num(e.position, 0); e.depth = num(e.depth, 4);
     e.probability = num(e.probability, 100); e.role = num(e.role, 0); e.groupWeight = num(e.groupWeight, 100);
     e.selectiveLogic = num(e.selectiveLogic, 0);
     return e;
   }
-  /* World files. The internal shape IS the SillyTavern World Info file ({entries:{uid:{key, keysecondary, …}}}),
-   * so an ST lorebook round-trips untouched (unknown fields included). Other shapes are converted the way
-   * SillyTavern converts them (public/scripts/world-info.js): character_book (V2/V3 card, chub), chub's own
-   * "card with a character_book", NovelAI (lorebookVersion), Agnai memory books (kind: "memory") and RisuAI
-   * (type: "risu"). A converted character_book keeps the original in `originalData` (like ST), so exporting it
-   * back as a character_book restores every field the converter did not understand. */
+
   var WORLD_META_SKIP = { entries: 1, originalData: 1, name: 1, id: 1, source: 1 };
   function first() { for (var i = 0; i < arguments.length; i++) if (arguments[i] !== undefined) return arguments[i]; return undefined; }
   function keyList(value) {
@@ -320,7 +302,7 @@ var CharEngine = (function () {
     if (extra) Object.keys(extra).forEach(function (k) { if (extra[k] !== undefined) world[k] = extra[k]; });
     return world;
   }
-  /** An ST entry that may be a chub "hybrid" (ST + V2 field names side by side). */
+
   function stEntry(raw, uidValue) {
     var r = raw && typeof raw === "object" ? raw : {};
     var e = Object.assign({}, r);
@@ -361,7 +343,7 @@ var CharEngine = (function () {
       entry = entry && typeof entry === "object" ? entry : {};
       var ext = entry.extensions && typeof entry.extensions === "object" ? entry.extensions : {};
       var id = entry.id === undefined || entry.id === null || entry.id === "" ? index : entry.id;
-      if (entries[id] !== undefined) id = index + 100000;              // duplicate ids in the wild
+      if (entries[id] !== undefined) id = index + 100000;
       var pos = first(ext.position);
       var e = normalizeEntry({
         uid: id, key: keyList(entry.keys), keysecondary: keyList(entry.secondary_keys),
@@ -404,7 +386,7 @@ var CharEngine = (function () {
     world.originalData = clone(book);
     return world;
   }
-  /** The ST world (or any internal world) -> a V2/V3 character_book. Fields of the original book survive. */
+
   function toCharacterBook(world) {
     world = world || {};
     var original = world.originalData && Array.isArray(world.originalData.entries) ? world.originalData : null;
@@ -429,7 +411,7 @@ var CharEngine = (function () {
       row.id = num(e.uid, i);
       row.keys = (e.key || []).slice();
       row.secondary_keys = (e.keysecondary || []).slice();
-      // ST reads `comment || ""`; chub books keep the title in `name` and an empty comment — restore it as it was.
+
       row.comment = orig.comment === "" && orig.name !== undefined && str(orig.name) === str(e.comment) ? "" : str(e.comment);
       row.content = str(e.content);
       row.constant = !!e.constant;
@@ -437,7 +419,7 @@ var CharEngine = (function () {
       row.insertion_order = num(e.order, 100);
       row.enabled = !e.disable;
       row.position = num(e.position, 0) === 0 ? "before_char" : "after_char";
-      row.use_regex = e.useRegex !== undefined ? !!e.useRegex : true;     // ST keys are always regex-capable
+      row.use_regex = e.useRegex !== undefined ? !!e.useRegex : true;
       if (e.caseSensitive !== null && e.caseSensitive !== undefined) row.case_sensitive = !!e.caseSensitive;
       var ext = Object.assign({}, orig.extensions || {}, e.extensions && typeof e.extensions === "object" ? e.extensions : {});
       Object.assign(ext, {
@@ -465,12 +447,12 @@ var CharEngine = (function () {
     });
     return out;
   }
-  /** The world as a SillyTavern World Info file. */
+
   function exportWorld(world) {
     var out = {};
     var meta = (world && world.meta) || {};
     Object.keys(meta).forEach(function (k) { if (!WORLD_META_SKIP[k]) out[k] = clone(meta[k]); });
-    if (meta.name !== undefined) out.name = str(world.name);        // the file named itself: keep the key (renamed or not)
+    if (meta.name !== undefined) out.name = str(world.name);
     out.entries = {};
     Object.keys((world && world.entries) || {}).forEach(function (k, i) {
       var e = clone(normalizeEntry(world.entries[k], k));
@@ -481,7 +463,7 @@ var CharEngine = (function () {
     if (world && world.originalData) out.originalData = clone(world.originalData);
     return out;
   }
-  /** NovelAI lorebook (lorebookVersion), as SillyTavern converts it. */
+
   function fromNovelLorebook(json) {
     var entries = {};
     (json.entries || []).forEach(function (entry, index) {
@@ -492,7 +474,7 @@ var CharEngine = (function () {
     });
     return worldFrom(entries, json.name || (json.settings && json.settings.name));
   }
-  /** Agnai memory book (kind: "memory"). */
+
   function fromAgnaiMemory(json) {
     var entries = {};
     (json.entries || []).forEach(function (entry, index) {
@@ -502,7 +484,7 @@ var CharEngine = (function () {
     });
     return worldFrom(entries, json.name, json.description ? { meta: { description: str(json.description) } } : null);
   }
-  /** RisuAI lorebook export (type: "risu"). */
+
   function fromRisuLorebook(json) {
     var entries = {};
     (json.data || []).forEach(function (entry, index) {
@@ -515,14 +497,14 @@ var CharEngine = (function () {
     });
     return worldFrom(entries, json.name);
   }
-  /** Agnai's native book back from a world (for completeness of the export menu). */
+
   function toAgnaiMemory(world) {
     var rows = Object.keys((world && world.entries) || {}).map(function (k) { return normalizeEntry(world.entries[k], k); });
     return { kind: "memory", name: str(world && world.name), description: str(world && world.meta && world.meta.description),
       entries: rows.map(function (e) { return { name: str(e.comment), entry: str(e.content), keywords: (e.key || []).slice(),
         priority: num(e.order, 100), weight: num(e.order, 100), enabled: !e.disable }; }) };
   }
-  /** Which kind of JSON this is: "lorebook" (any supported book format), "character", "preset", "chat" or "". */
+
   function detectJson(json) {
     if (!json || typeof json !== "object" || Array.isArray(json)) return "";
     if (json.lorebookVersion !== undefined || json.kind === "memory" || json.type === "risu") return "lorebook";
@@ -535,13 +517,13 @@ var CharEngine = (function () {
     if (json.prompts || json.prompt_order || json.temperature !== undefined) return "preset";
     return "";
   }
-  /** A chub "lorebook card" ({spec, data:{character_book}} with no character in it). */
+
   function isBookCard(json) {
     var d = json && json.data;
     return !!(d && d.character_book && Array.isArray(d.character_book.entries)
       && !str(d.first_mes).trim() && !str(d.description).trim() && !str(d.personality).trim());
   }
-  /** Any supported lorebook JSON (or a card that carries a character_book) -> { world, format }. */
+
   function importWorld(json, fallbackName) {
     if (!json || typeof json !== "object") throw new Error("bad_lorebook");
     var world, format;
@@ -573,10 +555,6 @@ var CharEngine = (function () {
     return h.indexOf(n) >= 0;
   }
 
-  /** args: { chatLines (newest first, strings), worlds: [{id, name, entries, source:'global'|'char'|'chat'|'persona'}],
-   *  settings (WI_DEFAULTS), maxContext, meta (chat metadata, mutated: timedWorldInfo), chatLength, trigger,
-   *  globalScan: {personaDescription, characterDescription, characterPersonality, characterDepthPrompt, scenario, creatorNotes},
-   *  injects: [strings to scan], charName, charTags, subst(text) } */
   function checkWorldInfo(args) {
     var settings = Object.assign({}, WI_DEFAULTS, args.settings || {});
     var subst = args.subst || function (x) { return x; };
@@ -584,7 +562,7 @@ var CharEngine = (function () {
     var meta = args.meta || {};
     var chatLength = args.chatLength === undefined ? lines.length : args.chatLength;
     var empty = { worldInfoBefore: "", worldInfoAfter: "", EMEntries: [], WIDepthEntries: [], ANBeforeEntries: [], ANAfterEntries: [], outletEntries: {}, activated: [] };
-    // Sorted entries: strategy 0 evenly, 1 character first, 2 global first (by order desc inside)
+
     var groups = { global: [], char: [], chat: [], persona: [] };
     (args.worlds || []).forEach(function (world) {
       Object.keys(world.entries || {}).forEach(function (k) {
@@ -611,7 +589,6 @@ var CharEngine = (function () {
     else sorted = head.concat(groups.char.sort(sortFn), groups.global.sort(sortFn));
     if (!sorted.length) return empty;
 
-    // timed effects
     var timed = meta.timedWorldInfo || (meta.timedWorldInfo = {});
     timed.sticky = timed.sticky && typeof timed.sticky === "object" ? timed.sticky : {};
     timed.cooldown = timed.cooldown && typeof timed.cooldown === "object" ? timed.cooldown : {};
@@ -643,7 +620,6 @@ var CharEngine = (function () {
     sorted.forEach(function (e) { if (e.delay && chatLength < e.delay) active.delay.push(e); });
     function isActive(type, e) { return active[type].some(function (x) { return x.hash === e.hash; }); }
 
-    // buffer
     var depthBuffer = lines.slice(0, 1000).map(function (x) { return str(x).trim(); });
     var recurseBuffer = [];
     var injectBuffer = (args.injects || []).filter(Boolean);
@@ -745,7 +721,7 @@ var CharEngine = (function () {
       var fresh = now.slice().sort(function (a, b) {
         return (isActive("sticky", b) ? 1 : 0) - (isActive("sticky", a) ? 1 : 0) || index.get(a) - index.get(b);
       });
-      // inclusion groups
+
       var grouped = {};
       fresh.filter(function (x) { return x.group; }).forEach(function (x) {
         x.group.split(/,\s*/).filter(Boolean).forEach(function (g) { (grouped[g] = grouped[g] || []).push(x); });
@@ -852,7 +828,6 @@ var CharEngine = (function () {
     };
   }
 
-  /* ------------------------------------------------------------ presets */
   var PRESET_DEFAULTS = {
     temperature: 1, frequency_penalty: 0, presence_penalty: 0, top_p: 1, top_k: 0, top_a: 0, min_p: 0,
     repetition_penalty: 1, openai_max_context: 32000, openai_max_tokens: 2048, seed: -1, names_behavior: 0,
@@ -903,7 +878,7 @@ var CharEngine = (function () {
       if (q.injection_depth === undefined) q.injection_depth = 4;
       return q;
     });
-    // Every built-in marker must exist, like the ST prompt manager guarantees.
+
     DEFAULT_PROMPTS.forEach(function (d) {
       if (!p.prompts.some(function (x) { return x.identifier === d.identifier; })) p.prompts.push(clone(d));
     });
@@ -928,7 +903,6 @@ var CharEngine = (function () {
     return out;
   }
 
-  /* ------------------------------------------------------------ examples */
   function parseMesExamples(text) {
     var s = str(text);
     if (!s || s === "<START>") return [];
@@ -952,21 +926,13 @@ var CharEngine = (function () {
     return result;
   }
 
-  /* ------------------------------------------------------------ prompt builder */
   function stringFormat(format, value) { return str(format).replace(/\{0\}/g, value); }
 
-  /** Build the Chat Completion message array exactly in SillyTavern's order.
-   * opts: { type, preset, char (card data), charName, user (persona name), persona {description, position, depth, role},
-   *  chat: [{is_user, is_system, name, mes, date, hidden}], worlds, wiSettings, meta, note {text, position, depth, role, interval},
-   *  settings: {preferCharPrompt, preferCharJailbreak, pinExamples, nameField, postProcessing, sendPrefill, maxContext, modelContext},
-   *  globals, lang, chatId, model, quietPrompt, regexPrompt(fn(text, kind, depth)) } */
   function buildPrompt(opts) {
     var preset = normalizePreset(opts.preset);
     var type = opts.type || "normal";
     var s = opts.settings || {};
-    // «Send the prefill» off = the model can't start its reply from an assistant message, so «Continue» can't
-    // either: use the continue nudge instead (phase 2: DeepSeek via an OpenAI-compatible API treated the trailing
-    // assistant message as a finished turn and replied with the greeting again).
+
     var continuePrefill = !!preset.continue_prefill && s.sendPrefill !== false;
     var card = opts.char || {};
     var name1 = opts.user || "User", name2 = opts.charName || card.name || "Character";
@@ -978,7 +944,6 @@ var CharEngine = (function () {
     var persona = opts.persona || {};
     var warnings = [];
 
-    // coreChat: hidden/system messages are not sent
     var coreChat = (opts.chat || []).filter(function (m) { return !m.is_system && !m.hidden; });
     var isContinue = type === "continue";
     var cyclePrompt = "";
@@ -1013,7 +978,6 @@ var CharEngine = (function () {
       return substitute(text, ctx);
     }
 
-    // World Info scan (newest first)
     var chatForWI = coreChat.slice().reverse().map(function (m) {
       return s.wiIncludeNames === false ? str(m.mes) : str(m.name || (m.is_user ? name1 : name2)) + ": " + str(m.mes);
     });
@@ -1028,7 +992,6 @@ var CharEngine = (function () {
       dryRun: !!opts.dryRun
     });
 
-    // Example messages (+ EM entries)
     var mesExamplesArray = parseMesExamples(sub(card.mes_example || ""));
     wi.EMEntries.forEach(function (entry) {
       var block = "<START>\n" + entry.content.trim() + "\n";
@@ -1038,7 +1001,6 @@ var CharEngine = (function () {
       return parseExampleIntoIndividual(item.replace(/<START>/i, "{Example Dialogue:}").replace(/\r/g, ""), name1, name2);
     });
 
-    // Extension prompts: key -> {value, position (0 in_prompt,1 in_chat,2 before), depth, role}
     var extensionPrompts = {};
     var note = opts.note || {};
     var userCount = (opts.chat || []).filter(function (m) { return m.is_user; }).length;
@@ -1067,7 +1029,6 @@ var CharEngine = (function () {
         .map(function (x) { return sub(x.value.trim()); }).join("\n");
     }
 
-    // ---------- PromptManager collection
     var promptById = {};
     preset.prompts.forEach(function (p) { promptById[p.identifier] = p; });
     var collection = [];
@@ -1130,10 +1091,9 @@ var CharEngine = (function () {
       collection[cIndex("jailbreak")] = prepare(Object.assign({}, jb, { content: charJailbreak }), sub(jbOriginal));
     }
 
-    // ---------- ChatCompletion with token budget
     var budget = maxContext - maxTokens;
-    var slots = [];      // index -> {identifier, messages: []}
-    var tail = [];       // control prompts
+    var slots = [];
+    var tail = [];
     var overBudget = false;
     function spend(tokens) { budget -= tokens; if (budget < 0) overBudget = true; }
     function makeMessage(role, content, identifier, name) {
@@ -1169,7 +1129,7 @@ var CharEngine = (function () {
     var absolutePrompts = collection.filter(function (p) { return num(p.injection_position, 0) === 1 && p.content; });
     ["nsfw", "jailbreak"].concat(userRelative).forEach(addToCompletion);
     if (cGet("enhanceDefinitions")) addToCompletion("enhanceDefinitions");
-    // relative extension prompts (Author's Note before/after main)
+
     var anPrompt = cGet("authorsNote");
     if (anPrompt && anPrompt.position) {
       var mainSlot = slotOf("main");
@@ -1187,7 +1147,6 @@ var CharEngine = (function () {
       }
     }
 
-    // chat messages (newest first) in the ST shape
     var messages = [];
     for (var ci = coreChat.length - 1; ci >= 0; ci--) {
       var m = coreChat[ci];
@@ -1206,7 +1165,7 @@ var CharEngine = (function () {
       controlPrompts.push(cmMsg);
       spend(cmMsg.tokens);
     }
-    // in-chat injections (absolute prompts + extension prompts at depth)
+
     var maxDepth = 0;
     absolutePrompts.forEach(function (p) { maxDepth = Math.max(maxDepth, num(p.injection_depth, 4)); });
     Object.keys(extensionPrompts).forEach(function (k) { if (extensionPrompts[k].position === 1) maxDepth = Math.max(maxDepth, extensionPrompts[k].depth); });
@@ -1291,7 +1250,6 @@ var CharEngine = (function () {
     controlPrompts.forEach(function (m) { budget += m.tokens; });
     if (controlPrompts.length) addCollection("controlPrompts", controlPrompts, null);
 
-    // flatten in collection order
     var flat = [];
     var breakdown = [];
     slots.forEach(function (slot) {
@@ -1301,7 +1259,7 @@ var CharEngine = (function () {
       var src = promptById[slot.identifier];
       breakdown.push({ identifier: slot.identifier, name: src ? src.name : slot.identifier, tokens: t, count: slot.messages.length });
     });
-    // squash system messages
+
     if (preset.squash_system_messages) {
       var exclude = ["newMainChat", "newChat", "groupNudge"];
       var squashed = [], lastSys = null;
@@ -1315,7 +1273,7 @@ var CharEngine = (function () {
       });
       flat = squashed;
     }
-    // names: keep the name field only when asked, otherwise prefix the content (most providers drop `name`)
+
     var out = flat.map(function (m) {
       var row = { role: m.role, content: m.content };
       if (m.name) {
@@ -1326,11 +1284,10 @@ var CharEngine = (function () {
       row._id = m.identifier;
       return row;
     });
-    // Prompts that end up as nothing but whitespace (toggle blocks of big presets: «\n{{// …}}\n{{trim}}») carry no
-    // text; phase 2: «Engine» sent 56 such system messages, and strict providers reject blank messages.
+
     out = out.filter(function (m) { return typeof m.content !== "string" || /\S/.test(m.content) || m.tool_calls; });
     out = postProcess(out, s.postProcessing === "preset" || !s.postProcessing ? str(preset.custom_prompt_post_processing) : s.postProcessing, name1);
-    // assistant prefill
+
     var prefill = "";
     if (type !== "quiet" && !(type === "continue" && continuePrefill) && s.sendPrefill !== false) {
       prefill = type === "impersonate" ? sub(preset.assistant_impersonation) : sub(preset.assistant_prefill);
@@ -1391,8 +1348,7 @@ var CharEngine = (function () {
       temperature: num(preset.temperature, 1), top_p: num(preset.top_p, 1),
       max_tokens: num(preset.openai_max_tokens, 2048), prompt_caching: s.promptCaching !== false
     };
-    // OpenAI-standard penalties are always passed (the bridge drops neutral values); the non-standard
-    // samplers only when asked, like SillyTavern sends them only to backends that understand them.
+
     params.frequency_penalty = num(preset.frequency_penalty, 0); params.presence_penalty = num(preset.presence_penalty, 0);
     if (s.extendedSamplers) {
       params.top_k = num(preset.top_k, 0); params.min_p = num(preset.min_p, 0); params.top_a = num(preset.top_a, 0);
@@ -1403,23 +1359,17 @@ var CharEngine = (function () {
     if (map[effort]) params.effort = map[effort];
     var thinking = str(s.thinking || "auto");
     params.thinking = thinking === "on" ? true : thinking === "off" ? false : !!map[effort] && !!preset.show_thoughts;
-    // r33c: «No reasoning» must reach the Proxy as a level — thinking:false alone lets the model decide; the Proxy
-    // clamps «off» to the lightest level for a model that cannot switch reasoning off (app/reasoning_levels.py).
+
     if (thinking === "off") params.effort = "off";
     return params;
   }
 
-  /* ------------------------------------------------------------ leaked control tokens */
-  // A provider sometimes returns a model's special tokens as plain text and the model then rambles on as if a new
-  // document began. Index of the first such token, or -1. DeepSeek <｜begin▁of▁sentence｜>/<｜end▁of▁sentence｜>,
-  // ChatML <|im_end|>/<|im_start|>, Llama <|eot_id|>/<|start_header_id|>, GPT <|endoftext|>, harmony <|end|>/<|return|>/<|start|>/<|channel|>.
   var LEAK_RE = /<[｜|]\s*(?:begin|end)[▁_ ]of[▁_ ]sentence\s*[｜|]>|<\|(?:endoftext|end_of_text|im_end|im_start|eot_id|start_header_id|end_header_id|end|return|start|channel|message)\|>/;
   function findLeakedToken(text) {
     var m = LEAK_RE.exec(str(text));
     return m ? m.index : -1;
   }
 
-  /* ------------------------------------------------------------ reasoning parse */
   function splitReasoning(text, prefix, suffix) {
     var t = str(text);
     prefix = prefix || "<think>"; suffix = suffix || "</think>";
@@ -1431,7 +1381,6 @@ var CharEngine = (function () {
     return { text: rest.slice(end + suffix.length).replace(/^\s+/, ""), reasoning: rest.slice(0, end).trim(), open: false };
   }
 
-  /* ------------------------------------------------------------ regex scripts */
   function runRegexScripts(text, scripts, placement, opts) {
     var out = str(text);
     opts = opts || {};
@@ -1462,7 +1411,6 @@ var CharEngine = (function () {
     return out;
   }
 
-  /* ------------------------------------------------------------ cards */
   var CRC_TABLE = (function () {
     var table = new Uint32Array(256);
     for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; table[n] = c >>> 0; }
@@ -1510,7 +1458,7 @@ var CharEngine = (function () {
         if (zero > 0) texts[latin1Decode(c.data.subarray(0, zero)).toLowerCase()] = c.data.subarray(zero + 1);
       } else if (c.type === "iTXt") {
         var z = c.data.indexOf(0);
-        if (z > 0 && c.data[z + 1] === 0) {          // uncompressed iTXt only
+        if (z > 0 && c.data[z + 1] === 0) {
           var z2 = c.data.indexOf(0, z + 3); var z3 = z2 >= 0 ? c.data.indexOf(0, z2 + 1) : -1;
           if (z3 >= 0) texts[latin1Decode(c.data.subarray(0, z)).toLowerCase()] = c.data.subarray(z3 + 1);
         }
@@ -1521,11 +1469,11 @@ var CharEngine = (function () {
   function decodeCardText(raw) {
     var text = latin1Decode(raw).trim();
     if (/^[A-Za-z0-9+/=\s]+$/.test(text)) {
-      try { return JSON.parse(utf8Decode(base64ToBytes(text))); } catch (e) { /* not base64 JSON */ }
+      try { return JSON.parse(utf8Decode(base64ToBytes(text))); } catch (e) {  }
     }
     return JSON.parse(utf8Decode(raw));
   }
-  /** { json, chunk: "ccv3"|"chara", chunks: [...] } — ccv3 wins when both are present and readable (V3 spec). */
+
   function readCardInfo(bytes) {
     var texts = pngTexts(bytes);
     var found = Object.keys(texts).filter(function (k) { return k === "ccv3" || k === "chara"; });
@@ -1576,11 +1524,11 @@ var CharEngine = (function () {
   }
   var CARD_FIELDS = ["name", "description", "personality", "scenario", "first_mes", "mes_example", "creator_notes",
     "system_prompt", "post_history_instructions", "creator", "character_version"];
-  /** V1 / app-specific top-level keys that are not part of the card's data object. */
+
   var V1_NOISE = { avatar: 1, chat: 1, create_date: 1, creatorcomment: 1, talkativeness: 1, fav: 1, spec: 1, spec_version: 1,
     json_data: 1, data: 1, char_name: 1, char_persona: 1, char_greeting: 1, world_scenario: 1, example_dialogue: 1,
     metadata: 1, date_added: 1, date_last_chat: 1, chat_size: 1, data_size: 1, shallow: 1 };
-  /** Agnai persona -> text, exactly like agnai/common/characters.ts formatCharacter. */
+
   function formatAgnaiPersona(name, persona) {
     if (!persona || typeof persona !== "object") return "";
     var attrs = persona.attributes && typeof persona.attributes === "object" ? persona.attributes : {};
@@ -1594,7 +1542,7 @@ var CharEngine = (function () {
       default: return str(list(attrs.text)[0]);
     }
   }
-  /** Agnai's own character export (kind: "character") -> a V2 data object. */
+
   function fromAgnaiCharacter(json) {
     var name = str(json.name);
     var ext = json.extensions && typeof json.extensions === "object" ? clone(json.extensions) : {};
@@ -1618,12 +1566,11 @@ var CharEngine = (function () {
   function isAgnaiCharacter(json) {
     return !!json && (json.kind === "character" || (json.persona !== undefined && json.greeting !== undefined && json.sampleChat !== undefined && !json.spec));
   }
-  /** Any V1/V2/V3 card (ST, chub, RisuAI, Agnai, Pygmalion/TextGen, JanitorAI…) -> the internal data object (V2 shape).
-   *  Every field the card carries is kept (V3-only fields and app extensions included) so it can be written back. */
+
   function cardToData(json) {
     if (!json || typeof json !== "object") throw new Error("bad_card");
     if (isAgnaiCharacter(json)) json = { spec: "chara_card_v2", spec_version: "2.0", data: fromAgnaiCharacter(json) };
-    if (json.character && typeof json.character === "object" && (json.character.data || json.character.spec)) json = json.character;  // Pygmalion export wrapper
+    if (json.character && typeof json.character === "object" && (json.character.data || json.character.spec)) json = json.character;
     var nested = json.data && typeof json.data === "object" && !Array.isArray(json.data) && (json.spec || json.data.name !== undefined || json.data.first_mes !== undefined);
     var data = nested ? json.data : json;
     var out = {};
@@ -1647,7 +1594,7 @@ var CharEngine = (function () {
     if (out.extensions.fav === undefined && json.fav !== undefined) out.extensions.fav = json.fav === true || json.fav === "true";
     return out;
   }
-  /** Which application most likely wrote this card (for the import preview). */
+
   function cardOrigin(json) {
     if (!json || typeof json !== "object") return "";
     if (isAgnaiCharacter(json)) return "agnai";
@@ -1664,7 +1611,7 @@ var CharEngine = (function () {
     return "v1";
   }
   var V2_DATA_FIELDS = CARD_FIELDS.concat(["alternate_greetings", "tags", "extensions", "character_book"]);
-  /** The V3 data object: every field we hold (unknown ones too), V3 additions filled in. */
+
   function v3DataOf(data, worldForBook, opts) {
     var d = clone(data) || {};
     opts = opts || {};
@@ -1676,7 +1623,7 @@ var CharEngine = (function () {
     if (worldForBook) d.extensions.world = str(worldForBook.name);
     if (book && Array.isArray(book.entries)) d.character_book = book; else delete d.character_book;
     d.group_only_greetings = Array.isArray(d.group_only_greetings) ? d.group_only_greetings : [];
-    // Embedded assets (RisuAI `__asset:` / CHARX `embeded://`) live in the source file only: keep links we can resolve.
+
     var assets = (Array.isArray(d.assets) ? d.assets : []).filter(function (a) {
       return a && typeof a === "object" && !(a.type === "icon" && a.name === "main") && /^(https?:|data:)/i.test(str(a.uri));
     });
@@ -1689,12 +1636,12 @@ var CharEngine = (function () {
     if (!Number.isFinite(Number(d.modification_date)) || d.modification_date === "" || d.modification_date === null) d.modification_date = opts.updated ? Math.floor(opts.updated / 1000) : nowSec;
     return d;
   }
-  /** SillyTavern's V2 card: V1 fields at the top for old readers, the V2 data object inside. */
+
   function dataToV2(data, worldForBook, opts) {
     var full = v3DataOf(data, worldForBook, opts);
     var v2data = {};
     V2_DATA_FIELDS.forEach(function (k) { if (full[k] !== undefined) v2data[k] = full[k]; });
-    // A V2 card has no `group_only_greetings`/`assets`: those travel in the ccv3 chunk only.
+
     return {
       name: v2data.name, description: v2data.description, personality: v2data.personality, scenario: v2data.scenario,
       first_mes: v2data.first_mes, mes_example: v2data.mes_example, creatorcomment: v2data.creator_notes,
@@ -1711,7 +1658,6 @@ var CharEngine = (function () {
     return out;
   }
 
-  /* ------------------------------------------------------------ SillyTavern chat files (.jsonl) */
   function chatToJsonl(chat, userName, charName) {
     var lines = [JSON.stringify({ user_name: userName, character_name: charName, create_date: new Date(chat.created || Date.now()).toISOString(), chat_metadata: { variables: (chat.meta && chat.meta.variables) || {}, note_prompt: chat.meta && chat.meta.note ? chat.meta.note.text : "" } })];
     (chat.messages || []).forEach(function (m) {
@@ -1761,8 +1707,6 @@ var CharEngine = (function () {
 if (typeof module !== "undefined" && module.exports) module.exports = CharEngine;
 /* @engine-end */
 
-
-/* ====================================================================== core UI helpers */
 var E = CharEngine;
 function t(key, vars) { return Memu.t(key, vars); }
 function $(selector, root) { return (root || document).querySelector(selector); }
@@ -1881,7 +1825,6 @@ function iconBtn(name, titleKey, onClick, extra) {
   return b;
 }
 
-/* ---------------------------------------------------------------- toasts */
 function toast(text, kind) {
   var root = $("#toasts");
   if (!root) return;
@@ -1891,7 +1834,6 @@ function toast(text, kind) {
   setTimeout(function () { node.classList.remove("in"); setTimeout(function () { node.remove(); }, 260); }, kind === "error" ? 6500 : 3200);
 }
 
-/* ---------------------------------------------------------------- modals */
 var modalStack = [];
 function openModal(opts) {
   var root = $("#modal-root");
@@ -1967,7 +1909,7 @@ function promptBox(title, value, opts) {
     });
   });
 }
-/* popover menu: items [{icon, label, onClick, danger, sep}] */
+
 function popMenu(anchor, items) {
   closeMenus();
   var menu = h("div", { class: "ch-menu", role: "menu" });
@@ -1997,7 +1939,6 @@ function popMenu(anchor, items) {
 function closeMenus() { $$(".ch-menu").forEach(function (m) { m.remove(); }); }
 document.addEventListener("mousedown", function (e) { if (!e.target.closest(".ch-menu")) closeMenus(); });
 
-/* ---------------------------------------------------------------- files */
 var fileInput = null;
 function pickFile(accept, multiple) {
   return new Promise(function (resolve) {
@@ -2027,7 +1968,7 @@ function loadImage(src) {
     img.src = src;
   });
 }
-/* Resize an image data-URL so that it fits maxW x maxH; type: image/webp|image/png|image/jpeg */
+
 function resizeImage(src, maxW, maxH, type, quality) {
   return loadImage(src).then(function (img) {
     var w = img.naturalWidth || img.width, hgt = img.naturalHeight || img.height;
@@ -2053,10 +1994,7 @@ function download(name, text, mime) {
 function safeFileName(name, ext) {
   return (String(name || "file").replace(/[\\/:*?"<>|\r\n\t]+/g, "_").trim().slice(0, 80) || "file") + (ext || "");
 }
-/* Default avatar: an SVG with the initial on a gradient (data URL, no network). */
-// r30: the letter is centred on the top 200×200 square (what a round/square avatar shows with object-position:top)
-// by the cap height (~0.7em for Latin and Cyrillic capitals) on the alphabetic baseline: «central» centred the em box,
-// so capitals sat visibly low.
+
 function defaultAvatar(name, seed) {
   var hue = (E.hashString(seed || name || "x") % 360);
   var letter = String(name || "?").trim().charAt(0).toUpperCase() || "?";
@@ -2064,10 +2002,9 @@ function defaultAvatar(name, seed) {
   return "data:image/svg+xml;base64," + E.bytesToBase64(E.utf8Encode(svg));
 }
 
-/* ====================================================================== storage */
 var DEFAULT_SETTINGS = {
   version: 1, model: "", presetId: "universal", personaId: "",
-  // r37: the AI co-writer (assist.js) — model "" = the chat model.
+
   assist: { model: "", lang: "auto", buttons: true },
   ui: {
     chatStyle: "bubbles", avatarShape: "circle", avatarSize: 42, font: "sans", fontSize: 100, msgWidth: 860,
@@ -2075,7 +2012,7 @@ var DEFAULT_SETTINGS = {
     showTimestamps: true, showTokens: true, showModel: true, showIds: false, reasoningOpen: false,
     enterSends: true, animations: true, gallerySort: "recent", galleryView: "grid", theme: "host", density: "normal",
     swipeAnim: true, hideAvatars: false, centerChat: true,
-    // r33: right-click on the swipe arrow — how many new variants to start at once, and whether a left click does the same.
+
     variantCount: 3, variantLeftClick: false
   },
   gen: {
@@ -2108,20 +2045,19 @@ var Store = {
   list: function (prefix) { return Memu.store.list(prefix); }
 };
 
-/* ====================================================================== state */
 var S = {
   settings: E.clone(DEFAULT_SETTINGS),
-  index: [],            // character summaries [{id, name, tags, thumb, fav, updated, lastChat, chats}]
-  chars: {},            // loaded characters by id
-  char: null,           // active character
-  chat: null,           // active chat object
-  chatList: [],         // chats of the active character [{id, title, updated, count, preview}]
+  index: [],
+  chars: {},
+  char: null,
+  chat: null,
+  chatList: [],
   personas: [],
-  worlds: {},           // id -> world {id, name, entries}
-  worldIndex: [],       // [{id, name, count}]
-  presetIndex: [],      // builtins [{id, name_ru, ...}]
-  userPresets: [],      // [{id, name}]
-  preset: null,         // active normalized preset
+  worlds: {},
+  worldIndex: [],
+  presetIndex: [],
+  userPresets: [],
+  preset: null,
   presetRaw: null,
   models: [],
   busy: false,
@@ -2195,11 +2131,6 @@ function saveCharacter(char) {
   return Store.set("chars/" + char.id, char);
 }
 
-
-/* ====================================================================== text formatting */
-// Dialogue in quotes gets the quote colour. Each opener closes with its own pair and «…» nests, so
-// «Say „«Ignis»“ now» and «Say "abracadabra" now» are one quote each (r30 live chat: the inner quote closed
-// the outer one and the line split into alternating pieces). Works on escaped HTML, one line at a time.
 var QUOTE_PAIRS = { "\u00ab": "\u00bb", "\u201c": "\u201d", "\u201e": "\u201c", "&quot;": "&quot;" };
 function highlightQuotes(html) {
   return html.split("\n").map(function (line) {
@@ -2244,7 +2175,6 @@ function formatText(text, opts) {
   return s;
 }
 
-/* ====================================================================== macro context for display */
 function personaOf(id) { return S.personas.find(function (p) { return p.id === id; }) || null; }
 function activePersona() {
   var id = (S.chat && S.chat.meta && S.chat.meta.personaId)
@@ -2257,9 +2187,6 @@ function displaySubst(text) {
   return E.substitute(text, { user: userName(), char: S.char.data.name, lang: Memu.lang, variables: E.clone((S.chat && S.chat.meta && S.chat.meta.variables) || {}), globals: E.clone(S.settings.globals || {}) });
 }
 
-// Macros in what the person types ({{roll:1d20}}, {{random::…}}, {{time}}…) are evaluated once, when the message is
-// sent, and the result is stored — as in SillyTavern. Phase 2: the raw text was stored, so the chat showed «{{roll:1d6}}»
-// while the model saw a number, and every later prompt re-rolled it (the model saw a different value each turn).
 function sendSubst(text, messages) {
   if (!S.char || String(text).indexOf("{{") < 0 && !/<(USER|BOT|CHAR)>/i.test(text)) return text;
   var meta = S.chat.meta || (S.chat.meta = {});
@@ -2269,7 +2196,6 @@ function sendSubst(text, messages) {
     model: S.settings.model, variables: meta.variables || (meta.variables = {}), globals: S.settings.globals || (S.settings.globals = {}) });
 }
 
-/* ====================================================================== characters */
 function charAvatar(char) { return (char && (char.avatar || char.thumb)) || defaultAvatar(char && char.data ? char.data.name : "?", char && char.id); }
 function thumbOf(row) { return row.thumb || defaultAvatar(row.name, row.id); }
 function loadChar(id) {
@@ -2340,14 +2266,11 @@ function goHome() {
   render();
 }
 
-/* ====================================================================== active message helpers */
-/* An answer that was still streaming when the window was closed or reloaded is saved with `pending`: it showed
-   «Thinking…» with typing dots forever. Keep the text that arrived; drop an empty answer or empty new swipe. */
 function dropStalePending(chat) {
   chat.messages = (chat.messages || []).filter(function (m) {
     if (!m || !m.pending) return true;
     delete m.pending;
-    // r33: a batch of parallel variants interrupted by a reload leaves empty swipes marked pending.
+
     if (Array.isArray(m.swipes) && Array.isArray(m.swipe_info)) {
       for (var k = m.swipes.length - 1; k >= 0; k--) {
         var inf = m.swipe_info[k];
@@ -2391,7 +2314,6 @@ function engineChat(messages) {
   });
 }
 
-/* ====================================================================== prompt context */
 function activeWorlds() {
   var list = [];
   var seen = {};
@@ -2438,7 +2360,6 @@ function buildFor(type, messages, opts) {
   return result;
 }
 
-/* ====================================================================== generation */
 function ensureModel() {
   if (S.settings.model && !modelMissing(S.settings.model)) return true;
   var first = fallbackModel();
@@ -2466,9 +2387,7 @@ function sendMessage() {
   generate("normal", { text: text });
 }
 function lastMessage() { return S.chat && S.chat.messages.length ? S.chat.messages[S.chat.messages.length - 1] : null; }
-// «Continue» glues the new text to the old one. The model's own leading space/newline is the joint; when it sent
-// none after a finished sentence, the preset's continue_postfix (or a space) keeps the words apart — r30 live
-// chat showed «…чай стынет.Ну, раз уж…». A continuation in the middle of a word or before punctuation stays glued.
+
 function continueJoint(previous, lead, text) {
   if (!previous || !text || /\s$/.test(previous)) return "";
   if (lead) return /\n/.test(lead) ? lead.replace(/[^\n]/g, "") : " ";
@@ -2560,9 +2479,7 @@ function generate(type, opts) {
     target.reasoning = type === "continue" ? (target.reasoning || "") + reasoning : reasoning;
     if (stream || final) updateMessageNode(target);
   }
-  // Phase 2: one render per batch of deltas, not per token. Every render re-formats the whole answer and
-  // reasoning, so rendering each token made a long answer O(n²): after a few thousand tokens the module froze
-  // and even «Stop» stopped responding. The pause grows with the cost of the last render.
+
   var applyTimer = 0, applyCost = 0;
   function scheduleApply() {
     if (!stream || applyTimer) return;
@@ -2574,9 +2491,7 @@ function generate(type, opts) {
     }, Math.min(800, Math.max(33, applyCost * 3)));
   }
   function flushApply() { if (applyTimer) { clearTimeout(applyTimer); applyTimer = 0; } }
-  // Phase 2: some providers leak a model's control tokens as text (DeepSeek on «Continue» answered
-  // "…home.<｜begin▁of▁sentence｜># Increasingly, people are using…" — a whole unrelated document). Everything from
-  // such a token on is not the answer: cut it and stop the stream.
+
   var leaked = false;
   function cutLeak() {
     var at = E.findLeakedToken(raw);
@@ -2638,7 +2553,7 @@ function generate(type, opts) {
   }
   function finishError(error) {
     flushApply();
-    if (raw || reasoningRaw) apply(true);  // keep the text that arrived before the error
+    if (raw || reasoningRaw) apply(true);
     setBusy(false);
     S.job = null;
     var message = error && error.message ? error.message : String(error);
@@ -2647,7 +2562,7 @@ function generate(type, opts) {
       if (type === "normal" && !raw.trim()) messages.splice(messages.indexOf(target), 1);
       else if ((type === "swipe" || type === "regenerate") && !raw.trim()) {
         target.swipes.splice(swipeIndex, 1); target.swipe_info.splice(swipeIndex, 1); setSwipe(target, target.swipes.length - 1);
-      } else if (type === "continue") { /* keep what was added */ }
+      } else if (type === "continue") {  }
       else storeSwipe(target);
     }
     renderMessages();
@@ -2671,7 +2586,6 @@ function showError(message) {
   scrollToBottom(true);
 }
 
-/* ---------------------------------------------------------------- slash commands (subset) */
 function runSlash(text) {
   var m = /^\/(\w+)\s*([\s\S]*)$/.exec(text);
   if (!m) return false;
@@ -2705,7 +2619,6 @@ function runSlash(text) {
   }
 }
 
-/* ====================================================================== chat rendering */
 function avatarFor(msg) {
   if (msg.role === "user") {
     var p = personaOf(msg.personaId) || activePersona();
@@ -2729,7 +2642,7 @@ function renderMessages() {
       h("div", { class: "mu-muted", text: t("chat_empty_hint") })
     ]));
   }
-  // Long chats: only the newest messages are rendered; «show earlier» grows the window.
+
   if (S.chat !== S.renderedChat) { S.renderedChat = S.chat; S.renderLimit = 120; }
   var first = Math.max(0, messages.length - (S.renderLimit || 120));
   if (first > 0) {
@@ -2800,7 +2713,7 @@ function messageNode(msg, index, isLast, isLastAssistant) {
         rightBtn.disabled = S.busy;
         var tools = canMakeVariants();
         if (tools) {
-          // r33: right-click — several new variants in parallel (count remembered).
+
           rightBtn.title = t("swipe_right_hint");
           rightBtn.setAttribute("aria-label", t("swipe_right_hint"));
           rightBtn.addEventListener("contextmenu", function (e) { if (!S.busy) variantMenu(rightBtn, e); else e.preventDefault(); });
@@ -2820,7 +2733,7 @@ function messageNode(msg, index, isLast, isLastAssistant) {
       if (info.gen_ms) bits.push((info.gen_ms / 1000).toFixed(1) + " s");
       sw.appendChild(h("span", { class: "ch-meta", text: bits.join(" · ") }));
     }
-    // r33: «Regenerate» / «Continue» are visible under the newest reply (they used to hide in a hover toolbar).
+
     if (isLast && canMakeVariants() && !msg.pending) {
       sw.appendChild(h("span", { class: "mu-grow" }));
       var regen = h("button", { class: "ch-swtool", type: "button", title: t("regenerate_title"), "aria-label": t("regenerate_title"),
@@ -2850,8 +2763,7 @@ function messageNode(msg, index, isLast, isLastAssistant) {
   return node;
 }
 function shortModel(id) {
-  // "vendor/model" → "model"; "gpt://folder/deepseek-v4.1-flash/latest" → "deepseek-v4.1-flash" (a version tag
-  // such as latest/rc at the end says nothing about the model).
+
   var parts = String(id || "").split("/").filter(Boolean);
   while (parts.length > 1 && /^(latest|rc|deprecated|stable|preview)$/i.test(parts[parts.length - 1])) parts.pop();
   return parts.length ? parts[parts.length - 1] : String(id || "");
@@ -2888,7 +2800,7 @@ function swipe(msg, dir) {
   if (dir > 0 && msg.swipe_id >= msg.swipes.length - 1) {
     if (!isLast) return;
     if (msg.greeting && msg.swipe_info && msg.swipe_info.every(function (i) { return i && i.greeting; }) && messages.length === 1) {
-      return; // greetings: only the alternatives the card has
+      return;
     }
     generate("swipe");
     return;
@@ -3015,10 +2927,9 @@ function autosize(area) {
   area.style.height = Math.min(area.scrollHeight + 2, area.classList.contains("ch-edit-area") ? 600 : 260) + "px";
 }
 
-/* ====================================================================== r33: composer bar — model + reasoning level */
-function textModels() { return S.models.filter(function (m) { return !m.image && !m.video && !m.audio; }); }
+function textModels() { return S.models.filter(function (m) { return (m.kind || "chat") === "chat" && !m.image && !m.video && !m.audio; }); }
 function modelRow(id) { return S.models.find(function (m) { return m.id === id; }) || null; }
-// «reform-qwen3.8-flash» under the group «REFORM» reads as «qwen3.8-flash»: the Custom connection's prefix repeats the group.
+
 function modelTitle(m, id) {
   if (!m) return shortModel(id || "");
   var name = m.name || shortModel(m.id);
@@ -3037,9 +2948,7 @@ function fmtContext(n) {
   if (!n) return "";
   return n >= 1000000 ? (Math.round(n / 100000) / 10) + "M" : Math.round(n / 1000) + "K";
 }
-// The chat's model is unusable when the list loaded and it is not there: switched off in MemuAI Proxy, hidden in
-// MemuAI, or its provider was removed. The Proxy refuses a disabled model («disabled in the panel»), so the module
-// must not keep sending it.
+
 function modelMissing(id) { return !!id && S.modelsLoaded && textModels().length > 0 && !modelRow(id); }
 function fallbackModel() {
   var rows = textModels();
@@ -3086,13 +2995,11 @@ function refreshComposerBar() {
   }
 }
 var EFFORTS = ["auto", "off", "min", "low", "medium", "high", "max"];
-// r33c: the reasoning levels a model REALLY accepts come with the model list (/api/pg/modules/models →
-// reasoning_levels, app/reasoning_levels.py: «auto» first, then «off» / «on» / minimal…max). The preset keeps
-// SillyTavern's spelling («min»), the menu and the Proxy speak the canonical one («minimal»).
+
 var DEPTHS = ["minimal", "low", "medium", "high", "xhigh", "max"];
 function canonEffort(v) { v = String(v || "auto").toLowerCase(); return v === "min" || v === "minimum" ? "minimal" : v === "maximum" ? "max" : v; }
 function storeEffort(v) { return v === "minimal" ? "min" : v; }
-// [] — the model has no reasoning control; null — the list carries no per-model levels (an older MemuAI): generic menu.
+
 function modelEfforts(m) {
   if (!m) return [];
   if (Array.isArray(m.reasoning_levels)) {
@@ -3101,7 +3008,7 @@ function modelEfforts(m) {
   }
   return m.reasoning || m.thinking ? EFFORTS.map(canonEffort) : [];
 }
-// The same choice app/reasoning_levels.clamp makes on the Proxy, so the chip shows what will really be asked for.
+
 function clampEffort(v, options) {
   v = canonEffort(v);
   if (!options.length || v === "auto" || options.indexOf(v) >= 0) return options.indexOf(v) >= 0 ? v : "auto";
@@ -3114,7 +3021,7 @@ function clampEffort(v, options) {
   var i = DEPTHS.indexOf(v);
   return depths.slice().sort(function (x, y) { return (Math.abs(DEPTHS.indexOf(x) - i) - Math.abs(DEPTHS.indexOf(y) - i)) || (DEPTHS.indexOf(y) - DEPTHS.indexOf(x)); })[0];
 }
-// What the person chose (preset + the «thinking» switch), in canonical spelling.
+
 function effortChoice() {
   var th = S.settings.gen.thinking;
   if (th === "off") return "off";
@@ -3154,7 +3061,7 @@ function effortMenu(anchor) {
   placeNear(menu, anchor);
   menuKeys(menu);
 }
-// popMenu right-aligns to the anchor's right edge; the composer chips sit at the bottom-left — open upwards, left-aligned.
+
 function placeNear(menu, anchor, point) {
   var r = point ? { left: point.x, right: point.x, top: point.y, bottom: point.y } : anchor.getBoundingClientRect();
   var mw = menu.offsetWidth, mh = menu.offsetHeight;
@@ -3164,7 +3071,7 @@ function placeNear(menu, anchor, point) {
   y = clamp(y, 6, Math.max(6, window.innerHeight - mh - 6));
   menu.style.left = x + "px"; menu.style.top = y + "px";
 }
-// Arrow keys / Home / End inside a popMenu (the first item gets focus, so Enter works at once).
+
 function menuKeys(menu) {
   var items = function () { return $$(".ch-menu-item:not(:disabled)", menu); };
   var first = items().find(function (b) { return b.classList.contains("active"); }) || items()[0];
@@ -3187,7 +3094,6 @@ function updateDraftTokens() {
   el.title = t("draft_tokens_title", { count: fmtNum(n) });
 }
 
-/* ---------------------------------------------------------------- model picker (search, groups, capabilities) */
 function openModelPicker(anchor, opts) {
   opts = opts || {};
   closeMenus();
@@ -3226,7 +3132,7 @@ function openModelPicker(anchor, opts) {
           h("span", { class: "ch-mp-check", html: on ? icon("check", 15) : "" }),
           h("span", { class: "ch-mp-text" }, [
             h("span", { class: "ch-mp-name", text: modelTitle(m) }),
-            // r33c: the full id beside the readable name, as everywhere in MemuAI.
+
             modelTitle(m) !== m.id ? h("span", { class: "ch-mp-id", text: m.id }) : null
           ]),
           h("span", { class: "ch-mp-badges" }, [
@@ -3271,14 +3177,13 @@ function openModelPicker(anchor, opts) {
   return menu;
 }
 
-/* ====================================================================== r33: several new variants at once */
 function variantCount() { return clamp(parseInt(S.settings.ui.variantCount, 10) || 3, 1, 5); }
 function canMakeVariants() {
   if (!S.chat || !S.char) return false;
   var msgs = S.chat.messages, last = msgs[msgs.length - 1];
   return !(last && last.greeting && msgs.length === 1);
 }
-// Right-click on the «next variant» arrow (or on «Regenerate»): how many new answers to start in parallel.
+
 function variantMenu(anchor, e) {
   if (e) { e.preventDefault(); e.stopPropagation(); }
   closeMenus();
@@ -3322,10 +3227,10 @@ function variantMenu(anchor, e) {
       h("span", { class: "ch-menu-ic", html: icon("columns", 16) }), h("span", { class: "ch-menu-label", text: t("variants_compare") }),
       h("span", { class: "ch-menu-hint", text: String(last.swipes.length) })]));
   }
-  // Digits 1–5 pick the count from anywhere in the menu; Enter starts.
+
   menu.addEventListener("keydown", function (ev) {
     if (/^[1-5]$/.test(ev.key)) { ev.preventDefault(); pick(Number(ev.key), true); }
-    else if (ev.key === "Tab") { /* stay inside: the menu is small */ }
+    else if (ev.key === "Tab") {  }
   });
   sync();
   document.body.appendChild(menu);
@@ -3334,7 +3239,7 @@ function variantMenu(anchor, e) {
   menu.addEventListener("mousedown", function (ev) { ev.stopPropagation(); });
   return menu;
 }
-// Left click on the arrow at the newest variant: one new answer — or the remembered count when the person asked so.
+
 function swipeForward(msg) {
   if (S.settings.ui.variantLeftClick && variantCount() > 1) generateVariants(variantCount());
   else swipe(msg, 1);
@@ -3348,9 +3253,7 @@ function parseAnswer(raw, reasoningRaw, final) {
   if (final) text = text.replace(/^\s+/, "");
   return { text: text, reasoning: reasoning };
 }
-/* N answers to the same prompt, streamed in parallel into new swipes of the last reply (a new reply when the chat
-   ends with the person's message). One prompt is built once; a fixed preset seed gets +i per variant, otherwise the
-   variants would be identical. Stop (button, Esc) cancels all; a single variant can be stopped from its pill. */
+
 function generateVariants(n) {
   n = clamp(parseInt(n, 10) || 1, 1, 5);
   if (S.busy || !S.char || !S.chat) return Promise.resolve();
@@ -3483,7 +3386,7 @@ function generateVariants(n) {
       if (errors.length) showError(errors[0]); else if (!job.stopped) toast(t("empty_answer"), "warn");
       return;
     }
-    // Stay on the variant the person was looking at (if it survived), else the first new one.
+
     var at = keep.findIndex(function (row) { return row.k === shownBefore; });
     setSwipe(target, base + Math.max(0, at));
     target.model = model;
@@ -3501,7 +3404,7 @@ function viewVariant(msg, index) {
   if (S.busy) { var node = document.querySelector('.ch-msg[data-id="' + msg.id + '"]'); if (node) { var c = node.querySelector(".ch-swipe-count"); if (c) c.textContent = (index + 1) + " / " + msg.swipes.length; } updateMessageNode(msg); updateVariantStrip(); }
   else { renderMessages(); saveChat(); }
 }
-// Progress of a running batch, under the reply: one pill per variant (waiting / writing · tokens / done / error).
+
 function variantStrip(msg) {
   var job = S.variantJob;
   if (!job || job.target !== msg) return null;
@@ -3541,7 +3444,7 @@ function updateVariantStrip() {
   var strip = $("#variant-strip");
   if (strip && S.variantJob) fillVariantStrip(strip, S.variantJob);
 }
-// All variants of a reply side by side: pick one or drop the weak ones.
+
 function openVariantCompare(msg) {
   if (!msg || !msg.swipes || msg.swipes.length < 2) return;
   var modal = openModal({ title: t("variants_compare_title", { count: msg.swipes.length }), icon: "columns", full: true, content: function (body) { draw(body); } });
@@ -3579,11 +3482,10 @@ function openVariantCompare(msg) {
   }
 }
 
-/* ---------------------------------------------------------------- tokens badge */
 var refreshTokens = debounce(function () {
-  refreshComposerBar();  // r33: a model / reasoning change made in the settings panel shows in the composer too
+  refreshComposerBar();
   if (!S.char || !S.chat || S.busy) return;
-  try { updateTokenBadge(buildFor("normal", S.chat.messages, { dryRun: true })); } catch (e) { /* ignore */ }
+  try { updateTokenBadge(buildFor("normal", S.chat.messages, { dryRun: true })); } catch (e) {  }
 }, 900);
 function updateTokenBadge(built, usage) {
   var badge = $("#token-badge");
@@ -3602,8 +3504,6 @@ function updateTokenBadge(built, usage) {
   S.lastBuilt = built;
 }
 
-
-/* ====================================================================== layout */
 function applyAppearance() {
   var ui = S.settings.ui;
   var root = document.documentElement;
@@ -3643,9 +3543,6 @@ function render() {
   syncToolbar();
 }
 
-/* ---------------------------------------------------------------- one header (Round 30) */
-// In the MemuAI window the module has no top bar of its own: its actions go to the window's single title row
-// (Memu.toolbar). Elsewhere (test harness, Telegram, an older MemuAI) the old in-module header is drawn.
 function hostBar() { return !!(window.Memu && Memu.toolbar && Memu.toolbar.supported && Memu.toolbar.supported()); }
 function svgOf(name) { return '<svg viewBox="0 0 24 24">' + (ICONS[name] || "") + "</svg>"; }
 function toggleSidebar() { S.settings.ui.sidebar = !S.settings.ui.sidebar; saveSettings(); applyAppearance(); syncToolbar(); }
@@ -3687,7 +3584,7 @@ function syncToolbar() {
   if (S.view === "chat" && S.char && S.chat) {
     var note = S.chat.meta && S.chat.meta.note && S.chat.meta.note.text;
     Memu.toolbar.set({
-      // A default chat title already starts with the character's name («Alice — Oct 10, 19:43»).
+
       title: S.chat.title && S.chat.title.indexOf(S.char.data.name) === 0 ? S.chat.title : S.char.data.name + (S.chat.title ? " — " + S.chat.title : ""),
       items: [
         S.lastBuilt ? tokenMeter() : null,
@@ -3707,7 +3604,6 @@ function syncToolbar() {
   }
 }
 
-/* ---------------------------------------------------------------- sidebar */
 function renderSidebar() {
   var side = $("#side");
   if (!side) return;
@@ -3716,8 +3612,7 @@ function renderSidebar() {
   search.value = S.search;
   search.addEventListener("input", function () { S.search = search.value; renderCharList(); if (S.view === "home") renderGallery(); });
   var searchWrap = h("div", { class: "ch-search-wrap", html: icon("search", 15) }, [search]);
-  // The window title already says «Characters»: under the host header the search moves up into the head row,
-  // and «Home» is the first chip.
+
   var head = h("div", { class: "ch-side-head" + (hostBar() ? " compact" : "") }, [
     hostBar() ? h("button", { class: "ch-ib", type: "button", title: t("home"), "aria-label": t("home"), html: icon("home"), onclick: goHome })
       : h("button", { class: "ch-brand", type: "button", onclick: goHome, title: t("home") }, [h("span", { class: "ch-brand-ic", html: icon("users", 18) }), h("span", { text: t("title") })]),
@@ -3753,8 +3648,7 @@ function renderSidebar() {
   ]);
   side.appendChild(foot);
 }
-// Round 30: the tags show two rows and a «+N» chip instead of a scrolling box with its own scrollbar; «+N» opens
-// all of them (and «Less» folds them back). Re-fitted when the sidebar changes width.
+
 function fitTagBar(bar) {
   if (!bar) return;
   var chips = Array.prototype.slice.call(bar.querySelectorAll(".ch-chip:not(.ch-tag-more)"));
@@ -3782,7 +3676,7 @@ function fitTagBar(bar) {
   for (var i = chips.length - 1; i >= 0; i--) {
     more.textContent = "+" + Math.max(1, hidden);
     if (hidden && fits()) break;
-    if (chips[i].classList.contains("on")) continue; // the active filter stays visible
+    if (chips[i].classList.contains("on")) continue;
     chips[i].hidden = true;
     hidden++;
   }
@@ -3852,7 +3746,6 @@ function charMenu(anchor, row) {
   ]);
 }
 
-/* ---------------------------------------------------------------- home / gallery */
 function renderHome() {
   var main = $("#main");
   main.innerHTML = "";
@@ -3918,7 +3811,6 @@ function selectEl(options, value, onChange, cls) {
   return sel;
 }
 
-/* ---------------------------------------------------------------- chat view */
 function renderChatView() {
   var main = $("#main");
   main.innerHTML = "";
@@ -3959,7 +3851,7 @@ function renderChatView() {
 }
 function updateChatHeader() { var title = $("#chat-title"); if (title && S.chat) title.textContent = S.chat.title || ""; syncToolbar(); }
 function chatMenu(anchor) {
-  // The avatar button in the old header opens the character; the shared list adds that entry for the host menu.
+
   popMenu(anchor, chatMenuEntries().filter(function (e) { return !e.hostOnly; }));
 }
 function composer() {
@@ -3970,8 +3862,7 @@ function composer() {
   });
   if (qr.childNodes.length) wrap.appendChild(qr);
   wrap.appendChild(h("div", { class: "ch-attach-row", id: "attach-row" }));
-  // r33: the composer is two rows — the text on top, the tools under it: «+», the model and the reasoning level on
-  // the left (switch them without opening the settings panel), the draft's token estimate and «Send» on the right.
+
   var box = h("div", { class: "ch-composer" });
   var tools = iconBtn("plus", "actions", function () {
     popMenu(tools, [
@@ -4042,7 +3933,6 @@ function clearChat() {
   });
 }
 
-/* ---------------------------------------------------------------- drawer */
 function openDrawer(tab) { S.drawerTab = tab || S.drawerTab; S.drawerOpen = true; renderDrawer(); }
 function toggleDrawer() { S.drawerOpen = !S.drawerOpen; renderDrawer(); }
 var DRAWER_TABS = [["preset", "sliders", "tab_preset"], ["connection", "zap", "tab_connection"], ["worlds", "book", "tab_worlds"],
@@ -4069,7 +3959,7 @@ function renderDrawer() {
   var fn = { preset: drawPresetPanel, connection: drawConnectionPanel, worlds: drawWorldsPanel, personas: drawPersonasPanel, appearance: drawAppearancePanel, extras: drawExtrasPanel }[S.drawerTab];
   if (fn) fn(body);
 }
-/* small form helpers */
+
 function section(title, iconName, children, opts) {
   opts = opts || {};
   var det = h("details", { class: "ch-sec" });
@@ -4107,8 +3997,6 @@ function textInput(value, onChange, opts) {
   return el;
 }
 
-
-/* ====================================================================== character editor */
 function openCharacterEditor(id) {
   var loading = id ? loadChar(id) : Promise.resolve(null);
   loading.then(function (existing) {
@@ -4155,7 +4043,7 @@ function openCharacterEditor(id) {
       }
       return row;
     }
-    // greetings
+
     var greetWrap = h("div", { class: "ch-greetings" });
     function drawGreetings() {
       greetWrap.innerHTML = "";
@@ -4167,7 +4055,7 @@ function openCharacterEditor(id) {
       });
       greetWrap.appendChild(h("div", { class: "mu-row" }, [
         h("button", { class: "mu-btn small", type: "button", html: icon("plus", 14) + esc(t("add_greeting")), onclick: function () { d.alternate_greetings = d.alternate_greetings || []; d.alternate_greetings.push(""); drawGreetings(); mark(); } }),
-        // r37: a new greeting drafted by the co-writer from the card (previewed, nothing is kept until «Accept»).
+
         assistEnabled() ? h("button", { class: "mu-btn small ghost", type: "button", html: icon("sparkle", 14) + esc(t("as_suggest_greeting")), onclick: function () {
           d.alternate_greetings = d.alternate_greetings || []; d.alternate_greetings.push(""); drawGreetings(); mark();
           var tas = $$(".ch-greet textarea", greetWrap); var ta = tas[tas.length - 1];
@@ -4176,7 +4064,7 @@ function openCharacterEditor(id) {
     }
     drawGreetings();
     var tagsInput = textInput((d.tags || []).join(", "), function (v) { d.tags = v.split(",").map(function (x) { return x.trim(); }).filter(Boolean); mark(); }, { placeholder: t("tags_placeholder") });
-    // r37: the co-writer. Each field registers its spec; the side panel reaches fields on other tabs through reveal().
+
     var FIELD_TABS = { basic: ["name", "description", "first_mes", "scenario", "alternate_greeting"], persona: ["personality", "mes_example", "creator_notes", "tags", "creator", "character_version"],
       advanced: ["system_prompt", "post_history_instructions", "depth_prompt"] };
     var FIELD_LABELS = { name: "f_name", description: "f_description", first_mes: "f_first_mes", scenario: "f_scenario", personality: "f_personality", mes_example: "f_mes_example",
@@ -4240,8 +4128,7 @@ function openCharacterEditor(id) {
           slider("f_talkativeness", d.extensions.talkativeness === undefined ? 0.5 : d.extensions.talkativeness, 0, 1, 0.05, function (v) { d.extensions.talkativeness = v; mark(); }),
           field("f_lorebook", worldSelect, "f_lorebook_hint"),
           (function () {
-            // A card imported without its lorebook keeps the book embedded (it is exported back as it was);
-            // here it can still become a real lorebook linked to the character.
+
             var book = d.character_book;
             if (!book || !(book.entries || []).length) return null;
             var box = h("div", { class: "ch-embedded" }, [h("span", { html: icon("book", 15) + esc(t("embedded_book_note", { count: book.entries.length })) })]);
@@ -4356,12 +4243,6 @@ function deleteCharacter(id) {
   });
 }
 
-/* ---------------------------------------------------------------- import / export */
-/* Round 29 phase 2: one «Import» dialog for files and links. Files (PNG/JSON cards of SillyTavern, chub, RisuAI,
- * Agnai, JanitorAI, Pygmalion, TextGen…, lorebooks of ST/chub/NovelAI/Agnai/RisuAI, presets, chats) and links
- * (chub, JanitorAI, Pygmalion, AICharacterCards, RisuRealm, Perchance, a direct PNG/JSON link) are first READ
- * into preview cards; nothing is saved until «Import» is pressed. Links go through Memu.fetchImport (MemuAI
- * downloads, the module never touches the network). */
 var IMPORT_SOURCES = {
   chub: "Chub", "chub-lorebook": "Chub", janitor: "JanitorAI", pygmalion: "Pygmalion.chat", aicc: "AICharacterCards",
   risu: "RisuRealm", perchance: "Perchance", generic: ""
@@ -4378,7 +4259,7 @@ function errText(e) {
     bad_json: t("err_bad_json"), unsupported: t("err_unsupported") }[m] || m;
 }
 function bytesToText(bytes) { return new TextDecoder("utf-8").decode(bytes).replace(/^\ufeff/, ""); }
-/** Read one file (or downloaded bytes) into a preview item. Never saves anything. */
+
 function analyzeBytes(bytes, fileName, mime, extra) {
   extra = extra || {};
   var item = { id: E.uid("i"), fileName: fileName || "", selected: true, source: extra.source || "", page: extra.page || "",
@@ -4430,7 +4311,7 @@ function analyzeFile(file) {
   return readAs(file, "buffer").then(function (buf) { return analyzeBytes(new Uint8Array(buf), file.name, file.type); })
     .catch(function (e) { return { id: E.uid("i"), fileName: file.name, name: file.name, kind: "error", error: errText(e) }; });
 }
-/** The source a typed link/id points to, recognised locally for instant feedback (MemuAI decides for real). */
+
 function guessSource(text) {
   var s = String(text || "").trim();
   if (!s) return "";
@@ -4569,7 +4450,7 @@ function openImportDialog(opts) {
     var focusNode = null;
     items.forEach(function (it) { var node = previewCard(it); if (it === focusItem) focusNode = node; list.appendChild(node); });
     if (focusNode) setTimeout(function () {
-      // Scroll the dialog body only (scrollIntoView would also shift the module page).
+
       var body = modal.body, top = focusNode.offsetTop - body.offsetTop - 8;
       if (top + focusNode.offsetHeight > body.scrollTop + body.clientHeight || top < body.scrollTop) body.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
     }, 30);
@@ -4595,7 +4476,7 @@ function openImportDialog(opts) {
     if (it.kind === "character") {
       var d = it.data;
       media = h("img", { class: "ch-imp-av", alt: "", src: it.avatar || defaultAvatar(d.name, it.id) });
-      // The app that wrote the card (or the site it came from), then the card version — never the same word twice.
+
       var from = it.source ? sourceName(it.source) : (/^v\d$/.test(it.origin) ? "" : ORIGIN_KEYS[it.origin] || "");
       chip(from, "src");
       chip(it.spec === "Agnai" ? "" : t("imp_card", { version: it.spec }));
@@ -4604,7 +4485,7 @@ function openImportDialog(opts) {
       if (!it.avatar) chip(t("imp_no_avatar"), "warn");
       main.appendChild(h("div", { class: "ch-imp-name" }, [h("b", { text: d.name }), d.creator ? h("span", { class: "mu-muted ch-small", text: t("imp_by", { name: d.creator }) }) : null]));
       main.appendChild(h("div", { class: "ch-imp-tags" }, chips));
-      // the preview reads like the chat will: {{char}}/{{user}} filled in (phase 2: raw «*{{char}} wipes the counter.*»)
+
       var prevSubst = function (text) { return text ? E.substitute(String(text), { char: d.name || "", user: userName(), lang: Memu.lang, variables: {}, globals: {} }) : ""; };
       var blurb = prevSubst(d.creator_notes || d.description).replace(/\s+/g, " ").trim();
       if (blurb) main.appendChild(h("p", { class: "ch-imp-blurb", text: blurb.length > 260 ? blurb.slice(0, 257) + "…" : blurb }));
@@ -4713,7 +4594,7 @@ function createFromCard(json, avatar, opts) {
       world.name = String(book.name || "").trim() || t("char_book_name", { name: data.name });
       saveWorld(world);
       char.worldId = world.id;
-      // The book now lives in the linked lorebook (originalData keeps every field for the export).
+
       delete char.data.character_book;
     }
     return saveCharacter(char);
@@ -4756,7 +4637,6 @@ function exportCharacter(id, kind) {
   }).catch(function (e) { toast(errText(e), "error"); });
 }
 
-/* ---------------------------------------------------------------- chats manager */
 function openChatManager() {
   saveChat.flush();
   var modal = openModal({ title: t("chats_of", { name: S.char.data.name }), icon: "chat", wide: true, content: function (body) {
@@ -4860,7 +4740,6 @@ function importChatText(text, fileName) {
   return saveChatNow().then(function () { render(); toast(t("chat_imported", { count: chat.messages.length }), "ok"); return 0; });
 }
 
-/* ---------------------------------------------------------------- author's note, variables, chat world, background */
 function openAuthorsNote() {
   var note = S.chat.meta.note;
   openModal({ title: t("authors_note"), icon: "note", content: function (body) {
@@ -4917,7 +4796,6 @@ function chooseBackground(scope) {
   });
 }
 
-/* ---------------------------------------------------------------- search & bookmarks */
 function openSearch(bookmarksOnly) {
   openModal({ title: bookmarksOnly ? t("bookmarks") : t("search_chat"), icon: bookmarksOnly ? "bookmark" : "search", wide: true, content: function (body, modal) {
     var input = h("input", { class: "mu-input", type: "search", placeholder: t("search_placeholder"), autofocus: true });
@@ -4966,7 +4844,6 @@ function openSearch(bookmarksOnly) {
   } });
 }
 
-/* ---------------------------------------------------------------- prompt inspector */
 function openInspector(built) {
   if (!built) {
     try { built = buildFor("normal", S.chat.messages, { dryRun: true }); } catch (e) { toast(e.message, "error"); return; }
@@ -5013,7 +4890,6 @@ function openInspector(built) {
   function stat(label, value) { return h("div", { class: "ch-stat" }, [h("div", { class: "ch-stat-v", text: value }), h("div", { class: "ch-stat-l", text: label })]); }
 }
 
-/* ---------------------------------------------------------------- personas */
 function openPersonas(forChat) {
   openModal({ title: t("personas"), icon: "user", wide: true, content: function (body, modal) {
     drawPersonaManager(body, function () { modal.close(); render(); }, forChat);
@@ -5102,8 +4978,6 @@ function editPersona(p, done) {
   } }] });
 }
 
-
-/* ====================================================================== presets */
 var presetCache = {};
 function presetName(row) { return row ? (Memu.lang === "ru" ? row.name_ru || row.name_en || row.name : row.name_en || row.name || row.name_ru) || row.id : ""; }
 function loadPresetById(id) {
@@ -5115,9 +4989,7 @@ function loadPresetById(id) {
     return Memu.asset("presets/" + id + ".json").then(function (json) { presetCache[id] = json; return E.clone(json); });
   });
 }
-// A shipped preset stays byte-faithful to its author (e.g. «Universal» keeps temperature 2), but a value that breaks
-// most models gets a recommended effective value from index.json `recommended`. It is applied only to the untouched
-// built-in copy, never saved by itself, and shown in the preset panel with a one-click way back to the preset value.
+
 function applyPresetRecommended(id, raw, preset) {
   var info = S.presetIndex.find(function (x) { return x.id === id; });
   if (!info || !info.recommended || (raw.memu && raw.memu.edited)) return null;
@@ -5303,14 +5175,10 @@ function presetRename() {
     renderDrawer();
   });
 }
-/* Round 33: pointer reordering for the prompt list. A native HTML5 drag runs the OS drag loop on Windows,
-   where the mouse wheel never reaches the page, so a long list could not be scrolled while dragging. Here:
-   hold a row (5 px threshold), the wheel scrolls as usual, near the top/bottom edge of the list (or past it)
-   it scrolls by itself — faster closer to / farther past the edge; a line shows «before»/«after», Esc cancels.
-   onDrop(from, to): «to» is the insertion index in the full order (before the row at «to»). */
+
 function pmDragSort(list, onDrop) {
   var d = null;
-  // Every scroll container from the list outwards (the list itself, the drawer, the page).
+
   function scrollers() {
     var out = [];
     for (var n = list; n && n !== document.body && n !== document.documentElement; n = n.parentElement) {
@@ -5320,7 +5188,7 @@ function pmDragSort(list, onDrop) {
     out.push(document.scrollingElement || document.documentElement);
     return out;
   }
-  // The visible part of the list: its box clipped by the containers around it and the window.
+
   function visibleRect(chain) {
     var r = list.getBoundingClientRect(), top = Math.max(0, r.top), bottom = Math.min(window.innerHeight, r.bottom);
     chain.forEach(function (n) {
@@ -5351,14 +5219,13 @@ function pmDragSort(list, onDrop) {
   }
   function tick() {
     if (!d || !d.on) return;
-    // Time-based: the same speed in px/s on a slow frame (a busy window renders fewer frames).
+
     var now = performance.now(), dt = Math.min(200, Math.max(1, now - (d.at || now - 16.7)));
     d.at = now;
     var v = Math.round(speed(d.y, visibleRect(d.box)) * dt / 16.7);
-    // A row grabbed right at an edge must not start scrolling at once: arm after the pointer has been
-    // in the calm middle once, or has moved 24 px from where the drag began.
+
     if (!d.armed) { if (!v || Math.abs(d.y - d.sy) > 24) d.armed = true; else v = 0; }
-    // Scroll the innermost container that can still move that way (the list first, then the drawer…).
+
     for (var i = 0; v && i < d.box.length; i++) {
       var box = d.box[i], before = box.scrollTop;
       box.scrollTop += v;
@@ -5397,7 +5264,7 @@ function pmDragSort(list, onDrop) {
       document.documentElement.classList.add("ch-pm-dragging");
       d.ghost = h("div", { class: "ch-pm-ghost", "aria-hidden": "true", text: (d.row.querySelector(".ch-pm-name") || d.row).textContent.trim().slice(0, 80) });
       document.body.appendChild(d.ghost);
-      try { window.getSelection().removeAllRanges(); } catch (err) { /* none */ }
+      try { window.getSelection().removeAllRanges(); } catch (err) {  }
       document.addEventListener("scroll", retarget, true);
       d.raf = requestAnimationFrame(tick);
     }
@@ -5420,7 +5287,7 @@ function pmDragSort(list, onDrop) {
   });
   list.addEventListener("click", function (e) { if (list._pmSwallow && Date.now() - list._pmSwallow < 400) { e.preventDefault(); e.stopPropagation(); } list._pmSwallow = 0; }, true);
 }
-/* prompt manager: order list with toggles, drag-and-drop, edit */
+
 var MARKER_HINTS = { chatHistory: "pm_chat_history", dialogueExamples: "pm_examples", worldInfoBefore: "pm_wi_before", worldInfoAfter: "pm_wi_after",
   charDescription: "pm_char_desc", charPersonality: "pm_char_pers", scenario: "pm_scenario", personaDescription: "pm_persona" };
 function promptManager() {
@@ -5442,7 +5309,7 @@ function promptManager() {
   var tokens = {};
   try {
     if (S.lastBuilt) S.lastBuilt.breakdown.forEach(function (b) { tokens[b.identifier] = b.tokens; });
-  } catch (e) { /* none */ }
+  } catch (e) {  }
   function draw() {
     list.innerHTML = "";
     var order = E.presetOrder(p);
@@ -5468,7 +5335,7 @@ function promptManager() {
           return c;
         })(), h("span", { class: "ch-switch small" })])
       ]);
-      // Round 33: reordered with the pointer (pmDragSort below) — the wheel and edge auto-scroll work while dragging.
+
       row.addEventListener("dblclick", function () { editPrompt(prompt, entry); });
       list.appendChild(row);
     });
@@ -5537,11 +5404,10 @@ function promptManager() {
   return wrap;
 }
 
-/* ====================================================================== connection */
 function drawConnectionPanel(body) {
   var gen = S.settings.gen;
   function set(key, v) { gen[key] = v; saveSettings(); refreshTokens(); }
-  var textModels = S.models.filter(function (m) { return !m.image && !m.video && !m.audio; });
+  var textModels = S.models.filter(function (m) { return (m.kind || "chat") === "chat" && !m.image && !m.video && !m.audio; });
   var modelSel = selectEl([["", t("choose_model")]].concat(textModels.map(function (m) { return [m.id, (m.name || m.id) + (m.context ? " · " + fmtNum(m.context) : "")]; })), S.settings.model, function (v) { S.settings.model = v; saveSettings(); refreshTokens(); refreshComposerBar(); });
   body.appendChild(section(t("sec_model"), "zap", [
     field("model", modelSel, "model_hint"),
@@ -5579,8 +5445,7 @@ function loadModels() {
   return Memu.models().then(function (rows) {
     S.models = Array.isArray(rows) ? rows : [];
     S.modelsLoaded = true;
-    // r33: the list holds only models enabled in MemuAI Proxy. A saved model that is no longer there (switched off,
-    // hidden, provider removed) is replaced by MemuAI's default text model, and the person is told once.
+
     if (!S.settings.model || modelMissing(S.settings.model)) {
       var gone = S.settings.model;
       var next = fallbackModel();
@@ -5591,14 +5456,12 @@ function loadModels() {
     }
     refreshComposerBar();
   }).catch(function (e) {
-    // r30: the host's own text already says «the model list is unavailable» (and only in Russian): it was shown twice,
-    // «…недоступен: Список моделей недоступен». A model-list failure gets one clear sentence in the UI language.
+
     var msg = String(e && e.message || "");
     toast(!msg || /модел|model/i.test(msg) ? t("models_unavailable") : t("models_failed", { message: msg }), "error");
   });
 }
 
-/* ====================================================================== World Info */
 function loadWorld(id) {
   if (S.worlds[id]) return Promise.resolve(S.worlds[id]);
   return Store.get("worlds/" + id, null).then(function (w) { if (w) { w.id = id; S.worlds[id] = w; } return w; });
@@ -5695,7 +5558,7 @@ function openWorldEditor(id) {
     var q = "";
     var expanded = {};
     var draw = function () {};
-    // r37: the co-writer for this lorebook (the open character, if any, is its context).
+
     var assistHost = { kind: "lorebook", box: null, fieldKeys: ["wi_content"], label: function () { return t("wi_content"); },
       card: function () { return S.char ? S.char.data : null; }, world: function () { return world; },
       reveal: function () { return null; },
@@ -5800,7 +5663,7 @@ function entryCard(world, e, expanded, redraw, assistHost) {
   var posField = field("position", selectEl(POSITIONS.map(function (p) { return [p[0], t(p[1])]; }), String(e.position), function (v) { e.position = Number(v); save(); redraw(); }));
   var bodyEl = h("div", { class: "ch-entry-body" }, [
     (function () {
-      // r37: ✨ next to the keys suggests keywords as chips (pick the ones to add).
+
       var keys = keysInput("key");
       var wrap = h("div", { class: "ch-field" }, [h("div", { class: "ch-label-row" }, [h("span", { class: "ch-label", text: t("wi_keys") }),
         assistEnabled() ? h("button", { class: "ch-as-btn", type: "button", title: t("as_keys_title"), "aria-label": t("as_keys_title"), html: icon("sparkle", 14), onclick: function () { assistSuggestKeys(keys, e, world, wrap); } }) : null]),
@@ -5848,10 +5711,8 @@ function entryCard(world, e, expanded, redraw, assistHost) {
   return card;
 }
 
-/* ====================================================================== personas panel */
 function drawPersonasPanel(body) { drawPersonaManager(body, function () { render(); }, false); }
 
-/* ====================================================================== appearance */
 function drawAppearancePanel(body) {
   var ui = S.settings.ui;
   function set(key, v) { ui[key] = v; saveSettings(); applyAppearance(); }
@@ -5906,7 +5767,6 @@ function drawAppearancePanel(body) {
   ], { open: false }));
 }
 
-/* ====================================================================== extras: regex, quick replies, data */
 function drawExtrasPanel(body) {
   body.appendChild(section(t("sec_quick_replies"), "zap", [quickRepliesEditor()]));
   body.appendChild(section(t("sec_regex"), "regex", [regexEditor()], { open: false }));
@@ -6022,8 +5882,6 @@ function importBackup() {
   });
 }
 
-
-/* ====================================================================== boot */
 /* @memu-part:ai-create.js */
 /* @memu-part:assist-prompts.js */
 /* @memu-part:assist.js */
@@ -6066,9 +5924,7 @@ function boot() {
   });
 }
 Memu.onLanguage(function () { syncStarterPersona(); render(); });
-// The untouched starter persona (the only one, no description/avatar, still named by a default) follows the UI language:
-// «Пользователь» ⇄ «User». Phase 2: it was «Вы»/«You» — a pronoun, so {{user}} broke sentences ("while You relaxes").
-// A persona the person edited is left alone.
+
 function syncStarterPersona() {
   var p = S.personas.length === 1 ? S.personas[0] : null;
   if (!p || p.description || p.avatar || !/^(Вы|You|Пользователь|User)$/.test(p.name || "")) return;
@@ -6076,7 +5932,7 @@ function syncStarterPersona() {
   if (p.name !== want) { p.name = want; savePersonas(); }
 }
 Memu.onTheme(function () { applyAppearance(); });
-// Narrow windows: the drawer overlays the chat with a scrim (#app::after, style.css); a click on the scrim lands on #app itself.
+
 document.getElementById("app").addEventListener("click", function (e) {
   if (e.target === e.currentTarget && S.drawerOpen && drawerIsOverlay()) { S.drawerOpen = false; renderDrawer(); }
 });
@@ -6086,7 +5942,7 @@ function drawerIsOverlay() {
 }
 document.addEventListener("keydown", function (e) {
   if (e.key === "Escape") {
-    // Round 31: an Esc that closed a menu is handled here — otherwise MemuAI minimizes the window too.
+
     if ($$(".ch-menu").length) { closeMenus(); e.preventDefault(); return; }
     if (modalStack.length) { e.preventDefault(); modalStack[modalStack.length - 1].close(); return; }
     if (S.busy) { e.preventDefault(); stopGeneration(); return; }
@@ -6096,8 +5952,7 @@ document.addEventListener("keydown", function (e) {
     var last = lastMessage();
     if (e.key === "ArrowRight" && last && last.role === "assistant") { e.preventDefault(); if (last.swipe_id >= (last.swipes || []).length - 1) swipeForward(last); else swipe(last, 1); }
     if (e.key === "ArrowLeft" && last && last.role === "assistant") { e.preventDefault(); swipe(last, -1); }
-    // r33: Alt+R — regenerate the last reply, Alt+Shift+R — the remembered number of variants at once, Alt+C — continue.
-    // e.code: the letter key whatever the keyboard layout (Alt+К on a Russian layout is the same key).
+
     if (e.code === "KeyR" && canMakeVariants()) { e.preventDefault(); if (e.shiftKey) generateVariants(variantCount()); else generate(last && last.role === "assistant" ? "regenerate" : "normal", { text: "" }); }
     if (e.code === "KeyC" && !e.shiftKey && last) { e.preventDefault(); generate("continue"); }
     if (e.code === "KeyM" && !e.shiftKey) { var chip = $("#model-chip"); if (chip) { e.preventDefault(); chip.click(); } }
@@ -6109,7 +5964,7 @@ Memu.on("navigate", function (data) {
   var row = S.index.find(function (c) { return c.id === q || String(c.name).toLowerCase() === q.toLowerCase(); });
   if (row) openCharacter(row.id);
 });
-/* Introspection handle for tests and power users (module-window scope only). */
+
 window.MemuCharacters = { S: S, E: E, generate: generate, swipe: swipe, startEdit: startEdit, exportCharacter: exportCharacter,
   openDrawer: openDrawer, openInspector: openInspector, buildFor: buildFor, openCharacter: openCharacter, importFiles: importFiles, render: render,
   dropStalePending: dropStalePending, shortModel: shortModel, newCharacter: newCharacter, saveCharacter: saveCharacter,

@@ -8,7 +8,6 @@ import unittest
 
 from app import realtime_live
 
-
 class LiveVoiceRegressionTest(unittest.TestCase):
     @unittest.skipUnless(shutil.which("node"), "Node runtime unavailable")
     def test_short_recordings_and_behavioral_personality(self):
@@ -19,8 +18,7 @@ class LiveVoiceRegressionTest(unittest.TestCase):
         self.assertIn("Round17 Live PASS", result.stdout)
 
     def test_selected_personality_reaches_every_provider_setup(self):
-        # Same payload the frontend sends over our local WebSocket. None of
-        # these setup builders opens a network connection.
+
         persona = '<live_personality primary="romantic">PRIMARY BEHAVIOR: tender, personal and gently playful. USER-CHOSEN NUANCE: no pet names.</live_personality>'
         for provider in ("openai-realtime", "openai-live", "gemini", "xai"):
             with self.subTest(provider=provider):
@@ -38,7 +36,6 @@ class LiveVoiceRegressionTest(unittest.TestCase):
                 self.assertTrue(instructions.startswith(persona))
                 self.assertNotIn("warmly", instructions[len(persona):])
                 self.assertIn("no pet names", json.dumps(setup))
-
 
 if __name__ == "__main__":
     unittest.main()

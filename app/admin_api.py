@@ -30,7 +30,6 @@ from .version import APP_VERSION
 log = logging.getLogger("memuai.admin")
 router = APIRouter(prefix="/api/admin")
 
-
 _sessions: Dict[str, float] = {}
 _internal_sessions: set[str] = set()
 _login_fails: Dict[str, float] = {}
@@ -40,10 +39,8 @@ _MODEL_PREFIX_RE = re.compile(r"[a-z0-9][a-z0-9._-]{0,63}")
 _LOOPBACK_HOSTS = {"127.0.0.1", "localhost", "::1"}
 _STARTED_AT = time.time()
 
-
 def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "?"
-
 
 def _client_is_loopback(request: Request) -> bool:
     """Use the socket peer only; forwarded headers are intentionally ignored."""
@@ -53,10 +50,8 @@ def _client_is_loopback(request: Request) -> bool:
     except ValueError:
         return peer.casefold() == "localhost"
 
-
 def _is_loopback_bind() -> bool:
     return config_store.effective_host.strip().lower() in _LOOPBACK_HOSTS
-
 
 def _browser_origin_guard(request: Request) -> Optional[JSONResponse]:
     """Keep browser callers on the exact Proxy origin and stop DNS rebinding."""
@@ -91,7 +86,6 @@ def _browser_origin_guard(request: Request) -> Optional[JSONResponse]:
         return _err("Cross-site доступ к панели запрещён", 403)
     return None
 
-
 def _auth(request: Request) -> Optional[JSONResponse]:
     """Панель без пароля только для same-origin UI на loopback.
 
@@ -109,10 +103,6 @@ def _auth(request: Request) -> Optional[JSONResponse]:
                                          "error_en": "Panel sign-in required"})
     return None
 
-
-# Панель двуязычная, а ошибки API исторически были только на русском. Чтобы в
-# английском интерфейсе не появлялся русский текст, каждое сообщение отдаётся
-# сразу в двух вариантах: "error" (RU) и "error_en" (EN).
 _ERR_EN: Dict[str, str] = {
     "Cross-origin доступ к панели запрещён": "Cross-origin access to the panel is blocked",
     "Cross-site доступ к панели запрещён": "Cross-site access to the panel is blocked",
@@ -189,7 +179,6 @@ _ERR_EN: Dict[str, str] = {
     "Это имя занято встроенным провайдером": "That name belongs to a built-in provider",
 }
 
-
 def _field_label_en(label: str) -> str:
     for provider in all_providers().values():
         try:
@@ -201,22 +190,19 @@ def _field_label_en(label: str) -> str:
                 return field.label_en or label
     return label
 
-
-# Сообщения проверки полей аккаунта с подставленным значением.
 _ERR_EN_PATTERNS = (
     (re.compile(r"Заполните поле «(.+)»"), lambda m: f"Fill in the “{_field_label_en(m.group(1))}” field"),
     (re.compile(r"Слишком много сообщений в запросе: (\d+) \(предел (\d+)\)"),
      lambda m: f"Too many messages in the request: {m.group(1)} (limit {m.group(2)})"),
     (re.compile(r"Префикс «(.+)» зарезервирован встроенным провайдером"),
      lambda m: f"The prefix “{m.group(1)}” belongs to a built-in provider"),
-    (re.compile(r"Модель (.+) не создаёт изображения\. Выберите модель изображений\."),   # Round 33 (r33-models)
+    (re.compile(r"Модель (.+) не создаёт изображения\. Выберите модель изображений\."),
      lambda m: f"The model {m.group(1)} does not create images. Pick an image model."),
-    (re.compile(r"Нет рабочего подключения для модели (.+)\. Проверьте его в MemuAI Proxy\."),   # Round 33 (r33c-models-vision)
+    (re.compile(r"Нет рабочего подключения для модели (.+)\. Проверьте его в MemuAI Proxy\."),
      lambda m: f"No working connection for the model {m.group(1)}. Check it in MemuAI Proxy."),
     (re.compile(r"Нет доступного аккаунта (.+) для генерации"),
      lambda m: f"No usable {m.group(1)} account for generation — check the connection in MemuAI Proxy"),
 )
-
 
 def _err_en(message: str) -> str:
     exact = _ERR_EN.get(message)
@@ -231,12 +217,9 @@ def _err_en(message: str) -> str:
             return english + message[len(russian):]
     return message
 
-
 def _err(message: str, status: int = 400) -> JSONResponse:
     return JSONResponse(status_code=status,
                         content={"error": message, "error_en": _err_en(message)})
-
-
 
 async def _json_object(request: Request, *, max_bytes: int = 1_048_576
                        ) -> tuple[Optional[Dict[str, Any]], Optional[JSONResponse]]:
@@ -252,8 +235,7 @@ async def _json_object(request: Request, *, max_bytes: int = 1_048_576
         except (TypeError, ValueError):
             return None, _err("Некорректный Content-Length")
     try:
-        # Read with a running limit: a chunked body has no Content-Length, and
-        # ``request.body()`` would buffer all of it before the size check.
+
         buffer = bytearray()
         async for chunk in request.stream():
             buffer.extend(chunk)
@@ -266,7 +248,6 @@ async def _json_object(request: Request, *, max_bytes: int = 1_048_576
     if not isinstance(body, dict):
         return None, _err("Ожидается JSON-объект")
     return body, None
-
 
 def _playground_chat_path(chat_id: str) -> pathlib.Path:
     """Return a contained legacy-playground path for a validated chat id."""
@@ -281,9 +262,6 @@ def _playground_chat_path(chat_id: str) -> pathlib.Path:
     except ValueError as exc:
         raise ValueError("Некорректный идентификатор чата") from exc
     return target
-
-
-# ------------------------------ вход ------------------------------
 
 @router.post("/login")
 async def login(request: Request):
@@ -304,8 +282,7 @@ async def login(request: Request):
         return _err("Неверный пароль", 401)
     _login_fails.pop(ip, None)
     now = time.time()
-    # Expired sessions and stale throttle entries were never removed: on a
-    # network-exposed panel both dictionaries only grew.
+
     for stale in [key for key, until in _sessions.items() if until < now]:
         _sessions.pop(stale, None)
         _internal_sessions.discard(stale)
@@ -314,7 +291,6 @@ async def login(request: Request):
     token = secrets.token_urlsafe(32)
     _sessions[token] = now + SESSION_TTL
     return {"token": token, "password_is_default": config_store.first_run_password}
-
 
 @router.post("/logout")
 async def logout(request: Request):
@@ -327,9 +303,6 @@ async def logout(request: Request):
     _internal_sessions.discard(token)
     return {"ok": True}
 
-
-# ------------------------------ обзор ------------------------------
-
 @router.get("/overview")
 async def overview(request: Request):
     deny = _auth(request)
@@ -339,7 +312,7 @@ async def overview(request: Request):
     if ":" in endpoint_host and not endpoint_host.startswith("["):
         endpoint_host = f"[{endpoint_host}]"
     providers = []
-    # Только модели живых провайдеров: плитка Genspark без аккаунта не должна считать его модели.
+
     enabled_models = state.enabled_models()
     for pid, p in all_providers().items():
         accounts = state.accounts_of(pid)
@@ -358,7 +331,7 @@ async def overview(request: Request):
         "accounts_total": len(state.accounts),
         "accounts_usable": len([a for a in state.accounts.values() if a.usable()]),
         "models_total": len(enabled_models),
-        # Round 31: the «Подключить клиент» sample used a hard-coded Genspark model id.
+
         "sample_model": next((m.id for m in enabled_models
                               if state.usable_accounts(m.provider)), enabled_models[0].id if enabled_models else ""),
         "api_keys_count": len(config_store.settings.api_keys),
@@ -374,16 +347,12 @@ async def overview(request: Request):
         "started_at": _STARTED_AT,
     }
 
-
-# ------------------------------ настройки ------------------------------
-
 @router.get("/settings")
 async def get_settings(request: Request):
     deny = _auth(request)
     if deny:
         return deny
     return {"settings": config_store.public_dict()}
-
 
 @router.post("/settings")
 async def update_settings(request: Request):
@@ -403,7 +372,6 @@ async def update_settings(request: Request):
     if gp:
         await gp.reconfigure()
     return {"ok": True, "rejected": rejected, "settings": config_store.public_dict()}
-
 
 @router.post("/password")
 async def change_password(request: Request):
@@ -426,9 +394,6 @@ async def change_password(request: Request):
             _sessions.pop(token, None)
     return {"ok": True, "reauth_required": not _is_loopback_bind()}
 
-
-# ------------------------------ аккаунты ------------------------------
-
 @router.get("/providers")
 async def providers_meta(request: Request):
     deny = _auth(request)
@@ -436,14 +401,13 @@ async def providers_meta(request: Request):
         return deny
     return {"providers": meta_list()}
 
-
 @router.get("/providers/presets")
 async def provider_presets(request: Request):
     """Готовые подключения поверх «Собственного API»: остаётся ввести ключ."""
     deny = _auth(request)
     if deny:
         return deny
-    # Round 33 (#24): ~100 services from app/providers/catalog.py (top ones first, then A–Z).
+
     from .providers.catalog import catalog, headers_for
     customs = [acc for acc in state.accounts.values() if acc.provider == "custom"]
     taken = {str(acc.fields.get("name", "")).strip().lower() for acc in customs}
@@ -451,13 +415,12 @@ async def provider_presets(request: Request):
     presets = []
     for preset in catalog():
         item = dict(preset)
-        item["icon"] = item.get("mono", "")               # older UI code reads «icon»
+        item["icon"] = item.get("mono", "")
         item["headers"] = headers_for(preset)
         item["in_use"] = item["name"] in taken or (
             not item.get("params") and item["base_url"].rstrip("/").lower() in bases)
         presets.append(item)
     return {"presets": presets}
-
 
 @router.get("/accounts")
 async def list_accounts(request: Request):
@@ -465,7 +428,6 @@ async def list_accounts(request: Request):
     if deny:
         return deny
     return {"accounts": state.list_accounts(mask=True)}
-
 
 @router.post("/accounts")
 async def add_account(request: Request):
@@ -530,7 +492,7 @@ async def add_account(request: Request):
     if priority != acc.priority:
         acc.priority = priority
     state.save_accounts()
-    # сеем каталог моделей провайдера при первом аккаунте
+
     if provider_id == "custom":
         try:
             models_raw = str(fields.get("models", "") or "")
@@ -538,7 +500,7 @@ async def add_account(request: Request):
             from .music_runtime import model_names
             names = list(dict.fromkeys(names + model_names(fields)))
             if names:
-                # Declared image/video generators are models of this connection too (Round 29).
+
                 media = [m.strip() for key in ("image_models", "video_models")
                          for m in re.split(r"[,\n;]", str(fields.get(key, "") or "")) if m.strip()]
                 names = list(dict.fromkeys(names + media))
@@ -556,7 +518,6 @@ async def add_account(request: Request):
             from .providers.base import spawn_background
             spawn_background(refresher.refresh(providers=[provider_id], reason="account-added"))
     return {"ok": True, "account": acc.public_dict()}
-
 
 def _auto_label(provider, provider_id: str, fields: Dict[str, Any], label: str) -> str:
     """Уникальное имя для нового аккаунта, если пользователь его не задал.
@@ -592,7 +553,6 @@ def _auto_label(provider, provider_id: str, fields: Dict[str, Any], label: str) 
         if candidate.lower() not in taken:
             return candidate
     return f"{label} {uuid.uuid4().hex[:4]}"
-
 
 @router.put("/accounts/{account_id}")
 async def update_account(account_id: str, request: Request):
@@ -634,7 +594,7 @@ async def update_account(account_id: str, request: Request):
                 continue
             current = str(acc.fields.get(key) or "")
             if len(current) > 14 and "…" in value and value == current[:6] + "…" + current[-4:]:
-                # Форма показала сокращённое значение и вернула его как есть.
+
                 continue
             if value or key in clearable:
                 candidate_fields[key] = value
@@ -682,8 +642,7 @@ async def update_account(account_id: str, request: Request):
                      "last_error": "", "last_error_at": 0.0}
     if fields_changed:
         acc.fields = candidate_fields
-        # Токены провайдера берутся из extra раньше полей: без сброса вставленный
-        # в «Изменить» свежий токен молча игнорировался.
+
         edited = set(body.get("fields", {}))
         if acc.provider == "kiro" and edited & {"token_json", "access_token", "refresh_token"}:
             acc.extra.pop("tokens", None)
@@ -693,7 +652,7 @@ async def update_account(account_id: str, request: Request):
         if acc.provider == "custom" and any(
                 key in body.get("fields", {})
                 for key in ("api_key", "api_keys", "key_pool_mode", "key_error_keywords")):
-            # Editing the policy is the explicit way to reactivate a pool.
+
             acc.extra.pop("disabled_api_key_hashes", None)
     if "enabled" in body:
         acc.enabled = body["enabled"]
@@ -707,14 +666,13 @@ async def update_account(account_id: str, request: Request):
         from .music_runtime import model_names
         names = [value.strip() for value in re.split(r"[,\n;]", str(acc.fields.get("models", "") or "")) if value.strip()]
         names = list(dict.fromkeys(names + model_names(acc.fields)))
-        # Round 29: declared image/video generators become models of the connection as soon as they are listed.
+
         names = list(dict.fromkeys(names + [m.strip() for key in ("image_models", "video_models")
                                             for m in re.split(r"[,\n;]", str(acc.fields.get(key, "") or "")) if m.strip()]))
         if names:
             state.seed_provider_models("custom", str(acc.fields.get("name", "")),
                                        [(name, "кастомное подключение") for name in names], account_id=acc.id)
     return {"ok": True, "account": acc.public_dict()}
-
 
 def _remove_connection_models(acc) -> None:
     """Модели кастомного подключения живут, пока живо само подключение."""
@@ -725,11 +683,7 @@ def _remove_connection_models(acc) -> None:
     else:
         _remove_provider_models_if_last(acc)
 
-
-# Провайдеры, чьи модели сеются на аккаунты: custom обслуживает подключения
-# (у каждого свой prefix), local вообще не имеет аккаунтов.
 _ACCOUNT_PROVIDERS = frozenset(RESERVED_PREFIXES) - {"custom", "local"}
-
 
 def _remove_provider_models_if_last(acc) -> None:
     """После удаления аккаунта чистит каталог, если аккаунтов провайдера не осталось.
@@ -748,9 +702,8 @@ def _remove_provider_models_if_last(acc) -> None:
     for model_id in doomed:
         state.models.pop(model_id, None)
     if doomed:
-        # одна запись на диск: у провайдера могут быть сотни моделей
-        state.save_models()
 
+        state.save_models()
 
 @router.delete("/accounts/{account_id}")
 async def delete_account(account_id: str, request: Request):
@@ -765,7 +718,6 @@ async def delete_account(account_id: str, request: Request):
         return _err("Аккаунт не найден", 404)
     return {"ok": True}
 
-
 @router.post("/accounts/{account_id}/check")
 async def check_account(account_id: str, request: Request):
     deny = _auth(request)
@@ -777,7 +729,7 @@ async def check_account(account_id: str, request: Request):
     provider = get_provider(acc.provider)
     if provider is None:
         return _err("Провайдер недоступен", 500)
-    # Проверка — явная просьба «попробуй снова»: прежние блокировки моделей этого аккаунта снимаются.
+
     pool.clear_account_blocks(acc.id)
     try:
         ok, message = await provider.check(acc)
@@ -796,7 +748,6 @@ async def check_account(account_id: str, request: Request):
     acc.last_checked = time.time()
     state.save_accounts()
     return {"ok": bool(ok), "message": message, "account": acc.public_dict()}
-
 
 @router.post("/accounts/check_all")
 async def check_all_accounts(request: Request):
@@ -828,7 +779,6 @@ async def check_all_accounts(request: Request):
         await asyncio.sleep(0.3)
     return {"ok": True, **results}
 
-
 @router.post("/accounts/reorder")
 async def reorder_accounts(request: Request):
     """Порядок аккаунтов после перетаскивания в панели.
@@ -856,7 +806,6 @@ async def reorder_accounts(request: Request):
     else:
         changed = state.reorder_accounts_global(order)
     return {"ok": True, "changed": changed, "accounts": state.list_accounts(mask=True)}
-
 
 @router.post("/accounts/bulk")
 async def bulk_accounts(request: Request):
@@ -922,7 +871,6 @@ async def bulk_accounts(request: Request):
     return {"ok": True, "done": done, "failed": failed, "messages": messages[:20],
             "accounts": state.list_accounts(mask=True)}
 
-
 @router.post("/accounts/{account_id}/duplicate")
 async def duplicate_account(account_id: str, request: Request):
     """Копия аккаунта со всеми полями — удобно для второй куки того же сервиса."""
@@ -945,7 +893,6 @@ async def duplicate_account(account_id: str, request: Request):
     state.save_accounts()
     return {"ok": True, "account": acc.public_dict()}
 
-
 @router.get("/accounts/export")
 async def export_accounts(request: Request):
     """Выгрузка аккаунтов без секретов — для переноса структуры и заметок."""
@@ -959,7 +906,6 @@ async def export_accounts(request: Request):
                      "enabled": acc.enabled, "proxy": acc.proxy,
                      "fields": {key: "" for key in acc.fields}})
     return {"version": APP_VERSION, "exported": int(time.time()), "accounts": rows}
-
 
 @router.get("/accounts/{account_id}/secrets")
 async def account_secrets(account_id: str, request: Request):
@@ -976,7 +922,6 @@ async def account_secrets(account_id: str, request: Request):
         return _err("Аккаунт не найден", 404)
     return {"id": acc.id, "fields": dict(acc.fields), "proxy": acc.proxy}
 
-
 @router.get("/accounts/{account_id}/usage")
 async def account_usage(account_id: str, request: Request):
     deny = _auth(request)
@@ -992,15 +937,12 @@ async def account_usage(account_id: str, request: Request):
         usage = await provider.usage(acc)
     except Exception as e:
         return _err(f"Не удалось получить лимиты: {e}", 502)
-    try:  # Round 35 (quota): every look at the limits is also a sample for the quota planner
+    try:
         from . import quota_planner
         quota_planner.observe_usage(acc, usage)
     except Exception:
         pass
     return {"usage": usage, "provider": acc.provider}
-
-
-# ------------------------------ OAuth ------------------------------
 
 @router.post("/oauth/{provider_id}/start")
 async def oauth_start(provider_id: str, request: Request):
@@ -1017,7 +959,6 @@ async def oauth_start(provider_id: str, request: Request):
     if not result.get("ok"):
         return _err(result.get("message", "Не удалось начать вход"), 500)
     return result
-
 
 @router.post("/oauth/{provider_id}/device_start")
 async def oauth_device_start(provider_id: str, request: Request):
@@ -1037,7 +978,6 @@ async def oauth_device_start(provider_id: str, request: Request):
         return _err(result.get("message", "Не удалось начать вход"), 502)
     return result
 
-
 @router.get("/oauth/{provider_id}/status/{flow_id}")
 async def oauth_status(provider_id: str, flow_id: str, request: Request):
     deny = _auth(request)
@@ -1048,9 +988,6 @@ async def oauth_status(provider_id: str, flow_id: str, request: Request):
         return _err("Провайдер не найден", 404)
     return await provider.oauth_status(flow_id)
 
-
-# ------------------------------ модели ------------------------------
-
 @router.get("/models")
 async def list_models(request: Request):
     deny = _auth(request)
@@ -1059,8 +996,14 @@ async def list_models(request: Request):
     rows = state.list_models()
     from .music_runtime import is_music_model
     for row in rows:
+        try:
+            from . import model_capabilities
+            row["kind"] = model_capabilities.capabilities_for(str(row.get("id") or ""), entry=state.find_model(str(row.get("id") or ""))).get("kind") or "chat"
+        except Exception:
+            row["kind"] = "chat"
         if is_music_model(row.get("id")):
             row["caps"] = {"music": True, "text": False}
+            row["kind"] = "music"
         try:
             info = model_info.resolve(row.get("prefix", ""), row.get("provider", ""), row.get("model", ""))
             if info.get("context"):
@@ -1068,7 +1011,6 @@ async def list_models(request: Request):
         except Exception:
             pass
     return {"models": rows}
-
 
 @router.post("/models")
 async def upsert_model(request: Request):
@@ -1103,18 +1045,16 @@ async def upsert_model(request: Request):
     entry = ModelEntry(prefix, provider, model, enabled=body.get("enabled", True),
                        source="manual", note=note)
     if not state.model_has_owner(entry):
-        # Иначе модель сохранялась «в никуда»: её некому обслужить и список её не покажет.
+
         return _err("Сначала добавьте аккаунт или подключение с этим префиксом")
     state.upsert_model(entry)
     return {"ok": True, "model": entry.public_dict()}
-
 
 def _provider_of_prefix(prefix: str) -> str:
     for acc in state.accounts.values():
         if acc.provider == "custom" and str(acc.fields.get("name", "")).lower() == prefix:
             return "custom"
     return prefix if prefix in all_providers() else "custom"
-
 
 @router.delete("/models/{model_id:path}")
 async def delete_model(model_id: str, request: Request):
@@ -1124,7 +1064,6 @@ async def delete_model(model_id: str, request: Request):
     if not state.remove_model(model_id):
         return _err("Модель не найдена", 404)
     return {"ok": True}
-
 
 @router.post("/models/refresh")
 async def refresh_models(request: Request):
@@ -1155,7 +1094,6 @@ async def refresh_models(request: Request):
     return await refresher.refresh(providers=wanted, accounts=only_accounts,
                                    prune=body.get("prune", True))
 
-
 def _prune_orphan_models(wanted: set) -> int:
     """Обещанный docstring prune: чистит каталог от осиротевших моделей.
 
@@ -1165,7 +1103,6 @@ def _prune_orphan_models(wanted: set) -> int:
     своим правилам и не зависит от аккаунтов.
     """
     return state.prune_orphan_models(wanted)
-
 
 def _apply_hidden_keywords() -> int:
     """Disables every model whose id matches a configured hide keyword."""
@@ -1183,7 +1120,6 @@ def _apply_hidden_keywords() -> int:
     if changed:
         state.save_models()
     return changed
-
 
 @router.post("/models/bulk")
 async def bulk_models(request: Request):
@@ -1223,7 +1159,6 @@ async def bulk_models(request: Request):
         state.save_models()
     return {"ok": True, "count": done}
 
-
 @router.post("/models/hide_keywords")
 async def hide_by_keywords(request: Request):
     """Disable/delete models by keyword, optionally saving the keyword rules."""
@@ -1260,7 +1195,6 @@ async def hide_by_keywords(request: Request):
     return {"ok": True, "count": count,
             "keywords": config_store.settings.model_hidden_keywords}
 
-
 @router.get("/models/export")
 async def export_models(request: Request):
     deny = _auth(request)
@@ -1270,7 +1204,6 @@ async def export_models(request: Request):
     return Response(json.dumps(payload, ensure_ascii=False, indent=2),
                     media_type="application/json",
                     headers={"Content-Disposition": "attachment; filename=memuai-models.json"})
-
 
 @router.post("/models/import")
 async def import_models(request: Request):
@@ -1300,8 +1233,7 @@ async def import_models(request: Request):
             account_id=str(row.get("account_id", "")),
         )
         if not state.model_has_owner(entry):
-            # Экспорт из времени, когда был аккаунт Genspark (или другое
-            # подключение), не должен возвращать модели без аккаунта.
+
             skipped += 1
             continue
         state.models[entry.id] = entry
@@ -1309,7 +1241,6 @@ async def import_models(request: Request):
     if added:
         state.save_models()
     return {"ok": True, "added": added, "skipped": skipped}
-
 
 @router.post("/models/genspark/refresh_config")
 async def genspark_models_config(request: Request):
@@ -1327,7 +1258,6 @@ async def genspark_models_config(request: Request):
     save_json(str(_memu_file("media_models.json")), sections, backup=False)
     total = sum(len(v) for v in sections.values())
     return {"ok": True, "sections": sections, "total": total}
-
 
 @router.post("/models/genspark/discover")
 async def genspark_discover(request: Request):
@@ -1349,9 +1279,6 @@ async def genspark_discover(request: Request):
     return {"ok": True, "added": added, "chunks": res.get("chunks", 0),
             "errors": res.get("errors", 0), "total_found": len(ids)}
 
-
-# ------------------------------ playground ------------------------------
-
 @router.get("/playground")
 async def pg_list(request: Request):
     deny = _auth(request)
@@ -1369,7 +1296,6 @@ async def pg_list(request: Request):
                 except Exception:
                     pass
     return {"chats": items[:50]}
-
 
 @router.post("/playground")
 async def pg_save(request: Request):
@@ -1391,7 +1317,6 @@ async def pg_save(request: Request):
     save_json(path, body, backup=False)
     return {"ok": True, "id": chat_id}
 
-
 @router.delete("/playground/{chat_id}")
 async def pg_delete(chat_id: str, request: Request):
     deny = _auth(request)
@@ -1404,7 +1329,6 @@ async def pg_delete(chat_id: str, request: Request):
     if path.exists():
         path.unlink()
     return {"ok": True}
-
 
 @router.post("/websearch")
 async def admin_websearch(request: Request):
@@ -1423,7 +1347,7 @@ async def admin_websearch(request: Request):
     except (TypeError, ValueError):
         limit = 5
     from . import websearch
-    # MemuAI может попросить именно бесплатный режим или Kiro: аккаунты живут здесь.
+
     engine = str(body.get("engine") or "")
     try:
         results = await websearch.search(query, limit=limit, raise_errors=True,
@@ -1433,7 +1357,6 @@ async def admin_websearch(request: Request):
         return _err(f"Поиск не удался: {exc}", 502)
     return {"query": query, "results": results, "count": len(results)}
 
-
 @router.get("/search/engines")
 async def admin_search_engines(request: Request):
     """Каталог источников веб-поиска для окна настроек."""
@@ -1442,7 +1365,6 @@ async def admin_search_engines(request: Request):
         return deny
     from . import search_engines
     return {"engines": search_engines.catalog(), "default": search_engines.DEFAULT_ENGINE}
-
 
 @router.post("/search/test")
 async def admin_search_test(request: Request):
@@ -1467,10 +1389,7 @@ async def admin_search_test(request: Request):
     return {"ok": True, "engine": engine, "count": len(results), "ms": int((time.time() - started) * 1000),
             "first": results[0] if results else None}
 
-
-#: Round 32: messages per Playground/MemuCode request (was 500 — too few for a long agent session).
 PG_CHAT_MAX_MESSAGES = 5000
-
 
 @router.post("/playground/chat")
 async def pg_chat(request: Request):
@@ -1485,25 +1404,31 @@ async def pg_chat(request: Request):
     model = str(body.get("model", "")).strip()
     if not isinstance(messages, list) or not messages or not model:
         return _err("Нужны model и messages")
-    # Round 32: a long MemuCode session easily holds more than 500 messages (each tool call and result is
-    # one); the old cap answered «Слишком большой запрос», which read like a size problem. The cap stays as
-    # a sanity bound and names exactly what is too big.
+
     if len(messages) > PG_CHAT_MAX_MESSAGES:
         return _err(f"Слишком много сообщений в запросе: {len(messages)} (предел {PG_CHAT_MAX_MESSAGES})", 413)
     if len(model) > 512:
         return _err("Слишком длинный идентификатор модели")
+    from . import model_capabilities
+    entry = state.find_model(model)
+    summary = model_capabilities.capabilities_for(model, entry=entry) if entry is not None else {}
+    kind = model_capabilities.kind_for_row({"id":model,"caps":summary},entry=entry)
+    if kind != "chat":
+        error = (f"Model {model} is specialized for {kind}. Choose a text model for chat."
+                 if body.get("lang") == "en" else f"Модель {model} предназначена для {kind}. Для чата выберите текстовую модель.")
+        return JSONResponse({"error":error,
+                             "error_code":"model_not_chat","kind":kind},status_code=400)
     params = {"web_search": body.get("web_search"), "thinking": body.get("thinking"),
-              # MemuAI умеет вызывать инструменты сам, поэтому прокси не должен
-              # подмешивать веб-поиск к каждому сообщению.
+
               "tools_available": bool(body.get("tools_available")),
               "prompt_caching": body.get("prompt_caching", True), "_stream": True}
-    # Round 33 (r33-thinking): + off / on / xhigh; the Proxy clamps the level to the model (reasoning_levels).
+
     if str(body.get("effort") or "").lower() in ("auto", "off", "none", "on", "minimal", "low", "medium", "high",
                                                   "xhigh", "max"):
         params["effort"] = str(body["effort"]).lower()
     if body.get("temperature") is not None:
         params["temperature"] = body["temperature"]
-    # Round 29: sampler passthrough for modules (Memu.complete); numbers/strings only.
+
     for key in ("top_p", "top_k", "min_p", "top_a", "frequency_penalty", "presence_penalty",
                 "repetition_penalty", "seed"):
         if isinstance(body.get(key), (int, float)) and not isinstance(body.get(key), bool):
@@ -1530,10 +1455,7 @@ async def pg_chat(request: Request):
         error_en, error_code = "", ""
         stream = chat_service.stream_completion(model, messages, params, trace=trace)
         try:
-            # Пока провайдер думает или идёт повтор, канал молчит. MemuAI
-            # не отличает «думает» от «связь умерла», поэтому шлём
-            # SSE-комментарии — они не видны клиенту, но доказывают, что
-            # запрос жив.
+
             keepalive = (float(config_store.settings.sse_keepalive_interval)
                          if config_store.settings.sse_keepalive else 0.0)
             queue: asyncio.Queue = asyncio.Queue(maxsize=256)
@@ -1586,7 +1508,7 @@ async def pg_chat(request: Request):
                 "hint": e.hint, "hint_en": e.hint_en,
                 "type": e.err_type, "status": e.status,
                 "provider": getattr(e, "provider", "") or "",
-                # Round 33: the upstream's pause (Retry-After) for MemuCode's /auto-continue auto
+
                 "retry_after": getattr(e, "retry_after", None)}},
                 ensure_ascii=False) + "\n\n"
         except Exception as e:
@@ -1611,7 +1533,6 @@ async def pg_chat(request: Request):
     return ClosingStreamingResponse(state.guard_stream(sse(), trace), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-
 @router.post("/open_memuai")
 async def open_memuai(request: Request):
     """Открывает или активирует единственное окно MemuAI."""
@@ -1628,7 +1549,7 @@ async def open_memuai(request: Request):
     parsed = urllib.parse.urlparse(running_url)
     if parsed.scheme == "http" and parsed.hostname in ("127.0.0.1", "localhost", "::1"):
         try:
-            # trust_env=False: a system/VPN proxy (env or the Windows registry) must not see a 127.0.0.1 ping.
+
             async with httpx.AsyncClient(timeout=2, trust_env=False) as client:
                 ping = await client.get(running_url + "/api/pg/ping")
                 if ping.status_code == 200:
@@ -1687,7 +1608,6 @@ async def open_memuai(request: Request):
     _internal_sessions.discard(token)
     return _err("MemuAI не найден: " + "; ".join(errors or ["dist/MemuAI/MemuAI.exe"]), 500)
 
-
 @router.post("/show_window")
 async def show_proxy_window(request: Request):
     """Активирует окно из второго запуска приложения/ярлыка."""
@@ -1698,7 +1618,7 @@ async def show_proxy_window(request: Request):
         return browser_denied
     from .desktop import show_active_window
     shown = show_active_window()
-    # Round 35 (protocol): memuai://proxy/<page> — open a page of the Proxy window ({"tab": "composite"}).
+
     try:
         raw = await request.body()
         tab = str((json.loads(raw) if raw and len(raw) < 1024 else {}).get("tab") or "")
@@ -1712,13 +1632,11 @@ async def show_proxy_window(request: Request):
             await asyncio.to_thread(lambda: _safe_eval(window, script))
     return {"ok": shown}
 
-
 def _safe_eval(window, script: str) -> None:
     try:
         window.evaluate_js(script)
     except Exception:  # noqa: BLE001 - the window may be closing
         pass
-
 
 @router.post("/shutdown_local")
 async def shutdown_proxy_local(request: Request):
@@ -1734,16 +1652,12 @@ async def shutdown_proxy_local(request: Request):
         callback()
     return {"ok": True}
 
-
-# ------------------------------ playground: state/memory/prompts/schedules/image ------------------------------
-
 def _memu_file(name: str) -> pathlib.Path:
     from .config import DATA_DIR
     import pathlib as _pl
     d = _pl.Path(DATA_DIR) / "memuai"
     d.mkdir(parents=True, exist_ok=True)
     return d / name
-
 
 def _custom_account_label(prefix: str) -> str:
     """The user's name for the Custom API account that owns ``prefix`` (its label, else its name)."""
@@ -1752,7 +1666,6 @@ def _custom_account_label(prefix: str) -> str:
         if name.lower().replace(" ", "-") == str(prefix).lower():
             return (account.label or name or "custom")[:40]
     return "custom"
-
 
 @router.get("/pg/state")
 async def pg_state(request: Request):
@@ -1764,8 +1677,7 @@ async def pg_state(request: Request):
     music_rows = music_catalog()
     music_ids = {row["id"] for row in music_rows}
     usable_providers = {pid for pid in all_providers() if state.usable_accounts(pid)}
-    # Кэш медиакаталога Genspark переживает удаление аккаунта: без живого
-    # аккаунта его модели AI Image не показываем (их некому обслужить).
+
     genspark_live = bool(state.usable_accounts("genspark"))
     sections = _load_json(_memu_file("media_models.json"), {}) if genspark_live else {}
     if not isinstance(sections, dict):
@@ -1790,8 +1702,7 @@ async def pg_state(request: Request):
         elif enabled.provider == "custom" and (enabled.id in declared_custom_images
                                                 or any(h in raw.lower() for h in image_hints)):
             custom_image_models.append(enabled.id)
-    # Round 29 (media routing): video models of Custom connections (declared or known by name) and Genspark AI Video;
-    # chat-native image names (gemini-*-image, *-image-preview) as image models (app/media_gen.py).
+
     custom_video_models: List[str] = []
     try:
         from . import media_gen
@@ -1808,30 +1719,29 @@ async def pg_state(request: Request):
     for m in state.enabled_models():
         if m.provider not in usable_providers:
             continue
-        # Медиамодели Genspark принадлежат агенту AI Image, а не обычному чату.
+
         if m.provider == "genspark" and (m.model.lower() in image_keys or m.id.lower() in image_keys):
             continue
         if m.provider == "custom" and (m.id in custom_image_models or m.id in custom_video_models):
             continue
         if m.id in music_ids:
             continue
-        # These providers take pictures, but not every model behind them does (a text-only DeepSeek on a custom
-        # endpoint, GPT-OSS on Antigravity): the model's family decides when the name is conclusive.
+
         accepts = m.provider in ("genspark", "antigravity", "kiro", "custom")
         if accepts and model_info.vision_hint(m.model) is False:
             accepts = False
         extra_caps: Dict[str, Any] = {}
         try:
-            # Round 22: one shared answer (app/model_capabilities.py): a probe the user ran, a local mmproj
-            # projector, the provider's own model row and the public catalogues can correct the name rule.
+
             from . import model_capabilities
             accepts = model_capabilities.adapter_vision(m.id, m.prefix, m.provider, m.model, entry=m)
             summary = model_capabilities.capabilities_for(m.id, entry=m)
+            if summary.get("kind"):
+                extra_caps["kind"] = summary["kind"]
             for key in ("tools", "reasoning"):
                 if summary.get(key) is True:
                     extra_caps[key] = True
-            # Round 31 (r31-quick): «text only» guessed from the name alone — the window lets the user try / probe
-            # instead of refusing a picture outright (a new multimodal tier the name table does not know yet).
+
             if not accepts and summary.get("vision_source") == "heuristic" \
                     and m.provider in model_capabilities.IMAGE_ADAPTERS:
                 extra_caps["vision_guess"] = True
@@ -1839,7 +1749,7 @@ async def pg_state(request: Request):
             pass
         caps = {"search": False, "thinking": False, "image": False, "vision": accepts, **extra_caps}
         try:
-            # Round 33 (r33-thinking): the reasoning levels this model really supports (pickers show only these).
+
             from . import reasoning_levels
             caps["reasoning_profile"] = reasoning_levels.public(reasoning_levels.profile(
                 m.id, m.provider, m.model, reasoning=extra_caps.get("reasoning")))
@@ -1851,11 +1761,10 @@ async def pg_state(request: Request):
         if m.availability:
             row["availability"] = dict(m.availability)
         if m.provider == "custom" and m.prefix:
-            # Round 31 (design): the model picker showed «custom» for every own API — name the account instead.
+
             row["provider_label"] = _custom_account_label(m.prefix)
         try:
-            # Context window for MemuAI's meter and compression: provider
-            # metadata, then the local runtime, then the known-model catalogue.
+
             info = model_info.resolve(m.prefix, m.provider, m.model)
             if info.get("context"):
                 row["context"] = {key: info.get(key) for key in
@@ -1863,8 +1772,7 @@ async def pg_state(request: Request):
         except Exception:
             pass
         models.append(row)
-    # Никаких внешних запросов при обновлении интерфейса: медиакаталог
-    # обновляется только явной кнопкой в Proxy и читается из локального кэша.
+
     if genspark_live and len(raw_image_models) <= 1:
         raw_image_models = ["auto", "gpt-image-2", "nano-banana-pro", "nano-banana-2",
                             "flux-2-pro", "ideogram-v3", "recraft-v3",
@@ -1894,11 +1802,11 @@ async def pg_state(request: Request):
                        "caps": {"search": False, "thinking": False, "image": False, "video": True, "vision": False}})
     mem = _load_json(_memu_file("memory.json"), {"enabled": True, "facts": []})
     if isinstance(mem, dict) and isinstance(mem.get("items"), list):
-        # Round 29: memory v2 — the 3-second poll carries only the legacy view and the inbox size.
+
         mem = {"enabled": mem.get("enabled", True) is not False, "facts": mem.get("facts") or [], "version": 2,
                "pending": sum(1 for row in mem["items"] if isinstance(row, dict) and row.get("status") == "pending")}
     models.extend(music_rows)
-    try:   # Round 35: composite models for the MemuAI pickers (app/composite_models.py)
+    try:
         from . import composite_models
         models.extend(composite_models.pg_rows())
     except Exception:
@@ -1909,21 +1817,17 @@ async def pg_state(request: Request):
     payload = {"models": models, "unavailable_models": unavailable_models,
                "image_models": image_models, "video_models": video_models,
                "music_models": list(music_ids), "memory": mem}
-    try:   # Round 33 (r33-models): names, kind, account and one vision answer per row (app/model_catalog.py)
+    try:
         from . import model_catalog
         model_catalog.enrich(payload, find_model=state.find_model)
         model_catalog.enrich({"models": unavailable_models}, find_model=state.find_model)
     except Exception:
         log.exception("model catalog enrich failed")
-    # Round 21 (производительность): окно запрашивает состояние каждые 3 с, и
-    # почти половину времени занимал обход ответа jsonable_encoder. Здесь только
-    # обычные JSON-значения, поэтому ответ сериализуется сразу (те же байты);
-    # если вдруг попадётся необычный тип — прежний путь FastAPI.
+
     try:
         return JSONResponse(payload)
     except (TypeError, ValueError):
         return payload
-
 
 @router.get("/music/presets")
 async def music_presets(request: Request):
@@ -1935,7 +1839,6 @@ async def music_presets(request: Request):
     from .storage import load_json_with_recovery
     legacy = load_json_with_recovery(str(modules_host.default_root() / "media-connections.json"), {}).get("studio", {})
     return {"presets": PRESETS, "legacy_available": bool(legacy.get("endpoint"))}
-
 
 @router.post("/music/import-studio")
 async def import_studio_music(request: Request):
@@ -1969,7 +1872,6 @@ async def import_studio_music(request: Request):
     state.seed_provider_models("custom", prefix, [(model, "Music")], account_id=account.id)
     return {"ok": True, "account": account.public_dict()}
 
-
 def _load_json(path, default):
     try:
         import json as _json
@@ -1977,15 +1879,13 @@ def _load_json(path, default):
     except Exception:
         return default
 
-
 @router.get("/pg/memory")
 async def pg_memory_get(request: Request):
     deny = _auth(request)
     if deny:
         return deny
-    from . import memory_v2   # Round 29: v2 document (keeps the legacy "enabled"/"facts" fields)
+    from . import memory_v2
     return memory_v2.public(await asyncio.to_thread(memory_v2.load))
-
 
 @router.post("/pg/memory")
 async def pg_memory_set(request: Request):
@@ -1999,12 +1899,10 @@ async def pg_memory_set(request: Request):
         return _err("Поле enabled должно быть логическим")
     if not isinstance(body.get("facts", []), list):
         return _err("Поле facts должно быть массивом")
-    # Round 29: memory v2 — an {enabled, facts} write is merged into the structured document
-    # (sources, rules, pending facts… are kept), see app/memory_v2.save_legacy.
+
     from . import memory_v2
     await asyncio.to_thread(memory_v2.save_legacy, body)
     return {"ok": True}
-
 
 @router.get("/pg/prompts")
 async def pg_prompts_get(request: Request):
@@ -2013,7 +1911,6 @@ async def pg_prompts_get(request: Request):
         return deny
     from .pgdata import load_prompts
     return load_prompts()
-
 
 @router.post("/pg/prompts")
 async def pg_prompts_set(request: Request):
@@ -2024,10 +1921,8 @@ async def pg_prompts_set(request: Request):
     if error is not None:
         return error
     from .pgdata import save_prompts
-    # save_prompts keeps the original prompt set read-only and normalizes the
-    # document, so a broken payload can never destroy the reference prompts.
-    return {"ok": True, "prompts": save_prompts(body)}
 
+    return {"ok": True, "prompts": save_prompts(body)}
 
 @router.get("/pg/schedules")
 async def pg_schedules_get(request: Request):
@@ -2036,7 +1931,6 @@ async def pg_schedules_get(request: Request):
         return deny
     from .pgdata import load_schedules
     return {"tasks": load_schedules()}
-
 
 @router.post("/pg/schedules")
 async def pg_schedules_set(request: Request):
@@ -2055,7 +1949,6 @@ async def pg_schedules_set(request: Request):
     save_schedules(body.get("tasks") or [], known_ids)
     return {"ok": True}
 
-
 @router.get("/pg/schedule_results")
 async def pg_schedule_results(request: Request):
     deny = _auth(request)
@@ -2063,7 +1956,6 @@ async def pg_schedule_results(request: Request):
         return deny
     from .pgdata import load_schedule_results
     return load_schedule_results()
-
 
 @router.get("/pg/image/file")
 async def pg_image_file(url: str, request: Request):
@@ -2089,7 +1981,6 @@ async def pg_image_file(url: str, request: Request):
     media_type = str(resp.headers.get("content-type") or "image/png").split(";", 1)[0]
     return Response(content, media_type=media_type,
                     headers={"Cache-Control": "private, max-age=300"})
-
 
 @router.post("/pg/image")
 async def pg_image(request: Request):
@@ -2126,8 +2017,7 @@ async def pg_image(request: Request):
             provider = get_provider("custom")
             account = accounts[0] if accounts else None
         elif routed and routed.provider not in ("genspark", "custom") and public_model:
-            # Round 33 (r33-models): a chat model of another provider used to fall back to Genspark «auto» silently
-            # (or to «no genspark account») — a retry «with another model» then never used the model picked.
+
             return _err(f"Модель {public_model} не создаёт изображения. Выберите модель изображений.", 400)
         else:
             model = "auto"
@@ -2139,7 +2029,7 @@ async def pg_image(request: Request):
     if not prompt:
         return _err("Пустой промпт")
     if not account or not provider:
-        if provider_id == "custom":   # Round 33: name the model, not «custom»
+        if provider_id == "custom":
             return _err(f"Нет рабочего подключения для модели {public_model}. Проверьте его в MemuAI Proxy.", 503)
         return _err(f"Нет доступного аккаунта {provider_id} для генерации", 503)
 
@@ -2159,7 +2049,7 @@ async def pg_image(request: Request):
         trace.add_stage("sending_to_provider", {"provider": provider_id, "agent": "AI Image",
                                                  "model": model})
         if provider_id == "custom":
-            # Round 29: chat-native image models, Google AI Studio and reference pictures (app/media_gen.py).
+
             from . import media_gen
             job = media_gen.generate_image(provider, account, prompt, model, aspect, images,
                                            system=str(body.get("system") or "")[:8000])
@@ -2173,9 +2063,7 @@ async def pg_image(request: Request):
                                              ensure_ascii=False) + "\n\n"
                 await _aio.sleep(1.5)
         except BaseException:
-            # Client disconnect closes the generator with GeneratorExit at a
-            # ``yield``, not CancelledError: the provider job kept generating
-            # for nobody. Any early exit cancels it.
+
             task.cancel()
             raise
         t0_done = _t.time()
@@ -2205,7 +2093,6 @@ async def pg_image(request: Request):
     return StreamingResponse(events(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-
 @router.post("/pg/video")
 async def pg_video(request: Request):
     """Генерация видео через тот же конвейер Genspark, что и изображения."""
@@ -2224,7 +2111,7 @@ async def pg_video(request: Request):
     routed = None if public_model.startswith(("genspark-video/", "genspark-image/")) or public_model == "auto" \
         else resolve(public_model)
     if routed and routed.provider == "custom":
-        # Round 29: OpenAI-compatible /videos and Google AI Studio Veo (app/media_gen.py).
+
         provider_id = "custom"
         model = routed.model
         accounts = pool.ordered_candidates("custom")
@@ -2277,9 +2164,7 @@ async def pg_video(request: Request):
                                              ensure_ascii=False) + "\n\n"
                 await _aio.sleep(1.5)
         except BaseException:
-            # Client disconnect closes the generator with GeneratorExit at a
-            # ``yield``, not CancelledError: the provider job kept generating
-            # for nobody. Any early exit cancels it.
+
             task.cancel()
             raise
         try:
@@ -2306,13 +2191,9 @@ async def pg_video(request: Request):
     return StreamingResponse(events(), media_type="text/event-stream",
                              headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
-
 @router.post("/pg/chat")
 async def pg_chat2(request: Request):
     return await pg_chat(request)
-
-
-# ------------------------------ ключи / логи ------------------------------
 
 @router.get("/keys")
 async def list_keys(request: Request):
@@ -2320,7 +2201,6 @@ async def list_keys(request: Request):
     if deny:
         return deny
     return {"keys": config_store.settings.api_keys}
-
 
 @router.post("/keys")
 async def create_key(request: Request):
@@ -2331,7 +2211,6 @@ async def create_key(request: Request):
     config_store.settings.api_keys.append(key)
     config_store.save()
     return {"ok": True, "key": key, "keys": config_store.settings.api_keys}
-
 
 @router.delete("/keys/{key}")
 async def delete_key(key: str, request: Request):
@@ -2344,7 +2223,6 @@ async def delete_key(key: str, request: Request):
         config_store.save()
         return {"ok": True, "keys": keys}
     return _err("Ключ не найден", 404)
-
 
 @router.post("/shutdown")
 async def shutdown_app(request: Request):
@@ -2359,8 +2237,7 @@ async def shutdown_app(request: Request):
 
     def _die():
         time.sleep(0.5)
-        # Штатное завершение: lifespan, atexit, остановка llama-server и сброс
-        # метрик. os._exit сразу оставлял процессы моделей висеть в памяти.
+
         if callback:
             try:
                 callback()
@@ -2382,7 +2259,6 @@ async def shutdown_app(request: Request):
     _t.Thread(target=_die, daemon=True).start()
     return {"ok": True, "message": "MemuAI Proxy выключается…"}
 
-
 @router.get("/logs")
 async def get_logs(request: Request, limit: int = 100, offset: int = 0,
                    query: str = "", status: str = "", provider: str = "",
@@ -2403,7 +2279,6 @@ async def get_logs(request: Request, limit: int = 100, offset: int = 0,
         result["facets"] = state.log_facets()
     return result
 
-
 @router.get("/logs/prompt")
 async def get_log_prompt(request: Request, request_id: str = ""):
     deny = _auth(request)
@@ -2415,14 +2290,12 @@ async def get_log_prompt(request: Request, request_id: str = ""):
                              "error_en": "The prompt was not saved or the log entry was removed"}, 404)
     return {"prompt": snapshot}
 
-
 @router.get("/logs/facets")
 async def logs_facets(request: Request):
     deny = _auth(request)
     if deny:
         return deny
     return state.log_facets()
-
 
 @router.get("/logs/export")
 async def export_logs(request: Request, fmt: str = "json", query: str = "",
@@ -2457,7 +2330,6 @@ async def export_logs(request: Request, fmt: str = "json", query: str = "",
                     media_type="application/json", headers={
                         "Content-Disposition": "attachment; filename=memuai-logs.json"})
 
-
 @router.post("/logs/clear")
 async def clear_logs(request: Request):
     deny = _auth(request)
@@ -2465,7 +2337,6 @@ async def clear_logs(request: Request):
         return deny
     state.clear_logs()
     return {"ok": True}
-
 
 @router.get("/applog")
 async def get_applog(request: Request, limit: int = 200, level: str = "",
@@ -2477,7 +2348,6 @@ async def get_applog(request: Request, limit: int = 200, level: str = "",
     return app_log.list(limit=max(1, min(limit, 1000)), level=level,
                         query=query, after=max(0, after))
 
-
 @router.post("/applog/clear")
 async def clear_applog(request: Request):
     deny = _auth(request)
@@ -2485,7 +2355,6 @@ async def clear_applog(request: Request):
         return deny
     app_log.clear()
     return {"ok": True}
-
 
 @router.get("/metrics")
 async def get_metrics(request: Request):
@@ -2495,7 +2364,6 @@ async def get_metrics(request: Request):
     period = str(request.query_params.get("period", "day") or "day").strip().lower()
     return metrics.snapshot(period)
 
-
 @router.post("/metrics/reset")
 async def reset_metrics(request: Request):
     deny = _auth(request)
@@ -2503,7 +2371,6 @@ async def reset_metrics(request: Request):
         return deny
     metrics.reset()
     return {"ok": True}
-
 
 @router.post("/restart")
 async def restart_services(request: Request):
@@ -2535,8 +2402,7 @@ async def restart_services(request: Request):
     except Exception as e:
         steps.append(f"http:{e}")
     try:
-        # Блокировки «эта модель недоступна этому аккаунту» живут в памяти и
-        # истекают сами; после перезапуска служб они проверяются заново.
+
         pool.clear_blocks()
         steps.append("accounts")
     except Exception as e:

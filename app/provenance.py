@@ -50,8 +50,6 @@ CAVEATS_RU: List[str] = [
     "SynthID и похожие невидимые водяные знаки нельзя публично проверить через API — официальный способ есть только у части поставщиков и работает лишь через их собственный инструмент.",
 ]
 
-# Known generator name substrings -> a human label. Matched case-insensitively
-# against extracted PNG/XMP/EXIF metadata, not arbitrary image bytes.
 _GENERATOR_PATTERNS: List[Tuple[str, str]] = [
     (r"gpt-image", "OpenAI gpt-image"),
     (r"dall-?e", "OpenAI DALL-E"),
@@ -79,9 +77,7 @@ _C2PA_MARKERS = [b"c2pa", b"C2PA", b"jumbf", b"JUMBF", b"application/c2pa", b"ur
 _DIGITAL_SOURCE_RE = re.compile(rb"digitalsourcetype[^a-zA-Z]{0,8}([a-zA-Z]+)", re.I)
 _DIGITAL_SOURCE_URL_RE = re.compile(rb"newscodes/digitalsourcetype/([a-zA-Z]+)", re.I)
 
-# EXIF ASCII tags worth reading (tag id -> label).
 _EXIF_ASCII_TAGS = {0x010F: "Make", 0x0110: "Model", 0x0131: "Software", 0x010E: "ImageDescription", 0x013B: "Artist"}
-
 
 def _match_generator(haystack: bytes) -> Optional[str]:
     for pattern, label in _GENERATOR_PATTERNS:
@@ -89,15 +85,12 @@ def _match_generator(haystack: bytes) -> Optional[str]:
             return label
     return None
 
-
 def _c2pa_hint(data: bytes) -> bool:
     return any(marker in data for marker in _C2PA_MARKERS)
-
 
 def _digital_source_type(data: bytes) -> str:
     match = _DIGITAL_SOURCE_URL_RE.search(data) or _DIGITAL_SOURCE_RE.search(data)
     return match.group(1).decode("ascii", "ignore") if match else ""
-
 
 def _png_chunks(data: bytes) -> List[Tuple[str, bytes]]:
     chunks: List[Tuple[str, bytes]] = []
@@ -118,11 +111,10 @@ def _png_chunks(data: bytes) -> List[Tuple[str, bytes]]:
         if zlib.crc32(kind_bytes + payload) & 0xFFFFFFFF != crc:
             break
         chunks.append((kind, payload))
-        offset += 8 + length + 4  # length + type + data + crc
+        offset += 8 + length + 4
         if kind == "IEND":
             break
     return chunks
-
 
 def _inflate_limited(payload: bytes, limit: int = 65_536) -> bytes:
     try:
@@ -133,7 +125,6 @@ def _inflate_limited(payload: bytes, limit: int = 65_536) -> bytes:
         return result
     except zlib.error:
         return b""
-
 
 def _png_text(kind: str, payload: bytes) -> Tuple[str, str]:
     """Decode PNG text chunks, capping decompressed metadata at 64 KiB."""
@@ -155,7 +146,6 @@ def _png_text(kind: str, payload: bytes) -> Tuple[str, str]:
         return keyword.decode("latin-1"), text[:65_536].decode("utf-8" if kind == "iTXt" else "latin-1", "replace")
     except Exception:
         return "", ""
-
 
 def _exif_ascii_tags(exif: bytes) -> Dict[str, str]:
     """Minimal TIFF/IFD0 reader for a handful of ASCII tags. Returns {} on
@@ -179,7 +169,7 @@ def _exif_ascii_tags(exif: bytes) -> Dict[str, str]:
             if len(entry) < 12:
                 break
             tag, typ, cnt = struct.unpack(endian + "HHI", entry[:8])
-            if tag not in _EXIF_ASCII_TAGS or typ != 2:  # type 2 = ASCII
+            if tag not in _EXIF_ASCII_TAGS or typ != 2:
                 continue
             value_bytes = entry[8:12]
             if cnt <= 4:
@@ -194,7 +184,6 @@ def _exif_ascii_tags(exif: bytes) -> Dict[str, str]:
         return found
     return found
 
-
 def _sniff_format(data: bytes) -> str:
     if data[:8] == b"\x89PNG\r\n\x1a\n":
         return "PNG"
@@ -205,7 +194,6 @@ def _sniff_format(data: bytes) -> str:
     if data[:4] in (b"II*\x00", b"MM\x00*"):
         return "TIFF"
     return "unknown"
-
 
 def scan(data: bytes, filename: str = "", language: str = "en") -> Dict[str, Any]:
     """Scan raw file bytes and return a provenance report. Pure, offline,
@@ -247,7 +235,7 @@ def scan(data: bytes, filename: str = "", language: str = "en") -> Dict[str, Any
             if data[offset] != 0xFF:
                 break
             marker = data[offset + 1]
-            if marker == 0xD9:  # anything after EOI is outside the image
+            if marker == 0xD9:
                 break
             if marker == 0xD8 or 0xD0 <= marker <= 0xD7:
                 offset += 2
@@ -266,11 +254,11 @@ def scan(data: bytes, filename: str = "", language: str = "en") -> Dict[str, Any
             elif marker == 0xE1 and (b"xap" in segment[:40].lower() or b"<rdf:" in segment[:40].lower()):
                 findings.append({"source": "xmp_packet", "tag": "xmp", "excerpt": segment[:200].decode("latin-1", "replace")})
                 record_metadata(segment)
-            elif marker == 0xEB:  # APP11: JPEG XT / JUMBF, used to carry C2PA
+            elif marker == 0xEB:
                 if b"jumb" in segment.lower() and _c2pa_hint(segment):
                     findings.append({"source": "app11_jumbf", "tag": "c2pa_jumbf_hint", "excerpt": ""})
                     record_metadata(segment)
-            if marker == 0xDA:  # start of scan: no more markers follow
+            if marker == 0xDA:
                 break
             offset += 2 + seg_len
     elif fmt == "WEBP":
@@ -288,14 +276,11 @@ def scan(data: bytes, filename: str = "", language: str = "en") -> Dict[str, Any
                 findings.append({"source": "webp_c2pa", "tag": "c2pa_jumbf_hint", "excerpt": ""})
             offset += 8 + length + (length & 1)
 
-    # Only inspect parsed metadata. Arbitrary strings in pixels or compressed
-    # image data are not evidence of provenance.
     digital_source = next((value for item in metadata if (value := _digital_source_type(item))), "")
     if digital_source:
         findings.append({"source": "metadata", "tag": "iptc_digital_source_type", "excerpt": digital_source})
     if not claimed_generator and any(f["source"] == "png_text:parameters" for f in findings):
-        # A1111/Stable-Diffusion-family tools write their generation params under
-        # this exact PNG key without necessarily naming themselves in the text.
+
         claimed_generator = "Likely Stable Diffusion-family local pipeline (found 'parameters' metadata typical of that tooling)"
 
     signals = {

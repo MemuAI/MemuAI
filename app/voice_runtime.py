@@ -25,7 +25,6 @@ import httpx
 
 from .version import APP_VERSION
 
-
 MAX_AUDIO_BYTES = 25 * 1024 * 1024
 
 STT_MODELS: tuple[dict[str, Any], ...] = (
@@ -65,7 +64,7 @@ _PIPER_IDS = (
     ("uk_UA-ukrainian_tts-medium", "Ukrainian", "Ukrainian voice", "75 MB"),
     ("zh_CN-huayan-medium", "Chinese", "Mandarin voice", "75 MB"),
 )
-#: Russian names of the catalog's ``languages`` (the Russian UI shows ``languages_ru``).
+
 LANGUAGES_RU = {
     "99+ languages": "99+ языков", "English": "английский", "English · US": "английский · США",
     "English · UK": "английский · Великобритания", "German": "немецкий", "French": "французский",
@@ -84,7 +83,6 @@ TTS_MODELS: tuple[dict[str, Any], ...] = tuple(
     for voice_id, language, description, size in _PIPER_IDS
 )
 
-
 def validate_api_base_url(value: object) -> str:
     """Validate a user-configured OpenAI-compatible API root."""
     raw = str(value or "").strip().rstrip("/")
@@ -97,20 +95,15 @@ def validate_api_base_url(value: object) -> str:
         raise ValueError("Base URL не должен содержать query или fragment")
     return raw
 
-
-#: Round 34: the file name tells the speech API (and ffmpeg) the format. «audio/ogg; codecs=opus», «audio/x-m4a» or
-#: «audio/flac» from Telegram fell back to «recording.webm» — the API refused an Ogg/M4A/FLAC file named .webm.
 _AUDIO_SUFFIXES = {"audio/webm": ".webm", "video/webm": ".webm", "audio/ogg": ".ogg", "audio/opus": ".ogg",
                    "application/ogg": ".ogg", "audio/wav": ".wav", "audio/x-wav": ".wav", "audio/wave": ".wav",
                    "audio/vnd.wave": ".wav", "audio/mpeg": ".mp3", "audio/mp3": ".mp3", "audio/mp4": ".m4a",
                    "audio/x-m4a": ".m4a", "audio/m4a": ".m4a", "video/mp4": ".mp4", "audio/flac": ".flac",
                    "audio/x-flac": ".flac", "audio/aac": ".aac", "audio/x-aac": ".aac", "audio/amr": ".amr"}
 
-
 def audio_suffix(mime: object, default: str) -> str:
     """``audio/ogg; codecs=opus`` → ``.ogg`` (codec parameters and case ignored)."""
     return _AUDIO_SUFFIXES.get(str(mime or "").split(";", 1)[0].strip().lower(), default)
-
 
 def decode_audio_data(value: object) -> tuple[bytes, str]:
     """Decode a browser MediaRecorder data URL with a strict size boundary."""
@@ -128,7 +121,6 @@ def decode_audio_data(value: object) -> tuple[bytes, str]:
         raise ValueError("Аудиозапись превышает лимит 25 МБ")
     return payload, match.group(1).lower()
 
-
 def decode_audio_pcm(source: Any, sampling_rate: int = 16000) -> Any:
     """Audio file/bytes -> float32 mono PCM (numpy) for faster-whisper.
 
@@ -136,7 +128,7 @@ def decode_audio_pcm(source: Any, sampling_rate: int = 16000) -> Any:
     PyAV 19 removed, so with a fresh ``av`` every local transcription failed with
     "open() got an unexpected keyword argument 'metadata_errors'". Decoding here keeps the engine working
     on every PyAV version (same algorithm: resample to s16 mono, skip broken frames)."""
-    import av  # bundled with faster-whisper
+    import av
     import numpy as np
     resampler = av.audio.resampler.AudioResampler(format="s16", layout="mono", rate=sampling_rate)
     chunks: list[Any] = []
@@ -158,18 +150,15 @@ def decode_audio_pcm(source: Any, sampling_rate: int = 16000) -> Any:
         return np.zeros(0, dtype=np.float32)
     return np.concatenate(chunks).astype(np.float32) / 32768.0
 
-
 def prepare_tts_text(value: object, limit: int = 20_000) -> str:
     """Turn Markdown, tables and formula-heavy chat output into speakable prose."""
     text = str(value or "")
-    # Вставки на языке самого ответа: русские «Фрагмент кода опущен» в английском
-    # тексте звучали чужим голосом и сбивали выбор голоса — detect_language видел
-    # кириллицу и брал русскую модель Piper (или отказывал: «не поддерживает ru»).
+
     prose = re.sub(r"```[\s\S]*?```|`[^`]*`|\$\$[\s\S]*?\$\$", " ", text)
     ru = bool(re.search(r"[а-яё]", prose, re.I)) or not re.search(r"[a-z]", prose, re.I)
     code_note, picture, formula = ((" Фрагмент кода опущен. ", " Иллюстрация: ", " Формула: ") if ru
                                    else (" Code snippet omitted. ", " Illustration: ", " Formula: "))
-    text = re.sub(r"```[a-z0-9_+-]*\n[\s\S]*?```", code_note, text, flags=re.I)
+    text = re.sub(r"```[^\r\n]*\r?\n[\s\S]*?```|```[\s\S]*?```", code_note, text, flags=re.I)
     text = re.sub(r"`([^`]+)`", r"\1", text)
     text = re.sub(r"!\[([^\]]*)\]\([^)]*\)", lambda m: picture + m.group(1) + ". ", text)
     text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)
@@ -185,7 +174,6 @@ def prepare_tts_text(value: object, limit: int = 20_000) -> str:
     if not text:
         raise ValueError("В сообщении нет текста для озвучивания")
     return text[:limit]
-
 
 class VoiceRuntime:
     def __init__(self, data_dir: str | os.PathLike[str]) -> None:
@@ -230,8 +218,7 @@ class VoiceRuntime:
     def set_root(self, value: str | os.PathLike[str]) -> Path:
         candidate = Path(value).expanduser().resolve()
         if getattr(self, "root", None) == candidate and self.stt_root.is_dir() and self.tts_root.is_dir():
-            # Каталог моделей запрашивается при каждом открытии настроек: не
-            # выгружаем уже загруженную модель Whisper без причины.
+
             return candidate
         if getattr(self, "_cancel_events", {}) or any(
                 row.get("status") == "downloading" for row in getattr(self, "downloads", {}).values()):
@@ -352,9 +339,7 @@ class VoiceRuntime:
 
         async def runner() -> None:
             try:
-                # Download only.  Instantiating WhisperModel here used to load
-                # 0.1–1.6 GB into memory just to install it; on constrained PCs
-                # that could terminate the application midway through download.
+
                 if kind == "tts": await asyncio.to_thread(self._download_tts_model, model_id, state, cancel)
                 else: await asyncio.to_thread(self._download_local_model, model_id, state, cancel)
                 if cancel.is_set():
@@ -367,7 +352,7 @@ class VoiceRuntime:
                 from .voice_downloads import interrupt
                 interrupt(state)
                 state.update(status="cancelled", progress=0)
-            except Exception as exc:  # surfaced through the polled catalog
+            except Exception as exc:
                 if cancel.is_set():
                     state.update(status="cancelled", progress=0)
                 elif isinstance(exc, OSError) and exc.errno == errno.ENOSPC:
@@ -376,7 +361,7 @@ class VoiceRuntime:
                 else:
                     state.update(status="error", error=str(exc)[:1000])
             finally:
-                # Только своё событие: после отмены могла начаться новая загрузка.
+
                 if self._cancel_events.get(key) is cancel:
                     self._cancel_events.pop(key, None)
 
@@ -465,9 +450,7 @@ class VoiceRuntime:
                 return self._model
             if f"stt:{model_id}" not in self.custom_models:
                 target.mkdir(parents=True, exist_ok=True)
-            # Load the verified directory installed above.  Passing the short
-            # model id here would make faster-whisper contact the Hub again and
-            # create a second cache inside the model directory.
+
             self._model = WhisperModel(str(target), device="cpu", compute_type="int8",
                                        local_files_only=True)
             self._model_key = cache_key
@@ -518,8 +501,7 @@ class VoiceRuntime:
         if not self._supports(meta, detected):
             raise ValueError(f"Модель {model_id} не поддерживает язык {detected}")
         model, config = self._tts_files(model_id)
-        # Native crashes cannot be caught by Python try/except. Keep all
-        # Piper imports, phonemization and inference outside the UI process.
+
         from .tts_process import synthesize_isolated
         return synthesize_isolated(text, model, config)
 

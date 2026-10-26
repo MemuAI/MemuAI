@@ -31,7 +31,6 @@ from app.providers.base import ProviderError, ProviderServerError  # noqa: E402
 VECTORS = json.loads((ROOT / "tests" / "round33_model_names_vectors.json").read_text(encoding="utf-8"))
 NODE = shutil.which("node")
 
-
 class NameVectorsTest(unittest.TestCase):
     def test_python_vectors(self):
         self.assertGreater(len(VECTORS["cases"]), 50)
@@ -67,10 +66,9 @@ console.log(JSON.stringify(bad));
 
     def test_examples_from_the_user(self):
         self.assertEqual(model_names.pretty("prefix-claude-opus-4.6-thinking"), "Claude Opus 4.6 Thinking")
-        self.assertEqual(model_names.pretty("my-gpt-9.2-mini", prefix="my"), "GPT-9.2 Mini")   # a future model
+        self.assertEqual(model_names.pretty("my-gpt-9.2-mini", prefix="my"), "GPT-9.2 Mini")
         self.assertEqual(model_names.pretty("x", aliases={"x": "Own name"}), "Own name")
         self.assertIn(" · reform-glm-5.3", model_names.label("reform-glm-5.3", prefix="reform"))
-
 
 class VisionStateTest(unittest.TestCase):
     """One answer per model: probe → user → local → adapter → provider → catalogue → family → unknown."""
@@ -93,7 +91,6 @@ class VisionStateTest(unittest.TestCase):
         self.assertEqual(self._run(summary={"vision_ref": True}), {"state": "yes", "src": "catalog"})
         self.assertEqual(self._run(hint=False), {"state": "no", "src": "family"})
         self.assertEqual(self._run(), {"state": "unknown", "src": "none"})
-
 
 class CatalogTest(unittest.TestCase):
     def payload(self):
@@ -141,12 +138,11 @@ class CatalogTest(unittest.TestCase):
         prefs = {"model_aliases": {"reform-qwen3.8-flash": "Fast"}, "hidden_models": ["reform-sora-2"],
                  "pinned_models": ["xkiro-qwen/qwen3-vl-plus:free"], "default_model": "reform-qwen3.8-flash"}
         out = model_catalog_api.build(state, prefs)
-        self.assertEqual(out["models"][0]["id"], "xkiro-qwen/qwen3-vl-plus:free")      # pinned first
+        self.assertEqual(out["models"][0]["id"], "xkiro-qwen/qwen3-vl-plus:free")
         flash = next(r for r in out["models"] if r["id"] == "reform-qwen3.8-flash")
         self.assertEqual((flash["display"], flash["default"]), ("Fast", True))
         self.assertNotIn("reform-sora-2", [r["id"] for r in out["models"]])
         self.assertIn("reform-sora-2", [r["id"] for r in model_catalog_api.build(state, prefs, include_hidden=True)["models"]])
-
 
 class CatalogEndpointsTest(unittest.TestCase):
     def setUp(self):
@@ -193,7 +189,6 @@ class CatalogEndpointsTest(unittest.TestCase):
         self.assertEqual(self.calls[-1][2], {"vision": None})
         bad = self.client.post("/api/pg/model-catalog/vision", json={"model": "", "action": "probe", "lang": "en"})
         self.assertEqual((bad.status_code, bad.json()["error"]), (400, "Bad request"))
-
 
 class ImageModelsTest(unittest.TestCase):
     def test_detection(self):
@@ -262,7 +257,6 @@ class ImageModelsTest(unittest.TestCase):
                 asyncio.run(media_gen.generate_image(provider, object(), "a cat", "wanx2.1-t2i-turbo"))
         self.assertFalse(media_gen.wrong_endpoint(ProviderServerError("Invalid API key", 401)))
 
-
 class ReadableErrorsTest(unittest.TestCase):
     """English windows get English refusals from Proxy; a model is named instead of «custom»."""
 
@@ -298,8 +292,7 @@ class ReadableErrorsTest(unittest.TestCase):
         js = (ROOT / "app" / "pgstatic" / "media-routing.js").read_text(encoding="utf-8")
         self.assertIn('(PG_LANG === "en" && failure.error_en)', js)
         app_js = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
-        self.assertIn("MemuModelPicker.vision(m.model).state === \"yes\"", app_js)   # 503 of a vision model → «Try again»
-
+        self.assertIn("MemuModelPicker.vision(m.model).state === \"yes\"", app_js)
 
 @unittest.skipUnless(NODE, "node is not installed")
 class VisionGateJsTest(unittest.TestCase):
@@ -348,12 +341,11 @@ prefs.image_send_mode = 'direct'; out.direct = await G.choose('reform-glm-5.3');
 prefs.image_send_mode = 'ask'; G.choose('reform-glm-5.3'); out.panels = panels;
 prefs.hidden_models = ['aws9-gpt-6.1-sol']; out.suggestHidden = G.suggest('reform-glm-5.3');
 """)
-        self.assertEqual(out["suggest"], "aws9-gpt-6.1-sol")          # verified by a probe beats a family guess
+        self.assertEqual(out["suggest"], "aws9-gpt-6.1-sol")
         self.assertEqual(out["helper"], "aws9-gpt-6.1-sol")
         self.assertEqual((out["yes"], out["image"], out["fallback"], out["direct"]), ("direct", "direct", "fallback", "direct"))
-        self.assertEqual(out["panels"], 1)                            # «no» + «ask» → the dialog
+        self.assertEqual(out["panels"], 1)
         self.assertEqual(out["suggestHidden"], "xkiro-qwen/qwen3-vl-plus:free")
-
 
 class WiringTest(unittest.TestCase):
     def test_specs_and_build(self):
@@ -373,7 +365,6 @@ class WiringTest(unittest.TestCase):
         app_js = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
         self.assertIn("MemuVisionGate.choose(model)", app_js)
         self.assertIn('startsWith("switch:")', app_js)
-
 
 if __name__ == "__main__":
     unittest.main()

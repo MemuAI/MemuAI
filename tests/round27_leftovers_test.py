@@ -22,10 +22,8 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r27lo-test-"))
 
 from app import chat_titles  # noqa: E402
 
-
 def _read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
-
 
 def _stream_of(*texts, reasoning=""):
     async def stream(model, messages, params):
@@ -36,7 +34,6 @@ def _stream_of(*texts, reasoning=""):
             yield {"choices": [{"delta": {"content": text}}]}
     stream.calls = []
     return stream
-
 
 class ChatTitles(unittest.TestCase):
     def test_marker_ignores_retold_instruction(self):
@@ -68,7 +65,6 @@ class ChatTitles(unittest.TestCase):
         self.assertEqual(stream.calls[0][2], {"web_search": False, "thinking": False})
         self.assertEqual(asyncio.run(chat_titles.generate_title(stream, "m", "  ")), "")
 
-
 class DesktopChatTitles(unittest.TestCase):
     """app.js: no system prompt → no title instruction in the request, a separate request after the answer."""
 
@@ -97,7 +93,6 @@ class DesktopChatTitles(unittest.TestCase):
         self.assertEqual(client.post("/api/pg/chat/title", json={"model": "m", "text": "", "lang": "en"}).json(),
                          {"error": "Nothing to name"})
         self.assertEqual(client.post("/api/pg/chat/title", content=b"[1]").status_code, 400)
-
 
 class MiniAppTitles(unittest.TestCase):
     def _prompts(self, default_id="memuai-default", disabled=()):
@@ -158,7 +153,6 @@ class MiniAppTitles(unittest.TestCase):
         self.assertIn('(event.type === "done" && !event.title_pending) || event.type === "settled"', js)
         self.assertIn('!["done", "lost", "title", "settled"].includes(event.type)', js)
 
-
 class TelegramTitles(unittest.TestCase):
     def test_rename_is_manual(self):
         from app import telegram_bot
@@ -178,23 +172,21 @@ class TelegramTitles(unittest.TestCase):
             asyncio.run(telegram_bot._name_chat(fake, pid, "tg-1" + tag, "m", "Как сварить борщ", "Так."))
         row = next(r for r in pgdata.load_chats(pid) if r["id"] == "tg-1" + tag)
         self.assertEqual((row["title"], row["titleAuto"], row["updated"]), ("Рецепт борща", True, 6))
-        # r27-hunt-reflect: a name given by hand meanwhile is kept…
+
         pgdata.upsert_chat({"id": "tg-2" + tag, "title": "Мой", "titleManual": True, "messages": [{}]}, pid)
         with patch.object(telegram_bot, "load_preferences", return_value={}):
             asyncio.run(telegram_bot._name_chat(fake, pid, "tg-2" + tag, "m", "Как сварить борщ", "Так."))
         self.assertEqual(next(r for r in pgdata.load_chats(pid) if r["id"] == "tg-2" + tag)["title"], "Мой")
-        # …and a chat deleted while the title was being written is not brought back.
+
         with patch.object(telegram_bot, "load_preferences", return_value={}):
             asyncio.run(telegram_bot._name_chat(fake, pid, "tg-gone" + tag, "m", "Как сварить борщ", "Так."))
         self.assertFalse(any(r["id"] == "tg-gone" + tag for r in pgdata.load_chats(pid)))
 
     def test_only_the_first_turn_of_a_new_chat(self):
         src = _read("app/telegram_bot.py")
-        # r27-hunt-tg-auto: «first turn» is read before _persist_turn (it fills a new chat in place);
-        # the behaviour is covered in round27_hunt_tg_test.TelegramNewChatTitle.
+
         self.assertIn('first_turn = not chat.get("messages") and not retry and not edited', src)
         self.assertIn("_spawn_answer(_name_chat(", src)
-
 
 class BrowserAgentLanguage(unittest.TestCase):
     def test_english_log(self):
@@ -226,7 +218,6 @@ class BrowserAgentLanguage(unittest.TestCase):
         self.assertIn("max_steps=18, lang=language()))", _read("app/cli/tools/automation.py"))
         self.assertIn("max_steps=max(2, min(40, int(body.get(\"max_steps\") or 16))), lang=lang,",
                       _read("app/playground_api.py"))
-
 
 class ElevenLabsMusic(unittest.TestCase):
     def test_error_reason_is_shown(self):
@@ -260,7 +251,6 @@ class ElevenLabsMusic(unittest.TestCase):
         self.assertEqual((caps["prompt_limit"], caps["duration_max"]), (4100, 600))
         config, _ = music_runtime._adapter({"preset": "elevenlabs"}, {"prompt": "calm piano", "duration": 600}, "music_v2_5")
         self.assertEqual(config["template"]["music_length_ms"], 600_000)
-
 
 class EarlierLeftovers(unittest.TestCase):
     """Fixes of r27-leftovers (the first agent)."""
@@ -322,7 +312,6 @@ class EarlierLeftovers(unittest.TestCase):
         self.assertEqual(typed.call_args.args[2]["lang"], "en")
         ai = {"id": "a", "kind": "custom", "source": {"type": "ai"}, "spec": {"x": 1}}
         self.assertIs(telegram_panels._in_language(ai, "en", {"lang": "ru"}), ai)
-
 
 if __name__ == "__main__":
     unittest.main()

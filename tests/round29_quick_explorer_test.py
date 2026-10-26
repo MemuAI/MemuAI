@@ -18,7 +18,7 @@ from unittest import mock
 
 if not os.environ.get("MEMUAI_DATA_DIR"):
     os.environ["MEMUAI_DATA_DIR"] = tempfile.mkdtemp(prefix="memuai-tests-")
-# Round 30: deletes go to the freedesktop Trash ($XDG_DATA_HOME/Trash) — keep the user's own Trash out of the tests
+
 os.environ["XDG_DATA_HOME"] = tempfile.mkdtemp(prefix="memuai-tests-xdg-")
 
 from app import quick_apps, quick_apps_win, quick_explorer as qe, quick_extras  # noqa: E402
@@ -27,7 +27,6 @@ from app import quick_ask_core as core  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 PLUGINS = ROOT / "app" / "pgstatic" / "quick" / "plugins"
-
 
 def make_folder() -> Path:
     base = Path(tempfile.mkdtemp(prefix="qe-"))
@@ -39,11 +38,9 @@ def make_folder() -> Path:
     (base / "photo.jpg").write_bytes(b"\xff\xd8\xff\x00binary")
     return base
 
-
 def ctx_for(folder: Path, **extra) -> dict:
     return quick_apps.register_context({"kind": "explorer", "app": "Explorer", "exe": "explorer.exe",
                                         "folder": str(folder), **extra})
-
 
 class ClassifyTests(unittest.TestCase):
     def test_kinds(self) -> None:
@@ -111,7 +108,6 @@ class ClassifyTests(unittest.TestCase):
             self.assertEqual(quick_apps_win.terminal_cwd(1, "pwsh.exe", r"PS C:\work\proj>")["path"], r"C:\work\proj")
             self.assertEqual(quick_apps_win.terminal_cwd(1, "cmd.exe", "Command Prompt")["path"], "")
 
-
 class SettingsTests(unittest.TestCase):
     def test_normalize(self) -> None:
         s = quick_apps.normalize_settings({"access": "root", "explorer": "false", "currency_to": "eur!", "notes_dir": "rel/x"})
@@ -129,7 +125,6 @@ class SettingsTests(unittest.TestCase):
         presets = quick_apps.default_presets("en")
         self.assertTrue(all(p["prompt"] for p in presets))
         self.assertEqual([p["name"] for p in quick_apps.presets_for({"exe": "excel.exe"}, presets)], ["Formula help"])
-
 
 class PathSafetyTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -171,7 +166,6 @@ class PathSafetyTests(unittest.TestCase):
         self.assertEqual(ctx["folder"], "")
         with self.assertRaises(qe.FolderError):
             qe.folder_root(ctx)
-
 
 class ToolsTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -218,7 +212,6 @@ class ToolsTests(unittest.TestCase):
         self.assertIn("<active_file>", block)
         self.assertIn("some foo text", block)
 
-
 class ChangeSetTests(unittest.TestCase):
     def setUp(self) -> None:
         quick_apps.save_settings({"access": "ask"})
@@ -244,7 +237,7 @@ class ChangeSetTests(unittest.TestCase):
         self.assertEqual(public["ops"][6]["path"], "../x")
         self.assertIn("-world", public["ops"][0]["diff"])
         self.assertTrue(public["ops"][3]["preview"].startswith("# New"))
-        # nothing happened yet (Ask mode)
+
         self.assertEqual((self.folder / "a.txt").read_text(encoding="utf-8"), "hello\nworld\n")
         result = qe.apply_set(change["id"])
         self.assertEqual((result["applied"], result["failed"]), (6, 0))
@@ -298,7 +291,6 @@ class ChangeSetTests(unittest.TestCase):
         self.assertEqual(qe.apply_set(change["id"])["applied"], 0)
         self.assertTrue((self.folder / "a.txt").exists())
 
-
 class CaptureTests(unittest.TestCase):
     def test_capture_explorer_with_fakes(self) -> None:
         folder = make_folder()
@@ -335,7 +327,6 @@ class CaptureTests(unittest.TestCase):
             quick_apps.note_foreground(5, own_pids=(os.getpid(),))
             self.assertIsNone(quick_apps.current_context(3.0))
 
-
 class AskEventsTests(unittest.TestCase):
     def test_folder_tools_and_changeset_ui(self) -> None:
         folder = make_folder()
@@ -370,7 +361,7 @@ class AskEventsTests(unittest.TestCase):
         ui = [e for e in events if e.get("event") == "tool_ui"]
         self.assertEqual(ui[0]["ui"]["type"], "changeset")
         self.assertEqual(ui[0]["ui"]["set"]["ops"][0]["to"], "A1.txt")
-        self.assertTrue((folder / "a.txt").exists())          # Ask mode: not applied
+        self.assertTrue((folder / "a.txt").exists())
         self.assertEqual(events[-1]["event"], "done")
 
     def test_tools_hidden_without_context(self) -> None:
@@ -378,7 +369,6 @@ class AskEventsTests(unittest.TestCase):
         names = [line.split()[0] for line in quick_ask_api.extra_tool_lines(settings)]
         self.assertNotIn("folder_list", names)
         self.assertNotIn("folder_change", names)
-
 
 class RoutesTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -426,7 +416,6 @@ class RoutesTests(unittest.TestCase):
         reset = self.client.post("/api/quick/apps/presets", json={"reset": True, "lang": "ru"}).json()
         self.assertGreaterEqual(len(reset["presets"]), 3)
         self.client.post("/api/quick/apps/settings", json={"settings": {"currency_to": ""}})
-
 
 class ExtrasTests(unittest.TestCase):
     def test_rates(self) -> None:
@@ -478,7 +467,6 @@ class ExtrasTests(unittest.TestCase):
         self.assertEqual(quick_extras.ocr_image("nope")["code"], "bad_image")
         if os.name != "nt":
             self.assertEqual(quick_extras.ocr_image("data:image/png;base64,AAAA")["code"], "unsupported")
-
 
 class FrontendTests(unittest.TestCase):
     def test_manifest_spec_build_docs(self) -> None:
@@ -537,7 +525,6 @@ class FrontendTests(unittest.TestCase):
             for match in pair.finditer(source):
                 english = match.group(1)
                 self.assertIsNone(re.search(r"[А-Яа-яЁё]", english), f"{name}: {english[:80]}")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,15 +1,10 @@
-/* MemuAI · Settings → Integrations → Google / Notion (Round 30). Settings-kit tokens (--sx-*) and theme tokens only. */
-
 .gi-root { display: flex; flex-direction: column; gap: 16px; padding-top: 14px; }
 .gi-root .ui-icon { width: 15px; height: 15px; }
 .gi-muted { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 0 0 12px; }
 .gi-loading { color: var(--muted); font-size: 13px; padding: 18px 2px; }
-
-/* brand marks */
 .gi-brand { width: 32px; height: 32px; flex: none; display: grid; place-items: center; border-radius: 9px;
   background: color-mix(in srgb, #fff 92%, var(--panel)); box-shadow: inset 0 0 0 1px var(--sx-line); }
 .gi-brand svg { width: 20px; height: 20px; display: block; }
-/* r33d-shots: single-colour marks (GitHub) on the white tile — currentColor was the theme text colour, invisible in dark. */
 .gi-brand:has(svg path[fill="currentColor"]) { color: #1f2328; }
 .gi-brand.big { width: 44px; height: 44px; border-radius: 12px; }
 .gi-brand.big svg { width: 26px; height: 26px; }
@@ -19,8 +14,6 @@
 .sx-link-icon .gi-brand { width: 100%; height: 100%; border-radius: inherit; box-shadow: none; }
 .sx-link-icon .gi-brand svg { width: 18px; height: 18px; }
 .sx-link-icon .gi-brand:has(svg path[fill="currentColor"]) { background: transparent; color: var(--text); }
-
-/* hero / account header */
 .gi-hero, .gi-account { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: var(--sx-r, 14px);
   background: var(--sx-card); border: 1px solid var(--sx-line); }
 .gi-hero-text, .gi-account-text { min-width: 0; flex: 1; }
@@ -31,8 +24,6 @@
   font: 650 16px/1 var(--sx-font); background: linear-gradient(135deg, #4285F4, #34A853); }
 .gi-avatar.img { object-fit: cover; background: var(--sx-press); }
 .gi-account .pbtn { flex: none; }
-
-/* services */
 .gi-card .gi-svc { align-items: center; gap: 12px; }
 .gi-svc .gi-brand { width: 30px; height: 30px; }
 .gi-svc .gi-brand svg { width: 19px; height: 19px; }
@@ -40,14 +31,10 @@
 .gi-pill { font: 600 11px/1 var(--sx-font); padding: 3px 7px; border-radius: 99px; background: var(--sx-press); color: var(--muted); }
 .gi-pill.on { color: var(--ok); background: color-mix(in srgb, var(--ok) 13%, transparent); }
 .gi-pill.warn { color: var(--sx-warn); background: color-mix(in srgb, var(--sx-warn) 14%, transparent); }
-
-/* call to action */
 .gi-cta { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .gi-cta small { color: var(--muted); font-size: 12.5px; flex: 1; min-width: 200px; }
 .gi-google-btn, .gi-notion-btn { display: inline-flex; align-items: center; gap: 10px; padding: 9px 16px 9px 10px; font-weight: 600; white-space: nowrap; }
 .gi-google-btn .gi-brand.btn, .gi-notion-btn .gi-brand.btn { background: #fff; }
-
-/* waiting for the browser */
 .gi-wait { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--sx-r, 14px); background: var(--sx-sel); }
 .gi-wait b { font-size: 13.5px; }
 .gi-wait p { margin: 3px 0 10px; color: var(--muted); font-size: 12.5px; }
@@ -57,14 +44,10 @@
   border-top-color: var(--accent); animation: gi-spin .9s linear infinite; }
 @keyframes gi-spin { to { transform: rotate(360deg); } }
 html[data-motion="off"] .gi-spin { animation: none; }
-
-/* facts */
 .gi-facts { display: flex; flex-direction: column; gap: 6px; padding: 0 2px; }
 .gi-facts span { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12.5px; }
 .gi-facts .ui-icon { color: var(--ok); flex: none; }
 .gi-facts .ui-icon svg, .gi-root .ui-icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-
-/* wizard */
 .gi-steps { list-style: none; margin: 0 0 14px; padding: 0; display: flex; flex-direction: column; gap: 12px; }
 .gi-step { display: flex; gap: 12px; }
 .gi-step-n { width: 24px; height: 24px; flex: none; border-radius: 50%; display: grid; place-items: center;
@@ -81,8 +64,6 @@ html[data-motion="off"] .gi-spin { animation: none; }
 .gi-copy code { flex: 1; min-width: 0; padding: 7px 10px; border-radius: var(--sx-r-sm, 9px); background: var(--sx-press);
   font: 12px/1.4 var(--mono, ui-monospace, Consolas, monospace); overflow-wrap: anywhere; }
 .gi-copy .pbtn { display: inline-flex; align-items: center; gap: 6px; flex: none; }
-
-/* tool confirmation */
 .gi-confirm-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .gi-confirm-head h2 { margin: 0; font-size: 18px; }
 .gi-confirm-rows { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 0 0 12px; font-size: 13px; }
@@ -96,9 +77,6 @@ html[data-motion="off"] .gi-spin { animation: none; }
   .gi-account { flex-wrap: wrap; }
   .gi-token-row { padding-left: 18px; flex-wrap: wrap; }
 }
-
-/* layout inside the settings kit */
-/* the root's gap is the rhythm: the wizard's section adds no margin (beats settings.css :root .sx-shell .sx-section) */
 :root .sx-shell .gi-root > .sx-section { margin: 0; }
 .gi-root > .sx-section .sx-more { margin: 0; }
 .gi-more-pad { padding: 4px 18px 18px; }
@@ -106,8 +84,6 @@ html[data-motion="off"] .gi-spin { animation: none; }
 .gi-confirm-panel .gi-confirm { text-align: left; }
 .gi-confirm-panel .gi-confirm-body { text-align: left; }
 .gi-confirm-panel .row-end { justify-content: flex-end; }
-
-/* ---------------------------------------------------------------- Round 33: full access, API check, setup guide */
 .gi-pill.err { color: var(--danger); background: color-mix(in srgb, var(--danger) 13%, transparent); }
 .gi-svc-control { display: flex; align-items: center; gap: 10px; flex: none; }
 .gi-svc-control .pbtn { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }

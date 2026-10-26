@@ -29,16 +29,6 @@ import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-# --------------------------------------------------------------------------
-# Accents
-# --------------------------------------------------------------------------
-
-#: Accent colours, tuned separately for light and dark backgrounds. Every
-#: value keeps 4.5:1 contrast against the panels of every built-in variant
-#: of its mode (checked by tests/appearance_preferences_test.py).
-#: ``light2``/``dark2`` are the analogous partner hue used as the second stop
-#: of brand gradients (``--accent-2``): the logo mark, the Live orb, the send
-#: button glow and research progress. They never carry text.
 ACCENTS: Dict[str, Dict[str, str]] = {
     "terracotta": {"ru": "Терракота", "en": "Terracotta", "light": "#a84b30", "dark": "#efa58b", "light2": "#9b4a8f", "dark2": "#e59ad6"},
     "blue": {"ru": "Океан", "en": "Ocean", "light": "#2360bc", "dark": "#90baff", "light2": "#5a46c8", "dark2": "#b7a2ff"},
@@ -54,10 +44,6 @@ ACCENTS: Dict[str, Dict[str, str]] = {
     "cyan": {"ru": "Лагуна", "en": "Cyan", "light": "#0f6a86", "dark": "#86cfe6", "light2": "#3a4fb0", "dark2": "#9fb0ff"},
 }
 DEFAULT_ACCENT = "terracotta"
-
-# --------------------------------------------------------------------------
-# Syntax highlighting palettes (chat code blocks and MemuCode)
-# --------------------------------------------------------------------------
 
 _SYNTAX_KEYS = ("kw", "type", "str", "com", "num", "fn", "op", "lit", "tag",
                 "attr", "prop", "var", "meta", "punct")
@@ -97,12 +83,6 @@ SYNTAX: Dict[str, Dict[str, str]] = {
               "meta": "#bf0d34", "punct": "#5e6178"},
 }
 
-# --------------------------------------------------------------------------
-# Theme variants
-# --------------------------------------------------------------------------
-
-#: Tokens every variant defines. The order is the order shown in the theme
-#: studio and the documentation.
 TOKENS: List[Dict[str, str]] = [
     {"name": "--bg", "group": "surface", "ru": "Основной фон окна и области чата", "en": "Main window and chat background"},
     {"name": "--bg-deep", "group": "surface", "ru": "Более глубокий фон: боковая панель, подложки", "en": "Deeper background: sidebar, wells"},
@@ -124,8 +104,6 @@ TOKENS: List[Dict[str, str]] = [
     {"name": "--composer-shadow", "group": "effects", "ru": "Тень поля ввода", "en": "Composer shadow"},
 ]
 
-#: Optional semantic tokens. Each falls back to a base token, so a theme may
-#: leave them alone; setting one recolours exactly that area.
 SEMANTIC_TOKENS: List[Dict[str, str]] = [
     {"name": "--side-bg", "fallback": "var(--bg-deep)", "ru": "Фон боковой панели", "en": "Sidebar background"},
     {"name": "--topbar-bg", "fallback": "var(--bg)", "ru": "Фон верхней панели", "en": "Top bar background"},
@@ -153,9 +131,6 @@ SEMANTIC_TOKENS: List[Dict[str, str]] = [
     {"name": "--sans / --serif / --mono / --font", "fallback": "Segoe UI / Charter / Cascadia Code", "ru": "Шрифты интерфейса, заголовков, кода и ответов", "en": "Interface, heading, code and answer fonts"},
 ]
 
-# Design 3 ("Canvas"): the window chrome (--bg-deep) sits one step darker
-# (dark) or warmer (light) than the conversation canvas (--bg), so the canvas
-# reads as a raised sheet. Neutral greys with a trace of warmth.
 _DARK_BASE = {
     "--bg": "#1a1a1c", "--bg-deep": "#111113", "--panel": "#222225", "--panel-2": "#2b2b2f",
     "--border": "#333338", "--control-border": "#74747f", "--text": "#ededf0", "--muted": "#a3a3ad",
@@ -171,8 +146,6 @@ _LIGHT_BASE = {
     "--shadow": "0 22px 60px rgba(28,26,20,.14)", "--composer-shadow": "0 10px 30px rgba(28,26,20,.07)",
 }
 
-#: Built-in variants. ``id`` "" is the default of its mode. Ids that exist
-#: in both modes ("solar", "contrast") form natural light/dark pairs.
 VARIANTS: Dict[str, List[Dict[str, Any]]] = {
     "dark": [
         {"id": "", "ru": "Графит", "en": "Graphite", "syntax": "dark-plus",
@@ -224,7 +197,7 @@ VARIANTS: Dict[str, List[Dict[str, Any]]] = {
                     "--border": "#453f39", "--control-border": "#857a70", "--text": "#f3eee8",
                     "--muted": "#bdb3a8", "--on-accent": "#161311", "--code-bg": "#141110",
                     "--code-text": "#ede6dc"}},
-        # Round 30 (r30-design): three new light/dark pairs — the same id in both modes
+
         {"id": "slate", "ru": "Сланец", "en": "Slate", "syntax": "dark-plus",
          "note_ru": "Холодный графит с индиговым отливом, как в Linear", "note_en": "Cool graphite with an indigo cast, like Linear",
          "tokens": {"--bg": "#141519", "--bg-deep": "#0e0f12", "--panel": "#1b1c21", "--panel-2": "#23252b",
@@ -301,15 +274,6 @@ VARIANTS: Dict[str, List[Dict[str, Any]]] = {
     ],
 }
 
-# --------------------------------------------------------------------------
-# Design styles
-# --------------------------------------------------------------------------
-
-#: Whole-interface designs. A design changes layout, shape, typography,
-#: depth and motion (``pgstatic/designs/<id>.css``, scoped to
-#: ``:root[data-design="<id>"]``); colours still come from the mode, the
-#: variant and the accent above, so every design works with every palette.
-#: "classic" is the original Canvas design and has no extra stylesheet.
 DESIGNS: List[Dict[str, str]] = [
     {"id": "classic", "ru": "Классическая", "en": "Classic",
      "note_ru": "Оригинальный дизайн MemuAI: холст диалога в тёмной раме",
@@ -338,32 +302,22 @@ DESIGNS: List[Dict[str, str]] = [
 ]
 DEFAULT_DESIGN = "classic"
 
-
 def normalize_design(value: Any) -> str:
     return value if isinstance(value, str) and any(row["id"] == value for row in DESIGNS) else DEFAULT_DESIGN
-
-
-# --------------------------------------------------------------------------
-# Lookups and normalisation
-# --------------------------------------------------------------------------
 
 _CUSTOM_PREFIX = "custom:"
 _SLUG_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,47}$")
 MAX_THEME_BYTES = 256 * 1024
 MAX_THEMES = 100
 
-
 def normalize_mode(value: Any) -> str:
     return "light" if str(value or "") == "light" else "dark"
-
 
 def normalize_accent(value: Any) -> str:
     return value if isinstance(value, str) and value in ACCENTS else DEFAULT_ACCENT
 
-
 def variant(mode: str, variant_id: str) -> Optional[Dict[str, Any]]:
     return next((row for row in VARIANTS[normalize_mode(mode)] if row["id"] == variant_id), None)
-
 
 def normalize_variant(mode: str, value: Any) -> str:
     """A built-in id of this mode, ``custom:<slug>`` or "" (the default)."""
@@ -371,7 +325,6 @@ def normalize_variant(mode: str, value: Any) -> str:
     if text.startswith(_CUSTOM_PREFIX):
         return text if _SLUG_RE.match(text[len(_CUSTOM_PREFIX):]) else ""
     return text if variant(mode, text) else ""
-
 
 def variant_tokens(mode: str, variant_id: str = "") -> Dict[str, str]:
     """Complete token set of a built-in variant, syntax colours included."""
@@ -383,14 +336,8 @@ def variant_tokens(mode: str, variant_id: str = "") -> Dict[str, str]:
     tokens.update({f"--tok-{key}": syntax[key] for key in _SYNTAX_KEYS})
     return tokens
 
-
-# --------------------------------------------------------------------------
-# Generated stylesheet
-# --------------------------------------------------------------------------
-
 def _block(selector: str, tokens: Dict[str, str]) -> str:
     return selector + " {\n" + "".join(f"  {name}: {value};\n" for name, value in tokens.items()) + "}\n"
-
 
 def theme_css() -> str:
     """The stylesheet served as ``/themes.css``: accents and every variant.
@@ -420,19 +367,12 @@ def theme_css() -> str:
             parts.append(_block(f':where([data-theme="{mode}"][data-surface="{row["id"]}"])', changed))
     return "".join(parts)
 
-
-# --------------------------------------------------------------------------
-# User themes
-# --------------------------------------------------------------------------
-
 def themes_dir() -> Path:
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR) / "themes"
 
-
 def valid_slug(value: Any) -> bool:
     return isinstance(value, str) and bool(_SLUG_RE.match(value))
-
 
 def slugify(name: str) -> str:
     table = str.maketrans({
@@ -443,9 +383,7 @@ def slugify(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", str(name or "").lower().translate(table)).strip("-")
     return slug[:40].strip("-") or "theme"
 
-
 _META_RE = re.compile(r"^\s*\*?\s*@([a-z]+)\s+(.+?)\s*$", re.M)
-
 
 def parse_meta(css: str) -> Dict[str, str]:
     """Read ``@key value`` lines from the first comment of a theme file."""
@@ -457,13 +395,11 @@ def parse_meta(css: str) -> Dict[str, str]:
                 meta[key] = value.strip()[:200]
     return meta
 
-
 def strip_meta(css: str) -> str:
     match = re.match(r"\s*/\*(.*?)\*/\s*", css or "", re.S)
     if match and "@name" in match.group(1):
         return (css or "")[match.end():]
     return css or ""
-
 
 def extract_tokens(css: str) -> Dict[str, str]:
     """Custom properties declared in the theme's ``:root`` blocks.
@@ -477,7 +413,6 @@ def extract_tokens(css: str) -> Dict[str, str]:
             tokens[name] = value.strip()
     return tokens
 
-
 def compose(meta: Dict[str, Any], body: str) -> str:
     """Theme file text: a canonical header followed by the CSS body."""
     lines = ["/*"]
@@ -487,7 +422,6 @@ def compose(meta: Dict[str, Any], body: str) -> str:
             lines.append(f" * @{key} {value}")
     lines.append(" */")
     return "\n".join(lines) + "\n" + strip_meta(body).lstrip("\n")
-
 
 def _describe(slug: str, css: str, source: Path) -> Dict[str, Any]:
     meta = parse_meta(css)
@@ -513,7 +447,6 @@ def _describe(slug: str, css: str, source: Path) -> Dict[str, Any]:
                     ("--bg", "--bg-deep", "--panel", "--panel-2", "--border", "--text", "--muted", "--accent")},
     }
 
-
 def list_custom() -> List[Dict[str, Any]]:
     folder = themes_dir()
     if not folder.is_dir():
@@ -529,7 +462,6 @@ def list_custom() -> List[Dict[str, Any]]:
             continue
     return rows
 
-
 def get_custom(slug: str) -> Optional[Dict[str, Any]]:
     if not valid_slug(slug):
         return None
@@ -537,7 +469,6 @@ def get_custom(slug: str) -> Optional[Dict[str, Any]]:
     if not path.is_file() or path.stat().st_size > MAX_THEME_BYTES:
         return None
     return _describe(slug, path.read_text(encoding="utf-8", errors="replace"), path)
-
 
 def _write_text(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -552,7 +483,6 @@ def _write_text(path: Path, text: str) -> None:
         except OSError:
             pass
         raise
-
 
 def save_custom(data: Dict[str, Any]) -> Dict[str, Any]:
     """Create or replace a user theme. Returns its description.
@@ -594,7 +524,6 @@ def save_custom(data: Dict[str, Any]) -> Dict[str, Any]:
     _write_text(path, text)
     return _describe(slug, text, path)
 
-
 def delete_custom(slug: str) -> bool:
     if not valid_slug(slug):
         raise ValueError("Некорректный идентификатор темы")
@@ -603,11 +532,6 @@ def delete_custom(slug: str) -> bool:
         path.unlink()
         return True
     return False
-
-
-# --------------------------------------------------------------------------
-# Resolution for module pages and the settings UI
-# --------------------------------------------------------------------------
 
 def resolve_tokens(mode: str, variant_ref: str = "", accent: str = DEFAULT_ACCENT) -> Dict[str, str]:
     """Final token values for a mode, a variant (built-in or custom) and an accent."""
@@ -624,10 +548,9 @@ def resolve_tokens(mode: str, variant_ref: str = "", accent: str = DEFAULT_ACCEN
     tokens["--accent-soft"] = f"color-mix(in srgb, {accent_value} 12%, transparent)"
     if custom:
         overrides = extract_tokens(custom["css"])
-        # A var() reference cannot be resolved outside the page; keep literals.
+
         tokens.update({key: value for key, value in overrides.items() if "var(" not in value})
     return tokens
-
 
 def catalog() -> Dict[str, Any]:
     """Everything the appearance screen and the theme studio need.

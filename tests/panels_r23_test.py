@@ -16,7 +16,6 @@ from app import panels, panels_local, panels_options, pgdata
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 class Base(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -38,17 +37,15 @@ class Base(unittest.TestCase):
         self.patch.stop()
         self.tmp.cleanup()
 
-
-# ================================================================== options
 class OptionsTest(Base):
     def test_defaults_and_cleaning(self):
         o = panels_options.clean_options("system", {"metrics": ["ram", "bogus", "cpu", "ram"], "style": "nope", "live": 1,
                                                     "procs_count": 99, "views": {"cpu": "chart", "net": "ring", "x": "bar"}})
-        self.assertEqual(o["metrics"], ["ram", "cpu"])          # order kept, unknown and duplicates dropped
-        self.assertEqual(o["style"], "rings")                   # bad choice → default
+        self.assertEqual(o["metrics"], ["ram", "cpu"])
+        self.assertEqual(o["style"], "rings")
         self.assertEqual(o["live"], "1")
-        self.assertEqual(o["procs_count"], 10)                  # clamped
-        self.assertEqual(o["views"], {"cpu": "chart"})          # net cannot be a ring
+        self.assertEqual(o["procs_count"], 10)
+        self.assertEqual(o["views"], {"cpu": "chart"})
         w = panels_options.clean_options("weather", {"fields": "wind, uv", "days": "9"})
         self.assertEqual(w["fields"], ["wind", "uv"])
         self.assertEqual(w["days"], 7)
@@ -86,14 +83,14 @@ class OptionsTest(Base):
         _t, spec = panels.typed_spec("system", {}, settings, {"metrics": ["cpu", "cores", "procs", "net"], "style": "charts",
                                                                 "net_units": "bits", "temp_unit": "f"})
         text = json.dumps(spec)
-        self.assertIn("{{cpu_hist}}", text)               # chart view
-        self.assertIn('"type": "bars"', text)             # per-core bars
+        self.assertIn("{{cpu_hist}}", text)
+        self.assertIn('"type": "bars"', text)
         self.assertIn("{{procs}}", text)
-        self.assertIn("{{net_down_bits}}", text)          # network in bits
+        self.assertIn("{{net_down_bits}}", text)
         self.assertNotIn("{{ram", text)
         _t, spec = panels.typed_spec("system", {}, settings, {"metrics": ["disks"], "disk_mode": "all"})
         self.assertIn("{{disks_list}}", json.dumps(spec))
-        # mini chip follows the first metric
+
         _t, spec = panels.typed_spec("system", {}, settings, {"metrics": ["ram", "cpu"]})
         self.assertEqual(spec["mini"]["value"], "{{ram_text}}")
 
@@ -105,21 +102,19 @@ class OptionsTest(Base):
         self.assertEqual(out["options"]["fields"], ["uv", "pressure"])
         self.assertIn("{{hours}}", json.dumps(out["spec"]))
         self.assertIn("{{uv}}", json.dumps(out["spec"]))
-        started.assert_called_once_with(p["id"], rerun=True)            # new fields need a refetch → refreshed right away
-        # a purely visual option re-renders without going to the network
+        started.assert_called_once_with(p["id"], rerun=True)
+
         sysp = panels.create_panel(template="system", start=False)
         with patch.object(panels, "start_refresh") as started:
             out_sys = panels.update_panel(sysp["id"], {"options": {"style": "bars"}})
         started.assert_not_called()
         self.assertEqual(out_sys["options"]["style"], "bars")
-        # partial options keep the rest
+
         with patch.object(panels, "start_refresh"):
             out = panels.update_panel(p["id"], {"options": {"days": 3}})
         self.assertEqual(out["options"]["fields"], ["uv", "pressure"])
         self.assertEqual(out["options"]["days"], 3)
 
-
-# ================================================================== cadence
 class CadenceTest(Base):
     def test_custom_seconds_days_hours_and_times(self):
         self.assertEqual(panels._clean_cadence({"kind": "interval", "seconds": 20}, kind="system"), {"kind": "interval", "minutes": 1})
@@ -136,7 +131,7 @@ class CadenceTest(Base):
         self.assertEqual(panels._clean_cadence({"kind": "interval", "minutes": 5}, kind="todo"), {"kind": "manual"})
 
     def test_next_refresh_respects_days_and_window(self):
-        sat_noon = datetime(2026, 10, 10, 12, 0).timestamp()              # Saturday
+        sat_noon = datetime(2026, 10, 10, 12, 0).timestamp()
         weekdays = {"kind": "interval", "minutes": 30, "days": [0, 1, 2, 3, 4], "from": "09:00", "to": "18:00"}
         self.assertEqual(datetime.fromtimestamp(panels.next_refresh_at(weekdays, now=sat_noon)), datetime(2026, 10, 12, 9, 0))
         mon_10 = datetime(2026, 10, 12, 10, 0).timestamp()
@@ -145,7 +140,7 @@ class CadenceTest(Base):
         noon = datetime(2026, 10, 12, 12, 0).timestamp()
         self.assertEqual(datetime.fromtimestamp(panels.next_refresh_at(night, now=noon)), datetime(2026, 10, 12, 22, 0))
         late = datetime(2026, 10, 12, 23, 30).timestamp()
-        self.assertAlmostEqual(panels.next_refresh_at(night, now=late), late + 3600, delta=1)   # overnight window
+        self.assertAlmostEqual(panels.next_refresh_at(night, now=late), late + 3600, delta=1)
         times = {"kind": "times", "at": ["08:00", "19:00"], "days": [0]}
         self.assertEqual(datetime.fromtimestamp(panels.next_refresh_at(times, now=sat_noon)), datetime(2026, 10, 12, 8, 0))
         self.assertEqual(datetime.fromtimestamp(panels.next_refresh_at(times, now=datetime(2026, 10, 12, 9, 0).timestamp())),
@@ -160,8 +155,6 @@ class CadenceTest(Base):
                 self.assertIn(kind, panels.FLOOR_REASONS, kind)
         self.assertIn("system", snap["option_schema"])
 
-
-# ==================================================================== model
 class ModelTest(Base):
     def test_panel_model_beats_global_which_beats_default(self):
         panels.set_context(panels.PanelContext(default_model=lambda: "default-m"))
@@ -177,25 +170,23 @@ class ModelTest(Base):
         out = panels.update_panel(p["id"], {"ai_model": ""})
         self.assertEqual(out["ai_model"], "")
 
-
-# ==================================================================== To-Do
 class TodoTest(Base):
     def test_quick_add_parsing(self):
-        today = date(2026, 10, 8)                                          # Thursday
+        today = date(2026, 10, 8)
         p = panels_local.parse_quick("Купить хлеб завтра в 18:00 !1 #дом #Еда", today=today)
         self.assertEqual(p["title"], "Купить хлеб")
         self.assertEqual(p["due"], "2026-10-09T18:00")
         self.assertEqual(p["priority"], 1)
         self.assertEqual(p["tags"], ["дом", "еда"])
         self.assertEqual(panels_local.parse_quick("Отчёт пт", today=today)["due"], "2026-10-09")
-        self.assertEqual(panels_local.parse_quick("Отчёт в чт", today=today)["due"], "2026-10-15")   # next Thursday, not today
-        self.assertEqual(panels_local.parse_quick("Налог 01.10", today=today)["due"], "2027-10-01")  # past date → next year
+        self.assertEqual(panels_local.parse_quick("Отчёт в чт", today=today)["due"], "2026-10-15")
+        self.assertEqual(panels_local.parse_quick("Налог 01.10", today=today)["due"], "2027-10-01")
         self.assertEqual(panels_local.parse_quick("Налог 25.10.2026", today=today)["due"], "2026-10-25")
         r = panels_local.parse_quick("Полить цветы каждую неделю", today=today)
         self.assertEqual(r["repeat"], {"every": "week", "n": 1})
         self.assertEqual(r["due"], "2026-10-08")
         self.assertEqual(panels_local.parse_quick("Standup every weekday 10:00 !!", today=today)["priority"], 1)
-        self.assertEqual(panels_local.parse_quick("Цена 100!1", today=today)["title"], "Цена 100!1")   # not a priority token
+        self.assertEqual(panels_local.parse_quick("Цена 100!1", today=today)["title"], "Цена 100!1")
 
     def test_crud_repeat_subtasks_move_and_restore(self):
         work = panels_local.create_list("Работа", "blue")
@@ -206,26 +197,26 @@ class TodoTest(Base):
         sub = b["subtasks"][0]["id"]
         b = panels_local.update_item(work["id"], b["id"], {"toggle_subtask": sub})
         self.assertTrue(b["subtasks"][0]["done"])
-        # plain task: done stays done
+
         a2 = panels_local.update_item(work["id"], a["id"], {"done": True})
         self.assertTrue(a2["done"])
         self.assertIsNotNone(a2["done_at"])
-        # repeating task moves forward instead
+
         rep = panels_local.add_item(work["id"], {"title": "Бэкап", "due": "2020-01-06", "repeat": {"every": "week"},
                                                 "subtasks": [{"title": "x", "done": True}]})
         moved = panels_local.update_item(work["id"], rep["id"], {"done": True})
         self.assertFalse(moved["done"])
         self.assertGreater(moved["due"], date.today().isoformat())
-        self.assertEqual(date.fromisoformat(moved["due"]).weekday(), 0)       # still Mondays
+        self.assertEqual(date.fromisoformat(moved["due"]).weekday(), 0)
         self.assertEqual(moved["completed_count"], 1)
         self.assertFalse(moved["subtasks"][0]["done"])
         self.assertTrue(moved["advanced"])
-        # move to another list and to the top
+
         panels_local.move_item(work["id"], b["id"], to_list=home["id"], index=0)
         snap = {l["id"]: l for l in panels_local.snapshot()["lists"]}
         self.assertEqual(snap[home["id"]]["items"][0]["id"], b["id"])
         self.assertNotIn(b["id"], [i["id"] for i in snap[work["id"]]["items"]])
-        # delete + undo
+
         gone = panels_local.delete_item(home["id"], b["id"])
         self.assertEqual(panels_local.snapshot()["lists"][1]["items"], [])
         panels_local.restore_item(home["id"], gone, 0)
@@ -242,13 +233,13 @@ class TodoTest(Base):
         self.assertEqual(self.reminders, ["2031-05-01T09:30"])
         self.assertEqual(panels_local.snapshot()["lists"][0]["items"][0]["reminder"], {"local": "r1"})
         panels_local.update_item(lst["id"], item["id"], {"notes": "только заметка"})
-        self.assertEqual(len(self.reminders), 1)                               # unrelated edit keeps it
+        self.assertEqual(len(self.reminders), 1)
         panels_local.update_item(lst["id"], item["id"], {"remind": "2031-05-02T10:00"})
         self.assertEqual(self.cancelled, [{"local": "r1"}])
         self.assertEqual(self.reminders[-1], "2031-05-02T10:00")
         panels_local.update_item(lst["id"], item["id"], {"done": True})
-        self.assertEqual(len(self.cancelled), 2)                               # done → cancelled
-        # a failing reminder backend never breaks the task
+        self.assertEqual(len(self.cancelled), 2)
+
         panels_local.REMINDERS["schedule"] = lambda item, lang: (_ for _ in ()).throw(RuntimeError("no engine"))
         ok = panels_local.add_item(lst["id"], {"title": "Ещё", "remind": "2031-05-03T10:00"})
         self.assertEqual(ok["reminder"], {})
@@ -258,7 +249,7 @@ class TodoTest(Base):
         and the To-Do cancel only ever removes that exact timer."""
         from app import assistant_commands
         from app.assistant_timers import TimerManager
-        panels_local.REMINDERS.update(self.saved_rem)                       # real schedule/cancel
+        panels_local.REMINDERS.update(self.saved_rem)
         timers = TimerManager(None)
 
         class Eng:
@@ -282,16 +273,16 @@ class TodoTest(Base):
             self.assertEqual(row["ends_at"], datetime(2031, 5, 1, 9, 30).timestamp())
             self.assertEqual(row["meta"], {"todo": item["id"]})
             self.assertIn("Позвонить", row["text"])
-            # done → the timer is gone, the stranger stays
+
             panels_local.update_item(lst["id"], item["id"], {"done": True})
             self.assertEqual([t["id"] for t in timers.state["timers"]], [stranger["id"]])
-            # a stale id (already rang and removed) never cancels someone else's reminder by substring
+
             panels_local._cancel_reminder({"local": "Позвонить"})
             self.assertEqual([t["id"] for t in timers.state["timers"]], [stranger["id"]])
-            # past moments are not scheduled at all
+
             past = panels_local.add_item(lst["id"], {"title": "Вчера", "remind": "2020-01-01T10:00"})
             self.assertEqual(past["reminder"], {})
-            # Telegram channel goes to the Proxy scheduler, both → both
+
             eng.channel = "both"
             both = panels_local.add_item(lst["id"], {"title": "Оба", "remind": "2031-05-02T10:00"})
             self.assertEqual(both["reminder"]["telegram"], "rem_x1")
@@ -299,7 +290,7 @@ class TodoTest(Base):
             self.assertEqual(sent[0][1].replace(tzinfo=None), datetime(2031, 5, 2, 10, 0))
             panels_local.delete_item(lst["id"], both["id"])
             self.assertEqual(removed, ["rem_x1"])
-        # Telegram not paired → the reminder still rings on this computer instead of being lost
+
         eng.channel = "telegram"
         with patch.object(assistant_commands, "engine", lambda: eng), \
                 patch.object(assistant_commands, "telegram_status", lambda: {"ok": False, "reason": "not paired"}), \
@@ -331,17 +322,17 @@ class TodoTest(Base):
         self.assertEqual(client.post("/api/pg/panels-todo-parse", json={"text": "x #y"}).json()["parsed"]["tags"], ["y"])
         new = client.post("/api/pg/panels-todo", json={"name": "Покупки"}).json()["list"]
         self.assertEqual(client.patch(f"/api/pg/panels-todo/{new['id']}", json={"name": "Магазин"}).json()["list"]["name"], "Магазин")
-        # refresh of a local panel never goes to a model or the network
+
         out = asyncio.run(panels.refresh_panel(created["id"], force=True))
         self.assertEqual(out["status"], "live")
-        # notes
+
         note = client.post("/api/pg/panels", json={"template": "notes"}).json()["panel"]
         self.assertEqual(client.put(f"/api/pg/panels-note/{note['id']}", json={"text": "[ ] дело"}).status_code, 200)
         snap = client.get("/api/pg/panels").json()
         self.assertEqual(next(p for p in snap["panels"] if p["id"] == note["id"])["note"]["text"], "[ ] дело")
         client.delete(f"/api/pg/panels/{note['id']}?purge=1")
         self.assertNotIn(note["id"], panels_local.load()["notes"])
-        # preview route
+
         prev = client.post("/api/pg/panels-preview", json={"kind": "weather", "options": {"fields": ["uv"]}, "before": {}}).json()
         self.assertTrue(prev["refetch"])
         self.assertIn("{{uv}}", json.dumps(prev["spec"]))
@@ -350,8 +341,6 @@ class TodoTest(Base):
         p = panels.create_panel(subject="Список дел", start=False)
         self.assertEqual(p["kind"], "todo")
 
-
-# ============================================================ kinds + data
 class FakeNet:
     def __init__(self, routes):
         self.routes, self.calls = routes, []
@@ -363,17 +352,16 @@ class FakeNet:
                 return value if isinstance(value, str) else json.dumps(value)
         raise ValueError(f"HTTP 404 {url}")
 
-
 class KindsTest(Base):
     def test_migration_old_large_becomes_wide(self):
         path = panels._path()
         path.write_text(json.dumps({"version": 1, "panels": [{"id": "p_old000000001", "kind": "custom", "title": "X", "size": "l",
                                                              "spec": {"blocks": [{"type": "text", "text": "x"}]}}]}), encoding="utf-8")
-        old = next(p for p in panels.load()["panels"] if p["id"] == "p_old000000001")   # the seed adds «Погода» too
+        old = next(p for p in panels.load()["panels"] if p["id"] == "p_old000000001")
         self.assertEqual(old["size"], "w")
         panels.update_panel("p_old000000001", {"size": "l"})
         old = next(p for p in panels.load()["panels"] if p["id"] == "p_old000000001")
-        self.assertEqual(old["size"], "l")             # after migration «l» means a detailed half-width card
+        self.assertEqual(old["size"], "l")
         self.assertEqual(json.loads(path.read_text(encoding="utf-8"))["version"], panels.SCHEMA_VERSION)
 
     def test_weather_options_shape_the_request_and_values(self):
@@ -471,7 +459,7 @@ class KindsTest(Base):
         with patch.object(integrations, "_github", rate_limited):
             with self.assertRaises(panels.Wall) as wall:
                 asyncio.run(panels.fetch_github({"options": {}}, panels.default_settings()))
-        self.assertEqual(wall.exception.status, "blocked:rate-limit")          # a pause, not «sign in»
+        self.assertEqual(wall.exception.status, "blocked:rate-limit")
 
         def bad_token(*_a, **_k):
             raise integrations.IntegrationError("GitHub отклонил токен (401: Bad credentials).")
@@ -502,7 +490,7 @@ class KindsTest(Base):
         self.assertEqual(out["cpu"], 90.0)
         self.assertEqual(out["swap"], 25.0)
         self.assertEqual(out["ram"], 50.0)
-        self.assertEqual([n["title"] for n in out["nets"]], ["eth0"])           # loopback hidden
+        self.assertEqual([n["title"] for n in out["nets"]], ["eth0"])
         self.assertIn("Мбит/с", out["nets_bits"][0]["value"])
         self.assertIn("Мбит/с", out["net_down_bits"])
         self.assertEqual(out["temps_rows"][0]["value"], "55°")
@@ -510,7 +498,7 @@ class KindsTest(Base):
         self.assertEqual(out["fans_rows"][0]["value"], "1200 об/мин")
         self.assertEqual(out["uptime_text"], panels_system.fmt_duration(90000, "ru"))
         self.assertEqual(out["disks_rows"][0]["title"], "C:")
-        self.assertEqual(out["battery_text"], "")                                  # desktop: no battery row, not «unknown»
+        self.assertEqual(out["battery_text"], "")
 
     def _fresh_system_state(self, panels_system):
         saved = dict(panels_system._STATE)
@@ -535,7 +523,7 @@ class KindsTest(Base):
         self.assertNotEqual(out["uptime_text"], "—")
         self.assertEqual(procs["procs"], [])
         self.assertIn("psutil", procs["procs_note"])
-        # the whole panel fetch survives too, with «procs» asked for
+
         panel = {"options": {"metrics": ["cpu", "ram", "procs", "cores"]}, "history": {}}
         with patch.object(panels_system, "_psutil", lambda: None), patch.object(panels_system, "_nvidia", lambda: None):
             values, _ = asyncio.run(panels.fetch_system(panel, panels.default_settings()))
@@ -568,10 +556,10 @@ class KindsTest(Base):
         self.assertEqual(out["cpu"], 75.0)
         self.assertEqual(out["ram"], 50.0)
         self.assertEqual(out["disk_label"], "Диск C:")
-        self.assertEqual([c["value"] for c in out["cores"]], [10.0, 30.0, 50.0, 5.0])     # numeric order, no _Total
+        self.assertEqual([c["value"] for c in out["cores"]], [10.0, 30.0, 50.0, 5.0])
         self.assertEqual(out["swap"], 12.5)
-        self.assertEqual([n["title"] for n in out["nets"]], ["Intel(R) Ethernet"])          # tunnels hidden
-        self.assertEqual(out["gpu"], 42.0)                                                    # engines of one adapter add up
+        self.assertEqual([n["title"] for n in out["nets"]], ["Intel(R) Ethernet"])
+        self.assertEqual(out["gpu"], 42.0)
         self.assertEqual(out["temp_src"], "acpi")
         self.assertEqual(out["battery_text"], "")
         self.assertEqual(out["cpu_name"], "Intel Core i7")
@@ -592,7 +580,6 @@ class KindsTest(Base):
             text = (ROOT / name).read_text(encoding="utf-8")
             for module in ("app.panels_options", "app.panels_local"):
                 self.assertIn(module, text, f"{module} missing in {name}")
-
 
 if __name__ == "__main__":
     unittest.main()

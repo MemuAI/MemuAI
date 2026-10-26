@@ -43,14 +43,12 @@ MODULES = ("translator", "studio", "design", "benchmarks", "catalog", "api-model
 SIZES = {"1366": (1366, 768), "1920": (1920, 1080), "narrow": (800, 600)}
 SHOTS = os.environ.get("MEMU_R31_SHOTS", "")
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or ""):
         if candidate and Path(candidate).exists():
             return candidate
     return ""
-
 
 class StaticContractTest(unittest.TestCase):
     def test_bridge_forwards_shortcuts_and_has_unsaved(self):
@@ -60,7 +58,7 @@ class StaticContractTest(unittest.TestCase):
         self.assertIn("unsaved: function (flag, text)", bridge)
         self.assertIn('call("unsaved"', bridge)
         self.assertIn("unsaved", modules_host.FREE_ACTIONS)
-        # The bridge still reports an unhandled Escape the old way (Round 21 contract).
+
         self.assertIn('key: "Escape"', bridge)
 
     def test_host_handles_combo_unsaved_and_request_close(self):
@@ -70,11 +68,11 @@ class StaticContractTest(unittest.TestCase):
         for name in ("function requestClose", "function closeReason", "function escapeWindow", "function windowHotkey",
                      "function showCoach", "function syncAppCloseHint", "data-task-close", "/api/pg/modules/ui-hints"):
             self.assertIn(name, js)
-        # Every close the person asks for goes through requestClose (asks when work would be lost).
+
         self.assertIn('p.close.addEventListener("click", () => requestClose(current()))', js)
         self.assertIn('requestClose(headWin)', js)
         self.assertNotIn('closeButton.onclick = () => closeAll()', js)
-        # «свернуть» on the Esc chip meant «restore the size» — it now says «окном».
+
         self.assertNotIn('t("свернуть", "restore")', js)
 
     def test_css_close_pill_and_narrow_head(self):
@@ -108,10 +106,9 @@ class StaticContractTest(unittest.TestCase):
             self.assertEqual(modules_host.mark_ui_hint(root, "window", seen=False), {"seen": ["minimize"]})
             with self.assertRaises(ValueError):
                 modules_host.mark_ui_hint(root, "../x")
-            # state.json writes never touch the hints file.
+
             modules_host.remember_window(root, "translator", {"width": 700, "height": 500})
             self.assertEqual(modules_host.load_ui_hints(root), {"seen": ["minimize"]})
-
 
 MOCK = """() => {
   window.__state = { ok: true, supported: true, mode: "custom", installed: true, pending: false,
@@ -125,7 +122,6 @@ MOCK = """() => {
   window.dispatchEvent(new Event("pywebviewready"));
 }"""
 
-# The module's own minimize/close: visible, inside the viewport, on top, clear of the MemuAI window buttons.
 CONTROLS = r"""(id) => {
   const out = [];
   const win = document.querySelector(`.module-window[data-module="${id}"]`);
@@ -155,7 +151,6 @@ CONTROLS = r"""(id) => {
   return out;
 }"""
 
-
 def _wait(target, expression: str, timeout: float = 15.0) -> None:
     deadline = time.time() + timeout
     while True:
@@ -167,7 +162,6 @@ def _wait(target, expression: str, timeout: float = 15.0) -> None:
         if time.time() > deadline:
             raise AssertionError(f"timed out waiting for: {expression}")
         time.sleep(0.05)
-
 
 @unittest.skipUnless(_chromium(), "Chromium is not installed")
 class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
@@ -209,7 +203,6 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
         cls.server.should_exit = True
         cls.thread.join(timeout=10)
 
-    # ------------------------------------------------------------------ helpers
     def page(self, size=(1366, 768), theme="light", lang="ru"):
         from app import pgdata
         pgdata.save_preferences({"profile_onboarded": True, "profile_name": "Test", "language": lang, "theme": theme})
@@ -258,7 +251,6 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
             Path(SHOTS).mkdir(parents=True, exist_ok=True)
             page.screenshot(path=str(Path(SHOTS) / f"{name}.png"))
 
-    # ---------------------------------------------------------- visibility walk
     def walk(self, size_name):
         problems = []
         for theme, lang in (("light", "ru"), ("dark", "en")):
@@ -282,7 +274,6 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
     def test_controls_visible_narrow(self):
         self.walk("narrow")
 
-    # --------------------------------------------------------------- behaviour
     def test_minimize_bar_restore_and_close(self):
         page = self.page()
         self.open(page, "translator")
@@ -292,7 +283,7 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
         self.assertTrue(self.state(page, "translator")["minimized"])
         pill = ".module-taskbar [data-task='translator']"
         _wait(page, f"document.querySelector(\"{pill}\") && !document.getElementById('module-taskbar').hidden")
-        # Its own × and a hint that it is minimized; no «close all» for a single module.
+
         self.assertTrue(page.is_visible(".module-taskbar [data-task-close='translator']"))
         self.assertTrue(page.is_visible(".module-taskbar .module-task-badge"))
         self.assertFalse(page.query_selector(".module-taskbar [data-taskbar-close]"))
@@ -300,7 +291,7 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
         page.click(pill)
         page.wait_for_timeout(200)
         self.assertFalse(self.state(page, "translator")["minimized"])
-        # Minimize again and close straight from the bar.
+
         page.evaluate("() => MemuModules.minimize('translator')")
         page.wait_for_timeout(150)
         page.click(".module-taskbar [data-task-close='translator']")
@@ -323,7 +314,7 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
         self.expand(page, "translator", True)
         self.assertTrue(page.is_visible("#module-headbar [data-mhb='min']"))
         self.assertTrue(page.is_visible("#module-headbar [data-mhb='close']"))
-        # The text label «Закрыть» is shown in a wide head.
+
         self.assertTrue(page.is_visible("#module-headbar .mhb-close-text"))
         self.assertIn("окном", page.inner_text("#module-headbar [data-mhb='esc']"))
         page.click("#module-headbar [data-mhb='min']")
@@ -340,29 +331,28 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
         page = self.page()
         frame = self.open(page, "translator")
         self.expand(page, "translator", True)
-        # Esc on the expanded sheet: back to a window (Round 21), not minimized.
+
         page.focus("body")
         page.keyboard.press("Escape")
         page.wait_for_timeout(450)
         st = self.state(page, "translator")
         self.assertEqual((st["state"], st["minimized"]), ("floating", False))
-        # Esc inside the module window (unhandled by the module) minimizes it: «back to the chat».
-        # (A click puts the keyboard focus into the sandboxed module page, as a real click does.)
+
         frame.click("body", position={"x": 4, "y": 4})
         self.assertTrue(frame.evaluate("() => document.hasFocus()"))
         page.keyboard.press("Escape")
         _wait(page, "MemuModules.windowState('translator').minimized")
         self.assertTrue(page.evaluate("() => !document.getElementById('module-taskbar').hidden"))
-        # Esc in the chat does not touch a minimized module.
+
         page.click(".module-taskbar [data-task='translator']")
         page.wait_for_timeout(200)
         self.assertFalse(self.state(page, "translator")["minimized"])
-        # Ctrl+W pressed inside the module page closes it (forwarded by the bridge).
+
         frame.click("body", position={"x": 4, "y": 4})
         self.assertTrue(frame.evaluate("() => document.hasFocus()"))
         page.keyboard.press("Control+w")
         _wait(page, "!MemuModules.openIds.includes('translator')")
-        # Ctrl+W with the focus in MemuAI closes the active module too.
+
         self.open(page, "catalog")
         page.focus("body")
         page.keyboard.press("Control+w")
@@ -376,7 +366,7 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
         page.click(".module-window[data-module='translator'] [data-win='close']")
         _wait(page, "document.getElementById('module-close-yes')")
         self.assertIn("Черновик не сохранён.", page.inner_text(".module-close-ask"))
-        # The question is drawn above the module window.
+
         self.assertTrue(page.evaluate("() => document.getElementById('panel-back').classList.contains('over-modules')"))
         self.shot(page, "behaviour-unsaved-ask")
         page.click("#module-close-cancel")
@@ -390,7 +380,7 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
         _wait(page, "document.getElementById('module-close-yes')")
         page.click("#module-close-yes")
         _wait(page, "!MemuModules.openIds.includes('translator')")
-        # Without unsaved work the window closes at once; Memu.unsaved(false) clears the flag.
+
         frame = self.open(page, "translator")
         frame.evaluate("() => Memu.unsaved(true).then(() => Memu.unsaved(false))")
         page.wait_for_timeout(200)
@@ -412,12 +402,12 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
         text = page.inner_text("#module-coach")
         self.assertIn("Свернуть", text)
         self.assertIn("Ctrl+W", text)
-        self.assertIn("MemuAI", text)  # the corner × closes MemuAI itself
+        self.assertIn("MemuAI", text)
         self.shot(page, "behaviour-hint")
         page.keyboard.press("Escape")
         page.wait_for_timeout(150)
         self.assertFalse(page.query_selector("#module-coach"))
-        # Esc only hid the hint: the window is still there.
+
         self.assertFalse(self.state(page, "translator")["minimized"])
         page.evaluate("() => MemuModules.closeAll()")
         page.wait_for_timeout(200)
@@ -438,7 +428,6 @@ class ModuleCloseMinimizeBrowserTest(unittest.TestCase):
         with self.assertRaises(urllib.error.HTTPError) as caught:
             opener.open(bad, timeout=10)
         self.assertEqual(caught.exception.code, 400)
-
 
 if __name__ == "__main__":
     unittest.main()

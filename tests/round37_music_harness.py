@@ -18,7 +18,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-
 def chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or ""):
@@ -26,13 +25,11 @@ def chromium() -> str:
             return candidate
     return ""
 
-
 def module_html(lang: str = "ru", theme: str = "dark", saved: dict | None = None) -> str:
     from app.modules_host import load_package, module_document
     with tempfile.TemporaryDirectory() as temp:
         package = load_package(Path(temp), "music")
     return module_document(package, saved or {}, env={"lang": lang, "theme": theme})
-
 
 PARENT = r"""<!DOCTYPE html><html><head><meta charset="utf-8"><style>html,body{margin:0;height:100%;background:#000}
 iframe{border:0;width:100%;height:100%;display:block}</style></head><body>
@@ -52,7 +49,6 @@ window.addEventListener("message", (e) => {
 });
 </script></body></html>"""
 
-
 def open_page(pw, lang="ru", theme="dark", size=(1360, 860)):
     browser = pw.chromium.launch(executable_path=chromium(), args=["--no-sandbox", "--autoplay-policy=no-user-gesture-required"])
     page = browser.new_page(viewport={"width": size[0], "height": size[1]})
@@ -65,7 +61,6 @@ def open_page(pw, lang="ru", theme="dark", size=(1360, 860)):
     page.goto("http://harness.local/")
     return browser, page, errors
 
-
 def frame_of(page):
     for _ in range(100):
         for frame in page.frames:
@@ -74,7 +69,6 @@ def frame_of(page):
         page.wait_for_timeout(50)
     raise RuntimeError("module frame not found")
 
-
 def wait(page, frame, script: str, timeout: int = 15000) -> bool:
     """Poll in the frame (its CSP forbids the eval behind wait_for_function)."""
     for _ in range(timeout // 100):
@@ -82,7 +76,6 @@ def wait(page, frame, script: str, timeout: int = 15000) -> bool:
             return True
         page.wait_for_timeout(100)
     raise TimeoutError(script)
-
 
 def shots(out: str) -> None:
     from playwright.sync_api import sync_playwright
@@ -119,7 +112,6 @@ def shots(out: str) -> None:
                 page.screenshot(path=f"{out}/{tag}-eq.png")
             print(tag, "errors:", errors[:5])
             browser.close()
-
 
 if __name__ == "__main__":
     shots(sys.argv[1] if len(sys.argv) > 1 else "/tmp/music-shots")

@@ -40,12 +40,8 @@ from app import skills_catalog as sc  # noqa: E402
 CYR = re.compile(r"[А-Яа-яЁё]")
 NODE = shutil.which("node")
 
-
 def read(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8")
-
-
-# ----------------------------------------------------------------------------- fixtures (GitHub responses)
 
 SKILL_A = """---
 name: release-notes
@@ -74,11 +70,9 @@ description: 'Work with PDF files: merge, split, fill forms.'
 Run `python scripts/fill.py` to fill a form.
 """
 
-
 def tree(*paths):
     return {"sha": "root", "truncated": False, "tree": [
         {"path": p, "type": "blob", "sha": f"sha-{p}", "size": s} for p, s in paths]}
-
 
 REPO_META = {"full_name": "acme/skills", "description": "Acme skills", "stargazers_count": 1234,
              "license": {"spdx_id": "MIT"}, "pushed_at": "2026-09-30T10:00:00Z", "default_branch": "main",
@@ -91,7 +85,6 @@ SEARCH = {"total_count": 2, "items": [
     {"full_name": "other/agent-kit", "description": "More skills", "stargazers_count": 99, "license": None,
      "pushed_at": "Fri 2026-10-09 9:45 PM MSK (UTC+03:00)", "default_branch": "main", "owner": {"login": "other"},
      "html_url": "https://github.com/other/agent-kit", "topics": ["claude-skills"]}]}
-
 
 class FakeGitHub:
     """``_http_get`` replacement: routes by URL, counts calls, can switch to offline / rate-limited."""
@@ -127,7 +120,6 @@ class FakeGitHub:
         body = data if isinstance(data, str) else json.dumps(data)
         return 200, {"etag": '"e1"', "x-ratelimit-remaining": "55", "x-ratelimit-reset": "0"}, body.encode()
 
-
 class CatalogCase(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="sc-cache-")
@@ -139,9 +131,6 @@ class CatalogCase(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
         self.addCleanup(shutil.rmtree, self.tmp, True)
-
-
-# ----------------------------------------------------------------------------- format
 
 class AgentSkillsFormat(unittest.TestCase):
     def test_front_matter_subset(self):
@@ -178,7 +167,7 @@ class AgentSkillsFormat(unittest.TestCase):
         for warning in ("hidden_chars", "html_removed", "pipe_to_shell", "destructive_command", "long_base64"):
             self.assertIn(warning, skill["warnings"])
         self.assertEqual(sc.file_kind("scripts/run.ps1"), "script")
-        self.assertEqual(sc.file_kind("bin/tool.exe"), "script")       # executables count as scripts (flagged)
+        self.assertEqual(sc.file_kind("bin/tool.exe"), "script")
         self.assertEqual(sc.file_kind("img/logo.png"), "binary")
         self.assertEqual(sc.file_kind("references/api.md"), "doc")
 
@@ -220,15 +209,12 @@ class AgentSkillsFormat(unittest.TestCase):
         self.assertEqual(names, ["ревью-sql/SKILL.md", "ревью-sql-2/SKILL.md"])
         self.assertEqual(len(sc.parse_zip(sc.build_zip(library))), 2)
 
-
-# ----------------------------------------------------------------------------- GitHub catalog (mocked)
-
 class CatalogFetch(CatalogCase):
     def test_catalog_lists_skills_with_scripts_and_discovered_repos(self):
         data = sc.catalog()
         self.assertEqual(data["state"], "ok")
         by_slug = {s["slug"]: s for s in data["skills"]}
-        self.assertEqual(set(by_slug), {"release-notes", "pdf-tools"})          # template/ is skipped
+        self.assertEqual(set(by_slug), {"release-notes", "pdf-tools"})
         pdf = by_slug["pdf-tools"]
         self.assertTrue(pdf["has_scripts"])
         self.assertEqual(pdf["scripts"], ["scripts/fill.py"])
@@ -236,8 +222,8 @@ class CatalogFetch(CatalogCase):
                          ("acme/skills", "skills/pdf-tools", "sha-skills/pdf-tools/SKILL.md", 1234, "MIT"))
         self.assertTrue(pdf["official"])
         self.assertEqual(by_slug["release-notes"]["description"][:20], "Writes release notes")
-        self.assertEqual([r["repo"] for r in data["repos"]], ["other/agent-kit"])   # curated repos are not repeated
-        self.assertEqual(data["repos"][0]["updated"], "2026-10-09")                   # rewritten timestamps are tolerated
+        self.assertEqual([r["repo"] for r in data["repos"]], ["other/agent-kit"])
+        self.assertEqual(data["repos"][0]["updated"], "2026-10-09")
         self.assertEqual(data["sources"][0]["count"], 2)
 
     def test_cache_ttl_and_etag(self):
@@ -322,10 +308,9 @@ class CatalogFetch(CatalogCase):
             (Path(home) / "skills" / "mine").mkdir()
             (Path(home) / "skills" / "mine" / "SKILL.md").write_text("---\nname: mine\n---\nmy own", encoding="utf-8")
             with self.assertRaises(sc.CatalogError):
-                sc.uninstall_code("mine")                       # only catalog installs can be removed here
+                sc.uninstall_code("mine")
             sc.uninstall_code("pdf-tools")
             self.assertFalse(folder.exists())
-
 
 class CodeSkillsParser(unittest.TestCase):
     def test_folded_description_is_read(self):
@@ -337,7 +322,6 @@ class CodeSkillsParser(unittest.TestCase):
         row = code_skills._parse_markdown(tmp / "release-notes" / "SKILL.md")
         self.assertEqual(row["description"], "Writes release notes from a git log. Use when the user asks for a changelog.")
         self.assertTrue(row["prompt"].startswith("# Release notes"))
-
 
 class LibraryBackup(unittest.TestCase):
     def test_round_trip_and_validation(self):
@@ -351,7 +335,6 @@ class LibraryBackup(unittest.TestCase):
             self.assertEqual((data["version"], data["removed"]), (5, ["memuai_guide"]))
             with self.assertRaises(ValueError):
                 sc.save_library({"skills": "nope"})
-
 
 class Routes(CatalogCase):
     def setUp(self):
@@ -394,9 +377,6 @@ class Routes(CatalogCase):
         self.assertIn("skills_catalog.register(app)", src)
         self.assertIn('"app.skills_catalog"', (ROOT / "build.py").read_text(encoding="utf-8"))
         self.assertIn("'app.skills_catalog'", (ROOT / "MemuAI.spec").read_text(encoding="utf-8"))
-
-
-# ----------------------------------------------------------------------------- static (window)
 
 class StaticWindow(unittest.TestCase):
     def test_hooks_and_order(self):
@@ -484,15 +464,11 @@ console.log(JSON.stringify([
         self.assertIn("<table>", lists)
         self.assertIn('<h4 class="sk-caps">WORKFLOW</h4>', caps)
 
-
-# ----------------------------------------------------------------------------- browser
-
 try:
     from round27_ui_lang_test import _chromium, _has_playwright  # noqa: E402
 except Exception:  # pragma: no cover
     _chromium = lambda: ""  # noqa: E731
     _has_playwright = lambda: False  # noqa: E731
-
 
 @unittest.skipUnless(_has_playwright() and _chromium(), "Playwright / Chromium not installed")
 class LiveWindow(unittest.TestCase):
@@ -545,15 +521,15 @@ class LiveWindow(unittest.TestCase):
         tabs = page.eval_on_selector_all(".sk-head .sk-seg-btn", "els => els.map(e => e.dataset.tab)")
         self.assertEqual(tabs, ["mine", "builtin", "catalog"])
         self.assertGreaterEqual(page.locator(".sk-grid .sk-card").count(), 26)
-        # Search filters live, Esc in the field clears it.
+
         page.fill("#sk-q", "SQL")
         self.assertEqual(page.locator(".sk-grid .sk-card").count(), 1)
         page.press("#sk-q", "Escape")
         self.assertTrue(page.is_visible("#panel.sk-panel"))
-        # Toggle persists in the library and the system prompt catalogue.
+
         page.locator('[data-toggle="sql_queries"]').first.uncheck(force=True)
         self.assertFalse(page.evaluate("getSkills().find(s => s.id === 'sql_queries').enabled"))
-        # Detail → editor → save a trigger change for a built-in; Esc goes back one level, not closing.
+
         page.click('[data-open="code_review"]')
         page.wait_for_selector(".sk-detail .sk-doc li")
         page.click('[data-act="edit"]')
@@ -566,7 +542,7 @@ class LiveWindow(unittest.TestCase):
         page.keyboard.press("Escape")
         page.wait_for_selector(".sk-grid")
         self.assertTrue(page.is_visible("#panel.sk-panel"))
-        # New skill: validation, then save into «Mine».
+
         page.click('.sk-head [data-act="new"]')
         page.click('[data-act="save"]')
         self.assertTrue(page.is_visible("#sk-f-error"))
@@ -576,7 +552,7 @@ class LiveWindow(unittest.TestCase):
         page.wait_for_selector(".sk-detail")
         mine = page.evaluate("getSkills().filter(s => s.custom).map(s => s.name)")
         self.assertIn("Ревью миграций", mine)
-        # The server keeps a backup copy of the library.
+
         page.wait_for_timeout(1200)
         backup = self.http.get(self.servers.pg + "/api/pg/skills/library").json()
         self.assertIn("Ревью миграций", [s.get("name") for s in backup.get("skills", [])])
@@ -585,7 +561,7 @@ class LiveWindow(unittest.TestCase):
         page = self.open()
         page.evaluate("showSkillsModal({tab: 'catalog'})")
         page.wait_for_selector(".sk-card.cat")
-        # Round 36: the catalog grid is virtual and recycles cards — spare slots and folded tags carry [hidden].
+
         names = page.eval_on_selector_all(".sk-card.cat:not([hidden]) .sk-card-name", "els => els.map(e => e.textContent)")
         self.assertEqual(sorted(names), ["PDF tools", "Release notes"])
         self.assertEqual(page.locator(".sk-card.cat:not([hidden]) .sk-badge.warn:not([hidden])").count(), 1, "the skill with scripts is flagged")
@@ -602,7 +578,7 @@ class LiveWindow(unittest.TestCase):
         self.assertTrue(added["source"]["sha"])
         self.assertIn("python scripts/fill.py", added["prompt"])
         self.assertNotIn("print('fill')", added["prompt"], "scripts never enter the chat skill")
-        # Import a .zip through the file picker.
+
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as zf:
             zf.writestr("pack/release-notes/SKILL.md", SKILL_A)
@@ -613,7 +589,7 @@ class LiveWindow(unittest.TestCase):
         with page.expect_file_chooser() as chooser:
             page.click('[data-act="import-file"]')
         chooser.value.set_files(str(path))
-        for _ in range(50):   # the window's CSP forbids eval, so no wait_for_function
+        for _ in range(50):
             if page.evaluate("getSkills().some(s => s.name === 'Release notes' || s.name === 'release-notes')"):
                 break
             page.wait_for_timeout(100)
@@ -636,7 +612,6 @@ class LiveWindow(unittest.TestCase):
         page.evaluate("showSkillsModal({tab: 'catalog'})")
         page.wait_for_selector(".sk-card.cat")
         self.assertFalse(CYR.search(page.inner_text("#panel")))
-
 
 if __name__ == "__main__":
     unittest.main()

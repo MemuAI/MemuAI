@@ -19,7 +19,6 @@ from app.telegram_api import BotApi
 from app.telegram_stream import StreamReply
 from tests.telegram_r20_test import OWNER, TOKEN, BotTestCase, FakeTelegram, message
 
-
 class LatencyTelegram(FakeTelegram):
     """Fake Bot API: every call takes ``latency`` s and is time-stamped."""
 
@@ -43,7 +42,6 @@ class LatencyTelegram(FakeTelegram):
     def first(self, method, *, after=0.0):
         return next((start for name, start, _end, _p in self.stamps if name == method and start >= after), None)
 
-
 async def until(predicate, timeout=5.0):
     end = time.monotonic() + timeout
     while time.monotonic() < end:
@@ -52,7 +50,6 @@ async def until(predicate, timeout=5.0):
         await asyncio.sleep(0.01)
     return predicate()
 
-
 def tokens(count, text="слово "):
     async def stream(*_args, **_kwargs):
         for index in range(count):
@@ -60,7 +57,6 @@ def tokens(count, text="слово "):
                 await asyncio.sleep(0)
             yield {"choices": [{"delta": {"content": text}}]}
     return stream
-
 
 class StreamCleaningTest(unittest.IsolatedAsyncioTestCase):
     """The answer was cleaned (3 regexes over the whole text) on every token."""
@@ -97,7 +93,6 @@ class StreamCleaningTest(unittest.IsolatedAsyncioTestCase):
         await client.aclose()
         self.assertEqual(stream.text, "один два")
 
-
 class AnswerLatencyTest(BotTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
@@ -106,8 +101,7 @@ class AnswerLatencyTest(BotTestCase):
         self.client = self.fake.client()
 
     async def test_long_answer_streams_in_linear_time(self):
-        # 6000 tokens: the old per-token join+clean took several seconds of
-        # event-loop time here; per frame it is a few hundred milliseconds.
+
         with patch("app.chat.chat_service.stream_completion", tokens(6000, "слово [MEM:a] ")):
             started = time.perf_counter()
             await self.send("длинный ответ")
@@ -123,7 +117,7 @@ class AnswerLatencyTest(BotTestCase):
         original = telegram_bot._current_chat
 
         def slow_current_chat(session):
-            time.sleep(0.6)          # a big chats.json
+            time.sleep(0.6)
             slow["done"] = time.monotonic()
             return original(session)
 
@@ -142,7 +136,7 @@ class AnswerLatencyTest(BotTestCase):
 
         def slow_persist(*args):
             marks["registered"] = str(OWNER) in telegram_bot._generations
-            time.sleep(0.8)          # rewriting a big chats.json
+            time.sleep(0.8)
             marks["saved"] = time.monotonic()
             return original(*args)
 
@@ -152,7 +146,7 @@ class AnswerLatencyTest(BotTestCase):
         final = next(start for name, start, _e, payload in self.fake.stamps
                      if name == "sendMessage" and "retry:" in json.dumps(payload.get("reply_markup") or {}))
         self.assertLess(final, marks["saved"])
-        self.assertTrue(marks["registered"])      # ↻ cannot start before the turn is saved
+        self.assertTrue(marks["registered"])
         self.assertNotIn(str(OWNER), telegram_bot._generations)
         chats = telegram_bot._chat_rows("default")
         self.assertTrue(any(len(chat.get("messages") or []) == 2 for chat in chats))
@@ -183,7 +177,6 @@ class AnswerLatencyTest(BotTestCase):
         from app import pgdata
         pgdata.save_preferences({"telegram_stream_mode": mode})
 
-
 class ScreenLatencyTest(BotTestCase):
     async def asyncSetUp(self):
         await super().asyncSetUp()
@@ -213,7 +206,6 @@ class ScreenLatencyTest(BotTestCase):
         await self.settle()
         deleted = [p for m, p in self.fake.calls if m == "deleteMessage" and p.get("message_id") == 77]
         self.assertTrue(deleted)
-
 
 class RunnerLatencyTest(BotTestCase):
     """A batch of updates through the real dispatcher with network latency."""
@@ -257,7 +249,6 @@ class RunnerLatencyTest(BotTestCase):
             self.fake.first("sendMessage")
         self.assertLess(first - start, 0.5)
 
-
 class FreshPreferencesTest(BotTestCase):
     """The long poll held the preferences read before it for up to 25 s."""
 
@@ -291,7 +282,6 @@ class FreshPreferencesTest(BotTestCase):
         self.assertEqual(self.fake.sent_texts(), [])
         self.assertEqual(runner.offset, 0)
 
-
 class WebappCacheTest(unittest.TestCase):
     def test_handlers_do_not_read_mini_app_files_between_poller_refreshes(self):
         reads = []
@@ -306,7 +296,6 @@ class WebappCacheTest(unittest.TestCase):
         import inspect
         self.assertIn("cached_webapp_url()", inspect.getsource(telegram_panels.show_list))
 
-
 class PartialMarkdownTest(unittest.TestCase):
     def test_open_bold_is_closed_while_streaming(self):
         self.assertEqual(telegram_format.render_partial("**Сравнение Python"), "<b>Сравнение Python</b>")
@@ -320,8 +309,7 @@ class PartialMarkdownTest(unittest.TestCase):
         self.assertEqual(telegram_format.render_partial("**a** и **b**"), "<b>a</b> и <b>b</b>")
 
     def test_long_answer_part_does_not_end_with_a_heading(self):
-        # Live Yandex answer: part 1 ended with «На север, к другой широте» and
-        # its text started part 2.
+
         for heading in ("## На север", "**На север, к другой широте**"):
             text = "a" * 50 + "\n\n" + "b " * 30 + "\n\n" + heading + "\n\n" + "c " * 40
             head, _carry, consumed = telegram_format.split_markdown_source(text, 140)
@@ -336,7 +324,6 @@ class PartialMarkdownTest(unittest.TestCase):
             html = telegram_format.render_partial(text[:end])
             self.assertEqual(telegram_format.split_telegram_html(html, 4096)[0].count("<b>"),
                              telegram_format.split_telegram_html(html, 4096)[0].count("</b>"), text[:end])
-
 
 if __name__ == "__main__":
     unittest.main()

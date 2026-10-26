@@ -31,16 +31,16 @@ from urllib.parse import quote
 GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me"
 GMAIL_UPLOAD = "https://gmail.googleapis.com/upload/gmail/v1/users/me"
 MAX_BODY = 60000
-#: Above this the letter goes through the upload endpoint (the plain JSON body is meant for small messages).
+
 UPLOAD_OVER = 3 * 1024 * 1024
-#: Gmail refuses letters over 25 MB of attachments (35 MB on the wire after base64).
+
 MAX_ATTACH = 25 * 1024 * 1024
 MAX_BULK = 500
 _ADDRESS = re.compile(r"^[^@\s<>,;]+@[^@\s<>,;]+\.[^@\s<>,;]+$")
 HEADERS = ("From", "To", "Cc", "Subject", "Date")
 SYSTEM_LABELS = {"INBOX", "SPAM", "TRASH", "UNREAD", "STARRED", "IMPORTANT", "SENT", "DRAFT", "CHAT",
                  "CATEGORY_PERSONAL", "CATEGORY_SOCIAL", "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS"}
-#: Friendly names the model may use for system labels.
+
 LABEL_ALIASES = {"inbox": "INBOX", "входящие": "INBOX", "spam": "SPAM", "спам": "SPAM", "trash": "TRASH",
                  "корзина": "TRASH", "unread": "UNREAD", "непрочитанные": "UNREAD", "starred": "STARRED",
                  "помеченные": "STARRED", "important": "IMPORTANT", "важные": "IMPORTANT", "sent": "SENT",
@@ -80,7 +80,7 @@ TOOLS: List[str] = [
 
 READ = {"gmail_search", "gmail_read", "gmail_read_thread", "gmail_list_drafts", "gmail_list_labels", "gmail_list_filters"}
 WRITE = {name.split("{")[0] for name in TOOLS} - READ
-#: Sent or destroyed for good — asked every time, even with «Full access».
+
 ALWAYS = {"gmail_send", "gmail_reply", "gmail_forward", "gmail_delete"}
 DANGER = {"gmail_delete", "gmail_bulk", "gmail_delete_label", "gmail_delete_filter", "gmail_trash"}
 BULK_ACTIONS = ("archive", "trash", "untrash", "read", "unread", "star", "unstar", "label", "unlabel", "spam", "not_spam")
@@ -91,11 +91,9 @@ HINT = ("Gmail: gmail_search uses Gmail syntax (from:, to:, subject:, newer_than
         "30 days), gmail_delete (PERMANENT — only when the user explicitly says delete forever), gmail_bulk{query,action} "
         "for many letters at once. gmail_reply keeps the thread; attachments are full paths of files on this computer.")
 
-
 def _api(method: str, path: str, **kwargs: Any) -> Any:
     from .integrations import _google
     return _google("gmail", method, GMAIL_API + path, **kwargs)
-
 
 def _upload(path: str, metadata: Dict[str, Any], letter: bytes) -> Any:
     from .integrations import _google, _multipart
@@ -103,11 +101,9 @@ def _upload(path: str, metadata: Dict[str, Any], letter: bytes) -> Any:
     return _google("gmail", "POST", GMAIL_UPLOAD + path, params={"uploadType": "multipart"},
                    content=body, content_type=content_type)
 
-
 def _arg_error(text: str):
     from .integrations import IntegrationArgumentError
     return IntegrationArgumentError(text)
-
 
 def _headers(payload: Dict[str, Any]) -> Dict[str, str]:
     out: Dict[str, str] = {}
@@ -116,7 +112,6 @@ def _headers(payload: Dict[str, Any]) -> Dict[str, str]:
             out.setdefault(str(row["name"]).lower(), str(row.get("value") or ""))
     return out
 
-
 def _decode_part(data: str) -> str:
     raw = str(data or "")
     try:
@@ -124,11 +119,9 @@ def _decode_part(data: str) -> str:
     except Exception:
         return ""
 
-
 def _decode_bytes(data: str) -> bytes:
     raw = str(data or "")
     return base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4))
-
 
 def _html_text(markup: str) -> str:
     text = re.sub(r"(?is)<(script|style|head)[^>]*>.*?</\1>", " ", markup)
@@ -137,7 +130,6 @@ def _html_text(markup: str) -> str:
     text = html.unescape(text)
     text = re.sub(r"[ \t\u00a0]+", " ", text)
     return re.sub(r"\n\s*\n\s*\n+", "\n\n", text).strip()
-
 
 def _walk(part: Dict[str, Any], plain: List[str], rich: List[str], files: List[Dict[str, Any]]) -> None:
     mime = str(part.get("mimeType") or "")
@@ -154,7 +146,6 @@ def _walk(part: Dict[str, Any], plain: List[str], rich: List[str], files: List[D
         if isinstance(child, dict):
             _walk(child, plain, rich, files)
 
-
 def _summary(row: Dict[str, Any]) -> Dict[str, Any]:
     head = _headers(row.get("payload") or {})
     labels = row.get("labelIds") or []
@@ -162,7 +153,6 @@ def _summary(row: Dict[str, Any]) -> Dict[str, Any]:
             "to": head.get("to", ""), "subject": head.get("subject", ""), "date": head.get("date", ""),
             "snippet": html.unescape(str(row.get("snippet") or "")), "unread": "UNREAD" in labels,
             "starred": "STARRED" in labels, "labels": [label for label in labels if label not in ("UNREAD", "STARRED")]}
-
 
 def _full(row: Dict[str, Any]) -> Dict[str, Any]:
     plain: List[str] = []
@@ -175,7 +165,6 @@ def _full(row: Dict[str, Any]) -> Dict[str, Any]:
     out.update({"cc": _headers(payload).get("cc", ""), "text": text[:MAX_BODY], "truncated": len(text) > MAX_BODY,
                 "attachments": [{k: v for k, v in item.items() if not k.startswith("_")} for item in files]})
     return out
-
 
 def _addresses(value: Any, field: str, required: bool = False) -> str:
     """«a@b.c, Имя <d@e.f>» → validated header value; the model's typos fail before anything is sent."""
@@ -191,7 +180,6 @@ def _addresses(value: Any, field: str, required: bool = False) -> str:
     if bad or not pairs:
         raise _arg_error("Неверный адрес в %s: %s" % (field, ", ".join(bad) or text))
     return text
-
 
 def _paths(value: Any) -> List[Path]:
     """attachments: full paths of files on this computer (a list or «a; b»)."""
@@ -213,20 +201,17 @@ def _paths(value: Any) -> List[Path]:
         out.append(path)
     return out
 
-
 def _attach(letter: EmailMessage, name: str, data: bytes, mime: str = "") -> None:
     kind = (mime or mimetypes.guess_type(name)[0] or "application/octet-stream").split("/", 1)
     if len(kind) != 2:
         kind = ["application", "octet-stream"]
     letter.add_attachment(data, maintype=kind[0], subtype=kind[1], filename=name)
 
-
 def _me() -> str:
     try:
         return str(_api("GET", "/profile").get("emailAddress") or "").lower()
     except Exception:
         return ""
-
 
 def _message(args: Dict[str, Any], extra: Optional[List[Tuple[str, bytes, str]]] = None) -> Tuple[EmailMessage, str]:
     """The RFC 2822 letter (UTF-8) + threadId; a reply keeps the thread (In-Reply-To / References / «Re:»)."""
@@ -278,10 +263,8 @@ def _message(args: Dict[str, Any], extra: Optional[List[Tuple[str, bytes, str]]]
         _attach(letter, name, data, mime)
     return letter, thread
 
-
 def _raw(letter: EmailMessage) -> str:
     return base64.urlsafe_b64encode(letter.as_bytes()).decode("ascii")
-
 
 def _send(letter: EmailMessage, thread: str) -> Dict[str, Any]:
     data = letter.as_bytes()
@@ -291,7 +274,6 @@ def _send(letter: EmailMessage, thread: str) -> Dict[str, Any]:
     if thread:
         body["threadId"] = thread
     return _api("POST", "/messages/send", json_body=body)
-
 
 def _draft(letter: EmailMessage, thread: str, draft_id: str = "") -> Dict[str, Any]:
     data = letter.as_bytes()
@@ -311,8 +293,6 @@ def _draft(letter: EmailMessage, thread: str, draft_id: str = "") -> Dict[str, A
         payload["id"] = draft_id
     return _api(method, path, json_body=payload)
 
-
-# --------------------------------------------------------------------------- ids, labels
 def _ids(args: Dict[str, Any], key: str = "message_ids") -> List[str]:
     value = args.get(key)
     if value is None:
@@ -325,13 +305,11 @@ def _ids(args: Dict[str, Any], key: str = "message_ids") -> List[str]:
             out.append(text)
     return out[:1000]
 
-
 def _thread(args: Dict[str, Any]) -> str:
     text = str(args.get("thread_id") or "").strip()
     if text and not re.fullmatch(r"[A-Za-z0-9_-]{1,128}", text):
         raise _arg_error("Неверный thread_id: %s" % text)
     return text
-
 
 class _Labels:
     """Label names ↔ ids for one tool call (one listing at most)."""
@@ -371,7 +349,6 @@ class _Labels:
             out.append(str(row["id"]))
         return out
 
-
 def _modify(args: Dict[str, Any], add: List[str], remove: List[str]) -> Dict[str, Any]:
     """Apply label changes to messages (batchModify) or to a whole thread."""
     thread = _thread(args)
@@ -383,7 +360,6 @@ def _modify(args: Dict[str, Any], add: List[str], remove: List[str]) -> Dict[str
         raise _arg_error("Укажите message_ids (их даёт gmail_search) или thread_id")
     _api("POST", "/messages/batchModify", json_body={"ids": ids, "addLabelIds": add, "removeLabelIds": remove})
     return {"messages": len(ids), "added": add, "removed": remove}
-
 
 def _each(args: Dict[str, Any], action: str) -> Dict[str, Any]:
     """trash / untrash: one call per message (Gmail has no batch for them), or the whole thread."""
@@ -402,7 +378,6 @@ def _each(args: Dict[str, Any], action: str) -> Dict[str, Any]:
             _api("POST", "/messages/%s/%s" % (quote(message, safe=""), action))
     return {"messages": len(ids), action: True}
 
-
 def _search_ids(query: str, limit: int) -> List[str]:
     ids: List[str] = []
     token = ""
@@ -417,7 +392,6 @@ def _search_ids(query: str, limit: int) -> List[str]:
             break
     return ids[:limit]
 
-
 def _save_dir(folder: str) -> Path:
     if folder:
         path = Path(os.path.expandvars(os.path.expanduser(folder)))
@@ -428,20 +402,17 @@ def _save_dir(folder: str) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-
 def _safe_name(name: str) -> str:
     text = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", str(name or "").strip()).strip(" .") or "attachment"
     if text.upper().split(".")[0] in {"CON", "PRN", "AUX", "NUL", *("COM%d" % i for i in range(1, 10)), *("LPT%d" % i for i in range(1, 10))}:
         text = "_" + text
     return text[:180]
 
-
 def _attachment_bytes(message_id: str, attachment_id: str, inline: Any = None) -> bytes:
     if inline:
         return _decode_bytes(inline)
     row = _api("GET", "/messages/%s/attachments/%s" % (quote(message_id, safe=""), quote(attachment_id, safe="")))
     return _decode_bytes(row.get("data") or "")
-
 
 def _bool(value: Any, default: bool = False) -> bool:
     if value is None or value == "":
@@ -450,8 +421,6 @@ def _bool(value: Any, default: bool = False) -> bool:
         return value
     return str(value).strip().lower() in ("1", "true", "yes", "y", "on", "да")
 
-
-# --------------------------------------------------------------------------- the tools
 def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one flat dispatch table
     from .integrations import _int
     if tool == "gmail_search":
@@ -486,7 +455,7 @@ def run(tool: str, args: Dict[str, Any]) -> Any:  # noqa: C901 - one flat dispat
         row = _api("GET", "/threads/" + quote(thread, safe=""), params={"format": "full"})
         messages = [_full(m) for m in row.get("messages") or [] if isinstance(m, dict)]
         budget = MAX_BODY
-        for item in messages:     # one long thread must not blow the context: older letters are cut first
+        for item in messages:
             item["text"] = item["text"][:max(1500, budget // max(1, len(messages)))]
         return {"thread_id": thread, "count": len(messages), "messages": messages}
     if tool == "gmail_create_draft":

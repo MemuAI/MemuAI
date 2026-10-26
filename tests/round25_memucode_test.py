@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 from app.cli.tools.files import apply_edit
 
-
 class EditIndentation(unittest.TestCase):
     def test_spaces_from_the_model_become_tabs_in_a_tab_indented_file(self):
         text = "def f():\n\tif x:\n\t\treturn 1\n"
@@ -47,7 +46,6 @@ class EditIndentation(unittest.TestCase):
         text = "a\n\tb = 1\n"
         self.assertEqual(apply_edit(text, "b = 1", "b = 2"), ("a\n\tb = 2\n", 1, False))
 
-
 class EditLineNumbers(unittest.TestCase):
     def test_a_line_added_without_a_prefix_does_not_bring_the_prefixes_into_the_file(self):
         text = "x = 1\ny = 2\n"
@@ -55,7 +53,6 @@ class EditLineNumbers(unittest.TestCase):
                                            "     1\tx = 10\nz = 3\n     2\ty = 2")
         self.assertEqual(result, "x = 10\nz = 3\ny = 2\n")
         self.assertTrue(fuzzy)
-
 
 class PatchCalls(unittest.TestCase):
     def test_an_apply_patch_call_is_told_how_to_edit_instead_of_missing_arguments(self):
@@ -75,7 +72,6 @@ class PatchCalls(unittest.TestCase):
         tool.check_required(args)
         self.assertEqual(args["file_path"], "a.py")
 
-
 class TypedPaths(unittest.TestCase):
     def test_an_existing_absolute_path_is_a_message_and_commands_stay_commands(self):
         from app.cli.tui.app import _is_command
@@ -84,13 +80,12 @@ class TypedPaths(unittest.TestCase):
         big.write_text("y", encoding="utf-8")
         self.assertTrue(_is_command("/help"))
         self.assertTrue(_is_command("/cd " + str(folder)))
-        self.assertTrue(_is_command("/no/such/place here"))       # unknown: the command parser says so
+        self.assertTrue(_is_command("/no/such/place here"))
         self.assertFalse(_is_command("//not a command"))
         self.assertFalse(_is_command("plain text"))
         if big.as_posix().startswith("/"):
             self.assertFalse(_is_command(big.as_posix()))
             self.assertFalse(_is_command(big.as_posix() + " what is in it?"))
-
 
 class CompletionToast(unittest.TestCase):
     def test_the_toast_is_left_to_show_completion_which_checks_the_os_itself(self):
@@ -115,7 +110,6 @@ class CompletionToast(unittest.TestCase):
                 ui._notify("Done", "text")
         self.assertEqual(toast.call_count, 1)
         self.assertEqual(rings, [1])
-
 
 class WebCommandOutput(unittest.TestCase):
     """The MemuCode panel's commands (code_run, terminal, background tasks) read cp866/cp1251 like the CLI."""
@@ -147,14 +141,13 @@ class WebCommandOutput(unittest.TestCase):
         self.assertEqual(status["exit_code"], 0)
         self.assertEqual(status["stdout"], "Привет\n")
 
-
 class WebIndexJunctions(unittest.TestCase):
     def test_a_junction_like_folder_is_not_walked(self):
         from app import code_context
         root = Path(tempfile.mkdtemp(prefix="memucode-r25-index-"))
         (root / "src").mkdir()
         (root / "src" / "app.py").write_text("x = 1\n", encoding="utf-8")
-        (root / "junction").mkdir()                        # stands for a Windows junction: a plain folder to os.walk
+        (root / "junction").mkdir()
         (root / "junction" / "far.txt").write_text("far\n", encoding="utf-8")
         walked = []
         real = code_context.is_link
@@ -169,7 +162,6 @@ class WebIndexJunctions(unittest.TestCase):
         self.assertIn("junction", walked)
         self.assertEqual(engine.tree, ["src/app.py"])
 
-
 class AskModeGit(unittest.TestCase):
     def test_creating_a_branch_is_not_read_only(self):
         from app.code_tools import is_read_only
@@ -180,10 +172,8 @@ class AskModeGit(unittest.TestCase):
         self.assertFalse(is_read_only("git branch feature"))
         self.assertFalse(is_read_only("git branch -D old"))
 
-
 if __name__ == "__main__":
     unittest.main()
-
 
 class RemoteBangCommandIsRefused(unittest.TestCase):
     """«!команда» с телефона не должна обходить диалог разрешений (Round 25)."""

@@ -1,5 +1,3 @@
-/* Round 27: a pinned answer («стикер»). Colours only from /themes.css tokens; the optional tint mixes a hue
-   into the panel colour, so both themes and every accent stay readable. */
 :root { --st-tint: transparent; --st-bg: color-mix(in srgb, var(--st-tint) 16%, var(--panel)); color-scheme: dark;
   --st-line: color-mix(in srgb, var(--border) 80%, transparent); --st-hover: color-mix(in srgb, var(--text) 7%, transparent); }
 :root[data-theme="light"] { --st-bg: color-mix(in srgb, var(--st-tint) 22%, var(--panel)); color-scheme: light; }

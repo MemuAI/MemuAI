@@ -1,9 +1,8 @@
-// MemuFiles · core helpers: API, DOM, formatting, icons, toasts, menus, modals (Round 35).
+
 import { t, getLang } from "./i18n.js";
 
 export const S = { token: "", boot: null, settings: {}, sep: "/", platform: "posix", home: "/" };
 
-// ------------------------------------------------------------------ API
 export async function api(path, body, opts = {}) {
   const init = { method: body === undefined ? "GET" : "POST", headers: { "X-MF-Token": S.token } };
   if (body !== undefined) { init.headers["Content-Type"] = "application/json"; init.body = JSON.stringify(body); }
@@ -19,12 +18,11 @@ export async function api(path, body, opts = {}) {
   return data;
 }
 
-/** GET an NDJSON stream; onLine(obj) for every line. Resolves when the stream ends. */
 export async function ndjson(path, onLine, signal) {
   const res = await fetch("/api/" + path, { headers: { "X-MF-Token": S.token }, signal });
   if (!res.ok) {
     let data = {};
-    try { data = await res.json(); } catch (e) { /* ignore */ }
+    try { data = await res.json(); } catch (e) {  }
     const err = new Error(data.error || ("HTTP " + res.status));
     err.code = data.error || ("http_" + res.status); err.detail = data.detail || ""; err.status = res.status;
     throw err;
@@ -50,7 +48,6 @@ export const q = (path) => encodeURIComponent(path);
 export const rawUrl = (path) => `/api/raw?path=${q(path)}&t=${encodeURIComponent(S.token)}`;
 export const thumbUrl = (path, size, mtime) => `/api/thumb?path=${q(path)}&s=${size}&m=${mtime || 0}&t=${encodeURIComponent(S.token)}`;
 
-// ------------------------------------------------------------------ DOM
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 export function h(tag, attrs = {}, ...children) {
@@ -72,7 +69,6 @@ export function h(tag, attrs = {}, ...children) {
 }
 export const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-// ------------------------------------------------------------------ paths
 export function isWin() { return S.platform === "nt"; }
 export function joinPath(dir, name) {
   if (!dir) return name;
@@ -102,7 +98,7 @@ export function parentPath(path) {
   return index <= 0 ? "/" : trimmed.slice(0, index);
 }
 export function splitPath(path) {
-  // → [{name, path}] from the root down
+
   const out = [];
   if (!path) return out;
   if (isWin()) {
@@ -152,8 +148,6 @@ export function stemOf(name) {
   return ext ? name.slice(0, name.length - ext.length - 1) : name;
 }
 
-// ------------------------------------------------------------------ formatting
-/** r41-files: user formats from Settings → «Date format» / «Size format» (``setFormats`` from app.applySettings). */
 const FMT = { date: "auto", size: "auto" };
 export function setFormats(settings) {
   const date = (settings && settings.date_format) || "auto", size = (settings && settings.size_format) || "auto";
@@ -163,7 +157,7 @@ export function setFormats(settings) {
 export function fmtSize(bytes, exact) {
   if (bytes === null || bytes === undefined || isNaN(bytes)) return "";
   const units = getLang() === "en" ? ["B", "KB", "MB", "GB", "TB"] : ["Б", "КБ", "МБ", "ГБ", "ТБ"];
-  if (FMT.size === "kb" && !exact) return fmtNum(Math.ceil(bytes / 1024)) + " " + units[1];   // Explorer's «Size» column
+  if (FMT.size === "kb" && !exact) return fmtNum(Math.ceil(bytes / 1024)) + " " + units[1];
   const step = FMT.size === "decimal" ? 1000 : 1024;
   if (bytes < step) return bytes + " " + units[0];
   let value = bytes, unit = 0;
@@ -172,7 +166,7 @@ export function fmtSize(bytes, exact) {
   const out = (getLang() === "en" ? text : text.replace(".", ",")) + " " + units[unit];
   return exact ? `${out} (${fmtNum(bytes)} ${units[0]})` : out;
 }
-const numFmt = {};     // Round 39: toLocaleString built a new formatter per call (≈16 ms of the first paint)
+const numFmt = {};
 export function fmtNum(n) { const lang = getLang(); return (numFmt[lang] ||= new Intl.NumberFormat(lang === "en" ? "en-US" : "ru-RU")).format(Number(n || 0)); }
 const dtCache = {};
 export function fmtDate(ms, withSeconds) {
@@ -199,7 +193,7 @@ export function fmtDate(ms, withSeconds) {
   return dtCache[key].format(new Date(ms));
 }
 export function plural(n, forms) {
-  // forms: [one, few, many] for RU, [one, other] for EN
+
   if (getLang() === "en") return `${fmtNum(n)} ${n === 1 ? forms[0] : forms[1]}`;
   const n10 = n % 10, n100 = n % 100;
   const f = n10 === 1 && n100 !== 11 ? 0 : n10 >= 2 && n10 <= 4 && (n100 < 12 || n100 > 14) ? 1 : 2;
@@ -207,11 +201,10 @@ export function plural(n, forms) {
 }
 export const itemsWord = (n) => plural(n, getLang() === "en" ? ["item", "items"] : ["элемент", "элемента", "элементов"]);
 
-// ------------------------------------------------------------------ icons
 const P = {
   back: '<path d="M15 5l-7 7 7 7"/>', fwd: '<path d="M9 5l7 7-7 7"/>', up: '<path d="M12 19V6M6 11l6-6 6 6"/>',
   refresh: '<path d="M20 6v5h-5"/><path d="M19 11a8 8 0 1 0 1 5"/>',
-  // Round 39 (r39-files-feat): code editor, image conversion
+
   code: '<path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/>', image: '<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M20.5 16l-5-5-8.5 8"/>',
   plus: '<path d="M12 5v14M5 12h14"/>', x: '<path d="M6 6l12 12M18 6L6 18"/>',
   search: '<circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4-4"/>',
@@ -231,7 +224,7 @@ const P = {
   palette: '<path d="M12 3.5a8.5 8.5 0 1 0 0 17c1.2 0 1.8-.8 1.8-1.7 0-.5-.2-.9-.5-1.2-.3-.3-.5-.7-.5-1.2 0-.9.8-1.6 1.7-1.6h2a4 4 0 0 0 4-4C20.5 6.9 16.7 3.5 12 3.5z"/><circle cx="7.5" cy="11" r="1"/><circle cx="10" cy="7.5" r="1"/><circle cx="14.5" cy="7.5" r="1"/>',
   tabs: '<path d="M3.5 19.5v-11A1.5 1.5 0 0 1 5 7h4.5l1.5 2h8A1.5 1.5 0 0 1 20.5 10.5v9z"/><path d="M14 7V5.5h4.5A1.5 1.5 0 0 1 20 7v2"/>',
   keyboard: '<rect x="3" y="6.5" width="18" height="11" rx="2"/><path d="M7 10h.01M10 10h.01M13 10h.01M16 10h.01M7 13.5h10"/>',
-  tiles: '<rect x="3.5" y="4.5" width="7" height="6" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="6" rx="1.5"/><path d="M13.5 6h7M13.5 9h4.5M13.5 15h7M13.5 18h4.5"/>',   // r41-files
+  tiles: '<rect x="3.5" y="4.5" width="7" height="6" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="6" rx="1.5"/><path d="M13.5 6h7M13.5 9h4.5M13.5 15h7M13.5 18h4.5"/>',
   gallery: '<rect x="3.5" y="5" width="17" height="14" rx="2"/><circle cx="9" cy="10" r="1.6"/><path d="M20 16l-4.5-4.5L8 19"/>',
   split: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M12 4.5v15"/>',
   preview: '<rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M14.5 4.5v15"/>',
@@ -267,7 +260,6 @@ const P = {
 };
 export function icon(name, cls = "") { return `<span class="ic ${cls}" aria-hidden="true"><svg viewBox="0 0 24 24">${P[name] || P.file}</svg></span>`; }
 
-// file-type icons: coloured page with a label, folder in folder colours
 const TYPES = [
   ["image", "#4d95f0", ["png", "jpg", "jpeg", "jfif", "gif", "webp", "bmp", "svg", "ico", "tif", "tiff", "heic", "avif", "psd", "raw", "cr2", "nef"]],
   ["video", "#d6537a", ["mp4", "mkv", "avi", "mov", "webm", "wmv", "flv", "m4v", "mpg", "mpeg", "3gp"]],
@@ -307,7 +299,6 @@ export function folderSvg() {
   return '<svg viewBox="0 0 24 24"><path d="M2.5 6.5A1.5 1.5 0 0 1 4 5h5.2l1.8 2H20a1.5 1.5 0 0 1 1.5 1.5V9H2.5z" fill="var(--folder-2)"/><path d="M2.5 8.5A1.5 1.5 0 0 1 4 7h16a1.5 1.5 0 0 1 1.5 1.5v9.5a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 18z" fill="var(--folder)"/><path d="M2.5 10h19" stroke="#fff" stroke-opacity=".22"/></svg>';
 }
 
-// ------------------------------------------------------------------ toasts
 export function toast(text, kind = "ok", action) {
   let box = $(".toasts");
   if (!box) { box = h("div", { class: "toasts" }); document.body.append(box); }
@@ -331,9 +322,8 @@ export function errText(err) {
 }
 export function showError(err) { toast(errText(err), "err"); }
 
-// ------------------------------------------------------------------ menus
 let openMenu = null;
-let menuOpener = null;   // r40-files-2: the element that had focus before the menu — it gets it back (the list keeps the keyboard)
+let menuOpener = null;
 export function closeMenus() {
   if (openMenu) {
     const inside = openMenu.some((m) => m.contains(document.activeElement));
@@ -344,7 +334,7 @@ export function closeMenus() {
   document.removeEventListener("mousedown", outside, true);
 }
 function outside(e) { if (openMenu && !openMenu.some((m) => m.contains(e.target))) closeMenus(); }
-/** items: {label, icon, kb, run, disabled, danger, checked, sub:[...], sep:true, head:"", html:Node} */
+
 export function menu(items, x, y, opts = {}) {
   if (!opts.child) { closeMenus(); menuOpener = document.activeElement !== document.body ? document.activeElement : null; }
   const el = h("div", { class: "menu", role: "menu" });
@@ -361,14 +351,14 @@ export function menu(items, x, y, opts = {}) {
       (item.sub ? `<span class="sub-caret">${icon("right", "sm")}</span>` : "");
     if (item.sub) {
       const openSub = (e) => {
-        const focus = !e || e.type !== "mouseenter";      // hover keeps the keyboard in the parent menu
+        const focus = !e || e.type !== "mouseenter";
         if (openMenu) openMenu.slice(openMenu.indexOf(el) + 1).forEach((m) => { m.remove(); openMenu.splice(openMenu.indexOf(m), 1); });
         const r = b.getBoundingClientRect();
         const subItems = typeof item.sub === "function" ? item.sub() : item.sub;
-        if (subItems && typeof subItems.then === "function") {    // async submenu (Open with → apps): placeholder, then the list
+        if (subItems && typeof subItems.then === "function") {
           const child = menu([{ label: t("ctx.loading"), disabled: true }], r.right - 4, r.top - 5, { child: true, parentRect: r, parentButton: b, focus });
           subItems.then((list) => {
-            if (!openMenu || !openMenu.includes(child)) return;   // the user moved on
+            if (!openMenu || !openMenu.includes(child)) return;
             const hadFocus = child.contains(document.activeElement);
             openMenu.splice(openMenu.indexOf(child), 1); child.remove();
             menu(list, r.right - 4, r.top - 5, { child: true, parentRect: r, parentButton: b, focus: hadFocus || focus });
@@ -387,7 +377,7 @@ export function menu(items, x, y, opts = {}) {
     el.append(b);
   }
   document.body.append(el);
-  // r41-finish: the layout size — getBoundingClientRect() is taken mid «pop» animation (scaled down), the menu then grew past the edge
+
   const r = { width: el.offsetWidth, height: el.offsetHeight };
   let left = x, top = y;
   if (left + r.width > innerWidth - 6) left = opts.parentRect ? Math.max(6, opts.parentRect.left - r.width + 4) : Math.max(6, innerWidth - r.width - 6);
@@ -396,7 +386,7 @@ export function menu(items, x, y, opts = {}) {
   if (!openMenu) openMenu = [];
   openMenu.push(el);
   setTimeout(() => document.addEventListener("mousedown", outside, true), 0);
-  // keyboard navigation
+
   let index = -1;
   el.tabIndex = -1;
   el.addEventListener("keydown", (e) => {
@@ -405,7 +395,7 @@ export function menu(items, x, y, opts = {}) {
       e.preventDefault();
       index = (index + (e.key === "ArrowDown" ? 1 : -1) + enabled.length) % enabled.length;
       enabled[index].focus();
-    } else if (e.key === "Escape") {   // r40-files-max: Esc closes only this (sub)menu and never reaches the window (it cleared the selection)
+    } else if (e.key === "Escape") {
       e.preventDefault(); e.stopPropagation();
       if (opts.child) { el.remove(); openMenu.splice(openMenu.indexOf(el), 1); if (opts.parentButton) opts.parentButton.focus(); } else closeMenus();
     }
@@ -416,7 +406,6 @@ export function menu(items, x, y, opts = {}) {
   return el;
 }
 
-// ------------------------------------------------------------------ modals
 export function modal({ title, icon: ico, body, buttons = [], wide, xwide, danger, onClose, left, keys }) {
   const back = h("div", { class: "modal-back" });
   const box = h("div", { class: "modal" + (wide ? " wide" : "") + (xwide ? " xwide" : ""), role: "dialog", "aria-modal": "true" });
@@ -428,7 +417,7 @@ export function modal({ title, icon: ico, body, buttons = [], wide, xwide, dange
   if (body instanceof Node) bodyEl.append(body); else bodyEl.innerHTML = body || "";
   const foot = h("div", { class: "modal-foot" });
   if (left) foot.append(h("div", { class: "left" }, left));
-  const opener = document.activeElement;      // r40-files-2: focus goes back where it was (Esc → the list keeps the keyboard)
+  const opener = document.activeElement;
   const close = (value) => {
     back.remove();
     document.removeEventListener("keydown", onKey, true);
@@ -459,7 +448,7 @@ export function modal({ title, icon: ico, body, buttons = [], wide, xwide, dange
     if (!document.body.contains(back)) return;
     const modals = $$(".modal-back");
     if (modals[modals.length - 1] !== back) return;
-    if (keys && keys(e)) { e.preventDefault(); e.stopPropagation(); return; }   // r40-files-2: dialog hotkeys (this capture listener swallowed them)
+    if (keys && keys(e)) { e.preventDefault(); e.stopPropagation(); return; }
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); close(null); }
     else if (e.key === "Enter" && primary && !(e.target instanceof HTMLTextAreaElement) && !e.target.closest(".no-enter")) { e.preventDefault(); e.stopPropagation(); primary.click(); }
     e.stopPropagation();

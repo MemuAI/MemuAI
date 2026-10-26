@@ -21,10 +21,8 @@ from app import assistant_r24 as r24
 ROOT = Path(__file__).resolve().parents[1]
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 
-
 def read(path: Path) -> str:
     return path.read_text(encoding="utf-8")
-
 
 class PageFixes(unittest.TestCase):
     def setUp(self) -> None:
@@ -37,7 +35,7 @@ class PageFixes(unittest.TestCase):
 
     def test_retry_while_busy_keeps_the_turn(self) -> None:
         block = self.js[self.js.index("function retry("):self.js.index("function askAdvanced(")]
-        self.assertLess(block.index("if (S.busy) return;"), block.index("S.turns.splice("))  # Round 26: shownTurns()
+        self.assertLess(block.index("if (S.busy) return;"), block.index("S.turns.splice("))
 
     def test_screen_idea_needs_the_screenshot(self) -> None:
         self.assertIn("takeScreenshot(false).then((ok) => { if (ok) {", self.js)
@@ -46,7 +44,7 @@ class PageFixes(unittest.TestCase):
         self.assertIn("return false;", block)
 
     def test_unreadable_image_is_reported(self) -> None:
-        # Round 34: big pictures are scaled down now; only an undecodable one over 10 MB is refused (with this toast)
+
         self.assertIn("Картинка слишком большая (больше 10 МБ)", self.js)
         self.assertIn("The image is too large (over 10 MB)", self.js)
 
@@ -71,7 +69,6 @@ class PageFixes(unittest.TestCase):
             self.skipTest("node missing")
         result = subprocess.run([node, "--check", str(QUICK / "quick.js")], capture_output=True, text=True, timeout=30)
         self.assertEqual(result.returncode, 0, result.stderr)
-
 
 class VoiceAlignment(unittest.TestCase):
     """a7-tts: the voice status names the cloud service and needs its key; the voice override of Quick Access
@@ -104,7 +101,6 @@ class VoiceAlignment(unittest.TestCase):
         out = assistant_commands.voice_prefs(base, {"quick": True}, Store({"tts_provider": "api", "tts_api_voice": "nova"}))
         self.assertEqual((out["voice_tts_api_voice"], out["voice_tts_local_voice"]), ("nova", "af_bella"))
 
-
 class Contracts(unittest.TestCase):
     def test_assistant_tests_leave_no_global_tool(self) -> None:
         src = read(ROOT / "tests" / "assistant_commands_test.py")
@@ -114,7 +110,6 @@ class Contracts(unittest.TestCase):
     def test_r24_window_checks_use_the_secret_contract(self) -> None:
         src = read(ROOT / "tests" / "round24_quick_window_shots.py")
         self.assertIn('.get("secret") or {}).get("fields", {}).get("password") == "hunter2"', src)
-
 
 class Headless(unittest.TestCase):
     def test_flow(self) -> None:
@@ -132,7 +127,6 @@ class Headless(unittest.TestCase):
         result = subprocess.run([sys.executable, str(ROOT / "tests" / "round25_quick_fixes_shots.py"), out],
                                 capture_output=True, text=True, timeout=110, env=env, cwd=str(ROOT))
         self.assertEqual(result.returncode, 0, result.stdout[-2000:] + result.stderr[-2000:])
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,9 +1,5 @@
-/* Round 29 — «Добавить с Google Диска» / «Add from Google Drive» (window.MemuDrivePick).
- * Opened from the composer «+» menu (tools.js). Browses Google Drive through
- * /api/pg/gdrive/* (app/gdrive_picker.py), downloads the chosen files (Google
- * Docs/Sheets/Slides are exported) and hands them to addAttachmentFiles() —
- * exactly like files picked on the disk.
- */
+
+
 "use strict";
 window.MemuDrivePick = (() => {
   const FORMAT_KEY = "memu_gdrive_formats";
@@ -12,9 +8,9 @@ window.MemuDrivePick = (() => {
     "application/vnd.google-apps.document": "doc", "application/vnd.google-apps.spreadsheet": "sheet",
     "application/vnd.google-apps.presentation": "slides", "application/vnd.google-apps.drawing": "drawing",
   };
-  let status = null;          // last /status
+  let status = null;
   let statusAt = 0;
-  let state = null;           // dialog state while open
+  let state = null;
   let pollTimer = 0;
 
   const en = () => (typeof PG_LANG !== "undefined" && PG_LANG === "en");
@@ -25,7 +21,6 @@ window.MemuDrivePick = (() => {
   const note = (text, type = "ok", ms) => { try { toast(text, type, ms); } catch (_) {} };
   const $d = (selector) => document.querySelector("#panel " + selector);
 
-  /* ---------------------------------- icons --------------------------------- */
   const DRIVE = `<svg viewBox="0 0 87.3 78" aria-hidden="true"><path d="m6.6 66.85 3.85 6.65c.8 1.4 1.95 2.5 3.3 3.3l13.75-23.8h-27.5c0 1.55.4 3.1 1.2 4.5z" fill="#0066da"/><path d="m43.65 25-13.75-23.8c-1.35.8-2.5 1.9-3.3 3.3l-25.4 44a9.06 9.06 0 0 0 -1.2 4.5h27.5z" fill="#00ac47"/><path d="m73.55 76.8c1.35-.8 2.5-1.9 3.3-3.3l1.6-2.75 7.65-13.25c.8-1.4 1.2-2.95 1.2-4.5h-27.502l5.852 11.5z" fill="#ea4335"/><path d="m43.65 25 13.75-23.8c-1.35-.8-2.9-1.2-4.5-1.2h-18.5c-1.6 0-3.15.45-4.5 1.2z" fill="#00832d"/><path d="m59.8 53h-32.3l-13.75 23.8c1.35.8 2.9 1.2 4.5 1.2h50.8c1.6 0 3.15-.45 4.5-1.2z" fill="#2684fc"/><path d="m73.4 26.5-12.7-22c-.8-1.4-1.95-2.5-3.3-3.3l-13.75 23.8 16.15 28h27.45c0-1.55-.4-3.1-1.2-4.5z" fill="#ffba00"/></svg>`;
   const PATHS = {
     folder: `<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h3.6l2 2.2h7.4A2.5 2.5 0 0 1 21 9.7v7.8a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z"/>`,
@@ -52,7 +47,6 @@ window.MemuDrivePick = (() => {
   const fileIcon = (kind) => `<svg class="gd-ficon gd-k-${esc(kind)}" viewBox="0 0 24 24" aria-hidden="true">${PATHS[kind] || PATHS.file}</svg>`;
   const navIcon = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${NAV[name]}</svg>`;
 
-  /* --------------------------------- helpers -------------------------------- */
   async function api(path, options = {}) {
     const response = await fetch(path, options);
     if (options.raw) return response;
@@ -94,7 +88,6 @@ window.MemuDrivePick = (() => {
   const KIND_LABEL = () => ({ doc: L("Документы", "Docs"), sheet: L("Таблицы", "Sheets"), slides: L("Презентации", "Slides"), drawing: L("Рисунки", "Drawings") });
   const formatFor = (file) => { const kind = GOOGLE_KIND[file.mime]; return kind ? formats()[kind] : ""; };
 
-  /** Status for the «+» menu (sync, cached; refreshed in the background). */
   function menuHint() {
     if (Date.now() - statusAt > 20000) refreshStatus();
     if (!status) return L("Документы, таблицы, PDF и картинки с вашего Диска", "Docs, sheets, PDFs and images from your Drive");
@@ -104,11 +97,10 @@ window.MemuDrivePick = (() => {
   }
   async function refreshStatus() {
     statusAt = Date.now();
-    try { status = await api("/api/pg/gdrive/status"); } catch (_) { /* the menu keeps the generic hint */ }
+    try { status = await api("/api/pg/gdrive/status"); } catch (_) {  }
     return status;
   }
 
-  /* ---------------------------------- dialog -------------------------------- */
   function shell() {
     return `<div class="gd" data-gd>
       <header class="gd-head">
@@ -184,7 +176,7 @@ window.MemuDrivePick = (() => {
   async function act(action, button) {
     if (action === "retry") { await refreshStatus(); render(); }
     else if (action === "sync") {
-      // Round 30: one Google account — its page is Settings → Integrations → Google.
+
       if (window.MemuIntegrations) MemuIntegrations.open("int-google");
       else if (typeof showSettings === "function") showSettings(true);
     } else if (action === "docs") {
@@ -192,7 +184,7 @@ window.MemuDrivePick = (() => {
     } else if (action === "authorize") {
       if (button) button.disabled = true;
       try {
-        await api("/api/pg/gdrive/authorize", { method: "POST" });   // MemuAI opens Google's page in the default browser
+        await api("/api/pg/gdrive/authorize", { method: "POST" });
       } catch (error) { note(error.message, "err", 6000); }
       await refreshStatus();
       render();
@@ -221,7 +213,6 @@ window.MemuDrivePick = (() => {
     }, 1500);
   }
 
-  /* --------------------------------- browser -------------------------------- */
   function renderBrowser() {
     const body = $d("[data-gd-body]");
     const views = [["folder", "mine", L("Мой диск", "My Drive")], ["recent", "recent", L("Недавние", "Recent")],
@@ -278,7 +269,7 @@ window.MemuDrivePick = (() => {
         load();
       }, 280);
     };
-    // Own Enter/Esc: panel() would press «Attach» on Enter in a single text field.
+
     input.onkeydown = (event) => {
       if (event.key === "Enter") { event.preventDefault(); clearTimeout(timer); input.oninput(); }
       else if (event.key === "Escape" && input.value) { event.preventDefault(); event.stopPropagation(); input.value = ""; input.oninput(); }
@@ -352,7 +343,7 @@ window.MemuDrivePick = (() => {
     const before = state.cursor;
     state.cursor = Math.max(0, Math.min(state.files.length - 1, (state.cursor < 0 ? -1 : state.cursor) + step));
     if (event && event.shiftKey) {
-      // Shift+arrows extend the selection from the anchor (or the row we started on) like a file manager.
+
       if (state.anchor < 0) state.anchor = before >= 0 ? before : state.cursor;
       selectRange(state.anchor, state.cursor);
     } else {
@@ -546,7 +537,6 @@ window.MemuDrivePick = (() => {
     if (typeof enhanceSelects === "function") try { enhanceSelects(box); } catch (_) {}
   }
 
-  /* --------------------------------- attaching ------------------------------- */
   async function attach() {
     if (!state || state.busy || !state.selected.size) return;
     const picked = [...state.selected.values()];
@@ -597,7 +587,6 @@ window.MemuDrivePick = (() => {
     }
   }
 
-  // Warm the status so the «+» menu shows the right hint on first open.
   setTimeout(() => { refreshStatus(); }, 4000);
 
   return Object.freeze({ open, menuHint, refreshStatus, icon: DRIVE });

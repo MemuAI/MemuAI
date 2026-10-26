@@ -1,6 +1,3 @@
-/* MemuAI — мини-плеер MemuMusic в боковой панели (Round 37, r37-music-ui-2; грузится лениво из music-dock.js).
-   Без backdrop-filter и без анимаций на прокручиваемых элементах; движение — только у полосы прогресса (transform)
-   и у трёх столбиков «играет» (стоят на паузе, когда музыка не идёт). */
 .mmd {
   --mmd-a: #a78bfa; --mmd-b: #f472b6;
   position: relative; isolation: isolate; overflow: hidden;
@@ -66,14 +63,10 @@
 .mmd-play svg, .mmd-big svg { width: 16px; height: 16px; }
 .mmd.is-wait .mmd-play { animation: mmd-pulse 1s ease-in-out infinite; }
 @keyframes mmd-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--mmd-a) 25%, transparent); } }
-
-/* тонкая полоса прогресса внизу карточки: доля в --k, бег — CSS-анимация до конца трека */
 .mmd-bar { position: absolute; left: 12px; right: 12px; bottom: 4px; height: 2px; border-radius: 2px; background: color-mix(in srgb, var(--text, #fff) 10%, transparent); overflow: hidden; }
 .mmd-prog, .mmd-fill { position: absolute; inset: 0; transform-origin: left; transform: scaleX(var(--k, 0)); background: linear-gradient(90deg, var(--mmd-a), var(--mmd-b)); border-radius: inherit; }
 @keyframes mmd-progress { from { transform: scaleX(var(--k, 0)); } to { transform: scaleX(1); } }
 .mmd.open .mmd-bar { opacity: 0; }
-
-/* развёрнутый вид */
 .mmd-more { display: none; }
 .mmd.open .mmd-more { display: block; animation: mmd-more .26s cubic-bezier(.2,.8,.2,1) both; }
 @keyframes mmd-more { from { opacity: 0; transform: translateY(-4px); } }
@@ -97,8 +90,6 @@
 
 [data-theme="light"] .mmd { box-shadow: 0 10px 24px -18px color-mix(in srgb, var(--mmd-a) 80%, transparent); }
 [data-theme="light"] .mmd .mmd-play, [data-theme="light"] .mmd .mmd-big { background: #17161c; color: #fff; }
-
-/* узкое окно: боковая панель уезжает — мини-плеер плавает в углу */
 @media (max-width: 800px) {
   body > .mmd { position: fixed; left: 12px; bottom: 12px; z-index: 80; width: min(300px, calc(100vw - 24px)); margin: 0;
     box-shadow: 0 18px 40px -16px rgba(0,0,0,.55), 0 1px 0 rgba(255,255,255,.05) inset; }

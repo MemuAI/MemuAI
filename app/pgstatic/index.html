@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MemuAI</title>
-<!-- Round 33: shortcuts in any keyboard layout (event.code fallback) -->
+
 <script src="/memu-keys.js?v=3.5-r33"></script>
-<!-- Round 29: window.MEMU_SAFE_MODE before the first paint (app/safe_mode.py). -->
+
 <script src="/api/pg/safe-mode/boot.js"></script>
-<!-- Round 33: ?module_app=<id> = a module's own window (flag set before the first paint) -->
+
 <script src="/module-apps.js?v=3.6-r40"></script>
 <script>
 // First-paint cache only: preferences.json stays authoritative and app.js
@@ -34,33 +34,27 @@ try {
   #startup-cover{position:fixed;inset:0;z-index:1000000}
   body.booting>#app{visibility:hidden;opacity:0}
 </style>
-<link rel="stylesheet" href="/style.css?v=1.9-r41">
+<link rel="stylesheet" href="/style.css?v=4.0-dev">
 <link rel="stylesheet" href="/themes.css">
 <link rel="stylesheet" href="/appearance.css?v=1.8-r36">
 <link rel="stylesheet" href="/memucode.css?v=2.4-r36">
-<link rel="stylesheet" href="/modules.css?v=3.4-r33">
+<link rel="stylesheet" href="/modules.css?v=4.0-dev">
 <link rel="stylesheet" href="/module-icons.css?v=3.6-r39">
 <link rel="stylesheet" href="/module-focus.css?v=3.6-r38">
 <link rel="stylesheet" href="/module-apps.css?v=3.8-r47">
 <link rel="stylesheet" href="/module-appbar.css?v=3.6-r38">
 <link rel="stylesheet" href="/docs.css?v=1.1-r29">
 <link rel="stylesheet" href="/docs-ai.css?v=1.0-r29">
-<!-- Design 3 ("Canvas"): the final visual layer of MemuAI. Colours still come
-     from /themes.css; this file owns layout, depth, typography and motion. -->
-<link rel="stylesheet" href="/design.css?v=3.4-r36">
-<!-- Alternative whole-interface designs, each scoped to :root[data-design="…"].
-     "classic" is design.css itself. Round 36: all seven stay in the cascade
-     order below (downloaded once, cached), but only the active one matches —
-     the others carry media="not all", so ~4 000 rules no longer take part in
-     every style recalc. The script right after them follows data-design
-     (settings, theme editor preview, safe mode) synchronously, before paint. -->
-<link rel="stylesheet" href="/designs/aurora.css?v=1.1-r36" data-design-css="aurora" media="not all">
+
+<link rel="stylesheet" href="/design.css?v=4.0-r59">
+
+<link rel="stylesheet" href="/designs/aurora.css?v=4.0-r59" data-design-css="aurora" media="not all">
 <link rel="stylesheet" href="/designs/focus.css?v=1.0" data-design-css="focus" media="not all">
 <link rel="stylesheet" href="/designs/grid.css?v=1.2-r36" data-design-css="grid" media="not all">
-<link rel="stylesheet" href="/designs/glass.css?v=3.8-r47" data-design-css="glass" media="not all">
-<link rel="stylesheet" href="/designs/soft.css?v=1.0-r24" data-design-css="soft" media="not all">
-<link rel="stylesheet" href="/designs/terminal.css?v=1.0-r24" data-design-css="terminal" media="not all">
-<link rel="stylesheet" href="/designs/brutal.css?v=1.0-r24" data-design-css="brutal" media="not all">
+<link rel="stylesheet" href="/designs/glass.css?v=4.0-r59" data-design-css="glass" media="not all">
+<link rel="stylesheet" href="/designs/soft.css?v=4.0-r59" data-design-css="soft" media="not all">
+<link rel="stylesheet" href="/designs/terminal.css?v=4.0-r59" data-design-css="terminal" media="not all">
+<link rel="stylesheet" href="/designs/brutal.css?v=4.0-r59" data-design-css="brutal" media="not all">
 <script>
 (function () {
   const root = document.documentElement, links = document.querySelectorAll("link[data-design-css]");
@@ -83,7 +77,7 @@ try {
   new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["data-design"] });
 })();
 </script>
-<!-- Round20 motion layer: design-independent animations (after the designs). -->
+
 <link rel="stylesheet" href="/motion.css?v=1.0">
 <link rel="stylesheet" href="/appearance-plus.css?v=1.1-r30">
 <link rel="stylesheet" href="/voice-player.css?v=3.8-r46">
@@ -92,44 +86,44 @@ try {
 <link rel="stylesheet" href="/diagrams.css?v=1.1-r30">
 <link rel="stylesheet" href="/cmd-highlight.css?v=1.0-r30">
 <link rel="stylesheet" href="/media-routing.css?v=1.0-r29">
-<link rel="stylesheet" href="/media-cache.css?v=1.0-r33"><!-- Round 33 (r33d-media): expired picture card -->
-<link rel="stylesheet" href="/model-picker.css?v=3.5-r33"><!-- Round 33 (r33-models): the unified model picker -->
+<link rel="stylesheet" href="/media-cache.css?v=1.0-r33">
+<link rel="stylesheet" href="/model-picker.css?v=3.5-r33">
 <link rel="stylesheet" href="/telegram-settings.css?v=1.0">
-<!-- Round 21: Settings → Quick Ask (the popup itself is /quick/). -->
+
 <link rel="stylesheet" href="/quick-settings.css?v=1.1-r23">
 <link rel="stylesheet" href="/quick-selection-settings.css?v=1.0-r27">
-<!-- Round20 custom title bar: window buttons, active only with html[data-titlebar="custom"]. -->
+
 <link rel="stylesheet" href="/titlebar.css?v=1.0">
-<!-- Round21 panels: home grid, sidebar stack, top-bar minis (panels.js). -->
+
 <link rel="stylesheet" href="/panels.css?v=3.8-r46">
 <link rel="stylesheet" href="/panels-layout.css?v=3.6-r36">
 <link rel="stylesheet" href="/hotkeys.css?v=1.1-r30">
 <link rel="stylesheet" href="/modules-aipack.css?v=1.1-r30">
 <link rel="stylesheet" href="/companion/companion.css?v=1.3-r34">
-<!-- Round 23: settings shell + component kit (settings-kit.js); after every design and section stylesheet. -->
-<link rel="stylesheet" href="/settings.css?v=1.4-r36">
+
+<link rel="stylesheet" href="/settings.css?v=4.0-r59">
 <link rel="stylesheet" href="/reflect.css?v=1.0-r27">
 <link rel="stylesheet" href="/memory.css?v=1.2-r40">
-<!-- Round 29: scheduled messages (schedsend.js) and the chat export dialog (export.js). -->
+
 <link rel="stylesheet" href="/schedsend.css?v=1.0-r29">
-<!-- Round 29: «Планирование» 2.0 — rule builder (plan.js). -->
+
 <link rel="stylesheet" href="/plan.css?v=1.4-r30">
-<link rel="stylesheet" href="/flows.css?v=3.5-r35"><!-- Round 35: step constructor (flows.js) -->
+<link rel="stylesheet" href="/flows.css?v=3.5-r35">
 <link rel="stylesheet" href="/plan-triggers.css?v=2-r35">
-<link rel="stylesheet" href="/plan-conds.css?v=2-r37"><!-- Round 37: more conditions (plan-conds.js) -->
-<link rel="stylesheet" href="/plan-templates.css?v=1-r37"><!-- Round 37 (plan-2): the scenario gallery -->
-<link rel="stylesheet" href="/inbox.css?v=3.5-r36"><!-- Round 35: «Входящие» (inbox.js) -->
-<link rel="stylesheet" href="/deeplinks.css?v=3.5-r35"><!-- Round 35: memuai:// links (deeplinks.js) -->
+<link rel="stylesheet" href="/plan-conds.css?v=2-r37">
+<link rel="stylesheet" href="/plan-templates.css?v=1-r37">
+<link rel="stylesheet" href="/inbox.css?v=3.5-r36">
+<link rel="stylesheet" href="/deeplinks.css?v=3.5-r35">
 <link rel="stylesheet" href="/export.css?v=1.0-r29">
-<!-- Round 29: global search palette (search.js); after the designs, re-tunes itself per design. -->
+
 <link rel="stylesheet" href="/search.css?v=1.2-r30">
 <link rel="stylesheet" href="/sync-settings.css?v=1.0-r29">
 <link rel="stylesheet" href="/gdrive-picker.css?v=1.1-r29">
-<!-- Round 30: Settings → Integrations → Google / Notion (integrations-ui.js) -->
+
 <link rel="stylesheet" href="/integrations-ui.css?v=3.8-r46">
 <link rel="stylesheet" href="/telegram-use.css?v=3.8-r46">
 <link rel="stylesheet" href="/browser-extension-settings.css?v=3.8-r45">
-<!-- Round 33: «Видео-инструкция» player (guide-video.js, clips in /guides/) -->
+
 <link rel="stylesheet" href="/guide-video.css?v=3.5-r33">
 <link rel="stylesheet" href="/app-settings-form.css?v=1.0-r38">
 <link rel="stylesheet" href="/memunote-settings.css?v=1.0-r29">
@@ -138,27 +132,27 @@ try {
 <link rel="stylesheet" href="/stuck.css?v=1.1-r34">
 <link rel="stylesheet" href="/dfy-remote.css?v=1.0-r30">
 <link rel="stylesheet" href="/vendor/katex/katex.min.css?v=1.0-final">
-<!-- Round 31 (design-main): audit fixes + tour / tips / «?» help (tour.js). -->
+
 <link rel="stylesheet" href="/polish-r31.css?v=1.1-r31">
 <link rel="stylesheet" href="/tour.css?v=1.0-r31">
-<!-- Round 32: the skill library window (skills-ui.js) -->
+
 <link rel="stylesheet" href="/skills-ui.css?v=1.0-r36">
-<!-- Round 33: layout options of the theme editor (sidebar side, composer, bubbles…) and the editor UI itself. -->
+
 <link rel="stylesheet" href="/appearance-layout.css?v=3.5-r33">
 <link rel="stylesheet" href="/theme-editor.css?v=3.5-r33">
 <link rel="stylesheet" href="/tool-details.css?v=3.5-r33">
 <link rel="stylesheet" href="/askuser.css?v=3.5-r35">
 <link rel="stylesheet" href="/bigdocs.css?v=3.5-r35">
 <link rel="stylesheet" href="/memu-dragsort.css?v=3.5-r33">
-<!-- Round 33 (r33-thinking): per-model reasoning levels -->
+
 <link rel="stylesheet" href="/reasoning.css?v=3.5-r33">
 <link rel="stylesheet" href="/branches.css?v=3.5-r36">
 <link rel="stylesheet" href="/canvas.css?v=3.6-r40">
-<link rel="stylesheet" href="/mcp-hub.css?v=3.6-r40"><!-- r40-mcp -->
-<link rel="stylesheet" href="/mentions.css?v=3.5-r35"><!-- Round 35: @-mentions -->
-<link rel="stylesheet" href="/chat-find.css?v=3.5-r37"><!-- Round 37: Ctrl+F in the chat, bookmarks (chat-find.js) -->
-<link rel="stylesheet" href="/compare.css?v=3.5-r37"><!-- Round 37: compare answer versions side by side (compare.js) -->
-<link rel="stylesheet" href="/composer-snippets.css?v=3.5-r37"><!-- Round 37: ;snippets and {?field} templates in the composer -->
+<link rel="stylesheet" href="/mcp-hub.css?v=3.6-r40">
+<link rel="stylesheet" href="/mentions.css?v=3.5-r35">
+<link rel="stylesheet" href="/chat-find.css?v=3.5-r37">
+<link rel="stylesheet" href="/compare.css?v=3.5-r37">
+<link rel="stylesheet" href="/composer-snippets.css?v=3.5-r37">
 <link rel="stylesheet" href="/settings-transfer.css?v=3.5-r37">
 <!-- A user theme is injected last so it can override any rule above. -->
 <style id="memu-user-theme"></style>
@@ -220,14 +214,14 @@ try {
         <button class="btn-launch-proxy" id="btn-launch-proxy" style="display:none" title="Запустить MemuAI Proxy">Запустить</button>
         <button class="btn-update-apply" id="btn-update-apply" hidden title="Установить обновление">↓</button>
       </div>
-      <div class="profile-card" id="profile-card" title="Профиль и настройки">
-        <div class="profile-avatar" id="side-avatar">M</div>
-        <div class="profile-info">
+      <button type="button" class="profile-card" id="profile-card" data-no-press title="Профиль и настройки" aria-haspopup="menu">
+        <span class="profile-avatar" id="side-avatar">M</span>
+        <span class="profile-info">
           <span class="profile-name" id="side-profile-name">Профиль</span>
           <span class="profile-sub" id="side-profile-sub">Настройки и профиль</span>
-        </div>
+        </span>
         <span class="profile-dots">⋯</span>
-      </div>
+      </button>
       
     </div>
   </aside>
@@ -423,7 +417,7 @@ try {
   </main>
 </div>
 
-<!-- ===== панели-оверлеи ===== -->
+
 <div class="panel-back" id="panel-back" aria-hidden="true"><div class="panel" id="panel" role="dialog" aria-modal="true" tabindex="-1"></div></div>
 <div class="pin-lock-back" id="pin-lock-back" aria-hidden="true" style="display:none">
   <div class="pin-lock-box" id="pin-lock-box" role="dialog" aria-modal="true" aria-labelledby="pin-profile-name" tabindex="-1">
@@ -523,34 +517,39 @@ try {
 <script src="/vendor/katex/katex.min.js?v=1.0-final"></script>
 <script src="/appearance.js?v=2.6-r33"></script>
 <script src="/appearance-plus.js?v=3.8-r46"></script>
-<!-- Round 33: theme & appearance editor + the layout/look layer it saves (window.MemuLook, window.MemuThemeEditor). -->
+
 <script src="/theme-editor.js?v=3.5-r33"></script>
-<!-- Round 23: settings kit (window.MemuSettingsKit) — before every script that renders a settings section. -->
+
 <script src="/memu-layers.js?v=1.1-r41"></script>
-<script src="/settings-kit.js?v=1.2-r34"></script>
+<script src="/settings-kit.js?v=4.0-dev"></script>
 <script src="/titlebar.js?v=1.0"></script>
 <script src="/motion.js?v=1.0"></script>
 <script src="/tooltip.js?v=1.2-r36"></script>
 <script src="/syntax.js?v=1.0-syntax"></script>
 <script src="/skills.js?v=1.2-r32"></script>
 <script src="/modules-toolbar.js?v=1.0-r30"></script>
-<script src="/module-icons.js?v=3.6-r40"></script>
-<script src="/modules.js?v=3.7-r41"></script>
+<script src="/module-icons.js?v=4.0-r59"></script>
+<script src="/modules.js?v=4.0-r59"></script>
 <script src="/module-focus.js?v=3.6-r38"></script>
 <script src="/module-appbar.js?v=3.8-r47"></script>
-<script src="/visuals.js?v=1.2"></script>
-<!-- Round 29: rich tables and diagrams (charts + mermaid schemes, loaded lazily) — before app.js -->
+<link rel="stylesheet" href="/rich-visuals.css?v=4.0-r59">
+<link rel="stylesheet" href="/module-catalog.css?v=4.0-r59">
+<link rel="stylesheet" href="/modules-settings.css?v=4.0-r59">
+<script src="/module-catalog.js?v=4.0-r59"></script>
+<script src="/rich-visuals.js?v=4.0"></script>
+<script src="/visuals.js?v=4.0"></script>
+
 <script src="/tables.js?v=1.0-r29"></script>
 <script src="/diagram-zoom.js?v=1.1-r36"></script>
 <script src="/diagrams.js?v=1.2-r36"></script>
-<!-- Round 30: /image and /video in the message box — chip, argument hint (cmd-highlight.js). -->
+
 <script src="/cmd-highlight.js?v=1.0-r30"></script>
-<!-- Round 29: text / image / video routing in the chat (Decisions model, /image, /video, autoprompt) -->
-<script src="/memu-model-names.js?v=3.5-r33"></script><!-- Round 33 (r33-models): model names + the one picker -->
+
+<script src="/memu-model-names.js?v=3.5-r33"></script>
 <script src="/model-picker.js?v=3.5-r33"></script>
-<script src="/vision-gate.js?v=1.0-r33"></script><!-- Round 33 (r33c-models-vision): pictures + a model without vision -->
+<script src="/vision-gate.js?v=1.0-r33"></script>
 <script src="/media-routing.js?v=1.2-r34"></script>
-<script src="/media-cache.js?v=1.0-r33"></script><!-- Round 33 (r33d-media): generated pictures kept as files -->
+<script src="/media-cache.js?v=1.0-r33"></script>
 <script src="/products.js?v=1.0-r26"></script>
 <script src="/tokens.js?v=1.0-r30"></script>
 <script src="/context.js?v=1.2-r30"></script>
@@ -562,14 +561,14 @@ try {
 <script src="/quick-settings.js?v=1.2-r34"></script>
 <script src="/dfy-client.js?v=3.8-r46"></script>
 <script src="/askuser.js?v=3.5-r36"></script>
-<script src="/bigdocs.js?v=3.5-r36"></script><!-- Round 35: documents of any size -->
+<script src="/bigdocs.js?v=3.5-r36"></script>
 <script src="/canvas.js?v=3.6-r40"></script>
-<!-- Round 30: DFY on machines — target picker, command output, Settings → Remote machines. -->
+
 <script src="/dfy-remote.js?v=1.1-r30"></script>
 <script src="/stuck.js?v=1.0-r29"></script>
 <script src="/dfy-settings.js?v=3.8-r46"></script>
 <script src="/tgapp-settings.js?v=1.0-r27"></script>
-<!-- Round21 panels: before app.js so its built-in skill is in the catalogue app.js reads. -->
+
 <script src="/memu-ctxmenu.js?v=1.1-r34"></script>
 <script src="/panels.js?v=3.8-r46"></script>
 <script src="/panels-layout.js?v=3.6-r36"></script>
@@ -580,7 +579,7 @@ try {
 <script src="/integrations-ui.js?v=3.8-r46"></script>
 <script src="/telegram-use.js?v=3.8-r46"></script>
 <script src="/browser-extension-settings.js?v=3.8-r45"></script>
-<script src="/mcp-hub.js?v=3.6-r40"></script><!-- Round 40 (r40-mcp): Settings → Integrations → MCP, chat MCP scope -->
+<script src="/mcp-hub.js?v=3.6-r40"></script>
 <script src="/guide-video.js?v=3.5-r33"></script>
 <script src="/app-settings-form.js?v=1.0-r38"></script>
 <script src="/memunote-settings.js?v=1.0-r38"></script>
@@ -588,15 +587,18 @@ try {
 <script src="/memufiles-default.js?v=1.0-r38"></script>
 <script src="/safe-mode.js?v=1.1-r29"></script>
 <script src="/hotkeys.js?v=1.3-r31"></script>
-<!-- Round 33 (r33-thinking): per-model reasoning levels for every picker — before app.js -->
+
 <script src="/reasoning.js?v=3.5-r33"></script>
-<!-- Round 33 (r33-chat): answers never show tool-call markup / template tokens — before app.js -->
+
 <script src="/answer-guard.js?v=3.5-r33"></script>
 <script src="/branches.js?v=3.5-r37"></script>
 <script src="/tool-details.js?v=3.5-r33"></script>
-<script src="/memu-live.js?v=1.0-r40"></script><!-- Round 40 (r40-lag): streams / long-polls over a WebSocket (off the 6-connection pool) -->
-<script src="/app.js?v=3.8-r46"></script>
-<script src="/mentions.js?v=3.5-r36"></script><!-- Round 35: @-mentions (chips, providers) -->
+<script src="/memu-live.js?v=1.0-r40"></script>
+<link rel="stylesheet" href="/teams.css?v=4.0-r59">
+<script src="/app.js?v=4.0-r59"></script>
+<link rel="stylesheet" href="/sidebar-settings.css?v=4.0-r59">
+<script src="/sidebar-settings.js?v=4.0-r59"></script>
+<script src="/mentions.js?v=3.5-r36"></script>
 <script src="/suggestions.js?v=1.0"></script>
 <script src="/memory.js?v=1.1-r40"></script>
 <script src="/schedsend.js?v=1.0-r29"></script>
@@ -605,9 +607,10 @@ try {
 <script src="/plan-conds.js?v=2-r37"></script>
 <script src="/plan-templates.js?v=1-r37"></script>
 <script src="/plan.js?v=3.8-r46"></script>
-<script src="/flows.js?v=3.8-r46"></script><!-- Round 35: steps inside a task (Планирование по-новому) -->
-<script src="/inbox.js?v=3.5-r36"></script><!-- Round 35: «Входящие» hub, sidebar button after «Планирование» -->
-<script src="/deeplinks.js?v=3.5-r36"></script><!-- Round 35: memuai:// links — confirmation dialog, Settings → «Ссылки и командная строка» -->
+<script src="/flows.js?v=3.8-r46"></script>
+<script src="/inbox.js?v=3.5-r36"></script>
+<script src="/teams.js?v=4.0-r59"></script>
+<script src="/deeplinks.js?v=3.5-r36"></script>
 <script src="/export.js?v=1.0-r29"></script>
 <script src="/video.js?v=1.1-r26"></script>
 <script src="/code-stats.js?v=1.1-cost"></script>
@@ -627,16 +630,16 @@ try {
 <script src="/modules-aipack.js?v=1.1-r30"></script>
 <script src="/code-editor.js?v=1.1"></script>
 <script src="/memucode.js?v=2.6-r36"></script>
-<script src="/search.js?v=1.3-r30"></script>
-<script src="/chat-find.js?v=3.5-r37"></script><!-- Round 37: Ctrl+F in the chat, message bookmarks -->
-<script src="/chat-drafts.js?v=3.5-r37"></script><!-- Round 37: per-chat composer drafts, ↑ — last message -->
-<script src="/compare.js?v=3.5-r37"></script><!-- Round 37: compare answer versions, answer with another model -->
-<script src="/composer-snippets.js?v=3.5-r37"></script><!-- Round 37: ;snippets and {?field} templates in the composer -->
-<script src="/settings-transfer.js?v=3.5-r37"></script><!-- Round 37: Settings → Data → export / import settings -->
-<script src="/music-dock.js?v=1.3-r40" defer></script><!-- Round 37: MemuMusic host player (mini-player, media keys) -->
-<script src="/module-integration.js?v=1.2-r39" defer></script><!-- Round 38: module panels, commands, widgets -->
-<script src="/tour.js?v=1.0-r31"></script>
-<!-- Round 32: skill library window + catalog; after app.js (takes over showSkillsModal). -->
+<script src="/search.js?v=4.0-r59"></script>
+<script src="/chat-find.js?v=3.5-r37"></script>
+<script src="/chat-drafts.js?v=3.5-r37"></script>
+<script src="/compare.js?v=4.0-r59"></script>
+<script src="/composer-snippets.js?v=3.5-r37"></script>
+<script src="/settings-transfer.js?v=3.5-r37"></script>
+<script src="/music-dock.js?v=1.3-r40" defer></script>
+<script src="/module-integration.js?v=1.2-r39" defer></script>
+<script src="/tour.js?v=4.0-dev"></script>
+
 <script src="/skills-ui.js?v=1.0-r36"></script>
 <div id="code-palette" class="code-palette" hidden>
   <div class="code-palette-card" role="dialog" aria-modal="true" aria-label="Палитра MemuCode" data-en-label="MemuCode palette">

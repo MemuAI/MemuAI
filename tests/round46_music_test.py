@@ -1,7 +1,6 @@
 """Round46 real Music document: artwork drag, reorder, imports and native theme metadata."""
 from tests.round44_music_test import music_browser, module_page
 
-
 def test_cover_cannot_start_native_uri_drag_or_show_link_import(module_page):
     page,frame=module_page
     assert frame.locator("#drop").is_hidden()
@@ -18,7 +17,6 @@ def test_cover_cannot_start_native_uri_drag_or_show_link_import(module_page):
     page.mouse.down();page.mouse.move(box["x"]+box["width"]*.5+70,box["y"]+box["height"]*.5+50,steps=8);page.mouse.up()
     assert frame.locator("#drop").is_hidden()
     assert frame.evaluate("MemuMusic.S.view")!="download"
-
 
 def test_queue_reorder_from_artwork_stays_enabled_and_never_becomes_external_import(module_page):
     page,frame=module_page
@@ -42,7 +40,6 @@ def test_queue_reorder_from_artwork_stays_enabled_and_never_becomes_external_imp
     assert result["hidden"]
     assert result["after"]==[result["original"][0],result["original"][2],result["original"][1]]
 
-
 def test_external_music_link_still_opens_import(module_page):
     _,frame=module_page
     frame.evaluate("""() => {
@@ -57,7 +54,6 @@ def test_external_music_link_still_opens_import(module_page):
     assert frame.locator("#drop").is_hidden()
     assert frame.evaluate("MemuMusic.S.view")=="download"
 
-
 def test_real_queue_artwork_drag_keeps_native_reorder(module_page):
     page,frame=module_page
     frame.locator('.mm-np-tabs [data-tab="queue"]').click()
@@ -69,7 +65,6 @@ def test_real_queue_artwork_drag_keeps_native_reorder(module_page):
     calls=frame.evaluate("__nativeDrag")
     assert any(not row["prevented"] and "application/x-memu-music" in row["types"] for row in calls),calls
     assert frame.locator("#drop").is_hidden()
-
 
 def test_external_audio_file_still_uses_file_import_without_link_navigation(module_page):
     page,frame=module_page
@@ -89,7 +84,6 @@ def test_external_audio_file_still_uses_file_import_without_link_navigation(modu
     assert frame.evaluate("__uploads")==["regression.mp3"]
     assert frame.evaluate("MemuMusic.S.view")!="download"
     assert frame.locator("#drop").is_hidden()
-
 
 def test_music_and_player_send_their_actual_background_to_detached_native_host(module_page):
     _,frame=module_page

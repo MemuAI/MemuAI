@@ -21,7 +21,6 @@ from typing import Optional, Tuple
 
 SAMPLE = 256 * 1024
 
-#: Encodings offered in the status bar (name for Python, label, TextDecoder name).
 ENCODINGS = [
     ("utf-8", "UTF-8", "utf-8"),
     ("utf-8-sig", "UTF-8 BOM", "utf-8"),
@@ -56,26 +55,23 @@ BOMS = [
     (codecs.BOM_UTF16_BE, "utf-16-be"),
 ]
 
-# Most frequent Russian letters (о е а и н т с р в л к м д п у) and Ukrainian/Belarusian extras.
 _COMMON_CYR = set("оеаинтсрвлкмдпуяыьгзбчйхжшюцщэфъёіїєґ")
 _CYR_PAIRS = set("ст но то на ен ов ни ра во ко ро по ос пр ре го ал ор от ет ли та ер ть ес ва ол ри ит ин ел до тр ми ве ви за ак ма ле се ла ан те не ил ог ти ки ка об ат ый ая ие ий ых ар др ру ир ав ус сл лу уг".split())
 
-
 @dataclass
 class TextInfo:
-    encoding: str          # Python codec name; "utf-8-sig"/"utf-16-le" etc. mean "with BOM"
+    encoding: str
     bom: bool
-    eol: str               # "crlf" | "lf" | "cr" | "mixed"
+    eol: str
     binary: bool
     confidence: float
-    damaged: int = 0       # Round 34: UTF-8 with this many broken bytes (shown as \ufffd, restored on save)
+    damaged: int = 0
 
     @property
     def web_encoding(self) -> str:
         if self.encoding in ("utf-32-le", "utf-32-be"):
-            return ""        # TextDecoder has no UTF-32: decoded in Python
+            return ""
         return WEB_NAMES.get(self.encoding, self.encoding)
-
 
 def normalize_encoding(name: str) -> str:
     raw = str(name or "").strip().lower().replace("_", "-")
@@ -88,7 +84,6 @@ def normalize_encoding(name: str) -> str:
         raw = "cp" + raw[8:]
     return raw if raw in ENCODING_NAMES or raw in ("utf-32-le", "utf-32-be") else "utf-8"
 
-
 def _looks_utf16(sample: bytes) -> Optional[str]:
     if len(sample) < 4:
         return None
@@ -100,8 +95,7 @@ def _looks_utf16(sample: bytes) -> Optional[str]:
         return "utf-16-le"
     if zeros_even > 0.3 and zeros_odd < 0.05:
         return "utf-16-be"
-    # Non-Latin text has few zero bytes (Cyrillic is 0x04xx): one byte position is then dominated by a
-    # single small "page" value while the other varies. Verified by a strict decode to mostly letters.
+
     for high, low, name in ((odd, even, "utf-16-le"), (even, odd, "utf-16-be")):
         if len(high) < 16:
             continue
@@ -118,7 +112,6 @@ def _looks_utf16(sample: bytes) -> Optional[str]:
             return name
     return None
 
-
 def _is_binary(sample: bytes) -> bool:
     if not sample:
         return False
@@ -128,18 +121,15 @@ def _is_binary(sample: bytes) -> bool:
     control = sum(1 for b in head if b < 32 and b not in (9, 10, 12, 13, 27, 8))
     return control / len(head) > 0.10
 
-
 def _utf8_ok(sample: bytes, complete: bool) -> bool:
     try:
         sample.decode("utf-8")
         return True
     except UnicodeDecodeError as exc:
-        # The sample may cut a multi-byte character at its end.
+
         return (not complete) and exc.start >= len(sample) - 3 and exc.reason == "unexpected end of data"
 
-
 _TYPOGRAPHY = set("«»—–…„“”‘’№°±§©®™•·\u00a0")
-
 
 def _cyr_score(text: str) -> float:
     letters = [c for c in text if c.isalpha()]
@@ -154,15 +144,12 @@ def _cyr_score(text: str) -> float:
     pairs = [folded[i:i + 2] for i in range(len(folded) - 1)
              if folded[i].isalpha() and folded[i + 1].isalpha()]
     pair_score = sum(p in _CYR_PAIRS for p in pairs) / max(1, len(pairs))
-    # Real text: mostly lowercase common letters. Wrong code page: rare letters, random case,
-    # stray symbols inside words (MacCyrillic reads cp1251 "я" as "€").
+
     weird = sum(1 for c in text if ord(c) > 0x7F and not c.isalpha() and not c.isspace() and c not in _TYPOGRAPHY)
     penalty = 1.0 - min(0.6, 3.0 * weird / len(letters))
-    # Uppercase Russian must not score half as well as random lowercase KOI8
-    # mojibake. Common letter pairs distinguish those without penalising titles.
+
     return ((len(cyr) / len(letters)) * (common / len(cyr)) *
             (0.95 + 0.05 * lower / len(cyr)) * (0.75 + 0.25 * pair_score) * penalty)
-
 
 def _bad_utf8(data: bytes, limit: int) -> list:
     """(start, end) of each invalid UTF-8 sequence, as "replace" / TextDecoder split them; at most *limit*."""
@@ -176,24 +163,22 @@ def _bad_utf8(data: bytes, limit: int) -> list:
             pos += exc.end
     return runs
 
-
 def _utf8_damage(sample: bytes, complete: bool) -> int:
     """Round 34: invalid sequences in text that is otherwise clearly UTF-8 (0 = not that case). One broken byte in
     a UTF-8 file made the whole file open as cp1252 mojibake; a real cp1251/koi8 file has (almost) no valid UTF-8
     multi-byte characters, a damaged UTF-8 file has many and only a few bad ones."""
     if not complete:
-        sample = sample[:max(0, len(sample) - 3)]       # a character cut by the sample end is not damage
+        sample = sample[:max(0, len(sample) - 3)]
     bad = _bad_utf8(sample, 200)
     if not bad or len(bad) >= 200:
         return 0
     multibyte = sum(1 for c in sample.decode("utf-8", errors="ignore") if ord(c) > 0x7F)
     return len(bad) if multibyte >= 3 and multibyte >= 4 * len(bad) else 0
 
-
 def _single_byte(sample: bytes) -> Tuple[str, float]:
     high = sum(1 for b in sample if b >= 0x80)
     if not high:
-        return "utf-8", 1.0          # pure ASCII: save as UTF-8
+        return "utf-8", 1.0
     best, best_score = "cp1252", 0.0
     for name in ("cp1251", "koi8-r", "cp866", "mac-cyrillic"):
         try:
@@ -207,7 +192,6 @@ def _single_byte(sample: bytes) -> Tuple[str, float]:
         return best, min(0.95, best_score)
     return "cp1252", 0.4
 
-
 def detect_eol(sample: str | bytes) -> str:
     if isinstance(sample, bytes):
         crlf, lf, cr = sample.count(b"\r\n"), sample.count(b"\n"), sample.count(b"\r")
@@ -218,12 +202,11 @@ def detect_eol(sample: str | bytes) -> str:
     if not kinds:
         return "crlf" if os.name == "nt" else "lf"
     if len(kinds) > 1:
-        # A stray line among thousands is not "mixed" for the status bar.
+
         counts = {"crlf": crlf, "lf": lone_lf, "cr": lone_cr}
         top = max(counts, key=counts.get)
         return top if counts[top] >= 0.98 * (crlf + lone_lf + lone_cr) else "mixed"
     return kinds[0]
-
 
 def majority_eol(sample: str | bytes) -> str:
     """Round 34: the most common line ending — what a "mixed" file is saved with (was: the default EOL setting,
@@ -233,7 +216,6 @@ def majority_eol(sample: str | bytes) -> str:
     counts = {"crlf": crlf, "lf": sample.count(nl) - crlf, "cr": sample.count(cr) - crlf}
     top = max(counts, key=counts.get)
     return top if counts[top] else ""
-
 
 def detect_bytes(sample: bytes, complete: bool = True) -> TextInfo:
     for bom, name in BOMS:
@@ -257,13 +239,11 @@ def detect_bytes(sample: bytes, complete: bool = True) -> TextInfo:
     name, confidence = _single_byte(sample)
     return TextInfo(name, False, detect_eol(sample), binary, confidence)
 
-
 def detect_file(path: os.PathLike | str) -> TextInfo:
     with open(path, "rb") as handle:
         sample = handle.read(SAMPLE)
         complete = len(sample) < SAMPLE or not handle.read(1)
     return detect_bytes(sample, complete)
-
 
 def decode(data: bytes, encoding: str) -> str:
     name = normalize_encoding(encoding)
@@ -273,7 +253,6 @@ def decode(data: bytes, encoding: str) -> str:
                 data = data[len(bom):]
     return data.decode(name, errors="replace")
 
-
 def read_text(path: os.PathLike | str, encoding: str = "") -> Tuple[str, TextInfo]:
     data = Path(path).read_bytes()
     info = detect_bytes(data[:SAMPLE], len(data) <= SAMPLE)
@@ -282,18 +261,15 @@ def read_text(path: os.PathLike | str, encoding: str = "") -> Tuple[str, TextInf
         info.bom = info.encoding in ("utf-8-sig",) or (info.bom and info.encoding.startswith("utf-16"))
     return decode(data, info.encoding), info
 
-
 _EOL_RE = re.compile(r"\r\n|\r|\n")
-
 
 def convert_eol(text: str, eol: str) -> str:
     target = {"crlf": "\r\n", "lf": "\n", "cr": "\r"}.get(eol)
-    if target is None:            # "mixed": keep what the editor has
+    if target is None:
         return text
-    if "\r" not in text:          # the editor always gives "\n" lines: str.replace is ~20x faster than the regex
+    if "\r" not in text:
         return text if target == "\n" else text.replace("\n", target)
     return _EOL_RE.sub(target, text)
-
 
 def encode_utf8_bytes(raw: bytes, encoding: str, eol: str = "lf", bom: Optional[bool] = None) -> Optional[bytes]:
     """Fast path of :func:`encode` for UTF-8 bytes from the page saved as UTF-8 (no decode/encode round trip
@@ -306,7 +282,6 @@ def encode_utf8_bytes(raw: bytes, encoding: str, eol: str = "lf", bom: Optional[
     want_bom = (name == "utf-8-sig") if bom is None else bool(bom)
     return (codecs.BOM_UTF8 + body) if want_bom else body
 
-
 def encode(text: str, encoding: str, eol: str = "lf", bom: Optional[bool] = None) -> Tuple[bytes, int]:
     """Bytes for saving and the number of characters the encoding could not represent."""
     name = normalize_encoding(encoding)
@@ -316,8 +291,7 @@ def encode(text: str, encoding: str, eol: str = "lf", bom: Optional[bool] = None
     try:
         body = text.encode(codec)
     except UnicodeEncodeError:
-        # Count what the code page cannot hold ("?" instead) with the fast built-in "replace"
-        # handler: a custom Python handler makes cp125x encoding ~70x slower on a 100 MB buffer.
+
         body = text.encode(codec, errors="replace")
         question = "?".encode(codec)
         lost = max(0, body.count(question) - text.count("?"))
@@ -327,9 +301,7 @@ def encode(text: str, encoding: str, eol: str = "lf", bom: Optional[bool] = None
                 "utf-32-le": codecs.BOM_UTF32_LE, "utf-32-be": codecs.BOM_UTF32_BE}.get(codec, b"") + body
     return body, lost
 
-
 _REPLACED = "\ufffd".encode("utf-8")
-
 
 def restore_damaged_utf8(data: bytes, original: bytes) -> bytes:
     """Round 34: put the original broken bytes of a damaged UTF-8 file back where the editor shows \ufffd, so
@@ -352,7 +324,6 @@ def restore_damaged_utf8(data: bytes, original: bytes) -> bytes:
         out += src
         out += part
     return bytes(out)
-
 
 def atomic_write(path: os.PathLike | str, data: bytes, keep_backup: bool = False) -> None:
     """Write next to the target and ``os.replace`` it: a crash or a full disk never truncates the file.

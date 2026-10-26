@@ -72,7 +72,6 @@ HISTORY_KEEP = 25
 COMPRESSED_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".zip", ".gz", ".7z", ".mp3", ".mp4", ".ogg", ".opus",
                   ".m4a", ".webm", ".wav", ".flac", ".vrm", ".glb", ".pdf", ".docx", ".xlsx", ".pptx", ".woff2", ".moc3"}
 
-# id, ru, en, description ru, description en, default
 CATEGORIES: Tuple[Tuple[str, str, str, str, str, bool], ...] = (
     ("settings", "Настройки", "Settings",
      "Параметры MemuAI, профили, свои темы, значок, слово-активатор", "MemuAI preferences, profiles, custom themes, icon, wake word", True),
@@ -105,22 +104,19 @@ EXCLUDED_DIRS = {"logs", "backups", "local-models", "voice-models", "wake-models
                  "caches", "tmp", "temp", "crashdumps", "gpucache", "code cache", "shadercache", "node_modules"}
 RUNTIME_FILES = {"proxy.json", "memuai.json", "startup_guard.json", "safe_mode", "safe_mode.json",
                  "safe_mode_session.json", "model-info.json", "desktop.ini", "thumbs.db", ".ds_store"}
-#: r29c: folders that are never user data although their names are ordinary: MemuNote's WebView2 profile
-#: (cookies, caches, IndexedDB — a browser profile), the Explorer undo copies of Quick Ask (up to 512 MB of
-#: deleted files with this PC's absolute paths), PDF export scratch, downloaded tools (cloudflared.exe).
+
 EXCLUDED_PREFIXES = ("memunote/webview/", "memuai/quick_explorer/", "memuai/export-tmp/", "memuai/bin/")
-#: Runtime files at a known place (a name too generic for RUNTIME_FILES).
+
 RUNTIME_PATHS = {"memunote/instance.json"}
 SECRET_FILES = {"accounts.json", "public.json", "integrations.json", "mcp.json", "panels-secrets.json",
                 "dfy_vault.json", "dfy_vault.key", "cli_integrations.json", "secrets.json"}
-#: Settings files that may hold a token next to ordinary settings: copied with those keys cut out.
+
 REDACTED_FILES = {"preferences.json", "config.json", "telegram_state.json", "quick_endpoint.json",
                   "media-connections.json", "wake_word.json", "tgapp.json"}
 _SECRET_KEY = re.compile(r"(^|_|-)(token|tokens|secret|secrets|password|passwd|api_?key|api_?keys|apikey|cookie|cookies|"
                          r"refresh_token|access_token|client_secret|private_key|bot_token|auth_key|pin|pin_hash|salt|"
                          r"credentials?)($|_|-)", re.I)
 
-# (pattern on the path inside memuai/ without the profiles/<id>/ prefix, category); first match wins.
 _RULES: Tuple[Tuple[str, str], ...] = (
     ("preferences.json", "settings"), ("profiles.json", "settings"), ("themes/*", "settings"),
     ("assistant.png", "settings"), ("assistant.ico", "settings"), ("wake_word.json", "settings"),
@@ -132,7 +128,7 @@ _RULES: Tuple[Tuple[str, str], ...] = (
     ("schedule*.json", "schedules"),
     ("checkpoints/*", "history"), ("code_artifacts/*", "history"),
     ("workspaces.json", "work"), ("code_*", "work"), ("memucode*", "work"), ("agents*.json", "work"),
-    # The «Characters» module keeps its cards and chats in the generic module store (r29c: they were «modules»).
+
     ("modules/store/characters/*", "characters"), ("modules/persist/characters.json", "characters"),
     ("modules/*", "modules"),
     ("panels*", "panels"), ("quick_canvas*", "panels"), ("quick_actions*", "panels"),
@@ -146,7 +142,6 @@ _TOP_RULES: Tuple[Tuple[str, str], ...] = (
     ("playground/*", "chats"), ("memucode/*", "work"), ("memunote/*", "memunote"),
 )
 
-
 class SyncError(RuntimeError):
     def __init__(self, ru: str, en: str = "", *, code: str = "") -> None:
         super().__init__(ru)
@@ -154,24 +149,18 @@ class SyncError(RuntimeError):
         self.en = en or ru
         self.code = code
 
-
 def _now_iso(ts: float | None = None) -> str:
     """UTC ISO-8601 built field by field (independent of locale/strftime quirks)."""
     d = datetime.fromtimestamp(ts if ts is not None else time.time(), timezone.utc)
     return f"{d.year:04d}-{d.month:02d}-{d.day:02d}T{d.hour:02d}:{d.minute:02d}:{d.second:02d}Z"
-
 
 def _err(exc: BaseException) -> Dict[str, str]:
     ru = getattr(exc, "ru", "") or str(exc) or type(exc).__name__
     en = getattr(exc, "en", "") or ru
     return {"ru": str(ru)[:400], "en": str(en)[:400], "code": str(getattr(exc, "code", "") or "")}
 
-
-# ============================================================ classification
-
 def _match(path: str, pattern: str) -> bool:
     return fnmatch.fnmatchcase(path, pattern) or (pattern.endswith("/*") and path.startswith(pattern[:-1]))
-
 
 def classify(rel: str) -> Optional[str]:
     """Category of a data-dir relative POSIX path, or ``None`` when it is never backed up."""
@@ -208,31 +197,25 @@ def classify(rel: str) -> Optional[str]:
             return category
     return "other"
 
-
 def profile_of(rel: str) -> str:
     parts = rel.split("/")
     if len(parts) >= 4 and parts[0] == "memuai" and parts[1] == "profiles":
         return parts[2]
     return "default"
 
-
 def _safe_rel(rel: str) -> str:
     """A manifest path that is safe to write under the data root, or ``""``."""
     value = str(rel or "").replace("\\", "/")
     if not value or value.startswith("/") or re.match(r"^[A-Za-z]:", value) or "\x00" in value:
         return ""
-    # Split by hand: PurePosixPath collapses "a//b" and "a/./b", which would hide a malformed entry.
+
     parts = value.split("/")
     if any(p in ("..", ".", "") for p in parts) or len(value) > 400:
         return ""
     return "/".join(parts)
 
-
-# ============================================================== redaction
-
 def _secret_key(key: str) -> bool:
     return bool(_SECRET_KEY.search(str(key)))
-
 
 def _is_secret_value(value: Any) -> bool:
     if isinstance(value, str):
@@ -242,7 +225,6 @@ def _is_secret_value(value: Any) -> bool:
     if isinstance(value, dict):
         return bool(value)
     return False
-
 
 def redact_json(data: Any) -> Tuple[Any, List[List[str]]]:
     """Copy of ``data`` without secret-looking keys; returns the removed key paths."""
@@ -262,12 +244,11 @@ def redact_json(data: Any) -> Tuple[Any, List[List[str]]]:
         return node
     return walk(data, []), removed
 
-
 def _merge_redacted(snapshot: Any, local: Any, paths: List[List[str]]) -> Any:
     """Put the local values of ``paths`` back into restored settings (a token the copy never had)."""
     for path in paths:
         if "*" in path:
-            continue  # inside lists: rows may not line up; the restored row stays without the key
+            continue
         src, dst = local, snapshot
         ok = True
         for key in path[:-1]:
@@ -278,9 +259,6 @@ def _merge_redacted(snapshot: Any, local: Any, paths: List[List[str]]) -> Any:
         if ok and isinstance(src, dict) and isinstance(dst, dict) and path[-1] in src:
             dst[path[-1]] = src[path[-1]]
     return snapshot
-
-
-# =============================================================== targets
 
 class FolderTarget:
     """Backups in a local folder — e.g. the «Google Drive for desktop» folder that syncs by itself."""
@@ -355,7 +333,6 @@ class FolderTarget:
         except FileNotFoundError:
             pass
 
-
 def detect_folders() -> List[Dict[str, str]]:
     """Folders of desktop sync clients (Google Drive for desktop first) that exist on this PC."""
     found: List[Dict[str, str]] = []
@@ -387,16 +364,13 @@ def detect_folders() -> List[Dict[str, str]]:
     add(os.path.join(home, "Yandex.Disk"), "yandex", "Яндекс Диск", "Yandex Disk")
     return found
 
-
-# ================================================================ service
-
 DEFAULTS: Dict[str, Any] = {
     "enabled": False,
-    "target": "drive",              # drive | folder
-    "drive_space": "appdata",       # appdata (hidden app folder) | folder (visible «MemuAI Backups»)
+    "target": "drive",
+    "drive_space": "appdata",
     "folder_path": "",
     "interval_minutes": 1440,
-    "at_time": "",                  # "HH:MM" for daily and longer intervals
+    "at_time": "",
     "on_exit": True,
     "only_changed": True,
     "keep_versions": 14,
@@ -414,14 +388,12 @@ DEFAULTS: Dict[str, Any] = {
 }
 INTERVAL_PRESETS = (15, 30, 60, 180, 360, 720, 1440, 4320, 10080)
 
-
 def _int(value: Any, default: int, low: int, high: int) -> int:
     try:
         number = int(float(value))
     except (TypeError, ValueError, OverflowError):
         return default
     return max(low, min(high, number))
-
 
 def normalize_settings(raw: Any) -> Dict[str, Any]:
     src = raw if isinstance(raw, dict) else {}
@@ -452,7 +424,6 @@ def normalize_settings(raw: Any) -> Dict[str, Any]:
     out["exclude_patterns"] = [str(p).strip().replace("\\", "/")[:200] for p in patterns if str(p).strip()][:50]
     return out
 
-
 class SyncService:
     """One per process.  Thread-safe; heavy work runs in the caller's thread."""
 
@@ -480,7 +451,6 @@ class SyncService:
         self.auth = DriveAuth(self.store, client_override=self._client, transport=transport, open_browser=open_browser)
         self.auth.on_connected = self._on_connected
 
-    # ------------------------------------------------------------ files
     def _json(self, name: str, default: Any) -> Any:
         try:
             return json.loads((self.dir / name).read_text(encoding="utf-8"))
@@ -500,7 +470,6 @@ class SyncService:
                     raise
                 time.sleep(0.02 * (attempt + 1))
 
-    # --------------------------------------------------------- settings
     def settings(self) -> Dict[str, Any]:
         return normalize_settings(self._json("settings.json", {}))
 
@@ -538,7 +507,7 @@ class SyncService:
             if normalized["target"] == "folder" and normalized["folder_path"]:
                 self._check_folder(normalized["folder_path"])
             if current.get("client_id") != normalized["client_id"] and self.auth.connected():
-                self.auth.disconnect(revoke=False)  # a token belongs to the client that issued it
+                self.auth.disconnect(revoke=False)
             self._write_json("settings.json", normalized)
         return self.public_settings()
 
@@ -567,7 +536,6 @@ class SyncService:
             self._write_state(state)
         self._folder_cache.clear()
 
-    # ----------------------------------------------------------- state
     def state(self) -> Dict[str, Any]:
         data = self._json("state.json", {})
         return data if isinstance(data, dict) else {}
@@ -590,7 +558,6 @@ class SyncService:
         name = self.settings()["device_name"] or socket.gethostname() or "PC"
         return {"id": data["id"], "name": name[:60]}
 
-    # ---------------------------------------------------------- encryption
     def _set_passphrase(self, phrase: str) -> None:
         if not phrase:
             self.store.delete("passphrase")
@@ -651,7 +618,6 @@ class SyncService:
         rows.append(record)
         target.put_bytes("memuai-keys.json", json.dumps({"format": FORMAT, "keys": rows[-50:]}).encode("utf-8"))
 
-    # -------------------------------------------------------------- target
     def target(self, settings: Dict[str, Any] | None = None) -> Any:
         settings = settings or self.settings()
         if settings["target"] == "folder":
@@ -664,7 +630,6 @@ class SyncService:
         return DriveTarget(self.auth, space=settings["drive_space"], folder_id_cache=self._folder_cache,
                            throttle_kbps=settings["bandwidth_kbps"], cancel=self.cancel_event)
 
-    # --------------------------------------------------------------- scan
     def scan(self, settings: Dict[str, Any] | None = None, *, all_categories: bool = False) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
         """Files to back up and files skipped because of the size limit."""
         settings = settings or self.settings()
@@ -729,7 +694,6 @@ class SyncService:
             return data, []
         return json.dumps(cleaned, ensure_ascii=False, indent=1).encode("utf-8"), removed
 
-    # ---------------------------------------------------------- run lock
     def _lock_path(self) -> Path:
         return self.dir / "run.lock"
 
@@ -778,7 +742,7 @@ class SyncService:
     def _progress(self, **values: Any) -> None:
         self.progress.update(values)
         self.progress["updated"] = time.time()
-        # Shared with the other process (Proxy ↔ MemuAI) at most twice a second.
+
         if time.time() - float(self.progress.get("_written") or 0) > 0.5 or values.get("phase") in ("done", "error"):
             self.progress["_written"] = time.time()
             try:
@@ -786,7 +750,6 @@ class SyncService:
             except OSError:
                 pass
 
-    # ------------------------------------------------------------- backup
     def backup(self, reason: str = "manual", *, label: str = "", force: bool = False) -> Dict[str, Any]:
         """Make one snapshot. ``force`` ignores «only when changed»."""
         if not self._run_lock.acquire(blocking=False):
@@ -870,12 +833,11 @@ class SyncService:
         work = Path(tempfile.mkdtemp(prefix="pack-", dir=str(self._tmp_dir())))
         packs: List[Dict[str, Any]] = []
         manifest_files: Dict[str, Dict[str, Any]] = {}
-        pending: Dict[str, str] = {}     # sha → pack name of this run
+        pending: Dict[str, str] = {}
         writer: Optional[zipfile.ZipFile] = None
         current: Dict[str, Any] = {}
         d = datetime.now(timezone.utc)
-        # The 4-hex suffix starts with the milliseconds (3 hex digits) so ids of one second still sort by time;
-        # the last digit is random. Retention relies on "newest first" being plain string order.
+
         snap_id = (f"{d.year:04d}{d.month:02d}{d.day:02d}T{d.hour:02d}{d.minute:02d}{d.second:02d}Z-"
                    f"{d.microsecond // 1000:03x}{secrets.token_hex(1)[0]}")
 
@@ -901,7 +863,7 @@ class SyncService:
                     try:
                         data, redacted = self._read_for_backup(row, include_secrets)
                     except OSError:
-                        continue  # vanished or locked file: next run takes it
+                        continue
                     sha = hashlib.sha256(data).hexdigest()
                 new_cache[cache_key] = {"sha": sha, "redacted": redacted}
                 entry = {"sha": sha, "size": len(data) if data is not None else row["size"], "cat": row["cat"],
@@ -938,7 +900,7 @@ class SyncService:
                 return {"unchanged": True, "id": state.get("last_snapshot", ""), "files": len(manifest_files),
                         "bytes": sum(e["size"] for e in manifest_files.values()), "new_bytes": 0,
                         "skipped": len(skipped), "target": target.describe()}
-            # Upload packs, then the manifest (commit point).
+
             if keys and record:
                 self._publish_key(target, record)
             upload_total = 0
@@ -962,7 +924,7 @@ class SyncService:
             committed = False
             try:
                 for pack in packs:
-                    uploaded.append(pack["name"])   # before the call: a failed upload may still have left a file
+                    uploaded.append(pack["name"])
                     target.put_file(pack["name"], pack["path"], progressed)
                 totals = {"files": len(manifest_files), "bytes": sum(e["size"] for e in manifest_files.values()),
                           "new_files": sum(p["files"] for p in packs), "new_bytes": sum(p["bytes"] for p in packs),
@@ -987,9 +949,7 @@ class SyncService:
                 committed = True
             finally:
                 if not committed:
-                    # r29c: a run that fails before its manifest (Drive full, network gone, cancelled) leaves
-                    # packs nothing references; on a full Drive retention never runs, so they would keep the
-                    # quota exhausted. Delete them now (best effort — the next successful run's GC also does).
+
                     self._drop_uploaded(target, uploaded, manifest=_manifest_name(device["id"], snap_id))
             for sha, pack_name in pending.items():
                 index[sha] = {"pack": pack_name, "key": key_id}
@@ -1013,10 +973,10 @@ class SyncService:
     def _drop_uploaded(self, target: Any, names: List[str], *, manifest: str) -> None:
         if not names:
             return
-        self.cancel_event.clear()   # a cancelled run still cleans up (the Drive target checks the same event)
+        self.cancel_event.clear()
         try:
             if manifest in target.list(refresh=True):
-                return              # the manifest did arrive (only its answer was lost): the packs are in use
+                return
         except Exception:  # noqa: BLE001 - storage unreachable: GC of the next successful run deletes them
             return
         for name in names:
@@ -1039,7 +999,7 @@ class SyncService:
     def _tmp_dir(self) -> Path:
         path = self.dir / "tmp"
         path.mkdir(parents=True, exist_ok=True)
-        # Leftovers of a crashed run.
+
         for child in path.iterdir():
             try:
                 if time.time() - child.stat().st_mtime > 6 * 3600:
@@ -1048,7 +1008,6 @@ class SyncService:
                 pass
         return path
 
-    # --------------------------------------------------------------- index
     def _load_index(self, target: Any, remote: Dict[str, Any], device_id: str) -> Dict[str, Dict[str, str]]:
         """sha → {pack, key} for blobs this device already stored and still kept."""
         cache = self._json("index.json", {})
@@ -1057,7 +1016,7 @@ class SyncService:
             blobs = {sha: row for sha, row in cache["blobs"].items() if isinstance(row, dict) and row.get("pack") in remote}
             if blobs or not _manifest_ids(remote, device_id):
                 return blobs
-        # Rebuild from this device's manifests.
+
         blobs: Dict[str, Dict[str, str]] = {}
         for name in sorted(n for n in remote if n.startswith(f"memuai-manifest-{device_id}-")):
             try:
@@ -1076,7 +1035,6 @@ class SyncService:
         s = self.settings()
         return f"{s['target']}|{s['drive_space'] if s['target'] == 'drive' else s['folder_path'].lower()}|{s['client_id']}"
 
-    # ----------------------------------------------------------- manifests
     def _read_manifest(self, target: Any, name: str, passphrase: str = "") -> Tuple[Dict[str, Any], Dict[str, Any]]:
         try:
             document = json.loads(target.get_bytes(name).decode("utf-8"))
@@ -1221,7 +1179,6 @@ class SyncService:
                 service._run_lock.release()
         return _Ctx()
 
-    # ----------------------------------------------------------- retention
     def _retention(self, target: Any, settings: Dict[str, Any], device_id: str, *, keep_id: str = "",
                    keep_packs: Iterable[str] = ()) -> int:
         remote = target.list(refresh=True)
@@ -1230,7 +1187,7 @@ class SyncService:
         for name in remote:
             if name.startswith(f"memuai-manifest-{device_id}-") and name.endswith(".json"):
                 own.append((name[len(f"memuai-manifest-{device_id}-"):-5], name))
-        # ids start with a UTC timestamp (+ milliseconds): newest first; the run that just finished always wins a tie.
+
         own.sort(key=lambda row: (row[0][:20], row[0] == keep_id, row[0]), reverse=True)
         cutoff = time.time() - settings["keep_days"] * 86400 if settings["keep_days"] else None
         kept = 0
@@ -1262,7 +1219,7 @@ class SyncService:
                 continue
             header = self._header(target, name, remote[name])
             if header is None:
-                return 0  # never delete packs while a manifest cannot be read
+                return 0
             referenced.update(header.get("packs") or [])
         removed = 0
         for name in remote:
@@ -1271,7 +1228,6 @@ class SyncService:
                 removed += 1
         return removed
 
-    # -------------------------------------------------------------- restore
     def preview_restore(self, snapshot_id: str, passphrase: str = "") -> Dict[str, Any]:
         target = self.target()
         name = self._find_manifest(target, snapshot_id)
@@ -1321,10 +1277,9 @@ class SyncService:
             safe = _safe_rel(rel)
             if not safe or classify(safe) is None or not isinstance(entry, dict):
                 continue
-            # The local classification decides: a manifest cannot smuggle accounts.json in as «settings».
+
             category = classify(safe)
-            # A copy made before a file moved to another category (r29c: characters were «modules», generated
-            # media «other») is still restored when either name is chosen; secrets are decided locally only.
+
             listed = str(entry.get("cat") or "")
             chosen = category in cats or (category != "secrets" and listed != "secrets" and listed in cats)
             if not chosen or not isinstance(entry.get("pack"), str):
@@ -1404,10 +1359,10 @@ class SyncService:
             for row in current:
                 if row["cat"] in cats and row["rel"] not in selected and (profs is None or profile_of(row["rel"]) in profs):
                     to_delete.append(row["rel"])
-        # 1. Safety copy of everything we are about to change.
+
         self._progress(phase="safety")
         safety = self._safety_backup(list(selected) + to_delete, source)
-        # 2. Write.
+
         self._progress(phase="write", done=0, total=len(selected))
         written = 0
         errors: List[str] = []
@@ -1422,7 +1377,7 @@ class SyncService:
                     data = self._merge_local_secrets(path, data, entry["redacted"])
                 _atomic_write(path, data)
                 written += 1
-            except Exception as exc:  # one locked file must not stop the rest
+            except Exception as exc:
                 errors.append(f"{rel}: {_err(exc)['ru']}")
             self._progress(done=index + 1)
         removed = 0
@@ -1451,7 +1406,6 @@ class SyncService:
         merged = _merge_redacted(snapshot, local, paths)
         return json.dumps(merged, ensure_ascii=False, indent=2).encode("utf-8")
 
-    # ---------------------------------------------------------- safety zip
     def safety_dir(self) -> Path:
         path = self.dir / "safety"
         path.mkdir(parents=True, exist_ok=True)
@@ -1522,7 +1476,6 @@ class SyncService:
                             pass
             return {"ok": True, "written": written, "removed": removed, "restart": True}
 
-    # --------------------------------------------------------------- export
     def export_snapshot(self, snapshot_id: str, dest: str | os.PathLike[str], passphrase: str = "") -> Dict[str, Any]:
         """A self-contained, unencrypted zip of one snapshot (files at their data-dir paths)."""
         with self._exclusive("export"):
@@ -1595,13 +1548,10 @@ class SyncService:
             finally:
                 shutil.rmtree(work, ignore_errors=True)
 
-    # ------------------------------------------------------------- status
     def status(self) -> Dict[str, Any]:
         settings = self.public_settings()
         state = self.state()
-        # Round 30: one Google account for Sync, the Drive picker and Integrations. An account signed in from
-        # Integrations for Gmail/Calendar only has no backup scopes yet: Sync shows «Connect» (an incremental
-        # consent that keeps the other services) instead of a «connected» Drive whose every backup fails.
+
         connected = self.auth.connected() and self.auth.has_backup_scopes()
         cid, _, source = self.auth.client()
         return {
@@ -1663,7 +1613,6 @@ class SyncService:
             due = max(due if last else 0, float(state["last_attempt"]) + backoff)
         return due
 
-    # ---------------------------------------------------------- scheduler
     def _heartbeat_alive(self, role: str) -> bool:
         data = self._json(f"heartbeat-{role}.json", {})
         return isinstance(data, dict) and time.time() - float(data.get("ts") or 0) < 90 and _pid_alive(int(data.get("pid") or 0))
@@ -1762,17 +1711,12 @@ class SyncService:
         except Exception:
             return "error"
 
-
-# ================================================================ helpers
-
 def _manifest_name(device_id: str, snap_id: str) -> str:
     return f"memuai-manifest-{device_id}-{snap_id}.json"
-
 
 def _manifest_ids(remote: Dict[str, Any], device_id: str) -> List[str]:
     prefix = f"memuai-manifest-{device_id}-"
     return [n[len(prefix):-5] for n in remote if n.startswith(prefix) and n.endswith(".json")]
-
 
 def _id_ts(snap_id: str) -> float:
     try:
@@ -1782,14 +1726,12 @@ def _id_ts(snap_id: str) -> float:
     except (ValueError, IndexError):
         return 0.0
 
-
 def _files_digest(files: Dict[str, Dict[str, Any]], settings: Dict[str, Any], key_id: str) -> str:
     h = hashlib.sha256()
     h.update(json.dumps([key_id, settings["include_secrets"]]).encode())
     for rel in sorted(files):
         h.update(f"{rel}\0{files[rel]['sha']}\n".encode("utf-8", "surrogatepass"))
     return h.hexdigest()
-
 
 def _pid_alive(pid: int) -> bool:
     if pid <= 0:
@@ -1805,7 +1747,6 @@ def _pid_alive(pid: int) -> bool:
             return True
         except OSError:
             return False
-
 
 def _atomic_write(path: Path, data: bytes) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1838,21 +1779,17 @@ def _atomic_write(path: Path, data: bytes) -> None:
         except OSError:
             pass
 
-
 def _drive_module():
     from . import gdrive_sync_drive
     return gdrive_sync_drive
-
 
 def _bundled_google_client() -> str:
     """Round 30: a Google client baked into the build (``MEMUAI_GOOGLE_CLIENT_ID``) — see ``app/oauth_config.py``."""
     from .oauth_config import client
     return client("google")[0]
 
-
 _SERVICE: Optional[SyncService] = None
 _SERVICE_LOCK = threading.Lock()
-
 
 def service(role: str = "memuai") -> SyncService:
     """The process-wide service (role «memuai» in MemuAI, «proxy» in MemuAI Proxy)."""
@@ -1866,13 +1803,11 @@ def service(role: str = "memuai") -> SyncService:
             _SERVICE = SyncService(role=role, open_browser=opener)
         return _SERVICE
 
-
 def start_proxy_scheduler() -> Optional[SyncService]:
     """Hook for MemuAI Proxy (``app/main.py``): backups keep running while only the tray icon is left."""
     try:
         svc = service("proxy")
-        # r29c: automatic backups pause while MemuAI runs in safe mode — in the Proxy too (it has no safe mode of
-        # its own; the MemuAI window may be in safe mode while the tray keeps running the schedule).
+
         if svc.paused_reason is None:
             def _paused() -> str:
                 try:
@@ -1881,7 +1816,7 @@ def start_proxy_scheduler() -> Optional[SyncService]:
                 except Exception:
                     return ""
             svc.paused_reason = _paused
-        # The Proxy starts with Windows: give the PC a minute before the first check.
+
         svc.start_scheduler(first_delay=60.0)
         return svc
     except Exception:

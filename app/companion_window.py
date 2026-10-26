@@ -46,12 +46,12 @@ from typing import Any, Callable, Dict, Optional, Tuple
 log = logging.getLogger("memuai.companion.window")
 
 TITLE = "MemuAI Companion"
-CSS_SIZE = (300, 440)          # default window size in CSS px (scaled by the monitor DPI)
-MARGIN = 24                    # CSS px from the work-area corner
-HIT_PAD = 10                   # CSS px around the model that still catches the mouse
-QUICK_TITLE = "MemuAI Quick"   # app/quick_ask.py TITLE — the window a dragged companion can dock into
+CSS_SIZE = (300, 440)
+MARGIN = 24
+HIT_PAD = 10
+QUICK_TITLE = "MemuAI Quick"
 VK_LBUTTON = 0x01
-DRAG_TIMEOUT = 120.0           # s — a lost mouse-up never leaves a loop running
+DRAG_TIMEOUT = 120.0
 DRAG_TICK = 0.008
 MIN_SIZE, MAX_SIZE = (160, 220), (1200, 1700)
 
@@ -65,9 +65,6 @@ DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND = 33, 1
 DWMWA_BORDER_COLOR, DWMWA_COLOR_NONE = 34, 0xFFFFFFFE
 DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
 
-
-# ------------------------------------------------------------------ geometry
-
 def default_rect(work: Tuple[int, int, int, int], dpi: int,
                  css: Tuple[int, int] = CSS_SIZE) -> Tuple[int, int, int, int]:
     """Bottom-right corner of a work area, in physical px: (x, y, w, h)."""
@@ -77,7 +74,6 @@ def default_rect(work: Tuple[int, int, int, int], dpi: int,
     w, h = min(w, max(1, right - left)), min(h, max(1, bottom - top))
     margin = int(round(MARGIN * scale))
     return max(left, right - w - margin), max(top, bottom - h - margin), w, h
-
 
 def clamp_rect(rect: Tuple[int, int, int, int], work: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
     """Keep at least a grabbable part of the window on the given work area."""
@@ -89,7 +85,6 @@ def clamp_rect(rect: Tuple[int, int, int, int], work: Tuple[int, int, int, int])
     x = max(left - w + keep, min(right - keep, int(x)))
     y = max(top, min(bottom - keep, int(y)))
     return x, y, w, h
-
 
 def contain_rect(rect: Tuple[int, int, int, int], work: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
     """Round 24: the WHOLE window inside the work area (shrunk to fit when the area is smaller).
@@ -107,7 +102,6 @@ def contain_rect(rect: Tuple[int, int, int, int], work: Tuple[int, int, int, int
     y = max(top, min(bottom - h, int(y)))
     return x, y, w, h
 
-
 def scale_rect(rect: Tuple[int, int, int, int], step: int,
                work: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
     """Grow (step > 0) or shrink by 10 %, anchored at the bottom-right corner."""
@@ -116,7 +110,6 @@ def scale_rect(rect: Tuple[int, int, int, int], step: int,
     nw = max(MIN_SIZE[0], min(MAX_SIZE[0], int(round(w * factor))))
     nh = max(MIN_SIZE[1], min(MAX_SIZE[1], int(round(h * factor))))
     return clamp_rect((x + w - nw, y + h - nh, nw, nh), work)
-
 
 def hit_region(hit: Dict[str, Any], dpr: float, client: Tuple[int, int],
                bubble: Optional[Dict[str, Any]] = None) -> Optional[Tuple[int, int, int, int]]:
@@ -140,13 +133,10 @@ def hit_region(hit: Dict[str, Any], dpr: float, client: Tuple[int, int],
     bottom = min(ch, int((y + h + pad) * scale + 0.5))
     if right - left < 4 or bottom - top < 4:
         return None
-    # One rectangle: the model's box joined with the tool buttons (top-right
-    # corner) and the speech bubble (top edge), so all of them stay clickable.
-    # Round 34: the tools are a column at the right edge of the desktop stage (stage.css), 6 + 24 + 6 px wide
+
     tools_left = max(0, cw - int(round(40 * scale)))
     left, right = min(left, tools_left), max(right, cw if tools_left < cw else right)
-    # Round 24: the speech bubble's own box joins the region. Before, the region began at the model's left edge
-    # and the bubble (wider than the model) was cut off on the left (screenshot №2 of the R24 request).
+
     try:
         if isinstance(bubble, dict):
             bx, by, bw, bh = (float(bubble[k]) for k in ("x", "y", "w", "h"))
@@ -158,11 +148,9 @@ def hit_region(hit: Dict[str, Any], dpr: float, client: Tuple[int, int],
         pass
     return left, 0, right, bottom
 
-
 def monitor_key(work: Tuple[int, int, int, int]) -> str:
     """The key of a monitor in ``desktop_by_monitor``: its work area."""
     return ",".join(str(int(v)) for v in work)
-
 
 def detach_rect(cursor: Tuple[int, int], grab: Tuple[float, float], size: Tuple[int, int],
                 work: Tuple[int, int, int, int]) -> Tuple[int, int, int, int]:
@@ -173,14 +161,12 @@ def detach_rect(cursor: Tuple[int, int], grab: Tuple[float, float], size: Tuple[
     w, h = int(size[0]), int(size[1])
     return contain_rect((int(round(cursor[0] - gx * w)), int(round(cursor[1] - gy * h)), w, h), work)
 
-
 def point_in(rect: Optional[Tuple[int, int, int, int]], point: Tuple[int, int]) -> bool:
     """``rect`` is (x, y, w, h)."""
     if not rect:
         return False
     x, y, w, h = rect
     return x <= point[0] < x + w and y <= point[1] < y + h
-
 
 def pick_rect(state: Dict[str, Any], work_of: Callable[[int, int], Tuple[Tuple[int, int, int, int], int]],
               cursor: Tuple[int, int]) -> Optional[Tuple[int, int, int, int]]:
@@ -205,9 +191,6 @@ def pick_rect(state: Dict[str, Any], work_of: Callable[[int, int], Tuple[Tuple[i
         work, _dpi = work_of(last[0] + last[2] // 2, last[1] + last[3] // 2)
         return contain_rect(last, work)
     return None
-
-
-# ------------------------------------------------------------------- Win32
 
 class _Win32:
     """Private ctypes layer with explicit 64-bit-safe signatures."""
@@ -257,9 +240,9 @@ class _Win32:
         self.GetMonitorInfoW = sig(user32, "GetMonitorInfoW", wintypes.BOOL, ctypes.c_void_p,
                                    ctypes.POINTER(MONITORINFO))
         self.GetCursorPos = sig(user32, "GetCursorPos", wintypes.BOOL, ctypes.POINTER(POINT))
-        # Round 25: physical pixels whatever the DPI awareness of the calling thread (the gaze feed).
+
         self.GetPhysicalCursorPos = sig(user32, "GetPhysicalCursorPos", wintypes.BOOL, ctypes.POINTER(POINT))
-        # Round 25 (a4-companion-3): the gaze feed is sent relative to the hosting window's client area.
+
         self.ClientToScreen = sig(user32, "ClientToScreen", wintypes.BOOL, HWND, ctypes.POINTER(POINT))
         self.SetThreadDpiAwarenessContext = sig(user32, "SetThreadDpiAwarenessContext", ctypes.c_void_p,
                                                 ctypes.c_void_p)
@@ -312,7 +295,7 @@ class _Win32:
     def work_area_at(self, x: int, y: int) -> Tuple[Tuple[int, int, int, int], int]:
         """Work area and effective DPI of the monitor containing (x, y)."""
         point = self.POINT(int(x), int(y))
-        monitor = self.MonitorFromPoint(point, 2)   # MONITOR_DEFAULTTONEAREST
+        monitor = self.MonitorFromPoint(point, 2)
         info = self.MONITORINFO()
         info.cbSize = self.ctypes.sizeof(self.MONITORINFO)
         work = (0, 0, 1920, 1080)
@@ -380,12 +363,10 @@ class _Win32:
             return None
         return self.window_rect(hwnd)
 
-
 _CURSOR: "Optional[_Win32]" = None
 _CURSOR_FAILED = False
 
 CursorSample = Tuple[int, int, bool]
-
 
 def relative_cursor(cursor: Optional[Tuple[int, int]],
                     origin: Optional[Tuple[int, int]]) -> Optional[CursorSample]:
@@ -396,7 +377,6 @@ def relative_cursor(cursor: Optional[Tuple[int, int]],
     if origin is None:
         return int(cursor[0]), int(cursor[1]), False
     return int(cursor[0]) - int(origin[0]), int(cursor[1]) - int(origin[1]), True
-
 
 def cursor_reader(hwnd_of: Optional[Callable[[], int]] = None) -> Optional[Callable[[], Optional[CursorSample]]]:
     """Round 25: the global cursor for the companion's gaze («всегда следит за курсором»).
@@ -433,14 +413,11 @@ def cursor_reader(hwnd_of: Optional[Callable[[], int]] = None) -> Optional[Calla
 
     return read
 
-
 _CURRENT: "Optional[CompanionWindowManager]" = None
-
 
 def current() -> "Optional[CompanionWindowManager]":
     """The manager of this process (set by its constructor) — Quick Ask uses it to restore a pinned companion."""
     return _CURRENT
-
 
 def should_restore_pinned(quick: Dict[str, Any], prefs: Dict[str, Any]) -> bool:
     """Round 24: a companion pinned to the desktop comes back after a MemuAI restart (without opening Quick Ask)."""
@@ -449,7 +426,6 @@ def should_restore_pinned(quick: Dict[str, Any], prefs: Dict[str, Any]) -> bool:
     if not prefs.get("companion_quick_enabled") or not prefs.get("quick_ask_enabled", True):
         return False
     return bool(quick.get("pinned")) and (quick.get("place") == "desktop" or prefs.get("companion_quick_mode") == "desktop")
-
 
 class CompanionWindowManager:
     """Owns the desktop companion window. Off Windows it reports ``supported=False``."""
@@ -478,7 +454,6 @@ class CompanionWindowManager:
     def supported(self) -> bool:
         return self.api is not None and not self._quitting
 
-    # ------------------------------------------------------------ state
     def _load_rect(self) -> Optional[Tuple[int, int, int, int]]:
         from .companion_avatar import load_state
         try:
@@ -514,7 +489,6 @@ class CompanionWindowManager:
             value = None
         return value if isinstance(value, dict) else {}
 
-    # ----------------------------------------------------------- window
     def _on_ui(self, fn: Callable[[], Any]) -> Any:
         form = self.form
         if form is None:
@@ -558,7 +532,7 @@ class CompanionWindowManager:
                     window = webview.create_window(TITLE, self.base_url + "/companion/stage?surface=desktop", **options)
                     break
                 except TypeError:
-                    # An older pywebview without some keyword: keep the essentials.
+
                     for key in ("focus", "shadow", "transparent", "easy_drag"):
                         options.pop(key, None)
                 except Exception as exc:
@@ -593,14 +567,14 @@ class CompanionWindowManager:
             api.SetWindowLong(hwnd, GWL_EXSTYLE, (style | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE) & ~WS_EX_APPWINDOW)
         except Exception:
             pass
-        api.dwm_int(hwnd, DWMWA_NCRENDERING_POLICY, DWMNCRP_DISABLED)          # no shadow/border
+        api.dwm_int(hwnd, DWMWA_NCRENDERING_POLICY, DWMNCRP_DISABLED)
         api.dwm_int(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND)
         api.dwm_int(hwnd, DWMWA_BORDER_COLOR, DWMWA_COLOR_NONE)
 
         def glass() -> bool:
             try:
                 from System.Drawing import Color  # type: ignore
-                form.BackColor = Color.Black      # black GDI pixels = DWM glass after extending the frame
+                form.BackColor = Color.Black
                 browser = getattr(form, "webview", None)
                 if browser is not None:
                     browser.DefaultBackgroundColor = Color.Transparent
@@ -632,10 +606,9 @@ class CompanionWindowManager:
     def _on_closing(self, *_args) -> bool:
         if self._quitting:
             return True
-        threading.Thread(target=self.hide, daemon=True).start()   # Alt+F4 only hides it
+        threading.Thread(target=self.hide, daemon=True).start()
         return False
 
-    # ---------------------------------------------------------- actions
     def show(self) -> Dict[str, Any]:
         if not self._ensure():
             return {"visible": False}
@@ -682,7 +655,7 @@ class CompanionWindowManager:
             return {}
         work, _dpi = self.api.work_area_at(rect[0] + rect[2] // 2, rect[1] + rect[3] // 2)
         x, y, w, h = scale_rect(rect, 1 if step > 0 else -1, work)
-        self._set_region(None)       # the page re-reports its box at the new size
+        self._set_region(None)
         self.api.SetWindowPos(self.hwnd, HWND_TOPMOST, x, y, w, h, SWP_NOACTIVATE)
         self._save_rect()
         return {"rect": [x, y, w, h]}
@@ -702,7 +675,7 @@ class CompanionWindowManager:
         start = api.cursor()
         last = None
         moved = False
-        flags = SWP_NOSIZE | SWP_NOACTIVATE | 0x0004 | 0x4000      # | SWP_NOZORDER | SWP_ASYNCWINDOWPOS
+        flags = SWP_NOSIZE | SWP_NOACTIVATE | 0x0004 | 0x4000
         w, h = rect[2], rect[3]
         while time.monotonic() - started < DRAG_TIMEOUT:
             point = api.cursor()
@@ -719,7 +692,7 @@ class CompanionWindowManager:
             time.sleep(DRAG_TICK)
         point = api.cursor()
         if moved and point_in(api.quick_rect(), point):
-            # Dropped onto Quick Ask: back into its window.
+
             self.hide()
             self._save_quick(place="inline")
             return {"docked": True, "moved": True}
@@ -752,8 +725,7 @@ class CompanionWindowManager:
         current = api.window_rect(self.hwnd) or default_rect(work, dpi)
         screen = body.get("screen") if isinstance(body.get("screen"), dict) else None
         if screen:
-            # «Pin» from inside Quick Ask: the window takes exactly the inline companion's place on screen
-            # (CSS px of the Quick Ask page × its devicePixelRatio = physical px; one DPI per window).
+
             try:
                 dpr = max(0.5, min(6.0, float(body.get("dpr") or 1)))
                 sx, sy, sw, sh = (float(screen[k]) for k in ("x", "y", "w", "h"))
@@ -762,8 +734,7 @@ class CompanionWindowManager:
             work, _dpi = api.work_area_at(int((sx + sw / 2) * dpr), int((sy + sh / 2) * dpr))
             x, y, w, h = contain_rect((int(sx * dpr), int(sy * dpr), int(max(sw, 160) * dpr), int(max(sh, 220) * dpr)), work)
             if (w, h) != (current[2], current[3]):
-                # Round 26: a region cut for the old size would crop the model in the new one (the page re-reports
-                # its box after the resize).
+
                 self._set_region(None)
             api.SetWindowPos(self.hwnd, HWND_TOPMOST, x, y, w, h, SWP_NOACTIVATE)
             shown = self.show()
@@ -775,7 +746,7 @@ class CompanionWindowManager:
         shown = self.show()
         if not shown.get("visible"):
             return shown
-        if not api.button_down():          # released before the window appeared: just place it
+        if not api.button_down():
             self._save_rect()
             self._save_quick(place="desktop")
             return {"docked": False, "rect": [x, y, w, h]}
@@ -797,7 +768,7 @@ class CompanionWindowManager:
             return
         handle = api.CreateRectRgn(*region)
         if handle and not api.SetWindowRgn(self.hwnd, handle, True):
-            api.DeleteObject(handle)      # on success the system owns the region
+            api.DeleteObject(handle)
 
     def hit(self, body: Dict[str, Any]) -> Dict[str, Any]:
         if not self.hwnd:
@@ -810,7 +781,7 @@ class CompanionWindowManager:
         region = hit_region(body.get("rect") or {}, dpr, client,
                             body.get("bubble") if isinstance(body.get("bubble"), dict) else None)
         self._set_region(region)
-        # Dragged by its drag region (pywebview): remember the new place.
+
         rect = self.api.window_rect(self.hwnd)
         if rect and rect != getattr(self, "_saved_rect", None):
             self._saved_rect = rect
@@ -848,7 +819,7 @@ class CompanionWindowManager:
         if action == "pin":
             return self.pin(body)
         if action == "dock":
-            # «Back into the window» button of the stage: hide here, Quick Ask shows it inline.
+
             self.hide()
             self._save_quick(place="inline")
             return {"docked": True}

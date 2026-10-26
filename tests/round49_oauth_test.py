@@ -16,7 +16,6 @@ os.environ.setdefault("MEMUAI_DATA_DIR", _data.name)
 from app import oauth_config
 from app.providers import antigravity as ag
 
-
 class ClientSettings(unittest.TestCase):
     def test_antigravity_environment_overrides_build_without_reusing_google(self):
         env = {"MEMUAI_ANTIGRAVITY_CLIENT_ID": "test-client",
@@ -49,7 +48,6 @@ class ClientSettings(unittest.TestCase):
             self.assertEqual(result["ANTIGRAVITY_CLIENT_ID"], "env-client")
             self.assertEqual(result["ANTIGRAVITY_CLIENT_SECRET"], "local-secret")
             self.assertEqual(result["GOOGLE_CLIENT_ID"], "")
-
 
 class OAuthFlow(unittest.IsolatedAsyncioTestCase):
     async def test_missing_credentials_fail_before_browser_or_listener(self):
@@ -107,7 +105,6 @@ class OAuthFlow(unittest.IsolatedAsyncioTestCase):
         account = SimpleNamespace(extra={"oauth": {"access_token": "valid-test-token", "expires_at": time.time() + 3600}})
         with patch.object(ag, "_oauth_client", side_effect=AssertionError("unnecessary OAuth configuration lookup")):
             self.assertEqual(await provider._ensure_token(account), "valid-test-token")
-
 
 if __name__ == "__main__":
     unittest.main()

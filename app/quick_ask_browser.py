@@ -37,7 +37,6 @@ from typing import Any, Callable, Dict, Iterable, List, Optional
 
 log = logging.getLogger("memuai.quick.browser")
 
-#: Executable → (engine family, display name).
 BROWSERS: Dict[str, tuple] = {
     "chrome.exe": ("chromium", "Google Chrome"),
     "msedge.exe": ("chromium", "Microsoft Edge"),
@@ -45,7 +44,7 @@ BROWSERS: Dict[str, tuple] = {
     "vivaldi.exe": ("chromium", "Vivaldi"),
     "opera.exe": ("chromium", "Opera"),
     "opera_gx.exe": ("chromium", "Opera GX"),
-    "browser.exe": ("chromium", "Яндекс Браузер"),       # Yandex Browser's executable
+    "browser.exe": ("chromium", "Яндекс Браузер"),
     "yandex.exe": ("chromium", "Яндекс Браузер"),
     "chromium.exe": ("chromium", "Chromium"),
     "arc.exe": ("chromium", "Arc"),
@@ -70,8 +69,7 @@ _LOGIN_MARKERS = re.compile(
     r"войдите в (?:аккаунт|систему)|авторизуйтесь|вход в (?:аккаунт|систему)|access denied|доступ запрещ|"
     r"are you a robot|captcha|подтвердите, что вы не робот|я не робот|enable javascript|включите javascript|"
     r"checking your browser|проверка браузера|just a moment|"
-    # Round 34: bot checks worded differently (Ozon/Wildberries «…вы, а не робот», Google «unusual traffic»,
-    # Cloudflare «Attention Required», DDoS-Guard) — the fetched check page was read as «the page»
+
     r"а не робот|not a robot|verify (?:you are|you're) (?:a )?human|unusual traffic|необычный трафик|"
     r"attention required|ddos-guard|доступ ограничен|access (?:restricted|blocked))")
 _PAYWALL_MARKERS = re.compile(
@@ -79,8 +77,7 @@ _PAYWALL_MARKERS = re.compile(
     r"оформите подписку|только (?:для )?подписчик|доступно по подписке|читать полностью по подписке)")
 
 MAX_PAGE_TEXT = 60_000
-MIN_READABLE = 400          # chars: less than that is not "the article"
-
+MIN_READABLE = 400
 
 def browser_for_process(name: Any) -> Optional[Dict[str, str]]:
     """``{"exe", "family", "name"}`` for a known browser executable, else ``None``."""
@@ -90,7 +87,6 @@ def browser_for_process(name: Any) -> Optional[Dict[str, str]]:
         return {"exe": exe, "family": family, "name": title}
     return None
 
-
 def clean_title(title: Any) -> str:
     """Window title → page title: drops " - Google Chrome", Edge's "and 3 more pages", a profile name."""
     text = " ".join(str(title or "").split())
@@ -99,11 +95,9 @@ def clean_title(title: Any) -> str:
         text = _EDGE_MORE.sub("", text)
     return text.strip()[:300]
 
-
 def is_internal_url(url: str) -> bool:
     return bool(re.match(r"(?i)^(?:chrome|edge|brave|vivaldi|opera|browser|about|chrome-extension|moz-extension|"
                          r"view-source|devtools|file):", str(url or "")))
-
 
 def normalize_url(value: Any) -> str:
     """Address-bar text → absolute http(s) URL, or ``""`` (search text, internal pages, garbage).
@@ -118,14 +112,13 @@ def normalize_url(value: Any) -> str:
     if re.match(r"(?i)^https?://", text):
         return text
     if re.match(r"(?i)^[a-z][a-z0-9+.-]*:", text) and not re.match(r"(?i)^(?:localhost|[\w.-]+):\d+", text):
-        return ""          # chrome://, about:, mailto:, javascript:, file: …
+        return ""
     host = re.match(r"^(localhost|\d{1,3}(?:\.\d{1,3}){3}|\[[0-9a-f:]+\]|(?:[\w-]+\.)+[a-z\u0430-\u044f\u0451-]{2,})(?::\d+)?(?:[/?#]|$)",
                     text, re.I)
     if not host:
         return ""
     local = host.group(1).lower() == "localhost" or re.match(r"^\d", host.group(1))
     return ("http://" if local else "https://") + text
-
 
 def pick_address(candidates: Iterable[Dict[str, Any]]) -> str:
     """The address bar among UIA ``Edit`` controls: by its accessible name, else the first URL-looking value."""
@@ -141,10 +134,8 @@ def pick_address(candidates: Iterable[Dict[str, Any]]) -> str:
             return url
     return ""
 
-
 def _tokens(text: str) -> set:
     return {word for word in re.findall(r"[\w\u0400-\u04ff]{3,}", str(text or "").lower())}
-
 
 def page_mismatch(visible_title: str, fetched: Dict[str, Any]) -> str:
     """Why the fetched page is probably *not* what the user sees ("" = it is fine).
@@ -172,15 +163,10 @@ def page_mismatch(visible_title: str, fetched: Dict[str, Any]) -> str:
             return "title_mismatch"
     return ""
 
-
 def clip(text: Any, limit: int = MAX_PAGE_TEXT) -> Dict[str, Any]:
     value = re.sub(r"[ \t]{2,}", " ", str(text or "")).strip()
     value = re.sub(r"\n{3,}", "\n\n", value)
     return {"text": value[:limit], "truncated": len(value) > limit, "chars": len(value)}
-
-
-# ---------------------------------------------------------------- Win32: the foreground window
-
 
 def foreground_info(hwnd: int) -> Dict[str, Any]:
     """``{"hwnd", "title", "exe", "pid"}`` of a top-level window (``{}`` off Windows / on failure)."""
@@ -217,7 +203,7 @@ def foreground_info(hwnd: int) -> Dict[str, Any]:
         pid = wintypes.DWORD(0)
         GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
         exe = ""
-        handle = OpenProcess(0x1000, False, pid.value)   # PROCESS_QUERY_LIMITED_INFORMATION
+        handle = OpenProcess(0x1000, False, pid.value)
         if handle:
             try:
                 size = wintypes.DWORD(1024)
@@ -230,7 +216,6 @@ def foreground_info(hwnd: int) -> Dict[str, Any]:
     except Exception as exc:
         log.debug("foreground_info failed: %s", exc)
         return {}
-
 
 def pick_top_browser(windows: Iterable[Dict[str, Any]], exclude: Iterable[int] = ()) -> int:
     """Round 26: the browser window the user is looking at now — the first (topmost in z-order) visible,
@@ -245,7 +230,6 @@ def pick_top_browser(windows: Iterable[Dict[str, Any]], exclude: Iterable[int] =
         if browser_for_process(row.get("exe")):
             return int(row["hwnd"])
     return 0
-
 
 def top_level_windows() -> List[Dict[str, Any]]:  # pragma: no cover - Windows only
     """Visible top-level windows in z-order (top first) for :func:`pick_top_browser` (``[]`` off Windows)."""
@@ -271,20 +255,16 @@ def top_level_windows() -> List[Dict[str, Any]]:  # pragma: no cover - Windows o
         rows = []
         for hwnd in handles:
             cloaked = wintypes.DWORD(0)
-            dwmapi.DwmGetWindowAttribute(hwnd, 14, ctypes.byref(cloaked), ctypes.sizeof(cloaked))   # DWMWA_CLOAKED
+            dwmapi.DwmGetWindowAttribute(hwnd, 14, ctypes.byref(cloaked), ctypes.sizeof(cloaked))
             info = foreground_info(hwnd)
             rows.append({"hwnd": hwnd, "exe": info.get("exe", ""), "title": info.get("title", ""), "visible": True,
                          "iconic": bool(user32.IsIconic(hwnd)), "cloaked": bool(cloaked.value)})
             if browser_for_process(info.get("exe")) and not rows[-1]["iconic"] and not rows[-1]["cloaked"]:
-                break       # the first usable browser window is all :func:`pick_top_browser` needs
+                break
         return rows
     except Exception as exc:
         log.debug("top_level_windows failed: %s", exc)
         return []
-
-
-# ---------------------------------------------------------------- UI Automation
-
 
 class UiaReader:
     """Address bar and visible text of a browser window through UI Automation.
@@ -353,12 +333,10 @@ class UiaReader:
             return ""
         text = self._bounded(lambda: backend.document_text(int(hwnd), limit), timeout, "") or ""
         if len(text.strip()) < 40:
-            # Chromium builds the web content's accessibility tree lazily, on
-            # the first UIA request: ask once more after it had a moment.
+
             time.sleep(0.35)
             text = self._bounded(lambda: backend.document_text(int(hwnd), limit), timeout, "") or text
         return str(text)[:limit]
-
 
 class _ManagedUia:  # pragma: no cover - needs Windows + .NET
     """System.Windows.Automation through pythonnet (loaded lazily)."""
@@ -395,15 +373,12 @@ class _ManagedUia:  # pragma: no cover - needs Windows + .NET
                 name, auto_id = "", ""
             return {"name": str(name or ""), "value": str(value or ""), "automation_id": str(auto_id or "")}
 
-        # The browser UI (tab strip, toolbar with the address bar) comes before
-        # the web content in tree order, so FindFirst is normally the omnibox
-        # and costs a few milliseconds even on a huge page.
         first = root.FindFirst(self.TreeScope.Descendants, condition)
         if first is not None:
             out.append(describe(first))
             if pick_address(out):
                 return out
-        # Rare layouts: look a bit further, but only in the browser's own UI.
+
         try:
             elements = root.FindAll(self.TreeScope.Descendants, condition)
             for index in range(min(int(elements.Count), 12)):
@@ -425,7 +400,7 @@ class _ManagedUia:  # pragma: no cover - needs Windows + .NET
                 return str(text)
         except Exception:
             pass
-        # No TextPattern (older Chromium / Firefox): collect the text elements.
+
         text_condition = self.PropertyCondition(self.AE.ControlTypeProperty, self.ControlType.Text)
         parts: List[str] = []
         size = 0
@@ -445,7 +420,6 @@ class _ManagedUia:  # pragma: no cover - needs Windows + .NET
         except Exception:
             pass
         return "\n".join(parts)[:limit]
-
 
 def detect(hwnd: int, *, info: Optional[Dict[str, Any]] = None, reader: Optional[UiaReader] = None,
            timeout: float = 1.6) -> Optional[Dict[str, Any]]:

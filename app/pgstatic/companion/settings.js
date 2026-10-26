@@ -1,8 +1,5 @@
-/* MemuAI companion — settings block shared by the main window (Settings → Voice
-   and Live → «Компаньон») and Quick Ask (MemuQuick.settingsSection).
 
-   MemuCompanionSettings.html(surface, ctx) → markup; .bind(root, surface, ctx).
-   ctx = { lang: "ru"|"en", pref(key, fallback), save(patch) → Promise, toast(text, kind) } */
+
 (function () {
   "use strict";
   const Core = window.MemuCompanionCore;
@@ -41,8 +38,7 @@
         select("companion_live_placement", p.companion_live_placement, t("Где показывать", "Where to show it"),
           t("«Над окном» — персонажа можно перетащить и изменить размер за уголок", "“Over the window” — drag the character anywhere and resize it by the corner"),
           [["panel", t("В панели Live", "In the Live panel")], ["window", t("Над окном MemuAI", "Over the MemuAI window")]]);
-    // Round 23: calm layout — the switch and «where» first, then the character (preview + model), size, and everything
-    // fine-grained (lip sync, emotions, gestures, frame rate, Live2D runtime) behind «Дополнительно». Same data-* hooks.
+
     return `<div class="companion-settings cs-calm" id="companion-settings-${surface}" data-surface="${surface}">
       <div class="cs-card">${head}</div>
       <div class="cs-group">
@@ -94,10 +90,9 @@
     </div>`;
   }
 
-  /* --------------------------------------------------- zip (stored, no compression) */
   const CRC = (() => { const table = new Uint32Array(256); for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; table[n] = c >>> 0; } return table; })();
   function crc32(bytes) { let c = 0xFFFFFFFF; for (let i = 0; i < bytes.length; i++) c = CRC[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
-  /** Build a zip (method 0, UTF-8 names) from [{name, data:Uint8Array}] — used to upload a picked Live2D folder. */
+
   function buildZip(files) {
     const enc = new TextEncoder();
     const parts = [], central = [];
@@ -135,12 +130,12 @@
       preview = MemuCompanion.create({ container: previewBox, surface: surface === "quick" ? "quick" : "live", lang: ctx.lang,
         prefs: () => Object.assign({}, ctx.allPrefs ? ctx.allPrefs() : {}, prefs(ctx)) });
     }
-    // The preview renders only while the settings are on screen.
+
     const visibleObserver = typeof IntersectionObserver !== "undefined" ? new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) startPreview();
     }) : null;
     if (visibleObserver) visibleObserver.observe(previewBox); else startPreview();
-    // Settings panes are re-rendered wholesale; drop the preview with them.
+
     const gone = new MutationObserver(() => {
       if (!document.body.contains(root)) { gone.disconnect(); if (visibleObserver) visibleObserver.disconnect(); if (preview) preview.destroy(); preview = null; }
     });
@@ -175,7 +170,6 @@
       if (input.type === "range") input.addEventListener("input", () => { root.querySelector("[data-companion-size-out]").textContent = input.value + "%"; });
     });
 
-    /* ------------------------------------------------------- library */
     const list = root.querySelector("[data-companion-models]");
     async function renderModels(force) {
       let lib;
@@ -250,7 +244,6 @@
       upload(buildZip(entries), root0 + ".zip");
     });
 
-    /* ------------------------------------------------------- Live2D runtime */
     const runtimeBox = root.querySelector("[data-companion-runtime]");
     function renderRuntime(runtime) {
       if (!runtime) return;

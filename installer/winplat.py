@@ -33,7 +33,6 @@ FOLDERS = {
 WEBVIEW2_CLIENT = r"Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}"
 WEBVIEW2_BOOTSTRAPPER = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
 
-
 def clean_environment() -> Dict[str, str]:
     """Environment for programs we start: no PyInstaller one-file bookkeeping.
 
@@ -45,7 +44,6 @@ def clean_environment() -> Dict[str, str]:
            if not k.upper().startswith("_PYI_") and k.upper() not in {"_MEIPASS2", "TCL_LIBRARY", "TK_LIBRARY"}}
     env["PYINSTALLER_RESET_ENVIRONMENT"] = "1"
     return env
-
 
 class GUID(ctypes.Structure):
     _fields_ = [("Data1", wintypes.DWORD), ("Data2", wintypes.WORD), ("Data3", wintypes.WORD),
@@ -60,19 +58,15 @@ class GUID(ctypes.Structure):
             guid.Data4[i] = byte
         return guid
 
-
 class PROPERTYKEY(ctypes.Structure):
     _fields_ = [("fmtid", GUID), ("pid", wintypes.DWORD)]
-
 
 class _PVUnion(ctypes.Union):
     _fields_ = [("pwszVal", ctypes.c_wchar_p), ("pad", ctypes.c_ulonglong * 2)]
 
-
 class PROPVARIANT(ctypes.Structure):
     _fields_ = [("vt", ctypes.c_ushort), ("r1", ctypes.c_ushort), ("r2", ctypes.c_ushort),
                 ("r3", ctypes.c_ushort), ("u", _PVUnion)]
-
 
 class PROCESSENTRY32W(ctypes.Structure):
     _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD), ("th32ProcessID", wintypes.DWORD),
@@ -81,13 +75,11 @@ class PROCESSENTRY32W(ctypes.Structure):
                 ("pcPriClassBase", wintypes.LONG), ("dwFlags", wintypes.DWORD),
                 ("szExeFile", wintypes.WCHAR * 260)]
 
-
 def _com_method(obj: ctypes.c_void_p, index: int, *argtypes):
     vtable = ctypes.cast(obj, ctypes.POINTER(ctypes.POINTER(ctypes.c_void_p))).contents
     prototype = ctypes.WINFUNCTYPE(ctypes.HRESULT, ctypes.c_void_p, *argtypes)
     function = prototype(vtable[index])
     return lambda *args: function(obj, *args)
-
 
 def _release(obj: ctypes.c_void_p) -> None:
     if obj and obj.value:
@@ -96,7 +88,6 @@ def _release(obj: ctypes.c_void_p) -> None:
             ctypes.WINFUNCTYPE(ctypes.c_ulong, ctypes.c_void_p)(vtable[2])(obj)
         except Exception:  # noqa: BLE001
             pass
-
 
 def create_shell_link(link: Path, target: Path, args: str = "", workdir: str = "", icon: str = "",
                       description: str = "", app_id: str = "") -> None:
@@ -108,7 +99,7 @@ def create_shell_link(link: Path, target: Path, args: str = "", workdir: str = "
     ole32.CoCreateInstance.restype = ctypes.c_long
     ole32.CoUninitialize.argtypes = []
     ole32.CoUninitialize.restype = None
-    initialized = ole32.CoInitializeEx(None, 0x2)  # COINIT_APARTMENTTHREADED
+    initialized = ole32.CoInitializeEx(None, 0x2)
     link_obj = ctypes.c_void_p()
     persist = ctypes.c_void_p()
     store = ctypes.c_void_p()
@@ -118,36 +109,35 @@ def create_shell_link(link: Path, target: Path, args: str = "", workdir: str = "
         hr = ole32.CoCreateInstance(ctypes.byref(clsid), None, 1, ctypes.byref(iid_link), ctypes.byref(link_obj))
         if hr < 0 or not link_obj.value:
             raise OSError(f"CoCreateInstance(ShellLink) failed: 0x{hr & 0xFFFFFFFF:08X}")
-        _com_method(link_obj, 20, wintypes.LPCWSTR)(str(target))                 # SetPath
+        _com_method(link_obj, 20, wintypes.LPCWSTR)(str(target))
         if args:
-            _com_method(link_obj, 11, wintypes.LPCWSTR)(args)                     # SetArguments
-        _com_method(link_obj, 9, wintypes.LPCWSTR)(workdir or str(target.parent))  # SetWorkingDirectory
+            _com_method(link_obj, 11, wintypes.LPCWSTR)(args)
+        _com_method(link_obj, 9, wintypes.LPCWSTR)(workdir or str(target.parent))
         if description:
-            _com_method(link_obj, 7, wintypes.LPCWSTR)(description)               # SetDescription
+            _com_method(link_obj, 7, wintypes.LPCWSTR)(description)
         if icon:
-            _com_method(link_obj, 17, wintypes.LPCWSTR, ctypes.c_int)(icon, 0)    # SetIconLocation
+            _com_method(link_obj, 17, wintypes.LPCWSTR, ctypes.c_int)(icon, 0)
         query = _com_method(link_obj, 0, ctypes.POINTER(GUID), ctypes.POINTER(ctypes.c_void_p))
         if app_id:
             try:
                 query(ctypes.byref(GUID.parse("{886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}")), ctypes.byref(store))
-                key = PROPERTYKEY(GUID.parse("{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}"), 5)  # AppUserModel.ID
+                key = PROPERTYKEY(GUID.parse("{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}"), 5)
                 value = PROPVARIANT()
-                value.vt = 31  # VT_LPWSTR
+                value.vt = 31
                 buffer = ctypes.create_unicode_buffer(app_id)
                 value.u.pwszVal = ctypes.cast(buffer, ctypes.c_wchar_p)
                 _com_method(store, 6, ctypes.POINTER(PROPERTYKEY), ctypes.POINTER(PROPVARIANT))(
                     ctypes.byref(key), ctypes.byref(value))
-                _com_method(store, 7)()                                             # Commit
+                _com_method(store, 7)()
             except OSError as exc:
                 log.warning("AppUserModelID not set on %s: %s", link, exc)
         query(ctypes.byref(GUID.parse("{0000010b-0000-0000-C000-000000000046}")), ctypes.byref(persist))
-        _com_method(persist, 6, wintypes.LPCWSTR, wintypes.BOOL)(str(link), True)  # IPersistFile::Save
+        _com_method(persist, 6, wintypes.LPCWSTR, wintypes.BOOL)(str(link), True)
     finally:
         for obj in (store, persist, link_obj):
             _release(obj)
         if initialized in (0, 1):
             ole32.CoUninitialize()
-
 
 def _powershell_link(link: Path, target: Path, args: str, workdir: str, icon: str) -> None:
     def quote(value: str) -> str:
@@ -161,7 +151,6 @@ def _powershell_link(link: Path, target: Path, args: str, workdir: str, icon: st
                             capture_output=True, timeout=30, creationflags=CREATE_NO_WINDOW)
     if result.returncode != 0:
         raise OSError(f"shortcut fallback failed: {result.stderr.decode(errors='replace')[:200]}")
-
 
 class WindowsPlatform(Platform):
     def __init__(self) -> None:
@@ -185,7 +174,6 @@ class WindowsPlatform(Platform):
         k.CloseHandle.argtypes = [wintypes.HANDLE]
         k.CloseHandle.restype = wintypes.BOOL
 
-    # ------------------------------------------------------------------ folders
     def known_folder(self, name: str) -> Path:
         try:
             shell32 = ctypes.windll.shell32
@@ -207,7 +195,6 @@ class WindowsPlatform(Platform):
             return Path(os.environ.get("APPDATA", "")) / "Microsoft" / "Windows" / "Start Menu" / "Programs"
         return Path(os.environ.get("USERPROFILE", str(Path.home()))) / "Desktop"
 
-    # ------------------------------------------------------------------ registry
     def _root(self, root: str):
         w = self.winreg
         if root == "HKCU":
@@ -265,7 +252,6 @@ class WindowsPlatform(Platform):
         except FileNotFoundError:
             pass
 
-    # ------------------------------------------------------------------ shortcuts
     def create_shortcut(self, link: Path, target: Path, args: str = "", workdir: str = "",
                         icon: str = "", description: str = "", app_id: str = "") -> None:
         try:
@@ -274,13 +260,12 @@ class WindowsPlatform(Platform):
             log.warning("IShellLink failed for %s (%s); using the WScript.Shell fallback", link, exc)
             _powershell_link(link, target, args, workdir, icon)
 
-    # ------------------------------------------------------------------ processes
     def processes_in(self, folder: Path) -> List[Tuple[int, str]]:
         k = self.kernel32
         prefix = os.path.normcase(os.path.abspath(str(folder))).rstrip("\\") + "\\"
         own = {os.getpid(), os.getppid()}
         found: List[Tuple[int, str]] = []
-        snapshot = k.CreateToolhelp32Snapshot(0x2, 0)  # TH32CS_SNAPPROCESS
+        snapshot = k.CreateToolhelp32Snapshot(0x2, 0)
         if not snapshot or snapshot == wintypes.HANDLE(-1).value:
             return found
         try:
@@ -290,7 +275,7 @@ class WindowsPlatform(Platform):
             while ok:
                 pid = int(entry.th32ProcessID)
                 if pid and pid not in own:
-                    handle = k.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+                    handle = k.OpenProcess(0x1000, False, pid)
                     if handle:
                         try:
                             size = wintypes.DWORD(32768)
@@ -308,7 +293,7 @@ class WindowsPlatform(Platform):
 
     def terminate(self, pid: int) -> None:
         k = self.kernel32
-        handle = k.OpenProcess(0x0001, False, int(pid))  # PROCESS_TERMINATE
+        handle = k.OpenProcess(0x0001, False, int(pid))
         if not handle:
             raise OSError(ctypes.get_last_error(), f"OpenProcess({pid}) failed")
         try:
@@ -348,7 +333,6 @@ class WindowsPlatform(Platform):
                          creationflags=DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP, close_fds=True,
                          stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    # ------------------------------------------------------------------ misc
     def refresh_shell_icons(self, paths: Sequence[Path]) -> None:
         """Round 33: SHCNE_UPDATEITEM for each shortcut/exe, then SHCNE_ASSOCCHANGED.
 
@@ -365,7 +349,7 @@ class WindowsPlatform(Platform):
             except OSError as exc:
                 log.debug("SHChangeNotify(%s): %s", path, exc)
         try:
-            shell32.SHChangeNotify(0x08000000, 0x0000 | 0x3000, None, None)   # SHCNE_ASSOCCHANGED
+            shell32.SHChangeNotify(0x08000000, 0x0000 | 0x3000, None, None)
         except OSError as exc:
             log.debug("SHChangeNotify(ASSOCCHANGED): %s", exc)
 
@@ -375,7 +359,7 @@ class WindowsPlatform(Platform):
                                                wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
         user32.SendMessageTimeoutW.restype = ctypes.c_size_t
         result = ctypes.c_size_t()
-        # HWND_BROADCAST, WM_SETTINGCHANGE, lParam "Environment", SMTO_ABORTIFHUNG, 5 s.
+
         user32.SendMessageTimeoutW(0xFFFF, 0x001A, 0, "Environment", 0x0002, 5000, ctypes.byref(result))
 
     def webview2_version(self) -> str:
@@ -388,7 +372,6 @@ class WindowsPlatform(Platform):
             if value and value != "0.0.0.0":
                 return value
         return ""
-
 
     def file_version(self, path: Path) -> str:
         """``GetFileVersionInfoW`` → ``VS_FIXEDFILEINFO``; the pure-Python reader is the fallback."""
@@ -417,9 +400,6 @@ class WindowsPlatform(Platform):
             log.info("GetFileVersionInfoW failed for %s: %s", path, exc)
         return super().file_version(path)
 
-
-# ---------------------------------------------------------------------- helpers used by main/bridge
-
 def ui_language() -> str:
     try:
         kernel32 = ctypes.windll.kernel32
@@ -430,18 +410,16 @@ def ui_language() -> str:
     except Exception:  # noqa: BLE001
         return "en"
 
-
 def message_box(text: str, title: str, flags: int = 0x40) -> int:
     """MB_* flags; returns IDOK=1, IDCANCEL=2, IDYES=6, IDNO=7."""
     try:
         user32 = ctypes.windll.user32
         user32.MessageBoxW.argtypes = [wintypes.HWND, wintypes.LPCWSTR, wintypes.LPCWSTR, wintypes.UINT]
         user32.MessageBoxW.restype = ctypes.c_int
-        return int(user32.MessageBoxW(None, text, title, flags | 0x00010000))  # MB_SETFOREGROUND
+        return int(user32.MessageBoxW(None, text, title, flags | 0x00010000))
     except Exception:  # noqa: BLE001
         print(f"{title}: {text}", file=sys.stderr)
         return 2
-
 
 def single_instance(name: str):
     """Return a mutex handle, or None when another instance already holds it."""
@@ -450,14 +428,13 @@ def single_instance(name: str):
         kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
         kernel32.CreateMutexW.restype = wintypes.HANDLE
         handle = kernel32.CreateMutexW(None, False, name)
-        if handle and ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS
+        if handle and ctypes.get_last_error() == 183:
             kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
             kernel32.CloseHandle(handle)
             return None
         return handle or True
     except Exception:  # noqa: BLE001
         return True
-
 
 def release_instance(handle) -> None:
     """Close the named-mutex handle when an embedded/silent installer returns."""
@@ -468,14 +445,13 @@ def release_instance(handle) -> None:
     kernel32.CloseHandle.restype = wintypes.BOOL
     kernel32.CloseHandle(handle)
 
-
 def style_window(hwnd: int) -> None:
     """Windows 11 rounded corners (+ DWM shadow) for the frameless installer window."""
     try:
         dwmapi = ctypes.windll.dwmapi
         dwmapi.DwmSetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
         dwmapi.DwmSetWindowAttribute.restype = ctypes.c_long
-        preference = ctypes.c_int(2)  # DWMWCP_ROUND
+        preference = ctypes.c_int(2)
         dwmapi.DwmSetWindowAttribute(hwnd, 33, ctypes.byref(preference), ctypes.sizeof(preference))
         dark = ctypes.c_int(1)
         dwmapi.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(dark), ctypes.sizeof(dark))
@@ -489,14 +465,11 @@ def style_window(hwnd: int) -> None:
     except Exception as exc:  # noqa: BLE001
         log.info("window styling skipped: %s", exc)
 
-
 class _RECT(ctypes.Structure):
     _fields_ = [("left", ctypes.c_long), ("top", ctypes.c_long), ("right", ctypes.c_long), ("bottom", ctypes.c_long)]
 
-
 class _MONITORINFO(ctypes.Structure):
     _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", _RECT), ("rcWork", _RECT), ("dwFlags", wintypes.DWORD)]
-
 
 def window_dpi(hwnd: int) -> int:
     """DPI the window is rendered at (WebView2 scales its content by the same factor)."""
@@ -508,7 +481,7 @@ def window_dpi(hwnd: int) -> int:
         if dpi:
             return dpi
     except (AttributeError, OSError):
-        pass                                   # Windows before 10 1607
+        pass
     try:
         user32.GetDpiForSystem.argtypes = []
         user32.GetDpiForSystem.restype = wintypes.UINT
@@ -527,12 +500,11 @@ def window_dpi(hwnd: int) -> int:
         gdi32.GetDeviceCaps.restype = ctypes.c_int
         hdc = user32.GetDC(None)
         try:
-            return int(gdi32.GetDeviceCaps(hdc, 88)) or 96   # LOGPIXELSX
+            return int(gdi32.GetDeviceCaps(hdc, 88)) or 96
         finally:
             user32.ReleaseDC(None, hdc)
     except (AttributeError, OSError):
         return 96
-
 
 def cursor_work_area() -> Tuple[int, int, int, int]:
     """Work area (left, top, right, bottom; physical pixels) of the monitor under the cursor."""
@@ -545,7 +517,7 @@ def cursor_work_area() -> Tuple[int, int, int, int]:
             point = wintypes.POINT(0, 0)
         user32.MonitorFromPoint.argtypes = [wintypes.POINT, wintypes.DWORD]
         user32.MonitorFromPoint.restype = ctypes.c_void_p
-        monitor = user32.MonitorFromPoint(point, 2)          # MONITOR_DEFAULTTONEAREST
+        monitor = user32.MonitorFromPoint(point, 2)
         info = _MONITORINFO()
         info.cbSize = ctypes.sizeof(_MONITORINFO)
         user32.GetMonitorInfoW.argtypes = [ctypes.c_void_p, ctypes.POINTER(_MONITORINFO)]
@@ -559,10 +531,9 @@ def cursor_work_area() -> Tuple[int, int, int, int]:
     rect = _RECT()
     user32.SystemParametersInfoW.argtypes = [wintypes.UINT, wintypes.UINT, ctypes.c_void_p, wintypes.UINT]
     user32.SystemParametersInfoW.restype = wintypes.BOOL
-    if user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0):   # SPI_GETWORKAREA
+    if user32.SystemParametersInfoW(0x0030, 0, ctypes.byref(rect), 0):
         return int(rect.left), int(rect.top), int(rect.right), int(rect.bottom)
     return 0, 0, 1920, 1040
-
 
 def window_frame(hwnd: int) -> Tuple[Tuple[int, int], Tuple[int, int]]:
     """((outer width, outer height), (client width, client height)) in physical pixels."""
@@ -577,7 +548,6 @@ def window_frame(hwnd: int) -> Tuple[Tuple[int, int], Tuple[int, int]]:
     return ((outer.right - outer.left, outer.bottom - outer.top),
             (client.right - client.left, client.bottom - client.top))
 
-
 def place_window(hwnd: int, logical: Tuple[int, int], fit) -> dict:
     """Give the window a CLIENT area of ``logical`` × DPI scale, clamped to the work area
     of the monitor under the cursor and centred on it. ``fit`` is ``main.fit_window``."""
@@ -590,14 +560,13 @@ def place_window(hwnd: int, logical: Tuple[int, int], fit) -> dict:
     user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int, ctypes.c_int,
                                     ctypes.c_int, wintypes.UINT]
     user32.SetWindowPos.restype = wintypes.BOOL
-    # SWP_NOZORDER | SWP_NOACTIVATE | SWP_NOOWNERZORDER
+
     if not user32.SetWindowPos(hwnd, None, geometry["x"], geometry["y"], geometry["width"], geometry["height"],
                                0x0004 | 0x0010 | 0x0200):
         raise OSError("SetWindowPos failed")
     geometry["work"] = work
     geometry["nonclient"] = nonclient
     return geometry
-
 
 def ensure_client_size(hwnd: int, client: Tuple[int, int]) -> Optional[Tuple[int, int]]:
     """After the window is shown: grow/shrink the outer frame so the client area is
@@ -617,15 +586,12 @@ def ensure_client_size(hwnd: int, client: Tuple[int, int]) -> Optional[Tuple[int
     user32.SetWindowPos(hwnd, None, rect.left - dw // 2, rect.top - dh // 2, ow + dw, oh + dh, 0x0004 | 0x0010 | 0x0200)
     return window_frame(hwnd)[1]
 
-
 WM_NCLBUTTONDOWN = 0x00A1
 HTCAPTION = 2
-
 
 def _pack_point(x: int, y: int) -> int:
     """MAKELPARAM for screen coordinates (each a signed 16-bit value; negative on a left/upper monitor)."""
     return ((int(y) & 0xFFFF) << 16) | (int(x) & 0xFFFF)
-
 
 def primary_button_down() -> bool:
     """Is the (logical) primary mouse button physically held right now?"""
@@ -634,9 +600,8 @@ def primary_button_down() -> bool:
     user32.GetSystemMetrics.restype = ctypes.c_int
     user32.GetAsyncKeyState.argtypes = [ctypes.c_int]
     user32.GetAsyncKeyState.restype = ctypes.c_short
-    swapped = bool(user32.GetSystemMetrics(23))        # SM_SWAPBUTTON: GetAsyncKeyState sees physical buttons
+    swapped = bool(user32.GetSystemMetrics(23))
     return bool(user32.GetAsyncKeyState(0x02 if swapped else 0x01) & 0x8000)
-
 
 def begin_window_drag(hwnd: int) -> bool:
     """Start the system move loop for a frameless window, as if its caption was pressed.
@@ -660,14 +625,13 @@ def begin_window_drag(hwnd: int) -> bool:
         user32.ReleaseCapture.argtypes = []
         user32.ReleaseCapture.restype = wintypes.BOOL
         user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
-        user32.SendMessageW.restype = ctypes.c_ssize_t     # LRESULT (LONG_PTR)
+        user32.SendMessageW.restype = ctypes.c_ssize_t
         user32.ReleaseCapture()
         user32.SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, _pack_point(point.x, point.y))
         return True
     except Exception as exc:  # noqa: BLE001
         log.info("window drag unavailable: %s", exc)
         return False
-
 
 def download_webview2(target_dir: Path, timeout: float = 60) -> Path:
     """Download Microsoft's Evergreen WebView2 bootstrapper (signed by Microsoft)."""
@@ -683,11 +647,9 @@ def download_webview2(target_dir: Path, timeout: float = 60) -> Path:
             handle.write(chunk)
     return path
 
-
 def install_webview2(target_dir: Path) -> None:
     bootstrapper = download_webview2(target_dir)
-    # /silent /install is the documented unattended mode of the bootstrapper; without
-    # administrator rights it installs per-user.
+
     result = subprocess.run([str(bootstrapper), "/silent", "/install"], timeout=600, env=clean_environment())
     if result.returncode != 0:
         raise OSError(f"WebView2 bootstrapper exit code {result.returncode}")

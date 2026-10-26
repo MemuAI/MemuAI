@@ -19,7 +19,6 @@ from typing import Any, Callable, Dict
 
 from . import tgapp_code as tcode
 
-
 def register(op: Callable[[str], Callable], ApiError: Any, require_code: Callable[[Dict[str, Any]], None],
              t: Callable[[Dict[str, Any], str, str], str], lang_of: Callable[[Dict[str, Any]], str]) -> None:
 
@@ -96,12 +95,12 @@ def register(op: Callable[[str], Callable], ApiError: Any, require_code: Callabl
         rc, session_id = str(body.get("rc") or ""), str(body.get("session_id") or "")
 
         def run() -> Dict[str, Any]:
-            root = tcode.root_of(session_id, rc) if (rc or session_id) else ""   # files only of a real session
+            root = tcode.root_of(session_id, rc) if (rc or session_id) else ""
             rows = tgapp_chat.chat_models(ctx["prefs"])
             catalog = tcode.command_catalog(rc)
             live = tcode.live_state(rc) if rc else None
             if live and live.get("model"):
-                catalog["model"] = str(live["model"])          # «current» next to the model the session uses now
+                catalog["model"] = str(live["model"])
             return tgapp_complete.complete(str(body.get("text") or ""), root=root, catalog=catalog,
                                            models=[row["id"] for row in rows],
                                            model_labels={row["id"]: row.get("provider", "") for row in rows},

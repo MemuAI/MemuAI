@@ -36,7 +36,6 @@ MODULES = ("characters", "translator", "catalog", "api-models", "benchmarks", "d
 SIZES = {"1366": (1366, 768), "1920": (1920, 1080), "narrow": (800, 600)}
 SHOTS = os.environ.get("MEMU_SCROLL_SHOTS", "")
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or ""):
@@ -44,8 +43,6 @@ def _chromium() -> str:
             return candidate
     return ""
 
-
-# Runs in the MemuAI page (scope = selectors of the module chrome) and in a module page (scope = null → all).
 CHECK = r"""(scope) => {
   const out = [];
   const W = document.documentElement.clientWidth;
@@ -100,7 +97,6 @@ CHECK = r"""(scope) => {
   return out;
 }"""
 
-# One header: the module's name never sits under its actions or the window buttons (the actions fold into «»»).
 HEAD_OVERLAP = r"""() => {
   const out = [];
   const heads = [["#module-headbar:not([hidden])", ".mhb-id", ".mhb-actions > :not([hidden]), .mhb-tools > :not([hidden])"],
@@ -126,7 +122,6 @@ HEAD_OVERLAP = r"""() => {
 
 HOST_SCOPE = [".module-window:not([hidden])", "#module-headbar:not([hidden])", "#module-taskbar", ".topbar.appbar"]
 
-
 def _wait(target, expression: str, timeout: float = 15.0) -> None:
     deadline = time.time() + timeout
     while True:
@@ -138,7 +133,6 @@ def _wait(target, expression: str, timeout: float = 15.0) -> None:
         if time.time() > deadline:
             raise AssertionError(f"timed out waiting for: {expression}")
         time.sleep(0.05)
-
 
 class Walker:
     """Opens the modules in the real MemuAI page and collects scrollbar/overflow problems."""
@@ -178,7 +172,7 @@ class Walker:
                 except Exception:
                     pass
             time.sleep(0.1)
-        page.wait_for_timeout(900)   # module boot, store reads, toolbar fit
+        page.wait_for_timeout(900)
         return frame
 
     def expand(self, page, module_id: str, on: bool):
@@ -207,16 +201,16 @@ class Walker:
 
     @staticmethod
     def close_modals(frame) -> None:
-        # Not Escape: an Esc the module leaves unhandled collapses the expanded sheet (Round 21).
+
         frame.evaluate("() => document.querySelectorAll('.ch-modal-head > button:last-child').forEach((b) => b.click())")
         frame.wait_for_timeout(300)
 
     def characters(self, page, frame, label: str) -> None:
         fe = frame.evaluate
-        # The module reopens the last chat (the dark pass follows the light one): start from the gallery.
+
         fe("() => { const M = window.MemuCharacters; M.S.view = 'home'; M.S.char = null; M.S.chat = null; M.render(); }")
         frame.wait_for_timeout(300)
-        # The character editor and each of its tabs (screen №2: the tab strip had a bar of its own).
+
         fe("() => { const b = Array.from(document.querySelectorAll('button')).find((x) => /Новый персонаж|New character/.test(x.textContent)); b && b.click(); }")
         _wait(frame, "document.querySelector('.ch-editor')")
         frame.wait_for_timeout(300)
@@ -226,7 +220,7 @@ class Walker:
             frame.wait_for_timeout(200)
             self.check(page, frame, f"{label}/editor-tab{index}")
         self.close_modals(frame)
-        # A character with many tags (screen №3: the tag bar scrolled) and a chat with it.
+
         fe("""() => { const M = window.MemuCharacters; const tags = ["fantasy", "witch", "magic", "tower", "apprentice", "kind",
                  "mentor", "slow burn", "adventure", "female", "original", "lore", "school", "drama"];
             const c = M.newCharacter({ name: "Alice", description: "{{char}} is a kind witch.", first_mes: "Welcome, {{user}}! " +
@@ -244,9 +238,9 @@ class Walker:
             fe("(t) => window.MemuCharacters.openDrawer(t)", tab)
             frame.wait_for_timeout(250)
             self.check(page, frame, f"{label}/drawer-{tab}")
-        # Header actions that open a dialog (chats, author's note, search).
+
         for action in ("chats", "note", "search"):
-            # The header re-renders whenever the module updates its actions: click by selector, not a handle.
+
             if not page.evaluate("(a) => { const b = document.querySelector(`#module-headbar:not([hidden]) [data-mtb='${a}']:not([hidden])`);"
                                  " if (b) b.click(); return !!b; }", action):
                 continue
@@ -268,7 +262,6 @@ class Walker:
             finally:
                 page.close()
         return self.problems
-
 
 class _Server:
     def __init__(self):
@@ -297,7 +290,6 @@ class _Server:
     def stop(self):
         self.server.should_exit = True
         self.thread.join(timeout=10)
-
 
 @unittest.skipUnless(_chromium(), "Chromium is not installed")
 class ModulesScrollbarsTest(unittest.TestCase):
@@ -330,7 +322,6 @@ class ModulesScrollbarsTest(unittest.TestCase):
 
     def test_narrow_window(self):
         self.walk("narrow")
-
 
 if __name__ == "__main__":
     import tempfile

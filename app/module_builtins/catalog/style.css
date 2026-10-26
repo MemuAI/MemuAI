@@ -1,4 +1,3 @@
-/* Каталог моделей — токены берутся из MemuAI, поэтому тема и акцент совпадают. */
 .mc {
   --mc-line: color-mix(in srgb, var(--border) 80%, transparent);
   --mc-soft: color-mix(in srgb, var(--panel-2) 70%, var(--panel));
@@ -6,8 +5,6 @@
 }
 .mc svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .mc-muted { color: var(--muted); }
-
-/* ---------------------------------- шапка ---------------------------------- */
 .mc-bar { display: flex; align-items: center; gap: 12px; flex: none; min-height: 56px; padding: 8px 14px;
   border-bottom: 1px solid var(--mc-line); background: var(--panel); }
 .mc-brand { display: flex; align-items: center; gap: 10px; min-width: 0; margin-right: auto; }
@@ -42,8 +39,6 @@
 .mc-icon:hover { color: var(--text); background: var(--mc-soft); }
 .mc-link { border: 0; background: transparent; padding: 0; color: var(--accent); font: inherit; cursor: pointer; text-align: left; }
 .mc-link:hover { text-decoration: underline; text-underline-offset: 3px; }
-
-/* ---------------------------------- каркас ---------------------------------- */
 .mc-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 250px minmax(0, 1fr); }
 .mc-filters { overflow-y: auto; padding: 12px 12px 20px; border-right: 1px solid var(--mc-line); background: var(--panel); font-size: .92em; }
 .mc-filters-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
@@ -57,8 +52,6 @@
 .mc-check.solo { margin-top: 8px; }
 .mc-orgs { max-height: 320px; overflow-y: auto; }
 .mc-main { overflow: auto; padding: 18px 22px 80px; outline: 0; }
-
-/* ---------------------------------- список ---------------------------------- */
 .mc-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; flex-wrap: wrap; padding: 18px 20px; margin-bottom: 16px;
   border-radius: 16px; border: 1px solid var(--mc-line);
   background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%), var(--panel); }
@@ -100,8 +93,6 @@
 .mc-skeleton i { height: 150px; border-radius: 14px; background: linear-gradient(90deg, var(--mc-soft), color-mix(in srgb, var(--mc-soft) 40%, var(--panel)), var(--mc-soft));
   background-size: 200% 100%; animation: mc-shimmer 1.2s linear infinite; }
 @keyframes mc-shimmer { to { background-position: -200% 0; } }
-
-/* ---------------------------------- сравнение ---------------------------------- */
 .mc-compare-bar { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); z-index: 3; display: flex; align-items: center; gap: 8px;
   flex-wrap: wrap; max-width: calc(100% - 28px); padding: 8px 10px; border-radius: 14px; border: 1px solid var(--mc-line);
   background: var(--panel); box-shadow: var(--shadow, 0 10px 30px rgba(0,0,0,.25)); font-size: .9em; }
@@ -118,8 +109,6 @@
 .mc-table td.best { background: color-mix(in srgb, var(--ok) 14%, transparent); font-weight: 600; }
 .mc-yes { color: var(--text); font-weight: 600; }
 .mc-no { color: var(--muted); }
-
-/* ------------------------------ карточка модели ------------------------------ */
 .mc-scrim { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg-deep, var(--bg)) 55%, transparent); z-index: 4; }
 .mc-card { position: absolute; top: 0; right: 0; bottom: 0; width: min(480px, 94%); z-index: 5; display: flex; flex-direction: column; gap: 10px;
   padding: 18px; overflow: auto; background: var(--panel); border-left: 1px solid var(--mc-line); box-shadow: var(--shadow, 0 10px 40px rgba(0,0,0,.3));
@@ -161,8 +150,6 @@
 @media (prefers-reduced-motion: reduce) {
   .mc-skeleton i, .mc-card { animation: none; }
 }
-
-/* Collection workspace: readable cards, compact rows and capability shortcuts. */
 .mc { overflow:hidden; }
 .mc [hidden] { display:none!important; }
 .mc-main { padding:24px 26px 88px; scrollbar-gutter:stable; }
@@ -249,8 +236,6 @@
   .mc-brand-text .mc-status { display:block; font-size:.7em; max-width:260px; }
 }
 @media(prefers-reduced-motion:reduce) { .mc * { animation:none!important; transition:none!important; } .mc-model:hover { transform:none; } }
-
-/* Results use one benchmark library in Catalog and Benchmarks. */
 .mc-benchmark-summary { display:flex; align-items:center; gap:9px; width:100%; padding:10px 12px; border:1px solid color-mix(in srgb,var(--accent) 16%,var(--border)); border-radius:10px; background:var(--accent-soft); color:var(--text); font:inherit; font-size:.76em; text-align:left; cursor:pointer; }
 .mc-benchmark-summary b { margin-left:auto; font-size:1.25em; color:var(--accent); }
 .mc-benchmark-summary small { color:var(--muted); }
@@ -297,11 +282,6 @@
 #compare-benchmarks { margin-top:28px; }
 @media(max-width:560px) { .mc-bench-row { grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:10px; } .mc-bench-list article { padding:12px; } .mc-bench-controls .mc-btn { width:100%; justify-content:center; } }
 @media(max-width:860px) { .mc-bench-scroll-hint { display:block; } }
-
-/* ===================== Раунд 21: чище и быстрее =====================
-   Карточки без «прыжков» при наведении, компактный обзор вместо большого
-   баннера, плотные факты, лист подробностей с плавным выездом справа.
-   content-visibility отсекает отрисовку карточек за пределами экрана. */
 .mc { --mc-ease: var(--m-ease-emph, cubic-bezier(.05,.7,.1,1)); --mc-radius: 14px; }
 @media (min-width: 861px) {
   .mc-bar { flex-wrap: nowrap; min-height: 60px; padding: 10px 16px; gap: 10px; }
@@ -312,8 +292,6 @@
 .mc-mark { border-radius: 11px; box-shadow: none; }
 .mc-bar #refresh { background: transparent; color: var(--text); border-color: var(--mc-line); }
 .mc-bar #refresh:hover { background: var(--mc-soft); filter: none; }
-
-/* Обзор: заголовок и счётчики одной строкой. */
 .mc-hero { padding: 16px 20px; margin-bottom: 14px; border-radius: 16px; gap: 14px 24px;
   background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 10%, var(--panel)), var(--panel) 55%); }
 .mc-hero h1 { font-size: 1.32em; margin: 4px 0 4px; }
@@ -322,8 +300,6 @@
 .mc-hero-stats b { font-size: 1.4em; }
 .mc-purposes { margin-bottom: 16px; gap: 6px; }
 .mc-purpose { border-radius: 999px; padding: 6px 13px; }
-
-/* Карточки. */
 .mc-grid { gap: 12px; }
 .mc-model { padding: 16px; gap: 11px; border-radius: var(--mc-radius); background: var(--panel);
   content-visibility: auto; contain-intrinsic-size: auto 290px;
@@ -352,8 +328,6 @@
 .mc-card .mc-facts { border: 0; gap: 8px; overflow: visible; }
 .mc-card .mc-facts div { border: 1px solid var(--mc-line); border-radius: 11px; background: var(--bg); }
 .mc-card .mc-facts div + div { border-left: 1px solid var(--mc-line); }
-
-/* Лист подробностей. */
 .mc-scrim { background: color-mix(in srgb, #000 38%, transparent);
   animation: mc-fade .2s ease-out both; }
 .mc-scrim[data-closing] { animation: mc-fade-out .17s ease-in both; }
@@ -385,8 +359,4 @@
   .mc-sheet-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 @media (prefers-reduced-motion: reduce) { .mc-card, .mc-scrim { animation: none !important; } }
-
-/* Round 31: card parts never shrink. An off-screen card (content-visibility: auto) is laid out at its
-   intrinsic 290 px; in a narrow expanded window a card is taller than that, and the flex column used to
-   squeeze the badges and the facts row (cut text when it scrolled into view mid-layout). */
 .mc-model > * { flex-shrink: 0; }

@@ -24,12 +24,10 @@ RELEASE = "https://github.com/yt-dlp/yt-dlp/releases/latest/download/"
 _UPDATE_LOCK = threading.Lock()
 _VERSION_CACHE: Dict[str, Any] = {}
 
-
 def bin_dir() -> Path:
     folder = data_root() / "bin"
     folder.mkdir(parents=True, exist_ok=True)
     return folder
-
 
 def release_asset() -> str:
     system, machine = sys.platform, platform.machine().lower()
@@ -39,10 +37,8 @@ def release_asset() -> str:
         return "yt-dlp_macos"
     return "yt-dlp_linux_aarch64" if machine in ("aarch64", "arm64") else "yt-dlp_linux"
 
-
 def own_binary() -> Path:
     return bin_dir() / ("yt-dlp.exe" if sys.platform.startswith("win") else "yt-dlp")
-
 
 def popen_kwargs() -> Dict[str, Any]:
     kwargs: Dict[str, Any] = {"stdin": subprocess.DEVNULL, "env": {**os.environ, "PYTHONIOENCODING": "utf-8",
@@ -51,14 +47,12 @@ def popen_kwargs() -> Dict[str, Any]:
         kwargs["creationflags"] = getattr(subprocess, "CREATE_NO_WINDOW", 0x08000000)
     return kwargs
 
-
 def python_module() -> Optional[Any]:
     try:
-        import yt_dlp  # optional dependency
+        import yt_dlp
         return yt_dlp
     except Exception:
         return None
-
 
 def ytdlp_binary() -> Optional[str]:
     own = own_binary()
@@ -69,14 +63,12 @@ def ytdlp_binary() -> Optional[str]:
     found = shutil.which("yt-dlp")
     return found or None
 
-
 def ffmpeg_path() -> Optional[str]:
     for folder in (bin_dir(), Path(sys.executable).parent):
         for name in ("ffmpeg.exe", "ffmpeg"):
             if (folder / name).is_file():
                 return str(folder / name)
     return shutil.which("ffmpeg")
-
 
 def ffprobe_path() -> Optional[str]:
     ff = ffmpeg_path()
@@ -85,7 +77,6 @@ def ffprobe_path() -> Optional[str]:
         if sibling.is_file():
             return str(sibling)
     return shutil.which("ffprobe")
-
 
 def _run_version(cmd: List[str]) -> str:
     key = " ".join(cmd)
@@ -105,7 +96,6 @@ def _run_version(cmd: List[str]) -> str:
     _VERSION_CACHE[key] = (stamp, version)
     return version
 
-
 def status() -> Dict[str, Any]:
     binary = ytdlp_binary()
     module = python_module()
@@ -124,9 +114,7 @@ def status() -> Dict[str, Any]:
                                        "path": ff or ""},
             "update": dict(UPDATE_STATE)}
 
-
 UPDATE_STATE: Dict[str, Any] = {"status": "idle", "error": "", "at": 0}
-
 
 def update_ytdlp(client_factory=None) -> Dict[str, Any]:
     """Download (or refresh) the official yt-dlp release into ``music/bin``; atomic replace."""
@@ -163,7 +151,6 @@ def update_ytdlp(client_factory=None) -> Dict[str, Any]:
     finally:
         _UPDATE_LOCK.release()
 
-
 def ensure_ytdlp() -> None:
     """Make sure some yt-dlp exists; fetch the release on first use."""
     if ytdlp_binary() or python_module() is not None:
@@ -171,7 +158,6 @@ def ensure_ytdlp() -> None:
     result = update_ytdlp()
     if not result.get("ok"):
         raise RuntimeError("Не удалось скачать yt-dlp / Could not download yt-dlp: " + str(result.get("error")))
-
 
 def probe_duration(path: Path) -> float:
     probe = ffprobe_path()

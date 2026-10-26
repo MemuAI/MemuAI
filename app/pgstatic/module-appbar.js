@@ -1,20 +1,5 @@
-/* Round 38 (п.6): the title bar of a module installed as an app (/?module_app=<id>).
- *
- * The native side is app/module_appbar.py: the window keeps its sizable frame (Windows owns the side/bottom
- * resize borders, Aero Snap, shadow, rounded corners), only the caption is removed (app/win_titlebar.py), and
- * the page gets window.pywebview.api.appbar_*. Here the module's own header strip becomes the caption:
- *   - minimize / maximize-restore / close at its right end, in the module's colours;
- *   - pressing an empty part of the bar (or any [data-memu-drag] inside the module) starts the native move
- *     loop (Snap, drag-down-to-restore), a double press toggles maximize;
- *   - right click on the bar / Alt+Space — the real system menu; a short hover on «maximize» opens
- *     Windows 11 Snap Layouts;
- *   - a thin strip along the top edge starts the native top / corner resize.
- * Styles (manifest window.appbar, built-in defaults in module_appbar.BUILTIN): auto | transparent (floats over
- * the module, e.g. MemuMusic's dark player) | custom (module colours) | none (only the window buttons).
- * The module can change title/actions/colours at run time: Memu.appbar.set({title, actions, color, text, style}).
- * Nothing is drawn unless Python reports the hook installed — a browser preview never gets dead buttons
- * (tests force it with MemuModuleAppbar.preview()). No timers, no observers.
- */
+
+
 (function () {
   "use strict";
   const root = document.documentElement;
@@ -39,7 +24,7 @@
   const L = (ru, english) => (en() ? english : ru);
   const bridge = () => (window.pywebview && window.pywebview.api) || null;
   const has = (name) => { const api = bridge(); return !!(api && typeof api[name] === "function"); };
-  let fake = null;   // preview(): a browser page that pretends to be a native window
+  let fake = null;
   async function call(name, ...args) {
     if (fake) return fake(name, ...args);
     if (!has(name)) return null;
@@ -51,9 +36,7 @@
   function syncNativeTheme() {
     const dark = typeof runtime.dark === "boolean" ? runtime.dark : root.dataset.theme !== "light";
     const background = runtime.background || getComputedStyle(root).getPropertyValue("--bg").trim();
-    // The HTML host is another backing surface, separate from WinForms and
-    // WebView2. At fractional DPI a partially covered last pixel must not
-    // reveal the host's light theme behind a dark module iframe.
+
     if (/^#[0-9a-f]{6}$/i.test(background)) root.style.setProperty("--module-app-bg", background);
     root.style.colorScheme = dark ? "dark" : "light";
     if (!state) return;
@@ -80,7 +63,6 @@
   const win = () => document.querySelector(`.module-window[data-module="${CSS.escape(APP)}"]`) || document.getElementById("module-window");
   const bar = () => { const w = win(); return w && w.querySelector('[data-win="bar"]'); };
 
-  /* ------------------------------------------------------------------ build */
   function build() {
     if (controls) return;
     controls = document.createElement("div");
@@ -97,7 +79,7 @@
       if (!button) return;
       button.blur();
       clearTimeout(snapTimer);
-      // Close goes through Windows (WM_SYSCOMMAND) → pywebview «closing» → the module's own unsaved question.
+
       call("appbar_command", button.dataset.mab === "maximize" ? "toggle" : button.dataset.mab).then(() => setTimeout(syncState, 120));
     });
     controls.addEventListener("contextmenu", (event) => { event.preventDefault(); event.stopPropagation(); call("appbar_system_menu", "mouse"); });
@@ -134,7 +116,7 @@
     const node = bar();
     if (!node || bound === node) return;
     bound = node;
-    // pointerdown in the capture phase: modules.js drags / expands the in-MemuAI window on the same bar.
+
     let last = { at: 0, x: 0, y: 0 };
     node.addEventListener("pointerdown", (event) => {
       if (!root.dataset.mab || event.button !== 0 || event.target.closest(NO_DRAG)) return;
@@ -154,7 +136,6 @@
     });
   }
 
-  /* ------------------------------------------------------------------ apply */
   function apply() {
     syncNativeTheme();
     const node = bar();
@@ -175,8 +156,7 @@
     root.style.setProperty("--mab-h", look.height + "px");
     if (look.color) root.style.setProperty("--mab-bg", look.color); else root.style.removeProperty("--mab-bg");
     if (look.text) root.style.setProperty("--mab-fg", look.text); else root.style.removeProperty("--mab-fg");
-    // caption:"off" — the module draws its own name (MemuMusic's sidebar logo), the bar keeps only its buttons;
-    // a dark text colour on a transparent bar means a light module: the soft scrim turns light too.
+
     if (runtime.caption === "off") root.dataset.mabCaption = "off"; else delete root.dataset.mabCaption;
     const rgb = /^#[0-9a-f]{6}$/i.test(look.text || "") ? [1, 3, 5].map((i) => parseInt(look.text.slice(i, i + 2), 16)) : null;
     if (rgb && rgb[0] * .299 + rgb[1] * .587 + rgb[2] * .114 < 128) root.dataset.mabInk = "dark"; else delete root.dataset.mabInk;
@@ -190,7 +170,7 @@
     if (!frame || !frame.contentWindow) return;
     try {
       frame.contentWindow.postMessage({ type: "memu-module-host", action: "host-event", payload: { name: "appbar", data } }, "*");
-    } catch (error) { /* the module is loading; its load event sends it again */ }
+    } catch (error) {  }
     if (!frame.dataset.mabLoad) {
       frame.dataset.mabLoad = "1";
       frame.addEventListener("load", () => setTimeout(apply, 60));
@@ -200,7 +180,7 @@
   async function syncState() {
     const next = await call("appbar_state");
     if (!next) {
-      // pywebview injects its api a moment after the page loads.
+
       if (!fake && !state && tries++ < 40) setTimeout(syncState, 150);
       return;
     }
@@ -208,7 +188,6 @@
     apply();
   }
 
-  /* ------------------------------------------------------------------ module side */
   function fromModule(moduleId, payload) {
     if (moduleId !== APP) return { ok: true, active: false };
     payload = payload || {};
@@ -227,7 +206,6 @@
     return { ok: true, active: !!root.dataset.mab, style: root.dataset.mabStyle || "" };
   }
 
-  /** Alt+Space pressed inside the module (forwarded by the bridge): the real system menu. */
   function key(combo) {
     if (!root.dataset.mab || !combo || !combo.altKey || combo.ctrlKey || combo.metaKey || combo.key !== " ") return false;
     call("appbar_system_menu", "keyboard");
@@ -249,7 +227,7 @@
     fromModule, key,
     refresh: syncState,
     get active() { return !!root.dataset.mab; },
-    /** Tests / design preview in a browser: behave as an installed native caption. */
+
     preview(options) {
       const opts = options || {};
       const log = (window.__mabCalls = window.__mabCalls || []);

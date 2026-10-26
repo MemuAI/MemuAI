@@ -24,10 +24,8 @@ from . import model_capabilities as caps
 router = APIRouter(prefix="/api/admin")
 _probe_running: set = set()
 
-
 def _err(message: str, message_en: str, status: int = 400) -> JSONResponse:
     return JSONResponse({"error": message, "error_en": message_en}, status_code=status)
-
 
 @router.get("/models/capabilities")
 async def models_capabilities(request: Request):
@@ -39,14 +37,12 @@ async def models_capabilities(request: Request):
     return JSONResponse({"capabilities": data, "catalog": caps.catalog_status(),
                          "ms": int((time.perf_counter() - started) * 1000)})
 
-
 @router.get("/models/catalog/status")
 async def models_catalog_status(request: Request):
     deny = _auth(request)
     if deny:
         return deny
     return JSONResponse(caps.catalog_status())
-
 
 @router.post("/models/catalog/refresh")
 async def models_catalog_refresh(request: Request):
@@ -56,7 +52,6 @@ async def models_catalog_refresh(request: Request):
     result = await asyncio.to_thread(caps.refresh_catalog)
     result["catalog"] = caps.catalog_status()
     return JSONResponse(result, status_code=200 if result.get("ok") else 502)
-
 
 @router.get("/models/{model_id:path}/info")
 async def model_card(model_id: str, request: Request):
@@ -69,7 +64,6 @@ async def model_card(model_id: str, request: Request):
         return _err("Модель не найдена в каталоге Proxy", "Model not found in the Proxy catalog", 404)
     card = await asyncio.to_thread(caps.describe, model_id, entry=entry)
     return JSONResponse(card)
-
 
 @router.post("/models/{model_id:path}/probe")
 async def model_probe(model_id: str, request: Request):
@@ -86,7 +80,7 @@ async def model_probe(model_id: str, request: Request):
     if body.get("action") == "forget":
         return {"ok": True, "forgotten": caps.forget_probe(entry.id)}
     if body.get("confirm") is not True:
-        # The probe spends a real request on the user's account: the panel must ask first.
+
         return _err("Проверка тратит настоящий запрос — нужно подтверждение", "The probe spends a real request — confirmation required", 400)
     if entry.id in _probe_running:
         return _err("Проверка этой модели уже идёт", "This model is already being probed", 409)
@@ -97,7 +91,6 @@ async def model_probe(model_id: str, request: Request):
         _probe_running.discard(entry.id)
     result["summary"] = caps.capabilities_for(entry.id, entry=entry)
     return result
-
 
 @router.post("/models/{model_id:path}/override")
 async def model_override(model_id: str, request: Request):

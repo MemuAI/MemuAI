@@ -1,7 +1,5 @@
-/* MemuAI — Round 35: «Планирование по-новому» — the step constructor inside a task (plan.js block «Сделать»).
-   window.MemuFlows = { mount(host, draft, opts), fromTask(task), summaryHtml(steps), historyHtml(task, host),
-                        mountAutomations(host), openTest(draft) }.
-   Data model and engine: app/flow_engine.py; routes: app/flow_api.py (/api/plan/flow/*). */
+
+
 (function () {
   "use strict";
   const en = () => (typeof PG_LANG !== "undefined" && PG_LANG === "en");
@@ -12,7 +10,6 @@
   const call = (path, body) => api(path, { method: "POST", body: { ...(body || {}), lang: en() ? "en" : "ru" } });
   const uid = () => "s" + Math.random().toString(16).slice(2, 9);
 
-  /* ------------------------------------------------------------------ icons (own set: the app set has no split/loop/db) */
   const SVG = {
     search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
     sparkles: '<path d="M12 3.5l1.7 4.3 4.3 1.7-4.3 1.7L12 15.5l-1.7-4.3L6 9.5l4.3-1.7z"/><path d="M18.5 15l.7 1.8 1.8.7-1.8.7-.7 1.8-.7-1.8-1.8-.7 1.8-.7z"/>',
@@ -39,13 +36,14 @@
     check: '<path d="m5 12.5 4.5 4.5L19 7.5"/>', x: '<path d="M6 6l12 12M18 6 6 18"/>', flask: '<path d="M9 3h6"/><path d="M10 3v6l-5.5 9.5A1.7 1.7 0 0 0 6 21h12a1.7 1.7 0 0 0 1.5-2.5L14 9V3"/><path d="M7.5 15h9"/>',
     history: '<path d="M3.5 12a8.5 8.5 0 1 0 2.5-6"/><path d="M3 4v4h4"/><path d="M12 8v4l3 2"/>', inbox: '<path d="M3 13h5l1.5 3h5L16 13h5"/><path d="M5 5h14l2 8v6H3v-6z"/>',
     pause: '<path d="M8 5v14M16 5v14"/>', skip: '<path d="M5 5l9 7-9 7z"/><path d="M18 5v14"/>',
+    users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
   };
   const ico = (name, cls = "") => `<svg class="flw-i ${cls}" viewBox="0 0 24 24" aria-hidden="true">${SVG[name] || SVG.sparkles}</svg>`;
 
-  /* ------------------------------------------------------------------ dictionaries */
   const TYPES = () => ({
     web_search: { cat: "data", icon: "search", title: T("Веб-поиск", "Web search"), hint: T("Найти в интернете — результат: список {title, url, snippet}", "Search the web — result: a list of {title, url, snippet}") },
     model: { cat: "ai", icon: "sparkles", title: T("Запрос к модели", "Ask a model"), hint: T("Модель выполняет задание; можно попросить ответ в JSON", "The model does the job; can answer in JSON") },
+    team: { cat: "ai", icon: "users", title: T("Команда агентов", "Agent team"), hint: T("Команда ИИ-участников выполняет задание и синтезирует итоговый ответ", "An AI agent team collaborates on the task and synthesizes the final answer") },
     decide: { cat: "ai", icon: "decide", title: T("Модель решений", "Decision model"), hint: T("Быстрый ответ «да/нет» или выбор варианта", "A quick yes/no or a choice of options") },
     if: { cat: "logic", icon: "split", title: T("Если… иначе", "If… else"), hint: T("Две ветки: «Да» и «Нет»", "Two branches: “Yes” and “No”") },
     foreach: { cat: "logic", icon: "repeat", title: T("Для каждого", "For each"), hint: T("Повторить шаги для каждого элемента списка", "Repeat steps for every item of a list") },
@@ -75,7 +73,6 @@
 
   const fs = { draft: null, host: null, opts: {}, cat: null, problems: [], numbers: {}, open: new Set(), vtimer: 0, test: null, ac: null };
 
-  /* ------------------------------------------------------------------ tree helpers */
   function* walk(steps) { for (const s of steps || []) { yield s; for (const k of ["then", "else", "body"]) if (Array.isArray(s[k])) yield* walk(s[k]); } }
   function numbering(steps, prefix = "") {
     const out = {};
@@ -95,7 +92,7 @@
   }
   const stepById = (id) => { for (const s of walk(fs.draft.steps)) if (s.id === id) return s; return null; };
   function isInside(ancestorId, childId) { const a = stepById(ancestorId); if (!a) return false; for (const s of walk([...(a.then || []), ...(a.else || []), ...(a.body || [])])) if (s.id === childId) return true; return false; }
-  // after a move the numbers change: {{step3.…}} must keep pointing at the same step
+
   function rewriteRefs(before, after) {
     const map = {};
     for (const [id, n] of Object.entries(before)) if (after[id] && after[id] !== n) map[n] = after[id];
@@ -115,10 +112,11 @@
       http: { method: "GET", url: "", headers: {}, body: "" }, telegram: { text: "" }, notify: { title: "", text: "", windows: true, inbox: true },
       run_task: { task_id: "" }, qa_command: { command: "" }, qa_macro: { action_id: "" }, tool: { action: "", params: {} }, dfy: { goal: "", dfy_browser: "" },
       memucode: { project_path: "", prompt: "", permission_mode: "plan", model: "" },
+      team: { team_id: "", prompt: "" },
       mcp_call: { server: "", tool: "", args: {}, approved: false },
       integration: { tool: "", args: {} },
     };
-    // a new step that follows a list-producing step points at it at once
+
     return { ...base, ...JSON.parse(JSON.stringify(D[type] || {})) };
   }
   function lastListRef(beforeId) {
@@ -131,7 +129,6 @@
     return "";
   }
 
-  /* ------------------------------------------------------------------ variables (the picker) */
   function variablesFor(beforeId) {
     const nums = numbering(fs.draft.steps);
     const order = Object.keys(nums);
@@ -166,7 +163,7 @@
     let s = start;
     const before = el.value.slice(0, start);
     const open = before.lastIndexOf("{{");
-    if (open >= 0 && before.indexOf("}}", open) < 0) s = open;       // replace the half-typed «{{ste»
+    if (open >= 0 && before.indexOf("}}", open) < 0) s = open;
     el.value = el.value.slice(0, s) + text + el.value.slice(end);
     el.selectionStart = el.selectionEnd = s + text.length;
     el.dispatchEvent(new Event("input", { bubbles: true }));
@@ -203,7 +200,6 @@
     return false;
   }
 
-  /* ------------------------------------------------------------------ fields */
   const tplInput = (sid, key, value, ph = "") => `<div class="flw-tpl"><input class="pinput compact" data-f="${sid}|${key}" data-tpl="1" value="${H(value ?? "")}" placeholder="${H(ph)}" autocomplete="off"><button type="button" class="flw-var" data-fa="vars" title="${T("Вставить переменную", "Insert a variable")}" aria-label="${T("Вставить переменную", "Insert a variable")}">${ico("braces")}</button></div>`;
   const tplArea = (sid, key, value, ph = "", rows = 3) => `<div class="flw-tpl area"><textarea class="ptexta" rows="${rows}" data-f="${sid}|${key}" data-tpl="1" placeholder="${H(ph)}">${H(value ?? "")}</textarea><button type="button" class="flw-var" data-fa="vars" title="${T("Вставить переменную", "Insert a variable")}" aria-label="${T("Вставить переменную", "Insert a variable")}">${ico("braces")}</button></div>`;
   const textIn = (sid, key, value, ph = "", cls = "") => `<input class="pinput compact ${cls}" data-f="${sid}|${key}" value="${H(value ?? "")}" placeholder="${H(ph)}" autocomplete="off">`;
@@ -258,7 +254,7 @@
       case "qa_macro": return row(T("Кнопка", "Button"), select(id, "action_id", s.action_id, [["", T("— выберите —", "— choose —")], ...(c.macros || []).map((x) => [x.id, x.name || x.id])], "wide"), (c.macros || []).length ? T("Кнопки, которым нужно окно Быстрого доступа, по расписанию не запускаются.", "Buttons that need the Quick Access window do not run on schedule.") : T("Кнопок пока нет: Быстрый доступ → Панели и быстрые действия.", "No buttons yet: Quick Access → Panels and quick actions."));
       case "tool": return row(T("Действие", "Action"), select(id, "action", s.action, [["", T("— выберите —", "— choose —")], ...(c.actions || []).map((a) => [a.id, a.title + (a.tier === "dangerous" ? " ⚠" : "")])], "wide")) + row(T("Параметры (JSON)", "Parameters (JSON)"), jsonArea(id, "params", s.params, '{"level": 30}'));
       case "dfy": return row(T("Что сделать в браузере", "What to do in the browser"), tplArea(id, "goal", s.goal, T("Открой сайт и проверь статус заказа", "Open the site and check the order status"), 3)) + row(T("Браузер", "Browser"), select(id, "dfy_browser", s.dfy_browser || "", [["", T("Из настроек DFY", "DFY settings default")], ["isolated", T("Отдельный браузер DFY", "Separate DFY browser")], ["chrome", T("Мой Chrome", "My Chrome")]], "wide")) + `<p class="flw-note">${ico("globe")}${T("Выбор браузера не требует ответа при запуске. Chrome требует разрешения DFY и планирования в интеграции.", "The browser choice never asks at run time. Chrome requires DFY and scheduled access in the integration.")}</p>`;
-      case "mcp_call": {   // r40-mcp
+      case "mcp_call": {
         const servers = c.mcp || [];
         const srv = servers.find((x) => x.name === s.server);
         const tools = (srv ? srv.tools : servers.flatMap((x) => x.tools)).map((t) => t.name);
@@ -283,6 +279,13 @@
           + `<p class="flw-note">${ico("tool")}${T("Интеграция должна быть подключена, чтение разрешено. Изменение данных по расписанию разрешается отдельно. Подтверждений во время запуска нет; в тесте изменение данных только показывается.", "Connect the integration and enable reading. Scheduled writes have a separate permission. Runs do not ask for approval; test runs only preview changes.")}</p>`;
       }
       case "memucode": return row(T("Папка проекта", "Project folder"), textIn(id, "project_path", s.project_path, "C:\\Projects\\app", "wide")) + row(T("Задание", "Task"), tplArea(id, "prompt", s.prompt, "", 3)) + row(T("Права", "Permissions"), select(id, "permission_mode", s.permission_mode, [["plan", T("только чтение и план", "read-only, plan")], ["default", T("ничего не менять без подтверждения", "change nothing that needs approval")], ["acceptEdits", T("можно править файлы", "may edit files")]], "wide"));
+      case "team": {
+        const teams = c.teams || [];
+        const opts = [["", T("— выберите команду —", "— choose a team —")], ...teams.map((tm) => [tm.id, `${tm.name || tm.id}${tm.count ? ` (${tm.count})` : ""}`])];
+        if (s.team_id && !teams.some((tm) => tm.id === s.team_id)) opts.push([s.team_id, s.team_id]);
+        return row(T("Команда", "Team"), select(id, "team_id", s.team_id, opts, "wide"), teams.length ? "" : T("Команд пока нет: откройте раздел «Команда» в боковой панели и создайте команду.", "No teams yet: open the “Teams” section in the sidebar and create a team."))
+          + row(T("Задание для команды", "Task for the team"), tplArea(id, "prompt", s.prompt, T("Проанализируйте {{step1.result}} и подготовьте отчёт…", "Analyze {{step1.result}} and prepare a report…"), 3));
+      }
       default: return "";
     }
   }
@@ -301,7 +304,6 @@
       ${fields.length < 3 ? `<button type="button" class="pln-link" data-fa="askf-add">${ico("plus")}${T("Поле", "Field")}</button>` : ""}</div>`;
   }
 
-  /* ------------------------------------------------------------------ step cards */
   function shortOf(s) {
     const v = (x) => String(x || "").replace(/\s+/g, " ").trim();
     switch (s.type) {
@@ -313,7 +315,7 @@
       case "http": return `${s.method} ${v(s.url)}`; case "telegram": return v(s.text); case "notify": return v(s.title || s.text);
       case "run_task": return ((fs.cat?.tasks || []).find((t) => t.id === s.task_id) || {}).name || v(s.task_id); case "qa_command": return v(s.command);
       case "qa_macro": return ((fs.cat?.macros || []).find((m) => m.id === s.action_id) || {}).name || v(s.action_id); case "tool": return v(s.action);
-      case "dfy": return v(s.goal); case "memucode": return v(s.prompt); case "mcp_call": return v((s.server || "") + (s.tool ? "." + s.tool : "")); case "integration": return v(s.tool); default: return "";
+      case "dfy": return v(s.goal); case "memucode": return v(s.prompt); case "team": return (((fs.cat?.teams || []).find((tm) => tm.id === s.team_id) || {}).name ? `${((fs.cat?.teams || []).find((tm) => tm.id === s.team_id) || {}).name}: ` : "") + v(s.prompt); case "mcp_call": return v((s.server || "") + (s.tool ? "." + s.tool : "")); case "integration": return v(s.tool); default: return "";
     }
   }
   function stepHtml(s, list, index) {
@@ -374,7 +376,6 @@
     if (fs.test?.id) renderTest();
   }
 
-  /* ------------------------------------------------------------------ add menu */
   function addMenu(anchor, listKey) {
     document.querySelector(".flw-menu")?.remove();
     const menu = document.createElement("div");
@@ -386,8 +387,7 @@
       return { n: rows.length + 1, html: `<div class="flw-menu-group"><div class="flw-menu-cat">${H(label)}</div>${rows
         .map(([t, m]) => `<button type="button" role="menuitem" class="c-${m.cat}" data-add="${t}">${ico(m.icon)}<span><b>${H(m.title)}</b><small>${H(m.hint)}</small></span></button>`).join("")}</div>` };
     }).filter((g) => g.n > 1);
-    // r35-finish-b: 21 types in 2 grid columns were ~1100 px tall (half the menu always hidden behind a scroll) —
-    // groups go into up to 3 balanced columns (whole groups, the shortest column first)
+
     const w = Math.min(780, window.innerWidth - 16);
     const ncol = w >= 700 ? 3 : w >= 460 ? 2 : 1;
     const cols = Array.from({ length: ncol }, () => ({ n: 0, html: "" }));
@@ -401,7 +401,7 @@
     let r = anchor.getBoundingClientRect();
     const need = menu.scrollHeight + 14;
     if (window.innerHeight - r.bottom < need && r.top < need) {
-      // fits neither above nor below: scroll the builder so the button sits high and the menu opens below it
+
       let sc = anchor.parentElement;
       while (sc && sc !== document.body && !(sc.scrollHeight > sc.clientHeight + 4 && /auto|scroll/.test(getComputedStyle(sc).overflowY))) sc = sc.parentElement;
       if (sc && sc !== document.body) { sc.scrollTop += Math.max(0, Math.min(r.bottom + need - window.innerHeight, r.top - 56)); r = anchor.getBoundingClientRect(); }
@@ -430,7 +430,6 @@
     $q("button", menu)?.focus();
   }
 
-  /* ------------------------------------------------------------------ events */
   function changed(rerender = false) {
     if (rerender) render();
     clearTimeout(fs.vtimer);
@@ -447,7 +446,7 @@
         render();
         if (sel) { const el = $q(`[data-f="${CSS.escape(sel)}"]`, fs.host); if (el) { el.focus(); try { el.selectionStart = el.selectionEnd = pos; } catch (e) {} } }
       }
-    } catch (e) { /* the server explains on save */ }
+    } catch (e) {  }
   }
   function setField(el) {
     const [sid, key] = el.dataset.f.split("|");
@@ -462,7 +461,7 @@
     }
     if (key.startsWith("cond.")) { s.cond = s.cond || {}; s.cond[key.slice(5)] = v; } else s[key] = v;
     if (s.type === "integration" && key === "tool") s.args = {};
-    if (key === "name" || key === "label") { /* header text only */ }
+    if (key === "name" || key === "label") {  }
     const head = el.closest(".flw-step")?.querySelector(":scope > .flw-card .flw-title small");
     if (head) head.textContent = shortOf(s);
     const rer = el.tagName === "SELECT" || el.type === "checkbox" || key === "cond.op" || key === "method";
@@ -544,7 +543,6 @@
     changed(commit && key === "type");
   }
 
-  /* ------------------------------------------------------------------ test «шаг за шагом» + run log */
   async function startTest(all) {
     const task = fs.opts.getTask ? fs.opts.getTask() : { ...fs.draft };
     task.steps = fs.draft.steps;
@@ -572,7 +570,7 @@
     if (!rows.length) return `<div class="flw-log-empty"><span class="pln-spin"></span>${T("Запускаю…", "Starting…")}</div>`;
     return `<ol class="flw-log">${rows.map((r) => {
       const depth = Math.max(0, (r.depth || 1) - 1);
-      // an ask in a test waits inline: its row stays «running» — show it as waiting
+
       const st = r.status === "running" && r.type === "ask_user" ? "waiting" : (r.status || "running");
       const k = `${r.key || r.n}#${r.iter || ""}`;
       const auto = !!opts.openLast && r === rows[rows.length - 1];
@@ -594,7 +592,7 @@
     const st = run?.status || "queued";
     const live = !["done", "failed", "cancelled"].includes(st);
     const wait = run?.wait || {};
-    // r36: the test re-renders on every poll — rows the user opened or closed keep that state
+
     const state = new Map($$q("details[data-k]", box).filter((d) => d.open !== !!d.dataset.auto).map((d) => [d.dataset.k, d.open]));
     box.innerHTML = `<section class="flw-test s-${H(st)}">
       <header>${ico("flask")}<div><b>${T("Тест шаг за шагом", "Step-by-step test")}</b><small>${T("Поиск, модели и решения выполняются по-настоящему; отправка, запись и действия только показываются.", "Search, models and decisions really run; sending, writing and actions are only shown.")}</small></div>
@@ -614,10 +612,9 @@
     else if (act === "test-cancel") { await call("/api/plan/flow/cancel", { id: t.id }); setTimeout(pollTest, 300); }
     else if (act === "test-close") { clearTimeout(t.timer); fs.test = null; const box = $q("#flw-test", fs.host); if (box) box.innerHTML = ""; }
     else if (act === "test-again") { clearTimeout(t.timer); startTest(false); }
-    else if (act === "test-inbox") window.MemuInbox?.open?.({ stack: true });   // r36: over the builder, not instead of it
+    else if (act === "test-inbox") window.MemuInbox?.open?.({ stack: true });
   }
 
-  /* ------------------------------------------------------------------ public */
   async function loadCatalog() {
     if (fs.cat && Date.now() - fs.cat._at < 60000) return fs.cat;
     try { fs.cat = await api(`/api/plan/flow/catalog?lang=${en() ? "en" : "ru"}`); fs.cat._at = Date.now(); } catch (e) { fs.cat = fs.cat || { tasks: [], scenarios: [], macros: [], actions: [], tables: [], _at: 0 }; }

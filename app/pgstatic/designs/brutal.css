@@ -1,17 +1,3 @@
-/* =====================================================================
-   MemuAI design «Брутализм / Brutal» (Round24) — scoped to
-   :root[data-design="brutal"].
-   ---------------------------------------------------------------------
-   Neo-brutalism: bold 2px ink outlines, hard offset shadows that never
-   blur, flat accent blocks, heavy grotesque headings and buttons that
-   physically press in. Light mode is ink on warm cream; dark mode turns
-   the ink into chalk and the shadows into the accent colour.
-
-   Colours: only theme tokens and color-mix() of them (+#fff/#000 for the
-   cream and the ink), so every variant and accent works.
-   Every selector starts with :root[data-design="brutal"].
-   ===================================================================== */
-
 @font-face { font-family: "Brutal Sans"; font-style: normal; font-weight: 100 900; font-display: swap;
   src: url("fonts/inter/inter-latin-wght.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
@@ -24,19 +10,15 @@
 @font-face { font-family: "Brutal Mono"; font-style: normal; font-weight: 100 800; font-display: swap;
   src: url("fonts/jetbrains-mono/jetbrains-mono-cyrillic-wght.woff2") format("woff2");
   unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
-
-/* ------------------------------------------------------------ tokens */
 :root[data-design="brutal"] {
   --b-sans: "Brutal Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --b-mono: "Brutal Mono", "JetBrains Mono", Consolas, monospace;
   --d-display: var(--b-sans); --d-text: var(--b-sans); --d-small: var(--b-sans); --sans: var(--b-sans); --mono: var(--b-mono);
-
-  /* dark (default): chalk ink, accent shadows */
   --b-ink: color-mix(in srgb, var(--text) 92%, transparent);
   --b-paper: color-mix(in srgb, var(--bg) 92%, var(--accent));
   --b-desk: color-mix(in srgb, var(--bg-deep) 86%, var(--accent-2, var(--accent)));
   --b-card: color-mix(in srgb, var(--panel) 94%, var(--accent));
-  --b-block: color-mix(in srgb, var(--accent) 24%, var(--panel));        /* flat highlight block */
+  --b-block: color-mix(in srgb, var(--accent) 24%, var(--panel));
   --b-block-2: color-mix(in srgb, var(--accent-2, var(--accent)) 22%, var(--panel));
   --b-shadow-c: var(--accent);
   --b-w: 2px;
@@ -71,8 +53,6 @@
   --d-line: color-mix(in srgb, var(--text) 30%, transparent); --d-line-soft: color-mix(in srgb, var(--text) 16%, transparent);
   --d-press: color-mix(in srgb, var(--accent) 34%, #fff);
 }
-
-/* ------------------------------------------------------------- base */
 :root[data-design="brutal"] body { background: var(--b-desk); font-family: var(--b-sans); }
 :root[data-design="brutal"] #app { background: var(--b-desk); }
 :root[data-design="brutal"] :focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
@@ -80,20 +60,14 @@
 :root[data-design="brutal"] ::selection { background: var(--accent); color: var(--on-accent); }
 :root[data-design="brutal"] #startup-cover { background: var(--b-paper); }
 :root[data-design="brutal"] .startup-mark { border-radius: 12px; border: var(--b-line); box-shadow: var(--b-sh-2); }
-
-/* press mechanics shared by every chunky control */
 :root[data-design="brutal"] :is(.btn-new, .chip-sug, .send, .pbtn, .plus-btn, .jump-latest) { transition: transform .08s ease, box-shadow .08s ease; }
 :root[data-design="brutal"] :is(.btn-new, .chip-sug, .pbtn):hover { transform: translate(-1px, -1px); box-shadow: var(--b-sh-2); }
 :root[data-design="brutal"] :is(.btn-new, .chip-sug, .send, .pbtn, .plus-btn):active { transform: translate(3px, 3px); box-shadow: 0 0 0 0 var(--b-shadow-c); }
-
-/* -------------------------------------------------- frame & canvas */
 :root[data-design="brutal"] .main {
   margin: 12px 14px 16px 2px; border-radius: 16px; border: var(--b-line); background: var(--b-paper); box-shadow: var(--b-sh-3);
 }
 :root[data-design="brutal"] .side.hidden ~ .main, :root[data-design="brutal"] .focus-mode .main { margin-left: 12px; }
 :root[data-design="brutal"] .side { padding: 14px 10px 14px 12px; }
-
-/* ----------------------------------------------------------- sidebar */
 :root[data-design="brutal"] .brand { font: 900 18px/1 var(--b-sans); letter-spacing: -.04em; text-transform: uppercase; }
 :root[data-design="brutal"] :is(.brand-dot, .greet-mark, .msg-assistant .who .mini) { border-radius: 8px; border: var(--b-line); box-shadow: 2px 2px 0 var(--b-ink); }
 :root[data-design="brutal"] .btn-new {
@@ -109,6 +83,8 @@
 :root[data-design="brutal"] .mode-switch .side-btn { border-radius: 7px; font-weight: 700; }
 :root[data-design="brutal"] .mode-switch .side-btn.active-section { background: var(--b-ink); color: var(--b-paper); box-shadow: none; }
 :root[data-design="brutal"] .mode-switch .side-btn.active-section .ico { color: var(--b-paper); }
+:root[data-design="brutal"] .side-nav .side-btn.active-section { background: var(--b-card); color: var(--text); box-shadow: inset 0 0 0 var(--b-w) var(--b-ink), 2px 2px 0 var(--b-shadow-c); font-weight: 750; }
+:root[data-design="brutal"] .side-nav .side-btn.active-section .ico { color: var(--accent); }
 :root[data-design="brutal"] .side-btn { font-weight: 600; }
 :root[data-design="brutal"] .side-btn:hover { background: var(--b-block); }
 :root[data-design="brutal"] .side-label { text-transform: uppercase; font-weight: 900; letter-spacing: .06em; font-size: 11px; color: var(--text); }
@@ -119,8 +95,6 @@
 :root[data-design="brutal"] .profile-card { border-radius: 12px; background: var(--b-card); border: var(--b-line); box-shadow: var(--b-sh-1); }
 :root[data-design="brutal"][data-theme="light"] .profile-card { box-shadow: 3px 3px 0 var(--b-ink); }
 :root[data-design="brutal"] .profile-avatar { border-radius: 8px; border: var(--b-line); }
-
-/* ------------------------------------------------------------ topbar */
 :root[data-design="brutal"] .topbar.appbar { background: transparent; border-bottom: var(--b-line); }
 :root[data-design="brutal"] :is(.bar-icon, .iconbtn) { border-radius: 8px; }
 :root[data-design="brutal"] :is(.bar-icon, .iconbtn):hover, :root[data-design="brutal"] .bar-icon.open { background: var(--b-block); box-shadow: inset 0 0 0 var(--b-w) var(--b-ink); }
@@ -130,8 +104,6 @@
 :root[data-design="brutal"] .dd-btn { border-radius: 10px; font-weight: 850; letter-spacing: -.02em; }
 :root[data-design="brutal"] .dd-btn:hover { background: var(--b-block); box-shadow: inset 0 0 0 var(--b-w) var(--b-ink); }
 :root[data-design="brutal"] .context-meter { border-radius: 999px; background: var(--b-block-2); border: var(--b-line); font-weight: 700; color: var(--text); }
-
-/* --------------------------------------------------------- popovers */
 :root[data-design="brutal"] :is(.dd-pop, .app-menu-pop, .context-menu, .profile-menu-pop, .pretty-select-menu, .msg-more-pop, .slash-menu, .plus-menu, .module-layout-menu) {
   border-radius: 12px; background: var(--b-card); border: var(--b-line); box-shadow: var(--b-sh-2);
   -webkit-backdrop-filter: none; backdrop-filter: none;
@@ -143,8 +115,6 @@
 :root[data-design="brutal"] :is(.dd-item.sel, .pretty-select-menu button.selected, .plus-row.is-active) { background: var(--accent); color: var(--on-accent); }
 :root[data-design="brutal"] :is(.dd-item.sel, .pretty-select-menu button.selected, .plus-row.is-active) :is(small, span, .ui-icon) { color: var(--on-accent); }
 :root[data-design="brutal"] :is(.dd-search input, .plus-search) { border-radius: 8px; background: var(--b-paper); border: var(--b-line); box-shadow: none; }
-
-/* ---------------------------------------------------------- welcome */
 :root[data-design="brutal"] .greeting h1 { font: 900 clamp(2rem, 3.6vw, 2.9rem)/1.05 var(--b-sans); letter-spacing: -.045em; }
 :root[data-design="brutal"] .greeting-subtitle { font-weight: 600; color: var(--text); }
 :root[data-design="brutal"] .greet-mark { border-radius: 12px; }
@@ -157,8 +127,6 @@
 :root[data-design="brutal"] .chip-sug.featured { background: var(--accent); color: var(--on-accent); }
 :root[data-design="brutal"] .chip-sug.featured .ui-icon { color: var(--on-accent); }
 :root[data-design="brutal"] :is(.work-guide, .temp-guide, .code-guide) { border-radius: 12px; border: var(--b-line); background: var(--b-card); box-shadow: var(--b-sh-1); }
-
-/* --------------------------------------------------------- composer */
 :root[data-design="brutal"] .composer-wrap::before { background: linear-gradient(to bottom, transparent, var(--b-paper)); }
 :root[data-design="brutal"] .composer {
   border-radius: 14px; border: var(--b-line); background: var(--b-card); box-shadow: var(--b-sh-2);
@@ -172,8 +140,6 @@
   border-radius: 10px; background: var(--accent); color: var(--on-accent); border: var(--b-line); box-shadow: 2px 2px 0 var(--b-ink);
 }
 :root[data-design="brutal"] .send:hover { filter: none; transform: translate(-1px, -1px); box-shadow: 3px 3px 0 var(--b-ink); }
-
-/* --------------------------------------------------------- messages */
 :root[data-design="brutal"] .msg-user .bubble {
   border-radius: 14px 14px 4px 14px; background: var(--b-block); color: var(--text);
   border: var(--b-line); box-shadow: var(--b-sh-1); font-weight: 550;
@@ -200,8 +166,6 @@
 :root[data-design="brutal"] .msg-actions button { border-radius: 7px; }
 :root[data-design="brutal"] .msg-actions button:hover { background: var(--b-block); box-shadow: inset 0 0 0 1.5px var(--b-ink); }
 :root[data-design="brutal"] .jump-latest { border-radius: 10px; background: var(--b-card); border: var(--b-line); box-shadow: var(--b-sh-1); }
-
-/* ----------------------------------------------- modal / settings */
 :root[data-design="brutal"] .panel-back { background: color-mix(in srgb, #000 50%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
 :root[data-design="brutal"][data-theme="light"] .panel-back { background: color-mix(in srgb, var(--b-ink) 35%, transparent); }
 :root[data-design="brutal"] .panel { border-radius: 16px; border: var(--b-line); background: var(--b-paper); box-shadow: var(--b-sh-3); }
@@ -219,14 +183,11 @@
 :root[data-design="brutal"][data-theme="light"] .pbtn { box-shadow: 3px 3px 0 var(--b-ink); }
 :root[data-design="brutal"] .pbtn.ghost { background: var(--b-card); color: var(--text); }
 :root[data-design="brutal"] .pbtn.danger { background: var(--danger); color: #fff; }
-/* dark themes have a light --danger: white on it was ~1.8:1, so the label takes the dark "on-error" ink */
 :root[data-design="brutal"][data-theme="dark"] .pbtn.danger { color: color-mix(in srgb, var(--danger) 22%, #000); }
 :root[data-design="brutal"] .hintbox { border-radius: 10px; background: var(--b-block-2); border: var(--b-line); }
 :root[data-design="brutal"] .switch .sl { border: var(--b-line); box-shadow: none; }
 :root[data-design="brutal"] .toast { border-radius: 12px; background: var(--b-card); border: var(--b-line); box-shadow: var(--b-sh-2); -webkit-backdrop-filter: none; backdrop-filter: none; font-weight: 650; }
 :root[data-design="brutal"] .memu-tooltip { border-radius: 8px; border: var(--b-line); font-weight: 600; }
-
-/* ------------------------------------------- modules, panels, docs */
 :root[data-design="brutal"] .module-window { border-radius: 14px; border: var(--b-line); background: var(--b-paper); box-shadow: var(--b-sh-3); }
 :root[data-design="brutal"] .module-window-bar { border-bottom: var(--b-line); background: var(--b-block-2); }
 :root[data-design="brutal"] :is(.module-card, .module-taskbar) { border-radius: 12px; border: var(--b-line); background: var(--b-card); box-shadow: var(--b-sh-1); }
@@ -240,14 +201,10 @@
 :root[data-design="brutal"] .docs-page-link.active { background: var(--b-ink); color: var(--b-paper); }
 :root[data-design="brutal"] :is(.docs-table, .docs-callout, .docs-pager-card, .docs-article pre) { border-radius: 12px; border: var(--b-line); }
 :root[data-design="brutal"] .live-call { border-radius: 20px; border: var(--b-line); background: var(--b-paper); box-shadow: var(--b-sh-3); }
-
-/* ------------------------------------------------------- scrollbars */
 :root[data-design="brutal"] ::-webkit-scrollbar { width: 12px; height: 12px; }
 :root[data-design="brutal"] ::-webkit-scrollbar-track { background: transparent; }
 :root[data-design="brutal"] ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 4px; border: 3px solid transparent; background-clip: content-box; }
 :root[data-design="brutal"] ::-webkit-scrollbar-thumb:hover { background: var(--accent); background-clip: content-box; }
-
-/* ----------------------------------------------------------- motion */
 :root[data-design="brutal"]:is([data-motion="reduced"], [data-motion="off"]) :is(.btn-new, .chip-sug, .send, .pbtn, .plus-btn, .jump-latest, .mp-card) { transition: none; }
 @media (prefers-reduced-motion: reduce) {
   :root[data-design="brutal"] :is(.btn-new, .chip-sug, .send, .pbtn, .plus-btn, .jump-latest, .mp-card) { transition: none; }
@@ -256,8 +213,6 @@
   :root[data-design="brutal"] .side, :root[data-design="brutal"] .side.hidden { background: var(--b-desk); border-right: var(--b-line); }
   :root[data-design="brutal"] .main, :root[data-design="brutal"] .side.hidden ~ .main { margin: 8px 12px 12px 8px; box-shadow: var(--b-sh-2); }
 }
-
-/* ------------------------------------- settings kit (settings.css) */
 :root[data-design="brutal"] {
   --sx-r: 12px; --sx-r-sm: 8px; --sx-font: var(--b-sans); --sx-display: var(--b-sans);
   --sx-bg: var(--b-paper); --sx-side: var(--b-desk); --sx-card: var(--b-card); --sx-card-hover: var(--b-block);

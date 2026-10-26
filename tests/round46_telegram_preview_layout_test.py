@@ -17,7 +17,6 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 SHOTS = ROOT / "build" / "round46-ui"
 
-
 @pytest.mark.parametrize("width,language", [(360, "ru"), (900, "ru"), (360, "en"), (900, "en")])
 def test_formatted_preview_layout_safety_caption_and_multipart(browser, width, language):
     from app.themes import theme_css
@@ -94,7 +93,6 @@ def test_formatted_preview_layout_safety_caption_and_multipart(browser, width, l
         page.locator("#gi-confirm-no").click()
         page.wait_for_function("window.__result===false")
 
-        # Caption preview uses the actual Telegram caption clamp and formatter.
         caption = "**Фото / Photo**\n" + "🧠" * 700
         page.evaluate("caption=>{window.__result=null;window.__pending=MemuIntegrations.confirm('telegram_use_send_file',{chat:'Ivan',path:'report.pdf',caption}).then(value=>window.__result=value);}", caption)
         page.wait_for_function("!document.querySelector('#gi-confirm-yes').disabled")
@@ -102,14 +100,12 @@ def test_formatted_preview_layout_safety_caption_and_multipart(browser, width, l
         assert ("shortened" if language == "en" else "сокращена") in page.locator("#gi-preview-status").text_content()
         page.locator("#gi-confirm-no").click()
 
-        # An empty-looking file caption is optional, and must not disable send.
         page.evaluate("()=>{window.__result=null;window.__pending=MemuIntegrations.confirm('telegram_use_send_file',{chat:'Ivan',path:'report.pdf',caption:' \\n\\t '}).then(value=>window.__result=value);}")
         assert page.locator("#gi-confirm-body").count() == 0
         assert page.locator("#gi-preview-status").count() == 0
         assert page.locator("#gi-confirm-yes").is_enabled()
         page.locator("#gi-confirm-no").click()
 
-        # Every split message remains available in the scrollable preview.
         long_text = "**Начало / Start**\n" + "длинная строка long line " * 600
         expected = split_telegram_html(markdown_to_telegram_html(long_text))
         assert len(expected) > 1

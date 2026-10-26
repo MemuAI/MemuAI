@@ -12,7 +12,6 @@ from unittest.mock import patch
 
 from app import panels, pgdata
 
-
 WEATHER_JSON = {
     "current": {"temperature_2m": 12.4, "apparent_temperature": 10.1, "relative_humidity_2m": 71,
                 "weather_code": 61, "wind_speed_10m": 4.2, "is_day": 1},
@@ -31,7 +30,6 @@ RSS = """<?xml version="1.0"?><!DOCTYPE rss [<!ENTITY x SYSTEM "file:///etc/pass
 ATOM = """<feed xmlns="http://www.w3.org/2005/Atom"><title>Atom feed</title>
 <entry><title>Entry one</title><link href="https://example.org/a"/><updated>2026-10-07T09:00:00Z</updated></entry></feed>"""
 
-
 class FakeNet:
     """Replaces panels._http_text: routes by URL substring, records calls."""
 
@@ -47,7 +45,6 @@ class FakeNet:
                     raise value
                 return value if isinstance(value, str) else json.dumps(value)
         raise ValueError(f"HTTP 404 {url}")
-
 
 class PanelsBase(unittest.TestCase):
     def setUp(self) -> None:
@@ -73,7 +70,6 @@ class PanelsBase(unittest.TestCase):
 
     def find(self, pid):
         return next(p for p in panels.load()["panels"] if p["id"] == pid)
-
 
 class SpecSchemaTest(unittest.TestCase):
     def test_valid_blocks_are_kept_and_bindings_found(self):
@@ -121,7 +117,7 @@ class SpecSchemaTest(unittest.TestCase):
         self.assertEqual(len(out["items"]), panels.MAX_HISTORY)
 
     def test_cadence_respects_per_kind_floor(self):
-        # Раунд 22: от минуты, но не чаще честного предела типа (ИИ-панели — 15 мин, погода — 15, ПК — 1).
+
         self.assertEqual(panels._clean_cadence({"kind": "interval", "minutes": 5}), {"kind": "interval", "minutes": 5})
         self.assertEqual(panels._clean_cadence({"kind": "interval", "minutes": 5}, kind="custom"), {"kind": "interval", "minutes": 15})
         self.assertEqual(panels._clean_cadence({"kind": "interval", "minutes": 1}, kind="system"), {"kind": "interval", "minutes": 1})
@@ -146,7 +142,6 @@ class SpecSchemaTest(unittest.TestCase):
         self.assertEqual(panels.Wall("weird").status, "blocked:weird")
         self.assertEqual(panels.Wall("hack:x").status, "blocked:x")
 
-
 class StorageTest(PanelsBase):
     def test_first_load_seeds_builtin_weather_in_setup(self):
         doc = panels.load()
@@ -159,7 +154,7 @@ class StorageTest(PanelsBase):
         self.assertEqual(weather["status"], "setup")
         self.assertEqual(weather["wall"]["status"], "needs_location:weather")
         self.assertTrue((self.root / "panels.json").exists())
-        # A second load does not seed again, even after the weather panel is purged.
+
         panels.dismiss(weather["id"], purge=True)
         self.assertEqual(panels.load()["panels"], [])
 
@@ -175,10 +170,10 @@ class StorageTest(PanelsBase):
         self.assertEqual(old["kind"], "custom")
         self.assertEqual(old["placements"], ["home"])
         self.assertEqual(old["size"], "m")
-        self.assertEqual(old["cadence"], {"kind": "interval", "minutes": 15})   # «1» → предел ИИ-панели
+        self.assertEqual(old["cadence"], {"kind": "interval", "minutes": 15})
         self.assertEqual(old["source"]["type"], "ai")
         self.assertEqual(doc["version"], panels.SCHEMA_VERSION)
-        # The builtin weather is seeded next to migrated panels.
+
         self.assertTrue(any(p["kind"] == "weather" for p in doc["panels"]))
 
     def test_corrupt_file_is_recovered(self):
@@ -205,7 +200,7 @@ class StorageTest(PanelsBase):
         panels.move(rss["id"], "home", "appbar", 0)
         moved = self.find(rss["id"])
         self.assertEqual(moved["placements"], ["appbar"])
-        panels.move(cd["id"], "", "appbar", 0)          # copy: stays on home and sidebar too
+        panels.move(cd["id"], "", "appbar", 0)
         self.assertEqual(self.find(cd["id"])["placements"], ["home", "sidebar", "appbar"])
         self.assertEqual(self.find(cd["id"])["order"]["appbar"], 0)
         panels.dismiss(cd["id"])
@@ -261,10 +256,9 @@ class StorageTest(PanelsBase):
         self.assertIsNone(weather["wall"])
         panels.update_settings({"location": {"mode": "unset", "lat": None, "lon": None}})
         self.assertEqual(panels.load()["panels"][0]["status"], "setup")
-        # Language switch re-renders typed specs.
+
         panels.update_settings({"lang": "en"})
         self.assertEqual(panels.load()["panels"][0]["title"], "Weather")
-
 
 class RefreshTest(PanelsBase):
     def test_weather_refresh_and_schedule(self):
@@ -302,7 +296,7 @@ class RefreshTest(PanelsBase):
         with patch.object(panels, "_http_text", limited):
             out = self.run_async(panels.refresh_panel(pid, force=True, now=now))
             self.assertEqual(out["wall"]["status"], "blocked:rate-limit")
-            self.assertEqual(out["status"], "live")             # old values stay visible
+            self.assertEqual(out["status"], "live")
             first = out["next_refresh"] - now
             out = self.run_async(panels.refresh_panel(pid, force=True, now=now))
             second = out["next_refresh"] - now
@@ -319,7 +313,7 @@ class RefreshTest(PanelsBase):
         self.assertEqual(out["status"], "failed")
         self.assertIsNone(out["next_refresh"])
         self.assertNotIn(p["id"], panels.due_ids(panels.load(), time.time() + 10 ** 6))
-        # A forced refresh (the user pressing «Повторить») still runs.
+
         with patch.object(panels, "_http_text", FakeNet({"example.org/feed": RSS})):
             out = self.run_async(panels.refresh_panel(p["id"], force=True))
         self.assertEqual(out["status"], "live")
@@ -331,7 +325,7 @@ class RefreshTest(PanelsBase):
         self.assertIsNotNone(claimed)
         self.assertIsNone(panels._claim(p["id"], force=True, now=time.time()))
         self.assertIsNone(self.run_async(panels.refresh_panel(p["id"], force=True)))
-        # An abandoned claim expires.
+
         self.assertIsNotNone(panels._claim(p["id"], force=True, now=time.time() + panels.CLAIM_SECONDS + 1))
 
     def test_fx_cbr_and_frankfurter(self):
@@ -345,7 +339,7 @@ class RefreshTest(PanelsBase):
         nominal = panels.create_panel(template="currency", params={"base": "JPY", "quote": "RUB"})
         with patch.object(panels, "_http_text", FakeNet({"cbr-xml-daily": CBR_JSON})):
             out = self.run_async(panels.refresh_panel(nominal["id"], force=True))
-        self.assertAlmostEqual(out["data"]["rate_num"], 0.54, places=6)       # per 100 yen → per yen
+        self.assertAlmostEqual(out["data"]["rate_num"], 0.54, places=6)
         self.assertEqual(out["data"]["rate"], "0,5400")
         eur = panels.create_panel(template="currency", params={"base": "EUR", "quote": "USD"})
         net = FakeNet({"frankfurter.dev": {"base": "EUR", "date": "2026-10-06", "rates": {"USD": 1.12}}})
@@ -390,7 +384,7 @@ class RefreshTest(PanelsBase):
         self.assertEqual(title, "Лента")
         self.assertEqual(items[0]["url"], "https://example.org/1")
         self.assertEqual(items[1]["title"], "Вторая новость")
-        self.assertEqual(items[1]["url"], "")                    # javascript: dropped
+        self.assertEqual(items[1]["url"], "")
         title, items = panels.parse_feed(ATOM)
         self.assertEqual((title, items[0]["url"]), ("Atom feed", "https://example.org/a"))
         with self.assertRaises(panels.Wall):
@@ -409,12 +403,11 @@ class RefreshTest(PanelsBase):
                        "forecast": WEATHER_JSON})
         with patch.object(panels, "_http_text", net):
             panels.load()
-            self.run_async(panels.tick())                      # nothing due: setup panels never call the network
+            self.run_async(panels.tick())
             self.assertEqual(net.calls, [])
             settings = self.run_async(panels.locate_by_ip())
         self.assertEqual(settings["location"]["mode"], "auto")
         self.assertEqual(settings["location"]["name"], "Dublin")
-
 
 class FakeModel:
     def __init__(self, answers):
@@ -428,11 +421,9 @@ class FakeModel:
             raise answer
         return answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)
 
-
 async def fake_search(query, limit=5):
     return {"results": [{"title": "Zenit news", "url": "https://sport.example/zenit", "snippet": "Зенит — Спартак 2:1"}],
             "answer": None, "pages": [{"url": "https://sport.example/zenit", "excerpt": "Зенит победил 2:1"}]}
-
 
 async def fake_fetch(url, limit=12000):
     if "login" in url:
@@ -440,7 +431,6 @@ async def fake_fetch(url, limit=12000):
     if "guarded" in url:
         raise ValueError("HTTP 403")
     return {"url": url, "title": "Shop", "text": "Цена: 1 990 ₽"}
-
 
 class AiTest(PanelsBase):
     def ctx(self, model):
@@ -455,7 +445,7 @@ class AiTest(PanelsBase):
         out = self.run_async(panels.refresh_panel(p["id"], force=True))
         self.assertEqual(out["status"], "live")
         self.assertEqual(out["data"], {"score": "2:1"})
-        # только то, что модель цитировала и что было в материале (javascript: отброшен)
+
         self.assertEqual([s["url"] for s in out["sources"]], ["https://sport.example/zenit"])
         used_model, messages = model.prompts[0]
         self.assertEqual(used_model, "chat-model")
@@ -502,10 +492,10 @@ class AiTest(PanelsBase):
         self.assertEqual(out["title"], "Tech")
         self.assertEqual([b["type"] for b in out["spec"]["blocks"]], ["title", "list"])
         self.assertEqual(list(out["data"]), ["news"])
-        self.assertEqual(out["cadence"], {"kind": "interval", "minutes": 15})   # 10 мин → предел ИИ-панели
+        self.assertEqual(out["cadence"], {"kind": "interval", "minutes": 15})
         self.assertEqual(out["runbook"]["queries"], ["tech news today"])
-        self.assertEqual(out["sources"], [])           # модель ни на что не сослалась — подвал пустой, не мусор
-        self.assertNotIn("url", out["data"]["news"][0])   # ссылки, которой не было в материале, нет
+        self.assertEqual(out["sources"], [])
+        self.assertNotIn("url", out["data"]["news"][0])
         self.assertIn("SLOWEST honest", model.prompts[0][1][0]["content"])
 
     def test_bad_model_json(self):
@@ -514,7 +504,6 @@ class AiTest(PanelsBase):
         out = self.run_async(panels.refresh_panel(p["id"], force=True))
         self.assertEqual(out["wall"]["status"], "blocked:model-format")
         self.assertEqual(out["status"], "failed")
-
 
 class ToolsTest(PanelsBase):
     def test_tool_round_trip(self):
@@ -526,12 +515,12 @@ class ToolsTest(PanelsBase):
                 "subject": "Gold price", "placement": "sidebar,appbar", "size": "s", "title": "Gold",
                 "blocks": [{"type": "metric", "value": "{{rate}}", "unit": "$"}],
                 "runbook": {"queries": ["gold price"]}, "cadence": {"kind": "interval", "minutes": 120}}, model="m1")
-            # Раунд 22: инструмент дожидается первой сборки — превью в чате сразу с данными.
+
             self.assertEqual(created["status"], "live")
             self.assertIn("ready and filled", created["note"])
             pid = created["panel"]["id"]
             self.assertEqual(created["panel"]["placements"], ["sidebar", "appbar"])
-            for _ in range(50):                    # the background build runs on this loop
+            for _ in range(50):
                 await asyncio.sleep(0.02)
                 if pid not in panels._TASKS:
                     break
@@ -569,7 +558,6 @@ class ToolsTest(PanelsBase):
             bad = client.post("/api/pg/tools", json={"tool": "panel_hack", "args": {}})
             self.assertIn("error", bad.json())
 
-
 class RoutesTest(PanelsBase):
     def test_http_routes(self):
         from fastapi import FastAPI
@@ -606,7 +594,6 @@ class RoutesTest(PanelsBase):
                     {"name": "Копенгаген", "latitude": 55.6, "longitude": 12.5, "country": "Дания"}]}})):
                 geo = client.get("/api/pg/panels-geocode", params={"q": "Копен"}).json()
             self.assertEqual(geo["results"][0]["name"], "Копенгаген")
-
 
 if __name__ == "__main__":
     unittest.main()

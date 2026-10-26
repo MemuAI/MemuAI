@@ -15,7 +15,6 @@ from unittest.mock import patch
 
 from app import tts_process, tts_worker
 
-
 class TTSIsolationTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -137,6 +136,5 @@ with wave.open(str(p/'speech.wav'),'wb') as w:
         voice = SimpleNamespace(synthesize=lambda text: iter([chunk]*3))
         with patch.object(tts_worker, 'MAX_WAV_BYTES', 150):
             with self.assertRaises(tts_worker.AudioLimitError): tts_worker.synthesize_to_wave(voice, 'Hello', self.root/'large.wav')
-
 
 if __name__ == '__main__': unittest.main()

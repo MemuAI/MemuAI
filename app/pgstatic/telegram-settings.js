@@ -1,9 +1,5 @@
-/* MemuAI · Settings → Remote access → Telegram (Round 20).
-   The bot runs in MemuAI Proxy; this panel talks to it through
-   /api/pg/telegram/* (status heartbeat, one-time pairing code, test message)
-   and the usual preferences. Exposes window.MemuTelegramSettings
-   { html(ctx), bind(ctx) }; app.js renders/binds it inside #pane-remote.
-   Element ids st-tg-* are kept from the previous panel. */
+
+
 (function () {
   "use strict";
   const PLANE = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.6 3.2 2.9 10.4c-1.3.5-1.3 1.3-.2 1.6l4.8 1.5 1.8 5.6c.2.6.1.9.8.9.5 0 .7-.2 1-.5l2.4-2.3 4.9 3.6c.9.5 1.6.2 1.8-.8l3.2-15.2c.3-1.3-.5-1.9-1.8-1.6zM8.4 13.2l9.6-6.1c.5-.3.9-.1.5.2l-8.2 7.4-.3 3.4-1.6-4.9z"/></svg>';
@@ -17,7 +13,6 @@
       `<option value="${v}" ${String(value) === String(v) ? "selected" : ""}>${label}</option>`).join("")}</select>`;
   }
 
-  /* The Mini App sets any 10–100 in steps of 10: keep such a value visible instead of a blank select. */
   function historyOptions(value) {
     const n = Math.round(+value);
     const list = [20, 40, 60, 100];
@@ -124,8 +119,6 @@
 </section>`;
   }
 
-  /* ------------------------------------------------------------ status */
-
   const PHASES = {
     loading: ["Проверяю…", "Checking…"],
     disabled: ["Выключено", "Off"],
@@ -166,7 +159,6 @@
     return true;
   }
 
-  /* Round 21: the truth about the bot process, with the fix next to it. */
   function healthText(ctx, s) {
     const tr = (ru, en) => t(ctx, ru, en);
     if (!s) return null;
@@ -332,8 +324,7 @@
         if (chat) chat.value = state.status.owner.chat_id || "";
         if (ctx.setPref) ctx.setPref({ telegram_chat_id: state.status.owner.chat_id || "", telegram_enabled: true });
       }
-      // The bot/pairing write preferences in another process; keep the
-      // window's snapshot in sync so a later full save cannot undo them.
+
       const serverChat = (state.status.owner && state.status.owner.chat_id) || "";
       if (ctx.setPref && serverChat !== String(ctx.pref("telegram_chat_id", "") || "")) {
         ctx.setPref({ telegram_chat_id: serverChat });
@@ -370,8 +361,6 @@
     clearInterval(state.countdown);
   }
 
-  /* -------------------------------------------------------------- bind */
-
   function bind(ctx) {
     stop();
     state.ctx = ctx;
@@ -399,9 +388,7 @@
         ...Object.fromEntries([...document.querySelectorAll("#tg-cats input[data-pref]")].map((el) => [el.dataset.pref, el.checked])),
       };
     };
-    /* Round 21: save only what this control changed. Saving every Telegram key
-       on any change undid what the bot itself had just saved (language,
-       notifications, voice — changed from the phone). */
+
     const KEYS = {
       "st-tg-token": ["telegram_bot_token"], "st-tg-chat": ["telegram_chat_id"], "st-tg-enabled": ["telegram_enabled"],
       "st-tg-notify": ["telegram_notify_mode", "telegram_notify"], "st-tg-model": ["telegram_model"],
@@ -447,8 +434,6 @@
     refresh();
   }
 
-  /* Round 21: a setting changed in Telegram (bot or Mini App) shows up here
-     without reopening Settings. Controls being edited are left alone. */
   function syncFromPrefs(prefs, changed) {
     if (!document.getElementById("tg-settings") || !prefs) return;
     const set = (id, value) => {

@@ -32,7 +32,6 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 CYR = re.compile(r"[А-Яа-яЁё]")
 
-
 def tiny_png() -> str:
     def chunk(kind: bytes, data: bytes) -> bytes:
         return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
@@ -40,7 +39,6 @@ def tiny_png() -> str:
     png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)) \
         + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b"")
     return "data:image/png;base64," + base64.b64encode(png).decode()
-
 
 SAMPLE = f"""
 <h1>Report</h1>
@@ -53,7 +51,6 @@ SAMPLE = f"""
 <msup><mi>x</mi><mn>2</mn></msup></mrow><annotation encoding="application/x-tex">\\frac{{a}}{{b}} x^2</annotation></semantics></math></span></span></p>
 <p><img src="{tiny_png()}" alt="dot"></p>
 """
-
 
 class DocxTest(unittest.TestCase):
     def test_docx_parts(self) -> None:
@@ -68,7 +65,7 @@ class DocxTest(unittest.TestCase):
             document = archive.read("word/document.xml").decode("utf-8")
         self.assertIn("<w:tbl>", document)
         self.assertIn("m:oMath", document)
-        self.assertIn("m:f", document)            # the fraction stayed a native equation
+        self.assertIn("m:f", document)
         self.assertIn("w:hyperlink", document)
         self.assertIn("w:numPr", document)
         self.assertIn("Report", document)
@@ -95,7 +92,6 @@ class DocxTest(unittest.TestCase):
         self.assertEqual(out["chat_export_options"].get("size"), 20)
         html = ce.finalize_html("<style>/*MX-KATEX-CSS*/</style>", embed_katex=False)
         self.assertNotIn("MX-KATEX-CSS", html)
-
 
 class RoutesTest(unittest.TestCase):
     @classmethod
@@ -144,7 +140,6 @@ class RoutesTest(unittest.TestCase):
         response = self.client.post("/api/export/open", json={"path": str(target)})
         self.assertEqual(response.status_code, 403)
 
-
 class FrontendTest(unittest.TestCase):
     def test_wiring(self) -> None:
         index = (STATIC / "index.html").read_text(encoding="utf-8")
@@ -179,7 +174,6 @@ class FrontendTest(unittest.TestCase):
             self.assertTrue((ROOT / "app" / "docs" / lang / "chat-export.md").is_file())
         self.assertFalse(CYR.search((ROOT / "app" / "docs" / "en" / "chat-export.md").read_text(encoding="utf-8")))
 
-
 class BuildTest(unittest.TestCase):
     def test_spec_and_build(self) -> None:
         spec = (ROOT / "MemuAI.spec").read_text(encoding="utf-8")
@@ -187,7 +181,6 @@ class BuildTest(unittest.TestCase):
         for module in ("app.chat_export", "app.chat_export_api", "app.chat_export_pdf"):
             self.assertIn(f"'{module}'", spec)
             self.assertIn(f'"{module}"', build)
-
 
 if __name__ == "__main__":
     unittest.main()

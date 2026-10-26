@@ -19,14 +19,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
 def read(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8")
 
-
 def _chromium() -> str | None:
     return os.environ.get("MEMU_TEST_CHROMIUM") or None
-
 
 SNIPPETS = [
     {"id": "t1", "keyword": "привет", "name": "Приветствие", "kind": "text",
@@ -34,7 +31,6 @@ SNIPPETS = [
     {"id": "t2", "keyword": "дата", "name": "Сегодня", "kind": "text", "text": "Сегодня {{важно}}"},
     {"id": "t3", "keyword": "кратко", "name": "Короче", "kind": "ai", "text": "Сократи текст вдвое."},
 ]
-
 
 def seed(pgdata, quick_features):
     pgdata.save_preferences({"profile_onboarded": True, "profile_name": "Test", "language": "ru"})
@@ -51,7 +47,6 @@ def seed(pgdata, quick_features):
              {"id": "v1", "at": 20, "m": [{"role": "assistant", "content": "Первая версия: Париж.", "createdAt": 20, "id": "a0a", "model": "model-b"}]},
              {"id": "v2", "at": 30, "m": None}]}}}},
     ])
-
 
 class StaticTest(unittest.TestCase):
     def test_files_wired(self):
@@ -76,7 +71,7 @@ class StaticTest(unittest.TestCase):
             self.assertNotIn("setInterval", src, name)
             self.assertNotIn("MutationObserver", src, name)
         snip = read("composer-snippets.js")
-        # the library loads on the first «;», not at startup; keydown returns at once while the menu is closed
+
         self.assertIn("if (!state.open || e.isComposing", snip)
         self.assertNotRegex(snip, r"\n  load\(\);")
         cmp = read("compare.js")
@@ -99,7 +94,6 @@ class StaticTest(unittest.TestCase):
         out = expand("Привет, {?имя|подсказка}! {{x}} {cursor}конец", lang="ru")
         self.assertEqual(out["text"], "Привет, {?имя|подсказка}! {x} конец")
         self.assertEqual(out["cursor"], len("конец"))
-
 
 @unittest.skipUnless(_chromium(), "MEMU_TEST_CHROMIUM is not set")
 class BrowserTest(unittest.TestCase):
@@ -152,12 +146,12 @@ class BrowserTest(unittest.TestCase):
         self.page.keyboard.press("Control+f")
         self.wait(self.page, "!!document.querySelector('.cfind input')")
         self.page.keyboard.type("ежик")
-        self.wait(self.page, "MemuChatFind._state.ranges.length === 4")      # ёжик, Ежик, ЕЖИК, ежи(ки)
-        self.page.keyboard.press("Alt+c")                                       # match case: only «ежик» of «ежики»
+        self.wait(self.page, "MemuChatFind._state.ranges.length === 4")
+        self.page.keyboard.press("Alt+c")
         self.wait(self.page, "MemuChatFind._state.ranges.length === 1")
         self.assertEqual(self.js("document.querySelector('[data-cf=\"cs\"]').getAttribute('aria-pressed')"), "true")
-        self.page.click("[data-cf='cs']")                                        # off again
-        self.page.click("[data-cf='word']")                                      # whole word: not «ежики»
+        self.page.click("[data-cf='cs']")
+        self.page.click("[data-cf='word']")
         self.wait(self.page, "MemuChatFind._state.ranges.length === 3")
         self.assertEqual(self.js("MemuChatFind.options()"), {"cs": False, "word": True})
         self.assertEqual(self.js("JSON.parse(localStorage.getItem('memu_find_opts'))"), {"cs": False, "word": True})
@@ -172,20 +166,20 @@ class BrowserTest(unittest.TestCase):
         self.page.keyboard.type(";при")
         self.wait(self.page, "!document.getElementById('snip-menu')?.hidden && document.querySelectorAll('#snip-menu [data-snip]').length === 1")
         self.assertIn("Приветствие", self.js("document.querySelector('#snip-menu [data-snip]').textContent"))
-        self.page.keyboard.press("Enter")                                        # not a send: the menu owns Enter
-        self.wait(self.page, "document.querySelectorAll('.snip-form input').length === 2")   # «имя» asked once
+        self.page.keyboard.press("Enter")
+        self.wait(self.page, "document.querySelectorAll('.snip-form input').length === 2")
         self.assertEqual(self.js("document.querySelector('.snip-form input').placeholder"), "как обращаться")
         self.assertEqual(self.js("S.messages.length"), 2)
         self.page.keyboard.type("Анна")
-        self.page.keyboard.press("Enter")                                        # next field
+        self.page.keyboard.press("Enter")
         self.page.keyboard.type("завтра")
-        self.page.keyboard.press("Enter")                                        # insert
+        self.page.keyboard.press("Enter")
         self.wait(self.page, "!document.querySelector('.snip-form')")
         value = self.page.input_value("#input")
         self.assertEqual(value, "Здравствуйте, Анна! Встреча завтра. С уважением, Анна")
         caret = self.js("document.getElementById('input').selectionStart")
         self.assertEqual(value[:caret], "Здравствуйте, Анна! Встреча завтра.")
-        # an escape in the snippet goes through the server's expand(): «{{важно}}» → «{важно}»
+
         self.page.fill("#input", "Итак ;дат")
         self.page.focus("#input")
         self.page.keyboard.press("End")
@@ -193,7 +187,7 @@ class BrowserTest(unittest.TestCase):
         self.wait(self.page, "!document.getElementById('snip-menu')?.hidden")
         self.page.keyboard.press("Tab")
         self.wait(self.page, "document.getElementById('input').value === 'Итак Сегодня {важно}'")
-        # an AI template becomes the prompt; Esc closes the menu without inserting
+
         self.page.fill("#input", "")
         self.page.keyboard.type(";крат")
         self.wait(self.page, "!document.getElementById('snip-menu')?.hidden")
@@ -204,7 +198,7 @@ class BrowserTest(unittest.TestCase):
         self.wait(self.page, "!document.getElementById('snip-menu')?.hidden")
         self.page.keyboard.press("Enter")
         self.wait(self.page, "document.getElementById('input').value === 'Сократи текст вдвое.\\n\\n'")
-        # «;» inside a code block or in the middle of a word is just text
+
         self.page.fill("#input", "```\nfoo();\nx ;при")
         self.js("() => document.getElementById('input').dispatchEvent(new Event('input'))")
         self.page.wait_for_timeout(300)
@@ -230,7 +224,7 @@ class BrowserTest(unittest.TestCase):
         self.page.click("#panel .snip-row:last-child [data-snip-del]")
         self.wait(self.page, "document.querySelectorAll('#panel .snip-row').length === 3")
         self.js("() => closePanel()")
-        # Ctrl+K provider
+
         rows = self.js("async () => { const p = MemuSearch._state.providers.get('snippets');"
                        " return p.search('приветствие', { score: MemuSearch._scoreText }); }")
         self.assertTrue(any(r.get("_id") == "t1" for r in rows))
@@ -246,12 +240,12 @@ class BrowserTest(unittest.TestCase):
         self.assertEqual([c["active"] for c in cols], [False, True])
         self.assertIn("Первая версия", cols[0]["text"])
         self.assertIn("Париж", cols[1]["text"])
-        self.assertNotIn("**", cols[1]["text"])                                  # rendered markdown
+        self.assertNotIn("**", cols[1]["text"])
         self.assertEqual([c["pick"] for c in cols], [True, False])
         self.page.click("#panel [data-cmp-pick='0']")
         self.wait(self.page, "!document.querySelector('#panel-back.visible') && S.messages[1].id === 'a0a'")
         self.assertEqual(self.js("document.querySelector('.br-switch .br-count').textContent"), "1/2")
-        # «Ответ другой моделью…» in the «Ещё» menu → retryAnswerAt(index, model)
+
         self.js("() => { window.__retry = null; window.__origRetry = retryAnswerAt; window.retryAnswerAt = (i, m) => { window.__retry = [i, m]; }; }")
         try:
             self.js("() => materializeMessageTools(document.querySelector('#messages > [data-msg=\"1\"]'))")
@@ -263,14 +257,13 @@ class BrowserTest(unittest.TestCase):
             self.assertTrue(got[1])
         finally:
             self.js("() => { window.retryAnswerAt = window.__origRetry; }")
-        # a single-version answer: the dialog offers another model
+
         self.js("() => MemuCompare.open(1)")
         self.wait(self.page, "!!document.querySelector('#panel [data-cmp-another]')")
         self.js("() => closePanel()")
 
     def test_9_no_page_errors(self):
         self.assertEqual([e for e in self.errors if not re.search(r"ResizeObserver|Failed to fetch", e)], [])
-
 
 if __name__ == "__main__":
     unittest.main()

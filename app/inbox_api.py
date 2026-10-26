@@ -17,7 +17,6 @@ from . import inbox
 
 SNOOZE_PRESETS = {"1h": 3600, "3h": 3 * 3600, "tomorrow": 0, "1d": 86400, "1w": 7 * 86400}
 
-
 async def _body(request: Request) -> dict:
     try:
         data = await request.json()
@@ -25,16 +24,13 @@ async def _body(request: Request) -> dict:
         return {}
     return data if isinstance(data, dict) else {}
 
-
 def _tomorrow_morning() -> float:
     import datetime as dt
     now = dt.datetime.now()
     target = (now + dt.timedelta(days=1)).replace(hour=9, minute=0, second=0, microsecond=0)
     return (target - now).total_seconds()
 
-
 _startup: dict = {"fn": None}
-
 
 def _links_version() -> int:
     try:
@@ -43,11 +39,9 @@ def _links_version() -> int:
     except Exception:  # noqa: BLE001
         return 0
 
-
 def set_startup(fn: Any) -> None:
     """Корутина, которую надо выполнить один раз при первом запросе к «Входящим»."""
     _startup["fn"] = fn
-
 
 async def _ensure_started() -> None:
     fn, _startup["fn"] = _startup["fn"], None
@@ -56,7 +50,6 @@ async def _ensure_started() -> None:
             await fn()
         except Exception:  # noqa: BLE001
             pass
-
 
 def register(app: Any) -> None:
     @app.get("/api/pg/inbox")
@@ -84,13 +77,13 @@ def register(app: Any) -> None:
             while True:
                 if await request.is_disconnected():
                     return
-                # Раунд 36: новая ссылка memuai:// — окно забирает очередь по этому событию (без опроса раз в 4 с)
+
                 lv = _links_version()
                 if lv != links:
                     links = lv
                     yield "event: links\ndata: " + json.dumps({"version": lv}) + "\n\n"
                 ver = inbox.version()
-                # раз в 15 с пересчитываем и без изменений: истёкшее «отложить» возвращает элемент в бейдж
+
                 if ver != last or idle >= 15:
                     changed = ver != last
                     last = ver

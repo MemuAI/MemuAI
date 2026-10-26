@@ -32,7 +32,6 @@ STYLES = ("auto", "transparent", "none", "custom")
 HEIGHT_MIN, HEIGHT_MAX, HEIGHT_DEFAULT = 28, 64, 36
 _COLOR = re.compile(r"#[0-9a-fA-F]{6}")
 
-# Built-in modules (their manifests may override with window.appbar).
 BUILTIN = {
     "music": {"style": "transparent", "text": "#f4f1f6", "overlay": True, "height": 36},
     "characters": {"style": "auto"},
@@ -43,7 +42,6 @@ BUILTIN = {
     "benchmarks": {"style": "auto"},
     "catalog": {"style": "auto"},
 }
-
 
 def normalize(spec: Any) -> Dict[str, Any]:
     """A manifest's ``window.appbar`` — always a complete, safe dict."""
@@ -65,7 +63,6 @@ def normalize(spec: Any) -> Dict[str, Any]:
         "overlay": style == "transparent" or bool(raw.get("overlay")),
     }
 
-
 def for_module(module_id: str, window: Any) -> Dict[str, Any]:
     """The effective appbar of a module: its manifest, else the built-in default."""
     window = window if isinstance(window, dict) else {}
@@ -73,13 +70,11 @@ def for_module(module_id: str, window: Any) -> Dict[str, Any]:
         return normalize(window["appbar"])
     return normalize(BUILTIN.get(module_id, {}))
 
-
 def enabled(store: Dict[str, Any], module_id: str) -> bool:
     """Global switch AND the module's own switch (both on by default)."""
     if not store.get("custom_appbar", True):
         return False
     return bool((store.get("appbar") or {}).get(module_id, True))
-
 
 def create_controller(*, platform: Optional[str] = None, environ: Optional[dict] = None,
                       factory: Optional[Callable[..., Any]] = None) -> Any:
@@ -96,7 +91,6 @@ def create_controller(*, platform: Optional[str] = None, environ: Optional[dict]
     except Exception as exc:  # noqa: BLE001 - the window still opens with the system frame
         log.warning("module appbar unavailable: %s", exc)
         return None
-
 
 def attach(controller: Any, form: Any) -> bool:
     """Install the caption hook on the module window's WinForms form (UI thread)."""
@@ -115,7 +109,6 @@ def attach(controller: Any, form: Any) -> bool:
         log.warning("module appbar not attached: %s", exc)
         return False
 
-
 def _press_win_z() -> bool:
     """Windows 11 Snap Layouts for the focused window (the same flyout as hovering the maximize button)."""
     if sys.platform != "win32":
@@ -131,7 +124,6 @@ def _press_win_z() -> bool:
         return True
     except Exception:  # noqa: BLE001
         return False
-
 
 class ModuleAppbarBridge:
     """``window.pywebview.api.appbar_*`` for a module window (pywebview exposes every public method)."""

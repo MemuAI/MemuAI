@@ -1,17 +1,5 @@
-/* MemuAI — черновики поля ввода по чатам и «↑ — последнее сообщение» (Round 37, r37-extras).
 
-   Drafts
-     The composer used to keep its text when you switched chats: a half-written question «moved» into whatever chat you
-     opened next and was gone from the chat it was meant for. Now every chat keeps its own unsent text:
-       • opening an existing chat saves the composer text under the chat you left and puts back the one you left there;
-       • opening a NEW empty chat (Ctrl+N, «Новый чат») carries the text along — the usual «oh, this should be a new chat»;
-       • the drafts survive a restart (localStorage `memu_drafts_v1`, at most 60 chats, 30 days), a sent message clears it.
-     Hooks: the `memu:chat-open` event app.js already fires, `input` on the composer (debounced) — no timers, no observers.
 
-   ↑ in an empty composer puts your last message of this chat back into it (to fix a typo and send again).
-
-   window.MemuDrafts: get(chatId) set(chatId, text) clear(chatId)
-*/
 (function () {
   "use strict";
   if (window.MemuDrafts) return;
@@ -54,7 +42,7 @@
     const box = input();
     if (!box || box.value === text) return;
     box.value = text;
-    box.dispatchEvent(new Event("input", { bubbles: true }));   // autosize + the send button state
+    box.dispatchEvent(new Event("input", { bubbles: true }));
     if (text) { const end = text.length; try { box.setSelectionRange(end, end); } catch (_) {} }
   }
 
@@ -67,10 +55,10 @@
     const target = chat(id);
     const fresh = !target || !(target.messages || []).length;
     if (lastId === null) {
-      // first chat after start: put back what was left unsent before the restart
+
       if (!text) restore(id, target);
     } else if (fresh && !get(id)) {
-      // a new empty chat takes the text along
+
       clear(lastId);
       if (text.trim()) set(id, text);
     } else {
@@ -83,7 +71,7 @@
   function restore(id, target) {
     const draft = get(id);
     if (!draft) return;
-    // sent already (the window closed before the composer change was saved) — not a draft any more
+
     if (draft === lastUserText(target?.messages)) { clear(id); return; }
     put(draft);
   }
@@ -93,7 +81,7 @@
     if (box && typeof S !== "undefined" && S.currentId) { set(S.currentId, box.value); lastId = S.currentId; }
   }
   function afterSend() {
-    // the composer is emptied by send() without an input event
+
     setTimeout(() => { const box = input(); if (box && !box.value.trim() && typeof S !== "undefined") clear(S.currentId); }, 0);
   }
 

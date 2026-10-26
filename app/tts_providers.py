@@ -31,7 +31,7 @@ _TIMEOUT = httpx.Timeout(120, connect=15)
 
 OPENAI_VOICES = ("alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx",
                  "sage", "shimmer", "verse", "marin", "cedar")
-# https://ai.google.dev/gemini-api/docs/speech-generation#voices
+
 GEMINI_VOICES = (
     ("Zephyr", "Bright"), ("Puck", "Upbeat"), ("Charon", "Informative"), ("Kore", "Firm"),
     ("Fenrir", "Excitable"), ("Leda", "Youthful"), ("Orus", "Firm"), ("Aoede", "Breezy"),
@@ -44,8 +44,6 @@ GEMINI_VOICES = (
 )
 _GEMINI_BY_LOWER = {name.lower(): name for name, _ in GEMINI_VOICES}
 
-# Public descriptors: the settings UI renders its provider dropdown, model and
-# voice suggestions and "where to get a key" links from this one table.
 PROVIDERS: dict[str, dict[str, Any]] = {
     "openai": {
         "label": "OpenAI", "base_url": "https://api.openai.com/v1",
@@ -93,14 +91,11 @@ PROVIDERS: dict[str, dict[str, Any]] = {
     },
 }
 
-
 class TTSApiError(RuntimeError):
     """A readable provider/configuration error; never contains HTML or secrets."""
 
-
 def _t(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 def provider_for_url(url: object) -> str:
     """Which service a Base URL belongs to (unknown hosts are OpenAI-compatible)."""
@@ -115,17 +110,14 @@ def provider_for_url(url: object) -> str:
         return "azure"
     return "custom"
 
-
 def api_root(base: str) -> str:
     """The API root from a Base URL the user may have pasted as a full endpoint
     (``…/v1/audio/speech`` used to become ``…/v1/audio/speech/audio/speech`` → 404 «model not found»)."""
     return re.sub(r"/audio/(?:speech|transcriptions|translations)$", "", base, flags=re.I)
 
-
 def public_providers() -> list[dict[str, Any]]:
     keys = ("label", "base_url", "key_url", "docs_url", "models", "default_model", "voices", "default_voice", "speed")
     return [{"id": pid, **{k: meta[k] for k in keys}} for pid, meta in PROVIDERS.items()]
-
 
 def speed_from_rate(rate: object) -> float:
     """Windows-style rate −10…10 → playback speed 0.5…2.0 (0 → 1.0)."""
@@ -134,7 +126,6 @@ def speed_from_rate(rate: object) -> float:
     except (TypeError, ValueError):
         value = 0
     return round(2 ** (value / 10), 2)
-
 
 def split_text(text: str, limit: int) -> list[str]:
     """Split at paragraph, then sentence, then word boundaries, each piece ≤ ``limit``."""
@@ -163,7 +154,6 @@ def split_text(text: str, limit: int) -> list[str]:
         else:
             chunks.append(unit)
     return chunks
-
 
 def check_settings(kind: str, model: str, voice: str, lang: str = "ru") -> tuple[str, str]:
     """Normalize model/voice and reject combinations that can never work."""
@@ -200,11 +190,9 @@ def check_settings(kind: str, model: str, voice: str, lang: str = "ru") -> tuple
                 f"Azure voices are full names such as ru-RU-SvetlanaNeural, not “{voice}”."))
     return model, voice
 
-
 def _origin(base: str) -> str:
     parts = urllib.parse.urlsplit(base)
     return f"{parts.scheme}://{parts.netloc}"
-
 
 def build_request(kind: str, base: str, api_key: str, model: str, voice: str, text: str,
                   speed: float = 1.0) -> dict[str, Any]:
@@ -240,7 +228,6 @@ def build_request(kind: str, base: str, api_key: str, model: str, voice: str, te
     headers = {"Authorization": "Bearer " + key} if key else {}
     return {"method": "POST", "url": base + "/audio/speech", "headers": headers, "json": body}
 
-
 def sniff_mime(data: bytes, declared: str = "") -> str:
     if data[:4] == b"RIFF" and data[8:12] == b"WAVE":
         return "audio/wav"
@@ -253,7 +240,6 @@ def sniff_mime(data: bytes, declared: str = "") -> str:
     declared = declared.split(";", 1)[0].strip().lower()
     return declared if declared.startswith("audio/") else ""
 
-
 def pcm_to_wav(pcm: bytes, rate: int = 24000, channels: int = 1, width: int = 2) -> bytes:
     out = io.BytesIO()
     with wave.open(out, "wb") as handle:
@@ -262,7 +248,6 @@ def pcm_to_wav(pcm: bytes, rate: int = 24000, channels: int = 1, width: int = 2)
         handle.setframerate(rate)
         handle.writeframes(pcm)
     return out.getvalue()
-
 
 def _gemini_audio(payload: Any, lang: str) -> tuple[bytes, str] | None:
     """Extract audio from generateContent JSON; None when the model sent no audio."""
@@ -294,13 +279,11 @@ def _gemini_audio(payload: Any, lang: str) -> tuple[bytes, str] | None:
         return raw, mime.split(";", 1)[0]
     return None
 
-
 def _strip_id3(data: bytes) -> bytes:
     if data[:3] != b"ID3" or len(data) < 10:
         return data
     size = (data[6] & 0x7F) << 21 | (data[7] & 0x7F) << 14 | (data[8] & 0x7F) << 7 | (data[9] & 0x7F)
     return data[10 + size:]
-
 
 def merge_audio(parts: list[tuple[bytes, str]], lang: str = "ru") -> tuple[bytes, str]:
     if len(parts) == 1:
@@ -324,7 +307,6 @@ def merge_audio(parts: list[tuple[bytes, str]], lang: str = "ru") -> tuple[bytes
     raise TTSApiError(_t(lang, "Сервис вернул части аудио в разных форматах — сократите текст.",
                          "The service returned audio parts in different formats — shorten the text."))
 
-
 def _clean_message(raw: str, secret: str = "") -> str:
     """Provider error text without markup, whitespace runs or the user's key."""
     if re.search(r"<\s*(!doctype|html|head|body)\b", raw, re.I):
@@ -333,7 +315,6 @@ def _clean_message(raw: str, secret: str = "") -> str:
     if secret and len(secret) >= 6:
         text = text.replace(secret, "•••")
     return text[:280]
-
 
 def _payload_message(payload: Any) -> str:
     if isinstance(payload, dict):
@@ -344,7 +325,6 @@ def _payload_message(payload: Any) -> str:
             return str(error[0].get("msg") or error[0].get("message") or "")
         return str(error) if isinstance(error, str) else ""
     return ""
-
 
 def error_message(kind: str, status: int, body: bytes, *, model: str = "", voice: str = "",
                   lang: str = "ru", secret: str = "", endpoint: str = "/audio/speech") -> str:
@@ -359,7 +339,7 @@ def error_message(kind: str, status: int, body: bytes, *, model: str = "", voice
     models = ", ".join(meta["models"][:4]) if endpoint == "/audio/speech" else ""
     low = detail.lower()
     if "quota_exceeded" in low or "exceeds your quota" in low or "insufficient_quota" in low:
-        # ElevenLabs reports a spent character quota as HTTP 401 — not a wrong key.
+
         human = _t(lang, "закончилась квота (кредиты) сервиса — пополните баланс или подождите новый период",
                    "the service quota (credits) is used up — top up or wait for the next period")
     elif status == 401 or "api key not valid" in low or "invalid api key" in low or "incorrect api key" in low:
@@ -403,13 +383,11 @@ def error_message(kind: str, status: int, body: bytes, *, model: str = "", voice
         message += f" ({detail})"
     return message
 
-
 def trusts_env(base: str) -> bool:
     """A TTS/STT server on this computer is never reached through the system/VPN proxy (httpx takes the env and
     Windows-registry proxy even for 127.0.0.1, and the proxy answers 404/502 for a local Kokoro/whisper server)."""
     host = (urllib.parse.urlsplit(base).hostname or "").lower()
     return not (host in ("localhost", "::1") or host.startswith("127.") or host.endswith(".localhost"))
-
 
 def connection_message(kind: str, base: str, exc: Exception, lang: str = "ru", stt: bool = False) -> str:
     host = urllib.parse.urlsplit(base).hostname or base
@@ -419,14 +397,13 @@ def connection_message(kind: str, base: str, exc: Exception, lang: str = "ru", s
                   f"{host} did not answer in time — check the connection or shorten the "
                   + ("recording" if stt else "text"))
     if kind == "custom" and host in ("127.0.0.1", "localhost", "::1"):
-        # Распознавание тоже ходит сюда: «запустите TTS-сервер» при сбое STT сбивало с толку.
+
         return _t(lang, f"Не удалось подключиться к {host}: запустите локальный "
                         + ("сервер распознавания речи" if stt else "TTS-сервер"),
                   f"Could not connect to {host}: start the local "
                   + ("speech recognition server" if stt else "TTS server"))
     return _t(lang, f"Не удалось подключиться к {host} — проверьте интернет и Base URL",
               f"Could not connect to {host} — check the connection and the Base URL")
-
 
 async def _send(client: httpx.AsyncClient, request: dict[str, Any], lang: str = "ru") -> tuple[int, str, bytes]:
     """Send with a running size limit (a huge body is never buffered whole)."""
@@ -439,7 +416,6 @@ async def _send(client: httpx.AsyncClient, request: dict[str, Any], lang: str = 
             if len(content) > MAX_AUDIO_BYTES:
                 raise TTSApiError(_t(lang, "API вернул слишком большой ответ", "The API returned a response that is too large"))
         return response.status_code, response.headers.get("content-type", ""), bytes(content)
-
 
 class _Cache:
     """Last synthesized clips: replaying a message does not pay for it twice."""
@@ -462,9 +438,7 @@ class _Cache:
         while len(self.items) > self.entries or sum(len(v[0]) for v in self.items.values()) > self.total:
             self.items.popitem(last=False)
 
-
 CACHE = _Cache()
-
 
 async def synthesize(text: str, *, base_url: str, api_key: str, model: str, voice: str,
                      speed: float = 1.0, lang: str = "ru",
@@ -491,7 +465,7 @@ async def synthesize(text: str, *, base_url: str, api_key: str, model: str, voic
     async with httpx.AsyncClient(timeout=_TIMEOUT, transport=transport, trust_env=trusts_env(base)) as client:
         for chunk in chunks:
             request = build_request(kind, base, api_key, model, voice, chunk, speed)
-            # Gemini TTS occasionally answers 500/no-audio for a valid request: one retry.
+
             for attempt in range(2 if kind == "gemini" else 1):
                 try:
                     status, ctype, body = await _send(client, request, lang)

@@ -25,7 +25,7 @@ TOOLS: List[str] = [
     "calendar_delete_calendar{calendar_id}",
 ]
 WRITE = {"calendar_quick_add", "calendar_respond", "calendar_move_event", "calendar_create_calendar", "calendar_delete_calendar"}
-#: Deleting a whole calendar deletes every event in it — asked every time.
+
 ALWAYS = {"calendar_delete_calendar"}
 DANGER = {"calendar_delete_calendar"}
 SCOPES: Dict[str, set] = {
@@ -39,20 +39,16 @@ HINT = ("Google Calendar: times are ISO-8601 (2026-10-16T13:00) in the user's lo
         "meet=true adds a Google Meet link; recurrence='RRULE:FREQ=WEEKLY;BYDAY=MO'; reminders=[10,60] minutes. "
         "List a past or future range with time_min/time_max. calendar_respond{response:accepted|declined|tentative}.")
 
-
 def _ig():
     from . import integrations
     return integrations
-
 
 def _cal(method: str, path: str, **kwargs: Any) -> Any:
     ig = _ig()
     return ig._google("google_calendar", method, ig.CALENDAR_API + path, **kwargs)
 
-
 def _arg(text: str):
     return _ig().IntegrationArgumentError(text)
-
 
 def rfc3339(value: str, end: bool = False) -> str:
     """«2026-10-16» / «2026-10-16T13:00» / with an offset → RFC 3339 with an offset (local time if none)."""
@@ -69,7 +65,6 @@ def rfc3339(value: str, end: bool = False) -> str:
         moment = moment.astimezone()
     return moment.isoformat(timespec="seconds")
 
-
 def _emails(value: Any) -> List[str]:
     items = value if isinstance(value, (list, tuple)) else re.split(r"[,;\s]+", str(value or ""))
     out = []
@@ -81,7 +76,6 @@ def _emails(value: Any) -> List[str]:
             raise _arg("Неверный адрес гостя: %s" % email)
         out.append(email)
     return out
-
 
 def extra_event_fields(args: Dict[str, Any]) -> Dict[str, Any]:
     """Guests, repeats, reminders, a Meet link, colour, visibility — only what the model passed."""
@@ -120,7 +114,6 @@ def extra_event_fields(args: Dict[str, Any]) -> Dict[str, Any]:
         body["visibility"] = str(args["visibility"])
     return body
 
-
 def write_params(args: Dict[str, Any], body: Dict[str, Any]) -> Dict[str, Any]:
     params: Dict[str, Any] = {}
     if body.get("conferenceData"):
@@ -129,9 +122,8 @@ def write_params(args: Dict[str, Any], body: Dict[str, Any]) -> Dict[str, Any]:
     if updates in ("all", "externalonly", "none"):
         params["sendUpdates"] = "externalOnly" if updates == "externalonly" else updates
     elif body.get("attendees"):
-        params["sendUpdates"] = "all"   # guests were added on purpose: they should get the invitation
+        params["sendUpdates"] = "all"
     return params or None  # type: ignore[return-value]
-
 
 def created_extras(row: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
@@ -140,7 +132,6 @@ def created_extras(row: Dict[str, Any]) -> Dict[str, Any]:
     if row.get("attendees"):
         out["attendees"] = [a.get("email") for a in row["attendees"] if isinstance(a, dict)]
     return out
-
 
 def event_row(row: Dict[str, Any]) -> Dict[str, Any]:
     start = row.get("start") or {}
@@ -159,7 +150,6 @@ def event_row(row: Dict[str, Any]) -> Dict[str, Any]:
         out["organizer"] = organizer["email"]
     return {**{k: v for k, v in out.items() if v not in (None, "", [])}, "id": row.get("id")}
 
-
 def _calendar(args: Dict[str, Any], key: str = "calendar_id") -> str:
     if key == "calendar_id":
         return _ig()._calendar_id(args)
@@ -167,7 +157,6 @@ def _calendar(args: Dict[str, Any], key: str = "calendar_id") -> str:
     if not value:
         raise _arg("Укажите %s (его даёт calendar_list_calendars)" % key)
     return quote(value, safe="")
-
 
 def run(tool: str, args: Dict[str, Any]) -> Any:
     if tool == "calendar_get_event":

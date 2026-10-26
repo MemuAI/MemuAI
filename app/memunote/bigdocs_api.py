@@ -17,7 +17,6 @@ from typing import Any, Dict, List
 
 from .. import bigdocs
 
-
 def _complete_factory(base: str):
     from . import ai
 
@@ -34,7 +33,6 @@ def _complete_factory(base: str):
             return "".join(parts).strip()
         return await asyncio.to_thread(run)
     return complete
-
 
 def handle(body: Dict[str, Any], settings: Dict[str, Any], lang: str) -> Dict[str, Any]:
     op = str(body.get("op") or "")
@@ -56,7 +54,7 @@ def handle(body: Dict[str, Any], settings: Dict[str, Any], lang: str) -> Dict[st
             query = str(body.get("query") or "")[:2000]
             model = str(body.get("model") or settings.get("ai_model") or "")
             alt = ""
-            if model and bigdocs.needs_translation(doc, query):   # a Russian question over an English book
+            if model and bigdocs.needs_translation(doc, query):
                 try:
                     from . import ai
                     complete = _complete_factory(ai.discover(settings.get("proxy_url", "")))

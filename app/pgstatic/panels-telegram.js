@@ -1,15 +1,11 @@
-/* MemuAI — Telegram updates for panels (Round 24).
- * Adds a bell switch and "what to send" to every eligible panel in
- * Settings → Panels (the list panels.js draws). Data: /api/pg/panels-telegram
- * (telegram_panels.register_window_routes). Self-contained: panels.js is not
- * changed; the list is re-decorated whenever panels.js re-renders it. */
+
+
 (function () {
   "use strict";
   const ru = () => !/^en/i.test(document.documentElement.lang || "ru");
   const t = (a, b) => (ru() ? a : b);
   let state = null, loading = null, scheduled = false;
-  // r30: SVG bells in the same line style as the rest of the page (the emoji drew as a box without an emoji font
-  // and looked foreign next to the line icons)
+
   const svg = (d) => `<svg class="mp-tg-ico" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${d}</svg>`;
   const BELL = svg('<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>');
   const BELL_OFF = svg('<path d="M8.7 3A6 6 0 0 1 18 8a21.3 21.3 0 0 0 .6 5"/><path d="M17 17H3s3-2 3-9a4.67 4.67 0 0 1 .3-1.7"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/><path d="m2 2 20 20"/>');
@@ -45,8 +41,7 @@
     scheduled = false;
     const lists = document.querySelectorAll(".mp-set-list");
     if (!lists.length) return;
-    // A panel added after the first load is unknown to `state` — re-read it
-    // when the settings list is (re)built, so its bell appears without a reload.
+
     const unknown = !state || [...document.querySelectorAll(".mp-set-item[data-panel-id]")].some((i) => !(state.known || []).includes(i.dataset.panelId));
     load(force || unknown).then((s) => {
       if (s && !s.known) s.known = [...document.querySelectorAll(".mp-set-item[data-panel-id]")].map((i) => i.dataset.panelId);

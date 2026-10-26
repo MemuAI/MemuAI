@@ -1,5 +1,4 @@
-/* MemuMusic · feat-extra.js — новые разделы: Поиск по всей библиотеке (подсветка, фильтры, онлайн-поиск
- * — feat-online.js), Жанры, Папки, История прослушиваний, Дубликаты; вкладки Библиотеки. */
+
 
 function markText(root, query) {
   const words = String(query || "").toLowerCase().split(/\s+/).filter((w) => w.length > 0).slice(0, 6);
@@ -12,7 +11,6 @@ function markText(root, query) {
   });
 }
 
-/* ------------------------------------------------------------ Поиск */
 VIEWS.search = async (el, p) => {
   const f = Object.assign({ q: (p && p.q) || "", source: "", genre: "", liked: false, years: "" }, S.prefs.searchFilters || {}, { q: (p && p.q) || "" });
   const sources = [...new Set(S.tracks.map((x) => x.source || "local"))];
@@ -66,7 +64,6 @@ VIEWS.search = async (el, p) => {
   q.focus();
 };
 
-/** Онлайн-поиск — feat-online.js (onlineSearch, лист «Информация о треке»). «Сохранить в плейлист»: скачается и само попадёт в плейлист. */
 function onlineToPlaylist(result, anchor) {
   const own = S.playlists.filter((p) => !p.smart && !p.rules);
   const save = async (pid, name) => {
@@ -81,7 +78,6 @@ function onlineToPlaylist(result, anchor) {
   } }, own.length ? "-" : null].concat(own.map((p) => ({ icon: "playlist", label: p.name, run: () => save(p.id, p.name) }))).filter(Boolean), anchor);
 }
 
-/* ------------------------------------------------------------ Жанры, Папки, История — вкладки Библиотеки и экраны */
 const FEAT_LIB_TABS = {
   genres: async (body) => {
     const list = await API.soft("library.genres", {}, []);
@@ -104,7 +100,7 @@ function libTabs() {
 }
 async function filteredView(el, title, kind, filter, art) {
   el.innerHTML = `<div class="mm-skel" style="height:220px"></div>`;
-  const res = await API.soft("library.list", { filter, limit: 5000, sort: "added" }, null);   // r39-music-lib: новые сверху
+  const res = await API.soft("library.list", { filter, limit: 5000, sort: "added" }, null);
   if (!el.isConnected) return;
   const list = ((res && res.tracks) || []).map((x) => S.byId.get(x.id) || normTrack(x));
   el.innerHTML = headBlock({ kind, title: `<h1 class="mm-h1">${esc(title)}</h1>`, sub: esc(plural("count.tracks", list.length) + " · " + fmtLong(totalDuration(list))), art: art || artImg(list[0] || { id: title }, "album") }) + `<div id="list"></div>`;
@@ -122,7 +118,6 @@ VIEWS.folder = async (el, p) => {
   if (host) host.querySelector(".mm-sub").insertAdjacentHTML("afterend", `<p class="mm-sub mm-path">${esc(p.path)}</p>`);
 };
 
-/* ------------------------------------------------------------ История прослушиваний */
 async function historyInto(host, limit) {
   const rows = await API.soft("library.history", { limit }, []);
   if (!host.isConnected) return;
@@ -151,7 +146,6 @@ VIEWS.history = async (el) => {
   await historyInto(el.querySelector("#hist"), 1000);
 };
 
-/* ------------------------------------------------------------ Дубликаты */
 VIEWS.dupes = async (el) => {
   el.innerHTML = `<h1 class="mm-h1">${esc(t("dupes.title"))}</h1><p class="mm-sub">${esc(t("dupes.hint"))}</p><div id="dupes"><div class="mm-skel" style="height:120px"></div></div>`;
   const groups = await API.soft("library.duplicates", {}, []);
@@ -174,12 +168,10 @@ VIEWS.dupes = async (el) => {
   };
 };
 
-/* ------------------------------------------------------------ пункт «Поиск» в навигации */
 (function addSearchNav() {
   const nav = $("#nav"), home = nav && nav.querySelector('[data-go="home"]');
   if (!home || nav.querySelector('[data-go="search"]')) return;
   home.insertAdjacentHTML("afterend", `<button type="button" data-go="search">${icon("search")}<span>${esc(t("gsearch.title"))}</span></button>`);
 })();
 
-/* Для тестов и интеграций (панели/скиллы модуля): функции раунда 38 снаружи. */
 window.MemuMusicFeat = { Cfg, Sel, editTracks, editPlaylist, smartBuilder, smartManager, deleteTracks, startRadio, libraryChanged, playlistPicker };

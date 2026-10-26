@@ -54,13 +54,12 @@ from . import quick_warm
 log = logging.getLogger("memuai.quick")
 
 TITLE = "MemuAI Quick"
-WARM_DELAY = 2.5            # seconds after the main window is shown
-KEEP_CONVERSATION = 300     # seconds: reopening within this keeps the last answer
+WARM_DELAY = 2.5
+KEEP_CONVERSATION = 300
 
-# Win32 ids
 SW_HIDE, SW_SHOWNA, SW_SHOW = 0, 8, 5
 HWND_TOPMOST, HWND_NOTOPMOST = -1, -2
-#: Round 32: s — a tab whose window and title did not change since it was read is not re-read through UIA
+
 PAGE_FRESH = 30.0
 SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER, SWP_NOACTIVATE = 0x0001, 0x0002, 0x0004, 0x0010
 SWP_SHOWWINDOW, SWP_NOOWNERZORDER, SWP_ASYNCWINDOWPOS = 0x0040, 0x0200, 0x4000
@@ -78,28 +77,22 @@ DWMSBT = {"mica": 2, "acrylic": 3, "tabbed": 4}
 MONITOR_DEFAULTTONEAREST = 2
 MDT_EFFECTIVE_DPI = 0
 CF_UNICODETEXT = 13
-TEXT_FORMATS = {1, 7, 13, 16}          # CF_TEXT, CF_OEMTEXT, CF_UNICODETEXT, CF_LOCALE
+TEXT_FORMATS = {1, 7, 13, 16}
 VK_CONTROL, VK_MENU, VK_SHIFT, VK_LWIN, VK_RWIN = 0x11, 0x12, 0x10, 0x5B, 0x5C
 VK_LBUTTON = 0x01
-#: Corner radius (CSS px) the page must use so its card fills the window
-#: exactly: Windows 11 rounds a window with DWMWCP_ROUND by 8 effective px;
-#: where DWM cannot, the window is clipped to a rounded region of 12 px.
+
 DWM_ROUND_RADIUS = 8
 REGION_RADIUS = 12
 KEYEVENTF_KEYUP = 0x0002
-#: Windows 10 2004 (20H1): first build where WDA_EXCLUDEFROMCAPTURE really
-#: removes the window from captures. Earlier builds treat it as WDA_MONITOR
-#: (a black box), so they use DWM cloaking instead.
+
 EXCLUDE_FROM_CAPTURE_BUILD = 19041
 WINDOWS_11_BUILD = 22000
-SYSTEM_BACKDROP_BUILD = 22621          # DWMWA_SYSTEMBACKDROP_TYPE (Windows 11 22H2)
-
+SYSTEM_BACKDROP_BUILD = 22621
 
 def _state_file():
     from pathlib import Path
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR) / "quick_state.json"
-
 
 def load_state() -> Dict[str, Any]:
     """Window state that is not a setting (the last width the user dragged to)."""
@@ -110,13 +103,11 @@ def load_state() -> Dict[str, Any]:
     except (OSError, ValueError):
         return {}
 
-
 def save_state(patch: Dict[str, Any]) -> None:
     from .storage import save_json
     data = load_state()
     data.update(patch)
     save_json(str(_state_file()), data, backup=False)
-
 
 def windows_build() -> int:
     if sys.platform != "win32":
@@ -126,17 +117,13 @@ def windows_build() -> int:
     except Exception:
         return 0
 
-
 def backdrop_kind(preference: str, build: int) -> str:
     """Which DWM backdrop to request: ``acrylic``/``mica``/``""`` (CSS-only)."""
     if preference == "off" or build < SYSTEM_BACKDROP_BUILD:
         return ""
     return "mica" if preference == "mica" else "acrylic"
 
-
-#: Round 38: a close slower than this (seconds) is written to the app log with the step that took the time
 SLOW_CLOSE = 0.5
-
 
 def slow_close_report(started: float, steps: List[Any], where: str, reason: str = "") -> Optional[str]:
     """Log a slow Escape/close: ``steps`` = [(name, monotonic time)] in order; returns the logged line (tests)."""
@@ -154,7 +141,6 @@ def slow_close_report(started: float, steps: List[Any], where: str, reason: str 
         round(total * 1000), where, worst[0] or "?", (", " + reason) if reason else "", ", ".join(parts) or "-")
     log.warning(line)
     return line
-
 
 class QuickBridge:
     """Round 38: ``window.pywebview.api`` of the popup. Escape hides the window through pywebview's own message
@@ -174,7 +160,6 @@ class QuickBridge:
             return bool(self._manager.resize(float(height or 0), None, animate=animate is not False).get("ok"))
         except (TypeError, ValueError):
             return False
-
 
 class Win32:
     """ctypes layer with explicit 64-bit-safe signatures (private WinDLLs)."""
@@ -223,7 +208,7 @@ class Win32:
         self.SetWindowPos = sig(user32, "SetWindowPos", wintypes.BOOL, HWND, HWND, ctypes.c_int, ctypes.c_int,
                                 ctypes.c_int, ctypes.c_int, ctypes.c_uint)
         self.ShowWindow = sig(user32, "ShowWindow", wintypes.BOOL, HWND, ctypes.c_int)
-        # Round 38: posts the change to the window's own thread and returns at once (hide never waits for a busy UI thread)
+
         self.ShowWindowAsync = sig(user32, "ShowWindowAsync", wintypes.BOOL, HWND, ctypes.c_int)
         self.IsWindow = sig(user32, "IsWindow", wintypes.BOOL, HWND)
         self.IsWindowVisible = sig(user32, "IsWindowVisible", wintypes.BOOL, HWND)
@@ -288,7 +273,6 @@ class Win32:
             self.CreateRoundRectRgn = None
         self.SetWindowRgn = sig(user32, "SetWindowRgn", ctypes.c_int, HWND, ctypes.c_void_p, wintypes.BOOL)
 
-    # ---- helpers
     def cursor(self) -> tuple:
         point = self.POINT()
         if self.GetCursorPos(self.ctypes.byref(point)):
@@ -328,7 +312,7 @@ class Win32:
         """The *primary* mouse button (GetAsyncKeyState reads physical buttons: honour swapped buttons)."""
         vk = VK_LBUTTON
         try:
-            if self.GetSystemMetrics and self.GetSystemMetrics(23):     # SM_SWAPBUTTON
+            if self.GetSystemMetrics and self.GetSystemMetrics(23):
                 vk = 0x02
         except Exception:
             pass
@@ -371,7 +355,6 @@ class Win32:
             pass
         return int(self.GetForegroundWindow() or 0) == int(hwnd)
 
-    # ---- clipboard (text only; never touches other formats)
     def clipboard_formats(self) -> set:
         formats, fmt = set(), 0
         if not self.OpenClipboard(None):
@@ -419,7 +402,7 @@ class Win32:
             if text is None:
                 return True
             data = (str(text) + "\0").encode("utf-16-le")
-            handle = self.GlobalAlloc(0x0002, len(data))   # GMEM_MOVEABLE
+            handle = self.GlobalAlloc(0x0002, len(data))
             if not handle:
                 return False
             pointer = self.GlobalLock(handle)
@@ -431,7 +414,7 @@ class Win32:
             if not self.SetClipboardData(CF_UNICODETEXT, handle):
                 self.GlobalFree(handle)
                 return False
-            return True   # the system owns the memory now
+            return True
         finally:
             self.CloseClipboard()
 
@@ -443,7 +426,6 @@ class Win32:
             self.keybd_event(vk, 0, 0, 0)
         for vk in reversed(vks):
             self.keybd_event(vk, 0, KEYEVENTF_KEYUP, 0)
-
 
 class QuickAskManager:
     """The popup window, its hotkey and the screen capture. Thread-safe."""
@@ -466,8 +448,7 @@ class QuickAskManager:
         self.hwnd = 0
         self.visible = False
         self.pinned = False
-        # Round 25: an UNPINNED popup that lost the focus to another program steps back behind it (still open);
-        # while "lowered" moves and resizes keep its z-order instead of jumping on top again.
+
         self.lowered = False
         self.geometry: Dict[str, Any] = {}
         self.previous_hwnd = 0
@@ -478,23 +459,23 @@ class QuickAskManager:
         self._lock = threading.RLock()
         self._create_lock = threading.Lock()
         self._anim_token = 0
-        self._selection_token = 0       # Round 27 (polish): which opening a selection still being read belongs to
+        self._selection_token = 0
         self._quitting = False
-        self._releasing = False          # Round 36: the hidden window is being closed to free its renderer
+        self._releasing = False
         self._created_at = 0.0
         self._busy_until = 0.0
         self.handoff: Optional[Dict[str, Any]] = None
-        # Round 22
-        self.corner = "none"            # "dwm" | "region" | "none": who rounds the window
-        self.radius_css = 0             # the CSS radius the page must use to fill the window exactly
+
+        self.corner = "none"
+        self.radius_css = 0
         self.css_height = float(core.COLLAPSED_HEIGHT)
         self.position_mode = "last"
         self._dragging = False
-        self.page: Optional[Dict[str, Any]] = None      # the browser tab the user came from
+        self.page: Optional[Dict[str, Any]] = None
         self._page_token = 0
         self._capture_cancel: Optional[threading.Event] = None
         self.surface = ""
-        self.layer = None                # Round 28: app.quick_layer.ScreenLayer (created with the window)
+        self.layer = None
         self._layer_token = 0
         try:
             self.pinned = bool(load_state().get("pinned"))
@@ -509,15 +490,13 @@ class QuickAskManager:
                 log.warning("quick ask: Win32 layer unavailable: %s", exc)
                 self.native_ok = False
 
-    # ------------------------------------------------------------ lifecycle
     def start(self) -> None:
         """Called once the main window is shown: hotkey now, warm window a bit later."""
         if not self.native_ok:
             return
         status = self.apply_preferences(self.load_prefs())
         if status.get("code") == "busy":
-            # A previous MemuAI that is still shutting down (update, restart)
-            # can hold the hotkey for a moment: retry before reporting it.
+
             threading.Thread(target=self._retry_hotkey, name="memuai-quick-retry", daemon=True).start()
         threading.Thread(target=self._warm, name="memuai-quick-warm", daemon=True).start()
         threading.Thread(target=self._release_loop, name="memuai-quick-release", daemon=True).start()
@@ -552,7 +531,7 @@ class QuickAskManager:
             self.form = None
             self.hwnd = 0
             self.hidden_at = 0.0
-        # closed outside the locks: the UI thread runs the closing handlers and must never wait for them
+
         try:
             if window is not None:
                 window.destroy()
@@ -579,22 +558,22 @@ class QuickAskManager:
         time.sleep(WARM_DELAY)
         try:
             prefs = self.load_prefs()
-            # Round 36: «never keep warm» — created on the first Alt+Space instead (app/quick_warm.py)
+
             if prefs.get("quick_ask_enabled", True) and quick_warm.warm_at_start(prefs):
                 self.ensure_window()
                 if prefs.get("quick_ask_selection", True):
-                    quick_selection.warm()      # Round 27: UI Automation assemblies loaded before the first hotkey
-                # Round 28: the screen layer is kept warm too (hidden, empty region) when there is something to show
+                    quick_selection.warm()
+
                 if self.layer_settings()["on"]:
                     layer = self.ensure_layer()
                     if layer is not None and layer.available():
                         layer.ensure_window()
-                # Round 25: a window that was pinned AND open when MemuAI quit is back where it was.
+
                 if self.pinned and load_state().get("pinned_open"):
                     self.show("restore")
         except Exception as exc:
             log.warning("quick ask: warm window failed: %s", exc)
-        # Round 24: a companion pinned to the desktop is back after a restart (click on it opens Quick Ask).
+
         try:
             from . import companion_window
             manager = companion_window.current()
@@ -633,7 +612,7 @@ class QuickAskManager:
         names = running_processes() if self.native_ok else []
         current = dict(self.hotkey.status) if self.hotkey else dict(self.hotkey_status)
         if current.get("code") == "busy" or current.get("rejected"):
-            # "Taken" is only honest when it is not another copy of MemuAI itself.
+
             copies = sum(1 for name in names if name in ("memuai.exe", "memuai"))
             if copies > 1:
                 current["other_instance"] = True
@@ -711,7 +690,6 @@ class QuickAskManager:
                 pass
         self.hwnd = 0
 
-    # ------------------------------------------------------------ window
     def ensure_window(self) -> bool:
         if not self.native_ok or self._quitting:
             return False
@@ -737,7 +715,7 @@ class QuickAskManager:
                     window = webview.create_window(TITLE, self.base_url + "/quick/?native=1", **options)
                     break
                 except TypeError:
-                    # An older pywebview without some keyword: keep the essentials.
+
                     for key in ("focus", "shadow", "easy_drag"):
                         options.pop(key, None)
                 except Exception as exc:
@@ -748,7 +726,7 @@ class QuickAskManager:
             self.window = window
             window.events.closing += self._on_closing
             window.events.loaded += lambda *_: ready.set()
-            # BrowserForm is created synchronously inside create_window (Invoke).
+
             deadline = time.monotonic() + 8
             form = None
             while time.monotonic() < deadline and form is None:
@@ -785,7 +763,7 @@ class QuickAskManager:
     def _on_closing(self, *_args) -> bool:
         if self._quitting or self._releasing:
             return True
-        # Alt+F4 inside the popup only hides it.
+
         threading.Thread(target=self.hide, daemon=True).start()
         return False
 
@@ -800,13 +778,11 @@ class QuickAskManager:
             api.dwm_int(hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, 0 if prefs.get("theme") == "light" else 1)
             if self.build >= WINDOWS_11_BUILD:
                 self.rounded = api.dwm_int(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND)
-                # Our page draws its own glowing border; hide DWM's 1 px one.
+
                 api.dwm_int(hwnd, DWMWA_BORDER_COLOR, DWMWA_COLOR_NONE)
         except Exception:
             pass
-        # Who rounds the corners decides the page's radius (Round 22, "white
-        # corners"): the card must cover exactly the visible window, or the
-        # window's own background shows as light wedges in the corners.
+
         if self.rounded:
             self.corner, self.radius_css = "dwm", DWM_ROUND_RADIUS
         elif api.CreateRoundRectRgn and api.SetWindowRgn:
@@ -825,7 +801,7 @@ class QuickAskManager:
             def transparent() -> bool:
                 try:
                     from System.Drawing import Color  # type: ignore
-                    form.BackColor = Color.Black   # black GDI pixels = DWM glass after extending the frame
+                    form.BackColor = Color.Black
                     browser = getattr(form, "webview", None)
                     if browser is not None:
                         browser.DefaultBackgroundColor = Color.Transparent
@@ -836,7 +812,7 @@ class QuickAskManager:
                     and api.dwm_int(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, DWMSBT[kind]):
                 applied = kind
         if not applied:
-            api.dwm_int(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, 1)  # DWMSBT_NONE
+            api.dwm_int(hwnd, DWMWA_SYSTEMBACKDROP_TYPE, 1)
         self.backdrop = applied
 
     def _round_region(self, w: int, h: int, scale: float) -> None:
@@ -852,7 +828,7 @@ class QuickAskManager:
         diameter = core.region_diameter(self.radius_css, scale)
         region = self.api.CreateRoundRectRgn(0, 0, int(w) + 1, int(h) + 1, diameter, diameter)
         if region:
-            self.api.SetWindowRgn(self.hwnd, region, True)   # the system owns the region now
+            self.api.SetWindowRgn(self.hwnd, region, True)
 
     def set_surface(self, color: str) -> bool:
         """The page's opaque card colour → the window's own background (Round 22).
@@ -891,7 +867,6 @@ class QuickAskManager:
             log.debug("quick ask: evaluate_js failed: %s", exc)
             return None
 
-    # ------------------------------------------------------------ show / hide
     def toggle(self) -> None:
         """The hotkey: open; close when it is in front; bring a covered popup (pinned or stepped back) to the front.
 
@@ -910,16 +885,15 @@ class QuickAskManager:
         foreground = int(self.api.GetForegroundWindow() or 0) if self.api else 0
         layer_hwnd = int(getattr(getattr(self, "layer", None), "hwnd", 0) or 0) if getattr(self, "layer", None) is not None else 0
         if self.api and foreground == layer_hwnd and layer_hwnd and getattr(getattr(self, "layer", None), "visible", False):
-            self.hide()                    # the hotkey pressed while an item of the screen layer has the focus
+            self.hide()
             return
         if self.api and foreground != self.hwnd:
             prefs = self.load_prefs()
-            # Round 28: an open (not pinned) window follows the user to the monitor they are working on now
+
             self._follow_monitor(prefs, foreground)
-            # Round 27: text selected in the program in front goes to the open (pinned / stepped back) window too —
-            # read without delaying the raise (Round 27 polish: a Ctrl+C read arrives a moment later).
+
             self._selection_token += 1
-            self._note_app(foreground)                  # Round 29: the program in front now (app/quick_apps.py)
+            self._note_app(foreground)
             capture = self.grab_selection(foreground, prefs)
             pending = not capture.done
             if not pending:
@@ -927,7 +901,7 @@ class QuickAskManager:
             else:
                 self._push("window.QuickAsk && QuickAsk.selectionPending && QuickAsk.selectionPending()")
             if prefs.get("quick_ask_browser", True):
-                # Round 26: the user may have switched tabs since the window was shown — the page chip follows.
+
                 threading.Thread(target=self.current_page, name="memuai-quick-page", daemon=True).start()
             self.raise_to_top()
             capture.settle()
@@ -971,7 +945,7 @@ class QuickAskManager:
         if not prefs.get("quick_ask_enabled", True) and source in ("hotkey", "restore"):
             return False
         api = self.api
-        # The window the user came from — read *before* anything else can take the focus.
+
         foreground = int(api.GetForegroundWindow() or 0)
         if not self.ensure_window():
             return False
@@ -979,17 +953,15 @@ class QuickAskManager:
             if foreground and foreground != self.hwnd:
                 self.previous_hwnd = foreground
             page = self._begin_page(foreground, prefs) if source == "hotkey" else None
-            # Round 27: the selection is read BEFORE the window shows (UI Automation, else Ctrl+C) — app/quick_selection.py.
-            # Round 27 (polish): the Ctrl+C read no longer delays the window — the keys are sent now, the copied text
-            # comes to the open window when the program has put it on the clipboard (_follow_selection).
+
             self._selection_token += 1
             capture = self.grab_selection(foreground, prefs) if source == "hotkey" else quick_selection.Capture({})
             selection = capture.result
-            self._show_foreground = foreground          # Round 28: the «active window» monitor choice reads it
+            self._show_foreground = foreground
             if source == "hotkey":
-                self._note_app(foreground)              # Round 29: Explorer folder / editor file / Office (background)
+                self._note_app(foreground)
             geometry = self._initial_geometry(prefs)
-            # A pinned window is a workspace: its conversation is kept however long it was hidden.
+
             fresh = not self.pinned and time.monotonic() - self.hidden_at > KEEP_CONVERSATION
             self.geometry = geometry
             self.lowered = False
@@ -1001,15 +973,14 @@ class QuickAskManager:
                        "maxHeight": round(geometry["max_h"] / geometry["scale"]), "anchor": geometry["anchor"],
                        "pinned": self.pinned, "page": core.public_page(page), "build": self.build,
                        "dock": geometry.get("dock", "")}
-            # Round 38: the page is told about a hide AFTER the window is gone — this number lets it drop a late onHide
-            # that would otherwise land on the NEXT opening (an invisible card on a visible window)
+
             self._open_seq = getattr(self, "_open_seq", 0) + 1
             payload["seq"] = self._open_seq
             import json
             self._push(f"window.QuickAsk && QuickAsk.onShow({json.dumps(payload, ensure_ascii=False)})")
             if page is not None:
-                page["_shown"].set()     # the URL may now be pushed (never before onShow)
-            # Read back the height the page wants with the restored conversation.
+                page["_shown"].set()
+
             wanted = self._push("window.QuickAsk ? QuickAsk.contentHeight() : 0")
             try:
                 if wanted and float(wanted) > 0:
@@ -1020,9 +991,9 @@ class QuickAskManager:
                 pass
             self._place(geometry)
             self._round_region(geometry["w"], geometry["h"], geometry["scale"])
-            capture.settle()             # Form.Show activates the window: Ctrl+C must be in the program's queue by now
+            capture.settle()
             self._on_ui(lambda: (self.form.Show(), None)[1])
-            self._place(geometry)        # again: WM_DPICHANGED may have rescaled it on another monitor
+            self._place(geometry)
             api.take_foreground(self.hwnd)
             self._on_ui(self._focus_browser)
             self.visible = True
@@ -1033,11 +1004,10 @@ class QuickAskManager:
         self._arm_escape()
         if self.pinned:
             self._remember_open(True)
-        # Round 28: the panels and buttons appear around the window AFTER it is on screen (never delays it)
+
         self._layer_follow(self.geometry, "open")
         return True
 
-    # ------------------------------------------------------------ Round 28: the screen layer
     def layer_settings(self) -> Dict[str, Any]:
         """What the screen layer should do now (``quick_canvas.json``): {on, show} — never raises."""
         try:
@@ -1073,13 +1043,12 @@ class QuickAskManager:
                 if force is not None:
                     want = force
                 elif reason == "monitor":
-                    want = layer.visible           # moving to another monitor keeps it as the user left it
+                    want = layer.visible
                 else:
                     want = self.layer_settings()["show"]
                 if want:
                     layer.show(geometry, monitors, reason=reason)
-                    # Round 32: creating the layer window the first time takes a while — Escape / the hotkey may have
-                    # hidden Quick Ask meanwhile: never leave its panels and buttons alone on the screen.
+
                     if token != self._layer_token or not self.visible:
                         layer.hide()
                         return
@@ -1139,9 +1108,8 @@ class QuickAskManager:
         except Exception:
             pass
 
-    # ------------------------------------------------------------ Round 24: Escape from anywhere
     def _escape_decide(self, vk: int, message: int, flags: int) -> bool:
-        # Round 27: ``extra_windows`` — the region overlay and stickers (quick_features_win): Escape there is theirs.
+
         from .win_hotkey import escape_should_close
         foreground = int(self.api.GetForegroundWindow() or 0) if self.api else 0
         layer = int(getattr(getattr(self, "layer", None), "hwnd", 0) or 0) if getattr(self, "layer", None) is not None else 0
@@ -1167,7 +1135,6 @@ class QuickAskManager:
             except Exception:
                 pass
 
-    # ------------------------------------------------------------ placement (Round 22)
     def _monitors(self) -> List[Dict[str, Any]]:
         try:
             monitors = self.api.monitors() if self.api else []
@@ -1203,7 +1170,7 @@ class QuickAskManager:
         cursor = self.api.cursor()
         state = load_state()
         width = core.clamp_width(state.get("width", core.DEFAULT_WIDTH))
-        # Round 25: a pinned window always reopens where it was left (never at the cursor or a docking spot).
+
         mode = "last" if self.pinned else str(prefs.get("quick_ask_position") or "last")
         self.position_mode = mode
         target = None if self.pinned else self._target_monitor(prefs, monitors, foreground)
@@ -1215,9 +1182,7 @@ class QuickAskManager:
                 own = spots.get(monitor_key(monitors[target]))
                 if isinstance(own, dict) and (mode == "last" or own.get("mode") == mode):
                     record = own
-            # A dragged spot wins while the setting is the one it was dragged under
-            # ("last", or the docking spot chosen then); picking another spot in
-            # Settings makes the setting win again.
+
             if isinstance(record, dict) and (mode == "last" or record.get("mode") == mode):
                 geometry = core.place_saved(monitors, record, cursor, width=width, height=core.COLLAPSED_HEIGHT,
                                             target=target)
@@ -1302,7 +1267,7 @@ class QuickAskManager:
             state = load_state()
             placements = state.get("placements") if isinstance(state.get("placements"), dict) else {}
             placements[core.monitor_config_key(monitors)] = record
-            # Round 28: and the spot of that very monitor (keyed by its size and DPI), used when Quick Ask opens there
+
             from .quick_layer_core import monitor_key
             spots = state.get("monitor_spots") if isinstance(state.get("monitor_spots"), dict) else {}
             index = min(max(int(geometry.get("monitor", 0)), 0), len(monitors) - 1)
@@ -1310,7 +1275,7 @@ class QuickAskManager:
             if len(spots) > 12:
                 for key in sorted(spots, key=lambda k: int((spots[k] or {}).get("t") or 0))[:-12]:
                     spots.pop(key, None)
-            # Keep the spots of the last few monitor setups only.
+
             if len(placements) > 12:
                 for key in sorted(placements, key=lambda k: int((placements[k] or {}).get("t") or 0))[:-12]:
                     placements.pop(key, None)
@@ -1338,7 +1303,6 @@ class QuickAskManager:
         self._settle({"record": core.snap(monitors, (x, y, x + w, y + h), threshold_css=1)["record"]}, monitors)
         return {"ok": True, "dock": where}
 
-    # ------------------------------------------------------------ browser page (Round 22)
     def _begin_page(self, foreground: int, prefs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Remember the browser tab the user came from; the URL is read asynchronously (never blocks showing)."""
         self._page_token += 1
@@ -1398,8 +1362,7 @@ class QuickAskManager:
         old = self.page
         if hwnd and old and old.get("hwnd") == hwnd and old.get("url") and not old.get("pending") \
                 and time.time() - float(old.get("t") or 0) < PAGE_FRESH:
-            # Round 32: the same window with the same title read moments ago — skip the UI Automation round trip
-            # (up to 1.6 s on every page question); switching tabs changes the window title, so it is re-read then.
+
             row = next((r for r in rows if r.get("hwnd") == hwnd), None)
             if row is not None and qb.clean_title(row.get("title")) == old.get("title"):
                 return old
@@ -1411,7 +1374,7 @@ class QuickAskManager:
             return None
         old = self.page
         if old and old.get("hwnd") == hwnd and old.get("url") == fresh.get("url") and old.get("title") == fresh.get("title"):
-            old["t"] = time.time()           # confirmed now (Round 32: PAGE_FRESH counts from here)
+            old["t"] = time.time()
             if fresh.get("source") == "extension":
                 old.update(source="extension", extension_tab_id=fresh["extension_tab_id"])
             return old
@@ -1468,22 +1431,22 @@ class QuickAskManager:
         started = time.monotonic()
         steps: List[Any] = []
         if self.visible:
-            self._hide_now()                     # off the screen before any lock or page round trip
+            self._hide_now()
             steps.append(("async_hide", time.monotonic()))
         with self._lock:
             steps.append(("lock", time.monotonic()))
             if not self.visible:
                 return True
             self._anim_token += 1
-            self._selection_token += 1           # a selection still being read belongs to this (closed) opening
-            self._layer_token = getattr(self, "_layer_token", 0) + 1     # a layer still being shown for this opening stays hidden
+            self._selection_token += 1
+            self._layer_token = getattr(self, "_layer_token", 0) + 1
             self.visible = False
             self.lowered = False
             self._on_ui(lambda: (self.form.Hide(), None)[1])
             steps.append(("form_hide", time.monotonic()))
             if getattr(self, "layer", None) is not None:
                 try:
-                    self.layer.hide()            # Round 28: the panels and buttons hide together with Quick Ask
+                    self.layer.hide()
                 except Exception:
                     pass
                 steps.append(("layer", time.monotonic()))
@@ -1549,7 +1512,7 @@ class QuickAskManager:
         if self.pinned or not self.visible or not self.hwnd or not api or self._dragging:
             return False
         if self.leave_mode() != "back":
-            if self.lowered:               # a stale lowered state (setting just switched): back on top as one unit
+            if self.lowered:
                 self.raise_to_top()
             return False
         foreground = int(api.GetForegroundWindow() or 0)
@@ -1560,18 +1523,18 @@ class QuickAskManager:
         if layer is not None and int(getattr(layer, "hwnd", 0) or 0):
             own.add(int(layer.hwnd))
         if foreground in own:
-            return False                   # Round 28: a click on a panel/button of the screen layer is still Quick Ask
+            return False
         flags = SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_NOOWNERZORDER
         with self._lock:
             try:
                 topmost = bool(int(api.GetWindowLong(foreground, GWL_EXSTYLE)) & WS_EX_TOPMOST)
             except Exception:
                 topmost = True
-            # the layer first, then the window: both end up right behind the program, the window above its layer
+
             for hwnd in (*self._satellites(), self.hwnd):
                 api.SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, flags)
                 if not topmost:
-                    # Inserting after a TOPMOST window would make ours topmost again; a normal one is safe.
+
                     api.SetWindowPos(hwnd, foreground, 0, 0, 0, 0, flags)
             self.lowered = True
         return True
@@ -1595,7 +1558,7 @@ class QuickAskManager:
         if self.pinned or time.monotonic() < self._busy_until:
             return False
         if time.monotonic() - self.shown_at < 0.35:
-            return False      # focus fights right after showing are not the user leaving
+            return False
         prefs = self.load_prefs()
         if not prefs.get("quick_ask_hide_on_blur", True):
             return False
@@ -1624,14 +1587,13 @@ class QuickAskManager:
         except Exception:
             pass
 
-    # ------------------------------------------------------------ size
     def resize(self, height_css: float, width_css: Optional[float] = None, *, animate: bool = True,
                persist_width: bool = False) -> Dict[str, Any]:
         if not self.hwnd or not self.geometry:
             return {"ok": False}
         self.css_height = max(float(core.MIN_HEIGHT), float(height_css or 0))
         if self._dragging:
-            return {"ok": True, "deferred": True}      # applied by _settle() on release
+            return {"ok": True, "deferred": True}
         with self._lock:
             start = dict(self.geometry)
             target = core.resize(start, height_css, width_css=width_css)
@@ -1655,7 +1617,7 @@ class QuickAskManager:
         return {"ok": True, "height": target["h"], "max": target["max_h"]}
 
     def _animate(self, start: Dict[str, Any], target: Dict[str, Any], token: int) -> None:
-        frames = 9   # ~150 ms at 60 Hz
+        frames = 9
         heights = core.ease_steps(int(start["h"]), int(target["h"]), frames)
         tops = core.ease_steps(int(start["y"]), int(target["y"]), frames)
         for top, height in zip(tops, heights):
@@ -1664,7 +1626,7 @@ class QuickAskManager:
             step = dict(target, y=top, h=height)
             self._place(step)
             if self.corner == "region":
-                self._round_region(step["w"], height, step["scale"])   # the clip follows every frame
+                self._round_region(step["w"], height, step["scale"])
             time.sleep(1 / 60)
         if token == self._anim_token:
             self._round_region(target["w"], target["h"], target["scale"])
@@ -1678,7 +1640,6 @@ class QuickAskManager:
             except Exception:
                 pass
 
-    # ------------------------------------------------------------ capture
     def capture(self, monitor: Any = "cursor", region: Optional[Dict[str, float]] = None,
                 max_side: int = 1920, lang: str = "ru") -> Dict[str, Any]:
         """Screenshot of the user's screen without any MemuAI window (errors in ``lang``)."""
@@ -1698,15 +1659,14 @@ class QuickAskManager:
             if self.visible else core.pick_monitor(monitors, *api.cursor())
         cursor_index = min(max(cursor_index, 0), len(monitors) - 1)
         bbox = core.capture_bbox(monitors, monitor, cursor_index, region)
-        layer = int(getattr(getattr(self, "layer", None), "hwnd", 0) or 0) if getattr(self, "layer", None) is not None else 0   # Round 28: the screen layer
+        layer = int(getattr(getattr(self, "layer", None), "hwnd", 0) or 0) if getattr(self, "layer", None) is not None else 0
         ours = [hwnd for hwnd in (self.hwnd, int(self.main_hwnd() or 0), layer)
                 if hwnd and api.IsWindow(hwnd) and api.IsWindowVisible(hwnd)]
         excluded, cloaked = [], []
         self._busy_until = time.monotonic() + 2.0
         try:
             for hwnd in ours:
-                # Both windows belong to pywebview's single WinForms UI thread; the
-                # affinity is set there (the documented owner of the window).
+
                 if self.build >= EXCLUDE_FROM_CAPTURE_BUILD and api.SetWindowDisplayAffinity \
                         and self._affinity(hwnd, WDA_EXCLUDEFROMCAPTURE):
                     excluded.append(hwnd)
@@ -1785,7 +1745,6 @@ class QuickAskManager:
         except Exception:
             return 0
 
-    # ------------------------------------------------------------ text actions
     def _note_app(self, foreground: int) -> None:
         """Round 29: read the context of the program in front (Explorer folder, editor file…) in the background."""
         try:
@@ -1841,7 +1800,7 @@ class QuickAskManager:
         while api.modifiers_down() and time.monotonic() < deadline:
             time.sleep(0.015)
         time.sleep(0.06)
-        api.chord(VK_CONTROL, 0x56)   # Ctrl+V
+        api.chord(VK_CONTROL, 0x56)
         return True
 
     def open_main(self, handoff: Optional[Dict[str, Any]] = None) -> bool:
@@ -1860,7 +1819,6 @@ class QuickAskManager:
             except Exception:
                 pass
         return True
-
 
 def encode_image(image, *, max_side: int = 1920, **meta: Any) -> Dict[str, Any]:
     """PIL image → JPEG data URL scaled to ``max_side`` (vision models do not need 4K)."""

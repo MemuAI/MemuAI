@@ -7,7 +7,6 @@ import subprocess
 import sys
 import unittest
 
-
 class BrowserBoundaryRegressionTest(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "Windows Edge regression")
     def test_prompt_viewer_copy_and_safe_rendering(self):
@@ -35,7 +34,6 @@ class BrowserBoundaryRegressionTest(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("PASS:", result.stdout)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,21 +1,6 @@
-/* =====================================================================
-   MemuAI design «Фокус / Focus»
-   ---------------------------------------------------------------------
-   Quiet, ChatGPT-like minimalism. The conversation fills the window on a
-   flat --bg (no framed canvas), the sidebar is flat and a touch darker,
-   the top bar almost disappears, answers are plain sans typography in a
-   centred ~760px column, user turns are soft grey bubbles on the right,
-   the composer is one large pill with a solid round send button.
-   Every rule is scoped to :root[data-design="focus"]; colours come only
-   from theme tokens (themes.css) and color-mix() of them.
-   ===================================================================== */
-
 :root[data-design="focus"] {
   --f-ui: "Segoe UI Variable Text", "Segoe UI", Inter, -apple-system, BlinkMacSystemFont, system-ui, "Noto Sans", sans-serif;
   --f-display: "Segoe UI Variable Display", "Segoe UI", Inter, -apple-system, system-ui, "Noto Sans", sans-serif;
-  /* No serif anywhere in this design. */
-  /* app.js writes --font/--serif inline from the «app_font» preference;
-     Focus is a sans-only design, so its own stack wins here. */
   --font: var(--f-ui) !important;
   --serif: var(--f-display) !important;
   --sans: var(--f-ui);
@@ -56,8 +41,6 @@
   --f-shadow-modal: 0 0 0 1px color-mix(in srgb, var(--text) 8%, transparent), 0 28px 70px -24px rgba(20, 18, 14, .28);
   --f-shadow-composer: 0 0 0 1px color-mix(in srgb, var(--text) 11%, transparent), 0 6px 22px -12px rgba(20, 18, 14, .16);
 }
-
-/* ------------------------------------------------------------- base */
 :root[data-design="focus"] body, :root[data-design="focus"] #app { background: var(--f-bg); font-family: var(--f-ui); }
 :root[data-design="focus"] #startup-cover { background: var(--f-bg); }
 :root[data-design="focus"] .startup-halo { display: none; }
@@ -67,8 +50,6 @@
 :root[data-design="focus"] ::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); }
 :root[data-design="focus"] :focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 85%, var(--text)); outline-offset: 2px; }
 :root[data-design="focus"] * { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--text) 18%, transparent) transparent; }
-
-/* ------------------------------------------------------------ shell */
 :root[data-design="focus"] .main,
 :root[data-design="focus"] .side.hidden ~ .main,
 :root[data-design="focus"] .focus-mode .main {
@@ -77,8 +58,6 @@
 :root[data-design="focus"] .sidebar-resizer { width: 5px; margin-left: -3px; z-index: 5; }
 :root[data-design="focus"] .sidebar-resizer::after { left: 2px; right: 2px; }
 :root[data-design="focus"] .sidebar-resizer:hover::after, :root[data-design="focus"] .sidebar-resizer.resizing::after { inset: 0 1px; background: color-mix(in srgb, var(--text) 18%, transparent); }
-
-/* ---------------------------------------------------------- sidebar */
 :root[data-design="focus"] .side {
   background: var(--f-side); border-right: 0; padding: 10px 8px 8px; gap: 2px;
   box-shadow: inset -1px 0 0 color-mix(in srgb, var(--text) 4%, transparent);
@@ -98,8 +77,6 @@
 :root[data-design="focus"] .btn-temp { width: 38px; min-height: 38px; border-radius: 10px; border: 0; color: var(--muted); background: transparent; }
 :root[data-design="focus"] .btn-temp:hover { background: var(--f-hover); color: var(--text); }
 :root[data-design="focus"] .btn-temp.active { background: var(--f-active); color: var(--text); border: 0; }
-
-/* Chat / Work / MemuCode: ordinary nav rows, the current one is a soft pill. */
 :root[data-design="focus"] .mode-switch {
   display: flex; flex-direction: column; gap: 0; margin: 4px 0 0; padding: 0;
   background: transparent; border: 0; border-radius: 0;
@@ -155,8 +132,6 @@
 :root[data-design="focus"] .profile-avatar { box-shadow: none; }
 :root[data-design="focus"] .profile-name { font: 500 14px/1.2 var(--f-ui); }
 :root[data-design="focus"] .profile-sub { font: 400 12px/1.3 var(--f-ui); color: var(--muted); }
-
-/* ----------------------------------------------------------- top bar */
 :root[data-design="focus"] .topbar.appbar {
   min-height: 52px; padding: 6px 12px; gap: 4px; background: var(--f-bg); border-bottom: 0; box-shadow: none;
 }
@@ -179,8 +154,6 @@
 :root[data-design="focus"] .context-meter { background: transparent; color: var(--muted); font: 400 12px/1 var(--f-ui); padding: 4px 6px; opacity: .8; }
 :root[data-design="focus"] .context-meter.warn { color: var(--accent); background: transparent; }
 :root[data-design="focus"] .context-meter.critical { color: var(--danger); background: transparent; }
-
-/* ------------------------------------------------- popovers & menus */
 :root[data-design="focus"] .dd-pop, :root[data-design="focus"] .app-menu-pop, :root[data-design="focus"] .context-menu, :root[data-design="focus"] .profile-menu-pop, :root[data-design="focus"] .pretty-select-menu,
 :root[data-design="focus"] .msg-more-pop, :root[data-design="focus"] .slash-menu, :root[data-design="focus"] .plus-menu {
   background: var(--f-pop); border: 0; box-shadow: var(--f-shadow-pop);
@@ -203,8 +176,6 @@
 :root[data-design="focus"] .slash-menu button { border-radius: 11px; padding: 8px 10px; }
 :root[data-design="focus"] .slash-menu button:hover, :root[data-design="focus"] .slash-menu button.active { background: var(--f-hover); }
 :root[data-design="focus"] .slash-menu button > b { color: var(--text); font: 500 13px var(--mono); }
-
-/* ------------------------------------------------------------ welcome */
 :root[data-design="focus"] .main .greeting, :root[data-design="focus"] .side.hidden ~ .main .greeting, :root[data-design="focus"] .focus-mode .greeting { max-width: var(--f-col); }
 :root[data-design="focus"] .greet-head { display: block; margin-bottom: 6px; }
 :root[data-design="focus"] .greet-mark { display: none; }
@@ -228,8 +199,6 @@
 :root[data-design="focus"] .chip-sug .ui-icon { color: var(--muted); width: 16px; height: 16px; }
 :root[data-design="focus"] .chip-sug.featured { background: transparent; border-color: var(--f-line); color: color-mix(in srgb, var(--text) 82%, var(--muted)); }
 :root[data-design="focus"] .chip-sug.featured .ui-icon { color: var(--accent); }
-
-/* Empty chat: heading, then the composer, then the chips (ChatGPT order). */
 :root[data-design="focus"] .chat-view-wrap.empty-chat { justify-content: safe center; padding: 12px 0 6vh; overflow-y: auto; overflow-x: hidden; }
 :root[data-design="focus"] .empty-chat .chat { display: contents; }
 :root[data-design="focus"] .empty-chat .greeting { display: contents !important; }
@@ -243,8 +212,6 @@
 :root[data-design="focus"] .empty-chat #code-welcome > .chips { margin-top: 16px; }
 :root[data-design="focus"] .empty-chat .messages { order: 4; }
 :root[data-design="focus"] .empty-chat .composer-hint { display: none; }
-
-/* ------------------------------------------------------------ composer */
 :root[data-design="focus"] .composer-wrap { padding: 0 24px 10px; }
 :root[data-design="focus"] .composer-wrap::before { height: 24px; background: linear-gradient(to bottom, transparent, var(--f-bg)); }
 :root[data-design="focus"] .main .composer, :root[data-design="focus"] .side.hidden ~ .main .composer, :root[data-design="focus"] .focus-mode .composer { max-width: var(--f-col); }
@@ -285,8 +252,6 @@
 :root[data-design="focus"] .tool-chip.subtle { background: var(--f-hover); color: var(--muted); }
 :root[data-design="focus"] .attach-chip { border-radius: 14px; background: var(--f-hover); border: 0; }
 :root[data-design="focus"] .composer .attach-card { border-radius: 14px; }
-
-/* «+» menu */
 :root[data-design="focus"] .plus-menu { border-radius: 18px; padding: 6px; }
 :root[data-design="focus"] .plus-search { border-radius: 11px; background: var(--f-hover); }
 :root[data-design="focus"] .plus-section { font: 500 12px/1 var(--f-ui); letter-spacing: 0; text-transform: none; opacity: 1; padding: 12px 10px 6px; }
@@ -299,8 +264,6 @@
 :root[data-design="focus"] .plus-text b em { background: var(--f-active); color: var(--text); }
 :root[data-design="focus"] .plus-switch i { box-shadow: none; }
 :root[data-design="focus"] .plus-row.is-on .plus-switch { background: var(--accent); }
-
-/* ------------------------------------------------------------ messages */
 :root[data-design="focus"] .main .messages, :root[data-design="focus"] .side.hidden ~ .main .messages, :root[data-design="focus"] .focus-mode .messages { max-width: var(--f-col); padding: 24px 24px 48px; }
 :root[data-design="focus"] .msg { margin-bottom: 28px; }
 :root[data-design="focus"] .msg-user .bubble {
@@ -366,16 +329,11 @@
 :root[data-design="focus"] .trail::before { background: var(--f-line); }
 :root[data-design="focus"] .step-dot { border: 0; background: var(--f-hover); }
 :root[data-design="focus"] .rs-card { border: 0; background: var(--f-hover); border-radius: 16px; }
-
-/* Text fields that already show focus through their container. */
 :root[data-design="focus"] .composer textarea:focus-visible, :root[data-design="focus"] .dd-search input:focus-visible, :root[data-design="focus"] .plus-search input:focus-visible,
 :root[data-design="focus"] .chat-search input:focus-visible, :root[data-design="focus"] .cx-search input:focus-visible, :root[data-design="focus"] .cp-search input:focus-visible,
 :root[data-design="focus"] .docs-search input:focus-visible { outline: none; }
-/* Round 33: the same for the other filter fields with a ringed container. */
 :root[data-design="focus"] :is(.docs-find, .hk-search, .sx-search, .sk-search, .modules-search, .mem2-search, .gd-search, .qa-search, .live-text) input:focus-visible { outline: none; box-shadow: none; }
 :root[data-design="focus"] .composer:has(textarea:focus-visible) { box-shadow: var(--f-shadow-composer), 0 0 0 1.5px color-mix(in srgb, var(--text) 22%, transparent); }
-
-/* Menu headings, separators, profile menu */
 :root[data-design="focus"] .app-menu-pop .menu-heading, :root[data-design="focus"] .profile-menu-title {
   font: 500 12px/1.3 var(--f-ui) !important; letter-spacing: 0 !important; text-transform: none !important; color: var(--muted); padding: 10px 10px 4px;
 }
@@ -387,11 +345,7 @@
 :root[data-design="focus"] .profile-menu-row.active { background: var(--f-hover); }
 :root[data-design="focus"] .profile-menu-row.active .profile-open, :root[data-design="focus"] .profile-menu-row .profile-open:hover { background: transparent; }
 :root[data-design="focus"] .profile-menu-row .profile-open { border-radius: 9px; }
-
-/* Tooltip */
 :root[data-design="focus"] .memu-tooltip, :root[data-design="focus"] .ui-tooltip, :root[data-design="focus"] [role="tooltip"] { border-radius: 8px; border: 0; box-shadow: var(--f-shadow-pop); font-family: var(--f-ui); }
-
-/* ------------------------------------------------- modals & dialogs */
 :root[data-design="focus"] .panel-back { background: rgba(0, 0, 0, .5); -webkit-backdrop-filter: none; backdrop-filter: none; }
 :root[data-design="focus"][data-theme="light"] .panel-back { background: rgba(20, 18, 14, .28); }
 :root[data-design="focus"] .panel { background: var(--f-pop); border: 0; border-radius: 16px; box-shadow: var(--f-shadow-modal); }
@@ -401,8 +355,6 @@
 :root[data-design="focus"] .panel-close:hover { background: var(--f-hover); color: var(--text); }
 :root[data-design="focus"] .tool-dialog-mark, :root[data-design="focus"] .image-route-mark { background: var(--f-hover); color: var(--text); }
 :root[data-design="focus"] .confirm-icon, :root[data-design="focus"] .panel .danger-mark { border-radius: 50%; }
-
-/* Buttons: primary is solid ink (like the send button), secondary is quiet. */
 :root[data-design="focus"] .pbtn {
   min-height: 36px; padding: 8px 16px; border-radius: 999px; border: 0;
   background: var(--f-ink); color: var(--f-on-ink); font: 500 14px/1.2 var(--f-ui); box-shadow: none;
@@ -415,8 +367,6 @@
 :root[data-design="focus"] .pbtn.danger:hover { opacity: .88; }
 :root[data-design="focus"] .pbtn:disabled { opacity: .45; }
 :root[data-design="focus"] .mini-action { border-radius: 999px; }
-
-/* Fields */
 :root[data-design="focus"] .pinput, :root[data-design="focus"] .ptexta, :root[data-design="focus"] .settings-body select, :root[data-design="focus"] .panel select {
   border-radius: 12px; border: 1px solid var(--f-line-strong); background: var(--f-field); color: var(--text); box-shadow: none;
 }
@@ -429,8 +379,6 @@
 :root[data-design="focus"] .switch input:checked + .sl { background: var(--accent); }
 :root[data-design="focus"] .switch .sl::before { box-shadow: 0 1px 2px rgba(0, 0, 0, .25); }
 :root[data-design="focus"] .hintbox { border: 0; border-radius: 12px; background: var(--f-hover); }
-
-/* Settings window */
 :root[data-design="focus"] .panel.settings-panel { border-radius: 18px; }
 :root[data-design="focus"] .settings-header { min-height: 60px; padding: 14px 64px 14px 24px; background: transparent; border-bottom: 1px solid var(--f-line); }
 :root[data-design="focus"] .settings-header h2 { font: 600 18px/1.3 var(--f-display); }
@@ -458,8 +406,6 @@
   :root[data-design="focus"] .settings-tabs-sidebar { width: 100%; border-right: 0; border-bottom: 1px solid var(--f-line); }
   :root[data-design="focus"] .settings-tab-btn.active { box-shadow: none !important; }
 }
-
-/* Skills & schedule */
 :root[data-design="focus"] .skill-card { border: 1px solid var(--f-line); background: transparent; border-radius: 14px; padding: 14px 16px; }
 :root[data-design="focus"] .skill-card:hover { border-color: var(--f-line-strong); transform: none; box-shadow: none; }
 :root[data-design="focus"] .skill-category { color: var(--muted); font: 500 11.5px/1.2 var(--f-ui); letter-spacing: 0; text-transform: none; }
@@ -471,8 +417,6 @@
 :root[data-design="focus"] .schedule-ai-composer .ptexta { background: var(--f-bg); font-family: var(--f-ui); }
 :root[data-design="focus"] .schedule-ai-title .ui-icon { color: var(--text); }
 :root[data-design="focus"] .empty-note, :root[data-design="focus"] .panel p.sub.empty-note { border: 1px dashed var(--f-line-strong); border-radius: 14px; background: transparent; }
-
-/* ---------------------------------------------- Work & temporary bars */
 :root[data-design="focus"] .workbar {
   margin: 0 auto 4px; width: min(calc(100% - 32px), calc(var(--f-col) + 200px)); padding: 4px 4px 4px 12px; gap: 6px;
   border: 0; border-radius: 999px; background: var(--f-hover); min-height: 40px; flex-wrap: nowrap;
@@ -497,8 +441,6 @@
 :root[data-design="focus"] .tempbar-icon { color: var(--text); }
 :root[data-design="focus"] .tempbar button { border: 0; border-radius: 999px; background: var(--f-ink); color: var(--f-on-ink); padding: 6px 12px; font: 500 12.5px/1 var(--f-ui); }
 :root[data-design="focus"] .tempbar button:hover { opacity: .88; }
-
-/* ------------------------------------------------------------ MemuCode */
 :root[data-design="focus"] { --mc-line: var(--f-line); --mc-soft: var(--f-hover); --mc-radius: 10px; }
 :root[data-design="focus"] .mode-switch #nav-code.active-section, :root[data-design="focus"] .mode-switch #nav-work.active-section, :root[data-design="focus"] .mode-switch #nav-chat.active-section { color: var(--text); }
 :root[data-design="focus"] .codebar {
@@ -545,8 +487,6 @@
 :root[data-design="focus"] .code-palette-card { border: 0; border-radius: 16px; background: var(--f-pop); box-shadow: var(--f-shadow-modal); }
 :root[data-design="focus"] .code-palette-list button:hover, :root[data-design="focus"] .code-palette-list button.active { background: var(--f-hover); }
 :root[data-design="focus"] .code-palette-list button.active .cp-icon { color: var(--text); }
-
-/* -------------------------------------------------------------- Docs */
 :root[data-design="focus"] .docs-shell { background: transparent; }
 :root[data-design="focus"] .docs-side { background: transparent; border-right: 1px solid var(--f-line); }
 :root[data-design="focus"] .docs-search { border: 0; border-radius: 12px; background: var(--f-hover); }
@@ -570,10 +510,7 @@
 :root[data-design="focus"] .docs-toc a, :root[data-design="focus"] .docs-toc button { border-radius: 0; }
 :root[data-design="focus"] .docs-toc .active, :root[data-design="focus"] .docs-toc a.active, :root[data-design="focus"] .docs-toc button.active { color: var(--text); border-color: var(--text); }
 :root[data-design="focus"] .docs-toc-title, :root[data-design="focus"] .docs-toc h4 { font: 500 12px/1.3 var(--f-ui) !important; letter-spacing: 0 !important; text-transform: none !important; }
-
-/* ------------------------------------------------- Modules windows */
 :root[data-design="focus"] .module-window { border: 0; border-radius: 16px; background: var(--f-pop); box-shadow: var(--f-shadow-modal); overflow: hidden; }
-/* R21: развёрнутое окно модуля — лист со скруглением дизайна (modules.css), не «весь MemuAI». */
 :root[data-design="focus"] .module-window-bar { min-height: 42px; border-bottom: 1px solid var(--f-line); background: transparent; }
 :root[data-design="focus"] .module-window-bar b { font: 500 14px/1.2 var(--f-ui); }
 :root[data-design="focus"] .module-window-icon { color: var(--text); }
@@ -585,8 +522,6 @@
 :root[data-design="focus"] .module-snap { border-radius: 16px; border-color: color-mix(in srgb, var(--text) 25%, transparent); background: color-mix(in srgb, var(--text) 6%, transparent); }
 :root[data-design="focus"] .modules-pane .settings-title .ui-icon { color: var(--text); }
 :root[data-design="focus"] .modules-stats > div { border: 0; background: var(--f-hover); border-radius: 14px; }
-
-/* ------------------------------------------------- toasts & live */
 :root[data-design="focus"] .toast { background: var(--f-pop); border: 0; box-shadow: var(--f-shadow-pop); border-radius: 12px; -webkit-backdrop-filter: none; backdrop-filter: none; font: 400 13.5px/1.4 var(--f-ui); }
 :root[data-design="focus"] .toast.ok, :root[data-design="focus"] .toast.err, :root[data-design="focus"] .toast.warn { border: 0; }
 :root[data-design="focus"] .live-call { background: var(--f-pop); border: 0; box-shadow: var(--f-shadow-modal); -webkit-backdrop-filter: none; backdrop-filter: none; border-radius: 24px; }
@@ -601,13 +536,9 @@
 :root[data-design="focus"] .sketch-text-btn.primary { background: var(--f-ink); color: var(--f-on-ink); border-radius: 999px; }
 :root[data-design="focus"] .pin-lock-box { border: 0; border-radius: 20px; background: var(--f-pop); box-shadow: var(--f-shadow-modal); }
 :root[data-design="focus"] .pin-avatar { box-shadow: none; }
-
-/* -------------------------------------------- live preview pane */
 :root[data-design="focus"] .live-preview-pane { background: var(--f-bg); border-left: 1px solid var(--f-line); }
 :root[data-design="focus"] .preview-header { background: var(--f-bg); border-bottom: 1px solid var(--f-line); }
 :root[data-design="focus"] .preview-btn, :root[data-design="focus"] .prev-dev { border-radius: 50%; }
-
-/* ------------------------------------------------- narrow windows */
 @media (max-width: 1000px) {
   :root[data-design="focus"] .workbar { width: calc(100% - 24px); }
   :root[data-design="focus"] .work-path { display: none; }
@@ -621,8 +552,6 @@
 @media (max-width: 520px) {
   :root[data-design="focus"] .msg-user .bubble { max-width: 88%; }
 }
-
-/* ------------------------------------------------------ motion */
 @media (prefers-reduced-motion: reduce) {
   :root[data-design="focus"] .greeting h1, :root[data-design="focus"] .greeting-subtitle, :root[data-design="focus"] .chip-sug { animation: none; }
 }

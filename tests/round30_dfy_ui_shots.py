@@ -38,7 +38,6 @@ RENDER = """([lang]) => {
 STEPS = [{"n": 1, "action": "navigate", "detail": "Открыт https://tickets.example/", "ok": True},
          {"n": 2, "action": "request_takeover", "detail": "captcha: Решите капчу на странице оплаты", "ok": True}]
 
-
 async def run(out: Path, lang: str, theme: str, errors: list) -> None:
     from playwright.async_api import async_playwright
     from app import themes
@@ -127,7 +126,6 @@ async def run(out: Path, lang: str, theme: str, errors: list) -> None:
             errors.append(f"{tag}: horizontal overflow in the proxy section: {overflow}")
         await browser.close()
 
-
 async def main(out: Path) -> int:
     out.mkdir(parents=True, exist_ok=True)
     errors: list = []
@@ -138,7 +136,6 @@ async def main(out: Path) -> int:
         print("FAIL", line)
     print("ok" if not errors else f"{len(errors)} failure(s)", "→", out)
     return 1 if errors else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r29/r30-dfy-takeover"))))

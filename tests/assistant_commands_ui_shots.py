@@ -35,7 +35,6 @@ FIXTURES = {
                                                                     ["Батарея", "81%, осталось ~2 ч 10 мин"], ["Диск C:", "свободно 212.4 ГБ из 951.6 ГБ"]]},
 }
 
-
 async def main(base: str, out: str) -> None:
     os.makedirs(out, exist_ok=True)
     async with async_playwright() as p:
@@ -68,7 +67,6 @@ async def main(base: str, out: str) -> None:
             await page.press("#qa-input", "Enter")
             await page.wait_for_timeout(wait)
 
-        # 1. timers + a done card + help
         page, errors = await page_for()
         await page.request.post(base + "/api/assistant/timers", data={"op": "stopwatch", "action": "reset"})
         await say(page, "поставь таймер на 25 минут для чая")
@@ -78,7 +76,7 @@ async def main(base: str, out: str) -> None:
         await page.screenshot(path=f"{out}/01-timer-pomodoro-volume.png")
         await say(page, "что ты умеешь", 900)
         await page.screenshot(path=f"{out}/02-help.png")
-        # 3. dangerous confirmation + countdown
+
         await say(page, "выключи компьютер", 900)
         await page.screenshot(path=f"{out}/03-confirm-shutdown.png")
         button = page.locator('[data-mqc="confirm"]').first
@@ -90,14 +88,14 @@ async def main(base: str, out: str) -> None:
             if await abort.count():
                 await abort.click()
                 await page.wait_for_timeout(600)
-        # 5. routine + order + sysinfo
+
         await say(page, "доброе утро")
         await say(page, "закажи роллы")
         await page.screenshot(path=f"{out}/05-routine-order.png")
         await say(page, "сколько заряда")
         await page.screenshot(path=f"{out}/06-sysinfo.png")
         print("errors (classic):", errors[:5])
-        # ringing banner (a 1-second timer)
+
         await page.request.post(base + "/api/assistant/timers", data={"op": "add", "seconds": 1, "label": "пицца"})
         await page.wait_for_timeout(3600)
         await page.screenshot(path=f"{out}/07-ringing.png")
@@ -105,7 +103,6 @@ async def main(base: str, out: str) -> None:
             await page.request.post(base + "/api/assistant/timers", data={"op": "dismiss", "id": ring["id"]})
         await page.close()
 
-        # 8. other designs / light theme
         for design, theme in (("glass", "dark"), ("aurora", "light")):
             page, errors = await page_for(design, theme)
             await say(page, "громкость 30")
@@ -114,7 +111,6 @@ async def main(base: str, out: str) -> None:
             print(f"errors ({design}):", errors[:5])
             await page.close()
 
-        # 9. settings editor (mounted standalone)
         for theme in ("dark", "light"):
             page = await browser.new_page(viewport={"width": 980, "height": 1500}, device_scale_factor=1)
             errors = []
@@ -139,7 +135,6 @@ async def main(base: str, out: str) -> None:
             print(f"errors (settings {theme}):", errors[:5])
             await page.close()
         await browser.close()
-
 
 if __name__ == "__main__":
     asyncio.run(main(sys.argv[1].rstrip("/"), sys.argv[2]))

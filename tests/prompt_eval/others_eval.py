@@ -28,11 +28,7 @@ CYR = re.compile(r"[А-Яа-яЁё]")
 THINK = re.compile(r"<think>[\s\S]*?</think>", re.I)
 TOOL_BLOCK = re.compile(r"```[ \t]*memuai-tool[^\n]*\n([\s\S]*?)(?:\n[ \t]*```|$)", re.I)
 
-
-# ----------------------------------------------------------------------------- building (runs inside a tree)
-
 ARTICLE_TITLE = "Быстрый доступ"
-
 
 def _build(tree: Path) -> Dict[str, Any]:
     sys.path.insert(0, str(tree))
@@ -62,7 +58,6 @@ def _build(tree: Path) -> Dict[str, Any]:
                         "и полным набором тестов pytest", can_escalate=True)
     quick("q-simple-no-escalate", "как будет «спасибо» по-японски?", can_escalate=True)
 
-    # ---- DFY
     def dfy_user(goal: str, page: Dict[str, Any], history: List[Dict[str, Any]], answers: List[Any] = (),
                  vault: List[Dict[str, Any]] = ()) -> List[Dict[str, Any]]:
         text = (f"<goal>{goal}</goal>\n<conversation_context></conversation_context>\n"
@@ -127,7 +122,6 @@ def _build(tree: Path) -> Dict[str, Any]:
         {"action": "type", "element": 51, "text": "Иван", "result": "typed"},
         {"action": "click", "element": 53, "result": "form shows an error"}], vault=vault)
 
-    # ---- MemuNote
     settings = {"ai_context_chars": 60000, "ai_memory_write": False}
     ru_text = ("Совещание по запуску новой версии приложения прошло во вторник. Решили перенести релиз на 20 ноября, "
                "потому что тестирование платёжного модуля не закончено. Анна отвечает за исправление ошибок в "
@@ -154,7 +148,6 @@ def _build(tree: Path) -> Dict[str, Any]:
     note("n-explain-ru", {"action": "explain", "input": "const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };",
                           "context": {"kind": "code", "name": "utils.js", "text": ""}})
 
-    # ---- built-in modules
     def module_texts(name: str) -> Dict[str, Dict[str, str]]:
         return json.loads((tree / "app" / "module_builtins" / name / "i18n.json").read_text("utf-8"))
 
@@ -184,7 +177,6 @@ def _build(tree: Path) -> Dict[str, Any]:
         out["s-autostyle"] = build_request(model="x", instructions=m.group(1),
                                            text="Prompt: грустная осенняя песня про расставание на вокзале\nLyrics: (none)")["messages"]
 
-    # ---- media routing autoprompt (same assembly as media_routing.media_autoprompt)
     from app import media_routing as mr  # noqa: E402
 
     def autoprompt(sid: str, request: str, previous: str = "", search: bool = True, kind: str = "image") -> None:
@@ -200,7 +192,6 @@ def _build(tree: Path) -> Dict[str, Any]:
     autoprompt("m-search", "нарисуй Геральта из «Ведьмака» верхом на Плотве")
     autoprompt("m-video", "видео: бумажный кораблик плывёт по ручью после дождя", search=False, kind="video")
 
-    # ---- docs-AI
     for lang in ("ru", "en"):
         path = tree / "app" / "docs" / lang / "quick-ask.md"
         if not path.exists():
@@ -216,13 +207,9 @@ def _build(tree: Path) -> Dict[str, Any]:
         out[f"da-ask-missing-{lang}"] = {"messages": docs_ai.ask_messages(lang, title, body, question), "body": body}
     return out
 
-
-# ----------------------------------------------------------------------------- checks
-
 def visible(text: str) -> str:
     text = THINK.sub("", text or "")
     return re.sub(r"```[ \t]*memuai[-_ ]?\w+[\s\S]*?(?:\n[ \t]*```|$)", "", text, flags=re.I).strip()
-
 
 def tools(text: str) -> List[str]:
     names: List[str] = []
@@ -237,15 +224,12 @@ def tools(text: str) -> List[str]:
                 names.append(str(item.get("tool") or item.get("name") or ""))
     return names
 
-
 def words(text: str) -> int:
     return len(re.findall(r"\w+", text))
-
 
 def cyr_share(text: str) -> float:
     letters = re.findall(r"[A-Za-zА-Яа-яЁё]", text)
     return (len(CYR.findall(text)) / len(letters)) if letters else 0.0
-
 
 def dfy_action(reply: str) -> Dict[str, Any]:
     match = re.search(r"\{[\s\S]*\}", visible(reply))
@@ -256,9 +240,7 @@ def dfy_action(reply: str) -> Dict[str, Any]:
     except Exception:
         return {"_invalid": True}
 
-
 PREFACE = re.compile(r"^(here(?:'s| is)|sure|certainly|corrected|improved|вот |конечно|исправленн|улучшенн)", re.I)
-
 
 def check(sid: str, reply: str, extra: Dict[str, Any]) -> Tuple[bool, str]:
     v = visible(reply)
@@ -367,7 +349,7 @@ def check(sid: str, reply: str, extra: Dict[str, Any]) -> Tuple[bool, str]:
             return bool(ok), f"words={n} {v[:70]!r}"
     if sid.startswith("da-summary-"):
         sys.path.insert(0, str(ROOT))
-        from app import docs_ai  # the parser and literal guard of the current tree judge both variants
+        from app import docs_ai
         try:
             summary = docs_ai.parse_summary(v)
         except ValueError:
@@ -386,15 +368,11 @@ def check(sid: str, reply: str, extra: Dict[str, Any]) -> Tuple[bool, str]:
         return bool(said) and not invented and words(v) <= 120, f"said={bool(said)} invented={invented[:1]} words={words(v)}"
     return False, "no check"
 
-
-# ----------------------------------------------------------------------------- driver
-
 def build_tree(tree: str) -> Dict[str, Any]:
     out = subprocess.run([sys.executable, __file__, "--build", tree], capture_output=True, text=True, cwd=tree)
     if out.returncode:
         raise SystemExit(out.stderr[-3000:])
     return json.loads(out.stdout)
-
 
 def main() -> None:
     parser = argparse.ArgumentParser()
@@ -454,7 +432,6 @@ def main() -> None:
     path.parent.mkdir(exist_ok=True)
     path.write_text(json.dumps(results, ensure_ascii=False, indent=1), "utf-8")
     print("saved", path)
-
 
 if __name__ == "__main__":
     main()

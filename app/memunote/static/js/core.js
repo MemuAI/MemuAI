@@ -1,4 +1,4 @@
-// MemuNote — core helpers: API client, i18n, icons, toasts, menus, dialogs, command palette.
+
 import { DICT } from "./i18n.js";
 
 export const $ = (sel, root = document) => root.querySelector(sel);
@@ -13,7 +13,6 @@ export function basename(p) { return String(p || "").split(/[\\/]/).pop(); }
 export function dirname(p) { const s = String(p || ""); const i = Math.max(s.lastIndexOf("\\"), s.lastIndexOf("/")); return i > 0 ? s.slice(0, i) : s; }
 export function extname(p) { const b = basename(p); const i = b.lastIndexOf("."); return i > 0 ? b.slice(i).toLowerCase() : ""; }
 
-// ------------------------------------------------------------------ API
 export const API = { token: "", base: "" };
 (function initToken() {
   const m = /[#&]t=([^&]+)/.exec(location.hash);
@@ -37,20 +36,18 @@ export async function api(path, body, opts = {}) {
 export const rawUrl = (path) => `/api/raw?path=${encodeURIComponent(path)}&t=${encodeURIComponent(API.token)}`;
 export const assetUrl = (path) => `/api/asset?path=${encodeURIComponent(path)}&t=${encodeURIComponent(API.token)}`;
 
-// ------------------------------------------------------------------ i18n
 export const I18N = { lang: "ru" };
 export function t(key, vars) {
   let s = DICT[I18N.lang]?.[key] ?? DICT.en[key] ?? key;
   if (vars) s = s.replace(/\{(\w+)\}/g, (_, k) => (vars[k] ?? ""));
   return s;
 }
-export function plural(n, forms) { // forms: ru [one, few, many] / en [one, other]
+export function plural(n, forms) {
   if (I18N.lang === "en") return n === 1 ? forms[0] : forms[1];
   const a = Math.abs(n) % 100, b = a % 10;
   if (a > 10 && a < 20) return forms[2]; if (b > 1 && b < 5) return forms[1]; if (b === 1) return forms[0]; return forms[2];
 }
 
-// ------------------------------------------------------------------ icons (MemuAI line style)
 const P = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 export const ICONS = {
   menu: P('<path d="M4 7h16M4 12h16M4 17h16"/>'),
@@ -138,13 +135,13 @@ export const ICONS = {
   minimap: P('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16M6 8h6M6 11h4M6 14h6M17 8h2M17 10h2"/>'),
   lines: P('<path d="M9 6h11M9 12h11M9 18h11M4 6h1M4 12h1M4 18h1"/>'),
   play: P('<path d="m8 5 11 7-11 7z"/>'),
-  terminal: P('<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="m7 9 3 3-3 3M12.5 15H17"/>'),   // Round 33: run output
+  terminal: P('<rect x="3" y="4" width="18" height="16" rx="2.5"/><path d="m7 9 3 3-3 3M12.5 15H17"/>'),
   spell: P('<path d="m4 15 3.5-9 3.5 9M5.3 12h4.4M13 6v9h2.7a2.25 2.25 0 0 0 0-4.5H13M13 10.5h2.2a2.25 2.25 0 0 0 0-4.5H13"/><path d="M4 19c2-1.2 3-1.2 5 0s3 1.2 5 0 3-1.2 5 0"/>'),
   liveMd: P('<path d="M4 6h7M4 10h5M4 14h7M4 18h4"/><path d="m14 18 1-4 5.5-5.5a1.4 1.4 0 0 1 2 2L17 16z"/>'),
   follow: P('<path d="M12 4v14m-6-6 6 6 6-6M5 21h14"/>'),
   lock: P('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),
   fullscreen: P('<path d="M8 3H5a2 2 0 0 0-2 2v3M16 3h3a2 2 0 0 1 2 2v3M21 16v3a2 2 0 0 1-2 2h-3M8 21H5a2 2 0 0 1-2-2v-3"/>'),
-  slides: P('<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 17v3M8 21h8M7 9h6M7 12h10"/>'),   // Round 32
+  slides: P('<rect x="3" y="4" width="18" height="13" rx="2"/><path d="M12 17v3M8 21h8M7 9h6M7 12h10"/>'),
   history: P('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'),
 };
 export const icon = (name, cls = "") => `<span class="ic ${cls}">${ICONS[name] || ""}</span>`;
@@ -154,7 +151,6 @@ export function kindIcon(kind, lang = "") {
     image: "image", html: "globe", code: "code", sheet: "table", book: "doc", notebook: "code", slides: "slides" }[kind] || (lang ? "code" : "fileText");
 }
 
-// ------------------------------------------------------------------ toasts
 export function toast(message, opts = {}) {
   let host = $("#toasts");
   if (!host) { host = document.createElement("div"); host.id = "toasts"; document.body.append(host); }
@@ -172,11 +168,10 @@ export function toast(message, opts = {}) {
   return el;
 }
 
-// ------------------------------------------------------------------ menus
 let openMenu = null;
 export function closeMenus() { if (openMenu) { openMenu.remove(); openMenu = null; document.removeEventListener("pointerdown", onDocDown, true); } }
 function onDocDown(e) { if (openMenu && !openMenu.contains(e.target)) closeMenus(); }
-/** items: [{label, icon, kbd, run, disabled, checked, danger, sub:[...]}, "-" separator, {header}] */
+
 export function showMenu(items, anchor, opts = {}) {
   closeMenus();
   const menu = buildMenu(items, opts);
@@ -196,7 +191,7 @@ function buildMenu(items, opts) {
     if (item === "-") { menu.append(Object.assign(document.createElement("div"), { className: "menu-sep" })); continue; }
     if (item.header) { const h = document.createElement("div"); h.className = "menu-head"; h.textContent = item.header; menu.append(h); continue; }
     const el = document.createElement("button");
-    el.className = "mi" + (item.danger ? " danger" : "") + (item.sub ? " has-sub" : "") + (item.cls ? " " + item.cls : "");   // cls: Round 33 (spell suggestions)
+    el.className = "mi" + (item.danger ? " danger" : "") + (item.sub ? " has-sub" : "") + (item.cls ? " " + item.cls : "");
     el.setAttribute("role", item.checked !== undefined ? "menuitemcheckbox" : "menuitem");
     if (item.checked !== undefined) el.setAttribute("aria-checked", item.checked ? "true" : "false");
     if (item.disabled) el.setAttribute("aria-disabled", "true");
@@ -253,8 +248,6 @@ document.addEventListener("pointerdown", (e) => {
   if (!e.target.closest(".menu")) document.querySelectorAll(".menu.sub").forEach((m) => m.remove());
 }, true);
 
-// ------------------------------------------------------------------ dialogs
-/** modal({title, body (html), buttons:[{label, value, primary, danger}], onOpen(el), wide, dismiss}) → Promise<value|null> */
 export function modal(opts) {
   return new Promise((resolve) => {
     const back = document.createElement("div");
@@ -294,7 +287,6 @@ export function confirm(title, text, ok, opts = {}) {
   return modal({ title, body: `<p>${esc(text)}</p>`, buttons: [{ label: t("cancel"), value: false }, { label: ok || t("ok"), primary: !opts.danger, danger: !!opts.danger, value: true }] });
 }
 
-// ------------------------------------------------------------------ command palette
 export function fuzzyScore(query, text) {
   query = query.toLowerCase(); text = text.toLowerCase();
   if (!query) return 1;
@@ -308,7 +300,7 @@ export function fuzzyScore(query, text) {
   }
   return score;
 }
-/** palette(items:[{label, hint, kbd, icon, run}], {placeholder}) */
+
 export function palette(items, opts = {}) {
   closeMenus();
   document.querySelector(".palette-back")?.remove();
@@ -342,7 +334,6 @@ export function palette(items, opts = {}) {
   render(); input.focus();
 }
 
-// ------------------------------------------------------------------ misc
 export function tooltip(el, text) { el.setAttribute("title", text); el.setAttribute("aria-label", text); }
 export function kbd(spec) { return isMac ? spec.replace(/Ctrl/g, "⌘").replace(/Alt/g, "⌥") : spec; }
 export function copyText(text) { return navigator.clipboard?.writeText(text).then(() => true, () => fallbackCopy(text)) ?? Promise.resolve(fallbackCopy(text)); }

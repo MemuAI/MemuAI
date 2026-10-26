@@ -32,7 +32,6 @@ from app import modules_host, pgdata
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32
 PUBLIC = [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))]
 
-
 def fake_dns(mapping):
     def resolver(host, port, *args, **kwargs):
         address = mapping.get(host, "93.184.216.34")
@@ -40,10 +39,8 @@ def fake_dns(mapping):
         return [(family, socket.SOCK_STREAM, 6, "", (address, port))]
     return resolver
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 class ParseInputTest(unittest.TestCase):
     def parse(self, text, hosts=ci.DEFAULT_HOSTS):
@@ -108,7 +105,6 @@ class ParseInputTest(unittest.TestCase):
         self.assertTrue(ci.host_allowed("example.org", ["*.example.org"]))
         self.assertFalse(ci.host_allowed("badexample.org", ["*.example.org"]))
         self.assertFalse(ci.host_allowed("example.org.evil.com", ["example.org"]))
-
 
 class SafeFetchTest(unittest.TestCase):
     """SSRF guards. The peer check needs a real socket, so it is patched only where MockTransport is used."""
@@ -192,7 +188,6 @@ class SafeFetchTest(unittest.TestCase):
             with self.assertRaises(ci.ImportError_) as caught:
                 run(go())
         self.assertEqual(caught.exception.code, "private_address")
-
 
 class ResolversTest(unittest.TestCase):
     def resolve(self, text, handler, hosts=ci.DEFAULT_HOSTS):
@@ -299,7 +294,6 @@ class ResolversTest(unittest.TestCase):
         card = lambda request: httpx.Response(200, json={"spec": "chara_card_v2", "data": {"name": "x"}})
         self.assertEqual(self.resolve("https://raw.githubusercontent.com/x/y/main/c.json", card)["type"], "character")
 
-
 class RoutesTest(unittest.TestCase):
     def setUp(self):
         self._t = tempfile.TemporaryDirectory()
@@ -322,15 +316,15 @@ class RoutesTest(unittest.TestCase):
         return self.client.post("/api/pg/modules/net-import", json=body)
 
     def test_permission_and_approval_gate(self):
-        # A module without the permission (translator) is refused before anything else.
+
         response = self.post({"module_id": "translator", "input": "a/b", "op": "resolve"})
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.json()["code"], "permission")
-        # Characters declares it: recognising is free (no network) …
+
         response = self.post({"module_id": "characters", "input": "https://chub.ai/characters/a/b", "op": "resolve"})
         self.assertEqual(response.status_code, 200, response.text)
         self.assertEqual((response.json()["source"], response.json()["trusted"]), ("chub", False))
-        # … downloading needs the person's «yes» (added by the MemuAI window, never by the module).
+
         with patch.object(ci, "fetch_import", side_effect=AssertionError("must not download")):
             response = self.post({"module_id": "characters", "input": "a/b"})
         self.assertEqual((response.status_code, response.json()["code"]), (403, "needs_approval"))
@@ -340,12 +334,12 @@ class RoutesTest(unittest.TestCase):
         with patch.object(ci, "fetch_import", side_effect=fake):
             self.assertEqual(self.post({"module_id": "characters", "input": "a/b", "approved": True}).status_code, 200)
             self.assertEqual(self.post({"module_id": "characters", "input": "a/b", "approved": "yes"}).status_code, 403)
-            # «always» — the source is trusted for this module only
+
             settings = self.client.post("/api/pg/modules/net-import/settings", json={"id": "characters", "trust": "chub"}).json()
             self.assertEqual(settings["trusted"], ["chub"])
             self.assertEqual(self.post({"module_id": "characters", "input": "a/b"}).status_code, 200)
             self.assertEqual(self.post({"module_id": "characters", "input": "a7ca95a1-0c88-4e23-91b3-149db1e78ab9"}).json()["code"], "needs_approval")
-        # Wrong kind and unknown hosts are explained.
+
         response = self.post({"module_id": "characters", "input": "lorebooks/a/b", "kind": "character", "op": "resolve"})
         self.assertEqual(response.json()["code"], "wrong_kind")
         response = self.post({"module_id": "characters", "input": "https://evil.example/x.png", "op": "resolve"})
@@ -382,7 +376,7 @@ class RoutesTest(unittest.TestCase):
         self.assertIn('fetchImport: function (input, opts) {\n      return call("net_import"', modules_host.BRIDGE_JS)
         js = (Path(__file__).resolve().parents[1] / "app" / "pgstatic" / "modules.js").read_text(encoding="utf-8")
         self.assertIn('net_import: "net-import"', js)
-        # The window builds the request body itself: `approved` never comes from the module payload.
+
         start = js.index("async function runNetImport")
         body = js[start:js.index("async function netImportSettings")]
         self.assertNotIn("...payload", body)
@@ -406,7 +400,6 @@ class RoutesTest(unittest.TestCase):
             run(ci.fetch_import(ci.parse_input("ddd1498a-a370-4136-b138-a8cd9461fdfe_character-aqua-the-useless-goddess")))
         except ci.ImportError_ as exc:
             self.assertIn(exc.code, ("blocked", "not_found", "http"))
-
 
 if __name__ == "__main__":
     unittest.main()

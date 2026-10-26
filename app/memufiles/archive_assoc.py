@@ -32,32 +32,27 @@ REGAPPS = r"Software\RegisteredApplications"
 FILEEXTS = r"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts"
 REG_SZ = 1
 
-
 def _state_path():
     return default_shell.shell_dir() / "archives.json"
-
 
 def _exe() -> Optional[str]:
     exe = default_shell.current_exe()
     if exe:
         return exe
-    if not getattr(sys, "frozen", False):          # a source checkout: python memufiles.py
+    if not getattr(sys, "frozen", False):
         script = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "memufiles.py")
         if os.path.isfile(script):
             return f'{sys.executable}" "{script}'
     return None
 
-
 def command(exe: str) -> str:
     return f'"{exe}" --archive "%1"'
-
 
 def _lang() -> str:
     try:
         return default_shell._lang()
     except Exception:  # noqa: BLE001
         return "ru"
-
 
 def status() -> Dict[str, Any]:
     if not default_shell.available():
@@ -77,7 +72,6 @@ def status() -> Dict[str, Any]:
     return {"available": True, "on": on, "extensions": exts,
             "choice": [e for e, v in exts.items() if v == "choice"]}
 
-
 def sync(enabled: bool) -> Dict[str, Any]:
     if not default_shell.available():
         return {"available": False, "on": False}
@@ -89,7 +83,6 @@ def sync(enabled: bool) -> Dict[str, Any]:
     else:
         _disable()
     return status()
-
 
 def _enable(exe: str) -> None:
     reg = default_shell._reg()
@@ -119,7 +112,6 @@ def _enable(exe: str) -> None:
         reg.set(key, name, REG_SZ, data)
     write_json(_state_path(), {"previous": saved, "exe": exe})
     reg.notify()
-
 
 def _disable() -> None:
     reg = default_shell._reg()

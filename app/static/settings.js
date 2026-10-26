@@ -1,16 +1,11 @@
-/* MemuAI Proxy — the Settings page (Round 23 redesign).
 
-   Layout: a section rail on the left, one section on screen at a time; every section shows the
-   everyday options first and hides the rest under «Дополнительно». Controls stay the ones app.js
-   already saves ([data-setting], [data-psetting], #search-*, keys, password): this file only adds
-   the shell around them — navigation, search, segmented controls over hidden <select>s, the theme,
-   "restore default" buttons, the save status and per-row feedback. No API calls of its own. */
+
 "use strict";
 
 window.MemuSettings = (() => {
   const SECTIONS = ["general", "routing", "providers", "search", "access", "network", "cli",
     "reliability", "logs", "system"];
-  /* Defaults of app/config.py Settings (tests/proxy_settings_ui_test.py keeps them in sync). */
+
   const DEFAULTS = {
     open_ui_on_start: true, close_to_tray: true, balancing: "round-robin", cookie_check_interval: 30,
     use_prefixes: true, strict_models: false, host: "127.0.0.1", port: 8317, cors_enabled: true,
@@ -18,7 +13,7 @@ window.MemuSettings = (() => {
     request_timeout: 180, stream_idle_timeout: 300, sse_keepalive: true, sse_keepalive_interval: 15,
     search_results: 5, log_requests: true, log_persist: true, log_payloads: true, metrics_enabled: true,
   };
-  /* Places outside this page that search can lead to. */
+
   const ELSEWHERE = [
     { id: "public", tab: "public", k: "публичный доступ интернет туннель tunnel ngrok cloudflare tailscale https сертификат certificate внешний ip домен domain порт port лимиты limits ключи доступа брандмауэр firewall public internet" },
     { id: "local", tab: "local", k: "локальные модели llama gguf hugging face hf токен token потоки threads движок engine cuda vulkan cpu память memory local models" },
@@ -33,16 +28,15 @@ window.MemuSettings = (() => {
   const norm = (value) => String(value || "").toLowerCase().replace(/ё/g, "е");
   const shell = () => document.getElementById("sg-shell");
 
-  /* ---------------------------------------------------------------- navigation */
   function current() {
     let saved = "";
-    try { saved = localStorage.getItem("oh_settings_sec") || ""; } catch (e) { /* ignore */ }
+    try { saved = localStorage.getItem("oh_settings_sec") || ""; } catch (e) {  }
     return SECTIONS.includes(S.sec) ? S.sec : SECTIONS.includes(saved) ? saved : "general";
   }
   function select(sec, opts = {}) {
     if (!SECTIONS.includes(sec)) sec = "general";
     S.sec = sec;
-    try { localStorage.setItem("oh_settings_sec", sec); } catch (e) { /* ignore */ }
+    try { localStorage.setItem("oh_settings_sec", sec); } catch (e) {  }
     if (S.query && !opts.keepSearch) clearSearch(false);
     document.querySelectorAll("#sg-nav [data-sg-nav]").forEach((button) => {
       const on = button.dataset.sgNav === sec;
@@ -60,7 +54,6 @@ window.MemuSettings = (() => {
     }
   }
 
-  /* The model catalog needs the width of the page: its rail folds to icons (with tooltips). */
   function syncWide() {
     const box = shell();
     if (!box) return;
@@ -71,7 +64,6 @@ window.MemuSettings = (() => {
     });
   }
 
-  /* ---------------------------------------------------------------- segmented controls */
   function syncSegments(root = document) {
     root.querySelectorAll(".sg-seg[data-for]").forEach((seg) => {
       const source = document.getElementById(seg.dataset.for);
@@ -109,7 +101,6 @@ window.MemuSettings = (() => {
     all[index].click();
   }
 
-  /* ---------------------------------------------------------------- value-dependent bits */
   function syncDependent() {
     const bal = document.getElementById("set-balancing");
     const balDesc = document.getElementById("sg-bal-desc");
@@ -120,7 +111,7 @@ window.MemuSettings = (() => {
     const keep = document.getElementById("set-keepalive");
     const keepInt = document.getElementById("set-keepaliveint");
     if (keep && keepInt) {
-      /* A setting that only matters when another is on stays out of sight until then (as in the app's kit). */
+
       const row = keepInt.closest(".sg-row");
       if (row) row.hidden = !keep.checked;
     }
@@ -158,7 +149,7 @@ window.MemuSettings = (() => {
     }
     delete mode.dataset.custom;
     if (mode.value === "0.0.0.0" && host.value.trim() !== "0.0.0.0") {
-      /* Opening the API to the network is a security decision: ask first, change nothing on "Cancel". */
+
       syncDependent();
       confirmDialog(t("sg.lan.title"), t("sg.lan.text"), () => {
         host.value = "0.0.0.0";
@@ -174,7 +165,6 @@ window.MemuSettings = (() => {
     syncDependent();
   }
 
-  /* ---------------------------------------------------------------- "restore default" */
   function valueOf(el) {
     if (el.type === "checkbox") return el.checked;
     if (el.type === "number") return el.value === "" ? "" : Number(el.value);
@@ -217,7 +207,6 @@ window.MemuSettings = (() => {
     syncDependent();
   }
 
-  /* ---------------------------------------------------------------- save status */
   function setStatus(state, message) {
     const box = document.getElementById("settings-status");
     const text = document.getElementById("sg-status-text");
@@ -244,7 +233,6 @@ window.MemuSettings = (() => {
     syncDependent();
   }
 
-  /* ---------------------------------------------------------------- search */
   function rowText(row) {
     if (!row._sgText || row._sgLang !== LANG) {
       row._sgText = norm(`${row.textContent} ${row.dataset.k || ""}`);
@@ -252,7 +240,7 @@ window.MemuSettings = (() => {
     }
     return row._sgText;
   }
-  /* A word matches the start of a word ("ключ" finds «ключи», «ключей»; "порт" does not find «импорт»). */
+
   const WORD = /[0-9a-zа-я]/;
   function wordAt(text, word, from = 0) {
     for (let at = text.indexOf(word, from); at >= 0; at = text.indexOf(word, at + 1)) {
@@ -318,12 +306,12 @@ window.MemuSettings = (() => {
         group.querySelectorAll(".sg-row").forEach((row) => {
           const hit = groupHit || matches(rowText(row), words);
           row.classList.toggle("sg-miss", !hit);
-          if (hit && !row.hidden) groupShown++;     /* rows hidden by state (a key field) stay hidden */
+          if (hit && !row.hidden) groupShown++;
         });
         group.classList.toggle("sg-miss", !groupShown);
         shown += groupShown;
       });
-      /* «Дополнительно» opens by itself when the match is inside, and disappears when nothing is. */
+
       sec.querySelectorAll("details.sg-more").forEach((details) => {
         const has = !!details.querySelector(".sg-row:not(.sg-miss):not([hidden])");
         details.classList.toggle("sg-miss", !has);
@@ -335,7 +323,7 @@ window.MemuSettings = (() => {
       if (nav) { if (shown) nav.dataset.hits = String(shown); else delete nav.dataset.hits; }
     });
     const found = ELSEWHERE.filter((item) => matches(norm(`${t("sg.jump." + item.id)} ${t("sg.jump." + item.id + ".d")} ${item.k}`), words));
-    /* A model name finds the model in the catalog. */
+
     const raw = norm(S.query);
     const modelHits = raw.length >= 2 && typeof modelsCache !== "undefined" ? modelsCache.filter((m) => norm(m.id).includes(raw)).length : 0;
     const list = document.getElementById("sg-found-list");
@@ -368,7 +356,6 @@ window.MemuSettings = (() => {
     document.querySelector(`.nav-item[data-tab="${tab}"]`)?.click();
   }
 
-  /* ---------------------------------------------------------------- wiring */
   function wire() {
     if (S.wired) return;
     const page = document.getElementById("tab-settings");
@@ -390,7 +377,7 @@ window.MemuSettings = (() => {
       if (modelsGo) {
         const query = S.query;
         clearSearch(false);
-        goTab("models");   /* r33: the catalog is its own tab in the left rail now */
+        goTab("models");
         const filter = document.getElementById("models-filter");
         if (filter) { filter.value = query; filter.dispatchEvent(new Event("input", { bubbles: true })); filter.focus(); }
         return;
@@ -403,14 +390,14 @@ window.MemuSettings = (() => {
       }
     });
     page.addEventListener("keydown", onSegKey);
-    /* Remember which row changed, so the "saved" answer can light it up. */
+
     page.addEventListener("change", (event) => {
       const row = event.target.closest(".sg-row");
       if (row) S.changedRow = row;
       if ((event.target.id === "sg-theme" && window.MemuTheme) || event.target.id === "lang-select-2") {
-        /* Saved in this browser only: no request, so the answer is immediate. */
+
         if (event.target.id === "sg-theme") MemuTheme.set(event.target.value);
-        setTimeout(() => setStatus("saved"), 0);     /* after a language switch has relabelled the page */
+        setTimeout(() => setStatus("saved"), 0);
         S.changedRow = null;
         row?.classList.add("sg-flash");
         setTimeout(() => row?.classList.remove("sg-flash"), 1300);
@@ -455,13 +442,12 @@ window.MemuSettings = (() => {
     document.querySelectorAll("#tab-settings [data-i18n-html]").forEach((el) => { el.innerHTML = t(el.dataset.i18nHtml); });
   }
 
-  /* Called when the Settings tab opens. */
   function show() {
     wire();
     if (!S.query) select(current(), { scroll: false });
     syncDependent();
   }
-  /* Called by app.js after loadSettings() wrote the values into the controls. */
+
   function sync() {
     wire();
     syncDependent();

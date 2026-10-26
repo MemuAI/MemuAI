@@ -19,7 +19,6 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 TIERS = ("fast", "balanced", "strong")
 NOTE_LIMIT = 300
 
-
 def model_notes(settings: Any) -> Dict[str, str]:
     raw = settings.get("model_notes") if settings is not None else None
     if not isinstance(raw, dict):
@@ -31,10 +30,8 @@ def model_notes(settings: Any) -> Dict[str, str]:
             notes[str(key).strip()] = text
     return notes
 
-
 def note_for(settings: Any, model_id: str) -> str:
     return model_notes(settings).get(str(model_id), "")
-
 
 def set_model_note(settings: Any, model_id: str, text: str) -> None:
     notes = model_notes(settings)
@@ -44,7 +41,6 @@ def set_model_note(settings: Any, model_id: str, text: str) -> None:
     else:
         notes.pop(str(model_id), None)
     settings.set("model_notes", notes)
-
 
 def routing_config(settings: Any) -> Dict[str, Any]:
     """``model_routing`` with the older ``fast`` / ``strong`` keys folded into ``tiers``."""
@@ -57,13 +53,12 @@ def routing_config(settings: Any) -> Dict[str, Any]:
         if isinstance(values, str):
             values = [values]
         tiers[tier] = _unique(str(item) for item in (values or []) if str(item).strip())
-    for tier in ("fast", "strong"):                      # the single-model keys of earlier versions
+    for tier in ("fast", "strong"):
         legacy = str(raw.get(tier) or "").strip()
         if legacy and legacy not in tiers[tier]:
             tiers[tier].append(legacy)
     return {"enabled": bool(raw.get("enabled")), "tiers": tiers,
             "balanced_from": float(raw.get("balanced_from") or 0.33), "strong_from": float(raw.get("strong_from") or 0.62)}
-
 
 def worker_models(settings: Any) -> List[str]:
     """Models agents may use; the single ``worker_model`` of earlier versions counts as a list of one."""
@@ -74,20 +69,14 @@ def worker_models(settings: Any) -> List[str]:
         rows.insert(0, legacy)
     return _unique(row for row in rows if row.strip())
 
-
 def _unique(values: Iterable[str]) -> List[str]:
     return list(dict.fromkeys(values))
-
-
-# ---------------------------------------------------------------- choosing by remark
 
 _WORD = re.compile(r"[\w#+.\-]{3,}", re.UNICODE)
 _STOP = {"the", "and", "for", "with", "this", "that", "from", "into", "что", "для", "это", "как", "при", "или", "над"}
 
-
 def _words(text: str) -> set:
     return {word.lower() for word in _WORD.findall(text or "") if word.lower() not in _STOP}
-
 
 def pick_by_notes(task: str, candidates: List[str], notes: Dict[str, str], *, extra: Optional[Dict[str, str]] = None
                   ) -> Tuple[str, str]:
@@ -108,7 +97,6 @@ def pick_by_notes(task: str, candidates: List[str], notes: Dict[str, str], *, ex
     if best_score:
         return best, "note: " + ", ".join(sorted(shared)[:4])
     return best, ""
-
 
 def describe_candidates(candidates: List[str], notes: Dict[str, str]) -> Dict[str, str]:
     """``{model: remark}`` for the choice question of a decision model (a model without a remark says so)."""

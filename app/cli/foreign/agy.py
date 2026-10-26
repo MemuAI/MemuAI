@@ -36,14 +36,11 @@ TITLE = "Antigravity (agy)"
 
 USER, AGENT, VIEW, COMMAND, ERROR = 14, 15, 8, 21, 17
 
-
 def home() -> Path:
     return Path(os.environ.get("AGY_HOME") or (Path.home() / ".gemini" / "antigravity-cli"))
 
-
 def present() -> bool:
     return (home() / "conversations").is_dir()
-
 
 def _cache(name: str) -> Dict[str, Any]:
     try:
@@ -52,10 +49,8 @@ def _cache(name: str) -> Dict[str, Any]:
     except (OSError, ValueError):
         return {}
 
-
 def _connect(path: Path) -> sqlite3.Connection:
     return sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=3)
-
 
 def _folders() -> Dict[str, str]:
     """``{conversation id: folder}`` from the two caches ``agy`` keeps (the last conversation of each folder)."""
@@ -65,7 +60,6 @@ def _folders() -> Dict[str, str]:
             if isinstance(conversation, str):
                 found.setdefault(conversation, str(folder))
     return found
-
 
 def _summary_text(row: Any) -> str:
     if not isinstance(row, dict):
@@ -81,7 +75,6 @@ def _summary_text(row: Any) -> str:
             if isinstance(value, str) and value:
                 return value
     return ""
-
 
 def discover(limit: int = 400) -> List[SessionInfo]:
     base = home() / "conversations"
@@ -109,7 +102,6 @@ def discover(limit: int = 400) -> List[SessionInfo]:
             updated=iso_to_ts(row.get("last_modified_time")) or stat.st_mtime, messages=count, path=str(file)))
     rows.sort(key=lambda item: -item.updated)
     return rows[:limit]
-
 
 def _quick(file: Path) -> "tuple[str, int, str, str]":
     """(title, number of steps, the first thing the person said, a folder seen in a tool call)."""
@@ -139,14 +131,12 @@ def _quick(file: Path) -> "tuple[str, int, str, str]":
         con.close()
     return "", int(count or 0), first, cwd
 
-
 def _args(text: str) -> Dict[str, Any]:
     try:
         data = json.loads(text)
         return data if isinstance(data, dict) else {}
     except ValueError:
         return {}
-
 
 def read(info: SessionInfo) -> ForeignSession:
     path = Path(info.path)

@@ -18,11 +18,9 @@ from tests import memucode_cli_test as fixtures
 setUpModule = fixtures.setUpModule
 tearDownModule = fixtures.tearDownModule
 
-
 class ProjectTrustRegressionTest(unittest.TestCase):
     def setUp(self):
-        # The shared CLI fixture may retain a user-selected mode from another
-        # module. Give this boundary test its own user configuration.
+
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         patcher = patch.object(paths, "user_settings_file", return_value=Path(directory.name) / "settings.json")
@@ -71,7 +69,6 @@ class ProjectTrustRegressionTest(unittest.TestCase):
 
         asyncio.run(run())
 
-
 class WorkTraversalRegressionTest(unittest.TestCase):
     def test_junctions_do_not_leak_files_or_create_cycles(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -95,7 +92,6 @@ class WorkTraversalRegressionTest(unittest.TestCase):
             self.assertEqual(result["matches"], [])
             tree = work_tools.tool_tree(root, {})
             self.assertEqual([row["path"] for row in tree["files"]], ["safe.py"])
-
 
 if __name__ == "__main__":
     unittest.main()

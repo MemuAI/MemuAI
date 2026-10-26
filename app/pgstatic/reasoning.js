@@ -1,13 +1,5 @@
-/* MemuAI — Round 33 (r33-thinking): the reasoning levels each model really supports.
- *
- * The Proxy computes a profile per model (app/reasoning_levels.py) and ships it in
- * S.models[i].caps.reasoning_profile: {kind, levels, can_off, default, options, source, family, note}.
- * kind: "levels" (Auto + its own depths, + Off when it can be switched off), "toggle" (Auto / On / Off),
- * "fixed" (reasons, nothing to choose) or "none" (no reasoning). Every picker in the window uses this file,
- * so a model never offers a level its API rejects (Gemini 3.7 Flash: Low / Medium / High only).
- *
- * Without a profile (an old Proxy) the former name rule and the generic list are used.
- */
+
+
 "use strict";
 const MemuReasoning = (() => {
   const DEPTHS = ["minimal", "low", "medium", "high", "xhigh", "max"];
@@ -33,12 +25,12 @@ const MemuReasoning = (() => {
   function model(id) {
     return (typeof S !== "undefined" && Array.isArray(S.models)) ? S.models.find((m) => m.id === id) : null;
   }
-  /** The profile of a model; null when the Proxy did not send one (old Proxy). */
+
   function profile(id) {
     const prof = model(id)?.caps?.reasoning_profile;
     return prof && typeof prof === "object" && Array.isArray(prof.options) ? prof : null;
   }
-  /** Picker options for a model, "auto" first; [] — the model has nothing to choose. */
+
   function options(id) {
     const prof = profile(id);
     if (prof) return prof.options.slice();
@@ -48,7 +40,6 @@ const MemuReasoning = (() => {
   }
   function supports(id) { return options(id).length > 0; }
 
-  /** A stored / requested level → the nearest level this model accepts (mirror of reasoning_levels.clamp). */
   function clamp(level, id) {
     level = normalize(level);
     const prof = profile(id);
@@ -72,7 +63,6 @@ const MemuReasoning = (() => {
     })[0];
   }
 
-  /** «Auto» names what the model does by itself when the provider documents it: «Auto · Medium». */
   function autoLabel(id) {
     const prof = profile(id);
     const base = label("auto");
@@ -82,11 +72,10 @@ const MemuReasoning = (() => {
   }
   function optionLabel(level, id) { return normalize(level) === "auto" ? autoLabel(id) : label(level); }
 
-  /** <option> list for a <select> of this model. */
   function optionsHtml(id, esc = (x) => x) {
     return options(id).map((value) => `<option value="${value}">${esc(optionLabel(value, id))}</option>`).join("");
   }
-  /** Short explanation for tooltips and the settings rows. */
+
   function hint(id) {
     const prof = profile(id);
     if (!prof) return "";
@@ -100,7 +89,7 @@ const MemuReasoning = (() => {
     if (prof.source === "override") parts.push(en() ? "set by hand in the Proxy" : "задано вручную в Proxy");
     return parts.join(" · ");
   }
-  /** One short line under a model name: «Low · Medium · High · cannot be switched off». */
+
   function shortHint(id) {
     const prof = profile(id);
     if (!prof) return "";
@@ -111,7 +100,7 @@ const MemuReasoning = (() => {
     if (prof.source === "guess") parts.push(en() ? "assumed" : "предположение");
     return parts.join(" · ");
   }
-  /** A generic list for settings that apply to every model (each model then gets its nearest level). */
+
   function genericHtml(esc = (x) => x) {
     return ["auto", "off", "minimal", "low", "medium", "high", "xhigh", "max"]
       .map((v) => `<option value="${v}">${esc(label(v))}</option>`).join("");

@@ -14,7 +14,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-
 def snapshot(root: Path) -> dict:
     sys.path.insert(0, str(root))
     os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="pe-data-"))
@@ -40,7 +39,6 @@ def snapshot(root: Path) -> dict:
                         capture_output=True, text=True, check=True)
     out["js"] = json.loads(js.stdout)
     return out
-
 
 if __name__ == "__main__":
     print(json.dumps(snapshot(Path(sys.argv[1]).resolve()), ensure_ascii=False))

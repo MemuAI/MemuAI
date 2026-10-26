@@ -21,12 +21,11 @@ from .engine import AppsRunning, Cancelled, Engine, Existing, Options, SetupErro
 
 log = logging.getLogger("memuai.setup")
 
-
 class Bridge:
     def __init__(self, engine: Engine, mode: str, language: str, log_path: str = "",
                  app_dir: str = "", on_exit: Optional[Callable[[int], None]] = None) -> None:
         self._engine = engine
-        self._mode = mode                      # "install" | "uninstall"
+        self._mode = mode
         self._language = language
         self._log_path = log_path
         self._app_dir = app_dir
@@ -38,11 +37,9 @@ class Bridge:
         self._existing: Optional[Existing] = None
         self._exit_code = 0
         self._on_exit = on_exit
-        # main.run_window installs a callable that schedules winplat.begin_window_drag on the
-        # GUI thread; None (tests, non-Windows) makes the page fall back to move_window().
+
         self._begin_drag: Optional[Callable[[], bool]] = None
 
-    # ------------------------------------------------------------------ info
     def init(self) -> dict:
         engine = self._engine
         product = engine.product
@@ -66,7 +63,7 @@ class Bridge:
                          "source": existing.source, "components": existing.components,
                          "legacy_machine": existing.legacy_machine},
             "defaults": {"dir": defaults.install_dir, "components": defaults.components, "tasks": defaults.tasks},
-            # Round 29: an optional component this Setup does not carry (e.g. MemuNote) is not offered.
+
             "components": [{"id": c.id, "required": c.required, "size": sizes.get(c.id, 0)}
                            for c in product.components if not engine.payload or c.required or sizes.get(c.id)],
             "tasks": [{"id": t.id, "needs": list(t.needs)} for t in product.tasks],
@@ -105,7 +102,6 @@ class Bridge:
             return None
         return str(result[0] if isinstance(result, (list, tuple)) else result)
 
-    # ------------------------------------------------------------------ work
     def _set(self, **values: object) -> None:
         with self._lock:
             self._state.update(values)
@@ -124,7 +120,7 @@ class Bridge:
     def _run(self, work: Callable[[], dict]) -> None:
         try:
             result = work()
-            self._exit_code = 0         # a retry that succeeded is a successful Setup
+            self._exit_code = 0
             self._set(status="done", percent=100, phase="done", result=result)
         except AppsRunning as exc:
             self._set(status="apps", apps=exc.apps, error={"code": exc.code, "message": str(exc)})
@@ -163,7 +159,6 @@ class Bridge:
         self._engine.cancel_event.set()
         return True
 
-    # ------------------------------------------------------------------ finish
     def launch(self) -> bool:
         state = self.poll()
         result = state.get("result") or {}
@@ -202,7 +197,6 @@ class Bridge:
             except Exception:  # noqa: BLE001
                 pass
 
-    # ------------------------------------------------------------------ window drag
     def drag_window(self) -> bool:
         """Called by the page on mousedown in a drag zone (titlebar, empty background).
 

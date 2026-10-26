@@ -1,5 +1,5 @@
-// MemuNote Slides — slide show: full screen, transitions, click animations, presenter view
-// (current + next slide, notes, timer, clock), keyboard / mouse / wheel navigation.
+
+
 import { esc, icon, t } from "../core.js";
 import { renderSlide, fitTexts } from "./render.js";
 import { slideAnims } from "./pptx.js";
@@ -19,13 +19,13 @@ export class Show {
     this.el.tabIndex = 0;
     this.el.innerHTML = `<div class="sl-show-main"><div class="sl-show-stage"></div><div class="sl-show-curtain"></div></div>
       <div class="sl-pv">
-        <div class="sl-pv-top"><span class="sl-pv-timer" title="${esc(t("sl_timer"))}">00:00</span><button class="sl-pv-btn" data-a="pause" title="${esc(t("sl_pause_timer"))}">❚❚</button><button class="sl-pv-btn" data-a="reset" title="${esc(t("sl_reset_timer"))}">${icon("retry")}</button><span class="spacer"></span><span class="sl-pv-clock"></span></div>
+        <div class="sl-pv-top"><button class="sl-pv-btn" data-a="clean">${esc(t("sl_clean_show"))} (H)</button><button class="sl-pv-btn" data-a="fullscreen" title="${esc(t("fullscreen"))} (F)">${icon("fullscreen")}</button><span class="sl-pv-timer" title="${esc(t("sl_timer"))}">00:00</span><button class="sl-pv-btn" data-a="pause" title="${esc(t("sl_pause_timer"))}">❚❚</button><button class="sl-pv-btn" data-a="reset" title="${esc(t("sl_reset_timer"))}">${icon("retry")}</button><span class="spacer"></span><span class="sl-pv-clock"></span></div>
         <div class="sl-pv-next"><div class="sl-pv-label">${esc(t("sl_next_slide"))}</div><div class="sl-pv-nextbox"></div></div>
         <div class="sl-pv-notes-wrap"><div class="sl-pv-label">${esc(t("sl_notes"))}<span class="spacer"></span><button class="sl-pv-btn" data-a="font-">A−</button><button class="sl-pv-btn" data-a="font+">A+</button></div><div class="sl-pv-notes"></div></div>
         <div class="sl-pv-nav"><button class="sl-pv-btn big" data-a="prev" title="${esc(t("sl_prev"))}">${icon("chevron")}</button><span class="sl-pv-count"></span><button class="sl-pv-btn big" data-a="next" title="${esc(t("sl_next"))}">${icon("chevron")}</button>
           <span class="spacer"></span><button class="sl-pv-btn" data-a="black" title="${esc(t("sl_black"))} (B)">■</button><button class="sl-pv-btn" data-a="pview" title="${esc(t("sl_presenter_view"))}">${icon("split")}</button><button class="sl-pv-btn end" data-a="end">${esc(t("sl_end_show"))}</button></div>
       </div>
-      <div class="sl-show-hud"><button data-a="prev" title="${esc(t("sl_prev"))}">${icon("chevron")}</button><span class="sl-hud-count"></span><button data-a="next" title="${esc(t("sl_next"))}">${icon("chevron")}</button><button data-a="pview" title="${esc(t("sl_presenter_view"))}">${icon("split")}</button><button data-a="end" title="${esc(t("sl_end_show"))} (Esc)">${icon("close")}</button></div>`;
+      <div class="sl-show-hud"><button data-a="fullscreen" title="${esc(t("fullscreen"))} (F)">${icon("fullscreen")}</button><button data-a="clean">${esc(t("sl_clean_show"))} (H)</button><button data-a="prev" title="${esc(t("sl_prev"))}">${icon("chevron")}</button><span class="sl-hud-count"></span><button data-a="next" title="${esc(t("sl_next"))}">${icon("chevron")}</button><button data-a="pview" title="${esc(t("sl_presenter_view"))}">${icon("split")}</button><button data-a="end" title="${esc(t("sl_end_show"))} (Esc)">${icon("close")}</button></div>`;
     document.body.append(this.el);
     this.stage = this.el.querySelector(".sl-show-stage"); this.main = this.el.querySelector(".sl-show-main");
     this.notesSize = +localStorage.getItem("mn_sl_pv_font") || 18;
@@ -38,12 +38,12 @@ export class Show {
     });
     this.el.addEventListener("contextmenu", (e) => { e.preventDefault(); this.prev(); });
     this.el.addEventListener("wheel", (e) => { if (this._wheel) return; this._wheel = setTimeout(() => (this._wheel = null), 280); if (e.deltaY > 0) this.next(); else if (e.deltaY < 0) this.prev(); }, { passive: true });
-    this.el.addEventListener("pointermove", () => { this.el.classList.add("hud"); clearTimeout(this._hud); this._hud = setTimeout(() => this.el.classList.remove("hud"), 2200); });
+    this.el.addEventListener("pointermove", () => { if(this.clean)return; this.el.classList.add("hud"); clearTimeout(this._hud); this._hud = setTimeout(() => this.el.classList.remove("hud"), 2200); });
     this.ro = new ResizeObserver(() => this.paint(true)); this.ro.observe(this.main);
     this.tick = setInterval(() => this.clock(), 500);
     view.stopShow = () => this.end();
     if (!opts.once && document.fullscreenEnabled && !document.fullscreenElement) document.documentElement.requestFullscreen?.().catch(() => {});
-    this.onFs = () => { if (!document.fullscreenElement && this._wasFs && !this.ended) this.end(); this._wasFs = !!document.fullscreenElement; };
+    this.onFs = () => { if (!document.fullscreenElement && this._wasFs && !this.ended && !this._keepShowOnExit) this.end(); this._keepShowOnExit=false; this._wasFs = !!document.fullscreenElement; };
     document.addEventListener("fullscreenchange", this.onFs);
     this.el.focus();
     this.paint(true);
@@ -99,6 +99,9 @@ export class Show {
     const c = this.el.querySelector(".sl-pv-clock"); if (c) c.textContent = new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   }
   action(a) {
+    if(a==="fullscreen"){if(document.fullscreenElement){this._keepShowOnExit=true;document.exitFullscreen?.().catch(()=>{this._keepShowOnExit=false;});}else document.documentElement.requestFullscreen?.().catch(()=>{});return;}
+    if(a==="clean"){this.clean=!this.clean;this.el.classList.toggle("clean-show",this.clean);if(this.clean)this.el.classList.remove("hud");requestAnimationFrame(()=>this.paint(true));return;}
+
     if (a === "next") this.next(); else if (a === "prev") this.prev(); else if (a === "end") this.end();
     else if (a === "black") this.curtain("black");
     else if (a === "pview") { this.presenter = !this.presenter; this.el.classList.toggle("presenter", this.presenter); localStorage.setItem("mn_sl_presenter", this.presenter ? "1" : "0"); requestAnimationFrame(() => this.paint(true)); }
@@ -114,7 +117,9 @@ export class Show {
   key(e) {
     if (this.ended) return;
     e.stopPropagation();
-    const k = globalThis.MemuKeys ? MemuKeys.latin(e) : e.key;   // r33: B/W/N/P in any keyboard layout
+    const k = globalThis.MemuKeys ? MemuKeys.latin(e) : e.key;
+    if(k.toLowerCase()==="h"){e.preventDefault();this.action("clean");return;}
+    if(k.toLowerCase()==="f"){e.preventDefault();this.action("fullscreen");return;}
     if (/^\d$/.test(k)) { this.typed = (this.typed || "") + k; clearTimeout(this._typedT); this._typedT = setTimeout(() => (this.typed = ""), 1500); e.preventDefault(); return; }
     if (k === "Enter" && this.typed) { e.preventDefault(); const n = +this.typed - 1; this.typed = ""; const p = this.order.indexOf(n); if (p >= 0) this.go(p, 0); return; }
     const curtainOn = !!this.el.querySelector(".sl-show-curtain.on");
@@ -148,7 +153,7 @@ export class Show {
   }
   go(pos, step, animate) {
     this.atEnd = false;
-    this._trDone?.();   // a transition still running: settle it now so only one slide is left under the next one
+    this._trDone?.();
     const prevNode = this.stage.lastElementChild;
     this.pos = pos; this.step = step;
     const node = this.build(this.order[pos], step, this.main);
@@ -182,7 +187,7 @@ export class Show {
     a.onfinish = done;
   }
   playGroup(group) {
-    // click group: steps separated by "after"; "with" runs together
+
     const steps = [];
     for (const a of group) { if (!steps.length || a.anim.trig === "after") steps.push([]); steps[steps.length - 1].push(a); }
     let delay = 0;
@@ -211,11 +216,11 @@ export class Show {
     this._busyT = setTimeout(() => { this.busy = false; this.anims = []; }, delay + 30);
   }
   finishAnims() {
-    for (const a of this.anims || []) try { a.finish(); } catch { /* finished */ }
+    for (const a of this.anims || []) try { a.finish(); } catch {  }
     this._trDone?.();
     this.busy = false; this.anims = [];
   }
-  /** "with/after previous" groups at the start of a slide (no click before them) play right away. */
+
   autoGroupsAfter() {
     const g = this.groups(this.slide);
     if (this.step === 0 && g.length && g[0][0].anim.trig !== "click") { setTimeout(() => { if (this.step === 0 && !this.ended) { this.playGroup(g[0]); this.step = 1; this.side(); } }, (this.slide.transition ? (this.slide.transition.dur || 750) : 0) + 50); }
@@ -234,7 +239,7 @@ export class Show {
   end() {
     if (this.ended) return;
     this.ended = true;
-    clearInterval(this.tick); clearTimeout(this._auto); clearTimeout(this._busyT);
+    clearInterval(this.tick); clearTimeout(this._auto); clearTimeout(this._busyT); clearTimeout(this._hud); clearTimeout(this._wheel);
     this.ro.disconnect();
     document.removeEventListener("keydown", this.onKey, true);
     document.removeEventListener("fullscreenchange", this.onFs);

@@ -1,0 +1,55 @@
+{
+  "format": "memu-module",
+  "version": 2,
+  "manifest": {
+    "id": "daily-plan",
+    "title": "План на день",
+    "title_en": "Daily plan",
+    "summary": "Простой список дел с прогрессом и сохранением. Работает без сети и без запросов к ИИ.",
+    "summary_en": "A simple task list with progress and persistence. Works offline without AI requests.",
+    "version": "1.0.0",
+    "author": "MemuAI",
+    "icon": "check",
+    "permissions": [
+      "storage"
+    ],
+    "persist": [
+      "tasks"
+    ],
+    "window": {
+      "default_width": 720,
+      "default_height": 620,
+      "min_width": 350,
+      "min_height": 350
+    }
+  },
+  "files": {
+    "index.html": "<main class=\"focus\"><header><h1 data-i18n=\"title\"></h1><p data-i18n=\"intro\"></p></header><form id=\"add\"><label for=\"task\" data-i18n=\"task\"></label><div class=\"input-row\"><input id=\"task\" maxlength=\"300\" required autocomplete=\"off\"><button type=\"submit\" data-i18n=\"add\"></button></div></form><div class=\"progress\"><span id=\"count\"></span><progress id=\"progress\" max=\"1\" value=\"0\"></progress></div><ul id=\"list\"></ul><p id=\"empty\" data-i18n=\"empty\"></p><button id=\"clear\" type=\"button\" data-i18n=\"clear\"></button><p id=\"status\" role=\"status\"></p></main>",
+    "style.css": "body{margin:0;background:var(--bg,#17191d);color:var(--text,#eee);font:14px/1.6 system-ui,sans-serif}.focus{max-width:680px;margin:auto;padding:28px}h1{font-size:26px;line-height:1.3;margin:0}header p,#empty,#count{color:var(--muted,#a5acb8)}form{margin:25px 0}label{display:block;margin-bottom:7px}.input-row{display:flex;gap:8px}input,button{font:inherit;color:inherit;border:1px solid var(--border,#48505c);border-radius:8px;background:var(--panel,#262a32);padding:9px 12px}input{min-width:0;flex:1}button{cursor:pointer}button:hover{border-color:var(--accent,#9894f7)}:focus-visible{outline:2px solid var(--accent,#9894f7);outline-offset:3px}ul{list-style:none;padding:0;margin:15px 0}li{display:flex;gap:10px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border,#48505c)}li input{flex:none;width:18px;height:18px}li span{flex:1;overflow-wrap:anywhere}li.done span{text-decoration:line-through;color:var(--muted,#a5acb8)}li button{padding:5px 10px}progress{display:block;width:100%;height:6px;margin-top:8px;accent-color:var(--accent,#9894f7)}#status{min-height:1.6em;color:var(--muted,#a5acb8);font-size:12px}button:disabled{opacity:.5;cursor:default}@media(max-width:420px){.focus{padding:18px}.input-row{flex-wrap:wrap}.input-row input{flex-basis:180px}}",
+    "main.js": "/*\nMIT License\n\nCopyright (c) 2026 dsad06839-boop\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in all\ncopies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE\nSOFTWARE.\n*/\n\"use strict\";\nconst $=s=>document.querySelector(s),t=k=>Memu.t(k);\nlet tasks=Array.isArray(Memu.saved.tasks)?Memu.saved.tasks.filter(v=>v&&typeof v.text===\"string\").slice(0,200).map(v=>({text:v.text.slice(0,300),done:!!v.done})):[];\nlet saving=Promise.resolve();\nfunction persist(){const snapshot=tasks.map(v=>({...v}));saving=saving.catch(()=>{}).then(()=>Memu.save({tasks:snapshot})).then(()=>{$('#status').textContent=t('saved');}).catch(e=>{$('#status').textContent=e.message;});}\nfunction draw(){const list=$('#list');list.replaceChildren();tasks.forEach((task,i)=>{const li=document.createElement('li');li.classList.toggle('done',task.done);const check=document.createElement('input');check.type='checkbox';check.checked=task.done;check.setAttribute('aria-label',task.text);check.onchange=()=>{task.done=check.checked;draw();persist();};const span=document.createElement('span');span.textContent=task.text;const remove=document.createElement('button');remove.type='button';remove.textContent=t('remove');remove.setAttribute('aria-label',t('remove')+': '+task.text);remove.onclick=()=>{tasks.splice(i,1);draw();persist();};li.append(check,span,remove);list.append(li);});const n=tasks.filter(v=>v.done).length;$('#count').textContent=n+' / '+tasks.length+' '+t('complete');$('#progress').max=Math.max(1,tasks.length);$('#progress').value=n;$('#empty').hidden=tasks.length>0;$('#clear').disabled=!n;$('#task').disabled=tasks.length>=200;$('#add button').disabled=tasks.length>=200;}\n$('#add').onsubmit=e=>{e.preventDefault();const text=$('#task').value.trim();if(!text||tasks.length>=200)return;tasks.push({text,done:false});$('#task').value='';draw();persist();$('#task').focus();};\n$('#clear').onclick=()=>{tasks=tasks.filter(v=>!v.done);draw();persist();};\nMemu.onLanguage(draw);draw();if(typeof Memu.ready==='function')Memu.ready();",
+    "i18n.json": {
+      "ru": {
+        "title": "План на день",
+        "intro": "Небольшой список задач без сети и обращений к ИИ. Сохраняется внутри этого модуля.",
+        "task": "Новая задача",
+        "add": "Добавить",
+        "empty": "Добавьте первое дело — и начните с него.",
+        "clear": "Убрать выполненные",
+        "remove": "Удалить",
+        "complete": "выполнено",
+        "saved": "Сохранено"
+      },
+      "en": {
+        "title": "Daily plan",
+        "intro": "A small task list without network or AI requests. Saved inside this module.",
+        "task": "New task",
+        "add": "Add task",
+        "empty": "Add your first task and start there.",
+        "clear": "Clear completed",
+        "remove": "Remove",
+        "complete": "completed",
+        "saved": "Saved"
+      }
+    }
+  }
+}

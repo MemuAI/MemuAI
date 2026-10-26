@@ -12,14 +12,12 @@ from app.providers.genspark import is_chat_model
 from app.state import Account
 from app.storage import load_json_with_recovery, save_json
 
-
 class FakeResponse:
     status_code = 200
     text = ""
 
     def json(self):
         return {"data": [{"b64_json": "YWJj"}]}
-
 
 class FakeSession:
     def __init__(self):
@@ -30,7 +28,6 @@ class FakeSession:
         self.url = url
         self.body = kwargs.get("json") or {}
         return FakeResponse()
-
 
 class ProviderContracts(unittest.TestCase):
     def test_genspark_catalog_helpers_use_application_state(self):
@@ -127,8 +124,6 @@ class ProviderContracts(unittest.TestCase):
                                   "auth_method": "oauth", "tokenizer": "cl100k_base",
                                   "cookie_consent": True, "session_name": "interactive"})
 
-        # Public serialization is a redacted clone; provider credentials remain
-        # available to the runtime and persistence layers.
         self.assertEqual(account.extra["tokens"]["accessToken"], secrets["access"])
         self.assertEqual(account.proxy,
                          f"socks5://{secrets['proxy_user']}:{secrets['proxy_password']}"
@@ -180,7 +175,6 @@ class ProviderContracts(unittest.TestCase):
             self.assertEqual(session.body["model"], "gpt-image-2")
 
         asyncio.run(run())
-
 
 if __name__ == "__main__":
     unittest.main()

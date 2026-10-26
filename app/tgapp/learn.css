@@ -1,4 +1,3 @@
-/* MemuAI Mini App — MemuLearn «Тренажёр» (r40-learn). Mini App theme tokens (--bg, --card, --text, --hint, --accent). */
 .ln-root { padding: 4px 16px 24px; }
 .ln-skel { height: 180px; border-radius: 18px; background: var(--card); opacity: .6; }
 .ln-hero { position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 10px; padding: 18px; border-radius: 20px;
@@ -53,6 +52,5 @@
 @keyframes ln-in { from { opacity: 0; transform: translateY(8px); } }
 @media (prefers-reduced-motion: reduce) { .ln-card, .ln-progress i { animation: none; transition: none; } }
 .ln-course em.ok { white-space: nowrap; font-size: 13px; }
-/* r40-learn-3: with the Trainer tab the bar has eight tabs — a slightly tighter label keeps the words whole on phones */
 @media (max-width: 430px) { html[data-layout="stack"] #tabbar:has(.tab:nth-child(8)) .tab span { font-size: 9px; letter-spacing: -.03em; padding: 0; } }
 @media (max-width: 370px) { html[data-layout="stack"] #tabbar:has(.tab:nth-child(8)) .tab span { font-size: 8.5px; letter-spacing: -.04em; } }

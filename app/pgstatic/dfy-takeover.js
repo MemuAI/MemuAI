@@ -1,13 +1,5 @@
-/* DFY takeover window (Round 30). window.MemuDFYTakeover = { open(taskId, opts) → Promise<bool>, giveBack(taskId), minimize(), isOpen() }.
 
-   Loaded on demand by dfy-client.js (MemuDFY.takeover) in the main window and in the Quick Ask window.
-   POST /api/dfy/tasks/{id}/takeover pauses the agent; the WebSocket …/takeover/ws streams JPEG frames
-   (binary) + JSON (meta, state, clipboard, error) and takes input events: mouse with coordinates
-   normalised to the frame (0…1), keys (ev.key = the character of the user's layout, so Russian works),
-   text (paste, IME, dead keys), nav/history/reload/copy/fit/ping. «Return control to AI» →
-   POST …/takeover/end. Esc goes to the page and never closes the window; only the button gives control
-   back (or 10 minutes without input — a countdown with «I'm still here» warns a minute before).
-   opts.compact — the Quick Ask window: the layer fills the window and the window grows to its maximum. */
+
 (function () {
   "use strict";
   if (window.MemuDFYTakeover) return;
@@ -45,7 +37,6 @@
   }
   const toast = (text, kind) => { try { (window.MemuQuick ? window.MemuQuick.toast : (window.toast || alert))(text, kind === "err" ? "error" : kind); } catch (e) {} };
 
-  /* ------------------------------------------------------------------ DOM */
   function build() {
     if (S.layer) return;
     css();
@@ -105,7 +96,6 @@
     if (act === "log") { S.logOpen = !S.logOpen; paintLog(); b.setAttribute("aria-pressed", String(S.logOpen)); fitSoon(); }
   }
 
-  /* ---------------------------------------------------------------- input */
   const send = (msg) => { if (S.ws && S.ws.readyState === 1) S.ws.send(JSON.stringify(msg)); };
   const mods = (e) => (e.altKey ? 1 : 0) | (e.ctrlKey ? 2 : 0) | (e.metaKey ? 4 : 0) | (e.shiftKey ? 8 : 0);
   const BTN = ["left", "middle", "right"];
@@ -146,7 +136,7 @@
       send({ t: "wheel", ...point(e), dx: e.deltaX * k, dy: e.deltaY * k, mods: mods(e) });
     }, { passive: false });
     img.addEventListener("dragstart", (e) => e.preventDefault());
-    // Text that does not come as a plain keydown: IME, dead keys (é, ё on some layouts).
+
     sink.addEventListener("compositionend", (e) => { if (e.data) send({ t: "text", text: e.data }); sink.value = ""; });
     sink.addEventListener("input", (e) => { if (!e.isComposing && sink.value) { send({ t: "text", text: sink.value }); sink.value = ""; } });
     sink.addEventListener("paste", (e) => {
@@ -162,7 +152,7 @@
       if (e.key === "Enter") { e.preventDefault(); const url = addr.value.trim(); if (url) send({ t: "nav", url }); focusStage(); }
       if (e.key === "Escape") { e.preventDefault(); addr.value = S.url; focusStage(); }
     });
-    // Keyboard: capture phase on window, so the app (Esc closes Quick Ask, chat shortcuts) never sees it.
+
     window.addEventListener("keydown", onKey, true);
     window.addEventListener("keyup", onKey, true);
     window.addEventListener("resize", fitSoon);
@@ -173,13 +163,13 @@
     if (!layerOpen()) return;
     const addr = $(".dfyt-addr");
     const target = e.target;
-    if (target === addr) return;                               // the address field handles its own keys
-    if (target && S.layer.contains(target) && target.closest(".dfyt-bar,.dfyt-note,.dfyt-log") && (e.key === "Enter" || e.key === " ")) return;  // buttons
+    if (target === addr) return;
+    if (target && S.layer.contains(target) && target.closest(".dfyt-bar,.dfyt-note,.dfyt-log") && (e.key === "Enter" || e.key === " ")) return;
     e.stopPropagation();
-    if (e.isComposing || e.key === "Process" || e.key === "Dead") return;      // the sink's composition/input sends the text
+    if (e.isComposing || e.key === "Process" || e.key === "Dead") return;
     const down = e.type === "keydown";
     const ctrl = e.ctrlKey || e.metaKey;
-    if (down && ctrl && !e.altKey && (e.key === "v" || e.key === "V" || e.code === "KeyV")) { focusStage(); return; }   // → paste event
+    if (down && ctrl && !e.altKey && (e.key === "v" || e.key === "V" || e.code === "KeyV")) { focusStage(); return; }
     e.preventDefault();
     if (down && ctrl && !e.altKey && (e.code === "KeyL")) { addr.focus(); return; }
     if (down && ctrl && !e.altKey && (e.code === "KeyC" || e.code === "KeyX") && !e.shiftKey) { send({ t: "copy" }); if (e.code === "KeyC") return; }
@@ -189,7 +179,6 @@
     send({ t: "key", type: down ? "down" : "up", key: e.key, code: e.code, keyCode: e.keyCode || 0, mods: mods(e) });
   }
 
-  /* ---------------------------------------------------------------- views */
   let fitTimer = 0;
   function fitSoon() { clearTimeout(fitTimer); fitTimer = setTimeout(fit, 220); }
   function fit() {
@@ -244,17 +233,11 @@
     document.dispatchEvent(new CustomEvent("dfy-takeover", { detail: { id, active: false } }));
   }
 
-  /* Round 33: the minimized pill follows the task itself. The stream is closed while minimized, so
-     nothing used to tell the pill that the task was stopped (card «Stop», Telegram, Quick Ask) or that
-     control went back (timeout): it stayed at the bottom of every chat with a dead «Open». Now it
-     watches the task and disappears with the takeover, and it is shown only next to the task's own
-     card (the chat the task belongs to) — leaving that chat hides it, coming back shows it again. */
   const FINAL = ["done", "failed", "cancelled", "gone"];
   function sync(task) {
     if (!task || !S.id || String(task.id) !== S.id) return;
     if (FINAL.includes(task.status)) { finished(task.status === "cancelled" ? "cancel" : "user"); return; }
-    // «Control is back with the AI» (the 10-minute timeout) matters only for the pill: an open window
-    // hears it from its own stream, and an update sent just before the takeover must not close it.
+
     if (task.control !== "user" && S.minimized && Date.now() - S.since > 1500) finished("ai");
   }
   function watchTask() {
@@ -272,7 +255,6 @@
     S.pill.hidden = !(S.minimized && S.id && !S.opts.compact && hasCard(S.id));
   }
 
-  /* ----------------------------------------------------------- connection */
   function connect() {
     disconnect();
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -297,7 +279,7 @@
     ws.onclose = () => {
       if (S.ws !== ws) return;
       S.ws = null;
-      if (layerOpen()) setTimeout(() => { if (layerOpen() && !S.ws) connect(); }, 1200);   // a dropped socket reconnects
+      if (layerOpen()) setTimeout(() => { if (layerOpen() && !S.ws) connect(); }, 1200);
     };
   }
   function disconnect() { const ws = S.ws; S.ws = null; if (ws) try { ws.close(); } catch (e) {} }
@@ -307,7 +289,6 @@
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).catch(fallback); else fallback();
   }
 
-  /* --------------------------------------------------------- quick window */
   function growQuick(on) {
     if (!S.opts.compact || !window.MemuQuick || !window.MemuQuick.native) return;
     const post = (body) => fetch("/api/quick/window", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) }).catch(() => {});
@@ -315,7 +296,6 @@
     else if (S.prevSize) { post({ action: "resize", height: 0, width: S.prevSize.width, animate: false }); S.prevSize = null; setTimeout(() => window.MemuQuick.resize(), 60); }
   }
 
-  /* -------------------------------------------------------------- public */
   async function open(id, opts) {
     build();
     if (S.id && S.id !== id && layerOpen()) close();
@@ -323,7 +303,7 @@
     try { await call(`/api/dfy/tasks/${encodeURIComponent(S.id)}/takeover`); }
     catch (e) {
       toast(e.message, "err");
-      // The task is gone or no longer running (stopped elsewhere): a minimized pill must not stay behind.
+
       if (e.status === 404 || e.status === 409) { if (S.minimized) finished("stale"); }
       return false;
     }
@@ -345,7 +325,7 @@
     if (!S.layer) return;
     disconnect();
     S.layer.hidden = true;
-    S.minimized = true;   // in Quick Ask (compact) the task card shows the state instead of the pill
+    S.minimized = true;
     placePill();
     clearInterval(S.timer);
     clearInterval(S.pillTimer); S.pillTimer = setInterval(placePill, 700);
@@ -375,7 +355,7 @@
       document.dispatchEvent(new CustomEvent("dfy-takeover", { detail: { id: task, active: false } }));
     } catch (e) {
       toast(e.message, "err");
-      if (e.status === 404 && task === S.id) { close(); S.id = ""; }   // the server forgot the task: nothing to give back
+      if (e.status === 404 && task === S.id) { close(); S.id = ""; }
     }
     finally { buttons.forEach((b) => { b.disabled = false; }); }
   }

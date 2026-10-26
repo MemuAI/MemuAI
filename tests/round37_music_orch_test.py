@@ -5,7 +5,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 class LyricsSetTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="r37-lyrset-")
@@ -46,7 +45,6 @@ class LyricsSetTest(unittest.TestCase):
 
     def test_op_is_listed(self):
         self.assertIn("lyrics.set", self.api.OPS)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,4 +1,4 @@
-// Per-invocation browser selection in the real shared DFY client, with isolated DOM/API doubles.
+
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";

@@ -30,14 +30,10 @@ SITE = [
     ("logo.svg", '<svg xmlns="http://www.w3.org/2000/svg" width="4" height="4"/>'),
 ]
 
-
 @pytest.fixture()
 def store(tmp_path, monkeypatch):
     monkeypatch.setattr(C, "_root", lambda: tmp_path / "canvas")
     return tmp_path
-
-
-# ------------------------------------------------------------------ bundle
 
 def test_pack_unpack_round_trip_exact():
     files = [("a.txt", ""), ("b/c.js", "x\n"), ("d.md", "# t\n\n"), ("e", "last")]
@@ -45,40 +41,34 @@ def test_pack_unpack_round_trip_exact():
     assert F.is_bundle(text) and F.unpack(text) == files
     assert F.unpack("plain text") is None and not F.is_bundle("⟦file: x⟧ but not a line")
 
-
 def test_clean_path_rejects_unsafe():
     assert F.clean_path("./src\\app.js") == "src/app.js"
     for bad in ("../x", "C:/x", "a/../../b", "", "a<b", "⟦x⟧"):
         with pytest.raises(ValueError):
             F.clean_path(bad)
     with pytest.raises(ValueError):
-        F.pack([("a.js", "1"), ("A.js", "2")])                  # duplicates ignore case (Windows)
+        F.pack([("a.js", "1"), ("A.js", "2")])
     with pytest.raises(ValueError):
-        F.pack([("a.js", "⟦file: b.js⟧\nboom")])                 # a marker line inside a file
-
+        F.pack([("a.js", "⟦file: b.js⟧\nboom")])
 
 def test_normalize_files_shapes():
     assert F.normalize_files({"index.html": "<p>", "data.json": {"a": 1}}) == [("index.html", "<p>"), ("data.json", '{\n  "a": 1\n}')]
     assert F.normalize_files([{"name": "a.js", "code": "```js\nx()\n```"}]) == [("a.js", "x()")]
 
-
 def test_find_file_and_file_of_line():
     files = [("index.html", "a\nb"), ("js/app.js", "1\n2\n3")]
     assert F.find_file(files, "app.js") == 1 and F.find_file(files, "INDEX.HTML") == 0 and F.find_file(files, "x") == -1
     text = F.pack(files)
-    assert F.file_of_line(text, 0) == ("index.html", 0)          # the marker line itself
+    assert F.file_of_line(text, 0) == ("index.html", 0)
     assert F.file_of_line(text, 2) == ("index.html", 2)
     assert F.file_of_line(text, 5) == ("js/app.js", 2)
-
-
-# ------------------------------------------------------------------ preview assembly
 
 def test_assemble_inlines_and_maps_lines():
     out = F.assemble(SITE)
     html = out["html"]
     assert '<style data-memu-file="style.css">' in html and '<script data-memu-file="app.js">' in html
     assert "href=\"style.css\"" not in html and "src=\"./app.js\"" not in html
-    assert "data:image/svg+xml" in html                          # <img src="logo.svg"> → inline
+    assert "data:image/svg+xml" in html
     assert out["files"]["data.json"] == '{"n": 7}' and "index.html" not in out["files"]
     lines = html.split("\n")
 
@@ -96,7 +86,6 @@ def test_assemble_inlines_and_maps_lines():
     n = next(i for i, l in enumerate(lines, 1) if '<h1 id="t">' in l)
     assert where(n) == ("index.html", 5)
 
-
 def test_assemble_unreferenced_and_no_entry():
     out = F.assemble([("index.html", "<html><body><p>x</p></body></html>"), ("extra.css", "p{}"), ("main.js", "go()")])
     assert out["html"].index("extra.css") < out["html"].index("</body>") and "go()" in out["html"]
@@ -104,9 +93,6 @@ def test_assemble_unreferenced_and_no_entry():
     assert '<div id="app"></div>' in js_only["html"] and js_only["html"].index("s.css") < js_only["html"].index("x()")
     assert F.assemble([("main.py", "print(1)")])["html"] == ""
     assert "</script" not in F.assemble([("a.js", "s='</script>'")])["html"].split('data-memu-file="a.js">', 1)[1].split("\n</script>")[0]
-
-
-# ------------------------------------------------------------------ store + tools
 
 def test_tool_create_multi_edit_file_write_read(store):
     res = C.run_tool("c1", "canvas_create", {"type": "html", "title": "Site", "files": [{"path": p, "content": c} for p, c in SITE[:3]]})
@@ -116,7 +102,7 @@ def test_tool_create_multi_edit_file_write_read(store):
     assert e["ok"] and e["file"] == "app.js" and e["version"] == 2
     bad = C.run_tool("c1", "canvas_edit", {"id": aid, "file": "nope.js", "edits": [{"find": "a", "replace": "b"}]})
     assert bad["code"] == "unknown_file" and "app.js" in bad["error"]
-    # no `file`: the whole bundle is patched while the markers stay
+
     e2 = C.run_tool("c1", "canvas_edit", {"id": aid, "edits": [{"find": "color: red", "replace": "color: blue"}]})
     assert e2["ok"]
     boundary = C.run_tool("c1", "canvas_edit", {"id": aid, "edits": [{"find": "⟦file: style.css⟧", "replace": "x"}]})
@@ -134,18 +120,16 @@ def test_tool_create_multi_edit_file_write_read(store):
     summ = C.summary(art)
     assert [f["path"] for f in summ["files"]] == ["index.html", "style.css", "app.js"]
 
-
 def test_single_artifact_becomes_multi_on_write_file(store):
     art = C.create("c2", "html", "Page", "<html><body>x</body></html>")
     res = C.write_file("c2", art["id"], "style.css", "body{}")
     files = F.unpack(C.get("c2", art["id"])["versions"][-1]["content"])
     assert [p for p, _c in files] == ["index.html", "style.css"] and files[0][1] == "<html><body>x</body></html>"
     assert res["op"] == "add"
-    # old single-text artifacts keep working exactly as before
+
     old = C.create("c2", "document", "Doc", "# Hi\ntext")
     assert "files" not in C.summary(C.get("c2", old["id"]))
     assert C.edit("c2", old["id"], [{"find": "text", "replace": "body"}])["version"] == 2
-
 
 def test_review_hunks_of_multi_file_artifact(store):
     art = C.create("c3", "html", "S", "", files=[("index.html", "<p>1</p>"), ("app.js", "a();\nb();\n")])
@@ -155,13 +139,11 @@ def test_review_hunks_of_multi_file_artifact(store):
     files = dict(F.unpack(C.get("c3", art["id"])["versions"][-1]["content"]))
     assert res["rejected"] == 1 and files["index.html"] == "<p>1</p>" and files["app.js"] == "a();\nc();\n"
 
-
 def test_context_block_lists_files(store):
     art = C.create("c4", "html", "S", "", files=[("index.html", "<p>hi</p>"), ("app.js", "go()")])
     block = C.context_block("c4", focus=art["id"])
     assert 'files="index.html, app.js"' in block and '<file path="app.js"' in block and "go()" in block
     assert "canvas_write_file" in C.PROMPT and "Multi-file" in C.PROMPT and '"diagram"' in C.PROMPT
-
 
 def test_exports_zip_html_file(store):
     art = C.create("c5", "html", "Мой сайт", "", files=SITE)
@@ -180,7 +162,6 @@ def test_exports_zip_html_file(store):
     main = C.write_export(full, row, folder)
     assert main.name == "index.html" and (main.parent / "app.js").read_text(encoding="utf-8").startswith("const a")
 
-
 def test_types_diagram_and_slides(store):
     assert C.normalize_type("mermaid") == "diagram" and C.normalize_type("presentation") == "slides"
     assert C.normalize_type("", "", "mermaid") == "diagram"
@@ -192,9 +173,6 @@ def test_types_diagram_and_slides(store):
     s = C.create("c6", "slides", "Deck", "# T\n---\n## A\n- b")
     assert C.export_bytes(C.get("c6", s["id"]), C.get("c6", s["id"])["versions"][0])[1] == "Deck.md"
 
-
-# ------------------------------------------------------------------ routes
-
 @pytest.fixture()
 def client(store):
     from fastapi import FastAPI
@@ -202,7 +180,6 @@ def client(store):
     app = FastAPI()
     C.register(app)
     return TestClient(app)
-
 
 def test_routes_preview_file_diff_engine(client):
     art = client.post("/api/pg/canvas/r1/create", json={"type": "html", "title": "S", "files": [{"path": p, "content": c} for p, c in SITE[:3]]}).json()["artifact"]
@@ -224,9 +201,6 @@ def test_routes_preview_file_diff_engine(client):
     assert client.get("/api/pg/canvas-engine/slides/view.js").status_code == 404
     assert client.get("/api/pg/canvas-engine/slides/..%2Fcore.js").status_code == 404
 
-
-# ------------------------------------------------------------------ window wiring
-
 def test_window_wiring_r40():
     js = (ROOT / "app/pgstatic/canvas.js").read_text(encoding="utf-8")
     kinds = (ROOT / "app/pgstatic/canvas-kinds.js").read_text(encoding="utf-8")
@@ -234,7 +208,7 @@ def test_window_wiring_r40():
     html = (ROOT / "app/pgstatic/index.html").read_text(encoding="utf-8")
     assert "canvas_(?:create|edit|read|write_file)" in app_js and "canvas_(?:create|edit|read|write_file)" in js
     assert "/canvas.js?v=3.6-r40" in html and "/canvas.css?v=3.6-r40" in html
-    assert "canvas-kinds.js" not in html                      # loaded lazily by canvas.js, not at start-up
+    assert "canvas-kinds.js" not in html
     assert 'sandbox="allow-scripts"' in js and "allow-same-origin" not in js
     assert "sendPrepared(text" in js and "Исправить с ИИ" in js and "Fix with AI" in js
     assert "setInterval" not in kinds and "MutationObserver" not in kinds
@@ -246,13 +220,11 @@ def test_window_wiring_r40():
     for name in C.SLIDES_ENGINE:
         assert (ROOT / "app/memunote/static/js/slides" / name).exists()
 
-
 def _node():
     node = subprocess.run(["which", "node"], capture_output=True, text=True).stdout.strip()
     if not node:
         pytest.skip("node is not installed")
     return node
-
 
 def test_js_bundle_mirror_and_slides_parser_in_node():
     node = _node()
@@ -279,9 +251,6 @@ console.log(JSON.stringify({s, ren: K._renameNode("flowchart TD\n  A[Old] --> B(
     assert 'B("N #quot;q#quot;")' in out["ren"] and 'C["New"]' in out["add"]
     assert '"data.json"' in out["doc"] and "</script>\"}" not in out["doc"].split("<script>", 1)[1].split("</script>", 1)[0]
 
-
-# ------------------------------------------------------------------ browser: preview errors → error bar (no network)
-
 def _chromium():
     path = os.environ.get("MEMU_TEST_CHROMIUM", "")
     if not path or not Path(path).exists():
@@ -291,7 +260,6 @@ def _chromium():
     except ImportError:
         pytest.skip("playwright is not installed")
     return path
-
 
 def test_preview_error_bar_maps_file_line_in_chromium(store):
     chrome = _chromium()
@@ -333,7 +301,7 @@ def test_preview_error_bar_maps_file_line_in_chromium(store):
             page.wait_for_selector("#cv-errbar:not([hidden])", timeout=8000)
             bar = page.inner_text("#cv-errbar")
             assert "app.js:3" in bar and "missingFn" in bar
-            # fetch("data.json") was answered from memory inside the sandbox
+
             frame = page.frame_locator("#cv-frame")
             assert frame.locator("h1").inner_text() == "Hi"
             sandbox = next(f for f in page.frames if f != page.main_frame)
@@ -352,21 +320,18 @@ def test_preview_error_bar_maps_file_line_in_chromium(store):
     finally:
         server.should_exit = True
 
-
-# ------------------------------------------------------------------ Live Link with MemuNote (file based)
-
 def test_live_link_sync_and_push(store):
     import time as _t
     art = C.create("l1", "document", "Заметка", "# Hi\nfirst")
     full = C.get("l1", art["id"])
     path = C.write_export(full, full["versions"][-1], store / "exp")
     C.link_artifact("l1", art["id"], path, 1)
-    assert C.sync_links("l1") == []                               # nothing changed yet
-    # the model edits in the chat → the linked file gets the new text (MemuNote reloads it)
+    assert C.sync_links("l1") == []
+
     C.edit("l1", art["id"], [{"find": "first", "replace": "second"}])
     assert C.push_link("l1", art["id"]) and path.read_text(encoding="utf-8") == "# Hi\nsecond"
-    assert not C.push_link("l1", art["id"])                       # already there
-    # a save in MemuNote → a user version «MemuNote»
+    assert not C.push_link("l1", art["id"])
+
     _t.sleep(0.02)
     path.write_text("# Hi\nfrom MemuNote", encoding="utf-8")
     os.utime(path, (path.stat().st_atime, path.stat().st_mtime + 5))
@@ -375,7 +340,6 @@ def test_live_link_sync_and_push(store):
     assert synced == [{"id": art["id"], "version": row["v"]}] and row["author"] == "user" and row["summary"] == "MemuNote"
     assert row["content"] == "# Hi\nfrom MemuNote" and C.sync_links("l1") == []
     assert C.summary(C.get("l1", art["id"]))["link"]["path"] == str(path)
-
 
 def test_live_link_multi_file_folder(store):
     art = C.create("l2", "html", "Сайт", "", files=[("index.html", "<p>1</p>"), ("js/app.js", "a()")])

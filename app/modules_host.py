@@ -37,32 +37,24 @@ from .config import DATA_DIR
 from .path_safety import is_link
 from .storage import _json_transaction, load_json_with_recovery, mutate_json, save_json
 
-# --------------------------------------------------------------------------
-# Константы и пределы
-# --------------------------------------------------------------------------
+BUILTIN_ORDER: Tuple[str, ...] = ("translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn", "memudb")
 
-BUILTIN_ORDER: Tuple[str, ...] = ("translator", "studio", "design", "benchmarks", "catalog", "api-models", "characters", "music", "learn")
-
-#: Где в интерфейсе может стоять кнопка модуля.
 LAUNCHER_SLOTS: Tuple[str, ...] = ("sidebar", "chat-list", "topbar", "composer")
 
-#: Права, которые автор может запросить в манифесте. Если список не задан,
-#: модуль получает все права: так старые пакеты продолжают работать.
 PERMISSIONS: Tuple[str, ...] = (
     "chat", "media", "storage", "models", "files",
     "download", "notify", "external", "web", "clipboard", "background",
-    # Round 29 (app/character_import.py): download a character card / lorebook by link (Memu.fetchImport).
-    "net-import",
-    # Round 37 (app/music/api.py): the MemuMusic library, downloader and player (Memu.music.call).
-    "music",
-    # Round 40 (app/learn/api.py, r40-learn): MemuLearn courses, cards and FSRS reviews (Memu.learn.call).
-    "learn",
-)
-#: Права, которые получает модуль без поля ``permissions`` (старые пакеты). Сетевой
-#: импорт и музыкальная библиотека сюда не входят: их надо объявить явно.
-IMPLICIT_PERMISSIONS: Tuple[str, ...] = tuple(name for name in PERMISSIONS if name not in ("net-import", "music", "learn"))
 
-#: Действие моста -> требуемое право.
+    "net-import",
+
+    "music",
+
+    "learn",
+    "database",
+)
+
+IMPLICIT_PERMISSIONS: Tuple[str, ...] = tuple(name for name in PERMISSIONS if name not in ("net-import", "music", "learn", "database"))
+
 ACTION_PERMISSION: Dict[str, str] = {
     "request": "chat", "stream": "chat", "chat_history": "chat",
     "image": "media", "video": "media", "speak": "media", "transcribe": "media",
@@ -75,18 +67,17 @@ ACTION_PERMISSION: Dict[str, str] = {
     "open": "external",
     "search": "web", "fetch": "web",
     "clipboard": "clipboard", "clipboard_read": "clipboard",
-    # Round 29 (app/characters_api.py): full-message streaming and the file store.
+
     "complete": "chat", "store": "storage",
-    # Round 29 phase 2 (app/character_import.py): import by link through MemuAI, never from the module.
+
     "net_import": "net-import",
-    # Round 37 (app/music/api.py): MemuMusic operations — Memu.music.call(op, args).
+
     "music_call": "music",
-    # Round 40 (app/learn/api.py, r40-learn): MemuLearn operations — Memu.learn.call(op, args).
+
     "learn_call": "learn",
+    "database_call": "database",
 }
 
-#: Действия, которые не требуют права: среда, маршруты, размер окна.
-#: ``asset`` читает файлы из папки assets/ собственного пакета модуля.
 FREE_ACTIONS = ("routes", "env", "resize", "log", "close", "host", "asset", "toolbar", "unsaved", "appbar", "integration")
 
 MEDIA_ROUTES: Dict[str, Dict[str, Any]] = {
@@ -143,27 +134,22 @@ MEDIA_ROUTES: Dict[str, Dict[str, Any]] = {
 }
 
 _ID_RE = re.compile(r"^[a-z][a-z0-9-]{0,40}$")
-#: Round 33: «/* @memu-part:ai-create.js */» — a file of the same module package inlined into main.js (load_package).
-_PART_RE = re.compile(r"/\* @memu-part:((?:integration/)?[a-z0-9][a-z0-9_-]{0,60}\.js) \*/")   # r38: + integration/
-#: Round 38: the same for styles — «/* @memu-part:feat.css */» in style.css (MemuMusic keeps feature styles apart).
+
+_PART_RE = re.compile(r"/\* @memu-part:((?:integration/)?[a-z0-9][a-z0-9_-]{0,60}\.js) \*/")
+
 _CSS_PART_RE = re.compile(r"/\* @memu-part:([a-z0-9][a-z0-9_-]{0,60}\.css) \*/")
-#: A locale tag: "ru", "en", "pt-BR", "zh-Hant".
+
 _LOCALE_RE = re.compile(r"^[a-z]{2,3}(?:-[A-Za-z]{2,4})?$")
 _I18N_LOCALES = 24
 _I18N_KEYS = 3000
 _I18N_VALUE = 20_000
 _PLURAL_FORMS = ("zero", "one", "two", "few", "many", "other")
-# Round 33: 400 000 → 1 000 000 — «Characters» (a SillyTavern-sized module) reached ~340 000 characters with the
-# inlined token estimate; its «Create with AI» part would not fit. The limit only guards against runaway packages.
+
 _CODE_LIMIT = 1_000_000
 _FIELD_LIMIT = 40
 _PERSIST_LIMIT = 32
 _TEXT_LIMIT = 2_000_000
 
-#: Шаблоны, которые предлагает мастер создания модуля. Каждый сразу
-#: двуязычный: тексты разметки помечены ``data-i18n``, строки кода идут через
-#: ``Memu.t``, а словари лежат в ``i18n``. Так новый модуль с первой минуты
-#: переключается вместе с языком MemuAI и служит примером для автора.
 TEMPLATES: Tuple[Dict[str, Any], ...] = (
     {
         "id": "blank",
@@ -385,10 +371,8 @@ TEMPLATES: Tuple[Dict[str, Any], ...] = (
     },
 )
 
-
 def default_root() -> Path:
     return Path(DATA_DIR) / "memuai" / "modules"
-
 
 def builtin_dir() -> Path:
     """Where the shipped packages live, inside a frozen app too.
@@ -406,14 +390,11 @@ def builtin_dir() -> Path:
             return frozen
     return Path(__file__).resolve().parent / "module_builtins"
 
-
 def media_routes() -> Dict[str, Dict[str, Any]]:
     return {key: dict(value) for key, value in MEDIA_ROUTES.items()}
 
-
 def templates() -> List[Dict[str, Any]]:
-    # Права и сохраняемые поля нужны мастеру: без них шаблон «Мини-чат»
-    # создавался без права models и падал на первом же Memu.models().
+
     return [
         {
             "id": row["id"],
@@ -425,7 +406,6 @@ def templates() -> List[Dict[str, Any]]:
         }
         for row in TEMPLATES
     ]
-
 
 def template_manifest(template_id: str, module_id: str, title: str) -> Dict[str, Any]:
     row = next((item for item in TEMPLATES if item["id"] == template_id), None)
@@ -447,27 +427,19 @@ def template_manifest(template_id: str, module_id: str, title: str) -> Dict[str,
         "summary": row["summary_ru"], "summary_en": row["summary_en"],
     }
 
-
-# --------------------------------------------------------------------------
-# Низкоуровневые помощники
-# --------------------------------------------------------------------------
-
 def _read_json(path: Path) -> Dict[str, Any]:
     value = load_json_with_recovery(path, {}, validator=lambda item: isinstance(item, dict))
     return value if isinstance(value, dict) else {}
 
-
 def _write_json(path: Path, value: Dict[str, Any], *, backup: bool = False) -> None:
     save_json(str(path), value, backup=backup)
 
-
 @contextmanager
 def _package_transaction(folder: Path):
-    # The lock identity must survive both directory renames at commit time.
+
     with _json_transaction(folder.parent / f".{folder.name}.package"):
         _recover_package(folder)
         yield
-
 
 def _recover_package(folder: Path) -> None:
     if folder.exists():
@@ -475,12 +447,11 @@ def _recover_package(folder: Path) -> None:
     retained = [path for path in folder.parent.glob(f".{folder.name}.previous-*")
                 if re.fullmatch(rf"\.{re.escape(folder.name)}\.previous-[0-9a-f]{{32}}", path.name)
                 and path.is_dir()]
-    # Never choose between ambiguous retained versions or overwrite live data.
+
     if len(retained) == 1:
         previous = retained[0]
         _reject_package_links(previous)
         os.replace(previous, folder)
-
 
 def _clamp_int(value: Any, fallback: int, low: int, high: int) -> int:
     try:
@@ -489,10 +460,8 @@ def _clamp_int(value: Any, fallback: int, low: int, high: int) -> int:
         return fallback
     return max(low, min(high, number))
 
-
 def _clean_text(value: Any, limit: int) -> str:
     return str(value or "")[:limit]
-
 
 def _script_json(value: Any) -> str:
     """JSON that cannot leave its ``<script>`` block."""
@@ -500,21 +469,17 @@ def _script_json(value: Any) -> str:
             .replace("<", "\\u003c").replace(">", "\\u003e")
             .replace("\u2028", "\\u2028").replace("\u2029", "\\u2029"))
 
-
 def _embed_script(text: str) -> str:
     """Make source text safe inside a ``<script>`` block."""
     return re.sub(r"</(\s*script)", r"<\\/\1", str(text or ""), flags=re.I)
-
 
 def _embed_style(text: str) -> str:
     """Styles must not escape their ``<style>`` block."""
     return re.sub(r"</\s*(style|head|body|html)\s*>", "", str(text or ""), flags=re.I)
 
-
 def _embed_html(text: str) -> str:
     """A module returns a fragment; it must not close the host document."""
     return re.sub(r"</\s*(html|body|head)\s*>", "", str(text or ""), flags=re.I)
-
 
 def normalize_i18n(value: Any) -> Dict[str, Dict[str, Any]]:
     """Translations of a module: ``{locale: {key: text | {plural form: text}}}``.
@@ -553,7 +518,6 @@ def normalize_i18n(value: Any) -> Dict[str, Dict[str, Any]]:
         result[locale] = clean
     return result
 
-
 def _read_i18n(folder: Path) -> Dict[str, Dict[str, Any]]:
     """The package's translations; a broken file must not stop the module opening."""
     try:
@@ -561,36 +525,31 @@ def _read_i18n(folder: Path) -> Dict[str, Dict[str, Any]]:
     except ValueError:
         return {}
 
-
 def i18n_keys_used(html_text: str, js_text: str) -> List[str]:
     """Keys the markup and the script ask for, in first-seen order."""
     keys: List[str] = []
     for match in re.finditer(r'data-i18n(?:-[a-z-]+)?\s*=\s*["\']([^"\']+)["\']', html_text or ""):
         keys.append(match.group(1))
-    # Only a whole literal argument counts: Memu.t("mode." + name) builds its key at run time.
+
     for match in re.finditer(r'\bMemu\.(?:t|i18n\.t)\(\s*(["\'`])([^"\'`$]+)\1\s*[,)]', js_text or ""):
         keys.append(match.group(2))
     for match in re.finditer(r'data-i18n(?:-[a-z-]+)?\s*=\s*\\?["\']([A-Za-z0-9_.-]+)\\?["\']', js_text or ""):
         keys.append(match.group(1))
     return list(dict.fromkeys(keys))
 
-
 def _icon_name(value: Any) -> str:
     name = re.sub(r"[^a-z0-9_-]", "", str(value or "").strip().lower())[:32]
     return name
-
 
 def _icon_value(value: Any) -> str:
     """Round 39: a glyph name, a package file, a clean inline SVG or a data URL (app/module_icons.py)."""
     from .module_icons import normalize_icon
     return normalize_icon(value)
 
-
 def _icon_bg_block(source: Dict[str, Any]) -> Dict[str, Any]:
     from .module_icons import normalize_icon_bg
     colours = normalize_icon_bg(source.get("icon_bg"))
     return {"icon_bg": colours} if colours else {}
-
 
 def _with_icons(root: Path, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Round 39: ``icon_url`` (the user's icon, else the manifest's image), ``icon_bg``, ``icon_custom`` on each row."""
@@ -600,17 +559,11 @@ def _with_icons(root: Path, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         row.update(public_fields(root, row["id"], {"icon": row.get("icon_src"), "icon_bg": row.get("icon_bg")}, user))
     return rows
 
-
-# --------------------------------------------------------------------------
-# Чтение состояния
-# --------------------------------------------------------------------------
-
 def load_state(root: Path) -> Dict[str, Any]:
     state = _read_json(Path(root) / "state.json")
     modules = state.get("modules")
     state["modules"] = modules if isinstance(modules, dict) else {}
     return state
-
 
 def _mutate_state(root: Path, module_id: str, mutator) -> Dict[str, Any]:
     """One atomic read-modify-write for a single module row."""
@@ -633,13 +586,11 @@ def _mutate_state(root: Path, module_id: str, mutator) -> Dict[str, Any]:
     row = rows.get(module_id) if isinstance(rows, dict) else None
     return row if isinstance(row, dict) else {}
 
-
 def _manifest_file(folder: Path) -> Dict[str, Any]:
     manifest = _read_json(folder / "manifest.json")
     if not manifest.get("id"):
         manifest["id"] = folder.name
     return manifest
-
 
 def _text_file(folder: Path, name: str) -> str:
     path = folder / name
@@ -649,11 +600,6 @@ def _text_file(folder: Path, name: str) -> str:
         return path.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
         return ""
-
-
-# --------------------------------------------------------------------------
-# Манифест
-# --------------------------------------------------------------------------
 
 def normalize_window(spec: Any) -> Dict[str, Any]:
     """Author bounds, sane and never degenerate.
@@ -668,7 +614,7 @@ def normalize_window(spec: Any) -> Dict[str, Any]:
     fixed = bool(window.get("fixed"))
     width = _clamp_int(window.get("default_width", window.get("width")), 760, 240, 2400)
     height = _clamp_int(window.get("default_height", window.get("height")), 540, 200, 1600)
-    # Минимум не больше самого окна, но с запасом на растягивание ниже потолка.
+
     min_width = _clamp_int(window.get("min_width"), min(320, width), 200, 2000)
     min_height = _clamp_int(window.get("min_height"), min(240, height), 140, 1200)
     max_width = _clamp_int(window.get("max_width"), max(width, 1600),
@@ -688,10 +634,9 @@ def normalize_window(spec: Any) -> Dict[str, Any]:
         "size_mode": "authored" if str(window.get("size_mode") or "user") == "authored" else "user",
         "center": bool(window.get("center", True)),
         "fullscreen_allowed": bool(window.get("fullscreen_allowed", True)),
-        # Round 38: the title bar of the module's own app window (app/module_appbar.py).
+
         **({"appbar": _module_appbar.normalize(window["appbar"])} if isinstance(window.get("appbar"), dict) else {}),
     }
-
 
 def normalize_manifest(spec: Dict[str, Any], *, module_id: str,
                        base: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -702,8 +647,7 @@ def normalize_manifest(spec: Dict[str, Any], *, module_id: str,
     previous_window = base.get("window") if isinstance((base or {}).get("window"), dict) else {}
     incoming_window = spec.get("window") if isinstance(spec.get("window"), dict) else {}
     previous_window = dict(previous_window)
-    # Новый размер больше унаследованного потолка — потолок не наследуем,
-    # иначе ширина 2000 молча сохранялась как 1600.
+
     for size, limit in (("default_width", "max_width"), ("default_height", "max_height")):
         try:
             if limit not in incoming_window and size in incoming_window and \
@@ -724,9 +668,9 @@ def normalize_manifest(spec: Dict[str, Any], *, module_id: str,
     persist = source.get("persist") if isinstance(source.get("persist"), list) else []
     permissions = source.get("permissions")
     if "permissions" not in source or permissions is None:
-        permissions = list(IMPLICIT_PERMISSIONS)  # поле не указано — все права (правило 9), кроме net-import
+        permissions = list(IMPLICIT_PERMISSIONS)
     elif not isinstance(permissions, list):
-        # «permissions": "chat"» или {} — ошибка манифеста, а не «дай всё».
+
         raise ValueError("permissions должен быть списком")
     clean_permissions = [name for name in permissions if name in PERMISSIONS]
     bridge = spec.get("bridge") if isinstance(spec.get("bridge"), dict) else {}
@@ -742,7 +686,7 @@ def normalize_manifest(spec: Dict[str, Any], *, module_id: str,
         "summary_en": _clean_text(source.get("summary_en"), 400),
         "version": _clean_text(source.get("version"), 24) or "1.0",
         "author": _clean_text(source.get("author"), 80),
-        # Язык, на который мост откатывается, если нужного перевода нет.
+
         "default_locale": (str(source.get("default_locale"))
                            if _LOCALE_RE.match(str(source.get("default_locale") or "")) else "ru"),
         "icon": _icon_value(source.get("icon")),
@@ -757,10 +701,7 @@ def normalize_manifest(spec: Dict[str, Any], *, module_id: str,
         "window": window,
         "persist": list(dict.fromkeys(
             str(item).strip()[:40] for item in persist if str(item).strip()))[:_PERSIST_LIMIT],
-        # Отсутствие списка прав означает «все» (старые модули не должны
-        # сломаться), но ЯВНО пустой список — это осознанное «ничего»:
-        # раньше `or` превращал его во «все», и снятие всех галочек в
-        # мастерской выдавало модулю полный доступ.
+
         "permissions": clean_permissions,
         "bridge": {
             "model": _clean_text(bridge.get("model"), 300),
@@ -773,7 +714,6 @@ def normalize_manifest(spec: Dict[str, Any], *, module_id: str,
         **_contributes_block(source, module_id),
     }
 
-
 def _contributes_block(source: Dict[str, Any], module_id: str) -> Dict[str, Any]:
     """Round 38: ``contributes`` (panels, commands, skill, widgets — app/module_integration.py), cleaned; kept on save/import."""
     if not isinstance(source.get("contributes"), dict):
@@ -782,14 +722,12 @@ def _contributes_block(source: Dict[str, Any], module_id: str) -> Dict[str, Any]
     clean = normalize_contributes(source["contributes"], builtin=module_id in BUILTIN_ORDER)
     return {"contributes": clean} if clean else {}
 
-
 def _net_import_block(source: Dict[str, Any]) -> Dict[str, Any]:
     """``net_import: {sources, hosts}`` — what a module with ``net-import`` may download (app/character_import.py)."""
     if not isinstance(source.get("net_import"), dict):
         return {}
     from .character_import import normalize_manifest_block
     return {"net_import": normalize_manifest_block(source.get("net_import"))}
-
 
 def _public_row(manifest: Dict[str, Any], overlay: Dict[str, Any], *, builtin: bool) -> Dict[str, Any]:
     launcher = overlay.get("launcher") if isinstance(overlay.get("launcher"), dict) else {}
@@ -800,20 +738,20 @@ def _public_row(manifest: Dict[str, Any], overlay: Dict[str, Any], *, builtin: b
     if "enabled" in overlay:
         enabled = bool(overlay.get("enabled"))
     else:
-        # Every module — built-in ones included — starts switched off.
+
         enabled = False if builtin else bool(manifest.get("enabled"))
     window = manifest.get("window") if isinstance(manifest.get("window"), dict) else {}
     bridge = manifest.get("bridge") if isinstance(manifest.get("bridge"), dict) else {}
     return {
         "id": str(manifest.get("id") or ""),
-        "title": str(manifest.get("title") or manifest.get("id") or ""),
+        "title": str(manifest.get("title") or manifest.get("title_en") or manifest.get("id") or ""),
         "title_en": str(manifest.get("title_en") or manifest.get("title") or ""),
-        "summary": str(manifest.get("summary") or ""),
-        "summary_en": str(manifest.get("summary_en") or ""),
+        "summary": str(manifest.get("summary") or manifest.get("summary_en") or ""),
+        "summary_en": str(manifest.get("summary_en") or manifest.get("summary") or ""),
         "version": str(manifest.get("version") or "1.0"),
         "author": str(manifest.get("author") or ""),
         "default_locale": str(manifest.get("default_locale") or "ru"),
-        # Round 39: «icon» stays a glyph name for older code; the image is «icon_url» (_with_icons), the raw value «icon_src».
+
         "icon": _glyph(manifest),
         "icon_src": str(manifest.get("icon") or ""),
         "icon_bg": list(manifest.get("icon_bg") or []),
@@ -837,17 +775,15 @@ def _public_row(manifest: Dict[str, Any], overlay: Dict[str, Any], *, builtin: b
         },
         **({"net_import": manifest["net_import"]} if isinstance(manifest.get("net_import"), dict) else {}),
         "edited": bool(overlay.get("edited")),
-        # Менять размер окна может любой модуль, пока человек это не выключил.
+
         "resizable": overlay.get("resizable") is not False,
         "open": bool(overlay.get("open")),
         "fullscreen": bool(overlay.get("fullscreen")),
     }
 
-
 def _glyph(manifest: Dict[str, Any]) -> str:
     from .module_icons import glyph_of
     return glyph_of(str(manifest.get("id") or ""), str(manifest.get("icon") or ""))
-
 
 def builtin_manifests(root: Optional[Path] = None) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
@@ -869,12 +805,10 @@ def builtin_manifests(root: Optional[Path] = None) -> List[Dict[str, Any]]:
         rows.append(manifest)
     return rows
 
-
 def _overlay(state: Dict[str, Any], module_id: str) -> Dict[str, Any]:
     rows = state.get("modules") if isinstance(state.get("modules"), dict) else {}
     row = rows.get(module_id)
     return row if isinstance(row, dict) else {}
-
 
 def _custom_manifests(root: Path) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
@@ -889,8 +823,7 @@ def _custom_manifests(root: Path) -> List[Dict[str, Any]]:
                 with _package_transaction(folder):
                     pass
     for folder in sorted(path for path in custom_root.iterdir() if path.is_dir()):
-        # Идентификатор — это имя папки: по нему модуль открывают и удаляют.
-        # Модуль с другим id в манифесте был виден, но недоступен.
+
         module_id = folder.name
         if module_id in BUILTIN_ORDER or not _ID_RE.match(module_id):
             continue
@@ -898,11 +831,10 @@ def _custom_manifests(root: Path) -> List[Dict[str, Any]]:
         try:
             row = normalize_manifest(manifest, module_id=module_id)
         except ValueError:
-            continue  # битый манифест не должен ронять весь список модулей
+            continue
         row["builtin"] = False
         rows.append(row)
     return rows
-
 
 def _sort_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     order = {module_id: index for index, module_id in enumerate(BUILTIN_ORDER)}
@@ -911,7 +843,6 @@ def _sort_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         0 if row["builtin"] else 1,
         order.get(row["id"], 99),
         row["id"]))
-
 
 def list_modules(root: Path) -> List[Dict[str, Any]]:
     root = Path(root)
@@ -922,7 +853,6 @@ def list_modules(root: Path) -> List[Dict[str, Any]]:
     for manifest in _custom_manifests(root):
         rows.append(_public_row(manifest, _overlay(state, manifest["id"]), builtin=False))
     return _with_icons(root, _sort_rows(rows))
-
 
 def _safe_id(module_id: Any) -> str:
     """An id that is safe to build a filesystem path from.
@@ -938,7 +868,6 @@ def _safe_id(module_id: Any) -> str:
         raise ValueError(
             "Недопустимый идентификатор модуля: " + repr(str(module_id))[:80])
     return value
-
 
 def _normalize_env(env: Dict[str, Any]) -> Dict[str, Any]:
     """Coerce the appearance values to a known shape.
@@ -965,8 +894,7 @@ def _normalize_env(env: Dict[str, Any]) -> Dict[str, Any]:
     except (TypeError, ValueError):
         scale = 100
     result["font_scale"] = max(85, min(125, scale))
-    # Round 30: "host" — the MemuAI window draws the module's actions in its own
-    # title row (Memu.toolbar); anything else — the module shows its own header.
+
     result["toolbar"] = "host" if str(env.get("toolbar") or "") == "host" else ""
     result["host"] = "MemuAI"
     result["platform"] = sys.platform
@@ -974,11 +902,9 @@ def _normalize_env(env: Dict[str, Any]) -> Dict[str, Any]:
         result[key] = re.sub(r"[^A-Za-z0-9._-]", "", str(result[key]))[:40]
     return result
 
-
 def _attr(value: Any) -> str:
     """An attribute value that cannot leave the quotes it sits in."""
     return html.escape(str(value or ""), quote=True)
-
 
 def _package_dir(root: Path, module_id: str) -> Optional[Path]:
     module_id = _safe_id(module_id)
@@ -993,13 +919,11 @@ def _package_dir(root: Path, module_id: str) -> Optional[Path]:
         return builtin
     return None
 
-
 def load_package(root: Path, module_id: str) -> Dict[str, Any]:
     module_id = _safe_id(module_id)
     owner = Path(root) / ("overrides" if module_id in BUILTIN_ORDER else "custom") / module_id
     with _package_transaction(owner):
         return _load_package_locked(root, module_id)
-
 
 def _load_package_locked(root: Path, module_id: str) -> Dict[str, Any]:
     folder = _package_dir(root, module_id)
@@ -1013,25 +937,20 @@ def _load_package_locked(root: Path, module_id: str) -> Dict[str, Any]:
     row = _public_row(manifest, _overlay(state, module_id), builtin=builtin)
     row["builtin"] = builtin
     _with_icons(root, [row])
-    # У изменённой копии встроенного модуля может не хватать файлов (правили
-    # только манифест или запись оборвалась): недостающее берём из поставки,
-    # иначе окно открывалось пустым.
+
     fallback = builtin_dir() / module_id if builtin and folder.parent.name == "overrides" else None
     for key, name in (("html", "index.html"), ("css", "style.css"), ("js", "main.js")):
         text = _text_file(folder, name)
         if not text.strip() and fallback is not None:
             text = _text_file(fallback, name)
         row[key] = text
-    # Keep the shared benchmark implementation in one source file, while the
-    # editor and exported packages still receive self-contained JavaScript.
-    # An edited/imported package already containing the helper needs no prefix.
+
     if "/* @memu-shared:benchmarks */" in row["js"] and "/* @memu-inlined:benchmarks */" not in row["js"]:
         library = _text_file(builtin_dir() / "benchmarks", "data.js")
         if not library.strip():
             raise ValueError("Общий код бенчмарков отсутствует / Shared benchmark code is missing")
         row["js"] = _clean_code("/* @memu-inlined:benchmarks */\n" + library + "\n" + row["js"], "JS")
-    # Round 30: the token estimate MemuAI itself shows (pgstatic/tokens.js), inlined where the marker stands
-    # (after the module's "use strict", which must stay first) and wrapped so the library stays private.
+
     marker = "/* @memu-shared:tokens */"
     if marker in row["js"] and "/* @memu-inlined:tokens */" not in row["js"]:
         library = _text_file(builtin_dir().parent / "pgstatic", "tokens.js")
@@ -1039,9 +958,7 @@ def _load_package_locked(root: Path, module_id: str) -> Dict[str, Any]:
             raise ValueError("Общая оценка токенов отсутствует / Shared token estimate is missing")
         row["js"] = _clean_code(row["js"].replace(marker, "/* @memu-inlined:tokens */\nvar MemuTokens = (function () {\n"
                                                   + library + "\nreturn MemuTokens;\n})();", 1), "JS")
-    # Round 33: a big built-in module keeps a self-contained feature in its own file — «/* @memu-part:<file>.js */»
-    # in main.js is replaced by that file of the same package (the override copy first, else the shipped one), so
-    # the editor and exported packages still get one self-contained main.js (the marker becomes «@memu-inlined-part»).
+
     def _inline_part(match: "re.Match") -> str:
         name = match.group(1)
         text = _text_file(folder, name)
@@ -1064,14 +981,8 @@ def _load_package_locked(root: Path, module_id: str) -> Dict[str, Any]:
     row["missing"] = not (row["html"] or row["js"])
     return row
 
-
 def module_exists(root: Path, module_id: str) -> bool:
     return any(row["id"] == module_id for row in list_modules(root))
-
-
-# --------------------------------------------------------------------------
-# Переключатели, лаунчер, порядок
-# --------------------------------------------------------------------------
 
 def configure_module(root: Path, module_id: str, *, enabled: Any = None,
                      hidden: Any = None, slot: Any = None, order: Any = None,
@@ -1099,7 +1010,6 @@ def configure_module(root: Path, module_id: str, *, enabled: Any = None,
     _mutate_state(root, module_id, change)
     return next(row for row in list_modules(root) if row["id"] == module_id)
 
-
 def reorder_modules(root: Path, order: List[str]) -> List[Dict[str, Any]]:
     """Apply the launcher order as it appears in the interface.
 
@@ -1124,11 +1034,6 @@ def reorder_modules(root: Path, order: List[str]) -> List[Dict[str, Any]]:
                       "order": value}))
     return list_modules(root)
 
-
-# --------------------------------------------------------------------------
-# Окно
-# --------------------------------------------------------------------------
-
 def window_policy(manifest: Dict[str, Any], user_box: Optional[Dict[str, Any]] = None,
                   *, resizable: Optional[bool] = None) -> Dict[str, Any]:
     """Resolve the window the host should open.
@@ -1142,8 +1047,7 @@ def window_policy(manifest: Dict[str, Any], user_box: Optional[Dict[str, Any]] =
     window = normalize_window(manifest.get("window"))
     fixed = window["fixed"]
     authored_w, authored_h = window["default_width"], window["default_height"]
-    # Выбор человека (оверлей) главнее; без него — флаг «Можно менять размер»
-    # из манифеста. Раньше флаг манифеста ни на что не влиял.
+
     can_resize = bool(window.get("resizable", True)) if resizable is None else bool(resizable)
     prefer_user = window["size_mode"] != "authored" and not fixed
     source = "authored"
@@ -1170,12 +1074,11 @@ def window_policy(manifest: Dict[str, Any], user_box: Optional[Dict[str, Any]] =
         "resizable": can_resize,
         "draggable": draggable,
         "size_source": source,
-        # Несдвинутое окно всегда по центру MemuAI, даже если автор не просил.
+
         "center": not (x >= 0 and y >= 0),
         "fullscreen": False,
         "fullscreen_allowed": window["fullscreen_allowed"],
     }
-
 
 def resolve_window(root: Path, module_id: str) -> Dict[str, Any]:
     package = load_package(root, module_id)
@@ -1186,18 +1089,12 @@ def resolve_window(root: Path, module_id: str) -> Dict[str, Any]:
     policy["fullscreen"] = bool(overlay.get("fullscreen")) and policy["fullscreen_allowed"]
     return policy
 
-
-# Round 31: one-time hints of the module windows («how to close / minimize»).
-# Stored next to state.json (not in it: _mutate_state rewrites state.json as
-# {"modules": ...}) and not in localStorage, which WebView2 wipes on restart.
 UI_HINTS = ("window", "minimize")
-
 
 def load_ui_hints(root: Path) -> Dict[str, Any]:
     data = _read_json(Path(root) / "ui.json")
     seen = data.get("seen") if isinstance(data.get("seen"), list) else []
     return {"seen": [name for name in UI_HINTS if name in seen]}
-
 
 def mark_ui_hint(root: Path, name: str, seen: bool = True) -> Dict[str, Any]:
     name = str(name or "")
@@ -1217,7 +1114,6 @@ def mark_ui_hint(root: Path, name: str, seen: bool = True) -> Dict[str, Any]:
                 validator=lambda value: isinstance(value, dict), repair_invalid=True)
     return load_ui_hints(root)
 
-
 def remember_window(root: Path, module_id: str, box: Dict[str, Any]) -> Dict[str, Any]:
     module_id = _safe_id(module_id)
     policy = resolve_window(root, module_id)
@@ -1225,8 +1121,7 @@ def remember_window(root: Path, module_id: str, box: Dict[str, Any]) -> Dict[str
     previous = _overlay(load_state(root), module_id).get("geometry")
     previous = previous if isinstance(previous, dict) else {}
     if keep_size and previous:
-        # Хост подогнал окно под маленький экран. Это не выбор человека,
-        # поэтому запомненный размер остаётся прежним.
+
         width = _clamp_int(previous.get("width"), policy["width"],
                            policy["min_width"], policy["max_width"])
         height = _clamp_int(previous.get("height"), policy["height"],
@@ -1234,8 +1129,7 @@ def remember_window(root: Path, module_id: str, box: Dict[str, Any]) -> Dict[str
     else:
         width = _clamp_int(box.get("width"), policy["width"], policy["min_width"], policy["max_width"])
         height = _clamp_int(box.get("height"), policy["height"], policy["min_height"], policy["max_height"])
-    # -1 значит «по центру». Раньше -1 обрезалось до 0, и окно, ни разу не
-    # сдвинутое человеком, в следующий раз открывалось в левом верхнем углу.
+
     moved = bool(box.get("moved")) or bool(previous.get("moved") and "moved" not in box)
     resized = bool(box.get("resized")) or bool(previous.get("resized"))
     geometry = {
@@ -1254,15 +1148,9 @@ def remember_window(root: Path, module_id: str, box: Dict[str, Any]) -> Dict[str
     _mutate_state(root, module_id, change)
     return resolve_window(root, module_id)
 
-
 def mark_open(root: Path, module_id: str, opened: bool) -> None:
     module_id = _safe_id(module_id)
     _mutate_state(root, module_id, lambda row: row.update(open=bool(opened)))
-
-
-# --------------------------------------------------------------------------
-# Сохранённые поля модуля
-# --------------------------------------------------------------------------
 
 def _persist_keys(root: Path, module_id: str) -> List[str]:
     owner = Path(root) / ("overrides" if module_id in BUILTIN_ORDER else "custom") / module_id
@@ -1273,13 +1161,11 @@ def _persist_keys(root: Path, module_id: str) -> List[str]:
         manifest = normalize_manifest(_manifest_file(folder), module_id=module_id)
         return list(manifest["persist"])
 
-
 def load_persistent(root: Path, module_id: str) -> Dict[str, Any]:
     module_id = _safe_id(module_id)
     keys = set(_persist_keys(root, module_id))
     raw = _read_json(Path(root) / "persist" / f"{module_id}.json")
     return {key: raw[key] for key in raw if key in keys}
-
 
 def save_persistent(root: Path, module_id: str, values: Dict[str, Any]) -> Dict[str, Any]:
     module_id = _safe_id(module_id)
@@ -1291,8 +1177,7 @@ def save_persistent(root: Path, module_id: str, values: Dict[str, Any]) -> Dict[
     too_large = []
     for key, value in list(values.items())[:200]:
         name = str(key)[:40]
-        # Точное совпадение: усечение кандидата не должно давать доступ к
-        # другому, объявленному ключу.
+
         if name in {str(known)[:40] for known in keys}:
             encoded = json.dumps(value, ensure_ascii=False)
             if len(encoded) > _TEXT_LIMIT:
@@ -1301,8 +1186,7 @@ def save_persistent(root: Path, module_id: str, values: Dict[str, Any]) -> Dict[
             updates[name] = value
 
     def apply(raw: Dict[str, Any]) -> Tuple[bool, Any]:
-        # Partial saves can arrive from different module windows or processes.
-        # Read the latest allowed fields and merge while holding the file lock.
+
         current = {key: raw[key] for key in raw if key in keys}
         current.update(updates)
         return True, current
@@ -1310,11 +1194,9 @@ def save_persistent(root: Path, module_id: str, values: Dict[str, Any]) -> Dict[
     current = mutate_json(path, {}, apply, backup=False,
                           validator=lambda value: isinstance(value, dict))
     if too_large:
-        # Остальные поля сохранены, но молча оставить старое значение нельзя:
-        # модуль решил бы, что сохранил, и после перезапуска получил бы старое.
+
         raise ValueError(f"Поле {', '.join(too_large)} длиннее {_TEXT_LIMIT} символов и не сохранено")
     return current
-
 
 def clear_persistent(root: Path, module_id: str) -> None:
     module_id = _safe_id(module_id)
@@ -1322,22 +1204,15 @@ def clear_persistent(root: Path, module_id: str) -> None:
     if path.is_file():
         path.unlink()
 
-
-# --------------------------------------------------------------------------
-# Создание, правка, удаление, перенос
-# --------------------------------------------------------------------------
-
 def _clean_code(value: Any, label: str) -> str:
     text = str(value or "")
     if len(text) > _CODE_LIMIT:
         raise ValueError(f"{label} длиннее {_CODE_LIMIT} символов")
     return text
 
-
 def _write_package(folder: Path, manifest: Dict[str, Any], spec: Dict[str, Any]) -> None:
     with _package_transaction(Path(folder)):
         _write_package_locked(Path(folder), manifest, spec)
-
 
 def _write_package_locked(folder: Path, manifest: Dict[str, Any], spec: Dict[str, Any]) -> None:
     """Пишет пакет модуля целиком или никак.
@@ -1362,7 +1237,7 @@ def _write_package_locked(folder: Path, manifest: Dict[str, Any], spec: Dict[str
     try:
         if folder.exists():
             _reject_package_links(folder)
-            # Keep assets and JSON backup history supplied by the person.
+
             shutil.copytree(folder, staging, dirs_exist_ok=True, symlinks=True)
             _reject_package_links(staging)
         for name, text in (("index.html", html), ("style.css", css), ("main.js", js)):
@@ -1381,8 +1256,7 @@ def _write_package_locked(folder: Path, manifest: Dict[str, Any], spec: Dict[str
             os.replace(staging, folder)
         except BaseException:
             if moved:
-                # The live path is empty: rollback restores every old file,
-                # including unknown assets, rather than mixing two versions.
+
                 os.replace(previous, folder)
                 moved = False
             raise
@@ -1390,7 +1264,6 @@ def _write_package_locked(folder: Path, manifest: Dict[str, Any], spec: Dict[str
         shutil.rmtree(staging, ignore_errors=True)
     if moved:
         shutil.rmtree(previous, ignore_errors=True)
-
 
 def _reject_package_links(folder: Path) -> None:
     """A package snapshot must not follow links into another user's files."""
@@ -1404,19 +1277,16 @@ def _reject_package_links(folder: Path) -> None:
             if linked(Path(parent) / name):
                 raise ValueError("Пакет модуля содержит файловую ссылку или junction")
 
-
 _RESERVED_IDS = re.compile(r"^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$")
-
 
 def validate_id(module_id: Any) -> str:
     value = str(module_id or "").strip()
     if value != value.lower() or not _ID_RE.match(value):
         raise ValueError("Идентификатор: латиница в нижнем регистре, цифры и дефис, до 41 символа, начинается с буквы")
     if _RESERVED_IDS.match(value):
-        # con, nul, com1… в Windows — устройства, а не папки.
+
         raise ValueError("Этот идентификатор зарезервирован Windows (con, nul, com1…)")
     return value
-
 
 def create_module(root: Path, spec: Dict[str, Any]) -> Dict[str, Any]:
     module_id = validate_id(spec.get("id"))
@@ -1434,13 +1304,11 @@ def create_module(root: Path, spec: Dict[str, Any]) -> Dict[str, Any]:
                                 hidden=bool((spec.get("launcher") or {}).get("hidden", False)),
                                 slot=manifest["launcher"]["slot"])
 
-
 def update_code(root: Path, module_id: str, spec: Dict[str, Any]) -> Dict[str, Any]:
     module_id = validate_id(module_id)
     folder = Path(root) / ("overrides" if module_id in BUILTIN_ORDER else "custom") / module_id
     with _package_transaction(folder):
         return _update_code_locked(root, module_id, spec)
-
 
 def _update_code_locked(root: Path, module_id: str, spec: Dict[str, Any]) -> Dict[str, Any]:
     module_id = validate_id(module_id)
@@ -1456,8 +1324,7 @@ def _update_code_locked(root: Path, module_id: str, spec: Dict[str, Any]) -> Dic
             "js": _text_file(folder, "main.js") or _text_file(builtin_dir() / module_id, "main.js"),
             "i18n": _read_i18n(folder) or _read_i18n(builtin_dir() / module_id),
         }
-        # Правки человека поверх поставки, а не наоборот: при обратном порядке
-        # каждое сохранение кода возвращало заводские название, окно и права.
+
         manifest = normalize_manifest(spec, module_id=module_id, base={**base_manifest, **existing})
     else:
         folder = Path(root) / "custom" / module_id
@@ -1479,7 +1346,6 @@ def _update_code_locked(root: Path, module_id: str, spec: Dict[str, Any]) -> Dic
         _mutate_state(root, module_id, lambda row: row.update(edited=True))
     return next(row for row in list_modules(root) if row["id"] == module_id)
 
-
 def duplicate_module(root: Path, module_id: str, new_id: str, title: str = "") -> Dict[str, Any]:
     module_id = _safe_id(module_id)
     package = load_package(root, module_id)
@@ -1495,11 +1361,10 @@ def duplicate_module(root: Path, module_id: str, new_id: str, title: str = "") -
         "launcher": {"hidden": False, "slot": (package.get("launcher") or {}).get("slot", "sidebar")},
         "html": package.get("html", ""), "css": package.get("css", ""), "js": package.get("js", ""),
         "i18n": package.get("i18n") or {}, "default_locale": package.get("default_locale") or "ru",
-        # Копия — та же версия и тот же автор, а не «1.0» без автора.
+
         "version": package.get("version") or "1.0", "author": package.get("author") or "",
     }
     return create_module(root, spec)
-
 
 def reset_override(root: Path, module_id: str) -> Dict[str, Any]:
     """Throw away a person's edited copy of a built-in package."""
@@ -1514,10 +1379,8 @@ def reset_override(root: Path, module_id: str) -> Dict[str, Any]:
     _mutate_state(root, module_id, lambda row: row.pop("edited", None))
     return next(row for row in list_modules(root) if row["id"] == module_id)
 
-
 def _removed(root: Path, module_id: str) -> bool:
     return bool(_overlay(load_state(root), module_id).get("removed"))
-
 
 def removed_builtins(root: Path) -> List[Dict[str, Any]]:
     """Built-in modules the person removed; they can be brought back."""
@@ -1529,7 +1392,6 @@ def removed_builtins(root: Path) -> List[Dict[str, Any]]:
                          "title_en": manifest["title_en"], "icon": _glyph(manifest)})
     return rows
 
-
 def restore_builtin(root: Path, module_id: str) -> Dict[str, Any]:
     module_id = _safe_id(module_id)
     if module_id not in BUILTIN_ORDER:
@@ -1537,13 +1399,10 @@ def restore_builtin(root: Path, module_id: str) -> Dict[str, Any]:
     _mutate_state(root, module_id, lambda row: (row.clear(), row.update(enabled=False)))
     return next(row for row in list_modules(root) if row["id"] == module_id)
 
-
 def delete_module(root: Path, module_id: str) -> None:
     module_id = validate_id(module_id)
     if module_id in BUILTIN_ORDER:
-        # Встроенный модуль удаляется для человека: пропадают его правки кода,
-        # сохранённые поля и настройки, а сам пакет остаётся в установке, и
-        # модуль можно вернуть из списка «Удалённые встроенные».
+
         if _removed(root, module_id):
             raise KeyError(module_id)
         shutil.rmtree(Path(root) / "overrides" / module_id, ignore_errors=True)
@@ -1564,16 +1423,10 @@ def delete_module(root: Path, module_id: str) -> None:
                 validator=lambda value: isinstance(value, dict), repair_invalid=True)
     clear_persistent(root, module_id)
     from .module_icons import reset_user_icon
-    reset_user_icon(root, module_id)  # Round 39: the person's icon goes with the module
-
-
-# --------------------------------------------------------------------------
-# Перенос модулей файлом
-# --------------------------------------------------------------------------
+    reset_user_icon(root, module_id)
 
 PACKAGE_FORMAT = "memu-module"
 PACKAGE_VERSION = 2
-
 
 def export_package(root: Path, module_id: str) -> Dict[str, Any]:
     module_id = _safe_id(module_id)
@@ -1598,12 +1451,11 @@ def export_package(root: Path, module_id: str) -> Dict[str, Any]:
             "style.css": package["css"],
             "main.js": package["js"],
             "i18n.json": package.get("i18n") or {},
-            # Round 38: panel pages / scripts / styles and the skill a «contributes» block names.
+
             **_contributed_files(root, module_id, contributes),
         },
         **({"contributes": contributes} if contributes else {}),
     }
-
 
 def _portable_icon(root: Path, module_id: str, package: Dict[str, Any]) -> str:
     """Round 39: the manifest icon for a copy/export — a package file becomes inline SVG / a data URL."""
@@ -1612,7 +1464,7 @@ def _portable_icon(root: Path, module_id: str, package: Dict[str, Any]) -> str:
     if icon_kind(raw) != "file":
         return raw
     try:
-        body, media = icon_bytes(root, module_id, own=True)  # the manifest's own icon, not the person's replacement
+        body, media = icon_bytes(root, module_id, own=True)
     except (KeyError, ValueError, OSError, IconError):
         return package.get("icon") or ""
     if media == "image/svg+xml" and len(body) <= INLINE_LIMIT:
@@ -1621,7 +1473,6 @@ def _portable_icon(root: Path, module_id: str, package: Dict[str, Any]) -> str:
     data = "data:" + media + ";base64," + base64.b64encode(body).decode("ascii")
     return data if len(data) <= DATA_LIMIT else (package.get("icon") or "")
 
-
 def _manifest_contributes(root: Path, module_id: str) -> Dict[str, Any]:
     """Round 38: the «contributes» block of the module's manifest (export carries it with its files)."""
     for folder in (_package_dir(root, module_id), builtin_dir() / module_id if module_id in BUILTIN_ORDER else None):
@@ -1629,7 +1480,6 @@ def _manifest_contributes(root: Path, module_id: str) -> Dict[str, Any]:
             value = _read_json(folder / "manifest.json").get("contributes")
             return value if isinstance(value, dict) else {}
     return {}
-
 
 def _contributed_files(root: Path, module_id: str, contributes: Dict[str, Any]) -> Dict[str, str]:
     if not contributes:
@@ -1640,7 +1490,6 @@ def _contributed_files(root: Path, module_id: str, contributes: Dict[str, Any]) 
     if module_id in BUILTIN_ORDER:
         files = {**package_files(builtin_dir() / module_id, contributes), **files}
     return files
-
 
 def import_package(root: Path, payload: Dict[str, Any], *, new_id: str = "",
                    title: str = "") -> Dict[str, Any]:
@@ -1660,7 +1509,7 @@ def import_package(root: Path, payload: Dict[str, Any], *, new_id: str = "",
     spec["id"] = module_id
     if title:
         spec["title"] = title
-        spec["title_en"] = title  # иначе в английском интерфейсе видно старое имя
+        spec["title_en"] = title
     spec["html"] = str(files.get("index.html", body.get("html", "")))[:_CODE_LIMIT]
     spec["css"] = str(files.get("style.css", body.get("css", "")))[:_CODE_LIMIT]
     spec["js"] = str(files.get("main.js", body.get("js", "")))[:_CODE_LIMIT]
@@ -1672,23 +1521,16 @@ def import_package(root: Path, payload: Dict[str, Any], *, new_id: str = "",
         spec["contributes"] = payload["contributes"]
     created = create_module(root, spec)
     if spec.get("contributes"):
-        # Round 38: the files of its panels and skill (only names «contributes» declares; module_integration.py).
+
         from .module_integration import write_package_files
         write_package_files(Path(root) / "custom" / module_id, spec["contributes"], files)
     return created
 
-
-# --------------------------------------------------------------------------
-# Мост к модели
-# --------------------------------------------------------------------------
-
 def _safe_images(images: Any, limit: int = 8) -> List[str]:
-    # Сначала отбрасываем мусор, потом режем по лимиту: иначе чужие ссылки в
-    # начале списка съедали место настоящих изображений.
+
     rows = images if isinstance(images, list) else []
     return [item for item in rows
             if isinstance(item, str) and item.startswith("data:image/")][:limit]
-
 
 def _attr_document_name(name: Any) -> str:
     """A document name safe to sit inside ``<file name="...">``.
@@ -1699,7 +1541,6 @@ def _attr_document_name(name: Any) -> str:
     """
     cleaned = re.sub(r'["<>&\r\n\t]+', " ", str(name or "")).strip(" .")
     return cleaned[:120] or "file"
-
 
 def _safe_documents(documents: Any, limit: int = 8) -> List[Dict[str, str]]:
     output: List[Dict[str, str]] = []
@@ -1716,7 +1557,6 @@ def _safe_documents(documents: Any, limit: int = 8) -> List[Dict[str, str]]:
         })
     return output
 
-
 def build_request(*, model: str = "", instructions: str = "", keep_in_chat: bool = False,
                   text: str = "", images: Optional[List[Any]] = None,
                   documents: Optional[List[Any]] = None,
@@ -1729,8 +1569,7 @@ def build_request(*, model: str = "", instructions: str = "", keep_in_chat: bool
     instruction = str(instructions or "")
     parts = [str(text or "")]
     for document in safe_documents:
-        # Имя документа не должно уметь закрыть атрибут и подделать вид
-        # «настоящего» вложения в промпте: кавычки и угловые скобки убираем.
+
         safe_name = _attr_document_name(document["name"])
         parts.append(f'\n<file name="{safe_name}">\n{document["text"]}\n</file>')
     user_text = "\n".join(part for part in parts if part).strip()
@@ -1743,9 +1582,7 @@ def build_request(*, model: str = "", instructions: str = "", keep_in_chat: bool
     if instruction:
         messages.append({"role": "system", "content": instruction})
     rows = [item for item in (history or []) if isinstance(item, dict)]
-    # Пустой ответ-заготовка в конце (шаблон мини-чата кладёт его перед
-    # запросом) и последняя реплика пользователя, равная text, — это и есть
-    # текущий запрос: второй раз его отправлять нельзя.
+
     while rows and not str(rows[-1].get("content") or "").strip():
         rows.pop()
     if rows and str(rows[-1].get("role")) != "assistant" and \
@@ -1776,7 +1613,6 @@ def build_request(*, model: str = "", instructions: str = "", keep_in_chat: bool
         pass
     return request
 
-
 def design_handoff(*, prompt: str = "", images: Optional[List[Any]] = None,
                    code: str = "", filename: str = "index.html",
                    files: Optional[List[Any]] = None) -> Dict[str, Any]:
@@ -1797,12 +1633,10 @@ def design_handoff(*, prompt: str = "", images: Optional[List[Any]] = None,
         "readme": _handoff_readme(str(prompt or ""), len(safe_images), bundle),
     }
 
-
 def _bundle_name(value: Any, fallback: str) -> str:
     """A file name without path separators; a name of only junk gets the fallback."""
     name = re.sub(r'[\\/:*?"<>|\x00-\x1f]+', "_", str(value or "")).strip(" ._")[:80]
     return name or fallback
-
 
 def _handoff_readme(prompt: str, image_count: int, files: List[Dict[str, str]]) -> str:
     listing = "\n".join(f"- {item['name']}" for item in files)
@@ -1818,20 +1652,6 @@ def _handoff_readme(prompt: str, image_count: int, files: List[Dict[str, str]]) 
         "## Исходный запрос\n\n"
         f"{prompt}\n"
     )
-
-
-# --------------------------------------------------------------------------
-# Документ модуля: оформление, среда, мост
-# --------------------------------------------------------------------------
-
-#: Общий слой оформления для страницы модуля. Модуль может его не
-#: использовать вовсе, но тогда он не будет похож на MemuAI. Классы с
-#: префиксом ``mu-`` никогда не пересекаются со стилями самого модуля.
-#:
-#: Токены ниже повторяют appearance.css. Страница модуля живёт в отдельном
-#: документе и не наследует переменные родителя, поэтому значения обязаны
-#: быть в самом документе: без них модуль получает прозрачный фон и шрифт
-#: по умолчанию — именно так он выглядел «без стилей».
 
 def design_tokens(env: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
     """Values the module page needs so it matches the MemuAI interface.
@@ -1864,12 +1684,10 @@ def design_tokens(env: Optional[Dict[str, Any]] = None) -> Dict[str, str]:
     tokens["--font-scale"] = str(max(85, min(125, scale)))
     return tokens
 
-
 def token_css(env: Optional[Dict[str, Any]] = None) -> str:
     tokens = design_tokens(env)
     body = ";".join(f"{name}:{value}" for name, value in tokens.items() if value)
     return f":root{{{body}}}\n"
-
 
 BASE_CSS = """
 *,*::before,*::after{box-sizing:border-box}
@@ -1976,9 +1794,7 @@ kbd{border:1px solid var(--border);border-bottom-width:2px;border-radius:5px;pad
 }
 """.strip()
 
-#: Мост ``Memu``. Инжектируется первым, чтобы код модуля мог им пользоваться.
 _MEMU_KEYS_CACHE: Dict[str, str] = {}
-
 
 def _memu_keys_js() -> str:
     """Round 33 (#8): pgstatic/memu-keys.js inlined into every module document (CSP allows inline scripts only),
@@ -1990,7 +1806,6 @@ def _memu_keys_js() -> str:
             text = ""
         _MEMU_KEYS_CACHE["js"] = text.replace("</", "<\\/")
     return _MEMU_KEYS_CACHE["js"]
-
 
 BRIDGE_JS = r"""
 (function () {
@@ -2013,7 +1828,7 @@ BRIDGE_JS = r"""
     handoff: 60000, download: 180000, notify: 60000, open: 20000, monitor: 180000, music: 700000,
     search: 60000, fetch: 60000, clipboard: 10000, routes: 10000, env: 5000,
     resize: 5000, chat_history: 30000, record: 120000, complete: 0, store: 120000, asset: 60000,
-    net_import: 200000, learn_call: 180000
+    net_import: 200000, learn_call: 180000, database_call: 180000
   };
 
   function callWithId(id, action, payload) {
@@ -2532,6 +2347,7 @@ BRIDGE_JS = r"""
   musicApi.coverUrl = function (id) { return musicApi.call("cover_url", { id: id }); };
   // Round 40 (r40-learn): Memu.learn.call(op, args) — MemuLearn courses / cards / FSRS (permission learn, app/learn/api.py).
   var learnApi = { call: function (op, args) { return call("learn_call", { op: String(op || ""), args: args || {} }); } };
+  var databaseApi = { call: function (op, args) { return call("database_call", { op: String(op || ""), args: args || {} }); } };
 
   var Memu = {
     id: MODULE_ID,
@@ -2576,7 +2392,12 @@ BRIDGE_JS = r"""
       return call("net_import", { input: String(input || ""), kind: (opts && opts.kind) || "auto", op: opts && opts.resolve ? "resolve" : "fetch" });
     },
     save: function (fields) { return call("save", fields); },
-    models: function () { return call("models", {}); },
+    models: function () { return call("models", {}).then(function(rows) {
+      return (Array.isArray(rows) ? rows : []).map(function(row) {
+        if (!row || !row.kind || row.kind === "chat") return row;
+        return Object.assign({}, row, {name: (row.name || row.id) + " · [" + String(row.kind).toUpperCase() + "]"});
+      });
+    }); },
     image: function (body) { return call("image", body); },
     video: function (body) { return call("video", body); },
     speak: function (body) { return call("speak", body); },
@@ -2595,6 +2416,7 @@ BRIDGE_JS = r"""
     monitor: function (body) { return call("monitor", body || {}); },
     music: musicApi,
     learn: learnApi,
+    database: databaseApi,
     open: function (body) { return call("open", body); },
     search: function (body) { return call("search", body); },
     fetch: function (body) { return call("fetch", body); },
@@ -2632,7 +2454,6 @@ BRIDGE_JS = r"""
 })();
 """.strip()
 
-
 def module_document(package: Dict[str, Any], saved: Optional[Dict[str, Any]] = None,
                     *, env: Optional[Dict[str, Any]] = None) -> str:
     """The page that runs inside the module window."""
@@ -2662,9 +2483,7 @@ def module_document(package: Dict[str, Any], saved: Optional[Dict[str, Any]] = N
         "host": "MemuAI",
     }
     environment.update({key: value for key, value in (env or {}).items() if value is not None})
-    # Значения ниже уходят прямо в HTML-атрибуты. Приходят они и из тела
-    # запроса на предпросмотр, поэтому каждое приводится к известному виду:
-    # без этого кавычка в lang закрывала атрибут и добавляла свой тег.
+
     environment = _normalize_env(environment)
     bridge = (BRIDGE_JS
               .replace("__MEMU_MODULE_ID__", _script_json(str(package.get("id") or "")))
@@ -2676,7 +2495,7 @@ def module_document(package: Dict[str, Any], saved: Optional[Dict[str, Any]] = N
     accent_rule = f"\nhtml{{--accent:{accent};--accent-soft:color-mix(in srgb,{accent} 16%,transparent)}}\n" \
         if re.fullmatch(r"#[0-9a-fA-F]{3,8}", accent) else ""
     color_scheme = "dark" if environment["theme"] == "dark" else "light"
-    # Round 37: the «music» permission lets <audio>/<img> load MemuMusic stream/cover URLs (token-checked).
+
     from .music.api import csp_sources as music_csp
     music_src = " " + music_csp() if "music" in (package.get("permissions") or []) else ""
     return (
@@ -2687,8 +2506,7 @@ def module_document(package: Dict[str, Any], saved: Optional[Dict[str, Any]] = N
         f'data-density="{_attr(environment.get("density") or "normal")}"'
         + (' data-host-toolbar="1"' if environment.get("toolbar") == "host" else "") + ">\n"
         "<head>\n<meta charset=\"utf-8\">\n"
-        # Политика и в самом документе: srcdoc-предпросмотр мастерской не
-        # получает заголовков ответа, и без неё код модуля ходил в сеть.
+
         "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; "
         f"script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:{music_src}; "
         f"media-src data: blob:{music_src}; font-src data:; connect-src 'none'; object-src 'none'; "
@@ -2704,20 +2522,13 @@ def module_document(package: Dict[str, Any], saved: Optional[Dict[str, Any]] = N
            or (package.get("js") or "").strip() else
            '<div class="mu-page"><div class="mu-empty"><b>У модуля нет кода</b>'
            '<span>Откройте «Настройки → Модули → Код» и добавьте HTML или JavaScript.</span></div></div>')
-        + "\n<script>" + _memu_keys_js() + "</script>"   # r33: shortcuts in any keyboard layout
+        + "\n<script>" + _memu_keys_js() + "</script>"
         + "\n<script>" + bridge + "</script>\n"
-        # Переводы строк вокруг кода обязательны: модуль, чей код кончается
-        # строчным комментарием «// ...», иначе закомментировал бы «};» и не
-        # запускался вовсе.
+
         + '<script>window.__memuModuleMain=function(){\n' + _embed_script(package.get("js") or "") + '\n};</script>\n'
         + '<script>window.__memuModuleMain();</script>\n'
         "</body>\n</html>\n"
     )
-
-
-# --------------------------------------------------------------------------
-# Проверка пакета
-# --------------------------------------------------------------------------
 
 def _object_entries(body: str) -> List[str]:
     """Top-level entries of an object literal body, split on commas.
@@ -2749,7 +2560,6 @@ def _object_entries(body: str) -> List[str]:
         entries.append(current.strip())
     return [entry for entry in entries if entry and not entry.startswith("...")]
 
-
 def validate_module_source(spec: Dict[str, Any]) -> Dict[str, Any]:
     """Cheap checks the workbench shows before saving."""
     problems: List[Dict[str, str]] = []
@@ -2780,9 +2590,7 @@ def validate_module_source(spec: Dict[str, Any]) -> Dict[str, Any]:
             break
     persist = spec.get("persist") if isinstance(spec.get("persist"), list) else []
     used: set = set()
-    # Ключи объектов-литералов в Memu.save: «ключ: значение», "ключ": значение
-    # и сокращённая запись { a, b }. Раньше сокращённую запись — ту самую, что
-    # в шаблоне «Инструмент», — проверка не видела вовсе.
+
     for chunk in re.findall(r"Memu\.save\(\s*\{([^{}]*)\}", js):
         for entry in _object_entries(chunk):
             match = (re.match(r"^([A-Za-z_$][\w$]*)\s*:", entry)

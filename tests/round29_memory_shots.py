@@ -24,13 +24,13 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "tests"))
 
 DESIGNS = ["default", "aurora", "brutal", "focus", "glass", "grid", "soft", "terminal"]
-#: user content (seeded in Russian) may stay Cyrillic in the English UI
+
 USER_TEXT = ["Пишу на Python и TypeScript, люблю краткие ответы", "Работаю фронтенд-разработчиком в небольшой студии",
              "Пишу системные утилиты на Rust", "Предпочитает тёмную тему и моноширинный шрифт JetBrains Mono",
              "Готовится к марафону осенью", "План тренировок на осень", "Я готовлюсь к марафону в октябре",
              "Возможно, переезжает в Лиссабон", "Принимает витамин D по утрам", "думаю о переезде",
              "Не запоминай ничего о финансах", "Временный факт для корзины",
-             # Round 40: associations, a contradiction, a moved city and the session diary
+
              "Не переносит лактозу", "молоко", "кофе", "капучино", "сыр", "Любит кофе по утрам", "Не пьёт кофе",
              "Живёт в Москве", "Переехала в Казань", "Настраивали парсер вакансий hh.ru в Планировании",
              "Парсер вакансий", "Выбирали ноутбук для монтажа видео", "Ноутбук"]
@@ -68,7 +68,6 @@ CHECK_JS = r"""() => {
   return { open: true, wide: [...new Set(wide)].slice(0, 8), cyr: text.split('\n').map((l) => l.trim()).filter((l) => /[А-Яа-яЁё]/.test(l)), low: low.slice(0, 5) };
 }"""
 
-
 def seed(client, pg: str) -> None:
     post = lambda path, body: client.post(pg + path, json=body).json()  # noqa: E731
     post("/api/memory/items", {"text": "Пишу на Python и TypeScript, люблю краткие ответы", "category": "tech", "pinned": True})
@@ -89,20 +88,19 @@ def seed(client, pg: str) -> None:
         if item.get("text") == "Временный факт для корзины":
             client.delete(pg + "/api/memory/items/" + item["id"])
     del out
-    # Round 40 (r40-memory)
+
     post("/api/memory/propose", {"service": "chat", "by": "user", "facts": [
         {"fact": "Не переносит лактозу", "category": "health", "concepts": ["молоко", "кофе", "капучино", "сыр", "milk", "dairy"]}]})
     post("/api/memory/items", {"text": "Любит кофе по утрам", "category": "preference"})
     post("/api/memory/propose", {"service": "chat", "facts": [{"fact": "Не пьёт кофе", "category": "preference", "confidence": 0.9}]})
     post("/api/memory/items", {"text": "Живёт в Москве", "category": "identity"})
     post("/api/memory/propose", {"service": "chat", "facts": [{"fact": "Переехала в Казань", "category": "identity", "confidence": 0.9}]})
-    from app import memory_v2   # the diary is written by the background worker; seed it directly (same data dir)
+    from app import memory_v2
     day = 86400_000
     memory_v2.save_diary({"text": "Настраивали парсер вакансий hh.ru в Планировании", "chat_id": "c-hh", "chat_title": "Парсер вакансий",
                           "at": memory_v2.now_ms() - 2 * day, "msgs": 14})
     memory_v2.save_diary({"text": "Выбирали ноутбук для монтажа видео", "chat_id": "c-nb", "chat_title": "Ноутбук",
                           "at": memory_v2.now_ms() - 5 * day, "msgs": 9})
-
 
 def main(out: Path, designs: list[str]) -> int:
     import httpx
@@ -129,7 +127,7 @@ def main(out: Path, designs: list[str]) -> int:
                         for theme in ("light", "dark"):
                             page.evaluate(f"""() => {{ try {{ setTheme('{theme}', false); }} catch (e) {{}}
                               if ('{design}' === 'default') delete document.documentElement.dataset.design; else document.documentElement.dataset.design = '{design}'; }}""")
-                            page.wait_for_timeout(1200)    # the theme switch animates body colours
+                            page.wait_for_timeout(1200)
                             for tab in TABS:
                                 page.evaluate(f"MemuMemory.open({{tab: '{tab}'}})")
                                 page.wait_for_selector("#panel.mem2-panel .mem2-tabs", timeout=15000)
@@ -158,7 +156,6 @@ def main(out: Path, designs: list[str]) -> int:
         print("FAIL:", line)
     print(f"done: {len(problems)} problems, {len(errors)} page errors")
     return 1 if problems or errors else 0
-
 
 if __name__ == "__main__":
     os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="memu-r29-mem-"))

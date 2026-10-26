@@ -1,12 +1,9 @@
-/* Round 40 (r40-proxy): Proxy — «Сэкономлено кэшем», веб-модели (:web) в каталоге моделей. */
 .metrics-cache { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin: 8px 0 0; padding: 8px 12px;
   border-radius: 10px; font-size: 12.5px; background: color-mix(in srgb, var(--ok, #2f9e6a) 7%, transparent);
   border: 1px solid color-mix(in srgb, var(--ok, #2f9e6a) 18%, transparent); }
 .metrics-cache[hidden] { display: none; }
 .metrics-cache .mc-lbl { text-transform: uppercase; letter-spacing: .07em; font-size: 10.5px; font-weight: 600; color: var(--muted); }
 .metrics-cache .mc-val { font-size: 15px; font-variant-numeric: tabular-nums; }
-
-/* Веб-модели (:web): свёрнутая секция в карточке модели, диалог настроек, список в «Дополнительно». */
 .wm-ic { flex: none; color: var(--accent-text, var(--accent)); vertical-align: -2px; }
 .wm-muted { color: var(--muted); font-size: 12.5px; line-height: 1.5; margin: 0; }
 .wm-card { border-top: 1px solid var(--border); padding-top: 12px; }

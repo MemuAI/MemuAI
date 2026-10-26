@@ -28,9 +28,6 @@ from prompt_toolkit.keys import Keys
 
 from .. import paths
 
-
-# ---------------------------------------------------------------- keyboard
-
 def install_escape_sequences() -> None:
     """Shift/Ctrl+Enter escape sequences of modern terminals → Meta+Enter."""
     try:
@@ -39,7 +36,6 @@ def install_escape_sequences() -> None:
         return
     for sequence in ("\x1b[13;2u", "\x1b[27;2;13~", "\x1b[13;5u", "\x1b[27;5;13~", "\x1b[13;3u"):
         ANSI_SEQUENCES.setdefault(sequence, (Keys.Escape, Keys.ControlM))
-
 
 def _debug_keys(keys: List[KeyPress]) -> None:
     path = os.environ.get("MEMUCODE_DEBUG_KEYS")
@@ -51,7 +47,6 @@ def _debug_keys(keys: List[KeyPress]) -> None:
                 handle.write(f"{time.monotonic():.3f} n={len(keys)} {names}\n")
         except OSError:
             pass
-
 
 def is_paste_burst(keys: List[KeyPress]) -> bool:
     """A batch of key events that a human could not have typed: a paste or a drop.
@@ -70,7 +65,6 @@ def is_paste_burst(keys: List[KeyPress]) -> bool:
             if newline_seen:
                 text_after_newline = True
     return printable >= 8 or (text_after_newline and printable >= 2)
-
 
 def keys_to_paste(keys: List[KeyPress]) -> List[KeyPress]:
     """Merge the text keys of a burst into ``BracketedPaste`` events (other keys stay in order)."""
@@ -92,7 +86,7 @@ def keys_to_paste(keys: List[KeyPress]) -> List[KeyPress]:
         elif press.key == Keys.ControlI:
             text.append("\t")
         elif press.key == Keys.Escape and index + 1 < len(keys) and keys[index + 1].key in (Keys.ControlM, Keys.ControlJ):
-            text.append("\n")                   # some terminals send a pasted line feed as Alt+Enter
+            text.append("\n")
             skip = True
         elif not isinstance(press.key, Keys):
             text.append(press.data or str(press.key))
@@ -101,7 +95,6 @@ def keys_to_paste(keys: List[KeyPress]) -> List[KeyPress]:
             out.append(press)
     flush()
     return out
-
 
 def create_input():
     """prompt_toolkit input that can tell Shift+Enter from Enter on Windows and understands pastes.
@@ -147,7 +140,7 @@ def create_input():
             kernel32 = ctypes.windll.kernel32
             deadline = time.monotonic() + 8.0
             while time.monotonic() < deadline and len(keys) < 4_000_000:
-                if kernel32.WaitForSingleObject(self.handle, 35) != 0:      # quiet for 35 ms: the paste is over
+                if kernel32.WaitForSingleObject(self.handle, 35) != 0:
                     break
                 more = list(super().read())
                 if not more:
@@ -161,9 +154,6 @@ def create_input():
     except Exception:
         pass
     return created
-
-
-# ---------------------------------------------------------------- matching
 
 def fuzzy_score(query: str, candidate: str) -> Optional[float]:
     """Subsequence match with bonuses for word starts, basenames and contiguity."""
@@ -185,9 +175,6 @@ def fuzzy_score(query: str, candidate: str) -> Optional[float]:
         position = found + 1
     return score - len(c) * 0.05
 
-
-# ---------------------------------------------------------------- completion
-
 @dataclass
 class CommandItem:
     name: str
@@ -196,16 +183,13 @@ class CommandItem:
     aliases: Tuple[str, ...] = ()
     source: str = ""
 
-
 _WORD_SPLIT = re.compile(r"[\s_/:@\-]+")
-
 
 def _is_dir(entry: "os.DirEntry") -> bool:
     try:
         return entry.is_dir()
     except OSError:
         return False
-
 
 def _model_parts(item: Any) -> Tuple[str, str, str]:
     """(id, provider, label) of a model given as a plain id or as an object with those attributes."""
@@ -215,7 +199,6 @@ def _model_parts(item: Any) -> Tuple[str, str, str]:
         return item, provider, ""
     return (str(getattr(item, "id", "") or ""), str(getattr(item, "provider", "") or ""),
             str(getattr(item, "label", "") or ""))
-
 
 def _pretty_name(item: Any, model_id: str) -> str:
     """Round 33 (r33c-models-lists): the readable model name (catalogue ``name`` or ``app/model_names.py``)."""
@@ -227,7 +210,6 @@ def _pretty_name(item: Any, model_id: str) -> str:
         return model_names.pretty(model_id.lstrip("@"))
     except Exception:
         return ""
-
 
 def match_models(query: str, items: Iterable[Any], limit: int = 60) -> List[Tuple[float, Any]]:
     """Models that fit what was typed, best first.
@@ -271,12 +253,11 @@ def match_models(query: str, items: Iterable[Any], limit: int = 60) -> List[Tupl
         if tokens and total < 0:
             continue
         rows.append((total - len(low) * 0.01, item))
-    if not tokens:                                  # nothing typed: grouped by provider, then by name
+    if not tokens:
         rows.sort(key=lambda row: (_model_parts(row[1])[1].lower(), _model_parts(row[1])[0].lower()))
     else:
         rows.sort(key=lambda row: (-row[0], _model_parts(row[1])[1], _model_parts(row[1])[0]))
     return rows[:limit]
-
 
 class MemuCompleter(Completer):
     """``/`` → commands, ``@`` → project files and folders, ``@agent-…`` → agents."""
@@ -362,7 +343,7 @@ class MemuCompleter(Completer):
         """(folders, files, both lower-cased) — rebuilt only when the file index hands out a new list."""
         files = self.files()
         if self._names[0] is not files:
-            # Every folder on the way to a file is a folder too (src/, src/ui/), so a nested one can be picked.
+
             seen = set()
             for rel in files:
                 head = rel
@@ -429,7 +410,7 @@ class MemuCompleter(Completer):
         pathlike = "/" in query or "\\" in query or query.startswith("~") or bool(re.match(r"^[A-Za-z]:", query))
         shown: set = set()
         if pathlike:
-            # Typing a path walks the disk like a shell does; the index adds matches deeper inside.
+
             for value, kind in self._mention_paths(query):
                 shown.add(value)
                 yield Completion(self._mention_token(value, kind == "folder"), start_position=start, display=value,
@@ -438,7 +419,7 @@ class MemuCompleter(Completer):
                 return
         folders, files, lowered = self._project_names()
         if not files and not pathlike:
-            # The index is still being built: show what is in the folder right now.
+
             for value, kind in self._mention_paths(query):
                 yield Completion(self._mention_token(value, kind == "folder"), start_position=start, display=value,
                                  display_meta=kind)
@@ -450,13 +431,12 @@ class MemuCompleter(Completer):
 
         low = query.lower().replace("\\", "/")
         if not low:
-            # Nothing typed yet: the shortest paths (top-level folders and files) come first.
+
             import heapq
             picked = heapq.nsmallest(self.MENTION_ROWS, range(len(lowered)), key=lambda i: (len(lowered[i]), i >= split))
             rows = [(0.0, *name_at(index)) for index in picked]
         else:
-            # A plain substring test runs in C and usually finds more than enough; the slower
-            # letter-by-letter match is only needed when it does not.
+
             hits = [index for index, name in enumerate(lowered) if low in name]
             rows = []
             for index in hits[:20_000]:
@@ -485,7 +465,6 @@ class MemuCompleter(Completer):
             yield Completion(self._mention_token(rel, kind == "folder"), start_position=start, display=rel,
                              display_meta=kind)
 
-    #: Fixed words that complete after a command (``/cost set``).
     CHOICES = {
         "/goal": ("status", "pause", "continue", "clear"),
         "/theme": ("dark", "light", "dark-daltonized", "light-daltonized"),
@@ -496,7 +475,7 @@ class MemuCompleter(Completer):
         "/skills": ("list", "new", "edit", "delete", "disable", "enable"),
         "/import": ("claude", "codex", "cursor", "agy", "grok", "gemini", "opencode", "all"),
         "/permissions": ("default", "acceptEdits", "plan", "auto", "bypassPermissions"),
-        # Round 33
+
         "/auto-continue": ("auto", "status", "cancel", "now", "+15m", "+30m", "+1h", "+2h", "+5h", "tomorrow 09:00"),
     }
 
@@ -515,7 +494,7 @@ class MemuCompleter(Completer):
                 model_id, provider, label = _model_parts(item)
                 context = int(getattr(item, "context", 0) or 0)
                 bits = [provider] if provider else []
-                pretty = _pretty_name(item, model_id)      # Round 33: the readable name first
+                pretty = _pretty_name(item, model_id)
                 if pretty and pretty != model_id:
                     bits.insert(0, pretty)
                 if context:
@@ -537,15 +516,13 @@ class MemuCompleter(Completer):
         for choice in (*starts, *inside):
             yield Completion(choice, start_position=-len(raw), display=choice)
 
-    #: A folder is read for suggestions within these limits: a Downloads or Temp folder with ten thousand entries must
-    #: not cost seconds per keystroke (and, worse, keep the threads that read the keyboard waiting).
     PATH_SCAN_LIMIT = 30000
     PATH_SCAN_SECONDS = 0.25
     PATH_ROWS = 300
 
     def _path_arguments(self, raw: str, *, directories_only: bool,
                         cancelled: Callable[[], bool] = lambda: False) -> Iterable[Completion]:
-        # A trailing flag (``/cd new-folder --new``) is not part of the path.
+
         raw = re.sub(r"\s+(?:--new|—new|--create|--mkdir|-n)\s*$", "", raw)
         query = raw.strip('"')
         typed = Path(query).expanduser() if query else Path(".")
@@ -556,8 +533,7 @@ class MemuCompleter(Completer):
         found: List[Tuple[bool, str, str]] = []
         started = time.monotonic()
         try:
-            # ``os.scandir`` hands over whether an entry is a folder with the listing itself: no ``stat`` per entry
-            # (``Path.iterdir`` + ``is_dir`` was one system call for every name, twice).
+
             with os.scandir(base) as entries:
                 for count, entry in enumerate(entries):
                     if count >= self.PATH_SCAN_LIMIT or (not count % 64 and (cancelled() or
@@ -577,21 +553,16 @@ class MemuCompleter(Completer):
         found.sort()
         for not_folder, _name, value in found[:self.PATH_ROWS]:
             folder = not not_folder
-            # The folder itself is inserted, without a trailing separator: typing one lists what is inside.
+
             token = f'"{value}"' if " " in value else value
             yield Completion(token, start_position=-len(raw), display=value + (os.sep if folder else ""),
                              display_meta="folder" if folder else "file")
 
-
 _ORDER = ["help", "model", "clear", "compact", "resume", "init", "review", "context", "usage", "cost",
           "permissions", "plan", "goal", "memory", "mcp", "settings", "doctor"]
 
-
 def _command_rank(item: CommandItem) -> int:
     return _ORDER.index(item.name) if item.name in _ORDER else len(_ORDER) + (1 if item.source else 0)
-
-
-# ---------------------------------------------------------------- history
 
 class PromptHistory:
     """Prompts of this project first, then the rest (``history.jsonl``)."""
@@ -674,7 +645,6 @@ class PromptHistory:
                 return index, self.items[index]
         return None
 
-
 def _dedupe(items: List[str]) -> List[str]:
     seen = set()
     out: List[str] = []
@@ -685,12 +655,8 @@ def _dedupe(items: List[str]) -> List[str]:
         out.append(item)
     return list(reversed(out))
 
-
-# ---------------------------------------------------------------- attachments
-
 IMAGE_EXT = {".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif",
              ".webp": "image/webp", ".bmp": "image/bmp"}
-
 
 @dataclass
 class Attachments:
@@ -753,7 +719,6 @@ class Attachments:
         self.images.clear()
         self.files.clear()
 
-
 def encode_image(image: Any, name: str = "image") -> Dict[str, Any]:
     """PIL image → a JPEG/PNG attachment no larger than 1568 px."""
     frame = image
@@ -771,7 +736,6 @@ def encode_image(image: Any, name: str = "image") -> Dict[str, Any]:
     return {"media_type": media, "data": base64.b64encode(buffer.getvalue()).decode("ascii"),
             "width": frame.size[0], "height": frame.size[1], "name": name}
 
-
 def image_from_path(path: str) -> Optional[Dict[str, Any]]:
     file = Path(path.strip().strip('"').strip("'"))
     if file.suffix.lower() not in IMAGE_EXT or not file.is_file():
@@ -783,7 +747,6 @@ def image_from_path(path: str) -> Optional[Dict[str, Any]]:
             return encode_image(image, file.name)
     except Exception:
         return None
-
 
 def clipboard_image() -> Optional[Dict[str, Any]]:
     """An image from the clipboard (a screenshot, or a copied image file)."""
@@ -807,7 +770,6 @@ def clipboard_image() -> Optional[Dict[str, Any]]:
         return encode_image(grabbed, "clipboard.png")
     except Exception:
         return None
-
 
 def pasted_paths(text: str) -> List[str]:
     """Paths dropped into the terminal: ``"C:\\a b\\x.png" C:\\y.jpg``."""

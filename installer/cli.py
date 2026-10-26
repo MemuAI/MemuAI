@@ -19,7 +19,6 @@ IGNORED = {"/SP-", "/NORESTART", "/SUPPRESSMSGBOXES", "/CLOSEAPPLICATIONS", "/NO
            "/FORCECLOSEAPPLICATIONS", "/NOFORCECLOSEAPPLICATIONS", "/RESTARTAPPLICATIONS",
            "/NORESTARTAPPLICATIONS", "/NOCANCEL", "/NOICONS", "/ALLUSERS", "/CURRENTUSER", "/PORTABLE=0"}
 
-
 @dataclass
 class Args:
     silent: bool = False
@@ -29,22 +28,20 @@ class Args:
     components: Optional[List[str]] = None
     tasks: Optional[List[str]] = None
     merge_tasks: List[str] = field(default_factory=list)
-    edition: Optional[str] = None        # "full" | "proxy" (Inno /TYPE=full|proxyonly)
+    edition: Optional[str] = None
     language: Optional[str] = None
     log: Optional[str] = None
     launch: bool = False
     remove_data: bool = False
     force_close: bool = False
-    app_dir: Optional[str] = None        # internal: uninstaller relaunched from %TEMP%
-    product: Optional[str] = None        # internal/dev override
+    app_dir: Optional[str] = None
+    product: Optional[str] = None
     relaunched: bool = False
-    ui_dev: bool = False                 # open the interface with a mock engine (development)
+    ui_dev: bool = False
     unknown: List[str] = field(default_factory=list)
-
 
 def _split(value: str) -> List[str]:
     return [item.strip() for item in value.strip().strip('"').split(",") if item.strip()]
-
 
 def parse(argv: Sequence[str]) -> Args:
     args = Args()
@@ -73,7 +70,7 @@ def parse(argv: Sequence[str]) -> Args:
             args.uninstall = True
         elif ukey in ("/DIR", "--DIR", "/D"):
             if ukey == "/D" and value:
-                # NSIS: /D= is the last argument and may contain unquoted spaces.
+
                 args.directory = " ".join([value] + items[i + 1:]).strip().strip('"')
                 break
             args.directory = next_value().strip().strip('"')
@@ -96,7 +93,7 @@ def parse(argv: Sequence[str]) -> Args:
                 i += 1
                 args.log = items[i]
             elif ukey == "--LOG" and i + 1 < len(items) and items[i + 1].startswith("/") and "/" in items[i + 1][1:]:
-                i += 1                     # a POSIX path in development runs
+                i += 1
                 args.log = items[i]
             else:
                 args.log = ""
@@ -122,7 +119,6 @@ def parse(argv: Sequence[str]) -> Args:
             args.unknown.append(raw)
         i += 1
     return args
-
 
 def resolve_selection(args: Args, product, defaults_components: List[str], defaults_tasks: List[str]):
     """Apply /TYPE, /COMPONENTS, /TASKS and /MERGETASKS (``!task`` removes) to the defaults."""

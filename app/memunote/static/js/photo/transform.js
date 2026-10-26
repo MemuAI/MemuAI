@@ -1,6 +1,5 @@
-// MemuNote Photo — free transform (Ctrl+T): move, scale (Shift = keep proportions, Alt = from the centre), rotate
-// (drag outside the box), skew / perspective (Ctrl + drag a corner), flip. Affine boxes are drawn with one
-// drawImage; perspective uses a homography rendered as a triangle mesh. Mixed into PhotoEditor.prototype.
+
+
 import { esc, t, toast } from "../core.js";
 import { newCanvas, ctx2d, isVector } from "./doc.js";
 import { picon } from "./icons.js";
@@ -21,7 +20,6 @@ export function contentBounds(canvas) {
   return { x: bx, y: by, w: Math.min(w, Math.ceil((x1 + 1) / k) + 1) - bx, h: Math.min(h, Math.ceil((y1 + 1) / k) + 1) - by };
 }
 
-/** Homography that maps the unit square to quad q (4 points tl, tr, br, bl). */
 function homography(q) {
   const [p0, p1, p2, p3] = q, dx1 = p1.x - p2.x, dx2 = p3.x - p2.x, dy1 = p1.y - p2.y, dy2 = p3.y - p2.y;
   const sx = p0.x - p1.x + p2.x - p3.x, sy = p0.y - p1.y + p2.y - p3.y, den = dx1 * dy2 - dx2 * dy1 || 1e-9;
@@ -30,13 +28,13 @@ function homography(q) {
   return (u, v) => { const w = g * u + h * v + 1; return { x: (a * u + b * v + c) / w, y: (d * u + e * v + f) / w }; };
 }
 function isParallelogram(q) { const a = add(q[0], q[2]), b = add(q[1], q[3]); return Math.abs(a.x - b.x) < 0.5 && Math.abs(a.y - b.y) < 0.5; }
-/** Draw *src* (w×h) into ctx mapped onto quad q. */
+
 export function warpDraw(ctx, src, q) {
   const w = src.width, h = src.height;
   ctx.save(); ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = "high";
   if (isParallelogram(q)) {
     const u = sub(q[1], q[0]), v = sub(q[3], q[0]);
-    ctx.setTransform(...ctxScale(ctx), 0, 0); // reset then apply
+    ctx.setTransform(...ctxScale(ctx), 0, 0);
     ctx.setTransform(u.x / w, u.y / w, v.x / h, v.y / h, q[0].x, q[0].y);
     ctx.drawImage(src, 0, 0);
     ctx.restore(); return;
@@ -52,7 +50,7 @@ export function warpDraw(ctx, src, q) {
 }
 function ctxScale() { return [1, 0, 0, 1]; }
 function tri(ctx, img, s0, s1, s2, d0, d1, d2) {
-  const c = center([d0, d1, d2, d0]), grow = (p) => { const v = sub(p, c), l = len(v) || 1; return add(p, mul(v, 0.6 / l)); };   // overlap → no seams
+  const c = center([d0, d1, d2, d0]), grow = (p) => { const v = sub(p, c), l = len(v) || 1; return add(p, mul(v, 0.6 / l)); };
   const e0 = grow(d0), e1 = grow(d1), e2 = grow(d2);
   ctx.save(); ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.beginPath(); ctx.moveTo(e0.x, e0.y); ctx.lineTo(e1.x, e1.y); ctx.lineTo(e2.x, e2.y); ctx.closePath(); ctx.clip();
   const den = s0.x * (s2.y - s1.y) - s1.x * s2.y + s2.x * s1.y + (s1.x - s2.x) * s0.y || 1e-9;

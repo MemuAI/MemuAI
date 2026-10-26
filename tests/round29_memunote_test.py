@@ -20,10 +20,8 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "memunote" / "static"
 JS = STATIC / "js"
 
-
 def node_available() -> bool:
     return shutil.which("node") is not None
-
 
 class StaticAppTest(unittest.TestCase):
     def test_index_references_existing_files_and_no_inline_script(self) -> None:
@@ -31,7 +29,7 @@ class StaticAppTest(unittest.TestCase):
         for ref in re.findall(r'(?:src|href)="([^"#?]+)', html):
             self.assertTrue((STATIC / ref).is_file(), ref)
         self.assertIn('type="module" src="js/app.js"', html)
-        # CSP of the server is script-src 'self': no inline scripts.
+
         self.assertNotRegex(html, r"<script(?![^>]*\bsrc=)[^>]*>")
 
     def test_css_defines_the_tokens_the_editor_uses(self) -> None:
@@ -84,7 +82,7 @@ console.log(JSON.stringify(out));
         for path in list(JS.glob("*.js")) + [ROOT / "app" / "pgstatic" / "memunote-settings.js"]:
             flag = ["--input-type=module", "--check"] if path.parent == JS else ["--check"]
             if path.parent == JS:
-                subprocess.run(["node", "--check", str(path)], check=True)   # ES modules parse as scripts too
+                subprocess.run(["node", "--check", str(path)], check=True)
             else:
                 subprocess.run(["node", *flag[-1:], str(path)], check=True)
 
@@ -92,7 +90,6 @@ console.log(JSON.stringify(out));
         self.assertTrue((STATIC / "vendor" / "cm" / "cm.js").is_file())
         self.assertTrue((STATIC / "vendor" / "pdfjs" / "pdf.min.mjs").is_file())
         self.assertTrue((STATIC / "vendor" / "pdfjs" / "pdf.worker.min.mjs").is_file())
-
 
 class ServerApiTest(unittest.TestCase):
     @classmethod
@@ -164,7 +161,7 @@ class ServerApiTest(unittest.TestCase):
     def test_open_markdown_cp1251_and_docx(self) -> None:
         status, md = self.json("POST", "/api/open", {"path": str(self.files / "notes.md")})
         self.assertEqual((status, md["kind"]), (200, "markdown"))
-        if "text" not in md:      # UTF-8 is streamed raw by the page (no JSON round trip for huge files)
+        if "text" not in md:
             self.assertEqual(md["web_encoding"], "utf-8")
             response, payload = self.request("GET", f"/api/raw?path={self.files / 'notes.md'}&t={self.app.token}")
             md["text"] = payload.decode("utf-8")
@@ -172,7 +169,7 @@ class ServerApiTest(unittest.TestCase):
         status, txt = self.json("POST", "/api/open", {"path": str(self.files / "cp1251.txt")})
         self.assertEqual(txt["encoding"], "cp1251")
         self.assertEqual(txt["eol"], "crlf")
-        if "text" not in txt:     # single-byte code pages are decoded by the page (TextDecoder(web_encoding))
+        if "text" not in txt:
             response, payload = self.request("GET", f"/api/raw?path={self.files / 'cp1251.txt'}&t={self.app.token}")
             txt["text"] = payload.decode(txt["web_encoding"])
         self.assertTrue(txt["text"].startswith("Привет"))
@@ -207,7 +204,6 @@ class ServerApiTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertIn("online", data)
 
-
 def make_package(path: Path, version: str = "3.1", extra=None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(path, "w") as archive:
@@ -216,7 +212,6 @@ def make_package(path: Path, version: str = "3.1", extra=None) -> None:
         archive.writestr("_internal/app/memunote/static/index.html", "<html></html>")
         for name, data in (extra or {}).items():
             archive.writestr(name, data)
-
 
 class ManagerTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -260,14 +255,14 @@ class ManagerTest(unittest.TestCase):
         state = json.loads((self.root / "install.json").read_text(encoding="utf-8"))
         self.assertIn("memunote", state["components"])
         self.assertEqual(state["entries"]["memunote"], ["MemuNote"])
-        # a newer package (an update of MemuAI left it) → update_available, install = update
+
         make_package(package, "3.2")
         self.assertTrue(self.m.status()["update_available"])
         result = self.m.install()
         self.assertTrue(result["updated"])
         self.assertIn(["--shutdown"], self.runs)
         self.assertEqual((self.root / "MemuNote" / "MemuNote.exe").read_bytes(), b"exe-3.2")
-        # remove: packed back into the archive, Open-with undone, install.json updated
+
         result = self.m.uninstall()
         self.assertFalse(result["installed"])
         self.assertIn(["--unregister-open-with"], self.runs)
@@ -316,7 +311,6 @@ class ManagerTest(unittest.TestCase):
                 self.m.open_app([])
             self.assertTrue(popen.call_args[0][0][1].endswith("memunote.py"))
 
-
 class WiringTest(unittest.TestCase):
     def test_build_target_and_spec(self) -> None:
         import build
@@ -357,11 +351,9 @@ class WiringTest(unittest.TestCase):
         english = (ROOT / "app" / "docs" / "en" / "memunote.md").read_text(encoding="utf-8")
         self.assertIsNone(re.search(r"[\u0400-\u04FF]", english))
 
-
 def inspect_source(func) -> str:
     import inspect
     return inspect.getsource(func)
-
 
 if __name__ == "__main__":
     unittest.main()

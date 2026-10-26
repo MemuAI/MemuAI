@@ -1,19 +1,5 @@
-/* MemuAI 3.1 · Round 29 · Diagrams (window.MemuDiagrams).
- *
- * Unlike the sandboxed «memuai-visual» fragments (visuals.js: free HTML+JS written by the model), diagrams
- * are DECLARATIVE: the model writes data, MemuAI draws it.
- *   ```memuai-chart  — a JSON spec: line, bar, hbar, area, pie, donut, scatter (bubble), radar, combo;
- *                      grouped or stacked, smooth lines, units, axis titles. Drawn by the own SVG renderer
- *                      below (no library, synchronous, exportable).
- *   ```mermaid       — schemes: flowchart, sequence, mind map, ER, gantt, timeline, class, state, journey…
- *                      rendered by Mermaid 11 (vendored in /vendor/mermaid, loaded lazily on first use,
- *                      securityLevel "strict", SVG labels so export to PNG works).
- * Every diagram: customize the look (theme, palette, font, background, legend, grid, labels, size, type),
- * export PNG 1x–4x / SVG / CSV / source, copy as image, fullscreen, show the code. An invalid spec shows a
- * friendly error with the code and «Fix with AI». While an answer streams, an unfinished block is a quiet
- * placeholder. The prompt (prompt()) follows the «diagrams_mode» preference: auto / ask / off.
- * Needs tables.js (window.MemuTables.ui: dialogs, menus, saving) loaded first.
- */
+
+
 "use strict";
 (function () {
   const VERSION = "1.0-r29";
@@ -26,7 +12,6 @@
   const UI = () => (window.MemuTables && window.MemuTables.ui) || null;
   const prefGet = (key, def) => { try { return typeof pref === "function" ? pref(key, def) : def; } catch (e) { return def; } };
 
-  /* ---------------------------------------------------------------- the prompt */
   const PROMPT_CORE = `<diagrams>
 MemuAI draws two kinds of fenced blocks as real graphics in the chat (the user sees the picture, not the code):
 - \`\`\`memuai-chart — a JSON chart: line, bar, hbar, area, pie, donut, scatter, radar or combo.
@@ -66,7 +51,6 @@ table unless asked, and never mention "the code block" or "the JSON".
     return PROMPT_CORE.replace("{AUTO}", m === "ask" ? ASK_RULE : AUTO_RULE);
   }
 
-  /* ---------------------------------------------------------------- theme, palettes, looks */
   function resolveColor(value, fallback) {
     try {
       const ctx = resolveColor.ctx || (resolveColor.ctx = document.createElement("canvas").getContext("2d"));
@@ -74,8 +58,7 @@ table unless asked, and never mention "the code block" or "the JSON".
       return ctx.fillStyle === "#010203" && value !== "#010203" ? fallback : ctx.fillStyle;
     } catch (e) { return fallback; }
   }
-  // Round 36 (perf): getComputedStyle(<html>) after any DOM change forces a style pass of the whole chat; a chat
-  // with a dozen schemes asked for it once per scheme. The answer is kept until the current task ends.
+
   let themeMemo = null;
   function appTheme() {
     if (themeMemo) return themeMemo;
@@ -133,12 +116,12 @@ table unless asked, and never mention "the code block" or "the JSON".
     look: "auto", palette: "memu", font: "app", fontSize: 12, background: "theme", bg1: "#ffffff", bg2: "#eef2ff", gradAngle: 135,
     legend: "auto", grid: true, labels: false, points: true, smooth: null, stacked: null, type: "", width: 0, height: 0,
     lineWidth: 2.2, barRadius: 4, title: "", showTitle: true, radius: 12,
-    // mermaid
+
     mTheme: "auto", mLook: "classic", mCurve: "basis", accent: "",
   };
   const STYLE_KEY = "memu_diagram_style", STYLES_KEY = "memu_diagram_styles";
   function defaultStyle() {
-    try { const s = JSON.parse(localStorage.getItem(STYLE_KEY) || "null"); if (s && typeof s === "object") return { ...DEFAULT_STYLE, ...s, title: "", type: "" }; } catch (e) { /* default */ }
+    try { const s = JSON.parse(localStorage.getItem(STYLE_KEY) || "null"); if (s && typeof s === "object") return { ...DEFAULT_STYLE, ...s, title: "", type: "" }; } catch (e) {  }
     return { ...DEFAULT_STYLE };
   }
   function savedStyles() { try { return JSON.parse(localStorage.getItem(STYLES_KEY) || "{}") || {}; } catch (e) { return {}; } }
@@ -151,7 +134,7 @@ table unless asked, and never mention "the code block" or "the JSON".
       const keys = Object.keys(all);
       while (keys.length > 200) delete all[keys.shift()];
       localStorage.setItem(STYLES_KEY, JSON.stringify(all));
-    } catch (e) { /* quota */ }
+    } catch (e) {  }
   }
   function mix(hex, amount, base) {
     const p = (c) => { const m = String(c).match(/^#?([0-9a-f]{6})$/i); if (!m) return null; const n = parseInt(m[1], 16); return [n >> 16, (n >> 8) & 255, n & 255]; };
@@ -190,7 +173,6 @@ table unless asked, and never mention "the code block" or "the JSON".
     return (0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255)) < 128;
   }
 
-  /* ---------------------------------------------------------------- text measure (canvas, or estimate) */
   let mctx = null;
   function measure(text, size, family, weight = 400) {
     try {
@@ -200,13 +182,12 @@ table unless asked, and never mention "the code block" or "the JSON".
     } catch (e) { return String(text).length * size * 0.56; }
   }
 
-  /* ---------------------------------------------------------------- chart spec */
   const TYPE_ALIASES = { column: "bar", columns: "bar", bars: "bar", barh: "hbar", horizontalbar: "hbar", "horizontal-bar": "hbar", horizontal_bar: "hbar",
     doughnut: "donut", ring: "donut", lines: "line", spline: "line", "stacked-bar": "bar", stackedbar: "bar", stacked_bar: "bar",
     "stacked-area": "area", stackedarea: "area", bubble: "scatter", points: "scatter", spider: "radar", polar: "radar", mixed: "combo", histogram: "bar", pie: "pie" };
   const TYPES = ["line", "bar", "hbar", "area", "pie", "donut", "scatter", "radar", "combo"];
   class SpecError extends Error {}
-  // Colors from the model's spec end up in SVG attributes: only plain color syntax (no url(), no expressions).
+
   const safeColor = (c) => (typeof c === "string" && /^(#[0-9a-f]{3,8}|(?:rgb|hsl)a?\([\d\s.,%+-]+\)|[a-z]{3,24})$/i.test(c.trim()) ? c.trim() : "");
   const toNum = (v) => {
     if (v === null || v === undefined || v === "") return null;
@@ -220,7 +201,7 @@ table unless asked, and never mention "the code block" or "the JSON".
     if (!text) throw new SpecError(t("Пустой блок графика", "The chart block is empty"));
     try { raw = JSON.parse(text); }
     catch (e) {
-      // forgiving: trailing commas, single quotes, // comments
+
       try { raw = JSON.parse(text.replace(/\/\/[^\n"]*$/gm, "").replace(/,\s*([}\]])/g, "$1").replace(/'([^'"\n]*)'/g, '"$1"')); }
       catch (e2) { throw new SpecError(t("Ошибка в JSON графика: ", "Invalid chart JSON: ") + String(e.message || e).replace(/^JSON\.parse: /, "")); }
     }
@@ -233,14 +214,14 @@ table unless asked, and never mention "the code block" or "the JSON".
     const stackedHint = /stack/.test(typeRaw);
     let labels = raw.labels || raw.categories || raw.x?.labels || raw.xLabels || raw.x?.categories || null;
     let series = raw.series || raw.datasets || null;
-    // {"data": {"columns": [...], "rows": [[...]]}} or a table-like "data"
+
     const table = raw.data && !Array.isArray(raw.data) && (raw.data.columns || raw.data.headers) ? raw.data : raw.table;
     if (!series && table && Array.isArray(table.rows)) {
       const cols = table.columns || table.headers || [];
       labels = table.rows.map((r) => String(r[0]));
       series = cols.slice(1).map((name, i) => ({ name, data: table.rows.map((r) => r[i + 1]) }));
     }
-    // [{"label": "A", "value": 3}, …] (pie style) or a bare list of numbers
+
     if (!series && Array.isArray(raw.data)) {
       if (raw.data.length && typeof raw.data[0] === "object" && !Array.isArray(raw.data[0]) && ("value" in raw.data[0] || "y" in raw.data[0]) && !("x" in raw.data[0] && type === "scatter")) {
         labels = raw.data.map((d) => String(d.label ?? d.name ?? d.x ?? ""));
@@ -288,7 +269,6 @@ table unless asked, and never mention "the code block" or "the JSON".
     return out;
   }
 
-  /* ---------------------------------------------------------------- number formatting and ticks */
   function fmtNum(v, unit = "", compact = false) {
     if (v === null || v === undefined || !Number.isFinite(v)) return "—";
     const lang = isEn() ? "en-US" : "ru-RU";
@@ -315,7 +295,6 @@ table unless asked, and never mention "the code block" or "the JSON".
     return { ticks, min: lo, max: hi };
   }
 
-  /* ---------------------------------------------------------------- SVG chart renderer */
   function monotonePath(pts) {
     if (pts.length < 3) return pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
     const n = pts.length, dx = [], dy = [], m = [], tg = [];
@@ -359,7 +338,7 @@ table unless asked, and never mention "the code block" or "the JSON".
   }
 
   let uid = 0;
-  // spec (normalized or raw) + style -> { svg, width, height }
+
   function renderChart(specIn, styleIn = {}, opts = {}) {
     const spec = specIn && specIn.series && specIn.type && Array.isArray(specIn.labels) ? specIn : normalizeSpec(specIn);
     const style = { ...DEFAULT_STYLE, ...styleIn };
@@ -383,7 +362,7 @@ table unless asked, and never mention "the code block" or "the JSON".
     if (spec.subtitle && style.showTitle !== false) { parts.push(`<text x="${pad}" y="${top + fs}" font-size="${fs}" fill="${esc(th.muted)}">${esc(spec.subtitle)}</text>`); top += fs + 8; }
     let bottom = H - pad;
     if (spec.source) { parts.push(`<text x="${pad}" y="${H - pad + 2}" font-size="${(fs * 0.86).toFixed(1)}" fill="${esc(th.muted)}" opacity=".85">${esc(spec.source)}</text>`); bottom -= fs + 6; }
-    // legend
+
     const legendItems = pieLike ? spec.labels.map((l, i) => ({ name: l, color: spec.series[0].colors?.[i] || th.palette[i % th.palette.length], i, value: spec.series[0].data[i] }))
       : spec.series.map((s, i) => ({ name: s.name, color: colorOf(s, i), i }));
     let legendPos = style.legend && style.legend !== "auto" ? style.legend : (spec.legend || "");
@@ -488,11 +467,11 @@ table unless asked, and never mention "the code block" or "the JSON".
         if (showLabels) pts.forEach((p, i) => marks.push(label(p[0], p[1] - 7, fmtNum(s.data[i], spec.y.unit, true))));
       });
     } else {
-      // cartesian: line / bar / area / combo / hbar / scatter
+
       const horizontal = type === "hbar";
       const scatter = type === "scatter";
       const seriesType = (s) => type === "combo" ? (s.type || "bar") : type === "hbar" ? "bar" : type;
-      // value domain
+
       let vmin = Infinity, vmax = -Infinity, xmin = Infinity, xmax = -Infinity;
       if (scatter) spec.series.forEach((s, i) => visible[i] && s.points.forEach((p) => { vmin = Math.min(vmin, p.y); vmax = Math.max(vmax, p.y); xmin = Math.min(xmin, p.x); xmax = Math.max(xmax, p.x); }));
       else if (stacked) {
@@ -515,7 +494,7 @@ table unless asked, and never mention "the code block" or "the JSON".
       vt.ticks = vt.ticks.filter((v) => v >= vt.min - 1e-9 && v <= vt.max + 1e-9);
       const xt = scatter ? niceTicks(xmin, xmax, 6) : null;
       const tickTxt = vt.ticks.map((v) => fmtNum(v, spec.y.unit, true));
-      // margins
+
       const yTitleW = (horizontal ? spec.x.title : spec.y.title) ? fs * 1.5 : 0;
       const xTitleH = (horizontal ? spec.y.title : spec.x.title) ? fs * 1.6 : 0;
       let catLabels = spec.labels;
@@ -526,7 +505,7 @@ table unless asked, and never mention "the code block" or "the JSON".
       } else {
         const lw = Math.max(...(scatter ? vt.ticks.map((v) => fmtNum(v, spec.y.unit, true)) : tickTxt).map((s) => measure(s, fs * 0.92, fam))) + 10;
         plot.left += lw + yTitleW;
-        // x labels: rotate when crowded
+
         const band = (plot.right - plot.left) / Math.max(1, catLabels.length);
         const maxLw = scatter ? 0 : Math.max(...catLabels.map((l) => measure(l, fs * 0.92, fam)));
         var rotate = !scatter && maxLw > band * 0.92;
@@ -542,7 +521,7 @@ table unless asked, and never mention "the code block" or "the JSON".
       const vScale = (v) => (v - vt.min) / ((vt.max - vt.min) || 1);
       const Y = (v) => plot.bottom - vScale(v) * ph;
       const X = (v) => plot.left + vScale(v) * pw;
-      // grid + value axis
+
       vt.ticks.forEach((v, k) => {
         if (horizontal) {
           const x = X(v);
@@ -554,7 +533,7 @@ table unless asked, and never mention "the code block" or "the JSON".
           parts.push(`<text x="${plot.left - 8}" y="${(y + fs * 0.32).toFixed(1)}" font-size="${(fs * 0.92).toFixed(1)}" fill="${esc(th.muted)}" text-anchor="end">${esc(tickTxt[k])}</text>`);
         }
       });
-      // axis titles
+
       const yTitle = horizontal ? spec.x.title : spec.y.title, xTitle = horizontal ? spec.y.title : spec.x.title;
       if (yTitle) parts.push(`<text transform="translate(${(left + fs * 0.9).toFixed(1)} ${((plot.top + plot.bottom) / 2).toFixed(1)}) rotate(-90)" font-size="${fs}" fill="${esc(th.muted)}" text-anchor="middle">${esc(yTitle)}</text>`);
       if (xTitle) parts.push(`<text x="${((plot.left + plot.right) / 2).toFixed(1)}" y="${(bottom - 2).toFixed(1)}" font-size="${fs}" fill="${esc(th.muted)}" text-anchor="middle">${esc(xTitle)}</text>`);
@@ -581,7 +560,7 @@ table unless asked, and never mention "the code block" or "the JSON".
         const lineOnly = spec.series.every((s, i) => !visible[i] || seriesType(s) === "line" || seriesType(s) === "area") && type !== "combo";
         const band = (horizontal ? ph : pw) / Math.max(1, n);
         const pos = (j) => lineOnly && !horizontal ? (n > 1 ? plot.left + j * (pw / (n - 1)) : plot.left + pw / 2) : (horizontal ? plot.top : plot.left) + band * (j + 0.5);
-        // category labels
+
         catLabels.forEach((l, j) => {
           if (horizontal) {
             const y = pos(j);
@@ -594,7 +573,7 @@ table unless asked, and never mention "the code block" or "the JSON".
           }
         });
         if (horizontal) parts.push(`<line x1="${X(Math.max(vt.min, Math.min(0, vt.max)))}" y1="${plot.top}" x2="${X(Math.max(vt.min, Math.min(0, vt.max)))}" y2="${plot.bottom}" stroke="${esc(th.axis)}"/>`);
-        // bars
+
         const barSeries = spec.series.map((s, i) => ({ s, i })).filter(({ s, i }) => visible[i] && seriesType(s) === "bar");
         if (barSeries.length) {
           const inner = band * (barSeries.length > 1 && !stacked ? 0.78 : 0.62);
@@ -628,7 +607,7 @@ table unless asked, and never mention "the code block" or "the JSON".
             });
           });
         }
-        // lines and areas
+
         const accum = catLabels.map(() => 0);
         spec.series.forEach((s, si) => {
           const st = seriesType(s);
@@ -637,7 +616,7 @@ table unless asked, and never mention "the code block" or "the JSON".
           const stackThis = stacked && st === "area";
           const vals = s.data.map((v, j) => (v === null ? null : stackThis ? (accum[j] += v) : v));
           const base = stackThis ? s.data.map((v, j) => (vals[j] === null ? null : vals[j] - v)) : null;
-          // split into runs without gaps
+
           const runs = [[]];
           vals.forEach((v, j) => { if (v === null) { if (runs[runs.length - 1].length) runs.push([]); } else runs[runs.length - 1].push(j); });
           runs.filter((r) => r.length).forEach((run) => {
@@ -678,7 +657,7 @@ table unless asked, and never mention "the code block" or "the JSON".
     const one = ["pie", "donut"];
     if (from === to) return true;
     if (from === "scatter" || to === "scatter") return false;
-    if (one.includes(to)) return true;            // the first series becomes slices
+    if (one.includes(to)) return true;
     if (one.includes(from)) return cat.includes(to);
     return cat.includes(from) && cat.includes(to);
   }
@@ -693,7 +672,6 @@ table unless asked, and never mention "the code block" or "the JSON".
     return { data, csv: T ? T.toCSV(data, { bom: true }) : [data.headers, ...data.rows].map((r) => r.map((c) => /[",\n]/.test(c) ? '"' + c.replace(/"/g, '""') + '"' : c).join(",")).join("\r\n") };
   }
 
-  /* ---------------------------------------------------------------- mermaid (lazy) */
   let mermaidPromise = null;
   function loadMermaid() {
     if (window.mermaid?.render) return Promise.resolve(window.mermaid);
@@ -728,7 +706,7 @@ table unless asked, and never mention "the code block" or "the JSON".
       gridColor: mix(th.text, 0.15, solidBg), todayLineColor: "#e5534b",
       pie1: th.palette[0], pie2: th.palette[1], pie3: th.palette[2], pie4: th.palette[3], pie5: th.palette[4], pie6: th.palette[5], pie7: th.palette[6], pie8: th.palette[7],
       cScale0: th.palette[0], cScale1: th.palette[1], cScale2: th.palette[2], cScale3: th.palette[3], cScale4: th.palette[4], cScale5: th.palette[5],
-      // mind map / timeline branches past the 6th: without these Mermaid derives near-black fills (unreadable on dark)
+
       cScale6: th.palette[6 % th.palette.length], cScale7: th.palette[7 % th.palette.length], cScale8: th.palette[8 % th.palette.length],
       cScale9: th.palette[9 % th.palette.length], cScale10: th.palette[10 % th.palette.length], cScale11: th.palette[11 % th.palette.length],
     } : { fontFamily: th.font };
@@ -738,8 +716,7 @@ table unless asked, and never mention "the code block" or "the JSON".
       look: style.mLook === "handDrawn" ? "handDrawn" : "classic", deterministicIds: true, maxTextSize: MAX_SOURCE, maxEdges: 1000,
       flowchart: { htmlLabels: false, curve: style.mCurve || "basis", useMaxWidth: false, padding: 12 },
       sequence: { useMaxWidth: false, mirrorActors: false },
-      // gantt takes the width of its (detached) parent = the whole window, then gets squeezed into the chat column
-      // with 7-px text: draw it at about the column width instead.
+
       gantt: { useMaxWidth: false, useWidth: 760, fontSize: 12, sectionFontSize: 12, barHeight: 22, barGap: 6, topPadding: 48 }, journey: { useMaxWidth: false },
       class: { htmlLabels: false, useMaxWidth: false }, state: { useMaxWidth: false }, er: { useMaxWidth: false }, mindmap: { useMaxWidth: false },
       timeline: { useMaxWidth: false }, pie: { useMaxWidth: false }, quadrantChart: { useMaxWidth: false },
@@ -748,11 +725,10 @@ table unless asked, and never mention "the code block" or "the JSON".
     };
   }
   function sanitizeMermaid(code) {
-    // MemuAI themes the scheme itself; init directives could re-enable HTML labels or change the security level.
+
     return String(code || "").replace(/^\s*%%\{[\s\S]*?\}%%\s*$/gm, "").replace(/^\s*click\s+.*$/gim, "").trim();
   }
-  // Models often write flowchart labels with brackets inside, e.g. F[Send code (SMS / app)] — a Mermaid syntax error.
-  // When the scheme does not parse, quote such node labels ("…") and try once more.
+
   const MM_EDGE_AHEAD = String.raw`(?=\s*(?:-->|---|-\.|==>|--\s|--[ox]|<-->|<--|&|:::|;|$))`;
   const MM_SHAPES = [["[", "]", "[\\[(/\\\\\"]"], ["{", "}", "[{\"]"], ["(", ")", "[(\\[\"]"]];
   function repairMermaid(code) {
@@ -781,7 +757,7 @@ table unless asked, and never mention "the code block" or "the JSON".
       catch (e) {
         const fixed = repairMermaid(clean);
         let ok = false;
-        if (fixed !== clean) { try { await mermaid.parse(fixed); ok = true; } catch (e2) { /* report the original error */ } }
+        if (fixed !== clean) { try { await mermaid.parse(fixed); ok = true; } catch (e2) {  } }
         if (!ok) throw new SpecError(friendlyMermaidError(e));
         clean = fixed;
       }
@@ -792,7 +768,7 @@ table unless asked, and never mention "the code block" or "the JSON".
       finally { document.getElementById(id)?.remove(); document.getElementById("d" + id)?.remove(); }
       let svg = String(out.svg || "");
       if (!/^<svg[\s>]/.test(svg.trim())) throw new SpecError(t("Схема не нарисовалась", "The scheme could not be drawn"));
-      // explicit size from the viewBox (mermaid writes width="100%" / max-width)
+
       const vb = svg.match(/viewBox="([-\d.\s]+)"/);
       let w = 600, h = 400;
       if (vb) { const p = vb[1].trim().split(/\s+/).map(Number); w = Math.max(40, Math.ceil(p[2])); h = Math.max(30, Math.ceil(p[3])); }
@@ -820,7 +796,6 @@ table unless asked, and never mention "the code block" or "the JSON".
     return n ? t(n[0], n[1]) : t("Схема", "Scheme");
   }
 
-  /* ---------------------------------------------------------------- blocks in messages */
   const LANG_CHART = /^(memuai[-_]?chart|chart-json)$/;
   const LANG_MERMAID = /^(mermaid|mmd)$/;
   function hashStr(s) { let h = 2166136261; for (let i = 0; i < s.length; i += 1) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); }
@@ -835,7 +810,7 @@ table unless asked, and never mention "the code block" or "the JSON".
     if (!String(code || "").trim()) return "";
     if (code.length > MAX_SOURCE) return `<div class="memu-diagram failed" role="note">${en ? "The diagram is too large to show." : "Диаграмма слишком большая, чтобы её показать."}</div>`;
     let ratio = "720 / 380";
-    if (kind === "chart") { try { const s = JSON.parse(code); if (s.type === "hbar" || s.horizontal) ratio = ""; } catch (e) { /* drawn later */ } }
+    if (kind === "chart") { try { const s = JSON.parse(code); if (s.type === "hbar" || s.horizontal) ratio = ""; } catch (e) {  } }
     return `<div class="memu-diagram" data-memu-diagram="${kind}" data-src="${encodeSrc(code)}" data-key="${kind}-${hashStr(code)}"><div class="md-stage md-loading"${kind === "chart" && ratio ? ` style="aspect-ratio:${ratio}"` : ""}>${pending(en, kind)}</div></div>`;
   }
   function block(lang, code, en) {
@@ -843,7 +818,7 @@ table unless asked, and never mention "the code block" or "the JSON".
     if (LANG_CHART.test(lang) || LANG_MERMAID.test(lang)) return placeholder(code, lang, en);
     return "";
   }
-  // Streaming: the diagram that is still being written (last block of the answer) stays a placeholder.
+
   function maskPending(text) {
     const value = String(text || "");
     const open = value.match(/```[ \t]*(memuai[-_]?chart|mermaid|mmd)\b(?:(?!```)[\s\S])*$/i);
@@ -857,9 +832,9 @@ table unless asked, and never mention "the code block" or "the JSON".
       .replace(/```[ \t]*(?:mermaid|mmd)\b[\s\S]*?(?:```|$)/gi, en ? "[diagram]" : "[схема]");
   }
 
-  const cache = new Map();       // key -> { svg, width, height, spec?, error? }
+  const cache = new Map();
   const inflight = new Map();
-  const hiddenSeries = new Map(); // block key -> Set
+  const hiddenSeries = new Map();
   function cacheSet(key, value) { cache.set(key, value); if (cache.size > 120) cache.delete(cache.keys().next().value); }
   function sceneKey() { const a = appTheme(); return `${a.dark ? "d" : "l"}${a.accent}${a.panel}`; }
 
@@ -883,7 +858,7 @@ table unless asked, and never mention "the code block" or "the JSON".
       ui.IC.code = P('<path d="m8 6-6 6 6 6M16 6l6 6-6 6"/>');
       ui.IC.chart = P('<path d="M3.5 3.5v17h17"/><path d="m7.5 15 3.8-4.2 3 2.7 5.2-6"/>');
       ui.IC.wand = P('<path d="m15 4 1 2 2 1-2 1-1 2-1-2-2-1 2-1zM5 19 16 8"/>');
-    } catch (e) { /* frozen */ }
+    } catch (e) {  }
   }
   async function draw(host, opts = {}) {
     const kind = host.dataset.memuDiagram;
@@ -896,7 +871,7 @@ table unless asked, and never mention "the code block" or "the JSON".
     let result = cache.get(ckey);
     if (!result) {
       if (kind === "chart") {
-        try { result = renderChart(parseSpec(code), style, { hidden }); /* sync: produce() is async */ } catch (e) { result = { error: e instanceof SpecError ? e.message : t("Не удалось нарисовать график: ", "Could not draw the chart: ") + (e.message || e) }; }
+        try { result = renderChart(parseSpec(code), style, { hidden });  } catch (e) { result = { error: e instanceof SpecError ? e.message : t("Не удалось нарисовать график: ", "Could not draw the chart: ") + (e.message || e) }; }
         cacheSet(ckey, result);
       } else {
         let job = inflight.get(ckey);
@@ -930,7 +905,7 @@ table unless asked, and never mention "the code block" or "the JSON".
     host.setAttribute("aria-label", label);
     const svg = host.querySelector(".md-stage svg");
     if (svg && kind === "mermaid" && window.MemuDiagramZoom && !opts.detached) {
-      // Round 30: a readable size with pan and zoom inside the card instead of squeezing the text (diagram-zoom.js).
+
       MemuDiagramZoom.attach(host.querySelector(".md-stage"), { width: result.width, height: result.height, host, full: host.dataset.mdFull === "1", label });
     } else if (svg) {
       svg.removeAttribute("height");
@@ -947,7 +922,7 @@ table unless asked, and never mention "the code block" or "the JSON".
         const i = +leg.dataset.series;
         if (set.has(i)) set.delete(i); else set.add(i);
         const total = result.spec ? (result.type === "pie" || result.type === "donut" ? result.spec.labels.length : result.spec.series.length) : 0;
-        if (set.size >= total) return;   // keep at least one visible
+        if (set.size >= total) return;
         hiddenSeries.set(key, set);
         host.removeAttribute("data-ready");
         draw(host, opts);
@@ -1004,7 +979,7 @@ table unless asked, and never mention "the code block" or "the JSON".
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.focus();
     const busy = typeof currentChatBusy === "function" && currentChatBusy();
-    if (empty && !busy && input.id === "input" && typeof send === "function") { try { send(); } catch (e) { /* the text stays in the box */ } }
+    if (empty && !busy && input.id === "input" && typeof send === "function") { try { send(); } catch (e) {  } }
   }
 
   function hydrate(root, isLive, opts = {}) {
@@ -1025,14 +1000,13 @@ table unless asked, and never mention "the code block" or "the JSON".
     (root || document).querySelectorAll(".memu-diagram[data-ready]").forEach((h) => h.removeAttribute("data-ready"));
     return hydrate(root);
   }
-  // theme / design / accent changes re-draw every diagram (no hook in setTheme needed)
+
   let themeTimer = 0;
   try {
     new MutationObserver(() => { clearTimeout(themeTimer); themeTimer = setTimeout(() => { if (document.querySelector(".memu-diagram[data-ready]")) refresh(document); }, 120); })
       .observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-design", "style", "class"] });
-  } catch (e) { /* old engine */ }
+  } catch (e) {  }
 
-  /* ---------------------------------------------------------------- export helpers (public) */
   function sourceOf(target) {
     if (!target) return null;
     if (typeof target === "string") return { kind: /^\s*\{/.test(target) ? "chart" : "mermaid", code: target, key: "x-" + hashStr(target) };
@@ -1045,7 +1019,7 @@ table unless asked, and never mention "the code block" or "the JSON".
     if (typeof target === "object") return { kind: "chart", spec: target, code: JSON.stringify(target), key: "x-" + hashStr(JSON.stringify(target)) };
     return null;
   }
-  // -> { svg, width, height } with a solid/gradient background baked in (for files and clipboard)
+
   async function exportScene(target, opts = {}) {
     const src = sourceOf(target);
     if (!src) throw new Error(t("Диаграмма не найдена", "Diagram not found"));
@@ -1097,7 +1071,6 @@ table unless asked, and never mention "the code block" or "the JSON".
     try { return specCSV(src.spec ? normalizeSpec(src.spec) : parseSpec(src.code)).csv; } catch (e) { return ""; }
   }
 
-  /* ---------------------------------------------------------------- fullscreen */
   function openFull(host) {
     const ui = UI();
     const kind = host.dataset.memuDiagram;
@@ -1106,13 +1079,12 @@ table unless asked, and never mention "the code block" or "the JSON".
     const stage = m.el.querySelector(".md-full-stage");
     const clone = host.cloneNode(false);
     clone.removeAttribute("data-ready");
-    clone.dataset.mdFull = "1";     // survives a redraw on a theme change
+    clone.dataset.mdFull = "1";
     stage.appendChild(clone);
-    // Schemes zoom and pan in the dialog like in the message (diagram-zoom.js), starting with the whole scheme.
+
     draw(clone, { noFix: true });
   }
 
-  /* ---------------------------------------------------------------- studio (customize the look) */
   function openStudio(host) {
     const ui = UI();
     if (!ui) return;
@@ -1238,7 +1210,7 @@ table unless asked, and never mention "the code block" or "the JSON".
       rememberStyle(key, rest);
       if (el.querySelector("[data-ds-default]").checked) {
         const { title, type, width, height, ...general } = rest;
-        try { localStorage.setItem(STYLE_KEY, JSON.stringify(general)); } catch (e) { /* quota */ }
+        try { localStorage.setItem(STYLE_KEY, JSON.stringify(general)); } catch (e) {  }
       }
     };
     el.querySelector(".mt-ed-actions").addEventListener("click", async (e) => {
@@ -1265,7 +1237,6 @@ table unless asked, and never mention "the code block" or "the JSON".
     return m;
   }
 
-  /* ---------------------------------------------------------------- settings (Chat & answers) */
   function settingsHtml(ctx) {
     const { K, L2 } = ctx;
     const cur = mode();

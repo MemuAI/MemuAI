@@ -29,14 +29,14 @@ from typing import Any, Dict, List, Optional, Tuple
 BASE = "https://gemini.google.com"
 RPC_PATH = "/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate"
 BATCH_PATH = "/_/BardChatUi/data/batchexecute"
-RPC_USER_STATUS = "otAQ7b"      # GetUserStatus: статус аккаунта + модели из выбора модели приложения
-RPC_DELETE_CHAT = "GzXR5e"      # DeleteConversation, payload [cid] — убрать чат прокси из истории аккаунта
+RPC_USER_STATUS = "otAQ7b"
+RPC_DELETE_CHAT = "GzXR5e"
 ROTATE_URL = "https://accounts.google.com/RotateCookies"
 UPLOAD_URL = "https://content-push.googleapis.com/upload/"
 DEFAULT_PUSH_ID = "feeds/mcudyrk2a4khkz"
 MODEL_HEADER = "x-goog-ext-525001261-jspb"
 
-MODEL_CAPS = (4, 5, 6, 8)        # список возможностей клиента внутри заголовка выбора модели
+MODEL_CAPS = (4, 5, 6, 8)
 
 ERROR_TEXTS: Dict[int, Tuple[str, str]] = {
     1013: ("Временная ошибка Gemini (1013) — повторите через несколько секунд.",
@@ -52,7 +52,6 @@ ERROR_TEXTS: Dict[int, Tuple[str, str]] = {
            "Google temporarily blocked the IP or the region is unsupported (1060). Set a proxy/VPN on the account."),
 }
 
-# Статус аккаунта из GetUserStatus (поле [14]); 1000 — всё в порядке.
 ACCOUNT_STATUS: Dict[int, Tuple[str, str]] = {
     1014: ("Доступ к Gemini временно ограничен (регион или сессия).", "Gemini access is temporarily restricted (region or session)."),
     1016: ("Google не узнал вход — куки просрочены, запрос идёт как гость.", "Google did not recognize the sign-in — the cookies expired, the request runs as a guest."),
@@ -66,8 +65,6 @@ ACCOUNT_STATUS: Dict[int, Tuple[str, str]] = {
 }
 ACCOUNT_BLOCKED = frozenset({1014, 1021, 1054, 1057, 1060})
 
-# Служебные заглушки вместо ответа модели. Google отвечает ими, когда запрос попал в неверный/устаревший режим
-# (чужой id модели, урезанная модель для гостя) — это ошибка, а не ответ. Сравниваются только короткие ответы.
 CANNED_MAX_LEN = 360
 _CANNED_RE = re.compile(
     r"(i'?m (?:just |only )?a language model|i am (?:just |only )?a language model|as a language model,? i (?:can'?t|don'?t)"
@@ -92,15 +89,14 @@ _CODE_EVENT_RE = re.compile(
 _CARD_RE = re.compile(r"^https?://googleusercontent\.com/card_content/\d+")
 BARD_ERROR_RE = re.compile(r"BardErrorInfo\s*\[(\d+)\]")
 
-
 @dataclass
 class PageInfo:
     status: int = 0
     final_url: str = ""
-    at: str = ""          # SNlM0e — есть только у вошедшего пользователя
-    bl: str = ""          # cfb2h — версия сборки фронтенда
-    fsid: str = ""        # FdrFJe — f.sid
-    push_id: str = ""     # qKIAYe — для загрузки файлов
+    at: str = ""
+    bl: str = ""
+    fsid: str = ""
+    push_id: str = ""
     email: str = ""
     login_page: bool = False
     captcha: bool = False
@@ -108,7 +104,6 @@ class PageInfo:
     @property
     def signed_in(self) -> bool:
         return bool(self.at)
-
 
 def parse_page(status: int, final_url: str, html: str) -> PageInfo:
     info = PageInfo(status=status, final_url=final_url or "")
@@ -127,7 +122,6 @@ def parse_page(status: int, final_url: str, html: str) -> PageInfo:
             info.bl = match.group(1)
     return info
 
-
 def build_freq(prompt: str, mode: int, think: int, *, temporary: bool = True, extended: bool = False,
                file_refs: Optional[List[Tuple[str, str]]] = None, request_uuid: str = "",
                language: str = "en") -> List[Any]:
@@ -141,7 +135,7 @@ def build_freq(prompt: str, mode: int, think: int, *, temporary: bool = True, ex
     inner[1] = [language or "en"]
     inner[2] = ["", "", "", None, None, None, None, None, None, ""]
     inner[6] = [1]
-    inner[7] = 1            # потоковый ответ
+    inner[7] = 1
     inner[10] = 1
     inner[11] = 0
     inner[17] = [[think]]
@@ -150,7 +144,7 @@ def build_freq(prompt: str, mode: int, think: int, *, temporary: bool = True, ex
     inner[30] = [4]
     inner[41] = [1]
     if temporary:
-        inner[45] = 1       # временный чат — не попадает в историю Gemini
+        inner[45] = 1
     inner[53] = 0
     inner[59] = request_uuid or str(uuid.uuid4()).upper()
     inner[61] = []
@@ -159,15 +153,13 @@ def build_freq(prompt: str, mode: int, think: int, *, temporary: bool = True, ex
     inner[80] = 2 if extended else 1
     return inner
 
-
 def encode_body(inner: List[Any], at: str = "") -> bytes:
-    compact = (",", ":")      # как у веб-клиента: JSON без пробелов
+    compact = (",", ":")
     params = {"f.req": json.dumps([None, json.dumps(inner, ensure_ascii=False, separators=compact)],
                                   ensure_ascii=False, separators=compact)}
     if at:
         params["at"] = at
     return urllib.parse.urlencode(params).encode("utf-8")
-
 
 def encode_batch(rpcid: str, payload: str = "[]", at: str = "") -> bytes:
     """Тело batchexecute: f.req = [[[rpcid, payload, null, "generic"]]]."""
@@ -176,25 +168,20 @@ def encode_batch(rpcid: str, payload: str = "[]", at: str = "") -> bytes:
         params["at"] = at
     return urllib.parse.urlencode(params).encode("utf-8")
 
-
 def batch_model_header(session_uuid: str) -> str:
     """Заголовок выбора модели для batchexecute — модель не выбрана, в конце uuid сессии клиента."""
     return json.dumps([1, None, None, None, None, None, None, None, list(MODEL_CAPS),
                        None, None, None, None, None, None, None, session_uuid], separators=(",", ":"))
 
-
-# ------------------------------------------------------------------ модели аккаунта
-
-
 @dataclass
 class AccountModel:
     """Модель из выбора модели приложения Gemini для конкретного аккаунта (GetUserStatus [15])."""
-    id: str                 # hex-id для заголовка x-goog-ext-525001261-jspb
-    name: str               # имя в каталоге MemuAI: gemini-3.8-flash
-    display: str            # как в приложении: «3.8 Flash»
+    id: str
+    name: str
+    display: str
     description: str = ""
-    category: str = ""      # Fast / Thinking / Pro … (старые сборки) — для подбора по семейству
-    number: int = 1         # номер модели → индекс 79 f.req и хвост заголовка
+    category: str = ""
+    number: int = 1
     capacity: int = 1
     capacity_field: int = 12
     available: bool = True
@@ -214,20 +201,18 @@ class AccountModel:
         except (TypeError, KeyError):
             return None
 
-
 @dataclass
 class UserStatus:
-    status: int = 0                     # 1000 — всё в порядке; см. ACCOUNT_STATUS
+    status: int = 0
     models: List[AccountModel] = field(default_factory=list)
     tier_flags: List[int] = field(default_factory=list)
     capability_flags: List[int] = field(default_factory=list)
-    found: bool = False                 # ответ otAQ7b вообще пришёл
+    found: bool = False
 
     @property
     def paid(self) -> bool:
         """Платный тариф (AI Plus/Pro/Ultra): capacity не 1 или особое поле 13."""
         return capacity_for(self.tier_flags, self.capability_flags) != (1, 12)
-
 
 def capacity_for(tier_flags: List[int], capability_flags: List[int]) -> Tuple[int, int]:
     """Флаги тарифа → (capacity, номер поля в заголовке). Значения — как в веб-клиенте."""
@@ -243,7 +228,6 @@ def capacity_for(tier_flags: List[int], capability_flags: List[int]) -> Tuple[in
         return 2, 12
     return 1, 12
 
-
 def jspb(container: Any, index: int, default: Any = None) -> Any:
     """Поле JSPB-массива: по позиции или из «разреженного» словаря в последней ячейке (ключ = номер+1)."""
     if not isinstance(container, list) or not container:
@@ -254,7 +238,6 @@ def jspb(container: Any, index: int, default: Any = None) -> Any:
         value = bundle.get(str(index + 1)) if bundle else None
     return default if value in (None, [], {}) else value
 
-
 def model_slug(display: str, category: str = "", model_id: str = "") -> str:
     """«3.8 Flash» → gemini-3.8-flash, «4 Argon» → gemini-4-argon, «3.5 Flash-Lite» → gemini-3.5-flash-lite."""
     label = (display or category or "").strip()
@@ -263,7 +246,6 @@ def model_slug(display: str, category: str = "", model_id: str = "") -> str:
     slug = re.sub(r"[^a-z0-9.]+", "-", label.lower()).strip("-")
     slug = re.sub(r"^gemini-?", "", slug)
     return f"gemini-{slug}" if slug else f"gemini-{model_id}"
-
 
 def parse_user_status(text: str) -> UserStatus:
     """Ответ batchexecute otAQ7b (или уже разобранные кадры) → статус и модели аккаунта."""
@@ -296,11 +278,10 @@ def parse_user_status(text: str) -> UserStatus:
                 if model is None or model.name in seen:
                     continue
                 seen.add(model.name)
-                model.available = not (guest and out.models)     # гостю доступна только первая (по умолчанию)
+                model.available = not (guest and out.models)
                 out.models.append(model)
             return out
     return out
-
 
 def _model_from(item: Any, capacity: int, cap_field: int) -> Optional[AccountModel]:
     if not isinstance(item, list) or not item:
@@ -319,15 +300,10 @@ def _model_from(item: Any, capacity: int, cap_field: int) -> Optional[AccountMod
                         number=number if isinstance(number, int) else 1,
                         capacity=capacity, capacity_field=cap_field)
 
-
 def is_canned_reply(text: str) -> bool:
     """Короткая служебная заглушка Google вместо ответа модели («Я всего лишь языковая модель»)."""
     text = " ".join((text or "").split())
     return bool(text) and len(text) <= CANNED_MAX_LEN and bool(_CANNED_RE.search(text.replace("’", "'")))
-
-
-# ------------------------------------------------------------------ поток ответа
-
 
 class FrameParser:
     """Инкрементальный разбор ответа StreamGenerate.
@@ -364,7 +340,7 @@ class FrameParser:
                 while end < size and self.buffer[end].isdigit():
                     end += 1
                 if end == size:
-                    break                       # длина ещё не дочитана
+                    break
                 if self.buffer[end] in "\r\n[":
                     pos = end
                     continue
@@ -372,12 +348,12 @@ class FrameParser:
                 nl = self.buffer.find("\n", pos)
                 if nl < 0:
                     break
-                pos = nl + 1                    # мусорная строка — пропускаем
+                pos = nl + 1
                 continue
             try:
                 value, end = self._decoder.raw_decode(self.buffer, pos)
             except ValueError:
-                break                           # неполный JSON — ждём продолжения
+                break
             frames.append(value)
             pos = end
         self.buffer = self.buffer[pos:]
@@ -395,7 +371,6 @@ class FrameParser:
                     continue
         return out
 
-
 def _get(data: Any, path: List[int], default: Any = None) -> Any:
     for key in path:
         if isinstance(data, list) and -len(data) <= key < len(data):
@@ -404,17 +379,15 @@ def _get(data: Any, path: List[int], default: Any = None) -> Any:
             return default
     return default if data is None else data
 
-
 @dataclass
 class Snapshot:
     text: str = ""
     thoughts: str = ""
     images: List[str] = field(default_factory=list)
     done: bool = False
-    cid: str = ""           # id чата (c_…) — для удаления чата прокси из истории
-    rid: str = ""           # id ответа (r_…)
-    media: List[Any] = field(default_factory=list)   # сгенерированные картинки/видео (geminiweb_media.GeneratedMedia)
-
+    cid: str = ""
+    rid: str = ""
+    media: List[Any] = field(default_factory=list)
 
 def iter_parts(frame: Any):
     """Кадр — массив частей ["wrb.fr", null, "<json>", …]; бывает обёрнут ещё одним массивом."""
@@ -430,11 +403,9 @@ def iter_parts(frame: Any):
         if isinstance(part, list) and part and part[0] == "wrb.fr":
             yield part
 
-
 def error_code(part: List[Any]) -> Optional[int]:
     code = _get(part, [5, 2, 0, 1, 0])
     return code if isinstance(code, int) and code else None
-
 
 def parse_part(part: List[Any]) -> Optional[Snapshot]:
     raw = _get(part, [2])
@@ -452,7 +423,7 @@ def parse_part(part: List[Any]) -> Optional[Snapshot]:
     snap = Snapshot(cid=cid if isinstance(cid, str) else "", rid=rid if isinstance(rid, str) else "")
     text = _get(cand, [1, 0], "")
     if isinstance(text, str) and _CARD_RE.match(text):
-        text = _get(cand, [22, 0]) or text      # ответ-«карточка»: настоящий текст лежит в c[22][0]
+        text = _get(cand, [22, 0]) or text
     if isinstance(text, str):
         snap.text = text
     thoughts = _get(cand, [37, 0, 0], "")
@@ -461,13 +432,12 @@ def parse_part(part: List[Any]) -> Optional[Snapshot]:
     rich = _get(cand, [12])
     if isinstance(rich, list):
         snap.media = rich_media(rich)
-        for img in jspb(rich, 1, []) or []:          # картинки из сети (поиск) — публичные адреса
+        for img in jspb(rich, 1, []) or []:
             url = _get(img, [0, 0, 0])
             if isinstance(url, str) and url.startswith("http"):
                 snap.images.append(url)
     snap.done = _get(cand, [8, 0]) == 2
     return snap
-
 
 def rich_media(rich: List[Any]) -> List[Any]:
     """Блок c[12] → сгенерированные картинки (поле 7) и видео Veo (поле 59); поля — позиционно или разреженно."""
@@ -486,7 +456,6 @@ def rich_media(rich: List[Any]) -> List[Any]:
         out.append(GeneratedMedia("video", urls[1], thumb=urls[0] if isinstance(urls[0], str) else ""))
     return out
 
-
 def pick_candidate(candidates: Any) -> Optional[List[Any]]:
     """Основной кандидат ответа: первый с идентификатором rc_… (без него — служебная запись, не ответ)."""
     if not isinstance(candidates, list):
@@ -497,12 +466,10 @@ def pick_candidate(candidates: Any) -> Optional[List[Any]]:
             return cand
     return None
 
-
 def clean_text(text: str) -> str:
     text = _CODE_EVENT_RE.sub("", text or "")
     text = _ARTIFACT_RE.sub("", text)
     return text.replace("\r\n", "\n")
-
 
 def delta(new: str, sent: str) -> Tuple[str, str]:
     """Снимок → (что дослать, новое «уже отправлено»). Переписанное начало не повторяем."""

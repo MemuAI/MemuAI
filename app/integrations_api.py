@@ -16,11 +16,10 @@ from __future__ import annotations
 import asyncio
 from typing import Any, Dict
 
-try:  # FastAPI resolves the string annotations of the routes from module globals
+try:
     from fastapi import Request
 except ImportError:  # pragma: no cover - not every bundle has FastAPI
     Request = None  # type: ignore[assignment,misc]
-
 
 def _lang() -> str:
     try:
@@ -29,7 +28,6 @@ def _lang() -> str:
     except Exception:
         return "ru"
 
-
 def _fail(exc: BaseException):
     from fastapi.responses import JSONResponse
     ru = getattr(exc, "ru", "") or str(exc) or type(exc).__name__
@@ -37,14 +35,12 @@ def _fail(exc: BaseException):
     return JSONResponse({"error": en if _lang() == "en" else ru, "error_ru": ru, "error_en": en,
                          "code": getattr(exc, "code", "") or "error"}, 400)
 
-
 async def _body(request) -> Dict[str, Any]:
     try:
         body = await request.json()
     except Exception:
         body = {}
     return body if isinstance(body, dict) else {}
-
 
 def register(app) -> None:
     from . import google_account
@@ -65,7 +61,7 @@ def register(app) -> None:
         elif action == "client":
             google_account.save_client(str(body.get("client_id") or ""), str(body.get("client_secret") or ""))
         elif action == "check":
-            # Round 33: «Проверить API» — one cheap request per ready service; a disabled API comes with its link.
+
             from . import integrations
             return {"ok": True, "auth_url": "", "check": integrations.google_check(), "status": google_account.status()}
         else:

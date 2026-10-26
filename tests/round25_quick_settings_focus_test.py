@@ -38,12 +38,10 @@ HARNESS = """<!doctype html><html lang="ru"><head><meta charset="utf-8"><style>
 </script>
 <script src="/plugin.js"></script></body></html>"""
 
-
 def _client():
     from starlette.testclient import TestClient
     from app.playground_api import create_app
     return TestClient(create_app(), base_url="http://127.0.0.1")
-
 
 class SourceGuard(unittest.TestCase):
     def test_render_restores_the_view(self) -> None:
@@ -52,7 +50,6 @@ class SourceGuard(unittest.TestCase):
         self.assertRegex(block, re.compile(r"const view = snapshotView\(\);\s*el\.innerHTML", re.S))
         self.assertLess(block.index("enhanceSelects(el)"), block.index("restoreView(view);"),
                         "focus goes to the enhanced control, after enhanceSelects")
-
 
 class Headless(unittest.TestCase):
     @classmethod
@@ -136,7 +133,6 @@ class Headless(unittest.TestCase):
 
     def test_enhanced_select_in_settings(self) -> None:
         self.check(self.run_case("settings-body", enhanced=True), "BUTTON")
-
 
 if __name__ == "__main__":
     unittest.main()

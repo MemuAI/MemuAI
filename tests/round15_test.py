@@ -35,12 +35,8 @@ from app.cli.tui.activity import Step, classify, summary_parts
 ROOT = Path(__file__).resolve().parents[1]
 PNG = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
 
-
 def read(name: str) -> str:
     return (ROOT / name).read_text(encoding="utf-8")
-
-
-# ---------------------------------------------------------------- 1, 5, 6: unreadable tool calls
 
 class ToolCallsThatWereUnreadable(unittest.TestCase):
     """The three failures from the report, and the neighbours of each."""
@@ -54,7 +50,7 @@ class ToolCallsThatWereUnreadable(unittest.TestCase):
         self.assertEqual(parsed.errors, [])
         self.assertEqual([call.name for call in parsed.calls], ["TodoWrite", "Write"])
         self.assertEqual(len(parsed.calls[0].args["todos"]), 2)
-        self.assertEqual(parsed.calls[1].args, {"file_path": "package.json", "content": "{}"})   # comma for colon
+        self.assertEqual(parsed.calls[1].args, {"file_path": "package.json", "content": "{}"})
         self.assertEqual(parsed.text, "Создаю сайт.")
 
     def test_one_missing_closing_bracket_does_not_cost_the_call(self):
@@ -175,7 +171,7 @@ class ToolCallsThatWereUnreadable(unittest.TestCase):
         self.assertEqual(len(backend.requests), MAX_INVALID_STREAK)
         self.assertIn(str(MAX_INVALID_STREAK), result.error)
         self.assertEqual(result.tools, 0, "an unreadable call is not a tool run")
-        # one good round in between starts the count again
+
         runtime, backend = make_runtime({"a.txt": "x\n"}, turns=[bad, bad, '```memuai-tool\n[{"tool":"LS","args":{}}]\n```',
                                                                   bad, bad, "done"])
         self.assertEqual(run(Agent(runtime).run_turn("go")).stopped, "done")
@@ -191,9 +187,6 @@ class ToolCallsThatWereUnreadable(unittest.TestCase):
         self.assertNotIn("failed", text)
         alone = "".join(part for part, _style in summary_parts([invalid]))
         self.assertEqual(alone.strip(), "Resent a tool call")
-
-
-# ---------------------------------------------------------------- 7: tokens per second
 
 class TokensPerSecond(unittest.TestCase):
     def feed(self, pieces):
@@ -243,16 +236,12 @@ class TokensPerSecond(unittest.TestCase):
         self.assertNotIn("turn_out_chars", source)
         self.assertNotIn("tokens / since", source)
 
-
-# ---------------------------------------------------------------- 8: pictures for models that cannot see
-
 class Noting(Recorder):
     def notice(self, text, level="info"):
         self.events.append(("notice", text))
 
     def status(self, text):
         self.events.append(("status", text))
-
 
 class Refuser(Backend):
     """A model that says it cannot take images, the way a real API does — but only when it gets one."""
@@ -269,10 +258,8 @@ class Refuser(Backend):
         yield StreamEvent("usage", usage=Usage(input=10, output=5, estimated=False, requests=1))
         yield StreamEvent("done", finish="stop")
 
-
 def image_message(text="what does it say?"):
     return [{"type": "text", "text": text}, {"type": "image", "media_type": "image/png", "data": PNG}]
-
 
 def pictures_runtime(main, backends, infos):
     runtime, _backend = make_runtime(ui=Noting())
@@ -283,10 +270,8 @@ def pictures_runtime(main, backends, infos):
     pictures._cache["stamp"] = None
     return runtime
 
-
 def info(model_id, vision, provider="custom", **extra):
     return ModelInfo(id=model_id, provider=provider, context=200_000, vision=vision, **extra)
-
 
 class PicturesForModelsWithoutEyes(unittest.TestCase):
     def test_a_name_says_what_a_provider_flag_does_not(self):
@@ -330,12 +315,12 @@ class PicturesForModelsWithoutEyes(unittest.TestCase):
                                    [info("blind-model", False), info("seer-gemini-flash", True)])
         result = run(Agent(runtime).run_turn(image_message("why did the build fail?")))
         self.assertEqual(result.stopped, "done")
-        # the image model looked at the picture, and was told the task
+
         asked = seer.requests[0]
         self.assertTrue(pictures.request_has_images(asked.messages))
         self.assertIn("why did the build fail?", json.dumps(asked.messages, ensure_ascii=False))
         self.assertIn("verbatim", asked.system)
-        # the main model never got a picture — only what was written about it
+
         sent = main.requests[0].messages
         self.assertFalse(pictures.request_has_images(sent))
         text = json.dumps(sent, ensure_ascii=False)
@@ -346,7 +331,7 @@ class PicturesForModelsWithoutEyes(unittest.TestCase):
         self.assertIn("seer-gemini-flash", main.requests[0].system)
         self.assertTrue(any(kind == "notice" and "seer-gemini-flash" in text for kind, text in
                             [event[:2] for event in runtime.ui.events if event[0] == "notice"]))
-        # described once: the next turn does not ask again
+
         self.assertEqual(len(seer.requests), 1)
         main.turns.append("fine")
         run(Agent(runtime).run_turn("and the line?"))
@@ -400,7 +385,7 @@ class PicturesForModelsWithoutEyes(unittest.TestCase):
         runtime = pictures_runtime("blind-model", {"blind-model": main, "seer-gemini-flash": seer},
                                    [info("blind-model", False), info("seer-gemini-flash", True)])
         runtime.settings.set("vision_mode", "off")
-        self.addCleanup(runtime.settings.set, "vision_mode", "auto")      # settings are saved: do not leak into other tests
+        self.addCleanup(runtime.settings.set, "vision_mode", "auto")
         run(Agent(runtime).run_turn(image_message()))
         self.assertEqual(seer.requests, [])
         self.assertIn("could not be shown or described", json.dumps(main.requests[0].messages))
@@ -458,9 +443,6 @@ class PicturesForModelsWithoutEyes(unittest.TestCase):
             ok, why = run(pictures.probe(runtime, "m"))
         self.assertFalse(ok)
         self.assertEqual(tuple(pictures.support(runtime, "m")), (False, "learned"))
-
-
-# ---------------------------------------------------------------- 9: Browser and Computer Use
 
 class BrowserAndComputer(unittest.TestCase):
     def test_a_reply_that_is_not_json_is_asked_again_instead_of_ending_the_run(self):
@@ -593,9 +575,6 @@ class BrowserAndComputer(unittest.TestCase):
         runtime.settings.set("browser_model", "my-own")
         self.assertEqual(_vision_model(runtime, "browser_model"), "my-own")
 
-
-# ---------------------------------------------------------------- 10: thoughts and tools are closed
-
 class CollapsedByDefault(unittest.TestCase):
     def test_thoughts_and_tools_start_closed_and_the_users_choice_survives_a_redraw(self):
         js = read("app/pgstatic/app.js")
@@ -610,9 +589,6 @@ class CollapsedByDefault(unittest.TestCase):
         self.assertIn("stepUserOpen", js)
         self.assertIn("data-step-key", js)
 
-
-# ---------------------------------------------------------------- 2: the Proxy statistics do not overlap
-
 class StatisticsLayout(unittest.TestCase):
     def test_a_value_wider_than_its_old_box_pushes_the_name_not_the_neighbour(self):
         css = read("app/static/style.css")
@@ -623,23 +599,18 @@ class StatisticsLayout(unittest.TestCase):
         self.assertIn(".grid-2 > *, .grid-3 > * { min-width: 0; }", css)
         self.assertIn("#metrics-errors .row-line .mono { min-width: 0; overflow-wrap: anywhere; }", css)
 
-
-# ---------------------------------------------------------------- 3: one version (2.0 in Round 15, 3.0 since Round 21, 3.1 since Round 27)
-
 class OneVersion(unittest.TestCase):
     def test_every_copy_of_the_version_says_the_release_number(self):
-        self.assertEqual(version.APP_VERSION, "3.8.2")
-        self.assertEqual(version.windows_version(), "3.8.2.0")
+        self.assertEqual(version.APP_VERSION, "4.0")
+        self.assertEqual(version.windows_version(), "4.0.0.0")
         from app import cli
         self.assertEqual(cli.VERSION, version.APP_VERSION, "MemuCode CLI has no version of its own")
         for name in ("memuai-version.txt", "memuai-proxy-version.txt", "memucode-version.txt"):
             text = read(name)
-            self.assertIn("filevers=(3, 8, 2, 0)", text, name)
-            self.assertIn("'FileVersion', '3.8.2.0'", text, name)
-            self.assertIn("'ProductVersion', '3.8.2.0'", text, name)
-        # The installer has no version of its own: build.py hands app_version() to
-        # installer/build_setup.py, which stamps it into the Setup payload and the
-        # version resource of the Setup exe (Round 20 replaced the .iss scripts).
+            self.assertIn("filevers=(4, 0, 0, 0)", text, name)
+            self.assertIn("'FileVersion', '4.0.0.0'", text, name)
+            self.assertIn("'ProductVersion', '4.0.0.0'", text, name)
+
         build_script = read("build.py")
         for product in ("memuai", "proxy"):
             self.assertIn(f'build_setup.build_setup(sys.modules[__name__], "{product}", version', build_script)
@@ -663,15 +634,12 @@ class OneVersion(unittest.TestCase):
         spec = importlib.util.spec_from_file_location("memuai_build_script", ROOT / "build.py")
         build = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(build)
-        self.assertEqual(build.app_version(), "3.8.2")
-        self.assertEqual({build.target_version(key, "3.8.2") for key in ("memuai", "proxy", "memucode")}, {"3.8.2"})
+        self.assertEqual(build.app_version(), "4.0")
+        self.assertEqual({build.target_version(key, "4.0") for key in ("memuai", "proxy", "memucode")}, {"4.0"})
 
     def test_the_banner_and_the_version_command_read_the_same_number(self):
         from app.cli import VERSION
-        self.assertEqual(VERSION, "3.8.2")
-
-
-# ---------------------------------------------------------------- 4: the installer page
+        self.assertEqual(VERSION, "4.0")
 
 class InstallerOptionsPage(unittest.TestCase):
     """Round 15 made the five option rows of the Inno page share its height. The
@@ -694,16 +662,12 @@ class InstallerOptionsPage(unittest.TestCase):
         self.assertIsNotNone(rule)
         self.assertIn("grid-template-columns", rule.group(1), "two columns: four tasks never overflow the panel")
 
-
-# ---------------------------------------------------------------- 11: web search
-
 BING = ('<ol id="b_results"><li class="b_algo" data-id iid=SERP.1><div class="b_tpcn"><a class="tilk" href="https://www.bing.com/ck/a?!&amp;'
         'u=a1aHR0cHM6Ly9leGFtcGxlLmNvbS93ZWF0aGVy&amp;ntb=1"><cite>example.com</cite></a></div>'
         '<h2 class=""><a target="_blank" href="https://www.bing.com/ck/a?!&amp;&amp;p=1&amp;u=a1aHR0cHM6Ly9leGFtcGxlLmNvbS93ZWF0aGVy&amp;ntb=1">'
         '<strong>Погода</strong> в Москве</a></h2><div class="b_caption"><p class="b_lineclamp2">Сегодня облачно, +11 °C …</p></div></li>'
         '<li class="b_algo"><h2><a href="https://other.example/page">Other <strong>page</strong></a></h2>'
         '<div class="b_caption"><p>Second snippet</p></div></li></ol>')
-
 
 class FakeWeb:
     def __init__(self, routes):
@@ -722,7 +686,6 @@ class FakeWeb:
     async def post(self, url, **kwargs):
         return await self._call("POST", url, **kwargs)
 
-
 class Reply:
     def __init__(self, body, status=200):
         self.status_code = status
@@ -731,7 +694,6 @@ class Reply:
 
     def json(self):
         return json.loads(self.text)
-
 
 class WebSearchStack(unittest.TestCase):
     def setUp(self):
@@ -868,7 +830,6 @@ class WebSearchStack(unittest.TestCase):
             self.assertEqual(websearch.prefetch_query(text), "", text)
         self.assertEqual(websearch.prefetch_query("найди в интернете последние новости про Rust"), "последние новости про Rust")
 
-
 class InstantAnswers(unittest.TestCase):
     def test_the_intent_and_the_place_come_from_the_words(self):
         cases = {"Какая сегодня погода?": ("weather", ""), "погода в Москве": ("weather", "Москве"),
@@ -967,12 +928,8 @@ class InstantAnswers(unittest.TestCase):
                          "    generating = generationJobs.size > 0 || turnContinues;", js)
         self.assertIn("web_prefetch", js[js.index("const WEB_TOOLS_PROMPT"):js.index("</web_tools>`;")])
 
-
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
-
-
-# ---------------------------------------------------------------- the terminal itself
 
 class InTheTerminal(unittest.TestCase):
     """The real interface on a pipe: the new command, and the speed the status line shows."""
@@ -1014,13 +971,13 @@ class InTheTerminal(unittest.TestCase):
         async def drive(ui, keys):
             ui.busy, ui.busy_started, ui.first_token_at, ui.stream_started_at = True, 0.0, 1.0, 0.5
             ui.turn_out_tokens = 400.0
-            # a stream: 5 tokens every 100 ms for 4 s
+
             ui.rate.reset()
             for step in range(40):
                 ui.rate.add(5.0, 10.0 + step * 0.1)
             with patch.object(app_module.time, "monotonic", return_value=14.0):
                 streaming = "".join(part[1] for part in ui._spinner_line(100))
-            # the same turn, but the provider released everything in one piece
+
             ui.rate.reset()
             ui.rate.add(800.0, 20.0)
             with patch.object(app_module.time, "monotonic", return_value=21.0):
@@ -1034,9 +991,6 @@ class InTheTerminal(unittest.TestCase):
         self.assertNotIn("tok/s", dumped)
         self.assertIn("↓ 400 tokens", dumped, "the count stays; only the speed is withheld")
 
-
-# ---------------------------------------------------------------- the 'Python-CFFI error' window
-
 class SessionPoolAndLoops(unittest.TestCase):
     """curl_cffi calls back into the event loop a session was made on. A session that outlived its loop used to raise
     'Event loop is closed' inside a cffi callback — and on Windows cffi answers that with a 'Python-CFFI error' window
@@ -1047,7 +1001,7 @@ class SessionPoolAndLoops(unittest.TestCase):
 
         async def grab():
             first = await http.get_session("")
-            _ = first.loop                               # binds the session to this loop, as its first request would
+            _ = first.loop
             again = await http.get_session("")
             return first, again
 

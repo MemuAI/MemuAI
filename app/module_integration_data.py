@@ -16,15 +16,11 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .module_integration import data_source
 
-# ------------------------------------------------------------------------------------------------------ Characters
-
-_THUMB_LIMIT = 400_000   # a data: URL thumbnail larger than this is left out (the card shows a monogram)
-
+_THUMB_LIMIT = 400_000
 
 def _thumb(value: Any) -> str:
     value = str(value or "")
     return value if value.startswith("data:image/") and len(value) <= _THUMB_LIMIT else ""
-
 
 def _store(root, key: str, default: Any) -> Any:
     from .characters_api import store_get
@@ -32,7 +28,6 @@ def _store(root, key: str, default: Any) -> Any:
         return store_get(root, "characters", key, default)
     except (OSError, ValueError, KeyError):
         return default
-
 
 def characters_digest(root, limit: int = 5) -> Dict[str, Any]:
     """``{recent: [...], day: {...}|None, total}`` — the characters with the latest chats and a «character of the day»."""
@@ -48,23 +43,18 @@ def characters_digest(root, limit: int = 5) -> Dict[str, Any]:
     recent = [row(r) for r in ordered[:max(1, min(8, limit))]]
     day = None
     if index:
-        # The same character all day long, favourites first: a stable pick by date (no state to keep).
+
         pool = [r for r in index if r.get("fav")] or index
         pick = sorted(pool, key=lambda r: str(r["id"]))[_dt.date.today().toordinal() % len(pool)]
         day = next((x for x in recent if x["id"] == str(pick["id"])), None) or row(pick)
     return {"recent": recent, "day": day, "total": len(index)}
 
-
 @data_source("characters.panel")
 def _characters_panel(args: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any]:
     return characters_digest(ctx["root"], int(args.get("limit") or 5))
 
-
-# ------------------------------------------------------------------------------------------------- API models
-
 _CATALOG: Dict[str, Any] = {"at": 0.0, "specs": {}, "lock": threading.Lock()}
 _CATALOG_TTL = 6 * 3600
-
 
 def _fetch_openrouter() -> Dict[str, Dict[str, Any]]:
     import httpx
@@ -87,13 +77,12 @@ def _fetch_openrouter() -> Dict[str, Dict[str, Any]]:
                                           "output": per_million(pricing.get("completion"))}
     return specs
 
-
 def catalog() -> Dict[str, Dict[str, Any]]:
     """The public OpenRouter catalogue (context, $ per 1M tokens), cached; {} when it cannot be read."""
     with _CATALOG["lock"]:
         if _CATALOG["specs"] and time.time() - _CATALOG["at"] < _CATALOG_TTL:
             return _CATALOG["specs"]
-        if time.time() - _CATALOG["at"] < 300:   # a failed read is not retried for five minutes
+        if time.time() - _CATALOG["at"] < 300:
             return _CATALOG["specs"]
         _CATALOG["at"] = time.time()
         try:
@@ -102,10 +91,8 @@ def catalog() -> Dict[str, Dict[str, Any]]:
             pass
         return _CATALOG["specs"]
 
-
 def _norm(value: str) -> str:
     return re.sub(r"[^a-z0-9]+", "", str(value or "").lower().removeprefix("models/").split("/")[-1].split(":")[0])
-
 
 def _monitor(module_id: str) -> Dict[str, Any]:
     from . import module_monitor
@@ -114,14 +101,12 @@ def _monitor(module_id: str) -> Dict[str, Any]:
     except Exception:  # noqa: BLE001 - a broken store never breaks a panel
         return {"events": []}
 
-
 def _monitor_status(module_id: str) -> Dict[str, Any]:
     from . import module_monitor
     try:
         return module_monitor.status(module_id) or {}
     except Exception:  # noqa: BLE001
         return {}
-
 
 def api_models_digest(limit: int = 8, *, prices: bool = True) -> Dict[str, Any]:
     """New models from the «New API models» monitor: ``{models: [{name, key, source, family, at, context, input, output}],
@@ -156,16 +141,12 @@ def api_models_digest(limit: int = 8, *, prices: bool = True) -> Dict[str, Any]:
     return {"models": models, "enabled": bool(status.get("enabled")), "sources": len(sources),
             "checked": max([float(s.get("last_success") or 0) for s in sources] or [0])}
 
-
 @data_source("api-models.panel")
 def _api_models_panel(args: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any]:
     return api_models_digest(int(args.get("limit") or 8))
 
-
-# ------------------------------------------------------------------------------------------------- Benchmarks
-
 BOARDS = [
-    # (id, title ru, title en, cache key in the Benchmarks module's saved state)
+
     ("arena-text", "LMArena · Текст", "LMArena · Text", "arena:text"),
     ("arena-code", "LMArena · WebDev", "LMArena · WebDev", "arena:code/webdev"),
     ("aa", "Artificial Analysis · Интеллект", "Artificial Analysis · Intelligence", "aa"),
@@ -173,7 +154,6 @@ BOARDS = [
     ("simple", "SimpleBench", "SimpleBench", "simple"),
     ("eq", "EQ-Bench", "EQ-Bench", "eq"),
 ]
-
 
 def _board_rows(saved: Dict[str, Any], key: str) -> Tuple[List[Dict[str, Any]], float]:
     if key.startswith("arena:"):
@@ -197,7 +177,6 @@ def _board_rows(saved: Dict[str, Any], key: str) -> Tuple[List[Dict[str, Any]], 
             score = r.get("score")
         rows.append({"model": r.get("model"), "org": r.get("org") or "", "score": score})
     return rows, float(entry.get("at") or 0)
-
 
 def benchmarks_digest(root, top: int = 5, board: str = "") -> Dict[str, Any]:
     """Leaders of the leaderboards the Benchmarks module already loaded (its 6-hour cache):
@@ -224,7 +203,6 @@ def benchmarks_digest(root, top: int = 5, board: str = "") -> Dict[str, Any]:
                         "at": float(event.get("at") or 0)})
     return {"boards": boards, "changes": changes}
 
-
 def find_board(digest: Dict[str, Any], topic: str) -> Optional[Dict[str, Any]]:
     """«кто лидирует в бенчмарке arena / кодинге / SimpleBench» → the matching board (default: the first one)."""
     topic = str(topic or "").lower()
@@ -236,13 +214,10 @@ def find_board(digest: Dict[str, Any], topic: str) -> Optional[Dict[str, Any]]:
             return board
     return (digest.get("boards") or [None])[0]
 
-
 @data_source("benchmarks.panel")
 def _benchmarks_panel(args: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any]:
     return benchmarks_digest(ctx["root"], int(args.get("top") or 5), str(args.get("board") or ""))
 
-
-# r40-learn: MemuLearn «Повторить сегодня» — cards due today, minutes, streak, courses (app/learn/api.panel_digest).
 @data_source("learn.panel")
 def _learn_panel(args: Dict[str, Any], ctx: Dict[str, Any]) -> Dict[str, Any]:
     from .learn.api import panel_digest

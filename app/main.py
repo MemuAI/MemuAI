@@ -28,7 +28,6 @@ from .version import APP_VERSION
 log = logging.getLogger("memuai.main")
 STATIC_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "static")
 
-
 async def _watchdog() -> None:
     """Self-healing loop.
 
@@ -51,10 +50,7 @@ async def _watchdog() -> None:
         except Exception as e:  # noqa: BLE001
             log.warning("watchdog: %s", e)
 
-
-#: Round 34: what a check answered for a key that is accepted but cannot serve right now (quota spent / no balance).
 _LIMIT_MARK_RE = re.compile(r"\bHTTP (?:402|429)\b")
-
 
 def background_ok_message(message: str) -> str:
     """Status line a successful background check leaves on the card.
@@ -62,7 +58,6 @@ def background_ok_message(message: str) -> str:
     It used to be always «фоновая проверка», which wiped «… исчерпан лимит запросов (HTTP 429)» from a manual
     check — the card's «limit reached» badge turned green again half an hour later."""
     return message if _LIMIT_MARK_RE.search(str(message or "")) else "фоновая проверка"
-
 
 async def _cookie_checker() -> None:
     """Фоновая проверка аккаунтов всех провайдеров."""
@@ -92,7 +87,6 @@ async def _cookie_checker() -> None:
             await asyncio.sleep(1.0)
         await asyncio.sleep(interval_min * 60)
 
-
 def create_app() -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -107,21 +101,20 @@ def create_app() -> FastAPI:
             background.append(asyncio.create_task(telegram_loop()))
             background.append(asyncio.create_task(_watchdog()))
             background.append(asyncio.create_task(background_loop()))
-            # Telegram Mini App: its own 127.0.0.1 listener + tunnel (app/tg_webapp.py), off unless enabled.
+
             from .tg_webapp import run_manager as tgapp_manager
             background.append(asyncio.create_task(tgapp_manager()))
-            # Round 29: «Синхронизация» — automatic backups keep running from the tray (app/gdrive_sync.py).
+
             from . import gdrive_sync
             sync_service = gdrive_sync.start_proxy_scheduler()
-            # Round 29: scheduled messages — sends due messages when the MemuAI window is closed.
+
             from .scheduled_messages_runner import runner_loop as schedsend_loop
             background.append(asyncio.create_task(schedsend_loop()))
-            # Round 35 (quota): «Планировщик квот» — periodic quota snapshots + forecast (app/quota_planner.py).
+
             from .quota_planner import poll_loop as quota_poll_loop
             background.append(asyncio.create_task(quota_poll_loop()))
             try:
-                # Models of a provider whose last account was deleted (Genspark,
-                # Notion …) used to stay in the catalogue for good.
+
                 pruned = await asyncio.to_thread(state.prune_orphan_models)
                 if pruned:
                     log.info("model catalogue: removed %s model(s) of providers without accounts", pruned)
@@ -134,7 +127,7 @@ def create_app() -> FastAPI:
                 log.exception("model catalogue: upgrade failed")
             try:
                 from . import local_models
-                # Files deleted by hand while Proxy was off leave the catalogue here.
+
                 await asyncio.to_thread(local_models.sync_catalog)
             except Exception:
                 log.exception("local models: catalogue sync failed")
@@ -151,37 +144,33 @@ def create_app() -> FastAPI:
                      config_store.effective_host, config_store.effective_port)
             yield
         finally:
-            # Background loops stop first: the scheduler or Telegram bot could
-            # otherwise start a request (and relaunch llama-server) after the
-            # cleanup below already ran, leaving the process orphaned.
+
             for task in background:
                 task.cancel()
             await asyncio.gather(*background, return_exceptions=True)
             if sync_service is not None:
                 sync_service.stop_scheduler()
-            # Счётчики пишутся раз в 20 секунд; при выходе дописываем хвост,
-            # чтобы статистика последних запросов не пропала.
+
             try:
                 from .metrics import metrics
                 metrics.flush(force=True)
             except Exception:
                 pass
             try:
-                state.flush_pending()  # отложенная статистика аккаунтов
+                state.flush_pending()
             except Exception:
                 pass
             try:
                 from . import public_api, public_tunnel
                 await public_api.listener.stop()
-                # cloudflared is a separate process: it must stop with the server, not only at
-                # interpreter exit (atexit), or it keeps the outside address of a dead server.
+
                 if public_tunnel.tunnel.running():
                     await asyncio.to_thread(public_tunnel.tunnel.stop)
             except Exception:
                 pass
             try:
                 from . import local_models
-                # llama-server processes must not outlive the Proxy.
+
                 await asyncio.to_thread(local_models.pool.stop_all)
             except Exception:
                 pass
@@ -228,28 +217,28 @@ def create_app() -> FastAPI:
     app.include_router(admin_router)
     app.include_router(passthrough_router)
     app.include_router(tools_router)
-    # Round 22: capabilities and the full card of a model (app/model_capabilities.py).
+
     from .model_caps_api import router as model_caps_router
     app.include_router(model_caps_router)
-    # Round 33: the local model wizard (app/local_wizard.py) — /api/admin/local/wizard/*.
+
     from .local_wizard_api import register as register_local_wizard
     register_local_wizard(app)
-    # Round 33 (r33-thinking): per-model reasoning levels (Proxy → model card) — /api/admin/reasoning/*.
+
     from .reasoning_levels_api import register as register_reasoning_levels
     register_reasoning_levels(app)
-    # Round 35 (quota): quota planner routes — /api/admin/quota/planner*.
+
     from .quota_planner import register as register_quota_planner
     register_quota_planner(app)
-    # Round 35 (composite): composite models (app/composite_models.py) — /api/admin/composite/* + x-memu-route header.
+
     from .composite_models_api import register as register_composite_models
     register_composite_models(app)
-    # Round 40 (r40-proxy): web versions of models «<model>:web» — /api/admin/web-models/* (app/web_models.py).
+
     from .web_models_api import register as register_web_models
     register_web_models(app)
-    # Round 35 (triggers): «Планирование» webhook trigger — POST /hook/plan/{token} (app/schedule_triggers_ext.py).
+
     from .schedule_triggers_ext import register_proxy as register_plan_hooks
     register_plan_hooks(app)
-    # Round 37 (r37-gemini): Gemini Web cookie import, step-by-step check, sign-in window — /api/admin/geminiweb/*.
+
     from .geminiweb_api import register as register_geminiweb
     register_geminiweb(app)
     from .model_refresh import register as register_model_refresh

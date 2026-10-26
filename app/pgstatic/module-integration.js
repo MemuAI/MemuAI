@@ -1,17 +1,5 @@
-/* Round 38 (r38-mod-integ): modules integrate with the MemuAI window (app/module_integration*.py).
 
-   window.MemuModInt
-   - Panels of modules («contributes.panels») in the panel gallery and on the home screen / sidebar: each card holds a
-     sandbox iframe (/api/pg/modint/panel/<module>/<panel>, the module's own CSP and bridge). panels.js re-renders cards
-     with innerHTML, so park() moves the live iframes aside (Element.moveBefore keeps them running; older engines reload
-     them) and mount() puts them back into the new placeholders. Iframes are created lazily — only when the card is on
-     screen (IntersectionObserver) — and told when they go off screen / the window hides, so their polling pauses.
-     The bridge here is a small subset of modules.js: music_call, store, monitor (read), env, log, open_module.
-   - Commands for the AI (chat): systemBlock() → the module commands block of the system prompt; the chat runs the
-     tool module_command through runTool() (asks first for «danger» commands, then /api/pg/tools) and client() does
-     what only this window can (start the host player — pgstatic/music-dock.js, open a module).
-   - Widget «chat.composer» (MemuMusic: mini player above the message box while music plays): the player state comes
-     from the host player (music-dock.js, event «memu-music-state») — no stream of its own, nothing runs while no music plays. */
+
 (function () {
   "use strict";
   const en = () => (typeof PG_LANG !== "undefined" ? PG_LANG : document.documentElement.lang) === "en";
@@ -42,14 +30,13 @@
       S.modules = data.modules || []; S.prompt = skill.prompt || ""; S.loaded = true;
       if (S.modules.length) loadCss();
       syncChatWidget();
-      document.dispatchEvent(new CustomEvent("memu-modint-changed"));   // Round 39: the dock re-reads its mode
+      document.dispatchEvent(new CustomEvent("memu-modint-changed"));
       return S.modules;
     });
     return S.loading;
   }
   const panelSpec = (module, id) => ((S.modules.find((m) => m.module === module) || {}).panels || []).find((p) => p.id === id);
 
-  /* -------------------------------------------------------------------------------------------- panels */
   function galleryHtml() {
     const rows = S.modules.filter((m) => (m.panels || []).length);
     if (!rows.length) return "";
@@ -89,7 +76,7 @@
     }
   }
   function move(parent, el) {
-    if (typeof parent.moveBefore === "function" && el.isConnected && parent.isConnected) { try { parent.moveBefore(el, null); return; } catch (e) { /* fallback */ } }
+    if (typeof parent.moveBefore === "function" && el.isConnected && parent.isConnected) { try { parent.moveBefore(el, null); return; } catch (e) {  } }
     parent.appendChild(el);
   }
   function mount() {
@@ -131,25 +118,25 @@
     frame.title = (panelSpec(module, panel) || {}).title || module;
     frame.loading = "lazy";
     frame.src = `/api/pg/modint/panel/${encodeURIComponent(module)}/${encodeURIComponent(panel)}#` + encodeURIComponent(JSON.stringify({ size: slot.dataset.size, place: slot.dataset.mmiKey.split(":")[1] }));
-    // Every load (a re-render without moveBefore reloads the frame) gets the theme and the visibility again.
+
     frame.addEventListener("load", () => { item.slot.querySelector(".mmi-skel")?.remove(); frame.classList.add("ready"); postTheme(item, hostEnv()); notifyVisible(item); });
     const item = { frame, module, src: slot.dataset.mmi, slot, visible: true };
     slot.appendChild(frame);
     S.frames.set(slot.dataset.mmiKey, item);
     return item;
   }
-  /* The panel follows the MemuAI theme like a module window: modules.js tokens (light / dark, accent, surface). */
+
   function hostEnv() {
     if (window.MemuModules && MemuModules.hostEnv) return MemuModules.hostEnv();
     return { lang: en() ? "en" : "ru", theme: document.documentElement.dataset.theme === "light" ? "light" : "dark" };
   }
   function postTheme(item, payload) {
     item.frame.style.colorScheme = payload && payload.theme === "light" ? "light" : "dark";
-    try { item.frame.contentWindow.postMessage({ type: "memu-module-host", action: "theme", payload }, "*"); } catch (e) { /* not loaded */ }
+    try { item.frame.contentWindow.postMessage({ type: "memu-module-host", action: "theme", payload }, "*"); } catch (e) {  }
   }
   function theme(payload) { for (const item of S.frames.values()) postTheme(item, payload || hostEnv()); }
   function notifyVisible(item) {
-    try { item.frame.contentWindow.postMessage({ type: "memu-panel-visible", visible: !!item.visible && !document.hidden }, "*"); } catch (e) { /* not loaded */ }
+    try { item.frame.contentWindow.postMessage({ type: "memu-panel-visible", visible: !!item.visible && !document.hidden }, "*"); } catch (e) {  }
   }
   const frameOf = (source) => { for (const item of S.frames.values()) if (item.frame.contentWindow === source) return item; return null; };
 
@@ -159,12 +146,12 @@
     const item = frameOf(event.source);
     if (!item || String(data.from || "") !== item.module) return;
     event.stopImmediatePropagation();
-    const reply = (result, error) => { try { event.source.postMessage({ type: "memu-module-result", id: data.id, result: result === undefined ? null : result, error: error ? String(error) : "" }, "*"); } catch (e) { /* gone */ } };
+    const reply = (result, error) => { try { event.source.postMessage({ type: "memu-module-result", id: data.id, result: result === undefined ? null : result, error: error ? String(error) : "" }, "*"); } catch (e) {  } };
     try { reply(await panelAction(item, data.action, data.payload || {})); } catch (error) { reply(null, error && error.message ? error.message : String(error)); }
   }, true);
 
   function row(module) {
-    // The main window knows the module catalogue; the Quick Access panel layer only has /api/pg/modint.
+
     return (window.MemuModules && MemuModules.catalog || []).find((r) => r.id === module) || S.modules.find((m) => m.module === module) || {};
   }
   async function panelAction(item, action, payload) {
@@ -177,7 +164,7 @@
       case "resize": case "toolbar": case "unsaved": return { ok: true };
       case "open_module":
         if (window.MemuModules) await MemuModules.navigate(item.module, { query: "", from: "panel", ...(payload || {}) });
-        else await json("/api/pg/modint/open", { module: item.module, detail: payload || {} });   // Quick Access → the main window
+        else await json("/api/pg/modint/open", { module: item.module, detail: payload || {} });
         return { ok: true };
       case "panel_data":
         return await json("/api/pg/modint/data", { module: item.module, panel: item.src.split(":")[1], args: payload.args || {}, lang: en() ? "en" : "ru" });
@@ -185,7 +172,7 @@
         need("music");
         const op = String(payload.op || "");
         const body = { op, args: payload.args || {}, module_id: item.module, lang: en() ? "en" : "ru" };
-        // r40-lag: the 25 s long-poll goes over a WebSocket — it no longer holds one of the 6 HTTP connections
+
         const out = (op === "player.wait" && window.MemuLive ? await MemuLive.post("/api/pg/music/call", body) : await json("/api/pg/music/call", body)).result;
         if (op === "player.command") {
           const a = payload.args || {};
@@ -206,7 +193,6 @@
     }
   }
 
-  /* ------------------------------------------------------------------------------- commands (chat, quick) */
   function systemBlock(mode) {
     if (mode === "work" || mode === "code") return "";
     if (!S.loaded) load();
@@ -217,14 +203,14 @@
     if (c.modint_reload) { await load(true); if (window.MemuPanels && MemuPanels.render) MemuPanels.render(); return; }
     if (c.open_module && window.MemuModules) await MemuModules.navigate(String(c.open_module), { query: "", model: "", from: "command", ...(c.detail || {}) });
     if (c.music_boot && window.MemuMusicDock && MemuMusicDock.boot) {
-      // The dock listens to the player once it runs; a command sent before it started is applied here once.
+
       const wasOn = !!MemuMusicDock.state().booted;
       if (!wasOn) await MemuMusicDock.boot(true);
       const moduleOpen = !!(window.MemuModules && (MemuModules.openIds || []).includes("music"));
       if (!wasOn && !moduleOpen && c.command && c.command.cmd && MemuMusicDock.apply) MemuMusicDock.apply({ ...c.command, from: "memuai" });
     }
   }
-  /** Round 39: {tool: "music_play" | "music.play", args} → {tool: "module_command", args: {module, command, args}} (null if no such command). */
+
   function aliasCall(call) {
     const norm = (v) => String(v || "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
     const want = norm(call && call.tool);
@@ -251,14 +237,13 @@
     }
     if (out.client) { client(out.client); delete out.client; }
     if (out.card && opts.message) {
-      // The person sees the card under the answer; the model reads only the text (a cover can be a big data: URL).
+
       attachCard(opts.message, { module: args.module, command: args.command, ok: out.ok !== false, card: out.card });
       delete out.card;
     }
     return out;
   }
 
-  /* --------------------------------------------- result cards in the chat (cover, title, buttons, list rows) */
   const ICONS = {
     play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l11-6.5a1 1 0 0 0 0-1.72l-11-6.5A1 1 0 0 0 8 5.5z"/></svg>',
     pause: '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="5" width="4" height="14" rx="1.2"/><rect x="14" y="5" width="4" height="14" rx="1.2"/></svg>',
@@ -268,7 +253,7 @@
   };
   ICONS.resume = ICONS.play;
   function slim(card) {
-    // A saved chat keeps the card: data: covers (character thumbnails) are dropped past 60 KB.
+
     const big = (v) => /^data:/.test(String(v || "")) && String(v).length > 60000;
     return { ...card, cover: big(card.cover) ? "" : card.cover || "",
       items: (card.items || []).slice(0, 8).map((it) => ({ ...it, cover: big(it.cover) ? "" : it.cover || "" })) };
@@ -281,7 +266,7 @@
     const mod = S.modules.find((m) => m.module === entry.module) || {};
     const title = card.title || (entry.ok ? t("Готово", "Done") : t("Не получилось", "Did not work"));
     const hue = [...String(entry.module)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 0) % 360;
-    // Round 39 (r39-mod-icons): no cover — the module's own icon.
+
     const cover = card.cover ? `<img class="mmi-cover" src="${esc(card.cover)}" alt="" decoding="async">`
       : /^[a-z][a-z0-9-]{0,40}$/.test(String(entry.module || "")) && card.kind !== "track" ? `<img class="mmi-cover mmi-mico" src="/api/pg/modules/${esc(entry.module)}/icon" alt="" decoding="async">`
       : `<span class="mmi-cover mmi-gen" aria-hidden="true">${esc(String(title).trim().charAt(0).toUpperCase() || "•")}</span>`;
@@ -296,7 +281,7 @@
   }
   function cardsHtml(m, i) {
     if (!m || !(m.modCards || []).length) return "";
-    const cardsOff = (widgetValues("chat.cards") || {}).enabled === false;   // Round 39: «Карточки команд в чате»
+    const cardsOff = (widgetValues("chat.cards") || {}).enabled === false;
     if (cardsOff && m.modCards.every((entry) => entry.module === "music")) return "";
     if (!S.loaded) load();
     loadCss();
@@ -329,8 +314,6 @@
     return String(result.text || result.error || "").slice(0, 140);
   }
 
-  /* --------------------------------------------------------------------- widget chat.composer (mini player) */
-  /** Round 39: values of the first widget in a slot (enabled modules), null when no module offers it. */
   function widgetValues(slot) {
     for (const m of S.modules) for (const w of m.widgets || []) if (w.slot === slot) return w.values || {};
     return null;
@@ -340,17 +323,16 @@
     return null;
   }
   function syncChatWidget() {
-    if (!document.querySelector(".composer-wrap")) return;   // the Quick Access panel layer has no chat
+    if (!document.querySelector(".composer-wrap")) return;
     if (!S.player && window.MemuMusicDock && MemuMusicDock.nowPlaying) S.player = MemuMusicDock.nowPlaying();
     renderChat();
   }
-  // The player state comes from the host player (music-dock.js, «memu-music-state»): it already listens to the server while
-  // there is music, so the page keeps no stream of its own for the widget.
+
   document.addEventListener("memu-music-state", (e) => { S.player = e.detail; if (S.loaded) syncChatWidget(); });
   function renderChat() {
     const w = chatWidget();
     const st = S.player;
-    // while music plays; on pause too when the dock is hidden (by its setting) — otherwise nothing could resume it
+
     const on = !!(w && st && st.track && (st.playing || !st.dock) && !document.hidden);
     const wrap = document.querySelector(".composer-wrap");
     if (!on || !wrap) { if (S.chatEl) S.chatEl.hidden = true; return; }
@@ -377,7 +359,7 @@
   async function onChatClick(e) {
     const b = e.target.closest("[data-np]");
     if (b) {
-      // Round 39: the host player lives in this page — its own controls answer at once; the server only when it is not running yet
+
       const dock = window.MemuMusicDock;
       if (dock && dock.state().booted && dock.control) { dock.control(b.dataset.np === "resume" ? "toggle" : b.dataset.np === "pause" ? "toggle" : b.dataset.np); return; }
       await json("/api/pg/modint/command", { module: "music", command: b.dataset.np, args: {}, lang: en() ? "en" : "ru", surface: "chat" }).then((r) => client(r.client)).catch(() => {});
@@ -386,7 +368,6 @@
     if (window.MemuModules) MemuModules.navigate("music", { query: "", from: "widget" });
   }
 
-  /* The module panel editor (panels.js openModuleEditor): the panel's own settings from contributes.panels[].settings. */
   async function panelInfo(module, panel) {
     await load();
     const mod = S.modules.find((m) => m.module === module);
@@ -412,14 +393,13 @@
     if (!inputs.length) return;
     const values = Object.fromEntries(inputs.map((el) => [el.dataset.mmiSet, el.type === "checkbox" ? el.checked : el.value]));
     await json("/api/pg/modint/settings", { module, kind: "panel", id: panel, values });
-    for (const item of S.frames.values()) if (item.src === module + ":" + panel) item.frame.src = item.frame.src;   // settings are baked into the page
+    for (const item of S.frames.values()) if (item.src === module + ":" + panel) item.frame.src = item.frame.src;
   }
   document.addEventListener("click", (e) => {
     const b = e.target.closest && e.target.closest("[data-mmi-open]");
     if (b && window.MemuModules) MemuModules.navigate(b.dataset.mmiOpen, { query: "", from: "panel-editor" });
   });
 
-  /* Memu.integration.* of a module window: its own widgets / panels and their settings (only its own). */
   async function moduleSettings(moduleId, payload) {
     const op = String((payload || {}).op || "list");
     if (op === "set") {
@@ -435,8 +415,6 @@
     return { widgets: row.widgets || [], panels: (row.panels || []).map((p) => ({ id: p.id, title: p.title, title_en: p.title_en, settings: p.settings || [] })) };
   }
 
-  /* Round 39 (r39-integ): MemuAI → Settings → Modules — «Виджеты модулей»: every widget of the enabled modules with its
-     settings (the same values MemuMusic → «Виджеты и интеграция» edits); a change applies at once in every window. */
   async function renderWidgetSettings(host) {
     if (!host) return;
     let box = host.querySelector(".mmi-wset");

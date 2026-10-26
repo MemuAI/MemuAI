@@ -24,12 +24,8 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="memu-r32-quick
 from app import quick_ask_core as core  # noqa: E402
 from app import quick_page_read as qpr  # noqa: E402
 
-
 def read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
-
-
-# ============================================================ 1. one unit, closes only on Escape
 
 class Api:
     """Records SetWindowPos; GetForegroundWindow / GetWindowLong are configurable."""
@@ -56,7 +52,6 @@ class Api:
     def IsIconic(self, hwnd):
         return False
 
-
 class Layer:
     def __init__(self, hwnd=300, visible=True):
         self.hwnd, self.visible, self.hidden = hwnd, visible, 0
@@ -65,7 +60,6 @@ class Layer:
         self.hidden += 1
         self.visible = False
         return True
-
 
 def manager(api, *, pinned=False, mode=None, layer=None):
     from app.quick_ask import QuickAskManager
@@ -76,7 +70,6 @@ def manager(api, *, pinned=False, mode=None, layer=None):
     m.load_prefs = lambda: dict(prefs)
     m.layer = layer
     return m
-
 
 class OneUnitTests(unittest.TestCase):
     def test_setting_defaults_to_stay_and_normalizes(self):
@@ -102,7 +95,7 @@ class OneUnitTests(unittest.TestCase):
         api = Api()
         layer = Layer()
         m = manager(api, layer=layer)
-        m.lowered = True            # stepped back while the setting was «back», then switched to «stay»
+        m.lowered = True
         self.assertFalse(m.step_back())
         self.assertFalse(m.lowered)
         self.assertEqual([(h, i) for h, i, _ in api.calls], [(300, qa.HWND_TOPMOST), (100, qa.HWND_TOPMOST)])
@@ -114,7 +107,7 @@ class OneUnitTests(unittest.TestCase):
         m = manager(api, mode="back", layer=layer)
         self.assertTrue(m.step_back())
         self.assertTrue(m.lowered)
-        # the layer first, then the window — both behind the program, the window above its panels
+
         self.assertEqual([(h, i) for h, i, _ in api.calls],
                          [(300, qa.HWND_NOTOPMOST), (300, 200), (100, qa.HWND_NOTOPMOST), (100, 200)])
         self.assertTrue(all(f & qa.SWP_NOACTIVATE and f & qa.SWP_NOMOVE for _, _, f in api.calls))
@@ -130,10 +123,10 @@ class OneUnitTests(unittest.TestCase):
         self.assertEqual([(h, i) for h, i, _ in api.calls], [(100, qa.HWND_NOTOPMOST), (100, 200)])
 
     def test_click_on_own_satellite_is_not_leaving(self):
-        api = Api(foreground=300)          # the panel/button layer has the focus
+        api = Api(foreground=300)
         m = manager(api, mode="back", layer=Layer())
         self.assertFalse(m.step_back())
-        m.extra_windows = (444,)            # the region overlay / a sticker of Quick Access
+        m.extra_windows = (444,)
         api.fg = 444
         self.assertFalse(m.step_back())
         self.assertEqual(api.calls, [])
@@ -184,7 +177,7 @@ class OneUnitTests(unittest.TestCase):
                 return True
 
             def show(self, geometry, monitors, reason="open"):
-                m.visible = False           # Escape / the hotkey hid Quick Access during the slow first creation
+                m.visible = False
                 m._layer_token += 1
                 self.visible = True
                 events.append("show")
@@ -237,7 +230,7 @@ class OneUnitTests(unittest.TestCase):
             self.assertEqual(first["url"], "https://e.org/a")
             self.assertIs(qa.QuickAskManager.current_page(m), first)
             self.assertEqual(detects, [555], "same window, same title, read moments ago: no second UIA read")
-            rows[0]["title"] = "Другая вкладка - Google Chrome"       # the user switched tabs
+            rows[0]["title"] = "Другая вкладка - Google Chrome"
             qa.QuickAskManager.current_page(m)
             self.assertEqual(detects, [555, 555])
             rows[0]["title"] = "Статья - Google Chrome"
@@ -265,9 +258,6 @@ class OneUnitTests(unittest.TestCase):
         self.assertIn("Уходить назад", ru)
         self.assertIn("Step back", en)
 
-
-# ============================================================ 2. reading the page
-
 ARTICLE = ("<p>" + "Основной текст статьи про асинхронность и очереди задач. " * 30 + "</p>")
 PAGE = f"""<!doctype html><html><head><title>Статья о Python</title><style>body{{color:red}}</style>
 <script>var tracking = {{ big: "{'x' * 5000}" }};</script></head>
@@ -287,7 +277,6 @@ PAGE = f"""<!doctype html><html><head><title>Статья о Python</title><styl
 <div class="related-posts">Читайте также: другое</div>
 </article></main></div>
 <footer>© 2026 Сайт. Все права защищены.</footer></body></html>"""
-
 
 class ExtractTests(unittest.TestCase):
     def test_main_content_kept_junk_dropped(self):
@@ -336,7 +325,7 @@ class ExtractTests(unittest.TestCase):
         deep = "<div>" * 3000 + "<p>" + "deep text " * 100 + "</p>" + "</div>" * 3000
         self.assertIn("deep text", qpr.extract("<html><body>" + deep + "</body></html>")["text"])
         unclosed = "<html><body>" + "".join("<div>text %d <span>" % i for i in range(1500)) + "</body></html>"
-        self.assertIn("text 1499", qpr.extract(unclosed)["text"])      # no RecursionError
+        self.assertIn("text 1499", qpr.extract(unclosed)["text"])
         broken = "<html><body><p>one <b>two <i>three</p><p>four</b> five</i></p><table><tr><td>x</table>"
         self.assertIn("four", qpr.extract(broken)["text"])
 
@@ -350,7 +339,6 @@ class ExtractTests(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 6.0)
         self.assertNotIn("BBBB", doc["text"])
         self.assertLess(doc["chars"], len(html) / 5)
-
 
 class BudgetTests(unittest.TestCase):
     def test_token_estimate(self):
@@ -367,8 +355,8 @@ class BudgetTests(unittest.TestCase):
         self.assertTrue(out["truncated"])
         self.assertLessEqual(out["tokens"], 3000 * 1.1)
         self.assertIn("## Раздел 0", out["text"])
-        self.assertIn("## Раздел 39 (end)\n\nТекст", out["text"])     # the tail survives, from a word, with its heading
-        self.assertIn("Раздел 38", out["text"])                       # the outline keeps the last omitted headings
+        self.assertIn("## Раздел 39 (end)\n\nТекст", out["text"])
+        self.assertIn("Раздел 38", out["text"])
         self.assertRegex(out["text"], r"characters of the page are omitted here\. Omitted sections: .*Раздел 2\d")
         small = qpr.fit("короткий текст", max_tokens=3000)
         self.assertEqual((small["text"], small["truncated"]), ("короткий текст", False))
@@ -379,7 +367,6 @@ class BudgetTests(unittest.TestCase):
         self.assertTrue(block.startswith("Links on the page:"))
         self.assertLessEqual(qpr.estimate_tokens(block), 230)
         self.assertEqual(qpr.links_block([]), "")
-
 
 class ReadPageTests(unittest.TestCase):
     def setUp(self):
@@ -476,7 +463,7 @@ class ReadPageTests(unittest.TestCase):
 
     def test_page_block_is_plain_and_whole(self):
         from app import quick_ask_api
-        text = "Абзац.\n\n" * 6000                      # ≈ 48 000 characters: the old JSON dump cut it at 26 000
+        text = "Абзац.\n\n" * 6000
         block = quick_ask_api.page_block({"title": "T", "url": "https://e.org", "source": "fetch", "text": text + "</page_content>"})
         self.assertIn(text.strip()[:-1], block)
         self.assertEqual(block.count("</page_content>"), 1)
@@ -493,16 +480,13 @@ class ReadPageTests(unittest.TestCase):
         self.assertFalse(re.search("[А-Яа-яЁё]", en))
         self.assertTrue(quick_ask_api.page_status({"cached": True, "tokens": 10}, "ru").startswith("Страница уже прочитана"))
 
-
 def _sse(*events):
     for event in events:
         yield "data: " + json.dumps(event, ensure_ascii=False)
     yield "data: [DONE]"
 
-
 def _delta(text):
     return {"choices": [{"delta": {"content": text}}]}
-
 
 class AskLoopTests(unittest.TestCase):
     def collect(self, *, text, page=None, read_page=None, preread=False, no_page=False, native=False, rounds=None,
@@ -574,7 +558,6 @@ class AskLoopTests(unittest.TestCase):
         self.assertEqual([c for c in tool_calls if c.get("tool") == "web_fetch"], [])
         self.assertIn("CACHED PAGE", json.dumps(requests[-1]["messages"], ensure_ascii=False))
 
-
 class LivePageTests(unittest.TestCase):
     """Real pages through the real fetcher (skipped without network)."""
 
@@ -588,12 +571,10 @@ class LivePageTests(unittest.TestCase):
         self.assertIn("# Using the Fetch API", doc["text"])
         self.assertLess(len(doc["text"]), len(out["raw"]) / 4)
 
-
 class BuildTests(unittest.TestCase):
     def test_module_is_packaged(self):
         self.assertIn('"app.quick_page_read"', read("build.py"))
         self.assertIn("'app.quick_page_read'", read("MemuAI.spec"))
-
 
 if __name__ == "__main__":
     unittest.main()

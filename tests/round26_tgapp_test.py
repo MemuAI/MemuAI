@@ -39,13 +39,11 @@ TGAPP = ROOT / "app" / "tgapp"
 TOKEN = "123456:R26-token_for-mini-app"
 USER = 4343
 
-
 def init_data(user_id: int = USER, **extra) -> str:
     fields = {"auth_date": int(time.time()), "query_id": "AAH-r26",
               "user": {"id": user_id, "first_name": "Yono", "language_code": "ru"}}
     fields.update(extra)
     return tg_webapp.sign_init_data(fields, TOKEN)
-
 
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium",
@@ -54,19 +52,14 @@ def _chromium() -> str:
             return candidate
     return ""
 
-
 try:
     from playwright.sync_api import sync_playwright
 except Exception:  # pragma: no cover - optional dependency
     sync_playwright = None
 
-
 def _browser(play):
     path = _chromium()
     return play.chromium.launch(executable_path=path or None, args=["--no-sandbox"])
-
-
-# --------------------------------------------------------------------------- window routes (Python)
 
 class TelegramSettingsNetworkTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self) -> None:
@@ -90,7 +83,7 @@ class TelegramSettingsNetworkTest(unittest.IsolatedAsyncioTestCase):
         from app import telegram_settings_api
 
         def loopback(request):
-            # The window's own client is trust_env=False: Telegram must not go through it.
+
             raise AssertionError("api.telegram.org was called through the loopback client: " + str(request.url))
 
         seen = []
@@ -119,11 +112,10 @@ class TelegramSettingsNetworkTest(unittest.IsolatedAsyncioTestCase):
     async def test_default_telegram_client_honours_the_system_proxy(self) -> None:
         from app import telegram_settings_api
         async with telegram_settings_api._telegram_http(None) as client:
-            self.assertTrue(client.trust_env)       # same network path as the bot (telegram_bot._new_client)
+            self.assertTrue(client.trust_env)
         shared = self.client(lambda request: httpx.Response(200))
         async with telegram_settings_api._telegram_http(shared) as client:
             self.assertIs(client, shared)
-
 
 class ModulesToggleTest(unittest.TestCase):
     def test_bad_module_id_is_not_found_not_internal(self) -> None:
@@ -144,7 +136,6 @@ class ModulesToggleTest(unittest.TestCase):
         finally:
             tg_webapp.save_config({"enabled": False})
 
-
 class ManagerShutdownTest(unittest.TestCase):
     def test_window_sees_proxy_offline_right_after_shutdown(self) -> None:
         tg_webapp.save_config({"enabled": False, "mode": "cloudflare"})
@@ -162,11 +153,8 @@ class ManagerShutdownTest(unittest.TestCase):
         self.assertIsNone(tg_webapp.manager())
         data = json.loads(tg_webapp.status_path().read_text(encoding="utf-8"))
         self.assertEqual(data["state"], "off")
-        # The window process (no manager of its own) must not read a fresh «off»/«Starting…».
+
         self.assertEqual(tg_webapp.read_status()["state"], "proxy_offline")
-
-
-# --------------------------------------------------------------------------- window front end
 
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
 class TelegramSettingsHtmlTest(unittest.TestCase):
@@ -191,8 +179,7 @@ process.stdout.write(window.MemuTelegramSettings.html({ en: false, esc, models: 
             self.assertIn(f'<option value="{value}" selected>', select)
         select = self.render(60)
         self.assertIn('<option value="60" selected>', select)
-        self.assertEqual(select.count("<option"), 4)        # standard values are not duplicated
-
+        self.assertEqual(select.count("<option"), 4)
 
 @unittest.skipUnless(sync_playwright is not None, "playwright is not installed")
 class WindowPanelsBrowserTest(unittest.TestCase):
@@ -244,14 +231,11 @@ window.fetch = async () => ({ ok: true, json: async () => ({
                 self.assertEqual(padding, "18px")
                 page.evaluate("window.marker = document.querySelector('#tgapp-settings .tga-card')")
                 renders = page.evaluate("window.enhanced")
-                page.wait_for_timeout(3600)                   # one more 3-second poll; only the heartbeat moved
+                page.wait_for_timeout(3600)
                 self.assertTrue(page.evaluate("window.beat > 2"))
                 self.assertTrue(page.evaluate("window.marker === document.querySelector('#tgapp-settings .tga-card')"))
                 self.assertEqual(page.evaluate("window.enhanced"), renders)
                 browser.close()
-
-
-# --------------------------------------------------------------------------- Mini App front end
 
 class MiniAppHintsTest(unittest.TestCase):
     def test_hints_point_to_the_telegram_settings_page(self) -> None:
@@ -260,7 +244,6 @@ class MiniAppHintsTest(unittest.TestCase):
         self.assertNotIn("Integrations → Telegram", source)
         self.assertIn("Настройки → Telegram", source)
         self.assertIn("Settings → Telegram", source)
-
 
 @unittest.skipUnless(sync_playwright is not None, "playwright is not installed")
 class MiniAppSettingsRefreshBrowserTest(unittest.TestCase):
@@ -297,10 +280,10 @@ class MiniAppSettingsRefreshBrowserTest(unittest.TestCase):
                 page.goto(f"http://127.0.0.1:{port}/tgapp/?tab=settings#{hash_part}")
                 page.wait_for_selector("#app:not([hidden]) .tab", timeout=15000)
                 self.assertIn("Настройки", page.inner_text("#tabbar"))
-                save_preferences({"language": "en", "telegram_notify_mode": "sound"})   # «the computer»
-                page.wait_for_timeout(3200)                                             # past the throttle
+                save_preferences({"language": "en", "telegram_notify_mode": "sound"})
+                page.wait_for_timeout(3200)
                 page.evaluate("document.dispatchEvent(new Event('visibilitychange'))")
-                for _ in range(80):                               # (the Mini App's CSP forbids wait_for_function)
+                for _ in range(80):
                     if "Settings" in page.inner_text("#tabbar"):
                         break
                     page.wait_for_timeout(100)
@@ -313,7 +296,6 @@ class MiniAppSettingsRefreshBrowserTest(unittest.TestCase):
             models.stop()
             save_preferences({"language": "ru", "telegram_notify_mode": "off"})
             tg_webapp.save_config({"enabled": False})
-
 
 if __name__ == "__main__":
     unittest.main()

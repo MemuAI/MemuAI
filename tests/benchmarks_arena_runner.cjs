@@ -1,7 +1,5 @@
-// Runs the Benchmarks module's arena.ai loader against small pages in the two formats the
-// site uses (the regular Elo board and the Agent arena snapshot), and checks which timestamp
-// the header shows. Prints one JSON line; round13_misc_test.py asserts on it.
-// AGENT_PAGE=<file> makes it read a saved real page instead of the synthetic one.
+
+
 const fs = require("fs");
 const vm = require("vm");
 const path = require("path");

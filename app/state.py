@@ -24,11 +24,9 @@ ACCOUNTS_PATH = os.path.join(DATA_DIR, "accounts.json")
 MODELS_PATH = os.path.join(DATA_DIR, "models.json")
 LOGS_DIR = os.path.join(DATA_DIR, "logs")
 LOGS_PATH = os.path.join(LOGS_DIR, "requests.jsonl")
-# Журнал держится в памяти целиком и дублируется на диск, чтобы он переживал
-# перезапуск приложения. Файл усекается, когда становится больше лимита.
+
 LOG_MEMORY_LIMIT = 3000
 LOG_FILE_MAX_BYTES = 12 * 1024 * 1024
-
 
 def _read_log_tail(path: str, *, row_limit: int, byte_limit: int):
     """Read recent complete UTF-8 JSON records without buffering the file."""
@@ -39,13 +37,12 @@ def _read_log_tail(path: str, *, row_limit: int, byte_limit: int):
     with open(path, "rb") as handle:
         while raw := handle.readline(byte_limit + 1):
             if len(raw) > byte_limit:
-                # Drain this record in bounded chunks, leaving its following
-                # neighbor available to the next read.
+
                 while raw and not raw.endswith(b"\n"):
                     raw = handle.readline(byte_limit + 1)
                 continue
             if not raw.endswith(b"\n"):
-                continue  # A torn final append is not a complete record.
+                continue
             try:
                 if not isinstance(json.loads(raw.decode("utf-8")), dict):
                     continue
@@ -57,15 +54,11 @@ def _read_log_tail(path: str, *, row_limit: int, byte_limit: int):
                 size -= len(tail.popleft())
     return tail
 
-
 ST_UNKNOWN = "unknown"
 ST_OK = "ok"
 ST_INVALID = "invalid"
 ST_DISABLED = "disabled"
 
-# «Откат» (пауза аккаунта после ошибки) убран: ошибка только записывается в
-# статистику, а аккаунт остаётся в ротации. Статус из старого accounts.json
-# превращается в обычный при загрузке (см. Account.__init__).
 _RETIRED_STATUSES = frozenset({"cooldown"})
 
 STATUS_LABELS = {
@@ -75,7 +68,6 @@ STATUS_LABELS = {
     ST_DISABLED: "выключен",
 }
 
-# прежние места хранения данных (переезд на AppData)
 _PROGRAM_DIR = os.environ.get("MEMUAI_PROGRAM_DIR") or os.path.dirname(os.path.dirname(DATA_DIR))
 _LEGACY_ROOTS = [
     _PROGRAM_DIR,
@@ -87,11 +79,9 @@ for _root in _LEGACY_ROOTS:
     for _cand in (os.path.join(_root, "data"), os.path.join(_root, "omnihub", "data"),
                   os.path.join(_root, "genspark2api", "data"),
                   os.path.join(_root, "genspark2api", "genspark2api", "data")):
-        # Папка данных «…/data» сама попадала в кандидаты: свои же аккаунты
-        # импортировались второй раз как «старые».
+
         if os.path.normcase(os.path.abspath(_cand)) != os.path.normcase(os.path.abspath(DATA_DIR)):
             LEGACY_DIR_CANDIDATES.append(_cand)
-
 
 class ClosingStream:
     """Own an iterator's cleanup even when it has never been advanced."""
@@ -126,7 +116,6 @@ class ClosingStream:
             if self.closer is not None:
                 await close_quietly(self.closer)
 
-
 class ClosingStreamingResponse(StreamingResponse):
     """Close prefetched sources if ASGI exits before entering the body iterator."""
 
@@ -143,15 +132,10 @@ class ClosingStreamingResponse(StreamingResponse):
         finally:
             await self.aclose()
 
-
-#: Language of the error texts a model API request gets back. OpenAI/Anthropic clients read ``message`` and
-#: get English; MemuAI's own windows send ``X-MemuAI-Lang`` with their interface language.
 api_language: ContextVar[str] = ContextVar("memuai_api_language", default="en")
-
 
 def request_language(request) -> str:
     return "ru" if str(request.headers.get("x-memuai-lang") or "").strip().lower().startswith("ru") else "en"
-
 
 def api_error_text(message_ru: str, message_en: str = "") -> Dict[str, str]:
     """``message`` in the request's language plus both variants (``message_ru``, ``message_en``)."""
@@ -161,7 +145,6 @@ def api_error_text(message_ru: str, message_en: str = "") -> Dict[str, str]:
         fields["message_ru"] = message_ru
     return fields
 
-
 async def until_client_disconnects(request, work):
     """Run a model API handler, cancelling it when the client hangs up first.
 
@@ -170,7 +153,7 @@ async def until_client_disconnects(request, work):
     the account and the public key's concurrency slot stayed busy. The body is read before watching, so the
     watcher only ever sees the disconnect; a returned StreamingResponse watches the client by itself."""
     from fastapi.responses import Response
-    # Set before the work starts: the handler, its stream and their error texts all see it.
+
     api_language.set(request_language(request))
     await request.body()
     task = asyncio.ensure_future(work)
@@ -180,7 +163,7 @@ async def until_client_disconnects(request, work):
             message = await request.receive()
             if message.get("type") == "http.disconnect":
                 return
-            await asyncio.sleep(0.05)      # a repeated body message (test doubles); a real server blocks
+            await asyncio.sleep(0.05)
 
     watcher = asyncio.ensure_future(client_gone())
     try:
@@ -197,12 +180,10 @@ async def until_client_disconnects(request, work):
         await task
     except asyncio.CancelledError:
         pass
-    return Response(status_code=499)      # nobody reads it: the client closed the connection
-
+    return Response(status_code=499)
 
 def _now() -> float:
     return time.time()
-
 
 _REDACTED = "[REDACTED]"
 _SECRET_METADATA_SUFFIXES = (
@@ -216,11 +197,9 @@ _PUBLIC_SECRET_LIKE_METADATA_KEYS = {
 }
 _PROXY_USERINFO_RE = re.compile(r"^([a-z][a-z0-9+.-]*://)[^/?#]*@", re.IGNORECASE)
 
-
 def _normalized_key(key: Any) -> str:
     """Return a case/separator-insensitive form used only for secret detection."""
     return re.sub(r"[^a-z0-9]+", "", str(key).casefold())
-
 
 def _is_secret_key(key: Any) -> bool:
     normalized = _normalized_key(key)
@@ -228,12 +207,10 @@ def _is_secret_key(key: Any) -> bool:
         return False
     if normalized in _PUBLIC_SECRET_LIKE_METADATA_KEYS:
         return False
-    # Names such as authMethod or tokenCount describe public metadata rather
-    # than carrying a credential themselves.
+
     if normalized.endswith(_SECRET_METADATA_SUFFIXES):
         return False
-    # "tokenizer" and "tokenization" are model metadata, not credentials;
-    # still inspect any suffix (for example tokenizerAccessToken).
+
     for public_prefix in ("tokenizer", "tokenization"):
         if normalized.startswith(public_prefix):
             normalized = normalized[len(public_prefix):]
@@ -247,11 +224,10 @@ def _is_secret_key(key: Any) -> bool:
         "authorization", "authentication", "oauth", "csrf", "xsrf", "jwt",
     )):
         return True
-    # Avoid treating unrelated keys such as author/authority as auth secrets.
+
     return normalized == "auth" or (
         normalized.startswith("auth") and not normalized.startswith(("author", "authority"))
     )
-
 
 def _redact_secrets(value: Any) -> Any:
     """Clone nested JSON-like data, replacing values stored under secret keys."""
@@ -266,11 +242,9 @@ def _redact_secrets(value: Any) -> Any:
         return tuple(_redact_secrets(item) for item in value)
     return value
 
-
 def _redact_proxy_credentials(proxy: str) -> str:
     """Remove RFC 3986 userinfo from a proxy URL without changing its endpoint."""
     return _PROXY_USERINFO_RE.sub(r"\1", proxy)
-
 
 def _log_payloads_enabled() -> bool:
     """Настройка «сохранять payload стадий» (по умолчанию включена)."""
@@ -280,14 +254,12 @@ def _log_payloads_enabled() -> bool:
     except Exception:
         return True
 
-
 def _log_persist_enabled() -> bool:
     try:
         from .config import config_store
         return bool(config_store.settings.log_persist)
     except Exception:
         return True
-
 
 def _prompt_secret_values() -> List[str]:
     """Known transport credentials never belong to the local prompt display."""
@@ -307,8 +279,7 @@ def _prompt_secret_values() -> List[str]:
         if isinstance(value, dict):
             for key, item in value.items():
                 if _normalized_key(key) == "apikeys" and isinstance(item, str):
-                    # Custom connections rotate individual newline/semicolon
-                    # keys; the whole pool string is not the sent credential.
+
                     values.extend(part.strip() for part in re.split(r"[\r\n;]+", item)
                                   if part.strip())
                 walk(item, sensitive or _is_secret_key(key), depth + 1)
@@ -329,11 +300,9 @@ def _prompt_secret_values() -> List[str]:
     return list(dict.fromkeys(value.strip() for value in values
                               if isinstance(value, str) and value.strip()))
 
-
 _ACCOUNT_KEYS = {"id", "priority", "order", "note", "tags", "enabled", "status",
                  "status_message", "last_used", "last_checked", "cooldown_until",
                  "created", "extra", "stats", "_unknown"}
-
 
 class Account:
     """Аккаунт любого провайдера. Специфика — в fields/extra (прозрачно для ядра)."""
@@ -344,9 +313,8 @@ class Account:
         self.provider: str = provider
         self.label: str = label or ""
         self.proxy: str = (proxy or "").strip()
-        self.priority: str = kw.get("priority", "normal")  # normal | reserve
-        # order — позиция в списке аккаунтов провайдера (перетаскивание в панели).
-        # Чем меньше число, тем раньше аккаунт берётся в работу.
+        self.priority: str = kw.get("priority", "normal")
+
         try:
             self.order: int = int(kw.get("order", 0) or 0)
         except (TypeError, ValueError):
@@ -358,15 +326,14 @@ class Account:
         self.status: str = kw.get("status", ST_UNKNOWN)
         self.status_message: str = kw.get("status_message", "")
         if self.status in _RETIRED_STATUSES:
-            # Старая версия оставила аккаунт «на паузе»: теперь паузы нет,
-            # и он снова обычный, а не заблокированный до конца срока.
+
             self.status, self.status_message = ST_UNKNOWN, ""
         self.last_used: float = kw.get("last_used") or 0.0
         self.last_checked: float = kw.get("last_checked") or 0.0
         self.created: float = kw.get("created") or _now()
         self.fields: Dict[str, Any] = fields or {}
         self.extra: Dict[str, Any] = kw.get("extra") or {}
-        # Поля из более новой версии схемы: не понимаем, но и не теряем.
+
         self._unknown: Dict[str, Any] = {key: value for key, value in kw.items()
                                          if key not in _ACCOUNT_KEYS}
         stats = kw.get("stats") if isinstance(kw.get("stats"), dict) else {}
@@ -383,8 +350,7 @@ class Account:
         self.stats["requests"] = int(self.stats.get("requests", 0)) + 1
         if ok:
             self.stats["success"] = int(self.stats.get("success", 0)) + 1
-            # «Последняя ошибка» описывает текущее состояние аккаунта, а не его
-            # биографию: удачный запрос доказывает, что прошлая ошибка снята.
+
             self.stats.pop("last_error", None)
             self.stats.pop("last_error_at", None)
         else:
@@ -403,8 +369,7 @@ class Account:
         self.status = status
         self.status_message = message
         if status == ST_OK:
-            # Аккаунт подтверждён рабочим — прошлая ошибка больше не описывает
-            # его состояние и не должна висеть в карточке.
+
             self.stats.pop("last_error", None)
             self.stats.pop("last_error_at", None)
 
@@ -414,8 +379,7 @@ class Account:
             for k, v in fields.items():
                 if isinstance(v, str) and len(v) > 14 and k not in ("base_url", "name", "space_id", "user_id"):
                     fields[k] = v[:6] + "…" + v[-4:]
-        # ``mask=False`` only disables the generic display shortening above;
-        # explicitly named credentials must never cross this public boundary.
+
         fields = _redact_secrets(fields)
         return {
             "id": self.id, "provider": self.provider, "label": self.label,
@@ -430,7 +394,6 @@ class Account:
             "fields": fields, "extra": _redact_secrets(self.extra),
             "has_extra": bool(self.extra),
         }
-
 
 class ModelEntry:
     """Модель каталога: публичный id = prefix + '-' + model.
@@ -460,14 +423,13 @@ class ModelEntry:
             row["availability"] = dict(self.availability)
         return row
 
-
 def _is_available_model(entry: "ModelEntry") -> bool:
     """Hide known provider modes that exist in bundles but not in chat."""
     if entry.provider in RETIRED_PROVIDER_IDS:
         return False
     model = str(entry.model or "").lower().replace("_", "-")
     if entry.provider == "geminiweb":
-        # r41-gemini: старые имена (3.6/3.7 …) и модели, которых нет в выборе модели ни у одного аккаунта.
+
         try:
             from .providers import get as get_provider
             provider = get_provider("geminiweb")
@@ -475,7 +437,6 @@ def _is_available_model(entry: "ModelEntry") -> bool:
         except Exception:
             return True
     return not (entry.provider == "genspark" and "fable-5" in model)
-
 
 class LogEntry:
     """Запись о запросе: итог + цепочка стадий с payload'ами (как в KiCk)."""
@@ -493,7 +454,7 @@ class LogEntry:
         self.prompt_tokens: int = kw.get("prompt_tokens", 0)
         self.completion_tokens: int = kw.get("completion_tokens", 0)
         self.error: str = kw.get("error", "")
-        # Английский вариант той же ошибки для en-локали панели.
+
         self.error_en: str = kw.get("error_en", "")
         self.error_code: str = kw.get("error_code", "")
         self.stages: List[Dict[str, Any]] = kw.get("stages") or []
@@ -519,8 +480,6 @@ class LogEntry:
             except (ValueError, RecursionError):
                 self._prompt_bytes = LOG_FILE_MAX_BYTES + 1
 
-    # Стадии, которые имеет смысл записывать только один раз: разбор запроса
-    # фиксируют и HTTP-слой, и ядро чата, из-за чего в журнале был дубликат.
     UNIQUE_STAGES = ("request_parsed",)
 
     def add_stage(self, step: str, payload: Optional[Dict[str, Any]] = None) -> None:
@@ -548,7 +507,6 @@ class LogEntry:
                 "stages": self.stages,
                 "prompt": self.prompt if _log_payloads_enabled() else None}
 
-
 class State:
     def __init__(self) -> None:
         self._lock = threading.RLock()
@@ -562,13 +520,9 @@ class State:
         self._load_logs()
         self._import_legacy()
 
-    # ---------- persistence ----------
-
     def _load(self) -> None:
         from .storage import load_json_with_recovery
-        # A corrupt file is already recovered from the newest valid backup by
-        # load_json_with_recovery(). A valid empty list is a real state (every
-        # account was deleted) and must not resurrect accounts from a backup.
+
         items = load_json_with_recovery(ACCOUNTS_PATH, [], validator=lambda value: isinstance(value, list)) or []
         for it in items:
             try:
@@ -595,10 +549,6 @@ class State:
             except Exception:
                 self._unparsed_models.append(it)
                 continue
-        # Loading must be read-only.  Rewriting only the successfully parsed
-        # rows here used to silently erase malformed or newer-version entries.
-        # Later mutations persist the canonical rows alongside quarantined
-        # unknown rows, so an older MemuAI cannot destroy newer schema data.
 
     def save_accounts(self, *, backup: bool = True) -> None:
         from .storage import save_json
@@ -637,8 +587,7 @@ class State:
         try:
             self.save_accounts(backup=False)
         except Exception as exc:
-            # A refreshed login token may only live in memory: don't drop it
-            # silently (flush_pending on exit would then have nothing to do).
+
             logging.getLogger("memuai.state").warning("deferred accounts save failed: %s", exc)
             self.save_accounts_soon(30.0)
 
@@ -656,23 +605,17 @@ class State:
                 rows.append(d)
             save_json(MODELS_PATH, rows)
 
-    # ---------- импорт из genspark2api ----------
-
     def _import_legacy(self) -> None:
         self._import_legacy_accounts()
         self._import_legacy_models()
 
     def _import_legacy_models(self) -> None:
         from .storage import load_json_with_recovery
-        # Каталог genspark2api — это модели Genspark: без аккаунта Genspark их
-        # некому обслужить. Раньше пустой каталог (например, после удаления
-        # последнего аккаунта) заново наполнялся ими при каждом запуске.
+
         if not self.models and any(acc.provider == "genspark" for acc in self.accounts.values()):
             for cand in LEGACY_DIR_CANDIDATES:
                 legacy_models = os.path.join(cand, "models.json")
-                # Reading through the transactional loader creates lock files /
-                # folders next to the path; a missing legacy folder must stay
-                # untouched (and an unwritable one used to crash Proxy startup).
+
                 if not os.path.isfile(legacy_models):
                     continue
                 try:
@@ -686,7 +629,7 @@ class State:
                     try:
                         if it.get("kind", "text") != "text":
                             continue
-                        # старый формат: {id, upstream}; новый: {model}
+
                         raw = str(it.get("model") or it.get("upstream") or it.get("id") or "").strip()
                         if not raw or raw == "auto":
                             continue
@@ -704,9 +647,7 @@ class State:
 
     def _import_legacy_accounts(self) -> None:
         from .storage import load_json_with_recovery
-        # Импорт однократный: раньше условие «уже импортировано И аккаунты есть»
-        # после удаления всех аккаунтов возвращало удалённые аккаунты
-        # (обычно Genspark) из старой папки при каждом запуске.
+
         if config_store.settings.imported_from:
             return
         for cand in LEGACY_DIR_CANDIDATES:
@@ -720,7 +661,7 @@ class State:
                 for it in old_accounts:
                     if not isinstance(it, dict) or not it:
                         continue
-                    # любой формат: новый (fields + provider) или старый (кука наверху → genspark)
+
                     fields = dict(it.get("fields") or {})
                     provider = str(it.get("provider", "genspark"))
                     if not fields:
@@ -756,15 +697,12 @@ class State:
                 if merged:
                     legacy_updates["provider_settings"] = {"genspark": merged}
                 legacy_updates["imported_from"] = cand
-                # Old files are untrusted input too: reuse the normal typed
-                # validation instead of assigning host/port/security fields.
+
                 config_store.apply_updates(legacy_updates)
                 self.save_accounts()
                 return
             except Exception:
                 continue
-
-    # ---------- аккаунты ----------
 
     def add_account(self, provider: str, fields: Dict[str, Any], label: str = "",
                     proxy: str = "", extra: Dict[str, Any] | None = None) -> Account:
@@ -803,7 +741,7 @@ class State:
 
     def list_accounts(self, mask: bool = True) -> List[Dict[str, Any]]:
         with self._lock:
-            # Порядок глобальный: он же задаёт приоритет внутри провайдера.
+
             ordered = sorted(self.accounts.values(),
                              key=lambda a: (a.order, a.created))
             return [a.public_dict(mask=mask) for a in ordered]
@@ -829,7 +767,7 @@ class State:
                     account.order = position
                     changed += 1
                 position += 1
-            # аккаунты, не попавшие в список, уходят в хвост со стабильным порядком
+
             for account in sorted((a for a in self.accounts.values()
                                    if a.provider == provider and a.id not in seen),
                                   key=lambda a: (a.order, a.created)):
@@ -874,8 +812,6 @@ class State:
         with self._lock:
             orders = [a.order for a in self.accounts.values()]
             return (max(orders) + 1) if orders else 0
-
-    # ---------- модели ----------
 
     def upsert_model(self, entry: ModelEntry) -> None:
         with self._lock:
@@ -987,7 +923,7 @@ class State:
             for model_id in doomed:
                 self.models.pop(model_id, None)
             if doomed:
-                # одна запись на диск: у провайдера могут быть сотни моделей
+
                 self.save_models()
             return len(doomed)
 
@@ -1004,8 +940,6 @@ class State:
                     return m
             return None
 
-    # ---------- журнал ----------
-
     def open_trace(self, model: str = "", provider: str = "") -> "LogEntry":
         """Create and publish a live request entry before the upstream starts."""
         entry = LogEntry(model=model, provider=provider)
@@ -1020,9 +954,7 @@ class State:
                         for current in self.logs)
             if not known:
                 self.logs.appendleft(entry)
-            # Keep complete prompts, evicting old finished records as a whole.
-            # Always retain this request and active requests, even when a
-            # single unusually large prompt exceeds the journal's budget.
+
             size = sum(current._prompt_bytes for current in self.logs)
             if size > LOG_FILE_MAX_BYTES:
                 keep = []
@@ -1070,8 +1002,7 @@ class State:
             completed = True
 
         async def finish():
-            # Closing an async-for wrapper does not close the generator it is
-            # suspended on. Its finally block owns the provider/pump cleanup.
+
             from .providers.http import close_quietly
             close = getattr(stream, "aclose", None)
             if close is not None:
@@ -1156,8 +1087,6 @@ class State:
             with self._lock:
                 self.logs.clear()
 
-    # ---------- журнал: диск ----------
-
     def _load_logs(self) -> None:
         from .storage import _json_transaction
         try:
@@ -1202,8 +1131,7 @@ class State:
         tmp = None
         try:
             with _json_transaction(LOGS_PATH):
-                # Retain recent valid records below both limits, leaving room
-                # for subsequent appends before another rotation is needed.
+
                 tail = _read_log_tail(LOGS_PATH, row_limit=LOG_MEMORY_LIMIT // 2,
                                       byte_limit=LOG_FILE_MAX_BYTES // 2)
                 tmp = LOGS_PATH + ".tmp-" + uuid.uuid4().hex
@@ -1218,6 +1146,5 @@ class State:
                     os.remove(tmp)
                 except OSError:
                     pass
-
 
 state = State()

@@ -13,7 +13,6 @@ from app import local_models as lm
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def gguf_bytes(meta: dict) -> bytes:
     """A minimal valid GGUF v3 header with the given key/values."""
     def string(value: str) -> bytes:
@@ -27,13 +26,12 @@ def gguf_bytes(meta: dict) -> bytes:
             out += struct.pack("<I", 7) + struct.pack("<?", value)
         elif isinstance(value, int):
             out += struct.pack("<I", 4) + struct.pack("<I", value)
-        elif isinstance(value, list):  # an array of strings, like a vocabulary
+        elif isinstance(value, list):
             out += struct.pack("<I", 9) + struct.pack("<I", 8) + struct.pack("<Q", len(value))
             out += b"".join(string(item) for item in value)
         else:
             out += struct.pack("<I", 8) + string(str(value))
     return out + b"\x00" * 64
-
 
 def write_model(folder: Path, name: str = "Tiny-Chat-Q4_K_M.gguf", **extra) -> Path:
     meta = {"general.architecture": "llama", "general.name": "Tiny Chat", "llama.context_length": 32768,
@@ -43,7 +41,6 @@ def write_model(folder: Path, name: str = "Tiny-Chat-Q4_K_M.gguf", **extra) -> P
     path = folder / name
     path.write_bytes(gguf_bytes(meta))
     return path
-
 
 class MetadataTests(unittest.TestCase):
     def test_header_is_read_and_vocab_skipped(self) -> None:
@@ -72,7 +69,6 @@ class MetadataTests(unittest.TestCase):
         self.assertEqual(lm.quant_from_name("model-IQ4_XS.gguf"), "IQ4_XS")
         self.assertEqual(lm.quant_from_name("model.Q8_0.gguf"), "Q8_0")
 
-
 class RuntimeChoiceTests(unittest.TestCase):
     ASSETS = [(name, "https://example/" + name) for name in [
         "llama-b1-bin-win-cpu-x64.zip", "llama-b1-bin-win-vulkan-x64.zip", "llama-b1-bin-win-cuda-12.4-x64.zip",
@@ -82,12 +78,11 @@ class RuntimeChoiceTests(unittest.TestCase):
     def test_assets_are_chosen_by_pattern(self) -> None:
         self.assertEqual([n for n, _ in lm._choose_assets(self.ASSETS, "cpu")], ["llama-b1-bin-win-cpu-x64.zip"])
         self.assertEqual([n for n, _ in lm._choose_assets(self.ASSETS, "vulkan")], ["llama-b1-bin-win-vulkan-x64.zip"])
-        # CUDA 12 is preferred (older drivers), with its matching runtime DLLs.
+
         self.assertEqual([n for n, _ in lm._choose_assets(self.ASSETS, "cuda")],
                          ["llama-b1-bin-win-cuda-12.4-x64.zip", "cudart-llama-bin-win-cuda-12.4-x64.zip"])
         with self.assertRaises(lm.LocalModelError):
             lm._choose_assets([("llama-b1-bin-macos-arm64.tar.gz", "x")], "cpu")
-
 
 class CatalogueAndPoolTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -107,13 +102,12 @@ class CatalogueAndPoolTests(unittest.TestCase):
 
     def test_register_update_and_remove(self) -> None:
         source = write_model(self.data)
-        # The expected 8K default describes a CPU machine, independent of the
-        # developer's GPU (a roomy GPU legitimately selects 16K).
+
         with patch.object(lm, "fit", return_value={"level": "cpu"}):
             row = lm.register_file(source)
         self.assertEqual(row["id"], "tiny-chat-q4-k-m")
         self.assertEqual(row["public_id"], "local-tiny-chat-q4-k-m")
-        self.assertEqual(row["settings"]["context"], 8192)  # capped to a sane default, not 32k
+        self.assertEqual(row["settings"]["context"], 8192)
         self.assertEqual(row["settings"]["name"], "Tiny Chat")
         again = lm.register_file(source)
         self.assertEqual(again["id"], row["id"], "the same file is not added twice")
@@ -122,7 +116,7 @@ class CatalogueAndPoolTests(unittest.TestCase):
         self.assertAlmostEqual(updated["settings"]["temperature"], 0.4)
         with self.assertRaises(lm.LocalModelError):
             lm.update_model(row["id"], {"context": "lots"})
-        # A file linked in place is never deleted from the user's disk.
+
         lm.remove_model(row["id"], delete_file=True)
         self.assertTrue(source.exists())
         self.assertIsNone(lm.get_model(row["id"]))
@@ -212,7 +206,6 @@ class CatalogueAndPoolTests(unittest.TestCase):
 
         with self.assertRaises(ProviderServerError):
             asyncio.run(run())
-
 
 if __name__ == "__main__":
     unittest.main()

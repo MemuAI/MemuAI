@@ -43,15 +43,12 @@ TOKEN_URL = f"https://prod.{KIRO_REGION}.auth.desktop.kiro.dev/oauth/token"
 REFRESH_URL = f"https://prod.{KIRO_REGION}.auth.desktop.kiro.dev/refreshToken"
 Q_BASE = f"https://q.{KIRO_REGION}.amazonaws.com"
 
-# Kiro раздаёт один и тот же data-plane через три хоста. Amazon регулярно
-# отдаёт HTTP 429 с одного из них, тогда как остальные отвечают нормально,
-# поэтому запрос по очереди пробует все (как это делает kiro2api).
 DATA_PLANE_HOSTS = (
     "https://codewhisperer.{region}.amazonaws.com",
     "https://q.{region}.amazonaws.com",
     "https://prod.{region}.codewhisperer.amazonaws.com",
 )
-# Хосты, на которых живут служебные вызовы (лимиты, список моделей).
+
 CONTROL_HOSTS = (
     "https://codewhisperer.{region}.amazonaws.com",
     "https://q.{region}.amazonaws.com",
@@ -61,9 +58,6 @@ KIRO_VERSION = "0.12.333"
 REDIRECT_URI = "http://localhost:3128"
 CALLBACK_PATH = "/oauth/callback"
 
-# Реальный набор зависит от тарифа аккаунта: KIRO FREE обычно даёт только
-# Sonnet 4.5. Каталог заполняется живым списком (ListAvailableModels), эти
-# записи — только стартовый минимум.
 SEED = [
     ("auto", "automatic model choice по задаче"),
     ("claude-sonnet-4-5", "Claude Sonnet 4.5 · available on the free plan"),
@@ -72,15 +66,12 @@ SEED = [
     ("claude-opus-4-5", "Claude Opus 4.5 · requires a paid plan"),
 ]
 
-# Тело ответа Amazon, по которому 429 можно отличить от «нет такой модели».
 _MODEL_ERROR_MARKERS = ("INVALID_MODEL_ID", "invalid model", "model is not supported",
                         "not authorized to use model", "modelid")
 _THROTTLE_MARKERS = ("throttl", "too many requests", "rate exceeded", "slow down")
 
-
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).decode().rstrip("=")
-
 
 async def _read_head(resp, limit: int = 1500) -> str:
     """Безопасно читает начало тела stream-ответа для диагностики."""
@@ -97,28 +88,18 @@ async def _read_head(resp, limit: int = 1500) -> str:
         except Exception:
             return ""
 
-
 async def _safe_close(resp) -> None:
-    # Abort the transfer: curl_cffi's aclose() alone waits for the whole body.
-    await http.close_response(resp)
 
+    await http.close_response(resp)
 
 def _ua() -> str:
     fp = hashlib.sha256(f"memuai-{os.getuid() if hasattr(os, 'getuid') else 'win'}".encode()).hexdigest()[:16]
     return (f"aws-sdk-js/1.0.34 ua/2.1 os/win32#10.0.29580 lang/js md/nodejs#22.22.0 "
             f"api/codewhispererstreaming#1.0.34 m/E KiroIDE-{KIRO_VERSION}-{fp}")
 
-
-# ------------------------- AWS event stream -------------------------
-# /generateAssistantResponse отвечает не SSE, а бинарным протоколом
-# application/vnd.amazon.eventstream. Разбор по строкам терял кадры и
-# показывал «поток без текста» вместо настоящего сообщения Amazon, поэтому
-# кадры читаются целиком: префикс длины, заголовки, JSON-полезная нагрузка.
-
-_FRAME_PRELUDE = 12          # длина + длина заголовков + CRC пролога
-_FRAME_SUFFIX = 4            # CRC сообщения
+_FRAME_PRELUDE = 12
+_FRAME_SUFFIX = 4
 _FRAME_MAX = 32 * 1024 * 1024
-
 
 def _parse_event_headers(raw: bytes) -> Dict[str, str]:
     headers: Dict[str, str] = {}
@@ -133,27 +114,26 @@ def _parse_event_headers(raw: bytes) -> Dict[str, str]:
             break
         value_type = raw[index]
         index += 1
-        if value_type in (0, 1):            # bool
+        if value_type in (0, 1):
             value = "true" if value_type == 0 else "false"
-        elif value_type == 2:               # byte
+        elif value_type == 2:
             value, index = str(raw[index]), index + 1
-        elif value_type in (3, 4, 5, 8):    # int16 / int32 / int64 / timestamp
+        elif value_type in (3, 4, 5, 8):
             width = {3: 2, 4: 4, 5: 8, 8: 8}[value_type]
             value = str(int.from_bytes(raw[index:index + width], "big"))
             index += width
-        elif value_type in (6, 7):          # byte array / string
+        elif value_type in (6, 7):
             width = int.from_bytes(raw[index:index + 2], "big")
             index += 2
             chunk = raw[index:index + width]
             index += width
             value = chunk.decode("utf-8", "replace") if value_type == 7 else chunk.hex()
-        elif value_type == 9:               # uuid
+        elif value_type == 9:
             value, index = raw[index:index + 16].hex(), index + 16
         else:
             break
         headers[name] = value
     return headers
-
 
 def _take_event_frames(buffer: bytearray) -> List[Tuple[Dict[str, str], bytes]]:
     """Забирает из буфера все целые кадры. Неполный хвост остаётся в буфере."""
@@ -174,14 +154,12 @@ def _take_event_frames(buffer: bytearray) -> List[Tuple[Dict[str, str], bytes]]:
         frames.append((headers, payload))
     return frames
 
-
 def _payload_json(payload: bytes) -> Dict[str, Any]:
     try:
         obj = json.loads(payload.decode("utf-8", "replace") or "{}")
     except Exception:
         return {}
     return obj if isinstance(obj, dict) else {}
-
 
 class KiroProvider(Provider):
     id = "kiro"
@@ -239,8 +217,6 @@ class KiroProvider(Provider):
                   label_en="Answer limit, characters", help_en="0 means no limit."),
         ]
 
-    # ------------------------------ токены ------------------------------
-
     @staticmethod
     def _tokens(account) -> Dict[str, Any]:
         t = dict(account.extra.get("tokens") or {})
@@ -256,9 +232,7 @@ class KiroProvider(Provider):
     def _expires_at(t: Dict[str, Any]) -> float:
         v = t.get("expiresAt")
         if isinstance(v, (int, float)):
-            # Token files written by JS tools store Date.now() milliseconds. Read
-            # as seconds they lay ~50 000 years ahead, so the token was never
-            # refreshed and every request failed with 403 once it expired.
+
             return float(v) / 1000.0 if v > 1e11 else float(v)
         try:
             from datetime import datetime
@@ -273,9 +247,7 @@ class KiroProvider(Provider):
         expires = self._expires_at(t)
         if t.get("accessToken") and (not expires or expires > time.time() + 120):
             return str(t["accessToken"])
-        # Одновременные запросы и фоновые проверки не должны обновлять один и
-        # тот же refresh-токен параллельно: при ротации проигравшие получают
-        # 4xx, и живой аккаунт помечался недействительным.
+
         locks = self.__dict__.setdefault("_refresh_locks", {})
         lock = locks.setdefault(account.id, asyncio.Lock())
         async with lock:
@@ -289,7 +261,7 @@ class KiroProvider(Provider):
         if t.get("authMethod") == "builder" or (t.get("clientId") and t.get("clientSecret")):
             body = {"grantType": "refresh_token", "clientId": t.get("clientId"),
                     "clientSecret": t.get("clientSecret"), "refreshToken": t.get("refreshToken")}
-            # Клиент регистрируется в том регионе OIDC, где шёл вход.
+
             region = t.get("oidcRegion") or account.fields.get("region", KIRO_REGION) or KIRO_REGION
             url = f"https://oidc.{region}.amazonaws.com/token"
         else:
@@ -307,7 +279,7 @@ class KiroProvider(Provider):
         if resp.status_code == 429:
             raise ProviderRateLimitError("Kiro token refresh is rate limited (HTTP 429)")
         if resp.status_code != 200:
-            # 5xx или 502 прокси — временный сбой сервера входа, а не мёртвый токен.
+
             raise ProviderServerError(f"Kiro token refresh failed (HTTP {resp.status_code})",
                                       502)
         try:
@@ -315,14 +287,13 @@ class KiroProvider(Provider):
         except Exception:
             data = None
         if not isinstance(data, dict) or not data.get("accessToken"):
-            # HTTP 200 without a token (an HTML error page, a proxy, a changed
-            # API) used to be saved as accessToken None and sent as «Bearer None».
+
             raise ProviderServerError("Kiro token refresh returned no access token", 502)
         account.extra["tokens"] = {
             "accessToken": data.get("accessToken"),
             "refreshToken": data.get("refreshToken") or t.get("refreshToken"),
             "expiresAt": time.time() + int(data.get("expiresIn", 3600)) - 60,
-            # Никакого зашитого ARN: чужой профиль ломает лимиты и чат.
+
             "profileArn": data.get("profileArn") or t.get("profileArn") or "",
             "authMethod": t.get("authMethod", "social"),
             "clientId": t.get("clientId"), "clientSecret": t.get("clientSecret"),
@@ -454,8 +425,6 @@ class KiroProvider(Provider):
             "Accept": "*/*",
         }
 
-    # ------------------------------ чат ------------------------------
-
     async def chat_stream(self, account, model: str, messages: List[Dict[str, Any]],
                           params: Dict[str, Any]) -> AsyncIterator[Dict[str, Any]]:
         token = await self._ensure_token(account)
@@ -481,7 +450,7 @@ class KiroProvider(Provider):
                         "Kiro accepts attachments only as PNG, JPEG, GIF or WebP data URLs. "
                         "Удалите удалённую ссылку или передайте изображение в base64.", 400)
                 fmt = "jpeg" if match.group(1).lower() in ("jpg", "jpeg") else match.group(1).lower()
-                # Amazon Q Developer accepts at most 3.75 MB per image.
+
                 if len(match.group(2)) > 5_242_880:
                     raise ProviderServerError("The image exceeds the Kiro limit of 3.75 MB.", 400)
                 try:
@@ -513,9 +482,7 @@ class KiroProvider(Provider):
                 conv_history.append({"assistantResponseMessage": {"content": m["content"]}})
         conv_history = self._well_formed_history(conv_history)
         if conv_history and "userInputMessage" in conv_history[-1]:
-            # The history may not end with the user: the current message is a
-            # user turn too. Fold that turn (e.g. the attached-files context sent
-            # right before the question) into the current message instead.
+
             carried = conv_history.pop()["userInputMessage"]
             joined = "\n\n".join(part for part in (str(carried.get("content") or ""), final_user)
                                   if part and part != "(empty message)") or final_user
@@ -543,15 +510,12 @@ class KiroProvider(Provider):
         if profile_arn:
             body["profileArn"] = profile_arn
 
-        # Перебор хостов data-plane: Amazon отдаёт 429/5xx выборочно, поэтому
-        # один и тот же запрос на соседнем хосте часто проходит.
         resp = None
         last_error: Optional[ProviderError] = None
         tried_default_arn = False
         dropped_arn = False
         hosts = self._hosts(account)
-        # Очередь адресов: запрос с исправленным profileArn должен повториться
-        # на ТОМ ЖЕ хосте, а не уехать на следующий.
+
         queue = list(hosts)
         while queue:
             host = queue.pop(0)
@@ -576,12 +540,10 @@ class KiroProvider(Provider):
             resp = None
             if status in (401, 403):
                 if any(marker in head.lower() for marker in _MODEL_ERROR_MARKERS):
-                    # «not authorized to use model» — тариф без этой модели, а
-                    # не плохой токен: аккаунт не должен становиться invalid.
+
                     raise self._classify_body(status, head, model_id)
                 if "not authorized" in head.lower() and profile_arn:
-                    # Чужой profileArn у Builder ID — повторяем без него. Сохраняем
-                    # это в токенах только если повтор удастся.
+
                     dropped_arn = True
                     body.pop("profileArn", None)
                     profile_arn = None
@@ -590,8 +552,7 @@ class KiroProvider(Provider):
                     queue.insert(0, host)
                     continue
                 if "profilearn" in head.lower() and not profile_arn and not tried_default_arn:
-                    # Обратный случай: аккаунту profileArn обязателен, а своего
-                    # в токене нет. Пробуем общий ARN Kiro IDE ровно один раз.
+
                     tried_default_arn = True
                     profile_arn = DEFAULT_PROFILE_ARN
                     body["profileArn"] = profile_arn
@@ -602,7 +563,7 @@ class KiroProvider(Provider):
                 raise ProviderAuthError(
                     f"Kiro rejected the token (HTTP {status}). {head[:200]}".strip())
             if status == 400 and "profilearn" in head.lower() and profile_arn:
-                # «Invalid profileArn»: повторяем без него.
+
                 profile_arn = None
                 body.pop("profileArn", None)
                 last_error = ProviderServerError(
@@ -616,16 +577,14 @@ class KiroProvider(Provider):
                 raise error
             last_error = error
             if index < len(hosts) - 1:
-                # Стрелка «→» здесь валила запрос: на Windows-консоли с cp1251
-                # запись в лог бросала UnicodeEncodeError, и живая модель
-                # отвечала 502 вместо ответа. ASCII-стрелка безопасна везде.
+
                 log.info("Kiro %s -> HTTP %s, trying the next host", host, status)
                 continue
 
         if resp is None:
             raise last_error or ProviderServerError("No Kiro host responded")
         if dropped_arn:
-            # Без чужого profileArn запрос прошёл — запоминаем это.
+
             tokens = dict(account.extra.get("tokens") or {})
             if tokens.pop("profileArn", None) is not None:
                 account.extra["tokens"] = tokens
@@ -653,7 +612,7 @@ class KiroProvider(Provider):
                             if char_limit and event["type"] == "text":
                                 room = char_limit - sent_chars
                                 if len(event["text"]) >= room:
-                                    # «Ограничение ответа» из настроек Kiro.
+
                                     if room > 0:
                                         yield {"type": "text", "text": event["text"][:room]}
                                     yield {"type": "finish", "reason": "length"}
@@ -665,12 +624,10 @@ class KiroProvider(Provider):
                 if saw_frame and len(buffer) > _FRAME_MAX:
                     raise ProviderServerError("Kiro sent a malformed eventstream frame")
             if saw_frame and len(buffer) >= _FRAME_PRELUDE:
-                # Поток кончился посреди кадра или на испорченном заголовке:
-                # ответ обрезан, и выдавать его за законченный нельзя.
+
                 raise ProviderServerError("Kiro stream ended with an incomplete or malformed frame")
             if not saw_frame:
-                # Не event-stream (например, обычный JSON или SSE): разбираем
-                # накопленное тело старым способом, чтобы не терять ответ.
+
                 text = buffer.decode("utf-8", "replace")
                 tail = text[-600:]
                 acc = ""
@@ -687,8 +644,7 @@ class KiroProvider(Provider):
                 if error is not None and not produced:
                     raise error
             if not produced:
-                # Пустой ответ без единого текстового кадра — показываем, что
-                # именно прислал Amazon, иначе ошибка ничего не объясняет.
+
                 raise ProviderServerError(
                     "Kiro finished the stream without any text. "
                     f"Amazon replied: {tail or '(empty body)'}")
@@ -807,8 +763,6 @@ class KiroProvider(Provider):
             return "text", obj["text"]
         return "skip", ""
 
-    # ------------------------------ веб-поиск ------------------------------
-
     def _search_hosts(self, account) -> List[str]:
         region = str(account.fields.get("region", KIRO_REGION) or KIRO_REGION)
         custom = str(account.fields.get("endpoint", "") or "").strip().rstrip("/")
@@ -882,8 +836,6 @@ class KiroProvider(Provider):
                 return results
         raise ProviderNetworkError(f"Kiro web search failed: {last}")
 
-    # ------------------------------ аккаунт ------------------------------
-
     async def _list_models(self, account, token: str) -> Tuple[Optional[List[str]], str]:
         """ListAvailableModels по всем управляющим хостам. → (модели, сообщение)."""
         params: Dict[str, Any] = {"origin": "AI_EDITOR"}
@@ -910,7 +862,7 @@ class KiroProvider(Provider):
             except Exception:
                 rows, models = [], []
             try:
-                # Round 22: ListAvailableModels rows (input types, token limits…) for the model card.
+
                 from .. import model_capabilities
                 model_capabilities.record_raw(self.id, rows, id_field="modelId", source="api:kiro")
             except Exception:
@@ -952,9 +904,7 @@ class KiroProvider(Provider):
             token = await self._ensure_token(account)
         except Exception:
             return None
-        # getUsageLimits не принимает profileArn: у корпоративных аккаунтов это
-        # HTTP 400. Набор параметров Amazon менял: resourceType поддерживают не
-        # все аккаунты, поэтому пробуем варианты от полного к минимальному.
+
         variants = [
             {"isEmailRequired": "true", "origin": "AI_EDITOR",
              "resourceType": "AGENTIC_REQUEST"},
@@ -962,8 +912,7 @@ class KiroProvider(Provider):
             {"origin": "AI_EDITOR"},
             {},
         ]
-        # У части аккаунтов Amazon наоборот требует profileArn. Пробуем оба
-        # набора: сначала без него, затем со своим (никогда не с чужим).
+
         own_arn = self._profile_arn(account)
         if own_arn:
             variants = variants + [dict(item, profileArn=own_arn) for item in variants]
@@ -992,8 +941,7 @@ class KiroProvider(Provider):
                 if parsed is not None:
                     return parsed
                 last = "the response carries no usage breakdown"
-        # Без этого панель показывала «Провайдер не отдаёт данные об
-        # использовании» даже когда Amazon отвечал ошибкой.
+
         raise ProviderServerError(f"Kiro getUsageLimits: {last or 'no response'}")
 
     @staticmethod
@@ -1021,10 +969,8 @@ class KiroProvider(Provider):
                 "next_reset": data.get("nextDateReset"),
                 "email": (data.get("userInfo") or {}).get("email", "")}
 
-    # ------------------------------ OAuth: браузер (PKCE) ------------------------------
-
     async def oauth_start(self) -> Dict[str, Any]:
-        # один активный flow: гасим предыдущий слушатель
+
         for fid in list(self._flows.keys()):
             self._flows[fid]["status"] = "cancelled"
         for srv in list(self._servers.values()):
@@ -1147,15 +1093,12 @@ class KiroProvider(Provider):
                 except Exception:
                     pass
 
-    # ------------------------------ OAuth: Builder ID (device code) ------------------------------
-
     async def oauth_device_start(self) -> Dict[str, Any]:
         flow_id = uuid.uuid4().hex[:12]
         flow: Dict[str, Any] = {"status": "waiting", "account": None, "error": ""}
         self._flows[flow_id] = flow
         spawn_background(self._run_device_flow(flow_id, flow))
-        # The code comes after two AWS round trips; answering earlier showed an
-        # empty code in the panel.
+
         for _ in range(100):
             if flow["status"] == "error" or flow.get("user_code"):
                 break
@@ -1191,7 +1134,7 @@ class KiroProvider(Provider):
                 return
             flow["user_code"] = daj.get("userCode", "")
             flow["verification_uri"] = daj.get("verificationUri", "")
-            # The "complete" address carries the code, so the user only confirms it.
+
             webbrowser.open(daj.get("verificationUriComplete") or flow["verification_uri"])
             interval = int(daj.get("interval", 5))
             deadline = time.time() + int(daj.get("expiresIn", 600))
@@ -1202,7 +1145,7 @@ class KiroProvider(Provider):
                                                "deviceCode": daj.get("deviceCode"),
                                                "grantType": "urn:ietf:params:oauth:grant-type:device_code"},
                                          headers={"Content-Type": "application/json"}, timeout=30)
-                # authorization_pending/slow_down/access_denied приходят как HTTP 400.
+
                 try:
                     data = tok.json() if tok.status_code in (200, 400) else {}
                 except Exception:

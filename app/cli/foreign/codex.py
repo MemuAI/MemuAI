@@ -24,29 +24,24 @@ from .model import (HEAD_BYTES, ForeignSession, ReadError, SessionInfo, Turn, cl
 KEY = "codex"
 TITLE = "Codex"
 
-#: Messages the tool itself puts in the user's role: instructions and context, not words of the person.
 _NOT_THE_PERSON = ("<environment_context", "<user_instructions", "<recommended_plugins", "# AGENTS.md",
                    "<permissions", "<collaboration_mode", "<skills_instructions", "<user_shell_command")
-
 
 def home() -> Path:
     return Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
 
-
 def present() -> bool:
     return (home() / "sessions").is_dir()
-
 
 def _person(text: str) -> str:
     text = clean_user_text(text)
     if not text or text.lstrip().startswith(_NOT_THE_PERSON):
         return ""
     if text.lstrip().startswith("# Files mentioned by the user"):
-        heading = re.search(r"## My request[^\n]*\n", text)            # the request follows the attached files
+        heading = re.search(r"## My request[^\n]*\n", text)
         if heading:
             text = text[heading.end():]
     return text.strip()
-
 
 def discover(limit: int = 400) -> List[SessionInfo]:
     base = home() / "sessions"
@@ -59,7 +54,6 @@ def discover(limit: int = 400) -> List[SessionInfo]:
             rows.append(info)
     rows.sort(key=lambda row: -row.updated)
     return rows[:limit]
-
 
 def _info(file: Path) -> Optional[SessionInfo]:
     try:
@@ -76,7 +70,7 @@ def _info(file: Path) -> Optional[SessionInfo]:
         kind = event.get("type")
         if kind == "session_meta":
             if payload.get("parent_thread_id"):
-                return None                               # a sub-agent: its work is part of the main session
+                return None
             session_id = str(payload.get("id") or session_id)
             cwd = cwd or str(payload.get("cwd") or "")
             started = started or iso_to_ts(payload.get("timestamp") or event.get("timestamp"))
@@ -103,7 +97,6 @@ def _info(file: Path) -> Optional[SessionInfo]:
     return SessionInfo(tool=KEY, id=session_id, title=title_from(first), cwd=cwd, started=started or stat.st_ctime,
                        updated=last or stat.st_mtime, messages=estimate, model=model, path=str(file))
 
-
 def _command(item: Dict[str, Any]) -> str:
     command = item.get("command")
     if isinstance(command, list):
@@ -113,15 +106,14 @@ def _command(item: Dict[str, Any]) -> str:
         return " ".join(words)
     return " ".join(str(command or "").split())
 
-
 def read(info: SessionInfo) -> ForeignSession:
     path = Path(info.path)
     if not path.is_file():
         raise ReadError(f"{path} is not there any more")
     session = ForeignSession(info=SessionInfo(**{**info.__dict__}))
-    items: List[Turn] = []                # newest generation
-    responses: List[Turn] = []            # the response_item generation
-    legacy: List[Turn] = []               # the oldest generation
+    items: List[Turn] = []
+    responses: List[Turn] = []
+    legacy: List[Turn] = []
     calls: Dict[str, Dict[str, str]] = {}
     models: Dict[str, None] = {}
     for event in read_lines(path):
@@ -169,8 +161,7 @@ def read(info: SessionInfo) -> ForeignSession:
                 output = payload.get("output")
                 text = text_of(output) if not isinstance(output, str) else output
                 responses.append(Turn("tool", clip(text), tool=known.get("tool", ""), detail=known.get("detail", ""), at=at))
-    # The generation that says most about the work wins; with a tie the newer format does. (A short session may
-    # have only its first message as an item and the rest as response items.)
+
     def weight(turns: List[Turn]) -> int:
         return sum(1 for turn in turns if turn.role != "user")
 
@@ -179,7 +170,6 @@ def read(info: SessionInfo) -> ForeignSession:
     session.models = list(models)
     session.info.messages = len(session.turns)
     return session
-
 
 def _merge(turns: List[Turn]) -> List[Turn]:
     """Drop immediate duplicates (a user message appears as an item and as an event in some versions)."""
@@ -190,7 +180,6 @@ def _merge(turns: List[Turn]) -> List[Turn]:
             continue
         out.append(turn)
     return out
-
 
 def _item(item: Dict[str, Any], at: float) -> Optional[List[Turn]]:
     kind = str(item.get("type") or "")

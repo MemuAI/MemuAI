@@ -1,11 +1,10 @@
-/* MemuAI Mini App — more of MemuAI (Round 29): schedules, the prompt library, voice settings, signing in
- * on another device (QR scan / code from the phone) and the browser session. Pages open from Settings. */
+
+
 (function () {
   "use strict";
   (window.MemuTgPlugins = window.MemuTgPlugins || []).push(function (kit) {
     const { S, $, $$, esc, tr, icon, haptic, toast, api, openSheet, openStack, actionSheet, promptSheet, confirmDialog, ago } = kit;
 
-    /* ---------------------------------------------------------------- settings rows */
     kit.hooks.settingsRows.push((SET) => {
       const voice = (S.features && S.features.voice) || {};
       return `<div class="section-title">${esc(tr("Инструменты", "Tools"))}</div>
@@ -17,9 +16,6 @@
           : SET.nav("devices", "monitor", "#6366f1", tr("Войти на другом устройстве", "Sign in on another device"), S.features && S.features.web_login === false ? tr("Выключено", "Off") : "")}</div>`;
     });
 
-    /* ---------------------------------------------------------------- schedules: plan.js (Planning 2.0) */
-
-    /* ---------------------------------------------------------------- prompts */
     kit.pages.prompts = () => openStack({ title: tr("Библиотека промптов", "Prompt library"), build: (view) => {
       view.style.overflowY = "auto";
       view.innerHTML = `<div class="empty"><div class="typing"><i></i><i></i><i></i></div></div>`;
@@ -42,14 +38,13 @@
       openSheet({ title: p.name, full: p.text.length > 600,
         body: `<div class="group"><div class="cell" style="display:block;white-space:pre-wrap;font-size:14px;line-height:1.45;max-height:50vh;overflow:auto">${esc(p.text)}</div></div>`,
         actions: [{ label: tr("Копировать", "Copy"), kind: p.default ? "" : "secondary", run: () => { kit.copyText(p.text); toast(tr("Скопировано", "Copied"), "ok"); } },
-                  // The default prompt is already the system prompt of every chat: pasting it as a message makes no sense.
+
                   ...(p.default ? [] : [{ label: tr("Вставить в новый чат", "Put into a new chat"), run: () => {
                     const C = kit.openChat(null);
                     setTimeout(() => { const input = C && C.entry && $("#msg-input", C.entry.view); if (input) { input.value = p.text; input.dispatchEvent(new Event("input")); input.focus(); } }, 120);
                   } }])] });
     }
 
-    /* ---------------------------------------------------------------- voice */
     kit.pages.voice = () => openStack({ title: tr("Голосовой ввод", "Voice input"), build: (view) => {
       view.style.overflowY = "auto";
       const draw = (info) => {
@@ -71,7 +66,6 @@
       api("voice.status").then(draw).catch(() => {});
     } });
 
-    /* ---------------------------------------------------------------- signing in on another device */
     function agentLabel(agent) {
       const ua = String(agent || "");
       const browser = /Edg\//.test(ua) ? "Edge" : /OPR\//.test(ua) ? "Opera" : /YaBrowser/.test(ua) ? "Yandex Browser" : /Firefox\//.test(ua) ? "Firefox" : /Chrome\//.test(ua) ? "Chrome" : /Safari\//.test(ua) ? "Safari" : tr("Браузер", "Browser");
@@ -97,7 +91,7 @@
       if (!(app && app.showScanQrPopup && app.isVersionAtLeast && app.isVersionAtLeast("6.4") && app.initData)) return false;
       try {
         app.showScanQrPopup({ text: tr("Наведите камеру на QR-код на экране компьютера", "Point the camera at the QR code on the computer screen") }, (text) => {
-          if (!/^memuai-login:/i.test(String(text || ""))) return false;          // keep scanning
+          if (!/^memuai-login:/i.test(String(text || ""))) return false;
           setTimeout(() => approveCode(String(text)), 50);
           return true;
         });
@@ -111,7 +105,7 @@
       }
       openStack({ title: tr("Другое устройство", "Another device"), build: (view) => {
         view.style.overflowY = "auto";
-        // r30: Telegram Desktop has no camera scanner (showScanQrPopup is unsupported there) — only the code.
+
         const scan = !!(S.tg && S.tg.showScanQrPopup && S.tg.isVersionAtLeast && S.tg.isVersionAtLeast("6.4") && S.tg.initData)
           && !(window.MemuDevice && window.MemuDevice.isDesktop());
         view.innerHTML = `<div style="padding:8px 0 40px"><div class="convo-hero" style="padding:24px 24px 10px"><div class="avatar" style="--av1:#6366f1;--av2:#a855f7">${icon("monitor")}</div>

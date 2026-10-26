@@ -39,7 +39,6 @@ CHECK_JS = r"""() => {
     const v = t.nodeValue.trim(); if (/^Русский/.test(v)) continue; out.cyr.push(v.slice(0, 50)); }
   out.wide = [...new Set(out.wide)].slice(0, 6); out.cyr = [...new Set(out.cyr)].slice(0, 8); return out; }"""
 
-
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
@@ -102,7 +101,6 @@ def main() -> int:
         print("FAIL:", line)
     print(f"done: {len(problems)} problems")
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(main())

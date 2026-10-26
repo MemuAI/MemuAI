@@ -1,12 +1,5 @@
-/* MemuAI — settings of the Quick Ask «Команды» plugin (Round 22, r22-commands).
 
-   window.MemuCommandsSettings.mount(el, ctx?) renders the whole editor into `el`:
-   assistant switches, custom commands (trigger phrases, global hotkey, steps, conditions, window
-   layout capture), saved layouts, voice (non-realtime STT/TTS), timers & Pomodoro, services,
-   per-action switches and tiers, safety (countdown, rate limits, advanced PowerShell) and the audit log.
-   ctx (optional): { en: bool, toast(text, kind) }. Talks only to /api/assistant/* and /api/voice/catalog.
-   Works both in the main window (Settings → Quick Ask, through MemuQuick.settingsSection) and in any
-   page that loads it. */
+
 (function () {
   "use strict";
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -29,8 +22,7 @@
     monitor: "монитор", width: "ширина, %", height: "высота, %", layout: "раскладка", time: "время", date: "дата", work: "работа, мин",
     short_break: "перерыв, мин", long_break: "длинный перерыв, мин", cycles: "циклы", at: "время", in_minutes: "через, мин",
     channel: "канал", delay_minutes: "через сколько минут", id: "id", prompt: "описание", model: "модель", aspect: "формат", all: "все", resume: "продолжить", command: "команда" };
-  // Enum values as people read them (the stored value stays the catalog id). Unknown values fall back
-  // to the id with "_" → " " so new catalog entries never break the editor.
+
   const ENUM_RU = { downloads: "Загрузки", documents: "Документы", desktop: "Рабочий стол", pictures: "Изображения", music: "Музыка",
     videos: "Видео", home: "Папка пользователя", appdata: "AppData", temp: "Временные файлы", screenshots: "Снимки экрана", memuai: "MemuAI",
     now: "сейчас", today: "сегодня", tomorrow: "завтра", week: "на неделю", play_pause: "пауза / воспроизведение", next: "следующий",
@@ -85,20 +77,19 @@
       try {
         const st = await call("/api/pg/state");
         S.imageModels = st.image_models || [];
-        // Round 33 (r33-quick): text models for the AI command router
+
         S.chatModels = (st.models || []).map((m) => (typeof m === "string" ? m : m && m.id)).filter(Boolean);
       } catch (e) { S.imageModels = []; S.chatModels = []; }
       render();
     }
 
-    /* ---------------------------------------------------------------- helpers */
     const set = () => S.cfg.settings;
     function savePatch(patch) {
       Object.assign(S.pendingPatch, patch);
       clearTimeout(S.saveTimer);
       S.saveTimer = setTimeout(flushSave, 300);
     }
-    // Round 24: сохранить немедленно (перед «Проверить» — раньше проверка шла со старыми настройками).
+
     async function flushSave() {
       clearTimeout(S.saveTimer);
       const body = S.pendingPatch; S.pendingPatch = {};
@@ -109,7 +100,6 @@
       } catch (e) { toast(e.message, "err"); }
     }
 
-    /* ---------------------------------------------------------------- Round 24: голос — источник и готовность */
     async function loadVoiceStatus(withCatalog) {
       try { S.voiceStatus = await call("/api/assistant/voice/status?lang=" + L); } catch (e) { S.voiceStatus = null; }
       if (withCatalog) { try { S.voiceCatalog = await call("/api/voice/catalog"); } catch (e) {} }
@@ -186,7 +176,7 @@
     const num = (key, value, min, max, label, sub = "", suffix = "") => `<label class="mcs-row"><span class="mcs-label">${esc(label)}</span>
       <span class="mcs-num"><input type="number" data-set="${esc(key)}" ${sub ? `data-sub="${esc(sub)}"` : ""} min="${min}" max="${max}" value="${esc(value)}">${suffix ? `<em>${esc(suffix)}</em>` : ""}</span></label>`;
     const catalogById = () => Object.fromEntries(S.cfg.catalog.map((a) => [a.id, a]));
-    /* Round 33 (r33-quick): «Команды через ИИ» — the router mode, its model (empty = the Quick Ask model) and the wait */
+
     const hinted = (key, value, options, label, hint) => `<label class="mcs-row"><span class="mcs-label">${esc(label)}${hint ? `<small>${esc(hint)}</small>` : ""}</span>
       <select data-set="${esc(key)}">${options.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(value) ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>`;
     function routerRows(s) {
@@ -202,10 +192,6 @@
           + num("router_timeout", s.router_timeout || 4, 1, 15, t("Ждать ответа ИИ не дольше", "Wait for the AI at most"), "", t("с", "s")));
     }
 
-    /* Round 25: render() replaces the whole markup, so a change that re-renders (the voice provider shows other
-       rows) lost the keyboard focus and threw the scroll back to the top. The focused data-set control and the
-       scroll offsets of the scrolling ancestors are remembered and restored. A pretty-select moves focus to its
-       menu (in <body>) and closes it before «change», so the control that last had focus or changed counts too. */
     const controlKey = (node) => (node && node.dataset && node.dataset.set ? { set: node.dataset.set, sub: node.dataset.sub || "" } : null);
     const keyOf = (node) => {
       if (!node || !el.contains(node)) return null;
@@ -235,13 +221,12 @@
       const control = Array.from(el.querySelectorAll("[data-set]"))
         .find((node) => node.dataset.set === view.key.set && (node.dataset.sub || "") === view.key.sub);
       if (!control) return;
-      // An enhanced <select> is hidden behind its own button: focus what the user sees.
+
       const shown = control.getClientRects().length ? control
         : control.parentElement && control.parentElement.querySelector("button, input:not([type=hidden])");
       if (shown) try { shown.focus({ preventScroll: true }); } catch (e) {}
     }
 
-    /* ---------------------------------------------------------------- render */
     function render() {
       const s = set();
       const v = s.voice || {};
@@ -249,8 +234,7 @@
       const stt = (S.voiceCatalog && S.voiceCatalog.stt_models) || [];
       const tts = (S.voiceCatalog && S.voiceCatalog.tts_models) || [];
       const winVoices = (S.voiceCatalog && S.voiceCatalog.windows_voices) || [];
-      // Round 23: the editor is split into parts so Settings → Быстрый доступ can show «Команды» and «Голос» as two
-      // calm sub-pages (ctx.part = "commands" | "voice"); without ctx.part everything renders as before.
+
       const SEC = {
         main: `<section class="mcs-sec" data-mcs="main">
           <h3>${t("Команды ассистента", "Assistant commands")}</h3>
@@ -356,8 +340,7 @@
           <summary><span>${t("Дополнительно", "Advanced")}</span><small>${t("раскладки окон, таймеры, сервисы, разрешения, безопасность", "window layouts, timers, services, permissions, safety")}</small></summary>
           ${SEC.layouts}${SEC.timers}${SEC.services}${SEC.actions}${SEC.safety}</details>`;
       } else html = SEC.main + SEC.custom + SEC.layouts + SEC.voice + SEC.timers + SEC.services + SEC.actions + SEC.safety;
-      // Round 24: открытое меню выпадающего списка живёт в <body>; перед перерисовкой закрываем его,
-      // иначе оно оставалось «висеть» (баг «Озвучка не закрывается»).
+
       if (window.MemuLayers) try { window.MemuLayers.closeAll("rerender"); } catch (e) {}
       const view = snapshotView();
       el.innerHTML = `<div class="mcs${part ? " mcs-part-" + part : ""}">${html}</div>`;
@@ -368,9 +351,6 @@
       if (!el._mcsToggle) { el._mcsToggle = 1; el.addEventListener("toggle", (ev) => { if (ev.target && ev.target.matches && ev.target.matches("[data-mcs-voice-models]")) S.open.models = ev.target.open; }, true); }
     }
 
-    /* Round 23 (Settings → Быстрый доступ → Команды / Голос): calm sub-pages. The sub-page header already explains
-       what the page is, so no repeated intro; one primary button; the rest is quiet or behind «Дополнительно».
-       Every data-set / data-act stays the same, so the handlers below serve both layouts. */
     function partCommandsHtml(s) {
       const offPlatform = S.cfg.platform !== "win32";
       return `<section class="mcs-sec mcs-card" data-mcs="main">
@@ -394,9 +374,6 @@
         </section>`;
     }
 
-    // Round 25: the cloud TTS service (OpenAI, Gemini, ElevenLabs, Azure…) is chosen in Settings → Voice;
-    // here only its voice can be overridden, with that service's own voice list (an OpenAI voice sent to
-    // Gemini was the reported «Alloy» failure). Empty = the voice from Settings → Voice.
     function apiService() {
       const cat = S.voiceCatalog || {};
       return (cat.tts_api_providers || []).find((p) => p.id === cat.tts_api_provider) || null;
@@ -490,7 +467,6 @@
       render();
     }
 
-    /* ---------------------------------------------------------------- command editor */
     function blankStep(type = "action") {
       if (type === "wait") return { type, seconds: 2 };
       if (type === "say" || type === "notify") return { type, text: "" };
@@ -579,7 +555,6 @@
     }
     function showError(text) { const e = el.querySelector("[data-err]"); if (e) e.textContent = text || ""; }
 
-    /* ---------------------------------------------------------------- events */
     el.addEventListener("change", (e) => {
       const target = e.target;
       remember(target);

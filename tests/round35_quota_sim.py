@@ -7,7 +7,6 @@ from typing import Callable, Optional
 
 HOUR = 3600.0
 
-
 def work_profile(hour: int) -> float:
     """Типичный день: ночью почти ноль, пик днём и вечером (доля «интенсивности» в этот час)."""
     if hour < 8:
@@ -23,7 +22,6 @@ def work_profile(hour: int) -> float:
     if hour < 23:
         return 0.7
     return 0.15
-
 
 def simulate(planner, account_id: str, title: str, *, period: float, now: float, days: float = 3.0,
              per_hour: float = 0.1, poll: float = 600.0, seed: int = 1, unit: str = "%", limit: float = 100,

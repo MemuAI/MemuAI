@@ -1,10 +1,6 @@
-/* Round 33 — pointer drag for MemuAI lists (memu-dragsort.js). */
 html.memu-dragging, html.memu-dragging * { cursor: grabbing !important; user-select: none !important; -webkit-user-select: none !important; }
 html.memu-dragging iframe { pointer-events: none; }
-/* Hover hints of whatever the pointer crosses would cover the drop targets while dragging. */
 html.memu-dragging .memu-tooltip { display: none !important; }
-
-/* The chip that follows the pointer: the item's title on the app's popover surface. */
 .memu-drag-ghost {
   position: fixed; left: 0; top: 0; z-index: 2147482000; pointer-events: none;
   padding: 7px 12px; border-radius: 10px; max-width: 320px;
@@ -21,11 +17,7 @@ html.memu-dragging .memu-tooltip { display: none !important; }
 :root[data-design="brutal"] .memu-drag-ghost { border: 2px solid var(--text); border-radius: 8px; box-shadow: 4px 4px 0 var(--text); }
 :root[data-design="terminal"] .memu-drag-ghost { border-radius: 0; font-family: var(--mono, monospace); }
 :root[data-design="grid"] .memu-drag-ghost { border-radius: var(--g-r-sm, 4px); }
-
-/* Section order: «after» is a line under the section (the existing «before» line is above it). */
 .side-group.section-drop-after { box-shadow: inset 0 -2px 0 0 var(--accent); border-radius: 10px; }
-/* The section heading is sticky with an opaque background (classic, focus…): it covered the group's inset
-   «before» line, so the line is drawn on the heading itself too. */
 .side-group.section-drop > .chat-list-heading { box-shadow: inset 0 2px 0 0 var(--accent); border-top-left-radius: 10px; border-top-right-radius: 10px; }
 
 @media (prefers-reduced-motion: reduce) { .memu-drag-ghost { transition: none; } }

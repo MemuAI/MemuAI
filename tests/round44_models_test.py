@@ -11,7 +11,6 @@ from unittest.mock import AsyncMock, patch
 from app import model_refresh as mr
 from app.state import ModelEntry
 
-
 class Account:
     def __init__(self, account_id, provider="kiro", prefix="", *, enabled=True, status="ok"):
         self.id, self.provider = account_id, provider
@@ -21,7 +20,6 @@ class Account:
 
     def usable(self):
         return self.enabled and self.status != "invalid"
-
 
 class FakeState:
     def __init__(self, accounts, models=()):
@@ -38,7 +36,6 @@ class FakeState:
 
     def prune_orphan_models(self, wanted):
         return 0
-
 
 class ModelRefreshTest(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -283,7 +280,6 @@ class ModelRefreshTest(unittest.IsolatedAsyncioTestCase):
                 result = await client.get("/api/admin/models/auto-refresh",headers={"Origin":"https://example.com"})
                 self.assertEqual(result.status_code,403)
         self.provider.dynamic_models.assert_not_called()
-
 
 if __name__ == "__main__":
     unittest.main()

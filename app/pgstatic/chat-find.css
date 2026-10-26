@@ -1,6 +1,3 @@
-/* Round 37 (r37-extras): «Найти в этом чате» (Ctrl+F) and message bookmarks — chat-find.js */
-
-/* matches: CSS Custom Highlight API, no DOM changes */
 ::highlight(memu-find) { background-color: color-mix(in srgb, #f5c542 42%, transparent); color: inherit; }
 ::highlight(memu-find-current) { background-color: #f5a524; color: #1a1300; }
 
@@ -53,8 +50,6 @@
 .cbm-text { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; line-height: 1.4; }
 .cbm-empty { display: grid; gap: 4px; padding: 14px 12px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
 .cbm-empty b { color: var(--text); font-size: 13px; }
-
-/* a bookmarked message: a ribbon in the left gutter */
 #messages > .msg.msg-bm { position: relative; }
 #messages > .msg.msg-bm::before {
   content: ""; position: absolute; left: -18px; top: 6px; width: 8px; height: 14px; background: var(--accent);

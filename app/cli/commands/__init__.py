@@ -19,7 +19,6 @@ if TYPE_CHECKING:  # pragma: no cover
 
 Handler = Callable[["Context"], Awaitable[Any]]
 
-
 @dataclass
 class Command:
     name: str
@@ -30,13 +29,12 @@ class Command:
     hint: str = ""
     category: str = "general"
     while_busy: bool = False
-    immediate: bool = True             # selecting it from the menu runs it at once
+    immediate: bool = True
     hidden: bool = False
 
     @property
     def description(self) -> str:
         return tr(self.ru, self.en)
-
 
 REGISTRY: Dict[str, Command] = {}
 CATEGORIES = {
@@ -45,7 +43,6 @@ CATEGORIES = {
     "agents": ("Агенты и инструменты", "Agents and tools"), "config": ("Настройки", "Settings"),
     "info": ("Статистика и диагностика", "Usage and diagnostics"),
 }
-
 
 def command(name: str, ru: str, en: str, *, aliases: Tuple[str, ...] = (), hint: str = "",
             category: str = "general", while_busy: bool = False, immediate: Optional[bool] = None,
@@ -57,7 +54,6 @@ def command(name: str, ru: str, en: str, *, aliases: Tuple[str, ...] = (), hint:
                                  hidden=hidden)
         return function
     return register
-
 
 @dataclass
 class Context:
@@ -113,7 +109,6 @@ class Context:
     async def prompt(self, text: str, display: Optional[str] = None) -> None:
         await self.ui.prompt_inline(text, display=display if display is not None else self.raw)
 
-
 class CommandRegistry:
     def __init__(self, ui: "TerminalUI") -> None:
         self.ui = ui
@@ -122,9 +117,8 @@ class CommandRegistry:
                        work_cmds)
         self.modules = (autocontinue_cmds, config_cmds, dashboard_cmds, decisions_cmds, foreign_cmds, guide_cmds,
                         import_cmds, info_cmds, model_cmds, routing_cmds, schedule_cmds, session_cmds, skill_cmds,
-                        work_cmds)  # registration
+                        work_cmds)
 
-    # ------------------------------------------------------------ lookup
     def find(self, name: str) -> Optional[Command]:
         name = name.lower()
         if name in REGISTRY:
@@ -185,7 +179,6 @@ class CommandRegistry:
         cmd = self.find(name)
         return bool(cmd and cmd.while_busy)
 
-    # ------------------------------------------------------------ run
     async def execute(self, text: str) -> None:
         name, args = self.split(text)
         cmd = self.find(name)

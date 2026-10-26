@@ -7,8 +7,6 @@ from __future__ import annotations
 import os
 import tempfile
 
-# The same guard as tests/_isolation_test.py: a single-module run must never
-# touch the real %APPDATA%\MemuAI folder.
 if not os.environ.get("MEMUAI_DATA_DIR"):
     os.environ["MEMUAI_DATA_DIR"] = tempfile.mkdtemp(prefix="memuai-tests-")
 
@@ -23,7 +21,6 @@ from app import work_agents  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def run_node(script: str) -> dict:
     done = subprocess.run([shutil.which("node"), str(ROOT / "tests" / script)],
                           capture_output=True, text=True, encoding="utf-8", timeout=60)
@@ -35,10 +32,8 @@ def run_node(script: str) -> dict:
         raise AssertionError(out["error"])
     return out
 
-
 def tool_block(*calls) -> str:
     return "Working.\n```memuai-tool\n" + json.dumps([{"tool": name, "args": args} for name, args in calls]) + "\n```"
-
 
 class Scripted:
     """A model that answers from ``handler(model, messages)`` and remembers what it was asked."""
@@ -50,7 +45,6 @@ class Scripted:
     async def __call__(self, model, messages):
         self.requests.append((model, messages))
         return await self.handler(model, messages)
-
 
 class WorkAgentsTest(unittest.TestCase):
     def pool(self, handler, tool=None):
@@ -73,7 +67,7 @@ class WorkAgentsTest(unittest.TestCase):
                 started.append(messages[1]["content"])
                 if len(started) == 2:
                     both.set()
-                await asyncio.wait_for(both.wait(), 5)          # deadlocks unless the other agent runs too
+                await asyncio.wait_for(both.wait(), 5)
                 return "report of " + ("docs" if "docs" in messages[1]["content"] else "tests")
 
             pool, _model, _used = self.pool(handler)
@@ -89,7 +83,7 @@ class WorkAgentsTest(unittest.TestCase):
         first, second, still_running, waited, pool = asyncio.run(scenario())
         self.assertEqual((first["id"], first["status"], second["id"]), (1, "running", 2))
         self.assertIn("Keep doing your own part", first["note"])
-        self.assertEqual(still_running, ["running", "running"])            # the main model got control back at once
+        self.assertEqual(still_running, ["running", "running"])
         self.assertEqual(sorted(row["report"] for row in waited["finished"]), ["report of docs", "report of tests"])
         self.assertTrue(all(row["delivered"] for row in pool.list("chat")))
 
@@ -130,7 +124,7 @@ class WorkAgentsTest(unittest.TestCase):
             return job, model, used
 
         job, model, used = asyncio.run(scenario("ask"))
-        self.assertEqual(used, [])                                        # the write never reached the tools
+        self.assertEqual(used, [])
         self.assertIn("not available to an agent", model.requests[1][1][-1]["content"])
         self.assertIn("You may read and search only", model.requests[0][1][0]["content"])
         self.assertNotIn("work_patch {", model.requests[0][1][0]["content"])
@@ -180,7 +174,7 @@ class WorkAgentsTest(unittest.TestCase):
         empty, third, other_chat, missing, unknown, pool = asyncio.run(scenario())
         self.assertIn("needs a task", empty["error"])
         self.assertIn("2 agents are already running", third["error"])
-        self.assertEqual(other_chat["status"], "running")                 # the limit is per chat
+        self.assertEqual(other_chat["status"], "running")
         self.assertIn("No agent with that id", missing["error"])
         self.assertIn("Unknown agent tool", unknown["error"])
         self.assertEqual([row["title"] for row in pool.list("chat")], ["Agent 1", "Agent 2"])
@@ -221,7 +215,7 @@ class WorkAgentsTest(unittest.TestCase):
         stopped, rows, undelivered = asyncio.run(scenario())
         self.assertEqual(stopped, 2)
         self.assertEqual([row["status"] for row in rows], ["cancelled", "cancelled"])
-        self.assertEqual(undelivered, [])                                # nothing is left to resume the chat with
+        self.assertEqual(undelivered, [])
 
     def test_an_endless_tool_loop_ends_with_a_report_at_the_round_limit(self) -> None:
         async def scenario():
@@ -257,7 +251,6 @@ class WorkAgentsTest(unittest.TestCase):
             asyncio.run(scenario())
             self.assertEqual((root / "f.txt").read_text(encoding="utf-8"), "ALPHA\nbeta\nGAMMA\n")
 
-
 class AgentsInTheWindowTest(unittest.TestCase):
     """The real agents.js of the MemuAI window, run in Node."""
 
@@ -267,15 +260,15 @@ class AgentsInTheWindowTest(unittest.TestCase):
 
     def test_agents_are_allowed_only_in_work_and_memucode_and_only_on_request(self) -> None:
         out = self.out
-        self.assertFalse(out["chat"])                                    # never in the regular chat
+        self.assertFalse(out["chat"])
         self.assertFalse(out["chatSwitch"])
         self.assertTrue(out["workAsked"])
         self.assertTrue(out["codeAskedRu"])
-        self.assertFalse(out["workPlain"])                               # an ordinary request starts nobody
-        self.assertTrue(out["workSwitch"])                               # the «Агенты» switch of the "+" menu
+        self.assertFalse(out["workPlain"])
+        self.assertTrue(out["workSwitch"])
         self.assertTrue(out["followUp"])
         self.assertFalse(out["tooOld"])
-        self.assertFalse(out["internalIgnored"])                         # a tool report mentioning agents is not the user asking
+        self.assertFalse(out["internalIgnored"])
 
     def test_the_prompt_describes_working_together_not_waiting(self) -> None:
         full, ask = self.out["promptFull"], self.out["promptAsk"]
@@ -287,7 +280,7 @@ class AgentsInTheWindowTest(unittest.TestCase):
 
     def test_running_agents_are_shown_live_and_nothing_interrupts_the_busy_model(self) -> None:
         out = self.out
-        self.assertEqual(out["remembered"], ["Docs", "Tests"])           # other tools and failed spawns are not agents
+        self.assertEqual(out["remembered"], ["Docs", "Tests"])
         self.assertEqual(out["liveLast"], ["work_read README.md", "work_search parse"])
         card = out["runningCard"]
         self.assertEqual((card["status"], card["meta"], card["open"], card["actions"]), ("running", "2 / 2", True, True))
@@ -299,7 +292,7 @@ class AgentsInTheWindowTest(unittest.TestCase):
         self.assertEqual(len(out["resumed"]), 1)
         resumed = out["resumed"][0]
         self.assertEqual(resumed["kind"], "agents")
-        self.assertTrue(resumed["sameBubble"])                           # continues the answer that started the agent
+        self.assertTrue(resumed["sameBubble"])
         self.assertIn("Docs written to README.md", resumed["report"])
         self.assertEqual(out["collectCalls"], 1)
         self.assertEqual(out["resumedTwice"], 1)
@@ -311,7 +304,6 @@ class AgentsInTheWindowTest(unittest.TestCase):
         self.assertFalse(out["doneCard"]["actions"])
         self.assertIn("Docs written to README.md", out["doneCard"]["body"])
         self.assertEqual(out["noCard"], "")
-
 
 class AgentsLeftTheChatTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -341,9 +333,6 @@ class AgentsLeftTheChatTest(unittest.TestCase):
         self.assertEqual(prefs["agent_models"], ["a", "b"])
         self.assertEqual(prefs["agent_count"], 4)
 
-
-# ------------------------------------------------------------------ the context counter tells the truth
-
 class ContextInTheWindowTest(unittest.TestCase):
     """context.js and the counter functions of app.js, run in Node on real image headers."""
 
@@ -352,8 +341,7 @@ class ContextInTheWindowTest(unittest.TestCase):
         cls.out = run_node("context_runner.cjs")
 
     def test_text_is_counted_by_alphabet(self) -> None:
-        # The same sentence: Russian costs more per character and in total, and more again in Claude's tokenizer
-        # (tokens.js = app/token_estimate.py; the numbers themselves are checked in round30_misc_test).
+
         (latin, latin_chars), (cyrillic, cyrillic_chars) = self.out["latin"], self.out["cyrillic"]
         self.assertGreater(cyrillic / cyrillic_chars, 1.3 * latin / latin_chars)
         self.assertGreater(self.out["claudeRussian"], cyrillic)
@@ -363,10 +351,10 @@ class ContextInTheWindowTest(unittest.TestCase):
         out = self.out
         self.assertEqual(out["pngSize"], {"width": 1920, "height": 1080})
         self.assertEqual(out["jpegSize"], {"width": 800, "height": 600})
-        self.assertEqual(out["exifSize"], {"width": 4000, "height": 3000})        # the size sits after 60 KB of EXIF
+        self.assertEqual(out["exifSize"], {"width": 4000, "height": 3000})
         self.assertIsNone(out["notImage"])
         self.assertIsNone(out["remote"])
-        self.assertEqual(out["sameBytes"], [1600, 50])                             # both PNGs weigh about the same
+        self.assertEqual(out["sameBytes"], [1600, 50])
         self.assertEqual(out["byFamily"], {"claude": 1600, "openai": 1105, "gemini": 1548, "small": 258, "unknown": 1100})
         self.assertEqual(out["families"], ["claude", "claude", "gemini", "openai", "openai", "other"])
 
@@ -374,17 +362,17 @@ class ContextInTheWindowTest(unittest.TestCase):
         request = self.out["request"]
         self.assertEqual(request["imageCount"], 2)
         self.assertEqual(request["total"], request["system"] + request["text"] + request["images"])
-        self.assertEqual(request["system"], 47)                                    # "S" × 380 in Claude's count + 4
+        self.assertEqual(request["system"], 47)
 
     def test_video_is_counted_as_the_frames_that_are_really_sent(self) -> None:
         out = self.out
-        self.assertEqual(out["video"]["imageCount"], 16)                           # 24 sampled frames, 16 are sent
+        self.assertEqual(out["video"]["imageCount"], 16)
         self.assertGreater(out["video"]["images"], 5000)
-        self.assertGreater(out["video"]["text"], 100)                              # the transcript and the frame labels
-        self.assertEqual(out["videoAnalysed"]["images"], 0)                        # the viewer model's report goes instead
-        self.assertEqual(out["described"]["images"], 0)                            # a described image is sent as text
+        self.assertGreater(out["video"]["text"], 100)
+        self.assertEqual(out["videoAnalysed"]["images"], 0)
+        self.assertEqual(out["described"]["images"], 0)
         self.assertEqual(out["blindModel"], 0)
-        self.assertEqual(out["reasoningIgnored"], 47)                             # 40 000 characters of thoughts are not resent
+        self.assertEqual(out["reasoningIgnored"], 47)
 
     def test_the_counter_includes_the_system_prompt_and_follows_compression(self) -> None:
         out = self.out
@@ -393,14 +381,14 @@ class ContextInTheWindowTest(unittest.TestCase):
         self.assertTrue(out["chat"]["sums"])
         self.assertTrue(out["withoutImages"])
         self.assertEqual(out["compressed"], {"smaller": True, "summary": 73, "count": 2, "firstImageGone": True})
-        self.assertLess(out["staleReport"], 100)                                   # an old tool report is not resent
+        self.assertLess(out["staleReport"], 100)
         self.assertGreater(out["freshReport"], 4000)
 
     def test_the_providers_own_count_replaces_the_estimate(self) -> None:
         out = self.out
         self.assertEqual(out["measured"], {"flag": True, "total": 9005})
-        self.assertEqual(out["measuredPlusNew"], 47)                              # a message added since is put on top
-        self.assertEqual(out["sentOnly"], {"flag": False, "total": 5052})          # no provider count: the estimate of that request
+        self.assertEqual(out["measuredPlusNew"], 47)
+        self.assertEqual(out["sentOnly"], {"flag": False, "total": 5052})
         self.assertFalse(out["otherModel"])
         self.assertFalse(out["movedMessage"])
 
@@ -412,7 +400,6 @@ class ContextInTheWindowTest(unittest.TestCase):
         self.assertIn("roundUsage.estimated === false", js)
         self.assertIn("посчитано провайдером за последний запрос", js)
         self.assertIn("Изображения и кадры видео", js)
-
 
 class RealTokenCountsTest(unittest.TestCase):
     """The Proxy passes the provider's own token counts through instead of its estimate."""
@@ -482,14 +469,13 @@ class RealTokenCountsTest(unittest.TestCase):
                                     "messages": len(runtime.session.api_messages())}
         measured = context_breakdown(runtime)
         self.assertEqual((measured["source"], measured["used"]), ("provider", 50_000))
-        self.assertAlmostEqual(sum(measured["parts"].values()), 50_000, delta=5)     # the parts add up to the real total
+        self.assertAlmostEqual(sum(measured["parts"].values()), 50_000, delta=5)
         from app.cli.tokens import estimate_text
         added = "Почему парсер падает на пустой строке? " * 25
         runtime.session.append({"role": "user", "kind": "prompt", "content": added})
         self.assertAlmostEqual(context_breakdown(runtime)["used"], 50_000 + estimate_text(added), delta=20)
-        runtime.invalidate_prompt()                                  # another model or prompt: back to the estimate
+        runtime.invalidate_prompt()
         self.assertEqual(context_breakdown(runtime)["source"], "estimate")
-
 
 if __name__ == "__main__":
     unittest.main()

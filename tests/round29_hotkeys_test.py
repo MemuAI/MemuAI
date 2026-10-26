@@ -29,7 +29,6 @@ process.stdout.write(JSON.stringify({
 }));
 """
 
-
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
 class HotkeyRegistryTest(unittest.TestCase):
     @classmethod
@@ -66,7 +65,6 @@ class HotkeyRegistryTest(unittest.TestCase):
                                 capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-
 class HotkeyWiringTest(unittest.TestCase):
     def test_index_tags(self) -> None:
         index = (STATIC / "index.html").read_text(encoding="utf-8")
@@ -85,7 +83,6 @@ class HotkeyWiringTest(unittest.TestCase):
     def test_node_check(self) -> None:
         result = subprocess.run(["node", "--check", str(STATIC / "hotkeys.js")], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-
 
 if __name__ == "__main__":
     unittest.main()

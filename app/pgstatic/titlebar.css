@@ -1,19 +1,7 @@
-/* MemuAI custom title bar (Round 20) — window buttons and the top resize edge.
- *
- * Active only under :root[data-titlebar="custom"], which titlebar.js sets
- * after the native side confirmed the caption hook (app/win_titlebar.py).
- * titlebar.js measures the active design's top bar and publishes
- *   --memu-tb-top / --memu-tb-right / --memu-tb-h   (where the bar is)
- *   --memu-tb-mid                                   (centre of its first row)
- *   --memu-wc-w                                     (how wide the buttons are)
- * Each design below only decides the look; the geometry follows the layout.
- */
-
-/* ------------------------------------------------------------ base */
 #memu-wincontrols {
-  --wc-h: var(--memu-tb-h, 32px);          /* button height (flush = whole row) */
-  --wc-w: 46px;                            /* Windows 11 caption button width   */
-  --wc-inset-x: 0px;                       /* distance from the bar's right edge */
+  --wc-h: var(--memu-tb-h, 32px);
+  --wc-w: 46px;
+  --wc-inset-x: 0px;
   --wc-gap: 0px;
   --wc-radius: 0px;
   --wc-fg: var(--text, #222);
@@ -23,8 +11,8 @@
   --wc-close-press: #b3261a;
   --wc-close-fg: #fff;
   position: fixed;
-  z-index: 2147483000;                     /* above modals and the boot cover */
-  top: var(--memu-tb-top, 0px);            /* flush designs fill the first row */
+  z-index: 2147483000;
+  top: var(--memu-tb-top, 0px);
   right: calc(var(--memu-tb-right, 0px) + var(--wc-inset-x));
   height: var(--wc-h);
   display: flex; align-items: stretch; gap: var(--wc-gap);
@@ -55,14 +43,9 @@
 }
 .memu-wc-maximize .restore, .memu-wc-maximize.is-maximized .max { display: none; }
 .memu-wc-maximize.is-maximized .restore { display: grid; }
-
-/* inactive window: Windows dims caption glyphs */
 :root[data-titlebar-active="false"] .memu-wc-btn:not(:hover) { opacity: .45; }
-/* full screen (pywebview or an HTML element) has no caption at all */
 :root[data-titlebar-fullscreen="true"] #memu-wincontrols,
 :root[data-titlebar-fullscreen="true"] .memu-tb-resize { display: none; }
-
-/* ------------------------------------------------- top resize edge */
 .memu-tb-resize {
   position: fixed; z-index: 2147483001; inset: 0 0 auto 0; height: 5px;
   display: flex; pointer-events: none;
@@ -72,21 +55,12 @@
 .memu-tb-resize [data-edge="topleft"] { width: 12px; cursor: nwse-resize; }
 .memu-tb-resize [data-edge="topright"] { width: 12px; cursor: nesw-resize; }
 :root[data-titlebar-max="true"] .memu-tb-resize { display: none; }
-
-/* Windows 10 removes the 1 px top border together with the caption. */
 :root[data-titlebar-os="win10"][data-titlebar-max="false"][data-titlebar-fullscreen="false"] .memu-tb-resize {
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text, #000) 22%, transparent);
 }
-
-/* --------------------------------------------- room in the top bar */
 html:root[data-titlebar="custom"] .topbar.appbar {
   padding-right: calc(var(--memu-wc-w, 138px) + var(--wc-room, 10px)) !important;
 }
-
-/* ============================================================ designs */
-
-/* Classic: flush Windows buttons in the card's top-right corner. The close
-   button follows the card's rounded corner. */
 :root[data-titlebar="custom"]:not([data-design]) #memu-wincontrols,
 :root[data-titlebar="custom"][data-design="classic"] #memu-wincontrols {
   --wc-hover: var(--d-hover, color-mix(in srgb, var(--text) 7%, transparent));
@@ -95,8 +69,6 @@ html:root[data-titlebar="custom"] .topbar.appbar {
 }
 :root[data-titlebar="custom"]:not([data-design]) .memu-wc-close,
 :root[data-titlebar="custom"][data-design="classic"] .memu-wc-close { border-top-right-radius: 15px; }
-
-/* Focus: quiet, flush to the window corner (DWM rounds it on Windows 11). */
 :root[data-titlebar="custom"][data-design="focus"] #memu-wincontrols {
   --wc-hover: var(--f-hover, color-mix(in srgb, var(--text) 6%, transparent));
   --wc-press: var(--f-active, color-mix(in srgb, var(--text) 9%, transparent));
@@ -104,8 +76,6 @@ html:root[data-titlebar="custom"] .topbar.appbar {
 }
 :root[data-titlebar="custom"][data-design="focus"] .memu-wc-btn:hover { color: var(--text); }
 :root[data-titlebar="custom"][data-design="focus"] .memu-wc-close:hover { color: #fff; }
-
-/* Grid: square cells separated by the grid's hairline. */
 :root[data-titlebar="custom"][data-design="grid"] #memu-wincontrols {
   --wc-hover: var(--g-hover, color-mix(in srgb, var(--text) 5%, transparent));
   --wc-press: color-mix(in srgb, var(--text) 9%, transparent);
@@ -115,9 +85,6 @@ html:root[data-titlebar="custom"] .topbar.appbar {
 :root[data-titlebar="custom"][data-design="grid"] .memu-wc-btn:hover { color: var(--text); }
 :root[data-titlebar="custom"][data-design="grid"] .memu-wc-close:hover { color: #fff; }
 :root[data-titlebar="custom"][data-design="grid"] .topbar.appbar { --wc-room: 6px; }
-
-/* Glass: the buttons live inside the floating frosted top bar, as soft
-   translucent pills tinted by the accent; close turns into a red glass pill. */
 :root[data-titlebar="custom"][data-design="glass"] #memu-wincontrols {
   --wc-h: 34px; --wc-w: 40px; --wc-inset-x: 8px; --wc-gap: 2px;
   --wc-radius: var(--g-r-sm, 12px);
@@ -140,9 +107,6 @@ html:root[data-titlebar="custom"] .topbar.appbar {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), 0 6px 18px -8px rgba(232, 17, 35, .7);
 }
 :root[data-titlebar="custom"][data-design="glass"] .topbar.appbar { --wc-room: 20px; }
-
-/* Aurora: a small floating capsule of round buttons, matching the design's
-   round icon buttons and floating sidebar. */
 :root[data-titlebar="custom"][data-design="aurora"] #memu-wincontrols {
   --wc-h: 38px; --wc-w: 32px; --wc-inset-x: 10px; --wc-gap: 2px;
   --wc-radius: 999px;
@@ -159,12 +123,6 @@ html:root[data-titlebar="custom"] .topbar.appbar {
 }
 :root[data-titlebar="custom"][data-design="aurora"] .memu-wc-btn { height: 100%; }
 :root[data-titlebar="custom"][data-design="aurora"] .topbar.appbar { --wc-room: 24px; }
-
-/* ------------------------------------------- over full-window overlays */
-/* Settings, the image viewer, the palette etc. cover the top bar. The
-   buttons then become a standard Windows caption cluster in the window
-   corner, and the overlays keep a 32 px caption band free for them (the
-   band also drags the window). */
 :root[data-titlebar="custom"][data-titlebar-overlay="true"] #memu-wincontrols {
   --wc-h: 32px !important; --wc-w: 46px !important; --wc-gap: 0px !important; --wc-radius: 0px !important;
   --wc-fg: var(--text) !important;
@@ -182,14 +140,10 @@ html:root[data-titlebar="custom"] .topbar.appbar {
 :root[data-titlebar="custom"] .pin-lock-back,
 :root[data-titlebar="custom"] .image-viewer { padding-top: 32px; box-sizing: border-box; }
 :root[data-titlebar="custom"] .panel-back > .panel { max-height: calc(100dvh - 44px) !important; }
-
-/* Grid and Focus are flat: no transitions on the hover fill, like Windows. */
 :root[data-titlebar="custom"][data-design="grid"] .memu-wc-btn { transition: none; }
 
 @media (prefers-reduced-motion: reduce) { .memu-wc-btn { transition: none; } }
 :root[data-motion="off"] .memu-wc-btn, body.reduce-motion .memu-wc-btn { transition: none; }
-
-/* Very narrow windows: slimmer buttons so the bar keeps its controls. */
 @media (max-width: 560px) {
   #memu-wincontrols { --wc-w: 40px; }
   :root[data-titlebar="custom"][data-design="glass"] #memu-wincontrols { --wc-w: 34px; }

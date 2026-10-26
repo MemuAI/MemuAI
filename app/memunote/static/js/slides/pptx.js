@@ -1,7 +1,7 @@
-// MemuNote Slides — .pptx ⇄ deck model. Round-trip policy: every part, element and attribute we do not
-// model is kept byte-for-byte; a changed element is PATCHED (only the fields that differ from what was
-// read are rewritten), untouched slides are copied as they were, new things are generated.
+
+
 import { ZipArchive } from "./zip.js";
+import { chartWorkbook, excelColumn } from "./chart-workbook.js";
 import { NS, REL, CT, XML_HEAD, parseXml, serialize, frag, kids, kid, path, deep, deepAll, attr, num, bool, rid, escXml,
   insertOrdered, removeKids, readColor, colorXml, cssColor, DEFAULT_CLRMAP, SCHEME_KEYS } from "./xml.js";
 import { newPackage, notesMasterXml, NOTES_MASTER_RELS, themeXml, emptySlideXml, LAYOUTS } from "./templates.js";
@@ -10,10 +10,9 @@ export const uid = () => Math.random().toString(36).slice(2, 9) + (Date.now() % 
 const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
 const same = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 const MODEL_FIELDS = ["kind", "name", "x", "y", "w", "h", "rot", "flipH", "flipV", "xfrmInherited", "geom", "adj", "fill", "line", "text", "pic", "table", "chart", "children", "hidden", "descr"];
-/** Signature of an element's model (what the writer compares). Underscore keys, ids and animations do not count. */
+
 export function sigOf(el) { return JSON.stringify(el, (k, v) => (k.startsWith("_") || k === "id" || k === "anim" ? undefined : v)); }
 
-// =================================================================== paths & rels
 function dirOf(p) { const i = p.lastIndexOf("/"); return i < 0 ? "" : p.slice(0, i); }
 function relsPathOf(p) { return `${dirOf(p) ? dirOf(p) + "/" : ""}_rels/${p.split("/").pop()}.rels`; }
 function resolve(base, target) {
@@ -47,12 +46,11 @@ class Rels {
   remove(id) { this.items = this.items.filter((r) => r.id !== id); this.dirty = true; }
   retarget(item, target) { item.target = target; this.dirty = true; }
   xml() {
-    if (!this.dirty && this.orig) return this.orig;   // untouched: keep the original bytes
+    if (!this.dirty && this.orig) return this.orig;
     return XML_HEAD + `<Relationships xmlns="${NS.pr}">` + this.items.map((r) => `<Relationship Id="${escXml(r.id)}" Type="${escXml(r.type)}" Target="${escXml(r.target)}"${r.external ? ' TargetMode="External"' : ""}/>`).join("") + "</Relationships>";
   }
 }
 
-// =================================================================== text
 function readLvl(pPr) {
   if (!pPr) return null;
   const p = {}, r = {};
@@ -181,7 +179,7 @@ function pPrXml(doc, para) {
       insertOrdered(el, frag(doc, `<a:buAutoNum type="${escXml(para.bullet.num)}"${para.bullet.start > 1 ? ` startAt="${para.bullet.start}"` : ""}/>`), ORDER);
     }
     if (para.bullet && para.bullet !== "none" && (para.marL === undefined || para.indent === undefined) && !(para.lvl > 0)) {
-      // a bullet added to a paragraph that inherits "no indent" (title, subtitle, text box): give it a hanging indent
+
       if (para.marL === undefined) el.setAttribute("marL", "342900");
       if (para.indent === undefined) el.setAttribute("indent", "-342900");
     }
@@ -227,7 +225,6 @@ function writeTextBody(doc, txBody, text, old) {
   if (!same(old?.paras, text.paras)) { removeKids(txBody, ["p"]); parasXml(doc, text.paras, txBody); }
 }
 
-// =================================================================== geometry, fill, line
 function readFill(spPr, rels) {
   if (!spPr) return undefined;
   for (const c of spPr.children) {
@@ -296,7 +293,6 @@ function readCustGeom(cg) {
   return out;
 }
 
-// =================================================================== elements
 function xfrmOf(node) {
   const n = node.localName;
   if (n === "graphicFrame") return kid(node, "xfrm");
@@ -430,7 +426,6 @@ function tableXml(doc, t) {
   return tbl;
 }
 
-// ------------------------------------------------------------------ charts (bar/column/line/pie/area, cached values)
 function readChart(doc) {
   const plot = deep(doc, "plotArea");
   if (!plot) return null;
@@ -451,14 +446,15 @@ function readChart(doc) {
   const title = deepAll(kid(deep(doc, "chart"), "title"), "t").map((t) => t.textContent).join("");
   return { type, cats: Array.from(cats, (c) => c ?? ""), series, ...(title ? { title } : {}), stacked: attr(kid(ch, "grouping"), "val") === "stacked" || undefined };
 }
-export function chartXml(chart) {
+export function chartXml(chart, workbookId = "") {
+  const number = value => Number.isFinite(Number(value)) ? Number(value) : 0;
   const n = Math.max(chart.cats.length, ...chart.series.map((s) => s.vals.length));
   const catRef = `<c:cat><c:strRef><c:f>Sheet1!$A$2:$A$${n + 1}</c:f><c:strCache><c:ptCount val="${n}"/>${chart.cats.map((c, i) => `<c:pt idx="${i}"><c:v>${escXml(c)}</c:v></c:pt>`).join("")}</c:strCache></c:strRef></c:cat>`;
-  const col = (i) => String.fromCharCode(66 + i);
+  const col = (i) => excelColumn(i + 2);
   const ser = chart.series.map((s, i) => `<c:ser><c:idx val="${i}"/><c:order val="${i}"/><c:tx><c:strRef><c:f>Sheet1!$${col(i)}$1</c:f><c:strCache><c:ptCount val="1"/><c:pt idx="0"><c:v>${escXml(s.name)}</c:v></c:pt></c:strCache></c:strRef></c:tx>`
     + (s.color && chart.type !== "pie" && chart.type !== "doughnut" ? `<c:spPr><a:solidFill>${colorXml(s.color)}</a:solidFill></c:spPr>` : "")
     + (chart.type === "line" ? '<c:marker><c:symbol val="circle"/><c:size val="6"/></c:marker>' : "")
-    + catRef + `<c:val><c:numRef><c:f>Sheet1!$${col(i)}$2:$${col(i)}$${n + 1}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${n}"/>${s.vals.map((v, j) => `<c:pt idx="${j}"><c:v>${Number(v) || 0}</c:v></c:pt>`).join("")}</c:numCache></c:numRef></c:val>`
+    + catRef + `<c:val><c:numRef><c:f>Sheet1!$${col(i)}$2:$${col(i)}$${n + 1}</c:f><c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="${n}"/>${s.vals.map((v, j) => `<c:pt idx="${j}"><c:v>${number(v)}</c:v></c:pt>`).join("")}</c:numCache></c:numRef></c:val>`
     + (chart.type === "line" ? '<c:smooth val="0"/>' : "") + "</c:ser>").join("");
   const axes = '<c:axId val="111111111"/><c:axId val="222222222"/>';
   let plot;
@@ -475,10 +471,9 @@ export function chartXml(chart) {
   const title = chart.title ? `<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>${escXml(chart.title)}</a:t></a:r></a:p></c:rich></c:tx><c:overlay val="0"/></c:title><c:autoTitleDeleted val="0"/>` : '<c:autoTitleDeleted val="1"/>';
   return XML_HEAD + `<c:chartSpace xmlns:c="${NS.c}" xmlns:a="${NS.a}" xmlns:r="${NS.r}"><c:roundedCorners val="0"/><c:chart>${title}<c:plotArea><c:layout/>${plot}</c:plotArea>`
     + `<c:legend><c:legendPos val="${chart.type === "pie" || chart.type === "doughnut" ? "r" : "b"}"/><c:overlay val="0"/></c:legend><c:plotVisOnly val="1"/><c:dispBlanksAs val="gap"/></c:chart>`
-    + `<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="1400"><a:solidFill><a:schemeClr val="tx1"><a:lumMod val="65000"/><a:lumOff val="35000"/></a:schemeClr></a:solidFill></a:defRPr></a:pPr><a:endParaRPr lang="en-US"/></a:p></c:txPr></c:chartSpace>`;
+    + `<c:txPr><a:bodyPr/><a:lstStyle/><a:p><a:pPr><a:defRPr sz="1400"><a:solidFill><a:schemeClr val="tx1"><a:lumMod val="65000"/><a:lumOff val="35000"/></a:schemeClr></a:solidFill></a:defRPr></a:pPr><a:endParaRPr lang="en-US"/></a:p></c:txPr>${workbookId ? `<c:externalData r:id="${escXml(workbookId)}"><c:autoUpdate val="0"/></c:externalData>` : ""}</c:chartSpace>`;
 }
 
-// ------------------------------------------------------------------ new element XML
 export function newElementXml(el, rIdFor) {
   const id = el.nvId || 2, name = escXml(el.name || "");
   const xf = `<a:xfrm${el.rot ? ` rot="${Math.round(el.rot * 60000)}"` : ""}${el.flipH ? ' flipH="1"' : ""}${el.flipV ? ' flipV="1"' : ""}><a:off x="${Math.round(el.x)}" y="${Math.round(el.y)}"/><a:ext cx="${Math.round(el.w)}" cy="${Math.round(el.h)}"/></a:xfrm>`;
@@ -498,7 +493,6 @@ export function newElementXml(el, rIdFor) {
     + `<p:txBody><a:bodyPr${el.txBox ? ' wrap="square" rtlCol="0"' : ""}>${el.txBox ? "<a:spAutoFit/>" : ""}</a:bodyPr><a:lstStyle/><a:p><a:endParaRPr lang="ru-RU"/></a:p></p:txBody></p:sp>`;
 }
 
-/** Patch the original XML of `el` with the model fields that differ from what was read (el._o). */
 function writeElement(doc, el, ctx) {
   const o = el._o || {};
   let node;
@@ -560,7 +554,7 @@ function writeElement(doc, el, ctx) {
       for (const ch of el.children) { const cn = writeElement(doc, ch, ctx); ext ? node.insertBefore(cn, ext) : node.appendChild(cn); }
     }
   }
-  // unique ids inside the slide (pasted / duplicated elements carry the id of their original)
+
   const cNvPr = kid(nvOf(node), "cNvPr");
   if (cNvPr) {
     let id = num(cNvPr, "id", 0);
@@ -568,7 +562,7 @@ function writeElement(doc, el, ctx) {
     ctx.ids.add(id); el.nvId = id;
   }
   if (el.kind === "group" && el._xml && el._sig === sigOf(el)) {
-    // untouched group: still register the children's ids
+
     for (const c of deepAll(node, "cNvPr")) ctx.ids.add(num(c, "id", 0));
   }
   return node;
@@ -592,13 +586,12 @@ function patchXfrm(doc, node, el) {
   if (!ext) { ext = frag(doc, '<a:ext cx="0" cy="0"/>'); off.after(ext); }
   off.setAttribute("x", String(Math.round(el.x))); off.setAttribute("y", String(Math.round(el.y)));
   ext.setAttribute("cx", String(Math.max(0, Math.round(el.w)))); ext.setAttribute("cy", String(Math.max(0, Math.round(el.h))));
-  if (n === "grpSp") {   // keep the child space consistent with a group we created ourselves
+  if (n === "grpSp") {
     if (!kid(x, "chOff")) x.appendChild(frag(doc, `<a:chOff x="${Math.round(el._ch.x)}" y="${Math.round(el._ch.y)}"/>`));
     if (!kid(x, "chExt")) x.appendChild(frag(doc, `<a:chExt cx="${Math.round(el._ch.w)}" cy="${Math.round(el._ch.h)}"/>`));
   }
 }
 
-// =================================================================== backgrounds, transitions, animations
 function readBg(cSld, rels) {
   const bg = kid(cSld, "bg");
   if (!bg) return undefined;
@@ -660,7 +653,7 @@ function readTiming(sld) {
   return out;
 }
 function timingXml(anims) {
-  // anims: [{spid, type, trig, dur, dir, text}] in order → a main sequence with click groups
+
   if (!anims.length) return "";
   let id = 3; const groups = [];
   for (const a of anims) {
@@ -702,12 +695,11 @@ function timingXml(anims) {
   return `<p:timing><p:tnLst><p:par><p:cTn id="1" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst><p:seq concurrent="1" nextAc="seek"><p:cTn id="2" dur="indefinite" nodeType="mainSeq"><p:childTnLst>${seq}</p:childTnLst></p:cTn>`
     + `<p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst></p:seq></p:childTnLst></p:cTn></p:par></p:tnLst>${bld ? `<p:bldLst>${bld}</p:bldLst>` : ""}</p:timing>`;
 }
-/** Animated elements of a slide in play order: [{el, anim}] (top level only). */
+
 export function slideAnims(slide) {
   return slide.elements.filter((e) => e.anim && !e.anim.keep).sort((a, b) => (a.anim.order ?? 0) - (b.anim.order ?? 0)).map((el) => ({ el, anim: el.anim }));
 }
 
-// =================================================================== theme / masters / layouts
 function readTheme(xml) {
   const doc = parseXml(xml);
   const cs = deep(doc, "clrScheme"), colors = {};
@@ -718,7 +710,7 @@ function readTheme(xml) {
   return { colors, fonts, name: attr(doc.documentElement, "name", ""), bgStyles };
 }
 function readClrMap(el) { if (!el) return { ...DEFAULT_CLRMAP }; const m = {}; for (const a of el.attributes) m[a.name] = a.value; return { ...DEFAULT_CLRMAP, ...m }; }
-/** Autofit declared by a layout/master placeholder: true (shrink), false (none / resize shape), undefined (inherit from the master). */
+
 function phAutofit(bp) { if (!bp) return undefined; if (kid(bp, "normAutofit")) return true; if (kid(bp, "noAutofit") || kid(bp, "spAutoFit")) return false; return undefined; }
 function readPlaceholders(spTree) {
   const out = [];
@@ -739,12 +731,11 @@ function decorElements(spTree, ctx) {
   for (const node of kids(spTree)) {
     if (["nvGrpSpPr", "grpSpPr", "extLst"].includes(node.localName)) continue;
     if (deep(kid(nvOf(node), "nvPr"), "ph")) continue;
-    try { out.push(readElement(node, ctx)); } catch { /* ignore */ }
+    try { out.push(readElement(node, ctx)); } catch {  }
   }
   return out;
 }
 
-// =================================================================== the deck
 export class Deck {
   constructor() {
     this.slides = []; this.layouts = []; this.masters = []; this.media = new Map(); this.charts = new Map();
@@ -756,7 +747,7 @@ export class Deck {
   layoutOf(slide) { return this.layout(slide.layout); }
   masterOf(slide) { const l = this.layoutOf(slide); return this.masters.find((m) => m.path === l?.master) || this.masters[0]; }
   themeOf(slide) { const m = this.masterOf(slide); return m ? { ...m.theme, clrMap: m.clrMap } : this.theme; }
-  /** Matching placeholder of the layout / master for an element with `ph`. */
+
   phChain(slide, el) {
     if (!el.ph) return [];
     const l = this.layoutOf(slide), m = this.masterOf(slide);
@@ -774,12 +765,12 @@ export class Deck {
     for (const p of this.phChain(slide, el)) if (p.box) return { x: p.box.x, y: p.box.y, w: p.box.w, h: p.box.h };
     return { x: el.x || 0, y: el.y || 0, w: el.w || this.w / 2, h: el.h || this.h / 4 };
   }
-  /** Effective level styles (index 0..8) for the text of `el`: defaults < master txStyles < master ph < layout ph < shape lstStyle. */
+
   levelStyles(slide, el) {
     const m = this.masterOf(slide);
     const t = el.ph ? el.ph.type || "body" : "";
     const base = !el.ph ? this.defaultStyle : t === "title" || t === "ctrTitle" ? m?.txStyles.title : ["body", "subTitle", "obj", ""].includes(t) || !t ? m?.txStyles.body : m?.txStyles.other;
-    const chain = this.phChain(slide, el).reverse();       // master first, then layout
+    const chain = this.phChain(slide, el).reverse();
     const out = [];
     for (let i = 0; i < 9; i++) {
       const s = { p: { algn: "l", marL: 0, indent: 0 }, r: { sz: 18, color: "scheme:tx1", font: t === "title" || t === "ctrTitle" ? "+mj-lt" : "+mn-lt" } };
@@ -815,7 +806,7 @@ export class Deck {
     return url;
   }
   mediaUrlSync(key) { return this.urls.get(key) || ""; }
-  /** Bytes + MIME type of a media part, read from the model (never via fetch(blob:) — the page CSP blocks it). */
+
   async mediaData(key) {
     if (!key) return null;
     const m = this.media.get(key);
@@ -855,14 +846,14 @@ export async function openPptx(buffer) {
   deck.presRels = presRels;
   const sz = deep(pres, "sldSz"); if (sz) { deck.w = num(sz, "cx", deck.w); deck.h = num(sz, "cy", deck.h); }
   deck.defaultStyle = readLstStyle(deep(pres, "defaultTextStyle"));
-  // charts are read on demand while reading slides
+
   const chartCtx = async (relsObj) => {
     for (const r of relsObj.ofType(REL.chart)) {
       const p = relsObj.path(r.id); if (!p || deck.charts.has(p) || !zip.has(p)) continue;
       try { deck.charts.set(p, readChart(parseXml(await zip.text(p)))); } catch { deck.charts.set(p, { type: "bar", cats: [], series: [], unsupported: true }); }
     }
   };
-  // masters
+
   for (const mid of kids(deep(pres, "sldMasterIdLst"), "sldMasterId")) {
     const mpath = presRels.path(rid(mid, "id")); if (!mpath || !zip.has(mpath)) continue;
     const mdoc = parseXml(await zip.text(mpath));
@@ -886,7 +877,7 @@ export async function openPptx(buffer) {
   }
   const nm = kid(deep(pres, "notesMasterIdLst"), "notesMasterId");
   if (nm) deck.notesMaster = presRels.path(rid(nm, "id"));
-  // slides
+
   for (const sid of kids(deep(pres, "sldIdLst"), "sldId")) {
     const spath = presRels.path(rid(sid, "id")); if (!spath || !zip.has(spath)) continue;
     const xml = await zip.text(spath);
@@ -942,7 +933,6 @@ export async function newDeck(opts) {
   return deck;
 }
 
-/** A new slide using a layout: placeholders of the layout become empty placeholders on the slide. */
 export function makeSlide(deck, layoutPath) {
   const layout = deck.layout(layoutPath);
   const slide = { id: uid(), path: null, layout: layout?.path, elements: [], notes: "", _new: true };
@@ -957,7 +947,6 @@ export function makeSlide(deck, layoutPath) {
   return slide;
 }
 
-// =================================================================== saving
 export async function savePptx(deck, opts = {}) {
   const zip = deck.zip;
   const ct = parseXml(await zip.text("[Content_Types].xml"));
@@ -973,7 +962,7 @@ export async function savePptx(deck, opts = {}) {
   const presRels = new Rels(deck.presPath, await zip.text(relsPathOf(deck.presPath)));
   const used = new Set(zip.names());
   const freeName = (dir, stem, ext) => { let i = 1; while (used.has(`${dir}/${stem}${i}.${ext}`)) i++; const p = `${dir}/${stem}${i}.${ext}`; used.add(p); return p; };
-  // media: new images get a part name once
+
   const mediaPath = (key) => {
     if (!key?.startsWith("new:")) return key;
     const m = deck.media.get(key);
@@ -986,10 +975,10 @@ export async function savePptx(deck, opts = {}) {
     return m.path;
   };
   for (const [key, m] of deck.media) if (key.startsWith("new:") && m.path && !zip.has(m.path)) zip.set(m.path, m.bytes);
-  // relationships of the parts elements were read from (an element pasted / moved to another slide keeps r:ids of its source)
+
   const srcRels = new Map();
   for (const sl of deck.slides) for (const src of srcsOf(sl.elements)) if (src !== sl.path && !srcRels.has(src) && zip.has(src)) srcRels.set(src, new Rels(src, await zip.text(relsPathOf(src))));
-  // removed slides
+
   const keep = new Set(deck.slides.map((s) => s.path).filter(Boolean));
   for (const r of presRels.ofType(REL.slide)) {
     const p = presRels.path(r.id);
@@ -1014,6 +1003,7 @@ export async function savePptx(deck, opts = {}) {
     deck.notesMaster = notesMaster;
     return notesMaster;
   };
+  const chartJobs = [];
   let maxSldId = Math.max(255, ...deck.slides.map((s) => s.sldId || 0));
   for (const slide of deck.slides) {
     const sigNow = slideSig(slide);
@@ -1042,7 +1032,7 @@ export async function savePptx(deck, opts = {}) {
     }
     const doc = parseXml(await zip.text(slide.path));
     const rels = new Rels(slide.path, await zip.text(relsPathOf(slide.path)));
-    // layout change
+
     const lr = rels.ofType(REL.layout)[0];
     if (lr && rels.path(lr.id) !== slide.layout && slide.layout) rels.retarget(lr, relative(slide.path, slide.layout));
     const sld = doc.documentElement, cSld = kid(sld, "cSld"), tree = kid(cSld, "spTree");
@@ -1065,15 +1055,23 @@ export async function savePptx(deck, opts = {}) {
       },
       writeChart: (el) => {
         let p = el._chartPath && !el._chartShared ? el._chartPath : null;
-        if (p && deck.slides.some((s) => s !== slide && s.elements.some((e) => e !== el && e._chartPath === p))) p = null;  // a duplicated chart gets its own part
+        if (p && deck.slides.some((s) => s !== slide && s.elements.some((e) => e !== el && e._chartPath === p))) p = null;
+        const ownChart = !!p;
         if (!p) { p = freeName("ppt/charts", "chart", "xml"); addOverride(p, CT.chart); }
-        zip.set(p, chartXml(el.chart));
-        zip.delete(relsPathOf(p));          // our chart has no embedded workbook
+        const packageType = "http://schemas.openxmlformats.org/officeDocument/2006/relationships/package";
+        const previous = new Rels(p, null);
+        const workbook = ownChart && el._chartWorkbook && zip.has(el._chartWorkbook) ? el._chartWorkbook : freeName("ppt/embeddings", "MemuNoteWorkbook", "xlsx");
+        el._chartWorkbook = workbook;
+        const workbookId = previous.add(packageType, workbook);
+        zip.set(p, chartXml(el.chart, workbookId));
+        zip.set(relsPathOf(p), previous.xml());
+        addDefault("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+        chartJobs.push(chartWorkbook(el.chart).then(bytes => zip.set(workbook, bytes)));
         deck.charts.set(p, clone(el.chart));
         return p;
       },
     };
-    // reserve ids of untouched elements first, so new ones never steal them
+
     const walkIds = (els) => { for (const e of els) { if (e._xml && e._sig === sigOf(e) && e.nvId) ids.add(e.nvId); } };
     walkIds(slide.elements);
     const reserved = new Set(ids);
@@ -1084,20 +1082,20 @@ export async function savePptx(deck, opts = {}) {
       const node = writeElement(doc, el, ctx);
       ext ? tree.insertBefore(node, ext) : tree.appendChild(node);
     }
-    // background
+
     if (!same(slide._bg0 === undefined ? readBg(cSld, rels) : slide._bg0, slide.bg)) {
       removeKids(cSld, ["bg"]);
       if (slide.bg) cSld.insertBefore(frag(doc, bgXml(slide.bg, (k) => rels.add(REL.image, mediaPath(k)))), cSld.firstChild);
     }
     if (slide.hidden) sld.setAttribute("show", "0"); else sld.removeAttribute("show");
-    // transition
+
     const trNow = readTransition(sld);
     if (!same(trNow, slide.transition)) {
       for (const c of Array.from(sld.children)) if (c.localName === "transition" || (c.localName === "AlternateContent" && deep(c, "transition"))) c.remove();
       const x = transitionXml(slide.transition);
       if (x) insertOrdered(sld, frag(doc, x), ["cSld", "clrMapOvr", "transition", "AlternateContent", "timing", "extLst"]);
     }
-    // animations (only regenerated when they changed)
+
     const animNow = JSON.stringify(slide.elements.map((e) => [e.nvId, e.anim || null]));
     if (animNow !== slide._anim0) {
       const list = slideAnims(slide).filter((a) => a.el.nvId).map(({ el, anim }) => ({ spid: el.nvId, ...anim, text: !!(el.text && plainText(el.text).trim()) }));
@@ -1106,7 +1104,7 @@ export async function savePptx(deck, opts = {}) {
       if (x) insertOrdered(sld, frag(doc, x), ["cSld", "clrMapOvr", "transition", "AlternateContent", "timing", "extLst"]);
     }
     if (!kid(sld, "clrMapOvr")) cSld.after(frag(doc, "<p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr>"));
-    // notes
+
     if (slide.notes !== slide._notes0) {
       let np = slide._notesPath;
       if (!np && slide.notes) {
@@ -1138,7 +1136,7 @@ export async function savePptx(deck, opts = {}) {
     slide._bg0 = clone(slide.bg);
     markSlide(slide);
   }
-  // presentation.xml: slide order, ids, size
+
   const lst = deep(pres, "sldIdLst") || (() => { const l = frag(pres, "<p:sldIdLst/>"); (deep(pres, "notesMasterIdLst") || deep(pres, "sldMasterIdLst")).after(l); return l; })();
   while (lst.firstChild) lst.firstChild.remove();
   for (const slide of deck.slides) {
@@ -1153,7 +1151,7 @@ export async function savePptx(deck, opts = {}) {
   const sz = deep(pres, "sldSz"); if (sz) { sz.setAttribute("cx", String(deck.w)); sz.setAttribute("cy", String(deck.h)); }
   await setXmlKeep(zip, deck.presPath, serialize(pres));
   zip.set(relsPathOf(deck.presPath), presRels.xml());
-  // slide size changed: stretch master / layout geometry the same way the editor did
+
   if (deck._layoutScale && (deck._layoutScale.kx !== 1 || deck._layoutScale.ky !== 1)) {
     const { kx, ky } = deck._layoutScale;
     for (const part of [...deck.masters.map((m) => m.path), ...deck.layouts.map((l) => l.path)]) {
@@ -1166,11 +1164,11 @@ export async function savePptx(deck, opts = {}) {
     }
     deck._layoutScale = null;
   }
-  // theme edits
+
   for (const m of deck.masters) if (m._themeDirty && m.themePath) { zip.set(m.themePath, patchTheme(await zip.text(m.themePath), m.theme)); m._themeDirty = false; }
   for (const d of ["png", "jpeg", "jpg", "gif"]) if ([...deck.media.keys()].some((k) => k.endsWith("." + d))) addDefault(d, d === "jpg" ? "image/jpeg" : "image/" + d);
   if ([...zip.names()].some((n) => n.endsWith(".svg"))) addDefault("svg", "image/svg+xml");
-  // the main part's content type must match the extension (PowerPoint refuses a .pptx typed as macro-enabled)
+
   const MAIN = { pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml", pptm: "application/vnd.ms-powerpoint.presentation.macroEnabled.main+xml",
     ppsx: "application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml", potx: "application/vnd.openxmlformats-officedocument.presentationml.template.main+xml" };
   if (opts.ext && MAIN[opts.ext]) {
@@ -1181,21 +1179,22 @@ export async function savePptx(deck, opts = {}) {
       zip.set(relsPathOf(deck.presPath), presRels.xml());
     }
   }
+  await Promise.all(chartJobs);
   await setXmlKeep(zip, "[Content_Types].xml", serialize(ct));
   deck.presRels = presRels;
   await reloadXmlAfterSave(deck);
   return zip.write();
 }
-/** Write a re-serialized XML part only if it really changed (the XML declaration / line break are not a change): untouched parts stay byte-identical. */
+
 async function setXmlKeep(zip, path, text) {
   if (zip.has(path)) {
     const strip = (x) => x.replace(/^\uFEFF?<\?xml[^>]*\?>\s*/, "");
-    try { if (strip(await zip.text(path)) === strip(text)) return; } catch { /* unreadable: overwrite */ }
+    try { if (strip(await zip.text(path)) === strip(text)) return; } catch {  }
   }
   zip.set(path, text);
 }
 function refreshEl(el) { el._o = JSON.parse(sigOf(el)); el._sig = sigOf(el); if (el.children) el.children.forEach(refreshEl); }
-/** After a save the written XML becomes the new "original" of every element (so the next save patches against it). */
+
 export async function reloadXmlAfterSave(deck) {
   for (const slide of deck.slides) {
     if (!slide.path) continue;
@@ -1224,7 +1223,6 @@ function patchTheme(xml, theme) {
   return serialize(doc);
 }
 
-/** Duplicate a slide (deep copy of the model; the XML of the original part is reused for unknown content). */
 export async function duplicateSlide(deck, slide) {
   const copy = JSON.parse(JSON.stringify(slide, (k, v) => (k === "_preview" ? undefined : v)));
   copy.id = uid(); copy.path = null; copy.sldId = 0; copy.presRel = null; copy._notesPath = null; copy._notes0 = null;

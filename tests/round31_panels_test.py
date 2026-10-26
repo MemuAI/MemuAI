@@ -34,7 +34,6 @@ PANELS_JS = (ROOT / "app" / "pgstatic" / "panels.js").read_text(encoding="utf-8"
 PANELS_CSS = (ROOT / "app" / "pgstatic" / "panels.css").read_text(encoding="utf-8")
 TG_PANELS_JS = (ROOT / "app" / "tgapp" / "panels.js").read_text(encoding="utf-8")
 
-
 class Base(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -54,7 +53,6 @@ class Base(unittest.TestCase):
     def find(self, pid):
         return next(p for p in panels.load()["panels"] if p["id"] == pid)
 
-
 class FakeModel:
     def __init__(self, answers):
         self.answers = list(answers)
@@ -67,22 +65,17 @@ class FakeModel:
             raise answer
         return answer if isinstance(answer, str) else json.dumps(answer, ensure_ascii=False)
 
-
 async def fake_search(query, limit=5):
     return {"results": [{"title": "Page", "url": "https://src.example/a", "snippet": "Value 42"}],
             "answer": None, "pages": [{"url": "https://src.example/a", "excerpt": "Value 42"}]}
 
-
 async def fake_fetch(url, limit=12000):
     return {"url": url, "title": "Page", "text": "Value 42 at " + url}
-
 
 def ctx(model):
     panels.set_context(panels.PanelContext(complete=model.complete, search=fake_search, fetch=fake_fetch,
                                            default_model=lambda: "prov/test-model"))
 
-
-# ================================================================== JSON extraction
 class ExtractJson(unittest.TestCase):
     def test_think_block_and_prose(self):
         text = "<think>Maybe {{price}} or {\"x\": 1}</think>Sure! Here: {\"values\": {\"price\": \"5\"}} hope it helps"
@@ -117,8 +110,6 @@ class ExtractJson(unittest.TestCase):
             panels._extract_json("I cannot do that")
         self.assertEqual(cm.exception.status, "blocked:model-format")
 
-
-# ================================================================== blocks
 class BlockAliases(unittest.TestCase):
     def test_wrapped_and_kind(self):
         spec, errors = panels.validate_spec({"blocks": [
@@ -142,7 +133,6 @@ class BlockAliases(unittest.TestCase):
         spec, _ = panels.validate_spec({"blocks": [{"type": "countdown", "target": "{{target}}"}]})
         self.assertEqual(spec["blocks"][0]["target"], "{{target}}")
 
-
 class LenientTarget(unittest.TestCase):
     def test_forms(self):
         self.assertEqual(panels._lenient_target("2027-01-01T00:00+03:00"), "2027-01-01T00:00+03:00")
@@ -152,12 +142,10 @@ class LenientTarget(unittest.TestCase):
         self.assertEqual(panels._lenient_target("soon"), "")
         self.assertEqual(panels._lenient_target("2027-02-31"), "")
 
-
 class Today(unittest.TestCase):
     def test_numeric_offset_and_weekday(self):
         text = panels._today({})
         self.assertRegex(text, r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2} \(UTC[+-]\d{2}:\d{2}, [A-Z][a-z]+day; user's local time\)$")
-
 
 class ClipWords(unittest.TestCase):
     def test_word_boundary(self):
@@ -172,8 +160,6 @@ class ClipWords(unittest.TestCase):
         self.assertFalse(p["spec"]["mini"]["label"].endswith(" Pyt"))
         self.assertLessEqual(len(p["spec"]["mini"]["label"]), 20)
 
-
-# ================================================================== model walls
 class ModelWall(unittest.TestCase):
     def test_statuses(self):
         cases = {
@@ -204,7 +190,6 @@ class ModelWall(unittest.TestCase):
 
     def test_transient_model_down(self):
         self.assertIn("blocked:model-down", panels.TRANSIENT_WALLS)
-
 
 class AskModel(Base):
     def test_exceptions_map_to_walls(self):
@@ -242,8 +227,6 @@ class AskModel(Base):
         self.assertEqual(out["wall"]["status"], "blocked:model-rate-limit")
         self.assertGreaterEqual(out["next_refresh"] - now, 1200 - 1)
 
-
-# ================================================================== values
 class Placeholders(unittest.TestCase):
     def test_drop(self):
         out = panels.drop_placeholders({"a": "N/A", "b": "—", "c": "нет данных", "d": "  ", "e": "42",
@@ -256,12 +239,10 @@ class Placeholders(unittest.TestCase):
         self.assertEqual(panels.tidy_model_text("<b>2:3</b>"), "2:3")
         self.assertEqual(panels.tidy_model_text("[Reuters](https://reuters.com/x)"), "Reuters")
         self.assertEqual(panels.tidy_model_text("Tom &amp; Jerry"), "Tom & Jerry")
-        self.assertEqual(panels.tidy_model_text("2 * 3 = 6"), "2 * 3 = 6")      # arithmetic is not emphasis
+        self.assertEqual(panels.tidy_model_text("2 * 3 = 6"), "2 * 3 = 6")
         rows = panels.drop_placeholders({"news": [{"title": "**A**", "url": "https://a.example/**x**"}]})
         self.assertEqual(rows["news"][0], {"title": "A", "url": "https://a.example/**x**"})
 
-
-# ================================================================== compose / refresh flows
 class Compose(Base):
     def test_static_panel_without_bindings(self):
         ctx(FakeModel([{"title": "New Year", "spec": {"blocks": [
@@ -300,7 +281,6 @@ class Compose(Base):
         self.assertIn("never substitute a different subject", system)
         self.assertRegex(user, r"Now: .*\(UTC[+-]\d\d:\d\d")
 
-
 class Edits(Base):
     def _live_ai(self):
         ctx(FakeModel([{"title": "Bitcoin", "spec": {"blocks": [{"type": "metric", "value": "{{price}}"}]},
@@ -325,7 +305,7 @@ class Edits(Base):
             out = panels.update_panel(p["id"], {"subject": "ethereum price"})
         self.assertTrue(out["recompose"])
         self.assertEqual(calls, [p["id"]])
-        # the next refresh designs again; the old values go away, recompose clears
+
         ctx(FakeModel([{"title": "Ethereum", "spec": {"blocks": [{"type": "metric", "value": "{{eth}}"}]},
                         "values": {"eth": "3 100"}}]))
         out = asyncio.run(panels.refresh_panel(p["id"], force=True))
@@ -347,7 +327,7 @@ class Edits(Base):
         p = self._live_ai()
         calls = []
         with patch.object(panels, "start_refresh", side_effect=lambda pid, **kw: calls.append(pid)):
-            panels.update_panel(p["id"], {"runbook": p["runbook"]})          # unchanged → no rebuild
+            panels.update_panel(p["id"], {"runbook": p["runbook"]})
             self.assertEqual(calls, [])
             panels.update_panel(p["id"], {"runbook": {"prompt": "use coingecko", "urls": ["https://coingecko.com"]}})
         self.assertEqual(calls, [p["id"]])
@@ -364,7 +344,6 @@ class Edits(Base):
         self.assertEqual(out["failures"], 0)
         self.assertEqual(calls, [p["id"]])
 
-
 class StaleClaims(Base):
     def test_reset(self):
         p = panels.create_panel(template="countdown", params={"target": "2099-01-01T00:00", "title": "X"}, start=False)
@@ -376,8 +355,6 @@ class StaleClaims(Base):
         self.assertFalse(self.find(p["id"]).get("refreshing_until"))
         self.assertEqual(panels.reset_stale_claims(), 0)
 
-
-# ================================================================== Hacker News
 class HackerNews(unittest.TestCase):
     def test_wants_hn(self):
         for text in ("Top 5 Hacker News stories", "топ HN за сегодня", "news.ycombinator.com front page", "хакер ньюс"):
@@ -395,8 +372,6 @@ class HackerNews(unittest.TestCase):
         self.assertEqual(plan["queries"], [])
         self.assertTrue(plan["hn"])
 
-
-# ================================================================== Telegram
 class Telegram(unittest.TestCase):
     def _panel(self, blocks, data=None, title="T"):
         return {"id": "p1", "title": title, "kind": "custom", "status": "live", "spec": {"blocks": blocks},
@@ -423,8 +398,6 @@ class Telegram(unittest.TestCase):
             {"type": "countdown", "target": target.isoformat(timespec="minutes"), "label": label}]))
         self.assertEqual(html.count(label), 1, html)
 
-
-# ================================================================== window texts
 class WindowTexts(unittest.TestCase):
     def test_new_wall_texts(self):
         for reason in ("model-rate-limit", "model-missing", "model-auth", "model-down", "model-format", "bad-spec", "no-web"):
@@ -435,8 +408,6 @@ class WindowTexts(unittest.TestCase):
     def test_detail_shown_for_model_walls(self):
         self.assertIn("model-(error|rate-limit|down|missing|auth)", PANELS_JS)
 
-
-# ================================================================== wave 2
 class ImageAlias(unittest.TestCase):
     def test_url_as_picture(self):
         spec, errors = panels.validate_spec({"blocks": [{"type": "image", "url": "{{img}}", "caption": "c"}]})
@@ -446,7 +417,6 @@ class ImageAlias(unittest.TestCase):
         spec, _ = panels.validate_spec({"blocks": [{"type": "image", "src": "https://x.org/a.png", "url": "https://x.org"}]})
         self.assertEqual(spec["blocks"][0], {"type": "image", "src": "https://x.org/a.png", "url": "https://x.org"})
 
-
 class CountdownTargets(unittest.TestCase):
     def test_bound_values_become_iso(self):
         spec = {"blocks": [{"type": "countdown", "target": "{{ny}}"},
@@ -455,8 +425,7 @@ class CountdownTargets(unittest.TestCase):
         out = panels.countdown_targets(spec, {"ny": "01.01.2027 00:00 UTC+3", "b": "soon", "c": "01.01.2027"})
         self.assertEqual(out["ny"], "2027-01-01T00:00+03:00")
         self.assertNotIn("b", out)
-        self.assertEqual(out["c"], "01.01.2027")       # not a countdown target: untouched
-
+        self.assertEqual(out["c"], "01.01.2027")
 
 class HackerNewsStoredTopic(Base):
     def test_old_security_topic_is_redecided(self):
@@ -483,7 +452,6 @@ class HackerNewsStoredTopic(Base):
         self.assertEqual(seen["named"], "hn")
         self.assertTrue(values["subtitle"].startswith("1 source · 1 story"), values["subtitle"])
 
-
 class TelegramCards(unittest.TestCase):
     def _panel(self, blocks, data=None, wall=None, kind="custom"):
         return {"id": "p1", "title": "T", "kind": kind, "status": "live", "spec": {"blocks": blocks},
@@ -501,7 +469,7 @@ class TelegramCards(unittest.TestCase):
         self.assertEqual(c["image"]["src"], "https://img.example/a.jpg")
         self.assertIn("Comet", c["text"])
         self.assertIn("pn-img", TG_PANELS_JS)
-        self.assertNotIn("onerror=", TG_PANELS_JS)          # the Mini App CSP forbids inline handlers
+        self.assertNotIn("onerror=", TG_PANELS_JS)
 
     def test_wall_in_the_other_language(self):
         wall = {"status": "needs_connector:github", "message": "Connect GitHub in Settings → Integrations."}
@@ -513,22 +481,20 @@ class TelegramCards(unittest.TestCase):
         c = telegram_panels.card(self._panel([], wall=ru), "en")
         self.assertNotRegex(c["error"], "[А-Яа-яЁё]")
 
-
 class Pickers(unittest.TestCase):
     def test_own_pickers_wired(self):
         self.assertIn("function pickers(root)", PANELS_JS)
         self.assertIn("UI.enhanceTimes(root)", PANELS_JS)
         self.assertIn("UI.enhanceDates(root)", PANELS_JS)
         self.assertRegex(PANELS_JS, r"pickers\(back\);\s*\n\s*bindSeg\(back\)")
-        self.assertIn("pickers(el);", PANELS_JS)                      # the To-Do editor
+        self.assertIn("pickers(el);", PANELS_JS)
         self.assertIn('pickedValue(v("day"))', PANELS_JS)
-        # the cadence chips are found by their class: an enhanced input[data-time] is not a chip
+
         self.assertNotIn('$$q("[data-time]"', PANELS_JS)
         self.assertIn(".pln-pop { z-index: 4100; }", PANELS_CSS)
 
     def test_wall_detail_only_in_ui_language(self):
         self.assertIn("(en() || /[А-Яа-яЁё]/.test(detail))", PANELS_JS)
-
 
 if __name__ == "__main__":
     unittest.main()

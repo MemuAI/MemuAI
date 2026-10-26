@@ -14,7 +14,6 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional
 
-#: Level → (Russian, English) button text.
 EFFORT_LABELS: Dict[str, tuple] = {
     "auto": ("Авто", "Auto"), "off": ("Выкл", "Off"), "on": ("Вкл", "On"), "minimal": ("Минимум", "Minimal"),
     "low": ("Низкая", "Low"), "medium": ("Средняя", "Medium"), "high": ("Высокая", "High"),
@@ -22,14 +21,12 @@ EFFORT_LABELS: Dict[str, tuple] = {
 }
 LEVELS = tuple(EFFORT_LABELS)
 
-
 def _entry(model_id: str) -> Any:
     try:
         from .state import state
         return state.find_model(model_id)
     except Exception:
         return None
-
 
 def auto_name(model_id: str, entry: Any = None) -> str:
     """The automatic readable name (no alias)."""
@@ -43,7 +40,6 @@ def auto_name(model_id: str, entry: Any = None) -> str:
     except Exception:
         return model_id
 
-
 def display_name(model_id: str, prefs: Optional[Dict[str, Any]] = None, entry: Any = None) -> str:
     """Alias > automatic name."""
     aliases = (prefs or {}).get("model_aliases")
@@ -51,7 +47,6 @@ def display_name(model_id: str, prefs: Optional[Dict[str, Any]] = None, entry: A
     if isinstance(alias, str) and alias.strip():
         return alias.strip()
     return auto_name(model_id, entry)
-
 
 def label(model_id: str, prefs: Optional[Dict[str, Any]] = None, limit: int = 0) -> str:
     """``Name · full-id`` when it fits ``limit`` characters (0 — no limit), else the name alone."""
@@ -61,7 +56,6 @@ def label(model_id: str, prefs: Optional[Dict[str, Any]] = None, limit: int = 0)
     if not limit or len(full) <= limit:
         return full
     return name if len(name) <= limit else name[:limit - 1] + "…"
-
 
 def effort_options(model_id: str) -> List[str]:
     """The reasoning levels this model offers (``auto`` first; ``[]`` — no control)."""
@@ -75,14 +69,12 @@ def effort_options(model_id: str) -> List[str]:
     except Exception:
         return []
 
-
 def chosen_effort(model_id: str, prefs: Optional[Dict[str, Any]] = None) -> str:
     """The level the user picked for this model (MemuAI's ``model_efforts``), else ``default_effort``; ``auto``."""
     prefs = prefs or {}
     own = prefs.get("model_efforts") if isinstance(prefs.get("model_efforts"), dict) else {}
     value = str(own.get(model_id) or prefs.get("default_effort") or "auto")
     return value if value in LEVELS else "auto"
-
 
 def effort_param(model_id: str, prefs: Optional[Dict[str, Any]] = None) -> str:
     """What to send as ``effort`` for this model (``""`` — nothing, the model decides). The Proxy clamps it again."""
@@ -101,7 +93,6 @@ def effort_param(model_id: str, prefs: Optional[Dict[str, Any]] = None) -> str:
             return ""
     return "" if value == "auto" or not options else value
 
-
 def efforts_patch(model_id: str, level: str, prefs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """The preferences patch that stores ``level`` for ``model_id`` (``auto`` removes the model's own value)."""
     own = dict((prefs or {}).get("model_efforts") or {}) if isinstance((prefs or {}).get("model_efforts"), dict) else {}
@@ -111,11 +102,9 @@ def efforts_patch(model_id: str, level: str, prefs: Optional[Dict[str, Any]] = N
         own[model_id] = level
     return {"model_efforts": own}
 
-
 def effort_label(level: str, lang: str = "ru") -> str:
     ru, en = EFFORT_LABELS.get(level, (level, level))
     return en if lang == "en" else ru
-
 
 def catalog_fields(model_id: str, entry: Any = None, prefs: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """What a Mini App picker row needs besides id/provider: names, badges, vision tri-state, reasoning levels."""

@@ -1,19 +1,5 @@
-/* MemuAI Quick Ask · Round 27 — actions on the text selected in any program («Контекстные действия по выделению»).
 
-   The native side reads the selection BEFORE the window shows (app/quick_selection.py: UI Automation, else Ctrl+C
-   with the clipboard snapshotted and restored) and passes it in QuickAsk.onShow / QuickAsk.onSelection; quick.js
-   shows it as the «Выделено» chip and emits "selection". This module adds, under the chip, ONE row of actions:
-   Перевести · Объяснить · Исправить · Кратко · Ответить · Спросить + the user's own actions (Settings → Quick Ask →
-   Selected text), in the user's order.
 
-   Keyboard: 1…9 (empty field) or Alt+1…9 run an action; ↓ from the empty field enters the row, ←/→ move, Enter runs,
-   ↑ / Esc go back to the field. An action sends ONLY its short label as the question (MemuQuick.send with
-   {selectionAction}) — the server builds the instruction (quick_selection.resolve_action), the answer streams and is
-   saved in the chat like any other. «Заменить выделение» (Alt+Enter) pastes the answer over the selection in the
-   program it came from (POST /api/quick/window {action: "replace_selection"}); «Копировать» is the usual answer button.
-
-   window.QuickSelection = { owns(), actions(), run(id), replace() } — owns() tells quick.js to drop its old
-   selection rows from the idle list. */
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -27,7 +13,7 @@
     custom: I.spark,
     replace: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h11M4 7l3-3M4 7l3 3"/><path d="M20 17H9m11 0-3-3m3 3-3 3"/></svg>',
   };
-  const LANG_TO = {   // «Перевести на …» — the accusative in Russian
+  const LANG_TO = {
     en: ["на английский", "to English"], ru: ["на русский", "to Russian"], de: ["на немецкий", "to German"], fr: ["на французский", "to French"],
     es: ["на испанский", "to Spanish"], it: ["на итальянский", "to Italian"], pt: ["на португальский", "to Portuguese"], uk: ["на украинский", "to Ukrainian"],
     pl: ["на польский", "to Polish"], tr: ["на турецкий", "to Turkish"], zh: ["на китайский", "to Chinese"], ja: ["на японский", "to Japanese"],
@@ -44,7 +30,6 @@
   const DEFAULT_ORDER = ["translate", "explain", "fix", "summarize", "reply", "ask"];
   const FILE_SKIP = new Set(["fix", "reply"]);
 
-  /* Mirror of quick_selection.detect_lang (keep in sync): "ru" | "uk" | "en" | "". */
   function guessLang(text) {
     const sample = String(text || "").slice(0, 4000);
     const count = (re) => (sample.match(re) || []).length;
@@ -66,13 +51,12 @@
   const prefs = () => (Q.state().prefs || {});
   const enabled = () => prefs().quick_ask_selection !== false;
 
-  /* The configured actions, in order: built-ins and the user's own ({id: "c_…", name, prompt, replace}). */
   function actions() {
     const p = prefs();
     const custom = Array.isArray(p.quick_ask_selection_custom) ? p.quick_ask_selection_custom : [];
     const order = Array.isArray(p.quick_ask_selection_actions) ? p.quick_ask_selection_actions : DEFAULT_ORDER;
     const out = [];
-    // Round 30: a dropped or opened file is not text in another app — nothing to replace and no letter to reply to
+
     const file = (st.info || {}).source === "file";
     for (const id of order) {
       if (file && FILE_SKIP.has(id)) continue;
@@ -111,7 +95,7 @@
     }
     const list = actions();
     const n = Math.min(list.length, 9);
-    // Same row as before (a view/busy flip, a config reload) → keep the DOM: no re-animation, focus kept.
+
     const key = JSON.stringify([list.map((a) => [a.id, a.label]), st.asking, Q.lang(), (st.info || {}).source || ""]);
     if (key === st.key && !st.el.hidden) return;
     st.key = key;
@@ -160,11 +144,11 @@
     }
     const typed = (input() && input().value.trim()) || "";
     const info = sel.info || {};
-    // Round 27 (review): not after a document / a clipboard item was attached on top — the answer is about more than the selection
+
     const replace = !!(action.replace && Q.native && info.id && info.editable !== false && !info.attached);
     const spec = { id: action.id, replace, selId: replace ? info.id : "" };
     if (action.target) spec.target = action.target;
-    if (typed) spec.note = typed;       // a wish typed before clicking the action («короче», «официальнее»)
+    if (typed) spec.note = typed;
     st.asking = false; st.index = -1;
     Q.send(typed ? `${action.label}: ${typed}` : action.label, { selectionAction: spec });
     return true;
@@ -199,7 +183,6 @@
     return false;
   }
 
-  /* ------------------------------------------------------------ wiring */
   function sync(data) {
     const text = data ? String(data.text || "") : "";
     if (text !== st.text) { st.asking = false; st.index = -1; }
@@ -221,7 +204,7 @@
       title: () => t("Вставить ответ вместо выделенного текста в программе (Alt+Enter)", "Paste the answer over the selected text in the program (Alt+Enter)"),
       hidden: () => !canReplace(lastTurn()), run: () => replace() });
   }
-  // The view (menu, picker, chats) and «busy» are attributes of the card: follow them.
+
   const c = card();
   if (c && window.MutationObserver) new MutationObserver(render).observe(c, { attributes: true, attributeFilter: ["data-view", "data-busy"] });
 
@@ -238,7 +221,7 @@
   });
   document.addEventListener("keydown", (e) => {
     if (e.defaultPrevented || e.isComposing) return;
-    // Alt+Enter — «Заменить выделение» under a finished answer
+
     if (e.altKey && !e.ctrlKey && !e.metaKey && e.key === "Enter" && canReplace(lastTurn())) { e.preventDefault(); replace(); return; }
     if (!visible()) return;
     if (e.altKey && !e.ctrlKey && !e.metaKey && /^Digit[1-9]$/.test(e.code)) {
@@ -255,7 +238,7 @@
       if (list[i]) { e.preventDefault(); run(list[i]); }
       return;
     }
-    // any other printable key goes to the field (start typing a question right from the row)
+
     if (plain && e.key.length === 1 && !e.shiftKey && e.key !== " ") { backToInput(); }
   });
 

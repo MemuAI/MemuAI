@@ -18,12 +18,9 @@ from app import win_titlebar as tb
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
-# ------------------------------------------------------------------ fakes
 class FakeRect:
     def __init__(self, left, top, right, bottom):
         self.left, self.top, self.right, self.bottom = left, top, right, bottom
-
 
 class FakeApi:
     """Records Win32 calls; simulates DefWindowProc for NCCALCSIZE."""
@@ -32,25 +29,24 @@ class FakeApi:
 
     def __init__(self):
         self.calls = []
-        self.procs = {}           # hwnd -> current wndproc address
+        self.procs = {}
         self.zoomed = False
         self.iconic = False
         self.style_value = tb.WS_CAPTION | tb.WS_THICKFRAME
         self.button_down = True
         self.cursor = (500, 300)
         self.rect = (100, 50, 1100, 850)
-        self.frame = 8            # SM_CYFRAME 4 + padded 4 at 96 DPI ~ 8
+        self.frame = 8
         self.edges = ()
         self.menu_result = tb.SC_MAXIMIZE
         self.nc_rects = {}
         self.fail_set = False
-        self.client_offset = 0    # how far the client starts below the window top
+        self.client_offset = 0
         self.default_hit = tb.HTCLIENT
         self.in_client = True
         self.foreground = True
         self.raise_in = None
 
-    # plumbing
     def make_wndproc(self, fn):
         self.fn = fn
         return ("proc", fn)
@@ -73,7 +69,7 @@ class FakeApi:
         self.calls.append(("call_proc", original, msg))
         if msg == tb.WM_NCCALCSIZE and wparam:
             rect = self.nc_rects[lparam]
-            # DefWindowProc: frame 8 on the sides/bottom, caption 31 + frame on top
+
             rect.left += 8; rect.right -= 8; rect.bottom -= 8; rect.top += 31 + 8
             return 0
         if msg == tb.WM_NCHITTEST:
@@ -151,18 +147,14 @@ class FakeApi:
         self.calls.append(("menu", hwnd, x, y, dict(states)))
         return self.menu_result
 
-
 def make_controller(api=None, **kwargs):
     api = api or FakeApi()
     params = dict(preference="custom", platform="win32", build=22631, api_factory=lambda: api)
     params.update(kwargs)
     return tb.TitlebarController(**params), api
 
-
 HWND = 0x5000
 
-
-# ------------------------------------------------------------- pure logic
 class ModeDecisionTest(unittest.TestCase):
     def test_default_is_custom_on_modern_windows(self):
         self.assertEqual(tb.decide_mode("custom", platform="win32", build=17763), ("custom", "preference"))
@@ -190,16 +182,15 @@ class ModeDecisionTest(unittest.TestCase):
         for value in ("custom", "", None, 3, "weird"):
             self.assertEqual(tb.normalize_mode(value), "custom")
 
-
 class GeometryTest(unittest.TestCase):
     def test_normal_window_keeps_side_frames_and_drops_caption(self):
-        # DefWindowProc proposal for a window at (100,50)-(1100,850)
+
         proposed = (108, 50 + 39, 1092, 842)
         self.assertEqual(tb.nccalcsize_rect(proposed, 50, maximized=False, frame_thickness=8),
                          (108, 50, 1092, 842))
 
     def test_maximized_window_is_inset_by_frame_thickness(self):
-        # A maximized window hangs 8 px off a 1920x1040 work area.
+
         proposed = (0, -8 + 39, 1920, 1040)
         self.assertEqual(tb.nccalcsize_rect(proposed, -8, maximized=True, frame_thickness=8),
                          (0, 0, 1920, 1040))
@@ -210,7 +201,7 @@ class GeometryTest(unittest.TestCase):
                                             autohide_edges=("bottom",)), (0, 0, 1920, 1078))
         self.assertEqual(tb.nccalcsize_rect(proposed, -8, maximized=True, frame_thickness=8,
                                             autohide_edges=("top", "left", "right")), (2, 2, 1918, 1080))
-        # Not maximized: auto-hide edges are irrelevant.
+
         self.assertEqual(tb.nccalcsize_rect((8, 39, 100, 100), 0, maximized=False, frame_thickness=8,
                                             autohide_edges=("bottom",)), (8, 0, 100, 100))
 
@@ -234,8 +225,8 @@ class GeometryTest(unittest.TestCase):
         self.assertIsNone(tb.top_hit_test(500, 56, rect, **kw))
         self.assertEqual(tb.top_hit_test(105, 52, rect, **kw), tb.HTTOPLEFT)
         self.assertEqual(tb.top_hit_test(1090, 52, rect, **kw), tb.HTTOPRIGHT)
-        self.assertIsNone(tb.top_hit_test(500, 40, rect, **kw))      # above the window
-        self.assertIsNone(tb.top_hit_test(1200, 52, rect, **kw))     # outside
+        self.assertIsNone(tb.top_hit_test(500, 40, rect, **kw))
+        self.assertIsNone(tb.top_hit_test(1200, 52, rect, **kw))
         self.assertIsNone(tb.top_hit_test(500, 50, rect, maximized=True, border=6, corner=16))
 
     def test_point_packing_round_trip_with_negative_monitors(self):
@@ -270,8 +261,6 @@ class GeometryTest(unittest.TestCase):
         self.assertFalse(tb.client_matches_hook((0, 50, 10, 10), (8, 81), maximized=False, frame_thickness=8))
         self.assertTrue(tb.client_matches_hook((0, -8, 10, 10), (0, 0), maximized=True, frame_thickness=8))
 
-
-# ------------------------------------------------------------- controller
 class ControllerInstallTest(unittest.TestCase):
     def test_install_subclasses_extends_frame_and_refreshes(self):
         ctl, api = make_controller()
@@ -281,7 +270,7 @@ class ControllerInstallTest(unittest.TestCase):
         self.assertIn(("extend_frame", HWND, 1), api.calls)
         self.assertIn(("refresh_frame", HWND), api.calls)
         self.assertEqual(ctl._orig, FakeApi.ORIGINAL)
-        # idempotent
+
         api.calls.clear()
         self.assertTrue(ctl.install(HWND))
         self.assertEqual(api.calls, [])
@@ -290,7 +279,7 @@ class ControllerInstallTest(unittest.TestCase):
         ctl, _api = make_controller(build=17134)
         self.assertFalse(ctl.install(HWND))
         ctl, api = make_controller()
-        api.style_value = 0   # FormBorderStyle.None / full screen
+        api.style_value = 0
         self.assertFalse(ctl.install(HWND))
         self.assertEqual(ctl.error, "window-style")
         self.assertFalse(any(c[0] == "set_wndproc" for c in api.calls))
@@ -306,11 +295,11 @@ class ControllerInstallTest(unittest.TestCase):
 
     def test_client_mismatch_falls_back_to_native(self):
         ctl, api = make_controller()
-        api.client_offset = 31   # caption still there: WM_NCCALCSIZE was ignored
+        api.client_offset = 31
         self.assertFalse(ctl.install(HWND))
         self.assertEqual(ctl.error, "client-area-mismatch")
         self.assertFalse(ctl.installed)
-        self.assertEqual(api.procs[HWND], FakeApi.ORIGINAL)   # unlinked again
+        self.assertEqual(api.procs[HWND], FakeApi.ORIGINAL)
         self.assertIn(("extend_frame", HWND, 0), api.calls)
 
     def test_exception_during_install_uninstalls(self):
@@ -334,7 +323,7 @@ class ControllerInstallTest(unittest.TestCase):
         self.assertFalse(ctl.installed)
         self.assertEqual(api.procs[HWND], FakeApi.ORIGINAL)
         self.assertEqual(ctl._orig, FakeApi.ORIGINAL, "stray calls must still chain to WinForms")
-        # re-install links again exactly once
+
         api.calls.clear()
         self.assertTrue(ctl.install(HWND))
         self.assertEqual([c for c in api.calls if c[0] == "set_wndproc"], [("set_wndproc", HWND, 0xBEEF)])
@@ -342,16 +331,15 @@ class ControllerInstallTest(unittest.TestCase):
     def test_uninstall_when_someone_subclassed_after_us(self):
         ctl, api = make_controller()
         ctl.install(HWND)
-        api.procs[HWND] = 0xCAFE        # a later subclasser
+        api.procs[HWND] = 0xCAFE
         ctl.uninstall()
         self.assertTrue(ctl._passthrough)
         self.assertEqual(api.procs[HWND], 0xCAFE)
-        # Re-enabling must not link us a second time (that would loop).
+
         api.calls.clear()
         self.assertTrue(ctl.install(HWND))
         self.assertFalse(any(c[0] == "set_wndproc" for c in api.calls))
         self.assertFalse(ctl._passthrough)
-
 
 class WindowProcedureTest(unittest.TestCase):
     def setUp(self):
@@ -380,7 +368,7 @@ class WindowProcedureTest(unittest.TestCase):
     def test_nccalcsize_full_screen_passes_through(self):
         self.api.style_value = 0
         rect = self.nccalc()
-        self.assertEqual(rect.top, 50 + 39)  # DefWindowProc result untouched
+        self.assertEqual(rect.top, 50 + 39)
 
     def test_nccalcsize_wparam_false_is_default(self):
         self.ctl._wndproc(HWND, tb.WM_NCCALCSIZE, 0, 777)
@@ -390,13 +378,13 @@ class WindowProcedureTest(unittest.TestCase):
         lparam = tb.pack_point(500, 52)
         self.assertEqual(self.ctl._wndproc(HWND, tb.WM_NCHITTEST, 0, lparam), tb.HTTOP)
         self.assertEqual(self.ctl._wndproc(HWND, tb.WM_NCHITTEST, 0, tb.pack_point(102, 51)), tb.HTTOPLEFT)
-        # DefWindowProc thinks the old caption is still there.
+
         self.api.default_hit = tb.HTCLOSE
         self.assertEqual(self.ctl._wndproc(HWND, tb.WM_NCHITTEST, 0, tb.pack_point(1080, 70)), tb.HTCLIENT)
-        # Real borders are left alone.
+
         self.api.default_hit = tb.HTLEFT
         self.assertEqual(self.ctl._wndproc(HWND, tb.WM_NCHITTEST, 0, tb.pack_point(101, 400)), tb.HTLEFT)
-        # Maximized: no top resize.
+
         self.api.zoomed = True
         self.api.default_hit = tb.HTCLIENT
         self.assertEqual(self.ctl._wndproc(HWND, tb.WM_NCHITTEST, 0, lparam), tb.HTCLIENT)
@@ -419,7 +407,7 @@ class WindowProcedureTest(unittest.TestCase):
         self.api.zoomed = True
         self.ctl._wndproc(HWND, tb.WM_APP_TITLEBAR, tb.APP_DRAG, tb.HTTOP)
         self.assertFalse(any(c[0] == "send" for c in self.api.calls))
-        # ...but dragging a maximized window by the caption is allowed (drag-to-restore).
+
         self.ctl._wndproc(HWND, tb.WM_APP_TITLEBAR, tb.APP_DRAG, tb.HTCAPTION)
         self.assertTrue(any(c[0] == "send" for c in self.api.calls))
 
@@ -430,7 +418,7 @@ class WindowProcedureTest(unittest.TestCase):
         self.assertFalse(menu[4][tb.SC_RESTORE])
         self.assertIn(("post", HWND, tb.WM_SYSCOMMAND, tb.SC_MAXIMIZE, 0), self.api.calls)
         self.api.calls.clear()
-        self.api.menu_result = 0   # dismissed
+        self.api.menu_result = 0
         self.ctl._wndproc(HWND, tb.WM_APP_TITLEBAR, tb.APP_SYSMENU, 1)
         menu = [c for c in self.api.calls if c[0] == "menu"][0]
         self.assertEqual(menu[2:4], (100 + 8, 50 + 32))
@@ -455,7 +443,7 @@ class WindowProcedureTest(unittest.TestCase):
             self.ctl._wndproc(HWND, tb.WM_NCCALCSIZE, 1, 1)
         self.assertTrue(self.ctl._passthrough)
         self.assertIn(("post", HWND, tb.WM_APP_TITLEBAR, tb.APP_UNINSTALL, 0), self.api.calls)
-        # every failing call still reached the original procedure
+
         self.assertEqual(sum(1 for c in self.api.calls if c[0] == "call_proc"), tb.MAX_WNDPROC_ERRORS)
         self.assertFalse(self.ctl.state()["installed"])
 
@@ -463,7 +451,6 @@ class WindowProcedureTest(unittest.TestCase):
         self.ctl._passthrough = True
         rect = self.nccalc()
         self.assertEqual(rect.top, 50 + 39)
-
 
 class BridgeTest(unittest.TestCase):
     def test_attach_installs_through_invoke(self):
@@ -524,7 +511,7 @@ class BridgeTest(unittest.TestCase):
     def test_drag_and_commands_post_messages(self):
         ctl, api = make_controller()
         bridge = tb.TitlebarBridge(ctl)
-        self.assertFalse(bridge.titlebar_drag())     # not installed yet
+        self.assertFalse(bridge.titlebar_drag())
         ctl.attach(lambda: HWND)
         api.calls.clear()
         self.assertTrue(bridge.titlebar_drag())
@@ -545,7 +532,7 @@ class BridgeTest(unittest.TestCase):
     def test_bridge_exposes_only_titlebar_methods(self):
         bridge = tb.TitlebarBridge(make_controller()[0])
         public = sorted(name for name in dir(bridge) if not name.startswith("_"))
-        # Round 30: + the window material (app/win_backdrop.py)
+
         self.assertEqual(public, ["titlebar_command", "titlebar_drag", "titlebar_set_mode",
                                   "titlebar_state", "titlebar_system_menu", "window_backdrop", "window_backdrop_state"])
 
@@ -554,7 +541,7 @@ class BridgeTest(unittest.TestCase):
         handles = [HWND]
         ctl.attach(lambda: handles[0])
         ctl._wndproc(HWND, tb.WM_NCDESTROY, 0, 0)
-        self.assertFalse(ctl.state()["installed"])     # same handle → nothing to do
+        self.assertFalse(ctl.state()["installed"])
         handles[0] = HWND + 4
         self.assertTrue(ctl.state()["installed"])
         self.assertEqual(ctl.hwnd, HWND + 4)
@@ -566,7 +553,6 @@ class BridgeTest(unittest.TestCase):
             raise RuntimeError("ui thread gone")
         self.assertFalse(ctl.attach(lambda: HWND, broken))
         self.assertIn("ui thread gone", ctl.state()["error"])
-
 
 class StartupTest(unittest.TestCase):
     def test_create_controller_reads_preference_cli_and_env(self):
@@ -608,7 +594,6 @@ class StartupTest(unittest.TestCase):
         native = SimpleNamespace(InvokeRequired=False)
         self.assertEqual(tb.winforms_ui_invoker(native)(lambda: 42), 42)
 
-
 class DesktopShellTest(unittest.TestCase):
     def _run(self, **kwargs):
         from app import desktop
@@ -635,18 +620,17 @@ class DesktopShellTest(unittest.TestCase):
         marker = object()
         created = self._run(js_api=marker)
         self.assertIs(created["js_api"], marker)
-        # The frame contract of earlier rounds is unchanged.
+
         self.assertFalse(created["frameless"])
         self.assertFalse(created["easy_drag"])
         self.assertTrue(created["resizable"])
-
 
 class StaticContractTest(unittest.TestCase):
     def test_page_wiring(self):
         html = (ROOT / "app" / "pgstatic" / "index.html").read_text(encoding="utf-8")
         self.assertIn('<link rel="stylesheet" href="/titlebar.css', html)
         self.assertIn('<script src="/titlebar.js', html)
-        # titlebar.css must load after every design so equal-specificity rules win.
+
         self.assertGreater(html.index("/titlebar.css"), html.index("/designs/glass.css"))
         js = (ROOT / "app" / "pgstatic" / "titlebar.js").read_text(encoding="utf-8")
         self.assertIn("titlebar_state", js)
@@ -671,7 +655,6 @@ class StaticContractTest(unittest.TestCase):
                        'ctypes.WinDLL("user32", use_last_error=True)', "_KEEPALIVE.append"):
             self.assertIn(needle, source)
         self.assertNotIn("ctypes.windll.user32.SetWindowLong", source)
-
 
 if __name__ == "__main__":
     unittest.main()

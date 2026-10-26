@@ -1,13 +1,5 @@
 #!/usr/bin/env node
-/* Generates app/docs/{ru,en}/shortcuts.md from the hotkey registry (app/pgstatic/hotkeys.js).
- *
- *   node tests/round29_hotkeys_docs.cjs           print both pages
- *   node tests/round29_hotkeys_docs.cjs --write   rewrite the pages
- *   node tests/round29_hotkeys_docs.cjs --check   exit 1 when a page is out of date
- *
- * tests/round29_hotkeys_test.py runs --check, so editing the registry without regenerating the
- * documentation fails the test suite.
- */
+
 "use strict";
 const fs = require("fs");
 const path = require("path");

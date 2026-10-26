@@ -35,13 +35,11 @@ UI = ROOT / "installer" / "ui"
 CHROME_CANDIDATES = [os.environ.get("MEMUAI_CHROMIUM", ""), "/usr/bin/chromium", "/usr/bin/chromium-browser",
                      "/usr/bin/google-chrome", "/workspace/work/chromium/chrome"]
 
-
 def _chrome() -> str:
     for candidate in CHROME_CANDIDATES:
         if candidate and os.path.exists(candidate):
             return candidate
     return ""
-
 
 def _playwright_ok() -> bool:
     try:
@@ -49,7 +47,6 @@ def _playwright_ok() -> bool:
     except Exception:  # noqa: BLE001
         return False
     return bool(_chrome())
-
 
 async def _wait(page, expression: str, timeout: float = 60.0) -> None:
     """``page.wait_for_function`` evaluates a string, which the page's CSP forbids."""
@@ -60,10 +57,8 @@ async def _wait(page, expression: str, timeout: float = 60.0) -> None:
             raise AssertionError(f"timed out waiting for {expression}")
         await asyncio.sleep(0.05)
 
-
 def _read(name: str) -> str:
     return (UI / name).read_text(encoding="utf-8")
-
 
 class StaticContract(unittest.TestCase):
     def test_fit_measures_layout_not_transforms(self):
@@ -72,7 +67,7 @@ class StaticContract(unittest.TestCase):
         self.assertNotIn("getBoundingClientRect", body, "entrance transforms must not count as overflow")
         self.assertNotIn("scrollHeight", body)
         self.assertIn("offsetTop", body)
-        # no blind re-fit a second after every page change
+
         show = app[app.index("function show(screen"):app.index("function goBack")]
         self.assertNotIn("refit(html.classList.contains(\"reduce-motion\") ? 30 : 1000)", show)
         self.assertIn("if (!modeChange) fit();", show)
@@ -105,9 +100,6 @@ class StaticContract(unittest.TestCase):
             for key in ("un.phase.preparing", "un.phase.done"):
                 self.assertIn(key, keys, f"{lang}: {key} (the bridge reports both phases)")
 
-
-# Records every change of the fit state (classes on <html>, --stage-s) with a
-# MutationObserver, so the check does not depend on the headless frame rate.
 OBSERVE = r"""
 window.__fitLog = [];
 (function () {
@@ -126,7 +118,6 @@ window.__fitLog = [];
   }).observe(document, { attributes: true, subtree: true, attributeFilter: ['class', 'style'] });
 })();
 """
-
 
 async def _walk(dsf: float, size, gl: bool):
     from playwright.async_api import async_playwright
@@ -150,8 +141,8 @@ async def _walk(dsf: float, size, gl: bool):
                          ".screen.active [data-next]", ".screen.active [data-back]", ".screen.active [data-next]",
                          "#btn-install"):
             await page.evaluate(f"document.querySelector({json.dumps(selector)}).click()")
-            if selector != "#btn-install":        # (a panel morph is fitted at its transitionend)
-                await page.wait_for_timeout(120)   # mid-entrance: what fit() decides now must be final
+            if selector != "#btn-install":
+                await page.wait_for_timeout(120)
                 mid.append(await page.evaluate("window.__memuFit()"))
             await page.wait_for_timeout(1500)
         await _wait(page, "document.documentElement.getAttribute('data-screen') === 'done'")
@@ -159,7 +150,6 @@ async def _walk(dsf: float, size, gl: bool):
         log = await page.evaluate("window.__fitLog")
         await browser.close()
     return at_ready, mid, log, errors
-
 
 @unittest.skipUnless(_playwright_ok(), "Playwright/Chromium not available")
 class NoJerk(unittest.TestCase):
@@ -177,11 +167,9 @@ class NoJerk(unittest.TestCase):
                 self.assertTrue(at_ready["title"].strip(), "texts are in before the interface is shown")
                 for state in mid:
                     self.assertEqual((state["scale"], state["dense"], state["tight"], state["scroll"]), (1, False, False, False), state)
-                # the log holds every change of (fit classes, --stage-s): at these sizes there is
-                # exactly one state from the first fit to the done screen
+
                 self.assertTrue(log, "fit() ran")
                 self.assertEqual({(e["fit"], e["s"]) for e in log}, {("", "1")}, f"fit state changed: {log}")
-
 
 @unittest.skipUnless(_playwright_ok(), "Playwright/Chromium not available")
 class ProgressRing(unittest.TestCase):
@@ -204,7 +192,7 @@ class ProgressRing(unittest.TestCase):
         async with async_playwright() as p:
             browser = await p.chromium.launch(executable_path=_chrome(), args=args)
             page = await browser.new_page(viewport={"width": 960, "height": 620})
-            page.set_default_timeout(180000)        # SwiftShader compiles the ray-marcher on the CPU
+            page.set_default_timeout(180000)
             warnings = []
             page.on("console", lambda m: warnings.append(m.text) if "WebGL scene disabled" in m.text else None)
             for w, h in ((960, 620), (944, 581), (860, 540), (1280, 800)):
@@ -221,7 +209,7 @@ class ProgressRing(unittest.TestCase):
                     self.assertEqual((g["busy"], g["cssBusy"]), (0, False), "45 % is a determinate arc")
                     self.assertAlmostEqual(g["ring"], 0.45, places=2)
                     self.assertAlmostEqual(float(g["dash"]), 55.0, places=2)
-            # the size of the work is unknown while programs close: the ring circles instead of 0 %
+
             await page.set_viewport_size({"width": 960, "height": 620})
             await page.goto(f"{(UI / 'index.html').as_uri()}?mock=1&shot=1&lang=en&screen=progress&pct=3", wait_until="commit")
             await _wait(page, "document.documentElement.getAttribute('data-screen') === 'progress'")
@@ -230,7 +218,6 @@ class ProgressRing(unittest.TestCase):
             self.assertEqual((g["busy"], g["cssBusy"], g["dash"]), (1, True, ""), g)
             await browser.close()
         self.assertEqual(warnings, [])
-
 
 if __name__ == "__main__":
     unittest.main()

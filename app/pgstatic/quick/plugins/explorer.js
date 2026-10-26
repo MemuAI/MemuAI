@@ -1,12 +1,5 @@
-/* Round 29 — Quick Access over File Explorer and other programs (plugin "explorer", backend app/quick_explorer.py).
 
-   Alt+Space over Explorer / the desktop / an editor / Office / a terminal → GET /api/quick/apps/context?wait=1
-   (the native side read the folder, the selection, the file or the document in the background). The panel in
-   the top slot shows the chip («Папка: Загрузки · выбрано 3 файла») and one-click actions; while the chip is on,
-   every question carries {type:"app", id} (MemuQuick.addRequestContext) and the model works with the folder
-   through folder_* tools. A change set (tool-ui "changeset") becomes a card in the bottom slot: diffs, a rename
-   table, «Apply» / «Discard», then «Undo». Local views without a model: duplicates and search inside files.
-   window.QuickExplorer = {context, setContext, attached, openView}. */
+
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -44,7 +37,7 @@
   const S = {
     ctx: null, on: false, presets: [], settings: {}, native: !!Q.native, loading: false, more: false,
     view: "", ask: null, query: "", results: null, dups: null, busy: false, index: 0,
-    sets: new Map(),            // id → public change set
+    sets: new Map(),
     seq: 0,
   };
   let panel = null, card = null;
@@ -59,7 +52,6 @@
     return (Q.lang() === "en" ? text : text.replace(".", ",")) + " " + u[i];
   };
 
-  /* ---------------------------------------------------------- context */
   async function loadContext(wait, quiet = false) {
     const seq = ++S.seq;
     S.loading = !!wait && !quiet;
@@ -71,7 +63,7 @@
       const ctx = data.context && data.context.kind && !["own", "none"].includes(data.context.kind) ? data.context : null;
       if (ctx && (!S.ctx || S.ctx.id !== ctx.id)) { setContext(ctx, data.presets || []); }
       else if (!ctx && wait && !quiet) { S.ctx = null; S.on = false; S.presets = []; }
-    } catch (e) { /* offline: no context */ }
+    } catch (e) {  }
     S.loading = false;
     render();
   }
@@ -127,7 +119,6 @@
     return `<span class="qe-badge ${full ? "full" : ""}" title="${esc(full ? t("Полный доступ: безопасные изменения применяются сразу, удаление и перезапись — по кнопке.", "Full access: safe changes are applied at once, deletes and overwrites wait for a click.") : t("Спрашивать: каждое изменение сначала показывается.", "Ask: every change is previewed first."))}">${esc(full ? t("полный доступ", "full access") : t("с подтверждением", "ask first"))}</span>`;
   }
 
-  /* ---------------------------------------------------------- actions */
   function sel(ru, en) {
     const c = selCount();
     return c ? t(`выбранные файлы (${c})`, `the selected files (${c})`) : t(ru, en);
@@ -222,7 +213,6 @@
     Q.send(label + (text ? ": " + text : ""), { prompt: promptFor(ask.id, text), direct: true });
   }
 
-  /* ---------------------------------------------------------- views */
   function openView(view) {
     S.view = view; S.index = 0;
     if (view === "dups") { S.dups = null; loadDups(); }
@@ -263,7 +253,6 @@
     } catch (e) { Q.toast(e.message, "err"); }
   }
 
-  /* ---------------------------------------------------------- render */
   function render() {
     if (!panel) return;
     const ctx = S.ctx;
@@ -394,7 +383,6 @@
     Q.setInput(t(`Что в файле ${row.path}? `, `What is in ${row.path}? `), { focus: true });
   }
 
-  /* ---------------------------------------------------------- change sets */
   const OP_LABEL = () => ({ write: t("файл", "file"), edit: t("правка", "edit"), append: t("дописать", "append"), mkdir: t("папка", "folder"),
     move: t("переименовать", "rename"), copy: t("копия", "copy"), delete: t("удалить", "delete"), trash: t("в Корзину", "to Recycle Bin") });
   const STATUS = () => ({ pending: "", applied: t("готово", "done"), failed: t("ошибка", "failed"), invalid: t("отклонено", "rejected"), discarded: t("отменено", "discarded") });
@@ -451,8 +439,7 @@
       const head = pending
         ? (applied ? t(`Применено ${applied}, ждут подтверждения: ${pending}`, `${applied} applied, ${pending} waiting for you`) : t(`Изменения в «${set.folder_name}» — ещё не применены`, `Changes in “${set.folder_name}” — not applied yet`))
         : (applied ? t(`Готово: ${applied} ${n(applied, "изменение", "изменения", "изменений")}`, `Done: ${applied} change${applied === 1 ? "" : "s"}`) : t("Изменения отменены", "Changes discarded"));
-      // r29d: three change sets in a row pushed the answer out of the window and the newest card past its bottom
-      // edge. A finished set that is not the newest collapses to its header (click to open) with «Undo» kept.
+
       const compact = !pending && set.id !== last && !set.expanded;
       return `<section class="qe-card ${pending ? "pending" : "done"}${compact ? " compact" : ""}" data-set="${esc(set.id)}">
         <header ${!pending && set.id !== last ? `data-qe-toggle="${esc(set.id)}" title="${esc(compact ? t("Показать", "Show") : t("Свернуть", "Collapse"))}"` : ""}><span class="ic">${pending ? IC.wand : IC.check}</span><div><b>${esc(head)}</b>${set.summary ? `<small>${esc(set.summary)}</small>` : ""}</div>
@@ -467,7 +454,7 @@
     card.querySelectorAll("[data-qe-apply]").forEach((b) => { b.onclick = () => applySet(b.dataset.qeApply); });
     card.querySelectorAll("[data-qe-discard]").forEach((b) => { b.onclick = () => discardSet(b.dataset.qeDiscard); });
     card.querySelectorAll("[data-qe-undo]").forEach((b) => { b.onclick = (e) => { e.stopPropagation(); undoSet(b.dataset.qeUndo, b.dataset.setId); }; });
-    card.querySelectorAll("[data-qe-reveal]").forEach((b) => { b.onclick = async (e) => {   // Round 30: the result in Explorer
+    card.querySelectorAll("[data-qe-reveal]").forEach((b) => { b.onclick = async (e) => {
       e.stopPropagation();
       try { const r = await api("/api/quick/files/reveal", { set: b.dataset.qeReveal }); if (!r.ok) Q.toast(t("Не получилось открыть Проводник", "Could not open Explorer"), "err"); }
       catch (err) { Q.toast(err.message, "err"); }
@@ -497,7 +484,6 @@
     } catch (e) { Q.toast(e.message, "err"); }
   }
 
-  /* ---------------------------------------------------------- wiring */
   Q.registerPanel("explorer", (el) => {
     panel = el; el.classList.add("qe"); el.hidden = true;
     return { show: render };
@@ -505,13 +491,12 @@
   Q.registerPanel("explorer-changes", (el) => { card = el; el.classList.add("qe-cards"); el.hidden = true; return {}; }, { slot: "bottom", order: 5 });
   const qaInput = document.getElementById("qa-input");
   if (qaInput) qaInput.addEventListener("input", () => { if (!S.view && S.ctx && !!qaInput.value.trim() !== !!S.typing) render(); });
-  // Round 30: a question typed before the program was read (PowerShell takes 1–2 s) waits for it on the server
-  // ({pending}) — it used to go without the folder, and the model then answered with a command to type.
+
   Q.addRequestContext("app", () => (S.on && S.ctx && S.ctx.id ? { type: "app", id: S.ctx.id } : (S.loading && !S.ctx ? { type: "app", pending: true } : null)));
 
   Q.on("open", (e) => {
     if (e && (e.source === "hotkey" || e.source === "")) {
-      S.ctx = null; S.on = false; S.presets = [];        // a new Alt+Space: never show the previous program's context
+      S.ctx = null; S.on = false; S.presets = [];
       loadContext(true);
     } else render();
   });

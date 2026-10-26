@@ -1,26 +1,5 @@
-/* MemuAI — Round 33 (r33-theme, item #28): the theme & appearance editor and the «look» layer it saves.
 
-   1. window.MemuLook — always on. Turns the «ui_look» preference (app/theme_editor.py) into attributes on <html>
-      (appearance-layout.css) and ONE generated stylesheet <style id="memu-look">: colour-token overrides per light/dark
-      mode, element styles from a registry of stable selectors, the order / visibility of the top-bar buttons and the
-      window background. Called from MemuAppearance.apply (appearance.js); the first frame comes from localStorage.
 
-   2. window.MemuThemeEditor — a mode of the main window (Settings → Appearance, View menu, command palette,
-      Ctrl+Shift+U). The app stays live; a dockable / floating inspector edits everything:
-        • Element: hover any part of the window (outline + label), click it — fill, transparency, text, border,
-          corners, shadow, blur, font, size, spacing; colours per mode, everything per element resettable;
-        • Look: light/dark, theme variant, accent, design, window background (gradients / colour / picture), font,
-          scale, message text, corners, density, contrast, glass, motion, the theme colours themselves;
-        • Layout: sidebar left/right, full/compact rail/hidden and width, its items; top-bar style, button order (drag)
-          and visibility; message box style and width; conversation width, message style, alignment; panel zones
-          (window.MemuPanelsLayout from r33-panels);
-        • Themes: save the result as a custom theme (re-editable: app/theme_editor.py package), update, duplicate,
-          rename, delete, export (.memutheme.json) / share code, import (file, code, legacy .css/.json), presets.
-      Undo / redo (Ctrl+Z, Ctrl+Shift+Z / Ctrl+Y), hold «Before» (or «\») to compare, Ctrl+S saves,
-      Esc cancels and reverts everything (asks first when there are many changes; Esc again leaves).
-      Unsaved values are previewed through window.__memuPrefOverlay, read by app.js pref(), so a background preference
-      sync never undoes the preview and nothing is written before «Save».
-*/
 (function () {
   "use strict";
   if (window.MemuThemeEditor) return;
@@ -32,14 +11,12 @@
   const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const clone = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
   const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-  // appearance.js declares `const MemuAppearance` at the top level of a classic script: a global binding, not window.*
+
   const MA = () => (typeof MemuAppearance !== "undefined" ? MemuAppearance : null);
   const getPref = (key, def) => { try { return typeof pref === "function" ? pref(key, def) : def; } catch (_) { return def; } };
   const mode = () => (html().dataset.theme === "light" ? "light" : "dark");
   const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
   const note = (text, type) => { try { if (typeof toast === "function") toast(text, type); } catch (_) {} };
-
-  /* ===================================================================== registry */
 
   const FONTS = {
     sans: '"Segoe UI Variable Text", "Segoe UI", Inter, system-ui, sans-serif',
@@ -62,10 +39,7 @@
   ];
   const BOX = ["bg", "alpha", "border", "bw", "radius", "shadow", "blur"];
   const TEXT = ["fg", "font", "size", "weight"];
-  /* Order matters: the first entry that matches a node wins, and the picker walks up from the pointer, so inner
-     elements come before the containers they sit in. `rule` overrides the selector the CSS is written for;
-     `at` sends one property elsewhere (the text size of an answer goes to its body); `container` re-points
-     --text/--muted inside the element so everything in it follows the text colour. */
+
   const ELEMENTS = [
     { id: "send", g: "composer", ru: "Кнопка отправки", en: "Send button", sel: "#btn-send", props: ["bg", "fg", "radius", "shadow"] },
     { id: "cbtn", g: "composer", ru: "Кнопки поля ввода", en: "Message box buttons", sel: ".composer .cbtn", props: ["fg", "bg", "radius"] },
@@ -112,7 +86,6 @@
   const COLOR_PROPS = new Set(["bg", "fg", "border", "accent"]);
   const RANGES = { alpha: [0, 100, "%"], bw: [0, 8, "px"], radius: [0, 48, "px"], blur: [0, 40, "px"], size: [9, 40, "px"], pad: [0, 48, "px"], opacity: [20, 100, "%"] };
 
-  /* top bar order / visibility; message box and sidebar items */
   const TOOLBAR = [
     { id: "nav", sel: ".topbar > .compact-toolbar", ru: "Меню, назад/вперёд, поиск", en: "Menu, back/forward, search" },
     { id: "model", sel: ".topbar > #model-dd", ru: "Выбор модели", en: "Model picker" },
@@ -141,8 +114,6 @@
     accent: ["Акцент", "Accent", "linear-gradient(135deg, color-mix(in srgb, var(--accent) 34%, var(--bg-deep)), color-mix(in srgb, var(--accent-2, var(--accent)) 26%, var(--bg-deep)))"],
   };
 
-  /* ===================================================================== the look layer */
-
   const LOOK_CACHE = "memu_look_v1";
   const TE_ATTRS = ["teSide", "teSidemode", "teTopbar", "teComposer", "teBubbles", "teUalign", "teCw", "teChatw", "teBg"];
   const DEFAULT_LAYOUT = { side_pos: "left", side_mode: "full", topbar: "", composer: "", bubbles: "", user_align: "", side_width: 0, composer_width: 0, chat_px: 0 };
@@ -163,9 +134,8 @@
   const SAFE_VALUE = /^[a-zA-Z0-9#%().,\-+*/ ]{1,240}$/;
   const safe = (v) => (v !== undefined && v !== null && SAFE_VALUE.test(String(v)) && !/url\s*\(|\/\*|expression/i.test(String(v)) ? String(v) : "");
 
-  /** CSS declarations of one element's props (already merged for a mode). */
   function declarations(el, props) {
-    const out = {};   // selector → [decl]
+    const out = {};
     const push = (prop, decl) => { const target = (el.at && el.at[prop]) || el.rule || el.sel; (out[target] = out[target] || []).push(decl); };
     const num = (key) => (props[key] === undefined || props[key] === "" ? null : Number(props[key]));
     if (props.bg) {
@@ -198,7 +168,6 @@
   }
   const scoped = (scope, selectors) => selectors.split(",").map((s) => `${scope} ${s.trim()}`).join(",\n");
 
-  /** Element rules for one mode. `scope` is the root selector («html:root[data-theme="dark"]», or «:root» in a theme). */
   function elementsCss(elements, m, scope) {
     let css = "";
     for (const el of ELEMENTS) {
@@ -252,7 +221,7 @@ html:root .composer-wrap::before { opacity: 0; }
       const full = order.concat(TOOLBAR.map((t) => t.id).filter((id) => !order.includes(id)));
       full.forEach((id, i) => { css += `html:root ${TOOLBAR.find((t) => t.id === id).sel} { order: ${(i + 1) * 10}; }\n`; });
       const spacer = (full.indexOf("spacer") + 1) * 10;
-      // anything else in the bar (new buttons from later versions) sits just before the spacer; the mobile menu stays first
+
       css += `html:root .topbar > :not(${TOOLBAR.map((t) => t.sel.replace(".topbar > ", "")).join("):not(")}):not(#mobile-menu) { order: ${spacer - 5}; }\nhtml:root .topbar > #mobile-menu { order: -100; }\n`;
     }
     const hidden = (toolbar.hidden || []).filter((id) => HIDE_SEL[id]);
@@ -260,7 +229,6 @@ html:root .composer-wrap::before { opacity: 0; }
     return css;
   }
 
-  /** Everything the look puts on the page: {attrs, css}. Pure, so the editor can render previews of any look. */
   function compile(rawLook) {
     const look = normLook(rawLook);
     const lay = look.layout, attrs = {};
@@ -289,7 +257,7 @@ html:root .composer-wrap::before { opacity: 0; }
     if (styleNode && styleNode.isConnected) return styleNode;
     styleNode = doc.getElementById("memu-look") || doc.createElement("style");
     styleNode.id = "memu-look";
-    doc.head.appendChild(styleNode);   // last in <head>: after the designs and after a custom theme
+    doc.head.appendChild(styleNode);
     return styleNode;
   }
   function put(compiled) {
@@ -298,11 +266,11 @@ html:root .composer-wrap::before { opacity: 0; }
     const node = ensureStyle();
     if (node.textContent !== compiled.css) node.textContent = compiled.css;
   }
-  // first paint: the cached look (preferences.json stays authoritative; MemuLook.apply re-applies)
+
   try {
     const cached = JSON.parse(localStorage.getItem(LOOK_CACHE) || "null");
     if (cached && typeof cached.css === "string" && cached.attrs && typeof cached.attrs === "object") put(cached);
-  } catch (_) { /* no cache yet */ }
+  } catch (_) {  }
 
   let lastLook = null;
   function applyLook(prefFn) {
@@ -322,7 +290,7 @@ html:root .composer-wrap::before { opacity: 0; }
     side.style.width = w + "px";
     if (!window.__memuPrefOverlay) { try { localStorage.setItem("memu_sidebar_width", String(w)); } catch (_) {} }
   }
-  /* A sidebar resized by hand (app.js initSidebarResizer) is remembered in the look when the look owns the width. */
+
   doc.addEventListener("pointerdown", (event) => {
     if (!event.target.closest || !event.target.closest("#sidebar-resizer")) return;
     const done = () => {
@@ -344,12 +312,10 @@ html:root .composer-wrap::before { opacity: 0; }
   window.MemuLook = Object.freeze({ apply: applyLook, compile, elementsCss, tokensCss, ELEMENTS, TOOLBAR, HIDE_SEL, BG_PRESETS, FONTS, SHADOWS, normLook,
     get look() { return lastLook; } });
 
-  /* ===================================================================== editor: state */
-
   const APPEAR_KEYS = ["accent_color", "surface_dark", "surface_light", "ui_design", "app_font", "font_scale", "ui_density",
     "chat_width", "ui_radius", "ui_glass", "ui_msg_size", "ui_contrast", "ui_motion", "ui_motion_speed", "ui_look"];
   const UI_CACHE = "memu_te_ui";
-  const CONFIRM_AT = 4;   // Esc asks first from this many changes on
+  const CONFIRM_AT = 4;
   const listeners = new Set();
   const ED = {
     on: false, orig: null, draft: null, past: [], future: [], lastKey: "", lastAt: 0,
@@ -376,7 +342,6 @@ html:root .composer-wrap::before { opacity: 0; }
   const look = () => ED.draft.prefs.ui_look;
   const curMode = () => (ED.draft ? ED.draft.theme : mode());
 
-  /** Drop empty element entries / defaults so «changes» counts only what really differs. */
   function tidy(state) {
     const lk = state.prefs.ui_look;
     for (const [id, spec] of Object.entries(lk.elements)) {
@@ -464,8 +429,6 @@ html:root .composer-wrap::before { opacity: 0; }
     if (btn) btn.setAttribute("aria-pressed", String(on));
   }
 
-  /* ===================================================================== enter / leave */
-
   function loadUi() {
     try { Object.assign(ED.ui, JSON.parse(localStorage.getItem(UI_CACHE) || "{}")); } catch (_) {}
     if (!["right", "left", "float"].includes(ED.ui.dock)) ED.ui.dock = "right";
@@ -513,7 +476,7 @@ html:root .composer-wrap::before { opacity: 0; }
     ED.on = false; ED.sel = null; ED.hover = null; ED.confirm = false; ED.comparing = false;
     saveUi();
     emit("exit");
-    window.dispatchEvent(new Event("resize"));   // panels columns, sticky bars and the canvas re-measure the freed space
+    window.dispatchEvent(new Event("resize"));
   }
   function cancel() {
     if (!ED.on) return;
@@ -548,13 +511,11 @@ html:root .composer-wrap::before { opacity: 0; }
     cancel();
   }
 
-  /* ===================================================================== picking */
-
   const inEditor = (node) => !!(node && node.closest && node.closest(".te-ui, .te-pop"));
   function matchEl(node) {
     for (let n = node; n && n.nodeType === 1 && n !== html(); n = n.parentElement) {
       if (inEditor(n)) return null;
-      for (const el of ELEMENTS) { try { if (n.matches(el.sel)) return { el, node: n }; } catch (_) { /* odd selector in an old engine */ } }
+      for (const el of ELEMENTS) { try { if (n.matches(el.sel)) return { el, node: n }; } catch (_) {  } }
     }
     return null;
   }
@@ -589,8 +550,8 @@ html:root .composer-wrap::before { opacity: 0; }
     const typing = e.target && e.target.closest && e.target.closest("input:not([type=range]):not([type=color]), textarea, select, [contenteditable='true'], [contenteditable='']");
     const mod = e.ctrlKey || e.metaKey;
     if (e.key === "Escape") {
-      if (window.MemuLayers && MemuLayers.isOpen()) return;              // the top menu closes first
-      if (doc.querySelector("#panel-back.visible")) return;               // an open dialog closes first
+      if (window.MemuLayers && MemuLayers.isOpen()) return;
+      if (doc.querySelector("#panel-back.visible")) return;
       e.preventDefault(); e.stopImmediatePropagation();
       if (window.MemuPanelsLayout && MemuPanelsLayout.editing()) { MemuPanelsLayout.exit(); return; }
       if (ED.confirm) { cancel(); return; }
@@ -621,7 +582,6 @@ html:root .composer-wrap::before { opacity: 0; }
     window[fn]("resize", placePanel);
   }
 
-  /* boxes over the hovered and the selected element, kept in place every frame while the editor is open */
   function box(cls) {
     let node = doc.querySelector("." + cls);
     if (!node) {
@@ -664,8 +624,6 @@ html:root .composer-wrap::before { opacity: 0; }
     };
     ED.raf = requestAnimationFrame(tick);
   }
-
-  /* ===================================================================== editor: UI kit */
 
   const SVG = {
     palette: '<path d="M12 3a9 9 0 1 0 0 18c1 0 1.6-.8 1.6-1.6 0-.5-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-.9.7-1.6 1.6-1.6H16a5 5 0 0 0 5-5C21 6.6 17 3 12 3Z"/><circle cx="7.5" cy="11.5" r="1"/><circle cx="10.5" cy="7.5" r="1"/><circle cx="15.5" cy="8" r="1"/>',
@@ -715,7 +673,7 @@ html:root .composer-wrap::before { opacity: 0; }
   function toggle(key, on, label) {
     return `<button type="button" class="te-switch" role="switch" aria-checked="${!!on}" data-switch="${esc(key)}" data-fk="sw:${esc(key)}" aria-label="${esc(label)}"><i></i></button>`;
   }
-  /** «what a CSS colour looks like»: resolved through a probe so var()/color-mix() work */
+
   let probe = null;
   function resolve(expr) {
     if (!expr) return "";
@@ -755,8 +713,6 @@ html:root .composer-wrap::before { opacity: 0; }
   }
   const section = (title, body, opts = {}) => `<section class="te-sec" ${opts.id ? `id="${opts.id}"` : ""}>
       <h4><span>${esc(title)}</span>${opts.aside || ""}</h4>${opts.desc ? `<p class="te-desc">${esc(opts.desc)}</p>` : ""}${body}</section>`;
-
-  /* ===================================================================== the panel */
 
   const TABS = [["element", "target", "Элемент", "Element"], ["look", "brush", "Оформление", "Look"], ["layout", "layout", "Расположение", "Layout"], ["themes", "swatches", "Темы", "Themes"]];
   function build() {
@@ -806,8 +762,7 @@ html:root .composer-wrap::before { opacity: 0; }
     html().dataset.teDock = dock;
     panel.dataset.dock = dock;
     if (dock === "float") {
-      // the whole panel (header to footer) always stays inside the window: dragged low, it gets shorter
-      // down to a usable minimum instead of pushing «Save» off-screen
+
       const vw = window.innerWidth, vh = window.innerHeight;
       const w = panel.offsetWidth || 360;
       const natural = Math.max(200, Math.min(720, vh - 32));
@@ -856,8 +811,6 @@ html:root .composer-wrap::before { opacity: 0; }
     if (active) { const again = body.querySelector(`[data-fk="${CSS.escape(active)}"]`); if (again) again.focus({ preventScroll: true }); }
     if (ED.tab === "themes") hydrateThemes();
   }
-
-  /* ===================================================================== tab: element */
 
   const groupName = (g) => { const row = GROUPS.find((x) => x[0] === g); return row ? L(row[1], row[2]) : g; };
   const elName = (el) => (isEn() ? el.en : el.ru);
@@ -916,7 +869,7 @@ html:root .composer-wrap::before { opacity: 0; }
       ${contrastNote(el, node)}
       <div class="te-props">${rows}</div>`;
   }
-  /* «what changes» for readability: text on a fill the user just picked */
+
   const lum = (hex) => { const v = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); return 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2]; };
   const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
   function textOn(node) {
@@ -958,8 +911,6 @@ html:root .composer-wrap::before { opacity: 0; }
     else control = "";
     return row(L(ru, en), control, { set, reset: key, cls: RANGES[prop] || ["shadow", "font", "weight"].includes(prop) ? "te-row-wide" : "" });
   }
-
-  /* ===================================================================== tab: look */
 
   const catalog = () => (MA() && MA().catalog) || null;
   const pick2 = (row, key) => (isEn() ? row[key ? key + "_en" : "en"] : row[key ? key + "_ru" : "ru"]) || row.name || row.id || "";
@@ -1041,8 +992,6 @@ html:root .composer-wrap::before { opacity: 0; }
   }
   const resetAside = (key, on) => `<button type="button" class="te-link" data-reset="${key}" ${on ? "" : "disabled"}>${I("reset")}${T("Сбросить", "Reset")}</button>`;
 
-  /* ===================================================================== tab: layout */
-
   function windowMap() {
     const lk = look(), lay = lk.layout, hidden = new Set(lk.toolbar.hidden);
     return `<div class="te-map" aria-hidden="true" data-side="${lay.side_pos}" data-sidemode="${ED.draft.sidebar ? lay.side_mode : "hidden"}" data-topbar="${lay.topbar || "default"}" data-composer="${lay.composer || "default"}" data-bubbles="${lay.bubbles || "default"}" data-ualign="${lay.user_align || "right"}">
@@ -1113,8 +1062,6 @@ html:root .composer-wrap::before { opacity: 0; }
       + zonesSection();
   }
 
-  /* ===================================================================== tab: themes */
-
   const PRESETS = [
     { id: "minimal", ru: "Минимализм", en: "Minimal", dru: "Только диалог: без пузырей, тихая верхняя панель", den: "Just the conversation: no bubbles, a quiet top bar",
       prefs: { ui_design: "focus", ui_density: "spacious" }, layout: { topbar: "bare", bubbles: "plain", composer: "float" }, sw: ["var(--bg)", "var(--text)", "var(--accent)"] },
@@ -1141,7 +1088,7 @@ html:root .composer-wrap::before { opacity: 0; }
     const data = await resp.json().catch(() => ({}));
     if (!resp.ok) {
       let msg = (isEn() ? data.error_en : data.error) || data.error || `HTTP ${resp.status}`;
-      if (isEn() && /[А-Яа-яЁё]/.test(msg)) msg = `The request failed (HTTP ${resp.status})`;   // English UI: no Cyrillic
+      if (isEn() && /[А-Яа-яЁё]/.test(msg)) msg = `The request failed (HTTP ${resp.status})`;
       throw new Error(msg);
     }
     return data;
@@ -1208,8 +1155,6 @@ html:root .composer-wrap::before { opacity: 0; }
     if (input) { input.focus(); input.select(); }
   }
 
-  /* --------------------------------------------------------------- packages and theme files */
-
   function lookForPackage(lk) {
     const out = clone(lk);
     out.elements = {}; out.tokens = { dark: {}, light: {} };
@@ -1222,11 +1167,11 @@ html:root .composer-wrap::before { opacity: 0; }
   }
   async function basePackage(ref) {
     if (ref && ref.startsWith("custom:")) {
-      try { return (await api("/api/pg/theme-editor/package", { id: ref.slice(7) })).package; } catch (_) { /* fall through */ }
+      try { return (await api("/api/pg/theme-editor/package", { id: ref.slice(7) })).package; } catch (_) {  }
     }
     return { tokens: {}, elements: {}, css: "", extends: ref && !ref.startsWith("custom:") ? ref : "" };
   }
-  /** The current draft as a theme package of its mode: the base theme (built-in or custom) + the editor's layer. */
+
   async function currentPackage(name, withLook) {
     const m = curMode(), lk = look();
     const ref = ED.draft.prefs[`surface_${m}`] || "";
@@ -1245,7 +1190,7 @@ html:root .composer-wrap::before { opacity: 0; }
       look: withLook ? lookForPackage(lk) : null, prefs: withLook ? prefsForPackage(ED.draft.prefs) : {},
     };
   }
-  /** Plain theme CSS (works without the editor): :root tokens, generated element rules, hand-written CSS. */
+
   function themeCss(pkg) {
     const rows = Object.entries(pkg.tokens || {}).filter(([k, v]) => /^--[a-z][a-z0-9-]*$/.test(k) && safe(v)).map(([k, v]) => `  ${k}: ${v};`);
     let css = rows.length ? `:root {\n${rows.join("\n")}\n}\n` : "";
@@ -1259,7 +1204,7 @@ html:root .composer-wrap::before { opacity: 0; }
     if (MA()) await MA().load();
     return result.theme;
   }
-  /** After the layer went into a theme file: use the theme, drop the colours that now live in it. */
+
   function adoptTheme(theme) {
     change((d) => {
       const m = theme.base;
@@ -1354,7 +1299,7 @@ html:root .composer-wrap::before { opacity: 0; }
     try {
       await api("/api/pg/themes/delete", { id });
       const key = `surface_${theme.base}`;
-      // the file is gone right away: nothing (draft, original, saved preferences) may keep pointing at it
+
       if (ED.orig.prefs[key] === theme.ref) { ED.orig.prefs[key] = ""; if (typeof savePreferences === "function") savePreferences({ [key]: "" }); }
       for (const st of [ED.draft, ...ED.past, ...ED.future]) if (st.prefs[key] === theme.ref) st.prefs[key] = "";
       if (MA()) await MA().load();
@@ -1377,8 +1322,6 @@ html:root .composer-wrap::before { opacity: 0; }
     note(L(`Стиль «${p.ru}» применён — Ctrl+Z отменит`, `“${p.en}” applied — Ctrl+Z undoes it`));
   }
 
-  /* ===================================================================== events */
-
   function setElementProp(prop, value, key, opts) {
     const id = ED.sel && ED.sel.id;
     if (!id) return;
@@ -1388,7 +1331,7 @@ html:root .composer-wrap::before { opacity: 0; }
       const part = COLOR_PROPS.has(prop) ? d.theme : "all";
       const bucket = spec[part] || (spec[part] = {});
       if (value === "" || value === null || value === undefined) delete bucket[prop]; else bucket[prop] = value;
-      // transparency needs a colour to work on: take the one the element has right now
+
       if (prop === "alpha" && value !== "" && !(spec[d.theme] || {}).bg) {
         const now = resolve(computedOf(ED.sel.node || visibleNode(EL[id]), "bg"));
         if (now) (spec[d.theme] || (spec[d.theme] = {})).bg = now;
@@ -1439,8 +1382,7 @@ html:root .composer-wrap::before { opacity: 0; }
     if (key.startsWith("l:")) return change((d) => { d.prefs.ui_look.layout[key.slice(2)] = DEFAULT_LAYOUT[key.slice(2)]; });
     if (key.startsWith("p:")) return change((d) => { d.prefs[key.slice(2)] = DEFAULT_PREFS[key.slice(2)]; });
   }
-  /* A colour picked in the popover changes the button in place: re-rendering the tab would replace the popover's
-     anchor and MemuLayers would close the popover after the first pick. */
+
   function setColor(key, value) {
     const opts = { render: false };
     if (key.startsWith("el:")) setElementProp(key.slice(3), value, key, opts);
@@ -1465,7 +1407,7 @@ html:root .composer-wrap::before { opacity: 0; }
 
   function onPanelClick(e) {
     const panel = ED.panel;
-    // closest() climbs up to <html>, which carries data-theme / data-design / data-accent itself: stay in the panel
+
     const t = { closest: (sel) => { const n = e.target.closest(sel); return n && panel && panel.contains(n) ? n : null; } };
     const tab = t.closest(".te-tabs [data-tab]");
     if (tab) return setTab(tab.dataset.tab);
@@ -1496,7 +1438,7 @@ html:root .composer-wrap::before { opacity: 0; }
       case "pick": ED.picking = !ED.picking; ED.hover = null; updateHead(); break;
       case "undo": undo(); break;
       case "redo": redo(); break;
-      case "compare": if (e.detail === 0) compare(!ED.comparing); break;   // keyboard: toggles; the mouse holds it (pointerdown)
+      case "compare": if (e.detail === 0) compare(!ED.comparing); break;
       case "dock": dockMenu(act); break;
       case "cancel": requestCancel(); break;
       case "save": save(); break;
@@ -1514,7 +1456,7 @@ html:root .composer-wrap::before { opacity: 0; }
       case "export-current": currentPackage(L("Моя тема", "My theme"), true).then(exportPackage); break;
       case "code-current": currentPackage(L("Моя тема", "My theme"), true).then(copyCode); break;
       case "theme-use": { const th = customs().find((c) => c.id === id); if (th) change((d) => { d.theme = th.base; d.prefs[`surface_${th.base}`] = th.ref; }); break; }
-      case "theme-more": e.stopPropagation(); themeMenu(act, id); break;   // app.js closes the context menu on a document click
+      case "theme-more": e.stopPropagation(); themeMenu(act, id); break;
       case "theme-rename-ok": renameTheme(id, ED.panel.querySelector('[data-fk="rename"]').value); break;
       case "theme-rename-no": ED.renaming = ""; render(); break;
       case "theme-delete-ok": deleteTheme(id); break;
@@ -1584,7 +1526,6 @@ html:root .composer-wrap::before { opacity: 0; }
     change((d) => { d.prefs.ui_look.toolbar.order = order; });
   }
 
-  /* pointer: hold «Before», drag the header (undocks), drag toolbar rows */
   function onPanelPointerDown(e) {
     const cmp = e.target.closest('[data-act="compare"]');
     if (cmp && e.button === 0) {
@@ -1617,7 +1558,7 @@ html:root .composer-wrap::before { opacity: 0; }
       window.removeEventListener("pointermove", move, true); window.removeEventListener("pointerup", up, true);
       doc.body.classList.remove("te-dragging");
       if (!moving) return;
-      // dropped at a window edge: dock there
+
       if (ev.clientX > window.innerWidth - 24) setDock("right");
       else if (ev.clientX < 24) setDock("left");
       else { saveUi(); render(); }
@@ -1631,19 +1572,19 @@ html:root .composer-wrap::before { opacity: 0; }
     const scroller = list.closest(".te-body") || list;
     const from = rows.indexOf(item);
     const h = item.getBoundingClientRect().height + 4;
-    // row centres in list coordinates (independent of the scroll position, which may change while dragging)
+
     const top0 = list.getBoundingClientRect().top;
     const mids = rows.map((r) => { const b = r.getBoundingClientRect(); return b.top - top0 + b.height / 2; });
     const grab = e.clientY - item.getBoundingClientRect().top;
     let index = from, lastY = e.clientY, raf = 0, moved = false;
-    try { item.setPointerCapture(e.pointerId); } catch (_) { /* synthetic events */ }
+    try { item.setPointerCapture(e.pointerId); } catch (_) {  }
     const layout = () => {
       const listTop = list.getBoundingClientRect().top;
-      // where the dragged row's top sits now (list coords), kept within the list
+
       const myTop = clamp(lastY - grab - listTop, -6, list.offsetHeight - item.offsetHeight + 6);
       const centre = myTop + item.offsetHeight / 2;
       item.style.transform = `translateY(${Math.round(myTop - (mids[from] - item.offsetHeight / 2))}px)`;
-      let to = 0;                                              // = number of other rows whose centre is above ours
+      let to = 0;
       for (let i = 0; i < rows.length; i++) if (i !== from && centre > mids[i]) to++;
       index = clamp(to, 0, rows.length - 1);
       rows.forEach((r, i) => {
@@ -1652,7 +1593,7 @@ html:root .composer-wrap::before { opacity: 0; }
         r.style.transform = shift ? `translateY(${shift}px)` : "";
       });
     };
-    // auto-scroll the inspector while the pointer rests near its top/bottom edge
+
     const edge = () => {
       raf = 0;
       const box = scroller.getBoundingClientRect();
@@ -1660,7 +1601,7 @@ html:root .composer-wrap::before { opacity: 0; }
       let dy = 0;
       if (lastY < box.top + zone) dy = -Math.ceil((box.top + zone - lastY) / 4);
       else if (lastY > box.bottom - zone) dy = Math.ceil((lastY - (box.bottom - zone)) / 4);
-      // only while the list itself continues past that edge: the list never scrolls out of view
+
       const lb = list.getBoundingClientRect();
       if (dy < 0 && lb.top >= box.top + 8) dy = 0;
       if (dy > 0 && lb.bottom <= box.bottom - 8) dy = 0;
@@ -1681,7 +1622,7 @@ html:root .composer-wrap::before { opacity: 0; }
     const up = () => {
       window.removeEventListener("pointermove", move, true); window.removeEventListener("pointerup", up, true); window.removeEventListener("pointercancel", up, true);
       cancelAnimationFrame(raf); raf = 0;
-      try { item.releasePointerCapture(e.pointerId); } catch (_) { /* not captured */ }
+      try { item.releasePointerCapture(e.pointerId); } catch (_) {  }
       rows.forEach((r) => { r.style.transform = ""; });
       item.classList.remove("is-dragging"); doc.body.classList.remove("te-dragging");
       if (moved && index !== from) {
@@ -1692,8 +1633,6 @@ html:root .composer-wrap::before { opacity: 0; }
     };
     window.addEventListener("pointermove", move, true); window.addEventListener("pointerup", up, true); window.addEventListener("pointercancel", up, true);
   }
-
-  /* ===================================================================== popovers */
 
   function popover(anchor, html2, cls, onClose) {
     const pop = doc.createElement("div");
@@ -1745,8 +1684,6 @@ html:root .composer-wrap::before { opacity: 0; }
     return "";
   }
 
-  /* ===================================================================== Esc with many changes */
-
   function showConfirm(n) {
     const box2 = ED.panel.querySelector(".te-confirm");
     ED.confirm = true;
@@ -1767,8 +1704,6 @@ html:root .composer-wrap::before { opacity: 0; }
     const box2 = ED.panel && ED.panel.querySelector(".te-confirm");
     if (box2) { box2.hidden = true; box2.innerHTML = ""; }
   }
-
-  /* ===================================================================== entry points */
 
   function settingsCard() {
     return `<div class="te-card" data-sx-k="theme editor редактор тем customize кастомизация внешний вид layout расположение">

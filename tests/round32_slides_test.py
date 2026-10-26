@@ -38,13 +38,12 @@ try:
 except ImportError:
     HAVE_PPTX = False
 
-
 def _chromium():
-    for path in ("/usr/bin/chromium", "/workspace/work/chromium/chrome", shutil.which("chromium") or "", shutil.which("google-chrome") or ""):
+    for path in ("/usr/bin/chromium", "/workspace/work/chromium/chrome", shutil.which("chromium") or "", shutil.which("google-chrome") or "",
+                 r"C:\Program Files\Google\Chrome\Application\chrome.exe", r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"):
         if path and os.path.exists(path):
             return path
     return None
-
 
 def package_problems(data: bytes):
     """Structural OOXML checks: XML well-formed, every part typed, no dangling rels, unique shape ids per slide."""
@@ -84,8 +83,6 @@ def package_problems(data: bytes):
                 probs.append(f"duplicate shape ids in {n}")
     return probs
 
-
-# ============================================================================ static / unit
 class StaticTest(unittest.TestCase):
     def test_i18n_keys_match_and_english_has_no_cyrillic(self) -> None:
         text = (SLIDES / "i18n-slides.js").read_text(encoding="utf-8")
@@ -112,7 +109,7 @@ class StaticTest(unittest.TestCase):
     def test_spec_imports_check(self) -> None:
         r = subprocess.run([sys.executable, "tests/round29_spec_imports_check.py"], cwd=ROOT, capture_output=True, text=True, timeout=300)
         mine = [ln for ln in (r.stdout + r.stderr).splitlines() if ln.startswith("PROBLEM") and ("memunote" in ln.lower() or "slides" in ln)]
-        self.assertEqual(mine, [], r.stdout[-2000:])      # problems of other zones are not this zone's business
+        self.assertEqual(mine, [], r.stdout[-2000:])
 
     def test_kinds_and_associations(self) -> None:
         from app.memunote import server, winsys
@@ -135,7 +132,6 @@ class StaticTest(unittest.TestCase):
             r = subprocess.run([node, "--check", str(f)], capture_output=True, text=True)
             self.assertEqual(r.returncode, 0, f"{f.name}: {r.stderr}")
 
-
 class PromptTest(unittest.TestCase):
     def test_build_messages(self) -> None:
         from app.memunote import slides_api
@@ -143,7 +139,7 @@ class PromptTest(unittest.TestCase):
         self.assertEqual([x["role"] for x in m], ["system", "user"])
         self.assertIn("Russian", m[0]["content"])
         self.assertIn("exactly 7 slides", m[0]["content"])
-        self.assertNotIn("Кошки", m[0]["content"])          # user data never in the system prompt
+        self.assertNotIn("Кошки", m[0]["content"])
         self.assertIn("<source>\nSRC\n</source>", m[1]["content"])
         m = slides_api.build_messages("translate", {"target": "de", "items": [{"id": "1", "text": "a"}]}, "ru")
         self.assertIn("German", m[0]["content"])
@@ -151,7 +147,6 @@ class PromptTest(unittest.TestCase):
             self.assertIn("JSON", slides_api.build_messages(task, {"items": [], "slides": []}, "en")[0]["content"])
         with self.assertRaises(ValueError):
             slides_api.build_messages("rm -rf", {}, "en")
-
 
 class _ServerCase(unittest.TestCase):
     def setUp(self) -> None:
@@ -183,7 +178,6 @@ class _ServerCase(unittest.TestCase):
         conn.close()
         return resp, (data if raw else json.loads(data or b"null"))
 
-
 class ApiTest(_ServerCase):
     def test_open_and_save_binary_guard(self) -> None:
         target = self.dir / "deck.pptx"
@@ -198,7 +192,7 @@ class ApiTest(_ServerCase):
         q = urllib.parse.quote(str(target))
         resp, data = self.call("POST", f"/api/save_binary?path={q}&force=1", b"not a zip")
         self.assertEqual(resp.status, 400)
-        self.assertEqual(target.read_bytes(), buf.getvalue())   # untouched
+        self.assertEqual(target.read_bytes(), buf.getvalue())
         resp, data = self.call("POST", f"/api/save_binary?path={q}&force=1", buf.getvalue() + b"")
         self.assertTrue(data["ok"])
 
@@ -215,8 +209,6 @@ class ApiTest(_ServerCase):
         resp, data = self.call("POST", "/api/slides_ai", {"task": "nope", "model": "fake", "input": {}})
         self.assertEqual(resp.status, 400)
 
-
-# ============================================================================ fake proxy for AI flows
 FAKE_DECK = {"title": "Кофе", "slides": [
     {"layout": "title", "title": "Кофе: история и культура", "subtitle": "Короткий обзор", "notes": "Приветствие."},
     {"layout": "content", "title": "Откуда кофе", "bullets": ["Эфиопия, IX век", "  Легенда о пастухе Калди", "Йемен и суфии"], "notes": "Рассказать легенду."},
@@ -225,7 +217,6 @@ FAKE_DECK = {"title": "Кофе", "slides": [
     {"layout": "table", "title": "Сорта", "table": [["Сорт", "Страна"], ["Сидамо", "Эфиопия"]]},
     {"layout": "section", "title": "Итоги", "subtitle": "Вопросы?"},
 ]}
-
 
 class _FakeProxy(http.server.BaseHTTPRequestHandler):
     answers: dict = {}
@@ -265,13 +256,11 @@ class _FakeProxy(http.server.BaseHTTPRequestHandler):
             self.wfile.write(("data: " + json.dumps({"choices": [{"delta": {"content": ans[i:i + 7]}}]}, ensure_ascii=False) + "\n\n").encode())
         self.wfile.write(b"data: [DONE]\n\n")
 
-
 def _start_fake_proxy(answers=None):
     _FakeProxy.answers = answers or {}
     fake = http.server.ThreadingHTTPServer(("127.0.0.1", 0), _FakeProxy)
     threading.Thread(target=fake.serve_forever, daemon=True).start()
     return fake
-
 
 def make_sample_pptx(path: Path, slides: int = 3) -> None:
     """A third-party deck (python-pptx's default template): chart with embedded workbook, table, group, notes."""
@@ -296,7 +285,6 @@ def make_sample_pptx(path: Path, slides: int = 3) -> None:
         s = p.slides.add_slide(p.slide_layouts[1]); s.shapes.title.text = f"Слайд {i + 1}"; s.placeholders[1].text = f"Пункт {i + 1}"
     p.save(str(path))
 
-
 def make_sample_odp(path: Path) -> None:
     content = """<?xml version="1.0" encoding="UTF-8"?>
 <office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"
@@ -319,8 +307,6 @@ def make_sample_odp(path: Path) -> None:
         z.writestr("content.xml", content)
         z.writestr("styles.xml", styles)
 
-
-# ============================================================================ browser
 @unittest.skipUnless(_chromium(), "chromium is not available")
 class BrowserTest(_ServerCase):
     """Real MemuNote page: the deck model / OOXML writer in the page, and the editor UI."""
@@ -337,7 +323,7 @@ class BrowserTest(_ServerCase):
         self.call("POST", "/api/settings", {"language": "en", "restore_session": False, "ai_model": "fake"})
         self.pw = sync_playwright().start()
         self.browser = self.pw.chromium.launch(executable_path=_chromium(), args=["--no-sandbox"])
-        self.pg = self.browser.new_context(viewport={"width": 1280, "height": 800}, permissions=["clipboard-read", "clipboard-write"]).new_page()   # Round 34: Ctrl+C/Ctrl+V need the clipboard in headless
+        self.pg = self.browser.new_context(viewport={"width": 1280, "height": 800}, permissions=["clipboard-read", "clipboard-write"]).new_page()
         self.errors = []
         self.pg.on("pageerror", lambda e: self.errors.append(str(e)))
         self.pg.goto(f"http://127.0.0.1:{self.app.port}/index.html#t={self.app.token}")
@@ -425,7 +411,7 @@ class BrowserTest(_ServerCase):
         orig = self.dir / "orig.pptx"
         shutil.copy(src, orig)
         self.open(src)
-        # edit one run on slide 2 and save through the UI (Ctrl+S → /api/save_binary)
+
         self.view("(() => { const s = v.deck.slides[1]; s.elements[0].text.paras[0].runs[0].t = 'Итоги (новое)'; v.touch(s); v.snapshot(); return 1 })()")
         self.pg.keyboard.press("Control+s")
         time.sleep(1.5)
@@ -433,7 +419,7 @@ class BrowserTest(_ServerCase):
         self.assertEqual(package_problems(new), [])
         z_new = zipfile.ZipFile(io.BytesIO(new))
         z_old = zipfile.ZipFile(orig)
-        # every part except the edited slide is identical ([Content_Types].xml / presentation.xml too: re-serialized only when really changed)
+
         changed = [n for n in z_old.namelist() if n in z_new.namelist() and z_old.read(n) != z_new.read(n)]
         self.assertEqual(sorted(set(changed) - {"ppt/slides/slide2.xml", "docProps/core.xml"}), [])
         self.assertEqual(sorted(set(z_old.namelist()) - set(z_new.namelist())), [])
@@ -461,7 +447,7 @@ class BrowserTest(_ServerCase):
         pg.keyboard.press("Control+b"); pg.keyboard.press("Escape"); pg.keyboard.press("Escape")
         paras = self.view("v.slide.elements[1].text.paras.map(p => [(p.lvl||0), p.runs.map(r => r.t).join(''), !!p.runs.find(r => r.b)])")
         self.assertEqual(paras, [[0, "Alpha", False], [1, "Beta", True]])
-        # insert an ellipse, drag it, undo / redo
+
         pg.click("[data-c='rtab:insert']"); pg.click("[data-c='ins:shape']"); pg.click(".sl-shape-btn[data-g='ellipse']")
         box = pg.locator(".sl-canvas-wrap").bounding_box()
         pg.mouse.click(box["x"] + box["width"] * 0.7, box["y"] + box["height"] * 0.6)
@@ -473,12 +459,12 @@ class BrowserTest(_ServerCase):
         self.assertLess(x1, x0)
         pg.keyboard.press("Control+z"); self.assertEqual(self.view("v.slide.elements.at(-1).x"), x0)
         pg.keyboard.press("Control+y"); self.assertEqual(self.view("v.slide.elements.at(-1).x"), x1)
-        # duplicate slide, reorder by keyboard in the sorter, delete it again
+
         pg.click(".sl-thumb[data-i='1']"); pg.keyboard.press("Control+d"); time.sleep(0.3)
         self.assertEqual(self.view("v.deck.slides.length"), 3)
         pg.keyboard.press("Delete"); time.sleep(0.2)
         self.assertEqual(self.view("v.deck.slides.length"), 2)
-        # save as (browser mode: path prompt)
+
         pg.keyboard.press("Control+s"); pg.fill("#mn-prompt", str(out)); pg.keyboard.press("Enter")
         for _ in range(40):
             if out.exists():
@@ -504,7 +490,7 @@ class BrowserTest(_ServerCase):
         self.assertIn("ODP заголовок", texts); self.assertIn("Пункт жирный", texts); self.assertIn("Фигура", texts)
         self.assertEqual(self.view("v.deck.slides[0].notes"), "Заметка ODP")
         self.assertEqual(self.view("v.deck.slides[0].elements[1].text.paras[0].runs[1].color"), "#C00000")
-        # slide show with presenter view
+
         self.pg.evaluate("localStorage.setItem('mn_sl_presenter', '1')")
         self.pg.click(".sl-stage"); self.pg.keyboard.press("Escape"); self.pg.keyboard.press("F5")
         self.pg.wait_for_selector(".sl-show.presenter", timeout=5000)
@@ -513,7 +499,7 @@ class BrowserTest(_ServerCase):
         self.assertIn("2", self.pg.inner_text(".sl-pv-count"))
         self.pg.keyboard.press("Escape"); time.sleep(0.3)
         self.assertIsNone(self.pg.query_selector(".sl-show"))
-        # export PDF (browser mode: the save dialog is a path prompt); ODP saves as .pptx
+
         pdf = self.dir / "talk.pdf"
         self.pg.click("[data-c='rtab:show']"); self.pg.click("[data-c='exp:pdf']")
         self.pg.fill("#mn-prompt", str(pdf)); self.pg.keyboard.press("Enter")
@@ -545,11 +531,10 @@ class BrowserTest(_ServerCase):
         self.pg.click("[data-c='ai:translate']"); self.pg.click(".modal-foot .btn.primary")
         self._wait_js("() => MN.tabs.find(t => t.kind === 'slides').comp.deck.slides[0].notes.startsWith('EN ')", timeout=20000)
         self.assertTrue(self.view("v.text()").count("EN ") > 5)
-        self.pg.keyboard.press("Control+z"); time.sleep(0.3)        # one undo step reverts the translation
+        self.pg.keyboard.press("Control+z"); time.sleep(0.3)
         self.assertFalse(self.view("v.deck.slides[0].notes").startswith("EN "))
         self.assertEqual(self.errors, [])
 
-    # ---------------------------------------------------------------- Round 32 wave 2 (finisher) regressions
     def _new_deck(self):
         self.pg.click("#btn-menu"); self.pg.click(".menu .mi:has-text('New presentation')")
         n = self.pg.evaluate("MN.tabs.filter(t => t.kind === 'slides').length")
@@ -558,7 +543,7 @@ class BrowserTest(_ServerCase):
 
     def test_overflowing_bullets_never_overlap_and_master_autofit_is_inherited(self) -> None:
         self._new_deck()
-        self.pg.keyboard.press("Control+m"); time.sleep(0.3)      # the new deck has the keyboard right away
+        self.pg.keyboard.press("Control+m"); time.sleep(0.3)
         self.assertEqual(self.view("v.deck.slides.length"), 2)
         items = ["Черный чай проходит полную ферментацию листьев", "Зеленый чай не подвергается окислению при производстве",
                  "Белый чай изготавливается из молодых почек и листьев", "Улун имеет частичную степень ферментации от 10 до 80%",
@@ -572,9 +557,9 @@ class BrowserTest(_ServerCase):
             const tb = t.getBoundingClientRect();
             return { fit: t.dataset.fit || null, overlap, bottom: ps.at(-1).bottom, boxBottom: tb.bottom }; }""")
         self.assertFalse(r["overlap"], r)
-        self.assertEqual(r["fit"], "1")                 # layout body has no own autofit → the master's normAutofit applies
+        self.assertEqual(r["fit"], "1")
         self.assertLessEqual(r["bottom"], r["boxBottom"] + 2, r)
-        # Home / End jump to the first / last slide (no selection)
+
         self.pg.keyboard.press("Escape"); self.pg.click(".sl-stage", position={"x": 5, "y": 5})
         self.pg.keyboard.press("Home"); time.sleep(0.1); self.assertEqual(self.view("v.cur"), 0)
         self.pg.keyboard.press("End"); time.sleep(0.1); self.assertEqual(self.view("v.cur"), 1)
@@ -586,8 +571,12 @@ class BrowserTest(_ServerCase):
           v.deck.slides.forEach((s, i) => { s.transition = { type: ['fade', 'push', 'wipe', 'circle'][i], dir: 'l', dur: 3000 }; v.touch(s); }); v.snapshot();
           localStorage.setItem('mn_sl_presenter', '0'); await v.startShow(0);""")
         self.pg.wait_for_selector(".sl-show")
-        self.pg.keyboard.press("ArrowRight"); time.sleep(0.2)
-        self.assertEqual(self.pg.evaluate("document.querySelectorAll('.sl-show-stage > *').length"), 2)   # old + new mid-transition
+        count = self.pg.evaluate("""() => {
+          document.dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowRight', code:'ArrowRight', bubbles:true}));
+          for (const node of document.querySelectorAll('.sl-show-stage > *')) for (const animation of node.getAnimations()) animation.pause();
+          return document.querySelectorAll('.sl-show-stage > *').length;
+        }""")
+        self.assertEqual(count, 2)
         self.pg.keyboard.press("ArrowRight"); time.sleep(0.2); self.pg.keyboard.press("ArrowRight"); time.sleep(0.2)
         self.assertLessEqual(self.pg.evaluate("document.querySelectorAll('.sl-show-stage > *').length"), 2)
         self.assertIn("4", self.pg.inner_text(".sl-hud-count"))
@@ -620,7 +609,7 @@ class BrowserTest(_ServerCase):
           const x = c.getContext('2d'); x.fillStyle = '#e07a2f'; x.fillRect(0, 0, 64, 48);
           const b = await new Promise(r => c.toBlob(r, 'image/png')); await v.insertImageFile(new File([b], 'a.png', { type: 'image/png' }));""")
         time.sleep(0.3)
-        self.view("v.el.querySelector('.sl-stage').focus()")   # Round 34: copy/paste are DOM events on the focused deck (a user clicks the slide first)
+        self.view("v.el.querySelector('.sl-stage').focus()")
         self.pg.keyboard.press("Control+c"); time.sleep(0.5)
         pdf = self.dir / "img.pdf"
         self.pg.click("[data-c='rtab:show']"); self.pg.click("[data-c='exp:pdf']")
@@ -648,7 +637,7 @@ class BrowserTest(_ServerCase):
           const svg = R.chartSvg({ type: 'col', cats: ['A', 'B'], series: [{ name: 'Продажи', vals: [1, 2] }] }, 120, 70, { accent: () => '#08c', color: () => '#08c' }, 1.5, '#000');
           return { one: txt(one), many: txt(many), bare: txt(bare), vb: svg.match(/viewBox="0 0 ([0-9.]+) /)[1], width: svg.match(/width="([0-9.]+)"/)[1] };""")
         self.assertIn("Свежая вода", r["one"]); self.assertIn("Второе", r["many"]); self.assertEqual(r["bare"], "Только мысль")
-        self.assertEqual(float(r["width"]), 120.0); self.assertGreater(float(r["vb"]), 120 * 3)   # labels drawn at a readable virtual size
+        self.assertEqual(float(r["width"]), 120.0); self.assertGreater(float(r["vb"]), 120 * 3)
 
     def test_large_deck_opens_fast_and_thumbnails_are_lazy(self) -> None:
         r = self.js("""
@@ -670,7 +659,7 @@ class BrowserTest(_ServerCase):
         self.assertEqual(self.view("v.deck.slides.length"), 151)
         self.assertLess(time.time() - t0, 15)
         painted = self.pg.evaluate("() => document.querySelectorAll('.sl-tbox .sl-slide').length")
-        self.assertLess(painted, 60)                    # only visible thumbnails are rendered
+        self.assertLess(painted, 60)
         self.pg.click(".sl-side"); self.pg.keyboard.press("End"); time.sleep(0.6)
         self.assertEqual(self.view("v.cur"), 150)
         self.assertIn("Slide 151", self.pg.inner_text(".sl-canvas"))
@@ -693,8 +682,6 @@ class BrowserTest(_ServerCase):
         self.assertEqual(r["n"], 3)
         self.assertEqual((r["w"]["start"]["o"], r["w"]["end"]["o"]), (4, 7))
 
-
-# ============================================================================ live AI (real model)
 @unittest.skipUnless(os.environ.get("XKIRO_BASE") and os.environ.get("XKIRO_KEY"), "live keys are not set")
 class LiveGenerateTest(_ServerCase):
     """qwen3.8-max answers the deck prompt (through /api/slides_ai and an OpenAI-compatible relay) with parseable JSON."""
@@ -752,7 +739,6 @@ class LiveGenerateTest(_ServerCase):
         self.assertGreaterEqual(len(deck["slides"]), 4)
         self.assertEqual(deck["slides"][0]["layout"], "title")
         self.assertTrue(re.search(r"[А-Яа-я]", json.dumps(deck, ensure_ascii=False)))
-
 
 if __name__ == "__main__":
     unittest.main()

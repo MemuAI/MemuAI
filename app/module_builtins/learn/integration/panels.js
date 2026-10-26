@@ -1,6 +1,5 @@
-/* r40-learn: «Повторить сегодня (N карточек · M мин)» — the MemuLearn panel for the MemuAI home screen.
-   Data: Memu.panel.data() → app/module_integration_data.py «learn.panel» (app/learn/api.panel_digest). Read once, then
-   again only when the card returns on screen after two minutes — reviews change it, nothing else does. */
+
+
 (function () {
   "use strict";
   var M = window.Memu, P = M && M.panel;

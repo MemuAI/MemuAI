@@ -1,12 +1,11 @@
-// MemuNote Slides — renders a slide of the deck model as positioned HTML + SVG (editor canvas,
-// thumbnails, slide show, PNG/PDF export all use this one renderer).
+
+
 import { cssColor, applyMods } from "./xml.js";
 import { plainText } from "./pptx.js";
 
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const PT = 12700;
 
-// ------------------------------------------------------------------ preset geometry → SVG path (w × h box, px)
 export function geomPath(g, w, h, adj) {
   const m = Math.min(w, h);
   const P = (pts) => "M" + pts.map((p) => p.map((v) => +v.toFixed(2)).join(" ")).join(" L") + " Z";
@@ -46,7 +45,6 @@ export function geomPath(g, w, h, adj) {
 function adjVal(adj, i, dflt) { const f = adj?.[i]; const m = /val\s+(-?\d+)/.exec(f || ""); return m ? Number(m[1]) : dflt; }
 export const isLineGeom = (g) => ["line", "straightConnector1", "bentConnector3", "curvedConnector3"].includes(g);
 
-// ------------------------------------------------------------------ text
 const ROMAN = [["m", 1000], ["cm", 900], ["d", 500], ["cd", 400], ["c", 100], ["xc", 90], ["l", 50], ["xl", 40], ["x", 10], ["ix", 9], ["v", 5], ["iv", 4], ["i", 1]];
 function roman(n) { let s = ""; for (const [r, v] of ROMAN) while (n >= v) { s += r; n -= v; } return s; }
 export function autoNum(type, n) {
@@ -58,7 +56,6 @@ export function autoNum(type, n) {
   return base + ".";
 }
 
-/** HTML of a text body. `styles` = deck.levelStyles(slide, el); f(name) → font family; c(color) → css. */
 export function textHtml(text, styles, ctx) {
   const { s, font, color, scale = 1, lnRed = 0 } = ctx;
   const counters = [];
@@ -98,7 +95,7 @@ export function textHtml(text, styles, ctx) {
       ri++;
       if (r.br) { runs += "<br>"; continue; }
       const R = { ...R0, ...stripUndef(r) };
-      if (r.href) { if (!r.color) R.color = "scheme:hlink"; if (r.u === undefined) R.u = true; }   // hyperlinks look like PowerPoint's (theme link colour, underlined)
+      if (r.href) { if (!r.color) R.color = "scheme:hlink"; if (r.u === undefined) R.u = true; }
       let t = esc(r.fld === "slidenum" && ctx.slideNo ? String(ctx.slideNo) : r.t);
       if (R.cap === "all") t = t.toUpperCase();
       if (!t && ctx.edit) continue;
@@ -129,11 +126,10 @@ function runCss(R, ctx, bulletOnly) {
   return css;
 }
 
-// ------------------------------------------------------------------ charts
 export function chartSvg(chart, w, h, palette, fontPx, textColor) {
   const series = chart.series || [], cats = chart.cats || [];
   const col = (i) => series[i]?.color ? palette.color(series[i].color) : palette.accent(i);
-  // tiny renders (thumbnails): draw at a larger virtual size and let the viewBox scale it down, so labels keep their proportions
+
   const W0 = w, H0 = h, kz = fontPx < 6 ? 6 / Math.max(0.3, fontPx) : 1; w *= kz; h *= kz;
   const fs = Math.max(6, fontPx * kz);
   let svg = `<svg class="sl-chart" viewBox="0 0 ${w} ${h}" width="${W0}" height="${H0}" style="font-size:${fs}px;font-family:inherit">`;
@@ -211,11 +207,10 @@ export function chartSvg(chart, w, h, palette, fontPx, textColor) {
 function niceStep(range) { const raw = range / 5, p = Math.pow(10, Math.floor(Math.log10(raw))), f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
 function fmtNum(v) { return Math.abs(v) >= 1e6 ? (v / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : Math.abs(v) >= 1e4 ? (v / 1e3).toFixed(0) + "k" : String(+v.toFixed(2)); }
 let _mc = null;
-/** Approximate width of a label in the chart font (canvas measureText; Cyrillic is wider than a fixed per-char guess). */
+
 function textW(str, fs) { try { _mc = _mc || document.createElement("canvas").getContext("2d"); _mc.font = `${fs}px "Segoe UI", Calibri, Arial, sans-serif`; return _mc.measureText(String(str ?? "")).width; } catch { return String(str ?? "").length * fs * 0.62; } }
 function trunc(s, n) { s = String(s ?? ""); return s.length > n ? s.slice(0, n - 1) + "…" : s; }
 
-// ------------------------------------------------------------------ elements
 function fillCss(deck, slide, fill, styleColor) {
   if (fill === null) return "none";
   if (fill?.color) return deck.color(fill.color, slide);
@@ -312,7 +307,7 @@ function renderText(deck, slide, el, d, s, opts, ph) {
   const vert = text.vert && text.vert !== "horz";
   t.style.cssText = `padding:${(ins.tIns * s).toFixed(2)}px ${(ins.rIns * s).toFixed(2)}px ${(ins.bIns * s).toFixed(2)}px ${(ins.lIns * s).toFixed(2)}px;justify-content:${{ t: "flex-start", ctr: "center", b: "flex-end" }[anchor] || "flex-start"};`
     + (text.wrap === "none" ? "white-space:pre;" : "") + (vert ? `writing-mode:vertical-rl;${text.vert === "vert270" ? "transform:rotate(180deg);" : ""}` : "");
-  // bodyPr autofit is inherited slide → layout → master (a layout body without its own autofit uses the master's normAutofit)
+
   const fit = text.autofit?.norm || (text.autofit === undefined && !!(el.ph ? deck.phChain(slide, el).find((p) => p.autofit !== undefined)?.autofit : false));
   const scale = text.autofit?.scale ? text.autofit.scale / 100 : 1;
   const ctx = { s, scale, lnRed: text.autofit?.lnRed || 0, font: (f) => deck.font(f, slide), color: (c) => deck.color(c, slide), slideNo: opts.slideNo };
@@ -325,7 +320,6 @@ function renderText(deck, slide, el, d, s, opts, ph) {
   d.appendChild(t);
 }
 
-/** Shrink text of autofit boxes whose content overflows (after the slide is in the DOM). */
 export function fitTexts(root) {
   for (const t of root.querySelectorAll(".sl-text[data-fit='1']")) {
     if (t.scrollHeight <= t.clientHeight + 1) continue;
@@ -373,7 +367,6 @@ function renderTable(deck, slide, el, s, opts) {
   return table;
 }
 
-// ------------------------------------------------------------------ slide
 export function backgroundCss(deck, slide) {
   const l = deck.layoutOf(slide), m = deck.masterOf(slide);
   const bg = slide.bg ?? l?.bg ?? m?.bg;
@@ -392,7 +385,6 @@ export function backgroundCss(deck, slide) {
 }
 function phColor(c, ph) { if (typeof c === "object" && c?.c === "scheme:phClr") return { c: typeof ph === "string" ? ph : ph?.c, mods: [...(ph?.mods || []), ...c.mods] }; if (c === "scheme:phClr") return ph; return c; }
 
-/** Render one slide. opts: {scale (px/EMU), editing, slideNo, prompt(el, ph), hide: Set(ids) (animations)} */
 export function renderSlide(deck, slide, opts = {}) {
   const s = opts.scale;
   const root = document.createElement("div");

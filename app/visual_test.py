@@ -32,7 +32,6 @@ _prompts_cache: Optional[List[Dict[str, Any]]] = None
 _runs: Dict[str, "Run"] = {}
 _lock = threading.Lock()
 
-
 def prompts() -> List[Dict[str, Any]]:
     global _prompts_cache
     if _prompts_cache is None:
@@ -44,24 +43,17 @@ def prompts() -> List[Dict[str, Any]]:
         _prompts_cache = [row for row in rows if isinstance(row, dict) and row.get("id") and row.get("prompt")]
     return _prompts_cache
 
-
 def prompt_list() -> List[Dict[str, Any]]:
     """The set without the texts (they are long): enough for the picker."""
     return [{"id": row["id"], "title": row.get("title", row["id"]), "title_en": row.get("title_en", row["id"]),
              "group": row.get("group", "3d"), "output": row.get("output", "html"),
              "about": row.get("about", ""), "about_en": row.get("about_en", ""), "chars": len(row["prompt"]),
-             # An outside gallery of the same task drawn by many models (the pelican: pelicanbenchmark.com).
+
              "compare_url": row.get("compare_url", "") if str(row.get("compare_url", "")).startswith("https://") else ""}
             for row in prompts()]
 
-
 def find_prompt(prompt_id: str) -> Optional[Dict[str, Any]]:
     return next((row for row in prompts() if row["id"] == prompt_id), None)
-
-
-# --------------------------------------------------------------------------
-# Turning an answer into a page
-# --------------------------------------------------------------------------
 
 _FENCE_RE = re.compile(r"```[ \t]*([A-Za-z0-9_+-]*)[^\n]*\n(.*?)(?:```|\Z)", re.S)
 _SVG_PAGE = """<!doctype html>
@@ -72,7 +64,6 @@ svg{{max-width:96vw;max-height:96vh;width:auto;height:auto}}</style></head>
 {svg}
 </body></html>
 """
-
 
 def extract_page(answer: str, title: str = "") -> Dict[str, Any]:
     """The page inside a model's answer: ``{"html", "kind", "complete"}``.
@@ -85,7 +76,7 @@ def extract_page(answer: str, title: str = "") -> Dict[str, Any]:
     pages = [body for lang, body in blocks if re.search(r"<!doctype html|<html[\s>]", body, re.I)]
     svgs = [body for lang, body in blocks if re.search(r"<svg[\s>]", body, re.I)]
     if not pages and not svgs:
-        # No fences: the model answered with the document itself.
+
         if re.search(r"<!doctype html|<html[\s>]", text, re.I):
             pages = [text]
         elif re.search(r"<svg[\s>]", text, re.I):
@@ -105,27 +96,19 @@ def extract_page(answer: str, title: str = "") -> Dict[str, Any]:
         return {"html": _SVG_PAGE.format(title=safe_title, svg=svg.strip()), "kind": "svg", "complete": end > start}
     return {"html": "", "kind": "", "complete": False}
 
-
-# --------------------------------------------------------------------------
-# Runs
-# --------------------------------------------------------------------------
-
 def _folder() -> Path:
     from .config import DATA_DIR
     path = Path(DATA_DIR) / "visual-tests"
     path.mkdir(parents=True, exist_ok=True)
     return path
 
-
 def _index_path() -> Path:
     return _folder() / "index.json"
-
 
 class Run:
     def __init__(self, model: str, prompt: Dict[str, Any]) -> None:
         self.id = secrets.token_hex(8)
-        #: Opens the saved page without the panel's sign-in: links are opened in a new tab,
-        #: where no Authorization header can be sent.
+
         self.key = secrets.token_urlsafe(18)
         self.model = model
         self.prompt_id = prompt["id"]
@@ -158,12 +141,10 @@ class Run:
                 "kind": self.kind, "complete": self.complete, "size": self.size, "error": self.error,
                 "retried": self.retried}
 
-
 def _load_index() -> List[Dict[str, Any]]:
     from .storage import load_json_with_recovery
     rows = load_json_with_recovery(_index_path(), [], validator=lambda value: isinstance(value, list))
     return [row for row in rows if isinstance(row, dict) and row.get("id")] if isinstance(rows, list) else []
-
 
 def _remember(run: Run) -> None:
     from .storage import mutate_json
@@ -181,7 +162,6 @@ def _remember(run: Run) -> None:
     for run_id in dropped:
         _delete_files(run_id)
 
-
 def _delete_files(run_id: str) -> None:
     if not re.fullmatch(r"[0-9a-f]{16}", run_id):
         return
@@ -191,7 +171,6 @@ def _delete_files(run_id: str) -> None:
         except OSError:
             pass
 
-
 def runs() -> List[Dict[str, Any]]:
     """Running tests first, then the saved ones, newest first."""
     with _lock:
@@ -199,14 +178,12 @@ def runs() -> List[Dict[str, Any]]:
     live_ids = {row["id"] for row in live}
     return sorted(live, key=lambda row: -row["started"]) + [row for row in _load_index() if row["id"] not in live_ids]
 
-
 def get(run_id: str) -> Optional[Dict[str, Any]]:
     with _lock:
         run = _runs.get(run_id)
     if run:
         return run.public()
     return next((row for row in _load_index() if row["id"] == run_id), None)
-
 
 def page(run_id: str, key: str) -> Optional[str]:
     """The saved page, if the key in the link is the one issued for this run."""
@@ -220,7 +197,6 @@ def page(run_id: str, key: str) -> Optional[str]:
     except OSError:
         return None
 
-
 def answer(run_id: str) -> Optional[str]:
     if not re.fullmatch(r"[0-9a-f]{16}", run_id):
         return None
@@ -228,7 +204,6 @@ def answer(run_id: str) -> Optional[str]:
         return (_folder() / f"{run_id}.txt").read_text(encoding="utf-8")
     except OSError:
         return None
-
 
 def cancel(run_id: str) -> bool:
     with _lock:
@@ -239,7 +214,6 @@ def cancel(run_id: str) -> bool:
     if run.task:
         run.task.get_loop().call_soon_threadsafe(run.task.cancel)
     return True
-
 
 def delete(run_id: str) -> None:
     from .storage import mutate_json
@@ -253,7 +227,6 @@ def delete(run_id: str) -> None:
     mutate_json(_index_path(), [], change, backup=False, validator=lambda value: isinstance(value, list),
                 repair_invalid=True)
     _delete_files(run_id)
-
 
 async def start(model: str, prompt_id: str = "", custom: str = "") -> Dict[str, Any]:
     model = str(model or "").strip()
@@ -274,12 +247,9 @@ async def start(model: str, prompt_id: str = "", custom: str = "") -> Dict[str, 
     run.task = asyncio.get_running_loop().create_task(_execute(run))
     return run.public()
 
-
-#: Seconds before the one retry of a request the gateway dropped before the first token.
 RETRY_PAUSE = 3.0
 _RETRYABLE_RE = re.compile(r"upstream[_ ]timeout|не начала ответ|did not start|timed? ?out|overloaded|temporarily|"
                            r"high demand|try again|повторите запрос|HTTP (?:408|429|5\d\d)\b", re.I)
-
 
 def _retryable(exc: BaseException, message: str) -> bool:
     try:
@@ -287,7 +257,6 @@ def _retryable(exc: BaseException, message: str) -> bool:
     except (TypeError, ValueError):
         status = 0
     return status in (408, 429, 500, 502, 503, 504, 529) or bool(_RETRYABLE_RE.search(message))
-
 
 async def _execute(run: Run) -> None:
     from . import model_call
@@ -317,11 +286,10 @@ async def _execute(run: Run) -> None:
             if text:
                 raise
             if re.search(r"max[_ ]?(output[_ ]?)?tokens|maximum.*tokens|too large", message, re.I):
-                # Some gateways refuse a large output limit outright; their own default is the next best thing.
+
                 await stream({})
             elif _retryable(exc, message):
-                # A big prompt makes a strong model think for a minute before the first token, and some
-                # gateways give up waiting ("the model did not start in time", 502/503/529). One more try.
+
                 run.retried = True
                 await asyncio.sleep(RETRY_PAUSE)
                 await stream({"max_tokens": MAX_OUTPUT_TOKENS})

@@ -27,7 +27,6 @@ API_TITLE = {"gmail.googleapis.com": "Gmail API", "drive.googleapis.com": "Googl
              "sheets.googleapis.com": "Google Sheets API", "tasks.googleapis.com": "Google Tasks API",
              "people.googleapis.com": "People API"}
 
-
 def _api_of(url: str) -> str:
     host = url.split("/")[2]
     if host in HOST_API:
@@ -37,7 +36,6 @@ def _api_of(url: str) -> str:
     if "/calendar/v3" in url:
         return "calendar-json.googleapis.com"
     return ""
-
 
 def disabled_error(api: str, project: str = "123") -> httpx.Response:
     url = "https://console.developers.google.com/apis/api/%s/overview?project=%s" % (api, project)
@@ -56,7 +54,6 @@ def disabled_error(api: str, project: str = "123") -> httpx.Response:
             {"@type": "type.googleapis.com/google.rpc.Help", "links": [{"description": "Google developers console API activation", "url": url}]},
         ]}})
 
-
 class Fake33(FakeApis):
     def __init__(self) -> None:
         super().__init__()
@@ -64,7 +61,7 @@ class Fake33(FakeApis):
         self.disabled: set = set()
         self.github_token = "ghp_" + "x" * 36
         self.github_scopes = "repo, workflow, gist, delete_repo"
-        self.github_403: Dict[str, str] = {}          # path → "fine" | "classic": answer 403 with the permission header
+        self.github_403: Dict[str, str] = {}
         self.repos: Dict[str, Dict[str, Any]] = {
             "me/notes": {"files": {"README.md": "# Notes\n", "docs/a.md": "A", "docs/b.md": "B"}, "default_branch": "main",
                          "private": True, "description": "My notes", "branches": {"main": "c0"}, "issues": {}, "labels": ["bug"],
@@ -87,7 +84,6 @@ class Fake33(FakeApis):
         self._pending: Dict[str, List[Dict[str, Any]]] = {}
         self._trees: Dict[str, List[Dict[str, Any]]] = {}
 
-    # ------------------------------------------------------------------ handler
     def handler(self, request: httpx.Request) -> httpx.Response:
         url = str(request.url).split("?")[0]
         self.queries.append(dict(request.url.params))
@@ -102,12 +98,11 @@ class Fake33(FakeApis):
         extra = self._google_extra(request, url)
         if extra is not None:
             return extra
-        self.queries.pop()          # the base handler records its own call; keep the two lists aligned
+        self.queries.pop()
         response = super().handler(request)
         self.queries.append(dict(request.url.params))
         return response
 
-    # ------------------------------------------------------------------ GitHub
     def _gh_json(self, status: int, data: Any, headers: Optional[Dict[str, str]] = None) -> httpx.Response:
         h = {"x-oauth-scopes": self.github_scopes} if self.github_scopes is not None else {}
         h.update(headers or {})
@@ -364,7 +359,6 @@ class Fake33(FakeApis):
         return {"full_name": full, "private": repo.get("private"), "default_branch": repo.get("default_branch", "main"),
                 "description": repo.get("description"), "html_url": "https://github.com/" + full, "visibility": "private" if repo.get("private") else "public"}
 
-    # ------------------------------------------------------------------ Google (beyond Round 30)
     def _google_extra(self, request: httpx.Request, url: str) -> Optional[httpx.Response]:
         m = request.method
         auth = request.headers.get("authorization", "")
@@ -515,7 +509,7 @@ class Fake33(FakeApis):
             return ok({"permissions": perms})
         if url == drv + "/about" and "storageQuota" in str(dict(request.url.params).get("fields")):
             return ok({"user": {"emailAddress": "me@example.com"}, "storageQuota": {"limit": str(15 * 1024 ** 3), "usage": str(3 * 1024 ** 3)}})
-        # Docs
+
         if url == "https://docs.googleapis.com/v1/documents" and m == "POST":
             return ok({"documentId": "doc1234567890", "title": body["title"]})
         dm2 = re.match(r"https://docs\.googleapis\.com/v1/documents/([^/:]+)(:batchUpdate)?$", url)
@@ -527,7 +521,7 @@ class Fake33(FakeApis):
             return ok({"title": "План", "body": {"content": [
                 {"paragraph": {"paragraphStyle": {"namedStyleType": "HEADING_1"}, "elements": [{"textRun": {"content": "План\n"}}]}},
                 {"paragraph": {"elements": [{"textRun": {"content": "Пункт один\n"}}], "bullet": {}}}]}})
-        # Sheets
+
         if url == "https://sheets.googleapis.com/v4/spreadsheets" and m == "POST":
             return ok({"spreadsheetId": "sheet1234567890", "spreadsheetUrl": "https://docs.google.com/spreadsheets/d/sheet1234567890",
                        "sheets": [{"properties": {"title": "Лист1", "sheetId": 0}}]})
@@ -550,7 +544,7 @@ class Fake33(FakeApis):
                 return ok({"range": rng, "values": self.sheet_values.get(rng, [["Имя", "Сумма"], ["Анна", "120"]])})
             if rest == ":batchUpdate":
                 return ok({"replies": [{"addSheet": {"properties": {"title": "Новый", "sheetId": 7}}}]})
-        # Tasks
+
         if url.startswith("https://tasks.googleapis.com/tasks/v1"):
             path = url[len("https://tasks.googleapis.com/tasks/v1"):]
             if path == "/users/@me/lists":
@@ -571,7 +565,7 @@ class Fake33(FakeApis):
                     return httpx.Response(204)
                 row.update(body or {})
                 return ok(row)
-        # People
+
         if url.startswith("https://people.googleapis.com/v1"):
             path = url[len("https://people.googleapis.com/v1"):]
             if path == "/people:searchContacts":

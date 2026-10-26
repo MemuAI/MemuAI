@@ -31,7 +31,6 @@ ROOT = Path(__file__).resolve().parents[1]
 TOKEN = "123456:R27-ui-lang_token-abc"
 USER = 4747
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/workspace/work/chromium/chrome",
                       "/usr/bin/chromium", shutil.which("chromium") or ""):
@@ -39,14 +38,12 @@ def _chromium() -> str:
             return candidate
     return ""
 
-
 def _has_playwright() -> bool:
     try:
         import playwright.sync_api  # noqa: F401
     except Exception:
         return False
     return True
-
 
 @unittest.skipUnless(_chromium() and _has_playwright(), "headless Chromium / playwright is not available")
 class EnglishScanTest(unittest.TestCase):
@@ -64,9 +61,8 @@ class EnglishScanTest(unittest.TestCase):
             report = json.loads(out.read_text(encoding="utf-8"))
         findings = [f"{f['product']} {f['state']} {f['where']}: {f['text']}" for f in report["findings"]]
         self.assertEqual(findings, [], "\n".join(findings))
-        # the scan itself must have reached every screen: a page error is a broken screen
-        self.assertEqual(report["errors"], [])
 
+        self.assertEqual(report["errors"], [])
 
 @unittest.skipUnless(_chromium() and _has_playwright(), "headless Chromium / playwright is not available")
 class StartScreenFitsTest(unittest.TestCase):
@@ -91,7 +87,7 @@ class StartScreenFitsTest(unittest.TestCase):
                 for nav in ("nav-code", "nav-work"):
                     page.click("#" + nav)
                     page.wait_for_timeout(1000)
-                    page.keyboard.press("Escape")       # the first-run intro
+                    page.keyboard.press("Escape")
                     page.wait_for_timeout(300)
                     state = page.evaluate("""() => { const main = document.querySelector('.main-content');
                       const chat = document.getElementById('chat').getBoundingClientRect();
@@ -103,13 +99,11 @@ class StartScreenFitsTest(unittest.TestCase):
         finally:
             servers.stop()
 
-
 def _node(script: str) -> str:
     node = shutil.which("node")
     if not node:
         raise unittest.SkipTest("node is not available")
     return subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=30, check=True).stdout
-
 
 def _js_function(path: Path, name: str) -> str:
     text = path.read_text(encoding="utf-8")
@@ -120,7 +114,6 @@ def _js_function(path: Path, name: str) -> str:
         i += 1
         if depth == 0:
             return text[start:i]
-
 
 class ProxyDurationTest(unittest.TestCase):
     def test_uptime_units_follow_language(self) -> None:
@@ -140,7 +133,6 @@ class ProxyDurationTest(unittest.TestCase):
         self.assertEqual(ru, ["1 мин 59 с", "3 ч 2 мин", "2 д 1 ч", "0 с"])
         self.assertEqual(en, ["1m 59s", "3h 2m", "2d 1h", "0s"])
 
-
 class DfyVaultNoteTest(unittest.TestCase):
     def test_note_has_english_twin(self) -> None:
         from app import dfy_vault
@@ -153,7 +145,6 @@ class DfyVaultNoteTest(unittest.TestCase):
             self.assertNotRegex(info["note_en"], "[А-Яа-яЁё]")
         script = (ROOT / "app" / "pgstatic" / "dfy-settings.js").read_text(encoding="utf-8")
         self.assertIn("note_en", script)
-
 
 class SpellcheckLanguageTest(unittest.TestCase):
     def test_unavailable_reasons_have_english(self) -> None:
@@ -170,7 +161,6 @@ class SpellcheckLanguageTest(unittest.TestCase):
             result = spellcheck.add_word("   ")
         self.assertFalse(result["ok"])
         self.assertEqual(result["reason_en"], "Empty word")
-
 
 class TunnelStatusEnglishTest(unittest.TestCase):
     """The Mini App tunnel status («cloudflared не скачан: …») reached the English window in Russian."""
@@ -194,13 +184,12 @@ class TunnelStatusEnglishTest(unittest.TestCase):
             self.assertRegex(text, "[А-Яа-я]")
             self.assertNotRegex(tg_webapp.status_en(text), "[А-Яа-яЁё«»]", text)
         self.assertEqual(tg_webapp.status_en("ERR failed to dial: timeout"), "ERR failed to dial: timeout")
-        # every Russian literal of the tunnel's status code paths is covered by the table
+
         source = (ROOT / "app" / "tg_webapp.py").read_text(encoding="utf-8")
         self.assertIn('"error_en": status_en(self.error)', source)
         script = (ROOT / "app" / "pgstatic" / "tgapp-settings.js").read_text(encoding="utf-8")
         self.assertNotRegex(script, r"esc\(status\.(error|detail)\)")
         self.assertTrue(re.search(r'statusText\(status, "error"\)', script))
-
 
 class NetworkErrorTextTest(unittest.TestCase):
     """An account card showed «сеть недоступна: ConnectionError: Failed to perform, curl: (7) … See
@@ -229,7 +218,6 @@ class NetworkErrorTextTest(unittest.TestCase):
         self.assertIsNone(ok)
         self.assertEqual(message, "сеть недоступна: Could not connect")
 
-
 class VoiceLanguagesRussianTest(unittest.TestCase):
     """The voice model cards showed «◎ English · US», «99+ languages» and «〽 Streaming» in the Russian UI."""
 
@@ -244,7 +232,6 @@ class VoiceLanguagesRussianTest(unittest.TestCase):
         self.assertNotIn("${esc(m.languages)}", source)
         self.assertNotIn("<span>〽 Streaming</span>", source)
 
-
 class InternalPromptNamesTest(unittest.TestCase):
     def test_every_internal_prompt_has_russian_name(self) -> None:
         from app import pgdata
@@ -252,7 +239,6 @@ class InternalPromptNamesTest(unittest.TestCase):
             self.assertTrue(row.get("name"), row["id"])
             self.assertRegex(row.get("name_ru") or "", "[А-Яа-я]", row["id"])
         self.assertTrue(all(item.get("name_ru") for item in pgdata.builtin_prompt_set()["internal_prompts"]))
-
 
 class MiniAppLanguageTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -281,7 +267,7 @@ class MiniAppLanguageTest(unittest.TestCase):
         panels.update_settings({"lang": "ru"})
         self.assertEqual(self.api("settings.save", {"values": {"language": "en"}}).status_code, 200)
         self.assertEqual(panels.load()["settings"]["lang"], "en")
-        # the chat bot stays Russian (telegram_language) — the Mini App list follows the Mini App
+
         rows = self.api("panels.list").json()["panels"]
         weather = [row for row in rows if row["kind"] == "weather"]
         self.assertTrue(weather)
@@ -309,7 +295,6 @@ class MiniAppLanguageTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             for match in re.finditer(r"ApiError\((\d+),\s*([^,]+),\s*(f?\"[^\"]*\")\s*\)", text):
                 self.assertNotRegex(match.group(3), "[А-Яа-я]", f"{path.name}: {match.group(0)}")
-
 
 if __name__ == "__main__":
     unittest.main()

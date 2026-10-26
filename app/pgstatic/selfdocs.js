@@ -1,14 +1,5 @@
-/* MemuAI знает сама себя: упоминание статей документации и чтение их моделью.
- *
- * «@!» в поле ввода открывает список статей; выбранная вставляется как @!id. При отправке текст
- * упомянутых статей прикладывается к запросу, так что модель отвечает по документации, а не по
- * памяти. Модель тоже может написать @!id — в сообщении это становится кнопкой, открывающей
- * статью в «Настройки → Документация».
- *
- * Читать статьи сама (инструменты docs_search и docs_read) модель может, только пока включён
- * встроенный скилл «Справка по MemuAI»: он и описывает ей эти запросы. Скилл можно выключить
- * или отредактировать в «Скиллы ИИ» — тогда остаются только ручные упоминания.
- */
+
+
 "use strict";
 const MemuSelfDocs = (() => {
   const SKILL_ID = "memuai_guide";
@@ -29,7 +20,7 @@ const MemuSelfDocs = (() => {
         state.pages = pages;
         state.byId = new Map(pages.map((page) => [page.id, page]));
         state.lang = lang;
-      } catch (error) { /* документации нет — упоминания просто остаются текстом */ }
+      } catch (error) {  }
       state.loading = null;
       return state.pages;
     })();
@@ -39,8 +30,6 @@ const MemuSelfDocs = (() => {
   const known = (id) => state.byId.has(id);
   const enabled = () => typeof getSkills === "function" && getSkills().some((skill) => skill.id === SKILL_ID && skill.enabled);
 
-  /* ------------------------------------------------------------ поле ввода */
-  /** Rows for the composer menu while the text ends with "@!…", or null when it does not. */
   function rows(value) {
     const match = String(value || "").match(/(?:^|\s)@!([\p{L}\d-]*)$/u);
     if (!match) return null;
@@ -55,7 +44,6 @@ const MemuSelfDocs = (() => {
     return scored.slice(0, 9).map(([, page]) => [`@!${page.id}`, page.title, page.summary || page.group, false, "doc"]);
   }
 
-  /** Ids of the known articles mentioned in a text, in order, without repeats. */
   function mentions(text) {
     const found = [];
     for (const match of String(text || "").matchAll(/(?:^|[\s(>«"'])@!([a-z0-9][a-z0-9-]{0,63})/g)) {
@@ -64,8 +52,6 @@ const MemuSelfDocs = (() => {
     return found;
   }
 
-  /* ------------------------------------------------------------ запрос */
-  /** The mentioned articles as a context block for the request ("" when there are none). */
   async function mentionContext(text) {
     await load();
     const ids = mentions(text).slice(0, MAX_MENTIONS);
@@ -77,7 +63,7 @@ const MemuSelfDocs = (() => {
         const page = await api(`/api/pg/docs/page?lang=${lang}&id=${encodeURIComponent(id)}`);
         const body = String(page.body || "");
         parts.push(`<article id="${id}" title="${String(page.title || id).replace(/"/g, "'")}">\n${body.slice(0, MAX_CHARS)}${body.length > MAX_CHARS ? "\n[…the article continues; call docs_read with a section for the rest…]" : ""}\n</article>`);
-      } catch (error) { /* статья исчезла — пропускаем */ }
+      } catch (error) {  }
     }
     if (!parts.length) return "";
     return "<memuai_documentation>\nThe user pointed at these articles of the MemuAI documentation with @!mentions. They are the authoritative description " +
@@ -85,7 +71,6 @@ const MemuSelfDocs = (() => {
       parts.join("\n") + "\n</memuai_documentation>";
   }
 
-  /** What the enabled skill adds to the system prompt: its instructions and the list of articles. */
   function systemBlock() {
     if (!enabled() || !state.pages.length) return "";
     const skill = getSkills().find((item) => item.id === SKILL_ID);
@@ -93,8 +78,6 @@ const MemuSelfDocs = (() => {
     return "<memuai_guide>\n" + String(skill.prompt || "").trim() + "\n\n<documentation_index>\n" + index + "\n</documentation_index>\n</memuai_guide>";
   }
 
-  /* ------------------------------------------------------------ показ */
-  /** "@!id" in rendered text becomes a button that opens the article. Code is left alone. */
   function chips(html) {
     if (!state.pages.length || html.indexOf("@!") < 0) return html;
     return html.split(/(<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>|<a\b[\s\S]*?<\/a>|<[^>]+>)/).map((part, index) => (index % 2 ? part
@@ -117,7 +100,6 @@ const MemuSelfDocs = (() => {
     get pages() { return state.pages; } };
 })();
 
-/* Подключение к окну: список «@!» в меню поля ввода и кнопки статей в сообщениях. */
 (() => {
   const baseMatches = slashMatches;
   slashMatches = function () {

@@ -106,19 +106,19 @@ async def check():
         assert state["title"] == "Allowed page", state
         assert "/positive-asset" in allowed_hits, allowed_hits
         assert private_hits == [], ("subresources crossed boundary", private_hits)
-        # Commands run concurrently while the receiver dispatches request events.
+
         values = await asyncio.gather(*[
             edge.command("Runtime.evaluate", {
                 "expression": "fetch('/positive-data').then(r=>r.text())",
                 "awaitPromise": True, "returnByValue": True,
             }) for _ in range(4)])
         assert all(value["result"]["value"] == "LOCAL_OK" for value in values), values
-        # An actual clicked link gets the same network policy as navigate().
+
         link = next(item for item in state["elements"] if item["tag"] == "a")
         await edge.perform({"action": "click", "element": link["id"]})
         assert private_hits == [], ("click crossed boundary", private_hits)
         await edge.navigate(allowed_url + "/assets")
-        # Force a user gesture so the popup test exercises CDP, not popup blocking.
+
         await edge.command("Runtime.evaluate", {
             "expression": f"window.open({json.dumps(private_url + '/popup-target')},'_blank')",
             "userGesture": True,
@@ -155,7 +155,6 @@ async def check():
     finally:
         await edge.close_browser()
 
-    # Startup failure must clean the process/profile even after CDP connects.
     failed = TrackedEdge()
     captured = []
     async def fail_protection(session_id):
@@ -170,7 +169,6 @@ async def check():
     assert captured and captured[0][0].poll() is not None and not captured[0][1].exists(), "startup failure leaked browser/profile"
     assert failed.socket is None and not failed._pending, "startup failure leaked CDP"
 
-    # Cancel during CDP discovery, before a websocket receiver exists.
     launching = TrackedEdge()
     discovery = threading.Event()
     release_discovery = threading.Event()
@@ -194,7 +192,6 @@ async def check():
         assert isinstance(result[0], asyncio.CancelledError), result
         assert process.poll() is not None and not profile.exists(), "startup cancellation leaked browser/profile"
 
-    # Cancel a pending main-document load and its intercepted response.
     running = TrackedEdge()
     await running.start()
     process, profile = running.process, running.profile
@@ -209,8 +206,7 @@ async def check():
     await asyncio.gather(navigation, return_exceptions=True)
     assert process.poll() is not None and not profile.exists(), "navigation cancellation leaked browser/profile"
     assert running.socket is None and not running._pending and not running._event_tasks, "navigation cancellation leaked CDP"
-    # Interrupt the caller after cleanup has taken ownership of the profile;
-    # cleanup must finish and a second caller must await that same work.
+
     closing = TrackedEdge()
     await closing.start()
     process, profile = closing.process, closing.profile

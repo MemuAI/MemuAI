@@ -21,7 +21,6 @@ PDFEDIT = STATIC / "js" / "pdfedit.js"
 CHROME = next((p for p in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome")
                if p and os.path.exists(p)), "")
 
-# API used by the vendored pdf.js  ->  how polyfills.mjs installs it
 COVERED = {
     ".toHex(": 'define(Uint8Array.prototype, "toHex"',
     ".toBase64(": 'define(Uint8Array.prototype, "toBase64"',
@@ -39,7 +38,6 @@ COVERED = {
     "Iterator.prototype": "G.Iterator",
     "for await": "Symbol.asyncIterator",
 }
-
 
 class StaticWiringTest(unittest.TestCase):
     def test_polyfills_load_before_pdfjs_in_the_page(self) -> None:
@@ -61,13 +59,13 @@ class StaticWiringTest(unittest.TestCase):
 
     def test_polyfills_cover_every_modern_api_vendor_uses(self) -> None:
         poly = (PDFJS / "polyfills.mjs").read_text(encoding="utf-8")
-        self.assertNotRegex(poly, r"(?m)^\s*(import|export)\b")   # side-effect only, no dependencies
+        self.assertNotRegex(poly, r"(?m)^\s*(import|export)\b")
         vendor = (PDFJS / "pdf.min.mjs").read_text(encoding="utf-8") + (PDFJS / "pdf.worker.min.mjs").read_text(encoding="utf-8")
         for api, marker in COVERED.items():
             with self.subTest(api=api):
                 if api in vendor:
                     self.assertIn(marker, poly)
-        # every shim is conditional: native implementations win
+
         self.assertIn('typeof target[name] !== "function"', poly)
 
     def test_vendor_files_untouched(self) -> None:
@@ -75,7 +73,6 @@ class StaticWiringTest(unittest.TestCase):
             text = (PDFJS / name).read_text(encoding="utf-8")
             self.assertNotIn("MemuNote", text)
             self.assertNotIn("polyfills", text)
-
 
 def _tiny_pdf(pages) -> bytes:
     """A valid PDF with one Helvetica page per list of ASCII lines, xref offsets computed."""
@@ -99,8 +96,6 @@ def _tiny_pdf(pages) -> bytes:
     out += f"trailer\n<< /Size {len(objs) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
     return bytes(out)
 
-
-# Built in the page with the bundled pdf-lib: an image PDF (PNG with alpha) and a form PDF (text field + checkbox).
 _MAKE_PDFS = """async () => {
   const L = await import('./vendor/pdflib/pdflib.js');
   const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
@@ -123,7 +118,6 @@ _STATE = """() => { const v = [...document.querySelectorAll('.pdf-scroll')].find
            canvases: v.querySelectorAll('.pdf-page-box canvas').length,
            text: [...v.querySelectorAll('.textLayer')].map((t) => t.textContent).join(' ') }; }"""
 
-
 @unittest.skipUnless(CHROME, "Chromium not available")
 class BrowserPdfTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -134,7 +128,7 @@ class BrowserPdfTest(unittest.TestCase):
         self.tmp = tempfile.TemporaryDirectory(prefix="r34pdf-")
         self.dir = Path(self.tmp.name)
         self._data = os.environ.get("MEMUAI_DATA_DIR")
-        os.environ["MEMUAI_DATA_DIR"] = str(self.dir / "data")   # no restored session tabs
+        os.environ["MEMUAI_DATA_DIR"] = str(self.dir / "data")
         self.servers = []
 
     def tearDown(self) -> None:
@@ -203,12 +197,12 @@ class BrowserPdfTest(unittest.TestCase):
                 pg.on("console", lambda m: m.type == "error" and errors.append(m.text))
                 pg.on("pageerror", lambda e: errors.append(str(e)))
                 pg.goto(self._serve([self.dir / n for n in names]))
-                # boot opens the files one by one, each activated: wait until the last one is active
+
                 pg.wait_for_selector(f".tab.active[title$='{names[-1]}']", timeout=20000)
                 states = {}
                 for name in names:
                     st = None
-                    for _ in range(80):   # wait_for_function would need 'unsafe-eval' (MemuNote's CSP forbids it)
+                    for _ in range(80):
                         if not pg.locator(f".tab.active[title$='{name}']").count():
                             pg.locator(f".tab[title$='{name}']").dispatch_event("pointerdown", {"button": 0})
                         else:
@@ -221,13 +215,12 @@ class BrowserPdfTest(unittest.TestCase):
                 b.close()
         for name, st in states.items():
             with self.subTest(pdf=name):
-                self.assertIsNone(st["loading"], st["loading"])   # no "Не удалось открыть PDF: a.toHex is not a function"
+                self.assertIsNone(st["loading"], st["loading"])
                 self.assertGreater(st["canvases"], 0)
         self.assertEqual(states["multipage.pdf"]["pages"], 6)
         self.assertIn("Hello MemuNote PDF", states["simple.pdf"]["text"])
         self.assertIn("Form page", states["forms.pdf"]["text"])
         self.assertFalse([e for e in errors if "toHex" in e or "is not a function" in e or "pdf" in e.lower()], errors)
-
 
 if __name__ == "__main__":
     unittest.main()

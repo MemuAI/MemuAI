@@ -1,5 +1,5 @@
-/* Small, accessible chat audio player. The audio element and controls survive
- * streaming rerenders, including identical clips in different messages. */
+
+
 "use strict";
 const MemuVoicePlayer = (() => {
   const mounted = new WeakSet();
@@ -58,7 +58,7 @@ const MemuVoicePlayer = (() => {
     const byMime = {"audio/mpeg":"mp3","audio/mp3":"mp3","audio/ogg":"ogg","audio/webm":"webm","audio/mp4":"m4a","audio/flac":"flac"};
     const mime = blob.type.split(";")[0] || root.dataset.mime.split(";")[0];
     const name = "MemuAI-voice." + (url.pathname.match(/\.(wav|mp3|ogg|webm|m4a|flac)$/)?.[1] || byMime[mime] || "wav");
-    // WebView2 ignores anchor downloads. Existing exports use this file bridge.
+
     const saved = await saveToDownloads({url:data,name});
     if (!current()) return;
     if (!saved?.ok) throw new Error(language() ? "Could not save audio" : "Не удалось сохранить аудио");

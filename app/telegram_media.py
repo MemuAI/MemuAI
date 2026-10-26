@@ -30,39 +30,34 @@ TEXT_EXTENSIONS = (
     ".java", ".kt", ".go", ".rs", ".php", ".rb", ".srt", ".vtt", ".env", ".cs",
     ".swift", ".lua", ".r", ".m", ".scala", ".dart", ".vue", ".svelte", ".tex",
 )
-# Bot API downloads at most 20 MB; images are passed to models as data URLs.
+
 MAX_DOWNLOAD_BYTES = 20 * 1024 * 1024
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 MAX_ATTACHMENT_CHARS = 30000
 MAX_VOICE_SECONDS = 15 * 60
 
-
 class AttachmentTooLarge(Exception):
     pass
 
-
 @dataclass
 class Attachments:
-    notes: List[str] = field(default_factory=list)       # text added to the prompt
-    images: List[str] = field(default_factory=list)      # data URLs for vision models
-    files: List[Dict[str, Any]] = field(default_factory=list)  # stored in the MemuAI chat
-    transcript: str = ""                                  # recognised voice message
-    voice: bool = False                                   # the user spoke (voice/video note)
-    errors: List[str] = field(default_factory=list)       # user-facing problems
-    bigdocs: List[Dict[str, Any]] = field(default_factory=list)  # Round 35: big documents kept whole (bigdocs_telegram)
+    notes: List[str] = field(default_factory=list)
+    images: List[str] = field(default_factory=list)
+    files: List[Dict[str, Any]] = field(default_factory=list)
+    transcript: str = ""
+    voice: bool = False
+    errors: List[str] = field(default_factory=list)
+    bigdocs: List[Dict[str, Any]] = field(default_factory=list)
 
     @property
     def text(self) -> str:
         return "\n\n".join(self.notes)
 
-
 def _tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
 
-
 def _data_url(mime: str, blob: bytes) -> str:
     return f"data:{mime or 'application/octet-stream'};base64," + base64.b64encode(blob).decode("ascii")
-
 
 def extract_document_text(name: str, mime: str, blob: bytes) -> str:
     """Text of a document (same formats the desktop extracts); '' when binary."""
@@ -92,7 +87,6 @@ def extract_document_text(name: str, mime: str, blob: bytes) -> str:
                 continue
     return ""
 
-
 async def _download(api: BotApi, file_id: str, declared: Any, limit: int) -> bytes:
     try:
         size = int(declared or 0)
@@ -112,7 +106,6 @@ async def _download(api: BotApi, file_id: str, declared: Any, limit: int) -> byt
     except OverflowError:
         raise AttachmentTooLarge() from None
 
-
 async def collect(api: BotApi, message: Dict[str, Any], prefs: Dict[str, Any],
                   lang: str) -> Attachments:
     """Turn Telegram attachments into prompt text, images and MemuAI files."""
@@ -126,7 +119,7 @@ async def collect(api: BotApi, message: Dict[str, Any], prefs: Dict[str, Any],
             if blob:
                 url = _data_url("image/jpeg", blob)
                 result.images.append(url)
-                # The literal name is part of the stored chat contract.
+
                 result.files.append({"name": "telegram-photo.jpg", "data": url})
                 result.notes.append(_tr(lang, "[К сообщению приложено изображение.]",
                                         "[An image is attached to this message.]"))
@@ -164,7 +157,6 @@ async def collect(api: BotApi, message: Dict[str, Any], prefs: Dict[str, Any],
         result.errors.append(text)
     return result
 
-
 async def _document(api: BotApi, document: Dict[str, Any], result: Attachments, lang: str) -> None:
     name = str(document.get("file_name") or "file")[:200]
     mime = str(document.get("mime_type") or "")
@@ -179,9 +171,7 @@ async def _document(api: BotApi, document: Dict[str, Any], result: Attachments, 
         result.files.append({"name": name, "data": url})
         result.notes.append(_tr(lang, f"[Приложено изображение {name}.]", f"[Image {name} is attached.]"))
         return
-    # Round 35 (bigdocs): PDF / DOCX / EPUB / long texts are read WHOLE with page numbers (before: the first 30 000
-    # characters, a PDF — its first 80 pages). A small one still goes into the prompt; a big one becomes the chat's
-    # active document (questions get the fragments found, «Весь документ» — map-reduce).
+
     taken = None
     try:
         from . import bigdocs_telegram
@@ -212,7 +202,7 @@ async def _document(api: BotApi, document: Dict[str, Any], result: Attachments, 
         if truncated:
             note += _tr(lang, f" (показаны первые {MAX_ATTACHMENT_CHARS} символов)",
                         f" (first {MAX_ATTACHMENT_CHARS} characters)")
-        # The file is untrusted reference data, never instructions.
+
         result.notes.append(note + "\n<untrusted_file>\n" + body + "\n</untrusted_file>")
     elif name.lower().endswith(".pdf"):
         result.notes.append(_tr(lang, f"[PDF {name} приложен, но текст из него не извлечён (скан или нет pypdf).]",
@@ -221,12 +211,8 @@ async def _document(api: BotApi, document: Dict[str, Any], result: Attachments, 
         result.notes.append(_tr(lang, f"[Файл {name} ({mime or '?'}) приложен, но его содержимое не текстовое.]",
                                 f"[File {name} ({mime or '?'}) is attached but is not text.]"))
 
-
-# ----------------------------------------------------------------- speech
-
 _runtime_lock = threading.Lock()
 _runtime: Any = None
-
 
 def voice_runtime(prefs: Dict[str, Any]) -> Any:
     """One shared VoiceRuntime for this process (the Whisper model is cached)."""
@@ -248,20 +234,17 @@ def voice_runtime(prefs: Dict[str, Any]) -> Any:
             pass
         return _runtime
 
-
 async def transcribe(audio: bytes, mime: str, prefs: Dict[str, Any], lang: str = "ru") -> str:
     runtime = await asyncio.to_thread(voice_runtime, prefs)
     language = str(prefs.get("voice_language") or "auto")
     if prefs.get("voice_stt_provider") == "api":
-        # lang — язык бота: иначе английский пользователь получал
-        # «Could not transcribe the voice message: Не удалось подключиться…».
+
         return await runtime.transcribe_api(
             audio, mime, base_url=prefs.get("voice_stt_api_url", ""),
             api_key=prefs.get("voice_stt_api_key", ""),
             model=prefs.get("voice_stt_api_model", "gpt-4o-mini-transcribe"), language=language, lang=lang)
     return await asyncio.to_thread(runtime.transcribe_local, audio, mime,
                                    prefs.get("voice_stt_local_model", "small"), language)
-
 
 async def _voice(api: BotApi, voice: Dict[str, Any], result: Attachments, prefs: Dict[str, Any],
                  lang: str, *, spoken: bool) -> None:
@@ -280,7 +263,7 @@ async def _voice(api: BotApi, voice: Dict[str, Any], result: Attachments, prefs:
     if not blob:
         return
     mime = str(voice.get("mime_type") or ("audio/ogg" if voice.get("duration") is not None else "audio/mpeg"))
-    if "video" in mime or voice.get("length"):   # video notes are mp4
+    if "video" in mime or voice.get("length"):
         mime = "audio/mp4"
     try:
         text = (await transcribe(blob, mime, prefs, lang)).strip()
@@ -300,14 +283,12 @@ async def _voice(api: BotApi, voice: Dict[str, Any], result: Attachments, prefs:
         result.notes.append(_tr(lang, "[Голосовое сообщение не расшифровано.]",
                                 "[The voice message could not be transcribed.]"))
 
-
 def tts_available(prefs: Dict[str, Any]) -> bool:
     provider = str(prefs.get("voice_tts_provider") or "windows")
     if provider in ("api", "local", "downloaded"):
         return True
     import os
     return os.name == "nt"
-
 
 async def synthesize(text: str, prefs: Dict[str, Any]) -> Tuple[bytes, str]:
     """Speech for ``text`` with the user's MemuAI TTS settings → (audio, mime)."""
@@ -341,7 +322,6 @@ async def synthesize(text: str, prefs: Dict[str, Any]) -> Tuple[bytes, str]:
     return await asyncio.to_thread(runtime.speak_windows, spoken, voice_name,
                                    int(prefs.get("voice_tts_rate", 0) or 0),
                                    int(prefs.get("voice_tts_volume", 100) or 100))
-
 
 async def send_speech(api: BotApi, chat_id: str, audio: bytes, mime: str, *,
                       reply_to: int = 0, caption: str = "") -> None:

@@ -22,12 +22,10 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r29prompts-tes
 APP_JS = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
 NODE = shutil.which("node")
 
-
 def _mem_prompt() -> str:
     start = APP_JS.index("const MEM_PROMPT = `") + len("const MEM_PROMPT = `")
     end = APP_JS.index("</internal_protocols>`;", start)
     return APP_JS[start:end].replace("\\`", "`") + "</internal_protocols>"
-
 
 class DefaultPromptTest(unittest.TestCase):
     def test_tool_use_rules_in_both_copies(self) -> None:
@@ -36,7 +34,7 @@ class DefaultPromptTest(unittest.TestCase):
             self.assertIn("<tool_use>", text)
             self.assertIn("call it in this same reply", text)
             self.assertIn("answer directly", text)
-            # the exact hidden block a weak model has to copy, not a description of it
+
             self.assertIn('```memuai-tool\n[{"tool":"disk_space","args":{}}]\n```', text)
             self.assertIn("search with web tools first", text)
             self.assertIn("Before you finish any answer, check both", text)
@@ -51,7 +49,6 @@ class DefaultPromptTest(unittest.TestCase):
         block = APP_JS[APP_JS.index("const WEB_TOOLS_PROMPT = `"):APP_JS.index("</web_tools>`;")]
         self.assertIn("Search FIRST", block)
         self.assertIn("```memuai-tool", block.replace("\\`", "`"))
-
 
 class InternalPromptsWiredTest(unittest.TestCase):
     """Internal prompts shown in Settings → System prompts must actually reach the model."""
@@ -73,7 +70,6 @@ class InternalPromptsWiredTest(unittest.TestCase):
         self.assertIn("complete only with evidence", pgdata.internal_prompt("work-goal"))
         plan = pgdata.internal_prompt("work-plan-execution")
         self.assertIn('{"step":1,"status":"complete|blocked","evidence":"..."}', plan)
-
 
 @unittest.skipUnless(NODE, "node is required")
 class BareToolCallsTest(unittest.TestCase):
@@ -98,7 +94,6 @@ class BareToolCallsTest(unittest.TestCase):
                      '[{"tool":"disk space","args":{}}]', '```python\n[{"tool":"x1","args":{}}]\n```'):
             self.assertEqual(self._calls(text), [], text)
 
-
 class GenderNeutralMemoryTest(unittest.TestCase):
     """A tester saw facts like «У него есть кот»: every memory-writing prompt asks for gender-neutral wording."""
 
@@ -115,7 +110,6 @@ class GenderNeutralMemoryTest(unittest.TestCase):
         self.assertIn("Do not assume the user's gender", APP_JS)
         self.assertIn("Не угадывай пол", APP_JS)
 
-
 class CliPromptTest(unittest.TestCase):
     def test_persistence_and_tool_judgement(self) -> None:
         from app.cli import prompts
@@ -127,7 +121,6 @@ class CliPromptTest(unittest.TestCase):
         from app import work_agents
         self.assertIn("Carry the whole assignment through", work_agents.SYSTEM_PROMPT)
         self.assertIn("```memuai-tool", work_agents.SYSTEM_PROMPT)
-
 
 if __name__ == "__main__":
     unittest.main()

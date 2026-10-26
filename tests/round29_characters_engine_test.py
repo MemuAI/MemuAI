@@ -181,7 +181,6 @@ assert.ok(E.estimateTokens('The quick brown fox jumps over the lazy dog.') >= 9 
 process.stdout.write(JSON.stringify(out));
 """
 
-
 @unittest.skipUnless(shutil.which("node"), "node is required")
 class CharactersEngineTest(unittest.TestCase):
     def test_engine(self):
@@ -206,7 +205,6 @@ class CharactersEngineTest(unittest.TestCase):
                 self.assertNotIn(junk, data, row["id"])
             self.assertTrue(data["prompts"] and data["prompt_order"], row["id"])
             self.assertFalse(any("[А-Яа-я]" in ch for ch in row["name_en"]))
-
 
 if __name__ == "__main__":
     unittest.main()

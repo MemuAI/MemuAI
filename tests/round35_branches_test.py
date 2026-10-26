@@ -36,25 +36,21 @@ PG = ROOT / "app" / "pgstatic"
 BRANCHES_JS = PG / "branches.js"
 NODE = shutil.which("node")
 
-
 def M(role, content, at=0, **extra):
     row = {"role": role, "content": content, "createdAt": 1_700_000_000_000 + at}
     row.update(extra)
     return row
 
-
 def contents(chat):
     return [m["content"] for m in chat["messages"]]
-
 
 def sample():
     chat = {"id": "c1", "messages": [M("user", "q1", 1), M("assistant", "a1", 2), M("user", "q2", 3), M("assistant", "a2", 4)]}
     T.begin_version(chat, 3)
-    chat["messages"].append(M("assistant", "a2b", 5))           # regenerate a2
+    chat["messages"].append(M("assistant", "a2b", 5))
     T.begin_version(chat, 0)
-    chat["messages"] += [M("user", "q1x", 6), M("assistant", "a1x", 7)]   # edit q1 → a new branch
+    chat["messages"] += [M("user", "q1x", 6), M("assistant", "a1x", 7)]
     return chat
-
 
 class PythonTreeTest(unittest.TestCase):
     def test_old_chat_untouched(self):
@@ -63,7 +59,7 @@ class PythonTreeTest(unittest.TestCase):
         self.assertFalse(T.normalize(chat))
         self.assertEqual(T.info(chat), {})
         self.assertEqual(T.stats(chat), {"forks": 0, "versions": 0, "hidden": 0})
-        self.assertEqual(chat, before)                       # no ids, no branches field — lazy migration
+        self.assertEqual(chat, before)
         self.assertIs(T.active_path(chat), chat["messages"])
 
     def test_regenerate_edit_switch_reveal(self):
@@ -77,13 +73,13 @@ class PythonTreeTest(unittest.TestCase):
         self.assertEqual(info[3]["cur"], 1)
         self.assertTrue(T.switch_to(chat, info[3]["key"], 0))
         self.assertEqual(contents(chat), ["q1", "a1", "q2", "a2"])
-        self.assertFalse(T.switch_to(chat, info[3]["key"], 0))  # already there
-        self.assertFalse(T.switch_to(chat, info[3]["key"], 7))  # out of range
-        # switching the outer fork away and back keeps the inner choice
+        self.assertFalse(T.switch_to(chat, info[3]["key"], 0))
+        self.assertFalse(T.switch_to(chat, info[3]["key"], 7))
+
         T.switch_to(chat, T.ROOT, 1)
         T.switch_to(chat, T.ROOT, 0)
         self.assertEqual(contents(chat), ["q1", "a1", "q2", "a2"])
-        # reveal a message that sits inside an inactive version of an inactive branch
+
         T.switch_to(chat, T.ROOT, 1)
         a2b = next(r["m"] for r in T.inactive_messages(chat) if r["m"]["content"] == "a2b")
         self.assertTrue(T.reveal(chat, a2b["id"]))
@@ -95,12 +91,12 @@ class PythonTreeTest(unittest.TestCase):
 
     def test_normalize_emptied_and_orphaned(self):
         chat = sample()
-        # deleting the only message of the active version shows the neighbouring one
+
         chat["messages"].pop()
         chat["messages"].pop()
         self.assertTrue(T.normalize(chat))
         self.assertEqual(contents(chat), ["q1", "a1", "q2", "a2b"])
-        # deleting a fork key orphans its versions → dropped, the chat becomes linear again
+
         del chat["messages"][2]
         self.assertTrue(T.normalize(chat))
         self.assertNotIn("branches", chat)
@@ -111,7 +107,7 @@ class PythonTreeTest(unittest.TestCase):
         self.assertEqual(T.begin_version(chat, 1), "")
         self.assertNotIn("branches", chat)
         chat = {"messages": [M("user", "q"), M("user", "continue", internal=True)]}
-        self.assertEqual(T.begin_version(chat, 1), "")      # internal-only suffix is not a version
+        self.assertEqual(T.begin_version(chat, 1), "")
 
     def test_fork_off(self):
         chat = sample()
@@ -132,13 +128,11 @@ class PythonTreeTest(unittest.TestCase):
         self.assertEqual(fork["sel"], T.MAX_ALTS - 1)
         self.assertIsNone(fork["alts"][fork["sel"]]["m"])
 
-
 def run_node(script: str):
     out = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=30)
     if out.returncode:
         raise AssertionError(out.stderr)
     return json.loads(out.stdout)
-
 
 @unittest.skipUnless(NODE, "node is not installed")
 class JsCoreTest(unittest.TestCase):
@@ -174,7 +168,7 @@ console.log(JSON.stringify(out));""")
         self.assertEqual(got["tree"], ["fork"])
         self.assertEqual(got["forkAlts"], [[True, 4], [False, 2]])
         self.assertTrue(got["norm"])
-        self.assertEqual(got["normed"], "q1,a1,q2,a2")         # emptied version → the neighbouring one
+        self.assertEqual(got["normed"], "q1,a1,q2,a2")
         self.assertFalse(got["plainNorm"])
         self.assertEqual(got["plainKeys"], ["messages"])
         self.assertEqual(got["nothing"], "")
@@ -192,8 +186,7 @@ console.log(JSON.stringify({{ info: info.map(([i, v]) => [i, v.n, v.cur]), chat 
         back = got["chat"]
         self.assertEqual(contents(back), ["q1", "a1", "q2", "a2b"])
         self.assertEqual(T.info(back)[3]["n"], 2)
-        self.assertFalse(T.normalize(back))                 # JS left a consistent tree
-
+        self.assertFalse(T.normalize(back))
 
 class TelegramTest(unittest.TestCase):
     def setUp(self):
@@ -213,16 +206,16 @@ class TelegramTest(unittest.TestCase):
         self.assertEqual(contents(saved), ["q", "new"])
         self.assertEqual(tb._last_turn_versions(saved)[1:], (1, 2))
         self.assertEqual(tb._predicted_versions(saved, True, False), (2, 3))
-        # edited prompt → a branch at the question
+
         self.assertTrue(tb._persist_turn("default", saved, {"role": "user", "content": "q2", "createdAt": 4},
                                          {"role": "assistant", "content": "ans2", "createdAt": 4}, False, True))
         saved = next(c for c in self.pgdata.load_chats() if c["id"] == "tg-1")
         self.assertEqual(contents(saved), ["q2", "ans2"])
         self.assertEqual(T.info(saved)[0]["n"], 2)
-        # ◀ switches the last turn's fork; the chat in MemuAI follows
+
         back = tb._switch_version("default", "tg-1", -1)
         self.assertEqual(contents(back), ["q", "new"])
-        # now the last turn's own fork is the answer's (old / new): ◀ goes to the old answer, then nothing further
+
         self.assertEqual(contents(tb._switch_version("default", "tg-1", -1)), ["q", "old"])
         self.assertIsNone(tb._switch_version("default", "tg-1", -1))
         kb = tb._answer_keyboard({}, "tg-1", "m", None, temp=False, tts=False, versions=(1, 3))
@@ -232,7 +225,6 @@ class TelegramTest(unittest.TestCase):
         self.assertIn("ver:tg-1:-1", datas)
         kb = tb._answer_keyboard({}, "tg-1", "m", None, temp=True, tts=False, versions=(1, 3))
         self.assertNotIn("версия 2/3", [b["text"] for row in kb["inline_keyboard"] for b in row])
-
 
 class MiniAppTest(unittest.TestCase):
     def test_regenerate_keeps_version(self):
@@ -256,7 +248,6 @@ class MiniAppTest(unittest.TestCase):
         self.assertIn('api("chats.version"', js)
         self.assertIn("versionsHtml(C, m)", js)
 
-
 class SearchTest(unittest.TestCase):
     def test_other_versions_indexed(self):
         from app import search_index as si
@@ -266,7 +257,7 @@ class SearchTest(unittest.TestCase):
         other = [d for d in docs if d.key.startswith("msgv:")]
         texts = {d.text for d in other}
         self.assertTrue({"q1", "a1", "q2", "a2b"} <= texts)
-        self.assertNotIn("q1x", texts)                       # the active one is a normal hit
+        self.assertNotIn("q1x", texts)
         hit = next(d for d in other if d.text == "a2b")
         self.assertEqual(hit.meta["branch"], "other")
         self.assertEqual(hit.open["branch"], "other")
@@ -275,18 +266,17 @@ class SearchTest(unittest.TestCase):
         self.assertTrue(si._branch_sig(chat))
         self.assertEqual(si._branch_sig({"messages": []}), "")
 
-
 class StaticWiringTest(unittest.TestCase):
     def test_wiring(self):
         html = (PG / "index.html").read_text(encoding="utf-8")
         self.assertLess(html.index("/branches.js"), html.index("/app.js"))
         self.assertIn("/branches.css", html)
         app = (PG / "app.js").read_text(encoding="utf-8")
-        self.assertIn("MemuBranches.keepVersion(userIndex + 1)", app)       # regenerate = new version
-        self.assertIn("MemuBranches.keepVersion(index)", app)               # edit = new branch
+        self.assertIn("MemuBranches.keepVersion(userIndex + 1)", app)
+        self.assertIn("MemuBranches.keepVersion(index)", app)
         self.assertIn("MemuBranches.switchHtml(brInfo, i)", app)
         self.assertIn("MemuBranches.normalizeChat(c)", app)
-        self.assertIn("_branchSig", app)                                    # no stringify of big branches
+        self.assertIn("_branchSig", app)
         self.assertIn("MemuBranches.keepVersion(userIndex + 1)", (PG / "media-routing.js").read_text(encoding="utf-8"))
         self.assertIn("otherVersions()", (PG / "export.js").read_text(encoding="utf-8"))
         self.assertIn("MemuBranches.revealMessage(o.message_id", (PG / "search.js").read_text(encoding="utf-8"))
@@ -298,7 +288,7 @@ class StaticWiringTest(unittest.TestCase):
         self.assertGreater(len(pairs), 15)
         for ru, en in pairs:
             self.assertFalse(re.search("[А-Яа-яЁё]", en), en)
-        # tr() with a computed string: the EN branch of the few template ones
+
         for en in re.findall(r'"(Forks: [^"]*)"', src):
             self.assertFalse(re.search("[А-Яа-яЁё]", en))
 
@@ -308,15 +298,11 @@ class StaticWiringTest(unittest.TestCase):
         for spec in ("MemuAI.spec", "MemuAIProxy.spec"):
             self.assertIn("app.chat_tree", (ROOT / spec).read_text(encoding="utf-8"), spec)
 
-
-# --------------------------------------------------------------------------- end to end (headless Chromium)
-
 def _chromium():
     for path in ("/usr/bin/chromium", "/workspace/work/chromium/chrome"):
         if os.path.exists(path):
             return path
     return None
-
 
 @unittest.skipUnless(_chromium(), "chromium is not available")
 class EndToEndTest(unittest.TestCase):
@@ -342,7 +328,7 @@ class EndToEndTest(unittest.TestCase):
         cls.page = cls.browser.new_page(viewport={"width": 1280, "height": 800})
         cls.errors = []
         cls.page.on("pageerror", lambda e: cls.errors.append(str(e)))
-        cls.page.goto(cls.servers.pg + "/", wait_until="load", timeout=90000)   # the Inbox SSE stream never idles
+        cls.page.goto(cls.servers.pg + "/", wait_until="load", timeout=90000)
         for _ in range(300):
             if cls.page.evaluate("typeof S !== 'undefined' && !!S.models && S.models.length > 0"):
                 break
@@ -379,7 +365,7 @@ class EndToEndTest(unittest.TestCase):
         self.wait_idle()
         self.assertEqual(self.js("S.messages.length"), 2)
         self.js("S.messages[1].content = 'СТАРЫЙ-ОТВЕТ'; persistChat(); renderMessages();")
-        # regenerate → a new version, the old one stays
+
         self.js("retryAnswerAt(1)")
         self.wait_idle()
         self.assertEqual(self.js("document.querySelector('.br-switch .br-count').textContent"), "2/2")
@@ -387,20 +373,20 @@ class EndToEndTest(unittest.TestCase):
         self.js("document.querySelector('.br-switch [data-br-step=\"-1\"]').click()")
         self.assertEqual(self.js("S.messages[1].content"), "СТАРЫЙ-ОТВЕТ")
         self.assertEqual(self.js("document.querySelector('.br-switch .br-count').textContent"), "1/2")
-        # the next question goes to the model with the ACTIVE branch only
+
         page.fill("#input", "Второй вопрос")
         self.js("send()")
         self.wait_idle()
         sent = json.dumps(mock_custom.state["last_body"]["messages"], ensure_ascii=False)
         self.assertIn("СТАРЫЙ-ОТВЕТ", sent)
-        self.assertNotIn("ответ мока", sent)                 # the regenerated (inactive) answer is not sent
+        self.assertNotIn("ответ мока", sent)
         self.assertEqual(self.js("S.messages.length"), 4)
-        # switching the first answer's version hides the second question (it lives in version 1)
+
         self.js("document.querySelector('.br-switch [data-br-step=\"1\"]').click()")
         self.assertEqual(self.js("S.messages.length"), 2)
         self.js("document.querySelector('.br-switch [data-br-step=\"-1\"]').click()")
         self.assertEqual(self.js("S.messages.length"), 4)
-        # edit-and-resend the second question → a branch at it
+
         self.js("editMessage(2)")
         page.fill("#edit-message-text", "Второй вопрос, исправленный")
         page.click("#edit-resend")
@@ -409,24 +395,24 @@ class EndToEndTest(unittest.TestCase):
         self.assertEqual(self.js("MemuBranches.currentInfo().get(2).n"), 2)
         sent = json.dumps(mock_custom.state["last_body"]["messages"], ensure_ascii=False)
         self.assertIn("исправленный", sent)
-        self.assertEqual(sent.count("Второй вопрос"), 1)      # the old question (other branch) is not sent
-        # stored on the server with the tree
+        self.assertEqual(sent.count("Второй вопрос"), 1)
+
         self.js("saveLocalChats()")
         page.wait_for_timeout(1200)
         from app import pgdata
         stored = next(c for c in pgdata.load_chats() if c["id"] == self.js("S.currentId"))
         self.assertEqual(T.stats(stored)["forks"], 2)
-        # the branch map: click an inactive message → its branch opens
+
         self.js("MemuBranches.openMap()")
         self.assertGreaterEqual(self.js("document.querySelectorAll('#panel .br-fork').length"), 2)
         page.click("#panel .br-node:not(.br-active) >> text=Второй вопрос")
         page.wait_for_timeout(300)
         self.assertEqual(self.js("S.messages[2].content"), "Второй вопрос")
-        # deleting a version's message shows the neighbour; Undo brings the exact tree back
+
         n_before = self.js("S.messages.length")
         self.js("removeMessage(S.messages.length - 1); removeMessage(S.messages.length - 1);")
         self.assertEqual(self.js("S.messages[2].content"), "Второй вопрос, исправленный")
-        # fork the chat from here → a new linear chat
+
         self.js("branchAt(1)")
         self.assertEqual(self.js("S.messages.length"), 2)
         self.assertFalse(self.js("!!currentChat().branches"))
@@ -442,7 +428,7 @@ class EndToEndTest(unittest.TestCase):
         self.js("Object.assign(S.messages[1], { content: '', error: 'HTTP 503' }); persistChat(); renderMessages();")
         self.js("retryAnswerAt(1)")
         self.wait_idle()
-        self.assertFalse(self.js("!!currentChat().branches"))          # «Ответа нет» → «Повторить» replaces it
+        self.assertFalse(self.js("!!currentChat().branches"))
         self.assertEqual(self.js("document.querySelectorAll('.br-switch').length"), 0)
 
     def test_miniapp_versions(self):
@@ -490,7 +476,6 @@ class EndToEndTest(unittest.TestCase):
         self.js("MemuBranches.step(MemuBranches.currentInfo().get(101).key, 101, -1)")
         self.assertEqual(self.js("S.messages.length"), 400)
         self.assertEqual(self.js("S.messages[101].content"), "ответ **50**\n\n- a\n- b")
-
 
 if __name__ == "__main__":
     unittest.main()

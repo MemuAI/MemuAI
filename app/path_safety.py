@@ -2,7 +2,6 @@
 from pathlib import Path
 import stat
 
-
 def is_link(path: Path) -> bool:
     if path.is_symlink():
         return True

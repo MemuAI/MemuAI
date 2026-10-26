@@ -26,20 +26,17 @@ from .providers import http
 _TIMEOUT = 6.0
 _CYRILLIC = re.compile(r"[а-яё]", re.I)
 
-# ---------------------------------------------------------------- намерения
-
 _WEATHER = re.compile(
     r"(?i)\bweather\b|\bforecast\b.{0,24}\b(?:today|tomorrow|week|in|for)\b|погод|прогноз.{0,14}погод|"
     r"будет ли.{0,18}(?:дожд|снег|гроз)|нужен ли зонт|сколько градусов|какая температура")
 _TIME = re.compile(
     r"(?i)(?:what(?:'s| is) the (?:current |local )?time|what time is it|current time|local time|^\s*time)\s+(?:in|at)\s+(?P<en>.+)|"
     r"(?:сколько (?:сейчас )?времени|который (?:сейчас )?час|текущее время|время)\s+(?:сейчас\s+)?в\s+(?P<ru>.+)")
-#: A question about the phenomenon, not about the place's weather right now.
+
 _EXPLAIN = re.compile(r"(?i)\b(?:что такое|как работает|как образу\w+|почему|объясни\w*|расскажи про|what is|how does|why does|explain|define)\b")
 _CRYPTO = re.compile(r"(?i)биткоин\w*|bitcoin|\bbtc\b|эфир(?:иум\w*)?|ethereum|\beth\b")
 _PRICE_WORDS = re.compile(r"(?i)курс|цена|стоим|сколько|price|worth|rate|cost|how much")
 
-# Названия валют → код ISO.
 _CODES = {
     "usd": "USD", "доллар": "USD", "долл": "USD", "бакс": "USD", "dollar": "USD",
     "eur": "EUR", "евро": "EUR", "euro": "EUR",
@@ -58,11 +55,9 @@ _CODES = {
     "azn": "AZN", "aed": "AED", "дирхам": "AED", "sek": "SEK", "nok": "NOK", "dkk": "DKK", "krw": "KRW",
     "thb": "THB", "бат": "THB",
 }
-#: Короткие основы, которые иначе ловят обычные слова («сомнительный» → KGS, «батарея» → THB, «try to…» → TRY):
-#: ISO-коды — только целым словом, такие основы — только с падежными окончаниями.
+
 _STEM_ENDINGS = {"сом": r"(?:а|ов|ы|ах|ам|ом)?", "бат": r"(?:а|ов|ы|ах|ам)?", "лир": r"(?:а|ы|у|ой|ах|ам)?", "лари": "",
                  "драм": r"(?:а|ов|ы|ах|ам)?", "франк": r"(?:а|ов|и|ах|ам)?"}
-
 
 def _money_pattern(key: str) -> str:
     if key in _STEM_ENDINGS:
@@ -71,18 +66,15 @@ def _money_pattern(key: str) -> str:
         return re.escape(key) + r"(?![a-zа-яё])"
     return re.escape(key) + r"\w*"
 
-
 _CODE_ALT = "|".join(_money_pattern(key) for key in sorted(_CODES, key=len, reverse=True))
 _MONEY = re.compile(rf"(?i)(?<![a-zа-яё])(?:{_CODE_ALT})")
 _CONVERT = re.compile(
     rf"(?i)(?P<amount>\d[\d\s]*(?:[.,]\d+)?)\s*(?P<src>(?<![a-zа-яё])(?:{_CODE_ALT}))\s*(?:в|to|in|=|->|→|into|на)\s*(?P<dst>(?:{_CODE_ALT}))")
 
-
 def _is_ru(query: str, lang: str = "") -> bool:
     if _CYRILLIC.search(query):
         return True
     return not re.search(r"[a-z]", query, re.I) and lang == "ru"
-
 
 def _code(word: str) -> str:
     low = word.lower()
@@ -91,14 +83,12 @@ def _code(word: str) -> str:
             return _CODES[key]
     return ""
 
-
 def currency_code(name: str) -> str:
     """ISO code of a currency named by its code («usd», «KZT») or word («доллары», «euro»); ``""`` when unknown."""
     text = str(name or "").strip().lower().replace("ё", "е")
     if re.fullmatch(r"[a-z]{3}", text):
         return text.upper()
     return _code(text) if _MONEY.fullmatch(text) else ""
-
 
 def intent(query: str) -> str:
     """``weather`` / ``time`` / ``currency`` / ``crypto`` / ``""`` — what kind of instant answer the query asks for."""
@@ -116,15 +106,11 @@ def intent(query: str) -> str:
         return "time"
     return ""
 
-
-# ---------------------------------------------------------------- место
-
 _LEAD_WORDS = r"(?:сегодня|завтра|послезавтра|сейчас|вчера|на неделю|на выходные|на \d+ дн\w*|в понедельник|в ближайшие|today|tomorrow|now|tonight|this week|this weekend|right now|please|пожалуйста)"
 _PLACE_AFTER = re.compile(
     rf"(?i)(?:\b(?:в|во|для|по|около|возле|near|in|at|for)\s+)(?P<place>[A-Za-zА-Яа-яЁё][\w.\-’' ]{{1,40}}?)"
     rf"(?=\s*(?:{_LEAD_WORDS}|[?!.,;:]|$))")
 _NOT_A_PLACE = re.compile(r"(?i)^(?:мо(?:ём|ем|й|я|ей|и)\b|мне\b|на\b|этом|эт\w+|целом|общем|тот|какой|какая|какие|будет|ближайш\w+|\d+)")
-
 
 def place_from_query(query: str) -> str:
     """The place the query names ("погода в Казани завтра" → "Казани"), or an empty string."""
@@ -135,9 +121,8 @@ def place_from_query(query: str) -> str:
         place = re.sub(rf"(?i)\s+{_LEAD_WORDS}.*$", "", place).strip()
         if not place or _NOT_A_PLACE.match(place) or len(place) < 2:
             continue
-        best = place                                   # the last "in …" is usually the place, earlier ones are "in 3 days"
+        best = place
     return best
-
 
 def _nominative_candidates(place: str) -> List[str]:
     """Names to try in the geocoder: Russian prepositional case ("в Казани") is not in its index."""
@@ -165,12 +150,12 @@ def _nominative_candidates(place: str) -> List[str]:
             out += [word[:-1], word[:-1] + "а"]
         return out
 
-    if "-на-" in place.lower():                       # Ростове-на-Дону: only the first part is declined
+    if "-на-" in place.lower():
         head, tail = re.split(r"(?i)-на-", place, maxsplit=1)
         for option in inflect(head):
             add(f"{option}-на-{tail}")
     parts = place.split(" ")
-    if len(parts) > 1:                                # "Нижнем Новгороде", "Санкт-Петербурге"
+    if len(parts) > 1:
         for option in inflect(parts[-1]):
             add(" ".join(parts[:-1] + [option]))
         for option in inflect(parts[0]):
@@ -179,7 +164,6 @@ def _nominative_candidates(place: str) -> List[str]:
         add(option)
     return variants[:7]
 
-
 async def _get_json(url: str, params: Dict[str, Any], proxy: str = "") -> Dict[str, Any]:
     session = await http.get_session(proxy)
     resp = await session.get(url, params=params, headers={"Accept": "application/json"}, timeout=_TIMEOUT)
@@ -187,7 +171,6 @@ async def _get_json(url: str, params: Dict[str, Any], proxy: str = "") -> Dict[s
         raise RuntimeError(f"HTTP {resp.status_code}")
     data = resp.json()
     return data if isinstance(data, dict) else {}
-
 
 async def geocode(place: str, lang: str = "ru", proxy: str = "") -> Optional[Dict[str, Any]]:
     """{"name", "country", "lat", "lon"} of the most populous place that fits, or None."""
@@ -203,7 +186,7 @@ async def geocode(place: str, lang: str = "ru", proxy: str = "") -> Optional[Dic
 
     candidates = _nominative_candidates(place) if _CYRILLIC.search(place) else [place]
     batches = await asyncio.gather(*(ask(name) for name in candidates))
-    for name, rows in zip(candidates, batches):                  # the best-guess spelling that found anything wins
+    for name, rows in zip(candidates, batches):
         rows = [row for row in rows if row.get("latitude") is not None and row.get("longitude") is not None]
         if not rows:
             continue
@@ -215,9 +198,7 @@ async def geocode(place: str, lang: str = "ru", proxy: str = "") -> Optional[Dic
                 "tz": str(row.get("timezone") or "")}
     return None
 
-
 _IP_PLACE: Dict[str, Tuple[float, Dict[str, Any]]] = {}
-
 
 async def place_from_ip(proxy: str = "", lang: str = "en") -> Optional[Dict[str, Any]]:
     """Approximate place of this computer from its IP address (kept in memory for an hour)."""
@@ -237,9 +218,6 @@ async def place_from_ip(proxy: str = "", lang: str = "en") -> Optional[Dict[str,
     _IP_PLACE[lang] = (time.time(), place)
     return place
 
-
-# ---------------------------------------------------------------- погода
-
 _WMO_RU = {0: "ясно", 1: "в основном ясно", 2: "переменная облачность", 3: "пасмурно", 45: "туман", 48: "изморозь",
            51: "лёгкая морось", 53: "морось", 55: "сильная морось", 56: "ледяная морось", 57: "ледяная морось",
            61: "небольшой дождь", 63: "дождь", 65: "сильный дождь", 66: "ледяной дождь", 67: "ледяной дождь",
@@ -253,7 +231,6 @@ _WMO_EN = {0: "clear", 1: "mostly clear", 2: "partly cloudy", 3: "overcast", 45:
            82: "heavy showers", 85: "snow showers", 86: "heavy snow showers", 95: "thunderstorm",
            96: "thunderstorm with hail", 99: "severe thunderstorm with hail"}
 
-
 def _temp(value: Any) -> str:
     try:
         number = round(float(value))
@@ -261,10 +238,8 @@ def _temp(value: Any) -> str:
         return "?"
     return f"{number:+d} °C" if number else "0 °C"
 
-
 def _day_name(index: int, ru: bool) -> str:
     return (("сегодня", "завтра", "послезавтра") if ru else ("today", "tomorrow", "the day after"))[index]
-
 
 async def weather(query: str, lang: str = "", proxy: str = "") -> Optional[Dict[str, Any]]:
     ru = _is_ru(query, lang)
@@ -323,9 +298,6 @@ async def weather(query: str, lang: str = "", proxy: str = "") -> Optional[Dict[
     return {"kind": "weather", "title": head, "text": text, "note": note, "source": "Open-Meteo",
             "url": "https://open-meteo.com/", "place": where, "approximate": approximate}
 
-
-# ---------------------------------------------------------------- время
-
 async def local_time(query: str, lang: str = "", proxy: str = "") -> Optional[Dict[str, Any]]:
     match = _TIME.search(query)
     if not match:
@@ -353,9 +325,6 @@ async def local_time(query: str, lang: str = "", proxy: str = "") -> Optional[Di
             else f"Local time — {where}: {clock} ({day}), time zone {zone}.")
     return {"kind": "time", "title": where, "text": text, "note": "", "source": "Open-Meteo",
             "url": "https://open-meteo.com/", "place": where, "approximate": False}
-
-
-# ---------------------------------------------------------------- валюты и крипта
 
 async def currency(query: str, lang: str = "", proxy: str = "") -> Optional[Dict[str, Any]]:
     ru = _is_ru(query, lang)
@@ -402,7 +371,6 @@ async def currency(query: str, lang: str = "", proxy: str = "") -> Optional[Dict
                     "This is the mid-market rate, not a bank or exchange-office rate.",
             "source": "open.er-api.com", "url": "https://www.exchangerate-api.com/", "approximate": False}
 
-
 async def crypto(query: str, lang: str = "", proxy: str = "") -> Optional[Dict[str, Any]]:
     low = query.lower()
     ids = []
@@ -432,9 +400,6 @@ async def crypto(query: str, lang: str = "", proxy: str = "") -> Optional[Dict[s
         return None
     return {"kind": "crypto", "title": "Crypto", "text": ("Цены (CoinGecko): " if ru else "Prices (CoinGecko): ") + "; ".join(rows),
             "note": "", "source": "CoinGecko", "url": "https://www.coingecko.com/", "approximate": False}
-
-
-# ---------------------------------------------------------------- вход
 
 async def answer(query: str, *, lang: str = "", proxy: str = "") -> Optional[Dict[str, Any]]:
     """The instant answer for ``query``, or ``None`` (no such intent, or the source did not answer in time)."""

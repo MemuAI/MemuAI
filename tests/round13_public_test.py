@@ -24,14 +24,12 @@ from app import openai_api, public_api  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def free_port() -> int:
     probe = socket.socket()
     probe.bind(("127.0.0.1", 0))
     port = probe.getsockname()[1]
     probe.close()
     return port
-
 
 class PublicCase(unittest.TestCase):
     """A fresh store in a temp folder and a catalogue of three enabled models."""
@@ -72,7 +70,6 @@ class PublicCase(unittest.TestCase):
     def ask(self, client, key, model="alpha", **extra):
         return client.post("/v1/chat/completions", headers={"Authorization": f"Bearer {key['key']}"},
                            json={"model": model, "messages": [{"role": "user", "content": "hi"}], **extra})
-
 
 class PublicEndpointTest(PublicCase):
     def test_only_the_model_api_is_served(self) -> None:
@@ -148,7 +145,7 @@ class PublicEndpointTest(PublicCase):
         self.assertEqual([self.ask(client, budget).status_code for _ in range(2)], [200, 429])
         self.assertEqual(self.ask(client, budget).json()["error"]["code"], "budget")
         self.assertEqual(public_api.store.find(budget["key"])["usage"]["refused"], 2)
-        # A new day clears the daily counters, not the total budget.
+
         row = public_api.store.find(daily["key"])
         row["usage"]["day"] = "2000-01-01"
         self.assertEqual(self.ask(client, daily).status_code, 200)
@@ -214,7 +211,6 @@ class PublicEndpointTest(PublicCase):
             request.state.public_key = "abc"
             self.assertIsNone(openai_api._check_auth(request))
 
-
 class PublicListenerTest(PublicCase):
     def test_the_listener_follows_the_settings(self) -> None:
         async def go():
@@ -229,14 +225,14 @@ class PublicListenerTest(PublicCase):
                 self.assertEqual((await client.get(f"http://127.0.0.1:{port}/health")).json(), {"status": "ok"})
                 self.assertEqual((await client.get(f"http://127.0.0.1:{port}/api/admin/settings")).status_code, 404)
                 self.assertEqual((await client.get(f"http://127.0.0.1:{port}/v1/models")).status_code, 401)
-                # A new port: the old one closes, the new one answers.
+
                 other = free_port()
                 public_api.store.update({"port": other})
                 self.assertEqual((await listener.apply())["listening"]["port"], other)
                 self.assertEqual((await client.get(f"http://127.0.0.1:{other}/health")).status_code, 200)
                 with self.assertRaises(httpx.HTTPError):
                     await client.get(f"http://127.0.0.1:{port}/health", timeout=2)
-                # A busy port is reported, not silently ignored.
+
                 taken = socket.socket()
                 taken.bind(("127.0.0.1", 0))
                 taken.listen(1)
@@ -251,7 +247,6 @@ class PublicListenerTest(PublicCase):
                     await client.get(f"http://127.0.0.1:{other}/health", timeout=2)
 
         asyncio.run(go())
-
 
 if __name__ == "__main__":
     unittest.main()

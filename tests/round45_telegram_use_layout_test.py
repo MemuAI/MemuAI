@@ -10,7 +10,6 @@ from tests.round44_extension_ui_test import browser
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 @pytest.mark.parametrize("width", [360, 860])
 def test_telegram_arguments_and_speech_layout_keyboard_and_autosave(browser, width):
     context = browser.new_context(viewport={"width": width, "height": 900}, color_scheme="dark")

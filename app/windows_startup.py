@@ -5,10 +5,8 @@ import os
 import sys
 from pathlib import Path
 
-
 VALUE_NAME = "MemuAI"
 RUN_KEY = r"Software\Microsoft\Windows\CurrentVersion\Run"
-
 
 def executable_path() -> Path | None:
     if os.name != "nt":
@@ -19,7 +17,6 @@ def executable_path() -> Path | None:
         program_dir = os.environ.get("MEMUAI_PROGRAM_DIR", "")
         candidate = (Path(program_dir) / "MemuAI.exe").resolve() if program_dir else Path()
     return candidate if candidate.is_file() and candidate.name.lower() == "memuai.exe" else None
-
 
 def status() -> dict[str, object]:
     candidate = executable_path()
@@ -35,7 +32,6 @@ def status() -> dict[str, object]:
     expected = f'"{candidate}"' if candidate else ""
     return {"supported": candidate is not None, "enabled": bool(expected and current == expected),
             "path": str(candidate or "")}
-
 
 def set_enabled(enabled: bool) -> dict[str, object]:
     if os.name != "nt":

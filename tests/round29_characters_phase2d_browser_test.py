@@ -21,7 +21,6 @@ try:
 except Exception:  # pragma: no cover
     sync_playwright = None
 
-
 @unittest.skipUnless(sync_playwright and chromium(), "playwright + chromium required")
 class CharactersPhase2DBrowserTest(unittest.TestCase):
     def setUp(self):
@@ -80,9 +79,9 @@ class CharactersPhase2DBrowserTest(unittest.TestCase):
         self.page.wait_for_timeout(800)
         self.assertEqual(f.evaluate(f"() => {S}.preset.temperature"), 2)
         self.assertEqual(f.input_value("#drawer .ch-slider input.ch-num >> nth=2"), "2")
-        # the user's 2.0 is stored as an edit of the built-in preset, so it survives a reload of the preset
+
         self.assertEqual(self.page.evaluate("() => window.__store['presets/universal'].temperature"), 2)
-        self.assertTrue(f.is_visible("#drawer .ch-temp-note.warn"))   # still warned: 2.0 is risky
+        self.assertTrue(f.is_visible("#drawer .ch-temp-note.warn"))
         f.evaluate("() => window.MemuCharacters.render()")
         self.assertEqual(self.errors, [])
 
@@ -95,8 +94,8 @@ class CharactersPhase2DBrowserTest(unittest.TestCase):
         pos = f.evaluate("() => getComputedStyle(document.getElementById('drawer')).position")
         after = f.evaluate("() => document.getElementById('main').getBoundingClientRect().width")
         self.assertEqual(pos, "absolute")
-        self.assertGreater(after, before - 20)       # the chat column keeps its width
-        self.page.mouse.click(120, 400)             # the scrim over the chat closes the drawer
+        self.assertGreater(after, before - 20)
+        self.page.mouse.click(120, 400)
         self.page.wait_for_timeout(300)
         self.assertFalse(f.evaluate("() => window.MemuCharacters.S.drawerOpen"))
         self.assertEqual(self.errors, [])
@@ -177,7 +176,7 @@ class CharactersPhase2DBrowserTest(unittest.TestCase):
         self.assertIn("Welcome, User!", first)
         self.assertIn("Mira runs the inn and greets User by name.", blurb)
         self.assertNotIn("{{", first + blurb)
-        # the stored card keeps the macros: only the preview text is resolved
+
         f.click(".ch-modal-foot .mu-btn.primary")
         self.wait("() => Object.values(window.MemuCharacters.S.chars).some((c) => c.data && c.data.name === 'Mira')")
         stored = f.evaluate("() => Object.values(window.MemuCharacters.S.chars).find((c) => c.data.name === 'Mira').data.first_mes")
@@ -189,7 +188,6 @@ class CharactersPhase2DBrowserTest(unittest.TestCase):
                  "settings": {"version": 1, "personaId": "p1"}}
         f = self.boot(lang="en", store=store)
         self.assertEqual(f.evaluate("() => window.MemuCharacters.S.personas[0].name"), "User")
-
 
 if __name__ == "__main__":
     unittest.main()

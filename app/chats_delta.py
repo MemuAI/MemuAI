@@ -16,15 +16,13 @@ import json
 import threading
 from typing import Any, Dict, List, Optional
 
-#: Short text shown under a chat title; the window never needs more.
 PREVIEW_CHARS = 120
-#: A light row never carries more than this many ids in one request.
+
 MAX_IDS = 200
 
 _lock = threading.Lock()
-# (profile key, revision) → {"meta": [...], "sigs": {id: sig}}
-_cache: Dict[str, Dict[str, Any]] = {}
 
+_cache: Dict[str, Dict[str, Any]] = {}
 
 def chat_sig(row: Dict[str, Any]) -> str:
     """Fingerprint of a stored chat row: changes with any byte of it."""
@@ -34,7 +32,6 @@ def chat_sig(row: Dict[str, Any]) -> str:
         raw = repr(row).encode("utf-8", "replace")
     return hashlib.blake2b(raw, digest_size=8).hexdigest()
 
-
 def _preview(messages: List[Any]) -> str:
     for message in reversed(messages):
         if isinstance(message, dict) and message.get("role") in ("user", "assistant"):
@@ -43,11 +40,8 @@ def _preview(messages: List[Any]) -> str:
                 return text[:PREVIEW_CHARS]
     return ""
 
-
-#: Metadata the sidebar, projects and folders read; everything but the history.
 META_KEYS = ("title", "updated", "created", "pinned", "mode", "folder_id", "project_id",
              "unread", "live", "titleAuto", "temp")
-
 
 def chat_meta(row: Dict[str, Any], sig: Optional[str] = None) -> Dict[str, Any]:
     messages = row.get("messages") if isinstance(row.get("messages"), list) else []
@@ -58,7 +52,6 @@ def chat_meta(row: Dict[str, Any], sig: Optional[str] = None) -> Dict[str, Any]:
     meta["count"] = len(messages)
     meta["preview"] = _preview(messages)
     return meta
-
 
 def _entry(profile_key: str, rev: str, rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     key = f"{profile_key}\n{rev}"
@@ -74,12 +67,11 @@ def _entry(profile_key: str, rev: str, rows: List[Dict[str, Any]]) -> Dict[str, 
         meta.append(chat_meta(row, sig))
     entry = {"meta": meta, "sigs": sigs}
     with _lock:
-        # One revision per profile is enough: the window always asks for the newest.
+
         for old in [k for k in _cache if k.split("\n", 1)[0] == profile_key]:
             _cache.pop(old, None)
         _cache[key] = entry
     return entry
-
 
 def cached_meta(profile_key: str, rev: str) -> Optional[List[Dict[str, Any]]]:
     """The light list of this revision when it was already built (no file read)."""
@@ -87,14 +79,11 @@ def cached_meta(profile_key: str, rev: str) -> Optional[List[Dict[str, Any]]]:
         hit = _cache.get(f"{profile_key}\n{rev}")
     return hit["meta"] if hit is not None else None
 
-
 def sigs_for(profile_key: str, rev: str, rows: List[Dict[str, Any]]) -> Dict[str, str]:
     return _entry(profile_key, rev, rows)["sigs"]
 
-
 def meta_for(profile_key: str, rev: str, rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return _entry(profile_key, rev, rows)["meta"]
-
 
 def parse_ids(ids: str = "", single: str = "") -> List[str]:
     out: List[str] = []
@@ -103,7 +92,6 @@ def parse_ids(ids: str = "", single: str = "") -> List[str]:
         if value and value not in out:
             out.append(value)
     return out[:MAX_IDS]
-
 
 def pick(rows: List[Dict[str, Any]], wanted: List[str]) -> List[Dict[str, Any]]:
     want = set(wanted)

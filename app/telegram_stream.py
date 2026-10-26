@@ -30,19 +30,14 @@ from .telegram_format import (html_to_plain, markdown_to_telegram_html, render_p
 
 log = logging.getLogger("memuai.telegram")
 
-SOURCE_LIMIT = 3300          # Markdown characters per streamed message
+SOURCE_LIMIT = 3300
 DRAFT_INTERVAL = 0.8
 EDIT_INTERVAL = 1.2
 DRAFT_KEEPALIVE = 20.0
 TYPING_INTERVAL = 4.5
 _DRAFTS_UNSUPPORTED = {"value": False}
 
-
-# Round 24: chat id → monotonic deadline. While it lasts, streaming frames of
-# that chat pause, so the per-chat message budget (≈1 edit/s) goes to the menu
-# edit of a pressed button instead of a 429 for it.
 _USER_PRIORITY: Dict[str, float] = {}
-
 
 def yield_to_user(chat_id: Any, seconds: float = 1.5) -> None:
     _USER_PRIORITY[str(chat_id)] = time.monotonic() + max(0.0, float(seconds))
@@ -51,10 +46,8 @@ def yield_to_user(chat_id: Any, seconds: float = 1.5) -> None:
         for key in [k for k, v in _USER_PRIORITY.items() if v < now]:
             _USER_PRIORITY.pop(key, None)
 
-
 def new_draft_id() -> int:
     return random.randint(1, 2_000_000_000)
-
 
 class StreamReply:
     def __init__(self, api: BotApi, chat_id: str, *, mode: str = "draft", reply_to: int = 0,
@@ -72,17 +65,15 @@ class StreamReply:
         self.placeholder = placeholder
         self.on_draft_id = on_draft_id
         self.clock = clock
-        # Round 26: cleaning of the raw answer (control blocks …) runs once per
-        # frame, not once per streamed token — per token it cost O(answer
-        # length) on the event loop, i.e. quadratic time for a long answer.
+
         self.prepare = prepare
         self.draft_id = new_draft_id()
-        self._parts: List[str] = []    # raw answer: joined text + pieces since the last frame
-        self.text = ""                 # full Markdown so far (prepared)
-        self.offset = 0                # chars of ``text`` already committed
-        self.carry = ""                # reopened code fence for the next part
-        self.message_id = 0            # edit-mode message being edited
-        self.sent_ids: List[int] = []  # permanent messages (committed parts + final)
+        self._parts: List[str] = []
+        self.text = ""
+        self.offset = 0
+        self.carry = ""
+        self.message_id = 0
+        self.sent_ids: List[int] = []
         self.interval = DRAFT_INTERVAL if self.mode == "draft" else EDIT_INTERVAL
         self.next_frame = 0.0
         self.last_frame = 0.0
@@ -96,11 +87,9 @@ class StreamReply:
         if on_draft_id:
             on_draft_id(self.draft_id)
 
-    # ----------------------------------------------------------- lifecycle
-
     async def start(self) -> None:
         if self.mode == "draft":
-            # Empty text shows Telegram's own "Thinking…" placeholder.
+
             await self._draft("")
         elif self.mode == "edit":
             await self._placeholder()
@@ -130,7 +119,7 @@ class StreamReply:
             while not self.closed:
                 await asyncio.sleep(0.25)
                 if time.monotonic() < _USER_PRIORITY.get(str(self.chat_id), 0.0):
-                    continue    # Round 24: a button was just pressed in this chat — let its screen through first
+                    continue
                 now = self.clock()
                 if self.dirty and now >= self.next_frame:
                     await self.flush()
@@ -141,7 +130,7 @@ class StreamReply:
                     await self._typing()
         except asyncio.CancelledError:
             pass
-        except Exception as exc:   # a frame must never kill the answer
+        except Exception as exc:
             log.info("telegram stream ticker stopped: %s", redact(exc))
 
     async def _stop_ticker(self) -> None:
@@ -152,8 +141,6 @@ class StreamReply:
                 await self._ticker
             except (asyncio.CancelledError, Exception):
                 pass
-
-    # -------------------------------------------------------------- frames
 
     def _pending(self) -> str:
         return self.carry + self.text[self.offset:]
@@ -182,14 +169,14 @@ class StreamReply:
         while True:
             pending = self._pending()
             if len(pending) <= SOURCE_LIMIT * 0.6:
-                return      # cannot overflow yet: skip the extra render every frame
+                return
             limit = SOURCE_LIMIT
             if utf16_len(render_partial(pending[:SOURCE_LIMIT + 200])) > 3900:
-                limit = int(SOURCE_LIMIT * 0.6)   # markup-heavy text renders longer
+                limit = int(SOURCE_LIMIT * 0.6)
             head, carry, consumed = split_markdown_source(pending, limit)
             if not consumed:
                 return
-            # ``consumed`` counts the carried prefix too.
+
             used = max(0, consumed - len(self.carry))
             await self._send_final_part(head, markup=None, first=not self.sent_ids)
             self.offset += used
@@ -229,7 +216,7 @@ class StreamReply:
                 self._defer(error)
                 return False
             elif error.unknown_method or error.error_code in (400, 403, 404):
-                # Old Bot API server or drafts not allowed: edit messages instead.
+
                 log.info("telegram drafts unavailable (%s); using message edits", error.description[:80])
                 _DRAFTS_UNSUPPORTED["value"] = error.unknown_method or "draft" in error.description.lower()
                 self.mode = "edit"
@@ -306,8 +293,6 @@ class StreamReply:
         except Exception:
             pass
 
-    # --------------------------------------------------------------- final
-
     async def _send_html(self, html: str, markup: Optional[Dict[str, Any]], *, reply: bool,
                          edit_id: int = 0) -> int:
         payload: Dict[str, Any] = {"chat_id": self.chat_id, "text": html, "parse_mode": "HTML",
@@ -332,12 +317,12 @@ class StreamReply:
                 if error.not_modified:
                     return edit_id
                 if attempt == 0 and error.parse_error:
-                    # Never lose an answer because of a formatting edge case.
+
                     payload.pop("parse_mode", None)
                     payload["text"] = html_to_plain(html)[:4096]
                     continue
                 if edit_id and attempt == 0:
-                    # The placeholder vanished (deleted by the user): send anew.
+
                     method = "sendMessage"
                     payload.pop("message_id", None)
                     edit_id = 0
@@ -362,8 +347,7 @@ class StreamReply:
         """Send the final answer (the rest of it, if parts were committed)."""
         await self._stop_ticker()
         async with self._lock:
-            # Committed parts are final; only the tail can still change
-            # (e.g. internal blocks removed from the finished text).
+
             tail = (self.carry + text[self.offset:]) if self.offset else text
             self.text = text
             self._parts = [text]

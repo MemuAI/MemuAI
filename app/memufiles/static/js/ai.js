@@ -1,11 +1,9 @@
-// MemuFiles · AI assistant panel: questions about files and natural-language file operations.
-// The model only READS (tools on the backend); every change arrives as a plan — a checklist with totals —
-// and runs only after the user confirms it here. Deletes go to the Recycle Bin unless switched explicitly.
+
+
 import { t } from "./i18n.js";
 import { S, api, $, $$, h, esc, icon, fmtSize, fmtNum, itemsWord, baseName, toast, showError, isWin, modal } from "./core.js";
 import { renderMarkdown } from "./preview.js";
 
-// Model answers arrive as Markdown; stream as plain text, render (escaped, safe) once a message is complete.
 function setMd(el, text) {
   const s = String(text || "").trim();
   if (!s || !/[*_`#\[>]|^\s*([-+]|\d+\.)\s/m.test(s)) { el.classList.remove("md"); el.textContent = s; return; }
@@ -38,7 +36,7 @@ export function mount(app, body) {
     mount(app, body);
   });
   top.append(modelSel, newChat);
-  // r40-files-max: the label stays whole, only the path is shortened from the left («…ка: /tmp/…» lost «Папка»)
+
   const scopeEl = h("div", { class: "ai-scope", html: icon("folder", "sm") + `<span class="sc-label"></span><span class="sc-path"></span>` });
   if (!st.log) { st.log = h("div", { class: "ai-log" }); hello(app); }
   const input = h("textarea", { class: "input", placeholder: t("ai.placeholder"), rows: "3" });
@@ -203,7 +201,7 @@ async function ask(app) {
     const res = await fetch("/api/ai/chat", { method: "POST", signal: st.abort.signal,
       headers: { "Content-Type": "application/json", "X-MF-Token": S.token },
       body: JSON.stringify({ id: st.reqId, scope: sc, model: st.model, messages: st.messages, selection: st.selection }) });
-    if (!res.ok) { let d = {}; try { d = await res.json(); } catch (e) { /* */ } throw Object.assign(new Error(d.error || res.status), { code: d.error }); }
+    if (!res.ok) { let d = {}; try { d = await res.json(); } catch (e) {  } throw Object.assign(new Error(d.error || res.status), { code: d.error }); }
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = "";
@@ -267,7 +265,7 @@ async function ask(app) {
 
 function stepArg(ev) {
   const a = ev.args || {};
-  if (ev.tool === "classify_docs") return ` <code>${esc(t("ai.files_n", { n: fmtNum(a.files || 0) }))}</code>`;   // r40-files-max
+  if (ev.tool === "classify_docs") return ` <code>${esc(t("ai.files_n", { n: fmtNum(a.files || 0) }))}</code>`;
   const v = a.path || a.root || a.name || (a.ext ? [].concat(a.ext).join(",") : "") || (a.max_size ? "≤ " + a.max_size : "") || (a.max_chars ? "≤ " + a.max_chars + " " + t("ai.chars_short") : "") || a.title || "";
   return v ? ` <code>${esc(String(v))}</code>` : "";
 }
@@ -276,7 +274,6 @@ function errorText(ev) {
   return t("ai.error") + ": " + (ev.message || "");
 }
 
-// ------------------------------------------------------------------ plan card
 const OP_LABEL = { trash: "plan.op_trash", delete: "plan.op_delete", move: "plan.op_move", copy: "plan.op_copy", rename: "plan.op_rename", mkdir: "plan.op_mkdir", organize: "plan.op_organize", write: "plan.op_write" };
 function planCard(app, plan) {
   const card = h("div", { class: "plan" });
@@ -287,7 +284,7 @@ function planCard(app, plan) {
   const list = h("div", { class: "plan-list" });
   const SHOW = 400;
   const scopeRel = (p) => (p.startsWith(plan.scope) ? p.slice(plan.scope.length).replace(/^[\\/]/, "") || p : p);
-  // r40-files-max: «sort by meaning» — rows grouped under their destination folder, «old name → new name»
+
   const groups = {};
   const groupHead = (cat, rows) => {
     const cb = h("input", { type: "checkbox" });
@@ -316,7 +313,7 @@ function planCard(app, plan) {
         cb.checked = state.checked.has(item.i);
         const old = baseName(item.path);
         const row = h("label", { class: "plan-item org" + (cb.checked ? "" : " off"), title: item.path + " → " + item.dest + "/" + item.new_name });
-        // two lines: the new name first, then «was: old name · what it is» — side by side both got cut to «resume…»
+
         row.append(cb, h("span", { class: "pi-org" }, h("span", { class: "pi-new", text: item.new_name }),
           h("span", { class: "pi-sub" }, ...(old !== item.new_name ? [h("span", { class: "pi-old", text: old })] : []),
             ...(item.reason ? [h("span", { class: "pi-why", text: item.reason })] : []))));

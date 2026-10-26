@@ -45,9 +45,8 @@ Rules:
 - Finish with "done" as soon as the goal is reached, stating what you verified and how."""
 
 PREVIEW_KINDS = ("file_read", "file_list", "file_find", "process_list")
-CHUNK_INTERVAL = 0.7          # как часто обновлять живой вывод в карточке шага
-LIVE_TAIL = 1200              # сколько символов живого вывода показывать
-
+CHUNK_INTERVAL = 0.7
+LIVE_TAIL = 1200
 
 def _state_block(task: Any, info: Dict[str, Any]) -> str:
     target = task.target or {}
@@ -58,7 +57,6 @@ def _state_block(task: Any, info: Dict[str, Any]) -> str:
                                    "memory": info.get("memory"), "disk": info.get("disk"),
                                    "allowed_directories": target.get("roots") or "all"},
                        "cwd": task.cwd}, ensure_ascii=False)
-
 
 async def run(manager: Any, task: Any) -> None:
     """Цикл машины. Вызывается из ``DFYManager._run`` вместо браузерного цикла."""
@@ -185,7 +183,6 @@ async def run(manager: Any, task: Any) -> None:
     task.error = f"Достигнут лимит шагов ({task.max_steps}). Последнее: " + "; ".join(task.history[-2:])
     await manager._touch(task)
 
-
 async def _perform(manager: Any, task: Any, kind: str, action: Dict[str, Any],
                    redact: Callable[[Any], str], lang: str) -> tuple:
     """Выполнить одно машинное действие: подтверждения, живой вывод, отмена."""
@@ -206,7 +203,7 @@ async def _perform(manager: Any, task: Any, kind: str, action: Dict[str, Any],
         if manager.vault.has_placeholder(text):
             params["text"] = manager.vault.resolve(text, "")
     if machine_id != "local" and op in ("exec", "pkg", "fetch") and getattr(manager, "proxy", None) is not None:
-        # Round 30: the machine's DFY proxy (Settings → Do For You → Remote machines → Proxy)
+
         from .dfy_proxy import ProxyError
         try:
             upstream = manager.proxy.upstream(machine_id)
@@ -311,7 +308,7 @@ async def _perform(manager: Any, task: Any, kind: str, action: Dict[str, Any],
             step["output"] = redact(str(result.get("output") or live["text"]))[-4000:]
             step["exit_code"] = result.get("exit_code")
         elif kind in PREVIEW_KINDS:
-            step["output"] = redact(model_text)[:4000]     # the card shows what the agent read
+            step["output"] = redact(model_text)[:4000]
         step["ok"] = result.get("exit_code", 0) in (0, None) or op not in ("exec", "pkg")
         await manager._touch(task)
         return bool(step["ok"]), step["detail"], redact(model_text)
@@ -320,13 +317,11 @@ async def _perform(manager: Any, task: Any, kind: str, action: Dict[str, Any],
     await manager._touch(task)
     return False, step["detail"], f"{kind}: FAILED"
 
-
 async def _cancel_job(manager: Any, machine_id: str, job: str) -> None:
     try:
         await manager.machines.call(machine_id, "exec_cancel", {"job": job}, timeout=20)
     except Exception:
         pass
-
 
 def _label(kind: str, action: Dict[str, Any], redact: Callable[[Any], str]) -> str:
     if kind == "shell":

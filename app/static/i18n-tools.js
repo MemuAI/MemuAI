@@ -1,4 +1,4 @@
-/* Strings of the newer Proxy tabs: local models, the detector, the companion. */
+
 "use strict";
 Object.assign(I18N.ru, {
   "nav.local": "Локальные модели", "nav.detector": "Детектор моделей", "nav.companion": "ИИ-помощник", "nav.chat": "Чат",

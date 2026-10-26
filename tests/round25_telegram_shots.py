@@ -25,12 +25,10 @@ TOKEN = "123456:SHOT-token_for-mini-app"
 USER = 4242
 OUT = Path("/workspace/work/shots/r25/telegram")
 
-
 def free_port():
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         return probe.getsockname()[1]
-
 
 def serve(port):
     import uvicorn
@@ -43,12 +41,10 @@ def serve(port):
         time.sleep(0.05)
     raise RuntimeError("server did not start")
 
-
 def seed_panel():
     from tests.round24_telegram_test import WEATHER, make_panel
     make_panel("weather", dict(WEATHER))
     make_panel("countdown", {"target": "2030-01-01", "target_label": "01.01.2030", "days_left": 9})
-
 
 def main(designs):
     OUT.mkdir(parents=True, exist_ok=True)
@@ -86,7 +82,6 @@ def main(designs):
     finally:
         server.should_exit = True
     print("saved to", OUT)
-
 
 if __name__ == "__main__":
     main(sys.argv[1:] or ["soft", "terminal", "brutal"])

@@ -15,19 +15,15 @@ from app.providers.base import ProviderAuthError, ProviderRateLimitError, Provid
 from app.providers.custom import CustomProvider
 from app.providers.responses import StreamAdapter, request_body
 
-
 def account(**fields):
     return SimpleNamespace(id="round43-custom", proxy="", extra={},
                            fields={"name": "round43", "base_url": "http://127.0.0.1:1/v1", **fields})
 
-
 def response(*output, status="completed", **extra):
     return {"object": "response", "status": status, "output": list(output), **extra}
 
-
 def message(text):
     return {"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": text}]}
-
 
 class RouteTests(unittest.TestCase):
     def test_legacy_default_and_explicit_protocol_paths(self):
@@ -60,7 +56,6 @@ class RouteTests(unittest.TestCase):
         self.assertIsNone(provider.validate_fields(account(api_protocol="responses").fields))
         self.assertIsNotNone(provider.validate_fields(account(api_protocol="unsupported").fields))
         self.assertIsNotNone(provider.validate_fields(account(chat_endpoint="https://attacker.test/x").fields))
-
 
 class InputTests(unittest.TestCase):
     def test_history_tools_vision_structured_output_and_no_mutation(self):
@@ -110,7 +105,6 @@ class InputTests(unittest.TestCase):
         with self.assertRaises(ProviderServerError):
             request_body({"model": "m", "messages": [{"role": "user", "content": [
                 {"type": "unknown_binary", "data": "secret"}]}]})
-
 
 class OutputTests(unittest.TestCase):
     def test_parallel_tool_calls_interleaved_with_text_and_final_snapshots(self):
@@ -168,7 +162,6 @@ class OutputTests(unittest.TestCase):
         with self.assertRaises(ProviderServerError):
             StreamAdapter().require_terminal()
 
-
 class FakeResponse:
     def __init__(self, lines, *, status=200, content_type="text/event-stream"):
         self.status_code = status
@@ -186,7 +179,6 @@ class FakeResponse:
 
     async def aclose(self):
         self.closed = True
-
 
 class TransportTests(unittest.IsolatedAsyncioTestCase):
     async def run_provider(self, resp, *, connection=None, params=None):
@@ -327,7 +319,6 @@ class TransportTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.to_thread(server.shutdown)
             server.server_close()
             thread.join(timeout=2)
-
 
 if __name__ == "__main__":
     unittest.main()

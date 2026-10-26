@@ -39,7 +39,6 @@ LAPTOP = {"cpu": {"name": "Core i5-1235U", "threads": 12, "cores": 10, "avx2": T
 WORKSTATION = {"cpu": {"cores": 24, "threads": 32, "avx2": True}, "ram": {"total": 128 * GB, "type": "DDR5", "speed": 6400},
                "gpus": [{"name": "NVIDIA GeForce RTX 5090", "vram": 32 * GB}], "disk": {"free": 2000 * GB}}
 
-
 class HardwareTests(unittest.TestCase):
     def test_finish_marks_integrated_graphics_and_picks_backend(self):
         hw = local_hw.finish(PC_4070)
@@ -89,7 +88,6 @@ class HardwareTests(unittest.TestCase):
         self.assertEqual(legacy["cpu_cores"], 8)
         self.assertEqual({g["name"] for g in legacy["gpus"]}, {"NVIDIA GeForce RTX 4070", "AMD Radeon(TM) Graphics"})
 
-
 class RuntimeQualityTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -134,7 +132,7 @@ class RuntimeQualityTests(unittest.TestCase):
     def test_auto_layers_let_llama_cpp_fit_the_model(self):
         row = dict(lm.MODEL_DEFAULTS, path="/m/model.gguf", size=20 * GB, meta={"layers": 40})
         args = self._command(row, fit=True)
-        self.assertNotIn("-ngl", args)          # --fit decides; -ngl 999 used to crash with OOM
+        self.assertNotIn("-ngl", args)
         args = self._command(row, fit=False)
         layers = int(args[args.index("-ngl") + 1])
         self.assertTrue(0 < layers < 40, layers)
@@ -194,7 +192,6 @@ class RuntimeQualityTests(unittest.TestCase):
             files = lm.hf_files("org/repo")
         self.assertEqual([group["name"] for group in files["files"]], ["Model-Q4_K_M.gguf"])
         self.assertEqual(len(files["projectors"]), 1)
-
 
 class ProviderTests(unittest.TestCase):
     def collect(self, chunks, native=False):
@@ -297,7 +294,6 @@ class ProviderTests(unittest.TestCase):
             self.assertFalse(tool_protocol.tool_provider_supported("x"))
         self.assertTrue(tool_protocol.TOOL_PROVIDER_ERROR.startswith("Tool calls require"))
 
-
 class CatalogTests(unittest.TestCase):
     def test_bundled_catalogue_is_complete(self):
         catalog = json.loads(wiz.BUNDLED.read_text(encoding="utf-8"))
@@ -364,7 +360,6 @@ class CatalogTests(unittest.TestCase):
         self.assertEqual(fresh["ctx_max"], 131072)
         self.assertEqual(fresh["kv"]["per_token"], 32 * 8 * 128 * 4)
         self.assertFalse(fresh["moe"])
-
 
 class RecommendTests(unittest.TestCase):
     def rec(self, goals, profile=PC_4070):
@@ -449,7 +444,6 @@ class RecommendTests(unittest.TestCase):
         with self.assertRaises(lm.LocalModelError):
             wiz.install("no-such-model", "Q4_K_M")
 
-
 class RouteTests(unittest.TestCase):
     def test_wizard_routes(self):
         from fastapi import FastAPI
@@ -478,7 +472,6 @@ class RouteTests(unittest.TestCase):
             self.assertGreaterEqual(status["count"], 30)
         with patch.object(local_wizard_api, "_auth", return_value=__import__("fastapi").responses.JSONResponse({"error": "x"}, 401)):
             self.assertEqual(client.get("/api/admin/local/wizard/hardware").status_code, 401)
-
 
 class FrontendWiringTests(unittest.TestCase):
     def test_index_loads_the_wizard_and_files_exist(self):
@@ -509,7 +502,6 @@ class FrontendWiringTests(unittest.TestCase):
         self.assertIn("'app.local_wizard_api'", spec)
         self.assertEqual(build.count('"app/local_catalog;app/local_catalog"'), 2)
         self.assertEqual(build.count('"app.local_wizard_api"'), 2)
-
 
 if __name__ == "__main__":
     unittest.main()

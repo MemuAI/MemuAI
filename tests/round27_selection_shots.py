@@ -38,7 +38,6 @@ EN_TEXT = ("Thanks for the update! I think we should move the release to Thursda
 RU_TEXT = "Привет! Посмотрел договор — в пункте 4.2 нужно поменять срок оплаты с 10 на 30 дней, остальное ок."
 ASKS: list = []
 
-
 class Handler(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):  # noqa: D401
         pass
@@ -61,12 +60,10 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             self.wfile.write(("data: " + json.dumps(event, ensure_ascii=False) + "\n\n").encode("utf-8"))
         self.wfile.flush()
 
-
 def show_payload(text: str, *, fresh: bool = True, app: str = "OUTLOOK.EXE", editable=True) -> str:
     info = {"id": "sel123", "source": "uia", "app": app, "title": "Inbox", "editable": editable, "truncated": False, "chars": len(text)}
     return json.dumps({"fresh": fresh, "maxHeight": 700, "rounded": True, "corner": "dwm", "radius": 8, "pinned": False,
                        "source": "hotkey", "page": None, "selection": text, "selection_info": info}, ensure_ascii=False)
-
 
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
@@ -146,7 +143,6 @@ async def main(out: Path) -> int:
             }""")
             check(not bad, f"{what}: action buttons inside the card ({bad})")
 
-        # 1. the row: chip, six numbered actions, translation direction, no old rows
         for theme, lang, width in (("dark", "ru", 720), ("light", "ru", 520), ("dark", "en", 520), ("light", "en", 720)):
             page = await open_page(EN_TEXT if lang == "ru" else RU_TEXT, width=width, theme=theme, language=lang)
             labels = await page.eval_on_selector_all(".qsel-act .tx", "els => els.map(e => e.textContent)")
@@ -160,13 +156,11 @@ async def main(out: Path) -> int:
             await shot(page, f"sel-{theme}-{lang}-{width}", width)
             await page.close()
 
-        # the same language as the interface → into the second language
         page = await open_page(RU_TEXT)
         first = await page.inner_text(".qsel-act .tx")
         check(first == "Перевести на английский", f"Russian text in the Russian UI → English ({first})")
         await page.close()
 
-        # 2. «3» = Исправить → label only, selection_action, «Заменить выделение»
         ASKS.clear(); windows.clear()
         page = await open_page(EN_TEXT)
         await page.focus("#qa-input")
@@ -195,12 +189,12 @@ async def main(out: Path) -> int:
         await page.click("#qa-x-selection-replace")
         await page.wait_for_timeout(300)
         check(len([w for w in windows if w.get("action") == "replace_selection"]) == 2, "the button posts replace too")
-        # retry keeps the action
+
         ASKS.clear()
         await page.click("#qa-retry")
         await page.wait_for_timeout(700)
         check(bool(ASKS) and (ASKS[-1].get("selection_action") or {}).get("id") == "fix", "«Ещё раз» repeats the selection action")
-        # 8. Alt+Space over the open window with a new selection: the row appears under the answer
+
         await page.evaluate("QuickAsk.onSelection(" + json.dumps({"text": RU_TEXT, "info": {"id": "sel456", "app": "Telegram.exe", "editable": False}}, ensure_ascii=False) + ")")
         await page.wait_for_timeout(300)
         check(not await page.evaluate("document.querySelector('.qa-plugin.qsel').hidden"), "onSelection shows the row in a chat")
@@ -215,7 +209,6 @@ async def main(out: Path) -> int:
               "no «Заменить» for a read-only selection — «Вставить» stays")
         await page.close()
 
-        # 4. keyboard: ↓ enters the row, → moves, Esc back, Enter runs
         ASKS.clear()
         page = await open_page(EN_TEXT, theme="light")
         await page.focus("#qa-input")
@@ -236,7 +229,6 @@ async def main(out: Path) -> int:
         check(bool(ASKS) and (ASKS[-1].get("selection_action") or {}).get("id") == "explain", "Enter on «Объяснить» runs it")
         await page.close()
 
-        # 5. «Спросить»: the field gets the focus and digits type
         ASKS.clear()
         page = await open_page(EN_TEXT)
         await page.focus("#qa-input")
@@ -252,7 +244,6 @@ async def main(out: Path) -> int:
               "a typed question goes with the selection as context")
         await page.close()
 
-        # 6. own actions + order; a typed wish goes along as a note
         ASKS.clear()
         custom = [{"id": "c_formal01", "name": "Официальнее", "prompt": "Перепиши официально: {text}", "replace": True}]
         page = await open_page(EN_TEXT, quick_ask_selection_custom=custom,
@@ -268,21 +259,18 @@ async def main(out: Path) -> int:
               f"a custom action with a typed wish ({spec}, {ASKS[-1].get('text') if ASKS else ''})")
         await page.close()
 
-        # the feature off → the old rows of the idle list
         page = await open_page(EN_TEXT, quick_ask_selection=False)
         check(await page.evaluate("document.querySelector('.qa-plugin.qsel').hidden"), "feature off: no action row")
         rows = await page.eval_on_selector_all("#qa-suggest .qa-row .tx", "els => els.map(e => e.textContent)")
         check("Объяснить" in rows, f"feature off: the old rows are back ({rows})")
         await page.close()
 
-        # designs
         for design in ("soft", "terminal"):
             page = await open_page(EN_TEXT, ui_design=design, width=520)
             await inside(page, design)
             await shot(page, f"sel-{design}-dark-ru-520", 520)
             await page.close()
 
-        # 9. r27-quick-polish: the window opens before a Ctrl+C read finished; the selection comes «late»
         late = json.dumps({"text": EN_TEXT, "late": True, "info": {"id": "sel789", "source": "clipboard", "app": "Discord.exe",
                                                                    "editable": None, "chars": len(EN_TEXT)}}, ensure_ascii=False)
         pending = json.loads(show_payload(""))
@@ -309,7 +297,7 @@ async def main(out: Path) -> int:
             await shot(page, f"sel-late-dark-{lang}")
             check(await page.evaluate("QuickAsk.onSelection(" + late + ")") is False, "a second late delivery is dropped")
             await page.close()
-        # sent before the copy arrived → the selection is not attached to the next question
+
         page = await open_page("")
         await page.evaluate("QuickAsk.onShow(" + json.dumps(pending) + ")")
         await page.wait_for_timeout(200)
@@ -319,13 +307,13 @@ async def main(out: Path) -> int:
         await page.wait_for_timeout(500)
         check(await page.evaluate("QuickAsk.onSelection(" + late + ")") is False, "a late selection after sending is dropped")
         check(await page.locator(".qa-chip-sel").count() == 0, "no chip after sending")
-        # hidden meanwhile → dropped; no pending read (UIA / nothing) → a late push is ignored
+
         await page.evaluate("QuickAsk.onShow(" + json.dumps(pending) + ")")
         await page.evaluate("QuickAsk.onHide()")
         check(await page.evaluate("QuickAsk.onSelection(" + late + ")") is False, "a late selection after hiding is dropped")
         await page.evaluate("QuickAsk.onShow(" + show_payload("") + ")")
         check(await page.evaluate("QuickAsk.onSelection(" + late + ")") is False, "no read pending — nothing late to accept")
-        # pinned window raised by the hotkey (toggle): selectionPending() then the late text
+
         await page.evaluate("QuickAsk.selectionPending()")
         check(await page.evaluate("QuickAsk.onSelection(" + late + ")") is True, "toggle: the late selection joins the raised window")
         await page.close()
@@ -333,7 +321,6 @@ async def main(out: Path) -> int:
     server.shutdown()
     print("problems:", len(problems))
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/r27-selection-shots"))))

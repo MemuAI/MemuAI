@@ -29,34 +29,29 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .i18n import tr
 
-#: Error categories (``errors.classify``) that mean "the limits are out, it will work later".
 LIMIT_CATEGORIES = ("rate_limit", "quota", "upstream_no_accounts", "proxy_no_accounts")
-#: …and the ones worth another try later as well (the service is down for now).
+
 RETRY_CATEGORIES = LIMIT_CATEGORIES + ("server", "timeout", "network", "proxy_offline", "model_unavailable")
 DEFAULT_RETRIES = 4
 MAX_RETRIES = 20
-AUTO_FALLBACK = 15 * 60          # "auto" when the provider did not say when the limit ends
-BACKOFF_BASE = 5 * 60            # a retry with no reset time: 5, 10, 20, 40, 60, 60 … minutes
+AUTO_FALLBACK = 15 * 60
+BACKOFF_BASE = 5 * 60
 BACKOFF_CAP = 60 * 60
-MIN_DELAY = 20                   # never fire sooner than this after arming from a reset time
-RESET_MARGIN = 5                 # seconds after the named reset, so the first request is not a hair too early
-GRACE = 60                       # a time that passed while MemuCode was closed fires this long after reopening
+MIN_DELAY = 20
+RESET_MARGIN = 5
+GRACE = 60
 MAX_AHEAD = 7 * 86400
 SUBCOMMANDS = ("status", "cancel", "now", "auto")
 CANCEL_WORDS = ("cancel", "stop", "off", "clear", "отмена", "отменить", "стоп", "выкл")
 STATUS_WORDS = ("status", "info", "статус")
 NOW_WORDS = ("now", "сейчас")
 AUTO_WORDS = ("auto", "reset", "авто", "сброс")
-#: The menu of argument suggestions (tui/input.py CHOICES).
+
 CHOICES = ("auto", "status", "cancel", "now", "+15m", "+30m", "+1h", "+2h", "+5h", "tomorrow 09:00")
 DEFAULT_MESSAGE = "continue"
 
-
 class TimeError(ValueError):
     pass
-
-
-# ---------------------------------------------------------------- time
 
 _UNITS = {"s": 1, "sec": 1, "secs": 1, "second": 1, "seconds": 1, "с": 1, "сек": 1, "секунд": 1, "секунду": 1,
           "секунды": 1,
@@ -73,13 +68,11 @@ _DAY_WORDS = {"today": 0, "сегодня": 0, "tomorrow": 1, "завтра": 1,
 _IN_WORDS = ("in", "через", "after", "+")
 _AT_WORDS = ("at", "в", "on", "@")
 
-
 def _duration(text: str) -> float:
     text = text.strip().lower().replace(" ", "")
     if not text or not _DURATION.match(text):
         return 0.0
     return sum(float(number.replace(",", ".")) * _UNITS[unit.lower()] for number, unit in _DURATION_PIECE.findall(text))
-
 
 def _clock(text: str) -> Optional[Tuple[int, int]]:
     match = _CLOCK.match(text.strip().lower())
@@ -87,7 +80,7 @@ def _clock(text: str) -> Optional[Tuple[int, int]]:
         return None
     hour, minute, half = int(match.group(1)), int(match.group(2) or 0), match.group(3)
     if match.group(2) is None and not half:
-        return None                                   # "18" alone is not a time (it may be the start of a message)
+        return None
     if half:
         if not 1 <= hour <= 12:
             return None
@@ -95,7 +88,6 @@ def _clock(text: str) -> Optional[Tuple[int, int]]:
     if hour > 23 or minute > 59:
         return None
     return hour, minute
-
 
 def parse_time(text: str, now: Optional[float] = None) -> float:
     """``"18:30"``, ``"6:30pm"``, ``"+2h"``, ``"in 45m"``, ``"через 2 часа"``, ``"1h30m"``, ``"tomorrow 09:00"``,
@@ -148,32 +140,26 @@ def parse_time(text: str, now: Optional[float] = None) -> float:
         moment = base if base.timestamp() > now else base + timedelta(days=1)
     return _bounded(moment.timestamp(), now, text)
 
-
 def _bounded(at: float, now: float, text: str) -> float:
     if at - now > MAX_AHEAD:
         raise TimeError(tr(f"«{text}» — дальше чем через неделю; так далеко нельзя.",
                            f"“{text}” is more than a week away — that is too far."))
     return at
 
-
 def _examples(text: str) -> str:
     return tr(f"Не понимаю время «{text}». Примеры: 18:30 · +2h · in 45m · через 2 часа · tomorrow 09:00 · auto",
               f"I do not understand the time “{text}”. Examples: 18:30 · +2h · in 45m · 1h30m · tomorrow 09:00 · auto")
 
-
-# ---------------------------------------------------------------- arguments
-
 @dataclass
 class Request:
     """``/auto-continue`` arguments after parsing."""
-    action: str = "arm"              # arm | status | cancel | now | pick (no time given) | help
-    at: float = 0.0                  # absolute time for "arm" with a time
-    auto: bool = False               # "auto": the provider's reset time
+    action: str = "arm"
+    at: float = 0.0
+    auto: bool = False
     message: str = ""
     retries: Optional[int] = None
     fallback: Optional[str] = None
     error: str = ""
-
 
 def parse_args(args: str, now: Optional[float] = None) -> Request:
     """``[time|duration|auto] [message] [--retries N] [--no-retry] [--fallback MODEL]`` and the sub-commands."""
@@ -239,7 +225,7 @@ def parse_args(args: str, now: Optional[float] = None) -> Request:
         request.auto = True
         request.message = " ".join(rest[1:]).strip()
         return request
-    # The longest leading run of words that reads as a time is the time; the rest is the message.
+
     for size in range(min(4, len(rest)), 0, -1):
         try:
             request.at = parse_time(" ".join(rest[:size]), now)
@@ -253,13 +239,9 @@ def parse_args(args: str, now: Optional[float] = None) -> Request:
         request.error = str(exc)
     return request
 
-
-# ---------------------------------------------------------------- timing
-
 def backoff(attempt: int) -> float:
     """The pause before retry number ``attempt`` (1, 2, …) when the provider named no reset time."""
     return float(min(BACKOFF_CAP, BACKOFF_BASE * (2 ** max(0, attempt - 1))))
-
 
 def next_try(attempt: int, reset: float, now: Optional[float] = None) -> Tuple[float, str]:
     """When to try again after a failed try number ``attempt``: the named reset (``"reset"``) or a backoff."""
@@ -267,7 +249,6 @@ def next_try(attempt: int, reset: float, now: Optional[float] = None) -> Tuple[f
     if reset and reset > now:
         return max(reset + RESET_MARGIN, now + MIN_DELAY), "reset"
     return now + backoff(attempt), "backoff"
-
 
 def countdown(seconds: float) -> str:
     """``"0:42"``, ``"14:05"``, ``"2:03:07"``, ``"1d 3h"``."""
@@ -277,7 +258,6 @@ def countdown(seconds: float) -> str:
     hours, rest = divmod(seconds, 3600)
     minutes, secs = divmod(rest, 60)
     return f"{hours}:{minutes:02d}:{secs:02d}" if hours else f"{minutes}:{secs:02d}"
-
 
 def clock_text(at: float, now: Optional[float] = None) -> str:
     """``"18:30"`` today, ``"tomorrow 09:00"``, ``"Mon 09:00"`` later in the week."""
@@ -291,7 +271,6 @@ def clock_text(at: float, now: Optional[float] = None) -> str:
         return tr(f"завтра {hhmm}", f"tomorrow {hhmm}")
     return moment.strftime("%a ") + hhmm
 
-
 def default_message(settings: Any = None) -> str:
     custom = ""
     if settings is not None:
@@ -301,7 +280,6 @@ def default_message(settings: Any = None) -> str:
             custom = ""
     return custom or DEFAULT_MESSAGE
 
-
 def setting_retries(settings: Any) -> int:
     try:
         value = settings.get("auto_continue.retries")
@@ -309,29 +287,25 @@ def setting_retries(settings: Any) -> int:
     except Exception:
         return DEFAULT_RETRIES
 
-
 def setting_fallback(settings: Any) -> str:
     try:
         return str(settings.get("auto_continue.fallback_model") or "").strip()
     except Exception:
         return ""
 
-
-# ---------------------------------------------------------------- the plan
-
 @dataclass
 class Plan:
     at: float
     message: str = DEFAULT_MESSAGE
     custom_message: bool = False
-    source: str = "manual"           # manual | auto (the provider's reset time) | limit (auto with no reset known)
+    source: str = "manual"
     retries: int = DEFAULT_RETRIES
-    attempt: int = 0                 # tries made so far
+    attempt: int = 0
     fallback: str = ""
-    state: str = "armed"             # armed | sent
+    state: str = "armed"
     created: float = field(default_factory=time.time)
     session: str = ""
-    model: str = ""                  # the model that was limited
+    model: str = ""
     last_error: str = ""
 
     @classmethod
@@ -350,7 +324,6 @@ class Plan:
     def to_dict(self) -> Dict[str, Any]:
         return asdict(self)
 
-
 class AutoContinue:
     """The armed ``/auto-continue`` of one terminal. ``tick()`` is called by the interface's ticker; it fires the plan
     when it is due and the terminal is free, and notices a switch of conversation (re-arming a stored plan)."""
@@ -358,12 +331,11 @@ class AutoContinue:
     def __init__(self, ui: Any) -> None:
         self.ui = ui
         self.plan: Optional[Plan] = None
-        self.awaiting = False                    # our "continue" is the turn in progress
-        self.last_limit: Dict[str, Any] = {}     # the newest limit error: {"at": reset or 0, "category", "model", "when"}
+        self.awaiting = False
+        self.last_limit: Dict[str, Any] = {}
         self._session_id: Optional[str] = None
         self._last_second = -1
 
-    # ------------------------------------------------------------ helpers
     @property
     def runtime(self) -> Any:
         return self.ui.runtime
@@ -389,7 +361,6 @@ class AutoContinue:
             return 0.0
         return max(0.0, self.plan.at - (time.time() if now is None else now))
 
-    # ------------------------------------------------------------ arming
     def arm(self, at: float, *, message: str = "", source: str = "manual", retries: Optional[int] = None,
             fallback: Optional[str] = None) -> Plan:
         settings = self.runtime.settings
@@ -428,7 +399,6 @@ class AutoContinue:
             self._say(tr("Автопродолжение отменено.", "Auto-continue cancelled."), "success")
         return had
 
-    # ------------------------------------------------------------ texts
     def describe(self, now: Optional[float] = None) -> str:
         now = time.time() if now is None else now
         plan = self.plan
@@ -477,7 +447,6 @@ class AutoContinue:
         return tr("◷ /auto-continue 30m (или 18:30, +2h, auto) — отправить «continue» само позже",
                   "◷ /auto-continue 30m (or 18:30, +2h, auto) sends “continue” by itself later")
 
-    # ------------------------------------------------------------ errors
     def note_error(self, result: Any, now: Optional[float] = None) -> str:
         """Remember a limit error (its reset time) and return the offer for the transcript ("" for other errors)."""
         now = time.time() if now is None else now
@@ -493,7 +462,6 @@ class AutoContinue:
                            if getattr(result, "error", "") else ""}
         return self.offer(now)
 
-    # ------------------------------------------------------------ the loop
     def tick(self, now: Optional[float] = None) -> bool:
         """Called often by the interface. True when the status line should be redrawn."""
         now = time.time() if now is None else now
@@ -521,7 +489,7 @@ class AutoContinue:
         previous = self._session_id
         self._session_id = self.runtime.session.id
         if self.plan is not None and previous is not None and self.plan.session == previous:
-            # The plan stays stored with its own conversation and comes back with it.
+
             self._say(tr(f"Автопродолжение прошлого разговора на паузе — вернётся вместе с ним (/resume {previous}).",
                          f"The auto-continue of the previous conversation is paused — it comes back with it "
                          f"(/resume {previous})."), "warn")
@@ -639,7 +607,6 @@ class AutoContinue:
                      f"повтор {plan.attempt} из {plan.retries}{switch}.",
                      f"◷ Still limited. Next try at {clock_text(at, now)} ({reason}), "
                      f"retry {plan.attempt} of {plan.retries}{switch}."), "warn")
-
 
 HELP = (
     "/auto-continue [time|duration|auto] [message] [--retries N | --no-retry] [--fallback MODEL]\n"

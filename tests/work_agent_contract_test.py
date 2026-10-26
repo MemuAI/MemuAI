@@ -11,9 +11,7 @@ from app import pgdata, scheduler
 from app.automation_runtime import ComputerAutomation, _json_object, _safe_navigation_url
 from app.work_context import build_work_context
 
-
 ROOT = Path(__file__).resolve().parents[1]
-
 
 class WorkContextContracts(unittest.TestCase):
     def test_selector_prioritizes_named_source_and_skips_generated_tree(self) -> None:
@@ -32,7 +30,6 @@ class WorkContextContracts(unittest.TestCase):
             self.assertIn("calculate_invoice_total", result["files"][0]["text"])
             self.assertFalse(any(path.startswith("node_modules/") for path in result["index"]))
             self.assertLessEqual(result["chars"], 60_000)
-
 
 class AutomationSafetyContracts(unittest.TestCase):
     def test_action_json_parser_ignores_wrapping_text(self) -> None:
@@ -60,7 +57,6 @@ class AutomationSafetyContracts(unittest.TestCase):
         self.assertRegex("API key = super-secret", blocked)
         self.assertNotRegex("Please rename the heading to Overview", blocked)
 
-
 class WorkSchedulingContracts(unittest.TestCase):
     def test_scheduled_work_parser_accepts_safe_files_only(self) -> None:
         response = (
@@ -86,15 +82,13 @@ class WorkSchedulingContracts(unittest.TestCase):
             self.assertEqual(prefs["context_recent_messages"], 6)
             self.assertEqual(prefs["model_context_limits"], {"model-a": 2000, "model-b": 260000})
 
-
 class WorkUiContracts(unittest.TestCase):
     def test_work_controls_and_right_click_search_mode_are_wired(self) -> None:
         html = (ROOT / "app" / "pgstatic" / "index.html").read_text(encoding="utf-8")
         js = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
         for element_id in ("work-access", "work-plan", "work-goal", "automation-stage"):
             self.assertIn(f'id="{element_id}"', html)
-        # Browser automation may be opened manually without granting the AI a
-        # Computer Use capability.  Computer Use itself remains AI-only.
+
         self.assertIn('id="work-browser"', html)
         self.assertNotIn('id="work-computer"', html)
         self.assertNotIn('class="cap-caret"', html)
@@ -119,7 +113,7 @@ class WorkUiContracts(unittest.TestCase):
 
     def test_packaged_app_contains_visual_automation_dependencies(self) -> None:
         spec = (ROOT / "MemuAI.spec").read_text(encoding="utf-8")
-        # build_exe.bat только вызывает build.py: зависимости перечислены там.
+
         self.assertIn("build.py", (ROOT / "build_exe.bat").read_text(encoding="utf-8"))
         build = (ROOT / "build.py").read_text(encoding="utf-8")
         requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
@@ -129,7 +123,6 @@ class WorkUiContracts(unittest.TestCase):
         self.assertIn("pillow", requirements.lower())
         self.assertIn("faster-whisper", requirements.lower())
         self.assertIn("faster_whisper", spec)
-
 
 class FileRewriteGuard(unittest.TestCase):
     def test_full_rewrite_that_drops_most_of_a_file_is_refused(self) -> None:
@@ -157,7 +150,6 @@ class FileRewriteGuard(unittest.TestCase):
         self.assertEqual(destructive_shrink("", "hello\n"), "")
         self.assertEqual(destructive_shrink("one\n", "two\n"), "")
         self.assertEqual(destructive_shrink("\n".join("x" for _ in range(10)), "\n".join("y" for _ in range(9))), "")
-
 
 if __name__ == "__main__":
     unittest.main()

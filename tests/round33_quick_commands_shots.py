@@ -28,7 +28,6 @@ CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/works
 SHOW = "{fresh:true, maxHeight:640, rounded:true, corner:'dwm', radius:8, pinned:false, source:'hotkey', page:null}"
 MODELS = [{"id": "reform-qwen3.8-flash", "caps": {"vision": False}}]
 
-
 def cards(en: bool):
     t = (lambda ru, e: e if en else ru)
     return {
@@ -57,11 +56,9 @@ def cards(en: bool):
                         "undo": "u1"},
     }
 
-
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):  # noqa: D401
         pass
-
 
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
@@ -142,7 +139,6 @@ async def main(out: Path) -> int:
                 await page.keyboard.press("Enter")
                 await page.wait_for_timeout(700)
 
-            # 1. tray app: confirm → done
             state["run_card"], state["confirm_card"] = C["tray_confirm"], C["tray_done"]
             await say("quit insy" if en else "закрой инси")
             check(await page.locator(".mqc-card.mqc-confirm").count() == 1, f"{tag}: the tray confirmation card is shown")
@@ -152,7 +148,7 @@ async def main(out: Path) -> int:
             await page.wait_for_timeout(600)
             check(state["confirm"] and state["confirm"][-1].get("token") == "tok-incy", f"{tag}: confirm sent the token")
             await shot("02-tray-done")
-            # 2. hides to tray: the follow-up button
+
             state["run_card"] = C["hide_done"]
             await say("close telegram" if en else "закрой телеграм")
             nxt = page.locator('.mqc-card [data-mqc="next"]')
@@ -166,7 +162,7 @@ async def main(out: Path) -> int:
                 check(any(b.get("action") == "app.close" for b in state["run"]), f"{tag}: the button ran app.close")
                 check(await page.locator('.mqc-card [data-mqc="next"]').count() == 0, f"{tag}: the used button is gone")
                 check(await page.locator(".mqc-card.mqc-confirm").count() >= 1, f"{tag}: a new confirmation appeared")
-            # 3. the router badge
+
             state["run_card"] = C["router_done"]
             await say("sound to zero" if en else "звук в ноль")
             badge = page.locator(".mqc-src-ai")
@@ -176,7 +172,7 @@ async def main(out: Path) -> int:
                 tip = await badge.first.get_attribute("title") or ""
                 check("reform-qwen3.8-flash" in tip and ("0.6" in tip), f"{tag}: badge tooltip {tip!r}")
             await shot("04-router-badge")
-            # 4. chat decision → the normal answer
+
             state["run_card"] = None
             asks = state["asks"]
             await say("something fun" if en else "что-нибудь интересное")
@@ -197,7 +193,6 @@ async def main(out: Path) -> int:
     for p in problems:
         print(" -", p)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/r33-quick-shots"))))

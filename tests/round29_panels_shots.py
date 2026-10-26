@@ -44,7 +44,6 @@ FIT_JS = """() => Array.from(document.querySelectorAll('.ql-item[data-type=panel
     box: [n.offsetLeft, n.offsetTop, n.offsetWidth, n.offsetHeight], rect: (() => { const r = c.getBoundingClientRect(); return [r.width, r.height]; })() };
 })"""
 
-
 async def main(out: Path) -> int:
     import httpx
     import uvicorn
@@ -98,8 +97,7 @@ async def main(out: Path) -> int:
         browser = await pw.chromium.launch(executable_path=base.CHROME if os.path.exists(base.CHROME) else None, args=["--no-sandbox"])
 
         async def open_layer(w, h, key, scale=1, lang="ru", theme="dark", glass=True):
-            # r29t: a real device pixel ratio (the 150 % monitor case used to pass only the nominal scale); the menu /
-            # drag / resize sections can be re-run at 125 / 150 % with MEMU_LAYER_DPR=1.25 / 1.5.
+
             dpr = scale if scale != 1 else float(os.environ.get("MEMU_LAYER_DPR") or 1)
             ctx = await browser.new_context(viewport={"width": w, "height": h}, device_scale_factor=dpr)
             await ctx.add_init_script(f"try {{ localStorage.setItem('memu_lang', '{lang}'); localStorage.setItem('memu_theme', '{theme}'); }} catch (e) {{}}")
@@ -112,14 +110,13 @@ async def main(out: Path) -> int:
             await page.evaluate("(p) => MemuLayer.onShow(p)", {"monitor": {"key": key, "w": w, "h": h, "scale": scale}, "keepout": keep, "glass": glass, "fresh": True})
             await page.wait_for_timeout(1500)
             await page.evaluate(WALLPAPER)
-            # record what the layer sends to Quick Ask
+
             await page.evaluate("() => { window.__sent = []; const s = MemuQuickBus.send; MemuQuickBus.send = (to, ev, d) => { window.__sent.push([to, ev, d]); return s(to, ev, d); }; }")
             return ctx, page
 
         def regions():
             return [b for k, b in native if k == "region"]
 
-        # ------------------------------------------------------------ 1. every card fits its box
         for (w, h, key, scale, lang, theme, name) in ((1920, 1040, "1920x1080@96", 1, "ru", "dark", "r29-layer-1920-ru"),
                                                      (1366, 728, "1366x768@96", 1, "en", "light", "r29-layer-1366-en"),
                                                      (1280, 696, "1920x1080@144", 1.5, "ru", "dark", "r29-layer-150pct-ru")):
@@ -143,7 +140,6 @@ async def main(out: Path) -> int:
             await page.screenshot(path=str(out / f"{name}.png"))
             await ctx.close()
 
-        # ------------------------------------------------------------ 2. bigger text: still fits (compact + zoom)
         native.clear()
         ctx, page = await open_layer(1920, 1040, "1920x1080@96")
         await page.add_style_tag(content=".ql-body > .mp-card * { font-size: 160% !important; }")
@@ -159,13 +155,12 @@ async def main(out: Path) -> int:
         await page.evaluate("MemuLayer.setEdit(false)")
         await ctx.close()
 
-        # ------------------------------------------------------------ 3. menu
         native.clear()
         ctx, page = await open_layer(1920, 1040, "1920x1080@96")
         items = await page.evaluate("() => MemuLayer.state().placed.filter((p) => !p.hidden).map((p) => ({ id: p.id, type: p.type, x: p.x, y: p.y, w: p.w, h: p.h, units: p.units }))")
         wx_id = await page.evaluate("() => { const c = document.querySelector('.ql-item .mp-card[data-kind=weather]'); return c.closest('.ql-item').dataset.item; }")
         wx = next(i for i in items if i["id"] == wx_id)
-        # open the menu on the panel farthest from some button, so that button stays clear of the menu
+
         far_p, far_b = max(((p, b) for p in items if p["type"] == "panel" for b in items if b["type"] == "action"),
                            key=lambda pb: abs(pb[0]["x"] - pb[1]["x"]) + abs(pb[0]["y"] - pb[1]["y"]))
         await page.mouse.click(far_p["x"] + far_p["w"] / 2, far_p["y"] + far_p["h"] / 2, button="right")
@@ -182,14 +177,14 @@ async def main(out: Path) -> int:
         btn = far_b if clear_of(far_b, box) else next((i for i in items if i["type"] == "action" and clear_of(i, box)), None)
         check(btn is not None, "a button outside the menu to click")
         btn = btn or {"x": 20, "y": 20, "w": 10, "h": 10}
-        await page.mouse.click(btn["x"] + btn["w"] / 2, btn["y"] + btn["h"] / 2)        # the click that closes the menu
+        await page.mouse.click(btn["x"] + btn["w"] / 2, btn["y"] + btn["h"] / 2)
         await page.wait_for_timeout(250)
         check(await page.locator(".mcm").count() == 0, "a click elsewhere closes the menu")
         sent = await page.evaluate("window.__sent")
         check(not any(ev == "run" for _, ev, _ in sent[sent_before:]), "…and that click does nothing else (no button run)")
         await page.wait_for_timeout(150)
         check(regions() and not regions()[-1]["full"], "the region shrinks back to the items")
-        # Esc
+
         await page.mouse.click(wx["x"] + 40, wx["y"] + 40, button="right")
         await page.wait_for_timeout(200)
         check(await page.locator(".mcm").count() == 1, "a right click opens the menu again")
@@ -197,13 +192,13 @@ async def main(out: Path) -> int:
         await page.wait_for_timeout(150)
         check(await page.locator(".mcm").count() == 0, "Esc closes the menu")
         check(not any(k == "/api/quick/window" and b.get("action") == "hide" for k, b in native), "…and only the menu (Quick Ask stays)")
-        # right click on a card that re-renders between press and release (a live card)
+
         await page.evaluate("""(id) => { const n = document.querySelector('.ql-item[data-item="' + id + '"]');
             n.addEventListener('pointerdown', () => { const b = n.querySelector('.ql-body'); b.innerHTML = b.innerHTML; }, { once: true }); }""", wx_id)
         await page.mouse.click(wx["x"] + 60, wx["y"] + 60, button="right")
         await page.wait_for_timeout(200)
         check(await page.locator(".mcm").count() == 1, "a right click on a card re-rendered under the pointer still opens the menu")
-        # near the bottom-right corner the menu flips inside the screen
+
         await page.keyboard.press("Escape")
         corner = max(items, key=lambda i: i["x"] + i["y"])
         await page.mouse.click(corner["x"] + corner["w"] - 14, corner["y"] + corner["h"] - 14, button="right")
@@ -211,7 +206,7 @@ async def main(out: Path) -> int:
         box = await page.evaluate("() => { const m = document.querySelector('.mcm'); if (!m) return null; const r = m.getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom]; }")
         check(box and box[2] <= 1920 and box[3] <= 1040, f"a menu at the corner stays on the screen {box}")
         await page.keyboard.press("Escape")
-        # ⋯ toggles; Size → S resizes
+
         await page.mouse.move(wx["x"] + wx["w"] / 2, wx["y"] + wx["h"] / 2)
         await page.wait_for_timeout(200)
         more = page.locator(f'.ql-item[data-item="{wx_id}"] .ql-more')
@@ -229,12 +224,11 @@ async def main(out: Path) -> int:
         check(units == [4, 2], f"Ctrl+Z undoes the resize ({units})")
         await ctx.close()
 
-        # ------------------------------------------------------------ 4. drag without arrange mode, click stays a click
         native.clear()
         ctx, page = await open_layer(1920, 1040, "1920x1080@96")
         items = await page.evaluate("() => MemuLayer.state().placed.filter((p) => !p.hidden).map((p) => ({ id: p.id, type: p.type, x: p.x, y: p.y, w: p.w, h: p.h }))")
         btn = next(i for i in items if i["type"] == "action")
-        await page.wait_for_timeout(350)                    # past the 300 ms guard
+        await page.wait_for_timeout(350)
         await page.mouse.move(btn["x"] + btn["w"] / 2, btn["y"] + btn["h"] / 2)
         await page.mouse.down()
         await page.mouse.move(btn["x"] + btn["w"] / 2 + 2, btn["y"] + btn["h"] / 2 + 1)
@@ -259,11 +253,11 @@ async def main(out: Path) -> int:
         check(not await page.evaluate("MemuLayer.state().edit"), "still not in arrange mode")
         doc = json.loads(httpx.get(B + "/api/quick/canvas", timeout=20).text)
         check(doc["layer"]["monitors"] >= 1, "the arrangement is saved for this monitor")
-        # snapping + guides: drag the button next to the panel's top edge
+
         st2 = await page.evaluate(f"""() => {{ const S = MemuLayer.state(); const p = S.placed.find((i) => i.id === '{pan['id']}');
             const r = MemuLayer.snapXY(p.x + p.w + 8 + 4, p.y + 3, 72, 72, [p], S.monitor); return r; }}""")
         check(st2["gx"] and st2["gy"], f"snapXY returns guide lines ({st2})")
-        # undo / redo of the drag
+
         await page.locator(f'.ql-item[data-item="{pan["id"]}"]').focus()
         await page.keyboard.press("Control+z")
         await page.wait_for_timeout(800)
@@ -273,7 +267,7 @@ async def main(out: Path) -> int:
         await page.wait_for_timeout(800)
         again = await page.evaluate(f"() => MemuLayer.state().placed.find((p) => p.id === '{pan['id']}')")
         check(abs(again["x"] - moved["x"]) < 1, "Ctrl+Shift+Z redoes it")
-        # keyboard: Alt+arrow moves, Ctrl+arrow resizes
+
         await page.locator(f'.ql-item[data-item="{pan["id"]}"]').focus()
         x0 = again["x"]
         await page.keyboard.press("Alt+ArrowRight")
@@ -285,7 +279,7 @@ async def main(out: Path) -> int:
         await page.wait_for_timeout(700)
         u1 = await page.evaluate(f"() => MemuLayer.state().placed.find((p) => p.id === '{pan['id']}').units")
         check(u1[1] == u0[1] + 1 or u1[1] == 8, f"Ctrl+↓ makes it a unit taller ({u0} → {u1})")
-        # the corner grip resizes without arrange mode
+
         cur = await page.evaluate(f"() => MemuLayer.state().placed.find((p) => p.id === '{pan['id']}')")
         await page.mouse.move(cur["x"] + cur["w"] / 2, cur["y"] + cur["h"] / 2)
         await page.wait_for_timeout(150)
@@ -298,7 +292,6 @@ async def main(out: Path) -> int:
         check(grown["units"][0] > cur["units"][0], f"the corner grip resizes without arrange mode ({cur['units']} → {grown['units']})")
         await ctx.close()
 
-        # ------------------------------------------------------------ 5. the MemuAI window (panels.js + memu-ctxmenu.js)
         import panels_browser_test as pbt
         fixture = pbt.FIXTURE.replace('<script src="/panels.js"></script>', '<script src="/memu-ctxmenu.js"></script><script src="/panels.js"></script>')
         fixture = fixture.replace("</body>", """<script>window.__chatMenu = 0; document.addEventListener('contextmenu', () => { window.__chatMenu++; });</script></body>""")
@@ -333,16 +326,16 @@ async def main(out: Path) -> int:
         check(await page.evaluate("window.__chatMenu") == 0, "MemuAI: the chat's own context menu does not see the click")
         check(await page.locator(".mcm [data-mcm-i]").count() >= 6, "MemuAI: refresh, customize, places, size, remove")
         await page.screenshot(path=str(out / "r29-memuai-menu.png"))
-        # places toggle keeps it open and patches
+
         await page.locator(".mcm .mcm-item", has_text="Боковая панель").click()
         await page.wait_for_timeout(250)
         check(await page.locator(".mcm").count() == 1, "MemuAI: toggling a place keeps the menu open")
         check(any(m == "PATCH" and "placements" in (d or "") for m, _, d in requests), f"MemuAI: the place is saved ({requests[-1:] if requests else None})")
-        # outside press closes
+
         await page.mouse.click(5, 840)
         await page.wait_for_timeout(150)
         check(await page.locator(".mcm").count() == 0, "MemuAI: a press elsewhere closes the menu")
-        # a card re-rendered between press and release
+
         await page.evaluate("""() => { const c = document.querySelector('#panels-home .mp-card[data-panel-id="p_alltypes01"]');
             c.addEventListener('pointerdown', () => { c.innerHTML = c.innerHTML; }, { once: true, capture: true }); }""")
         big = page.locator('#panels-home .mp-card[data-panel-id="p_alltypes01"] .mp-metric')
@@ -352,7 +345,7 @@ async def main(out: Path) -> int:
         await page.keyboard.press("Escape")
         await page.wait_for_timeout(120)
         check(await page.locator(".mcm").count() == 0, "MemuAI: Esc closes it")
-        # ⋯ toggles
+
         await card.hover()
         await card.locator("[data-mp-menu]").click()
         await page.wait_for_timeout(150)
@@ -360,7 +353,7 @@ async def main(out: Path) -> int:
         await card.locator("[data-mp-menu]").click()
         await page.wait_for_timeout(150)
         check(await page.locator(".mcm").count() == 0, "MemuAI: ⋯ again closes it (no reopen)")
-        # keyboard
+
         await card.focus()
         await page.keyboard.press("Shift+F10")
         await page.wait_for_timeout(150)
@@ -374,7 +367,6 @@ async def main(out: Path) -> int:
     for p in problems:
         print(" -", p)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     if not os.environ.get("MEMUAI_DATA_DIR"):

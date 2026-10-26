@@ -17,14 +17,12 @@ import time
 import urllib.parse
 import urllib.request
 
-
 def _runtime_file(name: str) -> str:
     data_dir = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if not data_dir:
         appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
         data_dir = os.path.join(appdata, "MemuAI")
     return os.path.join(data_dir, "memuai", name)
-
 
 def _read_local_runtime(name: str) -> dict:
     try:
@@ -41,7 +39,6 @@ def _read_local_runtime(name: str) -> dict:
         return data
     except (OSError, ValueError, TypeError, json.JSONDecodeError):
         return {}
-
 
 def activate_running_proxy() -> bool:
     """Показывает уже запущенный Proxy и не создаёт второй процесс."""
@@ -65,12 +62,11 @@ def activate_running_proxy() -> bool:
         try:
             urllib.request.urlopen(request, timeout=1.5).close()
         except Exception:
-            # Старые версии не имели show_window, но всё равно уже запущены.
+
             pass
         return True
     except Exception:
         return False
-
 
 def shutdown_running_proxy() -> bool:
     """Ask the installed tray process to leave cleanly before uninstall."""
@@ -95,7 +91,6 @@ def shutdown_running_proxy() -> bool:
     except Exception:
         return True
 
-
 def _proxy_is_online(url: str, timeout: float = 1.5) -> bool:
     try:
         with urllib.request.urlopen(url.rstrip("/") + "/health", timeout=timeout) as response:
@@ -105,7 +100,6 @@ def _proxy_is_online(url: str, timeout: float = 1.5) -> bool:
         return payload.get("service") == "memuai-proxy"
     except Exception:
         return False
-
 
 def pick_port(preferred: int, host: str = "127.0.0.1") -> int:
     if not 1 <= preferred <= 65535:
@@ -123,7 +117,6 @@ def pick_port(preferred: int, host: str = "127.0.0.1") -> int:
             return port
     raise RuntimeError("не удалось найти свободный порт")
 
-
 def local_server_url(host: str, port: int) -> str:
     """Return a reachable loopback URL even when the server binds all interfaces."""
     local_host = host.strip()
@@ -137,13 +130,11 @@ def local_server_url(host: str, port: int) -> str:
         local_host = f"[{local_host}]"
     return f"http://{local_host}:{port}"
 
-
 def secure_bind_host(host: str, password_is_default: bool) -> str:
     """Fail closed: a well-known admin password must never be exposed to a LAN."""
     if password_is_default and host.strip().lower() not in ("127.0.0.1", "localhost", "::1"):
         return "127.0.0.1"
     return host
-
 
 def main() -> None:
     if sys.platform == "win32":
@@ -177,7 +168,6 @@ def main() -> None:
 
     from app import desktop
 
-    # Сначала проверяем прежние версии, затем берём независимый от HTTP-порта lock.
     if activate_running_proxy():
         return
     lock = desktop.acquire_instance_lock("MemuAIProxy")
@@ -215,8 +205,6 @@ def main() -> None:
     if port != preferred_port:
         print(f"[MemuAI Proxy] порт {preferred_port} занят — беру {port}")
 
-    # Фактический endpoint нужен runtime-проверкам и OAuth, но не должен
-    # перезаписывать пользовательские host/port при сохранении других настроек.
     config_store.set_runtime_endpoint(host, port)
 
     import uvicorn
@@ -250,7 +238,6 @@ def main() -> None:
         lock.close()
         return
 
-    # адрес для MemuAI (чтобы он находил Proxy на любом порту)
     try:
         from app.config import DATA_DIR
         from app.storage import save_json
@@ -276,9 +263,8 @@ def main() -> None:
     print(f"  Панель:  {url}/  (нативное окно приложения)")
     print("=" * 62)
 
-    # ------- нативное окно + трей -------
     background = bool(args.background or args.headless or not config_store.settings.open_ui_on_start)
-    # Нельзя прятать единственный способ открыть приложение.
+
     show_on_start = not background or args.no_tray
     try:
         code = desktop.run_desktop(
@@ -294,7 +280,6 @@ def main() -> None:
         return
     print("[MemuAI Proxy] остановка…")
 
-
 def _crash_log_path() -> str:
     try:
         path = _runtime_file("startup-error.log")
@@ -304,7 +289,6 @@ def _crash_log_path() -> str:
         name = "memuai-proxy-startup-error.log" if os.environ.get("MEMUAI_PROXY_ONLY") == "1" \
             else "memuai-startup-error.log"
         return os.path.join(os.path.expanduser("~"), name)
-
 
 def _report_startup_crash(exc: BaseException) -> None:
     """Записывает трассировку и показывает понятное окно вместо тихого падения.
@@ -343,7 +327,6 @@ def _report_startup_crash(exc: BaseException) -> None:
         )
     except Exception:
         pass
-
 
 if __name__ == "__main__":
     try:

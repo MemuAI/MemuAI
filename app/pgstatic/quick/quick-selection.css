@@ -1,5 +1,3 @@
-/* MemuAI Quick Ask · Round 27 — the action row under the «Выделено» chip (quick-selection.js).
-   Tokens only (themes.css / quick.css): every accent, theme, surface and design applies. */
 .qa-plugin.qsel { padding: 8px 14px 2px var(--qa-pad); }
 .qsel-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .qsel-act { display: inline-flex; align-items: center; gap: 7px; height: 30px; min-width: 0; max-width: 100%; padding: 0 6px 0 9px;
@@ -16,7 +14,6 @@
 .qsel-act.on { background: var(--qa-active); border-color: color-mix(in srgb, var(--accent) 45%, transparent); }
 .qsel-hint { padding: 7px 2px 4px; font-size: 11.5px; line-height: 1.5; color: var(--qa-faint); }
 .qsel-hint kbd { min-width: 16px; height: 16px; padding: 0 4px; font-size: 10px; margin: 0 1px; vertical-align: -2px; }
-/* «Заменить выделение» under the answer keeps its label: it is the point of «Исправить» / «Перевести». */
 #qa-x-selection-replace { color: var(--accent); padding: 0 9px; }
 #qa-x-selection-replace span { display: inline; }
 #qa-x-selection-replace:hover { background: var(--qa-active); }

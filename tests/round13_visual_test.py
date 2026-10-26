@@ -17,7 +17,6 @@ from app import model_call, visual_test  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 PAGE = "<!DOCTYPE html>\n<html><head><title>Fish</title></head><body><script>let a = 1;</script></body></html>"
 
-
 def model(answer: str, usage=None, fail_with_limit: bool = False):
     calls = []
 
@@ -32,7 +31,6 @@ def model(answer: str, usage=None, fail_with_limit: bool = False):
         if usage:
             yield {"type": "usage", "usage": usage}
     return stream, calls
-
 
 class ExtractPageTest(unittest.TestCase):
     def test_a_fenced_page_is_taken_whole_and_only_the_page(self) -> None:
@@ -58,7 +56,6 @@ class ExtractPageTest(unittest.TestCase):
         self.assertIn('<svg viewBox="0 0 10 10"><circle r="3"/></svg>', found["html"])
         self.assertIn("<title>Pelican b</title>", found["html"], "the title cannot break out of its tag")
         self.assertEqual(visual_test.extract_page("I cannot draw that.")["kind"], "")
-
 
 class VisualRunsTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -89,9 +86,9 @@ class VisualRunsTest(unittest.TestCase):
         self.assertEqual([row["group"] for row in rows[:2]], ["featured", "featured"])
         self.assertGreaterEqual(len(rows), 65)
         self.assertEqual(len({row["id"] for row in rows}), len(rows), "ids are unique")
-        self.assertTrue(all("prompt" not in row and row["chars"] > 200 for row in rows), "the list carries no long texts")
+        self.assertTrue(all("prompt" not in row and row["chars"] > 0 for row in rows), "the list carries metadata, not the prompt bodies")
         self.assertIn("clownfish", visual_test.find_prompt("aquarium")["prompt"])
-        self.assertIn("pelican riding a bicycle", visual_test.find_prompt("pelican")["prompt"])
+        self.assertEqual("Create a self-contained HTML file with a 2D SVG animation of a pelican riding a bicycle", visual_test.find_prompt("pelican")["prompt"])
         self.assertIsNone(visual_test.find_prompt("../etc"))
 
     def test_a_run_saves_the_page_and_opens_only_with_its_key(self) -> None:
@@ -138,7 +135,6 @@ class VisualRunsTest(unittest.TestCase):
         self.assertEqual([row["id"] for row in visual_test.runs()], [ids[2], ids[1]])
         self.assertFalse((Path(self._temp.name) / f"{ids[0]}.html").exists(), "files of dropped runs are removed")
 
-
 class VisualRoutesTest(unittest.TestCase):
     def test_the_page_is_served_sandboxed_and_the_panel_has_the_buttons(self) -> None:
         api = (ROOT / "app" / "proxy_tools_api.py").read_text(encoding="utf-8")
@@ -153,7 +149,6 @@ class VisualRoutesTest(unittest.TestCase):
                        'rel="noopener"', "без оценки ИИ"):
             self.assertIn(needle, js)
         self.assertTrue((ROOT / "app" / "static" / "visual-prompts.json").exists())
-
 
 if __name__ == "__main__":
     unittest.main()

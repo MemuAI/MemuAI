@@ -1,6 +1,5 @@
-/* MemuAI Proxy — applies the panel theme before the first paint (Round 23). The choice lives in
-   localStorage "oh_theme": "dark" (default, the look of earlier versions), "light" or "system".
-   Loaded synchronously in <head>; the panel CSP forbids inline scripts. */
+
+
 "use strict";
 (function () {
   const root = document.documentElement;
@@ -25,7 +24,7 @@
     get: mode,
     set(value) {
       const next = ["dark", "light", "system"].includes(value) ? value : "dark";
-      try { localStorage.setItem("oh_theme", next); } catch (e) { /* private mode: apply for this session */ }
+      try { localStorage.setItem("oh_theme", next); } catch (e) {  }
       apply(next);
     },
   };

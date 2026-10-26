@@ -13,7 +13,6 @@ import httpx
 from app import stt_providers, voice_downloads
 from app.voice_runtime import VoiceRuntime
 
-
 class VoiceReviewTests(unittest.IsolatedAsyncioTestCase):
     async def test_root_change_waits_for_download_and_cancelled_worker_to_finish(self):
         started, resume = threading.Event(), threading.Event()
@@ -34,7 +33,7 @@ class VoiceReviewTests(unittest.IsolatedAsyncioTestCase):
                         patch.object(voice_downloads, "transfer", side_effect=transfer):
                     await runtime.start_download("tiny")
                     self.assertTrue(await asyncio.to_thread(started.wait, 1))
-                    # Routine catalogue polling uses the same root and stays valid.
+
                     self.assertEqual(runtime.set_root(root), root)
                     with self.assertRaisesRegex(RuntimeError, "папку"):
                         runtime.set_root(replacement)
@@ -68,7 +67,6 @@ class VoiceReviewTests(unittest.IsolatedAsyncioTestCase):
                     base_url=stt_providers.PROVIDERS["gemini"]["base_url"], api_key="dummy-review-key",
                     model="gemini-3.8-flash", transport=httpx.MockTransport(handler))
             self.assertEqual(calls, [("POST", "/upload/v1beta/files"), ("POST", "/upload/session")])
-
 
 if __name__ == "__main__":
     unittest.main()

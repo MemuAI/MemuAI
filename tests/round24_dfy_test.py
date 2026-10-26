@@ -18,7 +18,6 @@ from app.dfy_vault import SecretVault, VaultError, domain_matches
 CARD = "4242424242424242"
 PASSWORD = "Tr0ub4dor&3-very-secret"
 
-
 class FakeBrowser:
     def __init__(self, url="https://shop.example.com/cart"):
         self.url = url
@@ -37,7 +36,7 @@ class FakeBrowser:
         self.started += 1
 
     async def snapshot(self):
-        # Echo what was typed into the page text: the redactor must hide it from the model.
+
         text = "Корзина. " + " ".join(value for _, value in self.typed)
         return {"url": self.url, "title": "Shop", "text": text, "elements": self.elements,
                 "screenshot": "/9j/4AAQSkZJRgABAQ=="}
@@ -81,7 +80,6 @@ class FakeBrowser:
     async def clear_profile(self):
         self.closed = True
 
-
 class ScriptedModel:
     """Returns the next scripted action; a callable step may build it from the prompt."""
 
@@ -98,13 +96,11 @@ class ScriptedModel:
             item = item(messages)
         return item if isinstance(item, str) else json.dumps(item, ensure_ascii=False)
 
-
 def last_secret_ref(messages):
     text = json.dumps(messages, ensure_ascii=False)
     marker = "user provided vault entry "
     start = text.index(marker) + len(marker)
     return text[start:start + 13]
-
 
 class DFYBase(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
@@ -130,7 +126,6 @@ class DFYBase(unittest.IsolatedAsyncioTestCase):
             await asyncio.sleep(0.01)
         return task
 
-
 class LoopTests(DFYBase):
     async def test_basic_loop_steps_and_screenshots(self):
         model = ScriptedModel([
@@ -144,12 +139,12 @@ class LoopTests(DFYBase):
         self.assertEqual(task.result, "Каталог открыт")
         self.assertEqual([s["action"] for s in task.steps], ["navigate", "click", "done"])
         self.assertEqual(self.browser.clicked, [4])
-        # Round 33: the step of an action shows the page AFTER it (re-saved under ?v=N to bust the <img> cache).
+
         self.assertRegex(task.steps[0]["screenshot_url"], r"/screenshots/1(\?v=\d+)?$")
         self.assertIsNotNone(mgr.screenshot_path(task.id, 1))
-        # The conversation context reaches the model.
+
         self.assertIn("хочу каталог", model.prompts[0])
-        # The image goes as a data URL part.
+
         self.assertIn("data:image/jpeg;base64,", model.prompts[0])
 
     async def test_not_ready_without_vision(self):
@@ -173,7 +168,6 @@ class LoopTests(DFYBase):
         task = await mgr.create("x")
         await self.wait_status(mgr, task, ("done",))
         self.assertEqual(task.result, "ok")
-
 
 class ConfirmTests(DFYBase):
     async def test_payment_click_is_held_until_approved(self):
@@ -219,7 +213,6 @@ class ConfirmTests(DFYBase):
         await mgr.answer(task.id, {"approve": True})
         await self.wait_status(mgr, task, ("done",))
         self.assertEqual(self.browser.clicked, [4])
-
 
 class SecretTests(DFYBase):
     async def test_secret_never_reaches_model_journal_or_public_state(self):
@@ -293,7 +286,6 @@ class SecretTests(DFYBase):
         await asyncio.sleep(0.05)
         self.assertEqual(self.vault.list(), [])
 
-
 class CancelTests(DFYBase):
     async def test_cancel_while_waiting(self):
         mgr = self.manager(ScriptedModel([{"action": "ask_user", "question": "Даты?"}]))
@@ -318,7 +310,6 @@ class CancelTests(DFYBase):
         await mgr.cancel(task.id)
         self.assertEqual(task.status, "cancelled")
 
-
 class VaultTests(unittest.TestCase):
     def test_fallback_encryption_and_key_permissions(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -333,9 +324,9 @@ class VaultTests(unittest.TestCase):
                 mode = stat.S_IMODE((Path(tmp) / "dfy_vault.key").stat().st_mode)
                 self.assertEqual(mode, 0o600)
             self.assertEqual(vault.resolve("{{secret:%s.number}}" % meta["id"], "https://pay.example.com/"), CARD)
-            with self.assertRaises(VaultError):  # cards only on https
+            with self.assertRaises(VaultError):
                 vault.resolve("{{secret:%s.number}}" % meta["id"], "http://pay.example.com/")
-            # Tampering is detected.
+
             data = json.loads(raw)
             blob = data["items"][meta["id"]]["blob"]
             data["items"][meta["id"]]["blob"] = blob[:-6] + ("AAAA" if not blob.endswith("AAAA==") else "BBBB") + "=="
@@ -350,11 +341,10 @@ class VaultTests(unittest.TestCase):
             with self.assertRaises(VaultError):
                 vault.add("card", {"number": "1234 5678 9012 3456"})
             with self.assertRaises(VaultError):
-                vault.add("login", {"username": "u", "password": "p"})  # no domain
+                vault.add("login", {"username": "u", "password": "p"})
         self.assertTrue(domain_matches("booking.com", "https://secure.booking.com/x"))
         self.assertFalse(domain_matches("booking.com", "https://booking.com.evil.io/"))
         self.assertFalse(domain_matches("booking.com", "http://booking.com/"))
-
 
 class SettingsTests(unittest.TestCase):
     def test_normalize(self):
@@ -374,7 +364,6 @@ class SettingsTests(unittest.TestCase):
         self.assertEqual(prefs["dfy_confirm_mode"], "every_step")
         self.assertTrue(prefs["dfy_enabled"])
         self.assertIn("dfy_model", pgdata.DEFAULT_PREFERENCES)
-
 
 class HttpTests(unittest.TestCase):
     def test_contract_and_sse(self):
@@ -397,8 +386,7 @@ class HttpTests(unittest.TestCase):
                 self.assertEqual(client.post("/api/dfy/tasks", json={"goal": ""}).status_code, 400)
                 created = client.post("/api/dfy/tasks", json={"goal": "Купи", "context": [], "source": "quick"}).json()
                 task_id = created["id"]
-                # Plain polling + /answer (Starlette's TestClient buffers streamed bodies, so the
-                # interactive part is checked over GET and the SSE stream after the task is final).
+
                 for _ in range(200):
                     item = client.get(f"/api/dfy/tasks/{task_id}").json()
                     if item["status"] == "waiting_user":
@@ -434,14 +422,13 @@ class HttpTests(unittest.TestCase):
                 self.assertEqual(client.delete(f"/api/dfy/vault/{added.json()['item']['id']}").status_code, 200)
                 self.assertEqual(client.post("/api/dfy/browser/clear").status_code, 200)
 
-
 class StaticTests(unittest.TestCase):
     def test_client_is_served_and_wired(self):
         root = Path(__file__).resolve().parents[1] / "app" / "pgstatic"
         client = (root / "dfy-client.js").read_text("utf-8")
         for name in ("status", "start", "watch", "answer", "cancel", "renderCard"):
             self.assertIn(name, client)
-        # Round 25: secret inputs are built from field descriptions (MemuDFY.forms.FIELDS).
+
         self.assertIn('password: { l: ["Пароль", "Password"], type: "password"', client)
         index = (root / "index.html").read_text("utf-8")
         self.assertIn('src="/dfy-client.js', index)
@@ -449,10 +436,8 @@ class StaticTests(unittest.TestCase):
         self.assertIn("memuai-dfy", app_js)
         self.assertIn('"/dfy"', app_js)
 
-
 if __name__ == "__main__":
     unittest.main()
-
 
 class ReviewFixTests(DFYBase):
     """Round 24 review: Quick Ask string answers for secrets, localhost/file: blocking."""

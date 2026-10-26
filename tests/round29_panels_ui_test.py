@@ -14,7 +14,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 class Headless(unittest.TestCase):
     def setUp(self):
         try:
@@ -37,7 +36,6 @@ class Headless(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stdout[-3000:] + result.stderr[-3000:])
         finally:
             shutil.rmtree(out, ignore_errors=True)
-
 
 if __name__ == "__main__":
     unittest.main()

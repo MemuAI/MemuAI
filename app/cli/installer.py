@@ -14,13 +14,11 @@ from typing import Tuple
 
 from .i18n import tr
 
-
 def _target_dir() -> Path:
     if getattr(sys, "frozen", False):
         return Path(sys.executable).resolve().parent
     base = Path(os.environ.get("LOCALAPPDATA") or Path.home()) / "MemuAI" / "bin"
     return base
-
 
 def _write_shim(folder: Path) -> None:
     if getattr(sys, "frozen", False):
@@ -35,7 +33,6 @@ def _write_shim(folder: Path) -> None:
         shim.write_text(f'#!/bin/sh\nexec "{python}" "{script}" "$@"\n', encoding="utf-8")
         shim.chmod(0o755)
 
-
 def _user_path_windows() -> str:
     import winreg
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_READ) as key:
@@ -45,22 +42,19 @@ def _user_path_windows() -> str:
         except FileNotFoundError:
             return ""
 
-
 def _set_user_path_windows(value: str) -> None:
     import ctypes
     import winreg
     with winreg.OpenKey(winreg.HKEY_CURRENT_USER, "Environment", 0, winreg.KEY_SET_VALUE) as key:
         winreg.SetValueEx(key, "Path", 0, winreg.REG_EXPAND_SZ, value)
-    try:  # tell Explorer and new terminals that the environment changed
+    try:
         result = ctypes.c_ulong()
         ctypes.windll.user32.SendMessageTimeoutW(0xFFFF, 0x001A, 0, "Environment", 0x0002, 3000, ctypes.byref(result))
     except Exception:
         pass
 
-
 def is_installed() -> bool:
     return shutil.which("memucode") is not None or _on_user_path(_target_dir())
-
 
 def _on_user_path(folder: Path) -> bool:
     if os.name != "nt":
@@ -70,7 +64,6 @@ def _on_user_path(folder: Path) -> bool:
     except OSError:
         return False
     return os.path.normcase(str(folder).rstrip("\\")) in entries
-
 
 def install_command() -> Tuple[bool, str]:
     folder = _target_dir()
@@ -95,7 +88,6 @@ def install_command() -> Tuple[bool, str]:
         return False, tr(f"Не удалось изменить PATH: {exc}", f"Could not change PATH: {exc}")
     return True, tr(f"Добавлено в PATH: {folder}. Откройте новый терминал и наберите memucode.",
                     f"Added to PATH: {folder}. Open a new terminal and type memucode.")
-
 
 def uninstall_command() -> Tuple[bool, str]:
     if os.name != "nt":

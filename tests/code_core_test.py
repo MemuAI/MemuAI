@@ -16,7 +16,6 @@ if str(ROOT) not in sys.path:
 from app import code_artifacts, code_context, code_routes, code_sandbox, code_skills, code_tools
 from app import pgdata
 
-
 class ContextTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -64,7 +63,6 @@ class ContextTests(unittest.TestCase):
         engine = self.engine()
         found = engine.search_symbols("Box")
         self.assertTrue(any(item.get("name") == "Box" for item in found["symbols"]))
-
 
 class SandboxTests(unittest.TestCase):
     def tearDown(self) -> None:
@@ -171,7 +169,6 @@ class SandboxTests(unittest.TestCase):
             self.assertIsNotNone(created[0].poll())
             self.assertFalse(marker.exists())
 
-
 class ArtifactTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -214,7 +211,6 @@ class ArtifactTests(unittest.TestCase):
         self.assertEqual(result["restored"], ["page.html"])
         self.assertEqual(target.read_text(encoding="utf-8"), "previous")
 
-
 class SkillTests(unittest.TestCase):
     def test_project_skill_overrides_builtin_and_personal(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -235,7 +231,6 @@ class SkillTests(unittest.TestCase):
             with patch.object(code_skills, "PERSONAL_ROOT", personal):
                 self.assertIn("PROJECT PLAYBOOK", code_skills.prompt_for(root, "review"))
 
-
 class BatchTests(unittest.TestCase):
     def test_read_only_tools_share_a_batch_and_writes_stay_guarded(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -253,7 +248,6 @@ class BatchTests(unittest.TestCase):
             self.assertFalse(code_tools.parallel_safe("code_run", {"command": "git status"}))
             self.assertTrue(code_tools.parallel_safe("code_git", {"action": "status"}))
 
-
 class PreferenceTests(unittest.TestCase):
     def test_code_intro_is_stored_and_not_dropped_by_later_saves(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -266,7 +260,6 @@ class PreferenceTests(unittest.TestCase):
                 self.assertEqual(pgdata.load_preferences()["code_intro_seen"], True)
                 self.assertIsInstance(pgdata.load_preferences()["code_skill_state"], dict)
 
-
 class GuardTests(unittest.TestCase):
     def test_terminal_run_without_action_still_needs_full_access(self) -> None:
         """code_terminal_run sets action=run itself; the batch guard used to miss it."""
@@ -278,7 +271,6 @@ class GuardTests(unittest.TestCase):
         for harmless in (("code_terminal", {}), ("code_terminal", {"action": "read"}),
                          ("code_terminal_start", {}), ("code_terminal_stop", {})):
             self.assertEqual(code_routes._guard_mutation(harmless[0], dict(harmless[1]), "ask"), "", harmless)
-
 
 class CheckpointTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -328,7 +320,7 @@ class CheckpointTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "too large"):
             self.cp.require_snapshot("s-large", self.project, "large.txt", label="work_write")
         self.assertEqual(self.cp.list_entries("s-large"), [])
-        # Files and directories are captured, including empty folders.
+
         folder = self.project / "folder"
         folder.mkdir()
         (folder / "inner.txt").write_text("inner", encoding="utf-8")
@@ -343,7 +335,7 @@ class CheckpointTests(unittest.TestCase):
         (self.project / "a.txt").write_text("after", encoding="utf-8")
         (self.project / "new.txt").write_text("created", encoding="utf-8")
         (self.other / "new.txt").write_text("unrelated", encoding="utf-8")
-        # The interface has switched to another project meanwhile.
+
         result = self.cp.restore("s2", self.other)
         self.assertEqual(sorted(result["restored"] + result["removed"]), ["a.txt", "new.txt"])
         self.assertEqual((self.project / "a.txt").read_text(encoding="utf-8"), "before")
@@ -358,7 +350,6 @@ class CheckpointTests(unittest.TestCase):
         self.assertEqual(result["removed"], [])
         self.assertEqual(len(result["failed"]), 1)
         self.assertEqual((self.other / "new.txt").read_text(encoding="utf-8"), "unrelated")
-
 
 if __name__ == "__main__":
     unittest.main()

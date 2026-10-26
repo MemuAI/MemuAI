@@ -1,15 +1,11 @@
-/* Round 39 — module icons (module-icons.js). One element everywhere: .mico[data-mico], size via --mico-size. */
 .mico { --mico-size: 18px; position: relative; display: inline-grid; place-items: center; flex: none;
   width: var(--mico-size); height: var(--mico-size); line-height: 0; }
 .mico > img { width: 100%; height: 100%; display: block; object-fit: contain; user-select: none; -webkit-user-drag: none; }
-/* A module with only a glyph name: the same squircle as the drawn icons (5.5% margin, 23% radius, top light, rim). */
 .mico-glyph::before { content: ""; position: absolute; inset: 5.5%; border-radius: 26%;
   background: radial-gradient(120% 90% at 22% 8%, rgb(255 255 255 / .34), transparent 60%), linear-gradient(135deg, var(--mico-a), var(--mico-b));
   box-shadow: inset 0 1px 0 rgb(255 255 255 / .38), inset 0 -1px 0 rgb(0 0 0 / .12); }
 .mico-glyph > .ui-icon { position: relative; width: 58% !important; height: 58% !important; color: #fff !important; }
 .mico-glyph > .ui-icon svg { width: 100%; height: 100%; stroke: #fff; stroke-width: 2.1; }
-
-/* Where module icons sit (sizes per place; the old accent tiles behind a glyph go away). */
 .module-launch .mico { --mico-size: 20px; }
 .module-launch.inline .mico { --mico-size: 18px; }
 .module-card-icon:has(.mico) { background: none; border-radius: 0; cursor: pointer; }
@@ -23,8 +19,6 @@
 .net-import-ask-icon .mico { --mico-size: 40px; }
 .pbtn .mico { --mico-size: 16px; }
 .module-code-head .mico, .mw-head .mico { --mico-size: 22px; }
-
-/* ------------------------------------------------------------------ the picker */
 .panel.mico-panel { width: min(640px, calc(100vw - 32px)); }
 .mico-dialog { display: flex; flex-direction: column; gap: 16px; }
 .mico-head { display: flex; align-items: flex-start; gap: 16px; padding-right: 28px; }
@@ -68,9 +62,7 @@
 .mico-foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 4px; border-top: 1px solid var(--border); padding-top: 14px; }
 .mico-foot-end { display: inline-flex; gap: 8px; }
 @media (prefers-reduced-motion: reduce) { .mico-opt, .mico-swatch, .module-card-icon .mico { transition: none; } }
-/* Module apps (module-apps.js): installed apps list and the install dialog tile show the same icon. */
 .mapp-row-ico:has(.mico) { background: none; border-radius: 0; overflow: visible; }
 .mapp-row-ico .mico { --mico-size: 32px; }
 .mapp-tile:has(img[src^="data:image/png"]) { background: none; box-shadow: none; }
-/* Module cards in chat (module-integration.js): a card without a cover shows the module icon. */
 .mmi-cover.mmi-mico { background: none; border-radius: 0; object-fit: contain; }

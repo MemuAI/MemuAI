@@ -1,4 +1,3 @@
-/* Round 35 — the big-document strip of Quick Access (plugins/bigdocs.js). Quick Access theme tokens only. */
 .qbd-strip { display: flex; align-items: center; gap: 8px; min-width: 0; margin: 2px 12px 6px; padding: 6px 6px 6px 10px;
   border: 1px solid var(--qa-chip-line, var(--qa-line, rgba(127,127,127,.25))); border-radius: 12px; background: var(--qa-chip, transparent);
   font: 12.5px/1.3 var(--sans); color: var(--text); }

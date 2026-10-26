@@ -22,7 +22,6 @@ from app.dfy_vault import SecretVault
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def start_agent(tmp: Path, *extra: str):
     """Real agent on 127.0.0.1:<free port>; returns (process, pairing code)."""
     env = dict(os.environ, MEMUAI_AGENT_HOME=str(tmp / "agent-home"), PYTHONUNBUFFERED="1")
@@ -44,7 +43,6 @@ def start_agent(tmp: Path, *extra: str):
         process.kill()
         raise RuntimeError("agent did not print a pairing code")
     return process, code, script
-
 
 class GuardTests(unittest.TestCase):
     def setUp(self):
@@ -117,7 +115,7 @@ class GuardTests(unittest.TestCase):
         agent.call("fs_write", {"path": str(allowed / "x"), "text": "1"})
         with self.assertRaises(A.Refused):
             agent.call("fs_read", {"path": "/etc/hostname"})
-        with self.assertRaises(A.Refused):   # MemuAI may narrow, never widen the agent's roots
+        with self.assertRaises(A.Refused):
             agent.call("fs_list", {"path": "/etc", "roots": ["/etc"]})
         self.assertEqual(agent.call("exec", {"command": "pwd", "roots": [str(allowed)]})["output"].strip(),
                          str(allowed.resolve()))
@@ -157,7 +155,6 @@ class GuardTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             A.parse_pairing_code("hello")
 
-
 class LiveAgentTests(unittest.IsolatedAsyncioTestCase):
     """A real agent process over HTTP: streaming, files, confirmations, self-protection, bad tokens."""
 
@@ -181,7 +178,7 @@ class LiveAgentTests(unittest.IsolatedAsyncioTestCase):
         row = self.machines.store.add({"code": self.code, "name": "test-box"})
         stored = json.loads((self.root / "memu" / "dfy_machines.json").read_text())
         token = A.parse_pairing_code(self.code)["token"]
-        self.assertNotIn(token, json.dumps(stored))            # encrypted at rest
+        self.assertNotIn(token, json.dumps(stored))
         self.assertNotIn("secret", json.dumps(self.machines.store.list()))
         info = await self.machines.probe(row["id"])
         self.assertEqual(info["agent_version"], A.AGENT_VERSION)
@@ -201,7 +198,7 @@ class LiveAgentTests(unittest.IsolatedAsyncioTestCase):
             await self.machines.call(row["id"], "fs_delete", {"path": str(work), "recursive": True})
         with self.assertRaises(A.NeedsConfirm):
             await self.machines.call(row["id"], "exec", {"command": f"rm -rf {work}"})
-        # The agent never deletes itself — not by path, not via a symlink, not by command.
+
         (self.root / "alias").symlink_to(self.script)
         for op, params in [("fs_delete", {"path": str(self.root / "alias"), "confirmed": True}),
                            ("exec", {"command": f"rm -f {self.script}", "confirmed": True}),
@@ -212,7 +209,7 @@ class LiveAgentTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(self.script.exists())
         await self.machines.call(row["id"], "fs_delete", {"path": str(work), "recursive": True, "confirmed": True})
         self.assertFalse(work.exists())
-        self.assertIsNone(self.process.poll())                  # still alive
+        self.assertIsNone(self.process.poll())
 
     async def test_bad_token_is_rejected(self):
         parsed = A.parse_pairing_code(self.code)
@@ -230,13 +227,12 @@ class LiveAgentTests(unittest.IsolatedAsyncioTestCase):
         result = await asyncio.wait_for(job, 10)
         self.assertEqual(result["status"], "cancelled")
 
-
 class SshTransportTests(unittest.IsolatedAsyncioTestCase):
     async def test_ssh_runs_agent_without_install(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             fake = root / "ssh"
-            # A stand-in ssh: drops the options and the host, runs the remote command with sh locally.
+
             fake.write_text("#!/bin/sh\nwhile [ $# -gt 1 ]; do shift; done\nexec sh -c \"$1\"\n")
             fake.chmod(0o755)
             os.environ["MEMUAI_SSH_BINARY"] = str(fake)
@@ -257,7 +253,7 @@ class SshTransportTests(unittest.IsolatedAsyncioTestCase):
                     await transport.call("exec", {"command": "rm -rf /", "confirmed": True})
                 info = await transport.call("sysinfo", {})
                 self.assertEqual(info["agent_version"], A.AGENT_VERSION)
-                # A saved SSH password: no BatchMode, ssh asks SSH_ASKPASS, which prints it from the env only.
+
                 with_password = SshTransport({"host": "example.org", "user": "deploy"}, "pa ss'w0rd")
                 self.assertNotIn("BatchMode=yes", with_password.command())
                 env = with_password.askpass_env()
@@ -270,7 +266,6 @@ class SshTransportTests(unittest.IsolatedAsyncioTestCase):
                 os.environ["HOME"] = os.environ.pop("HOME_BACKUP")
                 os.environ.pop("MEMUAI_SSH_BINARY", None)
 
-
 class ScriptedModel:
     def __init__(self, script):
         self.script = list(script)
@@ -282,7 +277,6 @@ class ScriptedModel:
         if callable(item):
             item = item(messages)
         return json.dumps(item, ensure_ascii=False)
-
 
 class MachineLoopTests(unittest.IsolatedAsyncioTestCase):
     """DFYManager with a target: shell/file actions, the danger confirmation, live output, refusal."""
@@ -322,7 +316,7 @@ class MachineLoopTests(unittest.IsolatedAsyncioTestCase):
         await self.wait(task, ("waiting_user",))
         self.assertEqual(task.question["kind"], "confirm")
         self.assertIn(f"rm -rf {work}", task.question["prompt"])
-        self.assertTrue((work / "a.txt").exists())            # nothing deleted before the go-ahead
+        self.assertTrue((work / "a.txt").exists())
         await mgr.answer(task.id, {"approve": True})
         await self.wait(task, ("done", "failed"))
         self.assertEqual(task.status, "done", task.error)
@@ -336,8 +330,8 @@ class MachineLoopTests(unittest.IsolatedAsyncioTestCase):
             [s for s in task.steps if s["ok"] is False]
         self.assertTrue(refused, task.steps)
         self.assertIn("REFUSED", "".join(task.history))
-        prompt = model.prompts[2]                               # after file_read
-        self.assertIn("hello", prompt)                          # the file content reached the model
+        prompt = model.prompts[2]
+        self.assertIn("hello", prompt)
         public = task.public()
         self.assertEqual(public["target"]["id"], "local")
 
@@ -390,7 +384,6 @@ class MachineLoopTests(unittest.IsolatedAsyncioTestCase):
             process.wait(5)
             process.stdout.close()
 
-
 class HttpApiTests(unittest.TestCase):
     def test_machines_api(self):
         from fastapi import FastAPI
@@ -434,7 +427,6 @@ class HttpApiTests(unittest.TestCase):
                 process.wait(5)
                 process.stdout.close()
 
-
 class SameHostProtectionTests(unittest.IsolatedAsyncioTestCase):
     """Round 30 incident: an agent started from a COPY outside MemuAI on the same host deleted MemuAI's app/
     after a user go-ahead. Now the agent recognises a MemuAI folder by itself and MemuAI sends its own paths."""
@@ -442,7 +434,7 @@ class SameHostProtectionTests(unittest.IsolatedAsyncioTestCase):
     async def test_copy_of_agent_never_deletes_memuai_on_its_host(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
-            fake = root / "Apps" / "MemuAI"                       # a MemuAI tree the agent knows nothing about
+            fake = root / "Apps" / "MemuAI"
             (fake / "app").mkdir(parents=True)
             (fake / "app" / "dfy_agent.py").write_text("# agent")
             (fake / "app" / "playground_api.py").write_text("# ui")
@@ -451,13 +443,13 @@ class SameHostProtectionTests(unittest.IsolatedAsyncioTestCase):
             process, code, _script = start_agent(root / "agent")
             try:
                 agent = A.Agent(A.Guard(), state=root / "state")
-                for path in (fake / "app", fake, root / "Apps"):        # the folder, its root, a parent above it
+                for path in (fake / "app", fake, root / "Apps"):
                     with self.assertRaises(A.Refused, msg=str(path)):
                         agent.call("fs_delete", {"path": str(path), "recursive": True, "confirmed": True})
                 self.assertEqual(agent.guard.classify(f"rm -rf {fake}/app")["level"], "blocked")
                 agent.call("fs_delete", {"path": str(root / "junk"), "recursive": True, "confirmed": True})
                 self.assertFalse((root / "junk").exists())
-                # MemuAI's own paths travel with every call to a remote agent and only widen its protection.
+
                 machines = RemoteMachines(root / "memu", SecretVault(root / "memu", use_dpapi=False),
                                           protect=[str(root / "keep")])
                 (root / "keep").mkdir()
@@ -485,11 +477,10 @@ class SameHostProtectionTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("127.0.0.1", env["NO_PROXY"])
         self.assertEqual(proxy_env(None), {})
 
-
 class HelpersTests(unittest.TestCase):
     def test_action_params_filter_and_summaries(self):
         params = action_params("shell", {"command": "ls", "cwd": "/srv", "evil": 1, "confirmed": True})
-        self.assertEqual(params, {"command": "ls", "cwd": "/srv"})   # the model cannot pre-confirm
+        self.assertEqual(params, {"command": "ls", "cwd": "/srv"})
         self.assertEqual(action_params("package", {"pkg_action": "install", "name": "htop"}),
                          {"name": "htop", "action": "install"})
         line, model = summarize("shell", {"command": "ls", "exit_code": 0, "status": "ok", "output": "a\nb\n"})
@@ -512,8 +503,7 @@ class HelpersTests(unittest.TestCase):
             self.assertNotIn("hunter2", json.dumps(store.list()))
             self.assertNotIn("hunter2", (Path(tmp) / "dfy_machines.json").read_text())
             self.assertEqual(store.token(row["id"]), "hunter2-long")
-            self.assertEqual(vault.list(), [])                  # not mixed into the personal data list
-
+            self.assertEqual(vault.list(), [])
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,10 +24,8 @@ sys.path.insert(0, str(ROOT))
 
 from app import chat_titles, pgdata, reflect, telegram_focus  # noqa: E402
 
-
 def _read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
-
 
 class LocalTimeAcrossDst(unittest.TestCase):
     """Statistics are in the user's local time, with each moment's own DST offset."""
@@ -39,7 +37,7 @@ class LocalTimeAcrossDst(unittest.TestCase):
         return out.stdout.strip()
 
     def test_hours_and_bounds_after_the_clocks_change(self):
-        # «Now» is in November (CET, +01:00); the messages were in October (CEST, +02:00) at 10:30 local.
+
         code = """
 from datetime import datetime
 from app import reflect
@@ -53,15 +51,14 @@ stats = reflect.compute_stats(reflect.in_period([conv], start, end), start, end,
 print(start.hour, last_start.isoformat(), last_end.isoformat(), stats["peak_hour"])
 """
         hour, last_start, last_end, peak = self.run_in_tz(code).split()
-        self.assertEqual(hour, "0")                                   # local midnight, not 23:00 the day before
-        self.assertEqual(last_start, "2026-10-01T00:00:00+02:00")     # each bound with its own offset
+        self.assertEqual(hour, "0")
+        self.assertEqual(last_start, "2026-10-01T00:00:00+02:00")
         self.assertEqual(last_end, "2026-11-01T00:00:00+01:00")
-        self.assertEqual(peak, "10")                                  # was 9 with the offset of «now»
+        self.assertEqual(peak, "10")
 
     def test_snapshot_uses_local_time(self):
         snap = reflect.snapshot("3m", dict(reflect.PREF_DEFAULTS))
         self.assertIsNone(snap["tz"])
-
 
 class ScriptedModel:
     def __init__(self, fn):
@@ -71,13 +68,11 @@ class ScriptedModel:
         self.calls += 1
         return await self.fn(messages)
 
-
 MAP_OK = json.dumps({"topics": [{"name": "Код", "description": "FastAPI", "conversations": 3}], "notes": []})
 FINAL_OK = json.dumps({"headline": "Код и испанский", "summary": "Вы чинили FastAPI.",
                        "topics": [{"name": "Код", "description": "FastAPI", "percent": 100}],
                        "skills": {k: {"observation": "Наблюдение.", "next_step": "Шаг.", "action": "none"}
                                   for k in reflect.SKILLS}}, ensure_ascii=False)
-
 
 def _big_snapshot(n=40):
     now = datetime.now().astimezone()
@@ -89,7 +84,6 @@ def _big_snapshot(n=40):
     start, end = reflect.period_bounds("3m")
     return {"period": "3m", "start": start, "end": end, "tz": None, "conversations": convs,
             "stats": reflect.compute_stats(convs, start, end, True), "fingerprint": "x", "sensitive": 0}
-
 
 class MapReduce(unittest.TestCase):
     def setUp(self):
@@ -124,11 +118,10 @@ class MapReduce(unittest.TestCase):
         async def main():
             with self.assertRaises(RuntimeError):
                 await reflect.generate_report(_big_snapshot(), "ru", "m", ScriptedModel(answer))
-            await asyncio.sleep(0.6)            # the server's loop keeps running after a failed job
+            await asyncio.sleep(0.6)
         asyncio.run(main())
         self.assertGreater(len(started), 1)
-        self.assertEqual(finished, [])          # the parts already running were cancelled, not left to finish
-
+        self.assertEqual(finished, [])
 
 class TurnedOffWhileWriting(unittest.TestCase):
     def test_report_is_not_saved_after_reflect_was_turned_off(self):
@@ -150,7 +143,7 @@ class TurnedOffWhileWriting(unittest.TestCase):
             reflect.register(app, completion=None)
 
             async def slow(model, messages):
-                await asyncio.to_thread(pgdata.save_preferences, {"reflect_enabled": False})   # e.g. from the Mini App
+                await asyncio.to_thread(pgdata.save_preferences, {"reflect_enabled": False})
                 return FINAL_OK
             app.state.reflect_completion = slow
             with TestClient(app) as client:
@@ -170,7 +163,6 @@ class TurnedOffWhileWriting(unittest.TestCase):
                 else:
                     (data / n).write_bytes(raw)
 
-
 class LightPolling(unittest.TestCase):
     def test_status_does_not_read_the_chats(self):
         from fastapi import FastAPI
@@ -181,7 +173,6 @@ class LightPolling(unittest.TestCase):
             self.assertEqual(client.get("/api/reflect/status?period=3m&lang=en").json(), {"job": None})
         js = _read("app/pgstatic/reflect.js")
         self.assertIn("ctx.api(`/api/reflect/status?${q}`)", js)
-
 
 class TelegramFocus(unittest.TestCase):
     QUIET = {"focus_quiet_enabled": True, "focus_quiet_days": [0, 1, 2, 3, 4, 5, 6],
@@ -211,12 +202,12 @@ class TelegramFocus(unittest.TestCase):
         text, keyboard = telegram_focus.quiet_hold("42", msg, "Привет", prefs)
         self.assertIn("тихие часы", text)
         go, later = [b["callback_data"] for b in keyboard["inline_keyboard"][0]]
-        self.assertTrue(go.startswith("fq:go:") and later.startswith("fq:later:"))   # carries the hold id
-        self.assertEqual(telegram_focus.quiet_hold("42", msg, "И ещё", prefs), ("", None))   # joins, no 2nd card
+        self.assertTrue(go.startswith("fq:go:") and later.startswith("fq:later:"))
+        self.assertEqual(telegram_focus.quiet_hold("42", msg, "И ещё", prefs), ("", None))
         held, note = telegram_focus.quiet_answer("42", go, prefs)
         self.assertEqual(held, [(msg, "Привет"), (msg, "И ещё")])
-        self.assertIsNone(telegram_focus.quiet_hold("42", msg, "ещё", prefs))          # acknowledged for the window
-        card43 = telegram_focus.quiet_hold("43", msg, "ещё", prefs)                   # another chat asks too
+        self.assertIsNone(telegram_focus.quiet_hold("42", msg, "ещё", prefs))
+        card43 = telegram_focus.quiet_hold("43", msg, "ещё", prefs)
         self.assertIsNotNone(card43)
         held, note = telegram_focus.quiet_answer("43", card43[1]["inline_keyboard"][0][1]["callback_data"], prefs)
         self.assertEqual(held, [])
@@ -231,7 +222,7 @@ class TelegramFocus(unittest.TestCase):
         card = asyncio.run(telegram_focus.break_due(prefs))
         self.assertIsNotNone(card)
         self.assertIn("Сегодня вы уже 10 мин", card[0])
-        self.assertIsNone(asyncio.run(telegram_focus.break_due(prefs)))               # shown once
+        self.assertIsNone(asyncio.run(telegram_focus.break_due(prefs)))
         self.assertIn("сегодня больше", asyncio.run(telegram_focus.break_answer("fb:dismiss", prefs)))
         self.assertTrue(json.loads((self.tmp / "focus.json").read_text(encoding="utf-8"))["dismissed"])
         self.assertIsNone(asyncio.run(telegram_focus.break_due({"focus_break_enabled": False})))
@@ -265,7 +256,7 @@ class TelegramFocus(unittest.TestCase):
             self.assertTrue(go.startswith("fq:go:"))
             cb = {"id": "c", "data": go, "message": {"message_id": 6, "chat": {"id": 99}}, "from": {"id": 1}}
             asyncio.run(telegram_bot._handle_callback(None, "t", cb, prefs))
-            self.assertEqual(prompted, [(0, "Привет")])             # sent now, not «arrived while offline»
+            self.assertEqual(prompted, [(0, "Привет")])
             self.assertEqual(edited[-1][0], "editMessageText")
 
     def test_wiring(self):
@@ -280,7 +271,6 @@ class TelegramFocus(unittest.TestCase):
         self.assertIn("quiet_ack: quietAck", js)
         self.assertIn("if (data.break) breakReminder(data.break.text);", js)
         self.assertEqual(subprocess.run(["node", "--check", str(ROOT / "app/tgapp/app.js")]).returncode, 0)
-
 
 class MiniAppFocus(unittest.TestCase):
     def test_quiet_hours_and_break_in_the_mini_app(self):
@@ -322,8 +312,8 @@ class MiniAppFocus(unittest.TestCase):
                 self.assertEqual(sent.status_code, 200, sent.text)
                 self.assertIn("Сегодня вы уже 11 мин", sent.json()["break"]["text"])
                 again = client.post("/tgapp/api/chats.send", json={"text": "Ещё"}, headers=headers)
-                self.assertEqual(again.status_code, 200)                  # acknowledged for the rest of the window
-                self.assertNotIn("break", again.json())                   # the reminder came once
+                self.assertEqual(again.status_code, 200)
+                self.assertNotIn("break", again.json())
                 self.assertEqual(started, ["Привет", "Ещё"])
                 ok = client.post("/tgapp/api/focus.break", json={"action": "dismiss"}, headers=headers)
                 self.assertEqual(ok.status_code, 200)
@@ -334,7 +324,6 @@ class MiniAppFocus(unittest.TestCase):
                                                             "focus_break_enabled")})
             shutil.rmtree(tmp, ignore_errors=True)
 
-
 async def telegram_focus_gate(telegram_bot, message, prefs):
     """The bot's message path up to the gate (session/keyboard handling patched out)."""
     with patch.object(telegram_bot, "_session", return_value=({}, {"keyboard_rev": telegram_bot._keyboard_rev(prefs, None)})), \
@@ -344,10 +333,8 @@ async def telegram_focus_gate(telegram_bot, message, prefs):
             patch.object(telegram_bot, "_try_pairing", side_effect=_false):
         await telegram_bot._handle_message(None, "t", message, prefs)
 
-
 async def _false(*a, **k):
     return False
-
 
 class ChatTitles(unittest.TestCase):
     def test_cut_inside_reasoning_is_not_a_title(self):
@@ -376,7 +363,6 @@ class ChatTitles(unittest.TestCase):
         js = _read("app/pgstatic/app.js")
         self.assertIn("(chatTitleFailures.get(chatId) || 0) >= 2", js)
         self.assertIn("if (!applyChatTitle(chatId, title) && current.title === title) current.titleAuto = true;", js)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,11 +30,9 @@ from tests.round30_mock_apis import FakeApis, install  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 G = "https://www.googleapis.com/auth/"
 
-
 def visit(url: str) -> bytes:
     with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(url, timeout=10) as page:
         return page.read()
-
 
 class Base(unittest.TestCase):
     def setUp(self) -> None:
@@ -75,7 +73,6 @@ class Base(unittest.TestCase):
         self.assertIn("Google".encode(), page)
         return params
 
-
 class GoogleAccountTest(Base):
     def test_sign_in_asks_only_for_chosen_services_and_adds_more_incrementally(self):
         with self.assertRaises(google_account.GoogleAccountError) as caught:
@@ -83,7 +80,7 @@ class GoogleAccountTest(Base):
         self.assertEqual(caught.exception.code, "no_client")
         params = self.sign_in(["gmail"])
         scopes = params["scope"].split()
-        # Round 33: the full Gmail tool set (trash/delete, labels, filters) needs mail.google.com + gmail.settings.basic.
+
         self.assertEqual(scopes, ["openid", G + "userinfo.email", "https://mail.google.com/", G + "gmail.settings.basic"])
         self.assertEqual((params["code_challenge_method"], params["include_granted_scopes"], params["access_type"]),
                          ("S256", "true", "offline"))
@@ -96,23 +93,23 @@ class GoogleAccountTest(Base):
         self.assertEqual(ready, {"gmail": True, "calendar": False, "drive": False, "docs": False, "sheets": False,
                                  "tasks": False, "contacts": False})
         self.assertFalse(status["backups"])
-        # Adding Drive later asks Google only for Drive's scopes (the rest stays via include_granted_scopes).
+
         result = google_account.set_enabled("drive", True)
         params = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(result["auth_url"]).query))
-        self.assertEqual(params["scope"].split(), ["openid", G + "userinfo.email", G + "drive"])  # Round 33: rename/move/delete any file
+        self.assertEqual(params["scope"].split(), ["openid", G + "userinfo.email", G + "drive"])
         self.fake.granted |= set(params["scope"].split())
         visit(f"{params['redirect_uri']}?code=CODE&state={urllib.parse.quote(params['state'])}")
         ready = {row["id"]: row["ready"] for row in google_account.status()["services"]}
         self.assertEqual(ready, {"gmail": True, "calendar": False, "drive": True, "docs": False, "sheets": False,
                                  "tasks": False, "contacts": False})
-        # Nothing secret leaves the module.
+
         dumped = json.dumps(google_account.status())
         self.assertNotIn(self.fake.refresh, dumped)
         self.assertNotIn("GOCSPX", dumped)
 
     def test_one_account_for_sync_and_the_picker(self):
         self.sign_in(["gmail", "calendar"])
-        # Sync shows «Connect» until the backup scopes are granted (not a «connected» Drive that fails every backup).
+
         self.assertFalse(self.svc.status()["connected"])
         self.assertFalse(self.svc.ready())
         url = self.svc.auth.start_flow()["auth_url"]
@@ -122,7 +119,7 @@ class GoogleAccountTest(Base):
         visit(f"{params['redirect_uri']}?code=CODE&state={urllib.parse.quote(params['state'])}")
         self.assertTrue(self.svc.status()["connected"])
         self.assertTrue(google_account.ready("gmail"), "the backup consent kept Gmail")
-        # The Drive service of Integrations unlocks the «Add from Google Drive» picker too (drive.readonly).
+
         from app import gdrive_picker
         picker = gdrive_picker.Picker(lambda: self.svc)
         self.assertEqual(picker.status()["state"], "need_consent")
@@ -179,7 +176,6 @@ class GoogleAccountTest(Base):
         build = (ROOT / "build.py").read_text(encoding="utf-8")
         self.assertIn("MEMUAI_GOOGLE_CLIENT_ID", build)
         self.assertIn("app.oauth_build", build)
-
 
 class GoogleToolsTest(Base):
     def setUp(self) -> None:
@@ -243,7 +239,6 @@ class GoogleToolsTest(Base):
         test = ig.test_connection("gmail")
         self.assertTrue(test["ok"])
 
-
 class NotionTest(Base):
     def test_token_connect_tools_and_disconnect(self):
         with self.assertRaises(ig.IntegrationArgumentError):
@@ -293,11 +288,9 @@ class NotionTest(Base):
         notion.disconnect()
         self.assertIn("notion", self.fake.revoked)
 
-
 class WiringTest(unittest.TestCase):
     def test_window_and_server_agree_on_writes(self):
-        # Round 33: ~100 writes — app.js reads them from /api/pg/integrations (write_tools / always_confirm) and from
-        # the copy in integrations-ui.js (MemuIntegrations.WRITE / ALWAYS), which must equal the server's sets.
+
         js = (ROOT / "app/pgstatic/app.js").read_text(encoding="utf-8")
         block = js[js.index("const INTEGRATION_WRITE_TOOLS"):js.index("const TOOL_RESULT_CHARS")]
         self.assertIn("integrationsCache.write_tools", block)
@@ -311,8 +304,7 @@ class WiringTest(unittest.TestCase):
                                 capture_output=True, text=True, check=True)
         sets = json.loads(result.stdout)
         writes, always = set(sets["writes"]), set(sets["always"])
-        # Chrome actions use their RPC approval flow; this card owns service
-        # writes and Telegram. The server supplies the complete union to app.js.
+
         from app.browser_extension import WRITE as chrome_writes
         self.assertEqual(writes | chrome_writes, ig.WRITE_TOOLS)
         self.assertEqual(always, ig.ALWAYS_CONFIRM)
@@ -336,7 +328,6 @@ class WiringTest(unittest.TestCase):
         manifest = json.loads((ROOT / "app/pgstatic/quick/plugins/index.json").read_text(encoding="utf-8"))
         self.assertIn("app.quick_integrations", [row.get("backend") for row in manifest["plugins"] if isinstance(row, dict)])
 
-
 class RoutesTest(Base):
     def test_routes(self):
         from fastapi import FastAPI
@@ -359,7 +350,6 @@ class RoutesTest(Base):
         data = client.post("/api/pg/integrations/notion", json={"action": "token", "token": self.fake.notion_token}).json()
         self.assertTrue(data["status"]["connected"])
         self.assertNotIn(self.fake.notion_token, json.dumps(client.get("/api/pg/integrations/notion").json()))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -24,11 +24,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r38-suite-"))
 
-
 def _chromium():
     path = os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
     return path if Path(path).exists() else ""
-
 
 class SchemaTest(unittest.TestCase):
     def test_settings_use_the_schema(self):
@@ -49,7 +47,7 @@ class SchemaTest(unittest.TestCase):
             self.assertTrue({"appearance", "ai", "hotkeys", "advanced"} <= groups)
             self.assertTrue(schema.SHORTCUTS)
         self.assertIn("windows", {g["id"] for g in mfs.GROUPS})
-        # the old hand-written defaults are still all there (nothing lost by the move)
+
         self.assertIn("md_live_migrated", mns.DEFAULTS)
         self.assertEqual(mfs.DEFAULTS["pinned"], [])
 
@@ -78,7 +76,6 @@ class SchemaTest(unittest.TestCase):
         self.assertTrue(value["show_hidden"])
         self.assertEqual(mf.save({"terminal": "evil"})["terminal"], "auto")
         mf._path().unlink()
-
 
 class ApiTest(unittest.TestCase):
     @classmethod
@@ -145,7 +142,6 @@ class ApiTest(unittest.TestCase):
         self.assertFalse(mf.load()["show_hidden"])
         mf._path().unlink()
 
-
 class WiringTest(unittest.TestCase):
     def test_apps_apply_a_settings_event(self):
         for app in ("memunote", "memufiles"):
@@ -170,7 +166,6 @@ class WiringTest(unittest.TestCase):
             text = (ui / name).read_text(encoding="utf-8")
             for needle in ("btn-notes", "notes-label", "showNotes", "notes-list", '"notes.'):
                 self.assertNotIn(needle, text, f"{name}: {needle}")
-
 
 @unittest.skipUnless(_chromium(), "Chromium is not installed")
 class BrowserTest(unittest.TestCase):
@@ -246,14 +241,14 @@ class BrowserTest(unittest.TestCase):
         self.assertEqual(titles, ["Внешний вид", "Редактор", "Файлы и сохранение", "ИИ", "Горячие клавиши", "Дополнительно"])
         self.assertGreater(page.evaluate("() => document.querySelectorAll('#mnset-g-hotkeys kbd').length"), 10)
         self.shot(page, "memunote-ru-dark")
-        # a toggle saves at once into MemuNote's own settings.json
+
         page.evaluate("() => { const t = document.getElementById('mnset-word_wrap'); t.checked = false; t.dispatchEvent(new Event('change', { bubbles: true })); }")
         self.wait(page, "true")
         deadline = time.time() + 5
         while time.time() < deadline and mn.load()["word_wrap"]:
             time.sleep(0.05)
         self.assertFalse(mn.load()["word_wrap"])
-        # a segmented choice + the `when` dependency (autosave delay shows only for «через паузу»)
+
         self.assertTrue(page.evaluate("() => document.getElementById('mnset-row-autosave_delay').hidden"))
         page.evaluate("() => document.querySelector('input[name=\"mnset-autosave\"][value=\"delay\"]').click()")
         self.wait(page, "!document.getElementById('mnset-row-autosave_delay').hidden")
@@ -261,12 +256,12 @@ class BrowserTest(unittest.TestCase):
         while time.time() < deadline and mn.load()["autosave"] != "delay":
             time.sleep(0.05)
         self.assertEqual(mn.load()["autosave"], "delay")
-        # changed inside MemuNote → seen when the MemuAI window gets focus
+
         time.sleep(0.05)
         mn.save({"line_numbers": False})
         page.evaluate("() => window.dispatchEvent(new Event('focus'))")
         self.wait(page, "document.getElementById('mnset-line_numbers').checked === false")
-        # the local filter and the global settings search
+
         page.fill("#mnset-filter", "шрифт")
         self.wait(page, "document.getElementById('mnset-g-editor').classList.contains('appset-hide')")
         self.assertFalse(page.evaluate("() => document.getElementById('mnset-row-font_family').classList.contains('appset-hide')"))
@@ -284,7 +279,7 @@ class BrowserTest(unittest.TestCase):
         titles = page.evaluate("() => [...document.querySelectorAll('#mfset-groups .sx-section-title > span:not([class])')].map(n => n.textContent)")
         self.assertIn("Windows integration", titles)
         self.assertTrue(page.evaluate("() => !!document.querySelector('#mfset-g-windows #mfds-root')"), "r38-files' block sits in the group")
-        # no horizontal overflow anywhere in the pane
+
         self.assertEqual(page.evaluate("""() => [...document.querySelectorAll('#pane-memufiles *')]
             .filter(n => n.scrollWidth > n.clientWidth + 1 && getComputedStyle(n).overflowX !== 'visible' && n.clientWidth > 0 && !n.matches('input, select, textarea')).map(n => n.className)"""), [])
         self.shot(page, "memufiles-en-light")
@@ -295,7 +290,6 @@ class BrowserTest(unittest.TestCase):
         page.set_viewport_size({"width": 760, "height": 820})
         page.wait_for_timeout(300)
         self.shot(page, "memufiles-narrow")
-
 
 if __name__ == "__main__":
     unittest.main()

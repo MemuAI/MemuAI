@@ -59,16 +59,12 @@ SHCNE_UPDATEITEM = 0x00002000
 SHCNE_ASSOCCHANGED = 0x08000000
 SHCNF_IDLIST, SHCNF_PATHW, SHCNF_FLUSHNOWAIT = 0x0000, 0x0005, 0x3000
 
-#: PKEY_AppUserModel_* (propkey.h), fmtid {9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}.
 PKEY_FMTID = "{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}"
 PID_RELAUNCH_COMMAND, PID_RELAUNCH_ICON, PID_RELAUNCH_NAME, PID_ID = 2, 3, 4, 5
-
 
 def is_windows() -> bool:
     return sys.platform == "win32"
 
-
-# --------------------------------------------------------------------- Win32 API
 class Win32Api:
     """The handful of Win32 calls used here, with explicit 64-bit-safe signatures."""
 
@@ -103,7 +99,6 @@ class Win32Api:
         shell32.SetCurrentProcessExplicitAppUserModelID.argtypes = [wintypes.LPCWSTR]
         shell32.SetCurrentProcessExplicitAppUserModelID.restype = ctypes.c_long
 
-    # -- icons
     def icon_sizes(self, hwnd: int) -> Tuple[int, int]:
         """(small, big) icon sizes for the window's monitor DPI."""
         dpi = 0
@@ -133,7 +128,6 @@ class Win32Api:
     def is_window(self, hwnd: int) -> bool:
         return bool(hwnd) and bool(self.user32.IsWindow(hwnd))
 
-    # -- shell
     def set_process_app_id(self, app_id: str) -> bool:
         return self.shell32.SetCurrentProcessExplicitAppUserModelID(app_id) == 0
 
@@ -145,7 +139,6 @@ class Win32Api:
     def notify_assoc_changed(self) -> None:
         self.shell32.SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST | SHCNF_FLUSHNOWAIT, None, None)
 
-    # -- COM: window property store and shell links
     def set_window_properties(self, hwnd: int, props: Sequence[Tuple[int, str]]) -> bool:
         """``SHGetPropertyStoreForWindow`` + ``IPropertyStore::SetValue`` (VT_LPWSTR) + ``Commit``."""
         from . import win_com
@@ -159,10 +152,8 @@ class Win32Api:
         from . import win_com
         return win_com.write_shortcut_icon(link, icon, index)
 
-
 _api: Optional[object] = None
 _api_lock = threading.Lock()
-
 
 def api():
     """The process-wide :class:`Win32Api` (``None`` off Windows or when ctypes fails)."""
@@ -180,7 +171,6 @@ def api():
                 return None
     return _api
 
-
 def set_api(value) -> None:
     """Tests: install a fake API (``None`` restores the real one lazily)."""
     global _api, _process_app_id
@@ -188,10 +178,7 @@ def set_api(value) -> None:
     _process_app_id = ""
     _window_identity.clear()
 
-
-# --------------------------------------------------------------- process identity
 _process_app_id = ""
-
 
 def set_process_app_id(app_id: str = APP_ID_MEMUAI) -> bool:
     """Set the explicit AppUserModelID once, before any window exists.
@@ -215,17 +202,14 @@ def set_process_app_id(app_id: str = APP_ID_MEMUAI) -> bool:
         log.debug("SetCurrentProcessExplicitAppUserModelID failed: %s", exc)
     return False
 
-
 def process_app_id() -> str:
     return _process_app_id
-
 
 def relaunch_command() -> str:
     """The command a pinned taskbar entry starts (only meaningful for the frozen exe)."""
     if getattr(sys, "frozen", False):
         return f'"{sys.executable}"'
     return ""
-
 
 def set_window_identity(hwnd: int, app_id: str, display_name: str, icon_resource: str,
                         command: Optional[str] = None) -> bool:
@@ -243,11 +227,11 @@ def set_window_identity(hwnd: int, app_id: str, display_name: str, icon_resource
         props += [(PID_RELAUNCH_COMMAND, command), (PID_RELAUNCH_NAME, display_name)]
         if icon_resource:
             props.append((PID_RELAUNCH_ICON, icon_resource))
-    # The id goes last: setting it makes the taskbar re-read the others.
+
     props.append((PID_ID, app_id))
     key = (int(hwnd), tuple(props))
     if _window_identity.get(int(hwnd)) == key:
-        return True     # "shown" fires after every restore: never re-announce the same identity
+        return True
     try:
         ok = bool(win.set_window_properties(hwnd, props))
     except Exception as exc:  # noqa: BLE001
@@ -257,11 +241,8 @@ def set_window_identity(hwnd: int, app_id: str, display_name: str, icon_resource
         _window_identity[int(hwnd)] = key
     return ok
 
-
 _window_identity: Dict[int, tuple] = {}
 
-
-# ------------------------------------------------------------------ window icons
 class WindowIcons:
     """Keeps the HICONs given to windows alive until they are replaced.
 
@@ -321,9 +302,7 @@ class WindowIcons:
                 except Exception:  # noqa: BLE001
                     pass
 
-
 WINDOW_ICONS = WindowIcons()
-
 
 def native_hwnd(window) -> int:
     """HWND of a pywebview window on WinForms (0 when unknown)."""
@@ -344,7 +323,6 @@ def native_hwnd(window) -> int:
         pass
     return 0
 
-
 def bundled_file(name: str) -> str:
     """A file shipped next to the code (PyInstaller ``_MEIPASS`` or the repo root)."""
     for base in (getattr(sys, "_MEIPASS", ""), os.path.dirname(os.path.dirname(os.path.abspath(__file__)))):
@@ -354,8 +332,6 @@ def bundled_file(name: str) -> str:
                 return candidate
     return ""
 
-
-# -------------------------------------------------------------------- shell icons
 def refresh_shell_icons(paths: Iterable[str] = (), assoc: bool = True) -> int:
     """Tell Explorer that these files' icons changed (and, optionally, re-read all icons).
 
@@ -381,7 +357,6 @@ def refresh_shell_icons(paths: Iterable[str] = (), assoc: bool = True) -> int:
             log.debug("SHChangeNotify(ASSOCCHANGED) failed: %s", exc)
     return sent
 
-
 def shortcut_folders(env: Optional[Dict[str, str]] = None) -> List[Path]:
     """Where MemuAI shortcuts live: Start menu, desktop, and the copies Windows makes when pinning."""
     env = dict(os.environ if env is None else env)
@@ -396,11 +371,9 @@ def shortcut_folders(env: Optional[Dict[str, str]] = None) -> List[Path]:
         folders += [Path(home) / "Desktop", Path(home) / "OneDrive" / "Desktop"]
     return folders
 
-
 def _basename(path: str) -> str:
     """File name of a Windows or POSIX path, case-folded."""
     return os.path.normcase(str(path).replace("\\", "/").rsplit("/", 1)[-1]).lower()
-
 
 def _is_ours(icon: str, owned_dirs: Sequence[str], exe_name: str) -> bool:
     """May we change a shortcut whose icon is ``icon``? Never touch an icon the user picked."""
@@ -411,8 +384,7 @@ def _is_ours(icon: str, owned_dirs: Sequence[str], exe_name: str) -> bool:
         return True
     if any(norm.startswith(os.path.normcase(os.path.abspath(d)) + os.sep) for d in owned_dirs if d):
         return True
-    return not os.path.isfile(icon)   # a broken icon is always repaired
-
+    return not os.path.isfile(icon)
 
 def sync_shortcut_icons(desired_icon: str, exe_name: str = "MemuAI.exe",
                         owned_dirs: Sequence[str] = (), folders: Optional[Sequence[Path]] = None) -> List[str]:

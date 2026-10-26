@@ -30,7 +30,6 @@ STATIC = ROOT / "app" / "pgstatic"
 CYR = re.compile(r"[А-Яа-яЁё]")
 HOUR = 3600 * 1000
 
-
 class QueueTest(unittest.TestCase):
     def setUp(self) -> None:
         from app import scheduled_messages as sm
@@ -83,7 +82,7 @@ class QueueTest(unittest.TestCase):
             self.assertEqual(result["action"], action, policy)
             row = next(r for r in sm.load() if r["id"] == item["id"])
             self.assertEqual(row["status"], status, policy)
-        # «send now» bypasses the policy
+
         item = self.make()
         sm.send_now(item["id"], self.profile, now=self.now + 1000)
         result = sm.claim(item["id"], "proxy", self.profile, policy="skip", now=late_at)
@@ -124,7 +123,6 @@ class QueueTest(unittest.TestCase):
         sm.normalize_prefs(out, {"schedsend_missed": "ask"})
         self.assertEqual(out["schedsend_missed"], "ask")
 
-
 class RoutesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -150,7 +148,6 @@ class RoutesTest(unittest.TestCase):
         self.assertEqual(response.status_code, 400)
         self.assertFalse(CYR.search(response.json().get("error", "")))
 
-
 class RunnerTest(unittest.TestCase):
     def test_tgapp_chat_contract(self) -> None:
         from app import tgapp_chat as tg
@@ -174,7 +171,6 @@ class RunnerTest(unittest.TestCase):
         self.assertTrue(inspect.iscoroutinefunction(runner.tick))
         block = runner.delivery_block({"due_at": 0, "trigger": "time", "late": False}, "en")
         self.assertFalse(CYR.search(block))
-
 
 class FrontendTest(unittest.TestCase):
     def test_wiring(self) -> None:
@@ -208,7 +204,6 @@ class FrontendTest(unittest.TestCase):
             self.assertTrue((ROOT / "app" / "docs" / lang / "scheduled-messages.md").is_file())
         self.assertFalse(CYR.search((ROOT / "app" / "docs" / "en" / "scheduled-messages.md").read_text(encoding="utf-8")))
 
-
 class BuildTest(unittest.TestCase):
     def test_spec_and_build(self) -> None:
         spec = (ROOT / "MemuAI.spec").read_text(encoding="utf-8")
@@ -219,7 +214,6 @@ class BuildTest(unittest.TestCase):
             self.assertIn(f'"{module}"', build)
         for module in ("app.scheduled_messages", "app.scheduled_messages_runner"):
             self.assertIn(f"'{module}'", proxy)
-
 
 if __name__ == "__main__":
     unittest.main()

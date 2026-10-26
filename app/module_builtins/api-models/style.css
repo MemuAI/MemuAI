@@ -74,10 +74,6 @@
 @media(max-width:760px) { .am-grid { grid-template-columns:minmax(0,1fr); } .am-hero { padding:20px; } .am-summary { display:none; } .am-card:has(>.am-source-body:not([hidden])) .am-families { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 @media(max-width:480px) { .am-settings,.am-history { padding:14px; } .am-card { padding:12px; } .am-source-monogram { display:none; } .am .am-families,.am-card:has(>.am-source-body:not([hidden])) .am-families { grid-template-columns:minmax(0,1fr); } }
 @media(prefers-reduced-motion:reduce) { .am * { transition:none!important; } }
-
-/* ======================= Раунд 21: лента новых моделей =======================
-   Шапка с вкладками «Лента / Источники и уведомления», лента по дням и
-   поставщикам, карточки моделей с характеристиками и быстрыми действиями. */
 .am { padding: 0; display: flex; flex-direction: column; overflow: hidden; --am-line: color-mix(in srgb, var(--border) 85%, transparent); }
 .am svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .am-top { flex: none; display: flex; align-items: center; gap: 14px 18px; flex-wrap: wrap; padding: 12px 20px; border-bottom: 1px solid var(--am-line); background: var(--panel); }
@@ -102,8 +98,6 @@
 #am-settings-pane > .am-settings { margin-bottom: 4px; }
 .am-settings-head { margin-bottom: 14px; }
 .am-settings-head small { margin-top: 4px; }
-
-/* панель инструментов ленты */
 .am-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
 .am-search { flex: 1 1 240px; max-width: 420px; display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 12px; border: 1px solid var(--am-line);
   border-radius: 11px; background: var(--panel); color: var(--muted); }
@@ -127,8 +121,6 @@
 .am .am-chip.on { background: var(--accent-soft); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); font-weight: 600; }
 .am-feed-notice { margin: 0 0 12px !important; padding: 9px 12px; border-radius: 10px; background: var(--am-soft); color: var(--text) !important; font-size: .84em; }
 .am-feed-notice.error { background: color-mix(in srgb, var(--danger) 13%, transparent); }
-
-/* лента */
 .am-day { margin-bottom: 22px; }
 .am-day-head { position: sticky; top: -18px; z-index: 2; display: flex; align-items: baseline; gap: 10px; margin: 0 0 10px; padding: 10px 2px 8px;
   font-size: .82em; text-transform: capitalize; letter-spacing: .01em; background: linear-gradient(var(--bg) 70%, transparent); }
@@ -164,8 +156,6 @@
 .am-note { padding: 12px 14px; border: 1px solid var(--am-line); border-radius: 14px; background: var(--panel); margin-bottom: 8px; }
 .am-note small { margin-top: 3px; font-size: .74em; }
 .am-note pre { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: .84em; line-height: 1.6; }
-
-/* пустая лента */
 .am-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px; padding: 46px 20px; border: 1px dashed var(--am-line); border-radius: 18px; background: var(--panel); }
 .am-empty > svg { width: 96px; height: 96px; stroke: color-mix(in srgb, var(--accent) 55%, var(--border)); stroke-width: 1.2; margin-bottom: 4px; }
 .am-empty > svg .dot { fill: var(--accent); stroke: none; }
@@ -187,6 +177,4 @@
   #am-mark-seen span, .am-top-actions span { display: none; }
 }
 @media (prefers-reduced-motion: reduce) { .am-empty > svg path, .am-top-actions button.busy svg { animation: none; } }
-
-/* Round 30: the window title row already names the module. */
 :root[data-host-toolbar="1"] .am-bar { display: none; }

@@ -25,9 +25,8 @@ from typing import Any, Callable, Dict, List, Optional
 from . import tools
 from .library import AUDIO_EXTS, Library, folder_cover, norm_text, read_tags
 
-# --------------------------------------------------------------------------- rule playlists
 RULE_FIELDS = {
-    # field: (sql expression, kind)
+
     "title": ("title", "text"), "artist": ("artist", "text"), "album": ("album", "text"),
     "album_artist": ("album_artist", "text"), "genre": ("genre", "text"), "source": ("source", "text"),
     "year": ("CAST(NULLIF(year,'') AS INTEGER)", "number"), "duration": ("duration", "number"),
@@ -39,7 +38,6 @@ RULE_OPS = {"text": ("contains", "not_contains", "is", "is_not", "starts"), "num
 RULE_SORTS = {"added": "added_at DESC", "title": "title COLLATE NOCASE", "artist": "artist COLLATE NOCASE, album, track_no",
               "plays": "plays DESC, last_played DESC", "recent": "last_played DESC", "duration": "duration DESC",
               "year": "year DESC", "random": "RANDOM()", "album": "album COLLATE NOCASE, track_no"}
-
 
 def clean_rules(rules: Any) -> Dict[str, Any]:
     if isinstance(rules, str):
@@ -81,7 +79,6 @@ def clean_rules(rules: Any) -> Dict[str, Any]:
         limit = 0
     return {"match": "any" if rules.get("match") == "any" else "all", "conditions": conditions, "sort": sort, "limit": limit}
 
-
 def rules_sql(rules: Dict[str, Any]) -> tuple:
     parts, params = [], []
     now = time.time()
@@ -116,7 +113,6 @@ def rules_sql(rules: Dict[str, Any]) -> tuple:
         sql += f" LIMIT {int(rules['limit'])}"
     return sql, params
 
-
 def rule_ids(lib: Library, stored: Any) -> List[str]:
     try:
         rules = clean_rules(stored)
@@ -125,16 +121,12 @@ def rule_ids(lib: Library, stored: Any) -> List[str]:
     sql, params = rules_sql(rules)
     return [r["id"] for r in lib._q(sql, params)]
 
-
 def rules_preview(lib: Library, rules: Any, base: str = "") -> Dict[str, Any]:
     ids = rule_ids(lib, clean_rules(rules))
     return {"count": len(ids), "tracks": lib._by_ids(ids[:30], base)}
 
-
-# --------------------------------------------------------------------------- genres / folders / duplicates
 def split_genres(text: str) -> List[str]:
     return [g.strip() for g in re.split(r"[;/]|, ", text or "") if g.strip()]
-
 
 def genres(lib: Library, base: str = "") -> List[Dict[str, Any]]:
     groups: Dict[str, Dict[str, Any]] = {}
@@ -148,10 +140,8 @@ def genres(lib: Library, base: str = "") -> List[Dict[str, Any]]:
                 item["cover"], item["accent"] = lib.cover_url(r["id"], base), r["accent"]
     return sorted(groups.values(), key=lambda g: (-g["tracks"], g["name"].lower()))
 
-
 def _folder_of(lib: Library, row: Dict[str, Any]) -> str:
     return str(lib.file_path(row).parent)
-
 
 def folders(lib: Library) -> List[Dict[str, Any]]:
     groups: Dict[str, Dict[str, Any]] = {}
@@ -161,7 +151,6 @@ def folders(lib: Library) -> List[Dict[str, Any]]:
         item["tracks"] += 1
         item["duration"] += r["duration"] or 0
     return sorted(groups.values(), key=lambda f: f["path"].lower())
-
 
 def folder_ids(lib: Library, folder: str) -> List[str]:
     want = os.path.normcase(os.path.normpath(str(folder or "")))
@@ -173,7 +162,6 @@ def folder_ids(lib: Library, folder: str) -> List[str]:
         if path == want or path.startswith(want.rstrip(os.sep) + os.sep):
             out.append(r["id"])
     return out
-
 
 def duplicates(lib: Library, base: str = "") -> List[Dict[str, Any]]:
     """Groups of the same song (normalised title + artist, durations within 4 s). Best file first."""
@@ -197,8 +185,6 @@ def duplicates(lib: Library, base: str = "") -> List[Dict[str, Any]]:
             cluster = [row] if row is not None else []
     return groups
 
-
-# --------------------------------------------------------------------------- radio / mix
 def radio(lib: Library, track_id: str, limit: int = 30, base: str = "") -> Dict[str, Any]:
     """Similar tracks from the library: same artist, same album artist, shared genres, then close year;
     liked/played ones rank higher; a little shuffle so two radios of one seed differ."""
@@ -231,15 +217,13 @@ def radio(lib: Library, track_id: str, limit: int = 30, base: str = "") -> Dict[
         scored.append((score, r["id"]))
     scored.sort(reverse=True)
     ids = [track_id] + [tid for _, tid in scored[:max(1, min(200, int(limit or 30))) - 1]]
-    if len(ids) < 8:   # thin library: pad with liked/most played
+    if len(ids) < 8:
         for r in lib._q("SELECT id FROM tracks WHERE id NOT IN (%s) ORDER BY liked DESC, plays DESC, RANDOM() LIMIT ?"
                         % ",".join("?" * len(ids)), (*ids, 12 - len(ids))):
             ids.append(r["id"])
     query = " ".join(x for x in (seed["artist"], seed["genre"].split(";")[0] if seed["genre"] else "") if x).strip()
     return {"seed": lib.get(track_id, base), "tracks": lib._by_ids(ids, base), "online_query": query or seed["title"]}
 
-
-# --------------------------------------------------------------------------- covers
 def _image_bytes(data: str) -> bytes:
     text = str(data or "")
     if text.startswith("data:"):
@@ -253,7 +237,6 @@ def _image_bytes(data: str) -> bytes:
     if len(raw) > 20 * 1024 * 1024:
         raise ValueError("Картинка больше 20 МБ / The image is larger than 20 MB")
     return raw
-
 
 def _fetch(url: str, client_factory: Optional[Callable[[], Any]] = None, limit: int = 20 * 1024 * 1024) -> bytes:
     url = str(url or "").strip()
@@ -275,7 +258,6 @@ def _fetch(url: str, client_factory: Optional[Callable[[], Any]] = None, limit: 
         raise ValueError("Файл слишком большой / The file is too large")
     return data
 
-
 def _video_frame(lib: Library, row: Dict[str, Any], at: float, client_factory=None) -> bytes:
     """A frame of the track's own video (mp4/webm with a video stream) via ffmpeg, else the source video's
     thumbnail (YouTube max-res still)."""
@@ -295,7 +277,6 @@ def _video_frame(lib: Library, row: Dict[str, Any], at: float, client_factory=No
             except ValueError:
                 continue
     raise ValueError("У трека нет видео-кадра / The track has no video frame")
-
 
 def set_cover(lib: Library, track_id: str, args: Dict[str, Any], client_factory=None, base: str = "") -> Dict[str, Any]:
     row = lib.row(track_id)
@@ -322,7 +303,6 @@ def set_cover(lib: Library, track_id: str, args: Dict[str, Any], client_factory=
     if args.get("write_tags", lib.settings().get("write_tags", True)):
         lib.write_tags(track_id, with_cover=True)
     return lib.get(track_id, base)
-
 
 def cover_search(q: str, limit: int = 12, client_factory=None) -> List[Dict[str, Any]]:
     """Album art candidates: iTunes Search (600×600 → 1200) and Deezer search (cover_xl). Network; errors → []."""
@@ -362,13 +342,12 @@ def cover_search(q: str, limit: int = 12, client_factory=None) -> List[Dict[str,
         except Exception:
             pass
     seen, unique = set(), []
-    for item in out:   # one candidate per album art
+    for item in out:
         key = item["url"]
         if key not in seen:
             seen.add(key)
             unique.append(item)
     return unique[: limit * 2]
-
 
 def set_playlist_cover(lib: Library, pid: str, args: Dict[str, Any], client_factory=None, base: str = "") -> Dict[str, Any]:
     from .library import SMART, save_cover
@@ -388,7 +367,7 @@ def set_playlist_cover(lib: Library, pid: str, args: Dict[str, Any], client_fact
         try:
             from PIL import Image
             with Image.open(saved) as img:
-                img.convert("RGB").resize((480, 480)).save(saved, "JPEG", quality=86)   # small: travels as data: URL
+                img.convert("RGB").resize((480, 480)).save(saved, "JPEG", quality=86)
         except Exception:
             pass
     lib._x("UPDATE playlists SET cover=?, updated_at=? WHERE id=?", (name, time.time(), pid))
@@ -399,10 +378,7 @@ def set_playlist_cover(lib: Library, pid: str, args: Dict[str, Any], client_fact
             pass
     return lib.playlist(pid, base)
 
-
-# --------------------------------------------------------------------------- bulk edit
 BULK_FIELDS = ("artist", "album", "album_artist", "year", "genre", "title", "track_no")
-
 
 def update_many(lib: Library, ids: List[str], changes: Dict[str, Any], base: str = "") -> Dict[str, Any]:
     """Only the fields present (not None) change; ``""`` clears a field. Returns updated tracks."""
@@ -414,7 +390,7 @@ def update_many(lib: Library, ids: List[str], changes: Dict[str, Any], base: str
     out = []
     for tid in ids:
         out.append(lib.update(tid, {**fields, "write_tags": write}, base))
-    if changes.get("cover_from"):   # one cover for all (e.g. an album)
+    if changes.get("cover_from"):
         src = lib.cover_path(str(changes["cover_from"]))
         if src:
             raw = src.read_bytes()
@@ -426,8 +402,6 @@ def update_many(lib: Library, ids: List[str], changes: Dict[str, Any], base: str
             out = [lib.get(tid, base) for tid in ids]
     return {"ok": True, "tracks": out}
 
-
-# --------------------------------------------------------------------------- M3U
 def export_m3u(lib: Library, pid: str, path: str = "", fmt: str = "m3u8") -> Dict[str, Any]:
     pl = lib.playlist(pid)
     lines = ["#EXTM3U", f"#PLAYLIST:{pl['name']}"]
@@ -450,7 +424,6 @@ def export_m3u(lib: Library, pid: str, path: str = "", fmt: str = "m3u8") -> Dic
         target.write_text(text, encoding="utf-8" if fmt != "m3u" else "utf-8-sig")
         written = str(target)
     return {"text": text, "filename": filename, "path": written, "count": len(pl["tracks"])}
-
 
 def import_m3u(lib: Library, text: str = "", path: str = "", name: str = "") -> Dict[str, Any]:
     """Entries are matched to the library by file path, then by «Artist - Title» of #EXTINF / the file name.
@@ -493,7 +466,6 @@ def import_m3u(lib: Library, text: str = "", path: str = "", name: str = "") -> 
     pl = lib.create_playlist(name or "M3U", ids)
     return {"playlist": pl, "matched": len(ids), "missing": missing[:200]}
 
-
 def _match_name(lib: Library, text: str) -> Optional[Dict[str, Any]]:
     text = re.sub(r"^\d{1,3}[\s._-]+", "", str(text or ""))
     if " - " in text:
@@ -501,8 +473,6 @@ def _match_name(lib: Library, text: str) -> Optional[Dict[str, Any]]:
         return lib.find_similar(title.strip(), artist.strip()) or lib.find_similar(artist.strip(), title.strip())
     return lib.find_similar(text, "")
 
-
-# --------------------------------------------------------------------------- files
 def import_file(lib: Library, path: Path, source: str = "local") -> Dict[str, Any]:
     existing = lib.find_by_file(path)
     if existing:
@@ -514,7 +484,6 @@ def import_file(lib: Library, path: Path, source: str = "local") -> Dict[str, An
     row = lib.add(fields, tags.get("cover") if tags.get("cover") is not None else folder_cover(path.parent))
     analyzer().add(row["id"])
     return row
-
 
 def upload(lib: Library, name: str, data: str, base: str = "") -> Dict[str, Any]:
     """A file dropped into the window (the sandbox has no paths): saved into the download folder/«Imported»."""
@@ -533,7 +502,6 @@ def upload(lib: Library, name: str, data: str, base: str = "") -> Dict[str, Any]
     row = import_file(lib, target)
     return lib.get(row["id"], base)
 
-
 def _open_memufiles(path: Path) -> bool:
     try:
         from .. import memufiles_manager
@@ -541,7 +509,6 @@ def _open_memufiles(path: Path) -> bool:
         return memufiles_manager.available() and bool(mf_desktop.open_path(str(path)))
     except Exception:
         return False
-
 
 def reveal(lib: Library, track_id: str, opener: Optional[Callable[[Path], bool]] = None, via: str = "auto") -> Dict[str, Any]:
     """Show the file: ``via`` auto (MemuFiles when installed, else the system manager) | memufiles | system."""
@@ -571,7 +538,6 @@ def reveal(lib: Library, track_id: str, opener: Optional[Callable[[Path], bool]]
             opened = False
     return {"path": str(path), "folder": str(path.parent), "opened": opened, "via": used}
 
-
 def replace_track(lib: Library, old_id: str, new_id: str) -> None:
     """After a re-download: the new file takes over likes, plays, playlists, lyrics and the id of the old one."""
     old, new = lib.row(old_id), lib.row(new_id)
@@ -591,15 +557,12 @@ def replace_track(lib: Library, old_id: str, new_id: str) -> None:
         db.commit()
     lib.delete(old_id, delete_file=True)
 
-
 def set_resume(lib: Library, track_id: str, position: float) -> Dict[str, Any]:
     pos = max(0.0, float(position or 0))
     if not lib._x("UPDATE tracks SET resume_at=? WHERE id=?", (pos, track_id)):
         raise KeyError("Трек не найден / Track not found")
     return {"ok": True, "id": track_id, "resume_at": pos}
 
-
-# --------------------------------------------------------------------------- loudness
 def measure_lufs(path: Path) -> Optional[float]:
     """Integrated loudness (EBU R128) with ffmpeg; None when ffmpeg is missing or the file is silent/broken."""
     ff = tools.ffmpeg_path()
@@ -617,7 +580,6 @@ def measure_lufs(path: Path) -> Optional[float]:
     value = float(found[-1])
     return value if value > -70 else None
 
-
 def store_loudness(lib: Library, track_id: str, lufs: Optional[float]) -> Optional[float]:
     if lufs is None:
         lib._x("UPDATE tracks SET lufs=NULL, gain=0 WHERE id=?", (track_id,))
@@ -626,7 +588,6 @@ def store_loudness(lib: Library, track_id: str, lufs: Optional[float]) -> Option
     gain = round(max(-18.0, min(12.0, target - lufs)), 2)
     lib._x("UPDATE tracks SET lufs=?, gain=? WHERE id=?", (round(lufs, 2), gain, track_id))
     return gain
-
 
 class Analyzer:
     """One background thread, one file at a time (ffmpeg is the heavy part; the UI never waits)."""
@@ -689,10 +650,8 @@ class Analyzer:
             with self.cond:
                 self.current = ""
 
-
 _ANALYZER: Optional[Analyzer] = None
 _ANALYZER_LOCK = threading.Lock()
-
 
 def analyzer() -> Analyzer:
     global _ANALYZER
@@ -700,7 +659,6 @@ def analyzer() -> Analyzer:
         if _ANALYZER is None:
             _ANALYZER = Analyzer()
         return _ANALYZER
-
 
 def analyze(lib: Library, ids: Optional[List[str]] = None, missing_only: bool = True) -> Dict[str, Any]:
     if ids:

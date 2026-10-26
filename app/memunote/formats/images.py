@@ -14,32 +14,28 @@ import base64
 import io
 from typing import Any, Dict, List, Optional
 
-MAX_PIXELS = 200_000_000          # 200 MP: refuse decompression bombs, allow very large photos
+MAX_PIXELS = 200_000_000
 MAX_FRAMES = 300
 ENCODERS = ("png", "jpeg", "webp", "avif", "bmp", "tiff", "ico", "gif", "pdf", "tga")
 ICO_SIZES = (16, 24, 32, 48, 64, 128, 256)
-
 
 class ImageFormatError(ValueError):
     def __init__(self, message: str, code: str = "unsupported") -> None:
         super().__init__(message)
         self.code = code
 
-
 def _pil():
     from PIL import Image
     Image.MAX_IMAGE_PIXELS = MAX_PIXELS
-    try:                                    # HEIC/HEIF (optional dependency, not bundled by default)
+    try:
         import pillow_heif                  # type: ignore
         pillow_heif.register_heif_opener()
     except Exception:  # noqa: BLE001
         pass
     return Image
 
-
 def b64(data: bytes) -> str:
     return base64.b64encode(data).decode("ascii")
-
 
 def _to_png(img, level: int = 1) -> bytes:
     if img.mode not in ("RGBA", "RGB", "L", "LA"):
@@ -47,7 +43,6 @@ def _to_png(img, level: int = 1) -> bytes:
     buf = io.BytesIO()
     img.save(buf, "PNG", compress_level=level)
     return buf.getvalue()
-
 
 def capabilities() -> Dict[str, Any]:
     try:
@@ -64,7 +59,6 @@ def capabilities() -> Dict[str, Any]:
                 "version": getattr(Image, "__version__", "")}
     except Exception:  # noqa: BLE001 - Pillow missing in a stripped build: the page uses only browser codecs
         return {"pillow": False, "avif": False, "webp": False, "heif": False, "encoders": [], "version": ""}
-
 
 def decode(path: str, frame: int = 0) -> Dict[str, Any]:
     with open(path, "rb") as handle:
@@ -108,13 +102,11 @@ def decode(path: str, frame: int = 0) -> Dict[str, Any]:
     return {"format": fmt, "width": out.width, "height": out.height, "png": b64(_to_png(out)), "frames": n,
             "dpi": list(img.info.get("dpi") or [])[:2]}
 
-
 def _merged_with_pillow(path: str) -> bytes:
     Image = _pil()
     img = Image.open(path)
     img.load()
     return _to_png(img.convert("RGBA"))
-
 
 def _b64_layers(layers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     out = []
@@ -128,7 +120,6 @@ def _b64_layers(layers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
             item["children"] = _b64_layers(item["children"])
         out.append(item)
     return out
-
 
 def frames(path: str, limit: int = MAX_FRAMES) -> Dict[str, Any]:
     Image = _pil()
@@ -147,7 +138,6 @@ def frames(path: str, limit: int = MAX_FRAMES) -> Dict[str, Any]:
         rows.append({"png": b64(_to_png(frame)), "width": frame.width, "height": frame.height,
                      "duration": int(img.info.get("duration") or 0)})
     return {"format": img.format or "", "frames": rows, "total": total}
-
 
 def encode(png: bytes, fmt: str, quality: int = 90, background: str = "#ffffff",
            extra: Optional[Dict[str, Any]] = None) -> bytes:
@@ -203,7 +193,6 @@ def encode(png: bytes, fmt: str, quality: int = 90, background: str = "#ffffff",
         img.save(buf, "TGA", rle=True)
     return buf.getvalue()
 
-
 def encode_gif_animation(pngs: List[bytes], durations: List[int], loop: int = 0) -> bytes:
     Image = _pil()
     frames_ = [Image.open(io.BytesIO(p)).convert("RGBA") for p in pngs[:MAX_FRAMES]]
@@ -213,7 +202,6 @@ def encode_gif_animation(pngs: List[bytes], durations: List[int], loop: int = 0)
     frames_[0].save(buf, "GIF", save_all=True, append_images=frames_[1:], duration=durations or 100, loop=loop,
                     disposal=2)
     return buf.getvalue()
-
 
 def _hex(value: str):
     s = str(value or "#ffffff").lstrip("#")

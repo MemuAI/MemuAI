@@ -1,11 +1,5 @@
-/* MemuAI skill library.
- *
- * Skills use progressive disclosure: the system prompt only receives the name,
- * the one-line purpose and the trigger conditions of every enabled skill. The
- * model asks for the full playbook through the memuai-skill protocol block and
- * MemuAI injects the instructions below only when they are actually needed.
- * That keeps the context small while every skill can stay long and specific.
- */
+
+
 window.MEMUAI_SKILL_LIBRARY = { version: 5, skills: [] };
 
 window.MEMUAI_SKILL_LIBRARY.skills.push(
@@ -19,10 +13,9 @@ window.MEMUAI_SKILL_LIBRARY.skills.push(
     desc_ru: "\u041e\u0442\u0432\u0435\u0442\u044b \u043e \u0441\u0430\u043c\u043e\u0439 MemuAI \u043f\u043e \u0434\u043e\u043a\u0443\u043c\u0435\u043d\u0442\u0430\u0446\u0438\u0438: \u0447\u0438\u0442\u0430\u0435\u0442 \u0441\u0442\u0430\u0442\u044c\u0438 \u0438 \u0434\u0430\u0451\u0442 \u043d\u0430 \u043d\u0438\u0445 \u0441\u0441\u044b\u043b\u043a\u0438.",
     when: "The user asks how MemuAI, Work, MemuCode, the Proxy or their settings work, or why something in them does not work.",
     when_ru: "\u0412\u043e\u043f\u0440\u043e\u0441\u044b \u043e \u0442\u043e\u043c, \u043a\u0430\u043a \u0443\u0441\u0442\u0440\u043e\u0435\u043d\u044b MemuAI, Work, MemuCode, Proxy \u0438 \u0438\u0445 \u043d\u0430\u0441\u0442\u0440\u043e\u0439\u043a\u0438, \u0438 \u043f\u043e\u0447\u0435\u043c\u0443 \u0447\u0442\u043e-\u0442\u043e \u043d\u0435 \u0440\u0430\u0431\u043e\u0442\u0430\u0435\u0442.",
-    // Always in the prompt (not loaded on demand): it is short, and it is what gives the model
-    // the documentation tools. See pgstatic/selfdocs.js.
+
     inline: true,
-    // Built in, but the user may remove it from the library (and bring it back).
+
     removable: true,
     prompt: "PURPOSE: answer questions about MemuAI itself (the chat app, Work, MemuCode, MemuCode CLI, MemuAI Proxy, modules, settings, errors) from its documentation, not from guesses.\n\nWHEN\nThe user asks how to do something in MemuAI, where a setting is, what a feature or a term means, why something does not work, or what MemuAI can do. Ordinary questions about the world do not need the documentation.\n\nHOW\n1. Pick the article from the documentation_index below by its title. If none obviously fits, search:\n```memuai-tool\n[{\"tool\":\"docs_search\",\"args\":{\"query\":\"export chats\"}}]\n```\n2. Read it before answering (a section name narrows a long article):\n```memuai-tool\n[{\"tool\":\"docs_read\",\"args\":{\"id\":\"web-search\",\"section\":\"\"}}]\n```\nWrite nothing for the user in the turn that calls a tool; several calls may go in one block. Read at most three articles per question.\n3. Answer from what you read: concrete steps, the exact names of buttons and settings as the documentation gives them, in the user's language. End with the article you used as a mention: @!article-id (it becomes a button that opens it). Mention only articles that exist in the index.\n\nRULES\n- If the documentation does not cover the question, say so plainly; never invent a menu, a setting or a shortcut.\n- Do not paste the article back: answer the question, then point to the article for details.\n- If the user's message already contains the article (a memuai_documentation block), use it and do not read it again.",
   },

@@ -28,7 +28,6 @@ G = "https://www.googleapis.com/auth/"
 FULL = {"openid", G + "userinfo.email", "https://mail.google.com/", G + "gmail.settings.basic", G + "calendar", G + "drive",
         G + "documents", G + "spreadsheets", G + "tasks", G + "contacts"}
 
-# name, prompt, any-of tool sets that count as success, effect check (fake → bool), setup (fake → None)
 SCENARIOS = [
     ("gmail-trash", "Удали письмо от Бориса про встречу.",
      [{"gmail_trash"}, {"gmail_delete"}, {"gmail_bulk"}],
@@ -53,7 +52,6 @@ SCENARIOS = [
      [{"gmail_search"}], None, lambda f: f.disabled.add("gmail.googleapis.com")),
 ]
 
-
 def seed(data_dir: str) -> None:
     from app import gdrive_sync_crypto as crypto
     folder = Path(data_dir) / "memuai" / "sync"
@@ -67,7 +65,6 @@ def seed(data_dir: str) -> None:
     (memu / "integrations.json").write_text(json.dumps({
         "google": {"services": ["gmail", "calendar", "drive", "docs", "sheets", "tasks", "contacts"]},
         "github": {"token": "ghp_" + "x" * 36, "default_repo": "me/notes", "checked": 1700000000, "account": "me"}}), encoding="utf-8")
-
 
 def main() -> int:
     ap = argparse.ArgumentParser()
@@ -175,7 +172,6 @@ def main() -> int:
     passed = sum(1 for r in report if r["ok"])
     print(f"passed {passed}/{len(report)}")
     return 0 if passed == len(report) else 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

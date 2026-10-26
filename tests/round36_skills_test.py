@@ -31,11 +31,9 @@ from app import skills_catalog as sc  # noqa: E402
 
 REPOS = ["acme/one", "acme/two", "acme/three"]
 
-
 def skill_md(r: int, i: int) -> str:
     lic = ["MIT", "Apache-2.0", "CC-BY-NC-SA-4.0"][i % 3]
     return f"---\nname: skill-{r}-{i}\ndescription: Skill {i} of repo {r}.\nlicense: {lic}\n---\n# Skill\n\nBody {i}.\n"
-
 
 class BigGitHub:
     """Three repositories × N skills; records calls and the headers they carried."""
@@ -75,7 +73,6 @@ class BigGitHub:
             with self.lock:
                 self.active -= 1
 
-
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="sc36-")
@@ -89,7 +86,6 @@ class Base(unittest.TestCase):
             p.start()
             self.addCleanup(p.stop)
         self.addCleanup(shutil.rmtree, self.tmp, True)
-
 
 class CatalogSpeed(Base):
     def test_parallel_bounded_and_progressive(self):
@@ -132,7 +128,7 @@ class CatalogSpeed(Base):
         self.assertFalse(view["refreshing"])
         self.assertEqual(len(view["skills"]), 90)
         self.assertTrue((Path(self.tmp) / "catalog_snapshot.json").exists())
-        # A new window process answers at once from the snapshot on disk, without any network call.
+
         sc._snap.update(data=None, loaded=False)
         before = len(self.fake.calls)
         started = time.time()
@@ -154,7 +150,6 @@ class CatalogSpeed(Base):
         while sc.catalog_swr(since=sc._snap["version"], wait=5)["refreshing"]:
             pass
 
-
 class FrontendStatic(unittest.TestCase):
     def test_virtual_grid_and_render_memo(self):
         js = (STATIC / "skills-ui.js").read_text(encoding="utf-8")
@@ -170,7 +165,6 @@ class FrontendStatic(unittest.TestCase):
         self.assertIn("/skills-ui.js?v=1.0-r36", html)
         self.assertIn("/skills-ui.css?v=1.0-r36", html)
 
-
 try:
     from round27_ui_lang_test import _chromium, _has_playwright  # noqa: E402
 except Exception:  # pragma: no cover
@@ -182,7 +176,6 @@ INJECT = """(n) => { const st = MemuSkillsUI.state; const base = st.catalog.skil
     out.push({...b, id: b.id + '#' + i, name: b.name + '-' + i, has_scripts: i % 2 === 0, scripts: ['run.py'],
               license: i % 3 ? 'CC-BY-NC-SA-4.0 with a very long custom licence name' : 'MIT'}); }
   st.extra['big/repo'] = {source: {repo: 'big/repo'}, skills: out}; }"""
-
 
 @unittest.skipUnless(_has_playwright() and _chromium(), "Playwright / Chromium not installed")
 class LiveGrid(unittest.TestCase):
@@ -223,7 +216,7 @@ class LiveGrid(unittest.TestCase):
         page.goto(self.servers.pg + "/")
         page.wait_for_selector("body.boot-ready", timeout=90000)
         page.evaluate("showSkillsModal({tab: 'catalog'})")
-        for _ in range(100):   # progressive load: wait until every source is in
+        for _ in range(100):
             if page.evaluate("!!(MemuSkillsUI.state.catalog && MemuSkillsUI.state.catalog.complete !== false && !MemuSkillsUI.state.refreshing)"):
                 break
             page.wait_for_timeout(100)
@@ -232,7 +225,7 @@ class LiveGrid(unittest.TestCase):
         page.wait_for_selector(".sk-vrow .sk-card")
         cards = page.locator(".sk-vrow .sk-card").count()
         self.assertLess(cards, 80, "only the rows in view are in the DOM")
-        # Scroll to the very end: the last skill is reachable (no 400 cap) and the DOM did not grow.
+
         page.evaluate("(() => { const s = document.querySelector('#panel .sk-scroll'); s.scrollTop = s.scrollHeight; })()")
         page.wait_for_timeout(200)
         self.assertLess(page.locator(".sk-vrow .sk-card").count(), 80, "the DOM does not grow while scrolling")
@@ -242,7 +235,7 @@ class LiveGrid(unittest.TestCase):
           .filter(b => { const r = b.getBoundingClientRect(), c = b.closest('.sk-badges').getBoundingClientRect();
                          return b.scrollWidth > b.clientWidth + 1 || r.right > c.right + 0.5; }).length""")
         self.assertEqual(cut, 0, "no tag is cut")
-        # Narrow cards fold tags that do not fit into «+N» with a hint.
+
         page.set_viewport_size({"width": 420, "height": 760})
         page.wait_for_timeout(300)
         more = page.locator(".sk-vrow .sk-more:not([hidden])")
@@ -253,7 +246,7 @@ class LiveGrid(unittest.TestCase):
           .filter(b => { const r = b.getBoundingClientRect(), c = b.closest('.sk-badges').getBoundingClientRect();
                          return r.right > c.right + 0.5; }).length""")
         self.assertEqual(cut, 0)
-        # Search filters the virtual list; the add button works through delegation.
+
         page.fill("#sk-q", "skill-1-7")
         page.wait_for_selector(".sk-vrow .sk-card:not([hidden])")
         names = page.eval_on_selector_all(".sk-vrow .sk-card:not([hidden]) .sk-card-name", "els => els.map(e => e.textContent)")
@@ -266,7 +259,6 @@ class LiveGrid(unittest.TestCase):
             page.wait_for_timeout(100)
         self.assertTrue(page.evaluate("getSkills().some(s => s.source && s.source.path === 'skills/s0')"))
         self.assertEqual(errors, [])
-
 
 if __name__ == "__main__":
     unittest.main()

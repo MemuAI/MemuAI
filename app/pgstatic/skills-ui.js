@@ -1,14 +1,5 @@
-/* MemuAI — the skill library window (Round 32).
- *
- * Replaces the old «Библиотека скиллов ИИ» modal of app.js: loads after app.js and takes over the global
- * showSkillsModal() (every entry point — sidebar, profile menu, help menu, MemuSelfDocs — calls it by name).
- * Storage stays app.js's: getSkills()/saveSkills() over localStorage «memu_skills»; this file adds a server
- * backup (/api/pg/skills/library) and the catalog of public skills (/api/pg/skills-catalog*, app/skills_catalog.py).
- *
- * Views (one dialog, no stacking): list (tabs: mine / built-in / catalog) → detail → editor; catalog → catalog detail.
- * Untrusted text (catalog SKILL.md, imported files) is rendered by renderMarkdown() which escapes everything first.
- * Scripts that come with a catalog skill are only listed / previewed — never executed, never added to the chat.
- */
+
+
 (function () {
   "use strict";
   if (typeof window === "undefined" || typeof getSkills !== "function") return;
@@ -18,7 +9,6 @@
   const h = (value) => (typeof esc === "function" ? esc(value) : String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])));
   const TAB_KEY = "memu_skills_tab";
 
-  /* ------------------------------------------------------------------ icons */
   const P = {
     code: '<path d="m8 8-4 4 4 4"/><path d="m16 8 4 4-4 4"/><path d="m13.5 5-3 14"/>',
     bug: '<path d="M8 9a4 4 0 0 1 8 0v5a4 4 0 0 1-8 0z"/><path d="M12 9v9M4 13h4M16 13h4M5 7l3 2M19 7l-3 2M5 19l3-2M19 19l-3-2"/>',
@@ -90,7 +80,6 @@
     return CAT_ICON[String(skill.category || "").toLowerCase()] || (skill.custom ? "spark" : "box");
   }
 
-  /* ------------------------------------------------------------------ markdown (escaped first) */
   function inline(text) {
     let out = h(text);
     const codes = [];
@@ -126,7 +115,7 @@
       const head = line.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
       if (head) { flush(); const lvl = Math.min(6, head[1].length + 1); out.push(`<h${lvl}>${inline(head[2])}</h${lvl}>`); i++; continue; }
       if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flush(); out.push("<hr>"); i++; continue; }
-      // Built-in playbooks use «WORKFLOW» / «RULES» lines as section titles.
+
       if (opts.capsHeadings && /^[A-Z][A-Z0-9 &/()'-]{3,60}$/.test(line.trim()) && !/[a-z]/.test(line)) {
         flush(); out.push(`<h4 class="sk-caps">${h(line.trim())}</h4>`); i++; continue;
       }
@@ -154,7 +143,7 @@
         const tag = bullet ? "ul" : "ol";
         const indented = /^\s{2,}/.test(line);
         if (list && indented && list.items.length) {
-          // A nested item («   - Correctness: …» under «3. Apply the lenses»): it belongs to the previous item.
+
           const last = list.items[list.items.length - 1];
           last.subTag = last.sub.length ? last.subTag : tag;
           last.sub.push((bullet || num)[2]);
@@ -181,13 +170,12 @@
     return out.join("\n");
   }
 
-  /* ------------------------------------------------------------------ data helpers */
   const state = {
     tab: localStorage.getItem(TAB_KEY) || "builtin", q: "", cat: "all", status: "all", view: "list", id: "",
     catalog: null, catalogState: "idle", catalogError: "", csource: "all", csort: "stars", cdetail: null, cfile: null,
     ctab: "doc", extra: {}, exploring: "", draft: null, editTab: "edit", menu: false, codeInstalled: null, scroll: 0,
   };
-  // getSkills() parses the whole library from localStorage: one render reads it once (withSkills), not once per card.
+
   let memoSkills = null;
   const skills = () => memoSkills || getSkills();
   function withSkills(fn) {
@@ -209,7 +197,6 @@
   const fmtNum = (n) => (n >= 1000 ? (n >= 10000 ? Math.round(n / 1000) : (n / 1000).toFixed(1)) + "k" : String(n || 0));
   const newId = () => "custom_" + (crypto.randomUUID ? crypto.randomUUID().slice(0, 8) : Date.now().toString(36));
 
-  // Agent Skills names are slugs («systematic-debugging»): show them as words.
   function prettyName(name) {
     const text = String(name || "").trim();
     if (!/^[a-z0-9]+(?:[-_][a-z0-9]+)+$|^[a-z][a-z0-9]*$/.test(text)) return text;
@@ -217,7 +204,7 @@
     const joined = words.join(" ");
     return joined.charAt(0).toUpperCase() + joined.slice(1);
   }
-  // An empty category is shown in the current language (stored labels would stay in the language of the day they were saved).
+
   function categoryLabel(s) {
     const kind = s.source && s.source.kind;
     return ui(s, "category") || (kind === "github" ? L("Из каталога", "From catalog") : kind === "file" || kind === "url" ? L("Импорт", "Imported")
@@ -250,7 +237,6 @@
     return list.__gh.get(repo + "\n" + (path || ""));
   }
 
-  /* ------------------------------------------------------------------ server backup of the library */
   let backupTimer = 0;
   function scheduleBackup() {
     clearTimeout(backupTimer);
@@ -260,7 +246,7 @@
         const removed = JSON.parse(localStorage.getItem("memu_skills_removed") || "[]");
         fetch("/api/pg/skills/library", { method: "POST", headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ skills: list, version: +(localStorage.getItem("memu_skills_version") || 0), removed }) }).catch(() => {});
-      } catch (e) { /* storage unavailable */ }
+      } catch (e) {  }
     }, 700);
   }
   const originalSave = window.saveSkills;
@@ -269,22 +255,21 @@
     wrapped.__skBackup = true;
     window.saveSkills = wrapped;
   }
-  // A cleared WebView storage (reinstall, profile reset) must not lose the user's own skills: restore from the backup.
+
   (async function restoreBackup() {
     try {
       if (localStorage.getItem("memu_skills")) return;
       const resp = await fetch("/api/pg/skills/library");
       if (!resp.ok) return;
       const data = await resp.json();
-      // The user may have changed something while the request ran: never overwrite a library saved meanwhile.
+
       if (!Array.isArray(data.skills) || !data.skills.length || localStorage.getItem("memu_skills")) return;
       localStorage.setItem("memu_skills", JSON.stringify(data.skills));
       localStorage.setItem("memu_skills_version", String(data.version || 0));
       if (Array.isArray(data.removed) && data.removed.length) localStorage.setItem("memu_skills_removed", JSON.stringify(data.removed));
-    } catch (e) { /* offline window server: nothing to restore */ }
+    } catch (e) {  }
   })();
 
-  /* ------------------------------------------------------------------ shell */
   function root() { return document.querySelector("#panel.sk-panel"); }
 
   function open(opts = {}) {
@@ -295,7 +280,7 @@
     state.menu = false;
     panel(`<div class="sk-shell" data-view="list"></div>`, "sk-panel", { root: true, onClose: () => { state.menu = false; } });
     render();
-    // panel() focuses its first control (the close button) in a microtask; the search field is the useful start.
+
     setTimeout(() => { const host = root(); if (host && state.view === "list" && host.contains(document.activeElement) && document.activeElement.classList.contains("panel-close")) host.querySelector("#sk-q")?.focus({ preventScroll: true }); }, 0);
   }
 
@@ -362,7 +347,6 @@
     </div>`;
   }
 
-  /* ------------------------------------------------------------------ list: library */
   function filteredLibrary() {
     const q = state.q.trim().toLowerCase();
     return skills().filter((s) => (state.tab === "mine" ? isMine(s) : !isMine(s)))
@@ -443,7 +427,6 @@
     </article>`;
   }
 
-  /* ------------------------------------------------------------------ detail: library skill */
   function detailView() {
     const s = skills().find((x) => x.id === state.id);
     if (!s) { state.view = "list"; return listView(); }
@@ -498,7 +481,6 @@
     </div>`;
   }
 
-  /* ------------------------------------------------------------------ editor */
   function startEdit(id, duplicate = false) {
     const s = id ? skills().find((x) => x.id === id) : null;
     state.draft = s ? {
@@ -556,7 +538,7 @@
     return state.draft;
   }
   function paintPreview(shell) {
-    if (!state.draft || state.view !== "editor" || !shell.isConnected) return;   // a debounced repaint after Save / Cancel
+    if (!state.draft || state.view !== "editor" || !shell.isConnected) return;
     const d = readDraft(shell);
     const card = shell.querySelector("#sk-pv-card");
     if (card) card.innerHTML = `<span class="sk-tile">${svg(d.from ? iconFor(skills().find((x) => x.id === d.from)) : "spark")}</span>
@@ -597,8 +579,6 @@
     toast(L("Скилл сохранён", "Skill saved"), "ok");
   }
 
-  /* ------------------------------------------------------------------ catalog */
-  // The merged catalog (+ explored repositories) and its repo/path index are rebuilt only when a source changes.
   let catalogMemo = { parts: [], all: [], byKey: new Map() };
   function allCatalogSkills() {
     if (!state.catalog) return [];
@@ -623,8 +603,6 @@
     return text;
   }
 
-  // Stale-while-revalidate: the server answers at once with the saved catalog (or what a first load has so far) and
-  // refreshes in the background; a long-poll (?since=version) brings each finished source — no timers.
   const CATALOG_URL = "/api/pg/skills-catalog";
   let loadSeq = 0;
   function repaintCatalog() {
@@ -752,17 +730,12 @@
     rows = sortRows(rows);
     vgrid.rows = rows;
     const intro = state.csource === "all" && !q ? `<p class="sk-note">${svg("github")}<span>${L("Открытые скиллы в формате Agent Skills (SKILL.md) из репозиториев GitHub. Добавленный скилл попадает в «Мои»; скрипты из папок скиллов MemuAI не запускает.", "Open skills in the Agent Skills format (SKILL.md) from GitHub repositories. An added skill goes to “Mine”; MemuAI never runs scripts from skill folders.")}</span></p>` : "";
-    // Thousands of skills: only the rows in view are in the DOM (mountVirtual paints them after the shell is in place).
+
     const body = rows.length ? `<div class="sk-vgrid" role="list" aria-label="${L("Скиллы каталога", "Catalog skills")}" data-count="${rows.length}"></div>`
       : emptyState("search", L("Ничего не найдено", "Nothing found"), q ? L("Попробуйте другой запрос или «Найти ещё на GitHub».", "Try another search or “Discover on GitHub”.") : L("В этом источнике пока нет скиллов.", "This source has no skills yet."));
     return `<main class="sk-main"><div class="sk-scroll">${toolbar}${intro}${body}</div></main>`;
   }
 
-  /* ------------------------------------------------------------------ virtual catalog grid
-   * Cards have a fixed height, so the rows in view are pure arithmetic: no measuring while scrolling, one passive
-   * scroll listener coalesced to a frame, ~30 cards in the DOM for any catalog size. Rows are recycled: a row that
-   * leaves the view is refilled for the row that enters (text and a few `hidden` flags change, no new elements), so a
-   * scroll does almost no style work even with the app's large stylesheet. */
   const VG_MIN = 272, VG_GAP = 12, VG_CARD = 168, VG_OVERSCAN = 3;
   const vgrid = { rows: [], cols: 1, rowH: VG_CARD + VG_GAP, offset: 0, raf: 0, ro: null, live: new Map(), free: [], tagWidth: 200 };
 
@@ -783,8 +756,6 @@
     </article>`;
   }
 
-  // Tag widths come from canvas text metrics (no layout reads): tags that do not fit the card's single tag row fold
-  // into «+N» with a hint that lists them, so no tag is ever cut.
   const tagCache = new Map();
   let tagCtx = null;
   function tagWidth(text, icon) {
@@ -871,11 +842,11 @@
   function layoutVirtual(box, scroller) {
     const width = box.clientWidth || scroller.clientWidth;
     vgrid.cols = Math.max(1, Math.floor((width + VG_GAP) / (VG_MIN + VG_GAP)));
-    vgrid.tagWidth = Math.floor((width - (vgrid.cols - 1) * VG_GAP) / vgrid.cols) - 30;   // card padding + border
+    vgrid.tagWidth = Math.floor((width - (vgrid.cols - 1) * VG_GAP) / vgrid.cols) - 30;
     const rows = Math.ceil(vgrid.rows.length / vgrid.cols);
     box.style.height = Math.max(0, rows * vgrid.rowH - VG_GAP) + "px";
     box.style.setProperty("--sk-cols", vgrid.cols);
-    box.textContent = "";                // a new column count re-flows every row
+    box.textContent = "";
     vgrid.live = new Map();
     vgrid.free = [];
     vgrid.offset = box.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
@@ -907,7 +878,7 @@
         vgrid.live.set(row, el);
       }
     });
-    // Spare rows park above the list (an inline transform, not display:none — showing them again would restyle them).
+
     vgrid.free.forEach((el) => { el.style.transform = "translateY(-100000px)"; });
   }
 
@@ -1103,7 +1074,6 @@
     } catch (e) { state.codeInstalled = []; }
   }
 
-  /* ------------------------------------------------------------------ import / export */
   function addImported(items, sourceKind, label) {
     const valid = (items || []).filter((x) => x && x.name && (x.prompt || x.body));
     if (!valid.length) { toast(L("В файле не нашлось скилла", "No skill found in the file"), "warn"); return 0; }
@@ -1152,7 +1122,7 @@
           const data = await api("/api/pg/skills/parse", { method: "POST", body });
           collected.push(...(data.skills || []).map((x) => ({ ...x, prompt: x.body, desc: x.description })));
         } catch (error) {
-          // The window server is unreachable or the text is not a SKILL.md: fall back to the in-page parser for text files.
+
           if (!/\.zip$/i.test(file.name)) { try { collected.push(...skillsFromText(await file.text(), file.name.replace(/\.[^.]+$/, ""))); continue; } catch (e) {} }
           toast(`${file.name}: ${error.message}`, "err", 6000);
         }
@@ -1252,7 +1222,6 @@
   }
   const exportShape = (s) => ({ name: ui(s, "name"), desc: ui(s, "desc"), when: ui(s, "when"), category: ui(s, "category"), prompt: s.prompt, license: s.source && s.source.license || "" });
 
-  /* ------------------------------------------------------------------ actions */
   function setAll(value) {
     persist(skills().map((s) => ({ ...s, enabled: value })));
     state.keepScroll = true;
@@ -1281,7 +1250,6 @@
     doIt();
   }
 
-  // app.js toast(text, type, action | durationMs): an action is {label, run}.
   const rawToast = window.toast;
   function toast(text, type = "ok", ms, action) {
     if (typeof rawToast !== "function") return;
@@ -1310,7 +1278,7 @@
       case "delete": removeSkill(state.id); return;
       case "reset": {
         const list = skills().filter((x) => x.id !== state.id);
-        persist(list);  // storedSkills() rebuilds the built-in from the catalogue (keeps its on/off state default)
+        persist(list);
         render();
         toast(L("Оригинал восстановлен", "Original restored"), "ok");
         return;
@@ -1390,7 +1358,7 @@
     shell.querySelectorAll("[data-cat]").forEach((el) => el.addEventListener("click", () => { state.cat = el.dataset.cat; render(); }));
     shell.querySelectorAll("[data-csource]").forEach((el) => el.addEventListener("click", () => { state.csource = el.dataset.csource; render(); }));
     bindMain(shell);
-    // Editor
+
     if (state.view === "editor") {
       ["#sk-f-name", "#sk-f-cat", "#sk-f-desc", "#sk-f-when", "#sk-f-prompt"].forEach((sel) => shell.querySelector(sel)?.addEventListener("input", () => {
         shell.querySelector("#sk-f-error").hidden = true;
@@ -1450,7 +1418,7 @@
     shell.querySelectorAll(".sk-main [data-tab]").forEach((el) => { if (!el.__skBound) { el.__skBound = true; el.addEventListener("click", () => { state.tab = el.dataset.tab; state.view = "list"; localStorage.setItem(TAB_KEY, state.tab); render(); }); } });
     const sortSel = shell.querySelector("#sk-csort");
     sortSel?.addEventListener("change", () => { state.csort = sortSel.value; render(); });
-    // Arrow keys move between cards of the grid (the virtual catalog grid has its own handler).
+
     shell.querySelector(".sk-grid:not(.sk-vrow)")?.addEventListener("keydown", (event) => {
       if (!["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"].includes(event.key) || !event.target.classList.contains("sk-card-main")) return;
       const cards = [...shell.querySelectorAll(".sk-grid .sk-card-main")];
@@ -1465,8 +1433,6 @@
     mountVirtual(shell);
   }
 
-  // Keyboard: Esc steps back from a sub-view (before the dialog's own Esc closes everything), "/" focuses search,
-  // Ctrl+S saves in the editor, Ctrl+N starts a new skill.
   window.addEventListener("keydown", (event) => {
     const host = root();
     if (!host || !document.getElementById("panel-back")?.classList.contains("visible")) return;
@@ -1490,7 +1456,6 @@
     if (host && !event.target.closest(".sk-menu-wrap")) { state.menu = false; render(); }
   }, true);
 
-  /* ------------------------------------------------------------------ public */
   function showSkills(opts) { open(opts && typeof opts === "object" && !(opts instanceof Event) ? opts : {}); }
   window.MemuSkillsUI = { open: showSkills, renderMarkdown, iconFor, state, loadCatalog, addImported };
   window.showSkillsModal = function showSkillsModal(opts) { showSkills(opts); };

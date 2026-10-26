@@ -1,37 +1,18 @@
-/* =====================================================================
-   MemuAI design «Мягкий / Soft» (Round24) — scoped to
-   :root[data-design="soft"].
-   ---------------------------------------------------------------------
-   Tonal, friendly and big, in the spirit of Material You: surfaces are
-   tinted with the accent instead of outlined, elevation is expressed by
-   tone (lighter = higher in dark, whiter = higher in light), shapes are
-   large and round (pill navigation, a 28px canvas, a FAB-like send
-   button), there are almost no borders and no heavy shadows.
-
-   Colours: only theme tokens and color-mix() of them (+#fff/#000 for
-   tone steps), so every variant and accent works.
-   Every selector starts with :root[data-design="soft"].
-   ===================================================================== */
-
 @font-face { font-family: "Soft Sans"; font-style: normal; font-weight: 100 900; font-display: swap;
   src: url("fonts/inter/inter-latin-wght.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 @font-face { font-family: "Soft Sans"; font-style: normal; font-weight: 100 900; font-display: swap;
   src: url("fonts/inter/inter-cyrillic-wght.woff2") format("woff2");
   unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
-
-/* ------------------------------------------------------------ tokens */
 :root[data-design="soft"] {
   --s-sans: "Soft Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --d-display: var(--s-sans); --d-text: var(--s-sans); --d-small: var(--s-sans); --sans: var(--s-sans);
-
-  /* tonal palette: surface → container levels */
   --s-surface: color-mix(in srgb, var(--bg-deep) 90%, var(--accent));
-  --s-c0: color-mix(in srgb, var(--bg) 94%, var(--accent));          /* canvas */
-  --s-c1: color-mix(in srgb, color-mix(in srgb, var(--panel) 92%, var(--accent)) 96%, #fff); /* cards */
-  --s-c2: color-mix(in srgb, color-mix(in srgb, var(--panel) 86%, var(--accent)) 92%, #fff); /* composer, menus */
-  --s-c3: color-mix(in srgb, color-mix(in srgb, var(--panel) 80%, var(--accent)) 90%, #fff); /* hover on c2 */
-  --s-secondary: color-mix(in srgb, var(--accent) 26%, var(--panel));  /* secondary container */
+  --s-c0: color-mix(in srgb, var(--bg) 94%, var(--accent));
+  --s-c1: color-mix(in srgb, color-mix(in srgb, var(--panel) 92%, var(--accent)) 96%, #fff);
+  --s-c2: color-mix(in srgb, color-mix(in srgb, var(--panel) 86%, var(--accent)) 92%, #fff);
+  --s-c3: color-mix(in srgb, color-mix(in srgb, var(--panel) 80%, var(--accent)) 90%, #fff);
+  --s-secondary: color-mix(in srgb, var(--accent) 26%, var(--panel));
   --s-on-secondary: var(--text);
   --s-hover: color-mix(in srgb, var(--accent) 10%, transparent);
   --s-press: color-mix(in srgb, var(--accent) 16%, transparent);
@@ -75,23 +56,17 @@
   --code-bg: color-mix(in srgb, var(--panel) 86%, var(--accent));
   --code-header: color-mix(in srgb, var(--panel) 80%, var(--accent));
 }
-
-/* ------------------------------------------------------------- base */
 :root[data-design="soft"] body { background: var(--s-surface); font-family: var(--s-sans); }
 :root[data-design="soft"] #app { background: var(--s-surface); }
 :root[data-design="soft"] :focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; }
 :root[data-design="soft"] :is(textarea, .pinput, .ptexta, input):focus-visible { outline: none; }
 :root[data-design="soft"] #startup-cover { background: var(--s-c0); }
 :root[data-design="soft"] .startup-mark { border-radius: 24px; }
-
-/* -------------------------------------------------- frame & canvas */
 :root[data-design="soft"] .main {
   margin: 10px 10px 10px 0; border-radius: 28px; border: 0; background: var(--s-c0); box-shadow: none;
 }
 :root[data-design="soft"] .side.hidden ~ .main, :root[data-design="soft"] .focus-mode .main { margin-left: 10px; }
 :root[data-design="soft"] .side { padding: 14px 8px 12px 12px; }
-
-/* ----------------------------------------------------------- sidebar */
 :root[data-design="soft"] .brand { font: 700 17px/1 var(--s-sans); letter-spacing: -.02em; }
 :root[data-design="soft"] :is(.brand-dot, .greet-mark) { border-radius: 12px; box-shadow: none; }
 :root[data-design="soft"] .btn-new {
@@ -107,6 +82,8 @@
 :root[data-design="soft"] .mode-switch .side-btn.active-section { background: var(--s-secondary); color: var(--text); box-shadow: none; }
 :root[data-design="soft"] .side-btn { border-radius: 999px; min-height: 40px; }
 :root[data-design="soft"] .side-btn:hover { background: var(--s-hover); }
+:root[data-design="soft"] .side-nav .side-btn.active-section { background: var(--s-secondary); color: var(--text); font-weight: 600; }
+:root[data-design="soft"] .side-nav .side-btn.active-section .ico { color: var(--accent); }
 :root[data-design="soft"] .side-label { font-weight: 600; font-size: 12px; letter-spacing: .01em; color: color-mix(in srgb, var(--muted) 60%, var(--text)); }
 :root[data-design="soft"] .chat-item { border-radius: 999px; min-height: 40px; padding-inline: 14px; }
 :root[data-design="soft"] .chat-item:hover { background: var(--s-hover); }
@@ -116,8 +93,6 @@
 :root[data-design="soft"] .profile-card { border-radius: 20px; background: var(--s-c0); }
 :root[data-design="soft"] .profile-card:hover { background: var(--s-c1); }
 :root[data-design="soft"] .profile-avatar { border-radius: 999px; }
-
-/* ------------------------------------------------------------ topbar */
 :root[data-design="soft"] .topbar.appbar { background: transparent; border: 0; }
 :root[data-design="soft"] :is(.bar-icon, .iconbtn) { border-radius: 999px; }
 :root[data-design="soft"] .appbar .iconbtn.active { background: var(--s-secondary); color: var(--text); }
@@ -126,8 +101,6 @@
 :root[data-design="soft"] .dd-btn { border-radius: 999px; font-weight: 650; }
 :root[data-design="soft"] .dd-btn:hover { background: var(--s-hover); }
 :root[data-design="soft"] .context-meter { border-radius: 999px; background: var(--s-c1); border: 0; }
-
-/* --------------------------------------------------------- popovers */
 :root[data-design="soft"] :is(.dd-pop, .app-menu-pop, .context-menu, .profile-menu-pop, .pretty-select-menu, .msg-more-pop, .slash-menu, .plus-menu, .module-layout-menu) {
   border-radius: 22px; background: var(--s-c2); border: 0; box-shadow: var(--s-elev-3);
   -webkit-backdrop-filter: none; backdrop-filter: none; padding: 8px;
@@ -137,8 +110,6 @@
 :root[data-design="soft"] :is(.dd-item.sel, .pretty-select-menu button.selected, .plus-row.is-active) { background: var(--s-secondary); color: var(--text); }
 :root[data-design="soft"] :is(.dd-search input, .plus-search) { border-radius: 999px; background: var(--s-c0); border: 0; box-shadow: none; }
 :root[data-design="soft"] :is(.dd-search input:focus, .plus-search:focus-within) { box-shadow: 0 0 0 2px var(--accent); }
-
-/* ---------------------------------------------------------- welcome */
 :root[data-design="soft"] .greeting h1 { font: 400 clamp(2rem, 3.4vw, 2.7rem)/1.15 var(--s-sans); letter-spacing: -.035em; }
 :root[data-design="soft"] .greet-mark { border-radius: 18px; }
 :root[data-design="soft"] .chip-sug { border-radius: 14px; border: 0; background: var(--s-c1); color: var(--text); box-shadow: none; min-height: 40px; }
@@ -146,8 +117,6 @@
 :root[data-design="soft"] .chip-sug.featured { background: var(--s-secondary); color: var(--text); }
 :root[data-design="soft"] .chip-sug .ui-icon { color: var(--accent); }
 :root[data-design="soft"] :is(.work-guide, .temp-guide, .code-guide) { border-radius: 24px; border: 0; background: var(--s-c1); }
-
-/* --------------------------------------------------------- composer */
 :root[data-design="soft"] .composer-wrap::before { background: linear-gradient(to bottom, transparent, var(--s-c0)); }
 :root[data-design="soft"] .composer {
   border-radius: 28px; border: 0; background: var(--s-c2); box-shadow: none; padding: 10px 10px 10px 14px;
@@ -164,8 +133,6 @@
 :root[data-design="soft"] :is(.composer .tog, .tool-chip, .composer .image-aspect) { border-radius: 999px; background: var(--s-c3); border: 0; }
 :root[data-design="soft"] :is(.composer .tog.on, .composer .tog.active, .tool-chip.on, .tool-chip.active) { background: var(--s-secondary); }
 :root[data-design="soft"] .attach-chip { border-radius: 16px; background: var(--s-c3); border: 0; }
-
-/* --------------------------------------------------------- messages */
 :root[data-design="soft"] .msg-user .bubble {
   border-radius: 24px 24px 8px 24px; background: var(--s-secondary); color: var(--s-on-secondary); border: 0; box-shadow: none;
   padding: 12px 18px;
@@ -186,8 +153,6 @@
 :root[data-design="soft"] .imgwrap img { border-radius: 22px; }
 :root[data-design="soft"] .msg-actions button { border-radius: 999px; }
 :root[data-design="soft"] .jump-latest { border-radius: 16px; background: var(--s-c2); border: 0; box-shadow: var(--s-elev-2); }
-
-/* ----------------------------------------------- modal / settings */
 :root[data-design="soft"] .panel-back { background: color-mix(in srgb, #000 40%, transparent); -webkit-backdrop-filter: none; backdrop-filter: none; }
 :root[data-design="soft"][data-theme="light"] .panel-back { background: color-mix(in srgb, var(--text) 26%, transparent); }
 :root[data-design="soft"] .panel { border-radius: 32px; border: 0; background: var(--s-c0); box-shadow: var(--s-elev-3); }
@@ -204,14 +169,11 @@
 :root[data-design="soft"] .pbtn:hover { box-shadow: var(--s-elev-1); }
 :root[data-design="soft"] .pbtn.ghost { background: var(--s-secondary); color: var(--text); border: 0; }
 :root[data-design="soft"] .pbtn.danger { background: var(--danger); color: #fff; }
-/* dark themes have a light --danger: white on it was ~1.8:1, so the label takes the dark "on-error" ink */
 :root[data-design="soft"][data-theme="dark"] .pbtn.danger { color: color-mix(in srgb, var(--danger) 22%, #000); }
 :root[data-design="soft"] .hintbox { border-radius: 18px; background: var(--s-c1); border: 0; }
 :root[data-design="soft"] .switch .sl { border-radius: 999px; }
 :root[data-design="soft"] .toast { border-radius: 16px; background: color-mix(in srgb, var(--text) 90%, var(--bg)); color: var(--bg); border: 0; box-shadow: var(--s-elev-2); -webkit-backdrop-filter: none; backdrop-filter: none; }
 :root[data-design="soft"] .memu-tooltip { border-radius: 10px; border: 0; }
-
-/* ------------------------------------------- modules, panels, docs */
 :root[data-design="soft"] .module-window { border-radius: 28px; border: 0; background: var(--s-c0); box-shadow: var(--s-elev-3); }
 :root[data-design="soft"] .module-window-bar { border-bottom: 0; background: var(--s-c1); }
 :root[data-design="soft"] :is(.module-card, .module-taskbar) { border-radius: 24px; border: 0; background: var(--s-c1); }
@@ -224,14 +186,10 @@
 :root[data-design="soft"] .docs-page-link.active { background: var(--s-secondary); color: var(--text); }
 :root[data-design="soft"] :is(.docs-table, .docs-callout, .docs-pager-card, .docs-article pre) { border-radius: 20px; }
 :root[data-design="soft"] .live-call { border-radius: 36px; border: 0; background: var(--s-c1); box-shadow: var(--s-elev-3); }
-
-/* ------------------------------------------------------- scrollbars */
 :root[data-design="soft"] ::-webkit-scrollbar { width: 12px; height: 12px; }
 :root[data-design="soft"] ::-webkit-scrollbar-track { background: transparent; }
 :root[data-design="soft"] ::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 999px; border: 4px solid transparent; background-clip: content-box; }
 :root[data-design="soft"] ::-webkit-scrollbar-thumb:hover { background: color-mix(in srgb, var(--accent) 60%, transparent); background-clip: content-box; }
-
-/* ----------------------------------------------------------- motion */
 :root[data-design="soft"] :is(.chat-item, .side-btn, .chip-sug, .pbtn, .send, .settings-tab-btn) { transition: background-color .2s cubic-bezier(.2, 0, 0, 1), box-shadow .2s cubic-bezier(.2, 0, 0, 1), border-radius .2s; }
 :root[data-design="soft"] .send:active { border-radius: 22px; }
 :root[data-design="soft"]:is([data-motion="reduced"], [data-motion="off"]) :is(.chat-item, .side-btn, .chip-sug, .pbtn, .send, .settings-tab-btn) { transition: none; }
@@ -242,8 +200,6 @@
   :root[data-design="soft"] .side, :root[data-design="soft"] .side.hidden { background: var(--s-surface); border-radius: 0 28px 28px 0; }
   :root[data-design="soft"] .main, :root[data-design="soft"] .side.hidden ~ .main { margin: 6px; border-radius: 22px; }
 }
-
-/* ------------------------------------- settings kit (settings.css) */
 :root[data-design="soft"] {
   --sx-r: 24px; --sx-r-sm: 14px; --sx-font: var(--s-sans); --sx-display: var(--s-sans);
   --sx-bg: var(--s-c0); --sx-side: var(--s-surface); --sx-card: var(--s-c1); --sx-card-hover: var(--s-c2);
@@ -251,7 +207,7 @@
 }
 :root[data-design="soft"] .sx-shell .sx-nav .settings-tab-btn { border-radius: 999px; }
 :root[data-design="soft"] .sx-shell .sx-nav .settings-tab-btn.active { color: var(--text); font-weight: 600; }
-:root[data-design="soft"] .sx-shell .sx-desc-sub { color: var(--muted); } /* the 85 % muted of settings.css sinks on the tonal cards */
+:root[data-design="soft"] .sx-shell .sx-desc-sub { color: var(--muted); }
 :root[data-design="soft"] :is(.sx-search, .sx-seg, .sx-sub-back, .sx-badge, .sx-chip, .sx-saved) { border-radius: 999px; }
 :root[data-design="soft"] .sx-seg-opt span { border-radius: 999px; }
 :root[data-design="soft"] :is(.sx-page-icon, .sx-link-icon, .sx-result-icon) { border-radius: 14px; }

@@ -34,11 +34,9 @@ sys.path.insert(0, str(ROOT))
 
 from app import docs, docs_ai  # noqa: E402
 
-
 def page_ids() -> list[str]:
     index = json.loads((ROOT / "app" / "docs" / "index.json").read_text(encoding="utf-8"))
     return [page for group in index["groups"] for page in group["pages"]]
-
 
 def endpoint() -> tuple[str, str, str]:
     base = os.environ.get("DOCS_AI_BASE") or os.environ.get("XKIRO_BASE") or ""
@@ -48,36 +46,33 @@ def endpoint() -> tuple[str, str, str]:
         sys.exit("Set DOCS_AI_BASE/DOCS_AI_KEY/DOCS_AI_MODEL (or XKIRO_*) in the environment")
     return base.rstrip("/"), key, model
 
-
 def public_model(model: str) -> str:
     """The name written into the shipped JSON: a Yandex URI "gpt://<folder>/<name>/latest" keeps only <name>."""
     return model.rstrip("/").split("/")[-2] if model.startswith("gpt://") and model.count("/") >= 4 else model
-
 
 def call(base: str, key: str, model: str, messages: list[dict], temperature: float = 0.2) -> str:
     body = json.dumps({"model": model, "messages": messages, "temperature": temperature, "max_tokens": 3000}).encode()
     request = urllib.request.Request(base + "/chat/completions", data=body, method="POST",
                                      headers={"Authorization": "Bearer " + key, "Content-Type": "application/json",
                                               "User-Agent": "MemuAI-docs-summaries/1.0"})
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # local / direct endpoint
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     last = None
     for attempt in range(6):
         try:
             with opener.open(request, timeout=90) as response:
                 data = json.loads(response.read().decode("utf-8"))
             return str(data["choices"][0]["message"]["content"] or "")
-        except urllib.error.HTTPError as exc:   # 429: wait as long as the server asks
+        except urllib.error.HTTPError as exc:
             last = exc
             wait = 2 + attempt * 3
             if exc.code == 429:
                 match = re.search(r"after (\d+)", exc.read().decode("utf-8", "replace"))
                 wait = int(match.group(1)) + 1 if match else 8
             time.sleep(min(wait, 30))
-        except Exception as exc:  # retry transient failures
+        except Exception as exc:
             last = exc
             time.sleep(2 + attempt * 3)
     raise RuntimeError(f"model call failed: {type(last).__name__}")
-
 
 def todo(langs: list[str], only: list[str], force: bool) -> list[tuple[str, str]]:
     rows = []
@@ -92,7 +87,6 @@ def todo(langs: list[str], only: list[str], force: bool) -> list[tuple[str, str]
             if force or not fresh:
                 rows.append((lang, page_id))
     return rows
-
 
 def verify(langs: list[str], only: list[str], workers: int, budget: float, report: str | None = None) -> None:
     """A second model pass: claims of a summary that its article does not support (for a human to review)."""
@@ -131,7 +125,6 @@ def verify(langs: list[str], only: list[str], workers: int, budget: float, repor
                     found[f"{lang}/{page_id}"] = issues
     if report:
         Path(report).write_text(json.dumps(found, ensure_ascii=False, indent=1), encoding="utf-8")
-
 
 def repair(report: Path, workers: int, budget: float) -> None:
     """Rewrite the summaries a reviewer (``--verify`` or a human) found doubtful, with the problems as feedback."""
@@ -173,7 +166,6 @@ def repair(report: Path, workers: int, budget: float) -> None:
             data["pages"][page_id] = entry
             docs_ai.save(lang, data)
             print(f"{ref}: repaired")
-
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -254,7 +246,6 @@ def main() -> None:
             done += 1
             print(f"{lang}/{page_id}: ok")
     print(f"written: {done}, left: {len(todo(langs, args.only, False))}")
-
 
 if __name__ == "__main__":
     main()

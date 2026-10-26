@@ -1,0 +1,70 @@
+{
+  "id": "memudb",
+  "title": "MemuDB",
+  "title_en": "MemuDB",
+  "summary": "SQLite и DuckDB: таблицы, SQL, импорт, экспорт и помощник с предпросмотром изменений.",
+  "summary_en": "SQLite and DuckDB: tables, SQL, import, export and an assistant with change previews.",
+  "version": "1.0",
+  "icon": "icon.svg",
+  "enabled": false,
+  "default_locale": "ru",
+  "launcher": {
+    "hidden": false,
+    "slot": "sidebar"
+  },
+  "window": {
+    "default_width": 1160,
+    "default_height": 760,
+    "min_width": 440,
+    "min_height": 420,
+    "max_width": 2400,
+    "max_height": 1600,
+    "resizable": true,
+    "size_mode": "user",
+    "center": true
+  },
+  "persist": [
+    "sql",
+    "model",
+    "snippets",
+    "history"
+  ],
+  "permissions": [
+    "database",
+    "chat",
+    "models",
+    "storage",
+    "download",
+    "clipboard"
+  ],
+  "bridge": {
+    "keep_in_chat": false,
+    "thinking": false,
+    "web_search": false
+  },
+  "contributes": {
+    "commands": [
+      {
+        "id": "sql",
+        "title": "Открыть SQL в MemuDB",
+        "title_en": "Open SQL in MemuDB",
+        "description": "Открыть SQL как предложение без выполнения. Пользователь выбирает базу, проверяет и запускает запрос.",
+        "description_en": "Open proposed SQL without executing it. The user selects a database, reviews and runs the query.",
+        "run": {
+          "open": true
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "sql": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "sql"
+          ]
+        }
+      }
+    ]
+  }
+}

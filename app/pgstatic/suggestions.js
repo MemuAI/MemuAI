@@ -1,20 +1,9 @@
-/* MemuAI — подсказки на главной странице.
- *
- * Большой двуязычный набор идей для первого сообщения. Каждый раз, когда
- * открывается новый чат (или нажата «Другие подсказки»), выбирается новый
- * случайный набор: из разных тем, без повторов недавно показанного и с
- * учётом времени суток, дня недели и сезона. Внутри одного экрана набор
- * стабилен — смена языка или модели не перемешивает кнопки.
- *
- * Строка набора: [id, иконка, тема, текст RU, запрос RU, текст EN, запрос EN, условия].
- * Запрос, который заканчивается на «: », пользователь дописывает сам;
- * остальные можно отправить сразу. Условия: morning, day, evening, night,
- * weekend, weekday, winter, spring, summer, autumn, newyear, image.
- */
+
+
 "use strict";
 const MemuSuggestions = (() => {
   const CHAT = [
-    // ---- тексты и письмо
+
     ["post", "edit", "write", "Придумай пост", "Придумай короткий и увлекательный пост для соцсетей про: ", "Write a post", "Write a short, engaging social media post about: "],
     ["letter", "edit", "write", "Вежливое письмо", "Помоги написать вежливое, но твёрдое письмо. Ситуация: ", "A polite letter", "Help me write a polite but firm email. The situation: "],
     ["polish", "edit", "write", "Улучши текст", "Исправь ошибки, улучши стиль и сделай текст выразительнее: ", "Polish a text", "Fix the mistakes, improve the style and make this text more vivid: "],
@@ -27,7 +16,7 @@ const MemuSuggestions = (() => {
     ["cover", "edit", "write", "Сопроводительное письмо", "Напиши сопроводительное письмо на вакансию: ", "A cover letter", "Write a cover letter for this job: "],
     ["toast", "sparkle", "write", "Тост или поздравление", "Придумай тёплое поздравление для: ", "A toast or greeting", "Write a warm greeting for: "],
     ["review", "list", "write", "Отзыв о продукте", "Помоги написать честный и полезный отзыв о: ", "A product review", "Help me write an honest, useful review of: "],
-    // ---- учёба и объяснения
+
     ["concept", "brain", "learn", "Объясни концепцию", "Объясни простыми словами, с аналогиями из жизни: ", "Explain a concept", "Explain in plain words, with everyday analogies: "],
     ["quantum", "brain", "learn", "Квантовые компьютеры", "Объясни, как работают квантовые компьютеры, простыми словами с жизненными аналогиями", "Quantum computers", "Explain how quantum computers work in plain language with everyday analogies"],
     ["roadmap", "book", "learn", "План обучения", "Составь реалистичный план обучения на 4 недели по теме: ", "A study plan", "Make a realistic 4-week study plan for: "],
@@ -40,12 +29,12 @@ const MemuSuggestions = (() => {
     ["science", "research", "learn", "Почему так в природе", "Почему небо голубое, а закат красный? Объясни через физику, но понятно", "Why nature works so", "Why is the sky blue and the sunset red? Explain the physics in plain terms"],
     ["paradox", "brain", "learn", "Парадокс", "Расскажи о каком-нибудь удивительном парадоксе из математики или физики и объясни его", "A paradox", "Tell me about a surprising paradox from maths or physics and explain it"],
     ["word", "text", "learn", "Происхождение слова", "Расскажи историю происхождения слова: ", "Word origins", "Tell me where this word comes from: "],
-    // ---- языки
+
     ["translate", "globe", "language", "Переведи естественно", "Переведи естественно, как сказал бы носитель языка: ", "Translate naturally", "Translate naturally, the way a native speaker would: "],
     ["practice", "chat", "language", "Разговорная практика", "Давай попрактикуем английский: веди диалог на тему путешествий и мягко поправляй мои ошибки", "Conversation practice", "Let's practise Spanish: hold a conversation about travel and gently correct my mistakes"],
     ["grammar", "check", "language", "Разбор грамматики", "Объясни это грамматическое правило с примерами: ", "Grammar explained", "Explain this grammar rule with examples: "],
     ["idioms", "text", "language", "Идиомы", "Объясни 10 популярных английских идиом с примерами употребления", "Idioms", "Explain 10 popular English idioms with usage examples"],
-    // ---- код и технологии
+
     ["script", "terminal", "code", "Напиши скрипт", "Напиши чистый и понятный скрипт на Python для задачи: ", "Write a script", "Write a clean, readable Python script for: "],
     ["regex", "terminal", "code", "Регулярное выражение", "Составь регулярное выражение с объяснением, которое находит: ", "A regex", "Write a regular expression, with an explanation, that matches: "],
     ["debug", "terminal", "code", "Найди ошибку", "Найди ошибку в этом коде и объясни, как исправить: ", "Find the bug", "Find the bug in this code and explain the fix: "],
@@ -59,7 +48,7 @@ const MemuSuggestions = (() => {
     ["gadget", "monitor", "tech", "Выбор техники", "Помоги выбрать ноутбук: задачи, бюджет и что важно учесть", "Choose a gadget", "Help me choose a laptop: my tasks, budget and what to look for"],
     ["privacy", "info", "tech", "Защита аккаунтов", "Как надёжно защитить свои аккаунты? Дай практичный чек-лист", "Protect accounts", "How do I properly protect my online accounts? Give me a practical checklist"],
     ["aiprompt", "bot", "tech", "Промпт для ИИ", "Помоги составить хороший промпт для ИИ, чтобы получить: ", "A prompt for AI", "Help me write a good AI prompt to get: "],
-    // ---- анализ и решения
+
     ["compare", "chart", "analyze", "Сравни варианты", "Сделай сравнительную таблицу плюсов и минусов для: ", "Compare options", "Make a pros-and-cons comparison table for: "],
     ["decide", "target", "analyze", "Помоги решить", "Помоги принять решение. Вот варианты и что для меня важно: ", "Help me decide", "Help me make a decision. Here are the options and what matters to me: "],
     ["swot", "chart", "analyze", "SWOT-анализ", "Сделай SWOT-анализ для: ", "SWOT analysis", "Do a SWOT analysis of: "],
@@ -67,7 +56,7 @@ const MemuSuggestions = (() => {
     ["factcheck", "search", "analyze", "Проверь утверждение", "Это правда? Разбери утверждение и покажи, на чём основан вывод: ", "Fact-check", "Is this true? Examine the claim and show what the conclusion rests on: "],
     ["argue", "chat", "analyze", "Аргументы за и против", "Приведи сильнейшие аргументы за и против: ", "Arguments for and against", "Give the strongest arguments for and against: "],
     ["data", "chart", "analyze", "Разбери данные", "Проанализируй эти данные и найди главные закономерности: ", "Analyse data", "Analyse this data and find the main patterns: "],
-    // ---- работа и продуктивность
+
     ["plan", "clock", "work", "Планирование дня", "Помоги составить реалистичный план на день и расставить приоритеты: ", "Plan my day", "Help me plan a realistic day and set priorities: ", "morning"],
     ["meeting", "users", "work", "Повестка встречи", "Составь чёткую повестку встречи на 30 минут по теме: ", "A meeting agenda", "Draft a clear 30-minute meeting agenda for: ", "weekday"],
     ["okr", "target", "work", "Цели на квартал", "Помоги сформулировать измеримые цели на квартал для: ", "Quarterly goals", "Help me set measurable quarterly goals for: "],
@@ -77,7 +66,7 @@ const MemuSuggestions = (() => {
     ["procrast", "clock", "work", "Как перестать откладывать", "Я откладываю важную задачу. Помоги разбить её на маленькие шаги: ", "Stop procrastinating", "I keep putting off an important task. Help me break it into tiny steps: "],
     ["business", "sparkle", "work", "Идея для бизнеса", "Предложи 5 идей небольшого бизнеса с минимальными вложениями в сфере: ", "Business ideas", "Suggest 5 small business ideas with low start-up costs in: "],
     ["weekreview", "check", "work", "Итоги недели", "Помоги подвести итоги недели: что получилось, что нет и что улучшить", "Week in review", "Help me review my week: what worked, what didn't and what to improve", "weekend"],
-    // ---- идеи и творчество
+
     ["brainstorm", "sparkle", "create", "Мозговой штурм", "Предложи 10 необычных идей для: ", "Brainstorm", "Give me 10 unusual ideas for: "],
     ["gift", "sparkle", "create", "Идея подарка", "Помоги выбрать подарок. Кому, повод и бюджет: ", "A gift idea", "Help me pick a gift. Who it's for, the occasion and budget: "],
     ["name", "text", "create", "Придумай название", "Придумай 15 вариантов названия для: ", "Name ideas", "Come up with 15 name ideas for: "],
@@ -89,7 +78,7 @@ const MemuSuggestions = (() => {
     ["draw", "image", "create", "Нарисуй изображение", "/img Нарисуй уютную комнату с видом на ночной город под дождём", "Draw an image", "/img Draw a cosy room overlooking a rainy city at night", "image"],
     ["logo", "palette", "create", "Идея логотипа", "/img Минималистичный логотип для кофейни «Утро», плоский стиль", "A logo idea", "/img A minimalist flat logo for a coffee shop called Morning", "image"],
     ["poster", "image", "create", "Постер", "/img Яркий постер фестиваля музыки в стиле ретро-футуризма", "A poster", "/img A bright retro-futurist music festival poster", "image"],
-    // ---- жизнь, дом, еда, путешествия
+
     ["recipe", "list", "life", "Что приготовить", "Что можно приготовить из того, что есть в холодильнике: ", "What to cook", "What can I cook with what's in my fridge: ", "evening"],
     ["breakfast", "clock", "life", "Быстрый завтрак", "Предложи 5 быстрых и полезных завтраков на неделю", "Quick breakfasts", "Suggest 5 quick, healthy breakfasts for the week", "morning"],
     ["menu", "list", "life", "Меню на неделю", "Составь сбалансированное меню на неделю со списком покупок", "A weekly menu", "Plan a balanced weekly menu with a shopping list", "weekend"],
@@ -106,7 +95,7 @@ const MemuSuggestions = (() => {
     ["hobby", "palette", "life", "Новое хобби", "Помоги подобрать новое хобби. Мои интересы и сколько времени есть: ", "A new hobby", "Help me find a new hobby. My interests and free time: ", "weekend"],
     ["conversation", "chat", "life", "Сложный разговор", "Как спокойно и честно поговорить с близким человеком о сложной теме: ", "A hard conversation", "How do I calmly and honestly talk to someone close about a difficult topic: "],
     ["reflect", "brain", "life", "Подумать о дне", "Задай мне пять вопросов, чтобы спокойно подвести итоги дня", "Reflect on the day", "Ask me five questions to calmly reflect on my day", "night"],
-    // ---- сезонные
+
     ["winter", "sparkle", "life", "Зимние выходные", "Чем интересно заняться в зимние выходные — дома и на улице?", "Winter weekend", "Fun things to do on a winter weekend — indoors and outdoors?", "winter"],
     ["newyear", "sparkle", "life", "Новогодние идеи", "Помоги придумать план новогодних праздников и небольшие подарки близким", "New Year ideas", "Help me plan the holidays and small gifts for loved ones", "newyear"],
     ["spring", "sparkle", "life", "Весенний план", "Составь план полезных весенних дел: дом, здоровье, новые привычки", "A spring plan", "Make a plan of useful spring projects: home, health, new habits", "spring"],
@@ -162,7 +151,6 @@ const MemuSuggestions = (() => {
     return tags;
   }
 
-  /** Weighted random pick: fresh ideas and ones that fit the moment first, one per theme. */
   function choose(pool, count, conditions) {
     const tags = context();
     const candidates = pool.filter((row) => {
@@ -173,8 +161,8 @@ const MemuSuggestions = (() => {
     });
     const weighted = candidates.map((row) => {
       let weight = Math.random();
-      if (row[7] && row[7] !== "image") weight += 0.6;      // fits the moment
-      if (recent.includes(row[0])) weight -= 0.9;            // shown recently
+      if (row[7] && row[7] !== "image") weight += 0.6;
+      if (recent.includes(row[0])) weight -= 0.9;
       return { row, weight };
     }).sort((a, b) => b.weight - a.weight);
     const picked = [];
@@ -185,12 +173,12 @@ const MemuSuggestions = (() => {
       themes.add(row[2]);
       picked.push(row);
     }
-    for (const { row } of weighted) {          // fewer themes than slots
+    for (const { row } of weighted) {
       if (picked.length >= count) break;
       if (!picked.includes(row)) picked.push(row);
     }
     recent = [...recent.filter((id) => !picked.some((row) => row[0] === id)), ...picked.map((row) => row[0])].slice(-80);
-    try { localStorage.setItem(RECENT, JSON.stringify(recent)); } catch (e) { /* storage unavailable */ }
+    try { localStorage.setItem(RECENT, JSON.stringify(recent)); } catch (e) {  }
     return picked;
   }
 
@@ -200,7 +188,6 @@ const MemuSuggestions = (() => {
     return choose(CHAT, 4, conditions);
   }
 
-  /** The suggestions for the home screen; stable until refresh() or shuffle(). */
   function list(mode, conditions = {}) {
     const key = mode === "code" || mode === "work" ? mode : "chat";
     if (!current[key]) current[key] = build(key, conditions);

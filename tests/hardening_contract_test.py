@@ -20,7 +20,6 @@ from app.state import ModelEntry, State, state
 from app.storage import load_json_with_recovery, save_json
 from main import local_server_url, secure_bind_host
 
-
 class ConfigNormalizationContractTest(unittest.TestCase):
     def test_invalid_persisted_values_fall_back_or_clamp(self) -> None:
         settings = _normalized_settings({
@@ -74,7 +73,6 @@ class ConfigNormalizationContractTest(unittest.TestCase):
         self.assertEqual(secure_bind_host("0.0.0.0", False), "0.0.0.0")
         self.assertEqual(secure_bind_host("::1", True), "::1")
 
-
 class AtomicStorageContractTest(unittest.TestCase):
     def test_parallel_writes_remain_valid_and_leave_no_shared_temp(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -126,7 +124,6 @@ class AtomicStorageContractTest(unittest.TestCase):
             self.assertIn(unknown_account, json.loads(accounts_path.read_text(encoding="utf-8")))
             self.assertIn(unknown_model, json.loads(models_path.read_text(encoding="utf-8")))
 
-
 class WorkBoundaryContractTest(unittest.TestCase):
     def test_session_write_requires_restorable_snapshot(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -154,7 +151,7 @@ class WorkBoundaryContractTest(unittest.TestCase):
                     delete = client.post("/api/pg/tools", json={
                         "tool": "work_delete", "project_id": "p", "session": "s", "access": "full",
                         "args": {"path": "folder"}})
-                    # A folder is snapshotted file by file, so deleting it is undoable.
+
                     self.assertNotIn("error", delete.json())
                     self.assertFalse(folder.exists())
                     code_checkpoints.restore("s", project)
@@ -238,7 +235,6 @@ class WorkBoundaryContractTest(unittest.TestCase):
                         "Host": "evil.example",
                     }).status_code, 403)
 
-
 class MediaBoundaryContractTest(unittest.TestCase):
     def test_proxy_runtime_discovery_uses_isolated_data_directory(self):
         with tempfile.TemporaryDirectory() as tmp, \
@@ -294,7 +290,6 @@ class MediaBoundaryContractTest(unittest.TestCase):
             "extensions": {"network_stream": Stream("8.8.8.8")},
         })())
 
-
 class RoutingContractTest(unittest.TestCase):
     def test_exact_disabled_model_does_not_fall_through_to_permissive_prefix(self) -> None:
         model = ModelEntry("kiro", "kiro", "disabled-model", enabled=False)
@@ -302,7 +297,6 @@ class RoutingContractTest(unittest.TestCase):
             routed = resolve(model.id)
         self.assertIs(routed.entry, model)
         self.assertFalse(routed.entry.enabled)
-
 
 if __name__ == "__main__":
     unittest.main()

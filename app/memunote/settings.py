@@ -13,11 +13,8 @@ from typing import Any, Dict
 from .paths import note_dir, read_json, write_json
 from .settings_schema import CHOICES, DEFAULTS, FONT_PRESETS, RANGES  # noqa: F401  (Round 38: one schema, also read by MemuAI)
 
-# The schema is strict for writes from MemuAI; loading stays forgiving: unknown encodings are normalised by
-# textio (not limited to the menu), floats are handled below, out-of-range numbers are clamped.
 _CHOICES = {k: v for k, v in CHOICES.items() if k != "default_encoding"}
 _RANGES = {k: v for k, v in RANGES.items() if isinstance(DEFAULTS[k], int)}
-
 
 def normalize(value: Any) -> Dict[str, Any]:
     raw = value if isinstance(value, dict) else {}
@@ -53,22 +50,18 @@ def normalize(value: Any) -> Dict[str, Any]:
         else:
             item = str(item or "")[:120] if isinstance(default, str) else default
         out[key] = item
-    # Round 33: "split" was the default before the live editor existed — move it once to "live" (an explicit choice
-    # made after this, saved together with md_live_migrated=True, is kept).
+
     if raw.get("md_live_migrated") is not True:
         if out["markdown_preview"] == "split":
             out["markdown_preview"] = "live"
         out["md_live_migrated"] = True
     return out
 
-
 def path():
     return note_dir() / "settings.json"
 
-
 def load() -> Dict[str, Any]:
     return normalize(read_json(path(), {}))
-
 
 def save(update: Dict[str, Any]) -> Dict[str, Any]:
     current = load()

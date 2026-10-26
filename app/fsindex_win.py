@@ -32,18 +32,12 @@ from typing import Any, Callable, Dict, Iterable, Iterator, List, Optional, Sequ
 log = logging.getLogger("memuai.fsindex.win")
 IS_WINDOWS = sys.platform == "win32"
 
-# ---------------------------------------------------------------- time
-
 EPOCH_AS_FILETIME = 116444736000000000
-
 
 def filetime_to_epoch(ft: int) -> Optional[float]:
     if ft is None or ft <= 0 or ft >= 0x7FFFFFFFFFFFFFFF or ft == 0xFFFFFFFFFFFFFFFF:
         return None
     return (ft - EPOCH_AS_FILETIME) / 10_000_000
-
-
-# ---------------------------------------------------------------- Everything IPC (constants from everything_ipc.h)
 
 EVERYTHING_IPC_WNDCLASSES = ("EVERYTHING_TASKBAR_NOTIFICATION", "EVERYTHING_TASKBAR_NOTIFICATION_(1.5a)")
 WM_USER = 0x0400
@@ -64,20 +58,18 @@ REQ_DATE_ACCESSED = 0x00000080
 REQ_ATTRIBUTES = 0x00000100
 IPC_FOLDER = 0x00000001
 IPC_DRIVE = 0x00000002
-SORT = {"name": 1, "relevance": 14, "path": 3, "size": 6, "date": 14}   # DATE_MODIFIED_DESCENDING = 14
-REPLY_ID = 0x4D454D55          # "MEMU": dwData of Everything's WM_COPYDATA reply
+SORT = {"name": 1, "relevance": 14, "path": 3, "size": 6, "date": 14}
+REPLY_ID = 0x4D454D55
 _STRING_FLAGS = (REQ_NAME, REQ_PATH, REQ_FULL_PATH_AND_NAME, REQ_EXTENSION)
 _EIGHT_BYTE_FLAGS = (REQ_SIZE, REQ_DATE_CREATED, REQ_DATE_MODIFIED, REQ_DATE_ACCESSED)
 _ORDER = (REQ_NAME, REQ_PATH, REQ_FULL_PATH_AND_NAME, REQ_EXTENSION, REQ_SIZE, REQ_DATE_CREATED, REQ_DATE_MODIFIED,
           REQ_DATE_ACCESSED, REQ_ATTRIBUTES)
-
 
 def build_query2(reply_hwnd: int, query: str, limit: int, request_flags: int, sort: int, offset: int = 0,
                  search_flags: int = 0) -> bytes:
     """``EVERYTHING_IPC_QUERY2`` (7 DWORDs) + the UTF-16 search text with its terminating zero."""
     head = struct.pack("<IIIIIII", reply_hwnd & 0xFFFFFFFF, REPLY_ID, search_flags, offset, limit, request_flags, sort)
     return head + (query + "\0").encode("utf-16-le")
-
 
 def parse_ipc_list2(data: bytes) -> Tuple[int, List[Dict[str, Any]]]:
     """``EVERYTHING_IPC_LIST2`` reply → (total items, rows). Each item's data follows the requested flags in bit
@@ -117,7 +109,6 @@ def parse_ipc_list2(data: bytes) -> Tuple[int, List[Dict[str, Any]]]:
         rows.append(row)
     return tot, rows
 
-
 def _row(row: Dict[str, Any]) -> Dict[str, Any]:
     from .fsindex_query import kind_of
     name = row.get("name") or ""
@@ -127,16 +118,11 @@ def _row(row: Dict[str, Any]) -> Dict[str, Any]:
             "size": None if is_dir or size is None or size < 0 else int(size),
             "mtime": row.get("mtime"), "is_dir": is_dir, "kind": kind_of(name, is_dir)}
 
-
-# ---------------------------------------------------------------- Win32 helpers
-
 def _user32():
     return ctypes.WinDLL("user32", use_last_error=True)
 
-
 def _kernel32():
     return ctypes.WinDLL("kernel32", use_last_error=True)
-
 
 def find_everything_window() -> int:
     if not IS_WINDOWS:
@@ -150,7 +136,6 @@ def find_everything_window() -> int:
             return int(hwnd)
     return 0
 
-
 def _send_timeout(hwnd: int, msg: int, wparam: int, lparam: Any, timeout_ms: int = 600) -> Optional[int]:
     from ctypes import wintypes
     user32 = _user32()
@@ -158,9 +143,8 @@ def _send_timeout(hwnd: int, msg: int, wparam: int, lparam: Any, timeout_ms: int
                                            wintypes.UINT, wintypes.UINT, ctypes.POINTER(ctypes.c_size_t)]
     user32.SendMessageTimeoutW.restype = ctypes.c_size_t
     result = ctypes.c_size_t(0)
-    ok = user32.SendMessageTimeoutW(hwnd, msg, wparam, lparam, 0x0002, timeout_ms, ctypes.byref(result))  # SMTO_ABORTIFHUNG
+    ok = user32.SendMessageTimeoutW(hwnd, msg, wparam, lparam, 0x0002, timeout_ms, ctypes.byref(result))
     return int(result.value) if ok else None
-
 
 def _program_dirs() -> List[str]:
     out = []
@@ -172,7 +156,6 @@ def _program_dirs() -> List[str]:
     if local:
         out += [os.path.join(local, "Programs", "Everything"), os.path.join(local, "Everything")]
     return list(dict.fromkeys(out))
-
 
 def _registry_dirs() -> List[str]:
     if not IS_WINDOWS:
@@ -212,14 +195,12 @@ def _registry_dirs() -> List[str]:
                         continue
     return out
 
-
 def _data_dir() -> str:
     try:
         from .fsindex import data_dir
         return str(data_dir())
     except Exception:
         return ""
-
 
 def everything_paths() -> Dict[str, str]:
     """Where Everything.exe, es.exe and Everything64.dll are (empty strings when not found)."""
@@ -245,7 +226,6 @@ def everything_paths() -> Dict[str, str]:
             es = ""
     return {"exe": exe, "es": es, "dll": dll}
 
-
 def everything_info() -> Dict[str, Any]:
     info: Dict[str, Any] = {"installed": False, "running": False, "version": "", "db_loaded": False, "via": ""}
     paths = everything_paths() if IS_WINDOWS else {"exe": "", "es": "", "dll": ""}
@@ -264,7 +244,6 @@ def everything_info() -> Dict[str, Any]:
         info["via"] = "dll" if paths["dll"] else "ipc"
     return info
 
-
 def start_everything(exe: str = "") -> bool:
     exe = exe or everything_paths()["exe"]
     if not exe or not os.path.isfile(exe):
@@ -276,13 +255,9 @@ def start_everything(exe: str = "") -> bool:
     except OSError:
         return False
 
-
-# ---- own IPC client (no files needed)
-
 _IPC_LOCK = threading.Lock()
 _IPC_REPLIES: Dict[int, bytes] = {}
 _IPC_CLASS: Dict[str, Any] = {}
-
 
 def _ipc_class() -> Tuple[str, Any]:
     from ctypes import wintypes
@@ -322,10 +297,9 @@ def _ipc_class() -> Tuple[str, Any]:
     wc.lpszClassName = "MemuAIFsIndexEverythingReply"
     user32.RegisterClassW.argtypes = [ctypes.POINTER(WNDCLASSW)]
     user32.RegisterClassW.restype = wintypes.ATOM
-    user32.RegisterClassW(ctypes.byref(wc))      # 0 when already registered by an earlier call — fine
+    user32.RegisterClassW(ctypes.byref(wc))
     _IPC_CLASS.update({"name": wc.lpszClassName, "hinst": hinst, "proc": proc, "wc": wc, "cds": COPYDATASTRUCT})
     return wc.lpszClassName, hinst
-
 
 def ipc_query(query: str, limit: int, sort: int, timeout: float = 3.0,
               request_flags: int = REQ_NAME | REQ_PATH | REQ_SIZE | REQ_DATE_MODIFIED) -> Tuple[int, List[Dict[str, Any]]]:
@@ -340,7 +314,7 @@ def ipc_query(query: str, limit: int, sort: int, timeout: float = 3.0,
                                            ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.HWND,
                                            wintypes.HMENU, wintypes.HINSTANCE, wintypes.LPVOID]
         user32.CreateWindowExW.restype = wintypes.HWND
-        hwnd = user32.CreateWindowExW(0, cls, "", 0, 0, 0, 0, 0, wintypes.HWND(-3), None, hinst, None)  # HWND_MESSAGE
+        hwnd = user32.CreateWindowExW(0, cls, "", 0, 0, 0, 0, 0, wintypes.HWND(-3), None, hinst, None)
         if not hwnd:
             raise RuntimeError("could not create the reply window")
         hwnd_i = int(hwnd)
@@ -358,12 +332,12 @@ def ipc_query(query: str, limit: int, sort: int, timeout: float = 3.0,
                                                          wintypes.DWORD, wintypes.DWORD]
             end = time.time() + timeout
             while hwnd_i not in _IPC_REPLIES and time.time() < end:
-                while user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 0x0001):   # PM_REMOVE (sent messages too)
+                while user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, 0x0001):
                     user32.TranslateMessage(ctypes.byref(msg))
                     user32.DispatchMessageW(ctypes.byref(msg))
                 if hwnd_i in _IPC_REPLIES:
                     break
-                user32.MsgWaitForMultipleObjects(0, None, False, 15, 0x04FF)       # QS_ALLINPUT
+                user32.MsgWaitForMultipleObjects(0, None, False, 15, 0x04FF)
             data = _IPC_REPLIES.pop(hwnd_i, None)
             if data is None:
                 raise TimeoutError("Everything did not answer in time")
@@ -371,12 +345,8 @@ def ipc_query(query: str, limit: int, sort: int, timeout: float = 3.0,
         finally:
             user32.DestroyWindow(hwnd)
 
-
-# ---- SDK DLL
-
 _DLL_LOCK = threading.Lock()
 _DLL: Dict[str, Any] = {}
-
 
 def dll_query(dll_path: str, query: str, limit: int, sort: int) -> Tuple[int, List[Dict[str, Any]]]:
     from ctypes import wintypes
@@ -420,9 +390,6 @@ def dll_query(dll_path: str, query: str, limit: int, sort: int) -> Tuple[int, Li
             rows.append({"path": path, "name": name, "dir": folder, "size": size.value if size.value >= 0 else None,
                          "mtime": filetime_to_epoch(ft.value), "is_dir": bool(lib.Everything_IsFolderResult(i))})
         return int(lib.Everything_GetTotResults()), rows
-
-
-# ---- es.exe
 
 def parse_es_output(text: str) -> List[Dict[str, Any]]:
     """``es.exe -csv`` output (with or without a header; columns Filename/Size/Date Modified/Attributes in any
@@ -479,7 +446,6 @@ def parse_es_output(text: str) -> List[Dict[str, Any]]:
         rows.append(row)
     return rows
 
-
 def es_query(es_path: str, query: str, limit: int, sort: str) -> Tuple[int, List[Dict[str, Any]]]:
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
     sort_arg = {"name": "name", "path": "path", "size": "size-descending", "date": "date-modified-descending",
@@ -534,7 +500,6 @@ def es_query(es_path: str, query: str, limit: int, sort: str) -> Tuple[int, List
         return len(rows), rows
     raise RuntimeError("es.exe failed: " + last_error)
 
-
 def everything_search(query: str, limit: int = 200, sort: str = "relevance", info: Optional[Dict[str, Any]] = None,
                       timeout: float = 3.0, rank_query: str = "") -> Dict[str, Any]:
     """Ask Everything (DLL → own IPC → es.exe). Relevance: Everything sorts by date, MemuAI re-ranks exact/prefix
@@ -578,9 +543,6 @@ def everything_search(query: str, limit: int = 200, sort: str = "relevance", inf
     return {"results": results[:limit], "total": max(tot, len(results)), "capped": tot > limit, "partial": False,
             "via": via}
 
-
-# ---------------------------------------------------------------- drives / admin
-
 def drives() -> List[Dict[str, Any]]:
     if not IS_WINDOWS:
         return []
@@ -602,7 +564,6 @@ def drives() -> List[Dict[str, Any]]:
         out.append({"path": root, "type": kind, "label": label.value if ok else "", "fs": fs.value if ok else ""})
     return out
 
-
 def is_admin() -> bool:
     if not IS_WINDOWS:
         return False
@@ -611,7 +572,6 @@ def is_admin() -> bool:
     except Exception:
         return False
 
-
 def is_ntfs_root(root: str) -> bool:
     if not IS_WINDOWS or len(root.rstrip("\\/")) != 2 or root[1] != ":":
         return False
@@ -619,9 +579,6 @@ def is_ntfs_root(root: str) -> bool:
         if d["path"].lower() == (root[:2] + "\\").lower():
             return d.get("fs", "").upper() == "NTFS" and d.get("type") == "fixed"
     return False
-
-
-# ---------------------------------------------------------------- MFT / USN
 
 FSCTL_ENUM_USN_DATA = 0x000900B3
 FSCTL_QUERY_USN_JOURNAL = 0x000900F4
@@ -639,7 +596,6 @@ USN_REASON_BASIC_INFO_CHANGE = 0x8000
 USN_REASON_CLOSE = 0x80000000
 ROOT_RECORD = 5
 _V2 = struct.Struct("<IHHQQqqIIIIHH")
-
 
 def parse_usn_records(buf: bytes, start: int = 8) -> Iterator[Tuple[int, int, str, int, int]]:
     """USN_RECORD_V2/V3 records after the 8-byte next-cursor → ``(frn, parent_frn, name, attributes, reason)``.
@@ -662,7 +618,6 @@ def parse_usn_records(buf: bytes, start: int = 8) -> Iterator[Tuple[int, int, st
         name = buf[p + name_off:p + name_off + name_len].decode("utf-16-le", "replace")
         yield frn, parent, name, attrs, reason
         p += length
-
 
 def batches_from_records(records: Iterable[Tuple[int, int, str, int]], root: str, rules: Any = None,
                          hidden: bool = True) -> Tuple[List[Tuple[str, List[Tuple[str, int, float, bool]]]], Dict[int, Tuple[int, str]]]:
@@ -722,13 +677,11 @@ def batches_from_records(records: Iterable[Tuple[int, int, str, int]], root: str
             continue
         is_dir = bool(attrs & FILE_ATTRIBUTE_DIRECTORY)
         if is_dir and path_of(frn) is None:
-            continue           # an excluded folder: not listed itself either
+            continue
         grouped.setdefault(folder, []).append((name, 0 if is_dir else -1, -1.0, is_dir))
     return list(grouped.items()), dirs
 
-
 _FRN_DIRS: Dict[str, Dict[int, Tuple[int, str]]] = {}
-
 
 def _open_volume(root: str):
     from ctypes import wintypes
@@ -736,11 +689,10 @@ def _open_volume(root: str):
     kernel32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
                                      wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
     kernel32.CreateFileW.restype = wintypes.HANDLE
-    handle = kernel32.CreateFileW("\\\\.\\" + root[:2], 0x80000000, 0x1 | 0x2, None, 3, 0, None)  # GENERIC_READ, OPEN_EXISTING
+    handle = kernel32.CreateFileW("\\\\.\\" + root[:2], 0x80000000, 0x1 | 0x2, None, 3, 0, None)
     if not handle or handle == wintypes.HANDLE(-1).value:
         raise PermissionError(f"cannot open volume {root[:2]} (administrator rights are needed)")
     return handle
-
 
 def _ioctl(handle, code: int, inbuf: bytes, out_size: int) -> Tuple[bool, bytes, int]:
     from ctypes import wintypes
@@ -754,14 +706,12 @@ def _ioctl(handle, code: int, inbuf: bytes, out_size: int) -> Tuple[bool, bytes,
     ok = kernel32.DeviceIoControl(handle, code, inb, len(inbuf), out, out_size, ctypes.byref(got), None)
     return bool(ok), out.raw[:got.value], ctypes.get_last_error()
 
-
 def query_journal(handle) -> Tuple[int, int]:
     ok, data, err = _ioctl(handle, FSCTL_QUERY_USN_JOURNAL, b"", 80)
     if not ok or len(data) < 24:
         raise OSError(f"USN journal unavailable (error {err})")
     journal_id, _first, next_usn = struct.unpack_from("<Qqq", data, 0)
     return journal_id, next_usn
-
 
 def mft_batches(root: str, rules: Any = None, progress: Any = None, hidden: bool = True):
     """Every file record of an NTFS volume (administrator) → folder batches (see :func:`batches_from_records`)."""
@@ -772,10 +722,10 @@ def mft_batches(root: str, rules: Any = None, progress: Any = None, hidden: bool
         records: List[Tuple[int, int, str, int]] = []
         start = 0
         while True:
-            inbuf = struct.pack("<Qqq", start, 0, next_usn)        # MFT_ENUM_DATA_V0
+            inbuf = struct.pack("<Qqq", start, 0, next_usn)
             ok, data, err = _ioctl(handle, FSCTL_ENUM_USN_DATA, inbuf, 1 << 20)
             if not ok:
-                if err == 38:            # ERROR_HANDLE_EOF: done
+                if err == 38:
                     break
                 raise OSError(f"FSCTL_ENUM_USN_DATA failed (error {err})")
             if len(data) <= 8:
@@ -790,7 +740,6 @@ def mft_batches(root: str, rules: Any = None, progress: Any = None, hidden: bool
         return batches
     finally:
         kernel32.CloseHandle(handle)
-
 
 def usn_events(records: Iterable[Tuple[int, int, str, int, int]], dirs: Dict[int, Tuple[int, str]], root: str,
                pending: Dict[int, str]) -> List[Tuple[str, str, str]]:
@@ -844,7 +793,6 @@ def usn_events(records: Iterable[Tuple[int, int, str, int, int]], dirs: Dict[int
             out.append(("modified", path, ""))
     return out
 
-
 class _Thread:
     def __init__(self, root: str, callback: Callable[[List[Tuple[str, str, str]]], None]) -> None:
         self.root = root
@@ -870,7 +818,6 @@ class _Thread:
     def stop(self) -> None:
         self._stop.set()
 
-
 class UsnWatcher(_Thread):
     """Polls the USN journal every second (administrator; after an MFT read of the same volume)."""
 
@@ -885,10 +832,10 @@ class UsnWatcher(_Thread):
                     USN_REASON_RENAME_NEW_NAME | USN_REASON_CLOSE | USN_REASON_DATA_EXTEND |
                     USN_REASON_DATA_TRUNCATION | USN_REASON_DATA_OVERWRITE)
             while not self._stop.wait(1.0):
-                inbuf = struct.pack("<qIIQQQ", usn, mask, 0, 0, 0, journal_id)   # READ_USN_JOURNAL_DATA_V0
+                inbuf = struct.pack("<qIIQQQ", usn, mask, 0, 0, 0, journal_id)
                 ok, data, err = _ioctl(handle, FSCTL_READ_USN_JOURNAL, inbuf, 1 << 16)
                 if not ok or len(data) < 8:
-                    if err in (1179, 1181):   # journal deleted / overwritten → the index needs a rescan
+                    if err in (1179, 1181):
                         self.callback([("overflow", self.root, "")])
                         return
                     continue
@@ -898,7 +845,6 @@ class UsnWatcher(_Thread):
                     self.callback(events)
         finally:
             kernel32.CloseHandle(handle)
-
 
 def parse_notify(buf: bytes, root: str) -> List[Tuple[str, str, str]]:
     """``FILE_NOTIFY_INFORMATION`` chain → events (renames paired: action 4 = old name, 5 = new name)."""
@@ -921,7 +867,7 @@ def parse_notify(buf: bytes, root: str) -> List[Tuple[str, str, str]]:
         if not nxt:
             break
         p += nxt
-    # several «modified» of one file in a burst → one
+
     seen = set()
     uniq = []
     for ev in out:
@@ -931,7 +877,6 @@ def parse_notify(buf: bytes, root: str) -> List[Tuple[str, str, str]]:
             seen.add(ev[1])
         uniq.append(ev)
     return uniq
-
 
 class DirWatcher(_Thread):
     """``ReadDirectoryChangesW`` on a drive root with the whole subtree (no administrator rights needed)."""
@@ -964,7 +909,7 @@ class DirWatcher(_Thread):
                 if not ok:
                     time.sleep(1.0)
                     continue
-                if got.value == 0:          # the buffer overflowed: changes were lost
+                if got.value == 0:
                     self.callback([("overflow", self.root, "")])
                     continue
                 events = parse_notify(buf.raw[:got.value], self.root)
@@ -981,9 +926,6 @@ class DirWatcher(_Thread):
                 kernel32.CancelIoEx(self._handle, None)
             except Exception:
                 pass
-
-
-# ---------------------------------------------------------------- shell
 
 def reveal(path: str) -> bool:
     """Show a file selected in File Explorer."""

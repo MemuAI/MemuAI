@@ -13,7 +13,6 @@ from app.config import config_store
 from app.state import state
 from starlette.requests import Request
 
-
 def request(body):
     payload = json.dumps(body).encode()
 
@@ -21,7 +20,6 @@ def request(body):
         return {"type": "http.request", "body": payload, "more_body": False}
 
     return Request({"type": "http", "method": "POST", "path": "/", "headers": []}, receive)
-
 
 class APIStreamRegression(unittest.TestCase):
     def test_openai_cancel_with_full_queue_closes_provider(self):
@@ -109,7 +107,6 @@ class APIStreamRegression(unittest.TestCase):
             self.assertEqual(result["choices"][0]["message"]["content"], "ok")
 
         asyncio.run(run())
-
 
 if __name__ == "__main__":
     unittest.main()

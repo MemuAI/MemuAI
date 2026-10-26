@@ -1,10 +1,8 @@
-// MemuNote — Round 31 format views (spreadsheets moved to sheetgrid.js in Round 40): e-books (.epub/.fb2 reader),
-// Jupyter notebooks (.ipynb rendered), JSON tree, XML pretty-print. The backend parses xlsx/ods/epub/fb2
-// (formats/sheets.py, formats/books.py); notebooks and JSON are rendered here from the text.
+
+
 import { esc, icon, t, debounce, showMenu, api } from "./core.js";
 import { renderMarkdown } from "./views.js";
 
-// ================================================================== e-book reader
 export class BookView {
   constructor(host, tab) {
     this.tab = tab; const book = tab.book || {};
@@ -30,7 +28,7 @@ export class BookView {
       const max = this.scroll.scrollHeight - this.scroll.clientHeight;
       const f = max > 0 ? this.scroll.scrollTop / max : 0;
       this.el.querySelector(".book-progress").textContent = Math.round(f * 100) + "%";
-      try { localStorage.setItem(key, String(f)); } catch { /* full */ }
+      try { localStorage.setItem(key, String(f)); } catch {  }
     }, 200), { passive: true });
     requestAnimationFrame(() => { const f = +(localStorage.getItem(key) || 0); if (f) this.scroll.scrollTop = f * (this.scroll.scrollHeight - this.scroll.clientHeight); });
   }
@@ -39,7 +37,6 @@ export class BookView {
   destroy() { this.el.remove(); }
 }
 
-// ================================================================== Jupyter notebook (rendered view)
 const src = (v) => (Array.isArray(v) ? v.join("") : String(v ?? ""));
 export function parseNotebook(text) {
   const nb = JSON.parse(text);
@@ -95,7 +92,6 @@ function outputHtml(o) {
 }
 const stripAnsi = (s) => s.replace(/\x1b\[[0-9;]*[A-Za-z]/g, "");
 
-// ================================================================== JSON tree
 export class JsonTree {
   constructor(host, getText, opts = {}) {
     this.getText = getText; this.opts = opts;
@@ -113,7 +109,7 @@ export class JsonTree {
     if (text.length > 16 * 1048576) { this.el.innerHTML = `<p class="muted pad">${esc(t("preview_too_big"))}</p>`; return; }
     try { value = JSON.parse(text); }
     catch (e) {
-      // JSON Lines: one value per line
+
       try { value = text.split(/\r?\n/).filter((l) => l.trim()).map((l) => JSON.parse(l)); }
       catch { this.el.innerHTML = `<div class="jt-error">${icon("warn")}${esc(t("json_invalid"))}: ${esc(e.message)}</div>`; return; }
     }
@@ -138,8 +134,6 @@ export class JsonTree {
   destroy() { this.el.remove(); }
 }
 
-// ================================================================== XML
-/** Pretty-printed XML (2/4 spaces or a tab); throws with the parser's message on invalid XML. */
 export function xmlFormat(text, indent = "  ") {
   const doc = new DOMParser().parseFromString(text, "application/xml");
   const err = doc.querySelector("parsererror");
@@ -173,8 +167,7 @@ export function xmlError(text) {
   const err = doc.querySelector("parsererror");
   return err ? parserMessage(err) : null;
 }
-// Chromium/WebView2 wraps the message in "This page contains the following errors: … Below is a rendering…";
-// Firefox puts it in the text with a <sourcetext>. Keep only "line N, column M: message".
+
 function parserMessage(err) {
   const raw = (err.querySelector("div")?.textContent || err.firstChild?.textContent || err.textContent || "XML").trim();
   const m = /line (\d+) at column (\d+):\s*([^\n]*)/i.exec(raw);

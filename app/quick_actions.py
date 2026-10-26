@@ -60,7 +60,7 @@ log = logging.getLogger("memuai.quick.actions")
 MAX_ACTIONS = 64
 MAX_STEPS = 30
 MAX_LABEL = 40
-MAX_IMAGE_BYTES = 96 * 1024          # a data: URL of the button picture (the page scales it to 128 px)
+MAX_IMAGE_BYTES = 96 * 1024
 SHAPES = ("circle", "squircle")
 STEP_TYPES = ("open", "command", "ask", "text", "system", "dfy", "computer", "memuai", "wait", "keys", "shell")
 OPEN_TARGETS = ("app", "url", "path", "folder", "settings")
@@ -73,13 +73,13 @@ HEX_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
 ID_RE = re.compile(r"^a_[a-z0-9]{4,24}$")
 ICON_NAME_RE = re.compile(r"^[a-z0-9-]{1,32}$")
 IMAGE_RE = re.compile(r"^data:image/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$")
-#: Combos the Quick Ask window (quick.js and its plugins) already uses — a button can not take them.
+
 RESERVED_HOTKEYS = {
     "Ctrl+N", "Ctrl+H", "Ctrl+P", "Ctrl+K", "Ctrl+B", "Ctrl+E", "Ctrl+Enter", "Ctrl+Shift+Enter", "Ctrl+Shift+C",
     "Ctrl+Shift+A", "Ctrl+Shift+S", "Ctrl+Shift+X", "Ctrl+Shift+P", "Ctrl+Space", "Alt+M", "Alt+R", "Alt+V",
     "Alt+Enter", "Ctrl+A", "Ctrl+C", "Ctrl+V", "Ctrl+X", "Ctrl+Z", "Ctrl+Y",
 }
-#: Round 34: combos a GLOBAL button hotkey may not take — every program relies on them (save, close, find, tabs…).
+
 GLOBAL_TAKEN = {
     "Alt+F4", "Ctrl+F4", "Ctrl+S", "Ctrl+O", "Ctrl+W", "Ctrl+T", "Ctrl+F", "Ctrl+R", "Ctrl+L", "Ctrl+D", "Ctrl+I",
     "Ctrl+U", "Ctrl+G", "Ctrl+J", "Ctrl+Q", "Ctrl+Shift+T", "Ctrl+Shift+N", "Ctrl+Shift+Z", "Ctrl+Shift+V",
@@ -89,10 +89,8 @@ HOTKEY_KEY_RE = re.compile(r"^(?:[A-Z0-9]|F(?:[1-9]|1[0-9]|2[0-4]))$")
 WEEKDAYS = {"ru": ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"],
             "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]}
 
-
 def tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 class ActionInvalid(ValueError):
     """Bad button / step data; ``text(lang)`` is the message for the editor."""
@@ -104,14 +102,12 @@ class ActionInvalid(ValueError):
     def text(self, lang: str = "ru") -> str:
         return self.en if lang == "en" else self.ru
 
-
 def _catalog():
     """The full catalogue: the engine binds the Round 24/25 actions into it on creation."""
     from . import assistant_catalog as catalog
     from . import assistant_commands
     assistant_commands.engine()
     return catalog
-
 
 def _str(value: Any, limit: int) -> str:
     if value is None:
@@ -122,10 +118,8 @@ def _str(value: Any, limit: int) -> str:
         raise ActionInvalid("Ожидался текст", "Text expected")
     return value.replace("\x00", "").strip()[:limit]
 
-
 def _bool(value: Any) -> bool:
     return value is True or value in (1, "1", "true", "on", "yes")
-
 
 def _int(value: Any, lo: int, hi: int, default: int) -> int:
     try:
@@ -133,9 +127,6 @@ def _int(value: Any, lo: int, hi: int, default: int) -> int:
     except (TypeError, ValueError):
         return default
     return max(lo, min(hi, number))
-
-
-# ------------------------------------------------------------------ hotkeys
 
 def normalize_hotkey(raw: Any) -> str:
     """``"shift+ctrl+1"`` → ``"Ctrl+Shift+1"``; ``""`` = none. Needs Ctrl or Alt (letters alone are typing)."""
@@ -167,9 +158,6 @@ def normalize_hotkey(raw: Any) -> str:
         raise ActionInvalid(f"{combo} уже занято окном быстрого доступа", f"{combo} is already used by the Quick Ask window")
     return combo
 
-
-# ------------------------------------------------------------------ validation
-
 def validate_icon(raw: Any) -> Dict[str, str]:
     raw = raw if isinstance(raw, dict) else {"kind": "builtin", "value": "bolt"}
     kind = str(raw.get("kind") or "builtin")
@@ -196,7 +184,6 @@ def validate_icon(raw: Any) -> Dict[str, str]:
         return out
     raise ActionInvalid("Неизвестный вид иконки", "Unknown icon kind")
 
-
 def _params(action_id: str, raw: Any) -> Dict[str, Any]:
     """Catalogue params with templates allowed: keys must exist, values are scalars (types checked at run time)."""
     catalog = _catalog()
@@ -212,7 +199,7 @@ def _params(action_id: str, raw: Any) -> Dict[str, Any]:
             out[key] = value.replace("\x00", "")[:20000]
         else:
             raise ActionInvalid(f"Параметр {key}: нужно значение, а не список", f"Parameter {key}: a value, not a list")
-    # without templates the full validation can run now (bad enums / numbers are caught in the editor)
+
     if not any(isinstance(v, str) and PLACEHOLDER_RE.search(v) for v in out.values()):
         try:
             catalog.validate_params(action_id, out)
@@ -223,7 +210,6 @@ def _params(action_id: str, raw: Any) -> Dict[str, Any]:
         if missing:
             raise ActionInvalid("Не хватает: " + ", ".join(missing), "Missing: " + ", ".join(missing))
     return out
-
 
 def validate_step(raw: Any) -> Dict[str, Any]:
     if not isinstance(raw, dict):
@@ -323,10 +309,8 @@ def validate_step(raw: Any) -> Dict[str, Any]:
         step["confirm"] = True
     return step
 
-
 def new_id() -> str:
     return "a_" + uuid.uuid4().hex[:10]
-
 
 def validate_action(raw: Any, *, keep_meta: bool = True) -> Dict[str, Any]:
     if not isinstance(raw, dict):
@@ -354,8 +338,7 @@ def validate_action(raw: Any, *, keep_meta: bool = True) -> Dict[str, Any]:
         raise ActionInvalid("Для работы во всех программах нужно сочетание с Ctrl или Alt",
                             "A hotkey for every program needs Ctrl or Alt")
     if global_hotkey:
-        # Round 34: a global Alt+F4 / Ctrl+S / Ctrl+W took the combo away from EVERY program (RegisterHotKey swallows
-        # it) — the same rules as the Quick Ask hotkey itself, plus the browser/editor staples below
+
         from .quick_features import hotkey_error
         if hotkey_error(hotkey, "ru"):
             raise ActionInvalid(hotkey_error(hotkey, "ru"), hotkey_error(hotkey, "en"))
@@ -372,7 +355,7 @@ def validate_action(raw: Any, *, keep_meta: bool = True) -> Dict[str, Any]:
         "color2": color2 if HEX_RE.match(color2) and HEX_RE.match(color) else "",
         "shape": raw.get("shape") if raw.get("shape") in SHAPES else "circle",
         "hotkey": hotkey,
-        "global": global_hotkey,              # r27-hunt-canvas: the hotkey works in every program (win_hotkey)
+        "global": global_hotkey,
         "steps": steps,
         "approved": str(raw.get("approved") or "")[:64] if keep_meta else "",
         "created": float(raw.get("created") or now) if keep_meta and isinstance(raw.get("created"), (int, float)) else now,
@@ -380,14 +363,10 @@ def validate_action(raw: Any, *, keep_meta: bool = True) -> Dict[str, Any]:
     }
     return out
 
-
 def signature(action: Dict[str, Any]) -> str:
     """What the user approved: the steps exactly (labels and looks do not matter)."""
     body = json.dumps(action.get("steps") or [], ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(body.encode("utf-8")).hexdigest()
-
-
-# ------------------------------------------------------------------ steps → engine
 
 def engine_call(step: Dict[str, Any]) -> Optional[Tuple[str, Dict[str, Any]]]:
     """The catalogue action a step runs as (``None`` for steps handled here or by the page)."""
@@ -413,7 +392,7 @@ def engine_call(step: Dict[str, Any]) -> Optional[Tuple[str, Dict[str, Any]]]:
             return "window.minimize_all", {}
         if op == "media":
             return "media.key", {"key": value or "play_pause"}
-        return None                       # dnd — :func:`set_dnd`
+        return None
     if kind == "dfy":
         return "dfy.start", {"goal": step["goal"]}
     if kind == "computer":
@@ -430,10 +409,8 @@ def engine_call(step: Dict[str, Any]) -> Optional[Tuple[str, Dict[str, Any]]]:
         return "clipboard.set", {"text": step["text"]}
     return None
 
-
 def _has_template(params: Dict[str, Any]) -> bool:
     return any(isinstance(v, str) and PLACEHOLDER_RE.search(v) for v in params.values())
-
 
 def step_tier(step: Dict[str, Any], settings: Optional[Dict[str, Any]] = None, params: Optional[Dict[str, Any]] = None) -> str:
     """safe | confirm | dangerous — the engine's tier of the step (with its ``always_confirm``/``open.path`` rules)."""
@@ -451,13 +428,11 @@ def step_tier(step: Dict[str, Any], settings: Optional[Dict[str, Any]] = None, p
         if PLACEHOLDER_RE.search(path) or risky_path(path):
             tier = "confirm"
     elif action_id == "command.run":
-        # r27-hunt-canvas: the engine runs «Свои команды» with the tier of their steps (a «confirm» routine asked on
-        # every run while the first-run approval list did not even mention it)
+
         tier = _command_tier(params) or tier
     if tier == "safe" and settings and action_id in (settings.get("always_confirm") or []):
         tier = "confirm"
     return tier
-
 
 def _command_tier(params: Dict[str, Any]) -> str:
     """The tier the engine gives ``command.run`` of the user's own command (``""`` — unknown here)."""
@@ -474,7 +449,6 @@ def _command_tier(params: Dict[str, Any]) -> str:
     except Exception:                            # noqa: BLE001 - the engine decides at run time anyway
         return ""
 
-
 def risks(action: Dict[str, Any], lang: str = "ru", settings: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
     """Steps that need the user's word before the button runs for the first time. The text is what the step
     really does — never only its label: an imported button could call «Ctrl+Alt+Del» «Открыть калькулятор»."""
@@ -486,7 +460,6 @@ def risks(action: Dict[str, Any], lang: str = "ru", settings: Optional[Dict[str,
             text = f"{real} («{step['label']}»)" if step.get("label") and step["label"] != real else real
             out.append({"index": index, "tier": tier, "text": text})
     return out
-
 
 def describe_step(step: Dict[str, Any], lang: str = "ru") -> str:
     if step.get("label"):
@@ -534,9 +507,6 @@ def describe_step(step: Dict[str, Any], lang: str = "ru") -> str:
         return "PowerShell: " + short(step["command"])
     return kind
 
-
-# ------------------------------------------------------------------ templates
-
 def render(text: str, ctx: Dict[str, Any], lang: str = "ru") -> str:
     """Fill ``{clipboard}`` & co. Unknown braces stay as they are (JSON in a prompt is fine)."""
     if not isinstance(text, str) or "{" not in text:
@@ -552,7 +522,7 @@ def render(text: str, ctx: Dict[str, Any], lang: str = "ru") -> str:
             return (now.strftime("%d.%m.%Y %H:%M") if lang != "en" else now.strftime("%Y-%m-%d %H:%M"))
         if name == "weekday":
             return WEEKDAYS["en" if lang == "en" else "ru"][now.weekday()]
-        if name == "text":                    # the selection, else the clipboard
+        if name == "text":
             return str(ctx.get("selection") or "") or value("clipboard")
         if name == "clipboard":
             getter = ctx.get("clipboard")
@@ -566,17 +536,10 @@ def render(text: str, ctx: Dict[str, Any], lang: str = "ru") -> str:
 
     return PLACEHOLDER_RE.sub(lambda m: value(m.group(1)), text)
 
-
 def render_params(params: Dict[str, Any], ctx: Dict[str, Any], lang: str) -> Dict[str, Any]:
     return {k: render(v, ctx, lang) if isinstance(v, str) else v for k, v in params.items()}
 
-
-# ------------------------------------------------------------------ Windows «Do not disturb»
-
-#: ``WNF_SHEL_QUIETHOURS_ACTIVE_PROFILE_CHANGED`` — the Focus assist / Do not disturb profile (0 off, 1 priority
-#: only, 2 alarms only). Undocumented but stable since Windows 10 1803; the result is read back to verify.
 WNF_QUIET_HOURS = 0x0D83063EA3BF1C75
-
 
 def _wnf(value: Optional[int] = None) -> Optional[int]:
     if sys.platform != "win32":
@@ -594,7 +557,6 @@ def _wnf(value: Optional[int] = None) -> Optional[int]:
     status = ntdll.NtQueryWnfStateData(ctypes.byref(name), None, None, ctypes.byref(stamp), ctypes.byref(buffer), ctypes.byref(size))
     return int(buffer.value) if status == 0 else None
 
-
 def set_dnd(mode: str) -> Optional[bool]:
     """Turn Do not disturb on/off/toggle. ``True/False`` = the new state, ``None`` = not possible here."""
     try:
@@ -608,16 +570,13 @@ def set_dnd(mode: str) -> Optional[bool]:
         log.info("quick actions: do not disturb unavailable: %s", exc)
         return None
 
-
-# ------------------------------------------------------------------ runs
-
 class Run:
     def __init__(self, action: Dict[str, Any], lang: str, ctx: Dict[str, Any]) -> None:
         self.id = "r_" + uuid.uuid4().hex[:10]
         self.action = action
         self.lang = lang
         self.ctx = ctx
-        self.status = "running"          # running | confirm | done | error | cancelled
+        self.status = "running"
         self.index = -1
         self.steps = [{"title": describe_step(s, lang), "type": s["type"], "status": "pending", "message": ""}
                       for s in action["steps"]]
@@ -647,9 +606,7 @@ class Run:
                 "output": self.output[:20000], "error": self.error, "cards": self.cards[-3:],
                 "started": self.started, "finished": self.finished, "version": self.version}
 
-
 Executor = Callable[..., Awaitable[Dict[str, Any]]]
-
 
 class Runner:
     """Runs buttons. The executors are injectable (tests pass mocks; production uses the assistant engine)."""
@@ -675,7 +632,6 @@ class Runner:
         self.keep = keep
         self.runs: Dict[str, Run] = {}
 
-    # ---------------------------------------------------------- default executors (the assistant engine)
     def _engine(self):
         from . import assistant_commands
         return assistant_commands.engine()
@@ -737,7 +693,6 @@ class Runner:
         except Exception:
             return ""
 
-    # ---------------------------------------------------------- public API
     def start(self, action: Dict[str, Any], *, lang: str = "ru", context: Optional[Dict[str, Any]] = None) -> Run:
         ctx = {"prev": "", "clipboard": self.clipboard_get}
         context = context if isinstance(context, dict) else {}
@@ -789,7 +744,6 @@ class Runner:
                 return True
         return False
 
-    # ---------------------------------------------------------- execution
     async def _sleep(self, run: Run, seconds: float) -> bool:
         """Wait unless cancelled; ``False`` = cancelled."""
         try:
@@ -901,7 +855,7 @@ class Runner:
         if kind == "ask":
             prompt = render(step["prompt"], ctx, lang)
             if step.get("mode") == "silent":
-                # «Остановить» interrupts the model call itself (it used to wait for the whole answer, up to minutes)
+
                 job = asyncio.ensure_future(self.ask_ai(prompt, lang))
                 stop = asyncio.ensure_future(run.cancelled.wait())
                 try:
@@ -951,8 +905,7 @@ class Runner:
         action_id, params = call
         rendered = render_params(params, ctx, lang)
         tier = step_tier(step, settings, rendered)
-        # approved «confirm» steps run without a second question — unless a template filled the parameters;
-        # «dangerous» ones always get the engine's confirmation card.
+
         confirmed = approved and tier == "confirm" and not _has_template(params)
         card = await self.run_action(action_id, rendered, lang, confirmed)
         if card.get("status") == "confirm" and card.get("confirm"):
@@ -976,13 +929,11 @@ class Runner:
         out = card.get("copy") or card.get("answer") or card.get("message") or ""
         return str(card.get("message") or ""), str(out) if out else None
 
-
 class StepFailed(Exception):
     def __init__(self, message: str, *, cancelled: bool = False) -> None:
         super().__init__(message)
         self.message = message
         self.cancelled = cancelled
-
 
 def _error_text(exc: Exception, lang: str) -> str:
     text = getattr(exc, "text", None)
@@ -995,14 +946,10 @@ def _error_text(exc: Exception, lang: str) -> str:
         return tr(lang, "Модель не ответила вовремя", "The model did not answer in time")
     return str(exc) or type(exc).__name__
 
-
 def _card_summary(card: Dict[str, Any], full: bool = False) -> Dict[str, Any]:
     keys = ("id", "action", "title", "status", "message", "kind", "undo", "client") if full else \
         ("id", "action", "title", "status", "message", "undo")
     return {k: card[k] for k in keys if k in card}
-
-
-# ------------------------------------------------------------------ ready-made buttons
 
 def templates(lang: str = "ru") -> List[Dict[str, Any]]:
     """Ready-made buttons (gallery «Шаблоны»). Every one passes :func:`validate_action`."""
@@ -1059,7 +1006,7 @@ def templates(lang: str = "ru") -> List[Dict[str, Any]]:
         key = row.pop("key")
         try:
             clean = validate_action({**row, "id": ""}, keep_meta=False)
-        except ActionInvalid as exc:          # a template that stopped matching the catalogue is skipped, not fatal
+        except ActionInvalid as exc:
             log.warning("quick actions: template %s is invalid: %s", key, exc)
             continue
         clean.pop("id", None)
@@ -1068,7 +1015,6 @@ def templates(lang: str = "ru") -> List[Dict[str, Any]]:
         clean.pop("approved", None)
         out.append({"key": key, **clean})
     return out
-
 
 def step_catalog(lang: str = "ru") -> Dict[str, Any]:
     """What the editor offers: the assistant commands (public catalogue, Windows-only marked) and the enums."""

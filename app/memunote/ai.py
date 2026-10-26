@@ -37,17 +37,15 @@ from .paths import data_root, memuai_preferences
 log = logging.getLogger("memunote.ai")
 
 DEFAULT_URL = "http://127.0.0.1:8317"
-MEMORY_SERVICE = "note"          # MemuAI memory v2 name of MemuNote ("memunote" is an alias)
+MEMORY_SERVICE = "note"
 _STATUS_CACHE: Dict[str, Any] = {"at": 0.0, "value": None}
 _LOCK = threading.Lock()
-
 
 class AIError(Exception):
     def __init__(self, message: str, kind: str = "error", status: int = 0) -> None:
         super().__init__(message)
         self.kind = kind
         self.status = status
-
 
 def _valid_local(url: str) -> str:
     try:
@@ -62,7 +60,6 @@ def _valid_local(url: str) -> str:
         return f"http://{host}:{port}"
     return ""
 
-
 def discover(configured: str = "") -> str:
     """The Proxy base URL: an explicit setting, then ``proxy.json``, then the default port."""
     url = _valid_local(configured) or _valid_local(os.environ.get("MEMUAI_PROXY_URL", ""))
@@ -75,7 +72,6 @@ def discover(configured: str = "") -> str:
         url = ""
     return url or DEFAULT_URL
 
-
 def _headers(extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
     lang = "en" if memuai_preferences().get("language") == "en" else "ru"
     headers = {"Content-Type": "application/json", "X-MemuAI-Service": SERVICE, "X-MemuAI-Lang": lang,
@@ -87,11 +83,9 @@ def _headers(extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
         headers.update(extra)
     return headers
 
-
 def _conn(base: str, timeout: float) -> http.client.HTTPConnection:
     parsed = urllib.parse.urlsplit(base)
     return http.client.HTTPConnection(parsed.hostname, parsed.port, timeout=timeout)
-
 
 def request_json(base: str, method: str, path: str, body: Any = None, timeout: float = 20) -> Any:
     conn = _conn(base, timeout)
@@ -116,14 +110,12 @@ def request_json(base: str, method: str, path: str, body: Any = None, timeout: f
     finally:
         conn.close()
 
-
 def health(base: str) -> bool:
     try:
         data = request_json(base, "GET", "/health", timeout=1.5)
         return isinstance(data, dict) and data.get("service") == "memuai-proxy"
     except AIError:
         return False
-
 
 def _pretty(model_id: str) -> str:
     """Round 33 (r33c-models-lists): the readable model name of app/model_names.py (falls back to the id)."""
@@ -133,9 +125,11 @@ def _pretty(model_id: str) -> str:
     except Exception:
         return model_id
 
-
 def _chat_model(row: Dict[str, Any]) -> bool:
     caps = row.get("caps") or row.get("capabilities") or {}
+    from ..model_contract import kind_for_row
+    if kind_for_row({**row, "caps": caps if isinstance(caps, dict) else {}}) != "chat":
+        return False
     if not isinstance(caps, dict):
         return True
     if caps.get("chat") is False or caps.get("text") is False:
@@ -143,7 +137,6 @@ def _chat_model(row: Dict[str, Any]) -> bool:
     if caps.get("chat") is True or caps.get("text") is True:
         return True
     return not any(caps.get(k) for k in ("image", "video", "music", "tts", "stt", "transcription"))
-
 
 def models(base: str) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
@@ -160,11 +153,9 @@ def models(base: str) -> List[Dict[str, Any]]:
                 window = max(0, int(context.get("context") or 0))
             except (TypeError, ValueError, OverflowError):
                 window = 0
-            # context.label is the context-window FAMILY ("Qwen3 (256K)" for qwen3.7-flash and qwen3.8-max alike,
-            # "GPT-5.4+ / GPT-6" for gpt-6.1-sol): never a model name — the picker showed twins (Round 31).
-            # Round 33 (r33c-models-lists): the catalogue's readable name («Claude Opus 4.6»), the same as in MemuAI.
+
             rows.append({"id": str(row["id"]), "label": str(row.get("name") or row.get("label") or _pretty(str(row["id"]))),
-                         "family": str(context.get("label") or ""),
+                         "family": str(context.get("label") or ""), "kind": "chat",
                          "provider": str(row.get("provider") or ""), "search": bool(caps.get("search")),
                          "vision": bool(caps.get("vision")), "thinking": bool(caps.get("thinking")),
                          "image": bool(caps.get("image")), "context": window})
@@ -175,18 +166,17 @@ def models(base: str) -> List[Dict[str, Any]]:
         data = request_json(base, "GET", "/v1/models", timeout=15)
         for row in (data or {}).get("data") or []:
             if isinstance(row, dict) and row.get("id") and _chat_model(row):
-                rows.append({"id": str(row["id"]), "label": _pretty(str(row["id"])), "provider": str(row.get("owned_by") or "")})
+                rows.append({"id": str(row["id"]), "label": _pretty(str(row["id"])), "provider": str(row.get("owned_by") or ""), "kind": "chat"})
     unique = {}
     for row in rows:
         unique.setdefault(row["id"], row)
     return list(unique.values())
 
-
 def status(configured: str = "", force: bool = False) -> Dict[str, Any]:
     """``{online, url, models, default_model}`` — cached for 20 s (the status bar polls it)."""
     with _LOCK:
         cached = _STATUS_CACHE["value"]
-        # keyed by the configured URL: a Proxy address changed in the settings must not read the old status
+
         if (cached is not None and not force and time.time() - _STATUS_CACHE["at"] < 20
                 and _STATUS_CACHE.get("configured", "") == (configured or "")):
             return cached
@@ -206,16 +196,12 @@ def status(configured: str = "", force: bool = False) -> Dict[str, Any]:
         _STATUS_CACHE.update(at=time.time(), value=value, configured=configured or "")
     return value
 
-
-# ------------------------------------------------------------------------------- memory (MemuAI v2)
-
 def _memory():
     try:
         from .. import memory_v2      # type: ignore
         return memory_v2
     except Exception:  # noqa: BLE001 - memory is optional (older bundles, broken file)
         return None
-
 
 def memory_context(query: str, allow_write: bool) -> Dict[str, Any]:
     mem = _memory()
@@ -232,7 +218,6 @@ def memory_context(query: str, allow_write: bool) -> Dict[str, Any]:
         log.warning("memory context failed: %s", exc)
         return {"block": "", "protocol": "", "facts": 0}
 
-
 def memory_store(raw_answer: str, excerpt: str, title: str) -> Dict[str, Any]:
     mem = _memory()
     if mem is None:
@@ -247,7 +232,6 @@ def memory_store(raw_answer: str, excerpt: str, title: str) -> Dict[str, Any]:
         log.warning("memory store failed: %s", exc)
         return {}
 
-
 def memory_filter():
     mem = _memory()
     if mem is None:
@@ -256,9 +240,6 @@ def memory_filter():
         return mem.StreamFilter()
     except Exception:  # noqa: BLE001
         return None
-
-
-# ------------------------------------------------------------------------------- chat
 
 def _sse_lines(response) -> Iterator[str]:
     buffer = b""
@@ -272,7 +253,6 @@ def _sse_lines(response) -> Iterator[str]:
             yield line.rstrip(b"\r").decode("utf-8", "replace")
     if buffer:
         yield buffer.decode("utf-8", "replace")
-
 
 class ThinkFilter:
     """Hide ``<think>…</think>`` blocks some providers put inline (reported as reasoning instead)."""
@@ -302,9 +282,7 @@ class ThinkFilter:
             self.inside = not self.inside
         return [(k, t) for k, t in out if t]
 
-
 EFFORTS = ("auto", "off", "on", "minimal", "low", "medium", "high", "xhigh", "max")
-
 
 def stream_chat(base: str, body: Dict[str, Any], cancel: threading.Event,
                 on_conn: Optional[Callable[[Any], None]] = None) -> Iterator[Dict[str, Any]]:
@@ -316,8 +294,7 @@ def stream_chat(base: str, body: Dict[str, Any], cancel: threading.Event,
         payload["temperature"] = body["temperature"]
     if body.get("max_tokens"):
         payload["max_tokens"] = int(body["max_tokens"])
-    # Round 33: a reasoning level for the Proxy (it clamps it to the model; reasoning_levels). The inline ghost
-    # suggestion sends "off": a thinking model otherwise reasons for 15–20 s before the first word.
+
     if str(body.get("effort") or "").lower() in EFFORTS:
         payload["effort"] = str(body["effort"]).lower()
     for path, openai in (("/api/admin/playground/chat", False), ("/v1/chat/completions", True)):
@@ -396,8 +373,7 @@ def stream_chat(base: str, body: Dict[str, Any], cancel: threading.Event,
                     yield {"t": "usage", "usage": item["usage"]}
                 if choice.get("finish_reason"):
                     yield {"t": "finish", "reason": str(choice["finish_reason"])}
-            # A provider may end on a literal prefix such as '<thi'. It is text
-            # unless a complete opening tag was seen; do not silently lose it.
+
             if think.pending and not think.inside:
                 yield {"t": "delta", "text": think.pending}
             return
@@ -407,7 +383,6 @@ def stream_chat(base: str, body: Dict[str, Any], cancel: threading.Event,
             except Exception:  # noqa: BLE001
                 pass
     raise AIError("MemuAI Proxy has no chat endpoint", "http", 404)
-
 
 def websearch(base: str, query: str, limit: int = 8) -> List[Dict[str, Any]]:
     """Web search through the Proxy (the engine chosen in MemuAI settings); local fallback."""
@@ -435,11 +410,9 @@ def websearch(base: str, query: str, limit: int = 8) -> List[Dict[str, Any]]:
     except Exception as exc:  # noqa: BLE001
         raise AIError(f"web search failed: {type(exc).__name__}", "search") from exc
 
-
 def _is_coroutine(func) -> bool:
     import inspect
     return inspect.iscoroutinefunction(func)
-
 
 def _run_async(coro):
     import asyncio

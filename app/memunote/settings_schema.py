@@ -29,27 +29,23 @@ GROUPS: List[Dict[str, str]] = [
     {"id": "advanced", "ru": "Дополнительно", "en": "Advanced"},
 ]
 
-
 def _b(key, default, group, ru, en, dru="", den="", **extra):
     return {"key": key, "type": "bool", "default": default, "group": group, "ru": ru, "en": en, "desc_ru": dru, "desc_en": den, **extra}
-
 
 def _i(key, default, group, ru, en, lo, hi, step=1, unit="", dru="", den="", kind="int", **extra):
     return {"key": key, "type": kind, "default": default, "group": group, "ru": ru, "en": en, "desc_ru": dru, "desc_en": den,
             "min": lo, "max": hi, "step": step, "unit": unit, **extra}
-
 
 def _e(key, default, group, ru, en, choices, dru="", den="", **extra):
     """``choices``: [(value, ru, en)]."""
     return {"key": key, "type": "enum", "default": default, "group": group, "ru": ru, "en": en, "desc_ru": dru, "desc_en": den,
             "choices": [{"value": v, "ru": r, "en": e} for v, r, e in choices], **extra}
 
-
 _AUTO_LANG = [("auto", "Как в MemuAI", "Same as MemuAI"), ("ru", "Русский", "Русский"), ("en", "English", "English")]
 _AUTO_THEME = [("auto", "Как в MemuAI", "Same as MemuAI"), ("dark", "Тёмная", "Dark"), ("light", "Светлая", "Light")]
 
 SCHEMA: List[Dict[str, Any]] = [
-    # ---------------------------------------------------------------- appearance
+
     _e("language", "auto", "appearance", "Язык", "Language", _AUTO_LANG),
     _e("theme", "auto", "appearance", "Тема", "Theme", _AUTO_THEME, "«Как в MemuAI» берёт тему, фон и акцент MemuAI.", "“Same as MemuAI” uses MemuAI's theme, surface and accent."),
     {"key": "font_family", "type": "font", "default": "JetBrains Mono", "group": "appearance", "ru": "Шрифт редактора", "en": "Editor font",
@@ -62,25 +58,27 @@ SCHEMA: List[Dict[str, Any]] = [
     _b("show_sidebar", False, "appearance", "Боковая панель при запуске", "Sidebar on start", "Структура документа и файлы (Ctrl+B).", "Outline and files (Ctrl+B)."),
     _b("compact_tabs", False, "appearance", "Компактные вкладки", "Compact tabs"),
     _b("smooth_caret", True, "appearance", "Плавный курсор", "Smooth caret"),
-    # ---------------------------------------------------------------- editor
+
     _b("word_wrap", True, "editor", "Перенос строк", "Word wrap", "Alt+Z в окне.", "Alt+Z in the window."),
     _b("line_numbers", True, "editor", "Номера строк", "Line numbers"),
     _b("minimap", False, "editor", "Мини-карта", "Minimap"),
     _b("highlight_active_line", True, "editor", "Подсветка текущей строки", "Highlight the current line"),
     _b("show_whitespace", False, "editor", "Показывать пробелы и табы", "Show spaces and tabs"),
     _b("indent_with_tabs", False, "editor", "Отступ табуляцией", "Indent with tabs"),
-    _i("tab_size", 4, "editor", "Размер табуляции", "Tab size", 1, 8),
+    _i("tab_size", 4, "editor", "Размер табуляции", "Tab size", 1, 8, 1, "",
+       "По умолчанию для новых файлов. Отступ готового документа определяется по содержимому; изменить его можно в строке состояния.",
+       "Default for new files. Existing documents keep their detected indentation; change it in the status bar."),
     _b("auto_close_brackets", True, "editor", "Закрывать скобки и кавычки", "Auto-close brackets and quotes"),
     _b("bracket_matching", True, "editor", "Подсветка парных скобок", "Bracket matching"),
     _b("fold_gutter", True, "editor", "Сворачивание блоков", "Code folding"),
     _b("scroll_past_end", True, "editor", "Прокрутка за конец файла", "Scroll past the end"),
     _b("highlight_selection_matches", True, "editor", "Подсветка совпадений выделения", "Highlight selection matches"),
     _b("spell_check", True, "editor", "Проверка орфографии", "Spell check", "Встроенный словарь RU/EN, без интернета.", "Built-in RU/EN dictionary, offline."),
-    _b("code_autocomplete", True, "editor", "Автодополнение в коде", "Code completion", "Подсказки слов и ключевых слов в файлах кода.", "Word and keyword suggestions in code files."),
+    _b("code_autocomplete", True, "editor", "Автодополнение в коде", "Code completion", "Tab — принять подсказку, Enter — новая строка, Ctrl+Пробел — открыть список.", "Tab accepts a suggestion, Enter starts a line, Ctrl+Space opens the list."),
     _e("markdown_preview", "live", "editor", "Режим Markdown", "Markdown mode",
        [("live", "Живой редактор", "Live editor"), ("split", "Текст и просмотр рядом", "Source and preview"),
         ("off", "Только текст", "Source only"), ("preview", "Только просмотр", "Preview only")]),
-    # ---------------------------------------------------------------- files
+
     _e("autosave", "off", "files", "Автосохранение", "Autosave",
        [("off", "Выключено", "Off"), ("focus", "При уходе из окна", "When the window loses focus"), ("delay", "Через паузу", "After a pause")]),
     _i("autosave_delay", 2000, "files", "Пауза автосохранения", "Autosave delay", 500, 60000, 500, " ms", when="autosave=delay"),
@@ -96,7 +94,7 @@ SCHEMA: List[Dict[str, Any]] = [
     _b("ask_markdown_convert", True, "files", "Предлагать Markdown для разметки", "Offer Markdown for formatting"),
     _b("rich_save_warning", True, "files", "Предупреждать о потере оформления", "Warn about losing formatting", "При сохранении документа Word как текст.", "When saving a Word document as text."),
     _b("pdf_page_numbers", True, "files", "Номера страниц в PDF", "Page numbers in PDF"),
-    # ---------------------------------------------------------------- AI
+
     _b("ai_enabled", True, "ai", "ИИ в MemuNote", "AI in MemuNote", "Панель ИИ, команды и правки. Работает через MemuAI Proxy.", "AI panel, commands and edits. Works through MemuAI Proxy."),
     {"key": "ai_model", "type": "text", "default": "", "group": "ai", "ru": "Модель", "en": "Model", "maxlen": 120, "models": True,
      "desc_ru": "Пусто — модель по умолчанию в Proxy.", "desc_en": "Empty — the Proxy's default model.", "when": "ai_enabled"},
@@ -112,14 +110,13 @@ SCHEMA: List[Dict[str, Any]] = [
     {"key": "proxy_url", "type": "url", "default": "", "group": "ai", "ru": "Адрес Proxy", "en": "Proxy address", "maxlen": 200,
      "desc_ru": "Только локальный адрес. Пусто — найти автоматически.", "desc_en": "Local address only. Empty — find it automatically.",
      "placeholder": "http://127.0.0.1:8317", "local_only": True},
-    # ---------------------------------------------------------------- advanced
+
     _i("large_file_mb", 16, "advanced", "Большой файл, МБ", "Large file, MB", 1, 512, 1, " MB",
        "Файлы крупнее открываются в быстром режиме просмотра.", "Bigger files open in the fast viewer mode."),
     _b("spellcheck", False, "advanced", "Системная проверка орфографии", "System spell check", hidden=True),
     _b("md_live_migrated", False, "advanced", "", "", hidden=True),
 ]
 
-# Read-only reference shown in MemuAI (MemuNote's shortcuts are fixed; F1 in the window lists them too).
 SHORTCUTS: List[Tuple[str, str, str]] = [
     ("Ctrl+N", "Новая вкладка", "New tab"), ("Ctrl+O", "Открыть файл", "Open file"), ("Ctrl+S", "Сохранить", "Save"),
     ("Ctrl+Shift+S", "Сохранить как", "Save as"), ("Ctrl+Alt+S", "Сохранить все", "Save all"), ("Ctrl+W", "Закрыть вкладку", "Close tab"),
@@ -136,7 +133,6 @@ DEFAULTS: Dict[str, Any] = {item["key"]: item["default"] for item in SCHEMA}
 CHOICES: Dict[str, Tuple[Any, ...]] = {item["key"]: tuple(c["value"] for c in item["choices"]) for item in SCHEMA if item["type"] == "enum"}
 RANGES: Dict[str, Tuple[Any, Any]] = {item["key"]: (item["min"], item["max"]) for item in SCHEMA if item["type"] in ("int", "float")}
 
-
 def _local_url(value: str) -> bool:
     import urllib.parse
     try:
@@ -144,7 +140,6 @@ def _local_url(value: str) -> bool:
     except ValueError:
         return False
     return parts.scheme in ("http", "https") and (parts.hostname or "") in ("127.0.0.1", "localhost", "::1")
-
 
 def check(key: str, value: Any) -> Tuple[bool, Any, str]:
     """Strict check of one value: ``(ok, clean value, error code)``. Used for writes from MemuAI."""
@@ -175,7 +170,6 @@ def check(key: str, value: Any) -> Tuple[bool, Any, str]:
         return False, None, "url"
     return True, value, ""
 
-
 def validate(changes: Any) -> Tuple[Dict[str, Any], Dict[str, str]]:
     """``(clean changes, {key: error})`` — nothing is written when errors is not empty."""
     clean: Dict[str, Any] = {}
@@ -187,7 +181,6 @@ def validate(changes: Any) -> Tuple[Dict[str, Any], Dict[str, str]]:
         else:
             errors[str(key)] = err
     return clean, errors
-
 
 def public() -> Dict[str, Any]:
     """The schema as JSON for the MemuAI page (hidden keys left out)."""

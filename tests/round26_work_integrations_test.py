@@ -26,7 +26,6 @@ for line in sys.stdin:
     print(json.dumps({"jsonrpc": "2.0", "id": ident, "result": result}), flush=True)
 '''
 
-
 class MCPRegressions(unittest.TestCase):
     def setUp(self):
         self.sandbox = tempfile.TemporaryDirectory(prefix="memuai-r26-mcp-")
@@ -63,10 +62,9 @@ class MCPRegressions(unittest.TestCase):
         self.assertEqual(servers["gh"]["cwd"], "/tmp")
         self.assertFalse(servers["gh"]["enabled"])
         self.assertEqual(servers["other"]["env"], {"A": "1"})
-        # An explicit env still replaces the saved one (CLI «mcp add -e»).
+
         mcp_client.save_config({"servers": {"gh": {"command": "npx", "env": {}}}})
         self.assertEqual(mcp_client.load_config()["servers"]["gh"]["env"], {})
-
 
 class WorkDeleteEndpoint(unittest.TestCase):
     def test_deleting_a_link_keeps_its_target(self):
@@ -105,7 +103,6 @@ class WorkDeleteEndpoint(unittest.TestCase):
             self.assertTrue((project / "src" / "main.py").is_file())
             self.assertTrue((outside / "keep.txt").is_file())
 
-
 class DecisionJson(unittest.TestCase):
     def test_braces_around_the_answer_do_not_lose_it(self):
         """«model» decisions: a reasoning model's ``<ds_safety>{…}</ds_safety>`` after the JSON (or ``{x}``
@@ -115,7 +112,6 @@ class DecisionJson(unittest.TestCase):
                          {"answers": {"a": 1}})
         self.assertEqual(_extract_json('<ds_safety>{x}</ds_safety> {"answers": {"a": 1},}'), {"answers": {"a": 1}})
         self.assertIsNone(_extract_json("no json {here"))
-
 
 class ScheduledReasoning(unittest.TestCase):
     def test_think_block_is_not_delivered_or_applied(self):
@@ -157,7 +153,6 @@ class ScheduledReasoning(unittest.TestCase):
         self.assertEqual(extra["work_files"], ["final.txt"])
         self.assertNotIn("<think>", sent.await_args.args[1])
 
-
 class PausedSchedule(unittest.TestCase):
     def test_reenabled_daily_task_waits_for_its_next_slot(self):
         """A daily 09:00 task paused on Monday and switched on again on Friday afternoon ran immediately
@@ -167,7 +162,7 @@ class PausedSchedule(unittest.TestCase):
             monday = 1_790_000_000.0
             pgdata.save_schedules([{"id": "d", "name": "D", "prompt": "p", "model": "m", "daily_at": "09:00",
                                     "enabled": True}])
-            asyncio.run(scheduler._scheduler_tick(now=monday))             # schedules the next 09:00
+            asyncio.run(scheduler._scheduler_tick(now=monday))
             tasks = pgdata.load_schedules()
             tasks[0]["enabled"] = False
             pgdata.save_schedules(tasks)
@@ -181,7 +176,6 @@ class PausedSchedule(unittest.TestCase):
             self.assertEqual(started, 0)
             run.assert_not_called()
             self.assertGreater(pgdata.load_schedules()[0]["next_run"], friday)
-
 
 if __name__ == "__main__":
     unittest.main()

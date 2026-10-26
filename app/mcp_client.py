@@ -37,18 +37,15 @@ CALL_TIMEOUT = 120.0
 MAX_RESULT_CHARS = 60000
 PROTOCOL_VERSION = "2025-06-18"
 
-
-#: Round 40 (r40-mcp): MCP hub settings kept on a server row (Settings → Integrations → MCP).
 HUB_KEYS = ("read_only", "confirm", "tool_rules", "chat", "quick", "agents", "catalog_id", "secret_keys", "timeout")
 TRANSPORTS = ("stdio", "http", "sse")
-
 
 def _hub_fields(row: Dict[str, Any]) -> Dict[str, Any]:
     confirm = str(row.get("confirm") or "write")
     rules = row.get("tool_rules") if isinstance(row.get("tool_rules"), dict) else {}
     return {
         "read_only": row.get("read_only") is True,
-        # never | write (tools that are not read-only ask first) | always
+
         "confirm": confirm if confirm in ("never", "write", "always") else "write",
         "tool_rules": {str(k)[:120]: str(v) for k, v in list(rules.items())[:200]
                        if str(v) in ("allow", "confirm", "deny")},
@@ -62,7 +59,6 @@ def _hub_fields(row: Dict[str, Any]) -> Dict[str, Any]:
         "timeout": max(5, min(int(row.get("timeout") or CALL_TIMEOUT), 900))
         if str(row.get("timeout") or "").isdigit() else int(CALL_TIMEOUT),
     }
-
 
 def load_config() -> Dict[str, Any]:
     data = load_json_with_recovery(CONFIG_PATH, {"servers": {}},
@@ -97,7 +93,6 @@ def load_config() -> Dict[str, Any]:
         }
     return {"servers": cleaned}
 
-
 def save_config(config: Dict[str, Any]) -> None:
     """A row without ``env``/``cwd``/``headers`` (or the hub settings) keeps the saved ones.
 
@@ -115,9 +110,7 @@ def save_config(config: Dict[str, Any]) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     save_json(CONFIG_PATH, {"servers": servers}, backup=True)
 
-
 _SECRET_REF = re.compile(r"\$\{secret:([\w./:-]{1,160})\}")
-
 
 def resolve_secrets(values: Optional[Dict[str, str]]) -> Dict[str, str]:
     """``${secret:mcp/<server>/<KEY>}`` → the value from the protected store (app/mcp_hub.py)."""
@@ -126,7 +119,6 @@ def resolve_secrets(values: Optional[Dict[str, str]]) -> Dict[str, str]:
         return out
     from .mcp_hub import secret_value
     return {k: _SECRET_REF.sub(lambda m: secret_value(m.group(1)), str(v)) for k, v in out.items()}
-
 
 def redact(text: str, spec: Optional[Dict[str, Any]] = None) -> str:
     """A log/error line without the secrets of the server (env values, header values)."""
@@ -140,7 +132,6 @@ def redact(text: str, spec: Optional[Dict[str, Any]] = None) -> str:
         text = text.replace(str(value), "•••")
     return text
 
-
 class MCPError(RuntimeError):
     """An MCP failure with the message in both interface languages (``str()`` is the Russian one)."""
 
@@ -151,11 +142,9 @@ class MCPError(RuntimeError):
     def text(self, lang: str = "ru") -> str:
         return self.en if lang == "en" else str(self)
 
-
 def error_text(exc: BaseException, lang: str = "ru") -> str:
     """The error for the user/model in ``lang`` (server-supplied texts stay as the server wrote them)."""
     return exc.text(lang) if isinstance(exc, MCPError) else str(exc)
-
 
 class SharedStartup:
     """One startup task per server, including the time before a process exists.
@@ -202,7 +191,6 @@ class SharedStartup:
             await asyncio.gather(task, return_exceptions=True)
             self._startup_task = None
 
-
 class MCPServer(SharedStartup):
     """Один запущенный сервер MCP: процесс плюс JSON-RPC поверх его stdio."""
 
@@ -218,12 +206,12 @@ class MCPServer(SharedStartup):
         self.resources: List[Dict[str, Any]] = []
         self.capabilities: Dict[str, Any] = {}
         self.server_info: Dict[str, Any] = {}
-        # Round 40: the last stderr lines (secrets redacted) for «Logs» in Settings → Integrations → MCP.
+
         self.logs: "collections.deque[str]" = collections.deque(maxlen=200)
         self._stderr_task: Optional[asyncio.Task] = None
         self._next_id = 0
         self._lock = asyncio.Lock()
-        # Рукопожатие завершено: до этого вызывать инструменты нельзя.
+
         self.ready = asyncio.Event()
         self._init_startup()
 
@@ -238,10 +226,9 @@ class MCPServer(SharedStartup):
         resolved = shutil.which(command) or command
         env = dict(os.environ)
         env.update(resolve_secrets(self.spec.get("env")))
-        # Сервер не должен наследовать интерактивность: только протокол.
+
         env.setdefault("NO_COLOR", "1")
-        # Протокол требует UTF-8. На Windows Python-серверы иначе пишут в
-        # кодировке консоли, и первая же кириллица ломает разбор ответа.
+
         env.setdefault("PYTHONIOENCODING", "utf-8")
         env.setdefault("PYTHONUTF8", "1")
         try:
@@ -249,18 +236,17 @@ class MCPServer(SharedStartup):
                 resolved, *self.spec.get("args", []),
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
-                # stderr читается постоянно (_read_stderr): серверы на npx пишут туда логи, и
-                # непрочитанный буфер вешал сервер на каждом вызове до таймаута.
+
                 stderr=asyncio.subprocess.PIPE,
                 cwd=self.spec.get("cwd") or None,
                 env=env,
-                # Строка JSON-RPC с содержимым файла легко больше 64 КБ.
+
                 limit=32 * 1024 * 1024,
                 creationflags=(0x08000000 if sys.platform == "win32" else 0),
             )
         except (OSError, ValueError) as exc:
             self._fail(f"не удалось запустить «{command}»: {exc}", f"could not start “{command}”: {exc}")
-            self.ready.set()  # ждущие вызовы получат эту ошибку, а не таймаут
+            self.ready.set()
             raise MCPError(self.error, self.error_en) from exc
         except asyncio.CancelledError:
             await self._stop_process()
@@ -275,7 +261,7 @@ class MCPServer(SharedStartup):
             if isinstance(exc, asyncio.CancelledError):
                 self._fail("запуск отменён", "start cancelled")
             else:
-                # TimeoutError() has no text: say what timed out instead of «handshake failed: ».
+
                 detail = error_text(exc, "ru") or f"нет ответа за {int(HANDSHAKE_TIMEOUT)} с"
                 detail_en = error_text(exc, "en") or f"no answer in {int(HANDSHAKE_TIMEOUT)} s"
                 self._fail(f"рукопожатие не прошло: {detail}", f"handshake failed: {detail_en}")
@@ -352,22 +338,21 @@ class MCPServer(SharedStartup):
                 except (ValueError, asyncio.LimitOverrunError) as exc:
                     raise MCPError("ответ сервера MCP слишком большой", "the MCP server's answer is too large") from exc
                 if not line:
-                    # The pipe closes before asyncio records the exit code: without this the dead process still
-                    # looked «running» and every next call failed with this same error instead of restarting it.
+
                     await self._stop_process()
                     raise MCPError("сервер закрыл поток", "the server closed the stream")
                 try:
                     message = json.loads(line.decode("utf-8", "replace"))
                 except ValueError:
-                    continue            # сервер может писать логи в stdout
+                    continue
                 if not isinstance(message, dict):
                     continue
                 if message.get("method") is not None:
                     if message.get("id") is not None:
                         await self._answer_server_request(message)
-                    continue            # уведомление или запрос сервера, а не ответ
+                    continue
                 if message.get("id") != request_id:
-                    continue            # чужой (опоздавший) ответ
+                    continue
                 if message.get("error"):
                     detail = message["error"]
                     text = detail.get("message") if isinstance(detail, dict) else None
@@ -396,7 +381,7 @@ class MCPServer(SharedStartup):
         if process is None or process.returncode is not None:
             return
         if sys.platform == "win32":
-            # terminate() закрывает только cmd от npx.cmd, а node остаётся жить.
+
             try:
                 killer = await asyncio.create_subprocess_exec(
                     "taskkill", "/T", "/F", "/PID", str(process.pid),
@@ -414,7 +399,6 @@ class MCPServer(SharedStartup):
             except Exception:
                 pass
 
-
 def _tool_row(item: Dict[str, Any]) -> Dict[str, Any]:
     notes = item.get("annotations") if isinstance(item.get("annotations"), dict) else {}
     row = {"name": str(item.get("name") or ""),
@@ -425,11 +409,10 @@ def _tool_row(item: Dict[str, Any]) -> Dict[str, Any]:
                                                      "openWorldHint") if k in notes}
     return row
 
-
 async def _paged(server: Any, method: str, key: str, cap: int) -> List[Dict[str, Any]]:
     raw: List[Any] = []
     cursor = None
-    for _page in range(10):         # */list is paginated (nextCursor) on large servers
+    for _page in range(10):
         listed = await server._request(method, {"cursor": cursor} if cursor else {})
         page = listed.get(key)
         raw += page if isinstance(page, list) else []
@@ -437,7 +420,6 @@ async def _paged(server: Any, method: str, key: str, cap: int) -> List[Dict[str,
         if not cursor or not isinstance(cursor, str) or len(raw) >= cap:
             break
     return [item for item in raw if isinstance(item, dict)][:cap]
-
 
 async def _handshake(server: Any, client: str) -> None:
     """initialize → initialized → tools/list (+ resources/list when the server has resources)."""
@@ -457,9 +439,8 @@ async def _handshake(server: Any, client: str) -> None:
                                  "description": str(r.get("description") or "")[:300],
                                  "mime": str(r.get("mimeType") or "")[:80]}
                                 for r in await _paged(server, "resources/list", "resources", 200) if r.get("uri")]
-        except Exception as exc:   # a broken resources/list must not cost the tools
+        except Exception as exc:
             server.log(f"resources/list failed: {exc}")
-
 
 async def _call_tool(server: Any, tool: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
     timeout = float(server.spec.get("timeout") or CALL_TIMEOUT)
@@ -471,12 +452,12 @@ async def _call_tool(server: Any, tool: str, arguments: Dict[str, Any]) -> Dict[
                 server._request("tools/call", {"name": tool, "arguments": arguments or {}}), timeout=timeout)
             break
         except asyncio.TimeoutError:
-            # str(TimeoutError()) is empty: the model used to see just «MCP «name»: ».
+
             server.log(f"tools/call {tool}: timeout {int(timeout)} s")
             raise MCPError(f"инструмент «{tool}» не ответил за {int(timeout)} с",
                            f"tool “{tool}” did not answer in {int(timeout)} s") from None
         except _NotDelivered:
-            # The process died before the request reached it (nothing ran): restart once and resend.
+
             if attempt:
                 raise MCPError("сервер MCP завершился", "the MCP server exited") from None
             server.log("the server exited — restarting")
@@ -484,7 +465,6 @@ async def _call_tool(server: Any, tool: str, arguments: Dict[str, Any]) -> Dict[
     return {"content": _flatten_content(result.get("content")),
             "is_error": bool(result.get("isError")),
             "raw_keys": sorted(result.keys())[:10]}
-
 
 async def _read_resource(server: Any, uri: str) -> Dict[str, Any]:
     await server.start()
@@ -500,10 +480,8 @@ async def _read_resource(server: Any, uri: str) -> Dict[str, Any]:
             parts.append(str(item.get("text") or (f"[binary {item.get('mimeType') or ''}]" if item.get("blob") else "")))
     return {"uri": uri, "text": "\n".join(p for p in parts if p)[:MAX_RESULT_CHARS]}
 
-
 class _NotDelivered(MCPError):
     """The request never reached the server (broken pipe): safe to resend after a restart."""
-
 
 class HttpMCPServer(SharedStartup):
     """Remote MCP over Streamable HTTP (``type: http``) or the legacy HTTP+SSE transport (``type: sse``)."""
@@ -548,7 +526,7 @@ class HttpMCPServer(SharedStartup):
 
     def _http(self) -> Any:
         if self._client is None:
-            import httpx    # lazily: only a remote MCP server needs it
+            import httpx
             self._client = httpx.AsyncClient(timeout=httpx.Timeout(CALL_TIMEOUT, connect=15), follow_redirects=True)
         return self._client
 
@@ -697,7 +675,6 @@ class HttpMCPServer(SharedStartup):
             await client.aclose()
         self.session_id = ""
 
-
 def _flatten_content(content: Any) -> str:
     """Ответ MCP — список блоков; агенту нужен связный текст."""
     if isinstance(content, str):
@@ -716,14 +693,10 @@ def _flatten_content(content: Any) -> str:
             parts.append("[image]")
     return "\n".join(part for part in parts if part)[:MAX_RESULT_CHARS]
 
-
-#: Round 40: a server nobody called for this long is stopped (it restarts lazily on the next call).
 IDLE_STOP = 20 * 60
-
 
 def make_server(name: str, spec: Dict[str, Any]) -> Any:
     return HttpMCPServer(name, spec) if spec.get("type") in ("http", "sse") else MCPServer(name, spec)
-
 
 class MCPRegistry:
     """Запущенные серверы (общий пул MemuAI). Процесс поднимается лениво — при первом обращении."""
@@ -742,7 +715,7 @@ class MCPRegistry:
 
     async def server(self, name: str) -> Any:
         from .safe_mode import is_safe_mode
-        if is_safe_mode():  # Round 29: MCP servers are not started in safe mode
+        if is_safe_mode():
             raise MCPError("Безопасный режим: серверы MCP не запускаются", "Safe mode: MCP servers are not started")
         self.loop = asyncio.get_running_loop()
         config = load_config()["servers"]
@@ -754,8 +727,7 @@ class MCPRegistry:
         async with self._lock:
             await self._reap_idle()
             existing = self._servers.get(name)
-            # A pending startup is reusable even before subprocess creation
-            # returns. Completed failures/dead processes are retried lazily.
+
             if existing and existing.spec == spec and (existing.running or existing.starting
                                                        or not existing.ready.is_set()):
                 pass
@@ -770,8 +742,7 @@ class MCPRegistry:
                     server.logs.extend(stale.logs)
                 self._servers[name] = server
         if existing is not None:
-            # Сервер ещё здоровается — ждём конца рукопожатия, а не шлём
-            # вызов в полуготовый процесс.
+
             await existing.start()
             if not existing.running:
                 raise MCPError(existing.error or f"Сервер MCP «{name}» не запустился",
@@ -827,6 +798,5 @@ class MCPRegistry:
             self._servers.clear()
         for server in servers:
             await server.stop()
-
 
 registry = MCPRegistry()

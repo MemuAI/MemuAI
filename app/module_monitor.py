@@ -21,14 +21,11 @@ import httpx
 from . import modules_host
 from .storage import load_json_with_recovery, mutate_json
 
-
 def _path():
     return modules_host.default_root() / "background.json"
 
-
 def _read():
     return load_json_with_recovery(str(_path()), {"jobs": {}, "events": [], "sequence": 0})
-
 
 def _mutate(fn):
     def transaction(data):
@@ -36,7 +33,6 @@ def _mutate(fn):
         fn(data)
         return before != json.dumps(data, sort_keys=True)
     return mutate_json(str(_path()), {"jobs": {}, "events": [], "sequence": 0}, transaction, backup=False)
-
 
 def require(module_id, *permissions, enabled=False):
     module_id = modules_host._safe_id(module_id)
@@ -47,7 +43,6 @@ def require(module_id, *permissions, enabled=False):
     if not set(permissions).issubset(row.get("permissions", [])):
         raise PermissionError("Модулю не выданы необходимые права / Module permission denied")
     return row
-
 
 async def public_request(url, *, method="GET", headers=None, payload=None, limit=5_000_000, timeout=45):
     """Bounded HTTP with the same public-address checks as module web reads.
@@ -80,8 +75,7 @@ in error messages. DNS/address validation is repeated on each hop.
                     continue
                 if response.status_code >= 400:
                     error = ValueError(f"API HTTP {response.status_code}")
-                    # The reason the API gave (ElevenLabs: {"detail": {"status": "bad_prompt", …}}); the message
-                    # itself stays «API HTTP NNN» — callers match it. Credentials are never echoed by the APIs.
+
                     try:
                         error.body = (await response.aread())[:8192].decode("utf-8", "replace")
                     except Exception:
@@ -96,7 +90,6 @@ in error messages. DNS/address validation is repeated on each hop.
                 return b"".join(chunks), response.headers.get("content-type", ""), url
     raise ValueError("Слишком много перенаправлений / Too many redirects")
 
-
 def field(obj, path, default=None):
     for key in str(path or "").split(".") if path else []:
         if isinstance(obj, dict):
@@ -107,9 +100,8 @@ def field(obj, path, default=None):
             return default
     return obj
 
-
 def _embedded(text, spec):
-    # Decode the string payloads in a React server-component stream.
+
     parts = []
     for match in re.finditer(r'self\.__next_f\.push\(\[1,("(?:[^"\\]|\\.)*")\]\)', text):
         try:
@@ -135,7 +127,6 @@ def _embedded(text, spec):
             pass
     raise ValueError("Формат источника изменился / Source format changed")
 
-
 def extract(text, spec):
     fmt = spec.get("format", "json")
     if fmt == "csv":
@@ -143,7 +134,7 @@ def extract(text, spec):
     elif fmt == "embedded":
         rows = _embedded(text, spec)
     elif fmt == "js-records":
-        # Parse a flat JavaScript data literal, never execute website code.
+
         rows = []
         for block in re.findall(r"\{([^{}]{1,12000})\}", text):
             values = {}
@@ -189,7 +180,6 @@ def extract(text, spec):
         raise ValueError("Не удалось прочитать записи / Could not extract records")
     return result
 
-
 def _family(identity):
     """Vendor prefix of a model id ("openai/gpt-5" -> "openai").
 
@@ -201,17 +191,11 @@ def _family(identity):
         identity = identity[len("models/"):]
     return identity.split("/")[0] if "/" in identity else ""
 
-
-# Fields that decide *which records* a source returns. Changing anything else
-# (title, family filter, key) must not throw away what has already been seen,
-# otherwise every Save silently re-baselines and the next new model is missed.
 _DATA_IDENTITY = ("url", "format", "items_path", "id_keys", "marker", "require_field",
                   "discover", "pagination", "select", "value_keys")
 _RUNTIME_KEYS = ("baseline", "seen", "last_success", "count", "families_available")
 
-
 _SEEN_LIMIT = 30000
-
 
 def _remember_seen(seen, records):
     """Ids already reported for a source.
@@ -226,7 +210,6 @@ def _remember_seen(seen, records):
     room = max(0, _SEEN_LIMIT - len(current))
     return sorted(current | set(gone[-room:] if room else []))
 
-
 def _headers(source):
     key = str(source.get("api_key") or "")
     headers = {"Accept": "application/json,text/plain,text/html;q=0.8"}
@@ -238,11 +221,10 @@ def _headers(source):
         headers["anthropic-version"] = "2023-06-01"
     return headers
 
-
 async def read_source(source):
     url = source["url"]
     candidates = []
-    # Optional generic discovery steps: a page -> script -> latest CSV.
+
     for discovery in source.get("discover", []):
         raw, _, final_url = await public_request(url)
         text = raw.decode("utf-8", errors="replace")
@@ -273,9 +255,7 @@ async def read_source(source):
                 raw, _, _ = await public_request(url, headers=_headers(source) if source.get("api_key") else None)
                 break
             except ValueError as exc:
-                # A release can be announced before its table is published.
-                # Authentication, timeouts and parser failures must still be
-                # reported instead of advancing a stale baseline.
+
                 if str(exc) not in {"API HTTP 404", "API HTTP 410"} or not candidates:
                     raise
                 url = candidates.pop(0)
@@ -296,7 +276,6 @@ async def read_source(source):
         url = urlunsplit((*parsed[:3], urlencode(query), parsed.fragment))
     raise ValueError("Слишком много страниц API / API pagination limit exceeded")
 
-
 def _public(job):
     copy = json.loads(json.dumps(job))
     for source in copy.get("sources", []):
@@ -306,11 +285,9 @@ def _public(job):
         source.pop("baseline", None)
     return copy
 
-
 def status(module_id):
     modules_host._safe_id(module_id)
     return _public(_read().get("jobs", {}).get(module_id, {"enabled": False, "sources": []}))
-
 
 def configure(module_id, payload):
     require(module_id, "background", "web", "notify")
@@ -345,8 +322,7 @@ def configure(module_id, payload):
                 source["api_key"] = prior.get("api_key", "")
             if prior and all(source.get(key) == prior.get(key) for key in _DATA_IDENTITY):
                 source.update({key: prior[key] for key in _RUNTIME_KEYS if key in prior})
-                # An unchanged source keeps its schedule too: re-saving settings
-                # must not trigger (or postpone) a check on its own.
+
                 if "last_attempt" in prior:
                     source["last_attempt"] = prior["last_attempt"]
                 if "error" in prior and source.get("auth") == prior.get("auth") \
@@ -361,13 +337,11 @@ def configure(module_id, payload):
     _mutate(change)
     return status(module_id)
 
-
 async def notify(module_id, title, text, telegram=True):
     require(module_id, "notify")
     title, text = str(title)[:150], str(text)[:10000]
     def append(data):
-        # Fix the acknowledgement before the first new event of a store written by
-        # an older version: older events count as shown, this one does not.
+
         if not isinstance(data.get("ack"), int) or isinstance(data.get("ack"), bool):
             data["ack"] = _acknowledged(data)
         data["sequence"] = int(data.get("sequence", 0)) + 1
@@ -375,7 +349,7 @@ async def notify(module_id, title, text, telegram=True):
         data["events"] = (data.get("events", []) + [event])[-200:]
         return data
     _mutate(append)
-    try:   # Round 35: «Новые модели API» and other module notices → «Входящие» (app/inbox_hooks.py)
+    try:
         from .inbox_hooks import module_event
         module_event(module_id, title, text)
     except Exception:
@@ -386,13 +360,12 @@ async def notify(module_id, title, text, telegram=True):
         from .desktop_notifications import show_completion
         try:
             await asyncio.to_thread(show_completion, title, text, sound=False)
-        except Exception:  # an OS toast is optional; the durable event is already stored
+        except Exception:
             pass
     if telegram:
         from .telegram_bot import send_notification
-        # Loudness follows the user's Telegram notification mode (silent/sound).
-        await send_notification(title, text, kind="module")
 
+        await send_notification(title, text, kind="module")
 
 async def scan(module_id, *, force=False):
     row = require(module_id, "background", "web", "notify", enabled=True)
@@ -421,8 +394,7 @@ async def scan(module_id, *, force=False):
             continue
         source, messages = claimed[0], []
         try:
-            # Keep the complete paginated/discovery read below its cross-process
-            # lease, so a second scan cannot steal an unfinished result.
+
             records = await asyncio.wait_for(read_source(source), timeout=150)
             require(module_id, "background", "web", "notify", enabled=True)
             families = set(source.get("families", []))
@@ -438,8 +410,7 @@ async def scan(module_id, *, force=False):
                                             for field_name, number in value["values"].items() if before.get(field_name) != number)
                         messages.append(value["name"] + ": " + details)
                 if job.get("mode") == "changes":
-                    # A family filter change is not a removal: only ids gone from the
-                    # source itself are reported.
+
                     messages.extend("− " + key for key in baseline if key not in records)
             updates = {"baseline": {key: value["values"] for key, value in visible.items()},
                        "seen": _remember_seen(seen, records), "count": len(visible),
@@ -448,7 +419,7 @@ async def scan(module_id, *, force=False):
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            # Exception URLs can include credentials; only emit bounded safe errors.
+
             message = str(exc) if isinstance(exc, (ValueError, PermissionError)) else type(exc).__name__
             if source.get("api_key"):
                 message = message.replace(source["api_key"], "[redacted]")
@@ -471,7 +442,6 @@ async def scan(module_id, *, force=False):
             await notify(module_id, title, "\n".join(messages[:50]) + (f"\n+{len(messages)-50}" if len(messages) > 50 else ""), job.get("telegram", True))
     return status(module_id)
 
-
 def _acknowledged(data):
     """Sequence number up to which MemuAI has already shown events to the user.
 
@@ -489,12 +459,10 @@ def _acknowledged(data):
         return sequence
     return min(ack, sequence)
 
-
 def _seen_cursors(data):
     raw = data.get("seen_events")
     return {str(key): int(value) for key, value in raw.items()
             if isinstance(value, int) and not isinstance(value, bool)} if isinstance(raw, dict) else {}
-
 
 def events(after=0, module_id=None):
     data = _read()
@@ -504,7 +472,6 @@ def events(after=0, module_id=None):
     if module_id is not None:
         result["seen"] = _seen_cursors(data).get(module_id, 0)
     return result
-
 
 def pending_events():
     """Events MemuAI has not shown yet (id > acknowledged); persists the migration."""
@@ -518,7 +485,6 @@ def pending_events():
     return {"cursor": data.get("sequence", 0), "acknowledged": ack,
             "events": [event for event in data.get("events", []) if event["id"] > ack]}
 
-
 def acknowledge(cursor):
     """Remember that events up to ``cursor`` were shown; never moves backwards."""
     cursor = max(0, int(cursor))
@@ -528,7 +494,6 @@ def acknowledge(cursor):
         return data
     _mutate(change)
     return {"acknowledged": _acknowledged(_read())}
-
 
 def mark_seen(module_id, cursor):
     """The module's own "seen" mark (its unread badge); also acknowledges toasts."""
@@ -546,17 +511,16 @@ def mark_seen(module_id, cursor):
     data = _read()
     return {"seen": _seen_cursors(data).get(module_id, 0), "acknowledged": _acknowledged(data)}
 
-
 async def background_loop():
     from .safe_mode import session_active
     while True:
-        # Round 29: module jobs pause while MemuAI runs in safe mode (app/safe_mode.py).
+
         for module_id in ([] if session_active() else list(_read().get("jobs", {}))):
             try:
                 await scan(module_id)
             except asyncio.CancelledError:
                 raise
             except Exception:
-                # Disabled/deleted modules and revoked permissions are quiet.
+
                 pass
         await asyncio.sleep(30)

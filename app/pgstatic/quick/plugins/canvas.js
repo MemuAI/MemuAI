@@ -1,26 +1,5 @@
-/* Quick Ask plugin «canvas» (Round 27, r27-quick-canvas): MemuAI panels and «Быстрые действия» in the window.
 
-   Contract: only window.MemuQuick (registerPanel in the "top" slot, addAction, on/emit, api, send, setInput…).
-   Server: app/quick_canvas.py (/api/quick/canvas/*: layout, settings, buttons, runs) + app/quick_actions.py.
 
-   * One grid for panels and buttons: COLS = 8 square columns (6 / 4 in a narrow window — a derived layout,
-     first-fit without overlaps); a panel is ≥ 2×2 (S 2×2, M 4×2, L 4×4, W 8×2), a button 1×1 or 2×2.
-   * Panels are rendered by pgstatic/panels.js itself, loaded lazily in embed mode (MEMU_PANELS_EMBED): the same
-     cards, data, To-Do / notes / timers, refresh — /api/pg/panels is the one source for both windows.
-   * «Изменить» (Ctrl+E, or a long press): items wiggle, drag snaps to the grid, the corner resizes, ✕ removes
-     from the canvas (never deletes a MemuAI panel), ⚙ opens the button editor / the panel's options.
-   * Unobtrusive: the window opens in the usual input mode unless the user chose otherwise; Ctrl+B (or the
-     strip's toggle) folds the canvas; an answer folds it; the input keeps the focus; panels load after the
-     window is on screen.
-   * A button runs only on a click / Enter / its own hotkey — never on open (and not in the first 300 ms after
-     the window appeared). Risky steps need the user's approval on the first run; the server enforces it.
-
-   Round 28 — «screen mode» (S.screen, whenever the Windows app can show the screen layer: /api/quick/canvas →
-   layer.available): the panels and buttons are NOT drawn in the window any more but anywhere on the screen by the
-   layer (quick/layer.html, app/quick_layer.py). Here stay what needs the window: the strip, Ctrl+B (show/hide the
-   layer), Ctrl+E (arrange it), «Add», the button editor, the approval sheet of a first run, confirmations, progress
-   and results — a click on a layer button arrives through MemuQuickBus («run») and runs exactly like a click here.
-   The in-window grid is kept as the fallback when the layer cannot be shown (not Windows, WebView2 failure). */
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -50,7 +29,7 @@
   };
 
   const S = {
-    data: null, loading: null, open: false, edit: false, view: "grid",   // grid | add | editor | approve
+    data: null, loading: null, open: false, edit: false, view: "grid",
     cols: COLS, cell: 64, rowH: 64, layout: [], display: [],
     panelsJs: null, panelsReady: false, unsub: null,
     runs: new Map(), polls: new Map(), handled: new Set(), notices: [],
@@ -59,7 +38,7 @@
     screen: false, layer: { available: false, visible: false, edit: false, shown: 0, hidden: 0 }, notifyTimer: 0,
   };
   const bus = () => window.MemuQuickBus || null;
-  /** Round 28: the layer re-reads the buttons / layout after a change made in the window. */
+
   function notifyLayer() {
     if (!S.screen || !bus()) return;
     clearTimeout(S.notifyTimer);
@@ -79,7 +58,6 @@
   const panelsList = () => (window.MemuPanels && MemuPanels.state ? MemuPanels.state.panels || [] : []);
   const panelById = (id) => panelsList().find((p) => p.id === id) || null;
 
-  /* ------------------------------------------------------------ icons */
   let icons = window.MemuCanvasIcons || null;
   function loadScript(src) {
     return new Promise((resolve, reject) => {
@@ -89,8 +67,8 @@
     });
   }
   const iconsReady = icons ? Promise.resolve() : loadScript("/quick/plugins/canvas-icons.js?v=1.0-r27").then(() => { icons = window.MemuCanvasIcons; }).catch(() => {});
-  // Round 29: one context menu for MemuAI panels, the screen layer and this grid (pgstatic/memu-ctxmenu.js)
-  if (!window.MemuCtxMenu) loadScript("/memu-ctxmenu.js?v=1.1-r34").catch(() => {});  // Round 34: the menu buttons take --on-accent
+
+  if (!window.MemuCtxMenu) loadScript("/memu-ctxmenu.js?v=1.1-r34").catch(() => {});
   function faceHtml(action) {
     const ic = action.icon || { kind: "builtin", value: "bolt" };
     if (ic.kind === "emoji") return `<span class="qcv-emoji">${esc(ic.value)}</span>`;
@@ -104,12 +82,10 @@
     return `--qcv-c1:${c1};--qcv-c2:${c2 || c1};`;
   }
 
-  /* ------------------------------------------------------------ host */
   let el = null;
-  let panelsButton = null;              // Round 30: the footer «Панели» button (set below, after the actions)
+  let panelsButton = null;
   const panel = Q.registerPanel("canvas", (box) => { el = box; box.classList.add("qcv-host"); return {}; }, { slot: "top", order: 5, hidden: true });
 
-  /* ------------------------------------------------------------ data */
   async function load() {
     if (S.loading) return S.loading;
     S.loading = (async () => {
@@ -117,7 +93,7 @@
       catch (e) { S.data = S.data || null; }
       finally { S.loading = null; }
       S.layout = ((S.data && S.data.layout && S.data.layout.items) || []).map((i) => ({ ...i }));
-      // Round 28: the screen layer when the app can show it; the in-window grid otherwise (Round 27 fallback)
+
       const lay = (S.data && S.data.layer) || {};
       S.screen = !!lay.available;
       S.layer = { ...S.layer, available: !!lay.available, visible: !!lay.visible, edit: !!lay.edit };
@@ -138,7 +114,6 @@
   }
   const saveUi = (open) => Q.api("/api/quick/canvas/ui", { body: { open } }).catch(() => {});
 
-  /* ------------------------------------------------------------ panels.js (lazy, embed mode) */
   function ensurePanels() {
     if (!settings().panels) return Promise.resolve(false);
     if (S.panelsJs) return S.panelsJs;
@@ -152,13 +127,13 @@
         window.MEMU_PANELS_EMBED = true;
         try { await loadScript("/panels.js?v=1.7-r30"); } catch (e) { return false; }
       }
-      if (!window.MemuPanelLook) {       // Round 30: the looks of the panels (card / compact / text / icon)
+      if (!window.MemuPanelLook) {
         if (!document.querySelector("link[data-pl-css]")) {
           const css = document.createElement("link");
           css.rel = "stylesheet"; css.href = "/quick/panel-look.css?v=1.1-r32"; css.dataset.plCss = "1";
           document.head.appendChild(css);
         }
-        try { await loadScript("/quick/panel-look.js?v=1.1-r32"); } catch (e) { /* cards only */ }
+        try { await loadScript("/quick/panel-look.js?v=1.1-r32"); } catch (e) {  }
       }
       if (!window.MemuPanels || typeof MemuPanels.subscribe !== "function") return false;
       S.unsub = MemuPanels.subscribe(() => { S.panelsReady = true; renderPanels(); renderStrip(); requestAnimationFrame(fitNewPanels); });
@@ -168,9 +143,8 @@
     return S.panelsJs;
   }
 
-  /* ------------------------------------------------------------ layout engine */
   const overlaps = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
-  /** Visible items in reading order; items of panels that left MemuAI are skipped (kept until the user saves). */
+
   function visibleItems() {
     const acts = actionsById();
     const st = settings();
@@ -180,8 +154,7 @@
       return false;
     });
   }
-  /** cols = 8 shows the stored layout; fewer columns → every item keeps its order and size (clamped) and takes
-   *  the first free place at or above its row — no overlaps, nothing outside the grid. */
+
   function derive(items, cols) {
     const sorted = items.slice().sort((a, b) => a.y - b.y || a.x - b.x);
     if (cols >= COLS) return sorted.map((i) => ({ ...i }));
@@ -199,7 +172,7 @@
     }
     return out;
   }
-  /** Put `moving` at (x, y) and push everything it touches down (repeatedly), the rest stays where it is. */
+
   function placeAt(items, moving, x, y, w = moving.w, h = moving.h) {
     const others = items.filter((i) => i.id !== moving.id).map((i) => ({ ...i }));
     const placed = [{ ...moving, x, y, w, h }];
@@ -209,8 +182,7 @@
     }
     return placed;
   }
-  /** A narrow window shows sizes clamped to 6 / 4 columns: after a drag there, the OTHER items keep their stored
-   *  width (a W panel stays 8 wide in the real layout) and are pushed down around the moved one. */
+
   function keepStoredSizes(items, movedId) {
     const stored = new Map(S.layout.map((i) => [i.id, i]));
     const moved = items.find((i) => i.id === movedId);
@@ -236,7 +208,6 @@
     return "m";
   }
 
-  /* ------------------------------------------------------------ rendering */
   function shell() {
     el.innerHTML = `<div class="qcv" data-open="0" data-edit="0">
       <div class="qcv-strip" role="toolbar" aria-label="${esc(t("Закреплённые", "Pinned"))}"></div>
@@ -275,14 +246,14 @@
     edit.hidden = S.screen || S.view !== "grid" || !visibleItems().length;
     el.querySelector('[data-qcv="add"]').hidden = S.view !== "grid";
     const arrange = el.querySelector('[data-qcv="arrange"]');
-    arrange.hidden = !S.screen || S.view === "grid" || !visibleItems().length;   // the screen summary has its own
+    arrange.hidden = !S.screen || S.view === "grid" || !visibleItems().length;
     arrange.setAttribute("aria-pressed", String(!!S.layer.edit));
     arrange.querySelector("span").textContent = S.layer.edit ? t("Готово", "Done") : t("Расставить", "Arrange");
     renderStrip();
     renderNotices();
     if (S.open) renderView();
     Q.resize();
-    if (window.MemuQuickEmbed) MemuQuickEmbed.sync();       // Round 30: panels built into the window
+    if (window.MemuQuickEmbed) MemuQuickEmbed.sync();
   }
   function renderView() {
     const view = el.querySelector(".qcv-view");
@@ -292,10 +263,10 @@
     if (S.screen) return renderScreen(view);
     renderGrid(view);
   }
-  /** Round 28: in screen mode the window shows what is on the screen and how to arrange it — not the items. */
+
   function renderScreen(view) {
     const items = visibleItems();
-    if (!items.length) { renderGrid(view); return; }      // the empty state (create a button / add a panel)
+    if (!items.length) { renderGrid(view); return; }
     const shown = S.layer.visible ? (S.layer.shown != null ? S.layer.shown : items.length) : 0;
     const hidden = S.layer.visible ? +S.layer.hidden || 0 : 0;
     view.innerHTML = `<div class="qcv-screen">
@@ -309,7 +280,6 @@
         <button type="button" class="qcv-btn-g" data-qcv="arrange">${esc(S.layer.edit ? t("Закончить расстановку", "Finish arranging") : t("Расставить", "Arrange"))}</button></div></div>`;
   }
 
-  /* ---------- strip: pinned buttons and panel chips + the toggle */
   function renderStrip() {
     const strip = el && el.querySelector(".qcv-strip");
     if (!strip) return;
@@ -326,8 +296,7 @@
       if (!p || !window.MemuPanels) return "";
       return MemuPanels.chipHtml(p).replace(' draggable="true"', "").replace('class="mp-chip', 'data-qcv-chip="' + esc(it.id) + '" class="qcv-chip mp-chip');
     }).join("");
-    // Round 30 (r30-quick-core-2): the strip is ONLY the pinned items — the «Панели Ctrl B» toggle that hung over every
-    // view of the window lives in the footer now (panelsButton below); nothing pinned → no strip row at all.
+
     const html = `<div class="qcv-strip-items">${parts}</div>${S.screen && parts ? `<span class="qcv-grow"></span><button type="button" class="qcv-toggle qcv-more" data-qcv="manage" aria-expanded="${S.open}" title="${esc(t("Добавить и настроить", "Add and set up"))}" aria-label="${esc(t("Добавить и настроить", "Add and set up"))}">${UI.gear}</button>` : ""}`;
     if (strip.innerHTML !== html) strip.innerHTML = html;
     strip.dataset.empty = parts ? "0" : "1";
@@ -342,7 +311,6 @@
     return `<i class="qcv-ring" data-status="${esc(run.status)}" style="--qcv-p:${pct}" aria-hidden="true"></i>`;
   }
 
-  /* ---------- notices: confirmations, results, errors of runs */
   function renderNotices() {
     const box = el && el.querySelector(".qcv-notices");
     if (!box) return;
@@ -379,7 +347,6 @@
   }
   const lastMessage = (run) => { const done = (run.steps || []).filter((s) => s.message); return done.length ? done[done.length - 1].message : t("Готово", "Done"); };
 
-  /* ---------- grid */
   function renderGrid(view) {
     measure();
     const items = visibleItems();
@@ -431,7 +398,7 @@
         n += 1;
         const a = acts.get(it.ref);
         const html = buttonHtml(a, it, n);
-        if (node.dataset.html !== html) { node.dataset.html = html; node.innerHTML = html; }   // 30 buttons: no DOM churn on every render
+        if (node.dataset.html !== html) { node.dataset.html = html; node.innerHTML = html; }
         node.setAttribute("aria-label", tipOf(a) + (n <= 9 ? ` (${n})` : ""));
       } else {
         if (window.MemuPanelLook) MemuPanelLook.apply(node, lookOf(it), { place: "window" });
@@ -448,8 +415,7 @@
     grid.querySelectorAll(".qcv-item").forEach((node) => { if (!keep.has(node.dataset.item)) node.remove(); });
     requestAnimationFrame(() => grid.querySelectorAll('.qcv-item[data-type="panel"] > .mp-card').forEach(markMore));
   }
-  /** Round 34: a panel taller than its cell scrolled with no hint (the scrollbar is hidden) — the last row looked cut
-   *  off («Макс / мин 9° / 3°» half visible). A soft fade at the bottom says «there is more», gone at the end. */
+
   function markMore(card) {
     const more = card.scrollHeight - card.scrollTop - card.clientHeight > 4;
     if ((card.dataset.more === "1") !== more) card.dataset.more = more ? "1" : "";
@@ -467,13 +433,13 @@
   }
   const lookOf = (it) => (window.MemuPanelLook ? MemuPanelLook.resolve(S.data, it.ref) : { style: "card" });
   function editChrome(it) {
-    // mouse chrome; the keyboard has Delete / Shift+F10 on the focused item instead
+
     return `<span class="qcv-chrome" aria-hidden="true">
       <button type="button" class="qcv-cx" data-item-act="remove" tabindex="-1" title="${esc(t("Убрать с холста", "Remove from the canvas"))}" aria-label="${esc(t("Убрать", "Remove"))}">${UI.x}</button>
       <button type="button" class="qcv-cg" data-item-act="settings" tabindex="-1" title="${esc(t("Настроить", "Customize"))}" aria-label="${esc(t("Настроить", "Customize"))}">${UI.gear}</button>
       <span class="qcv-rz" data-item-act="resize" title="${esc(t("Потяните, чтобы изменить размер", "Drag to resize"))}">${UI.resize}</span></span>`;
   }
-  /** A panel just added grows to the rows its content needs (up to 6) — once; after that the size is the user's. */
+
   function fitNewPanels() {
     if (!S.fit.size || !el) return;
     let changed = false;
@@ -490,18 +456,17 @@
   }
   function renderPanels() {
     if (!S.open || S.view !== "grid" || !el) return;
-    if (S.screen && visibleItems().length) return;        // Round 28: the items are on the screen, not here
+    if (S.screen && visibleItems().length) return;
     renderGrid(el.querySelector(".qcv-view"));
     Q.resize();
   }
 
-  /* ---------- the item menu (⚙ or right click) */
   let menuEl = null, menuHandle = null;
   function closeItemMenu() {
     if (menuHandle) { const h = menuHandle; menuHandle = null; h.close("api"); }
     if (menuEl) { menuEl.remove(); menuEl = null; }
   }
-  /** Round 29: the shared menu (closes on a press anywhere, Esc, blur, scroll; never leaves the window). */
+
   function openCtxItemMenu(it, anchor, point, keyboard) {
     const items = [];
     if (it.type === "action") {
@@ -515,7 +480,7 @@
       items.push({ type: "seg", id: "size", label: t("Размер", "Size"), icon: "size", options: Object.keys(PANEL_SIZES).map((k) => ({ id: k, label: k.toUpperCase(), pressed: !!key && key[0] === k })) },
         { type: "sep" }, { id: "refresh", label: t("Обновить сейчас", "Refresh now"), icon: "refresh" },
         { id: "options", label: t("Параметры панели…", "Panel options…"), icon: "sliders" }, { id: "memuai", label: t("Открыть в MemuAI", "Open in MemuAI"), icon: "open" });
-      if (window.MemuPanelLook) {       // Round 30: this panel's look, its value, built into the window
+      if (window.MemuPanelLook) {
         const embedded = ((S.data && S.data.embed && S.data.embed.items) || []).some((e) => e.ref === it.ref && !e.hidden);
         items.splice(1, 0, MemuPanelLook.menuSeg(lookOf(it)));
         if (S.data && S.data.looks && S.data.looks[it.ref]) items.splice(2, 0, { id: "look-reset", label: t("Вид как у всех панелей", "Look like all panels"), icon: "reset" });
@@ -606,7 +571,7 @@
       if (cmd === "memuai") { Q.api("/api/quick/window", { body: { action: "handoff", handoff: { open: "panels", settings: "panels" } } }).catch(() => {}); return; }
     }
   }
-  /** Round 30: a panel's look / built into the window — POST /api/quick/canvas/look, then the layer re-reads. */
+
   async function lookCommand(it, cmd) {
     const body = {};
     if (cmd === "embed") {
@@ -662,7 +627,6 @@
     catch (e) { Q.toast(e.message, "error"); }
   }
 
-  /* ------------------------------------------------------------ open / fold */
   function setOpen(open, { save = true, focus = false } = {}) {
     if (!S.data || !settings().enabled) return;
     S.open = !!open;
@@ -678,25 +642,23 @@
     closeItemMenu();
     render();
   }
-  // Round 28: Ctrl+B / the strip toggle show or hide the panels and buttons on the SCREEN (the window body only
-  // opens for «Add», the editor and the approval sheet); without the layer — the Round 27 in-window canvas
+
   const toggle = () => (S.screen && visibleItems().length ? layerCommand("toggle") : setOpen(!S.open, { focus: false }));
   const arrange = () => layerCommand("edit", !S.layer.edit);
 
-  /* ------------------------------------------------------------ runs */
   function pageContext() {
     const sel = Q.selection ? Q.selection() : { text: "" };
     const st = Q.state();
     return { selection: (sel && sel.text) || "", input: Q.getInput(), page_url: (st.page && st.page.url) || "", page_title: (st.page && st.page.title) || "" };
   }
   async function runAction(id, explicit = false, approve = false) {
-    if (!explicit && performance.now() - S.shownAt < 300) return;   // a click that only finished opening the window
+    if (!explicit && performance.now() - S.shownAt < 300) return;
     const a = actionsById().get(id);
     if (!a) return;
     const active = S.runs.get(id);
     if ((active && ["running", "confirm"].includes(active.status)) || S.starting.has(id)) { Q.toast(t("Уже выполняется", "Already running")); return; }
     let out = null;
-    S.starting.add(id);                     // a second press before the server answered the first one
+    S.starting.add(id);
     try { out = await Q.api("/api/quick/canvas/run", { body: { id, lang: L(), context: pageContext(), approve } }); }
     catch (e) { Q.toast(e.message, "error"); return; }
     finally { S.starting.delete(id); }
@@ -734,7 +696,7 @@
       upsertNotice({ id, kind: "confirm", run, readyAt });
       if (countdown && !S.countdownTimer) S.countdownTimer = setInterval(() => { renderNotices(); if (!S.notices.some((n) => n.kind === "confirm" && n.readyAt > Date.now())) { clearInterval(S.countdownTimer); S.countdownTimer = 0; renderNotices(); } }, 500);
     } else if (run.status === "running") {
-      // a one-step button reports in place (the ring); a macro shows its progress and «Stop»
+
       if (run.total > 1 || (prev && prev.kind !== "running")) upsertNotice({ id, kind: "running", run }); else dropNotice(id);
     } else {
       const silentAsk = run.output && (run.steps || []).length && !(run.client || []).length && lastStepShowsNothing(run);
@@ -784,7 +746,7 @@
         const off = Q.on("answer-done", (e) => { off(); if (e && e.error) reply(false, "", String(e.error)); else reply(true, (e && e.text) || ""); });
         try { Q.send(c.text || "", { page: false, direct: true }); } catch (e) { off(); reply(false, "", e.message); }
       };
-      // an answer is streaming: send() would STOP it (and its «done» would be taken for the button's answer) — wait for it
+
       if (Q.state().busy) { const offBusy = Q.on("answer-done", () => { offBusy(); setTimeout(go, 0); }); return; }
       go();
       return;
@@ -817,7 +779,6 @@
     dropNotice(noteId); renderNotices(); Q.resize();
   }
 
-  /* ------------------------------------------------------------ add view (buttons, templates, panels) */
   async function ensureCatalog() {
     if (S.catalog) return S.catalog;
     try { S.catalog = await Q.api("/api/quick/canvas/catalog?lang=" + L()); } catch (e) { S.catalog = null; }
@@ -886,7 +847,6 @@
     } catch (e) { Q.toast(e.message, "error"); }
   }
 
-  /* ------------------------------------------------------------ approval (first run of a risky button) */
   function renderApprove(view) {
     const ap = S.approve || { risks: [] };
     view.innerHTML = `<div class="qcv-approve" role="alertdialog" aria-labelledby="qcv-ap-t">
@@ -900,7 +860,6 @@
     requestAnimationFrame(() => { const b = view.querySelector('[data-qcv="approve"]'); if (b) b.focus(); });
   }
 
-  /* ------------------------------------------------------------ the button editor */
   const STEP_LABELS = () => ({
     open: t("Открыть", "Open"), command: t("Команда", "Command"), ask: t("Спросить ИИ", "Ask AI"), text: t("Текст", "Text"),
     system: t("Система", "System"), memuai: "MemuAI", wait: t("Пауза", "Wait"), keys: t("Клавиши", "Keys"),
@@ -1048,7 +1007,7 @@
         ${ed.error ? `<div class="qcv-error" role="alert">${esc(ed.error)}</div>` : ""}
       </div>`;
   }
-  /** What the button will ask: once (confirm-tier steps, remembered) and every time (dangerous ones). */
+
   function riskHtml(risks) {
     const once = risks.filter((r) => r.tier !== "dangerous").map((r) => r.text);
     const always = risks.filter((r) => r.tier === "dangerous").map((r) => r.text);
@@ -1076,7 +1035,7 @@
             Q.resize();
           }
         }
-      } catch (e) { /* offline: Save reports it */ }
+      } catch (e) {  }
     }, 350);
   }
   function setPath(obj, path, value) {
@@ -1129,7 +1088,7 @@
     const a = S.editor.action;
     if (p) p.innerHTML = `<span class="qcv-act" data-shape="${esc(a.shape)}" data-big="${S.editor.size === "l" ? 1 : 0}" style="${faceStyle(a)}"><span class="qcv-face">${faceHtml(a)}</span><span class="qcv-label">${esc(a.label || t("Подпись", "Label"))}</span></span>`;
   }
-  /** The default second colour of a gradient: the neighbour two steps along the palette (a related hue). */
+
   function shade(hex) {
     const list = (icons && icons.COLORS) || [];
     const i = list.indexOf(String(hex).toLowerCase());
@@ -1155,7 +1114,7 @@
     img.onerror = () => { URL.revokeObjectURL(url); Q.toast(t("Не удалось открыть картинку", "Could not open the picture"), "error"); };
     img.src = url;
   }
-  /** The program of the button's first «Открыть программу» step — the natural source of its icon. */
+
   const firstApp = (a) => { const st = (a.steps || []).find((x) => x.type === "open" && x.target === "app" && x.value); return st ? st.value : ""; };
   async function pickAppIcon() {
     const ed = S.editor;
@@ -1171,7 +1130,7 @@
       if (out.ok) { ed.action.icon = { kind: "app", value: out.data, app: out.app || app }; ed.error = ""; }
       else ed.error = out.error || t("Не удалось взять иконку", "Couldn't get the icon");
     } catch (e) { ed.error = e.message; }
-    finally { ed.iconBusy = false; if (S.editor === ed) { renderEditorPreserving(); if (!ed.error) validateSoon(); } }   // the check would wipe the message
+    finally { ed.iconBusy = false; if (S.editor === ed) { renderEditorPreserving(); if (!ed.error) validateSoon(); } }
   }
   async function saveEditor() {
     const ed = S.editor;
@@ -1180,7 +1139,7 @@
     if (ed.id) action.id = ed.id;
     try {
       const out = await Q.api("/api/quick/canvas/actions", { body: { action, size: ed.size, lang: L() } });
-      // a size change of an existing button is a layout change
+
       await load();
       const it = S.layout.find((i) => i.type === "action" && i.ref === out.action.id);
       const want = ed.size === "l" ? 2 : 1;
@@ -1197,7 +1156,6 @@
     }
   }
 
-  /* ------------------------------------------------------------ focus & keyboard */
   function focusItem(id) {
     if (!el) return;
     const node = id && el.querySelector(`.qcv-item[data-item="${CSS.escape(id)}"]`);
@@ -1229,9 +1187,9 @@
     S.layout = placeAt(S.layout, it, x, y);
     saveLayout(); render(); focusItem(it.id);
   }
-  /** ↓ in the empty input (capture phase, before quick.js moves into the — hidden — idle list) enters the canvas. */
+
   function onCaptureKey(e) {
-    // Esc folds the editor / leaves edit mode wherever the focus is (quick.js would close the window first)
+
     if (e.key === "Escape" && (S.edit || S.view !== "grid") && S.open && !menuEl && !document.querySelector(".mp-modal-back")
         && !(S.editor && S.editor.capturing) && !(el && el.contains(e.target))) {
       e.preventDefault(); e.stopPropagation();
@@ -1249,11 +1207,11 @@
     const inField = e.target.matches && e.target.matches("input, textarea, select, [contenteditable]");
     if (e.key === "Escape") {
       if (menuEl) return;
-      if (inField && S.view === "grid") return;      // a To-Do / note field handles its own Esc
+      if (inField && S.view === "grid") return;
       e.preventDefault(); e.stopPropagation();
       if (S.view !== "grid") { S.view = "grid"; S.editor = null; S.approve = null; render(); return; }
       if (S.edit) { setEdit(false); return; }
-      Q.setInput(Q.getInput());                         // back to the input; the window stays
+      Q.setInput(Q.getInput());
       return;
     }
     if (!item || inField || e.target.closest(".mp-card input, .mp-card textarea")) return;
@@ -1262,7 +1220,7 @@
       e.preventDefault(); e.stopPropagation();
       if (S.edit && e.altKey) { moveFocused(...arrows[e.key]); return; }
       const next = neighbour(item.dataset.item, ...arrows[e.key]);
-      if (e.key === "ArrowUp" && next === item.dataset.item) { Q.setInput(Q.getInput()); return; }   // top row ↑ → the input
+      if (e.key === "ArrowUp" && next === item.dataset.item) { Q.setInput(Q.getInput()); return; }
       focusItem(next);
       return;
     }
@@ -1282,10 +1240,10 @@
       if (target) { e.preventDefault(); e.stopPropagation(); runAction(target.ref, true); }
       return;
     }
-    // any other printable key types into the question: the input never stops working
+
     if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey && e.key !== " ") { e.preventDefault(); Q.setInput(Q.getInput() + e.key); }
   }
-  /** The buttons' global combos are released while a combo is captured (Windows would take the press first). */
+
   function suspendHotkeys(on) {
     if (!(S.data && S.data.actions || []).some((a) => a.global)) return;
     Q.api("/api/quick/canvas/hotkeys", { body: { suspend: on } }).catch(() => {});
@@ -1310,16 +1268,15 @@
     if (mod && !e.shiftKey && !e.altKey && e.code === "KeyE" && S.screen && S.view !== "editor") { e.preventDefault(); arrange(); return; }
     if (mod && !e.shiftKey && !e.altKey && e.code === "KeyE" && S.open && S.view === "grid") { e.preventDefault(); setEdit(!S.edit); return; }
     if (e.repeat || settings().actions === false) return;
-    if (e.getModifierState && e.getModifierState("AltGraph")) return;   // AltGr (= Ctrl+Alt) types characters on many layouts
+    if (e.getModifierState && e.getModifierState("AltGraph")) return;
     const combo = comboOf(e);
     if (!combo || (!mod && !e.altKey && !/^F\d/.test(combo.split("+").pop()))) return;
-    if (S.view === "editor") return;                    // typing in the editor never fires a button
+    if (S.view === "editor") return;
     for (const a of (S.data.actions || [])) {
       if (a.hotkey && a.hotkey === combo) { e.preventDefault(); e.stopPropagation(); runAction(a.id, true); return; }
     }
   }
 
-  /* ------------------------------------------------------------ pointer: click, long press, drag, resize */
   function gridPoint(e) {
     const grid = el.querySelector(".qcv-grid");
     const r = grid.getBoundingClientRect();
@@ -1333,10 +1290,10 @@
     if (!node || e.target.closest("[data-item-act='remove'], [data-item-act='settings']")) return;
     const resize = !!e.target.closest("[data-item-act='resize']");
     if (!S.edit && !resize) {
-      // long press → edit mode and drag (buttons only; panels have their own controls)
+
       if (e.target.closest(".mp-card button, .mp-card input, .mp-card textarea, .mp-card a, .mp-card label")) return;
       S.press = { node, id: node.dataset.item, x: e.clientX, y: e.clientY, timer: setTimeout(() => {
-        S.press = null; S.longPress = true;          // the release of a long press is not a click
+        S.press = null; S.longPress = true;
         setEdit(true); startDrag(node.dataset.item, e, false);
       }, 480) };
       return;
@@ -1355,7 +1312,7 @@
     node.classList.add(resize ? "qcv-resizing" : "qcv-dragging");
     S.focusId = id;
     node.focus({ preventScroll: true });
-    try { node.setPointerCapture(e.pointerId); } catch (err) { /* synthetic */ }
+    try { node.setPointerCapture(e.pointerId); } catch (err) {  }
     let ph = p.grid.querySelector(".qcv-ph");
     if (!ph) { ph = document.createElement("div"); ph.className = "qcv-ph"; p.grid.appendChild(ph); }
     placeholder(S.drag.target);
@@ -1368,7 +1325,7 @@
   }
   function onPointerMove(e) {
     if (S.press) {
-      // Round 29: hold the left button and move (5 px) — the item follows at once, no arrange mode needed
+
       if (Math.abs(e.clientX - S.press.x) + Math.abs(e.clientY - S.press.y) >= 5) {
         const press = S.press;
         clearTimeout(press.timer); S.press = null;
@@ -1405,7 +1362,7 @@
     if (tg.x === d.target.x && tg.y === d.target.y && tg.w === d.target.w && tg.h === d.target.h) return;
     d.target = tg;
     placeholder(tg);
-    // live reflow of the others (animated by CSS transitions on left/top)
+
     const next = placeAt(d.layout, d.origin, tg.x, tg.y, tg.w, tg.h);
     for (const it of next) {
       if (it.id === d.id) continue;
@@ -1427,8 +1384,7 @@
     if (d.moved || S.longPress) S.suppressClickUntil = performance.now() + 250;
     S.longPress = false;
     if (d.moved) {
-      // what the user sees becomes the stored layout (in a narrow window — the derived one); items that are not
-      // shown (a panel MemuAI does not have right now) keep their order below everything
+
       let next = placeAt(d.layout, d.origin, d.target.x, d.target.y, d.target.w, d.target.h);
       if (S.cols < COLS) next = keepStoredSizes(next, d.id);
       const bottom = next.reduce((m, i) => Math.max(m, i.y + i.h), 0);
@@ -1439,7 +1395,6 @@
     render();
   }
 
-  /* ------------------------------------------------------------ clicks */
   function onClick(e) {
     if (S.suppressClickUntil && performance.now() < S.suppressClickUntil) { e.preventDefault(); e.stopPropagation(); return; }
     const t0 = e.target;
@@ -1519,7 +1474,6 @@
     if (item && S.edit && item.dataset.type === "action") { const it = S.layout.find((i) => i.id === item.dataset.item); const a = it && actionsById().get(it.ref); if (a) openEditor(a); }
   }
 
-  /* ------------------------------------------------------------ wiring */
   function bind() {
     el.addEventListener("click", onClick);
     el.addEventListener("keydown", onHostKey);
@@ -1528,7 +1482,7 @@
     el.addEventListener("pointerup", onPointerUp);
     el.addEventListener("pointercancel", onPointerUp);
     el.addEventListener("contextmenu", (e) => {
-      // Round 29: a live card may have re-rendered under the pointer (detached target) — use the press / the point
+
       let node = e.target.isConnected ? e.target.closest(".qcv-item") : null;
       if (!node && S.down && performance.now() - S.down.at < 3000) node = el.querySelector(`.qcv-item[data-item="${CSS.escape(S.down.id)}"]`);
       if (!node) { const under = document.elementFromPoint(e.clientX, e.clientY); node = under && under.closest ? under.closest(".qcv-item") : null; }
@@ -1536,7 +1490,7 @@
       e.preventDefault();
       openItemMenu(node.dataset.item, node, { x: e.clientX, y: e.clientY });
     });
-    // text fields as you type; selects, checkboxes, files and colours on «change» (re-rendering under an open colour picker closes it)
+
     el.addEventListener("input", (e) => { if (S.view === "editor" && e.target.dataset.f && !["checkbox", "color", "file"].includes(e.target.type) && e.target.tagName !== "SELECT") editorInput(e.target, false); });
     el.addEventListener("change", (e) => { if (S.view === "editor" && e.target.dataset.f && (e.target.tagName === "SELECT" || e.target.type === "checkbox" || e.target.type === "file" || e.target.type === "color")) editorInput(e.target, false); });
     el.addEventListener("focusin", (e) => {
@@ -1546,7 +1500,7 @@
     });
     document.addEventListener("keydown", onDocKey);
     document.addEventListener("keydown", onCaptureKey, true);
-    // grid columns follow the window width
+
     if (typeof ResizeObserver === "function") {
       let raf = 0, lastW = 0;
       new ResizeObserver(() => {
@@ -1557,7 +1511,7 @@
         raf = requestAnimationFrame(() => { if (S.open && S.view === "grid" && !S.drag && !(S.screen && visibleItems().length)) { renderGrid(el.querySelector(".qcv-view")); Q.resize(); } });
       }).observe(el);
     }
-    // panels.js editor modal: the window grows to its maximum height while the modal is open
+
     new MutationObserver(() => {
       const modal = document.querySelector(".mp-modal-back");
       if (modal) root.setAttribute("data-qcv-modal", ""); else root.removeAttribute("data-qcv-modal");
@@ -1575,16 +1529,16 @@
     const st = settings();
     if (first || (ev && ev.fresh)) {
       const mode = st.open_mode || "input";
-      // screen mode: the items are on the screen; the window body opens only for Add / the editor / approvals
+
       S.open = !S.screen && st.enabled && (mode === "canvas" || (mode === "last" && !!(S.data.ui && S.data.ui.open)));
     }
     render();
-    // panels only after the window is on screen (and only when they are needed)
+
     if (st.enabled && st.panels && ((S.open && !S.screen) || visibleItems().some((i) => i.type === "panel" && i.pinned))) {
       setTimeout(() => ensurePanels().then(() => { renderPanels(); renderStrip(); }), 60);
     }
   });
-  // hidden window: hide the cards too, so panels.js stops its live polling (PC load, timers) until the next open
+
   Q.on("close", () => { closeItemMenu(); S.edit = false; if (S.editor && S.editor.capturing) { S.editor.capturing = false; suspendHotkeys(false); } Q.hidePanel("canvas"); });
   Q.on("answer-start", () => {
     S.inChat = true;
@@ -1593,7 +1547,7 @@
   });
   Q.on("chat-new", () => { S.inChat = false; render(); });
   Q.on("chat-open", () => { S.inChat = true; render(); });
-  // Round 30: the footer button (next to the mic) — shows/hides the panels; pressed while they are shown
+
   panelsButton = typeof Q.addComposerButton === "function" ? Q.addComposerButton({
     id: "canvas", order: 4, icon: UI.grid, menu: false,
     label: () => t("Панели", "Panels"),
@@ -1628,11 +1582,10 @@
     run: () => openEditor(null),
   });
 
-  /* ------------------------------------------------------------ Round 28: messages from the screen layer */
   function onBus() {
     const B = bus();
     if (!B) return;
-    B.on("run", (d) => { if (d && d.id) runAction(String(d.id), true); });            // the layer's own 300 ms guard ran already
+    B.on("run", (d) => { if (d && d.id) runAction(String(d.id), true); });
     B.on("edit-button", (d) => { const a = d && actionsById().get(String(d.id)); if (a) openEditor(a); });
     B.on("new-button", () => openEditor(null));
     B.on("add", () => { S.view = "add"; setOpen(true, { save: false }); });
@@ -1640,7 +1593,7 @@
     B.on("ask", (d) => { if (d && d.prompt) { try { Q.send(String(d.prompt)); } catch (e) { Q.toast(e.message, "error"); } } });
     B.on("layer-state", (d) => { if (d) { S.layer = { ...S.layer, visible: !!d.visible, edit: !!d.edit, shown: d.shown, hidden: d.hidden }; render(); } });
   }
-  /** Pushed by app/quick_ask.py after it showed / hid the layer for this opening. */
+
   function layerState(st) {
     if (!st) return;
     S.layer = { ...S.layer, ...st };
@@ -1649,6 +1602,6 @@
   }
 
   iconsReady.then(() => { bind(); onBus(); load().then(render); });
-  // test hooks (tests/round27_quick_canvas_shots.py)
+
   window.MemuQuickCanvas = { state: () => S, load, render, setOpen, setEdit, openEditor, runAction, derive, placeAt, visibleItems, ensurePanels, layerState, toggle };
 })();

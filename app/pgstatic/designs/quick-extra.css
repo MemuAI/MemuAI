@@ -1,12 +1,3 @@
-/* =====================================================================
-   Round24: the Quick Ask window (/quick/) in the designs added in Round24
-   (Мягкий / soft, Терминал / terminal, Брутализм / brutal). quick.css
-   styles classic/aurora/focus/grid/glass itself; these rules follow the
-   same pattern (accents and shapes only, never the layout). Linked from
-   quick/index.html after quick.css.
-   ===================================================================== */
-
-/* --------------------------------------------------------- soft */
 :root[data-design="soft"] {
   --qa-radius: 28px;
   --qa-surface: color-mix(in srgb, var(--panel) 90%, var(--accent));
@@ -20,8 +11,6 @@
 :root[data-design="soft"] .qa-send:disabled, :root[data-design="soft"] .qa-card[data-busy="1"] .qa-send { background: var(--qa-chip); color: var(--muted); }
 :root[data-design="soft"] .qa-orb { border-radius: 14px; }
 :root[data-design="soft"] :is(.qa-thumb, .qa-tip, .code-block-wrap) { border-radius: 18px; }
-
-/* ----------------------------------------------------- terminal */
 :root[data-design="terminal"] {
   --qa-radius: 3px;
   --qa-surface: color-mix(in srgb, color-mix(in srgb, var(--panel) 78%, #000) 93%, var(--accent));
@@ -39,8 +28,6 @@
 :root[data-design="terminal"] .qa-send:disabled, :root[data-design="terminal"] .qa-card[data-busy="1"] .qa-send { background: var(--qa-chip); color: var(--muted); }
 :root[data-design="terminal"] .qa-row.active { box-shadow: inset 2px 0 0 var(--accent); }
 :root[data-design="terminal"] .qa-section { text-transform: uppercase; letter-spacing: .1em; font-size: 10.5px; }
-
-/* -------------------------------------------------------- brutal */
 :root[data-design="brutal"] {
   --qa-radius: 14px;
   --qa-line: color-mix(in srgb, var(--text) 92%, transparent);

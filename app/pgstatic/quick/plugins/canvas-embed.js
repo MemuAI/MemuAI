@@ -1,12 +1,5 @@
-/* Round 30 — MemuAI panels built into the Quick Access window itself (plugin "canvas-embed", data: app/quick_panel_look.py).
 
-   embed.place: «above» (over the input), «below» (under the input, before the canvas strip) or «side» (a column on
-   the right of the window; a window narrower than 560 px shows it below instead). embed.items — the user's order,
-   a hidden item keeps its place. Each tile has the panel's effective look (MemuPanelLook: global → embed.style → the
-   panel's own). Right click / Shift+F10 / the context-menu key on a tile: look, copy the value, refresh, move left /
-   right, hide from the window. Above / below the section folds away while an answer is on screen (the canvas
-   setting «fold on answer»); the side column stays. Panels are pgstatic/panels.js (embed mode), shared with the
-   canvas plugin: the data, refresh and live updates are the same. */
+
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -15,10 +8,10 @@
   const t = (ru, en) => Q.t(ru, en);
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const NARROW = 560;
-  const SIDE_MAX = 560;              // without a known window maximum
+  const SIDE_MAX = 560;
   const S = { open: false, inChat: false, place: "off", lookLoaded: null, menu: null, html: "" };
-  let box = null;           // the section element (moved between the three places)
-  let slotEl = null;        // the «below» host (a MemuQuick panel in the top slot)
+  let box = null;
+  let slotEl = null;
 
   const C = () => window.MemuQuickCanvas || null;
   const doc = () => { const c = C(); return c && c.state ? c.state().data : null; };
@@ -90,8 +83,7 @@
     const items = wanted();
     const place = placeNow();
     const showFlow = !(S.inChat && d && d.settings && d.settings.collapse_on_answer !== false);
-    // while a panel's text is being edited in the window, the row above / below the input steps aside (the editor has
-    // its own live preview at the tile's size) so the window does not outgrow its maximum height
+
     const editing = !!S.textRef && place !== "side";
     const visible = S.open && items.length && place !== "off" && (place === "side" || showFlow) && !editing
       && window.MemuPanels && window.MemuPanelLook;
@@ -122,7 +114,7 @@
     watchSizes();
     Q.resize();
   }
-  /** The window grows to show the whole side column, up to its own maximum height (then the column scrolls). */
+
   function sideFit() {
     if (!box || box.hidden || box.dataset.place !== "side") return false;
     const cap = parseFloat(getComputedStyle(root).getPropertyValue("--qa-max-h")) || SIDE_MAX;
@@ -135,8 +127,7 @@
     root.style.setProperty("--qpe-side-min", need + "px");
     return was !== need + "px";
   }
-  // Round 32: a tile can change its height after it was drawn (a web font arrives, the text templates load, a live
-  // value gets longer): the side column is measured again and the window follows, instead of cutting the last tile.
+
   let sizeObs = null, sizeRaf = 0;
   function watchSizes() {
     if (typeof ResizeObserver !== "function" || !box) return;
@@ -149,7 +140,6 @@
   }
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { if (S.open) { if (sideFit()) Q.resize(); } });
 
-  /* ---------- the tile menu */
   function tileOf(target) { return target && target.closest ? target.closest(".qpe-tile") : null; }
   function onContext(e) {
     const tile = tileOf(e.target);
@@ -177,7 +167,7 @@
     const items = [{ type: "head", label: panel.title || t("Панель", "Panel"), sub: t("В окне быстрого доступа", "In the Quick Access window"), icon: "grid" },
       MemuPanelLook.menuSeg(look)];
     if (d.looks && d.looks[ref]) items.push({ id: "look-reset", label: t("Вид как у всех панелей", "Look like all panels"), icon: "reset" });
-    // Round 32: the «text» look is a template the user writes: values as placeholders, placed anywhere in the panel
+
     items.push({ id: "text-edit", label: look.style === "text" ? t("Изменить текст…", "Edit the text…") : t("Сделать текстом…", "Make it text…"), icon: "edit" });
     items.push({ type: "sep" }, { id: "copy", label: t("Копировать значение", "Copy the value"), icon: "copy" });
     if (!["todo", "notes", "clock", "timers"].includes(panel.kind)) items.push({ id: "refresh", label: t("Обновить сейчас", "Refresh now"), icon: "refresh" });
@@ -227,7 +217,6 @@
     }
   }
 
-  /* ---------- Round 32: the text template editor (panel-text-editor.js) as a panel of the window */
   let textEl = null, textEd = null;
   const TEXT_V = "?v=1.1-r34";
   function ensureTextEditor() {
@@ -276,10 +265,9 @@
     if (was) render(); else Q.resize();
   }
   Q.registerPanel("panel-text-edit", (el) => { textEl = el; el.classList.add("qpt-host", "pte-host"); return {}; }, { slot: "top", order: 5, hidden: true });
-  // the text templates arrive after panel-look.js (it loads them): draw the tiles again with real text
-  window.addEventListener("memu-panel-text", () => { S.html = ""; if (S.open) render(); const c = C(); if (c && c.render) try { c.render(); } catch (e) { /* canvas */ } });
 
-  /* ---------- wiring */
+  window.addEventListener("memu-panel-text", () => { S.html = ""; if (S.open) render(); const c = C(); if (c && c.render) try { c.render(); } catch (e) {  } });
+
   Q.registerPanel("canvas-embed", (el) => { slotEl = el; el.classList.add("qpe-host"); return {}; }, { slot: "top", order: 4, hidden: true });
 
   async function refresh() {
@@ -297,9 +285,9 @@
   window.addEventListener("resize", () => { if (S.open) render(); });
   if (window.MemuQuickBus) MemuQuickBus.on("changed", () => setTimeout(refresh, 150));
   let syncRaf = 0;
-  /** Called by canvas.js after each of its renders (its data may have been reloaded). */
+
   function sync() { cancelAnimationFrame(syncRaf); syncRaf = requestAnimationFrame(() => { if (S.open) refresh(); }); }
-  // The plugins load after the page: when the window is already on screen, «open» has been missed.
+
   if (Q.state().shown) { S.open = true; S.inChat = !!((Q.state().turns || []).length); setTimeout(refresh, 80); }
   window.MemuQuickEmbed = { render, refresh, sync, state: () => S, openText, closeText };
 })();

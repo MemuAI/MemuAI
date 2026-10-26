@@ -34,15 +34,11 @@ MAX_BODY = 32 * 1024 * 1024
 SMALL_BODY = 1024 * 1024
 STREAM_SEGMENT = 22.0
 
-# Sign-ins: a generous cap on every attempt (signature checks are cheap) and a strict one on FAILED
-# attempts — only failures can be guessing. (The failure counter used to be counted but never checked,
-# while successful sign-ins of the app itself used up the strict cap.)
 auth_limiter = tg_webapp.RateLimiter(60, 60)
 auth_failures = tg_webapp.RateLimiter(12, 60)
 api_limiter = tg_webapp.RateLimiter(600, 60)
 pin_limiter = tg_webapp.RateLimiter(6, 300)
 send_limiter = tg_webapp.RateLimiter(40, 60)
-
 
 class ApiError(Exception):
     """``message`` is Russian; ``en`` is its English twin — the response picks the Mini App's language
@@ -57,23 +53,19 @@ class ApiError(Exception):
         if self.en and self.en != message:
             try:
                 message = _t(prefs if prefs is not None else _prefs(), message, self.en)
-            except Exception:       # unreadable preferences: the Russian text is still an answer
+            except Exception:
                 pass
         return {"error": message, "code": self.code}
-
 
 def _lang(prefs: Dict[str, Any]) -> str:
     return "en" if prefs.get("language") == "en" else "ru"
 
-
 def _t(prefs: Dict[str, Any], ru: str, en: str) -> str:
     return en if _lang(prefs) == "en" else ru
-
 
 def _prefs() -> Dict[str, Any]:
     from .pgdata import load_preferences
     return load_preferences()
-
 
 async def _read_json(request: Request, limit: int = SMALL_BODY) -> Dict[str, Any]:
     declared = request.headers.get("content-length")
@@ -94,31 +86,23 @@ async def _read_json(request: Request, limit: int = SMALL_BODY) -> Dict[str, Any
         raise ApiError(400, "bad_json", "Ожидается JSON-объект", "A JSON object is expected")
     return data
 
-
 def _client_key(request: Request) -> str:
-    # Behind the tunnel every request comes from 127.0.0.1; Cloudflare adds the visitor address.
+
     return (request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "?"))[:64]
-
-
-# --------------------------------------------------------------------------- settings schema
 
 def _accent_options() -> List[str]:
     from . import themes
     return list(themes.ACCENTS.keys())
-
 
 def _variant_options(mode: str) -> List[str]:
     from . import themes
     return [""] + [row["id"] for row in themes.VARIANTS[mode]] + [
         "custom:" + row["id"] for row in themes.list_custom() if row.get("base") == mode]
 
-
 def _design_options() -> List[str]:
     from . import themes
     return [row["id"] for row in themes.DESIGNS]
 
-
-# key, type, options/range; labels live in the front end (app/tgapp/app.js, SETTINGS).
 SETTINGS: Dict[str, Dict[str, Any]] = {
     "language": {"type": "enum", "options": ["ru", "en"]},
     "theme": {"type": "enum", "options": ["dark", "light"]},
@@ -167,7 +151,6 @@ SETTINGS: Dict[str, Dict[str, Any]] = {
     "updates_enabled": {"type": "bool"},
 }
 
-
 def validate_settings(values: Dict[str, Any], prefs: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(values, dict) or not values:
         raise ApiError(400, "no_values", "Нет изменений", "Nothing to change")
@@ -211,11 +194,10 @@ def validate_settings(values: Dict[str, Any], prefs: Dict[str, Any]) -> Dict[str
         clean["hidden_models"] = hidden
     return clean
 
-
 def public_settings(prefs: Dict[str, Any]) -> Dict[str, Any]:
     out = {key: prefs.get(key) for key in SETTINGS}
     try:
-        # The computer shows the active profile's name/bio: show the same here.
+
         from .pgdata import load_profiles
         state = load_profiles()
         active = next((item for item in state.get("items") or []
@@ -226,7 +208,6 @@ def public_settings(prefs: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         pass
     return out
-
 
 def _sync_active_profile(clean: Dict[str, Any]) -> None:
     from .pgdata import load_profiles, save_profiles
@@ -242,9 +223,6 @@ def _sync_active_profile(clean: Dict[str, Any]) -> None:
                 row["bio"] = str(clean["profile_bio"])[:1000]
         items.append(row)
     save_profiles({"items": items, "active_id": active})
-
-
-# --------------------------------------------------------------------------- appearance
 
 def appearance(prefs: Dict[str, Any]) -> Dict[str, Any]:
     from . import themes
@@ -263,15 +241,13 @@ def appearance(prefs: Dict[str, Any]) -> Dict[str, Any]:
             "compact": bool(prefs.get("compact_messages")), "reduce_motion": bool(prefs.get("reduce_motion")),
             "tokens": tokens}
 
-
 def theme_catalog(lang: str) -> Dict[str, Any]:
     from . import themes
     name = "en" if lang == "en" else "ru"
     return {
         "accents": [{"id": key, "name": row[name], "dark": row["dark"], "light": row["light"]}
                     for key, row in themes.ACCENTS.items()],
-        # The built-in list starts with the default variant (id "") — no extra «MemuAI» entry: with one the
-        # default palette showed twice and both cards were highlighted.
+
         "variants": {mode: [{"id": row["id"], "name": row[name],
                          "bg": themes.variant_tokens(mode, row["id"]).get("--bg", ""),
                          "panel": themes.variant_tokens(mode, row["id"]).get("--panel", "")}
@@ -282,15 +258,11 @@ def theme_catalog(lang: str) -> Dict[str, Any]:
         "designs": [{"id": row["id"], "name": row[name], "note": row["note_" + name]} for row in themes.DESIGNS],
     }
 
-
-# --------------------------------------------------------------------------- chats
-
 _MD_FENCE = re.compile(r"```[^\n]*\n?([\s\S]*?)(?:```|$)")
 _MD_LINK = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
 _MD_LINE = re.compile(r"^\s{0,3}(?:#{1,6}\s+|>\s?|[-*+]\s+(?:\[[ xX]\]\s+)?|\d{1,3}[.)]\s+)", re.M)
 _MD_TABLE_RULE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(?:\|\s*:?-{2,}:?\s*)*\|?\s*$", re.M)
 _MD_EMPH = re.compile(r"(\*\*|~~|\*|`)(?=\S)([^*`~\n]+?)(?<=\S)\1|(?<!\w)(__|_)(?=\S)([^_\n]+?)(?<=\S)\3(?!\w)")
-
 
 def plain_snippet(text: str, limit: int = 140) -> str:
     """A chat-list preview: Markdown markup removed, code blocks shown as their first line."""
@@ -304,7 +276,6 @@ def plain_snippet(text: str, limit: int = 140) -> str:
     value = value.replace("|", " ").replace("`", "")
     value = " ".join(value.split())
     return value if len(value) <= limit else value[:limit - 1].rstrip() + "…"
-
 
 def _chat_summary(chat: Dict[str, Any], memes: Dict[str, str]) -> Dict[str, Any]:
     messages = [row for row in chat.get("messages") or [] if isinstance(row, dict)]
@@ -321,7 +292,6 @@ def _chat_summary(chat: Dict[str, Any], memes: Dict[str, str]) -> Dict[str, Any]
             "telegram": bool(chat.get("telegram")) or str(chat.get("id", "")).startswith(("tg-", "tga-")),
             "model": str(chat.get("model") or "")}
 
-
 def _message_out(row: Dict[str, Any], index: int) -> Dict[str, Any]:
     out = {"i": index, "role": row.get("role"), "content": str(row.get("content") or ""),
            "createdAt": row.get("createdAt"), "model": row.get("model") or "",
@@ -334,7 +304,7 @@ def _message_out(row: Dict[str, Any], index: int) -> Dict[str, Any]:
             out["sources"] = row.get("sources")[:12]
         if row.get("stopped"):
             out["stopped"] = True
-        if isinstance(row.get("askForms"), list):   # Round 35 (askuser): answered forms of this answer
+        if isinstance(row.get("askForms"), list):
             out["askForms"] = [f for f in row["askForms"][:4] if isinstance(f, dict) and f.get("status") != "pending"]
     attachments = []
     for item in row.get("attachments") or []:
@@ -348,10 +318,9 @@ def _message_out(row: Dict[str, Any], index: int) -> Dict[str, Any]:
     if attachments:
         out["attachments"] = attachments
     if row.get("role") == "assistant" and (row.get("media") or row.get("images") or row.get("videos")):
-        from . import telegram_media_gen   # Round 29 (r29c-media): generated pictures and videos
+        from . import telegram_media_gen
         out.update(telegram_media_gen.app_media_out(row))
     return out
-
 
 def _find_chat(profile_id: str, chat_id: str) -> Dict[str, Any]:
     from .pgdata import load_chats
@@ -359,9 +328,6 @@ def _find_chat(profile_id: str, chat_id: str) -> Dict[str, Any]:
     if chat is None:
         raise ApiError(404, "not_found", "Чат не найден", "Chat not found")
     return chat
-
-
-# --------------------------------------------------------------------------- app
 
 def create_tgapp() -> FastAPI:
     app = FastAPI(title="MemuAI Mini App", docs_url=None, redoc_url=None, openapi_url=None)
@@ -383,7 +349,7 @@ def create_tgapp() -> FastAPI:
         response.headers.setdefault("Referrer-Policy", "no-referrer")
         response.headers.setdefault("Cache-Control", "no-store")
         if request.url.path.startswith("/tgapp/m/"):
-            return response                            # module documents carry their own policy
+            return response
         response.headers.setdefault(
             "Content-Security-Policy",
             "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; "
@@ -392,7 +358,6 @@ def create_tgapp() -> FastAPI:
             "frame-ancestors 'self' https://web.telegram.org https://*.telegram.org")
         return response
 
-    # ------------------------------------------------------------------ auth
     def session_of(request: Request) -> Dict[str, Any]:
         header = request.headers.get("authorization", "")
         token = header[7:].strip() if header.lower().startswith("bearer ") else ""
@@ -482,7 +447,6 @@ def create_tgapp() -> FastAPI:
             log.exception("tgapp %s failed", name)
             return JSONResponse({"error": f"{type(exc).__name__}: {str(exc)[:300]}", "code": "internal"}, 500)
 
-    # ------------------------------------------------------------------ bootstrap
     def profile_id_of(ctx: Dict[str, Any], body: Dict[str, Any]) -> str:
         """The Mini App works in the desktop's active profile unless a PIN-checked switch was made."""
         active, items = tchat.profiles()
@@ -516,7 +480,7 @@ def create_tgapp() -> FastAPI:
                          for item in items],
             "profile_id": profile_id,
             "features": {"code": bool(ctx["config"].get("code_control")), "modules": True, "live": False,
-                         # Round 29: code host (slash commands, new sessions, files), voice, browser sign-in.
+
                          "code_host": bool(ctx["config"].get("code_control")), "files": True, "search": True,
                          "schedules": True, "prompts": True, "edit": True,
                          "web_login": ctx["config"].get("web_login") is not False,
@@ -528,7 +492,7 @@ def create_tgapp() -> FastAPI:
         try:
             from . import telegram_voice
             return telegram_voice.status(prefs, lang=lang)
-        except Exception as exc:     # the Mini App still opens; the microphone button explains
+        except Exception as exc:
             return {"available": False, "reason": "error", "message": str(exc)[:200]}
 
     def _meme_out(row: Dict[str, Any]) -> Dict[str, Any]:
@@ -554,7 +518,6 @@ def create_tgapp() -> FastAPI:
         token, expires = tg_webapp.issue_token(ctx["user"], ctx["config"]["secret"], extra=wanted)
         return {"ok": True, "profile_id": wanted, "token": token, "expires": expires}
 
-    # ------------------------------------------------------------------ chats
     @op("chats.list")
     async def chats_list(ctx, body):
         from .pgdata import chats_revision, load_chats
@@ -589,7 +552,7 @@ def create_tgapp() -> FastAPI:
         job = tchat.jobs.active_for_chat(str(chat.get("id")))
         if chat.get("unread"):
             await asyncio.to_thread(_patch_chat, profile_id, str(chat["id"]), {"unread": False}, False)
-        # Round 35 (branches): only the active branch is sent; messages with other versions carry «versions».
+
         from . import chat_tree
         versions = chat_tree.info(chat)
         out_rows = []
@@ -663,7 +626,7 @@ def create_tgapp() -> FastAPI:
             raise ApiError(429, "rate_limited", _t(ctx["prefs"], "Слишком часто — подождите",
                                                    "Too often — please wait"))
         prefs = ctx["prefs"]
-        # «Время и фокус» applies here too (telegram_focus.py): quiet hours ask once per window.
+
         focus_lang = {"telegram_language": _lang(prefs)}
         window = telegram_focus.quiet_pending("app:" + ctx["user"], prefs)
         if window:
@@ -672,7 +635,7 @@ def create_tgapp() -> FastAPI:
                     prefs, f"Сейчас ваши тихие часы — до {window['until']} вы решили оставить время для другого. Отправить всё равно?",
                     f"These are your quiet hours — you set aside the time until {window['until']} for something else. Send anyway?"))
             telegram_focus.acknowledge("app:" + ctx["user"], window["ends_at"])
-        try:   # Round 29 (r29c-media): fresh image/video model lists for the prompt and /image, /video
+        try:
             from . import telegram_media_gen
             await telegram_media_gen.media_models()
         except Exception:
@@ -714,7 +677,6 @@ def create_tgapp() -> FastAPI:
         await telegram_focus.break_action(kind)
         return {"ok": True}
 
-    # ------------------------------------------------------------------ jobs
     def job_of(ctx, body) -> tchat.Job:
         job = tchat.jobs.get(str(body.get("job") or ""), ctx["user"])
         if job is None:
@@ -770,7 +732,6 @@ def create_tgapp() -> FastAPI:
             raise ApiError(404, "not_found", "Вопрос не найден", "Question not found")
         return {"ok": not errors, "errors": errors, "status": record.get("status")}
 
-    # ------------------------------------------------------------------ folders
     @op("folders.save")
     async def folders_save(ctx, body):
         from .pgdata import save_preferences
@@ -805,7 +766,6 @@ def create_tgapp() -> FastAPI:
                 await asyncio.to_thread(merge_chats_partial, changed, [], profile_id)
         return {"folders": saved.get("chat_folders") or []}
 
-    # ------------------------------------------------------------------ memes
     @op("memes.save")
     async def memes_save(ctx, body):
         from .pgdata import load_preferences, save_preferences
@@ -851,7 +811,6 @@ def create_tgapp() -> FastAPI:
             raise ApiError(502, "bad_answer", "Модель не вернула настройки мемеса", "The model returned no agent settings") from None
         return {"meme": _meme_out(draft)}
 
-    # ------------------------------------------------------------------ settings & memory
     @op("settings.get")
     async def settings_get(ctx, body):
         prefs = ctx["prefs"]
@@ -865,16 +824,14 @@ def create_tgapp() -> FastAPI:
         clean = validate_settings(body.get("values") or {}, prefs)
         saved = await asyncio.to_thread(save_preferences, clean)
         if "language" in clean and clean["language"] != _lang(prefs):
-            # Round 27: panel titles and walls («Погода», «Укажите город…») follow the panels' own language,
-            # which only the desktop window used to post — after switching the Mini App to English they stayed Russian.
+
             from . import panels
             try:
                 await asyncio.to_thread(panels.update_settings, {"lang": clean["language"]})
-            except Exception as exc:  # the language itself is saved; the panels catch up when the window opens
+            except Exception as exc:
                 log.warning("panels language sync failed: %s", exc)
         if "profile_name" in clean or "profile_bio" in clean:
-            # Round 21: MemuAI on the computer shows the *profile* name/bio
-            # (profiles.json); the preference alone changed nothing there.
+
             await asyncio.to_thread(_sync_active_profile, clean)
         return {"settings": public_settings(saved), "appearance": appearance(saved)}
 
@@ -882,7 +839,7 @@ def create_tgapp() -> FastAPI:
     async def memory_get(ctx, body):
         profile = tchat.profile_by_id(profile_id_of(ctx, body))
         active, _ = tchat.profiles()
-        # Round 29: memory v2 — structured facts (source, confidence, scope, pending…) for a richer Mini App view
+
         from .tgapp_extras import memory_reply
         return await asyncio.to_thread(memory_reply, profile, active)
 
@@ -905,7 +862,7 @@ def create_tgapp() -> FastAPI:
                 data["enabled"] = enabled
             return True, data
 
-        try:   # Round 29: memory v2 — removals by text or by id, the rest of the document is kept
+        try:
             from . import memory_v2
 
             def change_v2(doc):
@@ -922,7 +879,6 @@ def create_tgapp() -> FastAPI:
         from .tgapp_extras import memory_reply
         return await asyncio.to_thread(memory_reply, profile, active)
 
-    # ------------------------------------------------------------------ modules
     def _module_root():
         from .modules_host import default_root
         return default_root()
@@ -1121,7 +1077,6 @@ def create_tgapp() -> FastAPI:
         job.task = asyncio.ensure_future(run())
         return {"job": job.id}
 
-    # ------------------------------------------------------------------ MemuCode
     def require_code(ctx) -> None:
         if not ctx["config"].get("code_control"):
             raise ApiError(403, "code_disabled", _t(ctx["prefs"], "Управление MemuCode выключено в настройках MemuAI",
@@ -1149,8 +1104,7 @@ def create_tgapp() -> FastAPI:
         """Streamed segment: new transcript items and live-state changes of one session."""
         require_code(ctx)
         session_id = str(body.get("session_id") or "")
-        # Round 29: a terminal (or a phone host) given by ``rc`` is followed across /clear, /resume and the
-        # first message of a new session — its session id changes, the phone switches with it.
+
         rc = str(body.get("rc") or "")
         if rc:
             state = await asyncio.to_thread(tcode.live_state, rc)
@@ -1238,29 +1192,23 @@ def create_tgapp() -> FastAPI:
             raise ApiError(400, "bad_request", "Пустой или слишком длинный запрос", "The request is empty or too long") from None
         return {"job": job.id}
 
-    # ------------------------------------------------------------------ Round 29: MemuCode host, files, extras
     from . import tgapp_code_api, tgapp_extras
     tgapp_code_api.register(op, ApiError, require_code, _t, _lang)
     public_routes.update(tgapp_extras.register(op, ApiError, t=_t, lang_of=_lang, profile_id_of=profile_id_of,
                                                client_key=_client_key))
 
-    # ------------------------------------------------------------------ panels (Round 24)
     from . import telegram_panels
     telegram_panels.register_tgapp_ops(op, ApiError)
 
-    # ------------------------------------------------------------------ Round 37 (plan-2): Planning conditions on the phone
     from . import schedule_tgapp_ops
     schedule_tgapp_ops.register_tgapp_ops(op, ApiError)
 
-    # ------------------------------------------------------------------ Round 37: MemuMusic (music.*, /tgapp/music/*)
     from .music import tgapp_ops as music_tgapp_ops
     music_tgapp_ops.register_tgapp_ops(op, ApiError, app=app)
 
-    # ------------------------------------------------------------------ Round 40 (r40-learn): MemuLearn «Тренажёр» (learn.*)
     from .learn import tgapp_ops as learn_tgapp_ops
     learn_tgapp_ops.register_tgapp_ops(op, ApiError)
 
-    # ------------------------------------------------------------------ static
     static_root = tg_webapp.STATIC_DIR.resolve()
 
     @app.get("/tgapp", include_in_schema=False)
@@ -1273,16 +1221,13 @@ def create_tgapp() -> FastAPI:
 
     @app.get("/tgapp/healthz", include_in_schema=False)
     async def healthz():
-        # Round 21: the manager calls this over the PUBLIC address before it
-        # gives the address to Telegram; the nonce proves it reached us.
+
         return {"ok": True, "app": "memuai-tgapp", "nonce": tg_webapp.instance_nonce()}
 
-    # r30: the /image /video chip of the message box is the main window's own (pgstatic/cmd-highlight.*), shared
-    # so both look and behave the same; only these two files are reachable from here.
     shared_root = Path(__file__).parent / "pgstatic"
     shared_files = {"cmd-highlight.js": "text/javascript", "cmd-highlight.css": "text/css",
-                    "memu-keys.js": "text/javascript",   # r33: shortcuts in any keyboard layout
-                    "askuser.js": "text/javascript", "askuser.css": "text/css"}   # Round 35: the ask_user form
+                    "memu-keys.js": "text/javascript",
+                    "askuser.js": "text/javascript", "askuser.css": "text/css"}
 
     @app.get("/tgapp/shared/{name}", include_in_schema=False)
     async def shared(name: str):

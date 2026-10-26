@@ -21,9 +21,8 @@ from __future__ import annotations
 import copy
 from typing import Any, Dict, List, Optional
 
-#: Failure kinds of :func:`composite_models.classify` that a continuation may cure.
 RECOVERABLE = ("timeout", "5xx", "429", "error", "unavailable", "empty")
-#: How many characters of the continuation are held back to find the overlap.
+
 HOLD_CHARS = 160
 MIN_OVERLAP = 4
 
@@ -33,7 +32,6 @@ CONTINUE_EN = ("Your previous answer was cut off by a connection failure. Contin
                "where it stopped: do not repeat what is already written, do not apologise, add no preamble — just "
                "the next text.")
 
-
 def _delta(item: Dict[str, Any]) -> Dict[str, Any]:
     choices = item.get("choices") or []
     if choices and isinstance(choices[0], dict):
@@ -41,13 +39,11 @@ def _delta(item: Dict[str, Any]) -> Dict[str, Any]:
         return delta if isinstance(delta, dict) else {}
     return {}
 
-
 def _finish(item: Dict[str, Any]) -> Optional[str]:
     choices = item.get("choices") or []
     if choices and isinstance(choices[0], dict):
         return choices[0].get("finish_reason")
     return None
-
 
 class Tap:
     """Everything the client has received so far, across every candidate of one composite request."""
@@ -56,14 +52,13 @@ class Tap:
         self.hold_tools = hold_tools
         self.text = ""
         self.reasoning = ""
-        self.done_calls: List[Dict[str, Any]] = []      # complete calls already sent
-        self.pending: Dict[int, Dict[str, Any]] = {}    # calls still streaming (held back)
+        self.done_calls: List[Dict[str, Any]] = []
+        self.pending: Dict[int, Dict[str, Any]] = {}
         self.finished = False
-        self.index_base = 0                              # index offset of a continuation's calls
-        self.template: Optional[Dict[str, Any]] = None  # a chunk to clone for synthetic chunks
+        self.index_base = 0
+        self.template: Optional[Dict[str, Any]] = None
         self.recoveries = 0
 
-    # -- outgoing chunks ------------------------------------------------------------------------------------------
     def _chunk(self, delta: Dict[str, Any], finish: Optional[str] = None) -> Dict[str, Any]:
         base = copy.deepcopy(self.template) if self.template else {"object": "chat.completion.chunk"}
         base["choices"] = [{"index": 0, "delta": delta, "finish_reason": finish}]
@@ -107,7 +102,7 @@ class Tap:
                 continue
             index = int(call.get("index") or 0) + self.index_base
             if index not in self.pending and (call.get("id") or (call.get("function") or {}).get("name")):
-                # A new call starts: every earlier one is complete now.
+
                 for older in [i for i in self.pending if i < index]:
                     done = self.pending.pop(older)
                     self.done_calls.append(done)
@@ -133,7 +128,6 @@ class Tap:
         """End of a successful stream that never sent ``finish_reason``: release held calls."""
         return self._release()
 
-    # -- after a break --------------------------------------------------------------------------------------------
     def broken_call(self) -> bool:
         return bool(self.pending)
 
@@ -155,25 +149,23 @@ class Tap:
         return list(messages) + [{"role": "assistant", "content": self.text},
                                  {"role": "user", "content": CONTINUE_RU if lang == "ru" else CONTINUE_EN}]
 
-
 def overlap(sent: str, cont: str) -> int:
     """Characters at the start of ``cont`` that repeat what was already sent (to cut off)."""
     if not sent or not cont:
         return 0
     tail = sent[-600:]
-    # 1) the continuation starts with the end of the sent text (suffix == prefix)
+
     for size in range(min(len(tail), len(cont)), 1, -1):
         if not tail.endswith(cont[:size]):
             continue
         if size >= MIN_OVERLAP:
             return size
-        # A short overlap counts only when it is the whole broken last word, rewritten: «Hello wor» + «world».
+
         before = tail[-size - 1] if len(tail) > size else " "
         if not before.isalnum() and cont[:size].isalnum() and len(cont) > size and cont[size].isalnum():
             return size
         break
-    # 2) the model restarted the last sentence / line: the continuation's head is a substring of the tail that runs
-    #    to the tail's end («… и тогда мы» + «тогда мы получаем» → cut «тогда мы »).
+
     stripped = cont.lstrip()
     lead = len(cont) - len(stripped)
     for size in range(min(len(stripped), 200), 11, -1):
@@ -182,7 +174,6 @@ def overlap(sent: str, cont: str) -> int:
         if pos >= 0 and pos + size >= len(tail) - 1:
             return lead + size
     return 0
-
 
 class Joiner:
     """Holds the first characters of a continuation, cuts the overlap with ``sent``, then passes everything."""
@@ -236,7 +227,6 @@ class Joiner:
             out.append(item)
         self.buffer = []
         return out
-
 
 def event(kind: str, **data: Any) -> Dict[str, Any]:
     """A ``memuai.event`` chunk for the MemuAI window (other clients never see it)."""

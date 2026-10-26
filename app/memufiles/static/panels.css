@@ -1,6 +1,3 @@
-/* MemuFiles — dialogs, preview pane, AI assistant, operations flyout, tools (Round 35). */
-
-/* ---------------------------------------------------------------- dialogs */
 .modal-back { position: fixed; inset: 0; z-index: 120; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, #000 42%, transparent); animation: fadein .12s ease; }
 :root[data-theme="light"] .modal-back { background: color-mix(in srgb, #1f1e1c 26%, transparent); }
 .modal { width: min(520px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; border-radius: var(--radius-lg); background: var(--panel); border: 1px solid var(--border); box-shadow: var(--shadow); animation: pop .14s ease; }
@@ -21,7 +18,7 @@
 .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0 12px; }
 .kv { display: grid; grid-template-columns: 130px 1fr; gap: 7px 12px; font-size: 12.5px; }
 .kv > span:nth-child(odd) { color: var(--muted); }
-.kv > span:nth-child(even) { overflow-wrap: anywhere; }   /* r40-files-max: break-all split ordinary words mid-word */
+.kv > span:nth-child(even) { overflow-wrap: anywhere; }
 .props-top { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
 .props-top .big-ico { width: 48px; height: 48px; flex: none; display: grid; place-items: center; }
 .props-top .big-ico .fi { width: 44px; height: 44px; }
@@ -32,8 +29,6 @@
 .seg { display: inline-flex; padding: 2px; border-radius: 9px; background: var(--panel-2); gap: 2px; }
 .seg button { height: 26px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font-size: 12px; }
 .seg button.on { background: var(--bg); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.18); }
-
-/* batch rename */
 .br-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .br-tokens { display: flex; flex-wrap: wrap; gap: 5px; margin: -4px 0 12px; }
 .br-tokens button { height: 22px; padding: 0 7px; border-radius: 6px; border: 1px solid var(--border); background: var(--bg); color: var(--muted); font: 11.5px var(--mono); }
@@ -45,8 +40,6 @@
 .br-row.same .new { color: var(--muted); }
 .br-row.err .new { color: var(--danger); }
 .br-row span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* ---------------------------------------------------------------- preview pane */
 .pv { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .pv-head { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px 8px; }
 .pv-head .fi { width: 34px; height: 34px; }
@@ -84,8 +77,6 @@
 .pv-big { width: 96px; height: 96px; margin: 20px auto 8px; }
 .pv-big svg { width: 100%; height: 100%; }
 .pv-note { margin: 0 14px 10px; font-size: 11.5px; color: var(--muted); }
-
-/* ---------------------------------------------------------------- AI assistant */
 .ai { display: flex; flex-direction: column; min-height: 0; flex: 1; }
 .ai-top { display: flex; align-items: center; gap: 6px; padding: 8px 10px; border-bottom: 1px solid var(--border); }
 .ai-top select { flex: 1; min-width: 0; }
@@ -103,10 +94,9 @@
 .ai-scope { display: flex; align-items: center; gap: 6px; padding: 6px 12px; font-size: 11.5px; color: var(--muted); border-bottom: 1px solid var(--border); }
 .ai-scope .ic { flex: none; }
 .ai-scope .sc-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; text-align: left; flex: 1; min-width: 0; }
-/* a path cut from the left keeps its slashes in place (LRM marks around the text) */
 .ai-scope .sc-path::before, .ai-scope .sc-path::after, .plan-item .pi-path::before, .plan-item .pi-path::after, .pane-head .ph-path::before, .pane-head .ph-path::after { content: "\200E"; }
 .ai-log { flex: 1; overflow: auto; padding: 12px; display: flex; flex-direction: column; gap: 10px; min-height: 0; user-select: text; }
-.ai-log > * { flex: none; }   /* never squash a plan card or a message to fit the column */
+.ai-log > * { flex: none; }
 .ai-msg { max-width: 100%; padding: 9px 12px; border-radius: 12px; font-size: 13px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
 .ai-msg.user { align-self: flex-end; background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 25%, transparent); border-bottom-right-radius: 4px; }
 .ai-msg.bot { align-self: flex-start; background: var(--panel); border: 1px solid var(--border); border-bottom-left-radius: 4px; }
@@ -151,8 +141,6 @@
 .plan-foot .left { margin-right: auto; display: flex; gap: 10px; align-items: center; font-size: 12px; }
 .plan.done { border-color: var(--border); opacity: .85; }
 .plan .warn-perm { padding: 6px 12px; font-size: 12px; color: var(--danger); background: color-mix(in srgb, var(--danger) 8%, transparent); }
-
-/* ---------------------------------------------------------------- tools */
 .tool-wrap { display: flex; flex-direction: column; gap: 10px; min-height: 0; height: 100%; }
 .tool-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .usage-list { flex: 1; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
@@ -172,8 +160,6 @@
 .job-progress { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12.5px; padding: 30px; justify-content: center; }
 .spinner { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--panel-2); border-top-color: var(--accent); animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-
-/* home page (This PC) */
 .home { padding: 18px 22px 30px; overflow: auto; flex: 1; }
 .home h3 { margin: 6px 0 10px; font-size: 13px; color: var(--muted); font-weight: 650; text-transform: uppercase; letter-spacing: .04em; }
 .home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 10px; margin-bottom: 22px; }

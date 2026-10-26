@@ -24,21 +24,18 @@ from ...version import APP_VERSION
 from ..i18n import language, tr
 from .base import Tool, ToolError, ToolResult
 
-if TYPE_CHECKING:   # httpx is imported lazily, on the first MCP connection
+if TYPE_CHECKING:
     import httpx
 
 PROTOCOL_VERSION = mcp_client.PROTOCOL_VERSION
 
-
 def _clean_name(value: str) -> str:
     return re.sub(r"[^A-Za-z0-9_-]+", "_", str(value or ""))[:60] or "server"
-
 
 def load_project_servers(root: Path) -> Dict[str, Dict[str, Any]]:
     path = Path(root) / ".mcp.json"
     try:
-        # utf-8-sig: Notepad and PowerShell 5.1 (Set-Content -Encoding UTF8) write a BOM,
-        # and json.loads then rejected the file — every project server silently vanished.
+
         data = json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return {}
@@ -65,12 +62,10 @@ def load_project_servers(root: Path) -> Dict[str, Dict[str, Any]]:
         }
     return rows
 
-
 def _server_error(server: Any) -> str:
     """Last start error of a stdio (bilingual) or HTTP server, in the CLI language."""
     text = getattr(server, "error_text", None)
     return text(language()) if callable(text) else str(getattr(server, "error", "") or "")
-
 
 class HttpMCPServer(mcp_client.SharedStartup):
     """Minimal Streamable HTTP MCP client: initialize, tools/list, tools/call."""
@@ -94,14 +89,14 @@ class HttpMCPServer(mcp_client.SharedStartup):
     def _headers(self) -> Dict[str, str]:
         headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream",
                    "MCP-Protocol-Version": PROTOCOL_VERSION}
-        headers.update(mcp_client.resolve_secrets(self.spec.get("headers")))   # r40-mcp: ${secret:…} from the store
+        headers.update(mcp_client.resolve_secrets(self.spec.get("headers")))
         if self.session_id:
             headers["Mcp-Session-Id"] = self.session_id
         return headers
 
     async def _post(self, payload: Dict[str, Any], *, expect: bool = True) -> Dict[str, Any]:
         if self._client is None:
-            import httpx   # Round 21: не на старте MemuCode, а при первом подключении к MCP
+            import httpx
 
             from ..llm import http_client
             self._client = http_client(httpx.Timeout(mcp_client.CALL_TIMEOUT, connect=15), url=str(self.spec.get("url") or ""))
@@ -190,7 +185,6 @@ class HttpMCPServer(mcp_client.SharedStartup):
             self._client = None
         self.session_id = ""
 
-
 class CliMCP:
     """Registry of MCP servers for one MemuCode process."""
 
@@ -204,7 +198,7 @@ class CliMCP:
         rows: Dict[str, Dict[str, Any]] = {}
         for name, spec in mcp_client.load_config()["servers"].items():
             if spec.get("type") == "sse":
-                continue   # r40-mcp: the legacy SSE transport lives in the MemuAI hub (mcp_client.HttpMCPServer)
+                continue
             rows[_clean_name(name)] = {**spec, "source": "user", "original": name}
         if self.runtime.settings.is_trusted():
             for name, spec in load_project_servers(self.runtime.root).items():
@@ -252,7 +246,7 @@ class CliMCP:
                 continue
             for tool in server.tools:
                 if server.spec.get("source") == "user":
-                    # r40-mcp: tools refused in Settings → Integrations → MCP (read-only server, «deny») stay hidden here too.
+
                     from ... import mcp_hub
                     if mcp_hub.policy(server.spec, tool) == "deny":
                         continue
@@ -288,28 +282,22 @@ class CliMCP:
                 pass
         self.servers.clear()
 
-
-#: JSON Schema keywords every function-calling API accepts. MCP servers publish full JSON Schema ($schema, $ref,
-#: oneOf, formats, numeric bounds…); Gemini answers HTTP 400 to most of them and some OpenAI-compatible servers to
-#: the rest, which broke EVERY request of a session with one such server connected. The meaning of a dropped bound
-#: or format survives in the description.
 _PORTABLE_KEYS = ("type", "description", "properties", "items", "required", "enum")
 _NOTE_KEYS = ("format", "minimum", "maximum", "minLength", "maxLength", "pattern", "default", "minItems", "maxItems")
-
 
 def portable_schema(schema: Any, depth: int = 0) -> Dict[str, Any]:
     if not isinstance(schema, dict) or depth > 12:
         return {"type": "string"}
     variants = schema.get("anyOf") or schema.get("oneOf") or schema.get("allOf")
     if isinstance(variants, list) and variants and not schema.get("type"):
-        # "anyOf": [{"type": "string"}, {"type": "null"}] → the first real variant
+
         real = [item for item in variants if isinstance(item, dict) and item.get("type") != "null"]
         merged = dict(real[0]) if real else {"type": "string"}
         if schema.get("description") and not merged.get("description"):
             merged["description"] = schema["description"]
         schema = merged
     kind = schema.get("type")
-    if isinstance(kind, list):                  # ["string", "null"]
+    if isinstance(kind, list):
         kind = next((item for item in kind if item != "null"), "string")
     if kind not in ("object", "array", "string", "number", "integer", "boolean"):
         kind = "object" if isinstance(schema.get("properties"), dict) else "array" if "items" in schema else "string"
@@ -334,7 +322,6 @@ def portable_schema(schema: Any, depth: int = 0) -> Dict[str, Any]:
         out["items"] = portable_schema(schema.get("items") if isinstance(schema.get("items"), dict) else {}, depth + 1)
     return out
 
-
 class MCPTool(Tool):
     kind = "mcp"
     plan_safe = False
@@ -344,8 +331,7 @@ class MCPTool(Tool):
         self.tool = str(spec.get("name") or "")
         name = f"mcp__{_clean_name(server)}__{_clean_name(self.tool)}"
         if len(name) > 64:
-            # OpenAI and Anthropic reject function names over 64 characters (and anything outside [A-Za-z0-9_-]):
-            # a long server + tool name used to fail every request. Shortened names stay unique by a hash.
+
             import hashlib
             name = name[:55] + "_" + hashlib.sha1(name.encode("utf-8")).hexdigest()[:8]
         self.name = name

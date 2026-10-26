@@ -50,7 +50,6 @@ CYCLE = ("default", "acceptEdits", "plan", "auto")
 EDIT_TOOLS = {"Edit", "MultiEdit", "Write", "NotebookEdit"}
 READ_TOOLS = {"Read", "Glob", "Grep", "LS", "Outline", "Symbols"}
 
-
 def mode_label(mode: str) -> str:
     return {
         "default": tr("обычный", "default"),
@@ -60,14 +59,10 @@ def mode_label(mode: str) -> str:
         "bypassPermissions": tr("без подтверждений", "bypass permissions"),
     }.get(mode, mode)
 
-
-#: Modes that every MemuCode window shares. Plan mode is a state of one task, so it stays in its own window.
 SYNCED = ("default", "acceptEdits", "auto", "bypassPermissions")
-
 
 def mode_icon(mode: str) -> str:
     return {"default": "○ ", "acceptEdits": "⏵⏵ ", "plan": "⏸ ", "auto": "◉ ", "bypassPermissions": "⏵⏵ "}.get(mode, "")
-
 
 def mode_title(mode: str) -> str:
     """Short name for the status line and the picker: what the mode DOES, not an internal word."""
@@ -78,7 +73,6 @@ def mode_title(mode: str) -> str:
         "auto": tr("авто", "auto"),
         "bypassPermissions": tr("без подтверждений", "bypass permissions"),
     }.get(mode, mode)
-
 
 def mode_explain(mode: str) -> str:
     """One sentence on what the mode lets the agent do without asking."""
@@ -95,11 +89,9 @@ def mode_explain(mode: str) -> str:
                                 "nothing asks — only for throwaway work you can afford to lose"),
     }.get(mode, "")
 
-
 def state_file() -> Path:
     from . import paths
     return paths.home() / "permission_mode.json"
-
 
 def read_state() -> Optional[Dict[str, Any]]:
     """The mode every window shares (``permission_mode.json``), or None when none was ever chosen."""
@@ -108,7 +100,6 @@ def read_state() -> Optional[Dict[str, Any]]:
     except (OSError, ValueError):
         return None
     return data if isinstance(data, dict) and str(data.get("mode") or "") in SYNCED else None
-
 
 def _state_stamp() -> Tuple[int, int, int]:
     """Change marker of the shared mode file.
@@ -123,7 +114,6 @@ def _state_stamp() -> Tuple[int, int, int]:
         return (0, 0, 0)
     return (info.st_mtime_ns, info.st_size, getattr(info, "st_ino", 0) or 0)
 
-
 @dataclass
 class Rule:
     tool: str
@@ -134,7 +124,6 @@ class Rule:
     def __str__(self) -> str:
         return self.raw or (f"{self.tool}({self.pattern})" if self.pattern else self.tool)
 
-
 def parse_rule(text: str, source: str = "") -> Optional[Rule]:
     raw = str(text or "").strip()
     if not raw:
@@ -143,7 +132,6 @@ def parse_rule(text: str, source: str = "") -> Optional[Rule]:
     if not match:
         return None
     return Rule(tool=match.group(1), pattern=(match.group(2) or "").strip(), raw=raw, source=source)
-
 
 def _tool_matches(rule_tool: str, tool_name: str) -> bool:
     if rule_tool in ("*", tool_name):
@@ -159,7 +147,6 @@ def _tool_matches(rule_tool: str, tool_name: str) -> bool:
         return True
     return False
 
-
 def _command_matches(pattern: str, command: str) -> bool:
     command = " ".join(command.split())
     pattern = " ".join(pattern.split())
@@ -172,7 +159,6 @@ def _command_matches(pattern: str, command: str) -> bool:
         regex = "^" + re.escape(pattern).replace(r"\*", ".*") + "$"
         return bool(re.match(regex, command, re.S))
     return command == pattern
-
 
 def rule_matches(rule: Rule, tool: Tool, key: str, *, part: Optional[str] = None) -> bool:
     if not _tool_matches(rule.tool, tool.name):
@@ -200,7 +186,6 @@ def rule_matches(rule: Rule, tool: Tool, key: str, *, part: Optional[str] = None
         return path_matches(pat, target)
     return _command_matches(pattern, key)
 
-
 @dataclass
 class PermissionRequest:
     call: ToolCall
@@ -208,19 +193,17 @@ class PermissionRequest:
     prepared: Prepared
     key: str
     reason: str = ""
-    suggestion: str = ""          # rule offered for "don't ask again"
+    suggestion: str = ""
     suggestion_label: str = ""
     danger: bool = False
-
 
 @dataclass
 class Decision:
     allow: bool
-    source: str = ""              # rule | mode | user | classifier | hook | forbidden
+    source: str = ""
     reason: str = ""
     feedback: str = ""
-    stop: bool = False            # the user wants to steer: end the turn after this round
-
+    stop: bool = False
 
 class PermissionManager:
     def __init__(self, runtime: "Runtime") -> None:
@@ -229,10 +212,9 @@ class PermissionManager:
         self.mode = str(settings.get("permission_mode") or "default")
         if self.mode not in MODES:
             self.mode = "default"
-        #: Who changed the mode last: start | keys | command | plan | sync (another window).
+
         self.change_source = "start"
-        #: This window's own mode, set on the command line (``--permission-mode``): it is not replaced by the
-        #: mode the other windows share until the user changes it here.
+
         self.pinned_by_flag = settings.source_of("permission_mode") == "cli"
         self.instance = uuid.uuid4().hex[:12]
         self._stamp: Tuple[int, int, int] = (0, 0, 0)
@@ -247,7 +229,6 @@ class PermissionManager:
         self._ui_lock = asyncio.Lock()
         self.history: List[Dict[str, Any]] = []
 
-    # ------------------------------------------------------------ mode
     def sync_enabled(self) -> bool:
         return bool(self.runtime.settings.get("permission_sync", True))
 
@@ -274,7 +255,7 @@ class PermissionManager:
             from ..storage import save_json
             save_json(state_file(), {"mode": mode, "at": time.time(), "by": self.instance}, backup=False)
             self._stamp = _state_stamp()
-            self.runtime.settings.set("permission_mode", mode, "user")     # /config shows it, new windows start in it
+            self.runtime.settings.set("permission_mode", mode, "user")
         except Exception:
             pass
 
@@ -293,7 +274,7 @@ class PermissionManager:
             return None
         mode = str(shared["mode"])
         try:
-            self.runtime.settings.reload()               # the other window also saved it as the default for new ones
+            self.runtime.settings.reload()
         except Exception:
             pass
         if mode == self.mode or self.mode == "plan":
@@ -316,7 +297,6 @@ class PermissionManager:
         index = order.index(self.mode) if self.mode in order else -1
         return self.set_mode(order[(index + 1) % len(order)], source=source, persist=True)
 
-    # ------------------------------------------------------------ rules
     def rules(self, kind: str) -> List[Rule]:
         rows: List[Rule] = []
         trusted = self.runtime.settings.is_trusted()
@@ -342,8 +322,7 @@ class PermissionManager:
 
     def _bash_allowed_by_rules(self, rules: List[Rule], tool: Tool, command: str) -> Optional[Rule]:
         if not is_static_command(command):
-            # A blanket or exact rule is deliberate permission to execute the
-            # whole expression. A prefix/glob for echo must not clear $().
+
             return next((rule for rule in rules if _tool_matches(rule.tool, tool.name)
                          and (not rule.pattern or rule.pattern == "*" or rule.pattern == command.strip())), None)
         parts = split_commands(command)
@@ -357,7 +336,6 @@ class PermissionManager:
             matched = matched or hit
         return matched
 
-    # ------------------------------------------------------------ check
     async def check(self, call: ToolCall, tool: Tool, prepared: Prepared) -> Decision:
         key = prepared.key or tool.permission_key(self.runtime, call.args)
         if tool.name == "Bash":
@@ -514,10 +492,9 @@ class PermissionManager:
             except Exception:
                 pass
 
-    # ------------------------------------------------------------ auto mode
     async def _classify(self, call: ToolCall, tool: Tool, key: str,
                         prepared: Prepared) -> Optional[Tuple[bool, str]]:
-        # A short list of unmistakable cases is never left to a judge — a small model can be wrong.
+
         floor = risky_reason(tool.name, tool.kind, key)
         if floor:
             return False, tr("Всегда спрашиваю: ", "Always asked: ") + floor

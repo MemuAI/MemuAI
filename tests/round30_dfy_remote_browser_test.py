@@ -28,7 +28,6 @@ PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>Машина</
 <button id="b" style="position:absolute;left:20px;top:110px;width:120px;height:30px">Найти</button></form>
 <p id="o" style="position:absolute;left:20px;top:160px"></p></body></html>"""
 
-
 class _Site(http.server.BaseHTTPRequestHandler):
     """Both the site and a plain HTTP proxy: a proxied request carries the absolute URL."""
     seen = []
@@ -44,7 +43,6 @@ class _Site(http.server.BaseHTTPRequestHandler):
 
     def log_message(self, *_args):
         pass
-
 
 @unittest.skipUnless(Path(CHROMIUM).exists(), "Chromium for the machine's browser")
 class RemoteBrowserTests(unittest.IsolatedAsyncioTestCase):
@@ -67,10 +65,10 @@ class RemoteBrowserTests(unittest.IsolatedAsyncioTestCase):
         self.tmp.cleanup()
 
     def agent(self, *, resolve_site: bool):
-        # The agent inherits these: its Chromium, flags for a container, and the machine-only DNS name.
+
         os.environ["MEMUAI_BROWSER_EXECUTABLE"] = CHROMIUM
         rules = f" '--host-resolver-rules=MAP site.test.example 127.0.0.1:{self.site.server_port}'" if resolve_site else ""
-        # --no-proxy-server: Chromium on Linux would otherwise follow HTTP(S)_PROXY of the test machine
+
         os.environ["MEMUAI_BROWSER_ARGS"] = "--no-sandbox" + (" --no-proxy-server" + rules if resolve_site else "")
         process, code, _script = start_agent(self.root)
         self.addCleanup(self._stop, process)
@@ -87,7 +85,7 @@ class RemoteBrowserTests(unittest.IsolatedAsyncioTestCase):
 
     def manager(self, model):
         from app.dfy import DFYManager
-        # The local browser must never be used for a «<machine>/browser» task.
+
         return DFYManager(model, lambda: dict(self.prefs), data_root=self.root / "memu",
                           vision_lookup=lambda _m: True, browser_factory=lambda _v: self.fail("local browser used"),
                           vault=SecretVault(self.root / "memu", use_dpapi=False))
@@ -122,7 +120,7 @@ class RemoteBrowserTests(unittest.IsolatedAsyncioTestCase):
         original = mgr._loop
 
         async def loop_with_takeover(task, browser):
-            # The user takes over the machine's browser before the agent starts: frames come through the tunnel.
+
             from app.dfy_remote_browser import RemoteDFYBrowser
             took["remote"] = isinstance(browser, RemoteDFYBrowser)
             session = await mgr.takeover_start(task.id)
@@ -177,7 +175,6 @@ class RemoteBrowserTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(ValueError):
             await mgr.create("открой сайт", target=ssh["id"] + "/browser")
 
-
 class MachineProxyApiTests(unittest.TestCase):
     """Settings → DFY → machine → «Proxy» (dfy-remote.js) talks to /api/dfy/proxy?machine=ID (dfy_api.py)."""
 
@@ -211,7 +208,6 @@ class MachineProxyApiTests(unittest.TestCase):
             self.assertTrue(client.delete(f"/api/dfy/remote/machines/{mid}").json().get("ok"))
             self.assertIsNone(mgr.proxy.upstream(mid), "the proxy goes away with the machine")
 
-
 class RouteTests(unittest.TestCase):
     def test_takeover_buttons_follow_browser_targets(self):
         root = Path(__file__).resolve().parents[1]
@@ -222,7 +218,6 @@ class RouteTests(unittest.TestCase):
         self.assertIn("!(task.target && !task.target.browser)", quick)
         remote = (root / "app/pgstatic/dfy-remote.js").read_text("utf-8")
         self.assertIn('T("браузер", "browser")', remote)
-
 
 if __name__ == "__main__":
     unittest.main()

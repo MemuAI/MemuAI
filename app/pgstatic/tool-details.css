@@ -1,5 +1,3 @@
-/* Round 33 (r33-chat, item #20): readable, expandable tool rows in the «Tools» step (tool-details.js).
-   Design tokens only, so every design (classic, aurora, grid, glass …) and both themes follow. */
 .tool-x { border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
 .tool-x:last-child { border-bottom: 0; }
 .tool-x > summary {
@@ -81,7 +79,6 @@
 .tool-x-tech code { padding: 1px 6px; border-radius: 5px; background: var(--panel-2); font: 10.5px var(--mono); }
 .tool-x .step-code { margin: 0; max-height: 200px; }
 .tool-x .step-files { margin: 0; }
-/* Glass: rows sit on a translucent card — keep hover/insets readable. */
 :root[data-design="glass"] .tool-x > summary:hover { background: color-mix(in srgb, var(--text) 6%, transparent); }
 :root[data-design="glass"] .tool-x-icon, :root[data-design="glass"] .tool-x-n,
 :root[data-design="glass"] .tool-x-chips span { background: color-mix(in srgb, var(--text) 7%, transparent); }

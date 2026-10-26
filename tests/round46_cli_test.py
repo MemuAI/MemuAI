@@ -12,7 +12,6 @@ from app.cli.tools import files
 from app.cli.tools.base import Prepared, ToolCall, ToolContext
 from tests.memucode_cli_test import make_runtime, setUpModule, tearDownModule  # noqa: F401
 
-
 class FileEconomy(unittest.TestCase):
     def context(self, content="line\n" * 2100):
         runtime, _ = make_runtime({"code.py": content})
@@ -106,7 +105,6 @@ class FileEconomy(unittest.TestCase):
         result = files.GrepTool()._search(ctx, {"multiline": True}, prepared)
         self.assertEqual(result.output, "code.py")
         self.assertIn("No matches", files.GrepTool()._search(ctx, {}, prepared).output)
-
 
 if __name__ == "__main__":
     unittest.main()

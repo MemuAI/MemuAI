@@ -7,6 +7,8 @@ summary: Choosing a model, pinning, the default model, custom names, thinking an
 
 The MemuAI model list holds every enabled model of all your accounts in MemuAI Proxy. The model is chosen per chat and can be changed in the middle of a conversation.
 
+Image, video, music, audio, speech synthesis, transcription, embedding, reranking and decision models have task badges, including in MemuAI Proxy. Types follow provider and catalogue metadata, with conservative name hints when metadata is unavailable. Multimodal and reasoning chat models remain chat models. The Specialized filter groups models for dedicated tasks.
+
 ## Choosing a model
 
 The button with the model name in the top bar (++Ctrl+M++) opens the list. At the top is a search field: type part of a name, matches are highlighted, ++↑++ ++↓++ and ++Enter++ pick one.

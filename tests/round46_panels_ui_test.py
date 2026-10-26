@@ -10,7 +10,6 @@ import pytest
 
 from tests.panels_browser_test import FIXTURE, ORIGIN, STATIC, R22_SNAPSHOT
 
-
 @pytest.fixture(scope="module")
 def browser():
     from playwright.sync_api import sync_playwright
@@ -23,7 +22,6 @@ def browser():
         instance = pw.chromium.launch(executable_path=executable, headless=True, args=["--no-sandbox", "--disable-background-networking"])
         yield instance
         instance.close()
-
 
 @pytest.mark.parametrize("width", [360, 1000])
 def test_account_selection_filtering_reload_and_request_payload(browser, width):
@@ -41,7 +39,7 @@ def test_account_selection_filtering_reload_and_request_payload(browser, width):
         path = request.request.url.removeprefix(ORIGIN).split("?")[0]
         body = {}
         if path == "/":
-            # Match the desktop's global style.css sizing rule.
+
             return request.fulfill(status=200, content_type="text/html", body=FIXTURE.replace("<style>", "<style>*{box-sizing:border-box}"))
         if path == "/api/pg/panels":
             body = snapshot
@@ -81,11 +79,11 @@ def test_account_selection_filtering_reload_and_request_payload(browser, width):
     assert row.locator("[data-acc-proxy]").input_value() == "go1"
     row.locator("[data-acc-provider]").select_option("api_budget")
     assert row.locator("[data-acc-proxy] option[value=kiro1]").count() == 1
-    assert row.locator("[data-acc-proxy] option[value=go1]").count() <= 1  # saved selection is retained, not silently reassigned
+    assert row.locator("[data-acc-proxy] option[value=go1]").count() <= 1
     metrics = page.locator(".mp-modal").evaluate("""e => {const b=e.querySelector('.mp-modal-body'),r=b.getBoundingClientRect();return {width:e.getBoundingClientRect().width,viewport:innerWidth,scroll:b.scrollWidth,client:b.clientWidth,
       offenders:[...b.querySelectorAll('*')].filter(n=>n.getBoundingClientRect().right>r.right+1).slice(0,5).map(n=>({tag:n.tagName,cls:n.className,right:n.getBoundingClientRect().right})),
       overflow:[...b.querySelectorAll('*')].filter(n=>n.scrollWidth>n.clientWidth+1).map(n=>({tag:n.tagName,cls:n.className,scroll:n.scrollWidth,client:n.clientWidth,text:n.textContent.slice(0,60),padding:getComputedStyle(n).padding})).slice(0,20)}}""")
-    # Screenshots stay in the workspace, outside the user's browser profile.
+
     output = Path(__file__).resolve().parents[1] / "build/round46-ui"
     output.mkdir(parents=True, exist_ok=True)
     page.screenshot(path=str(output / f"panels-proxy-{width}.png"))

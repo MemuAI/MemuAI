@@ -19,9 +19,6 @@ from .i18n import tr
 MAX_MEMORY_FILE = 40_000
 MAX_MEMORY_TOTAL = 120_000
 
-
-# ---------------------------------------------------------------- front matter
-
 def split_front_matter(text: str) -> Tuple[Dict[str, str], str]:
     match = re.match(r"^﻿?---\s*\r?\n(.*?)\r?\n---\s*\r?\n?", text, re.S)
     if not match:
@@ -33,24 +30,18 @@ def split_front_matter(text: str) -> Tuple[Dict[str, str], str]:
             meta[found.group(1).lower()] = found.group(2).strip().strip('"').strip("'")
     return meta, text[match.end():]
 
-
-# ---------------------------------------------------------------- memory files
-
 @dataclass
 class MemoryFile:
     path: Path
-    scope: str                      # user | project | parent | local
+    scope: str
     text: str
     imports: List[str] = field(default_factory=list)
 
-
 _IMPORT = re.compile(r"(?<![\w`/])@((?:~[\\/]|\.{1,2}[\\/])?[\w.\\/-]+\.(?:md|txt|json|ya?ml|toml|rst))")
-
 
 def _read_memory(path: Path, limit: int) -> str:
     with path.open(encoding="utf-8", errors="replace") as handle:
         return handle.read(max(0, limit))
-
 
 def _resolve_imports(text: str, base: Path, depth: int, seen: set, *,
                      allowed_root: Optional[Path] = None,
@@ -94,15 +85,13 @@ def _resolve_imports(text: str, base: Path, depth: int, seen: set, *,
         text = text.rstrip() + "\n\n" + "\n\n".join(blocks)
     return text, imported
 
-
 def memory_files(root: Path, names: List[str], *, trusted: bool = True) -> List[MemoryFile]:
     rows: List[MemoryFile] = []
     seen_paths: set = set()
     seen_text: set = set()
     root = Path(root).resolve()
     budget = [MAX_MEMORY_TOTAL]
-    # Project-configured names must not turn ancestor discovery into arbitrary
-    # file reads. Only paths relative to each instruction-file directory apply.
+
     names = [name for name in names if isinstance(name, str) and name.strip()
              and not Path(name).is_absolute() and not Path(name).drive
              and ".." not in Path(name).parts]
@@ -167,7 +156,6 @@ def memory_files(root: Path, names: List[str], *, trusted: bool = True) -> List[
         kept.append(row)
     return kept
 
-
 def memory_target(root: Path, scope: str) -> Path:
     if scope == "user":
         return paths.user_memory_file()
@@ -177,7 +165,6 @@ def memory_target(root: Path, scope: str) -> Path:
         if (Path(root) / name).is_file():
             return Path(root) / name
     return Path(root) / "MEMUCODE.md"
-
 
 def add_memory(root: Path, text: str, scope: str = "project") -> Path:
     """``# always use pnpm`` → a bullet in the chosen memory file."""
@@ -198,9 +185,6 @@ def add_memory(root: Path, text: str, scope: str = "project") -> Path:
         _ensure_gitignored(Path(root))
     return target
 
-
-# ---------------------------------------------------------------- custom commands
-
 @dataclass
 class CustomCommand:
     name: str
@@ -212,14 +196,12 @@ class CustomCommand:
     model: str = ""
     allowed_tools: List[str] = field(default_factory=list)
 
-
 def _command_dirs(root: Path, trusted: bool) -> List[Tuple[Path, str]]:
     dirs = [(paths.user_commands_dir(), "user"), (Path.home() / ".claude" / "commands", "user")]
     if trusted:
         dirs += [(Path(root) / paths.PROJECT_DIR / "commands", "project"),
                  (Path(root) / ".claude" / "commands", "project")]
     return dirs
-
 
 def load_commands(root: Path, trusted: bool) -> Dict[str, CustomCommand]:
     rows: Dict[str, CustomCommand] = {}
@@ -245,7 +227,6 @@ def load_commands(root: Path, trusted: bool) -> Dict[str, CustomCommand]:
                                        model=meta.get("model", ""), allowed_tools=tools)
     return rows
 
-
 def expand_command(command: CustomCommand, args: str) -> str:
     text = command.body
     words = args.split()
@@ -257,19 +238,15 @@ def expand_command(command: CustomCommand, args: str) -> str:
         text = text.rstrip() + "\n\n" + args
     return text
 
-
-# ---------------------------------------------------------------- agents
-
 @dataclass
 class AgentDef:
     name: str
     description: str
     prompt: str
-    tools: Optional[List[str]] = None       # None = every tool
-    model: str = ""                         # "" = main model; "small" = fast model
+    tools: Optional[List[str]] = None
+    model: str = ""
     source: str = "builtin"
     color: str = ""
-
 
 READ_ONLY_TOOLS = ["Read", "Glob", "Grep", "LS", "Outline", "Symbols", "ProjectInfo", "Git", "WebSearch",
                    "WebFetch", "Skill", "BashOutput"]
@@ -305,7 +282,6 @@ BUILTIN_AGENTS: Dict[str, AgentDef] = {
         "task explicitly says so.", tools=READ_ONLY_TOOLS + ["Bash"], color="green"),
 }
 
-
 def load_agents(root: Path, trusted: bool) -> Dict[str, AgentDef]:
     agents = dict(BUILTIN_AGENTS)
     dirs = [(paths.user_agents_dir(), "user"), (Path.home() / ".claude" / "agents", "user")]
@@ -327,7 +303,6 @@ def load_agents(root: Path, trusted: bool) -> Dict[str, AgentDef]:
                                     color=meta.get("color", ""))
     return agents
 
-
 AGENT_TEMPLATE = """---
 name: {name}
 description: {description}
@@ -338,9 +313,6 @@ model:
 You are a specialised sub-agent. Describe here what this agent does, how it works
 and what it must report back when it finishes.
 """
-
-
-# ---------------------------------------------------------------- skills
 
 class Skills:
     """Built-in MemuCode skills plus project and personal SKILL.md playbooks.
@@ -380,10 +352,10 @@ class Skills:
             base = code_skills.catalogue(self.root if self.trusted else "", include_prompt=True)
             for row in base:
                 rows[row["id"]] = dict(row)
-            if guide_row := self._guide_row():         # Round 33: the CLI's own built-in skill (selfdoc.py)
+            if guide_row := self._guide_row():
                 rows.setdefault(guide_row["id"], guide_row)
             for row in self._extra():
-                rows[row["id"]] = dict(row)             # project/personal override built-ins
+                rows[row["id"]] = dict(row)
             self._cache = sorted(rows.values(), key=lambda row: ({"project": 0, "personal": 1}.get(row.get("source"), 2),
                                                                  row["id"]))
         off = set(self.disabled())
@@ -409,14 +381,13 @@ class Skills:
             if row["id"] == wanted:
                 prompt = row.get("prompt") or ""
                 if not prompt and row.get("source") == "builtin" and wanted == "memucode-guide":
-                    try:                                # Round 33: generated from the real registry when loaded
+                    try:
                         from .selfdoc import build_guide
                         prompt = build_guide()
                     except Exception:
                         prompt = ""
                 return {**row, "prompt": prompt or row.get("description") or ""}
         return None
-
 
 SKILL_TEMPLATE = """---
 name: {name}
@@ -428,9 +399,6 @@ description: {description}
 Write the playbook here: when to use it, the exact steps, the checks that prove
 the work is done and the format of the final report.
 """
-
-
-# ---------------------------------------------------------------- output styles
 
 BUILTIN_STYLES: Dict[str, Tuple[str, str]] = {
     "default": ("Default", ""),
@@ -447,7 +415,6 @@ BUILTIN_STYLES: Dict[str, Tuple[str, str]] = {
         "OUTPUT STYLE — CONCISE: answer in as few words as possible. No preamble, no summaries of what you "
         "did unless asked, lists over prose, code over explanation.")),
 }
-
 
 def load_styles() -> Dict[str, Tuple[str, str]]:
     styles = dict(BUILTIN_STYLES)

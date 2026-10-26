@@ -39,11 +39,6 @@ from .config import DATA_DIR, config_store
 STATE_PATH = os.path.join(DATA_DIR, "cli_integrations.json")
 _LOCK = threading.RLock()
 
-# ---------------------------------------------------------------------------
-# home / paths
-# ---------------------------------------------------------------------------
-
-
 def home_dir(home: Optional[str] = None) -> str:
     if home:
         return home
@@ -52,14 +47,11 @@ def home_dir(home: Optional[str] = None) -> str:
         return override
     return os.path.expanduser("~")
 
-
 def claude_settings_path(home: Optional[str] = None) -> str:
     return os.path.join(home_dir(home), ".claude", "settings.json")
 
-
 def codex_config_path(home: Optional[str] = None) -> str:
     return os.path.join(home_dir(home), ".codex", "config.toml")
-
 
 def proxy_base_url() -> str:
     """A literal, connectable loopback URL — never the bind-all 0.0.0.0/::."""
@@ -71,16 +63,9 @@ def proxy_base_url() -> str:
         host = f"[{host}]"
     return f"http://{host}:{port}/v1"
 
-
 def proxy_api_key() -> str:
     keys = config_store.settings.api_keys
     return keys[0] if keys else ""
-
-
-# ---------------------------------------------------------------------------
-# atomic file helpers
-# ---------------------------------------------------------------------------
-
 
 def _atomic_write_text(path: str, text: str) -> None:
     os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
@@ -98,7 +83,6 @@ def _atomic_write_text(path: str, text: str) -> None:
                 raise
             time.sleep(min(0.01 * (2 ** attempt), 0.1))
 
-
 def _ensure_backup(path: str, backup_path: str) -> None:
     """Snapshot the pristine file once, before we ever touch it."""
     if os.path.exists(backup_path):
@@ -109,12 +93,6 @@ def _ensure_backup(path: str, backup_path: str) -> None:
         original = f.read()
     _atomic_write_text(backup_path, original)
 
-
-# ---------------------------------------------------------------------------
-# small JSON state store (proxy data dir — NOT the user's $HOME)
-# ---------------------------------------------------------------------------
-
-
 def _load_state(state_path: str) -> Dict[str, Any]:
     import json
     try:
@@ -124,22 +102,15 @@ def _load_state(state_path: str) -> Dict[str, Any]:
     except (OSError, ValueError):
         return {}
 
-
 def _save_state(state_path: str, data: Dict[str, Any]) -> None:
     import json
     _atomic_write_text(state_path, json.dumps(data, ensure_ascii=False, indent=2))
-
 
 class IntegrationError(Exception):
     def __init__(self, message: str, message_en: str = "") -> None:
         super().__init__(message)
         self.message = message
         self.message_en = message_en or message
-
-
-# ---------------------------------------------------------------------------
-# Claude Code — ~/.claude/settings.json  ("env" block)
-# ---------------------------------------------------------------------------
 
 CLAUDE_SLOT_ENV = {
     "model": "ANTHROPIC_MODEL",
@@ -149,19 +120,16 @@ CLAUDE_SLOT_ENV = {
     "fable": "ANTHROPIC_DEFAULT_FABLE_MODEL",
     "subagent": "CLAUDE_CODE_SUBAGENT_MODEL",
 }
-# Always managed (base connection), plus whichever CLAUDE_SLOT_ENV keys are
-# selected this call.
+
 CLAUDE_BASE_ENV = ("ANTHROPIC_BASE_URL", "ANTHROPIC_AUTH_TOKEN")
 _PLACEHOLDER_TOKEN = "memuai-local-proxy"
-
 
 def _read_json_file(path: str) -> Tuple[Optional[Dict[str, Any]], bool]:
     """Returns (parsed_or_None, existed). Raises IntegrationError on invalid JSON."""
     import json
     if not os.path.exists(path):
         return {}, False
-    # utf-8-sig: settings.json saved by Notepad/PowerShell 5.1 starts with a BOM; json.loads
-    # rejected it and the user was told their (valid) file had invalid JSON.
+
     with open(path, "r", encoding="utf-8-sig") as f:
         raw = f.read()
     if not raw.strip():
@@ -180,7 +148,6 @@ def _read_json_file(path: str) -> Tuple[Optional[Dict[str, Any]], bool]:
         )
     return data, True
 
-
 def claude_status(home: Optional[str] = None, state_path: Optional[str] = None) -> Dict[str, Any]:
     state_path = state_path or STATE_PATH
     state = _load_state(state_path).get("claude") or {}
@@ -196,7 +163,6 @@ def claude_status(home: Optional[str] = None, state_path: Optional[str] = None) 
             "ANTHROPIC_AUTH_TOKEN") not in (None, "", _PLACEHOLDER_TOKEN))),
     }
 
-
 def apply_claude(selection: Dict[str, str], *, home: Optional[str] = None,
                  state_path: Optional[str] = None, base_url: Optional[str] = None,
                  api_key: Optional[str] = None, connection: str = "proxy") -> Dict[str, Any]:
@@ -208,7 +174,7 @@ def apply_claude(selection: Dict[str, str], *, home: Optional[str] = None,
     backup_path = path + ".memuai-backup"
     base_url = base_url if base_url is not None else proxy_base_url()
     configured_token = api_key if api_key is not None else proxy_api_key()
-    token = configured_token or _PLACEHOLDER_TOKEN  # Claude Code refuses an empty token.
+    token = configured_token or _PLACEHOLDER_TOKEN
 
     desired: Dict[str, str] = {"ANTHROPIC_BASE_URL": base_url, "ANTHROPIC_AUTH_TOKEN": token}
     for slot, value in (selection or {}).items():
@@ -218,7 +184,7 @@ def apply_claude(selection: Dict[str, str], *, home: Optional[str] = None,
             desired[env_key] = value[:512]
 
     with _LOCK:
-        data, _existed = _read_json_file(path)  # raises IntegrationError on invalid JSON
+        data, _existed = _read_json_file(path)
         _ensure_backup(path, backup_path)
 
         env = data.get("env")
@@ -238,7 +204,7 @@ def apply_claude(selection: Dict[str, str], *, home: Optional[str] = None,
             if key in desired:
                 env[key] = desired[key]
             else:
-                # was managed before, not selected any more: restore original
+
                 record = prior.pop(key, None)
                 if record is not None and record.get("existed"):
                     env[key] = record.get("value")
@@ -256,7 +222,6 @@ def apply_claude(selection: Dict[str, str], *, home: Optional[str] = None,
 
     return {"ok": True, "path": path, "backup_path": backup_path,
             "env": {k: v for k, v in desired.items() if k != "ANTHROPIC_AUTH_TOKEN"}}
-
 
 def reset_claude(*, home: Optional[str] = None, state_path: Optional[str] = None) -> Dict[str, Any]:
     state_path = state_path or STATE_PATH
@@ -288,15 +253,9 @@ def reset_claude(*, home: Optional[str] = None, state_path: Optional[str] = None
         _save_state(state_path, full_state)
     return {"ok": True, "path": path}
 
-
 def _json_dumps(data: Dict[str, Any]) -> str:
     import json
     return json.dumps(data, ensure_ascii=False, indent=2) + "\n"
-
-
-# ---------------------------------------------------------------------------
-# Codex CLI — ~/.codex/config.toml
-# ---------------------------------------------------------------------------
 
 CODEX_PROVIDER_ID = "memuai"
 _BEGIN = "# >>> MemuAI Proxy managed block - edit from MemuAI Proxy UI, not by hand >>>"
@@ -306,21 +265,17 @@ _BLOCK_RE = re.compile(
 _TABLE_HEADER_RE = re.compile(r"^\s*\[", re.MULTILINE)
 _SLUG_RE = re.compile(r"[^a-z0-9._-]+")
 
-
 def _toml_str(value: str) -> str:
     escaped = str(value).replace("\\", "\\\\").replace('"', '\\"')
     escaped = "".join(ch if ch >= " " or ch in "\t" else "" for ch in escaped)
     return f'"{escaped}"'
 
-
 def _slugify(value: str) -> str:
     slug = _SLUG_RE.sub("-", str(value).strip().lower()).strip("-")
     return slug or "model"
 
-
 def _strip_managed_block(text: str) -> str:
     return _BLOCK_RE.sub("", text)
-
 
 def codex_status(home: Optional[str] = None, state_path: Optional[str] = None) -> Dict[str, Any]:
     state_path = state_path or STATE_PATH
@@ -337,7 +292,6 @@ def codex_status(home: Optional[str] = None, state_path: Optional[str] = None) -
         "default_profile": state.get("default_profile") or "",
         "default_set": bool(state.get("default_written")),
     }
-
 
 def apply_codex(profiles: List[Dict[str, str]], *, default: Optional[str] = None,
                 home: Optional[str] = None, state_path: Optional[str] = None,
@@ -381,7 +335,7 @@ def apply_codex(profiles: List[Dict[str, str]], *, default: Optional[str] = None
         original = ""
         existed = os.path.exists(path)
         if existed:
-            with open(path, "r", encoding="utf-8-sig") as f:   # a BOM is not valid TOML
+            with open(path, "r", encoding="utf-8-sig") as f:
                 original = f.read()
             try:
                 tomllib.loads(original)
@@ -416,9 +370,6 @@ def apply_codex(profiles: List[Dict[str, str]], *, default: Optional[str] = None
 
         can_set_default = "model" not in remainder_doc and "model_provider" not in remainder_doc
 
-        # TOML: a bare `key = value` belongs to whichever table header most
-        # recently preceded it — so root-level model/model_provider MUST come
-        # before the first `[table]` header in this block, not after it.
         lines = [_BEGIN]
         if can_set_default:
             lines.append(f"model_provider = {_toml_str(CODEX_PROVIDER_ID)}")
@@ -429,9 +380,7 @@ def apply_codex(profiles: List[Dict[str, str]], *, default: Optional[str] = None
                   f"base_url = {_toml_str(base_url)}",
                   'wire_api = "responses"']
         if key:
-            # The installer cannot inject an environment variable into future
-            # Codex processes. Store the same proxy token here as the Claude
-            # integration stores in settings.json, inside our resettable block.
+
             lines.append(f"experimental_bearer_token = {_toml_str(key)}")
         lines.append("")
         for row in clean_profiles:
@@ -451,7 +400,7 @@ def apply_codex(profiles: List[Dict[str, str]], *, default: Optional[str] = None
             new_text = (remainder + sep + ("\n" if remainder.strip() else "") + block) if remainder.strip() else block
 
         try:
-            tomllib.loads(new_text)  # safety net: never write TOML we can't parse back
+            tomllib.loads(new_text)
         except tomllib.TOMLDecodeError as exc:
             raise IntegrationError(
                 f"Внутренняя ошибка: получившийся {os.path.basename(path)} не проходит проверку TOML ({exc}). Файл не изменён.",
@@ -477,7 +426,6 @@ def apply_codex(profiles: List[Dict[str, str]], *, default: Optional[str] = None
                      "В config.toml уже есть свои model/model_provider; MemuAI только добавил профили — "
                      "переключайтесь через `codex --profile <name>`.")}
 
-
 def reset_codex(*, home: Optional[str] = None, state_path: Optional[str] = None) -> Dict[str, Any]:
     state_path = state_path or STATE_PATH
     path = codex_config_path(home)
@@ -487,7 +435,7 @@ def reset_codex(*, home: Optional[str] = None, state_path: Optional[str] = None)
         if not codex_state.get("profiles"):
             return {"ok": True, "already": True, "path": path}
         if os.path.exists(path):
-            with open(path, "r", encoding="utf-8-sig") as f:   # a BOM is not valid TOML
+            with open(path, "r", encoding="utf-8-sig") as f:
                 original = f.read()
             new_text = _strip_managed_block(original)
             try:

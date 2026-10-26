@@ -13,16 +13,13 @@ import asyncio
 import time
 from typing import Any, Callable, Dict, List, Optional
 
-
 def _lang(ctx: Dict[str, Any]) -> str:
     prefs = ctx.get("prefs") or {}
     return "en" if str(prefs.get("lang") or prefs.get("language") or "").startswith("en") else "ru"
 
-
 def _find(task_id: str) -> Optional[Dict[str, Any]]:
     from .pgdata import load_schedules
     return next((t for t in load_schedules() if str(t.get("id") or "") == task_id), None)
-
 
 def condition_rows(task: Dict[str, Any], lang: str) -> Dict[str, Any]:
     from . import schedule_rules as rules
@@ -41,7 +38,6 @@ def condition_rows(task: Dict[str, Any], lang: str) -> Dict[str, Any]:
         visit(cond, str(i), 0)
     return {"rows": rows, "match": rule.get("match", "all"), "summary": rules.summary(rule, lang)}
 
-
 def _locate(rule: Dict[str, Any], path: str) -> Optional[Dict[str, Any]]:
     node: Any = {"items": rule.get("only_if") or []}
     for part in path.split("."):
@@ -50,7 +46,6 @@ def _locate(rule: Dict[str, Any], path: str) -> Optional[Dict[str, Any]]:
             return None
         node = items[int(part)]
     return node if isinstance(node, dict) else None
-
 
 def apply_change(task: Dict[str, Any], body: Dict[str, Any]) -> bool:
     """Mutates ``task["rule"]`` in place; False when the path is unknown."""
@@ -75,14 +70,13 @@ def apply_change(task: Dict[str, Any], body: Dict[str, Any]) -> bool:
                 cond.pop(key, None)
     if body.get("match") in ("all", "any") and cond.get("type") == "group":
         cond["match"] = body["match"]
-    rules.normalize_rule(rule)          # still valid (raises RuleError otherwise)
+    rules.normalize_rule(rule)
     state = task.get("rule_state") if isinstance(task.get("rule_state"), dict) else {}
     if state.get("status") == "blocked":
         state.pop("status", None)
         state.pop("reason", None)
-    task.pop("next_run", None)          # replanned with the new conditions on the next tick
+    task.pop("next_run", None)
     return True
-
 
 def check_task(task: Dict[str, Any], lang: str) -> Dict[str, Any]:
     from . import schedule_rules as rules
@@ -98,7 +92,6 @@ def check_task(task: Dict[str, Any], lang: str) -> Dict[str, Any]:
     sample = dict(sample or {})
     by_id = {str(t.get("id")): t for t in load_schedules()}
     return explain(rule, sample, now, lang, {"task": task, "tasks_by_id": by_id, "state": task.get("rule_state") or {}})
-
 
 def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any) -> None:  # noqa: N803
     from . import schedule_rules as rules

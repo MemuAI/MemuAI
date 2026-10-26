@@ -45,8 +45,8 @@ MAX_LABEL = 120
 MAX_OPTION = 60
 MAX_QUESTION = 200
 MAX_TEXT_ANSWER = 2000
-DEFAULT_TIMEOUT = 30 * 60          # server-side surfaces stop waiting after 30 min and let the model decide
-PENDING_TTL = 24 * 3600            # forgotten pending forms are dropped after a day
+DEFAULT_TIMEOUT = 30 * 60
+PENDING_TTL = 24 * 3600
 
 _TYPE_ALIASES = {
     "choice": "choice", "chips": "choice", "chip": "choice", "select": "choice", "radio": "choice",
@@ -92,19 +92,15 @@ decide yourself, name the assumption in one short clause and finish the task. On
 a second only if the answers opened a genuinely new question.
 </ask_user>"""
 
-
 class FormError(ValueError):
     """The arguments do not make a usable form."""
 
-
-# ---------------------------------------------------------------- prompt
 def prompt_section(lang: str = "ru", surface: str = "chat") -> str:
     """The ask_user block for a system prompt (the same rules on every surface)."""
     text = _PROMPT
     if surface == "telegram":
         text = text.replace("</ask_user>", "In Telegram the form becomes buttons under your message.\n</ask_user>")
     return text
-
 
 def openai_tool() -> Dict[str, Any]:
     """OpenAI function schema (for loops with native tool calls)."""
@@ -130,27 +126,22 @@ def openai_tool() -> Dict[str, Any]:
             "fields": {"type": "array", "items": field, "minItems": 1, "maxItems": MAX_FIELDS}},
             "required": ["fields"]}}}
 
-
-# ---------------------------------------------------------------- normalization
 _CTRL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u200b-\u200f\u202a-\u202e\u2066-\u2069]")
-
 
 def _clean_text(value: Any, limit: int) -> str:
     text = value if isinstance(value, str) else ("" if value is None else str(value))
     text = _CTRL.sub("", text).replace("\r", "")
     text = re.sub(r"[ \t]+", " ", text).strip()
-    # Markdown/HTML never renders inside a form: strip the obvious wrappers instead of showing them.
+
     text = re.sub(r"^\*\*(.+)\*\*$", r"\1", text)
     text = re.sub(r"<[^>]{1,40}>", "", text)
     if len(text) > limit:
         text = text[: max(1, limit - 1)].rstrip() + "…"
     return text
 
-
 def _slug(text: str, fallback: str) -> str:
     base = re.sub(r"[^0-9a-zA-Z_]+", "_", text.lower()).strip("_")[:24]
     return base or fallback
-
 
 def _num(value: Any) -> Optional[float]:
     if isinstance(value, bool) or value is None:
@@ -166,10 +157,8 @@ def _num(value: Any) -> Optional[float]:
         return None
     return out
 
-
 def _tidy_num(value: float) -> Any:
     return int(value) if float(value).is_integer() and abs(value) < 1e15 else round(value, 6)
-
 
 def _date(value: Any) -> Optional[str]:
     if isinstance(value, (_dt.date, _dt.datetime)):
@@ -188,7 +177,6 @@ def _date(value: Any) -> Optional[str]:
     except ValueError:
         return None
 
-
 def _bool(value: Any) -> Optional[bool]:
     if isinstance(value, bool):
         return value
@@ -200,7 +188,6 @@ def _bool(value: Any) -> Optional[bool]:
     if raw in ("false", "no", "n", "0", "off", "нет", "н", "не"):
         return False
     return None
-
 
 def _options(raw: Any) -> List[str]:
     if isinstance(raw, str):
@@ -221,7 +208,6 @@ def _options(raw: Any) -> List[str]:
             break
     return out
 
-
 def _field(raw: Any, index: int, used: set) -> Optional[Dict[str, Any]]:
     if isinstance(raw, str):
         raw = {"type": "text", "label": raw}
@@ -238,9 +224,9 @@ def _field(raw: Any, index: int, used: set) -> Optional[Dict[str, Any]]:
     if raw.get("multiple") is True and kind == "choice":
         kind = "multi"
     if kind in ("choice", "multi") and not options:
-        kind = "text"                     # chips without chips — a text field still gets the answer
+        kind = "text"
     if kind == "choice" and len(options) == 1 and not raw.get("allow_other"):
-        kind = "bool"                     # one chip is a yes/no question
+        kind = "bool"
         label = label or options[0]
     if not label:
         label = options[0] if options and kind in ("choice", "multi") else ""
@@ -288,7 +274,6 @@ def _field(raw: Any, index: int, used: set) -> Optional[Dict[str, Any]]:
     field["required"] = bool(raw.get("required"))
     return field
 
-
 def _clean_default(field: Dict[str, Any], value: Any) -> Any:
     kind = field["type"]
     if kind == "choice":
@@ -319,7 +304,6 @@ def _clean_default(field: Dict[str, Any], value: Any) -> Any:
         return _bool(value)
     text = _clean_text(value, 500)
     return text or None
-
 
 def normalize_form(args: Any) -> Dict[str, Any]:
     """A clean form from model arguments; raises FormError when nothing usable is there."""
@@ -365,8 +349,6 @@ def normalize_form(args: Any) -> Dict[str, Any]:
         form["submit_label"] = submit
     return form
 
-
-# ---------------------------------------------------------------- answers
 def validate_answers(form: Dict[str, Any], answers: Any) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     """(clean answers by field id, errors [{field, error}]) — the server decides what is valid."""
     answers = answers if isinstance(answers, dict) else {}
@@ -376,7 +358,7 @@ def validate_answers(form: Dict[str, Any], answers: Any) -> Tuple[Dict[str, Any]
         fid, kind = field["id"], field["type"]
         value = answers.get(fid)
         other = answers.get(fid + "__other")
-        if isinstance(value, dict):          # {"value": …, "other": …}
+        if isinstance(value, dict):
             other = value.get("other", other)
             value = value.get("value", value.get("values"))
         empty = value is None or value == "" or value == []
@@ -455,12 +437,11 @@ def validate_answers(form: Dict[str, Any], answers: Any) -> Tuple[Dict[str, Any]
                 clean[fid] = text
             elif field.get("required"):
                 errors.append({"field": fid, "error": "required"})
-    # A free reply typed instead of filling the form (composer / Telegram message) — kept as it is.
+
     reply = answers.get("_reply")
     if isinstance(reply, str) and reply.strip():
         clean["_reply"] = _CTRL.sub("", reply).strip()[:MAX_TEXT_ANSWER]
     return clean, errors
-
 
 def _fmt_value(field: Dict[str, Any], value: Any, lang: str) -> str:
     if isinstance(value, bool):
@@ -477,7 +458,6 @@ def _fmt_value(field: Dict[str, Any], value: Any, lang: str) -> str:
             pass
     return str(value)
 
-
 def summary(form: Dict[str, Any], answers: Dict[str, Any], status: str = "answered", lang: str = "ru") -> str:
     """One line for the compact answered form («Стиль: Дружелюбный · Когда: 12.10.2026»)."""
     if status == "skipped":
@@ -493,7 +473,6 @@ def summary(form: Dict[str, Any], answers: Dict[str, Any], status: str = "answer
     if answers.get("_reply"):
         parts.append(str(answers["_reply"])[:200])
     return " · ".join(parts) or ("Без ответа" if lang != "en" else "No answer")
-
 
 def tool_result(form: Dict[str, Any], answers: Optional[Dict[str, Any]], status: str = "answered") -> Dict[str, Any]:
     """The tool result the model receives."""
@@ -522,10 +501,7 @@ def tool_result(form: Dict[str, Any], answers: Optional[Dict[str, Any]], status:
         out["note"] = "The form was cancelled. Stop and do not ask again."
     return out
 
-
-# ---------------------------------------------------------------- text protocol
 _TOOL_FENCE = re.compile(r"```[ \t]*memuai[-_ ]?tool\b[^\n]*\n?", re.I)
-
 
 def _scan(source: str, start: int) -> Optional[Tuple[int, int]]:
     i = start
@@ -554,7 +530,6 @@ def _scan(source: str, start: int) -> Optional[Tuple[int, int]]:
                 return begin, j + 1
     return None
 
-
 def rebalance_closers(raw: str) -> str:
     """Replace mismatched closers with the right ones, drop stray ones, append missing ones (strings respected)."""
     out, stack, in_str, esc = [], [], False, False
@@ -582,7 +557,6 @@ def rebalance_closers(raw: str) -> str:
     out.extend(reversed(stack))
     return "".join(out)
 
-
 def _calls_from(data: Any) -> List[Dict[str, Any]]:
     rows = data if isinstance(data, list) else [data]
     out = []
@@ -600,7 +574,6 @@ def _calls_from(data: Any) -> List[Dict[str, Any]]:
         out.append({"tool": name, "args": args if isinstance(args, dict) else {}})
     return out
 
-
 def extract_call(text: str) -> Tuple[str, Optional[Dict[str, Any]]]:
     """(text without the call, ask_user args or None) — for text-protocol loops (Telegram, Mini App)."""
     source = str(text or "")
@@ -614,7 +587,7 @@ def extract_call(text: str) -> Tuple[str, Optional[Dict[str, Any]]]:
             try:
                 calls = _calls_from(json.loads(re.sub(r",\s*([\]}])", r"\1", source[span[0]:span[1]])))
             except ValueError:
-                try:  # swapped closers at the end («]}]}]») — common with free models
+                try:
                     calls = _calls_from(json.loads(rebalance_closers(
                         re.sub(r",\s*([\]}])", r"\1", source[span[0]:span[1]]))))
                 except ValueError:
@@ -646,7 +619,6 @@ def extract_call(text: str) -> Tuple[str, Optional[Dict[str, Any]]]:
             return "", call["args"]
     return source, None
 
-
 def strip_calls(text: str) -> str:
     """Removes every memuai-tool block (a call that will not run must not be shown)."""
     out, last = [], 0
@@ -663,8 +635,6 @@ def strip_calls(text: str) -> str:
     out.append(source[last:])
     return "".join(out).strip()
 
-
-# ---------------------------------------------------------------- pending store
 def _data_dir() -> str:
     env = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if env:
@@ -675,7 +645,6 @@ def _data_dir() -> str:
     except Exception:  # pragma: no cover
         return os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "MemuAI")
 
-
 def _inbox():
     try:
         from . import inbox
@@ -683,11 +652,9 @@ def _inbox():
     except Exception:
         return None
 
-
 _SURFACE_NAMES = {"chat": ("Чат", "Chat"), "work": ("Work", "Work"), "dfy": ("DFY", "DFY"),
                   "quick": ("Быстрый доступ", "Quick Access"), "telegram": ("Telegram", "Telegram"),
                   "miniapp": ("Mini App", "Mini App"), "flow": ("Планирование", "Planning")}
-
 
 class PendingStore:
     """Pending forms: file-backed (cross-process) + in-process futures."""
@@ -798,7 +765,7 @@ class PendingStore:
             if not isinstance(record, dict):
                 return None
             if record.get("status") != "pending":
-                return dict(record)           # already settled: the first answer wins
+                return dict(record)
             clean: Dict[str, Any] = {}
             if status == "answered":
                 clean, errors = validate_answers(record["form"], answers or {})
@@ -866,9 +833,7 @@ class PendingStore:
             self._futures.pop(form_id, None)
             self._loops.pop(form_id, None)
 
-
 STORE = PendingStore()
-
 
 def _inbox_handler(item: Dict[str, Any], action_id: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     form_id = str((item.get("ref") or {}).get("form_id") or "")
@@ -884,7 +849,6 @@ def _inbox_handler(item: Dict[str, Any], action_id: str, payload: Dict[str, Any]
         return {"resolve": True, "summary": summary(record["form"], record.get("answers") or {})} if record else {"resolve": True}
     return {"open": (item.get("ref") or {})}
 
-
 def _register_inbox_handler() -> None:
     box = _inbox()
     if box is not None and hasattr(box, "register_handler"):
@@ -893,8 +857,6 @@ def _register_inbox_handler() -> None:
         except Exception:
             pass
 
-
-# ---------------------------------------------------------------- HTTP
 def register(app: Any, prefix: str = "/api/pg/ask_user", store: Optional[PendingStore] = None) -> None:
     """Routes for clients of this process (main window, Quick Access, Mini App, Inbox)."""
     from fastapi import Request

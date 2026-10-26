@@ -31,18 +31,15 @@ CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/works
 MODELS = ["gemini-3.7-flash", "glm-5.3", "kimi-k2.6", "gpt-4o", "qwen3.8-flash", "claude-sonnet-4.6"]
 CYR = re.compile(r"[А-Яа-яЁё]")
 
-
 def post(base: str, path: str, body: dict) -> dict:
     request = urllib.request.Request(base + path, data=json.dumps(body).encode(),
                                      headers={"Content-Type": "application/json"}, method="POST")
     return json.loads(urllib.request.urlopen(request, timeout=30).read() or b"{}")
 
-
 def free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
-
 
 def start_mock():
     import uvicorn
@@ -55,7 +52,6 @@ def start_mock():
         time.sleep(0.05)
     return app, server, port
 
-
 async def open_menu(page, select_css: str) -> list:
     """Open the pretty-select built over ``select_css`` and return the option texts."""
     button = page.locator(f"{select_css} + .pretty-select-button, .pretty-select:has({select_css}) .pretty-select-button").first
@@ -65,7 +61,6 @@ async def open_menu(page, select_css: str) -> list:
     await page.wait_for_timeout(250)
     return await page.eval_on_selector_all(".pretty-select-menu:not([hidden]) [data-pretty-option] span, .pretty-select-menu.open [data-pretty-option] span",
                                            "els => els.map(e => e.textContent)")
-
 
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
@@ -129,7 +124,7 @@ async def main(out: Path) -> int:
                 await page.evaluate("() => { setCurrentModel('think-gpt-4o'); renderCaps(); }")
                 await page.wait_for_timeout(200)
                 check(await page.locator("#tog-think").count() == 0, f"{tag}: GPT-4o must have no reasoning control")
-                # «Off» for Qwen 3.8 Flash really reaches the API as enable_thinking: false.
+
                 await page.evaluate("() => { setCurrentModel('think-qwen3.8-flash'); renderCaps(); }")
                 await page.wait_for_timeout(200)
                 await page.evaluate("() => { const s = document.querySelector('#chat-effort'); s.value = 'off'; s.dispatchEvent(new Event('change')); }")
@@ -144,7 +139,7 @@ async def main(out: Path) -> int:
                 check(bool(sent) and sent[-1].get("enable_thinking") is False,
                       f"{tag}: Off for Qwen did not send enable_thinking=false: {[{k: v for k, v in b.items() if k != 'messages'} for b in sent][-1:]}")
                 await page.wait_for_timeout(800)
-                # Settings → Models → Reasoning by model.
+
                 for _ in range(20):
                     await page.keyboard.press("Control+Comma")
                     await page.wait_for_timeout(600)
@@ -157,7 +152,7 @@ async def main(out: Path) -> int:
                     link = page.locator('[data-sx-open="effort"]').first
                     if await link.count():
                         await link.click()
-                        await page.wait_for_timeout(1200)       # the page slides in (slower with the glass design)
+                        await page.wait_for_timeout(1200)
                     rows = await page.eval_on_selector_all("[data-model-effort]", "els => els.map(e => [e.dataset.modelEffort, [...e.options].map(o => o.value)])")
                     got = dict(rows)
                     metrics = await page.evaluate("""() => { const g = document.querySelector('.effort-grid'); const card = g && g.closest('.sx-card');
@@ -182,7 +177,7 @@ async def main(out: Path) -> int:
                     bad = [line for line in text.splitlines() if CYR.search(line) and "Размышлен" in line]
                     check(not bad, f"{tag}: Cyrillic in English: {bad[:3]}")
                 await page.close()
-                # The Proxy model card.
+
                 page = await browser.new_page(viewport={"width": 1280, "height": 900})
                 page.on("pageerror", lambda e, tag=tag: problems.append(f"{tag}: proxy pageerror {e}"))
                 await page.add_init_script(f"try {{ localStorage.setItem('lang', '{lang}'); localStorage.setItem('memuai_lang', '{lang}'); localStorage.setItem('theme', '{theme}'); }} catch (e) {{}}")
@@ -211,7 +206,6 @@ async def main(out: Path) -> int:
     for item in problems:
         print(" -", item)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "r33-thinking-shots"))))

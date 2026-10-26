@@ -21,17 +21,14 @@ from .state import ModelEntry, _is_available_model, state
 
 log = logging.getLogger("memuai.model_refresh")
 
-
 def _prefix(account: Any) -> str:
     if account.provider == "custom":
         return str(account.fields.get("name", "")).strip().lower().replace(" ", "-")
     return account.provider
 
-
 def _sync_local_catalog() -> None:
     from . import local_models
     local_models.sync_catalog()
-
 
 class ModelRefresher:
     def __init__(self, *, timeout: float = 90, concurrency: int = 3) -> None:
@@ -93,7 +90,7 @@ class ModelRefresher:
                         ids = await asyncio.wait_for(provider.dynamic_models(account), self.timeout)
                         if not isinstance(ids, (list, tuple, set)):
                             return account, provider_id, prefix, None, ""
-                        # An empty/partial parse is not evidence that all models were retired.
+
                         found = list(dict.fromkeys(value.strip() for value in ids
                                                    if isinstance(value, str) and value.strip()
                                                    and value.strip() != "auto" and len(value) <= 512
@@ -131,7 +128,7 @@ class ModelRefresher:
         words = [str(word).lower() for word in config_store.settings.model_hidden_keywords if word]
         with state._lock:
             for account, provider_id, prefix, ids, error in rows:
-                # A removed/disabled/reconfigured account cannot repopulate its old connection.
+
                 current = state.accounts.get(account.id)
                 if (current is not account or not current.usable() or _prefix(current) != prefix
                         or current.provider != provider_id):
@@ -168,9 +165,7 @@ class ModelRefresher:
                     del state.models[entry.id]
                     touched.add(entry.prefix)
                     removed += 1
-            # A provider may advertise a model which the account's plan/client
-            # cannot use. Keep it visible in the admin catalogue, independently
-            # of the user's enabled switch, and exclude it from client pickers.
+
             inspected = {provider_id for _, provider_id, _, ids, _ in rows
                          if ids is not None or bool(getattr(get_provider(provider_id), "authoritative_empty_catalog", False))}
             for entry in state.models.values():
@@ -216,9 +211,7 @@ class ModelRefresher:
                 except Exception:
                     log.exception("automatic model catalogue refresh failed")
             elif interval and not self._lock.locked():
-                # Entitlements change more often than the global catalogue.
-                # Respect disabling periodic discovery (interval=0), otherwise
-                # keep Antigravity aligned within at most fifteen minutes.
+
                 due_providers = [provider_id for provider_id in ("antigravity",)
                                  if any(row.provider == provider_id and row.usable() for row in state.all_accounts())
                                  and time.monotonic() >= self._provider_finished.get(provider_id, boot) + min(interval, 15 * 60)]
@@ -229,9 +222,7 @@ class ModelRefresher:
                         log.exception("Provider catalogue refresh failed")
             await asyncio.sleep(10)
 
-
 refresher = ModelRefresher()
-
 
 def register(app: Any) -> None:
     from .admin_api import _auth

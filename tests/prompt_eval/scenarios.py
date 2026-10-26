@@ -16,7 +16,6 @@ TOOL_BLOCK = re.compile(r"```[ \t]*memuai-tool[^\n]*\n([\s\S]*?)(?:\n[ \t]*```|$
 MEMORY_BLOCK = re.compile(r"```[ \t]*memuai-memory[^\n]*\n([\s\S]*?)(?:\n[ \t]*```|$)", re.I)
 THINK = re.compile(r"<think>[\s\S]*?</think>", re.I)
 
-
 def tool_calls(text: str) -> List[Dict[str, Any]]:
     calls: List[Dict[str, Any]] = []
     for raw in TOOL_BLOCK.findall(text or ""):
@@ -29,7 +28,6 @@ def tool_calls(text: str) -> List[Dict[str, Any]]:
             if isinstance(item, dict):
                 calls.append({"tool": str(item.get("tool") or item.get("name") or ""), "args": item.get("args") or {}})
     return calls
-
 
 def bare_calls(text: str) -> List[str]:
     """Mirror of app.js bareToolCalls (Round 29): the whole reply is [{"tool":…,"args":{…}}] (maybe in ```json)."""
@@ -47,14 +45,12 @@ def bare_calls(text: str) -> List[str]:
         names.append(row["tool"].lower())
     return names
 
-
 def visible(text: str) -> str:
     """What the user would see: no reasoning, no hidden blocks."""
     text = THINK.sub("", text or "")
     text = re.sub(r"```[ \t]*(?:memuai[-_ ]?\w+|schedule)\b[\s\S]*?(?:\n[ \t]*```|$)", "", text, flags=re.I)
     text = re.sub(r"\[MEM:[^\]]*\]", "", text)
     return text.strip()
-
 
 def memory_facts(text: str) -> List[str]:
     facts: List[str] = []
@@ -66,7 +62,6 @@ def memory_facts(text: str) -> List[str]:
             facts.append("_invalid_json")
     facts += re.findall(r"\[MEM:\s*([^\]]+)\]", text or "")
     return facts
-
 
 def chat_system(snap: Dict[str, Any], *, web: bool = True) -> str:
     js = snap["js"]
@@ -80,9 +75,7 @@ def chat_system(snap: Dict[str, Any], *, web: bool = True) -> str:
     parts.append(RUNTIME)
     return "\n\n".join(parts)
 
-
 Check = Callable[[str], Tuple[bool, str]]
-
 
 def expect_tool(*names: str, max_prose: int = 120) -> Check:
     def check(reply: str) -> Tuple[bool, str]:
@@ -97,7 +90,6 @@ def expect_tool(*names: str, max_prose: int = 120) -> Check:
         return True, f"calls={calls}"
     return check
 
-
 def expect_no_tool(max_words: int = 0) -> Check:
     def check(reply: str) -> Tuple[bool, str]:
         calls = [c["tool"] for c in tool_calls(reply)]
@@ -110,7 +102,6 @@ def expect_no_tool(max_words: int = 0) -> Check:
             return False, f"too long: {words} words"
         return True, f"{words} words"
     return check
-
 
 def expect_memory(*needles: str) -> Check:
     def check(reply: str) -> Tuple[bool, str]:
@@ -125,7 +116,6 @@ def expect_memory(*needles: str) -> Check:
         return True, f"facts={facts}"
     return check
 
-
 def expect_no_memory(*forbidden: str) -> Check:
     def check(reply: str) -> Tuple[bool, str]:
         facts = memory_facts(reply)
@@ -136,7 +126,6 @@ def expect_no_memory(*forbidden: str) -> Check:
             return False, f"stored transient: {facts}"
         return True, f"facts={facts}"
     return check
-
 
 def chat_scenarios() -> List[Dict[str, Any]]:
     rows = []
@@ -204,7 +193,7 @@ def chat_scenarios() -> List[Dict[str, Any]]:
         rows.append({"id": sid, "group": "chat-memory-skip", "build": lambda s, t=text: [
             {"role": "system", "content": chat_system(s, web=False)}, {"role": "user", "content": t}],
             "check": expect_no_memory(*forbidden)})
-    # pronouns that can only point at the user (the cat's «ему 3 года» is fine)
+
     gendered = re.compile(r"(?i)(?<![а-яё])(он|она|у него|у неё|у нее|его (?:кот|собак|работ|жена|муж|дет|машин)\w*|"
                           r"её (?:кот|собак|работ|муж|дет|машин)\w*)(?![а-яё])|\b(he|she|his|her)\b")
 
@@ -227,7 +216,6 @@ def chat_scenarios() -> List[Dict[str, Any]]:
             "check": expect_neutral})
     return rows
 
-
 def quick_scenarios() -> List[Dict[str, Any]]:
     rows = []
     for sid, text, check in [
@@ -242,7 +230,6 @@ def quick_scenarios() -> List[Dict[str, Any]]:
             {"role": "system", "content": s["quick_brief"]}, {"role": "user", "content": t}], "check": check})
     return rows
 
-
 def _dfy_user(goal: str, page: Dict[str, Any], history: List[Dict[str, Any]], answers: List[Any] = (),
               vault: List[Dict[str, Any]] = ()) -> str:
     return (f"<goal>{goal}</goal>\n<conversation_context></conversation_context>\n"
@@ -251,7 +238,6 @@ def _dfy_user(goal: str, page: Dict[str, Any], history: List[Dict[str, Any]], an
             f"<step>{len(history) + 1}/40 browser actions used</step>\n"
             f"<page_state>{json.dumps(page, ensure_ascii=False)}</page_state>\n"
             f"<history>{json.dumps(history[-12:], ensure_ascii=False)}</history>")
-
 
 def dfy_action(reply: str) -> Dict[str, Any]:
     text = visible(reply)
@@ -262,7 +248,6 @@ def dfy_action(reply: str) -> Dict[str, Any]:
         return json.loads(match.group(0))
     except Exception:
         return {"_invalid": text[:200]}
-
 
 def dfy_scenarios() -> List[Dict[str, Any]]:
     checkout = {"url": "https://pizza.example/checkout", "title": "Оформление заказа", "text":
@@ -320,7 +305,6 @@ def dfy_scenarios() -> List[Dict[str, Any]]:
                                                   [{"action": "navigate", "url": "https://mail.example/login"}])}],
          "check": login_check},
     ]
-
 
 def all_scenarios() -> List[Dict[str, Any]]:
     return chat_scenarios() + quick_scenarios() + dfy_scenarios()

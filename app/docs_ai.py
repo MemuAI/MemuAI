@@ -24,7 +24,7 @@ import threading
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
-try:  # FastAPI resolves the string annotations of the routes from module globals
+try:
     from fastapi import Request
 except ImportError:  # pragma: no cover - MemuCode reads the docs without FastAPI
     Request = None  # type: ignore[assignment,misc]
@@ -35,11 +35,9 @@ _IMAGE_LINE = re.compile(r"^\s*!\[[^\]]*\]\([^)]*\)\s*$")
 _lock = threading.Lock()
 _cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 
-
 def summaries_dir() -> Path:
     from .docs import docs_dir
     return docs_dir() / "summaries"
-
 
 def normalized_text(title: str, body: str) -> str:
     """The article as the summary sees it: title + body without image lines and extra blank lines."""
@@ -48,10 +46,8 @@ def normalized_text(title: str, body: str) -> str:
     text = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
     return f"# {str(title or '').strip()}\n\n{text}\n"
 
-
 def content_hash(title: str, body: str) -> str:
     return hashlib.sha256(normalized_text(title, body).encode("utf-8")).hexdigest()[:16]
-
 
 def load(lang: str) -> Dict[str, Any]:
     """``{"schema", "lang", "model", "pages": {id: {hash, tldr, points, generated}}}`` (cached by mtime)."""
@@ -75,7 +71,6 @@ def load(lang: str) -> Dict[str, Any]:
         _cache[lang] = (stamp, data)
     return data
 
-
 def save(lang: str, data: Dict[str, Any]) -> None:
     """Used by the generator script only (the app never writes into its own folder)."""
     lang = "en" if lang == "en" else "ru"
@@ -90,7 +85,6 @@ def save(lang: str, data: Dict[str, Any]) -> None:
     with _lock:
         _cache.pop(lang, None)
 
-
 def clean_points(points: Any) -> List[str]:
     rows = []
     for item in points if isinstance(points, list) else []:
@@ -98,7 +92,6 @@ def clean_points(points: Any) -> List[str]:
         if text:
             rows.append(text[:400])
     return rows[:MAX_POINTS]
-
 
 def summary_for(lang: str, page_id: str, title: str, body: str) -> Optional[Dict[str, Any]]:
     """The shipped summary of a page, with ``stale`` when the article changed after it was written."""
@@ -110,11 +103,6 @@ def summary_for(lang: str, page_id: str, title: str, body: str) -> Optional[Dict
             "generated": str(entry.get("generated") or "")[:20],
             "model": str(entry.get("model") or data.get("model") or "")[:120],
             "stale": entry.get("hash") != content_hash(title, body)}
-
-
-# --------------------------------------------------------------------------
-# Prompts (shared by the generator and the on-demand route)
-# --------------------------------------------------------------------------
 
 def summary_messages(lang: str, title: str, body: str) -> List[Dict[str, str]]:
     article = normalized_text(title, body)
@@ -138,7 +126,6 @@ def summary_messages(lang: str, title: str, body: str) -> List[Dict[str, str]]:
         user = f"Статья:\n\n{article}"
     return [{"role": "system", "content": system}, {"role": "user", "content": user}]
 
-
 def ask_messages(lang: str, title: str, body: str, question: str,
                  history: Optional[List[Dict[str, str]]] = None) -> List[Dict[str, str]]:
     article = normalized_text(title, body)
@@ -160,7 +147,6 @@ def ask_messages(lang: str, title: str, body: str, question: str,
     messages.append({"role": "user", "content": str(question or "").strip()[:2000]})
     return messages
 
-
 def literal_problems(summary: Dict[str, Any], title: str, body: str) -> List[str]:
     """Shortcuts (++…++) and `literals` of a summary that the article does not contain — a cheap accuracy guard."""
     article = normalized_text(title, body)
@@ -179,7 +165,6 @@ def literal_problems(summary: Dict[str, Any], title: str, body: str) -> List[str
         if literal not in plain_article and literal.replace(".", ",") not in plain_article and not (tokens and all(token in plain_article for token in tokens)):
             problems.append(f"`{code}`")
     return problems
-
 
 def parse_summary(text: str) -> Dict[str, Any]:
     """The model's answer → ``{tldr, points}``; tolerant to code fences and to a plain bullet list."""
@@ -205,13 +190,7 @@ def parse_summary(text: str) -> Dict[str, Any]:
         raise ValueError("empty summary")
     return {"tldr": tldr, "points": points}
 
-
-# --------------------------------------------------------------------------
-# HTTP
-# --------------------------------------------------------------------------
-
 Completion = Callable[..., Awaitable[str]]
-
 
 def register(app, completion: Completion) -> None:
     """``POST /api/pg/docs/ai`` — retell / ask through the user's model (``completion`` = ``proxy_completion``)."""
@@ -219,7 +198,7 @@ def register(app, completion: Completion) -> None:
     from fastapi.responses import JSONResponse
     from . import docs
 
-    app.state.docs_ai_completion = completion   # tests replace it with a scripted model
+    app.state.docs_ai_completion = completion
 
     @app.post("/api/pg/docs/ai")
     async def docs_ai(request: Request):
@@ -250,7 +229,7 @@ def register(app, completion: Completion) -> None:
         complete = getattr(app.state, "docs_ai_completion", None) or completion
         try:
             text = await complete(model, messages)
-        except Exception as exc:  # Proxy is off, the model failed, …
+        except Exception as exc:
             message = str(exc).strip() or type(exc).__name__
             offline = any(word in message.lower() for word in ("connect", "refused", "proxy", "connection"))
             return JSONResponse({"error": say("MemuAI Proxy не запущен — запустите его и попробуйте снова",

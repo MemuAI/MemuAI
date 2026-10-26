@@ -26,18 +26,15 @@ STATIC = ROOT / "app" / "pgstatic"
 CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
 SHOW = "QuickAsk.onShow({fresh:true, maxHeight:640, rounded:true, corner:'dwm', radius:8})"
 
-
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):
         pass
-
 
 def serve():
     handler = functools.partial(Quiet, directory=str(STATIC))
     server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, f"http://127.0.0.1:{server.server_address[1]}"
-
 
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
@@ -78,7 +75,7 @@ async def main(out: Path) -> int:
         if path == "/api/quick/ask":
             text = "".join("data: " + json.dumps(e) + "\n\n" for e in stream["events"])
             if not stream["tail"]:
-                text = text.rstrip("\n")            # the endpoint closed right after the last event
+                text = text.rstrip("\n")
             return await route_obj.fulfill(status=200, content_type="text/event-stream", body=text)
         if path == "/api/assistant/run":
             data = json.loads(body or "{}")
@@ -108,7 +105,6 @@ async def main(out: Path) -> int:
         await page.evaluate(SHOW)
         await page.wait_for_timeout(500)
 
-        # 1. the pin toast fits one line
         await page.click("#qa-pin")
         await page.wait_for_timeout(300)
         fits = await page.evaluate("""() => { const t = [...document.querySelectorAll('.qa-toast, [class*=toast]')].find((x) => x.offsetParent && x.textContent.includes('Закреплено'));
@@ -118,7 +114,6 @@ async def main(out: Path) -> int:
         await page.click("#qa-pin")
         await page.wait_for_timeout(200)
 
-        # 2. a stream without the trailing blank line
         stream.update(events=[{"event": "delta", "text": "Готово: **42**"}, {"event": "done", "model": "m1", "ms": 120}], tail=False)
         await page.fill("#qa-input", "сколько будет шесть на семь словами")
         await page.keyboard.press("Enter")
@@ -136,7 +131,6 @@ async def main(out: Path) -> int:
         check("недоступна" in answer and "оборвался" not in answer, "the real error at the end of the stream is shown")
         await page.screenshot(path=str(out / "r25qf-stream-error.png"))
 
-        # 3. a fresh window drops old command cards
         await page.evaluate(SHOW)
         await page.wait_for_timeout(400)
         await page.fill("#qa-input", "#ff8800 в rgb")
@@ -149,7 +143,6 @@ async def main(out: Path) -> int:
         await page.wait_for_timeout(500)
         check(await page.locator(".mqc-swatch").count() == 0, "a fresh window starts without the old cards")
 
-        # 4. «Что у меня на экране?» with a failing screenshot does not reach the model
         calls.clear()
         rows = page.locator(".qa-row", has_text="Что у меня на экране")
         if await rows.count():
@@ -165,7 +158,6 @@ async def main(out: Path) -> int:
         print("FAIL:", e)
     print("ok" if not errors else f"{len(errors)} problem(s)")
     return 1 if errors else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r25/quick/fixes"))))

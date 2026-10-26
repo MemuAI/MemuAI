@@ -32,7 +32,7 @@ import threading
 from pathlib import Path
 from typing import Any, BinaryIO, Dict, Optional
 
-MAGIC = b"MSB1"                 # MemuAI Sync Backup, format 1
+MAGIC = b"MSB1"
 NONCE_BYTES = 16
 TAG_BYTES = 32
 BLOCK = 64 * 1024
@@ -41,7 +41,6 @@ SCRYPT_R = 8
 SCRYPT_P = 1
 CHECK_PLAINTEXT = b"memuai-sync-key-check-v1"
 
-
 class CryptoError(ValueError):
     """Wrong passphrase, damaged file or an unknown format."""
 
@@ -49,9 +48,6 @@ class CryptoError(ValueError):
         super().__init__(ru)
         self.ru = ru
         self.en = en or ru
-
-
-# ----------------------------------------------------------------- keys ----
 
 class Keys:
     """Derived key material of one passphrase + salt."""
@@ -64,14 +60,12 @@ class Keys:
         self.salt = salt
         self.key_id = hashlib.sha256(b"memuai-sync-key-id|" + mac).hexdigest()[:16]
 
-
 def derive_keys(passphrase: str, salt: bytes, *, n: int = SCRYPT_N, r: int = SCRYPT_R, p: int = SCRYPT_P) -> Keys:
     if not passphrase:
         raise CryptoError("Пустой пароль шифрования", "The encryption passphrase is empty")
     raw = hashlib.scrypt(passphrase.encode("utf-8"), salt=salt, n=n, r=r, p=p,
                          maxmem=256 * 1024 * 1024, dklen=64)
     return Keys(raw[:32], raw[32:], salt)
-
 
 def new_key_record(passphrase: str) -> tuple[Keys, Dict[str, Any]]:
     """A fresh salt for a (new) passphrase and the public record stored next to the backups."""
@@ -81,7 +75,6 @@ def new_key_record(passphrase: str) -> tuple[Keys, Dict[str, Any]]:
               "salt": base64.b64encode(salt).decode("ascii"),
               "check": base64.b64encode(encrypt_bytes(CHECK_PLAINTEXT, keys)).decode("ascii")}
     return keys, record
-
 
 def keys_from_record(passphrase: str, record: Dict[str, Any]) -> Keys:
     """Derive the keys of a stored record and prove the passphrase is right."""
@@ -103,19 +96,14 @@ def keys_from_record(passphrase: str, record: Dict[str, Any]) -> Keys:
             raise CryptoError("Неверный пароль шифрования", "Wrong encryption passphrase")
     return keys
 
-
-# ------------------------------------------------------------- cipher ----
-
 def _xor(data: bytes, stream: bytes) -> bytes:
     n = len(data)
     if not n:
         return b""
     return (int.from_bytes(data, "little") ^ int.from_bytes(stream[:n], "little")).to_bytes(n, "little")
 
-
 def _keystream_block(key: bytes, nonce: bytes, index: int, length: int) -> bytes:
     return hashlib.shake_256(b"memuai-sync|" + key + nonce + index.to_bytes(8, "big")).digest(length)
-
 
 class _Stream:
     """Incremental encrypt/decrypt with a running MAC."""
@@ -141,13 +129,11 @@ class _Stream:
             out.append(result)
         return b"".join(out)
 
-
 def encrypt_bytes(data: bytes, keys: Keys) -> bytes:
     nonce = secrets.token_bytes(NONCE_BYTES)
     stream = _Stream(keys, nonce)
     body = stream._blocks(data, final=True, encrypt=True)
     return MAGIC + nonce + stream.mac.digest() + body
-
 
 def decrypt_bytes(blob: bytes, keys: Keys) -> bytes:
     head = len(MAGIC) + NONCE_BYTES + TAG_BYTES
@@ -162,9 +148,8 @@ def decrypt_bytes(blob: bytes, keys: Keys) -> bytes:
     if not hmac.compare_digest(mac.digest(), tag):
         raise CryptoError("Неверный пароль или файл повреждён", "Wrong passphrase or a damaged file")
     stream = _Stream(keys, nonce)
-    stream.mac = hmac.new(b"x", digestmod=hashlib.sha256)  # already verified above
+    stream.mac = hmac.new(b"x", digestmod=hashlib.sha256)
     return stream._blocks(body, final=True, encrypt=False)
-
 
 def encrypt_file(src: Path, dst: Path, keys: Keys) -> int:
     """Encrypt ``src`` into ``dst``; returns the size of ``dst``."""
@@ -181,7 +166,6 @@ def encrypt_file(src: Path, dst: Path, keys: Keys) -> int:
         writer.seek(len(MAGIC) + NONCE_BYTES)
         writer.write(stream.mac.digest())
     return dst.stat().st_size
-
 
 def _verify_file(handle: BinaryIO, keys: Keys) -> bytes:
     head = handle.read(len(MAGIC) + NONCE_BYTES + TAG_BYTES)
@@ -200,7 +184,6 @@ def _verify_file(handle: BinaryIO, keys: Keys) -> bytes:
         raise CryptoError("Неверный пароль или файл повреждён", "Wrong passphrase or a damaged file")
     return nonce
 
-
 def decrypt_file(src: Path, dst: Path, keys: Keys) -> None:
     """Verify the MAC of ``src`` first, then decrypt it into ``dst``."""
     with open(src, "rb") as reader:
@@ -215,21 +198,15 @@ def decrypt_file(src: Path, dst: Path, keys: Keys) -> None:
                 writer.write(stream._blocks(chunk, final=False, encrypt=False))
             writer.write(stream._blocks(b"", final=True, encrypt=False))
 
-
 def is_encrypted(blob_head: bytes) -> bool:
     return blob_head.startswith(MAGIC)
-
-
-# ----------------------------------------------------- local secret store ----
 
 _DPAPI_PREFIX = "dpapi:v1:"
 _FILE_PREFIX = "file:v1:"
 
-
 def _dpapi(data: bytes, *, protect: bool) -> bytes:  # pragma: no cover - Windows only
     from .pgdata import _dpapi as pg_dpapi
     return pg_dpapi(data, protect=protect)
-
 
 class SecretStore:
     """Small name → string store, protected for the current Windows user."""
@@ -297,7 +274,7 @@ class SecretStore:
         try:
             return self._unprotect(stored)
         except Exception:
-            # A store copied from another Windows user/PC cannot be opened: treat as absent.
+
             return ""
 
     def has(self, name: str) -> bool:

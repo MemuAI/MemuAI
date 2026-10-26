@@ -1,15 +1,5 @@
-/* MemuAI Proxy — Round 33 (r33-proxy, item #19): accounts list.
 
-   1. Reordering cards is pointer-driven instead of the native HTML5 drag. On Windows the native drag runs
-      an OLE modal loop that swallows the mouse wheel, so a long list could not be scrolled while a card was
-      held. Here the page scrolls with the wheel as usual, scrolls by itself near the top/bottom edge of the
-      window (speed grows towards the edge), and Esc cancels the move. A drop on the left/right half of a card
-      puts the moved card(s) before/after it; a selected group moves together.
-   2. Selection: the bulk bar shows «N of M selected», an idle state in selection mode, a select-all toggle
-      and a visible «Cancel selection» button; Esc (outside fields, menus and dialogs) or a click on empty
-      space clears the selection and leaves selection mode.
-   Uses app.js globals (classic scripts share one global scope): accountsSelected, accountsSelectMode,
-   accountsSort, visibleAccounts, reorderAccounts, syncAccountBulkBar, loadAccounts, closeAccountMenu, t, $, $$. */
+
 "use strict";
 
 window.MemuAccR33 = (() => {
@@ -18,7 +8,6 @@ window.MemuAccR33 = (() => {
     frame: 0, lastTick: 0, suppressClickUntil: 0 };
   const fmt = (key, vars) => Object.entries(vars || {}).reduce((s, [k, v]) => s.split(`{${k}}`).join(String(v)), t(key));
 
-  /* ------------------------------------------------------------ selection */
   function sync() {
     const bar = document.getElementById("acc-bulk-bar");
     if (!bar) return;
@@ -53,12 +42,11 @@ window.MemuAccR33 = (() => {
     const wasMode = accountsSelectMode;
     accountsSelected.clear();
     accountsSelectMode = false;
-    if (wasMode) loadAccounts();      // checkboxes leave the cards
+    if (wasMode) loadAccounts();
     else syncAccountBulkBar();
     return true;
   }
 
-  /* ------------------------------------------------------------ pointer drag */
   const grid = () => document.getElementById("accounts-grid");
   const cardOf = (node) => node && node.closest ? node.closest("#accounts-grid .acc-card") : null;
 
@@ -90,7 +78,7 @@ window.MemuAccR33 = (() => {
     document.body.appendChild(ghost);
     D.ghost = ghost;
     document.body.classList.add("acc-dragging");
-    try { card.setPointerCapture(D.start.pointerId); } catch (e) { /* ignore */ }
+    try { card.setPointerCapture(D.start.pointerId); } catch (e) {  }
     window.getSelection()?.removeAllRanges();
   }
 
@@ -110,7 +98,7 @@ window.MemuAccR33 = (() => {
     let card = cardOf(under);
     if (card && card.classList.contains("dragging")) card = null;
     if (!card) {
-      // Between cards (the grid gap) keep the last target: the indicator must not flicker.
+
       if (under && under.closest && under.closest("#accounts-grid")) return;
       clearTarget();
       return;
@@ -125,8 +113,6 @@ window.MemuAccR33 = (() => {
     }
   }
 
-  /* Edge auto-scroll: the zone starts under the sticky top bar; the speed grows towards (and past) the edge,
-     so holding the cursor still at the edge keeps scrolling. */
   function edgeSpeed() {
     const topBar = document.querySelector("header.topbar");
     const top = topBar ? topBar.getBoundingClientRect().bottom : 0;
@@ -188,7 +174,6 @@ window.MemuAccR33 = (() => {
   function onPointerUp() { if (D.start) finish(true); }
   function onPointerCancel() { if (D.start) finish(false); }
 
-  /* ------------------------------------------------------------ keyboard / clicks */
   function onKeyDown(event) {
     if (event.key !== "Escape") return;
     if (D.active) {
@@ -199,7 +184,7 @@ window.MemuAccR33 = (() => {
     }
     if (!document.getElementById("tab-accounts")?.classList.contains("active")) return;
     if (document.getElementById("modal-back")?.classList.contains("visible")) return;
-    if (document.getElementById("acc-context-menu")) return;     // app.js closes the menu first
+    if (document.getElementById("acc-context-menu")) return;
     const focus = document.activeElement;
     if (focus && /^(INPUT|TEXTAREA|SELECT)$/.test(focus.tagName) && focus.id !== "acc-select-mode") return;
     if (document.querySelector(".companion:not([hidden]) :focus")) return;
@@ -225,11 +210,11 @@ window.MemuAccR33 = (() => {
     window.addEventListener("pointerup", onPointerUp);
     window.addEventListener("pointercancel", onPointerCancel);
     window.addEventListener("blur", () => { if (D.start) finish(false); });
-    // A drop changes nothing if the wheel moved the page: the target is re-read after every scroll.
+
     window.addEventListener("scroll", () => { if (D.active) findTarget(); }, { passive: true });
     window.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("click", onPageClick);
-    // Native drag must never start from a card (images/links inside could still try).
+
     g.addEventListener("dragstart", (event) => { if (cardOf(event.target)) event.preventDefault(); });
     const cancel = document.getElementById("acc-select-cancel");
     if (cancel) cancel.addEventListener("click", () => clearSelection());

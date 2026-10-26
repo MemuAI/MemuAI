@@ -1,14 +1,5 @@
-/* MemuAI Mini App — MemuCode (Round 29).
- *
- * Sessions list (live terminals, sessions started from the phone, recent ones) with search, new session
- * (folder picker with recent projects / browse / new folder, model, permission mode, first task), rename,
- * delete, close. A session runs either in a terminal on the computer or — when it is not open anywhere —
- * in a phone-hosted MemuCode (`memucode remote-host`, started on demand): either way the phone drives the
- * real interactive MemuCode through the remote-control protocol, so slash commands (with auto-complete),
- * skills, /model, /mode, permission questions with the exact tool call, Esc and the queue all work.
- * The terminal's printed output (command results, notices) arrives as `notes`; tool output streams live.
- * Files: a read-only browser of the project folder with syntax highlighting, images and `git status` diffs.
- */
+
+
 (function () {
   "use strict";
   (window.MemuTgPlugins = window.MemuTgPlugins || []).push(function (kit) {
@@ -27,7 +18,6 @@
     const modeRow = (id) => MODES.find((row) => row[0] === id) || MODES[0];
     const modeLabel = (id) => tr(modeRow(id)[1], modeRow(id)[2]);
 
-    /* ============================================================ sessions list */
     async function loadSessions() {
       try {
         const data = await api("code.sessions");
@@ -64,7 +54,7 @@
     }
     function drawList(view) {
       const box = $("#code-list", view); if (!box) return;
-      // Round 34: one «new session» action at a time — the empty state has its own button, so the floating one hides.
+
       const fab = $("#code-fab", view); if (fab) fab.classList.toggle("fab-off", !!S.codeDisabled || !(S.codeSessions || []).length);
       if (S.codeDisabled) { box.innerHTML = `<div class="empty"><div class="empty-art">${icon("lock")}</div><h3>${esc(tr("Управление выключено", "Control is off"))}</h3><p>${esc(S.codeDisabled)}</p></div>`; return; }
       const q = CODE.query.trim().toLowerCase();
@@ -112,12 +102,11 @@
       actionSheet(s.title || s.project || tr("Сессия", "Session"), items);
     }
 
-    /* ============================================================ command catalogue (auto-complete) */
     async function catalog(rc, force) {
       if (!force && CODE.catalog && Date.now() - CODE.catalogAt < 60000 && (!rc || CODE.catalogRc === rc)) return CODE.catalog;
       try {
         const data = await api("code.commands", { rc: rc || "" });
-        // Commands that act on the computer's own terminal, microphone or clipboard mean nothing on the phone.
+
         data.commands = (data.commands || []).filter((row) => !LOCAL_ONLY.has(String(row.name || "")));
         CODE.catalog = data; CODE.catalogAt = Date.now(); CODE.catalogRc = rc || "";
       } catch (error) { CODE.catalog = CODE.catalog || { commands: [], models: [] }; }
@@ -157,7 +146,6 @@
       });
     }
 
-    /* ============================================================ new session */
     function newSession(prefill = {}) {
       const draft = { root: prefill.root || "", model: "", mode: "default", text: "" };
       const draw = (el) => {
@@ -167,7 +155,7 @@
         $("#ns-mode", el).textContent = modeLabel(draft.mode);
         $("#ns-mode-row .cell-icon", el).style.background = draft.mode === "bypassPermissions" ? "var(--danger)" : "#64748b";
       };
-      openSheet({ title: tr("Новая сессия MemuCode", "New MemuCode session"), full: !kit.isSplit(),   // r30: a dialog of its own height on a computer
+      openSheet({ title: tr("Новая сессия MemuCode", "New MemuCode session"), full: !kit.isSplit(),
         body: `<div class="group flat" style="margin-top:4px">
             <button class="cell flat" id="ns-folder-row"><div class="cell-icon" style="background:#f59e0b">${icon("folder")}</div><div class="cell-body"><div class="cell-title">${esc(tr("Папка проекта", "Project folder"))}</div><div class="cell-sub" id="ns-folder" style="-webkit-line-clamp:2;font-family:var(--font-mono);font-size:12.5px"></div></div><span class="chev">${icon("chev")}</span></button>
             <button class="cell flat" id="ns-model-row"><div class="cell-icon" style="background:#10b981">${icon("model")}</div><div class="cell-body"><div class="cell-title">${esc(tr("Модель", "Model"))}</div></div><div class="cell-value" id="ns-model"></div><span class="chev">${icon("chev")}</span></button>
@@ -260,7 +248,6 @@
       });
     }
 
-    /* ============================================================ a session */
     function openSession(sessionId, options = {}) {
       kit.primaryStack();
       const meta = (S.codeSessions || []).find((s) => s.id === sessionId) || { id: sessionId };
@@ -307,7 +294,7 @@
               if (!line.trim()) continue; let ev; try { ev = JSON.parse(line); } catch (e) { continue; }
               onEvent(T, ev);
             }
-            if (T.control.cancelled) { try { reader.cancel(); } catch (e) { /* closed */ } return; }
+            if (T.control.cancelled) { try { reader.cancel(); } catch (e) {  } return; }
           }
           failures = 0;
         } catch (error) {
@@ -316,7 +303,7 @@
           if (error.status === 404 && !T.rc) { toast(error.message, "err"); return; }
           if (failures > 2) {
             try { const data = await api("code.transcript", { session_id: T.id, cursor: T.cursor }); onEvent(T, { type: "items", items: data.items, cursor: data.cursor, reset: data.reset }); onEvent(T, { type: "live", live: data.live }); }
-            catch (e) { /* offline */ }
+            catch (e) {  }
           }
           await sleep(Math.min(5000, 800 * failures));
         }
@@ -342,7 +329,6 @@
       } else if (ev.type === "end") { T.cursor = ev.cursor; T.liveHash = ev.hash; }
     }
 
-    /* -------------------------------------------------------------- transcript */
     function toolLine(name, display, ok, extra = "", state = "") {
       return `<div class="t-item t-tool ${state || (ok === false ? "err" : "")}"><div class="ic">${state === "run" ? '<div class="live-head"><div class="spinner"></div></div>' : icon(ok === false ? "close" : "check")}</div><div class="tb"><div class="tn">${esc(name)}</div>${display ? `<div class="td">${esc(display)}</div>` : ""}${extra}</div></div>`;
     }
@@ -369,7 +355,7 @@
         else if (it.kind === "assistant") html += `<div class="t-item t-assistant"><div class="answer">${md(it.text)}</div>${it.interrupted ? `<div class="t-note">${esc(tr("прервано", "interrupted"))}</div>` : ""}</div>`;
         else if (it.kind === "call") {
           const res = results[it.call];
-          // Round 34: a finished TodoWrite was a «TodoWrite · Todos: 3/3 · Вывод» card right above the same list.
+
           if (it.name === "TodoWrite" && res && res.ok !== false && lastTodos >= 0) return;
           const extra = res ? `${res.diff ? `<details><summary>${esc(tr("Изменения", "Changes"))}</summary><pre>${window.MemuMD.highlight(res.diff, "diff")}</pre></details>` : ""}${res.output && !res.diff ? `<details><summary>${esc(tr("Вывод", "Output"))}</summary><pre>${esc(res.output)}</pre></details>` : ""}`
             : `<details><summary>${esc(tr("Вызов", "Call"))}</summary><pre>${esc(it.args)}</pre></details>`;
@@ -415,11 +401,6 @@
       if (near || (live && live.dialog)) term.scrollTop = term.scrollHeight;
     }
 
-    /* -------------------------------------------------------------- questions & approvals */
-    /* The terminal hard-wraps a dialog's text at its own width; on a phone that leaves ragged half-lines.
-       Soft-wrapped prose (a line continued by a word in lower case) is joined back; code, lists, diffs and
-       indented lines stay as they are. */
-    /* The last ~n characters of a growing text, starting at a line or word boundary (not mid-word). */
     function tailText(text, n) {
       text = String(text || "");
       if (text.length <= n) return text;
@@ -501,7 +482,6 @@
       try { await api("code.command", { rc: T.rc, command: { type: "interrupt" } }); } catch (error) { toast(error.message, "err"); }
     }
 
-    /* -------------------------------------------------------------- tools row & side panel */
     function drawTools(T) {
       const row = $("#t-tools", T.entry.view); if (!row) return;
       const live = T.live;
@@ -513,7 +493,7 @@
           ${live.busy || live.dialog ? `<button class="toggle-chip" id="t-esc">${icon("stop")}${esc(tr("Стоп", "Stop"))} <kbd>Esc</kbd></button>` : ""}
           ${(live.todos || []).length ? `<button class="toggle-chip" id="t-todos">${icon("list")}${live.todos.filter((x) => x.status === "completed").length}/${live.todos.length}</button>` : ""}`;
       } else {
-        // Round 34: the long «Не запущена — запустится при отправке» pushed «Запустить» off a phone screen.
+
         row.innerHTML = `<span class="mode-pill" title="${esc(tr("Не запущена — запустится при отправке", "Not running — starts when you send"))}">${icon("clock")}${esc(tr("Запустится при отправке", "Starts when you send"))}</span>
           ${T.job ? `<button class="toggle-chip" id="t-stop">${icon("stop")}${esc(tr("Остановить", "Stop"))}</button>` : `<button class="toggle-chip" id="t-start">${icon("play")}${esc(tr("Запустить", "Start"))}</button>`}`;
       }
@@ -548,7 +528,6 @@
       $("#side-help", side).onclick = () => showHelp(T);
     }
 
-    /* -------------------------------------------------------------- composer: slash auto-complete */
     function bindComposer(T, view, entry) {
       const input = $("#t-input", view), send = $("#t-send", view);
       input.addEventListener("input", () => {
@@ -561,7 +540,7 @@
           if (event.key === "Tab") { event.preventDefault(); pickSlash(T, T.slash.index, true); return; }
           if (event.key === "Enter" && !event.shiftKey && !event.isComposing && T.slash.rows.length) {
             const row = T.slash.rows[T.slash.index];
-            // «/effort high» typed in full: Enter sends it rather than inserting the same word again.
+
             if (row && row.kind !== "command" && typedToken(T) === row.value) closeSlash(T);
             else { event.preventDefault(); pickSlash(T, T.slash.index); return; }
           }
@@ -589,10 +568,7 @@
       send.innerHTML = stop ? icon("stop") : icon("send");
       send.setAttribute("aria-label", stop ? tr("Остановить (Esc)", "Stop (Esc)") : tr("Отправить", "Send"));
     }
-    /* r30: one suggestion menu above the input, like the terminal's: «/» — commands (instant, from the catalogue),
-       «/command » — its arguments (models, sessions, modes, effort, fixed words, folders and files), «@» — project
-       files; the arguments come from the computer (code.complete → app/tgapp_complete.py). ↑ ↓ choose, Tab / Enter
-       insert, Esc closes. */
+
     const MENTION = /(?:^|[\s(])@("[^"]*|[^\s@"]*)$/;
     let completeSeq = 0, completeTimer = 0;
     function beforeCaret(input) { return input.value.slice(0, input.selectionStart == null ? input.value.length : input.selectionStart); }
@@ -601,7 +577,7 @@
         meta: commandText(row), kind: "command", row }));
     }
     function localArguments(before, data) {
-      // Offline fallback (the computer did not answer): models for /model, the modes for /permissions.
+
       const match = /^\/(\S+) (\S*)$/.exec(before); if (!match) return null;
       const name = match[1].toLowerCase(), q = match[2].toLowerCase();
       let rows = [];
@@ -665,7 +641,7 @@
       const input = $("#t-input", T.entry.view);
       const caret = input.selectionStart == null ? input.value.length : input.selectionStart;
       const head = input.value.slice(0, Math.max(0, caret - T.slash.span)), tail = input.value.slice(caret);
-      // A folder keeps the menu open on its contents; anything else is finished with a space.
+
       const open = row.kind === "folder" && !row.final;
       const piece = row.value + (open || tail.startsWith(" ") ? "" : " ");
       input.value = head + piece + tail;
@@ -674,14 +650,13 @@
       closeSlash(T);
       input.dispatchEvent(new Event("input"));
     }
-    /* The word under the cursor that the open menu would replace (Enter on an exact match sends instead). */
+
     function typedToken(T) {
       const input = $("#t-input", T.entry.view);
       const before = beforeCaret(input);
       return before.slice(before.length - T.slash.span);
     }
-    /* Like the terminal menu: a command without required arguments runs at once; Tab (or one that needs an
-       argument) puts «/name » into the input and its arguments are suggested. */
+
     function insertCommand(T, name, row, insertOnly) {
       const input = $("#t-input", T.entry.view);
       closeSlash(T);
@@ -693,7 +668,6 @@
       input.dispatchEvent(new Event("input"));
     }
 
-    /* -------------------------------------------------------------- sending */
     async function ensureLive(T) {
       if (T.live && T.rc) return true;
       if (T.starting) { while (T.starting) await sleep(150); return !!T.rc; }
@@ -708,7 +682,7 @@
       } catch (error) {
         T.starting = false; drawLive(T);
         if (["no_cli", "host_failed", "host_timeout"].includes(error.code)) {
-          // An older MemuCode without the host: the background turn still works for plain tasks.
+
           T.hostFailed = error.message;
         }
         toast(error.message, "err");
@@ -725,7 +699,7 @@
     async function sendText(T, text) {
       text = String(text || "").trim(); if (!text) return;
       if (/^\/(help|\?|h)\s*$/i.test(text)) { showHelp(T); return; }
-      // Pickers that are dialogs in the terminal open as phone sheets instead (a list of every model as buttons is unusable).
+
       if (/^\/model\s*$/i.test(text)) { pickCodeModel(T.rc, T.live && T.live.model, (id) => { if (id) sendRaw(T, "/model " + id); }); return; }
       if (/^\/(mode|permissions)\s*$/i.test(text) && T.live) { const btn = $("#t-mode", T.entry.view); if (btn) { btn.click(); return; } }
       const local = /^\/([\w-]+)/.exec(text);
@@ -771,7 +745,6 @@
       } catch (error) { toast(error.message, "err"); }
     }
 
-    /* ============================================================ files */
     function openFiles(where, project) {
       const F = { where, path: "", entry: null };
       F.entry = openStack({ title: tr("Файлы", "Files"), sub: project || "",

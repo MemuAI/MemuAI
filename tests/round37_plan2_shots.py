@@ -34,7 +34,6 @@ RULE = {
                 {"type": "calendar", "mode": "short_day", "country": "RU", "off": True}],
 }
 
-
 def main() -> None:
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -87,7 +86,6 @@ def main() -> None:
     finally:
         http.close()
         servers.stop()
-
 
 if __name__ == "__main__":
     main()

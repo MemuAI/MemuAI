@@ -1,36 +1,5 @@
-/* MemuAI · Панели — места на окне и режим «Изменить расположение» (Round 33, r33-panels).
- *
- * Before Round 33 a panel could live in three places (the grid under the message box, the sidebar, the top bar)
- * and the home grid scrolled with the native thin scrollbar (arrows and a grey track on Windows). This file adds:
- *
- *   • five more zones (app/panels_layout.py is the source of truth for the ids):
- *       top            — a strip above the greeting of the start screen;
- *       composer       — a strip right above the message box;
- *       left / right   — columns beside the chat area (fold into a rail of chips when the window is narrow);
- *       sidebar_bottom — docked at the bottom of the sidebar, above the profile card;
- *     each with its own look (cards | chips) and, for the start-screen zones, «also in chats»;
- *   • soft scrollbars: the panel areas hide the native bar; a thin overlay thumb shows on hover / while scrolling
- *     (draggable), the edges fade, a strip scrolls sideways with the mouse wheel;
- *   • «Edit layout» mode: every zone is shown as a labelled drop target with «+» (gallery for that zone), cards get
- *     a small toolbar (size presets S·M·L·W, settings, «remove from here»), a corner grip that snaps the width to
- *     the grid columns, the side columns get a width handle; drag between zones with highlight and auto-scroll;
- *     Undo / Redo (Ctrl+Z / Ctrl+Shift+Z, Ctrl+Y), «Reset», Esc or «Done» exits; arrows move the focused card,
- *     Delete takes it out of this place;
- *   • the zone map — a small drawing of the window where places are toggled (panel form, «More places…»).
- *
- * Public API (window.MemuPanelsLayout, also for the Round 33 theme / layout editor):
- *   ZONES                       {id: {kind, views, chats, width, start}} (same as panels_layout.ZONES)
- *   zoneName(id) / zoneIcon(id) localized name / icon name
- *   zones()                     [{id, kind, name, view, chats, width, count, visible}] — the current state
- *   viewOf(id) / sized(id)      «cards»|«chips» / whether the panel size matters there
- *   setZone(id, patch)          change a zone's settings ({view, chats, width}) with undo; returns a promise
- *   movePanel(id, to, {from, index, copy}) · setSize(id, size) · togglePlace(id, zone)   (with undo)
- *   enter(focusId?) / exit() / editing() / toggle()   «Edit layout» mode
- *   undo() / redo() / reset() · remember() (push the current layout to the undo stack)
- *   placesField(selected[]) / zoneMapHtml(selected[], opts) / openPlaces(id, anchor)
- *   scrollify(el, {axis}) — the soft scrollbar for any scroller of the window
- *   on(fn) — called with {type: "enter"|"exit"|"change"} ; returns an unsubscribe function
- */
+
+
 "use strict";
 (() => {
   if (window.MEMU_PANELS_EMBED || window.MemuPanelsLayout) return;
@@ -52,9 +21,9 @@
     sidebar_bottom: { kind: "stack", views: ["chips", "cards"], chats: false, width: false, start: false },
   };
   const ZONE_IDS = Object.keys(ZONES);
-  const OWN = ["top", "composer", "left", "right", "sidebar_bottom"];      // zones whose mounts this file owns
+  const OWN = ["top", "composer", "left", "right", "sidebar_bottom"];
   const WIDTH_MIN = 200, WIDTH_MAX = 480, DEFAULT_WIDTH = { left: 280, right: 300 };
-  const CHAT_MIN = 560;          // the conversation never gets narrower than this because of the columns
+  const CHAT_MIN = 560;
   const RAIL_W = 60;
   const STRIP_W = { s: 196, m: 268, l: 340, w: 440 };
   const SIZES = ["s", "m", "l", "w"];
@@ -76,7 +45,6 @@
     fold: { left: "", right: "" }, lastChange: 0, scrollers: new Set(),
   };
 
-  /* --------------------------------------------------------- settings */
   function zoneCfg(id) {
     const z = ZONES[id];
     const raw = (P()?.state.settings?.layout?.zones || {})[id] || {};
@@ -86,12 +54,11 @@
     return out;
   }
   const viewOf = (id) => (ZONES[id] ? zoneCfg(id).view : "cards");
-  /** The panel size matters in the grid, the strips and the columns when they show cards. */
+
   const sized = (id) => !!ZONES[id] && ["grid", "strip", "column"].includes(ZONES[id].kind) && viewOf(id) === "cards";
   const placed = (id) => (P() ? P().placed(id) : []);
   function emit(type, extra = {}) { lay.listeners.forEach((fn) => { try { fn({ type, ...extra }); } catch (e) { console.warn("[MemuPanelsLayout]", e); } }); }
 
-  /* ------------------------------------------------------------ mounts */
   function wrapHtml(id) {
     return `<div class="mp-zone-head" data-zone-head="${id}"></div><div class="mp-zone-body mp-drop-zone" data-mp-zone="${id}"></div>`;
   }
@@ -122,7 +89,6 @@
     if (bottom) mount("sidebar_bottom", "section", "mp-zone-sbottom", (el) => { bottom.before(el); return true; });
   }
 
-  /* ------------------------------------------------------------ render */
   function zoneEmptyHtml(id) {
     return `<div class="mp-zone-end" aria-hidden="true"><span>${esc(t("Перетащите панель сюда", "Drop a panel here"))}</span></div>`;
   }
@@ -192,9 +158,9 @@
       }
       scrollify(box, { axis: z.kind === "strip" ? "x" : "y" });
     });
-    // the classic three: labels and heads for «Edit layout»
+
     const cvw = $q("#chat-view-wrap");
-    if (cvw) scrollify(cvw, { axis: "y", soft: true });     // the start screen itself (Focus design, «Edit layout»)
+    if (cvw) scrollify(cvw, { axis: "y", soft: true });
     const home = $q("#panels-home");
     if (home) { home.dataset.zoneLabel = zoneName("home"); home.dataset.zoneWrap = "home"; scrollify(home, { axis: "y" }); keepHomeMin(); }
     const side = $q("#group-panels");
@@ -204,20 +170,19 @@
     if (lay.editing) decorateClassic();
     placeChrome();
   }
-  /** The grid under the message box never shrinks to nothing (before Round 33 it got 0 px in a low window and could
-   *  not be reached): it keeps its head and a height floor; the start screen scrolls for the rest. */
+
   function keepHomeMin() {
     const home = $q("#panels-home");
     if (!home) return;
     home.style.minHeight = "";
     if (home.hidden || !home.getClientRects().length) return;
     const head = $q(".panels-home-head", home);
-    // a low window keeps the message box whole first: the floor grows with the height (56 px at 650, ~250 at 1080)
+
     const floor = Math.max(56, Math.min(innerHeight * 0.28, (innerHeight - 560) * 0.6));
     const need = Math.min(home.scrollHeight, Math.round(floor) + (head ? head.offsetHeight : 0));
     if (need > 0) home.style.minHeight = need + "px";
   }
-  /** In «Edit layout» the sidebar group and the home grid get the same zone head as the new zones. */
+
   function decorateClassic() {
     const side = $q("#group-panels");
     if (side && !$q(":scope > .mp-zone-head", side)) {
@@ -228,7 +193,6 @@
     if (side) $q(":scope > .mp-zone-head", side).innerHTML = headHtml("sidebar");
   }
 
-  /* ----------------------------------------------- columns: fold to rail */
   function measureFold() {
     const main = $q("#main-content") || $q("#chat-view-wrap")?.parentElement;
     if (!main) return;
@@ -241,14 +205,14 @@
     const SQUEEZE_MIN = 216;
     if (W >= need || !cols.length) cols.forEach((id) => { next[id] = ""; });
     else if (W - CHAT_MIN >= cols.length * SQUEEZE_MIN) {
-      // a bit narrower than asked (never below 216 px) before folding into a rail: a 1366 px laptop keeps both columns
+
       const room = W - CHAT_MIN, asked = need - CHAT_MIN;
       cols.forEach((id) => { next[id] = ""; lay.colW[id] = Math.max(SQUEEZE_MIN, Math.floor(zoneCfg(id).width * room / asked)); });
     } else if (W >= CHAT_MIN - 120 + cols.length * RAIL_W) cols.forEach((id) => { next[id] = "rail"; });
     else cols.forEach((id) => { next[id] = "hide"; });
     ["left", "right"].forEach((id) => { lay.fold[id] = next[id] || ""; });
   }
-  /** Would the column be on screen (start screen, or «in chats too» inside a chat) — CSS has the final word. */
+
   function colShown(id) {
     if (!placed(id).length && !lay.editing && !document.body.classList.contains("mp-dragging")) return false;
     const wrap = $q("#chat-view-wrap");
@@ -265,9 +229,6 @@
     });
   }
 
-  /* ------------------------------------------------- soft scrollbars */
-  /** The panel areas hide the native bar; a thin thumb overlays the edge on hover / while scrolling and can be
-   *  dragged. Edges fade (mask) where there is more to scroll. A horizontal strip scrolls with the wheel. */
   function scrollify(el, { axis = "y", soft = false } = {}) {
     if (!el || el.dataset.mpScroll) { if (el) updateScroll(el); return; }
     el.dataset.mpScroll = axis;
@@ -310,7 +271,7 @@
       const total = axis === "x" ? el.scrollWidth : el.scrollHeight;
       const ratio = total / Math.max(1, track);
       thumb.classList.add("drag", "on");
-      try { thumb.setPointerCapture(event.pointerId); } catch (e) { /* ok */ }
+      try { thumb.setPointerCapture(event.pointerId); } catch (e) {  }
       const move = (e) => {
         const d = ((axis === "x" ? e.clientX : e.clientY) - start) * ratio;
         if (axis === "x") el.scrollLeft = from + d; else el.scrollTop = from + d;
@@ -356,7 +317,6 @@
   }
   function updateAllScroll() { lay.scrollers.forEach((el) => updateScroll(el)); }
 
-  /* ------------------------------------------------------- auto-scroll */
   let autoTimer = 0, autoState = null;
   function scrollableAt(x, y) {
     const out = [];
@@ -368,8 +328,7 @@
     }
     return out;
   }
-  /** Called from dragover (fires every ~50 ms even when the pointer rests): near an edge of a scroller under the
-   *  pointer, keep scrolling it, faster closer to the edge. */
+
   function autoScroll(event) {
     const x = event.clientX, y = event.clientY;
     const EDGE = 56;
@@ -395,7 +354,6 @@
     }
   }
 
-  /* ------------------------------------------------------- undo / save */
   function snapshot() {
     const L = P();
     return {
@@ -442,7 +400,7 @@
     P().render();
     await save(next);
   }
-  /** One local change + save, with undo. */
+
   async function commit(fn) {
     const L = P();
     if (!L) return;
@@ -501,8 +459,7 @@
       layout.zones[id] = cur;
     });
   }
-  /** «Reset»: every panel back where Rounds 21–32 put them — the zones of Round 33 are emptied into the grid under
-   *  the message box (the classic three stay), every zone gets its default look. Undo brings it all back. */
+
   function reset() {
     return commit((state) => {
       state.panels.forEach((p) => {
@@ -516,7 +473,6 @@
     });
   }
 
-  /* ----------------------------------------------------- edit mode */
   function onStartScreen() {
     const wrap = $q("#chat-view-wrap");
     return !!wrap && wrap.classList.contains("empty-chat") && !document.body.classList.contains("code-mode")
@@ -552,8 +508,8 @@
     const L = P();
     if (!L || lay.editing) { if (focusId) focusCard(focusId); return; }
     L.closeMenu(); L.closePop();
-    // from Settings → Panels: the settings window closes (its stack too) — the layout is edited on the window itself
-    try { for (let i = 0; i < 4 && $q("#panel-back.visible") && typeof closePanel === "function"; i += 1) closePanel("close"); } catch (e) { /* ok */ }
+
+    try { for (let i = 0; i < 4 && $q("#panel-back.visible") && typeof closePanel === "function"; i += 1) closePanel("close"); } catch (e) {  }
     goStart();
     lay.editing = true;
     document.body.classList.add("mp-layout-edit");
@@ -568,7 +524,7 @@
     bar.innerHTML = barHtml();
     updateBar();
     L.render();
-    setTimeout(() => { L.render(); updateAllScroll(); }, 60);     // after the start screen appeared
+    setTimeout(() => { L.render(); updateAllScroll(); }, 60);
     emit("enter");
     chromeLoop();
     if (focusId) setTimeout(() => focusCard(focusId), 80);
@@ -590,7 +546,6 @@
     if (el) { el.scrollIntoView({ block: "nearest", inline: "nearest" }); el.focus({ preventScroll: true }); P()?.flash(id); }
   }
 
-  /* --------------------------------------- card chrome (edit mode only) */
   function chromeEl() {
     let el = $q(".mp-edchrome");
     if (!el) {
@@ -602,8 +557,7 @@
     return el;
   }
   function hideChrome() { const el = $q(".mp-edchrome"); if (el) el.hidden = true; lay.hover = null; lay.hoverKey = null; }
-  /** While editing, the chrome follows its card every frame: the grid re-flows after a size change (masonry is
-   *  measured a frame later), live cards re-render, the start screen scrolls. One rect read per frame. */
+
   let chromeRaf = 0;
   function chromeLoop() {
     cancelAnimationFrame(chromeRaf);
@@ -636,7 +590,7 @@
   function placeChrome(el = lay.hover && lay.hover.isConnected ? lay.hover : null) {
     if (!lay.editing) { hideChrome(); return; }
     if (!el && lay.hover) {
-      // the card re-rendered: find it again by id + place
+
       const old = lay.hoverKey;
       if (old) el = $q(`[data-panel-id="${CSS.escape(old.id)}"][data-place="${CSS.escape(old.place)}"]`);
     }
@@ -668,7 +622,6 @@
     grip.title = t("Тяните — ширина по сетке (S·M·W)", "Drag — width snaps to the grid (S·M·W)");
   }
 
-  /* ------------------------------------------------------ resize grip */
   function startResize(event) {
     const el = lay.hover;
     if (!el) return;
@@ -699,7 +652,7 @@
         if (span >= cols && cols > 2) return "w";
         return (P().byId(id) || p).size === "l" ? "l" : "m";
       }
-      // strip: nearest preset width
+
       let best = "m", bestD = Infinity;
       SIZES.forEach((s) => { const d = Math.abs(STRIP_W[s] - w); if (d < bestD) { bestD = d; best = s; } });
       return best;
@@ -708,7 +661,7 @@
       const size = pick(e.clientX);
       label.textContent = `${size.toUpperCase()} · ${P().sizeNames()[size]}`;
       label.style.left = (e.clientX + 14) + "px"; label.style.top = (e.clientY + 14) + "px";
-      // the panel object of this moment: a background reload replaces state.panels while the grip is held
+
       const cur = P().byId(id);
       lay.resize.size = size;
       if (cur && size !== cur.size) {
@@ -777,7 +730,6 @@
     window.addEventListener("pointercancel", up, true);
   }
 
-  /* -------------------------------------------------------- zone map */
   const MAP_ORDER = ["appbar", "sidebar", "sidebar_bottom", "left", "top", "composer", "home", "right"];
   function zoneMapHtml(selected = [], { name = "", compact = false } = {}) {
     const sel = new Set(selected);
@@ -810,7 +762,6 @@
     if (map) syncMapNames(map);
   });
 
-  /* ----------------------------------------- settings / places popover */
   function closeLayPop() { if (lay.pop) { lay.pop.el.remove(); lay.pop = null; } }
   function openPlaces(id, anchor, { full = false } = {}) {
     const L = P();
@@ -875,10 +826,8 @@
     requestAnimationFrame(() => ($q("[data-lp-title]", el) || $q("input[data-mp-place]", el))?.focus({ preventScroll: true }));
   }
 
-  /* ----------------------------------------------------------- events */
   function bind() {
-    // Edit mode: a press on a card's inside does nothing (no To-Do toggles, links, chip popovers) — it is a drag
-    // handle; the chrome buttons and the zone heads work.
+
     document.addEventListener("click", (event) => {
       if (lay.pop && !event.target.closest(".mp-laypop") && !event.target.closest(".mp-edchrome")) closeLayPop();
       const eb = event.target.closest(".mp-editbar [data-eb]");
@@ -946,7 +895,7 @@
       const typing = event.target.closest?.("input, textarea, select, [contenteditable]");
       const mod = event.ctrlKey || event.metaKey;
       if (mod && !event.altKey && (event.code === "KeyZ" || event.code === "KeyY") && !typing && !$q(".mp-modal-back")) {
-        // In «Edit layout» always; outside it only right after a layout change (2 min) — never in a text field
+
         if (!lay.editing && Date.now() - lay.lastChange > 120000) return;
         const isRedo = event.code === "KeyY" || event.shiftKey;
         if (isRedo ? !lay.redo.length : !lay.undo.length) return;
@@ -977,10 +926,7 @@
       }
     }, true);
     window.addEventListener("resize", () => { refold(); keepHomeMin(); updateAllScroll(); placeChrome(); closeLayPop(); });
-    // Round 36 (perf): any scroll (the chat, the sidebar) re-measured every zone scroller per event — now once a frame.
-    // r36-perf-js-2: and only the scrollers the scrolled box can move (itself or inside it) — scrolling the chat or the
-    // sidebar measured the home zones' scrollers every frame (getBoundingClientRect = forced style+layout, ~400 ms per
-    // 60 wheel steps on a long chat).
+
     let scrollFrame = 0, scrollAll = false;
     const scrolled = new Set();
     document.addEventListener("scroll", (event) => {
@@ -1003,7 +949,7 @@
       const attach = () => { const m = $q("#main-content"); if (m) ro.observe(m); else setTimeout(attach, 500); };
       attach();
     }
-    // the start screen ↔ a chat: the columns' fold and the scrollers' fades follow
+
     const watch = () => {
       const wrap = $q("#chat-view-wrap");
       if (!wrap) { setTimeout(watch, 400); return; }
@@ -1040,7 +986,7 @@
   };
   window.MemuPanelsLayout = api;
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind); else bind();
-  // panels.js may have rendered before this file arrived: draw the new zones now
+
   const kick = () => { if (P() && P().state.loaded) P().render(); else setTimeout(kick, 300); };
   kick();
 })();

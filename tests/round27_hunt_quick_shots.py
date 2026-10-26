@@ -36,7 +36,6 @@ CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or (
 DOC_TEXT = "Договор поставки № 17. Срок оплаты — 30 дней с даты отгрузки. Штраф за просрочку 0,1 % в день."
 SEL_TEXT = "Thanks for the update! We should move the release to Thursday."
 
-
 def tiny_docx(text: str) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as z:
@@ -46,7 +45,6 @@ def tiny_docx(text: str) -> bytes:
         z.writestr("word/document.xml", '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/'
                    f'wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>{text}</w:t></w:r></w:p></w:body></w:document>')
     return buffer.getvalue()
-
 
 def start_server(data_dir: str) -> str:
     os.environ["MEMUAI_DATA_DIR"] = data_dir
@@ -68,7 +66,6 @@ def start_server(data_dir: str) -> str:
         except Exception:
             time.sleep(0.1)
     return f"http://127.0.0.1:{port}"
-
 
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
@@ -94,9 +91,9 @@ async def main(out: Path) -> int:
                                            body="".join("data: " + json.dumps(e, ensure_ascii=False) + "\n\n" for e in events))
         if path == "/api/quick/window":
             return await route_obj.fulfill(json={"ok": True})
-        if path == "/api/pg/state":         # no Proxy here: one model to answer with
+        if path == "/api/pg/state":
             return await route_obj.fulfill(json={"models": [{"id": "test-model", "caps": {"vision": False, "search": False}}], "image_models": []})
-        if path == "/api/quick/config":     # the real config, with that model chosen
+        if path == "/api/quick/config":
             response = await route_obj.fetch()
             data = await response.json()
             data.setdefault("prefs", {})["quick_ask_model"] = "test-model"
@@ -112,7 +109,7 @@ async def main(out: Path) -> int:
         browser = await pw.chromium.launch(executable_path=CHROME if os.path.exists(CHROME) else None, args=["--no-sandbox"])
 
         async def until(page, expression, seconds=8.0):
-            # the page's CSP forbids eval: no wait_for_function, poll with evaluate
+
             deadline = time.monotonic() + seconds
             while time.monotonic() < deadline:
                 if await page.evaluate(expression):
@@ -140,14 +137,13 @@ async def main(out: Path) -> int:
             await page.wait_for_timeout(300)
             await page.screenshot(path=str(out / f"{name}.png"))
 
-        # 1. a DOCX through the file dialog
         page = await open_page()
         await page.set_input_files("#qa-file-input", files=[{"name": "dogovor.docx", "buffer": tiny_docx(DOC_TEXT),
                                                              "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"}])
         await until(page, "!!document.querySelector('.qa-chip-sel')")
         chip = await page.inner_text(".qa-chip-sel b")
         check(chip == "Файл", f"document chip says «Файл» ({chip!r})")
-        # Round 30: a document chip shows the file name; the parsed text is in its tooltip
+
         name = await page.inner_text(".qa-chip-sel .tl")
         check(name == "dogovor.docx", f"the document chip names the file ({name!r})")
         quote = await page.get_attribute(".qa-chip-sel", "title")
@@ -166,7 +162,6 @@ async def main(out: Path) -> int:
               f"«Кратко» sends the document as the selection ({ask.get('selection_action')}, {str(ask.get('selection'))[:60]!r})")
         await page.close()
 
-        # 2. a dropped .txt (the old text-file path) — the row and the placeholder used to stay as if nothing was there
         page = await open_page()
         await page.set_input_files("#qa-file-input", files=[{"name": "notes.txt", "buffer": DOC_TEXT.encode("utf-8"), "mimeType": "text/plain"}])
         await page.wait_for_timeout(500)
@@ -176,7 +171,6 @@ async def main(out: Path) -> int:
         check(visible, ".txt: the action row is shown (it was hidden together with the old rows)")
         await page.close()
 
-        # 3. a selection with a document on top: no «Заменить выделение»
         info = {"id": "sel42", "source": "uia", "app": "OUTLOOK.EXE", "title": "Inbox", "editable": True, "truncated": False, "chars": len(SEL_TEXT)}
         page = await open_page(SEL_TEXT, info)
         check((await page.inner_text(".qa-chip-sel b")) == "Выделено", "a captured selection is still «Выделено»")
@@ -190,12 +184,11 @@ async def main(out: Path) -> int:
         check(await page.locator("#qa-x-selection-replace").count() == 0, "«Заменить выделение» is not offered")
         await page.close()
 
-        # 4. an answer that starts while the clipboard view is open closes the view
         page = await open_page()
         await page.keyboard.press("Alt+V")
         await page.wait_for_timeout(400)
         check(await page.evaluate("document.documentElement.dataset.qxView === 'clipboard'"), "Alt+V opens the clipboard history")
-        await page.evaluate("MemuQuick.send('какая сегодня погода')")       # what the wake word plugin does
+        await page.evaluate("MemuQuick.send('какая сегодня погода')")
         await page.wait_for_timeout(800)
         check(await page.evaluate("!document.documentElement.dataset.qxView"), "the view gives way to the answer")
         answer = await page.evaluate("!document.getElementById('qa-answer').hidden && document.getElementById('qa-answer').innerText")
@@ -203,7 +196,6 @@ async def main(out: Path) -> int:
         await shot(page, "hq-answer-after-view-ru")
         await page.close()
 
-        # 5. an AI snippet: the instruction survives a reopen of the chat
         page = await open_page()
         await page.fill("#qa-input", ";короче " + DOC_TEXT)
         await page.wait_for_timeout(300)
@@ -223,7 +215,6 @@ async def main(out: Path) -> int:
         print("PROBLEM:", line)
     print(f"shots in {out}; problems: {len(problems)}")
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1]))))

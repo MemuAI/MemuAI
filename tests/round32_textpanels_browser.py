@@ -27,7 +27,6 @@ os.environ["MEMUAI_DATA_DIR"] = tempfile.mkdtemp(prefix="r32tp-browser-")
 SHOW = json.dumps({"fresh": True, "maxHeight": 760, "rounded": True, "corner": "dwm", "radius": 8, "pinned": False,
                    "source": "hotkey", "page": None, "selection": ""})
 
-
 def seed():
     from app import panels
     crypto = panels.create_panel(template="crypto", params={"coin": "bitcoin", "vs": "usd"}, start=False)
@@ -48,7 +47,6 @@ def seed():
                                "last_label": "10 октября", "next_match": {"opponent": "Спартак", "date": "2026-10-14T19:30:00+03:00"}})
     panels.mutate(fill)
     return crypto["id"], sports["id"]
-
 
 async def main(out: Path | None) -> int:
     import httpx
@@ -128,7 +126,7 @@ async def main(out: Path | None) -> int:
                 await page.set_viewport_size({"width": 720, "height": max(200, min(900, int(height)))})
                 await page.wait_for_timeout(300)
                 await page.screenshot(path=str(out / f"tpb-window-{theme}-{lang}.png"))
-            # the tile menu → the editor
+
             tile = page.locator(f'.qpe-tile[data-ref="{crypto}"]')
             await tile.click(button="right")
             await page.wait_for_timeout(300)
@@ -160,7 +158,7 @@ async def main(out: Path | None) -> int:
             await page.locator(".pte-blocks button").nth(0).click()
             await page.locator(".pte-tpl").fill("BTC {price|round:0} {missing}")
             await page.locator(".pte-filters > summary").click()
-            await page.locator('[data-pte-filter="upper"]').click()          # the filter goes into the placeholder at the caret
+            await page.locator('[data-pte-filter="upper"]').click()
             await page.wait_for_timeout(200)
             tpl = await page.locator(".pte-tpl").input_value()
             check("{missing|upper}" in tpl, f"{what}: the filter is inserted into the placeholder ({tpl})")
@@ -180,7 +178,7 @@ async def main(out: Path | None) -> int:
             check(shown and shown[0] == "free" and "BTC" in shown[1], f"{what}: the tile shows the saved text ({shown})")
             closed = await page.evaluate("document.querySelector('.qpt-host').hidden")
             check(closed, f"{what}: the editor closes after saving")
-            # Esc in the editor cancels the editor only (the window stays); arrows move a block of the free layout
+
             await page.evaluate("(r) => MemuQuickEmbed.openText(r)", crypto)
             await page.wait_for_timeout(700)
             await page.locator(".pte-stage .pt-b").nth(0).focus()
@@ -199,7 +197,6 @@ async def main(out: Path | None) -> int:
     for p in problems:
         print(" -", p)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     o = Path(sys.argv[1]) if len(sys.argv) > 1 else None

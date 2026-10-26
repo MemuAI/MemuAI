@@ -21,7 +21,7 @@ from typing import Any, Callable, Dict, Optional
 log = logging.getLogger("memuai.backdrop")
 
 KINDS = ("none", "mica", "acrylic", "tabbed")
-#: DWM_SYSTEMBACKDROP_TYPE values
+
 _SYSTEMBACKDROP = {"none": 1, "mica": 2, "acrylic": 3, "tabbed": 4}
 DWMWA_USE_IMMERSIVE_DARK_MODE = 20
 DWMWA_SYSTEMBACKDROP_TYPE = 38
@@ -29,11 +29,9 @@ DWMWA_MICA_EFFECT = 1029
 BUILD_SYSTEMBACKDROP = 22621
 BUILD_MICA_LEGACY = 22000
 
-
 def normalize_kind(value: Any) -> str:
     text = str(value or "").strip().lower()
     return text if text in KINDS else "none"
-
 
 def supported_kinds(build: Optional[int], platform: str = sys.platform) -> tuple:
     """The materials this Windows can draw (``none`` is always there)."""
@@ -44,7 +42,6 @@ def supported_kinds(build: Optional[int], platform: str = sys.platform) -> tuple
     if build >= BUILD_MICA_LEGACY:
         return ("none", "mica")
     return ("none",)
-
 
 def plan(kind: Any, build: Optional[int], platform: str = sys.platform) -> Dict[str, Any]:
     """What to call for ``kind``: {"kind", "attribute", "value", "extend", "reason"} — no side effects."""
@@ -60,7 +57,6 @@ def plan(kind: Any, build: Optional[int], platform: str = sys.platform) -> Dict[
     if (build or 0) >= BUILD_SYSTEMBACKDROP:
         return {"kind": want, "attribute": DWMWA_SYSTEMBACKDROP_TYPE, "value": _SYSTEMBACKDROP[want], "extend": True, "reason": ""}
     return {"kind": "mica", "attribute": DWMWA_MICA_EFFECT, "value": 1, "extend": True, "reason": ""}
-
 
 class BackdropController:
     """Applies a material to one native window. ``invoke`` runs a callable on the WinForms UI thread."""
@@ -99,7 +95,6 @@ class BackdropController:
             self.error = step["reason"]
         return self.state()
 
-    # ------------------------------------------------------------- native part
     def _apply_on_ui(self, step: Dict[str, Any], dark: bool) -> bool:
         import ctypes
         from ctypes import wintypes
@@ -114,8 +109,7 @@ class BackdropController:
 
         class MARGINS(ctypes.Structure):
             _fields_ = [("left", ctypes.c_int), ("right", ctypes.c_int), ("top", ctypes.c_int), ("bottom", ctypes.c_int)]
-        # negative margins = «sheet of glass»: the material under the whole client area; 0/1 restores the
-        # normal frame (1 px keeps the Windows 10 shadow of the custom title bar, as win_titlebar does)
+
         margins = MARGINS(-1, -1, -1, -1) if on else MARGINS(0, 0, 1, 0)
         dwm.DwmExtendFrameIntoClientArea(wintypes.HWND(hwnd), ctypes.byref(margins))
         self._webview_transparent(on)
@@ -125,7 +119,7 @@ class BackdropController:
             value = ctypes.c_int(int(step["value"]))
             result = dwm.DwmSetWindowAttribute(wintypes.HWND(hwnd), int(step["attribute"]), ctypes.byref(value), ctypes.sizeof(value))
         if on and result != 0:
-            # DWM refused: put the opaque window back
+
             dwm.DwmExtendFrameIntoClientArea(wintypes.HWND(hwnd), ctypes.byref(MARGINS(0, 0, 1, 0)))
             self._webview_transparent(False)
             apply_surface(self._native, dark, color)
@@ -155,10 +149,9 @@ class BackdropController:
         try:
             if not hasattr(self, "_orig_form_bg"):
                 self._orig_form_bg = native.BackColor
-            native.BackColor = Color.Black if on else self._orig_form_bg   # black client = see-through with the extended frame
+            native.BackColor = Color.Black if on else self._orig_form_bg
         except Exception:
             pass
-
 
 def create(native: Any, hwnd_provider: Callable[[], int], invoke: Callable[[Callable[[], Any]], Any]) -> Optional[BackdropController]:
     """A controller for the main window, or ``None`` off Windows. Never raises."""

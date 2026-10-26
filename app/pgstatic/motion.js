@@ -1,25 +1,5 @@
-/* MemuAI motion layer (Round20).
- * Design-independent motion that CSS alone cannot express. Everything here is
- * an enhancement: if this file fails to load the app works exactly as before.
- *
- *  - MemuMotion.swap(update, kind): theme / design / accent switches through
- *    the View Transitions API (feature-detected), circular reveal from the
- *    theme button, plain crossfade otherwise;
- *  - press feedback (Web Animations on the independent `scale` property, so it
- *    never fights a component's own `transform` or `transition`);
- *  - popover origin: menus scale out of the point that opened them;
- *  - sidebar chat lists: new rows slide in, moved rows glide (FLIP), deleted
- *    rows leave as a fading ghost;
- *  - image viewer: the picture grows out of the thumbnail that was clicked;
- *  - pointer sheen variables (--mx/--my) for designs that draw a highlight;
- *  - html.m-paused while the window is hidden or inactive, so ambient
- *    backgrounds stop costing GPU time.
- *
- * Levels: <html data-motion="full|reduced|off"> (set by app.js from the
- * ui_motion preference). "off", body.reduce-motion and the OS
- * prefers-reduced-motion switch this layer off entirely. Nothing here ever
- * delays input: handlers are passive and all work happens in rAF/microtasks.
- */
+
+
 "use strict";
 const MemuMotion = (() => {
   const root = document.documentElement;
@@ -40,7 +20,6 @@ const MemuMotion = (() => {
   const ready = () => document.body && !document.body.classList.contains("booting")
     && performance.now() > 600 && document.visibilityState === "visible";
 
-  /* ------------------------------------------------ View Transitions swap */
   let lastPointer = { x: -1, y: -1, t: 0, target: null };
   let swapping = null;
 
@@ -48,7 +27,7 @@ const MemuMotion = (() => {
     const run = () => { try { update(); } catch (error) { console.error(error); } };
     const motion = level();
     if (motion === "off" || typeof document.startViewTransition !== "function" || !ready()) { run(); return; }
-    // A second switch while one is animating simply finishes the first one.
+
     if (swapping) { try { swapping.skipTransition(); } catch (_) {} }
     let reveal = false;
     if (kind === "theme" && motion === "full") {
@@ -79,14 +58,13 @@ const MemuMotion = (() => {
     transition.updateCallbackDone.catch(() => {});
   }
 
-  /* -------------------------------------------------------- press feedback */
   const PRESS = [
     "button:not(:disabled)", ".pbtn", ".chip-sug", ".side-btn", ".cbtn", ".send", ".iconbtn", ".bar-icon",
     ".dd-btn", ".code-chip", ".work-action", ".work-mode-pill", ".tog", ".tool-chip", ".plus-row",
     ".profile-card", ".settings-tab-btn", "[role=button]", ".theme-card", ".design-card", ".msg-tool", ".ci-more",
     ".panel-close", ".preview-btn", ".live-ctl", ".live-talk", ".jump-latest", ".btn-new",
   ].join(",");
-  // Large surfaces would look like the whole panel jumps; they keep their own feedback.
+
   const NO_PRESS = ".chat-item, .msg, .panel, .composer, .module-window, .code-editor, .dd-pop, .context-menu, [data-no-press]";
   let pressed = null;
 
@@ -115,7 +93,6 @@ const MemuMotion = (() => {
     } catch (_) { try { animation.cancel(); } catch (__) {} }
   }
 
-  /* ------------------------------------------------------- popover origin */
   const POPOVERS = "#context-menu, #model-dd-pop, #app-menu-pop, .pretty-select-menu, .msg-more-pop, .profile-menu-pop, #slash-menu, .plus-menu, .module-layout-menu, .voice-menu, .memu-menu";
   const shown = new WeakSet();
   function isShown(el) {
@@ -132,12 +109,12 @@ const MemuMotion = (() => {
     if (recent) {
       x = lastPointer.x - r.left; y = lastPointer.y - r.top;
     } else {
-      // Keyboard: grow from the edge that faces the control that owns it.
+
       x = r.width / 2; y = r.top > innerHeight / 2 ? r.height : 0;
     }
     x = Math.max(0, Math.min(r.width, x)); y = Math.max(0, Math.min(r.height, y));
-    // The pointer is usually just outside the menu: snap to the nearest edge.
-    if (y > 8 && y < r.height - 8 && (x < 2 || x > r.width - 2)) { /* side menu: keep y */ }
+
+    if (y > 8 && y < r.height - 8 && (x < 2 || x > r.width - 2)) {  }
     el.style.setProperty("--m-ox", Math.round(x) + "px");
     el.style.setProperty("--m-oy", Math.round(y) + "px");
   }
@@ -147,12 +124,11 @@ const MemuMotion = (() => {
     else if (!visible && shown.has(el)) shown.delete(el);
   }
 
-  /* --------------------------------------------- sidebar list choreography */
   const LIST_ROOTS = ["#chats-pinned", "#chat-folders", "#chats-list", "#memes-list"];
   const ROW = ".chat-item[data-chat], section.chat-folder[data-folder-drop], section.meme-block[data-meme]";
   const rowKey = (el) => (el.dataset.chat ? "c:" + el.dataset.chat : el.dataset.folderDrop ? "f:" + el.dataset.folderDrop
     : el.dataset.meme ? "m:" + el.dataset.meme : "");
-  let rowCache = new Map();          // key -> { top, left, width, height, html } in scroller space
+  let rowCache = new Map();
   let listContext = "";
   let listQueued = false;
 
@@ -199,9 +175,9 @@ const MemuMotion = (() => {
       if (!old) added.push(row);
       else if (Math.abs(old.top - row.top) > 1 || Math.abs(old.left - row.left) > 1) moved.push([old, row]);
     });
-    // Rows that still exist but collapsed to zero height (a folded folder) are not deleted.
+
     previous.forEach((row, key) => { if (!next.has(key) && !(next.present && next.present.has(key))) removed.push(row); });
-    // Bulk changes (paging, collapsing a big folder) stay instant.
+
     if (added.length + removed.length > 6 || moved.length > 40) return;
     const viewTop = sc.scrollTop - 80, viewBottom = sc.scrollTop + sc.clientHeight + 80;
     const inView = (row) => row.top + row.height > viewTop && row.top < viewBottom;
@@ -209,7 +185,7 @@ const MemuMotion = (() => {
     moved.forEach(([old, row]) => {
       if (!inView(row) && !inView(old)) return;
       const dy = old.top - row.top, dx = old.left - row.left;
-      // A row inside a folder that glides as a whole is carried by it.
+
       const parent = row.el.parentElement && row.el.parentElement.closest(ROW);
       if (parent && movedBy.get(parent) === dy + "," + dx) return;
       try {
@@ -238,8 +214,7 @@ const MemuMotion = (() => {
         top: Math.round(base.top + row.top - sc.scrollTop) + "px", left: Math.round(base.left + row.left) + "px",
         width: Math.round(row.width) + "px", height: Math.round(row.height) + "px", boxSizing: "border-box",
       });
-      // body, not .side: a transformed / backdrop-filtered sidebar would
-      // become the containing block of a fixed element.
+
       document.body.appendChild(ghost);
       try {
         const anim = ghost.animate([
@@ -254,13 +229,11 @@ const MemuMotion = (() => {
   function queueChoreography() {
     if (listQueued) return;
     listQueued = true;
-    // Microtask: runs after app.js finished re-rendering but before paint, so a
-    // moved row never flashes at its new place first.
+
     queueMicrotask(choreograph);
   }
 
-  /* ------------------------------------------------------- image viewer zoom */
-  let imageSource = null;   // { rect, time } of the thumbnail that was clicked
+  let imageSource = null;
   function rememberImage(event) {
     const img = event.target instanceof Element ? event.target.closest("img") : null;
     if (!img || img.closest("#image-viewer")) return;
@@ -293,7 +266,6 @@ const MemuMotion = (() => {
     else img.addEventListener("load", () => setTimeout(play, 0), { once: true });
   }
 
-  /* ---------------------------------------------------------- pointer sheen */
   const SHEEN = [".chip-sug", ".btn-new", ".send", ".pbtn", ".composer", ".chat-item", ".side-btn",
     ".settings-tab-btn", ".module-card", ".rs-card", ".dd-item", ".work-action", ".code-chip", ".profile-card",
     ".theme-card", ".design-card", ".msg-user .bubble"].join(",");
@@ -313,7 +285,7 @@ const MemuMotion = (() => {
   }
   function sheenMove(event) {
     if (event.pointerType === "touch") return;
-    // Only designs that actually draw the highlight pay for it.
+
     if (root.dataset.design !== "glass" || !full()) {
       if (sheenTarget) { sheenTarget.classList.remove("m-lit"); sheenTarget = null; }
       return;
@@ -322,13 +294,11 @@ const MemuMotion = (() => {
     if (!sheenQueued) { sheenQueued = true; requestAnimationFrame(sheenFrame); }
   }
 
-  /* ---------------------------------------------------- ambient pause state */
   function syncPaused() {
     const paused = document.visibilityState !== "visible" || !document.hasFocus();
     root.classList.toggle("m-paused", paused);
   }
 
-  /* ------------------------------------------------------------------ init */
   function init() {
     if (!root.dataset.motion) {
       try {
@@ -374,9 +344,9 @@ const MemuMotion = (() => {
       subtree: true, childList: true, attributes: true, attributeOldValue: true,
       attributeFilter: ["class", "style", "hidden"],
     });
-    // The first render of each list is recorded without animation.
+
     requestAnimationFrame(() => { rowCache = snapshotRows(); listContext = contextKey(); });
-    // Keep the cache honest when the sidebar scrolls or resizes without a re-render.
+
     let refresh = 0;
     const later = () => { clearTimeout(refresh); refresh = setTimeout(() => { if (!listQueued) rowCache = snapshotRows(); }, 120); };
     document.addEventListener("scroll", (event) => { if (event.target === scroller()) later(); }, { capture: true, passive: true });

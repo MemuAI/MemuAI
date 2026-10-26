@@ -19,12 +19,10 @@ from app import stuck_detector as sd
 ROOT = Path(__file__).resolve().parents[1]
 TRACES = json.loads((ROOT / "tests" / "round29_stuck_traces.json").read_text(encoding="utf-8"))["traces"]
 
-
 def _steps(trace):
     if "repeat" in trace:
         return [trace["repeat"]["step"]] * trace["repeat"]["times"]
     return trace["steps"]
-
 
 def run_python(trace, sensitivity="normal"):
     detector = sd.StuckDetector(sensitivity)
@@ -38,10 +36,8 @@ def run_python(trace, sensitivity="normal"):
         out.append(f"{verdict.level}:{verdict.reason}")
     return out
 
-
 def first_pause(verdicts):
     return next((i + 1 for i, v in enumerate(verdicts) if v.startswith("pause")), 0)
-
 
 class DetectorTraces(unittest.TestCase):
     def test_every_trace(self):
@@ -69,7 +65,7 @@ class DetectorTraces(unittest.TestCase):
         self.assertTrue(verdicts[-1].paused)
         d.acknowledge("continue")
         after = [d.observe({"action": "click", "element": 1}, state="abcdabcd").level for _ in range(6)]
-        self.assertNotIn("pause", after[:5])       # 4 × 1.5 = 6
+        self.assertNotIn("pause", after[:5])
         self.assertEqual(after[5], "pause")
         d.acknowledge("hint")
         self.assertEqual(d.observe({"action": "click", "element": 1}, state="abcdabcd").level, "ok")
@@ -117,7 +113,6 @@ class DetectorTraces(unittest.TestCase):
         self.assertFalse(step["passive"])
         self.assertIn("Read a.py", step["label"])
 
-
 @unittest.skipUnless(shutil.which("node"), "node is not installed")
 class JsMirror(unittest.TestCase):
     def run_js(self, sensitivity="normal"):
@@ -140,7 +135,7 @@ class JsMirror(unittest.TestCase):
             self.assertIn(marker, html)
         self.assertIsNone(re.search(r"[А-Яа-яЁё]", html), "English card must have no Cyrillic")
         work = js["__work__"]
-        self.assertEqual(work["stalled"], [False, False, False, False, True, False])   # 6th = a new answer after the pause
+        self.assertEqual(work["stalled"], [False, False, False, False, True, False])
         self.assertEqual(work["paused"], "plan_stalled")
         self.assertFalse(any(work["busy"]), "edits of different files are progress")
         self.assertEqual(work["goalReason"], "no_evidence")
@@ -149,10 +144,7 @@ class JsMirror(unittest.TestCase):
         values = js["__parse__"]["values"]
         self.assertEqual([v["decision"] for v in values], ["hint", "replan", "stop", "hint", "continue", "stop"])
 
-
-# ----------------------------------------------------------------------- DFY
 from tests import round24_dfy_test as r24   # noqa: E402
-
 
 class DFYPause(r24.DFYBase):
     async def stuck_task(self, extra=()):
@@ -182,7 +174,7 @@ class DFYPause(r24.DFYBase):
 
     async def test_hint_reaches_the_model(self):
         mgr, task, model = await self.stuck_task([{"action": "done", "result": "ok"}])
-        await mgr.answer(task.id, {"answer": "use the search field at the top"})     # free text = hint
+        await mgr.answer(task.id, {"answer": "use the search field at the top"})
         await self.wait_status(mgr, task, ("done",))
         self.assertIn("use the search field at the top", model.prompts[-1])
         self.assertIn("Hint after a stuck pause", model.prompts[-1])
@@ -225,7 +217,7 @@ class DFYPause(r24.DFYBase):
         pauses = stuck_api.collect_pauses(app, {})
         self.assertEqual(pauses[0]["source"], "dfy")
         self.assertEqual(pauses[0]["task_id"], task.id)
-        # the route itself runs in the TestClient thread: drive the coroutine directly instead
+
         route = next(r for r in app.routes if getattr(r, "path", "") == "/api/stuck/decide")
 
         class Req:
@@ -235,11 +227,8 @@ class DFYPause(r24.DFYBase):
         self.assertEqual(result, {"ok": True})
         await self.wait_status(mgr, task, ("done",))
 
-
-# ------------------------------------------------------- Browser / Computer
 from tests import round24_automation_test as r24a   # noqa: E402
 from app import automation_runtime as ar   # noqa: E402
-
 
 class AutomationPause(unittest.IsolatedAsyncioTestCase):
     async def test_browser_pauses_and_continues(self):
@@ -262,7 +251,7 @@ class AutomationPause(unittest.IsolatedAsyncioTestCase):
         state_card = sd.public_pause(edge)
         self.assertEqual(state_card["reason"], "repeat")
         clicks = len(edge.methods("Input.dispatchMouseEvent"))
-        await asyncio.sleep(0.05)                        # nothing runs while paused
+        await asyncio.sleep(0.05)
         self.assertEqual(len(edge.methods("Input.dispatchMouseEvent")), clicks)
         sd.gate_of(edge).decide({"decision": "hint", "hint": "try the menu"})
         await asyncio.wait_for(job, 5)
@@ -317,8 +306,6 @@ class AutomationPause(unittest.IsolatedAsyncioTestCase):
         asyncio.run(ar.run_browser_agent(edge, completion, model="m", task="t", max_steps=10))
         self.assertEqual(edge.status, "error")
 
-
-# ---------------------------------------------------------------- MemuCode
 class CliGate(unittest.IsolatedAsyncioTestCase):
     def make_agent(self, answers):
         from app.cli.agent import Agent
@@ -364,7 +351,7 @@ class CliGate(unittest.IsolatedAsyncioTestCase):
         agent = self.make_agent(["Change approach", "Stop"])
         verdicts = [await agent._stuck_gate(calls, "turn1") for _ in range(4)]
         self.assertEqual(verdicts[:3], ["run", "run", "run"])
-        self.assertEqual(verdicts[3], "skip")                       # replan: the calls are answered, not run
+        self.assertEqual(verdicts[3], "skip")
         rows = agent.session.rows
         self.assertTrue(any(r.get("role") == "tool" and r.get("tool_call_id") == "t1" and "NOT executed" in r["content"]
                             for r in rows))
@@ -380,8 +367,6 @@ class CliGate(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(verdicts[-1], "stop")
         self.assertTrue(agent.ui.notices)
 
-
-# ------------------------------------------------------------------ wiring
 class Wiring(unittest.TestCase):
     def read(self, rel):
         return (ROOT / rel).read_text(encoding="utf-8")
@@ -435,7 +420,6 @@ class Wiring(unittest.TestCase):
             self.skipTest("node is not installed")
         for rel in ("app/pgstatic/stuck.js", "app/pgstatic/app.js", "app/pgstatic/dfy-client.js", "app/pgstatic/quick/quick-dfy.js"):
             subprocess.run(["node", "--check", str(ROOT / rel)], check=True, capture_output=True, timeout=60)
-
 
 if __name__ == "__main__":
     unittest.main()

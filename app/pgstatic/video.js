@@ -1,22 +1,10 @@
-/* MemuAI — видео во вложениях.
- *
- * Видео не отправляется провайдеру целиком: большинство моделей и прокси
- * принимают только изображения. Поэтому файл разбирается прямо в окне
- * MemuAI — встроенный движок WebView декодирует MP4/WebM/MOV (H.264, VP9,
- * AV1) — на равномерно распределённые кадры с метками времени. Если
- * настроено распознавание речи, звуковая дорожка расшифровывается тем же
- * движком, что и диктовка. Дальше, как с изображениями, пользователь решает:
- * отдать кадры текущей модели или поручить «модели распознавания видео»
- * просмотреть всё видео и подготовить для основной модели ответ по промпту.
- *
- * Сам файл нигде не сохраняется: в чате остаются только кадры (JPEG) и
- * расшифровка, поэтому вложение весит сотни килобайт, а не сотни мегабайт.
- */
+
+
 "use strict";
 const MemuVideo = (() => {
   const EXT = /\.(mp4|m4v|webm|mov|mkv|avi|ogv|3gp|mpg|mpeg|wmv)$/i;
   const FRAME_SIDE = 768;
-  const TRANSCRIBE_SECONDS = 12 * 60;      // 16 кГц моно ≈ 23 МБ WAV — под лимит 25 МБ
+  const TRANSCRIBE_SECONDS = 12 * 60;
   const TRANSCRIBE_MAX_FILE = 400 * 1024 * 1024;
   const en = () => PG_LANG === "en";
   const t = (ru, eng) => (en() ? eng : ru);
@@ -58,7 +46,7 @@ const MemuVideo = (() => {
     const loaded = waitFor(video, "loadeddata", 20_000);
     video.src = url;
     await loaded;
-    // Некоторые WebM не пишут длительность в заголовок: узнаём её перемоткой в конец.
+
     if (!Number.isFinite(video.duration)) {
       const done = waitFor(video, "durationchange", 10_000).catch(() => {});
       video.currentTime = 1e9;
@@ -68,7 +56,6 @@ const MemuVideo = (() => {
     return video;
   }
 
-  /** Кадры, метаданные и (по возможности) расшифровка речи одного видеофайла. */
   async function prepare(file, { maxFrames = 24, transcribe = true, onProgress = () => {} } = {}) {
     const url = URL.createObjectURL(file);
     try {
@@ -82,7 +69,7 @@ const MemuVideo = (() => {
       const duration = Number.isFinite(video.duration) ? video.duration : 0;
       const width = video.videoWidth, height = video.videoHeight;
       if (!width || !height) throw new Error(t(`${file.name}: в файле нет видеодорожки`, `${file.name}: the file has no video track`));
-      // Примерно кадр в две секунды, но не больше настройки и не меньше четырёх.
+
       const count = duration >= 4 ? Math.max(4, Math.min(maxFrames, Math.ceil(duration / 2))) : 1;
       const scale = Math.min(1, FRAME_SIDE / Math.max(width, height));
       const canvas = document.createElement("canvas");
@@ -114,8 +101,7 @@ const MemuVideo = (() => {
             result.transcript = speech.text;
             result.transcriptNote = speech.partial ? "partial" : (speech.text ? "" : "silent");
           } catch (error) {
-            // Сбой распознавания (ключ, модель не скачана, сеть) — не «нет звука»:
-            // раньше любая ошибка API выдавалась за нечитаемую звуковую дорожку.
+
             result.transcriptNote = error?.code === "decode" ? "no_audio" : "stt_failed";
             if (result.transcriptNote === "stt_failed") result.transcriptError = String(error?.message || error || "").slice(0, 200);
           }
@@ -175,13 +161,11 @@ const MemuVideo = (() => {
     return btoa(binary);
   }
 
-  /** Короткая текстовая шапка о видео — для модели. */
   function header(video) {
     return `Video "${String(video.name || "video").replace(/"/g, "'")}": duration ${fmt(video.duration)}, ${video.width}×${video.height}, ` +
       `${(video.frames || []).length} frames sampled evenly with timestamps.`;
   }
 
-  /** Части сообщения для модели, которая смотрит кадры сама. */
   function directParts(video, limit = 16) {
     const frames = video.frames || [];
     const step = frames.length > limit ? frames.length / limit : 1;

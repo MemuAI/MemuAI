@@ -21,7 +21,6 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r32-misc-test-
 PANELS_JS = (ROOT / "app" / "pgstatic" / "panels.js").read_text(encoding="utf-8")
 NODE = shutil.which("node")
 
-
 def _py_in_tz(tz: str, code: str) -> dict:
     """Run ``code`` (prints JSON) with the process timezone set to ``tz`` — the server runs on the user's PC."""
     env = {**os.environ, "TZ": tz, "PYTHONPATH": str(ROOT)}
@@ -29,7 +28,6 @@ def _py_in_tz(tz: str, code: str) -> dict:
                          timeout=60, cwd=str(ROOT))
     assert out.returncode == 0, out.stderr
     return json.loads(out.stdout.strip().splitlines()[-1])
-
 
 def _js_func(name: str) -> str:
     a = PANELS_JS.index(f"  function {name}(")
@@ -41,7 +39,6 @@ def _js_func(name: str) -> str:
         i += 1
         if depth == 0:
             return PANELS_JS[a:i]
-
 
 class CountdownTimezoneTest(unittest.TestCase):
     CODE = """
@@ -66,7 +63,7 @@ class CountdownTimezoneTest(unittest.TestCase):
         r = _py_in_tz("Europe/Moscow", self.CODE)
         self.assertEqual(r["naive"], "2027-01-01T00:00+03:00")
         self.assertEqual(r["with_offset"], "2027-01-01T00:00+03:00")
-        # the old window sent toISOString() («…Z»): same moment, now stored in the user's zone (was «21:00+00:00»)
+
         self.assertEqual(r["old_window_z"], "2027-01-01T00:00+03:00")
         self.assertEqual(r["utc_plus0"], "2027-01-01T00:00+03:00")
         self.assertEqual(r["other_offset"], "2027-01-01T00:00+05:00", "an explicit non-UTC offset is kept")
@@ -74,7 +71,7 @@ class CountdownTimezoneTest(unittest.TestCase):
 
     def test_label_is_in_the_users_zone_even_for_targets_stored_in_utc(self) -> None:
         r = _py_in_tz("Europe/Moscow", self.CODE)
-        self.assertEqual(r["label_old_stored"], "01.01.2027")        # was «31.12.2026 21:00»
+        self.assertEqual(r["label_old_stored"], "01.01.2027")
         self.assertEqual(r["label_new"], "01.01.2027")
         self.assertEqual(r["label_z"], "01.01.2027")
 
@@ -91,7 +88,6 @@ class CountdownTimezoneTest(unittest.TestCase):
         self.assertEqual(r[:2], ["2027-01-01T00:00+03:00", "2027-01-01T00:00+03:00"])
         self.assertEqual(r[2], r[3])
 
-
 @unittest.skipUnless(NODE, "node is required")
 class PanelsJsTest(unittest.TestCase):
     def _node(self, tz: str, script: str):
@@ -105,7 +101,7 @@ class PanelsJsTest(unittest.TestCase):
             console.log(JSON.stringify([localIso("2027-01-01T00:00"), localIso("2026-07-01T09:30"), localIso("bad")]));"""
         self.assertEqual(self._node("Europe/Moscow", script), ["2027-01-01T00:00+03:00", "2026-07-01T09:30+03:00", "bad"])
         ny = self._node("America/New_York", script)
-        self.assertEqual(ny[:2], ["2027-01-01T00:00-05:00", "2026-07-01T09:30-04:00"])   # DST of that date
+        self.assertEqual(ny[:2], ["2027-01-01T00:00-05:00", "2026-07-01T09:30-04:00"])
         self.assertIn("v = localIso(v)", PANELS_JS)
         self.assertNotIn("v = new Date(v).toISOString()", PANELS_JS)
 
@@ -135,7 +131,6 @@ class PanelsJsTest(unittest.TestCase):
         self.assertIn("plain(b.since, data)", body)
         self.assertNotIn("text(b.target", body)
 
-
 class ComputerPromptTest(unittest.TestCase):
     def test_type_hint_reads_as_one_sentence(self) -> None:
         from app import automation_runtime
@@ -143,7 +138,6 @@ class ComputerPromptTest(unittest.TestCase):
         self.assertIn('a "\\n" in the text presses Enter', prompt)
         line = next(x for x in prompt.splitlines() if x.startswith('4. "type"'))
         self.assertIn("presses Enter). The app you opened", line)
-
 
 if __name__ == "__main__":
     unittest.main()

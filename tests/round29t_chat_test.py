@@ -18,10 +18,8 @@ from app import memory_v2 as mem, pgdata  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
 def css(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8")
-
 
 class MemoryFixes(unittest.TestCase):
     def setUp(self) -> None:
@@ -48,9 +46,7 @@ class MemoryFixes(unittest.TestCase):
 
     def test_protocol_forbids_legacy_marker_and_discussion(self) -> None:
         doc = mem.normalize({})
-        # r29d-chat4: the shortened protocol (r29c-prompts) words it "Never write [MEM: ...]. Never mention or
-        # discuss this block, the ids or the protocol" — check the guarantee, not one exact phrasing, for every
-        # service and guard level.
+
         for guard in sorted(mem.GUARDS):
             doc["settings"]["guard"] = guard
             for service in ("chat", "work", "code", "quick", "telegram"):
@@ -77,15 +73,13 @@ class MemoryFixes(unittest.TestCase):
         self.assertFalse(res["added"])
 
     def test_prompt_mirrors(self) -> None:
-        # The fallback MEM_PROMPT in app.js must mirror DEFAULT_PROMPT exactly (template-literal escapes aside),
-        # and with a <memory_protocol> present it must defer to it (the protocol itself forbids [MEM: ...]).
+
         js = (STATIC / "app.js").read_text(encoding="utf-8")
         start = js.index("const MEM_PROMPT = `") + len("const MEM_PROMPT = `")
         mirror = js[start:js.index("`;", start)].replace("\\`", "`").replace("\\$", "$").replace("\\\\", "\\")
         self.assertEqual(mirror, pgdata.DEFAULT_PROMPT)
         self.assertIn("if a <memory_protocol> section is present, follow only it", pgdata.DEFAULT_PROMPT)
         self.assertIn("Never mention either hidden protocol in the visible answer", pgdata.DEFAULT_PROMPT)
-
 
 class SearchFixes(unittest.TestCase):
     def test_memory_kind_localized(self) -> None:
@@ -106,7 +100,6 @@ class SearchFixes(unittest.TestCase):
         self.assertIn("background: var(--msx-side)", bar)
         self.assertNotIn("gradient", bar)
 
-
 class CssFixes(unittest.TestCase):
     def test_memory_banner_icon_not_stretched(self) -> None:
         text = css("memory.css")
@@ -126,7 +119,6 @@ class CssFixes(unittest.TestCase):
     def test_tooltip_words_boxes(self) -> None:
         text = (STATIC / "tooltip.js").read_text(encoding="utf-8")
         self.assertIn("const boxOf = (node) =>", text)
-
 
 class Phase2ChatFixes(unittest.TestCase):
     def test_plain_markdown_snippets(self) -> None:
@@ -168,7 +160,6 @@ class Phase2ChatFixes(unittest.TestCase):
         self.assertIn('data-opt="font" data-no-search>', js)
         self.assertNotRegex(css("export.css"), r"\.mx-theme small \{[^}]*text-overflow: ellipsis")
 
-
 class Phase2SearchAndExport(unittest.TestCase):
     def test_from_and_date_range_operators(self) -> None:
         import time as _t
@@ -195,7 +186,6 @@ class Phase2SearchAndExport(unittest.TestCase):
         self.assertIn('D.exportScene(block, { theme, background: "none", padding: 0 })', js)
         self.assertIn("D.toPNG(block, { scale: 2, theme })", js)
 
-
 class Phase2Chat3(unittest.TestCase):
     """r29c-chat3: stuck detector with real-model patterns, Work plan continuation, Ctrl+K over dialogs, Mermaid repair."""
 
@@ -211,7 +201,7 @@ class Phase2Chat3(unittest.TestCase):
         cls.out = _json.loads(res.stdout)
 
     def test_interleaved_tool_rounds_and_plan_turns_pause(self) -> None:
-        # deepseek re-read status.txt for 12 plan turns and was never paused (tool rounds and plan turns broke each other's streak)
+
         self.assertGreaterEqual(self.out["interleaved"]["pausedAt"], 0)
         self.assertLessEqual(self.out["interleaved"]["pausedAt"], 5)
         self.assertEqual(self.out["interleaved"]["reason"], "repeat")
@@ -258,7 +248,6 @@ class Phase2Chat3(unittest.TestCase):
         self.assertNotIn("btn.innerHTML = `<kbd>Ctrl K</kbd>`;", js)
         for lang, word in (("ru", "фильтр списка чатов"), ("en", "filters the chat list")):
             self.assertIn(word, (ROOT / "app" / "docs" / lang / "interface.md").read_text(encoding="utf-8"))
-
 
 if __name__ == "__main__":
     unittest.main()

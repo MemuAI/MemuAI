@@ -32,12 +32,10 @@ MIME = {"pdf": "application/pdf", "docx": "application/vnd.openxmlformats-office
 FILE_TYPES = {"pdf": "PDF (*.pdf)", "docx": "Word (*.docx)", "html": "HTML (*.html)", "md": "Markdown (*.md)",
               "json": "JSON (*.json)", "txt": "Text (*.txt)"}
 
-
 def downloads_dir() -> Path:
     base = Path.home() / "Downloads" / "MemuAI"
     base.mkdir(parents=True, exist_ok=True)
     return base
-
 
 def unique_path(folder: Path, name: str) -> Path:
     target = folder / name
@@ -46,7 +44,6 @@ def unique_path(folder: Path, name: str) -> Path:
         target = folder / f"{stem} ({index}){suffix}"
         index += 1
     return target
-
 
 async def save_bytes(app: FastAPI, data: bytes, name: str, fmt: str, mode: str) -> Dict[str, Any]:
     target: Optional[Path] = None
@@ -79,7 +76,6 @@ async def save_bytes(app: FastAPI, data: bytes, name: str, fmt: str, mode: str) 
     _SAVED.add(os.path.normcase(str(target.resolve())))
     return {"ok": True, "path": str(target), "name": target.name, "bytes": len(data)}
 
-
 def _replace_rasters(body: str, shots: Dict[str, str]) -> str:
     """Swap each ``data-mx-raster="id"`` element for its PNG snapshot (DOCX)."""
     if not shots:
@@ -101,7 +97,6 @@ def _replace_rasters(body: str, shots: Dict[str, str]) -> str:
     walk(root)
     return serialize(root)
 
-
 def serialize(node: ce.Node) -> str:
     import html as _html
     parts = []
@@ -115,7 +110,6 @@ def serialize(node: ce.Node) -> str:
         else:
             parts.append(f"<{child.tag}{attrs}>{serialize(child)}</{child.tag}>")
     return "".join(parts)
-
 
 def register(app: FastAPI) -> None:
     @app.get("/api/export/capabilities")

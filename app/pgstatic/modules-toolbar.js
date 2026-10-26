@@ -1,15 +1,5 @@
-/* Round 30: one header for module windows.
- *
- * A module does not draw its own top bar any more. It hands its actions to the
- * MemuAI window through the bridge (Memu.toolbar.set → action "toolbar"), and
- * modules.js renders them with this file:
- *   - floating / snapped window — in the window's single title row, between the
- *     module name and the window buttons;
- *   - expanded sheet — in the MemuAI top bar itself (the sheet loses its own row).
- *
- * Module data is untrusted: labels go in as text, icons are either a name from
- * the host set or SVG rebuilt element by element from a whitelist.
- */
+
+
 "use strict";
 
 const MemuModuleToolbar = (() => {
@@ -17,7 +7,6 @@ const MemuModuleToolbar = (() => {
   const MENU_LIMIT = 40;
   const KINDS = new Set(["button", "toggle", "meter", "text", "separator"]);
 
-  // Icons the host has on top of app.js ICONS (names modules commonly need).
   const EXTRA = {
     note: '<svg viewBox="0 0 24 24"><path d="M5 4h14v12l-4 4H5z"/><path d="M15 20v-4h4M8 9h8M8 13h5"/></svg>',
     panel: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M15 4v16"/></svg>',
@@ -42,7 +31,7 @@ const MemuModuleToolbar = (() => {
   const SVG_ATTRS = new Set(["d", "cx", "cy", "r", "rx", "ry", "x", "y", "x1", "y1", "x2", "y2", "width", "height",
     "points", "viewBox", "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "fill-rule",
     "clip-rule", "opacity", "fill-opacity", "stroke-opacity", "stroke-dasharray", "transform"]);
-  // Geometry and paint only: no url(), no javascript:, no entities.
+
   const SAFE_VALUE = /^[#%\w\s.,()+-]*$/;
 
   const en = () => (typeof PG_LANG !== "undefined" && PG_LANG === "en");
@@ -66,7 +55,6 @@ const MemuModuleToolbar = (() => {
       danger: !!raw.danger, checked: !!raw.checked, disabled: !!raw.disabled, hint: clean(raw.hint, 24) };
   }
 
-  /** Untrusted spec from the bridge → a clean one. */
   function normalize(spec) {
     const source = spec && typeof spec === "object" ? spec : {};
     const items = (Array.isArray(source.items) ? source.items : []).slice(0, LIMIT).map((raw) => {
@@ -125,7 +113,6 @@ const MemuModuleToolbar = (() => {
     return EXTRA[name] || "";
   }
 
-  /** A trusted <span class="ui-icon"> for a host icon name or sanitized SVG. */
   function iconNode(value) {
     const name = String(value || "").trim();
     if (!name) return null;
@@ -139,15 +126,12 @@ const MemuModuleToolbar = (() => {
     }
     const markup = iconMarkup(name);
     if (!markup) return null;
-    span.innerHTML = markup; // host-owned markup only
+    span.innerHTML = markup;
     return span;
   }
 
   function hasIcon(name) { return !!iconMarkup(String(name || "")); }
 
-  /* Menus are drawn by app.js showContextMenu, which takes ICONS names. A host
-     extra or a module's SVG (rebuilt from the whitelist, then serialized) is
-     registered there under its own key, at most a few hundred of them. */
   const registered = new Map();
   function menuIcon(value) {
     const name = String(value || "").trim();
@@ -234,7 +218,6 @@ const MemuModuleToolbar = (() => {
     if (typeof showContextMenu === "function") showContextMenu(entries, rect.right - 4, rect.bottom + 4);
   }
 
-  /** Overflow: the actions that do not fit go to one «more» menu. */
   function fit(container) {
     if (!container || !container.isConnected) return;
     const spec = container._mtbSpec;
@@ -244,9 +227,7 @@ const MemuModuleToolbar = (() => {
     nodes.forEach((node) => { node.hidden = false; });
     let more = container.querySelector(":scope > .mtb-overflow");
     if (more) more.hidden = true;
-    // In a window header the actions do not shrink (modules.css): the subtitle gives way first, and an action
-    // folds only when the whole header still overflows. Measuring the strip alone folded the token meter while
-    // the chat title still had room to give (r30 live chat).
+
     const host = container.closest(".module-headbar, .module-window-bar");
     const overflows = () => container.scrollWidth > container.clientWidth + 1 || (!!host && host.scrollWidth > host.clientWidth + 1);
     if (!overflows()) return;
@@ -263,8 +244,7 @@ const MemuModuleToolbar = (() => {
     more.setAttribute("aria-label", more.title);
     more.hidden = false;
     const hidden = [];
-    // Hide from the start of the list: the rightmost actions sit next to the
-    // window buttons and are the ones people reach for (panel, menu).
+
     for (let i = 0; i < spec.items.length && overflows(); i += 1) {
       const item = spec.items[i];
       if (item.pin) continue;
@@ -296,7 +276,6 @@ const MemuModuleToolbar = (() => {
     };
   }
 
-  /** Render a clean spec's items into container; onPick(item, value, anchor). */
   function render(container, spec, onPick) {
     if (!container) return;
     container._mtbSpec = spec;

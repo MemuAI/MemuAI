@@ -1,6 +1,5 @@
-// Runs the Model catalog module (app/module_builtins/catalog/main.js) in a VM
-// with a fake DOM and bridge on a small OpenRouter-shaped fixture. Prints one
-// JSON line; round10_test.py asserts on it.
+
+
 const fs = require("fs");
 const vm = require("vm");
 const path = require("path");

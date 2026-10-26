@@ -24,7 +24,6 @@ from .fsops import norm, split_name, valid_name
 
 TOKEN = re.compile(r"\{(name|ext|n|parent|date|time|size|created|exif|width|height)(?::(\d{1,2}))?\}")
 
-
 def _apply_case(text: str, case: str) -> str:
     if case == "lower":
         return text.lower()
@@ -36,7 +35,6 @@ def _apply_case(text: str, case: str) -> str:
         return text[:1].upper() + text[1:].lower()
     return text
 
-
 def _image_info(path: str) -> Dict[str, Any]:
     """``{w, h, taken}`` of an image (Round 39); empty dict when it is not one or Pillow is missing."""
     try:
@@ -44,13 +42,12 @@ def _image_info(path: str) -> Dict[str, Any]:
         with Image.open(path) as im:
             info: Dict[str, Any] = {"w": im.width, "h": im.height}
             exif = im.getexif()
-            raw = exif.get_ifd(0x8769).get(36867) or exif.get(306)      # DateTimeOriginal, DateTime
+            raw = exif.get_ifd(0x8769).get(36867) or exif.get(306)
             if raw:
                 info["taken"] = datetime.datetime.strptime(str(raw).strip()[:19], "%Y:%m:%d %H:%M:%S")
             return info
     except Exception:  # noqa: BLE001 — not an image / broken EXIF
         return {}
-
 
 def new_name(path: str, index: int, rule: Dict[str, Any]) -> str:
     name = os.path.basename(path)
@@ -115,7 +112,6 @@ def new_name(path: str, index: int, rule: Dict[str, Any]) -> str:
         new_ext = ext.lower() if rule.get("ext_case") == "lower" else ext.upper() if rule.get("ext_case") == "upper" else ext
         result += new_ext
     return result
-
 
 def preview(paths: List[str], rule: Dict[str, Any]) -> List[Dict[str, Any]]:
     """``[{path, old, new, error}]`` — error: invalid name, duplicate, or an existing other file."""

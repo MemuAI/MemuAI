@@ -1,0 +1,35 @@
+{
+  "schema": 1,
+  "name": "Каталог MemuAI",
+  "name_en": "MemuAI catalogue",
+  "modules": [
+    {
+      "id": "daily-plan",
+      "title": "План на день",
+      "title_en": "Daily plan",
+      "summary": "Простой список дел с прогрессом и сохранением. Работает без сети и без запросов к ИИ.",
+      "summary_en": "A simple task list with progress and persistence. Works offline without AI requests.",
+      "version": "1.0.0",
+      "author": "MemuAI",
+      "icon": "check",
+      "permissions": [
+        "storage"
+      ],
+      "description": "Составьте план дня, отмечайте выполненные дела и следите за прогрессом. До 200 задач. Данные хранятся локально в модуле; сетевых обращений и платных запросов к моделям нет.",
+      "description_en": "Plan your day, check off completed tasks and follow your progress. Up to 200 tasks. Data stays locally inside the module; there are no network calls or paid model requests.",
+      "license": "MIT",
+      "category": "productivity",
+      "tags": [
+        "tasks",
+        "offline",
+        "planning"
+      ],
+      "min_app_version": "3.8.2",
+      "package": {
+        "path": "packages/daily-plan.memu-module.json",
+        "bytes": 6677,
+        "sha256": "78ba054139c89530c9af7e02b48785eb6c9e89108208241572074e0e937ef573"
+      }
+    }
+  ]
+}

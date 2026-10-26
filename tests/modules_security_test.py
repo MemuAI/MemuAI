@@ -19,14 +19,13 @@ from app.playground_api import create_app
 
 TOKEN_CONFIG = '{"providers":{"genspark":"token-abc"},"port":8317}'
 
-
 class ModuleSecurityTest(unittest.TestCase):
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
         base = Path(self._temp.name)
         self.root = base / "modules"
         self.root.mkdir()
-        # Файл рядом с корнем модулей: до него не должен дотянуться модуль.
+
         self.victim = base / "config.json"
         self.victim.write_text(TOKEN_CONFIG, encoding="utf-8")
         self._patch = patch("app.modules_host.default_root", return_value=self.root)
@@ -131,7 +130,7 @@ class ModuleSecurityTest(unittest.TestCase):
             refused = client.post("/api/pg/modules/persist",
                                   json={"id": "chat-only", "fields": {"secret": "WRITTEN"}})
             self.assertEqual(refused.status_code, 403, refused.text)
-            # Чтение свободно: оно ничего не меняет.
+
             self.assertEqual(client.post("/api/pg/modules/persist",
                                          json={"id": "chat-only"}).status_code, 200)
 
@@ -157,26 +156,26 @@ class ModuleSecurityTest(unittest.TestCase):
                         "accent_name": "terracotta; } body { display:none }"},
             })
             self.assertEqual(response.status_code, 200)
-            # Значения попали в атрибуты приведёнными, а не как есть.
+
             head = response.text.split("</head>", 1)[0]
             for danger in ("alert(2)", "onload=", "onerror=", "<script>alert", "img src=x"):
                 self.assertNotIn(danger, head, danger)
             self.assertIn('data-theme="dark"', head)
             self.assertIn('data-accent="terracotta"', head)
             self.assertIn('data-surface=""', head)
-            # Враждебный акцент не превратился в собственное правило CSS.
+
             self.assertNotIn("body { display:none }", head)
 
     def test_a_permission_name_is_not_accepted_where_an_action_belongs(self) -> None:
         """Passing `files` instead of `extract` used to allow everything silently."""
         from app.modules_host import ACTION_PERMISSION, PERMISSIONS
         both = {name for name in PERMISSIONS if name in ACTION_PERMISSION}
-        # Права, которых нет среди действий: именно их передача была ошибкой.
+
         only_permissions = set(PERMISSIONS) - both
         self.assertTrue(only_permissions, "ожидались права без одноимённых действий")
         source = (Path(__file__).resolve().parents[1] / "app" / "playground_api.py")
         text = source.read_text(encoding="utf-8")
-        # Каждый вызов _allowed должен передавать действие, а не право.
+
         for name in sorted(only_permissions):
             self.assertNotIn(f'_allowed(module_id, "{name}")', text,
                              f"_allowed вызван с правом {name!r} вместо действия")
@@ -193,10 +192,10 @@ class ModuleSecurityTest(unittest.TestCase):
         source = (Path(__file__).resolve().parents[1] / "app" / "pgstatic" / "modules.js").read_text(encoding="utf-8")
         block = re.search(r"const ACTION_PERMISSION = \{(.*?)\};", source, re.S)
         self.assertIsNotNone(block, "modules.js lost its permission table")
-        table = dict(re.findall(r"(\w+):\s*\"([\w-]+)\"", block.group(1)))  # «net-import» has a hyphen
+        table = dict(re.findall(r"(\w+):\s*\"([\w-]+)\"", block.group(1)))
         self.assertEqual(table, ACTION_PERMISSION)
         self.assertIn("ACTION_PERMISSION[data.action]", source)
-        # Every shipped module holds the permissions its own code relies on.
+
         needs = {"Memu.save": "storage", "Memu.copy": "clipboard", "Memu.models": "models",
                  "Memu.stream": "chat", "Memu.request": "chat", "Memu.image": "media",
                  "Memu.video": "media", "Memu.speak": "media", "Memu.transcribe": "media",
@@ -209,7 +208,6 @@ class ModuleSecurityTest(unittest.TestCase):
                     if call + "(" in package["js"]:
                         self.assertIn(permission, package["permissions"],
                                       f"{module_id} calls {call} without {permission!r}")
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -21,7 +21,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or "",
@@ -29,7 +28,6 @@ def _chromium() -> str:
         if candidate and os.path.exists(candidate):
             return candidate
     return ""
-
 
 try:
     from playwright.sync_api import sync_playwright
@@ -49,7 +47,6 @@ TEXTS = [
     "| a | b |\n|---|---|\n| 1 | 2 |\n\n| c | d |\n|---|---|\n| 3 | 4 |\n\n> цитата\n> вторая\n\n> новая\n\n# Заголовок\n\n---\n\nтекст",
     "a\n\n\n\nb\n\n\n\n```js\nx\n```\n\n\n1) один\n\n2) два\n\nтекст [ссылка](https://example.com) и **жирный**\n\n<think>скрыто</think>видимо\n\nконец",
 ]
-
 
 @unittest.skipUnless(sync_playwright is not None and _chromium(), "Playwright/Chromium is not installed")
 class StreamingRenderTest(unittest.TestCase):
@@ -100,7 +97,7 @@ class StreamingRenderTest(unittest.TestCase):
         }""", TEXTS)
         self.assertEqual(result["mism"], [], result["mism"])
         self.assertGreater(result["steps"], 1000)
-        # The point of the incremental path: most frames keep already-rendered blocks.
+
         self.assertGreater(result["committed"], result["steps"] // 3)
 
     def test_finished_message_uses_full_render(self):
@@ -124,7 +121,6 @@ class StreamingRenderTest(unittest.TestCase):
             self.assertNotIn("@@BLOCK", chunk)
             self.assertIn("<table>", chunk)
         self.assertIn("текст сразу под таблицей", html[0])
-
 
 if __name__ == "__main__":
     unittest.main()

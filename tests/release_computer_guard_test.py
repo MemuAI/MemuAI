@@ -9,7 +9,6 @@ import unittest
 
 from app.automation_runtime import _PROHIBITED_TYPED_TEXT
 
-
 class ComputerInstallationTextGuard(unittest.TestCase):
     def test_explicit_package_installation_text_is_rejected(self):
         commands = (
@@ -57,7 +56,6 @@ class ComputerInstallationTextGuard(unittest.TestCase):
         for text in ("Remove-Item C:\\data -Recurse", "API key = sample-secret"):
             with self.subTest(text=text):
                 self.assertRegex(text, _PROHIBITED_TYPED_TEXT)
-
 
 if __name__ == "__main__":
     unittest.main()

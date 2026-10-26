@@ -40,13 +40,12 @@ window.rtc = (async () => {
 })();
 </script></body></html>"""
 
-
 class Upstreams:
     """Target web+ws server and the two upstream proxies, on one asyncio loop in a thread."""
 
     def __init__(self, user="u", password="p@ss"):
         self.user, self.password = user, password
-        self.log = []          # (proxy, kind, host, port)
+        self.log = []
         self.loop = asyncio.new_event_loop()
         self.ready = threading.Event()
         threading.Thread(target=self._run, daemon=True).start()
@@ -113,7 +112,7 @@ class Upstreams:
             host, port = target.rsplit(":", 1)
             self.log.append(("http", "connect", host, int(port)))
             ip = self._resolve(host)
-            if ip is None:       # Chromium's own background requests (also through the proxy): refused here
+            if ip is None:
                 writer.write(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\n\r\n")
                 writer.close()
                 return
@@ -170,7 +169,6 @@ class Upstreams:
     def stop(self):
         self.loop.call_soon_threadsafe(self.loop.stop)
 
-
 class Settings(unittest.TestCase):
     def test_store_keeps_the_login_encrypted_and_write_only(self):
         root = Path(tempfile.mkdtemp(prefix="r30-proxy-store-"))
@@ -183,13 +181,13 @@ class Settings(unittest.TestCase):
                 self.assertNotIn(b"Sup3rS3cret", path.read_bytes(), path)
         upstream = store.upstream("local")
         self.assertEqual((upstream.username, upstream.password), ("ivan", "Sup3rS3cret"))
-        # An empty password keeps the saved one; a new user name is taken.
+
         store.set("local", {"username": "petr", "password": ""})
         self.assertEqual(store.upstream("local").password, "Sup3rS3cret")
         self.assertEqual(store.upstream("local").username, "petr")
         store.set("local", {"clear_auth": True})
         self.assertFalse(store.get("local")["auth"])
-        # Per-machine settings.
+
         store.set("pc-2", {"enabled": True, "scheme": "http", "host": "proxy.lan", "port": 3128})
         self.assertEqual(store.get("pc-2")["host"], "proxy.lan")
         self.assertIsNone(store.upstream("nope"))
@@ -210,7 +208,6 @@ class Settings(unittest.TestCase):
         with self.assertRaises(dp.ProxyError):
             dp.direct_args(dp.Upstream("socks5", "h", 1, "u", "p"))
         self.assertIn("--proxy-server=socks5://h:1", dp.direct_args(dp.Upstream("socks5", "h", 1)))
-
 
 class Relay(unittest.TestCase):
     @classmethod
@@ -269,7 +266,6 @@ class Relay(unittest.TestCase):
         self.assertFalse(bad["ok"])
         self.assertEqual(bad["code"], "auth")
 
-
 @unittest.skipUnless(CHROMIUM and os.path.exists(CHROMIUM), "no Chromium")
 class BrowserBehindProxy(unittest.TestCase):
     """A real headless Chromium launched by DFYManager goes through the relay: page, WebSocket, no WebRTC leak."""
@@ -316,7 +312,6 @@ class BrowserBehindProxy(unittest.TestCase):
                 self.assertIn(FAKE_HOST, hosts)
                 self.assertEqual([c for c in candidates if " host " in c or " srflx " in c], [],
                                  "WebRTC must not reveal local or STUN addresses")
-
 
 if __name__ == "__main__":
     unittest.main()

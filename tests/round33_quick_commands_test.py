@@ -35,12 +35,10 @@ from app.assistant_actions_win import ActionError, Backend  # noqa: E402
 NOW = datetime(2026, 10, 8, 10, 30)
 _SAVED: dict = {}
 
-
 def setUpModule() -> None:
     from app import quick_ask_api
     _SAVED["tools"] = dict(quick_ask_api.EXTRA_TOOLS)
     _SAVED["routes"] = list(quick_ask_api.EXTRA_ROUTES)
-
 
 def tearDownModule() -> None:
     from app import quick_ask_api
@@ -48,16 +46,13 @@ def tearDownModule() -> None:
     quick_ask_api.EXTRA_TOOLS.update(_SAVED.get("tools", {}))
     quick_ask_api.EXTRA_ROUTES[:] = _SAVED.get("routes", [])
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 def win(hwnd, title, pid, path, state="normal"):
     exe = os.path.basename(path.replace("\\", "/")).lower()
     return {"hwnd": hwnd, "title": title, "pid": pid, "path": path, "exe": exe, "app": os.path.splitext(os.path.basename(path.replace("\\", "/")))[0],
             "state": state, "rect": [100, 100, 900, 700], "normal_rect": [100, 100, 900, 700], "own": False}
-
 
 class WinFake(Backend):
     """Every backend method of the Windows app, recorded; processes with a «tray» behaviour."""
@@ -84,15 +79,14 @@ class WinFake(Backend):
             {"pid": 33, "ppid": 1, "exe": "app.exe", "name": "app.exe", "path": r"C:\Programs\Hiddify\app.exe"},
         ]
         self.alive = {r["pid"] for r in self.process_rows}
-        self.hide_to_tray = {11}        # Telegram hides to the tray on WM_CLOSE
-        self.ignore_close = {21}        # INCY ignores WM_CLOSE to its hidden window (tray apps often do)
+        self.hide_to_tray = {11}
+        self.ignore_close = {21}
         self.mons = [{"index": 0, "device": r"\\.\DISPLAY1", "rect": [0, 0, 1920, 1080], "work": [0, 0, 1920, 1040], "dpi": 96, "primary": True},
                      {"index": 1, "device": r"\\.\DISPLAY2", "rect": [1920, 0, 4480, 1440], "work": [1920, 0, 4480, 1400], "dpi": 144, "primary": False}]
 
     def _log(self, *args):
         self.calls.append(args)
 
-    # windows
     def windows(self, include_minimized=True):
         return [dict(w) for w in self.wins]
 
@@ -119,7 +113,6 @@ class WinFake(Backend):
     def place_window(self, hwnd, rect, state="normal"):
         self._log("place", hwnd, tuple(rect), state)
 
-    # processes
     def procs(self):
         return [dict(r) for r in self.process_rows if r["pid"] in self.alive]
 
@@ -139,7 +132,6 @@ class WinFake(Backend):
         self._log("kill", pid)
         self.alive.discard(pid)
 
-    # sound / display / system
     def volume_get(self):
         return dict(self.volume)
 
@@ -220,7 +212,6 @@ class WinFake(Backend):
     def cancel_shutdown(self):
         return True
 
-    # launching
     def app_index(self):
         return apps.merge_index(apps.builtin_entries(), [
             apps._entry("Telegram Desktop", "lnk", r"C:\Start\Telegram Desktop.lnk"),
@@ -235,7 +226,6 @@ class WinFake(Backend):
     def open_target(self, target):
         self._log("open", target)
 
-
 class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
@@ -245,7 +235,7 @@ class Base(unittest.TestCase):
                                 timers=timers_mod.TimerManager(self.tmp / "timers.json"), now_fn=lambda: NOW)
         self.platform = mock.patch.object(ac.sys, "platform", "win32")
         self.platform.start()
-        # the tray waits are real sleeps: make them instant
+
         self.sleep = mock.patch.object(ac.time, "sleep", lambda _s: None)
         self.sleep.start()
 
@@ -259,9 +249,6 @@ class Base(unittest.TestCase):
     def confirm(self, card):
         self.assertEqual(card["status"], "confirm", card)
         return run(self.engine.confirm(card["confirm"]["token"], True))
-
-
-# ---------------------------------------------------------------------- names
 
 class NameMatchingTest(unittest.TestCase):
     def test_sound_alike_and_layout(self):
@@ -305,9 +292,6 @@ class NameMatchingTest(unittest.TestCase):
         with self.assertRaises(Unsupported):
             Backend().procs()
 
-
-# ---------------------------------------------------------------------- «закрой incy»
-
 class TrayCloseTest(Base):
     def test_close_incy_in_the_tray_is_found_confirmed_and_quit(self):
         found = self.engine.match("закрой incy")
@@ -318,7 +302,7 @@ class TrayCloseTest(Base):
         self.assertIn("трее", card["message"].replace("области уведомлений", "трее"))
         done = self.confirm(card)
         self.assertEqual(done["status"], "done", done)
-        # polite first (WM_CLOSE to the hidden window), then the process is ended; the helper xray core is not touched
+
         self.assertIn(("close_pid", 21), self.backend.calls)
         self.assertIn(("kill", 21), self.backend.calls)
         self.assertNotIn(("kill", 23), self.backend.calls)
@@ -349,7 +333,7 @@ class TrayCloseTest(Base):
         self.assertIn("трее", done["message"])
         self.assertEqual(done["next"]["action"], "app.close")
         self.assertIn(11, self.backend.alive)
-        # the follow-up button: now Telegram has no window → the tray path quits it
+
         again = self.confirm(run(self.engine.run(done["next"]["action"], done["next"]["params"])))
         self.assertEqual(again["status"], "done", again)
         self.assertNotIn(11, self.backend.alive)
@@ -384,9 +368,6 @@ class TrayCloseTest(Base):
         self.assertEqual(card["status"], "done")
         self.assertIn(("wcmd", 103, "minimize"), self.backend.calls)
         self.assertFalse(run(self.engine.precheck(self.engine.match("сверни вопросы"))))
-
-
-# ---------------------------------------------------------------------- the router
 
 class RouterUnitTest(unittest.TestCase):
     def test_looks_like_command(self):
@@ -434,7 +415,7 @@ class RouterUnitTest(unittest.TestCase):
         joined = "\n".join(lines)
         self.assertIn("app.close(name)", joined)
         self.assertNotIn("lock.screen", joined)
-        self.assertNotIn("shell.run", joined)          # advanced mode off
+        self.assertNotIn("shell.run", joined)
         self.assertNotIn("_timer", joined)
         msgs = router.build_messages("закрой инси", s, {"running": ["INCY (tray/background)"], "commands": ["Доброе утро"]})
         self.assertLess(len(msgs[0]["content"]), 4500, "the router prompt must stay tiny")
@@ -444,7 +425,6 @@ class RouterUnitTest(unittest.TestCase):
         self.assertIn("INCY (tray/background)", running)
         self.assertTrue(any(r.startswith("Telegram") for r in running))
         self.assertFalse(any("svchost" in r for r in running))
-
 
 class RouterEngineTest(Base):
     def setUp(self):
@@ -516,7 +496,6 @@ class RouterEngineTest(Base):
         self.assertEqual(self.engine.events_after(0), [], "router cards are returned, not emitted twice")
         self.assertEqual(run(self.engine.run("clipboard.get", {}, source="router"))["status"], "confirm")
 
-
 class RouterRouteTest(Base):
     def setUp(self):
         super().setUp()
@@ -553,7 +532,7 @@ class RouterRouteTest(Base):
         data = self.post("громкость 30")
         self.assertEqual(data["card"]["action"], "volume.set")
         self.assertEqual(self.calls, [])
-        data = self.post("закрой incy")                     # local match + tray precheck → confirm card, no model
+        data = self.post("закрой incy")
         self.assertEqual(data["card"]["status"], "confirm")
         self.assertIn("INCY", data["card"]["message"])
         self.assertEqual(self.calls, [])
@@ -568,7 +547,7 @@ class RouterRouteTest(Base):
 
     def test_soft_miss_goes_to_the_router_with_context(self):
         self.answer('{"a":"volume.mute","p":{"mute":true}}')
-        data = self.post("выруби звук")           # «выруби X» = app.close locally, but nothing called «звук» runs
+        data = self.post("выруби звук")
         self.assertEqual(data["card"]["action"], "volume.mute")
         self.assertEqual(data["card"]["status"], "done")
         self.assertTrue(self.backend.volume["mute"])
@@ -583,17 +562,14 @@ class RouterRouteTest(Base):
     def test_wrong_guess_falls_back_to_chat(self):
         self.answer('{"a":"app.close","p":{"name":"Nothing"}}')
         data = self.post("закрой эту штуку")
-        self.assertTrue(data["card"]["fallback"])        # the local «not running» card → the chat answers
+        self.assertTrue(data["card"]["fallback"])
         self.assertNotEqual(data["card"]["status"], "confirm")
-        data = self.post("глуши эту штуку")                # unknown locally: the router's guess is checked too
+        data = self.post("глуши эту штуку")
         self.assertIsNone(data["card"])
         self.assertEqual(data["router"]["reason"], "not_running")
 
-
-# ---------------------------------------------------------------------- the phrase matrix
-
 MATRIX = [
-    # apps
+
     ("закрой incy", "app.close"), ("закрой INCY", "app.close"), ("закрой инси", "app.close"), ("закрой программу incy", "app.close"),
     ("закрой приложение инси", "app.close"), ("закрой-ка incy", "app.close"), ("закрой incy пожалуйста", "app.close"),
     ("закрой, пожалуйста, incy", "app.close"), ("пожалуйста закрой incy", "app.close"), ("Закрой Incy!", "app.close"),
@@ -603,27 +579,27 @@ MATRIX = [
     ("открой incy", "app.open"), ("запусти инси", "app.open"), ("открой телеграм", "app.open"), ("open telegram", "app.open"),
     ("launch spotify", "app.open"), ("переключись на incy", "app.switch"), ("перейди в телеграм", "app.switch"),
     ("switch to chrome", "app.switch"), ("покажи incy", "app.switch"), ("какие окна открыты", "app.list"), ("список окон", "app.list"),
-    # sound & media
+
     ("громкость 30", "volume.set"), ("громкость на 30", "volume.set"), ("звук 50", "volume.set"), ("volume 30", "volume.set"),
     ("set volume to 40", "volume.set"), ("громче", "volume.set"), ("тише", "volume.set"), ("сделай потише", "volume.set"),
     ("убавь звук", "volume.set"), ("louder", "volume.set"), ("звук на максимум", "volume.set"), ("громкость на минимум", "volume.set"),
     ("выключи звук", "volume.mute"), ("без звука", "volume.mute"), ("mute", "volume.mute"), ("какая громкость", "volume.get"),
     ("пауза", "media.key"), ("следующий трек", "media.key"), ("предыдущий трек", "media.key"), ("next track", "media.key"),
     ("включи despacito на ютубе", "media.search"),
-    # display & windows
+
     ("яркость 60", "brightness.set"), ("ярче", "brightness.set"), ("тёмная тема", "theme.set"), ("dark mode", "theme.set"),
     ("ночной свет", "nightlight.open"), ("разверни окно", "window.action"), ("сверни окно", "window.action"),
     ("сверни все окна", "window.minimize_all"), ("окно влево", "window.action"), ("snap left", "window.action"),
     ("перенеси окно на другой монитор", "window.move"), ("расставь окна сеткой", "window.arrange"), ("поверх всех окон", "window.action"),
     ("сверни хром", "window.action"), ("разверни телеграм", "window.action"),
-    # time
+
     ("таймер 10 минут", "timer.start"), ("поставь таймер на 5 минут", "timer.start"), ("таймер на полторы минуты", "timer.start"),
     ("засеки 3 минуты", "timer.start"), ("timer 10 minutes for tea", "timer.start"), ("set a timer for 5 min", "timer.start"),
     ("отмени таймер", "timer.cancel"), ("какие таймеры", "timer.list"), ("будильник на 7:30", "alarm.set"),
     ("запусти помодоро", "pomodoro.control"), ("секундомер", "stopwatch.control"),
     ("напомни через 10 минут выключить чайник", "reminder.create"), ("remind me in 5 minutes to stretch", "reminder.create"),
     ("сколько времени", "time.now"),
-    # system
+
     ("скриншот", "screenshot.take"), ("сделай скрин", "screenshot.take"), ("screenshot", "screenshot.take"),
     ("скриншот области", "screenshot.take"), ("сколько заряда", "sysinfo.get"), ("мой ip", "sysinfo.get"),
     ("очисти корзину", "recycle.empty"), ("заблокируй компьютер", "lock.screen"), ("выключи компьютер", "power.shutdown"),
@@ -631,26 +607,24 @@ MATRIX = [
     ("включи wifi", "wifi.set"), ("включи блютуз", "bluetooth.set"), ("что в буфере", "clipboard.get"),
     ("скопируй привет в буфер", "clipboard.set"), ("напечатай привет", "type.text"), ("нажми ctrl+s", "keys.press"),
     ("заверши процесс chrome", "process.kill"), ("список процессов", "process.list"),
-    # folders, settings, sites, web
+
     ("открой загрузки", "open.folder"), ("открой документы", "open.folder"), ("открой настройки звука", "open.settings"),
     ("open sound settings", "open.settings"), ("открой ютуб", "open.url"), ("открой github", "open.url"),
     ("загугли рецепт борща", "web.search"), ("закажи роллы", "food.order"), ("погода завтра", "weather.get"),
     ("100 usd в рублях", "currency.convert"), ("вызови такси", "taxi.order"),
-    # MemuAI & tools
+
     ("нарисуй кота в космосе", "image.generate"), ("заметка купить молоко", "note.add"), ("открой панели в memuai", "memuai.open"),
     ("помощь", "assistant.help"), ("#ff8800 в rgb", "color.convert"), ("декодируй base64 aGVsbG8=", "text.encode"),
     ("sha256 привет", "hash.text"), ("сколько дней до нового года", "date.calc"), ("время в Токио", "time.zone"),
     ("брось 2 кубика", "random.pick"), ("сгенерируй пароль", "password.generate"), ("5 км в милях", "unit.convert"),
-    # chat — never a local command
+
     ("что такое квазар", None), ("как закрыть программу в windows", None), ("напиши стих про осень", None), ("привет", None),
     ("почему небо голубое", None), ("найди ошибку в коде", None),
 ]
 
-# actions that need the network, a model or the main window: matched here, executed in the live/manual checks
 NOT_EXECUTED = {"weather.get", "currency.convert", "image.generate", "note.add", "text.translate", "dfy.start", "computer.use",
                 "media.search", "food.order", "taxi.order", "web.search", "open.url", "memuai.open", "power.shutdown",
                 "power.restart", "power.sleep", "reminder.create", "schedule.plan"}
-
 
 class PhraseMatrixTest(Base):
     def test_every_phrase_maps_to_its_action(self):
@@ -666,7 +640,7 @@ class PhraseMatrixTest(Base):
                 continue
             self.backend = WinFake()
             self.engine.backend = self.backend
-            self.engine.rate.allow = lambda *_a, **_k: True       # ~120 commands in a row: not a rate-limit test
+            self.engine.rate.allow = lambda *_a, **_k: True
             with self.subTest(text=text):
                 found = self.engine.match(text)
                 self.assertIsNotNone(found)
@@ -675,7 +649,7 @@ class PhraseMatrixTest(Base):
                     card = run(self.engine.confirm(card["confirm"]["token"], True))
                 self.assertNotEqual(card.get("code"), "failed", card)
                 self.assertNotIn(card["status"], ("unsupported",), card)
-                if found["action"] not in ("app.open",):          # «запусти инси» etc. must resolve, too
+                if found["action"] not in ("app.open",):
                     self.assertIn(card["status"], ("done", "error"), card)
                 if card["status"] == "error":
                     self.assertIn(card.get("code"), ("not_running", "no_window", "empty", "not_found"), (text, card))
@@ -689,7 +663,6 @@ class PhraseMatrixTest(Base):
                 card = run(self.engine.run(found["action"], found["params"]))
                 self.assertEqual(card["status"], "done", card)
                 self.assertEqual(self.backend.calls[-1], ("launch", "INCY"))
-
 
 if __name__ == "__main__":
     unittest.main()

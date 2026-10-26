@@ -1,34 +1,32 @@
-// MemuNote — application shell: tabs, panes (split), file I/O, session & recovery, toolbar, menus,
-// status bar, sidebar (files / outline), settings, keyboard shortcuts, events from the backend.
+
+
 import { $, $$, api, rawUrl, esc, icon, t, I18N, toast, showMenu, closeMenus, modal, prompt, confirm, palette, debounce,
   uid, basename, dirname, extname, fmtBytes, countWords, kindIcon, copyText, kbd, plural } from "./core.js";
-import { CM, createState, buildConfig, configComp, langComp, readOnlyComp, languageFor, loadLanguage, languageByName,
+import { CM, createState, buildConfig, configComp, langComp, readOnlyComp, languageFor, loadLanguage, languageByName, detectIndentation,
   mdWrap, mdLinePrefix, mdHeading, mdInsert, mdLink, mdTable, mdFormatTable, TOOLS, insertDateTime, jsonFormat, jsonError,
   setGhost } from "./editor.js";
 import { readText, longestLine, docBlob, LONG_LINE } from "./bigtext.js";
 import { BookView, NotebookView, JsonTree, xmlFormat, xmlError, notebookToMarkdown, notebookToScript } from "./formatviews.js";
-import { SheetGrid, SheetData } from "./sheetgrid.js";   // Round 40 (r40-note): editable .xlsx grid (.ods read-only)
+import { SheetGrid, SheetData } from "./sheetgrid.js";
 import { MarkdownPreview, CsvTable, PdfView, ImageView, HtmlPreview, DocEditor, docFind, renderMarkdown } from "./views.js";
 import { AI, refreshStatus, onAIStatus, ChatPanel, inlineCommand, requestGhost, COMMANDS, aiExcerpt } from "./ai.js";
-import { SlidesView, slidesOwnsKey, newDeckDialog } from "./slides/view.js";   // Round 32: presentation editor
-// Round 33: live Markdown, spell checking, code autocomplete, running files
+import { SlidesView, slidesOwnsKey, newDeckDialog } from "./slides/view.js";
+
 import { liveMarkdown, LIVE_MAX } from "./livemd.js";
 import { spellExtension, spellWordAt, suggestions as spellSuggestions, addToDictionary, ignoreInDoc, warmUp as spellWarmUp } from "./spell.js";
 import { codeComplete, langKey } from "./codecomplete.js";
 import { RunPanel, isRunnable } from "./runpanel.js";
-import "./toolbar-fit.js";   // Round 33: narrow window — extra formatting buttons go into a "More" menu
+import "./toolbar-fit.js";
 
 const MN = (window.MN = { settings: {}, tabs: [], panes: [], active: "left", recent: [], closed: [], boot: null });
-// Round 34: no "binary" here — a binary tab has no editor (its "Open as text" screen); as a text kind it showed an
-// empty editor and Ctrl+S wrote that empty document over the file.
+
 const TEXT_KINDS = new Set(["text", "markdown", "json", "csv", "log", "html", "notebook"]);
-// CSV and notebooks have a component view ("table" / rendered) next to the text editor: csvMode "table" | "text".
+
 const viewMode = (tab) => (tab.kind === "csv" || tab.kind === "notebook") && tab.csvMode === "table";
 const XML_RE = /\.(xml|xsd|xsl|xslt|svg|plist|csproj|vbproj|props|targets|config|resx|xaml|rss|atom|gpx|kml)$/i;
 const DOC_KINDS = new Set(["docx", "odt", "rtf"]);
 let untitledCounter = 0;
 
-// ================================================================== boot
 async function boot() {
   let data;
   try { data = await api("boot"); }
@@ -37,7 +35,7 @@ async function boot() {
   I18N.lang = data.lang; document.documentElement.lang = data.lang;
   applyTheme(data.theme);
   buildShell();
-  MN.run = new RunPanel(runHooks());   // Round 33: output panel of "Run" (runpanel.js)
+  MN.run = new RunPanel(runHooks());
   applySettings();
   if (MN.settings.spell_check) spellWarmUp();
   MN.panes = [makePane("left", $("#pane-left"))];
@@ -60,7 +58,7 @@ async function boot() {
   refreshStatus();
   setInterval(() => { if (!document.hidden) refreshStatus(); }, 30000);
   window.addEventListener("blur", () => { if (MN.settings.autosave === "focus") saveAll(true); saveSession.flush(); });
-  window.addEventListener("focus", () => reloadSettings());   // Round 38: catch a change made in MemuAI while the event was missed
+  window.addEventListener("focus", () => reloadSettings());
   window.addEventListener("beforeunload", () => { saveSession.flush(); });
   document.addEventListener("keydown", globalKeys, true);
   document.addEventListener("dragover", (e) => e.preventDefault());
@@ -86,13 +84,16 @@ function applySettings() {
   document.body.classList.toggle("no-toolbar", !s.show_toolbar);
   document.body.classList.toggle("no-statusbar", !s.show_statusbar);
   document.body.classList.toggle("compact-tabs", !!s.compact_tabs);
+  for (const tab of MN.tabs) {
+    if (tab.indent?.manual) continue;
+    if (!tab.indent?.detected) tab.indent = { tab_size: s.tab_size, indent_with_tabs: s.indent_with_tabs };
+    else if (tab.indent.indent_with_tabs) tab.indent.tab_size = s.tab_size;
+  }
   for (const p of MN.panes) reconfigurePane(p);
   for (const tab of MN.tabs) tab.doc?.setZoom(s.zoom);
   updateStatus();
 }
 
-/* Round 38: settings changed outside this window (MemuAI → Settings → MemuNote): the server pushes a "settings"
-   event; the window also re-reads once when it gets focus. Applied in place, no restart. */
 async function reloadSettings() {
   let r;
   try { r = await api("settings"); } catch { return; }
@@ -117,7 +118,6 @@ async function saveSettings(patch) {
   return r.settings;
 }
 
-// ================================================================== shell
 function buildShell() {
   document.body.innerHTML = `
   <header class="topbar">
@@ -154,14 +154,14 @@ function buildShell() {
 }
 function rebuildChrome() {
   const keep = { ai: !$("#ai-panel").hidden, side: !$("#sidebar").hidden };
-  // Text strings live in the chrome only: rebuild it, keep editors.
+
   $("#btn-menu").title = t("menu"); $("#btn-new").title = t("new_tab"); $("#btn-palette").title = t("command_palette");
   $("#btn-ai").title = t("ai_panel"); $("#btn-settings").title = t("settings");
-  // The AI panel is rebuilt in the new language but keeps its conversation (adopt), now or when next opened.
+
   MN.chatCarry = MN.chat || MN.chatCarry; MN.chat = null; if (keep.ai) { $("#ai-panel").innerHTML = ""; toggleAI(true); }
   if (keep.side) renderSidebar();
   renderTabs(); renderToolbar(); updateStatus();
-  MN.run?.render();   // Round 33
+  MN.run?.render();
   for (const p of MN.panes) reconfigurePane(p);
 }
 function setupResizer(gutter, target, key, fromRight, isSplit) {
@@ -177,14 +177,15 @@ function setupResizer(gutter, target, key, fromRight, isSplit) {
   gutter.addEventListener("dblclick", () => { target.style.flexBasis = ""; target.style.flexGrow = ""; localStorage.removeItem("mn_" + key); });
 }
 
-// ================================================================== tabs
 function makeTab(o) {
   return { id: o.id || uid(), path: o.path || "", name: o.name || basename(o.path) || untitledName(), kind: o.kind || "text",
     encoding: o.encoding || MN.settings.default_encoding || "utf-8", eol: o.eol || MN.settings.default_eol, bom: !!o.bom,
     mtime: o.mtime || 0, size: o.size || 0, dirty: false, loaded: false, large: false, readOnly: false, langName: o.langName || "",
     mdMode: o.mdMode || "", csvMode: o.csvMode || "", pinned: !!o.pinned, recovery: !!o.recovery, cursor: o.cursor || 0,
     scroll: o.scroll || 0, untitled: !o.path, mdOk: !!o.mdOk, follow: false, savedDoc: null, comp: null, states: {},
-    spell: typeof o.spell === "boolean" ? o.spell : undefined };   // Round 33: per-document spell checking (undefined = setting)
+    spell: typeof o.spell === "boolean" ? o.spell : undefined,
+    indent: o.indent?.manual && typeof o.indent.indent_with_tabs === "boolean" && Number.isInteger(o.indent.tab_size) && o.indent.tab_size >= 1 && o.indent.tab_size <= 8
+      ? { tab_size: o.indent.tab_size, indent_with_tabs: o.indent.indent_with_tabs, manual: true } : null };
 }
 function untitledName() { untitledCounter++; return t("untitled", { n: untitledCounter }); }
 function tabById(id) { return MN.tabs.find((x) => x.id === id); }
@@ -196,7 +197,7 @@ function restoreTab(s) {
   if (!s || typeof s !== "object") return false;
   if (!s.path && !s.recovery) return false;
   const tab = makeTab({ ...s, id: s.id });
-  if (!s.path) { tab.name = untitledName(); }   // regenerated: the saved name may be in the other UI language
+  if (!s.path) { tab.name = untitledName(); }
   MN.tabs.push(tab);
   renderTabs();
   return true;
@@ -266,13 +267,13 @@ async function activate(id, paneId) {
   p.tabId = id;
   if (!tab.loaded || tab.loading) {
     try { await ensureLoaded(tab); }
-    catch (e) {   // a restored tab whose file is gone/unreadable: say so and drop the tab
+    catch (e) {
       toast(e.status === 404 ? t("file_not_found", { name: tab.name }) : t("open_failed") + ": " + e.message, { kind: "error" });
       if (p.tabId === id) p.tabId = null;
       await closeTab(id, { force: true });
       return;
     }
-    if (p.tabId !== id) return;   // the user switched to another tab while this one was loading
+    if (p.tabId !== id) return;
   }
   showInPane(p, tab);
   renderTabs(); renderToolbar(); updateStatus(); updateTitle(); renderSidebar(); saveSession();
@@ -311,7 +312,6 @@ async function closeTab(id, opts = {}) {
 async function closeMany(tabs) { for (const tab of tabs.slice()) if (!(await closeTab(tab.id))) break; }
 async function reopenClosed() { const p = MN.closed.pop(); if (p) openPath(p); }
 
-// ================================================================== panes & editors
 function makePane(id, host) {
   const p = { id, host, tabId: null, view: null, states: new Map(), mdPreview: null };
   host.innerHTML = `<div class="pane-body"><div class="editor-host"></div><div class="side-host" hidden></div><div class="comp-host"></div></div>`;
@@ -321,7 +321,6 @@ function makePane(id, host) {
 }
 function isTextTab(tab) { return TEXT_KINDS.has(tab.kind); }
 
-// ---------------------------------------------------------------- Round 33: per-tab editor features
 const isCodeTab = (tab) => tab.kind === "json" || tab.kind === "html" || (tab.kind === "text" && !!tab.langName && tab.langName !== "Plain text" && tab.langName !== "Markdown");
 function mdModeOf(tab) {
   const mode = tab.mdMode || MN.settings.markdown_preview || "live";
@@ -345,12 +344,12 @@ function openMdLink(tab, href) {
   if (/^(https?:|mailto:)/i.test(href)) { api("external", { url: href }); return; }
   if (href.startsWith("#")) return;
   if (!tab.path) return;
-  let p = href; try { p = decodeURIComponent(href); } catch { /* as typed */ }
+  let p = href; try { p = decodeURIComponent(href); } catch {  }
   p = p.split("#")[0];
   if (!/^([a-zA-Z]:[\\/]|\/|\\\\)/.test(p)) p = dirname(tab.path) + MN.sep + p.replace(/^\.[\\/]/, "").replace(/[\\/]/g, MN.sep);
   openPath(p);
 }
-/** Right-click on a misspelled word: suggestions first (returns true when it showed the menu). */
+
 function spellMenu(view, e) {
   const tab = viewTab(view); if (!tab || !spellOn(tab)) return false;
   const pos = view.posAtCoords({ x: e.clientX, y: e.clientY });
@@ -364,7 +363,7 @@ function spellMenu(view, e) {
   spellSuggestions(w.word).then((list) => {
     if (view.state.sliceDoc(w.from, w.to) !== w.word) return;
     const open = [...document.querySelectorAll(".menu")].some((m) => m.textContent.includes(t("spell_loading")));
-    if (!open) return;   // the user closed the menu while the suggestions were loading
+    if (!open) return;
     const items = list.length ? list.map((s) => ({ label: s, cls: "spell-sugg", run: () => { view.dispatch({ changes: { from: w.from, to: w.to, insert: s }, selection: { anchor: w.from + s.length }, userEvent: "input.spell" }); view.focus(); } }))
       : [{ label: t("spell_no_suggestions"), disabled: true }];
     items.push({ label: t("spell_add"), icon: "plus", run: () => addToDictionary(w.word).then(() => toast(t("spell_added", { word: w.word }), { kind: "ok", ms: 1600 })) },
@@ -383,7 +382,7 @@ function toggleSpell(tab) {
 
 function editorOpts(tab) {
   return {
-    settings: MN.settings, large: tab.large, size: tab.size, kind: tab.kind, readOnly: tab.readOnly, noWrap: !!tab.longLines,
+    settings: MN.settings, indent: tab.indent, large: tab.large, size: tab.size, kind: tab.kind, readOnly: tab.readOnly, noWrap: !!tab.longLines,
     ghost: MN.settings.ai_autocomplete ? (view) => requestGhost(view, aiCtx(), setGhost) : null,
     keys: [{ key: "Mod-Enter", run: () => { aiInline(); return true; } }],
     onUpdate: (u) => onEditorUpdate(tab, u),
@@ -399,6 +398,7 @@ function stateFor(p, tab) {
   if (!st) {
     const other = MN.panes.find((q) => q !== p && q.states.get(tab.id));
     const doc = other ? currentState(other, tab).doc : (tab.initialText ?? "");
+    if (!tab.indent?.manual) tab.indent = detectIndentation(doc, MN.settings);
     st = createState(doc, { ...editorOpts(tab), selection: other ? undefined : { anchor: Math.min(tab.cursor || 0, doc.length) } });
     delete tab.initialText;
     p.states.set(tab.id, st);
@@ -407,8 +407,7 @@ function stateFor(p, tab) {
   }
   return st;
 }
-// The pane's EditorView counts only while it is shown: a CSV/notebook in its table view edits p.states, and the
-// hidden view still holds the old document (saving it lost the table edits).
+
 function currentState(p, tab) { return p.view && p.tabId === tab.id && p.view.__tab === tab.id && !p.editorHost.hidden ? p.view.state : p.states.get(tab.id); }
 function stashPane(p) {
   const tab = tabById(p.tabId);
@@ -419,7 +418,7 @@ function stashPane(p) {
   if (tab?.box) tab.box.hidden = true;
 }
 function showInPane(p, tab) {
-  // Component tabs (doc/pdf/image/legacy) live in their own box; text tabs share the pane's EditorView.
+
   p.compHost.querySelectorAll(":scope > .comp-box").forEach((b) => { if (b !== tab.box) b.hidden = true; });
   p.sideHost.hidden = true; p.sideHost.innerHTML = ""; p.mdPreview = null;
   p.host.classList.remove("md-split", "md-only", "csv-table", "html-split");
@@ -441,7 +440,7 @@ function showInPane(p, tab) {
     p.editorHost.hidden = true; p.compHost.hidden = false;
     if (!tab.box || tab.box.parentElement !== p.compHost) buildComponent(p, tab);
     tab.box.hidden = false;
-    if (tab.kind === "slides" && MN.active === p.id) setTimeout(() => tab.comp?.focusStage?.(), 0);   // Round 32: slide shortcuts work right after switching tabs
+    if (tab.kind === "slides" && MN.active === p.id) setTimeout(() => tab.comp?.focusStage?.(), 0);
     if (tab.kind === "csv") p.host.classList.add("csv-table");
   }
 }
@@ -478,7 +477,7 @@ async function applyLanguage(tab, onlyPane) {
   for (const p of MN.panes) {
     if (onlyPane && p !== onlyPane) continue;
     const shown = p.view && p.view.__tab === tab.id && !p.editorHost.hidden;
-    if (shown) p.view.dispatch({ effects: [langComp.reconfigure(support), configComp.reconfigure(buildConfig(editorOpts(tab)))] });   // Round 33: completion/spell follow the language
+    if (shown) p.view.dispatch({ effects: [langComp.reconfigure(support), configComp.reconfigure(buildConfig(editorOpts(tab)))] });
     const st = p.states.get(tab.id);
     if (st && !shown) p.states.set(tab.id, st.update({ effects: langComp.reconfigure(support) }).state);
   }
@@ -517,10 +516,9 @@ export function textOf(tab) {
 }
 function viewOf(tab) { const p = MN.panes.find((q) => q.view && q.view.__tab === tab.id && q.tabId === tab.id && !q.editorHost.hidden); return p?.view || null; }
 
-// ---------------------------------------------------------------- markdown preview / html preview
 function setupMdPreview(p, tab) {
   const mode = mdModeOf(tab);
-  if (mode === "off" || mode === "live") return;   // Round 33: "live" = the combined editor (livemd.js), no side preview
+  if (mode === "off" || mode === "live") return;
   p.sideHost.hidden = false;
   p.mdPreview = new MarkdownPreview(p.sideHost, () => ({ path: tab.path, sep: MN.sep, view: currentState(p, tab) ? { state: currentState(p, tab) } : null, state: currentState(p, tab) }));
   p.mdPreview.onReveal = (line) => { const v = p.view; const l = v.state.doc.line(Math.min(v.state.doc.lines, line + 1)); v.dispatch({ selection: { anchor: l.from }, scrollIntoView: true }); v.focus(); };
@@ -548,7 +546,6 @@ function setMdMode(mode) {
   tab.mdMode = mode; tab.cfgVersion = -1; const p = activePane(); stashPane(p); showInPane(p, tab); renderToolbar(); saveSession();
 }
 
-// ---------------------------------------------------------------- component tabs
 function buildComponent(p, tab) {
   tab.box?.remove();
   const box = document.createElement("div"); box.className = "comp-box"; tab.box = box; p.compHost.append(box);
@@ -558,26 +555,26 @@ function buildComponent(p, tab) {
       onSelection: () => updateStatusSoon(),
       onImage: (insert) => pickImage(insert) });
   } else if (tab.kind === "pdf") {
-    if (tab.comp instanceof PdfView) { box.append(tab.comp.el); return; }   // moved to the other pane: keep unsaved edits
+    if (tab.comp instanceof PdfView) { box.append(tab.comp.el); return; }
     tab.comp = new PdfView(box, tab);
     tab.comp.onExtract = async () => { const text = await tab.comp.text(); newTab({ text, name: tab.name.replace(/\.pdf$/i, "") + ".txt" }); };
     tab.comp.onExport = (fmt) => exportPdfText(tab, fmt);
     tab.comp.onAsk = () => { toggleAI(true); MN.chat?.focus(t("ai_pdf_question")); };
     tab.comp.onChange = () => markDirty(tab, tab.comp.dirty);
     tab.comp.onSave = () => saveTab(tab);
-  } else if (tab.kind === "slides") {      // Round 32: presentation editor (static/js/slides/)
+  } else if (tab.kind === "slides") {
     if (tab.comp instanceof SlidesView) { box.append(tab.comp.el); return; }
     tab.comp = new SlidesView(box, tab, slidesHooks(tab));
   } else if (tab.kind === "image") {
-    // Round 32: the photo editor (js/photo/*.js), loaded on first use; ImageView stays as the fallback.
-    if (tab.comp?.isPhoto) { box.append(tab.comp.el); return; }   // moved to the other pane: keep layers + history
+
+    if (tab.comp?.isPhoto) { box.append(tab.comp.el); return; }
     tab.comp = { destroy() {}, loading: true };
     import("./photo/editor.js").then(({ PhotoEditor }) => {
       if (tab.box !== box) return;
       tab.comp = new PhotoEditor(box, tab, photoHooks(tab)); tab.comp.isPhoto = true;
     }).catch((e) => { console.error(e); if (tab.box === box) tab.comp = new ImageView(box, tab); });
   } else if (tab.kind === "csv") {
-    // Round 31: the table edits the tab's document (a hidden editor state), saved as CSV text.
+
     const st = stateFor(p, tab);
     tab.comp = new CsvTable(box, st.doc.toString(), { delim: /\.(tsv|tab)$/i.test(tab.path || tab.name) ? "\t" : undefined,
       onEdit: (text) => {
@@ -587,7 +584,7 @@ function buildComponent(p, tab) {
   } else if (tab.kind === "notebook") {
     const st = stateFor(p, tab);
     tab.comp = new NotebookView(box, () => (currentState(p, tab) || st).doc.toString());
-  } else if (tab.kind === "sheet") {     // Round 40 (r40-note): editable grid; moved to the other pane → keeps edits
+  } else if (tab.kind === "sheet") {
     if (tab.comp instanceof SheetGrid) { box.append(tab.comp.el); return; }
     tab.comp = new SheetGrid(box, tab, { onChange: (dirty) => markDirty(tab, dirty) });
   } else if (tab.kind === "book") {
@@ -600,7 +597,7 @@ function buildComponent(p, tab) {
     box.querySelector("[data-a=reveal]")?.addEventListener("click", () => api("reveal", { path: tab.path }));
   }
 }
-// Round 32: what the photo editor needs from the shell (file dialogs, dirty flag, new tabs, save-as rename).
+
 function photoHooks(tab) {
   return {
     onDirty: (d) => markDirty(tab, d),
@@ -622,7 +619,6 @@ async function pickImage(insert) {
   const reader = new FileReader(); reader.onload = () => insert(reader.result); reader.readAsDataURL(blob);
 }
 
-// ================================================================== opening files
 async function openPath(path, opts = {}) {
   const existing = MN.tabs.find((x) => x.path && x.path.toLowerCase() === String(path).toLowerCase());
   if (existing) { if (opts.activate !== false) activate(existing.id); return existing; }
@@ -637,21 +633,20 @@ async function openPath(path, opts = {}) {
     return null;
   }
   addRecent(path);
-  // Like Notepad++: the lone untouched empty "Untitled" tab gives way to the first opened file.
+
   const blank = MN.tabs.length !== 2 ? [] : MN.tabs.filter((x) => x !== tab && !x.path && !x.dirty && !x.pinned && !x.recovery && x.loaded && !textOf(x));
   if (opts.activate !== false) await activate(tab.id);
   for (const x of blank) if (MN.tabs.length > 1) await closeTab(x.id, { force: true });
   return tab;
 }
-// One load per tab: a second activate() while a big file is still being fetched must wait for it,
-// not build an editor from the not-yet-loaded (empty) text — saving that would wipe the file.
+
 function ensureLoaded(tab) {
   if (!tab.loading) tab.loading = loadTab(tab).catch((e) => { tab.loaded = false; throw e; }).finally(() => { tab.loading = null; });
   return tab.loading;
 }
 async function loadTab(tab, opts = {}) {
   tab.loaded = true;
-  if (!tab.path) {   // untitled restored from recovery
+  if (!tab.path) {
     try { const r = await api("recovery?id=" + tab.id); tab.initialText = r.text; tab.kind = r.meta?.kind && TEXT_KINDS.has(r.meta.kind) ? r.meta.kind : tab.kind; tab.savedDoc = CM.Text.of([""]); setTimeout(() => markDirty(tab, true), 50); }
     catch { tab.initialText = ""; }
     return;
@@ -659,7 +654,7 @@ async function loadTab(tab, opts = {}) {
   const info = await api("open", { path: tab.path, encoding: opts.encoding || "" }).catch(async (e) => {
     if (tab.recovery && e.status === 404) return null; throw e;
   });
-  if (!info) {   // file deleted but we have unsaved text
+  if (!info) {
     const r = await api("recovery?id=" + tab.id).catch(() => null);
     tab.initialText = r?.text || ""; tab.savedDoc = CM.Text.of([""]); setTimeout(() => markDirty(tab, true), 50);
     toast(t("file_missing_recovered", { name: tab.name }), { kind: "error" });
@@ -677,13 +672,13 @@ async function loadTab(tab, opts = {}) {
   if (["pdf", "image", "legacy", "slides"].includes(tab.kind) || (tab.kind === "binary" && !opts.forceText)) return;
   tab.encoding = info.encoding; tab.webEncoding = info.web_encoding || ""; tab.bom = info.bom; tab.eol = info.eol === "mixed" ? info.eol_major || MN.settings.default_eol : info.eol; tab.mixedEol = info.eol === "mixed";
   tab.large = info.size > MN.settings.large_file_mb * 1048576;
-  if (info.damaged) toast(t("utf8_damaged", { n: info.damaged }), { ms: 8000 });   // Round 34: was opened as cp1252 mojibake
+  if (info.damaged) toast(t("utf8_damaged", { n: info.damaged }), { ms: 8000 });
   let doc;
   if (info.text === undefined) {
     if (info.size > 1024 * 1048576) throw new Error(t("too_big"));
     const overlay = tab.large ? showLoading(t("opening_large", { size: fmtBytes(info.size) })) : null;
     try {
-      // Round 31: streamed + split while downloading, the Text is built from the lines (no 50 MB string).
+
       const r = await readText(rawUrl(tab.path), info.web_encoding || "utf-8",
         overlay ? (f) => { const s = overlay.querySelector("span"); if (s) s.textContent = t("opening_large", { size: fmtBytes(info.size) }) + " " + Math.round(f * 100) + "%"; } : null, info.size);
       doc = r.doc; tab.longLines = r.maxLine > LONG_LINE;
@@ -693,11 +688,12 @@ async function loadTab(tab, opts = {}) {
     tab.longLines = info.text.length > LONG_LINE && longestLine(doc, LONG_LINE + 1) > LONG_LINE;
   }
   tab.savedDoc = doc;
-  tab.initialText = doc;          // a CodeMirror Text (createState and insert accept it as is)
+  tab.initialText = doc;
   if (tab.recovery) {
     const r = await api("recovery?id=" + tab.id).catch(() => null);
     if (r && typeof r.text === "string" && r.text !== doc.toString()) { tab.initialText = r.text; setTimeout(() => markDirty(tab, true), 50); }
   }
+  if (!tab.indent?.manual) tab.indent = detectIndentation(tab.initialText, MN.settings);
   if (tab.kind === "csv" && !tab.csvMode) tab.csvMode = info.size < 32 * 1048576 ? "table" : "text";
   if (tab.kind === "notebook" && !tab.csvMode) tab.csvMode = info.size < 64 * 1048576 ? "table" : "text";
   if (tab.kind === "log") tab.follow = false;
@@ -729,7 +725,7 @@ async function reloadTab(tab) {
   const text = tab.initialText; delete tab.initialText;
   for (const q of MN.panes) {
     const view = q.view && q.view.__tab === tab.id ? q.view : null;
-    if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text }, selection: { anchor: Math.min(sel, text.length) }, annotations: CM.Transaction.remote.of(true) });
+    if (view) view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: text }, selection: { anchor: Math.min(sel, text.length) }, effects: configComp.reconfigure(buildConfig(editorOpts(tab))), annotations: CM.Transaction.remote.of(true) });
     else if (q.states.get(tab.id)) q.states.delete(tab.id);
   }
   tab.savedDoc = docOf(tab); markDirty(tab, false);
@@ -756,20 +752,17 @@ async function openDialog() {
 }
 function addRecent(path) { MN.recent = [path, ...MN.recent.filter((r) => r.toLowerCase() !== path.toLowerCase())].slice(0, 30); api("recent", { path }).catch(() => {}); }
 
-// ================================================================== saving
-// Round 34: one save per tab at a time. A second Ctrl+S / autosave while a slow (big file) save was still writing sent
-// the old mtime and got a false «File changed on disk» conflict. Forced saves (Save as, Overwrite) run inside one.
 async function saveTab(tab, opts = {}) {
   if (!tab || opts.force) return saveTabNow(tab, opts);
   while (tab.saving) await tab.saving.catch(() => {});
-  if (opts.silent && !tab.dirty && tab.path) return true;    // the save we waited for already wrote it
+  if (opts.silent && !tab.dirty && tab.path) return true;
   const job = saveTabNow(tab, opts); tab.saving = job;
   try { return await job; } finally { if (tab.saving === job) tab.saving = null; }
 }
 async function saveTabNow(tab, opts = {}) {
   if (!tab) return false;
   if (!tab.path || opts.as) return saveAs(tab);
-  let snapshot = null;   // the exact text sent: typing during a slow (big file) save keeps the tab dirty
+  let snapshot = null, richSnapshot = null;
   try {
     let r;
     if (DOC_KINDS.has(tab.kind)) {
@@ -781,27 +774,28 @@ async function saveTabNow(tab, opts = {}) {
         if (c.v === "copy") return saveAs(tab);
         tab.richOk = true;
       }
-      r = await api("save_rich", { path: tab.path, html: tab.doc ? tab.doc.html() : tab.html, format: tab.kind, mtime: opts.force ? 0 : tab.mtime, force: !!opts.force, title: tab.name });
+      richSnapshot = tab.doc ? tab.doc.html() : tab.html;
+      r = await api("save_rich", { path: tab.path, html: richSnapshot, format: tab.kind, mtime: opts.force ? 0 : tab.mtime, force: !!opts.force, title: tab.name });
     } else if (isTextTab(tab)) {
       snapshot = docOf(tab);
-      if (!snapshot && tab.initialText == null) return true;   // Round 34: never loaded as text — nothing to write (was: "" over the file)
-      // Round 34: Ctrl+S on an untouched file with mixed line endings must not rewrite every line ending.
+      if (!snapshot && tab.initialText == null) return true;
+
       if (tab.mixedEol && !tab.dirty && !opts.force && snapshot && tab.savedDoc && snapshot.eq(tab.savedDoc)) return true;
-      const text = snapshot ? docBlob(snapshot) : textOf(tab);   // Blob of slices: no 50 MB string copy
+      const text = snapshot ? docBlob(snapshot) : textOf(tab);
       const q = new URLSearchParams({ path: tab.path, encoding: tab.encoding, eol: tab.eol, bom: tab.bom ? "1" : "0", mtime: opts.force ? "0" : String(tab.mtime || 0), force: opts.force ? "1" : "0",
         trim: MN.settings.trim_trailing_whitespace ? "1" : "0", final_newline: MN.settings.final_newline ? "1" : "0", backup: MN.settings.backup_on_save ? "1" : "0" });
       r = await api("save_text?" + q, text, { raw: true });
       if (r.lost) toast(t("encoding_lost", { n: r.lost, enc: tab.encoding }), { kind: "error", ms: 8000 });
-    } else if (tab.kind === "sheet" && tab.comp?.save && tab.sheetEditable) {   // Round 40 (r40-note): only the changed cells
+    } else if (tab.kind === "sheet" && tab.comp?.save && tab.sheetEditable) {
       if (!tab.dirty && !opts.force) return true;
       r = await tab.comp.save(tab.path, { mtime: opts.force ? 0 : tab.mtime, force: !!opts.force });
-    } else if (tab.kind === "slides" && tab.comp?.save) {   // Round 32: .pptx written by the page (static/js/slides/pptx.js)
+    } else if (tab.kind === "slides" && tab.comp?.save) {
       if (!/\.(pptx|pptm|ppsx|potx)$/i.test(tab.path)) return saveSlidesAs(tab);
       r = await tab.comp.save(tab.path, { mtime: opts.force ? 0 : tab.mtime, force: !!opts.force });
-    } else if (tab.kind === "pdf" && tab.comp?.save) {      // Round 31: edited PDF (pdf-lib in the page)
+    } else if (tab.kind === "pdf" && tab.comp?.save) {
       if (!tab.comp.dirty) return true;
       r = await tab.comp.save(tab.path, { mtime: opts.force ? 0 : tab.mtime, force: !!opts.force });
-    } else if (tab.kind === "image" && tab.comp?.isPhoto) {  // Round 32: photo editor (layers → PSD/.memuimg, else flattened)
+    } else if (tab.kind === "image" && tab.comp?.isPhoto) {
       if (!tab.comp.dirty && !opts.force) return true;
       r = await tab.comp.save(tab.path, { mtime: opts.force ? 0 : tab.mtime, force: !!opts.force });
     } else return true;
@@ -814,10 +808,13 @@ async function saveTabNow(tab, opts = {}) {
     }
     tab.mtime = r.mtime; tab.size = r.size;
     tab.savedDoc = snapshot || docOf(tab); tab.mixedEol = false;
-    markDirty(tab, !!snapshot && !!docOf(tab) && !docOf(tab).eq(snapshot));
+    const stillDirty = snapshot ? !!docOf(tab) && !docOf(tab).eq(snapshot)
+      : richSnapshot !== null ? (tab.doc ? tab.doc.html() : tab.html) !== richSnapshot
+      : tab.kind === "sheet" ? !!tab.comp?.isDirty : !!tab.comp?.dirty;
+    markDirty(tab, stillDirty);
     if (!tab.dirty) api("recovery?id=" + tab.id, undefined, { method: "DELETE", allowError: true }).catch(() => {});
     if (!opts.silent) toast(t("saved", { name: tab.name }), { kind: "ok", ms: 1600 });
-    if (MN.settings.trim_trailing_whitespace || MN.settings.final_newline) { /* the file on disk is canonical; editor keeps what the user typed */ }
+    if (MN.settings.trim_trailing_whitespace || MN.settings.final_newline) {  }
     updateStatus();
     return true;
   } catch (e) {
@@ -826,14 +823,14 @@ async function saveTabNow(tab, opts = {}) {
     return false;
   }
 }
-async function saveSheetAs(tab) {   // Round 40 (r40-note): a copy of the workbook with the edits (styles kept)
+async function saveSheetAs(tab) {
   const paths = await fileDialog("save", { directory: dirname(tab.path), filename: basename(tab.path), filters: ["Excel (*.xlsx)"], multiple: false });
   let path = paths?.[0]; if (!path) return false;
   if (!/\.(xlsx|xlsm)$/i.test(path)) path += ".xlsx";
   try {
     const r = await tab.comp.save(tab.path, { target: path, force: true });
     tab.path = r.path || path; tab.name = basename(tab.path); tab.mtime = r.mtime; tab.size = r.size;
-    markDirty(tab, false); renderTabs(); updateStatus(); saveSession();
+    markDirty(tab, !!tab.comp?.isDirty); renderTabs(); updateStatus(); saveSession();
     toast(t("saved", { name: tab.name }), { kind: "ok", ms: 1600 });
     return true;
   } catch (e) { toast(t("save_failed") + ": " + e.message, { kind: "error", ms: 9000 }); return false; }
@@ -843,17 +840,17 @@ async function savePdfAs(tab) {
   let path = paths?.[0]; if (!path) return false;
   if (extname(path) !== ".pdf") path += ".pdf";
   const old = tab.path;
-  tab.path = path;            // the view reloads from the new file after writing it
+  tab.path = path;
   try {
     const r = await tab.comp.save(path, { force: true });
     if (!r.ok) throw new Error(r.error || "save failed");
     Object.assign(tab, { name: basename(path), mtime: r.mtime, size: r.size });
-    markDirty(tab, false); addRecent(path); renderTabs(); updateTitle(); saveSession();
+    markDirty(tab, !!tab.comp?.dirty); addRecent(path); renderTabs(); updateTitle(); saveSession();
     toast(t("saved", { name: tab.name }), { kind: "ok", ms: 1600 });
     return true;
   } catch (e) { tab.path = old; toast(t("save_failed") + ": " + e.message, { kind: "error", ms: 9000 }); return false; }
 }
-// ---------------------------------------------------------------- Round 32: presentations
+
 async function saveSlidesAs(tab) {
   if (/\.odp$/i.test(tab.path || "")) toast(t("sl_odp_save"), { ms: 5000 });
   const stem = (tab.path ? basename(tab.path) : tab.name).replace(/\.\w+$/, "");
@@ -865,7 +862,7 @@ async function saveSlidesAs(tab) {
     const r = await tab.comp.save(path, { force: true });
     if (!r.ok) throw new Error(r.error || "save failed");
     Object.assign(tab, { path, name: basename(path), mtime: r.mtime, size: r.size, untitled: false });
-    markDirty(tab, false); addRecent(path); renderTabs(); updateTitle(); saveSession(); updateStatus();
+    markDirty(tab, !!tab.comp?.dirty); addRecent(path); renderTabs(); updateTitle(); saveSession(); updateStatus();
     toast(t("saved", { name: tab.name }), { kind: "ok", ms: 1600 });
     return true;
   } catch (e) { Object.assign(tab, old); toast(t("save_failed") + ": " + e.message, { kind: "error", ms: 9000 }); return false; }
@@ -931,12 +928,11 @@ async function renameTab(tab) {
   catch (e) { toast(e.status === 409 ? t("file_exists") : e.message, { kind: "error" }); }
 }
 
-// ---------------------------------------------------------------- recovery & session
 const recoveryTimers = new Map();
 function scheduleRecovery(tab) {
   if (!MN.settings.recovery) return;
   clearTimeout(recoveryTimers.get(tab.id));
-  recoveryTimers.set(tab.id, setTimeout(() => writeRecovery(tab), tab.large ? 60000 : 1500));   // a 50 MB copy is not written every 15 s
+  recoveryTimers.set(tab.id, setTimeout(() => writeRecovery(tab), tab.large ? 60000 : 1500));
 }
 async function writeRecovery(tab) {
   if (!tab.dirty) return;
@@ -944,33 +940,33 @@ async function writeRecovery(tab) {
   const d = isDoc ? null : docOf(tab);
   const body = isDoc ? (tab.doc ? tab.doc.html() : tab.html || "") : d ? docBlob(d) : textOf(tab);
   const q = new URLSearchParams({ id: tab.id, title: tab.name, path: tab.path || "", kind: isDoc ? "html" : tab.kind });
-  try { await api("recovery?" + q, body, { raw: true }); tab.recovery = true; saveSession(); } catch { /* disk full: keep trying */ }
+  try { await api("recovery?" + q, body, { raw: true }); tab.recovery = true; saveSession(); } catch {  }
 }
 const saveSession = debounce(() => {
   const tabs = MN.tabs.map((tab) => {
     const v = viewOf(tab);
     return { id: tab.id, path: tab.path, name: tab.name, kind: tab.kind, pinned: tab.pinned, recovery: tab.dirty && MN.settings.recovery,
       cursor: v ? v.state.selection.main.head : tab.cursor, scroll: v ? Math.round(v.scrollDOM.scrollTop) : tab.scroll,
-      langName: tab.langOverride ? tab.langName : "", mdMode: tab.mdMode, csvMode: tab.csvMode, mdOk: tab.mdOk, spell: tab.spell };
+      langName: tab.langOverride ? tab.langName : "", mdMode: tab.mdMode, csvMode: tab.csvMode, mdOk: tab.mdOk, spell: tab.spell,
+      indent: tab.indent?.manual ? tab.indent : undefined };
   }).filter((x) => x.path || (x.recovery && x.kind !== "slides"));
   api("session", { tabs, active: activePane()?.tabId || "", layout: { split: MN.panes.length > 1, ai: !$("#ai-panel")?.hidden } }).catch(() => {});
 }, 800);
 
-// ---------------------------------------------------------------- external changes / events
-let externalBusy = false;   // a slow reload of a big file must not overlap the next 2.5 s check (double reloads)
+let externalBusy = false;
 async function checkExternal() {
   if (externalBusy) return;
   externalBusy = true;
   try { await checkExternalNow(); } finally { externalBusy = false; }
 }
-/** Round 31: a growing log (follow mode / .log) only reads the bytes appended since the last read. */
+
 async function appendTail(tab, st) {
   if (!(tab.follow || tab.kind === "log") || tab.dirty || !tab.size || st.size <= tab.size || !isTextTab(tab)) return false;
-  if (!/^(utf-8|windows-125\d|iso-8859-\d+|koi8-r|ibm866|x-mac-cyrillic)$/.test(tab.webEncoding || "")) return false;   // byte 0x0A = "\n"
+  if (!/^(utf-8|windows-125\d|iso-8859-\d+|koi8-r|ibm866|x-mac-cyrillic)$/.test(tab.webEncoding || "")) return false;
   const res = await fetch(rawUrl(tab.path) + "&offset=" + tab.size).catch(() => null);
   if (!res?.ok) return false;
   const buf = new Uint8Array(await res.arrayBuffer());
-  const end = buf.lastIndexOf(10) + 1;          // whole lines only: a half-written line comes next time
+  const end = buf.lastIndexOf(10) + 1;
   if (end > 0) {
     const text = new TextDecoder(tab.webEncoding).decode(buf.subarray(0, end));
     const doc = docOf(tab); if (!doc) return false;
@@ -1020,7 +1016,7 @@ function banner(tab, kind, mtime) {
   host.append(el);
 }
 async function pollEvents() {
-  let since = MN.boot?.events_seq || 0;   // events delivered to an earlier page (before a reload) are not replayed
+  let since = MN.boot?.events_seq || 0;
   for (;;) {
     try {
       const r = await api("events?since=" + since);
@@ -1034,12 +1030,11 @@ async function pollEvents() {
   }
 }
 
-// ================================================================== toolbar
 function renderToolbar() {
   const bar = $("#toolbar"); if (!bar) return;
   const tab = activeTab();
   if (!tab) { bar.innerHTML = ""; return; }
-  bar.classList.toggle("photo-hidden", tab.kind === "image");   // Round 32: the photo editor has its own menus
+  bar.classList.toggle("photo-hidden", tab.kind === "image");
   const B = (a, ic, label, extra = "") => `<button class="tb-btn" data-a="${a}" title="${esc(label)}" aria-label="${esc(label)}" ${extra}>${icon(ic)}</button>`;
   const L = (a, ic, label, extra = "") => `<button class="tb-btn wide" data-a="${a}" ${extra}>${icon(ic)}<span>${esc(label)}</span></button>`;
   const sep = '<span class="tb-sep"></span>';
@@ -1049,7 +1044,7 @@ function renderToolbar() {
     html += B("undo", "undo", t("undo")) + B("redo", "redo", t("redo")) + sep;
     html += B("find", "search", t("find") + " (" + kbd("Ctrl+F") + ")") + B("replace", "replace", t("replace") + " (" + kbd("Ctrl+H") + ")");
     html += B("wrap", "wrap", t("word_wrap") + " (Alt+Z)", MN.settings.word_wrap ? 'class="tb-btn on"' : "") + sep;
-    const md = tab.kind === "markdown" || (tab.kind === "text" && !XML_RE.test(tab.path || tab.name));   // no Markdown buttons for XML
+    const md = tab.kind === "markdown" || (tab.kind === "text" && !XML_RE.test(tab.path || tab.name));
     if (md) {
       html += `<div class="tb-group md-group ${tab.kind === "text" ? "muted-group" : ""}" title="${tab.kind === "text" ? esc(t("md_group_hint_txt")) : ""}">`
         + B("md:bold", "bold", t("fmt_bold") + " (" + kbd("Ctrl+B") + ")") + B("md:italic", "italic", t("fmt_italic") + " (" + kbd("Ctrl+I") + ")") + B("md:strike", "strike", t("fmt_strike"))
@@ -1085,7 +1080,7 @@ function renderToolbar() {
     html += B("open", "folderOpen", t("open_file")) + sep;
   }
   html += `<span class="spacer"></span>`;
-  if (isRunnable(tab) && !viewMode(tab)) {   // Round 33: run the file (runpanel.js)
+  if (isRunnable(tab) && !viewMode(tab)) {
     const running = MN.run?.run && !MN.run.run.done && MN.run.run.path === tab.path;
     html += running ? `<button class="tb-btn wide run-btn stop" data-a="run:stop" title="${esc(t("run_stop"))} (${esc(kbd("Shift+F5"))})">${icon("stop")}<span>${esc(t("run_stop"))}</span></button>`
       : `<button class="tb-btn wide run-btn" data-a="run" title="${esc(t("run_button"))} (F5)">${icon("play")}<span>${esc(t("run_button"))}</span></button>`;
@@ -1131,11 +1126,10 @@ function toolbarAction(a, el) {
   }
 }
 
-// ---------------------------------------------------------------- Markdown actions (+ convert .txt → .md)
 async function ensureMarkdown(tab) {
   if (tab.kind === "markdown" || tab.mdOk) return true;
   if (!MN.settings.ask_markdown_convert) { tab.mdOk = true; return true; }
-  // The real extension (.py, .txt…), not a hard-coded ".txt"; Cancel is the × / Esc (four buttons did not fit).
+
   const ext = extname(tab.path || tab.name) || ".txt";
   const r = await modal({ title: t("md_convert_title"), cls: "md-convert", body: `<p>${esc(t("md_convert_text", { name: tab.name }))}</p><p class="muted small">${esc(tab.path ? t("md_convert_note", { ext }) : t("md_convert_note_new"))}</p>`,
     buttons: [{ label: t("md_keep_txt", { ext }), value: "plain", left: true }, ...(AI.online ? [{ label: t("md_convert_ai"), value: "ai" }] : []), { label: t("md_convert"), primary: true, value: "convert" }] });
@@ -1195,7 +1189,7 @@ function xmlAction(kind) {
   const tab = activeTab(); const v = viewOf(tab); if (!v) return;
   const text = v.state.doc.toString();
   if (kind === "validate") { const err = xmlError(text); toast(err ? t("xml_invalid") + ": " + err : t("xml_valid"), { kind: err ? "error" : "ok", ms: err ? 8000 : 2400 }); return; }
-  try { v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: xmlFormat(text, MN.settings.indent_with_tabs ? "\t" : " ".repeat(MN.settings.tab_size || 2)) }, userEvent: "input.format" }); }
+  try { v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: xmlFormat(text, v.state.facet(CM.indentUnit)) }, userEvent: "input.format" }); }
   catch (e) { toast(t("xml_invalid") + ": " + e.message, { kind: "error", ms: 8000 }); }
 }
 function jsonAction(kind) {
@@ -1209,17 +1203,16 @@ function jsonAction(kind) {
     return;
   }
   try {
-    const out = kind === "format" ? jsonFormat(text, MN.settings.indent_with_tabs ? "\t" : MN.settings.tab_size) : JSON.stringify(JSON.parse(text));
+    const out = kind === "format" ? jsonFormat(text, v.state.facet(CM.indentUnit)) : JSON.stringify(JSON.parse(text));
     v.dispatch({ changes: { from: 0, to: v.state.doc.length, insert: out } });
   } catch (e) { toast(t("json_invalid") + ": " + e.message, { kind: "error" }); }
 }
 
-// ---------------------------------------------------------------- find / go to line
 function openFind(replace) {
   const tab = activeTab();
   if (tab && DOC_KINDS.has(tab.kind) && tab.doc) { docFind(tab.doc); return; }
   const v = tab && viewOf(tab); if (!v) return;
-  const wasOpen = !!v.dom.querySelector(".mn-find");   // Ctrl+H in an open panel only adds the replace row
+  const wasOpen = !!v.dom.querySelector(".mn-find");
   CM.openSearchPanel(v);
   setTimeout(() => {
     const panel = v.dom.querySelector(".mn-find"); if (!panel) return;
@@ -1244,7 +1237,6 @@ async function gotoLine() {
   v.dispatch({ selection: { anchor: pos }, effects: CM.EditorView.scrollIntoView(pos, { y: "center" }) }); v.focus();
 }
 
-// ================================================================== AI integration
 function aiCtx() {
   return {
     settings: () => MN.settings,
@@ -1255,12 +1247,12 @@ function aiCtx() {
       const text = textOf(tab);
       const sel = selectionText();
       const kind = DOC_KINDS.has(tab.kind) ? "document" : tab.kind === "text" && tab.langName && tab.langName !== "Plain text" ? "code" : tab.kind;
-      // Round 31: an excerpt around the cursor (ai_context_chars), never the whole multi-megabyte file
+
       const r = v ? v.state.selection.main : null;
       const c = aiExcerpt({ text, kind, selFrom: r ? r.from : text.length, selTo: r ? r.to : text.length, limit: MN.settings.ai_context_chars });
       return { name: tab.name, kind, text: c.text, selection: sel, pos: c.pos };
     },
-    // Round 31 (AI panel agent mode): the active editor and access to a tab's view / rich document by id
+
     editor: () => {
       const tab = activeTab(); if (!tab) return null;
       const kind = DOC_KINDS.has(tab.kind) ? "document" : tab.kind === "text" && tab.langName && tab.langName !== "Plain text" ? "code" : tab.kind;
@@ -1309,7 +1301,7 @@ function applyAI(text, mode) {
   if (mode === "replace" && !r.empty) v.dispatch({ changes: { from: r.from, to: r.to, insert: text }, selection: { anchor: r.from, head: r.from + text.length }, scrollIntoView: true, userEvent: "input.ai" });
   else if (mode === "below") { const line = v.state.doc.lineAt(r.to); const ins = "\n\n" + text; v.dispatch({ changes: { from: line.to, insert: ins }, selection: { anchor: line.to + 2, head: line.to + ins.length }, scrollIntoView: true, userEvent: "input.ai" }); }
   else {
-    // A multi-line block (a code block's "Insert") goes on lines of its own, not glued into the current line.
+
     const line = v.state.doc.lineAt(r.head);
     const pre = text.includes("\n") && r.head > line.from ? "\n" : "", post = text.includes("\n") && r.head < line.to ? "\n" : "";
     const ins = pre + text + post;
@@ -1385,7 +1377,7 @@ async function webSearch(query) {
   } catch (e) { bubble.querySelector(".msg-body").innerHTML = `<div class="err">${icon("warn")}${esc(e.message)}</div>`; }
 }
 function toggleAI(force) {
-  const ptab = activeTab();   // Round 32: on an image tab the AI lives in the photo editor's own panel
+  const ptab = activeTab();
   if (ptab?.kind === "image" && ptab.comp?.isPhoto && force === undefined && $("#ai-panel").hidden) { ptab.comp.showTab("ai"); return; }
   const panel = $("#ai-panel"); const open = force ?? panel.hidden;
   if (open && !MN.settings.ai_enabled) { toast(t("ai_disabled"), { kind: "error" }); return; }
@@ -1396,7 +1388,6 @@ function toggleAI(force) {
   saveSession();
 }
 
-// ================================================================== Round 33: run the file
 function runHooks() {
   return {
     activeTab, tabAlive: (tab) => MN.tabs.includes(tab),
@@ -1431,7 +1422,6 @@ async function runMenu(anchor) {
   ], anchor, { alignRight: true });
 }
 
-// ================================================================== split view
 function toggleSplit(force) {
   const want = force ?? MN.panes.length === 1;
   const right = $("#pane-right"), gutter = $(".pane-gutter");
@@ -1452,7 +1442,6 @@ function toggleSplit(force) {
   renderTabs(); renderToolbar(); saveSession();
 }
 
-// ================================================================== sidebar: files & outline
 let sideMode = localStorage.getItem("mn_side") || "files", sideDir = "";
 function toggleSidebar(force) {
   const el = $("#sidebar"); const open = force ?? el.hidden; el.hidden = !open;
@@ -1470,7 +1459,7 @@ async function renderSidebar() {
     const heads = [];
     if (tab && DOC_KINDS.has(tab.kind) && tab.doc) tab.doc.page.querySelectorAll("h1,h2,h3,h4,h5,h6").forEach((h, i) => heads.push({ level: +h.tagName[1], text: h.textContent, el: h, i }));
     else if (tab && isTextTab(tab)) {
-      const big = (docOf(tab)?.length || 0) >= 8 * 1048576;   // no 50 MB toString() on every edit
+      const big = (docOf(tab)?.length || 0) >= 8 * 1048576;
       const text = big ? "" : textOf(tab); const lines = text.split("\n"); let inFence = false;
       if (!big) lines.forEach((l, n) => {
         if (/^\s*(```|~~~)/.test(l)) inFence = !inFence;
@@ -1500,7 +1489,6 @@ async function renderSidebar() {
   } catch (e) { body.innerHTML = `<p class="muted small pad">${esc(e.message)}</p>`; sideDir = ""; }
 }
 
-// ================================================================== status bar
 const updateStatusSoon = debounce(() => updateStatus(), 60);
 function updateStatus() {
   const bar = $("#status"); if (!bar) return;
@@ -1519,11 +1507,12 @@ function updateStatus() {
     if (!r.empty) { const sel = st.sliceDoc(r.from, r.to); parts.push(`<span class="st">${esc(t("st_sel", { n: (r.to - r.from).toLocaleString(), l: st.doc.lineAt(r.to).number - line.number + 1 }))}</span>`); if (sel.length < 500000) parts.push(`<span class="st">${esc(t("st_words", { n: countWords(sel).toLocaleString() }))}</span>`); }
     else if (st.doc.length < 1048576) parts.push(`<span class="st" title="${esc(t("st_chars", { n: st.doc.length.toLocaleString() }))}">${esc(t("st_words", { n: countWords(st.doc.toString()).toLocaleString() }))}</span>`);
     else parts.push(`<span class="st">${esc(t("st_lines", { n: st.doc.lines.toLocaleString() }))}</span>`);
-    // Round 33: spelling (per document) and AI suggestions (code) toggles
+
     if (spellMode(tab)) parts.push(`<button class="st st-toggle ${spellOn(tab) ? "on" : "off"}" data-st="spell" title="${esc(t(spellOn(tab) ? "st_spell_on" : "st_spell_off"))}">${icon("spell")}<span>${esc(t("st_spell"))}</span></button>`);
     if (isCodeTab(tab) && AI.online && MN.settings.ai_enabled) parts.push(`<button class="st st-toggle ${MN.settings.ai_autocomplete ? "on" : "off"}" data-st="aisuggest" title="${esc(t(MN.settings.ai_autocomplete ? "st_ai_suggest_on" : "st_ai_suggest_off"))}">${icon("sparkle")}<span>${esc(t("st_ai_suggest"))}</span></button>`);
     parts.push(`<button class="st" data-st="lang">${esc(tab.langName === "Plain text" || !tab.langName ? t("plain_text") : tab.langName)}</button>`);
-    parts.push(`<button class="st" data-st="indent">${esc(MN.settings.indent_with_tabs ? t("st_tabs", { n: MN.settings.tab_size }) : t("st_spaces", { n: MN.settings.tab_size }))}</button>`);
+    const indent = tab.indent || MN.settings;
+    parts.push(`<button class="st" data-st="indent" title="${esc(t(indent.detected ? "indent_detected" : "indent_document"))}">${esc(indent.indent_with_tabs ? t("st_tabs", { n: indent.tab_size }) : t("st_spaces", { n: indent.tab_size }))}</button>`);
     parts.push(`<button class="st" data-st="enc">${esc(encLabel(tab))}</button>`);
     parts.push(`<button class="st" data-st="eol" title="${tab.mixedEol ? esc(t("eol_mixed_hint")) : ""}">${esc(tab.mixedEol ? t("eol_mixed") : tab.eol.toUpperCase())}</button>`);
   } else if (tab && DOC_KINDS.has(tab.kind) && tab.doc) {
@@ -1547,9 +1536,17 @@ function statusAction(a, el) {
   if (a === "aisuggest") saveSettings({ ai_autocomplete: !MN.settings.ai_autocomplete }).then(() => toast(t(MN.settings.ai_autocomplete ? "st_ai_suggest_on" : "st_ai_suggest_off"), { ms: 1800 }));
   if (a === "zoom") showMenu([{ label: t("zoom_in"), kbd: kbd("Ctrl+="), run: () => zoom(10) }, { label: t("zoom_out"), kbd: kbd("Ctrl+-"), run: () => zoom(-10) }, { label: t("zoom_reset"), kbd: kbd("Ctrl+0"), run: () => zoom(0) }], el);
   if (a === "eol") showMenu(["crlf", "lf", "cr"].map((e) => ({ label: { crlf: "CRLF (Windows)", lf: "LF (Unix, macOS)", cr: "CR (Classic Mac)" }[e], checked: tab.eol === e && !tab.mixedEol, run: () => { tab.eol = e; tab.mixedEol = false; markDirty(tab, true); updateStatus(); } })), el);
-  if (a === "indent") showMenu([{ label: t("indent_spaces"), checked: !MN.settings.indent_with_tabs, run: () => saveSettings({ indent_with_tabs: false }) }, { label: t("indent_tabs"), checked: MN.settings.indent_with_tabs, run: () => saveSettings({ indent_with_tabs: true }) }, "-",
-    ...[2, 4, 8].map((n) => ({ label: t("tab_size_n", { n }), checked: MN.settings.tab_size === n, run: () => saveSettings({ tab_size: n }) })), "-",
-    { label: t("convert_tabs_spaces"), run: () => TOOLS.tabsToSpaces(v, MN.settings.tab_size) }, { label: t("convert_spaces_tabs"), run: () => TOOLS.spacesToTabs(v, MN.settings.tab_size) }], el);
+  if (a === "indent" && v) {
+    const indent = tab.indent || MN.settings;
+    const change = (patch) => setDocumentIndent(tab, { ...indent, ...patch, detected: false, manual: true });
+    showMenu([{ header: t("indent_document") },
+      { label: t("indent_spaces"), checked: !indent.indent_with_tabs, run: () => change({ indent_with_tabs: false }) },
+      { label: t("indent_tabs"), checked: indent.indent_with_tabs, run: () => change({ indent_with_tabs: true }) }, "-",
+      ...[2, 4, 8].map((n) => ({ label: t("tab_size_n", { n }), checked: indent.tab_size === n, run: () => change({ tab_size: n }) })),
+      { label: t("indent_detect"), run: () => setDocumentIndent(tab, detectIndentation(v.state.doc, MN.settings)) }, "-",
+      { label: t("convert_tabs_spaces"), run: () => { TOOLS.tabsToSpaces(v, indent.tab_size); change({ indent_with_tabs: false }); } },
+      { label: t("convert_spaces_tabs"), run: () => { TOOLS.spacesToTabs(v, indent.tab_size); change({ indent_with_tabs: true }); } }], el);
+  }
   if (a === "enc") showMenu([{ header: t("enc_reopen") }, { label: t("enc_reopen_with") + "…", sub: ENCODINGS.map(([k, l]) => ({ label: l, checked: tab.encoding === k, run: async () => {
       if (tab.dirty && !(await confirm(t("enc_reopen"), t("enc_reopen_dirty"), t("enc_reopen")))) return; await reopenAsText(tab, k); toast(t("enc_reopened", { enc: l })); } })) },
     { header: t("enc_save") }, { label: t("enc_save_with") + "…", sub: ENCODINGS.map(([k, l]) => ({ label: l, checked: tab.encoding === k, run: () => { tab.encoding = k; tab.bom = k === "utf-8-sig" || (k.startsWith("utf-16") && tab.bom); markDirty(tab, true); updateStatus(); toast(t("enc_will_save", { enc: l })); } })) }], el);
@@ -1558,11 +1555,19 @@ function statusAction(a, el) {
     palette(items, { placeholder: t("lang_pick") });
   }
 }
+function setDocumentIndent(tab, indent) {
+  tab.indent = indent;
+  for (const p of MN.panes) {
+    const effect = configComp.reconfigure(buildConfig(editorOpts(tab)));
+    if (p.view?.__tab === tab.id) p.view.dispatch({ effects: effect });
+    else if (p.states.has(tab.id)) p.states.set(tab.id, p.states.get(tab.id).update({ effects: effect }).state);
+  }
+  updateStatus(); saveSession();
+}
 function setLang(name) { const tab = activeTab(); if (!tab) return; tab.langName = name; tab.langOverride = true; applyLanguage(tab); saveSession(); }
 function zoom(d) { saveSettings({ zoom: d === 0 ? 100 : Math.max(50, Math.min(300, MN.settings.zoom + d)) }); }
 function updateTitle() { const tab = activeTab(); const title = tab ? `${tab.dirty ? "● " : ""}${tab.name} — MemuNote` : "MemuNote"; document.title = title; api("window", { cmd: "title", title }).catch(() => {}); }
 
-// ================================================================== menus
 function appMenu(anchor) {
   const tab = activeTab(); const v = tab && viewOf(tab);
   const recent = MN.recent.slice(0, 15).map((p) => ({ label: basename(p), hint: dirname(p), icon: kindIcon(kindByExt(p)), run: () => openPath(p) }));
@@ -1580,7 +1585,7 @@ function appMenu(anchor) {
     { label: t("save_all"), kbd: kbd("Ctrl+Alt+S"), run: () => saveAll() },
     { label: t("export"), icon: "export", sub: exportItems() },
     { label: t("print"), icon: "print", kbd: kbd("Ctrl+P"), run: () => printTab() },
-    ...(isRunnable(tab) ? [{ label: t("run_button"), icon: "play", kbd: "F5", run: () => MN.run.start(tab) }] : []),   // Round 33
+    ...(isRunnable(tab) ? [{ label: t("run_button"), icon: "play", kbd: "F5", run: () => MN.run.start(tab) }] : []),
     "-",
     { label: t("menu_edit"), icon: "fileText", sub: editItems(v) },
     { label: t("menu_view"), icon: "eye", sub: viewItems() },
@@ -1641,7 +1646,7 @@ function viewItems() {
     { label: t("fullscreen"), kbd: "F11", run: () => api("window", { cmd: "fullscreen" }) },
   ];
 }
-function editorMenu(at, prefix = []) {   // Round 33: prefix = spell suggestions
+function editorMenu(at, prefix = []) {
   const tab = activeTab(); const v = viewOf(tab); if (!v) return;
   const sel = !v.state.selection.main.empty;
   showMenu([...prefix,
@@ -1658,7 +1663,6 @@ function editorMenu(at, prefix = []) {   // Round 33: prefix = spell suggestions
   ], at);
 }
 
-// ---------------------------------------------------------------- export / print
 function exportItems() {
   return [["pdf", "PDF", "pdf"], ["html", "HTML", "globe"], ["docx", "Word (DOCX)", "doc"], ["odt", "OpenDocument (ODT)", "doc"], ["rtf", "Rich Text (RTF)", "doc"], ["md", "Markdown", "markdown"], ["txt", t("filter_text"), "fileText"]]
     .map(([f, label, ic]) => ({ label, icon: ic, run: () => exportTo(f) }));
@@ -1707,7 +1711,6 @@ async function printTab(pdfPath) {
   } finally { document.documentElement.classList.remove("printing"); root.innerHTML = ""; }
 }
 
-// ================================================================== command palette & shortcuts
 function commandItems() {
   const tab = activeTab(); const v = tab && viewOf(tab);
   const items = [
@@ -1721,7 +1724,7 @@ function commandItems() {
     ["theme_toggle", "moon", "", () => saveSettings({ theme: MN.theme.mode === "dark" ? "light" : "dark" })], ["md_convert_cmd", "markdown", "", () => tab && convertToMarkdown(tab)],
     ["web_search", "globe", "", () => webSearch(selectionText())], ["md_format_table", "table", "", () => mdAction("formatTable")], ["insert_datetime", "clock", "F5", () => v && insertDateTime(v)],
     ["reveal", "folderOpen", "", () => tab?.path && api("reveal", { path: tab.path })], ["copy_path", "copy", "", () => tab?.path && copyText(tab.path)],
-    // Round 33
+
     ["run_button", "play", "F5", () => MN.run.start(tab)], ["run_with_args", "terminal", "", () => MN.run.start(tab, { askArgs: true })], ["run_stop", "stop", "Shift+F5", () => MN.run.stop()],
     ["run_toggle_panel", "terminal", "Ctrl+`", () => MN.run.toggle()], ["st_spell", "spell", "", () => toggleSpell(tab)],
     ["md_mode_live", "liveMd", "", () => setMdMode("live")],
@@ -1758,8 +1761,8 @@ function globalKeys(e) {
   const tab = activeTab();
   const stop = () => { e.preventDefault(); e.stopPropagation(); };
   if (document.querySelector(".modal-back, .palette-back")) return;
-  if (e.target.closest?.(".sl-app, .sl-show") && slidesOwnsKey(e)) return;   // Round 32: the slide editor handles these itself
-  if (tab?.kind === "image" && tab.comp?.isPhoto && tab.comp.handleKey(e)) return;   // Round 32: photo editor shortcuts first
+  if (e.target.closest?.(".sl-app, .sl-show") && slidesOwnsKey(e)) return;
+  if (tab?.kind === "image" && tab.comp?.isPhoto && tab.comp.handleKey(e)) return;
   if (mod && !e.altKey) {
     if (k === "n" && !e.shiftKey) { stop(); newTab(); return; }
     if (k === "o") { stop(); openDialog(); return; }
@@ -1775,7 +1778,7 @@ function globalKeys(e) {
     if (k === "j") { stop(); aiInline(); return; }
     if (k === "l" && e.shiftKey) { stop(); toggleAI(); return; }
     if (k === "\\") { stop(); toggleSplit(); return; }
-    if (k === "`" && !e.shiftKey) { stop(); MN.run?.toggle(); return; }   // Round 33: output panel
+    if (k === "`" && !e.shiftKey) { stop(); MN.run?.toggle(); return; }
     if (k === "," ) { stop(); openSettings(); return; }
     if (k === "=" || k === "+") { stop(); zoom(10); return; }
     if (k === "-") { stop(); zoom(-10); return; }
@@ -1794,14 +1797,13 @@ function globalKeys(e) {
   }
   if (e.altKey && !mod && k === "z") { stop(); saveSettings({ word_wrap: !MN.settings.word_wrap }).then(renderToolbar); return; }
   if (e.key === "F1") { stop(); showShortcuts(); return; }
-  if (e.key === "F5" && e.shiftKey && !mod && MN.run?.run && !MN.run.run.done) { stop(); MN.run.stop(); return; }   // Round 33
-  if (e.key === "F5" && !e.shiftKey && !mod && isRunnable(tab) && !e.target.closest?.(".sl-app, .sl-show")) { stop(); MN.run.start(tab); return; }   // Round 33: run (date/time stays F5 in prose)
+  if (e.key === "F5" && e.shiftKey && !mod && MN.run?.run && !MN.run.run.done) { stop(); MN.run.stop(); return; }
+  if (e.key === "F5" && !e.shiftKey && !mod && isRunnable(tab) && !e.target.closest?.(".sl-app, .sl-show")) { stop(); MN.run.start(tab); return; }
   if (e.key === "F5" && inEditor) { stop(); insertDateTime(viewOf(tab)); return; }
   if (e.key === "F11") { stop(); api("window", { cmd: "fullscreen" }); return; }
   if (e.key === "Escape") closeMenus();
 }
 
-// ================================================================== settings dialog
 function openSettings() {
   const s = MN.settings;
   const tog = (key, label, hint = "") => `<label class="srow"><span><b>${esc(t(label))}</b>${hint ? `<small>${esc(t(hint))}</small>` : ""}</span><input type="checkbox" class="switch" data-k="${key}" ${s[key] ? "checked" : ""}></label>`;
@@ -1854,9 +1856,8 @@ function openSettings() {
             try { await api("openwith", { enable: e.target.checked }); toast(t(e.target.checked ? "open_with_on" : "open_with_off"), { kind: "ok" }); }
             catch (err) { e.target.checked = !e.target.checked; toast(err.message, { kind: "error" }); }
           }; }
-      } catch { /* ignore */ }
+      } catch {  }
     } });
 }
 
-// ================================================================== start
 boot();

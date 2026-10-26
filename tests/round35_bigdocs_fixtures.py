@@ -31,7 +31,6 @@ _RU_WORDS = ("сторона договор поставка товар опла
              "уведомление представитель обязательство срок порядок условие стоимость партия склад перевозчик "
              "претензия гарантия ответственность расчёт реквизиты спецификация приложение").split()
 
-
 def _filler(rng: random.Random, words: List[str], n_sent: int) -> List[str]:
     out = []
     for _ in range(n_sent):
@@ -40,10 +39,8 @@ def _filler(rng: random.Random, words: List[str], n_sent: int) -> List[str]:
         out.append(s[0].upper() + s[1:] + ".")
     return out
 
-
 def _pdf_escape(text: str) -> str:
     return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
-
 
 def make_pdf(pages: int = 600, chapters: int = 20, seed: int = 7) -> bytes:
     """A real multi-page PDF: each page a few text lines; chapter titles start pages 1, 31, 61… with an outline."""
@@ -56,7 +53,7 @@ def make_pdf(pages: int = 600, chapters: int = 20, seed: int = 7) -> bytes:
         return len(objects)
     font = add(b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>")
     page_ids: List[int] = []
-    pages_obj_index = add(b"")   # placeholder: /Pages
+    pages_obj_index = add(b"")
     for p in range(1, pages + 1):
         lines: List[str] = []
         if (p - 1) % per == 0:
@@ -67,7 +64,7 @@ def make_pdf(pages: int = 600, chapters: int = 20, seed: int = 7) -> bytes:
         lines.extend(sents)
         stream = ["BT", "/F1 10 Tf", "13 TL", "50 790 Td"]
         for line in lines:
-            # wrap at ~95 chars
+
             while line:
                 piece, line = line[:95], line[95:]
                 if line and " " in piece:
@@ -82,7 +79,7 @@ def make_pdf(pages: int = 600, chapters: int = 20, seed: int = 7) -> bytes:
                             b"/Contents %d 0 R >>" % (pages_obj_index, font, content)))
     kids = b" ".join(b"%d 0 R" % i for i in page_ids)
     objects[pages_obj_index - 1] = b"<< /Type /Pages /Kids [%s] /Count %d >>" % (kids, len(page_ids))
-    # outline
+
     outlines_index = add(b"")
     item_ids = []
     first_item = len(objects) + 1
@@ -109,10 +106,8 @@ def make_pdf(pages: int = 600, chapters: int = 20, seed: int = 7) -> bytes:
     out.write(b"trailer\n<< /Size %d /Root %d 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objects) + 1, catalog, xref))
     return out.getvalue()
 
-
 def _xml(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
 
 _STYLES = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
@@ -131,7 +126,6 @@ _RELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>"""
-
 
 def _docx(paragraphs: List[Tuple[str, str]]) -> bytes:
     """paragraphs: (kind, text) — kind ∈ {"p", "h1", "h2", "break"}."""
@@ -154,7 +148,6 @@ def _docx(paragraphs: List[Tuple[str, str]]) -> bytes:
         z.writestr("word/styles.xml", _STYLES)
     return out.getvalue()
 
-
 def _contract_pages(pages: int, seed: int) -> List[List[Tuple[str, str]]]:
     rng = random.Random(seed)
     sections = 10
@@ -172,7 +165,6 @@ def _contract_pages(pages: int, seed: int) -> List[List[Tuple[str, str]]]:
         out.append(paras)
     return out
 
-
 def make_docx(pages: int = 200, seed: int = 11) -> bytes:
     rows: List[Tuple[str, str]] = []
     for i, paras in enumerate(_contract_pages(pages, seed)):
@@ -181,13 +173,11 @@ def make_docx(pages: int = 200, seed: int = 11) -> bytes:
         rows.extend(paras)
     return _docx(rows)
 
-
 def make_docx_flow(pages: int = 60, seed: int = 11) -> bytes:
     rows: List[Tuple[str, str]] = []
     for paras in _contract_pages(pages, seed):
         rows.extend(paras)
     return _docx(rows)
-
 
 def make_epub(chapters: int = 5, seed: int = 3) -> bytes:
     rng = random.Random(seed)

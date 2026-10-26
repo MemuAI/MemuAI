@@ -22,7 +22,6 @@ import httpx  # noqa: E402
 
 from app import integrations as ig  # noqa: E402
 
-
 class Mock:
     """Routes requests to a handler and records them."""
 
@@ -36,10 +35,8 @@ class Mock:
             return self.handler(request)
         return httpx.Client(transport=httpx.MockTransport(wrapped), follow_redirects=True)
 
-
 def j(status: int, data, headers=None) -> httpx.Response:
     return httpx.Response(status, json=data, headers=headers or {})
-
 
 class Base(unittest.TestCase):
     def setUp(self) -> None:
@@ -86,7 +83,6 @@ class Base(unittest.TestCase):
         google_account._save_chosen(list(google_account.ORDER))
         google_account._migrated["done"] = True
 
-
 class StorageTest(Base):
     def test_token_cleaning_and_mask(self):
         ig.save_credentials("github", {"token": '  "Bearer ghp_abc DEF123"\n', "default_repo": "https://github.com/Yono/memu/tree/main/app"})
@@ -97,7 +93,7 @@ class StorageTest(Base):
         self.assertEqual(public["values"]["token"], "\u2022" * 8 + "F123")
         self.assertNotIn("ghp_abcDEF123", json.dumps(ig.status()))
         self.assertEqual(public["state"], "unverified")
-        # Saving the form again with an empty secret or the mask keeps the token.
+
         ig.save_credentials("github", {"token": "", "default_repo": "a/b"})
         ig.save_credentials("github", {"token": "\u2022" * 8 + "F123"})
         self.assertEqual(ig._load_store()["github"]["token"], "ghp_abcDEF123")
@@ -105,7 +101,7 @@ class StorageTest(Base):
     def test_disconnect_and_reconnect_drop_cached_google_token(self):
         self.google()
         ig._tokens["google_drive"] = {"token": "old", "expires": time.time() + 3000}
-        ig.disconnect("google_drive")     # Round 30: switches the service off, the account stays
+        ig.disconnect("google_drive")
         self.assertNotIn("google_drive", ig._tokens)
         state = lambda: {row["service"]: row["state"] for row in ig.status()["services"]}
         self.assertEqual(state()["google_drive"], "off")
@@ -114,7 +110,6 @@ class StorageTest(Base):
             ig.run_tool("drive_list_files", {})
         self.google()
         self.assertEqual(state()["google_drive"], "ok")
-
 
 class GitHubTest(Base):
     def test_status_success_marks_checked_and_clears_error(self):
@@ -189,7 +184,7 @@ class GitHubTest(Base):
         with self.assertRaises(ig.IntegrationArgumentError):
             ig.run_tool("github_read_file", {"repo": "a/b", "path": ""})
         self.assertEqual(ig.status()["services"][0]["last_error"], "")
-        # Non-numeric limits never raise ValueError.
+
         self.assertEqual(ig.run_tool("github_list_commits", {"repo": "a/b", "limit": "abc"}), {"commits": []})
 
     def test_list_repos_query_walks_pages(self):
@@ -251,15 +246,14 @@ class GitHubTest(Base):
         self.assertEqual(base64.b64decode(body["content"]).decode(), "ё")
         self.use(lambda r: j(200, {"sha": "old"}) if r.method == "GET" else j(200, {"commit": {"sha": "1"}}))
         ig.run_tool("github_write_file", {"repo": "a/b", "path": "x", "content": "y"})
-        # A 401 on the existence check is not "file is new": it is reported, nothing is written.
+
         mock = self.use(lambda r: j(401, {"message": "Bad credentials"}))
         with self.assertRaises(ig.IntegrationError):
             ig.run_tool("github_write_file", {"repo": "a/b", "path": "x", "content": "y"})
-        self.assertEqual([r.method for r in mock.requests], ["GET"])       # 401 is final: no retry, no PUT
+        self.assertEqual([r.method for r in mock.requests], ["GET"])
         self.use(lambda r: j(200, [{"name": "a"}]))
         with self.assertRaises(ig.IntegrationArgumentError):
             ig.run_tool("github_write_file", {"repo": "a/b", "path": "dir", "content": "y"})
-
 
 class GoogleTest(Base):
     def token_ok(self, request, counter=None):
@@ -279,7 +273,7 @@ class GoogleTest(Base):
         ig.run_tool("drive_list_files", {})
         ig.run_tool("drive_list_files", {})
         self.assertEqual(count["token"], 1)
-        ig._tokens["google_drive"]["expires"] = time.time() + 30     # about to expire → refreshed
+        ig._tokens["google_drive"]["expires"] = time.time() + 30
         from app import gdrive_sync
         gdrive_sync._SERVICE.auth._access = ("", 0.0)
         ig.run_tool("drive_list_files", {})
@@ -301,7 +295,7 @@ class GoogleTest(Base):
 
     def test_oauth_errors_in_words(self):
         self.google()
-        # Round 30: invalid_grant forgets the dead grant (the account must sign in again), so it goes last.
+
         for payload, text in (({"error": "invalid_client", "error_description": "The OAuth client was not found."}, "Client ID"),
                               ({"error": "invalid_grant", "error_description": "Token has been expired or revoked."}, "войдите заново")):
             self.use(lambda r, payload=payload: j(400, payload))
@@ -381,7 +375,7 @@ class GoogleTest(Base):
         body = api[0].content.decode("utf-8")
         self.assertIn('"name": "Заметка"', body)
         self.assertIn('"parents": ["f1"]', body)
-        self.assertIn("Content-Type: text/plain", body)     # converted into a Google Doc from text
+        self.assertIn("Content-Type: text/plain", body)
         self.assertIn("привет", body)
 
     def test_calendar_events_and_dates(self):
@@ -414,9 +408,8 @@ class GoogleTest(Base):
         self.assertTrue(result["already_deleted"])
         self.assertIn("/events/e%231", str(sent[-1].url))
         check = ig.test_connection("google_calendar")
-        self.assertEqual(check["detail"], "Календарей: 7")       # not capped at 5 any more
+        self.assertEqual(check["detail"], "Календарей: 7")
         self.assertEqual(sent[-1].url.params["maxResults"], "250")
-
 
 class ToolSchemaAndRouteTest(Base):
     def test_tool_list_matches_arguments_the_code_reads(self):
@@ -437,7 +430,6 @@ class ToolSchemaAndRouteTest(Base):
         self.assertEqual(response.json(), {"tool": "github_status", "error": "GitHub отклонил токен"})
         response = client.post("/api/pg/tools", json={"tool": "github_write_file", "args": {}})
         self.assertIn("не подтвердил", response.json()["error"])
-
 
 if __name__ == "__main__":
     unittest.main()

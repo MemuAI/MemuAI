@@ -41,10 +41,8 @@ from round27_ui_lang_test import _chromium, _has_playwright  # noqa: E402
 CYR = re.compile(r"[А-Яа-яЁё]")
 EMOJI = re.compile("[\U0001F300-\U0001FAFF\u2600-\u26FF]")
 
-
 def read(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8")
-
 
 class StaticHooks(unittest.TestCase):
     def test_files_are_hooked_with_cache_versions(self):
@@ -54,7 +52,7 @@ class StaticHooks(unittest.TestCase):
         self.assertLess(html.index("/app.js?v="), html.index("/tour.js?v="))
         self.assertLess(html.index("/designs/brutal.css"), html.index("/polish-r31.css?v="))
         self.assertLess(html.index("/settings.css?v="), html.index("/tour.css?v="))
-        self.assertLess(html.index("/tour.css?v="), html.index('id="memu-user-theme"'))   # a user theme still wins
+        self.assertLess(html.index("/tour.css?v="), html.index('id="memu-user-theme"'))
 
     def test_tour_strings_have_both_languages(self):
         src = read("tour.js")
@@ -87,8 +85,8 @@ class StaticHooks(unittest.TestCase):
         self.assertIn("PREV_DEV_ICONS", app)
         self.assertIn('class="continue-strip error-strip"', app)
         self.assertIn('class="code-intro-more"', app)
-        self.assertIn('$("#model-current").textContent = m ? topLabel(m.id)', app)   # short model name in the top bar
-        # «Ассистент» comes before the scheduled messages in Settings → Chat & replies
+        self.assertIn('$("#model-current").textContent = m ? topLabel(m.id)', app)
+
         pane = app[app.index('id="pane-chat"'):app.index('id: "settings-context"')]
         self.assertLess(pane.index('id: "settings-assistant"'), pane.index('settingsSlot("schedsend"'))
 
@@ -100,7 +98,6 @@ class StaticHooks(unittest.TestCase):
         css = read("polish-r31.css")
         self.assertIn(".chat-folder-items { grid-template-columns: minmax(0, 1fr); }", css)
         self.assertRegex(css, r"\.app-menu-pop \{ max-height: calc\(100vh - \d+px\); overflow-y: auto;")
-
 
 @unittest.skipUnless(_has_playwright() and _chromium(), "Playwright / Chromium not installed")
 class LiveWindow(unittest.TestCase):
@@ -202,7 +199,7 @@ class LiveWindow(unittest.TestCase):
         box = page.evaluate("""() => { const r = document.querySelector('.memu-tour-bubble').getBoundingClientRect();
             return r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight; }""")
         self.assertTrue(box)
-        for _ in range(12):   # Next until done
+        for _ in range(12):
             if not page.locator(".memu-tour-bubble").count():
                 break
             page.click(".memu-tour-bubble [data-tour='next']")
@@ -224,7 +221,7 @@ class LiveWindow(unittest.TestCase):
         page.keyboard.press("Escape")
         page.wait_for_timeout(200)
         self.assertEqual(page.locator(".memu-help-menu").count(), 0)
-        # a hint on demand, anchored next to the Planning «New task» button, inside the window
+
         page.evaluate("showSchedule(true)")
         page.wait_for_selector("#pln-root [data-act='new']")
         self.assertTrue(page.evaluate("MemuTour.hint('plan', true)"))
@@ -236,8 +233,7 @@ class LiveWindow(unittest.TestCase):
         page.click(".memu-hint .mh-off")
         self.assertTrue(page.evaluate("MemuTour.state().off"))
         page.evaluate("closePanel()")
-        # r37: do not await showSettings' promise — with a chat from an earlier test open, Playwright loses the
-        # evaluation context while it settles (fails on r36 too); the waits below check the result instead.
+
         page.evaluate("() => { showSettings(true); }")
         page.wait_for_timeout(400)
         page.evaluate("openSettingsPage('general')")
@@ -266,7 +262,6 @@ class LiveWindow(unittest.TestCase):
             page.wait_for_timeout(80)
         self.assertGreater(len(text), 300)
         self.assertFalse(CYR.search(text), CYR.findall(text)[:5])
-
 
 if __name__ == "__main__":
     unittest.main()

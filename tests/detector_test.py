@@ -10,7 +10,6 @@ from unittest.mock import patch
 
 from app import detector as d
 
-
 class ScoringTests(unittest.TestCase):
     def test_claimed_family_comes_from_the_model_id(self) -> None:
         self.assertEqual(d.claimed_family("genspark-claude-opus-5"), "claude")
@@ -26,7 +25,7 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(len(notes), 2)
 
     def test_token_probe_detects_a_stop_on_its_own_eos(self) -> None:
-        # The answer stops at line 2 (<|im_end|>): a ChatML model ended its turn there.
+
         answer = "1. alpha <|endoftext|> 1\n2. bravo "
         scores, info = d.score_tokens(answer)
         self.assertEqual(info["stopped_at"], "im_end")
@@ -71,16 +70,12 @@ class ScoringTests(unittest.TestCase):
         blended = d.blend([{"family": "claude", "percent": 100}], [{"family": "kimi", "percent": 100}])
         self.assertEqual({row["family"]: row["percent"] for row in blended}, {"claude": 50, "kimi": 50})
 
-    # -- calibrated confidence: the point of the rewrite is that it must not --
-    # -- be overconfident on thin or single-source evidence.                --
-
     def test_calibrated_distribution_never_reaches_100_on_a_lone_signal(self) -> None:
         rows = d.calibrated_distribution({"claude": 3.0}, fired=0, agreement=None)
         real = next(row for row in rows if row["family"] == "claude")
         uncertain = next(row for row in rows if row["family"] == d._UNCERTAIN)
         self.assertLess(real["percent"], 100)
-        # With literally no other corroborating evidence, "not enough evidence"
-        # should be at least as prominent as the lone real candidate.
+
         self.assertGreaterEqual(uncertain["percent"], real["percent"])
 
     def test_calibrated_distribution_sharpens_as_more_evidence_agrees(self) -> None:
@@ -101,8 +96,6 @@ class ScoringTests(unittest.TestCase):
         self.assertEqual(d._entropy_ratio([1.0]), 0.0)
         self.assertEqual(d._entropy_ratio([0.5, 0.5]), 1.0)
         self.assertLess(d._entropy_ratio([0.9, 0.1]), 1.0)
-
-    # -- consistency: agreement across phrasings + literal-repeat stability --
 
     def test_consistency_detects_full_agreement(self) -> None:
         results = {
@@ -131,12 +124,8 @@ class ScoringTests(unittest.TestCase):
             "identity_repeat": {"kind": "identity", "text": "I am Qwen, made by Alibaba."},
         }
         info = d.score_consistency(results)
-        # Different brand name and vendor in the literal repeat: clearly less
-        # similar than the perfect-match case above, even though the sentence
-        # shape ("I am X, made by Y") is shared.
-        self.assertLess(info["repeat_stability"], 0.7)
 
-    # -- specific-model catalogue --
+        self.assertLess(info["repeat_stability"], 0.7)
 
     def test_specific_model_matches_a_precise_self_report(self) -> None:
         scores = d.score_specific_model(["My exact version is Opus 5.5, from Anthropic."])
@@ -154,7 +143,7 @@ class ScoringTests(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row["id"], "claude-opus-4-1")
         self.assertEqual(row["cutoff"], "2025-03")
-        # A brand-new, uncertain-tier model must not fabricate a cutoff.
+
         row2 = d.expected_model("genspark-claude-opus-5-5")
         self.assertEqual(row2["cutoff"], "")
         self.assertEqual(d.expected_model("custom-gpt-5-mini")["id"], "gpt-5-mini")
@@ -164,8 +153,6 @@ class ScoringTests(unittest.TestCase):
         scores = {row["id"]: 1.0 for row in d.FAMILIES}
         self.assertEqual(sum(row["percent"] for row in d.distribution(scores)), 100)
         self.assertEqual(sum(row["percent"] for row in d.calibrated_distribution(scores, 1, None)), 100)
-
-    # -- spoof / substitution detection --
 
     def test_detect_spoof_flags_conflicting_self_report_and_behaviour(self) -> None:
         suspected, id_family, behavior_family = d.detect_spoof({"kimi": 6.0}, {"qwen": 4.0})
@@ -177,8 +164,6 @@ class ScoringTests(unittest.TestCase):
         self.assertFalse(d.detect_spoof({"claude": 6.0}, {})[0])
         self.assertFalse(d.detect_spoof({"claude": 6.0}, {"claude": 4.0})[0])
 
-    # -- context/specs probe --
-
     def test_context_claim_parses_common_phrasings(self) -> None:
         self.assertEqual(d._parse_context_claim("context: 200000, output: 8192"), 200000)
         self.assertEqual(d._parse_context_claim("context: 1m, output: unknown"), 1_000_000)
@@ -186,14 +171,13 @@ class ScoringTests(unittest.TestCase):
         self.assertIsNone(d._parse_context_claim("context: unknown, output: unknown"))
 
     def test_score_context_rewards_a_close_match_and_penalises_a_mismatch(self) -> None:
-        expected = d.expected_model("genspark-claude-opus-4-1")  # context_claim = 200000
+        expected = d.expected_model("genspark-claude-opus-4-1")
         close_scores, close_info = d.score_context(205_000, expected)
         self.assertTrue(close_info["match"])
         self.assertGreater(close_scores.get("claude", 0), 0)
         far_scores, far_info = d.score_context(8_000, expected)
         self.assertFalse(far_info["match"])
         self.assertLess(far_scores.get("claude", 0), 0)
-
 
 class AnalyseHonestyTests(unittest.TestCase):
     """Regression tests for the overconfidence complaint that motivated this
@@ -252,7 +236,6 @@ class AnalyseHonestyTests(unittest.TestCase):
         report = d.analyse("genspark-claude-opus-5", results, "claude")
         self.assertTrue(report["spoof_suspected"])
         self.assertEqual(report["verdict"], "substituted")
-
 
 class RunTests(unittest.TestCase):
     def _run(self, answer_for, judge=""):
@@ -357,7 +340,6 @@ class RunTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp, patch("app.config.DATA_DIR", temp):
             run = asyncio.run(go())
         self.assertEqual(run["state"], "cancelled")
-
 
 if __name__ == "__main__":
     unittest.main()

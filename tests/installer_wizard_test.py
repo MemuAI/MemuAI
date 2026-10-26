@@ -28,20 +28,18 @@ import re
 import unittest
 from pathlib import Path
 
-from app.version import APP_VERSION as _APP_VERSION  # Round 31: no hard-coded release number
+from app.version import APP_VERSION as _APP_VERSION
 
 ROOT = Path(__file__).resolve().parents[1]
 UI = ROOT / "installer" / "ui"
 CHROME_CANDIDATES = [os.environ.get("MEMUAI_CHROMIUM", ""), "/usr/bin/chromium", "/usr/bin/chromium-browser",
                      "/usr/bin/google-chrome", "/workspace/work/chromium/chrome"]
 
-
 def _chrome() -> str:
     for candidate in CHROME_CANDIDATES:
         if candidate and os.path.exists(candidate):
             return candidate
     return ""
-
 
 def _playwright_ok() -> bool:
     try:
@@ -50,7 +48,6 @@ def _playwright_ok() -> bool:
         return False
     return bool(_chrome())
 
-
 def _dicts():
     text = (UI / "i18n.js").read_text(encoding="utf-8")
     out = {}
@@ -58,7 +55,6 @@ def _dicts():
         block = re.search(lang + r": \{(.*?)\n  \}", text, re.S).group(1)
         out[lang] = dict(re.findall(r'"([\w.]+)": "((?:[^"\\]|\\.)*)"', block))
     return out
-
 
 class WizardMarkupAndWording(unittest.TestCase):
     def test_no_customize_button_and_every_step_exists(self):
@@ -72,9 +68,9 @@ class WizardMarkupAndWording(unittest.TestCase):
         for needle in ('id="btn-start"', 'id="btn-express"', 'id="btn-install"', 'id="summary"',
                        'id="btn-finish"', 'id="btn-done-close"', 'id="btn-open-folder"'):
             self.assertIn(needle, html)
-        # Round 38: the «Что нового в …» button is gone from the done screen.
+
         self.assertNotIn("btn-notes", html)
-        # Install is only on the review: the welcome button starts the wizard.
+
         welcome = html.split('data-screen="welcome"')[1].split("<section")[0]
         self.assertNotIn('id="btn-install"', welcome)
         app = (UI / "app.js").read_text(encoding="utf-8")
@@ -120,7 +116,6 @@ class WizardMarkupAndWording(unittest.TestCase):
         self.assertIn("Math.min(Math.max(dpr, this.software ? 1 : 1.5), 2.5)", scene)
         self.assertIn("cover", scene, "analytic edge antialiasing in the shader")
 
-
 FLOW_HELPERS = """
 window.__t = {
   screen: () => document.documentElement.getAttribute('data-screen'),
@@ -134,7 +129,6 @@ window.__t = {
   label: () => document.querySelector('.screen.active .btn.primary').textContent.trim(),
 };
 """
-
 
 @unittest.skipUnless(_playwright_ok(), "Playwright/Chromium not available")
 class WizardFlow(unittest.TestCase):
@@ -151,7 +145,7 @@ class WizardFlow(unittest.TestCase):
             if await page.evaluate("() => !!window.__memuUi && document.documentElement.getAttribute('data-screen')"):
                 break
         await page.evaluate(FLOW_HELPERS)
-        await page.wait_for_timeout(300)        # first check_dir round-trip
+        await page.wait_for_timeout(300)
         return page, errors
 
     async def _ev(self, page, js):
@@ -180,7 +174,7 @@ class WizardFlow(unittest.TestCase):
         self.assertEqual(await ev("__t.label()"), "Установить")
         self.assertEqual(await ev("__t.steps()"), ["edition", "location", "options", "review", "progress"],
                          "the welcome screen previews every step")
-        # «Установить» starts the wizard — it does NOT install.
+
         await self._step(page, "__t.click('#btn-start')")
         self.assertEqual(await ev("__t.screen()"), "edition")
         self.assertEqual(await ev("__t.calls().length"), 0)
@@ -192,7 +186,7 @@ class WizardFlow(unittest.TestCase):
             self.assertEqual(await ev("__t.calls().length"), 0, f"nothing installed before the review ({expected})")
         self.assertEqual(visited, ["edition", "location", "options", "review"])
         self.assertEqual(await ev("__t.done()"), ["edition", "location", "options"])
-        # Back walks back one step at a time, Esc too, back to the welcome screen.
+
         await self._step(page, "__t.back()")
         self.assertEqual(await ev("__t.screen()"), "options")
         await page.keyboard.press("Escape")
@@ -201,14 +195,14 @@ class WizardFlow(unittest.TestCase):
         await self._step(page, "__t.back()")
         await self._step(page, "__t.back()")
         self.assertEqual(await ev("__t.screen()"), "welcome")
-        # Choices made on the way reach the engine.
+
         await self._step(page, "__t.click('#btn-start')")
-        await self._step(page, "__t.click('#opt-memucode')")                       # MemuCode off
+        await self._step(page, "__t.click('#opt-memucode')")
         await self._step(page, "__t.primary()")
         await self._step(page, "__t.primary()")
         self.assertEqual(await ev("__t.screen()"), "options")
-        await self._step(page, "__t.click('input[data-task=\"desktopicon\"]')")    # desktop shortcut on
-        await self._step(page, "__t.click('input[data-task=\"autostart\"]')")      # Proxy at startup off
+        await self._step(page, "__t.click('input[data-task=\"desktopicon\"]')")
+        await self._step(page, "__t.click('input[data-task=\"autostart\"]')")
         await self._step(page, "__t.primary()")
         self.assertEqual(await ev("__t.screen()"), "review")
         summary = await ev("document.getElementById('summary').innerText")
@@ -238,7 +232,7 @@ class WizardFlow(unittest.TestCase):
         summary = await ev("document.getElementById('summary').innerText")
         self.assertIn("Complete MemuAI · MemuCode CLI", summary)
         self.assertIn("Proxy with Windows", summary)
-        # «Change» opens that step; its primary button returns to the summary.
+
         await self._step(page, "document.querySelector('[data-edit=\"location\"]').click()")
         self.assertEqual(await ev("__t.screen()"), "location")
         self.assertEqual(await ev("__t.label()"), "Back to summary")
@@ -247,7 +241,7 @@ class WizardFlow(unittest.TestCase):
         await self._step(page, "__t.primary()")
         self.assertEqual(await ev("__t.screen()"), "review")
         self.assertIn("D:\\Apps\\MemuAI", await ev("document.getElementById('summary').innerText"))
-        # back on the wizard steps the label is «Continue» again
+
         await self._step(page, "document.querySelector('[data-edit=\"options\"]').click()")
         await self._step(page, "__t.back()")
         self.assertEqual(await ev("__t.screen()"), "review", "Back from a «Change» step returns to the summary")
@@ -294,7 +288,7 @@ class WizardFlow(unittest.TestCase):
         self.assertIn("3.6", text)
         self.assertIn("остаются на месте", text)
         self.assertEqual(await ev("document.querySelector('.step[data-step=\"progress\"] span').textContent"), "Обновление")
-        # «Изменить» expands the short flow into the full walk
+
         await self._step(page, "document.querySelector('[data-edit=\"edition\"]').click()")
         self.assertEqual(await ev("__t.screen()"), "edition")
         self.assertEqual(await ev("__t.steps()"), ["edition", "location", "options", "review", "progress"])
@@ -304,7 +298,7 @@ class WizardFlow(unittest.TestCase):
         await self._step(page, "__t.click('#btn-install')", 120)
         self.assertEqual(len(await ev("__t.calls()")), 1)
         await page.close()
-        # repair and downgrade: also the review first, the downgrade warning repeated there
+
         for kind, label in (("reinstall", "Переустановить"), ("downgrade", f"Установить {_APP_VERSION}")):
             page, errors2 = await self._open(browser, f"lang=ru&kind={kind}")
             self.assertEqual(await self._ev(page, "__t.label()"), label)
@@ -351,11 +345,9 @@ class WizardFlow(unittest.TestCase):
         self.assertEqual(errors, [])
         await page.close()
 
-
 SCENE_JS = """() => { const c = document.getElementById('scene'), M = window.MemuScene;
   return {ok: !!(M && M.ok), w: c.width, h: c.height, cw: c.clientWidth, ch: c.clientHeight, scale: M && M.dpr,
           dpr: devicePixelRatio, software: !!(M && M.software)}; }"""
-
 
 @unittest.skipUnless(_playwright_ok(), "Playwright/Chromium not available")
 class SceneResolution(unittest.TestCase):
@@ -380,11 +372,11 @@ class SceneResolution(unittest.TestCase):
                 self.assertGreaterEqual(info["w"], round(info["cw"] * dsf) - 1, info)
                 self.assertGreaterEqual(info["h"], round(info["ch"] * dsf) - 1, info)
                 self.assertLessEqual(info["scale"], 2.5)
-                # a real GPU supersamples low-DPI screens to 1.5×
+
                 gpu = await page.evaluate("() => { const M = window.MemuScene; M.software = false; M.resize(); return M.dpr; }")
                 self.assertAlmostEqual(gpu, max(1.5, dsf), places=3)
                 await page.close()
-            # auto quality: a 600 ms stall must not lower the resolution
+
             page = await browser.new_page(viewport={"width": 960, "height": 620}, device_scale_factor=1)
             await page.goto(f"{(UI / 'index.html').as_uri()}?mock=1&lang=ru", wait_until="load")
             await page.wait_for_timeout(400)
@@ -397,12 +389,11 @@ class SceneResolution(unittest.TestCase):
             after = await page.evaluate(SCENE_JS)
             self.assertEqual((before["w"], before["h"]), (after["w"], after["h"]), (before, after))
             self.assertTrue(after["ok"])
-            # the floor: even a sustained slow GPU never drops below the device pixel ratio at 100 %
+
             floor = await page.evaluate("() => { const M = window.MemuScene; M._q = 0.01; M.resize(); return M.dpr; }")
             self.assertGreaterEqual(floor, 1.0)
             await page.close()
             await browser.close()
-
 
 if __name__ == "__main__":
     unittest.main()

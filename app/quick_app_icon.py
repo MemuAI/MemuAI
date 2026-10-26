@@ -29,10 +29,8 @@ from typing import Any, Dict, Optional, Tuple
 
 ICON_SIZE = 96
 
-
 def tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 def png_data_url(width: int, height: int, rgba: bytes) -> str:
     """RGBA rows → ``data:image/png;base64,…`` (8-bit RGBA, no interlace)."""
@@ -44,7 +42,6 @@ def png_data_url(width: int, height: int, rgba: bytes) -> str:
            + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
     return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
 
-
 def bgra_to_rgba(bgra: bytes, mask: Optional[bytes] = None) -> bytes:
     """GDI's BGRA → RGBA. An icon without any alpha (pre-XP) takes it from its AND mask: white = transparent."""
     data = bytearray(bgra)
@@ -55,7 +52,6 @@ def bgra_to_rgba(bgra: bytes, mask: Optional[bytes] = None) -> bytes:
         else:
             data[3::4] = b"\xff" * (len(data) // 4)
     return bytes(data)
-
 
 def resolve_target(app: str) -> Tuple[str, str]:
     """(target, display name): a path as given, else the assistant's app index (Start menu, App Paths, Store)."""
@@ -73,7 +69,6 @@ def resolve_target(app: str) -> Tuple[str, str]:
     if target and not os.path.isabs(target) and target.lower().endswith(".exe"):
         target = shutil.which(target) or target
     return target, str(entry.get("name") or value)
-
 
 def app_icon(app: Any, lang: str = "ru") -> Dict[str, Any]:
     name = str(app or "").strip()[:1000]
@@ -97,9 +92,6 @@ def app_icon(app: Any, lang: str = "ru") -> Dict[str, Any]:
     if not data:
         return {"ok": False, "error": tr(lang, "У этой программы не удалось взять иконку", "Couldn't get this app's icon")}
     return {"ok": True, "data": data, "app": display[:120]}
-
-
-# ------------------------------------------------------------------ Win32 (ctypes)
 
 def _win_icon(target: str) -> Optional[str]:
     import ctypes
@@ -154,7 +146,6 @@ def _win_icon(target: str) -> Optional[str]:
     gdi32.GetDIBits.argtypes = [wintypes.HDC, wintypes.HBITMAP, wintypes.UINT, wintypes.UINT, ctypes.c_void_p,
                                 ctypes.POINTER(BITMAPINFO), wintypes.UINT]
 
-    # the shell needs COM on this (worker) thread; S_FALSE / RPC_E_CHANGED_MODE are fine too
     initialized = ole32.CoInitializeEx(None, 0x2) in (0, 1)
     icon = wintypes.HICON(0)
     try:
@@ -171,7 +162,7 @@ def _win_icon(target: str) -> Optional[str]:
                 info = SHFILEINFOW()
                 if shell32.SHGetFileInfoW(target, 0, ctypes.byref(info), ctypes.sizeof(info), SHGFI_ICON | SHGFI_LARGEICON):
                     icon = wintypes.HICON(info.hIcon)
-        else:                                            # shell:AppsFolder\<AppID>, a URI handler
+        else:
             pidl = ctypes.c_void_p()
             if shell32.SHParseDisplayName(target, None, ctypes.byref(pidl), 0, None) == 0 and pidl.value:
                 try:
@@ -189,7 +180,6 @@ def _win_icon(target: str) -> Optional[str]:
         if initialized:
             ole32.CoUninitialize()
 
-
 def _icon_png(icon, user32, gdi32, ICONINFO, BITMAP, BITMAPINFO, BITMAPINFOHEADER) -> Optional[str]:
     import ctypes
     ii = ICONINFO()
@@ -198,7 +188,7 @@ def _icon_png(icon, user32, gdi32, ICONINFO, BITMAP, BITMAPINFO, BITMAPINFOHEADE
     dc = gdi32.CreateCompatibleDC(None)
     try:
         if not ii.hbmColor:
-            return None                                  # a monochrome cursor-style icon: nothing worth a button
+            return None
         bm = BITMAP()
         gdi32.GetObjectW(ii.hbmColor, ctypes.sizeof(bm), ctypes.byref(bm))
         w, h = int(bm.bmWidth), abs(int(bm.bmHeight))
@@ -208,7 +198,7 @@ def _icon_png(icon, user32, gdi32, ICONINFO, BITMAP, BITMAPINFO, BITMAPINFOHEADE
         def bits(hbm) -> Optional[bytes]:
             bmi = BITMAPINFO()
             bmi.bmiHeader.biSize = ctypes.sizeof(BITMAPINFOHEADER)
-            bmi.bmiHeader.biWidth, bmi.bmiHeader.biHeight = w, -h          # top-down rows
+            bmi.bmiHeader.biWidth, bmi.bmiHeader.biHeight = w, -h
             bmi.bmiHeader.biPlanes, bmi.bmiHeader.biBitCount = 1, 32
             buf = ctypes.create_string_buffer(w * h * 4)
             if gdi32.GetDIBits(dc, hbm, 0, h, buf, ctypes.byref(bmi), 0) != h:

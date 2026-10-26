@@ -15,10 +15,8 @@ from fastapi.responses import JSONResponse
 
 from . import web_models as wm
 
-
 def _err(message: str, message_en: str, status: int = 400) -> JSONResponse:
     return JSONResponse({"error": message, "error_en": message_en}, status_code=status)
-
 
 async def _json(request: Request) -> Any:
     try:
@@ -27,10 +25,8 @@ async def _json(request: Request) -> Any:
         return None
     return data if isinstance(data, dict) else None
 
-
 def _row(row: dict) -> dict:
     return {**row, "native_tools": wm.native_tools(row["base"]), "base_exists": wm.base_exists(row["base"])}
-
 
 def register(app: FastAPI) -> None:
     from .admin_api import _auth

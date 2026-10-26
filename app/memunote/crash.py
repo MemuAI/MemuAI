@@ -59,7 +59,6 @@ TEXTS = {
 
 WEBVIEW2_URL = "https://go.microsoft.com/fwlink/p/?LinkId=2124703"
 
-
 def log_dir() -> Path:
     env = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if env:
@@ -67,10 +66,8 @@ def log_dir() -> Path:
     base = os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or os.path.expanduser("~")
     return Path(base) / "MemuAI" / "logs"
 
-
 def log_path() -> Path:
     return log_dir() / LOG_NAME
-
 
 def language() -> str:
     """MemuNote's own language setting, else MemuAI's, else Russian (never raises)."""
@@ -83,10 +80,8 @@ def language() -> str:
     except Exception:  # noqa: BLE001
         return "ru"
 
-
 def text(key: str, **values: str) -> str:
     return TEXTS[language()][key].format(**values)
-
 
 def write_log(title: str, detail: str) -> Optional[Path]:
     """Append one entry (timestamp, version, argv, traceback). Returns the log path or None."""
@@ -104,13 +99,12 @@ def write_log(title: str, detail: str) -> Optional[Path]:
     except OSError:
         return None
 
-
 def message_box(title: str, body: str, error: bool = True) -> None:
     """A native message box on Windows; stderr elsewhere (or when it is None in a windowed build)."""
     if os.name == "nt":
         try:
             import ctypes
-            flags = (0x10 if error else 0x40) | 0x10000 | 0x40000      # icon | MB_SETFOREGROUND | MB_TOPMOST
+            flags = (0x10 if error else 0x40) | 0x10000 | 0x40000
             ctypes.windll.user32.MessageBoxW(0, body, title, flags)
             return
         except Exception:  # noqa: BLE001
@@ -123,11 +117,9 @@ def message_box(title: str, body: str, error: bool = True) -> None:
         except Exception:  # noqa: BLE001
             pass
 
-
 def _short(exc_type, exc) -> str:
     name = getattr(exc_type, "__name__", str(exc_type))
     return f"{name}: {exc}"[:600]
-
 
 def report(exc_type, exc, tb, where: str = "main", show: bool = True) -> None:
     """Log an unhandled error and tell the user once (later errors only go to the log)."""
@@ -137,14 +129,12 @@ def report(exc_type, exc, tb, where: str = "main", show: bool = True) -> None:
         _SHOWN.set()
         message_box(text("title"), text("crash", error=_short(exc_type, exc), log=str(path or log_path())))
 
-
 def report_text(where: str, detail: str, short: str, show: bool = True) -> None:
     """Same as :func:`report` for errors that arrive as text (the .NET runtime)."""
     path = write_log(f"unhandled error ({where})", detail)
     if show and not _SHOWN.is_set():
         _SHOWN.set()
         message_box(text("title"), text("crash", error=short[:600], log=str(path or log_path())))
-
 
 def install() -> None:
     """Route unhandled errors of the main thread and Python threads to :func:`report`."""
@@ -158,12 +148,11 @@ def install() -> None:
         if args.exc_type is SystemExit:
             return
         name = getattr(args.thread, "name", "thread")
-        # A worker thread failing (one HTTP request, a long poll) is logged; the window keeps running.
+
         report(args.exc_type, args.exc_value, args.exc_traceback, f"thread {name}", show=False)
 
     sys.excepthook = hook
     threading.excepthook = thread_hook
-
 
 def install_dotnet() -> None:
     """After pythonnet is loaded: log + show .NET exceptions that would otherwise kill the process silently.

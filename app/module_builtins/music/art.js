@@ -1,6 +1,4 @@
-/* MemuMusic · art.js — генеративные обложки, палитры, значки сервисов и
- * мгновенный детект источника по ссылке (тот же разбор, что у бэкенда, но
- * локально: логотип появляется ещё до ответа моста). */
+
 
 function hash(text) {
   let h = 2166136261;
@@ -33,14 +31,13 @@ function rgbToHsl([r, g, b]) {
   return [h * 60, s * 100, l * 100];
 }
 
-/** Тот же оттенок, но не светлее maxL (%): живой фон не «выцветает» от светлых обложек. */
 function tone(hex, maxL, minS) {
   const rgb = hexToRgb(hex);
   if (!rgb) return hex;
   const [h, s, l] = rgbToHsl(rgb);
   return hsl(h, Math.max(minS || 0, s), Math.min(maxL, l));
 }
-/** Три цвета для фона и акцентов: из accent трека или из его «семени». */
+
 function paletteFor(item) {
   const key = item && (item.id || item.key || item.name || item.title) || "memu";
   const rgb = hexToRgb(item && item.accent);
@@ -49,24 +46,23 @@ function paletteFor(item) {
     const sat = Math.max(55, Math.min(90, s));
     return [hsl(h, sat, 58), hsl(h + 38, sat, 52), hsl(h - 42, sat * .9, 46)];
   }
-  return coverScheme(seeded(hash(key))).colors.slice(0, 3);   // те же цвета, что у генеративной обложки
+  return coverScheme(seeded(hash(key))).colors.slice(0, 3);
 }
 
 const coverCache = new Map();
-/** Палитра для генеративной обложки: схема (аналоги/комплемент/триада/дуотон на светлом) — по «семени» трека. */
+
 function coverScheme(rnd) {
   const h = Math.floor(rnd() * 360), kind = Math.floor(rnd() * 5);
   const sets = [
-    [[h, 74, 62], [h + 32, 78, 56], [h - 34, 66, 46], [h + 12, 38, 9]],          // аналоги на тёмном
-    [[h, 72, 60], [h + 180, 62, 56], [h + 30, 82, 72], [h + 200, 40, 10]],        // комплемент
-    [[h, 68, 60], [h + 120, 52, 54], [h + 240, 64, 64], [h + 60, 30, 8]],         // триада, приглушённая
-    [[h, 62, 50], [h + 18, 80, 64], [h - 20, 50, 38], [h + 40, 50, 92]],          // светлый фон
-    [[h, 70, 60], [h + 300, 62, 56], [h + 40, 86, 72], [h + 260, 50, 12]],        // сумерки
+    [[h, 74, 62], [h + 32, 78, 56], [h - 34, 66, 46], [h + 12, 38, 9]],
+    [[h, 72, 60], [h + 180, 62, 56], [h + 30, 82, 72], [h + 200, 40, 10]],
+    [[h, 68, 60], [h + 120, 52, 54], [h + 240, 64, 64], [h + 60, 30, 8]],
+    [[h, 62, 50], [h + 18, 80, 64], [h - 20, 50, 38], [h + 40, 50, 92]],
+    [[h, 70, 60], [h + 300, 62, 56], [h + 40, 86, 72], [h + 260, 50, 12]],
   ][kind];
   return { colors: sets.map(([a, b, c]) => hsl(a, b, c)), light: kind === 3 };
 }
-/** Генеративная обложка SVG (data:) — детерминированно по треку: меш-градиенты, баухаус, солнце, волны,
- * орбиты, кольца и «типографика» по первой букве названия. label — подпись (плейлисты), title — для буквы. */
+
 function coverArt(key, label, title) {
   const cacheKey = key + "|" + (label || "") + "|" + (title || "");
   if (coverCache.has(cacheKey)) return coverCache.get(cacheKey);
@@ -77,28 +73,28 @@ function coverArt(key, label, title) {
   const ink = light ? "#16131c" : "#fff";
   const n = (v) => v.toFixed(1);
   let body = "", defs = "", grain = style === 0 || style === 6 || style === 7;
-  if (style === 0) {          // меш: размытые пятна света
+  if (style === 0) {
     for (let i = 0; i < 5; i++) {
       const cx = rnd() * 200, cy = rnd() * 200, r = 50 + rnd() * 80;
       body += `<circle cx="${n(cx)}" cy="${n(cy)}" r="${n(r)}" fill="${[c1, c2, c3, c1, "#fff"][i]}" opacity="${i === 4 ? .22 : .9}"/>`;
     }
     body = `<g filter="url(#b${id})">${body}</g>`;
-  } else if (style === 1) {   // баухаус: дуги из угла
+  } else if (style === 1) {
     const corner = Math.floor(rnd() * 4), ox = corner % 2 ? 200 : 0, oy = corner > 1 ? 200 : 0;
     for (let i = 6; i > 0; i--) body += `<circle cx="${ox}" cy="${oy}" r="${i * 34}" fill="${[c1, c2, c3][i % 3]}"/>`;
     body += `<circle cx="${n(40 + rnd() * 120)}" cy="${n(40 + rnd() * 120)}" r="${n(12 + rnd() * 16)}" fill="${bg}" opacity=".85"/>`;
-  } else if (style === 2) {   // солнце над горизонтом, разрезанное полосами
+  } else if (style === 2) {
     const cy = 92 + rnd() * 30;
     defs += `<linearGradient id="s${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${c3}"/><stop offset="1" stop-color="${c1}"/></linearGradient>`;
     body += `<circle cx="100" cy="${n(cy)}" r="64" fill="url(#s${id})"/>`;
     for (let i = 0; i < 6; i++) body += `<rect x="20" y="${n(cy + 8 + i * 9)}" width="160" height="${n(1.5 + i * .9)}" fill="${bg}"/>`;
     body += `<rect y="${n(cy + 62)}" width="200" height="200" fill="${c2}" opacity=".9"/><rect y="${n(cy + 62)}" width="200" height="2" fill="#fff" opacity=".5"/>`;
-  } else if (style === 3) {   // волны-ленты
+  } else if (style === 3) {
     for (let i = 0; i < 6; i++) {
       const y = 40 + i * 30, a = 14 + rnd() * 26, ph = rnd() * 60;
       body += `<path d="M-20 ${n(y)} C ${n(40 + ph)} ${n(y - a)}, ${n(110 + ph)} ${n(y + a)}, 220 ${n(y - a / 3)} L220 220 L-20 220Z" fill="${[c1, c2, c3][i % 3]}" opacity="${n(.55 + i * .07)}"/>`;
     }
-  } else if (style === 4) {   // сетка фигур 3×3
+  } else if (style === 4) {
     const shapes = (x, y, k, c) => [
       `<circle cx="${x + 30}" cy="${y + 30}" r="26" fill="${c}"/>`,
       `<path d="M${x + 4} ${y + 56} A26 26 0 0 1 ${x + 56} ${y + 56}Z" fill="${c}"/>`,
@@ -107,16 +103,16 @@ function coverArt(key, label, title) {
       `<path d="M${x + 30} ${y + 4} L${x + 56} ${y + 56} L${x + 4} ${y + 56}Z" fill="${c}"/>`,
     ][k];
     for (let gx = 0; gx < 3; gx++) for (let gy = 0; gy < 3; gy++) body += shapes(10 + gx * 62, 10 + gy * 62, Math.floor(rnd() * 5), [c1, c2, c3][Math.floor(rnd() * 3)]);
-  } else if (style === 5) {   // кольца со смещением, тонкие линии
+  } else if (style === 5) {
     const cx = 60 + rnd() * 80, cy = 60 + rnd() * 80;
     defs += `<linearGradient id="r${id}" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${c1}"/><stop offset="1" stop-color="${c2}"/></linearGradient>`;
     body += `<circle cx="${n(cx)}" cy="${n(cy)}" r="58" fill="url(#r${id})"/>`;
     for (let i = 1; i < 14; i++) body += `<circle cx="${n(cx + i * 2.2)}" cy="${n(cy - i * 1.4)}" r="${58 + i * 9}" fill="none" stroke="${i % 3 ? c3 : ink}" stroke-width="${i % 4 ? .8 : 1.6}" opacity="${n(.85 - i * .05)}"/>`;
-  } else if (style === 6) {   // типографика: крупная буква названия поверх меша
+  } else if (style === 6) {
     const letter = (String(title || label || key).trim().match(/[\p{L}\p{N}]/u) || ["♪"])[0].toUpperCase();
     body += `<g filter="url(#b${id})"><circle cx="40" cy="40" r="90" fill="${c1}"/><circle cx="180" cy="170" r="90" fill="${c2}"/></g>`;
     body += `<text x="${n(96 + rnd() * 20)}" y="188" text-anchor="middle" font-family="Segoe UI Variable Display,Segoe UI,system-ui,sans-serif" font-size="230" font-weight="900" fill="${ink}" opacity=".92" letter-spacing="-10">${escapeXml(letter)}</text>`;
-  } else {                    // орбиты: светящееся ядро и эллипсы
+  } else {
     body += `<g filter="url(#b${id})"><circle cx="${n(80 + rnd() * 40)}" cy="${n(80 + rnd() * 40)}" r="60" fill="${c1}"/><circle cx="${n(60 + rnd() * 80)}" cy="${n(60 + rnd() * 80)}" r="42" fill="${c2}"/></g>`;
     const rot = Math.floor(rnd() * 180);
     for (let i = 0; i < 4; i++) body += `<ellipse cx="100" cy="100" rx="${70 + i * 10}" ry="${26 + i * 7}" fill="none" stroke="${ink}" stroke-width=".9" opacity="${n(.7 - i * .14)}" transform="rotate(${rot + i * 22} 100 100)"/>`;
@@ -134,7 +130,6 @@ function coverArt(key, label, title) {
 }
 function escapeXml(text) { return String(text).replace(/[<>&"']/g, (c) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&#39;" })[c]); }
 
-/** <img> обложки: реальная, а при ошибке загрузки — генеративная (см. обработчик error в main.js). */
 function artImg(item, kind) {
   const key = (item && (item.album && kind === "album" ? item.artist + "|" + item.album : item.id || item.key || item.name)) || "x";
   const fallback = coverArt(key, "", item && (kind === "album" ? item.album : item.title || item.name));
@@ -142,7 +137,6 @@ function artImg(item, kind) {
   return `<img alt="" draggable="false" loading="lazy" decoding="async" src="${esc(src)}" data-fb="${esc(fallback)}">`;
 }
 
-/* Значки сервисов — упрощённые знаки, без фирменных логотипов. */
 const SOURCES = {
   youtube: { name: "YouTube", color: "#ff2d2d", icon: '<rect x="2.5" y="5.5" width="19" height="13" rx="4" fill="currentColor" stroke="none"/><path d="M10 9v6l5-3z" fill="#ff2d2d" stroke="none"/>' },
   ytmusic: { name: "YouTube Music", color: "#ff0f3c", icon: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.8"/><path d="M10.6 10v4l3.2-2z" fill="currentColor" stroke="none"/>' },
@@ -173,7 +167,7 @@ const DETECT_RULES = [
   [/music\.yandex\.|yandex\.[a-z]+\/music/i, "yandex"], [/(vk\.com|vk\.ru|vkvideo\.ru).*(audio|music|playlist)|boom\.ru/i, "vk"],
   [/bandcamp\.com/i, "bandcamp"], [/tidal\.com/i, "tidal"], [/twitch\.tv/i, "twitch"], [/vimeo\.com/i, "vimeo"], [/mixcloud\.com/i, "mixcloud"],
 ];
-/** Мгновенный разбор ссылки: {source, kind} или null, если это не ссылка. */
+
 function detectLocal(text) {
   const url = String(text || "").trim();
   if (!/^(https?:\/\/)?([\w-]+\.)+[a-z]{2,}(\/|$|\?)/i.test(url)) return null;

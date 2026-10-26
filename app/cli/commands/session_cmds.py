@@ -21,7 +21,6 @@ from ..tokens import compact_number, estimate_text
 from ..tui import dialogs as dlg
 from . import Context, command
 
-
 def replay(ctx: Context, messages: List[Dict[str, Any]], *, limit: int = 40) -> None:
     """Show the end of a transcript the way it looked when it was live."""
     from ..tools.base import ToolCall, ToolResult
@@ -62,7 +61,6 @@ def replay(ctx: Context, messages: List[Dict[str, Any]], *, limit: int = 40) -> 
                                 error="" if ok else content[:300], detail=content[:3000] if ok else "")
             ui.add_step(Step(call, result))
 
-
 def _switch(ctx: Context, session: Session) -> None:
     runtime = ctx.runtime
     runtime.session = session
@@ -70,7 +68,6 @@ def _switch(ctx: Context, session: Session) -> None:
         runtime.model = str(session.meta["model"])
     runtime.invalidate_prompt()
     ctx.ui.context_cache = (-1, 0.0, 0)
-
 
 @command("clear", "Начать новый разговор (история сохраняется в /resume)", "Start a new conversation (the old one stays in /resume)",
          aliases=("new", "reset"), category="session", while_busy=False)
@@ -89,7 +86,6 @@ async def clear(ctx: Context) -> None:
     ctx.ui.write(ctx.r.render(Text("─" * min(ctx.ui.width(), 60), style="subtle")))
     hint = tr(f" Прошлый разговор: /resume {old.id}", f" Previous conversation: /resume {old.id}") if old.messages else ""
     ctx.say(tr("Новый разговор.", "New conversation.") + hint, "success")
-
 
 @command("resume", "Продолжить прошлый разговор", "Resume a previous conversation", hint="[id|search]",
          aliases=("sessions",), category="session", while_busy=False)
@@ -135,7 +131,6 @@ async def resume(ctx: Context) -> None:
     if choice:
         await _open(ctx, choice)
 
-
 async def _open(ctx: Context, row: Dict[str, Any]) -> None:
     runtime = ctx.runtime
     root = Path(row.get("root") or runtime.root)
@@ -156,7 +151,6 @@ async def _open(ctx: Context, row: Dict[str, Any]) -> None:
     ctx.say(tr(f"Продолжаем «{session.title()}» ({len(session.messages)} сообщений)",
                f"Resumed “{session.title()}” ({len(session.messages)} messages)"), "success")
 
-
 @command("continue", "Продолжить последний разговор этого проекта", "Continue the most recent conversation here",
          category="session", while_busy=False)
 async def continue_(ctx: Context) -> None:
@@ -165,7 +159,6 @@ async def continue_(ctx: Context) -> None:
         ctx.say(tr("Нет прошлых разговоров в этом проекте.", "No previous conversations in this project."), "warn")
         return
     await _open(ctx, rows[0])
-
 
 @command("rename", "Назвать текущий разговор", "Name the current conversation", hint="<name>", category="session", while_busy=True)
 async def rename(ctx: Context) -> None:
@@ -176,7 +169,6 @@ async def rename(ctx: Context) -> None:
     ctx.runtime.session.set_meta(name=name[:120])
     ctx.runtime.session.flush_index()
     ctx.say(tr(f"Разговор называется «{name}»", f"Renamed to “{name}”"), "success")
-
 
 @command("branch", "Ответвить разговор: копия, в которой можно пробовать другое", "Fork the conversation into a new branch",
          hint="[name]", aliases=("fork",), category="session", while_busy=False)
@@ -192,11 +184,9 @@ async def branch(ctx: Context) -> None:
     ctx.say(tr(f"Вы в новой ветке {child.id}. Исходный разговор: /resume {parent.id}",
                f"You are on a new branch {child.id}. The original: /resume {parent.id}"), "success")
 
-
 def _turn_list(session: Session) -> List[Dict[str, Any]]:
     return [message for message in session.messages if message.get("role") == "user"
             and message.get("kind") in ("prompt", "command", "bash")]
-
 
 @command("rewind", "Вернуться к прошлому сообщению: откатить код и/или разговор", "Rewind the code and/or conversation",
          aliases=("checkpoint", "checkpoints"), category="session", while_busy=False)
@@ -246,6 +236,7 @@ async def rewind(ctx: Context) -> None:
             failed += result.get("failed", [])
         runtime.files.invalidate()
         session.read_state.clear()
+        session.read_cache.clear()
         ctx.say(tr(f"Файлов возвращено: {len(set(restored))}", f"Restored {len(set(restored))} files"), "success")
         for row in failed[:5]:
             ctx.say(f"{row.get('path')}: {row.get('error')}", "warn")
@@ -258,7 +249,6 @@ async def rewind(ctx: Context) -> None:
         runtime.invalidate_prompt()
         ctx.say(tr("Разговор возвращён. Сообщение снова в поле ввода — отредактируйте и отправьте.",
                    "Conversation rewound. The message is back in the input — edit and send it."), "success")
-
 
 @command("undo", "Отменить изменения файлов последнего ответа", "Undo the file changes of the last answer", category="session", while_busy=False)
 async def undo(ctx: Context) -> None:
@@ -282,10 +272,10 @@ async def undo(ctx: Context) -> None:
         restored += result.get("restored", []) + result.get("removed", [])
     runtime.files.invalidate()
     session.read_state.clear()
+    session.read_cache.clear()
     session.append({"role": "user", "kind": "note", "content": "[The user undid the file changes of the last answer: "
                     + ", ".join(sorted(set(restored))[:40]) + "]"})
     ctx.say(tr(f"Отменено: {', '.join(sorted(set(restored))[:8])}", f"Undone: {', '.join(sorted(set(restored))[:8])}"), "success")
-
 
 def transcript_markdown(session: Session) -> str:
     rows = [f"# {session.title() or 'MemuCode session'}", "",
@@ -311,7 +301,6 @@ def transcript_markdown(session: Session) -> str:
         elif role == "tool" and message.get("summary"):
             rows.append(f"  - → {message.get('summary')}")
     return "\n".join(rows).strip() + "\n"
-
 
 @command("export", "Сохранить разговор в Markdown или скопировать", "Export the conversation to Markdown or the clipboard",
          hint="[file]", category="session", while_busy=True)
@@ -342,7 +331,6 @@ async def export(ctx: Context) -> None:
     path.write_text(text, encoding="utf-8")
     ctx.say(tr(f"Сохранено: {path}", f"Saved: {path}"), "success")
 
-
 @command("copy", "Скопировать последний ответ (или блок кода из него)", "Copy the last answer (or a code block of it)",
          hint="[n]", category="session", while_busy=True)
 async def copy(ctx: Context) -> None:
@@ -371,7 +359,6 @@ async def copy(ctx: Context) -> None:
     ctx.say(tr(f"Скопировано ({len(text)} символов)", f"Copied ({len(text)} chars)") if ok else
             tr("Не удалось скопировать", "Could not copy"), "success" if ok else "error")
 
-
 @command("compact", "Сжать историю, сохранив суть (можно указать, на чём сосредоточиться)",
          "Compact the history, keeping what matters (optionally say what to focus on)", hint="[instructions]",
          category="context", while_busy=False)
@@ -390,7 +377,6 @@ async def compact_cmd(ctx: Context) -> None:
     ctx.ui.context_cache = (-1, 0.0, 0)
     if ctx.settings.get("verbose"):
         ctx.ui.print(ctx.r.md(result["summary"]))
-
 
 @command("context", "Сколько занято контекста и чем", "Show what fills the context window", category="context", while_busy=True)
 async def context(ctx: Context) -> None:
@@ -415,7 +401,7 @@ async def context(ctx: Context) -> None:
     for _label, tokens, style in parts:
         count = int(round(tokens / window * cells)) if window else 0
         if tokens > 0 and count == 0 and style not in ("subtle", "dim"):
-            count = 1                                   # a used part is never invisible
+            count = 1
         grid += [style] * count
     grid = (grid + ["subtle"] * cells)[:cells]
     lines = []
@@ -438,7 +424,7 @@ async def context(ctx: Context) -> None:
     columns.add_column()
     from rich.console import Group
     columns.add_row(Group(*lines), table)
-    # Where the total comes from: counted by the provider, or estimated from the text.
+
     origin = (tr("  Всего — по счёту провайдера за последний запрос; доли частей — оценка.",
                  "  The total is what the provider counted for the last request; the split is an estimate.")
               if info.get("source") == "provider" else
@@ -452,7 +438,6 @@ async def context(ctx: Context) -> None:
     if used / window > 0.6:
         ctx.say(tr("Совет: /compact сожмёт историю, /clear начнёт заново.", "Tip: /compact shrinks the history, /clear starts over."))
 
-
 @command("todos", "Показать список задач агента", "Show the agent's todo list", category="session", while_busy=True)
 async def todos(ctx: Context) -> None:
     items = ctx.runtime.session.todos
@@ -462,7 +447,6 @@ async def todos(ctx: Context) -> None:
     done = sum(1 for todo in items if todo.get("status") == "completed")
     ctx.print(Text(f"  {tr('Задачи', 'Todos')} {done}/{len(items)}", style="bold"),
               *[ctx.r.todo_line(todo, indent=4) for todo in items])
-
 
 @command("exit", "Выйти из MemuCode", "Exit MemuCode", aliases=("quit", "q"), category="general", while_busy=True)
 async def exit_(ctx: Context) -> None:

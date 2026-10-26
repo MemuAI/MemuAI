@@ -26,12 +26,10 @@ sys.path.insert(0, str(ROOT))
 CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or (
     "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome")
 
-
 def free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
-
 
 def call(base: str, path: str, body=None):
     data = json.dumps(body).encode() if body is not None else None
@@ -39,7 +37,6 @@ def call(base: str, path: str, body=None):
                                      method="POST" if body is not None else "GET")
     with urllib.request.urlopen(request, timeout=10) as response:
         return json.loads(response.read() or b"{}")
-
 
 async def main(out: Path) -> int:
     os.environ["MEMUAI_DATA_DIR"] = tempfile.mkdtemp(prefix="r27sel-settings-")
@@ -79,7 +76,7 @@ async def main(out: Path) -> int:
             await page.wait_for_timeout(900)
             await page.evaluate("openSettingsPage('quick')")
             await page.wait_for_timeout(1500)
-            # the plugins' settings scripts load one by one after the page opens (Round 30: more of them) — wait for the link
+
             await page.wait_for_selector('[data-sx-open="quick-selection"]', timeout=20000)
             await page.click('[data-sx-open="quick-selection"]')
             await page.wait_for_timeout(500)
@@ -95,7 +92,7 @@ async def main(out: Path) -> int:
             check(not wide, f"{label}: nothing sticks out ({wide})")
 
         async def shot(page, name):
-            # the settings body scrolls: one picture per section (a pane screenshot would be clipped)
+
             for sid in ("qss-general", "qss-buttons", "qss-own"):
                 loc = page.locator(f"#{sid}")
                 if await loc.count() and await loc.is_visible():
@@ -108,14 +105,14 @@ async def main(out: Path) -> int:
         check(items == 6, f"six built-in actions listed ({items})")
         await overflow(page, "dark/ru")
         await shot(page, "sel-settings-dark-ru")
-        # switch «Объяснить» off, move «Исправить» up
+
         await page.click('#qs-sub-selection label:has(input[data-act="explain"])')
         await page.wait_for_timeout(400)
         await page.click('#qs-sub-selection [data-up="fix"]')
         await page.wait_for_timeout(600)
         order = prefs().get("quick_ask_selection_actions")
         check(order == ["fix", "translate", "summarize", "reply", "ask"], f"order and the switched-off button are saved ({order})")
-        # own action
+
         await page.fill("#qss-name", "Официальнее")
         await page.fill("#qss-prompt", "Перепиши официально: {text}")
         await page.click('#qs-sub-selection label:has(#qss-replace)')
@@ -127,7 +124,7 @@ async def main(out: Path) -> int:
               and custom[0]["id"] in saved.get("quick_ask_selection_actions", []), f"own action saved ({custom})")
         check(await page.locator("#qs-sub-selection .qss-text i").count() == 1, "the own action is marked")
         await shot(page, "sel-settings-own-dark-ru")
-        # the feature off
+
         await page.click('#qs-sub-selection label:has(#qss-on)')
         await page.wait_for_timeout(500)
         check(prefs().get("quick_ask_selection") is False, "switching the feature off is saved")
@@ -146,7 +143,6 @@ async def main(out: Path) -> int:
     server.should_exit = True
     print("problems:", len(problems))
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/r27-selection-settings"))))

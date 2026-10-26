@@ -25,24 +25,21 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from .cli import protocol
 
-#: Сколько агентов одной сессии (чата) работает одновременно, не больше.
 MAX_PARALLEL = 4
-#: Всего агентов на сессию за время жизни приложения: защита от бесконечного размножения.
+
 MAX_JOBS = 24
-#: Раундов инструментов у одного агента.
+
 MAX_ROUNDS = 16
 REPORT_CHARS = 16_000
 RESULT_CHARS = 40_000
-#: Сколько символов переписки агент держит целиком; старые результаты инструментов сверх этого
-#: сжимаются (16 раундов × 40 000 символов переполняли контекст модели, и агент падал с ошибкой).
+
 HISTORY_CHARS = 160_000
 OLD_RESULT_CHARS = 1_500
-#: Вызовов инструментов за один раунд агента.
+
 MAX_CALLS = 8
-#: Сколько секунд ``agent_wait`` держит основную модель, не больше.
+
 MAX_WAIT = 180.0
 
-#: Инструменты агента. Запускать других агентов, браузер и управление компьютером он не может.
 READ_TOOLS = ("work_tree", "work_read", "work_search", "work_outline", "work_diff")
 WRITE_TOOLS = ("work_write", "work_patch", "work_insert", "work_replace_lines", "work_append",
                "work_delete", "work_move", "work_mkdir")
@@ -89,7 +86,6 @@ TOOL_HELP = {
 Complete = Callable[[str, List[Dict[str, Any]]], Awaitable[str]]
 RunTool = Callable[[str, Dict[str, Any], "Job"], Awaitable[Dict[str, Any]]]
 
-
 @dataclass
 class Job:
     id: int
@@ -97,18 +93,18 @@ class Job:
     title: str
     task: str
     model: str
-    access: str = "ask"                 # "full" lets the agent change files and run commands
-    code: bool = False                  # MemuCode: code_* tools as well
+    access: str = "ask"
+    code: bool = False
     web: bool = False
     project_id: str = ""
-    status: str = "running"             # running | done | error | cancelled
+    status: str = "running"
     report: str = ""
     error: str = ""
     steps: List[Dict[str, Any]] = field(default_factory=list)
     rounds: int = 0
     started: float = field(default_factory=time.time)
     finished: float = 0.0
-    delivered: bool = False             # the main model has this report already
+    delivered: bool = False
     handle: Optional["asyncio.Task"] = None
     token: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
 
@@ -139,14 +135,12 @@ class Job:
             row["report"] = self.report
         return row
 
-
 def _label(name: str, args: Dict[str, Any]) -> str:
     for key in ("path", "query", "command", "url", "action"):
         value = str(args.get(key) or "").strip()
         if value:
             return f"{name} {value}"[:120]
     return name
-
 
 class AgentPool:
     """Все фоновые агенты приложения, по сессиям (чатам)."""
@@ -156,7 +150,6 @@ class AgentPool:
         self.run_tool = run_tool
         self.jobs: Dict[str, List[Job]] = {}
 
-    # ------------------------------------------------------------ запуск
     def running(self, session: str) -> List[Job]:
         return [job for job in self.jobs.get(session, []) if job.status == "running"]
 
@@ -188,7 +181,7 @@ class AgentPool:
             job.status = "cancelled"
             job.error = job.error or "stopped"
             raise
-        except Exception as exc:                      # the failure itself is the agent's report
+        except Exception as exc:
             job.status = "error"
             job.error = str(exc)[:600] or type(exc).__name__
         finally:
@@ -210,8 +203,7 @@ class AgentPool:
             parsed = protocol.parse(text)
             if not parsed.calls:
                 if parsed.errors or parsed.cut_off:
-                    # A block the answer ended in the middle of is not a report: the half-written call
-                    # used to be dropped and the text before it returned as the agent's result.
+
                     problem = (parsed.errors[0][:300] if parsed.errors else
                                "the answer ended in the middle of the call " + ", ".join(parsed.cut_off[:3]) + ".")
                     messages += [{"role": "assistant", "content": text},
@@ -247,7 +239,6 @@ class AgentPool:
                          "report now from what you already have, and say what could not be finished."})
         return protocol.parse(await self.complete(job.model, messages)).text.strip()[:REPORT_CHARS]
 
-    # ------------------------------------------------------------ чтение
     def find(self, session: str, job_id: Any) -> Optional[Job]:
         try:
             number = int(job_id)
@@ -291,7 +282,7 @@ class AgentPool:
         for job in self.jobs.get(session, []):
             if job.status == "running" and (job_id is None or str(job.id) == str(job_id)):
                 job.error = "stopped"
-                # Whoever stopped it knows: a stopped agent must not wake the conversation up later.
+
                 job.delivered = True
                 if job.handle is not None:
                     job.handle.cancel()
@@ -302,7 +293,6 @@ class AgentPool:
         self.cancel(session)
         self.jobs.pop(session, None)
 
-    # ------------------------------------------------------------ инструменты основной модели
     async def tool(self, name: str, args: Dict[str, Any], *, session: str, model: str, access: str, code: bool,
                    web: bool, project_id: str, limit: int) -> Dict[str, Any]:
         """``agent_*`` tools of the main model. Errors come back as ``{"error": …}`` for the model to read."""
@@ -334,9 +324,7 @@ class AgentPool:
             return {"tool": name, "error": str(exc)}
         return {"tool": name, "error": "Unknown agent tool."}
 
-
 AGENT_TOOLS = ("agent_spawn", "agent_status", "agent_wait", "agent_result", "agent_cancel")
-
 
 def _settle(job: Job) -> None:
     """A task cancelled before its first step never enters ``_run``: without this it stayed «running» forever
@@ -345,7 +333,6 @@ def _settle(job: Job) -> None:
         job.status = "cancelled"
         job.error = job.error or "stopped"
         job.finished = job.finished or time.time()
-
 
 def _compact(messages: List[Dict[str, Any]], budget: int = HISTORY_CHARS) -> None:
     """Shrink the oldest tool results until the conversation fits ``budget`` characters."""
@@ -358,7 +345,6 @@ def _compact(messages: List[Dict[str, Any]], budget: int = HISTORY_CHARS) -> Non
             short = content[:OLD_RESULT_CHARS] + " …[older result shortened; re-run the tool if you need it]"
             total -= len(content) - len(short)
             item["content"] = short
-
 
 def _clip(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[:limit] + f" …[cut: {len(text) - limit} more characters]"

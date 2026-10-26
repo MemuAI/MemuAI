@@ -23,9 +23,6 @@ from tests.round35_composite_test import FakeService, isolated, model, run_compo
 STATIC = ROOT / "app" / "static"
 PELICAN_URL = "https://pelicanbenchmark.com/?track=animated_html"
 
-
-# ------------------------------------------------------------------ detector: the pelican link, no Opus 5.5 references
-
 def test_the_claude_opus_references_are_gone_everywhere():
     assert not (STATIC / "visual-refs.json").exists()
     assert not hasattr(visual_test, "REFS_FILE") and not hasattr(visual_test, "reference_page")
@@ -39,7 +36,6 @@ def test_the_claude_opus_references_are_gone_everywhere():
     for doc in ("app/docs/ru/model-detector.md", "app/docs/en/model-detector.md", "app/companion_kb/detector.md"):
         assert "Opus 5.5" not in (ROOT / doc).read_text(encoding="utf-8"), doc
 
-
 def test_the_reference_route_is_gone_and_prompts_carry_no_refs():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient
@@ -49,7 +45,6 @@ def test_the_reference_route_is_gone_and_prompts_carry_no_refs():
     client = TestClient(app)
     assert client.get("/api/admin/detector/visual/refs/pelican-claude-opus-5-5/page").status_code == 404
 
-
 def test_the_pelican_links_to_pelicanbenchmark_and_only_the_pelican():
     rows = {row["id"]: row for row in visual_test.prompt_list()}
     assert rows["pelican"]["compare_url"] == PELICAN_URL
@@ -57,7 +52,6 @@ def test_the_pelican_links_to_pelicanbenchmark_and_only_the_pelican():
     assert [row_id for row_id, row in rows.items() if row["compare_url"]] == ["pelican"]
     data = json.loads((STATIC / "visual-prompts.json").read_text(encoding="utf-8"))
     assert any(row.get("compare_url") == PELICAN_URL for row in data["prompts"])
-
 
 def test_the_gallery_link_opens_outside_and_is_bilingual():
     js = (STATIC / "detector.js").read_text(encoding="utf-8")
@@ -70,12 +64,10 @@ def test_the_gallery_link_opens_outside_and_is_bilingual():
     css = (STATIC / "detector-compare.css").read_text(encoding="utf-8")
     assert ".det-visual-gallery {" in css and ".det-visual-gallery:focus-visible" in css
 
-
 def test_compare_is_offered_only_between_two_finished_runs():
     js = (STATIC / "detector.js").read_text(encoding="utf-8")
     assert "if (sources.length < 2)" in js
     assert 'run.state === "done" && (V.runs.some((other) => other !== run && other.prompt_id === run.prompt_id' in js
-
 
 def test_a_non_https_gallery_address_is_dropped():
     saved = visual_test._prompts_cache
@@ -85,12 +77,9 @@ def test_a_non_https_gallery_address_is_dropped():
     finally:
         visual_test._prompts_cache = saved
 
-
-# ------------------------------------------------------------------ composite models
-
 def test_a_rejected_key_is_unavailable_and_always_switches():
     from app.chat import CompletionError
-    # chat.py wraps a rejected account as 503 «authentication_error»: it was reported as «5xx»
+
     assert cm.classify(CompletionError("rejected", status=503, err_type="authentication_error")) == "unavailable"
     assert cm.classify(CompletionError("gone", status=404, err_type="model_unavailable")) == "unavailable"
     assert cm.classify(CompletionError("down", status=503, err_type="service_unavailable")) == "5xx"
@@ -102,13 +91,11 @@ def test_a_rejected_key_is_unavailable_and_always_switches():
     recent = cm.stats.get("memu/smart")["recent"][0]
     assert [a["trigger"] for a in recent["attempts"]] == ["unavailable", ""]
 
-
 def test_stream_chunks_carry_the_composite_name():
     cm.store.save_all([model()])
     out = run_composite(FakeService({}))
     chunks = [item for item in out if item.get("object") == "chat.completion.chunk"]
     assert chunks and all(item.get("model") in (None, "memu/smart") for item in chunks)
-
 
 def test_try_gets_its_own_route_not_the_newest_stats_row():
     import asyncio
@@ -124,13 +111,9 @@ def test_try_gets_its_own_route_not_the_newest_stats_row():
     api = (ROOT / "app" / "composite_models_api.py").read_text(encoding="utf-8")
     assert '"_composite_route_sink": route' in api and 'stats.get(model_id).get("recent")' not in api
 
-
 def test_a_tokenizer_unlike_the_claimed_family_caps_the_confidence():
     src = (ROOT / "app" / "detector.py").read_text(encoding="utf-8")
     assert 'if confidence == "high" and tokenizer["verdict"] in ("recount", "unlike_claimed"):' in src
-
-
-# ------------------------------------------------------------------ quota planner
 
 def test_the_recommended_pace_never_exceeds_the_remainder_in_the_last_hour():
     from app import quota_planner as qp
@@ -139,7 +122,6 @@ def test_the_recommended_pace_never_exceeds_the_remainder_in_the_last_hour():
     assert out["pace_units"] <= 0.95 * 10000
     js = (STATIC / "quota-planner.js").read_text(encoding="utf-8")
     assert 'const steady = w.status !== "insufficient";' in js
-
 
 def test_the_same_model_on_two_accounts_is_told_apart_in_the_route():
     js = (STATIC / "composite.js").read_text(encoding="utf-8")

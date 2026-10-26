@@ -19,10 +19,8 @@ from fastapi.responses import JSONResponse
 
 from . import reasoning_levels as rl
 
-
 def _err(message: str, message_en: str, status: int = 400) -> JSONResponse:
     return JSONResponse({"error": message, "error_en": message_en}, status_code=status)
-
 
 def _catalog_id(model_id: str) -> str:
     """The catalogue's own spelling of the id (routing is case-insensitive; stored keys are not)."""
@@ -32,7 +30,6 @@ def _catalog_id(model_id: str) -> str:
         return str(getattr(entry, "id", "") or model_id)
     except Exception:
         return model_id
-
 
 def _describe(model_id: str) -> Dict[str, Any]:
     from .state import state
@@ -48,7 +45,6 @@ def _describe(model_id: str) -> Dict[str, Any]:
             "override": rl.get_override(model_id), "learned": rl.learned(model_id),
             "depths": list(rl.DEPTHS), "kinds": list(rl.KINDS)}
 
-
 def _base_url(entry: Any) -> str:
     """base_url of the custom connection a catalogue entry belongs to (its prefix is the connection name)."""
     try:
@@ -61,7 +57,6 @@ def _base_url(entry: Any) -> str:
     except Exception:
         pass
     return ""
-
 
 def register(app: FastAPI) -> None:
     from .admin_api import _auth, _json_object

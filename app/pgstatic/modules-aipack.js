@@ -1,16 +1,5 @@
-/* MemuAI modules «AI pack» and package validation (Round 29).
- *
- * 1) A documentation widget: a fenced block ```memu-widget\nai-pack\n``` inside a docs article
- *    (Settings → Documentation → Modules → «AI pack») becomes a card that downloads the pack
- *    (RU / EN, full or compact without the test stand), copies it, and downloads the Node.js
- *    test stand memu-module-test.js. Backend: app/modules_ai_pack.py (/api/pg/modules-ai/*).
- * 2) «Validate and import»: Settings → Modules → Import gets a card that takes an AI answer with
- *    the files in code blocks, a ZIP, a folder, or a *.memu-module.json, checks it with
- *    app/modules_validate.py (POST /api/pg/modules-ai/validate) and imports the normalized package.
- *
- * Relies on app.js helpers (icon, toast, copyText, downloadTextFile, PG_LANG) loaded before it.
- * Global: window.MemuModuleTools = { widget, hydrate, enhanceImport, validate, reportText }.
- */
+
+
 "use strict";
 const MemuModuleTools = (() => {
   const en = () => (typeof PG_LANG !== "undefined" && PG_LANG === "en");
@@ -51,16 +40,12 @@ const MemuModuleTools = (() => {
   const kb = (bytes) => (bytes >= 1024 * 1024 ? `${(bytes / 1048576).toFixed(1)} MB`
     : `${Math.max(1, Math.round(bytes / 1024))} ${L("КБ", "KB")}`);
 
-  /* ------------------------------ docs widget ------------------------------ */
-
-  /** HTML placeholder for a ```memu-widget fence; docs.js calls this from codeBlock(). */
   function widget(source) {
     const name = String(source || "").trim().split(/\s+/)[0] || "";
     if (!WIDGETS.has(name)) return "";
     return `<div class="memu-docs-widget" data-memu-widget="${esc(name)}"></div>`;
   }
 
-  /** Fill every widget placeholder inside a rendered article. */
   function hydrate(root) {
     (root || document).querySelectorAll("[data-memu-widget]:not([data-ready])").forEach((node) => {
       node.dataset.ready = "1";
@@ -98,11 +83,10 @@ const MemuModuleTools = (() => {
       </div>`;
     const state = { lang: startLang, compact: false, cache: new Map(), seq: 0, open: false };
     const lang = () => (en() ? "en" : "ru");
-    // An estimate has no false precision: three significant digits, the range in thousands (tokens.js).
+
     const num = (value) => (window.MemuTokens ? MemuTokens.approx(value) : Math.round(Number(value) || 0)).toLocaleString(en() ? "en-US" : "ru-RU");
     const range = (low, high) => (window.MemuTokens ? MemuTokens.shortRange(low, high, lang()) : `${num(low)}–${num(high)}`);
-    // Tokens depend on the language of the pack and on the model: the typical count is marked as an estimate,
-    // the range and every family's count sit one click away (app/token_estimate.py).
+
     const tokensChip = (data) => `<button type="button" class="aipack-tok" data-pack-tokens aria-expanded="${state.open}"
         title="${esc(L("Оценка: у каждого семейства моделей свой токенизатор, русский текст стоит заметно больше английского. Нажмите — число для каждой модели.",
           "An estimate: every model family has its own tokenizer, and Russian text costs noticeably more than English. Click for each model's count."))}">`
@@ -186,7 +170,6 @@ const MemuModuleTools = (() => {
     refreshMeta();
   }
 
-  /** Settings → Modules → Import (the settings shell may need to switch tabs first). */
   async function openImport() {
     try {
       if (typeof currentSettingsTab !== "undefined") currentSettingsTab = "modules";
@@ -201,11 +184,8 @@ const MemuModuleTools = (() => {
     } catch (error) { note(error.message, "warn"); }
   }
 
-  /* ---------------------------- validate & import --------------------------- */
-
   function validate(body) { return api("/api/pg/modules-ai/validate", { method: "POST", body }); }
 
-  /** The report as plain text: paste it back to the AI so it fixes its module. */
   function reportText(report) {
     const english = en();
     const lines = [english ? "MemuAI module check:" : "Проверка модуля MemuAI:"];
@@ -266,7 +246,7 @@ const MemuModuleTools = (() => {
       const text = await files[0].text();
       return { body: { text }, label: files[0].name, text };
     }
-    // a folder (webkitdirectory) or several files: keep the package files by their base name
+
     const out = {};
     for (const file of files) {
       const base = file.name.toLowerCase();
@@ -276,7 +256,6 @@ const MemuModuleTools = (() => {
     return { body: { files: out }, label: folder };
   }
 
-  /** Called by modules.js renderImport(host): adds the «Validate and import» card on top. */
   function enhanceImport(host, hooks = {}) {
     const pane = host && host.querySelector('.modules-pane[data-view="import"]');
     if (!pane || pane.querySelector(".aipack-import")) return;

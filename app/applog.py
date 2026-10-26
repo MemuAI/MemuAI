@@ -15,7 +15,6 @@ from typing import Any, Dict, List
 MAX_RECORDS = 4000
 _LEVELS = ("debug", "info", "warning", "error", "critical")
 
-
 class RingBufferHandler(logging.Handler):
     def __init__(self, capacity: int = MAX_RECORDS) -> None:
         super().__init__()
@@ -65,7 +64,6 @@ class RingBufferHandler(logging.Handler):
         return {"records": out[-limit:], "total": len(out),
                 "cursor": rows[-1]["id"] if rows else 0, "time": time.time()}
 
-    # Панель обращается к буферу как к «списку записей».
     def list(self, *, limit: int = 300, after: int = 0, level: str = "",
              query: str = "") -> Dict[str, Any]:
         return self.snapshot(limit=limit, after=after, level=level, query=query)
@@ -77,9 +75,7 @@ class RingBufferHandler(logging.Handler):
         with self._lock:
             self._records.clear()
 
-
 app_log = RingBufferHandler()
-
 
 def install(level: int = logging.INFO) -> RingBufferHandler:
     """Подключает буфер к корневому логгеру (идемпотентно).

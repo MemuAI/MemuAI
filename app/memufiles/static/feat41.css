@@ -1,6 +1,3 @@
-/* MemuFiles · round 41 (r41-files): Explorer-like «Tiles», the settings window, archives opened as folders. */
-
-/* ---------------------------------------------------------------- Tiles (Explorer «Плитка») */
 .tile.card { flex-direction: row; align-items: center; gap: 10px; padding: 6px 10px 6px 6px; text-align: left; }
 .tile.card .th { flex: none; border-radius: 6px; }
 .tile.card .th .fi { width: 100%; height: 100%; }
@@ -8,8 +5,6 @@
 .tile.card .tc { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 1px; }
 .tile.card .tl { text-align: left; -webkit-line-clamp: 1; font-size: 13px; line-height: 1.3; word-break: normal; overflow-wrap: anywhere; white-space: nowrap; text-overflow: ellipsis; display: block; }
 .tile.card .sub { font-size: 11.5px; line-height: 1.3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-
-/* ---------------------------------------------------------------- settings window */
 .modal.st41 { width: min(900px, 100%); height: min(680px, calc(100vh - 40px)); }
 .modal.st41 .modal-body { display: flex; overflow: hidden; padding-bottom: 0; }
 .modal.st41 .modal-foot { justify-content: flex-end; }
@@ -51,23 +46,19 @@
 @media (max-width: 700px) {
   .st41-body { grid-template-columns: 1fr; }
   .st41-side { border-right: 0; border-bottom: 1px solid var(--border); padding: 0 0 6px; }
-  .st41-nav { flex-direction: row; overflow-x: auto; contain: inline-size; scrollbar-width: thin; }   /* r41-finish: the tab strip scrolls instead of widening the dialog past the window */
+  .st41-nav { flex-direction: row; overflow-x: auto; contain: inline-size; scrollbar-width: thin; }
   .st41-nav button { flex: none; white-space: nowrap; }
   .st41-pane { padding-left: 4px; }
   .st41-row { flex-wrap: wrap; gap: 8px 16px; }
   .st41-row .ctl { flex: 1 1 auto; justify-content: flex-end; max-width: 100%; }
   .st41-row .ctl select.input, .st41-row .ctl input.input { min-width: 0; width: auto; flex: 1 1 180px; max-width: 260px; }
 }
-
-/* ---------------------------------------------------------------- user-facing customisation hooks */
 html[data-rowlines="1"] .fv .row:nth-child(even of .row) { background: color-mix(in srgb, var(--text) 2.5%, transparent); }
 html[data-motion="off"] *, html[data-motion="off"] *::before, html[data-motion="off"] *::after { transition: none !important; animation: none !important; }
 html[data-sel="outline"] .row.sel, html[data-sel="outline"] .tile.sel { background: transparent; box-shadow: inset 0 0 0 1.5px var(--accent); }
 html[data-groups="plain"] .group-head { color: var(--muted); }
 html[data-groups="plain"] .group-head::after { opacity: .6; }
-
-/* ---------------------------------------------------------------- archives as folders */
-.pane .banner .btn.primary .ic { color: inherit; }   /* the accent icon vanished on the accent button */
+.pane .banner .btn.primary .ic { color: inherit; }
 .zip41 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .zip41 .field { margin-bottom: 12px; }
 .zip41 .hint { font-size: 12px; color: var(--muted); }

@@ -13,11 +13,9 @@ from typing import Any
 
 from fastapi.responses import JSONResponse, Response
 
-
 def etag_of(data: Any) -> str:
     raw = json.dumps(data, ensure_ascii=False, separators=(",", ":"), sort_keys=True, default=str)
     return hashlib.blake2b(raw.encode("utf-8", "surrogatepass"), digest_size=8).hexdigest()
-
 
 def answer(data: Any, status: int = 200, since: str = "", if_none_match: str = "") -> Response:
     """The JSON answer, or a bodiless "not changed" when the caller already has these bytes."""

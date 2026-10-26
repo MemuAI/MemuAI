@@ -8,7 +8,6 @@ from unittest.mock import patch
 import build
 import build_freeze
 
-
 class BuildCacheRegressionTest(unittest.TestCase):
     def test_launcher_archive_separation_changes_only_the_exe_option(self):
         original = "a = Analysis([])\nexe = EXE(\n    pyz,\n    exclude_binaries=True,\n    upx=False,\n)\ncoll = COLLECT(exe)\n"
@@ -38,7 +37,6 @@ class BuildCacheRegressionTest(unittest.TestCase):
                 with self.subTest(fingerprint=fingerprint), \
                      patch.object(build, "runtime_fingerprint", return_value=fingerprint):
                     self.assertNotEqual(build.inputs_hash("proxy-2.0"), first)
-
 
 if __name__ == "__main__":
     unittest.main()

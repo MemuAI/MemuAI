@@ -1,8 +1,5 @@
-/* MemuAI appearance: theme variants, accents, user themes and the theme studio.
- * Loaded before app.js. The application explicitly calls load/apply/render/bind;
- * there are no observers or patched globals. Colour values themselves live in
- * app/themes.py and arrive as /themes.css plus the /api/pg/themes catalogue.
- */
+
+
 "use strict";
 const MemuAppearance = (() => {
   const densities = Object.freeze([
@@ -26,12 +23,12 @@ const MemuAppearance = (() => {
     var: ["Переменные", "Variables"], meta: ["Директивы и декораторы", "Directives and decorators"],
     punct: ["Пунктуация", "Punctuation"] };
 
-  let data = null;        // catalogue from /api/pg/themes
+  let data = null;
   let loading = null;
-  let prefFn = null;      // the app's pref(key, fallback)
-  let hooks = null;       // { save, setTheme, apply } from bind()
-  let preview = null;     // { mode, extends, css } while the studio is open
-  let studio = null;      // studio editing state
+  let prefFn = null;
+  let hooks = null;
+  let preview = null;
+  let studio = null;
 
   const root = () => document.documentElement;
   const mode = () => (root().dataset.theme === "light" ? "light" : "dark");
@@ -44,8 +41,6 @@ const MemuAppearance = (() => {
   const cache = (key, value) => {
     try { if (value) localStorage.setItem(key, value); else localStorage.removeItem(key); } catch (_) {}
   };
-
-  /* ------------------------------ catalogue ------------------------------ */
 
   async function load() {
     if (loading) return loading;
@@ -82,13 +77,11 @@ const MemuAppearance = (() => {
     return variants(m).some((row) => row.id === ref) ? ref : "";
   }
 
-  /* -------------------------------- apply -------------------------------- */
-
   function apply(pref) {
     prefFn = pref;
     const r = root();
     r.dataset.accent = normalizeAccent(pref("accent_color", "terracotta"));
-    // Round 29: safe mode (app/safe_mode.py) always uses the built-in look.
+
     r.dataset.design = window.MEMU_SAFE_MODE && window.MEMU_SAFE_MODE.active ? "classic" : normalizeDesign(pref("ui_design", "classic"));
     if (!(window.MEMU_SAFE_MODE && window.MEMU_SAFE_MODE.active)) cache("memu_design", r.dataset.design === "classic" ? "" : r.dataset.design);
     r.dataset.chatWidth = normalizeWidth(pref("chat_width", "comfortable"));
@@ -96,11 +89,10 @@ const MemuAppearance = (() => {
     if (density) r.dataset.density = density; else delete r.dataset.density;
     applyVariant();
     cache("memu_accent", r.dataset.accent);
-    if (window.MemuAppearancePlus) MemuAppearancePlus.apply(pref);   // Round 30: corners, glass, motion, message text
-    if (window.MemuLook) MemuLook.apply(pref);   // Round 33: theme editor — layout, element styles, background (theme-editor.js)
+    if (window.MemuAppearancePlus) MemuAppearancePlus.apply(pref);
+    if (window.MemuLook) MemuLook.apply(pref);
   }
 
-  /** Put the current mode's preferred variant (or the studio preview) on the page. */
   function applyVariant() {
     const r = root(), m = mode();
     const style = document.getElementById("memu-user-theme");
@@ -110,21 +102,19 @@ const MemuAppearance = (() => {
       surface = preview.extends || ""; css = preview.css || ""; custom = "preview";
     } else if (ref.startsWith("custom:")) {
       const theme = findCustom(ref.slice(7));
-      if (!data && style) return; // catalogue not loaded yet: keep the first-paint copy
+      if (!data && style) return;
       if (theme && theme.base === m) { surface = theme.extends || ""; css = theme.css || ""; custom = theme.id; }
     } else surface = ref;
     if (surface) r.dataset.surface = surface; else delete r.dataset.surface;
     if (custom) r.dataset.customTheme = custom; else delete r.dataset.customTheme;
     if (style && style.textContent !== css) style.textContent = css;
     r.style.background = "";
-    if (preview) return; // never cache an unsaved preview for the next start
+    if (preview) return;
     cache(`memu_surface_${m}`, surface);
     cache(`memu_user_theme_${m}`, css.length < 200000 ? css : "");
     const bg = resolvedColor("var(--bg)");
     cache(`memu_bg_${m}`, bg ? rgbToHex(bg) : "");
   }
-
-  /* ---------------------------- colour helpers ---------------------------- */
 
   let probe = null;
   function resolvedColor(expression) {
@@ -139,7 +129,7 @@ const MemuAppearance = (() => {
     const value = getComputedStyle(probe).color;
     const rgb = value.match(/rgba?\(([\d.]+)[, ]+([\d.]+)[, ]+([\d.]+)(?:[, /]+([\d.]+))?/);
     if (rgb) return [+rgb[1], +rgb[2], +rgb[3], rgb[4] === undefined ? 1 : +rgb[4]];
-    // color-mix() computes to color(srgb r g b / a) with channels in 0..1.
+
     const srgb = value.match(/color\(srgb\s+([\d.]+)\s+([\d.]+)\s+([\d.]+)(?:\s*\/\s*([\d.]+))?/);
     return srgb ? [srgb[1] * 255, srgb[2] * 255, srgb[3] * 255, srgb[4] === undefined ? 1 : +srgb[4]] : null;
   }
@@ -154,8 +144,6 @@ const MemuAppearance = (() => {
     const [low, high] = [luminance(a), luminance(b)].sort((x, y) => x - y);
     return (high + 0.05) / (low + 0.05);
   }
-
-  /* ------------------------------- rendering ------------------------------ */
 
   function miniPreview(tokens, accentVar) {
     const v = (name, fallback) => esc(tokens[name] || fallback);
@@ -207,7 +195,6 @@ const MemuAppearance = (() => {
     }).join("")}</div>`;
   }
 
-  /** Colours of the variant currently preferred for a mode, for its mode card. */
   function modeMiniStyle(m, pref) {
     const ref = normalizeVariant(m, pref(`surface_${m}`, ""));
     const custom = ref.startsWith("custom:") ? findCustom(ref.slice(7)) : null;
@@ -219,10 +206,6 @@ const MemuAppearance = (() => {
       .filter(([, key]) => p[key]).map(([prop, key]) => `${prop}:${esc(p[key])}`).join(";");
   }
 
-  /* Round 23: the page is grouped for the new settings shell — what people
-     change most (mode, theme variant, accent) first, layout as compact rows,
-     custom themes collapsed. Input names are unchanged, bind() below is the
-     same. Section helpers come from settings-kit.js when it is loaded. */
   function sxSection(id, title, desc, body, card = false, extra = "") {
     const K = window.MemuSettingsKit;
     if (K) return K.section({ id, title, desc, body, card, aside: extra });
@@ -247,6 +230,9 @@ const MemuAppearance = (() => {
     return `<div id="appearance-root">
       ${unavailable}
       ${window.MemuThemeEditor ? MemuThemeEditor.settingsCard() : ""}
+      ${sxSection("appearance-sidebar-section", L("Боковая панель", "Sidebar"), L("Настройте разделы и кнопки модулей. Этот пункт всегда доступен здесь.", "Choose sections and module shortcuts. This control is always available here."),
+        row(L("Кнопка «Настроить панель»", "Customize sidebar shortcut"), L("Показывать кнопку в самой боковой панели.", "Show the shortcut in the sidebar."), `<label class="switch"><input type="checkbox" role="switch" id="st-sidebar-customize" aria-label="${L("Показывать кнопку настройки панели", "Show the sidebar customization shortcut")}" ${pref("sidebar_customize_visible", true) !== false ? "checked" : ""}><span class="sl"></span></label>`)
+        + row(L("Разделы и модули", "Sections and modules"), L("Work, Команда, папки и другие элементы навигации.", "Work, Team, folders and other navigation items."), `<button type="button" class="pbtn ghost" id="st-customize-sidebar">${L("Настроить панель", "Customize sidebar")}</button>`))}
       ${sxSection("appearance-theme-section", L("Тема", "Theme"), L("Светлое или тёмное оформление и его вариант. Всё применяется сразу.", "Light or dark, and its variant. Everything applies instantly."), `
         <div class="theme-options" data-sx-label="${L("Светлая или тёмная тема", "Light or dark theme")}" data-sx-k="${L("светлая тёмная режим", "light dark mode")} theme mode">${["light", "dark"].map((m) => `<label class="theme-option">
           <input type="radio" name="appearance-theme" value="${m}" ${theme === m ? "checked" : ""}>
@@ -286,7 +272,6 @@ const MemuAppearance = (() => {
     </div>`;
   }
 
-  /* Round20: system vs custom window title bar (titlebar.js + app/win_titlebar.py). */
   function titlebarField(pref) {
     const tb = window.MemuTitlebar;
     const st = tb && typeof tb.state === "function" ? tb.state() : null;
@@ -320,7 +305,7 @@ const MemuAppearance = (() => {
   function syncTheme(theme) {
     document.querySelectorAll('[name="appearance-theme"]').forEach((input) => { input.checked = input.value === theme; });
     applyVariant();
-    // Сетка показывает варианты только текущего режима — перерисовать её.
+
     if (!studio) rerender();
   }
 
@@ -329,8 +314,6 @@ const MemuAppearance = (() => {
     if (!host || !prefFn) return;
     host.outerHTML = render(en() ? "en" : "ru", mode(), prefFn);
   }
-
-  /* -------------------------------- actions ------------------------------- */
 
   async function api(path, body) {
     const response = await fetch(path, {
@@ -350,7 +333,6 @@ const MemuAppearance = (() => {
     rerender();
   }
 
-  /** A theme file edited in an outside editor shows up when the window gets focus back. */
   let lastDiskCheck = 0;
   async function refreshFromDisk() {
     if (studio || preview || !prefFn || Date.now() - lastDiskCheck < 1500) return;
@@ -367,11 +349,10 @@ const MemuAppearance = (() => {
       data = fresh;
       applyVariant();
       rerender();
-    } catch (_) { /* the next focus tries again */ }
+    } catch (_) {  }
   }
   window.addEventListener("focus", refreshFromDisk);
 
-  /** Make a variant the preferred one of its mode and switch to that mode. */
   function useVariant(m, ref) {
     if (!hooks) return;
     hooks.save({ [`surface_${m}`]: normalizeVariant(m, ref) });
@@ -407,7 +388,7 @@ const MemuAppearance = (() => {
   async function themeAction(action, row) {
     const theme = row ? findCustom(row.dataset.themeId) : null;
     if (action === "create") return openStudio(null);
-    if (action === "editor") return window.MemuThemeEditor?.open();   // Round 33: theme-editor.js
+    if (action === "editor") return window.MemuThemeEditor?.open();
     if (action === "import") return document.getElementById("theme-import-file")?.click();
     if (action === "docs") {
       if (window.MemuDocs && typeof MemuDocs.open === "function") MemuDocs.open("themes");
@@ -476,7 +457,7 @@ const MemuAppearance = (() => {
       } else if (input.name === "appearance-variant-dark" || input.name === "appearance-variant-light") {
         useVariant(input.name.endsWith("dark") ? "dark" : "light", input.value);
       } else if (input.name === "appearance-design") {
-        // Round20: motion.js crossfades the whole window (View Transitions) when available.
+
         motionSwap(() => { save({ ui_design: normalizeDesign(input.value) }); applyAll(); }, "design");
       } else if (input.name === "appearance-accent") {
         motionSwap(() => { save({ accent_color: normalizeAccent(input.value) }); applyAll(); }, "accent");
@@ -487,7 +468,7 @@ const MemuAppearance = (() => {
       } else if (input.name === "appearance-titlebar") {
         const value = input.value === "native" ? "native" : "custom";
         save({ ui_titlebar: value });
-        // Switches live: the native hook is installed or removed right away.
+
         if (window.MemuTitlebar) window.MemuTitlebar.setMode(value).then(refreshTitlebarField);
       }
     });
@@ -503,8 +484,6 @@ const MemuAppearance = (() => {
     pane.addEventListener("click", (event) => { if (studio) studioClick(event); });
     pane.addEventListener("keydown", (event) => { if (studio) studioKey(event); });
   }
-
-  /* --------------------------------- studio -------------------------------- */
 
   function splitTheme(css) {
     const body = String(css || "").replace(/^\s*\/\*[\s\S]*?\*\/\s*/, (header) => (/@name\s/.test(header) ? "" : header));
@@ -539,8 +518,7 @@ const MemuAppearance = (() => {
   }
 
   function pushPreview() {
-    // Отложенный (schedulePreview) вызов может сработать уже после «Назад» или
-    // закрытия настроек: студии больше нет, и studio.base бросил бы TypeError.
+
     if (!studio) return;
     preview = { mode: studio.base, extends: studio.extends, css: composeCss() };
     if (mode() !== studio.base && hooks) hooks.setTheme(studio.base, false);
@@ -550,7 +528,7 @@ const MemuAppearance = (() => {
 
   function endPreview() {
     if (!studio && !preview) return;
-    clearTimeout(previewTimer); // недописанный предпросмотр не должен вернуться после выхода
+    clearTimeout(previewTimer);
     const originalMode = studio && studio.originalMode;
     preview = null;
     studio = null;
@@ -718,7 +696,7 @@ const MemuAppearance = (() => {
   }
 
   function studioKey(event) {
-    // Tab inserts indentation in the CSS editor instead of leaving it.
+
     if (event.target.id === "studio-css" && event.key === "Tab" && !event.shiftKey && !event.ctrlKey) {
       event.preventDefault();
       document.execCommand("insertText", false, "  ");

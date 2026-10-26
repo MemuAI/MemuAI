@@ -16,7 +16,6 @@ from tests.panels_browser_test import FIXTURE, ORIGIN, STATIC, _chromium, panel
 NOW = time.time()
 SCHEMA = None
 
-
 def schema():
     global SCHEMA
     if SCHEMA is None:
@@ -24,13 +23,11 @@ def schema():
         SCHEMA = json.loads(json.dumps(panels_options.public_schema()))
     return SCHEMA
 
-
 def todo_item(iid, title, **extra):
     out = {"id": iid, "title": title, "done": False, "done_at": None, "created": NOW, "updated": NOW, "due": "", "priority": 0,
            "tags": [], "notes": "", "subtasks": [], "repeat": None, "remind": "", "reminder": {}, "completed_count": 0}
     out.update(extra)
     return out
-
 
 def snapshot(store):
     tall_items = [{"title": f"Story {i} with a fairly long headline about a release", "url": f"https://n{i}.example/", "source": "Src",
@@ -67,7 +64,6 @@ def snapshot(store):
                    "floor_reasons": {"weather": ["Open-Meteo пересчитывает текущую погоду раз в 15 минут.", "x"]},
                    "local_kinds": ["todo", "notes", "clock", "timers"], "live_kinds": ["system", "timers", "clock"]},
     }
-
 
 @unittest.skipUnless(_chromium(), "Chromium is not installed")
 class PanelsR23BrowserTest(unittest.TestCase):
@@ -150,7 +146,6 @@ class PanelsR23BrowserTest(unittest.TestCase):
     def requests(self, method, prefix=""):
         return [r for r in self.page.evaluate("window.__requests") if r[0] == method and r[1].startswith(prefix)]
 
-    # ------------------------------------------------------------------ layout
     def test_dense_layout_leaves_no_holes(self):
         page = self.page
         holes = page.evaluate("""(() => {
@@ -168,13 +163,13 @@ class PanelsR23BrowserTest(unittest.TestCase):
           }
           return out; })()""")
         self.assertEqual(holes, [])
-        # The short weather card and the card under it share the left column; the stock card is not pushed below the tall news.
+
         weather = page.locator('[data-panel-id="p_weather001"]').bounding_box()
         stock = page.locator('[data-panel-id="p_stock00001"]').bounding_box()
         news = page.locator('[data-panel-id="p_news000001"]').bounding_box()
         self.assertLess(stock["y"], news["y"] + news["height"])
         self.assertLess(stock["y"] - (weather["y"] + weather["height"]), 24)
-        # Sizes: S spans one column, W the whole row; a narrow window keeps cards inside.
+
         page.evaluate("MemuPanels._state.panels.find(p => p.id === 'p_stock00001').size = 'w'; MemuPanels.render()")
         page.wait_for_timeout(100)
         grid = page.locator("#panels-home .mp-grid").bounding_box()
@@ -195,29 +190,27 @@ class PanelsR23BrowserTest(unittest.TestCase):
         self.assertTrue(posts, "drop did not post a new order")
         self.assertEqual(page.locator(".mp-placeholder").count(), 0)
 
-    # --------------------------------------------------------- Tab autocomplete
     def test_tab_accepts_the_idea_ghost_text(self):
         page = self.page
         page.click("#panels-home .panels-home-head [data-mp-act=gallery]")
         page.click(".mp-tpl[data-kind=custom]")
         area = page.locator(".mp-modal [data-ghost]")
         area.click()
-        self.assertTrue(page.locator(".mp-modal .mp-ghost .rest").inner_text())       # empty field shows an idea
+        self.assertTrue(page.locator(".mp-modal .mp-ghost .rest").inner_text())
         page.keyboard.type("Курс зо")
         self.assertEqual(page.locator(".mp-modal .mp-ghost .rest").inner_text(), "лота и его изменение за день")
         page.keyboard.press("Tab")
         self.assertEqual(area.input_value(), "Курс золота и его изменение за день")
-        self.assertTrue(page.evaluate("document.activeElement.matches('[data-ghost]')"))   # Tab did not leave the field
-        # No idea for this text → Tab moves focus as usual.
+        self.assertTrue(page.evaluate("document.activeElement.matches('[data-ghost]')"))
+
         area.fill("zzzz qq")
         page.keyboard.press("Tab")
         self.assertFalse(page.evaluate("document.activeElement.matches('[data-ghost]')"))
-        # An idea chip fills the field.
+
         page.locator(".mp-modal .mp-idea[data-idea]").first.click()
         self.assertGreater(len(area.input_value()), 10)
         self.assertGreaterEqual(page.locator(".mp-modal .mp-idea[data-idea]").count(), 4)
 
-    # ------------------------------------------------------------------- To-Do
     def test_todo_add_toggle_delete_from_the_card(self):
         page = self.page
         card = page.locator('#panels-home [data-panel-id="p_todo000001"]')
@@ -232,13 +225,13 @@ class PanelsR23BrowserTest(unittest.TestCase):
         self.assertEqual(post[2]["title"], "Купить хлеб завтра !1")
         self.assertTrue(post[2]["quick"])
         self.assertEqual(add.input_value(), "")
-        self.assertTrue(page.evaluate("document.activeElement.matches('[data-todo-add]')"))     # focus stays for the next task
-        # Click on the checkbox → PATCH done; the task leaves the open list.
+        self.assertTrue(page.evaluate("document.activeElement.matches('[data-todo-add]')"))
+
         card.locator('[data-todo-item="t_first00001"] [data-todo-toggle]').click()
         page.wait_for_function("!document.querySelector('#panels-home [data-todo-item=t_first00001]')")
         patch = self.requests("PATCH", "/api/pg/panels-todo/l_work000001/items/t_first00001")[-1]
         self.assertEqual(patch[2]["done"], True)
-        # Keyboard: ↓ from the input to the first task, Space toggles, Delete removes.
+
         add.click()
         page.keyboard.press("ArrowDown")
         focused = page.evaluate("document.activeElement.dataset.todoItem")
@@ -246,7 +239,7 @@ class PanelsR23BrowserTest(unittest.TestCase):
         page.keyboard.press("Delete")
         page.wait_for_timeout(200)
         self.assertTrue(self.requests("DELETE", "/api/pg/panels-todo/l_work000001/items/t_second0001"))
-        # Delete inside the card never removes the panel itself.
+
         self.assertEqual(page.locator('#panels-home [data-panel-id="p_todo000001"]').count(), 1)
         self.assertFalse([r for r in self.requests("PATCH", "/api/pg/panels/p_todo000001") if r[2] and "placements" in r[2]])
         self.assertFalse(self.requests("DELETE", "/api/pg/panels/p_todo000001"))
@@ -264,7 +257,6 @@ class PanelsR23BrowserTest(unittest.TestCase):
         page.keyboard.press("Escape")
         self.assertEqual(page.locator(".mp-todo-pop").count(), 0)
 
-    # ---------------------------------------------------------------- cadence
     def test_custom_interval_respects_the_floor_and_explains_it(self):
         page = self.page
         page.evaluate("MemuPanels.openEditor('p_weather001')")
@@ -289,19 +281,18 @@ class PanelsR23BrowserTest(unittest.TestCase):
         page.select_option(".mp-modal [data-mp-cadence]", "times")
         page.fill(".mp-modal [data-time-new]", "19:30")
         page.click(".mp-modal [data-time-add]")
-        page.click('.mp-modal [data-cad-days] [data-day="6"]')        # Sunday off
+        page.click('.mp-modal [data-cad-days] [data-day="6"]')
         page.click(".mp-modal [data-mp-save]")
         page.wait_for_timeout(200)
         body = self.requests("PATCH", "/api/pg/panels/p_weather001")[-1][2]
         self.assertEqual(body["cadence"], {"kind": "times", "at": ["08:00", "19:30"], "days": [0, 1, 2, 3, 4, 5]})
 
-    # ------------------------------------------------------------------ model
     def test_model_per_panel_and_honest_state(self):
         page = self.page
         page.evaluate("MemuPanels.openEditor('p_custom0001')")
         page.click(".mp-modal [data-mp-more] > summary")
         select = page.locator(".mp-modal [data-mp-aimodel]")
-        self.assertTrue(select.is_disabled())                          # no Proxy → no list, an honest note
+        self.assertTrue(select.is_disabled())
         self.assertIn("Proxy", page.locator(".mp-modal [data-mp-aimodel] + small").inner_text())
         page.keyboard.press("Escape")
         page.evaluate("S.models = [{id: 'gpt-x'}, {id: 'claude-y'}]")
@@ -314,7 +305,6 @@ class PanelsR23BrowserTest(unittest.TestCase):
         body = self.requests("PATCH", "/api/pg/panels/p_custom0001")[-1][2]
         self.assertEqual(body["ai_model"], "claude-y")
 
-    # ---------------------------------------------------------------- options
     def test_content_options_reach_the_patch(self):
         page = self.page
         page.evaluate("MemuPanels.openEditor('p_sys0000001')")
@@ -324,16 +314,15 @@ class PanelsR23BrowserTest(unittest.TestCase):
         metrics.locator('[data-v="cores"] input').check()
         page.click('.mp-modal [data-opt="live"] button[data-v="1"]')
         page.wait_for_timeout(300)
-        self.assertTrue(self.requests("POST", "/api/pg/panels-preview"))   # the preview follows the form
+        self.assertTrue(self.requests("POST", "/api/pg/panels-preview"))
         page.click(".mp-modal [data-mp-save]")
         page.wait_for_timeout(200)
         body = self.requests("PATCH", "/api/pg/panels/p_sys0000001")[-1][2]
         self.assertEqual(body["options"]["metrics"], ["cpu", "gpu", "cores", "procs"])
         self.assertEqual(body["options"]["live"], "1")
-        # Advanced options hide behind «Дополнительно» and conditional ones follow their switch.
+
         page.evaluate("MemuPanels.openEditor('p_sys0000001')")
         self.assertFalse(page.locator('.mp-modal [data-opt-wrap="procs_count"]').is_visible())
-
 
 if __name__ == "__main__":
     unittest.main()

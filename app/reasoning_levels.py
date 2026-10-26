@@ -33,27 +33,24 @@ import re
 import threading
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-#: Depth levels from the lightest to the deepest.
 DEPTHS: Tuple[str, ...] = ("minimal", "low", "medium", "high", "xhigh", "max")
-#: Everything a client may store or send.
+
 CHOICES: Tuple[str, ...] = ("auto", "off", "on") + DEPTHS
 ALIASES = {"none": "off", "disabled": "off", "false": "off", "no": "off", "min": "minimal",
            "enabled": "on", "true": "on", "yes": "on", "extra-high": "xhigh", "x-high": "xhigh",
            "ultra": "max", "maximum": "max", "mid": "medium", "default": "auto", "": "auto"}
 KINDS = ("levels", "toggle", "fixed", "none")
 
-#: Qwen-style hybrids have no named levels, only ``thinking_budget`` (tokens): our levels map onto it.
-QWEN_BUDGETS = {"low": 1024, "medium": 4096}            # high = no cap (the model's own maximum)
-#: Anthropic-compatible ``thinking.budget_tokens`` per level (the API minimum is 1024).
+QWEN_BUDGETS = {"low": 1024, "medium": 4096}
+
 CLAUDE_BUDGETS = {"low": 2048, "medium": 8192, "high": 16384, "xhigh": 24576, "max": 32000}
 
-DATA_FILE_OVERRIDES = "reasoning-overrides.json"   # the user's hand-set profiles (Proxy → model card)
-DATA_FILE_LEARNED = "reasoning-learned.json"       # values an API rejected with 400
+DATA_FILE_OVERRIDES = "reasoning-overrides.json"
+DATA_FILE_LEARNED = "reasoning-learned.json"
 
 _lock = threading.Lock()
 _overrides: Optional[Dict[str, Dict[str, Any]]] = None
 _learned: Optional[Dict[str, Dict[str, Any]]] = None
-
 
 def normalize(value: Any) -> str:
     """Any spelling of a level → one of :data:`CHOICES` (unknown → ``auto``)."""
@@ -61,22 +58,17 @@ def normalize(value: Any) -> str:
     text = ALIASES.get(text, text)
     return text if text in CHOICES else "auto"
 
-
-# --------------------------------------------------------------------------- names
-
 _VENDOR = re.compile(r"^(?:[a-z0-9_.-]+/)+")
-
 
 def canonical(model: str) -> str:
     """``qwen/qwen3-8-max:free`` → ``qwen3.8-max``; ``ydx-gpt://f/deepseek-v4.1-flash/latest`` → ``deepseek-v4.1-flash``."""
     name = str(model or "").strip().lower().replace("_", "-")
-    name = re.sub(r"^[a-z][a-z-]*://[^/]+/([^/]+)(?:/.*)?$", r"\1", name)       # Yandex-style uri
-    name = re.sub(r"[:@].*$", "", name)                                          # :free, @think=2
+    name = re.sub(r"^[a-z][a-z-]*://[^/]+/([^/]+)(?:/.*)?$", r"\1", name)
+    name = re.sub(r"[:@].*$", "", name)
     name = _VENDOR.sub("", name)
-    name = re.sub(r"(?<=\d)-(\d)(?=$|-)", r".\1", name)                         # glm-5-3 → glm-5.3
+    name = re.sub(r"(?<=\d)-(\d)(?=$|-)", r".\1", name)
     name = re.sub(r"-(?:latest|preview(?:-\d+)?|\d{4}-?\d{2}-?\d{2}|\d{4})$", "", name)
     return name
-
 
 def _ver(name: str, pattern: str) -> Optional[float]:
     match = re.search(pattern, name)
@@ -87,15 +79,12 @@ def _ver(name: str, pattern: str) -> Optional[float]:
     except (TypeError, ValueError):
         return None
 
-
 def _p(kind: str, levels: Iterable[str] = (), *, off: bool = False, default: str = "", dialect: str = "effort",
        family: str = "", note: str = "", wire: Optional[Dict[str, str]] = None) -> Dict[str, Any]:
     return {"kind": kind, "levels": [x for x in DEPTHS if x in set(levels)], "can_off": bool(off),
             "default": default, "dialect": dialect, "family": family, "note": note, "wire": dict(wire or {})}
 
-
 NONE = _p("none", family="no-reasoning")
-
 
 def _openai(name: str) -> Optional[Dict[str, Any]]:
     """OpenAI (developers.openai.com/api/docs/guides/reasoning, model pages)."""
@@ -115,7 +104,7 @@ def _openai(name: str) -> Optional[Dict[str, Any]]:
     if re.search(r"-chat(?:-|$)|chat-latest", name):
         return _p("fixed", family="gpt-chat", note="chat models reason with a fixed effort")
     if major >= 6:
-        if "sol" in name:   # GPT-6.1 Sol: no none / minimal, default medium (live: minimal → error, xhigh/max OK)
+        if "sol" in name:
             return _p("levels", ("low", "medium", "high", "xhigh", "max"), default="medium", family="gpt-6-sol")
         return _p("levels", ("low", "medium", "high", "xhigh", "max"), default="medium", family="gpt-6",
                   note="GPT-6 does not accept none")
@@ -134,7 +123,6 @@ def _openai(name: str) -> Optional[Dict[str, Any]]:
         return _p("levels", ("low", "medium", "high"), off=True, default="off", family="gpt-5.1", wire={"off": "none"})
     return _p("levels", ("minimal", "low", "medium", "high"), default="medium", family="gpt-5")
 
-
 def _gemini(name: str) -> Optional[Dict[str, Any]]:
     """Gemini (ai.google.dev/gemini-api/docs/thinking, …/docs/openai)."""
     if not name.startswith("gemini"):
@@ -144,7 +132,7 @@ def _gemini(name: str) -> Optional[Dict[str, Any]]:
     version = _ver(name, r"^gemini-(\d+(?:\.\d+)?)") or 0
     if version < 2.5:
         return NONE if version else None
-    if version < 3:      # 2.5: thinking budget; Flash / Flash-Lite may switch it off, Pro may not
+    if version < 3:
         if "pro" in name:
             return _p("levels", ("low", "medium", "high"), default="", family="gemini-2.5-pro")
         return _p("levels", ("low", "medium", "high"), off=True, default="off" if "lite" in name else "",
@@ -155,11 +143,10 @@ def _gemini(name: str) -> Optional[Dict[str, Any]]:
         return _p("levels", ("low", "medium", "high"), default="high", family="gemini-3-pro")
     if "lite" in name:
         return _p("levels", ("minimal", "low", "medium", "high"), default="minimal", family="gemini-3-flash-lite")
-    if version >= 3.7:   # Gemini 3.7 / 3.8 Flash: low / medium / high only — minimal is a 400
+    if version >= 3.7:
         return _p("levels", ("low", "medium", "high"), default="medium", family="gemini-3.7-flash")
     return _p("levels", ("minimal", "low", "medium", "high"), default="medium" if version >= 3.5 else "high",
               family="gemini-3-flash")
-
 
 def _claude(name: str, raw: str) -> Optional[Dict[str, Any]]:
     """Claude (platform.claude.com/docs/en/build-with-claude/effort, adaptive-thinking)."""
@@ -177,10 +164,9 @@ def _claude(name: str, raw: str) -> Optional[Dict[str, Any]]:
     if (tier == "opus" and version >= 4.7) or version >= 5:
         levels.append("xhigh")
     if thinking_id:
-        # A «-thinking» id already reasons; the depth still follows the effort.
+
         return _p("levels", levels, default="high", family="claude-thinking", dialect="claude")
     return _p("levels", levels, off=True, default="off", family="claude", dialect="claude")
-
 
 def _chinese(name: str) -> Optional[Dict[str, Any]]:
     """DeepSeek / Qwen / GLM / Kimi / MiniMax (official docs of each; live-checked through REFORM)."""
@@ -189,8 +175,7 @@ def _chinese(name: str) -> Optional[Dict[str, Any]]:
             return _p("fixed", family="deepseek-r1")
         if re.match(r"deepseek-(?:chat|coder|v2|v3(?!\.[1-9]))", name):
             return NONE
-        # V3.1+ / V4 / flash / pro: thinking.type on/off, reasoning_effort low / high / max
-        # (api-docs.deepseek.com/guides/thinking_mode: minimal→low, medium→high, xhigh→high).
+
         return _p("levels", ("low", "high", "max"), off=True, default="high", family="deepseek",
                   dialect="thinking_type")
     if name.startswith(("qwen", "qwq", "qvq")):
@@ -203,8 +188,7 @@ def _chinese(name: str) -> Optional[Dict[str, Any]]:
         commercial = re.match(r"qwen-(?:plus|flash|turbo)", name)
         if not commercial and version < 3:
             return None
-        # Hybrid: enable_thinking switches thinking; thinking_budget bounds its depth (Model Studio docs).
-        # qwen-plus / qwen-flash / qwen-turbo and qwen3-max think only on request; Qwen 3.5+ think by default.
+
         if commercial or re.match(r"qwen3-max", name):
             default = "off"
         elif re.match(r"qwen3-vl", name):
@@ -215,7 +199,7 @@ def _chinese(name: str) -> Optional[Dict[str, Any]]:
                   note="levels map onto thinking_budget")
     if name.startswith("glm"):
         version = _ver(name, r"^glm-(\d+(?:\.\d+)?)") or 0
-        if version >= 5.3:   # forced thinking (thinking.type=disabled is a 400); reasoning_effort low / high / max
+        if version >= 5.3:
             return _p("levels", ("low", "high", "max"), default="max", family="glm-5.3", dialect="thinking_type")
         if version >= 5.2:
             return _p("levels", ("low", "high", "max"), off=True, default="max", family="glm-5.2", dialect="thinking_type")
@@ -224,7 +208,7 @@ def _chinese(name: str) -> Optional[Dict[str, Any]]:
         return NONE
     if name.startswith("kimi") or name.startswith("moonshot"):
         version = _ver(name, r"kimi-k(\d+(?:\.\d+)?)") or 0
-        if version >= 3:     # kimi-k3: always thinks; reasoning_effort low / high / max (default max)
+        if version >= 3:
             return _p("levels", ("low", "high", "max"), default="max", family="kimi-k3", dialect="thinking_type")
         if "code" in name or "thinking" in name:
             return _p("fixed", family="kimi-thinking")
@@ -235,7 +219,6 @@ def _chinese(name: str) -> Optional[Dict[str, Any]]:
         version = _ver(name, r"minimax-m(\d+(?:\.\d+)?)") or 0
         return _p("fixed", family="minimax") if version >= 1 else None
     return None
-
 
 def _grok(name: str) -> Optional[Dict[str, Any]]:
     """xAI (docs.x.ai/developers/model-capabilities/text/reasoning)."""
@@ -258,7 +241,6 @@ def _grok(name: str) -> Optional[Dict[str, Any]]:
         return NONE
     return None
 
-
 def family_profile(model: str) -> Optional[Dict[str, Any]]:
     """The documented profile of a model family, or ``None`` when the name is not recognised."""
     raw = str(model or "").lower()
@@ -274,16 +256,12 @@ def family_profile(model: str) -> Optional[Dict[str, Any]]:
         return _p("fixed", family="thinking-id", note="a reasoning variant (by name)")
     return None
 
-
 def guess_profile(model: str, reasoning: Optional[bool]) -> Dict[str, Any]:
     """An unknown model: no control without evidence that it reasons; otherwise the common OpenAI scale."""
     if reasoning is True:
         return _p("levels", ("low", "medium", "high"), default="", family="unknown",
                   note="assumed: the common low / medium / high scale")
     return dict(NONE, family="unknown")
-
-
-# --------------------------------------------------------------------------- providers with their own rules
 
 def _antigravity(model: str) -> Optional[Dict[str, Any]]:
     try:
@@ -298,11 +276,11 @@ def _antigravity(model: str) -> Optional[Dict[str, Any]]:
     if upstream in ag.TIERED_UPSTREAM:
         if ag.request_level(name, ""):
             return _p("fixed", family="antigravity-tiered", note="the level is part of the model name")
-        # Gemini 3.7 / 3.8 Flash: thinkingConfig.thinkingLevel low / medium / high ("minimal" is rejected).
+
         return _p("levels", ("low", "medium", "high"), default="medium", family="gemini-3.7-flash",
                   dialect="antigravity")
     if low.startswith("claude") and ag.is_thinking(upstream):
-        # thinkingBudget: 0 switches thinking off, otherwise EFFORT_BUDGETS.
+
         return _p("levels", ("low", "medium", "high", "max"), off=True, default="high", family="claude-thinking",
                   dialect="antigravity")
     if low.startswith(("gemini", "gpt-oss")) or low.startswith("claude"):
@@ -312,22 +290,18 @@ def _antigravity(model: str) -> Optional[Dict[str, Any]]:
         return family
     return None
 
-
 def _web_provider(provider: str, model: str) -> Optional[Dict[str, Any]]:
     """Chat-website providers (Genspark, Gemini web, Grok web, Kiro) cannot be told how deep to think."""
     if provider not in ("genspark", "geminiweb", "grok", "kiro", "gs"):
         return None
     if provider == "geminiweb":
-        # r41-gemini: контрол «Thinking level» Low / Medium / High приложения Gemini (app/providers/geminiweb.py EFFORTS).
+
         return _p("levels", ("low", "medium", "high"), default="medium", family="gemini-web",
                   note="Gemini app Thinking level: high = extended thinking")
     family = family_profile(model)
     if family is None or family["kind"] == "none":
         return dict(NONE, family=(family or {}).get("family") or "no-reasoning")
     return _p("fixed", family=family["family"], note=f"{provider} decides the depth itself")
-
-
-# --------------------------------------------------------------------------- persistence
 
 def _data_dir() -> str:
     try:
@@ -336,7 +310,6 @@ def _data_dir() -> str:
     except Exception:
         return os.environ.get("MEMUAI_DATA_DIR") or "."
 
-
 def _load(name: str) -> Dict[str, Dict[str, Any]]:
     try:
         with open(os.path.join(_data_dir(), name), encoding="utf-8") as stream:
@@ -344,7 +317,6 @@ def _load(name: str) -> Dict[str, Dict[str, Any]]:
         return {str(k): v for k, v in data.items() if isinstance(v, dict)} if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
-
 
 def _store(name: str, data: Dict[str, Any]) -> None:
     path = os.path.join(_data_dir(), name)
@@ -359,14 +331,12 @@ def _store(name: str, data: Dict[str, Any]) -> None:
         except OSError:
             pass
 
-
 def _ensure() -> None:
     global _overrides, _learned
     if _overrides is None:
         _overrides = _load(DATA_FILE_OVERRIDES)
     if _learned is None:
         _learned = _load(DATA_FILE_LEARNED)
-
 
 def reset_cache() -> None:
     """For tests and after the data directory changes."""
@@ -375,12 +345,10 @@ def reset_cache() -> None:
         _overrides = None
         _learned = None
 
-
 def get_override(model_id: str) -> Dict[str, Any]:
     with _lock:
         _ensure()
         return dict((_overrides or {}).get(str(model_id or "")) or {})
-
 
 def set_override(model_id: str, value: Optional[Dict[str, Any]]) -> Dict[str, Any]:
     """The user's own profile for a model (Proxy → model card). ``None`` / ``{}`` returns to automatic."""
@@ -405,19 +373,17 @@ def set_override(model_id: str, value: Optional[Dict[str, Any]]) -> Dict[str, An
             _overrides[str(model_id)] = clean
         else:
             _overrides.pop(str(model_id), None)
-        # A new manual profile also forgives what the API rejected earlier.
+
         _learned.pop(str(model_id), None)
         snapshot, learned = dict(_overrides), dict(_learned)
     _store(DATA_FILE_OVERRIDES, snapshot)
     _store(DATA_FILE_LEARNED, learned)
     return clean
 
-
 def learned(model_id: str) -> Dict[str, Any]:
     with _lock:
         _ensure()
         return dict((_learned or {}).get(str(model_id or "")) or {})
-
 
 def learn_rejection(model_id: str, level: str, *, all_params: bool = False) -> None:
     """The API refused this reasoning value (or every reasoning field) for this model: never send it again."""
@@ -436,7 +402,6 @@ def learn_rejection(model_id: str, level: str, *, all_params: bool = False) -> N
         snapshot = dict(_learned)
     _store(DATA_FILE_LEARNED, snapshot)
 
-
 def learn_reasons(model_id: str) -> None:
     """An unknown model streamed reasoning: it reasons (its levels are then assumed, see :func:`guess_profile`)."""
     with _lock:
@@ -450,7 +415,6 @@ def learn_reasons(model_id: str) -> None:
         snapshot = dict(_learned)
     _store(DATA_FILE_LEARNED, snapshot)
 
-
 def forget_learned(model_id: str) -> None:
     with _lock:
         _ensure()
@@ -459,9 +423,6 @@ def forget_learned(model_id: str) -> None:
         snapshot = dict(_learned)
     _store(DATA_FILE_LEARNED, snapshot)
 
-
-# --------------------------------------------------------------------------- the profile
-
 def _summary_reasoning(model_id: str) -> Optional[bool]:
     try:
         from . import model_capabilities
@@ -469,7 +430,6 @@ def _summary_reasoning(model_id: str) -> Optional[bool]:
         return value if isinstance(value, bool) else None
     except Exception:
         return None
-
 
 def profile(model_id: str, provider: str = "", raw_model: str = "", *,
             reasoning: Optional[bool] = None, use_catalog: bool = True,
@@ -502,7 +462,7 @@ def profile(model_id: str, provider: str = "", raw_model: str = "", *,
             result = family_profile(model_id)
     if result is None:
         if reasoning is None and learned(model_id).get("reasons"):
-            reasoning = True          # it streamed reasoning before (see learn_reasons)
+            reasoning = True
         if reasoning is None and use_catalog:
             reasoning = _summary_reasoning(model_id)
         result = guess_profile(raw, reasoning)
@@ -529,7 +489,6 @@ def profile(model_id: str, provider: str = "", raw_model: str = "", *,
     result["options"] = options(result)
     return result
 
-
 def options(prof: Dict[str, Any]) -> List[str]:
     """What a picker shows for this profile, in order (``auto`` always first; empty = no control)."""
     kind = prof.get("kind")
@@ -543,7 +502,6 @@ def options(prof: Dict[str, Any]) -> List[str]:
     out += [x for x in DEPTHS if x in (prof.get("levels") or [])]
     return out
 
-
 def clamp(level: Any, prof: Dict[str, Any]) -> str:
     """A requested level → the nearest one the model accepts (``auto`` when there is nothing to choose)."""
     level = normalize(level)
@@ -555,7 +513,7 @@ def clamp(level: Any, prof: Dict[str, Any]) -> str:
     if level == "off":
         if can_off:
             return "off"
-        return levels[0] if levels else "auto"      # cannot switch off: the lightest it has
+        return levels[0] if levels else "auto"
     if kind == "toggle":
         return "on"
     if level == "on":
@@ -568,14 +526,13 @@ def clamp(level: Any, prof: Dict[str, Any]) -> str:
     if not levels:
         return "auto"
     if level == "minimal" and can_off and "minimal" not in levels:
-        # «As little as possible»: switching off is the documented counterpart (GPT-5 → 5.1, Gemini 3 → 2.5).
+
         return "off"
     if level == "max":
         return levels[-1]
     index = DEPTHS.index(level)
     best = min(levels, key=lambda x: (abs(DEPTHS.index(x) - index), -DEPTHS.index(x)))
     return best
-
 
 def resolve(prof: Dict[str, Any], thinking: Any = None, effort: Any = None) -> str:
     """What to ask for: ``""`` (send nothing — the model decides), ``off``, ``on`` or a depth level.
@@ -590,21 +547,14 @@ def resolve(prof: Dict[str, Any], thinking: Any = None, effort: Any = None) -> s
         return clamp("on", prof)
     return ""
 
-
 def wire_value(prof: Dict[str, Any], level: str) -> str:
     return str((prof.get("wire") or {}).get(level) or level)
 
-
-# --------------------------------------------------------------------------- request fields
-
-#: Fields this module may write; removed before a retry without reasoning.
 OWN_FIELDS = ("reasoning_effort", "enable_thinking", "thinking_budget", "thinking", "reasoning")
-
 
 def _host(base_url: str) -> str:
     match = re.match(r"^[a-z]+://([^/:]+)", str(base_url or "").lower())
     return match.group(1) if match else ""
-
 
 def dialect_for(prof: Dict[str, Any], base_url: str = "") -> str:
     host = _host(base_url)
@@ -618,9 +568,8 @@ def dialect_for(prof: Dict[str, Any], base_url: str = "") -> str:
     if "dashscope" in host or "aliyuncs" in host or "qwencloud" in host:
         return "qwen"
     if explicit == "claude":
-        return "effort"   # gateways map reasoning_effort onto Claude's thinking / effort
+        return "effort"
     return explicit
-
 
 def apply_openai_compatible(body: Dict[str, Any], prof: Dict[str, Any], level: str,
                             base_url: str = "") -> Dict[str, Any]:
@@ -666,7 +615,7 @@ def apply_openai_compatible(body: Dict[str, Any], prof: Dict[str, Any], level: s
             put("thinking", {"type": "enabled"})
         if depth and prof.get("kind") == "levels":
             put("reasoning_effort", wire_value(prof, depth))
-    else:   # effort: OpenAI, Gemini, xAI and the gateways in front of Claude
+    else:
         if off:
             value = wire_value(prof, "off")
             if value != "off":
@@ -677,18 +626,15 @@ def apply_openai_compatible(body: Dict[str, Any], prof: Dict[str, Any], level: s
             put("reasoning_effort", "medium")
     return info
 
-
 def strip_fields(body: Dict[str, Any], fields: Iterable[str]) -> Dict[str, Any]:
     clean = dict(body)
     for key in fields:
         clean.pop(key, None)
     return clean
 
-
 _REJECT_HINT = re.compile(r"reason|effort|think|budget|enable_thinking|unsupported value|not supported|"
                           r"invalid (?:value|argument)|unknown (?:field|parameter)|extra (?:inputs|fields)|"
                           r"does not support parameter|no available accounts|запрос отклон", re.I)
-
 
 def looks_like_rejection(status: int, text: str) -> bool:
     """Did the API refuse the request because of a reasoning field? (400/422; some gateways answer 503.)"""
@@ -697,9 +643,6 @@ def looks_like_rejection(status: int, text: str) -> bool:
     if status == 503:
         return bool(re.search(r"no available accounts", text or "", re.I))
     return False
-
-
-# --------------------------------------------------------------------------- one call for every surface
 
 def for_request(model_id: str, provider: str, raw_model: str, params: Dict[str, Any]) -> Dict[str, Any]:
     """Normalise ``params`` of a Proxy request in place: ``effort`` becomes a supported level (or is removed),
@@ -717,17 +660,14 @@ def for_request(model_id: str, provider: str, raw_model: str, params: Dict[str, 
         params["effort"] = clamped
     return prof
 
-
 def public(prof: Dict[str, Any]) -> Dict[str, Any]:
     """The part of a profile a client needs (pickers, badges)."""
     return {key: prof.get(key) for key in ("kind", "levels", "can_off", "default", "options", "source",
                                             "family", "note", "rejected")}
 
-
 def profile_for_catalog(entry: Any) -> Dict[str, Any]:
     """Profile of a Proxy catalogue entry (``.id``, ``.provider``, ``.model``)."""
     return public(profile(getattr(entry, "id", ""), getattr(entry, "provider", ""), getattr(entry, "model", "")))
-
 
 def reasoning_levels(model_id: str, provider: str = "", raw_model: str = "") -> List[str]:
     """For other modules (unified model picker, characters…): the picker options of a model."""

@@ -41,7 +41,6 @@ COMPACT_SYSTEM = (
     "code that can be re-read from disk. Distinguish finished work from proposals. Output only the summary."
 )
 
-
 def context_usage(runtime: "Runtime", system: str = "", tools_text: str = "") -> Dict[str, Any]:
     window = runtime.effective_window()
     messages = runtime.session.api_messages()
@@ -52,7 +51,6 @@ def context_usage(runtime: "Runtime", system: str = "", tools_text: str = "") ->
     }
     total = sum(parts.values())
     return {"window": window, "total": total, "parts": parts, "share": total / window if window else 0.0}
-
 
 def context_breakdown(runtime: "Runtime") -> Dict[str, Any]:
     """What the next request would carry, by part — shared by /context and the footer."""
@@ -82,12 +80,11 @@ def context_breakdown(runtime: "Runtime") -> Dict[str, Any]:
     if (measured and measured.get("model") == runtime.model
             and measured.get("epoch", runtime.session.context_epoch) == runtime.session.context_epoch
             and 0 < measured.get("messages", 0) <= len(messages)):
-        # The provider counted the last request itself: that number, plus the answer it produced
-        # and whatever was added to the conversation since, is the real size of the next request.
+
         added = estimate_messages(messages[measured["messages"]:])
         used, source = int(measured["input"]) + added, "provider"
         if estimate > 0 and used > 0:
-            # The parts keep their proportions and add up to the measured total.
+
             scale = used / estimate
             parts = {key: int(round(value * scale)) for key, value in parts.items()}
     threshold = int(runtime.settings.get("auto_compact_threshold") or 85) / 100
@@ -95,12 +92,10 @@ def context_breakdown(runtime: "Runtime") -> Dict[str, Any]:
     return {"window": window, "used": used, "share": used / window if window else 0.0, "parts": parts,
             "buffer": buffer, "free": max(0, window - used - buffer), "source": source, "estimate": estimate}
 
-
 def _round_starts(messages: List[Dict[str, Any]]) -> List[int]:
     """Indexes where a user prompt starts a new exchange."""
     return [index for index, message in enumerate(messages)
             if message.get("role") == "user" and message.get("kind") in ("prompt", "command", "bash", "summary")]
-
 
 def elide_old_results(runtime: "Runtime", *, force: bool = False) -> int:
     """Stub out big tool results older than the last few assistant rounds."""
@@ -114,14 +109,11 @@ def elide_old_results(runtime: "Runtime", *, force: bool = False) -> int:
            and len(str(message.get("content") or "")) >= ELIDE_MIN_CHARS]
     return runtime.session.elide(ids)
 
-
 def _cut_index(messages: List[Dict[str, Any]], keep: int) -> int:
     """Where the verbatim tail starts: a user prompt, so no tool round is split."""
     starts = _round_starts(messages)
     tail_budget = max(2, keep)
-    # The previous summary (first in the model's view) is not something to cut
-    # after: covering only it moved ``covers_until`` onto the old summary and
-    # silently dropped the verbatim tail that summary had kept.
+
     leading = 1 if messages and messages[0].get("kind") == "summary" else 0
     cut = 0
     if starts:
@@ -131,10 +123,7 @@ def _cut_index(messages: List[Dict[str, Any]], keep: int) -> int:
             cut = starts[1]
     if cut > leading:
         return cut
-    # One long autonomous turn has a single user prompt, so there was never a
-    # place to cut and auto-compaction failed until the request overflowed.
-    # The start of an assistant message is also a safe boundary: the tool
-    # results of the previous round all come before it.
+
     rounds = [index for index, message in enumerate(messages)
               if index > leading and message.get("role") == "assistant"
               and not message.get("ui_only")]
@@ -142,7 +131,6 @@ def _cut_index(messages: List[Dict[str, Any]], keep: int) -> int:
         return 0
     fitting = [index for index in rounds if len(messages) - index <= tail_budget * 4]
     return fitting[0] if fitting else rounds[-1]
-
 
 def render_transcript(messages: List[Dict[str, Any]], limit: int = 180_000) -> str:
     rows: List[str] = []
@@ -165,13 +153,11 @@ def render_transcript(messages: List[Dict[str, Any]], limit: int = 180_000) -> s
         text = text[:limit // 3] + "\n\n…[middle of the transcript omitted]…\n\n" + text[-(limit * 2 // 3):]
     return text
 
-
 def _short_args(args: Dict[str, Any]) -> str:
     for key in ("file_path", "path", "command", "pattern", "query", "url", "description"):
         if args.get(key):
             return str(args[key])[:120]
     return ""
-
 
 async def compact(runtime: "Runtime", *, instructions: str = "", reason: str = "manual") -> Dict[str, Any]:
     session = runtime.session
@@ -192,8 +178,7 @@ async def compact(runtime: "Runtime", *, instructions: str = "", reason: str = "
     focus = instructions.strip()
     if outcome.context:
         focus = (focus + "\n" + "\n".join(outcome.context)).strip()
-    # The summary request must itself fit the model: a 32k-context model got up to 180 000 characters (≈ 60k
-    # tokens) and the compaction failed exactly when it was needed. About half the window, ~3 characters a token.
+
     try:
         window = int(runtime.effective_window() or 0)
     except Exception:
@@ -202,8 +187,7 @@ async def compact(runtime: "Runtime", *, instructions: str = "", reason: str = "
     input_budget = max(1024, window - output_tokens - estimate_text(COMPACT_SYSTEM) - 512) if window else 60_000
     limit = min(180_000, input_budget * 3)
     suffix = "\n\nThe user asked to focus the summary on: " + focus if focus else ""
-    # CJK/code can cost far more than one token per three characters. Measure the
-    # actual transcript and reserve output space, including on 8k local models.
+
     for _ in range(12):
         user = "<transcript>\n" + render_transcript(older, limit=limit) + "\n</transcript>" + suffix
         cost = estimate_text(user)
@@ -231,19 +215,12 @@ async def compact(runtime: "Runtime", *, instructions: str = "", reason: str = "
     return {"ok": True, "before": before_tokens, "after": after_tokens, "summarized": len(older),
             "seconds": time.monotonic() - started, "summary": summary}
 
-
-#: Round 32 — token economy. Every round re-sends the whole history, so old big tool results cost again and
-#: again long before the window is full. Past ``context_budget`` tokens (default below) the old large results are
-#: stubbed in one batch; the next batch waits until the context grew by ELIDE_STEP of the budget again, so a
-#: provider's prompt cache is broken rarely, not on every round.
 DEFAULT_CONTEXT_BUDGET = 40_000
 ELIDE_STEP = 0.35
-#: ...and by at least this many tokens: with a small ``context_budget`` 35 % of it is less than one big Read, and
-#: a live run folded one result every other round (the provider's cache broke each time: 52 % cached vs 73 %).
-ELIDE_MIN_STEP = 10_000
-#: The Proxy accepts at most 5000 messages per request (500 before Round 32): compact well before that.
-MAX_MESSAGES = 1500
 
+ELIDE_MIN_STEP = 10_000
+
+MAX_MESSAGES = 1500
 
 def elide_threshold(runtime: "Runtime", window: int) -> int:
     """Tokens of context past which old large tool results are stubbed (0 = only the share of the window)."""
@@ -256,7 +233,6 @@ def elide_threshold(runtime: "Runtime", window: int) -> int:
     if budget <= 0:
         return by_share
     return min(by_share, budget) if by_share else budget
-
 
 async def optimize(runtime: "Runtime", system: str, tools_text: str) -> Optional[Dict[str, Any]]:
     """Called before every request of the main agent."""

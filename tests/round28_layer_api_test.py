@@ -50,7 +50,6 @@ R27_FILE = {
     ],
 }
 
-
 class FakeLayer:
     def __init__(self):
         self.visible = True
@@ -103,7 +102,6 @@ class FakeLayer:
     def destroy(self):
         pass
 
-
 class FakeManager:
     native_ok = True
 
@@ -134,7 +132,6 @@ class FakeManager:
         self.commands.append((action, on))
         return {"ok": True, "action": action, **self.layer.public()}
 
-
 class Base(unittest.TestCase):
     def setUp(self):
         from fastapi import FastAPI
@@ -159,7 +156,6 @@ class Base(unittest.TestCase):
     def write_r27(self):
         (Path(self.tmp) / "quick_canvas.json").write_text(json.dumps(R27_FILE, ensure_ascii=False), encoding="utf-8")
 
-
 class MigrationAndRoutes(Base):
     def test_round27_file_is_migrated_without_losing_anything(self):
         self.write_r27()
@@ -173,13 +169,13 @@ class MigrationAndRoutes(Base):
         doc = qc.load()
         self.assertEqual(doc["version"], 2)
         self.assertEqual(set(doc["layer"]["default"]["items"]), {"i_r27panel1", "i_r27btn001", "i_r27btn002"})
-        # the first write persists the migration
+
         self.client.post("/api/quick/canvas/settings", json={"settings": {"labels": False}})
         raw = json.loads((Path(self.tmp) / "quick_canvas.json").read_text(encoding="utf-8"))
         self.assertEqual(raw["version"], 2)
         self.assertEqual(raw["layer"]["migrated"], "r27-grid")
         self.assertEqual(raw["settings"]["screen"], "last")
-        # a usual Round 27 default («usual input») → the layer simply shows with Quick Ask
+
         self.assertEqual(qc.normalize_settings({"open_mode": "input"})["screen"], "show")
         self.assertEqual(qc.normalize_settings({"open_mode": "canvas"})["screen"], "show")
 
@@ -191,10 +187,10 @@ class MigrationAndRoutes(Base):
                                                                   "panels": ["p_weather"]}).json()
         self.assertEqual(len(out["items"]), 3)
         self.assertEqual(out["hidden"], 0)
-        # a panel MemuAI no longer has is not drawn
+
         gone = self.client.post("/api/quick/layer/resolve", json={"monitor": monitor, "keepout": keepout, "panels": []}).json()
         self.assertEqual({i["type"] for i in gone["items"]}, {"action"})
-        # move: the panel goes to the bottom-left and becomes L; the others stay
+
         rows = [{"id": i["id"], "x": i["x"], "y": i["y"], "units": i["units"]} for i in out["items"]]
         for r in rows:
             if r["id"] == "i_r27panel1":
@@ -208,12 +204,12 @@ class MigrationAndRoutes(Base):
         self.assertIn("1920x1080@96", doc["layer"]["monitors"])
         self.assertNotIn("migrated", doc["layer"])
         self.assertEqual(next(i for i in doc["layout"]["items"] if i["id"] == "i_r27panel1")["h"], 4)
-        # another (smaller, HiDPI) monitor adapts from that arrangement: inside, no overlaps
+
         small = self.client.post("/api/quick/layer/resolve", json={"monitor": {"key": "1366x768@120", "w": 1092, "h": 582}}).json()
         for i in small["items"]:
             self.assertTrue(0 <= i["x"] and i["x"] + i["w"] <= 1092 and 0 <= i["y"] and i["y"] + i["h"] <= 582, i)
             self.assertEqual(i["source"], "adapted")
-        # garbage
+
         bad = self.client.post("/api/quick/layer/resolve", json={"monitor": {"key": "../../etc", "w": "x"}}).json()
         self.assertEqual(bad["monitor"]["key"], "default")
         self.assertFalse(self.client.post("/api/quick/layer/move", json={"monitor": monitor, "items": [{"id": "i_nope", "x": 1, "y": 1}]}).json()["saved"])
@@ -241,7 +237,7 @@ class MigrationAndRoutes(Base):
         self.client.post("/api/quick/layer", json={"action": "toggle"})
         self.client.post("/api/quick/layer", json={"action": "edit", "on": True})
         self.assertEqual(self.manager.commands, [("toggle", False), ("edit", True)])
-        # relay: whitelisted events only, JSON-safe, into the right window
+
         self.assertEqual(self.client.post("/api/quick/layer/relay", json={"to": "quick", "event": "eval", "data": {}}).status_code, 400)
         self.assertEqual(self.client.post("/api/quick/layer/relay", json={"to": "main", "event": "run", "data": {}}).status_code, 400)
         out = self.client.post("/api/quick/layer/relay", json={"to": "quick", "event": "run", "id": "m1", "data": {"id": "a_x</script>"}}).json()
@@ -251,7 +247,7 @@ class MigrationAndRoutes(Base):
         out = self.client.post("/api/quick/layer/relay", json={"to": "layer", "event": "reload", "id": "m2"}).json()
         self.assertTrue(out["relayed"])
         self.assertEqual(self.layer.relayed[-1]["event"], "reload")
-        # the click that only finished opening the layer runs nothing
+
         self.layer.click_ok = False
         pushed = len(self.manager.pushed)
         out = self.client.post("/api/quick/layer/relay", json={"to": "quick", "event": "run", "id": "m3", "data": {"id": "a_1"}}).json()
@@ -268,9 +264,6 @@ class MigrationAndRoutes(Base):
         self.assertFalse(self.client.post("/api/quick/layer/relay", json={"to": "quick", "event": "run", "data": {}}).json()["relayed"])
         self.assertFalse(self.client.post("/api/quick/layer/region", json={"rects": []}).json()["ok"])
         self.assertFalse(self.client.post("/api/quick/layer", json={"action": "toggle"}).json()["ok"])
-
-
-# ---------------------------------------------------------------- the native manager with a fake Win32
 
 class FakeWin32:
     def __init__(self, cursor=(100, 100)):
@@ -311,7 +304,6 @@ class FakeWin32:
     CreateRoundRectRgn = None
     SetWindowRgn = None
 
-
 class Manager(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="r28mgr-")
@@ -338,11 +330,11 @@ class Manager(unittest.TestCase):
 
     def test_opens_on_the_cursor_monitor_even_after_a_drag(self):
         self.drag_to_top_right_of(0)
-        self.m.api._cursor = (-1000, 300)                          # the user now works on the left monitor
+        self.m.api._cursor = (-1000, 300)
         g = self.m._initial_geometry(self.prefs)
         self.assertEqual(g["monitor"], 1, "Round 27 reopened on the monitor of the drag forever")
         self.assertEqual(g["scale"], 1.5)
-        self.assertEqual(g["x"] + g["w"], 0 - round(core.SCREEN_MARGIN * 1.5))     # the same corner, that monitor
+        self.assertEqual(g["x"] + g["w"], 0 - round(core.SCREEN_MARGIN * 1.5))
         state = quick_ask.load_state()
         self.assertIn("1920x1080@96", state["monitor_spots"])
 
@@ -369,7 +361,7 @@ class Manager(unittest.TestCase):
         self.m.api.rects[556] = (-2000, 0, -100, 900)
         self.m.api._cursor = (300, 300)
         self.assertEqual(self.m._initial_geometry(self.prefs, 556)["monitor"], 1)
-        # a pinned window is a workspace: it reopens where it was left, whatever the setting
+
         self.prefs["quick_ask_monitor"] = "cursor"
         self.drag_to_top_right_of(0)
         self.m.pinned = True
@@ -392,10 +384,10 @@ class Manager(unittest.TestCase):
         self.m.layer = layer
         self.m.visible = True
         self.m.form = None
-        # a click on the layer is not «the user went to another program»
+
         self.m.api.foreground = layer.hwnd
         self.assertFalse(self.m.step_back())
-        # Escape: the layer window is one of ours
+
         from app import win_hotkey
         own = {}
         old = win_hotkey.escape_should_close
@@ -436,14 +428,13 @@ class Manager(unittest.TestCase):
         win = (ROOT / "app" / "quick_features_win.py").read_text(encoding="utf-8")
         self.assertIn("layer_excluded = manager._affinity(layer_hwnd, WDA_EXCLUDEFROMCAPTURE)", win)
 
-
 class Wiring(unittest.TestCase):
     def test_static_files_versions_and_build(self):
         static = ROOT / "app" / "pgstatic"
         for name in ("quick/layer.html", "quick/layer.js", "quick/layer.css", "quick/quick-bus.js"):
             self.assertTrue((static / name).exists(), name)
         html = (static / "quick" / "layer.html").read_text(encoding="utf-8")
-        self.assertRegex(html, r"layer\.js\?v=1\.\d+-r(28|29|30)")      # Round 29/30 (panels) bumped it
+        self.assertRegex(html, r"layer\.js\?v=1\.\d+-r(28|29|30)")
         self.assertIn("quick-bus.js?v=1.0-r28", (static / "quick" / "index.html").read_text(encoding="utf-8"))
         manifest = json.loads((static / "quick" / "plugins" / "index.json").read_text(encoding="utf-8"))
         canvas = next(p for p in manifest["plugins"] if p["id"] == "canvas")
@@ -452,7 +443,7 @@ class Wiring(unittest.TestCase):
             text = (ROOT / spec).read_text(encoding="utf-8")
             self.assertIn("app.quick_layer", text, spec)
             self.assertIn("app.quick_layer_core", text, spec)
-        # Round 31: the release number moves (3.1 → 3.5); only its single-source form is checked.
+
         self.assertRegex((ROOT / "app" / "version.py").read_text(encoding="utf-8"), r'APP_VERSION = "\d+\.\d+"', "one APP_VERSION")
 
     def test_every_layer_string_has_both_languages(self):
@@ -463,7 +454,6 @@ class Wiring(unittest.TestCase):
         for ru, en in pairs:
             self.assertTrue(re.search("[а-яА-ЯёЁ]", ru) or not re.search("[A-Za-z]{3,}", ru), ru)
             self.assertFalse(re.search("[а-яА-ЯёЁ]", en), en)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -21,14 +21,11 @@ from . import ask_user as au
 
 log = logging.getLogger("memuai.telegram.ask_user")
 
-#: one pending form per Telegram chat: chat_id → state
 _ACTIVE: Dict[str, Dict[str, Any]] = {}
-WAIT_TIMEOUT = 420.0          # the bot's update handler lives at most 600 s; after this the model decides itself
-
+WAIT_TIMEOUT = 420.0
 
 def _tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 def new_state(form_id: str, form: Dict[str, Any], lang: str = "ru") -> Dict[str, Any]:
     values: Dict[str, Any] = {}
@@ -41,7 +38,6 @@ def new_state(form_id: str, form: Dict[str, Any], lang: str = "ru") -> Dict[str,
                 values[f["id"]] = list(f["default"]) if isinstance(f["default"], list) else f["default"]
     return {"id": form_id, "tag": form_id[-6:], "form": form, "lang": "en" if lang == "en" else "ru",
             "values": values, "other": other, "awaiting": None, "message_id": 0, "error": ""}
-
 
 def _value_text(state: Dict[str, Any], field: Dict[str, Any]) -> str:
     lang = state["lang"]
@@ -64,7 +60,6 @@ def _value_text(state: Dict[str, Any], field: Dict[str, Any]) -> str:
     if field["type"] == "number" and field.get("unit"):
         return f"{value} {field['unit']}"
     return str(value)
-
 
 def render(state: Dict[str, Any]) -> (str, Dict[str, Any]):
     """(HTML text, inline keyboard) of the pending form."""
@@ -120,7 +115,6 @@ def render(state: Dict[str, Any]) -> (str, Dict[str, Any]):
                  {"text": "⏭ " + _tr(lang, "Пропустить — решай сам", "Skip — you decide"), "callback_data": cb("skip")}])
     return "\n".join(lines), {"inline_keyboard": rows}
 
-
 def collect(state: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for f in state["form"].get("fields") or []:
@@ -136,7 +130,6 @@ def collect(state: Dict[str, Any]) -> Dict[str, Any]:
         elif value is not None and value != "":
             out[fid] = value
     return out
-
 
 def on_callback(state: Dict[str, Any], op: str) -> Dict[str, Any]:
     """Apply one button press. → {changed?, ask_text?, submit?, skip?}"""
@@ -190,7 +183,6 @@ def on_callback(state: Dict[str, Any], op: str) -> Dict[str, Any]:
         return {"changed": True, "ask_text": field["label"]}
     return {}
 
-
 def on_text(state: Dict[str, Any], text: str) -> Dict[str, Any]:
     """A reply message: fills the awaited field, or (nothing awaited) is the answer itself."""
     text = str(text or "").strip()
@@ -199,7 +191,7 @@ def on_text(state: Dict[str, Any], text: str) -> Dict[str, Any]:
     awaiting = state.get("awaiting")
     fields = state["form"].get("fields") or []
     if not awaiting:
-        # One text-like field and nothing else: the message is its value; otherwise a free reply in words.
+
         free = [f for f in fields if f["type"] in ("text", "number", "date")]
         if len(fields) == 1 and free:
             awaiting = free[0]["id"]
@@ -226,14 +218,11 @@ def on_text(state: Dict[str, Any], text: str) -> Dict[str, Any]:
     state["error"] = ""
     return {"changed": True}
 
-
-# ---------------------------------------------------------------- bot side
 def claims_message(chat_id: str, message: Dict[str, Any]) -> bool:
     """A text message while a form waits in this chat answers the form (commands still go to the bot)."""
     state = _ACTIVE.get(str(chat_id))
     text = str((message or {}).get("text") or "").strip()
     return bool(state and text and not text.startswith("/"))
-
 
 async def _edit(api: Any, chat_id: str, state: Dict[str, Any], *, final: str = "") -> None:
     if not state.get("message_id"):
@@ -245,10 +234,9 @@ async def _edit(api: Any, chat_id: str, state: Dict[str, Any], *, final: str = "
     try:
         await api.call("editMessageText", chat_id=chat_id, message_id=int(state["message_id"]), text=text,
                        parse_mode="HTML", reply_markup=markup)
-    except Exception as exc:          # «message is not modified» and the like
+    except Exception as exc:
         if "not modified" not in str(exc):
             log.debug("ask_user edit failed: %s", type(exc).__name__)
-
 
 def _final_text(state: Dict[str, Any], record: Dict[str, Any]) -> str:
     lang = state["lang"]
@@ -257,7 +245,6 @@ def _final_text(state: Dict[str, Any], record: Dict[str, Any]) -> str:
     head = "✅ " if status == "answered" else "⏭ "
     title = html.escape(form.get("question") or _tr(lang, "Уточнение", "Question"))
     return f"{head}<b>{title}</b>\n" + html.escape(au.summary(form, record.get("answers") or {}, status, lang))
-
 
 async def ask(api: Any, chat_id: str, args: Any, *, lang: str = "ru", title: str = "",
               stop: Optional[asyncio.Event] = None, timeout: float = WAIT_TIMEOUT) -> Dict[str, Any]:
@@ -291,11 +278,10 @@ async def ask(api: Any, chat_id: str, args: Any, *, lang: str = "ru", title: str
     await _edit(api, chat_id, state, final=_final_text(state, settled))
     status = str(settled.get("status") or "cancelled")
     out = au.tool_result(record["form"], settled.get("answers"), status)
-    # the caller pops this and saves it with the answer (the MemuAI window shows it as an answered form)
+
     out["_chat_entry"] = {"id": record["id"], "form": record["form"], "status": status,
                           "answers": settled.get("answers"), "via": "telegram"}
     return out
-
 
 async def _settle(api: Any, chat_id: str, state: Dict[str, Any], status: str, answers: Any = None) -> bool:
     record, errors = await asyncio.to_thread(au.STORE.settle, state["id"], status, answers)
@@ -305,7 +291,6 @@ async def _settle(api: Any, chat_id: str, state: Dict[str, Any], status: str, an
         await _edit(api, chat_id, state)
         return False
     return record is not None
-
 
 async def handle_callback(api: Any, chat_id: str, data: str) -> str:
     """``au:<tag>:<op>`` button → toast text ('' = none)."""
@@ -324,7 +309,6 @@ async def handle_callback(api: Any, chat_id: str, data: str) -> str:
         await _edit(api, chat_id, state)
     return ("✍️ " + _tr(state["lang"], "Напишите ответ сообщением", "Reply with a message")) if result.get("ask_text") else ""
 
-
 async def handle_message(api: Any, chat_id: str, message: Dict[str, Any]) -> bool:
     state = _ACTIVE.get(str(chat_id))
     if not state:
@@ -335,7 +319,6 @@ async def handle_message(api: Any, chat_id: str, message: Dict[str, Any]) -> boo
     elif result.get("changed"):
         await _edit(api, chat_id, state)
     return True
-
 
 def cancel_chat(chat_id: str) -> None:
     """Stop / a new chat: the waiting form is closed (the waiter gets ``cancelled``)."""

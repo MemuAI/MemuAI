@@ -1,26 +1,9 @@
-/* MemuAI — единый менеджер всплывающих слоёв (Round 24, r24-quick-settings).
 
-   window.MemuLayers:
-     open({el, anchor, owner?, close(reason), kind?, focus?}) → handle   — регистрирует открытый слой.
-         Открытие нового слоя закрывает все остальные (кроме «родителя»: если anchor лежит внутри уже
-         открытого слоя — это вложенное меню). close(reason) обязан спрятать слой (reason: "outside" |
-         "escape" | "blur" | "resize" | "scroll" | "detached" | "replaced" | "nav" | "api").
-     close(el | handle, reason?)   — закрыть конкретный слой;   closeAll(reason?) — закрыть все.
-     isOpen(el?)                    — открыт ли (любой) слой.
-     place(menu, anchor, {gap, maxHeight, minWidth, width, boundary, align}) — позиционирование ВНУТРИ вьюпорта
-         (и внутри boundary, если задан): вниз, а если не влезает и сверху больше места — вверх.
-     listKeys(menu, itemSelector, event) → bool — стрелки/Home/End/Enter для списка; true = событие обработано.
-     addCloser(fn) — внешний «закрыватель» (старые меню, у которых своя логика), вызывается в closeAll.
-     float(el, anchor, opts) / unfloat(el) — r41: перенести слой в общий верхний слой (body, fixed, флип) и вернуть.
-     sweep() — убрать «висящие» узлы: меню, перенесённые в <body>, чей владелец исчез из DOM.
 
-   Глобально: pointerdown вне слоя и его якоря, Escape (закрывает верхний слой и гасит событие, чтобы
-   настройки не закрыли заодно подстраницу), blur окна, resize, прокрутка вне слоя, скрытие вкладки,
-   смена раздела настроек (sx:sub / клик по разделу), исчезновение якоря из DOM (перерисовка). */
 (function () {
   "use strict";
   if (window.MemuLayers) return;
-  const stack = [];            // [{el, anchor, owner, close, kind, focus}]
+  const stack = [];
   const closers = new Set();
   let observer = null;
   let sweepFrame = 0;
@@ -29,8 +12,8 @@
   const find = (x) => stack.findIndex((l) => l === x || l.el === x || l.anchor === x);
 
   function safeClose(layer, reason) {
-    try { layer.close && layer.close(reason); } catch (e) { /* закрыватель не должен ломать остальные */ }
-    // Слой, перенесённый в body, чей якорь пропал, удаляем совсем — иначе он «висит» навсегда.
+    try { layer.close && layer.close(reason); } catch (e) {  }
+
     if (reason === "detached" && layer.el && layer.el.parentNode === document.body && !(layer.anchor && layer.anchor.isConnected)) {
       try { layer.el.remove(); } catch (e) {}
     }
@@ -45,7 +28,7 @@
   function close(x, reason = "api") {
     const i = find(x);
     if (i < 0) return false;
-    // Закрываем и всех «детей» выше по стеку.
+
     const removed = stack.splice(i);
     for (let k = removed.length - 1; k >= 0; k--) safeClose(removed[k], reason);
     if (!stack.length) stopObserver();
@@ -64,7 +47,7 @@
     if (!o || !o.el) return null;
     const existing = find(o.el);
     if (existing >= 0) stack.splice(existing, 1);
-    // Родитель — открытый слой, внутри которого лежит якорь нового (вложенное меню).
+
     let keep = 0;
     for (let i = 0; i < stack.length; i++) if (contains(stack[i].el, o.anchor)) keep = i + 1;
     const removed = stack.splice(keep);
@@ -80,7 +63,6 @@
 
   function top() { prune(); return stack[stack.length - 1] || null; }
 
-  /* Слой, который чужой код уже спрятал (display:none / убрал из DOM), не должен «съедать» Escape и клики. */
   function alive(l) {
     const el = l.el;
     if (!el || !el.isConnected || el.hidden) return false;
@@ -93,7 +75,6 @@
     if (!stack.length) stopObserver();
   }
 
-  /* --- исчезновение якоря (перерисовка) --- */
   function checkDetached() {
     for (let i = stack.length - 1; i >= 0; i--) {
       const l = stack[i];
@@ -113,8 +94,6 @@
   }
   function stopObserver() { if (observer) { observer.disconnect(); observer = null; } }
 
-  /* «Висящие» узлы: меню pretty-select / mpick / любые [data-layer-owner], перенесённые в body,
-     чей владелец уже не в документе. Безопасно вызывать сколько угодно раз. */
   function sweep() {
     if (!document.body) return;
     document.querySelectorAll("body > .pretty-select-menu, body > [data-layer-orphanable]").forEach((menu) => {
@@ -126,7 +105,6 @@
     });
   }
 
-  /* --- позиционирование --- */
   function place(menu, anchor, o = {}) {
     if (!menu || !anchor) return;
     const gap = o.gap == null ? 6 : o.gap;
@@ -146,9 +124,7 @@
     const up = below < natural && above > below;
     const avail = Math.max(64, up ? above : below);
     const height = Math.min(natural, avail);
-    // r29d-chat4: measure the natural width (a width left from the last opening or a pending layout made
-    // scrollWidth a few px short) and add the borders — scrollWidth excludes them, the menu is border-box,
-    // so the longest option was cut with «…» by 2–6 px («Только по просьбе, иначе предлож…»).
+
     menu.style.width = "";
     const cs = getComputedStyle(menu);
     const borders = (parseFloat(cs.borderLeftWidth) || 0) + (parseFloat(cs.borderRightWidth) || 0);
@@ -158,7 +134,7 @@
     menu.style.width = width + "px";
     menu.style.maxHeight = Math.min(maxH, avail) + "px";
     menu.style.overflowY = "auto";
-    // a scrolling list loses its scrollbar's width: give it back so options are not cut
+
     const lost = menu.offsetWidth - menu.clientWidth - borders;
     if (lost > 0 && menu.scrollHeight > menu.clientHeight) menu.style.width = Math.min(width + lost, vw - pad * 2) + "px";
     const placedW = parseFloat(menu.style.width) || width;
@@ -171,11 +147,6 @@
     menu.dataset.side = up ? "top" : "bottom";
   }
 
-  /* --- r41-ui: общий верхний слой ---
-     Меню, оставленное внутри своей строки, жило в её stacking context: соседние поля (sx-row, заголовки секций)
-     и сам диалог настроек (#panel-back) рисовались ПОВЕРХ него, а overflow прокручиваемого предка обрезал его.
-     float() переносит слой в <body> (position:fixed, z-index верхнего слоя, флип у краёв), unfloat() возвращает
-     домой и стирает позиционирование. Владелец (_layerOwner) нужен sweep(): сирота без владельца удаляется. */
   const TOP_Z = 100100;
   function float(el, anchor, o = {}) {
     if (!el || !anchor) return;
@@ -199,7 +170,6 @@
     if (owner && owner.isConnected) owner.appendChild(el); else el.remove();
   }
 
-  /* --- клавиатура для списков --- */
   function listKeys(menu, itemSelector, event) {
     const items = Array.from(menu.querySelectorAll(itemSelector)).filter((n) => !n.disabled && n.getAttribute("aria-disabled") !== "true");
     if (!items.length) return false;
@@ -223,12 +193,11 @@
     return false;
   }
 
-  /* --- глобальные обработчики --- */
   function onPointerDown(ev) {
     prune();
     if (!stack.length) return;
     const t = ev.target;
-    // Закрываем все слои, вне которых (и вне их якорей) был клик — сверху вниз.
+
     for (let i = stack.length - 1; i >= 0; i--) {
       const l = stack[i];
       if (contains(l.el, t) || contains(l.anchor, t)) break;
@@ -239,7 +208,7 @@
     if (!stack.length) return;
     const l = top();
     if (!l) return;
-    // Стрелки/Enter для меню, у которых нет своего фокуса (контекстное меню): только если фокус не в поле ввода.
+
     if (ev.key !== "Escape") {
       const a = document.activeElement;
       const typing = a && (a.matches && a.matches("input, textarea, select, [contenteditable=''], [contenteditable='true']")) && !contains(l.el, a);
@@ -260,7 +229,7 @@
   }
 
   document.addEventListener("pointerdown", onPointerDown, true);
-  // Захват на window — раньше обработчиков настроек (Esc закрывает только меню, не подстраницу).
+
   window.addEventListener("keydown", onKey, true);
   document.addEventListener("scroll", onScroll, true);
   window.addEventListener("blur", () => { if (stack.length) closeAll("blur"); });
@@ -273,7 +242,7 @@
     const t = ev.target;
     if (t && t.closest && t.closest(".settings-tab-btn, .sx-sub-back, [data-sx-sub]")) closeAll("nav");
   }, true);
-  // Страховка: раз в несколько секунд убираем меню-сироты (например, после innerHTML без нашего ведома).
+
   setInterval(() => { if (document.body) { if (stack.length) checkDetached(); else sweep(); } }, 3000);
 
   window.MemuLayers = {

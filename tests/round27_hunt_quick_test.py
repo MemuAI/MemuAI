@@ -22,7 +22,6 @@ from app import quick_features_win as qw
 ROOT = Path(__file__).resolve().parents[1]
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 
-
 class TmpDir(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="r27hq-"))
@@ -33,7 +32,6 @@ class TmpDir(unittest.TestCase):
     def tearDown(self) -> None:
         self.dir.stop()
         qf.CLIPBOARD._rows = None
-
 
 class Api:
     """The parts of quick_ask.Win32 the clipboard code uses; ``busy`` = times OpenClipboard still fails."""
@@ -66,14 +64,12 @@ class Api:
     def chord(self, *vks):
         self.keys.append(vks)
 
-
 class Formats:
     def private(self):
         return False
 
     def owner_pid(self):
         return 42
-
 
 class StickerWindow:
     """pywebview on WinForms: destroy() is Form.Close(), which raises ``closing``; a False answer cancels it."""
@@ -95,9 +91,8 @@ class StickerWindow:
 
     def destroy(self):
         if any(fn() is False for fn in self.handlers):
-            return                          # args.Cancel = True — the window stays
+            return
         self.destroyed = True
-
 
 class Manager:
     def __init__(self, api) -> None:
@@ -112,7 +107,6 @@ class Manager:
         self.inserted.append(text)
         self.api.text = text
         return True
-
 
 class StickerCloseTests(TmpDir):
     def runtime_with(self, sticker_id: str) -> tuple:
@@ -131,7 +125,7 @@ class StickerCloseTests(TmpDir):
     def test_alt_f4_still_only_closes_and_keeps_the_sticker(self) -> None:
         qf.mutate_stickers(lambda rows: rows.append(qf.normalize_sticker({"id": "k2", "text": "x", "open": True})))
         rt, window = self.runtime_with("k2")
-        window.destroy()                    # Alt+F4: cancelled, then closed by the worker thread
+        window.destroy()
         deadline = time.monotonic() + 8
         while not window.destroyed and time.monotonic() < deadline:
             time.sleep(0.02)
@@ -139,14 +133,13 @@ class StickerCloseTests(TmpDir):
         self.assertFalse(qf.load_stickers()[0]["open"])
         self.assertEqual(len(qf.load_stickers()), 1, "Alt+F4 closes, it does not delete")
 
-
 class WatcherTests(TmpDir):
     def watcher(self, api) -> qw.ClipboardWatcher:
         watcher = qw.ClipboardWatcher(api)
         watcher.settings = qf.normalize_settings({"clipboard": True})
         watcher._formats = Formats()
         for patch in (mock.patch.object(qw, "process_name", lambda _pid: "notepad.exe"),
-                      mock.patch.object(qw, "selection_busy", lambda: False)):   # a capture test ran just before
+                      mock.patch.object(qw, "selection_busy", lambda: False)):
             patch.start()
             self.addCleanup(patch.stop)
         return watcher
@@ -164,7 +157,7 @@ class WatcherTests(TmpDir):
         with mock.patch.object(qw, "ClipboardFormats", lambda _api: Formats()), mock.patch.object(qw, "POLL_SECONDS", 0.02):
             watcher.start(watcher.settings)
             time.sleep(0.1)
-            api.busy, api.seq = 2, 2          # copied while the owner still holds the clipboard
+            api.busy, api.seq = 2, 2
             deadline = time.monotonic() + 8
             while not qf.CLIPBOARD.rows() and time.monotonic() < deadline:
                 time.sleep(0.02)
@@ -183,7 +176,7 @@ class WatcherTests(TmpDir):
             first = watcher._thread
             time.sleep(0.12)
             watcher.stop()
-            time.sleep(0.06)                  # the old thread has seen «stop» and is on its way out
+            time.sleep(0.06)
             watcher.start(watcher.settings)
             first.join(1)
             self.assertFalse(first.is_alive())
@@ -195,11 +188,10 @@ class WatcherTests(TmpDir):
         api = Api("user's text")
         rt = qw.Runtime(Manager(api))
         real = api.get_text
-        api.get_text = lambda: None           # busy right when the snippet is inserted
+        api.get_text = lambda: None
         self.assertTrue(rt.insert("snippet", 0))
         api.get_text = real
         self.assertNotIn(None, api.sets, "an unreadable clipboard is left alone, not emptied")
-
 
 class SelectionCaptureTests(unittest.TestCase):
     def tearDown(self) -> None:
@@ -232,7 +224,7 @@ class SelectionCaptureTests(unittest.TestCase):
             def discard(self, snapshot):
                 if snapshot is not None and not snapshot.restored:
                     Counting.discarded += 1
-        api = Counting(copies=None)                 # nothing selected: Ctrl+C copies nothing
+        api = Counting(copies=None)
         self.assertEqual(qs.capture(123, PREFS, api=api)["reason"], "empty")
         self.assertEqual(Counting.discarded, 1, "the EMF copy of an untouched clipboard is freed")
         api = Counting(copies="picked")
@@ -250,7 +242,6 @@ class SelectionCaptureTests(unittest.TestCase):
         self.assertEqual(result["text"], "two\nlines")
         result, _api = self.capture("notepad.exe", "whole line\r\n")
         self.assertEqual(result["text"], "whole line", "other programs copy only what is selected")
-
 
 class HotkeyOwnerTests(TmpDir):
     def test_memuai_hotkeys_do_not_collide(self) -> None:
@@ -279,14 +270,12 @@ class HotkeyOwnerTests(TmpDir):
                 ac.hotkey_conflict({"id": "c2", "hotkey": "Ctrl+Alt+R", "enabled": True}, [], "ru")
             self.assertIn("область экрана", str(err.exception))
 
-
 class PrefsTests(unittest.TestCase):
     def test_ai_snippet_prompt_is_kept_in_the_chat(self) -> None:
         from app import quick_ask_core as core
         chat = core.clean_chat({"id": "chat1234", "turns": [{"q": "Короче", "a": "ok", "prompt": "Сократи текст" * 3000}]})
         self.assertEqual(len(chat["turns"][0]["prompt"]), 20000)
         self.assertNotIn("prompt", core.clean_chat({"id": "chat1234", "turns": [{"q": "a", "a": "b"}]})["turns"][0])
-
 
 class WindowShots(unittest.TestCase):
     def test_headless_window(self) -> None:
@@ -303,7 +292,6 @@ class WindowShots(unittest.TestCase):
                               cwd=str(ROOT), env=env, capture_output=True, text=True, timeout=600)
         shutil.rmtree(out, ignore_errors=True)
         self.assertEqual(proc.returncode, 0, proc.stdout[-3000:] + proc.stderr[-3000:])
-
 
 if __name__ == "__main__":
     unittest.main()

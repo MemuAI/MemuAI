@@ -46,7 +46,6 @@ telegram_contract_test telegram_r20_test telegram_r21_reliability_test telegram_
 voice_contract_test work_agent_contract_test
 """.split()
 
-
 def main():
     log_dir = ROOT / "build" / ("audit-isolated-" + time.strftime("%Y%m%d-%H%M%S"))
     log_dir.mkdir(parents=True)
@@ -91,7 +90,6 @@ def main():
     failed = [r for r in rows if r["exit"]]
     print(f"{len(rows) - len(failed)}/{len(rows)} modules passed; {sum(r['tests'] for r in rows)} tests run; logs: {log_dir}")
     return bool(failed)
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

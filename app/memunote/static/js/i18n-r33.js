@@ -1,8 +1,8 @@
-// MemuNote — UI strings of Round 33 (run files, code autocomplete, spell checking, live Markdown).
-// Merged into DICT by i18n.js; English contains no Cyrillic (tests/round33_memunote_test.py).
+
+
 export const R33 = {
   ru: {
-    // run
+
     run_button: "Запустить", run_menu: "Параметры запуска", run_output: "Вывод", run_again: "Запустить снова", run_stop: "Остановить",
     run_clear: "Очистить", run_copy: "Копировать вывод", run_close: "Скрыть панель", run_resize: "Потяните, чтобы изменить высоту (двойной щелчок — по умолчанию)",
     run_input: "Ввод для программы", run_input_ph: "Ввод для программы — Enter отправляет строку", run_send: "Отправить", run_eof_hint: "Закрыть ввод (Ctrl+D)",
@@ -20,15 +20,19 @@ export const R33 = {
     run_err_batch: "Путь или аргументы .bat/.cmd содержат символы & | < > ^ % ! — cmd.exe понял бы их как команды. Переименуйте файл или уберите эти символы",
     run_err_nointerp: "Интерпретатор не найден", run_err_many: "Уже запущено 6 программ — остановите одну из них", run_err_start: "Программа не запустилась",
     run_stdin_closed: "[ввод закрыт]", run_line_cut: "… (строка слишком длинная — дальше не показана)", run_goto: "Перейти к строке", run_toggle_panel: "Панель вывода", run_forget_trust: "Снова спрашивать перед запуском",
-    // completion / AI suggestions
-    set_code_autocomplete: "Автодополнение кода", set_code_autocomplete_hint: "Ключевые слова, функции, сниппеты и имена из файла во время набора (Ctrl+Пробел — вызвать вручную)",
+
+    set_code_autocomplete: "Автодополнение кода", set_code_autocomplete_hint: "Tab — принять подсказку, Enter — новая строка, Ctrl+Пробел — вызвать вручную",
+    completion_keys: "Tab — принять    ↑↓ — выбрать    Esc — закрыть",
+    indent_detected: "Отступ определён по файлу. Нажмите, чтобы изменить для этого документа.",
+    indent_document: "Отступ этого документа",
+    indent_detect: "Определить по файлу",
     st_ai_suggest: "ИИ-подсказки", st_ai_suggest_on: "ИИ-подсказки в коде включены (Tab — принять)", st_ai_suggest_off: "ИИ-подсказки в коде выключены — нажмите, чтобы включить",
-    // spell
+
     set_spell_check: "Проверка орфографии", set_spell_check_hint: "Русский и английский словари встроены; в коде проверяются только комментарии",
     st_spell: "Орфография", st_spell_on: "Проверка орфографии в этом документе включена — нажмите, чтобы выключить", st_spell_off: "Проверка орфографии в этом документе выключена — нажмите, чтобы включить",
     spell_add: "Добавить в словарь", spell_ignore: "Пропустить в этом документе", spell_no_suggestions: "Нет вариантов", spell_added: "«{word}» добавлено в словарь",
     spell_loading: "Ищу варианты…",
-    // live markdown
+
     md_mode_live: "Живой режим: форматирование видно сразу, разметка — только там, где курсор", lm_toggle_task: "Отметить задачу",
     lm_image_missing: "картинка не найдена", lm_image_remote: "Картинки из интернета не загружаются — щёлкните, чтобы изменить ссылку",
     lm_table_edit: "Щёлкните, чтобы изменить таблицу", lm_link_open: "Ctrl+щелчок — открыть", lm_too_big: "Файл большой — открыт в режиме исходника",
@@ -52,7 +56,11 @@ export const R33 = {
     run_err_batch: "The .bat/.cmd path or arguments contain & | < > ^ % ! — cmd.exe would treat them as commands. Rename the file or drop those characters",
     run_err_nointerp: "Interpreter not found", run_err_many: "6 programs are already running — stop one of them", run_err_start: "The program did not start",
     run_stdin_closed: "[input closed]", run_line_cut: "… (line too long — the rest is not shown)", run_goto: "Go to line", run_toggle_panel: "Output panel", run_forget_trust: "Ask before running again",
-    set_code_autocomplete: "Code autocomplete", set_code_autocomplete_hint: "Keywords, functions, snippets and names from the file while typing (Ctrl+Space to ask)",
+    set_code_autocomplete: "Code autocomplete", set_code_autocomplete_hint: "Tab accepts, Enter starts a new line, Ctrl+Space opens suggestions",
+    completion_keys: "Tab to accept    ↑↓ to select    Esc to close",
+    indent_detected: "Indentation detected from the file. Click to change it for this document.",
+    indent_document: "This document’s indentation",
+    indent_detect: "Detect from file",
     st_ai_suggest: "AI suggestions", st_ai_suggest_on: "AI suggestions in code are on (Tab accepts)", st_ai_suggest_off: "AI suggestions in code are off — click to turn on",
     set_spell_check: "Spell checking", set_spell_check_hint: "Russian and English dictionaries are built in; in code only comments are checked",
     st_spell: "Spelling", st_spell_on: "Spell checking is on for this document — click to turn it off", st_spell_off: "Spell checking is off for this document — click to turn it on",

@@ -16,14 +16,12 @@ from ..tui import dialogs as dlg
 from ..tui.input import match_models
 from . import Context, command
 
-
 def _context_label(value: int) -> str:
     if not value:
         return ""
     if value >= 1_000_000:
         return f"{value / 1_000_000:g}M"
     return f"{value // 1000}k"
-
 
 def display_name(model: ModelInfo, aliases: Optional[Dict[str, str]] = None) -> str:
     """Round 33 (r33c-models-lists): the same readable name as in MemuAI — the user's own name, Proxy's catalogue
@@ -39,7 +37,6 @@ def display_name(model: ModelInfo, aliases: Optional[Dict[str, str]] = None) -> 
     except Exception:
         return model.id
 
-
 def model_option(model: ModelInfo, current: str, sees: Optional[bool] = None,
                  aliases: Optional[Dict[str, str]] = None) -> dlg.Option:
     price = pricing.lookup(model.id, model.provider)
@@ -49,14 +46,13 @@ def model_option(model: ModelInfo, current: str, sees: Optional[bool] = None,
         bits.append(tr("контекст ", "context ") + _context_label(model.context))
     if price is not None:
         bits.append(pricing.describe(price) + tr(" за 1M", " per 1M"))
-    # "vision" is what MemuCode concluded (learned, the model list, the name), not the provider's coarse flag.
+
     flags = [flag for flag, on in (("vision", model.vision if sees is None else sees), ("thinking", model.thinking),
                                    ("tools", model.native_tools)) if on]
     if flags:
         bits.append(", ".join(flags))
     return dlg.Option(name, model.id, " · ".join(bits), hint="✓" if model.id == current else "",
                       detail=model.id if name != model.id else "")
-
 
 def _model_matcher(by_id: Dict[str, ModelInfo]):
     """Search of a model picker: provider, name, label and letters in order (see ``match_models``)."""
@@ -67,12 +63,11 @@ def _model_matcher(by_id: Dict[str, ModelInfo]):
         found = match_models(query, [model], limit=1)
         if found:
             return found[0][0]
-        # Round 33: the readable name is searchable too («opus 4.6» finds «…claude-opus-4-6»).
+
         words = [word for word in query.lower().split() if word]
         name = str(option.label or "").lower()
         return 150.0 if words and all(word in name for word in words) else None
     return score
-
 
 async def _load_models(ctx: Context, *, chat_only: bool, only: Optional[Callable[[ModelInfo], bool]] = None) -> tuple:
     """(models, the fetch that refreshes them). The list opens from what is already known; the fresh one is
@@ -87,12 +82,11 @@ async def _load_models(ctx: Context, *, chat_only: bool, only: Optional[Callable
             models = await refresh
         finally:
             ctx.ui.status_text = ""
-    models = [model for model in models if not (chat_only and model.image) and (only is None or only(model))]
+    models = [model for model in models if not (chat_only and (model.image or getattr(model, "kind", "chat") != "chat")) and (only is None or only(model))]
     if refresh.done():
         for name, error in runtime.router.errors.items():
             ctx.say(f"{name}: {error.splitlines()[0][:200]}", "warn")
     return models, refresh
-
 
 def _model_rows(ctx: Context, current: str, allow_none: str = "", notes: bool = True):
     """A function ``rows(models) -> options``: the current model first, then pinned ones, then by provider."""
@@ -120,7 +114,6 @@ def _model_rows(ctx: Context, current: str, allow_none: str = "", notes: bool = 
         return options
     return rows
 
-
 async def pick_model(ctx: Context, title: str, *, current: str, query: str = "", allow_none: str = "",
                      chat_only: bool = True, only: Optional[Callable[[ModelInfo], bool]] = None) -> Optional[str]:
     models, refresh = await _load_models(ctx, chat_only=chat_only, only=only)
@@ -137,7 +130,7 @@ async def pick_model(ctx: Context, title: str, *, current: str, query: str = "",
         if len(found) == 1:
             return found[0][1].id
         if found:
-            initial = query                        # several fit: the picker opens already searching for them
+            initial = query
         else:
             ctx.say(tr(f"Нет модели, подходящей к «{query}» — вот весь список",
                        f"No model matches “{query}” — here is the whole list"), "warn")
@@ -157,7 +150,6 @@ async def pick_model(ctx: Context, title: str, *, current: str, query: str = "",
                               matcher=_model_matcher(by_id))
     return choice
 
-
 async def pick_models(ctx: Context, title: str, *, selected: List[str], body: str = "",
                       chat_only: bool = True) -> Optional[List[str]]:
     """Several models at once (space ticks a row, Enter confirms). None when cancelled."""
@@ -169,7 +161,7 @@ async def pick_models(ctx: Context, title: str, *, selected: List[str], body: st
     known = {model.id for model in models}
     rows = _model_rows(ctx, "")
     by_id = {model.id: model for model in models}
-    for missing in selected:                        # a model chosen earlier that is not in the list now stays visible
+    for missing in selected:
         if missing not in known:
             by_id[missing] = ModelInfo(id=missing, provider=missing.split("-", 1)[0])
     options = rows(list(by_id.values()))
@@ -178,7 +170,6 @@ async def pick_models(ctx: Context, title: str, *, selected: List[str], body: st
     if answer is None:
         return None
     return [str(item) for item in answer]
-
 
 @command("model", "Выбрать модель (Alt+P). Ищет по имени и провайдеру. /model auto — автовыбор, /model notes — заметки",
          "Choose the model (Alt+P) — search by name or provider. /model auto routes by difficulty, /model notes",
@@ -207,7 +198,7 @@ async def model(ctx: Context) -> None:
     window = runtime.effective_window(chosen)
     remark = note_for(ctx.settings, chosen)
     info = runtime.router.info(chosen) if hasattr(runtime.router, "info") else None
-    price = pricing.lookup(chosen, getattr(info, "provider", "") or "")   # r34: the same lookup as the picker rows
+    price = pricing.lookup(chosen, getattr(info, "provider", "") or "")
     shown = display_name(info, runtime.memuai_prefs().get("model_aliases") or {}) if info is not None else chosen
     if shown != chosen:
         shown = f"{shown} ({chosen})"
@@ -216,7 +207,6 @@ async def model(ctx: Context) -> None:
     if routing_config(ctx.settings)["enabled"]:
         ctx.say(tr("Автовыбор включён и решает за каждый запрос; эта модель — основная. /model off — отключить автовыбор.",
                    "Auto selection is on and decides each request; this model is the main one. /model off turns it off."))
-
 
 @command("fast", "Переключиться на быструю модель и обратно", "Toggle the fast model", category="model", while_busy=True)
 async def fast(ctx: Context) -> None:
@@ -235,7 +225,6 @@ async def fast(ctx: Context) -> None:
         runtime.set_model(small)
         ctx.say(tr(f"Быстрый режим: {small} (/fast — вернуться)", f"Fast mode: {small} (/fast to switch back)"), "success")
 
-
 @command("small-model", "Быстрая модель для заголовков, сжатия, /btw и проверок", "Fast model for titles, compaction, /btw and checks",
          hint="[model]", aliases=("fast-model",), category="model", while_busy=True)
 async def small_model(ctx: Context) -> None:
@@ -246,7 +235,6 @@ async def small_model(ctx: Context) -> None:
         return
     ctx.settings.set("small_model", chosen)
     ctx.say(tr(f"Вспомогательная модель: {chosen or 'как основная'}", f"Helper model: {chosen or 'same as main'}"), "success")
-
 
 def _vision_status(ctx: Context) -> List[str]:
     """What happens to a picture right now, in plain words."""
@@ -289,7 +277,6 @@ def _vision_status(ctx: Context) -> List[str]:
                         f"Warning: {chosen} cannot see images (checked) — {describer or '—'} is used instead. "
                         "Pick another with /vision or check again: /vision test " + chosen))
     return lines
-
 
 @command("vision", "Модель для изображений: описывает картинки для моделей без зрения (общая с MemuAI)",
          "Image model: describes pictures for models that cannot see (shared with MemuAI)",
@@ -339,7 +326,6 @@ async def vision(ctx: Context) -> None:
         ctx.say(tr("Проверить, что она действительно читает картинки: /vision test",
                    "To check that it really reads pictures: /vision test"), "info")
 
-
 async def _vision_test(ctx: Context, target: str) -> None:
     """A real request with a picture that has a random code on it: the model sees it or it does not."""
     runtime = ctx.runtime
@@ -365,7 +351,6 @@ async def _vision_test(ctx: Context, target: str) -> None:
                          " From now on the image model describes pictures for it."), "warn")
     runtime.invalidate_prompt()
 
-
 EFFORTS = [("auto", "Автоматически — как решит модель", "Automatic — the model decides"),
            ("off", "Выключить размышления", "Reasoning off"),
            ("on", "Включить размышления", "Reasoning on"),
@@ -374,17 +359,15 @@ EFFORTS = [("auto", "Автоматически — как решит модел
            ("xhigh", "Очень высокое", "Extra high"),
            ("max", "Максимум — для самых сложных задач", "Max — for the hardest problems")]
 
-
 @command("effort", "Глубина рассуждений модели", "How hard the model thinks",
          hint="[auto|off|minimal|low|medium|high|xhigh|max]", category="model", while_busy=True)
 async def effort(ctx: Context) -> None:
     from ... import reasoning_levels as levels
     typed = ctx.args.strip().lower()
-    # A bare /effort opens the picker: ALIASES maps "" → "auto" (for normalising stored values), not for commands.
+
     value = levels.ALIASES.get(typed, typed) if typed else ""
     runtime = ctx.runtime
-    # Round 33 (r33-thinking): the picker lists only the levels THIS model has (Gemini 3.7 Flash: low / medium /
-    # high; GLM-5.3: low / high / max…); a typed value it lacks is kept and sent as the nearest level.
+
     supported, how = runtime.router.effort_support(runtime.model)
     note = (tr(f"{runtime.model}: {how}.", f"{runtime.model}: {how}.") if supported else
             tr(f"{runtime.model} не поддерживает выбор уровня: {how}.",
@@ -416,7 +399,6 @@ async def effort(ctx: Context) -> None:
         ctx.say(tr(f"Усилие: {value} — сохранено, но на текущую модель не действует. {note}",
                    f"Effort: {value} — saved, but it has no effect on the current model. {note}"), "warn")
 
-
 @command("think", "Включить или выключить режим размышлений (Alt+T)", "Toggle extended thinking (Alt+T)",
          aliases=("thinking",), hint="[on|off]", category="model", immediate=True, while_busy=True)
 async def think(ctx: Context) -> None:
@@ -424,7 +406,6 @@ async def think(ctx: Context) -> None:
     value = (arg in ("on", "вкл", "1", "true")) if arg else not bool(ctx.settings.get("thinking"))
     ctx.settings.set("thinking", value)
     ctx.say(tr("Размышления: ", "Thinking: ") + (tr("включены", "on") if value else tr("выключены", "off")), "success")
-
 
 @command("web", "Встроенный веб-поиск провайдера вкл/выкл", "Toggle the provider's built-in web search", hint="[on|off]",
          category="model", immediate=True, while_busy=True)
@@ -435,7 +416,6 @@ async def web(ctx: Context) -> None:
     ctx.say(tr("Веб-поиск провайдера: ", "Provider web search: ") + (tr("вкл", "on") if value else tr("выкл", "off"))
             + tr(" (инструменты WebSearch/WebFetch доступны всегда)", " (WebSearch/WebFetch tools are always available)"),
             "success")
-
 
 @command("advisor", "Советник — более сильная модель для второго мнения", "Advisor — a stronger model for a second opinion",
          hint="[model|off|question]", category="model", while_busy=True)

@@ -1,8 +1,3 @@
-/* MemuAI · Memory v2 panel (Round 29, memory.js).
-   Theme tokens (--panel, --text, --muted, --accent, --border, --danger) and settings-kit tokens
-   (--sx-card, --sx-line, --sx-r …) only, so every design (aurora, focus, grid, glass, soft, terminal,
-   brutal) and both themes keep their own look. */
-
 :root {
   --mem2-ok: color-mix(in srgb, #2fa36b 78%, var(--accent));
   --mem2-mid: color-mix(in srgb, #d79a2b 82%, var(--accent));
@@ -24,8 +19,6 @@
 .mem2-loading { display: flex; align-items: center; gap: 10px; color: var(--muted); padding: 40px; justify-content: center; }
 .mem2-spinner { width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--mem2-line); border-top-color: var(--accent); animation: mem2-spin .8s linear infinite; }
 @keyframes mem2-spin { to { transform: rotate(360deg); } }
-
-/* ---------------------------------------------------------- head */
 .mem2-head { display: flex; align-items: flex-start; gap: 14px; padding-right: 44px; flex: none; }
 .mem2-mark {
   width: 44px; height: 44px; flex: none; border-radius: 14px; display: grid; place-items: center; color: var(--accent);
@@ -46,8 +39,6 @@
 .mem2-banner.off { background: color-mix(in srgb, var(--muted) 10%, transparent); border-color: var(--mem2-line); color: var(--muted); }
 .mem2-banner.warn { background: color-mix(in srgb, var(--mem2-mid) 12%, transparent); border-color: color-mix(in srgb, var(--mem2-mid) 35%, transparent); }
 .mem2-body > .mem2-banner { margin: 0 0 12px; }
-
-/* ---------------------------------------------------------- stats & tabs */
 .mem2-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; margin: 16px 0 12px; flex: none; }
 .mem2-stats > div, .mem2-pcard-stats > div {
   padding: 9px 12px; border-radius: var(--mem2-r-sm); background: var(--mem2-card); border: 1px solid var(--mem2-line); min-width: 0;
@@ -71,28 +62,24 @@
 }
 
 .mem2-body { flex: 1; min-height: 0; overflow: auto; margin: 12px -8px 0 0; padding: 2px 8px 6px 0; scrollbar-gutter: stable; }
-
-/* ---------------------------------------------------------- toolbar */
 .mem2-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
 .mem2-toolbar select, .mem2-toolbar .pretty-select { min-width: 0; max-width: 190px; }
-/* one height and type size for every control of the panel (search, pickers, buttons) */
 .mem2-panel .pretty-select-button { min-height: 36px; padding: 6px 11px; font-size: 13.5px; }
 .mem2-panel .mem2-edit-row .pretty-select-button, .mem2-panel .mem2-bulk .pretty-select-button { min-height: 32px; padding: 4px 10px; font-size: 13px; }
 .mem2-panel .pretty-select-menu button { font-size: 13.5px; }
-/* an icon inside a button sits on the text's centre line, not on its baseline */
 .mem2-panel .pbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .mem2-panel .pbtn .ui-icon, .mem2-panel .pbtn svg { flex: none; }
 .mem2-search {
   flex: 1 1 220px; display: flex; align-items: center; gap: 8px; padding: 0 12px; height: 36px; min-width: 180px;
   border-radius: var(--mem2-r-sm); border: 1px solid var(--mem2-line); background: var(--panel); color: var(--muted);
 }
-.mem2-toolbar > .mem2-search { flex-basis: 100%; }      /* search on its own row, pickers + Add below */
+.mem2-toolbar > .mem2-search { flex-basis: 100%; }
 .mem2-toolbar > .mem2-add { margin-left: auto; }
 .mem2-search:focus-within { border-color: color-mix(in srgb, var(--accent) 60%, transparent); }
 .mem2-search input { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--text); font: inherit; font-size: 13.5px; outline: none; }
 .mem2-add { height: 36px; min-height: 36px; padding-block: 0; display: inline-flex; align-items: center; gap: 6px; }
 .mem2-hint { color: var(--muted); font-size: 12.5px; line-height: 1.5; }
-.mem2-toolbar > .mem2-hint { flex: 1 1 220px; min-width: 0; }   /* the hint shrinks, the buttons stay on its row */
+.mem2-toolbar > .mem2-hint { flex: 1 1 220px; min-width: 0; }
 .mem2-toolbar > .mem2-hint + .grow { display: none; }
 .mem2-toolbar > .pbtn { white-space: nowrap; }
 .mem2-hint.block { display: block; margin: 0 0 12px; }
@@ -114,8 +101,6 @@
 }
 .mem2-chipbtn:hover { border-color: color-mix(in srgb, var(--accent) 50%, transparent); background: var(--mem2-soft); }
 .mem2-chipbtn.danger { color: var(--danger, #d2504c); }
-
-/* ---------------------------------------------------------- composer / bulk */
 .mem2-composer, .mem2-bulk {
   padding: 12px; margin-bottom: 12px; border-radius: var(--mem2-r); border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
   background: var(--mem2-soft); animation: mem2-in .18s var(--sx-ease, ease);
@@ -132,8 +117,6 @@
 .mem2-bulk select { max-width: 200px; }
 .mem2-tags-input { flex: 1 1 180px; min-width: 120px; height: 32px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--mem2-line); background: var(--panel); color: var(--text); font: inherit; font-size: 13px; }
 @keyframes mem2-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-
-/* ---------------------------------------------------------- cards */
 .mem2-list { display: flex; flex-direction: column; gap: 8px; }
 .mem2-group { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 .mem2-group-head { display: flex; align-items: center; gap: 7px; margin: 6px 2px 0; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
@@ -190,8 +173,6 @@
 .mem2-src.svc-note .ui-icon:first-child { color: color-mix(in srgb, #8f6bd8 82%, var(--accent)); }
 .mem2-more-src { font-size: 11.5px; color: var(--muted); cursor: help; }
 .mem2-dates { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: 11.5px; color: var(--muted); white-space: nowrap; }
-
-/* confidence: five bars + a number, colour by level */
 .mem2-conf { display: inline-flex; align-items: center; gap: 6px; height: 22px; padding: 0 8px 0 7px; border-radius: 99px; font-size: 11.5px;
   background: color-mix(in srgb, var(--c, var(--mem2-ok)) 11%, transparent); color: var(--c, var(--mem2-ok)); }
 .mem2-conf.high { --c: var(--mem2-ok); }
@@ -203,8 +184,6 @@
 .mem2-conf-bars i:nth-child(1) { height: 4px; } .mem2-conf-bars i:nth-child(2) { height: 6px; } .mem2-conf-bars i:nth-child(3) { height: 8px; }
 .mem2-conf-bars i:nth-child(4) { height: 10px; } .mem2-conf-bars i:nth-child(5) { height: 11px; }
 .mem2-conf-bars i.on { background: var(--c); }
-
-/* history */
 .mem2-history { list-style: none; margin: 2px 0 0; padding: 4px 0 0 6px; border-top: 1px dashed var(--mem2-line); display: flex; flex-direction: column; gap: 8px; }
 .mem2-history li { display: flex; gap: 10px; font-size: 12.5px; position: relative; }
 .mem2-history .dot { width: 8px; height: 8px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 70%, transparent); margin-top: 5px; flex: none; box-shadow: 0 0 0 3px var(--mem2-soft); }
@@ -212,8 +191,6 @@
 .mem2-history span { color: var(--muted); font-size: 11.5px; }
 .mem2-history q { quotes: "«" "»"; color: var(--text); opacity: .85; overflow-wrap: anywhere; }
 .mem2-history .mem2-link { align-self: flex-start; font-size: 11.5px; }
-
-/* «only for» picker */
 .mem2-scope-menu { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 10px; border-radius: var(--mem2-r-sm); background: var(--panel); border: 1px solid var(--mem2-line); font-size: 12.5px; animation: mem2-in .15s var(--sx-ease, ease); }
 .mem2-scope-menu > span { color: var(--muted); margin-right: 2px; }
 .mem2-svc-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 99px; border: 1px solid var(--mem2-line); cursor: pointer; color: var(--muted); user-select: none; }
@@ -232,8 +209,6 @@
 .mem2-empty .pbtn { margin-top: 10px; }
 .mem2-empty.small { padding: 18px; flex-direction: row; justify-content: center; }
 .mem2-empty.small > .ui-icon { width: 18px; height: 18px; margin: 0; }
-
-/* ---------------------------------------------------------- inbox */
 .mem2-pending-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
 .mem2-reason { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, transparent); background: var(--mem2-soft); }
 .mem2-reason.r-sensitive, .mem2-reason.r-low_confidence { color: var(--mem2-mid); border-color: color-mix(in srgb, var(--mem2-mid) 40%, transparent); background: color-mix(in srgb, var(--mem2-mid) 10%, transparent); }
@@ -243,8 +218,6 @@
 .mem2-diff .new span { color: var(--mem2-ok); margin: 6px 0 -2px 2px; }
 .mem2-excerpt { margin: 0; padding: 6px 10px; border-left: 3px solid color-mix(in srgb, var(--accent) 40%, transparent); color: var(--muted); font-size: 12.5px; font-style: italic; overflow-wrap: anywhere; background: color-mix(in srgb, var(--text) 2.5%, transparent); border-radius: 0 8px 8px 0; }
 .mem2-pending-actions { display: flex; gap: 8px; justify-content: flex-end; width: 100%; }
-
-/* ---------------------------------------------------------- rules */
 .mem2-rule-add { display: flex; gap: 8px; }
 .mem2-rule-add .pinput { flex: 1; margin: 0; }
 .mem2-rule-examples { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 14px; }
@@ -257,8 +230,6 @@
 .mem2-rule-enf { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--muted); padding-left: 4px; }
 .mem2-rule-enf .ui-icon { width: 12px; height: 12px; color: var(--mem2-ok); }
 .switch.small { transform: scale(.82); transform-origin: center; }
-
-/* ---------------------------------------------------------- settings */
 .mem2-set { display: flex; flex-direction: column; gap: 8px; }
 .mem2-set-row { display: flex; align-items: center; gap: 16px; padding: 12px 14px; border-radius: var(--mem2-r); border: 1px solid var(--mem2-line); background: var(--mem2-card); }
 .mem2-set-row > div:first-child { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
@@ -284,8 +255,6 @@
 .mem2-danger { display: flex; align-items: center; gap: 14px; margin-top: 12px; padding: 12px 14px; border-radius: var(--mem2-r); border: 1px solid color-mix(in srgb, var(--danger, #d2504c) 35%, transparent); background: color-mix(in srgb, var(--danger, #d2504c) 5%, transparent); }
 .mem2-danger > div { flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .mem2-danger span { color: var(--muted); font-size: 12.5px; }
-
-/* ---------------------------------------------------------- profile card (Settings → Profile) */
 .mem2-pcard { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--mem2-r); border: 1px solid var(--mem2-line); background: var(--mem2-card); margin-top: 8px; }
 .mem2-pcard-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .mem2-pcard-stats > div { background: var(--panel); }
@@ -297,15 +266,11 @@
 .mem2-pin-dot .ui-icon { width: 13px; height: 13px; }
 .mem2-pcard-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 .mem2-pcard-actions .pbtn { display: inline-flex; align-items: center; gap: 6px; }
-
-/* the source message after «jump to source» */
 .mem2-flash { animation: mem2-flash 2.2s ease; border-radius: 14px; }
 @keyframes mem2-flash {
   0%, 30% { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
   100% { box-shadow: 0 0 0 0 transparent; background: transparent; }
 }
-
-/* ---------------------------------------------------------- designs */
 :root[data-design="terminal"] .mem2-panel { font-family: var(--mono); }
 :root[data-design="terminal"] .mem2-cat, :root[data-design="terminal"] .mem2-scope, :root[data-design="terminal"] .mem2-src,
 :root[data-design="terminal"] .mem2-conf, :root[data-design="terminal"] .mem2-tag, :root[data-design="terminal"] .mem2-reason,
@@ -334,8 +299,6 @@
 @media (prefers-reduced-motion: reduce) {
   .mem2-composer, .mem2-bulk, .mem2-scope-menu, .mem2-flash, .mem2-spinner { animation: none; }
 }
-
-/* Round 40 (r40-memory): associations, the period of a replaced wording, the session diary */
 .mem2-concepts { display: flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 11.5px; color: var(--muted); }
 .mem2-concepts-label { display: inline-flex; align-items: center; gap: 4px; margin-right: 2px; }
 .mem2-concepts-label .ui-icon { width: 12px; height: 12px; color: color-mix(in srgb, var(--accent) 70%, var(--muted)); }

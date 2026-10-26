@@ -1,21 +1,5 @@
-/* Round 35 — «Холст» / Canvas: versioned artifacts in a side panel next to the chat (app/canvas.py).
 
-   • The model creates/edits artifacts with the canvas_create / canvas_edit / canvas_read tools (memuai-tool protocol):
-     app.js::runHiddenTools → MemuCanvas.runTool(assistant, call, source) → POST /api/pg/canvas/tool. The assistant
-     message gets refs `m.canvas = [{id, v, op, title, type, added, removed}]` and shows a compact card, never the text.
-   • Each turn app.js::generate appends MemuCanvas.promptBlock(chatState) (tools + the chat's artifacts, compact).
-   • Branches (changelog/round35/branches.md): artifacts belong to the chat; the version a branch sees is computed from
-     the refs of the ACTIVE path (pathHeads) — switching branches re-renders the panel (memu:branch-switch).
-   • Panel: right, resizable (overlay on narrow windows); version picker; tabs Просмотр / Код / Diff; per-hunk
-     «Принять / Отклонить» + all; manual edit → a user version; HTML/JS run in a sandboxed iframe (allow-scripts only,
-     CSP without network) with console capture; Markdown documents; table grid + CSV/XLSX; email Subject/To.
-   • Actions: copy, download, «Открыть в MemuNote», «Сохранить в проект Work», «Сделать модулем».
-   • Round 40 (r40-canvas, «Холст 2.0»): multi-file artifacts — the version text is a bundle of «⟦file: path⟧» sections
-     (app/canvas_files.py): file tabs, per-file editor, the web preview is assembled by GET …/preview (inlined
-     CSS/JS + a line map → «app.js:12»), fetch("data.json") served from memory, .zip download; errors of the preview
-     (window.onerror / unhandledrejection / console.error) → a bar above it with «Исправить с ИИ» (the error + the code
-     line go to the chat; the model answers with canvas_edit); types diagram (Mermaid) and slides (MemuNote engine)
-     live in canvas-kinds.js, loaded lazily the first time such an item is opened. */
+
 (function () {
   "use strict";
   const lang = () => (typeof PG_LANG !== "undefined" && PG_LANG === "en") ? "en" : "ru";
@@ -60,7 +44,6 @@
     "font-src data:; media-src data: blob:; connect-src 'none'; frame-src 'none'; worker-src 'none'; " +
     "form-action 'none'; base-uri 'none'; object-src 'none'";
 
-  /* Round 40: a multi-file artifact = one text with «⟦file: path⟧» marker lines (exact mirror of canvas_files.py). */
   const MARK = "\u27e6file: ";
   function unpackFiles(text) {
     const src = String(text || "");
@@ -81,7 +64,7 @@
   const isWebFiles = (files) => !!files && files.some((f) => /\.(html?|m?js)$/i.test(f.path));
   const KINDS_URL = "/canvas-kinds.js?v=1.0-r40";
   let kindsPromise = null;
-  /* diagram / slides renderers: a separate file, loaded the first time such an item is shown (not at start-up). */
+
   function kinds() {
     if (window.MemuCanvasKinds) return Promise.resolve(window.MemuCanvasKinds);
     if (kindsPromise) return kindsPromise;
@@ -95,13 +78,12 @@
     return kindsPromise;
   }
 
-  /* ------------------------------------------------------------------ state */
   const st = {
-    chatId: "", list: [], listChat: "", full: new Map(),      // id → artifact with versions (content)
+    chatId: "", list: [], listChat: "", full: new Map(),
     openId: "", v: 0, tab: "view", draft: null, diff: null, decisions: {}, logs: [], nonce: "",
     width: Math.min(1100, Math.max(360, +(localStorage.getItem("memu_canvas_w") || 0) || 580)),
     menu: "", busy: false, wide: false,
-    file: {}, errors: [], errIdx: 0, errHidden: false, lineMap: [], fixFor: "", fixAt: 0,   // Round 40
+    file: {}, errors: [], errIdx: 0, errHidden: false, lineMap: [], fixFor: "", fixAt: 0,
   };
   const currentChatId = () => { try { return S.currentId || ""; } catch (e) { return ""; } };
   const messagesOf = (chatId) => {
@@ -121,10 +103,9 @@
     }
     return data;
   }
-  const say = (text, kind = "ok", action = null) => { try { if (typeof toast === "function") toast(text, kind, action); } catch (e) { /* no toast */ } };
+  const say = (text, kind = "ok", action = null) => { try { if (typeof toast === "function") toast(text, kind, action); } catch (e) {  } };
   const enc = encodeURIComponent;
 
-  /* ------------------------------------------------------------------ data */
   async function loadList(chatId, force = false) {
     if (!chatId) return [];
     if (!force && st.listChat === chatId) return st.list;
@@ -140,7 +121,7 @@
     st.full.set(key, data.artifact);
     return data.artifact;
   }
-  /* Round 40 (Live Link): saves made in MemuNote came back as user versions — refresh what shows them. */
+
   function onLinkSynced(chatId, rows) {
     for (const r of rows) st.full.delete(chatId + "|" + r.id);
     const mine = rows.find((r) => r.id === st.openId && chatId === st.chatId);
@@ -152,9 +133,7 @@
     else for (const key of [...st.full.keys()]) if (key.startsWith(chatId + "|")) st.full.delete(key);
     if (st.listChat === chatId) st.listChat = "";
   }
-  /* The version each artifact has on the ACTIVE branch: the newest version referenced by its messages; versions the
-     USER made on top of it afterwards (manual edits, hunk reviews) count too. A model version made on top of it belongs
-     to another branch (e.g. the answer was regenerated), so it does not. */
+
   function pathHeads(messages, list) {
     const ref = {};
     for (const m of messages || []) for (const r of (m && m.canvas) || []) {
@@ -180,13 +159,12 @@
   const versionOf = (art, v) => (art.versions || []).find((row) => row.v === v) || (art.versions || []).slice(-1)[0] || { content: "", meta: {} };
   const msgIdOf = (m) => { try { return window.MemuBranches ? MemuBranches.msgId(m) : (m.id || ""); } catch (e) { return ""; } };
 
-  /* ------------------------------------------------------------------ model side */
   async function runTool(assistant, call, source = {}) {
     const name = String(call.tool || "");
     const chatId = source.chatId || currentChatId();
     if (!chatId) return { tool: name, error: "Canvas is unavailable: the chat is not saved yet. Answer in the chat instead." };
     let heads = {};
-    try { heads = pathHeads(source.messages || messagesOf(chatId), await loadList(chatId, true)); } catch (e) { /* first artifact */ }
+    try { heads = pathHeads(source.messages || messagesOf(chatId), await loadList(chatId, true)); } catch (e) {  }
     let result;
     try {
       result = await req("/api/pg/canvas/tool", { method: "POST", raw: true, body: {
@@ -201,8 +179,7 @@
       call.args = { ...call.args, content: `[${call.args.content.length} chars — saved in the canvas as ${result.id} v${result.version}]` };
     }
     if (result && result.ok && name === "canvas_create" && typeof call.args?.content === "string" && call.args.content.length > 200) {
-      // The text now lives in the canvas: the tool report and the saved tool history keep a short placeholder instead
-      // of a second full copy (app.js records call.args after this returns).
+
       call.args = { ...call.args, content: `[${call.args.content.length} chars — saved in the canvas as ${result.id} v${result.version}]` };
     }
     if (result && result.ok && (name === "canvas_create" || name === "canvas_edit" || name === "canvas_write_file") && assistant) {
@@ -216,8 +193,7 @@
         added: (prev?.added || 0) + (result.lines_added || 0), removed: (prev?.removed || 0) + (result.lines_removed || 0) });
       assistant.canvas = refs;
       if (chatId === currentChatId()) {
-        // «Исправить с ИИ» (Round 40): the fix is checked by running the preview again, not by reading a diff
-        // (every edit of the same answer: a model often fixes the cause and then tidies a comment in a second call)
+
         const fixing = st.fixFor === result.id && name !== "canvas_create" && Date.now() - st.fixAt < 180000;
         if (result.file) st.file[result.id] = result.file;
         await open(result.id, { v: result.version, tab: name === "canvas_create" || fixing ? "view" : "diff", chatId, quiet: true });
@@ -241,15 +217,12 @@
     return refs.map((r) => `\n[Canvas: ${r.op === "create" ? "created" : "edited"} «${r.title || r.id}» (id ${r.id}, version ${r.v}) — the text is in the canvas, not in this message]`).join("");
   }
 
-  /* ------------------------------------------------------------------ chat cards */
-  /* While the model is still writing a canvas tool block (it can take minutes for a big page) the block itself is hidden
-     by the chat — show what is being written instead of an empty caret. */
   function streamingCanvas(content) {
     const text = String(content || "");
     const at = text.lastIndexOf("```memuai-tool");
     if (at < 0) return null;
     const block = text.slice(at);
-    if (/```\s*$/.test(block.slice(14))) return null;      // closed: the tool runs now
+    if (/```\s*$/.test(block.slice(14))) return null;
     const tool = ((block.match(/canvas_(create|edit|write_file)/) || [])[1] || "").replace("write_file", "edit");
     if (!tool) return null;
     const title = ((block.match(/"title"\s*:\s*"((?:[^"\\]|\\.)*)"/) || [])[1] || "").replace(/\\(.)/g, "$1");
@@ -280,7 +253,6 @@
 
   const fmtSize = (n) => n >= 1000 ? L(`${(n / 1000).toFixed(1).replace(".", ",")} тыс. символов`, `${(n / 1000).toFixed(1)}k characters`) : L(`${n} символов`, `${n} characters`);
 
-  /* ------------------------------------------------------------------ sandbox preview */
   function consoleBridge(nonce, files) {
     var send = function (level, args, extra) {
       try {
@@ -290,20 +262,20 @@
         var msg = { __memuCanvas: nonce, level: level, text: String(text).slice(0, 2000) };
         if (extra) for (var k in extra) msg[k] = extra[k];
         parent.postMessage(msg, "*");
-      } catch (e) { /* ignore */ }
+      } catch (e) {  }
     };
-    // Round 40: errors also travel as structured reports (message, line, stack) for the error bar.
+
     var report = function (kind, message, line, col, stack) {
       send("error", [message + (line ? " (line " + line + ")" : "")], { kind: kind, message: String(message || "Error").slice(0, 600),
         line: +line || 0, col: +col || 0, stack: String(stack || "").slice(0, 1500) });
     };
-    // Files of a multi-file project: fetch("data.json") is answered from memory (the sandbox has no network).
+
     if (files && typeof fetch === "function") {
       var realFetch = window.fetch;
       window.fetch = function (input, init) {
         var url = typeof input === "string" ? input : (input && input.url) || "";
         var key = String(url).replace(/^about:srcdoc/, "").replace(/^\.?\//, "").split(/[?#]/)[0];
-        try { key = decodeURIComponent(key); } catch (e) { /* keep */ }
+        try { key = decodeURIComponent(key); } catch (e) {  }
         if (Object.prototype.hasOwnProperty.call(files, key)) {
           var type = /\.json$/i.test(key) ? "application/json" : /\.svg$/i.test(key) ? "image/svg+xml" : /\.css$/i.test(key) ? "text/css"
             : /\.m?js$/i.test(key) ? "text/javascript" : /\.csv$/i.test(key) ? "text/csv" : "text/plain";
@@ -320,11 +292,10 @@
           var text = Array.prototype.map.call(arguments, function (a) { try { return typeof a === "string" ? a : a instanceof Error ? String(a) : JSON.stringify(a); } catch (e) { return String(a); } }).join(" ");
           report("console", text, 0, 0, err ? err.stack : (new Error()).stack);
         } else send(k, arguments);
-        try { if (original) original.apply(console, arguments); } catch (e) { /* ignore */ }
+        try { if (original) original.apply(console, arguments); } catch (e) {  }
       };
     });
-    // The sandbox has an opaque origin: localStorage/sessionStorage/cookie throw SecurityError and break pages that
-    // remember a theme or a cart. Give them an in-memory stand-in (lives until the preview is re-run).
+
     var memStore = function () {
       var d = {};
       return { getItem: function (k) { k = String(k); return Object.prototype.hasOwnProperty.call(d, k) ? d[k] : null; },
@@ -333,10 +304,10 @@
         get length() { return Object.keys(d).length; } };
     };
     ["localStorage", "sessionStorage"].forEach(function (name) {
-      try { void window[name]; } catch (e) { try { Object.defineProperty(window, name, { value: memStore(), configurable: true }); } catch (e2) { /* ignore */ } }
+      try { void window[name]; } catch (e) { try { Object.defineProperty(window, name, { value: memStore(), configurable: true }); } catch (e2) {  } }
     });
     try { void document.cookie; } catch (e) {
-      try { var jar = ""; Object.defineProperty(document, "cookie", { get: function () { return jar; }, set: function (v) { jar = String(v).split(";")[0]; }, configurable: true }); } catch (e2) { /* ignore */ }
+      try { var jar = ""; Object.defineProperty(document, "cookie", { get: function () { return jar; }, set: function (v) { jar = String(v).split(";")[0]; }, configurable: true }); } catch (e2) {  }
     }
     window.alert = function (m) { send("info", ["alert: " + m]); };
     window.confirm = function (m) { send("info", ["confirm: " + m + " → false"]); return false; };
@@ -357,9 +328,7 @@
     const head = `<meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${CSP}">` +
       `<script>(${consoleBridge.toString()})(${JSON.stringify(nonce)}, ${vfs});<\/script>`;
     const src = String(html || "");
-    // r36: the policy goes in front of EVERYTHING the page has (after a doctype only). Put after the first «<head»
-    // it missed a script / an image before it or a «<head>» inside a comment — those reached the network.
-    // A <meta> before <html> opens the head implicitly; the page's own <html>/<head> tags merge into it.
+
     const doctype = src.match(/^\uFEFF?\s*<!doctype[^>]*>/i);
     if (doctype) return doctype[0] + head + src.slice(doctype[0].length);
     if (/<(html|head|body)[\s>]/i.test(src)) return head + src;
@@ -383,13 +352,13 @@
       return ` (${at.path ? at.path + ":" : L("строка ", "line ")}${at.line})`;
     });
     const prev = st.logs[st.logs.length - 1];
-    if (prev && prev.level === row.level && prev.text === row.text && row.at - prev.at < 300) return;   // the same CSP report twice
+    if (prev && prev.level === row.level && prev.text === row.text && row.at - prev.at < 300) return;
     st.logs.push(row);
     if (st.logs.length > 300) st.logs.splice(0, st.logs.length - 300);
     if (where) addError({ kind: String(data.kind), message: String(data.message || row.text), ...where });
     renderConsole();
   });
-  /* Round 40: a line of the sandbox document → {path, line} of the artifact (multi-file: through the preview's line map). */
+
   function docPlace(docLine) {
     const n = Math.max(1, docLine - (st.lineShift || 0));
     let hit = null;
@@ -398,7 +367,7 @@
   }
   function errorPlace(data) {
     if (data.line) return docPlace(+data.line);
-    // console.error / rejections: the first frame of the stack that points into the page
+
     const m = String(data.stack || "").match(/about:srcdoc:(\d+):\d+/g) || [];
     for (const frame of m) {
       const n = +frame.split(":")[2];
@@ -412,13 +381,12 @@
     if (same) { same.count += 1; renderErrBar(); return; }
     if (st.errors.length >= 50) return;
     st.errors.push({ ...err, key, count: 1 });
-    // uncaught errors go first: a console.error is often only a symptom
+
     st.errors.sort((x, y) => (x.kind === "console") - (y.kind === "console"));
     st.errHidden = false;
     renderErrBar();
   }
 
-  /* ------------------------------------------------------------------ table + markdown helpers */
   function parseCsvLine(text, delim) {
     const rows = []; let row = [], cell = "", quoted = false;
     for (let i = 0; i < text.length; i += 1) {
@@ -452,7 +420,7 @@
   }
   const mdHtml = (text) => { try { return typeof md === "function" ? md(text) : `<pre>${esc(text)}</pre>`; } catch (e) { return `<pre>${esc(text)}</pre>`; } };
   const codeHtml = (text, langName) => {
-    try { if (typeof highlightSyntax === "function") return highlightSyntax(String(text || ""), langName || ""); } catch (e) { /* plain */ }
+    try { if (typeof highlightSyntax === "function") return highlightSyntax(String(text || ""), langName || ""); } catch (e) {  }
     return esc(text);
   };
   const isRunnable = (art, row) => {
@@ -460,7 +428,7 @@
     if (files) return row ? isWebFiles(files) : (art.files || []).some((f) => /\.(html?|m?js)$/i.test(f.path));
     return art.type === "html" || (art.type === "code" && /^(js|javascript|mjs)$/i.test(art.language || ""));
   };
-  /* The file shown/edited of a multi-file artifact: the remembered one, else the entry page, else the first. */
+
   function curFile(a, files) {
     if (!files || !files.length) return null;
     const want = st.file[a.id];
@@ -472,7 +440,6 @@
     return `<span class="cv-fdot cv-f-${cls}" aria-hidden="true">${esc((ext || "·").slice(0, 4))}</span>`;
   };
 
-  /* ------------------------------------------------------------------ panel DOM */
   function ensurePane() {
     let pane = $("#canvas-pane");
     if (pane) return pane;
@@ -581,11 +548,10 @@
   const art = () => st.full.get(st.chatId + "|" + st.openId);
   const linkOf = (a) => (st.list.find((x) => x.id === a.id) || {}).link || null;
 
-  /* ------------------------------------------------------------------ render */
   function fmtTime(ms) {
     try { return new Date(ms).toLocaleTimeString(lang() === "en" ? "en-US" : "ru-RU", { hour: "2-digit", minute: "2-digit" }); } catch (e) { return ""; }
   }
-  // Round 36: a compact label (the 150 px select cut «v1 · ИИ · создан · 09:14 · текущая»); the current one gets «✓».
+
   function versionLabel(row, headV) {
     const op = { create: L("создан", "created"), edit: L("правка", "edit"), rewrite: L("переписан", "rewrite"),
       review: L("проверка", "review"), user: L("ваша правка", "your edit"), restore: L("возврат", "restore") }[row.op] || row.op || "";
@@ -600,7 +566,7 @@
     const versions = [...(a.versions || [])].reverse();
     const others = st.list.length > 1 ? st.list : [];
     const pendingHere = row.review === "pending" && row.parent;
-    const headV = pathHeads(messagesOf(st.chatId), st.list)[a.id] || a.head;   // once per render, not per option
+    const headV = pathHeads(messagesOf(st.chatId), st.list)[a.id] || a.head;
     const files = unpackFiles(row.content);
     const tabs = [["view", L("Просмотр", "Preview")], ["code", a.type === "document" || a.type === "email" || a.type === "slides" ? L("Текст", "Text") : L("Код", "Code")], ["diff", "Diff"]];
     pane.dataset.type = a.type;
@@ -748,7 +714,7 @@
       drawKind(a, st.tab === "code" && st.draft ? st.draft.text : row.content || "");
     }
     if (st.tab === "diff") loadDiff(a, row);
-    // formulas of a document are already typeset by md() (KaTeX is loaded statically in index.html)
+
   }
   async function runPreview(a, row) {
     const frame = $("#cv-frame");
@@ -760,7 +726,7 @@
     let page = a.type === "html" ? row.content : jsDoc(row.content), files = null;
     st.lineMap = [];
     if (unpackFiles(row.content)) {
-      // a multi-file project: the server inlines CSS/JS into the entry page and returns the line map
+
       try {
         const data = await req(`/api/pg/canvas/${enc(st.chatId)}/${enc(a.id)}/preview?v=${row.v}`);
         if (st.nonce !== nonce) return;
@@ -768,13 +734,13 @@
       } catch (error) { say(error.message, "warn"); return; }
     }
     const doc = sandboxDoc(page, nonce, files);
-    // error line numbers refer to the srcdoc: every line the sandbox added sits before the artifact's own code
+
     const nl = (text) => (String(text || "").match(/\n/g) || []).length;
     st.lineShift = nl(doc) - nl(page);
     const target = $("#cv-frame");
     if (target) target.srcdoc = doc;
   }
-  /* ---- Round 40: the error bar over the preview + «Исправить с ИИ» */
+
   function renderErrBar() {
     const bar = $("#cv-errbar");
     if (!bar) return;
@@ -817,7 +783,7 @@
     if (draft.trim() && !window.confirm(L("В поле ввода есть текст — заменить его запросом на исправление?", "The message box has text — replace it with the fix request?"))) return;
     st.fixFor = a.id; st.fixAt = Date.now();
     await sendPrepared(text, L("Исправить с ИИ", "Fix with AI"));
-    if (input && input.value === text) { input.value = draft; input.dispatchEvent(new Event("input")); st.fixFor = ""; }   // a reply is still running
+    if (input && input.value === text) { input.value = draft; input.dispatchEvent(new Event("input")); st.fixFor = ""; }
   }
   function gotoError() {
     const a = art();
@@ -835,7 +801,7 @@
     const lh = parseFloat(getComputedStyle(ed).lineHeight) || 18;
     ed.scrollTop = Math.max(0, (e.line - 4) * lh);
   }
-  /* ---- diagram / slides (canvas-kinds.js) */
+
   let kindJob = 0;
   async function drawKind(a, text) {
     const host = $("#cv-kind");
@@ -856,7 +822,7 @@
       if (job === kindJob && $("#cv-kind")) $("#cv-kind").innerHTML = `<div class="cv-empty">${esc(error.message || String(error))}</div>`;
     }
   }
-  /* A change made in a visual editor (diagram drag / rename, slides theme) → a user version. */
+
   async function saveText(a, content, note) {
     const row = versionOf(a, st.v);
     try {
@@ -890,7 +856,6 @@
     if (list) list.scrollTop = list.scrollHeight;
   }
 
-  /* ------------------------------------------------------------------ diff */
   async function loadDiff(a, row) {
     const host = $("#cv-diff");
     if (!host) return;
@@ -943,7 +908,7 @@
         <button type="button" class="cv-chip cv-chip-main" data-cv-act="apply-decisions">${esc(L("Применить", "Apply"))}</button></div>` : ""}`;
   }
   function hunkLabel(h) {
-    if (h.file) {   // Round 40: a multi-file artifact — «app.js · строки 3–5»
+    if (h.file) {
       if (!h.file_line) {
         const what = { add: L("новый файл", "new file"), delete: L("файл удалён", "file deleted"), rename: L("переименование", "renamed") }[h.file_op];
         return `${h.file} · ${what || L("заголовок файла", "file header")}`;
@@ -970,7 +935,6 @@
     finally { st.busy = false; }
   }
 
-  /* ------------------------------------------------------------------ actions */
   function textForCopy(a, row) {
     if (a.type === "email") {
       const meta = row.meta || {};
@@ -1011,7 +975,7 @@
     } catch (error) {
       if (error.payload?.code === "not_installed") {
         say(L("MemuNote не установлен — его можно поставить в Настройки → MemuNote", "MemuNote is not installed — install it in Settings → MemuNote"), "warn",
-          typeof openSettings === "function" ? { label: L("Открыть", "Open"), run: () => { try { openSettings("memunote"); } catch (e) { /* ignore */ } } } : null);
+          typeof openSettings === "function" ? { label: L("Открыть", "Open"), run: () => { try { openSettings("memunote"); } catch (e) {  } } } : null);
       } else say(error.message, "warn");
     }
   }
@@ -1041,8 +1005,8 @@
     try {
       const res = await req(`/api/pg/canvas/${enc(st.chatId)}/${enc(a.id)}/module`, { method: "POST", body: { v: st.v } });
       say(L(`Модуль «${a.title}» создан (выключен) — откройте его в мастерской`, `Module “${a.title}” created (off) — open it in the workshop`), "ok",
-        window.MemuModules ? { label: L("Открыть", "Open"), run: async () => { try { await MemuModules.refresh?.(); MemuModules.editCode?.(res.id); } catch (e) { /* ignore */ } } } : null);
-      try { await window.MemuModules?.refresh?.(); } catch (e) { /* ignore */ }
+        window.MemuModules ? { label: L("Открыть", "Open"), run: async () => { try { await MemuModules.refresh?.(); MemuModules.editCode?.(res.id); } catch (e) {  } } } : null);
+      try { await window.MemuModules?.refresh?.(); } catch (e) {  }
     } catch (error) { say(error.message, "warn"); }
   }
   async function removeArt() {
@@ -1130,7 +1094,7 @@
         btn.title = st.wide ? L("Обычная ширина", "Normal width") : L("Шире", "Wider"); return;
       case "rename": rename(); return;
       case "make-head":
-        // A restore is a new version on top of the current one (history stays, the branch and the model see it).
+
         try {
           const base = pathHeads(messagesOf(st.chatId), st.list)[a.id] || a.head;
           const res = await req(`/api/pg/canvas/${enc(st.chatId)}/${enc(a.id)}/version`, { method: "POST",
@@ -1160,7 +1124,7 @@
     }
     render();
   }
-  /* Round 40: the user adds / deletes / renames a file (a user version on top of the shown one). */
+
   async function fileOp(a, op, path = "") {
     if (st.draft?.dirty) { say(L("Сначала сохраните или отмените правки", "Save or discard your edits first"), "warn"); return; }
     const row = versionOf(a, st.v);
@@ -1200,7 +1164,7 @@
       setTimeout(() => URL.revokeObjectURL(link.href), 2000);
     } catch (error) { say(L("Не удалось скачать: ", "Download failed: ") + (error.message || error), "warn"); }
   }
-  /* Menus open/close without re-rendering the pane (a re-render would restart the sandboxed preview). */
+
   function setMenu(kind) {
     st.menu = kind;
     const head = $("#canvas-pane .cv-head");
@@ -1241,7 +1205,7 @@
     } else if (el.id === "cv-ed") {
       st.draft.text = el.value;
       const a = art();
-      if (a && (a.type === "diagram" || a.type === "slides")) {     // live preview under the editor, debounced
+      if (a && (a.type === "diagram" || a.type === "slides")) {
         clearTimeout(liveTimer);
         liveTimer = setTimeout(() => { if (st.tab === "code" && st.draft) drawKind(a, st.draft.text); }, 450);
       }
@@ -1272,7 +1236,6 @@
     }
   }
 
-  /* ------------------------------------------------------------------ launcher + chat switching */
   function syncLauncher() {
     const wrap = $("#chat-view-wrap");
     if (!wrap) return;
@@ -1303,7 +1266,7 @@
     try { await loadList(chatId, true); } catch (e) { st.list = []; st.listChat = chatId; }
     if (currentChatId() === chatId) syncLauncher();
   }
-  // Round 36: no 500 ms polling — app.js::renderMessages fires «memu:chat-open» when the open chat changes.
+
   document.addEventListener("memu:chat-open", onChatMaybeChanged);
   if (typeof S !== "undefined" && S.currentId) onChatMaybeChanged();
   window.addEventListener("memu:branch-switch", (event) => {
@@ -1312,7 +1275,7 @@
     if (heads[st.openId] && heads[st.openId] !== st.v) { st.v = heads[st.openId]; st.draft = null; st.decisions = {}; render(); }
   });
   document.addEventListener("memu:lang", () => { if (isOpen()) render(); syncLauncher(); });
-  // Live Link (Round 40): back from MemuNote → pick up its saves (one request, only when a linked item is open)
+
   window.addEventListener("focus", () => {
     const a = isOpen() && art();
     if (a && linkOf(a) && !(st.draft && st.draft.dirty)) loadList(st.chatId, true).catch(() => {});
@@ -1333,7 +1296,7 @@
     isTool: (name) => TOOL_RE.test(String(name || "")),
     runTool, promptBlock, historyNote, cardsHtml, open, close, isOpen,
     refresh: async () => { const chatId = currentChatId(); if (chatId) { invalidate(chatId); await loadList(chatId, true).catch(() => []); } syncLauncher(); if (isOpen()) await open(st.openId, { v: st.v, tab: st.tab }); },
-    // pure helpers (tests)
+
     _pathHeads: pathHeads, _parseTable: parseTable, _sandboxDoc: sandboxDoc, CSP,
   };
 })();

@@ -23,7 +23,6 @@ from app import quick_ask_endpoint as endpoint
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
 class FakeOpenAI:
     """A tiny OpenAI-compatible server: /v1/models and /v1/chat/completions (SSE or JSON)."""
 
@@ -89,26 +88,21 @@ class FakeOpenAI:
         self.server.shutdown()
         self.server.server_close()
 
-
 def run(coro):
     return asyncio.run(coro)
 
-
 _SAVED: dict = {}
 
-
-def setUpModule() -> None:  # create_app() registers plugin tools globally: leave no trace for other modules
+def setUpModule() -> None:
     from app import quick_ask_api
     _SAVED["tools"] = dict(quick_ask_api.EXTRA_TOOLS)
     _SAVED["routes"] = list(quick_ask_api.EXTRA_ROUTES)
-
 
 def tearDownModule() -> None:
     from app import quick_ask_api
     quick_ask_api.EXTRA_TOOLS.clear()
     quick_ask_api.EXTRA_TOOLS.update(_SAVED.get("tools", {}))
     quick_ask_api.EXTRA_ROUTES[:] = _SAVED.get("routes", [])
-
 
 class EndpointSettingsTests(unittest.TestCase):
     def test_url_normalisation(self) -> None:
@@ -166,7 +160,6 @@ class EndpointSettingsTests(unittest.TestCase):
         rows = {r["id"]: r["caps"].get("vision") for r in endpoint.model_rows(["llava:13b", "qwen2.5:14b", "llama3.1:8b"])}
         self.assertEqual(rows, {"llava:13b": True, "qwen2.5:14b": False, "llama3.1:8b": None})
         self.assertTrue(all(r["caps"]["vision"] for r in endpoint.model_rows(["qwen2.5:14b"], "yes")))
-
 
 class EndpointNetworkTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -267,7 +260,6 @@ class EndpointNetworkTests(unittest.TestCase):
             endpoint.clear_key()
             save_preferences({key: before.get(key) for key in ("quick_ask_source", "quick_ask_endpoint_url", "quick_ask_endpoint_model")})
 
-
 class UntrustedScreenshotTests(unittest.TestCase):
     """r23-bughunt #10: after web/page text entered the conversation, a screenshot needs the user's own request."""
 
@@ -314,7 +306,6 @@ class UntrustedScreenshotTests(unittest.TestCase):
         self.assertTrue(core.wants_screen("Сделай скриншот"))
         self.assertFalse(core.wants_screen("перескажи страницу"))
 
-
 class CompanionCarryTests(unittest.TestCase):
     """Round 23: the companion dragged out of Quick Ask, docked back, remembered per monitor (geometry off Windows)."""
 
@@ -338,7 +329,7 @@ class CompanionCarryTests(unittest.TestCase):
         state = {"desktop": {"x": 2500, "y": 300, "w": 300, "h": 440},
                  "desktop_by_monitor": {cw.monitor_key(monitors[0]): {"x": 100, "y": 200, "w": 300, "h": 440}}}
         self.assertEqual(cw.pick_rect(state, work_of, (10, 10)), (2500, 300, 300, 440), "the last place while its monitor exists")
-        monitors.pop()      # the second monitor was unplugged
+        monitors.pop()
         self.assertEqual(cw.pick_rect(state, work_of, (10, 10)), (100, 200, 300, 440), "the place remembered for this monitor")
         self.assertIsNone(cw.pick_rect({}, work_of, (10, 10)))
 
@@ -358,7 +349,6 @@ class CompanionCarryTests(unittest.TestCase):
         self.assertFalse(manager.supported)
         self.assertEqual(manager.handle("drag", {}), {})
         self.assertIn("pinned", manager.handle("status", {}))
-
 
 class WindowStateAndContractTests(unittest.TestCase):
     def test_ui_state_is_outside_preferences(self) -> None:
@@ -407,7 +397,6 @@ class WindowStateAndContractTests(unittest.TestCase):
             result = subprocess.run([node, "-e", "new Function(require('fs').readFileSync(0, 'utf8'))"], input=code,
                                     capture_output=True, text=True, timeout=30)
             self.assertEqual(result.returncode, 0, rel + ": " + result.stderr[-400:])
-
 
 if __name__ == "__main__":
     unittest.main()

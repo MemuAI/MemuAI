@@ -42,8 +42,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
 
-
-# ----------------------------------------------------------------------------- fixture
 def make_tree(base: Path) -> Path:
     from PIL import Image, ImageDraw
     root = base / "root"
@@ -70,14 +68,13 @@ def make_tree(base: Path) -> Path:
     for i in range(400):
         (many / f"file_{i:04d}.{('txt', 'log', 'json', 'py')[i % 4]}").write_bytes(b"x" * (i * 37 % 5000))
     (root / "Пустая папка").mkdir()
-    # r40-files-2: the conflict dialog — the same names, an older picture and a bigger text
+
     clash = root / "Конфликт"
     clash.mkdir()
     Image.new("RGB", (640, 480), (90, 60, 200)).save(clash / "фото_отпуск.jpg")
     (clash / "notes.md").write_text("# Старый список\n" * 40, encoding="utf-8")
     os.utime(clash / "фото_отпуск.jpg", (time.time() - 86400 * 30, time.time() - 86400 * 30))
     return root
-
 
 def fake_llm(messages):
     """No network: the «sort by meaning» flow — a plan call, the classification, a closing sentence."""
@@ -97,8 +94,6 @@ def fake_llm(messages):
         return
     yield '<tool>{"name": "propose_plan", "args": {"title": "Разложить документы по смыслу", "actions": [{"op": "classify_and_organize", "root": "."}]}}</tool>'
 
-
-# r40-files-2: operations in every state for the flyout (rendered from snapshots — no 3 GB copy needed)
 def fake_ops(root: str) -> list:
     now = time.time()
     dl, dst = root + "/Загрузки", root + "/Проекты"
@@ -124,8 +119,6 @@ def fake_ops(root: str) -> list:
            total_items=1, done_items=1, undoable=True, finished=now - 200, created=now - 205, results=[dst + "/фото_отпуск.jpg"]),
     ]
 
-
-# ----------------------------------------------------------------------------- page checks
 AUDIT_JS = r"""
 (opts) => {
   const out = [];
@@ -256,8 +249,6 @@ FOCUS_JS = r"""() => {
   }
   return out; }"""
 
-
-# ----------------------------------------------------------------------------- runner
 def _server(base: Path, root: Path):
     os.environ["MEMUAI_DATA_DIR"] = str(base / "data")
     os.environ["MEMUFILES_TRASH_DIR"] = str(base / "trash")
@@ -271,7 +262,6 @@ def _server(base: Path, root: Path):
     app.llm_override = fake_llm
     httpd, _ = srv.start(app)
     return app, httpd
-
 
 def run(out_dir: str, quick: bool = False, only=None) -> list:
     from playwright.sync_api import sync_playwright
@@ -326,14 +316,14 @@ def run(out_dir: str, quick: bool = False, only=None) -> list:
 
                     screen("home")
                     focus("home")
-                    # r40-files-2: a pinned tab stays in the strip on every screen below
+
                     page.evaluate("p => { MemuFiles.newTab(p); return import('/js/feat40.js').then((m) => { m.pinTab(MemuFiles, MemuFiles.tabs.length - 1, true); MemuFiles.switchTab(MemuFiles.tabs.length - 1); }); }", str(root / "Проекты"))
                     nav(dl)
                     page.locator(".row", has_text="Договор").or_(page.locator(".row", has_text="Счёт")).first.click(position={"x": 60, "y": 12})
                     screen("details")
                     for view in ("list", "grid", "gallery"):
                         nav(dl, view)
-                        page.wait_for_timeout(700)                  # thumbnails
+                        page.wait_for_timeout(700)
                         screen(view)
                     nav(dl)
                     page.evaluate("() => { if (!document.querySelector('.kindbar:not([hidden])')) document.querySelector('[data-cmd=kinds]').click(); }")
@@ -381,7 +371,7 @@ def run(out_dir: str, quick: bool = False, only=None) -> list:
                     page.wait_for_selector(".plan .plan-group", timeout=20000)
                     page.wait_for_timeout(400)
                     screen("ai-plan")
-                    page.evaluate("() => MemuFiles.setRight(innerWidth > 760 ? 'preview' : null)")   # narrow: the preview is an overlay
+                    page.evaluate("() => MemuFiles.setRight(innerWidth > 760 ? 'preview' : null)")
                     page.evaluate("p => MemuFiles.pane().navigate(p)", "::trash")
                     page.wait_for_timeout(500)
                     screen("trash")
@@ -391,7 +381,7 @@ def run(out_dir: str, quick: bool = False, only=None) -> list:
                     page.wait_for_selector(".ql")
                     screen("quicklook", ".ql-back")
                     page.keyboard.press("Escape")
-                    # r40-files-2: operations — the flyout with every state, then the real conflict dialog, then the drop pill
+
                     page.evaluate("ops => { for (const op of ops) MemuFiles.onOp(op); MemuFiles.opsUi.toggle(true); }", fake_ops(str(root)))
                     page.wait_for_selector(".ops-fly .opc")
                     page.evaluate("() => document.querySelector('.opc.fin .opc-errs [data-act=errs]') && document.querySelector('.opc.fin .opc-errs [data-act=errs]').click()")
@@ -420,7 +410,7 @@ def run(out_dir: str, quick: bool = False, only=None) -> list:
                         findings.append(item)
                     if not page.evaluate("() => !!document.querySelector('.drop-hint')"):
                         findings.append({"kind": "dnd-hint-missing", "screen": f"{tag0}-dnd", "el": ".drop-hint"})
-                    page.wait_for_timeout(1300)                 # the watchdog removes the pill without a drop
+                    page.wait_for_timeout(1300)
                     if page.evaluate("() => !!document.querySelector('.drop-hint')"):
                         findings.append({"kind": "dnd-hint-stuck", "screen": f"{tag0}-dnd", "el": ".drop-hint"})
                     findings.extend({"kind": "console", "screen": tag0, "el": e[:220]} for e in errors if "favicon" not in e)
@@ -432,7 +422,6 @@ def run(out_dir: str, quick: bool = False, only=None) -> list:
     name = "report.json" if not only else "report-" + "-".join(map(str, only)) + ".json"
     (out / name).write_text(json.dumps(findings, ensure_ascii=False, indent=1), encoding="utf-8")
     return findings
-
 
 if __name__ == "__main__":
     args = [a for a in sys.argv[1:] if not a.startswith("--")]

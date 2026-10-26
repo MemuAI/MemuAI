@@ -1,6 +1,3 @@
-/* MemuAI Quick Ask · Computer Use card (Round 30, redesigned in Round 32 — quick-computer.js).
-   Tokens only — every theme (light/dark), accent and design; works from 360 px wide. */
-
 .qcu-host { padding: 0 12px 10px; }
 .qcu { --qcu-warn: #d99a2b; display: flex; flex-direction: column; gap: 10px; padding: 12px 12px 12px 14px; border-radius: 14px;
   background: color-mix(in srgb, var(--accent) 5%, var(--qa-surface, var(--panel))); border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--qa-line));
@@ -8,8 +5,6 @@
 .qcu[data-state="ask"] { border-color: color-mix(in srgb, var(--qcu-warn) 45%, var(--qa-line)); }
 .qcu[data-state="err"] { border-color: color-mix(in srgb, var(--danger) 40%, var(--qa-line)); }
 :root[data-cu="done"] .qcu[data-state="ok"], :root[data-cu="done"] .qcu[data-state="stopped"] { background: var(--qa-chip); border-color: var(--qa-line); }
-
-/* head */
 .qcu-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .qcu-state { position: relative; flex: none; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; border-radius: 50%;
   color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
@@ -25,14 +20,10 @@
 .qcu-now { color: var(--muted); font-size: 12px; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qcu-count { color: var(--qa-faint); font-variant-numeric: tabular-nums; }
 .qcu-head-actions { flex: none; display: inline-flex; gap: 4px; }
-
-/* progress */
 .qcu-progress { position: relative; height: 3px; margin: -4px 0 -2px; border-radius: 3px; overflow: hidden; background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .qcu-progress i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--accent); transition: width .5s ease; }
 .qcu-progress .qcu-shimmer { position: absolute; inset: 0; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--accent) 55%, transparent), transparent);
   background-size: 40% 100%; background-repeat: no-repeat; animation: qcu-shimmer 1.4s ease-in-out infinite; }
-
-/* buttons */
 .qcu-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 30px; padding: 0 12px; border-radius: 8px; border: 1px solid var(--qa-line);
   background: var(--qa-chip); color: var(--text); font-size: 12.5px; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .qcu-btn svg { width: 14px; height: 14px; flex: none; }
@@ -47,8 +38,6 @@
 .qcu-btn.ghost { border-color: transparent; background: transparent; color: var(--muted); }
 .qcu-btn.ghost:hover { color: var(--text); background: var(--qa-hover); }
 .qcu-btn.icon { width: 30px; padding: 0; }
-
-/* task + meta */
 .qcu-label { display: block; margin-bottom: 2px; color: var(--qa-faint); font-size: 11px; font-weight: 600; letter-spacing: .02em; }
 .qcu-task { display: flex; align-items: flex-end; gap: 10px; flex-wrap: wrap; }
 .qcu-task-text { flex: 1 1 220px; min-width: 0; color: var(--text); font-size: 13px; line-height: 1.4; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
@@ -62,8 +51,6 @@
 .qcu-switch input:checked + .qcu-switch-ui { background: var(--accent); }
 .qcu-switch input:checked + .qcu-switch-ui::after { transform: translateX(12px); }
 .qcu-switch input:focus-visible + .qcu-switch-ui { box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent); }
-
-/* thumbnails + the target marker */
 .qcu-thumb { position: relative; flex: none; width: 96px; aspect-ratio: 16 / 9; padding: 0; border: 1px solid var(--qa-line); border-radius: 7px; overflow: hidden;
   background: var(--qa-chip); cursor: zoom-in; }
 .qcu-thumb.ph { cursor: default; background: repeating-linear-gradient(135deg, var(--qa-chip) 0 6px, transparent 6px 12px); }
@@ -80,8 +67,6 @@
 .qcu-tag { position: absolute; left: 18px; top: -6px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 2px 7px; border-radius: 6px;
   font: 600 11px/16px var(--sans); color: #fff; background: rgba(12, 12, 16, .82); box-shadow: 0 1px 4px rgba(0, 0, 0, .4); }
 .qcu-tag.left { left: auto; right: 18px; }
-
-/* live view (what the AI looked at, where it acts) */
 .qcu-live { display: flex; flex-direction: column; gap: 8px; }
 .qcu-live-cap, .qcu-approve-head { display: flex; align-items: flex-start; gap: 10px; min-width: 0; }
 .qcu-live-cap > div, .qcu-approve-text { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
@@ -90,8 +75,6 @@
 .qcu-kind { flex: none; display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 8px; color: var(--accent);
   background: color-mix(in srgb, var(--accent) 12%, transparent); }
 .qcu-kind svg { width: 14px; height: 14px; }
-
-/* approval */
 .qcu-approve { display: flex; flex-direction: column; gap: 10px; padding: 10px; border-radius: 11px; background: color-mix(in srgb, var(--qcu-warn) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--qcu-warn) 32%, transparent); }
 .qcu-approve .qcu-kind { color: var(--qcu-warn); background: color-mix(in srgb, var(--qcu-warn) 16%, transparent); }
@@ -101,7 +84,7 @@
 .qcu-approve-view { display: flex; justify-content: center; gap: 8px; align-items: stretch; min-width: 0; }
 .qcu-approve-view .qcu-thumb.big { flex: 0 1 auto; min-width: 0; margin: 0; }
 .qcu-approve-view .qcu-lens { flex: 0 0 150px; }
-.qcu-approve-view.no-point .qcu-thumb.big img { max-height: 120px; }   /* open an app / type / keys: the screen is context only */
+.qcu-approve-view.no-point .qcu-thumb.big img { max-height: 120px; }
 .qcu-approve-view .qcu-thumb.big img { max-height: 200px; }
 .qcu-live .qcu-hint { margin-top: -2px; text-align: center; }
 .qcu-lens { position: relative; border-radius: 9px; border: 1px solid var(--qa-line); background-color: #0b0b0f; background-repeat: no-repeat; min-height: 110px; overflow: hidden; }
@@ -119,8 +102,6 @@
 .qcu-preview-cap span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qcu-preview-cap b { color: var(--text); flex: none; }
 .qcu-preview-cap .qcu-btn { margin-left: auto; }
-
-/* timeline */
 .qcu-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; max-height: 236px; overflow-y: auto; scrollbar-width: thin; }
 .qcu-step { display: grid; grid-template-columns: 22px 72px minmax(0, 1fr); align-items: center; gap: 8px; padding: 4px; border-radius: 9px; font-size: 12.5px; }
 .qcu-step:hover { background: var(--qa-hover); }
@@ -139,8 +120,6 @@
   color: var(--qcu-warn); background: color-mix(in srgb, var(--qcu-warn) 13%, transparent); }
 .qcu-steps-toggle { list-style: none; }
 .qcu-spin { display: inline-block; width: 11px; height: 11px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent); border-top-color: var(--accent); animation: qcu-spin .9s linear infinite; }
-
-/* result */
 .qcu-result { display: flex; flex-direction: column; gap: 8px; }
 .qcu-explain { display: flex; flex-direction: column; gap: 3px; padding: 9px 11px; border-radius: 10px; font-size: 12.5px; line-height: 1.45;
   background: color-mix(in srgb, var(--danger) 8%, transparent); border: 1px solid color-mix(in srgb, var(--danger) 26%, transparent); }
@@ -153,8 +132,6 @@
 .qcu-report > :last-child { margin-bottom: 0; }
 .qcu-error { margin: 0; color: var(--danger); font-size: 12.5px; }
 .qcu-result-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-
-/* narrow window */
 @media (max-width: 480px) {
   .qcu-host { padding: 0 8px 8px; }
   .qcu { padding: 10px; }
@@ -165,14 +142,11 @@
   .qcu-head-actions .qcu-btn.stop { width: 30px; padding: 0; }
   .qcu-approve-actions .qcu-btn { flex: 1 1 auto; }
 }
-
-/* While the AI works the window folds into a compact strip: only the card's head stays (less screen covered). */
 :root[data-cu="compact"] :is(.qa-input-row, .qa-progress, .qa-attach, .qa-slot[data-slot="top"], .qa-suggest, .qa-picker, .qa-chats, .qa-menu, .qa-answer, .qa-actions, .qa-bar) { display: none !important; }
 :root[data-cu="compact"] .qa-slot[data-slot="bottom"] > :not(.qcu-host) { display: none !important; }
 :root[data-cu="compact"] .qcu-host { padding: 8px; }
-:root[data-cu="compact"] .qcu { padding: 8px 8px 8px 10px; gap: 6px; min-height: 80px; justify-content: center; }   /* = the window's 96 px minimum */
+:root[data-cu="compact"] .qcu { padding: 8px 8px 8px 10px; gap: 6px; min-height: 80px; justify-content: center; }
 :root[data-cu="compact"] .qcu-progress { margin: 0; }
-/* full view during the run: the answer list steps back so the card is what you read */
 :root:is([data-cu="full"], [data-cu="done"]) :is(.qa-suggest, .qa-actions) { display: none !important; }
 
 @keyframes qcu-spin { to { transform: rotate(360deg); } }
@@ -183,7 +157,5 @@
 :root[data-design="terminal"] :is(.qcu, .qcu-btn, .qcu-approve, .qcu-thumb, .qcu-note, .qcu-lens, .qcu-explain, .qcu-step) { border-radius: 2px; }
 :root[data-design="brutal"] .qcu { border-width: 2px; border-color: var(--text); }
 :root[data-design="soft"] :is(.qcu-btn, .qcu-note) { border-radius: 999px; }
-
-/* Round 31 (r31-quick): «the model may not see the screen» — a choice before the run instead of a dead end */
 .qcu-gate .qcu-now { white-space: normal; overflow: visible; text-overflow: clip; }
 .qcu-gate .qcu-result-actions { flex-wrap: wrap; }

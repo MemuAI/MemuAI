@@ -1,6 +1,5 @@
-// Runs the real agents.js (agents of Work and MemuCode in the MemuAI window) with a scripted
-// server: when agents are allowed, what the interface remembers about them, and how a report that
-// nobody waited for comes back into the conversation. Prints one JSON line for round13_test.py.
+
+
 const fs = require("fs");
 const vm = require("vm");
 const path = require("path");

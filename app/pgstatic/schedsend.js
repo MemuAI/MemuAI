@@ -1,26 +1,5 @@
-/* MemuAI — Round 29: scheduled messages («Отложенная отправка», like Telegram).
- *
- * Right-click (or long-press) on the send button, or Ctrl+Shift+Enter in the composer, opens the
- * «Send later» menu: presets (in 1 hour, tonight 21:00, tomorrow 9:00 / 15:00, Monday 9:00), a
- * custom date & time picker with a natural-language field («завтра в 15:00», «in 2 hours»), repeat,
- * «when online» and an optional Telegram notification. The whole composer state is stored with the
- * message: text, attachments, model, web search / thinking / deep research toggles, image mode.
- *
- * The queue lives on disk per profile (app/scheduled_messages.py). This window keeps exact timers:
- *   - the open chat → sent through the window's own send(), exactly like a typed message;
- *   - another regular chat → delegated to MemuAI Proxy (server-side send into the chat);
- *   - Work chats / image models → the window opens the chat and sends when you are idle.
- * When the window is closed, MemuAI Proxy sends regular-chat messages itself
- * (app/scheduled_messages_runner.py). Missed messages follow «schedsend_missed» (send / ask / skip).
- *
- * A bar above the composer lists the chat's scheduled messages (edit text/time, send now, cancel);
- * «All scheduled messages» shows every chat. Temporary chats cannot schedule (nothing is saved there).
- *
- * Uses app.js globals (classic scripts share one global scope): S, PG_LANG, $, esc, api, toast, icon,
- * panel, closePanel, send, currentModel, setCurrentModel, attachments, renderAttachments, setImagine,
- * generationJobs, openChat, currentChat, persistChat, pref, savePreferences, modelDisplayName,
- * isImageModel, isProjectMode, makeTemporaryPermanent, renderCaps.
- */
+
+
 "use strict";
 (() => {
   if (window.MemuSchedSend) return;
@@ -48,7 +27,6 @@
   };
   const ic = (name) => (SVG[name] ? `<span class="ui-icon">${SVG[name]}</span>` : icon(name));
 
-  /* ------------------------------------------------------------------ time helpers */
   const pad2 = (n) => String(n).padStart(2, "0");
   function at(dayOffset, h, m = 0, base = new Date()) {
     const d = new Date(base.getFullYear(), base.getMonth(), base.getDate() + dayOffset, h, m, 0, 0);
@@ -59,7 +37,7 @@
   function weekdayName(d, long = true) {
     try { return d.toLocaleDateString(en() ? "en-US" : "ru-RU", { weekday: long ? "long" : "short" }); } catch (e) { return ""; }
   }
-  /* «сегодня в 21:00», «tomorrow at 9:00», «Mon, 14 Oct at 9:00» */
+
   function whenLabel(ms, { short = false } = {}) {
     if (!ms) return "";
     const d = new Date(ms), now = new Date();
@@ -96,8 +74,6 @@
     return new Date(+dm[1], +dm[2] - 1, +dm[3], +tm[1], +tm[2], 0, 0).getTime();
   }
 
-  /* Natural language: «через 2 часа», «in 45 min», «завтра в 15:00», «tomorrow 9am», «в 7:00»,
-     «пятница 18:30», «friday at 6pm», «25.12 10:00», «2026-12-25 10:00», «вечером», «tonight». */
   const WEEKDAYS = [
     ["вс", "воскр", "sun"], ["пн", "понед", "mon"], ["вт", "вторн", "tue"], ["ср", "сред", "wed"],
     ["чт", "четв", "thu"], ["пт", "пятн", "fri"], ["сб", "субб", "sat"],
@@ -121,7 +97,7 @@
     let x = take(/(\d{4})-(\d{1,2})-(\d{1,2})/);
     if (x) base = new Date(+x[1], +x[2] - 1, +x[3]);
     if (!base) {
-      // «25.12 10:00» / «25.12.2026» is a date; a lone «10.30» is a time.
+
       const before = s;
       x = take(/(\d{1,2})[./](\d{1,2})(?:[./](\d{2,4}))?(?=\s|$)/);
       if (x && (x[3] || /\d/.test(s) || +x[1] > 23 || +x[2] > 59)) {
@@ -180,7 +156,6 @@
     return rows;
   }
 
-  /* ------------------------------------------------------------------ state & server */
   const forChat = (chatId) => st.items.filter((row) => row.chat_id === chatId && ["scheduled", "sending", "missed", "failed"].includes(row.status));
   async function refresh(force = false) {
     try {
@@ -191,7 +166,7 @@
       st.rev = data.rev || "";
       st.loaded = true;
       renderBar(); decorateChats(); armTimer(); showNotices();
-    } catch (e) { /* MemuAI server restarting — the next poll retries */ }
+    } catch (e) {  }
   }
   async function heartbeat() {
     try {
@@ -206,7 +181,6 @@
   }
   const isOnline = () => navigator.onLine !== false && proxyOnline();
 
-  /* ------------------------------------------------------------------ composer snapshot */
   function composerState() {
     const input = $("#input");
     return {
@@ -265,7 +239,7 @@
     let saved;
     try { saved = await api("/api/schedsend/create", { method: "POST", body: { item, lang: PG_LANG } }); }
     catch (e) { return toast(e.message || String(e), "err"); }
-    // The composer is now empty, as after sending; «Undo» puts everything back.
+
     const input = $("#input");
     input.value = ""; input.style.height = "auto"; input.dispatchEvent(new Event("input"));
     if (typeof clearAttachments === "function") clearAttachments();
@@ -286,14 +260,12 @@
     });
   }
 
-  /* ------------------------------------------------------------------ the «Send later» menu */
   function closeMenu() {
     if (st.layer && window.MemuLayers) { try { MemuLayers.close(st.layer, "api"); } catch (e) {} }
     st.layer = null;
     if (st.menu) { st.menu.remove(); st.menu = null; }
   }
-  /** The «pick date & time» shortcut as the user set it (Settings → Hotkeys); «Enter» drawn as ↵ so the chip
-   *  never squeezes the label onto two lines. No chip when the shortcut is switched off. */
+
   function customKbd() {
     let combo = "Ctrl+Shift+Enter";
     try { if (window.MemuHotkeys?.value) combo = MemuHotkeys.label(MemuHotkeys.value("schedule_send", combo)); } catch (e) {}
@@ -361,16 +333,15 @@
     document.body.appendChild(menu);
     st.menu = menu;
     const place = () => {
-      // Above the send button, right edges aligned; below it only when there is no room above.
+
       const r = anchor.getBoundingClientRect(), pad = 8, gap = 8;
       menu.style.maxHeight = "";
       const width = Math.min(360, window.innerWidth - pad * 2);
       menu.style.width = width + "px";
-      // border included: max-height is a border-box height, scrollHeight is not (a 2px overflow drew a scrollbar)
+
       const natural = Math.ceil(menu.scrollHeight + menu.offsetHeight - menu.clientHeight);
       const above = r.top - gap - pad, below = window.innerHeight - r.bottom - gap - pad;
-      // The composer of an empty chat sits mid-window (1366×728): neither side fits the whole menu, so it opens
-      // beside the send button, bottom-aligned with it, instead of a cramped scrolling list.
+
       if (natural > above && natural > below && r.left - gap - pad >= width) {
         const height = Math.min(natural, window.innerHeight - pad * 2);
         menu.style.maxHeight = height + "px";
@@ -454,7 +425,6 @@
     if (custom && !reason && !empty) showCustom();
   }
 
-  /* ------------------------------------------------------------------ the bar above the composer */
   function statusInfo(row) {
     if (row.status === "sending") return { cls: "sending", text: t("Отправляется…", "Sending…") };
     if (row.status === "missed") return { cls: "missed", text: t("Время прошло, пока MemuAI был закрыт", "Its time passed while MemuAI was closed") };
@@ -579,7 +549,6 @@
     } : null);
   }
 
-  /* ------------------------------------------------------------------ editor */
   async function editItem(id) {
     let item;
     try { item = (await api(`/api/schedsend/item/${encodeURIComponent(id)}`)).item; } catch (e) { return toast(e.message, "err"); }
@@ -667,7 +636,6 @@
     $("#ss-ed-delete").onclick = async () => { closePanel(); try { await removeItem(id); } catch (e) { toast(e.message, "err"); } };
   }
 
-  /* ------------------------------------------------------------------ all scheduled messages */
   function showAll() {
     const active = st.items.filter((row) => ["scheduled", "sending", "missed", "failed"].includes(row.status));
     const done = st.items.filter((row) => ["sent", "skipped"].includes(row.status)).sort((a, b) => (b.sent_at || b.updated) - (a.sent_at || a.updated)).slice(0, 30);
@@ -697,7 +665,6 @@
     $("#panel")?.addEventListener("click", onRowAction);
   }
 
-  /* ------------------------------------------------------------------ notices */
   function showNotices() {
     const fresh = st.items.filter((row) => row.notice && !st.noticeShown.has(row.id) && row.status !== "missed");
     const missed = st.items.filter((row) => row.status === "missed" && !st.noticeShown.has(row.id));
@@ -721,7 +688,6 @@
     if (ack.length) api("/api/schedsend/ack", { method: "POST", body: { ids: ack } }).catch(() => {});
   }
 
-  /* ------------------------------------------------------------------ execution */
   function armTimer() {
     clearTimeout(st.timer);
     const due = st.items.filter((row) => row.status === "scheduled")
@@ -749,13 +715,13 @@
       const due = st.items.filter((row) => row.status === "scheduled" && !st.busy.has(row.id)
         && (!row.next_attempt || row.next_attempt <= now) && (row.trigger === "online" || row.due_at <= now));
       for (const row of due) {
-        if (!isOnline()) break;                         // nothing can be sent without the Proxy / network
+        if (!isOnline()) break;
         const open = row.chat_id === S.currentId && !S.tempChat;
         if (open) {
-          if (generationJobs.has(S.currentId) || modalOpen()) continue;     // after the current answer
+          if (generationJobs.has(S.currentId) || modalOpen()) continue;
           await runInWindow(row);
         } else if (!needsWindow(row)) {
-          if (row.route === "server") continue;         // the Proxy has it
+          if (row.route === "server") continue;
           st.busy.add(row.id);
           try { await api("/api/schedsend/delegate", { method: "POST", body: { id: row.id, lang: PG_LANG } }); }
           catch (e) { console.warn("schedsend delegate", e); }
@@ -767,7 +733,7 @@
             await runInWindow(row);
           }
         } else if (!(S.chats || []).some((c) => c.id === row.chat_id)) {
-          // The Work chat was deleted: nothing to send into.
+
           st.busy.add(row.id);
           try {
             const claimed = await api("/api/schedsend/claim", { method: "POST", body: { id: row.id } });
@@ -790,8 +756,6 @@
     }
   }
 
-  /* Send through the window's own send(): the same prompt, tools, skills and agents as a typed message.
-     The composer the user is typing in is put aside and restored afterwards. */
   async function runInWindow(row) {
     if (st.busy.has(row.id)) return;
     st.busy.add(row.id);
@@ -818,7 +782,7 @@
         input.value = item.text || "";
         attachments = (item.attachments || []).map((a) => ({ name: a.name, data: a.data, size: a.size, type: a.type, isImg: !!a.isImg }));
         if (typeof renderAttachments === "function") renderAttachments();
-        try { window.MemuFocus = null; } catch (e) {}       // a scheduled message skips the quiet-hours reminder
+        try { window.MemuFocus = null; } catch (e) {}
         await send();
       } catch (e) {
         error = e?.message || String(e);
@@ -851,7 +815,6 @@
     }
   }
 
-  /* «Notify in Telegram»: after the window's answer is finished. */
   function watchAnswer(item, chatId) {
     const started = Date.now();
     const check = () => {
@@ -866,7 +829,6 @@
     setTimeout(check, 2000);
   }
 
-  /* ------------------------------------------------------------------ chat list badges */
   function decorateChats() {
     const byChat = st.summary.by_chat || {};
     document.querySelectorAll(".chat-item[data-chat]").forEach((el) => {
@@ -883,7 +845,6 @@
     });
   }
 
-  /* ------------------------------------------------------------------ settings («Чат и ответы») */
   function settingsHtml(ctx) {
     const { K, L2 } = ctx;
     const policy = pref("schedsend_missed", "send");
@@ -917,7 +878,6 @@
     if (open) open.onclick = () => showAll();
   }
 
-  /* ------------------------------------------------------------------ wiring */
   function bind() {
     const sendBtn = document.getElementById("btn-send");
     if (!sendBtn || sendBtn.dataset.ssBound) return;
@@ -939,7 +899,7 @@
     });
     const cancelPress = () => { clearTimeout(pressTimer); setTimeout(() => sendBtn.classList.remove("ss-pressed"), 120); };
     ["pointerup", "pointerleave", "pointercancel"].forEach((name) => sendBtn.addEventListener(name, cancelPress));
-    // A long press must not also send: swallow the click that ends it (capture runs before app.js's onclick).
+
     sendBtn.addEventListener("click", (event) => {
       if (pressed) { pressed = false; event.preventDefault(); event.stopImmediatePropagation(); }
     }, true);
@@ -969,7 +929,7 @@
   }
 
   function start() {
-    // The shortcut is documented in Settings → Keyboard shortcuts and can be rebound there (hotkeys.js).
+
     try {
       window.MemuHotkeys?.register?.([{ id: "schedule_send", group: "chat", scope: "chat", keys: ["Ctrl+Shift+Enter"], custom: true,
         ru: "Отправить позже: меню отложенной отправки", en: "Send later: the scheduled-message menu" }]);
@@ -987,8 +947,8 @@
     window.addEventListener("pagehide", () => {
       try { navigator.sendBeacon && navigator.sendBeacon("/api/schedsend/heartbeat", new Blob([JSON.stringify({ closing: true })], { type: "application/json" })); } catch (e) {}
     });
-    setTimeout(pump, 4000);       // catch up on start, after the model list and the Proxy status are known
-    // Re-render relative times once a minute.
+    setTimeout(pump, 4000);
+
     setInterval(() => { if (!document.hidden) renderBar(); }, 60000);
   }
 

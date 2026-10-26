@@ -1,6 +1,5 @@
-/* Round 29 — Settings → Quick Ask → «Explorer, programs and tools» (plugins "explorer" + "extras").
-   Data: GET /api/quick/apps/settings, saved through POST /api/quick/apps/settings|presets
-   (memuai/quick_apps.json — not preferences.json: the main window saves whole snapshots of that file). */
+
+
 (function () {
   "use strict";
   if (!window.MemuQuick || typeof MemuQuick.settingsSection !== "function") return;

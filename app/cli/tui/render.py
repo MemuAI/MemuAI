@@ -25,7 +25,6 @@ ELBOW = "⎿"
 
 _MARKDOWN: List[Any] = []
 
-
 def markdown_class() -> Any:
     """rich's Markdown with left-aligned headings and unframed code — built on first use, because
     markdown-it and pygments cost ~60 ms to import and the first frame does not need them."""
@@ -48,7 +47,6 @@ def markdown_class() -> Any:
         _MARKDOWN.append(_Markdown)
     return _MARKDOWN[0]
 
-
 def warm_up() -> None:
     """Import what the first answer needs while the user is still reading the banner."""
     try:
@@ -59,20 +57,17 @@ def warm_up() -> None:
     except Exception:
         pass
 
-
 TOOL_TITLES = {
     "Edit": "Update", "MultiEdit": "Update", "Grep": "Search", "Glob": "Find", "LS": "List",
     "TodoWrite": "Update Todos", "WebSearch": "Web Search", "WebFetch": "Fetch", "AskUserQuestion": "Ask",
     "ExitPlanMode": "Plan", "BashOutput": "Bash Output", "KillShell": "Kill Shell",
 }
 
-
 def tool_title(name: str) -> str:
     if name.startswith("mcp__"):
         parts = name.split("__")
         return f"{parts[1]} · {'__'.join(parts[2:])}" if len(parts) > 2 else name
     return TOOL_TITLES.get(name, name)
-
 
 class Renderer:
     def __init__(self, palette: Palette, color_system: str = "truecolor") -> None:
@@ -81,8 +76,7 @@ class Renderer:
         from .theme import rich_theme
         self.theme = rich_theme(palette)
         self.width = 100
-        # Round 34: the TUI hands its live window width here — command bodies (/effort, /model notes…) were
-        # rendered at the start-up 100 columns and broke mid-word in a narrower or resized window.
+
         self.width_of: Optional[Callable[[], int]] = None
 
     def set_palette(self, palette: Palette) -> None:
@@ -90,7 +84,6 @@ class Renderer:
         self.palette = palette
         self.theme = rich_theme(palette)
 
-    # ------------------------------------------------------------ core
     def render(self, *items: RenderableType, width: Optional[int] = None) -> str:
         buffer = io.StringIO()
         console = Console(file=buffer, force_terminal=self.color_system is not None, color_system=self.color_system,
@@ -123,7 +116,6 @@ class Renderer:
                 out.append(rest + line)
         return "\n".join(out) + "\n"
 
-    # ------------------------------------------------------------ messages
     def assistant(self, text: str, width: Optional[int] = None) -> str:
         text = text.strip()
         if not text:
@@ -194,8 +186,7 @@ class Renderer:
     def notice(self, text: str, level: str = "info", width: Optional[int] = None) -> str:
         style = {"warn": "warn", "error": "err", "success": "ok", "info": "dim"}.get(level, "dim")
         mark = {"warn": "⚠", "error": "✗", "success": "✓"}.get(level, "·")
-        # Round 34: a grid keeps the hanging indent — a long second line («… · /auto-continue cancel») wrapped
-        # back to column 0. Continuation lines written as "\n  …" lose their own two spaces (the column gives them).
+
         lines = str(text).split("\n")
         body = "\n".join([lines[0]] + [line[2:] if line.startswith("  ") else line for line in lines[1:]])
         grid = Table.grid(padding=0)
@@ -211,7 +202,7 @@ class Renderer:
         head.add_row(Text(f"{BULLET} ", style="err"), Text(title, style="err"))
         rows: List[RenderableType] = [head]
         if detail:
-            # A grid keeps a hanging indent: a long upstream message wrapped back to column 0 before.
+
             grid = Table.grid(padding=0)
             grid.add_column(width=5, no_wrap=True)
             grid.add_column(overflow="fold")
@@ -220,7 +211,6 @@ class Renderer:
             rows.append(grid)
         return self.render(*rows)
 
-    # ------------------------------------------------------------ tools
     def tool_header(self, call: Any, status: str = "done") -> Text:
         color = {"done": "ok", "error": "err", "denied": "warn", "cancelled": "warn", "running": "dim",
                  "pending": "dim"}.get(status, "dim")
@@ -298,7 +288,6 @@ class Renderer:
         style = {"completed": "dim strike", "in_progress": "bold brand", "pending": "text"}.get(status, "text")
         return Text(" " * indent + f"{mark} {todo.get('content', '')}", style=style)
 
-    # ------------------------------------------------------------ diffs
     def diff(self, diff: str, *, max_lines: Optional[int] = 40) -> RenderableType:
         rows: List[Text] = []
         old = new = 0
@@ -340,7 +329,6 @@ class Renderer:
         return self.render(Panel(self.diff(diff, max_lines=max_lines), title=title, title_align="left",
                                  border_style="subtle", box=box.ROUNDED, padding=(0, 1)))
 
-    # ------------------------------------------------------------ building blocks
     def panel(self, body: RenderableType, title: str = "", style: str = "subtle") -> str:
         return self.render(Panel(body, title=title, title_align="left", border_style=style, box=box.ROUNDED,
                                  padding=(0, 1)))
@@ -375,7 +363,6 @@ class Renderer:
         text.append("░" * (width - filled), style="subtle")
         return text
 
-
 def _pad(text: Text, width: int) -> Text:
     """Background style across the whole line (user messages, diff rows)."""
     length = text.cell_len
@@ -383,19 +370,13 @@ def _pad(text: Text, width: int) -> Text:
         text.append(" " * (width - length), style=text.style if isinstance(text.style, str) else "")
     return text
 
-
 _ANSI_RE = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07")
-
 
 def _strip_ansi(text: str) -> str:
     return _ANSI_RE.sub("", text)
 
-
 def strip_ansi(text: str) -> str:
     return _strip_ansi(text)
-
-
-# ---------------------------------------------------------------- streaming
 
 def split_stable(text: str) -> Tuple[str, str]:
     """(complete markdown blocks, the unfinished tail) of a streaming answer.
@@ -408,7 +389,7 @@ def split_stable(text: str) -> Tuple[str, str]:
     fence_mark = ""
     cut = 0
     position = 0
-    for index, line in enumerate(lines[:-1]):          # the last line may be partial
+    for index, line in enumerate(lines[:-1]):
         position += len(line) + 1
         stripped = line.strip()
         match = re.match(r"^(`{3,}|~{3,})", stripped)
@@ -422,7 +403,6 @@ def split_stable(text: str) -> Tuple[str, str]:
         if not in_fence and not stripped:
             cut = position
     return text[:cut], text[cut:]
-
 
 def live_preview(tail: str, max_lines: int = 18) -> str:
     """The end of the unfinished tail, keeping an open fence's opener for highlighting."""

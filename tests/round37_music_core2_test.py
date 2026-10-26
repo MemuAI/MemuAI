@@ -15,8 +15,7 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from round37_music_core_test import Base, FakeClient, FakeResponse, FakeRunner, png_bytes  # noqa: E402
 
-_PYDEPS = Path("/workspace/work/pydeps")   # dev box: optional packages live outside the project (mutagen)
-
+_PYDEPS = Path("/workspace/work/pydeps")
 
 def _mutagen():
     try:
@@ -31,7 +30,6 @@ def _mutagen():
         except ImportError:
             return False
 
-
 def wait_for(predicate, timeout=5.0):
     end = time.time() + timeout
     while time.time() < end:
@@ -39,7 +37,6 @@ def wait_for(predicate, timeout=5.0):
             return True
         time.sleep(0.02)
     return predicate()
-
 
 class CorsTest(Base):
     def setUp(self):
@@ -74,24 +71,23 @@ class CorsTest(Base):
             self.assertIn(name, expose)
         r = c.get(cover, headers=sandbox)
         self.assertEqual((r.status_code, r.headers["access-control-allow-origin"]), (200, "*"))
-        # Preflight (e.g. a fetch() with Range from the module window).
+
         r = c.options(stream, headers={**sandbox, "Access-Control-Request-Method": "GET",
                                        "Access-Control-Request-Headers": "range"})
         self.assertEqual(r.status_code, 204)
         self.assertEqual(r.headers["access-control-allow-origin"], "*")
         self.assertIn("Range", r.headers["access-control-allow-headers"])
         self.assertIn("GET", r.headers["access-control-allow-methods"])
-        # HEAD works too.
+
         self.assertEqual(c.head(stream, headers=sandbox).status_code, 200)
-        # The token still protects; the error is readable cross-origin but forbidden.
+
         bad = c.get(stream.split("?")[0] + "?t=bad", headers=sandbox)
         self.assertEqual((bad.status_code, bad.headers.get("access-control-allow-origin")), (403, "*"))
-        # Everything else stays closed to Origin: null.
+
         self.assertEqual(c.post("/api/pg/music/call", json={"op": "library.stats"}, headers={"Origin": "null"}).status_code, 403)
         self.assertEqual(c.options("/api/pg/music/call", headers=sandbox).status_code, 403)
         r = c.get(stream, headers={"Origin": "https://evil.example"})
-        self.assertEqual(r.status_code, 200)   # token-protected media, any origin
-
+        self.assertEqual(r.status_code, 200)
 
 class PlayerStateTest(unittest.TestCase):
     def test_playing_flag_and_position(self):
@@ -102,10 +98,10 @@ class PlayerStateTest(unittest.TestCase):
             hub.update({"track_id": "aaaaaaaaaaaa", "position": 5, "playing": True, "duration": 300, "device": "pc"})
             self.assertTrue(hub.snapshot()["playing"])
             self.assertTrue(hub.snapshot()["online"])
-            # String booleans from loose clients are not «truthy strings».
+
             self.assertFalse(hub.update({"playing": "false"})["playing"])
             self.assertTrue(hub.update({"playing": "true"})["playing"])
-            # Pause without a position, wait, resume without a position: no jump by the pause length.
+
             t0 = time.time()
             with patch("app.music.player.time.time", return_value=t0 + 1):
                 hub.update({"track_id": "aaaaaaaaaaaa", "position": 50, "playing": True})
@@ -117,18 +113,17 @@ class PlayerStateTest(unittest.TestCase):
                 self.assertAlmostEqual(snap["position_now"], 52, delta=0.01)
             with patch("app.music.player.time.time", return_value=t0 + 104):
                 self.assertAlmostEqual(hub.snapshot()["position_now"], 56, delta=0.01)
-            # An older report (racing bridge calls) does not override a newer one.
+
             hub.update({"playing": True, "position": 10, "device": "pc", "at": 2_000_000_000_000})
             snap = hub.update({"playing": False, "position": 9, "device": "pc", "at": 1_999_999_999_000})
             self.assertTrue(snap["ignored"])
             self.assertTrue(hub.snapshot()["playing"])
-            # A player that went silent (window closed) stops «playing» after STALE_SECONDS.
+
             with patch("app.music.player.time.time", return_value=time.time() + player.STALE_SECONDS + 5):
                 snap = hub.snapshot()
                 self.assertFalse(snap["playing"])
                 self.assertTrue(snap["stale"])
                 self.assertFalse(snap["online"])
-
 
 class SlowRunner(FakeRunner):
     """Counts how many downloads run at the same time."""
@@ -147,7 +142,6 @@ class SlowRunner(FakeRunner):
         finally:
             with self.lock:
                 self.now -= 1
-
 
 class JobsTest(Base):
     def manager(self, runner, routes=None, **kw):
@@ -173,10 +167,10 @@ class JobsTest(Base):
         self.assertEqual([i["status"] for i in public["items"]], ["done"] * 6)
         self.assertTrue(all(i["progress"] == 1 for i in public["items"]))
         self.assertEqual(public["items"][0]["title"], "T0")
-        # track_ids follow the playlist order even though items finished in any order
+
         titles = [self.lib.row(t)["source_url"][-11:] for t in public["track_ids"]]
         self.assertEqual(titles, [f"v{i:010d}" for i in range(6)])
-        # parallel_downloads = 1 → strictly one at a time; validation
+
         self.lib.set_settings({"parallel_downloads": 1})
         with self.assertRaises(ValueError):
             self.lib.set_settings({"parallel_downloads": "many"})
@@ -209,7 +203,7 @@ class JobsTest(Base):
         self.assertEqual(public["error_code"], "youtube_bot")
         self.assertIn("cookies", public["items"][1]["error"].lower())
         self.assertIn("yt-dlp", public["items"][1]["error"])
-        # History survives a restart (new Manager, same library folder).
+
         saved = self.lib.root / "download-jobs.json"
         self.assertTrue(saved.is_file())
         mgr2 = self.manager(runner)
@@ -220,7 +214,7 @@ class JobsTest(Base):
         before = len(runner.downloads)
         self.assertEqual(mgr2.retry(job_id)["retried"], 1)
         self.assertTrue(wait_for(lambda: mgr2.jobs[job_id].status == "done", 10))
-        self.assertEqual(len(runner.downloads) - before, 1)            # only the failed item ran again
+        self.assertEqual(len(runner.downloads) - before, 1)
         self.assertEqual(runner.downloads[-1][0], bad)
         self.assertEqual([i["status"] for i in mgr2.list()[0]["items"]], ["done"] * 3)
         self.assertEqual(len(mgr2.list()[0]["track_ids"]), 3)
@@ -241,17 +235,17 @@ class JobsTest(Base):
         public = mgr.list()[0]
         self.assertEqual((public["status"], public["error_code"], public["interrupted"]), ("error", "interrupted", True))
         self.assertEqual([i["status"] for i in public["items"]], ["done", "pending", "pending"])
-        self.assertEqual(len(runner.downloads), 0)          # nothing restarts on its own
+        self.assertEqual(len(runner.downloads), 0)
         self.assertEqual(mgr.retry(job.job_id)["retried"], 2)
         self.assertTrue(wait_for(lambda: mgr.jobs[job.job_id].status == "done", 10))
         self.assertEqual(len(runner.downloads), 2)
-        # A track deleted from the library since is fetched again on the next retry.
+
         self.lib.delete(kept["id"])
         mgr.jobs[job.job_id].items[1]["status"] = "error"
         self.assertEqual(mgr.retry(job.job_id)["retried"], 2)
         self.assertTrue(wait_for(lambda: mgr.jobs[job.job_id].status == "done", 10))
-        self.assertEqual(len(runner.downloads), 3)   # item b deduplicates (exists), item a downloads again
-        # A broken file does not break the manager.
+        self.assertEqual(len(runner.downloads), 3)
+
         (self.lib.root / "download-jobs.json").write_text("{oops", encoding="utf-8")
         self.assertEqual(self.manager(runner).list(), [])
 
@@ -269,7 +263,6 @@ class JobsTest(Base):
         self.assertNotIn("running", statuses)
         self.assertIn("cancelled", statuses)
 
-
 class FallbackTest(Base):
     def test_blocked_youtube_link_falls_back_to_soundcloud(self):
         from app.music.downloader import Manager
@@ -283,15 +276,15 @@ class FallbackTest(Base):
         self.assertTrue(wait_for(lambda: mgr.jobs[job_id].status in ("done", "error"), 10))
         job = mgr.jobs[job_id]
         self.assertEqual(job.status, "done", job.public())
-        # link → (blocked) → YouTube Music skipped (same block) → SoundCloud
+
         self.assertEqual([u for u, _ in runner.downloads], [yt, "https://soundcloud.com/x/song"])
         self.assertEqual(job.items[0]["via"], "soundcloud")
         self.assertEqual(job.public()["items"][0]["via"], "soundcloud")
-        # The original YouTube link is now known: downloading it again is a dedup hit.
+
         again = mgr.start("https://youtu.be/dQw4w9WgXcQ")["job_id"]
         self.assertTrue(wait_for(lambda: mgr.jobs[again].status == "done", 10))
         self.assertEqual(mgr.jobs[again].items[0]["status"], "exists")
-        # Fallback off → the clear «not a bot» error with advice.
+
         self.lib.set_settings({"youtube_fallback": False})
         runner2 = FakeRunner(self.lib.tracks_dir, fail_urls={"https://www.youtube.com/watch?v=zzzzzzzzzzz"})
         mgr2 = Manager(library_factory=lambda: self.lib, runner_factory=lambda: runner2, client_factory=lambda: client)
@@ -334,7 +327,6 @@ class FallbackTest(Base):
                                                              "https://www.youtube.com/watch?v=ytBest00001"])
         self.assertEqual(mgr.jobs[job_id].items[0]["via"], "youtube")
         self.assertEqual(self.lib.get(mgr.jobs[job_id].track_ids[0])["source"], "spotify")
-
 
 class TaggerTest(Base):
     def _make_audio(self, ext):
@@ -380,7 +372,7 @@ class TaggerTest(Base):
         with patch.object(tagger, "available", return_value={"mutagen": False, "ffmpeg": False}), \
                 patch("app.music.tools.ffmpeg_path", return_value=None):
             self.assertFalse(tagger.embed(path, {"title": "x"}, None)["ok"])
-        result = tagger.embed(path, {"title": "x"}, b"not an image")      # garbage file → ok False, no exception
+        result = tagger.embed(path, {"title": "x"}, b"not an image")
         self.assertIn("ok", result)
         self.assertEqual(path.stat().st_size >= 3000, True)
         self.assertFalse(tagger.embed(self.lib.tracks_dir / "missing.mp3", {"title": "x"})["ok"])
@@ -410,7 +402,6 @@ class TaggerTest(Base):
         self.assertTrue(MutagenFile(str(self.lib.file_path(row))).tags.get("covr"))
         self.assertEqual(row["size"], self.lib.file_path(row).stat().st_size)
 
-
 class LyricsPrefetchTest(Base):
     def test_one_by_one_and_skips_cached(self):
         from app.music.lyrics import Prefetcher
@@ -419,14 +410,14 @@ class LyricsPrefetchTest(Base):
         self.lib.store_lyrics(b["id"], None, "cached text", "lrclib")
         hit = {"syncedLyrics": "[00:01.00] one\n[00:02.00] two\n[00:03.00] three\n[00:04.00] four", "plainLyrics": None,
                "duration": 200}
-        self.lib.set_settings({"lyrics_sources": ["lrclib"]})   # r39: one source, so «one call per track» holds
+        self.lib.set_settings({"lyrics_sources": ["lrclib"]})
         client = FakeClient([("https://lrclib.net/api/get", FakeResponse(200, hit))])
         pre = Prefetcher(library_factory=lambda: self.lib, client_factory=lambda: client, pause=0.01)
         self.assertTrue(pre.add(a["id"]))
         self.assertFalse(pre.add(a["id"]) and pre.status()["queued"] > 1)
         pre.add(b["id"])
         self.assertTrue(wait_for(lambda: not pre.status()["running"], 5))
-        self.assertEqual(len(client.calls), 1)                     # b was cached, a fetched once
+        self.assertEqual(len(client.calls), 1)
         self.assertEqual(self.lib.cached_lyrics(a["id"])["synced"][0], [1.0, "one"])
         self.assertEqual(pre.status()["done"], 1)
         self.lib.set_settings({"auto_lyrics": False})
@@ -444,7 +435,6 @@ class LyricsPrefetchTest(Base):
         self.assertTrue(wait_for(lambda: mgr.jobs[jid].status == "done", 10))
         self.assertEqual(added, mgr.jobs[jid].track_ids)
 
-
 class HistoryStatsTest(Base):
     def test_history_since_and_aggregates(self):
         from app.music import api
@@ -453,7 +443,7 @@ class HistoryStatsTest(Base):
         api.call("library.played", {"id": a["id"], "seconds": 180, "device": "phone", "at": now - 2 * 86400})
         api.call("library.played", {"id": a["id"], "seconds": 90, "at": (now - 3600) * 1000})
         api.call("library.played", {"id": a["id"], "seconds": 10})
-        api.call("library.played", {"id": a["id"], "seconds": 60, "at": now + 10 * 86400})   # future → now
+        api.call("library.played", {"id": a["id"], "seconds": 60, "at": now + 10 * 86400})
         hist = api.call("library.history", {"limit": 10})
         self.assertEqual(len(hist), 4)
         self.assertEqual(hist[-1]["device"], "phone")
@@ -469,7 +459,7 @@ class HistoryStatsTest(Base):
         self.assertEqual(len(stats["by_day"]), 7)
         self.assertEqual(stats["by_day"][-1]["day"], time.strftime("%Y-%m-%d"))
         self.assertEqual(sum(d["listens"] for d in stats["by_day"]), 4)
-        self.assertEqual(sum(d["plays"] for d in stats["by_day"]), 3)       # the 10-second one is not a play
+        self.assertEqual(sum(d["plays"] for d in stats["by_day"]), 3)
         self.assertAlmostEqual(sum(d["minutes"] for d in stats["by_day"]), 340 / 60, delta=0.2)
         self.assertEqual(len(stats["by_hour"]), 24)
         self.assertEqual(sum(h["listens"] for h in stats["by_hour"]), 4)
@@ -478,7 +468,6 @@ class HistoryStatsTest(Base):
         self.assertEqual(api.call("library.stats", {})["days"], 30)
         self.assertEqual(len(api.call("library.stats", {})["by_day"]), 30)
         self.assertEqual(self.lib.row(a["id"])["plays"], 3)
-
 
 if __name__ == "__main__":
     unittest.main()

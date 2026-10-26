@@ -24,7 +24,6 @@ ROOT = Path(__file__).resolve().parents[1]
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or ("/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome")
 
-
 class TextModel(unittest.TestCase):
     def test_clean_text(self):
         from app import quick_panel_look as L
@@ -34,8 +33,8 @@ class TextModel(unittest.TestCase):
         self.assertEqual((text["mode"], text["h"], text["halo"]), ("free", 480, "auto"))
         self.assertEqual(len(text["blocks"]), 3)
         b = text["blocks"][0]
-        self.assertEqual(b["t"], "BTC {price}\nx")            # CRLF → LF, control characters dropped
-        self.assertEqual((b["x"], b["y"], b["w"]), (80.0, 0, 20.0))  # x + w never leaves the box
+        self.assertEqual(b["t"], "BTC {price}\nx")
+        self.assertEqual((b["x"], b["y"], b["w"]), (80.0, 0, 20.0))
         self.assertEqual((b["weight"], b["size"], b["color"], b["align"], b["font"]), (700, 400, "#abcdef", "left", ""))
         self.assertEqual(text["blocks"][1]["t"], "{plain}")
         self.assertEqual(len(text["blocks"][2]["t"]), L.MAX_TEXT_LEN)
@@ -47,21 +46,20 @@ class TextModel(unittest.TestCase):
 
     def test_text_only_per_panel_and_patch(self):
         from app import quick_panel_look as L
-        self.assertNotIn("text", L.clean_look({"style": "text", "text": {"blocks": ["{a}"]}}))          # not global
+        self.assertNotIn("text", L.clean_look({"style": "text", "text": {"blocks": ["{a}"]}}))
         own = L.clean_look({"style": "text", "text": {"blocks": ["{a}"]}}, partial=True)
         self.assertEqual(own["text"]["blocks"][0]["t"], "{a}")
         doc = {"look": dict(L.DEFAULT_LOOK), "looks": {}, "embed": dict(L.DEFAULT_EMBED)}
         L.apply_patch(doc, {"panel": "p_btc", "look": {"style": "text", "text": {"mode": "free", "blocks": [{"t": "BTC {price}", "x": 10}]}}})
         self.assertEqual(doc["looks"]["p_btc"]["text"]["blocks"][0]["x"], 10.0)
-        L.apply_patch(doc, {"panel": "p_btc", "look": {"opacity": 50}})                 # another key keeps the template
+        L.apply_patch(doc, {"panel": "p_btc", "look": {"opacity": 50}})
         self.assertIn("text", doc["looks"]["p_btc"])
-        L.apply_patch(doc, {"panel": "p_btc", "look": {"text": None}})                  # back to the automatic one
+        L.apply_patch(doc, {"panel": "p_btc", "look": {"text": None}})
         self.assertEqual(doc["looks"]["p_btc"], {"style": "text", "opacity": 50})
         L.apply_patch(doc, {"look": {"text": {"blocks": ["{x}"]}}})
         self.assertNotIn("text", doc["look"])
         looks = L.clean_looks({"p_a": {"text": {"blocks": ["{a}"]}}, "p_b": {"text": {"blocks": []}}})
         self.assertEqual(list(looks), ["p_a"])
-
 
 class TextRoute(unittest.TestCase):
     def setUp(self):
@@ -85,7 +83,7 @@ class TextRoute(unittest.TestCase):
         text = {"mode": "free", "h": 120, "halo": "strong", "blocks": [{"t": "Зенит — {next_match.opponent}, {next_match.date|date}", "x": 5, "y": 40, "w": 90, "size": 140}]}
         out = c.post("/api/quick/canvas/look", json={"panel": "p_zenit", "look": {"style": "text", "text": text}}).json()
         self.assertEqual(out["looks"]["p_zenit"]["text"]["blocks"][0]["size"], 140)
-        c.post("/api/quick/canvas/settings", json={"settings": {"density": "large"}})        # an unrelated save keeps it
+        c.post("/api/quick/canvas/settings", json={"settings": {"density": "large"}})
         state = c.get("/api/quick/canvas").json()
         saved = state["looks"]["p_zenit"]["text"]
         self.assertEqual((saved["mode"], saved["h"], saved["halo"]), ("free", 120, "strong"))
@@ -94,7 +92,6 @@ class TextRoute(unittest.TestCase):
         self.assertIn("text", stored["looks"]["p_zenit"])
         c.post("/api/quick/canvas/look", json={"panel": "p_zenit", "look": {"text": None}})
         self.assertNotIn("text", c.get("/api/quick/canvas").json()["looks"].get("p_zenit", {}))
-
 
 NODE_PRELUDE = r"""
 const fs = require('fs');
@@ -106,7 +103,6 @@ global.MemuPanels = {
 };
 const T = require(process.argv[1]);
 """
-
 
 @unittest.skipUnless(shutil.which("node"), "node is needed")
 class TemplateEngine(unittest.TestCase):
@@ -204,14 +200,14 @@ console.log(JSON.stringify(res));""")
         self.assertEqual(out["weather"]["lines"], ["Москва", "7°C", "Облачно · ощущается 4°"])
         self.assertEqual(out["countdown"]["lines"][1:], ["81 дн.", "01.01.2027"])
         self.assertEqual(out["rss"]["lines"], ["Hacker News", "One\nTwo\nThree"])
-        self.assertEqual(out["sports"]["lines"], ["Зенит", "Краснодар — Зенит", "2:3", "10 октября\nРПЛ"])   # no lone «—» line
+        self.assertEqual(out["sports"]["lines"], ["Зенит", "Краснодар — Зенит", "2:3", "10 октября\nРПЛ"])
         self.assertEqual(out["custom"]["lines"], ["Золото (XAU/USD)", "4 193,76 $", "+49,17 · за унцию"])
         self.assertEqual(out["news"]["lines"][1], "H1 — 5\nH2")
         self.assertTrue(out["empty"]["lines"])
         for k in ("crypto", "sports", "custom", "weather"):
             self.assertTrue(out[k]["auto"])
             self.assertEqual(out[k]["mode"], "flow")
-            self.assertGreater(max(out[k]["size"]), 150, k)                   # the main value is the big one
+            self.assertGreater(max(out[k]["size"]), 150, k)
             self.assertIn('class="pl-face pl-text pt-face"', out[k]["face"])
             self.assertIn('data-auto="1"', out[k]["face"])
             self.assertEqual(out[k]["noTitle"].count('class="pt-b"'), out[k]["face"].count('class="pt-b"') - 1)
@@ -231,7 +227,6 @@ console.log(JSON.stringify({ plain: T.plainText(p, { style: 'text' }, { lang: 'e
         self.assertEqual(out["plain"], "Bitcoin · BTC\n82,976 $\n+0.30% in 24h")
         self.assertEqual(out["num"], "1.23M 1,234,567")
         self.assertEqual(out["rel"], "in 3 h")
-
 
 class Wiring(unittest.TestCase):
     def read(self, rel):
@@ -254,16 +249,15 @@ class Wiring(unittest.TestCase):
         self.assertEqual(next(r for r in index if r["id"] == "canvas-embed")["v"], "1.2-r32")
         for rel in ("quick/panel-text-editor.js", "quick/plugins/canvas-embed.js", "quick/plugins/canvas-look-settings.js", "quick/panel-text.js"):
             src = self.read(rel)
-            self.assertNotRegex(src, r'tr\("[^"]*[А-Яа-я][^"]*"\)', rel)       # every Russian string has its English pair
+            self.assertNotRegex(src, r'tr\("[^"]*[А-Яа-я][^"]*"\)', rel)
             self.assertNotRegex(src, r't\("[^"]*[А-Яа-я][^"]*"\)', rel)
         editor = self.read("quick/panel-text-editor.js")
-        # English strings of the editor carry no Cyrillic
+
         import re
         for m in re.finditer(r'tr\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)', editor):
             self.assertNotRegex(m.group(2), r"[А-Яа-яЁё]", m.group(2))
         for m in re.finditer(r'\["[^"]+", "((?:[^"\\]|\\.)*)", "((?:[^"\\]|\\.)*)"\]', editor):
             self.assertNotRegex(m.group(2), r"[А-Яа-яЁё]", m.group(2))
-
 
 @unittest.skipUnless(os.path.exists(CHROME), "chromium is needed")
 class BrowserRender(unittest.TestCase):
@@ -279,7 +273,6 @@ class BrowserRender(unittest.TestCase):
         res = subprocess.run([sys.executable, str(Path(__file__).with_name("round32_textpanels_browser.py"))],
                              capture_output=True, text=True, timeout=240, env={**os.environ, "NO_PROXY": "*", "PYTHONUTF8": "1"})
         self.assertEqual(res.returncode, 0, res.stdout[-3000:] + res.stderr[-3000:])
-
 
 if __name__ == "__main__":
     unittest.main()

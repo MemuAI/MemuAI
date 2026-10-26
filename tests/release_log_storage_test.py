@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 from app import state as storage
 
-
 class LogStorageTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory()
@@ -67,8 +66,7 @@ class LogStorageTests(unittest.TestCase):
             try:
                 self.assertTrue(reached.wait(5), "writer never reached rotation publication")
                 second.start()
-                # On the old implementation the second operation completes in
-                # this window and is overwritten by the paused stale rotation.
+
                 second_done.wait(0.5)
             finally:
                 release.set()
@@ -117,8 +115,7 @@ class LogStorageTests(unittest.TestCase):
                     self.assertTrue(acquired, "cancel held the memory lock while waiting for the log file")
                     if acquired:
                         self.owner._lock.release()
-                    # Nested file transaction, memory lock and credential
-                    # collection reenter safely while cancellation waits.
+
                     self.owner._load_logs()
                     self.assertIsNotNone(next(item for item in self.owner.logs
                                               if item.request_id == "loaded").prompt)
@@ -208,7 +205,6 @@ class LogStorageTests(unittest.TestCase):
             values = storage._prompt_secret_values()
         self.assertTrue({"short", "s", "k", "q"}.issubset(values))
         self.assertNotIn("public-metadata", values)
-
 
 if __name__ == "__main__":
     unittest.main()

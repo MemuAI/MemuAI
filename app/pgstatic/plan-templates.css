@@ -1,4 +1,3 @@
-/* MemuAI — Round 37 (plan-2): the scenario gallery of «Планирование» (plan-templates.js). */
 .pln-picker.ptg-ov { position: fixed; border-radius: 0; z-index: 1200; }
 .ptg-box { width: 760px; gap: 12px; max-height: calc(100vh - 120px); }
 .ptg-lead { margin: -4px 0 0; font-size: 12.5px; color: var(--muted); }

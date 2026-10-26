@@ -26,15 +26,14 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from .providers.base import ProviderError, ProviderNetworkError, ProviderServerError
 
-# Video generation names; the Studio module and the capability heuristics use the same family list.
 VIDEO_HINTS = ("sora", "veo", "kling", "runway", "hailuo", "seedance", "wan2", "wan-2", "luma", "pika",
                "cogvideo", "hunyuan-video", "hunyuanvideo", "ltx-video", "mochi", "video")
-# Image generation names (kept in sync with admin_api.pg_state image_hints).
+
 IMAGE_HINTS = ("gpt-image", "dall-e", "dalle", "imagen", "flux", "seedream", "recraft", "ideogram", "qwen-image",
                "nano-banana", "imagegen", "stable-diffusion", "sdxl", "kolors", "hidream", "midjourney",
                "flash-image", "image-preview", "-image", "imagine", "t2i", "wanx", "cogview", "kandinsky",
                "dreamina", "jimeng", "hunyuan-image", "playground-v")
-# Chat-native image models: they answer /chat/completions with pictures instead of serving /images/generations.
+
 _CHAT_IMAGE = re.compile(r"gemini[\w.\-]*image|nano-banana|image-preview|flash-image|gpt-[\w.]*-image(?!-\d)|"
                          r"grok-[\w.\-]*image", re.I)
 _NOT_VIDEO = re.compile(r"(?:^|[-_/])(?:vl|vision|understanding|llava|chat|instruct|omni|"
@@ -44,7 +43,6 @@ MAX_MEDIA_BYTES = 160 * 1024 * 1024
 VIDEO_POLL_SECONDS = 4.0
 VIDEO_TIMEOUT_SECONDS = 20 * 60
 
-
 def is_video_name(name: str) -> bool:
     low = str(name or "").lower()
     if _NOT_VIDEO.search(low):
@@ -52,7 +50,6 @@ def is_video_name(name: str) -> bool:
     if re.search(r"(?:^|[-_/.])video(?:$|[-_/.\d])", low):
         return True
     return any(h in low for h in VIDEO_HINTS if h != "video")
-
 
 def is_image_name(name: str) -> bool:
     low = str(name or "").lower()
@@ -62,30 +59,24 @@ def is_image_name(name: str) -> bool:
         return False
     return any(h in low for h in IMAGE_HINTS)
 
-
 _WRONG_ENDPOINT = re.compile(r"images/generations|chat/completions|endpoint[_ ]?(?:mismatch|not supported)|"
                              r"not (?:a|supported for) chat|не чата|does not support (?:chat|image generation)|"
                              r"model_endpoint_mismatch|only (?:supports?|available) (?:via|through|for)", re.I)
-
 
 def wrong_endpoint(exc: BaseException) -> bool:
     """Round 33: the gateway says this model lives on the other endpoint (chat ↔ /images/generations)."""
     status = int(getattr(exc, "status", 0) or 0)
     return status in (0, 400, 404, 405, 422) and bool(_WRONG_ENDPOINT.search(str(exc)))
 
-
 def is_chat_image_model(name: str) -> bool:
     return bool(_CHAT_IMAGE.search(str(name or "")))
-
 
 def declared(account: Any, field: str) -> List[str]:
     raw = str((getattr(account, "fields", {}) or {}).get(field, "") or "")
     return [part.strip() for part in re.split(r"[,\n;]", raw) if part.strip()]
 
-
 def account_prefix(account: Any) -> str:
     return str((getattr(account, "fields", {}) or {}).get("name", "")).strip().lower().replace(" ", "-")
-
 
 def _google_root(base: str) -> str:
     """``https://generativelanguage.googleapis.com`` when the connection points at Google AI Studio, else ''."""
@@ -97,18 +88,15 @@ def _google_root(base: str) -> str:
         return "https://generativelanguage.googleapis.com"
     return ""
 
-
 def _api_key(provider: Any, account: Any) -> str:
     headers = provider._headers(account)
     auth = str(headers.get("Authorization") or "")
     return auth[7:] if auth.startswith("Bearer ") else ""
 
-
 async def _session(provider: Any, account: Any):
     from .providers import http
     base = provider.base_of(account)
     return await http.get_session(provider.proxy_for(account), impersonate=not base.startswith("http://"), url=base)
-
 
 def _timeout() -> float:
     try:
@@ -117,16 +105,13 @@ def _timeout() -> float:
     except Exception:
         return 300.0
 
-
 async def _raise(provider: Any, resp: Any) -> None:
     from .providers.base import retry_after_seconds
     await provider._raise_for_status(resp.status_code, str(getattr(resp, "text", "") or ""),
                                      retry_after=retry_after_seconds(getattr(resp, "headers", None)))
 
-
 def _data_url(raw: bytes, mime: str) -> str:
     return f"data:{mime};base64," + base64.b64encode(raw).decode("ascii")
-
 
 def _sniff_video(raw: bytes, fallback: str = "video/mp4") -> str:
     if raw[4:8] == b"ftyp":
@@ -134,10 +119,6 @@ def _sniff_video(raw: bytes, fallback: str = "video/mp4") -> str:
     if raw[:4] == b"\x1aE\xdf\xa3":
         return "video/webm"
     return fallback
-
-
-# --------------------------------------------------------------------------- images
-
 
 def _images_from_message(message: Dict[str, Any]) -> List[str]:
     """Pictures in a chat answer: OpenRouter ``message.images``, content parts, Markdown data/https images."""
@@ -170,13 +151,11 @@ def _images_from_message(message: Dict[str, Any]) -> List[str]:
         urls.extend(re.findall(r"!\[[^\]]*\]\(((?:data:image/[\w.+-]+;base64,[A-Za-z0-9+/=]+)|https://[^)\s]+)\)", content))
     return list(dict.fromkeys(urls))
 
-
 def _message_text(message: Dict[str, Any]) -> str:
     content = message.get("content")
     if isinstance(content, list):
         return " ".join(str(p.get("text") or "") for p in content if isinstance(p, dict) and p.get("type") == "text").strip()
     return str(content or "").strip()
-
 
 async def _chat_image(provider: Any, account: Any, prompt: str, model: str, aspect: str,
                       images: List[str], system: str = "") -> List[str]:
@@ -211,7 +190,6 @@ async def _chat_image(provider: Any, account: Any, prompt: str, model: str, aspe
         raise ProviderServerError("The model answered without an image" + (f": {said}" if said else
                                   " (it may not support image output through this API)."))
     return urls
-
 
 async def _gemini_native_image(provider: Any, account: Any, root: str, prompt: str, model: str, aspect: str,
                                images: List[str], system: str = "") -> List[str]:
@@ -253,7 +231,6 @@ async def _gemini_native_image(provider: Any, account: Any, root: str, prompt: s
                                   + (f": {said[:240]}" if said else "."))
     return urls
 
-
 async def generate_image(provider: Any, account: Any, prompt: str, model: str, aspect: str = "auto",
                          images: Optional[List[str]] = None, system: str = "") -> List[str]:
     """Custom connection: chat-native image models go through chat; others through /images/generations."""
@@ -262,13 +239,12 @@ async def generate_image(provider: Any, account: Any, prompt: str, model: str, a
         try:
             return await _chat_image(provider, account, prompt, model, aspect, images, system)
         except ProviderError as exc:
-            # Round 33 (r33-models): the name looked chat-native («grok-imagine-image-2.0»), but this gateway serves it
-            # only through /images/generations («model_endpoint_mismatch»): try the Images API instead of failing.
+
             if images or _google_root(provider.base_of(account)) or not wrong_endpoint(exc):
                 raise
             return await provider.generate_images(account, prompt, model, aspect, [])
     if images:
-        # The Images API has no standard way to pass a reference; a chat image model can take it.
+
         raise ProviderServerError(
             "This image model works through /images/generations, which has no standard way to take a reference "
             "picture. Send the prompt without an attachment or pick a chat image model (Gemini image, nano-banana).",
@@ -276,19 +252,14 @@ async def generate_image(provider: Any, account: Any, prompt: str, model: str, a
     try:
         return await provider.generate_images(account, prompt, model, aspect, [])
     except ProviderServerError as exc:
-        # Some gateways serve every model only through chat completions.
+
         if getattr(exc, "status", 0) in (404, 405) or wrong_endpoint(exc):
             return await _chat_image(provider, account, prompt, model, aspect, [], system)
         raise
 
-
-# --------------------------------------------------------------------------- video
-
-
 def _video_size(aspect: str) -> str:
     return {"16:9": "1280x720", "9:16": "720x1280", "1:1": "1024x1024", "4:3": "1024x768",
             "3:4": "768x1024"}.get(aspect, "1280x720")
-
 
 def _urls_in(value: Any, depth: int = 0) -> List[str]:
     found: List[str] = []
@@ -306,7 +277,6 @@ def _urls_in(value: Any, depth: int = 0) -> List[str]:
             found.extend(_urls_in(child, depth + 1))
     return found
 
-
 async def _download(session: Any, url: str, headers: Dict[str, str]) -> Tuple[bytes, str]:
     resp = await session.get(url, headers=headers, timeout=_timeout(), allow_redirects=True)
     if resp.status_code != 200:
@@ -319,7 +289,6 @@ async def _download(session: Any, url: str, headers: Dict[str, str]) -> Tuple[by
         raise ProviderServerError("The generated video is larger than 160 MB", 413)
     mime = str((getattr(resp, "headers", {}) or {}).get("content-type") or "").split(";", 1)[0]
     return raw, mime if mime.startswith("video/") else _sniff_video(raw)
-
 
 async def _openai_video(provider: Any, account: Any, prompt: str, model: str, aspect: str,
                         seconds: int, images: List[str], on_status=None) -> List[str]:
@@ -334,7 +303,7 @@ async def _openai_video(provider: Any, account: Any, prompt: str, model: str, as
     try:
         resp = await session.post(f"{base}/videos", headers=headers, json=body, timeout=_timeout())
         if resp.status_code in (400, 415, 422) and "multipart" in str(getattr(resp, "text", "")).lower():
-            # The reference OpenAI API takes multipart form data.
+
             from curl_cffi import CurlMime
             form = CurlMime()
             for key, value in body.items():
@@ -389,7 +358,6 @@ async def _openai_video(provider: Any, account: Any, prompt: str, model: str, as
                                 {k: v for k, v in headers.items() if k.lower() != "content-type"})
     return [_data_url(raw, mime)]
 
-
 async def _veo_video(provider: Any, account: Any, root: str, prompt: str, model: str, aspect: str,
                      seconds: int, images: List[str], on_status=None) -> List[str]:
     key = _api_key(provider, account)
@@ -442,7 +410,7 @@ async def _veo_video(provider: Any, account: Any, root: str, prompt: str, model:
     samples = ((response.get("generateVideoResponse") or {}).get("generatedSamples")
                or response.get("generatedVideos") or [])
     uris = [((s or {}).get("video") or {}).get("uri") for s in samples]
-    # The API key goes along with the download: only to Google itself (same origin as the API or *.googleapis.com).
+
     def _trusted(uri: str) -> bool:
         try:
             host = urllib.parse.urlparse(uri).hostname or ""
@@ -456,7 +424,6 @@ async def _veo_video(provider: Any, account: Any, root: str, prompt: str, model:
     raw, mime = await _download(session, uris[0], {"x-goog-api-key": key})
     return [_data_url(raw, mime)]
 
-
 async def generate_video(provider: Any, account: Any, prompt: str, model: str, aspect: str = "16:9",
                          images: Optional[List[str]] = None, seconds: int = 0, on_status=None) -> List[str]:
     images = [str(x) for x in (images or []) if str(x).startswith("data:image")][:1]
@@ -464,10 +431,6 @@ async def generate_video(provider: Any, account: Any, prompt: str, model: str, a
     if root:
         return await _veo_video(provider, account, root, prompt, model, aspect, seconds, images, on_status)
     return await _openai_video(provider, account, prompt, model, aspect, seconds, images, on_status)
-
-
-# --------------------------------------------------------------------------- catalogue
-
 
 def _catalog_kind(entry: Any) -> str:
     """Round 33 (r33-models): what the provider's own model row says (``supported_endpoint_types``, output
@@ -481,7 +444,6 @@ def _catalog_kind(entry: Any) -> str:
     if kind in ("image", "video"):
         return kind
     return ""
-
 
 def custom_media_ids(enabled_models: List[Any], accounts: List[Any]) -> Tuple[List[str], List[str]]:
     """Public ids of Custom models that generate images / videos: declared in the connection or known by name."""

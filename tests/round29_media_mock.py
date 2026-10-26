@@ -27,7 +27,6 @@ from fastapi.responses import JSONResponse, Response, StreamingResponse
 app = FastAPI()
 state = {"images": [], "chats": [], "videos": {}, "video_bodies": [], "auth": [], "delay": 0.4, "polls": 2}
 
-
 def png_bytes(color=(90, 140, 230)) -> bytes:
     try:
         from PIL import Image, ImageDraw
@@ -40,9 +39,7 @@ def png_bytes(color=(90, 140, 230)) -> bytes:
     except Exception:
         return base64.b64decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==")
 
-
 _VIDEO = {}
-
 
 def video_bytes() -> bytes:
     """A real 2-second WebM (VP8) when ffmpeg exists — headless Chromium can play it; else a stub with the EBML magic."""
@@ -61,12 +58,10 @@ def video_bytes() -> bytes:
     _VIDEO["raw"] = raw
     return raw
 
-
 @app.get("/v1/models")
 async def models():
     return {"object": "list", "data": [{"id": x, "object": "model"} for x in
                                        ("gpt-image-1", "flux-pro", "gemini-3-flash-image", "sora-2", "chat-small")]}
-
 
 @app.post("/v1/images/generations")
 async def images(request: Request):
@@ -77,7 +72,6 @@ async def images(request: Request):
     if "FAIL" in str(body.get("prompt", "")):
         return JSONResponse({"error": {"message": "Your request was rejected by the safety system."}}, 400)
     return {"created": int(time.time()), "data": [{"b64_json": base64.b64encode(png_bytes()).decode()}]}
-
 
 @app.post("/v1/chat/completions")
 async def chat(request: Request):
@@ -91,7 +85,7 @@ async def chat(request: Request):
                 "choices": [{"index": 0, "finish_reason": "stop", "message": {
                     "role": "assistant", "content": "Here is your image.",
                     "images": [{"type": "image_url", "image_url": {"url": url}}]}}]}
-    # Round 29 (r29c-media): tests set ``state["chat_reply"]`` (e.g. an answer with a hidden memuai-image block).
+
     text = str(state.get("chat_reply") or "text answer")
     if not body.get("stream"):
         return {"id": "c2", "object": "chat.completion", "model": model,
@@ -103,7 +97,6 @@ async def chat(request: Request):
         yield "data: [DONE]\n\n"
     return StreamingResponse(gen(), media_type="text/event-stream")
 
-
 @app.post("/v1/videos")
 async def create_video(request: Request):
     body = await request.json()
@@ -114,7 +107,6 @@ async def create_video(request: Request):
         job = {"id": "vid_" + uuid.uuid4().hex[:8], "status": "queued", "polls": 0}
     state["videos"][job["id"]] = job
     return {"id": job["id"], "object": "video", "status": "queued", "model": body.get("model")}
-
 
 @app.get("/v1/videos/{job_id}")
 async def poll_video(job_id: str):
@@ -131,15 +123,11 @@ async def poll_video(job_id: str):
         out["error"] = {"message": "Content policy violation"}
     return out
 
-
 @app.get("/v1/videos/{job_id}/content")
 async def video_content(job_id: str):
     if job_id not in state["videos"]:
         return JSONResponse({"error": {"message": "not found"}}, 404)
     return Response(video_bytes(), media_type="video/webm")
-
-
-# ------------------------------------------------------------ Google AI Studio shapes (Veo, Gemini image)
 
 @app.post("/v1beta/models/{name}:generateContent")
 async def gemini_image(name: str, request: Request):
@@ -149,7 +137,6 @@ async def gemini_image(name: str, request: Request):
         {"text": "Here it is"},
         {"inlineData": {"mimeType": "image/png", "data": base64.b64encode(png_bytes((40, 160, 90))).decode()}}]}}]}
 
-
 @app.post("/v1beta/models/{name}:predictLongRunning")
 async def veo_start(name: str, request: Request):
     body = await request.json()
@@ -157,7 +144,6 @@ async def veo_start(name: str, request: Request):
     op = "operations/op-" + uuid.uuid4().hex[:8]
     state["videos"][op] = {"polls": 0}
     return {"name": op}
-
 
 @app.get("/v1beta/operations/{op}")
 async def veo_poll(op: str, request: Request):
@@ -170,7 +156,6 @@ async def veo_poll(op: str, request: Request):
     base = str(request.base_url).rstrip("/")
     return {"name": "operations/" + op, "done": True, "response": {"generateVideoResponse": {"generatedSamples": [
         {"video": {"uri": f"{base}/v1beta/files/{op}:download?alt=media"}}]}}}
-
 
 @app.get("/v1beta/files/{name}")
 async def veo_file(name: str, request: Request):

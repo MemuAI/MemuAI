@@ -33,11 +33,9 @@ LOGIN_URL = "https://accounts.google.com/ServiceLogin?continue=https%3A%2F%2Fgem
 _flows: Dict[str, Dict[str, Any]] = {}
 _flows_lock = threading.Lock()
 
-
 def _provider():
     from .providers import get
     return get("geminiweb")
-
 
 @router.post("/parse")
 async def parse_cookies(request: Request):
@@ -49,7 +47,6 @@ async def parse_cookies(request: Request):
         return bad
     from .providers.geminiweb_cookies import parse_cookie_import
     return parse_cookie_import(body.get("cookie", "")).public()
-
 
 @router.post("/diagnose")
 async def diagnose(request: Request):
@@ -79,15 +76,11 @@ async def diagnose(request: Request):
             provider._pages.pop(target.id, None)
             provider._client_ids.pop(target.id, None)
             fresh = provider._status.pop(target.id, None)
-            # r41-gemini: список моделей, прочитанный проверкой, сразу становится списком сохранённого аккаунта.
+
             if fresh and acc is not None and target.extra.get("gw_models"):
                 provider._status[acc.id] = fresh
                 acc.extra["gw_models"] = target.extra["gw_models"]
                 state.save_accounts_soon(2.0)
-
-
-# ------------------------------------------------------------------ вход в окне
-
 
 def _webview():
     try:
@@ -98,7 +91,6 @@ def _webview():
         return None, "Окно входа доступно только в настольном MemuAI — вставьте куки вручную."
     return webview, ""
 
-
 @router.get("/login")
 async def login_available(request: Request):
     deny = _auth(request)
@@ -106,7 +98,6 @@ async def login_available(request: Request):
         return deny
     module, reason = _webview()
     return {"available": module is not None, "reason": reason}
-
 
 @router.post("/login")
 async def login_start(request: Request):
@@ -131,7 +122,6 @@ async def login_start(request: Request):
     threading.Thread(target=_watch, args=(window, flow), name="MemuAI Gemini login", daemon=True).start()
     return {"ok": True, "flow_id": flow_id}
 
-
 def _watch(window, flow: Dict[str, Any]) -> None:
     from .providers.geminiweb_cookies import PSID, PSIDTS, cookie_header, cookies_from_webview
     deadline = time.time() + 15 * 60
@@ -153,7 +143,6 @@ def _watch(window, flow: Dict[str, Any]) -> None:
     if flow["state"] == "waiting":
         flow.update(state="timeout", message="Время ожидания входа истекло.")
 
-
 @router.get("/login/{flow_id}")
 async def login_status(flow_id: str, request: Request):
     deny = _auth(request)
@@ -169,10 +158,6 @@ async def login_status(flow_id: str, request: Request):
             _flows.pop(flow_id, None)
     return out
 
-
-# ------------------------------------------------------------------ медиа и Images API (раунд 41b)
-
-
 @public.get("/v1/geminiweb/media/{name}")
 async def media_file(name: str):
     from .providers import geminiweb_media as media
@@ -183,11 +168,9 @@ async def media_file(name: str):
             "mp4": "video/mp4", "webm": "video/webm"}[name.rsplit(".", 1)[-1]]
     return FileResponse(path, media_type=mime, headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
-
 def _image_error(ru: str, en: str, status: int = 400, code: str = "invalid_request_error") -> JSONResponse:
     from .state import api_error_text
     return JSONResponse(status_code=status, content={"error": {**api_error_text(ru, en), "type": code, "code": code}})
-
 
 def _default_image_model() -> str:
     from .routing import public_id
@@ -195,7 +178,6 @@ def _default_image_model() -> str:
     rows = [m for m in state.enabled_models() if m.provider == "geminiweb"]
     rows.sort(key=lambda m: ("flash" not in m.model or "lite" in m.model, m.model))
     return public_id(rows[0].prefix, rows[0].model) if rows else ""
-
 
 @public.post("/v1/images/generations")
 async def images_generations(request: Request):
@@ -248,7 +230,7 @@ async def images_generations(request: Request):
                 headers=exc.headers)
         last_text = text
         urls = [u for u in media.urls_in(text) if not u.endswith((".mp4", ".webm"))]
-        if not urls:   # скачать куками не удалось — остались адреса Google
+        if not urls:
             urls = re.findall(r"!\[Gemini image \d+\]\((https?://[^)\s]+)\)", text)
         for url in urls:
             item: dict = {"revised_prompt": prompt}
@@ -266,7 +248,6 @@ async def images_generations(request: Request):
                             "the account/region or its limit is used up.", 422, "image_not_generated")
     import time
     return {"created": int(time.time()), "data": data, "model": model}
-
 
 def register(app) -> None:
     app.include_router(router)

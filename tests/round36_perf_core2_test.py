@@ -19,11 +19,9 @@ from app import chats_delta, fsindex, poll_etag, quick_warm  # noqa: E402
 
 STATIC = ROOT / "app" / "pgstatic"
 
-
 def chat(i, n=3, **extra):
     msgs = [{"role": "user" if k % 2 == 0 else "assistant", "content": f"message {k} of chat {i}"} for k in range(n)]
     return {"id": f"chat-{i}", "title": f"Chat {i}", "updated": 1000 + i, "mode": "chat", "messages": msgs, **extra}
-
 
 class ChatsDeltaUnitTest(unittest.TestCase):
     def test_meta_has_no_history_and_carries_counters_preview_and_sig(self):
@@ -49,7 +47,6 @@ class ChatsDeltaUnitTest(unittest.TestCase):
         chats_delta.meta_for("unit", "r2", rows)
         self.assertIsNone(chats_delta.cached_meta("unit", "r1"), "only the newest revision is kept")
 
-
 class ChatsApiTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -64,7 +61,7 @@ class ChatsApiTest(unittest.TestCase):
         self.assertTrue(saved["ok"])
         self.assertEqual(set(saved["sigs"]), {r["id"] for r in rows})
         full = c.get("/api/pg/chats").json()
-        self.assertEqual(len(full["chats"]), 6)                       # old callers: unchanged shape (+ sigs)
+        self.assertEqual(len(full["chats"]), 6)
         self.assertEqual(full["sigs"], saved["sigs"], "the save already told the window the stored fingerprints")
         meta = c.get("/api/pg/chats?view=meta").json()
         self.assertEqual(meta["rev"], full["rev"])
@@ -74,7 +71,7 @@ class ChatsApiTest(unittest.TestCase):
         one = c.get("/api/pg/chats?id=chat-2").json()
         self.assertEqual([r["id"] for r in one["chats"]], ["chat-2"])
         self.assertEqual(one["chats"][0]["messages"], rows[2]["messages"])
-        # another process (Telegram) changes one chat and deletes another
+
         changed = dict(rows[3], messages=rows[3]["messages"] + [{"role": "user", "content": "from telegram"}], updated=99999)
         time.sleep(0.01)
         c.post("/api/pg/chats", json={"chats": [changed], "deleted": ["chat-5"], "partial": True})
@@ -95,7 +92,6 @@ class ChatsApiTest(unittest.TestCase):
         self.assertEqual(self.client.get(f"/api/pg/hub?since={tag}").json(), {"unchanged": True, "etag": tag})
         self.assertEqual(self.client.get("/api/pg/hub", headers={"If-None-Match": f'"{tag}"'}).status_code, 304)
 
-
 class PollEtagTest(unittest.TestCase):
     def test_answer_variants(self):
         data = {"models": [1, 2], "memory": {"a": 1}}
@@ -105,7 +101,6 @@ class PollEtagTest(unittest.TestCase):
         self.assertEqual(poll_etag.answer(data, if_none_match=f'W/"{tag}"').status_code, 304)
         self.assertIn(b'"unchanged":true', poll_etag.answer(data, since=tag).body)
         self.assertEqual(poll_etag.answer({"error": "x"}, status=502).status_code, 502)
-
 
 class FsindexUnloadTest(unittest.TestCase):
     def test_idle_index_is_unloaded_and_search_touches(self):
@@ -127,7 +122,6 @@ class FsindexUnloadTest(unittest.TestCase):
         self.assertEqual(fsindex.normalize_settings({"unload_minutes": "-5"})["unload_minutes"], 0)
         self.assertEqual(fsindex.normalize_settings({"unload_minutes": 99999})["unload_minutes"], 24 * 60)
         self.assertEqual(fsindex.normalize_settings({"unload_minutes": "x"})["unload_minutes"], 10)
-
 
 class QuickWarmTest(unittest.TestCase):
     def test_policy(self):
@@ -154,7 +148,6 @@ class QuickWarmTest(unittest.TestCase):
         self.assertIn("def release_window", src)
         self.assertIn("self._quitting or self._releasing", src)
 
-
 class FrontendWiringTest(unittest.TestCase):
     def test_app_js_syncs_by_delta(self):
         js = (STATIC / "app.js").read_text(encoding="utf-8")
@@ -172,7 +165,6 @@ class FrontendWiringTest(unittest.TestCase):
         self.assertIn("unload_minutes", fs)
         qs = (STATIC / "quick-settings.js").read_text(encoding="utf-8")
         self.assertRegex(qs, re.escape('save({ quick_ask_warm: e.target.value })'))
-
 
 if __name__ == "__main__":
     unittest.main()

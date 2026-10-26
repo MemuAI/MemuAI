@@ -42,14 +42,12 @@ APP_JS = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
 
 TOOL_RE = re.compile(r"```memuai-tool\s*(?:\r?\n)?([\s\S]*?)```", re.I)
 
-
 def _tool_round_limit_from_source() -> int:
     """Read TOOL_ROUND_LIMIT out of app.js so the harness never drifts from
     the real guard instead of hardcoding a second copy of the number."""
     match = re.search(r"const TOOL_ROUND_LIMIT\s*=\s*(\d+)", APP_JS)
     assert match, "TOOL_ROUND_LIMIT constant not found in app.js"
     return int(match.group(1))
-
 
 class FakeModel:
     """Scripted turns; once they run out, keeps re-requesting a file that
@@ -65,7 +63,6 @@ class FakeModel:
             return self._turns.pop(0)
         return '```memuai-tool\n[{"tool":"work_read","args":{"path":"README.md"}}]\n```'
 
-
 def _execute_tool_call(root: Path, call: dict) -> dict:
     """Mirrors code_routes._one_sync for the one tool this harness needs:
     a real filesystem read that must fail cleanly for a missing path."""
@@ -79,7 +76,6 @@ def _execute_tool_call(root: Path, call: dict) -> dict:
         except WorkError as exc:
             return {"tool": name, "path": args.get("path"), "error": str(exc)}
     return {"tool": name, "error": f"unknown tool in harness: {name}"}
-
 
 def run_tool_loop(root: Path, model: FakeModel, project_files: list[str], round_limit: int) -> dict:
     """Python mirror of the app.js loop's externally observable contract:
@@ -107,7 +103,6 @@ def run_tool_loop(root: Path, model: FakeModel, project_files: list[str], round_
             calls = [calls]
         results = [_execute_tool_call(root, call) for call in calls]
         conversation.append("Tool results:\n" + json.dumps(results))
-
 
 class MissingFileErrorTests(unittest.TestCase):
     """The exact failure the user saw a tool log "succeed" for."""
@@ -138,7 +133,6 @@ class MissingFileErrorTests(unittest.TestCase):
         self.assertIn("error", result)
         self.assertNotIn("text", result)
 
-
 class ToolLoopTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()
@@ -151,13 +145,12 @@ class ToolLoopTests(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_a_model_that_never_stops_asking_for_tools_is_cut_off_at_the_round_limit(self) -> None:
-        # No scripted turns: FakeModel keeps requesting a nonexistent file
-        # forever, reproducing "the prompt seemed to be resent endlessly".
+
         model = FakeModel(turns=[])
         result = run_tool_loop(self.root, model, ["main.py", "notes.txt"], self.round_limit)
         self.assertEqual(result["stopped"], "round_limit")
         self.assertEqual(result["rounds"], self.round_limit)
-        # A real session must not run past the documented cap.
+
         self.assertLessEqual(len(model.seen_conversations), self.round_limit)
 
     def test_tool_results_are_fed_back_into_the_next_round_not_dropped(self) -> None:
@@ -168,8 +161,7 @@ class ToolLoopTests(unittest.TestCase):
         result = run_tool_loop(self.root, model, ["main.py", "notes.txt"], self.round_limit)
         self.assertEqual(result["stopped"], "final_answer")
         self.assertEqual(result["rounds"], 2)
-        # Round 2's conversation must contain round 1's real tool result --
-        # if results were dropped the model would be answering from nothing.
+
         second_call_conversation = model.seen_conversations[1]
         self.assertTrue(any("hello project" in turn for turn in second_call_conversation),
                          "the real file content from round 1 must reach round 2")
@@ -182,24 +174,18 @@ class ToolLoopTests(unittest.TestCase):
         self.assertFalse(any("README.md" in turn or "package.json" in turn for turn in first_conversation),
                           "the harness must not inject files that were never on disk")
 
-
 class AppJsContractTests(unittest.TestCase):
     """The two properties above only exist for real inside app.js; assert
     them at the source level so a regression there fails a test even though
     no JS runtime is available here."""
 
     def test_project_structure_is_fetched_for_work_and_code_modes_alike(self) -> None:
-        # Was `if (sourceMode === "work" && ...)`, which meant MemuCode
-        # ("code" mode) never got the real file tree before its first turn
-        # and had to guess conventional file names instead.
+
         self.assertIn('if (isProjectMode(sourceMode) && sourceWorkspaces.active_id)', APP_JS)
         self.assertNotIn('if (sourceMode === "work" && sourceWorkspaces.active_id)', APP_JS)
 
     def test_tool_round_continuation_replays_the_assistant_own_prior_text(self) -> None:
-        # Was `if (m === assistant) continue;` unconditionally, which threw
-        # away the model's own accumulated reasoning on every continuation
-        # round and made it re-plan (and re-conclude, differently) from
-        # scratch each time.
+
         self.assertIn('if (m === assistant && !String(m.content || "").trim()) continue;', APP_JS)
 
     def test_round_limit_constant_is_still_a_small_positive_number(self) -> None:
@@ -209,7 +195,6 @@ class AppJsContractTests(unittest.TestCase):
 
     def test_code_mode_rules_forbid_treating_a_failed_read_as_analyzed(self) -> None:
         self.assertIn("means that read failed", APP_JS)
-
 
 if __name__ == "__main__":
     unittest.main()

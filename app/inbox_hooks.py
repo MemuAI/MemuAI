@@ -23,7 +23,6 @@ from typing import Any, Dict, List, Optional
 
 log = logging.getLogger("memuai.inbox")
 
-
 def _inbox():
     try:
         from . import inbox
@@ -31,9 +30,7 @@ def _inbox():
     except Exception:  # pragma: no cover
         return None
 
-
 _lang_cache = {"at": 0.0, "value": "ru"}
-
 
 def _lang() -> str:
     """Язык интерфейса (кэш 10 с: один вопрос DFY строит до десятка подписей)."""
@@ -48,15 +45,12 @@ def _lang() -> str:
     _lang_cache.update(at=now, value=value)
     return value
 
-
 def _t(ru: str, en: str) -> str:
     return en if _lang() == "en" else ru
-
 
 def _short(text: Any, n: int = 160) -> str:
     s = " ".join(str(text or "").split())
     return s if len(s) <= n else s[: n - 1] + "…"
-
 
 def _safe(fn):
     def wrapper(*a, **kw):
@@ -69,11 +63,8 @@ def _safe(fn):
     wrapper.__doc__ = fn.__doc__
     return wrapper
 
-
-# =========================================================================== DFY
 def _dfy_key(task_id: str, qid: str) -> str:
     return f"dfy:{task_id}:{qid}"
-
 
 @_safe
 def dfy_question(task: Any, question: Dict[str, Any]) -> None:
@@ -94,7 +85,7 @@ def dfy_question(task: Any, question: Dict[str, Any]) -> None:
     if question.get("url"):
         body += ("\n" if body else "") + str(question.get("url"))
     if kind in ("choice", "text") and len(" ".join(prompt.split())) <= 120:
-        body = ""            # the whole question is already the title
+        body = ""
     body = (body + "\n\n" + _t("Задача: ", "Task: ") + goal).strip() if goal else body
     actions: List[Dict[str, Any]]
     group = "ask"
@@ -123,7 +114,7 @@ def dfy_question(task: Any, question: Dict[str, Any]) -> None:
         ib_kind = "question"
     elif kind == "secret":
         title = _t("DFY нужны данные: ", "DFY needs data: ") + _short(question.get("label") or prompt, 80)
-        # формы секретов — только в карточке задачи (значения идут прямо в хранилище)
+
         actions = [{"id": "open", "label": _t("Заполнить форму", "Fill in the form"), "kind": "ui", "style": "primary"},
                    {"id": "decline", "label": _t("Отказать", "Decline")}]
         ib_kind = "question"
@@ -146,14 +137,12 @@ def dfy_question(task: Any, question: Dict[str, Any]) -> None:
     ib.post(ib_kind, title, body, source="dfy", ref=ref, actions=actions,
             dedupe_key=_dfy_key(task.id, qid), severity="ask", group=group)
 
-
 @_safe
 def dfy_question_closed(task: Any, question: Optional[Dict[str, Any]]) -> None:
     ib = _inbox()
     if ib is None or not question:
         return
     ib.resolve(_dfy_key(task.id, str(question.get("id") or "")), result="answered")
-
 
 def _dfy_handler(manager: Any):
     async def handle(item: Dict[str, Any], action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -190,7 +179,7 @@ def _dfy_handler(manager: Any):
             raise ValueError("unknown action")
         task = manager.get(task_id)
         if task is None or not task.question or str(task.question.get("id") or "") != qid:
-            # вопрос уже снят (ответили в чате, Telegram, тайм-аут): закрываем и здесь
+
             return {"resolve": True, "result": "stale", "ok": False,
                     "error": _t("Этот вопрос уже неактуален", "This question is no longer pending")}
         try:
@@ -200,8 +189,6 @@ def _dfy_handler(manager: Any):
         return {"resolve": True, "result": action}
     return handle
 
-
-# =========================================================================== computer control
 @_safe
 def computer_approval(runtime: Any, action: Dict[str, Any]) -> None:
     ib = _inbox()
@@ -217,7 +204,6 @@ def computer_approval(runtime: Any, action: Dict[str, Any]) -> None:
                      {"id": "reject", "label": _t("Отклонить", "Deny"), "style": "danger"}],
             dedupe_key=f"computer:{tid}:{step}", severity="ask", group="confirm", ephemeral=True)
 
-
 @_safe
 def computer_approval_closed(runtime: Any, action: Optional[Dict[str, Any]]) -> None:
     ib = _inbox()
@@ -225,7 +211,6 @@ def computer_approval_closed(runtime: Any, action: Optional[Dict[str, Any]]) -> 
         return
     tid = str(getattr(runtime, "task_id", "") or "cu")
     ib.resolve(f"computer:{tid}:{action.get('step')}", result="answered")
-
 
 def _computer_handler(runtime: Any):
     def handle(item: Dict[str, Any], action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -242,14 +227,10 @@ def _computer_handler(runtime: Any):
         return {"resolve": True}
     return handle
 
-
-# =========================================================================== memory
-_mem_closing: Dict[str, str] = {}   # key → the inbox button that is closing it (shown in «Готово»)
-
+_mem_closing: Dict[str, str] = {}
 
 def _mem_key(pid: str, item_id: str) -> str:
     return f"memory:{pid}:{item_id}"
-
 
 @_safe
 def memory_sync(doc: Dict[str, Any], profile_id: str = "") -> None:
@@ -272,7 +253,7 @@ def memory_sync(doc: Dict[str, Any], profile_id: str = "") -> None:
         op = fact.get("op") or "add"
         if op == "forget":
             title = _t("Забыть факт? ", "Forget a fact? ") + _short(fact.get("text"), 140)
-        elif op == "update" and fact.get("reason") == "conflict":   # r40-memory: Conflict Resolver
+        elif op == "update" and fact.get("reason") == "conflict":
             title = _t("Обновить устаревший факт? ", "Replace an outdated fact? ") + _short(fact.get("text"), 140)
         elif op == "update":
             title = _t("Обновить факт? ", "Update a fact? ") + _short(fact.get("text"), 140)
@@ -296,7 +277,6 @@ def memory_sync(doc: Dict[str, Any], profile_id: str = "") -> None:
                          {"id": "reject", "label": _t("Отклонить", "Reject"), "style": "danger"},
                          {"id": "open", "label": _t("Открыть память", "Open memory"), "kind": "ui"}],
                 dedupe_key=prefix + item_id, severity="ask", group="ask")
-
 
 def _memory_handler():
     def handle(item: Dict[str, Any], action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -331,8 +311,6 @@ def _memory_handler():
         return {"resolve": True}
     return handle
 
-
-# =========================================================================== schedules
 @_safe
 def schedule_result(task_id: str, ok: bool, text: str, extra: Optional[Dict[str, Any]] = None,
                     meta: Optional[Dict[str, Any]] = None) -> None:
@@ -362,7 +340,7 @@ def schedule_result(task_id: str, ok: bool, text: str, extra: Optional[Dict[str,
                 dedupe_key=f"schedule:fail:{task_id}", severity="warn", group="notify")
         return
     ib.resolve(f"schedule:fail:{task_id}", result="recovered")
-    if extra.get("quiet"):   # Round 35 (flows): a successful run that sent nothing («иначе ничего не происходит»)
+    if extra.get("quiet"):
         return
     if extra.get("work_status") == "pending":
         files = [str(x.get("path") or "") for x in extra.get("pending_work") or [] if isinstance(x, dict)]
@@ -377,15 +355,12 @@ def schedule_result(task_id: str, ok: bool, text: str, extra: Optional[Dict[str,
     ib.post("result", _t("Готово: ", "Done: ") + name, _short(text, 3000), source="schedule", ref=ref,
             actions=[open_btn], dedupe_key=f"schedule:result:{task_id}", severity="info", group="notify")
 
-
 @_safe
 def schedule_work_applied(result_id: str) -> None:
     ib = _inbox()
     if ib is not None and result_id:
         ib.resolve(f"schedule:work:{result_id}", result="applied")
 
-
-# =========================================================================== modules («Новые модели API»)
 @_safe
 def module_event(module_id: str, title: str, text: str) -> None:
     ib = _inbox()
@@ -397,15 +372,11 @@ def module_event(module_id: str, title: str, text: str) -> None:
             actions=[{"id": "open", "label": _t("Открыть модуль", "Open module"), "kind": "ui"}],
             severity="info", group="notify")
 
-
-# =========================================================================== Proxy accounts
 _acct_flags: Dict[str, float] = {}
 _acct_lock = threading.Lock()
 
-
 def _bg(fn, *a, **kw) -> None:
     threading.Thread(target=_safe(fn), args=a, kwargs=kw, daemon=True).start()
-
 
 def proxy_account_failed(account: Any, exc: Exception, public_error: str) -> None:
     """pool.report_failure: вход отвергнут / квота исчерпана. Не блокирует (файл пишет поток)."""
@@ -421,7 +392,7 @@ def proxy_account_failed(account: Any, exc: Exception, public_error: str) -> Non
         key = f"proxy:{kind}:{aid}"
         now = time.time()
         with _acct_lock:
-            if now - _acct_flags.get(key, 0) < 600:   # не чаще раза в 10 минут
+            if now - _acct_flags.get(key, 0) < 600:
                 return
             _acct_flags[key] = now
         name = str(getattr(account, "label", "") or getattr(account, "name", "") or getattr(account, "provider", "") or aid)
@@ -429,7 +400,6 @@ def proxy_account_failed(account: Any, exc: Exception, public_error: str) -> Non
         _bg(_post_account, kind, name, provider, str(public_error or ""), aid, key)
     except Exception:  # noqa: BLE001
         log.debug("proxy_account_failed", exc_info=True)
-
 
 def _post_account(kind: str, name: str, provider: str, error: str, aid: str, key: str) -> None:
     ib = _inbox()
@@ -445,7 +415,6 @@ def _post_account(kind: str, name: str, provider: str, error: str, aid: str, key
                      {"id": "ack", "label": _t("Понятно", "Got it")}],
             dedupe_key=key, severity="warn", group="notify")
 
-
 def proxy_account_ok(account: Any) -> None:
     try:
         aid = str(getattr(account, "id", "") or "")
@@ -459,10 +428,7 @@ def proxy_account_ok(account: Any) -> None:
     except Exception:  # noqa: BLE001
         pass
 
-
-# =========================================================================== MemuCode terminals
 _mc_seen: Dict[str, float] = {}
-
 
 def memucode_scan() -> None:
     """Открытые вопросы/разрешения терминалов MemuCode (опубликованных через app/cli/remote.py)."""
@@ -516,7 +482,7 @@ def memucode_scan() -> None:
         ib.post("approval" if perm else "question", title, body, source="memucode",
                 ref={"rc": rc, "dialog": dialog.get("id"), "session_id": term.get("session_id"), "project": project},
                 actions=actions, dedupe_key=key, severity="ask", group="confirm" if perm else "ask")
-    # закрытые в терминале вопросы закрываем и здесь
+
     for key in list(_mc_seen):
         if key not in live:
             _mc_seen.pop(key, None)
@@ -524,7 +490,6 @@ def memucode_scan() -> None:
     for it in ib.list(status="open", source="memucode", limit=200):
         if it.get("dedupe_key") not in live:
             ib.resolve(it["id"], result="gone")
-
 
 def _memucode_handler():
     def handle(item: Dict[str, Any], action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -549,7 +514,6 @@ def _memucode_handler():
         return {"resolve": True}
     return handle
 
-
 async def _memucode_loop() -> None:
     while True:
         try:
@@ -558,8 +522,6 @@ async def _memucode_loop() -> None:
             pass
         await asyncio.sleep(4.0)
 
-
-# =========================================================================== install
 def install_playground(app: Any, *, dfy_manager: Any = None, computer_runtime: Any = None) -> None:
     """Сервер окна MemuAI: маршруты + обработчики кнопок + фоновый опрос MemuCode."""
     ib = _inbox()
@@ -579,12 +541,11 @@ def install_playground(app: Any, *, dfy_manager: Any = None, computer_runtime: A
     state = {"started": False}
 
     async def _inbox_startup() -> None:
-        # Запускается первым запросом к /api/pg/inbox* (у сервера окна lifespan, on_event не работает).
+
         if state["started"]:
             return
         state["started"] = True
 
-        # Вопросы прошлого запуска: DFY/компьютер/MemuCode живут в памяти процесса — их больше нет.
         def stale():
             live_dfy = set()
             if dfy_manager is not None:

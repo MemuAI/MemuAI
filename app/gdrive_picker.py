@@ -35,7 +35,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import httpx
 
-try:  # FastAPI resolves the string annotations of the routes from module globals
+try:
     from fastapi import Request
 except ImportError:  # pragma: no cover - not every bundle has FastAPI
     Request = None  # type: ignore[assignment,misc]
@@ -44,11 +44,11 @@ log = logging.getLogger("memuai.gdrive.picker")
 
 API = "https://www.googleapis.com/drive/v3"
 SCOPE_READONLY = "https://www.googleapis.com/auth/drive.readonly"
-#: Scopes that already allow reading any file of the user.
+
 READ_SCOPES = {SCOPE_READONLY, "https://www.googleapis.com/auth/drive"}
 FOLDER = "application/vnd.google-apps.folder"
 SHORTCUT = "application/vnd.google-apps.shortcut"
-MAX_FILE = 5 * 1024 * 1024          # the chat's limit for one attachment (app.js addAttachmentFiles)
+MAX_FILE = 5 * 1024 * 1024
 MAX_THUMB = 600 * 1024
 PAGE_SIZE = 100
 _ID = re.compile(r"^[A-Za-z0-9_-]{1,200}$")
@@ -60,7 +60,6 @@ XLSX = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 DOCX = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 PPTX = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
 
-#: Google-native type → {format: (export mime, extension)}; the first format is the default.
 EXPORTS: Dict[str, Dict[str, Tuple[str, str]]] = {
     "application/vnd.google-apps.document": {"docx": (DOCX, ".docx"), "pdf": ("application/pdf", ".pdf"),
                                              "md": ("text/markdown", ".md"), "txt": ("text/plain", ".txt")},
@@ -83,12 +82,10 @@ _KIND_BY_MIME = {
 _CODE_EXT = {".py", ".js", ".ts", ".json", ".html", ".css", ".java", ".c", ".cpp", ".cs", ".go", ".rs", ".rb",
              ".php", ".sh", ".ps1", ".yaml", ".yml", ".toml", ".xml", ".sql", ".kt", ".swift"}
 
-
 class PickerError(RuntimeError):
     def __init__(self, ru: str, en: str = "", *, code: str = "", status: int = 400) -> None:
         super().__init__(ru)
         self.ru, self.en, self.code, self.status = ru, en or ru, code, status
-
 
 def kind_of(mime: str, name: str = "") -> str:
     mime = str(mime or "")
@@ -109,11 +106,9 @@ def kind_of(mime: str, name: str = "") -> str:
         return "google"
     return "file"
 
-
 def quote_q(value: str) -> str:
     """A string literal of the Drive query language."""
     return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
-
 
 def safe_name(name: str, ext: str = "") -> str:
     base = re.sub(r"[\x00-\x1f<>:\"/\\|?*]+", " ", str(name or "")).strip().strip(".") or "file"
@@ -122,13 +117,11 @@ def safe_name(name: str, ext: str = "") -> str:
         base += ext
     return base
 
-
 def _int(value: Any) -> int:
     try:
         return int(value)
     except (TypeError, ValueError):
         return 0
-
 
 def sheets_markdown(name: str, data: bytes) -> bytes:
     """An .xlsx workbook → Markdown tables (every visible sheet): what the chat can read."""
@@ -157,7 +150,6 @@ def sheets_markdown(name: str, data: bytes) -> bytes:
         parts.append("\n_(the workbook was truncated)_")
     return ("\n".join(parts) + "\n").encode("utf-8")
 
-
 class Picker:
     """Drive browsing for the picker dialog. ``sync`` returns the SyncService (or None)."""
 
@@ -167,7 +159,6 @@ class Picker:
         self._thumbs: "OrderedDict[str, Tuple[str, bytes]]" = OrderedDict()
         self._lock = threading.Lock()
 
-    # ----------------------------------------------------------- account
     def _auth(self):
         svc = self.sync()
         return getattr(svc, "auth", None) if svc is not None else None
@@ -207,7 +198,6 @@ class Picker:
                               "Allow MemuAI to read your Google Drive files — once", code="need_consent", status=403)
         raise PickerError("Google Диск не подключён", "Google Drive is not connected", code="not_connected", status=403)
 
-    # -------------------------------------------------------------- HTTP
     def _request(self, method: str, url: str, *, stream_limit: int = 0, **kwargs: Any) -> Tuple[httpx.Response, bytes]:
         token_fn = self._token_fn()
         for attempt in range(3):
@@ -286,7 +276,6 @@ class Picker:
         return PickerError(f"Google Диск ответил ошибкой {status}" + (f": {message}" if message else ""),
                            f"Google Drive answered {status}" + (f": {message}" if message else ""), status=502)
 
-    # ------------------------------------------------------------ listing
     @staticmethod
     def item(row: Dict[str, Any]) -> Dict[str, Any]:
         mime = str(row.get("mimeType") or "")
@@ -340,7 +329,7 @@ class Picker:
             if len(query) < 1:
                 return {"files": [], "next": ""}
             clauses.append(f"(name contains {quote_q(query)} or fullText contains {quote_q(query)})")
-            order_by = ""   # Drive refuses to sort fullText results: they come by relevance
+            order_by = ""
         types = {
             "docs": ["application/vnd.google-apps.document", DOCX, "application/msword", "text/plain", "text/markdown"],
             "sheets": ["application/vnd.google-apps.spreadsheet", XLSX, "application/vnd.ms-excel", "text/csv"],
@@ -383,7 +372,6 @@ class Picker:
         crumbs.reverse()
         return crumbs
 
-    # ----------------------------------------------------------- download
     def download(self, file_id: str, fmt: str = "") -> Dict[str, Any]:
         if not _ID.match(str(file_id or "")):
             raise PickerError("Неверный идентификатор файла", "Invalid file id", code="bad_id")
@@ -429,7 +417,7 @@ class Picker:
                                 stream_limit=MAX_FILE)
         lower = name.lower()
         if (mime == XLSX or lower.endswith(".xlsx")) and fmt != "raw":
-            # The chat reads text out of DOCX / PDF / text, not out of workbooks: a table becomes Markdown.
+
             return {"name": safe_name(PurePath(name).stem, ".md"), "mime": "text/markdown",
                     "data": sheets_markdown(name, data), "note": "sheets_md", "format": "md"}
         return {"name": safe_name(name), "mime": mime or "application/octet-stream", "data": data, "note": "", "format": ""}
@@ -457,18 +445,12 @@ class Picker:
                 self._thumbs.popitem(last=False)
         return mime, data
 
-
-# --------------------------------------------------------------------------
-# HTTP routes
-# --------------------------------------------------------------------------
-
 def _lang() -> str:
     try:
         from .pgdata import load_preferences
         return "en" if load_preferences().get("language") == "en" else "ru"
     except Exception:
         return "ru"
-
 
 def register(app, *, transport: Optional[httpx.BaseTransport] = None) -> Picker:
     import asyncio

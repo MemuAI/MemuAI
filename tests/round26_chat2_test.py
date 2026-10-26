@@ -26,13 +26,11 @@ sys.path.insert(0, str(ROOT))
 
 from tests.round25_chat_test import _chromium, sync_playwright  # noqa: E402
 
-
 def _client_calls(relative: str):
     tree = ast.parse((ROOT / relative).read_text(encoding="utf-8"))
     for node in ast.walk(tree):
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "AsyncClient":
             yield {kw.arg: kw.value for kw in node.keywords}
-
 
 class LocalClientsSkipSystemProxy(unittest.TestCase):
     def test_tts_and_stt_local_servers(self):
@@ -74,7 +72,6 @@ class LocalClientsSkipSystemProxy(unittest.TestCase):
         self.assertEqual(seen[0], "http://127.0.0.1:18999/api/pg/ping")
         self.assertIs(made[0].get("trust_env"), False)
 
-
 class YandexModelUris(unittest.TestCase):
     def test_family_survives_the_version_tag(self):
         from app import model_info
@@ -92,8 +89,6 @@ class YandexModelUris(unittest.TestCase):
         for name in ("qwen3-32b", "qwen2.5-72b-instruct", "qwen3-max"):
             self.assertIs(model_info.vision_hint(name), False, name)
 
-
-# The real UI with /api/pg/chat answered by a stream the test feeds chunk by chunk.
 CHAT_STREAM = r"""(() => {
   if (window.__chatStubbed) return;
   window.__chatStubbed = true;
@@ -108,7 +103,6 @@ CHAT_STREAM = r"""(() => {
     return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
   };
 })()"""
-
 
 @unittest.skipUnless(sync_playwright is not None and _chromium(), "Playwright/Chromium is not installed")
 class ChatUi(unittest.TestCase):
@@ -168,14 +162,14 @@ class ChatUi(unittest.TestCase):
         self.start_answer("Первый вопрос")
         self.ev("__chatCtl.push({choices: [{delta: {content: 'Первый ответ'}}]})")
         self.finish()
-        # The previous turn was notified already: that used to swallow the resent answer's notification.
+
         self.ev("""(() => { const chat = currentChat(); chat._openTurn = 'turn-1'; chat._notifiedTurn = 'turn-1';
           S.messages.forEach((m) => { m._notified = true; }); window.__qa_requests.length = 0; })()""")
         self.ev("() => { window.__chatCtl = null; editMessage(0); }")
         self.ev("document.querySelector('#edit-message-text').value = 'Изменённый вопрос'; document.querySelector('#edit-resend').click()")
         self.page.wait_for_function("window.__chatCtl", timeout=10000)
         self.ev("__chatCtl.push({choices: [{delta: {content: 'Новый ответ'}}]})")
-        self.page.wait_for_timeout(900)   # a notification needs a reply longer than 0.8 s
+        self.page.wait_for_timeout(900)
         self.finish()
         self.page.wait_for_timeout(200)
         notified = self.ev("window.__qa_requests.filter((r) => r.path === '/api/pg/notify' && r.post).length")
@@ -268,7 +262,6 @@ class ChatUi(unittest.TestCase):
 
     def test_no_page_errors(self):
         self.assertEqual(self.errors, [])
-
 
 if __name__ == "__main__":
     unittest.main()

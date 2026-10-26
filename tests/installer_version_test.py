@@ -25,7 +25,6 @@ from tests.installer_engine_test import FakePlatform
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 def make_pe(path: Path, version=(3, 0, 0, 0), pe32plus: bool = True, nested_lang: bool = True) -> Path:
     """A minimal but well-formed PE with a .rsrc section holding RT_VERSION."""
     ms = (version[0] << 16) | version[1]
@@ -37,7 +36,7 @@ def make_pe(path: Path, version=(3, 0, 0, 0), pe32plus: bool = True, nested_lang
     block = header + fixed
     block = struct.pack("<H", len(block)) + block[2:]
     rva = 0x1000
-    # resource tree: root -> type 16 -> name 1 -> lang 1033 -> data entry
+
     root = struct.pack("<IIHHHH", 0, 0, 0, 0, 0, 1) + struct.pack("<II", 16, 0x80000000 | 24)
     level2 = struct.pack("<IIHHHH", 0, 0, 0, 0, 0, 1)
     if nested_lang:
@@ -66,7 +65,6 @@ def make_pe(path: Path, version=(3, 0, 0, 0), pe32plus: bool = True, nested_lang
     path.write_bytes(head + rsrc)
     return path
 
-
 class NormalizeAndClassify(unittest.TestCase):
     def test_normalize_version(self):
         cases = {"2.0": "2.0", "2.0.0": "2.0", "2.0.0.0": "2.0", "3": "3.0", "1.9.3": "1.9.3", "1.9.3.0": "1.9.3",
@@ -87,12 +85,12 @@ class NormalizeAndClassify(unittest.TestCase):
             self.assertEqual(c("3.0", same), "reinstall", same)
         for newer in ("3.0.1", "3.1", "4.0", "10.0", "3.0.0.1"):
             self.assertEqual(c("3.0", newer), "downgrade", newer)
-        # Unknown installed number (missing, garbage, 0.0.0.0): offered as an update.
+
         for unknown in ("", None, "garbage", "0.0.0.0", "N/A"):
             self.assertEqual(c("3.0", unknown), "upgrade", repr(unknown))
-        # A Setup without a version (development build) never claims to be older.
+
         self.assertEqual(c("", "2.0"), "upgrade")
-        # A pre-release of the same number is older than the release.
+
         self.assertEqual(c("3.0-beta", "3.0"), "downgrade")
         self.assertEqual(c("3.0", "3.0-beta"), "upgrade")
 
@@ -103,7 +101,6 @@ class NormalizeAndClassify(unittest.TestCase):
         self.assertEqual(versions.from_major_minor(0, 0), "")
         self.assertEqual(versions.from_major_minor("x", 1), "")
         self.assertEqual(versions.from_major_minor(-1, 2), "")
-
 
 class PeVersionReader(unittest.TestCase):
     def setUp(self):
@@ -124,15 +121,14 @@ class PeVersionReader(unittest.TestCase):
         (self.dir / "empty.exe").write_bytes(b"")
         (self.dir / "mz.exe").write_bytes(b"MZ" + b"\0" * 100)
         good = make_pe(self.dir / "good.exe").read_bytes()
-        (self.dir / "cut.exe").write_bytes(good[:0x210])          # resource section truncated
+        (self.dir / "cut.exe").write_bytes(good[:0x210])
         noise = bytearray(good)
-        noise[0x200:0x240] = b"\xff" * 0x40                       # resource directory destroyed
+        noise[0x200:0x240] = b"\xff" * 0x40
         (self.dir / "noise.exe").write_bytes(bytes(noise))
         for name in ("text.exe", "empty.exe", "mz.exe", "cut.exe", "missing.exe"):
             self.assertEqual(versions.pe_file_version(self.dir / name), "", name)
-        # the scan fallback still finds VS_VERSION_INFO when the tree is unusable
-        self.assertEqual(versions.pe_file_version(self.dir / "noise.exe"), "3.0.0.0")
 
+        self.assertEqual(versions.pe_file_version(self.dir / "noise.exe"), "3.0.0.0")
 
 class DetectInstalledVersion(unittest.TestCase):
     def setUp(self):
@@ -180,7 +176,7 @@ class DetectInstalledVersion(unittest.TestCase):
         self.inno_key()
         existing = self.engine().detect()
         self.assertEqual((existing.found, existing.version), (True, ""))
-        self.assertEqual(self.engine().install_kind(existing), "upgrade")   # unknown → update
+        self.assertEqual(self.engine().install_kind(existing), "upgrade")
 
     def test_install_json_wins_and_same_or_newer_versions(self):
         self.app.mkdir(parents=True)
@@ -210,7 +206,6 @@ class DetectInstalledVersion(unittest.TestCase):
         path.parent.mkdir(parents=True, exist_ok=True)
         return path
 
-
 class WindowGeometry(unittest.TestCase):
     """pywebview sized the OUTER window and removed the frame afterwards: the client
     area came out 944×581. fit_window() makes the CLIENT area the design size."""
@@ -230,13 +225,13 @@ class WindowGeometry(unittest.TestCase):
         self.assertEqual((g["width"], g["height"], g["client"]), (976, 659, (960, 620)))
 
     def test_clamped_to_the_work_area_and_centred_on_that_monitor(self):
-        # 1366×768 at 150 %: work area 1366×728 physical → the page gets less than 960×620
+
         g = setup_main.fit_window((960, 620), 1.5, (0, 0, 1366, 728))
         self.assertLessEqual(g["width"], 1366 - 2 * 24)
         self.assertLessEqual(g["height"], 728 - 2 * 24)
         self.assertEqual((g["x"], g["y"]), ((1366 - g["width"]) // 2, (728 - g["height"]) // 2))
-        self.assertLess(g["logical"][1], 620)                     # the fluid page takes over
-        # second monitor to the right, taskbar on top
+        self.assertLess(g["logical"][1], 620)
+
         g = setup_main.fit_window((960, 620), 1.0, (1920, 40, 3840, 1080))
         self.assertEqual((g["x"], g["y"]), (1920 + 480, 40 + 210))
 
@@ -254,7 +249,6 @@ class WindowGeometry(unittest.TestCase):
         for needle in ("GetDpiForWindow", "MonitorFromPoint", "GetMonitorInfoW", "SetWindowPos.argtypes",
                        "GetClientRect.argtypes", "GetFileVersionInfoW.argtypes", "VerQueryValueW.argtypes"):
             self.assertIn(needle, win)
-
 
 class WelcomeWording(unittest.TestCase):
     def setUp(self):
@@ -294,7 +288,6 @@ class WelcomeWording(unittest.TestCase):
         css = (ROOT / "installer" / "ui" / "style.css").read_text(encoding="utf-8")
         self.assertIn("container-type: size", css)
         self.assertNotIn("height: 542px", css, "the panel must not have the old fixed height")
-
 
 if __name__ == "__main__":
     unittest.main()

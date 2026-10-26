@@ -1,6 +1,5 @@
-// Runs the Benchmarks module (app/module_builtins/benchmarks/main.js) in a VM
-// with a fake DOM and bridge, then checks the MemuAI Index maths and the
-// personal arena flow. Prints one JSON line; round10_test.py asserts on it.
+
+
 const fs = require("fs");
 const vm = require("vm");
 const path = require("path");
@@ -40,10 +39,9 @@ const ctx = {
     request: async (body) => {
       requests.push({ model: body.model, text: body.text });
       if (body.model === "m-j") {
-        // The judge sees letters only — never the model ids.
+
         if (/m-a|m-b/.test(body.text)) throw new Error("judge saw model ids");
-        // The arena shuffles the letters at random, so this judge scores the CONTENT
-        // (the stronger answer says "good"); a fixed A=9/B=3 made the outcome a coin flip.
+
         const scores = {};
         for (const match of body.text.matchAll(/### ([A-H])\n([\s\S]*?)(?=\n\n### |$)/g)) scores[match[1]] = /good/.test(match[2]) ? 9 : 3;
         return { text: "Оценки: " + JSON.stringify(scores) };

@@ -11,9 +11,7 @@ from app.config import config_store
 from app.main import create_app
 from app.state import Account
 
-
 ROOT = Path(__file__).resolve().parents[1]
-
 
 class ProxyAdminApiContractTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -147,7 +145,6 @@ class ProxyAdminApiContractTest(unittest.TestCase):
         self.assertTrue(child_env["MEMUAI_TOKEN"])
         self.assertNotIn(child_env["MEMUAI_TOKEN"], argv)
 
-
 class ProxyAdminUiContractTest(unittest.TestCase):
     def test_session_modal_secret_and_responsive_contracts(self) -> None:
         html = (ROOT / "app" / "static" / "index.html").read_text(encoding="utf-8")
@@ -171,7 +168,6 @@ class ProxyAdminUiContractTest(unittest.TestCase):
         self.assertIn("@media (max-width: 560px)", css)
         self.assertIn("@media (prefers-reduced-motion: reduce)", css)
         self.assertIn('default=os.environ.get("MEMUAI_TOKEN", "")', launcher)
-
 
 if __name__ == "__main__":
     unittest.main()

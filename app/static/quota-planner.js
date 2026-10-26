@@ -1,6 +1,5 @@
-/* MemuAI Proxy — Round 35 (quota): вкладка «Планировщик квот» + значок прогноза в карточках аккаунтов.
-   Данные — GET /api/admin/quota/planner (app/quota_planner.py): по каждому аккаунту окна лимитов с историей
-   остатка, прогнозом до сброса (линия + полоса 10–90 %), вердиктом, ETA и рекомендуемым темпом. */
+
+
 "use strict";
 
 window.MemuQuota = (() => {
@@ -18,7 +17,6 @@ window.MemuQuota = (() => {
   };
   const stOf = (s) => ST[s] || ST.insufficient;
 
-  /* ------------------------------------------------------------ formatting */
   function span(seconds) {
     let s = Math.max(0, Math.round(seconds));
     const d = Math.floor(s / 86400); s -= d * 86400;
@@ -46,7 +44,6 @@ window.MemuQuota = (() => {
     return { name: a.label || meta.title, provider: meta.title, icon: meta.icon || "◆" };
   }
 
-  /* ------------------------------------------------------------ verdict text */
   function verdict(w, now) {
     const reset = w.reset;
     const resetTxt = reset ? `${clock(reset, now)}${w.reset_estimated ? L(" (оценка)", " (estimated)") : ""}` : "";
@@ -77,12 +74,12 @@ window.MemuQuota = (() => {
 
   function paceLine(w) {
     const bits = [];
-    // Round 36: with too few samples «now ~41 %/h» was an extrapolation of two readings seconds apart
+
     const steady = w.status !== "insufficient";
     if (steady && w.rate_now != null) bits.push(L(`сейчас ~${num(w.rate_now)} запр/ч`, `now ~${num(w.rate_now)} req/h`));
     else if (steady && w.rate != null) bits.push(L(`сейчас ~${num(w.rate * 100, 1)} %/ч`, `now ~${num(w.rate * 100, 1)} %/h`));
     let rec = "";
-    // «можно до» when there is plenty, «не больше» when the limit is at risk or still unknown
+
     const free = w.status === "ok";
     const lead = free ? L("можно до", "up to") : L("не больше", "no more than");
     if (w.status === "exhausted") rec = "";
@@ -94,9 +91,8 @@ window.MemuQuota = (() => {
     return `<div class="qp-pace"><span class="qp-pace-lbl">${esc(L("Темп", "Pace"))}</span>${bits.map((b) => (b.startsWith("<b>") ? b : esc(b))).join(" · ")}</div>`;
   }
 
-  /* ------------------------------------------------------------ chart */
   function chart(w, now) {
-    const W = S.chartW || 560, H = W < 400 ? 120 : 132, P = { l: 34, r: 12, t: 12, b: 20 };  // W ≈ real px: text stays 1:1
+    const W = S.chartW || 560, H = W < 400 ? 120 : 132, P = { l: 34, r: 12, t: 12, b: 20 };
     const hist = w.history || [], proj = w.projection || [];
     if (!hist.length) return `<div class="qp-chart qp-chart-empty">${esc(L("Замеров ещё нет", "No samples yet"))}</div>`;
     const x0 = Math.min(w.view_from || hist[0][0], hist[0][0]);
@@ -119,7 +115,7 @@ window.MemuQuota = (() => {
     const ticks = [];
     const span_ = x1 - x0, maxTicks = Math.max(3, Math.min(7, Math.floor(W / (LANG === "en" ? 86 : 70)))),
       stepH = [3600, 7200, 10800, 21600, 43200, 86400, 172800, 345600, 604800].find((st) => span_ / st <= maxTicks) || 604800;
-    const tz = new Date().getTimezoneOffset() * 60;  // ticks on local midnights / round local hours
+    const tz = new Date().getTimezoneOffset() * 60;
     for (let t = Math.ceil((x0 - tz) / stepH) * stepH + tz; t <= x1; t += stepH) {
       const d = new Date(t * 1000);
       const label = stepH >= 86400 ? d.toLocaleDateString(loc(), { day: "numeric", month: "short" }) : d.toLocaleTimeString(loc(), { hour: "2-digit", minute: "2-digit" });
@@ -136,7 +132,6 @@ window.MemuQuota = (() => {
       ${grid}${ticks.join("")}${resets}<path class="qp-area" d="${area}"/><path class="qp-hist" d="${line(hist, 1)}"/>${band}${projLine}${nowMark}${resetMark}${etaMark}${dot}</svg>`;
   }
 
-  /* ------------------------------------------------------------ render */
   function windowBlock(w, now) {
     const st = stOf(w.status);
     const resetIn = w.reset ? L(`сброс через ${span(w.reset - now)} · ${clock(w.reset, now)}`, `resets in ${span(w.reset - now)} · ${clock(w.reset, now)}`) : L("срок сброса неизвестен", "reset time unknown");
@@ -400,7 +395,6 @@ window.MemuQuota = (() => {
     render();
   }
 
-  /* ------------------------------------------------------------ badges in «Аккаунты» */
   async function badges() {
     const grid = $("#accounts-grid");
     if (!grid || !grid.querySelector("[data-acc-id]")) return;

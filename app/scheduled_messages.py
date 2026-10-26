@@ -55,32 +55,29 @@ MAX_ITEMS = 300
 MAX_ACTIVE_PER_CHAT = 50
 MAX_TEXT = 100_000
 MAX_ATTACHMENTS = 10
-MAX_ATTACHMENT_CHARS = 20 * 1024 * 1024          # one data URL (≈15 MB of bytes)
+MAX_ATTACHMENT_CHARS = 20 * 1024 * 1024
 MAX_ATTACHMENTS_CHARS = 40 * 1024 * 1024
-KEEP_FINISHED_MS = 7 * 24 * 3600 * 1000           # sent / skipped / cancelled rows stay a week
-LATE_GRACE_MS = 3 * 60 * 1000                     # later than this = «missed while MemuAI was closed»
-PRESENCE_STALE_MS = 150 * 1000                    # the window heartbeats every 20 s (hidden windows are throttled)
-SENDING_STALE_MS = 20 * 60 * 1000                 # a claim nobody finished (crash) is released
+KEEP_FINISHED_MS = 7 * 24 * 3600 * 1000
+LATE_GRACE_MS = 3 * 60 * 1000
+PRESENCE_STALE_MS = 150 * 1000
+SENDING_STALE_MS = 20 * 60 * 1000
 ONLINE_RETRY_MS = (60_000, 120_000, 300_000, 600_000, 1_800_000)
 ONLINE_GIVE_UP_MS = 3 * 24 * 3600 * 1000
-MIN_LEAD_MS = 30 * 1000                           # a «time» message must be at least this far ahead
+MIN_LEAD_MS = 30 * 1000
 
 PREF_DEFAULTS: Dict[str, Any] = {
-    # What to do with a message whose time passed while MemuAI was closed.
+
     "schedsend_missed": "send",
-    # MemuAI Proxy may send regular-chat messages while the MemuAI window is closed.
+
     "schedsend_background": True,
-    # Windows notification when a message was sent in the background or late.
+
     "schedsend_notify": True,
-    # Default of «also notify in Telegram» in the schedule menu.
+
     "schedsend_telegram_default": False,
 }
 
 _CAP_KEY = re.compile(r"^[a-z][a-z0-9_]{0,39}$")
 _ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
-
-
-# --------------------------------------------------------------------------- preferences
 
 def normalize_prefs(out: Dict[str, Any], raw: Any) -> None:
     """Load/save normalization of the ``schedsend_*`` keys (called by pgdata)."""
@@ -93,12 +90,8 @@ def normalize_prefs(out: Dict[str, Any], raw: Any) -> None:
             value = value.strip().lower() in ("1", "true", "yes", "on")
         out[key] = bool(value)
 
-
-# --------------------------------------------------------------------------- helpers
-
 def now_ms() -> int:
     return int(time.time() * 1000)
-
 
 def _int(value: Any, default: int = 0) -> int:
     try:
@@ -107,35 +100,28 @@ def _int(value: Any, default: int = 0) -> int:
         return default
     return number
 
-
 def _bool(value: Any) -> bool:
     if isinstance(value, str):
         return value.strip().lower() in ("1", "true", "yes", "on")
     return bool(value)
 
-
 def _text(value: Any, limit: int) -> str:
     return str(value if value is not None else "").replace("\x00", "")[:limit]
-
 
 def new_id() -> str:
     return "sm-" + uuid.uuid4().hex[:14]
 
-
 def _memu_dir() -> Path:
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR)
-
 
 def path_for(profile_id: Optional[str] = None) -> Path:
     """The queue file of a profile (the active one by default)."""
     from .pgdata import _profile_data_name
     return _memu_dir() / _profile_data_name(FILE_NAME, profile_id)
 
-
 def presence_path() -> Path:
     return _memu_dir() / PRESENCE_FILE
-
 
 def revision(profile_id: Optional[str] = None) -> str:
     try:
@@ -143,9 +129,6 @@ def revision(profile_id: Optional[str] = None) -> str:
     except (OSError, ValueError):
         return "0"
     return f"{stat.st_mtime_ns:x}-{stat.st_size:x}"
-
-
-# --------------------------------------------------------------------------- normalization
 
 def _attachments(value: Any) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
@@ -166,7 +149,6 @@ def _attachments(value: Any) -> List[Dict[str, Any]]:
                      "isImg": bool(item.get("isImg")) or mime.startswith("image/")})
     return rows
 
-
 def _caps(value: Any) -> Dict[str, bool]:
     if not isinstance(value, dict):
         return {}
@@ -176,12 +158,10 @@ def _caps(value: Any) -> Dict[str, bool]:
             out[key] = _bool(flag)
     return out
 
-
 def _tools(value: Any) -> List[str]:
     if not isinstance(value, list):
         return []
     return [str(item)[:40] for item in value if isinstance(item, str) and _CAP_KEY.match(item)][:16]
-
 
 def normalize_item(raw: Any, *, now: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """A stored row with every field in range, or ``None`` for garbage."""
@@ -235,7 +215,7 @@ def normalize_item(raw: Any, *, now: Optional[int] = None) -> Optional[Dict[str,
         "sent_by": _text(raw.get("sent_by"), 20),
         "lang": "en" if raw.get("lang") == "en" else "ru",
     }
-    # One-shot flags: «send now» / «send the missed one» bypass the late-message policy.
+
     if _bool(raw.get("now_requested")):
         item["now_requested"] = True
     if _bool(raw.get("approved")):
@@ -245,9 +225,8 @@ def normalize_item(raw: Any, *, now: Optional[int] = None) -> Optional[Dict[str,
     if item["trigger"] == "online":
         item["repeat"] = "none"
     if item["mode"] == "work":
-        item["route"] = "auto"             # Work needs the window
+        item["route"] = "auto"
     return item
-
 
 def public_item(item: Dict[str, Any], *, with_data: bool = False) -> Dict[str, Any]:
     """The row for the window: attachment bytes only when asked for (editing / sending)."""
@@ -255,7 +234,6 @@ def public_item(item: Dict[str, Any], *, with_data: bool = False) -> Dict[str, A
     out["attachments"] = [{key: value for key, value in row.items() if with_data or key != "data"}
                           for row in item.get("attachments") or []]
     return out
-
 
 def _rows(raw: Any) -> List[Dict[str, Any]]:
     if isinstance(raw, dict):
@@ -269,7 +247,6 @@ def _rows(raw: Any) -> List[Dict[str, Any]]:
             rows.append(item)
     return rows
 
-
 def _prune(rows: List[Dict[str, Any]], now: int) -> List[Dict[str, Any]]:
     kept = [row for row in rows
             if row["status"] in ACTIVE_STATUSES or row.get("notice")
@@ -281,15 +258,11 @@ def _prune(rows: List[Dict[str, Any]], now: int) -> List[Dict[str, Any]]:
         kept = active[:MAX_ITEMS] + rest[:max(0, MAX_ITEMS - len(active))]
     return kept
 
-
-# --------------------------------------------------------------------------- storage
-
 def load(profile_id: Optional[str] = None) -> List[Dict[str, Any]]:
     from .storage import load_json_with_recovery
     raw = load_json_with_recovery(path_for(profile_id), {"version": VERSION, "items": []},
                                   validator=lambda value: isinstance(value, (dict, list)))
     return _rows(raw)
-
 
 def mutate(change: Callable[[List[Dict[str, Any]]], Any], profile_id: Optional[str] = None,
            *, now: Optional[int] = None) -> Tuple[List[Dict[str, Any]], Any]:
@@ -313,9 +286,6 @@ def mutate(change: Callable[[List[Dict[str, Any]]], Any], profile_id: Optional[s
                 validator=lambda value: isinstance(value, (dict, list)), repair_invalid=True)
     return box.get("rows", []), box.get("result")
 
-
-# --------------------------------------------------------------------------- time
-
 def next_repeat(due_at: int, repeat: str, *, after: Optional[int] = None) -> int:
     """The next occurrence of a repeating message strictly after ``after`` (ms)."""
     if repeat not in ("daily", "weekdays", "weekly"):
@@ -332,7 +302,6 @@ def next_repeat(due_at: int, repeat: str, *, after: Optional[int] = None) -> int
             return stamp
     return 0
 
-
 def is_due(item: Dict[str, Any], now: int) -> bool:
     if item["status"] != "scheduled":
         return False
@@ -342,12 +311,10 @@ def is_due(item: Dict[str, Any], now: int) -> bool:
         return True
     return item["due_at"] <= now
 
-
 def next_due(rows: List[Dict[str, Any]]) -> int:
     stamps = [max(row["due_at"] if row["trigger"] == "time" else 0, row.get("next_attempt") or 0)
               for row in rows if row["status"] == "scheduled"]
     return min(stamps) if stamps else 0
-
 
 def server_capable(item: Dict[str, Any]) -> bool:
     """Can MemuAI Proxy send it without the window (regular chat, text model)?"""
@@ -362,22 +329,17 @@ def server_capable(item: Dict[str, Any]) -> bool:
         pass
     return not any(row.get("type", "").startswith("video/") for row in item.get("attachments") or [])
 
-
-# --------------------------------------------------------------------------- presence
-
 def write_presence(*, profile_id: str = "", now: Optional[int] = None) -> Dict[str, Any]:
     from .storage import save_json
     value = {"seen": now if now is not None else now_ms(), "pid": os.getpid(), "profile": str(profile_id or "")}
     save_json(presence_path(), value, backup=False)
     return value
 
-
 def clear_presence() -> None:
     try:
         presence_path().unlink()
     except OSError:
         pass
-
 
 def desktop_alive(now: Optional[int] = None, profile_id: Optional[str] = None) -> bool:
     """Is a MemuAI window open (heartbeat) — for ``profile_id``, when given? The window only
@@ -395,9 +357,6 @@ def desktop_alive(now: Optional[int] = None, profile_id: Optional[str] = None) -
         return str((value or {}).get("profile") or "default") == str(profile_id or "default")
     return True
 
-
-# --------------------------------------------------------------------------- operations
-
 class ScheduleError(ValueError):
     """A user-facing validation error (``ru`` / ``en`` text)."""
 
@@ -407,7 +366,6 @@ class ScheduleError(ValueError):
 
     def text(self, lang: str) -> str:
         return self.en if lang == "en" else self.ru
-
 
 def _validate_new(item: Dict[str, Any], rows: List[Dict[str, Any]], now: int) -> None:
     if not item["text"].strip() and not item["attachments"]:
@@ -424,7 +382,6 @@ def _validate_new(item: Dict[str, Any], rows: List[Dict[str, Any]], now: int) ->
     if len(active) >= MAX_ACTIVE_PER_CHAT:
         raise ScheduleError(f"В одном чате — не больше {MAX_ACTIVE_PER_CHAT} отложенных сообщений",
                             f"At most {MAX_ACTIVE_PER_CHAT} scheduled messages per chat")
-
 
 def create(raw: Dict[str, Any], profile_id: Optional[str] = None, *, now: Optional[int] = None) -> Dict[str, Any]:
     stamp = now if now is not None else now_ms()
@@ -448,13 +405,10 @@ def create(raw: Dict[str, Any], profile_id: Optional[str] = None, *, now: Option
     _rows_after, result = mutate(change, profile_id, now=stamp)
     return result
 
-
 def _find(rows: List[Dict[str, Any]], item_id: str) -> Optional[Dict[str, Any]]:
     return next((row for row in rows if row["id"] == str(item_id or "")), None)
 
-
 EDITABLE = ("text", "due_at", "repeat", "trigger", "notify_telegram", "model", "caps", "tools", "attachments")
-
 
 def update(item_id: str, patch: Dict[str, Any], profile_id: Optional[str] = None,
            *, now: Optional[int] = None) -> Dict[str, Any]:
@@ -486,7 +440,6 @@ def update(item_id: str, patch: Dict[str, Any], profile_id: Optional[str] = None
 
     return mutate(change, profile_id, now=stamp)[1]
 
-
 def delete(item_id: str, profile_id: Optional[str] = None) -> bool:
     def change(rows: List[Dict[str, Any]]) -> Any:
         row = _find(rows, item_id)
@@ -498,7 +451,6 @@ def delete(item_id: str, profile_id: Optional[str] = None) -> bool:
         return True
 
     return bool(mutate(change, profile_id)[1])
-
 
 def send_now(item_id: str, profile_id: Optional[str] = None, *, now: Optional[int] = None) -> Dict[str, Any]:
     """Make an item due immediately (also «Send» for a missed or failed one)."""
@@ -520,7 +472,6 @@ def send_now(item_id: str, profile_id: Optional[str] = None, *, now: Optional[in
 
     return mutate(change, profile_id, now=stamp)[1]
 
-
 def delegate(item_id: str, profile_id: Optional[str] = None, *, now: Optional[int] = None) -> Dict[str, Any]:
     """The window hands a due regular-chat message to MemuAI Proxy."""
     stamp = now if now is not None else now_ms()
@@ -538,7 +489,6 @@ def delegate(item_id: str, profile_id: Optional[str] = None, *, now: Optional[in
         raise ScheduleError("Это сообщение нельзя отправить в фоне", "This message cannot be sent in the background")
     return result
 
-
 def classify(item: Dict[str, Any], now: int, policy: str, *, delegated: bool = False) -> str:
     """``send`` / ``ask`` / ``skip`` for a due item. Late = past due by more than the grace time,
     unless the user asked to send it now or the window delegated it on time."""
@@ -548,7 +498,6 @@ def classify(item: Dict[str, Any], now: int, policy: str, *, delegated: bool = F
     if not late or delegated:
         return "send"
     return policy if policy in MISSED_POLICIES else "send"
-
 
 def claim(item_id: str, by: str, profile_id: Optional[str] = None, *, policy: str = "send",
           now: Optional[int] = None) -> Dict[str, Any]:
@@ -563,9 +512,7 @@ def claim(item_id: str, by: str, profile_id: Optional[str] = None, *, policy: st
         row = _find(rows, item_id)
         if row is None or not is_due(row, stamp):
             return False
-        # «Delegated on time» = the window handed it over within the grace time of its due moment. A message
-        # that was already late when the window delegated it (MemuAI reopened after it became due) still
-        # follows the missed-message policy — otherwise ask/skip were bypassed by the window's own delegate.
+
         delegated_at = int(row.get("updated") or 0)
         decision = classify(row, stamp, policy, delegated=row.get("route") == "server" and
                             stamp - delegated_at < LATE_GRACE_MS
@@ -584,7 +531,6 @@ def claim(item_id: str, by: str, profile_id: Optional[str] = None, *, policy: st
 
     result = mutate(change, profile_id, now=stamp)[1]
     return result or {"action": "none"}
-
 
 def _schedule_next_occurrence(rows: List[Dict[str, Any]], row: Dict[str, Any], now: int) -> Optional[Dict[str, Any]]:
     """A repeating message continues as a fresh row (the finished one stays in the log)."""
@@ -605,7 +551,6 @@ def _schedule_next_occurrence(rows: List[Dict[str, Any]], row: Dict[str, Any], n
     if item:
         rows.append(item)
     return item
-
 
 def complete(item_id: str, ok: bool, profile_id: Optional[str] = None, *, error: str = "",
              answer_error: str = "", model_used: str = "", by: str = "desktop", retry: bool = False,
@@ -644,7 +589,6 @@ def complete(item_id: str, ok: bool, profile_id: Optional[str] = None, *, error:
 
     return mutate(change, profile_id, now=stamp)[1] or None
 
-
 def release_stale(profile_id: Optional[str] = None, *, now: Optional[int] = None) -> int:
     """A ``sending`` claim nobody finished (the sender crashed) becomes ``failed`` with a notice —
     never silently re-sent, since the message may already be in the chat."""
@@ -661,7 +605,6 @@ def release_stale(profile_id: Optional[str] = None, *, now: Optional[int] = None
 
     return int(mutate(change, profile_id, now=stamp)[1] or 0)
 
-
 def acknowledge(ids: List[str], profile_id: Optional[str] = None) -> int:
     wanted = {str(value) for value in (ids or [])[:500]}
 
@@ -674,7 +617,6 @@ def acknowledge(ids: List[str], profile_id: Optional[str] = None) -> int:
         return count or False
 
     return int(mutate(change, profile_id)[1] or 0)
-
 
 def approve_missed(item_id: str, profile_id: Optional[str] = None, *, now: Optional[int] = None) -> Dict[str, Any]:
     """«Send» on a missed message: due now, the late policy no longer applies."""
@@ -690,7 +632,6 @@ def approve_missed(item_id: str, profile_id: Optional[str] = None, *, now: Optio
 
     return mutate(change, profile_id, now=stamp)[1]
 
-
 def drop_chat(chat_id: str, profile_id: Optional[str] = None) -> int:
     """Remove the queue of a deleted chat."""
     def change(rows: List[Dict[str, Any]]) -> Any:
@@ -700,7 +641,6 @@ def drop_chat(chat_id: str, profile_id: Optional[str] = None) -> int:
 
     return int(mutate(change, profile_id)[1] or 0)
 
-
 def summary(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
     active = [row for row in rows if row["status"] in ("scheduled", "sending", "missed", "failed")]
     by_chat: Dict[str, int] = {}
@@ -708,7 +648,6 @@ def summary(rows: List[Dict[str, Any]]) -> Dict[str, Any]:
         by_chat[row["chat_id"]] = by_chat.get(row["chat_id"], 0) + 1
     return {"active": len(active), "by_chat": by_chat, "next_due": next_due(rows),
             "notices": sum(1 for row in rows if row.get("notice"))}
-
 
 def profile_ids() -> List[str]:
     try:
@@ -718,7 +657,6 @@ def profile_ids() -> List[str]:
         return ids or ["default"]
     except Exception:
         return ["default"]
-
 
 def deep_copy(item: Dict[str, Any]) -> Dict[str, Any]:
     return copy.deepcopy(item)

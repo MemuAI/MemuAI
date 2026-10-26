@@ -11,7 +11,6 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from .bigdocs import (BigDocError, JOBS, MAX_FILE_BYTES, _BRIDGE, _prefs, _tr, answer_question, best_quote, cancel_job, cite, estimate, full_text, get_doc, ingest, ingest_path, job_events, qa_context_async, settings, start_job, summary)
 
-
 def _decode_data_url(data_url: str) -> bytes:
     import base64
     import urllib.parse
@@ -22,10 +21,8 @@ def _decode_data_url(data_url: str) -> bytes:
         raise BigDocError("Файл больше 200 МБ", "The file is larger than 200 MB", "too_large")
     return base64.b64decode(encoded, validate=False) if ";base64" in meta else urllib.parse.unquote_to_bytes(encoded)
 
-
 _STATUS = {"too_large": 413, "gone": 410, "bad_id": 400, "not_found": 404, "format": 415, "scan": 415, "empty": 415,
            "pypdf": 415, "parse": 415, "encrypted": 415}
-
 
 def register(app: Any, completion: Optional[Callable[..., Awaitable[str]]] = None, prefix: str = "/api/pg/bigdocs") -> None:
     """Routes for the chat window, Quick Access and MemuNote (via the playground):
@@ -162,7 +159,7 @@ def register(app: Any, completion: Optional[Callable[..., Awaitable[str]]] = Non
             doc = await asyncio.to_thread(get_doc, str(body.get("id") or ""))
             k = int(body.get("k") or settings(_prefs())["k"])
             remember_loop()
-            # «model» lets a question in another language than the document be translated for the search first
+
             return await qa_context_async(doc, str(body.get("query") or "")[:2000], min(20, max(2, k)), lang,
                                           model=str(body.get("model") or ""), complete=complete if completion else None)
         except BigDocError as exc:

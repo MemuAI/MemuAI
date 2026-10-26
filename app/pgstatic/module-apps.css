@@ -1,8 +1,3 @@
-/* Round 33 — modules outside the MemuAI window (module-apps.js, app/module_apps.py). */
-
-/* ---------------- a module's own window: /?module_app=<id> ----------------
-   The same MemuAI page, but only the module is visible and it fills the window.
-   Minimize / maximize / close are Windows' own caption buttons. */
 :root[data-module-app] { background: var(--module-app-bg, var(--bg)) !important; }
 :root[data-module-app] body { background: var(--module-app-bg, var(--bg)) !important; overflow: hidden; }
 :root[data-module-app] #app,
@@ -39,14 +34,10 @@
 .mapp-gone-card > .ui-icon { width: 28px; height: 28px; color: var(--muted); }
 .mapp-gone-card p { margin: 10px 0 16px; color: var(--text); line-height: 1.5; }
 .mapp-gone-card .row-end { justify-content: center; gap: 8px; }
-
-/* Launchers of modules that live in their own window. */
 .module-launch.is-detached::after {
   content: ""; width: 6px; height: 6px; margin-left: auto; flex: none; border-radius: 50%;
   background: color-mix(in srgb, var(--accent) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
 }
-
-/* ---------------------------------------- dialogs ---------------------------------------- */
 .panel.module-apps-panel { width: min(560px, calc(100vw - 32px)); }
 .mapp-dialog h2 { margin: 0 0 6px; }
 .mapp-dialog .sub { margin: 0; color: var(--muted); line-height: 1.5; }
@@ -79,8 +70,6 @@
 .mapp-dialog .mu-grow { flex: 1; }
 .pbtn.danger-text, .pbtn.ghost.danger-text { color: var(--danger, #e5484d); }
 .pbtn.danger-text:hover { background: color-mix(in srgb, var(--danger, #e5484d) 12%, transparent); }
-
-/* MemuAI closes while modules are open (#6). */
 .mapp-mods { list-style: none; margin: 12px 0 14px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
 .mapp-mods li { display: inline-flex; align-items: center; gap: 7px; padding: 6px 11px 6px 9px; border-radius: 999px;
   background: var(--panel-2); border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); font-size: 13px; }
@@ -102,8 +91,6 @@
 .mapp-remember { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 2px 0 14px; font-size: 13px; cursor: pointer; }
 .mapp-remember input { accent-color: var(--accent); }
 .mapp-remember small { flex-basis: 100%; padding-left: 24px; color: var(--muted); font-size: 12px; }
-
-/* --------------------------------- Settings → Modules --------------------------------- */
 .mapp-settings { margin-top: 18px; padding: 16px; border-radius: var(--radius-lg, 16px); border: 1px solid var(--border); background: var(--panel); }
 .mapp-settings-head { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 6px; }
 .mapp-settings-head > .ui-icon { width: 22px; height: 22px; flex: none; color: var(--accent); margin-top: 1px; }
@@ -124,8 +111,6 @@
 :root[data-design="grid"] .mapp-settings, :root[data-design="grid"] .mapp-choice, :root[data-design="grid"] .mapp-row { border-radius: var(--g-r-sm, 4px); }
 :root[data-design="glass"] .mapp-settings, :root[data-design="glass"] .mapp-choice {
   background: color-mix(in srgb, var(--panel) 72%, transparent); backdrop-filter: blur(14px) saturate(1.2); }
-
-/* Round 38: «Own window title bar» switches (module-appbar.js). */
 .mapp-appbar-all { margin-bottom: 4px; }
 .mapp-appbar-one { display: inline-flex; align-items: center; gap: 6px; flex: none; padding: 0 6px; font-size: 12px; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .mapp-appbar-one input { margin: 0; accent-color: var(--accent); }

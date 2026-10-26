@@ -16,7 +16,6 @@ from app import safe_mode  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 class _Base(unittest.TestCase):
     def setUp(self) -> None:
         self.dir = Path(tempfile.mkdtemp(prefix="r29safe-"))
@@ -27,7 +26,6 @@ class _Base(unittest.TestCase):
     def tearDown(self) -> None:
         safe_mode.deactivate_for_tests()
         self.patch.stop()
-
 
 class StartupDecisionTest(_Base):
     def never(self, *_a) -> bool:
@@ -47,7 +45,7 @@ class StartupDecisionTest(_Base):
         safe_mode.deactivate_for_tests()
         safe_mode.set_marker(once=False)
         self.assertTrue(safe_mode.decide_at_startup(False, ask=self.never, shift=lambda: False)["active"])
-        self.assertTrue(safe_mode.marker_state()["exists"])            # «always» stays
+        self.assertTrue(safe_mode.marker_state()["exists"])
 
     def test_once_marker_is_consumed(self) -> None:
         safe_mode.set_marker(once=True)
@@ -73,7 +71,7 @@ class StartupDecisionTest(_Base):
     def test_crash_guard_offers_safe_mode_after_two_unfinished_starts(self) -> None:
         asked = []
         for _ in range(safe_mode.CRASH_THRESHOLD):
-            safe_mode.decide_at_startup(False, ask=self.never, shift=lambda: False)   # starts that never got healthy
+            safe_mode.decide_at_startup(False, ask=self.never, shift=lambda: False)
         state = safe_mode.decide_at_startup(False, ask=lambda t, x: asked.append(x) or True, shift=lambda: False)
         self.assertTrue(state["active"])
         self.assertEqual(safe_mode.status()["source"], "crash")
@@ -83,7 +81,7 @@ class StartupDecisionTest(_Base):
         for _ in range(safe_mode.CRASH_THRESHOLD):
             safe_mode.decide_at_startup(False, ask=self.never, shift=lambda: False)
         self.assertFalse(safe_mode.decide_at_startup(False, ask=lambda *_: False, shift=lambda: False)["active"])
-        # the next start does not ask again
+
         self.assertFalse(safe_mode.decide_at_startup(False, ask=self.never, shift=lambda: False)["active"])
 
     def test_healthy_start_resets_the_guard(self) -> None:
@@ -91,15 +89,14 @@ class StartupDecisionTest(_Base):
         safe_mode.mark_healthy()
         safe_mode.decide_at_startup(False, ask=self.never, shift=lambda: False)
         safe_mode.clean_exit()
-        safe_mode.decide_at_startup(False, ask=self.never, shift=lambda: False)   # still below the threshold
+        safe_mode.decide_at_startup(False, ask=self.never, shift=lambda: False)
 
     def test_broken_files_never_raise(self) -> None:
         self.dir.mkdir(parents=True, exist_ok=True)
         safe_mode.guard_path().write_text("{not json", encoding="utf-8")
         safe_mode.marker_path().write_text("[1, 2", encoding="utf-8")
         state = safe_mode.decide_at_startup(False, ask=self.never, shift=lambda: False)
-        self.assertTrue(state["active"])                                    # a marker file of any content
-
+        self.assertTrue(state["active"])
 
 class SessionAndRestartTest(_Base):
     def test_session_file_tracks_a_live_process(self) -> None:
@@ -107,7 +104,7 @@ class SessionAndRestartTest(_Base):
         safe_mode.activate("flag")
         with mock.patch.dict(os.environ, {}, clear=False):
             os.environ.pop(safe_mode.ENV, None)
-            self.assertTrue(safe_mode.session_active())                    # this very process
+            self.assertTrue(safe_mode.session_active())
             safe_mode.clean_exit()
             self.assertFalse(safe_mode.session_path().exists())
 
@@ -145,7 +142,6 @@ class SessionAndRestartTest(_Base):
             self.assertTrue(row["ru"] and row["en"])
             self.assertIsNone(re.search(r"[А-Яа-яЁё]", row["en"] + row["note_en"]), row["id"])
 
-
 class RoutesTest(_Base):
     def client(self):
         from fastapi import FastAPI
@@ -176,7 +172,6 @@ class RoutesTest(_Base):
         safe_mode.set_marker(once=False)
         self.assertEqual(c.post("/api/pg/app/restart", json={"mode": "normal"}).status_code, 400)
         self.assertFalse(safe_mode.marker_state()["exists"])
-
 
 class HooksTest(_Base):
     def test_extension_points_ask_is_safe_mode(self) -> None:
@@ -215,7 +210,6 @@ class HooksTest(_Base):
             self.assertIn("MEMUAI_SAFE_MODE", page)
         js = (ROOT / "app" / "pgstatic" / "safe-mode.js").read_text(encoding="utf-8")
         self.assertIn('MemuDocs.open("safe-mode")', js)
-
 
 if __name__ == "__main__":
     unittest.main()

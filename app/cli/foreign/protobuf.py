@@ -10,10 +10,9 @@ from __future__ import annotations
 
 from typing import Any, Iterator, List, Optional, Sequence, Tuple
 
-Node = Tuple[int, str, Any]            # (field number, "v" | "str" | "msg" | "bytes" | "f32" | "f64", value)
+Node = Tuple[int, str, Any]
 MAX_DEPTH = 8
 MAX_BYTES = 8_000_000
-
 
 def _varint(buffer: bytes, index: int) -> Tuple[int, int]:
     shift = 0
@@ -28,10 +27,8 @@ def _varint(buffer: bytes, index: int) -> Tuple[int, int]:
         if shift > 70:
             raise ValueError("varint too long")
 
-
 def _printable(text: str) -> bool:
     return all(char.isprintable() or char in "\n\r\t" for char in text)
-
 
 def decode(buffer: bytes, depth: int = 0) -> Optional[List[Node]]:
     """The fields of ``buffer`` as a list, or None when it is not a valid message."""
@@ -67,7 +64,6 @@ def decode(buffer: bytes, depth: int = 0) -> Optional[List[Node]]:
         return None
     return out
 
-
 def _plausible(nested: Sequence[Node]) -> bool:
     """Does a parse look like a real message rather than text that happens to parse? Short ASCII words often do
     (``echo hi`` is ``f32 "cho "`` + ``varint 105``), so a message must hold a length-delimited field and no
@@ -84,7 +80,6 @@ def _plausible(nested: Sequence[Node]) -> bool:
                 stack.append(value)
     return has_chunk
 
-
 def _chunk(field: int, chunk: bytes, depth: int) -> Node:
     nested = decode(chunk, depth + 1) if depth < MAX_DEPTH and chunk else None
     try:
@@ -100,7 +95,6 @@ def _chunk(field: int, chunk: bytes, depth: int) -> Node:
         return field, "msg", nested
     return field, "bytes", chunk
 
-
 def walk(tree: Sequence[Node], path: Tuple[int, ...] = ()) -> Iterator[Tuple[Tuple[int, ...], str, Any]]:
     """Every leaf of the tree with the path of field numbers that leads to it."""
     for field, kind, value in tree:
@@ -110,13 +104,11 @@ def walk(tree: Sequence[Node], path: Tuple[int, ...] = ()) -> Iterator[Tuple[Tup
         else:
             yield here, kind, value
 
-
 def strings(tree: Sequence[Node]) -> Iterator[Tuple[str, str]]:
     """``("20.7.3", "text")`` for every text leaf."""
     for path, kind, value in walk(tree):
         if kind == "str":
             yield ".".join(str(part) for part in path), value
-
 
 def first(tree: Sequence[Node], *paths: str) -> str:
     """The first text found at any of the dotted ``paths`` (``"20.7.2"``), or ""."""
@@ -125,7 +117,6 @@ def first(tree: Sequence[Node], *paths: str) -> str:
         if path in wanted:
             return text
     return ""
-
 
 def longest(tree: Sequence[Node], prefix: str, *, skip: Sequence[str] = ()) -> str:
     """The longest text under a path prefix (``"28"``) that is not one of ``skip``."""

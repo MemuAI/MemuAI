@@ -50,6 +50,9 @@ You usually only need to set up Proxy once. After that, its models become availa
 
 - Web search through Kiro, Bing, DuckDuckGo, and other services, plus a deep research mode.
 - Create videos, images, spreadsheets, visualizations (like in ChatGPT), product cards, and more.
+- Visualizations 4.0: branching flows, sortable rankings, comparisons, entity cards with a details panel and interactive tools; copied as readable text.
+- Repository module catalogue: inspect and download source before installation, install, update, roll back and switch sources. Contribute a module through a pull request.
+- MemuDB: local SQLite and DuckDB databases, SQL, tables, import/export and AI proposals with change previews and confirmed writes.
 - Integrations with Google, Notion, GitHub, and Telegram accounts.
 - A dedicated Chrome extension for summarizing pages, managing tabs, or simply chatting with AI in your browser.
 - Full MCP support.
@@ -100,7 +103,7 @@ You usually only need to set up Proxy once. After that, its models become availa
 ### Modules
 
 - Create your own apps inside MemuAI and install them as standalone applications. Modules communicate with MemuAI and are built with HTML, CSS, JavaScript, and a manifest.
-- There are 9 modules available by default:
+- There are 10 built-in modules available by default:
   - Translator: straightforward text translation with a glossary.
   - MemuAI Studio: a module for creating videos, music, voiceovers, and transcriptions.
   - MemuAI Design: a module for designing websites and apps.
@@ -109,7 +112,16 @@ You usually only need to set up Proxy once. After that, its models become availa
   - New API Models: notifications about new models through OpenRouter, with support for the OpenAI, Gemini, Anthropic, xAI, Mistral, Groq, DeepSeek APIs, and many others.
   - Characters: an alternative to character.ai and, in particular, SillyTavern, with PNG and JSON character imports, lorebook support, an attractive interface, and convenient settings.
   - MemuMusic: the only module without AI features. It's a separate music app with a pleasant interface, support for adding tracks from YouTube, SoundCloud, or local files, and synchronization with the Telegram Mini App.
+  - MemuLearn: an AI academy for building courses from books or topics, with lesson notes, exams, and FSRS-5 flashcards.
+  - MemuDB: a local SQLite and DuckDB database workbench with table browsing, a SQL editor, and safe AI change previews.
   - Anyone can create their own modules and share them with others.
+
+### Team
+
+- Build a team of models with separate roles and a communication manager, using a template or your own composition.
+- The manager curates user context, while the lead assigns work and reviews the outcome. Regular chats and Work include an activity view and per-request spending controls.
+
+- “Customize sidebar” controls every optional section and individual module shortcuts, sharing their visibility and location settings with the Modules page.
 
 ### MemuAI Work
 
@@ -141,6 +153,7 @@ You usually only need to set up Proxy once. After that, its models become availa
 - Significantly faster than Windows Notepad, Notion, and others, although still slower than Notepad++ and probably Obsidian.
 - Edit code with autocompletion and run it directly in the app, including Python scripts.
 - Support for almost every file type, from `.txt` and `.md` to `.word` and others, with formatting options. Presentations are supported too.
+- Presentations: themes and starter decks, transitions, editable charts, images, AI slide reviews, and PPTX/PDF export.
 - Image support: open images and edit them with AI or by hand. MemuNote includes most basic editing tools, although many other features are still missing.
 - AI assistant: ask questions, get help, format documents, and more.
 

@@ -22,8 +22,7 @@ sys.path.insert(0, str(ROOT))
 from app.learn import fsrs  # noqa: E402
 
 DAY = fsrs.DAY
-T0 = 1767225600.0   # 2026-01-01 00:00 UTC
-
+T0 = 1767225600.0
 
 class FsrsReferenceTest(unittest.TestCase):
     """Values produced by the reference implementation (py-fsrs 4.1.2, fuzz off): the port must match them exactly."""
@@ -62,10 +61,10 @@ class FsrsReferenceTest(unittest.TestCase):
     def test_learning_steps_and_buttons(self):
         card = fsrs.CardState()
         prev = self.s.preview(card, T0)
-        self.assertEqual(prev[fsrs.AGAIN], 60.0)          # 1 min
-        self.assertEqual(prev[fsrs.HARD], 330.0)          # (1 + 10) / 2 min
-        self.assertEqual(prev[fsrs.GOOD], 600.0)          # 10 min
-        self.assertEqual(prev[fsrs.EASY], 16 * DAY)       # round(15.69105)
+        self.assertEqual(prev[fsrs.AGAIN], 60.0)
+        self.assertEqual(prev[fsrs.HARD], 330.0)
+        self.assertEqual(prev[fsrs.GOOD], 600.0)
+        self.assertEqual(prev[fsrs.EASY], 16 * DAY)
         again, _ = self.s.review(card, fsrs.AGAIN, T0)
         self.assertEqual((again.state, again.step), (fsrs.LEARNING, 0))
         self.assertEqual(card.state, fsrs.NEW, "review() must not modify its input")
@@ -81,7 +80,6 @@ class FsrsReferenceTest(unittest.TestCase):
         base = fsrs.Scheduler(enable_fuzzing=False).preview(card, T0, "card-1")
         for rating in (fsrs.HARD, fsrs.GOOD, fsrs.EASY):
             self.assertLessEqual(abs(a[rating] - base[rating]) / DAY, base[rating] / DAY * 0.1 + 2)
-
 
 class LearnStoreTest(unittest.TestCase):
     def setUp(self):
@@ -123,7 +121,7 @@ class LearnStoreTest(unittest.TestCase):
             {"type": "basic", "front": "пустой ответ", "back": ""},
             {"type": "cloze", "front": "без пропусков", "back": "x"}]}
         res = self.call("ai.apply", {"task": "lesson", "lesson_id": lid, "answer": json.dumps(answer, ensure_ascii=False) + ",,"})
-        self.assertEqual(res["added"], 4)   # basic + 2 cloze cards from one note + «без пропусков» as basic
+        self.assertEqual(res["added"], 4)
         with self.assertRaises(self.store_mod.LearnError):
             self.call("ai.apply", {"task": "lesson", "lesson_id": lid, "answer": '{"error": "429"}'})
         q = self.call("review.queue", {"course_id": cid})
@@ -143,7 +141,7 @@ class LearnStoreTest(unittest.TestCase):
         self.assertEqual(panel["courses"][0]["lessons"], 3)
 
     def test_cards_only_keeps_the_summary(self):
-        # r40-learn-3: «Создать карточки» у урока с готовым конспектом — промпт только по конспекту, конспект не трогается
+
         cid, tree = self._course()
         lid = tree[0]["children"][1]["id"]
         self.call("node.update", {"id": lid, "summary": "## Строки\nf-строки"})
@@ -155,7 +153,7 @@ class LearnStoreTest(unittest.TestCase):
         self.assertEqual(r["added"], 1)
         self.assertEqual(r["lesson"]["summary"], "## Строки\nf-строки")
         js = (ROOT / "app" / "module_builtins" / "learn" / "course.js").read_text(encoding="utf-8")
-        self.assertIn("all.find((l) => !l.done)", js)      # курс открывается на первом непройденном уроке
+        self.assertIn("all.find((l) => !l.done)", js)
         self.assertIn('id="ls-make"', js)
 
     def test_exam_grade_makes_weak_cards(self):
@@ -282,7 +280,6 @@ class LearnStoreTest(unittest.TestCase):
         self.assertIn("data:font/woff2;base64,", bundle["css"])
         self.assertNotIn("url(fonts/", bundle["css"])
 
-
 class LearnPackageTest(unittest.TestCase):
     def test_module_package_and_wiring(self):
         from app import modules_host as host, module_icons
@@ -352,7 +349,6 @@ class LearnPackageTest(unittest.TestCase):
         for op in ("learn.state", "learn.queue", "learn.answer", "learn.undo"):
             self.assertIn(op, js)
             self.assertIn(f'@op("{op}")', (ROOT / "app" / "learn" / "tgapp_ops.py").read_text(encoding="utf-8"))
-
 
 if __name__ == "__main__":
     unittest.main()

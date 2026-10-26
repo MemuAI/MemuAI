@@ -15,15 +15,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "static"
 
-
 def read(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8")
-
 
 def settings_tab(html: str) -> str:
     start = html.index('<section class="tab" id="tab-settings">')
     return html[start:html.index("<!-- ============ ЛОГИ", start)]
-
 
 class ProxySettingsPageTest(unittest.TestCase):
     @classmethod
@@ -42,7 +39,7 @@ class ProxySettingsPageTest(unittest.TestCase):
         self.assertGreaterEqual(len(keys), 22)
         self.assertEqual(len(keys), len(set(keys)), "one control per key")
         self.assertLessEqual(set(keys), fields)
-        # Everything the Round 22 page saved is still on the page.
+
         for key in ("open_ui_on_start", "close_to_tray", "balancing", "cookie_check_interval", "use_prefixes",
                     "strict_models", "host", "port", "cors_enabled", "default_proxy", "verify_ssl",
                     "first_byte_timeout", "request_timeout", "stream_idle_timeout", "max_retry_passes",
@@ -73,7 +70,7 @@ class ProxySettingsPageTest(unittest.TestCase):
         used = set(re.findall(r'data-i18n(?:-html|-ph|-aria)?="(sg\.[a-z0-9_.]+)"', self.tab))
         used |= set(re.findall(r't\("(sg\.[a-z0-9_.]+)"\)', self.js + self.app))
         self.assertLessEqual(used, ru_keys, used - ru_keys)
-        # Markup in a description goes through data-i18n-html, never data-i18n (textContent would show tags).
+
         for name in re.findall(r'data-i18n="(sg\.[a-z0-9_.]+)"', self.tab):
             self.assertNotIn("<code>", re.search(r'"' + re.escape(name) + r'": "([^"]*)"', ru).group(1), name)
 
@@ -94,10 +91,10 @@ class ProxySettingsPageTest(unittest.TestCase):
         for needle in ('id="sg-search"', 'id="sg-found"', 'id="sg-empty"', 'id="settings-status"',
                        'role="status" aria-live="polite"'):
             self.assertIn(needle, self.tab)
-        # Every segmented control drives a hidden select that exists.
+
         for target in re.findall(r'class="sg-seg" role="radiogroup" data-for="([^"]+)"', self.tab):
             self.assertRegex(self.tab, rf'<select id="{re.escape(target)}"[^>]* hidden')
-        # The danger zone reuses the existing confirmations, not new API calls.
+
         for selector in ("#proxy-restart", "#metrics-reset", "#logs-clear"):
             self.assertIn(f'data-sg-click="{selector}"', self.tab)
             self.assertIn(f'id="{selector[1:]}"', self.html)
@@ -107,7 +104,7 @@ class ProxySettingsPageTest(unittest.TestCase):
         head = self.html[:self.html.index("</head>")]
         self.assertIn('<script src="/theme.js"></script>', head)
         self.assertIn('href="/settings.css"', head)
-        # A cache version (?v=…) may follow the name (Round 34: app.js?v=3.5-r34).
+
         order = [re.search(rf'src="/{re.escape(name)}(?:\?v=[^"]*)?"', self.html).start() for name in ("i18n.js", "settings-i18n.js", "app.js", "settings.js")]
         self.assertEqual(order, sorted(order))
         self.assertIn("MemuSettings.sync()", self.app)
@@ -115,7 +112,7 @@ class ProxySettingsPageTest(unittest.TestCase):
         self.assertIn("MemuSettings.relabel()", self.app)
 
     def test_saving_sends_the_same_values_as_before(self) -> None:
-        # Switches send booleans; provider switches send the provider's own strings ("true"/"on").
+
         self.assertIn('if (el.type === "checkbox") return el.dataset.on !== undefined ? (el.checked ? el.dataset.on : el.dataset.off) : el.checked;', self.app)
         self.assertIn("autoSaveSetting({ [el.dataset.setting]: settingValue(el) })", self.app)
         self.assertIn("settings: (p.settings || []).map", self.app, "provider settings are translated too")
@@ -129,7 +126,6 @@ class ProxySettingsPageTest(unittest.TestCase):
         self.assertNotIn("navigator.clipboard", self.js)
         theme = read("theme.js")
         self.assertIn('localStorage.getItem("oh_theme") || "dark"', theme, "the default look is unchanged")
-
 
 if __name__ == "__main__":
     unittest.main()

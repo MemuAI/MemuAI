@@ -8,7 +8,6 @@ from __future__ import annotations
 from .browser_extension import bridge, settings
 from .dfy_browser import DFYBrowser, _INIT_SCRIPT
 
-
 class ExtensionDFYBrowser(DFYBrowser):
     def __init__(self, *, visible: bool = False) -> None:
         super().__init__(visible=False)
@@ -50,8 +49,6 @@ class ExtensionDFYBrowser(DFYBrowser):
 
     async def clear_profile(self) -> None:
         await self.close()
-        # Chrome owns the user's cookies. MemuAI's "clear DFY profile" must
-        # never clear their real browser profile.
 
     async def adopt_popups(self) -> None:
         return

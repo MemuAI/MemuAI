@@ -1,4 +1,3 @@
-/* Round 38: «Бенчмарки» panels — on top of the shared panel kit (app/pgstatic/module-panel-kit.css). */
 .mk { --c: #e0a23b; }
 :root[data-theme="light"] .mk { --c: #b9791a; }
 .bm-rank .mk-row { gap: 10px; }

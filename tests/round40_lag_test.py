@@ -39,10 +39,8 @@ sys.modules.setdefault("webview", types.ModuleType("webview"))
 STATIC = ROOT / "app" / "pgstatic"
 CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
 
-
 def read(rel: str) -> str:
     return (STATIC / rel).read_text("utf-8")
-
 
 class SourceTest(unittest.TestCase):
     def test_long_lived_streams_use_the_websocket(self):
@@ -78,12 +76,10 @@ class SourceTest(unittest.TestCase):
         self.assertEqual(calls, [(321.0, None, False)])
         self.assertFalse(QuickBridge(fake).resize("x"))
 
-
 def free_port() -> int:
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
-
 
 class LiveTest(unittest.TestCase):
     @classmethod
@@ -121,7 +117,7 @@ class LiveTest(unittest.TestCase):
                 text = ""
                 while "\n\n" not in text.split("data: ", 1)[-1]:
                     text += await asyncio.wait_for(ws.recv(), 10)
-                line = next(x for x in text.splitlines() if x.startswith("data: "))   # SSE text as is (retry:, data:)
+                line = next(x for x in text.splitlines() if x.startswith("data: "))
                 self.assertEqual(json.loads(line[6:])["state"]["track_id"], "abcdefabcdef")
             async with self.ws("path=/api/pg/music/call&method=POST") as ws:
                 await ws.send(json.dumps({"op": "player.state", "args": {}}))
@@ -158,14 +154,14 @@ class LiveTest(unittest.TestCase):
                 await quick.evaluate("QuickAsk.onShow({fresh: true, maxHeight: 700, seq: 1})")
                 opened_ms = (time.perf_counter() - t0) * 1000
                 self.assertLess(opened_ms, 8000)
-                # many live streams (main window + panels + Quick Access) no longer starve ordinary requests
+
                 await main.evaluate("for (let i = 0; i < 8; i++) MemuLive.stream('/api/pg/music/player/events')")
                 await main.wait_for_timeout(2500)
                 took = await quick.evaluate("(async () => { const t = performance.now(); await fetch('/api/quick/config?x=' + Math.random()); return performance.now() - t; })()")
                 self.assertLess(took, 2000, "a plain request waited behind held connections")
                 self.assertEqual(http_streams, [], "streams must not be HTTP EventSources")
                 self.assertTrue(await quick.evaluate("!!(window.MemuQuickModules && MemuQuickModules.state().es)"))
-                # the actions list in a window still shorter than its content: the page never scrolls
+
                 await quick.evaluate("""() => { const p = MemuQuick.registerPanel('r40-card', (el) => { el.innerHTML = '<div style="height:64px">card</div>'; return {}; }, { slot: 'top' }); p.show(); }""")
                 await quick.keyboard.press("Control+k")
                 for _ in range(14):
@@ -183,7 +179,6 @@ class LiveTest(unittest.TestCase):
                 self.assertGreater(geo["listScroll"], 0, "the active row is revealed inside the list")
                 await browser.close()
         asyncio.run(run())
-
 
 if __name__ == "__main__":
     unittest.main()

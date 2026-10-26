@@ -1,6 +1,3 @@
-/* Round 35 (r35-finish-b, zone «mentions») — @-mentions in Quick Access (plugins/mentions.js).
-   Built from the window's own pieces (.qa-row, .qa-section, .qa-hints, .qa-chip-sel, .qa-attach) so every Quick
-   Access design restyles it; only the category pills, the preview and the chip button are new. */
 .qa-plugin.qmn-menu-host, .qa-plugin.qmn-chips-host { min-width: 0; }
 .qmn-menu { display: flex; flex-direction: column; max-height: min(300px, 46vh); overflow-y: auto; padding: 4px 8px 8px;
   scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--muted) 30%, transparent) transparent; }

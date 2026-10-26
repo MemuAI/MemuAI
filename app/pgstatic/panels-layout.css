@@ -1,13 +1,3 @@
-/* =====================================================================
-   MemuAI · Панели — места на окне, мягкие полосы прокрутки и режим
-   «Изменить расположение» (Round 33, r33-panels; panels-layout.js).
-   Colours only from theme tokens; every design × light/dark keeps working.
-   ===================================================================== */
-
-/* ---------------------------------------------------- soft scrollbars */
-/* The native bar is gone in the panel areas (Chromium ≥121 draws the standard thin bar with arrow buttons and a
-   grey track on Windows once `scrollbar-width` is set — the «ugly scrollbar»). A thumb overlays the edge on hover /
-   while scrolling (.mp-sthumb, fixed, drawn by panels-layout.js) and the edges fade where more content waits. */
 .mp-softscroll { scrollbar-width: none !important; -ms-overflow-style: none; --mp-fs: 0px; --mp-fe: 0px; }
 .mp-softscroll::-webkit-scrollbar { display: none; width: 0 !important; height: 0 !important; }
 .mp-softscroll[data-mp-scroll="y"]:not([data-mp-soft]) {
@@ -20,7 +10,6 @@
 }
 .mp-softscroll[data-fade-start="1"] { --mp-fs: 22px; }
 .mp-softscroll[data-fade-end="1"] { --mp-fe: 30px; }
-/* While something is dragged the masks would hide the drop placeholder at the very edge. */
 body.mp-dragging .mp-softscroll { -webkit-mask-image: none; mask-image: none; }
 .mp-sthumb {
   position: fixed; z-index: 70; width: 5px; height: 5px; border-radius: 99px; pointer-events: none; opacity: 0;
@@ -38,8 +27,6 @@ body.mp-layout-edit .mp-sthumb.on, body.mp-dragging .mp-sthumb { opacity: 0; poi
 :root[data-design="brutal"] .mp-sthumb { background: var(--text); width: 6px; }
 :root[data-design="glass"] .mp-sthumb { background: color-mix(in srgb, #fff 42%, transparent); box-shadow: 0 0 0 .5px color-mix(in srgb, #000 18%, transparent); }
 :root[data-design="glass"][data-theme="light"] .mp-sthumb { background: color-mix(in srgb, #000 28%, transparent); box-shadow: none; }
-
-/* ------------------------------------------------------------- zones */
 .mp-zone-wrap { box-sizing: border-box; min-width: 0; position: relative; }
 .mp-zone-head:empty { display: none; }
 .mp-zone-body { box-sizing: border-box; min-width: 0; }
@@ -47,8 +34,6 @@ body.mp-layout-edit .mp-sthumb.on, body.mp-dragging .mp-sthumb { opacity: 0; poi
 .mp-zone-wrap[data-count="0"] .mp-zone-end { display: flex; }
 .mp-zone-end { align-items: center; justify-content: center; flex: 1 1 auto; min-height: 44px; min-width: 140px; padding: 6px 12px;
   border-radius: 12px; border: 1.5px dashed var(--mp-line-strong); color: var(--mp-muted); font: 550 12px/1.3 var(--mp-text); text-align: center; box-sizing: border-box; }
-
-/* Strips: above the greeting / above the message box. Same column as the composer. */
 .chat-view-wrap > .mp-zone-strip {
   display: none; width: 100%; max-width: calc(var(--conversation-width, 780px) + 48px); margin: 0 auto; padding: 0 24px;
   flex-shrink: 0; order: 0;
@@ -57,8 +42,6 @@ body.mp-layout-edit .mp-sthumb.on, body.mp-dragging .mp-sthumb { opacity: 0; poi
 .chat-view-wrap:not(.empty-chat) > .mp-zone-strip[data-chats="1"]:not([data-count="0"]),
 body.mp-layout-edit .chat-view-wrap.empty-chat > .mp-zone-strip,
 body.mp-dragging .chat-view-wrap.empty-chat > .mp-zone-strip { display: block; }
-/* Round 36 (perf): body.project-mode / body.temp-guide-on / body.chat-empty ставит app.js (updateWorkUI / updateTempUI / renderMessages).
-   Раньше здесь были :has() с поиском по потомкам на предках чата — каждая вставка элемента в переписку перепроверяла их. */
 body.project-mode .chat-view-wrap > .mp-zone-strip, body.temp-guide-on .chat-view-wrap > .mp-zone-strip { display: none !important; }
 #panels-z-top { padding-top: 12px; }
 .chat-view-wrap.empty-chat > #panels-z-top { margin-bottom: 4px; }
@@ -77,11 +60,8 @@ body.project-mode .chat-view-wrap > .mp-zone-strip, body.temp-guide-on .chat-vie
 .mp-zone-strip .mp-card[data-zsize="l"], .mp-placeholder[data-ph="strip"][data-zsize="l"] { --mp-sw: 340px; }
 .mp-zone-strip .mp-card[data-zsize="w"], .mp-placeholder[data-ph="strip"][data-zsize="w"] { --mp-sw: 440px; }
 .mp-zone-strip .mp-zone-body > .mp-zone-end { flex: 1 1 auto; }
-/* chips in the strip above the message box sit quietly, like suggestion chips */
 #panels-z-composer .mp-chip { background: color-mix(in srgb, var(--panel) 70%, transparent); border-color: var(--mp-line); height: 30px; }
 #panels-z-composer .mp-chip:hover { border-color: var(--mp-line-strong); }
-
-/* Columns beside the chat area. */
 .main-content > .mp-zone-col {
   display: none; flex: 0 0 var(--mp-col-w, 280px); width: var(--mp-col-w, 280px); min-height: 0; flex-direction: column;
   padding: 14px 8px 12px; box-sizing: border-box;
@@ -114,8 +94,6 @@ body.temp-guide-on .main-content > .mp-zone-col,
 .mp-col-grip:hover::after, body.mp-col-resizing .mp-col-grip::after { height: 88px; background: var(--accent); }
 body.mp-layout-edit .mp-zone-col:not([data-fold="rail"]) .mp-col-grip { display: block; }
 body.mp-col-resizing, body.mp-col-resizing * { cursor: col-resize !important; user-select: none; }
-
-/* Sidebar bottom: docked above the profile card. */
 .mp-zone-sbottom { flex: none; display: flex; flex-direction: column; max-height: 40vh; padding: 6px 10px 2px; }
 .mp-zone-sbottom[data-count="0"] { display: none; }
 body.mp-layout-edit .mp-zone-sbottom[data-count="0"], body.mp-dragging .mp-zone-sbottom[data-count="0"] { display: flex; }
@@ -126,13 +104,9 @@ body.mp-layout-edit .mp-zone-sbottom[data-count="0"], body.mp-dragging .mp-zone-
 .side.hidden .mp-zone-sbottom, .side.collapsed .mp-zone-sbottom { display: none !important; }
 #group-panels .mp-side-list[data-view="chips"] { display: flex; flex-flow: row wrap; gap: 5px; }
 #group-panels .mp-side-list[data-view="chips"] > .mp-side-empty { flex-basis: 100%; }
-
-/* ---------------------------------------------------- placeholders */
 .mp-placeholder[data-ph="chip"] { width: 76px; height: 30px; min-height: 0 !important; border-radius: 10px; flex: none; }
 .mp-placeholder[data-ph="strip"] { flex: 0 0 var(--mp-sw, 268px); width: var(--mp-sw, 268px); min-height: 92px !important; }
 .mp-placeholder[data-ph="stack"] { min-height: 72px !important; flex: none; }
-
-/* =================================================== «Edit layout» mode */
 body.mp-layout-edit [data-zone-wrap], body.mp-layout-edit #panels-appbar {
   outline: 1.5px dashed color-mix(in srgb, var(--accent) 42%, transparent); outline-offset: 2px; border-radius: 14px;
   background-color: color-mix(in srgb, var(--accent) 3.5%, transparent);
@@ -142,8 +116,6 @@ body.mp-layout-edit #panels-appbar { display: flex; min-width: 150px; min-height
 body.mp-layout-edit #panels-appbar:empty::before { content: attr(data-zone-label); margin: auto; color: var(--mp-muted); font: 600 11.5px/1 var(--mp-text); }
 body.mp-layout-edit #panels-home { display: flex !important; padding-top: 8px; padding-bottom: 6px; flex: none; overflow: visible;
   -webkit-mask-image: none; mask-image: none; margin-top: 6px; }
-/* In «Edit layout» every zone must be reachable: the whole start screen scrolls (nothing is squeezed into a tiny
-   scroller) and leaves room under the floating bar. */
 body.mp-layout-edit .chat-view-wrap.empty-chat { overflow-y: auto; overflow-x: hidden; justify-content: flex-start !important; padding-bottom: 84px; }
 body.mp-layout-edit .chat-view-wrap.empty-chat > * { flex-shrink: 0 !important; }
 body.mp-layout-edit .main-content > .mp-zone-col { padding-bottom: 84px; }
@@ -151,7 +123,6 @@ body.mp-layout-edit #group-panels { display: block !important; padding-bottom: 6
 body.mp-layout-edit .mp-zone-strip { padding-top: 6px; padding-bottom: 4px; margin-top: 6px; }
 body.mp-layout-edit [data-zone-wrap]:has(.mp-over), body.mp-layout-edit #panels-appbar.mp-over {
   outline: 2px solid var(--accent); background-color: color-mix(in srgb, var(--accent) 8%, transparent); }
-/* the drop zones themselves already got outlines from panels.css while dragging — in edit mode the frame is the wrap */
 body.mp-layout-edit.mp-dragging .mp-zone-body.mp-drop-zone, body.mp-layout-edit.mp-dragging #panels-home .mp-drop-zone,
 body.mp-layout-edit.mp-dragging #group-panels .mp-drop-zone { outline: none; background: none; }
 .mp-zone-head { display: flex; align-items: center; gap: 6px; min-height: 28px; margin: 0 2px 6px; color: var(--mp-muted); font: 600 11.5px/1 var(--mp-text); }
@@ -189,10 +160,7 @@ body.mp-layout-edit .mp-card[data-place] { user-select: none; }
 body.mp-layout-edit .mp-card[data-place]:focus-visible, body.mp-layout-edit .mp-chip[data-place]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 body.mp-layout-edit .mp-card .mp-menu-btn { opacity: 0 !important; pointer-events: none; }
 body.mp-layout-edit .mp-add-tile { min-height: 72px; }
-
-/* the floating bar */
 .mp-editbar { position: fixed; left: 50%; bottom: 18px; translate: -50% 0; z-index: 3000; width: max-content; max-width: calc(100vw - 24px); box-sizing: border-box; }
-/* toasts («removed from … — Ctrl+Z») float above the bar instead of hiding under it */
 body.mp-layout-edit .toast-container { bottom: 82px; z-index: 3001; }
 .mp-editbar-in {
   display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 14px; border-radius: 16px;
@@ -218,8 +186,6 @@ body.mp-layout-edit .toast-container { bottom: 82px; z-index: 3001; }
 @keyframes mp-eb-pulse { 50% { opacity: .35; } }
 @media (max-width: 1100px) { .mp-editbar-hint { display: none; } }
 @media (max-width: 640px) { .mp-eb-btn.wide span, .mp-editbar-title b { display: none; } .mp-editbar { bottom: 10px; } }
-
-/* the card's own toolbar (one floating chrome follows the hovered / focused item) */
 .mp-edchrome { position: fixed; z-index: 2900; pointer-events: none; border-radius: var(--mp-r, 16px); box-sizing: border-box;
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 80%, transparent), 0 0 0 6px color-mix(in srgb, var(--accent) 14%, transparent); }
 .mp-edchrome[hidden] { display: none; }
@@ -247,8 +213,6 @@ body.mp-layout-edit .toast-container { bottom: 82px; z-index: 3001; }
 body.mp-resizing, body.mp-resizing * { cursor: ew-resize !important; user-select: none; }
 .mp-resize-tag { position: fixed; z-index: 3100; padding: 5px 9px; border-radius: 8px; background: var(--text); color: var(--bg);
   font: 650 12px/1 var(--mp-text); pointer-events: none; white-space: nowrap; box-shadow: 0 6px 18px -6px rgba(0, 0, 0, .5); }
-
-/* -------------------------------------------------------- zone map */
 .mp-zmap { display: grid; gap: 6px; }
 .mp-zmap-win {
   position: relative; display: grid; gap: 3px; padding: 4px; border-radius: 10px; border: 1px solid var(--mp-line-strong);
@@ -280,8 +244,6 @@ body.mp-resizing, body.mp-resizing * { cursor: ew-resize !important; user-select
 .mp-zmap-names { color: var(--mp-muted); font: 500 11.5px/1.35 var(--mp-text); min-height: 1.35em; }
 :root[data-design="grid"] .mp-zmap-win, :root[data-design="grid"] .mp-zmap .mz, :root[data-design="grid"] .mp-zmap .mz-box,
 :root[data-design="brutal"] .mp-zmap-win, :root[data-design="brutal"] .mp-zmap .mz, :root[data-design="brutal"] .mp-zmap .mz-box { border-radius: 2px; }
-
-/* ------------------------------------------------ settings popover */
 .mp-laypop { position: fixed; z-index: 4050; width: 340px; max-width: calc(100vw - 16px); max-height: calc(100vh - 16px); overflow: auto; box-sizing: border-box;
   display: grid; gap: 12px; padding: 12px 14px 14px; border-radius: 16px; background: var(--panel); color: var(--text);
   border: 1px solid var(--mp-line-strong); box-shadow: var(--d-pop-shadow, 0 18px 48px -12px rgba(0, 0, 0, .5)); font-family: var(--mp-text); scrollbar-width: none; }
@@ -307,8 +269,6 @@ body.mp-resizing, body.mp-resizing * { cursor: ew-resize !important; user-select
 
 @media (prefers-reduced-motion: no-preference) {
   :root:not([data-motion="off"]) body:not(.reduce-motion) .mp-editbar { animation: mp-eb-in var(--m-dur-4, 320ms) var(--mp-spring) backwards; }
-  /* «backwards», not «both»: a finished opacity animation that keeps filling makes .mp-editbar the backdrop root, and the
-     frosted bar inside then blurs nothing — the cards under it showed through crisp (glass). */
   :root:not([data-motion="off"]) body:not(.reduce-motion) .mp-laypop { animation: m-pop-in var(--m-dur-2, 180ms) var(--mp-spring) both; transform-origin: top left; }
 }
 @keyframes mp-eb-in { from { opacity: 0; translate: -50% 16px; } }
@@ -320,7 +280,4 @@ body.mp-layout-edit .panels-home-head .mp-home-label { color: color-mix(in srgb,
 .mp-zone-tog[aria-pressed="true"] .mp-tbox { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff); opacity: 1; }
 .mp-tbox .mp-ico { font-size: 10px; }
 :root[data-design="focus"] .empty-chat > #panels-z-top { margin-bottom: 18px; }
-/* Round 33: with strips above the greeting / the message box the start screen can get taller than a small window.
-   The grid under the message box keeps a readable minimum (panels-layout.js sets it, never more than its content)
-   and the start screen itself scrolls (soft scrollbar) instead of squeezing the grid to nothing. */
 body:not(.project-mode):not(.temp-guide-on) #chat-view-wrap.empty-chat:has(> .panels-home:not([hidden])) { overflow-y: auto; overflow-x: hidden; }

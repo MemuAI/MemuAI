@@ -1,17 +1,5 @@
-/* MemuAI — плеер хоста MemuMusic (Round 37, r37-music-ui-2).
 
-   Музыка продолжает играть, когда окно модуля MemuMusic закрыто: мини-плеер в боковой панели (на узком окне — в углу),
-   медиаклавиши (Media Session) и роль устройства «pc» для пульта из Mini App (player.update + команды по SSE).
 
-   Кто играет — решает сервер (app/music/player.py): у окна модуля device_name "MemuMusic", у дока "MemuAI".
-   - Окно модуля открыто → док НЕ играет, он пульт (player.command target "pc") и показывает состояние по SSE.
-   - Окно открывают, пока играет док → док ставит паузу и сообщает {context: {handoff: "play"|"load"}}; модуль подхватывает очередь и позицию.
-   - Окно закрыли, а музыка шла → док читает player.state и продолжает с position_now (сервер экстраполирует позицию).
-   Нагрузка на основное окно — ноль, пока музыка не играла: скрипт ждёт простоя, спрашивает player.state один раз
-   (только если модуль music включён) и выходит. Прогресс рисует CSS-анимация, без таймеров; часы — раз в секунду
-   и только в развёрнутом виде на видимой странице.
-
-   window.MemuMusicDock: state() · toggle() · open() · expand(bool) — для тестов и горячих клавиш. */
 (function () {
   "use strict";
   if (window.MemuMusicDock) return;
@@ -30,12 +18,12 @@
   const svg = (name) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
 
   const st = {
-    booted: false, mode: "idle",            // idle | local (играет док) | remote (играет окно модуля / телефон)
+    booted: false, mode: "idle",
     track: null, trackId: "", queue: [], index: -1, playing: false, position: 0, posAt: 0, duration: 0,
     volume: 0.8, shuffle: false, repeat: "off", context: "", device: "", deviceName: "", updatedAt: 0, serverSkew: 0, localSince: 0,
     expanded: false, dismissed: false, moduleOpen: false, moduleMinimized: true, expect: null,
   };
-  const meta = new Map();                   // id → Track (library.get), чтобы не спрашивать повторно
+  const meta = new Map();
   let audio = null, el = null, es = null, reportTimer = 0, clockTimer = 0, playedFor = "", cssLoaded = false, announced = { sig: "", now: null };
 
   async function call(op, args) {
@@ -68,7 +56,6 @@
   const position = () => (st.mode === "local" && audio ? audio.currentTime || 0
     : st.playing ? Math.min(st.duration || 1e9, st.position + (now() - st.posAt) * (st.speed || 1)) : st.position);
 
-  /* ------------------------------------------------------------- оформление */
   function ensureCss() {
     if (cssLoaded) return;
     cssLoaded = true;
@@ -111,7 +98,7 @@
       </div>
       <div class="mmd-bar" aria-hidden="true"><i class="mmd-prog"></i></div>
       <button type="button" class="mmd-chev" data-mmd="expand">${svg("chev")}</button>`;
-    // Узкое окно: боковая панель уезжает за край (и создаёт свой блок для position: fixed) — док переезжает в <body>, в угол.
+
     const narrow = window.matchMedia ? matchMedia("(max-width: 800px)") : { matches: false, addEventListener() {} };
     const place = () => {
       const host = document.querySelector(".side-bottom");
@@ -145,8 +132,7 @@
     set(".mmd-seek", "Перемотка", "Seek");
     render();
   }
-  /** Round 39: «Док-плеер в главном окне» — always | playing (only while music plays) | off (the music still plays,
-   *  only the dock is hidden). Set in MemuMusic → Widgets or MemuAI → Settings → Modules (module-integration.js). */
+
   function dockMode() {
     const v = window.MemuModInt && MemuModInt.widgetValues ? MemuModInt.widgetValues("main.dock") : null;
     if (!v) return "always";
@@ -174,8 +160,7 @@
     el.classList.toggle("is-remote", st.mode === "remote");
     el.classList.toggle("is-phone", st.device === "phone" && st.mode === "remote");
     el.classList.toggle("open", st.expanded);
-    // Round 38: один цвет с MemuMusic, панелями и кольцом Быстрого доступа — цвет обложки (библиотека хранит его у трека),
-    // без обложки — акцент MemuAI; второй цвет — соседний оттенок того же цвета, а не случайный.
+
     const a = /^#[0-9a-f]{6}$/i.test(tr.accent || "") ? tr.accent : "";
     el.style.setProperty("--mmd-a", a || "var(--accent, #a78bfa)");
     el.style.setProperty("--mmd-b", a ? `hsl(${(hexHue(a) + 40) % 360} 72% 58%)` : "color-mix(in oklab, var(--accent, #a78bfa) 62%, #ff5c8a)");
@@ -190,7 +175,7 @@
     progress();
     st.expanded && !document.hidden ? startClock() : stopClock();
   }
-  /** Round 38: «что играет» для мини-плеера чата (module-integration.js) — событием, без второго SSE на странице. */
+
   function announce() {
     const tr = st.track;
     const sig = [st.trackId, st.playing, tr ? tr.id + (tr.title || "") + (tr.cover || "") : "", !!(el && !el.hidden)].join("|");
@@ -198,7 +183,7 @@
     announced = { sig, now: { track_id: st.trackId, playing: st.playing, track: tr, dock: !!(el && !el.hidden) } };
     document.dispatchEvent(new CustomEvent("memu-music-state", { detail: announced.now }));
   }
-  /** Полоса прогресса — CSS-анимация от текущей доли до конца трека: ни одного таймера на кадр. */
+
   function progress() {
     if (!el) return;
     const dur = st.duration || (st.track && st.track.duration) || 0;
@@ -208,7 +193,7 @@
       bar.style.animation = "none";
       bar.style.setProperty("--k", k.toFixed(4));
       if (st.playing && dur && left > 0.2) {
-        void bar.offsetWidth;   // перезапуск анимации
+        void bar.offsetWidth;
         bar.style.animation = `mmd-progress ${left.toFixed(2)}s linear forwards`;
       }
     });
@@ -225,7 +210,6 @@
   function stopClock() { clearInterval(clockTimer); clockTimer = 0; }
   const stale = () => st.playing && st.updatedAt && now() - st.serverSkew - st.updatedAt > 45;
 
-  /* ------------------------------------------------------------- действия */
   function onClick(e) {
     const b = e.target.closest("[data-mmd]");
     if (b) control(b.dataset.mmd);
@@ -240,24 +224,23 @@
   function expand(on) { st.expanded = !!on; relabel(); }
   function openModule() { if (window.MemuModules) window.MemuModules.open(MODULE); }
   function remote(cmd, args) {
-    // Пульт для окна модуля (или нативного окна): команды идут через сервер, окно модуля их слушает.
+
     return soft("player.command", Object.assign({ cmd, target: "pc", by: "dock" }, args || {}));
   }
   function toggle() {
     if (st.mode === "local") return audio && !audio.paused ? pause() : play();
     if (st.mode === "remote" && (st.device === "phone" || (!st.moduleOpen && stale()) || (!st.moduleOpen && !st.playing && st.deviceName !== "MemuMusic"))) {
-      return takeOver(true);   // окно модуля закрыто или музыка на телефоне — продолжаем здесь
+      return takeOver(true);
     }
     if (st.mode === "remote") {
-      // r40: optimistic, and it stays: the server moves the shared state with the command itself (player.py «pending»),
-      // a stale state still in flight does not flip the button back (applyState / expect)
+
       st.playing = !st.playing; st.expect = { playing: st.playing, at: now(), until: now() + 2.5 }; render();
       return remote(st.playing ? "play" : "pause");
     }
     return takeOver(true);
   }
   function seekTo(sec) {
-    if (st.mode === "local" && audio) { try { audio.currentTime = Math.max(0, Math.min((audio.duration || 1e9) - 0.2, sec)); } catch (_) { /* not seekable yet */ } report(); }
+    if (st.mode === "local" && audio) { try { audio.currentTime = Math.max(0, Math.min((audio.duration || 1e9) - 0.2, sec)); } catch (_) {  } report(); }
     else if (st.mode === "remote") { st.position = sec; st.posAt = now(); remote("seek", { position: sec }); }
     progress();
   }
@@ -268,12 +251,11 @@
     render();
   }
 
-  /* ------------------------------------------------------------- свой плеер (док играет) */
   function ensureAudio() {
     if (audio) return audio;
     audio = new Audio();
     audio.preload = "auto";
-    // Round 39: play / pause are reported at once (remotes — Quick Access, the chat — confirm by this report), the rest debounced
+
     audio.addEventListener("play", () => { st.playing = true; render(); report({}); session(); });
     audio.addEventListener("pause", () => { if (st.mode !== "local") return; st.playing = false; render(); report({}); });
     audio.addEventListener("seeked", () => { progress(); });
@@ -282,7 +264,7 @@
     audio.addEventListener("waiting", () => { el && el.classList.add("is-wait"); });
     audio.addEventListener("playing", () => { el && el.classList.remove("is-wait"); progress(); });
     audio.addEventListener("timeupdate", () => {
-      // timeupdate ~4 раза в секунду — только проверка «прослушано», DOM не трогаем
+
       if (st.trackId && playedFor !== st.trackId && audio.currentTime > Math.min(30, (audio.duration || 60) * 0.5)) {
         playedFor = st.trackId; soft("library.played", { id: st.trackId, seconds: Math.round(audio.currentTime) });
       }
@@ -290,7 +272,7 @@
     audio.addEventListener("ended", () => next(true));
     audio.addEventListener("error", () => { if (st.mode === "local" && audio.src) { st.playing = false; render(); } });
     if ("mediaSession" in navigator) {
-      const set = (name, fn) => { try { navigator.mediaSession.setActionHandler(name, fn); } catch (_) { /* unsupported */ } };
+      const set = (name, fn) => { try { navigator.mediaSession.setActionHandler(name, fn); } catch (_) {  } };
       const local = (fn) => (d) => { if (st.mode === "local") fn(d); };
       set("play", local(play)); set("pause", local(pause));
       set("nexttrack", local(() => next(false))); set("previoustrack", local(prev));
@@ -305,7 +287,7 @@
       navigator.mediaSession.metadata = new MediaMetadata({ title: tr.title || "", artist: tr.artist || "", album: tr.album || "",
         artwork: tr.cover ? [{ src: tr.cover, sizes: "512x512" }] : [] });
       navigator.mediaSession.playbackState = st.playing ? "playing" : "paused";
-    } catch (_) { /* optional */ }
+    } catch (_) {  }
   }
   async function loadTrack(id, { at = 0, autoplay = true } = {}) {
     const a = ensureAudio();
@@ -318,7 +300,7 @@
     if (!url || st.trackId !== id) return false;
     a.src = typeof url === "string" ? url : url.url || "";
     a.volume = Math.max(0, Math.min(1, st.volume * st.volume));
-    if (at > 0) a.addEventListener("loadedmetadata", () => { try { a.currentTime = at; } catch (_) { /* ignore */ } }, { once: true });
+    if (at > 0) a.addEventListener("loadedmetadata", () => { try { a.currentTime = at; } catch (_) {  } }, { once: true });
     st.dismissed = false;
     render(); session();
     if (autoplay) { try { await a.play(); } catch (_) { st.playing = false; render(); } } else { st.playing = false; render(); report(); }
@@ -330,8 +312,7 @@
     if (!st.queue.length) { if (auto) { st.playing = false; render(); report(); } return; }
     if (auto && st.repeat === "one" && audio) { audio.currentTime = 0; play(); return; }
     let i = st.index + 1;
-    // Round 39 (r39-integ): the end of the queue (a button or the end of the track) continues with the library instead of
-    // restarting a one-track queue / stopping.
+
     if (i >= st.queue.length && st.repeat !== "all" && await libraryContinue(1)) i = st.index + 1;
     if (i >= st.queue.length) { if (st.repeat === "all" || !auto) i = 0; else { st.playing = false; render(); report(); return; } }
     st.index = i; loadTrack(st.queue[i]);
@@ -341,7 +322,7 @@
     if (st.index <= 0 && await libraryContinue(-1)) st.index = 1;
     if (st.index > 0) { st.index -= 1; loadTrack(st.queue[st.index]); } else if (audio) audio.currentTime = 0;
   }
-  /** Round 39: the track after / before the current one in the library order (the MemuMusic «Library» view) joins the queue. */
+
   async function libraryContinue(dir) {
     const rows = ((await soft("library.list", { limit: 2000, sort: "added" })) || {}).tracks || [];
     const ids = rows.map((r) => String(r.id)), at = ids.indexOf(st.trackId);
@@ -356,9 +337,9 @@
     st.queue = [before].concat(st.queue); st.index += 1;
     return true;
   }
-  /** Док продолжает то, что играло на сервере (окно модуля закрыли, или «продолжить здесь»). */
+
   async function takeOver(autoplay) {
-    if (st.moduleOpen) return;   // окно модуля открыто — играет оно, док только пульт
+    if (st.moduleOpen) return;
     const s = await soft("player.state", {});
     if (!s || !s.track_id) return;
     if (s.device === "phone" && s.playing) soft("player.command", { cmd: "handoff", target: "phone", by: "dock" });
@@ -382,16 +363,15 @@
     const body = Object.assign({ track_id: st.trackId, position: Math.round(position() * 10) / 10, playing: !!(audio && !audio.paused),
       queue: st.queue.slice(0, 1000), index: st.index, volume: st.volume, shuffle: st.shuffle, repeat: st.repeat,
       device: "pc", device_name: "MemuAI", duration: st.duration || 0, context: { name: st.context }, at: Date.now(),
-      speed: (audio && audio.playbackRate) || 1 }, extra || {});   // r39: the server extrapolates the position at this speed
+      speed: (audio && audio.playbackRate) || 1 }, extra || {});
     const done = soft("player.update", body);
     if (body.playing) reportTimer = setTimeout(() => sendReport(), 15000);
     return done;
   }
 
-  /* ------------------------------------------------------------- команды и состояние (SSE) */
   async function applyCommand(c) {
     const a = c.args || {};
-    if (a.by === "dock") return;   // свои же команды пульта
+    if (a.by === "dock") return;
     const target = String(c.target || "").toLowerCase();
     if (c.cmd === "handoff" && target === "dock") { if (st.mode === "local") { pause(); st.mode = "remote"; render(); } return; }
     if (st.mode !== "local" && !(c.cmd === "play_track" && canPlayHere())) return;
@@ -416,16 +396,15 @@
       default: return;
     }
   }
-  /** Команду «играть» с телефона док берёт сам, только если окна модуля нет. */
+
   function canPlayHere() { return !st.moduleOpen && !(st.deviceName === "MemuMusic" && st.playing && !stale()); }
   async function applyState(s) {
     if (!s) return;
     st.serverSkew = s.server_time ? now() - s.server_time : st.serverSkew;
     st.device = s.device || ""; st.deviceName = s.device_name || ""; st.updatedAt = s.updated_at || 0;
-    if (st.mode === "local" && s.device_name === "MemuAI") return;   // это наш же отчёт
+    if (st.mode === "local" && s.device_name === "MemuAI") return;
     if (st.mode === "local" && s.device_name && s.device_name !== "MemuAI" && s.playing && (s.updated_at || 0) + st.serverSkew > st.localSince + 0.5) {
-      // заиграло другое устройство ПОСЛЕ того, как играть начал док (окно модуля в отдельном окне или телефон) — уступаем;
-      // старое «играет» закрытого окна, пришедшее раньше нашего отчёта, не в счёт
+
       pause(); st.mode = "remote";
     }
     if (st.mode === "local") return;
@@ -433,7 +412,7 @@
     st.mode = "remote";
     const ex = st.expect;
     if (ex && now() < ex.until && !!s.playing !== ex.playing && !s.pending && (s.updated_at || 0) + st.serverSkew < ex.at) {
-      s = Object.assign({}, s, { playing: ex.playing });   // r40: a report from before the click — keep the optimistic button
+      s = Object.assign({}, s, { playing: ex.playing });
     } else if (!ex || now() >= ex.until || !!s.playing === ex.playing) st.expect = null;
     if (s.track_id !== st.trackId) { st.trackId = s.track_id; st.track = s.track || meta.get(s.track_id) || null; if (!st.track) trackMeta(s.track_id).then((tr) => { if (st.trackId === s.track_id) { st.track = tr; render(); } }); }
     if (s.playing && !st.playing) st.dismissed = false;
@@ -448,7 +427,7 @@
   }
   function listen() {
     if (es || typeof EventSource === "undefined") return;
-    es = window.MemuLive ? MemuLive.stream("/api/pg/music/player/events") : new EventSource("/api/pg/music/player/events");   // r40-lag: a WebSocket, off the 6-connection pool
+    es = window.MemuLive ? MemuLive.stream("/api/pg/music/player/events") : new EventSource("/api/pg/music/player/events");
     es.onmessage = (e) => {
       let data = null;
       try { data = JSON.parse(e.data); } catch (_) { return; }
@@ -457,7 +436,6 @@
     };
   }
 
-  /* ------------------------------------------------------------- окно модуля открылось / закрылось */
   async function onModules() {
     if (!st.booted) { if (musicEnabled() && moduleWindow()) boot(true); return; }
     if (!musicEnabled()) { if (st.mode === "local") pause(); st.trackId = ""; render(); if (es) { es.close(); es = null; } return; }
@@ -465,7 +443,7 @@
     const ws = moduleWindow(), wasOpen = st.moduleOpen;
     st.moduleOpen = !!ws; st.moduleMinimized = !!(ws && ws.minimized);
     if (st.moduleOpen && !wasOpen && st.mode === "local") {
-      // окно модуля берёт воспроизведение на себя: пауза здесь, очередь и позиция — модулю через сервер
+
       const wasPlaying = !!(audio && !audio.paused), at = Math.round(position() * 10) / 10;
       st.mode = "remote";
       if (audio) audio.pause();
@@ -473,7 +451,7 @@
       st.position = at; st.posAt = now();
       st.playing = wasPlaying;
     } else if (!st.moduleOpen && wasOpen) {
-      // окно закрыли: подхватываем, если музыка шла (позиция — экстраполяция сервера от последнего отчёта модуля)
+
       setTimeout(async () => {
         if (st.moduleOpen) return;
         const s = await soft("player.state", {});
@@ -490,7 +468,7 @@
     if (st.booted) return;
     if (!musicEnabled()) return;
     const s = await soft("player.state", {});
-    if (!force && !(s && s.track_id)) return;   // музыка ещё не играла — дока нет
+    if (!force && !(s && s.track_id)) return;
     st.booted = true;
     mount();
     listen();
@@ -504,32 +482,28 @@
     }
   }
 
-  /** r40 (r40-music-fix): the page that hosts the MemuMusic window is closing (its own app window, or MemuAI quits) while
-   *  the module plays — the module cannot say so any more (the frame has no network of its own), so this page does:
-   *  otherwise the dock in the main window and Quick Access showed «playing» until the state went stale (45–120 s). */
   window.addEventListener("pagehide", () => {
     if (!st.booted || !moduleWindow() || st.deviceName !== "MemuMusic" || !st.playing) return;
     try {
       fetch("/api/pg/music/call", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ op: "player.update", args: { playing: false, device: "pc", device_name: "MemuMusic",
           track_id: st.trackId, position: Math.round(position() * 10) / 10, at: Date.now() } }) }).catch(() => {});
-    } catch (_) { /* best effort */ }
+    } catch (_) {  }
   });
   document.addEventListener("memu-modules-changed", () => { onModules(); });
   document.addEventListener("memu-modint-changed", () => { announced.sig = ""; render(); });
   document.addEventListener("visibilitychange", () => { if (el && !el.hidden) { st.expanded && !document.hidden ? startClock() : stopClock(); if (!document.hidden) progress(); } });
   window.addEventListener("memu-language", relabel);
   const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 1500));
-  // Каталог модулей приходит не сразу: проверяем после простоя и ещё раз, когда он обновится (memu-modules-changed).
+
   setTimeout(() => idle(() => boot(false), { timeout: 4000 }), 2500);
 
   window.MemuMusicDock = {
     state: () => Object.assign({}, st, { track: st.track && { id: st.track.id, title: st.track.title }, position: position(), audio: !!audio, paused: audio ? audio.paused : true }),
     toggle, open: openModule, expand, takeOver,
-    // Round 38 (module-integration.js): a command from the AI / Quick Access starts the dock even before any music
-    // played (boot(true)) and applies the command it missed while it was not listening yet.
+
     boot: (force) => boot(!!force), apply: (c) => applyCommand(c || {}),
-    // Round 39: the chat mini player (same page) drives the dock directly — toggle | next | prev, like the dock's own buttons
+
     control,
     nowPlaying: () => announced.now,
   };

@@ -43,10 +43,8 @@ CATALOG = {
     "models": ["anthropic/claude-sonnet", "openai/gpt-5"], "model": "openai/gpt-5",
 }
 
-
 def values(result):
     return [item["value"] for item in result["items"]]
-
 
 class CompleteUnit(unittest.TestCase):
     def setUp(self):
@@ -94,7 +92,7 @@ class CompleteUnit(unittest.TestCase):
         self.assertEqual(values(self.run_("/approvals a")), ["auto", "acceptEdits"])
         self.assertEqual(values(self.run_("/effort h")), ["high"])
         self.assertEqual(values(self.run_("/thinking ")), ["on", "off"])
-        # «color» and «#hex» name what to type: only «reset» is a value.
+
         self.assertEqual(values(self.run_("/color ")), ["reset"])
         self.assertEqual(tgapp_complete.hint_choices("[auto|minimal|low]"), ["auto", "minimal", "low"])
         self.assertEqual(tgapp_complete.hint_choices("[model]"), [])
@@ -105,11 +103,11 @@ class CompleteUnit(unittest.TestCase):
         result = self.run_("look at @ma")
         self.assertEqual(result["kind"], "mention")
         self.assertEqual(result["span"], 3)
-        self.assertEqual(values(result), ["@src/main.py"])               # node_modules is skipped
+        self.assertEqual(values(result), ["@src/main.py"])
         nested = values(self.run_("@men"))
         self.assertEqual(nested, ["@src/ui/menu.js"])
         spaced = values(self.run_("@my"))
-        self.assertEqual(spaced, ['@"my docs/'])                         # a folder with a space keeps the quote open
+        self.assertEqual(spaced, ['@"my docs/'])
         self.assertEqual(self.run_("@x", root="")["items"], [])
 
     def test_folder_and_file_arguments(self):
@@ -117,7 +115,7 @@ class CompleteUnit(unittest.TestCase):
         self.assertEqual(folders, ['"my docs/', "src/"])
         self.assertEqual(values(self.run_("/cd sr")), ["src/"])
         self.assertEqual(values(self.run_("/cd src/")), ["src/ui/"])
-        # Any folder of the computer (names only), never the files outside the project.
+
         outside = values(self.run_(f"/cd {self.outside}/"))
         self.assertEqual(outside, [f"{self.outside}/folder/"])
         self.assertEqual(values(self.run_(f"/attach {self.outside}/")), [f"{self.outside}/folder/"])
@@ -139,11 +137,9 @@ class CompleteUnit(unittest.TestCase):
         self.assertEqual(self.run_("/model\n")["items"], [])
         self.assertEqual(self.run_("/model x\n/mo")["items"], [])
 
-
 def init_data() -> str:
     return tg_webapp.sign_init_data({"auth_date": int(time.time()), "query_id": "AAH",
                                      "user": {"id": USER, "first_name": "Yono"}}, TOKEN)
-
 
 class CompleteApi(unittest.TestCase):
     @classmethod
@@ -195,12 +191,11 @@ class CompleteApi(unittest.TestCase):
                 data = self.post("code.complete", {"text": "open @ap", "session_id": "s1"}).json()
                 self.assertEqual([i["value"] for i in data["items"]], ["@app.py"])
                 root_of.assert_called_with("s1", "")
-                # Without a session the client cannot name a folder to list (no «root» from the body).
+
                 data = self.post("code.complete", {"text": "open @ap", "root": str(project)}).json()
                 self.assertEqual(data["items"], [])
         finally:
             shutil.rmtree(project, ignore_errors=True)
-
 
 class StaticContract(unittest.TestCase):
     def read(self, name):
@@ -210,7 +205,7 @@ class StaticContract(unittest.TestCase):
         html = self.read("index.html")
         self.assertIn('<script src="chatcmd.js?v=1.1-r30"></script>', html)
         self.assertLess(html.index("chatcmd.js"), html.index("app.js?v="))
-        # the /image /video chip is the main window's own (pgstatic/cmd-highlight.*), loaded before chatcmd.js
+
         self.assertIn('<link rel="stylesheet" href="shared/cmd-highlight.css?v=1.0-r30">', html)
         self.assertLess(html.index("shared/cmd-highlight.js"), html.index("chatcmd.js"))
 
@@ -254,17 +249,14 @@ class StaticContract(unittest.TestCase):
                 self.assertTrue(ru and en, (name, match.group(0)))
                 self.assertFalse(re.search(r"[А-Яа-яЁё]", en), (name, en))
 
-
 THEME = {"bg_color": "#17212b", "text_color": "#f5f5f5", "hint_color": "#708499", "button_color": "#5288c1",
          "button_text_color": "#ffffff", "secondary_bg_color": "#232e3c"}
-
 
 def _chromium() -> str:
     for path in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/workspace/work/chromium/chrome", "/usr/bin/chromium"):
         if path and Path(path).exists():
             return path
     return ""
-
 
 @unittest.skipUnless(_chromium(), "headless Chromium is not available")
 class BrowserFlows(unittest.TestCase):
@@ -317,7 +309,7 @@ class BrowserFlows(unittest.TestCase):
         self.assertTrue(page.query_selector("#top-full"), "the full-screen button of a computer")
         page.click('.tab[data-tab="code"]')
         page.wait_for_timeout(500)
-        page.evaluate("window.MemuTgApp.kit.refreshTops()")          # a redraw used to drop the handler
+        page.evaluate("window.MemuTgApp.kit.refreshTops()")
         page.click("#code-new")
         page.wait_for_selector(".sheet.open #ns-folder-row", timeout=3000)
 
@@ -346,7 +338,7 @@ class BrowserFlows(unittest.TestCase):
         page.wait_for_selector(".chat-cmd-menu:not([hidden]) .slash-item", timeout=2000)
         page.keyboard.press("Enter")
         self.assertEqual(page.input_value("#msg-input"), "/video ")
-        # marked as in the main window: the chip behind the command, the ghost hint, the line above the box
+
         self.assertEqual(page.evaluate("document.querySelector('.composer .cmdhl-chip:not([hidden])').dataset.kind"), "video")
         self.assertFalse(page.evaluate("document.querySelector('.composer .cmdhl-ghost').hidden"))
         self.assertEqual(page.evaluate("document.querySelector('.composer .cmdhl-note:not([hidden]) b').textContent"), "Видео")
@@ -356,7 +348,6 @@ class BrowserFlows(unittest.TestCase):
         self.assertTrue(page.evaluate("document.querySelector('.composer .cmdhl-chip').hidden"))
         page.fill("#msg-input", "/video ")
         self.assertTrue(page.evaluate("!document.querySelector('.msg.user')"), "Enter picked the command, nothing was sent")
-
 
 if __name__ == "__main__":
     unittest.main()

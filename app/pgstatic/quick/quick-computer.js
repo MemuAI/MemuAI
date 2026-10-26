@@ -1,19 +1,5 @@
-/* MemuAI Quick Ask · Computer Use (Round 30, r30-quick-core).
 
-   The run itself is the existing runtime (POST /api/work/computer/run, GET …/state, POST …/action, GET …/shot/{n});
-   this file is what the user sees while the AI drives the mouse and keyboard:
 
-   • one card in the bottom slot: what the AI is doing right now («Смотрит на экран», «Думает · 12 с», «Нажимает…»),
-     step N of M, a strip of screen thumbnails (the dot = where it is about to act), the last steps in words;
-   • «Стоп» is always on the card (and Esc in the window — the run's own Esc watcher stops it too);
-   • approval: the action in plain words + the thumbnail with the target, «Разрешить» (Enter), «Разрешить всё до конца»,
-     «Отклонить» (the AI picks another way; an optional hint goes to the model);
-   • while the AI works, the window folds into a compact strip (input, answer and lists hidden — less of the screen
-     covered) and stays on top; it unfolds by itself for an approval, a pause or the result («Развернуть» any time);
-     the window is also excluded from the model's screenshots (QuickAskManager.hidden_from_capture);
-   • the result: report (Markdown), «Копировать», «Скрыть»; the outcome is recorded as a turn of the quick chat.
-
-   window.QuickComputer = { start(card), prompt(), active() }  —  commands.js hands confirmed cards here. */
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -34,7 +20,7 @@
     copy: Q.icons.copy, close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>',
   };
 
-  let run = null;          // {task, ask, card, st, timer, compact, userCompact, recorded, startedAt, preview}
+  let run = null;
   let el = null;
 
   Q.registerPanel("computer", (host) => { el = host; el.classList.add("qcu-host"); return { show() {}, hide() {} }; }, { slot: "bottom", order: 5, hidden: true });
@@ -58,8 +44,7 @@
       acting: t("Выполняет: ", "Doing: ") + (lastRow(st) ? humane(lastRow(st)).title : ""),
     }[st.phase] || t("Работает…", "Working…");
   }
-  /* «нажать в точке (700, 430) на мониторе 1 — "Сохранить"» → title «Сохранить» (the model's own reason, what the user
-     understands), detail «нажать в точке (700, 430) на мониторе 1». Without a reason the description is the title. */
+
   function humane(row) {
     const description = String(row.description || row.action || "");
     const reason = String(row.reason || "").trim() || ((description.match(/ — "(.+)"$/) || [])[1] || "");
@@ -78,7 +63,7 @@
     return { ok: t("выполнено", "done"), done: t("готово", "done"), failed: t("не получилось", "failed"), rejected: t("отклонено вами", "rejected by you"),
       pending: t("ждёт разрешения", "waiting for approval"), paused: t("пауза", "paused"), thinking: t("думает…", "thinking…"), acting: t("выполняет…", "doing…") }[row.status] || "";
   }
-  /* What went wrong, in plain words, and what to do about it (error_code from the runtime, app/cu_grounding.py). */
+
   function explain(st) {
     const code = st.error_code || "";
     const map = {
@@ -128,8 +113,7 @@
     return `<button type="button" class="qcu-thumb${big ? " big" : ""}${extra}" data-cu-preview="${row.n}" title="${esc(t("Шаг ", "Step ") + row.n + (row.description ? " · " + row.description : ""))}">
       <img alt="" loading="lazy" src="${shotUrl(row, run && run.st ? run.st.task_id : "", big)}"${big ? ` onerror="if(!this.dataset.f){this.dataset.f=1;this.src=this.src.replace('&size=big','')}"` : ""}>${marker(row, big)}${big ? "" : `<b>${row.n}</b>`}</button>`;
   }
-  /* A magnified view of the target: background-position p% aligns point p of the image with point p of the box,
-     so the target f lands in the centre when p = (f·Z − ½)/(Z − 1). */
+
   function lens(row, zoom = 3) {
     if (!row || !row.point || !(row.shots || []).length) return "";
     const pos = (f) => Math.min(100, Math.max(0, ((f * zoom - 0.5) / (zoom - 1)) * 100)).toFixed(2);
@@ -142,7 +126,6 @@
     return IC.cursor;
   }
 
-  /* ---------------------------------------------------------------- render (keyed parts: no flicker, inputs survive) */
   function part(name) { return el.querySelector(`[data-part="${name}"]`); }
   function setPart(name, key, html) {
     const box = part(name);
@@ -189,7 +172,7 @@
         : `${pending || paused ? "" : `<button type="button" class="qcu-btn ${userPaused ? "primary" : "ghost icon"}" data-cu="${userPaused ? "resume" : "pause"}" title="${esc(userPaused ? t("Продолжить", "Resume") : t("Пауза: ИИ закончит текущий шаг и подождёт", "Pause: the AI finishes the current step and waits"))}" aria-label="${esc(userPaused ? t("Продолжить", "Resume") : t("Пауза", "Pause"))}">${userPaused ? PLAY + `<span>${esc(t("Продолжить", "Resume"))}</span>` : PAUSE}</button>
           <button type="button" class="qcu-btn ghost icon" data-cu="fold" title="${esc(compact ? t("Развернуть: шаги и снимки экрана", "Expand: steps and screenshots") : t("Свернуть в компактную полоску", "Fold into a compact strip"))}" aria-label="${esc(compact ? t("Развернуть", "Expand") : t("Свернуть", "Fold"))}">${compact ? IC.expand : IC.collapse}</button>`}
           <button type="button" class="qcu-btn stop" data-cu="stop" title="${esc(t("Остановить управление (Esc)", "Stop control (Esc)"))}">${IC.stop}<span>${esc(t("Стоп", "Stop"))}</span></button>`}</span>`);
-    // progress: the step counter + a shimmer while the model thinks
+
     const pct = finished ? 100 : m ? Math.min(100, Math.round(((n - (st.phase === "acting" ? 0.3 : 0.7)) / m) * 100)) : 4;
     setPart("progress", finished ? "" : `${Math.max(pct, 3)}|${st.phase}|${userPaused}`, finished ? "" : `<i style="width:${Math.max(pct, 3)}%"></i>${st.phase === "thinking" || st.phase === "screenshot" ? '<b class="qcu-shimmer"></b>' : ""}`);
     const modelId = st.model || run.model;
@@ -197,7 +180,7 @@
     setPart("task", compact ? "" : ["t", run.task, modelId, finished, askEach].join("|"), compact ? "" : `<div class="qcu-task-text"><span class="qcu-label">${esc(t("Задача", "Task"))}</span>${esc(run.task)}</div>
       <div class="qcu-meta">${modelId ? `<span class="qcu-chip" title="${esc(modelId)}">${esc(Q.modelName ? Q.modelName(modelId) : modelId)}</span>` : ""}
         ${finished ? "" : `<label class="qcu-switch" title="${esc(t("Выключите — ИИ сделает всё сам до конца задачи", "Turn off — the AI does the rest of the task on its own"))}"><input type="checkbox" data-cu-ask${askEach ? " checked" : ""}><span class="qcu-switch-ui" aria-hidden="true"></span>${esc(t("Спрашивать каждый шаг", "Ask before each step"))}</label>`}</div>`);
-    // approval
+
     if (pending) {
       const row = (st.steps || []).find((r) => r.n === pending.step) || lastRow(st);
       const words = humane(pending);
@@ -214,9 +197,9 @@
         </div>
         <input class="qcu-note" data-cu-note type="text" maxlength="500" placeholder="${esc(t("Не так? Подскажите, что сделать иначе, и нажмите «Отклонить»", "Not like this? Tell it what to do instead and press «Reject»"))}">`);
     } else setPart("approve", "", "");
-    // stuck pause (stuck.js handles its buttons)
+
     setPart("stuck", paused ? "s" + st.stuck.id : "", paused && window.MemuStuck ? MemuStuck.cardHtml(st.stuck, { compact: true, source: "computer", task: st.task_id, area: "computer", lang: Q.lang() }) : "");
-    // live view: the latest screen the AI looked at, with where it acts
+
     const rows = (st.steps || []).filter((r) => (r.shots || []).length);
     const latest = rows.slice(-1)[0];
     const showLive = !finished && !pending && !paused && !compact && latest && !run.preview;
@@ -224,12 +207,12 @@
     setPart("live", showLive ? ["l", latest.n, latest.status, latest.point, latest.description, st.phase].join("|") : "", showLive ? `${thumb(latest, true, " live")}
       ${latest.description ? `<div class="qcu-live-cap"><span class="qcu-kind" aria-hidden="true">${kindIcon(latest)}</span><div><b>${esc(lr.title)}</b>
         ${lr.detail ? `<small>${esc(lr.detail)}</small>` : ""}</div></div>` : `<small class="qcu-hint">${esc(t(`Снимок экрана шага ${latest.n} — ИИ решает, что сделать`, `Screenshot of step ${latest.n} — the AI is deciding what to do`))}</small>`}` : "");
-    // preview of a clicked thumbnail
+
     if (finished && run.preview && !run.previewAfterEnd) run.preview = 0;
     const prev = run.preview && (st.steps || []).find((r) => r.n === run.preview);
     setPart("preview", prev && !compact ? "p" + prev.n : "", prev && !compact ? `${thumb(prev, true)}<div class="qcu-preview-cap"><b>${esc(t("Шаг ", "Step ") + prev.n)}</b> <span>${esc(prev.description || stepLabel(prev))}</span>
       <button type="button" class="qcu-btn ghost icon" data-cu="unpreview" aria-label="${esc(t("Закрыть", "Close"))}">${IC.close}</button></div>` : "");
-    // the timeline: every step — screen thumbnail with the target, what and why, how it went
+
     const steps = (st.steps || []).filter((r) => r.description || r.status === "thinking");
     const open = !finished || run.stepsOpen;
     const stepsKey = ["w", open, steps.map((r) => r.n + r.status + (r.changed === false ? "u" : "") + (r.point || "")).join(",")].join("|");
@@ -248,7 +231,7 @@
       const list = part("steps");
       if (list && !list.hidden) list.scrollTop = list.scrollHeight;
     }
-    // the result
+
     if (finished) {
       const report = st.status === "done" ? String(st.report || t("Готово", "Done")) : "";
       const body = report ? (window.QuickMarkdown ? QuickMarkdown.render(report) : esc(report)) : "";
@@ -261,11 +244,9 @@
     Q.resize();
   }
 
-  /* ---------------------------------------------------------------- actions */
   async function act(action, extra = {}) {
     if (action === "approve" || action === "approve_all" || action === "reject") {
-      // Round 34: the answer names the step the card showed (an Enter held down / a double click / a card not redrawn
-      // yet must not approve the NEXT action), and one step is answered once
+
       const step = run && run.st && run.st.pending_action ? run.st.pending_action.step : 0;
       if (!step || run.answered === step) return;
       run.answered = step;
@@ -293,8 +274,7 @@
     if (what === "unpreview") { run.preview = 0; render(); return; }
     if (what === "copy") { const text = String((run.st && run.st.report) || ""); if (window.QuickCopy) QuickCopy.copyMarkdown(text); return; }
     if (what === "again") {
-      // Round 34: a card picked up after reopening the window (_attach) re-attached to the finished run instead of
-      // starting a new one — «Запустить ещё раз» did nothing
+
       const card = run.card;
       const fresh = { ...card, _cuStarted: false, _attach: false, _taskId: "", _visionOk: true };
       if (card._attach) fresh.client = { ...(card.client || {}), task: run.task || (card.client || {}).task };
@@ -328,8 +308,7 @@
   }
 
   let lastStatus = "";
-  /* Round 34: one poll chain per run. A poll started while another request was in flight (every button press calls
-     poll(true)) used to start a second timer chain — each press added one more chain of /state requests. */
+
   async function poll(now = false) {
     if (!run) return;
     clearTimeout(run.timer);
@@ -337,11 +316,11 @@
     const mine = run;
     if (!now) {
       let st = null;
-      // a request that hangs (server busy / asleep) counts as «no answer» instead of stalling the chain forever
+
       const signal = window.AbortSignal && AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined;
       try { st = await Q.api("/api/work/computer/state", { signal }); } catch (e) { st = null; }
       if (run !== mine || run.pollGen !== gen) return;
-      // the server is not answering: say so instead of «Думает…» forever
+
       const offline = st ? 0 : (run.offline || 0) + 1;
       if ((offline >= 8) !== ((run.offline || 0) >= 8)) { run.offline = offline; render(); }
       run.offline = offline;
@@ -351,7 +330,7 @@
         if (window.MemuStuck && MemuStuck.automation) MemuStuck.automation("computer", st);
         const asking = !!(st.pending_action || st.status === "paused");
         if (asking && !wasAsking && Q.native) Q.api("/api/quick/window", { body: { action: "active" } }).catch(() => {});
-        if (!asking && wasAsking && run.userCompact !== false) run.compact = true;      // back to the strip after answering
+        if (!asking && wasAsking && run.userCompact !== false) run.compact = true;
         if (FINISHED.includes(st.status)) {
           render(); record(st);
           if (lastStatus !== st.status && !document.hasFocus()) Q.toast(`${t("Управление компьютером", "Computer use")}: ${statusWord(st)}`, st.status === "done" ? "ok" : "err", 3200);
@@ -365,14 +344,12 @@
     run.timer = setTimeout(() => poll(false), now ? 120 : (run.st && run.st.pending_action ? 1200 : run.offline >= 8 ? 2000 : 700));
   }
 
-  /* Round 31 (r31-quick): the model of the run. Settings → Work names one — that one; otherwise the model of THIS window
-     (the one the user picked in the chip), not «choose a vision model in Settings → Work». */
   function runModel(c) {
     const own = (Q.state && Q.state().model) || "";
     if (c.model && c.model_source === "work") return c.model;
     return own || c.model || "";
   }
-  /* Before the run: does the model see the screen? Known «no» / a guess from the name → a choice instead of a dead end. */
+
   function visionGate(card, model) {
     const v = Q.vision ? Q.vision(model) : { sees: true };
     if (!model || v.sees || card._visionOk) return false;
@@ -410,7 +387,6 @@
     return true;
   }
 
-  /* card = {client: {type: "computer", task, model, max_steps, project_id?}, ask?} — the confirmed assistant card */
   async function start(card) {
     if (!card || card._cuStarted) return;
     card._cuStarted = true;
@@ -434,7 +410,7 @@
         context: turns, max_steps: c.max_steps || 12, access_mode: "ask", ai_cursor: true, lang: Q.lang() } });
       if (!run) return;
       run.taskId = r.task_id || "";
-      // fold into the strip once the run is under way (an approval or the result unfolds it again)
+
       setTimeout(() => { if (run && run.userCompact === null) { run.compact = true; render(); } }, 900);
       poll(false);
     } catch (e) {
@@ -444,29 +420,29 @@
       Q.keepOnTop && Q.keepOnTop(false);
     }
   }
-  /* Ctrl+K / «/компьютер»: the phrase the commands engine understands — the user only types the task. */
+
   function prompt() {
     Q.setInput(t("Управляй компьютером: ", "Computer use: "));
     Q.toast(t("Опишите задачу и нажмите Enter — каждое действие ИИ спросит разрешения", "Describe the task and press Enter — every action asks for your approval"), "", 3600);
   }
 
   document.addEventListener("click", (ev) => { if (el && el.contains(ev.target)) onClick(ev); });
-  // «Спрашивать каждый шаг» during the run (off = the AI finishes on its own; on again = it asks from the next step)
+
   document.addEventListener("change", (ev) => {
     if (!el || !run || !ev.target.matches || !ev.target.matches("[data-cu-ask]")) return;
     act("ask_each", { value: !!ev.target.checked });
   });
   document.addEventListener("keydown", (ev) => { if (el && run && (el.contains(ev.target) || ev.target === document.body || ev.target.id === "qa-input")) onKey(ev); });
-  // Esc in the window while the AI works = «Стоп» (one level, like a running answer); after the end — the card goes.
+
   Q.on("escape", (e) => {
     if (!run) return;
     e.preventDefault();
     if (FINISHED.includes((run.st || {}).status)) close(); else act("stop");
   });
-  Q.on("config", () => { if (run) render(); });   // the window language may arrive after the card was drawn
+  Q.on("config", () => { if (run) render(); });
   Q.on("chat-new", () => { if (run && FINISHED.includes((run.st || {}).status)) close(); });
-  Q.on("answer-start", () => { if (run && FINISHED.includes((run.st || {}).status)) close(); });   // a new question: the card has done its job
-  // reopening the window during a run picks the card up again (the run lives on the server)
+  Q.on("answer-start", () => { if (run && FINISHED.includes((run.st || {}).status)) close(); });
+
   Q.on("open", async () => {
     if (run) { poll(false); return; }
     try {
@@ -474,7 +450,7 @@
       if (st && st.task_id && !FINISHED.includes(st.status) && st.status !== "idle") {
         start({ client: { type: "computer", task: st.task, max_steps: st.max_steps }, _attach: true, _taskId: st.task_id });
       }
-    } catch (e) { /* not running */ }
+    } catch (e) {  }
   });
   Q.addAction && Q.addAction({ id: "computer-use", section: () => t("Чат", "Chat"), icon: IC.cursor, label: () => t("Управление компьютером…", "Computer use…"),
     sub: () => t("ИИ кликает за вас", "the AI clicks for you"), run: prompt });

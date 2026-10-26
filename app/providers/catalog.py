@@ -30,7 +30,6 @@ from typing import Any, Dict, List, Optional
 
 REGIONS = ("us", "eu", "cn", "ru", "asia", "global", "local", "other")
 
-
 def _p(id: str, title: str, region: str, country: str, base_url: str, *, title_en: str = "",
        name: str = "", key_url: str = "", docs_url: str = "", desc: str = "", desc_en: str = "",
        hint: str = "", hint_en: str = "", auth: str = "bearer", auth_header: str = "",
@@ -49,9 +48,8 @@ def _p(id: str, title: str, region: str, country: str, base_url: str, *, title_e
         "params": [dict(x) for x in (params or [])],
     }
 
-
 CATALOG: List[Dict[str, Any]] = [
-    # ------------------------------------------------------------------ США и глобальные
+
     _p("openrouter", "OpenRouter", "global", "US", "https://openrouter.ai/api/v1", top=1, free=True,
        key_url="https://openrouter.ai/keys", docs_url="https://openrouter.ai/docs/quickstart",
        desc="Сотни моделей всех компаний по одному ключу, есть бесплатные (:free)",
@@ -286,7 +284,7 @@ CATALOG: List[Dict[str, Any]] = [
        models=["@cf/meta/llama-3.3-70b-instruct-fp8-fast", "@cf/qwen/qwq-32b", "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b", "@cf/openai/gpt-oss-120b"],
        edit_url=True,
        params=[{"key": "ACCOUNT_ID", "label": "ID аккаунта Cloudflare", "label_en": "Cloudflare account ID", "placeholder": "0123456789abcdef…"}], mono="CF", color="#f38020", aliases="workers"),
-    # ------------------------------------------------------------------ Европа
+
     _p("mistral", "Mistral AI", "eu", "FR", "https://api.mistral.ai/v1", top=7, free=True,
        key_url="https://console.mistral.ai/api-keys", docs_url="https://docs.mistral.ai/api/",
        desc="Mistral, Magistral, Codestral (Франция), бесплатный тариф Experiment",
@@ -350,7 +348,7 @@ CATALOG: List[Dict[str, Any]] = [
        hint_en="The AI Tools product ID is in the product page URL of the Infomaniak manager. A token with the ai-tools scope.",
        edit_url=True,
        params=[{"key": "PRODUCT_ID", "label": "ID продукта AI Tools", "label_en": "AI Tools product ID", "placeholder": "12345"}], mono="Ik", color="#0098ff", aliases="switzerland swiss"),
-    # ------------------------------------------------------------------ Китай
+
     _p("deepseek", "DeepSeek", "cn", "CN", "https://api.deepseek.com/v1", top=5,
        key_url="https://platform.deepseek.com/api_keys", docs_url="https://api-docs.deepseek.com/",
        desc="DeepSeek-V3 и R1 по очень низкой цене", desc_en="DeepSeek-V3 and R1 at a very low price",
@@ -519,7 +517,7 @@ CATALOG: List[Dict[str, Any]] = [
        key_url="https://dash.302.ai/apis/list", docs_url="https://doc.302.ai/",
        desc="Агрегатор сотен моделей, оплата по факту", desc_en="An aggregator of hundreds of models, pay as you go",
        hint="Ключ из панели 302.AI.", hint_en="A key from the 302.AI dashboard.", mono="302", color="#8e47f0", aliases="aggregator china"),
-    # ------------------------------------------------------------------ Россия
+
     _p("yandex", "YandexGPT", "ru", "RU", "https://ai.api.cloud.yandex.net/v1", top=13,
        key_url="https://console.yandex.cloud/folders", docs_url="https://aistudio.yandex.ru/docs/ru/ai-studio/concepts/openai-compatibility.html",
        desc="YandexGPT, Alice AI и открытые модели в Yandex AI Studio", desc_en="YandexGPT, Alice AI and open models in Yandex AI Studio",
@@ -563,7 +561,7 @@ CATALOG: List[Dict[str, Any]] = [
        key_url="https://aitunnel.ru/panel/keys", docs_url="https://docs.aitunnel.ru/",
        desc="Российский шлюз к GPT, Claude, Gemini, DeepSeek", desc_en="Russian gateway to GPT, Claude, Gemini, DeepSeek",
        hint="Ключ sk-aitunnel-… из панели.", hint_en="An sk-aitunnel-… key from the panel.", mono="AT", color="#5b21b6", aliases="russia россия"),
-    # ------------------------------------------------------------------ Азия (Корея, Япония, Индия, Сингапур)
+
     _p("upstage", "Upstage (Solar)", "asia", "KR", "https://api.upstage.ai/v1",
        key_url="https://console.upstage.ai/api-keys", docs_url="https://console.upstage.ai/docs/getting-started",
        desc="Корейские модели Solar", desc_en="Korean Solar models",
@@ -590,7 +588,7 @@ CATALOG: List[Dict[str, Any]] = [
        desc_en="Models for Southeast Asian languages (AI Singapore), free",
        hint="Ключ из SEA-LION Playground (раздел API Key).", hint_en="A key from the SEA-LION Playground (API Key).",
        mono="SL", color="#e11d48", aliases="singapore"),
-    # ------------------------------------------------------------------ На этом компьютере
+
     _p("ollama", "Ollama", "local", "", "http://127.0.0.1:11434/v1", top=16, auth="none", free=True,
        key_url="https://ollama.com/download", docs_url="https://docs.ollama.com/api/openai-compatibility",
        desc="Локальные модели одной командой: ollama run", desc_en="Local models with one command: ollama run",
@@ -648,7 +646,6 @@ CATALOG: List[Dict[str, Any]] = [
        mono="Li", color="#0f172a"),
 ]
 
-#: English titles where the Russian one carries a Russian word (the English UI must have no Cyrillic).
 TITLES_EN = {
     "dashscope-cn": "Alibaba Bailian (China)", "moonshot-cn": "Moonshot (China)", "zhipu": "Zhipu BigModel (China)",
     "minimax-cn": "MiniMax (China)", "dashscope-us": "Qwen (Alibaba Cloud, US)", "gigachat": "GigaChat (Sber)",
@@ -657,10 +654,8 @@ TITLES_EN = {
 for _row in CATALOG:
     _row["title_en"] = TITLES_EN.get(_row["id"], _row["title_en"])
 
-#: Old preset ids (Round 9–31) that the UI or saved state may still mention.
 LEGACY_IDS = ("openrouter", "openai", "anthropic", "google-ai-studio", "deepseek", "groq", "xai",
               "nvidia", "nanogpt", "bedrock", "vertex")
-
 
 def catalog() -> List[Dict[str, Any]]:
     """A copy of the catalog: top entries first (by rank), then the rest alphabetically."""
@@ -668,7 +663,6 @@ def catalog() -> List[Dict[str, Any]]:
                  image_models=list(row["image_models"])) for row in CATALOG]
     rows.sort(key=lambda r: (0 if r["top"] else 1, r["top"] or 0, r["title"].lower()))
     return rows
-
 
 def headers_for(row: Dict[str, Any]) -> Dict[str, str]:
     """Headers to store on the account: static ones plus the key placeholder for header auth."""

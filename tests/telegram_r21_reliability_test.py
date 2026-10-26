@@ -23,7 +23,6 @@ TOKEN2 = "987654321:BBH" + "y" * 32
 OWNER = 305551234
 ORIGINAL_BACKOFF = telegram_bot._poll_backoff
 
-
 class Api:
     """Scriptable Bot API. ``script`` holds per-method lists of actions that
     are consumed one per call: "ok", "connect", "timeout", "hang", an int HTTP
@@ -76,12 +75,10 @@ class Api:
     def count(self, method, token=None):
         return sum(1 for name, tok in self.calls if name == method and (token is None or tok == token))
 
-
 def message_update(update_id, text, chat_id=OWNER):
     return {"update_id": update_id, "message": {
         "message_id": update_id, "date": int(time.time()), "text": text,
         "chat": {"id": chat_id, "type": "private"}, "from": {"id": chat_id, "first_name": "Yono"}}}
-
 
 async def until(predicate, timeout=6.0, step=0.02):
     deadline = time.monotonic() + timeout
@@ -90,7 +87,6 @@ async def until(predicate, timeout=6.0, step=0.02):
             return True
         await asyncio.sleep(step)
     return bool(predicate())
-
 
 class RuntimeCase(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -106,7 +102,7 @@ class RuntimeCase(unittest.IsolatedAsyncioTestCase):
         pgdata.save_preferences({"telegram_enabled": True, "telegram_bot_token": TOKEN,
                                  "telegram_chat_id": str(OWNER), "telegram_language": "ru",
                                  "telegram_stream_mode": "off"})
-        # The menu setup (setMyCommands…) is cosmetic: skip it in these tests.
+
         self.patches.append(patch.object(telegram_bot, "_configure_bot", self._no_setup))
         self.patches[-1].start()
         self.api = Api()
@@ -147,14 +143,13 @@ class RuntimeCase(unittest.IsolatedAsyncioTestCase):
             item.stop()
         self.tmp.cleanup()
 
-
 class NetworkTest(RuntimeCase):
     async def test_network_errors_recreate_the_client_and_report_reconnecting(self):
         self.api.script["getUpdates"] = ["connect", "timeout", "protocol"]
         runner = self.start()
         self.assertTrue(await until(lambda: self.api.count("getUpdates") >= 4))
         self.assertTrue(await until(lambda: runner.status == "ok"))
-        # one fresh client per network-level failure
+
         self.assertGreaterEqual(len(self.clients), 4)
         self.assertEqual(runner.failures, 0)
 
@@ -179,7 +174,7 @@ class NetworkTest(RuntimeCase):
             self.assertTrue(await until(lambda: self.api.hanging == 1))
             self.assertTrue(await until(lambda: self.api.count("getUpdates") >= 3))
         self.assertTrue(await until(lambda: runner.status == "ok"))
-        self.assertGreaterEqual(len(self.clients), 2)   # the hung client was replaced
+        self.assertGreaterEqual(len(self.clients), 2)
 
     async def test_server_errors_and_flood_wait_do_not_stop_polling(self):
         self.api.script["getUpdates"] = [502, 429, 503]
@@ -200,7 +195,6 @@ class NetworkTest(RuntimeCase):
         with patch.object(telegram_bot, "load_preferences", side_effect=PermissionError("locked")):
             self.assertTrue(await until(lambda: self.api.count("getUpdates") >= calls + 3))
         self.assertEqual(runner.status, "ok")
-
 
 class ProtocolErrorTest(RuntimeCase):
     async def test_single_conflict_after_restart_is_not_reported(self):
@@ -274,7 +268,6 @@ class ProtocolErrorTest(RuntimeCase):
             self.api.updates = [message_update(30, "hang"), message_update(31, "next")]
             self.assertTrue(await until(lambda: "next" in seen, timeout=4))
 
-
 class TokenAndLockTest(RuntimeCase):
     async def test_token_change_reactivates_with_the_new_token(self):
         runner = self.start()
@@ -324,7 +317,6 @@ class TokenAndLockTest(RuntimeCase):
             for lock in (a, b, c):
                 lock.release()
 
-
 class WatchdogTest(RuntimeCase):
     async def _never(self):
         await asyncio.sleep(3600)
@@ -337,7 +329,7 @@ class WatchdogTest(RuntimeCase):
         with patch.object(telegram_bot, "WATCHDOG_TICK", 0.05), patch.object(telegram_bot, "time", fake_time):
             watch = asyncio.create_task(telegram_bot._watch(runner, task, 0.0))
             await asyncio.sleep(0.12)
-            clock["wall"] += 3600          # the PC slept for an hour
+            clock["wall"] += 3600
             reason, _ = await asyncio.wait_for(watch, 2)
         task.cancel()
         self.assertEqual(reason, "wake")
@@ -388,7 +380,6 @@ class WatchdogTest(RuntimeCase):
         task.cancel()
         self.assertEqual(telegram_pairing.status()["phase"], "reconnecting")
 
-
 class SupervisorTest(RuntimeCase):
     async def test_supervisor_restarts_a_crashed_session(self):
         original = telegram_bot._BotRunner.run
@@ -429,7 +420,6 @@ class SupervisorTest(RuntimeCase):
                 loop_task.cancel()
                 await asyncio.gather(loop_task, return_exceptions=True)
 
-
 class AnswerTimeoutTest(RuntimeCase):
     async def test_silent_model_is_given_up_and_chat_is_freed(self):
         async def silent(*args, **kwargs):
@@ -446,7 +436,6 @@ class AnswerTimeoutTest(RuntimeCase):
         self.assertNotIn(str(OWNER), telegram_bot._generations)
         sent = [call for call in self.api.calls if call[0] == "sendMessage"]
         self.assertTrue(sent)
-
 
 class StatusApiTest(RuntimeCase):
     async def test_stalled_when_proxy_is_up_but_no_heartbeat(self):
@@ -486,7 +475,6 @@ class StatusApiTest(RuntimeCase):
             status = (await http.get("/api/pg/telegram/status?probe=0")).json()
         self.assertEqual(status["phase"], "offline")
         self.assertFalse(status["proxy_online"])
-
 
 if __name__ == "__main__":
     unittest.main()

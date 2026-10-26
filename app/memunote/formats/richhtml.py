@@ -17,7 +17,6 @@ from dataclasses import dataclass, field, replace
 from html.parser import HTMLParser
 from typing import List, Optional, Union
 
-
 @dataclass
 class Run:
     text: str = ""
@@ -28,14 +27,14 @@ class Run:
     code: bool = False
     sup: bool = False
     sub: bool = False
-    color: str = ""          # "#rrggbb"
-    highlight: str = ""      # "#rrggbb"
-    size: float = 0.0        # points
+    color: str = ""
+    highlight: str = ""
+    size: float = 0.0
     font: str = ""
     link: str = ""
-    br: bool = False         # a line break inside the paragraph
-    image: str = ""          # data:image/...;base64,...
-    width: int = 0           # CSS px
+    br: bool = False
+    image: str = ""
+    width: int = 0
     height: int = 0
 
     def same_format(self, other: "Run") -> bool:
@@ -44,20 +43,18 @@ class Run:
             other.bold, other.italic, other.underline, other.strike, other.code, other.sup, other.sub,
             other.color, other.highlight, other.size, other.font, other.link)
 
-
 @dataclass
 class Para:
-    kind: str = "p"          # p | h1..h6 | blockquote | pre | li
+    kind: str = "p"
     runs: List[Run] = field(default_factory=list)
-    list: str = ""           # "" | "ul" | "ol" (kind == "li")
+    list: str = ""
     level: int = 0
-    align: str = ""          # "" | left | center | right | justify
-    checked: Optional[bool] = None   # task-list item
+    align: str = ""
+    checked: Optional[bool] = None
 
     @property
     def text(self) -> str:
         return "".join("\n" if r.br else r.text for r in self.runs)
-
 
 @dataclass
 class Cell:
@@ -65,16 +62,13 @@ class Cell:
     header: bool = False
     colspan: int = 1
 
-
 @dataclass
 class Table:
     rows: List[List[Cell]] = field(default_factory=list)
 
-
 @dataclass
 class Rule:
     page_break: bool = False
-
 
 Block = Union[Para, Table, Rule]
 
@@ -83,7 +77,6 @@ _NAMED = {"black": "#000000", "white": "#ffffff", "red": "#ff0000", "green": "#0
           "yellow": "#ffff00", "cyan": "#00ffff", "magenta": "#ff00ff", "gray": "#808080", "grey": "#808080",
           "darkred": "#8b0000", "darkblue": "#00008b", "darkgreen": "#006400", "orange": "#ffa500",
           "purple": "#800080", "lightgray": "#d3d3d3", "darkgray": "#a9a9a9", "transparent": ""}
-
 
 def norm_color(value: str) -> str:
     value = str(value or "").strip().lower()
@@ -102,11 +95,9 @@ def norm_color(value: str) -> str:
         return "#" + "".join(f"{min(255, int(match.group(i))):02x}" for i in (1, 2, 3))
     return ""
 
-
 def norm_font(value: str) -> str:
     first = str(value or "").split(",")[0].strip().strip("'\"")
     return first if re.fullmatch(r"[\w .\-]{1,64}", first or "-") and first else ""
-
 
 def css_size_to_pt(value: str) -> float:
     match = re.fullmatch(r"\s*([\d.]+)\s*(pt|px|em|rem|%)?\s*", str(value or ""))
@@ -125,7 +116,6 @@ def css_size_to_pt(value: str) -> float:
         pt = number * 12 / 100
     return round(min(max(pt, 1.0), 400.0) * 2) / 2
 
-
 def safe_link(url: str) -> str:
     url = str(url or "").strip()
     if re.match(r"^(https?:|mailto:)", url, re.I) or url.startswith("#"):
@@ -134,15 +124,11 @@ def safe_link(url: str) -> str:
         return "https://" + url
     return ""
 
-
 def safe_image(src: str) -> str:
     src = str(src or "").strip()
     if re.match(r"^data:image/(png|jpe?g|gif|webp|bmp|svg\+xml);base64,[A-Za-z0-9+/=\s]+$", src):
         return src.replace("\n", "").replace(" ", "")
     return ""
-
-
-# ---------------------------------------------------------------------------------------- blocks -> html
 
 def _run_html(run: Run) -> str:
     if run.br:
@@ -176,15 +162,13 @@ def _run_html(run: Run) -> str:
         text = f'<a href="{html.escape(run.link, quote=True)}">{text}</a>'
     return text
 
-
 def _para_inner(para: Para) -> str:
     inner = "".join(_run_html(r) for r in para.runs)
     return inner or "<br>"
 
-
 def to_html(blocks: List[Block]) -> str:
     out: List[str] = []
-    stack: List[str] = []         # open list tags
+    stack: List[str] = []
 
     def close_lists(level: int) -> None:
         while len(stack) > level:
@@ -235,13 +219,9 @@ def to_html(blocks: List[Block]) -> str:
     close_lists(0)
     return "\n".join(out)
 
-
-# ---------------------------------------------------------------------------------------- html -> blocks
-
 _BLOCK_TAGS = {"p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre", "li", "section", "article",
                "header", "footer", "main", "figure", "figcaption", "address", "dt", "dd"}
 _SKIP = {"script", "style", "head", "title", "template", "noscript", "iframe", "object", "svg", "math"}
-
 
 def _parse_style(value: str) -> dict:
     out = {}
@@ -251,7 +231,6 @@ def _parse_style(value: str) -> dict:
             out[key.strip().lower()] = val.strip()
     return out
 
-
 class _Parser(HTMLParser):
     def __init__(self) -> None:
         super().__init__(convert_charrefs=True)
@@ -259,15 +238,14 @@ class _Parser(HTMLParser):
         self.fmt: List[Run] = [Run()]
         self.fmt_tags: List[str] = []
         self.para: Optional[Para] = None
-        self.block_stack: List[Para] = []    # templates of open block elements
+        self.block_stack: List[Para] = []
         self.lists: List[str] = []
         self.list_tasks: List[bool] = []
         self.skip = 0
         self.pre = 0
-        # table state
+
         self.tables: List[dict] = []
 
-    # ---------------- helpers
     def _container(self) -> List[Block]:
         if self.tables and self.tables[-1]["cell"] is not None:
             return self.tables[-1]["cell"].blocks
@@ -280,7 +258,7 @@ class _Parser(HTMLParser):
         if self.para is not None:
             para = self.para
             self.para = None
-            # Trim whitespace-only runs at the edges (HTML source indentation).
+
             while para.runs and not para.runs[-1].br and not para.runs[-1].image and not para.runs[-1].text.strip():
                 para.runs.pop()
             if para.runs and para.runs[-1].br and len(para.runs) > 1:
@@ -291,8 +269,7 @@ class _Parser(HTMLParser):
                     first.text = first.text.lstrip()
                 last = para.runs[-1]
                 if not last.br and not last.image:
-                    # "<li>item\n</li>": source whitespace before the closing tag is not rendered by
-                    # browsers, so it must not become a trailing space in the saved document.
+
                     last.text = last.text.rstrip(" \t\r\n")
             if para.runs or para.kind in ("li",) or getattr(para, "_explicit", False):
                 self._container().append(para)
@@ -311,7 +288,6 @@ class _Parser(HTMLParser):
         else:
             para.runs.append(run)
 
-    # ---------------- events
     def handle_starttag(self, tag, attrs):
         tag = tag.lower()
         attrs = {k.lower(): (v or "") for k, v in attrs}
@@ -370,7 +346,7 @@ class _Parser(HTMLParser):
             return
         if tag in _BLOCK_TAGS:
             if self.para is not None and not self.para.runs and self.block_stack:
-                self.para = None          # <li><p>…</p></li>: the empty outer item is not a block of its own
+                self.para = None
             self._flush()
             kind = tag if tag in ("h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "pre") else "p"
             tpl = self._template()
@@ -396,14 +372,14 @@ class _Parser(HTMLParser):
                 self.pre += 1
             self.block_stack.append(para)
             if tag in ("p", "li", "h1", "h2", "h3", "h4", "h5", "h6"):
-                self._ensure_para()._explicit = True   # an empty <p></p> is a deliberate blank line
+                self._ensure_para()._explicit = True
             return
         if tag == "input" and attrs.get("type") == "checkbox":
             para = self._ensure_para()
             if para.kind == "li":
                 para.checked = "checked" in attrs
             return
-        # inline formatting
+
         cur = replace(self.fmt[-1], text="", br=False, image="", width=0, height=0)
         if tag in ("b", "strong"):
             cur.bold = True
@@ -492,7 +468,7 @@ class _Parser(HTMLParser):
                     self.pre = max(0, self.pre - 1)
             return
         if tag in self.fmt_tags:
-            # Close up to the matching tag (tolerates mis-nesting from execCommand).
+
             while self.fmt_tags:
                 last = self.fmt_tags.pop()
                 self.fmt.pop()
@@ -525,16 +501,12 @@ class _Parser(HTMLParser):
             state = self.tables.pop()
             self.blocks.append(state["table"])
 
-
 def parse_html(source: str) -> List[Block]:
     parser = _Parser()
     parser.feed(str(source or ""))
     parser.close()
-    # pre blocks: their line breaks are runs; keep as text
+
     return parser.blocks
-
-
-# ---------------------------------------------------------------------------------------- conversions
 
 def to_text(blocks: List[Block]) -> str:
     lines: List[str] = []
@@ -550,7 +522,6 @@ def to_text(blocks: List[Block]) -> str:
         elif isinstance(block, Rule):
             lines.append("")
     return "\n".join(lines)
-
 
 def _md_inline(para: Para) -> str:
     out = []
@@ -582,7 +553,6 @@ def _md_inline(para: Para) -> str:
             core = f"[{core}]({run.link})"
         out.append(lead + core + trail)
     return "".join(out)
-
 
 def to_markdown(blocks: List[Block]) -> str:
     out: List[str] = []
@@ -637,7 +607,6 @@ def to_markdown(blocks: List[Block]) -> str:
             out.append(text + "\n")
     return "\n".join(out).rstrip() + "\n"
 
-
 def tidy(blocks: List[Block]) -> List[Block]:
     """Post-processing shared by the readers: consecutive code lines become one ``pre`` block."""
     out: List[Block] = []
@@ -649,7 +618,6 @@ def tidy(blocks: List[Block]) -> List[Block]:
             continue
         out.append(block)
     return out
-
 
 def text_to_blocks(text: str) -> List[Block]:
     return [Para(runs=[Run(text=line)] if line else []) for line in str(text or "").replace("\r\n", "\n").split("\n")]

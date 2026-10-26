@@ -18,14 +18,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
 def read(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8")
 
-
 def _chromium() -> str | None:
     return os.environ.get("MEMU_TEST_CHROMIUM") or None
-
 
 class StaticTest(unittest.TestCase):
     def test_files_wired(self):
@@ -33,7 +30,7 @@ class StaticTest(unittest.TestCase):
         for ref in ("/chat-find.css?v=3.5-r37", "/settings-transfer.css?v=3.5-r37", "/chat-find.js?v=3.5-r37",
                     "/chat-drafts.js?v=3.5-r37", "/settings-transfer.js?v=3.5-r37"):
             self.assertIn(ref, html)
-        # after app.js: they use its globals (S, renderMessages, saveLocalChats, savePreferences)
+
         self.assertLess(html.index("/app.js?v="), html.index("/chat-find.js?v="))
 
     def test_app_hooks_are_small_and_optional(self):
@@ -41,7 +38,7 @@ class StaticTest(unittest.TestCase):
         self.assertEqual(app.count("window.MemuBookmarks ? MemuBookmarks.cls(m) : \"\"}${entrance}"), 2)
         self.assertEqual(app.count("window.MemuBookmarks ? MemuBookmarks.toolButton(i) : \"\""), 2)
         self.assertIn('settingsSlot("settings-transfer", () => MemuSettingsTransfer.html(L2, icon))', app)
-        # the tool buttons stay lazy (r36): nothing new inside renderMessages' markup
+
         body = app[app.index("function renderMessages() {"):]
         body = body[:body.index("\nfunction ", 10)]
         self.assertNotIn("toolButton(", body)
@@ -66,13 +63,12 @@ class StaticTest(unittest.TestCase):
         self.assertIn("prefers-reduced-motion", css)
 
     def test_bilingual_strings(self):
-        # every visible string goes through L(ru, en)/L2(ru, en)
+
         for name in ("chat-find.js", "settings-transfer.js"):
             src = read(name)
             self.assertGreaterEqual(src.count("L(\""), 5, name)
         self.assertIn("Find in this chat", read("chat-find.js"))
         self.assertIn("Export settings", read("settings-transfer.js"))
-
 
 @unittest.skipUnless(_chromium(), "MEMU_TEST_CHROMIUM is not set")
 class BrowserTest(unittest.TestCase):
@@ -136,7 +132,7 @@ class BrowserTest(unittest.TestCase):
         self.page.click("#messages")
         self.page.keyboard.press("Control+f")
         self.wait(self.page, "!!document.querySelector('.cfind input') && document.activeElement === document.querySelector('.cfind input')")
-        self.page.keyboard.type("ежик")          # ё/е folded: «Ёжика» in questions and «ежика» in answers
+        self.page.keyboard.type("ежик")
         self.wait(self.page, "MemuChatFind._state.ranges.length === 24")
         info = self.js("""() => ({ n: document.querySelector('.cfind-n').textContent, hl: CSS.highlights.has('memu-find'),
             cur: CSS.highlights.has('memu-find-current'), marks: document.querySelectorAll('#messages mark').length })""")
@@ -158,7 +154,7 @@ class BrowserTest(unittest.TestCase):
         self.js(f"() => MemuBookmarks.toggle({idx})")
         chat = self.js("() => { const c = S.chats.find(c => c.id === 'long'); return { b: c.bookmarks, updated: c.updated }; }")
         self.assertIn("a3", chat["b"])
-        self.assertEqual(chat["updated"], 10)   # bookmarking does not bump the chat to the top
+        self.assertEqual(chat["updated"], 10)
         self.assertTrue(self.js(f"() => document.querySelector('#messages > [data-msg=\"{idx}\"]').classList.contains('msg-bm')"))
         self.wait(self.page, "true")
         end = time.time() + 10
@@ -186,23 +182,23 @@ class BrowserTest(unittest.TestCase):
     def test_3_drafts_and_recall(self):
         self.js("async () => { await openChat('long'); }")
         self.page.fill("#input", "недописанный вопрос")
-        self.page.wait_for_timeout(500)                  # debounced save
+        self.page.wait_for_timeout(500)
         self.assertEqual(self.js("() => MemuDrafts.get('long')"), "недописанный вопрос")
         self.js("async () => { await openChat('other'); }")
         self.assertEqual(self.page.input_value("#input"), "")
-        # ↑ in the empty composer: the last own message of this chat
+
         self.page.focus("#input")
         self.page.keyboard.press("ArrowUp")
         self.assertEqual(self.page.input_value("#input"), "мой вопрос в другом")
         self.page.fill("#input", "")
         self.js("async () => { await openChat('long'); }")
         self.assertEqual(self.page.input_value("#input"), "недописанный вопрос")
-        # a new empty chat takes the text along, the old chat's draft is dropped
+
         self.js("() => newChat()")
         self.assertEqual(self.page.input_value("#input"), "недописанный вопрос")
         self.assertEqual(self.js("() => MemuDrafts.get('long')"), "")
         self.page.fill("#input", "")
-        # a draft equal to the last sent message is not restored
+
         self.js("() => MemuDrafts.set('other', 'мой вопрос в другом')")
         self.js("async () => { await openChat('other'); }")
         self.assertEqual(self.page.input_value("#input"), "")
@@ -226,7 +222,6 @@ class BrowserTest(unittest.TestCase):
 
     def test_5_no_page_errors(self):
         self.assertEqual(self.errors, [])
-
 
 if __name__ == "__main__":
     unittest.main()

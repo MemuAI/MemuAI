@@ -26,19 +26,16 @@ APP_JS = (PG / "app.js").read_text(encoding="utf-8")
 NODE = shutil.which("node")
 CHROME = Path("/workspace/work/chromium/chrome")
 
-
 def js_function(name: str) -> str:
     start = APP_JS.index(f"function {name}(")
     end = APP_JS.index("\n}\n", start) + 3
     return APP_JS[start:end]
-
 
 def run_node(script: str):
     out = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=30)
     if out.returncode:
         raise AssertionError(out.stderr)
     return json.loads(out.stdout)
-
 
 @unittest.skipUnless(NODE, "node is not installed")
 class PureFunctionsTest(unittest.TestCase):
@@ -51,7 +48,7 @@ console.log(JSON.stringify(cases.map((c) => shortChatTitle(c))));""")
         self.assertEqual(got[1], "привет")
         self.assertEqual(got[2], "много пробелов")
         self.assertEqual(got[3], "Как сделать так, чтобы код работал быстрее в…")
-        self.assertEqual(got[4], "x" * 48 + "…")          # one long word: a hard cut, still with «…»
+        self.assertEqual(got[4], "x" * 48 + "…")
         self.assertEqual(got[5], "закат над морем")
         self.assertIn("shortChatTitle((S.messages.find(", js_function("fallbackChatTitle"))
 
@@ -67,7 +64,6 @@ console.log(JSON.stringify({ gpt6: s("aws9-gpt-6.1-sol"), vl: s("reform-qwen3-vl
         self.assertGreater(got["gpt6"], got["mini"])
         self.assertGreaterEqual(got["sonnet"], 100)
         self.assertIn('model.provider === "custom" && (model.prefix || model.account)', js_function("ensurePrimaryModelsPinned"))
-
 
 PATCH_SCRIPT = r"""
 async () => {
@@ -110,7 +106,6 @@ async () => {
 }
 """
 
-
 @unittest.skipUnless(CHROME.exists(), "headless Chromium is not available")
 class PatchMessageNodesTest(unittest.TestCase):
     def test_patch(self):
@@ -146,7 +141,6 @@ class PatchMessageNodesTest(unittest.TestCase):
         self.assertIsNone(r["foreign"])
         self.assertEqual(r["foreignCount"], 1)
 
-
 class WiringTest(unittest.TestCase):
     def test_render_messages_binds_only_fresh_nodes(self):
         render = js_function("renderMessages")
@@ -157,7 +151,7 @@ class WiringTest(unittest.TestCase):
         media = (PG / "media-routing.js").read_text(encoding="utf-8")
         self.assertIn("function hydrate(box, roots)", media)
         self.assertNotIn("box.querySelectorAll(\"[data-media-", media)
-        # the «Thinking N s» timer looks only inside streaming answers
+
         self.assertIn('`#messages > [data-msg="${i}"] [data-thought-elapsed]`', APP_JS)
 
     def test_one_waiting_state(self):
@@ -192,10 +186,10 @@ class WiringTest(unittest.TestCase):
         self.assertIn('if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closeDD(); $("#model-dd-btn")?.focus', APP_JS)
 
     def test_agents_and_folders(self):
-        # «Export all» only when there is something to export; the hint under the choices has its own gap
+
         self.assertIn('${loadMemes().length ? `<div class="row-end"><button class="pbtn ghost" id="meme-export-all">', APP_JS)
         self.assertIn(".panel .meme-choice-note { margin: 10px 0 0; }", (PG / "appearance.css").read_text(encoding="utf-8"))
-        # an empty folder shows no «0» next to its «Drag a chat here» hint
+
         self.assertIn('<span>${esc(f.name)}</span>${total ? `<small>${total}</small>` : ""}</button>', APP_JS)
 
     def test_cache_versions(self):
@@ -203,8 +197,7 @@ class WiringTest(unittest.TestCase):
         for name in ("app.js", "settings-kit.js", "media-routing.js", "appearance.css", "style.css", "reflect.js"):
             match = re.search(r'/' + re.escape(name) + r'\?v=([^"]+)"', html)
             self.assertIsNotNone(match, name)
-            self.assertRegex(match.group(1), r"-r3[4-9]$", (name, match.group(1)))   # bumped by later rounds
-
+            self.assertRegex(match.group(1), r"-r3[4-9]$", (name, match.group(1)))
 
 if __name__ == "__main__":
     unittest.main()

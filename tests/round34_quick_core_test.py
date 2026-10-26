@@ -21,16 +21,14 @@ os.environ.setdefault("MEMUAI_DATA_DIR", tempfile.mkdtemp(prefix="r34qc-"))
 CHROME = "/workspace/work/chromium/chrome"
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 
-
 def run(coro):
     return asyncio.new_event_loop().run_until_complete(coro)
-
 
 class ReasoningLevelServer(unittest.TestCase):
     def test_user_effort_accepts_only_real_choices(self):
         from app.quick_ask_api import user_effort
         self.assertEqual(user_effort("off"), "off")
-        self.assertEqual(user_effort("none"), "off")          # alias of the shared vocabulary
+        self.assertEqual(user_effort("none"), "off")
         self.assertEqual(user_effort("high"), "high")
         for value in ("auto", "", None, "turbo", 3, {"x": 1}):
             self.assertEqual(user_effort(value), "")
@@ -38,13 +36,13 @@ class ReasoningLevelServer(unittest.TestCase):
     def test_ui_state_keeps_the_level_per_model(self):
         from app import quick_ask_api as api
         with tempfile.TemporaryDirectory() as tmp:
-            # MEMU_DIR is read at import: point the window state file itself at the temporary folder
+
             with mock.patch.object(api, "_ui_file", lambda: Path(tmp) / "quick_ui.json"):
                 self.assertEqual(api.load_ui_state()["efforts"], {})
                 api.save_ui_state({"effort": {"model": "qwen3.8-flash", "level": "off"}})
                 api.save_ui_state({"effort": {"model": "glm-5.3", "level": "max"}})
                 self.assertEqual(api.load_ui_state()["efforts"], {"qwen3.8-flash": "off", "glm-5.3": "max"})
-                api.save_ui_state({"effort": {"model": "glm-5.3", "level": "auto"}})    # «Авто» forgets the choice
+                api.save_ui_state({"effort": {"model": "glm-5.3", "level": "auto"}})
                 api.save_ui_state({"effort": {"model": "x", "level": "nonsense"}})
                 self.assertEqual(api.load_ui_state()["efforts"], {"qwen3.8-flash": "off"})
                 self.assertTrue(api.load_ui_state()["onboarded"] in (True, False))
@@ -128,7 +126,6 @@ class ReasoningLevelServer(unittest.TestCase):
         self.assertEqual(sent[-1]["effort"], "high")
         self.assertTrue(sent[-1]["effort_user"])
 
-
 class HistoryPictures(unittest.TestCase):
     PIC = "data:image/png;base64,iVBORw0KGgo="
 
@@ -152,7 +149,6 @@ class HistoryPictures(unittest.TestCase):
         self.assertEqual(len(pics), MAX_IMAGES - 1)
         self.assertTrue(all(p["image_url"]["url"].startswith("data:image/") for p in pics))
 
-
 class HotkeyRace(unittest.TestCase):
     def test_second_press_waits_for_the_first_and_closes(self):
         from app.quick_ask import QuickAskManager
@@ -163,7 +159,7 @@ class HotkeyRace(unittest.TestCase):
 
         def show(source="hotkey"):
             calls.append("show")
-            time.sleep(0.3)               # window creation / selection read: visible only at the end
+            time.sleep(0.3)
             m.visible = True
             return True
 
@@ -180,7 +176,6 @@ class HotkeyRace(unittest.TestCase):
             t.join(3)
         self.assertEqual(calls, ["show", "hide"])
         self.assertFalse(m.visible)
-
 
 class StaticContracts(unittest.TestCase):
     @classmethod
@@ -202,14 +197,13 @@ class StaticContracts(unittest.TestCase):
     def test_cache_versions_are_bumped(self):
         html = (ROOT / "app" / "pgstatic" / "quick" / "index.html").read_text("utf-8")
         import re
-        for name in ("quick.js", "quick-md.js", "quick-ux.css", "quick-models.css"):     # bumped this round (others may bump again)
+        for name in ("quick.js", "quick-md.js", "quick-ux.css", "quick-models.css"):
             self.assertRegex(html, r'/quick/' + re.escape(name) + r'\?v=[\w.]+-r(?:3[4-9]|4\d)"')
 
     def test_tables_signature_has_no_forced_layout(self):
         tables = (ROOT / "app" / "pgstatic" / "tables.js").read_text("utf-8")
         start = tables.index("function signature(table)")
         self.assertNotIn("innerText", tables[start:tables.index("function stateOf", start)])
-
 
 class QuickPageHeadless(unittest.TestCase):
     """The real quick/index.html over a static server with mocked /api."""
@@ -360,7 +354,7 @@ class QuickPageHeadless(unittest.TestCase):
           const data = QuickAsk.state().attachments[0].data; const img = new Image(); img.src = data; await img.decode();
           return {scaled: /^data:image\/(jpeg|png)/.test(data), w: img.naturalWidth, h: img.naturalHeight}; })()"""
         result, _ = self.run_page(script)
-        # JPEG or PNG — whichever is smaller for this picture in this Chromium (flat rectangles: often PNG; r35)
+
         self.assertEqual(result, {"scaled": True, "w": 2048, "h": 1170})
 
     def test_dropped_stream_says_so(self):
@@ -429,7 +423,6 @@ class QuickPageHeadless(unittest.TestCase):
         self.assertEqual(result["link"], ['href="https://e.com/a_(b)"', 'href="https://e.com/p_(x)"'])
         self.assertEqual(result["tasks"], 2)
         self.assertTrue(result["box"])
-
 
 if __name__ == "__main__":
     unittest.main()

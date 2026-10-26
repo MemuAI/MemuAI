@@ -22,7 +22,6 @@ from typing import Any
 
 from . import telegram_use_config as config
 
-
 def chat_key(value: str) -> str:
     """Normalize decorative Telegram titles without silently picking ambiguous chats."""
     value = unicodedata.normalize("NFKD", str(value)).casefold()
@@ -44,7 +43,6 @@ def caption_text(value):
         text = text[:-1]
     return text
 
-
 WRITE = {"telegram_use_send", "telegram_use_edit", "telegram_use_delete", "telegram_use_forward",
          "telegram_use_react", "telegram_use_mark_read", "telegram_use_send_file"}
 ALWAYS = {"telegram_use_send", "telegram_use_delete", "telegram_use_forward", "telegram_use_send_file"}
@@ -60,12 +58,10 @@ _TOOL_NAMES = {row.split("{")[0] for row in TOOLS}
 _instance: Runtime | None = None
 _instance_guard = threading.Lock()
 
-
 class TelegramUseError(RuntimeError):
     def __init__(self, message: str, *, retry_after: int = 0):
         super().__init__(message)
         self.retry_after = max(0, min(86400, int(retry_after or 0)))
-
 
 def friendly(exc: BaseException) -> str:
     """Never echo a phone, API hash, proxy credential or login token in errors."""
@@ -98,13 +94,11 @@ def friendly(exc: BaseException) -> str:
         return "Не удалось соединиться с Telegram. Проверьте интернет и прокси в шаге 2, затем повторите вход. / Could not connect to Telegram; check your network and proxy in step 2."
     return known.get(name, "Telegram: " + name)
 
-
 def public_identity(entity: Any, fallback_id: Any = None) -> dict:
     return {"id": getattr(entity, "id", fallback_id),
             "name": str(getattr(entity, "title", "") or " ".join(filter(None, [
                 getattr(entity, "first_name", ""), getattr(entity, "last_name", "")]))).strip()[:300],
             "username": str(getattr(entity, "username", "") or "")[:100]}
-
 
 def public_message(message: Any, account: Any = None) -> dict:
     date = getattr(message, "date", None)
@@ -113,8 +107,7 @@ def public_message(message: Any, account: Any = None) -> dict:
     sender_id = getattr(message, "sender_id", None)
     sender = getattr(message, "sender", None)
     account_id = getattr(account, "id", None)
-    # A channel post can be outgoing on behalf of the channel. Preserve the
-    # channel identity instead of declaring every outgoing post the owner's words.
+
     is_self = bool((account_id is not None and sender_id == account_id)
                    or getattr(sender, "is_self", False)
                    or (sender_id is None and getattr(message, "out", False) and not getattr(message, "post", False)))
@@ -137,7 +130,6 @@ def public_message(message: Any, account: Any = None) -> dict:
             "mime": str(getattr(document, "mime_type", "") or ""),
             "bytes": int(getattr(document, "size", 0) or 0)}
 
-
 def parse_html(value: str) -> tuple[str, list]:
     """Telethon's HTML entities plus Telegram spoilers, without Premium-only custom emoji."""
     from telethon.extensions.html import HTMLToTelegramParser
@@ -153,7 +145,6 @@ def parse_html(value: str) -> tuple[str, list]:
     text = strip_text(parser.text, parser.entities)
     entities = sorted((e for e in parser.entities if not isinstance(e, MessageEntityCustomEmoji)), key=lambda e: e.offset)
     return del_surrogate(text), entities
-
 
 class Runtime:
     def __init__(self, client_factory=None):
@@ -374,7 +365,7 @@ class Runtime:
         if name == "status":
             return self.status()
         if name == "settings":
-            # Validate the entire update before persisting secrets or disconnecting.
+
             if "api_id" in body and str(body["api_id"] or "").strip() not in ("", "0"):
                 value = str(body["api_id"]).strip()
                 if not value.isascii() or not value.isdigit() or not 1 <= int(value) <= 2147483647:
@@ -399,8 +390,7 @@ class Runtime:
             if merged["api_id"] != old["api_id"] or (api_hash and api_hash != store.get("api_hash")):
                 store.delete("session")
             if merged["api_id"] != old["api_id"] and not api_hash:
-                # A saved hash belongs to its API ID. Keeping it under another
-                # ID makes a partial settings save look configured but fail login.
+
                 store.delete("api_hash")
             if api_hash:
                 store.set("api_hash", api_hash)
@@ -511,7 +501,7 @@ class Runtime:
         found = exact or matches or decorative
         if not found and fuzzy:
             fuzzy.sort(key=lambda row: row[0], reverse=True)
-            # A near tie is a clarification, never an arbitrary account selection.
+
             found = [dialog for score, dialog in fuzzy if fuzzy[0][0] - score <= .12]
         if len(found) == 1:
             return found[0].input_entity
@@ -568,7 +558,7 @@ class Runtime:
         ids = []
         for index, html in enumerate(chunks):
             plain, entities = parse_html(html)
-            # A generated answer that quotes a command must never start another AI invocation.
+
             if re.match(r"^\s*!//", plain):
                 plain = "\u2060" + plain
                 for entity in entities:
@@ -591,7 +581,7 @@ class Runtime:
             raise ValueError("Неизвестный инструмент Telegram Use / Unknown Telegram Use tool")
         if name == "telegram_use_status":
             result = self.status()
-            # QR tokens and settings are UI-only, never exposed to a model.
+
             return {k: result[k] for k in ("connected", "configured", "account", "last_error")}
         prefs = config.load()
         if name in WRITE and (not prefs["allow_writes"] or (scheduled and not prefs["schedule_writes"])):
@@ -715,7 +705,7 @@ class Runtime:
         if not own:
             if sender not in command["allowed_users"]:
                 return
-            # An allowlisted person in a new group cannot disclose all of that group's history.
+
             if not bool(getattr(event, "is_private", False)) and chat not in command["allowed_chats"]:
                 return
         question = str(match[2] or "").strip()
@@ -724,7 +714,7 @@ class Runtime:
         key = (chat, int(event.message.id))
         if key in self._seen or key in self._inflight or len(self._tasks) >= prefs["max_parallel"]:
             return
-        # Consume quota before awaiting anything: parallel/edited updates cannot bypass it.
+
         now = time.time()
         bucket = self._rates[(sender, command["trigger"].casefold())]
         while bucket and bucket[0] <= now - 86400:
@@ -790,7 +780,7 @@ class Runtime:
                         break
                     row["text"] = original[:max(0, budget - overhead - 2)]
                     line = json.dumps(row, ensure_ascii=False, separators=(",", ":"))
-                    # Escaped quotes/newlines also consume the character budget.
+
                     while len(line) > budget and row["text"]:
                         row["text"] = row["text"][:max(0, len(row["text"]) - (len(line) - budget))]
                         line = json.dumps(row, ensure_ascii=False, separators=(",", ":"))
@@ -821,7 +811,7 @@ class Runtime:
                     content += "\n\nReply attachment (untrusted data):\n" + description["text"]
                 messages.append({"role": "user", "content": content})
                 answer = await asyncio.wait_for(ai.complete(command["model"] or config.load()["model"], messages), 330)
-            # Re-check settings after expensive inference; disabling the integration must stop pending writes.
+
             latest = config.load()
             if not latest["enabled"] or not latest["commands_enabled"]:
                 return
@@ -832,7 +822,7 @@ class Runtime:
                 await ai.save_result("Telegram: " + command["name"], question or command["trigger"], answer,
                                      command["model"] or latest["model"])
             elif latest["allow_writes"]:
-                # Never overwrite a command the user edited/deleted while the model was answering.
+
                 current = await self.client.get_messages(event.chat_id, ids=event.message.id)
                 if not current or str(getattr(current, "raw_text", "") or "") != str(event.message.raw_text):
                     return
@@ -852,7 +842,6 @@ class Runtime:
                 if latest["enabled"] and latest["commands_enabled"] and latest["allow_writes"] and command["output"] != "memuai":
                     with contextlib.suppress(Exception):
                         await self.formatted(str(exc), chat=event.chat_id, reply=event.message.id)
-            # No automatic error messages to third parties and no destruction of the original command.
 
     def _load_usage(self):
         if self._usage_loaded:
@@ -875,14 +864,12 @@ class Runtime:
                 for (sender, trigger), values in self._rates.items() if values and values[-1] > now - 86400}
         save_json(config.path().with_name("telegram_use_usage.json"), rows, backup=False)
 
-
 def start() -> Runtime:
     global _instance
     with _instance_guard:
         if _instance is None:
             _instance = Runtime()
         return _instance.start()
-
 
 def stop() -> None:
     global _instance
@@ -893,7 +880,6 @@ def stop() -> None:
         instance.loop.call_soon_threadsafe(instance.loop.stop)
         instance.thread.join(5)
     _instance = None
-
 
 def run_tool(name: str, args: dict | None = None, *, scheduled: bool = False) -> dict:
     """Sync registry entry point. In other processes, use the window rather than a second MTProto client."""
@@ -914,10 +900,9 @@ def run_tool(name: str, args: dict | None = None, *, scheduled: bool = False) ->
             raise TelegramUseError(str(data.get("error") or "Telegram Use unavailable"))
         return data
 
-
 def integration_status() -> dict:
     prefs = config.load()
-    # Does not start a runtime in Proxy/CLI. Session presence is sufficient to advertise connected tools.
+
     ready = bool(prefs["enabled"] and config.secrets().has("session"))
     info = _instance.status() if _instance else {}
     tools = list(TOOLS)

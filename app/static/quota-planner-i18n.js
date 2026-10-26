@@ -1,5 +1,5 @@
-/* MemuAI Proxy — Round 35 (quota): strings of the «Планировщик квот» tab used by data-i18n in index.html.
-   Loaded before app.js so the first applyI18n() already knows them; the rest lives in quota-planner.js. */
+
+
 "use strict";
 Object.assign(I18N.ru, {
   "nav.quota": "Планировщик квот",

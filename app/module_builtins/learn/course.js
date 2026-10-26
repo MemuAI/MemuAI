@@ -1,6 +1,5 @@
-/* MemuLearn · course.js — курс: шапка (прогресс, повторить, экзамен, экспорт), дерево модулей и уроков,
- * урок (конспект + его карточки, «Сгенерировать» одним запросом к модели), вкладка «Карточки» (поиск, правка,
- * своя карточка Basic/Cloze). «Подготовить все уроки» идёт по урокам по одному и останавливается кнопкой. */
+
+
 const COURSE = { tab: "learn", lesson: "", q: "", stop: false };
 
 VIEWS.course = async (params) => {
@@ -22,7 +21,7 @@ VIEWS.course = async (params) => {
 function lessons() { return S.tree.flatMap((m) => (m.kind === "lesson" ? [m] : m.children || [])); }
 function firstLesson() {
   const all = lessons();
-  const next = all.find((l) => !l.done) || all[0];   // первый непройденный по порядку, а не первый «без карточек»
+  const next = all.find((l) => !l.done) || all[0];
   return next ? next.id : "";
 }
 
@@ -101,7 +100,6 @@ function courseMenu(anchor) {
   });
 }
 
-/* ---------------------------------------------------------------- learn tab: tree + lesson */
 function renderLearnTab() {
   const body = $("#co-body");
   if (!S.tree.length) {
@@ -275,7 +273,6 @@ async function generateAll() {
   }
 }
 
-/* ---------------------------------------------------------------- cards tab */
 async function renderCardsTab() {
   const body = $("#co-body");
   body.innerHTML = `<div class="ml-cards-tab">
@@ -297,7 +294,6 @@ async function renderCardsTab() {
   load().catch(fail);
 }
 
-/* ---------------------------------------------------------------- card editor (dialog) */
 function editCard(card, lessonId) {
   const isNew = !card;
   const c = card || { kind: "basic", front: "", back: "", extra: "", tags: "", lesson_id: lessonId || COURSE.lesson || "" };
@@ -349,7 +345,6 @@ function editCard(card, lessonId) {
   };
 }
 
-/* ---------------------------------------------------------------- dialogs and menus (own, inside the window) */
 function openDialog(html) {
   const wrap = document.createElement("div");
   wrap.className = "ml-dialog-wrap";

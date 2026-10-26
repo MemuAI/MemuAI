@@ -32,15 +32,13 @@ from urllib.parse import quote, urlparse
 
 import httpx
 
-try:  # обычный запуск в составе пакета
+try:
     from .pgdata import MEMU_DIR
 except ImportError:  # pragma: no cover - запуск файла напрямую
     from app.pgdata import MEMU_DIR  # type: ignore
 
-# Round 33: the tool sets of each service live in their own modules (they import this one lazily).
 from . import integrations_drive, integrations_gcal, integrations_github, integrations_gmail  # noqa: E402
 from . import integrations_gworkspace, integrations_notion_tools  # noqa: E402
-
 
 def integrations_gmail_scopes() -> Dict[str, set]:
     """Gmail tools beyond reading and sending need gmail.modify / mail.google.com / gmail.settings.basic."""
@@ -59,10 +57,9 @@ def integrations_gmail_scopes() -> Dict[str, set]:
 STORE_NAME = "integrations.json"
 TIMEOUT = 25.0
 MAX_TEXT = 100000
-#: Bytes read from a file download at most (the text is cut to MAX_TEXT anyway): a 2 GB video on Drive
-#: or a 90 MB file in a repository must not be loaded into memory whole.
+
 MAX_DOWNLOAD = 4 * MAX_TEXT
-#: One quiet retry for reads after a timeout, a dropped connection, 502/503/504 or a short 429.
+
 RETRY_STATUSES = {429, 502, 503, 504}
 RETRY_DELAY = 0.8
 GITHUB_API = "https://api.github.com"
@@ -77,17 +74,17 @@ SERVICES: Dict[str, Dict[str, Any]] = {
         "optional": ["default_repo"],
         "secret": ["token"],
     },
-    # Round 30: the three Google services share one account (app/google_account.py) — no fields of their own.
+
     "gmail": {"title": "Gmail", "kind": "google", "google": "gmail", "required": [], "optional": [], "secret": []},
     "google_calendar": {"title": "Google Calendar", "kind": "google", "google": "calendar",
                         "required": [], "optional": [], "secret": []},
     "google_drive": {"title": "Google Drive", "kind": "google", "google": "drive", "required": [], "optional": [], "secret": []},
-    # Round 33: more Google services on the same account.
+
     "google_docs": {"title": "Google Docs", "kind": "google", "google": "docs", "required": [], "optional": [], "secret": []},
     "google_sheets": {"title": "Google Sheets", "kind": "google", "google": "sheets", "required": [], "optional": [], "secret": []},
     "google_tasks": {"title": "Google Tasks", "kind": "google", "google": "tasks", "required": [], "optional": [], "secret": []},
     "google_contacts": {"title": "Google Contacts", "kind": "google", "google": "contacts", "required": [], "optional": [], "secret": []},
-    # Round 30: Notion — an integration token or «Sign in with Notion» (app/integrations_notion.py).
+
     "notion": {"title": "Notion", "kind": "notion", "required": [], "optional": [], "secret": []},
 }
 
@@ -136,21 +133,19 @@ TOOLS: Dict[str, List[str]] = {
     ],
 }
 
-# Инструменты, которые что-то меняют во внешнем сервисе: требуют подтверждения.
 WRITE_TOOLS = {"github_write_file", "github_create_issue", "drive_create_file", "drive_upload_file",
                "drive_update_file", "calendar_create_event", "calendar_update_event", "calendar_delete_event",
                "notion_create_page", "notion_append",
                *integrations_github.WRITE, *integrations_gmail.WRITE, *integrations_drive.WRITE,
                *integrations_gcal.WRITE, *integrations_gworkspace.WRITE, *integrations_notion_tools.WRITE}
-# Round 30: irreversible — confirmed by the user every time, even with «Full access».
-# Round 33: + forwarding/replying (sent mail), permanent deletion of mail, Drive files, repositories, calendars.
+
 ALWAYS_CONFIRM = {"gmail_send", *integrations_gmail.ALWAYS, *integrations_github.ALWAYS, *integrations_drive.ALWAYS,
                   *integrations_gcal.ALWAYS, *integrations_gworkspace.ALWAYS}
-#: Round 33: destructive — the confirmation card's button is red (the window reads it from status()).
+
 DANGER_TOOLS = {"calendar_delete_event", "drive_update_file", *integrations_github.DANGER, *integrations_gmail.DANGER,
                 *integrations_drive.DANGER, *integrations_gcal.DANGER, *integrations_gworkspace.DANGER,
                 *integrations_notion_tools.DANGER}
-# Round 43: permission metadata is shared by all chat surfaces.
+
 from .telegram_use import WRITE as _TELEGRAM_USE_WRITE, DANGER as _TELEGRAM_USE_DANGER
 from .browser_extension import WRITE as _CHROME_WRITE
 from .telegram_use import TOOLS as _TELEGRAM_USE_TOOLS
@@ -160,43 +155,34 @@ TOOLS["chrome_extension"] = list(_CHROME_TOOLS)
 WRITE_TOOLS.update(_TELEGRAM_USE_WRITE | _CHROME_WRITE)
 ALWAYS_CONFIRM.update(_TELEGRAM_USE_WRITE)
 DANGER_TOOLS.update(_TELEGRAM_USE_DANGER | {"chrome_close"})
-#: Round 33: one line per service for the model (what is where, which ids to use).
+
 HINTS = {"github": integrations_github.HINT, "gmail": integrations_gmail.HINT, "google_drive": integrations_drive.HINT,
          "google_calendar": integrations_gcal.HINT, "google_docs": integrations_gworkspace.DOCS_HINT,
          "google_sheets": integrations_gworkspace.SHEETS_HINT, "google_tasks": integrations_gworkspace.TASKS_HINT,
          "google_contacts": integrations_gworkspace.CONTACTS_HINT, "notion": integrations_notion_tools.HINT}
-#: Round 33: tools that need more than the basic grant of their service (any one of these scopes).
+
 TOOL_SCOPES: Dict[str, set] = {**integrations_gmail_scopes(), **integrations_drive.SCOPES, **integrations_gcal.SCOPES}
-#: Largest local file drive_upload_file sends (one multipart request).
+
 MAX_UPLOAD = 25 * 1024 * 1024
 
 _lock = threading.Lock()
 _tokens: Dict[str, Dict[str, Any]] = {}
 
-
 class IntegrationError(RuntimeError):
     """Ошибка интеграции с человеческим текстом для интерфейса."""
-
 
 class IntegrationArgumentError(IntegrationError):
     """The model passed a bad argument: an answer for the model, not a sign of a broken connection."""
 
-
 class IntegrationAccountError(IntegrationError):
     """Round 30: not signed in / service switched off / consent missing — Settings says so already, not a «last error»."""
 
-
-# --------------------------------------------------------------------------- #
-# HTTP: один клиент, понятные ошибки, тихий повтор для чтения (Round 22)       #
-# --------------------------------------------------------------------------- #
 def _client() -> httpx.Client:
     """Separate function so tests can swap the transport (httpx.MockTransport)."""
     return httpx.Client(timeout=httpx.Timeout(TIMEOUT, connect=10.0), follow_redirects=True)
 
-
 def _sleep(seconds: float) -> None:
     time.sleep(seconds)
-
 
 def _int(value: Any, default: int, low: int, high: int) -> int:
     """A number from the model's arguments: "5", 5.0, "abc" and None never raise."""
@@ -206,7 +192,6 @@ def _int(value: Any, default: int, low: int, high: int) -> int:
         number = default
     return max(low, min(number, high))
 
-
 def _network_error(title: str, exc: Exception) -> IntegrationError:
     if isinstance(exc, httpx.TimeoutException):
         return IntegrationError("%s не ответил за %d с — сервис перегружен или нет сети. Попробуйте ещё раз."
@@ -215,7 +200,6 @@ def _network_error(title: str, exc: Exception) -> IntegrationError:
         return IntegrationError("Нет соединения с %s: проверьте интернет, прокси или VPN (%s)."
                                 % (title, _short(str(exc)) or type(exc).__name__))
     return IntegrationError("Сетевая ошибка %s: %s" % (title, _short(str(exc)) or type(exc).__name__))
-
 
 def _send(title: str, method: str, url: str, **kwargs: Any) -> httpx.Response:
     """One request; reads (GET) are retried once after a network error or 429/502/503/504."""
@@ -238,7 +222,6 @@ def _send(title: str, method: str, url: str, **kwargs: Any) -> httpx.Response:
         return response
     return response  # pragma: no cover - the loop always returns
 
-
 def _retry_after(response: httpx.Response) -> Optional[float]:
     value = response.headers.get("retry-after")
     if value is None:
@@ -247,7 +230,6 @@ def _retry_after(response: httpx.Response) -> Optional[float]:
         return float(value)
     except ValueError:
         return None
-
 
 def _stream_text(title: str, url: str, headers: Dict[str, str], params: Optional[Dict[str, Any]] = None,
                  on_error=None) -> Tuple[bytes, bool, str]:
@@ -273,7 +255,6 @@ def _stream_text(title: str, url: str, headers: Dict[str, str], params: Optional
     except httpx.HTTPError as exc:
         raise _network_error(title, exc) from exc
 
-
 def _decode(data: bytes) -> Tuple[str, bool]:
     """Text of a downloaded file, or ("", True) for a binary one (NUL bytes in the head)."""
     head = data[:8192]
@@ -284,7 +265,6 @@ def _decode(data: bytes) -> Tuple[str, bool]:
             return data.decode(codec, "replace"), False
     return data.decode("utf-8", "replace"), False
 
-
 def _error_payload(response: httpx.Response) -> Dict[str, Any]:
     try:
         data = response.json()
@@ -292,14 +272,9 @@ def _error_payload(response: httpx.Response) -> Dict[str, Any]:
         return {}
     return data if isinstance(data, dict) else {}
 
-
-# --------------------------------------------------------------------------- #
-# хранилище                                                                 #
-# --------------------------------------------------------------------------- #
 def _store_path() -> Path:
     MEMU_DIR.mkdir(parents=True, exist_ok=True)
     return MEMU_DIR / STORE_NAME
-
 
 def _load_store() -> Dict[str, Dict[str, Any]]:
     try:
@@ -310,11 +285,9 @@ def _load_store() -> Dict[str, Dict[str, Any]]:
         return {}
     return {key: value for key, value in data.items() if isinstance(value, dict)}
 
-
 def _save_store(store: Dict[str, Dict[str, Any]]) -> None:
     path = _store_path()
-    # Общая атомарная запись (уникальный tmp, fsync, повтор при блокировке
-    # антивирусом): MemuAI и Proxy пишут этот файл из разных процессов.
+
     from .storage import save_json
     save_json(path, store, backup=False)
     try:
@@ -322,18 +295,15 @@ def _save_store(store: Dict[str, Dict[str, Any]]) -> None:
     except Exception:
         pass
 
-
 def _service_meta(service: str) -> Dict[str, Any]:
     meta = SERVICES.get(service)
     if not meta:
         raise IntegrationError("Неизвестная интеграция: %s" % service)
     return meta
 
-
 def _missing(service: str, data: Dict[str, Any]) -> List[str]:
     meta = _service_meta(service)
     return [field for field in meta["required"] if not str(data.get(field) or "").strip()]
-
 
 def _public_account(service: str, google: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Round 30: a Google service or Notion — the state comes from the shared account, not from typed fields."""
@@ -360,7 +330,6 @@ def _public_account(service: str, google: Optional[Dict[str, Any]] = None) -> Di
             "last_error": last_error if connected else "", "required": [], "optional": [], "values": {},
             "tools": tools, "write_tools": [t.split("{")[0] for t in tools if t.split("{")[0] in WRITE_TOOLS], **extra}
 
-
 def _public(service: str, data: Dict[str, Any]) -> Dict[str, Any]:
     meta = _service_meta(service)
     missing = _missing(service, data)
@@ -372,8 +341,7 @@ def _public(service: str, data: Dict[str, Any]) -> Dict[str, Any]:
         else:
             filled[field] = value
     last_error = str(data.get("last_error") or "")
-    # Round 22: "connected" only means the fields are filled. The interface also needs to know whether the
-    # keys were ever accepted: off → unverified (saved, never checked) → ok / error.
+
     if missing:
         state = "off"
     elif last_error:
@@ -398,9 +366,6 @@ def _public(service: str, data: Dict[str, Any]) -> Dict[str, Any]:
         "tools": list(TOOLS.get(service, [])),
     }
 
-
-#: One cheap request per Google service: does its API answer in the user's project (Round 33 «Проверить API»).
-#: Docs and Sheets have no list endpoint — a made-up id answers 404 when the API is on, 403 SERVICE_DISABLED when off.
 GOOGLE_CHECKS = {
     "gmail": ("GET", "https://gmail.googleapis.com/gmail/v1/users/me/profile", None),
     "google_calendar": ("GET", CALENDAR_API + "/users/me/calendarList", {"maxResults": 1}),
@@ -410,7 +375,6 @@ GOOGLE_CHECKS = {
     "google_tasks": ("GET", "https://tasks.googleapis.com/tasks/v1/users/@me/lists", {"maxResults": 1}),
     "google_contacts": ("GET", "https://people.googleapis.com/v1/people/me/connections", {"pageSize": 1, "personFields": "names"}),
 }
-
 
 def google_check_one(service: str) -> Dict[str, Any]:
     """{"service", "ok", "state": ok|disabled|scope|error, "error", "api", "enable_url"} — never raises."""
@@ -426,7 +390,7 @@ def google_check_one(service: str) -> Dict[str, Any]:
         text = str(exc)
         out["error"] = text
         if service in ("google_docs", "google_sheets") and "(403" in text:
-            out.update(ok=True, state="ok", error="")    # the made-up id is «forbidden», i.e. the API itself answers
+            out.update(ok=True, state="ok", error="")
         elif "выключен в вашем проекте" in text:
             found = re.search(r"https://\S+", text)
             out.update(state="disabled", enable_url=found.group(0) if found else "")
@@ -435,7 +399,6 @@ def google_check_one(service: str) -> Dict[str, Any]:
     except Exception as exc:  # pragma: no cover - a check must never break Settings
         out["error"] = type(exc).__name__
     return out
-
 
 def google_check() -> Dict[str, Any]:
     """Check every ready Google service; services that are off are reported as such (no request)."""
@@ -458,7 +421,6 @@ def google_check() -> Dict[str, Any]:
     disabled = [r["api"] for r in rows if r["state"] == "disabled" and r.get("api")]
     return {"services": rows, "enable_all_url": google_account.enable_url(tuple(disabled)) if disabled else "",
             "checked": int(time.time())}
-
 
 def status() -> Dict[str, Any]:
     """Состояние всех интеграций без секретов."""
@@ -486,7 +448,6 @@ def status() -> Dict[str, Any]:
             "write_tools": sorted(WRITE_TOOLS | connected_services.write_tools()),
             "danger_tools": sorted(DANGER_TOOLS | connected_services.danger_tools())}
 
-
 def _store_transaction():
     """Thread lock plus the shared cross-process JSON lock.
 
@@ -500,7 +461,6 @@ def _store_transaction():
     stack.enter_context(_json_transaction(_store_path()))
     return stack
 
-
 def save_credentials(service: str, values: Dict[str, Any]) -> Dict[str, Any]:
     meta = _service_meta(service)
     if meta.get("kind"):
@@ -513,21 +473,19 @@ def save_credentials(service: str, values: Dict[str, Any]) -> Dict[str, Any]:
             if key not in allowed:
                 continue
             text = _clean_value(key, value)
-            # Пустое поле не стирает уже сохранённый секрет: интерфейс показывает
-            # только маску, и повторное сохранение не должно ломать доступ.
+
             if not text and key in meta["secret"]:
                 continue
             if key in meta["secret"] and text.startswith("\u2022"):
-                continue   # the mask itself pasted back
+                continue
             current[key] = text
         current["updated"] = int(time.time())
         current.pop("last_error", None)
-        current.pop("checked", None)       # new keys: not verified until the next successful call
+        current.pop("checked", None)
         store[service] = current
         _save_store(store)
     _tokens.pop(service, None)
     return _public(service, current)
-
 
 def _clean_value(key: str, value: Any) -> str:
     """Pasted values: spaces and line breaks around, quotes, "Bearer "/"token " before a GitHub token."""
@@ -543,12 +501,10 @@ def _clean_value(key: str, value: Any) -> str:
             pass
     return text
 
-
 def disconnect(service: str) -> Dict[str, Any]:
     meta = _service_meta(service)
     if meta.get("kind") == "google":
-        # One Google account: «disconnect» of one service only switches the service off (the account stays for
-        # the others, Sync and the Drive picker). Signing out of Google is google_account.disconnect().
+
         from . import google_account
         google_account.set_enabled(meta["google"], False)
         _tokens.pop(service, None)
@@ -564,7 +520,6 @@ def disconnect(service: str) -> Dict[str, Any]:
     _tokens.pop(service, None)
     return _public(service, {})
 
-
 def _credentials(service: str) -> Dict[str, Any]:
     data = _load_store().get(service) or {}
     missing = _missing(service, data)
@@ -574,7 +529,6 @@ def _credentials(service: str) -> Dict[str, Any]:
             % (_service_meta(service)["title"], ", ".join(missing))
         )
     return data
-
 
 def _remember(service: str, account: str = "", error: str = "") -> None:
     with _store_transaction():
@@ -592,22 +546,16 @@ def _remember(service: str, account: str = "", error: str = "") -> None:
         store[service] = current
         _save_store(store)
 
-
 def _clear_error_after_success(service: str) -> None:
     """A tool call that worked clears a stale "last error" (it used to stay in Settings forever)."""
     data = _load_store().get(service) or {}
     if data.get("last_error") or not data.get("checked"):
         _remember(service)
 
-
 def _short(text: str) -> str:
     body = " ".join(str(text or "").split())
     return body[:300]
 
-
-# --------------------------------------------------------------------------- #
-# GitHub                                                                       #
-# --------------------------------------------------------------------------- #
 def _github_headers(token: str, accept: str = "application/vnd.github+json") -> Dict[str, str]:
     return {
         "Authorization": "Bearer " + token,
@@ -615,7 +563,6 @@ def _github_headers(token: str, accept: str = "application/vnd.github+json") -> 
         "X-GitHub-Api-Version": "2022-11-28",
         "User-Agent": "MemuAI",
     }
-
 
 def _github_error(response: httpx.Response) -> IntegrationError:
     """GitHub's answer in words: bad token, missing scope, rate limit (403/429), not found, validation."""
@@ -637,8 +584,7 @@ def _github_error(response: httpx.Response) -> IntegrationError:
             wait = (" Повторите через %s с." % retry) if retry else ""
         return IntegrationError("GitHub: превышен лимит запросов (%s).%s" % (status, wait))
     if status == 403:
-        # Round 33: GitHub names what is missing — fine-grained tokens get X-Accepted-GitHub-Permissions,
-        # classic ones X-Accepted-OAuth-Scopes (+ X-OAuth-Scopes = what the token has).
+
         need = _github_need(response)
         return IntegrationError("GitHub запретил действие (403: %s). %s" % (message or "Forbidden", need or (
             "Токену не хватает прав. Classic-токен: отметьте repo, workflow, gist, delete_repo. Fine-grained: "
@@ -659,7 +605,6 @@ def _github_error(response: httpx.Response) -> IntegrationError:
         return IntegrationError("GitHub временно недоступен (%s). Попробуйте позже." % status)
     return IntegrationError("GitHub %s: %s" % (status, message))
 
-
 def _github_need(response: httpx.Response) -> str:
     """«Нужно: …» from GitHub's headers (what the endpoint accepts vs. what the token has)."""
     fine = (response.headers.get("x-accepted-github-permissions") or "").strip()
@@ -671,7 +616,6 @@ def _github_need(response: httpx.Response) -> str:
     if classic:
         return "Classic-токену нужен scope: %s; у токена сейчас: %s." % (classic, (has or "").strip() or "—")
     return ""
-
 
 def _github(method: str, path: str, *, params: Optional[Dict[str, Any]] = None,
             json_body: Optional[Dict[str, Any]] = None) -> Any:
@@ -687,9 +631,7 @@ def _github(method: str, path: str, *, params: Optional[Dict[str, Any]] = None,
     except Exception:
         return {"text": response.text[:MAX_TEXT]}
 
-
 _REPO_PART = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
-
 
 def _parse_repo(value: str) -> str:
     """``owner/name`` from what people paste: a URL with /tree/branch/path, ``.git``, an SSH remote."""
@@ -711,17 +653,14 @@ def _parse_repo(value: str) -> str:
         raise IntegrationArgumentError("Некорректное имя репозитория: %s" % _short(value))
     return "%s/%s" % (owner, name)
 
-
 def _repo(args: Dict[str, Any]) -> str:
     repo = str(args.get("repo") or "").strip()
     if not repo:
         repo = str((_load_store().get("github") or {}).get("default_repo") or "").strip()
     return _parse_repo(repo)
 
-
 def _raise_github(response: httpx.Response) -> None:
     raise _github_error(response)
-
 
 def _github_file_text(repo: str, path: str, ref: str, row: Dict[str, Any]) -> Dict[str, Any]:
     """Text of a file from a contents row; files over 1 MB come without content and are streamed raw."""
@@ -750,7 +689,6 @@ def _github_file_text(repo: str, path: str, ref: str, row: Dict[str, Any]) -> Di
     result.update({"text": text[:MAX_TEXT], "truncated": cut or len(text) > MAX_TEXT})
     return result
 
-
 def _github_tool(tool: str, args: Dict[str, Any]) -> Any:
     limit = _int(args.get("limit"), 20, 1, 100)
     if tool == "github_status":
@@ -760,8 +698,7 @@ def _github_tool(tool: str, args: Dict[str, Any]) -> Any:
         return info
     if tool == "github_list_repos":
         query = str(args.get("query") or "").strip().lower()
-        # A search used to look only at the first `limit` repositories: a person with 200 repos asking for
-        # "memuai" got nothing when it was not among the 20 updated most recently. Now pages are walked.
+
         rows: List[Dict[str, Any]] = []
         for page in range(1, 11 if query else 2):
             chunk = _github("GET", "/user/repos", params={
@@ -877,7 +814,7 @@ def _github_tool(tool: str, args: Dict[str, Any]) -> Any:
         content = str(args.get("content") or "")
         message = str(args.get("message") or "").strip() or "MemuAI update"
         if args.get("content_base64"):
-            # Round 33: binary files (images, archives) — the model passes base64 itself.
+
             encoded = re.sub(r"\s+", "", str(args["content_base64"]))
             try:
                 base64.b64decode(encoded, validate=True)
@@ -891,7 +828,7 @@ def _github_tool(tool: str, args: Dict[str, Any]) -> Any:
         try:
             existing = _github("GET", "/repos/%s/contents/%s" % (repo, quote(path, safe="/")), params={"ref": body["branch"]} if body.get("branch") else None)
         except IntegrationError as exc:
-            # Only "the file does not exist yet" means create; a bad token or a rate limit must surface as is.
+
             if "(404)" not in str(exc):
                 raise
             existing = None
@@ -903,14 +840,10 @@ def _github_tool(tool: str, args: Dict[str, Any]) -> Any:
         commit = row.get("commit") or {}
         return {"path": path, "commit": str(commit.get("sha") or "")[:10], "url": (row.get("content") or {}).get("html_url"),
                 "created": "sha" not in body}
-    # Round 33: everything else (repositories, branches, PRs, releases, gists, Actions…) — app/integrations_github.py.
+
     from . import integrations_github
     return integrations_github.run(tool, args)
 
-
-# --------------------------------------------------------------------------- #
-# Google                                                                       #
-# --------------------------------------------------------------------------- #
 def _google_access_token(service: str, *, force: bool = False) -> str:
     """Round 30: the access token of the shared Google account (app/google_account.py), cached here per service."""
     cached = _tokens.get(service) or {}
@@ -926,7 +859,6 @@ def _google_access_token(service: str, *, force: bool = False) -> str:
     _tokens[service] = {"token": token, "expires": time.time() + 600}
     return token
 
-
 def _google_error(service: str, response: httpx.Response) -> IntegrationError:
     """Google APIs say *why* in error.errors[].reason / error.status; a 403 is often a rate limit."""
     status = response.status_code
@@ -941,8 +873,7 @@ def _google_error(service: str, response: httpx.Response) -> IntegrationError:
     title = _service_meta(service)["title"]
     api_name, _api_id = _google_api(service)
     if reasons & {"accessNotConfigured", "SERVICE_DISABLED"} or "has not been used in project" in message:
-        # Round 33: user report «пишет, что нужно отдельно включить Gmail API, хотя в инструкции этого нет» — say
-        # exactly which API, in which project, and give the direct «Enable» link (Google sends it in the error).
+
         name, url = _disabled_api(service, data, message)
         return IntegrationError("%s выключен в вашем проекте Google Cloud — поэтому MemuAI не может работать с %s. "
                                 "Откройте ссылку, нажмите «Включить» (Enable) и через 1–2 минуты повторите: %s "
@@ -966,8 +897,6 @@ def _google_error(service: str, response: httpx.Response) -> IntegrationError:
         return IntegrationError("%s временно недоступен (%s). Попробуйте позже." % (title, status))
     return IntegrationError("Google %s: %s" % (status, message))
 
-
-#: integration service → (Google Cloud API title, API id) — for «API is disabled» messages and links.
 GOOGLE_APIS = {"gmail": ("Gmail API", "gmail.googleapis.com"),
                "google_calendar": ("Google Calendar API", "calendar-json.googleapis.com"),
                "google_drive": ("Google Drive API", "drive.googleapis.com"),
@@ -976,10 +905,8 @@ GOOGLE_APIS = {"gmail": ("Gmail API", "gmail.googleapis.com"),
                "google_tasks": ("Google Tasks API", "tasks.googleapis.com"),
                "google_contacts": ("People API", "people.googleapis.com")}
 
-
 def _google_api(service: str) -> Tuple[str, str]:
     return GOOGLE_APIS.get(service, ("Google API", ""))
-
 
 def _disabled_api(service: str, data: Dict[str, Any], message: str) -> Tuple[str, str]:
     """(API title, «Enable» link) from a SERVICE_DISABLED error: ErrorInfo metadata → Help links → the message → ours."""
@@ -1005,7 +932,6 @@ def _disabled_api(service: str, data: Dict[str, Any], message: str) -> Tuple[str
         url = google_account.api_url(api) if api else google_account.enable_url()
     return name, url
 
-
 def _google(service: str, method: str, url: str, *, params: Optional[Dict[str, Any]] = None,
             json_body: Optional[Dict[str, Any]] = None, content: Optional[bytes] = None,
             content_type: str = "", raw: bool = False, allow: Tuple[int, ...] = ()) -> Any:
@@ -1016,7 +942,7 @@ def _google(service: str, method: str, url: str, *, params: Optional[Dict[str, A
         response = _send(_service_meta(service)["title"], method, url, headers=headers, params=params,
                          json=json_body, content=content)
         if response.status_code == 401 and attempt == 0:
-            # The cached access token was revoked or expired early: get a new one once.
+
             _tokens.pop(service, None)
             continue
         break
@@ -1033,7 +959,6 @@ def _google(service: str, method: str, url: str, *, params: Optional[Dict[str, A
     except Exception:
         return {"text": response.text[:MAX_TEXT]}
 
-
 def _google_stream(service: str, url: str, params: Dict[str, Any]) -> Tuple[bytes, bool]:
     def fail(response: httpx.Response) -> None:
         if response.status_code == 401:
@@ -1044,11 +969,9 @@ def _google_stream(service: str, url: str, params: Dict[str, Any]) -> Tuple[byte
                                     params=params, on_error=fail)
     return data, cut
 
-
 def _drive_quote(value: str) -> str:
     """A string literal of the Drive query language: backslash and apostrophe escaped (not dropped)."""
     return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
-
 
 def _is_text_mime(mime: str) -> bool:
     mime = (mime or "").lower()
@@ -1058,7 +981,6 @@ def _is_text_mime(mime: str) -> bool:
                                                  "application/x-ndjson", "application/ld+json", "image/svg+xml")
             or mime.endswith(("+json", "+xml")) or not mime or mime == "application/octet-stream")
 
-
 def _multipart(metadata: Dict[str, Any], content: bytes, media_type: str) -> Tuple[bytes, str]:
     boundary = "memuai-" + uuid.uuid4().hex
     body = (("--%s\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" % boundary).encode("utf-8")
@@ -1067,21 +989,17 @@ def _multipart(metadata: Dict[str, Any], content: bytes, media_type: str) -> Tup
             + content + ("\r\n--%s--\r\n" % boundary).encode("utf-8"))
     return body, "multipart/related; boundary=" + boundary
 
-
 EXPORT_TYPES = {
     "application/vnd.google-apps.document": "text/plain",
     "application/vnd.google-apps.spreadsheet": "text/csv",
     "application/vnd.google-apps.presentation": "text/plain",
 }
 
-
-#: Google formats → what a person types when creating one, and the media type to convert from.
 GOOGLE_NATIVE_UPLOAD = {
     "application/vnd.google-apps.document": "text/plain",
     "application/vnd.google-apps.spreadsheet": "text/csv",
     "application/vnd.google-apps.presentation": "text/plain",
 }
-
 
 def _drive_tool(tool: str, args: Dict[str, Any]) -> Any:
     limit = _int(args.get("limit"), 25, 1, 100)
@@ -1090,7 +1008,7 @@ def _drive_tool(tool: str, args: Dict[str, Any]) -> Any:
         clauses = ["trashed = %s" % ("true" if trashed else "false")]
         mime = str(args.get("mime") or "").strip().lower()
         if mime:
-            # Round 33: «folder», «doc», «sheet»… or a real media type.
+
             mime = {"folder": "application/vnd.google-apps.folder", "doc": "application/vnd.google-apps.document",
                     "document": "application/vnd.google-apps.document", "sheet": "application/vnd.google-apps.spreadsheet",
                     "spreadsheet": "application/vnd.google-apps.spreadsheet", "slides": "application/vnd.google-apps.presentation",
@@ -1103,7 +1021,7 @@ def _drive_tool(tool: str, args: Dict[str, Any]) -> Any:
             clauses.append("sharedWithMe = true")
         query = str(args.get("query") or "").strip()
         if query:
-            # Apostrophes are escaped now (they used to be replaced with a space: "O'Brien" found nothing).
+
             if str(args.get("search_content") or "").lower() in ("1", "true", "yes"):
                 clauses.append("(name contains %s or fullText contains %s)" % (_drive_quote(query), _drive_quote(query)))
             else:
@@ -1126,8 +1044,7 @@ def _drive_tool(tool: str, args: Dict[str, Any]) -> Any:
         file_id = str(args.get("file_id") or "").strip()
         if not file_id:
             raise IntegrationArgumentError("Укажите file_id")
-        # The id comes from the model: "?", "#" or "/" in it must not alter the
-        # request (another endpoint, extra parameters), so it is one path segment.
+
         file_ref = quote(file_id, safe="")
         meta = _google("google_drive", "GET", DRIVE_API + "/files/" + file_ref,
                        params={"fields": "id,name,mimeType,size", "supportsAllDrives": "true"})
@@ -1139,7 +1056,7 @@ def _drive_tool(tool: str, args: Dict[str, Any]) -> Any:
         elif mime.startswith("application/vnd.google-apps"):
             raise IntegrationArgumentError("Файл типа %s нельзя прочитать текстом" % mime)
         elif not _is_text_mime(mime):
-            # A PDF, a photo or a video used to be downloaded whole and handed to the model as mojibake.
+
             return {"name": meta.get("name"), "mime": mime, "size": size, "binary": True, "text": "",
                     "note": "Это не текстовый файл (%s, %d байт): прочитать его текстом нельзя." % (mime, size)}
         else:
@@ -1156,8 +1073,7 @@ def _drive_tool(tool: str, args: Dict[str, Any]) -> Any:
         metadata: Dict[str, Any] = {"name": name, "mimeType": mime}
         if args.get("folder_id"):
             metadata["parents"] = [str(args["folder_id"]).strip()]
-        # One multipart request instead of "create empty file, then upload": a failed upload no longer leaves an
-        # empty file behind, and a Google Doc/Sheet is created from text (the media is the plain/CSV source).
+
         media = GOOGLE_NATIVE_UPLOAD.get(mime, mime)
         body, content_type = _multipart(metadata, str(args.get("content") or "").encode("utf-8"), media)
         created = _google("google_drive", "POST", DRIVE_UPLOAD + "/files",
@@ -1176,9 +1092,8 @@ def _drive_tool(tool: str, args: Dict[str, Any]) -> Any:
                 content=str(args.get("content") or "").encode("utf-8"),
                 content_type=GOOGLE_NATIVE_UPLOAD.get(mime, mime))
         return {"id": file_id, "updated": True}
-    # Round 33: folders, rename, move, copy, trash, delete, sharing, downloads — app/integrations_drive.py.
-    return integrations_drive.run(tool, args)
 
+    return integrations_drive.run(tool, args)
 
 def _drive_upload(args: Dict[str, Any]) -> Dict[str, Any]:
     """Round 30: a local file (a report, a photo, a PDF) → Google Drive, as is (binary is fine)."""
@@ -1203,16 +1118,13 @@ def _drive_upload(args: Dict[str, Any]) -> Dict[str, Any]:
                       content=body, content_type=content_type)
     return {"id": str(created.get("id") or ""), "name": created.get("name"), "size": size, "link": created.get("webViewLink")}
 
-
 def _calendar_id(args: Dict[str, Any]) -> str:
     value = str(args.get("calendar_id") or "").strip()
     if not value:
         from . import google_account
         value = google_account.default_calendar()
-    # ID праздничных календарей содержат «#» и «@»: без экранирования «#»
-    # превращается во фрагмент URL, и запрос уходит не туда.
-    return quote(value or "primary", safe="")
 
+    return quote(value or "primary", safe="")
 
 def _event_body(args: Dict[str, Any]) -> Dict[str, Any]:
     """Event fields from the model's arguments (create: all; update: only what is given)."""
@@ -1231,13 +1143,12 @@ def _event_body(args: Dict[str, Any]) -> Dict[str, Any]:
             raise IntegrationArgumentError("Неверное время: %s (нужен ISO-8601, например 2026-10-08T15:00)" % value) from exc
         slot: Dict[str, Any] = {}
         if timezone:
-            # RFC 3339 needs seconds; with timeZone the wall-clock time stays as written.
+
             slot["dateTime"] = parsed.replace(tzinfo=None).isoformat(timespec="seconds") if parsed.tzinfo is None \
                 else parsed.isoformat(timespec="seconds")
             slot["timeZone"] = timezone
         else:
-            # Google отклоняет время без смещения и без timeZone: считаем
-            # его локальным временем этого компьютера.
+
             slot["dateTime"] = (parsed.astimezone() if parsed.tzinfo is None else parsed).isoformat(timespec="seconds")
         return slot
 
@@ -1246,7 +1157,7 @@ def _event_body(args: Dict[str, Any]) -> Dict[str, Any]:
     if start and end:
         start_slot, end_slot = moment(start), moment(end)
         if "date" in start_slot and "date" in end_slot and end_slot["date"] <= start_slot["date"]:
-            # In Google the end of an all-day event is exclusive: "the 8th to the 8th" is an empty range (400).
+
             end_slot["date"] = (date.fromisoformat(start_slot["date"]) + timedelta(days=1)).isoformat()
         elif ("date" in start_slot) != ("date" in end_slot):
             raise IntegrationArgumentError("Начало и конец должны быть одного вида: обе даты (весь день) или оба времени")
@@ -1261,7 +1172,6 @@ def _event_body(args: Dict[str, Any]) -> Dict[str, Any]:
     if args.get("location"):
         body["location"] = str(args["location"])
     return body
-
 
 def _calendar_tool(tool: str, args: Dict[str, Any]) -> Any:
     if tool == "calendar_list_calendars":
@@ -1278,7 +1188,7 @@ def _calendar_tool(tool: str, args: Dict[str, Any]) -> Any:
             "orderBy": "startTime",
             "maxResults": limit,
         }
-        # Round 33: an explicit range («what did I have last Monday», «events in December»).
+
         for key, field in (("time_min", "timeMin"), ("time_max", "timeMax")):
             if str(args.get(key) or "").strip():
                 params[field] = integrations_gcal.rfc3339(str(args[key]), end=key == "time_max")
@@ -1317,21 +1227,14 @@ def _calendar_tool(tool: str, args: Dict[str, Any]) -> Any:
             raise IntegrationArgumentError("Укажите event_id")
         result = _google("google_calendar", "DELETE", CALENDAR_API + "/calendars/%s/events/%s" % (_calendar_id(args), quote(event_id, safe="")),
                          allow=(410,), params=integrations_gcal.write_params(args, {}))
-        # 410 Gone: the event was already deleted — the wish is fulfilled, not an error.
+
         return {"id": event_id, "deleted": True, **({"already_deleted": True} if result.get("_status") == 410 else {})}
-    # Round 33: quick add, accept/decline, free/busy, moving events, calendars — app/integrations_gcal.py.
+
     return integrations_gcal.run(tool, args)
 
-
-# --------------------------------------------------------------------------- #
-# публичный API                                                               #
-# --------------------------------------------------------------------------- #
-#: Tool name prefix → integration service (Round 33: Docs, Sheets, Tasks, Contacts get a «g» prefix — docs_* are
-#: MemuAI's own documentation tools).
 PREFIX_SERVICE = {"github_": "github", "drive_": "google_drive", "calendar_": "google_calendar", "gmail_": "gmail",
                   "notion_": "notion", "gdocs_": "google_docs", "gsheets_": "google_sheets", "gtasks_": "google_tasks",
                   "gcontacts_": "google_contacts", "telegram_use_": "telegram_use", "chrome_": "chrome_extension"}
-
 
 def service_for_tool(tool: str) -> str:
     name = str(tool or "").strip().lower()
@@ -1340,10 +1243,7 @@ def service_for_tool(tool: str) -> str:
             return service
     return ""
 
-
-#: Tool name prefixes of the integrations (the window and /api/pg/tools route them here).
 TOOL_PREFIXES = tuple(PREFIX_SERVICE)
-
 
 def _check_scopes(service: str, tool: str) -> None:
     """Round 33: a tool that needs more than the service's basic grant fails *before* any request, with the remedy."""
@@ -1361,7 +1261,6 @@ def _check_scopes(service: str, tool: str) -> None:
             "%s: для «%s» нужен расширенный доступ — Google выдал MemuAI только базовые права. Откройте Настройки → "
             "Интеграции → Google и нажмите «Расширить доступ» у %s (Google спросит разрешение ещё раз, всё прежнее "
             "сохранится)." % (title, tool, title))
-
 
 def run_tool(tool: str, args: Optional[Dict[str, Any]] = None) -> Any:
     """Выполняет инструмент интеграции и возвращает готовые к JSON данные."""
@@ -1396,7 +1295,7 @@ def run_tool(tool: str, args: Optional[Dict[str, Any]] = None) -> Any:
             result = _calendar_tool(name, payload)
     except IntegrationError as exc:
         if not isinstance(exc, (IntegrationArgumentError, IntegrationAccountError)):
-            _remember(service, error=str(exc))   # argument mistakes of the model are not a broken connection
+            _remember(service, error=str(exc))
         raise
     except httpx.HTTPError as exc:
         error = _network_error(_service_meta(service)["title"], exc)
@@ -1408,13 +1307,12 @@ def run_tool(tool: str, args: Optional[Dict[str, Any]] = None) -> Any:
         pass
     return result
 
-
 def test_connection(service: str) -> Dict[str, Any]:
     """Проверяет подключение одним дешёвым запросом."""
     _service_meta(service)
     try:
         if service == "github":
-            # Round 33: say what kind of token it is and which classic scopes are missing for the full tool set.
+
             info = integrations_github.token_info()
             account = str(info.get("login") or "")
             detail = "Репозиториев: %s" % ((info.get("public_repos") or 0) + (info.get("private_repos") or 0))

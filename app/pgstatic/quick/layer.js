@@ -1,36 +1,5 @@
-/* Round 28 → Round 29: the screen layer of Quick Ask (see layer.html).
 
-   The window covers the work area of ONE monitor (the one Quick Ask opened on) and is click-through everywhere
-   except the items: the page reports the rounded rectangles of its items (and of an open menu / toast) to
-   POST /api/quick/layer/region, and app/quick_layer.py clips the window to them. In edit mode (Ctrl+E, a long press,
-   «Изменить расположение» in Quick Ask), while an item is dragged, while a menu is open (so a click anywhere closes it)
-   and while a panel's options dialog is open the whole work area minus the Quick Ask window takes the mouse.
 
-   Round 29 (r29-panels) — what was wrong and what this file does about it:
-   * CLIPPED PANELS. A panel's box is a whole number of grid units (M = 4×2 = 296×152 px) while its content was laid
-     out as in MemuAI, where the card grows to fit: the weather card needs ~180 px, so its last row was cut by the
-     card (overflow) — and the click-through region was measured with getBoundingClientRect() in the first frame of the
-     «pop» animation (scale .92), i.e. smaller than the card, and never measured again. Now every card is FITTED to its
-     box (fitCard: compact levels 1–3 — tighter padding, no footer, smaller numbers, secondary rows hidden — then a CSS
-     zoom down to 60 %; a card that still does not fit is marked and offers «Подогнать размер»), re-fitted whenever
-     its content changes (MutationObserver) or fonts load; the region is computed from the LAYOUT boxes
-     (offsetLeft/Top/Width/Height — transforms and animations do not matter), re-reported on content / animation /
-     size changes, and sent with the real CSS viewport (view {w, h, dpr}) so the native side converts with the actual
-     WebView2 scale rather than the monitor's nominal DPI.
-   * MANAGEMENT. A plain left-button hold + move (5 px threshold, so clicks still work) drags any item at once —
-     no edit mode needed; snapping (area edges, neighbours' edges and centres) draws guide lines, Alt turns it off;
-     a hover grip in the corner resizes, edit mode adds edge handles; the ⋯ button, a right click, Shift+F10 or the
-     context-menu key open ONE menu (pgstatic/memu-ctxmenu.js — the same as in MemuAI) that closes on any click
-     elsewhere (the region takes the whole area while it is open), Esc, the focus leaving, scrolling and after an
-     action. Right clicks are resolved from the pointer (a live card re-rendering under the cursor no longer swallows
-     them). Keyboard: Alt+arrows (plain arrows in edit mode) move by 8 px (Shift — 32), Ctrl+arrows resize, Delete
-     removes, Ctrl+Z / Ctrl+Shift+Z (Ctrl+Y) undo / redo every move, resize and removal.
-
-   Security (Round 28, unchanged): a button is never run here — the click goes to the Quick Ask window (MemuQuickBus
-   → MemuQuickCanvas.runAction) where the approval sheet, the confirmations and the answers live; clicks in the first
-   300 ms after the layer appeared run nothing (and the relay refuses them too); the bus only carries whitelisted
-   events (app/quick_canvas.RELAY_EVENTS). Panels are pgstatic/panels.js in embed mode; all their polling is paused
-   while the layer is hidden. */
 (function () {
   "use strict";
   const root = document.documentElement;
@@ -39,9 +8,9 @@
   const bus = window.MemuQuickBus;
   const reduced = () => root.dataset.motion === "off" || matchMedia("(prefers-reduced-motion: reduce)").matches;
   const PANEL_SIZES = { s: [2, 2], m: [4, 2], l: [4, 4], w: [8, 2] };
-  const SNAP = 10;            // CSS px: a dragged edge this close to another edge / the area edge sticks to it
-  const DRAG_START = 5;       // CSS px of movement before a press becomes a drag (a click stays a click)
-  const LONG_PRESS = 520;     // ms: a still press → arrange mode
+  const SNAP = 10;
+  const DRAG_START = 5;
+  const LONG_PRESS = 520;
   const FIT_MIN_ZOOM = 0.6;
   const UNDO_MAX = 40;
   const UI = {
@@ -71,7 +40,6 @@
   const placedById = (id) => S.placed.find((i) => i.id === id) || null;
   const SIZE_NAMES = () => ({ s: t("Малая", "Small"), m: t("Средняя", "Medium"), l: t("Большая", "Large"), w: t("Широкая", "Wide") });
 
-  /** api(path) — GET, api(path, body) — POST JSON (tests/round26_static_test.py: "arg2post"). */
   async function api(path, body) {
     const init = body === undefined ? {} : { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
     const r = await fetch(path, init);
@@ -80,7 +48,6 @@
     return data;
   }
 
-  /* ------------------------------------------------------------ faces (the same as the window's) */
   function faceHtml(action) {
     const ic = action.icon || { kind: "builtin", value: "bolt" };
     if (ic.kind === "emoji") return `<span class="ql-emoji">${esc(ic.value)}</span>`;
@@ -94,7 +61,6 @@
   }
   const tipOf = (a) => [a.label, a.tooltip, a.hotkey].filter(Boolean).join(" · ") || t("Кнопка", "Button");
 
-  /* ------------------------------------------------------------ geometry (mirrors app/quick_layer_core.py) */
   const hits = (x, y, w, h, o) => x < o.x + o.w - 0.01 && o.x < x + w - 0.01 && y < o.y + o.h - 0.01 && o.y < y + h - 0.01;
   const inflate = (r, p) => ({ x: r.x - p, y: r.y - p, w: r.w + 2 * p, h: r.h + 2 * p });
   const asRect = (a) => (Array.isArray(a) ? { x: +a[0], y: +a[1], w: +a[2], h: +a[3] } : a);
@@ -103,7 +69,7 @@
     const ly = area.h >= h + 2 * margin ? [margin, area.h - margin - h] : [0, area.h - h];
     return { lx, ly };
   }
-  /** The free spot nearest to (x, y) — the same candidate search as quick_layer_core.nearest_free. */
+
   function nearestFree(x, y, w, h, obstacles, area, margin = S.margin) {
     if (w > area.w || h > area.h) return null;
     const { lx, ly } = bounds(w, h, area, margin);
@@ -124,8 +90,7 @@
     }
     return best;
   }
-  /** Magnetic edges: the area margins, other items' edges (with the spacing between them) and centres.
-   *  Returns the snapped point and the guide lines to draw ({gx: [x…], gy: [y…]} in area px). */
+
   function snapXY(x, y, w, h, others, area) {
     const tx = [[S.margin, S.margin], [area.w - S.margin - w, area.w - S.margin], [(area.w - w) / 2, area.w / 2]];
     const ty = [[S.margin, S.margin], [area.h - S.margin - h, area.h - S.margin], [(area.h - h) / 2, area.h / 2]];
@@ -149,7 +114,6 @@
     return nearestFree(x, y, w, h, obstaclesFor(id), S.monitor) || nearestFree(x, y, w, h, obstaclesFor(id, { soft: false }), S.monitor);
   }
 
-  /* ------------------------------------------------------------ data */
   async function loadData() {
     try { S.data = await api("/api/quick/canvas?lang=" + S.lang); } catch (e) { S.data = S.data || null; }
     return S.data;
@@ -188,7 +152,7 @@
       s.src = "/panels.js?v=1.7-r30"; s.async = true;
       s.onload = () => resolveP(!!window.MemuPanels); s.onerror = () => resolveP(false);
       document.head.appendChild(s);
-      // Round 38: panels of modules (contributes.panels) draw through module-integration.js — without it they were empty.
+
       const m = document.createElement("script");
       m.src = "/module-integration.js?v=1.1-r38"; m.async = true;
       document.head.appendChild(m);
@@ -197,7 +161,7 @@
       MemuPanels.subscribe(() => {
         S.panelsReady = true;
         const ids = panelsList().map((p) => p.id).sort().join(",");
-        if (ids !== S.panelIds) { S.panelIds = ids; if (S.visible) resolve(); return; }   // a panel left / came to MemuAI
+        if (ids !== S.panelIds) { S.panelIds = ids; if (S.visible) resolve(); return; }
         renderPanels();
       });
       if (!S.visible && MemuPanels.setPaused) MemuPanels.setPaused(true);
@@ -206,7 +170,6 @@
     return S.panelsJs;
   }
 
-  /* ------------------------------------------------------------ rendering */
   function panelSize(p) {
     const [w, h] = p.units || [2, 2];
     if (w <= 2) return "s";
@@ -237,7 +200,7 @@
     return `<button type="button" class="ql-act" data-run="${esc(a.id)}" data-shape="${esc(a.shape)}" data-big="${p.units[0] === 2 ? 1 : 0}" style="${faceStyle(a)}" title="${esc(tipOf(a))}" tabindex="-1">
       <span class="ql-face">${faceHtml(a)}${runBadge(a.id)}</span>${a.label && settings().labels !== false ? `<span class="ql-label">${esc(a.label)}</span>` : ""}</button>`;
   }
-  // Round 30: the panel's look (pgstatic/quick/panel-look.js — global look + the panel's own, from quick_canvas.json)
+
   const lookOf = (p) => (window.MemuPanelLook ? MemuPanelLook.resolve(S.data, p.ref) : { style: "card" });
   function panelHtml(p) {
     const panel = panelById(p.ref);
@@ -245,7 +208,7 @@
     const face = window.MemuPanelLook ? MemuPanelLook.faceHtml(panel, lookOf(p), { place: "screen" }) : null;
     return face || MemuPanels.cardHtml(panel, "home", { size: panelSize(p), static: true, place: "quick" });
   }
-  /** One item = a stable node with a body (re-rendered when its HTML changes) and chrome (built once). */
+
   function ensureNode(box, p) {
     let node = itemNode(p.id);
     if (!node) {
@@ -266,7 +229,7 @@
     const editing = document.activeElement && body.contains(document.activeElement) && document.activeElement.matches("input, textarea, [contenteditable]");
     if (editing) return false;
     body.dataset.html = html;
-    const modules = window.MemuModInt && html.includes("mmi-slot");   // Round 38: module panels keep their live iframe
+    const modules = window.MemuModInt && html.includes("mmi-slot");
     if (modules) MemuModInt.park();
     body.innerHTML = html;
     if (modules) MemuModInt.mount();
@@ -319,8 +282,7 @@
     scheduleRegion();
     panelsLive();
   }
-  // r29d: the cards are in the DOM only now — let panels.js start its live mode (Pomodoro/timers, PC load);
-  // its own check ran when the data arrived, before these cards existed, so timers stayed «Загружаю…».
+
   function panelsLive() {
     if (S.visible && window.MemuPanels && typeof MemuPanels.syncLive === "function") MemuPanels.syncLive();
   }
@@ -333,7 +295,7 @@
       btn.setAttribute("aria-busy", html && !/data-status="(done|error|cancelled)"/.test(html) ? "true" : "false");
     });
   }
-  /** Edit mode: the room the Quick Ask answer grows into is outlined (the window itself is cut out of the layer). */
+
   function renderZone() {
     const zone = $("ql-zone");
     const soft = S.keepout && S.keepout.soft;
@@ -342,7 +304,7 @@
     zone.hidden = false;
     Object.assign(zone.style, { left: r.x + "px", top: r.y + "px", width: r.w + "px", height: r.h + "px" });
     const hard = S.keepout.hard ? asRect(S.keepout.hard) : null;
-    const below = hard ? Math.max(10, hard.y + hard.h - r.y + 12) : 10;      // under the window itself (cut out of the layer)
+    const below = hard ? Math.max(10, hard.y + hard.h - r.y + 12) : 10;
     const html = `<span style="top:${below}px">${esc(t("Место быстрого доступа и его ответа — сюда ничего не ставится", "Room of Quick Ask and its answer — nothing goes here"))}</span>`;
     if (zone.dataset.html !== html) { zone.dataset.html = html; zone.innerHTML = html; }
   }
@@ -358,8 +320,7 @@
       <button type="button" class="ql-bbtn" data-bar="add">${UI.plus}<span>${esc(t("Добавить", "Add"))}</span></button>
       <button type="button" class="ql-bbtn ql-bbtn-p" data-bar="done">${UI.check}<span>${esc(t("Готово", "Done"))}</span><kbd>Esc</kbd></button>`;
     if (bar.dataset.html !== html) { bar.dataset.html = html; bar.innerHTML = html; }
-    // the bar lives in the room the Quick Ask answer grows into (nothing is placed there), under the window;
-    // without that room — at the bottom centre of the screen
+
     const soft = S.keepout && S.keepout.soft ? asRect(S.keepout.soft) : null;
     const hard = S.keepout && S.keepout.hard ? asRect(S.keepout.hard) : null;
     const room = soft && hard ? soft.y + soft.h - (hard.y + hard.h) : 0;
@@ -373,7 +334,6 @@
     }
   }
 
-  /* ------------------------------------------------------------ fitting a card into its box */
   function queueFit(node) {
     if (!node) return;
     S.fitQueue.add(node);
@@ -387,8 +347,7 @@
     scheduleRegion();
   }
   const overflows = (el) => el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1;
-  /** Make the card's content fit its box: compact levels (layer.css [data-fit]) first, then a zoom ≥ 60 %.
-   *  Returns {level, zoom, clipped, need} — need = the natural content height at level 0 (for «Подогнать размер»). */
+
   function fitCard(node) {
     const card = node.querySelector(".ql-body > .mp-card");
     const id = node.dataset.item;
@@ -402,8 +361,7 @@
     const need = card.scrollHeight;
     let level = 0;
     while (overflows(card) && level < 3) { level += 1; card.dataset.fit = String(level); }
-    // r29t: a list (RSS, news, todo) that is much taller than its box drops its last rows — the «N more» chip counts
-    // them — instead of shrinking ALL text to an unreadable 60 % (an M RSS card was zoomed to 60 % and still cut).
+
     const list = card.querySelector(".mp-list");
     if (list && overflows(card) && card.clientHeight / Math.max(1, card.scrollHeight) < 0.9) {
       const rows = Array.from(list.children).filter((r) => !r.matches(".mp-list-label, .mp-list-more"));
@@ -434,7 +392,7 @@
     const out = { level, zoom, clipped, need, w: p ? p.w : W, h: p ? p.h : H };
     S.fit.set(id, out);
     observeCard(card);
-    if (cardObserver) cardObserver.takeRecords();     // our own row/chip changes above are not a re-render
+    if (cardObserver) cardObserver.takeRecords();
     return out;
   }
   let cardObserver = null;
@@ -451,7 +409,7 @@
     card.dataset.qlObserved = "1";
     cardObserver.observe(card, { childList: true, subtree: true, characterData: true });
   }
-  /** Units that make the panel's content fit without compacting (at its current width). */
+
   function fitUnits(p) {
     const f = S.fit.get(p.id);
     if (!f) return null;
@@ -460,13 +418,11 @@
     return [p.units[0], hu];
   }
 
-  /* ------------------------------------------------------------ the click-through region */
   function scheduleRegion() {
     cancelAnimationFrame(S.regionRaf);
     S.regionRaf = requestAnimationFrame(reportRegion);
   }
-  /** The items' LAYOUT boxes (no transforms: an item in its «pop» animation or being dragged reports its real box),
-   *  1 px around (2 px of DWM glass around a card shows its edge anti-aliasing), plus open menus / toasts / popups. */
+
   function regionRects() {
     const out = [];
     const pad = S.glass ? 2 : 1;
@@ -485,7 +441,7 @@
   }
   function reportRegion() {
     if (!S.visible) return;
-    const menuFull = !!S.menu && S.glass;            // a click anywhere closes the menu (and goes nowhere else)
+    const menuFull = !!S.menu && S.glass;
     const full = S.edit || S.modal || !!S.drag || menuFull;
     const rects = full ? [] : regionRects();
     const view = { w: innerWidth, h: innerHeight, dpr: Math.round((window.devicePixelRatio || 1) * 1000) / 1000 };
@@ -495,7 +451,6 @@
     api("/api/quick/layer/region", { rects, full, view }).catch(() => { if (S.regionKey === key) S.regionKey = ""; });
   }
 
-  /* ------------------------------------------------------------ toast */
   function toast(text, undo, opts = {}) {
     const el = $("ql-toast");
     clearTimeout(S.toastTimer);
@@ -507,7 +462,6 @@
   }
   function hideToast() { const el = $("ql-toast"); clearTimeout(S.toastTimer); el.classList.remove("on"); el._undo = null; scheduleRegion(); }
 
-  /* ------------------------------------------------------------ undo / redo */
   const snapshot = () => S.placed.filter((p) => !p.hidden).map((p) => ({ id: p.id, x: p.x, y: p.y, w: p.w, h: p.h, units: p.units.slice() }));
   function applySnapshot(snap) {
     for (const s of snap) {
@@ -517,7 +471,7 @@
     render();
     return save();
   }
-  /** Remember a layout change: before → after snapshots (moves, resizes). */
+
   function pushLayoutUndo(before, label) {
     const after = snapshot();
     if (JSON.stringify(before) === JSON.stringify(after)) return;
@@ -544,7 +498,6 @@
     renderBar();
   }
 
-  /* ------------------------------------------------------------ the menu */
   function closeMenu(reason) {
     if (!S.menu) return;
     const h = S.menu;
@@ -573,7 +526,7 @@
       if (f && fu && (fu[1] !== p.units[1]) && (f.level > 0 || f.zoom < 1 || f.clipped)) {
         items.push({ id: "fit", label: t("Подогнать размер под содержимое", "Fit the size to the content"), icon: "fit", title: t(`Высота ${fu[1]} ед. — всё видно без уменьшения`, `Height ${fu[1]} units — everything shows unscaled`) });
       }
-      if (window.MemuPanelLook) {      // Round 30: the look of this panel + built into the Quick Ask window
+      if (window.MemuPanelLook) {
         const look = lookOf(p);
         const own = !!(S.data && S.data.looks && S.data.looks[p.ref]);
         const embedded = ((S.data && S.data.embed && S.data.embed.items) || []).some((e) => e.ref === p.ref && !e.hidden);
@@ -699,7 +652,6 @@
     } catch (e) { toast(e.message); }
   }
 
-  /* ------------------------------------------------------------ move, resize, save */
   function focusItem(id) {
     const node = itemNode(id);
     if (node) { S.focusId = id; node.focus({ preventScroll: true }); }
@@ -733,22 +685,21 @@
     return S.saving;
   }
 
-  /* pointer: a press on an item → (moved ≥ 5 px) a drag, (held still 520 ms) arrange mode, (released) a click */
   const TEXT_FIELD = "input, textarea, select, [contenteditable=''], [contenteditable='true']";
   function onPointerDown(e) {
     const node = e.target.closest && e.target.closest(".ql-item");
     if (node) S.down = { id: node.dataset.item, x: e.clientX, y: e.clientY, at: performance.now() };
     if (e.button !== 0 || !node || S.drag) return;
-    if (e.target.closest("[data-item-act]")) return;                 // × and ⋯ are plain buttons
+    if (e.target.closest("[data-item-act]")) return;
     const rz = e.target.closest("[data-rz]");
     if (rz) { e.preventDefault(); startDrag(node.dataset.item, e, rz.dataset.rz); return; }
-    if (e.target.closest(TEXT_FIELD)) return;                         // typing / selecting text in a To-Do or a note
+    if (e.target.closest(TEXT_FIELD)) return;
     clearPress();
     const id = node.dataset.item;
     S.press = { id, x: e.clientX, y: e.clientY, pointerId: e.pointerId, timer: setTimeout(() => {
       if (!S.press || S.press.id !== id) return;
       S.press.long = true;
-      S.suppressClickUntil = performance.now() + 60000;               // the release of a long press is not a click
+      S.suppressClickUntil = performance.now() + 60000;
       node.classList.add("ql-lifted");
       if (!S.edit) setEdit(true, true);
     }, LONG_PRESS) };
@@ -768,7 +719,7 @@
       target: { x: p.x, y: p.y, w: p.w, h: p.h, units: p.units.slice() } };
     node.classList.add(resize ? "ql-resizing" : "ql-dragging");
     node.classList.remove("ql-lifted");
-    try { $("ql").setPointerCapture(e.pointerId); } catch (err) { /* synthetic events */ }
+    try { $("ql").setPointerCapture(e.pointerId); } catch (err) {  }
     let ghost = $("ql").querySelector(".ql-ghost");
     if (!ghost) { ghost = document.createElement("div"); ghost.className = "ql-ghost"; $("ql-items").appendChild(ghost); }
     placeGhost(S.drag.target);
@@ -846,7 +797,7 @@
     const d = S.drag;
     if (!d) return;
     S.drag = null;
-    try { $("ql").releasePointerCapture(d.pointerId); } catch (err) { /* fine */ }
+    try { $("ql").releasePointerCapture(d.pointerId); } catch (err) {  }
     const node = itemNode(d.id);
     if (node) node.classList.remove("ql-dragging", "ql-resizing");
     const ghost = $("ql").querySelector(".ql-ghost");
@@ -880,9 +831,8 @@
     focusItem(id);
   }
 
-  /* ------------------------------------------------------------ runs (executed by the server, started in Quick Ask) */
   function run(actionId, explicit) {
-    if (!explicit && performance.now() - S.shownAt < 300) return;     // the click that only finished opening the layer
+    if (!explicit && performance.now() - S.shownAt < 300) return;
     const r = S.runs.get(actionId);
     if (r && ["running", "confirm"].includes(r.status)) { toast(t("Уже выполняется", "Already running")); return; }
     bus && bus.send("quick", "run", { id: actionId });
@@ -909,7 +859,6 @@
     S.poll = setTimeout(tick, 200);
   }
 
-  /* ------------------------------------------------------------ edit mode */
   function setEdit(on, tellNative) {
     on = !!on;
     if (on === S.edit) return;
@@ -924,7 +873,6 @@
     }
   }
 
-  /* ------------------------------------------------------------ events */
   function onClick(e) {
     if (S.suppressClickUntil && performance.now() < S.suppressClickUntil) { e.preventDefault(); e.stopPropagation(); S.suppressClickUntil = 0; return; }
     const tgt = e.target;
@@ -956,8 +904,7 @@
       if (p) bus && bus.send("quick", "edit-button", { id: p.ref });
     }
   }
-  /** The item under a right click. A live card may have re-rendered between the press and the release (the target
-   *  is then a detached node): fall back to the press, then to whatever is under the pointer now. */
+
   function itemAt(e) {
     let node = e.target && e.target.isConnected && e.target.closest ? e.target.closest(".ql-item") : null;
     if (!node && S.down && performance.now() - S.down.at < 3000 && Math.abs(S.down.x - e.clientX) + Math.abs(S.down.y - e.clientY) < 12) node = itemNode(S.down.id);
@@ -970,7 +917,7 @@
     const node = itemAt(e);
     if (!node) { closeMenu("outside"); return; }
     const field = e.target.isConnected && e.target.closest && e.target.closest("input, textarea");
-    if (field && (field.value || "").length && field.selectionStart !== field.selectionEnd) return;   // copy/paste in a To-Do field: keep quiet
+    if (field && (field.value || "").length && field.selectionStart !== field.selectionEnd) return;
     clearPress();
     openMenu(node.dataset.item, { x: e.clientX, y: e.clientY });
   }
@@ -980,7 +927,7 @@
     if (e.key === "Escape") {
       if (S.menu || document.querySelector(".mp-modal-back, .mcm")) return;
       if (S.drag) { e.preventDefault(); cancelDrag(); return; }
-      if (inField) return;                               // a To-Do / note field handles its own Esc
+      if (inField) return;
       e.preventDefault();
       if (S.edit) { setEdit(false, true); return; }
       api("/api/quick/window", { action: "hide", restore_focus: true }).catch(() => {});
@@ -998,7 +945,7 @@
     const arrows = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
     if (arrows[e.key] && e.target === item) {
       const [ax, ay] = arrows[e.key];
-      if (mod) {                                      // Ctrl+arrows — size by a unit (a button: normal / large)
+      if (mod) {
         e.preventDefault();
         if (p.type === "action") resizeTo(p, ax + ay > 0 ? 2 : 1, ax + ay > 0 ? 2 : 1);
         else resizeTo(p, p.units[0] + ax, p.units[1] + ay);
@@ -1041,13 +988,13 @@
     ql.addEventListener("pointercancel", onPointerUp);
     ql.addEventListener("lostpointercapture", () => { if (S.drag && !S.press) setTimeout(() => { if (S.drag) onPointerUp({ type: "pointerup" }); }, 0); });
     ql.addEventListener("contextmenu", onContextMenu);
-    ql.addEventListener("dragstart", (e) => { if (e.target.closest && e.target.closest(".ql-item")) e.preventDefault(); });   // no HTML5 drag of a card / link / image
+    ql.addEventListener("dragstart", (e) => { if (e.target.closest && e.target.closest(".ql-item")) e.preventDefault(); });
     ql.addEventListener("focusin", (e) => { const item = e.target.closest && e.target.closest(".ql-item"); if (item) S.focusId = item.dataset.item; });
     ql.addEventListener("transitionend", (e) => { if (e.target.classList && e.target.classList.contains("ql-item")) scheduleRegion(); });
     document.addEventListener("keydown", onKey);
     window.addEventListener("focus", () => { if (S.visible) api("/api/quick/layer", { action: "focused" }).catch(() => {}); });
     window.addEventListener("blur", () => { if (S.press) clearPress(); });
-    // panels.js popups and the options dialog: the region follows them (a modal takes the whole area)
+
     new MutationObserver(() => {
       const modal = !!document.querySelector(".mp-modal-back");
       if (modal !== S.modal) { S.modal = modal; S.regionKey = ""; }
@@ -1066,9 +1013,7 @@
       bus.on("toast", (d) => { if (S.visible && d && d.text) toast(String(d.text)); });
     }
   }
-  /** The real CSS viewport may differ from the monitor's nominal one (WebView2 scaled by another factor than the
-   *  monitor's DPI): lay out in what the page really has, so nothing ends up beyond the window's right / bottom edge.
-   *  Checked after the window settled (debounced resize) — an intermediate size while Windows rescales is ignored. */
+
   function syncViewport() {
     const nom = S.nominal;
     if (!S.visible || !nom || root.dataset.native !== "1" || innerWidth < 200 || innerHeight < 200) return;
@@ -1084,7 +1029,6 @@
     if (tell && bus) bus.send("quick", "changed", {});
   }
 
-  /* ------------------------------------------------------------ native entry points */
   const MemuLayer = {
     async onShow(payload) {
       payload = payload || {};
@@ -1099,7 +1043,7 @@
       S.keepout = payload.keepout || {};
       S.glass = !!payload.glass;
       S.regionKey = "";
-      try { S.lang = localStorage.getItem("memu_lang") === "en" ? "en" : "ru"; root.lang = S.lang; } catch (e) { /* storage */ }
+      try { S.lang = localStorage.getItem("memu_lang") === "en" ? "en" : "ru"; root.lang = S.lang; } catch (e) {  }
       if (!wasVisible) { S.edit = false; closeMenu("hidden"); S.undo = []; S.redo = []; }
       S.loading = (async () => {
         await loadData();
@@ -1124,8 +1068,8 @@
       hideToast();
       clearTimeout(S.poll); S.poll = 0;
       S.undo = []; S.redo = [];
-      if (window.MemuPanels && MemuPanels.setPaused) MemuPanels.setPaused(true);    // no polling while hidden
-      render();                                                                      // the cards leave the DOM
+      if (window.MemuPanels && MemuPanels.setPaused) MemuPanels.setPaused(true);
+      render();
     },
     setKeepout(keepout) {
       S.keepout = keepout || {};

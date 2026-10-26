@@ -1,6 +1,5 @@
-/* MemuAI Proxy — strings of the Settings page (Round 23 redesign). Loaded before app.js so the first
-   applyI18n() already knows them. Keys "*.d" are row descriptions; the ones with markup are applied by
-   settings.js through data-i18n-html (only these trusted strings, never user data). */
+
+
 "use strict";
 Object.assign(I18N.ru, {
   "sg.sub": "Всё сохраняется само. Обычно хватает раздела «Общие» — остальное нужно редко.",

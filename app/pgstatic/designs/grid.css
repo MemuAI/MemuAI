@@ -1,21 +1,3 @@
-/* =====================================================================
-   MemuAI design «Сетка / Grid» — scoped to :root[data-design="grid"].
-   ---------------------------------------------------------------------
-   A strict, precise professional tool: one structural grid of 1px
-   hairlines, 2–4px corners, compact density, uppercase micro-labels,
-   monospace for metadata (models, time, tokens, hints), sans for prose.
-   Messages are rows with a left gutter label instead of bubbles; the
-   accent is a thin line / indicator, almost never a fill. No blur, no
-   gradients, no large shadows.
-
-   Colours: only tokens from /themes.css (--bg, --bg-deep, --panel,
-   --panel-2, --border, --control-border, --text, --muted, --accent,
-   --on-accent, --accent-soft, --danger, --ok, --code-bg …) and
-   color-mix() of them, so every variant, mode and accent keeps working.
-   Fonts: Inter + JetBrains Mono (OFL, latin+cyrillic, bundled in
-   ./fonts), falling back to Segoe UI Variable / Cascadia Code.
-   ===================================================================== */
-
 @font-face { font-family: "Grid Sans"; font-style: normal; font-weight: 100 900; font-display: swap;
   src: url("fonts/inter/inter-latin-wght.woff2") format("woff2");
   unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
@@ -28,8 +10,6 @@
 @font-face { font-family: "Grid Mono"; font-style: normal; font-weight: 100 800; font-display: swap;
   src: url("fonts/jetbrains-mono/jetbrains-mono-cyrillic-wght.woff2") format("woff2");
   unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
-
-/* ------------------------------------------------------------ tokens */
 :root[data-design="grid"] {
   --g-sans: "Grid Sans", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
   --g-mono: "Grid Mono", "Cascadia Code", "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
@@ -47,7 +27,6 @@
   --g-gutter: 132px;
   --g-row: calc(var(--conversation-width, 780px) + var(--g-gutter) + 24px);
   --g-pop-shadow: 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent), 0 8px 24px -12px rgba(0, 0, 0, .45);
-  /* Classic tokens redirected so shared rules inherit the grid voice. */
   --d-display: var(--g-sans); --d-text: var(--g-sans); --d-small: var(--g-sans);
   --sans: var(--g-sans); --mono: var(--g-mono);
   --d-line: var(--g-line); --d-line-soft: var(--g-line-soft);
@@ -64,13 +43,9 @@
   --g-line-soft: color-mix(in srgb, var(--text) 8%, transparent);
   --g-pop-shadow: 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent), 0 8px 22px -14px rgba(20, 20, 30, .28);
 }
-/* Prose: the default «serif» reading font becomes the grid sans; a user who
-   explicitly picks sans / mono / system keeps it (inline --font differs). */
 :root[data-design="grid"][style*="Charter"] .msg-assistant .body,
 :root[data-design="grid"][style*="Charter"] .msg-user .user-text,
 :root[data-design="grid"][style*="Charter"] :is(.doc-body, .docs-article, .docs-content) { font-family: var(--g-sans); }
-
-/* -------------------------------------------------------------- base */
 :root[data-design="grid"] body { background: var(--g-chrome); font-family: var(--g-sans); font-feature-settings: "cv11", "ss01", "tnum" 0; letter-spacing: -.003em; }
 :root[data-design="grid"] #app { background: var(--g-chrome); }
 :root[data-design="grid"] :focus-visible { outline: 1px solid var(--accent); outline-offset: 1px; }
@@ -84,28 +59,18 @@
   font: 500 10.5px/16px var(--g-mono); padding: 0 5px; border-radius: var(--g-r-sm);
   border: 1px solid var(--g-line); border-bottom-width: 2px; background: var(--g-canvas); color: var(--muted);
 }
-
-/* Square corners everywhere: a zero-specificity floor (:where) so any rule
-   below, and any compound classic rule, still decides. Round things that
-   must stay round (spinners, the Live orb, KaTeX) are excluded.
-   Round 36 (perf): `.katex *` / `svg *` inside :not() made every element walk all its ancestors on each style
-   recalc; their insides are reset by a separate rule instead (KaTeX and SVG content carry no radius of their own). */
 :root[data-design="grid"] :where(#app, .panel-back, .context-menu, .plus-menu, .module-layer, .toast-container, .live-call, .code-palette, .image-viewer, .profile-menu-pop, .sketch, .pretty-select-menu)
   :where(*:not([class*="spin"], [class*="orb"], [class*="katex"], canvas, svg, input[type="radio"], input[type="range"])) {
   border-radius: var(--g-r);
 }
 :root[data-design="grid"] :where(.katex, svg) :where(*) { border-radius: 0; }
 :root[data-design="grid"] :where(.panel-back, .context-menu, .plus-menu, .live-call, .toast-container > *, .profile-menu-pop, .pretty-select-menu, .code-palette-card, .module-window) { border-radius: var(--g-r-lg); }
-
-/* ------------------------------------------------------ startup cover */
 :root[data-design="grid"] #startup-cover { background: var(--g-canvas); gap: 12px; }
 :root[data-design="grid"] .startup-halo { display: none; }
 :root[data-design="grid"] .startup-mark { width: 40px; height: 40px; border-radius: var(--g-r); background: transparent; border: 1px solid var(--accent); box-shadow: none; color: var(--accent); }
 :root[data-design="grid"] .startup-name { font: 600 12px/1 var(--g-mono); letter-spacing: .24em; text-transform: uppercase; }
 :root[data-design="grid"] .startup-progress { width: 160px; height: 1px; background: var(--g-line); }
 :root[data-design="grid"] .startup-progress i { background: var(--accent); }
-
-/* ------------------------------------------------------------- shell */
 :root[data-design="grid"] .main,
 :root[data-design="grid"] .side.hidden ~ .main,
 :root[data-design="grid"] .focus-mode .main {
@@ -116,8 +81,6 @@
 :root[data-design="grid"] .sidebar-resizer { width: 6px; margin-right: -3px; margin-left: -3px; z-index: 5; }
 :root[data-design="grid"] .sidebar-resizer::after { left: 2px; right: 2px; border-radius: 0; }
 :root[data-design="grid"] .sidebar-resizer:hover::after, :root[data-design="grid"] .sidebar-resizer.resizing::after { inset: 0 2px; background: var(--accent); }
-
-/* ----------------------------------------------------------- sidebar */
 :root[data-design="grid"] .side { background: var(--g-chrome); padding: 0 0 8px; gap: 0; }
 :root[data-design="grid"] .side-top { gap: 0; }
 :root[data-design="grid"] .brand {
@@ -208,8 +171,6 @@
 :root[data-design="grid"] .profile-avatar { border-radius: var(--g-r); box-shadow: none; width: 30px; height: 30px; font: 650 12px/1 var(--g-mono); }
 :root[data-design="grid"] .profile-name { font: 600 13px/1.2 var(--g-sans); }
 :root[data-design="grid"] .profile-sub { font: 450 10.5px/1.3 var(--g-mono); color: var(--muted); }
-
-/* ------------------------------------------------------------ appbar */
 :root[data-design="grid"] .topbar.appbar {
   min-height: 44px; height: 44px; box-sizing: border-box; padding: 0 10px; gap: 4px;
   background: var(--g-canvas); border-bottom: 1px solid var(--g-line); box-shadow: none;
@@ -235,7 +196,6 @@
   padding-right: 8px; border-right: 1px solid var(--g-line); align-self: stretch; display: flex; align-items: center;
 }
 :root[lang="ru"][data-design="grid"] .dd-btn::before { content: "МОДЕЛЬ"; }
-/* A narrow top bar caps the picker at 180px: the caption would cut the model name to a few letters. */
 @container (max-width: 850px) { :root[data-design="grid"] .topbar .dd-btn::before { display: none; } }
 :root[data-design="grid"] .dd-btn:hover, :root[data-design="grid"] .dropdown:has(.dd-pop[style*="block"]) .dd-btn { background: var(--g-hover); border-color: var(--g-line); }
 :root[data-design="grid"] .dd-btn .chev { font-size: 9px; opacity: .6; }
@@ -245,8 +205,6 @@
 }
 :root[data-design="grid"] .context-meter.warn { background: transparent; border-color: var(--g-acc-line); color: var(--accent); }
 :root[data-design="grid"] .context-meter.critical { background: transparent; border-color: var(--danger); color: var(--danger); }
-
-/* ---------------------------------------------------- popovers (all) */
 :root[data-design="grid"] :is(.dd-pop, .app-menu-pop, .context-menu, .profile-menu-pop, .pretty-select-menu, .msg-more-pop, .slash-menu, .plus-menu) {
   background: var(--panel); border: 1px solid var(--g-line-strong); border-radius: var(--g-r-lg);
   box-shadow: var(--g-pop-shadow); -webkit-backdrop-filter: none; backdrop-filter: none; animation: none;
@@ -280,8 +238,6 @@
 :root[data-design="grid"] .pretty-select-menu button.selected { background: var(--g-sel); box-shadow: inset 2px 0 0 var(--accent); }
 :root[data-design="grid"] .pretty-select-button { border-radius: var(--g-r) !important; }
 :root[data-design="grid"] .msg-more-pop { padding: 4px; }
-
-/* slash menu — a command palette table */
 :root[data-design="grid"] .slash-menu { padding: 0; bottom: calc(100% + 6px); overflow: auto; }
 :root[data-design="grid"] .slash-menu button {
   border-radius: 0; padding: 7px 12px; gap: 14px; border-bottom: 1px solid var(--g-line-soft); min-height: 0; align-items: baseline;
@@ -291,8 +247,6 @@
 :root[data-design="grid"] .slash-menu button strong { font: 600 12.5px/1.3 var(--g-sans); color: var(--text); }
 :root[data-design="grid"] .slash-menu button small { font: 450 11.5px/1.35 var(--g-sans); color: var(--muted); }
 :root[data-design="grid"] .slash-menu button:hover, :root[data-design="grid"] .slash-menu button.active { background: var(--g-hover); box-shadow: inset 2px 0 0 var(--accent); }
-
-/* ------------------------------------------------------------ greeting */
 :root[data-design="grid"] .main .greeting,
 :root[data-design="grid"] .side.hidden ~ .main .greeting,
 :root[data-design="grid"] .focus-mode .greeting {
@@ -330,8 +284,6 @@
   background: transparent; text-align: left; padding: 10px 14px; font-size: 13px;
 }
 :root[data-design="grid"] :is(.work-guide, .temp-guide, .code-guide) b { font-weight: 650; }
-
-/* ------------------------------------------------------------ composer */
 :root[data-design="grid"] .composer-wrap { padding: 0 24px 8px; }
 :root[data-design="grid"] .composer-wrap::before { height: 16px; background: linear-gradient(to bottom, transparent, var(--g-canvas)); }
 :root[data-design="grid"] .main .composer,
@@ -390,8 +342,6 @@
 :root[data-design="grid"] .composer .thinking-toggle .pretty-select-button { border-radius: var(--g-r-sm) !important; background: var(--g-acc-wash) !important; min-height: 18px !important; font-family: var(--g-mono); }
 :root[data-design="grid"] .tool-chip.subtle { border-color: var(--g-line); color: var(--muted); }
 :root[data-design="grid"] .tool-chip-x { border-radius: var(--g-r-sm); }
-
-/* «+» menu */
 :root[data-design="grid"] .plus-menu { padding: 0; border-color: var(--g-line-strong); }
 :root[data-design="grid"] .plus-search { min-height: 38px; margin: 0; padding: 0 12px; border-radius: 0; background: transparent; border-bottom: 1px solid var(--g-line); }
 :root[data-design="grid"] .plus-search:focus-within { background: transparent; box-shadow: inset 0 -1px 0 var(--accent); }
@@ -414,9 +364,6 @@
 :root[data-design="grid"] .plus-dot { border-radius: 0; width: 6px; height: 6px; }
 :root[data-design="grid"] .plus-more { border-radius: var(--g-r-sm); width: 24px; height: 24px; }
 :root[data-design="grid"] .plus-search kbd { border-radius: var(--g-r-sm); }
-
-/* ------------------------------------------------------------ messages
-   Each message is a row: [gutter label | content], hairline between rows. */
 :root[data-design="grid"] .main .messages,
 :root[data-design="grid"] .side.hidden ~ .main .messages,
 :root[data-design="grid"] .focus-mode .messages {
@@ -430,8 +377,6 @@
 :root[data-design="grid"] .msg > * { grid-column: 2; min-width: 0; }
 :root[data-design="grid"] .msg.msg-new { animation: g-row-in .22s ease-out both; }
 @keyframes g-row-in { from { opacity: 0; } to { opacity: 1; } }
-
-/* user row */
 :root[data-design="grid"] .msg-user { justify-content: initial; flex-wrap: initial; }
 :root[data-design="grid"] .msg-user::before {
   content: "YOU"; grid-column: 1; grid-row: 1 / span 4; align-self: start; padding-top: 4px;
@@ -445,8 +390,6 @@
 }
 :root[data-design="grid"] .msg-user .user-text { font: 500 14.5px/1.65 var(--g-sans); }
 :root[data-design="grid"] .msg-user .msg-tools { justify-content: flex-start; padding-right: 0; }
-
-/* assistant row */
 :root[data-design="grid"] .msg-assistant .who {
   grid-column: 1; grid-row: 1 / span 12; display: flex; flex-direction: column; align-items: flex-start; gap: 5px;
   margin: 0; padding: 4px 0 0 8px; border-left: 2px solid var(--accent); min-width: 0;
@@ -502,8 +445,6 @@
   font: 600 10px/1 var(--g-mono); height: 16px; min-width: 16px; padding: 0 3px;
 }
 :root[data-design="grid"] .msg-assistant .body a.cite:hover { background: var(--accent); color: var(--on-accent); }
-
-/* code blocks */
 :root[data-design="grid"] .code-block-wrap { margin: 14px 0; border: 1px solid var(--g-line); border-radius: var(--g-r); background: var(--code-bg); box-shadow: none; overflow: hidden; }
 :root[data-design="grid"] .code-header {
   padding: 0 4px 0 12px; min-height: 30px; background: transparent; border-bottom: 1px solid var(--g-line);
@@ -518,8 +459,6 @@
 :root[data-design="grid"] .msg-assistant .body .code-block-wrap pre { padding: 12px 14px; font: 400 12.5px/1.65 var(--g-mono); background: transparent; border: 0; border-radius: 0; }
 :root[data-design="grid"] .code-block-wrap pre code { font-family: var(--g-mono); }
 :root[data-design="grid"] .msg-assistant .body pre:not(.code-block-wrap pre) { border: 1px solid var(--g-line); border-radius: var(--g-r); background: var(--code-bg); font-family: var(--g-mono); }
-
-/* tables */
 :root[data-design="grid"] .table-wrap { border: 1px solid var(--g-line); border-radius: var(--g-r); background: transparent; box-shadow: none; margin: 14px 0; overflow: auto; }
 :root[data-design="grid"] .table-wrap table, :root[data-design="grid"] .msg-assistant .body table { margin: 0; border-radius: 0; overflow: visible; font-size: 13px; border-collapse: collapse; font-variant-numeric: tabular-nums; }
 :root[data-design="grid"] .table-wrap th, :root[data-design="grid"] .body th {
@@ -531,8 +470,6 @@
 :root[data-design="grid"] .table-wrap tr:last-child td { border-bottom: 0; }
 :root[data-design="grid"] .table-wrap tr:nth-child(even) td, :root[data-design="grid"][data-theme="light"] .table-wrap tr:nth-child(even) td { background: transparent; }
 :root[data-design="grid"] .table-wrap tr:hover td { background: var(--g-hover); }
-
-/* message tools */
 :root[data-design="grid"] .msg-tools { gap: 0; margin-top: 8px; min-height: 24px; }
 :root[data-design="grid"] .msg-tool { min-width: 26px; height: 24px; padding: 0 5px; border-radius: var(--g-r-sm); color: var(--muted); }
 :root[data-design="grid"] .msg-tool .ui-icon { width: 14px; height: 14px; }
@@ -547,8 +484,6 @@
 :root[data-design="grid"] .msg-video { border-radius: var(--g-r); background: transparent; border-color: var(--g-line); }
 :root[data-design="grid"] .msg-video img, :root[data-design="grid"] .attach-chip.video img { border-radius: var(--g-r-sm); }
 :root[data-design="grid"] .context-detected { border-radius: var(--g-r); background: transparent; border: 1px solid var(--g-line); border-left: 2px solid var(--accent); }
-
-/* activity trail / steps */
 :root[data-design="grid"] .trail::before { background: var(--g-line); width: 1px; }
 :root[data-design="grid"] .step-dot { border-radius: var(--g-r-sm); border: 1px solid var(--g-line-strong); background: var(--g-canvas); }
 :root[data-design="grid"] details.step > .step-head:hover { background: var(--g-hover); }
@@ -568,8 +503,6 @@
 :root[data-design="grid"] .rs-source { border-radius: var(--g-r); border-color: var(--g-line); }
 :root[data-design="grid"] a.rs-source:hover { transform: none; border-color: var(--accent); }
 :root[data-design="grid"] .rs-fav { border-radius: var(--g-r-sm); }
-
-/* ------------------------------------------------------ panels / modals */
 :root[data-design="grid"] .panel-back { background: color-mix(in srgb, var(--g-chrome) 55%, rgba(0, 0, 0, .35)); -webkit-backdrop-filter: none; backdrop-filter: none; }
 :root[data-design="grid"] .panel { border-radius: var(--g-r-lg); border: 1px solid var(--g-line-strong); box-shadow: var(--g-pop-shadow); background: var(--panel); }
 :root[data-design="grid"] .panel h2 { font-family: var(--g-sans); font-weight: 650; letter-spacing: -.02em; }
@@ -634,8 +567,6 @@
   :root[data-design="grid"] .settings-tabs-sidebar { width: 100%; padding: 0; border-right: 0; border-bottom: 1px solid var(--g-line); }
   :root[data-design="grid"] .settings-tab-btn.active { box-shadow: inset 0 -2px 0 var(--accent); }
 }
-
-/* --------------------------------------------------------------- toasts */
 :root[data-design="grid"] .toast {
   border-radius: var(--g-r); background: var(--panel); border: 1px solid var(--g-line-strong); border-left: 2px solid var(--muted);
   box-shadow: var(--g-pop-shadow); -webkit-backdrop-filter: none; backdrop-filter: none; font: 500 12.5px/1.4 var(--g-sans); padding: 9px 12px;
@@ -644,8 +575,6 @@
 :root[data-design="grid"] .toast.err { border-left-color: var(--danger); }
 :root[data-design="grid"] .toast.warn { border-left-color: var(--accent); }
 :root[data-design="grid"] .toast button { border-radius: var(--g-r-sm); }
-
-/* ---------------------------------------------------------- MemuAI Live */
 :root[data-design="grid"] .live-call { border-radius: var(--g-r-lg); border: 1px solid var(--g-line-strong); background: var(--panel); -webkit-backdrop-filter: none; backdrop-filter: none; box-shadow: var(--g-pop-shadow); }
 :root[data-design="grid"] .live-call-head { height: 40px; border-bottom: 1px solid var(--g-line); }
 :root[data-design="grid"] .live-call-head b { font: 600 11px/1 var(--g-mono); letter-spacing: .12em; text-transform: uppercase; }
@@ -661,8 +590,6 @@
 :root[data-design="grid"] .live-badge, :root[data-design="grid"] .live-search { border-radius: var(--g-r-sm); font-family: var(--g-mono); }
 :root[data-design="grid"] .live-preview { border-radius: var(--g-r); }
 :root[data-design="grid"] .live-mini { border-radius: var(--g-r); background: var(--panel); -webkit-backdrop-filter: none; backdrop-filter: none; font: 600 11px/1 var(--g-mono); letter-spacing: .08em; text-transform: uppercase; }
-
-/* ---------------------------------------------------- work & temp bars */
 :root[data-design="grid"] .workbar, :root[data-design="grid"] .tempbar {
   margin: 0; border-radius: 0; border: 0; border-bottom: 1px solid var(--g-line); background: var(--g-canvas);
   min-height: 38px; padding: 4px 10px; gap: 6px; box-shadow: none;
@@ -689,12 +616,8 @@
 :root[data-design="grid"] .tempbar { font: 500 12px/1.3 var(--g-sans); }
 :root[data-design="grid"] .tempbar-icon { color: var(--accent); }
 :root[data-design="grid"] .tempbar button { border-radius: var(--g-r); }
-
-/* ------------------------------------------------------- tooltips */
 :root[data-design="grid"] .memu-tooltip { border-radius: var(--g-r-sm); font: 500 11.5px/1.35 var(--g-sans); box-shadow: var(--g-pop-shadow); border: 1px solid var(--g-line-strong); }
 :root[data-design="grid"] .memu-tooltip kbd { border-radius: var(--g-r-sm); font-family: var(--g-mono); }
-
-/* --------------------------------------------------------- responsive */
 @media (max-width: 1100px) {
   :root[data-design="grid"] { --g-gutter: 108px; }
 }
@@ -710,17 +633,11 @@
   :root[data-design="grid"] .side { box-shadow: var(--g-pop-shadow); border-right: 1px solid var(--g-line); }
   :root[data-design="grid"] .composer-wrap { padding: 0 12px 8px; }
 }
-
-/* ------------------------------------------------------------ motion */
 :root[data-design="grid"].reduce-motion *, :root[data-design="grid"] .reduce-motion * { animation: none !important; }
 @media (prefers-reduced-motion: reduce) {
   :root[data-design="grid"] * { animation: none !important; transition: none !important; }
 }
-
-/* ================================================================ batch 2 */
 :root[data-design="grid"] .side, :root[data-design="grid"] .main, :root[data-design="grid"] .topbar.appbar { border-radius: 0; }
-
-/* pretty selects (settings, composer) */
 :root[data-design="grid"] .settings-body .pretty-select-button {
   min-height: 30px !important; padding: 0 10px !important; background: var(--g-canvas) !important;
   border: 1px solid color-mix(in srgb, var(--control-border) 55%, var(--g-line)) !important; font: 500 12.5px/1 var(--g-sans);
@@ -730,8 +647,6 @@
 :root[data-design="grid"] .settings-body .pretty-select-button[aria-expanded="true"] { border-color: var(--accent) !important; }
 :root[data-design="grid"] .settings-body select.pinput, :root[data-design="grid"] .settings-body select { border-radius: var(--g-r); }
 :root[data-design="grid"] .settings-body :is(.field-hint, .p-meta, small.muted) { font-family: var(--g-mono); font-size: 10.5px; }
-
-/* panels: generic dialog voice */
 :root[data-design="grid"] .panel:not(.settings-panel) > h2:first-child,
 :root[data-design="grid"] .panel:not(.settings-panel) h2 { font: 650 17px/1.3 var(--g-sans); letter-spacing: -.02em; }
 :root[data-design="grid"] .panel .sub { color: var(--muted); font-size: 13px; }
@@ -743,8 +658,6 @@
   border: 1px solid color-mix(in srgb, var(--danger) 55%, transparent); color: var(--danger);
 }
 :root[data-design="grid"] .confirm-mark .ui-icon { width: 16px; height: 16px; }
-
-/* planning */
 :root[data-design="grid"] .schedule-ai-composer {
   border-radius: var(--g-r); background: transparent; border: 1px solid var(--g-line); border-top: 2px solid var(--accent); padding: 14px 16px;
 }
@@ -757,8 +670,6 @@
 :root[data-design="grid"] .plan-progress { height: 2px; border-radius: 0; }
 :root[data-design="grid"] .plan-progress i, :root[data-design="grid"] .plan-progress span { border-radius: 0; background: var(--accent); }
 :root[data-design="grid"] .plan-check { border-radius: var(--g-r-sm); }
-
-/* skills library */
 :root[data-design="grid"] .skills-modal-head h2 { font: 650 17px/1.3 var(--g-sans); }
 :root[data-design="grid"] .skills-action-group { border-radius: var(--g-r); border: 1px solid var(--g-line); background: transparent; box-shadow: none; }
 :root[data-design="grid"] .skills-grid { gap: 0; border-top: 1px solid var(--g-line); border-left: 1px solid var(--g-line); }
@@ -770,14 +681,10 @@
 :root[data-design="grid"] .skill-title { font: 650 13.5px/1.3 var(--g-sans); }
 :root[data-design="grid"] .skill-desc, :root[data-design="grid"] .skill-when { font-size: 12.5px; }
 :root[data-design="grid"] .skill-actions button, :root[data-design="grid"] .skill-edit { border-radius: var(--g-r-sm); font: 500 11px/1 var(--g-mono); }
-
-/* stats (profile) */
 :root[data-design="grid"] .stats-hero-grid { gap: 0; border-top: 1px solid var(--g-line); border-left: 1px solid var(--g-line); }
 :root[data-design="grid"] .stats-hero-card { border-radius: 0; border: 0; border-right: 1px solid var(--g-line); border-bottom: 1px solid var(--g-line); background: transparent; box-shadow: none; }
 :root[data-design="grid"] .stats-hero-num { font: 600 20px/1.2 var(--g-mono); letter-spacing: -.02em; }
 :root[data-design="grid"] .stats-hero-lbl { font: 600 9.5px/1.3 var(--g-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
-
-/* ------------------------------------------------------------ docs */
 :root[data-design="grid"] .docs-shell { background: var(--panel); }
 :root[data-design="grid"] .docs-side { background: var(--g-chrome); border-right: 1px solid var(--g-line); }
 :root[data-design="grid"] .docs-search { margin: 10px; height: 30px; border-radius: var(--g-r); border: 1px solid var(--g-line); background: var(--g-canvas); }
@@ -816,8 +723,6 @@
 :root[data-design="grid"] .docs-toc-link.active { box-shadow: inset 2px 0 0 var(--accent); color: var(--text); }
 :root[data-design="grid"] .docs-result { border-radius: var(--g-r-sm); }
 :root[data-design="grid"] .docs-find { border-radius: var(--g-r); }
-
-/* ------------------------------------------------------------ MemuCode */
 :root[data-design="grid"] .codebar {
   margin: 0; min-height: 38px; padding: 4px 8px; gap: 6px; border: 0; border-bottom: 1px solid var(--g-line);
   border-radius: 0; background: var(--g-canvas); box-shadow: none;
@@ -900,8 +805,6 @@
 :root[data-design="grid"] .code-tree-split::after { border-radius: 0; }
 :root[data-design="grid"] .ce-gutter, :root[data-design="grid"] .ce-numbers, :root[data-design="grid"] .ce-highlight, :root[data-design="grid"] .ce-input { font-family: var(--g-mono); }
 :root[data-design="grid"] .ce-status { font-family: var(--g-mono); font-size: 10.5px; }
-
-/* ================================================================ batch 3 */
 :root[data-design="grid"] .docs-group-head .ui-icon { flex: none; }
 :root[data-design="grid"] .msg-assistant .body hr { height: 0; background: none; }
 :root[data-design="grid"] .code-header > span:first-child::before { border-radius: 0; width: 6px; height: 6px; background: var(--accent); margin-right: 0; }
@@ -927,7 +830,6 @@
 }
 :root[data-design="grid"] .skills-modal-head h2 { justify-content: flex-start; text-align: left; }
 :root[data-design="grid"][data-reduce-motion] *, :root[data-design="grid"][data-reduce-motion] *::before, :root[data-design="grid"][data-reduce-motion] *::after { animation: none !important; transition: none !important; }
-/* appearance pickers: selection = accent hairline + corner marker, no wash */
 :root[data-design="grid"] :is(.theme-option, .variant-option, .design-option, .width-option, .accent-option) { border-color: var(--g-line); box-shadow: none; }
 :root[data-design="grid"] :is(.theme-option, .variant-option, .design-option, .width-option):hover { border-color: var(--g-line-strong); transform: none; }
 :root[data-design="grid"] :is(.theme-option, .variant-option, .design-option, .width-option, .accent-option):has(input:checked) {
@@ -946,11 +848,8 @@
 :root[data-design="grid"] .pretty-select-menu button { border-radius: var(--g-r-sm) !important; }
 :root[data-design="grid"] .pretty-select.open .pretty-select-button { box-shadow: none !important; }
 :root[data-design="grid"] .confirm-text { margin-left: 0 !important; margin-right: 0 !important; max-width: none; }
-
-/* ------------------------------------------------------------ modules */
 :root[data-design="grid"] { --radius-lg: 4px; }
 :root[data-design="grid"] .module-window { border-radius: var(--g-r-lg); border: 1px solid var(--g-line-strong); box-shadow: var(--g-pop-shadow); }
-/* R21: развёрнутое окно модуля — лист со скруглением дизайна (modules.css), не «весь MemuAI». */
 :root[data-design="grid"] .module-window-bar { min-height: 34px; padding: 0 4px 0 10px; gap: 8px; border-radius: var(--g-r-lg) var(--g-r-lg) 0 0; border-bottom: 1px solid var(--g-line); background: var(--g-chrome); }
 :root[data-design="grid"] .module-window-bar b { font: 600 10.5px/1 var(--g-mono); letter-spacing: .1em; text-transform: uppercase; }
 :root[data-design="grid"] .module-window:not([data-active="1"]) .module-window-bar { background: var(--panel); }

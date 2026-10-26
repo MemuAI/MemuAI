@@ -49,36 +49,34 @@ from . import assistant_intents as intents
 from . import assistant_layout as geo
 from .assistant_actions_win import ActionError, Backend, Unsupported, default_backend, known_folder
 
-try:  # module level on purpose: with postponed annotations FastAPI resolves ``request: Request`` from globals
+try:
     from fastapi import Request
 except Exception:  # pragma: no cover - FastAPI is always present in the app
     Request = Any  # type: ignore
 
 log = logging.getLogger("memuai.assistant")
 
-# ------------------------------------------------------------------ settings
-
 DEFAULT_SETTINGS: Dict[str, Any] = {
-    "enabled": True,              # the whole assistant (local commands + model tools)
-    "local_match": True,          # instant local matcher before the model
-    "model_tools": True,          # the model may call actions
-    "disabled_actions": [],       # per-action switches
-    "always_confirm": [],         # safe actions the user wants to confirm anyway
-    "trusted_actions": [],        # confirm-tier actions the user allowed without asking (never dangerous)
-    "confirm_countdown": 5,       # seconds of the cancellable countdown for dangerous actions
-    "advanced_shell": False,      # PowerShell action for the model (still confirmed)
+    "enabled": True,
+    "local_match": True,
+    "model_tools": True,
+    "disabled_actions": [],
+    "always_confirm": [],
+    "trusted_actions": [],
+    "confirm_countdown": 5,
+    "advanced_shell": False,
     "rate_per_minute": 40,
     "model_rate_per_minute": 15,
     "search_engine": "google",
     "music_service": "youtube",
-    "food_service": "",           # "" = by interface language
+    "food_service": "",
     "shop_service": "",
     "taxi_service": "",
     "map_service": "",
     "image_model": "",
     "timer_sound": "chime",
     "timer_volume": 70,
-    "timer_popup": True,          # show Quick Ask with the ringing timer
+    "timer_popup": True,
     "timer_toast": True,
     "reminder_channel": "local",
     "pomodoro": {"work": 25, "short_break": 5, "long_break": 15, "cycles": 4, "auto_breaks": True, "auto_work": False},
@@ -86,7 +84,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
               "stt_api_model": "", "stt_postprocess": False, "language": "", "tts_provider": "", "tts_voice": "",
               "tts_local_model": "", "tts_api_voice": "", "tts_rate": None, "hold_to_talk": True},
     "audit": True,
-    # Round 33 (r33-quick): AI command router (assistant_router.py) — auto | always | off; "" = the Quick Ask model
+
     "ai_router": "auto",
     "router_model": "",
     "router_timeout": 4,
@@ -100,7 +98,6 @@ MAX_TRIGGERS = 12
 MAX_LAYOUTS = 30
 TIER_RANK = {"safe": 0, "confirm": 1, "dangerous": 2}
 
-
 def _bool(value: Any, default: bool) -> bool:
     if isinstance(value, bool):
         return value
@@ -110,13 +107,11 @@ def _bool(value: Any, default: bool) -> bool:
         return default
     return bool(value)
 
-
 def _int(value: Any, default: int, lo: int, hi: int) -> int:
     try:
         return max(lo, min(hi, int(float(value))))
     except (TypeError, ValueError):
         return default
-
 
 def normalize_settings(raw: Any) -> Dict[str, Any]:
     src = raw if isinstance(raw, dict) else {}
@@ -159,15 +154,10 @@ def normalize_settings(raw: Any) -> Dict[str, Any]:
     out["router_timeout"] = _int(src.get("router_timeout"), 4, 1, 15)
     return out
 
-
-# ------------------------------------------------------------------ custom commands
-
 _HHMM = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
-
 
 class CommandError(ValueError):
     pass
-
 
 def _clean_when(raw: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(raw, dict):
@@ -188,7 +178,6 @@ def _clean_when(raw: Any) -> Optional[Dict[str, Any]]:
         if days and len(days) < 7:
             out["weekdays"] = days
     return out or None
-
 
 def validate_step(raw: Any, depth: int = 0) -> Dict[str, Any]:
     if not isinstance(raw, dict):
@@ -242,7 +231,6 @@ def validate_step(raw: Any, depth: int = 0) -> Dict[str, Any]:
         step["note"] = note[:200]
     return step
 
-
 def validate_command(raw: Any, existing_ids: Optional[set] = None) -> Dict[str, Any]:
     if not isinstance(raw, dict):
         raise CommandError("command must be an object")
@@ -274,10 +262,6 @@ def validate_command(raw: Any, existing_ids: Optional[set] = None) -> Dict[str, 
             "created": int(raw.get("created") or now) if str(raw.get("created") or "").isdigit() or isinstance(raw.get("created"), int) else now,
             "updated": now}
 
-
-#: Files whose default «open» only shows content. Anything else (exe/bat/ps1/hta/url/lnk/msc/cpl/scf/
-#: jar/py/settingcontent-ms/…, a name without an extension, a UNC share, an NTFS stream) is treated as
-#: «runs code» and needs confirmation — a list of what is dangerous can never be complete on Windows.
 SAFE_OPEN_EXTENSIONS = {
     "txt", "md", "markdown", "log", "csv", "tsv", "json", "xml", "yaml", "yml", "ini", "toml", "rtf", "pdf",
     "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "odp", "epub", "djvu",
@@ -285,7 +269,6 @@ SAFE_OPEN_EXTENSIONS = {
     "mp3", "wav", "flac", "ogg", "opus", "m4a", "aac", "wma", "mp4", "mkv", "avi", "mov", "webm", "wmv", "m4v",
     "zip", "7z", "rar", "tar", "gz",
 }
-
 
 def risky_path(path: str) -> bool:
     """True when opening ``path`` with its default program may run code (Round 23 hardening).
@@ -297,9 +280,9 @@ def risky_path(path: str) -> bool:
         return True
     norm = value.replace("/", "\\")
     if norm.startswith("\\\\"):
-        return True                      # UNC / \\?\ device paths: a remote share or a raw device
+        return True
     if ":" in norm[2:] or "%" in value:
-        return True                      # NTFS alternate data stream or an unexpanded variable
+        return True
     try:
         if os.path.isdir(value):
             return False
@@ -308,7 +291,6 @@ def risky_path(path: str) -> bool:
     name = norm.rstrip(". ").rsplit("\\", 1)[-1]
     ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
     return ext not in SAFE_OPEN_EXTENSIONS
-
 
 def hotkey_conflict(command: Dict[str, Any], others: List[Dict[str, Any]], lang: str = "ru") -> None:
     """Round 23: two commands (or a command and Quick Ask itself) on one global hotkey used to be
@@ -329,7 +311,7 @@ def hotkey_conflict(command: Dict[str, Any], others: List[Dict[str, Any]], lang:
     if quick and quick.lower() == hotkey.lower():
         raise CommandError(tr(lang, f"hotkey: {hotkey} открывает быстрый доступ — выберите другое сочетание",
                               f"hotkey: {hotkey} opens Quick Ask — choose another combination"))
-    # Round 27 (review): the global hotkeys of the new Quick Ask features (a screen region, the clipboard history)
+
     try:
         from .quick_features import hotkey_owner
         owner = hotkey_owner(hotkey, lang, skip="command:" + str(command.get("id") or ""))
@@ -338,7 +320,6 @@ def hotkey_conflict(command: Dict[str, Any], others: List[Dict[str, Any]], lang:
     if owner:
         raise CommandError(tr(lang, f"hotkey: {hotkey} уже занято в MemuAI: {owner}",
                               f"hotkey: {hotkey} is already used in MemuAI: {owner}"))
-
 
 def strip_imported_paths(command: Dict[str, Any]) -> Dict[str, Any]:
     """An imported routine must not launch arbitrary executables by path (Round 23).
@@ -354,7 +335,6 @@ def strip_imported_paths(command: Dict[str, Any]) -> Dict[str, Any]:
                 if isinstance(win.get("app"), dict):
                     win["app"]["path"] = ""
     return command
-
 
 def command_tier(command: Dict[str, Any], resolve: Optional[Callable[[Any], Optional[Dict[str, Any]]]] = None,
                  *, honour_trusted: bool = True, _seen: Optional[set] = None) -> str:
@@ -377,7 +357,7 @@ def command_tier(command: Dict[str, Any], resolve: Optional[Callable[[Any], Opti
             ref = params.get("id") or params.get("name")
             nested = resolve(ref) if resolve and ref else None
             if nested is None or str(nested.get("id") or nested.get("name") or "") in seen:
-                pass        # a missing target fails at run time; a loop's steps are already counted
+                pass
             else:
                 step_rank = max(step_rank, TIER_RANK[command_tier(nested, resolve, honour_trusted=honour_trusted,
                                                                   _seen=seen)])
@@ -386,7 +366,6 @@ def command_tier(command: Dict[str, Any], resolve: Optional[Callable[[Any], Opti
     if tier == "confirm" and command.get("trusted") and honour_trusted:
         tier = "safe"
     return tier
-
 
 def template_good_morning(lang: str = "ru") -> Dict[str, Any]:
     """The example routine «Доброе утро» (the layout step is filled by «Запомнить текущие окна»)."""
@@ -405,13 +384,9 @@ def template_good_morning(lang: str = "ru") -> Dict[str, Any]:
         ],
     }
 
-
-# ------------------------------------------------------------------ storage
-
 def _memu_dir() -> Path:
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR)
-
 
 class Store:
     """``assistant.json``: {version, settings, commands[], layouts{}}."""
@@ -469,7 +444,6 @@ class Store:
             self.save(data)
             return data
 
-
 class Audit:
     def __init__(self, path: Optional[Path] = None, limit: int = 2000) -> None:
         self._path = Path(path) if path else None
@@ -513,18 +487,13 @@ class Audit:
             except OSError:
                 pass
 
-
-# ------------------------------------------------------------------ URL builders (pure)
-
 def _q(text: str) -> str:
     return quote_plus(str(text or "").strip())
-
 
 def search_url(query: str, engine: str = "google") -> str:
     return {"google": "https://www.google.com/search?q=", "yandex": "https://yandex.ru/search/?text=",
             "duckduckgo": "https://duckduckgo.com/?q=", "bing": "https://www.bing.com/search?q="}.get(
         engine, "https://www.google.com/search?q=") + _q(query)
-
 
 def media_url(query: str, service: str = "youtube") -> str:
     return {"youtube": "https://www.youtube.com/results?search_query=" + _q(query),
@@ -535,17 +504,15 @@ def media_url(query: str, service: str = "youtube") -> str:
             "soundcloud": "https://soundcloud.com/search?q=" + _q(query)}.get(service) or \
         "https://www.youtube.com/results?search_query=" + _q(query)
 
-
 def food_url(query: str, service: str) -> str:
     return {"yandex_eda": "https://eda.yandex.ru/search?query=" + _q(query),
-            "delivery_club": "https://eda.yandex.ru/search?query=" + _q(query),     # Delivery Club merged into Yandex Eda
+            "delivery_club": "https://eda.yandex.ru/search?query=" + _q(query),
             "samokat": "https://samokat.ru/search?value=" + _q(query),
             "kuper": "https://kuper.ru/multisearch?q=" + _q(query),
             "ubereats": "https://www.ubereats.com/search?q=" + _q(query),
             "doordash": "https://www.doordash.com/search/store/" + quote(str(query or "").strip()) + "/",
             "deliveroo": "https://deliveroo.co.uk/search?q=" + _q(query),
             "wolt": "https://wolt.com/search?q=" + _q(query)}.get(service, "https://eda.yandex.ru/search?query=" + _q(query))
-
 
 def shop_url(query: str, service: str) -> str:
     return {"ozon": "https://www.ozon.ru/search/?text=" + _q(query),
@@ -556,14 +523,12 @@ def shop_url(query: str, service: str) -> str:
             "avito": "https://www.avito.ru/rossiya?q=" + _q(query),
             "ebay": "https://www.ebay.com/sch/i.html?_nkw=" + _q(query)}.get(service, "https://www.ozon.ru/search/?text=" + _q(query))
 
-
 def taxi_url(to: str, service: str) -> str:
     if service == "uber":
         return "https://m.uber.com/looking" + (("?drop[0]=" + quote(json.dumps({"addressLine1": to}, ensure_ascii=False))) if to else "")
     if service == "bolt":
         return "https://bolt.eu/"
     return "https://go.yandex/" + (("?text=" + _q(to)) if to else "")
-
 
 def map_url(to: str, start: str, service: str) -> str:
     if service == "google_maps":
@@ -575,7 +540,6 @@ def map_url(to: str, start: str, service: str) -> str:
     if start:
         return f"https://yandex.ru/maps/?rtext={_q(start)}~{_q(to)}"
     return "https://yandex.ru/maps/?text=" + _q(to)
-
 
 def normalize_url(text: str) -> str:
     """``github.com`` → ``https://github.com``; only http(s); raises ActionError otherwise."""
@@ -591,7 +555,6 @@ def normalize_url(text: str) -> str:
         raise ActionError("Это не похоже на адрес сайта", "bad_params", "This doesn't look like a website address")
     return value
 
-
 def default_service(kind: str, settings: Dict[str, Any], lang: str) -> str:
     chosen = settings.get(f"{kind}_service") or ""
     if chosen:
@@ -599,7 +562,6 @@ def default_service(kind: str, settings: Dict[str, Any], lang: str) -> str:
     ru = lang != "en"
     return {"food": "yandex_eda" if ru else "ubereats", "shop": "ozon" if ru else "amazon",
             "taxi": "yandex_go" if ru else "uber", "map": "yandex_maps" if ru else "google_maps"}[kind]
-
 
 _SETTINGS_LABELS = {
     "sound": ("Звук", "Sound"), "display": ("Экран", "Display"), "bluetooth": ("Bluetooth", "Bluetooth"),
@@ -616,7 +578,6 @@ _SETTINGS_LABELS = {
     "lockscreen": ("Экран блокировки", "Lock screen"),
 }
 
-
 def _param_error_ru(text: str) -> str:
     """Round 34: the validator's English («missing: text», «level: expected a number») on a Russian card."""
     for pattern, ru in ((r"^missing: (.+)$", "не хватает {0}"), (r"^(\w+): expected text$", "{0} — нужен текст"),
@@ -626,7 +587,6 @@ def _param_error_ru(text: str) -> str:
         if found:
             return ru.format(*found.groups())
     return text
-
 
 def parse_when(params: Dict[str, Any], now: datetime) -> datetime:
     """``at`` (ISO / HH:MM) or ``in_minutes`` → local datetime in the future. Raises ActionError."""
@@ -659,7 +619,6 @@ def parse_when(params: Dict[str, Any], now: datetime) -> datetime:
         raise ActionError("Это время уже прошло", "past", "That time has already passed")
     return when
 
-
 def human_bytes(value: Optional[float], lang: str = "ru") -> str:
     if value is None:
         return "—"
@@ -671,9 +630,7 @@ def human_bytes(value: Optional[float], lang: str = "ru") -> str:
         size /= 1024
     return str(value)
 
-
 _REASONING = re.compile(r"<(think|thinking|reasoning|ds_safety)>.*?(?:</\1>|$)|◁think▷.*?(?:◁/think▷|$)", re.S | re.I)
-
 
 def clean_ai_text(text: Any) -> str:
     """A model answer without its reasoning: the Proxy streams it in ``<think>…</think>`` (``think_tags``), some
@@ -682,14 +639,12 @@ def clean_ai_text(text: Any) -> str:
     for tag in ("</think>", "</thinking>", "</reasoning>", "◁/think▷"):
         if tag in out:
             out = out.rsplit(tag, 1)[1]
-    # Round 33 (r33-chat #2): native tool-call markup, template tokens and echoed tool reports.
+
     from .answer_guard import clean as _guard_clean
     return _guard_clean(out).strip()
 
-
 def tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 def _finite(value: Any, default: float) -> Optional[float]:
     """A finite float from a request field (``None`` for text, NaN or ±inf)."""
@@ -702,9 +657,6 @@ def _finite(value: Any, default: float) -> Optional[float]:
     except (TypeError, ValueError, OverflowError):
         return None
     return number if math.isfinite(number) else None
-
-
-# ------------------------------------------------------------------ engine
 
 class RateLimiter:
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
@@ -721,16 +673,11 @@ class RateLimiter:
         bucket.append(now)
         return True
 
-
 DANGEROUS_PER_MINUTE = 3
-#: Safe for the user's own phrase, but not for a model call: the model also reads untrusted pages
-#: (Quick Ask «read_page», web search), and an injected «read the clipboard, then open
-#: https://evil/?q=…» would leak passwords and codes from the clipboard without a single click.
-MODEL_CONFIRM = {"clipboard.get"}
-#: Round 26: text tools whose empty ``text`` means «the clipboard» — the same leak as ``clipboard.get`` (the decoded,
-#: re-cased or summarized clipboard goes back to the model), so a model call without text needs the user's click too.
-MODEL_CLIPBOARD_TEXT = {"text.translate", "text.summarize", "text.encode", "json.format", "hash.text", "text.case", "text.stats"}
 
+MODEL_CONFIRM = {"clipboard.get"}
+
+MODEL_CLIPBOARD_TEXT = {"text.translate", "text.summarize", "text.encode", "json.format", "hash.text", "text.case", "text.stats"}
 
 class Engine:
     def __init__(self, *, backend: Optional[Backend] = None, store: Optional[Store] = None,
@@ -743,12 +690,12 @@ class Engine:
         self.now_fn = now_fn
         self.rate = RateLimiter()
         self._timers = timers
-        self.pending: Dict[str, Dict[str, Any]] = {}       # confirmation token → request
+        self.pending: Dict[str, Dict[str, Any]] = {}
         self.undo_stack: "collections.OrderedDict[str, Dict[str, Any]]" = collections.OrderedDict()
         self.events: Deque[Dict[str, Any]] = collections.deque(maxlen=200)
         self.seq = 0
         self.lock = threading.RLock()
-        # host integration (filled by register())
+
         self.completion: Optional[Callable[..., Awaitable[str]]] = None
         self.proxy_sse: Optional[Callable[[str, bytes], Any]] = None
         self.proxy_json: Optional[Callable[..., Awaitable[Any]]] = None
@@ -759,18 +706,17 @@ class Engine:
         self.loop: Optional[asyncio.AbstractEventLoop] = None
         self.handlers: Dict[str, Callable[..., Awaitable[Dict[str, Any]]]] = {}
         self._install_handlers()
-        try:                                  # Round 24: пароль, единицы, перевод, YouTube, DFY…
+        try:
             from . import assistant_r24
             assistant_r24.bind(self)
         except Exception as exc:
             log.warning("round 24 assistant actions not bound: %s", exc)
-        try:                                  # Round 25: цвет, Base64/URL, JSON, хеш, регистр, даты, пояса, случайное…
+        try:
             from . import assistant_r25
             assistant_r25.bind(self)
         except Exception as exc:
             log.warning("round 25 assistant actions not bound: %s", exc)
 
-    # ------------------------------------------------------------ helpers
     @property
     def timers(self):
         if self._timers is None:
@@ -803,7 +749,6 @@ class Engine:
         card.update({k: v for k, v in extra.items() if v not in (None, [], {}, "")})
         return card
 
-    # ------------------------------------------------------------ the main entry
     async def run(self, action: str, params: Any = None, *, source: str = "local", lang: str = "ru",
                   confirmed: bool = False, depth: int = 0, emit: bool = None) -> Dict[str, Any]:
         """Validate, check permissions, confirm, execute and audit one action. Always returns a card."""
@@ -830,8 +775,7 @@ class Engine:
                 "PowerShell commands are off (Settings → Quick Ask → Commands → “Advanced mode”)."), code="advanced_off"),
                 source, params, emit)
         if row and action == "command.run" and isinstance(params, dict) and params.get("id") and not params.get("name"):
-            # r35-finish-b: callers that know only the id (a hotkey of a custom command, schedule handoff) failed with
-            # «не хватает name» — the catalog requires ``name``; take it from the stored command.
+
             found = self._find_command(params.get("id"))
             params = dict(params, name=str((found or {}).get("name") or params.get("id")))
         try:
@@ -843,9 +787,9 @@ class Engine:
         if row and action == "command.run":
             clean["id"] = str((params or {}).get("id") or "")
         if row and action == "schedule.plan" and confirmed:
-            # the server-side draft of the confirm card (schedule_quick) — never a parameter the model can set
+
             clean["draft"] = str((params or {}).get("draft") or "")[:64]
-        # rate limits
+
         if source != "undo":
             limit_key = "model" if source in ("model", "router") else "all"
             limit = settings["model_rate_per_minute"] if source in ("model", "router") else settings["rate_per_minute"]
@@ -858,7 +802,7 @@ class Engine:
         if action == "command.run":
             command = self._find_command(clean.get("id") or clean.get("name"))
             if command:
-                # «trusted» is the user's word for THEIR phrase/hotkey, never for a model call
+
                 tier = command_tier(command, self._find_command, honour_trusted=source not in ("model", "router"))
         if action == "open.path" and risky_path(str(clean.get("path", ""))):
             tier = "confirm"
@@ -869,7 +813,7 @@ class Engine:
         if tier == "confirm" and action in settings["trusted_actions"] and source not in ("model", "router"):
             tier = "safe"
         if action == "process.kill" and not confirmed:
-            # Round 34: «убей процесс 4 / System / csrss» asked «Принудительно завершить?» and only refused after «Выполнить»
+
             from .assistant_actions_win import PROTECTED_PROCESSES
             name = str(clean.get("name") or "").strip().lower()
             if (clean.get("pid") in (0, 4, os.getpid())
@@ -878,7 +822,7 @@ class Engine:
                     lang, "Это системный процесс или сам MemuAI — его не завершаю.",
                     "This is a system process or MemuAI itself — not ending it."), code="blocked"), source, clean, emit)
         if tier != "safe" and not confirmed:
-            hint = await self._confirm_hint(action, clean, lang)       # Round 33: «INCY работает в трее…»
+            hint = await self._confirm_hint(action, clean, lang)
             return self._ask_confirmation(action, clean, tier, source, lang, settings, emit, summary=hint)
         handler = self.handlers.get(action)
         if handler is None:
@@ -896,7 +840,7 @@ class Engine:
                               "This action works only in the MemuAI Windows app.", code="unsupported")
         except ActionError as exc:
             card = self._card(action, lang, "error", exc.text(lang), code=exc.code)
-        except Exception as exc:          # a broken action must never break Quick Ask
+        except Exception as exc:
             log.exception("assistant action %s failed", action)
             card = self._card(action, lang, "error", f"{type(exc).__name__}: {exc}"[:400], code="failed")
         card["ms"] = int((time.monotonic() - started) * 1000)
@@ -905,7 +849,7 @@ class Engine:
     async def _model_reads_clipboard(self, action: str, params: Dict[str, Any]) -> bool:
         if action not in MODEL_CLIPBOARD_TEXT or str(params.get("text") or "").strip():
             return False
-        if action == "text.summarize":     # an empty summarize from the model reads the open tab when there is one
+        if action == "text.summarize":
             return await self.open_page() is None
         return True
 
@@ -929,7 +873,7 @@ class Engine:
                 self.audit.write({"ts": round(card.get("ts", self.clock()), 2), "action": card.get("action"),
                                   "status": card.get("status"), "source": source,
                                   "params": _audit_params(card.get("action", ""), params),
-                                  # the result of a private text tool IS the user's text (decoded, re-cased, hashed…)
+
                                   "message": "" if card.get("action") in _private_actions() else str(card.get("message") or "")[:300]})
         except Exception:
             pass
@@ -1004,7 +948,6 @@ class Engine:
         hit = intents.match_custom(ref, commands, threshold=0.8)
         return hit["command"] if hit else None
 
-    # ------------------------------------------------------------ local matching
     def match(self, text: str, lang: str = "ru", conversation: bool = False) -> Optional[Dict[str, Any]]:
         data = self.store.load()
         settings = data["settings"]
@@ -1029,7 +972,7 @@ class Engine:
         вопрос?»). ``False`` sends the phrase to the model instead. Unknown (no window list on this
         OS) counts as «yes» so the honest «only in Windows» card still appears."""
         params = found.get("params") or {}
-        if found.get("action") == "window.action" and params.get("target"):     # Round 33: «сверни хром»
+        if found.get("action") == "window.action" and params.get("target"):
             try:
                 return bool(await self._blocking(self._windows_of, str(params["target"])))
             except Exception:
@@ -1038,7 +981,7 @@ class Engine:
             return True
         name = str(params.get("name") or "")
         try:
-            # Round 33: a tray app (no window, the process runs) counts as running — «закрой incy»
+
             targets = await self._blocking(self._app_targets, name)
             return bool(targets["windows"] or targets["procs"])
         except (Unsupported, ActionError):
@@ -1046,7 +989,6 @@ class Engine:
         except Exception:
             return True
 
-    # ------------------------------------------------------------ rings
     def _on_ring(self, event: Dict[str, Any]) -> None:
         settings = self.settings()
         lang = self._lang()
@@ -1104,7 +1046,6 @@ class Engine:
         except Exception:
             return "ru"
 
-    # ------------------------------------------------------------ handlers
     def _install_handlers(self) -> None:
         h = self.handlers
         for name in dir(self):
@@ -1113,13 +1054,12 @@ class Engine:
                 if action.startswith("_"):
                     action = "_" + action[1:]
                 h[action] = getattr(self, name)
-        try:        # Round 29: «запланируй…» → a Planning 2.0 rule with a confirm card (schedule_quick.py)
+        try:
             from . import schedule_quick
             schedule_quick.register(self)
         except Exception:
             log.exception("schedule.plan handler")
 
-    # --- apps & files
     def _resolve_app(self, name: str) -> Dict[str, Any]:
         from . import assistant_apps
         index = self.backend.app_index()
@@ -1151,7 +1091,7 @@ class Engine:
             if w.get("own"):
                 continue
             score = assistant_apps.match_process(name, w.get("exe", ""), w.get("title", ""))
-            # Round 33: an Electron/Tauri app whose exe is generic («app.exe») is named by its folder
+
             from .assistant_procs_win import exe_folder
             folder = exe_folder(w.get("path") or "")
             if folder and score < 0.9:
@@ -1251,7 +1191,7 @@ class Engine:
                 except Exception:
                     still = []
                 if not still:
-                    # the windows are gone but the program is not: it hid itself in the tray (INCY, Telegram, Discord…)
+
                     return {"message": tr(lang, f"Окно {label} закрыто, но программа продолжает работать в фоне (в трее).",
                                           f"{label}'s window is closed, but the app keeps running in the background (tray)."),
                             "next": {"action": "app.close", "params": {"name": p["name"]},
@@ -1263,7 +1203,7 @@ class Engine:
             return {"message": tr(lang, f"Закрыл {label}", f"Closed {label}") if gone else
                     tr(lang, f"Закрываю {label} (окон: {len(wins)})", f"Closing {label} ({len(wins)} window(s))"),
                     "data": {"app": label}}
-        # no window: a tray app — politely first, then end the process (the user confirmed «quit it»)
+
         from .assistant_actions_win import PROTECTED_PROCESSES
         pids = [int(r["pid"]) for r in procs if str(r.get("exe", "")).lower() not in PROTECTED_PROCESSES]
         if not pids:
@@ -1298,8 +1238,7 @@ class Engine:
         found = await self._blocking(self._app_targets, p["name"])
         wins, procs = found["windows"], found["procs"]
         if not wins and procs and procs[0].get("path"):
-            # Round 33: a tray app has no window to focus; starting its exe again makes a single-instance app
-            # (Telegram, Discord, INCY…) show its main window
+
             await self._hide_quick()
             await self._blocking(self.backend.open_target, procs[0]["path"])
             return {"message": tr(lang, f"Показываю {found['label']}", f"Showing {found['label']}")}
@@ -1321,7 +1260,7 @@ class Engine:
         if sys.platform == "win32":
             await self._blocking(self.backend.open_target, target)
         elif target.startswith(("http://", "https://")):
-            # dev/test hosts: never pop a browser from a server process
+
             if os.environ.get("MEMUAI_ASSISTANT_OPEN_BROWSER") == "1":
                 webbrowser.open(target)
         else:
@@ -1350,7 +1289,7 @@ class Engine:
         uri = catalog.SETTINGS_PAGES.get(p.get("page", ""), "ms-settings:")
         await self._open(uri)
         page = str(p.get("page") or "")
-        label = _SETTINGS_LABELS.get(page)      # Round 34: «· sound» (the raw key) → «· Звук»
+        label = _SETTINGS_LABELS.get(page)
         label = (label[1] if lang == "en" else label[0]) if label else page
         return {"message": tr(lang, "Открываю параметры Windows", "Opening Windows Settings") + (f" · {label}" if label else "")}
 
@@ -1433,7 +1372,7 @@ class Engine:
     async def h_currency__convert(self, p, *, lang, **_):
         from . import instant_answers
         src, dst = str(p.get("from") or "").strip(), str(p.get("to") or "").strip() or ("RUB" if lang != "en" else "USD")
-        # «доллары», «euro», «btc» → ISO; an unknown name used to be dropped silently and the card showed RUB → USD
+
         src = src.upper() if src.upper() in ("BTC", "ETH") else instant_answers.currency_code(src)
         dst = instant_answers.currency_code(dst)
         if not src or not dst:
@@ -1458,7 +1397,6 @@ class Engine:
                 if lang != "en" else now.strftime("%H:%M, %A, %B %d, %Y"))
         return {"message": text, "kind": "time", "speak": text}
 
-    # --- sound & media
     async def h_volume__get(self, p, *, lang, **_):
         state = await self._blocking(self.backend.volume_get)
         return {"message": tr(lang, f"Громкость {state['level']}%", f"Volume {state['level']}%") +
@@ -1477,7 +1415,7 @@ class Engine:
         after = await self._blocking(self.backend.volume_set, level)
         return {"message": tr(lang, f"Громкость {after['level']}%", f"Volume {after['level']}%"), "kind": "level",
                 "data": {"level": after["level"], "before": before["level"], "icon": "volume"},
-                # setting a level also unmutes: undo brings the mute state back too (Round 23)
+
                 "undo": {"action": "_volume.restore", "params": {"level": before["level"], "mute": bool(before.get("mute"))}}}
 
     async def h__volume__restore(self, p, *, lang, **_):
@@ -1501,7 +1439,6 @@ class Engine:
                  "prev": tr(lang, "Предыдущий трек", "Previous track"), "stop": tr(lang, "Стоп", "Stop")}[p["key"]]
         return {"message": label}
 
-    # --- display
     async def h_brightness__get(self, p, *, lang, **_):
         state = await self._blocking(self.backend.brightness_get)
         return {"message": tr(lang, f"Яркость {state['level']}%", f"Brightness {state['level']}%"), "kind": "level",
@@ -1540,7 +1477,6 @@ class Engine:
         return {"message": tr(lang, "У «Ночного света» нет публичного API Windows — открыл его настройки, там один переключатель.",
                               "Night light has no public Windows API — opened its settings page (one switch there).")}
 
-    # --- radios
     async def _radio(self, kind: str, p, lang):
         result = await self._blocking(self.backend.radio, kind, bool(p["on"]))
         before_on = str(result.get("before") or "").lower() == "on"
@@ -1556,7 +1492,6 @@ class Engine:
     async def h_bluetooth__set(self, p, *, lang, **_):
         return await self._radio("bluetooth", p, lang)
 
-    # --- screenshot, clipboard, typing
     async def h_screenshot__take(self, p, *, lang, **_):
         mode = p.get("mode") or "screen"
         rect = None
@@ -1581,7 +1516,7 @@ class Engine:
         return {"message": text[:2000], "kind": "text", "data": {"length": len(text)}}
 
     async def h_clipboard__set(self, p, *, lang, **_):
-        # Round 34: «очисти буфер» sent text=" ", the validator stripped it to nothing → «Неверные параметры: missing: text»
+
         text = "" if p.get("clear") else str(p.get("text") or "")
         if not text and not p.get("clear"):
             raise ActionError(tr(lang, "Нечего копировать — нужен текст", "Nothing to copy — text is needed"), "bad_params")
@@ -1684,7 +1619,6 @@ class Engine:
             await self._blocking(self.backend.kill, row["pid"])
         return {"message": tr(lang, f"Завершено: {victims[0]['name']} ({len(victims)})", f"Ended: {victims[0]['name']} ({len(victims)})")}
 
-    # --- power
     async def h_lock__screen(self, p, *, lang, **_):
         await self._hide_quick()
         await self._blocking(self.backend.lock)
@@ -1736,7 +1670,6 @@ class Engine:
         return {"message": tr(lang, f"Код выхода {result['code']}", f"Exit code {result['code']}"), "kind": "code",
                 "data": result, "status": "done" if result["code"] == 0 else "error"}
 
-    # --- windows
     async def _target_window(self, target: str, lang: str) -> Dict[str, Any]:
         if target and target.lower() not in ("foreground", "active", "current", "this", "активное", "текущее"):
             wins = await self._blocking(self._windows_of, target)
@@ -1931,7 +1864,7 @@ class Engine:
                 running = await self._blocking(self.backend.windows)
                 steps = geo.plan_restore(layout, mons, running)
                 if not any(step["window"] is None and key(step["row"]) in waiting for step in steps):
-                    await asyncio.sleep(0.6)      # let the new windows finish their own first placement
+                    await asyncio.sleep(0.6)
                     running = await self._blocking(self.backend.windows)
                     steps = geo.plan_restore(layout, mons, running)
                     break
@@ -1949,7 +1882,6 @@ class Engine:
             await asyncio.sleep(0.05)
         return {"placed": placed, "total": len(steps), "notes": notes[:30]}
 
-    # --- time
     async def h_timer__start(self, p, *, lang, **_):
         timer = self.timers.add_timer(p["seconds"], p.get("label", ""))
         return {"message": tr(lang, "Таймер на ", "Timer for ") + intents.duration_text(p["seconds"], lang) +
@@ -2092,7 +2024,6 @@ class Engine:
             raise ActionError(tr(lang, "Такое напоминание не найдено", "No such reminder"), "not_found")
         return {"message": tr(lang, f"Удалено напоминаний: {count}", f"Removed {count} reminder(s)")}
 
-    # --- MemuAI
     async def h_image__generate(self, p, *, lang, **_):
         if self.proxy_sse is None:
             raise ActionError(tr(lang, "Генерация изображений недоступна", "Image generation is unavailable"), "unavailable")
@@ -2129,7 +2060,7 @@ class Engine:
         await asyncio.wait_for(consume(), 240)
         if error or not urls:
             raise ActionError(error or tr(lang, "Модель не вернула изображение", "The model returned no image"), "model")
-        try:   # Round 33 (r33d-media): links of DashScope & co. expire in ~24 h — keep the pictures as files
+        try:
             from . import media_cache
             urls = await media_cache.localize_urls(urls[:4])
         except Exception:
@@ -2143,7 +2074,7 @@ class Engine:
         try:
             status, data = await self.proxy_json("GET", "/api/admin/pg/state")
             models = (data or {}).get("image_models") or [] if status < 400 else []
-            # Round 29: the image model chosen in MemuAI (Settings → Models) is the default here too.
+
             try:
                 from .pgdata import load_preferences
                 chosen = str(load_preferences().get("media_image_model") or "")
@@ -2193,7 +2124,6 @@ class Engine:
         opened = await self._handoff(handoff)
         return {"message": tr(lang, "Открываю MemuAI", "Opening MemuAI") + ("" if opened else tr(lang, " (окно откроется при запуске)", " (on next launch)"))}
 
-    # --- assistant
     async def h_assistant__undo(self, p, *, lang, **_):
         card = await self.undo("", lang)
         if card["status"] != "done":
@@ -2223,7 +2153,7 @@ class Engine:
 
     async def run_routine(self, command: Dict[str, Any], *, lang: str = "ru", depth: int = 1) -> List[Dict[str, Any]]:
         from .safe_mode import is_safe_mode
-        if is_safe_mode():  # Round 29: the user's own routines do not run in safe mode
+        if is_safe_mode():
             raise ActionError("Безопасный режим: свои сценарии не выполняются", "safe_mode",
                               "Safe mode: custom routines do not run")
         report: List[Dict[str, Any]] = []
@@ -2312,7 +2242,7 @@ class Engine:
         system = (system or "You are MemuAI Quick Ask running a step of the user's routine. Answer briefly and directly, "
                   "in the language of the request.") + " Local time: " + self.now_fn().strftime("%Y-%m-%d %H:%M (%A)") + "."
         messages = [{"role": "system", "content": system}, {"role": "user", "content": prompt}]
-        # Round 23 (r23-quick): Quick Ask may use the user's own OpenAI-compatible endpoint instead of the Proxy.
+
         from . import quick_ask_endpoint as endpoint
         if endpoint.active(prefs):
             model = str(prefs.get("quick_ask_endpoint_model") or "")
@@ -2345,11 +2275,9 @@ class Engine:
         except Exception:
             pass
 
-
 def phase_name(phase: Any, lang: str) -> str:
     return {"work": tr(lang, "работа", "focus"), "short_break": tr(lang, "короткий перерыв", "short break"),
             "long_break": tr(lang, "длинный перерыв", "long break")}.get(str(phase or ""), str(phase or ""))
-
 
 CONFIRM_TEXT = {
     "power.shutdown": ("Выключить компьютер? Несохранённая работа в открытых программах может пропасть.",
@@ -2362,7 +2290,6 @@ CONFIRM_TEXT = {
     "recycle.empty": ("Безвозвратно удалить всё из корзины?", "Permanently delete everything in the Recycle Bin?"),
 }
 
-
 def describe(action: str, params: Dict[str, Any], lang: str, engine: Optional[Engine] = None) -> str:
     """One line for the confirmation card."""
     en = lang == "en"
@@ -2373,7 +2300,7 @@ def describe(action: str, params: Dict[str, Any], lang: str, engine: Optional[En
         return f"Restart the computer in {span}?" if en else f"Перезагрузить компьютер через {span}?"
     if action in CONFIRM_TEXT:
         return CONFIRM_TEXT[action][1 if lang == "en" else 0]
-    if action == "computer.use":   # Round 31 (r31-quick): was «Подтвердите: Управление компьютером (task: …)»
+    if action == "computer.use":
         task = str(params.get("task") or "").strip()
         short = task[:160] + ("…" if len(task) > 160 else "")
         return (f"Let the AI use the mouse and keyboard for: “{short}”? Every step asks first; Esc stops it." if en
@@ -2394,8 +2321,7 @@ def describe(action: str, params: Dict[str, Any], lang: str, engine: Optional[En
         return ("Turn Wi‑Fi off? The internet connection may drop." if en else "Выключить Wi‑Fi? Интернет может пропасть.") \
             if not params.get("on") else ("Turn Wi‑Fi on?" if en else "Включить Wi‑Fi?")
     if action == "shell.run":
-        # r27-hunt-canvas: a command filled from {clipboard}/{prev} could hide its tail past the cut (or behind a run of
-        # spaces): whitespace is folded for display and a cut says how much is not shown
+
         command = re.sub(r"\s+", " ", str(params.get("command") or "")).strip()
         hidden = len(command) - 300
         shown = command[:300] + ((f"… (+{hidden} more characters)" if en else f"… (ещё {hidden} симв.)") if hidden > 0 else "")
@@ -2413,7 +2339,6 @@ def describe(action: str, params: Dict[str, Any], lang: str, engine: Optional[En
     shown = ", ".join(f"{k}: {str(v)[:60]}" for k, v in params.items() if k not in ("id",))
     return title + (f" ({shown})" if shown else "")
 
-
 def _audit_params(action: str, params: Any) -> Any:
     if not isinstance(params, dict):
         return None
@@ -2421,14 +2346,13 @@ def _audit_params(action: str, params: Any) -> Any:
     out = {}
     for key, value in params.items():
         if action in private and key == "text":
-            out[key] = "…"                    # the user's own text (translate, hash, JSON…) never reaches the journal
+            out[key] = "…"
             continue
         text = str(value)
         if key in ("text", "command", "prompt") and len(text) > 80:
             text = text[:80] + "…"
         out[key] = text[:200]
     return out
-
 
 def _private_actions() -> set:
     """Actions whose free text is private (Round 24/25 ``NO_AUDIT_PARAMS``)."""
@@ -2440,7 +2364,6 @@ def _private_actions() -> set:
         except Exception:
             pass
     return out
-
 
 def help_groups(lang: str) -> List[Dict[str, Any]]:
     en = lang == "en"
@@ -2470,11 +2393,7 @@ def help_groups(lang: str) -> List[Dict[str, Any]]:
     cats = catalog.categories(lang)
     return [{"id": key, "title": cats[key], "examples": examples} for key, examples in rows]
 
-
-# ------------------------------------------------------------------ reminders via the Planning scheduler
-
 REMINDER_PREFIX = "asst-rem-"
-
 
 def telegram_status() -> Dict[str, Any]:
     try:
@@ -2490,7 +2409,6 @@ def telegram_status() -> Dict[str, Any]:
         return {"ok": False, "reason": "not paired"}
     return {"ok": True}
 
-
 def telegram_problem(status: Dict[str, Any], lang: str) -> str:
     """Why a Telegram reminder cannot be sent, for the user (Round 26: the card used to end with the internal
     reason code — «(telegram_enabled=false)», «(no token)» — or a raw exception text)."""
@@ -2503,7 +2421,6 @@ def telegram_problem(status: Dict[str, Any], lang: str) -> str:
                   "The MemuAI Telegram bot has no token: Settings → Telegram.")
     return tr(lang, "Telegram-бот MemuAI не подключён: Настройки → Telegram.",
               "The MemuAI Telegram bot is not paired: Settings → Telegram.")
-
 
 def add_reminder_task(text: str, when: datetime, lang: str = "ru") -> str:
     """A one-shot task in schedules.json with ``kind: "reminder"`` — ``scheduler._run_task`` delivers it
@@ -2521,7 +2438,6 @@ def add_reminder_task(text: str, when: datetime, lang: str = "ru") -> str:
         return True
     _mutate_schedules(add)
     return task_id
-
 
 def remove_reminder_task(ref: str, match_text: bool = False) -> int:
     from .pgdata import _mutate_schedules
@@ -2541,7 +2457,6 @@ def remove_reminder_task(ref: str, match_text: bool = False) -> int:
     _mutate_schedules(drop)
     return len(removed)
 
-
 def list_reminder_tasks() -> List[Dict[str, Any]]:
     try:
         from .pgdata import load_schedules
@@ -2552,8 +2467,7 @@ def list_reminder_tasks() -> List[Dict[str, Any]]:
     for task in tasks:
         if task.get("kind") == "reminder" and task.get("enabled", True):
             try:
-                # «Планирование» saves run_at as UTC ("…Z"): show it on the local clock (Round 23 — it used to
-                # print the UTC hour, and Python 3.10 could not parse the "Z" at all)
+
                 moment = datetime.fromisoformat(str(task.get("run_at")).replace("Z", "+00:00"))
                 if moment.tzinfo is not None:
                     moment = moment.astimezone().replace(tzinfo=None)
@@ -2562,7 +2476,6 @@ def list_reminder_tasks() -> List[Dict[str, Any]]:
                 when = str(task.get("run_at"))
             out.append({"id": task.get("id"), "when": when, "text": task.get("reminder_text") or task.get("prompt") or ""})
     return out
-
 
 async def deliver_reminder(task: Dict[str, Any]) -> Tuple[bool, str]:
     """Called by ``scheduler._run_task`` (MemuAI Proxy process) for ``kind == "reminder"``.
@@ -2601,11 +2514,7 @@ async def deliver_reminder(task: Dict[str, Any]) -> Tuple[bool, str]:
         pass
     return ok, info
 
-
-# ------------------------------------------------------------------ notes (MemuAI chat «Заметки»)
-
 NOTES_CHAT_ID = "quick-notes"
-
 
 def add_note(text: str, lang: str = "ru") -> int:
     from .pgdata import load_chats, upsert_chat
@@ -2622,7 +2531,6 @@ def add_note(text: str, lang: str = "ru") -> int:
     upsert_chat(row)
     return now
 
-
 def remove_note(created: int) -> bool:
     from .pgdata import load_chats, upsert_chat
     chats = load_chats()
@@ -2635,14 +2543,10 @@ def remove_note(created: int) -> bool:
     upsert_chat(row)
     return len(row["messages"]) != before
 
-
-# ------------------------------------------------------------------ voice overrides for /api/voice/*
-
 VOICE_PREF_MAP = {"stt_provider": "voice_stt_provider", "stt_local_model": "voice_stt_local_model",
                   "stt_api_model": "voice_stt_api_model", "tts_provider": "voice_tts_provider", "tts_voice": "voice_tts_voice",
                   "tts_local_model": "voice_tts_local_model", "tts_api_voice": "voice_tts_api_voice",
                   "language": "voice_language", "tts_rate": "voice_tts_rate"}
-
 
 def voice_prefs(prefs: Dict[str, Any], body: Any, store: Optional[Store] = None) -> Dict[str, Any]:
     """Preferences for a voice request; Quick Ask (``body.quick``) overlays its own non-empty choices.
@@ -2660,8 +2564,7 @@ def voice_prefs(prefs: Dict[str, Any], body: Any, store: Optional[Store] = None)
         value = voice.get(key)
         if value not in (None, ""):
             out[pref] = value
-    # Round 25: the voice override belongs to the provider actually used — for the local server it is that
-    # server's voice (before, it always went to the cloud API voice and a local server ignored it).
+
     if voice.get("tts_api_voice") and out.get("voice_tts_provider") == "local":
         out["voice_tts_local_voice"] = voice["tts_api_voice"]
         out["voice_tts_api_voice"] = prefs.get("voice_tts_api_voice", "")
@@ -2669,11 +2572,7 @@ def voice_prefs(prefs: Dict[str, Any], body: Any, store: Optional[Store] = None)
         out["voice_postprocess_enabled"] = False
     return out
 
-
-# ------------------------------------------------------------------ model tools (Quick Ask contract)
-
 TOOL_NAME = "assistant_action"
-
 
 def tool_prompt(settings: Dict[str, Any], lang: str = "ru") -> str:
     enabled = [a for a in catalog.BY_ID if a not in settings["disabled_actions"]
@@ -2687,7 +2586,6 @@ def tool_prompt(settings: Dict[str, Any], lang: str = "ru") -> str:
         "Never order, pay or book anything: food/shop/taxi actions only open the site with a search.\n"
         "  Actions:\n" + catalog.compact_catalog(enabled))
 
-
 def tool_schema() -> Dict[str, Any]:
     return {"type": "function", "function": {
         "name": TOOL_NAME,
@@ -2696,7 +2594,6 @@ def tool_schema() -> Dict[str, Any]:
             "action": {"type": "string", "enum": list(catalog.BY_ID)},
             "params": {"type": "object", "description": "Parameters of the action"}},
             "required": ["action"]}}}
-
 
 def model_result(card: Dict[str, Any]) -> Dict[str, Any]:
     """What the model sees after a tool call (short, honest about confirmation)."""
@@ -2714,12 +2611,8 @@ def model_result(card: Dict[str, Any]) -> Dict[str, Any]:
         out["answer"] = str(card["answer"])[:3000]
     return out
 
-
-# ------------------------------------------------------------------ singleton + HTTP
-
 _ENGINE: Optional[Engine] = None
 _ENGINE_LOCK = threading.Lock()
-
 
 def engine() -> Engine:
     global _ENGINE
@@ -2728,12 +2621,10 @@ def engine() -> Engine:
             _ENGINE = Engine()
         return _ENGINE
 
-
 def set_engine(value: Optional[Engine]) -> None:
     global _ENGINE
     with _ENGINE_LOCK:
         _ENGINE = value
-
 
 class HotkeyBinds:
     """Global hotkeys of custom commands — one ``win_hotkey.HotkeyListener`` (own thread) per bind."""
@@ -2794,7 +2685,6 @@ class HotkeyBinds:
                     pass
             self.listeners.clear()
 
-
 def register_quick_tools(eng: Engine) -> bool:
     """Plug into the Quick Ask extension contract: ``quick_ask_api.register_tool`` (Round 22 core).
 
@@ -2843,8 +2733,7 @@ def register_quick_tools(eng: Engine) -> bool:
         return bool(current["enabled"] and current["model_tools"])
 
     def description(_settings: Any = None) -> str:
-        # Round 30: only the actions this user has — a fixed list with shell.run made the model try PowerShell with the
-        # advanced mode off, get «выключено» and then tell the user to type the command themselves.
+
         try:
             current = eng.settings()
         except Exception:
@@ -2858,9 +2747,7 @@ def register_quick_tools(eng: Engine) -> bool:
         return False
     return True
 
-
 TOOL_WAIT = 50.0
-
 
 def register(app, *, proxy_sse=None, proxy_json=None, completion=None) -> Engine:
     """Routes ``/api/assistant/*`` (called from ``playground_api.create_app`` before the static mount)."""
@@ -2930,12 +2817,12 @@ def register(app, *, proxy_sse=None, proxy_json=None, completion=None) -> Engine
         if decision["action"] == "chat":
             return {"card": None, "match": None, "router": info}
         if not await eng.precheck({"action": decision["action"], "params": decision["params"]}):
-            info["reason"] = "not_running"      # the guessed app does not run — no «Закрыть X?» card for nothing
+            info["reason"] = "not_running"
             return {"card": None, "match": None, "router": info}
         card = await eng.run(decision["action"], decision["params"], source="router", lang=lang, emit=False)
         card["router"] = info
         if card["status"] in ("error", "unsupported") and card.get("code") in ("not_found", "not_running", "bad_params", "unknown"):
-            card["fallback"] = True          # the guess did not fit — the chat answers as before
+            card["fallback"] = True
         return {"card": card, "match": {"action": decision["action"], "params": decision["params"], "rule": "ai-router"},
                 "router": info}
 
@@ -2949,7 +2836,7 @@ def register(app, *, proxy_sse=None, proxy_json=None, completion=None) -> Engine
             conversation = bool(body.get("in_chat") or body.get("conversation"))
             found = await asyncio.to_thread(eng.match, text, lang, conversation)
             if not found:
-                routed = await route_ai(text, lang)          # Round 33: one tiny model call (assistant_router.py)
+                routed = await route_ai(text, lang)
                 return routed or {"card": None, "match": None}
             if not await eng.precheck(found):
                 routed = await route_ai(text, lang, soft_miss=True)
@@ -2963,7 +2850,7 @@ def register(app, *, proxy_sse=None, proxy_json=None, completion=None) -> Engine
                 params = found["params"]
             card = await eng.run(action, params, source="local", lang=lang)
             if card["status"] == "error" and found.get("fallback_on_miss") and card.get("code") in ("not_found", "not_running"):
-                card["fallback"] = True          # let the model try ("включи свет" is not an app)
+                card["fallback"] = True
             return {"card": card, "match": found}
         source = body.get("source") if body.get("source") in ("local", "settings", "test") else "local"
         card = await eng.run(action, body.get("params") or {}, source=source, lang=lang)
@@ -3170,32 +3057,29 @@ def register(app, *, proxy_sse=None, proxy_json=None, completion=None) -> Engine
         """Portable per-action JSON schemas (OpenAI tools format) + the single dispatcher schema."""
         return {"dispatcher": tool_schema(), "actions": catalog.openai_tools()}
 
-    # Hotkey binds and the app index warm up shortly after start (never on the startup path).
     def warm() -> None:
         try:
             from . import assistant_apps
             assistant_apps.warm()
             binds.sync(eng.store.load()["commands"])
-            eng.timers               # starts the timer thread (alarms that came due while closed ring now)
+            eng.timers
         except Exception as exc:
             log.warning("assistant warm-up failed: %s", exc)
     if sys.platform == "win32" and not os.environ.get("MEMUAI_ASSISTANT_NO_WARM"):
         threading.Timer(6.0, warm).start()
-    try:                                      # Round 24: /api/assistant/voice/status, /api/youtube/*
+    try:
         from . import assistant_r24
         assistant_r24.register(app, eng)
     except Exception as exc:
         log.warning("round 24 assistant routes not registered: %s", exc)
     return eng
 
-
-# Round 24: новые действия и фразы (assistant_r24) — в каталог и распознаватель при импорте.
 try:
     from . import assistant_r24 as _r24
     _r24.install()
 except Exception as _exc:  # pragma: no cover
     log.warning("round 24 assistant catalog not installed: %s", _exc)
-# Round 25: инструменты (assistant_r25) — их фразы встают ПЕРЕД фразами Round 24 и базовыми.
+
 try:
     from . import assistant_r25 as _r25
     _r25.install()

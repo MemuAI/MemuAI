@@ -1,6 +1,3 @@
-/* MemuFiles · Round 40 (r40-files-max): type filter chips, pinned tabs, Properties tabs, «sort by meaning» plan rows. */
-
-/* ---- one-click type filter */
 .kindbar { display: flex; gap: 6px; padding: 8px 12px 6px; overflow-x: auto; scrollbar-width: none; flex: none; }
 .kindbar::-webkit-scrollbar { display: none; }
 .kindbar[hidden] { display: none; }
@@ -12,14 +9,10 @@
 .kchip.on { background: var(--accent-soft); border-color: color-mix(in srgb, var(--accent) 45%, transparent); color: var(--text); }
 .kchip.on b { color: var(--text); }
 .kchip:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
-
-/* ---- pinned tabs: a compact icon at the start of the strip */
 .tab.pinned { flex: none; width: 44px; min-width: 44px; max-width: 44px; padding: 0; justify-content: center; }
 .tab.pinned.active { min-width: 44px; }
 .tab.pinned .tab-name { display: none; }
 .tab.pinned .split-badge { position: absolute; right: 3px; bottom: 4px; transform: scale(.75); }
-
-/* ---- Properties: General · Details · Hashes */
 .ptabs { display: flex; gap: 2px; margin: -4px 0 14px; padding: 3px; border-radius: 10px; background: var(--panel-2); }
 .ptab { flex: 1; height: 28px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 12.5px; cursor: default; }
 .ptab:hover { color: var(--text); }
@@ -35,8 +28,6 @@
 .hash-verdict { min-height: 20px; margin-top: 8px; display: flex; align-items: center; gap: 6px; }
 .hash-verdict.ok { color: var(--ok, #3fb950); }
 .hash-verdict.bad { color: var(--danger); }
-
-/* ---- AI «sort by meaning»: rows grouped by destination folder */
 .plan-group { display: flex; align-items: center; gap: 8px; padding: 8px 12px 4px; font-size: 12px; font-weight: 600; position: sticky; top: 0;
   background: var(--panel); z-index: 1; }
 .plan-group input { accent-color: var(--accent); flex: none; }
@@ -54,18 +45,13 @@
 .plan-item.org .pi-old + .pi-why::before { content: "·"; margin-right: 6px; }
 .plan-item.org.off .pi-new { opacity: .45; text-decoration: line-through; }
 .ai-scope .sc-label { flex: none; }
-
-/* ---- banners (search / Recycle Bin / protected): one line, the text gives way, labels hide in a narrow pane */
 .pane .banner .bn-text { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pane .banner .spacer { flex: 1 0 0; }
 .pane .banner .btn { flex: none; }
 .pane.narrow .banner .btn .lbl { display: none; }
 .pane.narrow .banner .btn { padding: 0 7px; }
-
-/* ---- narrow windows: the preview is an overlay there, its resizer has nothing to resize (it stuck out by 2 px) */
 @media (max-width: 760px) {
   .body > .resizer:not(.side) { display: none; }
 }
 .crumbs [hidden] { display: none; }
-/* ---- text preview with wrapping: a wrapped line continues after the line number, not under it */
 .pv-code.wrap .ln { padding-left: 50px; text-indent: -50px; }

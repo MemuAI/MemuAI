@@ -1,5 +1,5 @@
-// DOM-level regression tests. No browser, windows or computer-control APIs.
-// npm install --prefix build/audit-js --no-save --no-package-lock jsdom
+
+
 import assert from "node:assert/strict";
 import { pathToFileURL } from "node:url";
 import path from "node:path";
@@ -60,7 +60,7 @@ await tick();
 assert.equal(sent.length, 1);
 assert.equal(sent[0].model, "model-1");
 assert.equal(panel.querySelector(".ai-input .primary").hidden, true);
-// Starting a new chat while the old stream is alive must clear it and release the send button.
+
 panel.querySelector(".ai-top .icon-btn").click();
 await tick();
 const newLog = panel.querySelector(".ai-log");

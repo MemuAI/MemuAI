@@ -100,9 +100,7 @@ def main() -> int:
                         page.screenshot(path=str(out / f"{name}-confirm.png"))
                         page.click("#panel-back.visible #gi-confirm-yes")
                         continue
-                    # The tool report is an internal «user» message after the answer, and the final answer is
-                    # written back into the same assistant message: look at the last visible message, and wait for
-                    # the whole turn (generationJobs + the global `generating`, true between tool rounds).
+
                     state = page.evaluate("""() => { const c = currentChat();
                       const ms = ((c && c.messages) || []).filter((x) => x && !x.internal); const m = ms[ms.length - 1];
                       return { role: m && m.role, len: m ? String(m.content || '').length : 0,
@@ -139,7 +137,6 @@ def main() -> int:
     passed = sum(1 for r in report if r["ok"])
     print(f"passed {passed}/{len(report)}")
     return 0 if passed == len(report) else 1
-
 
 if __name__ == "__main__":
     raise SystemExit(main())

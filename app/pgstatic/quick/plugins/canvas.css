@@ -1,28 +1,16 @@
-/* Quick Ask plugin «canvas» (Round 27, r27-quick-canvas) — panels and quick-action buttons in the window.
-   Colours only from theme tokens (themes.css: --panel, --panel-2, --accent, --accent-2, --text, --muted, --border,
-   --danger, --ok) and the window's own (--qa-*), so both themes, every accent and the 6 designs keep working.
-   Motion: transitions on left/top/size for the grid, a wiggle in edit mode — all off with reduced motion. */
-
 .qcv-host { padding: 0 var(--qa-pad, 16px); }
 .qcv { position: relative; --qcv-accent: var(--accent); }
 .qcv-grow { flex: 1 1 auto; min-width: 0; }
 .qcv kbd { font: 600 10px/1 var(--sans); padding: 2px 4px; border-radius: 4px; color: var(--muted);
   background: var(--qa-chip); border: 1px solid var(--qa-chip-line); }
-
-/* While the canvas is open the idle list (recent / ideas) steps aside — the footer never gets pushed out. */
 :root[data-qcv-open] #qa-suggest { display: none !important; }
-/* panels.js editor modal (Panel options…) needs the whole window */
 :root[data-qcv-modal] .qa-inner { min-height: var(--qa-max-h); }
 :root[data-qcv-modal] .mp-modal-back { padding: 10px; }
 :root[data-qcv-modal] .mp-modal { max-height: calc(100vh - 20px); }
-
-/* ------------------------------------------------------------------ strip */
 .qcv-strip { display: flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 0 6px; overflow: hidden; }
 .qcv-strip-items { display: flex; align-items: center; gap: 6px; min-width: 0; overflow-x: auto; scrollbar-width: none; overscroll-behavior: contain;
   -webkit-mask: linear-gradient(90deg, #000 calc(100% - 18px), transparent); mask: linear-gradient(90deg, #000 calc(100% - 18px), transparent); padding-right: 14px; }
 .qcv-strip-items::-webkit-scrollbar { display: none; }
-/* Round 30: the pinned strip belongs to the start view and the answer — not to the lists (actions, chats, models,
-   clipboard / snippets / stickers) that take the window over */
 .qa-card:is([data-view="menu"], [data-view="chats"], [data-view="picker"]) .qcv-strip, :root[data-qx-view] .qcv-strip { display: none; }
 .qcv-toggle { flex: none; display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 8px 0 7px; border-radius: 8px;
   border: 1px solid transparent; background: transparent; color: var(--muted); font: 600 12px var(--sans); cursor: pointer;
@@ -45,8 +33,6 @@
 .qcv-sface .qcv-emoji { font-size: 13px; }
 .qcv-slabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .qcv-chip.mp-chip { flex: none; height: 28px; max-width: 170px; }
-
-/* ------------------------------------------------------------------ notices (confirm / progress / result) */
 .qcv-notices { display: flex; flex-direction: column; gap: 6px; }
 .qcv-notices:not(:empty) { padding-bottom: 8px; }
 .qcv-note { display: flex; align-items: flex-start; gap: 10px; padding: 9px 10px 9px 11px; border-radius: 12px;
@@ -75,8 +61,6 @@
 .qcv-steps small { display: block; color: var(--muted); }
 .qcv-spin { flex: none; width: 18px; height: 18px; margin: 3px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--accent) 25%, transparent);
   border-top-color: var(--accent); animation: qcv-spin .8s linear infinite; }
-
-/* ------------------------------------------------------------------ buttons of the UI */
 .qcv-btn-p, .qcv-btn-g { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 11px; border-radius: 8px; cursor: pointer;
   font: 600 12.5px var(--sans); border: 1px solid transparent; white-space: nowrap; transition: background .15s, opacity .15s, transform .12s; }
 .qcv-btn-p { background: var(--accent); color: var(--on-accent, #fff); }
@@ -101,8 +85,6 @@
 .qcv-link svg { width: 13px; height: 13px; }
 .qcv-link:hover { text-decoration: underline; }
 :where(.qcv) button:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 1px; }
-
-/* ------------------------------------------------------------------ body */
 .qcv-body { border-top: 1px solid var(--qa-line); padding-top: 6px; animation: qcv-in .22s var(--qa-ease-out) both; }
 .qcv-head, .qcv-sub { display: flex; align-items: center; gap: 4px; min-height: 32px; }
 .qcv-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 650 12px var(--sans); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding-left: 2px; }
@@ -111,17 +93,13 @@
   padding: 8px 6px 10px; margin: 0 -6px; }
 .qcv-pad { padding: 6px 2px 12px; }
 .qcv-hint { color: var(--muted); font-size: 12px; }
-
-/* ------------------------------------------------------------------ grid */
 .qcv-grid { position: relative; min-height: 40px; transition: height .22s var(--qa-ease-out); }
 .qcv-item { position: absolute; border-radius: 14px; outline: none; transition: left .24s var(--qa-ease-out), top .24s var(--qa-ease-out), width .2s, height .2s;
   animation: qcv-pop .26s var(--qa-ease) both; animation-delay: calc(min(var(--qcv-i, 0), 12) * 18ms); }
 .qcv-item[data-type="panel"] > .mp-card { height: 100%; width: 100%; margin: 0; overflow: auto; scrollbar-width: none; box-sizing: border-box; }
 .qcv-item[data-type="panel"] > .mp-card::-webkit-scrollbar { display: none; }
-/* Round 34: more content below (canvas.js markMore) — a fade instead of a row cut in half */
 .qcv-item[data-type="panel"] > .mp-card[data-more="1"] { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); mask-image: linear-gradient(to bottom, #000 calc(100% - 22px), transparent); }
 .qcv-item[data-type="panel"] > .mp-card[data-size="s"] { padding: 10px 11px; }
-/* a 2-column panel is narrower here than MemuAI's S (≈165 px at 720 px): the content shrinks instead of spilling out */
 .qcv-item[data-type="panel"] > .mp-card > *, .qcv-item[data-type="panel"] .mp-todo > * { min-width: 0; }
 .qcv-item[data-type="panel"] .mp-todo { grid-template-columns: minmax(0, 1fr); }
 .qcv-item.qcv-dragging { z-index: 20; transition: none; cursor: grabbing; filter: drop-shadow(0 14px 28px rgba(0, 0, 0, .35)); }
@@ -132,8 +110,6 @@
 .qcv-skel { height: 100%; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 14px; background: var(--qa-chip); }
 .qcv-skel i { height: 10px; border-radius: 5px; background: color-mix(in srgb, var(--text) 8%, transparent); animation: qcv-shimmer 1.2s ease-in-out infinite alternate; }
 .qcv-skel i:nth-child(2) { width: 70%; } .qcv-skel i:nth-child(3) { width: 45%; }
-
-/* the round button */
 .qcv-act { position: relative; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
   padding: 0; border: 0; background: none; color: var(--text); cursor: pointer; font: 600 11px/1.15 var(--sans); -webkit-user-select: none; user-select: none; }
 .qcv-face { position: relative; width: min(46px, calc(100% - 14px)); aspect-ratio: 1; display: grid; place-items: center; border-radius: 50%; color: #fff;
@@ -157,7 +133,6 @@
 .qcv[data-edit="1"] .qcv-num { display: none; }
 .qcv-act.qcv-ok .qcv-face { animation: qcv-ok .5s var(--qa-ease); }
 .qcv-act.qcv-err .qcv-face, .qcv-sbtn.qcv-err { animation: qcv-shake .38s ease; }
-/* progress ring: conic stroke around the face (or the small strip face) */
 .qcv-ring { position: absolute; inset: -4px; border-radius: inherit; pointer-events: none;
   background: conic-gradient(var(--accent) calc(var(--qcv-p, 0) * 1%), color-mix(in srgb, var(--accent) 18%, transparent) 0);
   -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2.5px)); }
@@ -167,8 +142,6 @@
 .qcv-ring[data-status="done"] { background: conic-gradient(var(--ok, #3fb27f) 100%, transparent 0); }
 .qcv-ring[data-status="error"] { background: conic-gradient(var(--danger, #e5484d) 100%, transparent 0); }
 .qcv-ring[data-status="cancelled"] { opacity: .4; }
-
-/* edit chrome */
 .qcv-chrome { position: absolute; inset: 0; pointer-events: none; }
 .qcv-cx, .qcv-cg { position: absolute; top: -6px; width: 20px; height: 20px; padding: 0; display: grid; place-items: center; border-radius: 50%; cursor: pointer;
   border: 1px solid color-mix(in srgb, var(--border) 80%, transparent); background: var(--panel-2, var(--panel)); color: var(--text);
@@ -187,8 +160,6 @@
 .qcv[data-edit="1"] .qcv-item[data-type="panel"] > .mp-card { box-shadow: 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent); }
 .qcv-item[data-pinned="1"]::after { content: ""; position: absolute; left: 50%; bottom: -3px; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%;
   background: var(--accent); opacity: .8; }
-
-/* empty state */
 .qcv-empty { display: grid; justify-items: center; gap: 6px; padding: 14px 10px 16px; text-align: center; }
 .qcv-empty b { font: 650 14.5px var(--display, var(--sans)); }
 .qcv-empty > span { max-width: 420px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
@@ -199,16 +170,12 @@
 .qcv-empty-art i:nth-child(2) { left: 52px; top: 4px; width: 22px; height: 22px; border-radius: 50%; background: linear-gradient(140deg, var(--accent), var(--accent-2, var(--accent))); border: 0; opacity: .85; }
 .qcv-empty-art i:nth-child(3) { left: 80px; top: 4px; width: 22px; height: 22px; border-radius: 50%; background: color-mix(in srgb, var(--accent) 35%, transparent); border: 0; }
 .qcv-empty-art b { left: 52px; top: 30px; width: 50px; height: 20px; }
-
-/* item menu */
 .qcv-menu { position: absolute; z-index: 40; width: 224px; padding: 5px; border-radius: 11px; background: var(--panel-2, var(--panel));
   border: 1px solid color-mix(in srgb, var(--border) 85%, transparent); box-shadow: 0 16px 40px rgba(0, 0, 0, .32); animation: qcv-in .16s var(--qa-ease-out) both; }
 .qcv-menu button { display: block; width: 100%; text-align: left; padding: 7px 9px; border: 0; border-radius: 7px; background: none; color: var(--text); font: 500 13px var(--sans); cursor: pointer; }
 .qcv-menu button:hover, .qcv-menu button:focus-visible { background: var(--qa-hover); outline: none; }
 .qcv-menu button[aria-checked="true"] { color: var(--accent); }
 .qcv-menu button.danger { color: var(--danger, #e5484d); }
-
-/* ------------------------------------------------------------------ add view */
 .qcv-tabs { display: inline-flex; gap: 2px; padding: 2px; border-radius: 9px; background: var(--qa-chip); }
 .qcv-tabs button { height: 26px; padding: 0 11px; border: 0; border-radius: 7px; background: none; color: var(--muted); font: 600 12px var(--sans); cursor: pointer; }
 .qcv-tabs button[aria-selected="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .15); }
@@ -232,8 +199,6 @@
 .qcv-sizes button { width: 28px; height: 26px; border-radius: 7px; border: 1px solid var(--qa-chip-line); background: var(--panel); color: var(--text); font: 650 11px var(--sans); cursor: pointer; }
 .qcv-sizes button:hover, .qcv-sizes button:focus-visible { background: var(--accent); color: var(--on-accent, #fff); border-color: transparent; }
 .qcv-badge { font-size: 11px; color: var(--muted); padding: 3px 8px; border-radius: 999px; border: 1px solid var(--qa-chip-line); }
-
-/* ------------------------------------------------------------------ approval */
 .qcv-approve { display: flex; gap: 12px; padding: 12px; margin: 4px 0 10px; border-radius: 12px; border: 1px solid color-mix(in srgb, #f5a524 55%, transparent);
   background: color-mix(in srgb, #f5a524 6%, transparent); }
 .qcv-approve p { margin: 4px 0 6px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
@@ -241,8 +206,6 @@
 .qcv-approve li[data-tier="dangerous"]::marker { color: var(--danger, #e5484d); }
 .qcv-approve em { color: var(--danger, #e5484d); font-style: normal; font-size: 12px; }
 .qcv-approve .qcv-note-act { justify-content: flex-start; }
-
-/* ------------------------------------------------------------------ editor */
 .qcv-editor { display: flex; flex-direction: column; gap: 12px; }
 .qcv-editor input:not([type="checkbox"]):not([type="color"]), .qcv-editor select, .qcv-editor textarea {
   box-sizing: border-box; min-width: 0; height: 30px; padding: 0 9px; border-radius: 8px; border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
@@ -317,8 +280,6 @@
 .qcv-risk > div { display: grid; gap: 3px; }
 .qcv-risk b { font-weight: 650; }
 .qcv-error { color: var(--danger, #e5484d); background: color-mix(in srgb, var(--danger, #e5484d) 10%, transparent); }
-
-/* ------------------------------------------------------------------ narrow window */
 @media (max-width: 460px) {
   .qcv-toggle kbd, .qcv-toggle span { display: none; }
   .qcv-head .qcv-hbtn span { display: none; }
@@ -329,8 +290,6 @@
   .qcv-field > span { grid-column: 1 / -1; }
   .qcv-note { flex-wrap: wrap; }
 }
-
-/* ------------------------------------------------------------------ motion */
 @keyframes qcv-in { from { opacity: 0; transform: translateY(-4px); } }
 @keyframes qcv-pop { from { opacity: 0; transform: scale(.92); } }
 @keyframes qcv-spin { to { transform: rotate(360deg); } }
@@ -345,8 +304,6 @@
   .qcv *, .qcv { animation: none !important; transition: none !important; }
   .qcv[data-edit="1"] .qcv-item { outline: 1px dashed color-mix(in srgb, var(--accent) 45%, transparent); outline-offset: 2px; }
 }
-
-/* ------------------------------------------------------------------ Round 28: screen mode (the items are on the screen) */
 .qcv-toggle.qcv-more { width: 26px; padding: 0; justify-content: center; }
 .qcv-toggle.qcv-more svg { width: 14px; height: 14px; }
 .qcv-screen { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 6px 14px; padding: 10px 4px 14px; }

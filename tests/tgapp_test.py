@@ -22,13 +22,11 @@ from app import tg_webapp  # noqa: E402
 TOKEN = "123456:TEST-token_for-mini-app"
 USER = 4242
 
-
 def init_data(user_id: int = USER, *, token: str = TOKEN, auth_date: int | None = None, **extra) -> str:
     fields = {"auth_date": int(time.time()) if auth_date is None else auth_date,
               "query_id": "AAH-test", "user": {"id": user_id, "first_name": "Yono", "language_code": "ru"}}
     fields.update(extra)
     return tg_webapp.sign_init_data(fields, token)
-
 
 class InitDataTest(unittest.TestCase):
     def test_valid_data_returns_the_user(self) -> None:
@@ -37,7 +35,7 @@ class InitDataTest(unittest.TestCase):
         self.assertNotIn("hash", data["fields"])
 
     def test_known_vector_matches_the_documented_algorithm(self) -> None:
-        # Independent re-implementation of core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
+
         import hmac
         from urllib.parse import parse_qsl
         raw = init_data(start_param="chats")
@@ -83,7 +81,6 @@ class InitDataTest(unittest.TestCase):
         tg_webapp.validate_init_data(raw, TOKEN, max_age=3 * 3600)
         with self.assertRaises(tg_webapp.InitDataError):
             tg_webapp.validate_init_data(raw, TOKEN, max_age=3600)
-
 
 class TokenAndConfigTest(unittest.TestCase):
     def test_session_tokens(self) -> None:
@@ -131,7 +128,7 @@ class TokenAndConfigTest(unittest.TestCase):
             self.assertFalse(tg_webapp.is_authorized_user("77", prefs), "the bot is the authority when it answers")
         with mock.patch("app.telegram_bot.authorized_user_ids", side_effect=RuntimeError("bot broken")):
             self.assertEqual(tg_webapp.authorized_user_ids(prefs), ["77", "501"])
-        # A group chat id is never a user; garbage never matches.
+
         with mock.patch("app.telegram_bot.authorized_user_ids", side_effect=ImportError):
             self.assertEqual(tg_webapp.authorized_user_ids({"telegram_chat_id": "-100123"}), [])
             self.assertFalse(tg_webapp.is_authorized_user("", {"telegram_chat_id": "77"}))
@@ -142,7 +139,6 @@ class TokenAndConfigTest(unittest.TestCase):
         self.assertEqual([limiter.hit("k", now=t) for t in (0, 1, 2, 3)], [True, True, True, False])
         self.assertTrue(limiter.hit("k", now=11.5))
         self.assertTrue(limiter.hit("other", now=3))
-
 
 class FakeProcess:
     def __init__(self, lines, *, exit_code=1, hold: threading.Event | None = None):
@@ -171,7 +167,6 @@ class FakeProcess:
     def kill(self):
         self.terminate()
 
-
 class _HeldStream:
     """Gives its lines, then blocks like a live process until released."""
 
@@ -185,7 +180,6 @@ class _HeldStream:
         self._hold.wait(5)
         return ""
 
-
 QUICK_TUNNEL_OUTPUT = [
     "2026-10-07T10:00:00Z INF Requesting new quick Tunnel on trycloudflare.com...",
     "2026-10-07T10:00:01Z INF +--------------------------------------------------------------------------------------------+",
@@ -194,7 +188,6 @@ QUICK_TUNNEL_OUTPUT = [
     "2026-10-07T10:00:01Z INF +--------------------------------------------------------------------------------------------+",
     "2026-10-07T10:00:02Z INF Registered tunnel connection connIndex=0 connection=abc event=0 ip=198.41.200.13 location=ams01 protocol=quic",
 ]
-
 
 class TunnelTest(unittest.TestCase):
     def test_parse_tunnel_url(self) -> None:
@@ -217,8 +210,8 @@ class TunnelTest(unittest.TestCase):
             def popen(cmd, **kwargs):
                 launched.append((cmd, kwargs))
                 if len(launched) == 1:
-                    return FakeProcess(QUICK_TUNNEL_OUTPUT, exit_code=1)        # dies after a while
-                return FakeProcess(QUICK_TUNNEL_OUTPUT, hold=hold)              # stays up
+                    return FakeProcess(QUICK_TUNNEL_OUTPUT, exit_code=1)
+                return FakeProcess(QUICK_TUNNEL_OUTPUT, hold=hold)
 
             async def fake_sleep(seconds):
                 sleeps.append(seconds)
@@ -233,12 +226,12 @@ class TunnelTest(unittest.TestCase):
             self.assertEqual(tunnel.url, "https://bright-otter-spoon-river.trycloudflare.com")
             self.assertIn("online", states)
             self.assertIn("error", states)
-            self.assertEqual(sleeps, [2.0])                                     # restarted with backoff
+            self.assertEqual(sleeps, [2.0])
             cmd, kwargs = launched[0]
             self.assertEqual(cmd[1:], ["tunnel", "--no-autoupdate", "--url", "http://127.0.0.1:8641"])
             self.assertEqual(kwargs["stdin"], tg_webapp.subprocess.DEVNULL)
             if os.name == "nt":
-                self.assertTrue(kwargs["creationflags"] & 0x08000000)          # CREATE_NO_WINDOW
+                self.assertTrue(kwargs["creationflags"] & 0x08000000)
             process = tunnel.process
             await tunnel.stop()
             self.assertTrue(process.terminated)
@@ -295,7 +288,6 @@ class TunnelTest(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 asyncio.run(run())
 
-
 class ManagerTest(unittest.TestCase):
     def test_disabled_manager_stays_off_and_reports_reasons(self) -> None:
         tg_webapp.save_config({"enabled": False})
@@ -322,7 +314,7 @@ class ManagerTest(unittest.TestCase):
 
         async def run():
             manager = tg_webapp.Manager()
-            # Hermetic: the diagnostic check of the public address would go to the internet (memu.example.com).
+
             manager.probe = lambda base: ("ok", "")
             with mock.patch.dict("sys.modules", {"app.telegram_bot": fake_bot}), \
                     mock.patch("app.telegram_bot", fake_bot, create=True):
@@ -331,9 +323,7 @@ class ManagerTest(unittest.TestCase):
                     await manager.reconcile()
                     url = manager.public_url()
                     import httpx
-                    # trust_env=False: a system/env HTTP proxy (no NO_PROXY) would
-                    # carry this loopback request elsewhere and answer 404.
-                    # A busy preferred port (another app/test server) moves the listener: ask the manager's own port.
+
                     self.assertTrue(manager.port and manager.server is not None and manager.server.started)
                     async with httpx.AsyncClient(trust_env=False) as client:
                         health = await client.get(f"http://127.0.0.1:{manager.port}/tgapp/health")
@@ -350,9 +340,6 @@ class ManagerTest(unittest.TestCase):
         self.assertEqual(status, 200)
         self.assertEqual(calls, ["https://memu.example.com/tgapp/", None])
 
-
-# --------------------------------------------------------------------------- HTTP API
-
 class FakeChatService:
     def __init__(self, parts=("Привет", ", мир! [TITLE: Тестовый чат] [MEM: любит чай]")):
         self.parts = parts
@@ -363,7 +350,6 @@ class FakeChatService:
         for part in self.parts:
             await asyncio.sleep(0)
             yield {"choices": [{"delta": {"content": part}}]}
-
 
 class ApiTest(unittest.TestCase):
     @classmethod
@@ -378,7 +364,7 @@ class ApiTest(unittest.TestCase):
                                                       "vision": True, "pinned": False, "default": True}])
         cls.models.start()
         from app.tgapp_api import create_tgapp
-        # One portal (event loop) for the whole class, like the real single-loop server: jobs outlive requests.
+
         cls.client = TestClient(create_tgapp())
         cls.client.__enter__()
 
@@ -522,7 +508,7 @@ class ApiTest(unittest.TestCase):
         system = service.calls[0]["messages"][0]
         self.assertEqual(system["role"], "system")
         self.assertIn("mobile_interface", system["content"])
-        # stream segment reader returns NDJSON with the same events
+
         with mock.patch("app.chat.chat_service", FakeChatService(("ok",))):
             started = self.client.post("/tgapp/api/chats.send", json={"chat_id": meta["chat_id"], "text": "ещё"},
                                        headers=headers).json()
@@ -531,7 +517,7 @@ class ApiTest(unittest.TestCase):
         types = [json.loads(line)["type"] for line in lines]
         self.assertEqual(types[0], "hello")
         self.assertEqual(types[-1], "done")
-        # regenerate replaces the last answer instead of adding one
+
         with mock.patch("app.chat.chat_service", FakeChatService(("заново",))):
             pass
         meta2, _ = self._send_and_finish(headers, {"chat_id": meta["chat_id"], "regenerate": True},
@@ -607,13 +593,9 @@ class ApiTest(unittest.TestCase):
                                   headers=headers)
         self.assertEqual(denied.status_code, 400)
 
-
-# --------------------------------------------------------------------------- MemuCode bridge
-
 class FakeOption:
     def __init__(self, label, value, text_input=False):
         self.label, self.value, self.text_input, self.description, self.style = label, value, text_input, "", ""
-
 
 class FakeDialog:
     def __init__(self, request=None):
@@ -631,7 +613,6 @@ class FakeDialog:
 
     def resolve(self, value):
         self.resolved.append(value)
-
 
 class FakeUi:
     def __init__(self):
@@ -671,7 +652,6 @@ class FakeUi:
 
     def say(self, *args, **kwargs):
         pass
-
 
 class RemoteBridgeTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -772,7 +752,7 @@ class RemoteBridgeTest(unittest.TestCase):
         control.publish(force=True)
         dialog_id = remote.terminal_state(control.id)["dialog"]["id"]
         with self.assertRaises(PermissionError):
-            tgapp_code.send_to_terminal(control.id, {"type": "answer", "dialog": dialog_id, "choice": 1})   # "always"
+            tgapp_code.send_to_terminal(control.id, {"type": "answer", "dialog": dialog_id, "choice": 1})
         tgapp_code.send_to_terminal(control.id, {"type": "answer", "dialog": dialog_id, "choice": 1, "confirm": True})
         with self.assertRaises(ValueError):
             tgapp_code.send_to_terminal(control.id, {"type": "shell", "text": "x"})
@@ -815,7 +795,7 @@ class RemoteBridgeTest(unittest.TestCase):
         file = tgapp_code.find_transcript(session_id)
         with file.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps({"t": "msg", "m": {"id": "a2", "role": "assistant", "content": "Готово"}}) + "\n")
-            handle.write('{"t": "msg", "m": {"id": "half"')                 # a line still being written
+            handle.write('{"t": "msg", "m": {"id": "half"')
         more = tgapp_code.read_transcript(session_id, first["cursor"])
         self.assertEqual([item["text"] for item in more["items"]], ["Готово"])
         self.assertIsNone(tgapp_code.find_transcript("../etc/passwd"))
@@ -857,7 +837,6 @@ class RemoteBridgeTest(unittest.TestCase):
         self.assertEqual(seen["kwargs"]["cwd"], root)
         self.assertEqual(seen["kwargs"]["env"]["MEMUCODE_NO_REMOTE"], "1")
         shutil.rmtree(root, ignore_errors=True)
-
 
 if __name__ == "__main__":
     unittest.main()

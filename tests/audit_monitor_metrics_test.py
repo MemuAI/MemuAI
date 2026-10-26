@@ -12,15 +12,12 @@ from unittest.mock import patch
 from app import module_monitor, modules_host
 from app.metrics import HOUR, Metrics
 
-
 SPEC = {"id": "openrouter", "title": "OpenRouter", "url": "https://openrouter.ai/api/v1/models",
         "format": "json", "items_path": "data", "id_keys": ["id"], "label_keys": ["name", "id"],
         "families": [], "api_key": ""}
 
-
 def record(model_id):
     return {"id": model_id, "name": model_id.upper(), "values": {}, "family": model_id.split("/")[0]}
-
 
 class MonitorTest(unittest.TestCase):
     def setUp(self):
@@ -50,10 +47,10 @@ class MonitorTest(unittest.TestCase):
 
     def test_changing_the_family_filter_keeps_the_baseline(self):
         self.configure()
-        asyncio.run(module_monitor.scan("api-models", force=True))          # baseline, silent
+        asyncio.run(module_monitor.scan("api-models", force=True))
         self.assertEqual(self.sent, [])
         self.records["b/y"] = record("b/y")
-        self.configure(families=["b", "a"])                                 # used to wipe the baseline
+        self.configure(families=["b", "a"])
         asyncio.run(module_monitor.scan("api-models", force=True))
         self.assertEqual(len(self.sent), 1)
         self.assertIn("b/y", self.sent[0])
@@ -72,7 +69,6 @@ class MonitorTest(unittest.TestCase):
         self.assertEqual(rows["models/gemini-3-pro"]["family"], "")
         self.assertEqual(rows["models/x/y"]["family"], "x")
 
-
 class TelegramModuleNotificationTest(unittest.TestCase):
     def test_module_alerts_are_not_silenced_by_completion_mode(self):
         from app import telegram_bot
@@ -90,7 +86,6 @@ class TelegramModuleNotificationTest(unittest.TestCase):
             asyncio.run(telegram_bot.send_notification("Новые модели", "+ X", kind="module"))
         self.assertEqual(len(sent), 1)
         self.assertTrue(sent[0][2])
-
 
 class MetricsTest(unittest.TestCase):
     def setUp(self):
@@ -112,7 +107,7 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual((custom["prompt_tokens"], custom["completion_tokens"]), (100, 50))
         self.assertIn("comparison", snap)
         self.assertTrue(snap["has_data"])
-        # Zero-filled hourly series: every hour of the window is present.
+
         stamps = [row["ts"] for row in snap["series"]]
         self.assertEqual(stamps, sorted(stamps))
         self.assertTrue(all(b - a == HOUR for a, b in zip(stamps, stamps[1:])))
@@ -121,7 +116,6 @@ class MetricsTest(unittest.TestCase):
         snap = Metrics(self.path).snapshot("today")
         self.assertFalse(snap["has_data"])
         self.assertEqual(snap["total"], 0)
-
 
 if __name__ == "__main__":
     unittest.main()

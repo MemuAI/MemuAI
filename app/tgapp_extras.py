@@ -23,21 +23,18 @@ SEARCH_LIMIT = 60
 SNIPPET = 90
 voice_limiter_hits: Dict[str, List[float]] = {}
 
-
 def _snippet(text: str, needle: str) -> str:
     flat = " ".join(str(text or "").split())
     at = flat.lower().find(needle)
     if at < 0:
         return flat[:SNIPPET * 2]
-    # Little text before the match: the phone shows two lines of the snippet, so a match 90 characters in was
-    # usually cut off and the result looked unrelated to the query.
+
     start = max(0, at - 40)
     if start:
         space = flat.find(" ", start, at)
         start = space + 1 if space >= 0 else start
     end = min(len(flat), at + len(needle) + SNIPPET + 50)
     return ("…" if start else "") + flat[start:end] + ("…" if end < len(flat) else "")
-
 
 def search_chats(rows: List[Dict[str, Any]], query: str, *, limit: int = SEARCH_LIMIT) -> List[Dict[str, Any]]:
     needle = " ".join(str(query or "").lower().split())
@@ -67,11 +64,8 @@ def search_chats(rows: List[Dict[str, Any]], query: str, *, limit: int = SEARCH_
     hits.sort(key=lambda row: (-row["score"], -row["updated"]))
     return hits[:limit]
 
-
-# Global search (Round 29, app/search_api.py) — what the Mini App shows besides chat messages.
 GLOBAL_TYPES = ("chat", "memory", "prompt", "schedule", "character", "panel", "quick", "work", "code", "doc")
 GLOBAL_PER_TYPE = 4
-
 
 def _compact_item(item: Dict[str, Any]) -> Dict[str, Any]:
     """A search result trimmed to what the phone draws (no scores, no internal meta)."""
@@ -87,7 +81,6 @@ def _compact_item(item: Dict[str, Any]) -> Dict[str, Any]:
             "highlights": item.get("highlights") or [], "hits": hits, "ts": float(item.get("ts") or 0),
             "chat_id": str(open_.get("chat_id") or "") if open_.get("action") == "chat" and open_.get("mode") == "chat" else ""}
 
-
 def global_search(query: str, *, lang: str = "", per_type: int = GLOBAL_PER_TYPE) -> Dict[str, Any]:
     """Grouped results of MemuAI's global search for the Mini App (desktop-only sources excluded)."""
     from . import search_api
@@ -100,7 +93,6 @@ def global_search(query: str, *, lang: str = "", per_type: int = GLOBAL_PER_TYPE
                            "count": int(group.get("count") or len(items)), "items": items})
     return {"groups": groups, "total": int(data.get("total") or 0), "suggestion": str(data.get("suggestion") or ""),
             "layout_switched": str(data.get("layout_switched") or "")}
-
 
 def merge_chat_hits(hits: List[Dict[str, Any]], found: Dict[str, Any], rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Chats the index found by word forms / typos / layout that the plain substring search missed."""
@@ -121,10 +113,8 @@ def merge_chat_hits(hits: List[Dict[str, Any]], found: Dict[str, Any], rows: Lis
                           "title_highlights": item["title_highlights"], "score": 0, "fuzzy": True})
     return hits + extra
 
-
 MEMORY_ITEM_KEYS = ("id", "text", "category", "scope", "confidence", "pinned", "status", "created_at", "updated_at",
                     "source", "tags", "sensitive", "reason", "op")
-
 
 def memory_reply(profile: Dict[str, Any], active: str) -> Dict[str, Any]:
     """What the Mini App memory page draws: the legacy view + memory v2 facts and the labels of their categories."""
@@ -140,14 +130,12 @@ def memory_reply(profile: Dict[str, Any], active: str) -> Dict[str, Any]:
         pass
     return reply
 
-
 def _when(task: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     for key in ("daily_at", "interval_minutes", "run_at"):
         if task.get(key) not in (None, ""):
             out[key] = task.get(key)
     return out
-
 
 def _rule_fields(task: Dict[str, Any], lang: str, by_id: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     """Planning 2.0: the same human summary and status inputs the desktop «Планирование» card shows."""
@@ -167,7 +155,6 @@ def _rule_fields(task: Dict[str, Any], lang: str, by_id: Dict[str, Dict[str, Any
     out["run_count"] = int(task.get("run_count") or 0) if str(task.get("run_count") or "0").isdigit() else 0
     return out
 
-
 def _flow_fields(task: Dict[str, Any], lang: str) -> Dict[str, Any]:
     """Round 35 (flows): the steps of a task, read-only lines for the Mini App («3.1 · Telegram: …»)."""
     if not (isinstance(task.get("steps"), list) and task.get("steps")):
@@ -181,7 +168,6 @@ def _flow_fields(task: Dict[str, Any], lang: str) -> Dict[str, Any]:
         return {"steps": rows[:60]}
     except Exception:
         return {}
-
 
 def schedule_rows(lang: str = "ru") -> List[Dict[str, Any]]:
     from .pgdata import load_schedule_results, load_schedules
@@ -197,8 +183,7 @@ def schedule_rows(lang: str = "ru") -> List[Dict[str, Any]]:
     try:
         for row in load_schedule_results():
             task_id = str(row.get("task_id") or "")
-            # rows carry ``ts`` (newest first); the old ``created``/``at`` keys never existed, so every row
-            # compared as 0 and the OLDEST result of a task was shown as its last one
+
             stamp = float(row.get("ts") or row.get("created") or row.get("at") or 0)
             seen = results.get(task_id) or {}
             if task_id and (not seen or stamp > float(seen.get("ts") or seen.get("created") or seen.get("at") or 0)):
@@ -225,7 +210,6 @@ def schedule_rows(lang: str = "ru") -> List[Dict[str, Any]]:
                     if last else None})
     return out
 
-
 def _set_schedule(task_id: str, change: Callable[[Dict[str, Any]], None]) -> bool:
     from .pgdata import _mutate_schedules
     found: List[bool] = []
@@ -241,7 +225,6 @@ def _set_schedule(task_id: str, change: Callable[[Dict[str, Any]], None]) -> boo
     _mutate_schedules(mutate)
     return bool(found)
 
-
 def prompt_rows(lang: str) -> List[Dict[str, Any]]:
     from .pgdata import load_prompts
     data = load_prompts()
@@ -253,16 +236,14 @@ def prompt_rows(lang: str) -> List[Dict[str, Any]]:
         description = str((row.get("description_ru") if lang == "ru" else "") or row.get("description") or "")
         rows.append({"id": str(row.get("id")), "name": name[:160], "description": description[:400],
                      "text": str(row.get("text") or "")[:20000],
-                     # the system prompt every chat already uses (Settings → Prompts on the computer)
+
                      "default": str(row.get("id")) == str(data.get("default_id") or "")})
     return rows[:120]
-
 
 def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_of: Callable,
              profile_id_of: Callable, client_key: Callable) -> Dict[str, Callable]:
     """Registers the authenticated operations; returns the public ones (no session) for the dispatcher."""
 
-    # ------------------------------------------------------------------ voice
     @op("voice.status")
     async def voice_status(ctx, body):
         return await asyncio.to_thread(telegram_voice.status, ctx["prefs"], lang=lang_of(ctx["prefs"]))
@@ -289,7 +270,6 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
             raise ApiError(422, "voice_failed", str(exc)) from None
         return {"text": text, "review": bool(prefs.get("telegram_voice_review"))}
 
-    # ------------------------------------------------------------------ chats
     @op("chats.search")
     async def chats_search(ctx, body):
         from .pgdata import load_chats
@@ -298,8 +278,7 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
         rows = await asyncio.to_thread(load_chats, profile_id)
         hits = await asyncio.to_thread(search_chats, rows, query)
         out: Dict[str, Any] = {"query": query, "hits": hits}
-        # Round 29: MemuAI's global search (word forms, typos, wrong keyboard layout; memory, prompts,
-        # schedules, characters…). Its index covers the computer's active profile only.
+
         active, _items = tchat.profiles()
         if body.get("global", True) and len(query.strip()) >= 2 and profile_id == active:
             try:
@@ -312,7 +291,6 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
                 out["suggestion"] = found["suggestion"]
         return out
 
-    # ------------------------------------------------------------------ memory v2 (Round 29)
     @op("memory.item")
     async def memory_item(ctx, body):
         """One fact from the phone: approve / reject a pending one, pin / unpin, edit, delete, restore."""
@@ -392,7 +370,7 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
             edited["content"] = text
             edited["createdAt"] = tchat.now_ms()
             edited["edited"] = True
-            # Round 35 (branches): the old message and its answers stay as a version (MemuAI shows «‹ 1/2 ›»).
+
             row["messages"] = messages
             from . import chat_tree
             chat_tree.begin_version(row, index)
@@ -443,7 +421,6 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
             raise ApiError(404, "not_found", t(prefs, "Версия не найдена — обновите чат", "Version not found — refresh the chat"))
         return {"ok": True, "chat_id": chat_id}
 
-    # ------------------------------------------------------------------ schedules
     @op("schedules.list")
     async def schedules_list(ctx, body):
         return {"tasks": await asyncio.to_thread(schedule_rows, lang_of(ctx["prefs"]))}
@@ -453,8 +430,7 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
         task_id = str(body.get("id") or "")
         enabled = bool(body.get("enabled"))
         def toggle(task: Dict[str, Any]) -> None:
-            # Same as the desktop's /api/plan/toggle: switched back on, a task plans its next slot afresh (a stale
-            # next_run fired at once) and a finished rule starts its limits over.
+
             was = task.get("enabled", True) not in (False, "false", 0)
             task["enabled"] = enabled
             if enabled and not was:
@@ -475,9 +451,7 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
         task_id = str(body.get("id") or "")
 
         def run_now(task: Dict[str, Any]) -> None:
-            # Same as the desktop's /api/plan/run. A rule task runs through ``run_now`` (a paused rule runs once
-            # and stays paused); a plain task is made due now — the scheduler drops the slot of a disabled task,
-            # so «Run now» on a switched-off task used to do nothing at all.
+
             if isinstance(task.get("rule"), dict):
                 task["run_now"] = time.time()
             else:
@@ -491,8 +465,7 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
 
     @op("schedules.parse")
     async def schedules_parse(ctx, body):
-        # «каждый будний день в 9:00 присылай сводку новостей» → a task draft + the preview the desktop builder
-        # shows (summary, next runs, warnings). Nothing is saved: the user confirms with schedules.create.
+
         from . import schedule_rules as rules
         from . import schedule_rules_api as plan_api
         from .tgapp_chat import complete, pick_model
@@ -521,7 +494,7 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
                            "The model did not answer: " + str(exc)[:300]) from None
         draft["rule"] = payload["rule"]
         draft["model"] = draft.get("model") or model
-        draft["notify_telegram"] = draft.get("kind") != "flow"   # Round 35: a flow sends with its own steps; created from the phone: the result comes back to Telegram (switch in the preview)
+        draft["notify_telegram"] = draft.get("kind") != "flow"
         return {"task": draft, "summary": payload["summary"], "next": payload["next"][:5],
                 "events": payload["events"], "warnings": payload["warnings"]}
 
@@ -532,7 +505,7 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
         lang = lang_of(ctx["prefs"])
         raw = body.get("task") if isinstance(body.get("task"), dict) else {}
         raw = {**raw, "created_by": "telegram"}
-        raw.pop("id", None)         # always a new task: the Mini App never overwrites one by id
+        raw.pop("id", None)
         try:
             task_id = await asyncio.to_thread(plan_api.save_task, raw, lang)
         except rules.RuleError as exc:
@@ -558,12 +531,10 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
             raise ApiError(404, "not_found", "Задача не найдена", "Task not found")
         return {"tasks": await asyncio.to_thread(schedule_rows, lang_of(ctx["prefs"]))}
 
-    # ------------------------------------------------------------------ prompts
     @op("prompts.list")
     async def prompts_list(ctx, body):
         return {"prompts": await asyncio.to_thread(prompt_rows, lang_of(ctx["prefs"]))}
 
-    # ------------------------------------------------------------------ browser sign-in (phone side)
     def _web_enabled(ctx) -> None:
         if ctx["config"].get("web_login") is False:
             raise ApiError(403, "web_off", t(ctx["prefs"], "Вход из браузера выключен на компьютере",
@@ -587,7 +558,6 @@ def register(op: Callable[[str], Callable], ApiError: Any, *, t: Callable, lang_
                                                 "The code is unknown or expired — reload the page in the browser"))
         return {"ok": True, "approved": approve}
 
-    # ------------------------------------------------------------------ browser sign-in (browser side, no session)
     from . import tg_webapp
 
     def _prefs():

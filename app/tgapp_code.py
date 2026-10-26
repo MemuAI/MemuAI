@@ -33,13 +33,9 @@ HEADLESS_MODES = ("default", "plan", "acceptEdits", "bypassPermissions")
 MAX_ITEM_TEXT = 12000
 MAX_READ = 2 * 1024 * 1024
 
-
-# --------------------------------------------------------------------------- sessions
-
 def _remote():
     from .cli import remote
     return remote
-
 
 def list_sessions(limit: int = 80) -> List[Dict[str, Any]]:
     from .cli.session import list_sessions as cli_list
@@ -55,14 +51,13 @@ def list_sessions(limit: int = 80) -> List[Dict[str, Any]]:
         session_id = str(row.get("id") or "")
         terminal = live.pop(session_id, None)
         out.append(_session_row(row, terminal, running.get(session_id)))
-    # A terminal whose new session has no transcript yet (nothing typed so far).
+
     for session_id, terminal in live.items():
         out.insert(0, _session_row({"id": session_id, "root": terminal.get("root"), "title": terminal.get("title"),
                                     "model": terminal.get("model"), "updated": terminal.get("heartbeat"),
                                     "prompts": 0, "messages": 0}, terminal, None))
     out.sort(key=lambda item: (0 if item["live"] else 1, -float(item.get("updated") or 0)))
     return out
-
 
 def _session_row(row: Dict[str, Any], terminal: Optional[Dict[str, Any]], job: Optional[Job]) -> Dict[str, Any]:
     root = str(row.get("root") or "")
@@ -79,7 +74,6 @@ def _session_row(row: Dict[str, Any], terminal: Optional[Dict[str, Any]], job: O
         "headless_job": job.id if job else "",
     }
 
-
 def find_transcript(session_id: str) -> Optional[Path]:
     if not SESSION_ID_RE.match(str(session_id or "")):
         return None
@@ -90,7 +84,6 @@ def find_transcript(session_id: str) -> Optional[Path]:
             return candidate
     return None
 
-
 def session_root(file: Path) -> str:
     try:
         with file.open("r", encoding="utf-8", errors="replace") as handle:
@@ -99,16 +92,13 @@ def session_root(file: Path) -> str:
     except (OSError, ValueError):
         return ""
 
-
 def _text_of(message: Dict[str, Any]) -> str:
     from .cli.session import message_text
     return message_text(message)
 
-
 def _clip(text: str, limit: int = MAX_ITEM_TEXT) -> str:
     text = str(text or "")
     return text if len(text) <= limit else text[:limit] + f"\n… (+{len(text) - limit})"
-
 
 def transcript_items(event: Dict[str, Any]) -> List[Dict[str, Any]]:
     """One JSONL event as zero or more display items for the phone."""
@@ -159,7 +149,6 @@ def transcript_items(event: Dict[str, Any]) -> List[Dict[str, Any]]:
                  "output": _clip(text, 4000), "diff": _clip(str(message.get("diff") or ""), 8000)}]
     return []
 
-
 def read_transcript(session_id: str, cursor: int = 0) -> Dict[str, Any]:
     """Items appended since ``cursor`` (a byte offset); ``reset`` when the file was replaced."""
     file = find_transcript(session_id)
@@ -170,7 +159,7 @@ def read_transcript(session_id: str, cursor: int = 0) -> Dict[str, Any]:
     if cursor < 0 or cursor > size:
         cursor, reset = 0, True
     start = cursor
-    # The first look at a long session shows its end; older history comes on request.
+
     if cursor == 0 and size > MAX_READ:
         start = size - MAX_READ
     items: List[Dict[str, Any]] = []
@@ -179,14 +168,14 @@ def read_transcript(session_id: str, cursor: int = 0) -> Dict[str, Any]:
         data = handle.read(min(size - start, MAX_READ * 2))
     end = start + len(data)
     if not data.endswith(b"\n"):
-        cut = data.rfind(b"\n")                      # a line still being written waits for the next read
+        cut = data.rfind(b"\n")
         if cut < 0:
             return {"items": [], "cursor": start, "reset": reset, "size": size}
         end = start + cut + 1
         data = data[:cut + 1]
     lines = data.split(b"\n")
     if start and cursor == 0 and lines:
-        lines = lines[1:]                            # started in the middle of a line
+        lines = lines[1:]
     for raw in lines:
         raw = raw.strip()
         if not raw:
@@ -200,29 +189,20 @@ def read_transcript(session_id: str, cursor: int = 0) -> Dict[str, Any]:
     return {"items": items, "cursor": end, "reset": reset, "size": size, "partial": bool(start and cursor == 0),
             "root": session_root(file)}
 
-
-# --------------------------------------------------------------------------- live terminals
-
 def live_state(rc: str) -> Optional[Dict[str, Any]]:
     return _remote().terminal_state(rc)
-
 
 def terminal_for(session_id: str) -> Optional[Dict[str, Any]]:
     return next((row for row in _remote().list_terminals() if row.get("session_id") == session_id), None)
 
-
 class BlockedCommand(ValueError):
     """A prompt the phone may not send (it would skip the permission dialog)."""
 
-
-# Slash commands that would bypass the permission dialog from the phone (``/run`` is «!command»).
 BLOCKED_COMMANDS = ("/run", "/!")
-
 
 def blocked_prompt(text: str) -> bool:
     head = str(text or "").lstrip().split(None, 1)[0].lower() if str(text or "").strip() else ""
     return head.startswith("!") or head in BLOCKED_COMMANDS
-
 
 def send_to_terminal(rc: str, command: Dict[str, Any]) -> str:
     allowed = {"prompt": ("text",), "interrupt": (), "answer": ("dialog", "choice", "choices", "text", "confirm"),
@@ -262,9 +242,6 @@ def send_to_terminal(rc: str, command: Dict[str, Any]) -> str:
                 raise PermissionError("confirm")
     return _remote().send_command(rc, clean)
 
-
-# --------------------------------------------------------------------------- headless runs
-
 def memucode_command() -> Optional[List[str]]:
     """How to start MemuCode from this process (installed exe, or the source tree)."""
     override = os.environ.get("MEMUCODE_EXE", "").strip()
@@ -285,7 +262,6 @@ def memucode_command() -> Optional[List[str]]:
             python = python.with_name("python.exe")
         return [str(python), str(script)]
     return None
-
 
 def start_headless(owner: str, session_id: str, text: str, mode: str, *,
                    popen: Any = subprocess.Popen) -> Job:
@@ -329,7 +305,6 @@ def start_headless(owner: str, session_id: str, text: str, mode: str, *,
     job.cancel_hook = cancel
     job.task = asyncio.ensure_future(_pump_headless(job, process))
     return job
-
 
 async def _pump_headless(job: Job, process: Any) -> None:
     loop = asyncio.get_running_loop()
@@ -403,19 +378,11 @@ async def _pump_headless(job: Job, process: Any) -> None:
     job.emit("done", stopped=False, ok=ok, code=code)
     job.finish()
 
-
-# =========================================================================== Round 29: phone-hosted sessions
-#
-# ``memucode remote-host`` (app/cli/remote_host.py) is the full interactive MemuCode without a window: the phone
-# drives it through the same remote-control files as an open terminal. Opening any session (or creating a new
-# one) from the Mini App starts such a host, so slash commands, skills, the model picker, permission questions
-# and Esc work exactly like in the terminal. The headless ``-p`` turn above stays as a fallback.
-
 import secrets as _secrets
 import string as _string
 import time as _time
 
-HOST_WAIT = 45.0     # r30: the first start of MemuCode.exe on Windows (Defender scan, cold disk) can take 20–30 s
+HOST_WAIT = 45.0
 HOST_LOG_LIMIT = 64 * 1024
 MAX_TEXT_FILE = 512 * 1024
 MAX_IMAGE_FILE = 4 * 1024 * 1024
@@ -426,10 +393,8 @@ HIDDEN_DIRS = {".git", "__pycache__", ".hg", ".svn", ".memucode-cache"}
 _hosts: Dict[str, Any] = {}
 _hosts_lock = threading.Lock()
 
-
 def _remote_folder() -> Path:
     return _remote().remote_dir()
-
 
 def host_log_tail(nonce: str) -> str:
     file = _remote_folder() / f"host-{nonce}.log"
@@ -439,10 +404,8 @@ def host_log_tail(nonce: str) -> str:
         return ""
     return data.decode("utf-8", "replace").strip()
 
-
 def _find_host(nonce: str) -> Optional[Dict[str, Any]]:
     return next((row for row in _remote().list_terminals() if str(row.get("host_nonce") or "") == nonce), None)
-
 
 def _reap_hosts() -> None:
     with _hosts_lock:
@@ -453,7 +416,6 @@ def _reap_hosts() -> None:
                 _hosts.pop(nonce, None)
                 with contextlib.suppress(OSError):
                     (_remote_folder() / f"host-{nonce}.log").unlink()
-
 
 def start_host(owner: str, *, session_id: str = "", root: str = "", model: str = "", mode: str = "",
                lang: str = "", popen: Any = subprocess.Popen, wait: float = HOST_WAIT) -> Dict[str, Any]:
@@ -526,7 +488,6 @@ def start_host(owner: str, *, session_id: str = "", root: str = "", model: str =
         process.terminate()
     raise TimeoutError("the MemuCode host did not start in time")
 
-
 def stop_hosts() -> None:
     """Proxy shutdown: hosts close themselves when idle, but never outlive the Proxy by much."""
     with _hosts_lock:
@@ -538,9 +499,6 @@ def stop_hosts() -> None:
                 process.terminate()
         with contextlib.suppress(Exception):
             log.close()
-
-
-# --------------------------------------------------------------------------- folders for a new session
 
 def recent_projects(limit: int = 40) -> List[Dict[str, Any]]:
     from .cli.session import list_sessions as cli_list
@@ -563,12 +521,10 @@ def recent_projects(limit: int = 40) -> List[Dict[str, Any]]:
     out = sorted(seen.values(), key=lambda item: -item["updated"])
     return out[:limit]
 
-
 def _drives() -> List[str]:
     if os.name != "nt":
         return []
     return [f"{letter}:\\" for letter in _string.ascii_uppercase if os.path.isdir(f"{letter}:\\")]
-
 
 def browse_folders(path: str = "", *, hidden: bool = False) -> Dict[str, Any]:
     """Sub-folders of ``path`` for the «new session» folder picker (folders only, never file contents)."""
@@ -602,7 +558,6 @@ def browse_folders(path: str = "", *, hidden: bool = False) -> Dict[str, Any]:
     parent = str(folder.parent) if folder.parent != folder else ""
     return {"path": str(folder), "parent": parent, "home": home, "drives": _drives(), "dirs": dirs}
 
-
 def make_folder(parent: str, name: str) -> str:
     name = str(name or "").strip()
     if not name or name in (".", "..") or re.search(r'[\\/:*?"<>|\x00-\x1f]', name) or len(name) > 120:
@@ -613,9 +568,6 @@ def make_folder(parent: str, name: str) -> str:
     target = base.resolve() / name
     target.mkdir(exist_ok=False)
     return str(target)
-
-
-# --------------------------------------------------------------------------- the files of a session
 
 def root_of(session_id: str = "", rc: str = "") -> str:
     if rc:
@@ -631,7 +583,6 @@ def root_of(session_id: str = "", rc: str = "") -> str:
             return session_root(file)
     return ""
 
-
 def _inside(root: str, rel: str) -> Path:
     base = Path(root).resolve()
     rel = str(rel or "").replace("\\", "/").strip("/")
@@ -641,7 +592,6 @@ def _inside(root: str, rel: str) -> Path:
     if target != base and base not in target.parents:
         raise PermissionError("outside the project")
     return target
-
 
 def list_files(root: str, rel: str = "", *, hidden: bool = False) -> Dict[str, Any]:
     if not root or not Path(root).is_dir():
@@ -670,7 +620,6 @@ def list_files(root: str, rel: str = "", *, hidden: bool = False) -> Dict[str, A
     rel_path = "" if folder == base else folder.relative_to(base).as_posix()
     return {"root": str(base), "path": rel_path, "entries": entries, "truncated": truncated}
 
-
 def read_file(root: str, rel: str) -> Dict[str, Any]:
     if not root or not Path(root).is_dir():
         raise LookupError("project folder is missing")
@@ -694,7 +643,6 @@ def read_file(root: str, rel: str) -> Dict[str, Any]:
     text = data[:MAX_TEXT_FILE].decode("utf-8", "replace")
     return {**base, "kind": "text", "text": text, "truncated": truncated, "lang": suffix.lstrip(".")}
 
-
 def git_changes(root: str) -> Dict[str, Any]:
     """``git status`` of the project (what the agent changed) — empty when it is not a repository."""
     if not root or not Path(root).is_dir():
@@ -716,7 +664,6 @@ def git_changes(root: str) -> Dict[str, Any]:
             files.append({"status": line[:2].strip() or "?", "path": line[3:].strip().strip('"')})
     return {"git": True, "files": files}
 
-
 def file_diff(root: str, rel: str) -> str:
     git = shutil.which("git")
     if not git:
@@ -729,9 +676,6 @@ def file_diff(root: str, rel: str) -> str:
     except (OSError, subprocess.TimeoutExpired):
         return ""
     return out.stdout[:200_000]
-
-
-# --------------------------------------------------------------------------- manage sessions
 
 def rename_session(session_id: str, name: str) -> None:
     from .cli.session import rename_session as cli_rename
@@ -746,7 +690,6 @@ def rename_session(session_id: str, name: str) -> None:
         raise LookupError("project folder is missing")
     cli_rename(Path(root), session_id, name)
 
-
 def delete_session(session_id: str) -> None:
     from .cli.session import delete_session as cli_delete
     if terminal_for(session_id) is not None:
@@ -760,7 +703,7 @@ def delete_session(session_id: str) -> None:
     root = session_root(file)
     from .cli import paths
     if not root or paths.project_sessions(root).resolve() != file.parent.resolve():
-        # A transcript without its folder line (or a moved project): remove the file itself.
+
         file.unlink()
         assets = file.with_suffix(".assets")
         if assets.is_dir():
@@ -768,10 +711,6 @@ def delete_session(session_id: str) -> None:
         return
     cli_delete(Path(root), session_id)
 
-
-# --------------------------------------------------------------------------- slash commands for auto-complete
-
-# Shown before any terminal published its catalogue (names are the CLI's own; descriptions RU/EN).
 FALLBACK_COMMANDS = [
     ("help", "Все команды и горячие клавиши", "All commands and shortcuts", "general", True),
     ("model", "Выбрать модель", "Choose the model", "model", True),
@@ -807,7 +746,6 @@ FALLBACK_COMMANDS = [
     ("tasks", "Фоновые задачи", "Background jobs", "info", True),
     ("memory", "Файлы памяти", "Memory files", "context", True),
 ]
-
 
 def command_catalog(rc: str = "") -> Dict[str, Any]:
     folder = _remote_folder()

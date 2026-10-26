@@ -24,18 +24,15 @@ CHOICES = ("always", "auto", "never")
 DEFAULT = "auto"
 AUTO_RELEASE_MIN = 30
 SAVE_RELEASE_MIN = 2
-#: how often the hidden window is checked (seconds)
-CHECK_EVERY = 60.0
 
+CHECK_EVERY = 60.0
 
 def policy(prefs: Optional[Dict[str, Any]]) -> str:
     value = str((prefs or {}).get("quick_ask_warm") or DEFAULT)
     return value if value in CHOICES else DEFAULT
 
-
 def warm_at_start(prefs: Optional[Dict[str, Any]]) -> bool:
     return policy(prefs) != "never"
-
 
 def release_after(prefs: Optional[Dict[str, Any]]) -> Optional[float]:
     """Seconds a hidden window may stay before its renderer is released; ``None`` = keep."""
@@ -43,7 +40,6 @@ def release_after(prefs: Optional[Dict[str, Any]]) -> Optional[float]:
     if mode == "always":
         return None
     return float((AUTO_RELEASE_MIN if mode == "auto" else SAVE_RELEASE_MIN) * 60)
-
 
 def should_release(prefs: Optional[Dict[str, Any]], *, has_window: bool, visible: bool, pinned: bool,
                    hidden_for: float, busy: bool = False) -> bool:

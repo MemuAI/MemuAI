@@ -31,7 +31,6 @@ log = logging.getLogger("memuai.assistant.procs")
 IS_WINDOWS = sys.platform == "win32"
 STILL_ACTIVE = 259
 
-# processes that are never «the app the user means» (shells, hosts, runtimes, MemuAI itself)
 HOST_PROCESSES = {
     "system", "registry", "idle", "smss.exe", "csrss.exe", "wininit.exe", "winlogon.exe", "services.exe", "lsass.exe",
     "svchost.exe", "dwm.exe", "explorer.exe", "sihost.exe", "ctfmon.exe", "conhost.exe", "fontdrvhost.exe",
@@ -43,13 +42,11 @@ HOST_PROCESSES = {
     "msedgewebview2.exe", "crashpad_handler.exe", "lsaiso.exe", "memory compression", "secure system",
 }
 
-
 def is_system_path(path: str) -> bool:
     """``C:\\Windows\\…`` (System32, SysWOW64, WinSxS, SystemApps…) — Windows' own programs."""
     low = str(path or "").replace("/", "\\").lower()
     windir = (os.environ.get("WINDIR") or os.environ.get("SystemRoot") or r"C:\Windows").replace("/", "\\").lower().rstrip("\\")
     return bool(low) and (low.startswith(windir + "\\") or low.startswith(r"c:\windows" + "\\"))
-
 
 def user_apps(rows: Iterable[Dict[str, Any]], own_pid: Optional[int] = None) -> List[Dict[str, Any]]:
     """Processes a person could mean by name: not Windows' own, not a host/runtime, not MemuAI; one row per pid."""
@@ -63,17 +60,14 @@ def user_apps(rows: Iterable[Dict[str, Any]], own_pid: Optional[int] = None) -> 
         out.append(row)
     return out
 
-
 def exe_folder(path: str) -> str:
     """``C:\\…\\INCY\\app.exe`` → ``INCY`` (Windows paths on any OS)."""
     return ntpath.basename(ntpath.dirname(str(path or "")))
-
 
 def app_label(exe: str, path: str = "") -> str:
     """``INCY.exe`` → ``INCY``; ``C:\\…\\Telegram Desktop\\Telegram.exe`` → ``Telegram``."""
     stem = re.sub(r"\.exe$", "", ntpath.basename(str(path or exe or "")), flags=re.I)
     return stem or str(exe or "")
-
 
 def pretty_label(stem: str, title: str = "") -> str:
     """A name for the card: «YouTube - Google Chrome» + ``chrome`` → «Google Chrome»; ``telegram`` → «Telegram»."""
@@ -88,9 +82,6 @@ def pretty_label(stem: str, title: str = "") -> str:
     if text and low and re.sub(r"[^a-z0-9]", "", text.lower()) == low:
         return text
     return stem[:1].upper() + stem[1:] if stem.islower() else stem
-
-
-# ------------------------------------------------------------------ Win32 (lazy)
 
 class _K:
     _inst: Optional["_K"] = None
@@ -150,7 +141,7 @@ class _K:
         return int(out.value) if self.ProcessIdToSessionId(pid, ctypes.byref(out)) else -1
 
     def image_path(self, pid: int) -> str:
-        handle = self.OpenProcess(0x1000, False, pid)        # PROCESS_QUERY_LIMITED_INFORMATION
+        handle = self.OpenProcess(0x1000, False, pid)
         if not handle:
             return ""
         try:
@@ -160,11 +151,10 @@ class _K:
         finally:
             self.CloseHandle(handle)
 
-
 def list_processes(same_session: bool = True) -> List[Dict[str, Any]]:
     """Every process of the user's session: ``{pid, ppid, exe (lower), name, path}``."""
     k = _K.get()
-    snap = k.CreateToolhelp32Snapshot(0x00000002, 0)          # TH32CS_SNAPPROCESS
+    snap = k.CreateToolhelp32Snapshot(0x00000002, 0)
     if not snap or int(snap) == -1 or snap == ctypes.c_void_p(-1).value:
         from .assistant_actions_win import ActionError
         raise ActionError("Не удалось получить список процессов", en="Could not list the processes")
@@ -190,7 +180,6 @@ def list_processes(same_session: bool = True) -> List[Dict[str, Any]]:
             pass
     return rows
 
-
 def pid_alive(pid: int) -> bool:
     k = _K.get()
     handle = k.OpenProcess(0x1000, False, int(pid))
@@ -202,7 +191,6 @@ def pid_alive(pid: int) -> bool:
     finally:
         k.CloseHandle(handle)
 
-
 def windows_of_pid(pid: int) -> List[Dict[str, Any]]:
     """All unowned top-level windows of a process, hidden included: ``{hwnd, title, class, visible}``."""
     k = _K.get()
@@ -213,7 +201,7 @@ def windows_of_pid(pid: int) -> List[Dict[str, Any]]:
         try:
             owner = k.wt.DWORD()
             k.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
-            if int(owner.value) == int(pid) and not k.GetWindow(hwnd, 4):      # GW_OWNER
+            if int(owner.value) == int(pid) and not k.GetWindow(hwnd, 4):
                 title = ctypes.create_unicode_buffer(256)
                 k.GetWindowTextW(hwnd, title, 256)
                 cls = ctypes.create_unicode_buffer(256)
@@ -227,10 +215,7 @@ def windows_of_pid(pid: int) -> List[Dict[str, Any]]:
     k.EnumWindows(collect, 0)
     return out
 
-
-# helper/IME windows every GUI thread owns; WM_CLOSE to them means nothing
 _NOISE_CLASSES = {"ime", "msctfime ui", "default ime", "gdi+ hook window class", "tooltips_class32"}
-
 
 def post_close(pid: int) -> int:
     """``WM_CLOSE`` to every meaningful top-level window of ``pid``; returns how many got it."""

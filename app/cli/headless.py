@@ -18,7 +18,6 @@ from typing import Any, Dict, List
 from .. import pricing
 from .ui_base import BaseUI
 
-
 class HeadlessUI(BaseUI):
     interactive = False
 
@@ -28,9 +27,7 @@ class HeadlessUI(BaseUI):
         self.out = sys.stdout
         self.err = sys.stderr
         self.last_text = ""
-        # Round 31: text mode printed each segment's own trailing blank lines plus a newline of
-        # its own — answers came out with 2–3 empty lines between sentences. Trailing newlines
-        # are held back and every segment is separated by exactly one blank line.
+
         self._held = ""
         self._seg_start = True
         self._seg_wrote = False
@@ -116,16 +113,13 @@ class HeadlessUI(BaseUI):
     def todos_changed(self, todos: List[Dict[str, Any]]) -> None:
         self._event({"type": "todos", "todos": todos})
 
-
 async def run(runtime: Any, prompt: str, *, fmt: str = "text", verbose: bool = False,
               system_append: str = "") -> int:
     try:
         return await _run(runtime, prompt, fmt=fmt, verbose=verbose, system_append=system_append)
     finally:
-        # Startup, hooks and summary formatting can fail after starting clients,
-        # MCP processes or housekeeping. Always release them, including on Ctrl-C.
-        await runtime.shutdown()
 
+        await runtime.shutdown()
 
 async def _run(runtime: Any, prompt: str, *, fmt: str, verbose: bool, system_append: str) -> int:
     from .agent import Agent

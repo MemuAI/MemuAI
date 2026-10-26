@@ -25,11 +25,9 @@ from app import pgdata, realtime_live, websearch  # noqa: E402
 
 STATIC = Path(__file__).resolve().parents[1] / "app" / "pgstatic"
 
-
 def config(provider: str, **extra) -> realtime_live.LiveConfig:
     prefs = {"voice_realtime_provider": provider, "voice_realtime_api_keys": {provider: "sk-secret"}, **extra}
     return realtime_live.LiveConfig.from_preferences(prefs, "Be brief.")
-
 
 class LiveAdaptersSeeAndSearchTest(unittest.TestCase):
     def test_gemini_streams_frames_and_steps_down_from_google_search(self) -> None:
@@ -122,7 +120,6 @@ class LiveAdaptersSeeAndSearchTest(unittest.TestCase):
         self.assertTrue(pgdata._normalize_preferences({})["voice_realtime_search"])
         self.assertFalse(pgdata._normalize_preferences({"voice_realtime_search": False})["voice_realtime_search"])
 
-
 class FakeGemini:
     """Gemini Live on localhost: a free-tier key that has no Google Search quota."""
 
@@ -173,7 +170,6 @@ class FakeGemini:
         self.thread.join(timeout=10)
         self.loop.close()
 
-
 class LiveRelayTest(unittest.TestCase):
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
@@ -222,7 +218,6 @@ class LiveRelayTest(unittest.TestCase):
                 self.assertIn({"type": "assistant_transcript", "delta": "Доллар стоит девяносто."}, events)
                 self.assertEqual(searches, ["курс доллара"])
 
-                # The second conversation does not start with the refusal again.
                 with self.session(client) as ws:
                     ws.send_text(json.dumps({"type": "start", "instructions": "x"}))
                     self.assertEqual(json.loads(ws.receive_text())["search"], "tool")
@@ -269,7 +264,6 @@ class LiveRelayTest(unittest.TestCase):
             self.assertNotIn("tools", gemini.setups[0])
         self.assertTrue(hasattr(playground_api, "create_app"))
 
-
 class LiveWindowTest(unittest.TestCase):
     def test_the_window_has_camera_screen_and_search_wiring(self) -> None:
         html = (STATIC / "index.html").read_text(encoding="utf-8")
@@ -302,7 +296,6 @@ class LiveWindowTest(unittest.TestCase):
         from app import desktop
         self.assertIn("Camera", desktop._LOCAL_PERMISSIONS)
         self.assertNotIn("Geolocation", desktop._LOCAL_PERMISSIONS)
-
 
 if __name__ == "__main__":
     unittest.main()

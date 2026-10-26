@@ -35,7 +35,6 @@ from .ui_base import BaseUI, RelayUI
 
 PROXY_WINDOW_CAP = 400_000
 
-
 class Stats:
     """Usage and cost of this process's session."""
 
@@ -56,9 +55,7 @@ class Stats:
 
     def add_usage(self, model: str, usage: Usage, *, provider: str = "", seconds: float = 0.0) -> None:
         if model.startswith("@"):
-            # Direct connections bypass Proxy's cost boundary. Capture the shared
-            # custom tariff when this usage arrives, keeping historical spend
-            # stable if a user changes prices later in the same session.
+
             price = pricing.lookup(model, provider)
             if price is not None and price.source == "account_override":
                 estimate = pricing.estimate(model, input_tokens=usage.input, output_tokens=usage.output,
@@ -116,7 +113,6 @@ class Stats:
         return {"rows": rows, "api_equivalent": api_equivalent + self.decision_cost, "actual": actual + self.decision_cost,
                 "decisions": self.decision_cost, "unknown": unknown}
 
-
 class BackgroundJobs:
     """Parallel agents (``/background``, ``Task`` with run_in_background, the ``Agents`` tool).
 
@@ -135,7 +131,6 @@ class BackgroundJobs:
         self.runtime = runtime
         self.jobs: List[Dict[str, Any]] = []
 
-    # ------------------------------------------------------------ start / resume
     def start(self, prompt: str, *, kind: str = "general-purpose", origin: str = "user",
               description: str = "", model: str = "", name: str = "", role: str = "",
               tools: Optional[List[str]] = None) -> Dict[str, Any]:
@@ -201,7 +196,6 @@ class BackgroundJobs:
                                   f"{job['result'][:1500]}", wake=True, key=f"job:{number}")
         self.runtime.ui.background_finished(job)
 
-    # ------------------------------------------------------------ lookup
     def find(self, ref: Any, session_id: str = "") -> Optional[Dict[str, Any]]:
         """A job by number (``3``, ``"#3"``) or name (case-insensitive), in this session when given."""
         text = str(ref if ref is not None else "").strip().lstrip("#").strip()
@@ -216,7 +210,6 @@ class BackgroundJobs:
     def running(self) -> int:
         return sum(1 for job in self.jobs if job["status"] == "running")
 
-    # ------------------------------------------------------------ control
     def send(self, ref: Any, message: str, *, session_id: str = "") -> Dict[str, Any]:
         """Follow-up instructions for an agent. Running: queued for its next turn boundary. Finished: the agent
         resumes with its own context and the message as the next request."""
@@ -298,7 +291,6 @@ class BackgroundJobs:
             row["report"] = report
         return row
 
-
 def _agent_name(name: str, text: str, number: int, taken: set) -> str:
     """A short unique handle: the asker's name, else one from the task's first words."""
     import re as _re
@@ -311,11 +303,9 @@ def _agent_name(name: str, text: str, number: int, taken: set) -> str:
         candidate, index = f"{base}-{index}", index + 1
     return candidate
 
-
 def _job_label(job: Dict[str, Any]) -> str:
     parts = [part for part in (job.get("name"), job.get("role")) if part]
     return f" ({' — '.join(parts)})" if parts else ""
-
 
 class _JobUI(RelayUI):
     def __init__(self, parent: BaseUI, job: Dict[str, Any]) -> None:
@@ -332,7 +322,6 @@ class _JobUI(RelayUI):
         request.reason = (tr(f"[фоновая задача #{self.job['id']}] ", f"[background task #{self.job['id']}] ")
                           + (request.reason or ""))
         return await self.parent.ask_permission(request)
-
 
 class Runtime:
     def __init__(self, root: Path | str, settings: Settings, *, ui: Optional[BaseUI] = None,
@@ -352,26 +341,24 @@ class Runtime:
         self.shells = BackgroundShells()
         self.stats = Stats()
         self.jobs = BackgroundJobs(self)
-        #: An HTTP transport for the decision model and its catalogue; tests put a fake server here.
+
         self.decision_transport: Any = None
         self.decisions = DecisionClient(self.decision_config(), llm=self._decisions_llm)
-        #: What the decision model said about the request that is being answered now: one hint for the model
-        #: per line (a skill that fits). Cleared when the turn ends.
+
         self.turn_hints: List[str] = []
         self.add_dirs: List[Path] = []
         for folder in settings.get("permissions.additional_directories") or []:
             path = Path(os.path.expanduser(str(folder)))
             if path.is_dir():
                 self.add_dirs.append(path.resolve())
-        # Round 26: a resumed session keeps its model (as /resume does) — «memucode -r <id> -p» from the Mini App
-        # answered with the default model instead of the session's one
+
         self.model = model or str(settings.get("model") or self.session.meta.get("model")
                                   or self.memuai_prefs().get("default_model") or "")
         self.browser: Any = None
         self.computer: Any = None
         self.skills = project.Skills(self.root, settings.is_trusted(self.root), settings)
         self._prompt_cache: Dict[Tuple[Any, ...], str] = {}
-        #: Token counts the provider reported for the latest request of the main agent (or None).
+
         self.context_measured: Optional[Dict[str, Any]] = None
         self._git_cache: Dict[str, str] = {}
         self._memory_cache: Optional[List[project.MemoryFile]] = None
@@ -383,12 +370,11 @@ class Runtime:
         self._ready: Optional[asyncio.Event] = None
         self._housekeeping_timer: Optional[threading.Timer] = None
         self.mcp_task: Optional[asyncio.Task] = None
-        self.notes: List[Dict[str, Any]] = []        # background results waiting to reach the model
+        self.notes: List[Dict[str, Any]] = []
         self.last_error = ""
         if self.model and not self.session.meta.get("model"):
             self.session.meta["model"] = self.model
 
-    # ------------------------------------------------------------ state
     def memuai_prefs(self) -> Dict[str, Any]:
         stamp, data = self._prefs
         if time.time() - stamp < 30:
@@ -451,7 +437,7 @@ class Runtime:
 
     def invalidate_prompt(self, *, memory: bool = False) -> None:
         self._prompt_cache.clear()
-        self.context_measured = None            # another prompt or model: the old measurement no longer applies
+        self.context_measured = None
         if memory:
             self._commands_cache = None
             self._memory_cache = None
@@ -494,7 +480,6 @@ class Runtime:
             window = min(window, PROXY_WINDOW_CAP)
         return max(8_000, window)
 
-    # ------------------------------------------------------------ models
     def small_model(self) -> str:
         fast = routing_config(self.settings)["tiers"]["fast"]
         return str(self.settings.get("small_model") or (fast[0] if fast else "") or self.model)
@@ -559,7 +544,7 @@ class Runtime:
         complexity: Optional[float] = None
         why = ""
         decisions = self.decisions
-        if looked_at is None:                       # False: the caller already looked and found nothing
+        if looked_at is None:
             try:
                 looked_at = await self.triage(prompt, routing=True)
             except Exception:
@@ -576,7 +561,7 @@ class Runtime:
             why = tr("эвристика", "heuristic")
         wanted = ("strong" if complexity >= config["strong_from"] else
                   "balanced" if complexity >= config["balanced_from"] else "fast")
-        # An empty tier hands over to the nearest one that has models.
+
         order = {"fast": ("fast", "balanced", "strong"), "balanced": ("balanced", "strong", "fast"),
                  "strong": ("strong", "balanced", "fast")}[wanted]
         tier = next((name for name in order if tiers[name]), "")
@@ -684,7 +669,6 @@ class Runtime:
                 + f"Question from the agent: {question}")
         return await self.quick_answer(system, user, model=model)
 
-    # ------------------------------------------------------------ sub-agents
     def agent_spec(self, kind: str = "general-purpose", *, role: str = "",
                    tools: Optional[List[str]] = None) -> project.AgentDef:
         """The definition an agent runs with: a type (built-in or the user's), plus — Round 32 — a role the
@@ -734,13 +718,12 @@ class Runtime:
         return {"ok": result.stopped == "done", "report": report, "summary": summary,
                 "usage": result.usage.to_dict(), "error": result.error}
 
-    # ------------------------------------------------------------ goal
     async def goal_followup(self, result: Any) -> Optional[str]:
         """After a turn: the next continuation prompt while a goal is active, else None."""
         goal = self.session.meta.get("goal")
         if not isinstance(goal, dict) or not goal.get("text") or goal.get("done") or goal.get("paused"):
             return None
-        if getattr(result, "stopped", "") == "stuck":       # Round 29: the stuck detector stopped the turn
+        if getattr(result, "stopped", "") == "stuck":
             self._set_goal(paused=True)
             return None
         if getattr(result, "stopped", "") not in ("done",):
@@ -789,7 +772,6 @@ class Runtime:
         elif values.get("paused"):
             self.ui.notice(tr("◎ Цель на паузе: нужна ваша помощь", "◎ Goal paused: your input is needed"), "warn")
 
-    # ------------------------------------------------------------ statistics
     def record_round(self, agent: Any, output: Any) -> None:
         if not self.settings.get("stats.record", True):
             return
@@ -819,7 +801,6 @@ class Runtime:
         except OSError:
             pass
 
-    # ------------------------------------------------------------ workspace
     def add_dir(self, folder: Path | str) -> Path:
         path = Path(os.path.expanduser(str(folder))).resolve()
         if not path.is_dir():
@@ -856,7 +837,6 @@ class Runtime:
         self.invalidate_prompt()
         return self.session
 
-    # ------------------------------------------------------------ background results
     def add_note(self, text: str, *, wake: bool = False, key: str = "") -> None:
         """A finished background agent or command: the model gets it before its next step; with
         ``wake`` an idle interface also starts a turn so the model can act on it."""
@@ -888,7 +868,6 @@ class Runtime:
             lines.append(f"Background command {row['id']} finished (exit {code}): {row['command'][:70]}")
         return lines
 
-    # ------------------------------------------------------------ lifecycle
     async def wait_ready(self, timeout: float = 30.0) -> bool:
         """Wait until :meth:`startup` (models, hooks) has finished; True at once when it never started."""
         event = self._ready
@@ -903,7 +882,7 @@ class Runtime:
     async def startup(self, *, load_models: bool = True) -> None:
         self._ready = asyncio.Event()
         try:
-            # Housekeeping (old sessions, the online price list) must not compete with the first seconds.
+
             self._housekeeping_timer = threading.Timer(4.0, self._housekeeping)
             self._housekeeping_timer.daemon = True
             self._housekeeping_timer.start()
@@ -951,7 +930,7 @@ class Runtime:
     def _housekeeping(self) -> None:
         try:
             from .session import cleanup
-            # The open session is never removed, however old a resumed transcript is.
+
             cleanup(int(self.settings.get("cleanup_period_days") or 45), keep={self.session.id})
         except Exception:
             pass
@@ -962,7 +941,7 @@ class Runtime:
                 pass
 
     async def shutdown(self) -> None:
-        # A session that ends within the first seconds must not start housekeeping afterwards.
+
         if self._housekeeping_timer is not None:
             self._housekeeping_timer.cancel()
         try:

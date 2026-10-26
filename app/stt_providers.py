@@ -24,7 +24,6 @@ PROVIDERS = {
     "custom": {"label": "OpenAI-compatible", "base_url": "", "models": [], "key_url": "", "docs_url": ""},
 }
 
-
 def provider_for_url(url: object) -> str:
     host = (urlsplit(str(url or "").strip()).hostname or "").lower()
     if host == "api.groq.com": return "groq"
@@ -34,7 +33,6 @@ def provider_for_url(url: object) -> str:
         return "azure"
     return tts_providers.provider_for_url(url)
 
-
 def api_root(base: str, kind: str) -> str:
     base = tts_providers.api_root(base).rstrip("/")
     if kind == "gemini": return re.sub(r"/(?:v1beta|v1)(?:/openai|/models/[^/]+:generateContent)?$", "", base)
@@ -43,18 +41,15 @@ def api_root(base: str, kind: str) -> str:
     if kind == "azure": return re.sub(r"/speechtotext(?:/transcriptions:transcribe)?$", "", base)
     return base
 
-
 def public_providers() -> list[dict[str, Any]]:
     return [{"id": key, **value, "default_model": (value["models"] or [""])[0]} for key, value in PROVIDERS.items()]
 
-
 def _error(response: httpx.Response, kind: str, base: str, model: str, api_key: str, lang: str) -> None:
     if response.status_code < 400: return
-    # Keep the existing short, translated, secret-redacting provider diagnostics.
+
     safe_kind = kind if kind in tts_providers.PROVIDERS else "custom"
     raise RuntimeError(tts_providers.error_message(safe_kind, response.status_code, response.content,
         model=model, lang=lang, secret=api_key, endpoint="speech recognition"))
-
 
 async def transcribe(audio: bytes, mime: str, *, base_url: str, api_key: str, model: str,
                      language: str = "auto", lang: str = "ru", transport=None) -> str:
@@ -91,8 +86,7 @@ async def transcribe(audio: bytes, mime: str, *, base_url: str, api_key: str, mo
                         "X-Goog-Upload-Header-Content-Length": str(len(audio)),
                         "X-Goog-Upload-Header-Content-Type": mime}, json={"file": {"display_name": "MemuAI dictation"}})
                     upload_url = start.headers.get("x-goog-upload-url", "")
-                    # A returned URL must never redirect a credential/audio upload
-                    # to a different service or an insecure address.
+
                     if not upload_url.startswith(base + "/"):
                         raise RuntimeError("Gemini вернул некорректный адрес загрузки / Invalid Gemini upload URL")
                     uploaded = (await call(upload_url, headers={**headers, "X-Goog-Upload-Offset": "0",
@@ -160,7 +154,7 @@ async def transcribe(audio: bytes, mime: str, *, base_url: str, api_key: str, mo
                 try:
                     await client.delete(base + "/v1beta/" + uploaded_name, headers=headers, timeout=15)
                 except httpx.HTTPError:
-                    pass  # Gemini also expires uploaded files automatically.
+                    pass
     text = text.strip() if isinstance(text, str) else ""
     if not text:
         raise RuntimeError(tts_providers._t(lang, "Речь не распознана: сервис вернул пустой текст", "No speech recognized: the service returned an empty transcript"))

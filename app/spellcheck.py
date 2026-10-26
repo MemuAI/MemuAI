@@ -29,7 +29,6 @@ COINIT_APARTMENTTHREADED = 0x2
 CLSID_SPELL_CHECKER_FACTORY = "{7AB36653-1796-484B-BDFA-E74F1DB7C1DC}"
 IID_SPELL_CHECKER_FACTORY = "{8E018A9D-2415-4677-BF08-794EA61F94BB}"
 
-# ISpellingError::CorrectiveAction
 ACTION_NAMES = {0: "none", 1: "get_suggestions", 2: "replace", 3: "delete"}
 
 DEFAULT_LANGUAGES = ("ru-RU", "en-US")
@@ -37,7 +36,6 @@ MAX_TEXT = 20000
 MAX_ERRORS = 300
 MAX_SUGGESTIONS = 8
 CALL_TIMEOUT = 8.0
-
 
 class SpellcheckUnavailable(RuntimeError):
     """Проверка орфографии недоступна на этой системе.
@@ -48,11 +46,6 @@ class SpellcheckUnavailable(RuntimeError):
     def __init__(self, message: str, en: str = "") -> None:
         super().__init__(message)
         self.en = en or message
-
-
-# --------------------------------------------------------------------------- #
-# Тонкая обёртка над COM-вызовами по индексам в vtable                        #
-# --------------------------------------------------------------------------- #
 
 if IS_WINDOWS:  # pragma: no cover - проверяется только на Windows
     from ctypes import POINTER, byref, c_int, c_long, c_ulong, c_void_p, c_wchar_p
@@ -119,11 +112,6 @@ if IS_WINDOWS:  # pragma: no cover - проверяется только на Wi
                 out.append(text)
         return out
 
-
-# --------------------------------------------------------------------------- #
-# Один поток-апартамент на весь процесс                                        #
-# --------------------------------------------------------------------------- #
-
 class _ComWorker:
     def __init__(self) -> None:
         self._queue: "queue.Queue[Any]" = queue.Queue()
@@ -141,7 +129,7 @@ class _ComWorker:
 
     def _loop(self) -> None:
         if IS_WINDOWS:  # pragma: no cover
-            # S_FALSE и RPC_E_CHANGED_MODE означают, что апартамент уже создан.
+
             try:
                 _ole32.CoInitializeEx(None, COINIT_APARTMENTTHREADED)
             except Exception:
@@ -168,22 +156,15 @@ class _ComWorker:
             raise box["error"]
         return box.get("value")
 
-
 _worker = _ComWorker()
-# Все значения ниже читаются и пишутся только внутри потока-апартамента.
+
 _com: Dict[str, Any] = {"factory": None, "checkers": {}, "languages": None}
 _cache: Dict[str, Any] = {"key": "", "value": None}
 _cache_lock = threading.Lock()
 
-
 def _normalize_language(language: str = "") -> str:
     text = (language or "").strip().replace("_", "-")
     return text or DEFAULT_LANGUAGES[0]
-
-
-# --------------------------------------------------------------------------- #
-# Операции внутри апартамента                                                  #
-# --------------------------------------------------------------------------- #
 
 def _factory() -> int:  # pragma: no cover - Windows only
     if _com["factory"]:
@@ -199,7 +180,6 @@ def _factory() -> int:  # pragma: no cover - Windows only
     _com["factory"] = ptr.value
     return int(ptr.value)
 
-
 def _languages() -> List[str]:  # pragma: no cover - Windows only
     if _com["languages"] is not None:
         return list(_com["languages"])
@@ -212,14 +192,12 @@ def _languages() -> List[str]:  # pragma: no cover - Windows only
     _com["languages"] = found
     return list(found)
 
-
 def _is_supported(language: str) -> bool:  # pragma: no cover - Windows only
     flag = c_int(0)
     hr = _call(_factory(), 4, [c_wchar_p, POINTER(c_int)], c_wchar_p(language), byref(flag))
     if hr < 0:
         return False
     return bool(flag.value)
-
 
 def _checker(language: str) -> int:  # pragma: no cover - Windows only
     lang = _normalize_language(language)
@@ -239,7 +217,6 @@ def _checker(language: str) -> int:  # pragma: no cover - Windows only
     _com["checkers"][lang] = ptr.value
     return int(ptr.value)
 
-
 def _suggest(checker: int, word: str) -> List[str]:  # pragma: no cover - Windows only
     if not word:
         return []
@@ -251,7 +228,6 @@ def _suggest(checker: int, word: str) -> List[str]:  # pragma: no cover - Window
         return _enum_strings(int(enum.value), limit=MAX_SUGGESTIONS)
     finally:
         _release(enum.value)
-
 
 def _check_text_com(text: str, language: str) -> Dict[str, Any]:  # pragma: no cover
     checker = _checker(language)
@@ -279,8 +255,7 @@ def _check_text_com(text: str, language: str) -> Dict[str, Any]:  # pragma: no c
                     holder = c_void_p()
                     if _call(error_ptr, 6, [POINTER(c_void_p)], byref(holder)) >= 0:
                         replacement = _take_string(holder.value)
-                # Индексы Windows — в единицах UTF-16 (как и в JS), а Python
-                # режет по кодовым точкам: после эмодзи слово смещалось.
+
                 word = utf16[2 * start.value:2 * (start.value + length.value)].decode(
                     "utf-16-le", "replace")
                 suggestions = [] if action.value == 3 else _suggest(checker, word)
@@ -304,7 +279,6 @@ def _check_text_com(text: str, language: str) -> Dict[str, Any]:  # pragma: no c
         "errors": errors,
     }
 
-
 def _check_mixed_com(text: str, language: str) -> Dict[str, Any]:  # pragma: no cover
     """Проверка смешанного текста: слово — ошибка, только если его не знает
     ни один из установленных языков по умолчанию. Раньше текст проверялся одним
@@ -322,15 +296,9 @@ def _check_mixed_com(text: str, language: str) -> Dict[str, Any]:  # pragma: no 
             break
     return result
 
-
-# --------------------------------------------------------------------------- #
-# Публичное API                                                                #
-# --------------------------------------------------------------------------- #
-
 def _unavailable(reason: str, reason_en: str = "") -> Dict[str, Any]:
-    # reason_en: the English UI shows it (system errors from str(exc) stay as the OS wrote them)
-    return {"available": False, "reason": reason, "reason_en": reason_en or reason, "languages": [], "errors": []}
 
+    return {"available": False, "reason": reason, "reason_en": reason_en or reason, "languages": [], "errors": []}
 
 def spell_status() -> Dict[str, Any]:
     """Доступна ли проверка орфографии и какие языки установлены в системе."""
@@ -348,7 +316,6 @@ def spell_status() -> Dict[str, Any]:
         "preferred": preferred or list(languages[:2]),
         "errors": [],
     }
-
 
 def check_text(text: str, language: str = "") -> Dict[str, Any]:
     """Найти орфографические ошибки в тексте."""
@@ -370,7 +337,6 @@ def check_text(text: str, language: str = "") -> Dict[str, Any]:
         _cache["key"], _cache["value"] = key, result
     return dict(result)
 
-
 def _word_action(index: int, word: str, language: str, what: str) -> Dict[str, Any]:
     clean = (word or "").strip()[:80]
     if not IS_WINDOWS:
@@ -387,15 +353,13 @@ def _word_action(index: int, word: str, language: str, what: str) -> Dict[str, A
         result = _worker.submit(run)
     except Exception as exc:  # noqa: BLE001
         return _unavailable(str(exc), getattr(exc, "en", ""))
-    with _cache_lock:  # словарь изменился — прошлый результат больше не верен
+    with _cache_lock:
         _cache["key"], _cache["value"] = "", None
     return result
-
 
 def add_word(word: str, language: str = "") -> Dict[str, Any]:
     """Добавить слово в пользовательский словарь Windows."""
     return _word_action(6, word, _normalize_language(language), "ISpellChecker::Add")
-
 
 def ignore_word(word: str, language: str = "") -> Dict[str, Any]:
     """Игнорировать слово до перезапуска приложения."""

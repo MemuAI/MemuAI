@@ -8,10 +8,8 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build"
 
-
 def read(name):
     return (BUILD / name).read_text("utf-8", errors="replace")
-
 
 def main():
     folder = Path(re.search(r"logs: (.+)", read("round48-regressions.log"))[1].strip())
@@ -61,6 +59,5 @@ def main():
                          "No Computer Use, installed GUI control, private account data or paid generation."]}
     (BUILD / "round48-validation-summary.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), "utf-8")
     print(json.dumps({k: result[k] for k in ("passed_total", "artifacts")}, ensure_ascii=False, indent=2))
-
 
 if __name__ == "__main__": main()

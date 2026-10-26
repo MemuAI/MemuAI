@@ -1,6 +1,3 @@
-/* MemuAI Mini App — styles. Colours come from CSS variables that app.js sets
-   from the Telegram theme or from the MemuAI palette (themes.py), so nothing
-   below hard-codes a theme. */
 :root {
   --bg: #17181b; --bg2: #101113; --card: #1f2024; --card2: #26272c; --text: #ededf0; --hint: #9a9aa5;
   --accent: #efa58b; --accent2: #e59ad6; --on-accent: #141416; --sep: rgba(255,255,255,.08); --danger: #ff8f86;
@@ -32,8 +29,6 @@ button { cursor: pointer; border: 0; background: none; padding: 0; }
 svg { display: block; }
 a { color: var(--accent); }
 ::selection { background: color-mix(in srgb, var(--accent) 35%, transparent); }
-
-/* ------------------------------------------------------------------ boot */
 .boot { position: fixed; inset: 0; display: grid; place-content: center; justify-items: center; gap: 12px; background: var(--bg);
   transition: opacity .35s var(--ease); z-index: 50; }
 .boot.out { opacity: 0; pointer-events: none; }
@@ -43,8 +38,6 @@ a { color: var(--accent); }
 .boot-sub { color: var(--hint); font-size: 14px; max-width: 300px; text-align: center; line-height: 1.45; padding: 0 20px; }
 .boot-sub .btn { margin-top: 14px; }
 @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
-
-/* ------------------------------------------------------------------ shell */
 .app { position: fixed; inset: 0; display: flex; flex-direction: column; background: var(--bg2); }
 .topbar { flex: none; padding-top: calc(var(--safe-top) + var(--content-top)); background: color-mix(in srgb, var(--bg2) 82%, transparent);
   backdrop-filter: saturate(1.6) blur(18px); -webkit-backdrop-filter: saturate(1.6) blur(18px); z-index: 5;
@@ -82,16 +75,12 @@ a { color: var(--accent); }
   font-weight: 600; letter-spacing: .01em; position: relative; border-radius: 12px; }
 .tab svg { width: 25px; height: 25px; transition: transform .2s var(--ease); }
 .tab.active { color: var(--accent); }
-.tab span { max-width: 100%; box-sizing: border-box; padding: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }  /* 6 tabs on a narrow phone */
-/* 320–350 px phones (iPhone SE …): equal columns (minmax above — a plain 1fr grew with the longest label and the
-   labels ran into each other) and a smaller label. */
-@media (max-width: 380px) { .tab { font-size: 9.5px; letter-spacing: -.01em; } }   /* «MemuCode», «Настройки» whole on 360–380 px */
+.tab span { max-width: 100%; box-sizing: border-box; padding: 0 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (max-width: 380px) { .tab { font-size: 9.5px; letter-spacing: -.01em; } }
 .tab.active svg { transform: translateY(-1px) scale(1.06); }
 .tab .dot { position: absolute; top: 3px; left: calc(50% + 9px); min-width: 8px; height: 8px; border-radius: 4px; background: var(--danger);
   box-shadow: 0 0 0 2px var(--bg); }
 .tab .dot.live { background: var(--ok); }
-
-/* ------------------------------------------------------------------ common blocks */
 .section { margin: 16px 16px 0; }
 .section-title { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--hint); margin: 22px 32px 7px; }
 .section-note { font-size: 13px; color: var(--hint); margin: 7px 32px 0; line-height: 1.4; }
@@ -108,23 +97,16 @@ a { color: var(--accent); }
 .cell-sub { font-size: 13px; color: var(--hint); line-height: 1.35; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 .cell-value { color: var(--hint); font-size: 15px; white-space: nowrap; max-width: 46%; overflow: hidden; text-overflow: ellipsis; text-align: right; }
-@media (max-width: 350px) { .cell-value { max-width: 30%; } }  /* narrow phones: the row title first */
-/* Settings rows (title + value): the title stays whole, the value gives way first («Голосовой ввод · Не на…»). */
+@media (max-width: 350px) { .cell-value { max-width: 30%; } }
 .cell-body:has(> .cell-title:only-child):has(+ .cell-value) { flex: 1 1 auto; }
-.cell-body:has(> .cell-title:only-child) + .cell-value { flex: 0 100 auto; min-width: 2.6em; margin-left: auto; }  /* r34: the space left by a short value goes before it — chevrons of one group line up */
-/* Round 31: a title that only misses a fraction of a pixel was still cut («Тема и цве…»): the title keeps its width,
-   capped so that the icon, a short value and the chevron always fit beside it. */
-.cell-body:has(> .cell-title:only-child):has(+ .cell-value) { flex: 1 0 auto; max-width: calc(100% - 124px); }  /* r29f: values are right-aligned (.cell-value) — «0», «Off» sat at the left of this 2.6em box, off the chevron */
-/* Round 34: a long title beside a value («Картинки для моделей бе… · Спрашив…») — both were cut. The title wraps to
-   two lines instead, so the value («Спрашивать») has its room. */
+.cell-body:has(> .cell-title:only-child) + .cell-value { flex: 0 100 auto; min-width: 2.6em; margin-left: auto; }
+.cell-body:has(> .cell-title:only-child):has(+ .cell-value) { flex: 1 0 auto; max-width: calc(100% - 124px); }
 .cell-body:has(> .cell-title:only-child):has(+ .cell-value) > .cell-title { white-space: normal; display: -webkit-box;
   -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow-wrap: break-word; }
 .chev { color: var(--hint); opacity: .55; width: 16px; height: 16px; flex: none; }
-.cell-value + .chev { margin-left: -6px; }   /* r34: a value and its chevron belong together — 6px more for «Спрашивать» */
+.cell-value + .chev { margin-left: -6px; }
 .cell.danger .cell-title { color: var(--danger); }
-/* A switch row's title wraps instead of being cut («Показывать расшифровку перед о…»). */
 label.cell .cell-title { white-space: normal; }
-/* …and its explanation is read in full: a switch you cannot understand is not one you can decide on. */
 label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visible; }
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 46px; padding: 0 20px; border-radius: 13px;
@@ -175,8 +157,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 60%, transparent);
   animation: live 1.8s infinite; flex: none; display: inline-block; }
 @keyframes live { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--ok) 55%, transparent); } 80%, 100% { box-shadow: 0 0 0 7px transparent; } }
-
-/* Room to scroll the last row out from under the floating «new» button. */
 .view:has(> .fab) { padding-bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 96px); }
 .fab { position: fixed; right: 18px; bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 18px); z-index: 1; width: 56px; height: 56px; border-radius: 18px;
   background: linear-gradient(140deg, var(--accent), color-mix(in srgb, var(--accent2) 70%, var(--accent))); color: var(--on-accent); display: grid; place-items: center;
@@ -184,8 +164,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 .fab:active { transform: scale(.92); }
 .fab.fab-off { opacity: 0; transform: scale(.6); pointer-events: none; }
 .fab svg { width: 26px; height: 26px; }
-
-/* ------------------------------------------------------------------ chat list */
 .chat-cell { display: flex; gap: 12px; padding: 9px 14px 9px 12px; width: 100%; text-align: left; position: relative; align-items: center; min-height: 72px;
   transition: background .15s; }
 .chat-cell:active { background: var(--card2); }
@@ -208,8 +186,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 .unread-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); flex: none; }
 .list-more { display: block; margin: 12px auto; }
 .folder-head { display: flex; align-items: center; gap: 8px; }
-
-/* ------------------------------------------------------------------ conversation */
 .convo { flex: 1; overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch; padding: 12px 0 8px; overscroll-behavior: contain; background: var(--bg); }
 .convo-inner { max-width: 760px; margin: 0 auto; padding: 0 14px; }
 .msg { margin: 0 0 14px; animation: fade-in .25s var(--ease); }
@@ -301,8 +277,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 .suggests button { text-align: left; padding: 11px 14px; border-radius: 14px; background: var(--card); font-size: 14.5px; line-height: 1.35; }
 .suggests button:active { background: var(--card2); }
 .load-older { display: block; margin: 0 auto 14px; }
-
-/* composer */
 .composer { flex: none; background: color-mix(in srgb, var(--bg) 90%, transparent); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
   border-top: .5px solid var(--sep); padding: 8px 10px calc(var(--safe-bottom) + 8px); }
 .composer-inner { max-width: 760px; margin: 0 auto; }
@@ -336,8 +310,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 .att .x svg { width: 12px; height: 12px; }
 .temp-banner { display: flex; align-items: center; gap: 8px; justify-content: center; font-size: 12.5px; color: var(--hint); padding: 0 0 8px; }
 .temp-banner svg { width: 14px; height: 14px; }
-
-/* ------------------------------------------------------------------ sheets */
 .sheet-backdrop { position: fixed; inset: 0; z-index: 40; background: rgba(0,0,0,.42); opacity: 0; transition: opacity .25s var(--ease); }
 .sheet-backdrop.open { opacity: 1; }
 .sheet { position: fixed; left: 0; right: 0; bottom: 0; z-index: 41; max-height: 88vh; display: flex; flex-direction: column; background: var(--bg2);
@@ -374,8 +346,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 .toast.out { animation: toast-out .25s var(--ease) forwards; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(-10px) scale(.96); } to { opacity: 1; transform: none; } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(-8px); } }
-
-/* ------------------------------------------------------------------ memes */
 .meme-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(156px, 1fr)); gap: 12px; padding: 4px 16px 0; }
 .meme-card { background: var(--card); border-radius: 20px; padding: 14px; display: flex; flex-direction: column; gap: 10px; text-align: left; position: relative;
   overflow: hidden; min-height: 168px; transition: transform .15s var(--ease); }
@@ -389,7 +359,7 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 .meme-card .meme-meta svg { width: 14px; height: 14px; }
 .meme-new { border: 1.5px dashed color-mix(in srgb, var(--hint) 45%, transparent); background: transparent; align-items: center; justify-content: center; color: var(--accent); }
 .meme-new svg { width: 30px; height: 30px; }
-.meme-new::after { display: none; }   /* r34: the colour glow is a mark of a real agent — on the dashed «new» card it was a stain */
+.meme-new::after { display: none; }
 .meme-hero { display: flex; gap: 14px; align-items: center; padding: 6px 16px 14px; }
 .meme-hero .avatar { width: 64px; height: 64px; border-radius: 19px; }
 .cap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 0 16px; }
@@ -398,8 +368,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 .cap.on svg { color: var(--ok); }
 .emoji-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 0 16px; }
 .emoji-grid button { aspect-ratio: 1; border-radius: 12px; background: var(--card); font-size: 24px; }
-
-/* ------------------------------------------------------------------ MemuCode */
 .code-cell .avatar { background: linear-gradient(140deg, #2b3340, #161a20); color: var(--ok); font-family: var(--font-mono); font-size: 15px; }
 .code-cell.live .avatar { box-shadow: 0 0 0 2px var(--ok); }
 .term { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; background: var(--bg); padding: 10px 0; overscroll-behavior: contain; }
@@ -448,14 +416,10 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 .mode-pill { height: 30px; padding: 0 10px; border-radius: 15px; background: var(--card); font-size: 12.5px; font-weight: 650; display: inline-flex; align-items: center; gap: 5px; color: var(--hint); flex: none; }
 .mode-pill.warn { color: var(--danger); background: color-mix(in srgb, var(--danger) 12%, var(--card)); }
 .mode-pill svg { width: 14px; height: 14px; }
-
-/* ------------------------------------------------------------------ modules */
 .module-cell .avatar { border-radius: 14px; width: 46px; height: 46px; }
 .module-cell .avatar svg { width: 24px; height: 24px; }
 .module-frame { flex: 1; border: 0; width: 100%; background: var(--bg); }
 .module-note { font-size: 12.5px; color: var(--hint); padding: 8px 16px; background: var(--card); text-align: center; }
-
-/* ------------------------------------------------------------------ settings */
 .profile-card { display: flex; gap: 14px; align-items: center; margin: 4px 16px 0; padding: 16px; border-radius: var(--radius-lg);
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, var(--card)), color-mix(in srgb, var(--accent2) 18%, var(--card))); }
 .profile-card .avatar { width: 58px; height: 58px; font-size: 23px; }
@@ -483,8 +447,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 .fact button { color: var(--hint); width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; flex: none; }
 .fact button svg { width: 16px; height: 16px; }
 .about { text-align: center; color: var(--hint); font-size: 12.5px; padding: 24px 16px 8px; line-height: 1.5; }
-
-/* ------------------------------------------------------------------ designs */
 :root[data-design="aurora"] { --radius: 20px; --radius-lg: 26px; }
 :root[data-design="aurora"] .view:not(.stack), :root[data-design="aurora"] .app { background:
   radial-gradient(120% 60% at 0% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%),
@@ -507,8 +469,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 :root[data-design="glass"] .group, :root[data-design="glass"] .meme-card, :root[data-design="glass"] .chip:not(.active), :root[data-design="glass"] .search input,
 :root[data-design="glass"] .profile-card { background: color-mix(in srgb, var(--card) 58%, transparent); backdrop-filter: blur(20px) saturate(1.4);
   -webkit-backdrop-filter: blur(20px) saturate(1.4); box-shadow: inset 0 0 0 .5px rgba(255,255,255,.12); }
-
-/* Round 25: «Мягкий / Soft» — Material You: tonal surfaces tinted by the accent, big round shapes, pill controls, no hairlines. */
 :root[data-design="soft"] { --radius: 24px; --radius-sm: 16px; --radius-lg: 30px;
   --sd-tone: color-mix(in srgb, var(--accent) 9%, var(--card)); --sd-tone2: color-mix(in srgb, var(--accent) 16%, var(--card)); }
 :root[data-design="soft"] .app, :root[data-design="soft"] .view, :root[data-design="soft"] .convo, :root[data-design="soft"] .term,
@@ -536,8 +496,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 :root[data-design="soft"] .md-code, :root[data-design="soft"] .md-table { border-radius: 18px; border-color: transparent; }
 :root[data-design="soft"] .field input, :root[data-design="soft"] .field textarea, :root[data-design="soft"] .field select { background: var(--sd-tone2); border-radius: 18px; }
 :root[data-design="soft"] .sheet { border-radius: 30px 30px 0 0; }
-
-/* Round 25: «Терминал / Terminal» — a phosphor console: monospace everywhere, square corners, accent hairlines, a ❯ prompt, faint scanlines. */
 :root[data-design="terminal"] { --radius: 2px; --radius-sm: 2px; --radius-lg: 3px; --font-ui: var(--font-mono); --font-msg: var(--font-mono);
   --tm-line: color-mix(in srgb, var(--accent) 34%, transparent); --tm-wash: color-mix(in srgb, var(--accent) 10%, transparent);
   --tm-scan: repeating-linear-gradient(180deg, color-mix(in srgb, #000 20%, transparent) 0 1px, transparent 1px 3px); }
@@ -586,8 +544,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 :root[data-design="terminal"] .send-btn { border-radius: 2px; }
 :root[data-design="terminal"] .answer code { border-radius: 2px; }
 :root[data-design="terminal"] .pn-metric b { font-weight: 600; letter-spacing: 0; }
-
-/* Round 25: «Брутализм / Brutal» — 2px ink outlines, hard offset shadows that never blur, flat accent blocks, buttons that press in. */
 :root[data-design="brutal"] { --radius: 4px; --radius-sm: 3px; --radius-lg: 6px;
   --br-ink: var(--text); --br-shadow: var(--text); --br-edge: 2px solid var(--br-ink); }
 :root[data-design="brutal"]:not([data-scheme="light"]) { --br-shadow: var(--accent); }
@@ -632,20 +588,14 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 :root[data-design="brutal"] .sheet { border-top: var(--br-edge); border-radius: 6px 6px 0 0; }
 :root[data-design="brutal"] .toast { border: var(--br-edge); border-radius: 4px; box-shadow: 4px 4px 0 var(--br-shadow); }
 :root[data-design="brutal"] .pn-metric b, :root[data-design="brutal"] .empty h3 { font-weight: 900; }
-
-/* ------------------------------------------------------------------ motion & sizes */
 :root[data-motion="reduce"] *, :root[data-motion="reduce"] *::before, :root[data-motion="reduce"] *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; } }
 :root[data-compact="1"] .msg { margin-bottom: 9px; }
 :root[data-compact="1"] .answer { line-height: 1.45; }
 @media (min-width: 700px) { .meme-grid { grid-template-columns: repeat(3, 1fr); } }
-
-/* modules: a switched-off module reads as inactive */
 .module-cell .avatar { transition: filter .2s, opacity .2s; }
 .module-cell.off .avatar { filter: grayscale(1); opacity: .45; }
 .module-cell.off .cell-title { color: var(--hint); }
-
-/* ---------------------------------------------------------------- Round 24: «Панели» (panels.js) */
 .pn-grid { display: grid; gap: 12px; padding: 4px 14px 24px; }
 .pn-hint { margin: 2px 20px 10px; }
 .pn-card { background: var(--card); border-radius: 18px; padding: 14px 16px 12px; border: 1px solid var(--sep); }
@@ -685,8 +635,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 .pn-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 14px; }
 .pn-row input, .pn-row select { background: var(--card2); color: var(--text); border: 1px solid var(--sep); border-radius: 10px; padding: 6px 8px; font: inherit; }
 .pn-note { margin: 0; color: var(--hint); font-size: 12.5px; line-height: 1.4; }
-
-/* Round 29 (r29c-media): generated pictures and videos in answers */
 .gen-media { display: flex; flex-direction: column; gap: 8px; margin: 4px 0 2px; }
 .gen-img, .gen-video { display: block; width: 100%; max-width: 420px; height: auto; border-radius: 14px; background: var(--card2); }
 .gen-video { aspect-ratio: 16 / 9; object-fit: contain; background: #000; }
@@ -703,7 +651,6 @@ label.cell .cell-sub { display: block; -webkit-line-clamp: unset; overflow: visi
 .gen-missing { padding: 10px 12px; border-radius: 12px; background: var(--card); color: var(--hint); font-size: 13px; max-width: 420px; }
 @keyframes gen-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
 @media (prefers-reduced-motion: reduce) { .gen-progress { animation: none; } }
-/* Round 35 (branches): «‹ 2/3 ›» under messages that have other versions */
 .ver-switch { display: inline-flex; align-items: center; gap: 0; margin-right: 4px; height: 30px; padding: 0 2px; border: 1px solid var(--line, rgba(127,127,127,.25)); border-radius: 999px; color: var(--hint); font-variant-numeric: tabular-nums; }
 .ver-switch b { font-size: 12.5px; font-weight: 600; color: var(--text); padding: 0 4px; min-width: 30px; text-align: center; }
 .msg-tools .ver-switch button, .msg-tools.user-tools .ver-switch button { width: 28px; height: 26px; padding: 0; justify-content: center; border-radius: 999px; }

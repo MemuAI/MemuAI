@@ -19,22 +19,20 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
-#: How long the work may be held up for the look at the request, in seconds.
 TIMEOUT = 4.0
-#: A skill is hinted at only when the decision model puts at least this much weight on it.
+
 SKILL_THRESHOLD = 0.5
-#: The plan is offered only when the model is this sure the request is a big one.
+
 PLAN_THRESHOLD = 0.8
 
 _PARTS = {"routing": ("complexity",), "skills": ("skill",), "intent": ("intent", "needs_plan")}
-
 
 @dataclass
 class Triage:
     complexity: Optional[float] = None
     intent: str = ""
     needs_plan: Optional[float] = None
-    skill: Optional[Dict[str, Any]] = None           # {"skill": id, "probability": p, "confidence": c}
+    skill: Optional[Dict[str, Any]] = None
     models: List[str] = field(default_factory=list)
     seconds: float = 0.0
     cost: float = 0.0
@@ -42,7 +40,6 @@ class Triage:
     @property
     def wants_plan(self) -> bool:
         return (self.needs_plan or 0.0) >= PLAN_THRESHOLD and self.intent in ("large_change", "investigation")
-
 
 def request_text(content: Any) -> str:
     """What the person wrote: the text of a message, without the context MemuCode attached to it."""
@@ -52,11 +49,9 @@ def request_text(content: Any) -> str:
     marker = text.find("<session_start_context>")
     return (text[:marker] if marker >= 0 else text).strip()
 
-
 def worth_looking_at(text: str) -> bool:
     """Greetings and one-word answers are not analysed: there is nothing to route, hint or plan."""
     return len(text) >= 12 and not text.startswith(("/", "!", "#"))
-
 
 async def triage(runtime: Any, prompt: str, *, routing: bool = False, skills: bool = False,
                  intent: bool = False) -> Optional[Triage]:

@@ -1,6 +1,5 @@
-/* Shared public benchmark loaders, canonical model names and MemuAI Index maths.
- * Embedded by the module host for Catalog and Benchmarks; never executes remote JS.
- */
+
+
 window.MemuBenchmarkData = {
   create(Memu, options = {}) {
     const state = options.state || { hideDeprecated: true, cache: {arena_nav:null, arena:{}, aa:null, livebench:null, simple:null, eq:null}, loading:new Set(), errors:{} };
@@ -12,13 +11,13 @@ window.MemuBenchmarkData = {
     const esc = value => String(value ?? "").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
     const num = (value,digits=0) => value == null || !Number.isFinite(+value) ? "—" : Memu.i18n.number(+value,{maximumFractionDigits:digits,minimumFractionDigits:digits});
     const compact = value => value >= 1e6 ? `${+(value/1e6).toFixed(2)}M` : value >= 1e3 ? `${Math.round(value/1e3)}K` : String(value || 0);
-/** One name for one model across sites: "Claude Opus 5.5 (high)", "claude-opus-5-5-20260901-thinking" → "claude-opus-5.5". */
+
 const MODE_WORDS = new Set(["thinking", "reasoning", "non", "high", "low", "medium", "max", "xhigh", "minimal", "latest", "preview",
   "exp", "experimental", "instruct", "chat", "it", "public", "vertex", "beta", "effort", "agent", "adaptive", "default", "fast",
   "fallback", "extended", "mode", "free"]);
 function canon(name) {
   let text = String(name || "").toLowerCase().split("/").pop();
-  // "(high)", "(Adaptive Reasoning, Max Effort)" describe a run mode, not a different model.
+
   text = text.replace(/\([^)]*\)/g, " ").replace(/[\s_:]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   for (let pass = 0; pass < 4; pass += 1) {
     text = text.replace(/-(?:20\d{2}-?\d{2}-?\d{2}|\d{6,8})$/, "");
@@ -29,7 +28,6 @@ function canon(name) {
   return text.replace(/(\d)-(?=\d(?:[^0-9]|$))/g, "$1.").replace(/^-|-$/g, "");
 }
 
-/** Keep source aliases consistent; ambiguous cross-vendor names are not merged into an index. */
 function canonicalOrg(value) {
   const key=String(value||"").toLowerCase().replace(/[^a-z0-9]/g,"");
   return ({googledeepmind:"google",deepmind:"google",metallama:"meta",metaai:"meta",metaplatforms:"meta",mistralai:"mistral",xai:"xai",x:"xai",
@@ -44,18 +42,16 @@ async function fetchText(url) {
   return text;
 }
 
-/** Text of the React Server Components stream embedded in a Next.js page. */
 function rscText(html) {
   const pattern = /self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g;
   let out = "";
   let match;
   while ((match = pattern.exec(html))) {
-    try { out += JSON.parse(`"${match[1]}"`); } catch (error) { /* обрывок потока */ }
+    try { out += JSON.parse(`"${match[1]}"`); } catch (error) {  }
   }
   return out;
 }
 
-/** The JSON array or object that starts at the first bracket after `from`. */
 function extractJson(text, from, open = "[") {
   const start = text.indexOf(open, Math.max(0, from));
   if (start < 0) return null;
@@ -85,7 +81,7 @@ function extractJson(text, from, open = "[") {
 const fresh = (entry) => entry && entry.at && Date.now() - entry.at < TTL;
 
 const inflight = new Map();
-/** Runs one load at a time per key; a second caller waits for the same load. */
+
 function withLoading(key, job) {
   if (inflight.has(key)) return inflight.get(key);
   state.loading.add(key);
@@ -106,8 +102,6 @@ function withLoading(key, job) {
   return run;
 }
 
-/* ---- arena.ai */
-
 const ARENAS = ["text", "code/webdev", "vision", "document", "search", "text-to-image", "image-edit",
   "text-to-video", "image-to-video", "video-edit", "agent", "code/image-to-webdev"];
 
@@ -125,7 +119,7 @@ async function loadArenaNav(force) {
     const ordered = ARENAS.filter((slug) => found.has(slug)).concat([...found].filter((slug) => !ARENAS.includes(slug)).sort());
     state.cache.arena_nav = { at: Date.now(), slugs: ordered.length ? ordered : ARENAS };
     onDirty("arena_nav");
-    
+
   });
 }
 
@@ -133,9 +127,6 @@ function arenaSlugs() {
   return (state.cache.arena_nav && state.cache.arena_nav.slugs) || ARENAS;
 }
 
-/* Арена агентов устроена иначе, чем остальные: вместо одной доски с рейтингом Эло — снимок
-   («snapshot») со средним приростом по пяти сигналам поведения и отдельная таблица на каждый
-   сигнал. Сигналы показываются как категории доски; их id начинаются с «signal-». */
 const SIGNAL = "signal-";
 
 function parseAgentArena(text, signal) {
@@ -189,7 +180,7 @@ async function loadArena(slug, category, force) {
         categories: agent.categories };
       trimArenaCache();
       onDirty("arena");
-      
+
       return;
     }
     const categories = [];
@@ -212,23 +203,20 @@ async function loadArena(slug, category, force) {
       categories: categories.filter((row) => !groups.has(row.id)) };
     trimArenaCache();
     onDirty("arena");
-    
+
   });
 }
 
-/** Не больше 14 наборов в кэше: старые категории вытесняются. */
 function trimArenaCache() {
   const keys = Object.keys(state.cache.arena).sort((a, b) => (state.cache.arena[b].at || 0) - (state.cache.arena[a].at || 0));
   for (const old of keys.slice(14)) delete state.cache.arena[old];
 }
 
-/* ---- Artificial Analysis */
-
 async function loadAA(force) {
   if (!force && fresh(state.cache.aa)) return;
   await withLoading("aa", async () => {
     const text = rscText(await fetchText("https://artificialanalysis.ai/leaderboards/models"));
-    // The page carries several "models" arrays; the leaderboard is the one with metrics.
+
     let models = null;
     for (let at = text.indexOf('"models":[{"slug"'); at >= 0 && !models; at = text.indexOf('"models":[{"slug"', at + 10)) {
       if (!text.slice(at, at + 4000).includes('"intelligenceIndex"')) continue;
@@ -250,11 +238,9 @@ async function loadAA(force) {
     }));
     state.cache.aa = { at: Date.now(), rows };
     onDirty("aa");
-    
+
   });
 }
-
-/* ---- LiveBench */
 
 async function loadLiveBench(force) {
   if (!force && fresh(state.cache.livebench)) return;
@@ -281,7 +267,7 @@ async function loadLiveBench(force) {
         table = csv;
         release = date;
         break;
-      } catch (error) { /* эта дата не опубликована — пробуем предыдущую */ }
+      } catch (error) {  }
     }
     if (!table || !categories) throw new Error(t("error.format", { source: "LiveBench" }));
     const lines = table.trim().split(/\r?\n/);
@@ -302,11 +288,9 @@ async function loadLiveBench(force) {
     });
     state.cache.livebench = { at: Date.now(), release, categories: Object.keys(categories), category_tasks: categories, rows };
     onDirty("livebench");
-    
+
   });
 }
-
-/* ---- SimpleBench */
 
 async function loadSimple(force) {
   if (!force && fresh(state.cache.simple)) return;
@@ -322,11 +306,9 @@ async function loadSimple(force) {
     if (!rows.length) throw new Error(t("error.format", { source: "SimpleBench" }));
     state.cache.simple = { at: Date.now(), rows: rows.filter((row) => Number.isFinite(row.score)) };
     onDirty("simple");
-    
+
   });
 }
-
-/* ---- EQ-Bench */
 
 async function loadEq(force) {
   if (!force && fresh(state.cache.eq)) return;
@@ -341,11 +323,9 @@ async function loadEq(force) {
     if (!rows.length) throw new Error(t("error.format", { source: "EQ-Bench" }));
     state.cache.eq = { at: Date.now(), rows, generated: data.generated_at || "" };
     onDirty("eq");
-    
+
   });
 }
-
-/* ------------------------------------------------------------ каталог досок */
 
 const AA_METRICS = [
   ["intelligence", "index", true], ["gpqa", "pct", true], ["hle", "pct", true], ["scicode", "pct", true],
@@ -358,7 +338,6 @@ function arenaTitle(slug) {
   return tt(`arena.${slug.replace(/\//g, "_")}`, slug.split("/").pop().replace(/-/g, " ").replace(/^\w/, (c) => c.toUpperCase()));
 }
 
-/** Every board the module can show, grouped by source. */
 function catalog() {
   const groups = [
     { id: "memu", title: "MemuAI", boards: [{ id: "memu:index", title: t("index.title") }, { id: "memu:own", title: t("own.title") }] },
@@ -385,7 +364,6 @@ function boardTitle(id) {
   return id;
 }
 
-/** Loads what a board needs; `category` is an arena.ai category id. */
 async function ensure(id, force = false) {
   const [source, rest] = id.split(/:(.*)/s);
   if (source === "arena") {
@@ -407,17 +385,6 @@ function loadingKeyFor(id) {
 
 const pct = (value) => (value === null || value === undefined ? null : value * 100);
 
-/* ------------------------------------------------------------ MemuAI Index */
-
-/* Сводный рейтинг. У площадок несравнимые шкалы (Elo арены, проценты тестов,
- * индекс AA), поэтому каждая доска сначала превращается в процентиль: какая
- * доля моделей этой доски хуже данной (ничьи делятся пополам). Затем —
- * взвешенное среднее только по доскам, где модель есть. Отсутствие результата
- * не является плохим результатом: покрытие показывается отдельно и не
- * уменьшает балл модели. Для включения нужны хотя бы два источника.
- * Веса: человеческие предпочтения arena.ai — 40 %, независимые тесты — 60 %.
- * Составные части индекса AA (GPQA, HLE и т. д.) отдельно не берутся, чтобы не
- * считать одно и то же дважды. */
 const INDEX_SOURCES = [
   ["arena:text", 0.22], ["arena:code/webdev", 0.12], ["arena:vision", 0.06],
   ["aa:intelligence", 0.26], ["livebench:global", 0.18], ["simple:simplebench", 0.10], ["eq:eqbench4", 0.06],
@@ -426,7 +393,6 @@ const INDEX_ARENAS = INDEX_SOURCES.map(([id]) => id).filter((id) => id.startsWit
 const INDEX_MIN_SOURCES = 2;
 const INDEX_MIN_ROWS = 5;
 
-/** canon(model) → {p: 0..100, name, org} for one board; the best variant of a model wins. */
 function percentiles(id) {
   const data = boardData(id);
   if (!data) return null;
@@ -454,8 +420,6 @@ function percentiles(id) {
   return out;
 }
 
-/** Readable names ("Claude Opus 5") beat slugs ("claude-opus-5-20260101"); of two readable ones the shorter
- * wins — "Claude Opus 5 Max Effort" is a run mode of the same model. */
 function nicer(a, b) {
   const spaced = (name) => /\s/.test(name);
   if (spaced(a) !== spaced(b)) return spaced(b) ? b : a;
@@ -470,7 +434,7 @@ function indexData() {
     const org=canonicalOrg(hit.org);
     if(org) { if(!organizations.has(key))organizations.set(key,new Set());organizations.get(key).add(org); }
   }
-  // Модель, у которой на AA все варианты помечены устаревшими, скрывается вместе с ними.
+
   const gone = new Set();
   if (state.hideDeprecated && state.cache.aa) {
     const alive = new Set();
@@ -501,7 +465,7 @@ function indexData() {
     if (count < INDEX_MIN_SOURCES) continue;
     rows.push({ ...entry, score: sum / weight, raw: sum / weight, coverage: weight / total, count });
   }
-  // Equal scores: the model with more evidence stands first (a missing source never lowers a score).
+
   rows.sort((a, b) => b.score - a.score || b.coverage - a.coverage || a.model.localeCompare(b.model));
   return { rows, parts, total };
 }
@@ -529,7 +493,6 @@ async function loadIndex(force = false) {
   }));
 }
 
-/** Rows ready to show: {rank, model, org, score, lo, hi, cols: {...}} plus the board's column spec. */
 function boardData(id) {
   const [source, rest] = id.split(/:(.*)/s);
   if (source === "memu") {
@@ -625,7 +588,6 @@ function boardData(id) {
   }
   return null;
 }
-
 
     return { state, canon, canonicalOrg, fetchText, rscText, extractJson, fresh, ARENAS, SIGNAL, AA_METRICS, INDEX_SOURCES, INDEX_ARENAS, INDEX_MIN_SOURCES, INDEX_MIN_ROWS,
       loadArenaNav, arenaSlugs, parseAgentArena, loadArena, loadAA, loadLiveBench, loadSimple, loadEq,

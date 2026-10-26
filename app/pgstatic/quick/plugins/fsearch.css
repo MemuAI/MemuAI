@@ -1,13 +1,9 @@
-/* Round 35 — «Поиск файлов на ПК» (fsearch.js). Built on the window's classes (.qa-row, .qa-view-head, .qa-search,
-   .qx-list/.qx-foot/.qx-keys from features.css) and tokens, so every design, accent and theme applies. */
-
 :root[data-fs-view] #qa-suggest, :root[data-fs-view] #qa-answer, :root[data-fs-view] #qa-actions,
 :root[data-fs-view] #qa-chats, :root[data-fs-view] #qa-menu, :root[data-fs-view] #qa-picker,
 :root[data-fs-view] .qa-plugin.qx, :root[data-fs-view] #qa-slot-bottom { display: none !important; }
 
 .qa-plugin.fs { display: flex; flex-direction: column; min-height: 0; flex: 1 1 auto; padding: 0 8px 8px;
   animation: qa-view-in .2s var(--qa-ease-out) both; max-height: calc(var(--qa-max-h) - 110px); }
-/* the view shrinks with the card (a tall input, a short browser window) and only the list scrolls */
 :root[data-fs-view] #qa-slot-top { min-height: 0; }
 :root:not([data-native="1"]) .qa-plugin.fs { max-height: calc(min(var(--qa-max-h), 76vh) - 110px); }
 .fs-head { margin-bottom: 2px; }
@@ -64,8 +60,6 @@
 .fs-tip:hover { background: var(--qa-hover); }
 .fs-wait { padding: 26px; }
 .fs-foot { flex: none; }
-
-/* the AI card under the answer */
 .qa-plugin.fs-ai { margin: 2px 10px 8px; padding: 6px; border-radius: 12px; background: var(--qa-chip); border: 1px solid var(--qa-line, transparent); }
 .fs-ai-head { display: flex; align-items: center; gap: 8px; padding: 2px 4px 4px 6px; font-size: 12px; color: var(--muted); }
 .fs-ai-head > svg { width: 14px; height: 14px; flex: none; color: var(--accent); }
@@ -79,9 +73,6 @@
   .fs-meta, .fs-wide, .fs-building { display: none; }
   .fs-chip { padding: 5px 8px; }
 }
-
-/* Round 36 — long lists stay light (the browser skips laying out rows out of sight), the right-click menu,
-   inline rename, the undo bar and the properties sheet */
 .qa-plugin.fs, .qa-plugin.fs-ai { position: relative; }
 .fs-chips-host, .fs-status-host, .fs-foot-host { flex: none; }
 .fs-body { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }

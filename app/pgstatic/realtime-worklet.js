@@ -1,10 +1,5 @@
-/* MemuAI Live: захват микрофона для моделей реального времени.
- *
- * Работает в аудиопотоке браузера. Приводит звук к частоте модели (16 или
- * 24 кГц), сглаживает его перед прореживанием, чтобы не было «звона», и
- * отдаёт 40-миллисекундные куски PCM16 вместе с уровнем громкости для сферы.
- * Отдельный файл нужен из-за CSP: модуль worklet нельзя загрузить из blob:.
- */
+
+
 class MemuCaptureProcessor extends AudioWorkletProcessor {
   constructor(options) {
     super();
@@ -15,7 +10,7 @@ class MemuCaptureProcessor extends AudioWorkletProcessor {
     this.fill = 0;
     this.pos = 0;
     this.muted = false;
-    // Однополюсный фильтр нижних частот чуть ниже новой частоты Найквиста.
+
     const cutoff = Math.min(target * 0.45, sampleRate * 0.45);
     this.alpha = 1 - Math.exp(-2 * Math.PI * cutoff / sampleRate);
     this.lp = 0;
@@ -32,7 +27,7 @@ class MemuCaptureProcessor extends AudioWorkletProcessor {
     const channel = input && input[0];
     if (!channel) return true;
     let sum = 0;
-    // Буфер переиспользуем: новый массив на каждые 128 отсчётов — лишний мусор в аудиопотоке.
+
     if (!this.filtered || this.filtered.length !== channel.length) this.filtered = new Float32Array(channel.length);
     const filtered = this.filtered;
     for (let i = 0; i < channel.length; i++) {
@@ -43,10 +38,7 @@ class MemuCaptureProcessor extends AudioWorkletProcessor {
     }
     this.levelSum += sum;
     this.levelCount += channel.length;
-    // Отсчёт между последним значением прошлого блока и первым текущего
-    // (t в [-1, 0)) интерполируется по this.prev; раньше хвост блока
-    // «интерполировался» сам с собой, и при 44,1 кГц или 16→24 кГц на стыке
-    // каждого блока была ступенька — слышимый треск.
+
     let t = this.pos;
     for (; t < filtered.length - 1; t += this.ratio) {
       const i = Math.floor(t);

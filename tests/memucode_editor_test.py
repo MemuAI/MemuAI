@@ -13,7 +13,6 @@ from app import code_checkpoints, code_routes, pgdata
 from app.playground_api import create_app
 from app.work_tools import WorkError
 
-
 class EditorFunctions(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
@@ -96,7 +95,6 @@ class EditorFunctions(unittest.TestCase):
             code_routes.edit_source(self.root, "big.txt")
         self.assertEqual(list(self.root.glob(".memucode-*.tmp")), [])
 
-
 class EditorRoutes(unittest.TestCase):
     def test_routes_load_save_and_report_conflicts_as_409(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
@@ -121,7 +119,6 @@ class EditorRoutes(unittest.TestCase):
                     self.assertEqual((project / "index.html").read_text(encoding="utf-8"), "<h1>Hello</h1>\n")
                     outside = client.post("/api/code/source", json={"project_id": "p", "path": "../x"})
                     self.assertEqual(outside.status_code, 400)
-
 
 if __name__ == "__main__":
     unittest.main()

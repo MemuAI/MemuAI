@@ -33,7 +33,7 @@ FOLDERS = {
     "programs": "{A77F5D77-2E2B-44C3-A6A2-ABA601054A51}",
     "desktop": "{B4BFCC3A-DB2C-424C-B029-7FE99A87C641}",
 }
-# PKEY_AppUserModel_* (propsys.h): fmtid {9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}
+
 AUMID_FMTID = "{9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3}"
 PID_RELAUNCH_COMMAND = 2
 PID_RELAUNCH_ICON = 3
@@ -41,10 +41,8 @@ PID_RELAUNCH_NAME = 4
 PID_ID = 5
 IID_PROPERTY_STORE = "{886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99}"
 
-
 def available() -> bool:
     return sys.platform == "win32"
-
 
 def _ct():
     import ctypes
@@ -88,7 +86,6 @@ def _ct():
 
     return ctypes, wintypes, GUID, PROPERTYKEY, PROPVARIANT, guid, method, release
 
-
 def _set_string_props(ctypes, PROPERTYKEY, PROPVARIANT, guid, method, store, props: dict) -> None:
     """IPropertyStore::SetValue (vtable 6) for every pid → string, then Commit (7)."""
     keep = []
@@ -98,16 +95,15 @@ def _set_string_props(ctypes, PROPERTYKEY, PROPVARIANT, guid, method, store, pro
         key = PROPERTYKEY(guid(AUMID_FMTID), pid)
         value = PROPVARIANT()
         if text == "":
-            value.vt = 0  # VT_EMPTY clears the property (the window leaves its group)
+            value.vt = 0
         else:
-            value.vt = 31  # VT_LPWSTR
+            value.vt = 31
             buffer = ctypes.create_unicode_buffer(str(text))
             keep.append(buffer)
             value.u.pwszVal = ctypes.cast(buffer, ctypes.c_wchar_p)
         method(store, 6, ctypes.POINTER(PROPERTYKEY), ctypes.POINTER(PROPVARIANT))(
             ctypes.byref(key), ctypes.byref(value))
     method(store, 7)()
-
 
 def known_folder(name: str) -> Optional[Path]:
     if not available() or name not in FOLDERS:
@@ -133,7 +129,6 @@ def known_folder(name: str) -> Optional[Path]:
         log.warning("known folder %s unavailable: %s", name, exc)
     return None
 
-
 def create_shortcut(link: Path, target: str, args: str = "", workdir: str = "", icon: str = "",
                     description: str = "", app_id: str = "") -> bool:
     """Write ``link`` (a .lnk) pointing at ``target args`` with the AppUserModelID ``app_id``."""
@@ -148,7 +143,7 @@ def create_shortcut(link: Path, target: str, args: str = "", workdir: str = "", 
     ole32.CoCreateInstance.restype = ctypes.c_long
     ole32.CoUninitialize.argtypes = []
     ole32.CoUninitialize.restype = None
-    initialized = ole32.CoInitializeEx(None, 0x2)  # COINIT_APARTMENTTHREADED
+    initialized = ole32.CoInitializeEx(None, 0x2)
     link_obj, persist, store = ctypes.c_void_p(), ctypes.c_void_p(), ctypes.c_void_p()
     try:
         clsid = guid("{00021401-0000-0000-C000-000000000046}")
@@ -156,14 +151,14 @@ def create_shortcut(link: Path, target: str, args: str = "", workdir: str = "", 
         hr = ole32.CoCreateInstance(ctypes.byref(clsid), None, 1, ctypes.byref(iid_link), ctypes.byref(link_obj))
         if hr < 0 or not link_obj.value:
             raise OSError(f"CoCreateInstance(ShellLink) failed: 0x{hr & 0xFFFFFFFF:08X}")
-        method(link_obj, 20, wintypes.LPCWSTR)(str(target))                       # SetPath
+        method(link_obj, 20, wintypes.LPCWSTR)(str(target))
         if args:
-            method(link_obj, 11, wintypes.LPCWSTR)(args)                           # SetArguments
-        method(link_obj, 9, wintypes.LPCWSTR)(workdir or str(Path(target).parent))  # SetWorkingDirectory
+            method(link_obj, 11, wintypes.LPCWSTR)(args)
+        method(link_obj, 9, wintypes.LPCWSTR)(workdir or str(Path(target).parent))
         if description:
-            method(link_obj, 7, wintypes.LPCWSTR)(description[:250])               # SetDescription
+            method(link_obj, 7, wintypes.LPCWSTR)(description[:250])
         if icon:
-            method(link_obj, 17, wintypes.LPCWSTR, ctypes.c_int)(icon, 0)          # SetIconLocation
+            method(link_obj, 17, wintypes.LPCWSTR, ctypes.c_int)(icon, 0)
         query = method(link_obj, 0, ctypes.POINTER(GUID), ctypes.POINTER(ctypes.c_void_p))
         if app_id:
             try:
@@ -173,14 +168,13 @@ def create_shortcut(link: Path, target: str, args: str = "", workdir: str = "", 
                 log.warning("AppUserModelID not set on %s: %s", link, exc)
         query(ctypes.byref(guid("{0000010b-0000-0000-C000-000000000046}")), ctypes.byref(persist))
         Path(link).parent.mkdir(parents=True, exist_ok=True)
-        method(persist, 6, wintypes.LPCWSTR, wintypes.BOOL)(str(link), True)      # IPersistFile::Save
+        method(persist, 6, wintypes.LPCWSTR, wintypes.BOOL)(str(link), True)
         return Path(link).exists()
     finally:
         for obj in (store, persist, link_obj):
             release(obj)
         if initialized in (0, 1):
             ole32.CoUninitialize()
-
 
 def set_window_app_id(hwnd: int, app_id: str, relaunch_command: str = "", display_name: str = "",
                       icon: str = "") -> bool:
@@ -201,7 +195,7 @@ def set_window_app_id(hwnd: int, app_id: str, relaunch_command: str = "", displa
         try:
             props = {PID_ID: app_id}
             if relaunch_command and display_name:
-                # The relaunch trio must be set together (MSDN), the id last-or-first does not matter.
+
                 props.update({PID_RELAUNCH_COMMAND: relaunch_command, PID_RELAUNCH_NAME: display_name,
                               PID_RELAUNCH_ICON: icon or None})
             _set_string_props(ctypes, PROPERTYKEY, PROPVARIANT, guid, method, store, props)
@@ -211,7 +205,6 @@ def set_window_app_id(hwnd: int, app_id: str, relaunch_command: str = "", displa
     except Exception as exc:  # noqa: BLE001
         log.warning("window AppUserModelID not set: %s", exc)
         return False
-
 
 def set_window_icon(hwnd: int, ico_path: str) -> bool:
     """``WM_SETICON`` at the sizes of the window's monitor DPI (Round 40: 24/48 px frames at 150 %, not a
@@ -224,7 +217,6 @@ def set_window_icon(hwnd: int, ico_path: str) -> bool:
     except Exception as exc:  # noqa: BLE001
         log.warning("window icon not set: %s", exc)
         return False
-
 
 def retarget_shortcut_icons(module_id: str, icon: str, icon_dir: Path, folders=None) -> list:
     """Round 40: every other shortcut of this module app — the ones Windows made when the app was pinned to the
@@ -259,14 +251,12 @@ def retarget_shortcut_icons(module_id: str, icon: str, icon_dir: Path, folders=N
                 log.debug("shortcut %s: %s", link, exc)
     return changed
 
-
 def refresh_shell_icons(paths) -> int:
     """``SHChangeNotify``: Explorer, Start and the taskbar re-read these icons (0 off Windows)."""
     if not available():
         return 0
     from .win_app_identity import refresh_shell_icons as notify
     return notify([p for p in paths if p])
-
 
 def set_dark_caption(hwnd: int, dark: bool) -> bool:
     if not available() or not hwnd:
@@ -278,7 +268,6 @@ def set_dark_caption(hwnd: int, dark: bool) -> bool:
         pass
     return False
 
-
 def foreground(hwnd: int) -> bool:
     if not available() or not hwnd:
         return False
@@ -286,7 +275,7 @@ def foreground(hwnd: int) -> bool:
         import ctypes
         user32 = ctypes.windll.user32
         if user32.IsIconic(hwnd):
-            user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+            user32.ShowWindow(hwnd, 9)
         return bool(user32.SetForegroundWindow(hwnd))
     except Exception:  # noqa: BLE001
         return False

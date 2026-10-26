@@ -1,5 +1,3 @@
-/* Round 32 — the editor of a panel's text template (panel-text-editor.js). Used in the Quick Access window (a panel in
-   its top slot) and in Settings → Quick Access → «Вид панелей и встраивание» (a dialog). Theme tokens only. */
 .pte {
   --pte-line: color-mix(in srgb, var(--text) 13%, transparent);
   --pte-soft: color-mix(in srgb, var(--text) 5%, transparent);
@@ -18,8 +16,6 @@
 .pte-seg > button[aria-pressed="true"] { background: var(--panel, #fff); box-shadow: 0 1px 2px rgba(0, 0, 0, .14); font-weight: 600; }
 .pte-seg svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; display: block; }
 .pte-align > button { padding: 4px 7px; }
-
-/* the stage: the panel at its real width over what it will sit on (the window / a wallpaper) */
 .pte-stage-wrap { position: relative; display: flex; justify-content: center; padding: 16px 12px 20px; border-radius: 12px;
   border: 1px solid var(--pte-line); background: var(--qa-surface, var(--panel, transparent)); overflow: auto; }
 .pte-stage-wrap[data-bg="wallpaper"] { background: linear-gradient(135deg, #3a4f7a 0%, #6b5a8e 45%, #c7866b 100%); border-color: transparent; }
@@ -94,17 +90,12 @@
 .pte-btn { height: 30px; padding: 0 14px; border-radius: 9px; border: 1px solid var(--pte-line); background: none; font-size: 13px; white-space: nowrap; }
 .pte-btn.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent, #fff) !important; font-weight: 600; }
 .pte-btn.ghost:hover, .pte-bact > button:hover:not(:disabled), .pte-blocks > button:hover { background: var(--pte-soft); }
-
-/* narrow (the 420 px window, the side of a small dialog): one column */
 @container pte (max-width: 520px) { .pte-grid { grid-template-columns: minmax(0, 1fr); } .pte-halo { margin-left: 0; } }
 .pte-host { container: pte / inline-size; }
 @media (max-width: 560px) { .pte-grid { grid-template-columns: minmax(0, 1fr); } }
-
-/* Settings: the editor in a dialog over the page */
 .pte-modal { position: fixed; inset: 0; z-index: 5000; display: grid; place-items: center; padding: 24px; background: rgba(10, 10, 12, .42); }
 .pte-modal > .pte-host { width: min(820px, 100%); max-height: calc(100vh - 48px); overflow: auto; box-sizing: border-box; padding: 16px 18px;
   border-radius: 16px; background: var(--panel, #fff); border: 1px solid var(--border, rgba(0, 0, 0, .12)); box-shadow: 0 24px 60px -20px rgba(0, 0, 0, .55); }
-/* Quick Access: the editor as a panel of the window's top slot */
 .qa-plugin.qpt-host { padding: 6px var(--qa-pad, 14px) 10px; max-height: calc(var(--qa-max-h, 760px) - 150px); overflow-y: auto;
   overscroll-behavior: contain; scrollbar-width: thin; border-top: 1px solid color-mix(in srgb, var(--qa-line, var(--border)) 70%, transparent); }
 .qpt-host .pte { gap: 8px; }

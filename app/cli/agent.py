@@ -33,23 +33,17 @@ if TYPE_CHECKING:  # pragma: no cover
     from .runtime import Runtime
 
 RESULT_CHARS = 60_000
-MAX_INVALID_STREAK = 6          # unreadable tool calls in a row after which the turn is stopped
-# Round 29 (r29c-prompts). Weak models (gpt-oss) sometimes end a round with an EMPTY reply in the middle of a task
-# (after one or two reads) — the turn used to end silently with nothing done. They are nudged to go on, a bounded
-# number of times per turn.
+MAX_INVALID_STREAK = 6
+
 MAX_EMPTY_NUDGES = 2
 EMPTY_REPLY_NUDGE = ("[Your last reply was empty. Continue the task: call the next tool you need, or, if the work is "
                      "finished, write the final answer for the user. Do not reply with an empty message.]")
-# The same model also repeats an identical read-only call (the same Bash/Read/Grep…) while nothing in the project
-# changed in between. Such a call is not run again: the model gets its earlier result back as a reminder, and a turn
-# that keeps sending only repeats is asked for its final answer without tools.
+
 DUPLICATE_GUARD_TOOLS = {"Read", "Glob", "Grep", "LS", "Outline", "Symbols", "ProjectInfo", "Git", "WebSearch",
                          "WebFetch", "Bash"}
 MAX_DUPLICATE_ROUNDS = 3
 SUBAGENT_DENY = ["Task", "Agents", "AskUserQuestion", "ExitPlanMode", "TodoWrite"]
-# Round 34: a thinking model (GLM-5.3 via a gateway) wrote «Шаг 1 — добавляю median в calc.py…», put the edit into its
-# reasoning only and ended the round without a call — the turn finished with nothing done. A reply whose last
-# sentence announces the next action is asked, once per turn, to make that call (or to give the final answer).
+
 MAX_PROMISE_NUDGES = 1
 PROMISE_NUDGE = ("[You announced the next step but did not call a tool, so nothing was done. If the task is not "
                  "finished, call the tool for that step now. If it is finished, give the final answer.]")
@@ -63,8 +57,7 @@ _PROMISE = re.compile(
     r"rewrite|refactor|remove|delete|go|grep|build|call))(?=[\s,.:…!]|$)",
     re.IGNORECASE)
 _FINISHED = re.compile(r"готово|сделано|заверш|всё выполнено|done\b|finished|completed|all set", re.IGNORECASE)
-# …but not an offer, a condition or a plan for later («Если хотите, я добавлю типы», «Проверю при следующем запуске»,
-# «Let me know…», «Запускать тесты не нужно») — those are ordinary final answers.
+
 _NOT_NOW = re.compile(
     r"\bесли\b|\bкогда (?:вы|захотите)|хотите|захотите|скажите|при желании|при необходимости|можно|могу|могли бы|"
     r"в будущем|в следующий раз|при следующ|позже|не нужно|не надо|не требуется|не буду|не стану|"
@@ -72,16 +65,14 @@ _NOT_NOW = re.compile(
     r"\bcan\b|\bcould\b",
     re.IGNORECASE)
 
-
 def announces_next_step(text: str) -> bool:
     """True when the last sentence of ``text`` says what the agent is about to do («Теперь добавляю…», «Let me…»)."""
     tail = (text or "").strip()
     if not tail or tail.endswith("?"):
         return False
     sentences = [part for part in re.split(r"(?<=[.!…])\s+|\n+", tail[-400:]) if part.strip()]
-    last = " ".join(sentences[-2:]) if sentences else tail       # «Шаг 1 — добавляю X. Для пустого списка — 0.»
+    last = " ".join(sentences[-2:]) if sentences else tail
     return bool(_PROMISE.search(last)) and not _FINISHED.search(last) and not _NOT_NOW.search(last)
-
 
 @dataclass
 class AssistantOutput:
@@ -90,25 +81,23 @@ class AssistantOutput:
     reasoning: str = ""
     calls: List[Dict[str, Any]] = field(default_factory=list)
     parse_errors: List[str] = field(default_factory=list)
-    problems: List[Dict[str, str]] = field(default_factory=list)     # calls that could not be run: unreadable / cut off
+    problems: List[Dict[str, str]] = field(default_factory=list)
     usage: Usage = field(default_factory=Usage)
     finish: str = ""
     extra: Dict[str, Any] = field(default_factory=dict)
     seconds: float = 0.0
 
-
 @dataclass
 class TurnResult:
     text: str = ""
     rounds: int = 0
-    stopped: str = "done"            # done | interrupted | limit | error | denied | blocked
+    stopped: str = "done"
     error: str = ""
     usage: Usage = field(default_factory=Usage)
     tools: int = 0
     seconds: float = 0.0
-    error_category: str = ""          # Round 32: app/cli/errors.py category of a model-request error
-    retry_at: float = 0.0             # Round 33: when the provider said its limit ends (ratelimit.py), 0 = unknown
-
+    error_category: str = ""
+    retry_at: float = 0.0
 
 class EphemeralSession(Session):
     """A sub-agent conversation: kept in memory, shares the parent id so its
@@ -118,7 +107,7 @@ class EphemeralSession(Session):
         super().__init__(parent.root, parent.id)
         self.parent = parent
         self.cwd = parent.cwd
-        self.image_notes = parent.image_notes            # pictures described for a sub-agent are described for all
+        self.image_notes = parent.image_notes
 
     def _append(self, event: Dict[str, Any]) -> None:
         return None
@@ -128,7 +117,6 @@ class EphemeralSession(Session):
 
     def add_image_note(self, key: str, text: str, model: str = "") -> None:
         self.parent.add_image_note(key, text, model)
-
 
 def model_text(result: ToolResult) -> str:
     """What the model receives for one tool result."""
@@ -147,7 +135,6 @@ def model_text(result: ToolResult) -> str:
         text = f"{head}\n…[{len(text) - len(head) - len(tail)} characters omitted]…\n{tail}"
     return text
 
-
 class Agent:
     def __init__(self, runtime: "Runtime", *, session: Optional[Session] = None, ui: Optional[BaseUI] = None,
                  agent_def: Optional[AgentDef] = None, depth: int = 0, model: str = "") -> None:
@@ -160,13 +147,11 @@ class Agent:
         self.stop_after_round = False
         self.feedback: List[str] = []
         self.current_calls: List[ToolCall] = []
-        self.invalid_streak = 0                 # rounds in a row whose calls could not be read at all
+        self.invalid_streak = 0
         self.label = agent_def.name if agent_def else "main"
-        #: Round 32: follow-up instructions from the main agent for a running sub-agent (BackgroundJobs.send);
-        #: delivered at the next turn boundary — after the tool results of the current step.
+
         self.inbox: List[str] = []
 
-    # ------------------------------------------------------------ setup
     @property
     def model(self) -> str:
         return self.model_override or self.runtime.model
@@ -190,8 +175,7 @@ class Agent:
         tools = self.tools()
         native = self.native()
         system = self.runtime.system_prompt(tools, native=native, agent=self.agent_def)
-        # A model that is known not to see gets what an image model wrote about each picture instead of the picture;
-        # one that may see (or nobody knows) gets the picture, and a refusal is handled in _request_round.
+
         sees = pictures.support(self.runtime, self.model).can is not False
         notes = None if sees else self.session.image_notes
         messages = list(self.session.api_messages())
@@ -218,7 +202,6 @@ class Agent:
         tools_text = json.dumps(schemas, ensure_ascii=False) if schemas else ""
         return request, system, tools_text
 
-    # ------------------------------------------------------------ turn
     async def run_turn(self, content: Any, *, kind: str = "prompt", display: str = "",
                        extra: Optional[Dict[str, Any]] = None) -> TurnResult:
         started = time.monotonic()
@@ -227,7 +210,7 @@ class Agent:
         self.first_round = True
         self.partial_text = ""
         if kind == "prompt":
-            self.stuck = None          # Round 29: a new request from the user starts a fresh stuck detector
+            self.stuck = None
         self._overflow_recovered = False
         if self.is_main:
             from .tools import connected
@@ -264,7 +247,7 @@ class Agent:
             result.stopped = "interrupted"
         except LLMError as exc:
             result.stopped = "error"
-            # Round 32: the real upstream text, status, provider and model, plus plain words and advice.
+
             from .errors import describe, info_of
             info = self.runtime.router.info(self.model)
             result.error = describe(exc, model=self.model,
@@ -276,7 +259,7 @@ class Agent:
             except Exception:
                 result.retry_at = 0.0
             self._close_pending(str(getattr(exc, "raw_message", exc)))
-        except Exception as exc:  # a bug must not kill the session
+        except Exception as exc:
             result.stopped = "error"
             result.error = f"{type(exc).__name__}: {exc}"
             self.runtime.log_error(traceback.format_exc())
@@ -316,8 +299,7 @@ class Agent:
     def _mark_duplicates(self, calls: List[Dict[str, Any]], guard: Dict[str, Any]) -> bool:
         """Marks repeated read-only calls (nothing non-passive succeeded since the identical call ran).
         True when the round consists of repeats only."""
-        # Elision/compaction explicitly tells the model to re-read anything it still
-        # needs. Results remembered before that boundary are no longer in context.
+
         if guard.get("context_epoch", self.session.context_epoch) != self.session.context_epoch:
             guard["seen"].clear()
             guard["dup_rounds"] = 0
@@ -355,8 +337,7 @@ class Agent:
                 if key:
                     previous = guard["seen"].get(key) or {}
                     failures = previous.get("failures", 0) if previous.get("epoch") == guard["epoch"] else 0
-                    # A transient failure gets one real retry (e.g. a background
-                    # generator has not created the file yet), never 80 paid rounds.
+
                     guard["seen"][key] = {"epoch": guard["epoch"], "round": round_no,
                                           "ok": result.ok, "failures": 0 if result.ok else failures + 1}
 
@@ -390,7 +371,7 @@ class Agent:
             if self.is_main:
                 request, system, tools_text = self.build_request()
                 if await compact.optimize(self.runtime, system, tools_text):
-                    request = None                 # the history changed: rebuild
+                    request = None
             try:
                 output = await self._request_round(request=request)
             except LLMError as exc:
@@ -400,25 +381,22 @@ class Agent:
                 continue
             result.usage.add(output.usage)
             self._record_assistant(output, turn)
-            # The round's text is in the session now: an Escape during its tools must not save it a second time
-            # as an "[interrupted]" answer (the transcript showed the same paragraph twice).
+
             self.partial_text = ""
             calls = list(output.calls)
             if output.problems:
-                # Rounds in a row that brought nothing but unreadable calls: the advice gets blunter, and a model
-                # that cannot get out of it is stopped instead of burning the whole round budget.
+
                 self.invalid_streak = self.invalid_streak + 1 if not output.calls else 1
             else:
                 self.invalid_streak = 0
             for problem in output.problems:
-                # Every call that was not run still gets a result, next to the results of the good ones: the model
-                # learns exactly which call failed and why, and only that call has to be sent again.
+
                 calls.append({"id": new_id("t"), "name": "__invalid__",
                               "args": dict(problem, streak=str(self.invalid_streak))})
             if not calls:
                 result.text = output.visible
                 if self._inject_inbox(turn) and result.rounds < limit:
-                    continue                       # a follow-up arrived while it was answering: act on it
+                    continue
                 if not output.visible.strip() and guard["empty_nudges"] < MAX_EMPTY_NUDGES and result.rounds < limit:
                     guard["empty_nudges"] += 1
                     self.session.append({"role": "user", "kind": "note", "turn": turn, "content": EMPTY_REPLY_NUDGE})
@@ -440,12 +418,11 @@ class Agent:
                         self._append_queued(queued, turn)
                         continue
                     if self._inject_notes(turn):
-                        continue                   # a background task finished meanwhile: react to it
+                        continue
                 return result
             if self._mark_duplicates(calls, guard):
                 guard["dup_rounds"] += 1
-                # Round 29: when the user can answer, the stuck detector's pause owns this loop (the repeats are
-                # still answered «not run again»); the hard stop stays for headless runs, sub-agents and «off».
+
                 if guard["dup_rounds"] >= MAX_DUPLICATE_ROUNDS and not self._stuck_pause_owns_repeats():
                     self._answer_unrun(calls, turn, "identical to an earlier call — not run again.")
                     self.session.append({"role": "user", "kind": "note", "turn": turn, "content": (
@@ -465,7 +442,7 @@ class Agent:
                     return result
             else:
                 guard["dup_rounds"] = 0
-            # Round 29: the stuck detector pauses a looping agent for the user's verdict (app/stuck_detector.py).
+
             verdict = await self._stuck_gate(calls, turn)
             if verdict == "stop":
                 result.stopped = "stuck"
@@ -524,7 +501,7 @@ class Agent:
         if not detector.enabled:
             return "run"
         if not any(str(c.get("name") or "") != "__invalid__" for c in calls):
-            return "run"   # only unreadable calls: MAX_INVALID_STREAK owns that loop (stops with a reason)
+            return "run"
         step = sd.cli_round(calls)
         verdict = detector.observe(step["action"], label=step["label"], passive=step["passive"])
         if verdict.level == "hint":
@@ -541,7 +518,7 @@ class Agent:
         else:
             self.ui.notice(sd.telegram_text(card, lang), "warn")
         if answer is None:
-            # Nobody can answer (headless, a sub-agent): end the turn instead of looping on.
+
             self.session.append({"role": "user", "kind": "note", "turn": turn, "content": sd.model_note("stop", "", verdict)})
             self._answer_unrun(calls, turn, sd.model_note("stop", "", verdict))
             return "stop"
@@ -586,7 +563,7 @@ class Agent:
         elided = compact.elide_old_results(self.runtime, force=True)
         try:
             outcome = await compact.compact(self.runtime, reason="overflow")
-        except Exception as exc:  # the summary request itself may overflow or fail
+        except Exception as exc:
             self.runtime.log_error(f"overflow compaction failed: {exc}")
             outcome = {"ok": False}
         if outcome.get("ok"):
@@ -633,7 +610,7 @@ class Agent:
 
     def _append_queued(self, queued: List[Dict[str, Any]], turn: str) -> None:
         for item in queued:
-            # "shown" is the message as the conversation prints it (pasted text in full, no input chips).
+
             display = item.get("shown") or item.get("display", "")
             self.session.append({"role": "user", "kind": "prompt", "turn": turn, "queued": True,
                                  "content": item.get("content"), "display": display})
@@ -652,7 +629,6 @@ class Agent:
             message["_anthropic"] = {"model": output.extra.get("model"), "content": output.extra["anthropic_content"]}
         return self.session.append(message)
 
-    # ------------------------------------------------------------ model
     async def _request_round(self, *, final: bool = False, request: Optional[ChatRequest] = None) -> AssistantOutput:
         if request is None:
             request, _system, _tools_text = self.build_request()
@@ -671,7 +647,7 @@ class Agent:
         self.ui.stream_started(self)
         self.ui.stream_status(self, "request", {"model": self.model, "tokens": estimate_messages(request.messages)
                                                 + estimate_text(request.system)})
-        announced = (0, 0.0)                    # (hidden characters, time) of the last "writing a tool call" notice
+        announced = (0, 0.0)
         sent_images = pictures.request_has_images(request.messages)
         was_unknown = sent_images and pictures.support(self.runtime, self.model).can is None
         retried_images = False
@@ -712,8 +688,7 @@ class Agent:
                 break
             except LLMError as exc:
                 if sent_images and not retried_images and not texts and not output.calls and pictures.refused_images(exc):
-                    # The model (or the API behind it) would not take the picture although nothing said so
-                    # beforehand: remember that, let the image model describe it, and ask again.
+
                     retried_images = True
                     pictures.learn(self.model, False, str(exc))
                     self.runtime.invalidate_prompt()
@@ -746,8 +721,7 @@ class Agent:
             used = {str(call.get("id")) for message in self.session.messages if message.get("role") == "assistant"
                     for call in message.get("tool_calls") or []}
             for call in output.calls:
-                # Some OpenAI-compatible servers number calls "call_0", "call_1" afresh every response; a reused id
-                # would pair a result with the wrong call (and Anthropic rejects duplicate tool_use ids).
+
                 if not call.get("id") or str(call["id"]) in used:
                     call["id"] = new_id("t")
                 used.add(str(call["id"]))
@@ -771,8 +745,7 @@ class Agent:
                                  estimated=True, requests=1)
         output.usage.requests = output.usage.requests or 1
         if self.is_main:
-            # What the provider itself counted for this request: /context and the footer show this
-            # number (plus what was added since) instead of an estimate from text length.
+
             self.runtime.context_measured = None if output.usage.estimated or not output.usage.input else {
                 "input": int(output.usage.input), "output": int(output.usage.output), "model": self.model,
                 "messages": len(self.session.api_messages()), "epoch": self.session.context_epoch}
@@ -793,7 +766,6 @@ class Agent:
         else:
             request.tools = None
 
-    # ------------------------------------------------------------ tools
     async def execute(self, calls: List[Dict[str, Any]], turn: str) -> List[Tuple[ToolCall, ToolResult]]:
         items: List[ToolCall] = []
         for raw in calls:
@@ -803,7 +775,7 @@ class Agent:
                             id=str(raw.get("id") or new_id("t")), raw_name=str(raw.get("name") or ""))
             call.notes = list(raw.get("notes") or [])
             if raw.get("duplicate_of"):
-                call.duplicate_of = int(raw["duplicate_of"])   # Round 29: a repeat that is answered, not run
+                call.duplicate_of = int(raw["duplicate_of"])
             call.display = tool.display(call.args) if tool else ""
             items.append(call)
         self.current_calls = list(items)
@@ -878,8 +850,7 @@ class Agent:
             self.ui.tool_finished(self, call, result)
             return result
         if "_invalid_json" in call.args:
-            # A native call whose arguments did not arrive as readable JSON (cut off by the output limit, or
-            # malformed): running it with no arguments would give a misleading "missing argument" error.
+
             raw = str(call.args.get("_invalid_json") or "")
             result = ToolResult.fail(
                 f"The arguments of your {call.raw_name or call.name} call were not valid JSON or were cut off "
@@ -960,17 +931,15 @@ class Agent:
         if result.diff:
             runtime.stats.count_diff(result.diff)
         elif result.ok and result.meta.get("lines_added"):
-            runtime.stats.lines_added += int(result.meta["lines_added"])   # a new file has no diff
+            runtime.stats.lines_added += int(result.meta["lines_added"])
         self.ui.tool_finished(self, call, result)
         return result
-
 
 _OVERFLOW = re.compile(
     r"context[_ ]length[_ ]exceeded|maximum context length|context window|prompt is too long|input is too long|"
     r"too many (?:input )?tokens|exceeds? the (?:model'?s? )?(?:maximum )?(?:context|token limit)|request too large|"
     r"reduce the length of the messages|token limit exceeded|max(?:imum)?[_ ]input[_ ]tokens|"
     r"превыш\w* (?:длин\w* )?контекст|слишком длинн\w* (?:запрос|контекст)", re.I)
-
 
 def context_overflow(exc: BaseException) -> bool:
     """Would a smaller history cure this provider error? (context window, the Proxy's message cap, body size)
@@ -980,13 +949,11 @@ def context_overflow(exc: BaseException) -> bool:
     from .errors import is_overflow
     return is_overflow(exc)
 
-
 def _retryable(exc: BaseException) -> bool:
     """Round 32: a temporary upstream state by its own words (no free account, rate limit, timeout) is worth a
     short retry even when the transport did not mark it so."""
     from .errors import info_of
     return info_of(exc).retryable
-
 
 def _slim_args(args: Dict[str, Any], limit: int = 600) -> Dict[str, Any]:
     """Arguments for the record of a result: a whole file written by a call is already in the call itself."""
@@ -998,7 +965,6 @@ def _slim_args(args: Dict[str, Any], limit: int = 600) -> Dict[str, Any]:
             slim[key] = value
     return slim
 
-
 CONTENT_EXAMPLE = (
     "```memuai-tool\n"
     "[{\"tool\": \"Write\", \"args\": {\"file_path\": \"src/App.jsx\", \"content\": \"@content:1\"}}]\n"
@@ -1006,7 +972,6 @@ CONTENT_EXAMPLE = (
     "<memuai-content id=\"1\">\n"
     "the whole file, exactly as it must be written\n"
     "</memuai-content>")
-
 
 def _invalid_text(info: Dict[str, Any]) -> str:
     """What the model is told when one of its tool calls could not be run.
@@ -1053,12 +1018,10 @@ def _invalid_text(info: Dict[str, Any]) -> str:
                  "Read the file again and use a shorter old_string — one distinctive line.")
     return text
 
-
 def _repair_note(notes: List[str]) -> str:
     return ("[note] The JSON of this tool call was not strictly valid (" + ", ".join(notes[:4])
             + ") and was repaired automatically; the call ran. Next time escape quotes and backslashes, or use a "
               "raw content block, so a stricter reader does not reject it.")
-
 
 def _plain(content: Any) -> str:
     if isinstance(content, str):
@@ -1066,7 +1029,6 @@ def _plain(content: Any) -> str:
     if isinstance(content, list):
         return "\n".join(str(part.get("text") or "") for part in content if isinstance(part, dict))
     return str(content or "")
-
 
 def _with_context(content: Any, context: List[str]) -> Any:
     block = "\n\n<hook_context>\n" + "\n".join(context) + "\n</hook_context>"

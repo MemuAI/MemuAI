@@ -1,22 +1,13 @@
-/* MemuAI — Round 33 (r33-theme): the theme & appearance editor (theme-editor.js).
-   A dockable / floating inspector over the live window, hover and selection outlines, colour popovers, the
-   «Theme editor» card of Settings → Appearance. Tokens + color-mix() only; --r-* radii, --m-dur-* timings;
-   Terminal / Brutal / Grid keep square corners; Glass gets a frosted panel. Layers: outlines 170, panel 180 (the
-   settings dialog at 200 covers it), popovers 230 (above the app's context menu at 220), toasts 400. */
-
 :root { --te-w: 384px; --te-gap: 8px; --te-r: 16px; --te-r-sm: 10px; }
 :root:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"]) { --te-r: 0px; --te-r-sm: 0px; }
-
-/* ------------------------------------------------------------------ the window makes room for a docked panel */
 body.te-on #app { transition: margin var(--m-dur-3, 240ms) var(--m-ease-out, ease); }
 html[data-te-dock="right"] body.te-on #app { margin-right: calc(var(--te-w) + var(--te-gap)); }
 html[data-te-dock="left"] body.te-on #app { margin-left: calc(var(--te-w) + var(--te-gap)); }
 @media (max-width: 980px) {
   :root { --te-w: 330px; }
-  /* a narrower inspector: the title keeps its words, the logo makes room */
   .te-panel .te-logo { display: none; }
   .te-panel .te-head { gap: 6px; padding-left: 12px; }
-  .te-panel .te-hint { display: none; }   /* «Esc — discard all» does not fit next to Cancel/Save; the close button says it */
+  .te-panel .te-hint { display: none; }
   .te-panel .te-foot { justify-content: flex-end; }
 }
 @media (max-width: 760px) {
@@ -25,8 +16,6 @@ html[data-te-dock="left"] body.te-on #app { margin-left: calc(var(--te-w) + var(
 body.te-on.te-picking:not(.te-alt):not(.te-comparing) #app,
 body.te-on.te-picking:not(.te-alt):not(.te-comparing) #app * { cursor: crosshair !important; }
 body.te-dragging, body.te-dragging * { cursor: grabbing !important; user-select: none !important; }
-
-/* ------------------------------------------------------------------ outlines over the live window */
 .te-hover, .te-selbox {
   position: fixed; left: 0; top: 0; z-index: 170; pointer-events: none; box-sizing: border-box;
   border-radius: 6px; transition: transform 60ms linear, width 60ms linear, height 60ms linear;
@@ -51,8 +40,6 @@ body.te-comparing::after {
   padding: 6px 14px; border-radius: 999px; font: 600 12.5px/1.2 var(--sans, system-ui, sans-serif);
   color: var(--on-accent); background: var(--accent); box-shadow: 0 10px 30px -10px rgba(0, 0, 0, .5); pointer-events: none;
 }
-
-/* ------------------------------------------------------------------ the panel */
 .te-panel {
   position: fixed; top: var(--te-gap); bottom: var(--te-gap); right: var(--te-gap); width: var(--te-w); z-index: 180;
   display: flex; flex-direction: column; overflow: hidden;
@@ -117,8 +104,6 @@ body.te-comparing::after {
 .te-hint { flex: 1; min-width: 0; color: var(--muted); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .te-panel kbd, .te-confirm kbd { font: 600 10.5px/1 var(--mono, monospace); padding: 2px 5px; border-radius: 5px; border: 1px solid var(--border);
   border-bottom-width: 2px; background: color-mix(in srgb, var(--text) 5%, transparent); color: var(--text); }
-
-/* buttons */
 .te-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 34px; padding: 6px 14px;
   border-radius: var(--te-r-sm); border: 1px solid var(--border); background: var(--panel); font-weight: 600; font-size: 13px; white-space: nowrap;
@@ -139,8 +124,6 @@ body.te-comparing::after {
 .te-link .te-i { width: 13px; height: 13px; }
 .te-link:hover:not(:disabled) { background: var(--accent-soft); }
 .te-link:disabled { opacity: 0; pointer-events: none; }
-
-/* sections and rows */
 .te-sec { padding: 14px 0 6px; border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
 .te-sec:last-child { border-bottom: 0; }
 .te-sec h4 { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; font: 650 12px/1.3 var(--sans, inherit);
@@ -163,8 +146,6 @@ body.te-comparing::after {
 .te-reset .te-i { width: 14px; height: 14px; }
 .te-reset:hover:not(:disabled) { color: var(--text); background: color-mix(in srgb, var(--text) 8%, transparent); }
 .te-reset:disabled { opacity: 0; pointer-events: none; }
-
-/* segmented */
 .te-seg { display: flex; gap: 2px; padding: 3px; min-width: 0; width: 100%; border-radius: var(--te-r-sm); background: color-mix(in srgb, var(--text) 6%, transparent); }
 .te-seg[data-wrap] { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
 .te-seg[data-wrap="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -174,13 +155,9 @@ body.te-comparing::after {
 .te-seg button:hover { color: var(--text); }
 .te-seg button[aria-checked="true"] { background: var(--panel); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .16), 0 0 0 1px var(--border); }
 :root[data-design="brutal"] .te-seg button[aria-checked="true"] { background: var(--accent); color: var(--on-accent); box-shadow: none; }
-
-/* slider */
 .te-slide { display: flex; align-items: center; gap: 10px; width: 100%; }
 .te-range { flex: 1; min-width: 0; height: 22px; accent-color: var(--accent); background: transparent; cursor: pointer; }
 .te-slide output { min-width: 52px; text-align: right; font: 600 12px/1 var(--mono, monospace); color: var(--muted); font-variant-numeric: tabular-nums; }
-
-/* switch */
 .te-switch { position: relative; width: 34px; height: 20px; flex: none; border: 0; border-radius: 999px; padding: 0;
   background: color-mix(in srgb, var(--text) 22%, transparent); transition: background var(--m-dur-1, 120ms) ease; }
 .te-switch i { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: var(--panel);
@@ -190,8 +167,6 @@ body.te-comparing::after {
 :root:is([data-design="terminal"], [data-design="brutal"], [data-design="grid"]) :is(.te-switch, .te-switch i) { border-radius: 0; }
 .te-inline { display: flex; align-items: center; gap: 10px; min-height: 32px; cursor: pointer; font-size: 12.5px; }
 .te-checks { display: grid; gap: 0; margin-top: 6px; }
-
-/* colour button */
 .te-color { display: inline-flex; align-items: center; gap: 8px; max-width: 190px; min-height: 30px; padding: 3px 10px 3px 4px;
   border: 1px solid var(--border); border-radius: var(--te-r-sm); background: transparent; font-size: 12.5px; color: var(--muted); }
 .te-color.set { color: var(--text); border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
@@ -200,8 +175,6 @@ body.te-comparing::after {
   background-image: linear-gradient(var(--c), var(--c)), conic-gradient(#8884 25%, transparent 0 50%, #8884 0 75%, transparent 0); background-size: 100%, 10px 10px; }
 .te-color span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .te-color:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
-
-/* element tab */
 .te-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 8px; padding: 18px 10px 14px; }
 .te-empty b { font-size: 14px; }
 .te-empty p { margin: 0; color: var(--muted); font-size: 12.5px; max-width: 300px; }
@@ -237,8 +210,6 @@ body.te-comparing::after {
 .te-note.warn .te-i { color: var(--danger); }
 .te-note .te-i, .te-modenote .te-i { width: 15px; height: 15px; }
 .te-props { display: grid; }
-
-/* look tab */
 .te-variants { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .te-variant { display: flex; flex-direction: column; gap: 5px; padding: 4px; border: 1px solid transparent; border-radius: calc(var(--te-r-sm) + 2px); background: transparent; text-align: left; }
 .te-variant:hover { background: color-mix(in srgb, var(--text) 5%, transparent); }
@@ -275,8 +246,6 @@ body.te-comparing::after {
 .te-bgthumb { width: 76px; height: 48px; flex: none; border-radius: 8px; background: center / cover no-repeat color-mix(in srgb, var(--text) 6%, transparent); display: grid; place-items: center; color: var(--muted);
   box-shadow: inset 0 0 0 1px var(--border); }
 .te-seg[data-full] { margin-bottom: 4px; }
-
-/* layout tab */
 .te-map { --mb: color-mix(in srgb, var(--text) 16%, transparent); display: flex; gap: 5px; height: 112px; margin: 10px 0 2px; padding: 6px; border-radius: 12px;
   border: 1px solid var(--border); background: color-mix(in srgb, var(--bg-deep) 80%, var(--panel)); }
 .te-map[data-side="right"] { flex-direction: row-reverse; }
@@ -327,8 +296,6 @@ body.te-comparing::after {
 .te-zone-h small { color: var(--muted); font-size: 11.5px; }
 .te-zone-c { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .te-zone-c .te-seg { width: auto; flex: 1 1 140px; }
-
-/* themes tab */
 .te-current, .te-trow { display: flex; align-items: center; gap: 10px; min-height: 46px; }
 .te-current { padding: 6px 0 10px; }
 .te-swatches { display: inline-flex; flex: none; padding: 3px; border-radius: 9px; background: color-mix(in srgb, var(--text) 6%, transparent); }
@@ -362,8 +329,6 @@ body.te-comparing::after {
 .te-preset small { color: var(--muted); font-size: 11px; line-height: 1.35; }
 .te-preset-sw { display: flex; gap: 3px; margin-bottom: 4px; }
 .te-preset-sw i { width: 16px; height: 16px; border-radius: 50%; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 15%, transparent); }
-
-/* Esc with many changes */
 .te-confirm { position: absolute; inset: 0; z-index: 5; display: grid; place-items: center; padding: 20px;
   background: color-mix(in srgb, var(--panel) 72%, transparent); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
 .te-confirm[hidden] { display: none; }
@@ -375,8 +340,6 @@ body.te-comparing::after {
 .te-confirm-a .te-btn { flex: 1 1 auto; }
 .te-confirm-card small { color: var(--muted); font-size: 11.5px; }
 @keyframes te-pop { from { opacity: 0; transform: scale(.97) translateY(4px); } }
-
-/* popovers (MemuLayers places them inside the window) */
 .te-pop { position: fixed; z-index: 230; color: var(--text); background: var(--panel); border: 1px solid var(--border); border-radius: calc(var(--te-r-sm) + 4px);
   box-shadow: 0 22px 60px -20px rgba(0, 0, 0, .55), 0 2px 8px -2px rgba(0, 0, 0, .2); font: 400 13px/1.4 var(--sans, system-ui, sans-serif); overflow: auto;
   animation: te-pop var(--m-dur-1, 120ms) var(--m-ease-out, ease); }
@@ -398,8 +361,6 @@ body.te-comparing::after {
 .te-cpick { display: flex; gap: 6px; align-items: center; }
 .te-cpick input[type="color"] { width: 38px; height: 32px; flex: none; padding: 0; border: 1px solid var(--border); border-radius: 8px; background: transparent; cursor: pointer; }
 .te-cpop-f { display: flex; justify-content: space-between; gap: 6px; }
-
-/* the card in Settings → Appearance */
 .te-card { display: flex; align-items: center; gap: 14px; margin: 0 0 18px; padding: 14px 16px; border-radius: var(--sx-r, 14px);
   border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
   background: linear-gradient(120deg, color-mix(in srgb, var(--accent) 12%, var(--panel)), color-mix(in srgb, var(--accent-2, var(--accent)) 7%, var(--panel))); }

@@ -1,4 +1,3 @@
-/* Бенчмарки — токены берутся из MemuAI, поэтому тема и акцент совпадают. */
 .bm {
   --bm-line: color-mix(in srgb, var(--border) 80%, transparent);
   --bm-soft: color-mix(in srgb, var(--panel-2) 70%, var(--panel));
@@ -9,8 +8,6 @@
 }
 .bm svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; flex: none; }
 .bm-muted { color: var(--muted); }
-
-/* ---------------------------------- шапка ---------------------------------- */
 .bm-bar { display: flex; align-items: center; gap: 12px; flex: none; min-height: 56px; padding: 8px 14px;
   border-bottom: 1px solid var(--bm-line); background: var(--panel); }
 .bm-brand { display: flex; align-items: center; gap: 10px; min-width: 0; margin-right: auto; }
@@ -40,8 +37,6 @@
 .bm-btn.ghost:hover { background: var(--bm-soft); filter: none; }
 .bm-icon { width: 32px; height: 32px; border-radius: 9px; border: 1px solid var(--bm-line); background: transparent; color: var(--muted); cursor: pointer; }
 .bm-icon:hover { color: var(--text); background: var(--bm-soft); }
-
-/* ---------------------------------- каркас ---------------------------------- */
 .bm-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 236px minmax(0, 1fr); }
 .bm-side { overflow-y: auto; padding: 10px 8px 16px; border-right: 1px solid var(--bm-line); background: var(--panel); }
 .bm-group { margin-top: 10px; }
@@ -54,8 +49,6 @@
 .bm-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); animation: bm-pulse 1s ease-in-out infinite; flex: none; }
 @keyframes bm-pulse { 50% { opacity: .3; } }
 .bm-main { overflow: auto; padding: 18px 22px 28px; outline: 0; }
-
-/* ---------------------------------- обзор ---------------------------------- */
 .bm-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 18px; flex-wrap: wrap; padding: 18px 20px; margin-bottom: 16px;
   border-radius: 16px; border: 1px solid var(--bm-line);
   background: radial-gradient(120% 140% at 0% 0%, color-mix(in srgb, var(--accent) 16%, transparent), transparent 60%), var(--panel); }
@@ -86,8 +79,6 @@
   background: var(--panel); color: var(--text); font: inherit; text-align: left; cursor: pointer; }
 .bm-result:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
 .bm-result span { font-size: .8em; color: var(--muted); }
-
-/* ---------------------------------- таблица ---------------------------------- */
 .bm-board-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 14px; }
 .bm-board-title h1 { font-size: 1.4em; margin: 2px 0 4px; letter-spacing: -.02em; }
 .bm-board-title p { margin: 0 0 2px; max-width: 760px; font-size: .9em; color: var(--muted); }
@@ -134,8 +125,6 @@
   background-size: 200% 100%; animation: bm-shimmer 1.2s linear infinite; }
 .bm-skeleton.big i { height: 34px; }
 @keyframes bm-shimmer { to { background-position: -200% 0; } }
-
-/* ------------------------------ карточка модели ------------------------------ */
 .bm-scrim { position: absolute; inset: 0; background: color-mix(in srgb, var(--bg-deep, var(--bg)) 55%, transparent); z-index: 4; }
 .bm-card { position: absolute; top: 0; right: 0; bottom: 0; width: min(440px, 92%); z-index: 5; display: flex; flex-direction: column; gap: 10px;
   padding: 18px; overflow: auto; background: var(--panel); border-left: 1px solid var(--bm-line); box-shadow: var(--shadow, 0 10px 40px rgba(0,0,0,.3));
@@ -152,8 +141,6 @@
 .bm-card-board small, .bm-card-value small { color: var(--muted); font-size: .76em; }
 .bm-card-value { display: flex; flex-direction: column; align-items: flex-end; }
 .bm-card-actions { margin-top: auto; display: flex; gap: 8px; }
-
-/* ---------------------------------- MemuAI Index и личная арена ---------------------------------- */
 .bm-pct { display: inline-flex; align-items: center; justify-content: center; min-width: 34px; height: 22px; padding: 0 6px; border-radius: 7px;
   font-size: .84em; font-weight: 700; font-variant-numeric: tabular-nums; background: var(--bm-soft); color: var(--muted); }
 .bm-pct.top { background: color-mix(in srgb, var(--ok) 30%, transparent); color: var(--text); }
@@ -255,8 +242,6 @@
 .bm-monitor-error, .bm-monitor-choice.has-error .bm-monitor-error { color: var(--danger); }
 .bm-monitor-history article { border-bottom: 1px solid var(--border); padding: 12px 0; }
 .bm-monitor-history pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; }
-
-/* Round 30: the window draws the brand, Refresh and Monitoring (Memu.toolbar) — the bar keeps search + «My models» in one row. */
 @media(max-width:860px) {
   :root[data-host-toolbar="1"] .bm-bar { display:flex; flex-wrap:nowrap; }
   :root[data-host-toolbar="1"] .bm-bar .bm-search { flex:1; }

@@ -36,17 +36,14 @@ _TASKS: Set[asyncio.Task] = set()
 _SEEN: Dict[str, Dict[str, Any]] = {}
 _MOBILE_BLOCK = re.compile(r"<mobile_interface>[\s\S]*?</mobile_interface>")
 
-
 def _tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 def _clock(stamp_ms: int) -> str:
     try:
         return time.strftime("%d.%m.%Y %H:%M", time.localtime(stamp_ms / 1000))
     except (OverflowError, OSError, ValueError):
         return ""
-
 
 def delivery_block(item: Dict[str, Any], lang: str) -> str:
     """Replaces the Mini App's «you are on a phone» block for a scheduled delivery."""
@@ -60,7 +57,6 @@ def delivery_block(item: Dict[str, Any], lang: str) -> str:
             "hidden protocol blocks and never claim to have used them. Answer it as a normal message of this "
             "conversation.</scheduled_delivery>")
 
-
 def online(timeout: float = 3.0) -> bool:
     """A best-effort internet probe for «when online» messages (any of a few well-known hosts)."""
     for host, port in (("1.1.1.1", 443), ("8.8.8.8", 443), ("www.microsoft.com", 443)):
@@ -71,14 +67,12 @@ def online(timeout: float = 3.0) -> bool:
             continue
     return False
 
-
 def _provider_is_local(model: str) -> bool:
     try:
         from .tgapp_chat import model_provider
         return model_provider(model) == "local"
     except Exception:
         return False
-
 
 async def _notify(item: Dict[str, Any], lang: str, *, title: str, text: str, prefs: Dict[str, Any],
                   windows: bool, profile_id: str) -> None:
@@ -96,7 +90,6 @@ async def _notify(item: Dict[str, Any], lang: str, *, title: str, text: str, pre
                                     model=str(item.get("model_used") or item.get("model") or ""), kind="schedule")
         except Exception as exc:  # noqa: BLE001
             log.info("schedsend: Telegram notification not sent (%s)", type(exc).__name__)
-
 
 async def execute(item: Dict[str, Any], profile_id: str, *, window_open: bool) -> Dict[str, Any]:
     """Send one claimed message into its chat and record the outcome. Returns a small report."""
@@ -213,7 +206,6 @@ async def execute(item: Dict[str, Any], profile_id: str, *, window_open: bool) -
     report.update({"ok": True, "answer_error": answer_error, "model": model})
     return report
 
-
 async def _run(item: Dict[str, Any], profile_id: str, window_open: bool) -> None:
     key = f"{profile_id}:{item['id']}"
     try:
@@ -229,7 +221,6 @@ async def _run(item: Dict[str, Any], profile_id: str, window_open: bool) -> None
     finally:
         _RUNNING.discard(key)
 
-
 async def _parked(item: Dict[str, Any], action: str, profile_id: str, window_open: bool) -> None:
     """A missed message waiting for the user (``ask``) or skipped by the policy."""
     if window_open:
@@ -242,7 +233,6 @@ async def _parked(item: Dict[str, Any], action: str, profile_id: str, window_ope
     text = (_tr(lang, "Откройте MemuAI, чтобы отправить его или удалить: ", "Open MemuAI to send or delete it: ")
             if action == "ask" else "") + str(item.get("text") or "")[:200]
     await _notify(item, lang, title=title, text=text, prefs=prefs, windows=True, profile_id=profile_id)
-
 
 async def tick(*, now: Optional[int] = None) -> int:
     """One pass over every profile; returns how many sends were started."""
@@ -295,7 +285,6 @@ async def tick(*, now: Optional[int] = None) -> int:
         seen["rev"] = await asyncio.to_thread(sm.revision, profile_id)
     return started
 
-
 async def runner_loop() -> None:
     """Background loop of MemuAI Proxy (started in ``app/main.py``)."""
     try:
@@ -309,7 +298,7 @@ async def runner_loop() -> None:
                 log.warning("schedsend: %s", type(exc).__name__)
             await asyncio.sleep(TICK_SECONDS)
     finally:
-        # Proxy shutdown: an answer being written is stopped and saved as stopped (tgapp_chat._generate).
+
         pending = [task for task in list(_TASKS) if not task.done()]
         for task in pending:
             task.cancel()

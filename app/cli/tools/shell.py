@@ -27,14 +27,11 @@ from ... import code_sandbox
 from ..i18n import tr
 from .base import Prepared, Tool, ToolContext, ToolError, ToolResult, arg, flag, workspace_of
 
-MAX_OUTPUT_CHARS = 20_000         # Round 32: was 30 000 (head 12 000) — the tail is what matters
+MAX_OUTPUT_CHARS = 20_000
 HEAD_CHARS = 5_000
 DEFAULT_TIMEOUT = 120
 MAX_TIMEOUT = 600
 SECRET_ENV = re.compile(r"key|token|secret|passw|auth|cookie|credential|private", re.I)
-
-
-# ---------------------------------------------------------------- shells
 
 def find_git_bash() -> Optional[str]:
     override = os.environ.get("MEMUCODE_GIT_BASH", "").strip()
@@ -56,7 +53,6 @@ def find_git_bash() -> Optional[str]:
             return str(path)
     return None
 
-
 def shell_spec(settings: Any) -> Tuple[str, str]:
     """(kind, executable): bash | powershell | pwsh | cmd | sh."""
     wanted = str(settings.get("shell") or "auto").lower()
@@ -74,12 +70,10 @@ def shell_spec(settings: Any) -> Tuple[str, str]:
         return "cmd", "cmd"
     return "powershell", "powershell"
 
-
 def shell_label(settings: Any) -> str:
     kind, _exe = shell_spec(settings)
     return {"bash": "bash (Git Bash)" if os.name == "nt" else "bash", "powershell": "Windows PowerShell 5.1",
             "pwsh": "PowerShell 7", "cmd": "cmd.exe"}.get(kind, kind)
-
 
 def argv_for(settings: Any, command: str) -> List[str]:
     kind, exe = shell_spec(settings)
@@ -89,7 +83,6 @@ def argv_for(settings: Any, command: str) -> List[str]:
         return code_sandbox.utf8_argv([exe, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                                        "-Command", command])
     return code_sandbox.utf8_argv(["cmd", "/c", command])
-
 
 def command_env(runtime: Any) -> Dict[str, str]:
     mode = str(runtime.settings.get("sandbox.env") or "filtered")
@@ -108,9 +101,6 @@ def command_env(runtime: Any) -> Dict[str, str]:
     if os.name == "nt":
         env.setdefault("PYTHONUTF8", "1")
     return env
-
-
-# ---------------------------------------------------------------- command analysis
 
 def split_commands(command: str) -> List[str]:
     """``a && b | c; d`` → [a, b, c, d]; operators inside quotes are ignored."""
@@ -138,7 +128,7 @@ def split_commands(command: str) -> List[str]:
             current = []
             index += 1
         elif char == "&" and ((current and current[-1] == ">") or text.startswith(">", index + 1)):
-            current.append(char)              # 2>&1 and &> are redirections, not "run in background"
+            current.append(char)
         elif char in ";|\n&":
             parts.append("".join(current))
             current = []
@@ -147,7 +137,6 @@ def split_commands(command: str) -> List[str]:
         index += 1
     parts.append("".join(current))
     return [part.strip() for part in parts if part.strip()]
-
 
 _READ_ONLY = [re.compile(pattern, re.I) for pattern in (
     r"git (status|diff|log|show|rev-parse|ls-files|blame|describe|shortlog|reflog|ls-tree|cat-file|grep|"
@@ -176,15 +165,10 @@ _WRITE_MARKS = re.compile(r"(?<![0-9&])>{1,2}(?!&)|\$\(|`|\btee\b|\bxargs\b|-del
                           r"\bout-file\b|\bset-content\b|\badd-content\b|\bremove-item\b|\bnew-item\b|"
                           r"\bcopy-item\b|\bmove-item\b|\brename-item\b|\binvoke-expression\b|\biex\b")
 
-
-#: Redirections that only merge streams or discard output (``2>&1``, ``2>/dev/null``, ``>NUL``):
-#: models append them to almost every command, and they neither write a file nor expand anything.
 _HARMLESS_REDIRECT = re.compile(r"(?<![\w&>])\d?(?:>&\d|>>?\s*(?:/dev/null|nul)(?![\w./\\:-]))", re.I)
-
 
 def _strip_harmless_redirects(command: str) -> str:
     return _HARMLESS_REDIRECT.sub(" ", str(command or ""))
-
 
 def is_static_command(command: str) -> bool:
     """Whether shell syntax can be analysed without executing an expansion.
@@ -206,8 +190,7 @@ def is_static_command(command: str) -> bool:
             elif quote == '"' and char in "$`":
                 return False
             elif quote == '"' and char == "\\" and index + 1 < len(text):
-                # Escapes differ between Bash and PowerShell: a backslash may
-                # not hide an expansion from the shared safety classifier.
+
                 if text[index + 1] in "$`\"":
                     return False
                 index += 1
@@ -217,7 +200,6 @@ def is_static_command(command: str) -> bool:
             return False
         index += 1
     return not quote
-
 
 def _mutating_read_options(part: str) -> bool:
     """Read-oriented executables can still write or launch another program."""
@@ -232,14 +214,13 @@ def _mutating_read_options(part: str) -> bool:
     lowered = [word.lower() for word in options]
 
     def short_has(word: str, flags: str) -> bool:
-        # Short switches may be grouped and an argument may be attached. An
-        # ambiguous group asks first rather than assuming an output flag is data.
+
         return word.startswith("-") and not word.startswith("--") and any(flag in word[1:] for flag in flags)
 
     def long_has(word: str, names: Tuple[str, ...]) -> bool:
         return any(word == name or word.startswith(name + "=") for name in names)
 
-    if head == "env":                       # env executes its positional command
+    if head == "env":
         return bool(options)
     if head == "git":
         if any(long_has(word, ("--ext-diff", "--textconv", "--filters", "--output")) for word in lowered):
@@ -268,14 +249,12 @@ def _mutating_read_options(part: str) -> bool:
         return any(word not in long_flags and word != "/?"
                    and not re.fullmatch(r"-[aAdfIisyVh?]+", word) for word in options)
     if head == "uniq":
-        # The second operand is an output file. Unknown switches may consume
-        # arguments, so only the ordinary flag forms are accepted here.
+
         flags = re.compile(r"^-(?:[cduizD]+|[fsw]\d+)$|^--(?:count|repeated|unique|ignore-case|zero-terminated)$")
         return (any(word.startswith("-") and not flags.fullmatch(word) for word in options)
                 or len([word for word in options if not word.startswith("-")]) > 1)
     if head == "date":
-        # A bare numeric operand sets the clock. -d/--date and -r/--reference
-        # consume a read-only argument; +FORMAT only controls stdout.
+
         consume = False
         for word in options:
             if consume:
@@ -307,17 +286,14 @@ def _mutating_read_options(part: str) -> bool:
         return any(not (word in ("-L", "-q", "--list-gpus", "--query", "--help", "--version")
                         or word.startswith(("--query-", "--format="))) for word in options)
     if head in ("sed", "awk"):
-        # Both languages can write files or execute code in quoted programs.
-        # Keep the common sed line-window read; other programs ask first.
+
         if not (head == "sed" and len(words) >= 3 and words[1] == "-n"
                 and re.fullmatch(r"\d+(?:,\d+|,\$)?p", words[2])):
             return True
-        # A later -e changes the program; -i writes even when the first program
-        # only prints. After this program accept only filenames (or -- files).
+
         files = words[3:]
         return bool(files and files[0] != "--" and any(word.startswith("-") for word in files))
     return False
-
 
 def is_read_only(command: str) -> bool:
     text = _strip_harmless_redirects(command).strip()
@@ -325,8 +301,7 @@ def is_read_only(command: str) -> bool:
         return False
     for part in split_commands(text):
         part = " ".join(part.split())
-        # Environment assignments can configure loaders and execute code even
-        # when the visible executable normally only reads.
+
         if re.match(r"^\w+=", part) or _mutating_read_options(part):
             return False
         part = re.sub(r"^cd\s+\S+$", "true", part)
@@ -335,7 +310,6 @@ def is_read_only(command: str) -> bool:
         if not any(pattern.match(part) for pattern in _READ_ONLY):
             return False
     return True
-
 
 def rule_prefix(command: str) -> str:
     """Suggested ``Bash(prefix:*)`` for "don't ask again": ``npm test``, ``git commit``."""
@@ -359,18 +333,15 @@ def rule_prefix(command: str) -> str:
         return " ".join(words[:2])
     return head
 
-
-# ---------------------------------------------------------------- runner
-
 def _spawn(runtime: Any, argv: List[str], cwd: Path, env: Dict[str, str]) -> subprocess.Popen:
     sandboxed = bool(runtime.settings.get("sandbox.enabled", True))
     job = code_sandbox.manager.job(runtime.session.id, runtime.root) if sandboxed else None
     flags = 0
     extra: Dict[str, Any] = {}
     if sys.platform == "win32":
-        flags = 0x08000000                              # CREATE_NO_WINDOW
+        flags = 0x08000000
         if job is not None:
-            flags |= 0x00000004                         # CREATE_SUSPENDED until assigned to the job
+            flags |= 0x00000004
     else:
         extra["start_new_session"] = True
     try:
@@ -391,7 +362,6 @@ def _spawn(runtime: Any, argv: List[str], cwd: Path, env: Dict[str, str]) -> sub
             raise ToolError("The sandboxed command could not be resumed.")
     return process
 
-
 class _Collector:
     """Keeps the head and the tail of a possibly huge output.
 
@@ -405,7 +375,7 @@ class _Collector:
         self.head_size = 0
         self.tail = ""
         self.total = 0
-        self.early: List[str] = []         # everything until the output first overflows
+        self.early: List[str] = []
         self.spool: Any = None
         self.spool_path = ""
         self.spooled = 0
@@ -471,7 +441,6 @@ class _Collector:
                "need the middle" if self.spool_path else "")
         return f"{head}\n… [{omitted} characters omitted{see}] …\n{self.tail}", True
 
-
 async def run_shell(runtime: Any, command: str, *, cwd: Path, timeout: int,
                     on_output: Optional[Callable[[str], None]] = None) -> Dict[str, Any]:
     argv = argv_for(runtime.settings, command)
@@ -515,8 +484,7 @@ async def run_shell(runtime: Any, command: str, *, cwd: Path, timeout: int,
             drain()
             await asyncio.sleep(0.06)
     except BaseException:
-        # Escape (CancelledError) and any other failure here (an exception from
-        # the progress callback) must not leave the command running unseen.
+
         await asyncio.to_thread(code_sandbox.kill_tree, process)
         raise
     await asyncio.to_thread(thread.join, 2.0)
@@ -533,21 +501,16 @@ async def run_shell(runtime: Any, command: str, *, cwd: Path, timeout: int,
     return {"exit_code": process.poll() if not timed_out else None, "output": output, "truncated": truncated,
             "timed_out": timed_out, "ms": int((time.monotonic() - started) * 1000)}
 
-
-# ---------------------------------------------------------------- tools
-
 def _timeout_seconds(value: Any) -> int:
     try:
         number = float(value)
     except (TypeError, ValueError):
         return DEFAULT_TIMEOUT
-    if number > 1000:                                   # Claude-style milliseconds
+    if number > 1000:
         number /= 1000
     return int(max(1, min(MAX_TIMEOUT, number)))
 
-
 _CD = re.compile(r"^\s*cd\s+(?:\"([^\"]+)\"|'([^']+)'|([^\s;&|]+))\s*(?:&&|;|$)")
-
 
 class BashTool(Tool):
     name = "Bash"
@@ -638,8 +601,7 @@ class BashTool(Tool):
         row = await asyncio.to_thread(runtime.shells.start, runtime, command, cwd,
                                       str(args.get("description") or "")[:120])
         if getattr(ctx, "depth", 0):
-            # Round 32: a sub-agent collects its own background command with BashOutput; its end is not news for
-            # the main agent (it was woken by «Background command … finished» of a command it never started).
+
             row["announced"] = True
             row["owner_depth"] = int(ctx.depth)
         status = runtime.shells.read(row["id"])
@@ -649,7 +611,6 @@ class BashTool(Tool):
                                            f"{status['new_output'][-3000:] or '(none yet)'}"),
                           summary=tr(f"Фоновая задача {row['id']}", f"Background task {row['id']}"),
                           meta={"background_id": row["id"]})
-
 
 class BackgroundShells:
     """Long-running commands of a session (dev servers, watchers).
@@ -726,7 +687,7 @@ class BackgroundShells:
         exit_code = row["process"].poll()
         running = exit_code is None or not row["output_done"].is_set()
         if not running:
-            row["announced"] = True              # the model has now seen how it ended: no reminder later
+            row["announced"] = True
         return {"id": task_id, "command": row["command"],
                 "running": running,
                 "exit_code": exit_code, "new_output": new, "label": row["label"],
@@ -748,11 +709,9 @@ class BackgroundShells:
         return sum(1 for row in self.rows.values() if row["process"].poll() is None)
 
     def kill_all(self) -> None:
-        # kill_tree itself skips finished processes where that is right; on
-        # POSIX it still reaches children a finished shell left behind.
+
         for row in list(self.rows.values()):
             code_sandbox.kill_tree(row["process"])
-
 
 class BashOutputTool(Tool):
     name = "BashOutput"
@@ -781,7 +740,7 @@ class BashOutputTool(Tool):
             raise ToolError("wait_seconds must be a number between 0 and 60.") from exc
         if not math.isfinite(seconds):
             raise ToolError("wait_seconds must be a number between 0 and 60.")
-        seconds = max(0.0, min(60.0, seconds))          # "wait 120" waits the longest allowed, not an error
+        seconds = max(0.0, min(60.0, seconds))
         if not task_id:
             if seconds:
                 raise ToolError("bash_id is required when waiting for a command.")
@@ -795,13 +754,12 @@ class BashOutputTool(Tool):
             raise ToolError(f"No background command with id {task_id}.") from exc
         state = "running" if row["running"] else f"finished, exit code {row['exit_code']}"
         if not row["running"] and hasattr(ctx.runtime, "discard_note"):
-            ctx.runtime.discard_note("shell:" + task_id)     # already delivered by this very call
+            ctx.runtime.discard_note("shell:" + task_id)
         output = row["new_output"][-12000:] or "(no new output)"
         return ToolResult(ok=True, output=f"{row['command']}\nstatus: {state}\n--- new output ---\n{output}",
                           summary=state, detail=output[-3000:],
                           meta={"background_id": task_id, "running": row["running"],
                                 "exit_code": row["exit_code"]})
-
 
 class KillShellTool(Tool):
     name = "KillShell"
@@ -825,7 +783,6 @@ class KillShellTool(Tool):
             raise ToolError(f"No background command with id {task_id}.") from exc
         return ToolResult(ok=True, output=f"Stopped {task_id}: {row['command']}",
                           summary=tr("Остановлено", "Stopped"))
-
 
 def register(registry) -> None:
     for tool in (BashTool(), BashOutputTool(), KillShellTool()):

@@ -44,10 +44,8 @@ CHROMIUM = next((p for p in (os.environ.get("MEMU_TEST_CHROMIUM"), os.environ.ge
                              "/workspace/work/chromium/chrome", "/usr/bin/chromium", shutil.which("chromium") or "")
                  if p and os.path.exists(p)), "")
 
-
 def _shot() -> str:
     return base64.b64encode(b"\xff\xd8\xff\xe0jpeg").decode()
-
 
 class ScriptBrowser:
     """A fake DFY browser: one page with a button «Submit order» (element 1) and a field (element 2)."""
@@ -82,7 +80,6 @@ class ScriptBrowser:
         self.typed.append((element, text))
         return self.type_result
 
-
 def manager(replies, browser, **settings):
     replies = list(replies)
     prompts = []
@@ -96,7 +93,6 @@ def manager(replies, browser, **settings):
     m._prompts = prompts
     return m
 
-
 async def wait_for(predicate, timeout=5.0):
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -105,8 +101,6 @@ async def wait_for(predicate, timeout=5.0):
         await asyncio.sleep(0.01)
     return False
 
-
-# ------------------------------------------------------------------------------------------------ DFY
 class DFYPickerInputs(unittest.TestCase):
     def test_picker_value_formats(self):
         cases = [("time", "19:30", "19:30"), ("time", "7:30 pm", "19:30"), ("time", "19.30", "19:30"),
@@ -161,7 +155,6 @@ class DFYPickerInputs(unittest.TestCase):
         self.assertEqual((plain, text), ("typed", "hello"))
         shutil.rmtree(profile, ignore_errors=True)
 
-
 class DFYAnswerBinding(unittest.TestCase):
     def test_stale_question_id_is_refused(self):
         browser = ScriptBrowser()
@@ -174,7 +167,7 @@ class DFYAnswerBinding(unittest.TestCase):
             first = task.question["id"]
             await m.answer(task.id, {"answer": "L", "question_id": first})
             self.assertTrue(await wait_for(lambda: task.status == "waiting_user" and task.question["id"] != first))
-            with self.assertRaises(RuntimeError):     # the double click on the first question's button
+            with self.assertRaises(RuntimeError):
                 await m.answer(task.id, {"answer": "L", "question_id": first})
             self.assertEqual(task.status, "waiting_user")
             await m.answer(task.id, {"answer": "red", "question_id": task.question["id"]})
@@ -195,7 +188,6 @@ class DFYAnswerBinding(unittest.TestCase):
             await asyncio.wait_for(task.job, 5)
             return task.status
         self.assertEqual(asyncio.run(run()), "done")
-
 
 class DFYDeclinedFinalStep(unittest.TestCase):
     def test_done_after_declined_submit_says_it_was_not_done(self):
@@ -230,7 +222,6 @@ class DFYDeclinedFinalStep(unittest.TestCase):
         task = asyncio.run(run())
         self.assertEqual(browser.clicked, [1])
         self.assertEqual(task.result, "Заказ 42")
-
 
 class DFYEnglishInterface(unittest.TestCase):
     """r34-quick-agentic-2: with the interface in English the confirmation, the step lines and the «declined» note
@@ -268,7 +259,6 @@ class DFYEnglishInterface(unittest.TestCase):
             return prompt
         self.assertTrue(asyncio.run(run()).startswith("DFY собирается нажать «Submit order»"))
 
-
     def test_browser_errors_are_english(self):
         from app.dfy_browser import in_language
         self.assertEqual(in_language("Сайт не открылся: net::ERR_NAME_NOT_RESOLVED", "en"),
@@ -284,7 +274,7 @@ class DFYEnglishInterface(unittest.TestCase):
 
         async def run():
             task = await m.create("open the shop")
-            self.assertTrue(await wait_for(lambda: task.status == "waiting_user"))   # the «same error» pause
+            self.assertTrue(await wait_for(lambda: task.status == "waiting_user"))
             card = task.question["card"]
             await m.cancel(task.id)
             return task, card
@@ -293,7 +283,6 @@ class DFYEnglishInterface(unittest.TestCase):
         self.assertIn("Error: The site did not open", steps)
         self.assertIn("the site did not open", card["detail_en"].lower())
         self.assertNotRegex(steps + card["detail_en"], "[А-Яа-яЁё]")
-
 
 class YouTubeBotCheckAndPageReading(unittest.TestCase):
     """r34-quick-agentic-2: a YouTube bot check is not «needs a sign-in / age»; bot-check pages are not «the page»."""
@@ -327,7 +316,6 @@ class YouTubeBotCheckAndPageReading(unittest.TestCase):
                                                   "text": "Our systems have detected unusual traffic from your network. " * 20}), "login_wall")
         self.assertEqual(page_mismatch("Статья", {"title": "Статья", "text": "Lorem ipsum dolor sit amet " * 80}), "")
 
-
 class DFYApiErrorsInEnglish(unittest.TestCase):
     def test_answer_errors_follow_the_ui_language(self):
         from fastapi import FastAPI
@@ -339,7 +327,6 @@ class DFYApiErrorsInEnglish(unittest.TestCase):
             app.include_router(build_router(m))
             client = TestClient(app)
             self.assertEqual(client.post("/api/dfy/tasks/nope/answer", json={}).json()["error"], want)
-
 
 class CUKeyNormalisation(unittest.TestCase):
     """«+», «ctrl++», «ctrl-c», «alt-f4», «page-down» reach Windows as the keys the model meant."""
@@ -355,7 +342,6 @@ class CUKeyNormalisation(unittest.TestCase):
         CA = ar.ComputerAutomation
         for raw in cases:
             self.assertTrue(CA._parse_key_combo(_normalize_keys(raw)), raw)
-
 
 class DFYBrowserLifetime(unittest.TestCase):
     def test_idle_browser_is_closed(self):
@@ -383,7 +369,7 @@ class DFYBrowserLifetime(unittest.TestCase):
             task = await m.create("x")
             await asyncio.wait_for(task.job, 5)
             m._schedule_idle_close(0.2)
-            second = await m.create("y")      # cancels the pending idle close
+            second = await m.create("y")
             await asyncio.wait_for(second.job, 5)
             m._idle_close.cancel()
             await asyncio.sleep(0.3)
@@ -397,11 +383,9 @@ class DFYBrowserLifetime(unittest.TestCase):
             self.skipTest("psutil is missing")
         profile = Path(tempfile.mkdtemp(prefix="r34-orphan-"))
         other = Path(tempfile.mkdtemp(prefix="r34-other-"))
-        # a «browser» that is NOT our child: started through a shell that exits at once
+
         code = "import time; time.sleep(60)"
-        # Windows' venv python.exe is a redirector and starts a second process
-        # with identical arguments. Use the real interpreter for this fixture
-        # so exactly one orphan stands in for each browser profile.
+
         interpreter = getattr(sys, "_base_executable", None) or sys.executable
         launcher = (f"import subprocess; subprocess.Popen([{interpreter!r},'-c',{code!r},{f'--user-data-dir={profile}'!r}],"
                     f"start_new_session=True); subprocess.Popen([{interpreter!r},'-c',{code!r},{f'--user-data-dir={other}'!r}],"
@@ -445,7 +429,6 @@ class DFYBrowserLifetime(unittest.TestCase):
         src = (ROOT / "app" / "dfy_browser.py").read_text("utf-8")
         self.assertIn("if not _retry and await asyncio.to_thread(end_profile_orphans, self.profile)", src)
 
-
 class DFYProxyLogin(unittest.TestCase):
     def test_long_username_is_kept(self):
         from app.dfy_proxy import ProxyStore
@@ -454,8 +437,6 @@ class DFYProxyLogin(unittest.TestCase):
         store.set("local", {"enabled": True, "host": "proxy.example", "port": 8080, "username": user, "password": "p"})
         self.assertEqual(store.upstream("local").username, user)
 
-
-# ------------------------------------------------------------------------------------------------ Computer Use
 class CUChangeDetection(unittest.TestCase):
     def _screen(self, digit_box=None, glyph=""):
         from PIL import Image, ImageDraw
@@ -464,7 +445,7 @@ class CUChangeDetection(unittest.TestCase):
         d.rectangle([1000, 60, 1300, 120], fill=(240, 240, 240))
         if digit_box:
             d.rectangle(digit_box, fill=(20, 20, 20))
-        if glyph == "0":      # a display digit, ~20x34 px on the shown screenshot (36 px font at 150 %, scaled)
+        if glyph == "0":
             d.ellipse([1268, 72, 1288, 106], outline=(20, 20, 20), width=3)
         elif glyph == "9":
             d.ellipse([1268, 72, 1288, 90], outline=(20, 20, 20), width=3)
@@ -472,13 +453,13 @@ class CUChangeDetection(unittest.TestCase):
         return img
 
     def test_a_digit_on_a_display_is_a_change_for_the_fine_check(self):
-        before, after = self._screen(glyph="0"), self._screen(glyph="9")     # «0» → «9» on the calculator display
+        before, after = self._screen(glyph="0"), self._screen(glyph="9")
         coarse = ar._signature_max_change(ar._image_signature(before), ar._image_signature(after))
         self.assertLess(coarse, 5, "the old fingerprint does not see it — that was the bug")
         self.assertGreaterEqual(ar._fine_change(ar._fine_signature(before), ar._fine_signature(after)), ar.FINE_CHANGED_PIXELS)
 
     def test_a_caret_is_not_a_change(self):
-        before, after = self._screen(), self._screen((700, 300, 701, 318))       # 1-2 px caret, 18 px tall
+        before, after = self._screen(), self._screen((700, 300, 701, 318))
         self.assertLess(ar._fine_change(ar._fine_signature(before), ar._fine_signature(after)), ar.FINE_CHANGED_PIXELS)
         self.assertEqual(ar._fine_change(ar._fine_signature(before), ar._fine_signature(before)), 0)
         self.assertEqual(ar._fine_change(None, b"x"), -1)
@@ -490,7 +471,6 @@ class CUChangeDetection(unittest.TestCase):
         fine = cap["screens"][0]["fine"]
         self.assertIsInstance(fine, bytes)
         self.assertEqual(len(fine), 640 * 360)
-
 
 class CUPlusKeyAndApproval(unittest.TestCase):
     def test_plus_is_vk_add(self):
@@ -526,7 +506,6 @@ class CUPlusKeyAndApproval(unittest.TestCase):
     def test_route_passes_the_step(self):
         src = (ROOT / "app" / "playground_api.py").read_text("utf-8")
         self.assertIn('computer_runtime.approve(True, all_steps=action == "approve_all", step=body.get("step"))', src)
-
 
 class CUTextFieldClick(unittest.TestCase):
     """The loop on a minimal fake desktop: clicking a text field changes nothing visible; the model must be told
@@ -575,11 +554,8 @@ class CUTextFieldClick(unittest.TestCase):
         self.assertNotIn("NO visible change", second)
         self.assertEqual(self.typed, ["привет"])
 
-
 _real_sleep = asyncio.sleep
 
-
-# ------------------------------------------------------------------------------------------------ the cards
 class QuickCardsStatic(unittest.TestCase):
     def setUp(self):
         self.cu = (PG / "quick" / "quick-computer.js").read_text("utf-8")
@@ -590,7 +566,7 @@ class QuickCardsStatic(unittest.TestCase):
         self.assertIn("run.pollGen !== gen", self.cu)
         self.assertIn("run.answered === step", self.cu)
         self.assertIn("ev.repeat", self.cu)
-        self.assertIn("_attach: false", self.cu)          # «Запустить ещё раз» after reopening starts a new run
+        self.assertIn("_attach: false", self.cu)
         self.assertIn("Нет связи с MemuAI", self.cu)
         self.assertIn("No connection to MemuAI", self.cu)
 
@@ -617,7 +593,7 @@ class QuickCardsStatic(unittest.TestCase):
         stage_css = (PG / "companion" / "stage.css").read_text("utf-8")
         self.assertIn('body[data-surface="desktop"] .stage-tools { flex-direction: column; }', stage_css)
         from app.companion_window import hit_region
-        # the tools column (right 40 px) stays clickable next to a narrow model in the middle
+
         self.assertEqual(hit_region({"x": 120, "y": 60, "w": 40, "h": 300}, 1.0, (300, 440))[2], 300)
 
     def test_js_syntax(self):
@@ -627,7 +603,6 @@ class QuickCardsStatic(unittest.TestCase):
         for path in (PG / "quick" / "quick-computer.js", PG / "quick" / "quick-dfy.js", PG / "dfy-client.js",
                      PG / "companion" / "companion.js", PG / "companion" / "stage.js"):
             subprocess.run([node, "--check", str(path)], check=True)
-
 
 @unittest.skipUnless(CHROMIUM, "no Chromium")
 class QuickComputerCardHeadless(unittest.TestCase):
@@ -690,7 +665,7 @@ class QuickComputerCardHeadless(unittest.TestCase):
                 await page.wait_for_timeout(3000)
                 first = len(calls)
                 head = await page.evaluate("(document.querySelector('.qcu-now')||{}).textContent || ''")
-                for _ in range(5):            # the window reopened 5 times: each «open» polls now, still one chain
+                for _ in range(5):
                     await page.evaluate("QuickAsk.onShow({fresh:false, maxHeight:640, rounded:true, corner:'dwm', radius:8, pinned:false, source:'hotkey', page:null})")
                 calls.clear()
                 await page.wait_for_timeout(3000)
@@ -711,7 +686,6 @@ class QuickComputerCardHeadless(unittest.TestCase):
         self.assertNotIn("Запускается", head)
         self.assertGreaterEqual(second, 3)
         self.assertLessEqual(second, 6, "reopening the window must not add poll chains")
-
 
 if __name__ == "__main__":
     unittest.main()

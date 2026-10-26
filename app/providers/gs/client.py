@@ -12,7 +12,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from curl_cffi.requests import AsyncSession
 
-
 class GensparkError(Exception):
     """Базовая ошибка апстрима."""
 
@@ -21,26 +20,20 @@ class GensparkError(Exception):
         self.message = message
         self.status = status
 
-
 class GensparkAuthError(GensparkError):
     """Кука не принята (not login / 401 / 403)."""
-
 
 class GensparkRateLimitError(GensparkError):
     """Rate limit аккаунта (кратковременная пауза)."""
 
-
 class GensparkFreeLimitError(GensparkError):
     """Исчерпан дневной лимит аккаунта."""
-
 
 class GensparkCloudflareError(GensparkError):
     """Cloudflare: challenge или блок."""
 
-
 class GensparkServerError(GensparkError):
     """Прочая ошибка апстрима (5xx / неожиданный ответ)."""
-
 
 class GensparkContentFilterError(GensparkError):
     """The upstream model refused the prompt (safety filter / policy block).
@@ -49,14 +42,11 @@ class GensparkContentFilterError(GensparkError):
     with a clear message instead of waiting for the idle timeout.
     """
 
-
 class GensparkModelError(GensparkError):
     """The requested model is unavailable for this account or was retired."""
 
-
 class GensparkNetworkError(GensparkError):
     """Сеть: таймаут, DNS, прокси недоступен."""
-
 
 def classify_status(status_code: int, body_head: str = "") -> Optional[GensparkError]:
     """Сопоставляет HTTP-статус и начало тела с типом ошибки."""
@@ -70,7 +60,6 @@ def classify_status(status_code: int, body_head: str = "") -> Optional[GensparkE
         return GensparkServerError("Ошибка Genspark (HTTP %d)" % status_code, status_code)
     return None
 
-
 def looks_like_cloudflare(text: str) -> bool:
     t = text[:4000].lower()
     markers = (
@@ -83,11 +72,9 @@ def looks_like_cloudflare(text: str) -> bool:
     )
     return any(m in t for m in markers)
 
-
 class GensparkClient:
     """Кэширует AsyncSession по комбинации (прокси, отпечаток, verify_ssl)."""
 
-    # цепочка отпечатков: основной и запасные на случай 403 от Cloudflare
     FALLBACK_CHAIN = ["chrome136", "chrome150", "chrome131"]
 
     def __init__(self, api_base: str, impersonate: str = "chrome136",
@@ -112,8 +99,6 @@ class GensparkClient:
         if not self.user_agent or "Chrome/" not in self.user_agent:
             self.user_agent = self._ua_for(impersonate)
         self.user_agent = _re_chrome_bump(self.user_agent, impersonate)
-
-    # ---------- сессии ----------
 
     def _session_key(self, proxy: str) -> str:
         return f"{proxy}|{self.impersonate}|{self.verify_ssl}"
@@ -165,8 +150,6 @@ class GensparkClient:
         return await self._request("GET", url, cookie=cookie, proxy=proxy,
                                    accept="image/*", referer="/ai_image", timeout=90)
 
-    # ---------- общее ----------
-
     def _headers(self, cookie: str, accept: str = "*/*",
                  referer: str = "/agents?type=ai_chat") -> Dict[str, str]:
         return {
@@ -195,14 +178,10 @@ class GensparkClient:
             if resp.status_code != 403:
                 return resp
             if i == len(attempts) - 1:
-                # Every fingerprint got 403: that is the cookie (or a hard block),
-                # not the TLS fingerprint. Keep the configured one — otherwise one
-                # account with a dead cookie silently switched every other
-                # account to the last fallback fingerprint for good.
+
                 self.impersonate, self.user_agent = original
                 return resp
-            # A streamed 403 still owns a curl handle/background transfer.
-            # Release it before retrying with another TLS fingerprint.
+
             from .. import http as _http
             await _http.close_response(resp)
         return resp
@@ -223,11 +202,9 @@ class GensparkClient:
             )
         except asyncio.TimeoutError:
             raise GensparkNetworkError(f"Таймаут соединения с {url}")
-        except Exception as e:  # curl_cffi: curl-level errors
+        except Exception as e:
             raise GensparkNetworkError(f"Network error: {type(e).__name__}: {e}")
         return resp
-
-    # ---------- чат ----------
 
     def build_agent_payload(self, *, model: str, user_s_input: str,
                             messages: list, project_id: str | None,
@@ -319,7 +296,7 @@ class GensparkClient:
                 headers={"Accept": "*/*", "x-ms-blob-type": "BlockBlob",
                          "Content-Type": "application/octet-stream"},
             )
-        except Exception as e:  # curl_cffi: curl-level errors, like _request_once
+        except Exception as e:
             raise GensparkNetworkError(f"File upload failed: {type(e).__name__}: {e}")
         if response.status_code < 200 or response.status_code >= 300:
             raise GensparkServerError(f"Could not upload the file to Genspark (HTTP {response.status_code})")
@@ -336,8 +313,6 @@ class GensparkClient:
                                    json_body={"task_ids": task_ids}, accept="text/event-stream",
                                    referer="/ai_image",
                                    timeout=timeout, stream=True)
-
-    # ---------- служебные ----------
 
     async def is_login(self, cookie: str, proxy: str = "") -> Tuple[Optional[bool], str]:
         """Лёгкая проверка куки: GET /api/is_login.
@@ -418,13 +393,12 @@ class GensparkClient:
                                 cookie=cookie, proxy=proxy, accept="application/json",
                                 referer="/", timeout=15)
         except GensparkError:
-            pass  # не критично
+            pass
 
     async def fetch_text(self, url: str, proxy: str = "", timeout: int = 30) -> str:
         resp = await self._request("GET", url, cookie="", proxy=proxy,
                                    accept="*/*", referer="/", timeout=timeout)
         return resp.text
-
 
 def _re_chrome_bump(ua: str, impersonate: str) -> str:
     import re as _re

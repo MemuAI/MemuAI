@@ -11,13 +11,11 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 
-
 def _chromium():
     candidates = [os.environ.get("MEMU_TEST_CHROMIUM", ""),
                   r"C:\Program Files\Google\Chrome\Application\chrome.exe",
                   r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe", "/usr/bin/chromium"]
     return next((value for value in candidates if value and Path(value).is_file()), "")
-
 
 @pytest.fixture(scope="module")
 def music_browser():
@@ -30,7 +28,6 @@ def music_browser():
                                      args=["--no-sandbox", "--disable-background-networking"])
         yield browser
         browser.close()
-
 
 @pytest.fixture
 def module_page(music_browser):
@@ -54,7 +51,6 @@ def module_page(music_browser):
     yield page, frame
     context.close()
 
-
 COVERAGE = """() => {
   const np = document.querySelector('#np'), image = document.querySelector('#np-blur');
   const n = np.getBoundingClientRect(), r = image.getBoundingClientRect();
@@ -64,7 +60,6 @@ COVERAGE = """() => {
     covered: r.left <= n.left - b * 3 + 1 && r.top <= n.top - b * 3 + 1 && r.right >= n.right + b * 3 - 1 && r.bottom >= n.bottom + b * 3 - 1,
     hscroll: document.documentElement.scrollWidth > innerWidth + 1 };
 }"""
-
 
 @pytest.mark.parametrize("scheme,np_theme", [("dark", "dark"), ("light", "dark"), ("light", "auto")])
 @pytest.mark.parametrize("style", ["card", "full"])
@@ -83,7 +78,6 @@ def test_background_covers_every_edge_before_and_after_enlargement(module_page, 
         assert result["viewport"]["height"] == result["height"], result
         assert not result["hscroll"], result
 
-
 def test_coverage_check_catches_the_original_image_cap(module_page):
     page, frame = module_page
     assert frame.evaluate(COVERAGE)["covered"]
@@ -92,7 +86,6 @@ def test_coverage_check_catches_the_original_image_cap(module_page):
     assert not frame.evaluate(COVERAGE)["covered"]
     frame.evaluate("() => document.querySelector('#old-edge-bug').remove()")
     assert frame.evaluate(COVERAGE)["covered"]
-
 
 def test_dark_player_has_no_white_corner_pixels_on_light_host(module_page, tmp_path):
     from PIL import Image
@@ -107,7 +100,6 @@ def test_dark_player_has_no_white_corner_pixels_on_light_host(module_page, tmp_p
     for x0, y0 in [(0,0), (w-8,0), (0,h-8), (w-8,h-8)]:
         values = [image.getpixel((x,y)) for x in range(x0,x0+8) for y in range(y0,y0+8)]
         assert all(min(pixel) < 220 for pixel in values), (x0,y0,values)
-
 
 def test_background_coverage_survives_browser_scale(module_page):
     page, frame = module_page

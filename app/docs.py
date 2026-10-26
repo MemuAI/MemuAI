@@ -26,7 +26,6 @@ _PAGE_ID = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 _lock = threading.Lock()
 _cache: Dict[Tuple[str, str], Tuple[float, Dict[str, Any]]] = {}
 
-
 def docs_dir() -> Path:
     """Where the pages live, inside a frozen build too (see MemuAI.spec)."""
     base = getattr(sys, "_MEIPASS", "")
@@ -36,10 +35,8 @@ def docs_dir() -> Path:
             return frozen
     return Path(__file__).resolve().parent / "docs"
 
-
 def _lang(value: Any) -> str:
     return "en" if str(value or "") == "en" else "ru"
-
 
 def _index() -> Dict[str, Any]:
     try:
@@ -49,27 +46,20 @@ def _index() -> Dict[str, Any]:
     groups = data.get("groups") if isinstance(data, dict) else None
     return {"groups": [row for row in groups or [] if isinstance(row, dict) and row.get("id")]}
 
-
-# --------------------------------------------------------------------------
-# Pages
-# --------------------------------------------------------------------------
-
 def plain(text: str) -> str:
     """Markdown inline syntax removed; used for anchors, search and snippets."""
     value = str(text or "")
-    value = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", value)  # Round 29: screenshots
+    value = re.sub(r"!\[([^\]]*)\]\([^)]*\)", r"\1", value)
     value = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", value)
-    value = re.sub(r"\+\+([^\s+](?:[^\n]*?[^\s+])??)\+\+", r"\1", value)  # ++Ctrl+Shift+T++
+    value = re.sub(r"\+\+([^\s+](?:[^\n]*?[^\s+])??)\+\+", r"\1", value)
     value = re.sub(r"`([^`]*)`", r"\1", value)
     value = re.sub(r"(\*\*|__|\*|~~)", "", value)
     return value.strip()
-
 
 def anchor(text: str) -> str:
     """Heading anchor; docs.js computes the same one on the client."""
     slug = re.sub(r"[\W_]+", "-", plain(text).lower()).strip("-")
     return slug[:80] or "section"
-
 
 def _parse(raw: str) -> Tuple[Dict[str, str], str]:
     meta: Dict[str, str] = {}
@@ -82,7 +72,6 @@ def _parse(raw: str) -> Tuple[Dict[str, str], str]:
                 meta[key.strip()] = value.strip()
         body = body[match.end():]
     return meta, body.strip() + "\n"
-
 
 def _headings(body: str) -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
@@ -104,7 +93,6 @@ def _headings(body: str) -> List[Dict[str, Any]]:
             slug = f"{slug}-{seen[slug]}"
         rows.append({"level": len(match.group(1)), "text": text, "anchor": slug})
     return rows
-
 
 def _load(lang: str, page_id: str) -> Optional[Dict[str, Any]]:
     if not _PAGE_ID.match(page_id):
@@ -138,7 +126,6 @@ def _load(lang: str, page_id: str) -> Optional[Dict[str, Any]]:
         _cache[key] = (stamp, page)
     return page
 
-
 def _page_in(lang: str, page_id: str) -> Optional[Dict[str, Any]]:
     """The page in the wanted language, else in the other one (marked)."""
     page = _load(lang, page_id)
@@ -151,11 +138,9 @@ def _page_in(lang: str, page_id: str) -> Optional[Dict[str, Any]]:
                 return dict(page, fallback=True)
     return None
 
-
 def _ordered_ids() -> List[Tuple[str, str]]:
     return [(str(group["id"]), str(page_id)) for group in _index()["groups"]
             for page_id in group.get("pages") or [] if _PAGE_ID.match(str(page_id))]
-
 
 def catalog(language: str = "ru") -> Dict[str, Any]:
     lang = _lang(language)
@@ -171,7 +156,6 @@ def catalog(language: str = "ru") -> Dict[str, Any]:
             groups.append({"id": group["id"], "title": group.get(lang) or group.get("ru") or group["id"],
                            "icon": group.get("icon") or "", "pages": pages})
     return {"lang": lang, "groups": groups, "home": groups[0]["pages"][0]["id"] if groups else ""}
-
 
 def page(language: str, page_id: str) -> Optional[Dict[str, Any]]:
     lang = _lang(language)
@@ -191,18 +175,13 @@ def page(language: str, page_id: str) -> Optional[Dict[str, Any]]:
         other = _page_in(lang, ids[index])
         return {"id": other["id"], "title": other["title"]} if other else None
 
-    try:  # Round 29: «Кратко от ИИ» shipped with the docs (app/docs_ai.py)
+    try:
         from .docs_ai import summary_for
         ai_summary = summary_for(found["lang"], found["id"], found["title"], found["body"])
     except Exception:
         ai_summary = None
     return dict(found, group=group_id, group_title=group.get(lang) or group.get("ru") or "",
                 prev=neighbour(-1), next=neighbour(1), ai_summary=ai_summary)
-
-
-# --------------------------------------------------------------------------
-# Search
-# --------------------------------------------------------------------------
 
 def _sections(body: str) -> List[Tuple[str, str, str]]:
     """(heading, anchor, text) blocks, the page start counting as one section."""
@@ -222,13 +201,12 @@ def _sections(body: str) -> List[Tuple[str, str, str]]:
     sections.append((current[0], current[1], "\n".join(current[2])))
     return [row for row in sections if row[0] or row[2].strip()]
 
-
 def _snippet(text: str, needle: str, width: int = 160) -> str:
     clean = re.sub(r"\s+", " ", plain(re.sub(r"```.*?```", " ", text, flags=re.S)
                                    .replace("|", " ").replace("#", " ").replace(">", " "))).strip()
     at = clean.lower().find(needle)
     if at < 0:
-        # The match may live only in a code block: show that line of code.
+
         line = next((row.strip() for row in text.splitlines()
                      if needle in row.lower() and not row.lstrip().startswith("```")), "")
         if line:
@@ -237,7 +215,6 @@ def _snippet(text: str, needle: str, width: int = 160) -> str:
     start = max(0, at - width // 3)
     end = min(len(clean), start + width)
     return ("…" if start else "") + clean[start:end] + ("…" if end < len(clean) else "")
-
 
 def search(language: str, query: str, limit: int = 20) -> List[Dict[str, Any]]:
     lang = _lang(language)

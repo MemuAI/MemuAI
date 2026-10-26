@@ -1,24 +1,5 @@
-/* MemuAI · Settings → «Быстрый доступ» (Round 21, reworked in Round 22).
-   The popup itself lives in /quick/ (quick.js); this pane edits the
-   quick_ask_* preferences, captures the global hotkey and shows whether
-   Windows registered it. Exposes window.MemuQuickSettings { html(ctx), bind(ctx) };
-   app.js renders it inside #pane-quick and calls bind after every render.
-   ctx: { en, pref, esc, api, toast, savePreferences, models, modelName, rerender, syncPreference }.
 
-   Round 22:
-   * bind() is idempotent: every render of the settings panel calls it again, so all
-     document-level listeners belong to one AbortController that the next bind() (or the
-     end of a capture) aborts — nothing piles up, nothing is re-created twice;
-   * changing a model/option never re-renders the settings panel (that used to stack a
-     second settings dialog: closing then took several clicks) — the pane patches itself;
-   * the hotkey capture releases our own registered hotkey while it listens, tracks the
-     modifiers itself (WebView2 reports Alt late or never for Alt+Space), accepts any
-     number of modifiers + any key (F-keys too) and is backed by a native capture on
-     Windows (the server polls the keyboard state only while the field listens);
-   * personality & instructions (shared library with MemuAI Live, own selection),
-     the model for advanced tasks + routing, docking positions, the browser page;
-   * plugin settings: window.MemuQuick.settingsSection(id, render) from the scripts
-     listed as "settings" in /quick/plugins/index.json. */
+
 (function () {
   "use strict";
   const BOLT = '<svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.2 2.4 4.6 13.3c-.4.5 0 1.2.6 1.2h5.3l-1.3 7.1c-.1.7.8 1.1 1.2.5l8.6-10.9c.4-.5 0-1.2-.6-1.2h-5.3l1.3-7.1c.1-.7-.8-1.1-1.2-.5z"/></svg>';
@@ -26,7 +7,6 @@
     captureController: null, refreshToken: 0, personalities: null, pluginsLoaded: false };
   const t = (ctx, ru, en) => (ctx.en ? en : ru);
 
-  /* Same canonical names as app/quick_ask_core.py (hotkey_from_event). */
   const CODE_KEYS = { Space: "Space", Backquote: "`", Minus: "-", Equal: "=", BracketLeft: "[", BracketRight: "]",
     Backslash: "\\", IntlBackslash: "\\", Semicolon: ";", Quote: "'", Comma: ",", Period: ".", Slash: "/", ArrowUp: "Up",
     ArrowDown: "Down", ArrowLeft: "Left", ArrowRight: "Right", Tab: "Tab", Enter: "Enter", Insert: "Insert",
@@ -45,8 +25,7 @@
     if (/^F([1-9]|1[0-9]|2[0-4])$/.test(code)) return code;
     return CODE_KEYS[code] || "";
   }
-  /* held: an optional Set of modifier names tracked from keydown/keyup (the flags of a single
-     event are unreliable for Alt in WebView2). Any number of modifiers is kept. */
+
   function hotkeyFromEvent(e, held) {
     const key = keyFromCode(e.code);
     const mods = new Set(held ? Array.from(held) : []);
@@ -60,8 +39,6 @@
   const keycaps = (text, esc) => String(text || "").split("+").filter(Boolean)
     .map((part) => `<kbd>${esc(part)}</kbd>`).join('<span class="qs-plus">+</span>');
 
-  /* Round 23: the page is built from the settings kit (window.MemuSettingsKit, SETTINGS_KIT.md). A tiny fallback
-     with the same signatures keeps the page usable if the kit failed to load (older shells, tests). */
   const FALLBACK_KIT = (() => {
     const e = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
     const at = (n, v) => (v === undefined || v === null || v === "" ? "" : ` ${n}="${e(v)}"`);
@@ -97,7 +74,6 @@
     ["bottom-right", tr("Правый нижний угол", "Bottom-right corner")],
   ];
 
-  /* The honest note about pictures: there is no hidden second «vision» model. */
   function visionNote(ctx) {
     const { pref } = ctx;
     const tr = (ru, en) => t(ctx, ru, en);
@@ -115,13 +91,12 @@
     const models = ctx.models || [];
     return [["", emptyLabel], ...models.map((m) => [m.id, (ctx.modelName ? ctx.modelName(m.id) : m.id) + (m.caps && m.caps.vision === false ? (ctx.en ? " · text only" : " · только текст") : "")])];
   }
-  // kept for plugins/tests that used the Round 22 helper
+
   function modelOptions(ctx, chosen, emptyLabel) {
     const { esc } = ctx;
     return modelOptionsList(ctx, emptyLabel).map(([v, l]) => `<option value="${esc(v)}" ${v === chosen ? "selected" : ""}>${esc(l)}</option>`).join("");
   }
 
-  /* The personalities response may be empty, {} or malformed (old server, error page): never let it break the page. */
   function normPersonalities(data) {
     if (!data || typeof data !== "object") return null;
     const rows = (v) => (Array.isArray(v) ? v.filter((p) => p && typeof p === "object" && p.id != null) : []);
@@ -182,14 +157,13 @@
           desc: source === "proxy" ? tr("Как в чатах MemuAI: модели и ключи настраиваются в MemuAI Proxy.", "Like MemuAI chats: models and keys are set up in MemuAI Proxy.")
             : tr("Любой OpenAI-совместимый сервер: Ollama, LM Studio, OpenRouter, OpenAI, свой шлюз.", "Any OpenAI-compatible server: Ollama, LM Studio, OpenRouter, OpenAI, your own gateway."),
           id: "qs-source-row", control: K.segmented("qa-source", [["proxy", tr("MemuAI Proxy", "MemuAI Proxy")], ["custom", tr("Свой эндпоинт", "Own endpoint")]], source, { id: "st-qa-source" }) })
-      // --- the model: MemuAI Proxy row or the own-endpoint form. One wrapper that is never hidden, so the kit's
-      //     dividers stay right whichever source is chosen (a hidden last child used to eat the next divider).
+
       + `<div class="qs-model-block" id="qs-model-block">`
       + K.row({ label: tr("Модель", "Model"), when: "@qa-source=proxy", keywords: "model модель основная быстрая default",
           desc: count ? tr(`Отвечает на всё. Лучше быстрая и недорогая. Доступно в Proxy: ${count}.`, `Answers everything; a fast, cheap one fits best. Available in Proxy: ${count}.`)
             : tr("В MemuAI Proxy пока нет моделей — добавьте провайдера в Proxy.", "MemuAI Proxy has no models yet — add a provider there."),
           control: K.select("st-qa-model", modelOptionsList(ctx, tr("Как в чатах", "As in chats") + " · " + fallbackName), pref("quick_ask_model", ""), { width: 260 }) })
-      // --- own endpoint
+
       + K.field({ label: tr("Адрес эндпоинта", "Endpoint address"), forId: "st-qa-ep-url", when: "@qa-source=custom", keywords: "url base endpoint адрес",
           control: K.input("st-qa-ep-url", pref("quick_ask_endpoint_url", ""), { placeholder: "http://localhost:11434/v1", mono: true, attrs: 'spellcheck="false" autocomplete="off"' }),
           help: tr("Базовый адрес OpenAI-совместимого API, обычно заканчивается на /v1. Запросы идут на …/chat/completions и …/models.", "The base address of an OpenAI-compatible API, usually ending with /v1. Requests go to …/chat/completions and …/models.") })
@@ -228,19 +202,19 @@
         K.row({ label: tr("Где открывать", "Where it opens"), keywords: "position место позиция где открывать угол край",
           desc: tr("Окно можно перетащить; у края экрана оно прилипает.", "Drag the window anywhere; it docks at screen edges."),
           control: K.select("st-qa-position", POSITIONS(tr), pref("quick_ask_position", "last"), { width: 220 }), key: "quick_ask_position", def: "last" })
-      // Round 28: which monitor Quick Ask (and the panels/buttons on the screen) opens on
+
       + K.row({ label: tr("Монитор", "Monitor"), keywords: "monitor монитор экран screen display несколько мониторов multi-monitor второй",
           desc: tr("Там же появляются ваши панели и кнопки. Запомненное место применяется на выбранном мониторе.",
             "Your panels and buttons appear there too. The remembered spot is applied on the chosen monitor."),
           control: K.select("st-qa-monitor", [["cursor", tr("С курсором мыши", "With the mouse cursor")], ["window", tr("С активным окном", "With the active window")],
             ["primary", tr("Основной", "Primary")]], pref("quick_ask_monitor", "cursor"), { width: 220 }), key: "quick_ask_monitor", def: "cursor" })
-      // Round 32: Quick Ask is one unit (window + panels + buttons): by default a click elsewhere changes nothing, only Esc closes
+
       + K.row({ label: tr("Щелчок в другой программе", "Click in another program"), keywords: "pin закрепить поверх on top blur фокус focus назад behind esc уходит пропадает disappears",
           desc: tr("Окно с панелями и кнопками закрывается только по Esc, повторным сочетанием или кнопкой.",
             "The window with its panels and buttons closes only with Esc, the hotkey again or a button."),
           control: K.select("st-qa-leave", [["stay", tr("Оставаться поверх", "Stay on top")], ["back", tr("Уходить назад", "Step back")]],
             pref("quick_ask_on_leave", "stay"), { width: 220 }), key: "quick_ask_on_leave", def: "stay" })
-      // Round 36: the hidden popup is a separate WebView2 process — keep it warm or free its memory (app/quick_warm.py)
+
       + K.row({ label: tr("Держать окно наготове", "Keep the window ready"), keywords: "memory память ram warm тёплое быстрый запуск renderer процесс",
           desc: tr("Скрытое окно занимает отдельный процесс WebView2. «Авто» — мгновенно открывается, а после 30 минут без использования освобождает память.",
             "The hidden window is a separate WebView2 process. “Auto” opens instantly and frees its memory after 30 minutes unused."),
@@ -336,8 +310,7 @@
       lines.push(`<div class="qs-warn">${tr(`Сейчас запущен ${ctx.esc(item.program)}: по умолчанию он тоже использует ${ctx.esc(item.hotkey)}. Если окно не открывается — отключите это сочетание в ${ctx.esc(item.program)} или выберите другое ниже.`,
         `${ctx.esc(item.program)} is running and uses ${ctx.esc(item.hotkey)} by default too. If the window does not open, turn that shortcut off in ${ctx.esc(item.program)} or choose another below.`)}</div>`);
     }
-    // Round 23: trade-offs of a valid hotkey are useful but long — one quiet «Подробнее» line instead of grey boxes.
-    // In a browser (native === false) the header chip already says «Только в приложении Windows».
+
     const infos = ((state.probe && state.probe.warnings) || status.warnings || []).filter((w) => w && w.text);
     if (infos.length) {
       lines.push(`<details class="qs-why" id="qs-why"${state.whyOpen ? " open" : ""}><summary>${infos.length === 1 && infos[0].code === "system_menu"
@@ -359,7 +332,7 @@
       }).join("");
       alts.querySelectorAll("[data-hotkey]").forEach((btn) => { btn.onclick = () => applyHotkey(btn.dataset.hotkey); });
       if (!state.altProbe && !state.altProbing) {
-        // Ask Windows which of them are free right now (each is registered and released at once).
+
         state.altProbing = true;
         ctx.api("/api/quick/hotkey", { method: "POST", body: { action: "probe_alternatives", hotkey: hotkey } })
           .then((result) => {
@@ -378,7 +351,7 @@
     let status;
     try { status = await ctx.api("/api/quick/config"); }
     catch (e) { status = { status: { native: false, hotkey: {} }, alternatives: [] }; }
-    if (token !== state.refreshToken) return;     // a newer refresh (or bind) superseded this one
+    if (token !== state.refreshToken) return;
     state.status = status;
     renderStatus();
   }
@@ -408,10 +381,6 @@
     }
   }
 
-  /* The capture field. Our registered hotkey is released while it listens (otherwise pressing it
-     here opens Quick Ask instead), the modifiers are tracked from keydown/keyup by code, and on
-     Windows the server also polls the keyboard natively — WebView2 never receives Alt+Space
-     (Windows turns it into the window menu) nor some Win+… chords. The first of both wins. */
   function startCapture(field) {
     const ctx = state.ctx;
     if (state.capturing || !ctx) return;
@@ -472,7 +441,7 @@
     };
     const onUp = (e) => {
       e.preventDefault(); e.stopPropagation();
-      // Space of Alt+Space can reach the page only as a keyup (the keydown went to the system menu).
+
       if (!MOD_CODES[e.code] && !pressed.has(e.code) && keyFromCode(e.code) && finish(e)) return;
       if (MOD_CODES[e.code]) { held.delete(MOD_CODES[e.code]); paint(); }
     };
@@ -500,10 +469,9 @@
     if (select && state.ctx === ctx) { select.innerHTML = personalityOptions(ctx); describePersonality(ctx); }
   }
 
-  /* ------------------------------------------------------------ plugin settings sections */
   const sections = new Map();
   function ensureMemuQuickStub() {
-    // In the main window there is no popup: plugins' settings scripts only need settingsSection.
+
     const existing = window.MemuQuick;
     if (existing && typeof existing.settingsSection === "function" && !existing.__settingsStub) return;
     const noop = () => () => {};
@@ -539,8 +507,7 @@
         script.onload = resolve; script.onerror = resolve;
         document.body.appendChild(script);
       });
-      // Convention for settings scripts that do not call settingsSection themselves:
-      // window.Memu<Id>Settings.mount(el, ctx) (e.g. MemuCommandsSettings for "commands").
+
       const id = String(row.id || "");
       const global = id ? window["Memu" + id.charAt(0).toUpperCase() + id.slice(1).replace(/[-_](\w)/g, (_, c) => c.toUpperCase()) + "Settings"] : null;
       if (id && !sections.has(id) && global && typeof global.mount === "function") {
@@ -549,8 +516,7 @@
     }
     renderSections();
   }
-  /* Plugin settings live on sub-pages: «commands» → Команды and Голос (the same editor, two parts),
-     «companion» → Компаньон; any other plugin gets its own sub-page linked from «Возможности» (Round 34: was «Команды, голос и компаньон»). */
+
   const mounted = new WeakSet();
   function renderSections() {
     const ctx = state.ctx;
@@ -570,7 +536,7 @@
     }
     const companion = sections.get("companion");
     if (companion) into("qs-sub-companion", companion.render);
-    // Round 27: the selection actions (pgstatic/quick-selection-settings.js)
+
     if (window.MemuQuickSelectionSettings) into("qs-sub-selection", (el, c) => window.MemuQuickSelectionSettings.mount(el, c), { kit: K });
     const links = document.getElementById("qs-plugin-links"), subs = document.getElementById("qs-plugin-subs");
     if (!links || !subs) return;
@@ -578,17 +544,16 @@
       if (id === "commands" || id === "companion" || document.getElementById("qs-sub-plugin-" + id)) continue;
       const raw = section.options.title;
       const title = typeof raw === "function" ? raw(ctx) : (raw && typeof raw === "object" ? (ctx.en ? raw.en : raw.ru) || raw.en || raw.ru || id : String(raw || id));
-      // Round 27: a plugin may give its own link description ({ru, en}) and SVG icon in settingsSection options.
+
       const desc = section.options.desc && typeof section.options.desc === "object" ? (ctx.en ? section.options.desc.en : section.options.desc.ru) : "";
       links.insertAdjacentHTML("beforeend", K.link({ label: K.esc ? K.esc(title) : title, sub: "quick-plugin-" + id, icon: section.options.icon || ICONS.plug, desc: desc ? (K.esc ? K.esc(desc) : desc) : tr("Расширение быстрого доступа", "A Quick Ask extension") }));
       subs.insertAdjacentHTML("beforeend", K.sub({ id: "quick-plugin-" + id, title, body: `<div class="qs-sub-body" id="qs-sub-plugin-${ctx.esc(id)}"></div>` }));
       into("qs-sub-plugin-" + id, section.render);
     }
-    // the links of features whose settings scripts did not load say so instead of opening an empty page
+
     if (!commands) for (const sub of ["quick-commands", "quick-voice"]) { const box = document.getElementById(sub === "quick-commands" ? "qs-sub-commands" : "qs-sub-voice"); if (box && !box.childNodes.length) box.innerHTML = K.note(tr("Модуль команд не загружен.", "The commands module is not loaded."), "warn"); }
   }
 
-  /* Endpoint helpers (Settings ↔ /api/quick/endpoint*). The key is write-only: the page never sees it again. */
   function renderKeyStatus(ctx, key) {
     const tr = (ru, en) => t(ctx, ru, en);
     const status = document.getElementById("qs-key-status"), clear = document.getElementById("st-qa-ep-key-clear"), input = document.getElementById("st-qa-ep-key");
@@ -617,8 +582,7 @@
   }
 
   function bind(ctx) {
-    // One controller per bind: listeners from the previous render are dropped, a capture in
-    // progress is stopped — re-rendering the settings never stacks handlers.
+
     if (state.bindController) state.bindController.abort();
     if (state.captureController) state.captureController.abort();
     state.capturing = false;
@@ -642,7 +606,7 @@
       const el = $(id);
       listen(el, "change", () => save({ [key]: !!el.checked }));
     }
-    // Patched in place — no re-render of the settings panel (that flickered and stacked dialogs).
+
     listen($("st-qa-model"), "change", (e) => {
       if (typeof ctx.syncPreference === "function") ctx.syncPreference("quick_ask_model", e.target.value);
       save({ quick_ask_model: e.target.value });
@@ -679,11 +643,11 @@
     listen($("st-qa-instructions"), "input", () => { count(); saveText(); });
     listen($("st-qa-name"), "input", saveText);
     count();
-    // segmented controls of the kit: radio groups
+
     for (const [name, key] of [["qa-style", "quick_ask_style"], ["qa-routing", "quick_ask_routing"]]) {
       document.querySelectorAll(`#qs-settings input[name="${name}"]`).forEach((radio) => listen(radio, "change", () => { if (radio.checked) save({ [key]: radio.value }); }));
     }
-    // --- the model source
+
     const routingVisible = () => {
       const custom = sourceValue() === "custom";
       const adv = custom ? ($("st-qa-ep-advanced") || {}).value : ($("st-qa-advanced") || {}).value;
@@ -758,7 +722,7 @@
         const info = await ctx.api("/api/quick/endpoint");
         renderKeyStatus(ctx, info.key);
         if (info.models && info.models.length) fillModelList(info.models.map((m) => m.id));
-      } catch (e) { /* older server */ }
+      } catch (e) {  }
       if (fetchList) refreshModels(true);
     }
     async function refreshModels(quiet) {
@@ -828,9 +792,8 @@
     loadPluginSettings(ctx);
   }
 
-  /* Sidebar tab icon: a command-palette window with a spark (stroke style of ICONS in app.js). */
   const TAB_ICON = '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 10h6M7 14h4"/><path d="m17 9-1.5 3h3L17 15"/></svg>';
   window.MemuQuickSettings = { html, bind, hotkeyFromEvent, keyFromCode, icon: TAB_ICON, sections,
-    // tests: put a raw personalities response in place (normalised exactly like a fetched one)
+
     __setPersonalities(data) { state.personalities = normPersonalities(data); } };
 })();

@@ -25,14 +25,12 @@ from installer.engine import Engine
 
 ROOT = Path(__file__).resolve().parents[1]
 INSTALLER = ROOT / "installer"
-#: The AppIds of the old Inno Setup scripts: Windows keys "Installed apps" by them.
+
 SUITE_APPID = "{7C2A93E1-5B44-4E0D-9F61-8A2B43E9A122}"
 PROXY_APPID = "{D05309A7-8FBA-40D6-BBE9-3FD5614D3B88}"
 
-
 def read(rel: str) -> str:
     return (ROOT / rel).read_text(encoding="utf-8")
-
 
 class InnoScriptsAreRetired(unittest.TestCase):
     def test_no_inno_sources_or_art_generator_are_left(self) -> None:
@@ -49,10 +47,9 @@ class InnoScriptsAreRetired(unittest.TestCase):
         self.assertIn("/installer/*.exe", lines)
         self.assertIn("/installer/*.partial", lines)
 
-
 class ProductsContract(unittest.TestCase):
     def test_registry_keys_are_the_inno_appids(self) -> None:
-        # Same key = an old Inno installation is upgraded in place, one entry in Installed apps.
+
         self.assertEqual(products.SUITE.reg_key, SUITE_APPID + "_is1")
         self.assertEqual(products.PROXY.reg_key, PROXY_APPID + "_is1")
         self.assertEqual(products.SUITE.legacy_machine_key, SUITE_APPID + "_is1")
@@ -114,7 +111,7 @@ class ProductsContract(unittest.TestCase):
         suite_runs = {r.name: r for r in products.SUITE.run_values}
         self.assertEqual(suite_runs["MemuAIProxy"].args, "--background")
         self.assertEqual(suite_runs["MemuAIProxy"].task, "autostart")
-        # MemuAI toggles its own autostart (Settings) under the same value name.
+
         self.assertEqual(suite_runs[windows_startup.VALUE_NAME].task, "memuaiautostart")
         self.assertEqual(products.SUITE.task("autostart").default, True)
         self.assertEqual(products.SUITE.task("memuaiautostart").default, False)
@@ -134,7 +131,7 @@ class ProductsContract(unittest.TestCase):
         self.assertIn("MemuAI Proxy без окна", retired)
 
     def test_memucode_goes_on_the_user_path(self) -> None:
-        self.assertEqual(products.SUITE.path_entries, (("memucode", "MemuCode"), ("memuai", r"MemuAI\MemuCLI")))   # Round 35: memu
+        self.assertEqual(products.SUITE.path_entries, (("memucode", "MemuCode"), ("memuai", r"MemuAI\MemuCLI")))
         self.assertEqual(products.PROXY.path_entries, ())
         apply_path = inspect.getsource(Engine._apply_path)
         self.assertIn('"Environment"', apply_path)
@@ -148,7 +145,6 @@ class ProductsContract(unittest.TestCase):
         self.assertIn('"--shutdown"', inspect.getsource(Engine._shutdown_apps))
         for path in INSTALLER.glob("*.py"):
             self.assertNotIn("taskkill", path.read_text(encoding="utf-8").casefold(), path.name)
-
 
 class UninstallContract(unittest.TestCase):
     def test_personal_data_is_kept_unless_asked(self) -> None:
@@ -167,7 +163,6 @@ class UninstallContract(unittest.TestCase):
                      "QuietUninstallString", "InstallLocation", "EstimatedSize", "NoModify", "NoRepair"):
             self.assertIn(f'"{name}"', source)
         self.assertIn("--uninstall --silent", source)
-
 
 class SilentSwitchContract(unittest.TestCase):
     def test_inno_compatible_switches(self) -> None:
@@ -206,7 +201,6 @@ class SilentSwitchContract(unittest.TestCase):
                          (0, 1, 2, 5))
         self.assertIn("force_close=True", inspect.getsource(setup_main.silent_install))
 
-
 class BuildContract(unittest.TestCase):
     def test_build_targets(self) -> None:
         source = read("build.py")
@@ -225,7 +219,6 @@ class BuildContract(unittest.TestCase):
         self.assertIn('"version": version', body, "the payload meta carries build.app_version()")
         for path in INSTALLER.glob("*.py"):
             self.assertIsNone(re.search(r'VERSION\s*=\s*"\d', path.read_text(encoding="utf-8")), path.name)
-
 
 class ProxyOnlyInstallerContractTest(unittest.TestCase):
     def test_proxy_only_assets_omit_chat_app_references(self) -> None:
@@ -246,7 +239,7 @@ class ProxyOnlyInstallerContractTest(unittest.TestCase):
             self.assertEqual(os.environ["MEMUAI_PROXY_ONLY"], "1")
             self.assertEqual(Path(os.environ["MEMUAI_DATA_DIR"]),
                              ROOT / "test-appdata" / "MemuAIProxy")
-        # The uninstaller removes (on request) exactly the folder the program uses.
+
         self.assertEqual(products.PROXY.data_dirs[0][1], "MemuAIProxy")
 
     def test_standalone_cannot_launch_the_chat_application(self) -> None:
@@ -265,7 +258,6 @@ class ProxyOnlyInstallerContractTest(unittest.TestCase):
                 patch.object(desktop, "message_box") as message:
             run_proxy()
         self.assertIn("Другой экземпляр", message.call_args.args[1])
-
 
 if __name__ == "__main__":
     unittest.main()

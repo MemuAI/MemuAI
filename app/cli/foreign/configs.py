@@ -25,21 +25,19 @@ SECRETY = re.compile(r"(key|token|secret|password|passwd|auth|bearer|credential)
 MAX_FILE = 1_000_000
 MAX_FILES = 200
 
-
 @dataclass
 class Item:
-    kind: str                       # mcp | permission | instructions | skill | command | agent
-    source: str                     # claude, codex, gemini, cursor, opencode, grok
+    kind: str
+    source: str
     name: str
     summary: str = ""
     data: Any = None
-    native: bool = False            # MemuCode already reads it where it is
+    native: bool = False
     origin: str = ""
 
     @property
     def key(self) -> str:
         return f"{self.source}:{self.kind}:{self.name}"
-
 
 @dataclass
 class ApplyEnv:
@@ -53,7 +51,6 @@ class ApplyEnv:
     load_mcp: Callable[[], Dict[str, Any]]
     save_mcp: Callable[[Dict[str, Any]], None]
 
-
 def default_env(runtime: Any) -> ApplyEnv:
     from .. import paths
     from ... import mcp_client
@@ -61,17 +58,12 @@ def default_env(runtime: Any) -> ApplyEnv:
                     commands_dir=paths.user_commands_dir(), agents_dir=paths.user_agents_dir(),
                     memory_file=paths.user_memory_file(), load_mcp=mcp_client.load_config, save_mcp=mcp_client.save_config)
 
-
 def slug(name: str) -> str:
     return re.sub(r"[^a-z0-9._-]+", "-", str(name or "").lower()).strip("-.")[:60]
-
 
 def mask(value: Any) -> str:
     text = str(value)
     return text[:3] + "…" + "*" * 4 if len(text) > 8 else "****"
-
-
-# ---------------------------------------------------------------- MCP
 
 def mcp_spec(raw: Any) -> Optional[Dict[str, Any]]:
     """The common shape of one MCP server: ``{command, args, env}`` or ``{type: "http", url, headers}``. None when
@@ -83,7 +75,7 @@ def mcp_spec(raw: Any) -> Optional[Dict[str, Any]]:
     url = str(raw.get("url") or raw.get("httpUrl") or "").strip()
     command = raw.get("command")
     args = raw.get("args")
-    if isinstance(command, list) and command:                       # OpenCode: ["npx", "-y", "server"]
+    if isinstance(command, list) and command:
         args = [str(item) for item in command[1:]] + [str(item) for item in (args or [])]
         command = command[0]
     env = raw.get("env") if isinstance(raw.get("env"), dict) else raw.get("environment")
@@ -103,7 +95,6 @@ def mcp_spec(raw: Any) -> Optional[Dict[str, Any]]:
         return spec
     return None
 
-
 def describe_mcp(spec: Dict[str, Any]) -> str:
     if spec.get("type") == "http":
         return "http " + str(spec["url"])
@@ -112,7 +103,6 @@ def describe_mcp(spec: Dict[str, Any]) -> str:
     if env:
         shown += "  env: " + ", ".join(f"{key}={mask(value) if SECRETY.search(key) else value}" for key, value in list(env.items())[:4])
     return shown[:200]
-
 
 def _mcp_items(source: str, servers: Any, origin: str) -> List[Item]:
     items: List[Item] = []
@@ -123,15 +113,11 @@ def _mcp_items(source: str, servers: Any, origin: str) -> List[Item]:
                 items.append(Item("mcp", source, str(name), describe_mcp(spec), spec, origin=origin))
     return items
 
-
-# ---------------------------------------------------------------- readers
-
 def _json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return None
-
 
 def _jsonc(path: Path) -> Any:
     try:
@@ -145,20 +131,17 @@ def _jsonc(path: Path) -> Any:
     except ValueError:
         return None
 
-
 def _toml(path: Path) -> Any:
     try:
         return tomllib.loads(path.read_text(encoding="utf-8-sig"))
     except (OSError, ValueError):
         return None
 
-
 def _text(path: Path) -> str:
     try:
         return path.read_text(encoding="utf-8-sig") if path.stat().st_size <= MAX_FILE else ""
     except OSError:
         return ""
-
 
 def _skills(source: str, base: Path, native: bool = False) -> List[Item]:
     items: List[Item] = []
@@ -172,7 +155,6 @@ def _skills(source: str, base: Path, native: bool = False) -> List[Item]:
         items.append(Item("skill", source, folder.name, (description.group(1).strip() if description else "")[:140], folder,
                           native=native, origin=str(folder)))
     return items
-
 
 def _markdown_dir(kind: str, source: str, base: Path, native: bool = False) -> List[Item]:
     items: List[Item] = []
@@ -188,7 +170,6 @@ def _markdown_dir(kind: str, source: str, base: Path, native: bool = False) -> L
                           text, native=native, origin=str(file)))
     return items
 
-
 def gemini_command(path: Path, base: Path) -> Optional[Item]:
     """A Gemini CLI custom command (``commands/<group>/<name>.toml``: ``prompt``, ``description``) as a MemuCode one."""
     data = _toml(path)
@@ -201,13 +182,11 @@ def gemini_command(path: Path, base: Path) -> Optional[Item]:
     name = slug(path.relative_to(base).with_suffix("").as_posix().replace("/", "-"))
     return Item("command", "gemini", name, str(data.get("description") or prompt)[:140], body, origin=str(path))
 
-
 def _instructions(source: str, path: Path) -> List[Item]:
     text = _text(path)
     if not text.strip():
         return []
     return [Item("instructions", source, path.name, f"{len(text.splitlines())} lines from {path}", text, origin=str(path))]
-
 
 def _claude(project: Path) -> List[Item]:
     home = Path(os.environ.get("CLAUDE_CONFIG_DIR") or (Path.home() / ".claude"))
@@ -236,10 +215,8 @@ def _claude(project: Path) -> List[Item]:
     items += _markdown_dir("agent", "claude", home / "agents", native=True)
     return items
 
-
 def _same(first: str, second: Any) -> bool:
     return os.path.normcase(os.path.normpath(str(first))) == os.path.normcase(os.path.normpath(str(second)))
-
 
 def _codex() -> List[Item]:
     home = Path(os.environ.get("CODEX_HOME") or (Path.home() / ".codex"))
@@ -251,7 +228,6 @@ def _codex() -> List[Item]:
     items += _skills("codex", home / "skills")
     items += _markdown_dir("command", "codex", home / "prompts")
     return items
-
 
 def _gemini() -> List[Item]:
     home = Path(os.environ.get("GEMINI_HOME") or (Path.home() / ".gemini"))
@@ -269,7 +245,6 @@ def _gemini() -> List[Item]:
                 items.append(item)
     return items
 
-
 def _cursor() -> List[Item]:
     home = Path(os.environ.get("CURSOR_HOME") or (Path.home() / ".cursor"))
     items: List[Item] = []
@@ -279,7 +254,6 @@ def _cursor() -> List[Item]:
     items += _markdown_dir("command", "cursor", home / "commands")
     items += _skills("cursor", home / "skills")
     return items
-
 
 def _opencode() -> List[Item]:
     base = os.environ.get("XDG_CONFIG_HOME")
@@ -295,11 +269,9 @@ def _opencode() -> List[Item]:
     items += _markdown_dir("agent", "opencode", home / "agent")
     return items
 
-
 def _grok() -> List[Item]:
     home = Path(os.environ.get("GROK_HOME") or (Path.home() / ".grok"))
     return _skills("grok", home / "skills") + _markdown_dir("command", "grok", home / "commands")
-
 
 def scan(source: str, project: Path) -> List[Item]:
     """What can be taken from one tool. Never raises: a damaged file simply contributes nothing."""
@@ -310,9 +282,6 @@ def scan(source: str, project: Path) -> List[Item]:
         return readers.get(source, lambda: [])()
     except Exception:
         return []
-
-
-# ---------------------------------------------------------------- writing MemuCode's side
 
 def _copy_tree(source: Path, target: Path) -> int:
     count = 0
@@ -331,7 +300,6 @@ def _copy_tree(source: Path, target: Path) -> int:
         shutil.copy2(file, destination)
         count += 1
     return count
-
 
 def apply(item: Item, env: ApplyEnv) -> str:
     """Take one item over. Returns ``"added"`` or ``"skipped: <why>"``; never overwrites and never raises for a

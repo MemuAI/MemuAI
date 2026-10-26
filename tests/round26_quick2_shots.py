@@ -32,12 +32,11 @@ CHROME = os.environ.get("MEMU_TEST_CHROMIUM") or (
     "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome")
 SHOW = "{fresh:true, maxHeight:640, rounded:true, corner:'dwm', radius:8, pinned:false, source:'hotkey', page:null}"
 MODELS = [{"id": "deepseek-v4.1-flash", "caps": {"vision": False, "search": False}}]
-# A real answer of deepseek-v4.1-flash / qwen3.8-max (live run, Round 26): code, a table and inline math.
+
 RICH = ("Замыкание — функция, которая помнит переменные места, где её создали.\n\n```js\nfunction counter() {\n"
         "  let count = 0;\n  return () => ++count;\n}\n```\n\n| Что | Как |\n|---|---|\n| Хранит | переменные внешней функции |\n"
         "| Область | лексическая |\n\nИ формула: $17 \\times 23 = 20^2 - 3^2 = 391$, а также\n\n$$\\int_0^1 x^2\\,dx = \\tfrac13$$")
 SLOW = {"mode": "fast"}
-
 
 class Handler(http.server.SimpleHTTPRequestHandler):
     """Static files + a real streaming /api/quick/ask (the slow mode sends one delta, then waits)."""
@@ -74,7 +73,6 @@ class Handler(http.server.SimpleHTTPRequestHandler):
             send({"event": "done", "model": "deepseek-v4.1-flash", "tier": "fast"})
         except (BrokenPipeError, ConnectionResetError):
             pass
-
 
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
@@ -153,7 +151,6 @@ async def main(out: Path) -> int:
             await page.wait_for_timeout(300)
             await page.screenshot(path=str(out / f"{name}.png"))
 
-        # 1. opening an older chat never overwrites it with the chat on screen
         page = await open_page()
         await ask(page, "Вопрос A")
         await page.wait_for_timeout(700)
@@ -174,7 +171,6 @@ async def main(out: Path) -> int:
         answer = await page.inner_text("#qa-answer")
         check("Ответ на: Вопрос A" in answer, f"the opened chat is shown: {answer[:120]}")
 
-        # 2. deleting the current chat right after an answer does not resurrect it
         await page.keyboard.press("Control+KeyN")
         await ask(page, "Удаляемый вопрос")
         await page.wait_for_timeout(40)
@@ -187,7 +183,6 @@ async def main(out: Path) -> int:
         check(chat_of("Удаляемый вопрос") is None, "a deleted chat stays deleted")
         await page.close()
 
-        # 3. «New chat» in the middle of a streaming answer saves the partial answer; retry while busy is a no-op
         SLOW["mode"] = "slow"
         SLOW["asks"] = []
         page = await open_page()
@@ -214,7 +209,6 @@ async def main(out: Path) -> int:
             await shot(page, "partial-saved")
         await page.close()
 
-        # 4. markdown + KaTeX, dark ru and light en
         SLOW["mode"] = "rich"
         for theme, lang, name in (("dark", "ru", "math-table-dark"), ("light", "en", "math-table-light-en")):
             page = await open_page(theme, lang)
@@ -235,7 +229,6 @@ async def main(out: Path) -> int:
             await shot(page, name)
             await page.close()
 
-        # 5. an endpoint error in the en UI
         SLOW["mode"] = "error"
         SLOW["error"] = "The server does not know this model (HTTP 404): check the model name in Settings → Quick Ask."
         page = await open_page("dark", "en")
@@ -251,7 +244,6 @@ async def main(out: Path) -> int:
     for item in problems:
         print(" -", item)
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/tmp/r26-quick2-shots"))))

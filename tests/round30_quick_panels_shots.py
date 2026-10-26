@@ -37,7 +37,6 @@ WALLPAPER = ("document.body.style.background = 'linear-gradient(135deg, #2b4c7e 
 SHOW = json.dumps({"fresh": True, "maxHeight": 760, "rounded": True, "corner": "dwm", "radius": 8, "pinned": False,
                    "source": "hotkey", "page": None, "selection": ""})
 
-# Faces that leave their cell, and scroll boxes that show a bar without having anything to scroll.
 FACES_JS = """(sel) => {
   const out = [];
   document.querySelectorAll(sel).forEach((cell) => {
@@ -73,7 +72,6 @@ BARS_JS = """(root) => {
   });
   return out.slice(0, 6);
 }"""
-
 
 async def main(out: Path, only: set) -> int:
     import httpx
@@ -173,7 +171,6 @@ async def main(out: Path, only: set) -> int:
             await page.wait_for_timeout(450)
             await page.screenshot(path=str(out / f"{name}.png"))
 
-        # ------------------------------------------------------------ 1. the window grid: four looks
         if not only or "grid" in only:
             for style in STYLES:
                 set_look({"style": style})
@@ -192,7 +189,6 @@ async def main(out: Path, only: set) -> int:
                     await fit_shot(page, f"qp-grid-{style}-{theme}-{lang}-{width}", width)
                     await page.context.close()
 
-        # ------------------------------------------------------------ 2. font size 80 % / 140 % (the card zooms, faces scale)
         if not only or "font" in only:
             for style in ("card", "compact", "icon"):
                 for font in (80, 140):
@@ -204,7 +200,6 @@ async def main(out: Path, only: set) -> int:
                     await fit_shot(page, f"qp-font{font}-{style}-dark-ru", 720)
                     await page.context.close()
 
-        # ------------------------------------------------------------ 3. built into the window: above / below / side
         if not only or "embed" in only:
             cases = [("above", "compact", "dark", "ru", 720), ("below", "card", "dark", "ru", 720), ("side", "card", "dark", "ru", 720),
                      ("side", "text", "light", "en", 720), ("above", "icon", "light", "en", 720), ("below", "text", "light", "ru", 720),
@@ -247,7 +242,6 @@ async def main(out: Path, only: set) -> int:
                 await page.context.close()
             set_look({}, {"place": "off"})
 
-        # ------------------------------------------------------------ 4. the screen layer
         if not only or "layer" in only:
             layer_on["available"] = True
             mon = {"key": "1366x728@96", "w": 1366, "h": 728, "scale": 1}
@@ -273,7 +267,6 @@ async def main(out: Path, only: set) -> int:
             layer_on["available"] = False
             set_look({})
 
-        # ------------------------------------------------------------ 5. Settings → Quick Access → «Вид панелей и встраивание»
         if not only or "settings" in only:
             from app.playground_api import create_app
             pg_port = base.free_port()
@@ -295,7 +288,7 @@ async def main(out: Path, only: set) -> int:
                 await page.wait_for_timeout(900)
                 await page.evaluate("openSettingsPage('quick')")
                 link = page.locator('[data-sx-open="quick-plugin-canvas-embed"]')
-                try:      # the plugins' settings scripts load one by one after the page opens
+                try:
                     await link.wait_for(state="attached", timeout=20000)
                 except Exception:
                     pass
@@ -323,7 +316,7 @@ async def main(out: Path, only: set) -> int:
                         && !el.closest('.qls-preview, .qls-name')) o.push(n.textContent.trim().slice(0, 40)); }
                       return o.slice(0, 5); }""", pane)
                     check(not cyr, f"{what}: no Russian in English ({cyr})")
-                # the page scrolls inside the settings dialog: shoot the dialog at each screenful of the sub-page
+
                 steps = await page.evaluate("""(sel) => { const pane = document.querySelector(sel); if (!pane) return 0;
                   let s = pane.parentElement; while (s && !(/(auto|scroll)/.test(getComputedStyle(s).overflowY) && s.scrollHeight > s.clientHeight)) s = s.parentElement;
                   window.__qpScroller = s || null; return s ? Math.ceil((s.scrollHeight - s.clientHeight) / (s.clientHeight - 120)) + 1 : 1; }""", pane)
@@ -341,11 +334,10 @@ async def main(out: Path, only: set) -> int:
         print(" -", p)
     return 1 if problems else 0
 
-
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("out", nargs="?", default="/workspace/work/shots/r29/r30-quick-panels")
     ap.add_argument("--only", default="")
     a = ap.parse_args()
-    os.environ["MEMUAI_DATA_DIR"] = tempfile.mkdtemp(prefix="r30qp-shots-")   # never the caller's profile: panels are seeded
+    os.environ["MEMUAI_DATA_DIR"] = tempfile.mkdtemp(prefix="r30qp-shots-")
     sys.exit(asyncio.run(main(Path(a.out), set(filter(None, a.only.split(","))))))

@@ -38,30 +38,26 @@ log = logging.getLogger("memuai.panels")
 
 SCHEMA_VERSION = 2
 FILE_NAME = "panels.json"
-#: Round 33 (r33-panels): eight places (zones) instead of three — see app/panels_layout.py. Documents written
-#: before Round 33 contain only home / sidebar / appbar and are read as they are.
+
 from .panels_layout import ZONE_IDS as PLACEMENTS  # noqa: E402
-#: Раунд 23: «w» — широкая (на всю ширину главного экрана), «l» — большая в две колонки. До Раунда 23
-#: «l» означала всю ширину — такие панели мигрируют в «w» (SCHEMA_VERSION 2), их вид не меняется.
+
 SIZES = ("s", "m", "l", "w")
 KINDS = ("weather", "currency", "crypto", "stock", "rss", "countdown", "sports", "web", "custom",
          "news", "system", "usage", "todo", "notes", "clock", "timers", "proxy", "calendar", "github", "module")
 SOURCE_TYPES = ("open-meteo", "fx", "coingecko", "stock", "rss", "countdown", "ai", "feed", "system", "usage",
                 "local", "timers", "proxy", "calendar", "github", "module")
-#: Свои данные пользователя и то, что считается в самом окне: ни сети, ни ритма обновления.
-#: Раунд 38: «module» — панель модуля (app/module_integration.py), рисует сам модуль в песочнице-iframe.
+
 LOCAL_KINDS = ("todo", "notes", "clock", "timers", "module")
-#: Виды, у которых есть живой режим в окне (опрос лёгкого локального маршрута, пока карточка видна).
+
 LIVE_KINDS = ("system", "timers", "clock")
-#: Раунд 22: ритм от минуты. У каждого типа свой честный нижний предел — чаще источник не меняется,
-#: банит за частые запросы или обновление стоит денег (модель + поиск).
+
 MIN_INTERVAL_MINUTES = 1
 MAX_INTERVAL_MINUTES = 7 * 24 * 60
 KIND_FLOOR_MINUTES = {"system": 1, "usage": 1, "crypto": 1, "stock": 1, "rss": 5, "currency": 15, "weather": 15,
                       "news": 15, "sports": 15, "web": 15, "custom": 15, "countdown": 60, "proxy": 1,
                       "calendar": 5, "github": 5, "todo": 60, "notes": 60, "clock": 60, "timers": 60,
                       "module": 60}
-#: Почему именно такой предел — окно показывает это рядом с выбором ритма.
+
 FLOOR_REASONS = {
     "system": ("Чаще минуты — включите «Живой режим»: значения обновляются раз в 1–5 с, пока карточка видна.",
                "For faster than a minute use Live mode: values update every 1–5 s while the card is visible."),
@@ -92,13 +88,12 @@ MAX_BLOCKS = 24
 MAX_HISTORY = 48
 CLAIM_SECONDS = 300
 LOOP_SECONDS = 20
-#: Обновлений через модель (``ai``/``feed``) одновременно: после сна ПК или запуска все просроченные панели
-#: становились «пора» разом и уходили в модель параллельно → лимит запросов и откат с ошибкой.
+
 MAX_MODEL_REFRESHES = 3
 MODEL_SOURCES = ("ai", "feed")
-#: Стены, которые снимает только пользователь: автоматические попытки не повторяются.
+
 USER_WALLS = ("needs_login", "needs_connector", "paywall", "source_gone", "needs_location")
-# Сбои, которые проходят сами (сеть, запуск Proxy): повтор скоро, а не через период панели.
+
 TRANSIENT_WALLS = ("blocked:source-down", "blocked:proxy-offline", "blocked:model-down")
 TRANSIENT_RETRY_SECONDS = 300.0
 
@@ -111,10 +106,8 @@ _BINDING = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)((?:\.[A-Za-z0-9_]+)*)\s*
 _ICON_RE = re.compile(r"^[a-z0-9-]{1,32}$")
 _ID_RE = re.compile(r"^p_[a-z0-9]{6,24}$")
 
-
 class PanelError(ValueError):
     """Ошибка запроса к панелям, понятная пользователю."""
-
 
 class Wall(Exception):
     """Обновление упёрлось в препятствие: ``status`` — класс:причина (needs_login:site.ru …)."""
@@ -125,7 +118,6 @@ class Wall(Exception):
         self.message = str(message or "")[:400]
         self.retry_after = retry_after
 
-
 def _wall_slug(value: Any) -> str:
     text = re.sub(r"[^a-z0-9._:-]", "-", str(value or "blocked:unknown").lower())[:80]
     if ":" not in text:
@@ -134,9 +126,6 @@ def _wall_slug(value: Any) -> str:
     if kind not in USER_WALLS + ("blocked",):
         kind = "blocked"
     return f"{kind}:{reason or 'unknown'}"
-
-
-# ============================================================ контекст (модель, поиск)
 
 class PanelContext:
     """Что панелям нужно от приложения: модель и веб. Всё асинхронное и подменяемое."""
@@ -150,22 +139,16 @@ class PanelContext:
         self.fetch = fetch
         self.default_model = default_model or (lambda: "")
 
-
 _CONTEXT = PanelContext()
 _TASKS: Dict[str, "asyncio.Task[Any]"] = {}
-_RERUN: set = set()            # панели, которые правили во время обновления: повторить сразу после него
-
+_RERUN: set = set()
 
 def set_context(ctx: PanelContext) -> None:
     global _CONTEXT
     _CONTEXT = ctx
 
-
 def context() -> PanelContext:
     return _CONTEXT
-
-
-# ============================================================ хранение
 
 def _path():
     from .pgdata import MEMU_DIR, _profile_data_name
@@ -175,25 +158,22 @@ def _path():
         name = FILE_NAME
     return MEMU_DIR / name
 
-
 def default_settings() -> Dict[str, Any]:
     return {
         "enabled": True,
         "location": {"mode": "unset", "name": "", "lat": None, "lon": None, "country": "", "timezone": ""},
-        "units": "auto",          # auto | metric | imperial
-        "locale": "",             # navigator.language из окна, для «auto»
+        "units": "auto",
+        "locale": "",
         "lang": "ru",
-        "model": "",              # модель для обновления панелей; пусто — модель по умолчанию
+        "model": "",
         "appbar_max": 4,
-        # Round 33: per-zone look of the window (cards / chips, «also in chats», side column widths)
+
         "layout": _layout().default_layout(),
     }
-
 
 def _layout():
     from . import panels_layout
     return panels_layout
-
 
 def _clean_settings(raw: Any) -> Dict[str, Any]:
     out = default_settings()
@@ -222,7 +202,6 @@ def _clean_settings(raw: Any) -> Dict[str, Any]:
     out["layout"] = _layout().clean_layout(raw.get("layout"))
     return out
 
-
 def _num(value: Any, lo: float, hi: float) -> Optional[float]:
     try:
         number = float(value)
@@ -232,18 +211,14 @@ def _num(value: Any, lo: float, hi: float) -> Optional[float]:
         return None
     return number
 
-
 def _new_id() -> str:
     return "p_" + uuid.uuid4().hex[:12]
-
 
 def floor_minutes(kind: str) -> int:
     """Нижний предел ритма для типа панели (минуты)."""
     return int(KIND_FLOOR_MINUTES.get(kind, 15 if kind else MIN_INTERVAL_MINUTES))
 
-
 _HHMM = re.compile(r"(\d{1,2}):(\d{2})")
-
 
 def _hhmm(value: Any) -> str:
     match = _HHMM.fullmatch(str(value or "").strip())
@@ -251,13 +226,11 @@ def _hhmm(value: Any) -> str:
         return f"{int(match.group(1)):02d}:{match.group(2)}"
     return ""
 
-
 def _clean_days(value: Any) -> List[int]:
     """Дни недели 0 (пн) … 6 (вс); все семь или ни одного — «каждый день» (пустой список)."""
     days = sorted({int(d) for d in (value or []) if isinstance(d, (int, float)) and not isinstance(d, bool) and 0 <= d <= 6}) \
         if isinstance(value, list) else []
     return [] if len(days) in (0, 7) else days
-
 
 def _clean_cadence(raw: Any, *, kind: str = "") -> Dict[str, Any]:
     """Ритм (Раунд 23 — со своими вариантами):
@@ -306,7 +279,7 @@ def _clean_cadence(raw: Any, *, kind: str = "") -> Dict[str, Any]:
         if not clean:
             clean = ["08:00"]
         if len(clean) == 1 and not days:
-            return {"kind": "daily", "at": clean[0]}       # совместимо со старыми окнами и планировщиком
+            return {"kind": "daily", "at": clean[0]}
         out: Dict[str, Any] = {"kind": "times", "at": clean}
         if days:
             out["days"] = days
@@ -328,7 +301,6 @@ def _clean_cadence(raw: Any, *, kind: str = "") -> Dict[str, Any]:
         out["from"], out["to"] = start, stop
     return out
 
-
 def _cadence_allows(cadence: Dict[str, Any], moment: datetime) -> bool:
     """Попадает ли момент в дни и часы интервального ритма."""
     days = cadence.get("days") or []
@@ -338,13 +310,12 @@ def _cadence_allows(cadence: Dict[str, Any], moment: datetime) -> bool:
     now_t = moment.strftime("%H:%M")
     if start < stop:
         return start <= now_t < stop and (not days or moment.weekday() in days)
-    # окно через полночь: 22:00–06:00 принадлежит дню, когда оно началось
+
     if now_t >= start:
         return not days or moment.weekday() in days
     if now_t < stop:
         return not days or (moment - timedelta(days=1)).weekday() in days
     return False
-
 
 def next_refresh_at(cadence: Dict[str, Any], *, now: Optional[float] = None) -> Optional[float]:
     """Когда обновлять в следующий раз. Простые ритмы — тот же расчёт, что у Планирования (scheduler)."""
@@ -386,7 +357,6 @@ def next_refresh_at(cadence: Dict[str, Any], *, now: Optional[float] = None) -> 
             return stamp.timestamp()
     return candidate
 
-
 def _clean_url(value: Any, *, images: bool = False) -> str:
     text = str(value or "").strip()[:2000]
     if not text:
@@ -403,7 +373,6 @@ def _clean_url(value: Any, *, images: bool = False) -> str:
         return ""
     return text
 
-
 def _clean_text(value: Any, limit: int = 400) -> str:
     if value is None:
         return ""
@@ -412,7 +381,6 @@ def _clean_text(value: Any, limit: int = 400) -> str:
     if isinstance(value, (int, float)):
         return _fmt_number(value)
     return str(value).replace("\x00", "")[:limit]
-
 
 def _fmt_number(value: Any) -> str:
     if isinstance(value, bool):
@@ -424,7 +392,6 @@ def _fmt_number(value: Any) -> str:
             return ""
         return ("%.6f" % value).rstrip("0").rstrip(".")
     return str(value)
-
 
 def _clean_items(value: Any, fields: Tuple[str, ...], *, limit: int = 20, url_fields: Tuple[str, ...] = ()) -> Any:
     if isinstance(value, str) and _BINDING.fullmatch(value.strip()):
@@ -444,13 +411,11 @@ def _clean_items(value: Any, fields: Tuple[str, ...], *, limit: int = 20, url_fi
             out.append({fields[0]: _clean_text(row, 300)})
     return out
 
-
 def _clean_block(raw: Any, errors: List[str], *, depth: int = 0) -> Optional[Dict[str, Any]]:
     if not isinstance(raw, dict):
         errors.append("block is not an object")
         return None
-    # Round 31: модели пишут блок и как {"metric": {...}}, и с "kind"/"block" вместо "type" — раньше
-    # вся сборка падала «unknown block type ''».
+
     if not raw.get("type"):
         alias = raw.get("kind") or raw.get("block")
         if isinstance(alias, str) and alias.strip().lower() in BLOCK_TYPES:
@@ -543,8 +508,7 @@ def _clean_block(raw: Any, errors: List[str], *, depth: int = 0) -> Optional[Dic
         src = raw.get("src") or raw.get("image") or raw.get("image_url")
         link = raw.get("url")
         if not src and link:
-            # Round 31: models (and the agent tool) write the picture as "url" — the block was dropped
-            # («image needs an http(s) src») and an image panel came out empty. "url" is the picture then.
+
             src, link = link, raw.get("link") or raw.get("href")
         put("src", _clean_url(src, images=True)); put("alt", text("alt", 200))
         put("caption", text("caption", 200)); put("url", _clean_url(link))
@@ -624,7 +588,7 @@ def _clean_block(raw: Any, errors: List[str], *, depth: int = 0) -> Optional[Dic
         for flag in ("seconds", "date", "diff", "local"):
             out[flag] = bool(raw.get(flag, flag in ("date", "diff", "local")))
     elif kind == "module":
-        # Раунд 38: панель модуля — только ссылка на вклад модуля, содержимое рисует его песочница.
+
         for key in ("module", "panel"):
             value = str(raw.get(key) or "")
             if not re.fullmatch(r"[a-z][a-z0-9_-]{0,40}", value):
@@ -666,7 +630,6 @@ def _clean_block(raw: Any, errors: List[str], *, depth: int = 0) -> Optional[Dic
         out["max_size"] = max_size
     return out
 
-
 def validate_spec(raw: Any) -> Tuple[Dict[str, Any], List[str]]:
     """Проверяет дерево блоков: только известные типы, http(s)-ссылки, ограничения длины.
 
@@ -699,7 +662,6 @@ def validate_spec(raw: Any) -> Tuple[Dict[str, Any], List[str]]:
             out["mini"] = clean
     return out, errors
 
-
 def spec_bindings(spec: Any) -> List[str]:
     """Корневые ключи данных, на которые ссылается спецификация (``{{temp}}`` → ``temp``)."""
     found: List[str] = []
@@ -718,7 +680,6 @@ def spec_bindings(spec: Any) -> List[str]:
 
     walk(spec)
     return found
-
 
 def clean_values(values: Any, allowed: List[str]) -> Dict[str, Any]:
     """Значения от модели или пользователя: только привязанные ключи, ограниченные размеры."""
@@ -746,7 +707,6 @@ def clean_values(values: Any, allowed: List[str]) -> Dict[str, Any]:
             out[key] = clean(values[key])
     return out
 
-
 def _clean_sources(raw: Any) -> List[Dict[str, str]]:
     out: List[Dict[str, str]] = []
     for row in raw if isinstance(raw, list) else []:
@@ -764,7 +724,6 @@ def _clean_sources(raw: Any) -> List[Dict[str, str]]:
             break
     return out
 
-
 def _clean_runbook(raw: Any) -> Dict[str, Any]:
     raw = raw if isinstance(raw, dict) else ({"prompt": raw} if isinstance(raw, str) else {})
     queries = [str(q).strip()[:200] for q in (raw.get("queries") or []) if str(q).strip()][:3] \
@@ -774,13 +733,11 @@ def _clean_runbook(raw: Any) -> Dict[str, Any]:
     return {"prompt": str(raw.get("prompt") or "")[:2000], "queries": queries, "urls": urls,
             "technique": str(raw.get("technique") or "")[:1000]}
 
-
 def _clean_wall(raw: Any) -> Optional[Dict[str, Any]]:
     if not isinstance(raw, dict) or not raw.get("status"):
         return None
     return {"status": _wall_slug(raw.get("status")), "message": str(raw.get("message") or "")[:400],
             "at": _num(raw.get("at"), 0, 1e11) or time.time()}
-
 
 def clean_panel(raw: Any) -> Optional[Dict[str, Any]]:
     """Нормализует одну запись панели (миграция старых и повреждённых записей)."""
@@ -841,38 +798,32 @@ def clean_panel(raw: Any) -> Optional[Dict[str, Any]]:
         "next_refresh": _num(raw.get("next_refresh"), 0, 1e11),
         "refreshing_until": _num(raw.get("refreshing_until"), 0, 1e11),
         "model": _clean_text(raw.get("model"), 300),
-        # Раунд 23: своя модель панели (перекрывает «Модель для панелей с ИИ» из настроек); пусто — общая.
+
         "ai_model": _clean_text(raw.get("ai_model"), 300),
         "options": _options().clean_options(kind, raw.get("options")),
         "created": _num(raw.get("created"), 0, 1e11) or time.time(),
         "updated": _num(raw.get("updated"), 0, 1e11) or time.time(),
         "dismissed_at": _num(raw.get("dismissed_at"), 0, 1e11),
-        # Round 31: «Что показывает» of an AI panel changed — the next refresh designs the panel again
-        # (the old spec stays until the new one is ready, so a failed rebuild does not leave an empty card).
+
         "recompose": bool(raw.get("recompose")),
         "feed": _curate().clean_state(raw.get("feed")) if stype == "feed" else None,
     }
-
 
 def _curate():
     from . import panels_curate
     return panels_curate
 
-
 def _options():
     from . import panels_options
     return panels_options
-
 
 def _local():
     from . import panels_local
     return panels_local
 
-
 KIND_SOURCE = {"news": "feed", "system": "system", "usage": "usage", "todo": "local", "notes": "local",
                "clock": "local", "timers": "timers", "proxy": "proxy", "calendar": "calendar", "github": "github",
                "module": "module"}
-
 
 def _clean_params(raw: Any, stype: str) -> Dict[str, Any]:
     """Параметры источника: плоские значения; у «Использования» — ещё список аккаунтов."""
@@ -891,7 +842,6 @@ def _clean_params(raw: Any, stype: str) -> Dict[str, Any]:
             out[key] = str(value)[:500]
     return out
 
-
 def _clean_history(raw: Any) -> Dict[str, List[float]]:
     out: Dict[str, List[float]] = {}
     if not isinstance(raw, dict):
@@ -903,10 +853,9 @@ def _clean_history(raw: Any) -> Dict[str, List[float]]:
             out[str(key)[:40]] = nums[-MAX_HISTORY:]
     return out
 
-
 def _normalize_document(raw: Any) -> Dict[str, Any]:
     """Документ panels.json любой старой формы → текущая схема."""
-    if isinstance(raw, list):           # самая ранняя форма — просто список панелей
+    if isinstance(raw, list):
         raw = {"panels": raw}
     if not isinstance(raw, dict):
         raw = {}
@@ -917,14 +866,13 @@ def _normalize_document(raw: Any) -> Dict[str, Any]:
         old_version = 0
     for row in raw.get("panels") or [] if isinstance(raw.get("panels"), list) else []:
         if old_version < 2 and isinstance(row, dict) and row.get("size") == "l":
-            row = {**row, "size": "w"}          # «Большая» до Раунда 23 занимала всю ширину
+            row = {**row, "size": "w"}
         panel = clean_panel(row)
         if panel and panel["id"] not in seen:
             seen.add(panel["id"])
             panels.append(panel)
     return {"version": SCHEMA_VERSION, "seeded": bool(raw.get("seeded")),
             "settings": _clean_settings(raw.get("settings")), "panels": panels[:MAX_PANELS + MAX_DISMISSED]}
-
 
 def mutate(mutator: Callable[[Dict[str, Any]], Any]) -> Tuple[Dict[str, Any], Any]:
     """Одна атомарная транзакция над panels.json. Возвращает (документ, результат mutator)."""
@@ -940,14 +888,12 @@ def mutate(mutator: Callable[[Dict[str, Any]], Any]) -> Tuple[Dict[str, Any], An
     doc = mutate_json(_path(), {}, update, backup=False)
     return doc, box.get("result")
 
-
 def load() -> Dict[str, Any]:
     from .storage import load_json_with_recovery
     doc = _normalize_document(load_json_with_recovery(_path(), {}))
     if not doc["seeded"]:
         doc, _ = mutate(lambda d: None)
     return doc
-
 
 def _seed(doc: Dict[str, Any]) -> None:
     """Первый запуск: встроенная панель «Погода» на главном экране и мини-чипом сверху."""
@@ -957,8 +903,7 @@ def _seed(doc: Dict[str, Any]) -> None:
     if any(p["kind"] == "weather" and p["builtin"] for p in doc["panels"]):
         return
     if not doc["panels"] and doc["settings"]["lang"] == "ru":
-        # Round 26: the window posts its language (panels-settings) only after the first load — the seeded panel
-        # was always «Погода» with a Russian wall in the English UI (and stayed so in Telegram)
+
         try:
             from .pgdata import load_preferences
             if load_preferences().get("language") == "en":
@@ -971,37 +916,28 @@ def _seed(doc: Dict[str, Any]) -> None:
     panel["order"] = {"home": 0, "sidebar": 0, "appbar": 0}
     doc["panels"].insert(0, panel)
 
-
 def _find(doc: Dict[str, Any], pid: str) -> Dict[str, Any]:
     for panel in doc["panels"]:
         if panel["id"] == pid:
             return panel
     raise PanelError("Панель не найдена")
 
-
 def active(doc: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [p for p in doc["panels"] if not p.get("dismissed_at")]
-
 
 def dismissed(doc: Dict[str, Any]) -> List[Dict[str, Any]]:
     rows = [p for p in doc["panels"] if p.get("dismissed_at")]
     return sorted(rows, key=lambda p: -(p.get("dismissed_at") or 0))
 
-
-# ============================================================ шаблоны
-
 def _lang(settings: Dict[str, Any]) -> str:
     return "en" if settings.get("lang") == "en" else "ru"
-
 
 def _tr(settings: Dict[str, Any], ru: str, en: str) -> str:
     return en if _lang(settings) == "en" else ru
 
-
 def _location_wall(settings: Dict[str, Any]) -> Dict[str, Any]:
     return {"status": "needs_location:weather", "at": time.time(), "message": _tr(
         settings, "Укажите город или разрешите определить местоположение", "Set a city or allow location lookup")}
-
 
 def units_for(settings: Dict[str, Any]) -> str:
     units = settings.get("units") or "auto"
@@ -1009,7 +945,6 @@ def units_for(settings: Dict[str, Any]) -> str:
         return units
     region = str(settings.get("locale") or "").split("-")[-1].upper()
     return "imperial" if region in ("US", "LR", "MM") else "metric"
-
 
 CURRENCY_SIGNS = {"RUB": "₽", "USD": "$", "EUR": "€", "GBP": "£", "CNY": "¥", "JPY": "¥", "KZT": "₸",
                   "UAH": "₴", "TRY": "₺", "INR": "₹", "BYN": "Br", "CHF": "₣"}
@@ -1038,7 +973,7 @@ TEMPLATES = [
     {"kind": "system", "source": "system", "cadence": {"kind": "interval", "minutes": 5}, "fields": []},
     {"kind": "usage", "source": "usage", "cadence": {"kind": "interval", "minutes": 5},
      "fields": [{"key": "accounts", "default": []}]},
-    # Раунд 23
+
     {"kind": "todo", "source": "local", "cadence": {"kind": "manual"}, "fields": []},
     {"kind": "notes", "source": "local", "cadence": {"kind": "manual"}, "fields": []},
     {"kind": "clock", "source": "local", "cadence": {"kind": "manual"}, "fields": []},
@@ -1046,7 +981,7 @@ TEMPLATES = [
     {"kind": "proxy", "source": "proxy", "cadence": {"kind": "interval", "minutes": 5}, "fields": []},
     {"kind": "calendar", "source": "calendar", "cadence": {"kind": "interval", "minutes": 30}, "fields": []},
     {"kind": "github", "source": "github", "cadence": {"kind": "interval", "minutes": 15}, "fields": []},
-    # Раунд 38: панели модулей (contributes.panels) — params {module, panel}
+
     {"kind": "module", "source": "module", "cadence": {"kind": "manual"}, "fields": []},
 ]
 
@@ -1054,13 +989,11 @@ NEWS_TOPICS = {"ai": ("Новости ИИ", "AI news"), "tech": ("Технол�
                "crypto": ("Крипто", "Crypto"), "security": ("Кибербезопасность", "Security"), "space": ("Космос", "Space"),
                "gaming": ("Игры", "Gaming")}
 
-
 def _template(kind: str) -> Dict[str, Any]:
     for row in TEMPLATES:
         if row["kind"] == kind:
             return row
     raise PanelError("Неизвестный шаблон панели")
-
 
 def _system_blocks(options: Dict[str, Any], settings: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Блоки «Производительности ПК» из настройки «что показывать» (Раунд 23)."""
@@ -1166,7 +1099,6 @@ def _system_blocks(options: Dict[str, Any], settings: Dict[str, Any]) -> List[Di
     blocks += lists
     return blocks
 
-
 def _temp_unit(options: Dict[str, Any], settings: Dict[str, Any]) -> str:
     unit = str((options or {}).get("temp_unit") or (options or {}).get("units") or "auto")
     if unit in ("c", "metric"):
@@ -1174,7 +1106,6 @@ def _temp_unit(options: Dict[str, Any], settings: Dict[str, Any]) -> str:
     if unit in ("f", "imperial"):
         return "f"
     return "f" if units_for(settings) == "imperial" else "c"
-
 
 def _module_panel(params: Dict[str, Any]) -> Dict[str, Any]:
     """Раунд 38: вклад модуля для панели {module, panel} (только включённые модули, app/module_integration.py)."""
@@ -1192,7 +1123,6 @@ def _module_panel(params: Dict[str, Any]) -> Dict[str, Any]:
         pass
     return {"module": module_id, "panel": panel_id, "title": item["title_en"] if lang == "en" else item["title"],
             "icon": item.get("icon") or "", "size": item.get("size") or "m"}
-
 
 def typed_spec(kind: str, params: Dict[str, Any], settings: Dict[str, Any],
                options: Optional[Dict[str, Any]] = None) -> Tuple[str, Dict[str, Any]]:
@@ -1389,7 +1319,6 @@ def typed_spec(kind: str, params: Dict[str, Any], settings: Dict[str, Any],
                        "mini": {"icon": "bell", "value": "{{count}}", "label": "GitHub"}}
     raise PanelError("Нет встроенной спецификации для этого типа")
 
-
 def make_template_panel(kind: str, params: Dict[str, Any], settings: Dict[str, Any],
                         options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Новая панель из галереи. Для типов на модели — заготовка, которую дособерёт фоновая сборка."""
@@ -1486,7 +1415,7 @@ def make_template_panel(kind: str, params: Dict[str, Any], settings: Dict[str, A
             what = str(params.get("what") or "").strip()
             if not url or not what:
                 raise PanelError(t("Нужны адрес страницы и что с неё показывать", "A page URL and what to show from it are required"))
-            panel["title"] = _clip_words(what[:1].upper() + what[1:], 60)   # Round 31: «последняя версия…» → «Последняя версия…»
+            panel["title"] = _clip_words(what[:1].upper() + what[1:], 60)
             panel["subject"] = what
             panel["runbook"] = {"prompt": t(f"Открой страницу и найди: {what}", f"Open the page and find: {what}"), "urls": [url]}
             panel["spec"] = {"blocks": [
@@ -1498,21 +1427,20 @@ def make_template_panel(kind: str, params: Dict[str, Any], settings: Dict[str, A
             if not brief:
                 raise PanelError(t("Опишите, что должна показывать панель", "Describe what the panel should show"))
             if _curate().is_feed_brief(brief):
-                # «Новости ИИ каждое утро» — лента: свой конвейер источников, а не одно значение.
+
                 return make_template_panel("news", {"brief": brief, "topic": _curate().detect_topic(brief)}, settings)
             todo_like = re.search(r"(?i)\b(to-?do|todo|список дел|задач[иа]?|дела на|чек-?лист)\b", brief)
             if todo_like and len(brief) < 60:
-                # «список дел» — это локальные задачи пользователя, а не данные из интернета.
+
                 return make_template_panel("todo", {}, settings)
             panel["title"] = brief[:60]
             panel["subject"] = brief
-            panel["spec"] = {"blocks": []}        # сборка придумает блоки
+            panel["spec"] = {"blocks": []}
     out = clean_panel(panel)
     assert out is not None
     if tpl["source"] == "ai" and not panel.get("spec", {}).get("blocks"):
         out["spec"] = {"blocks": []}
     return out
-
 
 def _parse_target(value: Any) -> str:
     text = str(value or "").strip()
@@ -1523,11 +1451,9 @@ def _parse_target(value: Any) -> str:
     except ValueError:
         return ""
     if moment.tzinfo is None or moment.utcoffset() == timedelta(0):
-        # местное время пользователя. Round 32: «…Z»/«+00:00» (старое окно слало toISOString()) — тот же момент,
-        # но в поясе пользователя, иначе подпись «31.12 21:00» вместо «01.01» и смещение +00:00 в хранилище.
+
         moment = moment.astimezone()
     return moment.isoformat(timespec="minutes")
-
 
 def _lenient_target(value: Any) -> str:
     """Дата блока «countdown» от модели (Round 31): ISO как есть, иначе «Fri 2027-01-01 12:00 AM MSK
@@ -1568,14 +1494,13 @@ def _lenient_target(value: Any) -> str:
         moment = moment.astimezone()
     return moment.isoformat(timespec="minutes")
 
-
 def countdown_values(target: str, settings: Dict[str, Any]) -> Dict[str, Any]:
     moment = datetime.fromisoformat(target.replace("Z", "+00:00"))
     if moment.tzinfo is None or moment.utcoffset() == timedelta(0):
-        moment = moment.astimezone()      # Round 32: подпись — в поясе пользователя (старые цели хранились в UTC)
+        moment = moment.astimezone()
     left = moment.timestamp() - time.time()
     lang = _lang(settings)
-    # Коротко, чтобы влезало в малую карточку: год — только если он не текущий, время — только если не полночь.
+
     same_year = moment.year == datetime.now(moment.tzinfo).year
     if lang == "ru":
         label = moment.strftime("%d.%m" if same_year else "%d.%m.%Y")
@@ -1585,15 +1510,11 @@ def countdown_values(target: str, settings: Dict[str, Any]) -> Dict[str, Any]:
         label += moment.strftime(" %H:%M") if lang == "ru" else moment.strftime(", %H:%M")
     return {"target": target, "target_label": label, "days_left": max(0, int(left // 86400)) if left > 0 else 0}
 
-
-# ============================================================ сеть для встроенных источников
-
 async def _http_text(url: str, *, limit: int = 1_500_000) -> str:
     """GET публичного адреса (SSRF-защита и перенаправления — в websearch.fetch_page)."""
     from . import websearch
     page = await websearch.fetch_page(url, limit=limit, raw=True, timeout=15)
     return str(page.get("raw") or page.get("text") or "")
-
 
 async def _http_json(url: str) -> Any:
     text = await _http_text(url)
@@ -1602,14 +1523,12 @@ async def _http_json(url: str) -> Any:
     except ValueError as exc:
         raise Wall("blocked:bad-response", f"Источник вернул не JSON: {text[:120]}") from exc
 
-
 def _record_hist(panel: Dict[str, Any], key: str, value: Optional[float]) -> List[float]:
     hist = panel.setdefault("history", {}).setdefault(key, [])
     if value is not None and math.isfinite(value):
         hist.append(float(value))
     del hist[:-MAX_HISTORY]
     return list(hist)
-
 
 def _fmt_money(value: float, lang: str, digits: int = 2) -> str:
     if value is None:
@@ -1619,19 +1538,16 @@ def _fmt_money(value: float, lang: str, digits: int = 2) -> str:
         text = text.replace(",", "\u202f").replace(".", ",")
     return text
 
-
 def _fmt_delta(value: float, lang: str, digits: int = 2, suffix: str = "") -> str:
     if value is None or not math.isfinite(value):
         return ""
     sign = "+" if value > 0 else ("−" if value < 0 else "±")
     return sign + _fmt_money(abs(value), lang, digits) + suffix
 
-
 def _trend(value: Optional[float]) -> str:
     if value is None or abs(value) < 1e-12:
         return "flat"
     return "up" if value > 0 else "down"
-
 
 _WMO = [
     ((0,), "clear", "Ясно", "Clear"),
@@ -1645,7 +1561,6 @@ _WMO = [
     ((95, 96, 99), "storm", "Гроза", "Thunderstorm"),
 ]
 
-
 def weather_condition(code: Any, is_day: bool, lang: str) -> Tuple[str, str]:
     try:
         number = int(code)
@@ -1657,7 +1572,6 @@ def weather_condition(code: Any, is_day: bool, lang: str) -> Tuple[str, str]:
                 icon = {"clear": "clear-night", "mostly-clear": "clear-night", "partly": "partly-night"}[icon]
             return icon, (en if lang == "en" else ru)
     return "cloudy", ("—")
-
 
 async def resolve_location(settings: Dict[str, Any], params: Dict[str, Any]) -> Dict[str, Any]:
     """Где показывать погоду: город панели → город из настроек → IP (только с согласия)."""
@@ -1676,7 +1590,6 @@ async def resolve_location(settings: Dict[str, Any], params: Dict[str, Any]) -> 
         return await ip_location()
     raise Wall("needs_location:weather", _location_wall(settings)["message"])
 
-
 async def geocode(query: str, lang: str = "ru", count: int = 5) -> List[Dict[str, Any]]:
     query = str(query or "").strip()[:100]
     if len(query) < 2:
@@ -1694,7 +1607,6 @@ async def geocode(query: str, lang: str = "ru", count: int = 5) -> List[Dict[str
             continue
     return out
 
-
 async def ip_location() -> Dict[str, Any]:
     """Город по IP-адресу (ipwho.is, без ключа). Вызывается только после согласия пользователя."""
     try:
@@ -1711,7 +1623,6 @@ async def ip_location() -> Dict[str, Any]:
         raise Wall("blocked:ip-location", "Не удалось определить местоположение по IP")
     return {"name": str(data.get("city") or ""), "lat": float(data["latitude"]), "lon": float(data["longitude"]),
             "country": str(data.get("country_name") or ""), "timezone": str(data.get("timezone") or "")}
-
 
 async def fetch_weather(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     lang = _lang(settings)
@@ -1840,7 +1751,6 @@ async def fetch_weather(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tupl
             values["sunrise"] = values["sunset"] = "—"
     return values, [{"name": "Open-Meteo", "url": "https://open-meteo.com/"}]
 
-
 def _period_label(days: Any, lang: str) -> str:
     names = {"1": ("за сутки", "24 hours"), "7": ("за неделю", "past week"), "30": ("за месяц", "past month"),
              "90": ("за 3 месяца", "past 3 months"), "365": ("за год", "past year"), "1d": ("за день", "today"),
@@ -1849,13 +1759,11 @@ def _period_label(days: Any, lang: str) -> str:
     pair = names.get(str(days))
     return (pair[1] if lang == "en" else pair[0]) if pair else ""
 
-
 def _thin(points: List[float], limit: int = 48) -> List[float]:
     if len(points) <= limit:
         return points
     step = len(points) / float(limit)
     return [points[int(i * step)] for i in range(limit - 1)] + [points[-1]]
-
 
 async def _fx_series(base: str, quote_: str, days: int, valute: Dict[str, Any]) -> List[float]:
     """История курса за период: ЦБ РФ (XML_dynamic) для рубля, Frankfurter — для остальных."""
@@ -1882,7 +1790,6 @@ async def _fx_series(base: str, quote_: str, days: int, valute: Dict[str, Any]) 
         return []
     return [float(rows[day][quote_]) for day in sorted(rows) if isinstance(rows[day], dict) and rows[day].get(quote_) is not None]
 
-
 async def fetch_fx(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     lang = _lang(settings)
     params = panel["source"]["params"]
@@ -1901,7 +1808,7 @@ async def fetch_fx(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dic
         return _fmt_money(rate, lang, digits)
 
     if "RUB" in (base, quote_):
-        # ЦБ РФ: ECB/Frankfurter рубль больше не публикует.
+
         data = await _http_json("https://www.cbr-xml-daily.ru/daily_json.js")
         valute = data.get("Valute") or {}
 
@@ -1959,7 +1866,7 @@ async def fetch_fx(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dic
     delta = (rate - prev) if prev is not None else None
     hist = _record_hist(panel, "rate", rate)
     if len(hist) == 1 and prev is not None:
-        hist = [prev, rate]          # первая точка: вчерашний курс, чтобы график был сразу
+        hist = [prev, rate]
     period = options.get("period") or "30"
     series: List[float] = []
     if period != "off":
@@ -1980,11 +1887,9 @@ async def fetch_fx(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dic
         "date_label": (("на " if lang == "ru" else "as of ") + date_label) if date_label else "",
     }, source
 
-
 COIN_SYMBOLS = {"bitcoin": "BTC", "ethereum": "ETH", "the-open-network": "TON", "solana": "SOL", "tether": "USDT",
                 "binancecoin": "BNB", "ripple": "XRP", "dogecoin": "DOGE", "cardano": "ADA", "tron": "TRX"}
 VS_SIGNS = {"usd": "$", "eur": "€", "rub": "₽", "gbp": "£", "jpy": "¥", "cny": "¥", "btc": "₿"}
-
 
 def _clip_words(text: str, limit: int) -> str:
     """Короткая подпись мини-чипа: обрезка по слову с «…», а не посреди слова («Все публикации под»)."""
@@ -1994,13 +1899,11 @@ def _clip_words(text: str, limit: int) -> str:
     cut = text[:limit - 1].rsplit(" ", 1)[0] if " " in text[:limit] else text[:limit - 1]
     return cut.rstrip(",.;:—- ") + "…"
 
-
 def _short_money(value: float, lang: str) -> str:
     for size, ru, en in ((1e12, " трлн", "T"), (1e9, " млрд", "B"), (1e6, " млн", "M")):
         if abs(value) >= size:
             return _fmt_money(value / size, lang, 1) + (en if lang == "en" else ru)
     return _fmt_money(value, lang, 0)
-
 
 async def fetch_crypto(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     lang = _lang(settings)
@@ -2064,10 +1967,8 @@ async def fetch_crypto(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple
         "volume": (_short_money(float(vol), lang) + " " + sign) if isinstance(vol, (int, float)) else "—",
     }, [{"name": "CoinGecko", "url": f"https://www.coingecko.com/en/coins/{coin}"}]
 
-
 STOCK_RANGES = {"1d": ("1d", "30m", None), "5d": ("5d", "1h", 5), "1mo": ("1mo", "1d", 31), "6mo": ("6mo", "1d", 183),
                 "1y": ("1y", "1wk", 366)}
-
 
 async def _moex_candles(symbol: str, days: int) -> List[float]:
     since = (datetime.now().date() - timedelta(days=days)).isoformat()
@@ -2075,7 +1976,6 @@ async def _moex_candles(symbol: str, days: int) -> List[float]:
     data = await _http_json(f"https://iss.moex.com/iss/engines/stock/markets/shares/boards/TQBR/securities/{quote(symbol)}/candles.json?"
                             + urlencode({"from": since, "interval": interval, "iss.meta": "off", "candles.columns": "close"}))
     return [float(row[0]) for row in ((data.get("candles") or {}).get("data") or []) if row and isinstance(row[0], (int, float))]
-
 
 async def fetch_stock(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     lang = _lang(settings)
@@ -2168,11 +2068,10 @@ async def fetch_stock(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[
         "period_label": _period_label(period, lang) if period != "off" else "",
     }, [{"name": "Yahoo Finance", "url": f"https://finance.yahoo.com/quote/{quote(symbol)}"}]
 
-
 def parse_feed(text: str, limit: int = 10) -> Tuple[str, List[Dict[str, str]]]:
     """RSS 2.0 / Atom / RDF → (название ленты, [{title, url, subtitle}])."""
     text = re.sub(r"^\s*<\?xml[^>]*\?>", "", text.strip()[:2_000_000])
-    # Внешние сущности и DOCTYPE не нужны ленте и опасны для парсера.
+
     text = re.sub(r"<!DOCTYPE[^\[>]*\[[\s\S]*?\]\s*>", "", text, flags=re.I)
     text = re.sub(r"<!DOCTYPE[^>]*>", "", text, flags=re.I)
     if "<!ENTITY" in text.upper():
@@ -2236,7 +2135,6 @@ def parse_feed(text: str, limit: int = 10) -> Tuple[str, List[Dict[str, str]]]:
             items.append(row)
     return title, items
 
-
 async def _read_feed(url: str) -> Tuple[str, List[Dict[str, Any]]]:
     try:
         text = await _http_text(url)
@@ -2251,10 +2149,8 @@ async def _read_feed(url: str) -> Tuple[str, List[Dict[str, Any]]]:
         raise
     return parse_feed(text, limit=40)
 
-
 def _words(text: Any) -> List[str]:
     return [w.strip().lower() for w in re.split(r"[,;\n]+", str(text or "")) if w.strip()]
-
 
 async def fetch_rss(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     url = _clean_url(panel["source"]["params"].get("url"))
@@ -2297,10 +2193,8 @@ async def fetch_rss(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Di
     return {"feed_title": title[:80], "feed_short": _clip_words(title, 18), "items": items, "count": len(items)}, \
         [{"name": title[:60], "url": url}] + sources
 
-
 SYSTEM_HIST_KEYS = {"cpu": "cpu", "ram": "ram", "gpu": "gpu", "gpu_temp": "gpu_temp", "net_down": "net_down_v",
                     "net_up": "net_up_v", "disk_io": "disk_io_v"}
-
 
 async def fetch_system(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     """Производительность ПК — локальный замер (окно показывает живые значения само, раз в 1–5 с)."""
@@ -2316,7 +2210,6 @@ async def fetch_system(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple
         number = values.get(key)
         values[name + "_hist"] = _record_hist(panel, name, float(number) if isinstance(number, (int, float)) else None)
     return values, []
-
 
 def system_values(raw: Dict[str, Any], lang: str) -> Dict[str, Any]:
     """Подписи, которые собираются из нескольких полей замера (общие для API живых значений)."""
@@ -2344,10 +2237,8 @@ def system_values(raw: Dict[str, Any], lang: str) -> Dict[str, Any]:
     out.pop("lang", None)
     return out
 
-
 USAGE_LINKS = {"claude": ("Claude", "https://claude.ai/settings/usage"),
                "codex": ("Codex", "https://chatgpt.com/codex/settings/usage")}
-
 
 async def fetch_usage(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     from . import panels_usage
@@ -2370,7 +2261,6 @@ async def fetch_usage(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[
             sources.append({"name": name, "url": url})
     return result, sources
 
-
 def _big(value: Any, lang: str) -> str:
     try:
         number = float(value)
@@ -2381,7 +2271,6 @@ def _big(value: Any, lang: str) -> str:
     if number >= 1e4:
         return _fmt_money(number / 1e3, lang, 1) + (" тыс." if lang != "en" else "k")
     return _fmt_money(number, lang, 0)
-
 
 async def fetch_proxy(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     """Статистика MemuAI Proxy: тот же файл почасовых корзин, что читает «Главная» Proxy (только чтение)."""
@@ -2422,7 +2311,6 @@ async def fetch_proxy(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[
     }
     return values, []
 
-
 def _fmt_ms(value: Any, lang: str) -> str:
     try:
         ms = float(value)
@@ -2431,7 +2319,6 @@ def _fmt_ms(value: Any, lang: str) -> str:
     if ms >= 1000:
         return _fmt_money(ms / 1000, lang, 1) + (" с" if lang != "en" else " s")
     return f"{ms:.0f}" + (" мс" if lang != "en" else " ms")
-
 
 def _when_label(start: str, lang: str) -> Tuple[str, Optional[float]]:
     """«Сегодня 14:00» / «Завтра, весь день» / «Пт 09:30» для начала события."""
@@ -2458,7 +2345,6 @@ def _when_label(start: str, lang: str) -> Tuple[str, Optional[float]]:
     if moment is None:
         return f"{head}, {t('весь день', 'all day')}", datetime.combine(day, datetime.min.time()).timestamp()
     return f"{head} {moment.strftime('%H:%M')}", moment.timestamp()
-
 
 async def fetch_calendar(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     """Ближайшие события Google Calendar через подключение «Интеграции» (только чтение)."""
@@ -2497,7 +2383,6 @@ async def fetch_calendar(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tup
               "next_title": str(upcoming[0].get("summary") or "")[:20] if upcoming else t("Свободно", "Free")}
     return values, [{"name": "Google Calendar", "url": "https://calendar.google.com/"}]
 
-
 async def fetch_github(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     """GitHub через токен из «Интеграций»: уведомления, ревью, назначенное, мои PR."""
     from . import integrations
@@ -2529,7 +2414,7 @@ async def fetch_github(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple
             raise Wall("needs_connector:github", t("Подключите GitHub в «Настройки → Интеграции».",
                                                    "Connect GitHub in Settings → Integrations.")) from exc
         if "лимит запросов" in low or "rate limit" in low:
-            # GitHub отвечает 403/429 и на превышение лимита — это пауза, а не «нужен вход».
+
             raise Wall("blocked:rate-limit", message[:300], retry_after=900) from exc
         if "401" in message:
             raise Wall("needs_login:github", t("GitHub отклонил токен: перевыпустите его и сохраните в «Настройки → Интеграции».",
@@ -2578,21 +2463,15 @@ async def fetch_github(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple
     return {"items": items, "count": total, "subtitle": subtitle}, \
         [{"name": "GitHub", "url": "https://github.com/notifications" if view == "notifications" else "https://github.com/pulls"}]
 
-
 TYPED_FETCHERS = {"open-meteo": fetch_weather, "fx": fetch_fx, "coingecko": fetch_crypto,
                   "stock": fetch_stock, "rss": fetch_rss, "system": fetch_system, "usage": fetch_usage,
                   "proxy": fetch_proxy, "calendar": fetch_calendar, "github": fetch_github}
 
-
-# ============================================================ ход обновления (для карточки)
-
 _PROGRESS: Dict[str, Dict[str, Any]] = {}
-
 
 def set_progress(pid: str, stage: str, detail: str = "") -> None:
     """Этап текущего обновления: карточка показывает «Собираю 22 источника → Убираю повторы …»."""
     _PROGRESS[pid] = {"stage": str(stage)[:24], "detail": str(detail)[:60], "at": time.time()}
-
 
 async def fetch_feed(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]], Dict[str, Any]]:
     """Лента по теме через конвейер panels_curate: план → сбор → склейка → оценка → «уже показанное»."""
@@ -2604,8 +2483,7 @@ async def fetch_feed(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[D
     brief = str(params.get("brief") or panel.get("subject") or panel["title"])
     topic = str(params.get("topic") or "")
     if topic == "security" and curate.wants_hn(brief) and curate.detect_topic(brief) != topic:
-        # Round 31: a Hacker News panel created before the HN fix stored topic «security» («hacker» matched it) —
-        # the brief decides again; the new topic also changes the plan key, so the cached plan is rebuilt.
+
         topic = curate.detect_topic(brief)
     options = _options().clean_options("news", panel.get("options"))
     if options.get("out_lang") in ("ru", "en"):
@@ -2631,7 +2509,7 @@ async def fetch_feed(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[D
                 log.info("panels: planner unavailable for %s: %s", pid, wall.status)
         plan = curate.plan_for(brief, topic=topic, count=int(params.get("count") or 0), out_lang=lang, extra=extra,
                                hours=int(options.get("hours") or 36))
-        # Раунд 23: какие виды источников брать и свои ленты пользователя.
+
         if "official" not in use:
             plan["feeds"] = [f for f in plan["feeds"] if f.get("kind") not in ("official", "primary")]
             plan["pages"] = [p for p in plan["pages"] if p.get("kind") not in ("official", "primary")]
@@ -2679,9 +2557,6 @@ async def fetch_feed(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[D
     sources = result["sources"]
     return values, sources, result["state"]
 
-
-# ============================================================ модель: сборка и обновление
-
 SPEC_GUIDE = """Panel spec = {"blocks":[...], "mini":{...}}. Block types (fields; * = required):
 - title {text*, subtitle, icon}
 - metric {value*, unit, label, delta, trend: up|down|flat, caption, icon} — one big number
@@ -2704,10 +2579,8 @@ tiny top-bar chip. Icons: clear, clear-night, partly, cloudy, fog, rain, snow, s
 news, trophy, calendar, clock, globe, bolt, heart, star, bell, home, cart, book, music, film, plane, car,
 fire, drop, wind, sun, moon, pin, flag, user, mail, gift."""
 
-
 _REASONING_BLOCK = re.compile(r"<(think|thinking|reasoning)>[\s\S]*?</\1>", re.I)
 _JSON_KEYS = ("values", "spec", "blocks", "runbook", "evidence", "items", "wall")
-
 
 def _decode_lenient(text: str) -> Optional[Dict[str, Any]]:
     """Объект JSON с начала ``text`` (Round 31). Терпит лишнюю закрывающую скобку посреди ответа
@@ -2726,7 +2599,7 @@ def _decode_lenient(text: str) -> Optional[Dict[str, Any]]:
                 break
             best = value
             rest = current[end:].lstrip()
-            # «},"key":» сразу после конца корня — лишняя скобка внутри: срастить и разобрать ещё раз.
+
             if re.match(r",\s*\"", rest) and current[end - 1] == "}":
                 current = current[:end - 1] + current[end:]
                 continue
@@ -2734,7 +2607,6 @@ def _decode_lenient(text: str) -> Optional[Dict[str, Any]]:
         if best is not None:
             return best
     return None
-
 
 def _extract_json(text: str) -> Dict[str, Any]:
     """JSON-ответ модели. Рассуждения (``<think>…</think>``, текст до/после объекта, «{{ключ}}» в
@@ -2749,8 +2621,7 @@ def _extract_json(text: str) -> Dict[str, Any]:
         if value:
             candidates.append(value)
     if not candidates:
-        # Only top-level objects: a «{» inside an object already decoded is skipped (otherwise the first
-        # list item of a valid {"items":[…]} answer won as «the object with a title»).
+
         covered = -1
         decoder = json.JSONDecoder()
         for match in list(re.finditer(r"\{", source))[:200]:
@@ -2763,7 +2634,7 @@ def _extract_json(text: str) -> Dict[str, Any]:
             try:
                 covered = start + decoder.raw_decode(source[start:])[1]
             except ValueError:
-                covered = len(source)          # repaired object: it runs to the end of the answer
+                covered = len(source)
             candidates.append(value)
             if len(candidates) >= 6:
                 break
@@ -2774,12 +2645,10 @@ def _extract_json(text: str) -> Dict[str, Any]:
         return max(candidates, key=lambda v: len(json.dumps(v, ensure_ascii=False)))
     raise Wall("blocked:model-format", "Модель не вернула JSON")
 
-
 def _model_for(panel: Dict[str, Any], settings: Dict[str, Any]) -> str:
     """Модель панели: своя модель панели → «Модель для панелей с ИИ» из настроек → модель, которой панель
     создана в чате → модель по умолчанию MemuAI."""
     return str(panel.get("ai_model") or settings.get("model") or panel.get("model") or _CONTEXT.default_model() or "").strip()
-
 
 async def _gather_web(panel: Dict[str, Any], *, query_fallback: str = "") -> Tuple[str, List[Dict[str, str]]]:
     """Собирает текст для модели: чтение адресов runbook и поиск по его запросам.
@@ -2815,7 +2684,7 @@ async def _gather_web(panel: Dict[str, Any], *, query_fallback: str = "") -> Tup
             elif "HTTP 404" in message or "HTTP 410" in message:
                 walls.append(Wall(f"source_gone:{host}", message))
             elif "HTTP 403" in message:
-                walls.append(Wall(f"blocked:forbidden-{host}", message))   # чаще защита от ботов, чем вход
+                walls.append(Wall(f"blocked:forbidden-{host}", message))
             errors.append(f"{host}: {message[:160]}")
     if queries and ctx.search is not None:
         set_progress(panel["id"], "search", str(len(queries)))
@@ -2849,11 +2718,9 @@ async def _gather_web(panel: Dict[str, Any], *, query_fallback: str = "") -> Tup
             raise Wall("blocked:no-web", "Веб-поиск недоступен")
     return "\n\n".join(parts)[:30000], refs
 
-
 def _digits(text: Any) -> List[str]:
     """Числа из текста без разделителей: «1 234,5» и «1,234.5» → «12345»."""
     return [re.sub(r"[\s,.\u00a0\u202f]", "", m) for m in re.findall(r"\d[\d\s,.\u00a0\u202f]*\d|\d", str(text or ""))]
-
 
 def _value_texts(value: Any) -> List[str]:
     if isinstance(value, dict):
@@ -2864,7 +2731,6 @@ def _value_texts(value: Any) -> List[str]:
             out += _value_texts(item) if isinstance(item, (dict, list)) else [str(item)]
         return out
     return [str(value)]
-
 
 def cited_sources(values: Dict[str, Any], evidence: Any, refs: List[Dict[str, str]]) -> List[Dict[str, str]]:
     """Источники карточки: только то, на что модель сослалась и что было в материале, либо где
@@ -2892,13 +2758,10 @@ def cited_sources(values: Dict[str, Any], evidence: Any, refs: List[Dict[str, st
                 add(ref)
     return picked[:4]
 
-
 _PLACEHOLDER = re.compile(r"(?i)^\s*(n/?a|none|null|unknown|tbd|tba|not (?:found|available|specified)|no data|-+|—|–|\?+|"
                           r"нет данных|не найдено|не указано|неизвестно|н/д)\s*[.!]?\s*$")
 
-
 _MD_LINK = re.compile(r"\[([^\]\n]{1,200})\]\((https?://[^)\s]+)\)")
-
 
 def tidy_model_text(value: str) -> str:
     """A value from the model is shown as plain text on a tiny card: «**83 000 $**», «`3.15.0`», «<b>2:3</b>»,
@@ -2915,7 +2778,6 @@ def tidy_model_text(value: str) -> str:
     text = re.sub(r"`([^`\n]+)`", r"\1", text)
     text = re.sub(r"^\s{0,3}(#{1,6}\s+|[-*+]\s+(?=\S))", "", text)
     return text.strip()
-
 
 def countdown_targets(spec: Dict[str, Any], values: Dict[str, Any]) -> Dict[str, Any]:
     """Round 31: a countdown block bound to a model value ({"target": "{{new_year}}"}) got the model's own wording
@@ -2945,7 +2807,6 @@ def countdown_targets(spec: Dict[str, Any], values: Dict[str, Any]) -> Dict[str,
                 out.pop(key)
     return out
 
-
 def drop_placeholders(values: Dict[str, Any]) -> Dict[str, Any]:
     """Round 31: «Never invent — leave the key out» is not always obeyed: models write "N/A", "—", «нет данных».
     Such a value is no value: drop it, so the panel keeps its last real value (or the second pass / «not found»
@@ -2973,7 +2834,6 @@ def drop_placeholders(values: Dict[str, Any]) -> Dict[str, Any]:
         out[key] = value
     return out
 
-
 def _items_urls_ok(values: Dict[str, Any], refs: List[Dict[str, str]]) -> Dict[str, Any]:
     """Списки от модели: ссылка записи должна быть из материала (иначе модель её придумала)."""
     known = {_curate().canonical_url(r["url"]) for r in refs if r.get("url")}
@@ -2983,7 +2843,6 @@ def _items_urls_ok(values: Dict[str, Any], refs: List[Dict[str, str]]) -> Dict[s
                 if isinstance(row, dict) and row.get("url") and _curate().canonical_url(str(row["url"])) not in known:
                     row.pop("url", None)
     return values
-
 
 def model_wall(message: str, model: str, settings: Optional[Dict[str, Any]] = None) -> Wall:
     """Ошибка вызова модели → понятная стена (Round 31). Раньше любая ошибка была «blocked:model-error»,
@@ -2997,7 +2856,7 @@ def model_wall(message: str, model: str, settings: Optional[Dict[str, Any]] = No
     status = int(code.group(1)) if code else 0
     detail = re.sub(r"\s+", " ", message)[:200]
     log.info("panels: model %s failed: %s", model, detail)
-    # The card is small: the provider's long text stays in the log, the card gets the code only.
+
     short = f"HTTP {status}" if status else (detail[:60] + ("…" if len(detail) > 60 else ""))
     if "offline" in low or "не запущен" in low or "connecterror" in low.replace(" ", "") and "proxy" in low:
         return Wall("blocked:proxy-offline", _tr(settings, "Модели недоступны: MemuAI Proxy не запущен.",
@@ -3027,7 +2886,6 @@ def model_wall(message: str, model: str, settings: Optional[Dict[str, Any]] = No
     return Wall("blocked:model-error", _tr(settings, f"Модель «{name}» вернула ошибку: {detail[:140]}",
                                            f"The model “{name}” returned an error: {detail[:140]}"))
 
-
 async def _ask_model(model: str, system: str, user: str, settings: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     settings = settings or {}
     if _CONTEXT.complete is None:
@@ -3049,7 +2907,7 @@ async def _ask_model(model: str, system: str, user: str, settings: Optional[Dict
             raise Wall("blocked:model-timeout", _tr(settings, "Модель не успела ответить — повторю позже.",
                                                     "The model timed out — will retry later.")) from exc
         if type(exc).__module__.startswith(("httpx", "httpcore")) or isinstance(exc, (ConnectionError, OSError)):
-            # The window could not reach its own Proxy at all («All connection attempts failed»): not a model error.
+
             raise Wall("blocked:proxy-offline", _tr(settings, "Модели недоступны: MemuAI Proxy не запущен или не отвечает.",
                                                     "Models are unavailable: MemuAI Proxy is not running or not answering.")) from exc
         raise model_wall(str(exc) or type(exc).__name__, model, settings) from exc
@@ -3061,7 +2919,6 @@ async def _ask_model(model: str, system: str, user: str, settings: Optional[Dict
         raise Wall(wall.status, _tr(settings, f"Модель «{model.split('/')[-1]}» ответила не в нужном формате. Попробуйте другую модель.",
                                     f"The model “{model.split('/')[-1]}” answered in the wrong format. Try another model.")) from None
 
-
 def _today(settings: Dict[str, Any]) -> str:
     """«Сейчас» для модели — с днём недели и числовым смещением (Round 31). ``%Z`` на Windows — длинное
     локализованное имя пояса («RTZ 2 (зима)»), а без смещения модель считала обратный отсчёт по UTC
@@ -3070,7 +2927,6 @@ def _today(settings: Dict[str, Any]) -> str:
     offset = now.strftime("%z")
     offset = f"{offset[:3]}:{offset[3:]}" if len(offset) == 5 else "+00:00"
     return now.strftime("%Y-%m-%d %H:%M ") + f"(UTC{offset}, {now.strftime('%A')}; user's local time)"
-
 
 async def ai_refresh(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[Dict[str, Any], List[Dict[str, str]]]:
     """Обновление моделью по runbook: веб → JSON значений, только для привязанных ключей."""
@@ -3113,7 +2969,6 @@ async def ai_refresh(panel: Dict[str, Any], settings: Dict[str, Any]) -> Tuple[D
         values["_partial_wall"] = {"status": _wall_slug(wall.get("status")), "message": str(wall.get("message") or "")[:300]}
     return values, sources
 
-
 async def ai_compose(panel: Dict[str, Any], settings: Dict[str, Any]) -> Dict[str, Any]:
     """Сборка панели по описанию: модель выбирает блоки, данные, runbook и ритм."""
     material, refs = await _gather_web(panel, query_fallback=panel.get("subject") or panel["title"])
@@ -3152,9 +3007,6 @@ async def ai_compose(panel: Dict[str, Any], settings: Dict[str, Any]) -> Dict[st
         "cadence": _clean_cadence(answer.get("cadence"), kind=panel["kind"]) if answer.get("cadence") else panel["cadence"],
     }
 
-
-# ============================================================ обновление и планировщик
-
 def _claim(pid: str, *, force: bool, now: float) -> Optional[Dict[str, Any]]:
     """Атомарно помечает панель «обновляется». None — уже обновляется или не найдена."""
 
@@ -3178,7 +3030,6 @@ def _claim(pid: str, *, force: bool, now: float) -> Optional[Dict[str, Any]]:
 
     _doc, claimed = mutate(update)
     return claimed
-
 
 def _finish(pid: str, *, values: Optional[Dict[str, Any]] = None, sources: Optional[List[Dict[str, str]]] = None,
             wall: Optional[Wall] = None, history: Optional[Dict[str, Any]] = None,
@@ -3211,7 +3062,7 @@ def _finish(pid: str, *, values: Optional[Dict[str, Any]] = None, sources: Optio
                 if composed.get(key) and not (key == "title" and panel.get("title_custom")):
                     panel[key] = composed[key]
             if panel.get("recompose") and wall is None:
-                panel["data"] = {}                 # the old design's values do not belong to the new one
+                panel["data"] = {}
             if wall is None:
                 panel["recompose"] = False
         if history is not None:
@@ -3237,24 +3088,21 @@ def _finish(pid: str, *, values: Optional[Dict[str, Any]] = None, sources: Optio
             panel["failures"] = min(50, int(panel.get("failures") or 0) + 1)
             panel["wall"] = {"status": wall.status, "message": wall.message, "at": now}
             kind = wall.status.split(":")[0]
-            # «Лимиты ИИ» без аккаунтов — тоже настройка (кнопка «Добавить аккаунт»), а не сбой с «Повторить»:
-            # «Обновить» у такой панели превращал её в ошибку (Round 26).
+
             if kind == "needs_location" or wall.status == "needs_connector:usage":
                 panel["status"] = "setup"
             elif panel["status"] == "building" or not panel.get("data"):
                 panel["status"] = "failed"
             panel["error"] = wall.message
             if kind in USER_WALLS:
-                panel["next_refresh"] = None           # ждём пользователя
+                panel["next_refresh"] = None
             elif _clean_cadence(panel["cadence"])["kind"] == "manual" and panel.get("data"):
-                panel["next_refresh"] = None           # «только кнопкой»: сбой не включает автообновление
+                panel["next_refresh"] = None
             else:
                 base = next_refresh_at(panel["cadence"], now=now) or (now + 3600)
                 step = max(60.0, base - now)
                 if wall.status in TRANSIENT_WALLS:
-                    # Нет сети / Proxy ещё не поднялся — обычно минуты (пробуждение после сна: Wi-Fi
-                    # подключается позже первого прохода планировщика). Повтор по ритму панели
-                    # откладывал ежедневную панель на сутки; теперь 5, 10, 20… мин, но не реже ритма.
+
                     step = min(step, TRANSIENT_RETRY_SECONDS)
                 if wall.status in ("blocked:rate-limit", "blocked:model-rate-limit"):
                     step = max(step, float(getattr(wall, "retry_after", 0) or 300))
@@ -3263,7 +3111,6 @@ def _finish(pid: str, *, values: Optional[Dict[str, Any]] = None, sources: Optio
 
     _doc, panel = mutate(update)
     return panel
-
 
 async def refresh_panel(pid: str, *, force: bool = False, now: Optional[float] = None) -> Optional[Dict[str, Any]]:
     """Обновляет одну панель (встроенный источник или модель). Возвращает её новое состояние."""
@@ -3275,8 +3122,7 @@ async def refresh_panel(pid: str, *, force: bool = False, now: Optional[float] =
     stype = panel["source"]["type"]
     try:
         if stype in ("local", "timers", "module"):
-            # Свои данные и живые таймеры: обновлять нечего, только пересобрать вид по настройке.
-            # Раунд 38: панель модуля сама берёт данные через мост модуля — пересобирается только её название.
+
             return _finish(pid, values={"local": True}, typed=(panel["kind"], stype == "module"), now=now)
         if stype == "countdown":
             target = str(panel["source"]["params"].get("target") or panel["data"].get("target") or "")
@@ -3298,8 +3144,7 @@ async def refresh_panel(pid: str, *, force: bool = False, now: Optional[float] =
             keys = spec_bindings(composed["spec"])
             missing = [k for k in keys if k not in values]
             if missing and (composed.get("runbook") or {}).get("urls"):
-                # Round 31: в первом материале (поиск) значений не нашлось, но модель сама назвала страницу,
-                # где они есть (HN, cbr.ru…). Одна повторная попытка по её runbook вместо «нет значений».
+
                 second = {**panel, **{k: composed[k] for k in ("spec", "runbook") if composed.get(k)},
                           "data": dict(values)}
                 try:
@@ -3314,7 +3159,7 @@ async def refresh_panel(pid: str, *, force: bool = False, now: Optional[float] =
                 raise Wall("blocked:not-found", _tr(settings, "В найденных источниках нет нужных значений.",
                                                     "The sources did not contain the values."))
             if not values:
-                values = {"_static": True}     # спецификация без привязок (обратный отсчёт, ссылки): показывать как есть
+                values = {"_static": True}
             return _finish(pid, values=values, sources=composed.pop("sources"), composed=composed, now=now)
         set_progress(pid, "search")
         values, sources = await ai_refresh(panel, settings)
@@ -3323,8 +3168,7 @@ async def refresh_panel(pid: str, *, force: bool = False, now: Optional[float] =
         log.info("panels: %s hit a wall: %s %s", pid, wall.status, wall.message)
         return _finish(pid, wall=wall, now=now)
     except asyncio.CancelledError:
-        # Окно закрыли или панель убрали: это не сбой источника — без стены и паузы, только снять
-        # отметку «обновляется». Прерванная сборка продолжится при следующем запуске (due_ids).
+
         _PROGRESS.pop(pid, None)
         _release(pid)
         raise
@@ -3332,7 +3176,6 @@ async def refresh_panel(pid: str, *, force: bool = False, now: Optional[float] =
         message = str(exc) or type(exc).__name__
         log.warning("panels: refresh %s failed: %s", pid, message[:300])
         return _finish(pid, wall=failure_wall(message, settings), now=now)
-
 
 def failure_wall(message: str, settings: Dict[str, Any]) -> Wall:
     """Стена для необработанного сбоя источника. Сообщение — для человека и на языке панелей:
@@ -3365,7 +3208,6 @@ def failure_wall(message: str, settings: Dict[str, Any]) -> Wall:
         settings, "Источник не ответил — повторю позже.", "The source did not answer — will retry later.")
         + f" ({message[:200]})")
 
-
 def _release(pid: str) -> None:
     def update(doc):
         try:
@@ -3375,13 +3217,10 @@ def _release(pid: str) -> None:
 
     mutate(update)
 
-
 def _render_str(template: str, values: Dict[str, Any]) -> str:
     return _BINDING.sub(lambda m: _clean_text(values.get(m.group(1), ""), 80), template)
 
-
 _LOOP: Optional[asyncio.AbstractEventLoop] = None
-
 
 def bind_loop() -> None:
     """Запоминает цикл событий сервера: create/update идут в потоках (to_thread), а фоновая
@@ -3391,7 +3230,6 @@ def bind_loop() -> None:
         _LOOP = asyncio.get_running_loop()
     except RuntimeError:
         pass
-
 
 def start_refresh(pid: str, *, force: bool = True, rerun: bool = False) -> None:
     """Фоновое обновление (сборка новой панели, «Обновить» без ожидания).
@@ -3404,7 +3242,7 @@ def start_refresh(pid: str, *, force: bool = True, rerun: bool = False) -> None:
     except RuntimeError:
         loop = None
     if loop is None:
-        # Вызов из рабочего потока: передать в основной цикл.
+
         if _LOOP is not None and not _LOOP.is_closed():
             _LOOP.call_soon_threadsafe(lambda: start_refresh(pid, force=force, rerun=rerun))
         return
@@ -3417,7 +3255,6 @@ def start_refresh(pid: str, *, force: bool = True, rerun: bool = False) -> None:
     _TASKS[pid] = task
     task.add_done_callback(lambda done, key=pid: _refresh_done(key, done))
 
-
 def _refresh_done(pid: str, task: "asyncio.Task[Any]") -> None:
     if _TASKS.get(pid) is task:
         _TASKS.pop(pid, None)
@@ -3428,7 +3265,6 @@ def _refresh_done(pid: str, task: "asyncio.Task[Any]") -> None:
         if not task.cancelled():
             start_refresh(pid)
 
-
 async def wait_refresh(pid: str, timeout: float = 45.0) -> None:
     task = _TASKS.get(pid)
     if task and not task.done():
@@ -3437,11 +3273,9 @@ async def wait_refresh(pid: str, timeout: float = 45.0) -> None:
         except (asyncio.TimeoutError, Exception):  # noqa: BLE001
             pass
 
-
 def pid_busy(pid: str) -> bool:
     task = _TASKS.get(pid)
     return bool(task and not task.done())
-
 
 def due_ids(doc: Dict[str, Any], now: float) -> List[str]:
     out = []
@@ -3454,11 +3288,10 @@ def due_ids(doc: Dict[str, Any], now: float) -> List[str]:
             continue
         due = panel.get("next_refresh")
         if panel["status"] == "building" and panel["id"] not in _TASKS:
-            out.append(panel["id"])               # сборка прервана закрытием окна — продолжить
+            out.append(panel["id"])
         elif due is not None and due <= now:
             out.append(panel["id"])
     return out
-
 
 async def tick(now: Optional[float] = None) -> int:
     """Один проход планировщика: запускает обновление панелей, которым пора."""
@@ -3473,13 +3306,12 @@ async def tick(now: Optional[float] = None) -> int:
             continue
         if pid in model_ids:
             if running >= MAX_MODEL_REFRESHES:
-                continue                          # остальные — на следующих проходах (каждые LOOP_SECONDS)
+                continue
             running += 1
         start_refresh(pid, force=False)
         started += 1
     _telegram_check()
     return started
-
 
 def _telegram_check() -> None:
     """Round 24: updates of subscribed panels → Telegram (``telegram_panels``).
@@ -3493,9 +3325,7 @@ def _telegram_check() -> None:
     except Exception as exc:  # noqa: BLE001
         log.info("panels: telegram check skipped: %s", exc)
 
-
 _TG_TASK: Dict[str, Any] = {"task": None}
-
 
 def _telegram_done(task: "asyncio.Task") -> None:
     """Retrieve (and log) a background failure instead of losing it."""
@@ -3504,7 +3334,6 @@ def _telegram_done(task: "asyncio.Task") -> None:
     exc = task.exception()
     if exc is not None:
         log.warning("panels: telegram updates check failed: %s: %s", type(exc).__name__, exc)
-
 
 def reset_stale_claims() -> int:
     """Round 31: a «refreshing» mark left by a process that was killed mid-refresh (crash, Task Manager, power
@@ -3521,12 +3350,11 @@ def reset_stale_claims() -> int:
     _doc, count = mutate(update)
     return count
 
-
 async def panels_loop() -> None:
     """Раз в минуту, пока открыто окно MemuAI. Обновление — по времени, не чаще раза в час."""
     await asyncio.sleep(3)
     from .safe_mode import is_safe_mode
-    if is_safe_mode():  # Round 29: no background panel refresh in safe mode
+    if is_safe_mode():
         return
     try:
         await asyncio.to_thread(reset_stale_claims)
@@ -3540,9 +3368,6 @@ async def panels_loop() -> None:
         except Exception as exc:  # noqa: BLE001
             log.warning("panels: tick failed: %s", exc)
         await asyncio.sleep(LOOP_SECONDS)
-
-
-# ============================================================ операции (API и инструменты модели)
 
 def public_panel(panel: Dict[str, Any], local: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     out = {k: v for k, v in panel.items() if k not in ("history", "feed")}
@@ -3567,7 +3392,6 @@ def public_panel(panel: Dict[str, Any], local: Optional[Dict[str, Any]] = None) 
             out["note"] = (local.get("notes") or {}).get(panel["id"]) or {"text": "", "updated": 0}
     return out
 
-
 def snapshot() -> Dict[str, Any]:
     doc = load()
     local = None
@@ -3586,11 +3410,9 @@ def snapshot() -> Dict[str, Any]:
                        "floors": KIND_FLOOR_MINUTES, "presets": list(CADENCE_PRESETS),
                        "floor_reasons": FLOOR_REASONS, "local_kinds": list(LOCAL_KINDS), "live_kinds": list(LIVE_KINDS)}}
 
-
 def _next_order(doc: Dict[str, Any], place: str) -> int:
     values = [p["order"].get(place, 0) for p in active(doc) if place in p["placements"]]
     return (max(values) + 1) if values else 0
-
 
 def create_panel(*, template: str = "", params: Optional[Dict[str, Any]] = None, subject: str = "",
                  title: str = "", spec: Any = None, values: Any = None, sources: Any = None, runbook: Any = None,
@@ -3613,8 +3435,7 @@ def create_panel(*, template: str = "", params: Optional[Dict[str, Any]] = None,
         feed_like = kind == "custom" and subject and _curate().is_feed_brief(subject) and (
             not spec or any(b.get("type") == "list" for b in (validate_spec(spec)[0]["blocks"])))
         if feed_like:
-            # Модель прислала свою разметку для ленты новостей — лента всё равно идёт через конвейер
-            # источников (иначе: три случайных сайта, повторы, мусор вместо релизов дня).
+
             panel = make_template_panel("news", {"brief": subject, "topic": _curate().detect_topic(subject)}, settings)
         elif kind == "custom" and (spec or subject):
             panel = make_template_panel("custom", {"brief": subject or title or "panel"}, settings)
@@ -3656,7 +3477,6 @@ def create_panel(*, template: str = "", params: Optional[Dict[str, Any]] = None,
         start_refresh(panel["id"])
     return panel
 
-
 async def create_and_fill(*, wait: float = 20.0, **kwargs: Any) -> Dict[str, Any]:
     """Создать и сразу заполнить: первая сборка стартует в этом цикле, ждём до ``wait`` секунд.
 
@@ -3674,7 +3494,6 @@ async def create_and_fill(*, wait: float = 20.0, **kwargs: Any) -> Dict[str, Any
             pass
     return panel
 
-
 def update_panel(pid: str, changes: Dict[str, Any]) -> Dict[str, Any]:
     """Правка структуры и настроек: название, размер, места, ритм, блоки, runbook, параметры источника."""
     rebuild = {"value": False}
@@ -3684,8 +3503,7 @@ def update_panel(pid: str, changes: Dict[str, Any]) -> Dict[str, Any]:
         before_runbook = copy.deepcopy(panel.get("runbook"))
         if "title" in changes and str(changes["title"] or "").strip():
             title = _clean_text(changes["title"], 80)
-            # Round 31: the editor always sends the title field; an unchanged title is not «my own title» —
-            # it used to freeze the title (EUR → RUB stayed after switching to USD, a rebuilt AI panel kept its name).
+
             if title != panel["title"]:
                 panel["title"] = title
                 panel["title_custom"] = True
@@ -3714,12 +3532,11 @@ def update_panel(pid: str, changes: Dict[str, Any]) -> Dict[str, Any]:
             panel["runbook"] = _clean_runbook(changes["runbook"])
         model_panel = panel["source"]["type"] in MODEL_SOURCES
         if "runbook" in changes and model_panel and panel["runbook"] != before_runbook:
-            rebuild["value"] = True                 # new instructions / pages: fetch by them now (Round 31)
+            rebuild["value"] = True
         if "subject" in changes:
             subject = _clean_text(changes["subject"], 600)
             if subject and subject != panel.get("subject") and panel["source"]["type"] == "ai":
-                # Round 31: the subject was saved but the card kept showing the old thing until the next
-                # scheduled refresh (a daily panel — until tomorrow) and with the old blocks.
+
                 if panel["kind"] == "custom":
                     panel["recompose"] = True
                 rebuild["value"] = True
@@ -3729,8 +3546,7 @@ def update_panel(pid: str, changes: Dict[str, Any]) -> Dict[str, Any]:
         if "ai_model" in changes:
             new_model = _clean_text(changes["ai_model"], 300)
             if new_model != panel.get("ai_model") and model_panel:
-                # Round 31: switching the model of a panel stuck on a model error (or never built) retries at once
-                # with the new model; the old model's wall («not found», «rate-limited») is no longer true.
+
                 wall_status = (panel.get("wall") or {}).get("status", "")
                 if wall_status.startswith("blocked:model") or wall_status in ("blocked:no-model", "blocked:bad-spec") \
                         or panel["status"] in ("failed", "building") or not panel.get("data"):
@@ -3757,7 +3573,7 @@ def update_panel(pid: str, changes: Dict[str, Any]) -> Dict[str, Any]:
             panel["source"]["params"] = _clean_params({k: v for k, v in merged.items() if v not in ("",)},
                                                       panel["source"]["type"])
             if panel["source"]["type"] == "feed" and panel.get("feed"):
-                panel["feed"]["plan"] = None           # тема или число записей сменились — новый план
+                panel["feed"]["plan"] = None
             if panel["kind"] == "countdown":
                 target = _parse_target(panel["source"]["params"].get("target"))
                 if not target:
@@ -3782,11 +3598,10 @@ def update_panel(pid: str, changes: Dict[str, Any]) -> Dict[str, Any]:
         from .panels_usage import drop_secret
         for aid in before["accounts"]:
             if aid not in keep:
-                drop_secret(aid)               # аккаунт убран — его токен не храним
+                drop_secret(aid)
     if rebuild["value"]:
         start_refresh(pid, rerun=True)
     return panel
-
 
 def reset_feed(pid: str) -> Dict[str, Any]:
     """Забыть «уже показанное» ленты (и план источников) — следующая сборка как с нуля."""
@@ -3802,7 +3617,6 @@ def reset_feed(pid: str) -> Dict[str, Any]:
     panel = mutate(update)[1]
     start_refresh(pid, rerun=True)
     return panel
-
 
 def update_data(pid: str, values: Any, sources: Any = None) -> Dict[str, Any]:
     """Новые значения без изменения структуры (только привязанные ключи)."""
@@ -3823,7 +3637,6 @@ def update_data(pid: str, values: Any, sources: Any = None) -> Dict[str, Any]:
         return copy.deepcopy(panel)
 
     return mutate(update)[1]
-
 
 def reorder(placement: str, ids: List[str]) -> Dict[str, Any]:
     """Порядок панелей в одном месте; панель, перенесённая из другого места, добавляется сюда."""
@@ -3848,7 +3661,6 @@ def reorder(placement: str, ids: List[str]) -> Dict[str, Any]:
     mutate(update)
     return snapshot()
 
-
 def move(pid: str, source: str, target: str, index: int = -1) -> Dict[str, Any]:
     """Переносит панель из одного места в другое (из «нигде» — просто закрепляет)."""
     if target not in PLACEMENTS:
@@ -3870,7 +3682,6 @@ def move(pid: str, source: str, target: str, index: int = -1) -> Dict[str, Any]:
 
     mutate(update)
     return snapshot()
-
 
 def apply_layout(items: Any = None, layout: Any = None) -> Dict[str, Any]:
     """Round 33: one atomic save of the window's layout — places, order and size of many panels at once plus the
@@ -3896,7 +3707,6 @@ def apply_layout(items: Any = None, layout: Any = None) -> Dict[str, Any]:
     mutate(update)
     return snapshot()
 
-
 def dismiss(pid: str, *, purge: bool = False) -> None:
     box: Dict[str, Any] = {}
 
@@ -3921,15 +3731,13 @@ def dismiss(pid: str, *, purge: bool = False) -> None:
     mutate(update)
     if box.get("drop_note"):
         try:
-            _local().drop_note(pid)            # заметка удалённой навсегда панели больше никому не нужна
+            _local().drop_note(pid)
         except Exception as exc:  # noqa: BLE001
             log.info("panels: note not dropped: %s", exc)
     _RERUN.discard(pid)
     task = _TASKS.pop(pid, None)
     if task and not task.done():
-        # Маршрут удаления зовёт dismiss из рабочего потока (to_thread), а Task.cancel() не
-        # потокобезопасен: из чужого потока отмена могла не разбудить цикл, и сборка удалённой
-        # панели шла дальше. Отмену передаём в цикл задачи.
+
         loop = task.get_loop()
         try:
             running = asyncio.get_running_loop()
@@ -3939,7 +3747,6 @@ def dismiss(pid: str, *, purge: bool = False) -> None:
             task.cancel()
         elif not loop.is_closed():
             loop.call_soon_threadsafe(task.cancel)
-
 
 def revive(pid: str) -> Dict[str, Any]:
     def update(doc):
@@ -3956,14 +3763,13 @@ def revive(pid: str) -> Dict[str, Any]:
     start_refresh(pid)
     return panel
 
-
 def update_settings(changes: Dict[str, Any]) -> Dict[str, Any]:
     refresh_weather = {"value": False}
 
     def update(doc):
         current = doc["settings"]
         merged = {**current, **{k: v for k, v in changes.items() if k in current and k != "location"}}
-        if isinstance(changes.get("layout"), dict):     # Round 33: a patch of a few zones keeps the others
+        if isinstance(changes.get("layout"), dict):
             merged["layout"] = _layout().clean_layout(changes["layout"], base=current.get("layout"))
         if isinstance(changes.get("location"), dict):
             loc = {**current["location"], **changes["location"]}
@@ -3983,12 +3789,12 @@ def update_settings(changes: Dict[str, Any]) -> Dict[str, Any]:
                     if not panel.get("title_custom") and "{{" not in title:
                         panel["title"] = title
                     if (panel.get("wall") or {}).get("status") == "needs_location:weather":
-                        panel["wall"] = _location_wall(settings)    # Round 26: the wall text followed no language
+                        panel["wall"] = _location_wall(settings)
                     target = panel["source"]["params"].get("target")
                     if panel["kind"] == "countdown" and target:
                         panel["data"].update(countdown_values(str(target), settings))
                     elif panel["status"] == "live" and panel.get("next_refresh") is not None:
-                        panel["next_refresh"] = 0      # values carry words of the old language: refresh soon
+                        panel["next_refresh"] = 0
             if panel["kind"] == "weather" and refresh_weather["value"] and not panel["source"]["params"].get("city"):
                 if settings["location"]["mode"] in ("auto", "manual"):
                     panel["wall"] = None
@@ -4006,7 +3812,6 @@ def update_settings(changes: Dict[str, Any]) -> Dict[str, Any]:
                 start_refresh(panel["id"], rerun=True)
     return settings
 
-
 async def locate_by_ip() -> Dict[str, Any]:
     """Согласие получено: определить город по IP и сохранить как «авто»."""
     found = await ip_location()
@@ -4014,19 +3819,14 @@ async def locate_by_ip() -> Dict[str, Any]:
         "mode": "auto", "name": found.get("name") or "", "lat": found["lat"], "lon": found["lon"],
         "country": found.get("country") or "", "timezone": found.get("timezone") or ""}})
 
-
-# ------------------------------------------------------------ инструменты модели
-
 TOOL_NAMES = ("panel_create", "panel_list", "panel_read", "panel_update_data", "panel_edit",
               "panel_refresh", "panel_remove", "panel_revive", "panel_templates")
-
 
 def _tool_view(panel: Dict[str, Any]) -> Dict[str, Any]:
     return {"id": panel["id"], "title": panel["title"], "kind": panel["kind"], "status": panel["status"],
             "placements": panel["placements"], "size": panel["size"], "cadence": panel["cadence"],
             "last_refresh": panel.get("last_refresh"), "wall": panel.get("wall"),
             "bindings": spec_bindings(panel["spec"])}
-
 
 async def run_tool(tool: str, args: Dict[str, Any], *, model: str = "") -> Dict[str, Any]:
     """Вызов инструмента панелей из чата (memuai-tool). Ошибки — обычный результат для модели."""

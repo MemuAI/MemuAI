@@ -18,7 +18,6 @@ if not os.environ.get("MEMUAI_DATA_DIR"):
 ROOT = Path(__file__).resolve().parents[1]
 QUICK = ROOT / "app" / "pgstatic" / "quick"
 
-
 class LookModel(unittest.TestCase):
     def test_defaults_and_clamping(self):
         from app import quick_panel_look as L
@@ -29,7 +28,7 @@ class LookModel(unittest.TestCase):
         self.assertEqual((look["opacity"], look["font"], look["radius"], look["dim"], look["lines"]), (100, 80, 0, 55, 5))
         self.assertEqual(look["accent"], "#abcdef")
         self.assertFalse(look["titles"])
-        self.assertTrue(look["shadow"])                 # a non-bool is ignored
+        self.assertTrue(look["shadow"])
         self.assertNotIn("evil", look)
         for bad in ({"style": "fancy"}, {"accent": "red"}, {"theme": "neon"}, {"opacity": float("nan")}):
             self.assertEqual(L.clean_look(bad), L.DEFAULT_LOOK)
@@ -42,7 +41,7 @@ class LookModel(unittest.TestCase):
         self.assertEqual(L.effective(glob, looks, "p_weather")["style"], "icon")
         self.assertEqual(L.effective(glob, looks, "p_other")["opacity"], 40)
         self.assertEqual(L.effective(glob, looks, "p_other", embed_style="text")["style"], "text")
-        self.assertEqual(L.effective(glob, looks, "p_weather", embed_style="text")["style"], "icon")   # the panel's own wins
+        self.assertEqual(L.effective(glob, looks, "p_weather", embed_style="text")["style"], "icon")
 
     def test_embed(self):
         from app import quick_panel_look as L
@@ -72,7 +71,6 @@ class LookModel(unittest.TestCase):
         with self.assertRaises(ValueError):
             L.apply_patch(doc, {"panel": "../x", "look": {"style": "text"}})
 
-
 class Route(unittest.TestCase):
     def setUp(self):
         from fastapi import FastAPI
@@ -96,7 +94,7 @@ class Route(unittest.TestCase):
         self.assertEqual(out["look"]["style"], "compact")
         c.post("/api/quick/canvas/look", json={"panel": "p_w1", "look": {"style": "text", "accent": "#112233"}})
         c.post("/api/quick/canvas/look", json={"embed": {"place": "side", "items": ["p_w1"]}})
-        c.post("/api/quick/canvas/settings", json={"settings": {"density": "large"}})          # an unrelated save keeps it
+        c.post("/api/quick/canvas/settings", json={"settings": {"density": "large"}})
         state = c.get("/api/quick/canvas").json()
         self.assertEqual((state["look"]["style"], state["look"]["opacity"]), ("compact", 60))
         self.assertEqual(state["looks"]["p_w1"], {"style": "text", "accent": "#112233"})
@@ -109,7 +107,6 @@ class Route(unittest.TestCase):
         from app import gdrive_sync
         self.assertEqual(gdrive_sync.classify("memuai/quick_canvas.json"), "panels")
         self.assertEqual(gdrive_sync.classify("memuai/profiles/work/quick_canvas.json"), "panels")
-
 
 class Frontend(unittest.TestCase):
     def read(self, rel):
@@ -130,7 +127,7 @@ class Frontend(unittest.TestCase):
         self.assertIn("miniOf, linesOf, ico", self.read("panels.js"))
         for rel in ("quick/plugins/canvas-look-settings.js", "quick/plugins/canvas-embed.js", "quick/panel-look.js"):
             src = self.read(rel)
-            self.assertNotRegex(src, r'tr\("[^"]*[А-Яа-я][^"]*"\)', rel)      # every Russian string has its English pair
+            self.assertNotRegex(src, r'tr\("[^"]*[А-Яа-я][^"]*"\)', rel)
 
     @unittest.skipUnless(shutil.which("node"), "node is needed")
     def test_faces_in_node(self):
@@ -170,7 +167,6 @@ console.log(JSON.stringify(out));
         self.assertEqual(out["el"]["props"]["--accent"], "#123456")
         self.assertEqual(out["el"]["props"]["--pl-op"], "0.35")
         self.assertEqual(out["el"]["props"]["--pl-dim"], "0.6")
-
 
 if __name__ == "__main__":
     unittest.main()

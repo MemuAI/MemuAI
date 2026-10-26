@@ -1,4 +1,4 @@
-/* Round 44: automatic model discovery uses the same catalogue engine as Refresh. */
+
 "use strict";
 window.MemuModelRefresh = (() => {
   const section = document.getElementById("sg-sec-routing");
@@ -46,8 +46,8 @@ window.MemuModelRefresh = (() => {
       link.href = "https://www.antigravity.google/docs/models/"; link.target = "_blank"; link.rel = "noopener noreferrer";
       link.textContent = text("Доступность моделей и клиентов", "Model and client availability");
       detail.append(link, document.createTextNode(text(
-        " — Gemini 4 Argon может быть доступна в App / CLI, но отсутствовать в селекторе IDE. MemuAI не подменяет данные сервера.",
-        " — Gemini 4 Argon may be available in App / CLI but absent from the IDE selector. MemuAI uses the server's actual catalogue.")));
+        " — Gemini 4 Argon может быть доступна в App / CLI, но отсутствовать в селекторе IDE. MemuAI Proxy не подменяет данные сервера.",
+        " — Gemini 4 Argon may be available in App / CLI but absent from the IDE selector. MemuAI Proxy uses the server's actual catalogue.")));
       if (ag.last_error) detail.append(document.createTextNode(" " + text("Ошибка последней проверки: ", "Last refresh error: ") + ag.last_error));
     }
     const busy = running || requesting;
@@ -73,7 +73,7 @@ window.MemuModelRefresh = (() => {
     if (loading || document.hidden || typeof api !== "function" || section.hidden || (tab && !tab.classList.contains("active"))) return;
     loading = true;
     try { const data = await api("/api/admin/models/auto-refresh"); running = !!data.running; last = data.last; catalogues = Array.isArray(data.catalogues) ? data.catalogues : []; label(); }
-    catch (_) { /* authentication/network feedback belongs to the shared API helper */ }
+    catch (_) {  }
     finally { loading = false; }
   }
   group.addEventListener("change", async (event) => {

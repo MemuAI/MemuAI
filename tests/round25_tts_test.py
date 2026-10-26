@@ -21,21 +21,17 @@ GOOGLE_404_HTML = (b"<!DOCTYPE html><html lang=en><meta charset=utf-8><title>Err
                    b"<style>*{margin:0}</style><p><b>404.</b> <ins>That's an error.</ins><p>The requested URL "
                    b"<code>/v1beta/openai/audio/speech</code> was not found on this server.</html>")
 
-
 def run(coro):
     return asyncio.run(coro)
 
-
 def pcm(samples: int = 2400) -> bytes:
     return b"\x01\x00" * samples
-
 
 def synth(handler, text="Привет, мир.", **kw):
     tp.CACHE.items.clear()
     params = {"base_url": "https://api.openai.com/v1", "api_key": "sk-test", "model": "", "voice": ""}
     params.update(kw)
     return run(tp.synthesize(text, transport=httpx.MockTransport(handler), **params))
-
 
 class ProviderDetection(unittest.TestCase):
     def test_url_maps_to_service_and_unknown_hosts_stay_openai_compatible(self):
@@ -54,7 +50,6 @@ class ProviderDetection(unittest.TestCase):
         self.assertTrue(rows["gemini"]["key_url"].startswith("https://aistudio.google.com"))
         self.assertIn("gpt-4o-mini-tts", rows["openai"]["models"])
         self.assertNotIn("chunk", rows["openai"])
-
 
 class GeminiNative(unittest.TestCase):
     def test_reported_bug_google_url_uses_generate_content_not_audio_speech(self):
@@ -119,7 +114,6 @@ class GeminiNative(unittest.TestCase):
             synth(handler, base_url="https://generativelanguage.googleapis.com", model="gemini-3.8-flash-tts", voice="Kore")
         self.assertEqual(len(calls), 2)
 
-
 class ReadableErrors(unittest.TestCase):
     def test_html_error_page_is_never_shown(self):
         message = tp.error_message("custom", 404, GOOGLE_404_HTML, model="m", voice="v")
@@ -150,7 +144,6 @@ class ReadableErrors(unittest.TestCase):
         handler = lambda r: httpx.Response(200, content=b"<html>login</html>", headers={"content-type": "text/html"})
         with self.assertRaises(tp.TTSApiError):
             synth(handler, base_url="https://proxy.example/v1", api_key="")
-
 
 class OtherProviders(unittest.TestCase):
     def test_openai_body_speed_and_mp3(self):
@@ -197,7 +190,6 @@ class OtherProviders(unittest.TestCase):
         with self.assertRaises(tp.TTSApiError):
             synth(handler, base_url="https://westeurope.tts.speech.microsoft.com", api_key="az", voice="alloy")
 
-
 class LongText(unittest.TestCase):
     def test_split_respects_limit_and_keeps_all_words(self):
         text = ("Это предложение номер один. " * 300 + "\n\n" + "слово " * 2000).strip()
@@ -233,7 +225,6 @@ class LongText(unittest.TestCase):
                               voice="alloy", transport=httpx.MockTransport(handler)))
         self.assertEqual(len(calls), 1)
 
-
 class SttApi(unittest.TestCase):
     def test_gemini_stt_uses_native_endpoint_and_html_is_hidden(self):
         runtime = VoiceRuntime.__new__(VoiceRuntime)
@@ -250,7 +241,6 @@ class SttApi(unittest.TestCase):
             run(runtime.transcribe_api(b"x", "audio/webm", base_url="https://stt.example/v1", api_key="k",
                                        model="whisper-1", transport=httpx.MockTransport(handler)))
         self.assertNotIn("<", str(ctx.exception))
-
 
 class SpeakRoute(unittest.TestCase):
     def test_reported_settings_return_a_short_explanation_not_html(self):
@@ -270,7 +260,6 @@ class SpeakRoute(unittest.TestCase):
             catalog = client.get("/api/voice/catalog").json()
             self.assertEqual(catalog["tts_api_provider"], "gemini")
             self.assertEqual(len(catalog["tts_api_providers"]), 5)
-
 
 class UiContracts(unittest.TestCase):
     def test_settings_ui_uses_provider_presets_and_test_button(self):
@@ -313,7 +302,6 @@ class UiContracts(unittest.TestCase):
         out = subprocess.run(["node", "-e", script, str(ROOT / "app" / "pgstatic" / "voice-settings.js"), json.dumps(prefs),
                               json.dumps(tp.public_providers())], capture_output=True, text=True, timeout=30)
         self.assertNotIn("голос OpenAI", json.loads(out.stdout)["html"])
-
 
 if __name__ == "__main__":
     unittest.main()

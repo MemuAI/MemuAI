@@ -16,14 +16,13 @@ from typing import Any, Dict, List, Optional
 from . import agy, claude, codex, cursor, gemini, grok, opencode
 from .model import ForeignSession, ReadError, SessionInfo, Turn
 
-
 @dataclass(frozen=True)
 class Source:
     key: str
     title: str
     module: Any
     aliases: tuple = ()
-    verified: bool = True            # False: written from the documented format, not checked against real data
+    verified: bool = True
 
     @property
     def command(self) -> str:
@@ -43,7 +42,6 @@ class Source:
                 return str(getattr(module, name)())
         return ""
 
-
 SOURCES: Dict[str, Source] = {source.key: source for source in (
     Source("claude", claude.TITLE, claude, ("claude-code", "claudecode")),
     Source("codex", codex.TITLE, codex, ("codex-cli",)),
@@ -54,17 +52,14 @@ SOURCES: Dict[str, Source] = {source.key: source for source in (
     Source("cursor", cursor.TITLE, cursor, ("cursor-agent", "cursor-cli"), verified=False),
 )}
 
-
 def source_for(name: str) -> Optional[Source]:
     name = str(name or "").strip().lower()
     if name in SOURCES:
         return SOURCES[name]
     return next((source for source in SOURCES.values() if name in source.aliases), None)
 
-
 def present_sources() -> List[Source]:
     return [source for source in SOURCES.values() if source.present()]
-
 
 def discover(key: str, limit: int = 400) -> List[SessionInfo]:
     source = SOURCES[key]
@@ -75,7 +70,6 @@ def discover(key: str, limit: int = 400) -> List[SessionInfo]:
     except (OSError, ReadError):
         return []
 
-
 def discover_all(limit: int = 400) -> List[SessionInfo]:
     rows: List[SessionInfo] = []
     for source in present_sources():
@@ -83,20 +77,17 @@ def discover_all(limit: int = 400) -> List[SessionInfo]:
     rows.sort(key=lambda row: -row.updated)
     return rows[:limit]
 
-
 def read(info: SessionInfo) -> ForeignSession:
     source = SOURCES.get(info.tool)
     if source is None:
         raise ReadError(f"unknown source {info.tool}")
     return source.module.read(info)
 
-
 def same_folder(first: str, second: str) -> bool:
     """Do two paths name the same folder (case and separators do not matter on Windows)?"""
     if not first or not second:
         return False
     return os.path.normcase(os.path.normpath(first)).rstrip("\\/") == os.path.normcase(os.path.normpath(second)).rstrip("\\/")
-
 
 def find(rows: List[SessionInfo], query: str) -> List[SessionInfo]:
     """Sessions whose id starts with ``query`` — or, failing that, whose title or folder has all its words."""
@@ -109,7 +100,6 @@ def find(rows: List[SessionInfo], query: str) -> List[SessionInfo]:
         return by_id
     words = low.split()
     return [row for row in rows if all(word in f"{row.title} {row.cwd} {row.model}".lower() for word in words)]
-
 
 __all__ = ["SOURCES", "Source", "SessionInfo", "ForeignSession", "Turn", "ReadError", "source_for", "present_sources",
            "discover", "discover_all", "read", "same_folder", "find"]

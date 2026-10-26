@@ -1,10 +1,5 @@
-// MemuNote (Round 33, item #9) — run the current file (.py, .js, .ps1, .bat, .sh, …) and show its output.
-//
-// Toolbar «Run» / F5 → the file is saved, /api/run/start launches its interpreter (app/memunote/runner.py: no shell,
-// cwd = the file's folder) and this panel streams stdout/stderr (long-poll), accepts input for the program (stdin),
-// stops it (Shift+F5 — the whole process tree), shows the exit code and the time. ANSI colours and "\r" progress
-// lines are rendered; "File "x.py", line 12" / "x.js:12:5" in tracebacks jump to that line. The first run of a file
-// asks for confirmation ("Always allow this file" remembers it; a file downloaded from the internet always asks).
+
+
 import { $, api, esc, icon, t, toast, modal, kbd, basename, dirname, extname, copyText } from "./core.js";
 
 export const RUNNABLE = new Set([".py", ".pyw", ".js", ".mjs", ".cjs", ".ts", ".mts", ".ps1", ".bat", ".cmd", ".sh", ".bash", ".zsh",
@@ -12,14 +7,14 @@ export const RUNNABLE = new Set([".py", ".pyw", ".js", ".mjs", ".cjs", ".ts", ".
 export const isRunnable = (tab) => !!tab && ["text", "html"].includes(tab.kind) && RUNNABLE.has(extname(tab.path || tab.name));
 
 const MAX_LINES = 20000;
-const LINE_CAP = 100000;      // characters of one output line shown in the panel
+const LINE_CAP = 100000;
 const ANSI_COLORS = ["#4d4d4d", "#e5534b", "#57ab5a", "#c69026", "#539bf5", "#b083f0", "#39c5cf", "#d0d0d0"];
 const ANSI_BRIGHT = ["#768390", "#ff938a", "#6bc46d", "#daaa3f", "#6cb6ff", "#dcbdfb", "#56d4dd", "#ffffff"];
 
 export class RunPanel {
   constructor(hooks) {
-    this.hooks = hooks;          // {activeTab, saveTab(tab) → bool, saveAs(tab) → bool, openAt(path, line, col), focusEditor()}
-    this.run = null;             // {id, tab, path, since, done, code, started}
+    this.hooks = hooks;
+    this.run = null;
     this.el = document.createElement("section");
     this.el.className = "mn-run"; this.el.hidden = true;
     this.el.setAttribute("role", "region");
@@ -80,7 +75,6 @@ export class RunPanel {
     if (a === "close") this.show(false);
   }
 
-  // ---------------------------------------------------------------- start
   async start(tab, opts = {}) {
     if (!tab) return;
     if (!isRunnable(tab)) { toast(t("run_not_runnable", { ext: extname(tab.path || tab.name) || t("run_no_ext") }), { kind: "error" }); return; }
@@ -104,13 +98,13 @@ export class RunPanel {
       args = v;
     }
     const body = { path: tab.path, args };
-    if (!info.trusted || info.internet) {     // the first run of a file (or a downloaded one) asks first
+    if (!info.trusted || info.internet) {
       const c = await this.confirmRun(tab, info);
       if (!c) return;
       Object.assign(body, { confirmed: true, remember: c.remember });
     }
     let r = await api("run/start", body, { allowError: true });
-    if (r.error === "confirm_required") {      // trust was withdrawn meanwhile
+    if (r.error === "confirm_required") {
       const c = await this.confirmRun(tab, info);
       if (!c) return;
       r = await api("run/start", { ...body, confirmed: true, remember: c.remember }, { allowError: true });
@@ -151,7 +145,6 @@ export class RunPanel {
   }
   async resetInterpreter(ext) { await api("run/config", { ext, interpreter: "" }); toast(t("run_interp_reset"), { kind: "ok" }); }
 
-  // ---------------------------------------------------------------- streaming
   attach(tab, r) {
     this.run = { id: r.id, tab, path: tab.path, name: tab.name, since: 0, done: false, code: null, started: performance.now(), cmd: r.cmd, cwd: r.cwd };
     this.out.innerHTML = ""; this.cur = null; this.lines = 0; this.style = {};
@@ -200,7 +193,7 @@ export class RunPanel {
   async stop() {
     const run = this.run; if (!run || run.done) return;
     run.stopped = true;
-    try { await api("run/stop", { id: run.id }); } catch { /* already gone */ }
+    try { await api("run/stop", { id: run.id }); } catch {  }
   }
   async send() {
     const run = this.run; if (!run || run.done) return;
@@ -211,22 +204,18 @@ export class RunPanel {
     this.write(text + "\n", "in");
     try { await api("run/input", { id: run.id, text: text + "\n" }); } catch (e) { this.write(t("run_stdin_closed") + "\n", "sys"); }
   }
-  async eof() { const run = this.run; if (!run || run.done) return; try { await api("run/eof", { id: run.id }); this.write("^D\n", "sys"); } catch { /* gone */ } }
+  async eof() { const run = this.run; if (!run || run.done) return; try { await api("run/eof", { id: run.id }); this.write("^D\n", "sys"); } catch {  } }
 
-  // ---------------------------------------------------------------- output rendering (ANSI SGR, \r, links)
-  // Round 34: a flood of output froze the page for good — every chunk read scrollHeight (a layout of 20 000 lines),
-  // and the link regex backtracked O(n²) over a 3 MB line without "\n". Now: one layout per poll, links only in
-  // lines of sane length, a line longer than LINE_CAP is cut in the panel (the program's output itself is untouched).
   newLine() { this.cur = document.createElement("span"); this.cur.className = "ln"; this.curLen = 0; this.out.append(this.cur); this.lines++; if (this.lines > MAX_LINES) { this.out.firstChild?.remove(); this.lines--; } }
   writeMany(chunks) {
     if (!chunks?.length) return;
     const atBottom = this.out.scrollHeight - this.out.scrollTop - this.out.clientHeight < 40;
-    // More new lines than the panel keeps: build only the last MAX_LINES (40 000 DOM lines per poll stalled for seconds).
+
     let need = MAX_LINES;
     for (let i = chunks.length - 1; i >= 0; i--) {
       const text = chunks[i].t;
       let pos = text.length, n = 0;
-      while (n < need && pos > 0 && (pos = text.lastIndexOf("\n", pos - 1)) >= 0) n++;   // pos > 0: lastIndexOf(…, -1) would find index 0 forever
+      while (n < need && pos > 0 && (pos = text.lastIndexOf("\n", pos - 1)) >= 0) n++;
       if (n === need && pos >= 0) {
         chunks = [{ ...chunks[i], t: text.slice(pos + 1) }, ...chunks.slice(i + 1)];
         this.out.textContent = ""; this.cur = null; this.lines = 0;
@@ -239,7 +228,7 @@ export class RunPanel {
   }
   write(text, stream, batched = false) {
     const atBottom = !batched && this.out.scrollHeight - this.out.scrollTop - this.out.clientHeight < 40;
-    // ANSI escape sequences: colours are kept (SGR), everything else (cursor moves, titles) is dropped
+
     const parts = text.split(/(\x1b\[[0-9;?]*[A-Za-z]|\x1b\][^\x07]*\x07|\r|\n)/);
     for (const p of parts) {
       if (!p) continue;
@@ -283,7 +272,7 @@ export class RunPanel {
     }
   }
   linkify(line) {
-    if ((this.curLen || 0) > 2000) return;      // tracebacks are short lines; the path regex is O(n²) on huge ones
+    if ((this.curLen || 0) > 2000) return;
     const text = line.textContent;
     const runDir = this.run?.cwd || "";
     const sep = runDir.includes("\\") ? "\\" : "/";
@@ -297,7 +286,7 @@ export class RunPanel {
     }
     if (/^<|^node:/.test(path)) return;
     if (!/^([A-Za-z]:[\\/]|\/|\\\\)/.test(path)) path = runDir + sep + path.replace(/^\.[\\/]/, "");
-    // rebuild the line: before / link / after (colours of the line are kept only outside the link)
+
     const before = text.slice(0, idx), link = text.slice(idx, idx + len), after = text.slice(idx + len);
     const cls = line.firstChild?.className || "s-out";
     line.textContent = "";

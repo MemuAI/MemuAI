@@ -10,7 +10,6 @@ from fastapi.testclient import TestClient
 from app import companion
 from app.providers import builtin_ids
 
-
 class KnowledgeTests(unittest.TestCase):
     def test_every_provider_has_a_knowledge_file(self) -> None:
         files = companion.kb_files()
@@ -29,7 +28,6 @@ class KnowledgeTests(unittest.TestCase):
         self.assertNotIn("README", picked)
         self.assertIn("local", companion.pick_kb("как скачать gguf модель", []))
 
-
 class SnapshotTests(unittest.TestCase):
     def test_snapshot_never_carries_secrets(self) -> None:
         from app.state import state
@@ -46,7 +44,6 @@ class SnapshotTests(unittest.TestCase):
             self.assertIn("<error_details>", messages[-1]["content"])
         finally:
             state.remove_account(account.id)
-
 
 class RouteTests(unittest.TestCase):
     def test_chat_streams_answer_and_real_errors(self) -> None:
@@ -73,7 +70,6 @@ class RouteTests(unittest.TestCase):
                 events = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
                 self.assertEqual(events[-1]["type"], "error")
                 self.assertIn("не маршрутизируется", events[-1]["error"])
-
 
 if __name__ == "__main__":
     unittest.main()

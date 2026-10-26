@@ -1,10 +1,7 @@
-/* MemuMusic · theme.js — система оформления: режим (светлая/тёмная/как в системе/как в MemuAI),
- * темы-палитры, дизайны (раскладка и стиль), акцент, плотность, шрифт, скругления, анимации,
- * визуализатор и стиль «Сейчас играет», фон, секции Главной — и раздел «Оформление» в Настройках.
- * Всё — CSS-переменными и атрибутами на <html>: переключение мгновенное, без перерисовки разделов
- * (кроме плотности списков: высота строки виртуального списка живёт в JS). */
+
+
 const Theme = (() => {
-  /* h/s — оттенок и насыщенность фона; acc — три акцента; dark/light — яркость фона и поверхности (L, %). */
+
   const THEMES = [
     { id: "cover", h: 252, s: 30, acc: ["#7c5cff", "#ff5c8a", "#20c7b5"], dyn: true },
     { id: "midnight", h: 245, s: 34, acc: ["#7c5cff", "#ff5c8a", "#20c7b5"] },
@@ -35,9 +32,8 @@ const Theme = (() => {
   const TILE = { s: 148, m: 176, l: 220 };
   const ROWS = { compact: 44, normal: 56, comfy: 64 };
   const mql = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
-  let dynHue = null;   // оттенок фона темы «Из обложки» (от текущего трека)
+  let dynHue = null;
 
-  /* миграция настроек раунда 37: lite → анимации, viz:false → визуализатор выкл, npStyle, coverAccent */
   const old = S.prefs;
   const ui = Object.assign({}, DEFAULTS, {
     motion: old.lite ? "lite" : "full", viz: old.viz === false ? "off" : "ring", npStyle: old.npStyle === "vinyl" ? "vinyl" : "card",
@@ -58,7 +54,7 @@ const Theme = (() => {
   }
   function contrast(a, b) { const x = lum(a), y = lum(b); return (Math.max(x, y) + .05) / (Math.min(x, y) + .05); }
   function rgba(hex, a) { const c = hexToRgb(hex) || [0, 0, 0]; return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
-  /** Цвет текста-акцента, читаемый на фоне (WCAG ≥ 4.5): темнеет на светлом, светлеет на тёмном. */
+
   function ink(hex, bg) {
     const rgb = hexToRgb(hex); if (!rgb) return hex;
     const [h, s, l0] = rgbToHsl(rgb), light = lum(bg) > .4;
@@ -66,7 +62,7 @@ const Theme = (() => {
     for (let i = 0; i < 40 && contrast(out, bg) < 4.6; i++) { l += light ? -2 : 2; out = hsl(h, Math.min(s, light ? 80 : 100), Math.max(4, Math.min(96, l))); }
     return out;
   }
-  /** Сплошной акцент под текст кнопки: белый или почти чёрный с контрастом ≥ 4.5; иначе акцент темнеет под белый. */
+
   function solid(hex) {
     if (contrast("#ffffff", hex) >= 4.5 || contrast("#111114", hex) >= 4.5) return hex;
     const [h, s, l0] = rgbToHsl(hexToRgb(hex) || [124, 92, 255]);
@@ -76,11 +72,10 @@ const Theme = (() => {
   }
   function onColor(hex) { return contrast("#ffffff", hex) >= 4.5 ? "#ffffff" : contrast("#111114", hex) >= 4.5 ? "#111114" : "#ffffff"; }
 
-  /** Токены темы для схемы: фон, поверхности, линии, текст. «Как в MemuAI» берёт цвета хоста. */
   function tokensFor(th, sch, hue) {
     const h = hue != null ? hue : th.h, s = hue != null ? 34 : th.s;
     const hostScheme = root.getAttribute("data-theme") === "light" ? "light" : "dark";
-    if (th.host && hostScheme !== sch) {   // MemuAI в другой схеме — та же гамма, но в выбранной схеме
+    if (th.host && hostScheme !== sch) {
       const a = hexToRgb(getComputedStyle(root).getPropertyValue("--accent").trim());
       return tokensFor(Object.assign({}, th, { host: false, h: a ? rgbToHsl(a)[0] : th.h, s: 14 }), sch);
     }
@@ -106,7 +101,7 @@ const Theme = (() => {
       "--mm-shadow": dark ? "0 30px 80px -20px rgba(0,0,0,.65), 0 8px 24px -8px rgba(0,0,0,.5)" : "0 30px 70px -28px rgba(30,24,60,.28), 0 8px 20px -12px rgba(30,24,60,.2)",
     };
   }
-  /** Три акцента: свой цвет → из него; иначе — цвета темы (для «Из обложки» — палитра трека, её даёт applyPalette). */
+
   function accents() {
     const own = hexToRgb(ui.accent) ? ui.accent : "";
     if (own) { const [h, s, l] = rgbToHsl(hexToRgb(own)); return [own, hsl(h + 34, Math.max(50, s), Math.min(70, l + 4)), hsl(h - 40, Math.max(40, s * .9), Math.max(38, l - 8))]; }
@@ -115,11 +110,11 @@ const Theme = (() => {
     if (th.mono && scheme() === "light") return ["#27272a", "#52525b", "#71717a"];
     return th.acc;
   }
-  /** Нужен ли акцент из обложки: тема «Из обложки» или включённый «Цвет из обложки», и нет своего цвета. */
+
   function coverAccent() { return !hexToRgb(ui.accent) && (theme().dyn || (ui.coverTint && !theme().mono)); }
 
   function setVars(map) { Object.keys(map).forEach((k) => root.style.setProperty(k, map[k])); }
-  /** Применить всё. Вызывается при старте, при смене настроек, темы хоста и (для «Из обложки») трека. */
+
   function apply() {
     const sch = scheme(), th = theme();
     root.setAttribute("data-mm-scheme", sch);
@@ -137,7 +132,7 @@ const Theme = (() => {
     appbar();
     return tok;
   }
-  /** Акцент → переменные (вызывает applyPalette в main.js с тремя цветами). */
+
   function paint(colors) {
     const bg = getComputedStyle(root).getPropertyValue("--mm-bg").trim() || (scheme() === "light" ? "#f5f4f8" : "#08080b");
     const sol = solid(colors[0]);
@@ -148,7 +143,7 @@ const Theme = (() => {
     }
     return bg;
   }
-  /** Фон окна: размытая обложка (неподвижный слой, без backdrop-filter), живой градиент (canvas) или однотонный. */
+
   function coverBg(track) {
     const img = $("#coverbg");
     if (img) {
@@ -161,7 +156,6 @@ const Theme = (() => {
   function hidden(section) { return ui.homeHidden.includes(section); }
   if (mql && mql.addEventListener) mql.addEventListener("change", () => { if (ui.mode === "system") changed("mode"); });
 
-  /** Изменение настройки: сохранить, применить, оповестить тех, кому важно. */
   function set(key, value) {
     ui[key] = value;
     if (key === "design") Object.assign(ui, DESIGN_PRESETS[value] || {});
@@ -181,9 +175,8 @@ const Theme = (() => {
     syncControls();
   }
 
-  /* ------------------------------------------------------------ раздел «Оформление» */
   const L = (k, v) => t("ui." + k, v);
-  /** Превью темы: мини-окно в текущей схеме и по диагонали — та же тема в другой схеме (видно и фон, и оттенок, и акценты). */
+
   function mini(th) {
     const one = (sch) => {
       const tok = tokensFor(th, sch, th.dyn ? 330 : null);
@@ -234,19 +227,17 @@ const Theme = (() => {
     host.querySelector("#ap-color").addEventListener("input", debounce((e) => set("accent", e.target.value), 60));
     host.querySelector("#ap-reset").addEventListener("click", () => { Object.assign(ui, DEFAULTS, { homeHidden: [] }); changed("design"); render(host); });
   }
-  /** Отметки выбранного в открытом разделе — без перерисовки (живой отклик, фокус не теряется). */
+
   function syncControls() {
     $$("[data-ui]").forEach((g) => { const key = g.dataset.ui; $$("[data-v]", g).forEach((b) => b.setAttribute("aria-checked", String(String(ui[key] || "") === b.dataset.v))); });
     $$(".mm-ap-themes .mm-ap-card").forEach((b) => { const th = THEMES.find((x) => x.id === b.dataset.v); const old = b.querySelector(".mm-tp2"); if (th && old) old.outerHTML = mini(th); });
     $$("[data-ui-bool]").forEach((i) => { i.checked = !!ui[i.dataset.uiBool]; });
   }
-  /* design-3: прозрачный аппбар окна-приложения — без своего названия (логотип уже в боковой панели), цвет кнопок ✦ ⋯ и окна —
-   * по фону под ними: «Сейчас играет» (тёмный или светлый плеер) или схема раздела. Шлём, только когда цвет сменился. */
+
   let barInk = "";
   function appbar() {
     const bar = window.Memu && Memu.appbar;
-    // Native frame colours are needed even when the custom appbar is off.
-    // A regular embedded module host safely ignores this appearance metadata.
+
     if (!bar || !bar.state) { barInk = ""; return; }
     const np = document.getElementById("np"), npOpen = np && !np.hidden && !np.classList.contains("out");
     const light = npOpen ? np.hasAttribute("data-light") : scheme() === "light";
@@ -260,7 +251,7 @@ const Theme = (() => {
     barInk = key;
     bar.set({ text: ink, background: paper, dark: !light, caption: false }).catch(() => { barInk = ""; });
   }
-  let barOn = false;   // полоса появилась/пропала — цвет отправляем заново (иначе — только при смене)
+  let barOn = false;
   if (window.Memu && Memu.appbar && Memu.appbar.on) Memu.appbar.on((st) => { const on = !!(st && st.active); if (on !== barOn) { barOn = on; barInk = ""; } appbar(); });
   if (typeof SETTINGS_TABS !== "undefined") SETTINGS_TABS.push({ id: "appearance", order: 10, icon: "sparkle", title: () => t("ui.tab"), render });
   apply();

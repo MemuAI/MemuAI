@@ -21,14 +21,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-
 def _chromium() -> str:
     for candidate in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/usr/bin/chromium", "/workspace/work/chromium/chrome",
                       shutil.which("chromium") or "", shutil.which("chromium-browser") or ""):
         if candidate and Path(candidate).exists():
             return candidate
     return ""
-
 
 class StaticTest(unittest.TestCase):
     def test_chat_widget_has_no_stream_of_its_own(self):
@@ -38,7 +36,6 @@ class StaticTest(unittest.TestCase):
         dock = (ROOT / "app/pgstatic/music-dock.js").read_text(encoding="utf-8")
         self.assertIn('new CustomEvent("memu-music-state"', dock)
         self.assertIn("nowPlaying:", dock)
-
 
 @unittest.skipUnless(_chromium(), "needs Chromium")
 class MainPageNetworkTest(unittest.TestCase):
@@ -82,14 +79,13 @@ class MainPageNetworkTest(unittest.TestCase):
         urls = []
         page.on("request", lambda req: urls.append(req.url))
         page.goto(f"http://127.0.0.1:{self.port}/", wait_until="networkidle", timeout=30000)
-        deadline = time.time() + 20   # the page CSP forbids eval → poll with evaluate(), not wait_for_function
+        deadline = time.time() + 20
         while not page.evaluate("() => !!(window.MemuModInt && MemuModInt.state().modules > 0)") and time.time() < deadline:
             time.sleep(0.2)
         self.assertTrue(page.evaluate("() => MemuModInt.state().modules > 0"))
-        page.wait_for_timeout(4000)   # the dock checks player.state once after idle (~2.5 s + idle)
+        page.wait_for_timeout(4000)
         self.assertEqual([u for u in urls if "/api/pg/music/player/events" in u], [])
         self.assertFalse(page.evaluate("() => MemuMusicDock.state().booted"))
-
 
 if __name__ == "__main__":
     unittest.main()

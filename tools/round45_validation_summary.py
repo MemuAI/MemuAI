@@ -13,20 +13,16 @@ from PIL import Image
 ROOT = Path(__file__).resolve().parents[1]
 BUILD = ROOT / "build"
 
-
 def require(value, message):
     if not value:
         raise AssertionError(message)
 
-
 def log_text(name):
     return (BUILD / name).read_text("utf-8", errors="replace")
 
-
 def main():
     rows = {}
-    # The first invocation accidentally included a non-existent module name.
-    # Keep that original log, replace it with the actual round12_test result.
+
     for directory in ("audit-isolated-20261023-131125", "audit-isolated-20261023-131254", "audit-isolated-20261023-131507"):
         directory = BUILD / directory
         for row in json.loads((directory / "summary.json").read_text("utf-8")):
@@ -95,7 +91,6 @@ def main():
     (BUILD / "round45-validation-summary.json").write_text(json.dumps(result, ensure_ascii=False, indent=2), "utf-8")
     print(json.dumps({"passed_total": result["passed_total"], "modules": len(rows),
                       "skipped": result["python"]["skipped"], "artifacts": artifacts}, ensure_ascii=False, indent=2))
-
 
 if __name__ == "__main__":
     main()

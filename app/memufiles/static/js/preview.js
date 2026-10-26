@@ -1,4 +1,4 @@
-// MemuFiles · preview pane: images, video/audio, PDF, text/code with highlighting, Markdown, archives, folders.
+
 import { t } from "./i18n.js";
 import { S, api, $, h, esc, icon, fileIcon, fmtSize, fmtNum, fmtDate, itemsWord, baseName, extOf, rawUrl, typeOf,
   BROWSER_IMG, menu } from "./core.js";
@@ -48,7 +48,7 @@ function actions(app, wrap, item) {
   row.append(open);
   if (!item.d && S.platform === "nt") {
     const w = h("button", { class: "btn sm", html: icon("windows") + esc(t("ctx.open_with")) });
-    // the same app list as the context menu, dropped down under the button
+
     w.addEventListener("click", () => app.openWithItems(item.path).then((items) => {
       const r = w.getBoundingClientRect();
       menu(items, r.left, r.bottom + 4);
@@ -60,7 +60,7 @@ function actions(app, wrap, item) {
   row.append(copy);
   wrap.append(row);
 }
-/** r40-files-max: a path that wraps only after a separator («/tmp/…/root/За|грузки» broke mid-word); <wbr> is not copied. */
+
 function pathSpan(path) {
   return h("span", { class: "pv-path", title: path, html: String(path).split(/(?<=[\\/])/).map(esc).join("<wbr>") });
 }
@@ -87,7 +87,7 @@ async function file(app, wrap, item, my) {
     info(wrap, meta);
     return;
   }
-  if (typeOf(item.n, false) === "image") {        // TIFF, HEIC…: the backend thumbnail (Pillow)
+  if (typeOf(item.n, false) === "image") {
     const box = h("div", { class: "pv-media" });
     const img = h("img", { src: `/api/thumb?path=${encodeURIComponent(item.path)}&s=900&t=${encodeURIComponent(S.token)}`, alt: "" });
     img.addEventListener("error", () => { box.innerHTML = `<div class="pv-big">${fileIcon(item.n, false)}</div>`; });
@@ -155,7 +155,7 @@ async function folder(app, wrap, item, my, current) {
   const contents = h("span", { text: "…" });
   kv.append(h("span", { text: t("props.size") }), size, h("span", { text: t("props.contains") }), contents);
   if (item.m) kv.append(h("span", { text: t("props.modified") }), h("span", { text: fmtDate(item.m) }));
-  kv.append(h("span", { text: t("props.location") }), pathSpan(item.path.slice(0, item.path.length - item.n.length - 1) || item.path));   // r40-files-max: the parent, as in Explorer
+  kv.append(h("span", { text: t("props.location") }), pathSpan(item.path.slice(0, item.path.length - item.n.length - 1) || item.path));
   wrap.append(kv);
   const holder = {};
   const res = await runJob("size", { paths: [item.path] }, (p) => { if (my === token) size.textContent = t("props.calculating") + " " + fmtSize(p.bytes_now || 0); }, holder);
@@ -186,7 +186,6 @@ function trashItem(wrap, item) {
   info(wrap, [[t("trash.original"), item.original], [t("trash.deleted"), item.deleted ? fmtDate(item.deleted) : item.deletedText], [t("props.size"), item.d ? "" : fmtSize(item.s)]]);
 }
 
-// ------------------------------------------------------------------ tiny syntax highlighter
 const KW = {
   js: "break case catch class const continue debugger default delete do else export extends finally for function if import in instanceof let new of return super switch this throw try typeof var void while with yield async await static get set true false null undefined",
   py: "and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield True False None self",
@@ -236,7 +235,6 @@ function findComment(line, marker) {
   return -1;
 }
 
-// ------------------------------------------------------------------ tiny Markdown renderer (safe: everything escaped first)
 export function renderMarkdown(src) {
   const lines = src.replace(/\r/g, "").split("\n").slice(0, 4000);
   let html = "", inCode = false, inList = null, para = [];

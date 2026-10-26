@@ -17,10 +17,9 @@ from app import quick_ask_core as core
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 class QuickCoreRobustness(unittest.TestCase):
     def test_screenshot_monitor_infinity_does_not_crash_the_answer_stream(self):
-        # The model writes the tool args; "inf"/1e999 → OverflowError escapes capture_for_model and kills the SSE stream.
+
         self.assertEqual(core.screenshot_args({"monitor": "inf"})["monitor"], "cursor")
 
     def test_screenshot_region_nan_is_rejected(self):
@@ -38,8 +37,6 @@ class QuickCoreRobustness(unittest.TestCase):
     def test_css_colour_with_a_broken_alpha_is_unusable_not_an_exception(self):
         self.assertIsNone(core.parse_css_color("rgba(1, 2, 3, 1.2.3)"))
 
-
-
 class QuickToolContract(unittest.TestCase):
     """#11: plugin tools have a documented 60 s limit; #12: page tool results only for pending calls."""
 
@@ -52,7 +49,7 @@ class QuickToolContract(unittest.TestCase):
     def test_unknown_malformed_or_finished_ids_are_refused(self):
         self.assertFalse(quick_ask_api.resolve_client_tool("", {"x": 1}))
         self.assertFalse(quick_ask_api.resolve_client_tool("../../etc", {"x": 1}))
-        self.assertFalse(quick_ask_api.resolve_client_tool("0123456789abcdef", {"x": 1}))   # never issued
+        self.assertFalse(quick_ask_api.resolve_client_tool("0123456789abcdef", {"x": 1}))
 
         async def run():
             loop = asyncio.get_running_loop()
@@ -92,10 +89,7 @@ class QuickToolContract(unittest.TestCase):
         js = (ROOT / "app" / "pgstatic" / "quick" / "quick.js").read_text(encoding="utf-8")
         self.assertIn('api("/api/quick/tool_result", { body: { id: event.id, tool: String(event.tool || "")', js)
 
-
-
 NODE = __import__("shutil").which("node")
-
 
 @unittest.skipUnless(NODE, "node is not installed")
 class QuickSettingsRobustness(unittest.TestCase):
@@ -128,7 +122,6 @@ process.stdout.write(String(html.includes('id="st-qa-personality"')) + " " + Str
             for presets in ({}, None, [None, {"id": "x"}]):
                 with self.subTest(data=data, presets=presets):
                     self.assertEqual(self.render(data, presets), "true true")
-
 
 if __name__ == "__main__":
     unittest.main()

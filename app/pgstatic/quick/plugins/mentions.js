@@ -1,21 +1,12 @@
-/* Round 35 (r35-finish-b, zone «mentions») — @-mentions in the Quick Access composer.
 
-   The same providers and routes as the main window (app/mentions.py: /api/mentions/providers|search|resolve):
-   «@» in the question opens a compact list under the input (categories, recent picks, found items,
-   «Искать в Gmail…» rows; «@чат: договор» filters by category). A pick becomes a chip over the list with
-   its token estimate (resolved at once — the preview shows exactly what the model gets).
-   Every question carries {type:"mentions", items:[{provider, ref, title, text, …}], earlier:[…]} through
-   MemuQuick.addRequestContext; the server (quick_ask_api → mentions.quick_context) turns it into the same
-   untrusted <mentioned_context> block as the chat. Items mentioned earlier in this Quick Access conversation
-   go along with later questions (earlier="true"), until a new chat.
-   Not here: @модель (Quick Access has its own model picker) — the provider is hidden. */
+
 (() => {
   "use strict";
   const Q = window.MemuQuick;
   if (!Q) return;
   const t = (ru, en) => Q.t(ru, en);
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-  const RECENT_KEY = "memu_mentions_recent";      // shared with the main window (same origin)
+  const RECENT_KEY = "memu_mentions_recent";
   const HIDDEN = new Set(["model", "gmail_thread", "calendar_day"]);
   const MAX_CHIPS = 8, MAX_EARLIER = 8;
 
@@ -60,7 +51,7 @@
       const data = await Q.api("/api/mentions/providers" + (force ? "?refresh=1" : ""));
       S.providers = (data.providers || []).filter((p) => !HIDDEN.has(p.id));
       S.providersAt = Date.now();
-    } catch (e) { /* MemuAI without the module: no menu */ }
+    } catch (e) {  }
     return S.providers;
   }
 
@@ -95,20 +86,18 @@
     try { localStorage.setItem(RECENT_KEY, JSON.stringify(rows.slice(0, 12))); } catch (e) {}
   }
 
-  /* ------------------------------------------------------------------ panels (in the window's flow — it sizes itself) */
   Q.registerPanel("mentions-chips", (el) => {
     S.chipsEl = el; el.classList.add("qmn-chips-host");
-    // a click on a chip keeps the caret in the question (typing right after it went nowhere)
+
     el.addEventListener("mousedown", (e) => { if (e.target.closest("button") && !e.target.closest(".qmn-preview")) e.preventDefault(); });
     el.addEventListener("click", onChipsClick);
   }, { slot: "top", order: -2, hidden: true });
   Q.registerPanel("mentions-menu", (el) => {
     S.menuEl = el; el.classList.add("qmn-menu-host");
-    el.addEventListener("mousedown", (e) => e.preventDefault());       // keep the caret in the input
+    el.addEventListener("mousedown", (e) => e.preventDefault());
     el.addEventListener("click", onMenuClick);
   }, { slot: "top", order: -1, hidden: true });
 
-  /* ------------------------------------------------------------------ menu */
   function schedule() {
     clearTimeout(S.timer);
     const tok = currentToken();
@@ -228,8 +217,7 @@
     el.setSelectionRange(at, at);
     el.dispatchEvent(new Event("input", { bubbles: true }));
   }
-  // «@чат: » — the provider's own alias in the window's language (the first label word could be another
-  // provider's alias: «Файл MemuNote» → «файл» is the PC files one)
+
   function alias(p) {
     const en = lang() === "en";
     return (p.aliases || []).find((a) => (en ? /^[a-z]/i.test(a) : /^[а-яё]/i.test(a))) || p.aliases?.[0] || p.id;
@@ -248,7 +236,7 @@
   }
   function openConnect() {
     close();
-    // the main window opens on Settings → Integrations (the same handoff the chat buttons use)
+
     Q.api("/api/quick/window", { body: { action: "handoff", handoff: { settings: "integrations" } } }).catch(() => {});
     Q.toast(t("Подключите сервис в MemuAI → Настройки → Интеграции", "Connect the service in MemuAI → Settings → Integrations"), "", 3600);
   }
@@ -266,7 +254,6 @@
     addChip(row);
   }
 
-  /* ------------------------------------------------------------------ chips */
   const chipKey = (c) => c.provider + ":" + JSON.stringify(c.ref);
   async function addChip(row) {
     const chip = { provider: row.provider, ref: row.ref, title: row.title || "", subtitle: row.subtitle || "", icon: row.icon || provider(row.provider)?.icon || "doc",
@@ -328,7 +315,6 @@
     if (c) { const i = +c.dataset.qmnChip; S.preview = S.preview === i ? -1 : i; renderChips(); input()?.focus(); }
   }
 
-  /* ------------------------------------------------------------------ keyboard (capture: before quick.js) */
   document.addEventListener("keydown", (e) => {
     const el = input();
     if (e.target !== el || e.isComposing) return;
@@ -339,7 +325,7 @@
       if ((e.key === "Enter" && !e.shiftKey) || (e.key === "Tab" && !e.shiftKey)) {
         if (S.index >= 0 && selectable(S.rows[S.index])) { stop(); choose(S.index); return; }
         const tok = currentToken();
-        if (e.key === "Tab" || (tok && splitCategory(tok.text).cat)) { stop(); return; }   // «@память: …» found nothing — never sent as a question
+        if (e.key === "Tab" || (tok && splitCategory(tok.text).cat)) { stop(); return; }
         close();         // nothing to pick after a plain «@word»: Enter sends the question as typed
         return;
       }
@@ -367,11 +353,9 @@
   bindInput();
   loadProviders();
 
-  /* ------------------------------------------------------------------ the request */
   const wire = (c) => ({ provider: c.provider, ref: c.ref, title: c.title, source: c.source || "", text: c.text || "",
     truncated: !!c.truncated, tokens: c.tokens || 0 });
-  // send() emits answer-start BEFORE it builds the request body: the chips leave the composer at once and ride in
-  // S.pending until the body takes them (addRequestContext below).
+
   Q.on("answer-start", () => {
     const ok = S.chips.filter((c) => !c.loading && !c.error);
     S.pending = ok.length || S.earlier.length ? { items: ok.map(wire), earlier: S.earlier.slice() } : null;
@@ -385,7 +369,7 @@
     S.earlier = [...p.items, ...S.earlier.filter((b) => !p.items.some((x) => chipKey(x) === chipKey(b)))].slice(0, MAX_EARLIER);
     return { type: "mentions", items: p.items, earlier: p.earlier };
   });
-  // a question that never reached the model (no model chosen, vision check) gives its chips back
+
   Q.on("answer-done", () => {
     if (S.pending && S.pendingChips) { S.chips = S.pendingChips; S.pending = null; S.pendingChips = null; renderChips(); }
   });
@@ -393,6 +377,6 @@
   Q.on("chat-open", () => { S.earlier = []; });
   window.addEventListener("focus", () => { if (Date.now() - S.providersAt > 20000) loadProviders(true); });
 
-  window.MemuQuickMentions = { add: (row) => addChip(row), count: () => S.chips.length,  // Round 36 (fsearch): add — «Спросить ИИ о файле» from the PC search menu
+  window.MemuQuickMentions = { add: (row) => addChip(row), count: () => S.chips.length,
      chips: () => S.chips.map((c) => ({ ...c })), earlier: () => S.earlier.slice(), close };
 })();

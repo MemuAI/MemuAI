@@ -1,25 +1,10 @@
-/* MemuAI — Round 31 (design-main): a quiet first-run tour, one-time hints for complex features and the «?» help.
 
-   window.MemuTour:
-     start()            — the interface tour (spotlight + bubble, ← → Enter Esc; skips steps whose target is hidden).
-     welcome(force)     — the small first-run card (bottom right, not modal): «Show me» / «Later».
-     hint(id, force)    — show one contextual hint now (ids: HINTS below); shown once unless force.
-     menu(anchor)       — the «?» popover (tour, commands, shortcuts, docs, tips on/off, show tips again).
-     reset()            — every hint becomes unseen again and hints turn on («Show tips again»).
-     setEnabled(bool)   — contextual hints on/off (the tour and «?» always work).
-     state()            — a copy of the stored state; settingsHtml({K, L2}) / bindSettings() — Settings → General.
 
-   State: localStorage «memu_tips_v1» = { v: 1, welcome: "" | "done", seen: {id: 1}, off: bool, dot: bool }.
-   Rules (the user dislikes pushy UI):
-     • nothing ever opens on top of a dialog, a menu, the tour or another hint; at most one hint per 25 s;
-     • an existing user (3+ chats when tour.js first runs) gets no welcome and hints start OFF — only a small dot on «?»;
-     • automatic welcome/hints are off in automated browsers (navigator.webdriver: tests, screenshot harnesses) unless
-       localStorage «memu_tips_force» = "1" — call MemuTour.welcome(true) / hint(id, true) there instead. */
 (function () {
   "use strict";
   if (window.MemuTour) return;
   const KEY = "memu_tips_v1";
-  // Round 33: never inside a module's own window (/?module_app=…, module-apps.js) — the app UI is hidden there.
+
   const AUTO = (!navigator.webdriver || localStorage.getItem("memu_tips_force") === "1") && !document.documentElement.dataset.moduleApp;
   const en = () => (typeof PG_LANG !== "undefined" ? PG_LANG : localStorage.getItem("memu_lang")) === "en";
   const L = (ru, enText) => (en() ? enText : ru);
@@ -37,9 +22,8 @@
     close: SVG('<path d="M6 6l12 12M18 6 6 18"/>'),
   };
 
-  /* ------------------------------------------------------------------ state */
   function load() {
-    try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); if (v && v.v === 1) return { seen: {}, ...v }; } catch (_) {}
+    try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); if (v && v.v === 1) return { seen: {}, ...v, dot: false }; } catch (_) {}
     return null;
   }
   let st = load();
@@ -48,11 +32,10 @@
     if (st) return;
     const chats = typeof S !== "undefined" && Array.isArray(S.chats) ? S.chats.length : 0;
     const veteran = chats >= 3;
-    st = { v: 1, welcome: veteran ? "done" : "", seen: {}, off: veteran, dot: veteran };
+    st = { v: 1, welcome: veteran ? "done" : "", seen: {}, off: veteran, dot: false };
     save();
   }
 
-  /* ------------------------------------------------------------------ helpers */
   const visible = (el) => {
     if (!el || !el.isConnected) return false;
     const r = el.getBoundingClientRect();
@@ -65,7 +48,6 @@
     || !!$(".memu-tour-spot, .memu-hint, .msearch-back.visible, #msx-root:not([hidden]), .live-call.visible, body.booting");
   const reduced = () => matchMedia("(prefers-reduced-motion: reduce)").matches || /off|reduced/.test(document.documentElement.dataset.motion || "");
 
-  /** Fixed bubble next to a rect (below, above, right, left — the first that fits), clamped to the window. */
   function placeBubble(bubble, rect, pref = "bottom") {
     const pad = 10, gap = 12, bw = bubble.offsetWidth, bh = bubble.offsetHeight, vw = innerWidth, vh = innerHeight;
     const fits = {
@@ -87,14 +69,13 @@
     bubble.style.left = Math.round(x) + "px";
     bubble.style.top = Math.round(y) + "px";
     bubble.dataset.side = side;
-    // the little arrow points at the target's centre
+
     const ax = Math.max(16, Math.min(rect.left + rect.width / 2 - x, bw - 16));
     const ay = Math.max(16, Math.min(rect.top + rect.height / 2 - y, bh - 16));
     bubble.style.setProperty("--tour-ax", Math.round(ax) + "px");
     bubble.style.setProperty("--tour-ay", Math.round(ay) + "px");
   }
 
-  /* ------------------------------------------------------------------ the tour */
   function steps() {
     return [
       { sel: "#btn-new", title: L("Новый чат", "New chat"),
@@ -129,7 +110,7 @@
     endTour(); closeWelcome(); closeHint(); closeMenu();
     try { typeof closePanel === "function" && closePanel(); } catch (_) {}
     try { window.MemuLayers && MemuLayers.closeAll && MemuLayers.closeAll("api"); } catch (_) {}
-    // the sidebar must be on screen for the first steps (narrow windows hide it)
+
     try { if (document.body.classList.contains("sidebar-hidden") && typeof toggleSidebar === "function") toggleSidebar(); } catch (_) {}
     const list = steps();
     const spot = document.createElement("div");
@@ -141,7 +122,7 @@
     bubble.setAttribute("aria-modal", "false");
     bubble.setAttribute("aria-live", "polite");
     const block = document.createElement("div");
-    block.className = "memu-tour-block";   // swallows clicks outside the bubble (the tour never triggers the app)
+    block.className = "memu-tour-block";
     block.addEventListener("pointerdown", (e) => { e.preventDefault(); e.stopPropagation(); });
     document.body.append(block, spot, bubble);
     tour = { list, i: -1, spot, bubble, block, prevFocus: document.activeElement };
@@ -154,7 +135,7 @@
     if (!tour) return;
     let i = tour.i;
     do { i += dir; } while (i >= 0 && i < tour.list.length && !visible($(tour.list[i].sel)));
-    if (i < 0) return;   // nothing before
+    if (i < 0) return;
     if (i >= tour.list.length) { endTour(); return; }
     tour.i = i;
     render();
@@ -192,7 +173,7 @@
     if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); endTour(); }
     else if (e.key === "ArrowRight" || e.key === "Enter" && !/^(BUTTON)$/.test(document.activeElement?.tagName)) { e.preventDefault(); e.stopPropagation(); go(1); }
     else if (e.key === "ArrowLeft") { e.preventDefault(); e.stopPropagation(); go(-1); }
-    else if (e.key === "Tab") {   // focus stays inside the bubble
+    else if (e.key === "Tab") {
       const items = [...tour.bubble.querySelectorAll("button:not([hidden])")];
       if (!items.length) return;
       const k = items.indexOf(document.activeElement);
@@ -212,7 +193,6 @@
     try { (back && visible(back) ? back : t.prevFocus)?.focus?.({ preventScroll: true }); } catch (_) {}
   }
 
-  /* ------------------------------------------------------------------ welcome card */
   let welcomeEl = null;
   function welcome(force) {
     init();
@@ -241,8 +221,6 @@
   }
   function closeWelcome() { if (welcomeEl) { welcomeEl.remove(); welcomeEl = null; } }
 
-  /* ------------------------------------------------------------------ contextual hints */
-  // when(): the feature is on screen now; anchor: where the bubble points (inside what when() found).
   const HINTS = {
     work: { when: () => typeof S !== "undefined" && S.mode === "work" && !panelOpen() && visible($("#workbar")), anchor: "#work-access, #workbar",
       title: () => L("Как работает Work", "How Work works"),
@@ -280,7 +258,7 @@
     if (!h) return false;
     if (!force && (!AUTO || st.off || st.seen[id] || tour || hintEl || welcomeEl || Date.now() - lastHint < 25000)) return false;
     if (!force && !h.when()) return false;
-    // selectors in order of preference (querySelectorAll would return the ancestor first)
+
     const anchor = h.anchor.split(",").map((sel) => [...document.querySelectorAll(sel.trim())].find(visible)).find(Boolean);
     if (!anchor) return false;
     closeHint();
@@ -314,7 +292,6 @@
   }
   function closeHint() { const el = hintEl || document.querySelector(".memu-hint"); if (el) el.remove(); hintEl = null; }
 
-  // one cheap check after DOM changes settle (throttled), never while something else is up
   let checkTimer = 0;
   function scheduleCheck() {
     if (checkTimer) return;
@@ -326,7 +303,6 @@
     }, 700);
   }
 
-  /* ------------------------------------------------------------------ the «?» button and menu */
   function refreshButton() {
     const b = $("#btn-help");
     if (!b) return;
@@ -364,6 +340,7 @@
       + item("tour", ICON.route, L("Тур по интерфейсу", "Interface tour"), L("Что где — за минуту", "What's where, in a minute"))
       + item("commands", ICON.slash, L("Быстрые команды", "Quick commands"), L("Введите / в поле сообщения", "Type / in the message box"))
       + item("keys", ICON.keys, L("Горячие клавиши", "Keyboard shortcuts"), "Ctrl+/")
+      + item("team", ICON.route, L("Команда", "Team"), L("Роли моделей и общий результат", "Model roles and a shared result"))
       + item("docs", ICON.book, L("Документация", "Documentation"), L("Подробно о каждой функции", "Every feature in detail"))
       + `<div class="hm-sep"></div>`
       + `<label class="hm-switch"><span class="ui-icon">${ICON.bulb}</span><span class="hm-text"><span>${esc(L("Подсказки к сложным разделам", "Tips for complex features"))}</span><small>${esc(L("Один раз, при первом открытии", "Once, on first visit"))}</small></span>
@@ -380,7 +357,7 @@
       m.style.left = Math.round(Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8))) + "px";
     };
     place();
-    // right-align under the button whatever place() decided
+
     const r = anchor.getBoundingClientRect();
     m.style.left = Math.round(Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8))) + "px";
     if (window.MemuLayers && MemuLayers.open) {
@@ -421,6 +398,8 @@
       if (input) { input.value = "/"; input.focus(); try { typeof renderSlashMenu === "function" && renderSlashMenu(); } catch (_) {} }
     } else if (act === "keys") {
       try { if (typeof showShortcutsModal === "function") showShortcutsModal(); } catch (_) {}
+    } else if (act === "team") {
+      window.MemuTeams?.open();
     } else if (act === "docs") {
       try { Promise.resolve(showSettings(true)).then(() => openSettingsPage("docs")).catch(() => {}); } catch (_) {}
     } else if (act === "reset") {
@@ -429,7 +408,6 @@
     }
   }
 
-  /* ------------------------------------------------------------------ settings + api */
   function setEnabled(on) {
     init();
     st.off = !on; save();
@@ -461,7 +439,6 @@
     if (t) t.onclick = () => start();
   }
 
-  /* ------------------------------------------------------------------ boot */
   function boot() {
     mountButton();
     const go = () => {
@@ -470,7 +447,7 @@
       new MutationObserver(refreshButton).observe(document.documentElement, { attributes: true, attributeFilter: ["lang"] });
       addEventListener("resize", () => { if (hintEl) placeHint(); });
       document.addEventListener("scroll", () => { if (hintEl) placeHint(); }, true);
-      // the welcome waits for the profile step (name) and for the window to be idle
+
       if (AUTO && st.welcome !== "done") {
         let tries = 0;
         const tryWelcome = () => {

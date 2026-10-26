@@ -32,10 +32,6 @@ TOOLS_CACHE = Path(DATA_DIR) / "memuai" / "mcp-tools-cache.json"
 SECRET_HINT = re.compile(r"(?i)(token|secret|password|passwd|pass\b|_pass|api[_-]?key|apikey|auth|private|credential|dsn|uri)")
 NAME_RE = re.compile(r"[^\w-]+")
 
-# ---------------------------------------------------------------------------
-# Catalogue of popular servers (package names checked on npm / PyPI, Oct 2026)
-# ---------------------------------------------------------------------------
-#: field: key, ru, en, target env|arg|header|url, secret, required, placeholder, default
 CATALOG: List[Dict[str, Any]] = [
     {"id": "postgres", "title": "PostgreSQL", "cat": "db", "color": "#336791",
      "ru": "Схема, SQL-запросы, планы и здоровье базы (crystaldba/postgres-mcp). В режиме «только чтение» — restricted.",
@@ -159,7 +155,6 @@ CATALOG: List[Dict[str, Any]] = [
 CATS = {"db": ("Базы данных", "Databases"), "work": ("Задачи", "Work tracking"), "dev": ("Разработка", "Development"),
         "notes": ("Заметки", "Notes"), "home": ("Умный дом", "Smart home"), "web": ("Веб", "Web"), "pc": ("Компьютер", "Computer")}
 
-
 def catalog_public() -> List[Dict[str, Any]]:
     import shutil
     rows = []
@@ -171,16 +166,10 @@ def catalog_public() -> List[Dict[str, Any]]:
                        "has_read_only": bool(item.get("access") or item.get("read_only_env") or item.get("read_only_headers"))})
     return rows
 
-
 def catalog_item(item_id: str) -> Optional[Dict[str, Any]]:
     return next((row for row in CATALOG if row["id"] == item_id), None)
 
-
-# ---------------------------------------------------------------------------
-# Secrets
-# ---------------------------------------------------------------------------
 _STORE: Any = None
-
 
 def store() -> Any:
     global _STORE
@@ -189,14 +178,11 @@ def store() -> Any:
         _STORE = SecretStore(SECRET_DIR)
     return _STORE
 
-
 def secret_name(server: str, key: str) -> str:
     return f"mcp/{server}/{key}"
 
-
 def secret_ref(server: str, key: str) -> str:
     return "${secret:" + secret_name(server, key) + "}"
-
 
 def secret_value(name: str) -> str:
     try:
@@ -204,10 +190,8 @@ def secret_value(name: str) -> str:
     except Exception:
         return ""
 
-
 def is_secret_key(key: str) -> bool:
     return bool(SECRET_HINT.search(str(key)))
-
 
 def _protect_map(server: str, values: Dict[str, str], secret_keys: List[str]) -> Tuple[Dict[str, str], List[str]]:
     """Plain values of secret-looking keys go to the store; the map keeps a reference."""
@@ -224,11 +208,9 @@ def _protect_map(server: str, values: Dict[str, str], secret_keys: List[str]) ->
             keys.append(key)
     return out, keys
 
-
 def _header_secret(server: str, header: str, template: str, key: str, value: str) -> str:
     store().set(secret_name(server, key), value)
     return template.replace("{" + key + "}", secret_ref(server, key))
-
 
 def drop_secrets(server: str, keys: List[str]) -> None:
     for key in keys:
@@ -237,13 +219,8 @@ def drop_secrets(server: str, keys: List[str]) -> None:
         except Exception:
             pass
 
-
-# ---------------------------------------------------------------------------
-# Install / update / remove
-# ---------------------------------------------------------------------------
 def clean_name(raw: str) -> str:
     return NAME_RE.sub("", str(raw or "").strip().replace(" ", "-"))[:40]
-
 
 class HubError(ValueError):
     def __init__(self, ru: str, en: str = "") -> None:
@@ -253,17 +230,14 @@ class HubError(ValueError):
     def text(self, lang: str = "ru") -> str:
         return self.en if lang == "en" else self.ru
 
-
 def _raw_servers() -> Dict[str, Any]:
     data = load_json_with_recovery(mcp_client.CONFIG_PATH, {"servers": {}}, validator=lambda x: isinstance(x, dict))
     servers = data.get("servers") if isinstance(data, dict) else {}
     return dict(servers) if isinstance(servers, dict) else {}
 
-
 def _write_servers(servers: Dict[str, Any]) -> None:
     mcp_client.CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
     save_json(mcp_client.CONFIG_PATH, {"servers": servers}, backup=True)
-
 
 def install(item_id: str, values: Dict[str, Any], *, name: str = "", read_only: bool = True,
             chat: bool = False) -> str:
@@ -318,7 +292,6 @@ def install(item_id: str, values: Dict[str, Any], *, name: str = "", read_only: 
     _write_servers(servers)
     return final
 
-
 def add_custom(body: Dict[str, Any]) -> str:
     """A server described by hand: a command line (stdio) or a URL (http / sse)."""
     import shlex
@@ -360,7 +333,6 @@ def add_custom(body: Dict[str, Any]) -> str:
     _write_servers(servers)
     return name
 
-
 def update(name: str, patch: Dict[str, Any]) -> None:
     servers = _raw_servers()
     row = servers.get(name)
@@ -392,12 +364,12 @@ def update(name: str, patch: Dict[str, Any]) -> None:
             key = str(key).strip()
             if not key:
                 continue
-            if value is None:                      # removed
+            if value is None:
                 env.pop(key, None)
                 if key in keys:
                     drop_secrets(name, [key])
                     keys.remove(key)
-            elif str(value) != "":                 # an empty secret field means «keep the saved value»
+            elif str(value) != "":
                 if key in keys or is_secret_key(key):
                     store().set(secret_name(name, key), str(value))
                     env[key] = secret_ref(name, key)
@@ -409,7 +381,6 @@ def update(name: str, patch: Dict[str, Any]) -> None:
     servers[name] = row
     _write_servers(servers)
 
-
 def remove(name: str) -> None:
     servers = _raw_servers()
     row = servers.pop(name, None)
@@ -419,7 +390,6 @@ def remove(name: str) -> None:
     cache = _tools_cache()
     if cache.pop(name, None) is not None:
         save_json(TOOLS_CACHE, cache)
-
 
 def migrate_plain_secrets() -> int:
     """Tokens a user once typed into the old MemuCode panel / mcp.json move into the protected store."""
@@ -435,16 +405,11 @@ def migrate_plain_secrets() -> int:
         _write_servers(servers)
     return moved
 
-
-# ---------------------------------------------------------------------------
-# Permissions
-# ---------------------------------------------------------------------------
 _READ_PREFIX = re.compile(r"(?i)^(get|list|read|search|find|fetch|describe|show|count|lookup|query|explain|analy[sz]e|"
                           r"browse|view|stat|info|directory_tree|check|inspect|resolve|preview|summar)")
 _WRITE_WORD = re.compile(r"(?i)(delete|drop|remove|destroy|truncate|write|create|update|insert|upsert|execute|exec\b|"
                          r"run|send|push|merge|move|rename|edit|set_|patch|post|publish|close|reopen|assign|"
                          r"transition|commit|reset|kill|call_service|turn_on|turn_off|toggle|control)")
-
 
 def is_read_only_tool(tool: Dict[str, Any]) -> bool:
     notes = tool.get("annotations") or {}
@@ -454,7 +419,6 @@ def is_read_only_tool(tool: Dict[str, Any]) -> bool:
         return False
     name = str(tool.get("name") or "")
     return bool(_READ_PREFIX.match(name)) and not _WRITE_WORD.search(name)
-
 
 def policy(spec: Dict[str, Any], tool: Dict[str, Any]) -> str:
     """allow | confirm | deny for one tool of one server."""
@@ -474,21 +438,15 @@ def policy(spec: Dict[str, Any], tool: Dict[str, Any]) -> str:
         return "allow"
     return "allow" if read_only else "confirm"
 
-
-# ---------------------------------------------------------------------------
-# Scopes and the cached tool lists
-# ---------------------------------------------------------------------------
 def _tools_cache() -> Dict[str, Any]:
     data = load_json_with_recovery(TOOLS_CACHE, {}, validator=lambda x: isinstance(x, dict))
     return data if isinstance(data, dict) else {}
-
 
 def remember_tools(name: str, server: Any) -> None:
     cache = _tools_cache()
     cache[name] = {"tools": server.tools, "resources": server.resources[:200], "at": time.time(),
                    "server_info": getattr(server, "server_info", {})}
     save_json(TOOLS_CACHE, cache)
-
 
 def known(name: str) -> Dict[str, Any]:
     """Tools/resources of a server: the live ones, otherwise the last successful connection."""
@@ -497,7 +455,6 @@ def known(name: str) -> Dict[str, Any]:
         return {"tools": live.tools, "resources": live.resources, "live": True}
     row = _tools_cache().get(name) or {}
     return {"tools": row.get("tools") or [], "resources": row.get("resources") or [], "live": False, "at": row.get("at", 0)}
-
 
 def in_scope(spec: Dict[str, Any], scope: str, agent: str = "") -> bool:
     if not spec.get("enabled"):
@@ -509,7 +466,6 @@ def in_scope(spec: Dict[str, Any], scope: str, agent: str = "") -> bool:
     if agent and agent in (spec.get("agents") or []):
         return True
     return bool(spec.get("chat"))
-
 
 def scoped(scope: str, agent: str = "") -> List[Dict[str, Any]]:
     """Servers of a scope with their known tools and each tool's policy (for prompts and the window)."""
@@ -529,7 +485,6 @@ def scoped(scope: str, agent: str = "") -> List[Dict[str, Any]]:
                      "description": spec.get("description", "")})
     return rows
 
-
 def split_tool_name(full: str) -> Tuple[str, str]:
     """``mcp_<server>_<tool>`` → (server, tool); the server part is matched against the config (names hold «_»)."""
     rest = full[4:] if full.lower().startswith("mcp_") else full
@@ -539,14 +494,11 @@ def split_tool_name(full: str) -> Tuple[str, str]:
                    if lowered == n.lower() or lowered.startswith(n.lower() + "_")), "")
     return server, rest[len(server):].lstrip("_") if server else ""
 
-
 def _tool_spec(server: str, tool: str) -> Dict[str, Any]:
     return next((t for t in known(server)["tools"] if t.get("name") == tool), {"name": tool})
 
-
 def tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 async def call(server: str, tool: str, args: Dict[str, Any], *, scope: str = "work", agent: str = "",
                confirmed: bool = False, full_access: bool = False, lang: str = "ru") -> Dict[str, Any]:
@@ -563,7 +515,7 @@ async def call(server: str, tool: str, args: Dict[str, Any], *, scope: str = "wo
     tool_row = _tool_spec(server, tool)
     rule = policy(spec, tool_row)
     if rule == "confirm" and full_access and spec.get("confirm") == "write" and tool not in (spec.get("tool_rules") or {}):
-        rule = "allow"      # Work/MemuCode «Full access»: only «always ask» servers and per-tool rules still ask
+        rule = "allow"
     if rule == "deny":
         return {"error": tr(lang, f"Инструмент «{tool}» запрещён настройками сервера «{server}»"
                             + (" (только чтение)" if spec.get("read_only") else ""),
@@ -579,7 +531,6 @@ async def call(server: str, tool: str, args: Dict[str, Any], *, scope: str = "wo
     except Exception as exc:
         return {"error": f"MCP «{server}»: " + mcp_client.redact(mcp_client.error_text(exc, lang), spec)[:400]}
     return value
-
 
 async def check(name: str, lang: str = "ru") -> Dict[str, Any]:
     """«Check the connection»: (re)start, list tools and resources, remember them."""
@@ -600,7 +551,6 @@ async def check(name: str, lang: str = "ru") -> Dict[str, Any]:
     return {"ok": True, "ms": int((time.time() - started) * 1000), "server_info": server.server_info,
             "tools": [{**t, "read_only": is_read_only_tool(t), "policy": policy(spec, t)} for t in server.tools],
             "resources": server.resources[:200], "logs": list(server.logs)[-30:]}
-
 
 def public_rows(lang: str = "ru") -> List[Dict[str, Any]]:
     """Servers for Settings → Integrations → MCP — never a secret value."""
@@ -624,10 +574,6 @@ def public_rows(lang: str = "ru") -> List[Dict[str, Any]]:
                      "timeout": spec.get("timeout"), "logs": list(live.logs)[-40:] if live else []})
     return rows
 
-
-# ---------------------------------------------------------------------------
-# @mcp: mentions (resources)
-# ---------------------------------------------------------------------------
 def _on_loop(coro: Any, timeout: float) -> Any:
     """Mention providers run in a worker thread; servers live on the app's event loop."""
     loop = mcp_client.registry.loop
@@ -635,7 +581,6 @@ def _on_loop(coro: Any, timeout: float) -> Any:
         coro.close()
         raise RuntimeError("MCP is not started yet")
     return asyncio.run_coroutine_threadsafe(coro, loop).result(timeout)
-
 
 def mention_search(query: str, ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
     """``@mcp:`` → servers; ``@mcp:server/`` → its resources (cached list; the server is not started)."""
@@ -661,9 +606,8 @@ def mention_search(query: str, ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
                          "ref": None, "disabled": True, "icon": "panel"})
     return rows[:30]
 
-
 def mention_resolve(ref: Any, ctx: Dict[str, Any]) -> Dict[str, Any]:
-    if isinstance(ref, str) and "/" in ref:          # typed by hand: «@mcp:server/uri»
+    if isinstance(ref, str) and "/" in ref:
         server, _, uri = ref.partition("/")
         ref = {"server": server, "uri": uri}
     if not isinstance(ref, dict) or not ref.get("server") or not ref.get("uri"):
@@ -675,7 +619,6 @@ def mention_resolve(ref: Any, ctx: Dict[str, Any]) -> Dict[str, Any]:
     res = _on_loop(mcp_client.registry.read_resource(server, uri), 60)
     return {"title": f"{server}: {uri}"[:200], "source": f"MCP · {server}", "text": res.get("text") or ""}
 
-
 def register_mentions() -> None:
     from . import mentions
     mentions.register_provider(mentions.Provider(
@@ -684,10 +627,6 @@ def register_mentions() -> None:
         search=mention_search, resolve=mention_resolve, remote=True, order=80, global_search=False,
         available=lambda: bool(mcp_client.load_config()["servers"])))
 
-
-# ---------------------------------------------------------------------------
-# Quick Access (Alt+Space): one tool over the servers marked «Quick Access»
-# ---------------------------------------------------------------------------
 def quick_description(_settings: Any = None) -> str:
     rows = scoped("quick")
     lines = []
@@ -699,7 +638,6 @@ def quick_description(_settings: Any = None) -> str:
         return ""
     return ("{server, tool, args} — a tool of a connected MCP server (only these: " + "; ".join(lines[:40]) + ")")
 
-
 async def quick_handler(args: Dict[str, Any], ctx: Any = None) -> Dict[str, Any]:
     server, tool = str(args.get("server") or ""), str(args.get("tool") or "")
     lang = "en" if isinstance(ctx, dict) and ctx.get("lang") == "en" else "ru"
@@ -709,7 +647,6 @@ async def quick_handler(args: Dict[str, Any], ctx: Any = None) -> Dict[str, Any]
         return {"error": tr(lang, "Этот инструмент требует подтверждения — выполните его из основного чата MemuAI.",
                             "This tool needs approval — run it from the main MemuAI chat.")}
     return result
-
 
 def register_quick() -> None:
     try:

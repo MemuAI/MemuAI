@@ -66,38 +66,31 @@ log = logging.getLogger("memuai.quick.api")
 
 MAX_HISTORY_TURNS = 6
 CLIENT_TOOL_TIMEOUT = 45.0
-#: Hard limit for one backend plugin tool call (:func:`register_tool`). After it the handler's coroutine is
-#: CANCELLED (``asyncio.wait_for``) and the model gets ``{"error": ...}``: long work must finish (or run in
-#: the background and return at once) well within it.
+
 EXTRA_TOOL_TIMEOUT = 60.0
-PAGE_FOR_MODEL = 24000        # chars of a page given to the model per read (Round 32: the token budget leads — quick_page_read.PAGE_TOKENS)
-HEDGE_AFTER = 1.5             # Round 32: s — a slower fetch starts reading the visible text of the tab in parallel
-FETCH_GRACE = 4.0             # Round 32: s — after that a slow site loses to the visible text that is already read
+PAGE_FOR_MODEL = 24000
+HEDGE_AFTER = 1.5
+FETCH_GRACE = 4.0
 _PAGE_WORDS = __import__("re").compile(
     r"(?i)(эт(?:а|у|ой|ом|от|и) (?:страниц|стать|сайт|пост|новост|документ|вкладк)|на странице|тут написан|"
     r"перескаж|кратко(?: изложи)?|суть|главное|о ч[её]м (?:это|она|статья)|this (?:page|article|site|post|tab|doc)|"
     r"summari[sz]e|tl;?dr|key points|what does (?:it|this) say|"
-    # Round 26: «сделай саммари страницы», «резюме статьи», «summary of the page», «что на странице».
+
     r"сам+ари|резюм|суммариз|summary|sum up|(?:страниц|вкладк|стать)[аеиуыё]\b|(?:the|current|open) (?:page|tab|article))")
 _PAGE_EXPLICIT = __import__("re").compile(
     r"(?i)(эт(?:а|у|ой|ом|от|и) (?:страниц|стать|сайт|пост|новост|документ|вкладк)|на (?:этой |открытой )?(?:странице|вкладке)|"
     r"тут написан|this (?:page|article|site|post|tab)|(?:the|current|open) (?:page|tab|article))")
 _PAGE_NOUN = __import__("re").compile(r"(?i)(страниц|вкладк|стать[еиюяё]|\b(?:page|article|tab|webpage)\b)")
 
-# ---------------------------------------------------------------- extension contract
-
-#: name → {"description": str, "handler": async (args, ctx) -> dict, "label": str | (args, lang) -> str,
-#:         "enabled": (settings) -> bool}
 EXTRA_TOOLS: Dict[str, Dict[str, Any]] = {}
-#: FastAPI routers of plugins (included by :func:`register`, or immediately if the app already exists).
+
 EXTRA_ROUTES: List[Any] = []
 _APP: Dict[str, Any] = {}
 _CLIENT_CALLS: Dict[str, "asyncio.Future[Any]"] = {}
-#: call id → tool name of every page tool call that is waiting for its result (issued by ``ask_events``).
+
 _CLIENT_CALL_TOOLS: Dict[str, str] = {}
 _CALL_ID_RE = __import__("re").compile(r"^[0-9a-f]{16}$")
 _RESERVED_TOOLS = set(core.QUICK_TOOLS) | set(core.PAGE_TOOLS) | {core.ESCALATE_TOOL}
-
 
 def register_tool(name: str, description: str, handler: Callable[..., Awaitable[Any]], *,
                   label: Any = None, enabled: Optional[Callable[[Dict[str, Any]], bool]] = None) -> None:
@@ -115,7 +108,6 @@ def register_tool(name: str, description: str, handler: Callable[..., Awaitable[
                         "handler": handler,
                         "label": label, "enabled": enabled}
 
-
 def register_router(router: Any) -> None:
     """Add a plugin router; mounted before the static files even after :func:`register` ran."""
     if router in EXTRA_ROUTES:
@@ -125,10 +117,8 @@ def register_router(router: Any) -> None:
     if app is not None:
         _include(app, router)
 
-
 def _include(app: Any, router: Any) -> None:
-    # Round 27: once per app — a backend plugin imported by register() (load_backend_plugins) registers its router
-    # while _APP["app"] is already set, and register() then included EXTRA_ROUTES again: every route was doubled.
+
     included = getattr(app.state, "quick_plugin_routers", None)
     if included is None:
         included = app.state.quick_plugin_routers = set()
@@ -139,12 +129,11 @@ def _include(app: Any, router: Any) -> None:
     app.include_router(router)
     added = app.router.routes[before:]
     del app.router.routes[before:]
-    # Starlette matches in order: a catch-all static Mount("/") would shadow late routes.
+
     position = next((i for i, route in enumerate(app.router.routes)
                      if type(route).__name__ == "Mount" and getattr(route, "path", None) in ("", "/")),
                     len(app.router.routes))
     app.router.routes[position:position] = added
-
 
 def _seconds(value: Any, default: float, low: float, high: float) -> float:
     """A duration from a request body: junk/NaN/inf → ``default``, then clamped to ``[low, high]``."""
@@ -156,11 +145,10 @@ def _seconds(value: Any, default: float, low: float, high: float) -> float:
         seconds = default
     return max(low, min(high, seconds))
 
-
 def plugin_manifest() -> Dict[str, Any]:
     """``pgstatic/quick/plugins/index.json`` (``{"plugins": [...]}``), tolerant of a missing/broken file."""
     from .safe_mode import is_safe_mode
-    if is_safe_mode():  # Round 29: no Quick Ask plugin (page or backend half) in safe mode
+    if is_safe_mode():
         return {"version": 1, "plugins": []}
     path = Path(__file__).resolve().parent / "pgstatic" / "quick" / "plugins" / "index.json"
     try:
@@ -176,7 +164,6 @@ def plugin_manifest() -> Dict[str, Any]:
             out.append(row)
     return {"version": 1, "plugins": out}
 
-
 def load_backend_plugins() -> List[str]:
     """Import the ``"backend"`` modules named in the plugin manifest (each registers itself)."""
     import importlib
@@ -188,10 +175,9 @@ def load_backend_plugins() -> List[str]:
         try:
             importlib.import_module(name)
             loaded.append(name)
-        except Exception as exc:          # a broken plugin never breaks Quick Ask
+        except Exception as exc:
             log.warning("quick ask plugin %s failed to load: %s", name, exc)
     return loaded
-
 
 def extra_tool_lines(settings: Dict[str, Any], client_tools: Any = None) -> List[str]:
     lines = []
@@ -217,7 +203,6 @@ def extra_tool_lines(settings: Dict[str, Any], client_tools: Any = None) -> List
             lines.append(f"{name} {str(row.get('description') or '').strip()[:400]}".strip())
     return lines
 
-
 def client_tool_names(client_tools: Any) -> List[str]:
     out = []
     for row in client_tools if isinstance(client_tools, list) else []:
@@ -226,7 +211,6 @@ def client_tool_names(client_tools: Any) -> List[str]:
             if name and name not in _RESERVED_TOOLS and name not in EXTRA_TOOLS:
                 out.append(name)
     return out[:24]
-
 
 def resolve_client_tool(call_id: str, result: Any, tool: Optional[str] = None) -> bool:
     """Deliver a page tool result — only to a call this server issued and is still waiting for.
@@ -249,13 +233,9 @@ def resolve_client_tool(call_id: str, result: Any, tool: Optional[str] = None) -
         return False
     return True
 
-
-# ---------------------------------------------------------------- Quick Ask chats (own storage, per profile)
-
 def _chats_file(profile_id: Optional[str] = None) -> Path:
     from .pgdata import MEMU_DIR, _profile_data_name
     return Path(MEMU_DIR) / _profile_data_name("quick_chats.json", profile_id)
-
 
 def load_quick_chats(profile_id: Optional[str] = None) -> List[Dict[str, Any]]:
     from .storage import load_json_with_recovery
@@ -264,7 +244,6 @@ def load_quick_chats(profile_id: Optional[str] = None) -> List[Dict[str, Any]]:
     except (OSError, ValueError):
         return []
     return [row for row in rows if isinstance(row, dict) and row.get("id")][: core.CHATS_LIMIT]
-
 
 def mutate_quick_chats(mutator: Callable[[List[Dict[str, Any]]], List[Dict[str, Any]]],
                        profile_id: Optional[str] = None) -> List[Dict[str, Any]]:
@@ -277,12 +256,10 @@ def mutate_quick_chats(mutator: Callable[[List[Dict[str, Any]]], List[Dict[str, 
         return True, mutator(rows)[: core.CHATS_LIMIT]
     return mutate_json(path, [], apply, backup=False, validator=lambda v: isinstance(v, list), repair_invalid=True)
 MAX_TEXT = 24000
-# Round 27: the selected text / attached file. It was cut to its first 8000 characters, so a dropped text file
-# (up to 400 KB since Round 24) or a document lost everything after page ~3 without a word; now head + tail.
+
 MAX_SELECTION = 60000
 MAX_IMAGES = 4
 MAX_IMAGE_CHARS = 14_000_000
-
 
 def clip_middle(text: str, limit: int = MAX_TEXT) -> str:
     """``text`` cut to ``limit`` characters in the MIDDLE (Round 26, review): a long pasted log/article with the question
@@ -294,15 +271,12 @@ def clip_middle(text: str, limit: int = MAX_TEXT) -> str:
     head = (limit - len(marker)) * 2 // 3
     return text[:head] + marker + text[len(text) - (limit - len(marker) - head):]
 
-
 def _sse(payload: Dict[str, Any]) -> str:
     return "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
-
 
 def _history_file() -> Path:
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR) / "quick_history.json"
-
 
 def load_history() -> List[Dict[str, Any]]:
     try:
@@ -311,19 +285,15 @@ def load_history() -> List[Dict[str, Any]]:
     except (OSError, ValueError):
         return []
 
-
 def save_history(rows: List[Dict[str, Any]]) -> None:
     from .storage import save_json
     save_json(str(_history_file()), rows[: core.HISTORY_LIMIT], backup=False)
-
 
 def _ui_file() -> Path:
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR) / "quick_ui.json"
 
-
 UI_DEFAULTS: Dict[str, Any] = {"onboarded": False}
-
 
 def load_ui_state() -> Dict[str, Any]:
     """Window-only flags (the first-open tip). Not in preferences: the main window saves whole snapshots."""
@@ -334,7 +304,6 @@ def load_ui_state() -> Dict[str, Any]:
     data = data if isinstance(data, dict) else {}
     return {"onboarded": bool(data.get("onboarded", UI_DEFAULTS["onboarded"])), "efforts": _clean_efforts(data.get("efforts"))}
 
-
 def _clean_efforts(value: Any) -> Dict[str, str]:
     """Round 34: the reasoning level picked per model in the window ({model id: level}, at most 80)."""
     out: Dict[str, str] = {}
@@ -344,7 +313,6 @@ def _clean_efforts(value: Any) -> Dict[str, str]:
             out[model] = level
     return dict(list(out.items())[-80:])
 
-
 def save_ui_state(patch: Dict[str, Any]) -> Dict[str, Any]:
     state = load_ui_state()
     if "onboarded" in patch:
@@ -352,7 +320,7 @@ def save_ui_state(patch: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(patch.get("effort"), dict) and patch["effort"].get("model"):
         efforts = dict(state.get("efforts") or {})
         model = str(patch["effort"]["model"]).strip()[:300]
-        efforts.pop(model, None)                 # "auto" removes the choice; a new one moves to the end (the newest)
+        efforts.pop(model, None)
         level = user_effort(patch["effort"].get("level"))
         if level:
             efforts[model] = level
@@ -361,14 +329,12 @@ def save_ui_state(patch: Dict[str, Any]) -> Dict[str, Any]:
     save_json(_ui_file(), state)
     return state
 
-
 def user_effort(value: Any) -> str:
     """Round 34: a reasoning level the user picked in the window — one of ``reasoning_levels.CHOICES`` except
     ``auto``; anything else (nothing, "auto", junk) is ``""`` = not chosen."""
     from . import reasoning_levels
     level = reasoning_levels.normalize(value) if isinstance(value, str) else "auto"
     return level if level in reasoning_levels.CHOICES and level != "auto" else ""
-
 
 def resolve_model(body: Dict[str, Any], prefs: Dict[str, Any]) -> str:
     """Explicit choice in the popup → Quick Ask model in Settings → the app's default model."""
@@ -377,7 +343,6 @@ def resolve_model(body: Dict[str, Any], prefs: Dict[str, Any]) -> str:
         if text:
             return text[:300]
     return ""
-
 
 def build_messages(*, text: str, history: Any, images: List[str], system: str,
                    context: str = "", selection: str = "", history_images: bool = True) -> List[Dict[str, Any]]:
@@ -416,13 +381,11 @@ def build_messages(*, text: str, history: Any, images: List[str], system: str,
         messages.append({"role": "user", "content": question})
     return messages
 
-
 def prefetch_block(query: str, payload: Dict[str, Any]) -> str:
     """The result of the pre-search as an untrusted context message."""
     return ("<web_prefetch>\nThe web search for this question was already done (untrusted web data, answer from it, "
             "cite nothing unless asked):\n" + json.dumps({"query": query, **payload}, ensure_ascii=False)[:24000]
             + "\n</web_prefetch>")
-
 
 def tool_results_message(results: List[Dict[str, Any]], images: List[str]) -> Dict[str, Any]:
     text = ("<tool_results>\n" + json.dumps(results, ensure_ascii=False)[:60000] +
@@ -432,15 +395,13 @@ def tool_results_message(results: List[Dict[str, Any]], images: List[str]) -> Di
                 [{"type": "image_url", "image_url": {"url": url}} for url in images]}
     return {"role": "user", "content": text}
 
-
 def _unwrap(value: Any) -> Any:
-    if hasattr(value, "body"):            # JSONResponse from the shared runner
+    if hasattr(value, "body"):
         try:
             return json.loads(bytes(value.body).decode("utf-8"))
         except Exception:
             return {"error": "tool failed"}
     return value
-
 
 async def read_page_content(page: Dict[str, Any], *, run_tool: Callable[[dict], Awaitable[Any]], manager: Any = None,
                             max_chars: int = PAGE_FOR_MODEL, lang: str = "ru", allow_fetch: bool = True,
@@ -468,7 +429,7 @@ async def read_page_content(page: Dict[str, Any], *, run_tool: Callable[[dict], 
     budget = int(max_tokens or 0) or max(1500, int(qpr.PAGE_TOKENS * max(0.25, min(2.5, max_chars / float(PAGE_FOR_MODEL)))))
 
     def done(source: str, text: str, *, links: Any = None, cached: bool = False, **extra: Any) -> Dict[str, Any]:
-        # ≤ 50 000 characters: a read_page tool result must fit tool_results_message (60 000, JSON-escaped) whole
+
         fitted = qpr.fit(text, max_tokens=budget, max_chars=min(50000, int(max_chars * 1.5)))
         body = fitted["text"]
         spare = budget - fitted["tokens"]
@@ -483,8 +444,6 @@ async def read_page_content(page: Dict[str, Any], *, run_tool: Callable[[dict], 
     def mismatch(doc: Dict[str, Any]) -> str:
         return qb.page_mismatch(title, {"title": doc.get("title"), "text": doc.get("text")})
 
-    # Read the authenticated page the user actually sees, including logged-in
-    # content and JS apps. Keep the existing HTTP/UIA route as fallback.
     if page.get("extension_tab_id") is not None:
         try:
             from .browser_extension import run_tool as extension_tool
@@ -533,11 +492,11 @@ async def read_page_content(page: Dict[str, Any], *, run_tool: Callable[[dict], 
             await asyncio.wait_for(asyncio.shield(fetch_task), HEDGE_AFTER)
         except asyncio.TimeoutError:
             if manager is not None and page.get("id"):
-                screen_task = asyncio.ensure_future(read_screen())     # hedge: the slow site may not answer at all
+                screen_task = asyncio.ensure_future(read_screen())
         except Exception:
             pass
         if screen_task is not None and not fetch_task.done():
-            # the screen text came first: give the fetch a short grace, then answer from what the user sees
+
             await asyncio.wait({fetch_task, screen_task}, return_when=asyncio.FIRST_COMPLETED)
             if screen_task.done() and not fetch_task.done():
                 seen = screen_task.result() or ""
@@ -575,23 +534,21 @@ async def read_page_content(page: Dict[str, Any], *, run_tool: Callable[[dict], 
     text = await (screen_task if screen_task is not None else read_screen())
     if str(text or "").strip():
         note = "The visible text of the user's tab, read from the screen (UI Automation)."
-        # not cached: the visible text of a personal / dynamic page (mail, a dashboard) changes under the same URL
+
         return done("screen", text, reason=reason, note=note)
     if doc and str(doc.get("text") or "").strip():
-        # Not what the user sees, but better than nothing — say so.
+
         return done("fetch", doc["text"], final_url=str(fetched.get("url") or url), doc_title=doc.get("title") or "",
                     reason=reason, warning="This may differ from what the user sees (" + reason + ").")
     return {"tool": "read_page", "url": url, "title": title, "reason": reason,
             "ms": int((time.monotonic() - started) * 1000),
             "error": "The page could not be read." + (" " + str(fetched.get("error")) if fetched.get("error") else "")}
 
-
 def page_event(content: Dict[str, Any]) -> Dict[str, Any]:
     """The ``page`` SSE event: what was read and how long it took (Round 32: ms, tokens, truncated, cached)."""
     return {"event": "page", "source": content.get("source"), "title": content.get("title"), "url": content.get("url"),
             "chars": content.get("chars"), "reason": content.get("reason") or "", "ms": content.get("ms"),
             "tokens": content.get("tokens"), "truncated": bool(content.get("truncated")), "cached": bool(content.get("cached"))}
-
 
 def page_status(content: Dict[str, Any], lang: str = "ru") -> str:
     """«Страница прочитана за 0,4 с · ~3 200 токенов — думаю…» (an honest progress line while the model works)."""
@@ -615,7 +572,6 @@ def page_status(content: Dict[str, Any], lang: str = "ru") -> str:
     cut = (" (long — shortened)" if en else " (длинная — сокращена)") if content.get("truncated") else ""
     return head + secs + size + cut + (" — thinking…" if en else " — думаю…")
 
-
 def page_for_url(url: str) -> Optional[Dict[str, Any]]:
     """Round 32: a ``web_fetch`` of the model for the tab it already read → the cached page (no second fetch)."""
     from . import quick_page_read as qpr
@@ -626,13 +582,10 @@ def page_for_url(url: str) -> Optional[Dict[str, Any]]:
     return {"tool": "web_fetch", "url": hit.get("url") or url, "title": hit.get("title") or "", "text": fitted["text"],
             "chars": fitted["chars"], "truncated": fitted["truncated"], "cached": True}
 
-
-#: The tool result when the user asks about «the page» but no browser tab is open (Round 26).
 NO_PAGE_NOTE = ("No browser tab is open (or the browser window is minimized), so the page cannot be read. The clipboard "
                 "is NOT the page. Tell the user you could not find an open browser page and ask them to open it.")
-#: assistant_action actions that fall back to the clipboard when their text is empty.
-_CLIPBOARD_ACTIONS = {"text.summarize", "text.translate"}
 
+_CLIPBOARD_ACTIONS = {"text.summarize", "text.translate"}
 
 def _clipboard_text_action(name: str, args: Any) -> bool:
     """An ``assistant_action`` call that would process the clipboard (no text, or just «the page»)."""
@@ -643,7 +596,6 @@ def _clipboard_text_action(name: str, args: Any) -> bool:
     params = args.get("params") if isinstance(args.get("params"), dict) else args
     text = str(params.get("text") or "").strip()
     return len(text) < 80 and not text.lower().startswith(("http://", "https://"))
-
 
 def page_block(content: Dict[str, Any]) -> str:
     """Round 32: the page as plain Markdown under a few header lines. Before: a JSON dump cut at 26 000 characters —
@@ -661,11 +613,9 @@ def page_block(content: Dict[str, Any]) -> str:
     text = str(content.get("text") or "").replace("</page_content", "</page-content")
     return "<page_content>\n" + "\n".join(head) + ("\n---\n" + text if text else "") + "\n</page_content>"
 
-
 def wants_page(text: str) -> bool:
     """A question that is obviously about the open tab (pre-read it instead of waiting for a tool round)."""
     return bool(_PAGE_WORDS.search(str(text or "")))
-
 
 def names_page(text: str) -> bool:
     """The question itself points at a browser page («перескажи эту страницу», «саммари статьи», «summarize the tab»).
@@ -676,11 +626,9 @@ def names_page(text: str) -> bool:
     text = str(text or "")
     return bool(_PAGE_EXPLICIT.search(text) or (wants_page(text) and _PAGE_NOUN.search(text)))
 
-
 def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callable[[dict], Awaitable[Any]],
              rich_search: Callable[..., Awaitable[dict]], rich_payload: Callable[[dict], dict]) -> None:
-    # ``Request`` is imported at module level: with postponed annotations
-    # FastAPI resolves the parameter type from this module's globals.
+
     from fastapi.responses import JSONResponse, StreamingResponse
 
     _APP["app"] = app
@@ -699,7 +647,7 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
                                            "language", "ui_motion", "font_scale", "default_model", "model_aliases",
                                            "hidden_models", "pinned_models", "profile_name", "app_font",
                                            "web_search_mode", "enter_send",
-                                           # Round 30: «Внешний вид» extras the window applies too (quick.js applyAppearance)
+
                                            "ui_radius", "ui_glass", "ui_contrast", "ui_density", "ui_motion_speed"]
         keys += [key for key in core.PREF_DEFAULTS if key not in keys]
         manager_ = manager()
@@ -713,7 +661,6 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
                 "plugins": plugin_manifest()["plugins"], "endpoint": endpoint.public_config(data),
                 "ui": load_ui_state()}
 
-    # ------------------------------------------------ Round 23: window-only state + the model source
     @app.get("/api/quick/ui")
     async def quick_ui():
         return load_ui_state()
@@ -795,9 +742,7 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
         text = str(body.get("hotkey") or "")
         lang = "en" if body.get("lang") == "en" else "ru"
         manager_ = manager()
-        # Round 22: the capture field releases our own hotkey while it listens
-        # (else pressing it there opens Quick Ask) and asks the native side to
-        # watch the keyboard, because WebView2 never sees Alt+Space.
+
         if action == "suspend":
             return await asyncio.to_thread(manager_.suspend_hotkey,
                                          _seconds(body.get("seconds"), 20.0, 1.0, 60.0)) if manager_ \
@@ -827,7 +772,7 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
         except core.HotkeyError as exc:
             return {"ok": False, "code": exc.code, "error": str(exc), "hotkey": text}
         out: Dict[str, Any] = {"ok": True, "hotkey": canonical, "warnings": core.hotkey_warnings(canonical, lang)}
-        # Round 27 (review): one of MemuAI's own other global hotkeys (a screen region, the clipboard history, a command)
+
         from .quick_features import hotkey_owner
         owner = await asyncio.to_thread(hotkey_owner, canonical, lang, skip="quick") if action != "probe_alternatives" else ""
         if owner:
@@ -878,7 +823,7 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
         if action == "hide":
             return {"ok": await asyncio.to_thread(manager_.hide, body.get("restore_focus", True) is not False)}
         if action == "close_slow":
-            # Round 38: the page measured a slow Escape (window still on screen after the fade) — into the app log
+
             from .quick_ask import slow_close_report
             try:
                 ms = max(0.0, min(600000.0, float(body.get("ms") or 0)))
@@ -889,7 +834,7 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
             return {"ok": True, "logged": bool(line)}
         if action == "blur":
             return {"ok": await asyncio.to_thread(manager_.blur)}
-        # Round 25: the user went to another program / came back. Unpinned → behind that program, still open.
+
         if action == "inactive":
             return {"ok": True, "lowered": await asyncio.to_thread(manager_.step_back)}
         if action == "active":
@@ -914,7 +859,7 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
             return {"ok": await asyncio.to_thread(manager_.copy_text, str(body.get("text") or "")[:200000])}
         if action == "insert":
             return {"ok": await asyncio.to_thread(manager_.insert_text, str(body.get("text") or "")[:200000])}
-        if action == "replace_selection":    # Round 27: the answer over the captured selection (quick_selection.replace)
+        if action == "replace_selection":
             return await asyncio.to_thread(quick_selection.replace, manager_, str(body.get("text") or "")[:200000],
                                            str(body.get("selection_id") or ""))
         if action == "handoff":
@@ -942,7 +887,7 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
         tool = body.get("tool")
         ok = resolve_client_tool(str(body.get("id") or ""), body.get("result"),
                                  str(tool) if isinstance(tool, str) and tool else None)
-        if not ok:   # #12: only results for a pending call this server issued are accepted
+        if not ok:
             return JSONResponse({"ok": False, "error": "unknown or finished tool call"}, 404)
         return {"ok": True}
 
@@ -958,7 +903,6 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
                    for row in (data.get("voice_live_personality_presets") or []) if isinstance(row, dict) and row.get("id")]
         return {"builtin": builtin, "presets": presets, "selected": data.get("quick_ask_personality") or ""}
 
-    # ---- Quick Ask chats: their own storage per profile, never in the main chat list
     @app.get("/api/quick/chats")
     async def quick_chats(q: str = "", limit: int = 60):
         rows = await asyncio.to_thread(load_quick_chats)
@@ -1074,13 +1018,12 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
         from . import quick_ask_endpoint as endpoint
         raw_settings = prefs()
         custom = endpoint.active(raw_settings)
-        # Round 23: with the user's own endpoint its models stand in for the Proxy ones (model_settings).
+
         settings = dict(endpoint.model_settings(raw_settings))
         if body.get("web") is False:
-            # The globe toggle in the popup turns the web off for this question.
+
             settings["quick_ask_web_search"] = False
-        # Round 34 (r34-quick-core): the reasoning level picked in the window (model picker → «Размышления»);
-        # "auto" / nothing = as before (low for brief answers of the fast model, the model's own default otherwise).
+
         settings["_quick_effort"] = user_effort(body.get("effort"))
         text = clip_middle(str(body.get("text") or "").strip())
         images = [str(url) for url in (body.get("images") or []) if isinstance(url, str)
@@ -1092,8 +1035,7 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
         caps = body.get("caps") if isinstance(body.get("caps"), dict) else {}
         caps_adv = body.get("caps_advanced") if isinstance(body.get("caps_advanced"), dict) else {}
         lang = "en" if (body.get("lang") or settings.get("language")) == "en" else "ru"
-        # Round 27: an action on the selected text — the page sends only its label; app/quick_selection.py builds
-        # the instruction and the per-action overrides (no length cap for rewrites, no web for transforms).
+
         sel_action = quick_selection.resolve_action(body.get("selection_action"), raw_settings, lang=lang,
                                                     selection=selection)
         if sel_action:
@@ -1101,20 +1043,20 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
                 return JSONResponse({"error": sel_action["error"]}, 400)
             text, selection = clip_middle(sel_action["text"]), sel_action["selection"]
             settings.update(sel_action["settings"])
-        try:   # Round 29: the program Quick Ask was opened over (an Explorer folder, an editor file, an Office document)
-            explorer = __import__("sys").modules.get(__package__ + ".quick_explorer")   # loaded as a plugin (not in safe mode)
-            if explorer is not None:   # Round 30: in a thread — it may await a context still being read (≤ 3 s)
+        try:
+            explorer = __import__("sys").modules.get(__package__ + ".quick_explorer")
+            if explorer is not None:
                 settings.update(await asyncio.to_thread(explorer.request_settings, body, lang))
         except Exception as exc:
             log.debug("quick ask: app context failed: %s", exc)
-        try:   # Round 35 (bigdocs): a big document of the strip — fragments with pages, or the whole-document result
+        try:
             from . import bigdocs as _bigdocs
             doc_block = await asyncio.to_thread(_bigdocs.quick_context, body, text, lang)
             if doc_block:
                 settings["_quick_context"] = "\n\n".join(part for part in (settings.get("_quick_context"), doc_block) if part)
         except Exception as exc:
             log.debug("quick ask: big document context failed: %s", exc)
-        try:   # Round 35 (mentions): @-mentions of the composer (quick/plugins/mentions.js) → <mentioned_context>
+        try:
             from . import mentions as _mentions
             mention_block = await _mentions.quick_context(body, lang)
             if mention_block:
@@ -1122,15 +1064,14 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
         except Exception as exc:
             log.debug("quick ask: mentions context failed: %s", exc)
         if custom:
-            # No Proxy-side web search with a foreign endpoint: the pre-search and the web tools still work.
+
             caps = dict(caps, search=False)
             caps_adv = dict(caps_adv, search=False)
         plan = plan_route(body, settings, text=text, selection=selection, images=images, caps=caps, caps_adv=caps_adv)
         manager_ = manager()
         page = None
         client_page = body.get("page") if isinstance(body.get("page"), dict) else None
-        # A generic «кратко / summarize» is about the page only when the page chip is on and no text is selected
-        # (the selection's own «Кратко» action); otherwise the question has to name the page (names_page).
+
         about_page = bool(body.get("read_page") or (wants_page(text) if client_page and not selection else names_page(text)))
         browser_on = bool(settings.get("quick_ask_browser", True))
         if client_page and browser_on:
@@ -1140,8 +1081,7 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
             else:
                 page = core.public_page(client_page)
         if browser_on and (client_page or about_page) and callable(getattr(manager_, "current_page", None)):
-            # Round 26: «summarize the page» summarized an old tab (the page remembered at the hotkey, a pinned
-            # window, a restored chat) — the tab the user is on NOW decides; none open → the model says so.
+
             try:
                 page = core.public_page(await asyncio.wait_for(asyncio.to_thread(manager_.current_page), 4))
             except Exception as exc:
@@ -1176,7 +1116,6 @@ def register(app, *, stream_lines: Callable[[str, bytes], Any], run_tool: Callab
     for router in list(EXTRA_ROUTES):
         _include(app, router)
 
-
 def plan_route(body: Dict[str, Any], settings: Dict[str, Any], *, text: str, selection: str, images: List[str],
                caps: Dict[str, Any], caps_adv: Dict[str, Any]) -> Dict[str, Any]:
     """Fast or advanced model for this question (heuristic + the user's mode + a forced re-run)."""
@@ -1187,7 +1126,7 @@ def plan_route(body: Dict[str, Any], settings: Dict[str, Any], *, text: str, sel
     mode = str(body.get("tier") or settings.get("quick_ask_routing") or "auto")
     mode = mode if mode in core.ROUTING else "auto"
     if body.get("model_explicit") and mode == "auto":
-        mode = "fast"            # a model picked in the window is used as is
+        mode = "fast"
     history = body.get("history") if isinstance(body.get("history"), list) else []
     tier, reason = core.route(text, selection=selection, images=len(images), page=bool(body.get("page")),
                               history_turns=len(history) // 2, mode=mode, has_advanced=bool(advanced))
@@ -1201,7 +1140,6 @@ def plan_route(body: Dict[str, Any], settings: Dict[str, Any], *, text: str, sel
     return {"model": model, "tier": tier, "reason": reason, "advanced": advanced, "vision": vision,
             "native_search": native, "can_escalate": can_escalate, "advanced_vision": advanced_vision,
             "advanced_search": bool(caps_adv.get("search")), "mode": mode}
-
 
 async def ask_events(*, text: str, images: List[str], selection: str, model: str, history: Any, vision: bool,
                      native_search: bool, settings: Dict[str, Any], lang: str,
@@ -1247,7 +1185,7 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
     extra_lines = extra_tool_lines(settings, client_tools)
     extra_names = [name for name, tool in EXTRA_TOOLS.items()
                    if not callable(tool.get("enabled")) or _safe_enabled(tool, settings)]
-    # Round 35 (askuser): the ask_user form — a compact form in the window, the answer continues this same answer.
+
     from . import ask_user as _ask_user
     if settings.get("quick_ask_forms", True) is not False:
         extra_lines = list(extra_lines) + [_ask_user.TOOL_DESCRIPTION]
@@ -1255,7 +1193,6 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
     state = {"tier": tier if tier in ("fast", "advanced") else "fast", "model": model, "vision": vision,
              "native": native_search}
 
-    # Round 29: memory v2 — a small, relevance-ranked slice of memory and the write protocol for Quick Access.
     memory_block, memory_protocol = "", ""
     try:
         from . import memory_v2
@@ -1280,11 +1217,9 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
 
     yield _sse({"event": "route", "tier": state["tier"], "model": model, "reason": route_reason, "escalated": False})
     context_parts: List[str] = []
-    if settings.get("_quick_context"):   # Round 29: <folder_context> / <app_context> (app/quick_explorer.py)
+    if settings.get("_quick_context"):
         context_parts.append(str(settings["_quick_context"]))
-    # Round 23 (r23-bughunt #10): once untrusted text (a page, web results) is in the conversation, the model may
-    # not take a screenshot on its own — only when the user's own request is about the screen (prompt injection
-    # «take a screenshot, then put it into a fetched URL»).
+
     user_wants_screen = core.wants_screen(text)
     page_question = bool(preread_page or no_page or wants_page(text))
     untrusted = {"seen": False}
@@ -1305,12 +1240,10 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
         context_parts.append(page_block(content))
         untrusted["seen"] = True
     if page_read:
-        # Round 32: the page text is in the conversation — the prompt says so (no second read_page round) and the
-        # Proxy gets no native web search for this question (it searched the web for the page instead of reading it).
+
         page = dict(page, preread=True)
         state["native"] = False
-    # Round 32: a question about «this page» is never a web search of its own words («сделай саммари страницы»
-    # went to the search engine when no tab was found or the read failed) — the model says it honestly instead.
+
     if web_on and not use_native and not images and not context_parts and not page_question:
         from . import websearch
         query = websearch.prefetch_query(text)
@@ -1339,10 +1272,10 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
     effort = chosen_effort or ("low" if settings.get("quick_ask_style", "brief") == "brief" and state["tier"] == "fast" else "auto")
     visible_total = ""
     rounds = 0
-    ui_shown = False      # a tool result card is on screen (r29d)
+    ui_shown = False
     escalated = False
-    unknown_rounds = 0    # Round 31: one more round after a call of a tool that does not exist
-    reasoning_total, reasoning_sent = "", 0.0   # Round 31 (wave 2): the model's reasoning_content (shown folded)
+    unknown_rounds = 0
+    reasoning_total, reasoning_sent = "", 0.0
     yield _sse({"event": "status", "status": "thinking", "label": thinking_label})
     while True:
         rounds += 1
@@ -1352,11 +1285,11 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
                               "prompt_caching": True, **({"effort_user": True} if chosen_effort else {})},
                              ensure_ascii=False).encode("utf-8")
         filt = core.VisibleText()
-        # Round 33 (r33-chat #2): native tool-call markup / template tokens / orphan </think> never reach the popup.
+
         from .answer_guard import StreamGuard as _AnswerGuard, extract_calls as _foreign_calls
         guard = _AnswerGuard()
         from .memory_v2 import StreamFilter as _MemoryFilter
-        memory_filter = _MemoryFilter()   # Round 29: the memory block never reaches the popup
+        memory_filter = _MemoryFilter()
         failure = ""
         try:
             async for line in stream_lines("/api/admin/playground/chat", payload):
@@ -1382,12 +1315,10 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
                     continue
                 delta = (((item.get("choices") or [{}])[0]).get("delta") or {})
                 if delta.get("reasoning_content"):
-                    # Round 31 (wave 2): the window showed only «Размышляю…» for the whole reasoning (nemotron & co.
-                    # think for many seconds) and one SSE event per reasoning token. Now a throttled preview of the
-                    # latest reasoning line, and the whole reasoning comes with «done» (a folded «Ход мысли»).
+
                     reasoning_total += str(delta.get("reasoning_content"))
                     now_r = time.monotonic()
-                    # The first piece always shows «Размышляю…» at once (even a short one); later ones are throttled.
+
                     if not reasoning_sent or (now_r - reasoning_sent >= 0.35 and len(reasoning_total) >= 12):
                         reasoning_sent = now_r
                         yield _sse({"event": "status", "status": "reasoning",
@@ -1403,9 +1334,7 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
             failure = str(exc) or type(exc).__name__
         if failure:
             if ui_shown and not visible_total.strip() and _EMPTY_STREAM_RE.search(failure):
-                # r29d: a tool already showed its result card (a file change applied in Full access, a preview) and
-                # the model then ended its follow-up with an empty stream (deepseek-flash does it often). That is not
-                # «Не получилось … Повторить» — repeating would redo the action. Point at the card instead.
+
                 visible_total = ("The result is in the card below." if en else "Результат — в карточке ниже.")
                 yield _sse({"event": "delta", "text": visible_total})
                 break
@@ -1414,7 +1343,7 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
             return
         tail = memory_filter.feed(guard.feed(filt.finish()) + guard.finish()) + memory_filter.finish()
         if guard.diverged:
-            # Round 33: an orphan </think> arrived — the text shown so far was the model's reasoning.
+
             from .memory_v2 import strip_markers as _strip_memory
             tail = _strip_memory(guard.final(), partial=False).strip()
             if visible_total:
@@ -1426,8 +1355,7 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
         _visible, calls, errors = core.parse_tool_calls(filt.raw)
         bare = filt.raw.strip()
         if not calls and not errors and re.match(r'^\[?\s*\{\s*"tool"\s*:', bare) and bare.endswith(("}", "]")):
-            # Round 30: weaker models (nemotron, gemma) sometimes write the tool block without its ```memuai-tool fence —
-            # the user got raw JSON instead of the folder sorted. A whole answer that IS a tool call counts as one.
+
             _visible, calls, errors = core.parse_tool_calls("```memuai-tool\n" + bare + "\n```")
         allowed = set(core.QUICK_TOOLS) | set(extra_names) | set(client_names)
         if page:
@@ -1435,12 +1363,11 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
         if advanced_model and state["tier"] == "fast" and not escalated:
             allowed.add(core.ESCALATE_TOOL)
         if not calls and not errors:
-            # Round 33 (r33-chat #2): the model wrote its native call syntax (<tool_call>{…}</tool_call>, GLM, Kimi,
-            # DSML …) as text: it runs like a memuai-tool call instead of being shown or dropped.
+
             calls = _foreign_calls(filt.raw)[1]
         escalate = next((call for call in calls if call["tool"] == core.ESCALATE_TOOL), None)
         if escalate and core.ESCALATE_TOOL in allowed:
-            # The fast model decided this needs the advanced one: restart on it.
+
             escalated = True
             if visible_total:
                 visible_total = ""
@@ -1455,9 +1382,7 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
             messages[0] = {"role": "system", "content": system_for()}
             effort = chosen_effort or "auto"
             continue
-        # Round 31 (r31-quick): a model often names the ACTION as the tool — ```memuai-tool [{"tool": "computer.use",
-        # "args": {"task": …}}]``` instead of assistant_action {action, params}. The call was dropped silently, the
-        # visible text (only the tool block) was empty and the window showed nothing although Proxy had answered.
+
         calls = [_alias_tool_call(call, allowed) for call in calls]
         unknown = [call["tool"] for call in calls if call["tool"] not in allowed and call["tool"] != core.ESCALATE_TOOL]
         calls = [call for call in calls if call["tool"] in allowed and call["tool"] != core.ESCALATE_TOOL]
@@ -1493,7 +1418,7 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
         for call in calls:
             name, args = call["tool"], call["args"]
             if name == _ask_user.TOOL_NAME:
-                # Round 35 (askuser): show the form, wait for «Готово» / «Пропустить» (or Esc / closed window).
+
                 try:
                     form = _ask_user.normalize_form(args)
                 except _ask_user.FormError as exc:
@@ -1532,7 +1457,7 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
                     continue
                 cached_page = page_for_url(str((args or {}).get("url") or "")) if name == "web_fetch" and page else None
                 if cached_page is not None:
-                    results.append(cached_page)      # Round 32: the tab it already read — no second fetch
+                    results.append(cached_page)
                     untrusted["seen"] = True
                     continue
                 value = _unwrap(await run_tool({"tool": name, "args": args, "allow_web": True, "lang": lang,
@@ -1576,8 +1501,7 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
                 results.append(content)
                 untrusted["seen"] = True
             elif page_question and _clipboard_text_action(name, args):
-                # Round 26: «сделай саммари страницы» → assistant_action text.summarize with no text summarized
-                # the CLIPBOARD (someone else's text) instead of the tab. The page is the tab, or nothing.
+
                 if read_page:
                     content = await read_page()
                     if not content.get("error"):
@@ -1621,7 +1545,7 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
         messages.append(tool_results_message(results, shots))
         yield _sse({"event": "status", "status": "thinking", "label": "Думаю…" if not en else "Thinking…"})
     if memory_protocol or "[MEM" in filt.raw.upper():
-        try:   # Round 29: memory v2 — what the answer's memory block proposes (source: Quick Access)
+        try:
             from . import memory_v2
             _clean, memory_result = await asyncio.to_thread(
                 memory_v2.process_answer, filt.raw, service="quick",
@@ -1632,8 +1556,7 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
         except Exception:
             pass
     if not visible_total.strip() and not ui_shown:
-        # Round 31 (r31-quick): never a silent empty answer — Proxy finished, the window showed nothing. The model wrote
-        # only hidden parts (a tool block it did not finish, reasoning, a memory block) or nothing at all.
+
         thought = bool(reasoning_total.strip())
         yield _sse({"event": "error", "code": "empty", "error": (
             ("The model only reasoned and gave no answer. Try again or pick another model." if thought else
@@ -1650,10 +1573,7 @@ async def ask_events(*, text: str, images: List[str], selection: str, model: str
         done["reasoning"] = reasoning_total.strip()[-REASONING_LIMIT:]
     yield _sse(done)
 
-
-#: Round 31 (wave 2): how much of the model's reasoning reaches the window with «done» (the tail when longer).
 REASONING_LIMIT = 8000
-
 
 def _reasoning_tail(text: str, limit: int = 220) -> str:
     """The latest line of the reasoning for the live status (collapsed whitespace, cut at a word on the left)."""
@@ -1664,12 +1584,11 @@ def _reasoning_tail(text: str, limit: int = 220) -> str:
     cut = tail.find(" ")
     return "…" + (tail[cut + 1:] if 0 <= cut < 40 else tail)
 
-
 def _alias_tool_call(call: Dict[str, Any], allowed: Any) -> Dict[str, Any]:
     """Round 31: ``{"tool": "computer.use", "args": {...}}`` → ``assistant_action {action: "computer.use", params}``
     when the name is an assistant action (``volume_set`` too) and the assistant tool is on for this request."""
     name = str(call.get("tool") or "")
-    if name not in allowed and "module_command" in allowed:   # Round 39 (r39-integ): «music_play» → module_command
+    if name not in allowed and "module_command" in allowed:
         from .module_integration import alias_tool
         module_call = alias_tool(name, call.get("args"))
         if module_call:
@@ -1687,17 +1606,13 @@ def _alias_tool_call(call: Dict[str, Any], allowed: Any) -> Dict[str, Any]:
     params = args.get("params") if isinstance(args.get("params"), dict) else {k: v for k, v in args.items() if k != "action"}
     return {**call, "tool": "assistant_action", "args": {"action": action, "params": params}}
 
-
-#: Proxy's «the provider ended the stream without text» (app/chat.py), RU and EN wordings.
 _EMPTY_STREAM_RE = re.compile(r"без текста|without (?:any )?text|empty (?:response|answer|stream)", re.I)
-
 
 def _safe_enabled(tool: Dict[str, Any], settings: Dict[str, Any]) -> bool:
     try:
         return bool(tool["enabled"](settings))
     except Exception:
         return False
-
 
 def _label(call: Dict[str, Any], lang: str) -> str:
     tool = EXTRA_TOOLS.get(call.get("tool") or "")

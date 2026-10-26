@@ -23,20 +23,16 @@ _cached_data: Dict[str, Any] = {}
 _routes_stamp = None
 _routes_cache: Dict[str, set] = {}
 
-
 def path() -> Path:
     from .config import DATA_DIR
     return Path(os.environ.get("MEMUAI_DATA_DIR") or DATA_DIR) / "memuai" / "api-budgets.json"
 
-
 def _valid(data: Any) -> bool:
     return isinstance(data, dict) and isinstance(data.get("accounts"), dict)
-
 
 def _models(saved: dict) -> dict:
     value = saved.get("models")
     return value if isinstance(value, dict) else {}
-
 
 def load() -> Dict[str, Any]:
     global _cached_stamp, _cached_data
@@ -49,8 +45,7 @@ def load() -> Dict[str, Any]:
     if stamp != _cached_stamp:
         _cached_data = load_json_with_recovery(target, {"version": 1, "accounts": {}}, validator=_valid)
         _cached_stamp = stamp
-    return _cached_data  # Read-only snapshot; all writers go through _mutate.
-
+    return _cached_data
 
 def _amount(value: Any, name: str, *, optional: bool = False) -> Optional[float]:
     if optional and value in (None, ""):
@@ -65,19 +60,16 @@ def _amount(value: Any, name: str, *, optional: bool = False) -> Optional[float]
         raise ValueError(f"{name}: expected a finite number between 0 and 1e12")
     return number
 
-
 def _mutate(fn):
     global _cached_stamp
     result = mutate_json(path(), {"version": 1, "accounts": {}}, fn, validator=_valid, backup=False)
     _cached_stamp = None
     return result
 
-
 def _prefix(account: Any) -> str:
     if account.provider == "custom":
         return str(account.fields.get("name") or "").strip().lower().replace(" ", "-")
     return str(account.provider)
-
 
 def account_models(account: Any) -> list:
     from .state import state
@@ -108,7 +100,6 @@ def account_models(account: Any) -> list:
                      "price": effective.to_dict() if effective else (base.to_dict() if base else None),
                      "override": override, "usage": (saved.get("usage_models") or {}).get(raw)})
     return rows
-
 
 def save_account(account: Any, body: dict) -> dict:
     if not isinstance(body, dict):
@@ -148,7 +139,7 @@ def save_account(account: Any, body: dict) -> dict:
         saved = data["accounts"][account.id]
         saved.update({"prefix": _prefix(account), "provider": account.provider, "label": account.label})
         if initial:
-            # Explicit balance snapshot resets just the usage period, not custom prices.
+
             saved.update({"balance_usd": balance, "started_at": time.time(), "spent_usd": 0.0,
                           "requests": 0, "unknown_requests": 0, "estimated_requests": 0, "usage_models": {}})
         if "until" in body:
@@ -164,17 +155,14 @@ def save_account(account: Any, body: dict) -> dict:
 
     return _mutate(change)["accounts"][account.id]
 
-
 def remove_account(account_id: str) -> None:
     def change(data):
         return data["accounts"].pop(account_id, None) is not None
     _mutate(change)
 
-
 def _raw(saved: dict, model: str) -> str:
     prefix = str(saved.get("prefix") or "")
     return model[len(prefix) + 1:] if prefix and model.lower().startswith(prefix.lower() + "-") else model
-
 
 def _live_routes() -> Dict[str, set]:
     """CLI must not load Proxy state just to price a model. Cache only ids/prefixes."""
@@ -211,7 +199,6 @@ def _live_routes() -> Dict[str, set]:
         _routes_cache, _routes_stamp = routes, stamp
     return _routes_cache
 
-
 def price_for(model: str, *, account_id: str = "", raw_model: str = "") -> Optional[pricing.Price]:
     """No cross-account leakage: infer a prefix only if all matching profiles agree."""
     if model.startswith("@") and ":" in model:
@@ -222,14 +209,13 @@ def price_for(model: str, *, account_id: str = "", raw_model: str = "") -> Optio
     if account_id and not matches:
         return None
     if not account_id:
-        # A bare canonical model can be shared by many providers. Never price it by
-        # an unrelated API key. Match the full, configured public connection prefix.
+
         routes = _live_routes()
         prefix = next((prefix for prefix in sorted(routes, key=len, reverse=True)
                        if prefix and model.lower().startswith(prefix.lower() + "-")), "")
         ids = routes.get(prefix) or set()
         if not ids or any(key not in saved_accounts for key in ids):
-            return None  # Another account can serve the same id at a different rate.
+            return None
         matches = [saved_accounts[key] for key in ids]
     prices = []
     for saved in matches:
@@ -252,7 +238,6 @@ def price_for(model: str, *, account_id: str = "", raw_model: str = "") -> Optio
     first = prices[0]
     return first if all(p.to_dict() == first.to_dict() for p in prices[1:]) else None
 
-
 def _counts(usage: dict) -> dict:
     details = usage.get("prompt_tokens_details") or usage.get("input_tokens_details") or {}
     return {"input_tokens": max(0, int(usage.get("prompt_tokens") or usage.get("input_tokens") or 0)),
@@ -260,7 +245,6 @@ def _counts(usage: dict) -> dict:
             "cache_read": max(0, int(details.get("cached_tokens") or 0)) if isinstance(details, dict) else 0,
             "cache_write": max(0, int((details.get("cache_write_tokens") if isinstance(details, dict) else 0)
                                       or usage.get("cache_creation_input_tokens") or 0))}
-
 
 def apply_usage_price(account: Any, model: str, usage: dict, *, raw_model: str = "") -> None:
     """At the shared chat boundary: CLI, Responses and dashboards get the same price."""
@@ -273,7 +257,6 @@ def apply_usage_price(account: Any, model: str, usage: dict, *, raw_model: str =
         usage.setdefault("provider_cost", usage["cost"])
     usage["cost"] = estimate.cost
     usage["cost_source"] = "account_override"
-
 
 def record_usage(account: Any, model: str, usage: dict, *, raw_model: str = "") -> None:
     if account.id not in load()["accounts"]:
@@ -301,7 +284,6 @@ def record_usage(account: Any, model: str, usage: dict, *, raw_model: str = "") 
             row[name] = int(row.get(name) or 0) + value
         return True
     _mutate(change)
-
 
 def view(accounts=None) -> dict:
     if accounts is None:

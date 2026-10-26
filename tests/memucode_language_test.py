@@ -6,7 +6,6 @@ import unittest
 from app.cli import lang, prompts
 from tests.memucode_cli_test import make_runtime, setUpModule, tearDownModule  # noqa: F401  (module fixtures)
 
-
 class Detection(unittest.TestCase):
     def test_scripts_map_to_languages(self):
         cases = {
@@ -36,7 +35,6 @@ class Detection(unittest.TestCase):
     def test_technical_english_inside_a_russian_sentence_is_still_russian(self):
         self.assertEqual(lang.detect("use React hooks для формы"), "Russian")
         self.assertEqual(lang.detect("please explain the word привет in Russian"), "")
-
 
 class Reminder(unittest.TestCase):
     def test_reminder_names_the_language_or_falls_back_to_the_general_rule(self):
@@ -74,7 +72,6 @@ class Reminder(unittest.TestCase):
         agent = runtime.agents()["general-purpose"]
         system = prompts.build_system_prompt(runtime, [], native=True, agent=agent)
         self.assertIn("language of the task", system)
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -14,7 +14,6 @@ from fastapi.responses import JSONResponse
 
 from . import panels
 
-
 async def _body(request: Request) -> Dict[str, Any]:
     try:
         data = await request.json()
@@ -22,10 +21,8 @@ async def _body(request: Request) -> Dict[str, Any]:
         return {}
     return data if isinstance(data, dict) else {}
 
-
 def _error(exc: Exception, status: int = 400) -> JSONResponse:
     return JSONResponse({"error": str(exc) or type(exc).__name__}, status)
-
 
 def install_context(*, complete: Callable[[str, list], Awaitable[str]],
                     search: Callable[..., Awaitable[dict]],
@@ -44,16 +41,15 @@ def install_context(*, complete: Callable[[str, list], Awaitable[str]],
     panels.set_context(panels.PanelContext(complete=complete, search=search, fetch=fetch,
                                            default_model=default_model))
 
-
 def register_panel_routes(app: FastAPI) -> None:
     @app.middleware("http")
     async def _panels_loop_binding(request: Request, call_next):
-        # create/update run in worker threads; background builds must start on this loop.
+
         if request.url.path.startswith("/api/pg/panels"):
             panels.bind_loop()
         return await call_next(request)
 
-    try:  # Round 24: Telegram updates of panels (telegram_panels.py)
+    try:
         from . import telegram_panels
         telegram_panels.register_window_routes(app)
     except Exception:  # noqa: BLE001 — panels work without the Telegram part
@@ -192,9 +188,8 @@ def register_panel_routes(app: FastAPI) -> None:
             return JSONResponse({"error": str(exc) or type(exc).__name__, "available": False}, 503)
         return {"timers": snap, "pomodoro": (settings or {}).get("pomodoro") or {}, "available": True}
 
-    # ------------------------------------------------ To-Do и заметки (Раунд 23, panels_local.py)
     def _local_error(exc: Exception) -> JSONResponse:
-        # Round 26: To-Do errors in the UI language (they were Russian-only in the English interface).
+
         from .pgdata import load_preferences
         text = getattr(exc, "en", "") if load_preferences().get("language") == "en" else ""
         return JSONResponse({"error": text or str(exc)}, 404 if "не найден" in str(exc) else 400)

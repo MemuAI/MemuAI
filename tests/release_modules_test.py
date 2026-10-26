@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 from app import modules_host as host
 
-
 class ModulePersistentTransactions(unittest.TestCase):
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory(prefix="memuai-module-persist-")
@@ -22,8 +21,7 @@ class ModulePersistentTransactions(unittest.TestCase):
         host.save_persistent(self.root, "proof", {"a": 0, "b": 0})
 
     def test_parallel_partial_saves_preserve_both_updates(self):
-        # Force the old out-of-transaction read path to load the same version.
-        # A transaction does its own read under the lock, so never hits this gap.
+
         original = host.load_persistent
         barrier = threading.Barrier(2)
 
@@ -58,7 +56,6 @@ class ModulePersistentTransactions(unittest.TestCase):
         self.assertEqual(host.save_persistent(self.root, "proof", {"a": 9}), {"a": 9})
         with self.assertRaises(ValueError):
             host.save_persistent(self.root, "proof", [1, 2])
-
 
 if __name__ == "__main__":
     unittest.main()

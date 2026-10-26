@@ -1,27 +1,13 @@
-/* MemuAI 3.1 · Round 30 · /image and /video in the message box: a coloured chip with an icon, a hint for the argument.
- *
- * Same commands and words as the Mini App (tgapp/chatcmd.js): a message that starts with /image (/img) or /video is
- * not a question to the chat model — a picture or a video is generated from the description. The box says so:
- *   • the command becomes a chip (icon + accent pill) — drawn BEHIND the transparent textarea, so typing, the caret,
- *     selection, IME, paste, undo and autosize stay the textarea's own; the only change to the field is a
- *     `text-indent` that makes room for the icon (set in the capture phase of `input`, before the page's autosize);
- *   • after a bare command a ghost text says what to type («описание картинки…»);
- *   • a line under the box: «Картинка — нарисуется по описанию, текстового ответа не будет».
- * Programmatic `field.value = …` (send clears the box without an input event) is caught by the field's own value
- * setter, so the chip never outlives its text.
- *
- * Main window: `#input` (app.js sends /image and /video itself — media-routing.js).
- * Quick Access: `#qa-input`; it has no generator of its own, so such a message opens a new MemuAI chat with the
- * command and sends it there (the quick «handoff»; app.js `MemuQuickHandoff` → `send: true`).
- */
+
+
 (function () {
   "use strict";
   const MEDIA_RE = /^\/(image|img|video)(?=\s|$)/i;
   const BARE_RE = /^\/(image|img|video)\s*$/i;
-  const INDENT = 22;                 // px of the first line given to the icon
+  const INDENT = 22;
   const lang = () => {
-    try { if (typeof PG_LANG !== "undefined") return PG_LANG; } catch (e) { /* not the main window */ }
-    try { if (window.MemuQuick) return window.MemuQuick.lang(); } catch (e) { /* not ready */ }
+    try { if (typeof PG_LANG !== "undefined") return PG_LANG; } catch (e) {  }
+    try { if (window.MemuQuick) return window.MemuQuick.lang(); } catch (e) {  }
     return document.documentElement.lang === "en" ? "en" : "ru";
   };
   const t = (ru, en) => (lang() === "en" ? en : ru);
@@ -30,7 +16,6 @@
     video: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="13" height="14" rx="3"/><path d="m16 10 5-3v10l-5-3"/></svg>',
   };
 
-  /** "image" | "video" | "" for a message text. */
   function kindOf(text) {
     const match = MEDIA_RE.exec(String(text || ""));
     return match ? (match[1].toLowerCase() === "video" ? "video" : "image") : "";
@@ -50,10 +35,6 @@
     return ctx.measureText(text).width + spacing * text.length;
   }
 
-  /**
-   * Mark media commands in `field`. opts: { note(kind) → text of the line under the box, noteAfter: element the
-   * line is inserted after, onChange(kind) }. Returns { update, kind }.
-   */
   function attach(field, opts = {}) {
     if (!field || field.__memuCmd) return field && field.__memuCmd;
     const parent = field.parentElement;
@@ -95,10 +76,10 @@
       const width = INDENT + textWidth(command, style);
       chip.style.left = Math.round(left - 4) + "px";
       chip.style.top = Math.round(top + (line - height) / 2) + "px";
-      chip.style.width = Math.round(width + 6) + "px";     // 4 px before the icon, 2 px after the word
+      chip.style.width = Math.round(width + 6) + "px";
       chip.style.height = height + "px";
       chip.style.setProperty("--cmdhl-icon", Math.round(fontSize * 0.95) + "px");
-      // The first line scrolled out of the box: no chip floating over the second one.
+
       chip.style.visibility = field.scrollTop > line / 2 ? "hidden" : "";
       const bare = BARE_RE.test(value) && !value.includes("\n");
       hint.hidden = !bare;
@@ -120,7 +101,7 @@
       const next = kindOf(field.value);
       if (next !== kind) {
         kind = next;
-        // Before the page's autosize: the indent changes how the first line wraps.
+
         field.style.textIndent = kind ? INDENT + "px" : "";
         field.classList.toggle("cmdhl-on", !!kind);
         chip.hidden = !kind;
@@ -140,7 +121,7 @@
             note.innerHTML = `<span class="cmdhl-ic">${ICONS[kind]}</span><b>${word(kind)}</b><span>${(opts.note || defaultNote)(kind)}</span>`;
           }
         }
-        if (typeof opts.onChange === "function") { try { opts.onChange(kind); } catch (e) { /* host */ } }
+        if (typeof opts.onChange === "function") { try { opts.onChange(kind); } catch (e) {  } }
       }
       if (kind) place(); else hint.hidden = true;
     }
@@ -149,13 +130,9 @@
         : t("нарисуется по описанию — текстового ответа не будет", "will be drawn from the description — no text answer");
     }
 
-    // Capture: runs before the page's own input handler (autosize, menus).
     field.addEventListener("input", update, true);
     field.addEventListener("scroll", schedule, { passive: true });
-    // `field.value = …` from code (send, history, drafts) bypasses input events.
-    // Round 33 (#21): chain to a setter another script already put on this field (app.js spell check clears its
-    // underline there) — taking the prototype's setter here silently dropped it, and the red underline of a sent or
-    // cleared message stayed on screen («phantom spell check»).
+
     const own = Object.getOwnPropertyDescriptor(field, "value") || Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value");
     Object.defineProperty(field, "value", {
       configurable: true,
@@ -163,7 +140,7 @@
       set(next) { own.set.call(this, next); update(); },
     });
     if (typeof ResizeObserver === "function") new ResizeObserver(schedule).observe(field);
-    // A design or theme switch changes the font: measure again.
+
     new MutationObserver(schedule).observe(document.documentElement, { attributes: true, attributeFilter: ["data-design", "data-theme", "style", "class"] });
     window.addEventListener("resize", schedule);
     update();
@@ -172,7 +149,6 @@
     return api;
   }
 
-  /* ---------------------------------------------------------------- the two message boxes */
   function initMain() {
     const field = document.getElementById("input");
     if (!field) return;
@@ -182,7 +158,7 @@
     const field = document.getElementById("qa-input");
     const quick = window.MemuQuick;
     if (!field || !quick) return;
-    const resize = () => { try { quick.resize(); } catch (e) { /* not ready */ } };
+    const resize = () => { try { quick.resize(); } catch (e) {  } };
     attach(field, {
       noteAfter: document.getElementById("qa-form"),
       note: (kind) => kind === "video"

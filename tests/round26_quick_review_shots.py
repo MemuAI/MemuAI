@@ -35,11 +35,9 @@ CU_CONFIRM = {"id": "cu1", "action": "computer.use", "title": "Управлен�
 CU_RUNNING = {"id": "cu2", "action": "computer.use", "title": "Управление компьютером", "status": "running",
               "message": "Передаю управление", "kind": "computer", "client": {"type": "computer", "task": "открой блокнот", "model": "vl"}}
 
-
 class Quiet(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *args):  # noqa: D401
         pass
-
 
 async def main(out: Path) -> int:
     from playwright.async_api import async_playwright
@@ -78,7 +76,7 @@ async def main(out: Path) -> int:
             return await route_obj.fulfill(json={"items": core.search_chats(state["chats"], "", 60), "total": len(state["chats"])})
         if path == "/api/quick/ask":
             state["asks"] += 1
-            await asyncio.sleep(1.2)       # still streaming when the second click of a double click lands
+            await asyncio.sleep(1.2)
             events = [{"event": "delta", "text": "Красный, жёлтый, синий."},
                       {"event": "done", "text": "Красный, жёлтый, синий.", "model": "gemini-2.5-flash", "tier": "fast"}]
             return await route_obj.fulfill(status=200, content_type="text/event-stream",
@@ -147,7 +145,6 @@ async def main(out: Path) -> int:
                 await page.wait_for_timeout(200)
             return False
 
-        # 1. a confirmed command is a chat turn
         page = await open_page()
         await page.fill("#qa-input", "закрой хром")
         await page.press("#qa-input", "Enter")
@@ -158,7 +155,6 @@ async def main(out: Path) -> int:
         await shot(page, "confirmed-command")
         await page.close()
 
-        # 2. Computer Use outcome → chat (done; a failed start)
         state.update(run_card=CU_CONFIRM, confirm_card=CU_RUNNING)
         for busy in (False, True):
             state["cu_busy"] = busy
@@ -174,7 +170,6 @@ async def main(out: Path) -> int:
             await shot(page, "cu-busy" if busy else "cu-done")
             await page.close()
 
-        # 3. DFY result → chat; not-ready toast is red
         page = await open_page()
         await page.fill("#qa-input", "забронируй столик на двоих на 19:00")
         await page.wait_for_timeout(300)
@@ -193,7 +188,7 @@ async def main(out: Path) -> int:
         await page.wait_for_timeout(300)
         await page.keyboard.press("Control+Enter")
         await page.wait_for_timeout(800)
-        # Round 30: «not ready» is a card with the full reason and «Настройки DFY» (a 4 s toast used to be cut off)
+
         check(await page.locator("[data-qdfy='settings']").count() > 0, "a DFY «not ready» card offers the DFY settings")
         await page.evaluate("MemuQuick.toast('x', 'error')")
         cls = await page.evaluate("document.getElementById('qa-toast').className")
@@ -201,7 +196,6 @@ async def main(out: Path) -> int:
         await shot(page, "dfy-not-ready-toast")
         await page.close()
 
-        # 4. a double click on «Send» does not stop the answer (two lines: the commands plugin leaves it to the model)
         state["run_card"] = {"fallback": True}
         page = await open_page()
         await page.fill("#qa-input", "Назови три цвета радуги\nчерез запятую")
@@ -220,7 +214,6 @@ async def main(out: Path) -> int:
     server.shutdown()
     print("OK" if not problems else f"{len(problems)} problem(s)")
     return 1 if problems else 0
-
 
 if __name__ == "__main__":
     sys.exit(asyncio.run(main(Path(sys.argv[1] if len(sys.argv) > 1 else "/workspace/work/shots/r26/r26-finisher"))))

@@ -37,15 +37,11 @@ CHROME = next((p for p in ("/usr/bin/chromium", "/workspace/work/chromium/chrome
 from app.memunote import photo  # noqa: E402
 from app.memunote.formats import images, psd  # noqa: E402
 
-
 def _png(color=(255, 0, 0, 255), size=(16, 12)) -> bytes:
     from PIL import Image
     buf = io.BytesIO()
     Image.new("RGBA", size, color).save(buf, "PNG")
     return buf.getvalue()
-
-
-# ===================================================================================== formats
 
 class PsdTest(unittest.TestCase):
     def _doc(self):
@@ -85,11 +81,11 @@ class PsdTest(unittest.TestCase):
         ImageDraw.Draw(flat).rectangle((100, 100, 500, 300), fill=(10, 200, 30, 255))
         buf = io.BytesIO(); flat.save(buf, "PNG")
         data = psd.write_psd(800, 600, [{"name": "Плашка", "png": buf.getvalue()}], buf.getvalue())
-        self.assertLess(len(data), 800 * 600 * 4 // 10)          # raw would be ≥ 2×1.9 MB
+        self.assertLess(len(data), 800 * 600 * 4 // 10)
         doc = psd.read_psd(data)
         px = Image.open(io.BytesIO(doc["layers"][0]["png"]))
         self.assertEqual((px.getpixel((200, 200)), px.getpixel((700, 500))), ((10, 200, 30, 255), (0, 0, 0, 0)))
-        merged = Image.open(io.BytesIO(data)); merged.load()           # Pillow reads the RLE merged image
+        merged = Image.open(io.BytesIO(data)); merged.load()
         self.assertEqual(merged.convert("RGBA").getpixel((200, 200)), (10, 200, 30, 255))
 
     def test_merged_image_and_pillow_reads_composite(self) -> None:
@@ -116,7 +112,6 @@ class PsdTest(unittest.TestCase):
             psd.read_psd(b"NOPE" + b"\x00" * 40)
         with self.assertRaises(ValueError):
             psd.write_psd(0, 10, [], None)
-
 
 class ImagesTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -174,9 +169,6 @@ class ImagesTest(unittest.TestCase):
         self.assertEqual([l["name"] for l in d["layers"]], ["A", "B"])
         self.assertIsInstance(d["layers"][1]["png"], str)
 
-
-# ===================================================================================== AI prompts / parsing
-
 class PromptsTest(unittest.TestCase):
     IMG = "data:image/jpeg;base64," + base64.b64encode(b"\xff\xd8\xff" + b"0" * 30).decode()
 
@@ -218,9 +210,6 @@ class PromptsTest(unittest.TestCase):
         self.assertEqual(photo.pick_models(st)["model"], "v")
         self.assertEqual(photo.pick_models(st, "t")["model"], "t")
         self.assertFalse(photo.pick_models(st, "t")["chosen_vision"])
-
-
-# ===================================================================================== pixels.js in Node
 
 NODE_PIXELS = r"""
 import * as P from "PIXELS";
@@ -276,7 +265,6 @@ for (const op of P.OPS) { P.runOp(op, img(1, 1, [0, 0, 0, 0]), {}); P.runOp(op, 
 console.log("OK " + P.OPS.length);
 """
 
-
 @unittest.skipUnless(shutil.which("node"), "node not installed")
 class PixelsNodeTest(unittest.TestCase):
     def test_pixels_module(self) -> None:
@@ -294,9 +282,6 @@ class PixelsNodeTest(unittest.TestCase):
         for f in list(PHOTO_JS.glob("*.js")) + [STATIC / "js" / "app.js"]:
             out = subprocess.run(["node", "--check", str(f)], capture_output=True, text=True, timeout=60)
             self.assertEqual(out.returncode, 0, f"{f.name}: {out.stderr}")
-
-
-# ===================================================================================== static checks
 
 class StaticTest(unittest.TestCase):
     def test_i18n_parity_and_english_without_cyrillic(self) -> None:
@@ -340,9 +325,6 @@ class StaticTest(unittest.TestCase):
             self.assertIn(ext, winsys.SAFE_EXT)
         self.assertNotIn(".svg", winsys.SAFE_EXT)
         self.assertIn(".svg", winsys.NEVER_EXT)
-
-
-# ===================================================================================== fake MemuAI Proxy
 
 class FakeProxy:
     """/health, /api/admin/pg/state, /api/admin/playground/chat (SSE), /api/admin/pg/image (SSE)."""
@@ -413,7 +395,6 @@ class FakeProxy:
         self.httpd.shutdown()
         self.httpd.server_close()
 
-
 class _ServerCase(unittest.TestCase):
     proxy_images = True
 
@@ -454,7 +435,6 @@ class _ServerCase(unittest.TestCase):
         self.assertEqual(status, 200, data[:300])
         return [json.loads(line[5:]) for line in data.decode().splitlines() if line.startswith("data:")]
 
-
 class PhotoApiTest(_ServerCase):
     def test_decode_requires_an_opened_file_then_works(self) -> None:
         from PIL import Image
@@ -482,7 +462,7 @@ class PhotoApiTest(_ServerCase):
         self.assertTrue(json.loads(data)["conflict"])
         status, _ = self.call("POST", q, b"not a png")
         self.assertEqual(status, 400)
-        self.assertEqual(sorted(p.name for p in self.tmp.iterdir() if p.name.startswith("out")), ["out.tif"])   # no temp files left
+        self.assertEqual(sorted(p.name for p in self.tmp.iterdir() if p.name.startswith("out")), ["out.tif"])
 
     def test_psd_route(self) -> None:
         target = self.tmp / "l.psd"
@@ -523,7 +503,7 @@ class PhotoApiTest(_ServerCase):
         result = next(e for e in events if e["t"] == "result")
         self.assertTrue(result["ok"])
         self.assertEqual(result["data"]["ops"][0]["name"], "temperature")
-        self.assertFalse([e for e in events if e["t"] == "delta"])          # structured answers are not streamed as prose
+        self.assertFalse([e for e in events if e["t"] == "delta"])
         self.assertEqual(self.fake.requests[-1][1]["temperature"], 0.2)
 
     def test_generate_returns_data_urls_and_errors(self) -> None:
@@ -543,8 +523,7 @@ class PhotoApiTest(_ServerCase):
         self.assertEqual(status, 503)
         status, data = self.call("GET", "/api/photo/caps")
         self.assertFalse(json.loads(data)["online"])
-        self.fake = FakeProxy()     # tearDown stops it
-
+        self.fake = FakeProxy()
 
 class PhotoNoImageModelTest(_ServerCase):
     proxy_images = False
@@ -553,9 +532,6 @@ class PhotoNoImageModelTest(_ServerCase):
         status, data = self.call("POST", "/api/photo/generate", {"prompt": "x"})
         self.assertEqual(status, 503)
         self.assertEqual(json.loads(data)["kind"], "no_image_model")
-
-
-# ===================================================================================== browser
 
 BROWSER_CHECKS = r"""
 async () => {
@@ -634,7 +610,6 @@ async () => {
 }
 """
 
-
 @unittest.skipUnless(CHROME, "headless Chromium is not available")
 class BrowserTest(_ServerCase):
     def _page(self, p, files, size=(1280, 800)):
@@ -671,7 +646,7 @@ class BrowserTest(_ServerCase):
                 b.close()
         self.assertEqual(r["size"], [160, 120])
         self.assertEqual({k: v for k, v in r["blend"].items() if v != "ok"}, {})
-        self.assertEqual(r["mask"][0], "200,120,40")          # masked out: the bottom layer shows
+        self.assertEqual(r["mask"][0], "200,120,40")
         self.assertEqual(r["mask"][1], "60,160,220")
         self.assertEqual(r["painted"], "0,255,0,255")
         self.assertTrue(r["undoExact"])
@@ -688,7 +663,7 @@ class BrowserTest(_ServerCase):
         self.assertEqual(r["crop"], [60, 50, 5])
         self.assertEqual(r["resize"][:2], [120, 100])
         self.assertEqual(r["restored"], [160, 120])
-        self.assertEqual(r["viaCopy"][1], 0)                  # outside the 20×20 selection: transparent
+        self.assertEqual(r["viaCopy"][1], 0)
         self.assertEqual(r["grouped"], "group")
         self.assertTrue(all(r["saves"].values()), r["saves"])
         self.assertEqual(Image.open(out / "x.jpg").format, "JPEG")
@@ -712,31 +687,31 @@ class BrowserTest(_ServerCase):
                 box = pg.locator(".ph-view").bounding_box()
                 at = lambda x, y: (box["x"] + pg.evaluate(f"{ED}.view.panX") + x * pg.evaluate(f"{ED}.view.zoom"),
                                    box["y"] + pg.evaluate(f"{ED}.view.panY") + y * pg.evaluate(f"{ED}.view.zoom"))
-                # brush stroke with the mouse (B), then Ctrl+Z
+
                 pg.keyboard.press("b")
                 self.assertEqual(pg.evaluate(f"{ED}.toolId"), "brush")
                 pg.mouse.move(*at(20, 20)); pg.mouse.down(); pg.mouse.move(*at(120, 40), steps=10); pg.mouse.up()
                 self.assertEqual(pg.evaluate(f"{ED}.doc.history.length"), 1)
                 pg.keyboard.press("Control+z")
                 self.assertEqual(pg.evaluate(f"{ED}.doc.history.length"), 0)
-                # magic wand on the ball selects it (W cycles quick → wand with Shift+W)
+
                 pg.evaluate(f"{ED}.setTool('wand')")
                 pg.mouse.click(*at(200, 150))
                 time.sleep(0.5)
                 area = pg.evaluate(f"(() => {{ const m = {ED}.doc.selection; let n = 0; for (const v of m) n += v > 127; return n; }})()")
                 self.assertTrue(6500 < area < 9000, area)
-                # Ctrl+J copies the selection to a new layer; Ctrl+Shift+I inverts; Ctrl+D deselects
+
                 pg.keyboard.press("Control+j")
                 self.assertEqual(pg.evaluate(f"{ED}.doc.flat().length"), 2)
                 pg.keyboard.press("Control+d")
                 self.assertFalse(pg.evaluate(f"!!{ED}.doc.selection"))
-                # text tool with Cyrillic
+
                 pg.keyboard.press("t")
                 pg.mouse.click(*at(30, 250)); time.sleep(0.2)
                 pg.keyboard.type("Съешь ещё")
                 pg.keyboard.press("Control+Enter")
                 self.assertIn("Съешь ещё", pg.evaluate(f"{ED}.doc.flat().filter(l => l.type === 'text').map(l => l.text.text).join()"))
-                # levels dialog: Esc cancels without touching the selection, Enter applies
+
                 pg.keyboard.press("Control+a")
                 pg.evaluate(f"{ED}.doc.activeId = {ED}.doc.layers[0].id")
                 pg.keyboard.press("Control+l"); time.sleep(0.5)
@@ -744,7 +719,7 @@ class BrowserTest(_ServerCase):
                 pg.keyboard.press("Escape"); time.sleep(0.2)
                 self.assertEqual(pg.locator(".ph-dlg").count(), 0)
                 self.assertTrue(pg.evaluate(f"!!{ED}.doc.selection"))
-                # AI panel against the fake Proxy: describe + an edit command that is applied and undoable as ONE step
+
                 pg.evaluate(f"{ED}.showTab('ai')"); time.sleep(0.8)
                 pg.locator(".pai-act[data-act=describe]").click()
                 pg.wait_for_selector(".pai-msg.ai:not(.pending) .pai-btns", timeout=15000)
@@ -758,8 +733,8 @@ class BrowserTest(_ServerCase):
                     time.sleep(0.1)
                 self.assertEqual(pg.evaluate(f"{ED}.doc.history.length"), n0 + 1)
                 self.assertIn("ИИ", pg.evaluate(f"{ED}.doc.history[{ED}.doc.history.length - 1].label"))
-                self.assertIn("Тёплый", pg.locator(".pai-log").inner_text())      # ops list shown, the bogus op filtered
-                # find-and-select via "locate" → local segmentation of the ball
+                self.assertIn("Тёплый", pg.locator(".pai-log").inner_text())
+
                 pg.evaluate(f"{ED}.ai.locate('мяч').then(async (b) => {{ window.__boxes = b; }})")
                 for _ in range(60):
                     if pg.evaluate("!!window.__boxes"):
@@ -767,7 +742,7 @@ class BrowserTest(_ServerCase):
                     time.sleep(0.1)
                 boxes = pg.evaluate("window.__boxes.map(b => [Math.round(b.r.x), Math.round(b.r.y), Math.round(b.r.w), Math.round(b.r.h)])")
                 self.assertEqual(boxes, [[160, 90, 80, 120]])
-                # image generation result can be placed as a layer
+
                 pg.locator(".pai-modes [data-mode=gen]").click()
                 pg.locator(".pai-q").fill("кот"); pg.keyboard.press("Enter")
                 pg.wait_for_selector(".pai-gen img", timeout=15000)
@@ -777,7 +752,6 @@ class BrowserTest(_ServerCase):
             finally:
                 b.close()
         self.assertEqual(self.errors, [])
-
 
     def test_clone_stamp_and_crop_frame_with_the_mouse(self) -> None:
         """Alt+click sets the clone source, the stroke copies pixels as ONE «Штамп» step; a drag inside the untouched
@@ -798,26 +772,26 @@ class BrowserTest(_ServerCase):
                 box = pg.locator(".ph-view").bounding_box()
                 at = lambda x, y: (box["x"] + pg.evaluate(f"{ED}.view.panX") + x * pg.evaluate(f"{ED}.view.zoom"),
                                    box["y"] + pg.evaluate(f"{ED}.view.panY") + y * pg.evaluate(f"{ED}.view.zoom"))
-                for pt in (at(0, 0), at(1000, 700)):   # the whole image is on screen, so every point below hits the canvas
+                for pt in (at(0, 0), at(1000, 700)):
                     self.assertTrue(box["x"] <= pt[0] <= box["x"] + box["width"] and box["y"] <= pt[1] <= box["y"] + box["height"], (pt, box))
                 self.assertEqual(px(750, 300), "20,40,220")
                 pg.keyboard.press("s")
                 self.assertEqual(pg.evaluate(f"{ED}.toolId"), "clone")
                 pg.evaluate(f"{ED}.opts.clone.opacity = 100; {ED}.opts.clone.hardness = 100; {ED}.opts.clone.size = 40")
-                # without a source: a hint, nothing painted
+
                 pg.mouse.move(*at(700, 300)); pg.mouse.down(); pg.mouse.move(*at(720, 300), steps=3); pg.mouse.up()
                 self.assertEqual(pg.evaluate(f"{ED}.doc.history.length"), 0)
                 pg.keyboard.down("Alt"); pg.mouse.click(*at(100, 350)); pg.keyboard.up("Alt")
-                self.assertEqual(pg.evaluate(f"{ED}.toolId"), "clone")        # Alt neither switched tools nor opened a menu
+                self.assertEqual(pg.evaluate(f"{ED}.toolId"), "clone")
                 self.assertEqual(pg.evaluate(f"{ED}.doc.history.length"), 0)
                 pg.mouse.move(*at(700, 300)); pg.mouse.down(); pg.mouse.move(*at(800, 300), steps=10); pg.mouse.up()
                 time.sleep(0.3)
                 self.assertEqual(pg.evaluate(f"{ED}.doc.history.map(e => e.label)"), ["Штамп"])
-                self.assertEqual(px(750, 300), "220,30,30")                    # red copied from the source side
-                self.assertEqual(px(750, 400), "20,40,220")                    # outside the stroke: untouched
+                self.assertEqual(px(750, 300), "220,30,30")
+                self.assertEqual(px(750, 400), "20,40,220")
                 pg.keyboard.press("Control+z")
                 self.assertEqual(px(750, 300), "20,40,220")
-                # crop: a drag inside the untouched full-canvas frame draws a new frame → Enter crops to it
+
                 pg.keyboard.press("c")
                 self.assertEqual(pg.evaluate(f"{ED}.toolId"), "crop")
                 pg.mouse.move(*at(100, 50)); pg.mouse.down(); pg.mouse.move(*at(900, 650), steps=10); pg.mouse.up()
@@ -826,12 +800,11 @@ class BrowserTest(_ServerCase):
                 pg.evaluate(f"(async () => {{ const T = (await import('./js/photo/tools.js')).TOOLS; T.crop.box = {{x: 100, y: 50, w: 800, h: 600}}; }})()")
                 pg.keyboard.press("Enter"); time.sleep(0.5)
                 self.assertEqual(pg.evaluate(f"[{ED}.doc.width, {ED}.doc.height]"), [800, 600])
-                self.assertEqual(px(0, 0), "220,30,30")                        # old (100, 50) is the new origin
-                self.assertEqual(px(450, 0), "20,40,220")                      # old (550, 50): blue half
+                self.assertEqual(px(0, 0), "220,30,30")
+                self.assertEqual(px(450, 0), "20,40,220")
             finally:
                 b.close()
         self.assertEqual(self.errors, [])
-
 
     def test_partial_composite_view_cache_and_pan_limits(self) -> None:
         """Brush dabs recomposite only their rectangle (blend modes + masks above must still be exact), the screen cache
@@ -848,7 +821,7 @@ class BrowserTest(_ServerCase):
             try:
                 self._wait_doc(pg)
                 time.sleep(0.5)
-                # a multiply layer with a half mask above the background
+
                 pg.evaluate(f"""(() => {{ const e = {ED}; e.cmd('duplicateLayer'); e.cmd('setLayerProp', 'blend', 'multiply'); e.cmd('setLayerProp', 'opacity', 0.7);
                   e.cmd('addMask', 'reveal'); const l = e.doc.active; l.mask.getContext('2d').clearRect(0, 0, 300, 400);
                   e.doc.target = 'layer'; e.doc.activeId = e.doc.layers[0].id; e.layerChanged(); }})()""")
@@ -862,14 +835,14 @@ class BrowserTest(_ServerCase):
                 diff = pg.evaluate(f"""(() => {{ const d = {ED}.doc; const a = d.composite().getContext('2d').getImageData(0, 0, d.width, d.height).data;
                   const b = d.flatten().getContext('2d').getImageData(0, 0, d.width, d.height).data; let m = 0; for (let i = 0; i < a.length; i++) m = Math.max(m, Math.abs(a[i] - b[i])); return m; }})()""")
                 self.assertLessEqual(diff, 1)
-                # what is on screen follows the stroke (the cached scaled image was refreshed)
+
                 scr = lambda x, y: pg.evaluate(f"""(() => {{ const e = {ED}, s = e.toScreen({{x: {x}, y: {y}}}); return Array.from(e.ctx.getImageData(Math.round(s.x * e.dpr), Math.round(s.y * e.dpr), 1, 1).data).slice(0, 3); }})()""")
                 pg.evaluate(f"{ED}.render()")
                 self.assertEqual(scr(150, 205), [255, 0, 255])
                 pg.keyboard.press("Control+z"); time.sleep(0.2); pg.evaluate(f"{ED}.render()")
                 self.assertNotEqual(scr(150, 205), [255, 0, 255])
-                self.assertNotEqual(scr(450, 212), [255, 0, 255])                 # right half: the multiply layer is on top
-                # wheel panning far away keeps at least 80 px of the image visible
+                self.assertNotEqual(scr(450, 212), [255, 0, 255])
+
                 pg.mouse.move(box["x"] + 200, box["y"] + 200)
                 for _ in range(25):
                     pg.mouse.wheel(0, 400)
@@ -890,9 +863,6 @@ class BrowserTest(_ServerCase):
             finally:
                 b.close()
         self.assertEqual(self.errors, [])
-
-
-# ===================================================================================== live (real model)
 
 @unittest.skipUnless(os.environ.get("XKIRO_BASE") and os.environ.get("XKIRO_KEY"), "live keys are not set")
 class LiveVisionTest(unittest.TestCase):
@@ -928,14 +898,13 @@ class LiveVisionTest(unittest.TestCase):
         self.assertTrue(loc and loc.get("objects"), loc)
         x0, y0, x1, y1 = loc["objects"][0]["box"]
         cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-        self.assertTrue(350 < cx < 650 and 300 < cy < 700, loc)     # the circle is in the middle (0..1000 units)
+        self.assertTrue(350 < cx < 650 and 300 < cy < 700, loc)
 
     def test_command_plan(self) -> None:
         plan = photo.parse_json_answer(self._ask(photo.build_messages({"action": "command", "image": self._image(), "question": "сделай фото теплее и чуть ярче"}, "ru")))
         self.assertIsNotNone(plan)
         names = {o.get("name") for o in plan.get("ops", []) if o.get("op") == "adjust"}
         self.assertTrue(names & {"temperature", "colorBalance", "brightnessContrast", "exposure", "levels", "curves", "vibrance"}, plan)
-
 
 if __name__ == "__main__":
     unittest.main()

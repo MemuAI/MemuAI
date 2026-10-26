@@ -1,18 +1,5 @@
-/* Round 38 (r38-mod-integ): modules in Quick Access — commands, result cards and widgets (app/module_integration*.py).
-   - «Включи трек Believer» that matches a phrase a module declared runs at once, without a model (sync match on submit
-     against the phrases loaded on open); everything else goes to the AI, which has the module_command tool.
-   - tool-ui {type:"module-card"} → a card in the bottom slot: cover, title, buttons (each runs a command of the module).
-   - Widgets of enabled modules (contributes.widgets, settings in the module): quick.ring — an equalizer ring inside
-     the edge of the window while music plays, quick.card — «Сейчас играет». The player state comes from the SSE
-     /api/pg/music/player/events, opened only while the window is shown and closed on hide; the ring animates from the
-     track metadata (the sound itself plays in the MemuAI window), on a 30 fps rAF loop that stops when nothing plays,
-     the window is hidden, or motion is reduced (then a still glow).
-   Round 39 (r39-integ): buttons answer at once — the widget changes optimistically and the player's own report confirms
-   (pause/seek/volume/like go straight to /api/pg/music/call, play/next/prev through the command so the main window starts
-   the player when needed; next/prev are resolved on the server). One live player (cover, progress with seek, time,
-   like, volume, «up next», open «Now playing») — in the result card after a music command, otherwise at the top.
-   The phrase catalogue is cached (localStorage), so a phrase typed right after the first open never reaches the AI;
-   a matched phrase shows a skeleton card at once. The ring fades out as soon as the music stops. */
+
+
 (function () {
   "use strict";
   const Q = window.MemuQuick;
@@ -44,7 +31,6 @@
     return null;
   };
 
-  /* --------------------------------------------------------------------------------------------- catalogue */
   function compile(phrase) {
     const names = [];
     const parts = String(phrase).trim().toLowerCase().split(/\{([a-z_][a-z0-9_]*)\}/);
@@ -62,10 +48,10 @@
       if (rx) S.phrases.push({ module: m.module, command: c.id, danger: !!c.danger, ...rx });
     }
   }
-  try {   // the last catalogue — phrases match from the very first keystroke, before /api/pg/modint answers
+  try {
     const saved = JSON.parse(localStorage.getItem(CACHE) || "null");
     if (saved && Array.isArray(saved.modules)) { catalogue(saved.modules); S.ready = true; }
-  } catch (e) { /* no storage */ }
+  } catch (e) {  }
   async function load() {
     try {
       const data = await Q.api("/api/pg/modint?lang=" + (Q.lang() === "en" ? "en" : "ru"));
@@ -73,7 +59,7 @@
       try {
         localStorage.setItem(CACHE, JSON.stringify({ modules: S.modules.map((m) => ({ module: m.module, title: m.title, widgets: m.widgets || [],
           commands: (m.commands || []).map((c) => ({ id: c.id, phrases: c.phrases, phrases_en: c.phrases_en, danger: c.danger })) })) }));
-      } catch (e) { /* storage full / off */ }
+      } catch (e) {  }
     } catch (e) { if (!S.ready) catalogue([]); }
     S.ready = true;
     syncWidgets();
@@ -88,7 +74,6 @@
     return null;
   }
 
-  /* ------------------------------------------------------------------------------------------- result card */
   let cardPanel = null;
   function ensureCardPanel() {
     if (cardPanel) return cardPanel;
@@ -120,7 +105,7 @@
       ${items ? `<div class="qmod-items">${items}</div>` : ""}${confirm}</article>`;
   }
   function showCard(ui) {
-    // A track card is not a picture of the moment: it becomes the live player (optimistic state until the player reports).
+
     if (ui && ui.ok && ui.card && ui.card.kind === "track") { adopt(ui.card, ui.card.playing !== false); ui = { ...ui, player: true }; }
     S.card = ui;
     const panel = ensureCardPanel();
@@ -155,17 +140,16 @@
     }
   }
   function openModule(module, detail) {
-    // The MemuAI main window opens the module (module_integration_api.nudge_main); Quick Access steps aside.
+
     Q.api("/api/pg/modint/open", { body: { module, detail } }).catch(() => {});
     Q.hide();
   }
 
-  /* --------------------------------------------------------------------------------- player state (SSE) */
   function listen() {
     if (S.es || !S.shown || document.hidden) return;
     if (!widget("quick.ring") && !widget("quick.card") && !(S.card && S.card.player)) return;
     try {
-      S.es = window.MemuLive ? MemuLive.stream("/api/pg/music/player/events") : new EventSource("/api/pg/music/player/events");   // r40-lag: a WebSocket
+      S.es = window.MemuLive ? MemuLive.stream("/api/pg/music/player/events") : new EventSource("/api/pg/music/player/events");
       S.es.onmessage = (ev) => {
         let data; try { data = JSON.parse(ev.data); } catch (e) { return; }
         if (data.event === "state") applyState(data.state || {});
@@ -174,8 +158,7 @@
     } catch (e) { S.es = null; }
   }
   function stopListen() { if (S.es) { S.es.close(); S.es = null; } }
-  /** A state from the server. While an optimistic change waits for its confirmation (≤2.5 s), a report that still says the
-   *  old thing (the player has not applied the command yet) keeps the optimistic «playing» / track. */
+
   function applyState(st) {
     const prev = S.player || {};
     const ex = S.expect;
@@ -185,7 +168,7 @@
       else { st = { ...st, playing: prev.playing, track_id: prev.track_id, position_now: pos(), duration: prev.duration }; }
     } else S.expect = null;
     const changed = prev.track_id !== st.track_id;
-    st.track = !changed && prev.track ? prev.track : S.meta.get(st.track_id) || null;   // state events carry no track
+    st.track = !changed && prev.track ? prev.track : S.meta.get(st.track_id) || null;
     st.at = performance.now();
     S.player = st;
     if (st.track_id && !st.track) trackInfo(st.track_id);
@@ -198,7 +181,7 @@
     try {
       const out = await Q.api("/api/pg/music/call", { body: { op: "library.get", args: { id }, lang: Q.lang() } });
       if (out.result && out.result.id) { S.meta.set(id, out.result); return out.result; }
-    } catch (e) { /* the library may have lost the track */ }
+    } catch (e) {  }
     return null;
   }
   async function trackInfo(id) {
@@ -235,7 +218,6 @@
     upNext();
   }
 
-  /* ------------------------------------------------------------------- the live player (quick.card / track card) */
   const fmt = (sec) => { sec = Math.max(0, Math.floor(sec || 0)); return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"); };
   function playerShell() {
     return `<div class="qmod-np" data-np-root>
@@ -298,7 +280,7 @@
     label('[data-np="open-np"]', t("Открыть «Сейчас играет»", "Open “Now playing”")); label("[data-np-seek]", t("Перемотка", "Seek"));
     progress(root);
   }
-  /** The bar runs as a CSS animation from the current share to the end — no work per frame; the clock ticks once a second. */
+
   function progress(root) {
     root = root || (playerHost() || document).querySelector("[data-np-root]");
     if (!root) return;
@@ -319,7 +301,6 @@
     if (playing() && S.shown && !document.hidden) S.tick = setTimeout(() => clock(), 1000 - (pos() * 1000) % 1000 + 20);
   }
 
-  /* --------------------------------------------------------------- controls: optimistic, then the fastest path */
   const musicCall = (op, args) => Q.api("/api/pg/music/call", { body: { op, args, lang: Q.lang() } });
   function freeze() { if (S.player) { S.player.position_now = pos(); S.player.at = performance.now(); } }
   async function control(act) {
@@ -331,8 +312,7 @@
       freeze(); st.playing = willPlay; st.stale = false;
       S.expect = { playing: willPlay, until: performance.now() + 2500 };
       syncWidgets();
-      // pause: straight to the player's mailbox; play: the same when a player is online (r40: the server moves the shared
-      // state with the command at once), otherwise the command, so the main window starts the player if it is not running
+
       if (!willPlay) return musicCall("player.command", { cmd: "pause", target: "pc" }).catch(() => {});
       if (st.online && st.device !== "phone") return musicCall("player.command", { cmd: "play", target: "pc" }).catch(() => {});
       const ui = await run("music", "resume", {});
@@ -380,7 +360,7 @@
     st.volume = Math.max(0, Math.min(1, v));
     S.touched = true;
     paintPlayer();
-    clearTimeout(S.volTimer);   // a dragged slider sends at most ~8 commands a second
+    clearTimeout(S.volTimer);
     S.volTimer = setTimeout(() => musicCall("player.command", { cmd: "volume", value: Math.round(st.volume * 100) / 100, target: "pc" }).catch(() => {}), 120);
   }
   function onPlayerClick(e) {
@@ -388,13 +368,12 @@
     if (b) control(b.dataset.np);
   }
 
-  /* ----------------------------------------------------------------------------------- widgets */
   let npPanel = null;
   function syncWidgets() {
     const card = widget("quick.card");
     const trackCard = S.card && S.card.player && cardPanel && !cardPanel.el.hidden;
     const has = !!(S.player && S.player.track_id && (S.player.track || S.meta.get(S.player.track_id)));
-    // shown while music plays — and on pause too once it was touched here (so it can be resumed)
+
     if (card && has && !trackCard && (playing() || S.touched)) {
       if (!npPanel) npPanel = Q.registerPanel("module-nowplaying", (el) => { el.classList.add("qmod-host"); el.addEventListener("click", onPlayerClick); return {}; }, { slot: "top", hidden: true, order: 90 });
       npPanel.show();
@@ -428,7 +407,7 @@
     if (reduced() || S.ring.dataset.style === "glow") { haltRing(); S.ring.dataset.still = reduced() ? "1" : ""; drawRing(performance.now(), true); return; }
     if (!S.raf && !S.ringTimer) S.raf = requestAnimationFrame(frame);
   }
-  /** fade=true: the ring fades out (CSS opacity) the moment the music stops, then leaves; otherwise (window closed) at once. */
+
   function stopRing(fade) {
     const ring = S.ring;
     if (!ring) { haltRing(); return; }
@@ -441,7 +420,7 @@
     ring.classList.add("out");
     S.fade = setTimeout(gone, 420);
   }
-  /* r40-lag: 20 fps paced by a timer — the old loop woke on every display frame (60–144 Hz) only to skip most of them. */
+
   function frame(now) {
     S.raf = 0;
     if (!S.ring || document.hidden || !S.shown || (!playing() && !S.fade)) return;
@@ -452,7 +431,7 @@
   function drawRing(now, still) {
     const c = S.ring, ctx = S.ctx;
     if (!c || !ctx) return;
-    const dpr = Math.min(1.5, window.devicePixelRatio || 1);   // r40-lag: a 2× full-window canvas was 2.2 Mpx per frame
+    const dpr = Math.min(1.5, window.devicePixelRatio || 1);
     const w = c.clientWidth, h = c.clientHeight;
     if (!w || !h) return;
     if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
@@ -469,18 +448,18 @@
       ctx.shadowBlur = 0; ctx.globalAlpha = 1;
       return;
     }
-    // Bars along the perimeter, pointing inward; a smooth pseudo-spectrum from the track id, pulsing on the beat.
+
     const per = 2 * (w + h), step = 6, n = Math.floor(per / step), seed = S.seed;
     const tt = now / 1000;
     ctx.globalAlpha = 0.85;
     ctx.lineCap = "round";
     ctx.lineWidth = 2.5;
     if (style === "wave") ctx.beginPath();
-    // r40-lag: bars are batched into 6 opacity levels — 6 strokes per frame instead of one per bar (~500)
+
     const LEVELS = 6, paths = style === "wave" ? null : Array.from({ length: LEVELS }, () => new Path2D());
     for (let i = 0; i < n; i += 1) {
       const u = i / n;
-      // two slow «waves» travel round the edge; bars rise where they pass and kick on the beat — calm, never a dashed frame
+
       const wave = Math.max(0, Math.sin(u * Math.PI * 2 * 2 - tt * 0.9 + (seed % 7))) ** 3 + Math.max(0, Math.sin(u * Math.PI * 2 * 3 + tt * 0.6)) ** 4 * 0.6;
       const band = (Math.sin(u * 61 + (seed % 97)) + Math.sin(u * 23.3 + tt * 2.4)) / 2;
       const lvl = Math.max(0, Math.min(1, wave * (0.55 + band * 0.25) + beat * 0.3 * wave));
@@ -502,18 +481,16 @@
     ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath();
   }
 
-  /* ------------------------------------------------------------------------------------------- wiring */
   Q.on("tool-ui", (e) => { if (e && e.ui && e.ui.type === "module-card") showCard(e.ui); });
   Q.on("chat-new", () => { if (cardPanel) cardPanel.hide(); });
   Q.on("open", () => { S.shown = true; if (S.ready) listen(); load().then(listen); });
   Q.on("close", () => { S.shown = false; S.touched = false; stopListen(); stopRing(false); clearTimeout(S.tick); });
   Q.on("submit", (e) => {
-    // A request that IS a declared phrase («включи трек …», «следующий трек») runs at once — no model round.
+
     const text = String((e && e.text) || "");
     if (e.images || e.selection) return;
     if (!S.ready) {
-      // The very first open, before the catalogue arrived: hold the request a moment instead of handing a phrase to the AI
-      // (it used to answer with raw tool talk — «music_play not found» — before the card).
+
       e.preventDefault(); e.text = "";
       load().then(() => { const f = matchLocal(text); if (f && !f.danger) runPhrase(f); else Q.send(text); });
       return;
@@ -521,13 +498,12 @@
     const found = matchLocal(text);
     if (!found || found.danger) return;
     e.preventDefault();
-    // This plugin loads before «commands» (index.json order): an emptied text makes the later submit listeners step
-    // aside, otherwise the assistant engine would run the same phrase a second time.
+
     e.text = "";
     runPhrase(found);
   });
   function runPhrase(found) {
-    showCard({ type: "module-card", module: found.module, command: found.command, skeleton: true, ok: true });   // at once, no text
+    showCard({ type: "module-card", module: found.module, command: found.command, skeleton: true, ok: true });
     S.touched = true;
     run(found.module, found.command, found.args).then((ui) => { showCard(ui); listen(); });
   }

@@ -1,14 +1,11 @@
-// MemuNote — AI document editing engine (Round 31): context excerpts for large files, word diff → hunks,
-// resolution of the agent's edit operations against the real document, inline diff in CodeMirror
-// (red = removed, green = proposed; per-hunk ✓/✕), "Apply all" as ONE undoable transaction,
-// live "write here" streaming widget, and the same operations for rich documents (contenteditable).
+
+
 import { CM } from "./editor.js";
 import { esc } from "./core.js";
 import { renderMarkdown } from "./views.js";
 
 const { StateField, StateEffect, Decoration, WidgetType, EditorView } = CM;
 
-// ------------------------------------------------------------------ extra icons of the AI panel
 const P = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 export const AICONS = {
   diff: P('<path d="M12 3v18M5 8h4M7 6v4M15 16h4"/><rect x="3" y="3" width="18" height="18" rx="3"/>'),
@@ -39,18 +36,17 @@ export const aic = (name, cls = "") => `<span class="ic ${cls}">${AICONS[name] |
 export { outlineOf, sectionAt, buildContext, tokenize, diffTokens, buildHunks, diffHtml, locate, resolveEdit, MARKERS_RE } from "./ai-diff.js";
 import { outlineOf, sectionAt, MARKERS_RE, escRe, diffTokens, tokenize } from "./ai-diff.js";
 
-// ------------------------------------------------------------------ CodeMirror: inline proposals + streaming
-const setHunks = StateEffect.define();      // [{id, from, to, insert}]
-const dropHunk = StateEffect.define();      // id
+const setHunks = StateEffect.define();
+const dropHunk = StateEffect.define();
 const clearHunks = StateEffect.define();
-const streamEff = StateEffect.define();     // {pos, text} | null
-const flashEff = StateEffect.define();      // {from, to} | null
-const handlers = new Map();                 // hunk id → {accept(), reject()}
+const streamEff = StateEffect.define();
+const flashEff = StateEffect.define();
+const handlers = new Map();
 const LABELS = { accept: "Accept", reject: "Reject" };
 export function setEditLabels(labels) { Object.assign(LABELS, labels); }
 
 class InsWidget extends WidgetType {
-  /** text: green proposed text (may be ""), bar: show ✓/✕, block: a full-width box between lines */
+
   constructor(id, text, bar = true, block = false) { super(); this.id = id; this.text = text; this.bar = bar; this.block = block; }
   eq(o) { return o.id === this.id && o.text === this.text && o.bar === this.bar && o.block === this.block; }
   toDOM() {
@@ -66,13 +62,13 @@ class InsWidget extends WidgetType {
   }
   ignoreEvent() { return true; }
 }
-/** Word-level parts of a replace hunk (so a one-word fix in a long sentence shows as one word, not two sentences). */
+
 function subParts(h) {
   if (!h.del || !h.insert || h.del.length + h.insert.length > 20000) return null;
   const parts = diffTokens(tokenize(h.del), tokenize(h.insert), 400);
   if (!parts) return null;
   const changed = parts.filter((p) => p.op !== "=").reduce((n, p) => n + p.text.length, 0);
-  if (changed > (h.del.length + h.insert.length) * 0.6) return null;      // mostly rewritten: show old → new whole
+  if (changed > (h.del.length + h.insert.length) * 0.6) return null;
   return parts;
 }
 class StreamWidget extends WidgetType {
@@ -138,38 +134,34 @@ const flashField = StateField.define({
 });
 const aiTheme = EditorView.baseTheme({});
 
-/** Add the AI fields to a view's current state once (tab states are swapped with setState). */
 export function ensureAIFields(view) {
   if (!view || view.state.field(hunkField, false) !== undefined) return;
   view.dispatch({ effects: StateEffect.appendConfig.of([hunkField, streamField, flashField, aiTheme]) });
 }
 function flash(view, from, to) {
   view.dispatch({ effects: flashEff.of({ from, to }) });
-  clearTimeout(flash.t); flash.t = setTimeout(() => { try { view.dispatch({ effects: flashEff.of(null) }); } catch { /* view gone */ } }, 1600);
+  clearTimeout(flash.t); flash.t = setTimeout(() => { try { view.dispatch({ effects: flashEff.of(null) }); } catch {  } }, 1600);
 }
 
 let hunkSeq = 0;
-/**
- * One proposal = a set of hunks on one tab. target: {kind: "cm"|"doc"|"new", tabId, view(): EditorView|null,
- * doc(): DocEditor|null, activate(), newTab(text, title, kind)}. onChange(proposal) re-renders the card.
- */
+
 export class Proposal {
   constructor(target, onChange) {
     this.target = target; this.onChange = onChange || (() => {});
-    this.hunks = [];          // {id, from, to, insert, del, status: pending|applied|rejected|failed, op, error, label}
-    this.applied = null;      // {doc (CM Text before), hunkIds} after Apply all → Undo
-    this.snapshot = null;     // rich doc: innerHTML before the first apply
+    this.hunks = [];
+    this.applied = null;
+    this.snapshot = null;
   }
   get pending() { return this.hunks.filter((h) => h.status === "pending"); }
   view() { const v = this.target.view?.(); if (v) ensureAIFields(v); return v; }
-  /** Add resolved changes (document offsets as of now). */
+
   add(changes, meta = {}) {
     const added = [];
     for (const c of changes) {
       const h = { id: "h" + (++hunkSeq), from: c.from, to: c.to, insert: c.insert, del: c.del ?? "", status: "pending", ...meta };
       if (h.virtual) { this.hunks.push(h); added.push(h); continue; }
       if (this.target.kind === "cm") { const v = this.view(); if (v) h.del = v.state.sliceDoc(h.from, h.to); }
-      // overlapping hunks cannot all be applied: the later one waits as a conflict
+
       if (this.hunks.some((o) => o.status === "pending" && o.to > h.from && h.to > o.from && !(o.from === o.to && h.from === h.to))) { h.status = "failed"; h.error = "overlap"; }
       this.hunks.push(h); added.push(h);
     }
@@ -177,7 +169,7 @@ export class Proposal {
     return added;
   }
   fail(meta) { this.hunks.push({ id: "h" + (++hunkSeq), from: 0, to: 0, insert: "", del: "", status: "failed", ...meta }); this.onChange(this); }
-  /** Push pending hunks to the editor decorations (positions come back mapped through edits). */
+
   sync() {
     if (this.target.kind === "cm") {
       const v = this.view();
@@ -189,7 +181,7 @@ export class Proposal {
     }
     this.onChange(this);
   }
-  /** Current (mapped) positions from the editor. */
+
   pull() {
     if (this.target.kind !== "cm") return;
     const v = this.view(); if (!v) return;
@@ -200,7 +192,7 @@ export class Proposal {
     const h = this.hunks.find((x) => x.id === id); if (!h || h.virtual) return;
     this.target.activate?.();
     const v = this.view(); if (!v) return;
-    // Round 40: a proposal for another tab was made while that tab was hidden — show its inline diff now
+
     if (h.status === "pending" && !(v.state.field(hunkField, false) || []).some((x) => x.id === id)) this.sync();
     this.pull();
     v.dispatch({ effects: EditorView.scrollIntoView(h.from, { y: "center" }) });
@@ -215,7 +207,7 @@ export class Proposal {
   }
   rejectAll() { for (const h of this.pending) this.reject(h.id); }
   applyAll() { const list = this.pending; if (list.length) this.applyHunks(list); }
-  /** ONE editor transaction for all given hunks → one Ctrl+Z / "Undo" step. */
+
   applyHunks(list) {
     for (const h of list.filter((x) => x.virtual && x.status === "pending")) { this.target.newTab?.(h.insert, h.title, h.docKind); h.status = "applied"; handlers.delete(h.id); }
     list = list.filter((x) => !x.virtual);
@@ -241,7 +233,7 @@ export class Proposal {
     const first = ok[0]; flash(v, set.mapPos(first.from, -1), set.mapPos(last.to, 1));
     this.onChange(this);
   }
-  /** Undo the last apply: CodeMirror history (the apply was a single transaction). */
+
   undo() {
     if (!this.applied) return false;
     if (this.target.kind === "doc") return this.undoDoc();
@@ -255,7 +247,7 @@ export class Proposal {
     this.sync();
     return true;
   }
-  // ---- rich documents (DocEditor, contenteditable): DOM ranges; Undo = snapshot of the page
+
   applyDoc(list) {
     const doc = this.target.doc?.(); if (!doc) return;
     this.target.activate?.();
@@ -281,7 +273,6 @@ export class Proposal {
   }
 }
 
-/** Live "write here": text streams into a widget at `pos`; commit() inserts it as one undoable change. */
 export class StreamWriter {
   constructor(view, pos) { this.view = view; ensureAIFields(view); this.text = ""; view.dispatch({ effects: streamEff.of({ pos, text: "" }) }); }
   push(text) { this.text = text; const v = this.view; const cur = v.state.field(streamField, false); if (!cur) return; v.dispatch({ effects: streamEff.of({ pos: cur.pos, text }) }); }
@@ -294,12 +285,11 @@ export class StreamWriter {
     flash(v, cur.pos, cur.pos + text.length);
     return { from: cur.pos, to: cur.pos + text.length, before, after: v.state.doc };
   }
-  cancel() { try { this.view.dispatch({ effects: streamEff.of(null) }); } catch { /* gone */ } }
+  cancel() { try { this.view.dispatch({ effects: streamEff.of(null) }); } catch {  } }
 }
 
-// ------------------------------------------------------------------ rich document helpers
 const looksMarkdown = (s) => /(^|\n)(#{1,6} |[-*] |\d+\. |\|.*\||> )|\*\*|__|`/.test(s);
-const mdHtml = (text) => renderMarkdown(text).replace(/ data-line="\d+"/g, "");   // preview line mapping is not document content
+const mdHtml = (text) => renderMarkdown(text).replace(/ data-line="\d+"/g, "");
 export function toDocHtml(text) {
   if (looksMarkdown(text)) return mdHtml(text);
   return text.split(/\n{2,}/).map((p) => `<p>${esc(p).replace(/\n/g, "<br>")}</p>`).join("");
@@ -309,7 +299,7 @@ function inlineHtml(text) {
   const html = mdHtml(text).trim().replace(/^<p[^>]*>([\s\S]*)<\/p>$/, "$1");
   return html || esc(text);
 }
-/** Find `needle` in the page's text nodes (whitespace-tolerant) → Range. */
+
 export function docFindRange(page, needle) {
   const nodes = []; let all = "";
   const walker = document.createTreeWalker(page, NodeFilter.SHOW_TEXT);
@@ -353,7 +343,7 @@ function docSectionRange(page, heading) {
   if (end) r.setEndBefore(end); else r.setEndAfter(page.lastChild);
   return r;
 }
-/** Outline of a rich document (for the agent context). */
+
 export function docOutline(page) {
   return [...page.querySelectorAll("h1,h2,h3,h4")].slice(0, 120).map((h, i) => ({ level: +h.tagName[1], title: h.textContent.trim().slice(0, 160), line: i + 1 })).filter((x) => x.title);
 }

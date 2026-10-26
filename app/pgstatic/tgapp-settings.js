@@ -1,11 +1,5 @@
-/* MemuAI · Settings → Remote access → Telegram Mini App (Round 20).
- *
- * Renders into #tgapp-settings. The container is created right after the
- * Telegram bot panel (#tg-settings) inside #pane-remote whenever that pane is
- * (re)rendered, so app.js needs no changes. The Mini App itself runs in
- * MemuAI Proxy (app/tg_webapp.py); this panel only edits memuai/tgapp.json
- * and shows memuai/tgapp-status.json through /api/pg/tgapp.
- */
+
+
 (function () {
   "use strict";
   const PHONE = '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>';
@@ -13,11 +7,11 @@
   const state = { data: null, timer: 0, saving: false, error: "", adv: false };
 
   const en = () => {
-    try { if (window.S && S.preferences && S.preferences.language) return S.preferences.language === "en"; } catch (e) { /* app.js not ready */ }
+    try { if (window.S && S.preferences && S.preferences.language) return S.preferences.language === "en"; } catch (e) {  }
     return localStorage.getItem("memu_lang") === "en" || document.documentElement.lang === "en";
   };
   const tr = (ru, english) => (en() ? english : ru);
-  // Round 27: the tunnel's status texts come in Russian with an English twin (tg_webapp.status_en)
+
   const statusText = (status, key) => (en() && status[key + "_en"]) || status[key] || "";
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -147,7 +141,7 @@ body.reduce-motion .tga-pill i { animation: none !important; }
       ${state.error ? `<div class="tga-error">${esc(state.error)}</div>` : ""}
     </section>`;
     bind(root);
-    // Round 26: the selects stayed native (no pretty-select like the bot panel above).
+
     if (typeof window.enhanceSelects === "function") window.enhanceSelects(root);
   }
 
@@ -200,7 +194,7 @@ body.reduce-motion .tga-pill i { animation: none !important; }
     const copy = root.querySelector("#tga-copy");
     if (copy) copy.onclick = async () => {
       const url = (state.data.status || {}).url || "";
-      try { if (typeof window.copyText === "function") await window.copyText(url, true); else await navigator.clipboard.writeText(url); } catch (e) { /* clipboard denied */ }
+      try { if (typeof window.copyText === "function") await window.copyText(url, true); else await navigator.clipboard.writeText(url); } catch (e) {  }
     };
     const reset = root.querySelector("#tga-reset");
     if (reset) reset.onclick = async () => {
@@ -210,7 +204,6 @@ body.reduce-motion .tga-pill i { animation: none !important; }
     };
   }
 
-  /* What the panel shows, without the heartbeat that changes on every poll. */
   function signature() {
     const data = state.data || {};
     const status = Object.assign({}, data.status || {});
@@ -223,8 +216,7 @@ body.reduce-motion .tga-pill i { animation: none !important; }
     catch (error) { state.error = error.message; }
     const focused = document.activeElement;
     if (focused && root.contains(focused) && (focused.tagName === "SELECT" || (focused.tagName === "INPUT" && focused.type !== "checkbox"))) return;
-    // Round 26: re-rendering every 3 s closed an open picker under the cursor; redraw only on a real change
-    // (the retry countdown still ticks).
+
     if (root.querySelector(".pretty-select.open")) return;
     const sig = signature();
     const status = (state.data && state.data.status) || {};

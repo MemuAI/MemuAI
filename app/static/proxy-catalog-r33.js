@@ -1,11 +1,5 @@
-/* MemuAI Proxy — Round 33 (r33-proxy, item #24): ready-made connections in «Добавить аккаунт».
 
-   The data (~100 services) comes from GET /api/admin/providers/presets (app/providers/catalog.py).
-   The most important services are tiles on top; «Show all N services» opens the full list in alphabetical
-   order with search and region / free filters. Choosing a service opens a short form: the key, the parts of
-   the address the service needs (folder / project / region …), the model list and a link to get a key.
-   Every connection is an ordinary «Собственный API» account. Uses app.js globals: t, esc, $, $$, LANG, api,
-   toast, openModal, closeModal, loadAccounts, accountsCache, modelIdsSnapshot, offerNewModels, copyText. */
+
 "use strict";
 
 window.MemuCatalogR33 = (() => {
@@ -22,12 +16,12 @@ window.MemuCatalogR33 = (() => {
   const ICON_CHEVRON = '<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
   const ICON_BACK = '<svg class="i" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6"/></svg>';
   const safeUrl = (u) => /^https:\/\//i.test(String(u || "")) ? String(u) : "";
-  /* A brand colour as a CSS custom property — only a validated #rrggbb ever reaches the attribute. */
+
   const colorVar = (c) => {
     if (!/^#[0-9a-f]{6}$/i.test(String(c || ""))) return "";
     const [r, g, b] = [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16) / 255)
       .map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4));
-    const light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.42;      // yellow / lime brands get dark letters
+    const light = 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.42;
     return `--mono-bg:${c};--mono-fg:${light ? "#15151b" : "#ffffff"}`;
   };
 
@@ -58,7 +52,7 @@ window.MemuCatalogR33 = (() => {
     const words = norm(S.query).split(/\s+/).filter(Boolean);
     const narrowed = words.length || S.region || S.free;
     return S.presets
-      .filter((p) => narrowed || !p.top)                 // without a filter the list holds the services below the tiles
+      .filter((p) => narrowed || !p.top)
       .filter((p) => !S.region || p.region === S.region)
       .filter((p) => !S.free || p.free)
       .filter((p) => { const h = hay(p); return words.every((w) => h.includes(w)); })
@@ -70,9 +64,9 @@ window.MemuCatalogR33 = (() => {
     if (!list) return;
     const rows = filtered();
     if (!rows.length) { list.innerHTML = `<div class="cat-grid"><div class="cat-empty">${esc(t("cat.empty"))}</div></div>`; return; }
-    // One compact A–Z grid: letter headings left most rows half empty with ~90 services.
+
     list.innerHTML = `<div class="cat-grid">${rows.map(tile).join("")}</div>`;
-    // Unfiltered, the list leaves out the popular tiles shown above, so "All 107" next to "Services: 89" read as a bug.
+
     const narrowed = norm(S.query).trim() || S.region || S.free;
     root.querySelector(".cat-count").textContent = narrowed ? fmt("cat.count", { n: rows.length })
       : fmt("cat.count.rest", { n: rows.length, top: S.presets.length - rows.length });
@@ -131,7 +125,6 @@ window.MemuCatalogR33 = (() => {
     });
   }
 
-  /* ------------------------------------------------------------ the connection form */
   function uniqueName(base) {
     const used = new Set((typeof accountsCache !== "undefined" ? accountsCache : []).filter((a) => a.provider === "custom")
       .map((a) => String(a.fields?.name || "").toLowerCase()));

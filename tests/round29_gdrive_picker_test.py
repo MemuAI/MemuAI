@@ -41,7 +41,6 @@ SHEET = "application/vnd.google-apps.spreadsheet"
 SLIDES = "application/vnd.google-apps.presentation"
 FORM = "application/vnd.google-apps.form"
 
-
 def xlsx(rows: list[list[str]], name: str = "Budget") -> bytes:
     ns = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
     cells = "".join(f'<row r="{r + 1}">' + "".join(f'<c t="inlineStr"><is><t>{v}</t></is></c>' for v in row) + "</row>"
@@ -53,7 +52,6 @@ def xlsx(rows: list[list[str]], name: str = "Budget") -> bytes:
                     '<Relationship Id="rId1" Type="x" Target="worksheets/sheet1.xml"/></Relationships>')
         zf.writestr("xl/worksheets/sheet1.xml", f"<worksheet {ns}><sheetData>{cells}</sheetData></worksheet>")
     return buf.getvalue()
-
 
 class FakeGoogle:
     """Token endpoint + the parts of Drive v3 the picker uses."""
@@ -100,7 +98,7 @@ class FakeGoogle:
                 expected = base64.urlsafe_b64encode(hashlib.sha256(form["code_verifier"].encode()).digest()).decode().rstrip("=")
                 if form.get("code") != "CODE" or expected != self.challenge:
                     return httpx.Response(400, json={"error": "invalid_grant"})
-                # include_granted_scopes: the new token covers the old scopes plus the new ones.
+
                 self.granted |= set(self.asked_scope.split())
                 self.refresh = "1//R2"
                 return httpx.Response(200, json={"access_token": self.access, "refresh_token": self.refresh,
@@ -180,7 +178,6 @@ class FakeGoogle:
             body["nextPageToken"] = str(start + 4)
         return httpx.Response(200, json=body)
 
-
 class PickerTest(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = Path(tempfile.mkdtemp(prefix="gdpick-"))
@@ -197,12 +194,11 @@ class PickerTest(unittest.TestCase):
             self.google.granted.add(gp.SCOPE_READONLY)
             self.svc.store.set("google_scopes", " ".join(sorted(self.google.granted)))
 
-    # ------------------------------------------------------------------ status / auth
     def test_status_states(self) -> None:
         bare = core.SyncService(self.tmp / "other", transport=self.transport)
         self.assertEqual(gp.Picker(lambda: bare, transport=self.transport).status()["state"], "no_client")
         self.assertEqual(self.picker.status()["state"], "not_connected")
-        self.svc.store.set("google_refresh_token", self.google.refresh)   # connected for backups only (old token)
+        self.svc.store.set("google_refresh_token", self.google.refresh)
         status = self.picker.status()
         self.assertEqual((status["state"], status["source"]), ("need_consent", "sync"))
         self.connect()
@@ -230,7 +226,7 @@ class PickerTest(unittest.TestCase):
         self.assertIn(gp.SCOPE_READONLY, self.svc.auth.granted_scopes())
         self.assertIn(drive.SCOPE_APPDATA, self.svc.auth.granted_scopes())
         self.assertEqual(self.picker.status()["state"], "ready")
-        # The sync flow itself still asks only for the backup scopes.
+
         sync_url = self.svc.auth.start_flow()["auth_url"]
         self.svc.auth.cancel_flow()
         sync_scopes = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(sync_url).query))["scope"].split()
@@ -250,14 +246,13 @@ class PickerTest(unittest.TestCase):
         self.assertEqual(caught.exception.code, "no_client")
 
     def test_scope_recorded_but_revoked_on_google_side(self) -> None:
-        # The app believes it may read, Google says otherwise (403 insufficient scopes) → consent again.
+
         self.svc.store.set("google_refresh_token", self.google.refresh)
         self.svc.store.set("google_scopes", gp.SCOPE_READONLY)
         with self.assertRaises(gp.PickerError) as caught:
             self.picker.list()
         self.assertEqual(caught.exception.code, "need_consent")
 
-    # ------------------------------------------------------------------ listing
     def query_of(self, last: int = -1) -> dict:
         request = [r for r in self.google.requests if r.url.path == "/drive/v3/files"][last]
         return dict(request.url.params)
@@ -315,7 +310,7 @@ class PickerTest(unittest.TestCase):
         sheets = self.picker.list(view="folder", folder="fold1", kind="sheets")["files"]
         self.assertEqual([row["name"] for row in sheets], ["Budget"])
         self.assertIn("mimeType = 'application/vnd.google-apps.folder'", self.query_of()["q"], "folders stay visible to browse")
-        # Injection attempts in ids / tokens are dropped, not sent.
+
         self.picker.list(view="folder", folder="x' or name contains 'a", page_token="bad token!")
         params = self.query_of()
         self.assertIn("'root' in parents", params["q"])
@@ -325,7 +320,6 @@ class PickerTest(unittest.TestCase):
         self.connect()
         self.assertEqual(self.picker.folder_path("fold1"), [{"id": "fold1", "name": "Projects"}])
 
-    # ------------------------------------------------------------------ downloads
     def test_exports_and_downloads(self) -> None:
         self.connect()
         doc = self.picker.download("doc1")
@@ -358,7 +352,7 @@ class PickerTest(unittest.TestCase):
             with self.assertRaises(gp.PickerError, msg=fid) as caught:
                 self.picker.download(fid)
             self.assertEqual(caught.exception.code, code, fid)
-        # A file without a reported size is cut while streaming: nothing past the limit is read into memory.
+
         self.assertEqual(gp.MAX_FILE, 5 * 1024 * 1024)
 
     def test_refresh_on_401(self) -> None:
@@ -368,7 +362,7 @@ class PickerTest(unittest.TestCase):
         self.assertTrue(self.picker.list()["files"], "a 401 refreshes the token once and retries")
         tokens = [r for r in self.google.requests if str(r.url).startswith(drive.TOKEN_URL)]
         self.assertGreaterEqual(len(tokens), 2)
-        # Round 30: one Google account — no second «Integrations» token to fall back to.
+
         self.svc.auth.disconnect(revoke=False)
         with self.assertRaises(gp.PickerError) as caught:
             self.picker.list()
@@ -385,7 +379,6 @@ class PickerTest(unittest.TestCase):
         with self.assertRaises(gp.PickerError):
             self.picker.thumbnail("doc1")
 
-    # ------------------------------------------------------------------ routes
     def test_routes(self) -> None:
         from fastapi import FastAPI
         from fastapi.testclient import TestClient
@@ -414,7 +407,6 @@ class PickerTest(unittest.TestCase):
             self.assertNotIn(self.google.access, response.text)
             self.assertNotIn(self.google.refresh, response.text)
 
-
 class HooksTest(unittest.TestCase):
     def test_wiring(self) -> None:
         api = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
@@ -432,7 +424,6 @@ class HooksTest(unittest.TestCase):
         for lang in ("ru", "en"):
             doc = (ROOT / "app" / "docs" / lang / "sync.md").read_text(encoding="utf-8")
             self.assertIn("drive.readonly", doc, lang)
-
 
 if __name__ == "__main__":
     unittest.main()

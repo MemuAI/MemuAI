@@ -24,10 +24,8 @@ PG = ROOT / "app" / "pgstatic"
 NEW = ("soft", "terminal", "brutal")
 WHITE, BLACK, CREAM = (1.0, 1.0, 1.0), (0.0, 0.0, 0.0), _hex("#fff3d6")
 
-
 def css(name):
     return (PG / "designs" / f"{name}.css").read_text(encoding="utf-8")
-
 
 class RegistrationTest(unittest.TestCase):
     def test_catalogue_has_the_new_designs_with_russian_names(self):
@@ -58,8 +56,7 @@ class RegistrationTest(unittest.TestCase):
         appearance_css = (PG / "appearance.css").read_text(encoding="utf-8")
         for name in ids:
             self.assertIn(f".design-mini-{name}", appearance_css, name)
-        # the picker search keywords know the new names: since round 26 they
-        # are built from the design catalogue (ru + en names) at render time
+
         self.assertIn("designs().map((row) => `${row.ru || \"\"} ${row.en || \"\"}`)", js)
         names = " ".join(f"{row['ru']} {row['en']}".lower() for row in themes.DESIGNS)
         for word in ("мягкий", "терминал", "брутализм"):
@@ -76,7 +73,6 @@ class RegistrationTest(unittest.TestCase):
             for part in re.split(r",(?![^()]*\))", selector):
                 first = part.strip().split()[0]
                 self.assertTrue(first.startswith(":root[data-design="), part)
-
 
 class NewDesignStylesheetTest(unittest.TestCase):
     def test_scoped_complete_and_motion_aware(self):
@@ -95,10 +91,9 @@ class NewDesignStylesheetTest(unittest.TestCase):
                            ".table-wrap", ".dd-pop", ".panel {", ".settings-tab-btn", ".mp-card", ".module-window",
                            ".toast", "--sx-r", "max-width: 800px"):
                 self.assertIn(needle, text, (name, needle))
-            # bundled fonts only (offline app): every url() points into designs/fonts
+
             for url in re.findall(r'url\("([^"]+)"\)', text):
                 self.assertTrue(url.startswith("fonts/") and (PG / "designs" / url).is_file(), url)
-
 
 class GlassV3Test(unittest.TestCase):
     def test_no_darkening_around_the_composer(self):
@@ -113,12 +108,10 @@ class GlassV3Test(unittest.TestCase):
         self.assertNotRegex(composer, r"0 22px 56px -30px color-mix\(in srgb, var\(--accent\)")
         self.assertIn("v3", text[:400])
 
-
 def _variants(mode):
     base = dict(themes._DARK_BASE if mode == "dark" else themes._LIGHT_BASE)
     for variant in themes.VARIANTS[mode]:
         yield variant["id"] or "default", {**base, **variant["tokens"]}
-
 
 class NewDesignContrastTest(unittest.TestCase):
     """Mirror of the color-mix() formulas in soft/terminal/brutal.css (mix(a, b, wa) == color-mix(a wa%, b))."""
@@ -168,7 +161,6 @@ class NewDesignContrastTest(unittest.TestCase):
                                 if ratio < 4.5:
                                     failures.append(f"{name}/{mode}/{vid}/{aid}: {role} on {sname} {ratio:.2f}")
         self.assertFalse(failures, "\n".join(failures[:40]))
-
 
 if __name__ == "__main__":
     unittest.main()

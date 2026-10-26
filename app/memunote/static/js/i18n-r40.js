@@ -1,5 +1,5 @@
-// MemuNote — UI strings of Round 40 (r40-note): the editable spreadsheet grid and the multi-tab AI context.
-// Merged into DICT by i18n.js; English contains no Cyrillic.
+
+
 export const R40 = {
   ru: {
     sg_name_box: "Адрес ячейки — введите, например, B12 или Лист2!A1:C9", sg_formula: "Значение или формула (начните с =)",

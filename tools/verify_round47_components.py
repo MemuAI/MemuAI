@@ -21,12 +21,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import build  # noqa: E402
 
-
 def signature(code):
     return (code.co_code, tuple(signature(value) if isinstance(value, types.CodeType) else value for value in code.co_consts),
             code.co_names, code.co_varnames, code.co_freevars, code.co_cellvars, code.co_argcount,
             code.co_posonlyargcount, code.co_kwonlyargcount, code.co_flags, code.co_exceptiontable, code.co_linetable)
-
 
 def main():
     assert build.app_version() == "3.8", "Unexpected desktop release version"
@@ -81,8 +79,7 @@ def main():
         packaged = ROOT / "dist/MemuAI/_internal" / relative
         assert json.loads(source.read_text("utf-8"))["version"] == "3.8.46"
         assert packaged.read_bytes() == source.read_bytes(), "Desktop embeds an older Chrome extension"
-    # The small protocol CLI lists/builds links locally and forwards execution
-    # to the desktop. A new route must not pull the entire server/STT into it.
+
     cli = ROOT / "dist/memu/memu.exe"
     assert cli.stat().st_size < 5 * 1024 * 1024, "Lightweight memu CLI unexpectedly contains server code"
     pyz = CArchiveReader(str(cli)).open_embedded_archive("PYZ.pyz")
@@ -107,7 +104,6 @@ def main():
     result["memu_cli"] = {"commands_passed": 3, "bytes": cli.stat().st_size, "server_dependencies_excluded": True}
     (ROOT / "build/round47-compiled-version.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False))
-
 
 if __name__ == "__main__":
     main()

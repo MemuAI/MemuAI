@@ -13,7 +13,6 @@ _WIDTH = 0
 _QUIET = ("-p", "--print", "-v", "--version", "-h", "--help")
 _SUBCOMMANDS = ("doctor", "mcp", "config", "sessions", "models", "schedule", "install", "uninstall", "update", "version")
 
-
 def show(argv: Sequence[str]) -> None:
     global _WIDTH
     try:
@@ -28,7 +27,6 @@ def show(argv: Sequence[str]) -> None:
         _WIDTH = len(text)
     except Exception:
         _WIDTH = 0
-
 
 def clear() -> None:
     global _WIDTH

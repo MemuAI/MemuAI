@@ -35,14 +35,10 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple
 EXIT_OK, EXIT_ERROR, EXIT_USAGE, EXIT_UNREACHABLE, EXIT_REFUSED, EXIT_INTERRUPTED = 0, 1, 2, 3, 4, 130
 COMMANDS = ("ask", "chat", "open", "link", "models", "status", "task", "inbox", "search-files", "note", "completion", "help", "version")
 
-
 class CliError(Exception):
     def __init__(self, message: str, code: int = EXIT_ERROR) -> None:
         super().__init__(message)
         self.code = code
-
-
-# ---------------------------------------------------------------- language & text
 
 def detect_lang(argv: Sequence[str]) -> str:
     for index, value in enumerate(argv):
@@ -64,13 +60,10 @@ def detect_lang(argv: Sequence[str]) -> str:
         return "ru" if loc.lower().startswith("ru") else "en"
     return "ru"
 
-
 LANG = "ru"
-
 
 def T(ru: str, en: str) -> str:
     return en if LANG == "en" else ru
-
 
 HELP_RU = """memu — командная строка MemuAI
 
@@ -124,15 +117,11 @@ turned off in settings), 130 interrupted.
 Link routes: memu link --list.  memucode is the separate coding command.
 """
 
-
-# ---------------------------------------------------------------- discovery
-
 def data_dir() -> Path:
     base = os.environ.get("MEMUAI_DATA_DIR") or os.environ.get("OMNIHUB_DATA_DIR")
     if not base:
         base = os.path.join(os.environ.get("APPDATA") or os.path.expanduser("~"), "MemuAI")
     return Path(base)
-
 
 def runtime_url(name: str) -> str:
     """URL from memuai/<name> — only a loopback http address without credentials is trusted."""
@@ -147,14 +136,11 @@ def runtime_url(name: str) -> str:
         pass
     return ""
 
-
 def proxy_url() -> str:
     return (os.environ.get("MEMUAI_PROXY_URL") or "").rstrip("/") or runtime_url("proxy.json") or "http://127.0.0.1:8317"
 
-
 def memuai_url() -> str:
     return (os.environ.get("MEMUAI_APP_URL") or "").rstrip("/") or runtime_url("memuai.json")
-
 
 def proxy_token(explicit: str = "") -> str:
     if explicit:
@@ -162,7 +148,7 @@ def proxy_token(explicit: str = "") -> str:
     for name in ("MEMUAI_API_KEY", "MEMUAI_TOKEN"):
         if os.environ.get(name):
             return os.environ[name]
-    try:   # the Proxy's own key list (same Windows user); never printed
+    try:
         cfg = json.loads((data_dir() / "config.json").read_text(encoding="utf-8"))
         keys = cfg.get("api_keys") if isinstance(cfg, dict) else None
         if isinstance(keys, list) and keys and isinstance(keys[0], str):
@@ -171,9 +157,7 @@ def proxy_token(explicit: str = "") -> str:
         pass
     return ""
 
-
-_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))   # never through a system/VPN proxy
-
+_OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
 def http(method: str, url: str, body: Any = None, *, token: str = "", timeout: float = 30.0,
          stream: bool = False) -> Tuple[int, Any]:
@@ -202,7 +186,6 @@ def http(method: str, url: str, body: Any = None, *, token: str = "", timeout: f
     except ValueError:
         return response.status, {"text": raw}
 
-
 def online(url: str, path: str, key: str = "") -> bool:
     if not url:
         return False
@@ -213,7 +196,6 @@ def online(url: str, path: str, key: str = "") -> bool:
     if status != 200 or not isinstance(data, dict):
         return False
     return data.get("service") == "memuai-proxy" if key == "proxy" else data.get("ok") is True
-
 
 def need_memuai(start: bool = False, link: str = "") -> str:
     url = memuai_url()
@@ -226,7 +208,6 @@ def need_memuai(start: bool = False, link: str = "") -> str:
             if url and online(url, "/api/pg/ping"):
                 return url
     raise CliError(T("MemuAI не запущен. Откройте MemuAI и повторите.", "MemuAI is not running. Open MemuAI and try again."), EXIT_UNREACHABLE)
-
 
 def launch_memuai(link: str = "") -> bool:
     """Start MemuAI (installed layout: ..\\MemuAI\\MemuAI.exe next to this program's folder; or the source checkout)."""
@@ -244,16 +225,13 @@ def launch_memuai(link: str = "") -> bool:
             candidates.append([sys.executable, str(entry), *args])
     for command in candidates:
         try:
-            flags = 0x00000008 | 0x00000200 if os.name == "nt" else 0   # DETACHED_PROCESS | NEW_PROCESS_GROUP
+            flags = 0x00000008 | 0x00000200 if os.name == "nt" else 0
             subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                              close_fds=True, creationflags=flags, start_new_session=os.name != "nt")
             return True
         except OSError:
             continue
     return False
-
-
-# ---------------------------------------------------------------- output
 
 class Out:
     def __init__(self, as_json: bool) -> None:
@@ -266,7 +244,6 @@ class Out:
             sys.stdout.write(text if text.endswith("\n") else text + "\n")
         sys.stdout.flush()
 
-
 def parse_kv(items: Sequence[str]) -> Dict[str, str]:
     params: Dict[str, str] = {}
     for item in items:
@@ -275,7 +252,6 @@ def parse_kv(items: Sequence[str]) -> Dict[str, str]:
         key, value = item.split("=", 1)
         params[key.strip()] = value
     return params
-
 
 def take_opts(argv: List[str], flags: Sequence[str], valued: Sequence[str]) -> Tuple[Dict[str, Any], List[str]]:
     opts: Dict[str, Any] = {}
@@ -304,21 +280,18 @@ def take_opts(argv: List[str], flags: Sequence[str], valued: Sequence[str]) -> T
         i += 1
     return opts, rest
 
-
-# ---------------------------------------------------------------- links
-
 def dispatch_link(link: str, out: Out, *, start: bool = True) -> int:
     url = memuai_url()
     if not (url and online(url, "/api/pg/ping")):
         if not start:
             raise CliError(T("MemuAI не запущен.", "MemuAI is not running."), EXIT_UNREACHABLE)
-        # MemuAI starts with the link and shows it itself (the same checks happen there).
+
         try:
             from app import deeplinks
             deeplinks.split(link)
         except ImportError:
             pass
-        except Exception as exc:  # LinkError
+        except Exception as exc:
             raise CliError(T("Ссылка отклонена: ", "Link rejected: ") + str(getattr(exc, "en" if LANG == "en" else "ru", exc)), EXIT_REFUSED)
         if not launch_memuai(link):
             raise CliError(T("MemuAI не найден — откройте его вручную.", "MemuAI was not found — open it by hand."), EXIT_UNREACHABLE)
@@ -336,7 +309,6 @@ def dispatch_link(link: str, out: Out, *, start: bool = True) -> int:
     out.emit(data, text)
     return EXIT_OK
 
-
 def build_link(route: str, params: Dict[str, Any]) -> str:
     try:
         from app import deeplinks
@@ -351,7 +323,6 @@ def build_link(route: str, params: Dict[str, Any]) -> str:
         raise CliError((exc.en if LANG == "en" else exc.ru), EXIT_REFUSED) from exc
     return link
 
-
 def cmd_link(argv: List[str], out: Out) -> int:
     opts, rest = take_opts(argv, ("--list",), ())
     if opts.get("list") or not rest:
@@ -365,14 +336,12 @@ def cmd_link(argv: List[str], out: Out) -> int:
     out.emit({"ok": True, "link": link}, link)
     return EXIT_OK
 
-
 def cmd_open(argv: List[str], out: Out) -> int:
     if not argv:
         raise CliError(T("Укажите ссылку memuai:// или маршрут", "Give a memuai:// link or a route"), EXIT_USAGE)
     target = argv[0]
     link = target if target.lower().startswith("memuai:") else build_link(target, parse_kv(argv[1:]))
     return dispatch_link(link, out)
-
 
 def cmd_chat(argv: List[str], out: Out) -> int:
     if not argv or argv[0] not in ("new",):
@@ -394,9 +363,6 @@ def cmd_chat(argv: List[str], out: Out) -> int:
         params["temp"] = True
     return dispatch_link(build_link("chat/new", params), out)
 
-
-# ---------------------------------------------------------------- Proxy
-
 def default_model(token: str) -> str:
     if os.environ.get("MEMU_MODEL"):
         return os.environ["MEMU_MODEL"]
@@ -411,7 +377,6 @@ def default_model(token: str) -> str:
         raise CliError(T("В MemuAI Proxy нет моделей — добавьте аккаунт.", "MemuAI Proxy has no models — add an account."))
     return models[0]["id"]
 
-
 def list_models(token: str) -> List[Dict[str, Any]]:
     status, data = http("GET", proxy_url() + "/v1/models", token=token, timeout=15)
     if status == 401:
@@ -420,12 +385,10 @@ def list_models(token: str) -> List[Dict[str, Any]]:
         raise CliError(T(f"Proxy ответил {status}", f"The Proxy answered {status}"))
     return [m for m in data.get("data") or [] if isinstance(m, dict) and m.get("id")]
 
-
 def cmd_models(argv: List[str], out: Out, token: str) -> int:
     models = list_models(token)
     out.emit({"models": models}, "\n".join(m["id"] for m in models) or T("(нет моделей)", "(no models)"))
     return EXIT_OK
-
 
 def cmd_ask(argv: List[str], out: Out, token: str) -> int:
     opts, rest = take_opts(argv, ("--stream", "--no-stream"), ("-m", "--model", "--system", "--max-tokens"))
@@ -487,16 +450,12 @@ def cmd_ask(argv: List[str], out: Out, token: str) -> int:
     out.emit({"ok": True, "model": data.get("model") or model, "content": content, "usage": data.get("usage")}, content)
     return EXIT_OK
 
-
 def _ask_error(status: int, data: Any, out: Out) -> int:
     err = data.get("error") if isinstance(data, dict) else None
     message = (err.get("message") if isinstance(err, dict) else err) or str(status)
     out.emit({"ok": False, "status": status, "error": message}, "")
     sys.stderr.write(T("Ошибка модели: ", "Model error: ") + str(message)[:500] + "\n")
     return EXIT_REFUSED if status in (401, 403) else EXIT_ERROR
-
-
-# ---------------------------------------------------------------- MemuAI data
 
 def cmd_status(argv: List[str], out: Out) -> int:
     app_url, px_url = memuai_url(), proxy_url()
@@ -523,14 +482,12 @@ def cmd_status(argv: List[str], out: Out) -> int:
     out.emit(data, "\n".join(text))
     return EXIT_OK if (app_on or px_on) else EXIT_UNREACHABLE
 
-
 def _tasks_from_file() -> List[Dict[str, Any]]:
     try:
         rows = json.loads((data_dir() / "memuai" / "schedules.json").read_text(encoding="utf-8"))
         return [r for r in rows if isinstance(r, dict)] if isinstance(rows, list) else []
     except (OSError, ValueError):
         return []
-
 
 def cmd_task(argv: List[str], out: Out) -> int:
     if not argv or argv[0] not in ("list", "run"):
@@ -554,7 +511,7 @@ def cmd_task(argv: List[str], out: Out) -> int:
         raise CliError(T("Укажите id задачи (memu task list)", "Give a task id (memu task list)"), EXIT_USAGE)
     task_id = rest[0]
     if opts.get("yes") or opts.get("y"):
-        # The person typed --yes in their own terminal: run directly, as the «Run now» button does.
+
         url = need_memuai()
         status, data = http("POST", url + "/api/plan/run", {"id": task_id, "lang": LANG}, timeout=20)
         if status == 200 and isinstance(data, dict) and data.get("ok"):
@@ -563,7 +520,6 @@ def cmd_task(argv: List[str], out: Out) -> int:
         out.emit({"ok": False, "status": status, "data": data}, T("Задача не запущена: ", "Task not started: ") + str((data or {}).get("error") or status))
         return EXIT_ERROR
     return dispatch_link(build_link("task/run", {"id": task_id}), out)
-
 
 def cmd_inbox(argv: List[str], out: Out) -> int:
     opts, _ = take_opts(argv, ("--all",), ())
@@ -575,7 +531,6 @@ def cmd_inbox(argv: List[str], out: Out) -> int:
     lines = [f"{'•' if not it.get('read') else ' '} [{it.get('source', '')}] {it.get('title', '')}" for it in items[:100]]
     out.emit({"items": items, "counts": data.get("counts")}, "\n".join(lines) or T("Во «Входящих» пусто.", "The Inbox is empty."))
     return EXIT_OK
-
 
 def cmd_search_files(argv: List[str], out: Out) -> int:
     opts, rest = take_opts(argv, (), ("--limit",))
@@ -598,7 +553,6 @@ def cmd_search_files(argv: List[str], out: Out) -> int:
     results = data.get("results") or []
     out.emit({"results": results, "query": query}, "\n".join(str(r.get("path")) for r in results) or T("Ничего не найдено.", "Nothing found."))
     return EXIT_OK
-
 
 def cmd_note(argv: List[str], out: Out) -> int:
     if not argv:
@@ -626,7 +580,7 @@ def cmd_note(argv: List[str], out: Out) -> int:
             return EXIT_OK
         except OSError:
             continue
-    # Not found next to us: ask the running MemuAI (it knows where MemuNote is installed).
+
     url = memuai_url()
     if url and online(url, "/api/pg/ping"):
         status, data = http("POST", url + "/api/pg/memunote/open", {"files": files}, timeout=15)
@@ -634,9 +588,6 @@ def cmd_note(argv: List[str], out: Out) -> int:
             out.emit({"ok": True, "files": files}, T("MemuNote открывается…", "Opening MemuNote…"))
             return EXIT_OK
     raise CliError(T("MemuNote не найден (MemuAI → Настройки → MemuNote).", "MemuNote was not found (MemuAI → Settings → MemuNote)."))
-
-
-# ---------------------------------------------------------------- completion
 
 def completion_script(shell: str) -> str:
     words = " ".join(COMMANDS)
@@ -688,16 +639,12 @@ Register-ArgumentCompleter -Native -CommandName memu, memu.exe -ScriptBlock {{
 """
     raise CliError(T("Оболочки: bash, zsh, powershell", "Shells: bash, zsh, powershell"), EXIT_USAGE)
 
-
-# ---------------------------------------------------------------- main
-
 def _version() -> str:
     try:
         from app.version import APP_VERSION
         return APP_VERSION
     except Exception:  # noqa: BLE001
         return "?"
-
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
     global LANG
@@ -711,7 +658,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     try:
         opts, rest = take_opts(args, ("--json", "--help", "-h", "--version", "-V"), ("--lang", "--token"))
     except CliError:
-        # unknown options belong to subcommands: separate globals by hand
+
         opts, rest = {}, []
         skip = False
         for i, a in enumerate(args):

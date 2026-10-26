@@ -9,8 +9,7 @@ from __future__ import annotations
 
 import os
 
-
-def api_sheet_save(self, method: str) -> None:   # bound as Handler.api_sheet_save
+def api_sheet_save(self, method: str) -> None:
     from .formats.sheets import read_xlsx
     from .formats.textio import atomic_write
     from .formats.xlsx_edit import SheetEditError, patch_xlsx
@@ -47,7 +46,6 @@ def api_sheet_save(self, method: str) -> None:   # bound as Handler.api_sheet_sa
     atomic_write(target, out, keep_backup=bool(body.get("backup")))
     self.app.allow(target)
     self._json({"ok": True, **_stat(target), "path": target, "sheets": sheets, "new_sheets": [s.get("name") for s in changes.get("new_sheets") or []]})
-
 
 def register(handler_cls) -> None:
     handler_cls.api_sheet_save = api_sheet_save

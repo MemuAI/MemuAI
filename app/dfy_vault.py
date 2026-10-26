@@ -49,17 +49,15 @@ KIND_FIELDS = {
     "otp": ("code",),
     "text": ("value",),
 }
-# Kinds the agent may request with request_secret (a one-time code has its own request_code form).
+
 REQUESTABLE_KINDS = tuple(kind for kind in KINDS if kind != "otp")
 ADDRESS_TYPES = ("shipping", "billing", "both")
-# Values that are not secret on their own: redacting them would blank out ordinary page text
-# ("Hotels in [секрет]") without protecting anything.
+
 NOT_REDACTED = frozenset(("exp_month", "exp_year", "country", "region", "city", "address_type", "doc_type"))
 PLACEHOLDER_RE = re.compile(r"\{\{\s*secret:([A-Za-z0-9_-]{4,40})\.([a-z0-9_]{1,32})\s*\}\}")
 _FIELD_RE = re.compile(r"^[a-z][a-z0-9_]{0,31}$")
 _EMAIL_RE = re.compile(r"^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$")
-# ITU-T E.164 country calling codes (the longest prefix wins). Only used to split a stored
-# international number into "country code" + "national number" for forms that ask them apart.
+
 _CALLING_CODES = frozenset("""
 1 7 20 27 30 31 32 33 34 36 39 40 41 43 44 45 46 47 48 49 51 52 53 54 55 56 57 58 60 61 62 63 64 65 66 81 82 84
 86 90 91 92 93 94 95 98 211 212 213 216 218 220 221 222 223 224 225 226 227 228 229 230 231 232 233 234 235 236
@@ -69,14 +67,10 @@ _CALLING_CODES = frozenset("""
 598 599 670 672 673 674 675 676 677 678 679 680 681 682 683 685 686 687 688 689 690 691 692 850 852 853 855 856
 880 886 960 961 962 963 964 965 966 967 968 970 971 972 973 974 975 976 977 992 993 994 995 996 998""".split())
 
-
 class VaultError(ValueError):
     """A secret cannot be stored or used (invalid value, missing, wrong domain, wrong field).
 
     A ``ValueError``: callers of ``DFYManager.answer`` (API, Telegram) report it as bad input."""
-
-
-# ---------------------------------------------------------------- crypto ----
 
 def _dpapi(data: bytes, *, protect: bool) -> bytes:  # pragma: no cover - Windows only
     import ctypes
@@ -93,7 +87,7 @@ def _dpapi(data: bytes, *, protect: bool) -> bytes:  # pragma: no cover - Window
     result_blob = DataBlob()
     crypt32 = ctypes.windll.crypt32
     function = crypt32.CryptProtectData if protect else crypt32.CryptUnprotectData
-    # CRYPTPROTECT_UI_FORBIDDEN = 0x1
+
     ok = function(ctypes.byref(source_blob), None, ctypes.byref(entropy_blob), None, None, 0x1,
                   ctypes.byref(result_blob))
     if not ok:
@@ -106,7 +100,6 @@ def _dpapi(data: bytes, *, protect: bool) -> bytes:  # pragma: no cover - Window
         kernel32.LocalFree.restype = ctypes.c_void_p
         kernel32.LocalFree(ctypes.cast(result_blob.pbData, ctypes.c_void_p))
 
-
 def _keystream(key: bytes, nonce: bytes, length: int) -> bytes:
     out = bytearray()
     counter = 0
@@ -114,7 +107,6 @@ def _keystream(key: bytes, nonce: bytes, length: int) -> bytes:
         out += hmac.new(key, b"enc" + nonce + counter.to_bytes(8, "big"), hashlib.sha256).digest()
         counter += 1
     return bytes(out[:length])
-
 
 class _FileKeyCipher:
     """Fallback cipher: HMAC-SHA256-CTR + HMAC-SHA256 tag (encrypt-then-MAC)."""
@@ -163,9 +155,6 @@ class _FileKeyCipher:
             raise VaultError("Запись хранилища DFY не прошла проверку целостности")
         return bytes(a ^ b for a, b in zip(body, _keystream(enc_key, nonce, len(body))))
 
-
-# ----------------------------------------------------------------- helpers ---
-
 def normalize_domain(value: Any) -> str:
     raw = str(value or "").strip().lower()
     if not raw:
@@ -180,7 +169,6 @@ def normalize_domain(value: Any) -> str:
     if host.startswith("www."):
         host = host[4:]
     return host[:253]
-
 
 def domain_matches(bound: str, url: str) -> bool:
     """``bound`` = example.com accepts example.com and *.example.com over https (or localhost)."""
@@ -198,7 +186,6 @@ def domain_matches(bound: str, url: str) -> bool:
         return False
     return host == bound or host.endswith("." + bound)
 
-
 def card_brand(number: str) -> str:
     digits = re.sub(r"\D", "", number or "")
     if re.match(r"^4", digits):
@@ -212,7 +199,6 @@ def card_brand(number: str) -> str:
     if re.match(r"^(62|81)", digits):
         return "UnionPay"
     return "Карта"
-
 
 def luhn_ok(number: str) -> bool:
     digits = re.sub(r"\D", "", number or "")
@@ -228,19 +214,15 @@ def luhn_ok(number: str) -> bool:
         total += value
     return total % 10 == 0
 
-
 _CARD_IN_TEXT = re.compile(r"(?<!\d)(?:\d[ -]?){12,18}\d(?!\d)")
-
 
 def looks_like_card(text: str) -> bool:
     return any(luhn_ok(match.group(0)) for match in _CARD_IN_TEXT.finditer(str(text or "")))
-
 
 def scrub_cards(text: str) -> str:
     def repl(match: re.Match) -> str:
         return "[номер карты скрыт]" if luhn_ok(match.group(0)) else match.group(0)
     return _CARD_IN_TEXT.sub(repl, str(text or ""))
-
 
 def normalize_phone(value: Any) -> str:
     """An international number as ``+<digits>`` (E.164). Raises VaultError without a country code.
@@ -260,7 +242,6 @@ def normalize_phone(value: Any) -> str:
         raise VaultError("Телефон должен содержать код страны и 8–15 цифр")
     return "+" + digits
 
-
 def split_phone(phone: str) -> tuple[str, str]:
     """``+79161234567`` → ``("+7", "9161234567")`` (longest known calling code)."""
     digits = re.sub(r"\D", "", phone or "")
@@ -268,7 +249,6 @@ def split_phone(phone: str) -> tuple[str, str]:
         if digits[:size] in _CALLING_CODES and len(digits) > size:
             return "+" + digits[:size], digits[size:]
     return "+" + digits[:1], digits[1:]
-
 
 def normalize_date(value: Any) -> str:
     """``YYYY-MM-DD`` from ``YYYY-MM-DD`` / ``DD.MM.YYYY`` / ``DD/MM/YYYY``; VaultError otherwise."""
@@ -286,7 +266,6 @@ def normalize_date(value: Any) -> str:
         return datetime.date(int(year), int(month), int(day)).isoformat()
     except ValueError:
         raise VaultError("Такой даты нет") from None
-
 
 def derived_fields(kind: str, values: Dict[str, str]) -> Dict[str, str]:
     """Extra read-only fields computed from stored ones, so the agent can fill forms that want
@@ -315,11 +294,9 @@ def derived_fields(kind: str, values: Dict[str, str]) -> Dict[str, str]:
         out.update({f"code_{index + 1}": char for index, char in enumerate(code[:12])})
     return out
 
-
 def _mask_phone(phone: str) -> str:
     code, national = split_phone(phone)
     return f"{code} •••• ••{national[-2:]}" if national else "•••"
-
 
 def _mask(kind: str, fields: Dict[str, str], label: str, domain: str) -> str:
     if kind == "card":
@@ -353,7 +330,6 @@ def _mask(kind: str, fields: Dict[str, str], label: str, domain: str) -> str:
                                         "e-mail" if fields.get("email") else "") if x)
         return (name + "." if name else (label or "Данные")) + " (личные данные" + (f": {extra}" if extra else "") + ")"
     return label or "Секрет"
-
 
 def _clean_fields(kind: str, fields: Any) -> Dict[str, str]:
     if not isinstance(fields, dict):
@@ -403,16 +379,12 @@ def _clean_fields(kind: str, fields: Any) -> Dict[str, str]:
         raise VaultError("Нет полей секрета")
     return out
 
-
 def _phone_pattern(phone: str) -> Optional[re.Pattern]:
     """Matches the national part of a phone however a page formats it: ``(916) 123-45-67``."""
     national = split_phone(phone)[1]
     if len(national) < 6:
         return None
     return re.compile(r"[\s\-().]*".join(re.escape(char) for char in national))
-
-
-# ------------------------------------------------------------------ vault ----
 
 class SecretVault:
     def __init__(self, root: Path, *, use_dpapi: Optional[bool] = None) -> None:
@@ -421,10 +393,9 @@ class SecretVault:
         self._lock = threading.RLock()
         self.use_dpapi = (os.name == "nt") if use_dpapi is None else bool(use_dpapi)
         self._file_cipher = _FileKeyCipher(self.root / "dfy_vault.key")
-        # Ephemeral secrets: given for one task with "don't save"; memory only.
+
         self._ephemeral: Dict[str, Dict[str, Any]] = {}
 
-    # -- storage
     @property
     def scheme(self) -> str:
         return "dpapi" if self.use_dpapi else "file-key"
@@ -469,7 +440,6 @@ class SecretVault:
         except OSError:
             pass
 
-    # -- public API
     def add(self, kind: str, fields: Dict[str, Any], *, label: str = "", domain: str = "",
             persist: bool = True) -> Dict[str, Any]:
         kind = str(kind or "").lower()
@@ -480,7 +450,7 @@ class SecretVault:
         if kind == "login" and not dom:
             raise VaultError("Логин нужно привязать к сайту (домену)")
         label = str(label or "").strip()[:80]
-        persist = bool(persist) and kind != "otp"   # a one-time code is never written to disk
+        persist = bool(persist) and kind != "otp"
         secret_id = "s" + _secrets.token_hex(6)
         meta = {"id": secret_id, "kind": kind, "label": label, "domain": dom,
                 "mask": _mask(kind, clean, label, dom)[:120], "fields": sorted(clean),
@@ -573,7 +543,7 @@ class SecretVault:
         out = []
         for row in rows:
             fields = list(row.get("fields") or [])
-            # Names only: which derived formats exist follows from which fields are stored.
+
             stub = {name: ("+10000000000" if name == "phone" else "2000-01-01" if name.endswith("_date")
                            else "x") for name in fields}
             derived = sorted(derived_fields(row["kind"], stub)) if row["kind"] != "otp" else \

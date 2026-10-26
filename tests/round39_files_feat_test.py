@@ -15,14 +15,12 @@ ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "memufiles" / "static"
 SHOTS = os.environ.get("MEMU_SHOTS_DIR", "")
 
-
 @pytest.fixture(autouse=True)
 def isolated(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMUAI_DATA_DIR", str(tmp_path / "data"))
     monkeypatch.setenv("MEMUFILES_TRASH_DIR", str(tmp_path / "trash"))
     monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
     yield
-
 
 @pytest.fixture()
 def server(tmp_path):
@@ -31,7 +29,6 @@ def server(tmp_path):
     httpd, _ = srv.start(app)
     yield app
     httpd.shutdown()
-
 
 def call(app, path, body=None):
     data = None if body is None else json.dumps(body).encode()
@@ -44,7 +41,6 @@ def call(app, path, body=None):
     except urllib.error.HTTPError as exc:
         return exc.code, json.loads(exc.read() or b"{}")
 
-
 def run_job(kind, args):
     from app.memufiles.jobs import Jobs
     job = Jobs().start(kind, args)
@@ -53,7 +49,6 @@ def run_job(kind, args):
         time.sleep(0.02)
     assert job.status == "done", job.error
     return job.result
-
 
 def make_pair(base: Path):
     left, right = base / "L", base / "R"
@@ -74,23 +69,20 @@ def make_pair(base: Path):
         os.utime(p, (1_700_000_000, 1_700_000_000))
     return left, right
 
-
-# ------------------------------------------------------------------ backend
 def test_compare_states_and_collapsed_one_side_folders(tmp_path):
     left, right = make_pair(tmp_path)
     res = run_job("compare", {"left": str(left), "right": str(right)})
     states = {r["rel"]: r["state"] for r in res["rows"]}
     assert states["only-left"] == "left"
-    assert "only-left/deep.txt" not in states                 # the folder row stands for its contents
+    assert "only-left/deep.txt" not in states
     assert states["только справа.md"] == "right"
     assert states["doc.txt"] == "newer_left"
     assert states["same/x.txt"] == "same"
-    assert states["c.bin"] == "same"                          # same size + time: equal without content check
+    assert states["c.bin"] == "same"
     deep = run_job("compare", {"left": str(left), "right": str(right), "content": True})
     assert {r["rel"]: r["state"] for r in deep["rows"]}["c.bin"] == "differ"
     flat = run_job("compare", {"left": str(left), "right": str(right), "recursive": False})
     assert "same/x.txt" not in {r["rel"] for r in flat["rows"]}
-
 
 def test_imgconvert_resize_format_and_subfolder(tmp_path):
     from PIL import Image
@@ -105,10 +97,9 @@ def test_imgconvert_resize_format_and_subfolder(tmp_path):
     with Image.open(src / "Преобразованные" / "a.jpg") as im:
         assert im.format == "JPEG" and im.size == (200, 100)
     with Image.open(src / "Преобразованные" / "b.jpg") as im:
-        assert im.size == (100, 50)                           # smaller than max_side: not upscaled
+        assert im.size == (100, 50)
     res = run_job("imgconvert", {"paths": [str(src / "b.jpg")], "format": "keep", "max_side": 40, "subfolder": ""})
-    assert Path(res["done"][0]).name == "b (40).jpg"          # same folder never overwrites the original
-
+    assert Path(res["done"][0]).name == "b (40).jpg"
 
 def test_new_documents_are_valid_office_files(server, tmp_path):
     folder = tmp_path / "docs"
@@ -124,12 +115,11 @@ def test_new_documents_are_valid_office_files(server, tmp_path):
     assert '"""tool."""' in Path(res["path"]).read_text(encoding="utf-8")
     status, res = call(server, "/api/x/newdoc", {"parent": str(folder), "name": "bad/name.txt"})
     assert status >= 400
-    try:                                                      # deep check when python-docx/openpyxl happen to exist
+    try:
         import openpyxl
         openpyxl.load_workbook(folder / "Новая таблица.xlsx")
     except ImportError:
         pass
-
 
 def test_recent_saved_and_editors_endpoints(server, tmp_path, monkeypatch):
     from app.memufiles import extras, fsops
@@ -140,14 +130,14 @@ def test_recent_saved_and_editors_endpoints(server, tmp_path, monkeypatch):
     assert call(server, "/api/open", {"path": str(f)})[0] == 200
     assert call(server, "/api/open", {"path": str(f)})[0] == 200
     status, rec = call(server, "/api/x/recent")
-    assert [r["path"] for r in rec["items"]] == [str(f)]        # deduplicated, newest first
+    assert [r["path"] for r in rec["items"]] == [str(f)]
     call(server, "/api/x/recent", {"clear": True})
     assert call(server, "/api/x/recent")[1]["items"] == []
     status, saved = call(server, "/api/x/saved", {"name": "Большие видео", "query": "kind:video size:>1gb", "scope": "everywhere"})
     assert saved["items"][0]["scope"] == "everywhere" and saved["items"][0]["name"] == "Большие видео"
     status, saved = call(server, "/api/x/saved", {"remove": saved["items"][0]["id"]})
     assert saved["items"] == []
-    # editors: a fake «code» on PATH is found and launched with the path
+
     bindir = tmp_path / "bin"
     bindir.mkdir()
     exe = bindir / "code"
@@ -165,9 +155,8 @@ def test_recent_saved_and_editors_endpoints(server, tmp_path, monkeypatch):
     assert launched[0][0] == [str(exe), str(tmp_path)]
     assert launched[0][1]["cwd"] == str(tmp_path)
     status, err = call(server, "/api/x/eject", {"path": str(tmp_path)})
-    assert status >= 400 and err["error"] == "unavailable"        # Windows only
+    assert status >= 400 and err["error"] == "unavailable"
     assert call(server, "/api/x/nope", {})[0] == 404
-
 
 def test_batch_rename_exif_size_created_tokens(tmp_path):
     from PIL import Image
@@ -183,7 +172,6 @@ def test_batch_rename_exif_size_created_tokens(tmp_path):
     rows = batchrename.preview([str(txt)], {"pattern": "{name}-{created}-{width}"})
     assert re.fullmatch(r"a-\d{4}-\d{2}-\d{2}-\.txt", rows[0]["new"]), rows
 
-
 def test_static_strings_and_wiring():
     js = (STATIC / "js" / "extras.js").read_text(encoding="utf-8")
     en = js[js.index("addStrings({"):js.index("addStrings(null, {")]
@@ -195,21 +183,17 @@ def test_static_strings_and_wiring():
     app = (STATIC / "js" / "app.js").read_text(encoding="utf-8")
     assert "extras.quickLook(this, pane)" in app and "extras.copyAsItems(paths)" in app
 
-
-# ------------------------------------------------------------------ UI (headless Chromium)
 def _chromium():
     exe = os.environ.get("MEMU_TEST_CHROMIUM") or "/workspace/work/chromium/chrome"
     if not Path(exe).exists():
         pytest.skip("no chromium")
     return exe
 
-
 def _shot(page, name):
     if SHOTS:
-        time.sleep(0.25)                                      # let the open animation finish
+        time.sleep(0.25)
         os.makedirs(SHOTS, exist_ok=True)
         page.screenshot(path=os.path.join(SHOTS, name))
-
 
 def test_ui_quicklook_compare_home_and_copy_as(server, tmp_path, monkeypatch):
     pw = pytest.importorskip("playwright.sync_api")
@@ -233,29 +217,29 @@ def test_ui_quicklook_compare_home_and_copy_as(server, tmp_path, monkeypatch):
             page.on("pageerror", lambda e: errors.append(str(e)))
             page.goto(url)
             page.wait_for_selector(".tabbar .tab")
-            # Home: recent files + saved searches + compare card
+
             page.wait_for_selector(".x-recent .x-rrow")
             assert page.locator(".x-saved", has_text="Python").count() == 1
             assert page.locator(".home-card", has_text="Сравнение папок").count() == 1
             _shot(page, "home.png")
-            # Quick Look on Space: code, then → markdown, image
+
             page.evaluate("p => window.MemuFiles.pane().navigate(p)", str(folder))
             page.locator(".row", has_text="main.py").first.click()
             page.keyboard.press(" ")
             page.wait_for_selector(".ql .pv-code")
             assert "hello" in page.inner_text(".ql .pv-code")
             _shot(page, "quicklook-code.png")
-            page.keyboard.press("ArrowRight")                 # Explorer order (r40): main.py, README.md, фото.png
+            page.keyboard.press("ArrowRight")
             page.wait_for_selector(".ql .ql-md h1")
             page.keyboard.press("End")
             page.wait_for_selector(".ql .ql-stage.media img")
             page.wait_for_function("document.querySelector('.ql .ql-stage img').naturalWidth > 0")
             _shot(page, "quicklook-image.png")
-            page.keyboard.press("Delete")                     # shortcuts are off while Quick Look is open
+            page.keyboard.press("Delete")
             page.keyboard.press("Escape")
             assert page.locator(".ql").count() == 0
             assert (folder / "фото.png").exists()
-            # «Копировать путь как» submenu
+
             page.locator(".row", has_text="main.py").first.click(button="right")
             page.hover(".menu >> text=Копировать путь как")
             page.wait_for_selector(".menu >> text=Ссылка file://")
@@ -264,10 +248,10 @@ def test_ui_quicklook_compare_home_and_copy_as(server, tmp_path, monkeypatch):
             fmts = page.evaluate("() => import('/js/extras.js').then(m => m.pathFormats('C:\\\\Users\\\\Я\\\\a b.txt'))")
             assert fmts["uri"] == "file:///C:/Users/%D0%AF/a%20b.txt" and fmts["bash"] == "'/mnt/c/Users/Я/a b.txt'"
             assert fmts["ps"] == "'C:\\Users\\Я\\a b.txt'" and fmts["stem"] == "a b"
-            # compare dialog
+
             page.evaluate("([a, b]) => import('/js/extras.js').then(m => m.compareDialog(window.MemuFiles, a, b))", [str(left), str(right)])
             page.wait_for_selector(".cmp-row.st-newer_left")
-            assert page.locator(".cmp-row.st-same").count() == 0          # default filter: differences
+            assert page.locator(".cmp-row.st-same").count() == 0
             _shot(page, "compare.png")
             page.click(".cmp-actions >> text=Синхронизировать")
             deadline = time.time() + 8
@@ -277,7 +261,7 @@ def test_ui_quicklook_compare_home_and_copy_as(server, tmp_path, monkeypatch):
             assert (right / "only-left" / "deep.txt").exists() and (left / "только справа.md").exists()
             assert (right / "doc.txt").read_text(encoding="utf-8") == "new version"
             page.click(".cmp-modal .modal-head .icon-btn")
-            # image conversion dialog from the context menu
+
             page.locator(".row", has_text="фото.png").first.click(button="right")
             page.click(".menu >> text=Преобразовать изображения…")
             page.wait_for_selector(".modal >> text=Большая сторона")
@@ -288,7 +272,7 @@ def test_ui_quicklook_compare_home_and_copy_as(server, tmp_path, monkeypatch):
                 time.sleep(0.1)
             assert (folder / "Преобразованные" / "фото.jpg").exists()
             page.keyboard.press("Escape")
-            # «Что занимает место»: squarified treemap
+
             (tmp_path / "big").mkdir()
             (tmp_path / "big" / "v.bin").write_bytes(b"0" * 400_000)
             page.evaluate("p => import('/js/tools.js').then(m => m.usageDialog(window.MemuFiles, p))", str(tmp_path))

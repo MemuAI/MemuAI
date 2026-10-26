@@ -30,8 +30,8 @@ from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 log = logging.getLogger("memuai.telegram")
 
-PHOTO_LIMIT = 10 * 1024 * 1024        # Bot API: sendPhoto upload
-UPLOAD_LIMIT = 50 * 1024 * 1024       # Bot API: sendVideo / sendDocument upload
+PHOTO_LIMIT = 10 * 1024 * 1024
+UPLOAD_LIMIT = 50 * 1024 * 1024
 DOWNLOAD_LIMIT = 160 * 1024 * 1024
 MODELS_TTL = 20.0
 GENERATION_TIMEOUT = 25 * 60.0
@@ -39,13 +39,8 @@ COMMANDS = {"/image": "image", "/img": "image", "/picture": "image", "/video": "
 
 _models_cache: Dict[str, Any] = {"at": 0.0, "value": None}
 
-
 def _tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
-
-# --------------------------------------------------------------------------- in-process Proxy calls
-
 
 def _loopback_request(path: str, body: Optional[Dict[str, Any]] = None, method: str = "POST"):
     """A Starlette request that passes ``admin_api._auth`` (trusted Host + a short-lived panel session)."""
@@ -75,14 +70,12 @@ def _loopback_request(path: str, body: Optional[Dict[str, Any]] = None, method: 
 
     return Request(scope, receive), token
 
-
 def _drop_token(token: str) -> None:
     try:
         from . import admin_api
         admin_api._sessions.pop(token, None)
     except Exception:
         pass
-
 
 def _json_body(response: Any) -> Dict[str, Any]:
     if isinstance(response, dict):
@@ -92,7 +85,6 @@ def _json_body(response: Any) -> Dict[str, Any]:
         return data if isinstance(data, dict) else {}
     except Exception:
         return {}
-
 
 async def media_models(force: bool = False) -> Dict[str, List[str]]:
     """``{"image": [...], "video": [...], "text": [...]}`` — the same lists the chat window shows."""
@@ -115,10 +107,8 @@ async def media_models(force: bool = False) -> Dict[str, List[str]]:
     _models_cache.update(at=time.monotonic(), value=value)
     return value
 
-
 def _pref_key(kind: str) -> str:
     return "media_video_model" if kind == "video" else "media_image_model"
-
 
 def pick_model(kind: str, prefs: Dict[str, Any], lists: Dict[str, List[str]], *, explicit: bool = False) -> str:
     """The desktop ``MemuMedia.pickModel``: "" automatic (pinned first), "off" only by command, else the chosen id."""
@@ -132,7 +122,6 @@ def pick_model(kind: str, prefs: Dict[str, Any], lists: Dict[str, List[str]], *,
         return ""
     pinned = [str(x) for x in prefs.get("pinned_models") or []]
     return next((x for x in pinned if x in items), "") or (items[0] if items else "")
-
 
 def missing_text(kind: str, prefs: Dict[str, Any], lists: Dict[str, List[str]], lang: str) -> str:
     chosen = str(prefs.get(_pref_key(kind)) or "")
@@ -151,10 +140,6 @@ def missing_text(kind: str, prefs: Dict[str, Any], lists: Dict[str, List[str]], 
                      "подключение с моделью картинок (gpt-image, FLUX, Imagen, Gemini image…).",
                "No image generation model. Add a Genspark account (AI Image) or a custom connection with an image "
                "model (gpt-image, FLUX, Imagen, Gemini image…) in MemuAI Proxy.")
-
-
-# --------------------------------------------------------------------------- prompt protocol
-
 
 def prompt_block(image: bool, video: bool) -> str:
     """The in-chat protocol for the main model — the Telegram twin of ``MemuMedia.promptBlock()``."""
@@ -182,9 +167,7 @@ def prompt_block(image: bool, video: bool) -> str:
         text += " Video generation is not configured: if asked for a video, say it can be enabled in MemuAI → Settings → Models."
     return text + "</media_generation>"
 
-
 _BLOCK = re.compile(r"```[ \t]*memuai-(image|video)\s*([\s\S]*?)```", re.I)
-
 
 def extract(text: str) -> Optional[Dict[str, str]]:
     """The first hidden ``memuai-image`` / ``memuai-video`` block: ``{"kind", "prompt"}``."""
@@ -197,7 +180,6 @@ def extract(text: str) -> Optional[Dict[str, str]]:
         if prompt:
             return {"kind": match.group(1).lower(), "prompt": prompt[:6000]}
     return None
-
 
 def detect_aspect(text: str, kind: str) -> str:
     value = str(text or "").lower()
@@ -213,7 +195,6 @@ def detect_aspect(text: str, kind: str) -> str:
         return "16:9"
     return "16:9" if kind == "video" else "auto"
 
-
 def context_rows(history: List[Dict[str, Any]]) -> List[Dict[str, str]]:
     rows: List[Dict[str, str]] = []
     for row in (history or [])[-8:]:
@@ -228,17 +209,12 @@ def context_rows(history: List[Dict[str, Any]]) -> List[Dict[str, str]]:
             rows.append({"role": str(row["role"]), "text": text[:700]})
     return rows[-6:]
 
-
 def previous_prompt(history: List[Dict[str, Any]]) -> str:
     for row in list(history or [])[-4:][::-1]:
         media = row.get("media") if isinstance(row, dict) and isinstance(row.get("media"), dict) else None
         if row.get("role") == "assistant" and media and media.get("prompt") and media.get("status") == "done":
             return str(media["prompt"])
     return ""
-
-
-# --------------------------------------------------------------------------- decisions / autoprompt
-
 
 async def _complete(model: str, messages: List[Dict[str, Any]], *, fast: bool = False, max_tokens: int = 0,
                     timeout: float = 120.0) -> str:
@@ -270,7 +246,6 @@ async def _complete(model: str, messages: List[Dict[str, Any]], *, fast: bool = 
     await asyncio.wait_for(run(), timeout)
     return "".join(parts)
 
-
 async def decide(text: str, prefs: Dict[str, Any], lists: Dict[str, List[str]], *,
                  history: Optional[List[Dict[str, Any]]] = None, attachments: int = 0) -> str:
     """With a Decisions model: ``image`` / ``video`` / ``text`` (heuristic first, one tiny call for unclear ones).
@@ -299,7 +274,6 @@ async def decide(text: str, prefs: Dict[str, Any], lists: Dict[str, List[str]], 
         return "text"
     return kind if pick_model(kind, prefs, lists) else "text"
 
-
 async def autoprompt(kind: str, request: str, model: str, *, history: Optional[List[Dict[str, Any]]] = None) -> str:
     """The desktop autoprompt without the web lookup (the bot has no search step of its own)."""
     from . import media_routing
@@ -318,13 +292,8 @@ async def autoprompt(kind: str, request: str, model: str, *, history: Optional[L
                                                    {"role": "user", "content": user}], timeout=180))
     return media_routing._clean_prompt(re.sub(r"^\s*SEARCH\s*:.*\n?", "", answer, flags=re.I))
 
-
-# --------------------------------------------------------------------------- generation
-
-
 class GenerationError(RuntimeError):
     pass
-
 
 async def generate(kind: str, model: str, prompt: str, *, images: Optional[List[str]] = None, aspect: str = "",
                    system: str = "", stop: Optional[asyncio.Event] = None, lang: str = "ru",
@@ -372,7 +341,7 @@ async def generate(kind: str, model: str, prompt: str, *, images: Optional[List[
         finally:
             if hasattr(iterator, "aclose"):
                 try:
-                    await iterator.aclose()   # cancels the provider job when we stop early
+                    await iterator.aclose()
                 except Exception:
                     pass
         if error:
@@ -382,7 +351,6 @@ async def generate(kind: str, model: str, prompt: str, *, images: Optional[List[
         return urls
     finally:
         _drop_token(token)
-
 
 async def fetch_bytes(url: str) -> Tuple[bytes, str]:
     """A generated result as bytes for an upload: ``data:`` URLs, our stored files and https URLs."""
@@ -432,7 +400,6 @@ async def fetch_bytes(url: str) -> Tuple[bytes, str]:
             mime = str(resp.headers.get("content-type") or "").split(";", 1)[0].strip().lower()
     return b"".join(chunks), mime or "application/octet-stream"
 
-
 def stored_url(kind: str, url: str, profile_id: str) -> str:
     """What the chat history keeps: videos become files of the profile (like the desktop app), images stay."""
     if kind == "video" and str(url).startswith("data:video/"):
@@ -444,7 +411,6 @@ def stored_url(kind: str, url: str, profile_id: str) -> str:
         except Exception as exc:
             log.warning("generated video not stored (%s)", type(exc).__name__)
     return str(url)
-
 
 async def stored_urls(kind: str, urls: List[str], profile_id: str) -> List[str]:
     """Round 33 (r33d-media): ``stored_url`` + remote pictures downloaded into the profile's files (their links of
@@ -458,7 +424,6 @@ async def stored_urls(kind: str, urls: List[str], profile_id: str) -> List[str]:
         blob, mime = await fetch_bytes(url)
         return 200, blob, mime
     return await media_cache.localize_urls(out, profile_id, genspark_fetch=genspark)
-
 
 def media_record(kind: str, model: str, request: str, prompt: str, source: str, urls: List[str],
                  *, autoprompted: bool = False, error: str = "") -> Dict[str, Any]:
@@ -477,19 +442,13 @@ def media_record(kind: str, model: str, request: str, prompt: str, source: str, 
         row["error"] = error[:600]
     return row
 
-
-# --------------------------------------------------------------------------- Telegram bot
-
-
 def _kind_word(kind: str, lang: str) -> str:
     return _tr(lang, "видео", "video") if kind == "video" else _tr(lang, "изображение", "image")
-
 
 def _caption(kind: str, model: str, prompt: str, lang: str, short_model: str = "") -> str:
     head = ("🎬 " if kind == "video" else "🎨 ") + html.escape(short_model or model.split("/")[-1])[:60]
     body = html.escape(prompt[:820])
     return f"<b>{head}</b>\n<blockquote expandable>{body}</blockquote>"[:1024]
-
 
 async def send_result(api: Any, chat_id: str, kind: str, urls: List[str], *, caption: str,
                       reply_markup: Optional[Dict[str, Any]] = None, reply_to: int = 0, lang: str = "ru") -> List[int]:
@@ -532,7 +491,6 @@ async def send_result(api: Any, chat_id: str, kind: str, urls: List[str], *, cap
         if isinstance(result, dict) and result.get("message_id"):
             sent.append(int(result["message_id"]))
     return sent
-
 
 async def bot_generate(client: Any, token: str, telegram_chat_id: str, prefs: Dict[str, Any], *, kind: str,
                        request: str, prompt: str = "", source: str = "command", images: Optional[List[str]] = None,
@@ -645,7 +603,6 @@ async def bot_generate(client: Any, token: str, telegram_chat_id: str, prefs: Di
         log.warning("telegram media turn not saved (%s)", type(exc).__name__)
     return not error
 
-
 def _attach(target: Tuple[str, str, int], record: Dict[str, Any]) -> None:
     from .pgdata import patch_chat
     profile_id, chat_id, created = target
@@ -660,7 +617,6 @@ def _attach(target: Tuple[str, str, int], record: Dict[str, Any]) -> None:
         return False
 
     patch_chat(chat_id, apply, profile_id)
-
 
 def _persist_new(telegram_chat_id: str, session: Dict[str, Any], profile_id: str, user_row: Dict[str, Any],
                  record: Dict[str, Any], model: str, request: str) -> None:
@@ -681,7 +637,6 @@ def _persist_new(telegram_chat_id: str, session: Dict[str, Any], profile_id: str
         upsert_chat(chat, profile_id)
         return
     tb._persist_turn(profile_id, chat, user, assistant, False, False)
-
 
 async def bot_command(client: Any, token: str, telegram_chat_id: str, prefs: Dict[str, Any], command: str,
                       argument: str, *, reply_to: int = 0, message: Optional[Dict[str, Any]] = None) -> None:
@@ -721,7 +676,6 @@ async def bot_command(client: Any, token: str, telegram_chat_id: str, prefs: Dic
         if tb._generations.get(telegram_chat_id) is generation:
             tb._generations.pop(telegram_chat_id, None)
 
-
 async def bot_again(client: Any, token: str, telegram_chat_id: str, prefs: Dict[str, Any]) -> None:
     """«🔁 Another one» / «↻ Retry» under a result: the same prompt once more, as a new turn."""
     from . import telegram_bot as tb
@@ -746,7 +700,6 @@ async def bot_again(client: Any, token: str, telegram_chat_id: str, prefs: Dict[
         if tb._generations.get(telegram_chat_id) is generation:
             tb._generations.pop(telegram_chat_id, None)
 
-
 async def bot_route(client: Any, token: str, telegram_chat_id: str, prompt: str, prefs: Dict[str, Any], *,
                     reply_to: int, images: Optional[List[str]], stop: asyncio.Event,
                     attachments: Optional[List[Dict[str, Any]]] = None) -> bool:
@@ -770,19 +723,14 @@ async def bot_route(client: Any, token: str, telegram_chat_id: str, prompt: str,
                        images=images, reply_to=reply_to, stop=stop, persist_user=user_row)
     return True
 
-
 async def prompt_section(prefs: Dict[str, Any]) -> str:
     """The ``<media_generation>`` section for the bot's system prompt."""
     lists = await media_models()
     return prompt_block(bool(pick_model("image", prefs, lists)), bool(pick_model("video", prefs, lists)))
 
-
-# --------------------------------------------------------------------------- Mini App (tgapp_chat / tgapp_api)
-
 APP_INLINE_LIMIT = 3_000_000
 APP_FILE_LIMIT = 40 * 1024 * 1024
 _COMMAND_RE = re.compile(r"^/(image|img|picture|video)(?:@\w+)?(?:\s+([\s\S]*))?$", re.I)
-
 
 def parse_command(text: str) -> Optional[Tuple[str, str]]:
     """``"/video waves"`` → ``("video", "waves")``; None for any other text."""
@@ -791,12 +739,10 @@ def parse_command(text: str) -> Optional[Tuple[str, str]]:
         return None
     return ("video" if match.group(1).lower() == "video" else "image"), (match.group(2) or "").strip()
 
-
 def prompt_block_cached(prefs: Dict[str, Any]) -> str:
     """``prompt_block`` from the model lists ``media_models()`` fetched last (``chats.send`` warms them)."""
     lists = _models_cache.get("value") or {"image": [], "video": []}
     return prompt_block(bool(pick_model("image", prefs, lists)), bool(pick_model("video", prefs, lists)))
-
 
 def app_media_out(row: Dict[str, Any]) -> Dict[str, Any]:
     """The media fields of a stored assistant row for the Mini App (big inline data is left out)."""
@@ -820,19 +766,17 @@ def app_media_out(row: Dict[str, Any]) -> Dict[str, Any]:
         out["mediaError"] = str(row.get("mediaError") or row.get("error") or "")[:600]
     return out
 
-
 async def app_media_file(url: str, profile_id: str) -> Dict[str, Any]:
     """``media.file``: a generated file of this profile (``generated_media``) as a data URL for <video>/<img>."""
     value = str(url or "")
     stored = re.search(r"/api/pg/media/file/([0-9a-f]{64}\.(?:mp4|webm|mov|png|jpg|webp|gif))", value)
-    if not stored:   # https results load in the browser directly; the server never fetches other addresses here
+    if not stored:
         raise GenerationError("unsupported address")
     value = f"/api/pg/media/file/{stored.group(1)}?profile_id={profile_id or 'default'}"
     blob, mime = await fetch_bytes(value)
     if len(blob) > APP_FILE_LIMIT:
         raise GenerationError("file too large")
     return {"data": f"data:{mime};base64," + base64.b64encode(blob).decode("ascii"), "mime": mime, "size": len(blob)}
-
 
 async def app_generate(job: Any, kind: str, *, request: str, prompt: str = "", source: str, history: List[Dict[str, Any]],
                        images: Optional[List[str]], profile_id: str, lang: str, prefs: Dict[str, Any],
@@ -868,7 +812,6 @@ async def app_generate(job: Any, kind: str, *, request: str, prompt: str = "", s
         error = str(exc)[:600] or type(exc).__name__
     return media_record(kind, model, request, final_prompt, source, [], autoprompted=autoprompted, error=error)
 
-
 async def app_hidden_block(job: Any, raw: str, *, request: str, history: List[Dict[str, Any]], profile_id: str,
                            lang: str) -> Optional[Dict[str, Any]]:
     """After a Mini App answer: the main model's hidden ``memuai-image`` / ``memuai-video`` block → generation."""
@@ -879,7 +822,6 @@ async def app_hidden_block(job: Any, raw: str, *, request: str, history: List[Di
     prefs = load_preferences()
     return await app_generate(job, action["kind"], request=request, prompt=action["prompt"], source="model",
                               history=history, images=None, profile_id=profile_id, lang=lang, prefs=prefs)
-
 
 async def app_command_job(job: Any, chat: Dict[str, Any], history: List[Dict[str, Any]], user_row: Dict[str, Any],
                           kind: str, request: str, images: List[str], model: str, profile_id: str, lang: str,

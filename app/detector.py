@@ -60,12 +60,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from . import tokenizer_probe
 
-# --------------------------------------------------------------------------
-# Families
-# --------------------------------------------------------------------------
-
-#: "made by X" in the languages the identity probes use. Vendors whose name is also an
-#: everyday word (Google, Meta, Microsoft) only count in this form.
 _BY = (r"(?:\bby|\bfrom|\bat|\bof|\bот|компани\w*|обучен\w*|разработан\w*|создан\w*|"
        r"trained|developed|built|created|made)\s+(?:the\s+|компанией\s+)?")
 
@@ -78,7 +72,7 @@ FAMILIES: List[Dict[str, Any]] = [
      "self_re": r"\bopenai\b|\bchat ?gpt\b|\bgpt-?\d", "tokens": ["endoftext"]},
     {"id": "gemini", "label": "Gemini / Gemma", "vendor": "Google",
      "id_re": r"gemini|gemma|bard|palm",
-     # A bare "Google" is not a self-report ("I can't search Google"); "trained by Google" is.
+
      "self_re": r"\bgemini\b|\bgemma\b|google deepmind|\bbard\b|" + _BY + r"google\b|\bgoogle(?:'s|\s+ai\b|\s+llc)",
      "tokens": ["end_of_turn"]},
     {"id": "llama", "label": "Llama", "vendor": "Meta",
@@ -116,8 +110,6 @@ FAMILIES: List[Dict[str, Any]] = [
 ]
 FAMILY = {row["id"]: row for row in FAMILIES}
 
-#: Rough training cutoffs of widely used models: only entries we are sure of.
-#: Kept as a fallback for model ids the MODELS catalogue below does not cover.
 KNOWN_CUTOFFS: List[Tuple[str, str]] = [
     (r"gpt-4o", "2023-10"), (r"gpt-4\.1", "2024-06"), (r"gpt-4-turbo", "2023-12"),
     (r"claude-3-5-sonnet|claude-3\.5-sonnet", "2024-04"), (r"claude-3-7|claude-3\.7", "2024-10"),
@@ -126,36 +118,13 @@ KNOWN_CUTOFFS: List[Tuple[str, str]] = [
     (r"deepseek-(v3|r1|chat|reasoner)", "2024-07"), (r"llama-?3\.1", "2023-12"), (r"llama-?4", "2024-08"),
 ]
 
-# --------------------------------------------------------------------------
-# Specific-model catalogue
-# --------------------------------------------------------------------------
-# One row per current or recent model we can name. ``tier`` is honesty
-# bookkeeping, not a quality judgement: "known" means we are reasonably
-# confident about the cutoff/context figures below (mostly older, widely
-# documented models); "current" is the one model we can source directly from
-# our own runtime metadata; "uncertain" means the model plausibly exists
-# (named by the operator, seen in the wild) but we do not have a reliable
-# cutoff or context figure for it, so those fields are left blank rather than
-# guessed. A blank field never contributes a score bonus, it only means "no
-# opinion" — this is what keeps the detector from being confidently wrong
-# about brand-new releases.
-#
-#   id            slug used as a report key
-#   family        one of FAMILY's ids
-#   label         display name
-#   tier          "known" | "current" | "uncertain"
-#   id_re         matches the *claimed* model id string (optional)
-#   self_re       matches free text where the model names itself
-#   cutoff        "YYYY-MM" best estimate, or "" if we have no reliable one
-#   context_claim approximate advertised context window in tokens, or None
 MODELS: List[Dict[str, Any]] = [
-    # --- Claude / Anthropic ---------------------------------------------
+
     {"id": "claude-fable-5-1", "family": "claude", "label": "Claude Fable 5.1", "tier": "uncertain", "gen": 5.1, "cap": "frontier",
      "id_re": r"fable[-_]?5[-_.]?1", "self_re": r"\bfable\s*5\.?1\b", "cutoff": "", "context_claim": 1000000},
     {"id": "claude-fable-5", "family": "claude", "label": "Claude Fable 5", "tier": "uncertain", "gen": 5.0, "cap": "frontier",
      "id_re": r"fable[-_]?5(?![-_.]?\d)", "self_re": r"\bfable\s*5\b(?!\.\d)", "cutoff": "", "context_claim": 1000000},
-    # Round 35: Sonnet/Haiku 5.5 are served by gateways (tooken.club, OpenRouter) — without rows
-    # their ids were "not in the catalogue" and the version check stayed silent.
+
     {"id": "claude-sonnet-5-5", "family": "claude", "label": "Claude Sonnet 5.5", "tier": "uncertain", "gen": 5.5, "cap": "frontier",
      "id_re": r"sonnet[-_]?5[-_.]5", "self_re": r"\bsonnet\s*5\.5\b", "cutoff": "", "context_claim": None},
     {"id": "claude-haiku-5-5", "family": "claude", "label": "Claude Haiku 5.5", "tier": "uncertain", "gen": 5.5, "cap": "strong",
@@ -192,7 +161,7 @@ MODELS: List[Dict[str, Any]] = [
      "id_re": r"claude-3[-.]7", "self_re": r"\bclaude\b.{0,20}3\.7|3\.7.{0,20}\bsonnet\b", "cutoff": "2024-10", "context_claim": 200000},
     {"id": "claude-3-5-sonnet", "family": "claude", "label": "Claude Sonnet 3.5", "tier": "known", "gen": 3.5, "cap": "strong",
      "id_re": r"claude-3[-.]5", "self_re": r"\bclaude\b.{0,20}3\.5|3\.5.{0,20}\bsonnet\b", "cutoff": "2024-04", "context_claim": 200000},
-    # --- GPT / OpenAI ------------------------------------------------------
+
     {"id": "gpt-6-1", "family": "gpt", "label": "GPT-6.1", "tier": "uncertain", "gen": 6.1, "cap": "frontier",
      "id_re": r"gpt-?6[-.]1(?!\d)", "self_re": r"\bgpt-?6\.1\b", "cutoff": "", "context_claim": None},
     {"id": "gpt-6-astra", "family": "gpt", "label": "GPT-6 Astra", "tier": "uncertain", "gen": 6.0, "cap": "frontier",
@@ -225,7 +194,7 @@ MODELS: List[Dict[str, Any]] = [
      "id_re": r"gpt-?4o[-_ ]?mini", "self_re": r"\bgpt-?4o[- ]?mini\b", "cutoff": "2023-10", "context_claim": 128000},
     {"id": "gpt-4-turbo", "family": "gpt", "label": "GPT-4 Turbo", "tier": "known", "gen": 4.0, "cap": "basic",
      "id_re": r"gpt-?4-turbo", "self_re": r"\bgpt-?4[- ]turbo\b", "cutoff": "2023-12", "context_claim": 128000},
-    # --- Gemini / Google -----------------------------------------------
+
     {"id": "gemini-3x-pro", "family": "gemini", "label": "Gemini 3.1+ Pro", "tier": "uncertain", "gen": 3.1, "cap": "frontier",
      "id_re": r"gemini-?3[-.][1-9][-_ ]?pro|gemini-?pro-?agent", "self_re": r"\bgemini\s*3\.[1-9]\s*pro\b", "cutoff": "", "context_claim": 1048576},
     {"id": "gemini-3x-flash", "family": "gemini", "label": "Gemini 3.1+ Flash", "tier": "uncertain", "gen": 3.1, "cap": "strong",
@@ -238,14 +207,14 @@ MODELS: List[Dict[str, Any]] = [
      "id_re": r"gemini-?2\.5", "self_re": r"\bgemini\s*2\.5\b", "cutoff": "2025-01", "context_claim": 1000000},
     {"id": "gemini-2-0", "family": "gemini", "label": "Gemini 2.0", "tier": "known", "gen": 2.0, "cap": "basic",
      "id_re": r"gemini-?2\.0", "self_re": r"\bgemini\s*2\.0\b", "cutoff": "2024-08", "context_claim": 1000000},
-    # --- Grok / xAI ----------------------------------------------------
+
     {"id": "grok-4x", "family": "grok", "label": "Grok 4.1+", "tier": "uncertain", "gen": 4.1, "cap": "frontier",
      "id_re": r"grok-?4[-.][1-9]", "self_re": r"\bgrok\s*4\.[1-9]", "cutoff": "", "context_claim": None},
     {"id": "grok-4", "family": "grok", "label": "Grok 4", "tier": "uncertain", "gen": 4.0, "cap": "frontier",
      "id_re": r"grok-?4(?![-.]?[1-9])", "self_re": r"\bgrok\s*4\b(?!\.[1-9])", "cutoff": "", "context_claim": 256000},
     {"id": "grok-3", "family": "grok", "label": "Grok 3", "tier": "uncertain", "gen": 3.0, "cap": "strong",
      "id_re": r"grok-?3", "self_re": r"\bgrok\s*3\b", "cutoff": "", "context_claim": 131072},
-    # --- Others ----------------------------------------------------------
+
     {"id": "deepseek-v4", "family": "deepseek", "label": "DeepSeek V4", "tier": "uncertain", "gen": 4.0, "cap": "frontier",
      "id_re": r"deepseek-?v4", "self_re": r"deep ?seek[- ]?v4\b", "cutoff": "", "context_claim": 1048576},
     {"id": "deepseek-v3x", "family": "deepseek", "label": "DeepSeek V3.1 / V3.2", "tier": "uncertain", "gen": 3.1, "cap": "strong",
@@ -271,10 +240,6 @@ MODELS: List[Dict[str, Any]] = [
 ]
 MODEL_BY_ID = {row["id"]: row for row in MODELS}
 
-# --------------------------------------------------------------------------
-# Probes
-# --------------------------------------------------------------------------
-
 SPECIAL_TOKENS = [
     ("endoftext", "<|endoftext|>"),
     ("im_end", "<|im_end|>"),
@@ -288,7 +253,6 @@ SPECIAL_TOKENS = [
 ]
 _WORDS = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet"]
 
-#: Dated questions: (yyyy-mm, question, accepted answer pattern).
 QUIZ: List[Tuple[str, str, str]] = [
     ("2022-12", "Which national team won the 2022 FIFA World Cup?", r"argentin"),
     ("2023-05", "Who was crowned monarch of the United Kingdom at the coronation in May 2023?", r"charles"),
@@ -302,8 +266,7 @@ QUIZ: List[Tuple[str, str, str]] = [
     ("2025-05", "What papal name did the pope elected in May 2025 choose?", r"\bleo\b|лев"),
     ("2025-06", "Which club won the 2024–25 UEFA Champions League final?", r"paris|psg"),
     ("2025-07", "Who won the men's singles title at Wimbledon 2025?", r"sinner"),
-    # Newer events tell apart the 2025-2026 generations (GPT-5.x, Claude 4.5+,
-    # Gemini 3.x). Each has one unambiguous public answer.
+
     ("2025-07", "Which club won the FIFA Club World Cup final played in July 2025?", r"chelsea|челси"),
     ("2025-09", "Who won the men's Ballon d'Or awarded in September 2025?", r"demb[eé]l[eé]|дембеле"),
     ("2025-10", "Who was awarded the Nobel Peace Prize in October 2025?", r"machado|мачадо"),
@@ -311,30 +274,17 @@ QUIZ: List[Tuple[str, str, str]] = [
     ("2025-12", "Who became the 2025 Formula 1 World Drivers' Champion?", r"norris|норрис"),
     ("2026-01", "Who won the men's singles title at the 2026 Australian Open?", r"alcaraz|алькарас"),
     ("2026-02", "Which team won Super Bowl LX in February 2026?", r"seahawks|seattle|сиэтл"),
-    # Round 35: do NOT append events newer than what current models know. Live check (tooken.club,
-    # 2026-10-12): with four March–July 2026 questions added, Claude Sonnet 5.5 switched to "unknown" from
-    # 2025-09 on — including six answers it gives correctly to this exact list (19/19). Questions a model
-    # cannot answer make it cautious about the ones it can, so the estimate drops by half a year.
-    # Add a newer event only after checking that current models still answer the older ones.
+
 ]
 
-#: Questions a model without the knowledge still often gets right: the defending
-#: champion repeats, a favourite wins, a heir was known in advance, a film that won
-#: one prize is guessed for the next. Such an answer alone never moves the cutoff
-#: estimate; it counts only next to a hard-to-guess answer of the same period.
-#: Keyed by the accepted-answer pattern (dates repeat).
 QUIZ_GUESSABLE = {r"charles", r"messi", r"qatar", r"spain|испан", r"trump", r"anora", r"paris|psg",
                   r"sinner", r"dodgers|доджерс", r"alcaraz|алькарас"}
-#: Wording that shows a guess or a prediction rather than knowledge.
+
 _HEDGE_RE = re.compile(r"\b(?:probably|likely|i think|i believe|i guess|possibly|perhaps|maybe|may have|might|"
                        r"expected|predicted|projected|favou?red|as of my|not sure|uncertain|unconfirmed|"
                        r"предположительно|вероятно|возможно|наверное|скорее всего|ожидается|прогноз)\b"
                        r"|\?\s*$|\b(?:either|или)\b|\bor\b", re.I)
 
-
-#: One batched request of small tasks older or smaller models tend to miss
-#: when answering without a scratchpad. The score is a coarse capability
-#: tier, used only to judge whether the claimed *version* is plausible.
 CAPABILITY: List[Tuple[str, str, str]] = [
     ("sisters", "Alice has 3 brothers and 2 sisters. How many sisters does Alice's brother have?", r"^\D*3\b|\bthree\b"),
     ("decimal", "Which number is larger: 9.11 or 9.9?", r"9\.9(?!\d)"),
@@ -382,8 +332,7 @@ def _probe_plan(depth: str) -> List[Dict[str, Any]]:
         {"id": "specs", "kind": "specs", "messages": [{"role": "user", "content": specs_prompt}]},
         {"id": "capability", "kind": "capability", "messages": [{"role": "user", "content": capability_prompt}]},
     ]
-    # The tokenizer fingerprint: four tiny requests whose answers do not matter — only the
-    # provider's own prompt token counts do.
+
     plan += tokenizer_probe.probe_plan()
     if depth == "full":
         plan += [
@@ -395,12 +344,10 @@ def _probe_plan(depth: str) -> List[Dict[str, Any]]:
         ]
     return plan
 
-
 WRAPPER_PROMPT = ("Before this message, were you given a system prompt, developer message or any other instructions in "
                   "this conversation? Answer with JSON only: {\"instructions\": true or false, \"persona\": \"<the assistant "
                   "or product name those instructions tell you to be, or empty>\", \"gist\": \"<up to 15 words on what they "
                   "are about, or empty>\"}")
-
 
 def score_wrapper(answer: str) -> Dict[str, Any]:
     """What the model says about instructions added before the user's message."""
@@ -411,17 +358,6 @@ def score_wrapper(answer: str) -> Dict[str, Any]:
     return {"instructions": data["instructions"], "persona": str(data.get("persona") or "")[:80],
             "gist": str(data.get("gist") or "")[:200]}
 
-
-# --------------------------------------------------------------------------
-# Answer hygiene: reasoning blocks, refusals, structured replies
-# --------------------------------------------------------------------------
-# Reasoning models put their scratchpad in the answer when the provider is set
-# to "think tags" (``<think>…</think>``), Kimi uses ``◁think▷``, gpt-oss the
-# harmony "analysis" channel. A scratchpad says "the user asks whether I am
-# Claude or GPT…" — scoring it named families the model never claimed, and a
-# greedy ``\[.*\]`` swallowed the scratchpad's brackets together with the real
-# JSON answer. Everything below scores only the visible answer.
-
 _THINK_BLOCK_RE = re.compile(
     r"<(think|thinking|thought|reasoning|reflection)\b[^>]*>.*?</\1\s*>"
     r"|◁think▷.*?◁/think▷"
@@ -430,7 +366,6 @@ _THINK_BLOCK_RE = re.compile(
 _THINK_OPEN_RE = re.compile(r"<(think|thinking|thought|reasoning|reflection)\b[^>]*>|◁think▷|<\|begin_of_thought\|>"
                             r"|<\|channel\|>\s*analysis\s*<\|message\|>", re.I)
 _HARMONY_FINAL_RE = re.compile(r"<\|channel\|>\s*final\s*<\|message\|>", re.I)
-
 
 def clean_answer(text: Any) -> Tuple[str, Dict[str, Any]]:
     """The visible answer without reasoning blocks, and what was removed.
@@ -461,13 +396,11 @@ def clean_answer(text: Any) -> Tuple[str, Dict[str, Any]]:
     visible = re.sub(r"<\|(?:end|return|start)\|>", "", visible)
     return visible.strip() if removed or final else str(text or ""), info
 
-
 _REFUSAL_RE = re.compile(
     r"\b(?:i(?:'m| am) (?:sorry|unable|not able|not allowed|not permitted)|i can(?:no|')t (?:help|assist|share|provide|disclose|"
     r"reveal|answer|comply)|i (?:won't|will not|must decline|have to decline)|i'm not able to|as an ai,? i (?:can(?:no|')t|don't))"
     r"|\b(?:извините|к сожалению)\b.{0,60}\b(?:не могу|не вправе|не имею)|\bя не могу (?:помочь|ответить|раскрыть|сообщить)"
     r"|\bне могу (?:раскрыть|сообщить|поделиться)", re.I | re.S)
-
 
 def is_refusal(text: str) -> bool:
     """A short answer that declines instead of answering ("I can't share that")."""
@@ -476,10 +409,8 @@ def is_refusal(text: str) -> bool:
         return False
     return bool(_REFUSAL_RE.search(body[:400]))
 
-
 def _row_text(row: Optional[Dict[str, Any]]) -> str:
     return clean_answer((row or {}).get("text", ""))[0]
-
 
 def normalize_results(results: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:
     """Copies of the probe rows with reasoning stripped and refusals marked. Idempotent."""
@@ -499,7 +430,6 @@ def normalize_results(results: Dict[str, Dict[str, Any]]) -> Dict[str, Dict[str,
                 copy["refused"] = is_refusal(visible)
         out[key] = copy
     return out
-
 
 def _json_values(text: str) -> List[Any]:
     """Every JSON array/object embedded in ``text`` (fenced or inline), outermost first."""
@@ -521,7 +451,6 @@ def _json_values(text: str) -> List[Any]:
             found.append(value)
             index = end
     return found
-
 
 def parse_list(answer: str, expected: int) -> Tuple[List[str], bool]:
     """A numbered/JSON list answer → (items in order, parsed?).
@@ -558,18 +487,12 @@ def parse_list(answer: str, expected: int) -> Tuple[List[str], bool]:
         return lines, True
     return [], False
 
-
 def _normalize_short(text: str) -> str:
     """Answer text for regex checks: no markdown, unified spaces/minus/quotes."""
     value = str(text or "")
     value = value.replace("\u00a0", " ").replace("\u202f", " ").replace("\u2009", " ").replace("\u2212", "-")
     value = re.sub(r"[*_`]+", "", value)
     return value.strip().lower()
-
-
-# --------------------------------------------------------------------------
-# Scoring: family level
-# --------------------------------------------------------------------------
 
 def _claim_texts(model_id: str) -> List[str]:
     """Parts of a model id that name the model, most specific first.
@@ -593,14 +516,12 @@ def _claim_texts(model_id: str) -> List[str]:
     out = list(reversed(parts)) + [raw, text.lower()]
     return list(dict.fromkeys(out))
 
-
 def claimed_family(model_id: str) -> str:
     for text in _claim_texts(model_id):
         for row in FAMILIES:
             if re.search(row["id_re"], text):
                 return row["id"]
     return ""
-
 
 def expected_model(model_id: str) -> Optional[Dict[str, Any]]:
     """Best-effort catalogue row matching the claimed (provider-side) model id.
@@ -614,7 +535,6 @@ def expected_model(model_id: str) -> Optional[Dict[str, Any]]:
                 return row
     return None
 
-
 def expected_cutoff(model_id: str) -> str:
     row = expected_model(model_id)
     if row and row.get("cutoff"):
@@ -622,15 +542,12 @@ def expected_cutoff(model_id: str) -> str:
     return next((cutoff for text in _claim_texts(model_id)
                  for pattern, cutoff in KNOWN_CUTOFFS if re.search(pattern, text)), "")
 
-
-#: Words right before a brand that deny it: "I am not ChatGPT", "unlike Claude", "а не GPT".
 _NEGATION_RE = re.compile(r"(?:\bnot\b|n't\b|\bunlike\b|rather than|instead of|\bnor\b|\bneither\b|"
                           r"\bне\b|\bни\b|в отличие от|вместо)(?:\W+[\w.-]+){0,2}\W*$")
-#: Phrases that name a vendor without claiming to be its model.
+
 _NOT_A_CLAIM_RE = re.compile(r"openai[- ]compatible|openai[- ]style|openai api|openai's api|openai format|"
                              r"совместим\w* с openai|openai-совместим\w*|google search|поиск\w* google|"
                              r"search (?:on |with )?google")
-
 
 def _count_claims(pattern: str, lower: str) -> int:
     count = 0
@@ -639,7 +556,6 @@ def _count_claims(pattern: str, lower: str) -> int:
             continue
         count += 1
     return count
-
 
 def _mentions(text: str) -> Dict[str, int]:
     """Family hits from both the family-level phrases and, as a bonus, the
@@ -658,26 +574,23 @@ def _mentions(text: str) -> Dict[str, int]:
     for row in MODELS:
         if _count_claims(row["self_re"], lower):
             hits[row["family"]] = hits.get(row["family"], 0) + 1
-    # "I am Kiro, built by Amazon" names a product and its maker, not Amazon's Nova models.
+
     if "nova" in hits and re.search(r"\bkiro\b|amazon q\b|\baws\b", lower) and not re.search(r"\bnova\b", lower):
         del hits["nova"]
     return hits
-
 
 def score_identity(answers: List[str]) -> Tuple[Dict[str, float], List[str]]:
     scores: Dict[str, float] = {}
     notes = []
     for answer in answers:
         hits = _mentions(answer)
-        # Several brands in one answer ("built on GPT by OpenAI, unlike Claude")
-        # weaken each other; a single clear brand counts in full.
+
         total = sum(hits.values()) or 1
         for family, count in hits.items():
             scores[family] = scores.get(family, 0) + 3.0 * count / total
         if hits:
             notes.append(", ".join(FAMILY[key]["label"] for key in hits))
     return scores, notes
-
 
 def score_tokens(answer: str) -> Tuple[Dict[str, float], Dict[str, Any]]:
     """Score only numbered lines that demonstrably follow the echo task.
@@ -707,8 +620,7 @@ def score_tokens(answer: str) -> Tuple[Dict[str, float], Dict[str, Any]]:
         if rest == str(number) and number < last:
             missing.append(key)
         elif not rest and number == last and last < total:
-            # The answer ended precisely where this token was requested.
-            # Require the preceding line to have been echoed correctly too.
+
             previous = lines.get(number - 1, "")
             if number > 1 and previous == f"{_WORDS[number - 2]} {SPECIAL_TOKENS[number - 2][1]} {number - 1}":
                 stopped_at = key
@@ -720,17 +632,14 @@ def score_tokens(answer: str) -> Tuple[Dict[str, float], Dict[str, Any]]:
         weight += sum(1.2 for key in missing if key in row["tokens"])
         if weight:
             scores[row["id"]] = weight
-    # Everything echoed back intact means the provider escapes special tokens:
-    # the probe says nothing, which is reported rather than hidden.
+
     return scores, {"missing": missing, "stopped_at": stopped_at, "lines": last, "expected_lines": total,
                     "informative": bool(missing or stopped_at)}
-
 
 def _parse_quiz(answer: str) -> List[str]:
     """Back-compatible wrapper: the list items (empty when the reply has no list)."""
     rows, _parsed = parse_list(answer, len(QUIZ))
     return rows
-
 
 def score_quiz(answer: str) -> Dict[str, Any]:
     rows, parsed = parse_list(answer, len(QUIZ))
@@ -742,12 +651,10 @@ def score_quiz(answer: str) -> Dict[str, Any]:
         hedged = hit and bool(_HEDGE_RE.search(text))
         results.append({"date": date, "question": question, "answer": reply[:160],
                         "answered": bool(reply.strip()),
-                        # A hedged answer ("probably Trump", "Biden or Trump") is a guess, not knowledge.
+
                         "correct": hit and not hedged, "hedged": hedged,
                         "guessable": pattern in QUIZ_GUESSABLE})
-    # The cutoff is the last date after which answers stop being right: a lucky
-    # guess at the end does not move it forward on its own, and neither does an
-    # easily guessed answer unless a hard one of the same period backs it.
+
     estimate = ""
     for index, row in enumerate(results):
         if not row["correct"]:
@@ -755,7 +662,7 @@ def score_quiz(answer: str) -> Dict[str, Any]:
         if row["guessable"]:
             before = [other for other in results[:index] if other["correct"]
                       and 0 <= _months(row["date"]) - _months(other["date"]) <= 12]
-            # Backed by a hard answer of the same period, or by a streak of right answers.
+
             if not (any(not other["guessable"] and _months(row["date"]) - _months(other["date"]) <= 9
                         for other in before) or len(before) >= 2):
                 continue
@@ -765,7 +672,6 @@ def score_quiz(answer: str) -> Dict[str, Any]:
     return {"items": results, "estimate": estimate, "correct": sum(row["correct"] for row in results),
             "total": len(results), "beyond": bool(results) and results[-1]["correct"], "parsed": parsed,
             "hedged": sum(row["hedged"] for row in results)}
-
 
 def _percentages(values: List[float]) -> List[int]:
     """Largest-remainder rounding keeps every displayed distribution at 100%."""
@@ -777,7 +683,6 @@ def _percentages(values: List[float]) -> List[int]:
     for index in sorted(range(len(values)), key=lambda i: exact[i] - rounded[i], reverse=True)[:100 - sum(rounded)]:
         rounded[index] += 1
     return rounded
-
 
 def distribution(scores: Dict[str, float]) -> List[Dict[str, Any]]:
     """Proportional share of whatever raw evidence fired. Not a probability —
@@ -794,9 +699,7 @@ def distribution(scores: Dict[str, float]) -> List[Dict[str, Any]]:
     rows.sort(key=lambda row: -row["percent"])
     return [row for row in rows if row["percent"] > 0]
 
-
 _UNCERTAIN = "__uncertain__"
-
 
 def _temperature_for(fired: int, agreement: Optional[float]) -> float:
     """Softmax temperature: more independent signals that fired -> sharper
@@ -807,7 +710,6 @@ def _temperature_for(fired: int, agreement: Optional[float]) -> float:
         base += 1.2
     return base
 
-
 def _uncertainty_floor(fired: int, agreement: Optional[float], phrasings: int = 0) -> float:
     """A virtual "not enough evidence" candidate whose strength shrinks as
     real evidence piles up, so a lone signal can never alone reach 100%."""
@@ -815,11 +717,9 @@ def _uncertainty_floor(fired: int, agreement: Optional[float], phrasings: int = 
     if agreement is not None and agreement < 0.75:
         floor += (0.75 - agreement) * 1.5
     if agreement is not None and agreement >= 0.99 and phrasings >= 3:
-        # Three or more differently-worded questions all naming the same
-        # family is stronger than one answer, though still spoofable.
+
         floor = max(0.0, floor - 0.4)
     return floor
-
 
 def _entropy_ratio(probabilities: List[float]) -> float:
     values = [p for p in probabilities if p > 0]
@@ -828,7 +728,6 @@ def _entropy_ratio(probabilities: List[float]) -> float:
     entropy = -sum(p * math.log2(p) for p in values)
     maximum = math.log2(len(values))
     return round(entropy / maximum, 3) if maximum else 0.0
-
 
 def calibrated_distribution(scores: Dict[str, float], fired: int, agreement: Optional[float],
                             phrasings: int = 0) -> List[Dict[str, Any]]:
@@ -854,11 +753,6 @@ def calibrated_distribution(scores: Dict[str, float], fired: int, agreement: Opt
     rows.sort(key=lambda row: -row["percent"])
     return rows
 
-
-# --------------------------------------------------------------------------
-# Scoring: specific-model, consistency, specs
-# --------------------------------------------------------------------------
-
 def score_specific_model(texts: List[str]) -> Dict[str, float]:
     """Match self-reported text against the specific-model catalogue."""
     combined = "\n".join(str(text or "") for text in texts).lower()
@@ -867,7 +761,6 @@ def score_specific_model(texts: List[str]) -> Dict[str, float]:
         if re.search(row["self_re"], combined):
             scores[row["id"]] = scores.get(row["id"], 0) + 2.5
     return scores
-
 
 def specific_distribution(scores: Dict[str, float], family: str) -> List[Dict[str, Any]]:
     rows = [{"id": key, "label": MODEL_BY_ID[key]["label"], "family": MODEL_BY_ID[key]["family"],
@@ -880,7 +773,6 @@ def specific_distribution(scores: Dict[str, float], family: str) -> List[Dict[st
         del row["score"]
     rows.sort(key=lambda row: -row["percent"])
     return rows
-
 
 def _parse_context_claim(text: str) -> Optional[int]:
     lower = str(text or "").lower()
@@ -898,7 +790,6 @@ def _parse_context_claim(text: str) -> Optional[int]:
         value *= 1_000_000
     return int(value) if value > 0 else None
 
-
 def score_context(claim: Optional[int], expected: Optional[Dict[str, Any]]) -> Tuple[Dict[str, float], Dict[str, Any]]:
     """Compare a self-reported context window against the catalogue entry
     expected for the claimed model id, if any. A close match is weak
@@ -915,7 +806,6 @@ def score_context(claim: Optional[int], expected: Optional[Dict[str, Any]]) -> T
     if match:
         return {expected["family"]: 1.0}, info
     return {expected["family"]: -1.0}, info
-
 
 def score_consistency(results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     """Two independent stability checks:
@@ -941,7 +831,7 @@ def score_consistency(results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     agreement: Optional[float] = None
     if len(named) >= 2:
         agreement = sum(1 for value in named if value == named[0]) / len(named)
-        # A simple mode-based agreement ratio (not just "all match the first").
+
         counts: Dict[str, int] = {}
         for value in named:
             counts[value] = counts.get(value, 0) + 1
@@ -965,22 +855,16 @@ def score_consistency(results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
                 right_models = {row["id"] for row in MODELS if re.search(row["self_re"], right)}
                 same_claim = left_family == right_family and left_models == right_models
                 if same_claim:
-                    # The same family and version in other words is a stable answer: at temperature 0
-                    # some gateways still rephrase, and that is not backend swapping.
+
                     stability = max(similarity, 0.9)
                 else:
                     stability = min(similarity, 0.4)
     return {"identity_agreement": agreement, "repeat_stability": stability, "phrasings_compared": len(named),
             "repeat_text_similarity": similarity, "repeat_same_claim": same_claim}
 
-
-#: Tokenizers gateways count with themselves (OpenAI's tiktoken) when they do not pass the model's own
-#: usage on: one-api/new-api style resellers do exactly that for converted (e.g. Anthropic) channels.
 TIKTOKEN_REFERENCES = {"o200k", "cl100k"}
-#: Tokens beyond a bare request (``tokenizer_probe.BARE_REQUEST_TOKENS``) that still leave no room for
-#: a persona prompt: "You are Claude …, made by Anthropic" in a system message costs ~20 tokens.
-RECOUNT_MAX_HIDDEN = 16
 
+RECOUNT_MAX_HIDDEN = 16
 
 def gateway_recount(tokenizer: Dict[str, Any], claimed: str, identity_scores: Dict[str, float],
                     agreement: Optional[float], phrasings: int) -> bool:
@@ -1005,7 +889,6 @@ def gateway_recount(tokenizer: Dict[str, Any], claimed: str, identity_scores: Di
         return False
     return phrasings >= 2 and agreement is not None and agreement >= 0.75
 
-
 def detect_spoof(identity_scores: Dict[str, float], behavior_scores: Dict[str, float]) -> Tuple[bool, str, str]:
     """Self-report vs. everything-that-is-hard-to-fake. When they point at
     different families and the behavioural evidence is not trivial, flag a
@@ -1015,37 +898,14 @@ def detect_spoof(identity_scores: Dict[str, float], behavior_scores: Dict[str, f
     suspected = bool(id_top and behavior_top and id_top != behavior_top and behavior_scores.get(behavior_top, 0) >= 2.0)
     return suspected, id_top, behavior_top
 
-
 def _months(value: str) -> int:
     year, month = (value.split("-") + ["1"])[:2]
     return int(year) * 12 + int(month)
-
-
-# --------------------------------------------------------------------------
-# Scoring: the specific version
-# --------------------------------------------------------------------------
-# The family answers "whose model is this"; people usually ask a sharper
-# question — "is this really GPT-6 Astra, or an older GPT behind the name?".
-# Self-reports cannot settle that (a system prompt can say anything), so the
-# version check leans on evidence that is hard to fake:
-#
-#   * the knowledge window from the dated quiz. A model cannot know events
-#     after its training cutoff, so every catalogue version whose *known*
-#     cutoff is well before the newest event the model knows is ruled out.
-#     A model that answers "unknown" to later events gives an upper bound
-#     too, which catches a newer name put on an older model;
-#   * generation order: a newer generation never has an older cutoff than a
-#     known older one (GPT-6 cannot know less than GPT-5 did);
-#   * a batch of small reasoning tasks, as a coarse capability tier;
-#   * the self-reported version and the AI analyst's guess, both checked
-#     against the facts above — an analyst guess the facts rule out is
-#     reported as a contradiction instead of being trusted.
 
 _TIER_RANK = {"basic": 0, "strong": 1, "frontier": 2}
 _MONTHS_RU = ["январь", "февраль", "март", "апрель", "май", "июнь", "июль", "август", "сентябрь", "октябрь", "ноябрь", "декабрь"]
 _MONTHS_RU_GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"]
 _MONTHS_EN = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-
 
 def month_label(value: str, language: str = "ru", genitive: bool = False) -> str:
     try:
@@ -1054,7 +914,6 @@ def month_label(value: str, language: str = "ru", genitive: bool = False) -> str
         return str(value or "")
     names = _MONTHS_EN if language == "en" else (_MONTHS_RU_GEN if genitive else _MONTHS_RU)
     return f"{names[month - 1]} {year}"
-
 
 def score_capability(answer: str) -> Dict[str, Any]:
     rows, parsed = parse_list(answer, len(CAPABILITY))
@@ -1065,7 +924,7 @@ def score_capability(answer: str) -> Dict[str, Any]:
         answered = bool(text) and not re.fullmatch(r"(?i)\W*(unknown|n/?a|none|idk|не знаю|неизвестно)?\W*", text)
         correct = answered and bool(re.search(pattern, norm))
         if key == "decimal":
-            # "9.90" is right, "9.11 is larger" is wrong even though it mentions 9.9 later.
+
             correct = answered and bool(re.search(r"9\.90*(?!\d)", norm)) and not re.match(r"\D*9\.11\b", norm)
         items.append({"key": key, "answer": text[:80], "answered": answered, "correct": correct})
     answered = sum(1 for item in items if item["answered"])
@@ -1076,7 +935,6 @@ def score_capability(answer: str) -> Dict[str, Any]:
         tier = "frontier" if ratio >= 0.85 else "strong" if ratio >= 0.6 else "basic"
     return {"items": items, "answered": answered, "correct": correct, "total": len(CAPABILITY), "tier": tier,
             "parsed": parsed}
-
 
 def _floor_cutoff(row: Dict[str, Any]) -> str:
     """The newest cutoff among older generations of the family.
@@ -1089,7 +947,6 @@ def _floor_cutoff(row: Dict[str, Any]) -> str:
              and float(item.get("gen") or 0) < float(row.get("gen") or 0)]
     return max(older, key=_months) if older else ""
 
-
 def match_catalogue(text: str) -> Optional[Dict[str, Any]]:
     """A catalogue row named by free text such as an analyst's best guess."""
     lower = str(text or "").lower().strip()
@@ -1100,7 +957,6 @@ def match_catalogue(text: str) -> Optional[Dict[str, Any]]:
             return row
     return None
 
-
 def _quiz_window(quiz: Optional[Dict[str, Any]]) -> Tuple[str, bool]:
     """(newest event the model knows, whether its knowledge visibly stops there)."""
     if not quiz or not quiz.get("estimate"):
@@ -1108,14 +964,11 @@ def _quiz_window(quiz: Optional[Dict[str, Any]]) -> Tuple[str, bool]:
     items = quiz.get("items") or []
     estimate = quiz["estimate"]
     later = [item for item in items if _months(item["date"]) > _months(estimate)]
-    # Knowledge "stops" when the later questions were answered ("unknown"
-    # counts as an answer) and mostly missed. A reply that simply lists fewer
-    # items than asked is a formatting slip and proves nothing.
+
     answered = [item for item in later if item.get("answered", True)]
     bounded = (len(answered) >= max(2, len(later) // 2)
                and sum(1 for item in answered if item["correct"]) <= len(answered) * 0.25)
     return estimate, bounded
-
 
 def assess_version(model: str, family: str, results: Dict[str, Dict[str, Any]],
                    quiz: Optional[Dict[str, Any]], capability: Optional[Dict[str, Any]],
@@ -1150,7 +1003,7 @@ def assess_version(model: str, family: str, results: Dict[str, Dict[str, Any]],
                 if bounded and _months(floor) - _months(estimate) > 6:
                     status, score = "too_old", -2.5
                 elif bounded and _months(estimate) <= _months(floor):
-                    # Knows nothing newer than the previous generation did.
+
                     status, score = "at_floor", -0.5
                 else:
                     status, score = "plausible", 0.5
@@ -1174,7 +1027,7 @@ def assess_version(model: str, family: str, results: Dict[str, Dict[str, Any]],
     distribution: List[Dict[str, Any]] = []
     if pool:
         weights = {entry["id"]: math.exp(entry["score"]) for entry in pool}
-        # The catalogue never lists every release: keep room for "another version".
+
         weights[_UNCERTAIN] = math.exp(0.0 if self_named else 0.8)
         for (key, _weight), percent in zip(weights.items(), _percentages(list(weights.values()))):
             label = next((entry["label"] for entry in pool if entry["id"] == key), "")
@@ -1223,13 +1076,11 @@ def assess_version(model: str, family: str, results: Dict[str, Dict[str, Any]],
         "entries": entries, "judge": {"guess": judge_guess, "row": judge_row["id"] if judge_row else "", "conflict": judge_conflict},
     }
 
-
 def _join(labels: List[str], language: str) -> str:
     labels = [label for label in labels if label]
     if len(labels) <= 1:
         return "".join(labels)
     return ", ".join(labels[:-1]) + (" and " if language == "en" else " и ") + labels[-1]
-
 
 def explain(report: Dict[str, Any]) -> List[Dict[str, str]]:
     """Plain-language reasons behind a report, in both interface languages."""
@@ -1423,7 +1274,6 @@ def explain(report: Dict[str, Any]) -> List[Dict[str, str]]:
             "Self-identification disagrees with behavioural signals — a system prompt or a substitution is possible.")
     return reasons
 
-
 def blend(heuristic: List[Dict[str, Any]], judge: List[Dict[str, Any]], weight: float = 0.5) -> List[Dict[str, Any]]:
     scores: Dict[str, float] = {}
     for row in heuristic:
@@ -1433,7 +1283,6 @@ def blend(heuristic: List[Dict[str, Any]], judge: List[Dict[str, Any]], weight: 
         if family in FAMILY:
             scores[family] = scores.get(family, 0) + float(row.get("percent") or 0) * weight
     return distribution(scores)
-
 
 JUDGE_PROMPT = """You are an expert in identifying large language models from their behaviour.
 You receive the answers a model gave to diagnostic probes. Decide which model family most likely produced them.
@@ -1448,7 +1297,6 @@ Return ONLY JSON: {{"distribution": [{{"family": "<id>", "percent": <0-100>}}], 
 "claimed_version": "consistent" | "contradicted" | "unclear", "reasoning": "<two or three sentences>"}}.
 Percentages must sum to 100. Do not be more confident than the evidence warrants —
 if the signals are thin or contradictory, spread the distribution out and say so in the reasoning."""
-
 
 def judge_messages(model: str, claimed: str, results: Dict[str, Dict[str, Any]], language: str) -> List[Dict[str, str]]:
     lines = [f"Claimed model id: {model} (claimed family: {claimed or 'unknown'})", ""]
@@ -1469,10 +1317,8 @@ def judge_messages(model: str, claimed: str, results: Dict[str, Dict[str, Any]],
         {"role": "user", "content": "\n".join(lines) + f"\n\nWrite the reasoning field in {reply_language}."},
     ]
 
-
 def parse_judge(text: str) -> Dict[str, Any]:
-    # A reasoning judge thinks out loud first (often with braces of its own): take the JSON
-    # object that carries the distribution, not the first "{" to the last "}".
+
     data = next((value for value in _json_values(clean_answer(text)[0])
                  if isinstance(value, dict) and "distribution" in value), None)
     if not isinstance(data, dict) or not isinstance(data.get("distribution"), list):
@@ -1498,11 +1344,6 @@ def parse_judge(text: str) -> Dict[str, Any]:
             "claimed_version": claimed_version if claimed_version in ("consistent", "contradicted", "unclear") else "",
             "reasoning": str(data.get("reasoning") or "")[:1500]}
 
-
-# --------------------------------------------------------------------------
-# Run quality and the reasons behind the confidence level
-# --------------------------------------------------------------------------
-
 def probe_quality(results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
     """How much of the run actually answered: failures, timeouts, refusals, empty replies."""
     rows = {key: row for key, row in results.items() if key != "judge" and isinstance(row, dict)}
@@ -1518,9 +1359,8 @@ def probe_quality(results: Dict[str, Dict[str, Any]]) -> Dict[str, Any]:
             "refused": refused, "empty": empty, "truncated_thinking": truncated, "retried": retried,
             "thinking_stripped": sum(1 for row in rows.values() if row.get("thinking_chars")),
             "lost_share": round(len(lost) / len(rows), 3) if rows else 0.0,
-            # The run hit its overall deadline: probes were cut off, not just slow one by one.
-            "partial": any(row.get("deadline") for row in rows.values())}
 
+            "partial": any(row.get("deadline") for row in rows.values())}
 
 def confidence_factors(confidence: str, top: Optional[Dict[str, Any]], top_prob: float, uncertain: int, fired: int,
                        evidence: List[Dict[str, Any]], tokenizer: Dict[str, Any], consistency: Dict[str, Any],
@@ -1599,16 +1439,10 @@ def confidence_factors(confidence: str, top: Optional[Dict[str, Any]], top_prob:
             "otherwise musing “am I Claude or GPT?” would count as a self-report.")
     return out
 
-
-# --------------------------------------------------------------------------
-# analyse(): turn probe answers into a verdict
-# --------------------------------------------------------------------------
-
 def analyse(model: str, results: Dict[str, Dict[str, Any]], claimed: str = "") -> Dict[str, Any]:
     """Pure function; tested directly."""
     results = normalize_results(results)
     return finalize(_analyse(model, results, claimed), model, results)
-
 
 def _analyse(model: str, results: Dict[str, Dict[str, Any]], claimed: str = "") -> Dict[str, Any]:
     claimed = claimed or claimed_family(model)
@@ -1638,13 +1472,10 @@ def _analyse(model: str, results: Dict[str, Dict[str, Any]], claimed: str = "") 
     evidence.append({"probe": "tokens", "category": "behavioral", "signal": token_info,
                      "weight": "medium" if token_info.get("informative") else "none"})
 
-    # Tokenizer: the provider's own token counts for fixed texts. Unlike everything a model
-    # *says*, this cannot be changed by a system prompt.
     tokenizer = tokenizer_probe.assess(results, claimed)
     early = score_consistency(results)
     if gateway_recount(tokenizer, claimed, id_scores, early["identity_agreement"], early["phrasings_compared"]):
-        # The counts are OpenAI's tiktoken, yet the model consistently names the claimed family and the
-        # provider adds no room for a persona prompt: the gateway recounted the request itself.
+
         tokenizer.update({"verdict": "recount", "recount_of": tokenizer["matches"][0]["label"],
                           "families": [], "strong": False})
     tokenizer_scores: Dict[str, float] = {}
@@ -1667,14 +1498,13 @@ def _analyse(model: str, results: Dict[str, Dict[str, Any]], claimed: str = "") 
     cutoff_match = None
     if quiz:
         if expected and quiz["estimate"]:
-            # A cutoff far newer than the claimed model's is a strong hint of a newer substitute.
+
             delta = _months(quiz["estimate"]) - _months(expected)
             cutoff_match = abs(delta) <= 6
             if delta > 9 and claimed:
                 behavior_scores[claimed] = behavior_scores.get(claimed, 0) - 1.5
                 scores[claimed] = scores.get(claimed, 0) - 1.5
-        # An all-"unknown" quiz is not nothing (a model that never guesses is
-        # itself informative), but it is weaker than one with a real estimate.
+
         cutoff_weight = ("medium" if (quiz["estimate"] or quiz["correct"] > 0) else "low") if quiz.get("parsed", True) else "none"
         evidence.append({"probe": "cutoff", "category": "cutoff", "signal": {"estimate": quiz["estimate"], "expected": expected,
                                                         "correct": quiz["correct"], "total": quiz["total"],
@@ -1693,17 +1523,11 @@ def _analyse(model: str, results: Dict[str, Dict[str, Any]], claimed: str = "") 
                      "signal": {k: capability[k] for k in ("correct", "answered", "tier")} if capability else {},
                      "weight": "low" if capability and capability["tier"] else "none"})
 
-    # Consistency: agreement across phrasings, and (separately, full check only)
-    # stability across a literal repeat. Each is its own evidence item so that
-    # a run with both firing is measurably more confident than one with only
-    # the coarser agreement check — the weight labels reflect how informative
-    # the probe *was*, not how favourable its outcome was.
     consistency = score_consistency(results)
     agreement_weight = "none"
     if consistency["identity_agreement"] is not None:
         agreement_weight = "medium"
-        # Disagreement across phrasings is itself evidence that the self-report
-        # is not reliable this run, so it discounts the family it favoured.
+
         if consistency["identity_agreement"] < 0.6 and identity_scores:
             weak = max(identity_scores, key=identity_scores.get)
             scores[weak] = scores.get(weak, 0) * 0.6
@@ -1715,12 +1539,10 @@ def _analyse(model: str, results: Dict[str, Dict[str, Any]], claimed: str = "") 
         evidence.append({"probe": "consistency_repeat", "category": "consistency",
                          "signal": {"repeat_stability": consistency["repeat_stability"]}, "weight": "medium"})
         if consistency["repeat_stability"] < 0.5 and identity_scores:
-            # The same literal question answered two different ways this run
-            # is a strong hint of per-request backend swapping.
+
             weak = max(identity_scores, key=identity_scores.get)
             scores[weak] = scores.get(weak, 0) * 0.7
 
-    # Specs: self-reported context/output window vs. the catalogue.
     specs_text = (results.get("specs") or {}).get("text", "")
     claim = _parse_context_claim(specs_text) if not (results.get("specs") or {}).get("error") else None
     context_scores, context_info = score_context(claim, expected_row)
@@ -1729,7 +1551,6 @@ def _analyse(model: str, results: Dict[str, Dict[str, Any]], claimed: str = "") 
     context_weight = "medium" if context_info.get("match") is True else "low" if context_info.get("match") is not None else "none"
     evidence.append({"probe": "context", "category": "specs", "signal": context_info, "weight": context_weight})
 
-    # Specific-model self-report (only meaningful within whichever family leads).
     specific_texts = identity_answers + [specs_text]
     specific_scores = score_specific_model(specific_texts)
     evidence.append({"probe": "specific", "category": "specs", "signal": {"matched": list(specific_scores.keys())},
@@ -1742,20 +1563,17 @@ def _analyse(model: str, results: Dict[str, Dict[str, Any]], claimed: str = "") 
                          "weight": "low" if wrapper and wrapper["instructions"] is not None else "none"})
 
     timings = [row for row in results.values() if row.get("ms")]
-    # Real output speed needs the provider's own completion counts; characters are the fallback.
+
     counted = [row for row in timings if (row.get("usage") or {}).get("estimated") is False
                and (row["usage"].get("completion_tokens") or 0) >= 20]
     speed = {
         "ttft_ms": int(sum(row.get("ttft_ms", 0) for row in timings) / len(timings)) if timings else 0,
         "chars_per_s": round(sum(row.get("chars", 0) for row in timings) / max(0.001, sum(row["ms"] for row in timings) / 1000), 1) if timings else 0,
-        # Over the whole request: completion counts include hidden reasoning, which is
-        # produced before the first visible character.
+
         "tokens_per_s": round(sum(row["usage"]["completion_tokens"] for row in counted)
                               / max(0.001, sum(row["ms"] for row in counted) / 1000), 1) if counted else 0,
     }
 
-    # A tokenizer that belongs to another family outweighs any self-report: a model can be told
-    # to call itself anything, but it cannot count tokens with a tokenizer it does not have.
     if tokenizer["verdict"] == "mismatch" and tokenizer["strong"] and claimed:
         scores[claimed] = min(scores.get(claimed, 0.0), 0.0) + max(0.0, scores.get(claimed, 0.0)) * 0.3
     elif tokenizer["verdict"] == "unlike_claimed" and claimed:
@@ -1763,9 +1581,7 @@ def _analyse(model: str, results: Dict[str, Dict[str, Any]], claimed: str = "") 
 
     dist = distribution(scores)
     fired = sum(1 for row in evidence if row["weight"] in ("high", "medium") and row["signal"])
-    # The knowledge window corroborates a family when it fits one of that
-    # family's catalogued versions (e.g. an answer set that knows mid-2025
-    # events fits GPT-5.2+, not GPT-4o). A window that fits nothing does not.
+
     lead = claimed or (dist[0]["family"] if dist else "")
     if lead and quiz and quiz.get("estimate"):
         fit = assess_version(model, lead, results, quiz, capability)
@@ -1788,11 +1604,9 @@ def _analyse(model: str, results: Dict[str, Dict[str, Any]], claimed: str = "") 
         confidence = "low"
     quality = probe_quality(results)
     if confidence == "high" and tokenizer["verdict"] in ("recount", "unlike_claimed"):
-        # The one signal a prompt cannot fake is unavailable at this provider — or (Round 36) it even disagrees with
-        # the claimed family: «genuine, high» stood next to the warning «far from the claimed family's tokenizer».
+
         confidence = "medium"
-    # Half the probes failing, refusing or timing out leaves the verdict standing on what is left;
-    # it must not be shown as confidently as a complete run.
+
     if confidence == "high" and (quality["partial"] or quality["lost_share"] >= 0.34):
         confidence = "medium"
 
@@ -1805,9 +1619,7 @@ def _analyse(model: str, results: Dict[str, Dict[str, Any]], claimed: str = "") 
         verdict = "substituted"
     elif (claimed and top and top["family"] == claimed and (claimed_share or 0) >= 40
           and (claimed_share or 0) > uncertain_percent):
-        # Genuine requires the claimed family to lead AND to outweigh the
-        # "not enough evidence" bucket — a lone weak signal should not be
-        # enough to call a model genuine just because nothing contradicts it.
+
         verdict = "genuine"
     elif claimed and (claimed_share or 0) >= 18:
         verdict = "mixed"
@@ -1845,7 +1657,6 @@ def _analyse(model: str, results: Dict[str, Dict[str, Any]], claimed: str = "") 
                                                  tokenizer, consistency, quality),
     }
 
-
 def finalize(report: Dict[str, Any], model: str, results: Dict[str, Dict[str, Any]],
              judge_guess: str = "") -> Dict[str, Any]:
     """Add the version check, the overall verdict and the plain-language reasons.
@@ -1874,11 +1685,6 @@ def finalize(report: Dict[str, Any], model: str, results: Dict[str, Dict[str, An
     report["overall"] = overall
     report["reasons"] = explain(report)
     return report
-
-
-# --------------------------------------------------------------------------
-# Runs
-# --------------------------------------------------------------------------
 
 class Run:
     def __init__(self, model: str, depth: str, judge: str, claimed: str, language: str) -> None:
@@ -1912,22 +1718,18 @@ class Run:
                               for step in self.plan]
         return data
 
-
 _runs: Dict[str, Run] = {}
 _lock = threading.Lock()
-
 
 def _history_path():
     from pathlib import Path
     from .config import DATA_DIR
     return Path(DATA_DIR) / "detector-history.json"
 
-
 def history() -> List[Dict[str, Any]]:
     from .storage import load_json_with_recovery
     rows = load_json_with_recovery(_history_path(), [], validator=lambda value: isinstance(value, list))
     return rows if isinstance(rows, list) else []
-
 
 def _remember(run: Run) -> None:
     from .storage import mutate_json
@@ -1940,7 +1742,6 @@ def _remember(run: Run) -> None:
     mutate_json(_history_path(), [], change, backup=False, validator=lambda value: isinstance(value, list),
                 repair_invalid=True)
 
-
 def delete_history(run_id: str) -> None:
     from .storage import mutate_json
 
@@ -1951,14 +1752,12 @@ def delete_history(run_id: str) -> None:
     mutate_json(_history_path(), [], change, backup=False, validator=lambda value: isinstance(value, list),
                 repair_invalid=True)
 
-
 def get_run(run_id: str) -> Optional[Dict[str, Any]]:
     with _lock:
         run = _runs.get(run_id)
     if run:
         return run.public()
     return next((row for row in history() if row.get("id") == run_id), None)
-
 
 def cancel(run_id: str) -> bool:
     with _lock:
@@ -1969,7 +1768,6 @@ def cancel(run_id: str) -> bool:
             run.task.get_loop().call_soon_threadsafe(run.task.cancel)
         return True
     return False
-
 
 async def start(model: str, depth: str = "quick", judge: str = "", claimed: str = "",
                 language: str = "ru") -> Dict[str, Any]:
@@ -1985,40 +1783,31 @@ async def start(model: str, depth: str = "quick", judge: str = "", claimed: str 
     run.task = asyncio.get_running_loop().create_task(_execute(run))
     return run.public()
 
-
-#: Probes in flight at once (round 35: 4 instead of 3 — a quick run is 14 requests).
 PARALLEL_PROBES = 4
-#: Kinds whose answers take longest; they are started first.
+
 SLOW_PROBES = ("quiz", "capability", "specs")
-#: Seconds one probe may take before it counts as unanswered (tokenizer probes are tiny).
+
 PROBE_TIMEOUT = 150.0
 TOKENIZER_TIMEOUT = 75.0
-#: The whole run: probes still pending after this are reported as timed out and the
-#: verdict is built from what came back (``quality.partial``).
+
 RUN_DEADLINE = 600.0
-#: Even close to the deadline a probe gets at least this long.
+
 MIN_PROBE_TIMEOUT = 5.0
-#: A reasoning model can spend a small reply budget entirely on thinking; such a probe
-#: is repeated once with this budget instead of being scored as an empty answer.
+
 REASONING_RETRY_TOKENS = 3000
 _TRANSIENT_STATUS = {408, 429, 500, 502, 503, 504, 529}
 TOKENIZER_RETRY_TOKENS = 1024
-#: "The stream ended without text" (Proxy) or "max_tokens too small" (some APIs for reasoning models).
+
 _STARVED_RE = re.compile(r"без текста|without (?:any )?text|empty (?:response|answer|stream)|"
                          r"max_?(?:output_)?tokens|max_completion_tokens|budget_tokens|too small|at least \d+", re.I)
 
-
-#: A gateway's refusal of the special-token probe ("the request contains a forbidden special token").
 _SPECIAL_BLOCKED_RE = re.compile(r"(?:special|служебн|reserved|forbidden|disallowed|запрещ)\w*\W+(?:\w+\W+){0,2}?(?:token|токен)"
                                  r"|(?:token|токен)\w*\W+(?:\w+\W+){0,2}?(?:not allowed|forbidden|disallowed|запрещ)", re.I)
 
-
-#: Pauses before the quiet retries of a probe that hit a rate limit or a gateway hiccup.
 TRANSIENT_PAUSES = (1.0, 4.0)
 _TRANSIENT_RE = re.compile(r"\b(?:408|429|50[0234]|529)\b|rate.?limit|too many requests|high demand|overloaded|"
                            r"temporarily|operation was aborted|connection (?:reset|closed|aborted)|upstream[_ ]timeout|"
                            r"не начала ответ|повторите запрос", re.I)
-
 
 def _transient(exc: BaseException) -> bool:
     """Errors worth a quiet retry: rate limits, gateway hiccups, dropped connections."""
@@ -2031,11 +1820,10 @@ def _transient(exc: BaseException) -> bool:
     name = type(exc).__name__
     if status in _TRANSIENT_STATUS or name in ("ProviderNetworkError", "ProviderRateLimitError"):
         return True
-    # A 4xx with a precise reason (bad model id, forbidden token) is not worth repeating.
+
     if status and 400 <= status < 500:
         return False
     return bool(_TRANSIENT_RE.search(str(getattr(exc, "message", "") or exc)))
-
 
 async def _execute(run: Run) -> None:
     from . import model_call
@@ -2066,14 +1854,11 @@ async def _execute(run: Run) -> None:
                     if run.cancelled:
                         raise
                     if step["kind"] == "tokenizer" and _STARVED_RE.search(str(getattr(exc, "message", "") or exc)):
-                        # A reasoning model spends the tokenizer probe's 16-token budget on thinking and the
-                        # stream ends without text (or the API rejects so small a limit). Only the prompt
-                        # token count matters here, so one more try with room is cheap and keeps the signal.
+
                         answer = await ask(step, TOKENIZER_RETRY_TOKENS)
                         answer["retried"] = "reasoning_budget"
                     elif _transient(exc):
-                        # Free tiers and busy gateways fail in bursts: a second, longer pause rescues
-                        # most probes that a single quick retry lost (round 35, OpenRouter :free).
+
                         for attempt, pause in enumerate(TRANSIENT_PAUSES):
                             await asyncio.sleep(pause)
                             try:
@@ -2091,7 +1876,7 @@ async def _execute(run: Run) -> None:
                 visible, info = clean_answer(answer.get("text", ""))
                 if (step["kind"] != "tokenizer" and not visible.strip()
                         and (answer.get("reasoning") or info["thinking_chars"]) and budget < REASONING_RETRY_TOKENS):
-                    # The reply budget went on thinking; one more try with room for the answer.
+
                     again = await ask(step, REASONING_RETRY_TOKENS)
                     again_visible, again_info = clean_answer(again.get("text", ""))
                     if again_visible.strip():
@@ -2099,7 +1884,7 @@ async def _execute(run: Run) -> None:
                         answer["retried"] = "reasoning_budget"
                 row = {"kind": step["kind"], "prompt": prompt, **answer}
                 if isinstance(row.get("reasoning"), str) and len(row["reasoning"]) > 4000:
-                    # Kept for the UI and the analyst; the full trace would bloat the history file.
+
                     row["reasoning"] = row["reasoning"][:4000] + "…"
                 if visible != answer.get("text", ""):
                     row["text"] = visible
@@ -2112,7 +1897,7 @@ async def _execute(run: Run) -> None:
                     row["passed"] = bool(re.search(step["expect"], visible.lower()))
             except asyncio.TimeoutError:
                 if loop.time() >= deadline - 0.5:
-                    # Cut off by the run's deadline rather than by its own time limit.
+
                     row = {"kind": step["kind"], "prompt": prompt, "timed_out": True, "deadline": True,
                            "error": f"Проверка не уложилась в {int(RUN_DEADLINE)} с"}
                 else:
@@ -2123,16 +1908,14 @@ async def _execute(run: Run) -> None:
             except Exception as exc:
                 message = str(getattr(exc, "message", "") or exc)[:500]
                 if step["kind"] == "tokens" and _SPECIAL_BLOCKED_RE.search(message):
-                    # The gateway refuses requests with special tokens in them: the probe is silent at this
-                    # provider (like escaping), not a failed request that lowers the run's quality.
+
                     row = {"kind": step["kind"], "prompt": prompt, "text": "", "blocked": True, "note": message[:200]}
                 else:
                     row = {"kind": step["kind"], "prompt": prompt, "error": message}
             run.results[step["id"]] = row
 
     async def chain(steps: List[Dict[str, Any]]) -> None:
-        # Probes of one chain go strictly one after another (the tokenizer measurement needs the
-        # provider in the same state for every request); chains and single probes run in parallel.
+
         for step in steps:
             await probe(step)
 
@@ -2142,8 +1925,7 @@ async def _execute(run: Run) -> None:
             chains.setdefault(step["chain"], []).append(step)
 
     try:
-        # Longest first: the tokenizer chain (five requests one after another) and the long batched
-        # answers (the quiz, the reasoning tasks) set the run's length, so they take the first slots.
+
         singles = sorted((step for step in run.plan if not step.get("chain")),
                          key=lambda step: SLOW_PROBES.index(step["kind"]) if step["kind"] in SLOW_PROBES else len(SLOW_PROBES))
         tasks = [asyncio.ensure_future(chain(steps)) for steps in chains.values()] + \
@@ -2184,9 +1966,7 @@ async def _execute(run: Run) -> None:
                     report["distribution"] = blend(report["distribution"], judged["distribution"])
                     report["judge"] = judged
                     finalize(report, run.model, normalize_results(run.results), judged.get("best_guess") or "")
-                    # A judge sees the same easily spoofed answers. Preserve
-                    # the evidence-based verdict and uncertainty; expose its
-                    # opinion separately instead of treating it as ground truth.
+
                 else:
                     report["judge"] = {"error": "Судья ответил не в том формате"}
             except asyncio.TimeoutError:

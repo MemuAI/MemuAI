@@ -8,7 +8,6 @@ from pathlib import Path
 
 from app import realtime_live
 
-
 class LiveVoiceTest(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "Windows Edge regression")
     def test_module_browser_pages(self):
@@ -43,7 +42,6 @@ class LiveVoiceTest(unittest.TestCase):
         for event in events:
             with self.subTest(event=event):
                 self.assertEqual(adapter.translate(event)[0]["turn_id"], event["item_id"])
-
 
 if __name__ == "__main__":
     unittest.main()

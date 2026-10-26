@@ -1,6 +1,3 @@
-/* MemuNote — AI side panel (Round 31). Colours are MemuAI theme tokens from /api/boot (memunote.css has the
-   fallbacks); loaded by js/ai.js. Inline-diff decorations of the editor (.mn-ai-*) live here too. */
-
 .ai-panel.aip {
   --aip-grad: linear-gradient(135deg, var(--accent) 0%, color-mix(in srgb, var(--accent) 55%, #8b6cff) 100%);
   --aip-ins: color-mix(in srgb, var(--ok) 17%, transparent);
@@ -17,8 +14,6 @@
 }
 .aip .spacer { flex: 1 1 auto; }
 .aip .ic.small { width: 11px; height: 11px; }
-
-/* ---------------------------------------------------------------- header */
 .aip-head { display: flex; align-items: center; gap: 4px; height: 52px; flex: 0 0 auto; padding: 0 8px 0 10px;
   border-bottom: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
 .aip-orb-btn { border: 0; padding: 0; background: none; cursor: default; display: grid; place-items: center; }
@@ -45,8 +40,6 @@
 .aip.offline .aip-dot { background: var(--muted); box-shadow: none; }
 .aip.busy .aip-dot { animation: aip-pulse 1.1s ease-in-out infinite; }
 @keyframes aip-pulse { 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--ok) 0%, transparent); opacity: .6; } }
-
-/* ---------------------------------------------------------------- collapsed rail */
 .aip-rail { display: none; }
 .aip.collapsed { min-width: 52px !important; max-width: 52px; }
 .aip.collapsed .aip-head { flex-direction: column; height: auto; padding: 10px 0 6px; border: 0; }
@@ -57,8 +50,6 @@
 .aip-rail-sep { width: 22px; height: 1px; background: var(--border); margin: 4px 0; }
 .aip-rail-badge { min-width: 20px; height: 20px; padding: 0 6px; border-radius: 10px; background: var(--accent); color: var(--on-accent); font-size: 11px; font-weight: 700; display: grid; place-items: center; }
 .ai-gutter.aip-gutter-off { pointer-events: none; flex-basis: 0 !important; padding: 0 !important; }
-
-/* ---------------------------------------------------------------- conversation */
 .aip-log { flex: 1 1 auto; overflow-y: auto; overflow-x: hidden; padding: 16px 14px 10px; display: flex; flex-direction: column; gap: 18px; scroll-behavior: smooth; }
 .aip-log::-webkit-scrollbar { width: 8px; }
 .aip-log::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 30%, transparent); border-radius: 8px; border: 2px solid transparent; background-clip: content-box; }
@@ -120,8 +111,6 @@
 .aip-wrote { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 13px; }
 .aip-wrote .ic { color: var(--ok); width: 15px; height: 15px; }
 .aip-quote { margin-top: 6px; padding: 6px 10px; border-left: 3px solid var(--aip-ins-line); background: var(--aip-ins); border-radius: 0 8px 8px 0; font-size: 12.5px; white-space: pre-wrap; color: var(--text); }
-
-/* errors */
 .aip-err { border: 1px solid color-mix(in srgb, var(--danger) 35%, transparent); background: color-mix(in srgb, var(--danger) 7%, var(--panel)); border-radius: 12px; padding: 10px 12px; }
 .aip-err.offline { border-color: var(--border); background: var(--aip-surface); }
 .aip-err.limit { border-color: color-mix(in srgb, var(--warn) 45%, transparent); background: color-mix(in srgb, var(--warn) 8%, var(--panel)); }
@@ -132,11 +121,7 @@
 .aip-err-x { margin: 5px 0 0 23px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; max-height: 72px; overflow: hidden; }
 .aip-err-a { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 0 23px; }
 .aip-err-a:empty { display: none; }
-
-/* sources (web search) */
 .aip .msg-sources { padding: 8px 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--aip-surface); }
-
-/* ---------------------------------------------------------------- edit-proposal card */
 .aip-card { border: 1px solid var(--border); border-radius: 14px; background: var(--aip-surface); overflow: hidden; margin-top: 4px;
   box-shadow: 0 1px 0 color-mix(in srgb, var(--text) 4%, transparent), var(--shadow-sm); }
 .aip-card-head { display: flex; align-items: center; gap: 7px; height: 36px; padding: 0 12px; font-size: 12.5px; border-bottom: 1px solid var(--border);
@@ -171,7 +156,6 @@
 .aip-hunk-diff:not(:has(> *)) { -webkit-mask-image: none; mask-image: none; }
 .aip-hunk-diff ins { text-decoration: none; background: var(--aip-ins); color: var(--text); border-radius: 3px; box-shadow: inset 0 -1px 0 var(--aip-ins-line); }
 .aip-hunk-diff del { background: var(--aip-del); color: color-mix(in srgb, var(--text) 70%, var(--danger)); text-decoration: line-through; text-decoration-color: var(--aip-del-line); border-radius: 3px; }
-/* a deleted word right before its replacement read as one word ("theEdinburgh"): keep a hair of space between them */
 .aip-hunk-diff del + ins, .aip-hunk-diff ins + del { margin-left: 3px; }
 .aip-hunk-diff.newdoc b { display: block; margin-bottom: 2px; }
 .aip-hunk.live .aip-hunk-diff { -webkit-mask-image: linear-gradient(to bottom, transparent 0, #000 30px); mask-image: linear-gradient(to bottom, transparent 0, #000 30px); }
@@ -184,8 +168,6 @@
 .aip-card-foot.done { color: var(--ok); font-size: 12.5px; font-weight: 600; gap: 6px; }
 .aip-card-foot.done .ic { width: 15px; height: 15px; }
 .aip-card-foot .btn.primary { background: var(--aip-grad); box-shadow: 0 3px 10px color-mix(in srgb, var(--accent) 30%, transparent); }
-
-/* ---------------------------------------------------------------- empty state */
 .aip-empty { margin: auto 0; display: flex; flex-direction: column; gap: 18px; padding: 8px 2px 4px; animation: aip-in .3s ease; }
 .aip-hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; }
 .aip-hero h3 { margin: 14px 0 2px; font-size: 16.5px; font-weight: 700; letter-spacing: -.015em; max-width: 100%; overflow-wrap: anywhere; }
@@ -209,8 +191,6 @@
 .aip-sug:hover { background: var(--hover); }
 .aip-sug:hover .ic:first-child { color: var(--accent); }
 .aip-empty.off { margin: auto; }
-
-/* ---------------------------------------------------------------- dock: presets + composer */
 .aip-dock { flex: 0 0 auto; padding: 0 10px 10px; display: flex; flex-direction: column; gap: 6px; }
 .aip.offline .aip-presets, .aip.is-empty .aip-presets { display: none; }
 .aip-presets { display: flex; gap: 5px; overflow-x: auto; scrollbar-width: none; padding: 6px 2px 0;
@@ -256,14 +236,10 @@
 .aip-send .ic { width: 17px; height: 17px; } .aip-send .ic svg { stroke-width: 2.2; }
 .aip-send.stop { background: var(--text); color: var(--bg); box-shadow: none; }
 .aip.offline .aip-send { background: var(--panel-2); color: var(--muted); box-shadow: none; }
-
-/* light theme: softer shadows, readable greens/reds */
 :root[data-theme="light"] .ai-panel.aip { --aip-ins: color-mix(in srgb, var(--ok) 13%, transparent); --aip-del: color-mix(in srgb, var(--danger) 10%, transparent);
   --aip-surface: var(--panel); background: radial-gradient(120% 60% at 100% 0%, color-mix(in srgb, var(--accent) 7%, transparent) 0%, transparent 55%), var(--bg-deep); }
 :root[data-theme="light"] .aip-seg button.on { box-shadow: 0 1px 3px rgba(28,26,20,.14); }
 :root[data-theme="light"] .aip-compose { background: var(--panel); }
-
-/* narrow panel (container queries: the panel is resizable) */
 @container aip (max-width: 370px) {
   .aip-seg button span, .aip-tog[data-f="auto"] span { display: none; }
   .aip-seg button { padding: 0 7px; }
@@ -276,8 +252,6 @@
 }
 @media (max-width: 760px) { .ai-panel.aip { border-left: 0; } }
 @media (prefers-reduced-motion: reduce) { .aip *, .aip *::before { animation: none !important; transition: none !important; } }
-
-/* ---------------------------------------------------------------- editor decorations (CodeMirror) */
 .mn-ai-del { background: color-mix(in srgb, var(--danger) 17%, transparent); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--danger) 70%, transparent); border-radius: 2px; }
 .mn-ai-ins-wrap { white-space: pre-wrap; }
 .mn-ai-ins { background: color-mix(in srgb, var(--ok) 18%, transparent); box-shadow: inset 0 -1.5px 0 color-mix(in srgb, var(--ok) 60%, transparent); color: var(--text); border-radius: 2px; }

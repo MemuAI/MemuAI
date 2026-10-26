@@ -24,7 +24,7 @@ import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
-from fastapi import Request    # module level: the routes' annotations are strings (from __future__ import annotations)
+from fastapi import Request
 
 log = logging.getLogger("memuai.music.tgapp")
 
@@ -32,27 +32,15 @@ TOKEN_SCOPE = "music"
 TOKEN_TTL = 12 * 3600
 _ID = re.compile(r"^[\w.-]{1,80}$")
 _COVER_ID = re.compile(r"/cover/([\w.-]{1,80})(?:\?[^#]*?[?&]v=(\w{1,16}))?")
-PC_ONLINE_SECONDS = 15          # the host player publishes its state at least this often while it plays
-
+PC_ONLINE_SECONDS = 15
 
 class MusicUnavailable(RuntimeError):
     """The music backend (``app.music.api``) is not installed or failed to import."""
 
-
-# ================================================================ backend
-#
-# MemuAI Proxy (this process, the Mini App server) and the MemuAI window (playground, where MemuMusic plays and
-# downloads) are two processes. The player state, its command mailbox and the download queue live in the
-# window's memory, so while the window runs every operation goes to its ``POST /api/pg/music/call`` (one source
-# of truth: the phone sees the same jobs and player as the window). Without the window the library, playlists,
-# lyrics and downloads run here in-process over the same library on disk; the player is then «offline».
-
 WINDOW_OPS_ONLY = ("player.",)
-
 
 class PcOffline(RuntimeError):
     """The MemuAI window (its player) is not running."""
-
 
 def _api():
     try:
@@ -63,12 +51,11 @@ def _api():
         raise MusicUnavailable("app.music.api.call is missing")
     return api
 
-
 def window_url() -> str:
     """The running MemuAI window (``memuai/memuai.json``); '' when it is not running."""
     import json
     import os
-    if os.environ.get("MEMUAI_MUSIC_WINDOW_URL") is not None:            # tests / dev: explicit (may be empty)
+    if os.environ.get("MEMUAI_MUSIC_WINDOW_URL") is not None:
         return os.environ["MEMUAI_MUSIC_WINDOW_URL"].rstrip("/")
     try:
         from ..config import DATA_DIR
@@ -77,7 +64,6 @@ def window_url() -> str:
     except Exception:
         return ""
     return url if url.startswith(("http://127.0.0.1", "http://localhost")) else ""
-
 
 def _window_call(url: str, op: str, args: Dict[str, Any], lang: str) -> Any:
     import httpx
@@ -88,11 +74,10 @@ def _window_call(url: str, op: str, args: Dict[str, Any], lang: str) -> Any:
     if response.status_code == 404:
         if "error" in data and "/api/pg/music" not in str(data.get("error")):
             raise KeyError(str(data.get("error") or "not found"))
-        raise ConnectionError("no music routes in the window")              # an older window
+        raise ConnectionError("no music routes in the window")
     if response.status_code >= 400:
         raise ValueError(str(data.get("error") or f"HTTP {response.status_code}"))
     return data.get("result") if isinstance(data, dict) and "result" in data else data
-
 
 def call_sync(op: str, args: Optional[Dict[str, Any]] = None, lang: str = "ru") -> Any:
     args = dict(args or {})
@@ -109,9 +94,8 @@ def call_sync(op: str, args: Optional[Dict[str, Any]] = None, lang: str = "ru") 
     api = _api()
     try:
         return api.call(op, args, lang=lang, sender="phone")
-    except TypeError:                                         # a backend without the keyword arguments
+    except TypeError:
         return api.call(op, args)
-
 
 async def call(op: str, args: Optional[Dict[str, Any]] = None, lang: str = "ru") -> Any:
     """One MemuMusic operation off the event loop (the window first, then in-process)."""
@@ -119,7 +103,6 @@ async def call(op: str, args: Optional[Dict[str, Any]] = None, lang: str = "ru")
     if inspect.isawaitable(result):
         result = await result
     return result
-
 
 def _file_of(kind: str, track_id: str) -> Optional[Path]:
     """The audio (``kind="track"``) or cover file of a track, read straight from the library on disk."""
@@ -139,7 +122,6 @@ def _file_of(kind: str, track_id: str) -> Optional[Path]:
     path = Path(str(path))
     return path if path.is_file() else None
 
-
 def _tracks_by_id(ids: List[str], limit: int = 120) -> List[Dict[str, Any]]:
     """Track rows for the player's queue (it keeps ids only)."""
     from .library import get_library
@@ -151,7 +133,6 @@ def _tracks_by_id(ids: List[str], limit: int = 120) -> List[Dict[str, Any]]:
         except Exception:
             continue
     return out
-
 
 def pc_id() -> str:
     """A stable id of this computer's library (``MEMUAI_DATA_DIR/music/pc-id``): the phone keys what it saved
@@ -173,13 +154,9 @@ def pc_id() -> str:
         log.debug("music: cannot keep pc-id", exc_info=True)
     return value
 
-
-# ================================================================ tokens and urls
-
 def issue_media_token(user: str, secret: str) -> Tuple[str, int]:
     from .. import tg_webapp
     return tg_webapp.issue_token(user, secret, ttl=TOKEN_TTL, scope=TOKEN_SCOPE)
-
 
 def media_token_ok(token: str) -> bool:
     from .. import tg_webapp
@@ -189,7 +166,6 @@ def media_token_ok(token: str) -> bool:
     if not data or not config.get("enabled"):
         return False
     return bool(tg_webapp.is_authorized_user(str(data.get("u") or ""), load_preferences()))
-
 
 class Urls:
     """Rewrites the backend's covers / streams to the Mini App's routes (relative to ``/tgapp/``)."""
@@ -220,7 +196,7 @@ class Urls:
         out = dict(row)
         tid = str(out["id"])
         for private in ("path", "file", "file_path"):
-            out.pop(private, None)                            # the phone never sees the computer's paths
+            out.pop(private, None)
         out["cover"] = self.cover_from(out.get("cover"), tid)
         out["stream"] = self.stream(tid)
         return out
@@ -255,9 +231,6 @@ class Urls:
             out["track"] = self.track(out["track"])
         return out
 
-
-# ================================================================ helpers
-
 def music_look() -> Dict[str, str]:
     """Round 38: the MemuMusic window's look (Оформление: theme, own accent, accent from the cover, light/dark) for the Mini App."""
     try:
@@ -274,11 +247,9 @@ def music_look() -> Dict[str, str]:
             "cover": "1" if ui.get("coverTint", True) else "",
             "mode": clean(str(ui.get("mode") or ""), ("light", "dark", "system", "memu"))}
 
-
 def _clean_id(value: Any) -> str:
     text = str(value or "")
     return text if _ID.match(text) else ""
-
 
 def _player_view(state: Any, urls: Urls) -> Dict[str, Any]:
     """The window's player state (``player.state``) for the phone: the track, the moving position, the queue as
@@ -286,7 +257,7 @@ def _player_view(state: Any, urls: Urls) -> Dict[str, Any]:
     if not isinstance(state, dict):
         return {"online": False, "available": True}
     if str(state.get("device") or "") == "phone":
-        # what the phone itself reported (music.report): the computer plays nothing of its own right now
+
         return {"online": False, "available": True, "device": "phone"}
     track = state.get("track") if isinstance(state.get("track"), dict) else None
     ids = [str(x) for x in (state.get("queue") or []) if x]
@@ -311,13 +282,8 @@ def _player_view(state: Any, urls: Urls) -> Dict[str, Any]:
             "queue": urls.tracks(queue), "index": index, "device": str(state.get("device") or ""),
             "device_name": str(state.get("device_name") or ""), "age": round(age, 1) if age is not None else None}
 
-
-# play_playlist is resolved here (the window gets play_track with the playlist's queue)
 REMOTE_COMMANDS = {"play", "pause", "toggle", "next", "prev", "seek", "volume", "play_track", "shuffle", "repeat",
                    "play_playlist"}
-
-
-# ================================================================ registration
 
 def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any) -> None:  # noqa: N803
     """Adds ``music.*`` to the Mini App's operations and ``/tgapp/music/{stream,cover}/<id>`` to its routes."""
@@ -363,7 +329,6 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
             log.debug("music %s failed", name, exc_info=True)
             return default
 
-    # ------------------------------------------------------------ routes for <audio> / <img>
     @app.get("/tgapp/music/stream/{track_id}", include_in_schema=False)
     async def music_stream(track_id: str, request: Request):
         return await media(track_id, request, "track")
@@ -382,14 +347,13 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
             return JSONResponse({"error": "music unavailable"}, 503)
         if path is None:
             return JSONResponse({"error": "not found"}, 404)
-        from .api import file_response                      # the backend's Range responder (206 / 416)
+        from .api import file_response
         from .library import MIME
         media_type = MIME.get(path.suffix.lower(), "application/octet-stream") if kind == "track" else "image/jpeg"
         cache = "private, max-age=604800" if kind == "cover" else "private, max-age=3600"
         return file_response(path, request.headers.get("range", "") if kind == "track" else "", media_type,
                              {"Cache-Control": cache})
 
-    # ------------------------------------------------------------ library
     @op("music.home")
     async def music_home(ctx, body):
         urls = urls_of(ctx)
@@ -469,7 +433,6 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
             rows = rows.get("items") or rows.get(kind) or []
         return {"items": [dict(r, cover=urls.cover_from(r.get("cover"))) for r in rows if isinstance(r, dict)][:300]}
 
-    # ------------------------------------------------------------ playlists
     @op("music.playlists")
     async def music_playlists(ctx, body):
         rows = await run(ctx, "playlists.list", {}) or []
@@ -502,7 +465,6 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
             return {"playlist": urls.playlist(await run(ctx, "playlist.update", args))}
         return {"playlist": urls.playlist(await run(ctx, "playlist.get", {"id": pid}))}
 
-    # ------------------------------------------------------------ sync from the phone
     @op("music.sync")
     async def music_sync(ctx, body):
         """Likes, plays and playlist additions made on the phone (maybe offline), oldest first."""
@@ -526,7 +488,6 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
                 applied["playlists"] += 1
         return {"ok": True, "applied": applied}
 
-    # ------------------------------------------------------------ downloads on the computer
     @op("music.detect")
     async def music_detect(ctx, body):
         url = str(body.get("url") or "").strip()[:2000]
@@ -562,7 +523,6 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
         rows = await run(ctx, "search.online", {"q": q, "limit": max(1, min(int(body.get("limit") or 12), 25))}) or []
         return {"results": rows if isinstance(rows, list) else rows.get("results", [])}
 
-    # ------------------------------------------------------------ the computer's player (remote / handoff)
     @op("music.remote")
     async def music_remote(ctx, body):
         urls = urls_of(ctx)
@@ -589,7 +549,7 @@ def register_tgapp_ops(op: Callable[[str], Callable], ApiError: Any, *, app: Any
             if args["cmd"] == "play_track" and args.get("track_id") and not args.get("queue"):
                 args["queue"] = [args["track_id"]]
             await run(ctx, "player.command", args)
-            await asyncio.sleep(0.35)        # let the window apply it, so the answer shows the new state
+            await asyncio.sleep(0.35)
         try:
             state = await run(ctx, "player.state", {})
         except ApiError as exc:

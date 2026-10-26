@@ -1,4 +1,4 @@
-// MemuFiles · Home page ("This PC"), disk usage map, duplicate finder, folder sizes (Round 35).
+
 import { t } from "./i18n.js";
 import { S, api, $, $$, h, esc, icon, fileIcon, folderSvg, fmtSize, fmtNum, fmtDate, itemsWord, baseName, parentPath,
   toast, showError, modal, isWin } from "./core.js";
@@ -6,7 +6,6 @@ import { runJob } from "./dialogs.js";
 import { SPECIAL } from "./pane.js";
 import * as extras from "./extras.js";
 
-// ------------------------------------------------------------------ home
 export function renderHome(app, pane, el) {
   el.innerHTML = "";
   const hero = h("div", { class: "home-hero", html: `<img class="logo" src="memufiles.svg" alt=""><div><b>${esc(t("home.title"))}</b><span>${esc(t("home.subtitle"))}</span></div>` });
@@ -54,10 +53,9 @@ export function renderHome(app, pane, el) {
   tg.append(card("dupes", t("tools.dupes"), t("home.dupes_sub"), "", { run: () => dupesDialog(app, S.home), noDrop: true }));
   tg.append(card("sparkle", t("cmd.ai"), t("home.ai_sub"), "", { run: () => app.setRight("ai"), noDrop: true }));
   el.append(tg);
-  extras.renderHomeExtras(app, pane, el);           // Round 39: recent files, saved searches, compare folders
+  extras.renderHomeExtras(app, pane, el);
 }
 
-// ------------------------------------------------------------------ disk usage
 const COLORS = ["#ef8a62", "#a76cf0", "#4d95f0", "#4cbf74", "#e8c43d", "#d6537a", "#5ab3a7", "#c9944a", "#8c8c96"];
 export function usageDialog(app, path) {
   const body = h("div", { class: "tool-wrap" });
@@ -81,7 +79,7 @@ export function usageDialog(app, path) {
     prog.remove();
     if (!res) return;
     const total = res.size || 1;
-    // Round 39: a real squarified treemap (was one flex strip)
+
     const map = extras.treemap(res.children, total, COLORS, (c) => (c.is_dir ? load(c.path) : (dlg.close(), app.revealPath(c.path))));
     const summary = h("div", { class: "muted small", text: t("tools.usage_summary", { size: fmtSize(res.size), n: fmtNum(res.children.length) }) + (res.disk && res.disk.total ? " · " + t("drive.free", { free: fmtSize(res.disk.free), total: fmtSize(res.disk.total) }) : "") });
     const list = h("div", { class: "usage-list" });
@@ -99,7 +97,6 @@ export function usageDialog(app, path) {
   load(path);
 }
 
-// ------------------------------------------------------------------ duplicates
 export function dupesDialog(app, path) {
   const body = h("div", { class: "tool-wrap" });
   const holder = {};
@@ -168,7 +165,6 @@ export function dupesDialog(app, path) {
   });
 }
 
-// ------------------------------------------------------------------ folder sizes in the list
 export async function folderSizes(app, pane, paths) {
   const folders = paths ? pane.shown.filter((r) => r.d && paths.includes(r.path)) : pane.shown.filter((r) => r.d);
   if (!folders.length) { toast(t("tools.no_folders"), "info"); return; }

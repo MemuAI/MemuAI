@@ -12,7 +12,6 @@ from pathlib import Path
 
 from app import cli_integrations as cli
 
-
 class _TempHome(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()
@@ -21,7 +20,6 @@ class _TempHome(unittest.TestCase):
 
     def tearDown(self):
         self._tmp.cleanup()
-
 
 class ClaudeCodeTests(_TempHome):
     def test_apply_on_missing_file_creates_settings_with_env_block(self):
@@ -35,7 +33,7 @@ class ClaudeCodeTests(_TempHome):
         self.assertEqual(data["env"]["ANTHROPIC_BASE_URL"], "http://127.0.0.1:8317/v1")
         self.assertEqual(data["env"]["ANTHROPIC_AUTH_TOKEN"], "secret-key")
         self.assertEqual(data["env"]["ANTHROPIC_DEFAULT_SONNET_MODEL"], "genspark-claude-sonnet-4-5")
-        self.assertNotIn(path + ".memuai-backup", "")  # no backup: no original file existed
+        self.assertNotIn(path + ".memuai-backup", "")
         self.assertFalse(os.path.exists(path + ".memuai-backup"))
 
     def test_apply_merges_and_preserves_other_keys_and_env_vars(self):
@@ -53,10 +51,9 @@ class ClaudeCodeTests(_TempHome):
         self.assertEqual(data["theme"], "dark")
         self.assertEqual(data["env"]["MY_OWN_VAR"], "keepme")
         self.assertEqual(data["env"]["ANTHROPIC_MODEL"], "genspark-claude-opus-4-5")
-        # No API key configured on the proxy -> a non-empty placeholder token,
-        # since Claude Code refuses to start with an empty token.
+
         self.assertTrue(data["env"]["ANTHROPIC_AUTH_TOKEN"])
-        # A pristine backup of the ORIGINAL file (before any MemuAI edit).
+
         backup = path + ".memuai-backup"
         self.assertTrue(os.path.exists(backup))
         with open(backup, encoding="utf-8") as f:
@@ -89,7 +86,7 @@ class ClaudeCodeTests(_TempHome):
     def test_deselecting_a_slot_restores_it_without_a_full_reset(self):
         cli.apply_claude({"sonnet": "model-a", "haiku": "model-b"}, home=self.home,
                          state_path=self.state_path, base_url="http://x/v1", api_key="k")
-        cli.apply_claude({"sonnet": "model-a"}, home=self.home,  # haiku deselected
+        cli.apply_claude({"sonnet": "model-a"}, home=self.home,
                          state_path=self.state_path, base_url="http://x/v1", api_key="k")
         path = cli.claude_settings_path(self.home)
         with open(path, encoding="utf-8") as f:
@@ -145,7 +142,6 @@ class ClaudeCodeTests(_TempHome):
         status = cli.claude_status(home=self.home, state_path=self.state_path)
         self.assertFalse(status["api_key_set"])
 
-
 class CodexTests(_TempHome):
     def test_apply_on_missing_file_creates_provider_and_profiles(self):
         result = cli.apply_codex([{"name": "opus", "model": "genspark-claude-opus-4-5"},
@@ -159,7 +155,7 @@ class CodexTests(_TempHome):
         doc = tomllib.loads(text)
         self.assertEqual(doc["model_providers"]["memuai"]["base_url"], "http://127.0.0.1:8317/v1")
         self.assertEqual(doc["model_providers"]["memuai"]["wire_api"], "responses")
-        self.assertNotIn("env_key", doc["model_providers"]["memuai"])  # no api key configured
+        self.assertNotIn("env_key", doc["model_providers"]["memuai"])
         self.assertEqual(doc["model_provider"], "memuai")
         self.assertEqual(doc["model"], "genspark-claude-opus-4-5")
         self.assertEqual(doc["profiles"]["memuai-opus"]["model"], "genspark-claude-opus-4-5")
@@ -197,7 +193,7 @@ class CodexTests(_TempHome):
         self.assertEqual(doc["model_providers"]["openai"]["name"], "OpenAI")
         self.assertIn("model_providers", doc)
         self.assertIn("memuai", doc["model_providers"])
-        # The user already had no top-level model/model_provider -> safe to set ours.
+
         self.assertEqual(doc["model_provider"], "memuai")
 
     def test_apply_does_not_clobber_existing_top_level_default(self):
@@ -301,7 +297,6 @@ class CodexTests(_TempHome):
         self.assertEqual(status["connection"], "direct")
         self.assertEqual(status["base_url"], "https://own.example/v1")
 
-
 class DirectConnectionValidationTests(unittest.TestCase):
     def test_direct_connection_rejects_credentials_in_url_and_newlines_in_key(self):
         from app.proxy_tools_api import _cli_connection
@@ -313,7 +308,6 @@ class DirectConnectionValidationTests(unittest.TestCase):
                              "api_key": "good\r\nInjected: bad"})
         self.assertEqual(_cli_connection({"connection": "direct", "base_url": "https://own.example/v1/",
                                            "api_key": "secret"})["base_url"], "https://own.example/v1")
-
 
 class PathHelpersTests(unittest.TestCase):
     def test_home_dir_prefers_explicit_argument_over_env_override(self):
@@ -336,7 +330,6 @@ class PathHelpersTests(unittest.TestCase):
         with patch.object(type(config_store), "effective_host", property(lambda self: "0.0.0.0")), \
              patch.object(type(config_store), "effective_port", property(lambda self: 8317)):
             self.assertEqual(cli.proxy_base_url(), "http://127.0.0.1:8317/v1")
-
 
 if __name__ == "__main__":
     unittest.main()

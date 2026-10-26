@@ -11,14 +11,12 @@ from ..i18n import tr
 from ..tui import dialogs as dlg
 from . import Context, command
 
-
 def manager(ui: Any) -> ac.AutoContinue:
     current = getattr(ui, "auto_continue", None)
     if not isinstance(current, ac.AutoContinue):
         current = ac.AutoContinue(ui)
         ui.auto_continue = current
     return current
-
 
 def _armed_text(auto: ac.AutoContinue, extra: str = "") -> str:
     plan = auto.plan
@@ -37,7 +35,6 @@ def _armed_text(auto: ac.AutoContinue, extra: str = "") -> str:
     tail.append(tr("окно должно оставаться открытым", "keep this window open"))
     tail.append("/auto-continue cancel")
     return head + (f" · {extra}" if extra else "") + "\n  " + " · ".join(tail)
-
 
 async def _pick(ctx: Context, auto: ac.AutoContinue) -> Any:
     """No time given: a short menu (the provider's reset time first, when it is known)."""
@@ -75,7 +72,6 @@ async def _pick(ctx: Context, auto: ac.AutoContinue) -> Any:
             ctx.say(str(exc), "warn")
             return None
     return choice
-
 
 @command("auto-continue", "Отправить «continue» само в указанное время — когда кончились лимиты: "
                           "/auto-continue 18:30 · +2h · auto · cancel",

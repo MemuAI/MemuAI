@@ -27,13 +27,8 @@ from .client import (
 
 log = logging.getLogger("g2a.stream")
 
-#: A "delta" that repeats at least this much already streamed text is treated
-#: as a cumulative snapshot. Shorter repeats are legitimate Markdown ("-", "**").
 _SNAPSHOT_MIN = 16
 
-# Поля с полезным текстом зависят от бэкенда: у agent (ai_chat) это «content»,
-# у copilot — session_state.*. Смешивание наборов приводит к дублированию ответа:
-# в стриме встречаются и дельты, и кумулятивные снимки полного текста.
 BACKEND_TEXT_FIELDS: Dict[str, Set[str]] = {
     "agent": {"content"},
     "copilot": {"session_state.answer", "session_state.streaming_detail_answer"},
@@ -53,9 +48,6 @@ FREE_LIMIT_MARKERS = (
 )
 NOT_LOGIN_MARKERS = ('"message":"not login"', '"message": "not login"', '"status":-5')
 
-# Событийные типы, которыми Genspark сообщает о сбое генерации. Раньше они
-# игнорировались, поэтому после отказа модели поток просто «замолкал» и запрос
-# падал только по idle_timeout (несколько минут) с невнятной ошибкой.
 ERROR_EVENT_TYPES = {
     "error", "message_error", "project_error", "task_error", "agent_error",
     "stream_error", "message_failed", "project_failed", "generate_error",
@@ -63,7 +55,6 @@ ERROR_EVENT_TYPES = {
 ERROR_FIELD_HINTS = ("error_message", "error_detail", "failed_reason",
                      "failure_reason", "error_code", "block_reason")
 
-# Отказ модели по фильтрам безопасности. Повтор на другом аккаунте не поможет.
 CONTENT_FILTER_MARKERS = (
     "safety filter", "safety filters", "safety_filter", "safety settings",
     "blocked by safety", "content policy", "content_policy", "usage policies",
@@ -79,7 +70,6 @@ MODEL_ERROR_MARKERS = (
     "feature has been retired", "model has been deprecated",
 )
 
-
 def _stringify(value: Any, limit: int = 2000) -> str:
     if isinstance(value, str):
         return value[:limit]
@@ -87,7 +77,6 @@ def _stringify(value: Any, limit: int = 2000) -> str:
         return json.dumps(value, ensure_ascii=False)[:limit]
     except Exception:
         return str(value)[:limit]
-
 
 def _error_text_of(event: Dict[str, Any]) -> str:
     """Собирает человекочитаемое описание сбоя из события апстрима."""
@@ -108,7 +97,6 @@ def _error_text_of(event: Dict[str, Any]) -> str:
             parts.append(nested)
     return " | ".join(parts)[:1200]
 
-
 def _raise_for_failure(text: str, *, status: int = 0) -> None:
     """Бросает точный тип ошибки по тексту сбоя апстрима."""
     low = (text or "").lower()
@@ -127,18 +115,15 @@ def _raise_for_failure(text: str, *, status: int = 0) -> None:
         raise GensparkFreeLimitError(f"Genspark daily limit reached: {text}", 402)
     raise GensparkServerError(f"Genspark error: {text}", status)
 
-
 @dataclass
 class UpstreamEvent:
-    kind: str                       # text | reasoning_start | reasoning_delta | reasoning_end | project | result | error
+    kind: str
     text: str = ""
     project_id: str = ""
     data: Dict[str, Any] = dc_field(default_factory=dict)
 
-
 def _is_not_login(line: str) -> bool:
     return any(m in line for m in NOT_LOGIN_MARKERS)
-
 
 def _extract_project_id(event: Dict[str, Any]) -> str:
     for key in ("id", "project_id", "projectId", "message_id"):
@@ -146,7 +131,6 @@ def _extract_project_id(event: Dict[str, Any]) -> str:
         if isinstance(v, str) and v:
             return v
     return ""
-
 
 def _extract_final_text(event: Dict[str, Any]) -> str:
     content = event.get("content")
@@ -166,7 +150,6 @@ def _extract_final_text(event: Dict[str, Any]) -> str:
         if isinstance(v, str):
             return v
     return ""
-
 
 def _parse_event(line: str, text_fields: Set[str]) -> Optional[UpstreamEvent]:
     """JSON-строка SSE → событие. None — событие игнорируем."""
@@ -215,10 +198,8 @@ def _parse_event(line: str, text_fields: Set[str]) -> Optional[UpstreamEvent]:
             return UpstreamEvent("error", text=_error_text_of(event) or final, data=event)
         return UpstreamEvent("result", text=final, data=event)
 
-    # прочие типы (steps, search, files...) игнорируем
     log.debug("ignoring upstream event: %s", etype or "?")
     return None
-
 
 async def iter_upstream_events(resp: Any, *, idle_timeout: int = 300,
                                backend: str = "agent",
@@ -231,9 +212,9 @@ async def iter_upstream_events(resp: Any, *, idle_timeout: int = 300,
     снимок, продолжающий накопленный текст, не отправляется повторно.
     """
     status = resp.status_code
-    # HTTP-статус: 401/403/429/5xx
+
     if status != 200:
-        # при stream=True тело нужно вычитать
+
         head = ""
         try:
             async for chunk in resp.aiter_content():
@@ -258,7 +239,7 @@ async def iter_upstream_events(resp: Any, *, idle_timeout: int = 300,
             err = GensparkServerError(f"Ошибка Genspark (HTTP {status})", status)
         else:
             err = GensparkServerError(f"Unexpected response from Genspark (HTTP {status})", status)
-        # тело может содержать JSON с message
+
         try:
             j = json.loads(head)
             msg = j.get("message") or j.get("detail")
@@ -277,9 +258,7 @@ async def iter_upstream_events(resp: Any, *, idle_timeout: int = 300,
     text_fields = BACKEND_TEXT_FIELDS.get(backend) or BACKEND_TEXT_FIELDS["agent"]
 
     while True:
-        # До первого события ждём значительно меньше: «зависший» запрос
-        # (частый случай, когда модель отказала, а Genspark не закрыл поток)
-        # больше не держит клиента несколько минут.
+
         wait_for = idle_timeout if saw_any_event else min(idle_timeout, max(15, first_event_timeout))
         try:
             raw = await asyncio.wait_for(lines.__anext__(), timeout=wait_for)
@@ -298,11 +277,6 @@ async def iter_upstream_events(resp: Any, *, idle_timeout: int = 300,
         if not line:
             continue
 
-        # --- маркеры ошибок в сырых строках ---
-        # Только в служебных строках: в тексте ответа модель может сама
-        # написать «rate limit exceeded», и аккаунт не должен уходить в кулдаун.
-        # Genspark сам присылает сообщение о лимите вместо ответа, поэтому
-        # текст проверяем только до начала настоящего ответа.
         answer_text = saw_text and "message_field" in line
         if answer_text:
             pass
@@ -315,7 +289,7 @@ async def iter_upstream_events(resp: Any, *, idle_timeout: int = 300,
         if line.startswith("<!") or line.lower().startswith("<html"):
             if looks_like_cloudflare(line):
                 raise GensparkCloudflareError("Cloudflare challenge inside the stream", 403)
-            continue  # html-мусор внутри потока — пропускаем
+            continue
 
         payload = line[5:].lstrip() if line.startswith("data:") else line
         if not payload:
@@ -323,7 +297,6 @@ async def iter_upstream_events(resp: Any, *, idle_timeout: int = 300,
         if payload == "[DONE]":
             break
 
-        # --- не-JSON полезная нагрузка: ошибка или мусор ---
         if not payload.lstrip().startswith("{"):
             if saw_text or saw_any_event:
                 continue
@@ -336,7 +309,6 @@ async def iter_upstream_events(resp: Any, *, idle_timeout: int = 300,
         if not isinstance(probe, dict):
             continue
 
-        # JSON со status != 0 — ошибка апстрима (но не внутри событий чата)
         if "status" in probe and "type" not in probe:
             st = probe.get("status")
             msg = str(probe.get("message") or "")
@@ -350,35 +322,26 @@ async def iter_upstream_events(resp: Any, *, idle_timeout: int = 300,
             continue
         saw_any_event = True
 
-        # Явная ошибка апстрима: прекращаем чтение сразу, не дожидаясь таймаута.
         if event.kind == "error":
             detail = event.text or _error_text_of(event.data)
             if saw_text:
-                # Часть ответа уже отдана клиенту: это обрыв, а не успех —
-                # иначе обрезанный ответ выглядит законченным.
+
                 log.warning("Genspark failed after partial output: %s", detail[:300])
                 raise GensparkServerError(
                     f"Genspark stopped mid-answer: {detail[:300] or 'upstream error'}", 502)
             _raise_for_failure(detail)
 
-        # --- защита от дублирования/кумулятивных снимков ---
-        # Сравнивать с накопленным текстом можно только кумулятивные снимки
-        # (message_field / field_value). Настоящие дельты message_field_delta
-        # добавляются как есть: иначе второй «-» или «**» в Markdown-ответе
-        # принимался за «повтор» и пропадал.
         data = event.data if isinstance(event.data, dict) else {}
         is_snapshot = data.get("type") == "message_field" or "delta" not in data
         if event.kind == "text" and event.text:
             delta = event.text
             if is_snapshot and acc_text:
                 if delta.startswith(acc_text):
-                    delta = delta[len(acc_text):]  # снимок длиннее накопленного — берём хвост
+                    delta = delta[len(acc_text):]
                 elif acc_text.startswith(delta):
-                    delta = ""                      # повтор уже отправленного
+                    delta = ""
             elif len(acc_text) >= _SNAPSHOT_MIN and delta.startswith(acc_text):
-                # Бэкенд иногда присылает весь накопленный ответ ещё раз под видом
-                # дельты. Короткие повторы («-», «**») сюда не попадают: порог
-                # отсекает только копию длинного уже отданного текста.
+
                 delta = delta[len(acc_text):]
             if not delta:
                 continue
@@ -402,7 +365,6 @@ async def iter_upstream_events(resp: Any, *, idle_timeout: int = 300,
             result_event = event
         yield event
 
-    # стрим кончился без message_result — всё равно отдаём результат (с текстом или пустой)
     if result_event is None:
         if not saw_text and not saw_any_event:
             raise GensparkServerError(

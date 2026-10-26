@@ -1,8 +1,5 @@
-/* MemuAI — Round 37 (plan-2): the gallery of ready-made «Планирование» scenarios (window.MemuPlanTemplates).
-   Scenarios use the round-37 conditions: Russia's production calendar, weather (condition and trigger), sunset,
-   groups / «НЕ», quiet hours, retries. plan.js calls open(base, pick): base = its classic TEMPLATES() (shown under
-   «Классика»), pick(make) opens the builder with make(). Weather / sunset rows take the last city chosen in the
-   builder (MemuPlanConds.withPlace); without one the builder asks to pick a city. */
+
+
 (function () {
   "use strict";
   if (window.MemuPlanTemplates) return;
@@ -16,7 +13,6 @@
   const CATS = () => [["all", T("Все", "All")], ["weather", T("Погода и солнце", "Weather and sun")], ["calendar", T("Календарь", "Calendar")],
     ["reliable", T("Надёжность", "Reliability")], ["classic", T("Классика", "Classic")]];
 
-  /** each scenario: cat, icon, title, desc, chips (what it uses), task (merged over blank()) */
   function scenarios() {
     return [
       { cat: "calendar", icon: "pc-calendar", title: T("Итоги недели в пятницу", "Weekly wrap-up on Friday"),

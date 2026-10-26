@@ -1,17 +1,8 @@
-/* Round 35 — ask_user: the model asks with a small form instead of a paragraph of questions.
 
-   Two layers:
-   • MemuAskForm — a pure renderer of the shared form schema (app/ask_user.py): html(record, opts) + bind(root, record,
-     opts). Used by the chat, Quick Access (quick/index.html loads this file too) and the DFY card.
-   • MemuAskUser — the chat/Work integration: app.js::runHiddenTools → MemuAskUser.ask(assistant, args, ctx) opens the
-     form on the server (/api/pg/ask_user/open → normalized + Inbox «ждёт ответа»), shows it inside the assistant
-     message (assistant.askForms[]), waits for «Готово» / «Пропустить — решай сам» / an Inbox answer / Stop, and
-     returns the tool result — the same tool-calling loop continues IN THE SAME TURN. After a reload the pending form
-     is restored from the message; answering it resumes the turn (resumeAfterAutomation). A message typed in the
-     composer while a form waits is taken as the answer (interceptSend). */
+
 (function () {
   "use strict";
-  let langHook = null;     // Quick Access / Mini App pass their own language (MemuAskForm.setLang)
+  let langHook = null;
   const lang = () => (langHook ? langHook() : typeof PG_LANG !== "undefined" ? PG_LANG : (document.documentElement.lang || "ru")) === "en" ? "en" : "ru";
   const L = (ru, en) => lang() === "en" ? en : ru;
   const esc = (v) => String(v == null ? "" : v).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -24,8 +15,7 @@
   };
   const ico = (name) => `<span class="au-ico">${ICON[name] || ""}</span>`;
 
-  /* ------------------------------------------------------------------ drafts (survive chat re-renders) */
-  const drafts = new Map();        // form id → {values:{id: value}, other:{id: text}, otherOn:{id: bool}, errors:{id: code}}
+  const drafts = new Map();
   function draft(record) {
     let d = drafts.get(record.id);
     if (!d) {
@@ -68,7 +58,6 @@
     above_max: ["Слишком много", "Too large"], not_a_date: ["Нужна дата", "A date is needed"],
   };
 
-  /* ------------------------------------------------------------------ renderer */
   function fieldHtml(record, field, d, opts) {
     const fid = esc(field.id), key = `${esc(record.id)}:${fid}`;
     const err = d.errors[field.id];
@@ -144,7 +133,6 @@
       </div></form>`;
   }
 
-  /* answers from the draft in the server format */
   function collect(record) {
     const d = draft(record), out = {};
     for (const f of record.form.fields || []) {
@@ -174,7 +162,6 @@
     return errs;
   }
 
-  /* registry of mounted forms: id → {record, opts, root?} */
   const mounted = new Map();
   function rerender(id) {
     const entry = mounted.get(id);
@@ -266,7 +253,7 @@
     if (t.dataset.auOthertext) d.other[fid] = t.value;
     else d.values[fid] = t.type === "number" ? (t.value === "" ? undefined : t.value) : t.value;
     if (d.errors[fid]) { delete d.errors[fid]; t.closest(".au-field")?.classList.remove("has-err"); t.closest(".au-field")?.querySelector(".au-err")?.remove(); }
-    // a picked quick-day chip follows the date input
+
     if (t.type === "date") t.closest(".au-field")?.querySelectorAll("[data-au-day]").forEach((b) => b.classList.toggle("on", b.dataset.auV === t.value));
   }
   function onKey(ev) {
@@ -276,7 +263,7 @@
     if (!entry || entry.record.status !== "pending") return;
     if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); submit(entry.record.id); return; }
     if (ev.key === "Enter" && ev.target.matches("input.au-input")) { ev.preventDefault(); submit(entry.record.id); return; }
-    // radiogroup: arrows move between chips (WAI-ARIA), Space/Enter pick
+
     const chip = ev.target.closest(".au-chips[role=radiogroup] .au-chip");
     if (chip && ["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp", "Home", "End"].includes(ev.key)) {
       ev.preventDefault();
@@ -302,17 +289,14 @@
     document.addEventListener("keydown", onKey);
     document.addEventListener("submit", onSubmitEvent);
   }
-  /* mount(record, {compact, onSubmit(answers|null, skipped) → Promise<{errors}|any>, rerender?}) */
+
   function mount(record, opts) { bindDocument(); mounted.set(record.id, { record, opts: opts || {} }); return record; }
   function update(record) { const entry = mounted.get(record.id); if (entry) entry.record = record; }
 
   window.MemuAskForm = { html, mount, update, collect, summaryOf, fmtValue, drafts, submit, setLang: (fn) => { langHook = typeof fn === "function" ? fn : null; } };
 
-  /* ================================================================== chat / Work integration */
-  const waiters = new Map();      // form id → {resolve, reject, assistant, entry}
-  /* Round 36: an answer given elsewhere (Входящие, Telegram, another window) is picked up by ONE slow timer that
-     runs only while a form waits and the window is visible, plus an instant check when the window regains focus
-     (was: a 3 s setInterval per form). */
+  const waiters = new Map();
+
   let pollTimer = 0;
   async function pollWaiting() {
     pollTimer = 0;
@@ -322,7 +306,7 @@
         try {
           const now = await http(`/api/pg/ask_user/${encodeURIComponent(id)}`);
           if (now.status && now.status !== "pending" && waiters.has(id)) finish(waiter.assistant, waiter.entry, { record: now, result: resultFrom(now) });
-        } catch (e) { /* offline for a moment */ }
+        } catch (e) {  }
       }
     }
     armPoll();
@@ -347,12 +331,10 @@
 
   function entryOf(assistant, id) { return (assistant?.askForms || []).find((f) => f.id === id); }
   function mountChat(assistant, rec, ctx) {
-    // Round 36: a chip / step / «busy» change repaints only this form (was: the whole chat via renderMessages);
-    // the settled state is still drawn by finish() → rerenderChat().
+
     mount(rec, { compact: false, onSubmit: (answers, skipped) => answerChat(assistant, rec.id, answers, skipped, ctx) });
   }
 
-  /* settle on the server, update the message; resolve the live waiter or resume the turn after a reload */
   async function answerChat(assistant, id, answers, skipped, ctx = {}) {
     const rec = entryOf(assistant, id);
     if (!rec || rec.status !== "pending") return;
@@ -362,7 +344,7 @@
         : await http(`/api/pg/ask_user/${encodeURIComponent(id)}/answer`, { answers });
     } catch (e) {
       if (e.status !== 404) throw e;
-      // The server forgot the form (data dir moved, a day passed): settle locally with the same contract.
+
       data = { record: { status: skipped ? "skipped" : "answered", answers: skipped ? null : answers },
         result: { tool: "ask_user", status: skipped ? "skipped" : "answered", answers: skipped ? undefined : answers,
           note: skipped ? "The user skipped the form. Choose sensible defaults, state them briefly and finish the task." : "Use these answers and continue the task now." } };
@@ -384,7 +366,7 @@
       rerenderChat();
       return;
     }
-    // No live tool loop (page reloaded, app restarted): resume the same turn with the tool result.
+
     resumeTurn(assistant, rec, data.result || { tool: "ask_user", status: rec.status, answers: rec.answers });
   }
   function resumeTurn(assistant, rec, result) {
@@ -402,7 +384,6 @@
     } catch (e) { console.warn("ask_user resume failed", e); }
   }
 
-  /* app.js::runHiddenTools → await MemuAskUser.ask(assistant, args, {signal, chatId, messages, mode}) */
   async function ask(assistant, args, ctx = {}) {
     const surface = ctx.mode === "work" || ctx.mode === "code" ? "work" : "chat";
     let rec;
@@ -465,16 +446,15 @@
     try { if (document.hidden && typeof toast === "function") toast(L("MemuAI ждёт вашего ответа в чате", "MemuAI is waiting for your answer in the chat"), "warn", 6000); } catch (e) {}
   }
 
-  /* app.js::renderMessages → MemuAskUser.html(m, i) */
   function chatHtml(m) {
     if (!m?.askForms?.length) return "";
     return `<div class="au-stack">${m.askForms.map((rec) => {
-      if (rec.status === "pending" && !mounted.has(rec.id)) mountChat(m, rec, {});   // restored after a reload
+      if (rec.status === "pending" && !mounted.has(rec.id)) mountChat(m, rec, {});
       else if (mounted.has(rec.id)) update(rec);
       return html(rec, {});
     }).join("")}</div>`;
   }
-  /* the latest pending form of the open chat (composer text → answer) */
+
   function pendingInCurrent() {
     try {
       for (let i = (S.messages || []).length - 1; i >= 0; i -= 1) {
@@ -486,18 +466,17 @@
     } catch (e) {}
     return null;
   }
-  /* app.js::send(): a message typed while a form waits answers it (no new bubble, the turn goes on) */
+
   function interceptSend(text) {
     const value = String(text || "").trim();
     const found = pendingInCurrent();
     if (!found || !value) return false;
-    if (value.startsWith("/")) return false;          // slash commands keep working
+    if (value.startsWith("/")) return false;
     answerChat(found.m, found.rec.id, { _reply: value }, false).catch((e) => { try { toast(String(e.message || e), "err"); } catch (x) {} });
     return true;
   }
   function hasPending() { return !!pendingInCurrent(); }
 
-  /* the prompt block (same text as app/ask_user.py::prompt_section) */
   const PROMPT = `<ask_user>
 When a request is genuinely ambiguous and a wrong guess would change the result (which of several real
 options, a date, a budget, a size), ask with a small form instead of writing a paragraph of questions:

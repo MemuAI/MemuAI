@@ -1,11 +1,5 @@
-/* MemuLearn — встроенный модуль MemuAI: ИИ-академия, интервальное повторение FSRS-5 и экзаменатор.
- * Код разбит на части (маркеры memu-part), MemuAI склеивает их в один main.js:
- *   md.js — Markdown, KaTeX (лениво, из MemuAI офлайн), подсветка кода, cloze;
- *   home.js — «Сегодня», боковая панель; create.js — новый курс (тема / книга / MemuNote / Anki, CSV);
- *   course.js — дерево модулей и уроков, конспект, карточки; review.js — сессия повторения;
- *   exam.js — экзаменатор; extra.js — статистика, настройки, импорт/экспорт.
- * Данные — app/learn (SQLite в данных MemuAI) через Memu.learn.call; к модели — Memu.request.
- * Все строки — в i18n.json (ru/en). */
+
+
 const t = (key, vars) => Memu.t(key, vars);
 const $ = (selector, root) => (root || document).querySelector(selector);
 const $$ = (selector, root) => Array.from((root || document).querySelectorAll(selector));
@@ -29,7 +23,6 @@ const API = {
   },
 };
 
-/* ------------------------------------------------------------------ the model */
 async function loadModels() {
   try {
     const rows = await Memu.models();
@@ -40,7 +33,6 @@ async function loadModels() {
   return S.models;
 }
 
-/** Ask the model for one of app/learn/ai.py tasks and apply the JSON answer on the server. */
 async function aiTask(task, args, onStage) {
   if (!S.models.length) await loadModels();
   const p = await API.call("ai.prompt", Object.assign({ task }, args));
@@ -62,7 +54,6 @@ async function aiTask(task, args, onStage) {
   throw lastError;
 }
 
-/* ------------------------------------------------------------------ helpers */
 function toast(text, kind) {
   const el = $("#toast");
   el.textContent = text;
@@ -119,11 +110,10 @@ function readText(file) {
   });
 }
 function remember() {
-  try { Memu.save({ model: S.model, prefs: S.prefs, last: S.last }); } catch (e) { /* storage is optional */ }
+  try { Memu.save({ model: S.model, prefs: S.prefs, last: S.last }); } catch (e) {  }
 }
 function setBusy(key) { S.busy = key; appEl.toggleAttribute("data-busy", !!key); }
 
-/* ------------------------------------------------------------------ router */
 const VIEWS = {};
 async function go(view, params) {
   S.view = view;
@@ -150,7 +140,6 @@ appEl.addEventListener("click", (e) => {
 /* @memu-part:exam.js */
 /* @memu-part:extra.js */
 
-/* ------------------------------------------------------------------ start */
 function applyPrefs() { document.documentElement.toggleAttribute("data-calm", !!S.prefs.calm || matchMedia("(prefers-reduced-motion: reduce)").matches); }
 applyPrefs();
 Memu.onLanguage(() => go(S.view, { id: S.course ? S.course.id : "" }));

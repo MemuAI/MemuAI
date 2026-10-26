@@ -80,7 +80,6 @@ TRIGGERS = ("error", "429", "5xx", "timeout", "empty", "content_filter", "contex
 STRATEGIES = ("fixed", "fastest", "cheapest", "success", "round_robin", "weighted", "least_used", "sticky")
 FILTER_KEYS = ("vision", "tools", "min_context", "free_only", "json")
 
-#: Condition types: value kind and allowed operators.
 NUM_OPS = ("gt", "gte", "lt", "lte", "eq", "ne")
 TEXT_OPS = ("contains", "not_contains", "regex", "not_regex", "starts_with", "equals")
 SET_OPS = ("in", "not_in")
@@ -108,7 +107,7 @@ CONDITIONS: Dict[str, Dict[str, Any]] = {
     "temperature": {"kind": "number"},
     "turns": {"kind": "number"},
     "random": {"kind": "percent"},
-    # Round 40 (r40-proxy): «Сложность задачи» — app/difficulty.py (heuristics, optionally a fast model with a cache).
+
     "difficulty": {"kind": "set", "options": ["simple", "chat", "translation", "summary", "creative", "code",
                                               "complex_code", "deep_math", "architecture"]},
 }
@@ -118,17 +117,11 @@ OPS_BY_KIND = {"bool": ("is",), "number": NUM_OPS, "text": TEXT_OPS, "set": SET_
 DEFAULT_FALLBACK: Dict[str, Any] = {
     "on": list(TRIGGERS), "connect_timeout": 0, "first_token_timeout": 0, "total_timeout": 0,
     "retries": 0, "backoff_ms": 600, "backoff": "exponential", "max_attempts": 6, "context_upgrade": True,
-    # Round 40: Smart Stream Recovery (app/stream_recovery.py) — a stream that breaks after the first token is
-    # continued by the next candidate instead of failing; at most ``recovery_attempts`` times per request.
+
     "stream_recovery": True, "recovery_attempts": 2,
 }
 
 _lock = threading.RLock()
-
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Storage
-# ---------------------------------------------------------------------------------------------------------------------
 
 class _Store:
     def __init__(self, path: str = STORE_PATH) -> None:
@@ -150,7 +143,7 @@ class _Store:
                 if isinstance(row, dict):
                     try:
                         models.append(normalize(row))
-                    except Exception:  # a broken row must not hide the others
+                    except Exception:
                         log.warning("composite: skipped a broken model row")
             self._models, self._mtime = models, mtime
         return self._models
@@ -200,17 +193,13 @@ class _Store:
         with _lock:
             self._models, self._mtime = None, -1.0
 
-
 store = _Store()
-
 
 def all_models() -> List[Dict[str, Any]]:
     return store.all()
 
-
 def get(model_id: str) -> Optional[Dict[str, Any]]:
     return store.get(model_id)
-
 
 def is_composite(model_id: Any) -> bool:
     """Is ``model_id`` an (enabled) composite model? Cheap: ids without ``/`` never touch the file."""
@@ -219,14 +208,8 @@ def is_composite(model_id: Any) -> bool:
     row = store.get(model_id)
     return bool(row and row.get("enabled", True))
 
-
 def ids() -> List[str]:
     return [m["id"] for m in store.all() if m.get("enabled", True)]
-
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Normalisation and validation
-# ---------------------------------------------------------------------------------------------------------------------
 
 def _int(value: Any, default: int, lo: int, hi: int) -> int:
     try:
@@ -234,7 +217,6 @@ def _int(value: Any, default: int, lo: int, hi: int) -> int:
     except (TypeError, ValueError):
         return default
     return max(lo, min(hi, number))
-
 
 def _float(value: Any, default: Optional[float] = None) -> Optional[float]:
     if isinstance(value, bool):
@@ -245,10 +227,8 @@ def _float(value: Any, default: Optional[float] = None) -> Optional[float]:
         return default
     return number if math.isfinite(number) else default
 
-
 def _str(value: Any, limit: int = 200) -> str:
     return str(value if value is not None else "").strip()[:limit]
-
 
 def _candidates(value: Any) -> List[Dict[str, Any]]:
     out: List[Dict[str, Any]] = []
@@ -267,7 +247,6 @@ def _candidates(value: Any) -> List[Dict[str, Any]]:
         row["weight"] = max(0.0, min(1000.0, weight if weight is not None else 1.0))
         out.append(row)
     return out[:MAX_CANDIDATES]
-
 
 def _strategy(value: Any) -> Dict[str, Any]:
     value = value if isinstance(value, dict) else {}
@@ -288,7 +267,6 @@ def _strategy(value: Any) -> Dict[str, Any]:
         out["ttl_min"] = _int(value.get("ttl_min"), 360, 5, 7 * 24 * 60)
     return out
 
-
 def _filters(value: Any) -> Dict[str, Any]:
     value = value if isinstance(value, dict) else {}
     out: Dict[str, Any] = {}
@@ -301,7 +279,6 @@ def _filters(value: Any) -> Dict[str, Any]:
     if ctx:
         out["min_context"] = ctx
     return out
-
 
 def _fallback(value: Any, partial: bool = False) -> Dict[str, Any]:
     """Fallback settings; ``partial`` keeps only the keys present (a «settings» card overrides some of them)."""
@@ -330,7 +307,6 @@ def _fallback(value: Any, partial: bool = False) -> Dict[str, Any]:
         base["recovery_attempts"] = _int(value.get("recovery_attempts", base.get("recovery_attempts", 2)), 2, 0, 5)
     return base
 
-
 def _condition(value: Any) -> Dict[str, Any]:
     value = value if isinstance(value, dict) else {}
     kind_name = value.get("type") if value.get("type") in CONDITIONS else "has_image"
@@ -343,14 +319,13 @@ def _condition(value: Any) -> Dict[str, Any]:
     elif spec["kind"] in ("number", "percent"):
         parsed = _float(raw, None)
         if parsed is None:
-            parsed = raw if isinstance(raw, str) else None   # kept for the validation message
+            parsed = raw if isinstance(raw, str) else None
     elif spec["kind"] == "set":
         items = raw if isinstance(raw, list) else [x for x in re.split(r"[,\s]+", str(raw or "")) if x]
         parsed = [str(x).strip().lower()[:80] for x in items if str(x).strip()][:30]
     else:
         parsed = _str(raw, 2000)
     return {"type": kind_name, "op": op, "value": parsed}
-
 
 def _rule(value: Any, index: int) -> Dict[str, Any]:
     value = value if isinstance(value, dict) else {}
@@ -378,7 +353,6 @@ def _rule(value: Any, index: int) -> Dict[str, Any]:
         rule["fallback"] = _fallback(value.get("fallback"), partial=True)
     return rule
 
-
 def normalize(value: Dict[str, Any]) -> Dict[str, Any]:
     """A clean copy of a composite model (unknown keys dropped, numbers clamped). Never raises on odd input."""
     value = value if isinstance(value, dict) else {}
@@ -404,10 +378,10 @@ def normalize(value: Dict[str, Any]) -> Dict[str, Any]:
         "rules": [_rule(r, i) for i, r in enumerate((value.get("rules") or [])[:MAX_RULES]) if isinstance(r, dict)],
         "fallback": _fallback(value.get("fallback")),
         "auto_filter": value.get("auto_filter", True) is not False,
-        # Round 40: a fast model that settles «difficulty» when the heuristics are unsure ("" — heuristics only).
+
         "difficulty_model": _str(value.get("difficulty_model"), 200),
     }
-    # Rule ids are unique: duplicates (an imported file, a copied card) are renumbered.
+
     seen = set()
     for index, rule in enumerate(model["rules"]):
         if rule["id"] in seen:
@@ -419,10 +393,8 @@ def normalize(value: Dict[str, Any]) -> Dict[str, Any]:
         model["updated"] = int(value["updated"])
     return model
 
-
 def _issue(path: str, ru: str, en: str, level: str = "error") -> Dict[str, str]:
     return {"path": path, "message": ru, "message_en": en, "level": level}
-
 
 def _concrete_ids() -> Dict[str, Any]:
     """Public ids of real models (lower-case → entry) the Proxy can route now."""
@@ -437,7 +409,6 @@ def _concrete_ids() -> Dict[str, Any]:
     except Exception:
         return {}
 
-
 def _graph(models: Iterable[Dict[str, Any]]) -> Dict[str, List[str]]:
     graph: Dict[str, List[str]] = {}
     for model in models:
@@ -446,7 +417,6 @@ def _graph(models: Iterable[Dict[str, Any]]) -> Dict[str, List[str]]:
             refs += [c["model"].lower() for c in rule.get("candidates") or []]
         graph[model["id"]] = [r for r in refs if "/" in r]
     return graph
-
 
 def find_cycle(models: Iterable[Dict[str, Any]], start: str) -> List[str]:
     """A reference cycle through ``start`` (``[a, b, a]``) or ``[]``."""
@@ -467,7 +437,6 @@ def find_cycle(models: Iterable[Dict[str, Any]], start: str) -> List[str]:
         return []
 
     return walk(start)
-
 
 def validate(model: Dict[str, Any], *, original_id: str = "", others: Optional[List[Dict[str, Any]]] = None
              ) -> List[Dict[str, str]]:
@@ -573,23 +542,15 @@ def validate(model: Dict[str, Any], *, original_id: str = "", others: Optional[L
                              "The wait for the answer to start is longer than the total limit.", "warning"))
     return issues
 
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Request facts
-# ---------------------------------------------------------------------------------------------------------------------
-
-#: Request context set by :class:`RouteContextMiddleware` (who calls, the path) and the header sink.
 _CTX: contextvars.ContextVar[Optional[Dict[str, Any]]] = contextvars.ContextVar("memu_composite_ctx", default=None)
 
 _IMAGE_PARTS = ("image_url", "input_image", "image")
 _AUDIO_PARTS = ("input_audio", "audio")
 _FILE_PARTS = ("file", "input_file", "document")
 
-
 def _text_of(content: Any) -> str:
     from .providers.base import content_to_text
     return content_to_text(content)
-
 
 def _lang_of(text: str) -> str:
     if not text.strip():
@@ -606,7 +567,6 @@ def _lang_of(text: str) -> str:
     if mix.get("latin", 0) >= 0.4:
         return "en"
     return "other"
-
 
 def _estimate_tokens(messages: List[Dict[str, Any]], tools: Any = None) -> int:
     try:
@@ -632,7 +592,6 @@ def _estimate_tokens(messages: List[Dict[str, Any]], tools: Any = None) -> int:
         except (TypeError, ValueError):
             pass
     return total + images * 1000
-
 
 def _client_from_ctx(ctx: Optional[Dict[str, Any]]) -> Dict[str, str]:
     if not ctx:
@@ -667,12 +626,11 @@ def _client_from_ctx(ctx: Optional[Dict[str, Any]]) -> Dict[str, str]:
         client = "api"
     auth = headers.get("authorization", "")
     key = auth[7:].strip() if auth.lower().startswith("bearer ") else headers.get("x-api-key", "")
-    # The key itself never leaves this function: conditions compare against its name or a short fingerprint.
+
     key_tag = f"public:{public_key}" if public_key else (("key:" + hashlib.sha256(key.encode()).hexdigest()[:8])
                                                          if key else "")
     return {"client": client, "endpoint": endpoint, "user_agent": headers.get("user-agent", "")[:300],
             "api_key": key_tag}
-
 
 def facts_from_request(messages: List[Dict[str, Any]], params: Dict[str, Any],
                        ctx: Optional[Dict[str, Any]] = None, now: Optional[float] = None) -> Dict[str, Any]:
@@ -737,7 +695,6 @@ def facts_from_request(messages: List[Dict[str, Any]], params: Dict[str, Any],
                                         + client["api_key"]).encode("utf-8", "replace")).hexdigest()[:20],
     }
 
-
 def facts_from_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
     """Facts for the «Проверить» simulator: a typed message plus toggles."""
     sample = sample if isinstance(sample, dict) else {}
@@ -798,11 +755,6 @@ def facts_from_sample(sample: Dict[str, Any]) -> Dict[str, Any]:
             facts[key] = str(sample[key])[:300]
     return facts
 
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Conditions
-# ---------------------------------------------------------------------------------------------------------------------
-
 def _parse_span(text: str) -> Optional[Tuple[int, int]]:
     match = re.match(r"^\s*(\d{1,2}):(\d{2})\s*[-–—]\s*(\d{1,2}):(\d{2})\s*$", text or "")
     if not match:
@@ -812,15 +764,13 @@ def _parse_span(text: str) -> Optional[Tuple[int, int]]:
         return None
     return (h1 * 60 + m1) % 1440, (h2 * 60 + m2) % 1440 if (h2, m2) != (24, 0) else 1440
 
-
 def _in_span(minute: int, span: Tuple[int, int]) -> bool:
     start, end = span
     if start == end:
         return True
     if start < end:
         return start <= minute < end
-    return minute >= start or minute < end      # over midnight: 22:00-06:00
-
+    return minute >= start or minute < end
 
 def check_condition(cond: Dict[str, Any], facts: Dict[str, Any], rng: Optional[random.Random] = None
                     ) -> Tuple[bool, Any]:
@@ -868,7 +818,6 @@ def check_condition(cond: Dict[str, Any], facts: Dict[str, Any], rng: Optional[r
         return False, shown
     return (hit if op == "regex" else not hit), shown
 
-
 def rule_matches(rule: Dict[str, Any], facts: Dict[str, Any], rng: Optional[random.Random] = None
                  ) -> Tuple[bool, List[Dict[str, Any]]]:
     checks = []
@@ -879,11 +828,6 @@ def rule_matches(rule: Dict[str, Any], facts: Dict[str, Any], rng: Optional[rand
         return True, checks
     hit = all(c["ok"] for c in checks) if rule["match"] == "all" else any(c["ok"] for c in checks)
     return hit, checks
-
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Model knowledge: capabilities, price, measurements
-# ---------------------------------------------------------------------------------------------------------------------
 
 def model_caps(model_id: str, concrete: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """What the pipeline knows about one candidate: ``vision`` yes/no/unknown, ``tools`` bool, ``context``,
@@ -949,7 +893,6 @@ def model_caps(model_id: str, concrete: Optional[Dict[str, Any]] = None) -> Dict
         out["name"] = entry.id
     return out
 
-
 class _Observations:
     """Recent attempts per real model (ts, ok, ttft ms, total ms): «fastest / most reliable over the last N minutes»."""
 
@@ -973,9 +916,7 @@ class _Observations:
         with self._lock:
             self._rows.clear()
 
-
 observations = _Observations()
-
 
 def _metric_hours(model_id: str, minutes: int) -> Dict[str, float]:
     """Proxy statistics (hourly buckets of app/metrics.py) for ``model_id`` over the window: requests, ok, ms, tokens."""
@@ -984,7 +925,7 @@ def _metric_hours(model_id: str, minutes: int) -> Dict[str, float]:
         from .metrics import metrics, HOUR
         now = time.time()
         since = int((now - minutes * 60) // HOUR) * HOUR
-        with metrics._lock:   # read-only peek; the buckets are small dicts
+        with metrics._lock:
             for stamp, bucket in metrics._buckets.items():
                 if stamp < since:
                     continue
@@ -998,7 +939,6 @@ def _metric_hours(model_id: str, minutes: int) -> Dict[str, float]:
     except Exception:
         pass
     return out
-
 
 def quota_score(model_id: str) -> Optional[float]:
     """Best quota reserve (0..1) among the accounts that serve ``model_id`` — app/quota_planner.py (Round 35, quota
@@ -1024,19 +964,12 @@ def quota_score(model_id: str) -> Optional[float]:
     known = [float(x) for x in scores if isinstance(x, (int, float))]
     return max(known) if known else None
 
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Strategies
-# ---------------------------------------------------------------------------------------------------------------------
-
 _rr_counters: Dict[str, int] = {}
 _sticky: "OrderedDict[str, Tuple[str, float]]" = OrderedDict()
 _STICKY_MAX = 4000
 
-
 def _fmt_ms(ms: float) -> str:
     return f"{ms / 1000:.1f} s" if ms >= 1000 else f"{int(ms)} ms"
-
 
 def order_candidates(rows: List[Dict[str, Any]], strategy: Dict[str, Any], *, key: str, facts: Dict[str, Any],
                      caps: Dict[str, Dict[str, Any]], rng: Optional[random.Random] = None,
@@ -1097,7 +1030,7 @@ def order_candidates(rows: List[Dict[str, Any]], strategy: Dict[str, Any], *, ke
             if not obs:
                 hours = _metric_hours(row["model"], minutes)
                 total, ok = hours["total"], hours["ok"]
-            row["value"] = (ok + 1) / (total + 2)    # Laplace: one failure of one request is not 0 %
+            row["value"] = (ok + 1) / (total + 2)
             if not total:
                 row["unmeasured"] = True
             row["score_ru"] = f"успешно {int(ok)} из {int(total)}" if total else "нет данных"
@@ -1151,7 +1084,7 @@ def order_candidates(rows: List[Dict[str, Any]], strategy: Dict[str, Any], *, ke
                 row["score_en"] = f"quota left {row['quota'] * 100:.0f}% · {used_en}"
             else:
                 row["score_ru"], row["score_en"] = used_ru, used_en
-        # The quota planner's forecast (1 = plenty left before the reset) wins; no data = the middle, then usage.
+
         items.sort(key=lambda r: (-(r["quota"] if r["quota"] is not None else 0.5), r["value"], r["order"]))
         for row in items:
             row.pop("quota", None)
@@ -1171,7 +1104,6 @@ def order_candidates(rows: List[Dict[str, Any]], strategy: Dict[str, Any], *, ke
         return base
     return items
 
-
 def _explore(items: List[Dict[str, Any]], strategy: Dict[str, Any], rng: Any, peek: bool) -> List[Dict[str, Any]]:
     """«Fastest» / «most reliable» never learn about a model that is never tried: now and then (``explore`` %, 10 by
     default) a model without measurements in the window goes first once. Never in the simulator."""
@@ -1183,7 +1115,6 @@ def _explore(items: List[Dict[str, Any]], strategy: Dict[str, Any], rng: Any, pe
     pick["score_ru"], pick["score_en"] = "разведка: нужен замер", "exploring: needs a measurement"
     return [pick] + [r for r in items if r is not pick]
 
-
 def remember_sticky(key: str, facts: Dict[str, Any], model: str) -> None:
     conv = f"{key}|{facts.get('conversation', '')}"
     with _lock:
@@ -1191,11 +1122,6 @@ def remember_sticky(key: str, facts: Dict[str, Any], model: str) -> None:
         _sticky.move_to_end(conv)
         while len(_sticky) > _STICKY_MAX:
             _sticky.popitem(last=False)
-
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Plan
-# ---------------------------------------------------------------------------------------------------------------------
 
 def _filter_reason(filters: Dict[str, Any], cap: Dict[str, Any]) -> Optional[Tuple[str, str]]:
     if cap.get("composite"):
@@ -1217,7 +1143,6 @@ def _filter_reason(filters: Dict[str, Any], cap: Dict[str, Any]) -> Optional[Tup
         return ("фильтр: нужен JSON-режим", "filter: needs JSON mode")
     return None
 
-
 def _auto_reason(facts: Dict[str, Any], cap: Dict[str, Any]) -> Optional[Tuple[str, str]]:
     if cap.get("composite"):
         return None
@@ -1233,7 +1158,6 @@ def _auto_reason(facts: Dict[str, Any], cap: Dict[str, Any]) -> Optional[Tuple[s
         return (f"запрос ≈{facts['tokens']:,} токенов больше окна {ctx:,}".replace(",", " "),
                 f"request ≈{facts['tokens']:,} tokens exceeds the {ctx:,} window")
     return None
-
 
 def plan(model: Dict[str, Any], facts: Dict[str, Any], *, rng: Optional[random.Random] = None,
          peek: bool = False) -> Dict[str, Any]:
@@ -1273,7 +1197,7 @@ def plan(model: Dict[str, Any], facts: Dict[str, Any], *, rng: Optional[random.R
             if mid.lower() not in caps:
                 caps[mid.lower()] = model_caps(mid, concrete)
     key = f"{model['id']}|{(route or {}).get('id', 'default')}"
-    # The route's own models are ordered by its strategy; models added by «fallthrough» follow in the default order.
+
     own = [r for r in rows if not r.get("fallthrough")]
     tail = [r for r in rows if r.get("fallthrough")]
     ordered = order_candidates(own, source["strategy"], key=key, facts=facts, caps=caps, rng=rng, peek=peek)
@@ -1342,11 +1266,9 @@ def plan(model: Dict[str, Any], facts: Dict[str, Any], *, rng: Optional[random.R
         "route_key": key,
     }
 
-
 def _uses_condition(model: Dict[str, Any], kind: str) -> bool:
     return any(cond.get("type") == kind for rule in model.get("rules") or [] if rule.get("enabled", True)
                for cond in rule.get("conditions") or [])
-
 
 def _public_facts(facts: Dict[str, Any]) -> Dict[str, Any]:
     out = {k: v for k, v in facts.items() if k not in ("last_user", "system", "conversation")}
@@ -1355,18 +1277,12 @@ def _public_facts(facts: Dict[str, Any]) -> Dict[str, Any]:
     out["time"] = f"{int(facts.get('time') or 0) // 60:02d}:{int(facts.get('time') or 0) % 60:02d}"
     return out
 
-
 def simulate(model: Dict[str, Any], sample: Dict[str, Any]) -> Dict[str, Any]:
     model = normalize(model)
     facts = facts_from_sample(sample)
     result = plan(model, facts, rng=random.Random(int(_float((sample or {}).get("seed"), 0) or 0) or None), peek=True)
     result["issues"] = validate(model, original_id=str((sample or {}).get("original_id") or model["id"]))
     return result
-
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Statistics
-# ---------------------------------------------------------------------------------------------------------------------
 
 class _Stats:
     def __init__(self, path: str = STATS_PATH) -> None:
@@ -1443,16 +1359,10 @@ class _Stats:
                 self._dirty = True
         self.flush(force=True)
 
-
 stats = _Stats()
-# Statistics are written at most every 5 s; the tail is written when the Proxy exits.
+
 import atexit as _atexit  # noqa: E402
 _atexit.register(lambda: stats.flush(force=True))
-
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Runtime
-# ---------------------------------------------------------------------------------------------------------------------
 
 _CONTEXT_RE = re.compile(r"context[_ ]length|context window|maximum context|max(?:imum)? (?:input )?tokens|"
                          r"too many tokens|prompt is too long|input is too long|reduce the length|"
@@ -1460,15 +1370,12 @@ _CONTEXT_RE = re.compile(r"context[_ ]length|context window|maximum context|max(
 _EMPTY_RE = re.compile(r"без текста|без ответа|without (?:any )?(?:text|an answer)|empty (?:answer|response|reply)", re.I)
 _TIMEOUT_RE = re.compile(r"timed? ?out|timeout|не начал отвечать|did not start answering|таймаут", re.I)
 
-
 _UNAVAILABLE_TYPES = ("authentication_error", "permission_error", "model_unavailable", "model_not_found", "model_disabled")
-
 
 class _Timeout(Exception):
     def __init__(self, stage: str, seconds: int) -> None:
         super().__init__(stage)
         self.stage, self.seconds = stage, seconds
-
 
 def classify(exc: BaseException) -> str:
     """Trigger kind of a failed attempt: 429 / 5xx / timeout / empty / content_filter / context_length / error."""
@@ -1480,8 +1387,7 @@ def classify(exc: BaseException) -> str:
     if err_type == "content_filter":
         return "content_filter"
     if err_type in _UNAVAILABLE_TYPES:
-        # Round 36: a rejected key / unknown or blocked model is the candidate's trouble, not the request's. Chat wraps
-        # it as 503, so it was reported as «5xx» and, with «5xx» off, the composite model failed instead of switching.
+
         return "unavailable"
     if _CONTEXT_RE.search(text):
         return "context_length"
@@ -1495,11 +1401,9 @@ def classify(exc: BaseException) -> str:
         return "5xx"
     return "error"
 
-
 def _should_fallback(kind: str, triggers: List[str]) -> bool:
-    # A candidate that cannot answer at all (key rejected, model gone) is always skipped, whatever the triggers say.
-    return kind == "unavailable" or kind in triggers or "error" in triggers
 
+    return kind == "unavailable" or kind in triggers or "error" in triggers
 
 TRIGGER_LABELS = {
     "error": ("любая ошибка", "any error"), "429": ("лимит (429)", "rate limit (429)"),
@@ -1508,7 +1412,6 @@ TRIGGER_LABELS = {
     "context_length": ("не влезло в окно", "context too long"),
     "unavailable": ("модель недоступна", "model unavailable"),
 }
-
 
 def _header_value(sink: Dict[str, Any]) -> str:
     routes = sink.get("routes") or {}
@@ -1529,7 +1432,6 @@ def _header_value(sink: Dict[str, Any]) -> str:
     if top.get("recoveries"):
         parts.append(f"recovered={int(top['recoveries'])}")
     return "; ".join(parts)[:1500]
-
 
 class RouteContextMiddleware:
     """Pure ASGI middleware: remembers who calls (for the «client» conditions) and adds ``x-memu-route``."""
@@ -1559,11 +1461,9 @@ class RouteContextMiddleware:
         finally:
             _CTX.reset(token)
 
-
 def _composite_error(message: str, message_en: str, status: int = 503, err_type: str = "service_unavailable"):
     from .chat import CompletionError
     return CompletionError(message, status=status, err_type=err_type, message_en=message_en, provider="composite")
-
 
 async def run(service: Any, model_id: str, messages: List[Dict[str, Any]], params: Dict[str, Any],
               trace: Any = None) -> AsyncIterator[Dict[str, Any]]:
@@ -1572,15 +1472,14 @@ async def run(service: Any, model_id: str, messages: List[Dict[str, Any]], param
     if model is None or not model.get("enabled", True):
         raise _composite_error(f"Составная модель «{model_id}» не найдена или выключена.",
                                f"Composite model “{model_id}” is not found or switched off.", 404, "model_not_found")
-    # The chain of composites above this one rides in the params (a ContextVar token cannot be reset when the stream
-    # is finished by another task — the endpoints pump streams in their own tasks).
+
     chain = tuple(params.get("_composite_chain") or ())
     if model["id"] in chain or len(chain) >= MAX_DEPTH:
         raise _composite_error(f"Составные модели ссылаются друг на друга по кругу: {' → '.join(chain + (model['id'],))}.",
                                f"Composite models refer to each other in a loop: {' → '.join(chain + (model['id'],))}.",
                                508, "composite_loop")
     params = dict(params)
-    # «Проверить» passes a dict to get THIS request's route back (the stats' newest row may be another request's).
+
     route_sink = params.pop("_composite_route_sink", None)
     params["_composite_chain"] = chain + (model["id"],)
     ctx = _CTX.get()
@@ -1621,7 +1520,7 @@ async def run(service: Any, model_id: str, messages: List[Dict[str, Any]], param
     last_exc: Optional[BaseException] = None
     last_candidate = ""
     tried_ctx: Dict[str, Optional[int]] = {}
-    # Round 40: Smart Stream Recovery — what the client already has, and the joint of a continuation.
+
     tap = stream_recovery.Tap() if stream_mode and fb.get("stream_recovery", True) else None
     recoveries_left = int(fb.get("recovery_attempts", 2) or 0)
     joiner: Optional[stream_recovery.Joiner] = None
@@ -1663,8 +1562,7 @@ async def run(service: Any, model_id: str, messages: List[Dict[str, Any]], param
                             attempt["committed"] = True
                             continue
                         if item.get("object") == "chat.completion.chunk" and item.get("model") != model["id"]:
-                            # Round 36: the stream named the real candidate while the non-stream answer and the other
-                            # APIs name the composite; which model answered is in x-memu-route and the journal.
+
                             item = dict(item, model=model["id"])
                         for piece in pipe(item):
                             yield piece
@@ -1689,7 +1587,7 @@ async def run(service: Any, model_id: str, messages: List[Dict[str, Any]], param
                             or attempt["trigger"] not in stream_recovery.RECOVERABLE:
                         decision["error"] = attempt["trigger"]
                         raise late.error
-                    # Smart Stream Recovery: the client keeps its half of the answer, the next candidate goes on.
+
                     closing = tap.close_with_calls() if tap.broken_call() else None
                     tap.recoveries += 1
                     attempt["recovered"] = True
@@ -1717,7 +1615,7 @@ async def run(service: Any, model_id: str, messages: List[Dict[str, Any]], param
                     current = tap.continuation(messages, facts.get("language") or "ru")
                     joiner = stream_recovery.Joiner(tap.text)
                     if candidate not in queue[index:]:
-                        queue.append(candidate)   # a passing network blip: the same model may go on, last
+                        queue.append(candidate)
                     last_exc, last_candidate = late.error, candidate
                     break
                 except asyncio.CancelledError:
@@ -1742,7 +1640,7 @@ async def run(service: Any, model_id: str, messages: List[Dict[str, Any]], param
                     if not _should_fallback(kind, triggers):
                         decision["error"] = kind
                         raise _as_completion_error(exc, model["id"], candidate)
-                    # Retry the same model only for passing troubles; a wrong request or a filter will not change.
+
                     if retry < retries and kind in ("429", "5xx", "timeout", "empty"):
                         await asyncio.sleep(_backoff(fb, retry))
                         continue
@@ -1752,7 +1650,7 @@ async def run(service: Any, model_id: str, messages: List[Dict[str, Any]], param
                     break
             if index < len(queue) and attempts_left > 0 and fb.get("backoff_ms") and last_exc is not None \
                     and classify(last_exc) == "429":
-                # A rate limit across one reseller often hits its neighbours too: a short pause helps.
+
                 await asyncio.sleep(min(2.0, fb["backoff_ms"] / 1000.0))
         decision["error"] = classify(last_exc) if last_exc else "exhausted"
         if last_exc is not None:
@@ -1779,7 +1677,6 @@ async def run(service: Any, model_id: str, messages: List[Dict[str, Any]], param
             except Exception:
                 pass
 
-
 def _bigger_first(rest: List[str], current: Optional[int]) -> List[str]:
     """After «context too long»: models with a larger known window first (smallest sufficient first)."""
     rows = [(m, model_caps(m).get("context")) for m in rest]
@@ -1788,13 +1685,11 @@ def _bigger_first(rest: List[str], current: Optional[int]) -> List[str]:
     smaller = [r for r in rows if r[1] and current is not None and r[1] <= current]
     return [m for m, _ in bigger + unknown + smaller]
 
-
 def _backoff(fb: Dict[str, Any], retry: int) -> float:
     base = max(0, int(fb.get("backoff_ms") or 0)) / 1000.0
     if fb.get("backoff") == "exponential":
         base *= 2 ** retry
     return min(30.0, base)
-
 
 def _as_completion_error(exc: BaseException, composite: str, candidate: str, *, exhausted: bool = False,
                          tried: Optional[List[str]] = None):
@@ -1823,15 +1718,12 @@ def _as_completion_error(exc: BaseException, composite: str, candidate: str, *, 
                           provider="composite", retry_after=getattr(base, "retry_after", None))
     return err
 
-
 _COMMITTED = object()
-
 
 class _AfterCommit(Exception):
     def __init__(self, error: BaseException) -> None:
         super().__init__("after commit")
         self.error = error
-
 
 async def _attempt(service: Any, candidate: str, messages: List[Dict[str, Any]], params: Dict[str, Any], trace: Any,
                    fb: Dict[str, Any], stream_mode: bool, attempt: Dict[str, Any],
@@ -1920,7 +1812,7 @@ async def _attempt(service: Any, candidate: str, messages: List[Dict[str, Any]],
         await close_quietly(source.aclose)
     total_ms = int((time.time() - started) * 1000)
     if not committed:
-        # A continuation (Smart Stream Recovery) may legitimately be empty: the answer was nearly finished.
+
         if not got_text and not tool_call and text_chars == 0 and not allow_empty:
             observations.add(candidate, False, ttft, total_ms)
             raise _composite_error(f"Модель «{candidate}» вернула пустой ответ.",
@@ -1930,14 +1822,8 @@ async def _attempt(service: Any, candidate: str, messages: List[Dict[str, Any]],
             yield chunk
     observations.add(candidate, True, ttft or total_ms, total_ms)
 
-
 def note_failure(candidate: str, started: float) -> None:
     observations.add(candidate, False, 0, int((time.time() - started) * 1000))
-
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Listing helpers (/v1/models, MemuAI pickers, tools support)
-# ---------------------------------------------------------------------------------------------------------------------
 
 def listed() -> List[Dict[str, Any]]:
     """Rows for ``/v1/models``."""
@@ -1953,7 +1839,6 @@ def listed() -> List[Dict[str, Any]]:
             row["description"] = model["description"]
         out.append(row)
     return out
-
 
 def _all_candidate_ids(model: Dict[str, Any], seen: Optional[set] = None) -> List[str]:
     seen = seen if seen is not None else set()
@@ -1975,14 +1860,12 @@ def _all_candidate_ids(model: Dict[str, Any], seen: Optional[set] = None) -> Lis
             flat.append(mid)
     return list(dict.fromkeys(flat))
 
-
 def _all_candidate_ids_shallow(model: Dict[str, Any]) -> List[str]:
     """Every model id the composite names directly (nested composites are not expanded)."""
     out = [c["model"] for c in model["default"]["candidates"]]
     for rule in model["rules"]:
         out += [c["model"] for c in rule.get("candidates") or []] + list(rule.get("models") or [])
     return list(dict.fromkeys(out))
-
 
 def summary_caps(model: Dict[str, Any]) -> Dict[str, Any]:
     """What a picker should say about the composite: it «sees» when some reachable candidate sees, etc."""
@@ -1995,13 +1878,11 @@ def summary_caps(model: Dict[str, Any]) -> Dict[str, Any]:
     return {"vision": vision, "tools": any(c.get("tools") for c in caps), "context": max(contexts) if contexts else None,
             "free": bool(caps) and all(c.get("free") for c in caps), "count": len(caps)}
 
-
 def tools_supported(model_id: str) -> bool:
     model = store.get(model_id)
     if model is None:
         return False
     return summary_caps(model)["tools"]
-
 
 def pg_rows() -> List[Dict[str, Any]]:
     """Rows for ``/api/admin/pg/state`` — the MemuAI model pickers (enabled composites only)."""
@@ -2026,11 +1907,6 @@ def pg_rows() -> List[Dict[str, Any]]:
             row["context"] = {"context": caps["context"], "source": "composite"}
         rows.append(row)
     return rows
-
-
-# ---------------------------------------------------------------------------------------------------------------------
-# Presets
-# ---------------------------------------------------------------------------------------------------------------------
 
 def available_models() -> List[Dict[str, Any]]:
     """Real models a candidate picker can offer, with what the pipeline knows about them."""
@@ -2065,13 +1941,12 @@ def available_models() -> List[Dict[str, Any]]:
                     "provider": "composite", "composite": True, "enabled": model.get("enabled", True)})
     return out
 
-
 def _pick(models: List[Dict[str, Any]], *, need: str = "", limit: int = 3, sort: str = "") -> List[str]:
     rows = [m for m in models if not m.get("composite")]
     rows = [m for m in rows if not re.search(r"image|imagine|t2i|wanx|video|tts|embed|whisper|music", m["id"], re.I)]
     if need == "vision":
         rows = [m for m in rows if m.get("vision") == "yes"] or [m for m in rows if m.get("vision") == "unknown"]
-        # Models made for pictures (Qwen-VL, «vision», omni) first: a family «yes» of a text model is weaker.
+
         rows.sort(key=lambda m: 0 if re.search(r"(?:^|[-_/.])vl(?:[-_.]|$)|vision|omni|-v(?:[-_.]|$)", m["id"], re.I) else 1)
     if need == "tools":
         rows = [m for m in rows if m.get("tools")]
@@ -2087,7 +1962,6 @@ def _pick(models: List[Dict[str, Any]], *, need: str = "", limit: int = 3, sort:
             return tier, -(sum(m["price"]) if m.get("price") else 0)
         rows.sort(key=strength)
     return [m["id"] for m in rows[:limit]]
-
 
 def presets(models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any]]:
     """Ready templates; their candidates are picked from the user's models (empty when nothing fits)."""
@@ -2181,7 +2055,6 @@ def presets(models: Optional[List[Dict[str, Any]]] = None) -> List[Dict[str, Any
         preset["model"] = normalize(preset["model"])
     return out
 
-
 SCHEMA = {
     "conditions": {k: {"kind": v["kind"], "ops": list(OPS_BY_KIND[v["kind"]]), "options": v.get("options", [])}
                    for k, v in CONDITIONS.items()},
@@ -2189,14 +2062,12 @@ SCHEMA = {
     "fallback_default": DEFAULT_FALLBACK,
 }
 
-
 def export_json(model_ids: Optional[List[str]] = None) -> Dict[str, Any]:
     models = store.all()
     if model_ids:
         wanted = {m.lower() for m in model_ids}
         models = [m for m in models if m["id"] in wanted]
     return {"memuai": "composite-models", "version": 1, "exported": int(time.time()), "models": models}
-
 
 def import_json(data: Any, mode: str = "merge") -> Dict[str, Any]:
     """Import composites (a whole export, a list or one model). Returns ``{saved, errors}``; nothing is saved when a

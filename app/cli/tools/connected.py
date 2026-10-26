@@ -55,11 +55,9 @@ REQUIRED = {
     "chrome_navigate": ("tab_id", "url"), "chrome_close": ("tab_id",), "chrome_action": ("action",),
 }
 
-
 def register(registry) -> None:
     """The actual tools arrive from discovery; keep their ownership separate from MCP."""
     registry._connected_names = set()
-
 
 def _schema(signature: str, name: str) -> Dict[str, Any]:
     args = signature.partition("{")[2].rpartition("}")[0]
@@ -81,7 +79,6 @@ def _schema(signature: str, name: str) -> Dict[str, Any]:
         properties[key] = spec
     return {"type": "object", "properties": properties,
             "required": [key for key in REQUIRED.get(name, ()) if key in properties]}
-
 
 async def refresh(runtime, *, force: bool = False) -> None:
     """Cheap cached discovery; a closed/unreachable MemuAI simply hides its tools."""
@@ -130,7 +127,6 @@ async def refresh(runtime, *, force: bool = False) -> None:
     if previous != set(discovered):
         runtime.invalidate_prompt()
 
-
 class ConnectedTool(Tool):
     def __init__(self, name: str, signature: str, write: bool):
         self.name = name
@@ -151,7 +147,7 @@ class ConnectedTool(Tool):
         url = (getattr(ctx.runtime, "_connected_status", None) or {}).get("url")
         if not url or not self.enabled(ctx.runtime):
             raise ToolError("The integration disconnected. Open MemuAI and reconnect it in Integrations.")
-        # Keep exactly the reviewed arguments; nothing is sent to Telegram/Chrome here.
+
         reviewed = json.loads(json.dumps(args, ensure_ascii=False))
         target = str(args.get("chat") or args.get("tab_id") or args.get("url") or "")
         return Prepared(key=target or self.name, title=self.description,

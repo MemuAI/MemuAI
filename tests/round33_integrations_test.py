@@ -38,11 +38,9 @@ CAL = "https://www.googleapis.com/calendar/v3"
 FULL = {"openid", G + "userinfo.email", "https://mail.google.com/", G + "gmail.settings.basic", G + "calendar", G + "drive",
         G + "documents", G + "spreadsheets", G + "tasks", G + "contacts"}
 
-
 def visit(url: str) -> bytes:
     with urllib.request.build_opener(urllib.request.ProxyHandler({})).open(url, timeout=10) as page:
         return page.read()
-
 
 class Base(unittest.TestCase):
     services = ("gmail", "calendar", "drive", "docs", "sheets", "tasks", "contacts")
@@ -92,8 +90,6 @@ class Base(unittest.TestCase):
                 return q
         return {}
 
-
-# ============================================================================ GitHub
 class GitHubTest(Base):
     def test_token_info_says_kind_and_missing_scopes(self):
         self.fake.github_scopes = "repo"
@@ -117,7 +113,7 @@ class GitHubTest(Base):
         self.assertEqual(row["full_name"], "me/renamed")
         ig.run_tool("github_fork_repo", {"repo": "me/notes", "name": "notes-copy"})
         self.assertEqual(self.last("POST", "/repos/me/notes/forks"), {"name": "notes-copy"})
-        # Deleting never falls back to the default repository.
+
         with self.assertRaises(ig.IntegrationArgumentError):
             ig.run_tool("github_delete_repo", {})
         self.assertEqual(ig.run_tool("github_delete_repo", {"repo": "https://github.com/me/renamed"}), {"deleted": True, "repo": "me/renamed"})
@@ -211,8 +207,7 @@ class GitHubTest(Base):
         self.assertIn("delete_repo", str(caught.exception))
 
     def test_every_listed_tool_is_dispatched(self):
-        # Each tool line must reach real code: with empty arguments it either works or asks for an argument —
-        # never «unknown tool».
+
         for line in ig.TOOLS["github"]:
             name = line.split("{")[0]
             try:
@@ -222,8 +217,6 @@ class GitHubTest(Base):
         self.assertTrue(integrations_github.WRITE <= ig.WRITE_TOOLS)
         self.assertTrue(integrations_github.ALWAYS <= integrations_github.WRITE)
 
-
-# ============================================================================ Google
 class GmailTest(Base):
     def setUp(self) -> None:
         super().setUp()
@@ -276,13 +269,13 @@ class GmailTest(Base):
         sent = email.message_from_bytes(base64.urlsafe_b64decode(self.fake.sent[-1]["raw"] + "=="), policy=email.policy.default)
         names = [part.get_filename() for part in sent.iter_attachments()]
         self.assertEqual(names, ["отчёт.pdf"])
-        # Forward: the original's text is quoted and its attachments go along.
+
         self.fake.messages["m1"]["body"] = "Смотри файл"
         ig.run_tool("gmail_forward", {"message_id": "m1", "to": "boss@example.com", "body": "FYI"})
         fwd = email.message_from_bytes(base64.urlsafe_b64decode(self.fake.sent[-1]["raw"] + "=="), policy=email.policy.default)
         self.assertTrue(str(fwd["Subject"]).startswith("Fwd: "))
         self.assertIn("Forwarded message", fwd.get_body(("plain",)).get_content())
-        # A big letter goes through the upload endpoint (multipart/related with message/rfc822).
+
         big = self.tmp / "big.bin"
         big.write_bytes(os.urandom(integrations_gmail.UPLOAD_OVER + 1000))
         ig.run_tool("gmail_send", {"to": "boris@example.com", "subject": "Большой", "body": "x", "attachments": str(big)})
@@ -328,7 +321,6 @@ class GmailTest(Base):
             except ig.IntegrationError as exc:
                 self.assertNotIn("Неизвестный инструмент", str(exc), name)
 
-
 class ScopesAndApisTest(Base):
     def test_old_grant_is_ready_but_limited_and_expanding_reconsents(self):
         old = {"openid", G + "userinfo.email", G + "gmail.readonly", G + "gmail.compose", G + "drive.readonly", G + "drive.file"}
@@ -344,7 +336,7 @@ class ScopesAndApisTest(Base):
         with self.assertRaises(ig.IntegrationAccountError):
             ig.run_tool("drive_rename", {"file_id": "f9", "name": "x"})
         self.assertEqual(len(self.fake.calls), before, "the scope check runs before any request")
-        # «Expand access» = enable again → Google's page for the grown scopes (incremental).
+
         result = google_account.set_enabled("gmail", True)
         params = dict(urllib.parse.parse_qsl(urllib.parse.urlsplit(result["auth_url"]).query))
         self.assertIn("https://mail.google.com/", params["scope"].split())
@@ -372,7 +364,7 @@ class ScopesAndApisTest(Base):
         self.assertIn("project=123456789012", check["enable_all_url"], "the project number comes from the Client ID")
         gmail_row = next(r for r in check["services"] if r["id"] == "gmail")
         self.assertIn("gmail.googleapis.com", gmail_row["enable_url"])
-        # The error stays visible in Settings until the API answers again.
+
         self.assertIn("Gmail API", {r["service"]: r for r in ig.status()["services"]}["gmail"]["last_error"])
         self.fake.disabled = set()
         ig.google_check()
@@ -390,7 +382,6 @@ class ScopesAndApisTest(Base):
         client = google_account.status()["client"]
         self.assertEqual(client["project"], "123456789012")
         self.assertIn("project=123456789012", client["enable_all_url"])
-
 
 class DriveCalendarWorkspaceTest(Base):
     def setUp(self) -> None:
@@ -481,7 +472,6 @@ class DriveCalendarWorkspaceTest(Base):
                 except ig.IntegrationError as exc:
                     self.assertNotIn("Неизвестный инструмент", str(exc), name)
 
-
 class NotionPropertiesTest(unittest.TestCase):
     def test_plain_values_are_shaped_by_the_schema(self):
         schema = {"properties": {"Name": {"type": "title"}, "Status": {"type": "status"}, "Due": {"type": "date"},
@@ -497,7 +487,6 @@ class NotionPropertiesTest(unittest.TestCase):
         self.assertEqual(out["Cost"], {"number": 12.5})
         self.assertNotIn("Formula", out, "read-only properties are skipped instead of failing the request")
         self.assertEqual(out["Raw"], {"rich_text": []}, "raw Notion JSON passes through")
-
 
 class WiringTest(unittest.TestCase):
     def test_ui_sets_and_cards_match_the_server(self):
@@ -537,7 +526,6 @@ class WiringTest(unittest.TestCase):
         with patch.object(ig, "google_check", return_value={"services": [], "enable_all_url": "", "checked": 1}):
             data = TestClient(app).post("/api/pg/integrations/google", json={"action": "check"}).json()
         self.assertEqual(data["check"]["checked"], 1)
-
 
 if __name__ == "__main__":
     unittest.main()

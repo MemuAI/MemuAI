@@ -1,12 +1,7 @@
-/* Quick Ask plugin «Команды» — result cards, timer strip, ringing banner, voice buttons.
-   Colours only from theme tokens (--panel, --accent, --text, --muted, --border, --danger, --ok). */
-
 .mqc-strip-host, .mqc-cards-host { padding: 0 var(--qa-pad, 16px); }
 .mqc-strip-host { padding-top: 2px; }
 .mqc-cards-host { padding-top: 6px; padding-bottom: 4px; max-height: min(380px, calc(var(--qa-max-h, 760px) - 300px)); overflow-y: auto;
   overscroll-behavior: contain; scrollbar-width: thin; }
-
-/* ------------------------------------------------------------------ cards */
 .mqc-cards { display: flex; flex-direction: column; gap: 8px; }
 .mqc-card {
   position: relative; border-radius: 12px; padding: 10px 12px 10px 12px;
@@ -79,8 +74,6 @@
 .mqc-btn-sm { padding: 2px 9px; font-size: .82em; }
 .mqc-countdown { font-size: .92em; color: var(--danger, #e5484d); }
 .mqc-countdown b { font-size: 1.25em; font-variant-numeric: tabular-nums; }
-
-/* ------------------------------------------------------------------ timers */
 .mqc-strip { display: flex; flex-wrap: wrap; gap: 6px; padding: 4px 0 2px; }
 .mqc-chip-timer { --p: 0; position: relative; display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px 4px 8px; border-radius: 10px;
   font-size: .88em; overflow: hidden; isolation: isolate;
@@ -107,8 +100,6 @@
 .mqc-ring-text { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; }
 .mqc-ring-text span { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mqc-ring-text small { color: var(--muted); }
-
-/* ------------------------------------------------------------------ voice buttons */
 .qa-plugin-btn[data-plugin="voice"] { position: relative; }
 .qa-plugin-btn[data-plugin="voice"][aria-pressed="true"] { color: var(--on-accent, #fff); background: var(--danger, #e5484d);
   box-shadow: 0 0 0 calc(2px + var(--mic, 0) * 8px) color-mix(in srgb, var(--danger, #e5484d) 28%, transparent); transition: box-shadow .08s linear; }
@@ -128,18 +119,9 @@
   .mqc-card, .mqc-ring, .mqc-ring .mqc-ring-ic svg, .mqc-ic-running svg { animation: none !important; }
   .mqc-chip-timer::before, .mqc-level i { transition: none; }
 }
-
-/* Round 22 finish: with result cards on screen the idle «Недавние / ideas» list is hidden, so the
-   footer (model, plugin buttons, chats, pin) always stays inside the window. */
 :root[data-mqc-cards="1"] .qa-suggest { display: none !important; }
-/* Contrast: in dark themes --danger is a light pink (#ff9d9d…), white text on it is ~2:1 — use a deep
-   red-black instead (≥ 7:1); light themes keep white on their dark red. */
 :root[data-theme="dark"] .mqc-btn-danger,
 :root[data-theme="dark"] .qa-plugin-btn[data-plugin="voice"][aria-pressed="true"] { color: #2a0a0d; }
-
-/* ------------------------------------------------------------------ Round 23: one visual language with the new window
-   Cards sit on the same 18 px left line as the input, use the window's chip/hover tokens and its button shapes;
-   one quiet surface instead of borders everywhere. */
 .mqc-strip-host, .mqc-cards-host { padding-left: var(--qa-pad, 18px); padding-right: 14px; }
 .mqc-cards-host { padding-top: 10px; padding-bottom: 8px; }
 .mqc-card { border-radius: 10px; padding: 10px 10px 11px 12px; background: var(--qa-chip, color-mix(in srgb, var(--text) 5%, transparent));
@@ -147,7 +129,6 @@
 .mqc-ic { border-radius: 6px; width: 20px; height: 20px; flex-basis: 20px; }
 .mqc-ic svg { width: 13px; height: 13px; }
 .mqc-msg, .mqc-layout, .mqc-level, .mqc-details, .mqc-list, .mqc-steps, .mqc-images, .mqc-answer, .mqc-help, .mqc-actions { margin-left: 28px; }
-/* Round 34: «Понял как: …» under the title of a command typed in the wrong keyboard layout */
 .mqc-layout { margin: 2px 0 0 28px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
 .mqc-level { height: 5px; }
 .mqc-tier, .mqc-src { border: 0; background: var(--qa-chip, transparent); font-weight: 600; }
@@ -168,17 +149,13 @@
 .mqc-confirm { box-shadow: none; }
 .mqc-confirm.mqc-cat-power { box-shadow: none; }
 :root[data-design="grid"] .mqc-card, :root[data-design="grid"] .mqc-btn, :root[data-design="grid"] .mqc-chip-timer, :root[data-design="grid"] .mqc-ic { border-radius: 3px; }
-
-/* Round 24: таймкоды YouTube и задачи DFY */
 .mqc-ts { display: inline; border: 0; padding: 0 3px; margin: 0 1px; border-radius: 5px; font: inherit; font-variant-numeric: tabular-nums;
   color: var(--accent, #6b8afd); background: color-mix(in srgb, var(--accent, #6b8afd) 12%, transparent); cursor: pointer; }
 .mqc-ts:hover { text-decoration: underline; }
 .mqc-dfy-host { display: grid; gap: 8px; }
 .mqc-dfy-task:empty { display: none; }
-/* Round 25: tool cards — a colour swatch; Base64/hash/JSON output (already .mqc-pre) wraps inside long tokens */
 .mqc-swatch { display: inline-block; width: 1.05em; height: 1.05em; margin-right: 8px; vertical-align: -0.16em; border-radius: 4px; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--text) 22%, transparent); }
 .mqc-code { word-break: break-all; }
-/* Round 29 (Planning 2.0): the «запланируй…» preview card — summary (message), what to do (details), next runs, warnings */
 .mqc-cat-schedule .mqc-msg { font-weight: 600; }
 .mqc-plan-label { margin: 9px 0 0 28px; font-size: .78em; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
 .mqc-cat-schedule .mqc-list { list-style: none; padding: 0; margin-top: 3px; }
@@ -191,6 +168,4 @@
 .mqc-plan-warn li { display: flex; gap: 7px; align-items: flex-start; }
 .mqc-plan-warn li + li { margin-top: 4px; }
 .mqc-plan-warn svg { width: 14px; height: 14px; flex: none; margin-top: 2px; color: var(--warn, #d9a43b); }
-
-/* Round 33 (r33-quick): a command understood by the AI router («ИИ» badge, model + time in the tooltip) */
 .mqc-src.mqc-src-ai { color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); cursor: help; }

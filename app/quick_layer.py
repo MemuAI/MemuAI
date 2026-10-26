@@ -34,11 +34,10 @@ from . import quick_layer_core as core
 log = logging.getLogger("memuai.quick.layer")
 
 TITLE = "MemuAI Quick · layer"
-CLICK_GUARD = 0.3            # seconds after the layer appeared during which a click does not run a button
+CLICK_GUARD = 0.3
 RGN_OR, RGN_DIFF = 2, 4
 SW_SHOWNOACTIVATE = 4
 MAX_REGION_RECTS = 160
-
 
 def effective_scale(scale: float, size: Sequence[int], view: Optional[Dict[str, Any]] = None) -> float:
     """CSS px → window pixels, as the page really renders (pure; unit-tested).
@@ -60,10 +59,9 @@ def effective_scale(scale: float, size: Sequence[int], view: Optional[Dict[str, 
         return nominal
     sx, sy = width / vw, height / vh
     if abs(sx - sy) > 0.05 * max(sx, sy) or not 0.5 <= sx <= 5:
-        return nominal                       # the page is mid-resize: trust the monitor until it settles
+        return nominal
     real = round((sx + sy) / 2, 4)
     return nominal if abs(real - nominal) < 0.01 else real
-
 
 def region_plan(rects: Sequence[Sequence[float]], scale: float, size: Sequence[int], *, full: bool = False,
                 keepout: Optional[Sequence[float]] = None) -> Dict[str, Any]:
@@ -76,8 +74,7 @@ def region_plan(rects: Sequence[Sequence[float]], scale: float, size: Sequence[i
     scale = float(scale or 1.0)
 
     def phys(x: float, y: float, w: float, h: float, outward: bool = True) -> List[int]:
-        # Round 29: rounding each edge to the nearest pixel could shave a pixel off a card at 125 % / 150 %;
-        # an item's box is rounded OUTWARD (floor the left/top, ceil the right/bottom) — never smaller than the card
+
         lo, hi = (math.floor, math.ceil) if outward else (round, round)
         l = max(0, min(width, int(lo(x * scale + 1e-6))))
         t = max(0, min(height, int(lo(y * scale + 1e-6))))
@@ -110,7 +107,6 @@ def region_plan(rects: Sequence[Sequence[float]], scale: float, size: Sequence[i
         out.append(box + [diameter])
     return {"full": False, "rects": out, "minus": minus}
 
-
 class ScreenLayer:
     """The layer window. All methods are safe to call from any worker thread (never from the WinForms UI thread)."""
 
@@ -123,7 +119,7 @@ class ScreenLayer:
         self.edit = False
         self.glass = False
         self.shown_at = 0.0
-        self.area: Optional[Dict[str, Any]] = None       # quick_layer_core.area_of() of the monitor shown on
+        self.area: Optional[Dict[str, Any]] = None
         self.keepout: Dict[str, Any] = {}
         self.size = (0, 0)
         self.failed = False
@@ -135,7 +131,6 @@ class ScreenLayer:
         self.native_ok = sys.platform == "win32" and bool(getattr(manager, "native_ok", False))
         self.gdi = None
 
-    # ------------------------------------------------------------ availability
     def available(self) -> bool:
         return self.native_ok and not self.failed and not self._quitting
 
@@ -143,7 +138,6 @@ class ScreenLayer:
         return {"available": self.available(), "visible": self.visible, "edit": self.edit, "glass": self.glass,
                 "monitor": (self.area or {}).get("key", "")}
 
-    # ------------------------------------------------------------ window
     def _gdi(self):
         if self.gdi is None:
             import ctypes
@@ -231,7 +225,7 @@ class ScreenLayer:
         def transparent() -> bool:
             try:
                 from System.Drawing import Color  # type: ignore
-                form.BackColor = Color.Black      # black GDI pixels = DWM glass once the frame covers the client area
+                form.BackColor = Color.Black
                 browser = getattr(form, "webview", None)
                 if browser is not None:
                     browser.DefaultBackgroundColor = Color.Transparent
@@ -240,16 +234,16 @@ class ScreenLayer:
                 return False
         try:
             self.glass = bool(self._ui(transparent)) and api.extend_frame(hwnd, -1)
-            api.dwm_int(hwnd, 38, 1)              # DWMWA_SYSTEMBACKDROP_TYPE = none: clear glass, no blur
-            api.dwm_int(hwnd, 33, 1)              # DWMWA_WINDOW_CORNER_PREFERENCE = do not round (the region shapes it)
-            api.dwm_int(hwnd, 34, 0xFFFFFFFE)     # no DWM border
+            api.dwm_int(hwnd, 38, 1)
+            api.dwm_int(hwnd, 33, 1)
+            api.dwm_int(hwnd, 34, 0xFFFFFFFE)
         except Exception:
             self.glass = False
 
     def _on_closing(self, *_args) -> bool:
         if self._quitting:
             return True
-        threading.Thread(target=self.manager.hide, daemon=True).start()     # Alt+F4 on the layer = close Quick Ask
+        threading.Thread(target=self.manager.hide, daemon=True).start()
         return False
 
     def _ui(self, fn):
@@ -266,14 +260,13 @@ class ScreenLayer:
     def _push(self, script: str) -> Any:
         window = self.window
         if window is None or not self._loaded.is_set():
-            return None                    # never block a caller (Quick Ask's hide) on a page that did not load
+            return None
         try:
             return window.evaluate_js(script)
         except Exception as exc:
             log.debug("quick layer: evaluate_js failed: %s", exc)
             return None
 
-    # ------------------------------------------------------------ show / hide
     def show(self, geometry: Dict[str, Any], monitors: Sequence[Dict[str, Any]], *, reason: str = "open") -> bool:
         """Cover the work area of the monitor Quick Ask is on (``geometry["monitor"]``) and draw the items."""
         if not self.ensure_window():
@@ -290,15 +283,14 @@ class ScreenLayer:
             self.area, self.keepout = area, keepout
             self.size = (right - left, bottom - top)
             if not self.visible or moved:
-                self._empty_region()               # nothing visible until the page reports where its items are
+                self._empty_region()
             flags = SWP_NOACTIVATE | SWP_NOOWNERZORDER
-            # Round 32: Quick Ask and its layer are ONE unit — while the window stepped back behind another program
-            # (opt-in «step back»), the layer goes right under it instead of on top of everything.
+
             insert = self.insert_after()
             api.SetWindowPos(self.hwnd, insert, left, top, right - left, bottom - top, flags)
             if not self.visible:
                 self._ui(lambda: (api.ShowWindow(self.hwnd, SW_SHOWNOACTIVATE), None)[1])
-            # again: moving a per-monitor-v2 window onto a screen with another DPI makes WinForms rescale it once
+
             api.SetWindowPos(self.hwnd, insert, left, top, right - left, bottom - top, flags)
             first = not self.visible
             self.visible = True
@@ -333,12 +325,11 @@ class ScreenLayer:
         if not self.hwnd or not self.visible:
             self.visible = False
             return False
-        # Round 38: off the screen first and without the lock (layer.show holds it while the window is created);
-        # the page learns it afterwards on a worker thread — Quick Ask's Escape never waits for this window.
+
         api = getattr(self.manager, "api", None)
         try:
             if api is not None and getattr(api, "ShowWindowAsync", None):
-                api.ShowWindowAsync(self.hwnd, 0)       # SW_HIDE
+                api.ShowWindowAsync(self.hwnd, 0)
         except Exception:
             pass
         with self._lock:
@@ -347,7 +338,7 @@ class ScreenLayer:
             self.edit = False
             self._region_key = ""
         def tell() -> None:
-            if not self.visible:            # shown again meanwhile: a late onHide must not land on that opening
+            if not self.visible:
                 self._push("window.MemuLayer && MemuLayer.onHide()")
         threading.Thread(target=tell, name="memuai-quick-layer-push", daemon=True).start()
         return True
@@ -396,7 +387,6 @@ class ScreenLayer:
         """The 300 ms guard of Round 27, for the layer too: the click that finished opening runs nothing."""
         return not self.visible or time.monotonic() - self.shown_at >= CLICK_GUARD
 
-    # ------------------------------------------------------------ region
     def _empty_region(self) -> None:
         if not self.hwnd:
             return
@@ -434,13 +424,12 @@ class ScreenLayer:
             if not self.manager.api.SetWindowRgn(self.hwnd, region, True):
                 gdi.DeleteObject(region)
                 return {"ok": False}
-            self._region_key = key                 # the system owns the region now
+            self._region_key = key
         except Exception as exc:
             log.debug("quick layer: region failed: %s", exc)
             return {"ok": False}
         return {"ok": True, "rects": len(plan["rects"]), "full": plan["full"]}
 
-    # ------------------------------------------------------------ relay
     def relay(self, message: Dict[str, Any]) -> bool:
         if not self.window or not self.visible:
             return False

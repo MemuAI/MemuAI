@@ -34,7 +34,7 @@ from typing import Any, Dict, Optional, Tuple
 log = logging.getLogger("memuai.telegram")
 
 MAX_SECONDS = 15 * 60
-MAX_BYTES = 20 * 1024 * 1024            # the Bot API download limit; the Mini App upload limit too
+MAX_BYTES = 20 * 1024 * 1024
 MIN_BYTES = 600
 REVIEW_TTL = 30 * 60
 APP_TIMEOUT = 300.0
@@ -50,7 +50,6 @@ MIME_ALIASES = {"audio/x-m4a": "audio/mp4", "audio/m4a": "audio/mp4", "video/mp4
 _semaphore: Optional[asyncio.Semaphore] = None
 _pending: Dict[str, Dict[str, Any]] = {}
 
-
 class VoiceUnavailable(RuntimeError):
     """Transcription cannot run here; ``str(exc)`` is the user-facing hint."""
 
@@ -58,12 +57,8 @@ class VoiceUnavailable(RuntimeError):
         super().__init__(message)
         self.code = code
 
-
 def _tr(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
-
-# --------------------------------------------------------------------------- formats
 
 def normalize_mime(mime: Any, name: Any = "") -> str:
     """A plain audio MIME type (codec parameters dropped) the speech engine understands."""
@@ -74,14 +69,12 @@ def normalize_mime(mime: Any, name: Any = "") -> str:
         value = AUDIO_EXT.get(suffix, "audio/ogg" if not value else value)
     return value if value.startswith("audio/") else "audio/ogg"
 
-
 def is_audio_message(message: Dict[str, Any]) -> bool:
     if any(message.get(key) for key in ("voice", "video_note", "audio")):
         return True
     document = message.get("document") or {}
     return bool(document) and (str(document.get("mime_type") or "").startswith("audio/")
                                or Path(str(document.get("file_name") or "")).suffix.lower() in AUDIO_EXT)
-
 
 def _audio_of(message: Dict[str, Any]) -> Tuple[Dict[str, Any], bool]:
     """The file object of an audio message and whether the user *spoke* it (voice / video note)."""
@@ -90,13 +83,9 @@ def _audio_of(message: Dict[str, Any]) -> Tuple[Dict[str, Any], bool]:
             return dict(message[key]), spoken
     return {}, False
 
-
-# --------------------------------------------------------------------------- availability
-
 def _runtime(prefs: Dict[str, Any]) -> Any:
     from .telegram_media import voice_runtime
     return voice_runtime(prefs)
-
 
 def _window_url() -> str:
     """The running MemuAI window (it has the local speech engine); '' when it is not running."""
@@ -108,13 +97,11 @@ def _window_url() -> str:
         return ""
     return url if url.startswith(("http://127.0.0.1", "http://localhost")) else ""
 
-
 def engine_in_process() -> bool:
     try:
         return importlib.util.find_spec("faster_whisper") is not None
     except (ImportError, ValueError):
         return False
-
 
 def status(prefs: Dict[str, Any], *, lang: Optional[str] = None) -> Dict[str, Any]:
     """Whether audio can be transcribed now, by what, and a hint when it cannot."""
@@ -162,10 +149,7 @@ def status(prefs: Dict[str, Any], *, lang: Optional[str] = None) -> Dict[str, An
         "Local speech recognition runs inside the MemuAI window — start MemuAI on the computer."))
     return out
 
-
-# --------------------------------------------------------------------------- transcription
-
-TYPING_EVERY = 4.5      # seconds; Telegram's «typing…» fades after ~5 s
+TYPING_EVERY = 4.5
 
 _ERRORS_EN = (
     ("Речь не распознана", "No speech was recognised"),
@@ -174,7 +158,6 @@ _ERRORS_EN = (
     ("Неизвестная локальная модель речи", "Unknown local speech model"),
     ("Не удалось прочитать аудио", "Could not read the audio"),
 )
-
 
 def _friendly(error: Any, lang: str) -> str:
     text = str(error or "").strip() or type(error).__name__
@@ -189,21 +172,19 @@ def _friendly(error: Any, lang: str) -> str:
                 return en
     return text[:300]
 
-
 def _post_window(url: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     request = urllib.request.Request(url + "/api/voice/transcribe", data=json.dumps(payload).encode("utf-8"),
                                      headers={"Content-Type": "application/json"}, method="POST")
-    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))     # 127.0.0.1 only, never a proxy
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     try:
         with opener.open(request, timeout=APP_TIMEOUT) as response:
             data = json.loads(response.read().decode("utf-8") or "{}")
-    except urllib.error.HTTPError as exc:          # the window answers errors as JSON with a 4xx/5xx code
+    except urllib.error.HTTPError as exc:
         try:
             data = json.loads(exc.read().decode("utf-8") or "{}")
         except Exception:
             data = {"error": f"HTTP {exc.code}"}
     return data if isinstance(data, dict) else {}
-
 
 async def transcribe(audio: bytes, mime: str, prefs: Dict[str, Any], *, lang: str = "ru",
                      name: str = "", telegram_use: bool = False) -> str:
@@ -219,7 +200,7 @@ async def transcribe(audio: bytes, mime: str, prefs: Dict[str, Any], *, lang: st
     mime = normalize_mime(mime, name)
     language = str(prefs.get("voice_language") or "auto")
     if _semaphore is None:
-        _semaphore = asyncio.Semaphore(1)          # one Whisper run at a time: it uses every CPU core
+        _semaphore = asyncio.Semaphore(1)
     async with _semaphore:
         try:
             if info["engine"] == "api":
@@ -256,7 +237,6 @@ async def transcribe(audio: bytes, mime: str, prefs: Dict[str, Any], *, lang: st
         raise RuntimeError(_tr(lang, "Речь не распознана.", "No speech was recognised."))
     return text.strip()
 
-
 def decode_upload(value: Any) -> Tuple[bytes, str]:
     """``data:audio/...;base64,...`` from the Mini App → (bytes, mime)."""
     raw = str(value or "")
@@ -272,24 +252,18 @@ def decode_upload(value: Any) -> Tuple[bytes, str]:
         raise ValueError("bad audio") from None
     return blob, mime
 
-
-# --------------------------------------------------------------------------- the bot
-
 def _escape(text: str) -> str:
     import html
     return html.escape(text)
-
 
 def _keyboard(token: str, lang: str) -> Dict[str, Any]:
     return {"inline_keyboard": [[{"text": _tr(lang, "▶️ Отправить", "▶️ Send"), "callback_data": "vtr:send:" + token},
                                  {"text": _tr(lang, "✖ Отмена", "✖ Cancel"), "callback_data": "vtr:drop:" + token}]]}
 
-
 def _prune() -> None:
     now = time.time()
     for key in [key for key, row in _pending.items() if now - row["ts"] > REVIEW_TTL]:
         _pending.pop(key, None)
-
 
 async def route_message(api: Any, chat_id: str, message: Dict[str, Any], prefs: Dict[str, Any],
                         lang: str) -> Optional[Dict[str, Any]]:
@@ -331,8 +305,7 @@ async def route_message(api: Any, chat_id: str, message: Dict[str, Any], prefs: 
                   silent=False)
         return None
     async def keep_typing() -> None:
-        # Whisper takes seconds to minutes on a laptop CPU; Telegram's «typing…» fades after ~5 s, so it is
-        # renewed until the transcript is ready (otherwise the chat looks dead while the computer works).
+
         while True:
             try:
                 await api.call("sendChatAction", chat_id=chat_id, action="typing")
@@ -345,7 +318,6 @@ async def route_message(api: Any, chat_id: str, message: Dict[str, Any], prefs: 
         return await _transcribe_and_route(api, chat_id, message, prefs, lang, item, spoke, caption, reply_to, say)
     finally:
         typing.cancel()
-
 
 async def _transcribe_and_route(api: Any, chat_id: str, message: Dict[str, Any], prefs: Dict[str, Any], lang: str,
                                 item: Dict[str, Any], spoke: bool, caption: str, reply_to: int,
@@ -383,7 +355,6 @@ async def _transcribe_and_route(api: Any, chat_id: str, message: Dict[str, Any],
     await say("🎙 <i>" + _escape(text[:3500]) + "</i>")
     return {"text": full, "spoke": spoke}
 
-
 async def handle_callback(api: Any, chat_id: str, message_id: int, data: str, lang: str) -> Optional[Dict[str, Any]]:
     """``vtr:send:<token>`` / ``vtr:drop:<token>`` → the prompt to send now, or None."""
     parts = str(data or "").split(":")
@@ -414,10 +385,8 @@ async def handle_callback(api: Any, chat_id: str, message_id: int, data: str, la
         return None
     return {"text": row["text"], "spoke": row["spoke"], "reply_to": row.get("reply_to") or 0}
 
-
 def drop_pending_for(chat_id: str) -> None:
     """A typed message replaces a transcript waiting for review in that chat."""
     for key in [key for key, row in _pending.items() if row["chat_id"] == str(chat_id)]:
         _pending.pop(key, None)
-
 

@@ -22,15 +22,12 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
-# ---------------------------------------------------------------- mock OpenAI server
 def _free_port() -> int:
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
     sock.close()
     return port
-
 
 class _MockServer:
     """Answers /v1/chat/completions: 429 for throttled keys, an SSE stream otherwise."""
@@ -83,13 +80,11 @@ class _MockServer:
         self.httpd.shutdown()
         self.httpd.server_close()
 
-
 def _pool_account(port, keys, mode="random"):
     from app.state import Account
     return Account("custom", {"name": "pool", "base_url": f"http://127.0.0.1:{port}/v1",
                               "api_keys": "\n".join(keys), "key_pool_mode": mode,
                               "key_error_keywords": "balance is too low"})
-
 
 async def _collect(provider, account):
     text = ""
@@ -100,7 +95,6 @@ async def _collect(provider, account):
                 text += str(((event["choices"][0] or {}).get("delta") or {}).get("content") or "")
     return text
 
-
 @pytest.mark.parametrize("mode", ["random", "failover-on-match"])
 def test_pool_429_rotates_to_idle_key(mode, monkeypatch):
     from app.providers.custom import CustomProvider
@@ -109,22 +103,21 @@ def test_pool_429_rotates_to_idle_key(mode, monkeypatch):
     with _MockServer({"sk-busy"}) as server:
         account = _pool_account(server.port, ["sk-busy", "sk-idle"], mode)
         provider = CustomProvider()
-        # Force the throttled key first, whatever random.shuffle picks.
+
         with patch("app.providers.custom.random.shuffle", lambda seq: seq.sort()), \
                 patch("app.state.state.save_accounts"):
             text = asyncio.run(_collect(provider, account))
         assert "sk-idle" in text or server.calls[-1] == "sk-idle"
         assert server.calls[0] == "sk-busy" and "sk-idle" in server.calls
-        # 429 is temporary: the throttled key must stay in the pool.
+
         assert not account.extra.get("disabled_api_key_hashes")
-        # ...but the next request does not knock on the throttled key first.
+
         server.calls.clear()
         with patch("app.providers.custom.random.shuffle", lambda seq: seq.sort()), \
                 patch("app.state.state.save_accounts"):
             asyncio.run(_collect(provider, account))
         assert server.calls == ["sk-idle"]
     CustomProvider._rate_limited.clear()
-
 
 def test_pool_all_keys_429_raises_rate_limit(monkeypatch):
     from app.providers.custom import CustomProvider
@@ -135,11 +128,10 @@ def test_pool_all_keys_429_raises_rate_limit(monkeypatch):
         with patch("app.state.state.save_accounts"):
             with pytest.raises(Exception) as caught:
                 asyncio.run(_collect(CustomProvider(), account))
-        # every key tried exactly once, no endless loop
+
         assert sorted(server.calls) == ["sk-a", "sk-b", "sk-c"]
         assert "429" in str(caught.value) or "limit" in str(caught.value).lower() \
             or "RateLimit" in type(caught.value).__name__
-
 
 def test_single_key_429_is_not_retried(monkeypatch):
     from app.providers.custom import CustomProvider
@@ -151,8 +143,6 @@ def test_single_key_429_is_not_retried(monkeypatch):
             asyncio.run(_collect(CustomProvider(), account))
         assert server.calls == ["sk-only"]
 
-
-# ---------------------------------------------------------------- web search relevance
 def test_on_topic_gate():
     from app.websearch import _on_topic
     query = "fastapi streaming response example"
@@ -162,9 +152,8 @@ def test_on_topic_gate():
                       "url": "https://fastapi.tiangolo.com/advanced/custom-response/"}]
     assert not _on_topic(query, filler)
     assert _on_topic(query, good)
-    assert _on_topic("", filler) and _on_topic(query, [])          # nothing to judge → accept
-    assert _on_topic("питон", [{"title": "Питон — язык", "snippet": "", "url": ""}])  # short RU query
-
+    assert _on_topic("", filler) and _on_topic(query, [])
+    assert _on_topic("питон", [{"title": "Питон — язык", "snippet": "", "url": ""}])
 
 def test_free_search_skips_off_topic_racer_and_starts_spare():
     from app import websearch, search_engines
@@ -192,7 +181,6 @@ def test_free_search_skips_off_topic_racer_and_starts_spare():
     assert "yahoo" in started
     assert took < 2.0, f"the spare must start right away, not after the slow racer ({took:.2f}s)"
 
-
 def test_free_search_off_topic_is_last_resort():
     from app import websearch, search_engines
     off = [{"title": "WhatsApp", "snippet": "chat", "url": "https://whatsapp.com"}]
@@ -208,16 +196,13 @@ def test_free_search_off_topic_is_last_resort():
             patch.object(search_engines, "FREE_RACE", ("bing", "duckduckgo")), \
             patch.object(search_engines, "FREE_CHAIN", ("bing", "duckduckgo", "yahoo")):
         rows = asyncio.run(websearch.free_search("fastapi streaming response example", 5))
-    assert rows == off          # better than nothing, but only when nothing on topic came
+    assert rows == off
 
-
-# ---------------------------------------------------------------- Work diff rendering
 def _diff_fn_source() -> str:
     src = (ROOT / "app/pgstatic/app.js").read_text(encoding="utf-8")
     start = src.index("function diffHtml(text)")
     end = src.index("\n}\n", start) + 3
     return src[start:end]
-
 
 def test_diffhtml_has_no_newlines_between_block_spans():
     fn = _diff_fn_source()
@@ -230,16 +215,13 @@ def test_diffhtml_has_no_newlines_between_block_spans():
     assert "\n" not in out
     assert out.count("<span") == 7
     assert '<span class="d-add">+new</span>' in out and '<span class="d-del">-old</span>' in out
-    assert '<span class=""> </span>' in out     # a blank diff line keeps its height
+    assert '<span class=""> </span>' in out
 
-
-# ---------------------------------------------------------------- routing wording
 def test_routing_messages_wording():
     src = (ROOT / "app/chat.py").read_text(encoding="utf-8")
     assert "нет такого префикса и нет однозначного совпадения" in src
     assert "и неоднозначного совпадения" not in src
     assert "Проверьте ключ или вход на вкладке «Аккаунты» MemuAI Proxy." in src
-
 
 def test_rejected_account_message_en_has_no_cyrillic():
     """A custom account rejected with a Russian reason: RU text names it, EN text stays English."""
@@ -274,8 +256,6 @@ def test_rejected_account_message_en_has_no_cyrillic():
     assert not re.search(r"[А-Яа-яЁё]", en), en
     assert "the key was rejected" in en and "Accounts tab" in en, en
 
-
-# ---------------------------------------------------------------- thinking duration unit
 def test_thought_duration_unit_follows_ui_language():
     src = (ROOT / "app/pgstatic/app.js").read_text(encoding="utf-8")
     start = src.index("function formatThoughtDuration(ms)")
@@ -288,8 +268,6 @@ def test_thought_duration_unit_follows_ui_language():
         out = subprocess.run(["node", "-e", script], capture_output=True, text=True, timeout=30).stdout
         assert out.split("|") == expect, out
 
-
-# ---------------------------------------------------------------- narrow top bar
 def test_narrow_topbar_keeps_model_picker():
     """≤520 px: the panels strip (flex 100) squeezed the model picker down to a bare «▾»."""
     css = (ROOT / "app/pgstatic/panels.css").read_text(encoding="utf-8")

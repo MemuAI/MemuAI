@@ -10,7 +10,6 @@ import sys
 
 NOTES = []
 
-
 def reply(rid, result=None, error=None):
     msg = {"jsonrpc": "2.0", "id": rid}
     if error:
@@ -20,7 +19,6 @@ def reply(rid, result=None, error=None):
     sys.stdout.write(json.dumps(msg, ensure_ascii=False) + "\n")
     sys.stdout.flush()
 
-
 TOOLS = [
     {"name": "echo", "description": "Echo the text back", "annotations": {"readOnlyHint": True},
      "inputSchema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]}},
@@ -29,7 +27,6 @@ TOOLS = [
     {"name": "whoami", "description": "Length of the configured token", "inputSchema": {"type": "object"}},
     {"name": "crash", "description": "Exit the process", "inputSchema": {"type": "object"}},
 ]
-
 
 def main():
     sys.stderr.write("echo server started, token=" + os.environ.get("ECHO_TOKEN", "") + "\n")
@@ -71,7 +68,6 @@ def main():
             reply(rid, {})
         else:
             reply(rid, error="unsupported")
-
 
 if __name__ == "__main__":
     main()

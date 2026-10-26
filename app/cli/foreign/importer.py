@@ -17,11 +17,9 @@ from .model import ForeignSession, Turn, clip
 
 RESULT_LINES = 6
 
-
 def session_id(tool: str, original: str) -> str:
     safe = "".join(ch if ch.isalnum() else "-" for ch in str(original))[:24].strip("-") or "session"
     return f"{IMPORTED_PREFIX}{tool}-{safe}"
-
 
 def _step(turn: Turn) -> str:
     if turn.role == "tool":
@@ -31,7 +29,6 @@ def _step(turn: Turn) -> str:
     if turn.role == "note":
         return f"[{clip(turn.text, 300)}]"
     return f"● {turn.tool}" + (f": {clip(turn.detail, 200)}" if turn.detail else "")
-
 
 def messages_of(session: ForeignSession) -> List[Dict[str, Any]]:
     """The conversation as MemuCode messages: the person's requests, and one assistant message per answer in
@@ -66,7 +63,6 @@ def messages_of(session: ForeignSession) -> List[Dict[str, Any]]:
     flush()
     return out
 
-
 def import_session(root: Path, session: ForeignSession, *, replace: bool = False) -> Tuple[Optional[Session], str]:
     """Save ``session`` as a MemuCode conversation of the project ``root`` (the folder it worked in, when that
     still exists). Returns ``(conversation, "added" | "skipped: …")``."""
@@ -89,7 +85,7 @@ def import_session(root: Path, session: ForeignSession, *, replace: bool = False
     target.meta["updated"] = info.updated or target.meta["updated"]
     target.flush_index()
     if info.updated:
-        try:                                                  # the list orders by the file's time: keep the real date
+        try:
             os.utime(target.path, (info.updated, info.updated))
         except OSError:
             pass

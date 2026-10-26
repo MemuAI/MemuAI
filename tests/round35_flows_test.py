@@ -30,7 +30,6 @@ from app import schedule_rules as rules  # noqa: E402
 VACANCY = ("веб-поиск «вакансии Python junior удалённо»; модель отбирает подходящие в JSON; условие через модель "
            "решений: «есть новые?»; если да, строки добавляются в MemuBase и уходят в Telegram списком; иначе ничего не происходит")
 
-
 @pytest.fixture(autouse=True)
 def fresh(tmp_path, monkeypatch):
     monkeypatch.setenv("MEMUAI_DATA_DIR", str(tmp_path))
@@ -44,10 +43,8 @@ def fresh(tmp_path, monkeypatch):
         pass
     yield
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 class FakeServices(fe.Services):
     """Records every side effect; the model answers from a script."""
@@ -93,7 +90,6 @@ class FakeServices(fe.Services):
     async def deliver(self, task, ok, text):
         pass
 
-    # ask_user — in-memory
     def open_form(self, form, *, ref, title):
         fid = f"f{len(self.forms) + 1}"
         self.forms[fid] = {"id": fid, "form": form, "status": "pending", "answers": None, "ref": ref}
@@ -108,7 +104,6 @@ class FakeServices(fe.Services):
 
     async def telegram_form(self, fid, form, title):
         return True
-
 
 VACANCY_STEPS = [
     {"type": "web_search", "query": "вакансии Python junior удалённо", "limit": 8},
@@ -127,37 +122,31 @@ ROWS = [{"title": "Junior Python (remote)", "url": "https://hh.example/1", "snip
 PICKED = json.dumps([{"title": "Junior Python Developer", "company": "Acme", "url": "https://hh.example/1"},
                      {"title": "Python Intern", "company": "Beta", "url": "https://hh.example/3"}], ensure_ascii=False)
 
-
 def vacancy_task():
     return {"id": "vac1", "name": "Вакансии Python", "kind": "flow", "steps": fe.normalize_steps(VACANCY_STEPS)}
-
 
 def decider(messages):
     data = messages[-1]["content"]
     return '{"answer": true, "reason": "есть"}' if "hh.example" in data else '{"answer": false, "reason": "пусто"}'
-
-
-# --------------------------------------------------------------------------- templating & conditions
 
 def test_templates_ru_en_aliases_filters_and_raw_values():
     steps = fe.normalize_steps(VACANCY_STEPS)
     ctx = fe.Ctx(trigger={"type": "gmail", "payload": {"subject": "Hi"}, "subject": "Hi"})
     ctx.numbers = {v: k for k, v in fe.numbering(steps).items()}
     ctx.steps[steps[0]["id"]] = {"result": ROWS, "text": "t"}
-    assert ctx.render("{{step1.result}}") == ROWS                       # raw list, not a string
+    assert ctx.render("{{step1.result}}") == ROWS
     assert ctx.render("{{шаг1.результат | count}}") == 3
     assert ctx.render("{{step1.result[0].title | upper}}") == "JUNIOR PYTHON (REMOTE)"
     assert ctx.render("{{step1.result | pluck(\"url\") | join(\"; \")}}").count("https://") == 3
     assert ctx.text("{{trigger.subject}}/{{триггер.payload.subject}}/{{trigger.type}}") == "Hi/Hi/gmail"
     assert ctx.render('{{nothing | default("—")}}') == "—"
-    assert ctx.text("x {{step9.result}} y") == "x  y"                   # unknown step → empty, never an error
+    assert ctx.text("x {{step9.result}} y") == "x  y"
     assert "•" in ctx.render("{{step1.result | list}}")
-    # «safe»: no attribute access / calls — python never evaluated
+
     assert ctx.render("{{step1.__class__}}") is None
     assert ctx.text("{{ ().__class__.__bases__ }}") == ""
     ctx.locals.append({"as": "вакансия", "item": ROWS[2], "loop": {"index": 3}})
     assert ctx.text("{{вакансия.title}} #{{loop.index}} {{item.url}}") == "Python intern remote #3 https://hh.example/3"
-
 
 def test_conditions():
     ctx = fe.Ctx()
@@ -170,9 +159,6 @@ def test_conditions():
     assert fe.check_cond({"op": "matches", "left": "abc123", "right": r"\d+"}, ctx)
     assert fe.check_cond({"op": "is_false", "left": "нет"}, ctx)
     assert fe.check_cond({"op": "eq", "left": "1.0", "right": "1"}, ctx)
-
-
-# --------------------------------------------------------------------------- normalization
 
 def test_normalize_aliases_limits_and_numbering():
     steps = fe.normalize_steps([{"type": "search", "q": "x"}, {"type": "loop", "list": "{{step1.result}}",
@@ -190,7 +176,6 @@ def test_normalize_aliases_limits_and_numbering():
     s = fe.normalize_steps([{"type": "model", "prompt": "p", "retries": 99, "timeout": 1}])[0]
     assert s["retries"] == 5 and s["timeout"] == 5
 
-
 def test_validate_flow_reports_missing_fields_and_forward_refs():
     steps = fe.normalize_steps([{"type": "telegram", "text": "{{step2.result}}"}, {"type": "web_search", "query": ""},
                                 {"type": "model", "prompt": "{{step7.result}}"}])
@@ -199,7 +184,6 @@ def test_validate_flow_reports_missing_fields_and_forward_refs():
     assert "позже" in texts and "нет шага 7" in texts and "заполните" in texts
     en = fe.validate_flow(steps, "en")
     assert not any(re.search("[А-Яа-я]", p["text"]) for p in en)
-
 
 def test_lazy_migration_of_old_tasks():
     assert fe.task_to_flow({"kind": "chat", "prompt": "news", "model": "m"})[0]["type"] == "model"
@@ -212,17 +196,14 @@ def test_lazy_migration_of_old_tasks():
     assert fe.task_to_flow({"kind": "memucode", "prompt": "t", "project_path": "C:/p"})[0]["type"] == "memucode"
     assert not fe.legacy_convertible({"kind": "chat", "mode": "work"})
 
-
-# --------------------------------------------------------------------------- the vacancy example end-to-end
-
 def test_vacancy_flow_end_to_end_then_only_new_silences_second_run():
     sv = FakeServices(search=ROWS, answers=[PICKED, decider])
     task = vacancy_task()
     result = run(fe.execute_run(task, fe.new_run(task, lang="ru"), sv))
     assert result["status"] == "done" and result["ok"], result.get("error")
     assert sv.query == "вакансии Python junior удалённо"
-    assert "hh.example/1" in sv.prompts[0][1][-1]["content"]          # {{шаг1.результат}} reached the model
-    assert sv.prompts[1][0] == "decider"                                # the decision model was used for «есть новые?»
+    assert "hh.example/1" in sv.prompts[0][1][-1]["content"]
+    assert sv.prompts[1][0] == "decider"
     assert len(sv.sent) == 1 and "Новые вакансии (2)" in sv.sent[0] and "• Junior Python Developer — Acme" in sv.sent[0]
     rows = fe.memubase_query("Вакансии", {}, limit=10)
     assert {r["url"] for r in rows} == {"https://hh.example/1", "https://hh.example/3"}
@@ -230,14 +211,13 @@ def test_vacancy_flow_end_to_end_then_only_new_silences_second_run():
     assert ok and extra["kind"] == "flow" and "quiet" not in extra
     statuses = [(row["n"], row["status"]) for row in result["log"]]
     assert ("1", "ok") in statuses and ("4", "ok") in statuses and ("4.2", "ok") in statuses
-    # second run: the same vacancies → only_new empty → decision «no» → nothing sent, nothing inserted
+
     sv2 = FakeServices(search=ROWS, answers=[PICKED, decider])
     result2 = run(fe.execute_run(task, fe.new_run(task), sv2))
     assert result2["ok"] and sv2.sent == []
     assert len(fe.memubase_query("Вакансии", {}, limit=10)) == 2
     assert sv2.results[-1][2].get("quiet") is True
     assert any(r["n"] == "3" and "новых: 0" in r.get("short", "") for r in result2["log"])
-
 
 def test_dry_run_simulates_side_effects_and_keeps_only_new_state():
     sv = FakeServices(search=ROWS, answers=[PICKED, decider])
@@ -247,9 +227,8 @@ def test_dry_run_simulates_side_effects_and_keeps_only_new_state():
     assert fe.memubase_query("Вакансии", {}, limit=10) == []
     tg = next(r for r in result["log"] if r["type"] == "telegram")
     assert tg["status"] == "simulated" and "Junior Python Developer" in tg["sent"]
-    # nothing remembered: a real run still sees both as new
-    assert fe.seen_keys("vac1", task["steps"][2]["id"]) == set()
 
+    assert fe.seen_keys("vac1", task["steps"][2]["id"]) == set()
 
 def test_invalid_json_is_repaired_once_then_fails_clearly():
     task = {"id": "t", "name": "j", "steps": fe.normalize_steps([{"type": "model", "prompt": "p", "json": True,
@@ -261,7 +240,6 @@ def test_invalid_json_is_repaired_once_then_fails_clearly():
     sv = FakeServices(answers=["nope", '{"a": 1}'])
     result = run(fe.execute_run(task, fe.new_run(task), sv))
     assert result["status"] == "failed" and "JSON" in result["error"]
-
 
 def test_retries_timeouts_and_continue_on_error(monkeypatch):
     calls = {"n": 0}
@@ -289,13 +267,10 @@ def test_retries_timeouts_and_continue_on_error(monkeypatch):
     assert result["ok"] and result["log"][0]["status"] == "error" and "time" in result["log"][0]["error"].lower() or "врем" in result["log"][0]["error"]
     assert result["log"][1]["status"] == "ok"
 
-
 _real_sleep = asyncio.sleep
-
 
 async def _fast_sleep(seconds, *a, **k):
     await _real_sleep(0)
-
 
 def test_foreach_collects_and_nested_if_branches():
     steps = fe.normalize_steps([
@@ -313,7 +288,6 @@ def test_foreach_collects_and_nested_if_branches():
     iters = [r for r in result["log"] if r["n"] == "2.1"]
     assert len(iters) == 3 and [r.get("iter") for r in iters] == [1, 2, 3]
 
-
 def test_stop_step_and_failure_record():
     steps = fe.normalize_steps([{"type": "stop", "message": "done early"}, {"type": "telegram", "text": "never"}])
     sv = FakeServices()
@@ -322,9 +296,6 @@ def test_stop_step_and_failure_record():
     steps = fe.normalize_steps([{"type": "telegram", "text": ""}])
     result = run(fe.execute_run({"id": "y", "steps": steps}, fe.new_run({"id": "y", "steps": steps}), sv))
     assert result["status"] == "failed" and sv.results[-1][0] is False
-
-
-# --------------------------------------------------------------------------- persistence / resume / ask_user
 
 def test_ask_user_pauses_persists_and_resumes_with_answer():
     steps = fe.normalize_steps([
@@ -337,14 +308,13 @@ def test_ask_user_pauses_persists_and_resumes_with_answer():
     assert result["status"] == "waiting" and result["wait"]["kind"] == "ask"
     stored = fe.load_run(result["id"])
     assert stored["status"] == "waiting" and stored["form_id"] == "f1"
-    assert sv.results == []                                     # not finished → no history row yet
+    assert sv.results == []
     assert not fe._ready_to_resume(stored, sv)
     sv.forms["f1"].update(status="answered", answers={"go": "Да"})
     assert fe._ready_to_resume(stored, sv)
     result = run(fe.execute_run(task, stored, sv))
     assert result["ok"] and sv.sent == ["ok Да"] and sv.results[-1][0] is True
-    assert sum(1 for r in result["log"] if r["n"] == "1") == 1   # the question is not asked twice
-
+    assert sum(1 for r in result["log"] if r["n"] == "1") == 1
 
 def test_ask_user_timeout_uses_default():
     steps = fe.normalize_steps([{"type": "ask_user", "question": "Сколько?", "timeout_hours": 1,
@@ -358,7 +328,6 @@ def test_ask_user_timeout_uses_default():
     assert fe._ready_to_resume(first, sv)
     result = run(fe.execute_run(task, first, sv))
     assert result["ok"] and result["log"][-1]["output"].strip() == "3"
-
 
 def test_real_ask_user_store_and_inbox(tmp_path):
     """The default Services: the form goes to ask_user.STORE (surface flow) and to «Входящие»."""
@@ -377,7 +346,6 @@ def test_real_ask_user_store_and_inbox(tmp_path):
     au.STORE.settle(fid, "answered", {"ok": True})
     assert sv.form_state(fid)["answers"] == {"ok": True}
 
-
 def test_resume_after_restart_replays_finished_steps():
     steps = fe.normalize_steps([{"type": "web_search", "query": "q"}, {"type": "telegram", "text": "{{step1.result | count}}"}])
     task = {"id": "rs", "steps": steps}
@@ -390,8 +358,7 @@ def test_resume_after_restart_replays_finished_steps():
     sv = FakeServices(search=[])
     assert fe._ready_to_resume(fe.load_run(run_rec["id"]), sv)
     result = run(fe.execute_run(task, fe.load_run(run_rec["id"]), sv))
-    assert result["ok"] and sv.sent == ["3"] and not hasattr(sv, "query")   # search not repeated
-
+    assert result["ok"] and sv.sent == ["3"] and not hasattr(sv, "query")
 
 def test_resume_pending_picks_waiting_runs(monkeypatch):
     steps = fe.normalize_steps([{"type": "wait", "seconds": 120}, {"type": "telegram", "text": "after"}])
@@ -412,7 +379,6 @@ def test_resume_pending_picks_waiting_runs(monkeypatch):
     assert run(go()) == 1
     assert sv.sent == ["after"] and fe.load_run(first["id"])["status"] == "done"
 
-
 def test_run_index_and_pruning(monkeypatch):
     monkeypatch.setattr(fe, "MAX_RUNS", 3)
     ids = []
@@ -423,7 +389,6 @@ def test_run_index_and_pruning(monkeypatch):
     rows = fe.list_runs("p", 10)
     assert [r["id"] for r in rows] == ids[::-1][:3]
     assert fe.load_run(ids[0]) is None and fe.load_run(ids[-1]) is not None
-
 
 def test_cancel_and_stepwise_controls():
     steps = fe.normalize_steps([{"type": "set", "var": "a", "value": "1"}, {"type": "set", "var": "b", "value": "2"}])
@@ -444,7 +409,6 @@ def test_cancel_and_stepwise_controls():
     result = run(go())
     assert result["ok"] and [x["status"] for x in result["log"]] == ["ok", "ok"]
 
-
 def test_http_step_refuses_private_addresses():
     with pytest.raises(fe.StepFailed):
         fe._public_url("http://127.0.0.1:8317/api/admin")
@@ -452,7 +416,6 @@ def test_http_step_refuses_private_addresses():
         fe._public_url("file:///etc/passwd")
     with pytest.raises(fe.StepFailed):
         fe._public_url("http://user:pw@example.com/")
-
 
 def test_handoff_steps_and_dfy_and_dry_run_never_hand_off():
     steps = fe.normalize_steps([{"type": "qa_command", "command": "Утро"}, {"type": "qa_macro", "action_id": "a1"},
@@ -466,16 +429,12 @@ def test_handoff_steps_and_dfy_and_dry_run_never_hand_off():
     result = run(fe.execute_run(task, fe.new_run(task, dry_run=True), sv2))
     assert result["ok"] and sv2.handoffs == [] and all(r["status"] == "simulated" for r in result["log"])
 
-
 def test_trigger_payload_contract():
     steps = fe.normalize_steps([{"type": "telegram", "text": "{{trigger.type}}: {{trigger.subject}} / {{триггер.payload.from}}"}])
     task = {"id": "tp", "steps": steps}
     sv = FakeServices()
     run(fe.execute_run(task, fe.new_run(task, trigger={"trigger": "gmail", "payload": {"subject": "Счёт", "from": "a@b"}}), sv))
     assert sv.sent == ["gmail: Счёт / a@b"]
-
-
-# --------------------------------------------------------------------------- scheduler / NL / API integration
 
 def test_scheduler_runs_flow_task(monkeypatch):
     from app import scheduler
@@ -489,16 +448,14 @@ def test_scheduler_runs_flow_task(monkeypatch):
                              "_run_meta": {"trigger": "gmail", "payload": {"a": 1}}}))
     assert seen["meta"]["payload"] == {"a": 1} and "_run_meta" not in seen["task"]
 
-
 def test_parse_model_steps_to_flow_draft():
     data = {"name": "Вакансии", "kind": "flow", "steps": VACANCY_STEPS}
     draft = rules.draft_from_model(data, "ru")
     assert draft["kind"] == "flow" and len(list(fe.walk(draft["steps"]))) == 6
-    assert draft["rule"]["when"][0]["type"] == "daily"                 # no timing → daily 09:00
+    assert draft["rule"]["when"][0]["type"] == "daily"
     assert "steps" in rules.PARSE_PROMPT and "only_new" in rules.PARSE_PROMPT
     single = rules.draft_from_model({"name": "n", "kind": "notify", "prompt": "p", "rule": {"when": [{"type": "daily", "times": ["10:00"]}]}})
     assert single["kind"] == "notify" and "steps" not in single
-
 
 def test_save_task_with_steps_and_back_to_classic():
     from app import schedule_rules_api as api
@@ -514,7 +471,6 @@ def test_save_task_with_steps_and_back_to_classic():
                    "rule": {"when": [{"type": "daily", "times": ["09:00"]}]}}, "ru")
     row = next(t for t in pgdata.load_schedules() if t["id"] == task_id)
     assert row["kind"] == "chat" and not row.get("steps")
-
 
 def test_flow_api_routes():
     from fastapi import FastAPI
@@ -547,9 +503,6 @@ def test_flow_api_routes():
     assert r["status"] == "done" and r["log"][1]["status"] == "simulated" and r["log"][1]["sent"] == "true"
     assert c.get("/api/plan/flow/runs?task_id=tt").json()["runs"][0]["id"] == rid
 
-
-# --------------------------------------------------------------------------- adapters
-
 def test_adapters_round_trip_scenarios_and_macros():
     from app import flow_adapters as fa
     command = {"id": "cmd-1", "name": "Утро", "triggers": ["доброе утро"], "steps": [
@@ -565,11 +518,8 @@ def test_adapters_round_trip_scenarios_and_macros():
     draft = fa.as_task(flow, "ru")
     assert draft["steps"][0] == {"type": "qa_command", "command": "Утро"}
     assert fa.as_task(mflow)["steps"][0]["type"] == "qa_macro"
-    # the draft is a valid flow
+
     assert fe.normalize_steps(draft["steps"])[0]["type"] == "qa_command"
-
-
-# --------------------------------------------------------------------------- UI wiring / packaging
 
 def test_ui_files_wired_and_parse():
     index = (ROOT / "app/pgstatic/index.html").read_text("utf-8")
@@ -580,14 +530,12 @@ def test_ui_files_wired_and_parse():
         out = subprocess.run(["node", "--check", str(ROOT / path)], capture_output=True, text=True)
         assert out.returncode == 0, out.stderr
 
-
 def test_ui_english_strings_have_no_cyrillic():
     src = (ROOT / "app/pgstatic/flows.js").read_text("utf-8")
     pairs = re.findall(r'T\("((?:[^"\\]|\\.)*)",\s*"((?:[^"\\]|\\.)*)"\)', src)
     assert len(pairs) > 60
     bad = [en for _, en in pairs if re.search("[А-Яа-яЁё]", en)]
     assert not bad, bad[:5]
-
 
 def test_build_and_spec_include_flow_modules():
     build = (ROOT / "build.py").read_text("utf-8")
@@ -597,13 +545,9 @@ def test_build_and_spec_include_flow_modules():
         assert mod in build and mod in spec
     assert "app.flow_engine" in proxy
 
-
-# --------------------------------------------------------------------------- live: the user's sentence → a flow
-
 LIVE = {"sol": ("SOL_BASE", "SOL_KEY", "gpt-6.1-sol"), "qwen": ("REFORM_BASE", "REFORM_KEY", os.environ.get("REFORM_MODEL", "qwen3.8-max"))}
 
-
-@pytest.mark.parametrize("name", list(LIVE))      # ids are names only: keys never reach the test output
+@pytest.mark.parametrize("name", list(LIVE))
 def test_live_vacancy_sentence_becomes_multi_step_flow(name):
     import httpx
     from app import schedule_rules_api as api
@@ -630,15 +574,12 @@ def test_live_vacancy_sentence_becomes_multi_step_flow(name):
     assert any(t in types for t in ("if", "decide"))
     assert "memubase_insert" in types and "telegram" in types
     assert fe.validate_flow(draft["steps"], "ru") == [] or all(p["level"] == "warn" for p in fe.validate_flow(draft["steps"], "ru"))
-    # the generated flow really runs on mocks
+
     sv = FakeServices(search=ROWS, answers=[PICKED, decider, decider, decider])
     task = {"id": "live", "name": draft["name"], "steps": draft["steps"]}
     result = run(fe.execute_run(task, fe.new_run(task), sv))
     assert result["ok"], result.get("error")
     assert len(sv.sent) == 1 and "hh.example" in sv.sent[0]
-
-
-# --------------------------------------------------------------------------- fixes found by the live runs
 
 def test_autolink_feeds_earlier_data_to_model_steps():
     """qwen wrote «По результатам поиска отбери…» without {{step1.result}}: the model never saw the results."""
@@ -651,17 +592,14 @@ def test_autolink_feeds_earlier_data_to_model_steps():
     draft = rules.draft_from_model({"name": "v", "steps": [{"type": "web_search", "query": "q"}, {"type": "model", "prompt": "отбери"}]})
     assert "{{step1.result}}" in draft["steps"][1]["prompt"]
 
-
 def test_notify_title_is_not_the_step_label():
     step = fe.normalize_steps([{"type": "notify", "title": "Новые ({{step1.result | count}})", "text": "x"}])[0]
     assert "label" not in step and step["title"].startswith("Новые")
     assert fe.normalize_steps([{"type": "model", "title": "Отбор", "prompt": "p"}])[0]["label"] == "Отбор"
 
-
 def test_network_steps_retry_once_by_default():
     steps = fe.normalize_steps([{"type": "model", "prompt": "p"}, {"type": "telegram", "text": "t"}])
     assert steps[0]["retries"] == 1 and steps[1]["retries"] == 0
-
 
 def test_quiet_run_does_not_post_done_to_inbox():
     from app import inbox, inbox_hooks
@@ -669,7 +607,6 @@ def test_quiet_run_does_not_post_done_to_inbox():
     assert not any(it.get("dedupe_key") == "schedule:result:tq" for it in inbox.list(status="all"))
     inbox_hooks.schedule_result("tq", True, "sent", {}, {})
     assert any(it.get("dedupe_key") == "schedule:result:tq" for it in inbox.list(status="all"))
-
 
 def test_miniapp_rows_carry_read_only_steps():
     from app import pgdata, tgapp_extras
@@ -679,9 +616,6 @@ def test_miniapp_rows_carry_read_only_steps():
     assert [s["n"] for s in row["steps"]] == ["1", "2", "3", "4", "4.1", "4.2"]
     assert row["steps"][4]["depth"] == 1 and "MemuBase" in row["steps"][4]["text"]
 
-
-# --------------------------------------------------------------------------- r35-finish-b: Quick Access command reaches the executor
-
 def _quick_command_env():
     from app import assistant_commands as ac
     eng = ac.Engine()
@@ -689,7 +623,6 @@ def _quick_command_env():
     cmd = ac.validate_command({"name": "Утро", "triggers": ["доброе утро"], "steps": [{"type": "say", "text": "привет"}]})
     eng.store.update(lambda data: data["commands"].append(cmd))
     return ac, eng, cmd
-
 
 async def _with_executor(coro):
     """Runs ``coro`` while a real window-side Executor pumps ``schedule_handoff.json``."""
@@ -707,12 +640,11 @@ async def _with_executor(coro):
         job.cancel()
         await asyncio.gather(job, return_exceptions=True)
 
-
 def test_scenario_step_and_old_command_task_reach_executor():
     ac, eng, cmd = _quick_command_env()
     try:
         class Real(FakeServices):
-            handoff = fe.Services.handoff        # the real queue → Executor.run_command path
+            handoff = fe.Services.handoff
 
         task = {"id": "qa1", "name": "Утренний сценарий", "kind": "flow",
                 "steps": fe.normalize_steps([{"type": "qa_command", "command": "Утро"}])}
@@ -722,7 +654,7 @@ def test_scenario_step_and_old_command_task_reach_executor():
         row = result["log"][0]
         assert row["status"] == "ok" and "не хватает" not in json.dumps(row, ensure_ascii=False)
         assert "привет" in json.dumps(row["output"], ensure_ascii=False)
-        # an old «kind: command» task (by name and by id only) goes the same way
+
         from app import schedule_runtime as srt
         for ref in ({"command": "Утро"}, {"command": cmd["id"]}, {"command_id": cmd["id"]}):
             ok, text, extra = run(_with_executor(srt.run_action(dict({"id": "old", "name": "Старая", "kind": "command",
@@ -730,7 +662,6 @@ def test_scenario_step_and_old_command_task_reach_executor():
             assert ok and "привет" in text and extra.get("command") == "Утро", text
     finally:
         ac.set_engine(None)
-
 
 def test_command_run_by_id_only_fills_name():
     """A hotkey of a custom command calls command.run with the id only (the catalog requires name)."""
@@ -740,7 +671,6 @@ def test_command_run_by_id_only_fills_name():
         assert card["status"] == "done", card
     finally:
         ac.set_engine(None)
-
 
 def test_add_menu_columns_and_design_popovers():
     """r35-finish-b: the add-step menu lays whole groups into ≤3 columns; glass/soft/brutal restyle it."""

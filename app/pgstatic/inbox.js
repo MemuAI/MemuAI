@@ -1,9 +1,5 @@
-/* MemuAI — Round 35: «Входящие» (Inbox) — единый хаб всего, что ждёт пользователя.
-   Backend: /api/pg/inbox/* (app/inbox_api.py), store app/inbox.py, producers app/inbox_hooks.py.
-   Sidebar button #nav-inbox (inserted after «Планирование») with an unread badge, live via SSE.
-   Buttons call POST /api/pg/inbox/item/<id>/action → the owning subsystem's own handler;
-   «kind: ui» buttons (open a chat / memory / planning / module / Proxy) are run here.
-   window.MemuInbox = { open(), refresh(), post({title, body, source, kind, severity, dedupe_key, actions}) } */
+
+
 (function () {
   "use strict";
   if (window.MemuInbox) return;
@@ -37,7 +33,7 @@
     proxy: ["Proxy", "link"],
     work: ["Work", "work"],
     askuser: [T("Вопрос ИИ", "AI question"), "chat"],
-    ask_user: [T("Вопрос", "Question"), "chat"],   // r36: the server posts forms as «ask_user» (the raw id was shown)
+    ask_user: [T("Вопрос", "Question"), "chat"],
     ui: ["MemuAI", "bell"],
   });
   const srcInfo = (s) => SOURCES()[s] || [String(s || "MemuAI"), "bell"];
@@ -47,7 +43,6 @@
     form: null, showDone: false, loading: false, reloadTimer: 0, lastAttention: -1, es: null, menu: "",
   };
 
-  /* ---------------------------------------------------------------- sidebar button + badge */
   function ensureButton() {
     if ($q("#nav-inbox")) return $q("#nav-inbox");
     const anchor = $q("#nav-sched");
@@ -58,6 +53,7 @@
     btn.type = "button";
     btn.innerHTML = `<span class="ico">${I("bell")}</span><span class="ibx-nav-label"></span><span class="ibx-badge" hidden></span>`;
     anchor.parentNode.insertBefore(btn, anchor.nextSibling);
+    window.MemuSidebar?.apply();
     btn.addEventListener("click", () => open());
     labelButton();
     return btn;
@@ -84,14 +80,10 @@
     btn.setAttribute("aria-label", tip);
   }
 
-  /* ---------------------------------------------------------------- live updates */
-  // Round 36 (perf): one SSE connection while the window is visible; it is closed after 30 s in the
-  // background (no server loop, no wake-ups) and reopened with a fresh count when the window comes back.
-  // The same stream nudges memuai:// links (event «links») — deeplinks.js no longer polls every 4 s.
   function connect() {
     if (st.es || document.visibilityState === "hidden") return;
     if (typeof EventSource === "undefined") { startPoll(); return; }
-    const es = window.MemuLive ? MemuLive.stream("/api/pg/inbox/stream") : new EventSource("/api/pg/inbox/stream");   // r40-lag: a WebSocket
+    const es = window.MemuLive ? MemuLive.stream("/api/pg/inbox/stream") : new EventSource("/api/pg/inbox/stream");
     st.es = es;
     es.addEventListener("open", () => { stopPoll(); st.live = true; });
     es.addEventListener("counts", (event) => {
@@ -101,7 +93,7 @@
     });
     es.addEventListener("links", () => document.dispatchEvent(new CustomEvent("memu:links")));
     es.onerror = () => {
-      // the server restarts with MemuAI; EventSource reconnects itself — a slow visible-only poll meanwhile
+
       st.live = false;
       startPoll();
     };
@@ -127,7 +119,7 @@
     if (!st.es) { refreshCounts(); connect(); }
   }
   async function refreshCounts() {
-    try { onCounts(await call("/api/pg/inbox/counts")); } catch (e) { /* offline */ }
+    try { onCounts(await call("/api/pg/inbox/counts")); } catch (e) {  }
   }
   function onCounts(data) {
     const attention = Number(data.ask || 0) + Number(data.confirm || 0);
@@ -135,7 +127,7 @@
     st.counts = data;
     paintBadge();
     if (isOpen()) scheduleReload();
-    // Round 35 (askuser): no toast when the new question is the ask_user form already on screen in this chat
+
     else if (prev >= 0 && attention > prev && typeof toast === "function" && !document.querySelector("#messages .au-pending")) {
       toast(T("Входящие: новый вопрос или подтверждение", "Inbox: a new question or approval"), "info",
         { label: T("Открыть", "Open"), run: () => open() });
@@ -145,14 +137,13 @@
   function scheduleReload() {
     clearTimeout(st.reloadTimer);
     st.reloadTimer = setTimeout(() => {
-      // never redraw under a half-typed answer
+
       const active = document.activeElement;
       if (active && active.closest && active.closest("#ibx-root .ibx-form, #ibx-root .au-card")) { scheduleReload(); return; }
       load().then(renderList);
     }, 250);
   }
 
-  /* ---------------------------------------------------------------- data */
   async function load() {
     st.loading = true;
     try {
@@ -177,7 +168,6 @@
     });
   }
 
-  /* ---------------------------------------------------------------- render */
   function ago(ts) {
     const s = Math.max(0, Date.now() / 1000 - Number(ts || 0));
     if (s < 45) return T("только что", "just now");
@@ -194,7 +184,6 @@
     return sameDay ? time : d.toLocaleDateString(en() ? "en-US" : "ru-RU", { day: "numeric", month: "short" }) + " " + time;
   }
 
-  /* opts.stack (r36): open over the current panel (the task builder's test) — closing comes back to it with the draft */
   function open(opts = {}) {
     ensureButton();
     const first = !isOpen();
@@ -203,7 +192,7 @@
       bindShell();
     }
     load().then(() => { renderList(); if (first) focusList(); });
-    if (typeof recordView === "function") { try { recordView({ type: "panel", name: "inbox" }); } catch (e) { /* optional */ } }
+    if (typeof recordView === "function") { try { recordView({ type: "panel", name: "inbox" }); } catch (e) {  } }
   }
 
   function shell() {
@@ -311,8 +300,7 @@
       </div>
     </article>`;
   }
-  /* r36: a «Спросить меня» form of a planned task (no chat behind it) is answered right here — before, the item had
-     only «Открыть» (which just expanded the text) and «Пропустить», so the flow could never get a real answer */
+
   function askFormHtml(it) {
     const ref = it.ref || {};
     if (it.source !== "ask_user" || ref.chat_id || !ref.form_id || !ref.form || !window.MemuAskForm) return "";
@@ -344,7 +332,6 @@
       `<button type="button" role="menuitem" data-snooze="${p}">${H(l)}</button>`).join("")}</div>`;
   }
 
-  /* ---------------------------------------------------------------- forms (reply / edit / code) */
   function showForm(it, a) {
     st.form = { id: it.id, action: a.id, value: a.form === "text" && it.source === "memory" ? String((it.ref || {}).text || "") : "" };
     renderList();
@@ -380,7 +367,6 @@
     });
   }
 
-  /* ---------------------------------------------------------------- actions */
   async function run(it, actionId, payload = {}) {
     const a = (it.actions || []).find((x) => x.id === actionId) || { id: actionId };
     if (a.form && !payload.text) { showForm(it, a); return; }
@@ -418,7 +404,7 @@
     if (src === "dfy") {
       const chat = ref.chat_id && typeof S !== "undefined" && (S.chats || []).find((c) => c.id === ref.chat_id);
       if (chat && typeof openChat === "function") { closeIfOpen(); openChat(ref.chat_id); return; }
-      st.expanded.add(it.id); renderList();     // the live task card opens right here
+      st.expanded.add(it.id); renderList();
       return;
     }
     if (src === "memory" && window.MemuMemory) { window.MemuMemory.open({ tab: "inbox", root: true }); return; }
@@ -443,7 +429,6 @@
     st.items.forEach((it) => { if (ids.includes(it.id)) it.read = read; });
   }
 
-  /* ---------------------------------------------------------------- events */
   function bindShell() {
     const root = $q("#ibx-root");
     const q = $q("#ibx-q");
@@ -544,15 +529,13 @@
     else if (k === "u" || k === "г") { e.preventDefault(); setRead([it.id], !it.read).then(renderList); }
   }
 
-  /* ---------------------------------------------------------------- boot */
   function boot() {
     ensureButton();
     document.addEventListener("click", (e) => {
       if (st.menu && !(e.target.closest && e.target.closest(".ibx-snooze-wrap"))) { st.menu = ""; renderList(); }
     }, { capture: true });
     refreshCounts().then(() => { st.lastAttention = Number(st.counts.ask || 0) + Number(st.counts.confirm || 0); });
-    // r36: the live stream opens a few seconds after the window has loaded — the first count comes from
-    // refreshCounts() above, and startup (and «network idle») is not held up by a never-ending request
+
     const later = () => setTimeout(connect, 3000);
     if (document.readyState === "complete") later(); else window.addEventListener("load", later, { once: true });
     document.addEventListener("visibilitychange", onVisibility);

@@ -61,7 +61,6 @@ RENDER_SETTINGS = """([models, prefs, lang]) => {
   window.__marker = host.firstElementChild;
 }"""
 
-
 async def main(out: Path, lang: str) -> int:
     from playwright.async_api import async_playwright
     from app import themes
@@ -82,7 +81,7 @@ async def main(out: Path, lang: str) -> int:
         if path == "/themes.css":
             return await r.fulfill(body=themes.theme_css(), content_type="text/css")
         if path.endswith("/events"):
-            return await r.fulfill(status=500, body="")      # polling fallback
+            return await r.fulfill(status=500, body="")
         if path.endswith("/answer"):
             state["answers"].append(json.loads(r.request.post_data or "{}"))
             return await r.fulfill(json={"ok": True})
@@ -151,7 +150,6 @@ async def main(out: Path, lang: str) -> int:
         await ask("confirm")
         check("20 €" in await page.inner_text("#chat"), "the confirm shows the total")
 
-        # Settings: a saved non-vision model, then no vision models at all.
         await page.evaluate(RENDER_SETTINGS, [MODELS, {"dfy_model": "deepseek-chat"}, lang])
         await page.wait_for_timeout(400)
         values = await page.eval_on_selector_all("#st-dfy-model option", "os => os.map(o => o.value)")
@@ -174,7 +172,6 @@ async def main(out: Path, lang: str) -> int:
         check("Proxy" in await page.inner_text("#st-dfy-model-note"), "how to fix is explained")
         await page.locator("#dfy-main").screenshot(path=str(out / f"settings-none-{lang}.png"))
 
-        # Quick Ask card.
         quick = await browser.new_page(viewport={"width": 680, "height": 640}, device_scale_factor=1)
         quick.on("pageerror", lambda e: errors.append(f"quick pageerror: {e}"))
         await quick.route("**/*", route)
@@ -197,7 +194,6 @@ async def main(out: Path, lang: str) -> int:
         print("FAIL:", message)
     print(f"{len(errors)} problem(s)")
     return 1 if errors else 0
-
 
 if __name__ == "__main__":
     target = Path(sys.argv[1]) if len(sys.argv) > 1 else Path("/workspace/work/shots/r25/dfy")

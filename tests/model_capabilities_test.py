@@ -70,16 +70,13 @@ MD_DATA = {
                        "canonical_model_id": "openai/gpt-4-0314"}}},
 }
 
-
 class _Entry:
     def __init__(self, prefix: str, provider: str, model: str, enabled: bool = True) -> None:
         self.prefix, self.provider, self.model, self.enabled = prefix, provider, model, enabled
         self.id = f"{prefix}-{model}"
 
-
 def fake_fetch(url: str):
     return {"data": OR_ROWS} if "openrouter" in url else MD_DATA
-
 
 def reset_state() -> None:
     with mc._lock:
@@ -93,7 +90,6 @@ def reset_state() -> None:
             os.remove(mc._path(name))
         except OSError:
             pass
-
 
 class NormaliseTest(unittest.TestCase):
     def test_openrouter_row(self):
@@ -109,7 +105,7 @@ class NormaliseTest(unittest.TestCase):
         self.assertAlmostEqual(row["price"]["output"], 5.0)
         self.assertAlmostEqual(row["price"]["cache_read"], 0.1)
         self.assertEqual(row["price"]["web_search"], 0.01)
-        # OpenRouter's search plugin price is not native web search.
+
         self.assertIsNone(row["web"])
         self.assertEqual(row["price_tiers"][0]["min_prompt_tokens"], 100000)
         self.assertEqual(row["cutoff"], "2025-02-01")
@@ -138,7 +134,6 @@ class NormaliseTest(unittest.TestCase):
         self.assertEqual(mc._date(0), "")
         self.assertEqual(mc._date(1760000000000), "2025-10-09")
 
-
 class CatalogRefreshTest(unittest.TestCase):
     def setUp(self):
         reset_state()
@@ -150,7 +145,7 @@ class CatalogRefreshTest(unittest.TestCase):
         status = mc.catalog_status()
         self.assertTrue(status["own"])
         found = mc._catalog.match("claude-haiku-4-5")
-        self.assertEqual(found["openrouter"][0]["id"], "anthropic/claude-haiku-4.5")   # not the ~latest alias
+        self.assertEqual(found["openrouter"][0]["id"], "anthropic/claude-haiku-4.5")
         self.assertEqual(found["models.dev"][1], "exact")
 
     def test_failed_source_keeps_previous_rows(self):
@@ -192,7 +187,6 @@ class CatalogRefreshTest(unittest.TestCase):
         finally:
             path.unlink()
             mc._catalog.ensure(force=True)
-
 
 class ProviderRowsTest(unittest.TestCase):
     def setUp(self):
@@ -243,10 +237,9 @@ class ProviderRowsTest(unittest.TestCase):
         self.assertEqual(mc.raw_row("myapi", "custom", "a")["row"]["x"], "y")
         self.assertTrue(mc.raw_row("myapi", "custom", "huge")["row"]["_truncated"])
         self.assertIsNone(mc.raw_row("myapi", "custom", "missing"))
-        # The provider id works as a fallback key (Kiro/Antigravity record under their own id).
+
         mc.record_raw("kiro", [{"modelId": "m1", "supportedInputTypes": ["TEXT"]}], id_field="modelId")
         self.assertIsNotNone(mc.raw_row("kiro-alt", "kiro", "m1"))
-
 
 class ResolutionTest(unittest.TestCase):
     def setUp(self):
@@ -262,7 +255,7 @@ class ResolutionTest(unittest.TestCase):
         self.assertEqual(card["fields"]["billing"]["value"], "subscription")
         self.assertTrue(card["fields"]["vision"]["value"])
         self.assertIn(card["fields"]["vision"]["source"], ("openrouter", "models.dev"))
-        self.assertEqual(card["fields"]["knowledge_cutoff"]["source"], "models.dev")   # exact match beats canonical
+        self.assertEqual(card["fields"]["knowledge_cutoff"]["source"], "models.dev")
         self.assertIn("openrouter", card["raw"])
         group_ids = [g["id"] for g in card["groups"]]
         self.assertEqual(group_ids[:3], ["identity", "modalities", "features"])
@@ -283,13 +276,13 @@ class ResolutionTest(unittest.TestCase):
         self.assertFalse(mc.adapter_vision("grok-grok-4", "grok", "grok", "grok-4", entry=_Entry("grok", "grok", "grok-4")))
 
     def test_free_only_from_this_connection(self):
-        # A reseller's $0 for the same model (Models.dev "reseller") never makes it free.
+
         card = mc.describe("x", entry=_Entry("myapi", "custom", "claude-haiku-4-5"))
         self.assertNotEqual(card["summary"].get("free"), True)
         mc.record_raw("or", [OR_ROWS[2]])
         entry = _Entry("or", "custom", "qwen/qwen3-coder:free")
         self.assertTrue(mc.describe(entry.id, entry=entry)["summary"]["free"])
-        # A web account never shows "free" even with a $0 provider row.
+
         mc.record_raw("genspark", [{"id": "deepseek-chat", "pricing": {"input": 0, "output": 0}}])
         card = mc.describe("g", entry=_Entry("genspark", "genspark", "deepseek-chat"))
         self.assertFalse(card["summary"]["free"])
@@ -347,7 +340,6 @@ class ResolutionTest(unittest.TestCase):
         self.assertFalse(card["known"])
         self.assertIn("streaming", card["fields"])
 
-
 class ProbeTest(unittest.TestCase):
     def setUp(self):
         reset_state()
@@ -389,7 +381,7 @@ class ProbeTest(unittest.TestCase):
         card = mc.describe(entry.id, entry=entry)
         self.assertEqual(card["fields"]["vision"]["source"], "probe")
         self.assertEqual(card["fields"]["vision"]["confidence"], "verified")
-        # A probe overrides even an adapter rule and a "blind" name.
+
         self.assertTrue(mc.adapter_vision(entry.id, "myapi", "custom", "deepseek-chat", entry=entry))
         self.assertTrue(mc.forget_probe(entry.id))
         self.assertIsNone(mc.probe_result(entry.id))
@@ -411,12 +403,11 @@ class ProbeTest(unittest.TestCase):
         mc.forget_probe("myapi-m")
         result = self._run(down)
         self.assertEqual(result["verdict"], "error")
-        self.assertIsNone(mc.probe_result("myapi-m"))     # inconclusive results are not stored
+        self.assertIsNone(mc.probe_result("myapi-m"))
 
         async def slow(*_a):
             await asyncio.sleep(5)
         self.assertEqual(self._run(slow)["verdict"], "timeout")
-
 
 class AdminRoutesTest(unittest.TestCase):
     def setUp(self):
@@ -426,7 +417,7 @@ class AdminRoutesTest(unittest.TestCase):
         from app.main import create_app
         from app.state import Account, ModelEntry, state
         self.state = state
-        # Round 26: a catalogue model is listed only while its connection exists.
+
         connection = Account("custom", {"name": "capsapi", "base_url": "https://capsapi.test/v1"}, id="capsapi-acc")
         self.patches = [patch.object(config_store, "_runtime_host", "127.0.0.1"),
                         patch.object(config_store, "_runtime_port", 8317),
@@ -467,7 +458,7 @@ class AdminRoutesTest(unittest.TestCase):
         self.assertTrue(response.json()["vision"])
         response = self.client.post(f"/api/admin/models/{self.entry.id}/probe", json={"action": "forget"})
         self.assertEqual(response.status_code, 200)
-        self.assertIn(self.entry.id, self.state.models)          # never routed to DELETE /models/{id}
+        self.assertIn(self.entry.id, self.state.models)
 
     def test_catalog_refresh_route(self):
         with patch.object(mc, "refresh_catalog", return_value={"ok": False, "sources": {"openrouter": {"ok": False, "error": "offline"}}}):
@@ -497,7 +488,6 @@ class AdminRoutesTest(unittest.TestCase):
     async def _green(*_a):
         return {"text": "green"}
 
-
 class SpeedTest(unittest.TestCase):
     def test_600_models_stay_fast_after_first_pass(self):
         reset_state()
@@ -510,7 +500,6 @@ class SpeedTest(unittest.TestCase):
             mc.adapter_vision(entry.id, entry.prefix, entry.provider, entry.model, entry=entry)
             mc.capabilities_for(entry.id, entry=entry)
         self.assertLess(time.perf_counter() - started, 0.25)
-
 
 class UiWiringTest(unittest.TestCase):
     def test_static_files_and_i18n_parity(self):
@@ -527,7 +516,7 @@ class UiWiringTest(unittest.TestCase):
         self.assertEqual(set(key.findall(ru_block)), set(key.findall(en_block)))
         used = set(re.findall(r't\("(mcap\.[a-z_.]+)"\)', js))
         self.assertTrue(used <= set(key.findall(ru_block)), used - set(key.findall(ru_block)))
-        # Copy goes through the panel's own helper, not a raw clipboard call.
+
         self.assertIn("copyText(", js)
         self.assertNotIn("navigator.clipboard", js)
 
@@ -540,7 +529,6 @@ class UiWiringTest(unittest.TestCase):
         for name in names:
             self.assertIn(f'data-i="{name}"', css, name)
         self.assertIn("prefers-reduced-motion", css)
-
 
 if __name__ == "__main__":
     unittest.main()

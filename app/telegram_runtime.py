@@ -31,7 +31,6 @@ log = logging.getLogger("memuai.telegram")
 _POOL: Optional[concurrent.futures.ThreadPoolExecutor] = None
 _CONTROL_POOL: Optional[concurrent.futures.ThreadPoolExecutor] = None
 
-
 def _pool(lane: str = "io") -> concurrent.futures.ThreadPoolExecutor:
     """``io`` — handlers (chat histories, sessions, speech files);
     ``control`` — the polling loop itself (offset, status, preferences).
@@ -51,7 +50,6 @@ def _pool(lane: str = "io") -> concurrent.futures.ThreadPoolExecutor:
         _POOL = concurrent.futures.ThreadPoolExecutor(max_workers=8, thread_name_prefix="memuai-telegram-io")
     return _POOL
 
-
 async def run_io(function: Callable[..., Any], *args: Any, timeout: Optional[float] = None,
                  lane: str = "io", **kwargs: Any) -> Any:
     """Run ``function`` on the bot's thread pool; ``timeout`` raises TimeoutError.
@@ -64,7 +62,6 @@ async def run_io(function: Callable[..., Any], *args: Any, timeout: Optional[flo
     if timeout is None:
         return await future
     return await asyncio.wait_for(future, timeout)
-
 
 class BotInstanceLock:
     """Non-blocking, process-wide lock for one bot token (see module docs)."""
@@ -88,7 +85,7 @@ class BotInstanceLock:
         if sys.platform == "win32":
             try:
                 return self._acquire_windows()
-            except Exception as exc:  # never let the lock itself stop the bot
+            except Exception as exc:
                 log.info("telegram instance lock unavailable (%s); continuing without it", type(exc).__name__)
                 return True
         try:
@@ -113,7 +110,7 @@ class BotInstanceLock:
         error = ctypes.get_last_error()
         if not handle:
             raise ctypes.WinError(error)
-        if error == 183:  # ERROR_ALREADY_EXISTS: another process holds it
+        if error == 183:
             close(handle)
             return False
         self._handle = handle

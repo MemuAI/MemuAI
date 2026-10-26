@@ -14,9 +14,6 @@ from app import detector as d
 from app import metrics as metrics_module
 from app import pricing
 
-
-# ----------------------------------------------------------------- detector
-
 class AnswerHygieneTests(unittest.TestCase):
     def test_think_blocks_are_removed_and_an_unclosed_one_means_no_answer(self) -> None:
         visible, info = d.clean_answer("<think>Am I Claude or GPT? Let me think.</think>\nI am Grok, built by xAI.")
@@ -47,13 +44,13 @@ class AnswerHygieneTests(unittest.TestCase):
         rows, ok = d.parse_list('<think>maybe [x] or {y}</think>\n```json\n["a", "b", "c"]\n```', 3)
         self.assertTrue(ok)
         self.assertEqual(rows, ["a", "b", "c"])
-        # Numbered lines with a gap stay aligned with their questions.
+
         rows, ok = d.parse_list("1. Argentina\n2) Charles\n4. Qatar", 5)
         self.assertTrue(ok)
         self.assertEqual(rows, ["Argentina", "Charles", "", "Qatar", ""])
         rows, ok = d.parse_list('{"1": "x", "3": "z"}', 3)
         self.assertEqual(rows, ["x", "", "z"])
-        # A paragraph or a refusal is not lined up against the questions.
+
         rows, ok = d.parse_list("I'm sorry, I can't browse the internet.\nPlease check the news.", 19)
         self.assertFalse(ok)
         self.assertEqual(rows, [])
@@ -67,7 +64,6 @@ class AnswerHygieneTests(unittest.TestCase):
         self.assertEqual(judged["best_guess"], "Claude Opus 4.5")
         self.assertEqual(len(judged["distribution"]), 2)
 
-
 class QuizAndTasksTests(unittest.TestCase):
     def _answers(self, **known: str):
         rows = ["unknown"] * len(d.QUIZ)
@@ -76,13 +72,13 @@ class QuizAndTasksTests(unittest.TestCase):
         return json.dumps(rows)
 
     def test_an_isolated_guessable_answer_does_not_move_the_cutoff(self) -> None:
-        # "Messi" (a frequent winner) after a ten-month gap: the old rule moved the cutoff to 2023-10.
+
         result = d.score_quiz(self._answers(q0="Argentina", q2="Messi"))
         self.assertEqual(result["estimate"], "2022-12")
-        # A streak of right answers backs it.
+
         result = d.score_quiz(self._answers(q0="Argentina", q1="Charles III", q2="Messi"))
         self.assertEqual(result["estimate"], "2023-10")
-        # So does a hard answer of the same period.
+
         known = {f"q{index}": value for index, value in enumerate(
             ["Argentina", "Charles", "Messi", "Qatar", "Anora", "Spain", "Noah Lyles", "Donald Trump"])}
         self.assertEqual(d.score_quiz(self._answers(**known))["estimate"], "2024-11")
@@ -115,7 +111,6 @@ class QuizAndTasksTests(unittest.TestCase):
             "identity_repeat": {"kind": "identity", "text": "I am GPT, made by OpenAI."}})
         self.assertLessEqual(other["repeat_stability"], 0.4)
 
-
 class AnalyseQualityTests(unittest.TestCase):
     def test_reasoning_in_think_tags_does_not_name_families(self) -> None:
         think = "<think>Could I be GPT-4o by OpenAI, or Gemini? The system says I'm Claude.</think>"
@@ -146,12 +141,11 @@ class AnalyseQualityTests(unittest.TestCase):
         self.assertIn("identity_version", quality["refused"])
         self.assertIn("quiz", quality["refused"])
         self.assertIn("capability", quality["timed_out"])
-        self.assertFalse(quality["partial"])           # slow probes, not a run cut off by its deadline
+        self.assertFalse(quality["partial"])
         self.assertGreaterEqual(quality["lost_share"], 0.34)
         self.assertNotEqual(report["confidence"], "high")
         self.assertTrue(any(row["level"] == "warn" and "probes gave no answer" in row["en"]
                             for row in report["confidence_factors"]))
-
 
 class RunRobustnessTests(unittest.TestCase):
     def _run(self, fake, depth="quick"):
@@ -191,7 +185,7 @@ class RunRobustnessTests(unittest.TestCase):
         self.assertEqual(probe["text"], "I am Claude, made by Anthropic.")
         self.assertEqual(probe["retried"], "reasoning_budget")
         self.assertIn(d.REASONING_RETRY_TOKENS, calls)
-        # Only the starved probe paid for a second request.
+
         self.assertEqual(calls.count(d.REASONING_RETRY_TOKENS), 1)
 
     def test_a_tokenizer_probe_starved_by_thinking_is_retried(self) -> None:
@@ -268,15 +262,10 @@ class RunRobustnessTests(unittest.TestCase):
         self.assertNotEqual(run["report"]["confidence"], "high")
         self.assertEqual(run["report"]["distribution"][0]["family"], "claude")
 
-
 _real_sleep = asyncio.sleep
-
 
 async def _instant_sleep(delay, *args, **kwargs):
     await _real_sleep(0)
-
-
-# ----------------------------------------------------------------- pricing
 
 class PricingLookupTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -308,7 +297,7 @@ class PricingLookupTests(unittest.TestCase):
                 price = pricing.lookup("kiro-claude-sonnet-4-5")
                 self.assertEqual(price.source, "builtin")
                 self.assertEqual(price.input, 3.0)
-                # With nothing better, a free listing is still the honest answer.
+
                 self.assertEqual(pricing.lookup("custom-brand-new-model").input, 0.0)
             pricing._index_stamp = (-1.0, -1.0)
 
@@ -321,9 +310,6 @@ class PricingLookupTests(unittest.TestCase):
                                    overrides={"x": {"input": 1, "output": 10, "reasoning": 20}})
         self.assertAlmostEqual(special.cost, (600 * 10 + 400 * 20) / 1e6)
 
-
-# ----------------------------------------------------------------- metrics
-
 class MetricsCostTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
@@ -335,7 +321,7 @@ class MetricsCostTests(unittest.TestCase):
 
     def test_every_model_gets_a_cost_and_subscriptions_are_api_equivalent(self) -> None:
         m = metrics_module.Metrics(self.path)
-        # use_prefixes off: the model id alone does not name Kiro — the stored provider does.
+
         m.record(provider="kiro", model="claude-sonnet-4-5", ok=True, ms=900, prompt_tokens=10_000, completion_tokens=1_000)
         m.record(provider="custom", model="my-or-openai/gpt-4o-mini", ok=True, ms=900, prompt_tokens=10_000,
                  completion_tokens=1_000)
@@ -366,7 +352,7 @@ class MetricsCostTests(unittest.TestCase):
         rows = {row["model"]: row for row in m.snapshot("day")["models"]}
         self.assertEqual(rows["or-anthropic/claude-sonnet-4.5"]["cost_state"], "billed")
         self.assertAlmostEqual(rows["or-anthropic/claude-sonnet-4.5"]["cost_usd"], 0.0123)
-        self.assertAlmostEqual(rows["kiro-claude-sonnet-4-5"]["cost_usd"], 0.30)   # cache price, not $3
+        self.assertAlmostEqual(rows["kiro-claude-sonnet-4-5"]["cost_usd"], 0.30)
         self.assertEqual(rows["kiro-claude-sonnet-4-5"]["cache_tokens"], 1_000_000)
 
     def test_the_total_prices_models_beyond_the_table(self) -> None:
@@ -411,7 +397,6 @@ class MetricsCostTests(unittest.TestCase):
         saved = json.loads(Path(self.path).read_text(encoding="utf-8"))
         self.assertEqual(saved["version"], 3)
 
-
 class UsagePlumbingTests(unittest.TestCase):
     def test_chat_records_cached_reasoning_and_reported_cost(self) -> None:
         source = (Path(__file__).resolve().parents[1] / "app" / "chat.py").read_text(encoding="utf-8")
@@ -420,7 +405,6 @@ class UsagePlumbingTests(unittest.TestCase):
         custom = (Path(__file__).resolve().parents[1] / "app" / "providers" / "custom.py").read_text(encoding="utf-8")
         self.assertIn('usage_event["cached_tokens"]', custom)
         self.assertIn('usage_event["cost"]', custom)
-
 
 if __name__ == "__main__":
     unittest.main()

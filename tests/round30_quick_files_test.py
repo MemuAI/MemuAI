@@ -16,7 +16,6 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-
 class FsCase(unittest.TestCase):
     def setUp(self):
         from app import quick_apps
@@ -38,7 +37,6 @@ class FsCase(unittest.TestCase):
         self.patch.stop()
         self.env.stop()
         shutil.rmtree(self.tmp, ignore_errors=True)
-
 
 class Resolve(FsCase):
     def test_places_absolute_current_and_refusals(self):
@@ -72,7 +70,6 @@ class Resolve(FsCase):
         self.assertEqual(keys["desktop"]["label"], "Рабочий стол")
         self.assertEqual(qf.label_for(self.home / "Downloads" / "Фото", "ru"), "Загрузки/Фото")
         self.assertEqual(qf.label_for(self.home / "Desktop", "en"), "Desktop")
-
 
 class Changes(FsCase):
     def test_mkdir_on_desktop_full_is_done_at_once_and_undone(self):
@@ -163,7 +160,7 @@ class Changes(FsCase):
         victim = self.home / "Desktop" / "old.txt"
         victim.write_text("bye", encoding="utf-8")
         out = qf.tool_change(None, {"ops": [{"op": "delete", "path": "Desktop/old.txt"}]}, "ru")
-        self.assertEqual((out["applied"], out["waiting"]), (0, 1))     # a delete always waits for the user
+        self.assertEqual((out["applied"], out["waiting"]), (0, 1))
         self.assertTrue(out["ui"]["set"]["trash"])
         self.assertTrue(victim.exists())
         result = qe.apply_set(out["set"])
@@ -207,7 +204,6 @@ class Changes(FsCase):
         with self.assertRaises(qf.FilesError):
             qf.tool_open(None, {"path": "Downloads/setup.exe"}, "ru")
 
-
 class Trash(unittest.TestCase):
     def test_recycle_bin_index_parser_and_lookup(self):
         from app import quick_trash
@@ -225,10 +221,9 @@ class Trash(unittest.TestCase):
             (sid / "$IAB12CD.txt").write_bytes(data)
             (sid / "$RAB12CD.txt").write_text("bye")
             found = quick_trash.find_recycled(path, time.time() - 1, dirs=[sid])
-            if os.name != "nt":   # normcase is a no-op off Windows: the stored path is compared as is
+            if os.name != "nt":
                 self.assertEqual(Path(found["item"]).name, "$RAB12CD.txt")
             self.assertIsNone(quick_trash.find_recycled("C:\\other.txt", time.time() - 1, dirs=[sid]))
-
 
 class RequestHook(FsCase):
     def test_file_questions_get_the_tools_and_others_do_not(self):
@@ -268,7 +263,6 @@ class RequestHook(FsCase):
     def test_page_marks_the_context_pending_while_loading(self):
         js = (Path(__file__).resolve().parents[1] / "app" / "pgstatic" / "quick" / "plugins" / "explorer.js").read_text("utf-8")
         self.assertIn('S.loading && !S.ctx ? { type: "app", pending: true }', js)
-
 
 class ModelGetsAndRunsTheTools(FsCase):
     """The mock provider answers with a files_change tool call: the tool is in the prompt, it runs, the card shows."""
@@ -318,7 +312,6 @@ class ModelGetsAndRunsTheTools(FsCase):
         lines = quick_ask_api.extra_tool_lines({"_quick_files": True})
         self.assertEqual(len([line for line in lines if line.startswith("files_")]), 4)
 
-
 class AssistantToolLine(unittest.TestCase):
     def test_shell_is_listed_only_with_the_advanced_mode(self):
         from app import assistant_commands as ac, quick_ask_api
@@ -335,7 +328,6 @@ class AssistantToolLine(unittest.TestCase):
         finally:
             if saved is not None:
                 quick_ask_api.EXTRA_TOOLS[ac.TOOL_NAME] = saved
-
 
 if __name__ == "__main__":
     unittest.main()

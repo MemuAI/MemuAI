@@ -1,15 +1,5 @@
-/* Round 33 — modules outside the MemuAI window (#6, #26). Server side: app/module_apps.py.
- *
- * Loaded in <head>, so the «module only» flag is on <html> before the first paint:
- *   /?module_app=<id>  → html[data-module-app="<id>"]: this page is one module's own window
- *                        (installed module app, or a module moved out of MemuAI). modules.js
- *                        opens just that module, filling the window; the rest of MemuAI is hidden.
- * In the main window this file adds:
- *   - «Open in a separate window» / «Install as an app…» to the module menus;
- *   - the question when MemuAI is closed while modules are open (askAppClose, asked by Python);
- *   - Settings → Modules → «Modules as apps» (installed apps, what closing MemuAI does).
- * Every visible string is RU/EN; icons come from the app's icon() set.
- */
+
+
 (function () {
   "use strict";
   const params = new URLSearchParams(location.search);
@@ -26,7 +16,7 @@
     (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
   const ic = (name) => (typeof icon === "function" ? icon(name) : "");
   const M = () => window.MemuModules;
-  const note = (text, type, action) => { try { if (typeof toast === "function") toast(text, type || "ok", action || null); } catch (_) { /* no toast */ } };
+  const note = (text, type, action) => { try { if (typeof toast === "function") toast(text, type || "ok", action || null); } catch (_) {  } };
   const MARK = '<span class="ui-icon"><svg viewBox="0 0 24 24"><path d="M12 3.5c.5 3.9 2.6 6 6.5 6.5-3.9.5-6 2.6-6.5 6.5-.5-3.9-2.6-6-6.5-6.5 3.9-.5 6-2.6 6.5-6.5z"/><path d="M18.5 15.5c.2 1.4 1 2.2 2.5 2.5-1.5.3-2.3 1.1-2.5 2.5-.2-1.4-1-2.2-2.5-2.5 1.5-.3 2.3-1.1 2.5-2.5z"/></svg></span>';
   const APP_ICON = '<span class="ui-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="7" rx="2"/><rect x="13.5" y="3.5" width="7" height="7" rx="2"/><rect x="3.5" y="13.5" width="7" height="7" rx="2"/><path d="M17 13.5v7M13.5 17h7"/></svg></span>';
   const POP_ICON = '<span class="ui-icon"><svg viewBox="0 0 24 24"><rect x="3.5" y="7.5" width="13" height="13" rx="2.5"/><path d="M13 3.5h7.5V11M20.5 3.5 11 13"/></svg></span>';
@@ -61,9 +51,8 @@
     });
   }
 
-  /* ----------------------------- the module glyph as an app icon ----------------------------- */
   function iconPng(row) {
-    // Round 39: the module's own icon (module-icons.js) — the .ico of the app and its shortcuts match MemuAI.
+
     const fresh = (row && catalogRow(row.id)) || row;
     if (window.MemuModuleIcon) return window.MemuModuleIcon.png(fresh, 256);
     return new Promise((resolve) => {
@@ -84,7 +73,7 @@
         g.beginPath();
         if (g.roundRect) g.roundRect(8, 8, 240, 240, 58); else g.rect(8, 8, 240, 240);
         g.fill();
-        try { g.fillStyle = grad; g.fill(); } catch (_) { /* color-mix in a canvas gradient is not everywhere */ }
+        try { g.fillStyle = grad; g.fill(); } catch (_) {  }
         const img = new Image();
         img.onload = () => {
           try {
@@ -98,7 +87,6 @@
     });
   }
 
-  /* ------------------------------------- dialogs ------------------------------------- */
   function dialog(html, kind, onClose) {
     if (typeof panel !== "function") return false;
     panel(html, "module-apps-panel " + (kind || ""), { onClose });
@@ -184,14 +172,13 @@
     } catch (error) { note(error.message, "err"); }
   }
 
-  /* ------------------------------ separate windows (main window) ------------------------------ */
   async function popOut(id) {
     if (!id) return false;
     const box = M() && M().windowBox ? M().windowBox(id) : null;
     try {
       const data = await api("/api/pg/module-apps/open", { id, width: box ? box.width : 0, height: box ? box.height + 32 : 0 });
       if (!data.native) {
-        // A plain browser (dev / tests): a popup window with the same page.
+
         const w = box ? Math.round(box.width) : 1000, h = box ? Math.round(box.height) : 720;
         window.open(data.url || `/?module_app=${encodeURIComponent(id)}`, `memu-module-${id}`, `popup,width=${w},height=${h}`);
       } else detached.add(id);
@@ -222,7 +209,6 @@
     return items;
   }
 
-  /* ---------------------------- MemuAI closes, modules are open (#6) ---------------------------- */
   let asking = false;
   function openModules() {
     const mods = M();
@@ -236,7 +222,7 @@
     if (!mods) return true;
     for (const id of mods.openIds.slice()) {
       mods.requestClose(id);
-      // requestClose may ask (unsaved / generating): wait until that window is gone or the person kept it.
+
       for (let i = 0; i < 600 && mods.openIds.includes(id); i++) {
         await new Promise((resolve) => setTimeout(resolve, 100));
         if (!document.getElementById("panel-back")?.classList.contains("visible") && mods.openIds.includes(id)) break;
@@ -273,7 +259,7 @@
     if (!dialog(html, "mapp-close-panel", done)) { asking = false; return; }
     const $ = (id) => document.getElementById(id);
     if (!state.native) {
-      // No desktop shell: there is no other window to keep the modules in.
+
       $("mapp-keep").disabled = true;
       $("mapp-keep").title = t("Отдельные окна есть только в приложении MemuAI", "Separate windows exist in the MemuAI desktop app only");
     }
@@ -283,14 +269,14 @@
       const remember = $("mapp-remember").checked;
       closeDialog("confirm"); done();
       try {
-        // The server opens the windows, then calls movedOut(ids) here and hides MemuAI.
+
         await api("/api/pg/module-apps/app-close", { action: "keep", remember, ids: list.map((row) => row.id) });
       } catch (error) { note(error.message, "err"); }
     };
     $("mapp-close-all").onclick = async () => {
       const remember = $("mapp-remember").checked;
       closeDialog("confirm"); done();
-      if (!(await closeAllInApp())) return;  // the person kept a module with unsaved work
+      if (!(await closeAllInApp())) return;
       api("/api/pg/module-apps/app-close", { action: "close", remember }).catch((error) => note(error.message, "err"));
     };
   }
@@ -303,7 +289,6 @@
     markLaunchers();
   }
 
-  /* ------------------------------------ state reports ------------------------------------ */
   let lastReport = "";
   function report() {
     const mods = M();
@@ -325,7 +310,6 @@
   document.addEventListener("memu-modules-changed", () => setTimeout(report, 0));
   setInterval(report, 1200);
 
-  /* --------------------------------- the module's own window --------------------------------- */
   async function bootModuleApp(open) {
     await loadState();
     const row = catalogRow(APP);
@@ -398,7 +382,7 @@
       { label: t("Открыть MemuAI", "Open MemuAI"), icon: "chat", run: () => showMain() },
       { label: app ? t("Приложение: ярлыки и список…", "App: shortcuts and list…") : t("Установить как приложение…", "Install as an app…"),
         icon: "monitor", run: () => installDialog(row || catalogRow(id)) },
-      // Round 38: this app's own title bar (module-appbar.js) — the change applies when the window is reopened.
+
       { label: (state.appbar || {})[id] !== false && state.custom_appbar !== false
         ? t("Системная рамка окна (после переоткрытия)", "System window frame (after reopening)")
         : t("Свой заголовок окна (после переоткрытия)", "Own window title bar (after reopening)"),
@@ -417,14 +401,14 @@
     api("/api/pg/module-apps/window", { action: "close", id: id || APP, force: true }).then((data) => {
       if (!data.native) {
         window.close();
-        // A tab the script did not open cannot close itself: say so instead of a blank page.
+
         setTimeout(() => showGone(t("Модуль закрыт. Это окно можно закрыть.", "The module is closed. You can close this window."), false), 150);
       }
     }).catch(() => window.close());
   }
 
   function askWindowClose() {
-    // The Windows caption × of a module window that is working / has unsaved changes.
+
     if (M()) M().requestClose(APP);
   }
 
@@ -432,7 +416,6 @@
     api("/api/pg/module-apps/window", { action: "minimize", id: APP }).catch(() => {});
   }
 
-  /* --------------------------------------- settings --------------------------------------- */
   let settingsHost = null;
   function refreshSettings() {
     if (settingsHost && settingsHost.isConnected) renderSettings(settingsHost, true);
@@ -494,7 +477,7 @@
       };
     });
     section.querySelectorAll("[data-mapp-appbar]").forEach((input) => {
-      // Round 38: the custom title bar (app/module_appbar.py) — all module apps ("") or one.
+
       input.onchange = async () => {
         try {
           state = Object.assign(state, await api("/api/pg/module-apps/appbar", { id: input.dataset.mappAppbar, enabled: input.checked }));
@@ -510,9 +493,6 @@
     section.querySelectorAll("[data-mapp-remove]").forEach((button) => { button.onclick = () => uninstall(button.dataset.mappRemove); });
   }
 
-  /* Round 40: an installed app whose .ico the page draws (a glyph icon, no icon file) is re-checked once per
-     start — POST /api/pg/module-apps/icon-sync gives it a new .ico, shortcuts and taskbar icon if the module's
-     icon changed. Apps made from an icon file are checked by the server itself (module_apps.repair). */
   let iconSyncTries = 0;
   function syncAppIcons() {
     const rows = (state.apps || []).filter((app) => app.installed && !String(app.icon_sig || "").startsWith("file:"));

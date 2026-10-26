@@ -17,19 +17,16 @@ PG = ROOT / "app" / "pgstatic"
 PX = ROOT / "app" / "static"
 GUIDES = ["telegram-bot", "google-client", "github-token", "notion-connection", "proxy-api-key"]
 
-
 def guide_table():
     text = (PG / "guide-video.js").read_text(encoding="utf-8")
     block = text[text.index("const GUIDES = {"):text.index("};", text.index("const GUIDES = {"))]
     return dict(re.findall(r'"([a-z-]+)": \{[^}]*seconds: (\d+)', block))
-
 
 def read_vtt(path):
     text = path.read_text(encoding="utf-8")
     cues = re.findall(r"(\d\d:\d\d:\d\d\.\d{3}) --> (\d\d:\d\d:\d\d\.\d{3})[^\n]*\n(.+)", text)
     to_s = lambda v: int(v[:2]) * 3600 + int(v[3:5]) * 60 + float(v[6:])
     return text, [(to_s(a), to_s(b), body.strip()) for a, b, body in cues]
-
 
 class GuideFilesTest(unittest.TestCase):
     def test_player_files_identical_in_both_apps(self):
@@ -86,7 +83,6 @@ class GuideFilesTest(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
             self.assertNotRegex(text, r"sk-or-v1-[0-9a-f]{20,}|ghp_[A-Za-z0-9]{30,}|\d{8,10}:[A-Za-z0-9_-]{30,}")
 
-
 class WiringTest(unittest.TestCase):
     def test_script_and_style_tags(self):
         for index in (PG / "index.html", PX / "index.html"):
@@ -117,7 +113,6 @@ class WiringTest(unittest.TestCase):
         self.assertIn("('app/pgstatic', 'app/pgstatic')", prx)
         self.assertIn('"app/static;app/static"', build)
         self.assertIn('"app/pgstatic;app/pgstatic"', build)
-
 
 class AccuracyTest(unittest.TestCase):
     def test_cloudflare_path_is_current(self):
@@ -159,7 +154,6 @@ class AccuracyTest(unittest.TestCase):
         self.assertEqual(_token_from_paste(f"cloudflared tunnel run --token {token}"), token)
         self.assertEqual(_token_from_paste(f'  "{token}"  '), token)
 
-
 class PlayerBrowserTest(unittest.TestCase):
     """The player opens from a button, shows RU/EN captions as tracks, lists the steps and closes on Escape."""
 
@@ -198,7 +192,7 @@ class PlayerBrowserTest(unittest.TestCase):
             page = browser.new_page(viewport={"width": 1280, "height": 800})
             errors = []
             page.on("pageerror", lambda e: errors.append(str(e)))
-            page.goto(base + "/guide-video.css")   # same origin for fetch()
+            page.goto(base + "/guide-video.css")
             page.set_content(f"""<html lang="{lang}"><head><link rel="stylesheet" href="{base}/guide-video.css"></head>
               <body><div id="host"></div><script src="{base}/guide-video.js"></script></body></html>""")
             page.wait_for_function("!!window.MemuGuideVideo")
@@ -231,7 +225,6 @@ class PlayerBrowserTest(unittest.TestCase):
 
     def test_player_proxy_en(self):
         self._check(self._serve(PX), "en", "proxy-api-key")
-
 
 if __name__ == "__main__":
     unittest.main()

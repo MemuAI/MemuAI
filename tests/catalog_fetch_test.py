@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, patch
 
 from app import websearch
 
-
 class CatalogFetchTest(unittest.IsolatedAsyncioTestCase):
     async def fetch(self, size, *, raw=True, limit=8_000_000):
         class Response:

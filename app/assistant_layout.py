@@ -22,11 +22,10 @@ import re
 import time
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
-Rect = Tuple[int, int, int, int]       # left, top, right, bottom
-MIN_VISIBLE = 64                       # px of a window that must stay on screen
+Rect = Tuple[int, int, int, int]
+MIN_VISIBLE = 64
 LAYOUT_VERSION = 1
 MAX_WINDOWS = 24
-
 
 def _rect(value: Any) -> Optional[Rect]:
     try:
@@ -37,7 +36,6 @@ def _rect(value: Any) -> Optional[Rect]:
         return None
     return left, top, right, bottom
 
-
 def _int(value: Any, default: int = 0) -> int:
     """``int()`` that never raises: imported JSON may carry text, NaN or 1e999 (Round 23 — an
     ``OverflowError`` from ``int(float('inf'))`` escaped as a 500 from the commands import)."""
@@ -46,20 +44,16 @@ def _int(value: Any, default: int = 0) -> int:
     except (TypeError, ValueError, OverflowError):
         return default
 
-
 def width(rect: Rect) -> int:
     return rect[2] - rect[0]
 
-
 def height(rect: Rect) -> int:
     return rect[3] - rect[1]
-
 
 def intersection(a: Rect, b: Rect) -> int:
     w = min(a[2], b[2]) - max(a[0], b[0])
     h = min(a[3], b[3]) - max(a[1], b[1])
     return max(0, w) * max(0, h)
-
 
 def monitor_for_rect(rect: Rect, monitors: Sequence[Dict[str, Any]]) -> int:
     """Index of the monitor holding most of ``rect`` (closest centre when none overlaps)."""
@@ -79,12 +73,10 @@ def monitor_for_rect(rect: Rect, monitors: Sequence[Dict[str, Any]]) -> int:
         return dx * dx + dy * dy
     return min(range(len(monitors)), key=lambda i: dist(monitors[i])) if monitors else 0
 
-
 def relative(rect: Rect, work: Rect) -> Dict[str, float]:
     ww, wh = max(1, width(work)), max(1, height(work))
     return {"x": round((rect[0] - work[0]) / ww, 5), "y": round((rect[1] - work[1]) / wh, 5),
             "w": round(width(rect) / ww, 5), "h": round(height(rect) / wh, 5)}
-
 
 def from_relative(rel: Dict[str, float], work: Rect) -> Rect:
     ww, wh = width(work), height(work)
@@ -94,24 +86,19 @@ def from_relative(rel: Dict[str, float], work: Rect) -> Rect:
     h = max(80, int(round(float(rel.get("h", 0.5)) * wh)))
     return left, top, left + w, top + h
 
-
 def clamp_to(rect: Rect, work: Rect, min_visible: int = MIN_VISIBLE) -> Rect:
     """Shrink a rectangle larger than the work area and pull it back so it is reachable."""
     w = min(width(rect), width(work))
     h = min(height(rect), height(work))
     left = min(max(rect[0], work[0] - w + min_visible), work[2] - min_visible)
-    top = min(max(rect[1], work[1]), work[3] - min_visible)     # the title bar never above the top
+    top = min(max(rect[1], work[1]), work[3] - min_visible)
     return left, top, left + w, top + h
-
 
 def normalize_monitor(mon: Dict[str, Any], index: int) -> Dict[str, Any]:
     rect = _rect(mon.get("rect")) or (0, 0, 1920, 1080)
     work = _rect(mon.get("work")) or rect
     return {"index": index, "device": str(mon.get("device") or ""), "rect": list(rect), "work": list(work),
             "dpi": max(48, min(960, _int(mon.get("dpi") or 96, 96))), "primary": bool(mon.get("primary"))}
-
-
-# ------------------------------------------------------------------ capture
 
 def capture(windows: Sequence[Dict[str, Any]], monitors: Sequence[Dict[str, Any]], *,
             name: str = "", now: Optional[float] = None) -> Dict[str, Any]:
@@ -125,7 +112,7 @@ def capture(windows: Sequence[Dict[str, Any]], monitors: Sequence[Dict[str, Any]
         state = str(win.get("state") or "normal")
         if state not in ("normal", "maximized", "minimized"):
             state = "normal"
-        # minimized windows keep their restore rectangle (GetWindowPlacement.rcNormalPosition)
+
         normal = _rect(win.get("normal_rect")) or rect
         geo = normal if state != "normal" else rect
         index = monitor_for_rect(geo, mons)
@@ -143,7 +130,6 @@ def capture(windows: Sequence[Dict[str, Any]], monitors: Sequence[Dict[str, Any]
             break
     return {"version": LAYOUT_VERSION, "name": str(name or "")[:60], "captured_at": int(now or time.time()),
             "monitors": mons, "windows": rows}
-
 
 def validate(layout: Any) -> Dict[str, Any]:
     """Clean an imported/stored layout; raises ValueError when unusable."""
@@ -178,9 +164,6 @@ def validate(layout: Any) -> Dict[str, Any]:
         raise ValueError("layout has no windows")
     return {"version": LAYOUT_VERSION, "name": str(layout.get("name") or "")[:60],
             "captured_at": _int(layout.get("captured_at") or 0), "monitors": mons, "windows": rows}
-
-
-# ------------------------------------------------------------------ restore
 
 def map_monitors(saved: Sequence[Dict[str, Any]], current: Sequence[Dict[str, Any]]) -> Dict[int, Tuple[int, bool]]:
     """saved index → (current index, same geometry). Device name + size first, then position, then order."""
@@ -226,19 +209,17 @@ def map_monitors(saved: Sequence[Dict[str, Any]], current: Sequence[Dict[str, An
             out[s["index"]] = (pick, False)
             used.add(pick)
         else:
-            # more saved monitors than connected: fall back to the closest current one
+
             centre = ((s["rect"][0] + s["rect"][2]) / 2, (s["rect"][1] + s["rect"][3]) / 2)
             box = (int(centre[0]), int(centre[1]), int(centre[0]) + 1, int(centre[1]) + 1)
             out[s["index"]] = (monitor_for_rect(box, cur), False)
     return out
-
 
 def _title_score(a: str, b: str) -> float:
     a, b = re.sub(r"\s+", " ", a or "").lower(), re.sub(r"\s+", " ", b or "").lower()
     if not a or not b:
         return 0.0
     return difflib.SequenceMatcher(None, a, b).ratio()
-
 
 def match_windows(saved: Sequence[Dict[str, Any]], running: Sequence[Dict[str, Any]]) -> List[Optional[int]]:
     """For each saved window the index of a running window of the same app (each used once)."""
@@ -265,7 +246,6 @@ def match_windows(saved: Sequence[Dict[str, Any]], running: Sequence[Dict[str, A
         result.append(best)
     return result
 
-
 def target_rect(row: Dict[str, Any], saved_monitors: Sequence[Dict[str, Any]],
                 current: Sequence[Dict[str, Any]], mapping: Dict[int, Tuple[int, bool]]) -> Tuple[int, Rect]:
     """(current monitor index, visible rectangle) where a saved window goes."""
@@ -277,7 +257,6 @@ def target_rect(row: Dict[str, Any], saved_monitors: Sequence[Dict[str, Any]],
     else:
         rect = from_relative(row["rel"], work)
     return cur_index, clamp_to(rect, work)
-
 
 def plan_restore(layout: Dict[str, Any], current_monitors: Sequence[Dict[str, Any]],
                  running: Sequence[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -296,19 +275,14 @@ def plan_restore(layout: Dict[str, Any], current_monitors: Sequence[Dict[str, An
     steps.sort(key=lambda s: -int(s["row"].get("z") or 0))
     return steps
 
-
 def frame_offsets(window_rect: Rect, visible_rect: Rect) -> Tuple[int, int, int, int]:
     """Invisible resize borders: GetWindowRect minus DWM extended frame bounds (each ≥ 0)."""
     return (max(0, visible_rect[0] - window_rect[0]), max(0, visible_rect[1] - window_rect[1]),
             max(0, window_rect[2] - visible_rect[2]), max(0, window_rect[3] - visible_rect[3]))
 
-
 def expand(rect: Rect, offsets: Tuple[int, int, int, int]) -> Rect:
     """The SetWindowPos rectangle that makes the *visible* frame equal ``rect``."""
     return rect[0] - offsets[0], rect[1] - offsets[1], rect[2] + offsets[2], rect[3] + offsets[3]
-
-
-# ------------------------------------------------------------------ tiling helpers
 
 def snap_rect(work: Rect, where: str) -> Rect:
     l, t, r, b = work
@@ -316,13 +290,11 @@ def snap_rect(work: Rect, where: str) -> Rect:
     return {"snap_left": (l, t, mx, b), "snap_right": (mx, t, r, b), "snap_top": (l, t, r, my),
             "snap_bottom": (l, my, r, b)}.get(where, work)
 
-
 def center_rect(rect: Rect, work: Rect) -> Rect:
     w, h = min(width(rect), width(work)), min(height(rect), height(work))
     left = work[0] + (width(work) - w) // 2
     top = work[1] + (height(work) - h) // 2
     return left, top, left + w, top + h
-
 
 def tile(count: int, work: Rect, layout: str = "side_by_side") -> List[Rect]:
     """Rectangles for ``count`` windows on one monitor."""
@@ -333,8 +305,7 @@ def tile(count: int, work: Rect, layout: str = "side_by_side") -> List[Rect]:
     if layout == "cascade":
         step = max(24, min(48, H // 20))
         w, h = int(W * 0.66), int(H * 0.7)
-        # Round 23: with many windows the cascade ran off the bottom/right edge (24 windows × 48 px);
-        # it now starts again from the corner once the next step would leave the work area.
+
         fit = max(1, min((W - w) // step, (H - h) // step) + 1)
         return [(l + (i % fit) * step, t + (i % fit) * step, l + (i % fit) * step + w, t + (i % fit) * step + h)
                 for i in range(count)]
@@ -351,7 +322,7 @@ def tile(count: int, work: Rect, layout: str = "side_by_side") -> List[Rect]:
     out = []
     for i in range(count):
         row, col = divmod(i, cols)
-        # the last row stretches when it is not full
+
         in_row = cols if row < rows - 1 else count - cols * (rows - 1)
         cw = W // in_row
         x0 = l + col * cw
@@ -362,11 +333,9 @@ def tile(count: int, work: Rect, layout: str = "side_by_side") -> List[Rect]:
         out.append((x0, y0, x1, y1))
     return out
 
-
 def move_to_monitor(rect: Rect, src_work: Rect, dst_work: Rect) -> Rect:
     """Same relative position and size on another monitor."""
     return clamp_to(from_relative(relative(rect, src_work), dst_work), dst_work)
-
 
 def pick_monitor(spec: Any, current: int, count: int) -> int:
     text = str(spec or "next").strip().lower()

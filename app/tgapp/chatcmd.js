@@ -1,11 +1,5 @@
-/* MemuAI Mini App — commands of the chat composer (Round 30).
- *
- * The chat understands /image (/img) and /video (app/tgapp_chat.py → telegram_media_gen.parse_command): typing
- * «/» shows them with what they do (↑ ↓, Tab / Enter insert, Esc closes), and a message that starts with one of
- * them is marked in the input exactly as in the main window — the command becomes a chip, a ghost text says what
- * to type, a line «Image — will be drawn…» says what will happen (the main window's own pgstatic/cmd-highlight.js,
- * served as /tgapp/shared/cmd-highlight.*).
- */
+
+
 (function () {
   "use strict";
   (window.MemuTgPlugins = window.MemuTgPlugins || []).push(function (kit) {
@@ -16,7 +10,7 @@
     ];
 
     kit.hooks.composerExtras.push((C, view, entry, options = {}) => {
-      if (options.code) return;                              // MemuCode has its own menu (code.js)
+      if (options.code) return;
       const input = $("#msg-input", view), inner = $(".composer-inner", view);
       if (!input || !inner) return;
       const menu = document.createElement("div");
@@ -49,7 +43,7 @@
       }
       input.addEventListener("input", update);
       input.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== input && M.open) { M.open = false; draw(); } }, 160));
-      // Capture: runs before the composer's own Enter-to-send.
+
       input.addEventListener("keydown", (event) => {
         if (!M.open) return;
         if (event.key === "ArrowDown" || event.key === "ArrowUp") { event.preventDefault(); M.index = (M.index + (event.key === "ArrowDown" ? 1 : -1) + M.rows.length) % M.rows.length; draw(); }

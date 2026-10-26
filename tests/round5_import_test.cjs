@@ -1,4 +1,4 @@
-// Round 5 / item 14: the chat importer is executed for real, not just grepped.
+
 const fs = require("fs");
 const path = require("path");
 const assert = require("assert");
@@ -18,7 +18,6 @@ const api = new Function(
   "function trText(ru, en) { return ru; }\n" + importers + facts +
   "\nreturn { parseImportedChats, importedText, importedRole, aboutFactsFallback };")();
 
-// --- ChatGPT export: array of conversations with a mapping tree
 const chatgpt = [{
   title: "ChatGPT thread",
   mapping: {
@@ -38,7 +37,6 @@ assert.strictEqual(fromChatGpt[0].messages[1].role, "assistant");
 assert.strictEqual(fromChatGpt[0].messages[1].content, "Ответ");
 assert.ok(fromChatGpt[0].messages[1].createdAt > 0, "timestamps must be converted to ms");
 
-// --- Claude export: chat_messages with sender human|assistant
 const claude = [{
   name: "Claude thread",
   chat_messages: [
@@ -51,7 +49,6 @@ assert.strictEqual(fromClaude.length, 1, "Claude conversation not imported");
 assert.strictEqual(fromClaude[0].messages[1].content, "hello");
 assert.strictEqual(fromClaude[0].messages[0].role, "user");
 
-// --- MemuAI / Gemini shape: plain messages array
 const memu = { app: "MemuAI", kind: "memuai-chats", chats: [{
   title: "MemuAI thread",
   messages: [{ role: "user", content: "a" }, { role: "model", content: "b" }],
@@ -61,11 +58,9 @@ assert.strictEqual(fromMemu.length, 1, "MemuAI export not imported");
 assert.strictEqual(fromMemu[0].messages[1].role, "assistant", "model role must map to assistant");
 assert.ok(fromMemu[0].id.startsWith("imp-"), "imported chats need fresh ids");
 
-// --- garbage in, nothing out
 assert.deepStrictEqual(api.parseImportedChats({ hello: "world" }), []);
 assert.deepStrictEqual(api.parseImportedChats([{ messages: [] }]), []);
 
-// --- the offline fallback parser for the "about you" import
 const dossier = [
   "1. Демографическая информация",
   "* Пользователя зовут Ахмедуля.",

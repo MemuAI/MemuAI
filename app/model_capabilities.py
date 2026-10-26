@@ -54,23 +54,17 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple
 
 from .config import DATA_DIR
 from . import model_info
+from .model_contract import (kind_for_row, known_decision_model, infer_kind, _strs, _modality, _modalities, _value,
+                             _IMAGE_GEN, _VIDEO_GEN, _EMBED, _STT, _TTS, _MUSIC)
 
-# ---------------------------------------------------------------------------
-# Files
-# ---------------------------------------------------------------------------
+CATALOG_FILE = "model-catalog.json"
+RAW_FILE = "model-raw.json"
+PROBES_FILE = "model-probes.json"
+OVERRIDES_FILE = "model-overrides.json"
 
-CATALOG_FILE = "model-catalog.json"     # our own copy of OpenRouter + Models.dev (explicit refresh only)
-RAW_FILE = "model-raw.json"             # raw rows of providers' model lists
-PROBES_FILE = "model-probes.json"       # results of user-started vision probes
-OVERRIDES_FILE = "model-overrides.json"  # Round 24: capabilities the user set by hand
-
-#: Round 24 — what the model can do *through this connection* vs. what public catalogues say.
-#: Routing (vision filters, DFY, attachments) reads only ``effective``; ``reference`` is shown as
-#: "по данным OpenRouter / Models.dev" and never turns a capability on by itself.
 EFFECTIVE_KEYS = ("vision", "tools", "reasoning", "context", "max_output", "structured_output")
 OVERRIDE_KEYS = ("vision", "tools", "reasoning", "context", "max_output")
-#: Sources that describe this API / provider: user override, the vision probe, the local file,
-#: the provider's own /models row and the Proxy's adapter facts.
+
 EFFECTIVE_SOURCES = ("user", "probe", "local", "provider", "proxy")
 REFERENCE_SOURCES = ("openrouter", "models.dev")
 SOURCE_KIND = {"user": "user-override", "probe": "api-probe", "local": "provider", "provider": "provider",
@@ -80,20 +74,18 @@ SOURCE_KIND = {"user": "user-override", "probe": "api-probe", "local": "provider
 OPENROUTER_URL = "https://openrouter.ai/api/v1/models"
 MODELS_DEV_URL = "https://models.dev/api.json"
 MAX_DOWNLOAD = 24 * 1024 * 1024
-MAX_RAW_ROW = 24_000                    # characters of JSON kept per provider row
+MAX_RAW_ROW = 24_000
 
 SOURCE_RANK = {"user": -1, "probe": 0, "local": 1, "provider": 2, "openrouter": 3, "models.dev": 4,
                "catalog": 5, "proxy": 6, "heuristic": 7}
 CONFIDENCE_RANK = {"verified": 0, "high": 1, "medium": 2, "low": 3}
 
-#: Providers whose adapters pass pictures to the model (local: only with an mmproj projector).
 IMAGE_ADAPTERS = {"genspark", "antigravity", "kiro", "custom"}
-#: Providers that run on web accounts or subscriptions: prices are an API-equivalent estimate.
+
 SUBSCRIPTION_PROVIDERS = {"genspark", "kiro", "antigravity", "geminiweb", "grok"}
 
 MODALITIES = ("text", "image", "audio", "video", "file")
 
-#: Field order and groups of the card. The UI renders groups in this order.
 GROUPS: List[Tuple[str, Tuple[str, ...]]] = [
     ("identity", ("name", "kind", "vendor", "family", "description", "huggingface", "tokenizer", "canonical")),
     ("modalities", ("input", "output", "vision", "audio_input", "video_input", "file_input",
@@ -112,10 +104,8 @@ FIELD_ORDER = [key for _group, keys in GROUPS for key in keys]
 
 _lock = threading.RLock()
 
-
 def _path(name: str) -> str:
     return os.path.join(DATA_DIR, name)
-
 
 def _read_json(path: str) -> Any:
     try:
@@ -124,13 +114,11 @@ def _read_json(path: str) -> Any:
     except (OSError, ValueError):
         return None
 
-
 def _mtime(path: str) -> float:
     try:
         return os.stat(path).st_mtime
     except OSError:
         return 0.0
-
 
 def _save(path: str, data: Any) -> None:
     try:
@@ -138,11 +126,6 @@ def _save(path: str, data: Any) -> None:
         save_json(path, data, backup=False)
     except Exception:
         pass
-
-
-# ---------------------------------------------------------------------------
-# Small value helpers
-# ---------------------------------------------------------------------------
 
 def _num(value: Any) -> Optional[float]:
     if isinstance(value, bool) or value is None or value == "":
@@ -153,11 +136,9 @@ def _num(value: Any) -> Optional[float]:
         return None
     return number if number == number and number not in (float("inf"), float("-inf")) else None
 
-
 def _tokens(value: Any) -> Optional[int]:
     number = _num(value)
     return int(number) if number is not None and 256 <= number <= 100_000_000 else None
-
 
 def _per_million(value: Any) -> Optional[float]:
     """OpenRouter prices are USD per token (strings); ``-1`` means "varies"."""
@@ -166,41 +147,9 @@ def _per_million(value: Any) -> Optional[float]:
         return None
     return round(number * 1_000_000, 6)
 
-
 def _price(value: Any) -> Optional[float]:
     number = _num(value)
     return None if number is None or number < 0 else round(number, 6)
-
-
-def _strs(values: Any) -> List[str]:
-    if isinstance(values, str):
-        values = re.split(r"[,+\s]+", values)
-    if not isinstance(values, (list, tuple, set)):
-        return []
-    return [str(v).strip().lower() for v in values if isinstance(v, (str, int)) and str(v).strip()]
-
-
-def _modality(name: str) -> str:
-    name = str(name or "").lower()
-    if name in ("pdf", "document", "documents", "file", "files"):
-        return "file"
-    if name in ("images", "img", "vision", "image_url"):
-        return "image"
-    if name in ("speech", "voice"):
-        return "audio"
-    if name in ("embedding", "embeddings", "vector"):
-        return "embeddings"
-    return name
-
-
-def _modalities(values: Any) -> List[str]:
-    out: List[str] = []
-    for value in _strs(values):
-        name = _modality(value)
-        if name and name not in out:
-            out.append(name)
-    return out
-
 
 def _date(value: Any) -> str:
     """Unix seconds/ms or a date string → ``YYYY-MM-DD`` (or the original text, trimmed)."""
@@ -216,17 +165,11 @@ def _date(value: Any) -> str:
     text = str(value).strip()
     return text[:32]
 
-
 def _bare(model: str) -> str:
     """``anthropic/Claude-Haiku-4.5:free`` → ``claude-haiku-4.5`` (only vendor path and ``:variant`` dropped)."""
     text = str(model or "").strip().lower().lstrip("~")
     text = text.split("/")[-1]
     return re.split(r":(?![0-9]{2}$)", text)[0]
-
-
-# ---------------------------------------------------------------------------
-# Public catalogues: normalised rows
-# ---------------------------------------------------------------------------
 
 def normalize_openrouter(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not isinstance(row, dict) or not row.get("id"):
@@ -274,7 +217,7 @@ def normalize_openrouter(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "reasoning": ("reasoning" in params or "include_reasoning" in params or bool(reasoning)) if params or reasoning else None,
         "reasoning_efforts": _strs(reasoning.get("supported_efforts")),
         "reasoning_mandatory": reasoning.get("mandatory") if isinstance(reasoning.get("mandatory"), bool) else None,
-        # pricing.web_search is OpenRouter's own search plugin (any model); only the parameter means native search.
+
         "web": True if "web_search_options" in params else None,
         "temperature": ("temperature" in params) if params else None,
         "open_weights": True if row.get("hugging_face_id") else None,
@@ -286,12 +229,9 @@ def normalize_openrouter(row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         "raw": row,
     }
 
-
-#: Models.dev providers that are the lab itself (its listing wins over resellers).
 LAB_PROVIDERS = {"anthropic", "openai", "google", "xai", "deepseek", "mistral", "alibaba", "moonshotai", "zai",
                  "zhipuai", "minimax", "meta", "meta-llama", "cohere", "amazon-bedrock", "nvidia", "qwen",
                  "inception", "perplexity", "ai21", "baidu", "bytedance", "tencent", "stepfun", "microsoft"}
-
 
 def normalize_models_dev(provider_id: str, provider: Dict[str, Any], row: Dict[str, Any]) -> Optional[Dict[str, Any]]:
     if not isinstance(row, dict) or not row.get("id"):
@@ -330,7 +270,6 @@ def normalize_models_dev(provider_id: str, provider: Dict[str, Any], row: Dict[s
         "raw": {"provider": provider_id, **row},
     }
 
-
 def models_dev_rows(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     """One row per model (canonical name): the lab's own listing first, then any with a canonical id,
     a live one before a deprecated one. Models.dev lists the same model once per reseller (~8400 rows)."""
@@ -351,7 +290,6 @@ def models_dev_rows(data: Dict[str, Any]) -> List[Dict[str, Any]]:
             if key not in best or rank < best[key][0]:
                 best[key] = (rank, slim)
     return [row for _rank, row in best.values()]
-
 
 def _module_rows() -> List[Dict[str, Any]]:
     """Rows the MemuAI "Model catalogue" module cached (slim JS shape) — used until our own copy exists."""
@@ -393,12 +331,9 @@ def _module_rows() -> List[Dict[str, Any]]:
         })
     return out
 
-
 class _Catalog:
     """Index over the catalogue rows: canonical name → best row per source. Rebuilt when a file changes."""
 
-    #: The MemuAI window polls /api/admin/pg/state every 3 s with hundreds of models: the files are
-    #: stat()ed at most this often (a stat costs ~30 µs on Windows/Defender, ×2 per model added up).
     CHECK_EVERY = 2.0
 
     def __init__(self) -> None:
@@ -442,7 +377,7 @@ class _Catalog:
                 continue
             slot = index.setdefault(key, {})
             current = slot.get(row["source"])
-            # A real listing beats a "~…-latest" alias; a paid listing beats a ":free" promo; shorter id wins.
+
             rank = (1 if row.get("alias") else 0, 1 if ":" in str(row["id"]) else 0, len(str(row["id"])))
             if current is None or rank < current["_rank"]:
                 slot[row["source"]] = {**row, "_rank": rank}
@@ -461,9 +396,7 @@ class _Catalog:
             result[source] = (row, kind)
         return result
 
-
 _catalog = _Catalog()
-
 
 def catalog_status() -> Dict[str, Any]:
     with _lock:
@@ -472,7 +405,6 @@ def catalog_status() -> Dict[str, Any]:
     at = _num(meta.get("at"))
     return {"own": bool(meta.get("own")), "module": bool(meta.get("module")), "rows": meta.get("rows", 0),
             "at": at, "age": (time.time() - at) if at else None, "sources": meta.get("sources") or {}}
-
 
 def refresh_catalog(*, timeout: float = 40.0,
                     fetch: Optional[Callable[[str], Any]] = None) -> Dict[str, Any]:
@@ -519,20 +451,13 @@ def refresh_catalog(*, timeout: float = 40.0,
             _catalog.ensure(force=True)
     return {"ok": ok, "sources": sources, "rows": len(rows)}
 
-
-# ---------------------------------------------------------------------------
-# Raw provider rows
-# ---------------------------------------------------------------------------
-
 _raw: Dict[str, Dict[str, Any]] = {}
 _raw_loaded = False
 _raw_version = 0
 _raw_timer: Optional[threading.Timer] = None
 
-
 def _raw_key(prefix: str, model: str) -> str:
     return f"{str(prefix or '').lower()}::{str(model or '')}"
-
 
 def _trim(value: Any, depth: int = 0) -> Any:
     if depth > 6:
@@ -545,7 +470,6 @@ def _trim(value: Any, depth: int = 0) -> Any:
         return [_trim(v, depth + 1) for v in value[:200]]
     return value
 
-
 def _ensure_raw() -> None:
     global _raw_loaded
     if _raw_loaded:
@@ -555,14 +479,12 @@ def _ensure_raw() -> None:
     if isinstance(data, dict):
         _raw.update({str(k): v for k, v in data.items() if isinstance(v, dict)})
 
-
 def _flush_raw() -> None:
     global _raw_timer
     with _lock:
         _raw_timer = None
         snapshot = dict(_raw)
     _save(_path(RAW_FILE), snapshot)
-
 
 def record_raw(prefix: str, rows: Iterable[Dict[str, Any]], *, id_field: str = "id",
                source: str = "api:models") -> int:
@@ -595,13 +517,11 @@ def record_raw(prefix: str, rows: Iterable[Dict[str, Any]], *, id_field: str = "
                 _raw_timer.start()
     return count
 
-
 def raw_row(prefix: str, provider: str, model: str) -> Optional[Dict[str, Any]]:
     with _lock:
         _ensure_raw()
         found = _raw.get(_raw_key(prefix, model)) or _raw.get(_raw_key(provider, model))
         return dict(found) if found else None
-
 
 def extract_provider(row: Dict[str, Any]) -> Dict[str, Any]:
     """Capabilities from one provider row of any common shape (OpenAI-compatible, OpenRouter, LM Studio,
@@ -622,14 +542,14 @@ def extract_provider(row: Dict[str, Any]) -> Dict[str, Any]:
             if slim.get("price_tiers"):
                 out["price_tiers"] = slim["price_tiers"]
     context, output = model_info.extract_limits(row)
-    if row.get("tokenLimits") and isinstance(row["tokenLimits"], dict):        # Kiro
+    if row.get("tokenLimits") and isinstance(row["tokenLimits"], dict):
         context = context or _tokens(row["tokenLimits"].get("maxInputTokens"))
         output = output or _tokens(row["tokenLimits"].get("maxOutputTokens"))
     if context:
         out["context"] = context
     if output:
         out["max_out"] = output
-    # modalities
+
     for field in ("input_modalities", "modalities", "supportedInputTypes", "input_types", "inputModalities"):
         value = row.get(field)
         if isinstance(value, dict):
@@ -641,9 +561,11 @@ def extract_provider(row: Dict[str, Any]) -> Dict[str, Any]:
             out.setdefault("in", _modalities(value))
     if row.get("output_modalities"):
         out.setdefault("out", _modalities(row.get("output_modalities")))
+    for modality, task in (("decisions","decisions"),("embeddings","embedding"),("scores","rerank")):
+        if modality in (out.get("out") or []):out["kind"] = task
     caps = row.get("capabilities")
     flags: Dict[str, Any] = {}
-    if isinstance(caps, list):                                                # Ollama / LM Studio
+    if isinstance(caps, list):
         names = set(_strs(caps))
         flags = {"vision": "vision" in names or None, "tools": ("tools" in names or "tool_use" in names) or None,
                  "reasoning": ("thinking" in names or "reasoning" in names) or None,
@@ -672,8 +594,7 @@ def extract_provider(row: Dict[str, Any]) -> Dict[str, Any]:
                         ("web_search", "web"), ("streaming", "streaming")):
         if isinstance(flags.get(key), bool) and key != "vision":
             out.setdefault(target, flags[key])
-    # Round 33 (r33-models): one-api / new-api gateways list the endpoints a model serves
-    # («supported_endpoint_types»: ["image-generation", "openai"]) — an image generator, whatever its name.
+
     endpoints = {e.replace("_", "-") for e in _strs(row.get("supported_endpoint_types") or row.get("endpoint_types"))}
     if endpoints & {"image-generation", "images", "image-generations", "dall-e"}:
         out["kind"] = "image"
@@ -683,11 +604,21 @@ def extract_provider(row: Dict[str, Any]) -> Dict[str, Any]:
         out["out"] = ["video"]
     elif endpoints & {"embeddings", "embedding"} and not endpoints & {"openai", "chat", "anthropic", "gemini"}:
         out["kind"] = "embedding"
-    kind = str(row.get("type") or row.get("model_type") or row.get("object_type") or "").lower()
+    elif not endpoints & {"openai", "chat", "anthropic", "gemini"}:
+        for values, task in (({"rerank", "reranking"}, "rerank"), ({"audio-speech", "speech", "tts"}, "tts"),
+                             ({"audio-transcription", "transcriptions", "stt"}, "stt"), ({"decisions"}, "decisions")):
+            if endpoints & values:
+                out["kind"] = task
+                break
+    kind = str(row.get("kind") or row.get("type") or row.get("model_type") or row.get("object_type") or "").lower()
     if kind in ("vlm",):
         out["in"] = list(dict.fromkeys((out.get("in") or ["text"]) + ["image"]))
     if kind in ("embedding", "embeddings") or flags.get("embedding"):
         out["kind"] = "embedding"
+    aliases = {"reranker":"rerank", "reranking":"rerank", "transcription":"stt", "speech-to-text":"stt", "text-to-speech":"tts", "decision":"decisions"}
+    task = aliases.get(kind, kind)
+    if task in ("rerank", "stt", "tts", "audio", "decisions", "image", "video", "music"):
+        out["kind"] = task
     methods = _strs(row.get("supportedGenerationMethods"))
     if methods and "embedcontent" in methods and "generatecontent" not in methods:
         out["kind"] = "embedding"
@@ -696,7 +627,7 @@ def extract_provider(row: Dict[str, Any]) -> Dict[str, Any]:
             out["quantization"] = str(row[key])
         elif isinstance(row.get("details"), dict) and row["details"].get("quantization_level"):
             out["quantization"] = str(row["details"]["quantization_level"])
-    if isinstance(row.get("details"), dict):                                   # Ollama
+    if isinstance(row.get("details"), dict):
         details = row["details"]
         if details.get("parameter_size"):
             out["size_label"] = str(details["parameter_size"])
@@ -708,7 +639,7 @@ def extract_provider(row: Dict[str, Any]) -> Dict[str, Any]:
         if isinstance(row.get(key), str) and row[key].strip():
             name = row[key].strip()
             if isinstance(row.get("architecture"), dict) and ": " in name:
-                name = name.split(": ", 1)[1]          # OpenRouter-style "Vendor: Model"
+                name = name.split(": ", 1)[1]
             out["name"] = name
             break
     if isinstance(row.get("description"), str) and row["description"].strip():
@@ -723,7 +654,7 @@ def extract_provider(row: Dict[str, Any]) -> Dict[str, Any]:
         out["deprecated"] = row["deprecated"]
     if row.get("deprecation_date") or row.get("deprecationDate"):
         out["expires"] = _date(row.get("deprecation_date") or row.get("deprecationDate"))
-    if isinstance(row.get("pricing"), dict) and "price" not in out:            # Together: USD per 1M
+    if isinstance(row.get("pricing"), dict) and "price" not in out:
         pricing = row["pricing"]
         price = {"input": _price(pricing.get("input")), "output": _price(pricing.get("output"))}
         if any(v is not None for v in price.values()):
@@ -735,19 +666,6 @@ def extract_provider(row: Dict[str, Any]) -> Dict[str, Any]:
         out["recommended"] = row["recommended"]
     return out
 
-
-# ---------------------------------------------------------------------------
-# Name heuristics
-# ---------------------------------------------------------------------------
-
-_IMAGE_GEN = re.compile(r"(?<![a-z0-9])(?:dall-?e|gpt-image|imagen|flux|sdxl|stable-diffusion|seedream|kolors|recraft|"
-                        r"ideogram|nano-banana|midjourney|playground-v|hidream|qwen-image|wan-?2|kling|veo|sora|"
-                        r"runway|hailuo|seedance|imagine|wanx|cogview|kandinsky|t2i)(?![a-z])|-image(?:-|$)")
-_VIDEO_GEN = re.compile(r"(?<![a-z0-9])(?:veo|sora|kling|runway|hailuo|seedance|wan-?2\.\d-?(?:t2v|i2v)|video)(?![a-z])")
-_EMBED = re.compile(r"(?<![a-z0-9])(?:embed\w*|bge|e5-|gte-|nomic-embed|rerank\w*)")
-_STT = re.compile(r"(?<![a-z0-9])(?:whisper|transcribe|stt|asr|parakeet)(?![a-z])")
-_TTS = re.compile(r"(?<![a-z0-9])(?:tts|speech|voice|eleven|kokoro|piper)(?![a-z])")
-_MUSIC = re.compile(r"(?<![a-z0-9])(?:suno|udio|lyria|music)(?![a-z])")
 _AUDIO_CHAT = re.compile(r"audio|realtime|gpt-4o-(?:mini-)?audio|omni|gemini-(?:2|3)")
 _REASONING = re.compile(r"thinking|reason|(?<![a-z0-9])r1(?![0-9])|qwq|qvq|(?<![a-z0-9])o[134](?![0-9a-z])|"
                         r"gpt-?5|gpt-?6|deepseek-?(?:v3\.[1-9]|v4)|magistral|grok-?[45]|grok-?3-mini|claude-(?:opus|sonnet|haiku)-?[45]|"
@@ -771,7 +689,6 @@ _VENDORS = [("anthropic", r"claude|opus|sonnet|haiku|fable|mythos"), ("openai", 
             ("black-forest-labs", r"flux"), ("bytedance", r"seedream|seedance|doubao|ui-tars"), ("ibm", r"granite")]
 _VENDORS_RE = [(name, re.compile(pattern)) for name, pattern in _VENDORS]
 
-
 def heuristics(model: str, provider: str = "") -> Dict[str, Any]:
     """What the name alone suggests. Everything here is ``low`` confidence (``vision`` from the curated
     family list in :mod:`app.model_info` is ``medium``)."""
@@ -780,20 +697,14 @@ def heuristics(model: str, provider: str = "") -> Dict[str, Any]:
     out: Dict[str, Any] = {}
     if not name:
         return out
-    kind = "chat"
-    if _EMBED.search(name):
-        kind = "embedding"
-    elif _MUSIC.search(name) and not re.search(r"chat|instruct", name):
-        kind = "music"
-    elif _VIDEO_GEN.search(name) and not re.search(r"vl|vision|understanding", name):
-        kind = "video"
-    elif _IMAGE_GEN.search(name):
-        kind = "image"
-    elif _STT.search(name):
-        kind = "stt"
-    elif _TTS.search(name) and not re.search(r"chat|instruct|omni", name):
-        kind = "tts"
+    kind = infer_kind(model)
     out["kind"] = kind
+    if kind == "decisions":
+        out.update({"in": ["text"], "out": ["decisions"], "tools": False, "reasoning": False})
+        return out
+    if kind == "rerank":
+        out.update({"in": ["text"], "out": ["scores"], "tools": False, "reasoning": False})
+        return out
     if kind == "embedding":
         out.update({"in": ["text"], "out": ["embeddings"], "tools": False, "reasoning": False})
         return out
@@ -849,11 +760,6 @@ def heuristics(model: str, provider: str = "") -> Dict[str, Any]:
         out["label"] = known["label"]
     return out
 
-
-# ---------------------------------------------------------------------------
-# Probes
-# ---------------------------------------------------------------------------
-
 _probes: Dict[str, Dict[str, Any]] = {}
 _probes_loaded = False
 _probe_version = 0
@@ -870,7 +776,6 @@ _BLIND_ANSWER = re.compile(r"can(?:no|')t (?:see|view|process|analy[sz]e|open)|u
                            r"нет изображени|не поддерживаю изображ", re.I)
 _UNSUPPORTED_ERROR = re.compile(r"image|vision|multimodal|изображен|картин|mmproj|image_url", re.I)
 
-
 def _ensure_probes() -> None:
     global _probes_loaded
     if _probes_loaded:
@@ -880,13 +785,11 @@ def _ensure_probes() -> None:
     if isinstance(data, dict):
         _probes.update({str(k): v for k, v in data.items() if isinstance(v, dict)})
 
-
 def probe_result(public_id: str) -> Optional[Dict[str, Any]]:
     with _lock:
         _ensure_probes()
         found = _probes.get(str(public_id or ""))
         return dict(found) if found else None
-
 
 def _store_probe(public_id: str, result: Dict[str, Any]) -> None:
     global _probe_version
@@ -897,7 +800,6 @@ def _store_probe(public_id: str, result: Dict[str, Any]) -> None:
         _summary_cache.clear()
         snapshot = dict(_probes)
     _save(_path(PROBES_FILE), snapshot)
-
 
 def forget_probe(public_id: str) -> bool:
     global _probe_version
@@ -912,10 +814,8 @@ def forget_probe(public_id: str) -> bool:
         _save(_path(PROBES_FILE), snapshot)
     return existed
 
-
 _overrides: Dict[str, Dict[str, Any]] = {}
 _overrides_loaded = False
-
 
 def _ensure_overrides() -> None:
     global _overrides_loaded
@@ -926,12 +826,10 @@ def _ensure_overrides() -> None:
     if isinstance(data, dict):
         _overrides.update({str(k): v for k, v in data.items() if isinstance(v, dict)})
 
-
 def get_override(public_id: str) -> Dict[str, Any]:
     with _lock:
         _ensure_overrides()
         return dict(_overrides.get(str(public_id or "")) or {})
-
 
 def set_override(public_id: str, changes: Dict[str, Any]) -> Dict[str, Any]:
     """Set capabilities by hand. ``None`` (or "") for a key removes it; booleans for flags, ints for limits."""
@@ -964,7 +862,6 @@ def set_override(public_id: str, changes: Dict[str, Any]) -> Dict[str, Any]:
     _save(_path(OVERRIDES_FILE), snapshot)
     return current
 
-
 def _best(items: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     if not items:
         return None
@@ -972,7 +869,6 @@ def _best(items: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
     best = {k: v for k, v in items[0].items() if k != "alts"}
     best["kind"] = SOURCE_KIND.get(best.get("source"), best.get("source"))
     return best
-
 
 def split_capabilities(candidates: Dict[str, List[Dict[str, Any]]], *, adapter_blind: bool = False,
                        provider: str = "") -> Tuple[Dict[str, Optional[Dict[str, Any]]], Dict[str, Optional[Dict[str, Any]]]]:
@@ -1006,7 +902,6 @@ def split_capabilities(candidates: Dict[str, List[Dict[str, Any]]], *, adapter_b
                                "note": f"адаптер {provider} не передаёт изображения"}
     return effective, reference
 
-
 def solid_png(rgb: Tuple[int, int, int], size: int = 64) -> bytes:
     """A tiny solid-colour PNG without Pillow."""
     def chunk(kind: bytes, data: bytes) -> bytes:
@@ -1015,7 +910,6 @@ def solid_png(rgb: Tuple[int, int, int], size: int = 64) -> bytes:
     raw = row * size
     return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 2, 0, 0, 0))
             + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
-
 
 def judge_probe(answer: str, expected: str) -> Tuple[Optional[bool], str]:
     """``(vision, verdict)`` from the model's answer to "what colour is this square?"."""
@@ -1032,7 +926,6 @@ def judge_probe(answer: str, expected: str) -> Tuple[Optional[bool], str]:
     if hits:
         return False, "wrong"
     return None, "unclear"
-
 
 async def probe_vision(public_id: str, *, complete: Optional[Callable[..., Any]] = None,
                        timeout: float = 90.0, color: str = "") -> Dict[str, Any]:
@@ -1068,11 +961,6 @@ async def probe_vision(public_id: str, *, complete: Optional[Callable[..., Any]]
         _store_probe(public_id, result)
     return result
 
-
-# ---------------------------------------------------------------------------
-# Resolution
-# ---------------------------------------------------------------------------
-
 class _Fields:
     def __init__(self) -> None:
         self.candidates: Dict[str, List[Dict[str, Any]]] = {}
@@ -1094,14 +982,12 @@ class _Fields:
             out[key] = best
         return out
 
-
 def _entry(public_id: str):
     try:
         from .state import state
         return state.find_model(public_id)
     except Exception:
         return None
-
 
 def _local_info(model: str) -> Optional[Dict[str, Any]]:
     try:
@@ -1110,10 +996,8 @@ def _local_info(model: str) -> Optional[Dict[str, Any]]:
     except Exception:
         return None
 
-
 def _catalog_conf(kind: str) -> str:
     return "high" if kind == "exact" else "medium"
-
 
 def _add_catalog(fields: _Fields, row: Dict[str, Any], kind: str) -> None:
     source = row["source"]
@@ -1138,7 +1022,6 @@ def _add_catalog(fields: _Fields, row: Dict[str, Any], kind: str) -> None:
     for key, value in (row.get("price") or {}).items():
         fields.add("price_" + key, value, source, conf, note)
 
-
 def describe(public_id: str, *, entry: Any = None, include_raw: bool = True) -> Dict[str, Any]:
     """The full card of one catalogue model: every field with value, source, confidence and alternatives."""
     entry = entry or _entry(public_id)
@@ -1151,21 +1034,18 @@ def describe(public_id: str, *, entry: Any = None, include_raw: bool = True) -> 
     sources: Dict[str, Any] = {}
     matched: Dict[str, Any] = {}
 
-    # --- user override (Round 24) ------------------------------------------------
     override = get_override(public_id)
     for key, value in override.items():
         fields.add(key, value, "user", "verified", "указано вручную")
     if override:
         sources["user"] = override
 
-    # --- probe ---------------------------------------------------------------
     probe = probe_result(public_id)
     if probe and probe.get("vision") is not None:
         fields.add("vision", bool(probe["vision"]), "probe", "verified" if probe["vision"] else "high",
                    f"{probe.get('verdict')} · {_date(probe.get('ts'))}")
         sources["probe"] = probe
 
-    # --- local file ------------------------------------------------------------
     local = _local_info(model) if provider == "local" else None
     if local:
         meta = local.get("meta") or {}
@@ -1191,7 +1071,6 @@ def describe(public_id: str, *, entry: Any = None, include_raw: bool = True) -> 
             fields.add("price_" + key, 0.0, "local", "high")
         sources["local"] = {key: local.get(key) for key in ("id", "file", "size", "repo", "meta", "settings", "state")}
 
-    # --- provider row ------------------------------------------------------------
     raw = raw_row(prefix, provider, model)
     if raw and isinstance(raw.get("row"), dict):
         got = extract_provider(raw["row"])
@@ -1214,7 +1093,6 @@ def describe(public_id: str, *, entry: Any = None, include_raw: bool = True) -> 
             fields.add("context", learned.get("context"), "provider", "high", str(learned.get("source") or ""))
             fields.add("max_output", learned.get("output"), "provider", "high", str(learned.get("source") or ""))
 
-    # --- public catalogues -------------------------------------------------------
     with _lock:
         found = _catalog.match(model)
     for source in ("openrouter", "models.dev"):
@@ -1225,7 +1103,6 @@ def describe(public_id: str, *, entry: Any = None, include_raw: bool = True) -> 
             if include_raw:
                 sources[source] = row.get("raw")
 
-    # --- built-in table ---------------------------------------------------------
     known = model_info.lookup_known(model)
     if known:
         conf = "medium" if known.get("source") == "catalog" else "low"
@@ -1235,7 +1112,6 @@ def describe(public_id: str, *, entry: Any = None, include_raw: bool = True) -> 
         if known.get("label"):
             fields.add("name", known["label"], src, "low")
 
-    # --- Proxy itself -----------------------------------------------------------
     fields.add("streaming", True, "proxy", "high", "Proxy отдаёт потоковый SSE для любой модели")
     if provider in SUBSCRIPTION_PROVIDERS:
         fields.add("billing", "subscription", "proxy", "high",
@@ -1244,7 +1120,6 @@ def describe(public_id: str, *, entry: Any = None, include_raw: bool = True) -> 
         fields.add("billing", "api", "proxy", "high")
     adapter_blind = bool(provider) and provider not in IMAGE_ADAPTERS and provider != "local"
 
-    # --- name ----------------------------------------------------------------------
     guess = heuristics(model, provider)
     hint_map = {"in": "input", "out": "output", "web": "web_search", "label": None}
     for key, value in guess.items():
@@ -1265,7 +1140,7 @@ def describe(public_id: str, *, entry: Any = None, include_raw: bool = True) -> 
     _derive(resolved)
     effective, reference = split_capabilities(fields.candidates, adapter_blind=adapter_blind, provider=provider)
     if adapter_blind and not (probe and probe.get("vision")):
-        # The model may see, but this provider's adapter cannot pass a picture: for the Proxy it is "no".
+
         previous = resolved.get("vision")
         alts = []
         if previous:
@@ -1288,12 +1163,6 @@ def describe(public_id: str, *, entry: Any = None, include_raw: bool = True) -> 
     if include_raw:
         card["raw"] = sources
     return card
-
-
-def _value(resolved: Dict[str, Dict[str, Any]], key: str) -> Any:
-    item = resolved.get(key)
-    return item.get("value") if item else None
-
 
 def _derive(resolved: Dict[str, Dict[str, Any]]) -> None:
     """Fill the per-modality booleans from the strongest ``input``/``output`` and the reverse."""
@@ -1322,8 +1191,7 @@ def _derive(resolved: Dict[str, Dict[str, Any]]) -> None:
         if values and key not in resolved:
             resolved[key] = {"value": modality in values, "source": src.get("source"), "confidence": src.get("confidence")}
     pin, pout = _value(resolved, "price_input"), _value(resolved, "price_output")
-    # "Free" only from prices that belong to this connection (the provider's own row, a local model): a public
-    # catalogue lists the same model at another reseller, whose $0 promo says nothing about the user's endpoint.
+
     if "free" not in resolved and pin is not None and pout is not None \
             and (resolved.get("price_input") or {}).get("source") in ("provider", "local"):
         src = resolved["price_input"]
@@ -1331,21 +1199,20 @@ def _derive(resolved: Dict[str, Dict[str, Any]]) -> None:
                             "confidence": src.get("confidence"), "note": "по ценам каталога"}
     billing = _value(resolved, "billing")
     if billing == "subscription" and "free" in resolved and resolved["free"]["source"] != "heuristic":
-        # The catalogue price of the same model says nothing about a web account: it is not "free".
+
         resolved["free"] = {"value": False, "source": "proxy", "confidence": "high",
                             "note": "оплачивается подпиской или квотой аккаунта"}
     out = model_out
-    kind = ("image" if out == ["image"] else "audio" if out == ["audio"] else "embedding" if "embeddings" in out else
+    kind = ("image" if out == ["image"] else "audio" if out == ["audio"] else "embedding" if "embeddings" in out else "decisions" if "decisions" in out else "rerank" if "scores" in out else
             "video" if "video" in out and "text" not in out else "chat") if out else None
     current = resolved.get("kind")
     if kind and current is None:
         resolved["kind"] = {"value": kind, "source": src_out.get("source"), "confidence": src_out.get("confidence")}
     elif kind and current and current.get("source") == "heuristic" and src_out.get("source") not in (None, "heuristic") \
-            and (kind != "chat" or current.get("value") == "chat"):
-        # The model's own output list is stronger than the name; "chat" from a list never overrides stt/tts names.
+            and (kind != "chat" or current.get("value") not in ("stt", "decisions")):
+
         resolved["kind"] = {"value": kind, "source": src_out.get("source"), "confidence": src_out.get("confidence"),
                             "alts": [{k: v for k, v in current.items() if k != "alts"}]}
-
 
 def _summary_from(resolved: Dict[str, Dict[str, Any]], effective: Optional[Dict[str, Any]] = None,
                   reference: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
@@ -1356,8 +1223,7 @@ def _summary_from(resolved: Dict[str, Dict[str, Any]], effective: Optional[Dict[
     effective = effective or {}
     reference = reference or {}
     vision = resolved.get("vision") or {}
-    # Round 24: the vision badge follows this API. A catalogue may say "no" (cautious), but a catalogue
-    # "yes" without evidence from the provider/probe/user stays unknown — it never switches vision on.
+
     eff_vision = effective.get("vision")
     if eff_vision is not None:
         vision_value, vision = eff_vision["value"], eff_vision
@@ -1373,6 +1239,7 @@ def _summary_from(resolved: Dict[str, Dict[str, Any]], effective: Optional[Dict[
         "reference": {key: item["value"] for key, item in reference.items() if item is not None},
         "tools": flag("tools"), "reasoning": flag("reasoning"), "structured": flag("structured_output"),
         "web": flag("web_search"), "audio": flag("audio_input"), "video": flag("video_input"), "file": flag("file_input"),
+        "audio_input": flag("audio_input"), "video_input": flag("video_input"),
         "image_out": flag("image_output"), "audio_out": flag("audio_output"), "free": flag("free"),
         "open": flag("open_weights"), "deprecated": flag("deprecated"),
         "context": _value(resolved, "context"), "max_output": _value(resolved, "max_output"),
@@ -1381,10 +1248,8 @@ def _summary_from(resolved: Dict[str, Dict[str, Any]], effective: Optional[Dict[
     }
     return {key: value for key, value in summary.items() if value is not None}
 
-
 _summary_cache: Dict[str, Tuple[float, Dict[str, Any]]] = {}
 LOCAL_TTL = 20.0
-
 
 def capabilities_for(public_id: str, *, entry: Any = None) -> Dict[str, Any]:
     """Compact capabilities for badges and filters (cached; cleared when a source changes)."""
@@ -1392,8 +1257,7 @@ def capabilities_for(public_id: str, *, entry: Any = None) -> Dict[str, Any]:
         _catalog.ensure()
         stamp = _catalog.stamp
     found = entry if entry is not None else _entry(public_id)
-    # Round 23: the same public id can be re-pointed (a custom connection renamed/re-created with
-    # another upstream model) — without the upstream in the key its old card stayed cached forever.
+
     upstream = f"{getattr(found, 'prefix', '')}/{getattr(found, 'provider', '')}/{getattr(found, 'model', '')}" \
         if found is not None else ""
     key = f"{public_id}|{stamp}|{upstream}"
@@ -1402,13 +1266,16 @@ def capabilities_for(public_id: str, *, entry: Any = None) -> Dict[str, Any]:
     if cached and (cached[0] == 0 or now - cached[0] < LOCAL_TTL):
         return dict(cached[1])
     card = describe(public_id, entry=found, include_raw=False)
+    fields = card.get("fields") or {}
     summary = card["summary"]
+    summary["kind"] = kind_for_row({"id":public_id,"kind":_value(fields,"kind"),"caps":card,
+                                    "input_modalities":_value(fields,"input"),
+                                    "output_modalities":_value(fields,"output")},entry=found)
     is_local = card.get("provider") == "local"
     if len(_summary_cache) > 20_000:
         _summary_cache.clear()
     _summary_cache[key] = (now if is_local else 0, summary)
     return dict(summary)
-
 
 def all_capabilities() -> Dict[str, Dict[str, Any]]:
     try:
@@ -1418,7 +1285,6 @@ def all_capabilities() -> Dict[str, Dict[str, Any]]:
         entries = []
     return {entry.id: capabilities_for(entry.id, entry=entry) for entry in entries}
 
-
 def vision_for(public_id: str, *, entry: Any = None) -> Optional[bool]:
     """Can this catalogue model look at images? ``None`` — unknown (callers then try and learn from the error).
 
@@ -1427,7 +1293,6 @@ def vision_for(public_id: str, *, entry: Any = None) -> Optional[bool]:
     """
     summary = capabilities_for(public_id, entry=entry)
     return summary.get("vision")
-
 
 def has_vision(model_id: str, *, entry: Any = None) -> Optional[bool]:
     """Round 24 — for routing (DFY, vision filters): can this model see images **through this connection**?
@@ -1439,16 +1304,13 @@ def has_vision(model_id: str, *, entry: Any = None) -> Optional[bool]:
     value = (summary.get("effective") or {}).get("vision")
     return value if isinstance(value, bool) else None
 
-
 def effective_capabilities(model_id: str, *, entry: Any = None) -> Dict[str, Any]:
     """``{vision, tools, reasoning, context, max_output, structured_output}`` known from this API (missing = unknown)."""
     return dict(capabilities_for(model_id, entry=entry).get("effective") or {})
 
-
 def reference_capabilities(model_id: str, *, entry: Any = None) -> Dict[str, Any]:
     """The same keys "according to OpenRouter / Models.dev" — for display only."""
     return dict(capabilities_for(model_id, entry=entry).get("reference") or {})
-
 
 def adapter_vision(public_id: str, prefix: str, provider: str, model: str, *, entry: Any = None) -> bool:
     """The ``caps.vision`` value for MemuAI/Quick Ask: may the window attach a picture for this model?

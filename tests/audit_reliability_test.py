@@ -19,11 +19,10 @@ import types
 import sys
 import subprocess
 
-import tests  # bind a temporary application-data directory before importing app
+import tests
 
 from app.memufiles import assistant, fsops, textedit
 from app.memufiles.opqueue import OpQueue
-
 
 def wait(queue, op_id):
     op = queue.get(op_id)
@@ -33,7 +32,6 @@ def wait(queue, op_id):
     if op.status not in ("done", "error", "cancelled"):
         raise AssertionError("operation did not finish")
     return op
-
 
 class FilesAssistantTest(unittest.TestCase):
     def setUp(self):
@@ -141,7 +139,7 @@ class FilesAssistantTest(unittest.TestCase):
         except OSError:
             if os.name != "nt":
                 self.skipTest("directory symlinks unavailable")
-            # Junctions need no developer-mode symlink privilege on Windows.
+
             result = subprocess.run(["cmd.exe", "/c", "mklink", "/J", str(self.scope / "link"), str(outside)],
                                     capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
             if result.returncode:
@@ -202,7 +200,6 @@ class FilesAssistantTest(unittest.TestCase):
             result = assistant.run_tool(str(self.scope), "read_file", {"path": path.name})
         self.assertIn("Договор поставки", result["text"])
         self.assertTrue(result["extracted"])
-
 
 class FilesTransportTest(unittest.TestCase):
     def test_http_chat_read_edit_review_execute_and_undo(self):
@@ -271,7 +268,7 @@ class FilesTransportTest(unittest.TestCase):
                 self.assertNotIn("error", [e["t"] for e in events])
                 plan_event = next(e for e in events if e["t"] == "plan")
                 self.assertIn("-old text", plan_event["plan"]["items"][0]["diff"])
-                self.assertEqual(path.read_bytes(), b"old text\r\n")  # review never writes
+                self.assertEqual(path.read_bytes(), b"old text\r\n")
                 plan = app.plans.get(plan_event["plan"]["id"])
                 op = wait(app.queue, assistant.execute_plan(plan, [0], app.queue)["ops"][0])
                 self.assertEqual(op.status, "done", op.errors)
@@ -285,7 +282,6 @@ class FilesTransportTest(unittest.TestCase):
                 httpd.server_close()
                 proxy.shutdown()
                 proxy.server_close()
-
 
 class NativeDragTest(unittest.TestCase):
     def test_clipboard_has_an_owner_and_reports_native_failure(self):
@@ -342,7 +338,6 @@ class NativeDragTest(unittest.TestCase):
             self.assertEqual(data.formats["FileDrop"], paths)
             self.assertEqual(effect, 1)
             self.assertNotIn("text/plain", data.formats)
-
 
 class NoteReliabilityTest(unittest.TestCase):
     def test_assistant_catalog_never_falls_back_to_non_chat_models(self):
@@ -403,7 +398,6 @@ class NoteReliabilityTest(unittest.TestCase):
             events = list(ai.stream_chat("http://localhost:1", {"model": "test", "messages": []}, threading.Event()))
         self.assertEqual("".join(e["text"] for e in events if e["t"] == "delta"), "x <thi")
 
-
 class InstallerReliabilityTest(unittest.TestCase):
     def test_payload_closes_its_file_when_index_parsing_fails(self):
         from installer import payload
@@ -414,7 +408,6 @@ class InstallerReliabilityTest(unittest.TestCase):
             with self.assertRaises(payload.PayloadError):
                 payload.Payload(Path("test.exe"))
         self.assertTrue(stream.closed)
-
 
 class CodeReliabilityTest(unittest.TestCase):
     def test_renderer_respects_disabled_color_and_width_in_dumb_terminals(self):
@@ -443,7 +436,6 @@ class CodeReliabilityTest(unittest.TestCase):
                 result = skills_catalog.uninstall_code("sample")
             self.assertFalse(skill.exists())
             self.assertEqual((Path(result["trash"]) / "SKILL.md").read_text(), "sample")
-
 
 class MusicReliabilityTest(unittest.TestCase):
     def setUp(self):
@@ -501,7 +493,6 @@ class MusicReliabilityTest(unittest.TestCase):
         with ThreadPoolExecutor(max_workers=4) as pool:
             list(pool.map(lambda tid: self.lib.update_playlist(playlist["id"], {"add": tid}), ids))
         self.assertEqual({t["id"] for t in self.lib.playlist(playlist["id"])["tracks"]}, set(ids))
-
 
 if __name__ == "__main__":
     unittest.main()

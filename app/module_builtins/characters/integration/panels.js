@@ -1,7 +1,5 @@
-/* Round 38: «Персонажи» panels on the MemuAI home screen — «Недавние чаты» and «Персонаж дня».
-   Runs in the panel sandbox (app/module_integration.py). Data: Memu.panel.data() → module_integration_data.py
-   (the module's own index + chat lists, read on the server). Read once on load and again when the card comes back
-   on screen after a while — no timers. A click opens the character's latest chat in the module window. */
+
+
 (function () {
   "use strict";
   var M = window.Memu, P = M && M.panel;
@@ -74,7 +72,7 @@
     if (b.dataset.char) return P.open({ query: b.dataset.char, from: "panel" });
     if (b.hasAttribute("data-open")) return P.open({ from: "panel" });
   });
-  // Back on screen after a minute or more → the chats may have moved on.
+
   document.addEventListener("memu-panel-visible", function (e) { if (e.detail && e.detail.visible && Date.now() - S.at > 60000) load(); });
   load();
 })();

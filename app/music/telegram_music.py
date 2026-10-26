@@ -29,8 +29,8 @@ YOUTUBE = re.compile(r"^https?://(?:www\.|m\.)?(?:youtube\.com/(?:watch|shorts/|
 POLL_SECONDS = 2.5
 EDIT_EVERY = 3.0
 MAX_WATCH = 45 * 60
-_pending: Dict[str, Dict[str, Any]] = {}       # chat → {url, at}: a bare YouTube link waiting for a button
-_watching: set = set()                          # job ids followed by a progress message
+_pending: Dict[str, Dict[str, Any]] = {}
+_watching: set = set()
 
 SOURCE_NAMES = {"youtube": "YouTube", "ytmusic": "YouTube Music", "spotify": "Spotify", "apple": "Apple Music",
                 "soundcloud": "SoundCloud", "deezer": "Deezer", "yandex": ("Яндекс Музыка", "Yandex Music"), "vk": "VK",
@@ -38,16 +38,13 @@ SOURCE_NAMES = {"youtube": "YouTube", "ytmusic": "YouTube Music", "spotify": "Sp
 KINDS = {"track": ("трек", "track"), "album": ("альбом", "album"), "playlist": ("плейлист", "playlist"),
          "artist": ("исполнитель", "artist")}
 
-
 def _t(lang: str, ru: str, en: str) -> str:
     return en if lang == "en" else ru
-
 
 def bare_link(text: str) -> str:
     """The URL when the message is only a link (spaces / one trailing word like «скачай» are not allowed — exact)."""
     text = str(text or "").strip()
     return text if re.fullmatch(_URL, text) else ""
-
 
 def classify(text: str) -> str:
     """``music`` — a bare link to a music service; ``youtube`` — a bare YouTube link (ask); '' — anything else."""
@@ -60,18 +57,15 @@ def classify(text: str) -> str:
         return "youtube"
     return ""
 
-
 def source_name(source: str, lang: str) -> str:
     name = SOURCE_NAMES.get(source or "", "")
     if isinstance(name, tuple):
         return name[1] if lang == "en" else name[0]
     return name or (source or "").capitalize() or _t(lang, "сайт", "website")
 
-
 def _bar(progress: float, width: int = 12) -> str:
     filled = max(0, min(width, int(round(progress * width))))
     return "▰" * filled + "▱" * (width - filled)
-
 
 def _tracks(n: int, lang: str) -> str:
     if lang == "en":
@@ -79,7 +73,6 @@ def _tracks(n: int, lang: str) -> str:
     a, b = abs(n) % 100, abs(n) % 10
     word = "треков" if 10 < a < 20 else "трек" if b == 1 else "трека" if 2 <= b <= 4 else "треков"
     return f"{n} {word}"
-
 
 def progress_text(job: Dict[str, Any], lang: str) -> str:
     """One bot message for a download job (plain text)."""
@@ -107,12 +100,10 @@ def progress_text(job: Dict[str, Any], lang: str) -> str:
     return (_t(lang, "⏬ Компьютер скачивает в MemuMusic", "⏬ The computer is downloading to MemuMusic") +
             f"\n{head}\n{title}\n{_bar(progress)} {state}" + (f"\n♪ {current}" if current and total > 1 else ""))
 
-
 def music_tab_url(webapp_url: Optional[str]) -> str:
     if not webapp_url:
         return ""
     return webapp_url + ("&" if "?" in webapp_url else "?") + "tab=music"
-
 
 def _keyboard(job: Dict[str, Any], lang: str, webapp_url: Optional[str]) -> Optional[Dict[str, Any]]:
     status = str(job.get("status") or "")
@@ -123,7 +114,6 @@ def _keyboard(job: Dict[str, Any], lang: str, webapp_url: Optional[str]) -> Opti
     if status == "done" and url:
         return {"inline_keyboard": [[{"text": _t(lang, "🎵 Открыть музыку", "🎵 Open music"), "web_app": {"url": url}}]]}
     return None
-
 
 async def start(client: Any, token: str, chat_id: str, prefs: Dict[str, Any], url: str, *, reply_to: int = 0) -> None:
     """Start the download on the computer and follow it in one edited message."""
@@ -149,13 +139,12 @@ async def start(client: Any, token: str, chat_id: str, prefs: Dict[str, Any], ur
     if not job_id or not sent:
         return
     if job_id in _watching:
-        return                                   # the same link is already followed in another message
+        return
     _watching.add(job_id)
     try:
         await follow(client, token, chat_id, sent[-1], job_id, lang, webapp)
     finally:
         _watching.discard(job_id)
-
 
 async def follow(client: Any, token: str, chat_id: str, message_id: int, job_id: str, lang: str,
                  webapp: Optional[str], *, poll: float = POLL_SECONDS, max_watch: float = MAX_WATCH) -> Dict[str, Any]:
@@ -190,11 +179,9 @@ async def follow(client: Any, token: str, chat_id: str, message_id: int, job_id:
             break
     return job
 
-
 def ask_markup(lang: str) -> Dict[str, Any]:
     return {"inline_keyboard": [[{"text": _t(lang, "⬇️ В MemuMusic", "⬇️ To MemuMusic"), "callback_data": "mus:dl"},
                                  {"text": _t(lang, "💬 Спросить ИИ", "💬 Ask the AI"), "callback_data": "mus:ai"}]]}
-
 
 async def handle_text(client: Any, token: str, chat_id: str, prefs: Dict[str, Any], text: str, *, reply_to: int = 0) -> bool:
     """A bare music link → download; a bare YouTube link → ask. True when the message was handled here."""
@@ -214,7 +201,6 @@ async def handle_text(client: Any, token: str, chat_id: str, prefs: Dict[str, An
                                               "Download this to MemuMusic on the computer or ask the AI about the video?"),
                    ask_markup(lang), reply_to=reply_to, silent=True)
     return True
-
 
 async def command(client: Any, token: str, chat_id: str, prefs: Dict[str, Any], argument: str, *, reply_to: int = 0) -> None:
     """``/music <ссылка>`` (or a search text: the computer finds it on YouTube Music); without an argument — help."""
@@ -236,7 +222,6 @@ async def command(client: Any, token: str, chat_id: str, prefs: Dict[str, Any], 
             reply_to=reply_to)
         return
     tb._spawn_answer(start(client, token, chat_id, prefs, argument[:2000], reply_to=reply_to))
-
 
 async def handle_callback(client: Any, token: str, chat_id: str, message_id: int, data: str, prefs: Dict[str, Any]) -> str:
     """``mus:x:<job>`` cancel · ``mus:dl`` / ``mus:ai`` — the answer to a bare YouTube link. Returns the toast."""

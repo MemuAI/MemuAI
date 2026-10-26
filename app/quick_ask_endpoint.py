@@ -45,9 +45,6 @@ CONNECT_TIMEOUT = 6.0
 READ_TIMEOUT = 120.0
 _ENTROPY = b"MemuAI.quick.endpoint.v1"
 
-
-# ------------------------------------------------------------------ settings
-
 def normalize_url(value: Any) -> str:
     """A base URL as the user pasted it → ``http(s)://host[:port]/path`` without a trailing slash.
 
@@ -63,14 +60,13 @@ def normalize_url(value: Any) -> str:
         return ""
     try:
         port_ok = parts.port is None or 0 < parts.port < 65536
-    except ValueError:          # «javascript:alert(1)» / «host:abc» → https://javascript:alert(1) had a bogus port
+    except ValueError:
         port_ok = False
     if not port_ok or not parts.hostname:
         return ""
     path = re.sub(r"/+$", "", parts.path or "")
     path = re.sub(r"/(chat/completions|completions|models|responses)$", "", path, flags=re.I)
     return f"{parts.scheme.lower()}://{parts.netloc}{path}"[:500]
-
 
 def normalize_prefs(out: Dict[str, Any]) -> Dict[str, Any]:
     source = str(out.get("quick_ask_source") or "proxy").strip().lower()
@@ -84,11 +80,9 @@ def normalize_prefs(out: Dict[str, Any]) -> Dict[str, Any]:
     out["quick_ask_endpoint_vision"] = vision if vision in VISION else "auto"
     return out
 
-
 def active(prefs: Dict[str, Any]) -> bool:
     """The user chose their own endpoint and gave an address."""
     return str(prefs.get("quick_ask_source") or "") == "custom" and bool(normalize_url(prefs.get("quick_ask_endpoint_url")))
-
 
 def model_settings(prefs: Dict[str, Any]) -> Dict[str, Any]:
     """The preferences as the answer loop sees them: with a custom endpoint its models take the places of
@@ -102,13 +96,11 @@ def model_settings(prefs: Dict[str, Any]) -> Dict[str, Any]:
     out["quick_ask_advanced_model"] = str(prefs.get("quick_ask_endpoint_advanced_model") or "")
     return out
 
-
 def host_of(url: str) -> str:
     try:
         return urlsplit(url).netloc
     except ValueError:
         return ""
-
 
 def label_of(url: str) -> str:
     """A friendly name for the chip: known services by host, otherwise host[:port]."""
@@ -125,9 +117,6 @@ def label_of(url: str) -> str:
         return "LM Studio"
     return host or "endpoint"
 
-
-# ------------------------------------------------------------------ secret storage
-
 def _store_path() -> Path:
     from .pgdata import MEMU_DIR
     try:
@@ -137,14 +126,12 @@ def _store_path() -> Path:
         name = "quick_endpoint.json"
     return Path(MEMU_DIR) / name
 
-
 def _read() -> Dict[str, Any]:
     try:
         data = json.loads(_store_path().read_text("utf-8"))
         return data if isinstance(data, dict) else {}
     except (OSError, ValueError):
         return {}
-
 
 def _write(data: Dict[str, Any]) -> None:
     path = _store_path()
@@ -156,7 +143,6 @@ def _write(data: Dict[str, Any]) -> None:
     except OSError:
         pass
     os.replace(tmp, path)
-
 
 def _dpapi(data: bytes, *, protect: bool) -> bytes:  # pragma: no cover - Windows only
     """CryptProtectData / CryptUnprotectData for the current Windows user (explicit 64-bit-safe signatures)."""
@@ -186,7 +172,6 @@ def _dpapi(data: bytes, *, protect: bool) -> bytes:  # pragma: no cover - Window
     finally:
         kernel32.LocalFree(ctypes.cast(blob_out.pbData, ctypes.c_void_p))
 
-
 def _protect(text: str) -> Dict[str, str]:
     raw = text.encode("utf-8")
     if IS_WINDOWS:
@@ -196,13 +181,11 @@ def _protect(text: str) -> Dict[str, str]:
             log.warning("quick endpoint: DPAPI protect failed: %s", type(exc).__name__)
     return {"scheme": "plain", "blob": base64.b64encode(raw).decode("ascii")}
 
-
 def _unprotect(record: Dict[str, Any]) -> str:
     blob = base64.b64decode(str(record.get("blob") or "").encode("ascii"))
     if record.get("scheme") == "dpapi":
         return _dpapi(blob, protect=False).decode("utf-8")
     return blob.decode("utf-8")
-
 
 def set_key(key: str) -> Dict[str, Any]:
     key = str(key or "").strip()
@@ -215,13 +198,11 @@ def set_key(key: str) -> Dict[str, Any]:
     _write(data)
     return key_status()
 
-
 def clear_key() -> Dict[str, Any]:
     data = _read()
     if data.pop("key", None) is not None:
         _write(data)
     return key_status()
-
 
 def get_key() -> str:
     record = _read().get("key")
@@ -233,19 +214,14 @@ def get_key() -> str:
         log.warning("quick endpoint: the key cannot be decrypted: %s", type(exc).__name__)
         return ""
 
-
 def _hint(key: str) -> str:
     return ("…" + key[-4:]) if len(key) >= 12 else "…"
-
 
 def key_status() -> Dict[str, Any]:
     record = _read().get("key")
     if not isinstance(record, dict):
         return {"set": False}
     return {"set": True, "scheme": str(record.get("scheme") or "plain"), "hint": str(record.get("hint") or "…")}
-
-
-# ------------------------------------------------------------------ models
 
 def vision_of(model: str, override: str = "auto") -> Optional[bool]:
     """``True``/``False`` when known, ``None`` when nothing says (the window then allows a picture)."""
@@ -260,15 +236,14 @@ def vision_of(model: str, override: str = "auto") -> Optional[bool]:
     except Exception:
         return None
 
-
 def model_rows(ids: List[str], override: str = "auto") -> List[Dict[str, Any]]:
     rows = []
     for model in ids[:MAX_MODELS]:
         vision = vision_of(model, override)
         caps: Dict[str, Any] = {"vision": vision} if vision is not None else {}
         if vision is False and override != "no":
-            caps["vision_guess"] = True       # Round 31: a guess from the name — the window offers «try» / «probe»
-        try:   # Round 34: the reasoning levels this model takes (the window's «Размышления» row)
+            caps["vision_guess"] = True
+        try:
             from . import reasoning_levels
             prof = reasoning_levels.public(reasoning_levels.profile(model, "custom", model))
             if prof.get("kind") in ("levels", "toggle"):
@@ -278,14 +253,12 @@ def model_rows(ids: List[str], override: str = "auto") -> List[Dict[str, Any]]:
         rows.append({"id": model, "caps": caps})
     return rows
 
-
 def cached_models(url: str) -> List[str]:
     data = _read()
     cache = data.get("models") if isinstance(data.get("models"), dict) else {}
     if cache.get("url") != url:
         return []
     return [str(m) for m in (cache.get("ids") or []) if isinstance(m, str)][:MAX_MODELS]
-
 
 def _save_models(url: str, ids: List[str]) -> None:
     data = _read()
@@ -295,7 +268,6 @@ def _save_models(url: str, ids: List[str]) -> None:
     except OSError:
         pass
 
-
 def public_config(prefs: Dict[str, Any]) -> Dict[str, Any]:
     """What the popup and the settings may know (never the key)."""
     url = normalize_url(prefs.get("quick_ask_endpoint_url"))
@@ -303,15 +275,12 @@ def public_config(prefs: Dict[str, Any]) -> Dict[str, Any]:
     out: Dict[str, Any] = {"source": source, "chosen": str(prefs.get("quick_ask_source") or "proxy"), "url": url,
                            "host": host_of(url), "label": label_of(url) if url else "", "key": key_status()}
     if source == "custom":
-        # Round 34: the models chosen in Settings come with their capabilities even before /models was read
+
         chosen = [m for m in (str(prefs.get("quick_ask_endpoint_model") or "").strip(),
                               str(prefs.get("quick_ask_endpoint_advanced_model") or "").strip()) if m]
         ids = list(dict.fromkeys(chosen + cached_models(url)))
         out["models"] = model_rows(ids, str(prefs.get("quick_ask_endpoint_vision") or "auto"))
     return out
-
-
-# ------------------------------------------------------------------ HTTP
 
 def _headers(key: str) -> Dict[str, str]:
     headers = {"Content-Type": "application/json", "Accept": "application/json, text/event-stream",
@@ -319,7 +288,6 @@ def _headers(key: str) -> Dict[str, str]:
     if key:
         headers["Authorization"] = "Bearer " + key
     return headers
-
 
 def explain(status: int, body: str, *, url: str, lang: str = "ru", what: str = "") -> str:
     """An HTTP error of the endpoint → one clear sentence (plus the server's own message when short)."""
@@ -332,7 +300,7 @@ def explain(status: int, body: str, *, url: str, lang: str = "ru", what: str = "
     except ValueError:
         detail = re.sub(r"<[^>]+>", " ", body or "")
     detail = " ".join(detail.split())[:240]
-    # Round 26: «model X does not exist» came as «HTTP 404: на сервере нет /chat/completions» — the path is fine.
+
     unknown_model = status in (400, 404, 422) and what == "/chat/completions" and "parameter" not in detail.lower() and bool(
         re.search(r"model\b[^.]{0,80}?(?:not (?:exist|found|available)|does ?n[o']t exist|is unknown)|"
                   r"(?:unknown|invalid|no such|unsupported) model|failed to get model|model_not_found", detail, re.I))
@@ -356,7 +324,6 @@ def explain(status: int, body: str, *, url: str, lang: str = "ru", what: str = "
         text = f"The endpoint answered HTTP {status}." if en else f"Эндпоинт ответил HTTP {status}."
     return text + (f" {detail}" if detail and detail not in text else "")
 
-
 def network_error(exc: BaseException, *, url: str, lang: str = "ru") -> str:
     import httpx
     en = lang == "en"
@@ -376,7 +343,6 @@ def network_error(exc: BaseException, *, url: str, lang: str = "ru") -> str:
                 f"По адресу {host} никто не отвечает: запущен ли сервер?")
     return (f"Network error: {exc}" if en else f"Сетевая ошибка: {exc}")[:300]
 
-
 def is_local(url: str) -> bool:
     """A server on this machine or the LAN (Ollama, LM Studio, llama.cpp…)."""
     import ipaddress
@@ -390,7 +356,6 @@ def is_local(url: str) -> bool:
         return False
     return address.is_loopback or address.is_private or address.is_link_local
 
-
 def _client(timeout_read: float = READ_TIMEOUT, url: str = ""):
     """Round 26: a local endpoint never goes through the system/env proxy. On Windows httpx takes the registry
     proxy (a VPN client's 127.0.0.1:port) but not its «bypass for local addresses» list, so Ollama at
@@ -398,7 +363,6 @@ def _client(timeout_read: float = READ_TIMEOUT, url: str = ""):
     import httpx
     return httpx.AsyncClient(timeout=httpx.Timeout(timeout_read, connect=CONNECT_TIMEOUT), follow_redirects=True,
                              trust_env=not is_local(url))
-
 
 async def fetch_models(url: str, key: str, *, lang: str = "ru", save: bool = True) -> Dict[str, Any]:
     """``GET <base>/models`` → ``{ok, models: [ids]}`` or ``{ok: False, error}``."""
@@ -433,16 +397,13 @@ async def fetch_models(url: str, key: str, *, lang: str = "ru", save: bool = Tru
         _save_models(url, ids)
     return {"ok": True, "models": ids}
 
-
 def openai_body(payload: Dict[str, Any], *, stream: bool, url: str = "") -> Dict[str, Any]:
     """The Proxy-playground payload of the answer loop → a plain OpenAI chat-completions body."""
     body = {"model": str(payload.get("model") or ""), "messages": payload.get("messages") or [], "stream": stream}
     if payload.get("max_tokens"):
         body["max_tokens"] = int(payload["max_tokens"])
     if payload.get("effort_user"):
-        # Round 34 (r34-quick-core): a reasoning level the user picked in the window is sent in the endpoint's dialect
-        # (reasoning_effort / enable_thinking+thinking_budget / thinking / reasoning{}); before, an own endpoint never
-        # got any — a thinking model could not be made faster.
+
         try:
             from . import reasoning_levels
             model = body["model"]
@@ -453,14 +414,12 @@ def openai_body(payload: Dict[str, Any], *, stream: bool, url: str = "") -> Dict
             log.debug("quick endpoint: reasoning level not applied: %s", exc)
     return body
 
-
 def _reasoning_rejected(status: int, raw: str, body: Dict[str, Any]) -> bool:
     """Round 34: the endpoint refused a request that carried our reasoning fields (400/422 naming them)."""
     from . import reasoning_levels
     if status not in (400, 422) or not any(key in body for key in reasoning_levels.OWN_FIELDS):
         return False
     return bool(re.search(r"reason|effort|think|budget|unsupported|not supported|unknown|invalid|extra", raw or "", re.I))
-
 
 class ReasoningFilter:
     """Round 26: the visible answer of a foreign endpoint without the model's service markup.
@@ -477,7 +436,7 @@ class ReasoningFilter:
     def __init__(self) -> None:
         self._pending = ""
         self._inside = ""
-        self._started = False       # visible text was shown: a later <think> is the answer's own text
+        self._started = False
 
     def _tags(self) -> tuple:
         return self.SERVICE if self._started else self.THINK + self.SERVICE
@@ -538,13 +497,11 @@ class ReasoningFilter:
         visible, _reasoning = self.feed(text)
         return (visible + self.finish()).strip()
 
-
 def _partial_tail(text: str, needle: str) -> str:
     for size in range(min(len(text), len(needle) - 1), 0, -1):
         if needle.startswith(text[-size:]):
             return text[-size:]
     return ""
-
 
 def _filter_line(line: str, filt: ReasoningFilter) -> List[str]:
     """One SSE line of the endpoint with its ``delta.content`` passed through ``filt`` (other lines as they are)."""
@@ -567,10 +524,8 @@ def _filter_line(line: str, filt: ReasoningFilter) -> List[str]:
         delta["reasoning_content"] = reasoning
     return ["data: " + json.dumps(item, ensure_ascii=False)]
 
-
 def _delta_line(text: str) -> str:
     return "data: " + json.dumps({"choices": [{"delta": {"content": text}}]}, ensure_ascii=False)
-
 
 async def stream_lines(url: str, key: str, payload: bytes, *, lang: str = "ru") -> AsyncIterator[str]:
     """SSE lines of ``POST <base>/chat/completions`` (stream) — the same shape the answer loop reads from the
@@ -589,7 +544,7 @@ async def stream_lines(url: str, key: str, payload: bytes, *, lang: str = "ru") 
                     if response.status_code != 200:
                         raw = (await response.aread()).decode("utf-8", "replace")
                         if not attempt and _reasoning_rejected(response.status_code, raw, body):
-                            # Round 34: the endpoint does not take the picked reasoning level — answer without it
+
                             from . import reasoning_levels
                             for field in reasoning_levels.OWN_FIELDS:
                                 body.pop(field, None)
@@ -599,7 +554,7 @@ async def stream_lines(url: str, key: str, payload: bytes, *, lang: str = "ru") 
                         return
                     kind = response.headers.get("content-type", "")
                     if "text/event-stream" not in kind:
-                        # A server that ignores "stream": one JSON answer.
+
                         raw = (await response.aread()).decode("utf-8", "replace")
                         try:
                             data = json.loads(raw)
@@ -620,12 +575,11 @@ async def stream_lines(url: str, key: str, payload: bytes, *, lang: str = "ru") 
                             done = done or out.startswith("data: [DONE]") or out.strip() == "data:[DONE]"
                             yield out
                     tail = "" if done else filt.finish()
-                    if tail:            # a server that closed the stream without [DONE]
+                    if tail:
                         yield _delta_line(tail)
                     return
     except Exception as exc:  # noqa: BLE001
         yield "data: " + json.dumps({"error": {"message": network_error(exc, url=url, lang=lang)}}, ensure_ascii=False)
-
 
 async def complete(url: str, key: str, model: str, messages: List[Dict[str, Any]], *, max_tokens: int = 0,
                    lang: str = "ru") -> str:
@@ -639,7 +593,7 @@ async def complete(url: str, key: str, model: str, messages: List[Dict[str, Any]
             response = await client.post(url + "/chat/completions", content=json.dumps(body, ensure_ascii=False).encode("utf-8"),
                                          headers=_headers(key))
             if response.status_code == 400 and max_tokens and "max_completion_tokens" in response.text[:4000]:
-                # Round 26: OpenAI reasoning models (o-series, GPT-5) reject max_tokens — «Проверить подключение» failed.
+
                 body["max_completion_tokens"] = max(max_tokens, 64)
                 body.pop("max_tokens", None)
                 response = await client.post(url + "/chat/completions", content=json.dumps(body, ensure_ascii=False).encode("utf-8"),
@@ -654,7 +608,6 @@ async def complete(url: str, key: str, model: str, messages: List[Dict[str, Any]
     except (ValueError, AttributeError, IndexError) as exc:
         raise RuntimeError("The endpoint answer is not OpenAI-compatible." if lang == "en" else
                            "Ответ эндпоинта не похож на OpenAI-совместимый.") from exc
-
 
 async def test(url: str, key: str, model: str = "", *, lang: str = "ru") -> Dict[str, Any]:
     """Settings → «Проверить подключение»: /models, then (with a model) a 1-word completion."""

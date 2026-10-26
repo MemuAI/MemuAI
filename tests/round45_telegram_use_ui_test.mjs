@@ -1,4 +1,4 @@
-// Actual Telegram settings controller with deterministic DOM/API doubles; no account or Computer Use.
+
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
@@ -74,7 +74,7 @@ await autosave();assert.equal(requests.at(-1).commands[0].arguments[0].name,"cou
 
 fail=true;edit("system_prompt","retry this");await autosave();assert(status().includes("Invalid proxy"));assert.equal(f("system_prompt").value,"retry this");
 fail=false;w.document.querySelector('[data-tgu="save"]').click();await flush();assert.equal(requests.at(-1).system_prompt,"retry this");
-// Logging in flushes settings first and must not overwrite a speech/prompt edit made during that save.
+
 state.connected=false;state.config.enabled=false;w.MemuTelegramUse.mount();await flush();
 let releaseLogin;pending=new Promise(r=>{releaseLogin=r;});
 edit("system_prompt","before login");w.document.querySelector('[data-tgu="qr"]').click();await flush();

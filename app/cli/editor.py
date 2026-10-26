@@ -24,12 +24,10 @@ from .i18n import tr
 TERMINAL_EDITORS = {"vim", "vi", "nvim", "nano", "micro", "emacs", "hx", "helix", "joe", "ne", "pico", "kak", "mcedit",
                     "view", "vimx", "gvim-nofork"}
 
-
 def configured_editor(settings: Any) -> str:
     """The editor the user asked for, or "" (then the built-in field is used)."""
     return str((settings.get("editor") if settings is not None else "") or os.environ.get("VISUAL")
                or os.environ.get("EDITOR") or "").strip()
-
 
 def is_terminal_editor(command: str) -> bool:
     try:
@@ -39,14 +37,12 @@ def is_terminal_editor(command: str) -> bool:
     name = Path(words[0].strip('"')).stem.lower() if words else ""
     return name in TERMINAL_EDITORS
 
-
 def _command_line(command: str, path: Path) -> str:
-    # "code" is a .cmd shim on Windows and needs --wait to block until the window closes.
+
     low = command.lower()
     wait = "" if "--wait" in low or "-w" in low.split() or is_terminal_editor(command) else (
         " --wait" if Path(command.split()[0].strip('"')).stem.lower() in ("code", "cursor", "windsurf", "codium", "subl", "sublime_text") else "")
     return f'{command}{wait} "{path}"'
-
 
 async def open_external(ui: Any, path: Path, command: str) -> bool:
     """Edit ``path`` in the user's editor and return when it is closed. False when the editor could not start."""
@@ -77,7 +73,6 @@ async def open_external(ui: Any, path: Path, command: str) -> bool:
             except Exception:
                 pass
     return True
-
 
 async def edit_file(ctx: Any, path: Path, *, title: str = "", create: str = "") -> bool:
     """Edit a text file: in the user's editor when one is configured, else in the interface's own field."""

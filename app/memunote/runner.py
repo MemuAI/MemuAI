@@ -40,12 +40,11 @@ from typing import Any, Dict, List, Optional, Tuple
 from .paths import note_dir, read_json, write_json
 
 IS_WINDOWS = os.name == "nt"
-MAX_OUTPUT = 2 * 1024 * 1024          # characters kept per run (older output is dropped, the page is told)
+MAX_OUTPUT = 2 * 1024 * 1024
 MAX_RUNS = 6
 POLL_TIMEOUT = 20.0
 BATCH_UNSAFE = re.compile(r"[&|<>^%!\r\n\"]")
 
-# ext → (language label, candidate interpreters, argv builder key)
 LANGS: Dict[str, Tuple[str, List[str], str]] = {
     ".py": ("Python", ["py", "python", "python3"] if IS_WINDOWS else ["python3", "python"], "python"),
     ".pyw": ("Python", ["pyw", "pythonw", "py", "python"] if IS_WINDOWS else ["python3"], "python"),
@@ -66,7 +65,7 @@ LANGS: Dict[str, Tuple[str, List[str], str]] = {
     ".lua": ("Lua", ["lua", "luajit"], "plain"),
     ".r": ("R", ["Rscript"], "plain"),
     ".go": ("Go", ["go"], "go"),
-    ".java": ("Java", ["java"], "plain"),          # single-file source launch (JDK 11+)
+    ".java": ("Java", ["java"], "plain"),
     ".kts": ("Kotlin script", ["kotlin", "kotlinc"], "kotlin"),
     ".dart": ("Dart", ["dart"], "plain"),
     ".jl": ("Julia", ["julia"], "plain"),
@@ -86,11 +85,8 @@ INSTALL_HINTS = {
 _RUNS: Dict[str, "Run"] = {}
 _LOCK = threading.Lock()
 
-
-# ------------------------------------------------------------------ config (interpreter overrides, trusted files)
 def _config_path():
     return note_dir() / "run.json"
-
 
 def load_config() -> Dict[str, Any]:
     raw = read_json(_config_path(), {})
@@ -104,26 +100,21 @@ def load_config() -> Dict[str, Any]:
         "save_before_run": raw.get("save_before_run", True) is not False,
     }
 
-
 def save_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     write_json(_config_path(), cfg)
     return load_config()
 
-
 def _key(path: str) -> str:
     return os.path.normcase(os.path.abspath(path))
 
-
 def is_trusted(path: str) -> bool:
     return _key(path) in {_key(p) for p in load_config()["trusted"]}
-
 
 def trust(path: str) -> None:
     cfg = load_config()
     if not any(_key(p) == _key(path) for p in cfg["trusted"]):
         cfg["trusted"].append(os.path.abspath(path))
         save_config(cfg)
-
 
 def from_internet(path: str) -> bool:
     """Windows Mark of the Web: the ``Zone.Identifier`` stream of a downloaded file says ZoneId=3 (Internet)."""
@@ -137,17 +128,14 @@ def from_internet(path: str) -> bool:
     m = re.search(r"ZoneId\s*=\s*(\d+)", text)
     return bool(m and int(m.group(1)) >= 3)
 
-
-# ------------------------------------------------------------------ interpreter detection
 def _which(name: str) -> str:
     if os.path.isabs(name):
         return name if os.path.isfile(name) else ""
     found = shutil.which(name) or ""
-    # The Windows Store "python.exe" stub (WindowsApps) only opens the Store: skip it if anything else exists.
+
     if found and IS_WINDOWS and "windowsapps" in found.lower() and name.lower().startswith("python"):
         return ""
     return found
-
 
 def resolve(path: str, override: str = "") -> Dict[str, Any]:
     """What running *path* means: ``{runnable, lang, exe, argv_prefix, missing, hint}``."""
@@ -172,19 +160,18 @@ def resolve(path: str, override: str = "") -> Dict[str, Any]:
                 "hint": INSTALL_HINTS.get(label, ""), "style": style, "custom": custom}
     return {"runnable": True, "lang": label, "ext": ext, "exe": exe, "extra": [], "style": style, "custom": custom}
 
-
 def build_argv(path: str, info: Dict[str, Any], args: List[str]) -> List[str]:
     exe, extra, style = info["exe"], list(info.get("extra") or []), info.get("style")
     name = os.path.basename(exe).lower()
     if style == "python":
         argv = [exe] + extra
-        if name in ("py", "py.exe") and not extra:      # the Windows launcher: newest Python 3
+        if name in ("py", "py.exe") and not extra:
             argv.append("-3")
         return argv + ["-u", path] + args
     if style == "powershell":
         return [exe] + extra + ["-NoLogo", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", path] + args
     if style == "batch":
-        # cmd.exe re-parses its command line: refuse metacharacters instead of trying to escape them
+
         for item in [path] + args:
             if BATCH_UNSAFE.search(item):
                 raise ValueError("batch_unsafe")
@@ -203,21 +190,19 @@ def build_argv(path: str, info: Dict[str, Any], args: List[str]) -> List[str]:
         return [exe] + extra + [path] + args
     return [exe] + extra + [path] + args
 
-
 def split_args(text: str) -> List[str]:
     """Split a user-typed argument string like a shell would, but never run a shell."""
     text = str(text or "").strip()
     if not text:
         return []
     try:
-        # Windows paths keep their backslashes (posix=False), the quotes around a token are removed by hand
+
         parts = shlex.split(text, posix=not IS_WINDOWS)
     except ValueError:
         parts = text.split()
     if IS_WINDOWS:
         parts = [p[1:-1] if len(p) >= 2 and p[0] == p[-1] and p[0] in "\"'" else p for p in parts]
     return [p for p in parts if p != ""][:200]
-
 
 def display_cmd(argv: List[str]) -> str:
     out = []
@@ -226,8 +211,6 @@ def display_cmd(argv: List[str]) -> str:
         out.append(f'"{shown}"' if (" " in shown or not shown) else shown)
     return " ".join(out)
 
-
-# ------------------------------------------------------------------ a running process
 def _oem_codec() -> str:
     if not IS_WINDOWS:
         return "utf-8"
@@ -236,7 +219,6 @@ def _oem_codec() -> str:
         return "cp%d" % ctypes.windll.kernel32.GetOEMCP()
     except Exception:  # noqa: BLE001
         return "cp866"
-
 
 class _Decoder:
     """UTF-8 first; if a stream turns out not to be UTF-8 (cmd.exe and old console tools write the OEM code
@@ -256,7 +238,6 @@ class _Decoder:
                 self.dec = codecs.getincrementaldecoder(_oem_codec())("replace")
                 data = pending + data
         return self.dec.decode(data, final)
-
 
 class Run:
     def __init__(self, path: str, argv: List[str], env: Dict[str, str]) -> None:
@@ -330,7 +311,7 @@ class Run:
                 if fresh or self.done or time.monotonic() >= deadline:
                     break
                 self.cond.wait(max(0.05, deadline - time.monotonic()))
-            # a burst of output arrives in many small pieces: collect a little more before answering
+
         if fresh and not self.done:
             time.sleep(0.03)
             with self.cond:
@@ -383,7 +364,6 @@ class Run:
             except OSError:
                 pass
 
-
 def child_env(info: Dict[str, Any]) -> Dict[str, str]:
     env = dict(os.environ)
     for k in ("MEMUNOTE_TOKEN",):
@@ -391,17 +371,16 @@ def child_env(info: Dict[str, Any]) -> Dict[str, str]:
     env["PYTHONUNBUFFERED"] = "1"
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
-    env.setdefault("FORCE_COLOR", "1")        # node/chalk etc. keep colours; the panel renders ANSI colours
+    env.setdefault("FORCE_COLOR", "1")
     env.setdefault("TERM", "xterm-256color")
     if getattr(sys, "frozen", False):
-        # PyInstaller puts its own folder first on PATH / sets TCL paths: the user's interpreter must not see them
+
         meipass = getattr(sys, "_MEIPASS", "")
         if meipass:
             env["PATH"] = os.pathsep.join(p for p in env.get("PATH", "").split(os.pathsep) if os.path.normcase(p) != os.path.normcase(meipass))
         for k in ("TCL_LIBRARY", "TK_LIBRARY", "PYTHONHOME", "PYTHONPATH", "_MEIPASS2"):
             env.pop(k, None)
     return env
-
 
 def start(path: str, args: List[str]) -> Run:
     info = resolve(path)
@@ -420,13 +399,11 @@ def start(path: str, args: List[str]) -> Run:
         _RUNS[run.id] = run
     return run
 
-
 def get(run_id: str) -> Run:
     run = _RUNS.get(str(run_id or ""))
     if not run:
         raise FileNotFoundError("run")
     return run
-
 
 @atexit.register
 def stop_all() -> None:
@@ -436,8 +413,6 @@ def stop_all() -> None:
         except Exception:  # noqa: BLE001
             pass
 
-
-# ------------------------------------------------------------------ HTTP routes
 def _path_from(handler, value: Any) -> str:
     from .server import _clean_path
     path = _clean_path(value)
@@ -446,7 +421,6 @@ def _path_from(handler, value: Any) -> str:
     if not os.path.isfile(path):
         raise FileNotFoundError(path)
     return path
-
 
 def api_run_info(self, method: str) -> None:
     path = _path_from(self, self._query().get("path"))
@@ -462,7 +436,6 @@ def api_run_info(self, method: str) -> None:
         except ValueError as exc:
             out["cmd"], out["error"] = "", str(exc)
     self._json(out)
-
 
 def api_run_start(self, method: str) -> None:
     body = self._json_body()
@@ -491,7 +464,6 @@ def api_run_start(self, method: str) -> None:
         return
     self._json({"ok": True, "id": run.id, "cmd": run.cmd, "cwd": os.path.dirname(path)})
 
-
 def api_run_poll(self, method: str) -> None:
     q = self._query()
     run = get(q.get("id"))
@@ -501,22 +473,18 @@ def api_run_poll(self, method: str) -> None:
         since = 0
     self._json(run.poll(since, POLL_TIMEOUT))
 
-
 def api_run_input(self, method: str) -> None:
     body = self._json_body()
     get(body.get("id")).write(str(body.get("text") or "")[:1_000_000])
     self._json({"ok": True})
 
-
 def api_run_eof(self, method: str) -> None:
     get(self._json_body().get("id")).eof()
     self._json({"ok": True})
 
-
 def api_run_stop(self, method: str) -> None:
     get(self._json_body().get("id")).stop()
     self._json({"ok": True})
-
 
 def api_run_config(self, method: str) -> None:
     cfg = load_config()
@@ -544,7 +512,6 @@ def api_run_config(self, method: str) -> None:
         cfg = save_config(cfg)
     self._json({"ok": True, "interpreters": cfg["interpreters"], "trusted": cfg["trusted"],
                 "save_before_run": cfg["save_before_run"], "languages": {ext: v[0] for ext, v in LANGS.items()}})
-
 
 def register(handler_cls) -> None:
     """Attach the run routes to the MemuNote request handler class."""

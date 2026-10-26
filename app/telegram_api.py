@@ -24,16 +24,13 @@ TOKEN_RE = re.compile(r"^\d{5,16}:[A-Za-z0-9_-]{20,}$")
 _TOKEN_IN_TEXT = re.compile(r"(bot)?\d{5,16}:[A-Za-z0-9_-]{20,}")
 _LEGACY_TOKEN = re.compile(r"bot\d+:[\w-]+")
 
-
 def redact(text: Any) -> str:
     """Remove bot tokens from any text that may reach a log or the UI."""
     value = _TOKEN_IN_TEXT.sub(lambda m: ("bot" if m.group(1) else "") + "<token>", str(text))
     return _LEGACY_TOKEN.sub("bot<token>", value)
 
-
 def valid_token(token: str) -> bool:
     return bool(TOKEN_RE.fullmatch(str(token or "").strip()))
-
 
 class _RedactFilter(logging.Filter):
     """httpx logs "HTTP Request: POST https://api.telegram.org/bot<TOKEN>/…"."""
@@ -47,9 +44,7 @@ class _RedactFilter(logging.Filter):
             record.msg, record.args = redact(message), ()
         return True
 
-
 _FILTER_INSTALLED = False
-
 
 def install_log_redaction() -> None:
     global _FILTER_INSTALLED
@@ -59,7 +54,6 @@ def install_log_redaction() -> None:
     for name in ("httpx", "httpcore", "memuai.telegram"):
         logging.getLogger(name).addFilter(_RedactFilter())
 
-
 class TelegramError(RuntimeError):
     def __init__(self, description: str, *, error_code: int = 0, retry_after: float = 0.0,
                  method: str = "", transport: str = "") -> None:
@@ -68,8 +62,7 @@ class TelegramError(RuntimeError):
         self.error_code = int(error_code or 0)
         self.retry_after = float(retry_after or 0)
         self.method = method
-        # Name of the httpx exception when the request never got an answer
-        # (ConnectError, ReadTimeout, RemoteProtocolError, PoolTimeout, SSL …).
+
         self.transport = str(transport or "")
 
     @property
@@ -109,7 +102,6 @@ class TelegramError(RuntimeError):
         return self.error_code == 404 or "method not found" in text or "not supported" in text \
             or "unknown method" in text
 
-
 class BotApi:
     """Thin async wrapper around ``https://api.telegram.org/bot<token>/<method>``."""
 
@@ -142,9 +134,7 @@ class BotApi:
                 else:
                     response = await self.client.post(self._url(method), json=payload, timeout=http_timeout)
             except (httpx.HTTPError, OSError) as exc:
-                # The exception text of httpx can contain the URL (with token).
-                # OSError covers ssl.SSLError and sockets torn down by sleep/wake
-                # that some transports surface unwrapped.
+
                 raise TelegramError(f"{type(exc).__name__}: {redact(exc)}", method=method,
                                     transport=type(exc).__name__) from None
             try:
@@ -178,7 +168,7 @@ class BotApi:
         try:
             async with self.client.stream("GET", url, timeout=120) as response:
                 if response.status_code >= 400:
-                    # Never raise_for_status(): its message contains the URL with the token.
+
                     raise TelegramError(f"Telegram file download failed: HTTP {response.status_code}",
                                         error_code=response.status_code, method="file")
                 data = bytearray()

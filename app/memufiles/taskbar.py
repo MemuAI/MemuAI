@@ -21,8 +21,7 @@ log = logging.getLogger("memufiles.taskbar")
 TBPF_NOPROGRESS, TBPF_INDETERMINATE, TBPF_NORMAL, TBPF_ERROR, TBPF_PAUSED = 0, 1, 2, 4, 8
 FINISHED = ("done", "error", "cancelled")
 MIN_INTERVAL = 0.3
-LONG_OP = 3.0           # an operation that ran this long flashes the taskbar button when it ends in the background
-
+LONG_OP = 3.0
 
 def summarize(ops: List[Dict[str, Any]]) -> Dict[str, Any]:
     """The one bar the taskbar shows for all running operations: ``{state, done, total}``."""
@@ -47,7 +46,6 @@ def summarize(ops: List[Dict[str, Any]]) -> Dict[str, Any]:
     done = int(1000 * sum(fractions) / len(fractions))
     return {"state": state, "done": done, "total": 1000}
 
-
 class TaskbarProgress:
     """Feed it operation snapshots (:meth:`op_changed`); it keeps the taskbar button in step."""
 
@@ -70,7 +68,6 @@ class TaskbarProgress:
             self._thread.start()
         self._wake.set()
 
-    # ---------------------------------------------------------------- STA thread
     def _loop(self) -> None:
         try:
             com = _TaskbarCom()
@@ -98,7 +95,6 @@ class TaskbarProgress:
                 log.debug("taskbar update failed: %s", exc)
             time.sleep(MIN_INTERVAL)
 
-
 class _TaskbarCom:
     """``ITaskbarList3`` through its vtable (no comtypes): HrInit 3, SetProgressValue 9, SetProgressState 10."""
 
@@ -107,7 +103,7 @@ class _TaskbarCom:
         from ctypes import wintypes
         self.ctypes = ctypes
         ole32 = ctypes.windll.ole32
-        ole32.CoInitializeEx(None, 0x2)                      # COINIT_APARTMENTTHREADED
+        ole32.CoInitializeEx(None, 0x2)
         clsid = _guid("{56FDF344-FD6D-11d0-958A-006097C9A090}")
         iid = _guid("{EA1AFB91-9E28-4B86-90E9-9E9F8A5EEFAF}")
         self.ptr = ctypes.c_void_p()
@@ -132,7 +128,6 @@ class _TaskbarCom:
         proto = ctypes.WINFUNCTYPE(ctypes.c_long, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_int)
         self._call(10, proto, ctypes.c_void_p(hwnd), flags)
 
-
 def _guid(text: str) -> Any:
     import ctypes
 
@@ -142,7 +137,6 @@ def _guid(text: str) -> Any:
     guid = GUID()
     ctypes.windll.ole32.CLSIDFromString(ctypes.c_wchar_p(text), ctypes.byref(guid))
     return guid
-
 
 def _flash_if_background(hwnd: int) -> None:
     import ctypes
@@ -155,5 +149,5 @@ def _flash_if_background(hwnd: int) -> None:
     class FLASHWINFO(ctypes.Structure):
         _fields_ = [("cbSize", wintypes.UINT), ("hwnd", ctypes.c_void_p), ("dwFlags", wintypes.DWORD),
                     ("uCount", wintypes.UINT), ("dwTimeout", wintypes.DWORD)]
-    info = FLASHWINFO(ctypes.sizeof(FLASHWINFO), ctypes.c_void_p(hwnd), 0x2 | 0xC, 3, 0)   # TRAY | TIMERNOFG
+    info = FLASHWINFO(ctypes.sizeof(FLASHWINFO), ctypes.c_void_p(hwnd), 0x2 | 0xC, 3, 0)
     user32.FlashWindowEx(ctypes.byref(info))

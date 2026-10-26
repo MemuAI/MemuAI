@@ -1,7 +1,11 @@
-// MemuNote — UI strings of the presentation editor (Round 32, zone "slides"). Merged into DICT by i18n.js.
-// English contains no Cyrillic (tests/round32_slides_test.py).
+
+
 export const SLIDES_I18N = {
   ru: {
+    sl_ai_objects: "Изменить объекты с ИИ",
+    sl_clean_show: "Скрыть управление",
+    sl_chart_grid_hint: "Редактируйте ячейки или вставьте таблицу из Excel. Первая строка — названия рядов, первый столбец — категории.", sl_chart_remove_series: "Удалить ряд", sl_chart_add_row: "Добавить категорию", sl_chart_add_series: "Добавить ряд", sl_chart_cell: "Ячейка",
+    sl_tab_review: "Проверка", sl_theme_gallery: "Галерея тем", sl_export_pptx: "Копия в PPTX", sl_export_options: "Настроить PDF", sl_preflight: "Проверить оформление", sl_ai_review: "Советы ИИ", sl_ai_custom: "Своя задача ИИ", sl_starter: "Основа презентации",
     new_presentation: "Новая презентация", kind_slides: "Презентация", filter_slides: "Презентации", sl_odp_save: "Формат ODP можно только открыть — презентация будет сохранена как .pptx",
     sl_new_title: "Новая презентация", sl_new_theme: "Тема", sl_new_size: "Формат слайдов", sl_new_ai: "Создать с помощью ИИ…", sl_new_blank: "Создать",
     sl_loading: "Открываю презентацию…", sl_open_failed: "Не удалось открыть презентацию", sl_slides: "Слайды", sl_slide: "Слайд", sl_notes: "Заметки докладчика", sl_notes_ph: "Заметки к слайду — видны только вам в режиме докладчика",
@@ -70,6 +74,10 @@ export const SLIDES_I18N = {
     sh_terminator: "Скруглённая плашка", sh_line: "Линия", sh_arrowline: "Линия со стрелкой",
   },
   en: {
+    sl_ai_objects: "Edit objects with AI",
+    sl_clean_show: "Hide controls",
+    sl_chart_grid_hint: "Edit cells or paste a table from Excel. The first row names the series; the first column contains categories.", sl_chart_remove_series: "Remove series", sl_chart_add_row: "Add category", sl_chart_add_series: "Add series", sl_chart_cell: "Cell",
+    sl_tab_review: "Review", sl_theme_gallery: "Theme gallery", sl_export_pptx: "PPTX copy", sl_export_options: "PDF options", sl_preflight: "Check presentation", sl_ai_review: "AI review", sl_ai_custom: "Custom AI task", sl_starter: "Start with",
     new_presentation: "New presentation", kind_slides: "Presentation", filter_slides: "Presentations", sl_odp_save: "ODP files can only be opened: the presentation will be saved as .pptx",
     sl_new_title: "New presentation", sl_new_theme: "Theme", sl_new_size: "Slide size", sl_new_ai: "Create with AI…", sl_new_blank: "Create",
     sl_loading: "Opening the presentation…", sl_open_failed: "Could not open the presentation", sl_slides: "Slides", sl_slide: "Slide", sl_notes: "Speaker notes", sl_notes_ph: "Notes for this slide: only you see them in presenter view",

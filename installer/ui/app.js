@@ -1,5 +1,5 @@
-/* MemuAI Setup — interface logic: screens, i18n, the bridge to the Python
- * engine (window.pywebview.api, see installer/bridge.py) and the 3D scene. */
+
+
 (function () {
   "use strict";
 
@@ -11,14 +11,11 @@
   var S = {
     info: null, lang: "en", screen: "", history: [],
     edition: "full", components: [], tasks: [], dir: "", dirCheck: null,
-    // wizard (Round 23): "Install" walks every step; an update starts at the review and
-    // `expanded` turns it into the full walk once the user asks to change something;
-    // `editing` = a step was opened from the review's "Change" (its primary returns there)
+
     expanded: false, editing: false,
     polling: null, status: "idle", result: null, stopping: false, lastPct: 0
   };
 
-  // ------------------------------------------------------------------ bridge
   var api = null;
   function call(name) {
     var args = Array.prototype.slice.call(arguments, 1);
@@ -26,7 +23,6 @@
     try { return Promise.resolve(api[name].apply(api, args)); } catch (e) { return Promise.reject(e); }
   }
 
-  // ------------------------------------------------------------------ i18n
   function esc(v) { return String(v == null ? "" : v).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function t(key, vars) {
     var dict = I18N[S.lang] || I18N.en;
@@ -52,7 +48,6 @@
     if (S.screen) fit();
   }
 
-  // ------------------------------------------------------------------ dynamic text
   var ICONS = {
     models: '<path d="M4 7.5L12 3l8 4.5v9L12 21l-8-4.5z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>',
     research: '<circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5M8 10.5h5M10.5 8v5"/>',
@@ -64,10 +59,6 @@
 
   function isProxyProduct() { return S.info && S.info.product.id === "proxy"; }
 
-  // The welcome screen has four faces (installer/versions.py decides which):
-  // fresh install, UPDATE (older version installed, or one whose number can't be
-  // read), REPAIR (same version) and DOWNGRADE (newer version installed). The
-  // work underneath is the same; only words and the version-transition visual differ.
   function welcomeKind() {
     var kind = S.info && S.info.kind;
     return kind === "upgrade" || kind === "reinstall" || kind === "downgrade" ? kind : "fresh";
@@ -97,7 +88,7 @@
     $("#brand-title").textContent = document.title;
     $("#brand-ver").textContent = v || from || "";
     $("#wordmark").textContent = name();
-    // welcome
+
     var kickerKey = "welcome.kicker", titleKey = "welcome.title", leadKey = "welcome.lead";
     if (kind === "upgrade") { kickerKey = from ? "welcome.upgrade.kicker" : "welcome.upgrade.kicker.unknown"; titleKey = "welcome.upgrade.title"; leadKey = "welcome.upgrade.lead"; }
     else if (kind === "reinstall") { kickerKey = "welcome.reinstall.kicker"; titleKey = "welcome.reinstall.title"; leadKey = "welcome.reinstall.lead"; }
@@ -129,27 +120,26 @@
     var quickKey = kind === "upgrade" ? "btn.update" : kind === "reinstall" ? "btn.reinstall" : kind === "downgrade" ? "btn.downgrade" : "btn.install";
     $("#btn-start-label").textContent = t(quickKey, vars);
     $("#btn-install-label").textContent = t(quickKey, vars);
-    // Express = straight to the review with the defaults (nothing is installed without the
-    // review's confirmation). An update already starts at the review, so it needs no shortcut.
+
     $("#btn-express").hidden = kind !== "fresh";
     $("#btn-express").title = t("btn.express.hint");
     $("#legacy-welcome").hidden = !info.existing.legacy_machine;
     $("#legacy-options").hidden = !info.existing.legacy_machine;
-    // edition
+
     $("#size-full").textContent = t("edition.size", { size: fmtBytes(sizeOf(["proxy", "memuai", S.components.indexOf("memucode") >= 0 ? "memucode" : "", S.components.indexOf("memunote") >= 0 ? "memunote" : "", S.components.indexOf("memufiles") >= 0 ? "memufiles" : ""])) });
     $("#size-proxy").textContent = t("edition.size", { size: fmtBytes(sizeOf(["proxy"])) });
-    // location & options
+
     renderToggles();
     $("#data-note-text").innerHTML = t("options.data", { path: (info.data_dirs[0] || "%APPDATA%\\MemuAI") });
     renderSpace();
     renderReview();
-    // progress / done
+
     var upd = kind === "upgrade", repair = kind === "reinstall";
     $("#progress-title").textContent = info.mode === "uninstall" ? t("un.progress.title", vars)
       : t(upd ? "install.title.update" : repair ? "install.title.repair" : "install.title", vars);
     $("#done-title").innerHTML = t(upd ? "done.title.update" : repair ? "done.title.repair" : "done.title", vars);
     $("#launch-label").textContent = t("btn.open", { app: launchApp() });
-    // uninstall
+
     $("#un-kicker").innerHTML = t("un.kicker", { version: from || v });
     $("#un-title").innerHTML = t("un.title", vars);
     $("#un-dir").textContent = info.app_dir || info.existing.dir || "";
@@ -167,7 +157,6 @@
     return total;
   }
 
-  // ------------------------------------------------------------------ edition & options
   function setEdition(ed) {
     S.edition = ed;
     $$(".card").forEach(function (c) { c.setAttribute("aria-pressed", String(c.getAttribute("data-edition") === ed)); });
@@ -196,9 +185,6 @@
 
   function launchApp() { return S.components.indexOf("memuai") >= 0 && !isProxyProduct() ? "MemuAI" : "MemuAI Proxy"; }
 
-  // Options step: the product's tasks in two groups (startup | desktop shortcuts), each
-  // with a one-line explanation. Start-menu shortcuts and PATH are not optional — said once
-  // in the footnote instead of as a switch that cannot be switched.
   var TASK_GROUPS = [["startup", ["autostart", "memuaiautostart"]], ["shortcuts", ["desktopicon", "proxyicon"]]];
   function taskLabel(id) {
     var proxy = isProxyProduct();
@@ -230,7 +216,6 @@
     $("#options-foot").innerHTML = INFO_ICON + "<span>" + t(S.components.indexOf("memucode") >= 0 ? "options.foot.cli" : "options.foot") + "</span>";
   }
 
-  // ------------------------------------------------------------------ review
   var SUM_ICONS = {
     version: '<path d="M4 12h11M11 7l5 5-5 5"/><path d="M20 5v14"/>',
     components: '<path d="M4 7.5L12 3l8 4.5v9L12 21l-8-4.5z"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9"/>',
@@ -291,7 +276,7 @@
     dirTimer = setTimeout(function () {
       var value = $("#opt-dir").value;
       call("check_dir", value, S.components).then(function (res) {
-        if ($("#opt-dir").value !== value) return;      // a newer check is on its way
+        if ($("#opt-dir").value !== value) return;
         S.dirCheck = res;
         renderSpace();
         renderReview();
@@ -317,11 +302,6 @@
     $("#btn-location-next").disabled = !res.ok;
   }
 
-  // ------------------------------------------------------------------ wizard & stepper
-  // "Install" never skips a step. A first install walks every step with good defaults
-  // already chosen (components → folder → shortcuts & startup → review → install); an
-  // update, repair or downgrade opens the review of what will happen, and any "Change"
-  // there turns it into the full walk.
   function flowSteps() {
     var full = isProxyProduct() ? ["location", "options", "review"] : ["edition", "location", "options", "review"];
     if (welcomeKind() !== "fresh" && !S.expanded) return ["review"];
@@ -367,18 +347,13 @@
       el.classList.toggle("done", index >= 0 && (index < current || S.screen === "done"));
       if (index === current) el.setAttribute("aria-current", "step"); else el.removeAttribute("aria-current");
     });
-    // the wizard's primary button: "Continue", or "Back to summary" after a "Change"
+
     $$("[data-next] .next-label").forEach(function (span) { span.textContent = t(S.editing ? "btn.toReview" : "btn.continue"); });
   }
 
   var CENTERED = { progress: 1, done: 1, error: 1, "un-done": 1 };
   var TALL = { done: 1, error: 1 };
 
-  // Where the crystal sits. The numbers were tuned for the 960×620 design: on the
-  // side screens it is centred in the free area left of the panel; on the centred
-  // screens it sits in the free band above the panel and scales with that band.
-  // The panel's FINAL rectangle is read from #panel-ghost (same geometry, no
-  // transition), so the crystal glides in step with the panel morph.
   var HERO = {
     welcome: { y: 0.47, s: 0.47, light: 1 }, edition: { y: 0.47, s: 0.44, light: 1 }, location: { y: 0.47, s: 0.43, light: 1 },
     options: { y: 0.47, s: 0.42, light: 1 }, review: { y: 0.47, s: 0.45, light: 1 },
@@ -386,7 +361,7 @@
     progress: { ring: 1, ref: 306, s: 0.4, light: 1 }, "un-done": { f: 0.427, ref: 306, s: 0.3, light: 0.8 },
     done: { f: 0.47, ref: 212, s: 0.33, light: 1 }, error: { f: 0.47, ref: 212, s: 0.3, light: 0.55 }
   };
-  var RING_MARGIN = 14, CSS_RING_RADIUS = 126;   // px; the CSS fallback's ring (.css-star .pring, r = 48 of 50) at scale 1
+  var RING_MARGIN = 14, CSS_RING_RADIUS = 126;
   function heroTarget(screen) {
     var spec = HERO[screen] || HERO.welcome;
     var W = window.innerWidth || 960, H = window.innerHeight || 620;
@@ -394,15 +369,13 @@
     var bar = $(".titlebar"), tb = bar ? bar.getBoundingClientRect().bottom : 46;
     if (!r || !r.width) r = { left: W * 0.46, top: H * 0.57 };
     if (spec.ring) {
-      // progress: the ring (MemuScene.RING_RADIUS crystal units) is centred in the free band
-      // between the title bar and the panel with RING_MARGIN above and below — never under the
-      // title bar or cut by the window's top edge — and the crystal is sized to sit inside it
+
       var bandR = Math.max(60, r.top - tb), ringPx = Math.max(28, bandR / 2 - RING_MARGIN), cy = tb + bandR / 2;
       var units = (window.MemuScene && window.MemuScene.RING_RADIUS) || 1.25;
       return { x: 0.5, y: cy / H, s: ringPx / (units * 0.5 * H), light: spec.light, px: W / 2, py: cy, k: ringPx / CSS_RING_RADIUS };
     }
     if (spec.f == null) {
-      // side screens: crystal size ∝ window height, but never wider than the free area
+
       var free = Math.max(120, r.left);
       var sc = Math.min(spec.s, spec.s * (free / 400) * (620 / H) * 1.18);
       return { x: (r.left / 2) / W, y: spec.y, s: sc, light: spec.light, px: r.left / 2, py: spec.y * H, k: (sc / 0.47) * (H / 620) };
@@ -427,7 +400,7 @@
     placeHero();
     var M = window.MemuScene;
     if (!M || !M.ok) return;
-    // The progress ring lives only on the progress screen; on "done" it stays full and fades out.
+
     if (screen === "progress") M.setRing(0, 1, true);
     else if (screen === "done") M.setRing(1, 0, false);
     else M.setRing(null, 0, false);
@@ -445,12 +418,7 @@
     }
   }
 
-  // ------------------------------------------------------------------ fit
-  // The CSS is fluid down to MIN_W×MIN_H. Below that — or if a screen still does
-  // not fit (a long translation, a warning note) — the whole stage is scaled with
-  // a transform; the stage keeps covering the window exactly (its virtual size is
-  // window / scale). Inner scrolling is the very last resort (scale < MIN_SCALE).
-  var MIN_W = 860, MIN_H = 540, MIN_SCALE = 0.62, FIT_SLACK = 1;   // layout px are whole numbers: ±1 is rounding
+  var MIN_W = 860, MIN_H = 540, MIN_SCALE = 0.62, FIT_SLACK = 1;
   var fitState = { scale: 1, timer: null };
   function applyScale(s) {
     var W = window.innerWidth || MIN_W, H = window.innerHeight || MIN_H;
@@ -461,12 +429,7 @@
     st.setProperty("--stage-h", (H / s).toFixed(2) + "px");
     html.setAttribute("data-fit", s < 0.999 ? "scaled" : "fluid");
   }
-  // How far the screen's content runs past its bottom padding, in layout px. Only layout
-  // boxes are read (offsetTop/offsetHeight; the screen is its children's offsetParent):
-  // while a screen enters, its children are still translated and the panel is scaled by
-  // the entrance animations, and getBoundingClientRect/scrollHeight count that as overflow.
-  // Measuring them made fit() shrink or densify a screen that fits, and the delayed refit
-  // undid it a second later — the "jerk" at the end of every entrance (Round 25).
+
   function overflowOf(el) {
     if (!el) return 0;
     var kids = el.children, lastBottom = 0;
@@ -481,8 +444,7 @@
   function fit() {
     var W = window.innerWidth, H = window.innerHeight;
     if (!W || !H) return;
-    // The panel is still morphing to its final height (#panel-ghost has it already): a screen
-    // measured now would be judged against the wrong height. Wait for the morph to end.
+
     var ghost = $("#panel-ghost"), panel = $("#panel");
     if (ghost && panel && Math.abs(ghost.offsetHeight - panel.offsetHeight) > 1) { refit(120); return; }
     html.classList.remove("fit-scroll", "fit-dense", "fit-tight");
@@ -539,18 +501,13 @@
     document.body.classList.toggle("tall", !!TALL[screen]);
     sceneFor(screen);
     renderStepper();
-    // Fit now, from layout boxes (the entrance transforms do not count), so the screen
-    // enters already in its final shape. A panel morph (side ↔ centred) changes the
-    // screen's height over .85 s: that fit waits for the morph's transitionend (wire());
-    // the timer only covers a morph that never ran (reduced motion) or was interrupted —
-    // measured mid-morph, the fit would shrink a screen that fits once the panel has grown.
+
     if (!modeChange) fit();
     else refit(html.classList.contains("reduce-motion") ? 30 : 1400);
   }
 
   function goBack() { prevStep(); }
 
-  // ------------------------------------------------------------------ install / uninstall
   var lastPoll = null;
   function startInstall(force) {
     S.stopping = false;
@@ -564,7 +521,7 @@
 
   function startUninstall(force) {
     S.stopping = false;
-    S.lastPct = 0;     // a retry after "programs are running" starts over, not at the stale percent
+    S.lastPct = 0;
     show("progress", { replace: true });
     updateProgress({ percent: 0, phase: "closing" });
     S.removeData = !$("#opt-keep").checked;
@@ -603,12 +560,11 @@
     $("#file").textContent = st.file ? String(st.file).replace(/\//g, "\\") : "";
     $("#bytes").textContent = st.total ? t("install.of", { done: fmtBytes(st.done || 0), total: fmtBytes(st.total) }) : "";
     $("#btn-stop").hidden = S.info.mode === "uninstall" || phase === "registering" || phase === "finishing" || phase === "done";
-    $("#btn-stop").disabled = S.stopping;            // already stopping: no second confirmation
-    // Until the work has a size (programs are being closed, the payload is being opened) or
-    // while it is being cancelled, the ring circles instead of sitting at an empty 0 %.
+    $("#btn-stop").disabled = S.stopping;
+
     var busy = S.stopping || !phase || phase === "preparing" || phase === "closing";
     html.classList.toggle("ring-busy", busy);
-    var arc = $("#pring-arc");                       // the CSS fallback's ring (no WebGL)
+    var arc = $("#pring-arc");
     arc.style.strokeDashoffset = busy ? "" : (100 - pct).toFixed(2);
     arc.style.opacity = busy || pct > 0.2 ? "" : "0";
     var M = window.MemuScene;
@@ -616,7 +572,7 @@
       var p = pct / 100;
       M.setRing(p, null, busy);
       if (S.info.mode === "uninstall") {
-        // the crystal dims and settles as the program goes, inside its ring
+
         var h = heroTarget("progress");
         M.setEnergy(0.35 * (1 - p) + 0.05); M.setTarget(h.x, h.y, h.s * (1 - 0.2 * p), 1 - 0.3 * p); M.setProgress(0);
       }
@@ -631,7 +587,7 @@
     var webviewMissing = S.components.indexOf("memuai") >= 0 && result.webview2 === "";
     $("#done-warn").hidden = !(warns.length || webviewMissing);
     $("#done-warn-text").textContent = webviewMissing ? t("done.webview") : t("done.warn");
-    // Without WebView2 the chat app cannot open: no "Open MemuAI" button that would fail.
+
     $("#btn-finish").hidden = webviewMissing;
     $("#btn-done-close").classList.toggle("primary", webviewMissing);
     $("#btn-done-close").classList.toggle("ghost", !webviewMissing);
@@ -639,7 +595,6 @@
     show("done", { replace: true });
   }
 
-  // What the uninstaller removes and what stays, as chips that follow the "keep data" switch.
   var CHIP_X = '<svg viewBox="0 0 16 16"><path d="M5 5l6 6M11 5l-6 6"/></svg>';
   var CHIP_OK = '<svg viewBox="0 0 16 16"><path d="M8 1.8l5 2v3.7c0 3-2.1 5.5-5 6.4-2.9-.9-5-3.4-5-6.4V3.8z"/><path d="M5.8 8l1.6 1.6 3-3.2"/></svg>';
   function renderUnChips() {
@@ -659,8 +614,7 @@
     var r = S.result || {};
     $("#un-done-title").innerHTML = t("un.done.title", { name: name() });
     var kept = r.kept_data || [];
-    // The text follows what was asked: deleting data that did not exist is not «kept in …»,
-    // and a folder that could not be deleted is not «deleted as well».
+
     $("#un-done-text").innerHTML = !S.removeData
       ? t("un.done.kept", { name: name(), paths: (kept.length ? kept : S.info.data_dirs || []).join(", ") })
       : kept.length ? t("un.done.dataLeft", { paths: kept.join(", ") }) : t("un.done.removed");
@@ -710,27 +664,17 @@
 
   function requestClose() {
     if (S.polling && S.info.mode !== "uninstall" && S.screen === "progress") {
-      if (S.stopping) return;                // the rollback is already under way
+      if (S.stopping) return;
       modal(t("install.confirmStop.t"), t("install.confirmStop.b"), [], [
         { label: t("btn.keepGoing"), cls: "ghost", run: closeModal },
         { label: t("btn.stop"), cls: "danger", run: function () { closeModal(); S.stopping = true; call("cancel"); } }
       ]);
       return;
     }
-    if (S.polling) return;   // uninstall in progress: no half-removed program
+    if (S.polling) return;
     call("close");
   }
 
-
-  // ------------------------------------------------------------------ window drag
-  // The window is frameless: it moves when the titlebar or any empty area (the
-  // background with the crystal, the panel's own surface) is pressed. Interactive
-  // things (buttons, inputs, cards, rows, the language switch, dialogs) never start
-  // a drag, and neither does text inside the panel or a scrollbar. The bridge runs
-  // the native caption move loop (bridge.drag_window → WM_NCLBUTTONDOWN/HTCAPTION:
-  // smooth, multi-monitor, Aero Snap; no maximize on double click — the form has no
-  // maximize box). Without it (older pywebview, non-Windows) we move the window
-  // ourselves with bridge.move_window while the button is held.
   var DRAG_BLOCK = "button, a, input, select, textarea, label, summary, option, [contenteditable], [tabindex], " +
     "[role=button], [role=checkbox], [role=radio], [role=switch], [role=tab], [role=slider], [role=dialog], " +
     ".seg, .card, .row, .no-drag, .modal";
@@ -743,9 +687,9 @@
     if (!target || target.nodeType !== 1) return false;
     if (closestEl(target, DRAG_BLOCK)) return false;
     if (ev && target.clientWidth && (ev.offsetX >= target.clientWidth || ev.offsetY >= target.clientHeight) &&
-        (target.scrollHeight > target.clientHeight || target.scrollWidth > target.clientWidth)) return false;  // scrollbar
-    if (closestEl(target, ".panel")) return target.matches(DRAG_SURFACE);   // text inside the panel stays inert
-    return true;                                                             // titlebar, background, crystal side
+        (target.scrollHeight > target.clientHeight || target.scrollWidth > target.clientWidth)) return false;
+    if (closestEl(target, ".panel")) return target.matches(DRAG_SURFACE);
+    return true;
   }
   var drag = { active: false, fallback: false, dx: 0, dy: 0, frame: 0, x: 0, y: 0 };
   function dragEnd() {
@@ -765,12 +709,12 @@
   function dragStart(ev) {
     if (ev.button !== 0 || ev.detail > 1 || ev.ctrlKey || ev.altKey || ev.shiftKey || ev.metaKey) return;
     if (!isDragZone(ev.target, ev)) return;
-    ev.preventDefault();                    // no focus change, no selection
+    ev.preventDefault();
     drag.active = true; drag.fallback = false;
     drag.dx = ev.clientX; drag.dy = ev.clientY;
     html.classList.add("dragging");
     call("drag_window").then(function (native) {
-      if (native || !drag.active) { dragEnd(); return; }   // native loop done, or button already released
+      if (native || !drag.active) { dragEnd(); return; }
       drag.fallback = true;
     }, function () { if (drag.active) drag.fallback = true; else dragEnd(); });
   }
@@ -782,7 +726,6 @@
     document.addEventListener("dblclick", function (ev) { if (isDragZone(ev.target, null)) ev.preventDefault(); });
   }
 
-  // ------------------------------------------------------------------ wiring
   function wire() {
     wireDrag();
     $$(".seg button").forEach(function (b) {
@@ -835,7 +778,7 @@
     $("#opt-keep").addEventListener("change", function () {
       $("#un-warn").hidden = $("#opt-keep").checked;
       renderUnChips();
-      fit();     // the warning adds height: without a refit the buttons slid off the panel on a small window
+      fit();
     });
     $("#btn-un-cancel").addEventListener("click", function () { call("close"); });
     $("#btn-un-go").addEventListener("click", function () { startUninstall(false); });
@@ -848,7 +791,7 @@
         if (primary) primary.click();
       }
     });
-    // light that follows the cursor across the glass
+
     var panel = $("#panel");
     document.addEventListener("mousemove", function (e) {
       var r = panel.getBoundingClientRect();
@@ -861,10 +804,6 @@
     if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { if (S.screen) fit(); });
   }
 
-  // ------------------------------------------------------------------ start
-  // The fonts of the interface, both subsets (Latin + Cyrillic), before the first layout:
-  // with font-display: block a late font re-flows every line after the entrance. Capped,
-  // so a broken font file never holds the window back.
   function fontsReady() {
     var fonts = document.fonts;
     if (!fonts || !fonts.load) return Promise.resolve();
@@ -873,10 +812,6 @@
     return Promise.race([load.catch(function () {}), new Promise(function (r) { setTimeout(r, 1500); })]);
   }
 
-  // The interface stays hidden (html:not(.ready), style.css) until the bridge has answered,
-  // the fonts are in and the first screen is laid out in its final shape; then it enters
-  // once. Before Round 25 the panel animated in empty at page load and the texts, the
-  // language switch and the fit arrived afterwards.
   var revealed = false;
   function reveal() {
     if (revealed) return;
@@ -900,11 +835,11 @@
       S.tasks = (info.defaults.tasks || []).slice();
       S.edition = S.components.indexOf("memuai") >= 0 || info.product.id === "proxy" ? "full" : "proxy";
       $("#opt-memucode").checked = S.components.indexOf("memucode") >= 0;
-      // Round 29: MemuNote is optional; hidden when this Setup does not carry it.
+
       var hasNote = (info.components || []).some(function (c) { return c.id === "memunote"; });
       $("#row-note").hidden = !hasNote;
       $("#opt-memunote").checked = S.components.indexOf("memunote") >= 0;
-      // Round 35: MemuFiles, optional the same way.
+
       var hasFiles = (info.components || []).some(function (c) { return c.id === "memufiles"; });
       $("#row-files").hidden = !hasFiles;
       $("#opt-memufiles").checked = S.components.indexOf("memufiles") >= 0;
@@ -933,7 +868,7 @@
     try { ok = window.MemuScene && window.MemuScene.init($("#scene")); } catch (e) { ok = false; }
     if (!ok) html.classList.add("no-webgl");
     wire();
-    setTimeout(reveal, 8000);     // a bridge that never answers must not leave an empty window
+    setTimeout(reveal, 8000);
     var useMock = /[?&]mock=1/.test(location.search);
     if (useMock) {
       var s = document.createElement("script");

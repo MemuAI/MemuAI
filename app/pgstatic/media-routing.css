@@ -1,9 +1,5 @@
-/* MemuAI 3.1 · Round 29 · media routing (media-routing.js): generation progress, inline video, prompt card,
-   Settings → Models «Images, video and decisions». Tokens only (var(--panel), --border, --accent…): every design works. */
 .mm-block { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
 .mm-block:empty { display: none; }
-
-/* progress */
 .mm-progress { display: flex; align-items: center; gap: 14px; max-width: 460px; padding: 12px 14px; border: 1px solid var(--border);
   border-radius: 14px; background: var(--panel); }
 .mm-shimmer { flex: none; width: 64px; height: 64px; border-radius: 12px; display: grid; place-items: center; color: var(--accent);
@@ -19,8 +15,6 @@
 @keyframes mm-pulse { 0%, 100% { transform: scale(1); opacity: .75; } 50% { transform: scale(1.12); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .mm-shimmer, .mm-prompting .mm-shimmer .ui-icon { animation: none; } }
 :root[data-motion="off"] .mm-shimmer, :root[data-motion="off"] .mm-prompting .mm-shimmer .ui-icon { animation: none; }
-
-/* buttons */
 .mm-btn { display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 11px; border: 1px solid var(--border);
   border-radius: 9px; background: var(--panel); color: var(--text); font: inherit; font-size: 12.5px; cursor: pointer;
   transition: background .12s ease, border-color .12s ease; white-space: nowrap; }
@@ -31,14 +25,10 @@
 .mm-btn.primary:hover { filter: brightness(1.06); background: var(--accent); }
 .mm-btn .ui-icon svg { width: 15px; height: 15px; }
 .mm-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-
-/* video */
 .mm-videos { display: flex; flex-wrap: wrap; gap: 10px; }
-.mm-video { margin: 0; display: flex; flex-direction: column; gap: 6px; width: min(560px, 100%); }   /* r29c: small clips scale up instead of a 320 px box */
+.mm-video { margin: 0; display: flex; flex-direction: column; gap: 6px; width: min(560px, 100%); }
 .mm-video video { display: block; width: 100%; max-height: 420px; border-radius: 12px; border: 1px solid var(--border); background: #000; }
 .mm-video figcaption { display: flex; justify-content: flex-end; }
-
-/* prompt card */
 .mm-card { max-width: 640px; border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--panel) 85%, transparent); }
 .mm-card > summary { display: flex; align-items: center; gap: 8px; padding: 8px 12px; cursor: pointer; list-style: none; user-select: none;
   color: var(--muted); font-size: 12.5px; border-radius: 12px; }
@@ -62,14 +52,10 @@
 .mm-search a { color: var(--accent); }
 .mm-note { max-width: 640px; color: var(--muted); font-size: 12.5px; }
 .mm-note.warn { color: color-mix(in srgb, #d29922 80%, var(--text)); }
-
-/* send button while the Decisions model is thinking */
 #btn-send.media-deciding { position: relative; }
 #btn-send.media-deciding::after { content: ""; position: absolute; inset: -3px; border-radius: inherit; border: 2px solid transparent;
   border-top-color: var(--accent); animation: mm-spin .8s linear infinite; pointer-events: none; }
 @keyframes mm-spin { to { transform: rotate(360deg); } }
-
-/* Settings → Models */
 .mm-status { display: inline-flex; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; font-weight: 500; font-variant-numeric: tabular-nums; }
 .mm-status > span { display: inline-flex; align-items: center; gap: 4px; }
 .mm-status .ui-icon svg { width: 13px; height: 13px; }
@@ -88,12 +74,9 @@
 .mm-empty b { color: var(--text); font-weight: 600; }
 .mm-empty p { margin: 2px 0 0; }
 .mm-empty > .ui-icon svg { width: 18px; height: 18px; margin-top: 1px; }
-
-/* «/image» / «/video» mark on the user's message */
 .mm-cmd { display: inline-flex; align-items: center; gap: 4px; margin: 0 0 4px; padding: 1px 7px 1px 5px; border-radius: 999px;
   font-size: 11.5px; font-weight: 600; letter-spacing: .01em; color: currentColor; opacity: .78;
   background: color-mix(in srgb, currentColor 10%, transparent); }
 .mm-cmd .ui-icon svg { width: 12px; height: 12px; }
-/* r29c: the generator / decision pickers fill the row like «Default model» (selects become .pretty-select) */
 :root .sx-shell #settings-media-models .pretty-select { width: 100% !important; max-width: 100% !important; }
 :root .sx-shell #settings-media-models .mm-decision .pretty-select { flex: 1 1 240px; width: auto !important; min-width: 0; }

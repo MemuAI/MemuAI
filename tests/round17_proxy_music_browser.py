@@ -27,7 +27,6 @@ STATIC = ROOT / "app" / "static"
 OUT = ROOT / "audit-results"
 requests = []
 
-
 class Handler(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
         path = urlsplit(self.path).path
@@ -72,10 +71,8 @@ class Handler(http.server.BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
 
-
 server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), Handler)
 threading.Thread(target=server.serve_forever, daemon=True).start()
-
 
 async def check():
     edge = EdgeAutomation()
@@ -126,7 +123,6 @@ async def check():
         print("PASS: actual Proxy music editor, ElevenLabs and generic schemas, RU/EN and 1080/420 px without network credentials")
     finally:
         await edge.close_browser()
-
 
 try:
     asyncio.run(check())

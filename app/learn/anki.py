@@ -40,21 +40,16 @@ _SOUND_RE = re.compile(r"\[sound:([^\]]+)\]")
 _DATA_IMG_RE = re.compile(r"""(<img\b[^>]*?\bsrc\s*=\s*["'])(data:image/([a-z+]+);base64,([A-Za-z0-9+/=]+))(["'])""", re.I)
 _TAG_RE = re.compile(r"<[^>]+>")
 
-# --------------------------------------------------------------------------------------------------- math markup
-
 def math_from_anki(text: str) -> str:
     text = re.sub(r"\\\[(.+?)\\\]", lambda m: "$$" + m.group(1) + "$$", text, flags=re.S)
     return re.sub(r"\\\((.+?)\\\)", lambda m: "$" + m.group(1) + "$", text, flags=re.S)
-
 
 def math_to_anki(text: str) -> str:
     text = re.sub(r"\$\$(.+?)\$\$", lambda m: r"\[" + m.group(1) + r"\]", text, flags=re.S)
     return re.sub(r"(?<![\\$])\$(?!\s)([^$\n]+?)(?<!\s)\$(?!\d)", lambda m: r"\(" + m.group(1) + r"\)", text)
 
-
 def strip_html(text: str) -> str:
     return html.unescape(_TAG_RE.sub("", text or "")).strip()
-
 
 def _simplify_html(text: str) -> str:
     """Anki fields are HTML; keep it (the module sanitises on render) but turn the common wrappers into line breaks."""
@@ -63,8 +58,6 @@ def _simplify_html(text: str) -> str:
     text = re.sub(r"^\s*<(div|p)[^>]*>|</(div|p)>\s*$", "", text, flags=re.I)
     text = text.replace("&nbsp;", " ")
     return text.strip()
-
-# --------------------------------------------------------------------------------------------------- CSV
 
 def import_csv(store: Store, cid: str, text: str, lesson_id: str = "") -> Dict[str, Any]:
     text = str(text or "").lstrip("\ufeff")
@@ -96,7 +89,6 @@ def import_csv(store: Store, cid: str, text: str, lesson_id: str = "") -> Dict[s
             skipped += 1
     return {"added": added, "skipped": skipped}
 
-
 def export_csv(store: Store, cid: str) -> Dict[str, Any]:
     course = store.course(cid)
     buf = io.StringIO()
@@ -111,14 +103,12 @@ def export_csv(store: Store, cid: str) -> Dict[str, Any]:
         writer.writerow([card["front"], card["back"], card["tags"]])
     return {"name": _safe_name(course["title"]) + ".csv", "text": buf.getvalue(), "count": len(seen)}
 
-# --------------------------------------------------------------------------------------------------- APKG import
-
 def _open_collection(zf: zipfile.ZipFile, folder: Path) -> Path:
     names = set(zf.namelist())
     target = folder / "collection.sqlite"
     if "collection.anki21b" in names:
         try:
-            import zstandard  # optional
+            import zstandard
             data = zstandard.ZstdDecompressor().stream_reader(io.BytesIO(zf.read("collection.anki21b"))).read()
             target.write_bytes(data)
             return target
@@ -133,7 +123,6 @@ def _open_collection(zf: zipfile.ZipFile, folder: Path) -> Path:
             return target
     raise LearnError("Это не колода Anki (.apkg)", "This is not an Anki deck (.apkg)", "apkg_invalid")
 
-
 def _legacy_is_placeholder(zf: zipfile.ZipFile, folder: Path) -> bool:
     if "collection.anki2" not in zf.namelist():
         return True
@@ -146,7 +135,6 @@ def _legacy_is_placeholder(zf: zipfile.ZipFile, folder: Path) -> bool:
         return len(rows) <= 1 and any("update" in (r[0] or "").lower() for r in rows)
     except sqlite3.Error:
         return True
-
 
 def _models(con: sqlite3.Connection) -> Tuple[Dict[int, Dict[str, Any]], Dict[int, str]]:
     models: Dict[int, Dict[str, Any]] = {}
@@ -162,7 +150,7 @@ def _models(con: sqlite3.Connection) -> Tuple[Dict[int, Dict[str, Any]], Dict[in
             decks = {int(k): str(d.get("name") or "") for k, d in json.loads(row[1]).items()}
     except (sqlite3.Error, ValueError):
         pass
-    if not models:   # the new schema (anki21b): notetypes + fields + templates tables
+    if not models:
         try:
             for mid, name in con.execute("SELECT id, name FROM notetypes"):
                 fields = [r[0] for r in con.execute("SELECT name FROM fields WHERE ntid=? ORDER BY ord", (mid,))]
@@ -173,7 +161,6 @@ def _models(con: sqlite3.Connection) -> Tuple[Dict[int, Dict[str, Any]], Dict[in
         except sqlite3.Error:
             pass
     return models, decks
-
 
 def _inline_media(text: str, zf: zipfile.ZipFile, media: Dict[str, str], budget: List[int]) -> str:
     def image(m: "re.Match[str]") -> str:
@@ -192,7 +179,6 @@ def _inline_media(text: str, zf: zipfile.ZipFile, media: Dict[str, str], budget:
         return f'<img src="data:{mime};base64,{base64.b64encode(raw).decode()}" alt="{html.escape(name)}">'
     text = _IMG_RE.sub(image, text)
     return _SOUND_RE.sub(lambda m: "🔊 " + m.group(1), text)
-
 
 def import_apkg(store: Store, raw: bytes, *, name: str = "", course_id: str = "", lang: str = "ru") -> Dict[str, Any]:
     if len(raw) > MAX_APKG_BYTES:
@@ -252,8 +238,6 @@ def import_apkg(store: Store, raw: bytes, *, name: str = "", course_id: str = ""
                 skipped += 1
     return {"course_id": cid, "title": store.course(cid)["title"], "notes": added, "skipped": skipped}
 
-# --------------------------------------------------------------------------------------------------- APKG export
-
 _SCHEMA_11 = """
 CREATE TABLE col (id integer primary key, crt integer not null, mod integer not null, scm integer not null, ver integer not null,
   dty integer not null, usn integer not null, ls integer not null, conf text not null, models text not null, decks text not null,
@@ -273,10 +257,8 @@ CREATE INDEX ix_notes_csum on notes (csum);
 """
 _CSS = ".card { font-family: arial; font-size: 20px; text-align: center; color: black; background-color: white; }\n.cloze { font-weight: bold; color: blue; }"
 
-
 def _field(name: str, ord_: int) -> Dict[str, Any]:
     return {"name": name, "ord": ord_, "sticky": False, "rtl": False, "font": "Arial", "size": 20, "media": []}
-
 
 def _model(mid: int, did: int, now: int, cloze: bool) -> Dict[str, Any]:
     if cloze:
@@ -293,12 +275,10 @@ def _model(mid: int, did: int, now: int, cloze: bool) -> Dict[str, Any]:
                         "\\usepackage{amssymb,amsmath}\n\\pagestyle{empty}\n\\setlength{\\parindent}{0in}\n\\begin{document}\n",
             "latexPost": "\\end{document}", "req": [[0, "any", [0]]]}
 
-
 def _deck(did: int, name: str, now: int) -> Dict[str, Any]:
     return {"id": did, "name": name, "mod": now, "usn": -1, "lrnToday": [0, 0], "revToday": [0, 0], "newToday": [0, 0],
             "timeToday": [0, 0], "collapsed": False, "browserCollapsed": False, "desc": "", "dyn": 0, "conf": 1,
             "extendNew": 0, "extendRev": 0}
-
 
 _DCONF = {"1": {"id": 1, "name": "Default", "mod": 0, "usn": 0, "maxTaken": 60, "autoplay": True, "timer": 0, "replayq": True,
                 "dyn": False, "new": {"delays": [1, 10], "ints": [1, 4, 7], "initialFactor": 2500, "order": 1, "perDay": 20,
@@ -306,14 +286,11 @@ _DCONF = {"1": {"id": 1, "name": "Default", "mod": 0, "usn": 0, "maxTaken": 60, 
                 "rev": {"perDay": 200, "ease4": 1.3, "fuzz": 0.05, "maxIvl": 36500, "ivlFct": 1, "bury": False, "hardFactor": 1.2},
                 "lapse": {"delays": [10], "mult": 0, "minInt": 1, "leechFails": 8, "leechAction": 1}}}
 
-
 def _csum(text: str) -> int:
     return int(hashlib.sha1(strip_html(text).encode("utf-8")).hexdigest()[:8], 16)
 
-
 def _safe_name(title: str) -> str:
     return re.sub(r'[\\/:*?"<>|\x00-\x1f]+', " ", title or "course").strip()[:80] or "course"
-
 
 def export_apkg(store: Store, cid: str) -> Dict[str, Any]:
     course = store.course(cid)

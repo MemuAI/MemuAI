@@ -13,10 +13,8 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from .dfy_agent import NeedsConfirm, Refused
 from .dfy_remote import AGENT_FILE, LOCAL_ID, RemoteError, agent_source, install_command, proxy_env
 
-# curl понимает все схемы прокси (socks5h — с удалённым DNS); без curl — python (HTTP(S)-прокси)
 PROXY_CHECK_COMMAND = ("curl -fsS --max-time 20 https://api.ipify.org 2>&1 || python3 -c "
                        "\"import urllib.request;print(urllib.request.urlopen('https://api.ipify.org',timeout=20).read().decode())\"")
-
 
 async def _body(request: Request) -> dict:
     try:
@@ -24,7 +22,6 @@ async def _body(request: Request) -> dict:
     except Exception:
         return {}
     return data if isinstance(data, dict) else {}
-
 
 def build_router(manager: Any) -> APIRouter:
     router = APIRouter()
@@ -58,7 +55,7 @@ def build_router(manager: Any) -> APIRouter:
             row = manager.machines.store.add(body)
         except (RemoteError, ValueError) as exc:
             return error(exc)
-        # Сразу проверяем связь: ОС, версия агента, «онлайн». Ошибка связи не отменяет добавление.
+
         try:
             await manager.machines.probe(row["id"])
         except (RemoteError, Refused) as exc:
@@ -86,7 +83,7 @@ def build_router(manager: Any) -> APIRouter:
             return JSONResponse({"error": "Machine not found" if lang() == "en" else "Машина не найдена"}, 404)
         proxy = getattr(manager, "proxy", None)
         if proxy is not None:
-            proxy.delete(machine_id)      # прокси машины уходит вместе с ней
+            proxy.delete(machine_id)
         return {"ok": True}
 
     @router.post("/api/dfy/remote/machines/{machine_id}/check")

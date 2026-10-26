@@ -1,31 +1,9 @@
-/* MemuAI — global search («Поиск везде», Round 29, r29-search).
 
-   A command-palette overlay (Ctrl+K, the «search» shortcut, the app menu, Enter in the sidebar
-   chat filter). Everything MemuAI keeps is searched as you type:
 
-   * the backend index (app/search_index.py, /api/search): chats (Chat / Work / MemuCode, Telegram
-     chats), Work projects and the files of saved projects, memory, prompts, schedules, documentation,
-     panels, modules, the Quick Access history — and any source a module registers in Python;
-   * client providers (this file): settings (jump to the exact row), commands, AI skills, agents —
-     and any provider a module registers here (window.MemuSearch.registerProvider).
-
-   Results are grouped, highlighted, keyboard-driven and previewed on the right; a chat result opens
-   the chat scrolled to the exact message with the words highlighted and a small «found in this chat»
-   navigator. Nothing here changes the sidebar chat filter (#chat-search keeps filtering the list).
-
-   Public API (window.MemuSearch):
-     open(query?, {type?})  close()  toggle()  isOpen()
-     registerProvider({id, type, label: [ru, en], icon?: svg, search(q, ctx) → items | Promise<items>,
-                       open?(item), preview?(item) → html})
-         items: [{id, title, subtitle?, snippet?, score (0..1), ts?, open?: {...}, keywords?}]
-     registerAction(name, fn(open, item))   — opener for backend results with open.action = name
-     query(q, {types, filters, limit})      — the raw backend search (also used by tests)
-*/
 (function () {
   "use strict";
   if (window.MemuSearch) return;
 
-  /* ------------------------------------------------------------------ basics */
   const isEn = () => (typeof PG_LANG !== "undefined" ? PG_LANG : localStorage.getItem("memu_lang")) === "en";
   const L = (ru, en) => (isEn() ? en : ru);
   const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -86,7 +64,6 @@
   };
   const svg = (name, extra = "") => `<svg viewBox="0 0 24 24" aria-hidden="true" ${extra}>${SVG[name] || name || ""}</svg>`;
 
-  /* ------------------------------------------------------------------ types */
   const TYPES = {
     chat: { icon: "chat", ru: "Чаты", en: "Chats", one: ["Чат", "Chat"] },
     work: { icon: "work", ru: "Work", en: "Work", one: ["Work", "Work"] },
@@ -106,7 +83,7 @@
     setting: { icon: "setting", ru: "Настройки", en: "Settings", one: ["Настройка", "Setting"] },
     command: { icon: "command", ru: "Команды", en: "Commands", one: ["Команда", "Command"] },
   };
-  // the type chips, in order; «telegram» is a filter over the chat types
+
   const CHIPS = ["all", "chat", "work", "code", "telegram", "file", "memory", "prompt", "skill", "schedule",
     "panel", "module", "character", "agent", "quick", "doc", "setting", "command"];
   const CHIP_TYPES = { telegram: ["chat", "work", "code"] };
@@ -114,7 +91,6 @@
   const pick = (pair) => (Array.isArray(pair) ? (isEn() ? pair[1] || pair[0] : pair[0] || pair[1]) : String(pair || ""));
   const typeIcon = (type) => (TYPES[type] ? svg(TYPES[type].icon) : (state.custom[type]?.icon ? state.custom[type].icon : svg("sparkle")));
 
-  /* ------------------------------------------------------------------ state */
   const state = {
     root: null, open: false, q: "", chip: "all",
     filters: { date: "", from: "", to: "", role: "", model: "", folder: "", pinned: false },
@@ -123,7 +99,6 @@
     showPreview: true, lastFocus: null, findbar: null, popOpen: false, loading: false, moreIds: null,
   };
 
-  /* ------------------------------------------------------------------ text helpers */
   function norm(text) { return String(text || "").toLowerCase().replace(/ё/g, "е"); }
   const EN_RU = { q: "й", w: "ц", e: "у", r: "к", t: "е", y: "н", u: "г", i: "ш", o: "щ", p: "з", "[": "х", "]": "ъ", a: "ф", s: "ы", d: "в", f: "а", g: "п", h: "р", j: "о", k: "л", l: "д", ";": "ж", "'": "э", z: "я", x: "ч", c: "с", v: "м", b: "и", n: "т", m: "ь", ",": "б", ".": "ю", "`": "ё" };
   const RU_EN = Object.fromEntries(Object.entries(EN_RU).map(([k, v]) => [v, k]));
@@ -143,7 +118,7 @@
     if (la === lb) return a.slice(i + 1) === b.slice(i + 1) || (a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2));
     return la > lb ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);
   }
-  /** Client-side scoring for the small client sources: 0 = no match, ~1 = the title starts with the query. */
+
   function scoreText(query, title, extra = "") {
     const tokens = wordsOf(query);
     if (!tokens.length) return 0;
@@ -167,13 +142,13 @@
     return score;
   }
   function clientScore(query, title, extra) {
-    if (!norm(query).trim()) return .5;          // an empty query inside a section lists everything
+    if (!norm(query).trim()) return .5;
     const direct = scoreText(query, title, extra);
     const swapped = swapLayout(query);
     const alt = swapped ? scoreText(swapped, title, extra) * .92 : 0;
     return Math.max(direct, alt);
   }
-  /** Highlight ranges for the client sources (and the chat view): every query word as a word start. */
+
   function wordRegex(words) {
     const parts = [...new Set((words || []).map((w) => norm(w)).filter(Boolean))]
       .map((w) => (w.length > 5 ? w.slice(0, Math.max(4, w.length - 2)) : w))
@@ -190,7 +165,7 @@
     for (const m of folded.matchAll(rx)) { out.push([m.index, m[0].length]); if (out.length > 40) break; }
     return out;
   }
-  /** Text with <mark> at [start, length] ranges, escaped. */
+
   function hl(text, ranges) {
     const value = String(text || "");
     if (!ranges || !ranges.length) return esc(value);
@@ -231,7 +206,6 @@
     return String(id).replace(/^[a-z0-9]+-(?=.)/i, "");
   };
 
-  /* ------------------------------------------------------------------ client providers */
   const SETTINGS_SNAPSHOT_KEY = "memu_search_settings_v1";
   function settingsSnapshot() {
     try {
@@ -244,7 +218,7 @@
     const K = window.MemuSettingsKit;
     if (!K || !document.querySelector("#panel .sx-shell")) return;
     try {
-      K.search("a");                      // builds the kit's index of the rendered settings
+      K.search("a");
       const index = K.state?.index || [];
       const rows = [];
       const seen = new Set();
@@ -258,7 +232,7 @@
         if (rows.length >= 1500) break;
       }
       if (rows.length) localStorage.setItem(SETTINGS_SNAPSHOT_KEY, JSON.stringify({ lang: isEn() ? "en" : "ru", at: Date.now(), rows }));
-    } catch (e) { /* the snapshot is a convenience */ }
+    } catch (e) {  }
   }
   function settingsPagesSafe() {
     try { return typeof settingsPages === "function" ? settingsPages() : []; } catch (e) { return []; }
@@ -323,8 +297,7 @@
     let skills = [];
     try { skills = typeof getSkills === "function" ? getSkills() : []; } catch (e) { skills = []; }
     return skills.map((sk) => {
-      // r29d-chat4: built-in skills show their Russian name/description in the Russian UI (skillUi, as the
-      // skills library does); the other language still matches, so «debugging» finds «Отладка».
+
       const ui = (field) => (typeof skillUi === "function" ? skillUi(sk, field) : "") || "";
       const title = ui("name") || sk.name || sk.title || sk.id;
       const desc = ui("desc") || sk.description || sk.desc || "";
@@ -350,7 +323,6 @@
     { id: "agents", type: "agent", search: agentsProvider },
   ];
 
-  /* ------------------------------------------------------------------ DOM */
   function build() {
     if (state.root) return state.root;
     const root = document.createElement("div");
@@ -393,7 +365,7 @@
     input.addEventListener("input", () => { state.q = input.value; scheduleSearch(); });
     input.addEventListener("keydown", onKey);
     root.addEventListener("keydown", (event) => {
-      // the palette owns the keyboard while it is open (the app must not stop a reply on Esc etc.)
+
       if (event.target !== input) onKey(event);
       if (event.key === "Escape" || (event.ctrlKey && /^Key[KP]$/.test(event.code))) event.stopPropagation();
     });
@@ -428,7 +400,6 @@
     ].map(([k, t]) => `<span>${k}<em>${esc(t)}</em></span>`).join("");
   }
 
-  /* ------------------------------------------------------------------ open / close */
   function open(query, opts = {}) {
     build(); texts();
     const root = state.root;
@@ -466,7 +437,6 @@
   }
   const toggle = (q) => (state.open ? close() : open(q));
 
-  /* ------------------------------------------------------------------ meta / recent */
   async function loadMeta() {
     try { state.meta = await http(`/api/search/meta?lang=${isEn() ? "en" : "ru"}`); } catch (e) { state.meta = null; }
     if (state.open) { renderChips(); if (state.popOpen === "filters") renderFiltersPop(); }
@@ -481,7 +451,6 @@
     http("/api/search/recent", { method: "POST", body: { q: value } }).then((d) => { state.recent = d.items || state.recent; }).catch(() => {});
   }
 
-  /* ------------------------------------------------------------------ filters */
   function hasFilters() {
     const f = state.filters;
     return !!(f.date || f.role || f.model || f.folder || f.pinned);
@@ -569,8 +538,6 @@
     runSearch(true);
   }
 
-  /* ------------------------------------------------------------------ chips */
-  // r30: one quiet row — the core sections, or (while searching) only the sections that have results; the rest live under «Ещё»
   const CORE_CHIPS = ["all", "chat", "work", "code", "doc", "setting", "command"];
   function chipList() {
     const counts = {};
@@ -606,10 +573,7 @@
     watchChips(host);
     if (state.popOpen === "more") renderMorePop();
   }
-  // r30: wider chips (Terminal's [ brackets ], Brutal) or a narrow window — the last sections fold into «Ещё»
-  // instead of starting a second line; «Всё» and the selected section always stay. The row is nowrap (CSS), so
-  // nothing can wrap even for a frame; the fit is measured with «Ещё» itself in the row and redone whenever the
-  // row's width, the fonts (a design's own font loads late) or the design/density/zoom on <html> change.
+
   function drawChips(host, shown) {
     const { counts, all } = state.chipBase;
     const more = all.filter((id) => !shown.includes(id));
@@ -619,7 +583,7 @@
       const n = id === "all" ? 0 : counts[id] || 0;
       return `<button type="button" role="tab" aria-selected="${on}" class="msx-chip ${on ? "on" : ""}" data-msx-chip="${esc(id)}" data-type="${esc(id)}"><span>${esc(chipLabel(id))}</span>${n ? `<small>${n}</small>` : ""}</button>`;
     }).join("") + (more.length ? `<button type="button" class="msx-chip msx-more" data-msx-more aria-haspopup="menu" aria-expanded="${state.popOpen === "more"}"><span>${esc(L("Ещё", "More"))}</span>${svg("chevron")}</button>` : "");
-    if (host.__msxHtml === html && host.childElementCount) return;   // unchanged — keep the nodes (hover, focus, a click in flight)
+    if (host.__msxHtml === html && host.childElementCount) return;
     host.__msxHtml = html;
     host.innerHTML = html;
   }
@@ -628,7 +592,7 @@
     if (!k.length || !host.clientWidth) return false;
     const box = host.getBoundingClientRect();
     const last = k[k.length - 1].getBoundingClientRect();
-    // a wrapped row (old CSS / a design override) or a chip past the right edge both count
+
     return last.right > box.right + 0.5 || k[k.length - 1].offsetTop > k[0].offsetTop + 2;
   }
   function fitChips(host) {
@@ -637,7 +601,7 @@
     const focused = host.contains(document.activeElement) ? document.activeElement.dataset.msxChip || (document.activeElement.hasAttribute("data-msx-more") ? "#more" : "") : "";
     const shown = state.chipBase.shown.slice();
     drawChips(host, shown);
-    if (host.clientWidth) {            // hidden (closed panel): nothing to measure — the observer refits on show
+    if (host.clientWidth) {
       while (chipsOverflow(host)) {
         let i = shown.length - 1;
         while (i >= 0 && (shown[i] === "all" || shown[i] === state.chip)) i--;
@@ -680,13 +644,12 @@
     runSearch(true);
   }
   function cycleChip(step) {
-    // Tab walks every section, including the ones under «Ещё»
+
     const ids = chipList();
     const at = ids.indexOf(state.chip);
     setChip(ids[(at + step + ids.length) % ids.length]);
   }
 
-  /* ------------------------------------------------------------------ searching */
   function scheduleSearch() {
     clearTimeout(state.timer);
     $q("[data-msx-clear]", state.root).hidden = !state.q;
@@ -739,7 +702,7 @@
       try {
         const rows = await Promise.race([Promise.resolve(p.search(q, ctx)), sleep(600).then(() => [])]);
         (rows || []).forEach((row) => { if (row && row.title) out.push({ ...row, type: row.type || p.type, _provider: p }); });
-      } catch (e) { /* a broken provider must not break search */ }
+      } catch (e) {  }
     }));
     return out;
   }
@@ -756,7 +719,7 @@
         highlights: row.highlights || rangesFor(row.snippet || "", q), meta: row.meta || {}, hits: [],
       }));
       const best = rows[0]?.score || 0;
-      // a settings row or a command whose title starts with the query goes first, a weak match last
+
       const rank = best >= .95 ? 1.05 : best >= .8 ? .86 : best >= .5 ? .55 : .2;
       groups.push({ type, label: typeLabel(type), items, rank, total: rows.length });
     });
@@ -768,7 +731,6 @@
     state.root?.classList.toggle("msx-loading", on);
   }
 
-  /* ------------------------------------------------------------------ rendering */
   function render(resetActive = false) {
     const list = $q(".msx-list", state.root);
     state.flat = [];
@@ -811,7 +773,7 @@
   }
   function roleTag(meta) {
     if (!meta?.role) return "";
-    // Round 35 (branches): a hit in a version that is not shown in the chat right now
+
     const other = meta.branch === "other" ? `<span class="msx-role msx-branch" title="${esc(L("Сообщение из другой версии ответа или ветки — откроется её ветка", "A message from another answer version or branch — its branch opens"))}">${esc(L("другая версия", "other version"))}</span>` : "";
     return other + (meta.role === "user" ? `<span class="msx-role you">${esc(L("Вы", "You"))}</span>`
       : `<span class="msx-role ai">${esc(modelName(meta.model) || L("ИИ", "AI"))}</span>`);
@@ -940,7 +902,6 @@
       ${tipsHtml()}</div>`;
   }
 
-  /* ------------------------------------------------------------------ selection + preview */
   function setActive(index, scroll = true) {
     const list = $q(".msx-list", state.root);
     if (!state.flat.length) {
@@ -1065,7 +1026,6 @@
     return L("Открыть", "Open");
   }
 
-  /* ------------------------------------------------------------------ events */
   function onKey(event) {
     const input = $q(".msx-input", state.root);
     const key = event.key;
@@ -1096,7 +1056,7 @@
       return;
     }
     if (key === "Backspace" && (event.ctrlKey || !input.value) && event.target === input && !input.value) {
-      // an empty field: Backspace removes the last filter, then the section
+
       const f = state.filters;
       const last = ["pinned", "folder", "model", "role", "date"].find((k) => f[k]);
       if (last) { event.preventDefault(); setFilter(last, last === "pinned" ? false : ""); return; }
@@ -1222,7 +1182,6 @@
     } catch (e) { note(L("Не удалось перестроить индекс", "Could not rebuild the index"), "err"); }
   }
 
-  /* ------------------------------------------------------------------ opening results */
   function activate(entry) {
     if (entry.kind === "recent") {
       const input = $q(".msx-input", state.root);
@@ -1261,7 +1220,7 @@
     const custom = state.actions.get(action);
     if (custom) return custom(o, item, ctx);
     if (item?._provider?.open) return item._provider.open(item, ctx);
-    // Opened over a dialog (Ctrl+K works there too): a result that leads elsewhere closes the dialog first.
+
     if (/^(chat|project|file|panel|module|quick|agent)$/.test(action) && document.getElementById("panel-back")?.classList.contains("visible")
       && typeof closePanel === "function") closePanel();
     switch (action) {
@@ -1354,7 +1313,6 @@
     setTimeout(() => node.classList.remove("msx-flash"), 2400);
   }
 
-  /* ---- a chat at the exact message, with the words highlighted and a «found in chat» bar */
   function messageText(m) {
     const content = Array.isArray(m?.content) ? m.content.map((p) => p?.text || "").join(" ") : String(m?.content || "");
     return content;
@@ -1363,9 +1321,9 @@
     let chat = (S.chats || []).find((c) => c.id === o.chat_id);
     if (!chat && typeof syncRemoteChats === "function") { try { await syncRemoteChats(); } catch (e) {} chat = (S.chats || []).find((c) => c.id === o.chat_id); }
     if (!chat) { try { toast(L("Чат не найден — возможно, он удалён", "Chat not found — it may have been deleted"), "err"); } catch (e) {} return; }
-    if (S.currentId !== o.chat_id) await openChat(o.chat_id);
+    if (S.currentId !== o.chat_id || window.MemuTeams?.isHome?.()) await openChat(o.chat_id);
     if (S.currentId !== o.chat_id) return;
-    // Round 35 (branches): a message of another version — make its branch active first
+
     if (o.message_id && typeof MemuBranches !== "undefined") {
       if (!S.messages.some((m) => m && m.id === o.message_id)) MemuBranches.revealMessage(o.message_id, { scroll: false });
       const at = S.messages.findIndex((m) => m && m.id === o.message_id);
@@ -1395,18 +1353,14 @@
     if (!node) return;
     node.querySelectorAll(".user-text.collapsed").forEach((el) => el.classList.remove("collapsed"));
     if (rx) markText(node, rx);
-    // a long answer: centre the first highlighted word, not the top of the message (the word could stay
-    // below the fold of a 2-screen answer)
-    // #messages > .msg has content-visibility:auto — an off-screen answer measures as a 280px placeholder, so
-    // render this one for real before measuring (and let the browser skip it again later)
+
     node.style.contentVisibility = "visible";
     setTimeout(() => { node.style.contentVisibility = ""; }, 4000);
     const firstMark = node.querySelector("mark.msx-mark");
     const box = node.closest("#messages")?.parentElement || document.documentElement;
     const tall = node.getBoundingClientRect().height > (box.clientHeight || window.innerHeight) * 0.6;
     const target = tall && firstMark ? firstMark : node;
-    // A long smooth scroll through a big chat ends off target (messages above still lay out while it runs):
-    // jump when far, glide when near, then correct once after the layout settles.
+
     const far = Math.abs(target.getBoundingClientRect().top - window.innerHeight / 2) > window.innerHeight * 1.5;
     target.scrollIntoView({ block: "center", behavior: reducedMotion() || far ? "auto" : "smooth" });
     setTimeout(() => {
@@ -1507,12 +1461,11 @@
     state.findbar = null;
   }
 
-  /* ------------------------------------------------------------------ app hooks */
   function hookSidebarFilter() {
     const input = document.getElementById("chat-search");
     if (!input || input.dataset.msx) return;
     input.dataset.msx = "1";
-    // the sidebar keeps filtering the chat list; Enter (or the button) takes the query everywhere
+
     input.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && !event.isComposing) { event.preventDefault(); open(input.value); }
     });
@@ -1521,7 +1474,7 @@
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "msx-everywhere";
-      // The chip and tooltips follow the «search» shortcut (it can be rebound or turned off in Settings → Keyboard shortcuts).
+
       const set = () => {
         const H = window.MemuHotkeys;
         const combo = H ? H.value("search", "Ctrl+K") : "Ctrl+K";
@@ -1559,7 +1512,7 @@
 
   let refitFrame = 0;
   window.addEventListener("resize", () => { if (!state.open) return; cancelAnimationFrame(refitFrame); refitFrame = requestAnimationFrame(renderChips); });
-  /* ------------------------------------------------------------------ public API */
+
   function registerProvider(provider) {
     if (!provider || !provider.id || typeof provider.search !== "function") return false;
     const type = provider.type || provider.id;

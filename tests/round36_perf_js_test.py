@@ -21,14 +21,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 STATIC = ROOT / "app" / "pgstatic"
 
-
 def read(name: str) -> str:
     return (STATIC / name).read_text(encoding="utf-8")
 
-
 def _chromium() -> str | None:
     return os.environ.get("MEMU_TEST_CHROMIUM") or None
-
 
 class StaticTest(unittest.TestCase):
     def test_branches_css_without_has(self):
@@ -74,7 +71,6 @@ class StaticTest(unittest.TestCase):
         html = read("index.html")
         for ref in ("/app.js?v=1.30-r41", "/tooltip.js?v=1.2-r36", "/branches.css?v=3.5-r36"):
             self.assertIn(ref, html)
-
 
 @unittest.skipUnless(_chromium(), "MEMU_TEST_CHROMIUM is not set")
 class BrowserTest(unittest.TestCase):
@@ -138,9 +134,9 @@ class BrowserTest(unittest.TestCase):
                    last: msgs[msgs.length - 1].querySelectorAll('.msg-tool').length }; }""")
         self.assertEqual(counts["older"], 0)
         self.assertEqual(counts["shells"], 79)
-        self.assertEqual(counts["last"], 4)   # copy, regenerate, bookmark (r37), more
-        # hover builds the buttons of that message (renderMessages keeps the node afterwards)
-        for _ in range(10):   # the chat settles (content-visibility sizes, scroll anchoring) right after opening
+        self.assertEqual(counts["last"], 4)
+
+        for _ in range(10):
             self.js("() => document.querySelector('#messages > .msg-user[data-msg=\"10\"]').scrollIntoView({block: 'center', behavior: 'instant'})")
             self.page.wait_for_timeout(300)
             box = self.js("() => { const r = document.querySelector('#messages > .msg-user[data-msg=\"10\"] .bubble').getBoundingClientRect(); return {x: r.x + r.width / 2, y: r.y + r.height / 2}; }")
@@ -149,17 +145,17 @@ class BrowserTest(unittest.TestCase):
         self.page.mouse.move(box["x"], box["y"])
         self.page.mouse.move(box["x"] + 2, box["y"] + 1)
         self.page.wait_for_timeout(400)
-        # copy, edit, bookmark (r37), speak, fork
+
         self.assertEqual(self.js("document.querySelectorAll('#messages > [data-msg=\"10\"] .msg-tool').length"), 5)
         self.js("() => renderMessages()")
         self.assertEqual(self.js("document.querySelectorAll('#messages > [data-msg=\"10\"] .msg-tool').length"), 5)
-        # keyboard: focusing the shell builds the buttons and moves focus to the first one
+
         self.js("() => document.querySelector('#messages > [data-msg=\"21\"] .msg-tools[data-tools-lazy]').focus()")
         state = self.js("""() => ({ tools: document.querySelectorAll('#messages > [data-msg="21"] .msg-tool').length,
           active: document.activeElement.classList.contains('msg-tool') && !!document.activeElement.closest('[data-msg="21"]'),
           more: !!document.querySelector('#messages > [data-msg="21"] .msg-more-pop [data-branch="21"]') })""")
-        self.assertEqual(state, {"tools": 4, "active": True, "more": True})   # + bookmark (r37)
-        # the built buttons work: copy calls copyMessage with the right index
+        self.assertEqual(state, {"tools": 4, "active": True, "more": True})
+
         self.js("() => { window.__copied = null; window.__origCopy = copyText; copyText = (t) => { window.__copied = t; }; }")
         self.js("() => document.querySelector('#messages > [data-msg=\"21\"] .msg-tool').click()")
         self.assertIn("текст ответа 10", self.js("window.__copied") or "")
@@ -181,9 +177,9 @@ class BrowserTest(unittest.TestCase):
             self.js("() => { renderMessages = window.__origRender; }")
         self.assertEqual(res["error"], "")
         self.assertGreater(res["text"], 0)
-        self.assertEqual(res["tools"], 4)   # copy, regenerate, bookmark (r37), more
+        self.assertEqual(res["tools"], 4)
         self.assertTrue(res["prevShell"])
-        self.assertLess(res["renders"], 25)   # status changes only — never one per token
+        self.assertLess(res["renders"], 25)
 
     def test_3_search_debounced(self):
         self.js("() => { window.__rc = 0; const orig = renderChats; window.__origRC = orig; renderChats = function () { window.__rc += 1; return orig.apply(this, arguments); }; }")
@@ -201,7 +197,7 @@ class BrowserTest(unittest.TestCase):
             self.js("() => { renderChats = window.__origRC; }")
         self.assertEqual(rc, 1)
         self.assertTrue(titles and all("котов" in t for t in titles), titles)
-        # a message text is found too (index), and a new message is searchable at once
+
         self.js("() => { const c = S.chats.find((x) => x.id === 'c1'); c.messages.push({ role: 'assistant', content: 'Уникальное СЛОВО-маркер', createdAt: 2 }); }")
         self.page.type("#chat-search", "слово-маркер", delay=5)
         self.page.wait_for_timeout(400)
@@ -211,7 +207,6 @@ class BrowserTest(unittest.TestCase):
 
     def test_9_no_page_errors(self):
         self.assertEqual([e for e in self.errors if "ResizeObserver" not in e], [])
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -14,12 +14,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 import build  # noqa: E402
 
-
 def signature(code):
     return (code.co_code, tuple(signature(value) if isinstance(value, types.CodeType) else value for value in code.co_consts),
             code.co_names, code.co_varnames, code.co_freevars, code.co_cellvars, code.co_argcount,
             code.co_posonlyargcount, code.co_kwonlyargcount, code.co_flags, code.co_exceptiontable, code.co_linetable)
-
 
 def main():
     result = {"executables": [], "code": {}, "assets": {}}
@@ -64,7 +62,6 @@ def main():
         result["assets"][name + "/" + relative] = count
     (ROOT / "build/round44-compiled-version.json").write_text(json.dumps(result, indent=2), encoding="utf-8")
     print(json.dumps(result, ensure_ascii=False))
-
 
 if __name__ == "__main__":
     main()

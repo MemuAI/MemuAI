@@ -23,10 +23,10 @@ try {
   root.lang = localStorage.getItem("memu_lang") === "en" ? "en" : "ru";
 } catch (_) {}
 </script>
-<!-- Round 38: no light window before the stylesheets arrive (quick.css then sets the exact surface) -->
+
 <style>:root[data-native="1"]:not([data-backdrop])[data-theme="dark"]{background:#1b1c20}:root[data-native="1"]:not([data-backdrop])[data-theme="light"]{background:#f7f6f3}</style>
 <link rel="stylesheet" href="/themes.css">
-<!-- Round 26: quick-md.js renders $…$ / $$…$$ with KaTeX — without it math showed as raw TeX code. -->
+
 <link rel="stylesheet" href="/vendor/katex/katex.min.css?v=1.0-final">
 <link rel="stylesheet" href="/quick/quick.css?v=3.4-r38">
 <link rel="stylesheet" href="/tables.css?v=1.1-r30">
@@ -40,12 +40,12 @@ try {
 <link rel="stylesheet" href="/quick/quick-copy.css?v=1.0-r30">
 <link rel="stylesheet" href="/quick/quick-computer.css?v=2.0-r32">
 <link rel="stylesheet" href="/quick/quick-ux.css?v=1.2-r34">
-<link rel="stylesheet" href="/quick/quick-models.css?v=3.6-r34"><!-- Round 33 (r33c-models-lists) -->
-<!-- Round 24 designs (soft / terminal / brutal) for the Quick Ask window; owned by the designs area. -->
+<link rel="stylesheet" href="/quick/quick-models.css?v=3.6-r34">
+
 <link rel="stylesheet" href="/designs/quick-extra.css?v=1.0-r24">
-<!-- Round 30: Settings → Appearance extras (corners, glass, contrast, density, motion speed); after the designs. -->
+
 <link rel="stylesheet" href="/quick/quick-appearance.css?v=1.0-r30">
-<!-- Round 34 (r34-quick-design): overflow / contrast / narrow-window fixes from the screenshot matrix; must stay last. -->
+
 <link rel="stylesheet" href="/quick/quick-design.css?v=1.6-r34">
 <style id="memu-user-theme"></style>
 <script>
@@ -110,25 +110,25 @@ try {
 <script src="/diagrams.js?v=1.2-r36"></script>
 <script src="/quick/quick-md.js?v=1.3-r34"></script>
 <script src="/quick/quick-calc.js?v=34.1"></script>
-<!-- Round 28: the message bus between this window and its screen layer (quick/layer.html). -->
+
 <script src="/quick/quick-bus.js?v=1.0-r28"></script>
-<script src="/memu-live.js?v=1.0-r40"></script><!-- Round 40 (r40-lag): the player stream over a WebSocket -->
-<script src="/memu-model-names.js?v=3.5-r33"></script><!-- Round 33 (r33c-models-lists): shared readable model names -->
+<script src="/memu-live.js?v=1.0-r40"></script>
+<script src="/memu-model-names.js?v=3.5-r33"></script>
 <script src="/quick/quick.js?v=3.13-r40"></script>
-<!-- Round 30: /image and /video — chip in the field, opened in MemuAI (cmd-highlight.js, r30-misc). -->
+
 <script src="/cmd-highlight.js?v=1.0-r30"></script>
-<!-- Round 30: copy buttons / formats / selection bar / Ctrl+C (r30-quick-core). -->
+
 <script src="/quick/quick-copy.js?v=1.1-r34"></script>
-<!-- Round 30: Computer Use card — steps, thumbnails, approvals, compact strip, Stop (r30-quick-core). -->
+
 <script src="/quick/quick-computer.js?v=2.1-r34"></script>
-<!-- Round 24: Do For You. /dfy-client.js (dfy-core) is optional — quick-dfy.js speaks the same contract without it. -->
+
 <script src="/dfy-client.js?v=3.8-r46" onerror="this.remove()"></script>
-<!-- Round 30: DFY on machines — target picker under the input, command output (r30-dfy-remote). -->
+
 <script src="/dfy-remote.js?v=1.1-r30" onerror="this.remove()"></script>
 <script src="/stuck.js?v=1.0-r29"></script>
 <script src="/quick/quick-dfy.js?v=3.8-r46"></script>
 <script src="/askuser.js?v=3.5-r35"></script>
-<!-- Round 27: actions on the text selected in any program (app/quick_selection.py). -->
+
 <script src="/quick/quick-selection.js?v=1.2-r30"></script>
 </body>
 </html>

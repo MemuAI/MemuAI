@@ -18,12 +18,10 @@ from app.dfy_vault import (KIND_FIELDS, REQUESTABLE_KINDS, SecretVault, VaultErr
 ROOT = Path(__file__).resolve().parents[1]
 PHONE = "+79161234567"
 
-
 def ref_after(messages, marker):
     text = json.dumps(messages, ensure_ascii=False)
     start = text.rindex(marker) + len(marker)
     return text[start:start + 13]
-
 
 class FormBrowser(r24.FakeBrowser):
     """FakeBrowser + the Round 25 browser surface: submit_info, point_info, click_xy, focused typing."""
@@ -47,12 +45,10 @@ class FormBrowser(r24.FakeBrowser):
     async def scroll(self, dy, element=None):
         return f"scrolled {dy} in {element}"
 
-
 class Base(r24.DFYBase):
     def setUp(self):
         super().setUp()
         self.browser = FormBrowser()
-
 
 class VaultPersonalDataTests(unittest.TestCase):
     def setUp(self):
@@ -143,7 +139,6 @@ class VaultPersonalDataTests(unittest.TestCase):
         self.assertFalse((Path(self.tmp.name) / "dfy_vault.json").exists())
         self.assertEqual(self.vault.resolve("{{secret:%s.code}}" % meta["id"], "https://x.example/"), "123456")
 
-
 class CodeFormTests(Base):
     async def test_request_code_goes_to_vault_and_is_typed(self):
         model = r24.ScriptedModel([
@@ -178,7 +173,7 @@ class CodeFormTests(Base):
                 break
             await asyncio.sleep(0.01)
         self.assertIn("send it again", " ".join(task.history))
-        await mgr.answer(task.id, {"answer": "7777"})   # Telegram-style plain answer
+        await mgr.answer(task.id, {"answer": "7777"})
         await self.wait_status(mgr, task, ("done",))
         self.assertIn("entered the code", " ".join(task.answers))
         self.assertNotIn("7777", "".join(model.prompts))
@@ -200,12 +195,11 @@ class CodeFormTests(Base):
         self.assertEqual(task.question["secret_kind"], "phone")
         self.assertEqual(task.question["fields"], ["phone"])
         self.assertEqual(len(task.question["existing"]), 1, "the phone from personal data is offered")
-        with self.assertRaises(VaultError):   # the API answers 400; the question stays open
+        with self.assertRaises(VaultError):
             await mgr.answer(task.id, {"secret": {"fields": {"phone": "123"}}})
         self.assertEqual(task.status, "waiting_user")
         await mgr.answer(task.id, {"secret_ref": task.question["existing"][0]["id"]})
         await self.wait_status(mgr, task, ("done",))
-
 
 class PersonalDataLoopTests(Base):
     async def test_phone_form_normalizes_and_national_format_is_typed(self):
@@ -244,7 +238,6 @@ class PersonalDataLoopTests(Base):
         for action in ("request_code", "click_xy", "phone_national", "birth_date_dmy", "code_1"):
             self.assertIn(action, SYSTEM_PROMPT)
 
-
 class LoopRobustnessTests(Base):
     async def test_questions_do_not_use_the_browser_step_limit(self):
         self.prefs["dfy_max_steps"] = 5
@@ -266,15 +259,15 @@ class LoopRobustnessTests(Base):
         model = r24.ScriptedModel([{"action": "click", "element": 4}] * 10)
         mgr = self.manager(model)
         task = await mgr.create("x")
-        # Round 29: a stuck task is PAUSED for the user's verdict (app/stuck_detector.py), not failed.
+
         await self.wait_status(mgr, task, ("waiting_user",))
         self.assertEqual(task.question["kind"], "stuck")
-        self.assertEqual(len(self.browser.clicked), 3)          # the 4th identical click is never performed
+        self.assertEqual(len(self.browser.clicked), 3)
         self.assertIn("REPEATED", "".join(model.prompts))
         await mgr.answer(task.id, {"decision": "stop"})
         await self.wait_status(mgr, task, ("cancelled",))
         self.assertEqual(len(self.browser.clicked), 3)
-        # sensitivity "off" keeps the old hard stop
+
         self.prefs["stuck_sensitivity"] = "off"
         self.browser.clicked.clear()
         task = await mgr.create("x")
@@ -367,7 +360,6 @@ class LoopRobustnessTests(Base):
         self.assertIn("<user_answers>", task.result)
         self.assertIn("Hilton Garden", task.result.split("<user_answers>")[1].split("</user_answers>")[0])
 
-
 class VisionSourceTests(unittest.TestCase):
     """The backend reads «has Vision» from /api/pg/state caps.vision — the list Settings shows."""
 
@@ -424,12 +416,11 @@ class VisionSourceTests(unittest.TestCase):
                 self.assertEqual(client.put(f"/api/dfy/vault/{item['id']}", json={"fields": {"phone": "1"}}).status_code, 400)
                 self.assertEqual(client.put("/api/dfy/vault/snope00000000", json={"fields": {}}).status_code, 404)
 
-
 class ReviewRound25Tests(Base):
     """Round 25 loop review: unreadable targets, dialogs, invalid secret input, default model."""
 
     async def test_click_into_cross_origin_frame_with_pay_reason_needs_confirmation(self):
-        self.browser.point_label = ""          # inside a cross-origin payment frame: no readable text
+        self.browser.point_label = ""
         model = r24.ScriptedModel([{"action": "click_xy", "x": 10, "y": 20, "reason": "focus card number"},
                                    {"action": "click_xy", "x": 30, "y": 40, "reason": "press Pay in the payment frame"},
                                    {"action": "done", "result": "ok"}])
@@ -473,7 +464,6 @@ class ReviewRound25Tests(Base):
         self.prefs["vision_fallback_model"] = "eyes"
         self.assertEqual(mgr.status()["model"], "eyes")
 
-
 class BrowserDialogTests(unittest.TestCase):
     """DFYBrowser answers alert/confirm itself (they used to block every CDP script call)."""
 
@@ -498,7 +488,6 @@ class BrowserDialogTests(unittest.TestCase):
         self.assertEqual([p["accept"] for _, p in sent], [True, False, True],
                          "confirm() is never accepted on the model's behalf")
         self.assertEqual([d["answered"] for d in browser.dialogs], ["accepted", "dismissed", "accepted"])
-
 
 class FrontendContractTests(unittest.TestCase):
     def read(self, rel):
@@ -526,7 +515,6 @@ class FrontendContractTests(unittest.TestCase):
         self.assertNotIn("q.fields.slice(0, 4)", src)
         for needle in ('data-kind="code"', 'data-qdfy="resend"', "payload = { code }", "qdfy-amount", "F.collect(form, q.secret_kind)"):
             self.assertIn(needle, src)
-
 
 if __name__ == "__main__":
     unittest.main()

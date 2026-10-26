@@ -14,9 +14,7 @@ from typing import Any, AsyncIterator, Dict, List, Optional, Tuple
 
 from ..config import config_store
 
-
 _JSON_BODY_RE = re.compile(r"\{.*\}", re.S)
-
 
 def readable_provider_error(text: str) -> str:
     """Replace a raw JSON error body inside ``text`` with the message it carries.
@@ -39,10 +37,6 @@ def readable_provider_error(text: str) -> str:
         return text
     return (text[:found.start()] + inner.strip() + text[found.end():]).strip()
 
-
-# Provider messages are written in English (the API clients' language). The Russian error text of the
-# same failure translates their technical phrases, so the chat does not mix an English sentence with a
-# Russian hint. The upstream's own quoted body stays as it was sent.
 _RU_PHRASES: Tuple[Tuple["re.Pattern[str]", str], ...] = tuple((re.compile(pattern), ru) for pattern, ru in (
     (r"The API key was rejected \(HTTP (\d+)\)", r"API-ключ отклонён (HTTP \1)"),
     (r"Upstream rate limit \(HTTP 429\)", "Апстрим ограничил частоту запросов (HTTP 429)"),
@@ -94,16 +88,12 @@ _RU_PHRASES: Tuple[Tuple["re.Pattern[str]", str], ...] = tuple((re.compile(patte
     (r"Generation did not reach the success state in time", "Генерация не завершилась вовремя"),
 ))
 
-
 def provider_error_ru(text: str) -> str:
     """The Russian wording of a provider error: its known English phrases translated, the rest unchanged."""
     text = str(text or "")
     for pattern, ru in _RU_PHRASES:
         text = pattern.sub(ru, text)
     return text
-
-
-# ------------------------------ исключения ------------------------------
 
 class ProviderError(Exception):
     """Базовая ошибка провайдера. status — код для HTTP-ответа клиенту.
@@ -118,20 +108,17 @@ class ProviderError(Exception):
         self.status = status
         self.message_ru = message_ru
 
-
 def provider_error_texts(exc: Exception, account: Any = None) -> Tuple[str, str]:
     """(Russian, English) public text of a provider error, credentials redacted."""
     english = safe_provider_error(exc, account)
     russian = getattr(exc, "message_ru", "")
     return (safe_provider_error(russian, account) if russian else provider_error_ru(english)), english
 
-
 class ProviderAuthError(ProviderError):
     """Кука/токен не приняты — аккаунт помечается битым."""
 
     def __init__(self, message: str) -> None:
         super().__init__(message, 401)
-
 
 class ProviderRateLimitError(ProviderError):
     """Кратковременный rate limit: запрос уходит на следующий аккаунт или повторяется.
@@ -142,7 +129,6 @@ class ProviderRateLimitError(ProviderError):
     def __init__(self, message: str, retry_after: Optional[float] = None) -> None:
         super().__init__(message, 429)
         self.retry_after = retry_after
-
 
 def retry_after_seconds(headers: Any) -> Optional[float]:
     """The pause an upstream asks for: ``retry-after-ms`` or ``Retry-After`` (seconds or an HTTP date)."""
@@ -170,10 +156,9 @@ def retry_after_seconds(headers: Any) -> Optional[float]:
             seconds = parsedate_to_datetime(raw).timestamp() - _time.time()
         except (TypeError, ValueError, IndexError, OverflowError):
             return None
-    if seconds != seconds:  # NaN
+    if seconds != seconds:
         return None
     return min(max(seconds, 0.0), 86400.0)
-
 
 class ProviderQuotaError(ProviderError):
     """Дневной/месячный лимит аккаунта исчерпан."""
@@ -181,18 +166,14 @@ class ProviderQuotaError(ProviderError):
     def __init__(self, message: str) -> None:
         super().__init__(message, 402)
 
-
 class ProviderServerError(ProviderError):
     """Ошибка на стороне провайдера — пробуем другой аккаунт."""
-
 
 class ProviderNetworkError(ProviderError):
     """Сеть/таймаут/прокси."""
 
-
 class ProviderCaptchaError(ProviderError):
     """Провайдер требует captcha-параметр (например, ZCode/Aliyun)."""
-
 
 class ProviderModelUnavailableError(ProviderError):
     """Аккаунт не имеет доступа к запрошенной модели (тариф/регион).
@@ -205,7 +186,6 @@ class ProviderModelUnavailableError(ProviderError):
         super().__init__(message, 404, message_ru=message_ru)
         self.model = model
 
-
 class ProviderContentFilterError(ProviderError):
     """Модель отказалась отвечать (фильтры безопасности провайдера).
 
@@ -215,20 +195,17 @@ class ProviderContentFilterError(ProviderError):
     def __init__(self, message: str) -> None:
         super().__init__(message, 451)
 
-
-# ------------------------------ поля аккаунта ------------------------------
-
 @dataclass
 class Field:
     key: str
     label: str
-    ftype: str = "text"          # text | password | textarea | select | number | url
+    ftype: str = "text"
     placeholder: str = ""
     required: bool = True
     help: str = ""
     options: List[str] = dc_field(default_factory=list)
     default: str = ""
-    # Английские варианты подписей: панель показывает их при LANG == "en".
+
     label_en: str = ""
     help_en: str = ""
     placeholder_en: str = ""
@@ -242,7 +219,6 @@ class Field:
             "help_en": self.help_en or self.help,
             "placeholder_en": self.placeholder_en or self.placeholder,
         }
-
 
 def normalize_messages(messages: List[Dict[str, Any]]) -> Tuple[str, List[Dict[str, str]], str]:
     """(system, история без последнего user, последний user) — общая утилита."""
@@ -268,7 +244,6 @@ def normalize_messages(messages: List[Dict[str, Any]]) -> Tuple[str, List[Dict[s
         final_user = parsed.pop()["content"]
     return "\n\n".join(system_parts), parsed, (final_user or "(empty message)")
 
-
 def content_to_text(content: Any) -> str:
     """OpenAI content (строка | список частей) → текст."""
     if content is None:
@@ -282,7 +257,6 @@ def content_to_text(content: Any) -> str:
                 parts.append(str(p.get("text", "")))
         return "\n".join(parts)
     return str(content)
-
 
 def messages_have_images(messages: List[Dict[str, Any]]) -> bool:
     """Detect OpenAI-style attachment parts without decoding their payloads."""
@@ -298,7 +272,6 @@ def messages_have_images(messages: List[Dict[str, Any]]) -> bool:
             ):
                 return True
     return False
-
 
 def transcript_prompt(system_text: str, history: List[Dict[str, str]], final_user: str) -> str:
     """История транскриптом — для провайдеров без серверного контекста."""
@@ -318,15 +291,12 @@ def transcript_prompt(system_text: str, history: List[Dict[str, str]], final_use
     lines.append(final_user)
     return "\n".join(lines)
 
-
 def approx_tokens(text: str, model: str = "") -> int:
     """Tokens of a text the provider did not count: language-aware estimate (app/token_estimate.py)."""
     from ..token_estimate import estimate
     return max(1, estimate(text, model))
 
-
 _BACKGROUND: set = set()
-
 
 def spawn_background(coro) -> "asyncio.Task":
     """Fire-and-forget task with a strong reference: the event loop keeps only
@@ -336,7 +306,6 @@ def spawn_background(coro) -> "asyncio.Task":
     _BACKGROUND.add(task)
     task.add_done_callback(_BACKGROUND.discard)
     return task
-
 
 _ERROR_SECRET_KEY_RE = re.compile(
     r"token|cookie|password|passwd|passphrase|secret|credential|api.?key|"
@@ -352,7 +321,6 @@ _ERROR_NAMED_SECRET_RE = re.compile(
     r"(?:[\"']?\s*[=:]\s*[\"']?|[-_]))[^&\s,;\"'}]+",
     re.IGNORECASE,
 )
-
 
 def safe_provider_error(exc: Exception | str, account: Any = None) -> str:
     """Redact account credentials and common auth syntax from public errors."""
@@ -389,27 +357,23 @@ def safe_provider_error(exc: Exception | str, account: Any = None) -> str:
     message = _ERROR_URL_USERINFO_RE.sub(r"\1[REDACTED]@", message)
     message = _ERROR_AUTH_VALUE_RE.sub(r"\1 [REDACTED]", message)
     message = _ERROR_NAMED_SECRET_RE.sub(r"\1[REDACTED]", message)
-    # Round 34: libcurl's boilerplate tail («See https://curl.se/libcurl/c/libcurl-errors.html first for more
-    # details.») doubled every network error in the chat and the log without saying anything.
+
     message = _CURL_BOILERPLATE_RE.sub("", message)
     return message
 
-
 _CURL_BOILERPLATE_RE = re.compile(r"\s*See https://curl\.se/libcurl/c/libcurl-errors\.html first for more details\.?")
-
 
 class Provider:
     """Базовый класс провайдера."""
     id: str = ""
     title: str = ""
     icon: str = "◆"
-    oauth: bool = False            # есть кнопка «Войти через браузер»
-    oauth_port: int = 0            # фиксированный порт колбэка (Kiro 3128, Antigravity 51121)
+    oauth: bool = False
+    oauth_port: int = 0
     description: str = ""
-    title_en: str = ""             # локализованные метаданные для панели
+    title_en: str = ""
     description_en: str = ""
-    # Провайдер умеет искать в вебе сам (его API принимает флаг поиска).
-    # Остальным поиск выполняет сам Proxy — см. app/websearch.py.
+
     native_search: bool = False
 
     def account_fields(self) -> List[Field]:

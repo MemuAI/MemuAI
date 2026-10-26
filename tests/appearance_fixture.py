@@ -11,7 +11,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-
 def build_fixture(output: Path) -> Path:
     os.environ.setdefault("MEMUAI_DATA_DIR", str(output / "unused-data"))
     from app.pgdata import DEFAULT_PREFERENCES
@@ -59,7 +58,6 @@ window.fetch = async (url, options = {}) => {
     target = output / 'fixture.html'
     target.write_text(html, encoding='utf-8')
     return target
-
 
 if __name__ == '__main__':
     print(build_fixture(Path(sys.argv[1]).resolve()))

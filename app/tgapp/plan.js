@@ -1,8 +1,5 @@
-/* MemuAI Mini App — «Планирование» on the phone (Round 29, Planning 2.0).
- * The list of scheduled tasks with the same human summary and status the desktop panel shows, run now,
- * pause / resume, delete, and «Создать словами»: a phrase → the model drafts a rule → a preview sheet
- * (summary, next runs, warnings) → the user confirms. Fine tuning stays in MemuAI on the computer.
- * Replaces the simple list of extras.js (kit.pages.schedules). */
+
+
 (function () {
   "use strict";
   (window.MemuTgPlugins = window.MemuTgPlugins || []).push(function (kit) {
@@ -10,7 +7,6 @@
     const en = () => S.lang === "en";
     const pad = (n) => String(n).padStart(2, "0");
 
-    /* ------------------------------------------------------------ time words */
     function dayStart(d) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
     function whenText(ts) {
       if (!ts) return "";
@@ -34,7 +30,7 @@
       const s = Math.round(ts - Date.now() / 1000);
       if (Math.abs(s) < 45) return s < -5 ? tr("только что", "just now") : tr("сейчас", "now");
       const a = Math.abs(s);
-      // same wording as the desktop Planning panel (app/pgstatic/plan.js): beyond 24 h — days («1 день 19 ч»)
+
       const total = Math.max(1, Math.round(a / 60));
       let out;
       if (total < 60) out = tr(`${total} мин`, `${total} min`);
@@ -46,7 +42,6 @@
       return s < 0 ? tr(`${out} назад`, `${out} ago`) : tr(`через ${out}`, `in ${out}`);
     }
 
-    /* ------------------------------------------------------------ kinds & status */
     const KINDS = {
       chat: { icon: "sparkle", color: "#8b5cf6", ru: "Ответ модели", en: "Model answer" },
       notify: { icon: "bell", color: "#f59e0b", ru: "Напоминание", en: "Reminder" },
@@ -54,11 +49,11 @@
       dfy: { icon: "globe", color: "#0ea5e9", ru: "Do For You", en: "Do For You" },
       command: { icon: "zap", color: "#10b981", ru: "Команда быстрого доступа", en: "Quick Access command" },
       memucode: { icon: "terminal", color: "#64748b", ru: "MemuCode", en: "MemuCode" },
-      flow: { icon: "list", color: "#d9962c", ru: "Шаги", en: "Steps" },   // Round 35: a task with steps
+      flow: { icon: "list", color: "#d9962c", ru: "Шаги", en: "Steps" },
       work: { icon: "work", color: "#ec4899", ru: "Work-проект", en: "Work project" },
     };
     const kindOf = (t) => KINDS[t.mode === "work" ? "work" : t.kind] || KINDS.chat;
-    // Round 35 (flows): the steps of a task, read only (fine editing is in MemuAI on the computer)
+
     function stepsHtml(steps, limit) {
       const rows = (steps || []).map((r) => (typeof r.text === "string" ? r : { n: "", depth: 0, cat: "app", text: (r.label || r.type || "") + (r.query || r.prompt || r.text ? ": " + String(r.query || r.prompt || r.text).slice(0, 80) : "") }));
       if (!rows.length) return "";
@@ -98,7 +93,6 @@
       "В последний день месяца в 20:00 напомни оплатить счета",
     ];
 
-    /* ------------------------------------------------------------ the page */
     kit.pages.schedules = () => openStack({ title: tr("Планирование", "Planning"), build: (view) => {
       view.style.overflowY = "auto";
       let tasks = null, filter = "all", busy = false;
@@ -137,7 +131,7 @@
         }
       }
 
-      function flatSteps(steps, prefix = "", depth = 0) {   // Round 35: a parsed draft's nested steps → lines
+      function flatSteps(steps, prefix = "", depth = 0) {
         const out = [];
         const titles = { web_search: tr("Веб-поиск", "Web search"), model: tr("Модель", "Model"), decide: tr("Модель решений", "Decision model"), if: tr("Если", "If"),
           foreach: tr("Для каждого", "For each"), only_new: tr("Только новые", "Only new"), memubase_insert: "MemuBase", memubase_query: "MemuBase", telegram: "Telegram",
@@ -252,8 +246,7 @@
           } },
         ]);
       }
-      // Round 37 (plan-2): the task's «Только если» on the phone — switch each condition off / on, invert it,
-      // flip all ↔ any, «Проверить сейчас». Editing the conditions themselves stays on the computer.
+
       function openConds(t) {
         let data = null, check = null, busyC = false;
         const mark = (ok) => `<i class="tpc-dot ${ok === true ? "ok" : ok === false ? "bad" : "unk"}">${ok === true ? "✓" : ok === false ? "✕" : "?"}</i>`;

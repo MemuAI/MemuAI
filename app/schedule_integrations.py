@@ -15,7 +15,6 @@ from .schedule_rules import RuleError
 MAX_ARGS = 100_000
 TOOL_NAME = re.compile(r"^(?:telegram_use|chrome)_[a-z][a-z0-9_]{0,100}$")
 
-
 def normalize(tool: Any, args: Any) -> Dict[str, Any]:
     name = str(tool or "").strip()
     if not TOOL_NAME.fullmatch(name):
@@ -24,7 +23,7 @@ def normalize(tool: Any, args: Any) -> Dict[str, Any]:
         raise RuleError("Аргументы интеграции должны быть JSON-объектом", "Integration arguments must be a JSON object")
     try:
         encoded = json.dumps(args, ensure_ascii=False, allow_nan=False)
-        # Bound depth as well as bytes, before persistence/template traversal.
+
         def check(value: Any, depth: int = 0) -> None:
             if depth > 20:
                 raise ValueError("depth")
@@ -44,7 +43,6 @@ def normalize(tool: Any, args: Any) -> Dict[str, Any]:
         raise RuleError("Аргументы интеграции слишком большие", "Integration arguments are too large")
     return {"tool": name, "args": json.loads(encoded)}
 
-
 def catalog() -> List[Dict[str, Any]]:
     from .connected_services import status_rows
     rows = []
@@ -52,7 +50,7 @@ def catalog() -> List[Dict[str, Any]]:
         tools = service.get("tools") or []
         if not tools and service.get("service") == "telegram_use":
             from .telegram_use import TOOLS
-            tools = TOOLS  # drafting a schedule does not require an active account session
+            tools = TOOLS
         for tool in tools:
             if isinstance(tool, str):
                 name, _, arguments = tool.partition("{")
@@ -77,7 +75,6 @@ def catalog() -> List[Dict[str, Any]]:
                              "service": service.get("service") or service.get("id") or service.get("name") or ""})
     return rows
 
-
 def validate(tool: Any, args: Any) -> Dict[str, Any]:
     action = normalize(tool, args)
     known = {str(tool.get("name")) for tool in catalog()}
@@ -86,13 +83,10 @@ def validate(tool: Any, args: Any) -> Dict[str, Any]:
                         "Integration tool not found — update the task settings")
     return action
 
-
 async def run(task: Dict[str, Any]) -> tuple[bool, str, Dict[str, Any]]:
     from . import connected_services
     action = validate(task.get("tool"), task.get("args", {}))
-    # scheduled=True is explicit: never fall back to interactive approvals.
-    # Saved tasks authorize reads; the integration setting separately controls
-    # unattended writes. Connection/read-access switches still apply.
+
     result = await connected_services.run(action["tool"], action["args"], scheduled=True)
     if isinstance(result, dict) and (result.get("error") or result.get("ok") is False
                                      or result.get("needs_confirm") or result.get("needs_confirmation")):

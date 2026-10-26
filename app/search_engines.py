@@ -129,25 +129,21 @@ ENGINES: Dict[str, Dict[str, Any]] = {
 }
 
 DEFAULT_ENGINE = "auto"
-#: Источники, которые работают только там, где живут аккаунты, — в процессе Proxy.
-PROXY_ONLY = ("auto", "kiro")
-#: Бесплатные источники, которые спрашиваются одновременно (первый непустой ответ побеждает).
-FREE_RACE = ("bing", "duckduckgo")
-#: Вся бесплатная цепочка: сначала гонка, затем медленные запасные по одному.
-FREE_CHAIN = FREE_RACE + ("yahoo",)
 
+PROXY_ONLY = ("auto", "kiro")
+
+FREE_RACE = ("bing", "duckduckgo")
+
+FREE_CHAIN = FREE_RACE + ("yahoo",)
 
 def engine_ids() -> tuple:
     return tuple(ENGINES)
 
-
 def needs_key(engine: str) -> bool:
     return ENGINES.get(engine, {}).get("key") == "required"
 
-
 def needs_url(engine: str) -> bool:
     return bool(ENGINES.get(engine, {}).get("url"))
-
 
 def catalog() -> List[Dict[str, Any]]:
     """Описание источников для окон настроек (без секретов — их тут и нет)."""
@@ -156,7 +152,6 @@ def catalog() -> List[Dict[str, Any]]:
              "key_hint": row.get("key_hint", ""), "url_hint": row.get("url_hint", ""),
              "site": row.get("site", ""), "note": row["note"], "note_en": row["note_en"]}
             for key, row in ENGINES.items()]
-
 
 def ready(engine: str, api_key: str = "", url: str = "") -> bool:
     """Хватает ли настроек, чтобы источник мог ответить."""

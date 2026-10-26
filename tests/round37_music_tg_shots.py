@@ -32,19 +32,16 @@ THEMES = {
               "button_text_color": "#ffffff", "secondary_bg_color": "#f1f1f4"},
 }
 
-
 def chromium() -> str:
     for path in (os.environ.get("MEMU_TEST_CHROMIUM", ""), "/workspace/work/chromium/chrome", "/usr/bin/chromium"):
         if path and Path(path).exists():
             return path
     return ""
 
-
 def free_port() -> int:
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
         return sock.getsockname()[1]
-
 
 class Server:
     """create_tgapp() on a free port in a thread, with the seeded library and the fake window."""
@@ -82,7 +79,6 @@ class Server:
         for patch in self.patches:
             patch.stop()
 
-
 def open_page(browser, server, theme: str, size=(390, 844), lang="ru"):
     from app import tg_webapp
     init = tg_webapp.sign_init_data({"auth_date": int(time.time()), "query_id": "AAH-r37",
@@ -99,7 +95,6 @@ def open_page(browser, server, theme: str, size=(390, 844), lang="ru"):
     page.wait_for_selector(".mm-hello, .mm-empty", timeout=10000)
     page.wait_for_timeout(700)
     return ctx, page, errors
-
 
 def shots(out: Path, themes, lang="ru"):
     from playwright.sync_api import sync_playwright
@@ -131,7 +126,7 @@ def shots(out: Path, themes, lang="ru"):
                 page.wait_for_selector(".mm-ph", timeout=5000)
                 page.wait_for_timeout(700)
                 snap("5-playlist")
-                page.click(".mm-ph-play")                      # plays on the phone → mini player
+                page.click(".mm-ph-play")
                 page.wait_for_timeout(600)
                 page.evaluate("window.MemuTgApp.kit.goBack()")
                 page.wait_for_timeout(500)
@@ -178,13 +173,10 @@ def shots(out: Path, themes, lang="ru"):
         server.stop()
     return errors_all
 
-
-# text that is cut although it should not be: labels / headings (track titles may end with … on purpose)
 CLIPPED_JS = """() => [...document.querySelectorAll('.mm-root *, .mm-stack *, .mm-full *, .mm-mini *, .sheet *')]
   .filter((el) => el.children.length === 0 && el.textContent.trim() && el.offsetParent !== null
     && el.scrollWidth > el.clientWidth + 1 && getComputedStyle(el).overflow !== 'visible')
   .map((el) => (el.className || el.tagName) + ': ' + el.textContent.trim().slice(0, 40))"""
-
 
 def shots_extra(out: Path, themes, lang="ru"):
     """Wave 2: 360×740 and 390×844 phones (clipped-text check), artists / album screens, the «bring back» banner,
@@ -242,7 +234,7 @@ def shots_extra(out: Path, themes, lang="ru"):
                     snap("8-player"); clipped("player")
                     page.evaluate("window.MemuMusicTg.closeFull()")
                     page.wait_for_timeout(400)
-                    # «bring back»: the phone remembers two saved tracks the store of this address does not have
+
                     page.evaluate(f"(() => {{ const st = window.MemuMusicTg.state; st.stable = {{ {json.dumps(server.ids[0])}: {{}}, {json.dumps(server.ids[1])}: {{}} }}; }})()")
                     page.click('.mm-seg [data-sub="device"]')
                     page.wait_for_selector(".mm-restore", timeout=5000)
@@ -250,7 +242,7 @@ def shots_extra(out: Path, themes, lang="ru"):
                     snap("9-restore"); clipped("restore")
                     report["errors"] += [f"{tag}: {e}" for e in errors]
                     ctx.close()
-            # Telegram Desktop: a wide window → split layout
+
             seed.pc_playing(server.ids[2], server.ids[:6], position=61, playing=True)
             ctx, page, errors = open_page(browser, server, "dark", size=(1180, 760), lang=lang)
             snap = lambda name: page.screenshot(path=str(out / f"desktop-{name}.png"))  # noqa: E731
@@ -278,7 +270,6 @@ def shots_extra(out: Path, themes, lang="ru"):
     finally:
         server.stop()
     return report
-
 
 if __name__ == "__main__":
     args = sys.argv[1:]

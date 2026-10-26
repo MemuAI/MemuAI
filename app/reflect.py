@@ -39,15 +39,13 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, Iterable, List, Optional, Tuple
 
-# ---------------------------------------------------------------- preferences
-
 PREF_DEFAULTS: Dict[str, Any] = {
     "reflect_enabled": True,
-    "reflect_model": "",                 # "" = the default chat model
-    "reflect_include_quick": True,       # Quick Ask chats (quick_chats.json)
-    "reflect_include_telegram": True,    # Telegram chats stored with the regular ones
+    "reflect_model": "",
+    "reflect_include_quick": True,
+    "reflect_include_telegram": True,
     "focus_quiet_enabled": False,
-    "focus_quiet_days": [0, 1, 2, 3, 4, 5, 6],   # Monday = 0
+    "focus_quiet_days": [0, 1, 2, 3, 4, 5, 6],
     "focus_quiet_start": "22:00",
     "focus_quiet_end": "07:00",
     "focus_break_enabled": False,
@@ -56,7 +54,6 @@ PREF_DEFAULTS: Dict[str, Any] = {
 
 BREAK_MIN, BREAK_MAX = 10, 240
 _HHMM = re.compile(r"^([01]?\d|2[0-3]):([0-5]\d)$")
-
 
 def _bool(value: Any, default: bool) -> bool:
     if isinstance(value, bool):
@@ -67,11 +64,9 @@ def _bool(value: Any, default: bool) -> bool:
         return default
     return bool(value)
 
-
 def _hhmm(value: Any, default: str) -> str:
     match = _HHMM.match(str(value or "").strip())
     return f"{int(match.group(1)):02d}:{match.group(2)}" if match else default
-
 
 def normalize_prefs(out: Dict[str, Any], raw: Any = None) -> Dict[str, Any]:
     """Validate the ``reflect_*`` / ``focus_*`` keys in place (called by pgdata)."""
@@ -101,7 +96,6 @@ def normalize_prefs(out: Dict[str, Any], raw: Any = None) -> Dict[str, Any]:
     out["focus_break_minutes"] = max(BREAK_MIN, min(BREAK_MAX, minutes))
     return out
 
-
 def _prefs() -> Dict[str, Any]:
     from .pgdata import load_preferences
     try:
@@ -109,14 +103,10 @@ def _prefs() -> Dict[str, Any]:
     except Exception:
         return dict(PREF_DEFAULTS)
 
-
-# ---------------------------------------------------------------- periods
-
-_NAIVE = timezone.utc     # a placeholder zone for calendar arithmetic on local wall-clock times
+_NAIVE = timezone.utc
 
 PERIODS = ("this_month", "last_month", "3m", "6m", "12m")
 DEFAULT_PERIOD = "last_month"
-
 
 def period_bounds(period: str, now: Optional[datetime] = None) -> Tuple[datetime, datetime]:
     """``[start, end)`` of a period in local time. «Прошлый месяц» = the previous calendar month,
@@ -144,13 +134,9 @@ def period_bounds(period: str, now: Optional[datetime] = None) -> Tuple[datetime
     day = min(now.day, _days_in_month(year, month))
     return now.replace(year=year, month=month, day=day, hour=0, minute=0, second=0, microsecond=0), now
 
-
 def _days_in_month(year: int, month: int) -> int:
     nxt = date(year + (month == 12), 1 if month == 12 else month + 1, 1)
     return (nxt - timedelta(days=1)).day
-
-
-# ---------------------------------------------------------------- conversations
 
 def _text(content: Any) -> str:
     """Only the text of a message: attachments, images and file parts are never read."""
@@ -166,7 +152,6 @@ def _text(content: Any) -> str:
         return "\n".join(parts)
     return ""
 
-
 def _ms(value: Any) -> int:
     try:
         number = float(value)
@@ -174,21 +159,16 @@ def _ms(value: Any) -> int:
         return 0
     if number != number or number <= 0:
         return 0
-    if number < 10_000_000_000:          # seconds
+    if number < 10_000_000_000:
         number *= 1000
     return int(number)
 
-
-# Blocks MemuAI itself adds to user messages (attached file text, page text, tool output) are not the
-# user's words: cut them before anything is counted or sent.
 _INJECTED = re.compile(r"<(attached_file|file|document|page_content|tool_result|untrusted[\w-]*|selection)\b[^>]*>.*?</\1>",
                        re.S | re.I)
-
 
 def _user_words(text: str) -> str:
     text = _INJECTED.sub(" ", text or "")
     return re.sub(r"\s+", " ", text).strip()
-
 
 def collect_conversations(prefs: Optional[Dict[str, Any]] = None, profile_id: Optional[str] = None) -> List[Dict[str, Any]]:
     """Every saved conversation of the active profile as ``{id, title, source, messages: [{role, text, ts}]}``.
@@ -223,7 +203,7 @@ def collect_conversations(prefs: Optional[Dict[str, Any]] = None, profile_id: Op
             rows.append({"role": message["role"], "text": text, "ts": _ms(message.get("createdAt")) or 0})
         if not rows:
             continue
-        # Messages imported without times inherit the neighbour's (or the chat's) time.
+
         last = fallback
         for row in rows:
             if row["ts"]:
@@ -232,7 +212,7 @@ def collect_conversations(prefs: Optional[Dict[str, Any]] = None, profile_id: Op
                 row["ts"] = last
         if not any(row["ts"] for row in rows):
             continue
-        # MemuCode chats of the window (mode "code") are coding sessions, not ordinary chats.
+
         source = "telegram" if telegram else (chat.get("mode") if chat.get("mode") in ("work", "code") else "chat")
         out.append({"id": str(chat.get("id")), "title": str(chat.get("title") or "")[:160], "source": source,
                     "messages": rows})
@@ -260,7 +240,6 @@ def collect_conversations(prefs: Optional[Dict[str, Any]] = None, profile_id: Op
                             "source": "quick", "messages": rows})
     return out
 
-
 def in_period(conversations: Iterable[Dict[str, Any]], start: datetime, end: datetime) -> List[Dict[str, Any]]:
     """Conversations with at least one user message in ``[start, end)``; only those messages' turns are kept."""
     lo, hi = int(start.timestamp() * 1000), int(end.timestamp() * 1000)
@@ -271,10 +250,6 @@ def in_period(conversations: Iterable[Dict[str, Any]], start: datetime, end: dat
             result.append({**conv, "messages": rows})
     return result
 
-
-# ---------------------------------------------------------------- sensitive topics
-
-# Level 2 (distress / crisis): never excerpted, never itemised, support resources are shown.
 _CRISIS = re.compile(
     r"суицид\w*|самоуби\w*|покончить с собой|убить себя|не хочу (больше )?жить|хочу умереть|"
     r"порезать себя|самоповрежд\w*|\bsuicid\w*|kill myself|end my life|want to die|self[- ]?harm\w*|"
@@ -282,7 +257,7 @@ _CRISIS = re.compile(
     r"anxiety disorder|насили\w*|\babuse[ds]?\b|\babusive\b|абьюз\w*|изнасил\w*|\brape[ds]?\b|\bгоре\b|\bgriev\w*|"
     r"\bумер(ла|ли)?\b|смерть (мамы|папы|отца|матери|друга|подруги|мужа|жены|ребёнка|ребенка)|passed away",
     re.I)
-# Level 1 (personal / health): only at a high level, no excerpts or counts, no resources.
+
 _SENSITIVE = re.compile(
     r"\bдиагноз\w*|\bdiagnos\w*|\bонколог\w*|\bрак(а|ом|е|у)?\b|\bcancer\b|\bопухол\w*|\btumou?r\w*|"
     r"\bберемен\w*|\bpregnan\w*|\bвич\b|\bhiv\b|\bпсихотерап\w*|\bпсихиатр\w*|\btherap(y|ist)\b|\bpsychiatr\w*|"
@@ -290,7 +265,6 @@ _SENSITIVE = re.compile(
     r"\bанализ(ы|ов) крови|\bblood test\w*|\bлекарств\w*|\bmedication\w*|\bантидепресс\w*|\bantidepress\w*|"
     r"\bтревог\w*|\banxiety\b|\bодиночеств\w*|\blonel\w*|\bсексуал\w*|\bsexual\w*",
     re.I)
-
 
 def sensitivity(text: str) -> int:
     """0 — ordinary, 1 — personal/health, 2 — distress or crisis."""
@@ -300,19 +274,14 @@ def sensitivity(text: str) -> int:
         return 2
     return 1 if _SENSITIVE.search(text) else 0
 
-
 def conversation_sensitivity(conv: Dict[str, Any]) -> int:
     """Judged on the user's own words (an answer that lists hotlines must not flag a chat)."""
     return max([sensitivity(conv.get("title") or "")] +
                [sensitivity(row["text"][:4000]) for row in conv["messages"] if row["role"] == "user"] or [0])
 
-
-# ---------------------------------------------------------------- deterministic statistics
-
-IDLE_GAP_MIN = 20          # a pause longer than this starts a new session
-SESSION_TAIL_MIN = 2       # reading the last answer of a session
-SINGLE_SESSION_MIN = 1     # a lone message still took a moment
-
+IDLE_GAP_MIN = 20
+SESSION_TAIL_MIN = 2
+SINGLE_SESSION_MIN = 1
 
 def sessions(timestamps: List[int], gap_min: int = IDLE_GAP_MIN) -> List[Tuple[int, int]]:
     """Merge message times into ``(start, end)`` sessions split by idle gaps."""
@@ -330,13 +299,11 @@ def sessions(timestamps: List[int], gap_min: int = IDLE_GAP_MIN) -> List[Tuple[i
     result.append((begin, prev))
     return result
 
-
 def session_minutes(span: Tuple[int, int]) -> float:
     begin, end = span
     if end <= begin:
         return float(SINGLE_SESSION_MIN)
     return (end - begin) / 60_000 + SESSION_TAIL_MIN
-
 
 def compute_stats(conversations: List[Dict[str, Any]], start: datetime, end: datetime,
                   local: bool = False) -> Dict[str, Any]:
@@ -409,13 +376,11 @@ def compute_stats(conversations: List[Dict[str, Any]], start: datetime, end: dat
         "sources": _source_counts(conversations),
     }
 
-
 def _source_counts(conversations: List[Dict[str, Any]]) -> Dict[str, int]:
     counts: Dict[str, int] = {}
     for conv in conversations:
         counts[conv["source"]] = counts.get(conv["source"], 0) + 1
     return counts
-
 
 def fingerprint(conversations: List[Dict[str, Any]]) -> str:
     """Changes when a conversation of the period gets a new user message."""
@@ -424,9 +389,6 @@ def fingerprint(conversations: List[Dict[str, Any]]) -> str:
         users = [row["ts"] for row in conv["messages"] if row["role"] == "user"]
         digest.update(f"{conv['id']}:{len(users)}:{max(users) if users else 0};".encode())
     return digest.hexdigest()[:16]
-
-
-# ---------------------------------------------------------------- behaviour signals (deterministic)
 
 _CORRECTION = re.compile(r"\b(не так|неправильн\w*|ошибк\w*|ошибаешься|неверн\w*|переделай|исправь|"
                          r"на самом деле|это не то|wrong|incorrect|that's not|not what i|actually|redo|fix (it|this)|mistake)\b", re.I)
@@ -438,7 +400,6 @@ _UNDERSTAND = re.compile(r"^\s*(объясни|почему|как работа�
                          r"explain|why|how does|what is|help me understand)\b", re.I)
 _OWN_VOICE = re.compile(r"\b(моими словами|своими словами|мой стиль|мой черновик|мой текст|вот мой|"
                         r"my draft|my own words|in my voice|my style|here is my)\b", re.I)
-
 
 def behaviour_signals(conversations: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Cheap, explainable signals for the 4D cards (the model turns them into observations)."""
@@ -476,18 +437,13 @@ def behaviour_signals(conversations: List[Dict[str, Any]]) -> Dict[str, Any]:
         "memucode_conversations": sum(1 for c in conversations if c["source"] == "code"),
     }
 
-
-# ---------------------------------------------------------------- digest for the model
-
-DIGEST_CHUNK_CHARS = 18_000     # one model call (≈6k tokens of digest)
+DIGEST_CHUNK_CHARS = 18_000
 DIGEST_MAX_CONVERSATIONS = 400
 FIRST_CHARS, LATER_CHARS = 240, 140
-
 
 def _clip(text: str, limit: int) -> str:
     text = re.sub(r"\s+", " ", str(text or "")).strip()
     return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
-
 
 def digest_lines(conversations: List[Dict[str, Any]], tz: Any = None) -> Tuple[List[str], int]:
     """One compact line per ordinary conversation (newest first) and how many sensitive ones were withheld."""
@@ -506,7 +462,6 @@ def digest_lines(conversations: List[Dict[str, Any]], tz: Any = None) -> Tuple[L
         lines.append(" ".join(parts))
     return lines, withheld
 
-
 def chunk_lines(lines: List[str], limit: Optional[int] = None) -> List[List[str]]:
     limit = limit or DIGEST_CHUNK_CHARS
     chunks: List[List[str]] = [[]]
@@ -518,9 +473,6 @@ def chunk_lines(lines: List[str], limit: Optional[int] = None) -> List[List[str]
         chunks[-1].append(line)
         size += len(line) + 1
     return [chunk for chunk in chunks if chunk]
-
-
-# ---------------------------------------------------------------- prompts
 
 SKILLS = ("delegation", "description", "discernment", "diligence")
 ACTIONS = ("project", "prompt", "skill", "memory", "agent", "none")
@@ -555,14 +507,11 @@ _MAP_SCHEMA = """This is part {part} of {parts} of the digest. Return exactly:
 {"topics": [ {"name": "2-4 words", "description": "max 110 characters", "conversations": integer} ], "notes": ["max 4 short observations about how the user works with AI"]}
 Up to 8 topics, "conversations" = how many digest lines belong to the topic."""
 
-
 def _language(lang: str) -> Tuple[str, str]:
     return ("English", "you") if lang == "en" else ("Russian", "на «вы»")
 
-
 def _period_label(period: str, start: datetime, end: datetime) -> str:
     return f"{period} ({start.strftime('%Y-%m-%d')} … {(end - timedelta(seconds=1)).strftime('%Y-%m-%d')})"
-
 
 def _stats_for_model(stats: Dict[str, Any]) -> Dict[str, Any]:
     names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -571,7 +520,6 @@ def _stats_for_model(stats: Dict[str, Any]) -> Dict[str, Any]:
             "most_active_weekday": names[stats["most_active_weekday"]] if stats["most_active_weekday"] is not None else None,
             "peak_hour": stats["peak_hour"], "estimated_minutes_with_ai": stats["time"]["minutes"],
             "sources": stats["sources"]}
-
 
 def build_final_messages(lang: str, period_text: str, stats: Dict[str, Any], signals: Dict[str, Any],
                          digest: List[str], withheld: int, merged: Optional[Dict[str, Any]] = None) -> List[Dict[str, str]]:
@@ -593,22 +541,16 @@ def build_final_messages(lang: str, period_text: str, stats: Dict[str, Any], sig
     return [{"role": "system", "content": _SYSTEM.format(language=language, you=you)},
             {"role": "user", "content": "\n\n".join(body)}]
 
-
 def build_map_messages(lang: str, part: int, parts: int, lines: List[str]) -> List[Dict[str, str]]:
     language, you = _language(lang)
     return [{"role": "system", "content": _SYSTEM.format(language=language, you=you)},
             {"role": "user", "content": "Digest part:\n" + "\n".join(lines) + "\n\n" +
              _MAP_SCHEMA.replace("{part}", str(part)).replace("{parts}", str(parts))}]
 
-
-# ---------------------------------------------------------------- strict JSON
-
 class ReportError(Exception):
     """The model's answer is not a valid report (the message is shown to the model on retry)."""
 
-
 _SAFETY = re.compile(r"<(ds_safety|think|thinking|reasoning)\b[^>]*>.*?</\1>", re.S | re.I)
-
 
 def extract_json(text: str) -> Any:
     """The first complete JSON object in a model answer (fences, reasoning and chatter around it are ignored)."""
@@ -616,7 +558,7 @@ def extract_json(text: str) -> Any:
     for tag in ("</think>", "</thinking>", "</reasoning>", "</ds_safety>"):
         if tag in raw:
             raw = raw.rsplit(tag, 1)[1]
-    raw = re.sub(r"<ds_safety>.*$", "", raw, flags=re.S)     # an unterminated safety block at the end
+    raw = re.sub(r"<ds_safety>.*$", "", raw, flags=re.S)
     start = raw.find("{")
     while start != -1:
         depth, in_str, escape = 0, False, False
@@ -643,7 +585,6 @@ def extract_json(text: str) -> Any:
         start = raw.find("{", start + 1)
     raise ReportError("no JSON object found")
 
-
 def _str(value: Any, limit: int, field: str, required: bool = True) -> str:
     if not isinstance(value, str) or not value.strip():
         if required:
@@ -655,7 +596,6 @@ def _str(value: Any, limit: int, field: str, required: bool = True) -> str:
         stop = max(cut.rfind(". "), cut.rfind("! "), cut.rfind("? "))
         text = cut[: stop + 1] if stop > limit * 0.6 else cut.rstrip() + "…"
     return text
-
 
 def percents(weights: List[float]) -> List[int]:
     """Integers that add up to exactly 100 (largest remainder), proportional to ``weights``."""
@@ -669,7 +609,6 @@ def percents(weights: List[float]) -> List[int]:
     for i in sorted(range(len(exact)), key=lambda i: -(exact[i] - floors[i]))[:rest]:
         floors[i] += 1
     return floors
-
 
 def validate_final(data: Any) -> Dict[str, Any]:
     if not isinstance(data, dict):
@@ -705,7 +644,6 @@ def validate_final(data: Any) -> Dict[str, Any]:
                        "action": action if action in ACTIONS else "none"}
     return {"headline": headline, "summary": summary, "topics": topics, "skills": skills}
 
-
 def validate_map(data: Any) -> Dict[str, Any]:
     if not isinstance(data, dict) or not isinstance(data.get("topics"), list):
         raise ReportError('the answer must be {"topics": [...], "notes": [...]}')
@@ -726,12 +664,8 @@ def validate_map(data: Any) -> Dict[str, Any]:
     notes = [_str(n, 200, "notes", required=False) for n in (data.get("notes") or [])[:4] if isinstance(n, str)]
     return {"topics": topics, "notes": [n for n in notes if n]}
 
-
-# ---------------------------------------------------------------- privacy post-processing
-
 def _sentences(text: str) -> List[str]:
     return [part for part in re.split(r"(?<=[.!?…])\s+", text.strip()) if part]
-
 
 def apply_privacy(report: Dict[str, Any], lang: str) -> Dict[str, Any]:
     """Whatever the model wrote: sensitive topics leave the breakdown (shares are recomputed), a sensitive
@@ -758,7 +692,6 @@ def apply_privacy(report: Dict[str, Any], lang: str) -> Dict[str, Any]:
                     else "Часть разговоров была личной — они учтены только в общих чертах.")
     return report
 
-
 def merge_map_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Topics with the same (case-insensitive) name are added up; notes are concatenated."""
     merged: Dict[str, Dict[str, Any]] = {}
@@ -773,9 +706,6 @@ def merge_map_results(results: List[Dict[str, Any]]) -> Dict[str, Any]:
         notes.extend(result.get("notes") or [])
     topics = sorted(merged.values(), key=lambda t: -t["conversations"])[:24]
     return {"topics": [{**t, "conversations": round(t["conversations"])} for t in topics], "notes": notes[:12]}
-
-
-# ---------------------------------------------------------------- reflection questions
 
 QUESTIONS = [
     ("Что одно вы хотите продолжать делать сами, даже если ИИ сделает быстрее?",
@@ -800,7 +730,6 @@ QUESTIONS = [
      "What question have you been meaning to ask yourself rather than AI?"),
 ]
 
-
 def question_for(when: Optional[date] = None, lang: str = "ru") -> Dict[str, Any]:
     """Changes every ISO week (the same for the whole week, so it can be thought over)."""
     when = when or date.today()
@@ -808,7 +737,6 @@ def question_for(when: Optional[date] = None, lang: str = "ru") -> Dict[str, Any
     index = (year * 53 + week) % len(QUESTIONS)
     ru, en = QUESTIONS[index]
     return {"id": index, "text": en if lang == "en" else ru}
-
 
 SUPPORT = {
     "ru": {"title": "Если сейчас тяжело",
@@ -821,17 +749,12 @@ SUPPORT = {
            "link": "https://findahelpline.com", "link_text": "Free helplines in your country"},
 }
 
-
-# ---------------------------------------------------------------- cache and feedback (memuai/reflect.json)
-
 def _store_path(profile_id: Optional[str] = None) -> Path:
     from .pgdata import MEMU_DIR, _profile_data_name
     return Path(MEMU_DIR) / _profile_data_name("reflect.json", profile_id)
 
-
 def _valid_store(value: Any) -> bool:
     return isinstance(value, dict)
-
 
 def load_store(profile_id: Optional[str] = None) -> Dict[str, Any]:
     from .storage import load_json_with_recovery
@@ -842,7 +765,6 @@ def load_store(profile_id: Optional[str] = None) -> Dict[str, Any]:
     data.setdefault("reports", {})
     data.setdefault("feedback", {})
     return data
-
 
 def mutate_store(fn: Callable[[Dict[str, Any]], None], profile_id: Optional[str] = None) -> Dict[str, Any]:
     from .storage import mutate_json
@@ -857,10 +779,8 @@ def mutate_store(fn: Callable[[Dict[str, Any]], None], profile_id: Optional[str]
         return True, data
     return mutate_json(path, {}, apply, backup=False, validator=_valid_store, repair_invalid=True)
 
-
 def cache_key(period: str, lang: str) -> str:
     return f"{period}:{'en' if lang == 'en' else 'ru'}"
-
 
 def clear_store(profile_id: Optional[str] = None) -> None:
     path = _store_path(profile_id)
@@ -869,13 +789,9 @@ def clear_store(profile_id: Optional[str] = None) -> None:
     except FileNotFoundError:
         pass
 
-
-# ---------------------------------------------------------------- generation
-
-MIN_CONVERSATIONS = 3          # below this no model call: an honest «too little to reflect on»
+MIN_CONVERSATIONS = 3
 MAX_ATTEMPTS = 3
 Completion = Callable[[str, List[Dict[str, str]]], Awaitable[str]]
-
 
 async def _ask_json(completion: Completion, model: str, messages: List[Dict[str, str]],
                     validate: Callable[[Any], Dict[str, Any]]) -> Dict[str, Any]:
@@ -894,7 +810,6 @@ async def _ask_json(completion: Completion, model: str, messages: List[Dict[str,
             ]
     raise ReportError(last_error or "invalid answer")
 
-
 def snapshot(period: str, prefs: Optional[Dict[str, Any]] = None, now: Optional[datetime] = None,
              profile_id: Optional[str] = None) -> Dict[str, Any]:
     """Everything deterministic about a period: conversations, stats, signals, fingerprint, sensitivity."""
@@ -907,7 +822,6 @@ def snapshot(period: str, prefs: Optional[Dict[str, Any]] = None, now: Optional[
             "tz": None if local else start.tzinfo,
             "stats": compute_stats(convs, start, end, local), "fingerprint": fingerprint(convs),
             "sensitive": max(levels or [0])}
-
 
 async def generate_report(snap: Dict[str, Any], lang: str, model: str, completion: Completion,
                           progress: Optional[Callable[[str, int, int], None]] = None) -> Dict[str, Any]:
@@ -938,7 +852,7 @@ async def generate_report(snap: Dict[str, Any], lang: str, model: str, completio
                 try:
                     results[i] = await _ask_json(completion, model,
                                                  build_map_messages(lang, i + 1, len(chunks), part), validate_map)
-                except ReportError as exc:      # one unreadable part must not sink a year of conversations
+                except ReportError as exc:
                     failures.append(exc)
             done += 1
             progress("reading", done, total)
@@ -946,7 +860,7 @@ async def generate_report(snap: Dict[str, Any], lang: str, model: str, completio
         try:
             await asyncio.gather(*tasks)
         finally:
-            # One part failed (or the job was cancelled): the other parts must not keep calling the model.
+
             for task in tasks:
                 task.cancel()
         if not any(results):
@@ -960,9 +874,6 @@ async def generate_report(snap: Dict[str, Any], lang: str, model: str, completio
         progress("writing", total, total)
     report = apply_privacy(raw, lang)
     return report
-
-
-# ---------------------------------------------------------------- jobs
 
 class Jobs:
     """At most one generation per (profile, period, language); the window polls ``status``."""
@@ -989,12 +900,11 @@ class Jobs:
                 job["status"] = "error"
                 job["error"] = "cancelled"
                 raise
-            except Exception as exc:  # shown to the user, with a retry button
+            except Exception as exc:
                 job["status"] = "error"
                 job["error"] = str(exc) or exc.__class__.__name__
         job["task"] = asyncio.create_task(run())
         return job
-
 
 def friendly_error(error: str, lang: str) -> str:
     """A model/provider failure in plain words (the raw text stays in ``detail``)."""
@@ -1022,13 +932,9 @@ def friendly_error(error: str, lang: str) -> str:
     return ("The report could not be written. Try again or pick another model."
             if en else "Не удалось составить отчёт. Повторите или выберите другую модель.")
 
-
-# ---------------------------------------------------------------- «Время и фокус»
-
 def _minutes(hhmm: str) -> int:
     hour, minute = hhmm.split(":")
     return int(hour) * 60 + int(minute)
-
 
 def quiet_now(prefs: Dict[str, Any], now: Optional[datetime] = None) -> Optional[Dict[str, Any]]:
     """The quiet window the user is in right now (``{"until": "07:00", "ends_at": epoch_ms}``) or ``None``.
@@ -1055,15 +961,12 @@ def quiet_now(prefs: Dict[str, Any], now: Optional[datetime] = None) -> Optional
         return {"until": end_s, "ends_at": int((midnight + timedelta(minutes=end)).timestamp() * 1000)}
     return None
 
-
 def focus_store_path() -> Path:
     """``memuai/focus.json``: the day's time with MemuAI (one per computer, shared by every profile and client)."""
     from .pgdata import MEMU_DIR
     return Path(MEMU_DIR) / "focus.json"
 
-
 _SHARED_TRACKER: Optional["FocusTracker"] = None
-
 
 def shared_tracker() -> "FocusTracker":
     """The file-backed tracker of this process (MemuAI window routes and the Telegram bot use the same file)."""
@@ -1071,7 +974,6 @@ def shared_tracker() -> "FocusTracker":
     if _SHARED_TRACKER is None or _SHARED_TRACKER.path != focus_store_path():
         _SHARED_TRACKER = FocusTracker(path=focus_store_path())
     return _SHARED_TRACKER
-
 
 class FocusTracker:
     """Daily time with MemuAI, shared by the main window, Quick Ask and the Telegram bot (as in Claude, the break
@@ -1136,7 +1038,7 @@ class FocusTracker:
             due = bool(enabled and not data.get("dismissed") and data["used"] >= due_at
                        and now >= float(data.get("snooze_until") or 0))
             if due:
-                # Shown once: the window that got it shows the reminder; the next ping waits for snooze/dismiss.
+
                 data["snooze_until"] = now + self.SNOOZE_MIN * 60
             return {"minutes_today": int(data["used"] // 60), "break_due": due, "threshold": minutes}
         return self._update(apply)
@@ -1149,18 +1051,14 @@ class FocusTracker:
             if kind == "snooze":
                 data["snooze_until"] = now + self.SNOOZE_MIN * 60
             elif kind == "break":
-                # After a break the next reminder comes after another full threshold of use; the pause itself
-                # never counts.
+
                 data["rearm"] = float(data.get("used") or 0) + float(data.get("threshold") or 3600)
                 data["snooze_until"] = 0.0
                 data["last"] = 0.0
             else:
-                data["dismissed"] = True        # «Скрыть»: no more reminders today
+                data["dismissed"] = True
         self._update(apply)
         return {"ok": True}
-
-
-# ---------------------------------------------------------------- HTTP routes
 
 def register(app, completion: Completion) -> None:
     """``/api/reflect/*`` and ``/api/focus/*`` on the MemuAI server (``completion`` = ``proxy_completion``)."""
@@ -1171,7 +1069,7 @@ def register(app, completion: Completion) -> None:
     tracker = shared_tracker()
     app.state.reflect_jobs = jobs
     app.state.focus_tracker = tracker
-    app.state.reflect_completion = completion      # tests replace it with a scripted model
+    app.state.reflect_completion = completion
 
     def lang_of(value: str, prefs: Dict[str, Any]) -> str:
         value = value or prefs.get("language") or "ru"
@@ -1231,7 +1129,7 @@ def register(app, completion: Completion) -> None:
         prefs = await asyncio.to_thread(_prefs)
         lang = lang_of(lang, prefs)
         if not prefs.get("reflect_enabled", True):
-            # Turned off anywhere (this window, a synced profile, the Mini App): no report survives.
+
             cancel_jobs()
             await asyncio.to_thread(clear_store)
             return {"enabled": False, "lang": lang}
@@ -1281,7 +1179,7 @@ def register(app, completion: Completion) -> None:
 
             def save(data: Dict[str, Any]):
                 data["reports"][cache_key(period, lang)] = entry
-            # Turned off while the model was writing (the Mini App, a synced profile): nothing is kept.
+
             if not (await asyncio.to_thread(_prefs)).get("reflect_enabled", True):
                 raise ReportError("Reflect is turned off")
             await asyncio.to_thread(mutate_store, save, profile_id)
@@ -1308,7 +1206,7 @@ def register(app, completion: Completion) -> None:
                 data["feedback"][key] = value
             else:
                 data["feedback"].pop(key, None)
-            # Only the latest 100 votes are kept.
+
             if len(data["feedback"]) > 100:
                 for old in list(data["feedback"])[:-100]:
                     data["feedback"].pop(old, None)

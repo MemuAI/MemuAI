@@ -1,5 +1,5 @@
-// Runs the real context.js (token accounting of the MemuAI window) and the context functions of
-// app.js with tiny stand-ins for the rest of the app. Prints one JSON line for round13_test.py.
+
+
 const fs = require("fs");
 const vm = require("vm");
 const path = require("path");
@@ -17,7 +17,6 @@ if (from < 0 || to < 0) {
   process.exit(0);
 }
 
-// ---- real image files of known sizes, built here (no fixtures on disk)
 function png(width, height) {
   const chunk = (type, data) => {
     const body = Buffer.concat([Buffer.from(type), data]);
@@ -34,7 +33,7 @@ function png(width, height) {
 }
 function jpeg(width, height, exifBytes = 0) {
   const parts = [Buffer.from([0xff, 0xd8])];
-  if (exifBytes) {                                       // a big APP1 block before the size, as cameras write
+  if (exifBytes) {
     const size = Buffer.alloc(2); size.writeUInt16BE(exifBytes + 2);
     parts.push(Buffer.from([0xff, 0xe1]), size, Buffer.alloc(exifBytes, 0x20));
   }

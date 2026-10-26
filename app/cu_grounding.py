@@ -27,14 +27,12 @@ from typing import Any, Iterable
 PIXELS, NORM1000, NORM1, QWEN25 = "pixels", "norm1000", "norm1", "qwen25"
 CONVENTIONS = (PIXELS, NORM1000, NORM1, QWEN25)
 
-# Families whose grounding output is 0..1000 relative coordinates (their documented / measured native convention).
 _NORM_FAMILIES = re.compile(r"(?i)(qwen|qwq|qvq|gemini|gemma|glm|cogagent|kimi|internvl|minicpm|seed|doubao|ui-tars|"
                             r"step-?\d|hunyuan|ernie|yi-vl|llava|pixtral|molmo)")
-# Qwen2.5-VL answers in absolute pixels of ITS resized input (smart_resize, factor 28).
-_QWEN25 = re.compile(r"(?i)qwen2(\.5)?-?vl")
-# Families trained on pixel coordinates of the screenshot they get.
-_PIXEL_FAMILIES = re.compile(r"(?i)(claude|anthropic|gpt|openai|\bo[134]\b|o[134]-|chatgpt|computer-use|operator)")
 
+_QWEN25 = re.compile(r"(?i)qwen2(\.5)?-?vl")
+
+_PIXEL_FAMILIES = re.compile(r"(?i)(claude|anthropic|gpt|openai|\bo[134]\b|o[134]-|chatgpt|computer-use|operator)")
 
 def model_convention(model_id: str, override: str | None = None) -> str:
     """The coordinate convention we ask ``model_id`` to use. ``override`` (a preference) wins when valid."""
@@ -48,7 +46,6 @@ def model_convention(model_id: str, override: str | None = None) -> str:
     if _NORM_FAMILIES.search(name):
         return NORM1000
     return PIXELS
-
 
 def smart_resize(height: int, width: int, factor: int = 28, min_pixels: int = 56 * 56,
                  max_pixels: int = 28 * 28 * 1280) -> tuple[int, int]:
@@ -65,7 +62,6 @@ def smart_resize(height: int, width: int, factor: int = 28, min_pixels: int = 56
         h_bar = math.ceil(height * beta / factor) * factor
         w_bar = math.ceil(width * beta / factor) * factor
     return int(h_bar), int(w_bar)
-
 
 def model_to_shown(x: float, y: float, convention: str, shown_w: int, shown_h: int) -> tuple[float, float]:
     """A model point in ``convention`` → pixels of the screenshot we showed (``shown_w`` × ``shown_h``).
@@ -87,19 +83,17 @@ def model_to_shown(x: float, y: float, convention: str, shown_w: int, shown_h: i
         return x * shown_w / rw, y * shown_h / rh
     return x, y
 
-
 def shown_to_model(x: float, y: float, convention: str, shown_w: int, shown_h: int) -> tuple[int, int]:
     """Inverse of :func:`model_to_shown` (element centres in the prompt are given in the model's own units)."""
     shown_w, shown_h = max(1, int(shown_w)), max(1, int(shown_h))
     if convention == NORM1000:
         return round(x / shown_w * 1000), round(y / shown_h * 1000)
     if convention == NORM1:
-        return round(x / shown_w * 1000), round(y / shown_h * 1000)   # never advertised; kept symmetric
+        return round(x / shown_w * 1000), round(y / shown_h * 1000)
     if convention == QWEN25:
         rh, rw = smart_resize(shown_h, shown_w)
         return round(x * rw / shown_w), round(y * rh / shown_h)
     return round(x), round(y)
-
 
 def ruler_labels(convention: str, length: int) -> list[tuple[int, str]]:
     """Positions (shown pixels) and labels of the ruler lines along an axis of ``length`` shown pixels."""
@@ -107,7 +101,6 @@ def ruler_labels(convention: str, length: int) -> list[tuple[int, str]]:
         return [(round(v / 1000 * length), str(v)) for v in range(0, 1001, 100) if round(v / 1000 * length) < length]
     step = 200 if length > 600 else 100
     return [(v, str(v)) for v in range(0, length, step)]
-
 
 def convention_text(convention: str, screens: list[dict[str, Any]]) -> str:
     """The sentence of the prompt that pins the units down (with the real numbers of this run)."""
@@ -122,8 +115,6 @@ def convention_text(convention: str, screens: list[dict[str, Any]]) -> str:
     return (f"COORDINATES: x and y are PIXELS of the monitor screenshot exactly as shown ({sizes}); (0,0) is its top-left "
             f"corner. The yellow ruler lines are labelled in these pixels. Never answer in 0..1000 units.")
 
-
-# ---------------------------------------------------------------- actions
 _ACTION_ALIASES = {
     "left_click": "click", "leftclick": "click", "tap": "click", "press_button": "click", "click_element": "click",
     "mouse_click": "click", "single_click": "click", "click_xy": "click",
@@ -149,10 +140,8 @@ _ACTION_ALIASES = {
 }
 _NUM = r"-?\d+(?:\.\d+)?"
 
-
 def _num(value: float) -> float | int:
     return int(value) if float(value).is_integer() else float(value)
-
 
 def _numbers(value: Any) -> list[float]:
     if isinstance(value, (int, float)) and not isinstance(value, bool):
@@ -172,7 +161,6 @@ def _numbers(value: Any) -> list[float]:
         return [_num(float(v)) for v in re.findall(_NUM, value)]
     return []
 
-
 def _int_like(value: Any) -> int | None:
     if isinstance(value, bool):
         return None
@@ -186,7 +174,6 @@ def _int_like(value: Any) -> int | None:
             return int(match.group(1))
     return None
 
-
 def normalize_action(raw: Any) -> dict[str, Any]:
     """One canonical action dict from whatever shape the model used. Never raises; unknown shapes pass through."""
     if isinstance(raw, list) and raw and isinstance(raw[0], dict):
@@ -194,7 +181,7 @@ def normalize_action(raw: Any) -> dict[str, Any]:
     if not isinstance(raw, dict):
         return {"action": ""}
     action = dict(raw)
-    # {"name": "click", "arguments": {...}} / {"function": {"name", "arguments": "json"}} / {"action": {...}}
+
     for wrapper in ("function", "tool_call", "call"):
         if isinstance(action.get(wrapper), dict):
             action = {**action, **action.pop(wrapper)}
@@ -225,7 +212,7 @@ def normalize_action(raw: Any) -> dict[str, Any]:
     original = kind
     kind = _ACTION_ALIASES.get(kind, kind)
     action["action"] = kind
-    # scroll direction words
+
     if kind == "scroll":
         if action.get("dy") is None:
             direction = str(action.get("direction") or action.get("scroll_direction") or
@@ -234,7 +221,7 @@ def normalize_action(raw: Any) -> dict[str, Any]:
             pixels = (amount[0] * 120 if amount and amount[0] < 40 else amount[0]) if amount else 600
             if direction in ("down", "up"):
                 action["dy"] = abs(pixels) if direction == "down" else -abs(pixels)
-    # keys
+
     if kind == "key":
         keys = action.get("keys") or action.get("key") or action.get("combo") or action.get("text") or action.get("hotkey")
         if isinstance(keys, (list, tuple)):
@@ -271,7 +258,7 @@ def normalize_action(raw: Any) -> dict[str, Any]:
             if isinstance(action.get(key), str) and action[key].strip():
                 action["title"] = action[key]
                 break
-    # element ids
+
     if action.get("element") is None:
         for key in ("element_id", "elementId", "mark", "mark_id", "id", "index", "target_id", "som", "label_id"):
             value = _int_like(action.get(key))
@@ -284,14 +271,13 @@ def normalize_action(raw: Any) -> dict[str, Any]:
             action["element"] = value
         elif isinstance(action.get("element"), str) and kind in _POINTER and action.get("x") is None:
             action["element_name"] = action.pop("element")
-    # ids start at 1: "element": 0 / -1 / null / "none" means "no element" (seen live from qwen3.8-max)
+
     if "element" in action and (not isinstance(action.get("element"), int) or isinstance(action["element"], bool)
                                 or action["element"] <= 0):
         action.pop("element", None)
-    # coordinates
+
     _normalize_point(action)
     return action
-
 
 _CANONICAL = {"click", "double_click", "right_click", "triple_click", "middle_click", "move", "drag", "type", "key",
               "scroll", "wait", "done", "stuck", "open_app", "close_window", "focus_window", "minimize_window",
@@ -303,22 +289,18 @@ _KEY_ALIASES = {"control": "ctrl", "ctl": "ctrl", "return": "enter", "windows": 
                 "arrowright": "right", "escape": "esc", "bksp": "backspace", "back": "backspace", "spacebar": "space",
                 "option": "alt", "plus": "plus"}
 
-
 def _normalize_keys(keys: str) -> str:
     text = str(keys).strip()
     if not text:
         return ""
-    # Round 34: the «+» key itself («+», «ctrl++», «shift++») — the split on «+» turned it into an empty combo and the
-    # step failed («Некорректная комбинация клавиш»; live: qwen3-vl-plus on the calculator, twice in a row)
+
     text = re.sub(r"(^|\+)\s*\+\s*(?=$|\+)", r"\1plus", text)
-    # key names with a dash/underscore/space inside («page-down», «ctrl+page down», «print screen») are one key, not
-    # «page»+«down» (the dash/space split below cut them apart)
+
     text = re.sub(r"(?i)\b(page|print|caps)[-_ ]?(up|down|screen|lock)\b", lambda m: (m.group(1) + m.group(2)).lower(), text)
-    # «ctrl-c» / «alt-f4» (a dash between key names) is a combo too; it reached Windows as one unknown key «ctrl-c»
+
     combo = "+" in text or " " in text or re.search(r"(?i)^(ctrl|control|alt|shift|win|cmd|super|meta)-[a-z0-9]", text)
     parts = re.split(r"\s*(?:\+|-(?=[a-z0-9])|\s)\s*", text.lower()) if combo else [text.lower()]
     return "+".join(_KEY_ALIASES.get(part.strip(), part.strip()) for part in parts if part.strip())
-
 
 def _normalize_point(action: dict[str, Any]) -> None:
     """Fill ``x``/``y`` (and ``x1..y2`` for drag) from any coordinate spelling; marks Gemini boxes as 0..1000."""
@@ -341,14 +323,14 @@ def _normalize_point(action: dict[str, Any]) -> None:
             action["x"], action["y"] = x[0], y[0]
         return
     if action.get("x") is not None and action.get("y") is None:
-        values = _numbers(action["x"])           # "x": "512, 300"
+        values = _numbers(action["x"])
         if len(values) >= 2:
             action["x"], action["y"] = values[0], values[1]
             return
     box = action.get("box_2d")
     if box is not None:
         values = _numbers(box)
-        if len(values) >= 4:                     # Gemini: [ymin, xmin, ymax, xmax] in 0..1000
+        if len(values) >= 4:
             action["x"], action["y"] = (values[1] + values[3]) / 2, (values[0] + values[2]) / 2
             action["_convention"] = NORM1000
             return
@@ -369,13 +351,10 @@ def _normalize_point(action: dict[str, Any]) -> None:
             action["x"], action["y"] = (values[0] + values[2]) / 2, (values[1] + values[3]) / 2
             return
 
-
-# ---------------------------------------------------------------- marks (set-of-marks over UI Automation elements)
 INTERACTIVE_TYPES = {"button", "edit", "combobox", "checkbox", "radiobutton", "hyperlink", "listitem", "menuitem",
                      "tabitem", "treeitem", "document", "splitbutton", "dataitem", "slider", "spinner", "menubaritem",
                      "appbarbutton", "toggle", "togglebutton", "text_input", "searchbox", "icon"}
 MAX_MARKS = 90
-
 
 def pick_marks(elements: Iterable[dict[str, Any]], monitors: list[dict[str, Any]], limit: int = MAX_MARKS) -> list[dict[str, Any]]:
     """Number the elements worth clicking. ``elements``: ``{"name", "type", "rect": [l, t, r, b] (physical, global),
@@ -423,7 +402,6 @@ def pick_marks(elements: Iterable[dict[str, Any]], monitors: list[dict[str, Any]
         mark["id"] = index
     return out
 
-
 def mark_to_shown(mark: dict[str, Any], screen: dict[str, Any]) -> list[float]:
     """The mark's rectangle in the shown screenshot's pixels."""
     sx = float(screen.get("scale_x") or screen.get("scale") or 1.0) or 1.0
@@ -431,7 +409,6 @@ def mark_to_shown(mark: dict[str, Any], screen: dict[str, Any]) -> list[float]:
     left, top = float(screen.get("left") or 0), float(screen.get("top") or 0)
     l, t, r, b = mark["rect"]
     return [(l - left) * sx, (t - top) * sy, (r - left) * sx, (b - top) * sy]
-
 
 def draw_marks(image: Any, marks: list[dict[str, Any]], screen: dict[str, Any]) -> Any:
     """Thin outlines and small numbered tags (set-of-marks) on the shown screenshot of ``screen``."""
@@ -454,7 +431,6 @@ def draw_marks(image: Any, marks: list[dict[str, Any]], screen: dict[str, Any]) 
         draw.text((tx + 3, ty), label, fill=(255, 255, 255))
     return canvas
 
-
 def marks_prompt(marks: list[dict[str, Any]], screens: list[dict[str, Any]], convention: str) -> list[dict[str, Any]]:
     """The <elements> list for the prompt: id, name, type, monitor and the centre in the model's units."""
     rows = []
@@ -471,24 +447,19 @@ def marks_prompt(marks: list[dict[str, Any]], screens: list[dict[str, Any]], con
         rows.append(row)
     return rows
 
-
-# ---------------------------------------------------------------- input
 def absolute_input_coords(x: int, y: int, v_left: int, v_top: int, v_width: int, v_height: int) -> tuple[int, int]:
     """MOUSEINPUT dx/dy for MOUSEEVENTF_MOVE|ABSOLUTE|VIRTUALDESK: 0..65535 across the virtual desktop
     (``SM_XVIRTUALSCREEN``… in physical pixels). Exact inverse of Windows' ``dx * width / 65536`` rounding."""
     v_width, v_height = max(1, int(v_width)), max(1, int(v_height))
     rel_x = min(max(int(x) - int(v_left), 0), v_width - 1)
     rel_y = min(max(int(y) - int(v_top), 0), v_height - 1)
-    # Centre of the target pixel: (rel + 0.5) * 65536 / size — lands on rel after Windows' truncation.
-    return (min(65535, int((rel_x + 0.5) * 65536 / v_width)), min(65535, int((rel_y + 0.5) * 65536 / v_height)))
 
+    return (min(65535, int((rel_x + 0.5) * 65536 / v_width)), min(65535, int((rel_y + 0.5) * 65536 / v_height)))
 
 def absolute_to_pixel(dx: int, dy: int, v_left: int, v_top: int, v_width: int, v_height: int) -> tuple[int, int]:
     """What Windows does with absolute dx/dy (used by the tests to prove the round trip)."""
     return int(v_left + dx * v_width // 65536), int(v_top + dy * v_height // 65536)
 
-
-# ---------------------------------------------------------------- errors
 _ERROR_PATTERNS = (
     ("not_windows", r"только в Windows|only on Windows"),
     ("rate_limit", r"\b429\b|rate.?limit|too many requests|quota|лимит запросов"),
@@ -501,7 +472,6 @@ _ERROR_PATTERNS = (
     ("network", r"connect|network|соединени|unreachable|ECONN|getaddrinfo"),
     ("empty", r"пуст|empty"),
 )
-
 
 def classify_error(text: str) -> str:
     value = str(text or "")

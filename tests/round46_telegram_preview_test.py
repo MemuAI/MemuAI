@@ -11,7 +11,6 @@ from app.telegram_use_api import register
 from app.telegram_format import markdown_to_telegram_html, split_telegram_html
 from app.telegram_use import parse_html, caption_text
 
-
 class Preview(unittest.TestCase):
     def setUp(self):
         app = FastAPI()
@@ -56,7 +55,6 @@ class Preview(unittest.TestCase):
             self.assertEqual(self.preview(value).status_code, 400)
         response = self.client.post("/api/pg/integrations/telegram-use/preview", json={"text": "Hello"}, headers={"Origin": "https://example.test"})
         self.assertEqual(response.status_code, 403)
-
 
 if __name__ == "__main__":
     unittest.main()

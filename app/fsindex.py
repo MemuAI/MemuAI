@@ -56,14 +56,13 @@ log = logging.getLogger("memuai.fsindex")
 IS_WINDOWS = sys.platform == "win32"
 VERSION = 1
 MAGIC = b"MEMUFSX1"
-SEARCH_DEADLINE = 0.35          # seconds: a search returns what it has (``partial``) after this
+SEARCH_DEADLINE = 0.35
 MAX_LIMIT = 2000
 WALK_THREADS = 8
 COMPACT_ADDED = 20000
 COMPACT_DELETED = 60000
 
-Batch = Tuple[str, Any]      # (folder display path, [(name, size, mtime, is_dir)] or a :class:`Packed`)
-
+Batch = Tuple[str, Any]
 
 class Packed:
     """One folder's children in flat form (round 36): a 1M-file walk used to hold ~1M tuples + str + int + float
@@ -92,23 +91,20 @@ class Packed:
 DEFAULT_EXCLUDE_NAMES = ["$Recycle.Bin", "System Volume Information", "$WinREAgent", "Config.Msi", "WinSxS",
                          "$SysReset", "$Windows.~BT", "$Windows.~WS", "$GetCurrent", ".Trash-1000", "lost+found"]
 DEFAULT_SETTINGS: Dict[str, Any] = {
-    "enabled": True,          # the feature as a whole (Quick Access search + model tool)
-    "backend": "auto",        # auto | everything | own
-    "roots": [],              # [] = every fixed drive (Windows) / the home folder (elsewhere)
-    "exclude": list(DEFAULT_EXCLUDE_NAMES),   # names (any folder with this name) or full paths
-    "live": True,             # follow changes (USN journal / ReadDirectoryChangesW / periodic rescan)
-    "rescan_minutes": 60,     # periodic rescan where live changes are not available (0 = never)
-    "mft": True,              # read the NTFS MFT when MemuAI runs as administrator
-    "ai_tool": True,          # search_files for the Quick Access model and the main chat
-    "quick_prefix": True,     # «?запрос» in the Quick Access input opens the file search
-    "quick_glob": True,       # a bare «*.txt» in the input opens it too
-    "hidden": True,           # include hidden / system files
-    "preload": False,         # round 36: load / build the own index at MemuAI start (default: on the first search)
-    "unload_minutes": 10,     # round 36: drop the own index from memory after this long without a search (0 = keep)
+    "enabled": True,
+    "backend": "auto",
+    "roots": [],
+    "exclude": list(DEFAULT_EXCLUDE_NAMES),
+    "live": True,
+    "rescan_minutes": 60,
+    "mft": True,
+    "ai_tool": True,
+    "quick_prefix": True,
+    "quick_glob": True,
+    "hidden": True,
+    "preload": False,
+    "unload_minutes": 10,
 }
-
-
-# ---------------------------------------------------------------- paths
 
 def join(folder: str, name: str) -> str:
     if not folder:
@@ -117,7 +113,6 @@ def join(folder: str, name: str) -> str:
         return folder + name
     sep = "\\" if ("\\" in folder or re.match(r"^[A-Za-z]:$", folder)) else "/"
     return folder + sep + name
-
 
 def _split(path: str) -> Tuple[str, str]:
     path = str(path)
@@ -129,7 +124,6 @@ def _split(path: str) -> Tuple[str, str]:
     head, tail = os.path.split(path.rstrip("/"))
     return head or "/", tail
 
-
 def data_dir() -> Path:
     """``%APPDATA%\\MemuAI\\memuai\\fsindex`` (``$MEMUAI_DATA_DIR/memuai/fsindex``) — the same rule as
     ``app.config.DATA_DIR`` without importing it (MemuFiles imports this module in its own light process)."""
@@ -137,9 +131,7 @@ def data_dir() -> Path:
     base = Path(env) if env else Path(os.environ.get("APPDATA") or os.path.expanduser("~")) / "MemuAI"
     return base / "memuai" / "fsindex"
 
-
 OWNER_STALE = 180.0
-
 
 def _pid_alive(pid: int) -> bool:
     if pid <= 0:
@@ -156,7 +148,6 @@ def _pid_alive(pid: int) -> bool:
         return True
     except OSError:
         return False
-
 
 def claim_owner(force_check: bool = True) -> bool:
     """One process builds the index and follows changes (MemuAI, MemuFiles… may all import this module): the
@@ -180,7 +171,6 @@ def claim_owner(force_check: bool = True) -> bool:
         return True
     return True
 
-
 def release_owner() -> None:
     path = data_dir() / "owner.json"
     try:
@@ -189,7 +179,6 @@ def release_owner() -> None:
             path.unlink()
     except Exception:
         pass
-
 
 def _place(word: str) -> str:
     """``Desktop`` / ``Загрузки`` / ``documents`` → the real folder (quick_files' places)."""
@@ -200,23 +189,20 @@ def _place(word: str) -> str:
     except Exception:
         return ""
 
-
-# ---------------------------------------------------------------- snapshot
-
 class Snapshot:
     """An immutable index: names blob + flat arrays. Build with :meth:`build` from folder batches."""
 
     def __init__(self) -> None:
-        self.blob = b"\n"           # original names (UTF-8), "\n" separated, leading and trailing "\n"
-        self.lblob = b"\n"          # lowered, the same byte length (see :func:`low_bytes`)
-        self.starts = array("q", [0])   # starts[i] = offset of the "\n" before name i; len n+1
-        self.parent = array("i")    # folder index of entry i
-        self.size = array("q")      # -1 = unknown (MFT) / folders 0
-        self.mtime = array("d")     # -1 = unknown
+        self.blob = b"\n"
+        self.lblob = b"\n"
+        self.starts = array("q", [0])
+        self.parent = array("i")
+        self.size = array("q")
+        self.mtime = array("d")
         self.isdir = bytearray()
-        self.byname = array("i")    # entry ids sorted by lowered name (exact / prefix lookups by bisect)
-        self.dirs: List[str] = []   # folder display paths (sorted by dkeys with "/" first)
-        self.dkeys: List[str] = []  # normalized lowered folder paths
+        self.byname = array("i")
+        self.dirs: List[str] = []
+        self.dkeys: List[str] = []
         self.dblob = "\n"
         self.dstarts = array("q", [0])
         self.roots: List[str] = []
@@ -225,14 +211,13 @@ class Snapshot:
         self._dlookup: Optional[Dict[str, int]] = None
         self._noise: Dict[int, int] = {}
 
-    # -- build
     @classmethod
     def build(cls, batches: Iterable[Batch], roots: Sequence[str] = (), source: str = "walk") -> "Snapshot":
         snap = cls()
         rows: Dict[str, Tuple[str, Any]] = {}
         for folder, children in batches:
             key = norm_path(folder)
-            if key in rows:          # rare (the home folder walked first, ancestor rows): merge and re-pack
+            if key in rows:
                 rows[key] = (rows[key][0], Packed(itertools.chain(rows[key][1], children)))
             else:
                 rows[key] = (folder, children if isinstance(children, Packed) else Packed(children))
@@ -288,7 +273,6 @@ class Snapshot:
         self.dblob = "\n" + "\n".join(self.dkeys) + "\n" if self.dkeys else "\n"
         self.dstarts = array("q", itertools.accumulate(itertools.chain((0,), (len(k) + 1 for k in self.dkeys))))
 
-    # -- accessors
     def __len__(self) -> int:
         return len(self.parent)
 
@@ -310,7 +294,7 @@ class Snapshot:
         return bisect.bisect_left(self.parent, d), bisect.bisect_right(self.parent, d)
 
     def subtree_dirs(self, folder_key: str) -> Tuple[int, int]:
-        # no third copy of every folder path (``dsort`` before round 36): the key is computed only for probed rows
+
         s = folder_key.replace("/", "\x01")
         k = lambda key: key.replace("/", "\x01")
         return bisect.bisect_left(self.dkeys, s, key=k), bisect.bisect_left(self.dkeys, s + "\x02", key=k)
@@ -347,7 +331,6 @@ class Snapshot:
                 self._noise[d] = v
         return v
 
-    # -- persistence
     def save(self, path: Any) -> None:
         path = Path(path)
         sections = [
@@ -409,18 +392,13 @@ class Snapshot:
         snap.source = str(header.get("source") or "walk")
         return snap
 
-
 _NOISE = ("/windows/", "/appdata/", "/program files", "/programdata/", "/$", "/node_modules/", "/.git/",
           "/.cache/", "/cache/", "/caches/", "/temp/", "/tmp/", "/site-packages/", "/.npm/", "/.cargo/",
           "/.gradle/", "/.m2/", "/winsxs/", "/__pycache__/", "/.venv/", "/venv/", "/.local/share/", "/library/")
 
-
 def _noise(ldir: str) -> int:
     d = ldir + "/"
     return 1 if any(m in d for m in _NOISE) else 0
-
-
-# ---------------------------------------------------------------- index (snapshot + live delta)
 
 class Index:
     """A :class:`Snapshot` plus the changes since it was built (added records, deleted ids, updated sizes)."""
@@ -428,14 +406,13 @@ class Index:
     def __init__(self, snap: Optional[Snapshot] = None) -> None:
         self.snap = snap or Snapshot()
         self.deleted: Set[int] = set()
-        self.added: Dict[str, Tuple[str, str, int, float, bool]] = {}   # lowered full path → (name, folder, size, mtime, is_dir)
+        self.added: Dict[str, Tuple[str, str, int, float, bool]] = {}
         self.lock = threading.RLock()
         self.changes = 0
 
     def __len__(self) -> int:
         return len(self.snap) - len(self.deleted) + len(self.added)
 
-    # -- live changes
     def _excluded(self, path: str, rules: "Exclusions") -> bool:
         return rules.path_excluded(path)
 
@@ -490,7 +467,7 @@ class Index:
         deleted = self.deleted
         with self.lock:
             added = list(self.added.values())
-        # every folder row, the empty ones too (so later adds into them find their folder)
+
         for d in range(len(snap.dirs)):
             lo, hi = snap.children(d)
             kids = [(snap.name(j), snap.size[j], snap.mtime[j], bool(snap.isdir[j])) for j in range(lo, hi)
@@ -503,7 +480,6 @@ class Index:
         snap = Snapshot.build(self.live_batches(), self.snap.roots, self.snap.source)
         return Index(snap)
 
-    # -- search
     def search(self, query: fq.Query, limit: int = 200, deadline: Optional[float] = None,
                stat_missing: bool = True) -> Dict[str, Any]:
         t0 = time.perf_counter()
@@ -518,7 +494,7 @@ class Index:
         partial = False
         capped = False
         count = 0
-        for group in groups:          # alternatives («a b | c d»): the union, each driven its own way
+        for group in groups:
             c, cp, pt = self._collect(snap, group, cap, deadline, found, found_set, relevance, limit, stat_missing)
             count += c
             capped = capped or cp
@@ -544,7 +520,7 @@ class Index:
             if group is not None:
                 return fq.quality(group, ln)
             return min(fq.quality(g, ln) for g in groups)
-        # rank
+
         if relevance:
             def key_base(i: int) -> Tuple:
                 ln = snap.lname(i)
@@ -641,7 +617,7 @@ class Index:
             if partial:
                 break
             if capped and boosts and relevance:
-                # more matches than the cap: make sure exact names and name prefixes are in (they rank first)
+
                 sources = iter(boosts)
                 boosts = []
                 limit_found = len(found) + max(limit, 50)
@@ -762,11 +738,11 @@ class Index:
                     seen.add(d)
                     dirs.append(d)
                 pos = dstarts[d + 1]
-        dir_hits(lit)                   # the folder path itself contains the text → all its children
+        dir_hits(lit)
         if "/" not in lit:
-            yield from self._hits(snap, lit)        # or in the name itself
+            yield from self._hits(snap, lit)
         elif head:
-            dir_hits(head + "\n")       # «…/head» + child name starting with tail
+            dir_hits(head + "\n")
         elif tail:
             yield from self._hits(snap, "\n" + tail)
         for d in dirs:
@@ -787,7 +763,7 @@ class Index:
         starts = snap.starts
         pos = 0
         n = len(starts) - 1
-        # the pattern runs on text: char offsets of the decoded blob ≠ byte offsets, so map through the line number
+
         text = snap.lblob.decode("utf-8", "surrogatepass")
         starts = array("q", itertools.accumulate(itertools.chain(
             (0,), (len(piece) + 1 for piece in (text[1:-1].split("\n") if n else [])))))
@@ -802,7 +778,6 @@ class Index:
             if i >= 0:
                 yield i
             pos = starts[i + 1] + (1 if m.end() == m.start() else 0) if i >= 0 else m.end() + 1
-
 
 def low_bytes(blob: bytes) -> bytes:
     """Lowered UTF-8 with EXACTLY the same byte length (one offsets array serves both blobs): characters whose
@@ -820,7 +795,6 @@ def low_bytes(blob: bytes) -> bytes:
         chars.append(lc if len(lc) == 1 and len(lc.encode("utf-8", "surrogatepass")) == len(ch.encode("utf-8", "surrogatepass")) else ch)
     return "".join(chars).encode("utf-8", "surrogatepass")
 
-
 def regex_literal(pattern: str) -> str:
     """A literal every match of a simple regex contains (``^IMG_\\d+`` → ``"\\nimg_"``), or ``""``."""
     if "|" in pattern or "(?" in pattern:
@@ -833,11 +807,10 @@ def regex_literal(pattern: str) -> str:
     lit = m.group(0)
     rest = body[len(lit):]
     if rest[:1] in ("*", "?", "{") and lit:
-        lit = lit[:-1]          # «ab*» — the last char is optional
+        lit = lit[:-1]
     if len(lit) < 2:
         return ""
     return ("\n" if anchored else "") + low(lit)
-
 
 def release_memory() -> None:
     """Round 36: hand freed index memory back to the system (not only to Python's own allocator)."""
@@ -846,8 +819,7 @@ def release_memory() -> None:
     try:
         import ctypes
         if IS_WINDOWS:
-            # trims the working set Task Manager shows; freed heap pages are returned by the CRT on their own
-            # (NOT verified on Windows)
+
             kernel32 = ctypes.windll.kernel32
             ctypes.windll.psapi.EmptyWorkingSet(kernel32.GetCurrentProcess())
         elif sys.platform.startswith("linux"):
@@ -855,9 +827,7 @@ def release_memory() -> None:
     except Exception as exc:
         log.debug("fsindex: memory release skipped: %s", exc)
 
-
 _NP: List[Any] = []
-
 
 def _np():
     if not _NP:
@@ -867,7 +837,6 @@ def _np():
         except Exception:
             _NP.append(None)
     return _NP[0]
-
 
 def _np_range(np: Any, snap: Snapshot, term: fq.Term) -> Any:
     lo, hi = term.value
@@ -879,14 +848,10 @@ def _np_range(np: Any, snap: Snapshot, term: fq.Term) -> Any:
         mask = ((a >= lo) & (a < hi)) | (a < 0)
     return np.nonzero(mask)[0]
 
-
 def _result(path: str, name: str, folder: str, size: int, mtime: float, is_dir: bool) -> Dict[str, Any]:
     return {"path": path, "name": name, "dir": folder, "size": int(size) if size is not None and size >= 0 else None,
             "mtime": float(mtime) if mtime is not None and mtime >= 0 else None, "is_dir": bool(is_dir),
             "kind": fq.kind_of(name, is_dir)}
-
-
-# ---------------------------------------------------------------- walker
 
 class Exclusions:
     def __init__(self, rules: Sequence[str]) -> None:
@@ -912,7 +877,6 @@ class Exclusions:
         parts = key.split("/")
         return any(part in self.names for part in parts)
 
-
 class Progress:
     def __init__(self) -> None:
         self.dirs = 0
@@ -925,7 +889,6 @@ class Progress:
     def as_dict(self) -> Dict[str, Any]:
         return {"dirs": self.dirs, "entries": self.entries, "errors": self.errors, "current": self.current,
                 "phase": self.phase, "seconds": round(time.time() - self.started, 1) if self.started else 0}
-
 
 def _scan_dir(path: str, rules: Exclusions, hidden: bool) -> Tuple[Batch, List[str], int]:
     kids: List[Tuple[str, int, float, bool]] = []
@@ -953,14 +916,13 @@ def _scan_dir(path: str, rules: Exclusions, hidden: bool) -> Tuple[Batch, List[s
                     if rules.paths and rules.path_excluded(full):
                         continue
                     kids.append((name, 0, float(st.st_mtime), True))
-                    if not attrs & 0x400:       # FILE_ATTRIBUTE_REPARSE_POINT: junctions / links — not followed
+                    if not attrs & 0x400:
                         subdirs.append(full)
                 else:
                     kids.append((name, int(st.st_size), float(st.st_mtime), False))
     except OSError:
         errors += 1
     return (path, Packed(kids)), subdirs, errors
-
 
 def walk(roots: Sequence[str], rules: Exclusions, *, hidden: bool = True, progress: Optional[Progress] = None,
          stop: Optional[threading.Event] = None, skip: Sequence[str] = (), threads: int = WALK_THREADS) -> List[Batch]:
@@ -984,7 +946,6 @@ def walk(roots: Sequence[str], rules: Exclusions, *, hidden: bool = True, progre
             frontier = nxt
     return batches
 
-
 def default_roots() -> List[str]:
     if IS_WINDOWS:
         try:
@@ -997,7 +958,6 @@ def default_roots() -> List[str]:
         return ["C:\\"]
     return [str(Path.home())]
 
-
 def available_drives() -> List[Dict[str, Any]]:
     if IS_WINDOWS:
         try:
@@ -1009,11 +969,7 @@ def available_drives() -> List[Dict[str, Any]]:
     out.append({"path": "/", "type": "fixed", "label": "/", "fs": ""})
     return out
 
-
-# ---------------------------------------------------------------- settings
-
 _SETTINGS_LOCK = threading.RLock()
-
 
 def normalize_settings(raw: Any) -> Dict[str, Any]:
     out = dict(DEFAULT_SETTINGS)
@@ -1037,7 +993,6 @@ def normalize_settings(raw: Any) -> Dict[str, Any]:
         pass
     return out
 
-
 def get_settings() -> Dict[str, Any]:
     with _SETTINGS_LOCK:
         try:
@@ -1045,7 +1000,6 @@ def get_settings() -> Dict[str, Any]:
         except Exception:
             raw = {}
         return normalize_settings(raw)
-
 
 def save_settings(patch: Any) -> Dict[str, Any]:
     with _SETTINGS_LOCK:
@@ -1069,15 +1023,12 @@ def save_settings(patch: Any) -> Dict[str, Any]:
         svc.start()
     return current
 
-
-# ---------------------------------------------------------------- service
-
 class Service:
     """The process-wide index: load / build in the background, live changes, backend choice."""
 
     def __init__(self) -> None:
         self.index: Optional[Index] = None
-        self.state = "idle"          # idle | loading | building | ready | error
+        self.state = "idle"
         self.error = ""
         self.progress = Progress()
         self.built_at = 0.0
@@ -1094,7 +1045,7 @@ class Service:
         self.mft_used = False
         self.owner = False
         self._loaded_mtime = 0.0
-        self.last_used = time.time()     # round 36: the last search / warm-up (idle unloading)
+        self.last_used = time.time()
         self._unloaded_at = 0.0
 
     def touch(self) -> None:
@@ -1130,7 +1081,6 @@ class Service:
         log.info("fsindex: unloaded after %d min without a search", minutes)
         return True
 
-    # -- Everything
     def everything(self, fresh: bool = False) -> Dict[str, Any]:
         at, cached = self._everything_cache
         if cached is not None and not fresh and time.time() - at < 5:
@@ -1153,7 +1103,6 @@ class Service:
         info = self.everything()
         return bool(info.get("running") and info.get("via"))
 
-    # -- lifecycle
     def start(self) -> None:
         with self._lock:
             if self._thread is not None and self._thread.is_alive():
@@ -1164,7 +1113,7 @@ class Service:
             if not settings.get("enabled"):
                 return
             if self.use_everything() and settings.get("backend") != "own":
-                # Everything answers; the own index is loaded only if a saved one exists (a fallback when it quits)
+
                 if not (data_dir() / "index.bin").exists():
                     return
             self._stop.clear()
@@ -1181,12 +1130,12 @@ class Service:
                     self._thread.start()
 
     def _run_start(self) -> None:
-        _np()                               # import numpy (optional) now, not on the first size:/dm: search
+        _np()
         path = data_dir() / "index.bin"
         settings = get_settings()
         self.owner = claim_owner()
         if not self.owner:
-            # another MemuAI process builds and follows changes: use its saved index and reload it when it changes
+
             self.state = "loading" if path.exists() else "waiting"
             self._reload_if_changed()
             self._schedule()
@@ -1203,8 +1152,7 @@ class Service:
                     self.state = "ready"
                     log.info("fsindex: loaded %d entries in %.2fs", len(snap), time.time() - t0)
                     self.restart_watchers()
-                    # the saved index may be days old: refresh quietly when there is no live journal
-                    # (round 36: reloaded after an idle unload — it was live until then; the rescan period decides)
+
                     fresh_for = 600 if not self._unloaded_at else \
                         max(600, int(settings.get("rescan_minutes") or 60) * 60)
                     if self.live_mode != "usn" and time.time() - max(snap.created, self._unloaded_at) > fresh_for:
@@ -1239,7 +1187,7 @@ class Service:
         if not self.owner:
             self.owner = claim_owner()
             if not self.owner:
-                # the owner process rebuilds when it sees the request file
+
                 try:
                     (data_dir() / "rebuild.request").write_text(str(time.time()), encoding="utf-8")
                 except OSError:
@@ -1297,7 +1245,7 @@ class Service:
                 self.progress.phase = "home"
                 batches.extend(walk(first, rules, hidden=hidden, progress=self.progress, stop=self._stop))
                 if self.index is None or not quiet:
-                    # the first results within seconds: the home folder is searchable while the drives are walked
+
                     partial = Snapshot.build(list(batches) + _ancestor_rows(home, walk_roots), roots, source)
                     if self.index is None or self.state == "building":
                         self.index = Index(partial)
@@ -1324,7 +1272,7 @@ class Service:
             except Exception as exc:
                 log.warning("fsindex: could not save the index: %s", exc)
             self.restart_watchers()
-            release_memory()   # round 36: the walk batches (≈2× the index) go back to the system, not just to Python
+            release_memory()
         except Exception as exc:
             log.exception("fsindex: build failed")
             self.error = str(exc)[:300]
@@ -1344,13 +1292,13 @@ class Service:
                 if not self.owner:
                     if self.unload_if_idle(settings):
                         continue
-                    if self.index is not None or not self._unloaded_at:   # unloaded: wait for the next search
+                    if self.index is not None or not self._unloaded_at:
                         self._reload_if_changed()
-                    if claim_owner():          # the owner quit: take over (live changes, saving)
+                    if claim_owner():
                         self.owner = True
                         self.restart_watchers()
                     continue
-                claim_owner()                  # heartbeat
+                claim_owner()
                 request = data_dir() / "rebuild.request"
                 if request.exists():
                     try:
@@ -1390,7 +1338,6 @@ class Service:
         except Exception as exc:
             log.debug("fsindex: save failed: %s", exc)
 
-    # -- live changes
     def restart_watchers(self) -> None:
         for w in self._watchers:
             try:
@@ -1434,7 +1381,7 @@ class Service:
         own = norm_path(str(data_dir()))
         for action, path, new_path in events:
             if action == "overflow":
-                # the watcher lost changes (a burst): rescan quietly, searches keep the current index meanwhile
+
                 if self.state == "ready":
                     threading.Thread(target=self._build, args=(get_settings(), True), daemon=True).start()
                 return
@@ -1483,7 +1430,6 @@ class Service:
         if self.owner:
             release_owner()
 
-
 def _ancestor_rows(home: str, roots: Sequence[str]) -> List[Batch]:
     """Folder rows from a drive root down to the home folder (so the partial index knows «C:\\Users»)."""
     rows: List[Batch] = []
@@ -1498,10 +1444,8 @@ def _ancestor_rows(home: str, roots: Sequence[str]) -> List[Batch]:
         path = parent
     return rows
 
-
 _SERVICE: Optional[Service] = None
 _SERVICE_LOCK = threading.Lock()
-
 
 def service() -> Service:
     global _SERVICE
@@ -1509,9 +1453,6 @@ def service() -> Service:
         if _SERVICE is None:
             _SERVICE = Service()
         return _SERVICE
-
-
-# ---------------------------------------------------------------- public API
 
 def start() -> None:
     """Warm start (the Quick Access plugin calls it): load the saved index / build one when Everything is absent."""
@@ -1521,7 +1462,6 @@ def start() -> None:
         svc.start()
     except Exception as exc:
         log.warning("fsindex: start failed: %s", exc)
-
 
 def search_ex(query: str, limit: int = 200, kinds: Any = None, roots: Any = None, sort: Optional[str] = None,
               timeout: Optional[float] = None, backend: Optional[str] = None, validate: bool = True) -> Dict[str, Any]:
@@ -1564,7 +1504,7 @@ def search_ex(query: str, limit: int = 200, kinds: Any = None, roots: Any = None
     svc.touch()
     if svc.index is None:
         svc.ensure_own()
-        # loading a saved index takes about a second: wait for it a little
+
         waited = 0.0
         while svc.index is None and svc.state in ("loading", "idle", "building") and waited < 1.5:
             time.sleep(0.05)
@@ -1594,11 +1534,9 @@ def search_ex(query: str, limit: int = 200, kinds: Any = None, roots: Any = None
     out["ms"] = round((time.perf_counter() - t0) * 1000, 2)
     return out
 
-
 def search(query: str, limit: int = 200, kinds: Any = None, roots: Any = None) -> List[Dict[str, Any]]:
     """The contract: a list of ``{path, name, size, mtime, is_dir, dir, kind}`` (best matches first)."""
     return search_ex(query, limit=limit, kinds=kinds, roots=roots)["results"]
-
 
 def status() -> Dict[str, Any]:
     svc = service()
@@ -1632,10 +1570,8 @@ def status() -> Dict[str, Any]:
             "platform": sys.platform, "admin": admin, "drives": available_drives(),
             "default_roots": default_roots()}
 
-
 def rebuild(wait: bool = False) -> None:
     service().rebuild(wait=wait)
-
 
 def shutdown() -> None:
     if _SERVICE is not None:

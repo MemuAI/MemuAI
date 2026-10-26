@@ -32,16 +32,14 @@ from local_models_test import gguf_bytes  # noqa: E402
 YANDEX_URL = "wss://ai.api.cloud.yandex.net/v1/realtime/openai"
 YANDEX_MODEL = "gpt://b1gfolder/speech-realtime-250923/latest"
 
-
 def adapter(provider="custom", url=YANDEX_URL, key="AQVNfixture", model=YANDEX_MODEL):
     prefs = {"voice_realtime_provider": provider, "voice_realtime_base_url": url,
              "voice_realtime_api_keys": {provider: key}, "voice_realtime_model": model}
     return realtime_live.build_adapter(realtime_live.LiveConfig.from_preferences(prefs, "Persona"))
 
-
 class YandexRealtimeTests(unittest.TestCase):
     def test_api_key_goes_as_api_key_iam_token_as_bearer(self):
-        # Bearer + API key → invalid_credentials, session closed with 1008 (checked live).
+
         self.assertEqual(adapter().headers(), {"Authorization": "Api-Key AQVNfixture"})
         self.assertEqual(adapter(key="t1.iamtoken").headers(), {"Authorization": "Bearer t1.iamtoken"})
         self.assertEqual(adapter(key="Bearer explicit").headers(), {"Authorization": "Bearer explicit"})
@@ -50,7 +48,7 @@ class YandexRealtimeTests(unittest.TestCase):
         self.assertIn("model=gpt%3A//b1gfolder", adapter().urls()[0])
 
     def test_no_frames_or_tools_for_yandex(self):
-        # input_image and the web_search tool type end the whole Yandex session (malformed_event).
+
         live = adapter()
         self.assertEqual((live.video_mode, live.search_mode), ("", ""))
         session = live.setup_messages()[0]["session"]
@@ -59,7 +57,7 @@ class YandexRealtimeTests(unittest.TestCase):
         self.assertEqual(live.text_messages("hi")[0]["item"]["content"][0]["type"], "input_text")
         ready = live.ready_event()
         self.assertEqual((ready["video"], ready["search"]), ("", ""))
-        # Other OpenAI-compatible servers keep frames and MemuAI search.
+
         other = adapter(url="wss://realtime.example.com/v1/realtime", model="rt")
         self.assertEqual((other.video_mode, other.search_mode), ("turn", "tool"))
 
@@ -71,7 +69,7 @@ class YandexRealtimeTests(unittest.TestCase):
         out = [item for event in events for item in live.translate(event)]
         self.assertEqual([item.get("delta") or item.get("text") for item in out], ["Че", "тыре.", "Четыре."])
         self.assertTrue(out[-1]["final"])
-        # A provider sending both streams for one reply is captioned once.
+
         both = adapter(url="wss://realtime.example.com/v1/realtime", model="rt")
         events = [{"type": "response.output_audio_transcript.delta", "item_id": "b1", "delta": "Hi"},
                   {"type": "response.output_text.delta", "item_id": "b1", "delta": "Hi"},
@@ -79,7 +77,6 @@ class YandexRealtimeTests(unittest.TestCase):
         out = [item for event in events for item in both.translate(event)]
         self.assertEqual([item["delta"] for item in out], ["Hi", " there"])
         self.assertEqual(both.transcript_text(), "Assistant: Hi there")
-
 
 class LiveBrowserCodeTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("node"), "Node runtime unavailable")
@@ -92,7 +89,7 @@ class LiveBrowserCodeTests(unittest.TestCase):
     def test_yandex_model_badge_is_short(self):
         import re
         script = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
-        # Round 26 (r26-finisher): the badge uses shortModelId(), shared with the chat header (ya-gpt:// ids too)
+
         self.assertIn("const model = shortModelId(info.model);", script)
         pattern = re.search(r'function shortModelId\(id\) \{ return String\(id \|\| ""\)\.replace\(/(.+?)/i, "\$1"\); \}', script).group(1)
         pattern = "(?i)" + pattern.replace("\\/", "/")
@@ -102,7 +99,7 @@ class LiveBrowserCodeTests(unittest.TestCase):
         self.assertIn(".live-call-head b { white-space:nowrap; flex:none; }", css)
 
     def test_classic_live_clip_keeps_its_length(self):
-        # MediaRecorder WebM has no duration header: the saved clip showed 0:00 / 0:00.
+
         script = (ROOT / "app" / "pgstatic" / "app.js").read_text(encoding="utf-8")
         self.assertIn("finishVoiceRecording(blob, voiceRecordingKind, owner, (Date.now() - recordingStarted) / 1000)", script)
         self.assertIn('body: { audio, duration: seconds, profile_id: ownerProfile }', script)
@@ -110,7 +107,6 @@ class LiveBrowserCodeTests(unittest.TestCase):
     def test_worklet_cache_is_busted(self):
         source = (ROOT / "app" / "pgstatic" / "realtime.js").read_text(encoding="utf-8")
         self.assertIn("/realtime-worklet.js?v=1.1", source)
-
 
 class VoiceRuntimeTests(unittest.TestCase):
     def test_spoken_inserts_follow_the_answer_language(self):
@@ -161,10 +157,8 @@ class VoiceRuntimeTests(unittest.TestCase):
             self.assertEqual(state["status"], "error")
             self.assertIn("Недостаточно места", state["error"])
 
-
 BODY = gguf_bytes({"general.architecture": "llama", "general.name": "Tiny"}) + bytes(range(256)) * 12000
 SHA = hashlib.sha256(BODY).hexdigest()
-
 
 class FakeHub:
     """Hugging Face resolve/main: HEAD with x-linked-etag on the redirect, Range GETs."""
@@ -197,7 +191,6 @@ class FakeHub:
         if start:
             headers["content-range"] = f"bytes {start}-{len(BODY) - 1}/{len(BODY)}"
         return httpx.Response(206 if start else 200, headers=headers, stream=Stream())
-
 
 class LocalModelDownloadTests(unittest.TestCase):
     def setUp(self):
@@ -285,7 +278,6 @@ class LocalModelDownloadTests(unittest.TestCase):
         index = args.index("--chat-template-file")
         self.assertEqual(args[index + 1], "C:\\My Models\\t.jinja")
         self.assertEqual(args[-1], "-fa")
-
 
 if __name__ == "__main__":
     unittest.main()

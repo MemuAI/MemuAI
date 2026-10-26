@@ -25,7 +25,6 @@ from .tool_protocol import (TOOL_PROVIDER_ERROR, TOOL_PROVIDER_ERROR_RU, collect
 
 router = APIRouter()
 
-
 def _finish_trace(trace: Any, status: int, error: str = "", code: str = "",
                   usage: Optional[Dict[str, int]] = None, *, commit: bool = True) -> None:
     """Итог запроса в журнале: статус, ошибка, время и токены (как в /v1/chat)."""
@@ -40,8 +39,6 @@ def _finish_trace(trace: Any, status: int, error: str = "", code: str = "",
         trace.completion_tokens = int(usage.get("completion_tokens") or usage.get("output_tokens") or 0)
     if commit:
         state.commit_trace(trace)
-
-
 
 def _text(content: Any) -> str:
     if isinstance(content, str):
@@ -58,7 +55,6 @@ def _text(content: Any) -> str:
                     raise ValueError(f"Unsupported Responses content type: {item.get('type')}")
         return "\n".join(parts)
     raise ValueError("Message content must be text or text blocks")
-
 
 def _message_content(content: Any, role: str) -> Any:
     if not isinstance(content, list):
@@ -86,7 +82,6 @@ def _message_content(content: Any, role: str) -> Any:
         else:
             raise ValueError(f"Unsupported Responses content type: {kind}")
     return parts
-
 
 def _messages(body: Dict[str, Any]) -> List[Dict[str, Any]]:
     result: List[Dict[str, Any]] = []
@@ -122,13 +117,12 @@ def _messages(body: Dict[str, Any]) -> List[Dict[str, Any]]:
                 result.append({"role": role,
                                "content": _message_content(item.get("content") or "", role)})
             elif kind == "reasoning":
-                continue  # opaque reasoning items are not conversation text
+                continue
             else:
                 raise ValueError(f"Unsupported Responses input item: {kind}")
     else:
         raise ValueError("'input' must be text or an array of input items")
     return result
-
 
 def _tools(body: Dict[str, Any]) -> List[Dict[str, Any]]:
     raw = body.get("tools") or []
@@ -158,7 +152,6 @@ def _tools(body: Dict[str, Any]) -> List[Dict[str, Any]]:
         tools.append({"type": "function", "function": function})
     return tools
 
-
 def _choice(raw: Any) -> Any:
     if raw is None:
         return None
@@ -168,7 +161,6 @@ def _choice(raw: Any) -> Any:
         return {"type": "function", "function": {"name": raw["name"]}}
     raise ValueError("Unsupported tool_choice")
 
-
 def _message_added(event, message_id: str) -> List[str]:
     return [event("response.output_item.added", output_index=0,
                   item={"id": message_id, "type": "message",
@@ -177,12 +169,11 @@ def _message_added(event, message_id: str) -> List[str]:
                   output_index=0, content_index=0,
                   part={"type": "output_text", "text": "", "annotations": []})]
 
-
 def _output(text: str, calls: Dict[int, Dict[str, Any]], response_id: str,
             custom_names: set[str]) -> List[Dict[str, Any]]:
     output = []
     if text.strip() or (text and not calls):
-        # Upstreams send "\n\n" before a tool call: that is no message.
+
         output.append({"id": "msg_" + response_id[5:], "type": "message", "status": "completed",
                        "role": "assistant", "content": [{"type": "output_text", "text": text,
                                                           "annotations": []}]})
@@ -203,7 +194,6 @@ def _output(text: str, calls: Dict[int, Dict[str, Any]], response_id: str,
                            "arguments": call["function"]["arguments"]})
     return output
 
-
 def _detail(usage: Dict[str, Any], group: str, key: str) -> int:
     details = usage.get(group)
     try:
@@ -211,21 +201,17 @@ def _detail(usage: Dict[str, Any], group: str, key: str) -> int:
     except (TypeError, ValueError):
         return 0
 
-
 def _response(response_id: str, model: str, output: List[Dict[str, Any]],
               usage: Dict[str, int], status: str = "completed",
               finish_reason: str = "") -> Dict[str, Any]:
     incomplete = None
     if status == "completed" and finish_reason == "length":
-        # Ответ обрезан лимитом токенов: по спецификации Responses это
-        # status="incomplete" с причиной, а не «completed» — иначе Codex
-        # принимает оборванный ответ за полный.
+
         status, incomplete = "incomplete", {"reason": "max_output_tokens"}
     return {"id": response_id, "object": "response", "created_at": int(time.time()),
             "status": status, "model": model, "output": output,
             "usage": {"input_tokens": usage.get("prompt_tokens", 0),
-                      # Детали из ответа провайдера (Chat Completions): раньше
-                      # всегда отдавались нули, хотя модель рассуждала.
+
                       "input_tokens_details": {"cached_tokens": _detail(usage, "prompt_tokens_details",
                                                                         "cached_tokens")},
                       "output_tokens": usage.get("completion_tokens", 0),
@@ -234,11 +220,9 @@ def _response(response_id: str, model: str, output: List[Dict[str, Any]],
                       "total_tokens": usage.get("total_tokens", 0)},
             "error": None, "incomplete_details": incomplete, "parallel_tool_calls": True}
 
-
 @router.post("/v1/responses")
 async def responses(request: Request):
     return await until_client_disconnects(request, _responses(request))
-
 
 async def _responses(request: Request):
     denied = _check_auth(request)
@@ -390,7 +374,7 @@ async def _responses(request: Request):
                     text_delta = delta.get("content")
                     if text_delta:
                         text_parts.append(text_delta)
-                    # Leading whitespace is held back until real text: before a tool call it is dropped.
+
                     if text_delta and (message_started or "".join(text_parts).strip()):
                         if not message_started:
                             message_started = True

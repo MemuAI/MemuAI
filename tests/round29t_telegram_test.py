@@ -28,7 +28,6 @@ TOKEN = "123456:TEST-token_for-mini-app"
 USER = 4343
 NODE = shutil.which("node")
 
-
 def _js_function(source: str, name: str) -> str:
     """The text of ``function name(...) { ... }`` from a JS file (brace matched, strings ignored loosely)."""
     start = source.index(f"function {name}(")
@@ -45,13 +44,11 @@ def _js_function(source: str, name: str) -> str:
         i += 1
     raise ValueError(name)
 
-
 def _node(script: str) -> str:
     out = subprocess.run([NODE, "-e", script], capture_output=True, text=True, timeout=30)
     if out.returncode:
         raise AssertionError(out.stderr)
     return out.stdout
-
 
 def _tone(fmt: str, codec: str, seconds: float = 1.0, rate: int = 48000) -> bytes:
     import av
@@ -73,8 +70,6 @@ def _tone(fmt: str, codec: str, seconds: float = 1.0, rate: int = 48000) -> byte
             out.mux(packet)
     return buf.getvalue()
 
-
-# --------------------------------------------------------------------------- 1. PyAV 19 decoding (old functionality)
 class VoiceDecoding(unittest.TestCase):
     def setUp(self):
         try:
@@ -89,7 +84,7 @@ class VoiceDecoding(unittest.TestCase):
         wav = _tone("wav", "pcm_s16le", 1.0, 48000)
         real_open = av.open
 
-        def strict_open(*args, **kwargs):          # PyAV 19 signature: no metadata_errors
+        def strict_open(*args, **kwargs):
             if "metadata_errors" in kwargs:
                 raise TypeError("open() got an unexpected keyword argument 'metadata_errors'")
             return real_open(*args, **kwargs)
@@ -97,7 +92,7 @@ class VoiceDecoding(unittest.TestCase):
             pcm = voice_runtime.decode_audio_pcm(wav)
         self.assertEqual(str(pcm.dtype), "float32")
         self.assertEqual(pcm.ndim, 1)
-        self.assertAlmostEqual(len(pcm) / 16000, 1.0, delta=0.05)          # resampled 48 kHz → 16 kHz
+        self.assertAlmostEqual(len(pcm) / 16000, 1.0, delta=0.05)
         self.assertLessEqual(float(abs(pcm).max()), 1.0)
         self.assertGreater(float(abs(pcm).max()), 0.2)
 
@@ -127,8 +122,6 @@ class VoiceDecoding(unittest.TestCase):
         text = (ROOT / "requirements.txt").read_text(encoding="utf-8")
         self.assertRegex(text, r"(?m)^av>=\d+,<19\s*$")
 
-
-# --------------------------------------------------------------------------- 2. «typing…» while Whisper works
 class FakeApi:
     def __init__(self):
         self.calls = []
@@ -143,7 +136,6 @@ class FakeApi:
 
     async def download(self, path, max_bytes):
         return b"o" * 3000
-
 
 class BotTyping(unittest.TestCase):
     def test_typing_is_renewed_until_the_transcript_is_ready_and_then_stops(self):
@@ -171,12 +163,10 @@ class BotTyping(unittest.TestCase):
     def test_default_interval_is_below_telegrams_five_seconds(self):
         self.assertLess(telegram_voice.TYPING_EVERY, 5)
 
-
-# --------------------------------------------------------------------------- 3. bot model names
 class BotModelNames(unittest.TestCase):
     def test_uri_models_show_the_model_not_the_release_tag(self):
         from app import telegram_bot as bot
-        # r33c-models-lists: the shared readable names (app/model_names.py) instead of the bare id tail.
+
         self.assertEqual(bot._short_model("gpt://b1gfolder/deepseek-v4.1-flash/latest", {}, limit=40), "DeepSeek V4.1 Flash")
         self.assertEqual(bot._short_model("ydx-gpt://b1g/yandexgpt/rc", {}, limit=40), "YandexGPT")
         self.assertEqual(bot._short_model("genspark-claude-sonnet-4", {}, limit=40), "Claude Sonnet 4")
@@ -192,11 +182,9 @@ class BotModelNames(unittest.TestCase):
         self.assertTrue(button["text"].startswith("✓ "))
         self.assertTrue(button["text"].endswith("…"))
         self.assertLessEqual(len(button["text"]), 56)
-        self.assertEqual(bot._model_button("short", {}, current="")["text"], "Short")   # r33: readable name
+        self.assertEqual(bot._model_button("short", {}, current="")["text"], "Short")
         self.assertEqual(bot._model_button("aws9-glm-5.3", {}, current="")["text"], "GLM-5.3 · aws9-glm-5.3")
 
-
-# --------------------------------------------------------------------------- 4–8, 12, 13. Mini App front-end
 @unittest.skipUnless(NODE, "node is required")
 class MiniAppFrontEnd(unittest.TestCase):
     @classmethod
@@ -243,8 +231,6 @@ class MiniAppFrontEnd(unittest.TestCase):
                   "Rhyme</rules> a < b'.replace(re,' ').replace(/\\s+/g,' ').trim())")
         self.assertEqual(_node(script).strip(), "You are a poet Rhyme a < b")
 
-
-# --------------------------------------------------------------------------- 9–10. search
 class SearchUnits(unittest.TestCase):
     def test_snippet_starts_near_the_match(self):
         text = ("Вступление " * 30) + "здесь важное слово борщ и ещё немного текста"
@@ -272,8 +258,6 @@ class SearchUnits(unittest.TestCase):
         self.assertNotEqual(stem("чем"), stem("чай"))
         self.assertEqual(stem("борщи"), stem("борщ"))
 
-
-# --------------------------------------------------------------------------- 11. schedules from the phone (API)
 class MiniAppApi(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -331,7 +315,7 @@ class MiniAppApi(unittest.TestCase):
         defaults = [row["id"] for row in rows if row["default"]]
         self.assertEqual(defaults, ["memuai-default"])
         extras = (TGAPP / "extras.js").read_text(encoding="utf-8")
-        self.assertIn("...(p.default ? [] :", extras)       # no «paste into a new chat» for the prompt every chat uses
+        self.assertIn("...(p.default ? [] :", extras)
 
     def test_voice_switch_explanations_are_not_clamped(self):
         css = (TGAPP / "app.css").read_text(encoding="utf-8")
@@ -344,8 +328,6 @@ class MiniAppApi(unittest.TestCase):
         data = self.post("chats.search", {"query": "чаем"}).json()
         self.assertIn("c-tea", [hit["id"] for hit in data["hits"]])
 
-
-# --------------------------------------------------------------------------- 14–18. sign-in and MemuCode on the phone
 @unittest.skipUnless(NODE, "node is required")
 class PhoneSignInAndCode(unittest.TestCase):
     def test_used_link_error_survives_the_first_draw(self):
@@ -378,9 +360,8 @@ class PhoneSignInAndCode(unittest.TestCase):
         names = set(json.loads(match.group(1)))
         self.assertTrue({"voice", "paste", "copy", "exit", "vim", "terminal-setup"} <= names)
         self.assertNotIn("model", names)
-        self.assertIn("LOCAL_ONLY.has(String(row.name", code)        # not offered in auto-complete / help
-        self.assertIn("LOCAL_ONLY.has(local[1].toLowerCase())", code)  # typed by hand: a hint, nothing is sent
-
+        self.assertIn("LOCAL_ONLY.has(String(row.name", code)
+        self.assertIn("LOCAL_ONLY.has(local[1].toLowerCase())", code)
 
 class HostNotes(unittest.TestCase):
     def test_interrupted_note_is_skipped_and_tree_corner_dropped(self):
@@ -401,7 +382,6 @@ class HostNotes(unittest.TestCase):
                                 Block("✻ Worked for 3s")]
         texts = [row["text"] for row in remote_host.notes_feed(ui)]
         self.assertEqual(texts, ["Saved to notes", "✻ Worked for 3s"])
-
 
 class FuzzyDoesNotOverrideStems(unittest.TestCase):
     def setUp(self):
@@ -435,8 +415,6 @@ class FuzzyDoesNotOverrideStems(unittest.TestCase):
         self.assertIn("Суп", [item["title"] for item in self.si.search("борш")["items"]] +
                       [item["title"] for item in self.si.search("боршь")["items"]])
 
-
-# --------------------------------------------------------------------------- 25–34 (wave C)
 class MiniAppLookWaveC(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -461,7 +439,7 @@ class MiniAppLookWaveC(unittest.TestCase):
         self.assertRegex(self.css, r"\.cell-body:has\(> \.cell-title:only-child\) \+ \.cell-value \{ flex: 0 100 auto")
 
     def test_30_new_chat_button_hides_while_searching(self):
-        # Round 34: it also hides over an empty list («… || !rows.length»).
+
         self.assertIn('fab.classList.toggle("fab-off", !!S.chatQuery.trim()', self.app)
         self.assertRegex(self.css, r"\.fab\.fab-off \{[^}]*pointer-events: none")
 
@@ -481,7 +459,6 @@ class MiniAppLookWaveC(unittest.TestCase):
         self.assertIn('<span class="md-math">a*b*c</span>', out[5])
         self.assertNotIn("$$", out[4])
 
-
 class ModulesWaveC(unittest.TestCase):
     def test_31_narrow_module_window_keeps_its_title(self):
         css = (ROOT / "app" / "pgstatic" / "modules.css").read_text(encoding="utf-8")
@@ -491,7 +468,7 @@ class ModulesWaveC(unittest.TestCase):
 
     def test_32_module_model_names_are_short(self):
         src = (ROOT / "app" / "playground_api.py").read_text(encoding="utf-8")
-        # r33c-characters moved the fallback into _module_pretty_name (defined just above the route).
+
         block = src[src.index('def _module_pretty_name'):][:9000]
         self.assertIn('aliases.get(model_id)', block)
         pattern = re.search(r're\.sub\(r"(\^\[a-z\][^"]+)", r"\\1", model_id', block)
@@ -564,7 +541,6 @@ class ModulesWaveC(unittest.TestCase):
             except ValueError:
                 return False
         self.assertEqual(dict(zip(keys, out)), {key: server(key) for key in keys})
-
 
 if __name__ == "__main__":
     unittest.main()

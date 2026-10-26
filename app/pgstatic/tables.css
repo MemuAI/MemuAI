@@ -1,10 +1,5 @@
-/* MemuAI 3.1 · Round 29 · rich tables (tables.js) and the shared dialog/menu kit used by diagrams.js.
-   Colours come from the theme tokens (--bg, --panel, --text, --muted, --accent, --border) so every design,
-   dark and light, and the Quick Access window look native. */
 .mt-ic { display: inline-flex; width: 16px; height: 16px; flex: none; }
 .mt-ic svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
-
-/* ---------- streaming placeholder ---------- */
 .mt-pending { margin: 14px 0; padding: 12px 14px 14px; border: 1px dashed color-mix(in srgb, var(--border) 90%, transparent);
   border-radius: 12px; background: color-mix(in srgb, var(--panel) 70%, transparent); color: var(--muted); }
 .mt-pending-head { display: flex; align-items: center; gap: 8px; font-size: 13px; }
@@ -18,8 +13,6 @@
 @keyframes mt-shimmer { 0% { background-position: 120% 0; } 100% { background-position: -120% 0; } }
 @media (prefers-reduced-motion: reduce) { .mt-pending-rows i { animation: none; } }
 :root[data-motion="off"] .mt-pending-rows i { animation: none; }
-
-/* ---------- enhanced table ---------- */
 .mt-host { position: relative; margin: 24px 0 14px; }
 .mt-host > .table-wrap { margin: 0; }
 .mt-bar { position: absolute; top: -32px; right: 8px; z-index: 3; display: flex; gap: 2px; padding: 3px;
@@ -45,15 +38,12 @@
 .mt-host th:hover .mt-sort, .mt-host th.mt-sorted .mt-sort { opacity: .75; }
 .mt-host th.mt-sorted { color: var(--accent); }
 .mt-resize { position: absolute; top: 0; right: -3px; bottom: 0; width: 7px; cursor: col-resize; z-index: 2; }
-/* r30: the last column's handle stays inside the table — 3px past the edge gave a scrolling .table-wrap (Grid) a sideways scrollbar */
 .mt-host th:last-child .mt-resize { right: 0; }
 .mt-resize::after { content: ""; position: absolute; left: 3px; top: 25%; bottom: 25%; width: 1px; background: var(--border); opacity: 0; transition: opacity .12s; }
 .mt-host th:hover .mt-resize::after, .mt-resizing .mt-resize::after { opacity: 1; }
 .mt-host th { position: relative; }
 .mt-host tr[hidden] { display: none; }
 .mt-host.compact .mt-bar { top: -11px; }
-
-/* ---------- popover menu ---------- */
 .mt-menu { position: fixed; z-index: 100000; min-width: 220px; max-width: 320px; max-height: 70vh; overflow: auto; padding: 5px;
   border: 1px solid var(--border); border-radius: 12px; background: var(--panel); color: var(--text);
   box-shadow: 0 18px 48px rgba(0,0,0,.24), 0 3px 10px rgba(0,0,0,.12); font-size: 13px; }
@@ -63,15 +53,11 @@
 .mt-menu button small { grid-column: 2; color: var(--muted); font-size: 11.5px; margin-top: 1px; }
 .mt-menu button:hover, .mt-menu button:focus-visible { background: color-mix(in srgb, var(--accent) 13%, transparent); outline: none; }
 .mt-menu button .mt-ic { color: var(--muted); }
-
-/* ---------- toast (Quick Access window; the main window uses its own toast) ---------- */
 .mt-toast { position: fixed; left: 50%; bottom: 18px; z-index: 100001; transform: translate(-50%, 8px); opacity: 0; padding: 8px 14px;
   border-radius: 10px; background: var(--panel); color: var(--text); border: 1px solid var(--border); font-size: 13px;
   box-shadow: 0 10px 30px rgba(0,0,0,.25); transition: opacity .18s, transform .18s; pointer-events: none; }
 .mt-toast.show { opacity: 1; transform: translate(-50%, 0); }
 .mt-toast.warn { border-color: color-mix(in srgb, #f59e0b 60%, var(--border)); }
-
-/* ---------- dialogs ---------- */
 .mt-modal-back { position: fixed; inset: 0; z-index: 9990; display: flex; align-items: center; justify-content: center; padding: 24px;
   background: rgba(8, 10, 14, .46); opacity: 0; transition: opacity .16s ease; backdrop-filter: blur(2px); }
 .mt-modal-back.open { opacity: 1; }
@@ -94,14 +80,10 @@
 .mt-tb[disabled] { opacity: .55; cursor: progress; }
 .mt-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); cursor: pointer; }
 .mt-check input { accent-color: var(--accent); }
-
-/* fullscreen */
 .mt-full .mt-modal-body { padding-top: 22px; }
 .mt-full-scroll { overflow: auto; }
 .mt-full .mt-host { margin: 0; }
 .mt-full .table-wrap { overflow: visible; }
-
-/* ---------- editor ---------- */
 .mt-ed-tools { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 .mt-ed-sep { width: 1px; height: 22px; background: var(--border); margin: 0 3px; }
 .mt-ed-meta { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
@@ -127,8 +109,6 @@
   border-radius: 14px; background: color-mix(in srgb, var(--accent) 10%, var(--panel)); color: var(--text); font-weight: 600; pointer-events: none; }
 .mt-ed-drop[hidden] { display: none; }
 .mt-editor { position: relative; }
-
-/* ---------- picture studio (also used by the diagram studio) ---------- */
 .mt-st-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 16px; min-height: 0; flex: 1; }
 .mt-st-preview { position: relative; display: flex; align-items: center; justify-content: center; min-height: 340px; max-height: 68vh; overflow: auto; padding: 18px;
   border: 1px solid var(--border); border-radius: 12px; background: color-mix(in srgb, var(--text) 3%, var(--bg)); }

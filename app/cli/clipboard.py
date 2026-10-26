@@ -7,7 +7,6 @@ import shutil
 import subprocess
 import sys
 
-
 def copy_text(text: str) -> bool:
     if os.name == "nt":
         if _windows_copy(text):
@@ -20,16 +19,14 @@ def copy_text(text: str) -> bool:
             except (OSError, subprocess.SubprocessError):
                 continue
     try:
-        # OSC 52: works over SSH and in most modern terminals.
+
         sys.stdout.write("\x1b]52;c;" + base64.b64encode(text.encode("utf-8")).decode("ascii") + "\x07")
         sys.stdout.flush()
         return True
     except Exception:
         return False
 
-
 CF_UNICODETEXT, CF_DIB, CF_HDROP, CF_DIBV5 = 13, 8, 15, 17
-
 
 def _user32():
     import ctypes
@@ -45,7 +42,6 @@ def _user32():
     user32.GetClipboardData.restype = wintypes.HANDLE
     return user32
 
-
 def sequence_number() -> int:
     """Changes whenever anything is copied (0 where it is not available)."""
     if os.name != "nt":
@@ -54,7 +50,6 @@ def sequence_number() -> int:
         return int(_user32().GetClipboardSequenceNumber())
     except Exception:
         return 0
-
 
 def has_image() -> bool:
     """Is there a picture on the clipboard (a screenshot, a copied image)? Cheap: nothing is read."""
@@ -69,7 +64,6 @@ def has_image() -> bool:
     except Exception:
         return False
 
-
 def has_files() -> bool:
     """Files copied in Explorer."""
     if os.name != "nt":
@@ -78,7 +72,6 @@ def has_files() -> bool:
         return bool(_user32().IsClipboardFormatAvailable(CF_HDROP))
     except Exception:
         return False
-
 
 def read_text() -> str:
     """Text from the clipboard, without starting a shell (PowerShell takes ~0.5 s)."""
@@ -123,7 +116,6 @@ def read_text() -> str:
                 continue
     return ""
 
-
 def _windows_copy(text: str) -> bool:
     try:
         import ctypes
@@ -149,13 +141,13 @@ def _windows_copy(text: str) -> bool:
             return False
         try:
             user32.EmptyClipboard()
-            handle = kernel32.GlobalAlloc(0x0002, len(data))          # GMEM_MOVEABLE
+            handle = kernel32.GlobalAlloc(0x0002, len(data))
             if not handle:
                 return False
             pointer = kernel32.GlobalLock(handle)
             ctypes.memmove(pointer, data, len(data))
             kernel32.GlobalUnlock(handle)
-            if not user32.SetClipboardData(13, handle):                # CF_UNICODETEXT
+            if not user32.SetClipboardData(13, handle):
                 return False
             return True
         finally:

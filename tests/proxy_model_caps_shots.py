@@ -16,14 +16,12 @@ from playwright.async_api import async_playwright
 
 CHROME = "/usr/bin/chromium" if os.path.exists("/usr/bin/chromium") else "/workspace/work/chromium/chrome"
 
-
 async def wait_for(page, expression: str, timeout: float = 15.0) -> None:
     for _ in range(int(timeout * 10)):
         if await page.evaluate(expression):
             return
         await page.wait_for_timeout(100)
     raise TimeoutError(expression)
-
 
 async def main(base: str, out: str) -> None:
     os.makedirs(out, exist_ok=True)
@@ -41,7 +39,7 @@ async def main(base: str, out: str) -> None:
                 if theme == "light":
                     await page.evaluate("document.documentElement.dataset.theme = 'light'")
                 await page.evaluate("document.querySelector('[data-tab=\"settings\"]').click()")
-                # Round 23: the catalog is its own section of the Settings page.
+
                 await page.evaluate("window.MemuSettings && MemuSettings.select('models')")
                 await wait_for(page, "document.querySelectorAll('#models-table tr[data-mid]').length > 100")
                 await wait_for(page, "document.querySelectorAll('#models-table .mcap-b').length > 50")
@@ -97,7 +95,6 @@ async def main(base: str, out: str) -> None:
                 await page.close()
         await browser.close()
     print(json.dumps(report, ensure_ascii=False, indent=1))
-
 
 if __name__ == "__main__":
     asyncio.run(main(sys.argv[1].rstrip("/"), sys.argv[2]))

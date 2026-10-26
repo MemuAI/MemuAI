@@ -38,19 +38,15 @@ EXE = "MemuNote.exe"
 PACKAGE = Path("Packages") / "MemuNote.zip"
 PACKAGE_META = "memunote-package.json"
 STATE_FILE = "install.json"
-MAX_UNPACKED = 2 * 1024 ** 3          # a zip bomb guard: MemuNote is ~60 MB unpacked
+MAX_UNPACKED = 2 * 1024 ** 3
 _LOCK = threading.Lock()
 _CREATE_NO_WINDOW = 0x08000000
 _DETACHED = 0x00000008
-
 
 class ManagerError(Exception):
     def __init__(self, code: str, message: str = "") -> None:
         super().__init__(message or code)
         self.code = code
-
-
-# ------------------------------------------------------------------ locations
 
 def install_root() -> Optional[Path]:
     """The MemuAI install folder, or ``None`` in a source checkout."""
@@ -65,18 +61,15 @@ def install_root() -> Optional[Path]:
             return folder
     return here.parent
 
-
 def paths(root: Optional[Path] = None) -> Dict[str, Optional[Path]]:
     root = root if root is not None else install_root()
     if root is None:
         return {"root": None, "folder": None, "exe": None, "package": None}
     return {"root": root, "folder": root / FOLDER, "exe": root / FOLDER / EXE, "package": root / PACKAGE}
 
-
 def _dev_entry() -> Optional[Path]:
     entry = ROOT / "memunote.py"
     return entry if entry.is_file() and (ROOT / "app" / "memunote" / "static" / "index.html").is_file() else None
-
 
 def _file_version(path: Path) -> str:
     """ProductVersion of a Windows exe (empty elsewhere / on any error)."""
@@ -107,7 +100,6 @@ def _file_version(path: Path) -> str:
     except Exception:  # noqa: BLE001
         return ""
 
-
 def package_info(package: Optional[Path]) -> Dict[str, Any]:
     if package is None or not package.is_file():
         return {"present": False}
@@ -125,7 +117,6 @@ def package_info(package: Optional[Path]) -> Dict[str, Any]:
         info.update(valid=False, error=str(exc)[:200])
     return info
 
-
 def _installed_version(folder: Path, exe: Path) -> str:
     marker = folder / PACKAGE_META
     if marker.is_file():
@@ -135,14 +126,12 @@ def _installed_version(folder: Path, exe: Path) -> str:
             pass
     return _file_version(exe)
 
-
 def _app_version() -> str:
     try:
         from .version import APP_VERSION  # type: ignore
         return str(APP_VERSION)
     except Exception:  # noqa: BLE001
         return ""
-
 
 def _running_instance() -> bool:
     """MemuNote publishes ``instance.json`` (port + token) while its window is open."""
@@ -159,7 +148,6 @@ def _running_instance() -> bool:
             return True
     except Exception:  # noqa: BLE001
         return False
-
 
 def status() -> Dict[str, Any]:
     p = paths()
@@ -180,7 +168,7 @@ def status() -> Dict[str, Any]:
         result["version"] = _installed_version(folder, exe)
         try:
             from .memunote import winsys
-            winsys.migrate()          # Round 31: drop the Round 29–30 script associations once (marker-guarded)
+            winsys.migrate()
             result["open_with"] = winsys.open_with_state(str(exe))
         except Exception:  # noqa: BLE001
             pass
@@ -190,14 +178,10 @@ def status() -> Dict[str, Any]:
                                       and _newer(pkg_version, result["version"]))
     return result
 
-
 def _newer(left: str, right: str) -> bool:
     def key(text: str):
         return [int(part) if part.isdigit() else 0 for part in text.replace("-", ".").split(".")[:4]]
     return key(left) > key(right)
-
-
-# ------------------------------------------------------------------ install / remove
 
 def _safe_member(name: str) -> Optional[str]:
     text = name.replace("\\", "/")
@@ -207,7 +191,6 @@ def _safe_member(name: str) -> Optional[str]:
     if any(part in ("..", "") for part in parts):
         return None
     return "/".join(parts)
-
 
 def _extract(package: Path, target: Path) -> int:
     total = 0
@@ -231,7 +214,6 @@ def _extract(package: Path, target: Path) -> int:
             total += item.file_size
     return total
 
-
 def _run(exe: Path, args: List[str], timeout: float = 20.0) -> int:
     try:
         return subprocess.run([str(exe), *args], timeout=timeout, cwd=str(exe.parent),   # noqa: S603
@@ -240,7 +222,6 @@ def _run(exe: Path, args: List[str], timeout: float = 20.0) -> int:
     except (OSError, subprocess.TimeoutExpired) as exc:
         log.warning("%s %s failed: %s", exe.name, args, exc)
         return -1
-
 
 def _remove_tree(path: Path) -> None:
     def onerror(func, target, _exc):
@@ -262,7 +243,6 @@ def _remove_tree(path: Path) -> None:
         time.sleep(0.25 * (attempt + 1))
     if path.exists():
         raise ManagerError("busy", f"could not remove {path} (is MemuNote still running?)")
-
 
 def _update_state(root: Path, installed: bool) -> None:
     """Keep the Setup's install.json in step so an update neither drops nor duplicates MemuNote."""
@@ -291,7 +271,6 @@ def _update_state(root: Path, installed: bool) -> None:
             os.unlink(tmp)
         except OSError:
             pass
-
 
 def _start_menu_shortcut(exe: Optional[Path], create: bool) -> None:
     if os.name != "nt":
@@ -323,7 +302,6 @@ def _start_menu_shortcut(exe: Optional[Path], create: bool) -> None:
     except Exception as exc:  # noqa: BLE001 - a missing shortcut is not worth failing the install
         log.warning("MemuNote shortcut not created: %s", exc)
 
-
 def install() -> Dict[str, Any]:
     with _LOCK:
         p = paths()
@@ -335,7 +313,7 @@ def install() -> Dict[str, Any]:
             raise ManagerError("no_package", f"{PACKAGE} was not found — run the MemuAI Setup and select MemuNote")
         updating = exe.is_file()
         if updating:
-            _run(exe, ["--shutdown"], timeout=15)       # unsaved text is kept by MemuNote's recovery
+            _run(exe, ["--shutdown"], timeout=15)
         stage = root / f".~memunote-{os.getpid()}-{int(time.time())}"
         backup = root / f".~memunote-old-{os.getpid()}-{int(time.time())}"
         try:
@@ -343,7 +321,7 @@ def install() -> Dict[str, Any]:
             if folder.exists():
                 try:
                     os.replace(folder, backup)
-                except OSError as exc:      # Windows: MemuNote.exe (or a file in it) is still in use
+                except OSError as exc:
                     raise ManagerError("busy", f"could not replace {folder}: {exc.strerror or exc} "
                                                "(is MemuNote still running?)") from exc
             os.replace(stage, folder)
@@ -359,7 +337,7 @@ def install() -> Dict[str, Any]:
             except ManagerError as exc:
                 log.warning("%s", exc)
         try:
-            package.unlink()                             # the installed copy replaces the archive
+            package.unlink()
             if not any(package.parent.iterdir()):
                 package.parent.rmdir()
         except OSError:
@@ -368,7 +346,6 @@ def install() -> Dict[str, Any]:
         _start_menu_shortcut(exe, True)
         log.info("MemuNote %s into %s (%d bytes)", "updated" if updating else "installed", folder, size)
         return {"ok": True, "updated": updating, **status()}
-
 
 def _pack(folder: Path, package: Path, version: str) -> None:
     package.parent.mkdir(parents=True, exist_ok=True)
@@ -385,7 +362,6 @@ def _pack(folder: Path, package: Path, version: str) -> None:
             else:
                 archive.write(path, relative)
     os.replace(partial, package)
-
 
 def uninstall(keep_package: bool = True) -> Dict[str, Any]:
     with _LOCK:
@@ -409,7 +385,6 @@ def uninstall(keep_package: bool = True) -> Dict[str, Any]:
         _start_menu_shortcut(None, False)
         return {"ok": True, **status()}
 
-
 def open_app(files: Optional[List[str]] = None) -> Dict[str, Any]:
     files = [str(f) for f in (files or []) if isinstance(f, str) and f.strip()][:50]
     p = paths()
@@ -425,12 +400,11 @@ def open_app(files: Optional[List[str]] = None) -> Dict[str, Any]:
             raise ManagerError("not_installed", "MemuNote is not installed")
         command = [str(exe), *files]
         cwd = str(Path.home())
-    flags = (_DETACHED | 0x00000200) if os.name == "nt" else 0          # DETACHED_PROCESS | NEW_PROCESS_GROUP
+    flags = (_DETACHED | 0x00000200) if os.name == "nt" else 0
     subprocess.Popen(command, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,   # noqa: S603
                      stderr=subprocess.DEVNULL, close_fds=True, creationflags=flags,
                      start_new_session=os.name != "nt")
     return {"ok": True}
-
 
 def set_open_with(enable: bool) -> Dict[str, Any]:
     p = paths()
@@ -439,9 +413,6 @@ def set_open_with(enable: bool) -> Dict[str, Any]:
         raise ManagerError("not_installed", "MemuNote is not installed")
     from .memunote import winsys
     return winsys.register_open_with(bool(enable), exe=str(exe))
-
-
-# ------------------------------------------------------------------ routes
 
 def register(app) -> None:
     from fastapi import Request

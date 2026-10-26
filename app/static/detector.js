@@ -1,7 +1,5 @@
-/* MemuAI Proxy — вкладка «Детектор моделей»: проверяет, какая модель на самом деле
-   отвечает под выбранным ID (самоидентификация, служебные токены, дата знаний, стиль,
-   согласованность повторов, заявленные характеристики) и, отдельно, ищет локальные
-   следы AI-происхождения в загруженном изображении (C2PA/IPTC/EXIF/PNG-метаданные). */
+
+
 "use strict";
 
 window.MemuDetector = (() => {
@@ -29,7 +27,7 @@ window.MemuDetector = (() => {
       () => L("Ответы похожи на заявленное семейство, но факты о версии (дата знаний, способности, самоотчёт) указывают на другую модель этого семейства.",
         "The answers fit the claimed family, but the version evidence (knowledge window, ability, self-report) points to another model of that family.")],
   };
-  /* Вердикт по конкретной версии — отдельно от семейства: «это GPT» ещё не значит «это GPT-6 Astra». */
+
   const VERSION = {
     confirmed: ["ok", () => L("Версия подтверждается", "Version confirmed")],
     consistent: ["info", () => L("Версия не опровергнута", "Version not contradicted")],
@@ -62,7 +60,7 @@ window.MemuDetector = (() => {
     tokenizer_symbols: () => L("Токенизатор: цифры и символы", "Tokenizer: digits and symbols"), tokenizer_scripts: () => L("Токенизатор: другие письменности", "Tokenizer: other scripts"),
     tokenizer_base2: () => L("Токенизатор: пустой запрос ещё раз", "Tokenizer: baseline again"),
     wrapper: () => L("Скрытые инструкции", "Hidden instructions"),
-    // пробы прошлых версий — чтобы старые записи истории читались
+
     needle: () => L("Поиск фразы в длинном тексте", "Needle in a long passage"), style: () => L("Приветствие", "Greeting"),
   };
   const probeLabel = (row) => (PROBE[row.id] ? PROBE[row.id]() : row.kind === "ability" ? `${L("Способность", "Ability")}: ${row.id.replace(/^ability_?/, "")}` : row.id);
@@ -86,7 +84,7 @@ window.MemuDetector = (() => {
   const errorOf = (error) => (error && error.message ? error.message : String(error || ""));
   const pct = (value) => (value === null || value === undefined ? "—" : `${value}%`);
   const icon = (name) => (window.MemuIcons ? MemuIcons.svg(name) : "");
-  /* Кнопка «Скопировать»: SVG-иконка, подпись и короткое подтверждение прямо на кнопке. */
+
   const copyBtn = (attrs, label, title) => `<button type="button" class="btn small det-copy" ${attrs} title="${esc(title || label)}" aria-label="${esc(title || label)}">${icon("copy")}<span>${esc(label)}</span></button>`;
   const copyIconBtn = (attrs, title) => `<button type="button" class="icon-btn det-copy-ico" ${attrs} title="${esc(title)}" aria-label="${esc(title)}">${icon("copy")}</button>`;
   async function copyWithFeedback(button, text, message) {
@@ -111,14 +109,12 @@ window.MemuDetector = (() => {
     if (!root) return;
     try {
       const [models, families, hist] = await Promise.all([api("/api/admin/models"), S.families.length ? { families: S.families } : api("/api/admin/detector/families"), api("/api/admin/detector/history")]);
-      S.models = (models.models || []).filter((m) => m.enabled !== false).map((m) => m.id).sort();
+      S.models = (models.models || []).filter((m) => m.enabled !== false && (m.kind || m.caps?.kind || "chat") === "chat").map((m) => m.id).sort();
       S.families = families.families || [];
       S.history = hist.runs || [];
     } catch (error) {
       root.innerHTML = `<div class="card"><div class="warn-strip">${esc(errorOf(error))}</div></div>`;
-      // Каркас стёрт: следующий load() обязан построить его заново, иначе
-      // fillSelects() упадёт на отсутствующих полях. Слушатель снимаем,
-      // чтобы shell() не повесил второй обработчик кликов.
+
       root.removeEventListener("click", onClick);
       delete root.dataset.ready;
       return;
@@ -260,12 +256,10 @@ window.MemuDetector = (() => {
           S.history = h.runs || [];
           renderHistory();
         }
-      } catch (error) { /* временная ошибка сети — попробуем ещё */ }
+      } catch (error) {  }
       poll();
     }, 900);
   }
-
-  /* ---------------- результат ---------------- */
 
   function candidateBar(row, claimedFamily) {
     const uncertain = row.family === "__uncertain__";
@@ -466,10 +460,8 @@ window.MemuDetector = (() => {
       why ? `${L("Почему так", "Why")}:\n${why}` : ""].filter(Boolean).join("\n");
   }
 
-  /* ---------------- визуальный тест ---------------- */
-
   const V = { prompts: [], runs: [], timer: null, texts: {} };
-  /* Текст задания: кэш, чтобы копирование не ждало сети (и не теряло «жест пользователя»). */
+
   async function visualText(promptId) {
     if (V.texts[promptId]) return V.texts[promptId];
     const row = await api(`/api/admin/detector/visual/prompts/${encodeURIComponent(promptId)}`);
@@ -495,7 +487,7 @@ window.MemuDetector = (() => {
   const visualTitle = (row) => (LANG === "en" ? row.title_en || row.title : row.title);
   const visualModel = () => ($("#det-model") ? $("#det-model").value.trim() : "");
   const visualUrl = (run, download) => `/api/admin/detector/visual/runs/${encodeURIComponent(run.id)}/page?key=${encodeURIComponent(run.key)}${download ? "&download=1" : ""}`;
-  /* Последний запуск задания на выбранной модели — его состояние и показывает кнопка. */
+
   const visualLatest = (promptId) => V.runs.find((run) => run.prompt_id === promptId && run.model === visualModel());
 
   async function visualLoad() {
@@ -505,10 +497,10 @@ window.MemuDetector = (() => {
         V.prompts = data.prompts || [];
       }
       V.runs = (await api("/api/admin/detector/visual/runs")).runs || [];
-    } catch (error) { /* блок покажет пустой список */ }
+    } catch (error) {  }
     visualRender();
     visualWatch();
-    // Аквариум и пеликан копируются чаще всего: их тексты загружаем заранее (это несколько КБ).
+
     V.prompts.filter((row) => row.group === "featured").forEach((row) => { visualText(row.id).catch(() => {}); });
   }
 
@@ -516,7 +508,7 @@ window.MemuDetector = (() => {
     clearTimeout(V.timer);
     if (!V.runs.some((run) => run.state === "running")) return;
     V.timer = setTimeout(async () => {
-      try { V.runs = (await api("/api/admin/detector/visual/runs")).runs || []; } catch (error) { /* попробуем ещё */ }
+      try { V.runs = (await api("/api/admin/detector/visual/runs")).runs || []; } catch (error) {  }
       if (active()) visualRender();
       visualWatch();
     }, 1000);
@@ -530,8 +522,6 @@ window.MemuDetector = (() => {
     return parts.join(" · ");
   }
 
-  /* ---- сравнение двух запусков бок о бок ----
-     Страницы отдаются песочным маршрутом запусков и встраиваются во фреймы с sandbox. */
   function visualSources(promptId) {
     return V.runs.filter((run) => run.prompt_id === promptId && run.state === "done").map((run) => ({
       key: `run:${run.id}`, url: visualUrl(run), run,
@@ -548,7 +538,7 @@ window.MemuDetector = (() => {
     const row = V.prompts.find((item) => item.id === promptId);
     if (sources.length < 2) { toast(L("Для сравнения нужны два готовых запуска этого задания", "Comparing needs two finished runs of this task"), "warn"); return; }
     const left = sources.find((item) => item.key === leftKey) || sources.find((item) => item.run.model === visualModel()) || sources[0];
-    // справа — самый свежий запуск другой модели, иначе просто другой запуск
+
     const right = sources.find((item) => item !== left && item.run.model !== left.run.model) || sources.find((item) => item !== left);
     const side = (id, chosen) => `<section class="det-cmp-side" aria-label="${esc(id === "l" ? L("Слева", "Left") : L("Справа", "Right"))}">
         <div class="det-cmp-head"><select id="det-cmp-${id}" aria-label="${esc(L("Что показать", "What to show"))}">${sources.map((item) =>
@@ -575,7 +565,7 @@ window.MemuDetector = (() => {
       };
     });
   }
-  /* Внешняя галерея, где то же задание нарисовали разные ИИ (у пеликана — pelicanbenchmark.com). */
+
   function visualGalleryLink(row) {
     if (!row.compare_url) return "";
     let host = "";
@@ -685,8 +675,6 @@ window.MemuDetector = (() => {
     });
   }
 
-  /* ---------------- история ---------------- */
-
   function renderHistory() {
     const box = $("#det-history");
     if (!box) return;
@@ -755,8 +743,6 @@ window.MemuDetector = (() => {
     setTimeout(() => { URL.revokeObjectURL(link.href); link.remove(); }, 1000);
     toast(t("common.downloaded"));
   }
-
-  /* ---------------- происхождение файла ---------------- */
 
   function readAsDataUrl(file) {
     return new Promise((resolve, reject) => {
@@ -834,7 +820,7 @@ window.MemuDetector = (() => {
 
   return {
     load,
-    /** Open the tab with a model already chosen (from the local models menu). */
+
     pick(modelId) {
       S.picked = modelId;
       if ($("#det-model")) { $("#det-model").value = modelId; S.picked = ""; }

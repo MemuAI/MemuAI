@@ -28,7 +28,6 @@ for line in sys.stdin:
     print(json.dumps({"jsonrpc": "2.0", "id": ident, "result": result}), flush=True)
 '''
 
-
 class MCPStartupSecurity(unittest.TestCase):
     def setUp(self):
         self.sandbox = tempfile.TemporaryDirectory(prefix="memuai-mcp-test-")
@@ -54,7 +53,7 @@ class MCPStartupSecurity(unittest.TestCase):
             created = []
             original = asyncio.create_subprocess_exec
             async def spawn(*args, **kwargs):
-                await asyncio.sleep(0.03)  # expose the pre-process startup window
+                await asyncio.sleep(0.03)
                 process = await original(*args, **kwargs)
                 created.append(process)
                 return process
@@ -170,7 +169,6 @@ class MCPStartupSecurity(unittest.TestCase):
             self.assertFalse(server.running)
             self.assertTrue(server.ready.is_set())
         asyncio.run(scenario())
-
 
 if __name__ == "__main__":
     unittest.main()

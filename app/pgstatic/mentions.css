@@ -1,4 +1,3 @@
-/* Round 35 — @-mentions (mentions.js): the menu over the composer, chips in the composer and in sent messages. */
 .mention-menu { max-height: min(430px, 56vh); padding: 6px; }
 .mention-menu.mn-down { bottom: auto; top: calc(100% + 9px); }
 .mention-menu .mn-section { padding: 8px 10px 3px; color: var(--muted); font: 600 10.5px var(--sans, inherit); letter-spacing: .04em; text-transform: uppercase; }
@@ -64,7 +63,6 @@
   .mn-chip { max-width: 190px; }
   .mention-menu .mn-head small, .mention-menu .mn-foot { display: none; }
 }
-/* Designs that paint the active row with the accent (terminal): icon and hint follow the row's own text colour. */
 .mention-menu .mn-row.active .mn-ic { color: inherit; }
 .mention-menu .mn-row.active .mn-text small, .mention-menu .mn-row.active .mn-kind { color: inherit; opacity: .75; }
 .mention-menu .mn-row.active .mn-badge { color: inherit; }

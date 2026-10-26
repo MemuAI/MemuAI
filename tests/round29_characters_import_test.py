@@ -23,10 +23,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 MODULE = ROOT / "app" / "module_builtins" / "characters"
 
-
 def _chunk(kind: bytes, data: bytes) -> bytes:
     return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
-
 
 def png_with_text(texts, width: int = 2, height: int = 2) -> bytes:
     """A real (decodable) RGB PNG with the given tEXt chunks placed before IEND."""
@@ -37,12 +35,9 @@ def png_with_text(texts, width: int = 2, height: int = 2) -> bytes:
         out += _chunk(b"tEXt", key.encode("latin-1") + b"\x00" + value)
     return out + _chunk(b"IEND", b"")
 
-
 def b64json(value) -> bytes:
     return base64.b64encode(json.dumps(value, ensure_ascii=False).encode("utf-8"))
 
-
-# ------------------------------------------------------------------ samples (shapes of real exports)
 ST_ENTRY_FULL = {
     "uid": 0, "key": ["Eldoria", "/eld(o|a)ria/i"], "keysecondary": ["kingdom"], "comment": "Eldoria",
     "content": "Eldoria is a kingdom of floating isles.", "constant": False, "vectorized": False, "selective": True,
@@ -63,7 +58,7 @@ ST_WORLD = {"entries": {
     "7": {**ST_ENTRY_FULL, "uid": 7, "comment": "No filter", "characterFilter": None, "displayIndex": 2,
           "selectiveLogic": 3, "scanDepth": 6, "caseSensitive": True, "matchWholeWords": False, "outletName": "map"},
 }}
-CB_V2 = {  # SillyTavern convertWorldInfoToCharacterBook + V2 spec + unknown fields from other tools
+CB_V2 = {
     "name": "Eldoria Lore", "description": "World notes", "scan_depth": 6, "token_budget": 900,
     "recursive_scanning": True, "extensions": {"risu_fullWordMatching": True},
     "entries": [
@@ -87,7 +82,7 @@ CB_V2 = {  # SillyTavern convertWorldInfoToCharacterBook + V2 spec + unknown fie
          "linked": False, "embedded": True}, "probability": 100, "selectiveLogic": 0, "case_sensitive": False},
     ],
 }
-CHUB_HYBRID = {  # api.chub.ai …/raw%2Fsillytavern_raw.json (shape as served today)
+CHUB_HYBRID = {
     "name": "Data: ", "description": "", "is_creation": False, "scan_depth": 50, "token_budget": 511,
     "recursive_scanning": False, "extensions": {"chub": {"id": 782, "full_path": "bartleby/example-lorebook"}},
     "entries": {"1": {"uid": 1, "key": ["Lore", "Data"], "keysecondary": [], "comment": "", "content": "Data's memory.",
@@ -106,7 +101,7 @@ AGNAI_BOOK = {"kind": "memory", "name": "Agnai book", "description": "d",
 RISU_BOOK = {"type": "risu", "ver": 1, "data": [{"key": "castle, keep", "secondkey": "", "comment": "Castle",
                                                   "content": "A big castle.", "mode": "normal", "insertorder": 120,
                                                   "alwaysActive": False, "selective": False, "useRegex": False}]}
-ST_CARD_JSON = {  # SillyTavern "Export as JSON" of a V2 card
+ST_CARD_JSON = {
     "name": "Mira", "description": "{{char}} is a sky pirate.", "personality": "bold", "scenario": "On deck.",
     "first_mes": "Ahoy, {{user}}!", "mes_example": "<START>\n{{user}}: Hi\n{{char}}: Ahoy", "creatorcomment": "notes",
     "avatar": "none", "chat": "Mira - 2024-1-1", "talkativeness": "0.5", "fav": False, "tags": ["pirate"],
@@ -314,7 +309,6 @@ assert.deepStrictEqual(gen2, gen1);
 process.stdout.write(JSON.stringify({ ok: true }));
 """
 
-
 @unittest.skipUnless(shutil.which("node"), "node is required")
 class CharactersImportTest(unittest.TestCase):
     def samples(self):
@@ -344,7 +338,6 @@ class CharactersImportTest(unittest.TestCase):
                                    str(Path(temp) / "samples.json")], capture_output=True, text=True, timeout=60)
         self.assertEqual(done.returncode, 0, done.stderr[-4000:])
         self.assertEqual(json.loads(done.stdout), {"ok": True})
-
 
 if __name__ == "__main__":
     unittest.main()

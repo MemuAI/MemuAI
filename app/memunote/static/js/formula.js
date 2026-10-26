@@ -1,7 +1,5 @@
-// MemuNote — Round 40 (r40-note): a small spreadsheet formula engine for the .xlsx grid (sheetgrid.js).
-// Excel syntax: numbers, "strings", TRUE/FALSE, A1 / $A$1 / Sheet!A1 / 'My sheet'!A1:B9 / A:A / 2:2 references,
-// operators ^ * / + - & = <> < > <= >= and %, ~60 common functions. Anything else throws UNSUPPORTED — the grid
-// then shows the value Excel cached in the file with a small marker, never a wrong number.
+
+
 export const ERR = { div0: "#DIV/0!", value: "#VALUE!", ref: "#REF!", name: "#NAME?", na: "#N/A", num: "#NUM!", cycle: "#CYCLE!" };
 export class FormulaError { constructor(code) { this.code = code; } toString() { return this.code; } }
 export const UNSUPPORTED = { unsupported: true };
@@ -17,7 +15,6 @@ export function parseRange(ref) {
   return p && q ? { r1: Math.min(p.r, q.r), c1: Math.min(p.c, q.c), r2: Math.max(p.r, q.r), c2: Math.max(p.c, q.c) } : null;
 }
 
-// relative references move with a copied / filled formula (strings are left alone)
 const REF_RE = /(^|[^A-Za-z0-9_.'$])(\$?)([A-Z]{1,3})(\$?)(\d{1,7})(?![A-Za-z0-9_(])/g;
 export function shiftFormula(f, dr, dc) {
   return String(f).split(/("(?:[^"]|"")*")/).map((part, i) => (i % 2 ? part : part.replace(REF_RE, (m, pre, ca, col, ra, row) => {
@@ -26,7 +23,6 @@ export function shiftFormula(f, dr, dc) {
   }))).join("");
 }
 
-// ------------------------------------------------------------------ tokenizer
 function tokenize(src) {
   const out = []; let i = 0;
   const sheetRef = /^(?:'((?:[^']|'')+)'|([A-Za-z_\u0400-\u04FF][\w.\u0400-\u04FF]*))!/;
@@ -51,7 +47,6 @@ function tokenize(src) {
   return out;
 }
 
-// ------------------------------------------------------------------ parser → AST
 function parse(src) {
   const toks = tokenize(src); let p = 0;
   const peek = () => toks[p], next = () => toks[p++];
@@ -85,7 +80,7 @@ function parse(src) {
         return { k: "fn", name: tk.v.replace(/^_XLFN\./, ""), args };
       }
       if (tk.v === "TRUE" || tk.v === "FALSE") return { k: "bool", v: tk.v === "TRUE" };
-      throw UNSUPPORTED;                        // a defined name: unknown here
+      throw UNSUPPORTED;
     }
     throw E(ERR.value);
   };
@@ -101,8 +96,6 @@ function parsed(src) {
   return a.ast;
 }
 
-// ------------------------------------------------------------------ values
-/** A cell's text → value: numbers (also "12,5" and "1 234"), TRUE/FALSE, "" = blank, else text. */
 export function valueOf(text) {
   if (text == null || text === "") return null;
   if (typeof text !== "string") return text;
@@ -124,10 +117,8 @@ const str = (v) => { if (isErr(v)) throw v; if (v == null) return ""; if (typeof
 const bool = (v) => { if (isErr(v)) throw v; if (typeof v === "string") { const u = v.toUpperCase(); if (u === "TRUE") return true; if (u === "FALSE") return false; throw E(ERR.value); } return !!v; };
 export function fmtNum(n) { if (!isFinite(n)) return ERR.num; if (Number.isInteger(n)) return String(n); const r = +n.toPrecision(15); return String(r); }
 
-/** Formats a computed value for a cell. */
 export function display(v) { if (v == null) return ""; if (isErr(v)) return v.code; if (typeof v === "boolean") return v ? "TRUE" : "FALSE"; if (typeof v === "number") return fmtNum(v); return String(v); }
 
-// ------------------------------------------------------------------ evaluator
 class Range { constructor(sheet, r1, c1, r2, c2, ctx) { Object.assign(this, { sheet, r1, c1, r2, c2, ctx }); }
   get rows() { return this.r2 - this.r1 + 1; } get cols() { return this.c2 - this.c1 + 1; }
   at(i, j) { return this.ctx.get(this.sheet, this.r1 + i, this.c1 + j); }
@@ -181,9 +172,8 @@ function compare(a, b) {
   return rank(ta) - rank(tb);
 }
 
-// ------------------------------------------------------------------ functions
 const argv = (args, ctx) => args.map((a) => ev(a, ctx));
-/** Numbers of the arguments: ranges skip text/blank/booleans (Excel's SUM rule), direct arguments coerce. */
+
 function nums(args, ctx) {
   const out = [];
   for (const v of argv(args, ctx)) {
@@ -206,7 +196,7 @@ function criteria(crit) {
 const one = (args, ctx, i) => scalar(args[i] ? ev(args[i], ctx) : null);
 const roundTo = (x, d, mode) => { const f = Math.pow(10, d); const y = Math.abs(x) * f; const r = mode === "up" ? Math.ceil(y - 1e-9) : mode === "down" ? Math.floor(y + 1e-9) : Math.round(y + 1e-9); return Math.sign(x) * r / f; };
 function lookupMatch(range, key, exact) {
-  // exact (FALSE / 0) or approximate (sorted, the largest value <= key)
+
   let best = -1;
   const n = range.rows > 1 && range.cols === 1 ? range.rows : range.cols > 1 && range.rows === 1 ? range.cols : range.rows;
   const get = (i) => (range.cols === 1 || range.rows > 1 ? range.at(i, 0) : range.at(0, i));
@@ -284,11 +274,6 @@ const FN = {
 };
 export const FUNCTIONS = Object.keys(FN).sort();
 
-/**
- * A workbook model for the evaluator: sheets [{name, rows: [[text]], formulas: {"r,c": "f"}}].
- * `value(sheet, r, c)` = the computed value of a cell (memoised until `invalidate()`); a formula the engine does not
- * know keeps the cached text of the file and is reported by `cachedOnly(sheet, r, c)`.
- */
 export class Workbook {
   constructor(sheets) { this.sheets = sheets; this.memo = new Map(); this.stack = new Set(); this.unsupported = new Set(); this.byName = new Map(sheets.map((s) => [s.name.toLowerCase(), s])); }
   reindex() { this.byName = new Map(this.sheets.map((s) => [s.name.toLowerCase(), s])); this.invalidate(); }

@@ -14,7 +14,6 @@ import quick_ask_r23_shots as base  # noqa: E402
 
 OUT = Path(__import__("os").environ.get("R24_SHOTS", "/workspace/work/shots/designs-r24"))
 
-
 async def main():
     from playwright.async_api import async_playwright
     from app import themes
@@ -72,7 +71,6 @@ async def main():
         await browser.close()
     server.shutdown()
     print("\n".join(errors) or "ok")
-
 
 if __name__ == "__main__":
     asyncio.run(main())

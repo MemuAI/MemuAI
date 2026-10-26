@@ -38,12 +38,9 @@ from typing import Callable, Dict, Iterable, List
 ROOT = Path(__file__).resolve().parent
 ICO_SIZES = (16, 20, 24, 32, 40, 48, 64, 128, 256)
 
-# ----------------------------------------------------------------- shared kit
-#: Warm light in the upper-left corner, the same as the MemuNote tile.
 LIGHT = ('<radialGradient id="light" cx="0.22" cy="0.12" r="0.7">'
          '<stop offset="0" stop-color="#fff1e4" stop-opacity=".42"/>'
          '<stop offset="1" stop-color="#fff1e4" stop-opacity="0"/></radialGradient>')
-
 
 def variant_for(size: int) -> str:
     """Which drawing a pixel size uses."""
@@ -53,10 +50,8 @@ def variant_for(size: int) -> str:
         return "small"
     return "full"
 
-
 def f(value: float) -> str:
     return f"{value:.2f}".rstrip("0").rstrip(".")
-
 
 def star_path(cx: float, cy: float, r: float, inner: float = 0.22) -> str:
     """The MemuAI four-point star with concave sides (quadratic curves)."""
@@ -69,7 +64,6 @@ def star_path(cx: float, cy: float, r: float, inner: float = 0.22) -> str:
         d += f"Q{f(ctrl[i][0])},{f(ctrl[i][1])} {f(nx)},{f(ny)} "
     return d + "Z"
 
-
 def crystal_star(cx: float, cy: float, r: float, lit: str, shade: str, inner: float = 0.22,
                  extra: str = "") -> str:
     """The same star split into eight facets: arm halves facing the light are ``lit``.
@@ -80,11 +74,9 @@ def crystal_star(cx: float, cy: float, r: float, lit: str, shade: str, inner: fl
     k = r * inner
     tips = [(cx, cy - r), (cx + r, cy), (cx, cy + r), (cx - r, cy)]
     ctrl = [(cx + k, cy - k), (cx + k, cy + k), (cx - k, cy + k), (cx - k, cy - k)]
-    # The light comes from the upper left: in every arm the half facing it is
-    # lit (top and bottom arms: left half; left and right arms: upper half).
+
     lit_halves = {(3, "a"), (3, "b"), (0, "b"), (2, "a")}
-    # The whole star in the shade colour first: facets drawn on top of it leave
-    # no anti-aliasing seams between them.
+
     out: List[str] = [f'<path d="{star_path(cx, cy, r, inner)}" fill="{shade}"{extra}/>']
     for i in range(4):
         p0, p1, p2 = tips[i], ctrl[i], tips[(i + 1) % 4]
@@ -101,11 +93,9 @@ def crystal_star(cx: float, cy: float, r: float, lit: str, shade: str, inner: fl
             out.append(f'<path d="{half_b}" fill="{lit}"{extra}/>')
     return "".join(out)
 
-
 def svg_doc(grid: float, defs: str, body: str) -> str:
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {f(grid)} {f(grid)}">'
             f"<defs>{defs}</defs>{body}</svg>")
-
 
 def render_many(markups: Dict[str, tuple]) -> Dict[str, bytes]:
     """Render ``{key: (svg, size)}`` to transparent PNG bytes in one browser session."""
@@ -129,7 +119,6 @@ def render_many(markups: Dict[str, tuple]) -> Dict[str, bytes]:
         finally:
             browser.close()
     return out
-
 
 def write_ico(frames: Dict[int, "object"], path: Path) -> None:
     """Write a multi-size .ico: 32-bit BMP entries below 256 px, PNG for 256 px.
@@ -176,7 +165,6 @@ def write_ico(frames: Dict[int, "object"], path: Path) -> None:
         blobs.append(data)
     Path(path).write_bytes(directory + b"".join(blobs))
 
-
 def build_set(draw: Callable[[str], str], png_out: Iterable[tuple], ico_out: Path,
               extra_png: Iterable[tuple] = ()) -> Dict[int, "object"]:
     """Render every ICO frame from its own drawing and write the PNG/ICO files.
@@ -199,8 +187,6 @@ def build_set(draw: Callable[[str], str], png_out: Iterable[tuple], ico_out: Pat
     write_ico(frames, ico_out)
     return frames
 
-
-# --------------------------------------------------------------- MemuAI drawing
 def _brand_defs(grid: float) -> str:
     return ('<linearGradient id="brand" gradientUnits="userSpaceOnUse" '
             f'x1="0" y1="0" x2="{f(grid)}" y2="{f(grid)}">'
@@ -208,7 +194,6 @@ def _brand_defs(grid: float) -> str:
             '<stop offset="1" stop-color="#8752cf"/></linearGradient>' + LIGHT +
             '<filter id="soft" x="-30%" y="-30%" width="160%" height="170%">'
             '<feDropShadow dx="0" dy="9" stdDeviation="12" flood-color="#4a1840" flood-opacity=".28"/></filter>')
-
 
 def bubble_path(grid: float, left: float, top: float, right: float, body_bottom: float,
                 radius: float, tail_tip: tuple, tail_root: tuple, tip_round: float = 0.0) -> str:
@@ -234,11 +219,10 @@ def bubble_path(grid: float, left: float, top: float, right: float, body_bottom:
             f"{tip}L{f(left)},{f(root_y)} V{f(top + r)} "
             f"Q{f(left)},{f(top)} {f(left + r)},{f(top)} Z")
 
-
 def memuai_svg(variant: str = "full") -> str:
     """MemuAI icon drawing for a variant (``tiny`` / ``small`` / ``full``)."""
     if variant == "tiny":
-        # 16-unit grid: body 0..16 × 0..13, tail tip at (1, 16).
+
         grid = 16
         shape = bubble_path(grid, 0, 0, 16, 13, 4, (1.2, 16), (6.5, 9.5))
         body = (f'<path d="{shape}" fill="url(#brand)"/><path d="{shape}" fill="url(#light)"/>'
@@ -256,7 +240,6 @@ def memuai_svg(variant: str = "full") -> str:
             f'<g filter="url(#soft)">{crystal_star(256, 224, 150, "#ffffff", "#efd2ff", 0.22)}</g>')
     return svg_doc(grid, _brand_defs(grid), body)
 
-
 def build() -> None:
     (ROOT / "app" / "pgstatic" / "memuai-icon.svg").write_text(memuai_svg("full") + "\n", encoding="utf-8")
     (ROOT / "app" / "tgapp" / "icon.svg").write_text(memuai_svg("small") + "\n", encoding="utf-8")
@@ -264,7 +247,6 @@ def build() -> None:
               png_out=[(ROOT / "memuai-icon.png", 512),
                        (ROOT / "installer" / "ui" / "assets" / "logo.png", 128)],
               ico_out=ROOT / "memuai-icon.ico")
-
 
 if __name__ == "__main__":
     build()

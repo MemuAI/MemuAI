@@ -16,7 +16,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-
 class ModelInfoCacheTest(unittest.TestCase):
     def test_lookup_known_returns_a_private_copy(self):
         from app import model_info
@@ -34,7 +33,7 @@ class ModelInfoCacheTest(unittest.TestCase):
         self.assertEqual(model_info.canonical(""), "")
         self.assertIsNone(model_info.vision_hint(None))
         self.assertIsNone(model_info.lookup_known(None))
-        # Unhashable input never reaches the cache: it is turned into text first, as before.
+
         self.assertIsInstance(model_info.canonical(["x"]), str)
         self.assertEqual(model_info.canonical("Claude-Opus-5-5:thinking"),
                          model_info.canonical("claude-opus-5-5:thinking"))
@@ -46,7 +45,6 @@ class ModelInfoCacheTest(unittest.TestCase):
         self.assertEqual(a, b)
         a["context"] = 1
         self.assertNotEqual(model_info.resolve("x", "custom", "gpt-5.1").get("context"), 1)
-
 
 class PgStateResponseTest(unittest.TestCase):
     def test_state_is_plain_json(self):
@@ -63,10 +61,9 @@ class PgStateResponseTest(unittest.TestCase):
         data = response.json()
         self.assertEqual(set(data), {"models", "image_models", "video_models", "music_models", "memory"})
         self.assertEqual(jsonable_encoder(data), data)
-        # Same compact UTF-8 encoding FastAPI produced through jsonable_encoder.
+
         self.assertEqual(response.content,
                          json.dumps(data, ensure_ascii=False, allow_nan=False, separators=(",", ":")).encode("utf-8"))
-
 
 class MemuCodeLazyHttpxTest(unittest.TestCase):
     def test_interactive_imports_do_not_load_httpx(self):
@@ -83,13 +80,12 @@ class MemuCodeLazyHttpxTest(unittest.TestCase):
         lazy = llm.LazyModule("json", namespace)
         self.assertEqual(lazy.dumps([1]), "[1]")
         self.assertIs(namespace["json"], json)
-        # llm.httpx works as the real module for clients and exception classes.
+
         self.assertTrue(issubclass(llm.httpx.TransportError, Exception))
         client = llm.http_client(5, url="http://127.0.0.1:1")
         import httpx
         self.assertIsInstance(client, httpx.AsyncClient)
         self.assertIs(llm.httpx, httpx)
-
 
 if __name__ == "__main__":
     unittest.main()

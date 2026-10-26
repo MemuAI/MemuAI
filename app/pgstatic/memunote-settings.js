@@ -1,18 +1,10 @@
-/* MemuAI · Settings → «MemuNote» (Round 29).
 
-   MemuNote is the optional AI notepad of the suite (app/memunote/**, MemuNote.exe). The Setup installs
-   it when its switch is on; otherwise it ships as <app>\Packages\MemuNote.zip and this page installs it
-   in one click. Backend: app/memunote_manager.py, routes /api/pg/memunote*.
 
-   app.js mounts it like «Синхронизация»: settingsPages() has the page «memunote» when
-   window.MemuNoteSettings exists; the pane calls MemuNoteSettings.html(ctx) and, when the page is shown,
-   MemuNoteSettings.mount(ctx). One delegated listener on #mn-settings-root handles every control.
-   Round 38: the page also edits every MemuNote preference (app-settings-form.js, /api/pg/appsettings/memunote). */
 (function () {
   "use strict";
 
   const isEn = () => {
-    try { if (typeof PG_LANG !== "undefined") return PG_LANG === "en"; } catch (e) { /* ignore */ }
+    try { if (typeof PG_LANG !== "undefined") return PG_LANG === "en"; } catch (e) {  }
     return (document.documentElement.lang || "ru").startsWith("en");
   };
   const L = (ru, en) => (isEn() ? en : ru);
@@ -68,7 +60,6 @@
     paint();
   }
 
-  // ------------------------------------------------------------------ render
   function stateChip() {
     if (!st) return `<span class="mn-chip">${esc(L("Проверяю…", "Checking…"))}</span>`;
     if (st.error) return `<span class="mn-chip warn">${esc(L("Нет связи", "Unavailable"))}</span>`;
@@ -125,8 +116,7 @@
     return K.section({ id: "settings-memunote-options", title: L("Интеграция с Windows", "Windows integration"), body:
       K.row({ label: L("В меню «Открыть с помощью»", "In the \"Open with\" menu"), desc: L("Необязательно. MemuNote появится в «Открыть с помощью» только для текста, Markdown, данных и документов (.txt, .md, .log, .csv, .json, .docx, .pdf…). Программой по умолчанию он не становится, ваши программы не меняются; скрипты и программы (.bat, .cmd, .ps1, .exe…) не затрагиваются.", "Optional. MemuNote appears in \"Open with\" for text, Markdown, data and document files only (.txt, .md, .log, .csv, .json, .docx, .pdf…). It never becomes the default program and your default apps stay as they are; scripts and programs (.bat, .cmd, .ps1, .exe…) are never touched."), control }) });
   }
-  /* Round 38: every MemuNote preference (app-settings-form.js) between the status block and, while MemuNote is
-     not installed, «Что умеет». Status repaints touch only #mn-settings-top / -tail, never the form. */
+
   const form = window.MemuAppSettings ? MemuAppSettings.create({ app: "memunote", idp: "mnset-", name: "MemuNote", toast: (text, kind) => toast(text, kind) }) : null;
   function html(c) {
     ctx = c || ctx;
@@ -151,8 +141,6 @@
     kit()?.invalidate();
   }
 
-  /* The app's own styled confirm (window.confirm is a bare native box in WebView2, titled "127.0.0.1").
-     Reuses the .sync-confirm look of sync-settings.css (always loaded with the settings). */
   function confirmBox(text, okText) {
     return new Promise((resolve) => {
       const opener = document.activeElement;
@@ -164,7 +152,7 @@
           <button type="button" class="pbtn danger" data-yes>${esc(okText)}</button></div></div>`;
       const finish = (value) => {
         node.remove(); document.removeEventListener("keydown", onKey, true);
-        try { opener && opener.focus && opener.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+        try { opener && opener.focus && opener.focus({ preventScroll: true }); } catch (e) {  }
         resolve(value);
       };
       const onKey = (event) => {
@@ -184,7 +172,6 @@
     });
   }
 
-  // ------------------------------------------------------------------ actions
   async function act(action) {
     if (busy) return;
     if (action === "refresh") { st = null; paint(); await load(); return; }
@@ -228,7 +215,7 @@
     icon: `<span class="ui-icon">${SVG.note}</span>`,
     html, mount,
     status: () => st,
-    /** Open files in MemuNote from anywhere in MemuAI (e.g. a Work file): MemuNoteSettings.open(["C:\\a.md"]). */
+
     open: (files) => call("/api/pg/memunote/open", { files: files || [] }),
   };
 })();

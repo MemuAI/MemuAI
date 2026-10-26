@@ -1,16 +1,5 @@
-/* MemuAI Mini App — device detection and adaptive layout (Round 29).
- *
- * Classifies the device from the Telegram platform (tgWebAppPlatform / Telegram.WebApp.platform), the
- * viewport, the pointer/hover media queries and the orientation, and writes it on <html>:
- *   data-device      phone | tablet | desktop
- *   data-layout      stack (one pane, phone) | split (list + detail: tablets, computers)
- *   data-wide        "1" when there is room for a third (side) panel
- *   data-orientation portrait | landscape
- *   data-pointer     coarse | fine,   data-hover "1" when hover is real
- * app.css + layout.css adapt to these. When the layout changes (a tablet turned, a desktop window resized)
- * the headers are redrawn without losing the open chat. On computers: keyboard shortcuts, a resizable
- * list column and hover states.
- */
+
+
 (function () {
   "use strict";
   const root = document.documentElement;
@@ -22,10 +11,10 @@
     try {
       const fromSdk = window.Telegram && window.Telegram.WebApp && window.Telegram.WebApp.platform;
       if (fromSdk && fromSdk !== "unknown") return fromSdk;
-    } catch (e) { /* not loaded yet */ }
+    } catch (e) {  }
     const match = /[#&?]tgWebAppPlatform=([^&]+)/.exec(location.hash + "&" + location.search);
     if (match) return decodeURIComponent(match[1]);
-    try { const saved = JSON.parse(sessionStorage.getItem("memu_tg_launch") || "{}"); if (saved.tgWebAppPlatform) return saved.tgWebAppPlatform; } catch (e) { /* private */ }
+    try { const saved = JSON.parse(sessionStorage.getItem("memu_tg_launch") || "{}"); if (saved.tgWebAppPlatform) return saved.tgWebAppPlatform; } catch (e) {  }
     return "";
   }
   const mq = (query) => { try { return window.matchMedia(query).matches; } catch (e) { return false; } };
@@ -44,11 +33,11 @@
     else if (hover && !coarse) device = "desktop";
     else if (touch || coarse) device = short >= 600 && long >= 900 ? "tablet" : "phone";
     else device = width >= 900 ? "desktop" : "phone";
-    // iPadOS reports itself as a Mac with touch.
+
     if (device === "desktop" && touch && !hover && short >= 600) device = "tablet";
     const layout = width >= SPLIT_AT && height >= 420 ? "split" : "stack";
     return { width, height, platform: platform || "web", device, layout, wide: layout === "split" && width >= WIDE_AT,
-      // r30: a computer gets the side rail with the two panes (a Telegram Desktop window is often 720–1000 px wide).
+
       rail: layout === "split" && (device === "desktop" || width >= RAIL_AT),
       orientation: width >= height ? "landscape" : "portrait", pointer: coarse ? "coarse" : "fine", hover, touch };
   }
@@ -68,7 +57,7 @@
   try {
     const saved = +localStorage.getItem("memu_list_w");
     if (saved >= MIN_LIST && saved <= MAX_LIST) root.style.setProperty("--list-w", saved + "px");
-  } catch (e) { /* private mode */ }
+  } catch (e) {  }
 
   let pending = 0;
   function update() {
@@ -85,10 +74,6 @@
   window.addEventListener("resize", update, { passive: true });
   window.addEventListener("orientationchange", () => setTimeout(update, 120));
 
-  /* r30: the app follows the *visible* viewport. iOS lays the on-screen keyboard over the page (the layout viewport
-     keeps its height and scrolls), so the composer of a chat hid under the keyboard; Android resizes the page. The
-     shell is sized to visualViewport (--app-h / --app-top) and data-kb="1" drops the home-indicator padding while
-     the keyboard is open. */
   function syncViewport() {
     const vv = window.visualViewport;
     const full = Math.round(window.innerHeight || root.clientHeight || 0);
@@ -99,7 +84,7 @@
     try {
       const app = window.Telegram && window.Telegram.WebApp;
       if (app && app.viewportStableHeight && app.viewportHeight && app.viewportStableHeight - app.viewportHeight > 120) keyboard = true;
-    } catch (e) { /* no SDK yet */ }
+    } catch (e) {  }
     const typing = document.activeElement && /^(INPUT|TEXTAREA)$/.test(document.activeElement.tagName);
     root.dataset.kb = keyboard && typing && state.device !== "desktop" ? "1" : "";
   }
@@ -112,7 +97,6 @@
   document.addEventListener("focusout", () => setTimeout(syncViewport, 60));
   syncViewport();
 
-  /* r30: the sideways chip rows (folders, sources, palettes, examples) scroll with a plain mouse wheel on computers. */
   document.addEventListener("wheel", (event) => {
     if (state.device !== "desktop" || event.ctrlKey || Math.abs(event.deltaX) > Math.abs(event.deltaY)) return;
     const row = event.target.closest && event.target.closest(".chips, .sources, .variant-row, .tpl-examples, .att-tray");
@@ -121,7 +105,7 @@
     row.scrollLeft += event.deltaY;
     if (row.scrollLeft !== before) event.preventDefault();
   }, { passive: false });
-  try { window.matchMedia("(pointer: fine)").addEventListener("change", update); } catch (e) { /* old engines */ }
+  try { window.matchMedia("(pointer: fine)").addEventListener("change", update); } catch (e) {  }
 
   window.MemuDevice = {
     get device() { return state.device; }, get layout() { return state.layout; }, get wide() { return state.wide; },
@@ -130,15 +114,11 @@
     state: () => Object.assign({}, state), on: (fn) => listeners.push(fn), update,
   };
 
-  /* ---------------------------------------------------------------- with the app (kit) */
   (window.MemuTgPlugins = window.MemuTgPlugins || []).push(function (kit) {
     const { S, $, tr, esc, openSheet } = kit;
     listeners.push(() => kit.refreshTops());
-    try { if (window.Telegram && window.Telegram.WebApp) window.Telegram.WebApp.onEvent("viewportChanged", () => { update(); syncViewport(); }); } catch (e) { /* preview */ }
+    try { if (window.Telegram && window.Telegram.WebApp) window.Telegram.WebApp.onEvent("viewportChanged", () => { update(); syncViewport(); }); } catch (e) {  }
 
-    /* r30: Telegram Desktop opens a Mini App in a phone-sized window (≈384×694). On a computer the app asks for
-       the full screen (Bot API 8.0 requestFullscreen) so the two-pane layout fits; a button in the top bar and
-       «Theme and colours → On a computer» switch it, the choice is remembered (S.ui.desk_full). */
     const AUTO_FULL = ["tdesktop", "macos"];
     const tgApp = () => S.tg || (window.Telegram && window.Telegram.WebApp) || null;
     function canFullscreen() {
@@ -150,7 +130,7 @@
       const app = tgApp();
       if (!canFullscreen()) return;
       if (remember) { S.ui.desk_full = !!on; kit.saveUiPrefs(); }
-      try { if (on && !app.isFullscreen) app.requestFullscreen(); else if (!on && app.isFullscreen) app.exitFullscreen(); } catch (e) { /* refused */ }
+      try { if (on && !app.isFullscreen) app.requestFullscreen(); else if (!on && app.isFullscreen) app.exitFullscreen(); } catch (e) {  }
     }
     function drawFullButton() {
       const bar = $("#topbar .topbar-inner");
@@ -179,7 +159,6 @@
       bind: (view) => { const box = $("#desk-full", view); if (box) box.onchange = () => setFullscreen(box.checked); },
     });
 
-    /* Resizable list column (computers and tablets in split view). */
     function mountResizer() {
       const app = $("#app");
       if (!app || $("#pane-resizer")) return;
@@ -198,7 +177,7 @@
         document.removeEventListener("pointermove", move); document.removeEventListener("pointerup", stop);
         root.classList.remove("resizing");
         const width = parseInt(getComputedStyle(root).getPropertyValue("--list-w"), 10);
-        try { if (width) localStorage.setItem("memu_list_w", String(width)); } catch (e) { /* private */ }
+        try { if (width) localStorage.setItem("memu_list_w", String(width)); } catch (e) {  }
       };
       handle.addEventListener("pointerdown", (event) => {
         event.preventDefault();
@@ -206,7 +185,7 @@
         root.classList.add("resizing");
         document.addEventListener("pointermove", move); document.addEventListener("pointerup", stop);
       });
-      handle.addEventListener("dblclick", () => { root.style.removeProperty("--list-w"); try { localStorage.removeItem("memu_list_w"); } catch (e) { /* private */ } });
+      handle.addEventListener("dblclick", () => { root.style.removeProperty("--list-w"); try { localStorage.removeItem("memu_list_w"); } catch (e) {  } });
       handle.addEventListener("keydown", (event) => {
         if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
         const width = (parseInt(getComputedStyle(root).getPropertyValue("--list-w"), 10) || DEFAULT_LIST) + (event.key === "ArrowLeft" ? -20 : 20);
@@ -215,7 +194,6 @@
       handle.tabIndex = 0;
     }
 
-    /* Keyboard shortcuts (computers; harmless elsewhere). */
     const SHORTCUTS = [
       ["Alt+N", "Новый чат", "New chat"],
       ["Ctrl+K", "Поиск (чаты, сессии)", "Search (chats, sessions)"],
@@ -237,8 +215,8 @@
       if (!$("#app") || $("#app").hidden) return;
       const target = event.target;
       if (event.key === "Escape" && !event.defaultPrevented) {
-        if (document.querySelector(".slash-menu:not([hidden])")) return;      // the menu closes itself first
-        // r30: Esc in a composer with text in it does not throw the open chat / session away.
+        if (document.querySelector(".slash-menu:not([hidden])")) return;
+
         if (typing(target) && target.value && !document.querySelector(".sheet.open")) return;
         const sheets = document.querySelectorAll(".sheet.open");
         if (sheets.length || S.stack.length) { event.preventDefault(); kit.goBack(); }
@@ -247,7 +225,7 @@
       const mod = event.ctrlKey || event.metaKey;
       if (mod && !event.shiftKey && !event.altKey && (event.key === "k" || event.key === "K" || event.code === "KeyK")) {
         event.preventDefault();
-        // MemuCode searches its sessions; every other tab — the chats.
+
         const own = { code: "#code-search" }[S.tab];
         if (!own && S.tab !== "chats") kit.switchTab("chats");
         setTimeout(() => { const input = $(own || "#chat-search") || $("#chat-search"); if (input) { input.focus(); input.select(); } }, 60);
@@ -267,8 +245,8 @@
       mountResizer();
       kit.refreshTops();
       drawFullButton();
-      try { const app = tgApp(); if (app && app.onEvent) app.onEvent("fullscreenChanged", () => { drawFullButton(); update(); syncViewport(); }); } catch (e) { /* old */ }
-      // Only the narrow window of the desktop clients; a browser tab (weba/webk) is left as the user sized it.
+      try { const app = tgApp(); if (app && app.onEvent) app.onEvent("fullscreenChanged", () => { drawFullButton(); update(); syncViewport(); }); } catch (e) {  }
+
       if (AUTO_FULL.includes(state.platform) && S.ui.desk_full !== false && state.layout === "stack" && canFullscreen()) setFullscreen(true, false);
     });
     kit.deviceLabel = () => {

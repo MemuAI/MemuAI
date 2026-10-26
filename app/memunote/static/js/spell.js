@@ -1,11 +1,5 @@
-// MemuNote (Round 33, item #9) — built-in spell checking (Russian + English) for the text editor.
-//
-// The page finds the words of the VISIBLE text, asks the backend (/api/spell/check: Hunspell dictionaries shipped
-// with MemuNote, app/memunote/spell.py) about the ones it has not seen yet, and underlines the unknown ones with a
-// red wavy line. Code is ignored: in code files only comments are checked; in Markdown fenced/inline code, links,
-// URLs, HTML and front matter are skipped; everywhere URLs, e-mails, paths, CamelCase, snake_case, words with
-// digits and ALL-CAPS abbreviations are skipped. The word being typed is not flagged until the caret leaves it.
-// Right-click a flagged word → suggestions, "Add to dictionary", "Ignore in this document" (app.js editorMenu).
+
+
 import { CM } from "./editor.js";
 import { api } from "./core.js";
 
@@ -13,7 +7,7 @@ const { Decoration, ViewPlugin, StateEffect, StateField, EditorView, syntaxTree 
 
 const WORD_RE = /[\p{L}\p{M}]+(?:['’\-][\p{L}\p{M}]+)*/gu;
 const SKIP_SPAN_RE = /\b(?:https?:\/\/|www\.|ftp:\/\/|file:\/\/)\S+|[\w.+-]+@[\w-]+\.[\w.-]+|(?:[A-Za-z]:)?[\\/][\w .\\/-]*[\\/][\w.-]*|`[^`\n]*`/g;
-const status = new Map();      // word → true (bad) | false (ok); shared by every editor
+const status = new Map();
 const pending = new Set();
 let flushTimer = 0;
 const listeners = new Set();
@@ -28,13 +22,12 @@ const refresh = StateEffect.define();
 export function wordSkipped(w) {
   if (w.length < 2 || w.length > 48) return true;
   if (/\d|_/.test(w)) return true;
-  if (/^[\p{Lu}\p{M}'’\-]+$/u.test(w) && w.length <= 6) return true;      // NASA, ГОСТ, RU-EN
-  if (/\p{Ll}\p{Lu}/u.test(w)) return true;                                // camelCase / iPhone
-  if (/[\u0400-\u04FF]/.test(w) && /[A-Za-z]/.test(w)) return true;        // mixed scripts: not a word
+  if (/^[\p{Lu}\p{M}'’\-]+$/u.test(w) && w.length <= 6) return true;
+  if (/\p{Ll}\p{Lu}/u.test(w)) return true;
+  if (/[\u0400-\u04FF]/.test(w) && /[A-Za-z]/.test(w)) return true;
   return false;
 }
 
-/** Words of `text` (absolute offset `offset`) that should be spell-checked: [{from, to, word}]. */
 export function tokenize(text, offset = 0) {
   const skips = [];
   SKIP_SPAN_RE.lastIndex = 0;
@@ -46,7 +39,7 @@ export function tokenize(text, offset = 0) {
     const s = m.index, e = s + m[0].length;
     while (si < skips.length && skips[si][1] <= s) si++;
     if (si < skips.length && skips[si][0] < e && skips[si][1] > s) continue;
-    // a "word" glued to digits/underscore/dot-identifiers (file.txt, x2, foo_bar) is not prose
+
     const before = text[s - 1] || "", after = text[e] || "";
     if (/[\w@#$\\/]/.test(before) && !/[\p{L}]/u.test(before) || /[\d_$@]/.test(after)) continue;
     if (after === "." && /[\p{L}]/u.test(text[e + 1] || "")) continue;
@@ -57,7 +50,6 @@ export function tokenize(text, offset = 0) {
   return out;
 }
 
-// ------------------------------------------------------------------ which parts of the document are prose
 const MD_SKIP = new Set(["FencedCode", "CodeBlock", "InlineCode", "URL", "LinkMark", "HTMLBlock", "HTMLTag", "CommentBlock", "Comment",
   "ProcessingInstructionBlock", "LinkReference", "Autolink", "CodeText", "CodeInfo", "Escape", "Entity"]);
 function proseRanges(state, from, to, mode) {
@@ -66,16 +58,16 @@ function proseRanges(state, from, to, mode) {
   if (mode === "markdown") {
     const cuts = [];
     tree.iterate({ from, to, enter: (n) => { if (MD_SKIP.has(n.name)) { cuts.push([n.from, n.to]); return false; } if (n.name === "Image") { cuts.push([n.from, n.to]); return false; } } });
-    // YAML front matter (--- … --- at the very top)
+
     const head = state.sliceDoc(0, Math.min(state.doc.length, 4000));
     const fm = /^---\r?\n[\s\S]*?\r?\n(---|\.\.\.)\s*(\r?\n|$)/.exec(head);
     if (fm) cuts.push([0, fm[0].length]);
-    // link targets [text](url): the url part
+
     const seg = state.sliceDoc(from, to);
     for (const m of seg.matchAll(/\]\(([^)\n]*)\)/g)) cuts.push([from + m.index + 1, from + m.index + m[0].length]);
     return subtract([[from, to]], cuts);
   }
-  // code: comments only (string literals often hold identifiers, SQL, paths…)
+
   const keep = [];
   tree.iterate({ from, to, enter: (n) => { if (/comment/i.test(n.name)) { keep.push([Math.max(from, n.from), Math.min(to, n.to)]); return false; } } });
   return keep;
@@ -95,7 +87,6 @@ function subtract(ranges, cuts) {
   return out;
 }
 
-// ------------------------------------------------------------------ backend batching
 function queue(words) {
   let added = false;
   for (const w of words) if (!status.has(w) && !pending.has(w)) { pending.add(w); added = true; }
@@ -117,10 +108,8 @@ async function flush() {
 export function markKnown(word) { status.set(word, false); for (const fn of listeners) fn(); }
 export function isBad(word) { return status.get(word) === true; }
 
-// ------------------------------------------------------------------ the CodeMirror extension
 const errMark = Decoration.mark({ class: "mn-spell-err" });
 
-/** mode: "text" | "markdown" | "code" */
 export function spellExtension(mode) {
   const plugin = ViewPlugin.fromClass(class {
     constructor(view) {
@@ -167,7 +156,6 @@ export function spellExtension(mode) {
   return [ignoreField, plugin];
 }
 
-/** The flagged word at document position `pos` (or null): {from, to, word}. */
 export function spellWordAt(view, pos) {
   const line = view.state.doc.lineAt(pos);
   for (const w of tokenize(line.text, line.from)) {
@@ -184,5 +172,5 @@ export function ignoreInDoc(view, word) {
   view.dispatch({ effects: setIgnored.of([...cur, word]) });
 }
 export const _test = { tokenize, wordSkipped, subtract };
-/** Start loading the dictionaries in the background (the first load takes a second or two). */
+
 export function warmUp() { api("spell/status").catch(() => {}); }

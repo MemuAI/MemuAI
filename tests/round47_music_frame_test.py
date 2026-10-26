@@ -10,12 +10,10 @@ from tests.round44_music_test import music_browser, module_page
 ROOT=Path(__file__).resolve().parents[1]
 STATIC=ROOT/"app/pgstatic"
 
-
 def host(page, theme, detached, full=True):
     from app.themes import theme_css
     page.add_style_tag(content=theme_css())
-    # Same relevant sheets and order as the real module app document. Previous
-    # tests checked only the iframe against a plain background, omitting this.
+
     for name in ("style.css","modules.css","module-apps.css","module-appbar.css","designs/glass.css"):
         page.add_style_tag(content=(STATIC/name).read_text("utf-8"))
     with page.expect_event("frameattached") as attached:
@@ -34,14 +32,12 @@ def host(page, theme, detached, full=True):
       const data=event.data||{};
       if(data.type==='memu-module' && data.action==='appbar')MemuModuleAppbar.fromModule('music',data.payload);
     })""")
-    # Moving an iframe reloads its browsing context. Re-enter the actual
-    # player after that reload, rather than accepting a blank frame screenshot.
+
     from round37_music_harness import wait
     frame=attached.value
     wait(page,frame,"() => !!(window.MemuMusic && MemuMusic.S.loaded)")
     frame.evaluate("""()=>{const M=MemuMusic;M.Theme.set('motion','off');M.Theme.set('mode','dark');M.Theme.set('npTheme','dark');M.Theme.set('bg','cover');M.Player.playList(M.S.tracks.slice(0,3),M.S.tracks[0].id,'Offline test');M.NP().open();}""")
     assert frame.locator("#np").is_visible()
-
 
 @pytest.mark.parametrize("theme,detached",[("light",True),("dark",True),("light",False),("dark",False)])
 def test_player_has_no_specular_outer_frame_at_window_and_screen_sizes(module_page,theme,detached):
@@ -70,12 +66,10 @@ def test_player_has_no_specular_outer_frame_at_window_and_screen_sizes(module_pa
                 'styles':page.evaluate("""()=>[document.documentElement,document.body,document.querySelector('.module-window'),document.querySelector('.module-window-body'),document.getElementById('f')].map(e=>({tag:e.tagName,rect:e.getBoundingClientRect().toJSON(),bg:getComputedStyle(e).background,filter:getComputedStyle(e).backdropFilter}))"""),
                 'pixel':image.getpixel((image.width-1,125)),
                 'dpr':page.evaluate('devicePixelRatio')}),encoding='utf-8')
-            # Also inspect the final physical pixel, including fractional-DPI
-            # coverage; CSS width-1 alone misses a partially covered column.
+
             for edge,inside in (((image.width-1,125),(image.width-4,125)),((125,image.height-1),(125,image.height-4))):
                 a,b=image.getpixel(edge),image.getpixel(inside)
                 assert max(a)-max(b)<35,(edge,a,b)
-
 
 def test_floating_glass_module_keeps_its_intended_inner_rim(module_page):
     page,_=module_page

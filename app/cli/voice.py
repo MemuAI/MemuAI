@@ -25,11 +25,9 @@ from ..config import DATA_DIR
 
 ALIAS = "memucoderec"
 
-
 def _winmm():
     import ctypes
     return ctypes.windll.winmm
-
 
 def mci(command: str) -> str:
     import ctypes
@@ -41,7 +39,6 @@ def mci(command: str) -> str:
         raise RuntimeError(error.value or f"MCI error {code}")
     return buffer.value
 
-
 def mci_available() -> bool:
     if os.name != "nt":
         return False
@@ -49,7 +46,6 @@ def mci_available() -> bool:
         return int(_winmm().waveInGetNumDevs()) > 0
     except Exception:
         return False
-
 
 class Recorder:
     def __init__(self) -> None:
@@ -105,7 +101,6 @@ class Recorder:
     def seconds(self) -> float:
         return time.monotonic() - self.started if self.active else 0.0
 
-
 def _memuai_url() -> str:
     try:
         data = json.loads((Path(DATA_DIR) / "memuai" / "memuai.json").read_text(encoding="utf-8"))
@@ -116,15 +111,13 @@ def _memuai_url() -> str:
         pass
     return ""
 
-
 def _post_json(url: str, payload: Any, timeout: float) -> Any:
     request = urllib.request.Request(url, data=json.dumps(payload).encode("utf-8"),
                                      headers={"Content-Type": "application/json"}, method="POST")
-    # The URL is always the local MemuAI window (127.0.0.1): never through the env/system proxy.
+
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
     with opener.open(request, timeout=timeout) as response:
         return json.loads(response.read().decode("utf-8"))
-
 
 async def transcribe(audio: bytes, *, model: str = "") -> str:
     if len(audio) < 2000:
@@ -159,7 +152,7 @@ async def transcribe(audio: bytes, *, model: str = "") -> str:
             errors.append(f"API: {exc}")
     import importlib.util
     if importlib.util.find_spec("faster_whisper") is None:
-        # The installed CLI ships without the speech engine: MemuAI has it.
+
         errors.append("local: start MemuAI — local speech recognition runs in the app")
     else:
         try:

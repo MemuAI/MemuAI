@@ -50,23 +50,20 @@ log = logging.getLogger("memufiles.ops")
 MAX_PARALLEL = 2
 CHUNK = 4 * 1024 * 1024
 KINDS = ("copy", "move", "trash", "delete", "rename", "extract", "compress", "undo", "mkdir", "upload", "download",
-         "organize",   # organize: r40-files-max (AI «sort by meaning», _do_organize)
-         "vpaste",     # vpaste: r40-files-core (virtual files on the clipboard: zip folders, Outlook)
+         "organize",
+         "vpaste",
          "arcadd", "write")
 CONFLICT_ACTIONS = ("replace", "skip", "keep_both", "rename", "cancel")
-BYTE_KINDS = ("copy", "move", "extract", "compress", "upload", "download", "vpaste", "arcadd")   # arcadd: r41-files
-HIST_STEP = 0.5            # seconds between speed-graph points
-HIST_LEN = 120             # graph points kept (halved when full, so they always span the whole operation)
-UPLOAD_STALL = 300.0       # an upload the page stopped feeding fails after this many idle seconds
-
+BYTE_KINDS = ("copy", "move", "extract", "compress", "upload", "download", "vpaste", "arcadd")
+HIST_STEP = 0.5
+HIST_LEN = 120
+UPLOAD_STALL = 300.0
 
 class Cancelled(Exception):
     pass
 
-
 class SkipFile(Exception):
     """The user pressed "skip this file": the current file is dropped (its partial copy removed), the rest goes on."""
-
 
 class Operation:
     def __init__(self, kind: str, sources: List[str], dest: str = "", args: Optional[Dict[str, Any]] = None) -> None:
@@ -75,7 +72,7 @@ class Operation:
         self.sources = list(sources)
         self.dest = dest
         self.args = dict(args or {})
-        self.status = "queued"         # queued | scanning | running | paused | conflict | done | error | cancelled
+        self.status = "queued"
         self.created = time.time()
         self.started = 0.0
         self.finished = 0.0
@@ -86,9 +83,9 @@ class Operation:
         self.current = ""
         self.errors: List[Dict[str, str]] = []
         self.conflict: Optional[Dict[str, Any]] = None
-        self.policy: Optional[str] = None          # "for all" answer to conflicts
+        self.policy: Optional[str] = None
         self.undo: List[Tuple[str, ...]] = []
-        self.created_paths: List[str] = []          # top-level results (selected in the page afterwards)
+        self.created_paths: List[str] = []
         self.undone = False
         self.message = ""
         self._run = threading.Event()
@@ -101,16 +98,15 @@ class Operation:
         self.speed = 0.0
         self.skipped: List[str] = []
         self._skip = threading.Event()
-        self.speed_hist: List[List[int]] = []     # [progress ‰, bytes/s]
-        self.cur_size = 0               # the file being written now: its size and how much of it is done
+        self.speed_hist: List[List[int]] = []
+        self.cur_size = 0
         self.cur_done = 0
-        self._t0 = 0.0                  # monotonic start; paused / waiting time is excluded from "elapsed"
+        self._t0 = 0.0
         self._t_end = 0.0
         self._idle = 0.0
         self.upload: Optional[Dict[str, Any]] = None
         self._rev = 0
 
-    # ---------------------------------------------------------------- state
     @property
     def unit(self) -> str:
         return "bytes" if self.kind in BYTE_KINDS and self.total_bytes > 0 else "items"
@@ -135,7 +131,7 @@ class Operation:
 
     def snapshot(self) -> Dict[str, Any]:
         first = self.sources[0] if self.sources else ""
-        self._rev += 1          # the page keeps the newest snapshot (a submit reply can arrive after later events)
+        self._rev += 1
         return {"rev": self._rev, "id": self.id, "kind": self.kind, "status": self.status, "sources": self.sources[:50],
                 "count": len(self.sources), "dest": self.dest, "total_bytes": self.total_bytes,
                 "done_bytes": min(self.done_bytes, self.total_bytes) if self.total_bytes else self.done_bytes,
@@ -146,7 +142,7 @@ class Operation:
                 and self.status in ("done", "cancelled", "error"), "undone": self.undone,
                 "results": self.created_paths[:200], "message": self.message,
                 "label": self.args.get("label") or "",
-                # Round 40: what the bar counts, the speed graph, time left, the current file, skipped files
+
                 "unit": self.unit, "speed_hist": list(self.speed_hist), "eta": self.eta(),
                 "elapsed": round(self.elapsed(), 1), "cur_size": self.cur_size, "cur_done": self.cur_done,
                 "skipped": len(self.skipped), "src_dir": os.path.dirname(first.rstrip("\\/")) if first and
@@ -181,17 +177,17 @@ class Operation:
         mark_t, mark_b = self._speed_mark
         if now - mark_t >= HIST_STEP:
             instant = (self.done_bytes - mark_b) / max(now - mark_t, 1e-3)
-            # smoothed like Explorer: one slow chunk (antivirus, a cache flush) does not swing the time left
+
             self.speed = instant if not self.speed else 0.35 * instant + 0.65 * self.speed
             self._speed_mark = (now, self.done_bytes)
-            # the graph's x axis is the progress of the whole operation (like Explorer), y the speed
+
             done = int(1000 * self.done_bytes / self.total_bytes) if self.total_bytes else 0
             self.speed_hist.append([min(1000, done), int(instant)])
             if len(self.speed_hist) > HIST_LEN:
-                self.speed_hist = self.speed_hist[1::2]          # long operations: half the resolution, same span
+                self.speed_hist = self.speed_hist[1::2]
 
     def start_file(self, path: str, size: int) -> None:
-        self._skip.clear()              # a "skip" pressed as the previous file finished must not hit this one
+        self._skip.clear()
         self.current = path
         self.cur_size = max(0, size)
         self.cur_done = 0
@@ -203,7 +199,6 @@ class Operation:
         self.skipped.append(self.current)
         self.done_items += 1
 
-
 class OpQueue:
     def __init__(self, notify: Optional[Callable[[Dict[str, Any]], None]] = None,
                  changed: Optional[Callable[[List[str]], None]] = None) -> None:
@@ -214,9 +209,8 @@ class OpQueue:
         self.slots = threading.Semaphore(MAX_PARALLEL)
         self.lock = threading.Lock()
         self.undo_stack: List[str] = []
-        self.redo_stack: List[str] = []      # r40-files-2: undone operations Ctrl+Y can do again (Explorer)
+        self.redo_stack: List[str] = []
 
-    # ---------------------------------------------------------------- public
     def submit(self, kind: str, sources: List[str], dest: str = "", **args: Any) -> Operation:
         if kind not in KINDS:
             raise FsError("bad_kind", kind)
@@ -225,7 +219,7 @@ class OpQueue:
             self.ops[op.id] = op
             self.order.append(op.id)
             if kind != "undo" and not args.get("redo_of"):
-                self.redo_stack.clear()          # a new action ends the redo chain, as in Explorer
+                self.redo_stack.clear()
             self._trim()
         self._notify(op, force=True)
         thread = threading.Thread(target=self._worker, args=(op,), name=f"memufiles-op-{op.id}", daemon=True)
@@ -371,7 +365,6 @@ class OpQueue:
             args["pairs"] = [[target.sources[0], os.path.basename(target.created_paths[0])]]
         return self.submit(target.kind, list(target.sources), target.dest, redo_of=target.id, **args)
 
-    # ---------------------------------------------------------------- internals
     def _trim(self) -> None:
         if len(self.order) > 300:
             drop = [i for i in self.order[:-300] if self.ops[i].status in ("done", "error", "cancelled")]
@@ -402,7 +395,7 @@ class OpQueue:
                 pass
 
     def _worker(self, op: Operation) -> None:
-        # an upload is paced by the page (one request per file) and must not wait behind two long copies
+
         with (contextlib.nullcontext() if op.kind == "upload" else self.slots):
             if op._cancel.is_set():
                 op.status = "cancelled"
@@ -438,7 +431,7 @@ class OpQueue:
             op.current = ""
             op.cur_size = op.cur_done = 0
             if op.status == "done" and op.unit == "bytes":
-                op.done_bytes = op.total_bytes          # skipped / merged files: a finished bar is full
+                op.done_bytes = op.total_bytes
             if op.undo and op.kind != "undo":
                 with self.lock:
                     self.undo_stack.append(op.id)
@@ -454,7 +447,6 @@ class OpQueue:
                            [s[2] for s in op.args.get("steps", []) if len(s) > 2 and isinstance(s[2], str)]
             self._changed(touched)
 
-    # ---- helpers
     @staticmethod
     def _scope_check(op: Operation, paths: List[str]) -> None:
         scope = op.args.get("scope")
@@ -512,7 +504,7 @@ class OpQueue:
                                 total_b += os.lstat(os.path.join(root, name)).st_size
                             except OSError:
                                 pass
-                        op.total_bytes, op.total_items = total_b, total_n     # "counting: 12 345 files, 3.4 GB"
+                        op.total_bytes, op.total_items = total_b, total_n
                         self._notify(op)
                     total_n += 1
                 else:
@@ -570,7 +562,7 @@ class OpQueue:
             return None
         src_is_dir = bool(src_info.get("is_dir")) if src_info else os.path.isdir(src)
         if os.path.isdir(dst) and src_is_dir and not os.path.islink(dst):
-            return dst                                       # folders merge
+            return dst
         answer = self._ask(op, src, dst, src_info)
         action = answer.get("action")
         if action == "skip":
@@ -671,7 +663,7 @@ class OpQueue:
                 if target is None:
                     op.done_items += 1
                     continue
-                if new_dir:                       # inside a new folder: its removal undoes everything
+                if new_dir:
                     self._copy_tree(op, child.path, target, [])
                 else:
                     self._copy_tree(op, child.path, target, created)
@@ -698,7 +690,6 @@ class OpQueue:
         if os.path.isdir(src) and fsops.is_inside(os.path.realpath(dest or op.dest), os.path.realpath(src)):
             raise FsError("into_self", src)
 
-    # ---- kinds
     def _do_copy(self, op: Operation) -> None:
         jobs = self._jobs(op)
         for _src, dest in jobs:
@@ -722,7 +713,7 @@ class OpQueue:
             try:
                 self._copy_tree(op, src, target, created)
             finally:
-                op.undo.extend(created)              # a cancelled copy can still be undone (what got copied)
+                op.undo.extend(created)
             if os.path.lexists(target):
                 op.created_paths.append(target)
 
@@ -731,7 +722,7 @@ class OpQueue:
         op.check()
         op.current = src
         if os.path.isdir(dst) and os.path.isdir(src) and not os.path.islink(src):
-            # merge into an existing folder, child by child
+
             with os.scandir(src) as handle:
                 children = list(handle)
             for child in children:
@@ -754,7 +745,7 @@ class OpQueue:
                 os.rename(src, dst)
             size = op.args.get("_sizes", {}).pop(src, 0)
             if size > 0:
-                op.add_bytes(size)                       # counted as a cross-volume copy, turned out to be a rename
+                op.add_bytes(size)
             op.done_items += 1
             op.undo.append(("move_back", dst, src))
             self._tags_moved(src, dst)
@@ -764,7 +755,7 @@ class OpQueue:
             if not cross:
                 raise
         if not any(src == top or fsops.is_inside(src, top) for top in op.args.get("_cross", ())):
-            # predicted a rename (same st_dev) but the OS said "another volume" (junctions, mounted folders)
+
             size, count = self._tree_size(src)
             op.total_bytes += size
             op.total_items += count - 1
@@ -774,7 +765,7 @@ class OpQueue:
             self._copy_tree(op, src, dst, created)
             op.check()
         except Cancelled:
-            # the source is untouched: remove the half copy, or the user finds duplicates of half the files
+
             for step in reversed(created):
                 if step[0] == "trash_created" and os.path.lexists(step[1]):
                     self._remove_tree(step[1])
@@ -784,7 +775,7 @@ class OpQueue:
                 op.undo.append(("move_back", dst, src))
             else:
                 op.undo.extend(created)
-            return                                   # never delete a source that was not fully copied
+            return
         self._remove_tree(src)
         op.undo.append(("move_back", dst, src))
         self._tags_moved(src, dst)
@@ -802,7 +793,7 @@ class OpQueue:
         for _src, dest in jobs:
             if not os.path.isdir(dest):
                 raise FsError("no_destination", dest)
-        # same volume = rename (instant, counted as items); other volume = copy + delete (counted in bytes)
+
         renames = {src for src, dest in jobs if self._same_volume(src, dest)}
         sizes: Dict[str, int] = op.args.setdefault("_sizes", {})
         op.args["_cross"] = [src for src, _ in jobs if src not in renames]
@@ -847,7 +838,7 @@ class OpQueue:
         op.status = "running"
         batch = 24 if trash.IS_WIN else 1
         pending = list(op.sources)
-        split: set = set()                       # items of a failed batch: some of them may already be in the bin
+        split: set = set()
         while pending:
             op.check()
             group, pending = pending[:batch], pending[batch:]
@@ -960,18 +951,18 @@ class OpQueue:
             if os.path.lexists(target) and fsops.norm(target) not in sources:
                 raise FsError("exists", target)
         try:
-            for path, name in pairs:                # phase 1: temp names
+            for path, name in pairs:
                 temp = os.path.join(os.path.dirname(path), f".~mfren-{uuid.uuid4().hex[:8]}")
                 os.rename(path, temp)
                 staged.append((path, temp, os.path.join(os.path.dirname(path), name)))
         except OSError:
-            for path, temp, _target in reversed(staged):   # roll back: nothing is renamed half-way
+            for path, temp, _target in reversed(staged):
                 try:
                     os.rename(temp, path)
                 except OSError:
                     pass
             raise
-        for path, temp, target in staged:           # phase 2: final names
+        for path, temp, target in staged:
             try:
                 os.rename(temp, target)
                 op.undo.append(("move_back", target, path))
@@ -1059,7 +1050,6 @@ class OpQueue:
             op.created_paths.append(path)
             op.done_items += 1
 
-    # ---- archives
     @staticmethod
     def seven_zip() -> str:
         for name in ("7z", "7za", "7zz", "7z.exe"):
@@ -1076,7 +1066,7 @@ class OpQueue:
 
     def _do_extract(self, op: Operation) -> None:
         if op.args.get("members") or op.args.get("strip") or op.args.get("password") or archive_mod.kind_of(op.sources[0]) == "single":
-            return archive_mod.extract(self, op)   # r41-files: chosen members, a browsed sub-folder, a password, .gz/.xz
+            return archive_mod.extract(self, op)
         archive = op.sources[0]
         dest = op.dest
         lower = archive.lower()
@@ -1194,7 +1184,7 @@ class OpQueue:
             raise FsError("extract_failed", err or archive)
         op.done_items = 1
 
-    def _do_arcadd(self, op: Operation) -> None:   # r41-files: files dropped / pasted into an archive opened as a folder
+    def _do_arcadd(self, op: Operation) -> None:
         archive_mod.add(self, op)
 
     def _write_stream(self, op: Operation, reader: Any, target: str, existed: bool, size: int = -1) -> int:
@@ -1229,7 +1219,7 @@ class OpQueue:
 
     def _do_compress(self, op: Operation) -> None:
         if op.args.get("format", "zip") != "zip" or op.args.get("level") or op.args.get("password"):
-            return archive_mod.compress(self, op)   # r41-files: 7z / tar.*, compression level, password
+            return archive_mod.compress(self, op)
         dest = op.dest
         folder = os.path.dirname(dest)
         if os.path.lexists(dest):
@@ -1259,12 +1249,10 @@ class OpQueue:
                             continue
                         try:
                             op.start_file(full, os.path.getsize(full))
-                            # strict_timestamps=False: a file dated before 1980 (copied from old media, touched by
-                            # tools) is stored as 1980-01-01 instead of failing the whole archive with ValueError
+
                             info = zipfile.ZipInfo.from_file(full, rel.replace(os.sep, "/"), strict_timestamps=False)
                             info.compress_type = zipfile.ZIP_DEFLATED
-                            # Zip64 only when the size needs it (zipfile decides from file_size): forced Zip64 headers
-                            # on every small file break some older unzip tools and cost 20 bytes per entry
+
                             with open(full, "rb") as reader, zf.open(info, "w") as writer:
                                 while True:
                                     op.check()
@@ -1288,7 +1276,6 @@ class OpQueue:
         op.undo.append(("trash_created", dest))
         op.created_paths.append(dest)
 
-    # ---- uploads: files the page has only as File objects (no path) — streamed in, one request per file
     @staticmethod
     def _upload_target(dest: str, rel: str) -> Optional[str]:
         parts = [p for p in str(rel).replace("\\", "/").split("/") if p not in ("", ".")]
@@ -1350,7 +1337,7 @@ class OpQueue:
         deadline = time.monotonic() + 10
         while op.kind == "upload" and op.upload is None and op.status in ("queued", "scanning") \
                 and time.monotonic() < deadline:
-            time.sleep(0.02)                         # the worker thread is just starting
+            time.sleep(0.02)
         if op.kind != "upload" or op.upload is None:
             raise FsError("not_ready", op_id)
         items = op.args.get("items") or []
@@ -1455,12 +1442,11 @@ class OpQueue:
             op.upload["cv"].notify_all()
         self._notify(op, force=True)
 
-    # ---- vpaste: files copied out of a zip folder in Explorer / Outlook attachments (clipboard, no paths)
     def _do_vpaste(self, op: Operation) -> None:
         from . import clip
         if not os.path.isdir(op.dest):
             raise FsError("no_destination", op.dest)
-        source = op.args.get("_source")          # tests hand in a fake iterator; normally the Windows clipboard
+        source = op.args.get("_source")
         iterator = source if source is not None else clip.iter_virtual()
         op.status = "running"
         op.total_items = int(op.args.get("count") or 0)
@@ -1492,7 +1478,7 @@ class OpQueue:
             known = int(item.get("size", -1)) >= 0
             size = max(0, int(item.get("size") or 0))
             if not presized:
-                op.total_bytes += size               # no summary: sizes arrive item by item
+                op.total_bytes += size
             op.current = item["rel"]
             resolved = self._target_for(op, "clipboard:" + item["rel"], target,
                                         {"name": os.path.basename(target), "size": size if known else None,
@@ -1523,7 +1509,6 @@ class OpQueue:
             op.done_items += 1
         op.total_items = max(op.total_items, op.done_items)
 
-    # ---- download: a link dropped from a browser
     def _do_download(self, op: Operation) -> None:
         import urllib.parse
         import urllib.request
@@ -1556,7 +1541,6 @@ class OpQueue:
         op.created_paths.append(target)
         op.done_items = 1
 
-    # ---- undo
     def _do_undo(self, op: Operation) -> None:
         steps = op.args.get("steps") or []
         op.total_items = len(steps)
@@ -1595,7 +1579,7 @@ class OpQueue:
                         atomic_write(step[1], step[2])
                 elif kind == "mkdir":
                     os.makedirs(step[1], exist_ok=True)
-                elif kind == "rmdir_empty":           # r40-files-max: a folder «organize» created
+                elif kind == "rmdir_empty":
                     try:
                         os.rmdir(step[1])
                     except OSError:
@@ -1604,7 +1588,6 @@ class OpQueue:
                 op.created_paths.append(step[2] if kind == "move_back" else step[1])
             except Exception as exc:  # noqa: BLE001
                 op.errors.append({"path": str(step[1] if len(step) > 1 else ""), "error": str(exc)[:200]})
-
 
 def _download_name(url: str, headers: Any) -> str:
     """A safe file name for a download: Content-Disposition, else the URL's last segment (+ an extension from the

@@ -1,11 +1,11 @@
-/* MemuCode shell: дерево проекта, правая панель, терминал, артефакты, палитра.
-   Сам разговор остаётся в центре. Work сохраняет свою полосу #workbar. */
+
+
 "use strict";
 
 const MemuCode = (() => {
   const store = {
     get(key, fallback) { try { const v = localStorage.getItem(key); return v === null ? fallback : v; } catch (e) { return fallback; } },
-    set(key, value) { try { localStorage.setItem(key, String(value)); } catch (e) { /* хранилище недоступно */ } },
+    set(key, value) { try { localStorage.setItem(key, String(value)); } catch (e) {  } },
   };
   const clamp = (value, low, high) => Math.min(high, Math.max(low, value));
   const TAB_IDS = ["file", "diff", "artifact", "terminal", "tasks", "changes", "skills"];
@@ -33,9 +33,7 @@ const MemuCode = (() => {
     palette: [],
     paletteIndex: 0,
     explorerHidden: store.get("memu_code_tree_hidden", "0") === "1",
-    // Правая панель помнит два состояния: колонку широкого окна (сохраняется) и
-    // ящик узкого окна (≤980 px), который поверх чата и ввода, поэтому каждый раз
-    // стартует закрытым и не трогает выбор, сделанный в широком окне.
+
     dockWideHidden: store.get("memu_code_dock_hidden", "0") === "1",
     dockNarrowHidden: true,
     get dockHidden() { return narrow() ? this.dockNarrowHidden : this.dockWideHidden; },
@@ -48,8 +46,8 @@ const MemuCode = (() => {
     termHistory: (() => { try { return JSON.parse(store.get("memu_code_term_history", "[]")) || []; } catch (e) { return []; } })(),
     termIndex: -1,
     focusPath: "",
-    edit: null,          // { path, hash, eol, encoding, text, conflict } while the editor is open
-    editor: null,        // the MemuCodeEditor instance on screen
+    edit: null,
+    editor: null,
     dockExpanded: store.get("memu_code_dock_expanded", "0") === "1",
   };
 
@@ -61,8 +59,6 @@ const MemuCode = (() => {
   const activeProject = () => ((S.workspaces && S.workspaces.items) || []).find((item) => item.id === projectId());
   const modalOpen = () => !!document.getElementById("panel-back")?.classList.contains("visible");
   const narrow = () => window.matchMedia("(max-width: 980px)").matches;
-
-  /* ------------------------------------ иконки ------------------------------- */
 
   const ICONS = {
     terminal: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="m7 9 3 3-3 3M13 15h4"/>',
@@ -120,8 +116,6 @@ const MemuCode = (() => {
     return `<span class="cx-icon" style="--c:${FILE_COLORS[ext] || "var(--muted)"}">${svg("file")}</span>`;
   }
 
-  /* ------------------------------------ виды --------------------------------- */
-
   function loadingView(lines = 6) {
     return `<div class="cd-loading" aria-busy="true" aria-label="${esc(t("Загрузка", "Loading"))}">${"<i></i>".repeat(lines)}</div>`;
   }
@@ -135,7 +129,6 @@ const MemuCode = (() => {
   }
   function dockBody() { return document.getElementById("code-dock-body"); }
 
-  /* Вопрос с полем ввода в окне MemuAI вместо системного window.prompt. */
   function askValue(title, text, value, action) {
     return new Promise((resolve) => {
       if (typeof panel !== "function") return resolve(window.prompt(title, value || ""));
@@ -162,8 +155,6 @@ const MemuCode = (() => {
     return await askConfirm(title, text, action);
   }
 
-  /* ------------------------------------ скиллы для промпта ------------------- */
-
   function skillState() {
     const all = pref("code_skill_state", {}) || {};
     const key = projectId() || "_";
@@ -187,8 +178,6 @@ const MemuCode = (() => {
   async function post(path, body) {
     return api(path, { method: "POST", body: body || {} });
   }
-
-  /* ------------------------------ раскладка и панели ------------------------- */
 
   function treeSplit() {
     let split = document.getElementById("code-tree-split");
@@ -228,8 +217,7 @@ const MemuCode = (() => {
     if (code) {
       if (explorer.parentElement !== top) top.insertBefore(explorer, scroll);
       if (split.parentElement !== top) top.insertBefore(split, scroll);
-      // Дерево никогда не пропадает целиком: свёрнутое оно остаётся строкой
-      // заголовка, из которой его можно вернуть.
+
       explorer.hidden = false;
       split.hidden = !!state.explorerHidden;
     } else {
@@ -318,7 +306,7 @@ const MemuCode = (() => {
     state.explorerHidden = !!hidden;
     store.set("memu_code_tree_hidden", state.explorerHidden ? "1" : "0");
     if (!state.explorerHidden) {
-      // Дерево живёт в боковой колонке: если она спрятана, её тоже открываем.
+
       const side = document.querySelector(".side");
       if (side && side.classList.contains("hidden") && typeof toggleSidebar === "function") toggleSidebar(true);
       if (side && window.innerWidth <= 800) side.classList.add("open");
@@ -386,8 +374,6 @@ const MemuCode = (() => {
     fillIcons(document.getElementById("codebar"));
   }
 
-  /* ------------------------------ состояние песочницы ------------------------ */
-
   let metaBusy = false;
   async function refreshMeta() {
     if (S.mode !== "code" || !projectId() || metaBusy) return;
@@ -401,7 +387,7 @@ const MemuCode = (() => {
           node.textContent = saved ? t(`кэш −${saved.toLocaleString("ru-RU")}`, `cache −${saved.toLocaleString("en-US")}`) : "";
           node.title = t("Столько символов повторных чтений не ушло в контекст", "Characters of repeated reads kept out of the context");
         }
-      } catch (e) { /* проекта ещё нет */ }
+      } catch (e) {  }
       try {
         const sandbox = await post("/api/code/sandbox", { session: session() });
         const node = document.getElementById("code-sandbox-state");
@@ -421,13 +407,11 @@ const MemuCode = (() => {
           updateBadges();
           if (state.tab === "tasks" && !state.dockHidden) renderTasks();
         }
-      } catch (e) { /* статус песочницы — справочный */ }
+      } catch (e) {  }
     } finally {
       metaBusy = false;
     }
   }
-
-  /* ------------------------------------ дерево ------------------------------- */
 
   async function refreshTree() {
     const root = document.getElementById("code-tree");
@@ -435,14 +419,12 @@ const MemuCode = (() => {
       state.tree = [];
       state.git = {};
       state.branch = "";
-      // «Без проекта» — тоже проект для sync(): иначе первый выбранный проект
-      // не считался сменой, и правая панель оставалась «Проект не выбран».
+
       state.treeFor = "";
       renderTree();
       return;
     }
-    // Уже грузим — запоминаем, что нужен ещё один проход: проект могли
-    // сменить посреди загрузки, и старый ответ не должен остаться на экране.
+
     if (state.loadingTree) { state.treeAgain = true; return; }
     state.loadingTree = true;
     const pid = projectId();
@@ -473,8 +455,6 @@ const MemuCode = (() => {
     }
   }
 
-  /* Всё, что относится к проекту: дерево, git, навыки, открытый файл и
-     редактор. Вызывается при любой смене проекта, откуда бы она ни пришла. */
   function resetProjectState() {
     state.loaded = false;
     state.tree = [];
@@ -490,7 +470,7 @@ const MemuCode = (() => {
     state.changesCount = 0;
     state.treeFor = projectId();
   }
-  /* Всё, что относится к сессии (чату): откат, артефакты, терминал, задачи. */
+
   function resetSessionState() {
     state.artifact = null;
     state.artifacts = [];
@@ -599,7 +579,7 @@ const MemuCode = (() => {
       branch.title = state.branch ? t(`Ветка git: ${state.branch}`, `Git branch: ${state.branch}`) : "";
     }
     if (state.collapseFor !== projectId()) {
-      // Для нового проекта глубокие папки сначала свёрнуты.
+
       state.collapsed = new Set();
       state.tree.forEach((rel) => {
         const parts = String(rel).split("/");
@@ -716,21 +696,16 @@ const MemuCode = (() => {
     if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done).catch(() => {});
   }
 
-  /* ------------------------------------- файл -------------------------------- */
-
-  // Подсветка — общим токенизатором (syntax.js): он помнит состояние между
-  // строками, поэтому многострочные комментарии, строки и <script>/<style>
-  // внутри HTML красятся правильно, как в VS Code.
   function highlightLines(lines, path) {
     if (window.MemuSyntax) {
-      try { return MemuSyntax.highlight(lines.join("\n"), path); } catch (error) { /* ниже — без подсветки */ }
+      try { return MemuSyntax.highlight(lines.join("\n"), path); } catch (error) {  }
     }
     return lines.map((line) => esc(line));
   }
 
   function highlightRow(text, path) {
     if (window.MemuSyntax) {
-      try { return MemuSyntax.highlightLine(text, path); } catch (error) { /* без подсветки */ }
+      try { return MemuSyntax.highlightLine(text, path); } catch (error) {  }
     }
     return esc(text);
   }
@@ -742,8 +717,7 @@ const MemuCode = (() => {
     selectTab("file", false);
     const body = dockBody();
     if (body) body.innerHTML = loadingView(10);
-    // Быстрые клики A → B: показываем последний запрошенный файл, а не тот,
-    // чей ответ пришёл позже.
+
     const seq = (state.fileSeq = (state.fileSeq || 0) + 1);
     try {
       const data = await post("/api/code/file", { project_id: projectId(), path, start_line: start, end_line: start + 399 });
@@ -811,8 +785,6 @@ const MemuCode = (() => {
     if (hitRow) hitRow.scrollIntoView({ block: "center" });
   }
 
-  /* ------------------------------------ редактор ----------------------------- */
-
   async function startEdit(path, line) {
     if (!path) return;
     if (state.edit && state.edit.path === path) {
@@ -878,12 +850,11 @@ const MemuCode = (() => {
       onSave: saveEdit,
       onChange: (dirty) => markEditorState(dirty),
     });
-    // The saved baseline is the file as loaded, not the text restored from a tab switch.
+
     state.editor.markSaved(edit.original);
     markEditorState(editorDirty());
     if (edit.line) {
-      // create() ставит курсор в начало на следующем кадре — переходим к
-      // строке после него, иначе «открыть на строке N» открывало строку 1.
+
       const target = edit.line, editor = state.editor;
       edit.line = 0;
       requestAnimationFrame(() => requestAnimationFrame(() => { if (state.editor === editor) editor.goToLine(target); }));
@@ -900,7 +871,7 @@ const MemuCode = (() => {
         const data = await post("/api/code/source", { project_id: projectId(), path: edit.path });
         Object.assign(edit, { hash: data.hash, eol: data.eol, encoding: data.encoding, original: data.text, conflict: null });
         edit.text = data.text;
-        state.editor = null; // otherwise renderEditor() would keep the old text
+        state.editor = null;
         renderEditor();
         toast(t("Загружена версия с диска", "Loaded the version from disk"));
       } catch (error) { toast(error.message, "err"); }
@@ -954,12 +925,11 @@ const MemuCode = (() => {
     }
   }
 
-  /* An agent tool touched the file being edited. */
   function onEditedFileChanged() {
     const edit = state.edit;
     if (!edit) return;
     if (!editorDirty()) {
-      // Nothing to lose: follow the new version quietly.
+
       post("/api/code/source", { project_id: projectId(), path: edit.path }).then((data) => {
         Object.assign(edit, { hash: data.hash, eol: data.eol, encoding: data.encoding, original: data.text, text: data.text });
         state.editor = null;
@@ -976,7 +946,7 @@ const MemuCode = (() => {
     store.set("memu_code_dock_expanded", state.dockExpanded ? "1" : "0");
     const dock = document.getElementById("code-dock");
     if (dock) dock.classList.toggle("expanded", state.dockExpanded);
-    document.body.classList.toggle("code-dock-expanded", state.dockExpanded);   // r36: класс вместо body:has(#code-dock.expanded)
+    document.body.classList.toggle("code-dock-expanded", state.dockExpanded);
     const button = document.getElementById("code-dock-expand");
     if (button) {
       button.innerHTML = svg(state.dockExpanded ? "shrink" : "expand");
@@ -987,8 +957,6 @@ const MemuCode = (() => {
       button.setAttribute("aria-pressed", String(state.dockExpanded));
     }
   }
-
-  /* ------------------------------------ вкладки ------------------------------ */
 
   const TABS = [
     ["file", "file", "Файл", "File"],
@@ -1050,8 +1018,6 @@ const MemuCode = (() => {
     if (tab === "skills") return renderSkills();
   }
 
-  /* ----------------------------------- изменения ----------------------------- */
-
   async function loadDiff(focusPath) {
     const body = dockBody();
     if (!body || state.tab !== "diff") return;
@@ -1085,12 +1051,10 @@ const MemuCode = (() => {
     let file = null;
     let oldLine = 0;
     let newLine = 0;
-    // Сколько строк ещё осталось в открытом блоке @@: пока он не закончился,
-    // «--- x» и «+++ x» — это удалённая/добавленная строка («-- комментарий»
-    // в SQL), а не заголовок файла.
+
     let oldLeft = 0;
     let newLeft = 0;
-    // Кавычки git в стиле C: \321\204 — байты UTF-8, \t, \", \\.
+
     const unquote = (value) => {
       const text = String(value || "");
       if (!text.startsWith('"')) return text;
@@ -1113,7 +1077,7 @@ const MemuCode = (() => {
     String(text || "").split(/\r?\n/).forEach((line) => {
       const inHunk = oldLeft > 0 || newLeft > 0;
       if (!inHunk && line.startsWith("diff --git ")) {
-        // Путь с кавычками ("b/…") — когда в имени есть спецсимволы.
+
         const quoted = line.lastIndexOf(' "b/');
         const plain = line.lastIndexOf(" b/");
         start(quoted >= 0 ? unquote('"' + line.slice(quoted + 4))
@@ -1185,7 +1149,7 @@ const MemuCode = (() => {
         index += 1;
         continue;
       }
-      // Блок удалений и следующий за ним блок добавлений идут парами.
+
       const dels = [];
       const adds = [];
       while (index < rows.length && rows[index].kind === "del") dels.push(rows[index++]);
@@ -1262,8 +1226,6 @@ const MemuCode = (() => {
     document.getElementById("code-diff-refresh")?.addEventListener("click", () => loadDiff());
     document.getElementById("code-diff-copy")?.addEventListener("click", () => copyValue(state.diffText || ""));
   }
-
-  /* ----------------------------------- артефакты ----------------------------- */
 
   function previewDocument(kind, content) {
     const csp = `<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data: blob:; style-src 'unsafe-inline'; font-src data:; script-src 'unsafe-inline';">`;
@@ -1379,8 +1341,6 @@ const MemuCode = (() => {
     } catch (error) { toast(error.message, "err"); }
   }
 
-  /* ------------------------------------ терминал ----------------------------- */
-
   function colorTerminal(text) {
     return String(text || "").split("\n").map((line) => {
       if (/^\$ /.test(line)) return `<span class="t-cmd">${esc(line)}</span>`;
@@ -1461,10 +1421,8 @@ const MemuCode = (() => {
     try {
       const data = await post("/api/code/terminal", { project_id: projectId(), session: session(), action: "read" });
       if (!state.termCleared) setTerminal(data.scrollback || "");
-    } catch (e) { /* без проекта терминал пуст */ }
+    } catch (e) {  }
   }
-
-  /* ------------------------------------- задачи ------------------------------ */
 
   function renderTasks() {
     const body = dockBody();
@@ -1503,8 +1461,6 @@ const MemuCode = (() => {
       };
     });
   }
-
-  /* -------------------------------------- откат ------------------------------ */
 
   async function countChanges() {
     if (!session()) { state.changesCount = 0; updateBadges(); return []; }
@@ -1575,8 +1531,6 @@ const MemuCode = (() => {
       rollback(paths);
     });
   }
-
-  /* ------------------------------------- скиллы ------------------------------ */
 
   async function loadSkills(force) {
     if ((!state.skills.length || force) && projectId()) {
@@ -1649,8 +1603,6 @@ const MemuCode = (() => {
       refreshMeta();
     } catch (error) { toast(error.message, "err"); }
   }
-
-  /* ------------------------------------- палитра ----------------------------- */
 
   function actionItems() {
     return [
@@ -1778,8 +1730,6 @@ const MemuCode = (() => {
     if (typeof handleCommand === "function") handleCommand(item.run);
   }
 
-  /* ------------------------------------ жизненный цикл ----------------------- */
-
   function focusTerminal() {
     if (state.dockHidden) setDockHidden(false);
     selectTab("terminal");
@@ -1801,8 +1751,7 @@ const MemuCode = (() => {
     fillChrome();
     fillIcons(document.getElementById("code-explorer"));
     fillIcons(document.getElementById("code-dock"));
-    // Проект меняется не только списком в шапке: «+» в панели, выбор папки,
-    // открытие чата другого проекта. Раньше дерево и навыки оставались старыми.
+
     if (state.treeFor !== undefined && state.treeFor !== projectId()) {
       if (editorDirty()) toast(t("Несохранённые правки в редакторе закрыты вместе с проектом", "Unsaved editor changes were closed with the project"), "warn");
       resetProjectState();
@@ -1811,7 +1760,7 @@ const MemuCode = (() => {
       return;
     }
     if (state.sessionFor !== undefined && state.sessionFor !== session()) {
-      // Другой чат — другая сессия: откат, артефакты и терминал свои.
+
       resetSessionState();
       renderDock();
       countChanges();
@@ -1836,8 +1785,7 @@ const MemuCode = (() => {
     }
     if (name === "code_read_cached" || name === "code_context" || result?.saved_chars) refreshMeta();
     if (state.tab === "terminal" && /^code_terminal/.test(name) && result?.scrollback !== undefined) {
-      // Полная история терминала — только из его собственного ответа. Вывод
-      // одиночного code_run больше не затирает всю прокрутку.
+
       setTerminal(result.scrollback);
     }
     const touched = [result?.path, result?.from, result?.to].filter(Boolean);
@@ -1860,7 +1808,7 @@ const MemuCode = (() => {
     document.getElementById("code-dock-close")?.addEventListener("click", () => setDockHidden(true));
     document.getElementById("code-dock-expand")?.addEventListener("click", () => setDockExpanded(!state.dockExpanded));
     setDockExpanded(state.dockExpanded);
-    // Unsaved hand edits must not vanish with the window.
+
     window.addEventListener("beforeunload", (event) => { if (editorDirty()) { event.preventDefault(); event.returnValue = ""; } });
     document.getElementById("code-dock-backdrop")?.addEventListener("click", () => setDockHidden(true));
     document.getElementById("code-tree-collapse")?.addEventListener("click", () => setExplorerHidden(!state.explorerHidden));
@@ -1908,7 +1856,7 @@ const MemuCode = (() => {
     document.getElementById("code-project")?.addEventListener("change", async (event) => {
       if (!event.target.value) return;
       if (typeof canChangeConversation === "function" && !canChangeConversation()) { fillChrome(); return; }
-      // Несохранённый файл старого проекта не должен «сохраниться» в новый.
+
       if (!(await leaveEditor())) { fillChrome(); return; }
       try {
         const data = await api("/api/work/projects/select", { method: "POST", body: { id: event.target.value } });
@@ -1935,8 +1883,7 @@ const MemuCode = (() => {
     document.addEventListener("keydown", (event) => {
       if (!document.body.classList.contains("code-mode") || modalOpen()) return;
       const ctrl = event.ctrlKey || event.metaKey;
-      // Коды клавиш, а не символы: сочетания работают и в русской раскладке.
-      // Round 29: сочетания берутся из реестра hotkeys.js (их можно переназначить).
+
       const HK = window.MemuHotkeys;
       const hit = (id, legacy) => (HK ? HK.match(id, event) : legacy);
       const commands = hit("code_commands", ctrl && !event.altKey && event.shiftKey && event.code === "KeyP");
@@ -1961,8 +1908,7 @@ const MemuCode = (() => {
       }
     });
     window.addEventListener("resize", () => { if (S.mode === "code") setDockWidth(state.dockWidth); });
-    // Переход через 980 px: в узкое окно ящик приходит закрытым, в широкое —
-    // возвращается сохранённое состояние колонки.
+
     window.matchMedia("(max-width: 980px)").addEventListener("change", (event) => {
       if (event.matches) state.dockNarrowHidden = true;
       if (S.mode !== "code") return;
@@ -1975,6 +1921,6 @@ const MemuCode = (() => {
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bind, { once: true });
   else bind();
   return { activate, sync, onToolResult, openSkills, openPalette, refreshTree, setExplorerHidden, setDockHidden, selectTab,
-    openFile };  // Round 29: the global search opens a found project file at its line
+    openFile };
 })();
 window.MemuCode = MemuCode;

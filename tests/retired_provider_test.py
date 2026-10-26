@@ -10,7 +10,6 @@ from unittest.mock import patch
 from app import config, providers, state as state_module
 from app.state import Account, ModelEntry, State
 
-
 class RetiredProviderTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
@@ -117,7 +116,6 @@ class RetiredProviderTests(unittest.TestCase):
                 self.assertEqual(client.post("/api/admin/accounts/retired-account/check").status_code, 404)
             finally:
                 client.close()
-
 
 if __name__ == "__main__":
     unittest.main()

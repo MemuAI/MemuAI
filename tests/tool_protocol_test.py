@@ -16,7 +16,6 @@ from app.responses_api import _messages as responses_messages
 from app.state import Account, state
 from tests.protocol_contract_test import make_request
 
-
 def tool_chunks(*_args, **_kwargs):
     async def generate():
         yield {"id": "chat-1", "choices": [{"delta": {"tool_calls": [{
@@ -29,7 +28,6 @@ def tool_chunks(*_args, **_kwargs):
         yield {"id": "chat-1", "choices": [{"delta": {}, "finish_reason": "tool_calls"}],
                "usage": {"prompt_tokens": 4, "completion_tokens": 7, "total_tokens": 11}}
     return generate()
-
 
 class ToolProtocolTests(unittest.TestCase):
     def test_codex_image_data_url_reaches_custom_chat_message(self):
@@ -244,7 +242,6 @@ class ToolProtocolTests(unittest.TestCase):
         chunks = asyncio.run(run())
         self.assertEqual(chunks[0]["choices"][0]["delta"]["tool_calls"][0]["id"], "call_1")
         self.assertEqual(chunks[-1]["choices"][0]["finish_reason"], "tool_calls")
-
 
 if __name__ == "__main__":
     unittest.main()

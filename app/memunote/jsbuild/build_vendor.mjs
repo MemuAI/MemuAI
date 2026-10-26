@@ -1,5 +1,5 @@
-// node build_vendor.mjs <node_modules parent> [--only pdflib] — rebuilds static/vendor (cm bundle + pdf.js copy
-// + pdf-lib bundle). --only pdflib rebuilds just the PDF editing bundle (Round 31).
+
+
 import { createRequire } from "node:module";
 import { cpSync, mkdirSync, rmSync } from "node:fs";
 import path from "node:path";
@@ -18,7 +18,7 @@ rmSync(path.join(out, "cm"), { recursive: true, force: true });
 await build({ entryPoints: { cm: path.join(here, "cm-entry.mjs") }, bundle: true, splitting: true, format: "esm",
   minify: true, target: ["chrome110"], outdir: path.join(out, "cm"), nodePaths: [modules], legalComments: "linked",
   chunkNames: "c-[hash]" });
-// pdfjs/polyfills.mjs and pdfjs/pdf.worker.compat.mjs are hand-written (Round 34, older WebView2) — only copy over them.
+
 mkdirSync(path.join(out, "pdfjs"), { recursive: true });
 for (const f of ["pdf.min.mjs", "pdf.worker.min.mjs"]) cpSync(path.join(modules, "pdfjs-dist/build", f), path.join(out, "pdfjs", f));
 cpSync(path.join(modules, "pdfjs-dist/LICENSE"), path.join(out, "pdfjs", "LICENSE"));

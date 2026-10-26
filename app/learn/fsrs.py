@@ -22,15 +22,13 @@ DEFAULT_PARAMETERS: Tuple[float, ...] = (
     1.01925, 1.9395, 0.11, 0.29605, 2.2698, 0.2315, 2.9898, 0.51655, 0.6621,
 )
 DECAY = -0.5
-FACTOR = 0.9 ** (1 / DECAY) - 1          # 19/81
+FACTOR = 0.9 ** (1 / DECAY) - 1
 DAY = 86400.0
 FUZZ_RANGES = ((2.5, 7.0, 0.15), (7.0, 20.0, 0.1), (20.0, math.inf, 0.05))
 
-# Card states and ratings — the numbers are the reference ones (and Anki's ease buttons 1..4).
 NEW, LEARNING, REVIEW, RELEARNING = 0, 1, 2, 3
 AGAIN, HARD, GOOD, EASY = 1, 2, 3, 4
 RATINGS = (AGAIN, HARD, GOOD, EASY)
-
 
 @dataclass
 class CardState:
@@ -57,12 +55,11 @@ class CardState:
                    stability=num("stability"), difficulty=num("difficulty"), due=float(row.get("due") or 0.0),
                    last_review=num("last_review"), reps=int(row.get("reps") or 0), lapses=int(row.get("lapses") or 0))
 
-
 @dataclass
 class Scheduler:
     parameters: Sequence[float] = DEFAULT_PARAMETERS
     desired_retention: float = 0.9
-    learning_steps: Sequence[float] = (60.0, 600.0)        # seconds
+    learning_steps: Sequence[float] = (60.0, 600.0)
     relearning_steps: Sequence[float] = (600.0,)
     maximum_interval: int = 36500
     enable_fuzzing: bool = True
@@ -77,7 +74,6 @@ class Scheduler:
         self.learning_steps = tuple(float(s) for s in self.learning_steps)
         self.relearning_steps = tuple(float(s) for s in self.relearning_steps)
 
-    # ----------------------------------------------------------------------------- formulas
     @staticmethod
     def retrievability(stability: Optional[float], elapsed_days: float) -> float:
         if not stability:
@@ -128,7 +124,6 @@ class Scheduler:
         fuzzed = random.Random(seed).random() * (hi - lo + 1) + lo
         return int(min(round(fuzzed), self.maximum_interval))
 
-    # ----------------------------------------------------------------------------- review
     def review(self, card: CardState, rating: int, now: float, seed: str = "") -> Tuple[CardState, float]:
         """Return ``(new_state, interval_seconds)``. ``card`` is not modified."""
         if rating not in RATINGS:
@@ -169,10 +164,10 @@ class Scheduler:
             elif rating == GOOD and step + 1 < len(steps):
                 c.step = step + 1
                 interval = steps[c.step]
-            else:                                          # Good on the last step, or Easy
+            else:
                 c.state, c.step = REVIEW, None
                 interval = self.next_interval(c.stability) * DAY
-        else:                                              # REVIEW
+        else:
             if rating == AGAIN:
                 c.lapses += 1
                 if self.relearning_steps:
@@ -193,7 +188,6 @@ class Scheduler:
     def preview(self, card: CardState, now: float, seed: str = "") -> Dict[int, float]:
         """Interval in seconds for each rating — the hint on the four buttons."""
         return {rating: self.review(card, rating, now, seed)[1] for rating in RATINGS}
-
 
 def format_interval(seconds: float, lang: str = "ru") -> str:
     """«<1 мин», «10 мин», «3 ч», «4 д», «2,1 мес», «1,3 г» (en: «<1m», «10m», «3h», «4d», «2.1mo», «1.3y»)."""

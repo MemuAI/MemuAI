@@ -29,7 +29,6 @@ from app import mcp_client, mcp_hub  # noqa: E402
 FIXTURE = str(ROOT / "tests" / "fixtures" / "mcp_echo_server.py")
 TOKEN = "tok_super_secret_123456"
 
-
 @pytest.fixture(autouse=True)
 def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(mcp_client, "CONFIG_PATH", tmp_path / "mcp.json")
@@ -39,10 +38,8 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(mcp_client, "registry", mcp_client.MCPRegistry())
     yield tmp_path
 
-
 def run(coro):
     return asyncio.run(coro)
-
 
 def add_echo(name="echo", **extra):
     servers = mcp_hub._raw_servers()
@@ -51,9 +48,6 @@ def add_echo(name="echo", **extra):
     if extra.get("env") is None:
         mcp_hub.update(name, {"env": {"ECHO_TOKEN": TOKEN}})
 
-
-# --------------------------------------------------------------------------- config & secrets
-
 def test_config_keeps_transport_and_hub_fields_and_old_panel_does_not_wipe_them(sandbox):
     mcp_hub._write_servers({"remote": {"type": "sse", "url": "http://127.0.0.1:1/sse", "headers": {"X": "1"},
                                        "read_only": True, "chat": True, "agents": ["meme-1"], "confirm": "always"},
@@ -61,13 +55,12 @@ def test_config_keeps_transport_and_hub_fields_and_old_panel_does_not_wipe_them(
     cfg = mcp_client.load_config()["servers"]
     assert cfg["remote"]["type"] == "sse" and cfg["remote"]["read_only"] and cfg["remote"]["agents"] == ["meme-1"]
     assert cfg["local"]["type"] == "stdio" and cfg["local"]["confirm"] == "write" and not cfg["local"]["chat"]
-    # the MemuCode «/mcp» panel posts rows that know only command/args/enabled/description
+
     mcp_client.save_config({"servers": {"remote": {"command": "", "args": [], "enabled": False, "description": ""},
                                         "local": {"command": "uvx", "args": ["mcp-server-time"], "enabled": True}}})
     cfg = mcp_client.load_config()["servers"]
     assert cfg["remote"]["url"] and cfg["remote"]["read_only"] and cfg["remote"]["confirm"] == "always"
     assert cfg["remote"]["enabled"] is False
-
 
 def test_catalog_install_keeps_secrets_out_of_mcp_json(sandbox):
     name = mcp_hub.install("postgres", {"DATABASE_URI": "postgresql://u:pa55word@db:5432/x"}, read_only=True)
@@ -76,7 +69,7 @@ def test_catalog_install_keeps_secrets_out_of_mcp_json(sandbox):
     spec = mcp_client.load_config()["servers"][name]
     assert spec["args"] == ["postgres-mcp", "--access-mode=restricted"] and spec["read_only"]
     assert mcp_client.resolve_secrets(spec["env"])["DATABASE_URI"].endswith("@db:5432/x")
-    # write mode, a second copy gets a free name
+
     other = mcp_hub.install("postgres", {"DATABASE_URI": "postgresql://a@b/c"}, read_only=False)
     assert other == "postgres-2" and "--access-mode=unrestricted" in mcp_client.load_config()["servers"][other]["args"]
     ha = mcp_hub.install("homeassistant", {"HA_URL": "http://ha.local:8123/", "HA_TOKEN": "eyJhbGciOiJIUzI1NiJ9.x"})
@@ -85,13 +78,12 @@ def test_catalog_install_keeps_secrets_out_of_mcp_json(sandbox):
     assert "eyJ" not in (sandbox / "mcp.json").read_text("utf-8")
     assert mcp_client.resolve_secrets(spec["headers"])["Authorization"] == "Bearer eyJhbGciOiJIUzI1NiJ9.x"
     with pytest.raises(mcp_hub.HubError):
-        mcp_hub.install("jira", {"JIRA_URL": "https://x.atlassian.net"})          # required token missing
+        mcp_hub.install("jira", {"JIRA_URL": "https://x.atlassian.net"})
     rows = mcp_hub.public_rows()
     assert all(not e["value"] for r in rows for e in r["env"] if e["secret"])
     assert "pa55word" not in json.dumps(rows) and "eyJ" not in json.dumps(rows)
     mcp_hub.remove(name)
     assert mcp_hub.secret_value("mcp/postgres/DATABASE_URI") == ""
-
 
 def test_catalog_entries_are_complete():
     ids = {c["id"] for c in mcp_hub.CATALOG}
@@ -103,16 +95,12 @@ def test_catalog_entries_are_complete():
         for f in c.get("fields", []):
             assert f["ru"] and f["en"] and f["target"] in ("env", "arg", "header", "url")
 
-
 def test_plain_tokens_from_the_old_panel_are_migrated(sandbox):
     mcp_hub._write_servers({"gh": {"command": "npx", "args": ["x"], "env": {"GITHUB_TOKEN": "ghp_plain_value_1", "LEVEL": "3"}}})
     assert mcp_hub.migrate_plain_secrets() == 1
     raw = (sandbox / "mcp.json").read_text("utf-8")
     assert "ghp_plain_value_1" not in raw and '"LEVEL": "3"' in raw
     assert mcp_client.resolve_secrets(mcp_client.load_config()["servers"]["gh"]["env"])["GITHUB_TOKEN"] == "ghp_plain_value_1"
-
-
-# --------------------------------------------------------------------------- stdio server end to end
 
 def test_stdio_server_tools_resources_permissions_logs_restart(sandbox):
     add_echo()
@@ -125,10 +113,10 @@ def test_stdio_server_tools_resources_permissions_logs_restart(sandbox):
         assert names["echo"]["read_only"] and names["echo"]["policy"] == "allow"
         assert names["add_note"]["policy"] == "confirm" and not names["add_note"]["read_only"]
         assert {r["uri"] for r in checked["resources"]} == {"memo://readme", "memo://notes"}
-        # the secret reached the server through the store …
-        out = await mcp_hub.call("echo", "whoami", {}, confirmed=True)   # unknown name → not read-only → asks
+
+        out = await mcp_hub.call("echo", "whoami", {}, confirmed=True)
         assert out["content"] == f"token length {len(TOKEN)}"
-        # … and never reached the log (the server prints it to stderr)
+
         await asyncio.sleep(0.2)
         logs = "\n".join(reg.live("echo").logs)
         assert "echo server started" in logs and TOKEN not in logs and "•••" in logs
@@ -138,9 +126,9 @@ def test_stdio_server_tools_resources_permissions_logs_restart(sandbox):
         done = await mcp_hub.call("echo", "add_note", {"text": "первая"}, confirmed=True)
         assert done["content"] == "saved (1)"
         assert (await reg.read_resource("echo", "memo://notes"))["text"] == "первая"
-        # Work «Full access» skips «ask for writes» (not «always»)
+
         assert (await mcp_hub.call("echo", "add_note", {"text": "2"}, full_access=True))["content"] == "saved (2)"
-        # per-tool rule and read-only
+
         mcp_hub.update("echo", {"tool_rules": {"echo": "deny"}})
         assert "error" in await mcp_hub.call("echo", "echo", {"text": "a"})
         mcp_hub.update("echo", {"tool_rules": {"echo": None}, "read_only": True})
@@ -148,7 +136,7 @@ def test_stdio_server_tools_resources_permissions_logs_restart(sandbox):
         mcp_hub.update("echo", {"read_only": False, "confirm": "always"})
         assert (await mcp_hub.call("echo", "echo", {"text": "c"}))["needs_confirm"]
         mcp_hub.update("echo", {"confirm": "write"})
-        # the server dies → the next call restarts it by itself
+
         crashed = await mcp_hub.call("echo", "crash", {}, confirmed=True)
         assert "error" in crashed
         again = await mcp_hub.call("echo", "echo", {"text": "снова"})
@@ -157,13 +145,12 @@ def test_stdio_server_tools_resources_permissions_logs_restart(sandbox):
 
     run(scenario())
 
-
 def test_scopes_chat_agent_quick_and_cached_tools(sandbox):
     add_echo(agents=["meme-db"])
 
     async def scenario():
         assert (await mcp_hub.check("echo"))["ok"]
-        await mcp_client.registry.stop_all()             # prompts use the cached list: nothing starts for them
+        await mcp_client.registry.stop_all()
         assert mcp_hub.known("echo")["tools"] and not mcp_hub.known("echo")["live"]
         assert mcp_hub.scoped("chat") == []
         rows = mcp_hub.scoped("chat", "meme-db")
@@ -176,14 +163,13 @@ def test_scopes_chat_agent_quick_and_cached_tools(sandbox):
         assert mcp_hub.quick_description() == ""
         mcp_hub.update("echo", {"quick": True})
         line = mcp_hub.quick_description()
-        assert "echo.echo" in line and "add_note" not in line          # only tools that need no approval
+        assert "echo.echo" in line and "add_note" not in line
         res = await mcp_hub.quick_handler({"server": "echo", "tool": "add_note", "args": {}}, {"lang": "en"})
         assert "approval" in res["error"]
         assert mcp_hub.split_tool_name("mcp_echo_add_note") == ("echo", "add_note")
         await mcp_client.registry.stop_all()
 
     run(scenario())
-
 
 def test_mcp_mentions_read_resources_from_a_worker_thread(sandbox):
     add_echo()
@@ -203,14 +189,10 @@ def test_mcp_mentions_read_resources_from_a_worker_thread(sandbox):
 
     run(scenario())
 
-
-# --------------------------------------------------------------------------- remote transport (Streamable HTTP)
-
 def _free_port():
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
-
 
 def test_streamable_http_server_with_secret_header(sandbox):
     from starlette.applications import Starlette
@@ -247,7 +229,7 @@ def test_streamable_http_server_with_secret_header(sandbox):
         async def scenario():
             checked = await mcp_hub.check(name)
             assert checked["ok"], checked
-            assert checked["tools"][0]["read_only"]                      # «list_*» counts as read-only
+            assert checked["tools"][0]["read_only"]
             out = await mcp_hub.call(name, "list_issues", {})
             assert out["content"] == "3 issues"
             await mcp_client.registry.stop_all()
@@ -257,9 +239,6 @@ def test_streamable_http_server_with_secret_header(sandbox):
     finally:
         server.should_exit = True
         thread.join(5)
-
-
-# --------------------------------------------------------------------------- Planning step
 
 def test_flow_step_mcp_call_normalize_validate_run_and_dry_run(sandbox):
     add_echo()
@@ -292,19 +271,16 @@ def test_flow_step_mcp_call_normalize_validate_run_and_dry_run(sandbox):
     result = run(scenario(task, False))
     assert result["ok"], result.get("error")
     assert "echo: мир" in json.dumps(result, ensure_ascii=False)
-    # a write without «approved» fails with a clear reason; with it — runs
+
     task2 = {"id": "m2", "name": "MCP2", "kind": "flow", "steps": fe.normalize_steps([steps[1]])}
     result = run(scenario(task2, False))
     assert not result["ok"] and "Разрешить без подтверждения" in json.dumps(result, ensure_ascii=False)
     approved = fe.normalize_steps([{**steps[1], "approved": True}])
     result = run(scenario({**task2, "steps": approved}, False))
     assert result["ok"] and "saved (1)" in json.dumps(result, ensure_ascii=False)
-    # dry run: the read-only tool runs, the write is simulated
+
     result = run(scenario({**task2, "steps": approved}, True))
     assert result["ok"] and "saved" not in json.dumps(result, ensure_ascii=False)
-
-
-# --------------------------------------------------------------------------- window and routes
 
 def test_window_hooks_and_bilingual_ui():
     app_js = (ROOT / "app/pgstatic/app.js").read_text("utf-8")
@@ -314,13 +290,12 @@ def test_window_hooks_and_bilingual_ui():
     assert "MemuMcpHub.listHtml()" in app_js and "MemuMcpHub.subHtml()" in app_js and "MemuMcpHub.mount()" in app_js
     assert "/mcp-hub.js?v=" in index and "/mcp-hub.css?v=" in index
     assert "setInterval" not in hub_js and "MutationObserver" not in hub_js
-    # every L("…", "…") pair has both languages
+
     import re
     pairs = re.findall(r'L\("([^"]*)", "([^"]*)"\)', hub_js)
     assert len(pairs) > 40 and all(ru and en for ru, en in pairs)
     flows = (ROOT / "app/pgstatic/flows.js").read_text("utf-8")
     assert 'case "mcp_call"' in flows and "mcp_call:" in flows
-
 
 def test_routes_register(sandbox):
     from fastapi import FastAPI

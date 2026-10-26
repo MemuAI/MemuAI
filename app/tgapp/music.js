@@ -1,14 +1,5 @@
-/* MemuAI Mini App — MemuMusic on the phone (Round 37).
- *
- * The «Музыка» tab: Home (continue, recent, liked, playlists), Library with search, Playlists, «На телефоне»
- * (tracks saved for offline listening in Cache Storage). A full-screen player (cover, a live background from the
- * cover's colours, synced lyrics, swipes, Telegram haptics), a mini player above the tab bar, Media Session.
- * Sync with the computer: tracks stream from the PC through the tunnel (/tgapp/music/stream/<id>?t=, Range);
- * likes, plays and playlist additions go back with music.sync (queued while offline); «Пульт» shows and controls
- * what plays on the computer, «Продолжить на телефоне / на ПК» moves the track and position between them;
- * a pasted Spotify / YouTube / … link is downloaded by the computer with its progress shown here.
- * Server side: app/music/tgapp_ops.py.
- */
+
+
 (function () {
   "use strict";
   (window.MemuTgPlugins = window.MemuTgPlugins || []).push(function (kit) {
@@ -37,10 +28,9 @@
       saved: P('<circle cx="12" cy="12" r="9"/><path d="M12 7v8M8.5 11.5L12 15l3.5-3.5"/>'),
     });
 
-    /* ================================================================ state */
     const M = {
       sub: "home", home: null, lib: [], libTotal: 0, libQ: "", libSort: "added", libFilter: "", playlists: [],
-      queue: [], index: -1, shuffle: false, repeat: "off", mode: "phone",    // mode: phone | pc (remote)
+      queue: [], index: -1, shuffle: false, repeat: "off", mode: "phone",
       pc: null, audio: null, lyrics: null, lyricsFor: "", full: null, offline: {}, pending: { likes: [], plays: [], playlist_adds: [] },
       playStart: 0, playedFor: "", downloading: {}, jobs: [], light: false, libView: "tracks", pcId: "", stable: null,
     };
@@ -48,7 +38,7 @@
     const CACHE = "memu-music-v1";
     const reduced = () => M.light || matchMedia("(prefers-reduced-motion: reduce)").matches;
     const load = (key, fallback) => { try { return JSON.parse(localStorage.getItem(key) || "") || fallback; } catch (e) { return fallback; } };
-    const save = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) { /* full */ } };
+    const save = (key, value) => { try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {  } };
     M.offline = load(LS.offline, {});
     M.pending = Object.assign({ likes: [], plays: [], playlist_adds: [] }, load(LS.pending, {}));
     M.light = !!load("memu_music_light", false);
@@ -64,15 +54,13 @@
     const hue = (text) => { let h = 0; for (const c of String(text || "")) h = (h * 31 + c.charCodeAt(0)) % 360; return h; };
     const accentOf = (t) => (t && /^#[0-9a-f]{6}$/i.test(t.accent || "") ? t.accent : `hsl(${hue((t && (t.album || t.artist || t.title)) || "")} 55% 52%)`);
 
-    /* Round 38: оформление окна MemuMusic (Настройки → Оформление: тема, свой акцент, «цвет из обложки») — акцент раздела «Музыка».
-       Светлая/тёмная — как у Mini App (тема Telegram или MemuAI): так раздел не спорит с остальным приложением. */
     const LOOK_ACCENTS = { cover: ["#7c5cff", "#ff5c8a"], midnight: ["#7c5cff", "#ff5c8a"], aurora: ["#22d39b", "#4f8cff"], sunset: ["#ff7a45", "#ff3d77"],
       ocean: ["#1fb2ff", "#3a6bff"], neon: ["#ff2bd6", "#00d9ff"], sakura: ["#ff7aa8", "#b77bff"], moss: ["#7fb54a", "#d0b44c"], sand: ["#c27a34", "#9f4f2c"],
       graphite: ["#e4e4e7", "#a1a1aa"], vinyl: ["#e2523b", "#efa13a"] };
     M.look = load("memu_music_look", {});
     function paintLook() {
       const look = M.look || {}, html = document.documentElement, pair = LOOK_ACCENTS[look.theme];
-      if (!look.accent && !pair) { html.classList.remove("mm-look"); return; }   // «Как MemuAI» / нет настроек — цвета Mini App
+      if (!look.accent && !pair) { html.classList.remove("mm-look"); return; }
       const light = html.dataset.scheme === "light", t = nowTrack();
       let a1 = look.accent || (pair && pair[0]), a2 = (pair && pair[1]) || a1;
       if (!look.accent && (look.cover || look.theme === "cover") && t && look.theme !== "graphite") a1 = accentOf(t);
@@ -91,7 +79,6 @@
     }
     paintLook();
 
-    /* ================================================================ covers */
     function art(t, cls = "") {
       const style = `--mm-tint:${accentOf(t)}`;
       const letter = esc(((t && (t.title || t.name)) || "♪").trim().charAt(0).toUpperCase() || "♪");
@@ -104,19 +91,14 @@
       if (covers.length >= 4) return `<span class="mm-art mm-mosaic ${cls}" style="${style}">${covers.map((c) => `<img loading="lazy" alt="" src="${esc(c)}">`).join("")}</span>`;
       return `<span class="mm-art ${cls}" style="${style}"><i class="mm-art-ph">${p.smart ? icon("sparkle") : icon("music")}</i>${covers[0] ? `<img loading="lazy" alt="" src="${esc(covers[0])}">` : ""}</span>`;
     }
-    // CSP forbids inline handlers: a cover that fails to load is removed so the placeholder shows.
+
     document.addEventListener("error", (e) => { const el = e.target; if (el && el.tagName === "IMG" && el.closest(".mm-art")) el.remove(); }, true);
 
-    /* ================================================================ offline (Cache Storage)
-     * Files are keyed by a stable pseudo-URL «computer id + track id», not by the tunnel address. Browser storage
-     * itself still belongs to the page's origin, so a NEW quick-tunnel address opens an empty store: the list of
-     * what was saved is kept in Telegram DeviceStorage (per bot, on the device, independent of the address; ids only
-     * in CloudStorage on older Telegram) and «Скачано» offers to bring those tracks back in one tap. */
     const OFF_BASE = "https://memu-music.offline/";
     const pcOf = (id) => (M.offline[id] && M.offline[id].pc) || M.pcId || "pc";
     const offKey = (id, pc = pcOf(id)) => `${OFF_BASE}${pc}/track/${encodeURIComponent(id)}`;
     const offCoverKey = (id, pc = pcOf(id)) => `${OFF_BASE}${pc}/cover/${encodeURIComponent(id)}`;
-    const legacyKeys = (id) => [`music/offline/${encodeURIComponent(id)}`, `music/offline-cover/${encodeURIComponent(id)}`];   // first wave
+    const legacyKeys = (id) => [`music/offline/${encodeURIComponent(id)}`, `music/offline-cover/${encodeURIComponent(id)}`];
     function setPcId(id) {
       if (!id || id === M.pcId) return;
       M.pcId = id; save("memu_music_pc", id); M.stable = null;
@@ -134,9 +116,9 @@
           M.offline[id].pc = M.pcId;
         }
         save(LS.offline, M.offline); stableSave();
-      } catch (e) { /* private mode */ }
+      } catch (e) {  }
     }
-    /* the address-independent list of saved tracks */
+
     const STABLE_KEY = "memu_music_saved";
     const tgStore = (kind) => { const tg = S.tg; try { return tg && tg[kind] && tg.isVersionAtLeast(kind === "DeviceStorage" ? "9.0" : "6.9") ? tg[kind] : null; } catch (e) { return null; } };
     const storeGet = (store, key) => new Promise((resolve) => { try { store.getItem(key, (err, value) => resolve(err ? "" : value || "")); } catch (e) { resolve(""); } setTimeout(() => resolve(""), 1500); });
@@ -144,17 +126,17 @@
     function stableSave() {
       clearTimeout(stableTimer);
       stableTimer = setTimeout(async () => {
-        const mine = Object.assign({}, await stableLoad());   // keep what an earlier address saved
+        const mine = Object.assign({}, await stableLoad());
         Object.entries(M.offline).forEach(([id, t]) => { if (!M.pcId || t.pc === M.pcId) mine[id] = { title: t.title, artist: t.artist, duration: t.duration, size: t.size }; });
         M.stable = mine;
         const key = M.pcId || "pc"; const dev = tgStore("DeviceStorage"), cloud = tgStore("CloudStorage");
         try {
           if (dev) dev.setItem(`${STABLE_KEY}_${key}`, JSON.stringify(mine), () => {});
           else if (cloud) {
-            const ids = Object.keys(mine); while (ids.join(",").length > 4000) ids.pop();   // one CloudStorage value ≤ 4096
+            const ids = Object.keys(mine); while (ids.join(",").length > 4000) ids.pop();
             cloud.setItem(`mm_saved_${key}`, ids.join(","), () => {});
           }
-        } catch (e) { /* old Telegram */ }
+        } catch (e) {  }
       }, 400);
     }
     async function stableLoad() {
@@ -183,7 +165,7 @@
           const hit = await cache.match(offCoverKey(id));
           if (hit) coverUrls[id] = URL.createObjectURL(await hit.blob());
         }));
-      } catch (e) { /* private mode */ }
+      } catch (e) {  }
     }
     async function saveOffline(t, onProgress) {
       if (!("caches" in window)) throw new Error(tr("Этот Telegram не даёт сохранять файлы", "This Telegram cannot store files"));
@@ -205,28 +187,28 @@
         const cache = await caches.open(CACHE); const pc = M.pcId || "pc";
         await cache.put(offKey(t.id, pc), new Response(blob, { headers: { "Content-Type": type, "Content-Length": String(blob.size) } }));
         if (t.cover && !/^data:/.test(t.cover)) {
-          try { const c = await fetch(t.cover); if (c.ok) { const cb = await c.blob(); await cache.put(offCoverKey(t.id, pc), new Response(cb)); coverUrls[t.id] = URL.createObjectURL(cb); } } catch (e) { /* no cover */ }
+          try { const c = await fetch(t.cover); if (c.ok) { const cb = await c.blob(); await cache.put(offCoverKey(t.id, pc), new Response(cb)); coverUrls[t.id] = URL.createObjectURL(cb); } } catch (e) {  }
         }
         const meta = Object.assign({}, t, { size: blob.size, saved_at: Date.now(), pc }); delete meta.stream; delete meta.cover;
         M.offline[t.id] = meta; save(LS.offline, M.offline); stableSave();
-        try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* optional */ }
+        try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) {  }
       } finally { delete M.downloading[t.id]; }
     }
     async function dropOffline(id) {
-      try { const cache = await caches.open(CACHE); await cache.delete(offKey(id)); await cache.delete(offCoverKey(id)); } catch (e) { /* ignore */ }
+      try { const cache = await caches.open(CACHE); await cache.delete(offKey(id)); await cache.delete(offCoverKey(id)); } catch (e) {  }
       if (coverUrls[id]) { URL.revokeObjectURL(coverUrls[id]); delete coverUrls[id]; }
       delete M.offline[id]; save(LS.offline, M.offline);
       delete (await stableLoad())[id];
       stableSave();
     }
     async function offlineBlobUrl(id) {
-      try { const cache = await caches.open(CACHE); const hit = await cache.match(offKey(id)); if (hit) return URL.createObjectURL(await hit.blob()); } catch (e) { /* ignore */ }
+      try { const cache = await caches.open(CACHE); const hit = await cache.match(offKey(id)); if (hit) return URL.createObjectURL(await hit.blob()); } catch (e) {  }
       return "";
     }
     async function storageInfo() {
       const used = Object.values(M.offline).reduce((a, t) => a + (+t.size || 0), 0);
       let quota = 0;
-      try { if (navigator.storage && navigator.storage.estimate) quota = (await navigator.storage.estimate()).quota || 0; } catch (e) { /* ignore */ }
+      try { if (navigator.storage && navigator.storage.estimate) quota = (await navigator.storage.estimate()).quota || 0; } catch (e) {  }
       return { used, quota, count: Object.keys(M.offline).length };
     }
     async function downloadMany(list, label) {
@@ -248,7 +230,6 @@
       $$(`[data-track="${CSS.escape(id)}"] .mm-dl`).forEach((el) => { el.classList.remove("busy"); el.classList.toggle("on", !!M.offline[id]); });
     }
 
-    /* ================================================================ sync back to the computer */
     let flushing = false;
     async function flush() {
       const p = M.pending;
@@ -257,7 +238,7 @@
       try {
         await api("music.sync", p);
         M.pending = { likes: [], plays: [], playlist_adds: [] }; save(LS.pending, M.pending);
-      } catch (e) { /* stays queued: offline */ } finally { flushing = false; }
+      } catch (e) {  } finally { flushing = false; }
     }
     function queueSync(kind, row) { M.pending[kind].push(row); if (M.pending[kind].length > 500) M.pending[kind].shift(); save(LS.pending, M.pending); flush(); }
     async function setLike(t, liked) {
@@ -267,7 +248,6 @@
       try { await api("music.like", { id: t.id, liked }); } catch (e) { queueSync("likes", { id: t.id, liked, at: Date.now() / 1000 }); }
     }
 
-    /* ================================================================ the phone's player */
     function audio() {
       if (M.audio) return M.audio;
       const a = new Audio(); a.preload = "auto"; a.crossOrigin = "anonymous";
@@ -288,8 +268,7 @@
       paintTime(); lyricTick(); if (!lyricRaf) lyricLoop();
       const now = Date.now(); if (now - lastPersist > 5000) { lastPersist = now; persist(); mediaPosition(); report(false); }
     }
-    /* the computer's MemuMusic window sees what the phone plays (player.state, device "phone"): on play / pause /
-       seek / track change and every 30 s while playing — no polling of its own */
+
     let lastReport = 0;
     function reportBody(playing) {
       const t = current(); const a = M.audio;
@@ -302,7 +281,7 @@
       if (!t || !a || M.mode !== "phone" || S.mmOffline) return;
       const now = Date.now(); if (!force && now - lastReport < 30000) return;
       lastReport = now;
-      api("music.report", reportBody(!a.paused)).catch(() => { /* offline: nothing to tell */ });
+      api("music.report", reportBody(!a.paused)).catch(() => {  });
     }
     function persist() {
       const t = current(); if (!t || M.mode !== "phone") return;
@@ -332,7 +311,7 @@
       if (a._blob) { URL.revokeObjectURL(a._blob); a._blob = ""; }
       if (off) a._blob = off;
       a.src = off || t.stream;
-      if (position) a.addEventListener("loadedmetadata", () => { try { a.currentTime = position; } catch (e) { /* ignore */ } }, { once: true });
+      if (position) a.addEventListener("loadedmetadata", () => { try { a.currentTime = position; } catch (e) {  } }, { once: true });
       paintNow(); mediaSession();
       if (autoplay) { try { await a.play(); } catch (e) { paintPlaying(); } }
       persist();
@@ -366,7 +345,6 @@
     function playNext(t) { if (M.index < 0) { playQueue([t]); return; } M.queue.splice(M.index + 1, 0, t); toast(tr("Сыграет следующим", "Plays next"), "ok"); }
     function addToQueue(t) { if (M.index < 0) { playQueue([t]); return; } M.queue.push(t); toast(tr("Добавлено в очередь", "Added to the queue"), "ok"); }
 
-    /* ---------------------------------------------------------------- Media Session (lock screen, headset) */
     function mediaSession() {
       const t = current(); const ms = navigator.mediaSession;
       if (!ms || !t || M.mode !== "phone") return;
@@ -377,20 +355,19 @@
         ms.playbackState = M.audio && !M.audio.paused ? "playing" : "paused";
         if (!ms._memu) {
           ms._memu = true;
-          const set = (k, fn) => { try { ms.setActionHandler(k, fn); } catch (e) { /* unsupported */ } };
+          const set = (k, fn) => { try { ms.setActionHandler(k, fn); } catch (e) {  } };
           set("play", () => audio().play()); set("pause", () => audio().pause());
           set("previoustrack", prev); set("nexttrack", () => next());
           set("seekto", (d) => seek(d.seekTime)); set("seekbackward", () => seek(audio().currentTime - 10)); set("seekforward", () => seek(audio().currentTime + 10));
         }
-      } catch (e) { /* old WebView */ }
+      } catch (e) {  }
     }
     function mediaPosition() {
       const a = M.audio, ms = navigator.mediaSession;
       if (!ms || !a || !isFinite(a.duration) || !ms.setPositionState) return;
-      try { ms.setPositionState({ duration: a.duration, position: Math.min(a.currentTime, a.duration), playbackRate: 1 }); } catch (e) { /* ignore */ }
+      try { ms.setPositionState({ duration: a.duration, position: Math.min(a.currentTime, a.duration), playbackRate: 1 }); } catch (e) {  }
     }
 
-    /* ================================================================ the computer's player (remote) */
     let pcTimer = null;
     async function pcRefresh() {
       try { M.pc = await api("music.remote", {}); } catch (e) { M.pc = { online: false, available: false }; }
@@ -410,7 +387,7 @@
     }
     function pcPosition() {
       const pc = M.pc || {};
-      return Math.min(+pc.duration || +(pc.track || {}).duration || 0, (+pc.position || 0) + (pc.playing ? (Date.now() - (pc.at || Date.now())) / 1000 * (+pc.speed || 1) : 0));   // r39: с учётом скорости
+      return Math.min(+pc.duration || +(pc.track || {}).duration || 0, (+pc.position || 0) + (pc.playing ? (Date.now() - (pc.at || Date.now())) / 1000 * (+pc.speed || 1) : 0));
     }
     function setMode(mode) {
       if (mode === M.mode) return;
@@ -457,7 +434,6 @@
       bindPcCard();
     }
 
-    /* ================================================================ painting the now-playing parts */
     function nowTrack() { return M.mode === "pc" ? (M.pc && M.pc.track) || null : current(); }
     function isPlaying() { return M.mode === "pc" ? !!(M.pc && M.pc.playing) : !!(M.audio && !M.audio.paused); }
     function nowTime() {
@@ -467,11 +443,11 @@
     }
     function paintNow() { drawMini(); if (M.full) drawFullTrack(); }
     function paintPlaying() {
-      if (!lyricRaf) lyricLoop();   // r41-ui: play / pause here or on the computer starts / stops the lyrics clock
+      if (!lyricRaf) lyricLoop();
       const playing = isPlaying();
       document.documentElement.classList.toggle("mm-playing", playing);
       $$(".mm-toggle").forEach((b) => { b.innerHTML = icon(playing ? "mmPause" : "mmPlay"); b.setAttribute("aria-label", playing ? tr("Пауза", "Pause") : tr("Играть", "Play")); });
-      if (navigator.mediaSession && M.mode === "phone") try { navigator.mediaSession.playbackState = playing ? "playing" : "paused"; } catch (e) { /* ignore */ }
+      if (navigator.mediaSession && M.mode === "phone") try { navigator.mediaSession.playbackState = playing ? "playing" : "paused"; } catch (e) {  }
       const t = nowTrack();
       $$(".mm-row.now").forEach((r) => r.classList.remove("now"));
       if (t) $$(`.mm-row[data-track="${CSS.escape(t.id)}"]`).forEach((r) => r.classList.add("now"));
@@ -488,7 +464,6 @@
       $(".mm-t-left", f).textContent = "−" + fmt(Math.max(0, dur - pos));
     }
 
-    /* ---------------------------------------------------------------- mini player */
     function miniEl() {
       let el = $("#mm-mini");
       if (!el) {
@@ -501,7 +476,7 @@
       const t = nowTrack(); const el = miniEl();
       el.hidden = !t;
       $("#app").classList.toggle("mm-has-mini", !!t);
-      paintLook();   // «цвет из обложки» следует за треком
+      paintLook();
       if (!t) return;
       el.style.setProperty("--mm-tint", accentOf(t));
       el.innerHTML = `<button class="mm-mini-main" aria-label="${esc(tr("Открыть плеер", "Open the player"))}">${art(t, "mm-mini-art")}
@@ -511,13 +486,12 @@
       $(".mm-mini-main", el).onclick = openFull;
       $(".mm-toggle", el).onclick = toggle;
       $(".mm-mini-next", el).onclick = () => next();
-      // swipe the mini player up to open the full player
+
       let y0 = null;
       el.ontouchstart = (e) => { y0 = e.touches[0].clientY; };
       el.ontouchend = (e) => { if (y0 != null && y0 - e.changedTouches[0].clientY > 40) openFull(); y0 = null; };
     }
 
-    /* ---------------------------------------------------------------- full-screen player */
     function openFull() {
       if (M.full || !nowTrack()) return;
       haptic("medium");
@@ -626,7 +600,7 @@
       el.addEventListener("pointerup", end); el.addEventListener("pointercancel", end);
     }
     function bindGestures(f) {
-      // down on the whole player → collapse; left / right on the cover → next / previous
+
       const inner = $(".mm-full-in", f); const stage = $(".mm-stage", f);
       let x0 = null, y0 = null, axis = "", fromStage = false;
       inner.addEventListener("touchstart", (e) => {
@@ -649,7 +623,7 @@
         x0 = null;
       });
     }
-    /* the live background: three colours sampled from the cover (same origin → canvas is allowed) */
+
     const palettes = {};
     function paletteFor(t) {
       if (palettes[t.id]) return Promise.resolve(palettes[t.id]);
@@ -672,7 +646,6 @@
       });
     }
 
-    /* ---------------------------------------------------------------- lyrics */
     async function loadLyrics() {
       const f = M.full; const t = nowTrack(); if (!f || !t) return;
       const box = $(".mm-lyrics", f);
@@ -692,8 +665,7 @@
       } else box.innerHTML = `<p class="mm-ly-note">${esc(tr("Текста для этого трека нет", "No lyrics for this track"))}</p>`;
     }
     let lyricIndex = -1, lyricRaf = 0;
-    /* r41-ui: the line follows the sound on every animation frame while it plays (timeupdate fires only every ~250 ms —
-       the lyrics were up to a quarter of a second late), and stops when the lyrics pane is hidden or the app is in the back. */
+
     function lyricLoop() {
       lyricRaf = 0;
       const f = M.full;
@@ -705,7 +677,7 @@
       const f = M.full; const ly = M.lyrics;
       if (!f || !ly || !Array.isArray(ly.synced) || $(".mm-lyrics", f).hidden) return;
       const [pos] = nowTime(); let i = -1;
-      const at = pos - (+ly.offset || 0) - (+ly.general_offset || 0);   // r39: время трека (скорость учтена) + сдвиг трека; r41: + общий сдвиг, без опережения 0,1 с
+      const at = pos - (+ly.offset || 0) - (+ly.general_offset || 0);
       for (let k = 0; k < ly.synced.length; k++) { if (ly.synced[k][0] <= at) i = k; else break; }
       if (i === lyricIndex && !force) return;
       lyricIndex = i;
@@ -716,7 +688,6 @@
       if (cur) { cur.classList.add("on"); box.scrollTo({ top: cur.offsetTop - box.clientHeight * 0.36, behavior: reduced() ? "auto" : "smooth" }); }
     }
 
-    /* ---------------------------------------------------------------- queue pane */
     function drawQueue() {
       const f = M.full; if (!f) return;
       const box = $(".mm-queue", f);
@@ -732,7 +703,6 @@
       });
     }
 
-    /* ================================================================ track menu */
     function trackMenu(t, { playlist } = {}) {
       const full = byId.get(t.id) || t;
       const items = [
@@ -750,7 +720,7 @@
       actionSheet(t.title || "", items.filter(Boolean));
     }
     async function addToPlaylistSheet(list) {
-      if (!M.playlists.length) try { M.playlists = (await api("music.playlists")).playlists || []; } catch (e) { /* offline */ }
+      if (!M.playlists.length) try { M.playlists = (await api("music.playlists")).playlists || []; } catch (e) {  }
       const items = M.playlists.filter((p) => !p.smart).map((p) => ({ icon: "music", label: p.name, sub: tracksWord(p.count || 0), run: () => addTo(p, list) }));
       items.unshift({ icon: "plus", label: tr("Новый плейлист", "New playlist"), run: async () => {
         const name = await promptSheet(tr("Новый плейлист", "New playlist"), { placeholder: tr("Название", "Name"), ok: tr("Создать", "Create") });
@@ -767,7 +737,6 @@
       haptic("success"); toast(tr(`Добавлено в «${p.name}»`, `Added to “${p.name}”`), "ok");
     }
 
-    /* ================================================================ link → the computer downloads */
     let jobsTimer = null;
     function linkSheet(prefill = "") {
       openSheet({ title: tr("Скачать по ссылке", "Download a link"), body: `
@@ -818,7 +787,6 @@
       if (rows.some((j) => j.status === "done") && M.sub !== "device") { M.home = null; }
     }
 
-    /* ================================================================ the tab */
     const SUBS = [["home", "Главная", "Home"], ["library", "Библиотека", "Library"], ["playlists", "Плейлисты", "Playlists"], ["device", "Скачано", "Saved"]];
     let root = null;
     function renderMusicTab(view) {
@@ -852,7 +820,6 @@
     }
     function skeleton() { return `<div class="mm-skel"><i></i><i></i><i></i></div><div class="mm-skel row"><i></i><i></i><i></i><i></i></div>`; }
 
-    /* ---------------------------------------------------------------- home */
     async function drawHome(box) {
       if (!M.home) box.innerHTML = skeleton();
       else paintHome(box);
@@ -922,7 +889,6 @@
       bindPcCard();
     }
 
-    /* ---------------------------------------------------------------- track rows */
     function rowHtml(t, i, _all, { num } = {}) {
       const now = nowTrack();
       return `<div class="mm-row ${num ? "numbered" : ""} ${now && now.id === t.id ? "now" : ""}" data-track="${esc(t.id)}" data-i="${i}">
@@ -939,7 +905,6 @@
       paintPlaying();
     }
 
-    /* ---------------------------------------------------------------- library */
     let libTimer = null;
     const LIB_VIEWS = [["tracks", "Треки", "Tracks"], ["artists", "Исполнители", "Artists"], ["albums", "Альбомы", "Albums"]];
     function libViews(box) {
@@ -1028,7 +993,6 @@
       } });
     }
 
-    /* ---------------------------------------------------------------- artist and album */
     const minutes = (sec) => `${Math.max(1, Math.round((+sec || 0) / 60))} ${tr("мин", "min")}`;
     function playActs(rows) {
       const off = rows.filter((t) => M.offline[t.id]).length; const all = off && off === rows.length;
@@ -1081,7 +1045,6 @@
       } });
     }
 
-    /* ---------------------------------------------------------------- playlists */
     async function drawPlaylists(box) {
       const paint = () => {
         box.innerHTML = `<div class="mm-grid">
@@ -1139,7 +1102,6 @@
       } });
     }
 
-    /* ---------------------------------------------------------------- on the phone */
     async function drawDevice(box) {
       await warmOfflineCovers();
       const [info, lost] = await Promise.all([storageInfo(), lostTracks()]);
@@ -1158,7 +1120,7 @@
       if (clear) clear.onclick = async () => {
         if (!(await confirmDialog(tr("Удалить с телефона все сохранённые треки? В библиотеке на компьютере они останутся.", "Remove every saved track from the phone? They stay in the library on the computer."), { danger: true, ok: tr("Очистить", "Clear") }))) return;
         for (const id of Object.keys(M.offline)) await dropOffline(id);
-        try { await caches.delete(CACHE); } catch (e) { /* ignore */ }
+        try { await caches.delete(CACHE); } catch (e) {  }
         haptic("success"); drawDevice(box);
       };
       const list = $("#mm-off-list", box);
@@ -1176,7 +1138,6 @@
       if (forget) forget.onclick = async () => { const st = await stableLoad(); lost.forEach((id) => delete st[id]); stableSave(); haptic("light"); drawDevice(box); };
     }
 
-    /* ================================================================ wiring */
     kit.addTab({ id: "music", icon: "music", ru: "Музыка", en: "Music", before: "modules" }, renderMusicTab);
     let inited = false;
     function init() {
@@ -1188,21 +1149,21 @@
       const saved = load(LS.state, null);
       if (saved && saved.queue && saved.queue.length) { M.queue = saved.queue; M.index = Math.min(saved.index || 0, saved.queue.length - 1); M.shuffle = !!saved.shuffle; M.repeat = saved.repeat || "off"; drawMini(); }
       flush();
-      // music.* of the computer's MemuMusic → refresh what the phone shows when it comes back
+
       document.addEventListener("visibilitychange", () => { if (!document.hidden) { flush(); if (M.mode === "pc" || M.full) pcRefresh(); } });
       window.addEventListener("online", flush);
-      // a link opened with the deep link «?startapp=music» / a pasted link in the clipboard sheet
-      try { const sp = (S.tg && S.tg.initDataUnsafe && S.tg.initDataUnsafe.start_param) || ""; if (/^music_dl$/.test(sp) && !S.mmOffline) linkSheet(); } catch (e) { /* ignore */ }
-      // closing the Mini App stops the sound: tell the computer the phone is no longer playing
+
+      try { const sp = (S.tg && S.tg.initDataUnsafe && S.tg.initDataUnsafe.start_param) || ""; if (/^music_dl$/.test(sp) && !S.mmOffline) linkSheet(); } catch (e) {  }
+
       window.addEventListener("pagehide", () => {
         const a = M.audio; if (!a || a.paused || !current() || M.mode !== "phone" || !S.token || S.mmOffline) return;
-        try { fetch("api/music.report", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json", Authorization: "Bearer " + S.token }, body: JSON.stringify(reportBody(false)) }); } catch (e) { /* ignore */ }
+        try { fetch("api/music.report", { method: "POST", keepalive: true, headers: { "Content-Type": "application/json", Authorization: "Bearer " + S.token }, body: JSON.stringify(reportBody(false)) }); } catch (e) {  }
       });
-      // the app shell for opening without the computer (sw.js); iOS Telegram has no service workers — then only in-app
-      try { if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "127.0.0.1" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(() => {}); } catch (e) { /* unsupported */ }
+
+      try { if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "127.0.0.1" || location.hostname === "localhost")) navigator.serviceWorker.register("sw.js", { scope: "./" }).catch(() => {}); } catch (e) {  }
     }
     kit.hooks.afterBoot.push(init);
-    // the computer does not answer at start: open straight into «Скачано» with what the phone keeps
+
     kit.hooks.offlineBoot.push(() => {
       const count = Object.keys(M.offline).length;
       if (!count) return null;
@@ -1215,7 +1176,7 @@
         init();
       } };
     });
-    // «Облегчённые эффекты»: no animated background or blur in the player (Settings → Appearance)
+
     kit.hooks.lookRows.push({
       html: () => `<div class="section-title">${esc(tr("Музыка", "Music"))}</div><div class="group flat"><label class="cell flat"><div class="cell-body"><div class="cell-title">${esc(tr("Облегчённые эффекты плеера", "Light player effects"))}</div><div class="cell-sub">${esc(tr("Без живого фона и размытия — меньше нагрузка на телефон", "No live background or blur — less load on the phone"))}</div></div><span class="switch"><input type="checkbox" id="mm-light" ${M.light ? "checked" : ""}><span></span></span></label></div>`,
       bind: (view) => { const box = $("#mm-light", view); if (box) box.onchange = () => { M.light = box.checked; save("memu_music_light", M.light); document.documentElement.classList.toggle("mm-light", M.light); haptic("select"); }; },

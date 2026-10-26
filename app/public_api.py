@@ -47,27 +47,25 @@ MAX_BODY_BYTES = 12 * 1024 * 1024
 MAX_SSE_EVENT_BYTES = 1024 * 1024
 DEFAULTS: Dict[str, Any] = {
     "enabled": False,
-    "host": "0.0.0.0",           # the address to listen on; 127.0.0.1 when a tunnel or reverse proxy stands in front
+    "host": "0.0.0.0",
     "port": 8320,
-    "address": "",               # what to show people: a domain or an outside IP (display only)
-    "models": [],                # public ids offered outside; empty means nothing is offered
-    "rpm": 120,                  # requests per minute for the endpoint as a whole (0 — no limit)
-    "concurrency": 8,            # requests in flight at once (0 — no limit)
-    "max_output_tokens": 0,      # cap on max_tokens of one request (0 — no cap)
-    "cors": False,               # let web pages call the endpoint from a browser
-    "tls_cert": "",              # paths to a certificate and its key: HTTPS straight from the Proxy
+    "address": "",
+    "models": [],
+    "rpm": 120,
+    "concurrency": 8,
+    "max_output_tokens": 0,
+    "cors": False,
+    "tls_cert": "",
     "tls_key": "",
     "keys": [],
 }
 KEY_LIMITS = ("rpm", "rpd", "tpd", "budget", "tpmonth", "max_tokens", "concurrency", "cost_budget")
 KEY_FIELDS = ("name", "note", "enabled", "expires", "models", "ips", *KEY_LIMITS)
-LEGACY_KEY_FIELDS = ("key", "api_key", "public_key", "access_key")   # the single key of older versions
-
+LEGACY_KEY_FIELDS = ("key", "api_key", "public_key", "access_key")
 
 def _path() -> Path:
     from .config import DATA_DIR
     return Path(DATA_DIR) / "public.json"
-
 
 def _int(value: Any, default: int, low: int, high: int) -> int:
     try:
@@ -76,37 +74,30 @@ def _int(value: Any, default: int, low: int, high: int) -> int:
         number = default
     return max(low, min(high, number))
 
-
 def _float(value: Any, default: float, low: float, high: float) -> float:
     try:
         number = float(value)
     except (TypeError, ValueError, OverflowError):
         number = default
-    if number != number:      # NaN
+    if number != number:
         number = default
     return max(low, min(high, number))
-
 
 def _today() -> str:
     return _dt.date.today().isoformat()
 
-
 def _month() -> str:
     return _dt.date.today().isoformat()[:7]
 
-
 def new_key() -> str:
     return KEY_PREFIX + secrets.token_urlsafe(30)
-
 
 def hash_key(key: str) -> str:
     """Keys are 240 random bits, so a plain SHA-256 is enough: only the hash is kept on disk."""
     return hashlib.sha256(str(key).encode("utf-8")).hexdigest()
 
-
 def key_hint(key: str) -> str:
     return f"{key[:8]}…{key[-4:]}" if len(key) > 14 else "…"
-
 
 def normalize_ips(raw: Any) -> List[str]:
     """Allowed client addresses as CIDR strings; bad entries are dropped."""
@@ -124,7 +115,6 @@ def normalize_ips(raw: Any) -> List[str]:
             out.append(str(network))
     return out[:100]
 
-
 def invalid_ips(raw: Any) -> List[str]:
     """Entries of an allow-list that are not an address or a subnet (shown back to the user)."""
     items = raw if isinstance(raw, list) else re.split(r"[\s,;]+", str(raw or ""))
@@ -139,13 +129,11 @@ def invalid_ips(raw: Any) -> List[str]:
             bad.append(text[:64])
     return bad
 
-
 def _check_key_fields(fields: Dict[str, Any]) -> None:
     """A typo in the IP list must not be dropped silently: with every entry dropped the key would work from anywhere."""
     bad = invalid_ips(fields.get("ips")) if "ips" in fields else []
     if bad:
         raise ValueError("Неверные IP-адреса или подсети: " + ", ".join(bad[:5]))
-
 
 def ip_allowed(ips: List[str], client: str) -> bool:
     if not ips:
@@ -163,7 +151,6 @@ def ip_allowed(ips: List[str], client: str) -> bool:
         except (ValueError, TypeError):
             continue
     return False
-
 
 def normalize_key(raw: Any) -> Optional[Dict[str, Any]]:
     """One stored key. A plaintext ``key`` (older files) is turned into its hash here: that is the migration."""
@@ -223,11 +210,9 @@ def normalize_key(raw: Any) -> Optional[Dict[str, Any]]:
         },
     }
 
-
 def public_key_row(row: Dict[str, Any]) -> Dict[str, Any]:
     """What the panel may see: never the hash."""
     return {name: value for name, value in row.items() if name != "key_hash"}
-
 
 def normalize(raw: Any) -> Dict[str, Any]:
     source = raw if isinstance(raw, dict) else {}
@@ -244,7 +229,7 @@ def normalize(raw: Any) -> Dict[str, Any]:
     for field in LEGACY_KEY_FIELDS:
         legacy = source.get(field)
         if isinstance(legacy, str) and legacy.strip():
-            # Round 24: the single public key of older versions becomes an ordinary key row.
+
             raw_keys.insert(0, {"key": legacy.strip(), "id": "legacy", "name": "Прежний ключ", "rpm": 0})
     for item in raw_keys:
         row = normalize_key(item)
@@ -254,7 +239,7 @@ def normalize(raw: Any) -> Dict[str, Any]:
     return {
         "enabled": source.get("enabled") is True,
         "host": host,
-        "port": _int(source.get("port"), DEFAULTS["port"], 0, 65535) or DEFAULTS["port"],   # 0 / empty field — the default
+        "port": _int(source.get("port"), DEFAULTS["port"], 0, 65535) or DEFAULTS["port"],
         "address": address,
         "models": list(dict.fromkeys(str(item)[:200] for item in source.get("models") or [] if str(item).strip()))[:2000]
         if isinstance(source.get("models"), list) else [],
@@ -267,18 +252,12 @@ def normalize(raw: Any) -> Dict[str, Any]:
         "keys": keys[:MAX_KEYS],
     }
 
-
 def _needs_migration(raw: Any) -> bool:
     if not isinstance(raw, dict):
         return False
     if any(isinstance(raw.get(field), str) and raw.get(field).strip() for field in LEGACY_KEY_FIELDS):
         return True
     return any(isinstance(row, dict) and row.get("key") for row in raw.get("keys") or [] if isinstance(raw.get("keys"), list))
-
-
-# --------------------------------------------------------------------------
-# Store
-# --------------------------------------------------------------------------
 
 class Store:
     """Settings and keys on disk, with counters kept in memory between saves."""
@@ -296,7 +275,7 @@ class Store:
                 raw = load_json_with_recovery(_path(), {}, validator=lambda value: isinstance(value, dict))
                 self._data = normalize(raw)
                 if _needs_migration(raw):
-                    # Plaintext keys (and the single key of older versions) leave the disk at once.
+
                     try:
                         self.save()
                         log.info("public keys migrated to hashes")
@@ -311,8 +290,7 @@ class Store:
     def save(self) -> None:
         with self._lock:
             data = normalize(self.data())
-            # Keep admitted requests attached to their live counters. A disk
-            # snapshot must not replace the rows they will update on completion.
+
             from .storage import save_json
             save_json(_path(), data)
             self._dirty = False
@@ -393,10 +371,8 @@ class Store:
             data["keys"] = [row for row in data["keys"] if row["id"] != key_id]
             self.save()
 
-    # ---- counters
     def _roll(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        # Settings/key edits may replace a row while its request is streaming.
-        # Charge the current row with the same identity, never a stale copy.
+
         row = next((item for item in self.data()["keys"] if item["id"] == row["id"]), row)
         usage = row["usage"]
         if usage.get("day") != _today():
@@ -451,13 +427,7 @@ class Store:
             self._roll(row)["refused"] += 1
             self._dirty = True
 
-
 store = Store()
-
-
-# --------------------------------------------------------------------------
-# Limits
-# --------------------------------------------------------------------------
 
 class Limiter:
     """Sliding one-minute windows per key and for the endpoint, plus requests in flight (total and per key)."""
@@ -504,7 +474,7 @@ class Limiter:
                 return "rpm", wait
             wait = self._take("*", settings["rpm"], now)
             if wait is not None:
-                # The key's own slot was taken a moment ago: give it back, the request did not run.
+
                 window = self._windows.get("key:" + row["id"])
                 if window and row["rpm"] > 0:
                     window.pop()
@@ -525,18 +495,15 @@ class Limiter:
             else:
                 self.active_by_key.pop(key_id, None)
 
-
 def _seconds_to_next_month() -> int:
     now = _dt.datetime.now()
     first = (now.replace(day=1) + _dt.timedelta(days=32)).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     return max(1, int((first - now).total_seconds()))
 
-
 def _seconds_to_midnight() -> int:
     now = _dt.datetime.now()
     tomorrow = (now + _dt.timedelta(days=1)).replace(hour=0, minute=0, second=0, microsecond=0)
     return max(1, int((tomorrow - now).total_seconds()))
-
 
 limiter = Limiter()
 
@@ -552,7 +519,6 @@ _REFUSALS = {
     "busy": ("Сервер занят, повторите через несколько секунд", "The server is busy, retry in a few seconds"),
 }
 
-
 def _error(message: str, message_en: str, status: int, code: str, retry_after: int = 0) -> JSONResponse:
     headers = {"Retry-After": str(retry_after)} if retry_after else {}
     kind = {401: "authentication_error", 403: "permission_error", 429: "rate_limit_error"}.get(status, "invalid_request_error")
@@ -561,10 +527,6 @@ def _error(message: str, message_en: str, status: int, code: str, retry_after: i
     return JSONResponse(status_code=status, headers=headers, content={"error": {
         "message": message_en, "message_ru": message, "type": kind, "param": None, "code": code}})
 
-
-# Round 34: an upstream failure reached outside callers as «Every “custom” account failed (xkiro · api.xkiro.com):
-# …» plus the owner's hint «a second account usually helps» — the public server must not name the owner's
-# accounts or upstream hosts. The upstream's own reason after the colon stays: it says what to do (wait, …).
 _PAREN = r"\s*\((?:[^()]|\([^()]*\))*\)"
 _OWNER_TEXT = (
     (re.compile(r"Every “[^”]*” account failed" + _PAREN), "The model service failed"),
@@ -574,14 +536,12 @@ _OWNER_TEXT = (
 )
 _OWNER_HINTS = ("hint", "hint_en", "hint_ru")
 
-
 def scrub_owner_text(text: Any) -> Any:
     if not isinstance(text, str):
         return text
     for pattern, replacement in _OWNER_TEXT:
         text = pattern.sub(replacement, text)
     return text
-
 
 def scrub_error_payload(data: Any) -> bool:
     """Remove the owner's account names and hints from an OpenAI / Anthropic error object; True if one was found."""
@@ -594,7 +554,6 @@ def scrub_error_payload(data: Any) -> bool:
         if name in err:
             err[name] = scrub_owner_text(err[name])
     return True
-
 
 def scrub_sse_chunk(data: bytes) -> bytes:
     if b"error" not in data:
@@ -617,14 +576,12 @@ def scrub_sse_chunk(data: bytes) -> bytes:
             changed = True
     return "\n".join(lines).encode("utf-8") if changed else data
 
-
 def _own_tunnel_running() -> bool:
     try:
         from . import public_tunnel
         return public_tunnel.tunnel.running()
     except Exception:
         return False
-
 
 def client_ip(request: Request) -> str:
     """The caller's address. Behind a local tunnel or reverse proxy (peer is loopback) its header names the client.
@@ -644,13 +601,11 @@ def client_ip(request: Request) -> str:
             return forwarded
     return peer
 
-
 def _client_key(request: Request) -> str:
     auth = request.headers.get("authorization", "")
     if auth.lower().startswith("bearer "):
         return auth[7:].strip()
     return str(request.headers.get("x-api-key") or "").strip()
-
 
 def offered_models(settings: Dict[str, Any], row: Optional[Dict[str, Any]] = None) -> List[str]:
     """Public ids a key may use: the endpoint's list, narrowed by the key's own list."""
@@ -661,12 +616,10 @@ def offered_models(settings: Dict[str, Any], row: Optional[Dict[str, Any]] = Non
         allowed = [model for model in allowed if model in own]
     return allowed
 
-
 def catalogue() -> List[str]:
     """Every id a local client sees in /v1/models: the pool the public list is chosen from."""
     from .openai_api import listed_models
     return [row["id"] for row in listed_models()]
-
 
 class TokenUsage:
     """Read structured usage throughout a stream, including its first event."""
@@ -721,8 +674,7 @@ class TokenUsage:
                         self._discarding = False
                     self._discard_line_nonblank = False
             elif self._event_bytes + len(self._buffer) + length > MAX_SSE_EVENT_BYTES:
-                # A large text delta or completed Responses object can repeat
-                # the whole output. Retain no partial JSON from that event.
+
                 self._buffer.clear()
                 self._data.clear()
                 self._event_bytes = 0
@@ -750,7 +702,6 @@ class TokenUsage:
         self._event()
         return max(self.total, self.input + self.output)
 
-
 def tokens_in(body: bytes) -> int:
     """Count protocol usage, never token-like strings in assistant content."""
     counter = TokenUsage()
@@ -760,17 +711,11 @@ def tokens_in(body: bytes) -> int:
         counter.feed(body)
     return counter.finish()
 
-
-# --------------------------------------------------------------------------
-# The public application
-# --------------------------------------------------------------------------
-
 def create_public_app() -> FastAPI:
     from . import anthropic_api, openai_api, responses_api
 
     app = FastAPI(title="MemuAI Proxy — public endpoint", docs_url=None, redoc_url=None, openapi_url=None)
-    # Round 35 (composite): composite models see who calls (public key) for their «client» conditions; the route
-    # header stays private here (it names the owner's connections).
+
     from .composite_models import RouteContextMiddleware
     app.add_middleware(RouteContextMiddleware, expose=False)
 
@@ -841,7 +786,7 @@ def create_public_app() -> FastAPI:
         if model not in offered_models(settings, row):
             store.count_refusal(row)
             if model in offered_models(settings):
-                # The endpoint offers it, this key may not use it.
+
                 return _error(f"Ключу не разрешена модель «{model}»", f"This key is not allowed to use the model '{model}'",
                               403, "model_not_allowed")
             return _error(f"Модель «{model}» недоступна для этого ключа", f"The model '{model}' is not available for this key",
@@ -862,8 +807,7 @@ def create_public_app() -> FastAPI:
             if request.url.path == "/v1/chat/completions":
                 asked = body.get("max_completion_tokens") or asked
             body[field] = asked or cap
-        # Downstream handlers read the same Request again. Preserve the checked
-        # body, including the server's default output limit.
+
         request._body = json.dumps(body, ensure_ascii=False).encode("utf-8")
         request._json = body
         refusal = limiter.check(row, settings)
@@ -873,7 +817,7 @@ def create_public_app() -> FastAPI:
             ru, en = _REFUSALS[reason]
             return _error(ru, en, 429, reason, wait)
         store.count_request(row, model, client_ip(request))
-        # The handlers are the Proxy's own; this flag stands in for the local API key check.
+
         request.state.public_key = row["id"]
         limiter.acquire(row["id"])
         released = False
@@ -915,8 +859,7 @@ def create_public_app() -> FastAPI:
                         from .providers.http import close_quietly
                         await close_quietly(close)
                 finally:
-                    # Handlers record upstream usage directly too: an SSE
-                    # event over the parser cap must not erase real usage.
+
                     counter.add({"usage": getattr(request.state, "completion_usage", None)})
                     store.count_usage(row, counter, model)
 
@@ -962,7 +905,7 @@ def create_public_app() -> FastAPI:
 
     @app.post("/v1/messages/count_tokens")
     async def count_tokens(request: Request):
-        # A local estimate: it reaches no upstream, so it spends neither the key's limits nor its counters.
+
         row, denied = admit(request)
         if denied:
             return denied
@@ -983,21 +926,16 @@ def create_public_app() -> FastAPI:
 
     return app
 
-
-# --------------------------------------------------------------------------
-# The listener
-# --------------------------------------------------------------------------
-
 class Listener:
     """Starts, stops and restarts the public server inside the running event loop."""
 
     def __init__(self) -> None:
         self.server: Any = None
         self.task: Optional[asyncio.Task] = None
-        self.running: Optional[Dict[str, Any]] = None     # {"host", "port", "tls"} of the live listener
+        self.running: Optional[Dict[str, Any]] = None
         self.error = ""
         self.error_en = ""
-        self._lock: Optional[asyncio.Lock] = None         # created in the loop that uses it
+        self._lock: Optional[asyncio.Lock] = None
 
     def status(self) -> Dict[str, Any]:
         alive = bool(self.task and not self.task.done() and self.server and getattr(self.server, "started", False))
@@ -1054,7 +992,7 @@ class Listener:
                                     ssl_certfile=settings["tls_cert"] if wanted["tls"] else None,
                                     ssl_keyfile=settings["tls_key"] if wanted["tls"] else None)
             server = uvicorn.Server(config)
-            server.install_signal_handlers = lambda: None      # the Proxy owns Ctrl+C, not this listener
+            server.install_signal_handlers = lambda: None
             self.server = server
             self.task = asyncio.get_running_loop().create_task(self._serve(server))
             for _ in range(60):
@@ -1080,7 +1018,6 @@ class Listener:
             self._set_error(text, text)
             log.exception("public endpoint stopped")
 
-
 async def _tunnel_follow(settings: Optional[Dict[str, Any]]) -> None:
     """Keep the Cloudflare tunnel in step with the listener: off with it, re-pointed on a new port, autostart."""
     try:
@@ -1098,15 +1035,12 @@ async def _tunnel_follow(settings: Optional[Dict[str, Any]]) -> None:
     except Exception:
         log.exception("public tunnel: follow failed")
 
-
 def _port_busy(host: str, port: int) -> Optional[Tuple[str, str]]:
     """A clear message (ru, en) when the address cannot be bound (None when it can)."""
     family = socket.AF_INET6 if ":" in host else socket.AF_INET
     probe = socket.socket(family, socket.SOCK_STREAM)
     if os.name != "nt":
-        # uvicorn binds with SO_REUSEADDR: without it here, connections of the listener that was just
-        # stopped (TIME_WAIT) make a free port look busy. On Windows the flag would let a probe share
-        # a port with a live listener, so it stays off there.
+
         probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         probe.bind((host.strip("[]"), port))
@@ -1118,9 +1052,7 @@ def _port_busy(host: str, port: int) -> Optional[Tuple[str, str]]:
         probe.close()
     return None
 
-
 listener = Listener()
-
 
 def local_addresses() -> List[str]:
     """IPv4 addresses of this computer in its networks (for the links shown in the panel)."""
@@ -1134,7 +1066,7 @@ def local_addresses() -> List[str]:
         pass
     try:
         probe = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        probe.connect(("192.0.2.1", 9))          # no packet is sent: this only asks the OS for the outgoing address
+        probe.connect(("192.0.2.1", 9))
         address = probe.getsockname()[0]
         probe.close()
         if address not in found and not address.startswith("127."):
@@ -1142,7 +1074,6 @@ def local_addresses() -> List[str]:
     except OSError:
         pass
     return found[:6]
-
 
 def public_view() -> Dict[str, Any]:
     """Everything the panel shows: settings, keys with usage, listener state, links."""
@@ -1163,10 +1094,9 @@ def public_view() -> Dict[str, Any]:
             "catalogue": sorted(catalogue()), "tunnel": _tunnel_status(),
             "links": [row for row in links if row["url"]], "today": _today()}
 
-
 def _tunnel_status() -> Dict[str, Any]:
     try:
         from . import public_tunnel
         return public_tunnel.tunnel.status()
-    except Exception as exc:       # the panel must open even if the tunnel module breaks
+    except Exception as exc:
         return {"state": "error", "error": f"{type(exc).__name__}: {exc}"[:200]}

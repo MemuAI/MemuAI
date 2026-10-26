@@ -26,7 +26,6 @@ from tests.telegram_r20_test import OWNER, TOKEN, BotTestCase  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 
-
 class _Nesting(HTMLParser):
     def __init__(self):
         super().__init__()
@@ -41,16 +40,11 @@ class _Nesting(HTMLParser):
         else:
             self.stack.pop()
 
-
 def nests(html):
     parser = _Nesting()
     parser.feed(html)
     parser.close()
     return not parser.error and not parser.stack
-
-
-# ===================================================================== sessions
-
 
 class SessionMergeTest(BotTestCase):
     """Buttons and messages of a chat run in separate lanes since Round 24; a
@@ -59,12 +53,12 @@ class SessionMergeTest(BotTestCase):
 
     async def test_save_keeps_fields_written_concurrently(self):
         chat = str(OWNER)
-        state, session = telegram_bot._session(chat)               # handler A reads
-        await telegram_bot._remember_card(chat, 777, "settings")    # the other lane draws a card
-        other_state, other = telegram_bot._session("999")           # another chat's handler
+        state, session = telegram_bot._session(chat)
+        await telegram_bot._remember_card(chat, 777, "settings")
+        other_state, other = telegram_bot._session("999")
         other["pending_action"] = "search"
         telegram_bot._save_session(other_state)
-        session["pending_action"] = "rename:abc"                    # handler A finishes
+        session["pending_action"] = "rename:abc"
         telegram_bot._save_session(state)
         saved = pgdata.load_telegram_state()["sessions"]
         self.assertEqual(saved[chat]["pending_action"], "rename:abc")
@@ -85,10 +79,6 @@ class SessionMergeTest(BotTestCase):
         self.assertEqual(saved["chat_query"], "milk")
         self.assertEqual(saved["menu_message_id"], 55)
 
-
-# ===================================================================== callbacks
-
-
 class SlowAckTelegram:
     """Bot API whose answerCallbackQuery takes a while (slow network)."""
 
@@ -104,7 +94,6 @@ class SlowAckTelegram:
             await asyncio.sleep(self.delay)
         return httpx.Response(200, json={"ok": True, "result": True})
 
-
 class CallbackAckRaceTest(unittest.IsolatedAsyncioTestCase):
     async def test_toast_during_the_fallback_request_is_not_a_second_answer(self):
         fake = SlowAckTelegram(0.3)
@@ -113,7 +102,7 @@ class CallbackAckRaceTest(unittest.IsolatedAsyncioTestCase):
         runner.token = TOKEN
 
         async def late_handler(client_, token, callback, prefs):
-            await asyncio.sleep(0.15)       # after the fallback started, before it finished
+            await asyncio.sleep(0.15)
             await telegram_bot._toast(client_, token, callback["id"], "🤖 Model")
 
         try:
@@ -127,18 +116,14 @@ class CallbackAckRaceTest(unittest.IsolatedAsyncioTestCase):
         answers = [p for m, p in fake.calls if m == "answerCallbackQuery"]
         self.assertEqual(len(answers), 1, answers)
 
-
-# ===================================================================== offset
-
-
 class OffsetTokenSwitchTest(BotTestCase):
     async def test_pending_offset_of_the_old_token_is_not_stored_for_the_new_one(self):
         old_token, new_token = TOKEN, "987654321:BBH" + "y" * 32
         runner = telegram_bot._BotRunner(self.client)
         runner.token = old_token
         runner.offset = 900_000_123
-        runner.save_offset_soon()              # background save still pending …
-        await runner.activate(new_token, pgdata.load_preferences())   # … when the token changes
+        runner.save_offset_soon()
+        await runner.activate(new_token, pgdata.load_preferences())
         await runner.flush_offset()
         poll = pgdata.load_telegram_state().get("poll") or {}
         self.assertEqual(runner.offset, 0, "the new bot must start from its own offset")
@@ -146,10 +131,6 @@ class OffsetTokenSwitchTest(BotTestCase):
             self.assertNotEqual(poll.get("offset"), 900_000_123)
         else:
             self.assertEqual(poll, {"token_fp": token_fingerprint(old_token), "offset": 900_000_123})
-
-
-# ===================================================================== formatting
-
 
 class InlineNestingTest(unittest.TestCase):
     CASES = ["**b b****b b***i*", "- **b b****b b***i**i*", "w**x****y***z*", "*a **b* c**",
@@ -176,16 +157,11 @@ class InlineNestingTest(unittest.TestCase):
             self.assertTrue(nests(part), part[:200])
             self.assertLessEqual(telegram_format.utf16_len(part), 500)
 
-
-# ===================================================================== panels
-
-
 def _quiet_window_away_from_now():
     """Quiet hours that do NOT include the real current time (the old code
     looked at the wall clock instead of the ``now`` it was given)."""
     hour = (datetime.now().hour + 12) % 24
     return hour, f"{hour:02d}:00", f"{(hour + 1) % 24:02d}:00"
-
 
 class PanelsQuietTimingTest(unittest.IsolatedAsyncioTestCase):
     async def asyncSetUp(self):
@@ -228,7 +204,7 @@ class PanelsQuietTimingTest(unittest.IsolatedAsyncioTestCase):
     async def test_quiet_hours_follow_the_checked_time(self):
         telegram_panels.subscribe(self.weather, on=True, mode="every", quiet="defer")
         telegram_panels.mutate(lambda doc: doc["settings"].update(min_gap_minutes=0))
-        await self.check(self.stamp(-120))                  # baseline, outside quiet hours
+        await self.check(self.stamp(-120))
         self.set_temp(30)
         self.assertEqual(await self.check(self.stamp(30)), 0, "deferred inside quiet hours")
         self.assertEqual(await self.check(self.stamp(61)), 1, "sent when quiet hours end")
@@ -239,16 +215,12 @@ class PanelsQuietTimingTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(await self.check(self.stamp(20)), 0)
         self.assertEqual(await self.check(self.stamp(65)), 1)
         self.assertIn("Сводка панелей", self.sent[-1]["text"])
-        self.assertEqual(await self.check(self.stamp(80)), 0)    # once a day
+        self.assertEqual(await self.check(self.stamp(80)), 0)
 
     async def test_silent_digest_is_sent_without_sound(self):
         telegram_panels.subscribe(self.weather, on=True, mode="digest", at=f"{self.hour:02d}:10", quiet="silent")
         self.assertEqual(await self.check(self.stamp(20)), 1)
         self.assertTrue(self.sent[-1]["silent"])
-
-
-# ===================================================================== Mini App
-
 
 class MiniAppAuthLanguageTest(unittest.TestCase):
     def test_init_data_errors_are_translated(self):
@@ -271,7 +243,6 @@ class MiniAppAuthLanguageTest(unittest.TestCase):
         self.assertTrue(codes)
         self.assertEqual(codes - set(tg_webapp.INIT_DATA_ERRORS_EN), set())
 
-
 class MiniAppDesignsTest(unittest.TestCase):
     def test_every_design_has_mini_app_styles(self):
         from app import themes
@@ -280,7 +251,6 @@ class MiniAppDesignsTest(unittest.TestCase):
         for design in ("soft", "terminal", "brutal"):
             self.assertIn(design, ids)
             self.assertTrue(f':root[data-design="{design}"]' in css, f"no Mini App styles for {design}")
-
 
 if __name__ == "__main__":
     unittest.main()

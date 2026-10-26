@@ -20,7 +20,7 @@ from typing import Any, Dict, List, Optional, Tuple
 log = logging.getLogger("memuai.difficulty")
 
 LEVELS = ("simple", "chat", "translation", "summary", "creative", "code", "complex_code", "deep_math", "architecture")
-#: Levels that need a strong model — the «hard» shortcut of the condition editor.
+
 HARD = ("complex_code", "deep_math", "architecture")
 
 _R = lambda pattern: re.compile(pattern, re.I | re.S)  # noqa: E731 — a table of patterns reads better this way
@@ -52,14 +52,12 @@ _HARD_HINTS = _R(r"\b(пошагово|подробно|глубок[а-я]*|т�
 _GREETING = _R(r"^\s*(привет|здравствуй[а-я]*|добр[а-я]+ (утро|день|вечер)|спасибо|ок|окей|hi|hello|hey|thanks|"
                r"thank you|ok|okay|yo)[\s!.,)?]*$")
 
-
 def _text_of(content: Any) -> str:
     if isinstance(content, str):
         return content
     if isinstance(content, list):
         return "\n".join(str(p.get("text") or "") for p in content if isinstance(p, dict))
     return ""
-
 
 def classify_text(text: str, *, tools: bool = False) -> Tuple[str, float]:
     """``(level, confidence 0..1)`` from the text alone."""
@@ -95,7 +93,7 @@ def classify_text(text: str, *, tools: bool = False) -> Tuple[str, float]:
     if arch_hits:
         add("architecture", 1.2 + 1.0 * min(arch_hits, 4))
     hard_hint = bool(_HARD_HINTS.search(stripped[:2000]))
-    # A long task with a lot of code is complex even without the words for it.
+
     if code_blocks >= 2 or (code_hits and words > 600):
         add("complex_code", 1.2)
     if hard_hint:
@@ -108,7 +106,7 @@ def classify_text(text: str, *, tools: bool = False) -> Tuple[str, float]:
         if words <= 25:
             return "simple", 0.75 if words <= 12 else 0.55
         return ("chat", 0.5) if words <= 200 else ("summary", 0.35) if words > 1500 else ("chat", 0.4)
-    # «Translate / summarize this code» stays a cheap task when nothing hard is asked for.
+
     if "translation" in score and score["translation"] >= max(score.get(k, 0) for k in HARD + ("code",)):
         score["translation"] += 1.0
     ranked = sorted(score.items(), key=lambda kv: -kv[1])
@@ -118,7 +116,6 @@ def classify_text(text: str, *, tools: bool = False) -> Tuple[str, float]:
     if best == "code" and words <= 30 and not code_blocks:
         confidence = min(confidence, 0.6)
     return best, round(confidence, 2)
-
 
 def classify_messages(messages: List[Dict[str, Any]], *, tools: bool = False) -> Tuple[str, float]:
     """The difficulty of the newest user turn (with a little of the previous one for «а теперь …» follow-ups)."""
@@ -133,11 +130,6 @@ def classify_messages(messages: List[Dict[str, Any]], *, tools: bool = False) ->
             return prev, round(min(prev_conf, 0.7), 2)
     return level, conf
 
-
-# ------------------------------------------------------------------------------------------------------------------
-# Optional refinement by a fast model (cached)
-# ------------------------------------------------------------------------------------------------------------------
-
 _CACHE: "OrderedDict[str, str]" = OrderedDict()
 _CACHE_MAX = 500
 PROMPT = ("Classify the difficulty of the user's task. Answer with ONE word from this list and nothing else: "
@@ -145,14 +137,11 @@ PROMPT = ("Classify the difficulty of the user's task. Answer with ONE word from
           "- complex_code: non-trivial programming (algorithms, concurrency, big refactors, performance)\n"
           "- deep_math: proofs, advanced maths\n- architecture: system design, scaling, trade-offs\n\nTask:\n")
 
-
 def _key(model: str, text: str) -> str:
     return hashlib.sha256(f"{model}\u0000{text[-4000:]}".encode("utf-8", "replace")).hexdigest()[:24]
 
-
 def cached(model: str, text: str) -> Optional[str]:
     return _CACHE.get(_key(model, text))
-
 
 async def refine(service: Any, model: str, messages: List[Dict[str, Any]], heuristic: Tuple[str, float],
                  *, timeout: float = 4.0, params: Optional[Dict[str, Any]] = None) -> Tuple[str, float, str]:
